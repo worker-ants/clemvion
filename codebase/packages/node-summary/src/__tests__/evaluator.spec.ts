@@ -168,6 +168,49 @@ describe('renderTemplate', () => {
     expect(renderTemplate('{{ name | upper }}', { name: 'foo' })).toBe('FOO');
     expect(renderTemplate('{{ name | lower }}', { name: 'BAR' })).toBe('bar');
   });
+
+  describe('fallback: filter (resolves arg as a config path, not a literal)', () => {
+    it('uses the primary value when present', () => {
+      expect(
+        renderTemplate('{{ workflowName | fallback:workflowId }}', {
+          workflowName: 'Checkout',
+          workflowId: 'wf-1',
+        }),
+      ).toBe('Checkout');
+    });
+
+    it('falls back to the other field value when primary is empty', () => {
+      expect(
+        renderTemplate('{{ workflowName | fallback:workflowId }}', {
+          workflowName: '',
+          workflowId: 'wf-1',
+        }),
+      ).toBe('wf-1');
+    });
+
+    it('falls back when primary is missing entirely', () => {
+      expect(
+        renderTemplate('{{ workflowName | fallback:workflowId }}', {
+          workflowId: 'wf-1',
+        }),
+      ).toBe('wf-1');
+    });
+
+    it('renders empty when both are absent', () => {
+      expect(
+        renderTemplate('{{ workflowName | fallback:workflowId }}', {}),
+      ).toBe('');
+    });
+
+    it('differs from default: which would emit the literal path name', () => {
+      // Guard the exact reason `default:workflowId` is wrong for fallback.
+      expect(
+        renderTemplate('{{ workflowName | default:workflowId }}', {
+          workflowId: 'wf-1',
+        }),
+      ).toBe('workflowId');
+    });
+  });
 });
 
 describe('renderSummaryTemplate', () => {

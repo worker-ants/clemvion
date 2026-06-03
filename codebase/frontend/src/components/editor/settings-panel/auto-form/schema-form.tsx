@@ -173,6 +173,12 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
     onChange(updated);
   };
 
+  // Patch several sibling fields in one commit (selectors co-writing derived
+  // fields). `clearFields` still applies, keyed off the widget's own field.
+  const updateFields = (patch: Record<string, unknown>, ui?: UiHint) => {
+    onChange(applyClearFields({ ...value, ...patch }, ui?.clearFields));
+  };
+
   const renderField = ({ key, schema: fieldSchema, ui }: FieldEntry) => {
     if (ui?.hidden) return null;
     if (!isFieldVisible(ui, value)) return null;
@@ -187,6 +193,7 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
         label={label}
         value={value[key]}
         onChange={(v) => update(key, v, ui)}
+        onChangeFields={(patch) => updateFields(patch, ui)}
         required={required}
       />
     );

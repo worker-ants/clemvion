@@ -1,4 +1,7 @@
-import { evaluateWarnings } from '@workflow/node-summary';
+import {
+  evaluateWarnings,
+  renderSummaryTemplate,
+} from '@workflow/node-summary';
 import {
   workflowNodeMetadata,
   validateWorkflowConfig,
@@ -27,6 +30,58 @@ describe('workflowNodeMetadata.warningRules', () => {
       expect(firedIds({ workflowId: 'wf-123' })).not.toContain(
         'workflow:no-workflow-selected',
       );
+    });
+  });
+});
+
+describe('workflowNodeMetadata.summaryTemplate (spec §7)', () => {
+  const render = (config: Record<string, unknown>) =>
+    renderSummaryTemplate(workflowNodeMetadata.summaryTemplate, config);
+
+  it('renders "<name> · <mode>" when a workflow is selected', () => {
+    expect(
+      render({ workflowId: 'wf-1', workflowName: 'Checkout', mode: 'async' }),
+    ).toEqual({ text: 'Checkout · async', isWarning: false });
+  });
+
+  it('falls back to workflowId when only a manual UUID is present', () => {
+    // `fallback:workflowId` resolves the id *value*, not the literal string.
+    expect(render({ workflowId: 'wf-1', workflowName: '' })).toEqual({
+      text: '⚠ Missing workflow',
+      isWarning: true,
+    });
+  });
+
+  it('defaults mode to sync in the rendered body', () => {
+    expect(render({ workflowId: 'wf-1', workflowName: 'Checkout' })).toEqual({
+      text: 'Checkout · sync',
+      isWarning: false,
+    });
+  });
+
+  describe('missing-workflow badge (warnWhen)', () => {
+    it('fires when workflowId is set but workflowName is empty', () => {
+      expect(render({ workflowId: 'wf-1', workflowName: '' })).toEqual({
+        text: '⚠ Missing workflow',
+        isWarning: true,
+      });
+    });
+
+    it('fires when workflowId is set but workflowName is absent', () => {
+      expect(render({ workflowId: 'wf-1' })).toEqual({
+        text: '⚠ Missing workflow',
+        isWarning: true,
+      });
+    });
+
+    it('does NOT fire when both workflowId and workflowName are set', () => {
+      expect(
+        render({ workflowId: 'wf-1', workflowName: 'Checkout' }).isWarning,
+      ).toBe(false);
+    });
+
+    it('does NOT fire when no workflowId is set (no-workflow-selected owns that)', () => {
+      expect(render({ workflowId: '' }).isWarning).toBe(false);
     });
   });
 });

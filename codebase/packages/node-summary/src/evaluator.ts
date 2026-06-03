@@ -285,7 +285,7 @@ export function evaluateWarnings(
 // belongs to evaluateWarnings + WarningRule[].
 // ---------------------------------------------------------------------------
 
-function applyFilter(value: unknown, filter: string): unknown {
+function applyFilter(value: unknown, filter: string, config: NodeConfig): unknown {
   const [name, rawArg] = filter.split(':', 2);
   const arg = rawArg ?? '';
   switch (name) {
@@ -294,7 +294,18 @@ function applyFilter(value: unknown, filter: string): unknown {
     case 'lower':
       return typeof value === 'string' ? value.toLowerCase() : value;
     case 'default':
+      // `arg` is a literal — `{{method|default:GET}}` renders the string "GET".
       if (value === undefined || value === null || value === '') return arg;
+      return value;
+    case 'fallback':
+      // `arg` is a config-relative path, not a literal — when `value` is
+      // empty, resolve and substitute the other field's value. Lets a
+      // template express "this field OR that field" (e.g.
+      // `{{workflowName|fallback:workflowId}}`), which `default:` cannot
+      // because it only emits its literal arg.
+      if (value === undefined || value === null || value === '') {
+        return getPath(config, arg);
+      }
       return value;
     default:
       return value;
@@ -307,7 +318,7 @@ export function renderTemplate(template: string, config: NodeConfig): string {
     const [path, ...filters] = expr.split('|').map((s) => s.trim());
     let value: unknown = getPath(config, path);
     for (const filter of filters) {
-      value = applyFilter(value, filter);
+      value = applyFilter(value, filter, config);
     }
     return stringify(value);
   });

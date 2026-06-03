@@ -32,6 +32,14 @@ export type WidgetProps = {
   value: unknown;
   onChange: (value: unknown) => void;
   required?: boolean;
+  /**
+   * Patch several sibling config fields atomically. Most widgets own a single
+   * field and only need `onChange`; selectors that must co-write derived
+   * fields (e.g. `workflow-selector` saving both `workflowId` and
+   * `workflowName`) use this to avoid two sequential `onChange` calls racing
+   * on stale config. Optional — provided by `SchemaForm`.
+   */
+  onChangeFields?: (patch: Record<string, unknown>) => void;
 };
 
 /** Widget that renders a string as plain text input. */
