@@ -253,6 +253,10 @@ function sanitizeInner(value: object, depth: number): unknown {
  * gated internal WS channel (`execution:{executionId}`), and stripped from the
  * fanout envelope so SSE token holders / channel end-users never receive it.
  *
+ * Strip 은 **top-level 필드만** 수행한다 (depth-1 shallow delete). 중첩 객체 내부
+ * 의 동명 필드는 strip 되지 않으므로, `EXTERNAL_STRIPPED_FIELDS` 에 새 필드를 추가
+ * 할 때는 반드시 WS spec §4.4 과 {@link EiaAiMessageEvent} 주석을 함께 갱신한다.
+ *
  * SoT: spec/5-system/6-websocket-protocol.md §4.4 `llmCalls[]` strip-only 결정
  * (+ EIA §6.5, chat-channel CCH-MP-01).
  */
@@ -263,6 +267,10 @@ const EXTERNAL_STRIPPED_FIELDS = ['llmCalls'] as const;
  * for publishing to the external fanout. Returns the input unchanged when no
  * stripped field is present (no allocation on the common path). Never mutates
  * the input — the WS wire envelope keeps the full payload.
+ *
+ * Top-level only — nested fields with the same name are not removed.
+ * When adding a new entry to {@link EXTERNAL_STRIPPED_FIELDS}, update
+ * WS spec §4.4 and the `EiaAiMessageEvent` JSDoc accordingly.
  */
 function stripExternalOnlyFields(
   envelope: Record<string, unknown>,
@@ -479,7 +487,13 @@ export class WebsocketService {
       timestamp: new Date().toISOString(),
     };
     this.gateway.broadcastToChannel(channel, eventType, wireEnvelope);
-    const fanoutEnvelope = this.attachRoutingContext(executionId, wireEnvelope);
+    // node 이벤트는 현재 llmCalls 를 포함하지 않으나, 미래 누출 경로를 차단하기 위해
+    // emitExecutionEvent 와 동일하게 strip 적용 (방어심층화 — W-1/W-4).
+    const externalNodePayload = stripExternalOnlyFields(wireEnvelope);
+    const fanoutEnvelope = this.attachRoutingContext(
+      executionId,
+      externalNodePayload,
+    );
     this.executionEventSubject.next({
       executionId,
       eventType,

@@ -44,6 +44,14 @@ function ev(
   };
 }
 
+// W-3 주석: SseAdapter 는 executionEvents$(Subject) 로부터 받은 ExecutionChannelEvent
+// 를 payload 수정 없이 SSE 구독자에게 passthrough 한다. llmCalls strip 은 upstream
+// fanout seam(WebsocketService.emitExecutionEvent / emitNodeEvent) 에서 수행되므로
+// SseAdapter 단독 단위 테스트로는 strip 동작이 보이지 않는다. Strip egress 회귀 보호는
+// websocket.service.spec.ts 의 'llmCalls strip — 외부 fanout 수신자 보호' describe 가
+// 담당한다. 본 파일의 'payload passthrough' 테스트는 어댑터가 payload 를 변형하지
+// 않음(변형하면 strip 이 우회될 수 있음)을 보장한다.
+
 describe('SseAdapter', () => {
   let adapter: SseAdapter;
   let subject: Subject<ExecutionChannelEvent>;
@@ -151,5 +159,31 @@ describe('SseAdapter', () => {
     adapter.onModuleDestroy();
     expect(adapter.subscriberCount('exec-1')).toBe(0);
     expect(adapter.bufferSize('exec-1')).toBe(0);
+  });
+
+  // W-3 passthrough 검증: SseAdapter 는 executionEvents$ 에서 받은 payload 를
+  // 수정 없이 구독자에게 전달한다. 어댑터가 payload 를 변형하면 upstream strip 이
+  // 우회될 수 있으므로, 이 테스트로 "어댑터 = 순수 passthrough" 를 보장한다.
+  // llmCalls strip 자체의 회귀 보호는 websocket.service.spec.ts 가 담당한다.
+  it('payload passthrough — 어댑터는 수신한 payload 를 변형하지 않고 구독자에게 전달 (W-3)', () => {
+    const { sub, pushed } = makeSub('exec-pt');
+    adapter.subscribe(sub);
+    const customPayload = {
+      executionId: 'exec-pt',
+      eventType: 'execution.ai_message',
+      seq: 7,
+      customField: 'preserved',
+    };
+    const channelEvent: ExecutionChannelEvent = {
+      executionId: 'exec-pt',
+      eventType: 'execution.ai_message',
+      seq: 7,
+      payload: customPayload,
+    };
+    subject.next(channelEvent);
+    expect(pushed).toHaveLength(1);
+    // payload 참조가 그대로 보존 — 어댑터가 payload 를 clone/변형하지 않음을 확인
+    expect(pushed[0].payload).toBe(customPayload);
+    expect(pushed[0].payload.customField).toBe('preserved');
   });
 });
