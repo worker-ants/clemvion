@@ -9,6 +9,15 @@ owner: developer (TBD)
 > 본 PR(`channel-web-chat-impl`)에서 핵심 end-to-end(위젯 SPA + SDK + loader + 경로-스코프 CORS + 샘플)를
 > 구현했고, 아래 surface 는 후속으로 분리한다. 관련 spec 은 `status: partial` + 본 plan 을 `pending_plans` 에 등록.
 
+## 종결 (parked, 2026-06-03)
+
+잔여 항목은 **사용자 결정(2026-06-03)으로 전부 보류** — 현 시점 필요성 낮음. **활성 TODO 0건.** 신규 필요가
+생기면 본 문서에서 재개하거나 별도 plan 으로 분리한다.
+
+- ✅ **완료**: §1(공개 webhook rate-limit) · §3(임베드 soft 검증) · §4(rich presentation + `show`/`hide`/`updateProfile`, PR #436) · §5(token auto-refresh) · §6(M2 BYO-UI) · §7·7-b(CI wiring · resize/on/data-global)
+- ⏸ **보류(비목표/추후)**: 동시 ≤3 캡(§1) · invisible challenge Turnstile/hCaptcha(§1) · 워크플로우 비용 가드(§2) · hard `frame-ancestors`(§3)
+- 본 plan 은 spec/7 `pending_plans` 참조 대상이라 **`in-progress/` 유지**(plan-lifecycle: deferred ≠ complete — 미완 surface 가 있으면 `complete/` 이동 금지). frontmatter 가드 무파손.
+
 ## 잔여 항목
 
 ### 1. 공개 webhook 남용 방어 — auth-scoped rate-limit (spec 4-security §4) — ✅ 완료 (2026-06-02, D#1)
@@ -18,10 +27,12 @@ owner: developer (TBD)
 - 구현: `PublicWebhookQuotaService`(Redis fixed-window, fail-open) + `PublicWebhookThrottleGuard`
   (`hooks` 모듈). per-IP 시작 rate-limit(분당 10) + 시간당 신규 상한(20) + body 32KB. `@UseGuards` 로
   `receiveWebhook` 에만 적용. hooks 44 tests ✓ / tsc 0 err.
-- [ ] **동시 ≤3 캡 잔여**: 대화 종료(conversationEnded) 신호 연동 필요 → 별도 increment(quota service 확장).
-- [ ] **opt-in invisible challenge(Turnstile/hCaptcha)**: spec §4 opt-in 항목, 미구현.
+- ⏸ **동시 ≤3 캡 잔여 — 보류(2026-06-03)**: 대화 종료(conversationEnded) 신호의 widget→backend 연동 선행 필요
+  → 별도 increment(quota service 확장). 현 시점 비목표.
+- ⏸ **opt-in invisible challenge(Turnstile/hCaptcha) — 보류(2026-06-03)**: spec §4 opt-in 항목, 미구현. 워크스페이스
+  opt-in + 외부 provider 의존이라 실제 남용이 문제되는 워크스페이스가 생길 때 별도 착수(설계 선행).
 
-### 2. 워크플로우 측 비용 가드 (spec 4-security §4 — 핵심) — ⏸ 이연 (2026-06-02 사용자 결정: well-specified followup)
+### 2. 워크플로우 측 비용 가드 (spec 4-security §4 — 핵심) — ⏸ 보류 (2026-06-02 이연 → 2026-06-03 보류 확정)
 - AI 노드 대화당 최대 turn + 워크스페이스 일일 토큰/비용 예산 → 초과 시 우아한 종료. AI Agent 노드 설정 영역과
   맞물려 별도 설계(본 영역 밖, **execution-engine/AI 노드 spec 연계**).
 - **선행: project-planner spec 설계 필요** (execution-engine 영역). 착수 전 결정해야 할 설계 질문:
@@ -40,8 +51,8 @@ owner: developer (TBD)
     allow-all). 백엔드 66 tests.
   - [x] 위젯 부팅 시 soft 차단 연결 — `use-widget` boot 시 `detectHostOrigin` + embed-config fetch → 불허 host 면
     `BLOCKED` phase(렌더 거부). fail-open(fetch 실패·enforce off·origin 미탐지 시 허용). 프론트 44 tests.
-  - [ ] **opt-in hard `frame-ancestors`(§3-③, 동적 문서) — 비기본**: spec 상 v1 기본 아님. 동적 문서 제공이 필요한
-    워크스페이스만 감수 → 별도 increment(현재 미구현, 의도적 비목표).
+  - ⏸ **opt-in hard `frame-ancestors`(§3-③, 동적 문서) — 보류(2026-06-03, 비목표 확정)**: spec 상 v1 기본 아님.
+    동적 문서 제공이 필요한 워크스페이스만 감수 → 별도 increment(현재 미구현, 의도적 비목표).
 
 ### 4. rich presentation 렌더 (spec 1-widget-app §2 — 전체 렌더 A) — ✅ 완료 (2026-06-02, D#4)
 - carousel/table/chart/template 전용 inline 렌더러 구현 (`components/presentations.tsx` + `lib/presentation.ts`).
@@ -55,13 +66,12 @@ owner: developer (TBD)
   (`lib/safe-html.ts`: marked→sanitize, 링크 새탭·noopener 강제, window 가드로 SSR/static-export 안전; text 는 plain).
   chart **축 레이블(xAxis/yAxis.label)·x틱·값 툴팁(`<title>`)·pie/donut 범례** 추가. deps: marked·dompurify.
   검증: lint/typecheck/build(static export) ✓, vitest 92 tests(+6).
-- **[연관] `show`/`hide`/`updateProfile` command 위젯 SPA 핸들러 미구현**: `use-widget.ts` `onCommand` switch 는
-  `open`/`close`/`sendMessage`/`shutdown` 만 처리. `show`/`hide`(런처 가시성)는 1-widget-app §3 상태기계에 런처
-  visible/hidden 상태 추가가 선행돼야 하고(project-planner), `updateProfile` 는 진행 중 세션 profile 갱신 의미
-  정의 필요. spec 2-sdk §3 `wc:command` 표·§5 타입에는 명시됨 — handler 갭만 잔존.
+- **[연관] `show`/`hide`/`updateProfile` command 위젯 SPA 핸들러 — ✅ 완료 (2026-06-03, PR #436)**: 과거 `use-widget.ts`
+  `onCommand` 는 `open`/`close`/`sendMessage`/`shutdown` 만 처리했다.
   - **✅ spec 설계 확정 (2026-06-03)**: [`1-widget-app §3.2`](../../spec/7-channel-web-chat/1-widget-app.md) 에
-    가시성 `visible`/`hidden` 축(open/close 와 직교) + `updateProfile` 소급불가 + `blocked` 분리 정의
-    (draft `spec-draft-channel-web-chat-gaps.md §4`). **구현은 `channel-web-chat-demo.md` 섹션4 에서 추적**(같은 PR).
+    가시성 `visible`/`hidden` 축(open/close 와 직교) + `updateProfile` 소급불가 + `blocked` 분리 정의.
+  - **✅ 구현 완료 (PR #436)**: `widget-state` `hidden` 상태 + SHOW/HIDE, `use-widget` onCommand `show`/`hide`/
+    `updateProfile` 라우팅, `widget-app` 렌더 게이트. reducer 3 + 명령 통합 3 테스트.
 
 ### 5. per_execution 토큰 auto-refresh (spec 3-auth-session §3) — ✅ 완료 (2026-06-02, D#5)
 - `use-widget` 에 자동 갱신 스케줄러 연결(§3 step7). 만료 `TOKEN_REFRESH_LEAD_MS`(30분) 이전 시점에 setTimeout →
