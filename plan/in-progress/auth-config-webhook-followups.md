@@ -7,7 +7,7 @@ status: backlog
 
 # auth-config-webhook-wiring 후속 작업
 
-본 PR (`plan/in-progress/auth-config-webhook-wiring.md`) 의 `/ai-review` (`review/code/2026/05/28/21_50_50/SUMMARY.md`) 에서 발견됐으나 본 PR scope 밖이거나 spec 개정이 선행돼야 하는 항목.
+본 PR (`plan/complete/auth-config-webhook-wiring.md`) 의 `/ai-review` (`review/code/2026/05/28/21_50_50/SUMMARY.md`) 에서 발견됐으나 본 PR scope 밖이거나 spec 개정이 선행돼야 하는 항목.
 
 ## 1. AuthConfig CRUD audit 기록 (review C6)
 
