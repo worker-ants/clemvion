@@ -1,0 +1,4030 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Makeshop Shop API — 회원 (Member)",
+    "version": "v1",
+    "x-source": "https://developer.makeshop.co.kr/docs/api/member",
+    "x-extracted": "2026-06-03 (Docusaurus chunk decode)"
+  },
+  "servers": [
+    {
+      "url": "https://connect.makeshop.co.kr",
+      "description": "Production server"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/{shopId}/cart": {
+      "get": {
+        "operationId": "get-cart",
+        "description": "장바구니 정보를 조회합니다.\n\n:::info\n최근 담은 순으로 정렬됩니다.<br />조회 기간의 경우 1일로 권장합니다.(조회량이 많을 경우 서버부하가 생길 수 있습니다.)\n:::",
+        "tags": [
+          "기타"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "전체 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "integer",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "검색 페이지"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tempid": {
+                            "type": "string",
+                            "description": "세션 아이디"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "description": "상품번호"
+                          },
+                          "cart_id": {
+                            "type": "string",
+                            "description": "상품 품목 번호 [*통합옵션]"
+                          },
+                          "date": {
+                            "type": "string",
+                            "description": "담은 날짜 (0000-00-00 00:00)"
+                          },
+                          "id": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "hname": {
+                            "type": "string",
+                            "description": "회원명"
+                          },
+                          "mobile": {
+                            "type": "string",
+                            "description": "휴대폰"
+                          },
+                          "phone": {
+                            "type": "string",
+                            "description": "연락처"
+                          },
+                          "email": {
+                            "type": "string",
+                            "description": "이메일"
+                          },
+                          "email_receive": {
+                            "type": "string",
+                            "description": "이메일 수신여부 (Y, N)"
+                          },
+                          "sms_receive": {
+                            "type": "string",
+                            "description": "SMS 수신여부 (Y, N)"
+                          },
+                          "product_name": {
+                            "type": "string",
+                            "description": "상품명"
+                          },
+                          "option": {
+                            "type": "string",
+                            "description": "상품 옵션"
+                          },
+                          "product_price": {
+                            "type": "string",
+                            "description": "상품 가격"
+                          },
+                          "option_price": {
+                            "type": "string",
+                            "description": "옵션 가격"
+                          },
+                          "amount": {
+                            "type": "string",
+                            "description": "상품수"
+                          },
+                          "addition_option_price": {
+                            "type": "string",
+                            "description": "개별 옵션 가격 (통합옵션)"
+                          },
+                          "sell_price": {
+                            "type": "string",
+                            "description": "판매 가격"
+                          },
+                          "options": {
+                            "type": "array",
+                            "description": "상품 옵션",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "uid": {
+                                  "type": "string",
+                                  "description": "상품번호"
+                                },
+                                "cart_id": {
+                                  "type": "string",
+                                  "description": "상품 품목 번호"
+                                },
+                                "opt_id": {
+                                  "type": "string",
+                                  "description": "옵션 ID"
+                                },
+                                "sto_id": {
+                                  "type": "string",
+                                  "description": "옵션 조합 ID"
+                                },
+                                "opt_value": {
+                                  "type": "string",
+                                  "description": "옵션 값"
+                                },
+                                "opt_price": {
+                                  "type": "string",
+                                  "description": "옵션 가격"
+                                },
+                                "opt_stock": {
+                                  "type": "string",
+                                  "description": "옵션 수량"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": false,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "조회 아이디. 아이디 조회 시 검색일자 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tempid",
+            "in": "query",
+            "required": false,
+            "description": "세션 아이디. 세션 아이디 조회 시 검색일자 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "description": "상품번호. 세션 아이디 조회 시 검색일자 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드.\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선. fields=uid,date,amount",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "장바구니 조회",
+          "description": {
+            "content": "장바구니 정보를 조회합니다.\n\n:::info\n최근 담은 순으로 정렬됩니다.<br />조회 기간의 경우 1일로 권장합니다.(조회량이 많을 경우 서버부하가 생길 수 있습니다.)\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cart"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회 아이디. 아이디 조회 시 검색일자 무시",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "세션 아이디. 세션 아이디 조회 시 검색일자 무시",
+                  "type": "text/plain"
+                },
+                "key": "tempid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "상품번호. 세션 아이디 조회 시 검색일자 무시",
+                  "type": "text/plain"
+                },
+                "key": "uid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드.\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선. fields=uid,date,amount",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "장바구니 조회"
+      }
+    },
+    "/api/v1/{shopId}/group": {
+      "get": {
+        "operationId": "get-group",
+        "description": "회원의 그룹 정보를 조회합니다.\n\n:::info\ngroup_id 대문자 2자리는 혜택에 따른 조건 값으로 혜택이 변경될 경우 변경됩니다.<br />group_id 숫자 값은 변하지 않음. 예: MX11 => RP11\n:::",
+        "tags": [
+          "회원 그룹"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "group_id": {
+                            "type": "string",
+                            "description": "그룹 아이디"
+                          },
+                          "group_name": {
+                            "type": "string",
+                            "description": "그룹명"
+                          },
+                          "group_type": {
+                            "type": "string",
+                            "description": "회원그룹 구분 (일반그룹 / 도매그룹)"
+                          },
+                          "pay_benefit": {
+                            "type": "string",
+                            "description": "그룹 혜택 결제 조건 (N : 모든 결제 B : 현금결제 C : 카드결제)"
+                          },
+                          "delivery_type": {
+                            "type": "string",
+                            "description": "배송비 정책 (N :쇼핑몰 배송비 정책, Y : 기본 배송비 무료, A : 모든 배송비 무료, G : 회원 등급별 배송비)"
+                          },
+                          "group_order_price": {
+                            "type": "string",
+                            "description": "등급별 배송비 주문 금액"
+                          },
+                          "group_delivery_price": {
+                            "type": "string",
+                            "description": "등급별 배송비"
+                          },
+                          "regist_group": {
+                            "type": "string",
+                            "description": "회원 가입시 등록 그룹 (Y,N)"
+                          },
+                          "each_discount_price": {
+                            "type": "string",
+                            "description": "상품별 그룹 할인 금액"
+                          },
+                          "each_discount_unit": {
+                            "type": "string",
+                            "description": "상품별 그룹 할인 설정 (price : 원, percent : %)"
+                          },
+                          "each_discount_cut": {
+                            "type": "string",
+                            "description": "상품별 그룹 할인 절사 단위 (0 : 일원단위, 1 : 십원단위, 2 : 백원단위)"
+                          },
+                          "each_discount_cut_option": {
+                            "type": "string",
+                            "description": "상품별 그룹 할인 절사 옵션 (floor : 절사, ceil : 올림, round : 반올림)"
+                          },
+                          "each_duplicate_discount": {
+                            "type": "string",
+                            "description": "그룹 할인 기간할인 중복 할인 여부 (Y, N)"
+                          },
+                          "discount_option_price_apply_type": {
+                            "type": "string",
+                            "description": "상품별 그룹 할인 옵션 가격 포함 여부 (Y, N)"
+                          },
+                          "discount_price_display": {
+                            "type": "string",
+                            "description": "상품별 그룹 할인 가격 비회원 노출 (Y, N)"
+                          },
+                          "benefit_type": {
+                            "type": "string",
+                            "description": "혜택 타입 (RW : 원 단위 추가 적립, RP : 곱(배) 단위 적립, RQ :  % 추가 적립, SW : 원단위 추가 할인, SP : %단위 추가 할인, MX : 추가 혜택 없음)"
+                          },
+                          "purchase_price": {
+                            "type": "string",
+                            "description": "회원 1회 구매 금액"
+                          },
+                          "reserve_price": {
+                            "type": "string",
+                            "description": "원 단위 추가 적립"
+                          },
+                          "reserve_double": {
+                            "type": "string",
+                            "description": "곱(배) 단위 추가 적립"
+                          },
+                          "reserve_percent": {
+                            "type": "string",
+                            "description": "% 단위 추가 적립"
+                          },
+                          "reserve_cut": {
+                            "type": "string",
+                            "description": "적립금 절사 단위 (N : 절사안함, 0 : 일원단위, 1 : 십원단위, 2 : 백원단위, 3 : 천원단위)"
+                          },
+                          "discount_price": {
+                            "type": "string",
+                            "description": "원 단위 추가 할인"
+                          },
+                          "discount_percent": {
+                            "type": "string",
+                            "description": "% 단위 추가 할인"
+                          },
+                          "discount_cut": {
+                            "type": "string",
+                            "description": "추가 할인 절사 단위 (N : 절사안함, 0 : 일원단위, 1 : 십원단위, 2 : 백원단위, 3 : 천원단위)"
+                          },
+                          "add_benefit_type": {
+                            "type": "string",
+                            "description": "중복 혜택 타입 (SW : 원단위 추가 할인, SP : %단위 추가 할인)"
+                          },
+                          "add_purchase_price": {
+                            "type": "string",
+                            "description": "중복 회원 1회 구매 금액"
+                          },
+                          "add_discount_price": {
+                            "type": "string",
+                            "description": "중복 원 단위 추가 할인"
+                          },
+                          "add_discount_percent": {
+                            "type": "string",
+                            "description": "중복 % 단위 추가 할인"
+                          },
+                          "add_discount_cut": {
+                            "type": "string",
+                            "description": "중복 추가 할인 절사 단위 (N : 절사안함, 0 : 일원단위, 1 : 십원단위, 2 : 백원단위, 3 : 천원단위)"
+                          },
+                          "wholesale_discount": {
+                            "type": "string",
+                            "description": "도매그룹 상품 할인 설정 (Y, N)"
+                          },
+                          "wholesale_discount_price": {
+                            "type": "string",
+                            "description": "도매 원 단위 상품 할인"
+                          },
+                          "wholesale_discount_percent": {
+                            "type": "string",
+                            "description": "도매 % 단위 상품 할인"
+                          },
+                          "wholesale_discount_cut": {
+                            "type": "string",
+                            "description": "도매 상품 할인 절사 (N : 절사안함, 0 : 일원단위, 1 : 십원단위, 2 : 백원단위)"
+                          },
+                          "wholesale_discount_cut_option": {
+                            "type": "string",
+                            "description": "도매 상품 할인 절사 옵션 (floor : 절사, ceil : 올림, round : 반올림)"
+                          },
+                          "wholesale_discount_option": {
+                            "type": "string",
+                            "description": "도매그룹 상품 옵션 할인 설정 (Y,N)"
+                          },
+                          "wholesale_discount_category": {
+                            "type": "string",
+                            "description": "도매그룹 상품 할인 분류"
+                          },
+                          "buyable_type": {
+                            "type": "string",
+                            "description": "도매그룹 구매 제한 (NONE : 제한 없음, PRICE : 구매 금액 제한, QUANTITY : 구매 개수 제한)"
+                          },
+                          "buyable_amount": {
+                            "type": "string",
+                            "description": "회원의 1회 구매 개수 또는 구매 금액"
+                          },
+                          "buyable_range": {
+                            "type": "string",
+                            "description": "구매 이상 / 미만 (MORE : 이상, RESS : 미만)"
+                          },
+                          "buyable_flag": {
+                            "type": "string",
+                            "description": "구매 가능 여부 (Y,N)"
+                          },
+                          "sellprice_flag": {
+                            "type": "string",
+                            "description": "도매상품 구분 (Y : 도매상품, N : 도매상품 + 비도매상품)"
+                          },
+                          "use_coupon": {
+                            "type": "string",
+                            "description": "도매그룹 할인 제한 (Y : 쿠폰 및 할인 적용 가능, N : 쿠폰 및 할인 적용불가)"
+                          },
+                          "coupon_item": {
+                            "type": "string",
+                            "description": "할인이벤트 종류 (BEECON : 비콘 COUPON : 쿠폰 CASH : 현금 결제 시 할인/적립 구분자 `|` 예) BEECON|COUPON|CASH)"
+                          },
+                          "auto_group": {
+                            "type": "string",
+                            "description": "회원 그룹 자동 등록 여부 (Y : 사용, N : 사용안함)"
+                          },
+                          "auto_group_option": {
+                            "type": "object",
+                            "description": "회원 그룹 자동 등록 조건 (auto_group=Y 인 경우 출력됩니다.)",
+                            "properties": {
+                              "period_type": {
+                                "type": "string",
+                                "description": "회원 그룹 자동 등록 기간 조건. LATEST : 최근일 기준, FIX : 고정일, ALL : 전체"
+                              },
+                              "period_term": {
+                                "type": "string",
+                                "description": "기간. period_type:LATEST 일 경우 최근일 부터 period_term 까지의 기간 조건"
+                              },
+                              "period_start": {
+                                "type": "string",
+                                "description": "기간 시작일. 0000-00-00\n\nperiod_type:FIX 일 경우 period_start 부터 period_end 까지 기간 조건"
+                              },
+                              "period_end": {
+                                "type": "string",
+                                "description": "기간 종료일. 0000-00-00\n\nperiod_type:FIX 일 경우 period_start 부터 period_end 까지 기간 조건"
+                              },
+                              "order_price": {
+                                "type": "string",
+                                "description": "총 주문 금액. order_price 이상인 경우 등급 변경 조건"
+                              },
+                              "order_count": {
+                                "type": "string",
+                                "description": "주문 수. order_count 이상인 경우 등급 변경 조건"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": false,
+            "description": "그룹 아이디",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 그룹 조회",
+          "description": {
+            "content": "회원의 그룹 정보를 조회합니다.\n\n:::info\ngroup_id 대문자 2자리는 혜택에 따른 조건 값으로 혜택이 변경될 경우 변경됩니다.<br />group_id 숫자 값은 변하지 않음. 예: MX11 => RP11\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "group"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "그룹 아이디",
+                  "type": "text/plain"
+                },
+                "key": "group_id",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 그룹 조회"
+      }
+    },
+    "/api/v1/{shopId}/user": {
+      "get": {
+        "operationId": "get-user",
+        "description": "상점에 등록된 회원을 조회합니다.\n\n:::info\n회원 조회수는 5,000개로 제한됩니다.<br />최근 가입 순으로 정렬됩니다<br />휴면 회원은 조회되지 않습니다.<br />조회 기간은 30일로 제한됩니다.\n:::",
+        "tags": [
+          "회원"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "전체 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "integer",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "검색 페이지"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "kakao_user_id": {
+                            "type": "string",
+                            "description": "카카오 연동 회원 아이디 (fields=kakao_user_id 추가시 출력됩니다.)"
+                          },
+                          "hname": {
+                            "type": "string",
+                            "description": "회원명"
+                          },
+                          "mem_type": {
+                            "type": "string",
+                            "description": "회원타입 (PERSON : 개인회원, COMPANY : 기업회원)"
+                          },
+                          "simple_type": {
+                            "type": "string",
+                            "description": "간편회원 (BASIC : 일반회원, SIMPLE : 간편회원, RM : DRM 회원, SNS : SNS 간편회원)"
+                          },
+                          "grade": {
+                            "type": "string",
+                            "description": "회원등급 (1 : 최우수고객, 2 : 우수고객, 3 : 일반고객, 4 : 주의고객, 5 : 항의고객)"
+                          },
+                          "email": {
+                            "type": "string",
+                            "description": "이메일"
+                          },
+                          "mobile": {
+                            "type": "string",
+                            "description": "휴대폰"
+                          },
+                          "phone": {
+                            "type": "string",
+                            "description": "연락처"
+                          },
+                          "reserve": {
+                            "type": "string",
+                            "description": "적립금"
+                          },
+                          "email_receive": {
+                            "type": "string",
+                            "description": "이메일 수신여부 (Y, N)"
+                          },
+                          "email_receive_consent_date": {
+                            "type": "string",
+                            "description": "이메일 수신 동의"
+                          },
+                          "sms_receive": {
+                            "type": "string",
+                            "description": "SMS 수신여부 (Y, N)"
+                          },
+                          "sms_receive_consent_date": {
+                            "type": "string",
+                            "description": "SMS 수신 동의"
+                          },
+                          "login_date": {
+                            "type": "string",
+                            "description": "로그인 일시 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          },
+                          "mod_date": {
+                            "type": "string",
+                            "description": "회원정보 변경일 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "가입 일시 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          },
+                          "group_id": {
+                            "type": "string",
+                            "description": "그룹 아이디"
+                          },
+                          "group_name": {
+                            "type": "string",
+                            "description": "그룹명"
+                          },
+                          "sex": {
+                            "type": "string",
+                            "description": "성별 (M: 남자 , W: 여자)"
+                          },
+                          "birth_day": {
+                            "type": "string",
+                            "description": "생년월일 (예 : 901201)"
+                          },
+                          "birth_day_year": {
+                            "type": "string",
+                            "description": "생년월일(년도 표기) (예 : 19901201)"
+                          },
+                          "birth_format": {
+                            "type": "string",
+                            "description": "생년월일 양식 (예 : Ymd / md)"
+                          },
+                          "post": {
+                            "type": "string",
+                            "description": "우편번호"
+                          },
+                          "address": {
+                            "type": "string",
+                            "description": "주소"
+                          },
+                          "address_detail": {
+                            "type": "string",
+                            "description": "상세주소"
+                          },
+                          "office_post": {
+                            "type": "string",
+                            "description": "회사 우편번호"
+                          },
+                          "office_address": {
+                            "type": "string",
+                            "description": "회사 주소 (기본 | 상세 나뉘지 않고 하나로 출력됨)"
+                          },
+                          "office_phone": {
+                            "type": "string",
+                            "description": "회사 전화"
+                          },
+                          "point": {
+                            "type": "string",
+                            "description": "포인트"
+                          },
+                          "emoney": {
+                            "type": "string",
+                            "description": "예치금"
+                          },
+                          "push_receive": {
+                            "type": "string",
+                            "description": "푸시 수신 여부 (Y:동의, N: 미동의)"
+                          },
+                          "is_app_use": {
+                            "type": "string",
+                            "description": "파워앱 설치 여부 (Y: 설치, N: 미설치, D: 삭제)"
+                          },
+                          "extension_period": {
+                            "type": "string",
+                            "description": "개인정보 유효기간 (해당 항목은 출력되지 않습니다. 개인정보보호법 개정으로 인한 지원 종료)"
+                          },
+                          "recommand_id": {
+                            "type": "string",
+                            "description": "추천인"
+                          },
+                          "order_count": {
+                            "type": "string",
+                            "description": "회원 별 총 주문 수"
+                          },
+                          "feet_id": {
+                            "type": "string",
+                            "description": "feet_id (feet_id가 없는 경우 출력되지 않습니다.)"
+                          },
+                          "company_info": {
+                            "type": "object",
+                            "description": "사업자 정보 (mem_type: COMPANY 인 경우 출력)",
+                            "properties": {
+                              "company_name": {
+                                "type": "string",
+                                "description": "회사명"
+                              },
+                              "company_owner": {
+                                "type": "string",
+                                "description": "대표자명"
+                              },
+                              "company_num": {
+                                "type": "string",
+                                "description": "사업자 번호"
+                              },
+                              "company_corp": {
+                                "type": "string",
+                                "description": "법인등록번호"
+                              },
+                              "company_biz": {
+                                "type": "string",
+                                "description": "업태"
+                              },
+                              "company_item": {
+                                "type": "string",
+                                "description": "업종"
+                              },
+                              "company_post": {
+                                "type": "string",
+                                "description": "회사 우편번호"
+                              },
+                              "company_addr": {
+                                "type": "string",
+                                "description": "회사"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "next_userid": {
+                      "type": "string",
+                      "description": "전체 회원 검색 시 다음 항목 검색을 위한 회원 ID\n\n(searchType=all 인 경우 출력되며, 다음 페이지가 없는 경우 미출력)"
+                    },
+                    "next_page_query_string": {
+                      "type": "string",
+                      "description": "전체 회원 검색 시 다음 항목 검색을 위한 전체 검색 조건\n\n(searchType=all 인 경우 출력되며, 다음 페이지가 없는 경우 미출력. 검색 조건을 query_string 형식으로 제공하며 urlencode 후 반환합니다.)"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": false,
+            "description": "검색 시작 일자\n\n0000-00-00 00:00:00 (searchType : dormant_wait => 0000-00-00)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자\n\n0000-00-00 00:00:00 (searchType : dormant_wait => 0000-00-00) 최대 31일 조회 가능",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "searchType",
+            "in": "query",
+            "required": false,
+            "description": "검색 타입\n\ndormant_wait : 휴면전환 예정일 (default : 가입일), modify : 회원정보 변경일, login :회원 로그인, all : 전체 회원 all(전체회원)인 경우 next_userid 외 검색 조건은 무시됩니다.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "next_userid",
+            "in": "query",
+            "required": false,
+            "description": "전체 회원 검색 시 다음 항목 검색을 위한 회원 ID\n\n전체 회원 조회 시 응답값을 통해서 제공 됩니다.next_userid를 기준으로 다음에 존재하는 회원 리스트를 조회합니다.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mobile",
+            "in": "query",
+            "required": false,
+            "description": "휴대폰",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "조회 아이디. 조회 시 검색 조건 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userids",
+            "in": "query",
+            "required": false,
+            "description": "다중 조회 아이디",
+            "schema": {
+              "type": "array"
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "required": false,
+            "description": "회원 메일 주소. 조회 시 검색 조건 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberType",
+            "in": "query",
+            "required": false,
+            "description": "회원 구분\n\ndefault : 전체, PERSON : 일반회원, COMPANY : 기업회원 ##회원 여부로 검색시 시작일시를 필수 입력해야합니다.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "email_receive",
+            "in": "query",
+            "required": false,
+            "description": "이메일 수신여부. default : 전체, Y: 동의, N : 미동의",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sms_receive",
+            "in": "query",
+            "required": false,
+            "description": "SMS 수신여부. default : 전체, Y: 동의, N : 미동의",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "정렬 여부. N : 미사용, 정렬 미사용",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "privacy_uid",
+            "in": "query",
+            "required": false,
+            "description": "회원 약관 ID. 해당 약관에 동의한 회원 조회",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드. 서버 부하를 줄이고 API 이용 시 응답 속도 개선 (fields=id,hname)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 조회",
+          "description": {
+            "content": "상점에 등록된 회원을 조회합니다.\n\n:::info\n회원 조회수는 5,000개로 제한됩니다.<br />최근 가입 순으로 정렬됩니다<br />휴면 회원은 조회되지 않습니다.<br />조회 기간은 30일로 제한됩니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 시작 일자\n\n0000-00-00 00:00:00 (searchType : dormant_wait => 0000-00-00)",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자\n\n0000-00-00 00:00:00 (searchType : dormant_wait => 0000-00-00) 최대 31일 조회 가능",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 타입\n\ndormant_wait : 휴면전환 예정일 (default : 가입일), modify : 회원정보 변경일, login :회원 로그인, all : 전체 회원 all(전체회원)인 경우 next_userid 외 검색 조건은 무시됩니다.",
+                  "type": "text/plain"
+                },
+                "key": "searchType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "전체 회원 검색 시 다음 항목 검색을 위한 회원 ID\n\n전체 회원 조회 시 응답값을 통해서 제공 됩니다.next_userid를 기준으로 다음에 존재하는 회원 리스트를 조회합니다.",
+                  "type": "text/plain"
+                },
+                "key": "next_userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "휴대폰",
+                  "type": "text/plain"
+                },
+                "key": "mobile",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회 아이디. 조회 시 검색 조건 무시",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "다중 조회 아이디",
+                  "type": "text/plain"
+                },
+                "key": "userids",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 메일 주소. 조회 시 검색 조건 무시",
+                  "type": "text/plain"
+                },
+                "key": "email",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 구분\n\ndefault : 전체, PERSON : 일반회원, COMPANY : 기업회원 ##회원 여부로 검색시 시작일시를 필수 입력해야합니다.",
+                  "type": "text/plain"
+                },
+                "key": "memberType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "이메일 수신여부. default : 전체, Y: 동의, N : 미동의",
+                  "type": "text/plain"
+                },
+                "key": "email_receive",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "SMS 수신여부. default : 전체, Y: 동의, N : 미동의",
+                  "type": "text/plain"
+                },
+                "key": "sms_receive",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "정렬 여부. N : 미사용, 정렬 미사용",
+                  "type": "text/plain"
+                },
+                "key": "sort",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 약관 ID. 해당 약관에 동의한 회원 조회",
+                  "type": "text/plain"
+                },
+                "key": "privacy_uid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드. 서버 부하를 줄이고 API 이용 시 응답 속도 개선 (fields=id,hname)",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_auto_group": {
+      "get": {
+        "operationId": "get-user_auto_group",
+        "description": "자동으로 변경된 회원 그룹 내역을 조회합니다.\n\n:::info\n조회 기간은 30일로 제한됩니다.\n:::",
+        "tags": [
+          "회원 그룹"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "전체 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "integer",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "검색 페이지"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 ID"
+                          },
+                          "group_id": {
+                            "type": "string",
+                            "description": "회원그룹ID"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "내용"
+                          },
+                          "order_price": {
+                            "type": "string",
+                            "description": "회원주문금액"
+                          },
+                          "order_count": {
+                            "type": "string",
+                            "description": "회원주문건수"
+                          },
+                          "period_type": {
+                            "type": "string",
+                            "description": "그룹 변경 조건 기간 설정 (LATEST, FIX : 그룹 변경에 따른 조건일 지정, ALL : 전체)"
+                          },
+                          "period_end_date": {
+                            "type": "string",
+                            "description": "그룹 변경 조건 만료일 (0000-00-00)",
+                            "format": "date"
+                          },
+                          "period_start_date": {
+                            "type": "string",
+                            "description": "그룹 변경 조건 시작일 (0000-00-00)",
+                            "format": "date"
+                          },
+                          "date_regist": {
+                            "type": "string",
+                            "description": "등록일 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00 최대 30일 조회 가능",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": false,
+            "description": "회원그룹ID. 회원그룹 조회를 통해 group_id 필요",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 그룹 자동 변경 내역 조회",
+          "description": {
+            "content": "자동으로 변경된 회원 그룹 내역을 조회합니다.\n\n:::info\n조회 기간은 30일로 제한됩니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_auto_group"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00 최대 30일 조회 가능",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 ID",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원그룹ID. 회원그룹 조회를 통해 group_id 필요",
+                  "type": "text/plain"
+                },
+                "key": "group_id",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 그룹 자동 변경 내역 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_dormant": {
+      "get": {
+        "operationId": "get-user_dormant",
+        "description": "휴면 회원으로 변경된 회원을 조회합니다.\n휴면 변경일과 회원 아이디만 제공 됩니다.",
+        "tags": [
+          "회원"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "전체 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "integer",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "검색 페이지"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "dormant_date": {
+                            "type": "string",
+                            "description": "휴면 회원 변경일"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 최대 30일 조회 가능",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "searchType",
+            "in": "query",
+            "required": false,
+            "description": "검색 타입. date : 탈퇴 회원 요청일, withdraw : 탈퇴 회원 승인일 (default : date)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "조회 아이디. 아이디 조회 시 검색일자 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "휴면 회원 조회",
+          "description": {
+            "content": "휴면 회원으로 변경된 회원을 조회합니다.\n휴면 변경일과 회원 아이디만 제공 됩니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_dormant"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 최대 30일 조회 가능",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 타입. date : 탈퇴 회원 요청일, withdraw : 탈퇴 회원 승인일 (default : date)",
+                  "type": "text/plain"
+                },
+                "key": "searchType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회 아이디. 아이디 조회 시 검색일자 무시",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "휴면 회원 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_dormant_wait": {
+      "get": {
+        "operationId": "get-user_dormant_wait",
+        "description": "회원의 휴면 전환 예정일을 조회합니다.\n\n:::info\n조회는 당일부터 최대 30일까지 검색 할 수 있습니다.\n:::",
+        "tags": [
+          "회원"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "전체 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "string",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "string",
+                      "description": "검색 페이지"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userid": {
+                            "type": "string",
+                            "description": "회원ID"
+                          },
+                          "dormant_wait_date": {
+                            "type": "string",
+                            "description": "회원 휴면 예정일"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 최대 30일 조회 가능",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원ID. 회원ID 조회 시 검색일자 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상품",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상품"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 휴면 전환 예정일 조회",
+          "description": {
+            "content": "회원의 휴면 전환 예정일을 조회합니다.\n\n:::info\n조회는 당일부터 최대 30일까지 검색 할 수 있습니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_dormant_wait"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 최대 30일 조회 가능",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원ID. 회원ID 조회 시 검색일자 무시",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 휴면 전환 예정일 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_exit": {
+      "get": {
+        "operationId": "get-user_exit",
+        "description": "탈퇴한 회원을 조회합니다.\n\n:::info\n회원이 주문이 없거나, 상점 설정에 따라 재가입이 가능한 경우 조회 되지 않습니다.<br />모든 탈퇴 회원의 id를 조회하는 경우 탈퇴 회원 로그 조회 기능을 통해서 조회가 가능합니다.<br />탈퇴 회원이 승인처리되면 아이디를 제외한 개인정보가 삭제됩니다.<br />조회 기간은 30일로 제한됩니다.\n:::",
+        "tags": [
+          "회원"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "전체 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "integer",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "검색 페이지"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "hname": {
+                            "type": "string",
+                            "description": "회원명"
+                          },
+                          "mem_type": {
+                            "type": "string",
+                            "description": "회원타입 (PERSON : 개인회원, COMPANY : 기업회원)"
+                          },
+                          "date": {
+                            "type": "string",
+                            "description": "탈퇴 요청일 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          },
+                          "withdraw_date": {
+                            "type": "string",
+                            "description": "탈퇴 승인일 (0000-00-00 00:00:00, 출력 시 승인 처리 회원)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "탈퇴 사유"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00 최대 30일 조회 가능",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "searchType",
+            "in": "query",
+            "required": false,
+            "description": "검색 타입. date : 탈퇴 회원 요청일, withdraw : 탈퇴 회원 승인일 (default : date)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지. 아이디 조회 시 검색일자 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "조회 아이디",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드. 서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=id,hname",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "탈퇴 회원 조회",
+          "description": {
+            "content": "탈퇴한 회원을 조회합니다.\n\n:::info\n회원이 주문이 없거나, 상점 설정에 따라 재가입이 가능한 경우 조회 되지 않습니다.<br />모든 탈퇴 회원의 id를 조회하는 경우 탈퇴 회원 로그 조회 기능을 통해서 조회가 가능합니다.<br />탈퇴 회원이 승인처리되면 아이디를 제외한 개인정보가 삭제됩니다.<br />조회 기간은 30일로 제한됩니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_exit"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00 최대 30일 조회 가능",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 타입. date : 탈퇴 회원 요청일, withdraw : 탈퇴 회원 승인일 (default : date)",
+                  "type": "text/plain"
+                },
+                "key": "searchType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지. 아이디 조회 시 검색일자 무시",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회 아이디",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드. 서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=id,hname",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "탈퇴 회원 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_exit_log": {
+      "get": {
+        "operationId": "get-user_exit_log",
+        "description": "탈퇴 처리된 회원 아이디를 조회합니다.\n\n:::info\n최대 30일까지 검색 가능합니다.\n:::",
+        "tags": [
+          "회원"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 ID"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "탈퇴 처리 일자 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": false,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00 검색 시작 일자만 있는 경우 종료 일자는 당일 일자로 검색",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원 id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. \tMAX: 1000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지. default: 1",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "탈퇴 회원 로그 조회",
+          "description": {
+            "content": "탈퇴 처리된 회원 아이디를 조회합니다.\n\n:::info\n최대 30일까지 검색 가능합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_exit_log"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00 검색 시작 일자만 있는 경우 종료 일자는 당일 일자로 검색",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 id",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. \tMAX: 1000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지. default: 1",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "탈퇴 회원 로그 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_group_change_log": {
+      "get": {
+        "operationId": "get-user_group_change_log",
+        "description": "회원 그룹 변경 내역을 조회합니다.\n\n:::info\n조회 기간은 30일로 제한됩니다.\n:::",
+        "tags": [
+          "회원 그룹"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "전체 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "integer",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "검색 페이지"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 ID"
+                          },
+                          "group_id": {
+                            "type": "string",
+                            "description": "변경전 회원그룹ID (- : 그룹없음)"
+                          },
+                          "change_group_id": {
+                            "type": "string",
+                            "description": "변경후 회원그룹ID (- : 그룹없음)"
+                          },
+                          "target": {
+                            "type": "string",
+                            "description": "그룹 변경 위치"
+                          },
+                          "date": {
+                            "type": "string",
+                            "description": "변경일 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00 최대 30일 조회 가능",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 그룹 변경 내역 조회",
+          "description": {
+            "content": "회원 그룹 변경 내역을 조회합니다.\n\n:::info\n조회 기간은 30일로 제한됩니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_group_change_log"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00 최대 30일 조회 가능",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 ID",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 그룹 변경 내역 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_order": {
+      "get": {
+        "operationId": "get-user_order",
+        "description": "회원 아이디를 통해 주문 관련 통계를 조회 할 수 있습니다.<br />userid는 필수 입력 사항입니다.\n\n:::info\nlast_delicomplete_date, last_deliend_date 는 주문 2.0 에서만 합니다.\n:::",
+        "tags": [
+          "회원"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    },
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "userid": {
+                          "type": "string",
+                          "description": "회원 ID"
+                        },
+                        "total_order_price": {
+                          "type": "string",
+                          "description": "검색시간내 주문의 총 금액 (InquiryType 기준으로 조회됩니다.)"
+                        },
+                        "total_order_count": {
+                          "type": "string",
+                          "description": "검색시간내 주문 수 (InquiryType 기준으로 조회됩니다.)"
+                        },
+                        "period": {
+                          "type": "string",
+                          "description": "검색기간 (ALL : 전체)"
+                        },
+                        "last_delicomplete_date": {
+                          "type": "string",
+                          "description": "최근 배송완료 일자 (fields 추가 시 출력됩니다. 주문 2.0에서만 지원 됩니다.)"
+                        },
+                        "last_deliend_date": {
+                          "type": "string",
+                          "description": "최근 주문완료 일자/td> fields 추가 시 출력됩니다. 주문 2.0에서만 지원 됩니다. (fields 추가 시 출력됩니다. 주문 2.0에서만 지원 됩니다.)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": true,
+            "description": "회원 id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": false,
+            "description": "검색 시작 일자. 0000-00-00, 미입력시 전체 기간",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 검색 시작 일자만 있는 경우 종료 일자는 당일 일자로 검색",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "InquiryType",
+            "in": "query",
+            "required": false,
+            "description": "검색 타입. D : 배송완료 시점, P : 결제 완료 시점, Deafault : D",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=last_delicomplete_date,last_deliend_date",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 주문 통계 조회",
+          "description": {
+            "content": "회원 아이디를 통해 주문 관련 통계를 조회 할 수 있습니다.<br />userid는 필수 입력 사항입니다.\n\n:::info\nlast_delicomplete_date, last_deliend_date 는 주문 2.0 에서만 합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_order"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 회원 id",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 시작 일자. 0000-00-00, 미입력시 전체 기간",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 검색 시작 일자만 있는 경우 종료 일자는 당일 일자로 검색",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 타입. D : 배송완료 시점, P : 결제 완료 시점, Deafault : D",
+                  "type": "text/plain"
+                },
+                "key": "InquiryType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=last_delicomplete_date,last_deliend_date",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 주문 통계 조회"
+      }
+    },
+    "/api/v1/{shopId}/send_sms": {
+      "post": {
+        "operationId": "post-send_sms",
+        "description": "SMS 메세지를 발송합니다.\n\n:::info\n다중 유저 발송은 불가능 합니다.<br />SMS 충전이 필요합니다\n:::",
+        "tags": [
+          "기타"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true : 성공, false : 실패)"
+                        },
+                        "use_sms": {
+                          "type": "string",
+                          "description": "사용 메시지 건수"
+                        },
+                        "amount": {
+                          "type": "string",
+                          "description": "남은 메세지 건수"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "실패 사유 (result 값이 false 경우 출력)",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sms_type": {
+                    "type": "string",
+                    "description": "메세지 타입 (sms,lms)"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "내용"
+                  },
+                  "display_ad": {
+                    "type": "string",
+                    "description": "광고 문구 노출 (Y, N)"
+                  },
+                  "display_spam_number": {
+                    "type": "string",
+                    "description": "수신거부 문구 노출 (Y, N)"
+                  },
+                  "spam_number": {
+                    "type": "string",
+                    "description": "수신거부 번호. 000-0000-0000"
+                  },
+                  "sender": {
+                    "type": "string",
+                    "description": "보내는 사람. 000-0000-0000"
+                  },
+                  "userid": {
+                    "type": "string",
+                    "description": "유저 ID"
+                  },
+                  "send_now": {
+                    "type": "string",
+                    "description": "즉시 발송 설정"
+                  },
+                  "send_year": {
+                    "type": "string",
+                    "description": "발송 년. 20XX"
+                  },
+                  "send_month": {
+                    "type": "string",
+                    "description": "발송 월. 1~12"
+                  },
+                  "send_day": {
+                    "type": "string",
+                    "description": "발송 일. 1~31"
+                  },
+                  "send_hour": {
+                    "type": "string",
+                    "description": "발송 시간. 9~20"
+                  },
+                  "send_min": {
+                    "type": "string",
+                    "description": "발송 분. 0~59"
+                  }
+                },
+                "required": [
+                  "sms_type",
+                  "content",
+                  "userid",
+                  "send_now"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "sms_type": "string",
+          "content": "string",
+          "display_ad": "string",
+          "display_spam_number": "string",
+          "spam_number": "string",
+          "sender": "string",
+          "userid": "string",
+          "send_now": "string",
+          "send_year": "string",
+          "send_month": "string",
+          "send_day": "string",
+          "send_hour": "string",
+          "send_min": "string"
+        },
+        "postman": {
+          "name": "SMS 보내기",
+          "description": {
+            "content": "SMS 메세지를 발송합니다.\n\n:::info\n다중 유저 발송은 불가능 합니다.<br />SMS 충전이 필요합니다\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "send_sms"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "SMS 보내기"
+      }
+    },
+    "/api/v1/{shopId}/user/agree": {
+      "post": {
+        "operationId": "post-user-agree",
+        "description": "고객의 SMS 수신 동의 여부를 수정합니다.",
+        "tags": [
+          "기타"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "user_id": {
+                            "type": "string",
+                            "description": "회원 ID"
+                          },
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true : 성공, false : 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유 (result 값이 false 경우 출력)",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "description": "종류 (sms : SMS 수신 동의)"
+                        },
+                        "user_id": {
+                          "type": "string",
+                          "description": "회원ID"
+                        },
+                        "condition": {
+                          "type": "string",
+                          "description": "동의 여부"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "user_id",
+                        "condition"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "type": "string",
+              "user_id": "string",
+              "condition": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "고객 SMS 수신 동의 여부 수정",
+          "description": {
+            "content": "고객의 SMS 수신 동의 여부를 수정합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user",
+              "agree"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "고객 SMS 수신 동의 여부 수정"
+      }
+    },
+    "/api/v1/{shopId}/user_counsel/create": {
+      "post": {
+        "operationId": "post-user_counsel-create",
+        "description": "고객 상담을 등록합니다.",
+        "tags": [
+          "기타"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true : 성공, false : 실패)"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "실패 사유 (result 값이 false 경우 출력)",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "회원ID"
+                  },
+                  "status": {
+                    "type": "string",
+                    "description": "처리여부 (N : 미처리, I : 처리중, Y : 처리완료)"
+                  },
+                  "condition": {
+                    "type": "string",
+                    "description": "고객지수 (B : 최상, D : 좋음, S : 보통, G : 낮음, W : 최하)"
+                  },
+                  "counsel_type": {
+                    "type": "string",
+                    "description": "상담분류\n\nD00 : 기타, D01 : 주문, D02 : 결제,D03 : 배송, D04 : 상품, D05 : 오류, D06 : 반품, D07 : 환불"
+                  },
+                  "ordernum": {
+                    "type": "string",
+                    "description": "주문번호"
+                  },
+                  "manager": {
+                    "type": "string",
+                    "description": "상담자ID (운영자 또는 부운영자ID 입력)"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "상담내용"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "condition",
+                  "counsel_type",
+                  "content"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "id": "string",
+          "status": "string",
+          "condition": "string",
+          "counsel_type": "string",
+          "ordernum": "string",
+          "manager": "string",
+          "content": "string"
+        },
+        "postman": {
+          "name": "고객 상담 등록",
+          "description": {
+            "content": "고객 상담을 등록합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_counsel",
+              "create"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "고객 상담 등록"
+      }
+    },
+    "/api/v1/{shopId}/user_counsel/delete": {
+      "post": {
+        "operationId": "post-user_counsel-delete",
+        "description": "고객 상담 정보를 삭제합니다.",
+        "tags": [
+          "기타"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true : 성공, false : 실패)"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "실패 사유 (result 값이 false 경우 출력)",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "회원ID"
+                  },
+                  "date": {
+                    "type": "string",
+                    "description": "날짜"
+                  }
+                },
+                "required": [
+                  "id",
+                  "date"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "id": "string",
+          "date": "string"
+        },
+        "postman": {
+          "name": "고객 상담 삭제",
+          "description": {
+            "content": "고객 상담 정보를 삭제합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_counsel",
+              "delete"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "고객 상담 삭제"
+      }
+    },
+    "/api/v1/{shopId}/user_counsel/update": {
+      "post": {
+        "operationId": "post-user_counsel-update",
+        "description": "고객 상담을 정보를 수정합니다.",
+        "tags": [
+          "기타"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true : 성공, false : 실패)"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "실패 사유 (result 값이 false 경우 출력)",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "회원ID": {
+                    "type": "string",
+                    "description": "id"
+                  },
+                  "status": {
+                    "type": "string",
+                    "description": "처리여부 (N : 미처리, I : 처리중, Y : 처리완료)"
+                  },
+                  "condition": {
+                    "type": "string",
+                    "description": "고객지수 (B : 최상, D : 좋음, S : 보통, G : 낮음, W : 최하)"
+                  },
+                  "counsel_type": {
+                    "type": "string",
+                    "description": "상담분류\n\nD00 : 기타, D01 : 주문, D02 : 결제,D03 : 배송, D04 : 상품, D05 : 오류, D06 : 반품, D07 : 환불"
+                  },
+                  "ordernum": {
+                    "type": "string",
+                    "description": "주문번호"
+                  },
+                  "manager": {
+                    "type": "string",
+                    "description": "운영자 또는 부운영자ID 입력"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "상담내용"
+                  },
+                  "date": {
+                    "type": "string",
+                    "description": "날짜"
+                  }
+                },
+                "required": [
+                  "회원ID",
+                  "status",
+                  "condition",
+                  "counsel_type",
+                  "content",
+                  "date"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "회원ID": "string",
+          "status": "string",
+          "condition": "string",
+          "counsel_type": "string",
+          "ordernum": "string",
+          "manager": "string",
+          "content": "string",
+          "date": "string"
+        },
+        "postman": {
+          "name": "고객 상담 수정",
+          "description": {
+            "content": "고객 상담을 정보를 수정합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_counsel",
+              "update"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "고객 상담 수정"
+      }
+    },
+    "/api/v1/{shopId}/user_group_change/update": {
+      "post": {
+        "operationId": "post-user_group_change-update",
+        "description": "회원의 그룹을 변경합니다.\n\n:::info\nBeta 버전으로 수정이 될 수 있습니다.\n:::",
+        "tags": [
+          "회원 그룹"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true : 성공, false : 실패)"
+                          },
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 ID"
+                          },
+                          "group_id": {
+                            "type": "string",
+                            "description": "그룹코드"
+                          },
+                          "group_name": {
+                            "type": "string",
+                            "description": "그룹명"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userid": {
+                    "type": "string",
+                    "description": "회원 ID"
+                  },
+                  "group_id": {
+                    "type": "string",
+                    "description": "그룹 코드. 그룹코드 또는 그룹명 중 하나는 필수. 그룹코드가 그룹명보다 우선시 됩니다."
+                  },
+                  "group_name": {
+                    "type": "string",
+                    "description": "그룹명. 그룹코드 또는 그룹명 중 하나는 필수"
+                  }
+                },
+                "required": [
+                  "userid"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "userid": "string",
+          "group_id": "string",
+          "group_name": "string"
+        },
+        "postman": {
+          "name": "회원 그룹 변경",
+          "description": {
+            "content": "회원의 그룹을 변경합니다.\n\n:::info\nBeta 버전으로 수정이 될 수 있습니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_group_change",
+              "update"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "회원 그룹 변경"
+      }
+    }
+  }
+}

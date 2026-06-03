@@ -1,0 +1,88 @@
+---
+title: "MakeShop 통합"
+title_en: "MakeShop integration"
+section: "06-integrations-and-config"
+order: 10
+summary: "메이크샵 쇼핑몰을 통합으로 등록하고, 워크플로 makeshop 노드와 AI Agent의 MCP 도구 양쪽에서 같은 인증으로 Shop API 7개 리소스(161개 작업)를 호출하는 방법을 설명해요."
+summary_en: "Register a MakeShop store as an integration and call its Shop API (7 resources, 161 operations) from both the makeshop workflow node and the AI Agent's MCP tool surface using the same credentials."
+spec: ["spec/4-nodes/4-integration/5-makeshop.md", "spec/conventions/makeshop-api-metadata.md", "spec/2-navigation/4-integration.md", "spec/5-system/11-mcp-client.md"]
+code: ["codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts", "codebase/backend/src/nodes/integration/makeshop/makeshop.handler.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts", "codebase/backend/src/modules/integrations/integration-oauth.service.ts"]
+---
+
+이 페이지에서는 한국의 이커머스 SaaS **MakeShop(메이크샵)** 의 Shop API 를 통합으로 등록해서 워크플로 노드와 AI Agent 양쪽에서 활용하는 방법을 설명해요.
+
+## MakeShop 통합은 어떤 가치를 주나요?
+
+- **하나의 인증으로 두 가지 사용처** — MakeShop 통합 한 개를 만들면 (a) 워크플로 캔버스의 `MakeShop` 노드와 (b) AI Agent 노드의 MCP 도구 양쪽에서 그대로 사용할 수 있어요. 두 경로의 토큰 갱신·활동 로그가 모두 통합돼 일원화됩니다.
+- **7개 리소스 전체 커버** — 상점설정·상품·주문·회원·혜택·게시판·CPIK 의 Shop API 161개 작업을 메타데이터 기반 단일 노드로 호출해요. 자주 쓰는 작업은 Resource → Operation 두 번의 드롭다운으로 끝나요.
+- **AI Agent 자연어 호출** — Internal MCP Bridge 라는 in-process 방식을 통해 LLM 이 `"지난주 신규 주문 목록 가져와줘"` 같은 자연어 명령을 자동으로 적절한 endpoint 호출로 변환해 실행해요.
+
+## MakeShop 통합 만들기
+
+MakeShop 은 **설치 우선(install-first) 비공개 클라이언트** 방식이에요. 우리 쪽에서 OAuth 흐름을 시작하지 못하고, MakeShop ShopStore 의 앱 설치가 App URL 을 호출하면서 흐름이 시작돼요. (Cafe24 의 Private 앱과 같은 구조예요.)
+
+### 1) 통합 추가 모달에서 MakeShop 선택
+
+사이드바 **통합** → **+ 통합 추가** → 카드 목록에서 **🛒 MakeShop** 카드 클릭 → MakeShop 통합 생성 폼으로 이동.
+
+### 2) 파트너센터에서 앱 먼저 만들기
+
+진행하려면 MakeShop 파트너센터가 발급해주는 `client_id` / `client_secret` 이 먼저 필요해요.
+
+1. MakeShop 파트너센터에 본인 메이크샵 운영자 계정으로 로그인
+2. **ShopStore 앱** 등록 메뉴로 진입해 새 앱을 만들기
+3. 발급된 `client_id` / `client_secret` 을 확인 (다음 단계 입력값)
+
+### 3) Step 1 — 자격 증명 입력
+
+생성 폼에서 다음을 입력해요.
+
+| 항목 | 입력값 |
+|---|---|
+| **통합 이름** | 자유 — 예: `My MakeShop Store` |
+| **Client ID** | 파트너센터에서 발급된 `client_id` |
+| **Client Secret** | 파트너센터에서 발급된 `client_secret` (저장 시 마스킹) |
+| **사용 권한 (Scope)** | 통합에서 호출할 리소스의 read/write 체크. `store` · `product` · `order` · `member` · `board` · `benefit` 의 6개 그룹이 각각 read/write 로 나뉘어요 |
+
+상점 식별자(**shop_uid**)는 **입력하지 않아요**. shop_uid 는 ShopStore 앱이 설치될 때 설치 redirect 로 자동 전달돼요.
+
+### 4) [Connect with MakeShop] 버튼 — App URL 등록 + 설치 대기
+
+Connect 를 누르면 통합이 **연결 대기(pending)** 상태로 생성되고, 화면에 두 개의 URL 이 나와요.
+
+| URL | 어디에 등록 |
+|---|---|
+| **App URL** | 파트너센터 ShopStore 앱의 **App URL** 필드. 끝의 설치 토큰까지 **전체를 그대로 복사** 해서 붙여넣으세요 (직접 작성하지 마세요) |
+| **Redirect URI** | 파트너센터의 **Redirect URI** 필드. 정확히 일치해야 해요 (trailing slash / `http` vs `https` / 포트 / 오타 모두 정확히) |
+
+두 URL 을 등록한 뒤, 상점에서 앱을 설치하면 설치 redirect 가 App URL 을 호출하면서 OAuth 가 완료돼요. 이 화면은 설치 완료를 **자동으로 폴링** 하다가, 연결되면 통합 상세 페이지로 이동해요. 10분이 지나도 연결되지 않으면 "아직 대기 중" 안내가 나와요 (백엔드에는 통합이 그대로 남아 있어, 다시 열거나 새로고침하면 폴링이 재개됩니다).
+
+## 워크플로에서 사용하기 — `MakeShop` 노드
+
+캔버스에 `MakeShop` 노드를 놓고 노드 설정 패널에서:
+
+1. **통합** — 위에서 만든 MakeShop 통합 선택
+2. **Resource** — 상점설정 / 상품 / 주문 / 회원 / 혜택 / 게시판 / CPIK 중 선택
+3. **Operation** — 선택한 리소스의 작업 드롭다운에서 선택. 사람 친화 라벨로 표시돼요
+4. **필드** — 선택한 작업의 필수/선택 필드가 자동으로 펼쳐져요. 모든 값은 `{{ $input.x }}` 같은 표현식을 지원해요
+5. (작업이 페이지네이션을 지원하면) **Limit / Offset** 입력이 추가로 나와요
+
+MakeShop 은 Cafe24 와 달리 **별도 승인이 필요한 권한 표시(⚠)가 없어요** — 모든 작업이 동일하게 노출돼요.
+
+## AI Agent 에서 사용하기 — MCP 도구
+
+AI Agent 노드의 **MCP 서버** 선택에서 MakeShop 통합을 추가하면, LLM 이 자연어로 Shop API 를 호출할 수 있어요. 추가 후 **작업 허용 목록** 을 펼치면 리소스 카테고리 단위로 어떤 작업을 허용할지 체크할 수 있어요. 모두 체크하면 전부 허용이고, 일부만 체크하면 그 작업만 LLM 이 호출할 수 있어요.
+
+## OAuth scope 권장 프리셋
+
+처음에는 읽기 권한 위주로 시작한 뒤 필요할 때 쓰기 권한을 늘리는 것을 권장해요.
+
+- **상품 조회 자동화**: `product.read` (+ 필요 시 `order.read`)
+- **주문 처리 자동화**: `order.read` · `order.write`
+- **회원/혜택 관리**: `member.read` · `benefit.read` (+ 필요 시 write)
+
+## 자주 묻는 질문
+
+- **shop_uid 를 어디서 입력하나요?** — 입력하지 않아요. 앱을 설치할 때 자동으로 전달돼요.
+- **연결이 안 돼요** — App URL / Redirect URI 가 파트너센터에 정확히 등록됐는지, 끝의 설치 토큰까지 빠짐없이 복사됐는지 확인하세요. URL 이 한 글자라도 다르면 HMAC 검증이 실패해 호출이 거부돼요.
+- **재인증은 어떻게 하나요?** — MakeShop 통합은 이 화면에서 재인증할 수 없어요. ShopStore 에서 앱을 다시 설치하면 OAuth 흐름이 다시 시작돼요.

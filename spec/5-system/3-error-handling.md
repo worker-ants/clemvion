@@ -240,6 +240,8 @@ code:
 | backoffMultiplier | Float | 2.0 | 지수 백오프 배수 |
 | maxInterval | Integer | 30000 | 최대 재시도 간격 (ms) — **계획(Planned), 미구현**: 현재 `RetryConfig`(`execution-engine/error/error-policy.handler.ts`)는 이 필드를 두지 않으며 백오프 간격에 상한 클램프가 없다 |
 
+> 위 필드는 `config.errorHandling.retryConfig.*` 경로에 저장된다 (설정 패널 SoT: [Spec 노드 공통 §2.4](../3-workflow-editor/1-node-common.md#24-에러-처리-정책)).
+
 **재시도 간격 계산** (현재 구현 — 상한 클램프 없음):
 ```
 interval = retryInterval × backoffMultiplier^attempt

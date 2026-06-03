@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { evaluateWarnings } from '@workflow/node-summary';
+import {
+  evaluateWarnings,
+  renderSummaryTemplate,
+} from '@workflow/node-summary';
 import {
   databaseQueryNodeConfigSchema,
   databaseQueryNodeMetadata,
@@ -103,5 +106,16 @@ describe('evaluateMetadataBlockingErrors integration (database_query)', () => {
         query: 'SELECT 1',
       }),
     ).toEqual([]);
+  });
+});
+
+describe('databaseQueryNodeMetadata.summaryTemplate (캔버스 요약)', () => {
+  it('renders {{queryType|upper}} · {{query}}', () => {
+    expect(
+      renderSummaryTemplate(databaseQueryNodeMetadata.summaryTemplate, {
+        queryType: 'select',
+        query: 'SELECT * FROM users',
+      }),
+    ).toMatchObject({ text: 'SELECT · SELECT * FROM users' });
   });
 });

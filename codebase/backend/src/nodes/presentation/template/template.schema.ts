@@ -169,5 +169,8 @@ export const templateNodeMetadata: NodeComponentMetadata = {
       message: 'Template body must be entered.',
     },
   ],
+  summaryTemplate: {
+    template: '{{outputFormat}} · {{buttons.length}} buttons',
+  },
   validateConfig: validateTemplateConfig,
 };

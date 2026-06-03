@@ -10,10 +10,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import {
   INSTALL_TOKEN_BYTES,
+  MAKESHOP_SHOP_UID_PATTERN,
   buildCafe24InstallUrl,
+  buildMakeshopInstallUrl,
   buildOauthCallbackUrl,
 } from './third-party-oauth.constants';
 import { Integration } from './entities/integration.entity';
@@ -45,8 +47,27 @@ const PREVIEW_TTL_MS = 10 * 60 * 1000;
  */
 const RECOVERY_CANDIDATE_LIMIT = 5;
 
-export const ALLOWED_OAUTH_PROVIDERS = ['google', 'github', 'cafe24'] as const;
+export const ALLOWED_OAUTH_PROVIDERS = [
+  'google',
+  'github',
+  'cafe24',
+  'makeshop',
+] as const;
 export type OAuthProvider = (typeof ALLOWED_OAUTH_PROVIDERS)[number];
+
+/**
+ * MakeShop OAuth (OAuth 2.1 + PKCE, confidential client) 의 고정 호스트.
+ * cafe24 와 달리 single host — `connect.makeshop.co.kr` 는 data-call 호스트,
+ * `auth.makeshop.com` 은 authorize/token 호스트 (data-call 과 분리).
+ * spec/2-navigation/4-integration.md §5.9 + spec/4-nodes/4-integration/
+ * 5-makeshop.md §9.1.
+ *
+ * ⚠ VERIFY against makeshop docs before production: authorize/token 호스트와
+ * endpoint path 는 makeshop 가이드 페이지 추출이 1차 출처 (spec §9.7 미확인
+ * 항목). 토큰 refresh 경로(`makeshop-api.client.ts`)와 동일 상수 유지.
+ */
+const MAKESHOP_AUTHORIZE_URL = 'https://auth.makeshop.com/oauth/authorize';
+const MAKESHOP_TOKEN_URL = 'https://auth.makeshop.com/oauth/token';
 
 /**
  * Static authorize URLs for providers that have a single global authorize
@@ -90,6 +111,19 @@ export interface Cafe24BeginMeta {
   client_secret?: string;
 }
 
+/**
+ * Begin-time metadata for makeshop OAuth. MakeShop is a confidential-client-only
+ * app (no public/private split like cafe24) — the user always supplies
+ * `client_id`/`client_secret`. `shop_uid` is NOT known at begin time: it is
+ * learned from the ShopStore install redirect's `?shop_uid=...` parameter and
+ * projected onto the `mall_id` column at callback. spec/2-navigation/4-
+ * integration.md §5.9, spec/4-nodes/4-integration/5-makeshop.md §9.1.
+ */
+export interface MakeshopBeginMeta {
+  client_id: string;
+  client_secret: string;
+}
+
 export interface BeginParams {
   workspaceId: string;
   userId: string;
@@ -112,7 +146,37 @@ export type BeginResult =
       callbackUrl: string;
       /** scopes 가 변경된 경우 (request-scopes 진입점에서 채워짐) */
       scopesAdded?: string[];
+    }
+  | {
+      mode: 'makeshop_pending_install';
+      integrationId: string;
+      /** `${APP_URL}/api/3rd-party/makeshop/install/:installToken` —
+       *  사용자가 MakeShop 파트너센터 ShopStore 앱의 App URL 에 등록 */
+      appUrl: string;
+      /** `${APP_URL}/api/3rd-party/makeshop/callback` — Redirect URI 등록용 */
+      callbackUrl: string;
+      scopesAdded?: string[];
     };
+
+/**
+ * MakeShop ShopStore install redirect query (App URL 호출 시 MakeShop 이 전송).
+ *
+ * spec/2-navigation/4-integration.md §5.9 설치(ShopStore):
+ *   `?shop_uid=...&timestamp=...&action_type=install&hmac=...`
+ *
+ * ⚠ VERIFY against makeshop docs before production: 정확한 파라미터 집합과
+ * `action_type` 값(install/uninstall 등)은 makeshop 공식 문서로 확정
+ * (spec/4-nodes/4-integration/5-makeshop.md §9.7). 아래는 cafe24 install
+ * 패턴 + 문서화된 makeshop 파라미터로 구성한 신뢰 가능한 버전이다.
+ */
+export interface MakeshopInstallQuery {
+  shop_uid: string;
+  timestamp: string;
+  hmac: string;
+  action_type?: string;
+  /** Raw query string (HMAC 검증에 사용 — decode/re-encode 없이 원본 byte) */
+  rawQuery: string;
+}
 
 /** Cafe24 App URL 호출 파라미터 (테스트 실행 시 Cafe24가 전송) */
 export interface Cafe24InstallQuery {
@@ -434,6 +498,35 @@ export class IntegrationOAuthService {
         app_type: meta.app_type,
       };
       authorizeBaseUrl = cafe24AuthorizeUrl(meta.mall_id);
+    } else if (service.oauthProvider === 'makeshop') {
+      // MakeShop is confidential-client-only (no public/private split). The
+      // user supplies client_id/client_secret at begin; shop_uid is unknown
+      // until the ShopStore install redirect. Like cafe24 Private, WE cannot
+      // initiate the flow — MakeShop's marketplace install starts it by
+      // calling our App URL. So begin only creates a pending_install row and
+      // returns the App URL + callback URL to register.
+      // spec/2-navigation/4-integration.md §5.9, makeshop node §9.1.
+      const meta = (params.providerMeta ?? {}) as Partial<MakeshopBeginMeta>;
+      if (!meta.client_id || !meta.client_secret) {
+        throw new BadRequestException({
+          code: 'MAKESHOP_CREDENTIALS_REQUIRED',
+          message:
+            'makeshop OAuth requires client_id and client_secret in the begin body (confidential client)',
+        });
+      }
+      if (params.mode !== 'new') {
+        // reauthorize/request_scopes must re-enter via the ShopStore install
+        // flow (same constraint as cafe24 private — we don't drive the flow).
+        throw new BadRequestException({
+          code: 'MAKESHOP_USE_SHOPSTORE_INSTALL',
+          message:
+            'MakeShop integrations cannot be reauthorized via this endpoint — reinstall the app from MakeShop ShopStore to restart the OAuth flow',
+        });
+      }
+      return this.createMakeshopPendingIntegration(
+        params,
+        meta as Required<MakeshopBeginMeta>,
+      );
     } else {
       const clientIdKey = `${service.oauthProvider.toUpperCase()}_CLIENT_ID`;
       const envClientId = process.env[clientIdKey];
@@ -616,6 +709,20 @@ export class IntegrationOAuthService {
       }
     }
 
+    // MakeShop-specific: persist shop_uid + confidential-client creds so token
+    // refresh and data calls can rebuild the shop_uid-dependent base URL.
+    // shop_uid was learned from the install redirect and stashed on the state's
+    // provider_meta in handleMakeshopInstall. `code_verifier` is consumed by
+    // the exchange and intentionally NOT written into credentials.
+    if (provider === 'makeshop' && record.providerMeta) {
+      const pm = record.providerMeta as Partial<MakeshopBeginMeta> & {
+        shop_uid?: string;
+      };
+      if (pm.shop_uid) credentials.shop_uid = pm.shop_uid;
+      if (pm.client_id) credentials.client_id = pm.client_id;
+      if (pm.client_secret) credentials.client_secret = pm.client_secret;
+    }
+
     if (record.mode === 'new') {
       const previewToken = `tmp_${randomBytes(16).toString('hex')}`;
       await this.previewRepository.save(
@@ -694,6 +801,16 @@ export class IntegrationOAuthService {
           typeof credentials.mall_id === 'string'
         ) {
           integration.mallId = credentials.mall_id;
+        }
+        // MakeShop: project shop_uid onto the mall_id column (V071 partial
+        // UNIQUE). Normally already set by handleMakeshopInstall, but backfill
+        // defensively if still NULL.
+        if (
+          provider === 'makeshop' &&
+          !integration.mallId &&
+          typeof credentials.shop_uid === 'string'
+        ) {
+          integration.mallId = credentials.shop_uid;
         }
         await repo.save(integration);
       });
@@ -981,7 +1098,28 @@ export class IntegrationOAuthService {
     let clientSecret: string;
     let tokenUrl: string;
     let isCafe24 = false;
-    if (provider === 'cafe24') {
+    let isMakeshop = false;
+    // makeshop PKCE verifier — pulled from the state row's provider_meta
+    // (stashed in handleMakeshopInstall). Sent as `code_verifier` in the
+    // token exchange (OAuth 2.1 PKCE S256).
+    let makeshopCodeVerifier: string | undefined;
+    if (provider === 'makeshop') {
+      isMakeshop = true;
+      const pm = (providerMeta ?? {}) as Partial<MakeshopBeginMeta> & {
+        code_verifier?: string;
+      };
+      if (!pm.client_id || !pm.client_secret) {
+        throw new BadRequestException({
+          code: 'MAKESHOP_CREDENTIALS_REQUIRED',
+          message:
+            'makeshop client credentials missing on OAuth state — cannot exchange code',
+        });
+      }
+      clientId = pm.client_id;
+      clientSecret = pm.client_secret;
+      makeshopCodeVerifier = pm.code_verifier;
+      tokenUrl = MAKESHOP_TOKEN_URL;
+    } else if (provider === 'cafe24') {
       isCafe24 = true;
       const pm = (providerMeta ?? {}) as Partial<Cafe24BeginMeta>;
       if (!pm.mall_id) {
@@ -1043,25 +1181,39 @@ export class IntegrationOAuthService {
     // 출처: spec/2-navigation/4-integration.md §3.2 "토큰 교환 endpoint:
     // POST .../oauth/token (Basic auth: client_id:client_secret)".
     // 공식 샘플 `cafe24_app_sample` 도 Authorization 헤더만 사용.
-    const form = isCafe24
-      ? new URLSearchParams({
-          code,
-          redirect_uri: redirectUri,
-          grant_type: 'authorization_code',
-        })
-      : new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-          redirect_uri: redirectUri,
-          grant_type: 'authorization_code',
-        });
+    let form: URLSearchParams;
+    if (isMakeshop) {
+      // MakeShop: confidential client → Basic auth (client creds in header,
+      // NOT body) + PKCE code_verifier. spec/2-navigation/4-integration.md
+      // §5.9 ("Basic auth client_id:client_secret"), makeshop node §9.1.
+      const params: Record<string, string> = {
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+      };
+      if (makeshopCodeVerifier) params.code_verifier = makeshopCodeVerifier;
+      form = new URLSearchParams(params);
+    } else if (isCafe24) {
+      form = new URLSearchParams({
+        code,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      });
+    } else {
+      form = new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      });
+    }
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
     };
-    if (isCafe24) {
+    if (isCafe24 || isMakeshop) {
       headers.Authorization = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
     }
 
@@ -1476,6 +1628,384 @@ export class IntegrationOAuthService {
     return `${cafe24AuthorizeUrl(query.mall_id)}?${urlParams.toString()}`;
   }
 
+  // ---------------------------------------------------------------------
+  // MakeShop — pending_install + ShopStore install flow
+  // ---------------------------------------------------------------------
+
+  /**
+   * Create (or reuse) a `pending_install` makeshop Integration for the begin
+   * flow. Mirrors {@link createPrivatePendingIntegration} (cafe24 private) but
+   * with makeshop specifics:
+   *  - confidential client only (no app_type field),
+   *  - `shop_uid` (→ `mall_id` projection) is unknown until the install
+   *    redirect, so the duplicate guard / mall_id column cannot be set here.
+   *
+   * Because shop_uid is unknown, begin-time duplicate detection by mall_id is
+   * impossible — the duplicate guard (409) instead fires at the install
+   * callback (when shop_uid becomes known) and at finalize via the V071 partial
+   * UNIQUE. We DO reuse an existing pending_install makeshop row for the same
+   * (workspaceId, client_id) to keep begin idempotent and avoid accumulating
+   * dangling pending rows on repeated "Connect" clicks.
+   *
+   * spec/2-navigation/4-integration.md §5.9, makeshop node §9.1/§9.3.
+   */
+  private async createMakeshopPendingIntegration(
+    params: BeginParams,
+    meta: Required<MakeshopBeginMeta>,
+  ): Promise<BeginResult> {
+    const appUrl = getAppBaseUrl();
+
+    // Reuse an existing pending_install makeshop row for the same workspace +
+    // client_id (idempotent begin). shop_uid is not yet known, so we cannot
+    // dedup by mall_id here.
+    const existingPending = await this.findMakeshopPendingByClient(
+      params.workspaceId,
+      meta.client_id,
+    );
+
+    const installToken = randomBytes(INSTALL_TOKEN_BYTES).toString('base64url');
+    const installTokenIssuedAt = new Date();
+    let saved: Integration;
+    if (existingPending) {
+      const needNewToken = !existingPending.installToken;
+      if (needNewToken) {
+        existingPending.installToken = installToken;
+        existingPending.installTokenIssuedAt = installTokenIssuedAt;
+      }
+      existingPending.credentials = {
+        ...existingPending.credentials,
+        client_id: meta.client_id,
+        client_secret: meta.client_secret,
+        scopes: params.scopes,
+      };
+      existingPending.statusReason = null;
+      existingPending.lastError = null;
+      saved = await this.integrationRepository.save(existingPending);
+    } else {
+      const integration = this.integrationRepository.create({
+        workspaceId: params.workspaceId,
+        createdBy: params.userId,
+        serviceType: 'makeshop',
+        authType: 'oauth2',
+        name: params.integrationName || 'MakeShop',
+        scope: params.scope ?? 'personal',
+        status: 'pending_install',
+        installToken,
+        installTokenIssuedAt,
+        // mallId (=shop_uid projection) stays NULL until install callback.
+        credentials: {
+          client_id: meta.client_id,
+          client_secret: meta.client_secret,
+          scopes: params.scopes,
+        },
+      });
+      saved = await this.integrationRepository.save(integration);
+    }
+
+    const finalToken = saved.installToken ?? installToken;
+    return {
+      mode: 'makeshop_pending_install',
+      integrationId: saved.id,
+      appUrl: buildMakeshopInstallUrl(appUrl, finalToken),
+      callbackUrl: buildOauthCallbackUrl(appUrl, 'makeshop'),
+    };
+  }
+
+  /**
+   * Find an existing `pending_install` makeshop row for `(workspaceId,
+   * client_id)`. Used by begin to keep the flow idempotent (reuse the
+   * install_token rather than minting a new one each click).
+   */
+  private async findMakeshopPendingByClient(
+    workspaceId: string,
+    clientId: string,
+  ): Promise<Integration | null> {
+    const rows = await this.integrationRepository.find({
+      where: {
+        workspaceId,
+        serviceType: 'makeshop',
+        status: 'pending_install',
+      },
+    });
+    return rows.find((r) => r.credentials?.client_id === clientId) ?? null;
+  }
+
+  /**
+   * Handles MakeShop ShopStore install App URL calls.
+   *
+   * Order (mirrors cafe24 {@link handleInstall}):
+   *   ① timestamp ±5min window (cheap, DoS-resistant)
+   *   ② install_token single-row lookup
+   *   ③ HMAC-SHA256(client_secret) verification (timing-safe)
+   *   ④ nonce replay guard
+   *   ⑤ status routing: pending_install → makeshop authorize URL,
+   *      connected/error/expired → frontend detail page.
+   *
+   * On the pending_install branch we set `mallId = shop_uid` (projection) and
+   * persist the shop_uid into credentials, generate a PKCE verifier+challenge,
+   * store the verifier on the state row's provider_meta, and return the
+   * authorize URL (space-separated scopes, code_challenge S256).
+   *
+   * ⚠ VERIFY against makeshop docs before production: the exact HMAC message
+   * construction and install callback contract are an open question
+   * (spec/4-nodes/4-integration/5-makeshop.md §9.7). The HMAC message is built
+   * by {@link buildMakeshopHmacMessage} — adjust there once the docs confirm
+   * the signing string (sort order / encoding).
+   */
+  async handleMakeshopInstall(
+    installToken: string,
+    query: MakeshopInstallQuery,
+  ): Promise<string> {
+    const timestampSec = parseInt(query.timestamp, 10);
+    if (
+      isNaN(timestampSec) ||
+      Math.abs(Math.floor(Date.now() / 1000) - timestampSec) > 5 * 60
+    ) {
+      throw new BadRequestException({
+        code: 'MAKESHOP_INSTALL_REPLAY',
+        message: 'Request timestamp is outside the acceptable window (±5 min)',
+      });
+    }
+
+    if (!installToken) {
+      throw new NotFoundException({
+        code: 'MAKESHOP_INSTALL_INVALID_TOKEN',
+        message: 'install_token is required',
+      });
+    }
+
+    // shop_uid path-segment SSRF guard — shop_uid feeds the data-call base URL
+    // `connect.makeshop.co.kr/api/v1/{shop_uid}/`. Reject malformed values
+    // before they touch the DB / authorize URL. (makeshop node §9.7 — exact
+    // regex to be confirmed against docs.)
+    if (!MAKESHOP_SHOP_UID_PATTERN.test(query.shop_uid)) {
+      throw new BadRequestException({
+        code: 'MAKESHOP_INVALID_SHOP_UID',
+        message: 'shop_uid format invalid',
+      });
+    }
+
+    const target = await this.integrationRepository.findOne({
+      where: { installToken, serviceType: 'makeshop' },
+    });
+    if (!target) {
+      throw new NotFoundException({
+        code: 'MAKESHOP_INSTALL_INVALID_TOKEN',
+        message:
+          'install_token is not associated with any integration (deleted, TTL-expired, or stale URL). Reinstall from MakeShop ShopStore or update the App URL to match your integration detail page.',
+      });
+    }
+
+    const creds = target.credentials;
+    const secret = creds?.client_secret;
+    if (typeof secret !== 'string') {
+      this.logger.warn(
+        `[makeshop-install-hmac-fail] reason=no_client_secret integration=${target.id} status=${target.status}`,
+      );
+      throw new ForbiddenException({
+        code: 'MAKESHOP_INSTALL_INVALID_HMAC',
+        message: 'HMAC verification failed',
+      });
+    }
+    // Defensive: a row already bound to a different shop_uid must not be
+    // re-bound by an install for another shop (no info leak — treated as bad
+    // HMAC). Only enforced once mall_id has been projected (post first install).
+    if (target.mallId && target.mallId !== query.shop_uid) {
+      this.logger.warn(
+        `[makeshop-install-hmac-fail] reason=shop_uid_mismatch integration=${target.id} dbShopUid=${target.mallId} urlShopUid=${query.shop_uid}`,
+      );
+      throw new ForbiddenException({
+        code: 'MAKESHOP_INSTALL_INVALID_HMAC',
+        message: 'HMAC verification failed',
+      });
+    }
+
+    const hmacMessage = buildMakeshopHmacMessage(query.rawQuery);
+    if (!verifyHmacWithMessage(hmacMessage, secret, query.hmac)) {
+      this.logger.warn(
+        `[makeshop-install-hmac-fail] reason=hmac_verify_failed integration=${target.id} shop_uid=${query.shop_uid} status=${target.status}`,
+      );
+      throw new ForbiddenException({
+        code: 'MAKESHOP_INSTALL_INVALID_HMAC',
+        message: 'HMAC verification failed',
+      });
+    }
+
+    // Replay nonce guard (reuse cafe24 nonce cache — keyed by value+timestamp+
+    // hmac; the hmac differs across providers so cross-provider collision is
+    // not a practical concern). Graceful no-op when Redis is unconfigured.
+    if (this.installNonceCache) {
+      const isReplay = await this.installNonceCache.isReplay({
+        mallId: query.shop_uid,
+        timestamp: query.timestamp,
+        hmac: query.hmac,
+      });
+      if (isReplay) {
+        throw new BadRequestException({
+          code: 'MAKESHOP_INSTALL_REPLAY',
+          message:
+            'Request (shop_uid, timestamp, hmac) tuple has been seen within the replay window — refusing replay.',
+        });
+      }
+    }
+
+    // status routing — non-pending rows are post-install navigation.
+    if (target.status !== 'pending_install') {
+      const frontendBaseUrl =
+        process.env.FRONTEND_URL ||
+        process.env.APP_URL ||
+        'http://localhost:3000';
+      const trimmed = frontendBaseUrl.replace(/\/$/, '');
+      this.logger.log(
+        `MakeShop post-install navigation: shop_uid=${query.shop_uid} integration=${target.id} status=${target.status} → ${trimmed}/integrations/${target.id}`,
+      );
+      return `${trimmed}/integrations/${target.id}`;
+    }
+
+    // Project shop_uid onto the mall_id column + credentials. This is the
+    // moment shop_uid becomes known (begin didn't have it). 409 duplicate
+    // detection: if another connected makeshop row in this workspace already
+    // owns this shop_uid, refuse before starting OAuth.
+    const existingConnected = await this.findConnectedMakeshopShopIntegration(
+      target.workspaceId,
+      query.shop_uid,
+      target.id,
+    );
+    if (existingConnected) {
+      throw new ConflictException({
+        code: 'MAKESHOP_ALREADY_CONNECTED',
+        message: `A MakeShop integration for shop_uid "${query.shop_uid}" already exists and is connected. Use the existing integration or delete it first.`,
+        integrationId: existingConnected.id,
+      });
+    }
+
+    target.mallId = query.shop_uid;
+    target.credentials = { ...target.credentials, shop_uid: query.shop_uid };
+    try {
+      await this.integrationRepository.save(target);
+    } catch (err) {
+      // V071 partial UNIQUE race — another install for the same shop_uid won.
+      const constraint =
+        (err as { constraint?: string; driverError?: { constraint?: string } })
+          ?.constraint ??
+        (err as { driverError?: { constraint?: string } })?.driverError
+          ?.constraint;
+      if (
+        isPostgresUniqueViolation(err) &&
+        constraint === 'idx_integration_makeshop_workspace_mall'
+      ) {
+        throw new ConflictException({
+          code: 'MAKESHOP_ALREADY_CONNECTED',
+          message: `A MakeShop integration for shop_uid "${query.shop_uid}" already exists in this workspace.`,
+        });
+      }
+      throw err;
+    }
+
+    const clientId = creds.client_id as string;
+    const scopes = Array.isArray(creds.scopes)
+      ? (creds.scopes as string[])
+      : [];
+    const appUrl = getAppBaseUrl();
+    const redirectUri = buildOauthCallbackUrl(appUrl, 'makeshop');
+
+    // PKCE (REQUIRED by OAuth 2.1 / makeshop). Generate a high-entropy
+    // verifier, derive the S256 challenge, and stash the verifier on the
+    // state row so the callback's token exchange can present it.
+    const { verifier, challenge } = generatePkcePair();
+
+    const state = randomBytes(24).toString('hex');
+    const providerMeta = {
+      shop_uid: query.shop_uid,
+      client_id: clientId,
+      client_secret: creds.client_secret,
+      code_verifier: verifier,
+    };
+    const stateRecord = this.stateRepository.create({
+      state,
+      workspaceId: target.workspaceId,
+      userId: target.createdBy,
+      provider: 'makeshop',
+      serviceType: 'makeshop',
+      mode: 'reauthorize',
+      integrationId: target.id,
+      requestedScopes: scopes,
+      integrationName: target.name,
+      scope: target.scope as 'personal' | 'organization',
+      providerMeta: providerMeta as unknown as Record<string, unknown>,
+      expiresAt: new Date(Date.now() + STATE_TTL_MS),
+    });
+    await this.stateRepository.save(stateRecord);
+
+    // MakeShop follows OAuth 2.1 — SPACE-separated scopes (NOT cafe24's comma).
+    const urlParams = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: scopes.join(' '),
+      state,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+    });
+    return `${MAKESHOP_AUTHORIZE_URL}?${urlParams.toString()}`;
+  }
+
+  /**
+   * Return the first `connected` makeshop row for `(workspaceId, shop_uid)`
+   * other than `excludeId`, or null. shop_uid is projected onto the `mall_id`
+   * column (V071). Used for install-time + precheck duplicate detection.
+   */
+  private async findConnectedMakeshopShopIntegration(
+    workspaceId: string,
+    shopUid: string,
+    excludeId?: string,
+  ): Promise<Integration | null> {
+    const rows = await this.integrationRepository.find({
+      where: { workspaceId, serviceType: 'makeshop', mallId: shopUid },
+    });
+    return (
+      rows.find((r) => r.status === 'connected' && r.id !== excludeId) ?? null
+    );
+  }
+
+  /**
+   * Read-only conflict snapshot for the frontend's shop_uid input precheck —
+   * makeshop analogue of {@link precheckCafe24Mall}. Returns the most-
+   * restrictive makeshop row for `(workspaceId, shop_uid)`.
+   * spec/2-navigation/4-integration.md §5.9 + §9.2.
+   */
+  async precheckMakeshopShop(
+    workspaceId: string,
+    shopUid: string,
+  ): Promise<{
+    conflict: boolean;
+    existingIntegrationId?: string;
+    existingName?: string;
+    status?: Cafe24PrecheckStatus;
+  }> {
+    const all = await this.integrationRepository.find({
+      where: { workspaceId, serviceType: 'makeshop', mallId: shopUid },
+    });
+    if (all.length === 0) return { conflict: false };
+    for (const status of CAFE24_PRECHECK_STATUS_PRIORITY) {
+      const hit = all.find((row) => row.status === status);
+      if (hit) {
+        return {
+          conflict: true,
+          existingIntegrationId: hit.id,
+          existingName: hit.name,
+          status,
+        };
+      }
+    }
+    const fallback = all[0];
+    return {
+      conflict: true,
+      existingIntegrationId: fallback.id,
+      existingName: fallback.name,
+    };
+  }
+
   /**
    * Recovery path for `handleInstall` — direct install_token lookup miss.
    *
@@ -1750,6 +2280,22 @@ export function parseTokenExpiresAt(
   provider: OAuthProvider,
   data: Record<string, unknown>,
 ): Date | null {
+  // MakeShop — access_token TTL ~1h. expires_in (초) 우선, 없으면 expires_at
+  // ISO, 둘 다 없으면 우연히 JWT 일 때 exp, 최종 fallback 1h default. 토큰
+  // refresh 경로(`makeshop-api.client.ts`)와 동일 precedence. spec §5.9.
+  if (provider === 'makeshop') {
+    const expiresIn = readNumber(data, 'expires_in');
+    if (expiresIn) return new Date(Date.now() + expiresIn * 1000);
+    const expiresAtStr = readString(data, 'expires_at');
+    if (expiresAtStr) {
+      const parsed = Date.parse(expiresAtStr);
+      if (Number.isFinite(parsed)) return new Date(parsed);
+    }
+    const jwtExpMs = parseJwtExp(readString(data, 'access_token'));
+    if (jwtExpMs !== null) return new Date(jwtExpMs);
+    return new Date(Date.now() + 60 * 60 * 1000);
+  }
+
   // 비-cafe24 provider — 표준 expires_in 만 사용 (옛 동작 유지).
   if (provider !== 'cafe24') {
     const expiresIn = readNumber(data, 'expires_in');
@@ -1861,14 +2407,25 @@ function stubTokenResult(
         : null;
     if (pmMall) providerMeta.cafe24_response_mall_id = pmMall;
   }
+  if (provider === 'makeshop') {
+    const pmShop =
+      beginMeta && typeof beginMeta.shop_uid === 'string'
+        ? beginMeta.shop_uid
+        : null;
+    if (pmShop) providerMeta.makeshop_response_shop_uid = pmShop;
+  }
+  // makeshop access_token TTL ~1h (cafe24 2h); others 30d.
+  const ttlMs =
+    provider === 'cafe24'
+      ? 2 * 60 * 60 * 1000
+      : provider === 'makeshop'
+        ? 60 * 60 * 1000
+        : 30 * 24 * 60 * 60 * 1000;
   return {
     accessToken: `stub-${provider}-${randomBytes(8).toString('hex')}`,
     refreshToken: `stub-refresh-${randomBytes(8).toString('hex')}`,
     scopes: requestedScopes,
-    tokenExpiresAt: new Date(
-      Date.now() +
-        (provider === 'cafe24' ? 2 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000),
-    ),
+    tokenExpiresAt: new Date(Date.now() + ttlMs),
     providerMeta,
   };
 }
@@ -1926,6 +2483,61 @@ function previewInstallToken(token: string | null | undefined): string {
  * 4-cafe24.md` §9.8 참조.
  */
 function buildHmacMessage(rawQuery: string): string {
+  return rawQuery
+    .split('&')
+    .map((part) => {
+      const eqIdx = part.indexOf('=');
+      const key = eqIdx === -1 ? part : part.slice(0, eqIdx);
+      return { key, raw: part };
+    })
+    .filter((p) => p.key.length > 0 && p.key !== 'hmac')
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+    .map((p) => p.raw)
+    .join('&');
+}
+
+/**
+ * Generate an OAuth 2.1 PKCE verifier + S256 challenge pair (RFC 7636).
+ *
+ * - verifier: 32 random bytes → base64url (43 chars, within the 43–128 range).
+ * - challenge: BASE64URL(SHA256(verifier)).
+ *
+ * The verifier is stashed on the OAuth state row's provider_meta until the
+ * callback's token exchange; only the challenge leaves on the authorize URL.
+ * spec/2-navigation/4-integration.md §5.9 (PKCE S256), makeshop node §9.1.
+ *
+ * Exported for direct unit testing of the challenge derivation.
+ */
+export function generatePkcePair(): { verifier: string; challenge: string } {
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  return { verifier, challenge };
+}
+
+/**
+ * Builds the MakeShop ShopStore install HMAC verification message.
+ *
+ * ⚠⚠ VERIFY against makeshop docs before production ⚠⚠
+ *
+ * MakeShop's exact HMAC message construction (sort order + value encoding) is
+ * an OPEN QUESTION — it is not fully documented (spec/4-nodes/4-integration/
+ * 5-makeshop.md §9.7). This implements the most faithful believable version
+ * based on (a) the documented makeshop install params (`shop_uid`, `timestamp`,
+ * `action_type`, `hmac`) and (b) cafe24's verified raw-query approach
+ * ({@link buildHmacMessage}):
+ *
+ *   1. Split rawQuery on `&`, drop the `hmac` entry.
+ *   2. Sort the remaining `key=raw-value` entries by key (byte-lexicographic).
+ *   3. Concatenate with `&`, preserving raw URL-encoded values (no decode/
+ *      re-encode) — same encoder invariant that cafe24 required after a
+ *      production regression (PR #89).
+ *
+ * The HMAC-SHA256(client_secret) + base64 + timing-safe compare happens in
+ * {@link verifyHmacWithMessage} (shared with cafe24). This is the single,
+ * well-commented place to adjust once the makeshop signing string is confirmed
+ * — keep the install/HMAC details centralized here.
+ */
+export function buildMakeshopHmacMessage(rawQuery: string): string {
   return rawQuery
     .split('&')
     .map((part) => {

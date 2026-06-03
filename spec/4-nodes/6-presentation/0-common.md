@@ -166,8 +166,9 @@ Presentation 5 노드 (Carousel / Table / Chart / Form / Template) 모두 공통
 | Chart (버튼 없음) | `{chartType} · {xAxis.field} / {yAxis.field}` | `bar · month / revenue` |
 | Chart (버튼 있음) | `{chartType} · {N} buttons` | `bar · 2 buttons` |
 | Form | `{N} fields · "{title}"` (필드 수 + 폼 제목) | `3 fields · "Approval"` |
-| Template (버튼 없음) | `{outputFormat} · {N} lines` (템플릿 줄 수) | `html · 9 lines` |
-| Template (버튼 있음) | `{outputFormat} · {N} buttons` | `html · 2 buttons` |
+| Template | `{{outputFormat}} · {{buttons.length}} buttons` (`summaryTemplate`) | `html · 2 buttons` |
+
+> Template 포맷 단일화(`N lines` 변형 포기) 근거는 [`5-template.md` §Rationale R-1](./5-template.md#rationale) 참조.
 
 ---
 

@@ -149,7 +149,7 @@ describe('CandidateLookupService', () => {
   });
 
   describe('mcp-server-selector', () => {
-    it('looks up MCP-capable integrations (service_type IN ("mcp","cafe24")) and maps to {id, label, sublabel}', async () => {
+    it('looks up MCP-capable integrations (service_type IN ("mcp","cafe24","makeshop")) and maps to {id, label, sublabel}', async () => {
       const { service, mocks } = makeService();
       mocks.integrations.findAll.mockResolvedValue({
         data: [
@@ -170,7 +170,7 @@ describe('CandidateLookupService', () => {
         'ws-1',
         expect.objectContaining({
           status: 'connected',
-          serviceType: ['mcp', 'cafe24'],
+          serviceType: ['mcp', 'cafe24', 'makeshop'],
         }),
       );
       expect(out[0].candidates).toEqual([

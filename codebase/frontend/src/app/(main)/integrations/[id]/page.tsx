@@ -365,7 +365,11 @@ function OverviewTab({
 
       {integration.appUrl && (
         <div className="sm:col-span-2">
-          <Cafe24AppUrlCard appUrl={integration.appUrl} t={t} />
+          <Cafe24AppUrlCard
+            appUrl={integration.appUrl}
+            serviceType={integration.serviceType}
+            t={t}
+          />
         </div>
       )}
     </div>

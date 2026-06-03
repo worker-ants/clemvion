@@ -23,3 +23,6 @@ owner: planner
   - `codebase/backend/.../expression/expression-resolver.service.ts` `buildExpressionContext` 반환 객체에 `$trigger`/`$env` 키 없음.
   - `codebase/packages/expression-engine/src/evaluator.ts` `ExpressionContext` 에는 `$trigger?`/`$env?` 선언 존재 (평가는 지원).
   - `codebase/frontend/src/components/editor/expression/expression-constants.ts` `ROOT_VARIABLES` 에 `$trigger`/`$env` 는 있으나 `$thread` 는 없음.
+
+## 파생 처리 (2026-06-03 spec-inprogress-impl2)
+- foreach-gaps 결정(a)에서 파생: `$itemIsFirst`/`$itemIsLast` top-level 변수도 함께 노출(ROOT_VARIABLES + resolver + expression-language §4 표). $thread 자동완성과 별개의 ForEach 항목 플래그. $trigger/$env 런타임 주입은 여전히 티어3 보류.

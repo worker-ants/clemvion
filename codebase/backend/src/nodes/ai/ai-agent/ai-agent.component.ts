@@ -3,6 +3,7 @@ import { NodeComponent } from '../../core/node-component.interface';
 import { KbToolProvider } from './tool-providers/kb-tool-provider';
 import { McpToolProvider } from './tool-providers/mcp-tool-provider';
 import { Cafe24McpToolProvider } from './tool-providers/cafe24-mcp-tool-provider';
+import { MakeshopMcpToolProvider } from './tool-providers/makeshop-mcp-tool-provider';
 import { RenderToolProvider } from './tool-providers/render-tool-provider';
 import type { AgentToolProvider } from './tool-providers/agent-tool-provider.interface';
 import {
@@ -31,6 +32,19 @@ export const aiAgentNodeComponent: NodeComponent = {
         new Cafe24McpToolProvider(
           deps.integrationsService,
           deps.cafe24ApiClient,
+        ),
+      );
+    }
+    // MakeShop Internal Bridge — same ordering rationale as cafe24: its
+    // sid-aware matches() must claim makeshop-owned sids BEFORE the external
+    // HTTP McpToolProvider's broad `mcp_*` matcher swallows them. Registered
+    // only when its ApiClient was wired in (HandlerDependencies.makeshopApiClient
+    // is optional, mirroring cafe24ApiClient).
+    if (deps.makeshopApiClient) {
+      providers.push(
+        new MakeshopMcpToolProvider(
+          deps.integrationsService,
+          deps.makeshopApiClient,
         ),
       );
     }

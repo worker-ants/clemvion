@@ -19,6 +19,7 @@ export const SERVICE_ICONS: Record<string, LucideIcon> = {
   webhook: Webhook,
   mcp: Plug,
   cafe24: ShoppingBag,
+  makeshop: ShoppingBag,
 };
 
 export function getServiceIcon(type: string): LucideIcon {

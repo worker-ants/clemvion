@@ -239,6 +239,26 @@ describe('IntegrationsService', () => {
         // Sanity: status flips to error/needs_reauth on unreadable.
         expect(result.credentialsStatus).toBe('needs_reauth');
       });
+
+      it('returns null for makeshop (no app_type — confidential single form)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'makeshop',
+            authType: 'oauth2',
+            credentials: {
+              shop_uid: 'myshop',
+              client_id: 'cid',
+              client_secret: 'csec',
+              access_token: 'tok',
+              refresh_token: 'rtok',
+              scopes: ['store.read'],
+              expires_at: '2026-06-04T00:00:00Z',
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.meta).toEqual({ appType: null });
+      });
     });
 
     // -----------------------------------------------------------------
@@ -376,6 +396,50 @@ describe('IntegrationsService', () => {
         const result = await service.findById('int-1', 'ws-1');
         expect(result.appUrl).toBeNull();
       });
+
+      it('builds the makeshop ShopStore install App URL when installToken is present (Phase 3)', async () => {
+        process.env.APP_URL = 'https://app.example.com';
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'makeshop',
+            authType: 'oauth2',
+            installToken: 'AbCdEfGhIjKlMnOpQrStUv',
+            credentials: {
+              shop_uid: 'myshop',
+              client_id: 'cid',
+              client_secret: 'csec',
+              access_token: 'tok',
+              refresh_token: 'rtok',
+              scopes: ['store.read'],
+              expires_at: '2026-06-04T00:00:00Z',
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.appUrl).toBe(
+          'https://app.example.com/api/3rd-party/makeshop/install/AbCdEfGhIjKlMnOpQrStUv',
+        );
+      });
+
+      it('returns null appUrl for makeshop without an installToken', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'makeshop',
+            authType: 'oauth2',
+            installToken: null,
+            credentials: {
+              shop_uid: 'myshop',
+              client_id: 'cid',
+              client_secret: 'csec',
+              access_token: 'tok',
+              refresh_token: 'rtok',
+              scopes: ['store.read'],
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.appUrl).toBeNull();
+      });
     });
 
     // -----------------------------------------------------------------
@@ -400,6 +464,26 @@ describe('IntegrationsService', () => {
 
       it('returns true for google (refresh_token 발급 provider)', async () => {
         // Default makeIntegration uses serviceType='google'.
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.autoRefresh).toBe(true);
+      });
+
+      it('returns true for makeshop (auth-code + refresh rotation — spec §5.9)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'makeshop',
+            authType: 'oauth2',
+            credentials: {
+              shop_uid: 'myshop',
+              client_id: 'cid',
+              client_secret: 'csec',
+              access_token: 'tok',
+              refresh_token: 'rtok',
+              scopes: ['store.read'],
+              expires_at: '2026-06-04T00:00:00Z',
+            },
+          }),
+        );
         const result = await service.findById('int-1', 'ws-1');
         expect(result.autoRefresh).toBe(true);
       });
@@ -1837,6 +1921,25 @@ describe('buildIntegrationMeta (standalone)', () => {
       expect(buildIntegrationMeta(cafe24Entity({ app_type: null }))).toEqual({
         appType: null,
       });
+    });
+  });
+
+  describe('makeshop — no app_type (confidential single form)', () => {
+    it('returns appType=null even when credentials are present', () => {
+      expect(
+        buildIntegrationMeta({
+          serviceType: 'makeshop',
+          credentials: {
+            shop_uid: 'myshop',
+            client_id: 'cid',
+            client_secret: 'csec',
+            access_token: 'tok',
+            refresh_token: 'rtok',
+            scopes: ['store.read'],
+            expires_at: '2026-06-04T00:00:00Z',
+          },
+        } as Pick<Integration, 'serviceType' | 'credentials'>),
+      ).toEqual({ appType: null });
     });
   });
 

@@ -52,6 +52,7 @@ import type { JwtPayload } from '../../common/decorators';
 import {
   ActivityQueryDto,
   Cafe24PrecheckQueryDto,
+  MakeshopPrecheckQueryDto,
   CreateIntegrationDto,
   ListIntegrationsQueryDto,
   OAuthBeginDto,
@@ -201,19 +202,29 @@ export class IntegrationsController {
     @Body() body: OAuthBeginDto,
   ) {
     const mode = body.mode === 'request-scopes' ? 'request_scopes' : body.mode;
-    const providerMeta =
-      body.service === 'cafe24'
-        ? {
-            mall_id: body.mallId,
-            app_type: body.appType,
-            ...(body.appType === 'private'
-              ? {
-                  client_id: body.clientId,
-                  client_secret: body.clientSecret,
-                }
-              : {}),
-          }
-        : undefined;
+    let providerMeta: Record<string, unknown> | undefined;
+    if (body.service === 'cafe24') {
+      providerMeta = {
+        mall_id: body.mallId,
+        app_type: body.appType,
+        ...(body.appType === 'private'
+          ? {
+              client_id: body.clientId,
+              client_secret: body.clientSecret,
+            }
+          : {}),
+      };
+    } else if (body.service === 'makeshop') {
+      // MakeShop is confidential-client-only — client_id/client_secret are
+      // always required at begin (shop_uid is learned at install). Reuse the
+      // OAuthBeginDto clientId/clientSecret fields (same printable-ASCII guard).
+      providerMeta = {
+        client_id: body.clientId,
+        client_secret: body.clientSecret,
+      };
+    } else {
+      providerMeta = undefined;
+    }
     return this.oauthService.begin({
       workspaceId,
       userId: user.sub,
@@ -259,6 +270,30 @@ export class IntegrationsController {
     @Query() query: Cafe24PrecheckQueryDto,
   ) {
     return this.oauthService.precheckCafe24Mall(workspaceId, query.mallId);
+  }
+
+  // 라우트 선언 순서 주의: `:id` 동적 경로보다 앞 (cafe24/precheck 와 동일 사유).
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Get('makeshop/precheck')
+  @ApiOperation({
+    summary: 'MakeShop shop_uid 중복 사전 감지',
+    description:
+      '현재 워크스페이스에 같은 shop_uid 의 makeshop 통합이 이미 있는지 사전 확인합니다. cafe24/precheck 의 makeshop 대응. 자격 증명·토큰 미포함, 가장 제한적인 상태 (connected > pending_install > error > expired) 만 반환. 분당 60회 제한. spec/2-navigation/4-integration.md §5.9.',
+  })
+  @ApiOkWrappedResponse(Cafe24PrecheckResultDto, {
+    description:
+      'conflict 여부 + (존재 시) 충돌 대상 통합의 id/name/status. 자격 증명 미포함',
+  })
+  @ApiBadRequestResponse({
+    description: 'shopUid 형식 위반 (^[A-Za-z0-9_-]{2,64}$)',
+  })
+  @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 60회)' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  async makeshopPrecheck(
+    @WorkspaceId() workspaceId: string,
+    @Query() query: MakeshopPrecheckQueryDto,
+  ) {
+    return this.oauthService.precheckMakeshopShop(workspaceId, query.shopUid);
   }
 
   @Get(':id')

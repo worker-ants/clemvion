@@ -25,6 +25,7 @@ code:
 | graph-extraction | knowledge-base | 2 | entity/relation 추출 |
 | notification-webhook | integration | 1 (기본) | outbound 웹훅 |
 | cafe24-token-refresh | integration | 1 (기본) | Cafe24 토큰 갱신 |
+| makeshop-token-refresh | integration | 1 (기본) | MakeShop 토큰 갱신 (proactive + reactive_401) |
 | schedule-execution | system | 1 (기본) | 스케줄 트리거 실행 |
 | login-history-pruner | system | 1 (기본) | repeatable cron |
 | notification-secret-rotator | system | 1 (기본) | repeatable cron |

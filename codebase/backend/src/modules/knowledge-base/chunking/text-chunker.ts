@@ -27,8 +27,17 @@ export function estimateTokens(text: string): number {
 
 /**
  * Split text into chunks using paragraph → sentence → forced split strategy.
+ *
+ * `baseMetadata` is copied onto every produced chunk — callers that parse a
+ * document into structured segments (markdown sections, PDF pages) pass the
+ * segment's `{ page?, section? }` so the metadata propagates to each chunk
+ * (spec/5-system/8-embedding-pipeline.md §6.1).
  */
-export function chunkText(text: string, options: ChunkOptions): Chunk[] {
+export function chunkText(
+  text: string,
+  options: ChunkOptions,
+  baseMetadata: ChunkMetadata = {},
+): Chunk[] {
   const { chunkSize, chunkOverlap } = options;
 
   if (!text.trim()) return [];
@@ -46,7 +55,7 @@ export function chunkText(text: string, options: ChunkOptions): Chunk[] {
     if (paragraphTokens > chunkSize) {
       // Paragraph too large, split by sentences
       if (currentChunk.trim()) {
-        pushChunk(chunks, currentChunk, overlapBuffer);
+        pushChunk(chunks, currentChunk, overlapBuffer, baseMetadata);
         overlapBuffer = getOverlapText(currentChunk, chunkOverlap);
         currentChunk = '';
       }
@@ -57,14 +66,20 @@ export function chunkText(text: string, options: ChunkOptions): Chunk[] {
         if (sentenceTokens > chunkSize) {
           // Sentence too large, force split
           if (currentChunk.trim()) {
-            pushChunk(chunks, currentChunk, overlapBuffer);
+            pushChunk(chunks, currentChunk, overlapBuffer, baseMetadata);
             overlapBuffer = getOverlapText(currentChunk, chunkOverlap);
             currentChunk = '';
           }
-          forceSplitAndPush(chunks, sentence, chunkSize, chunkOverlap);
+          forceSplitAndPush(
+            chunks,
+            sentence,
+            chunkSize,
+            chunkOverlap,
+            baseMetadata,
+          );
           overlapBuffer = '';
         } else if (estimateTokens(currentChunk + ' ' + sentence) > chunkSize) {
-          pushChunk(chunks, currentChunk, overlapBuffer);
+          pushChunk(chunks, currentChunk, overlapBuffer, baseMetadata);
           overlapBuffer = getOverlapText(currentChunk, chunkOverlap);
           currentChunk = sentence;
         } else {
@@ -74,7 +89,7 @@ export function chunkText(text: string, options: ChunkOptions): Chunk[] {
         }
       }
     } else if (estimateTokens(currentChunk + '\n\n' + paragraph) > chunkSize) {
-      pushChunk(chunks, currentChunk, overlapBuffer);
+      pushChunk(chunks, currentChunk, overlapBuffer, baseMetadata);
       overlapBuffer = getOverlapText(currentChunk, chunkOverlap);
       currentChunk = paragraph;
     } else {
@@ -85,19 +100,24 @@ export function chunkText(text: string, options: ChunkOptions): Chunk[] {
   }
 
   if (currentChunk.trim()) {
-    pushChunk(chunks, currentChunk, overlapBuffer);
+    pushChunk(chunks, currentChunk, overlapBuffer, baseMetadata);
   }
 
   return chunks;
 }
 
-function pushChunk(chunks: Chunk[], content: string, overlap: string): void {
+function pushChunk(
+  chunks: Chunk[],
+  content: string,
+  overlap: string,
+  baseMetadata: ChunkMetadata,
+): void {
   const text = overlap ? overlap + ' ' + content : content;
   chunks.push({
     content: text.trim(),
     index: chunks.length,
     tokenCount: estimateTokens(text),
-    metadata: {},
+    metadata: { ...baseMetadata },
   });
 }
 
@@ -117,6 +137,7 @@ function forceSplitAndPush(
   text: string,
   chunkSize: number,
   chunkOverlap: number,
+  baseMetadata: ChunkMetadata,
 ): void {
   const chars = chunkSize * 3;
   const overlapChars = chunkOverlap * 3;
@@ -129,7 +150,7 @@ function forceSplitAndPush(
         content,
         index: chunks.length,
         tokenCount: estimateTokens(content),
-        metadata: {},
+        metadata: { ...baseMetadata },
       });
     }
     start = end - overlapChars;
@@ -143,7 +164,7 @@ function forceSplitAndPush(
         content: remaining,
         index: chunks.length,
         tokenCount: estimateTokens(remaining),
-        metadata: {},
+        metadata: { ...baseMetadata },
       });
     }
   }

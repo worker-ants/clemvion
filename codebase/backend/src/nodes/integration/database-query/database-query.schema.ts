@@ -174,5 +174,8 @@ export const databaseQueryNodeMetadata: NodeComponentMetadata = {
       message: 'SQL query must be entered.',
     },
   ],
+  summaryTemplate: {
+    template: '{{queryType|upper}} · {{query}}',
+  },
   validateConfig: validateDatabaseQueryConfig,
 };

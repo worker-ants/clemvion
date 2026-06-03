@@ -102,3 +102,72 @@ describe('service-registry — mcp service', () => {
     ]);
   });
 });
+
+describe('service-registry — makeshop service', () => {
+  it('registers makeshop with a single oauth2 variant + makeshop oauthProvider', () => {
+    const service = findService('makeshop');
+    expect(service).toBeDefined();
+    expect(service?.name).toBe('MakeShop');
+    expect(service?.oauthProvider).toBe('makeshop');
+    expect(service?.authVariants.map((v) => v.authType)).toEqual(['oauth2']);
+  });
+
+  it('supports background token auto-refresh (auth-code + refresh rotation)', () => {
+    expect(findService('makeshop')?.supportsTokenAutoRefresh).toBe(true);
+  });
+
+  it('declares the oauth field set — NO app_type (confidential single form)', () => {
+    const variant = findVariant('makeshop', 'oauth2');
+    const keys = variant?.fields.map((f) => f.key).sort();
+    expect(keys).toEqual([
+      'access_token',
+      'client_id',
+      'client_secret',
+      'expires_at',
+      'refresh_token',
+      'scopes',
+      'shop_uid',
+    ]);
+    expect(keys).not.toContain('app_type');
+  });
+
+  it('marks client_secret / access_token / refresh_token as secrets (shop_uid is not)', () => {
+    const secrets = listSecretKeys('makeshop', 'oauth2').sort();
+    expect(secrets).toEqual(['access_token', 'client_secret', 'refresh_token']);
+    expect(secrets).not.toContain('shop_uid');
+  });
+
+  it('requires shop_uid / client_id / client_secret / access_token / refresh_token / scopes / expires_at', () => {
+    const errors = validateCredentials('makeshop', 'oauth2', {});
+    expect(errors).toContain('shop_uid is required');
+    expect(errors).toContain('client_id is required');
+    expect(errors).toContain('client_secret is required');
+    expect(errors).toContain('access_token is required');
+    expect(errors).toContain('refresh_token is required');
+    expect(errors).toContain('scopes is required');
+    expect(errors).toContain('expires_at is required');
+  });
+
+  it('exposes <group>.read / <group>.write scope presets with NO requiresApproval flags', () => {
+    const scopes = findService('makeshop')?.scopes ?? [];
+    const values = scopes.map((s) => s.value);
+    expect(values).toEqual(
+      expect.arrayContaining([
+        'store.read',
+        'store.write',
+        'product.read',
+        'product.write',
+        'order.read',
+        'order.write',
+        'member.read',
+        'member.write',
+        'board.read',
+        'board.write',
+        'benefit.read',
+        'benefit.write',
+      ]),
+    );
+    // makeshop has no restricted (partner-approval) scope tier.
+    expect(scopes.some((s) => s.requiresApproval)).toBe(false);
+  });
+});

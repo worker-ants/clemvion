@@ -1,0 +1,2693 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Makeshop Shop API — CPIK (외부연동: 장바구니·회원·주문·webhook)",
+    "version": "v1",
+    "x-source": "https://developer.makeshop.co.kr/docs/api/cpik",
+    "x-extracted": "2026-06-03 (Docusaurus chunk decode)"
+  },
+  "servers": [
+    {
+      "url": "https://connect.makeshop.co.kr",
+      "description": "Production server"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/{shopId}/cart/create": {
+      "post": {
+        "operationId": "post-cart-create",
+        "description": "장바구니는 tempid를 기준으로 생성됩니다.<br />일반 상품, 세트 상품, 옵션 상품, 개별 옵션, 추가 구성 상품을 담으며, 상품 번호를 기준으로 상품 조회를 통해 출력되는 결과값을 토대로 입력합니다.<br />tempid가 없고 회원 ID가 있는 경우에는 tempid가 새로 생성됩니다.",
+        "tags": [
+          "API"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 코드 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true: 성공, false: 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "에러 메시지 (실패시)",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "tempid": {
+                            "type": "string",
+                            "description": "장바구니번호 (성공시)"
+                          },
+                          "user_id": {
+                            "type": "string",
+                            "description": "회원 ID (성공시)"
+                          },
+                          "product_id": {
+                            "type": "string",
+                            "description": "상품번호 (성공시)"
+                          },
+                          "cart_id": {
+                            "type": "string",
+                            "description": "장바구니 상품 품목 번호 (성공시)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "전송 정보",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "user_id": {
+                          "type": "string",
+                          "description": "회원 ID"
+                        },
+                        "product_id": {
+                          "type": "string",
+                          "description": "상품번호"
+                        },
+                        "amount": {
+                          "type": "string",
+                          "description": "상품수량. 옵션이 없는 상품,세트 상품인 경우 입력"
+                        },
+                        "discount_price": {
+                          "type": "string",
+                          "description": "할인상품가격. 할인된 상품 가격 (단품)"
+                        },
+                        "channel_type": {
+                          "type": "string",
+                          "description": "판매채널 (cpik)"
+                        },
+                        "option": {
+                          "type": "array",
+                          "description": "기본옵션",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "option_id": {
+                                "type": "string",
+                                "description": "옵션 ID"
+                              },
+                              "amount": {
+                                "type": "string",
+                                "description": "옵션수량"
+                              },
+                              "stock_id": {
+                                "type": "string",
+                                "description": "옵션 조합 Id (조합 옵션인 경우 stock_id와 amount만 입력)"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "product_id",
+                        "discount_price",
+                        "channel_type",
+                        "option"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "주문",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "주문"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "user_id": "string",
+              "product_id": "string",
+              "amount": "string",
+              "discount_price": "string",
+              "channel_type": "string",
+              "option": [
+                {
+                  "option_id": "string",
+                  "amount": "string",
+                  "stock_id": "string"
+                }
+              ]
+            }
+          ]
+        },
+        "postman": {
+          "name": "장바구니 담기",
+          "description": {
+            "content": "장바구니는 tempid를 기준으로 생성됩니다.<br />일반 상품, 세트 상품, 옵션 상품, 개별 옵션, 추가 구성 상품을 담으며, 상품 번호를 기준으로 상품 조회를 통해 출력되는 결과값을 토대로 입력합니다.<br />tempid가 없고 회원 ID가 있는 경우에는 tempid가 새로 생성됩니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cart",
+              "create"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "장바구니 담기"
+      }
+    },
+    "/api/v1/{shopId}/cart/delete": {
+      "post": {
+        "operationId": "post-cart-delete",
+        "description": "장바구니 상품 삭제 (tempid 기준)",
+        "tags": [
+          "API"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 코드 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true: 성공, false: 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "tempid": {
+                            "type": "string",
+                            "description": "장바구니 번호 (성공시)"
+                          },
+                          "product_id": {
+                            "type": "string",
+                            "description": "상품번호"
+                          },
+                          "cart_id": {
+                            "type": "string",
+                            "description": "장바구니 상품 품목 번호 (성공시)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "전송 정보",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "tempid": {
+                          "type": "string",
+                          "description": "장바구니 번호"
+                        },
+                        "user_id": {
+                          "type": "string",
+                          "description": "회원 ID"
+                        },
+                        "product_id": {
+                          "type": "string",
+                          "description": "상품번호"
+                        },
+                        "cart_id": {
+                          "type": "string",
+                          "description": "장바구니 상품 품목 번호"
+                        }
+                      },
+                      "required": [
+                        "tempid",
+                        "user_id",
+                        "product_id",
+                        "cart_id"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "주문",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "주문"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "tempid": "string",
+              "user_id": "string",
+              "product_id": "string",
+              "cart_id": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "장바구니 삭제",
+          "description": {
+            "content": "장바구니 상품 삭제 (tempid 기준)",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cart",
+              "delete"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "장바구니 삭제"
+      }
+    },
+    "/api/v1/{shopId}/cart/update": {
+      "post": {
+        "operationId": "post-cart-update",
+        "description": "장바구니 상품 수정 (tempid 기준)",
+        "tags": [
+          "API"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 코드 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true: 성공, false: 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "에러 메시지 (실패시)",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "tempid": {
+                            "type": "string",
+                            "description": "장바구니번호 (성공시)"
+                          },
+                          "user_id": {
+                            "type": "string",
+                            "description": "회원 ID (성공시)"
+                          },
+                          "product_id": {
+                            "type": "string",
+                            "description": "상품번호 (성공시)"
+                          },
+                          "cart_id": {
+                            "type": "string",
+                            "description": "장바구니 상품 품목 번호 (성공시)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "전송 정보",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "cart_id": {
+                          "type": "string",
+                          "description": "장바구니 상품 품목 번호"
+                        },
+                        "tempid": {
+                          "type": "string",
+                          "description": "장바구니 번호"
+                        },
+                        "product_id": {
+                          "type": "string",
+                          "description": "상품번호"
+                        },
+                        "amount": {
+                          "type": "string",
+                          "description": "상품수량 (옵션이 없는 상품,세트 상품인 경우 입력)"
+                        },
+                        "discount_price": {
+                          "type": "string",
+                          "description": "할인상품가격 (할인된 상품 가격)"
+                        },
+                        "channel_type": {
+                          "type": "string",
+                          "description": "판매채널"
+                        }
+                      },
+                      "required": [
+                        "cart_id",
+                        "tempid",
+                        "product_id",
+                        "amount",
+                        "discount_price",
+                        "channel_type"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "주문",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "주문"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "cart_id": "string",
+              "tempid": "string",
+              "product_id": "string",
+              "amount": "string",
+              "discount_price": "string",
+              "channel_type": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "장바구니 수정",
+          "description": {
+            "content": "장바구니 상품 수정 (tempid 기준)",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cart",
+              "update"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "장바구니 수정"
+      }
+    },
+    "/api/v1/{shopId}/cpik_member/check": {
+      "post": {
+        "operationId": "post-cpik_member-check",
+        "description": "크픽 회원의 메이크샵 연동 여부를 확인합니다.",
+        "tags": [
+          "API"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 코드 (0000: 성공, 9999: 실패) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 결과 배열",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "is_connected": {
+                            "type": "boolean",
+                            "description": "연동 여부 (true: 연동됨, false: 미연동)"
+                          },
+                          "user_id": {
+                            "type": "string",
+                            "description": "메이크샵 회원 ID (연동된 경우)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cpik_user_id": {
+                    "type": "string",
+                    "description": "크픽 회원 고유번호"
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "description": "요청 시각 (Unix timestamp, 5분 유효)"
+                  }
+                },
+                "required": [
+                  "cpik_user_id",
+                  "timestamp"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "cpik_user_id": "string",
+          "timestamp": 0
+        },
+        "postman": {
+          "name": "연동 여부 확인",
+          "description": {
+            "content": "크픽 회원의 메이크샵 연동 여부를 확인합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cpik_member",
+              "check"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "연동 여부 확인"
+      }
+    },
+    "/api/v1/{shopId}/cpik_member/delete": {
+      "post": {
+        "operationId": "post-cpik_member-delete",
+        "description": "크픽 회원의 메이크샵 연동 해제 (크픽 탈퇴시)",
+        "tags": [
+          "API"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 코드 (\"0000\": 성공, \"9999\": 실패) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 결과 배열",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "result": {
+                            "type": "boolean",
+                            "description": "개별 처리 성공 여부"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "에러 메시지 (실패시)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cpik_user_id": {
+                    "type": "string",
+                    "description": "크픽 회원 고유번호"
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "description": "요청 시각 (Unix timestamp (5분 유효))"
+                  }
+                },
+                "required": [
+                  "cpik_user_id",
+                  "timestamp"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "cpik_user_id": "string",
+          "timestamp": 0
+        },
+        "postman": {
+          "name": "회원 연동 해제 (메이크샵)",
+          "description": {
+            "content": "크픽 회원의 메이크샵 연동 해제 (크픽 탈퇴시)",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cpik_member",
+              "delete"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "회원 연동 해제 (메이크샵)"
+      }
+    },
+    "/api/v1/{shopId}/cpik_member/join": {
+      "post": {
+        "operationId": "post-cpik_member-join",
+        "description": "크픽 회원의 메이크샵 신규 가입",
+        "tags": [
+          "API"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 코드 (0000: 성공, 9999: 실패) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 결과 배열",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "result": {
+                            "type": "boolean",
+                            "description": "개별 처리 성공 여부"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "에러 메시지 (실패시)"
+                          },
+                          "user_id": {
+                            "type": "string",
+                            "description": "생성된 메이크샵 회원 ID"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cpik_user_id": {
+                    "type": "string",
+                    "description": "크픽 회원 고유번호"
+                  },
+                  "email": {
+                    "type": "string",
+                    "description": "이메일"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "회원이름"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "description": "핸드폰 번호"
+                  },
+                  "address": {
+                    "type": "string",
+                    "description": "주소"
+                  },
+                  "address_detail": {
+                    "type": "string",
+                    "description": "상세주소"
+                  },
+                  "zipcode": {
+                    "type": "string",
+                    "description": "우편번호"
+                  },
+                  "email_agree": {
+                    "type": "string",
+                    "description": "이메일 수신 동의. Y(동의) / N(미동의)"
+                  },
+                  "phone_agree": {
+                    "type": "string",
+                    "description": "SMS 수신 동의. Y(동의) / N(미동의)"
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "description": "요청 시각. Unix timestamp (5분 유효)"
+                  }
+                },
+                "required": [
+                  "cpik_user_id",
+                  "name",
+                  "phone",
+                  "address",
+                  "zipcode",
+                  "phone_agree",
+                  "timestamp"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "cpik_user_id": "string",
+          "email": "string",
+          "name": "string",
+          "phone": "string",
+          "address": "string",
+          "address_detail": "string",
+          "zipcode": "string",
+          "email_agree": "string",
+          "phone_agree": "string",
+          "timestamp": 0
+        },
+        "postman": {
+          "name": "회원가입",
+          "description": {
+            "content": "크픽 회원의 메이크샵 신규 가입",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cpik_member",
+              "join"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "회원가입"
+      }
+    },
+    "/api/v1/{shopId}/cpik_member/login": {
+      "post": {
+        "operationId": "post-cpik_member-login",
+        "description": "회원 로그인 SSO 토큰 획득 API",
+        "tags": [
+          "API"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 코드 (\"0000\": 성공, \"9999\": 실패) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 결과 배열",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "result": {
+                            "type": "boolean",
+                            "description": "개별 처리 성공 여부"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "에러 메시지 (실패시)"
+                          },
+                          "sso_login_url": {
+                            "type": "string",
+                            "description": "SSO 로그인 URL (성공시)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cpik_user_id": {
+                    "type": "string",
+                    "description": "크픽 회원 고유번호"
+                  },
+                  "redirect_url": {
+                    "type": "string",
+                    "description": "로그인 후 이동 URL (‘/shop/basket.html’ - 장바구니)"
+                  },
+                  "redirect_fail_url": {
+                    "type": "string",
+                    "description": "로그인 실패시 이동 URL (‘/’)"
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "description": "요청 시각 (Unix timestamp (5분 유효))"
+                  }
+                },
+                "required": [
+                  "cpik_user_id",
+                  "redirect_url",
+                  "redirect_fail_url",
+                  "timestamp"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "cpik_user_id": "string",
+          "redirect_url": "string",
+          "redirect_fail_url": "string",
+          "timestamp": 0
+        },
+        "postman": {
+          "name": "회원 로그인 (SSO 토큰)",
+          "description": {
+            "content": "회원 로그인 SSO 토큰 획득 API",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cpik_member",
+              "login"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "회원 로그인 (SSO 토큰)"
+      }
+    },
+    "/api/v1/{shopId}/cpik_online_order/create": {
+      "post": {
+        "operationId": "post-cpik_online_order-create",
+        "description": "주문 등록",
+        "tags": [
+          "API"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ordernum": {
+                      "type": "string",
+                      "description": "주문번호"
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 코드 (0000: 정상, 9999: 실패) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "전송 정보",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "회원아이디"
+                        },
+                        "order_date": {
+                          "type": "string",
+                          "description": "주문 시간. ex.YmdHis (20190830172852)"
+                        },
+                        "total_order_price": {
+                          "type": "int",
+                          "description": "총 주문금액"
+                        },
+                        "total_pay_price": {
+                          "type": "int",
+                          "description": "총 결제금액"
+                        },
+                        "paymethod": {
+                          "type": "string",
+                          "description": "결제 방식 (B: 현금)"
+                        },
+                        "sender": {
+                          "type": "string",
+                          "description": "주문자"
+                        },
+                        "phone": {
+                          "type": "string",
+                          "description": "연락처"
+                        },
+                        "mobile": {
+                          "type": "string",
+                          "description": "휴대폰"
+                        },
+                        "email": {
+                          "type": "string",
+                          "description": "이메일"
+                        },
+                        "memo": {
+                          "type": "string",
+                          "description": "주문메모"
+                        },
+                        "post": {
+                          "type": "string",
+                          "description": "우편번호"
+                        },
+                        "address": {
+                          "type": "string",
+                          "description": "주소"
+                        },
+                        "address2": {
+                          "type": "string",
+                          "description": "상세주소"
+                        },
+                        "deli_price": {
+                          "type": "int",
+                          "description": "배송비 (0원 입력시 무료배송)"
+                        },
+                        "receiver": {
+                          "type": "string",
+                          "description": "수령인"
+                        },
+                        "receiver_mobile": {
+                          "type": "string",
+                          "description": "수령인 휴대폰"
+                        },
+                        "receiver_phone": {
+                          "type": "string",
+                          "description": "수령인 연락처"
+                        },
+                        "deli_msg": {
+                          "type": "string",
+                          "description": "배송메세지"
+                        },
+                        "link_id": {
+                          "type": "string",
+                          "description": " (‘cpik’ 고정입니다)"
+                        },
+                        "baskets": {
+                          "type": "array",
+                          "description": "주문 품목 정보",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "product_uid": {
+                                "type": "integer",
+                                "description": "상품코드 (메이크샵 상품UID)"
+                              },
+                              "prd_option_uid": {
+                                "type": "integer",
+                                "description": "옵션코드. 옵션UID ( 1 : 옵션 없는 상품일 경우)"
+                              },
+                              "stock": {
+                                "type": "integer",
+                                "description": "수량"
+                              },
+                              "price": {
+                                "type": "integer",
+                                "description": "결제 금액 (상품가 - 크픽할인가)"
+                              },
+                              "product_name": {
+                                "type": "string",
+                                "description": "상품명"
+                              },
+                              "option_name": {
+                                "type": "string",
+                                "description": "옵션명"
+                              }
+                            },
+                            "required": [
+                              "product_uid",
+                              "prd_option_uid",
+                              "stock",
+                              "price",
+                              "product_name"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "order_date",
+                        "total_order_price",
+                        "total_pay_price",
+                        "paymethod",
+                        "sender",
+                        "sender",
+                        "phone",
+                        "mobile",
+                        "post",
+                        "address",
+                        "address2",
+                        "deli_price",
+                        "receiver",
+                        "receiver_mobile",
+                        "receiver_phone",
+                        "link_id",
+                        "baskets"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "주문",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "주문"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "id": "string",
+              "order_date": "string",
+              "total_order_price": "Unknown Type: int",
+              "total_pay_price": "Unknown Type: int",
+              "paymethod": "string",
+              "sender": "string",
+              "phone": "string",
+              "mobile": "string",
+              "email": "string",
+              "memo": "string",
+              "post": "string",
+              "address": "string",
+              "address2": "string",
+              "deli_price": "Unknown Type: int",
+              "receiver": "string",
+              "receiver_mobile": "string",
+              "receiver_phone": "string",
+              "deli_msg": "string",
+              "link_id": "string",
+              "baskets": [
+                {
+                  "product_uid": 0,
+                  "prd_option_uid": 0,
+                  "stock": 0,
+                  "price": 0,
+                  "product_name": "string",
+                  "option_name": "string"
+                }
+              ]
+            }
+          ]
+        },
+        "postman": {
+          "name": "주문 등록",
+          "description": {
+            "content": "주문 등록",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cpik_online_order",
+              "create"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "주문 등록"
+      }
+    }
+  },
+  "x-webhooks": {
+    "webhook-cpik_category_change": {
+      "post": {
+        "operationId": "webhook-cpik_category_change",
+        "description": "메이크샵 상품 삭제시 웹훅 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드 - CATEGORY_CHANGE"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "상품 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "action_mode": {
+                          "type": "string",
+                          "description": "카테고리 변경 액션 모드\n\nInsCategory: 등록\n\nUpdCategory: 수정\n\nDelCategory: 삭제"
+                        },
+                        "category_id": {
+                          "type": "integer",
+                          "description": "카테고리 번호"
+                        },
+                        "category_name": {
+                          "type": "string",
+                          "description": "카테고리명"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "action_mode": "string",
+              "category_id": 0,
+              "category_name": "string"
+            }
+          ]
+        },
+        "summary": "카테고리 등록/수정/삭제",
+        "x-event-code": "CATEGORY_CHANGE"
+      }
+    },
+    "webhook-cpik_delivery_change": {
+      "post": {
+        "operationId": "webhook-cpik_delivery_change",
+        "description": "크픽 주문이 배송중 상태로 변경시 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드 - DELIVERY"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "주문 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "num": {
+                          "type": "array",
+                          "description": "품목번호 (ex. [1, 2, 3])",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "ordernum": {
+                          "type": "string",
+                          "description": "주문번호"
+                        },
+                        "delivery_num": {
+                          "type": "string",
+                          "description": "배송번호 (ex. S-25111010-074436429-03)"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "num": [
+                0
+              ],
+              "ordernum": "string",
+              "delivery_num": "string"
+            }
+          ]
+        },
+        "summary": "배송 상태 변경 - 배송중",
+        "x-event-code": "DELIVERY"
+      }
+    },
+    "webhook-cpik_delivery_complete_change": {
+      "post": {
+        "operationId": "webhook-cpik_delivery_complete_change",
+        "description": "크픽 주문이 배송완료 상태로 변경시 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드 - DELIVERY_COMPLETE"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "주문 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "num": {
+                          "type": "integer",
+                          "description": "품목번호"
+                        },
+                        "ordernum": {
+                          "type": "string",
+                          "description": "주문번호"
+                        },
+                        "delivery_num": {
+                          "type": "string",
+                          "description": "배송번호 (ex. S-25111010-074436429-03)"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "num": 0,
+              "ordernum": "string",
+              "delivery_num": "string"
+            }
+          ]
+        },
+        "summary": "배송 상태 변경 - 배송완료",
+        "x-event-code": "DELIVERY_COMPLETE"
+      }
+    },
+    "webhook-cpik_delivery_ready_change": {
+      "post": {
+        "operationId": "webhook-cpik_delivery_ready_change",
+        "description": "크픽 주문이 배송준비 상태로 변경시 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드 - DELIVERY_READY"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "주문 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "num": {
+                          "type": "integer",
+                          "description": "품목번호"
+                        },
+                        "ordernum": {
+                          "type": "string",
+                          "description": "주문번호"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "num": 0,
+              "ordernum": "string"
+            }
+          ]
+        },
+        "summary": "배송 상태 변경 - 배송준비",
+        "x-event-code": "DELIVERY_READY"
+      }
+    },
+    "webhook-cpik_order_cancel_status": {
+      "post": {
+        "operationId": "webhook-cpik_order_cancel_status",
+        "description": "크픽 주문이 결제완료 상태로 변경시 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드 - ORDER_CANCEL"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "주문 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "num": {
+                          "type": "integer",
+                          "description": "품목번호"
+                        },
+                        "ordernum": {
+                          "type": "string",
+                          "description": "주문번호"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "num": 0,
+              "ordernum": "string"
+            }
+          ]
+        },
+        "summary": "주문 상태 변경 - 결제취소",
+        "x-event-code": "ORDER_CANCEL"
+      }
+    },
+    "webhook-cpik_order_paid_status": {
+      "post": {
+        "operationId": "webhook-cpik_order_paid_status",
+        "description": "크픽 주문이 결제완료 상태로 변경시 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드 - ORDER_PAID"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "주문 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ordernum": {
+                          "type": "string",
+                          "description": "주문번호"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "ordernum": "string"
+            }
+          ]
+        },
+        "summary": "주문 상태 변경 - 결제완료",
+        "x-event-code": "ORDER_PAID"
+      }
+    },
+    "webhook-cpik_order_partial_refund_status": {
+      "post": {
+        "operationId": "webhook-cpik_order_partial_refund_status",
+        "description": "크픽 주문이 부분 환불 처리 상태로 변경시 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드 - ORDER_REFUND"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "주문 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ordernum": {
+                          "type": "string",
+                          "description": "주문번호"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "ordernum": "string"
+            }
+          ]
+        },
+        "summary": "주문 상태 변경 - 부분환불",
+        "x-event-code": "ORDER_REFUND"
+      }
+    },
+    "webhook-cpik_order_refund_status": {
+      "post": {
+        "operationId": "webhook-cpik_order_refund_status",
+        "description": "크픽 주문이 환불 처리 상태로 변경시 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드 - ORDER_REFUND"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "주문 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ordernum": {
+                          "type": "string",
+                          "description": "주문번호"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "ordernum": "string"
+            }
+          ]
+        },
+        "summary": "주문 상태 변경 - 환불",
+        "x-event-code": "ORDER_REFUND"
+      }
+    },
+    "webhook-cpik_product": {
+      "post": {
+        "operationId": "webhook-cpik_product",
+        "description": "메이크샵 상품 등록/수정시 웹훅 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드\n\n상품 등록 - PRODUCT_ADD\n\n상품 수정 - PRODUCT_UPDATE"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "상품 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "uid": {
+                          "type": "integer",
+                          "description": "상품번호"
+                        },
+                        "cate1": {
+                          "type": "integer",
+                          "description": "대분류"
+                        },
+                        "cate2": {
+                          "type": "integer",
+                          "description": "중분류"
+                        },
+                        "cate3": {
+                          "type": "integer",
+                          "description": "소분류"
+                        },
+                        "category_name": {
+                          "type": "string",
+                          "description": "카테고리명"
+                        },
+                        "product_name": {
+                          "type": "string",
+                          "description": "상품명"
+                        },
+                        "sellprice": {
+                          "type": "integer",
+                          "description": "판매가"
+                        },
+                        "sell_accept": {
+                          "type": "string",
+                          "description": "판매 가능 여부 (Y or N)"
+                        },
+                        "display": {
+                          "type": "string",
+                          "description": "상품 노출 여부 (Y or N)"
+                        },
+                        "quantity": {
+                          "type": "string",
+                          "description": "옵션 합산 총 재고 (unlimited : 무제한, 0 : 품절, 0보다 큰 경우 재고)"
+                        },
+                        "options": {
+                          "type": "object",
+                          "description": "옵션 정보",
+                          "properties": {
+                            "option": {
+                              "type": "array",
+                              "description": "옵션 아이디",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "opt_id": {
+                                    "type": "string",
+                                    "description": "옵션 아이디"
+                                  },
+                                  "opt_type": {
+                                    "type": "string",
+                                    "description": "옵션 타입\n\nSINGLE:단일부과, CUSTOM:작성형, ADDITION:개별옵션, HYBRID:하이브리드"
+                                  },
+                                  "opt_name": {
+                                    "type": "string",
+                                    "description": "옵션명"
+                                  },
+                                  "opt_value": {
+                                    "type": "string",
+                                    "description": "옵션값"
+                                  },
+                                  "opt_price": {
+                                    "type": "string",
+                                    "description": "옵션가"
+                                  },
+                                  "opt_guide": {
+                                    "type": "string",
+                                    "description": "안내문구"
+                                  },
+                                  "opt_use": {
+                                    "type": "string",
+                                    "description": "옵션 사용 여부 (Y or N)"
+                                  },
+                                  "opt_mix": {
+                                    "type": "string",
+                                    "description": "옵션 조합 여부 (Y or N)"
+                                  },
+                                  "opt_mandatory": {
+                                    "type": "string",
+                                    "description": "옵션 필수 여부"
+                                  }
+                                }
+                              }
+                            },
+                            "basic": {
+                              "type": "array",
+                              "description": "",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "sto_id": {
+                                    "type": "string",
+                                    "description": "조합 아이디"
+                                  },
+                                  "opt_ids": {
+                                    "type": "string",
+                                    "description": "조합 옵션 아이디\n\noption (통합옵션) 항목\n\nnopt_id (조합 시 콤마로 연결)"
+                                  },
+                                  "sto_type": {
+                                    "type": "string",
+                                    "description": "옵션타입\n\nBASIC:조합옵션 및 기본더미 옵션\n\n(기본더미 옵션의 경우 sto_matrix를 0:0으로 유지함)\n\nADDITION:개별옵션\n\nDUMMY:미조합옵션"
+                                  },
+                                  "sto_opt_values": {
+                                    "type": "string",
+                                    "description": "조합 옵션 값\n\noption(통합옵션) 항목\n\nopt_value (조합 시 콤마로 연결)"
+                                  },
+                                  "sto_price": {
+                                    "type": "string",
+                                    "description": "조합옵션가격"
+                                  },
+                                  "sto_provide_price": {
+                                    "type": "string",
+                                    "description": "조합옵션 공급가격"
+                                  },
+                                  "sto_real_stock": {
+                                    "type": "string",
+                                    "description": "조합옵션수량"
+                                  },
+                                  "sto_unlimit": {
+                                    "type": "string",
+                                    "description": "무제한사용여부 (Y or N)"
+                                  },
+                                  "sto_stop_use": {
+                                    "type": "string",
+                                    "description": "옵션 필수 여부 (Y or N)"
+                                  },
+                                  "sto_stop_stock": {
+                                    "type": "string",
+                                    "description": "옵션판매중지수량"
+                                  },
+                                  "sto_order_stock": {
+                                    "type": "string",
+                                    "description": "옵션판매수량"
+                                  },
+                                  "sto_code": {
+                                    "type": "string",
+                                    "description": "관리코드"
+                                  },
+                                  "sto_option_code": {
+                                    "type": "string",
+                                    "description": "옵션 품목별 코드"
+                                  },
+                                  "sto_state_code": {
+                                    "type": "string",
+                                    "description": "옵션상태\n\nHIDE : 노출안함, SOLDOUT : 품절, TEMPOUT : 일시품절, DELAY : 배송지연, SALE : 판매"
+                                  }
+                                }
+                              }
+                            },
+                            "addition": {
+                              "type": "array",
+                              "description": "",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "sto_id": {
+                                    "type": "string",
+                                    "description": "조합 아이디"
+                                  },
+                                  "opt_ids": {
+                                    "type": "string",
+                                    "description": "조합 옵션 아이디\n\noption (통합옵션) 항목\n\nopt_id (조합 시 콤마로 연결)"
+                                  },
+                                  "sto_type": {
+                                    "type": "string",
+                                    "description": "옵션타입\n\nBASIC:조합옵션 및 기본더미 옵션\n\n(기본더미 옵션의 경우 sto_matrix를 0:0으로 유지함)\n\nADDITION:개별옵션\n\nDUMMY:미조합옵션"
+                                  },
+                                  "sto_opt_values": {
+                                    "type": "string",
+                                    "description": "조합 옵션 값\n\noption(통합옵션) 항목\n\nopt_value (조합 시 콤마로 연결)"
+                                  },
+                                  "sto_price": {
+                                    "type": "string",
+                                    "description": "조합옵션가격"
+                                  },
+                                  "sto_provide_price": {
+                                    "type": "string",
+                                    "description": "조합옵션 공급가격"
+                                  },
+                                  "sto_real_stock": {
+                                    "type": "string",
+                                    "description": "조합옵션수량"
+                                  },
+                                  "sto_unlimit": {
+                                    "type": "string",
+                                    "description": "무제한사용여부 (Y or N)"
+                                  },
+                                  "sto_stop_use": {
+                                    "type": "string",
+                                    "description": "옵션 필수 여부 (Y or N)"
+                                  },
+                                  "sto_stop_stock": {
+                                    "type": "string",
+                                    "description": "옵션판매중지수량"
+                                  },
+                                  "sto_order_stock": {
+                                    "type": "string",
+                                    "description": "옵션판매수량"
+                                  },
+                                  "sto_code": {
+                                    "type": "string",
+                                    "description": "관리코드"
+                                  },
+                                  "sto_option_code": {
+                                    "type": "string",
+                                    "description": "옵션 품목별 코드"
+                                  },
+                                  "sto_state_code": {
+                                    "type": "string",
+                                    "description": "옵션상태\n\nHIDE : 노출안함, SOLDOUT : 품절, TEMPOUT : 일시품절, DELAY : 배송지연, SALE : 판매"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "uid": 0,
+              "cate1": 0,
+              "cate2": 0,
+              "cate3": 0,
+              "category_name": "string",
+              "product_name": "string",
+              "sellprice": 0,
+              "sell_accept": "string",
+              "display": "string",
+              "quantity": "string",
+              "options": {
+                "option": [
+                  {
+                    "opt_id": "string",
+                    "opt_type": "string",
+                    "opt_name": "string",
+                    "opt_value": "string",
+                    "opt_price": "string",
+                    "opt_guide": "string",
+                    "opt_use": "string",
+                    "opt_mix": "string",
+                    "opt_mandatory": "string"
+                  }
+                ],
+                "basic": [
+                  {
+                    "sto_id": "string",
+                    "opt_ids": "string",
+                    "sto_type": "string",
+                    "sto_opt_values": "string",
+                    "sto_price": "string",
+                    "sto_provide_price": "string",
+                    "sto_real_stock": "string",
+                    "sto_unlimit": "string",
+                    "sto_stop_use": "string",
+                    "sto_stop_stock": "string",
+                    "sto_order_stock": "string",
+                    "sto_code": "string",
+                    "sto_option_code": "string",
+                    "sto_state_code": "string"
+                  }
+                ],
+                "addition": [
+                  {
+                    "sto_id": "string",
+                    "opt_ids": "string",
+                    "sto_type": "string",
+                    "sto_opt_values": "string",
+                    "sto_price": "string",
+                    "sto_provide_price": "string",
+                    "sto_real_stock": "string",
+                    "sto_unlimit": "string",
+                    "sto_stop_use": "string",
+                    "sto_stop_stock": "string",
+                    "sto_order_stock": "string",
+                    "sto_code": "string",
+                    "sto_option_code": "string",
+                    "sto_state_code": "string"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "summary": "상품 등록/수정",
+        "x-event-code": "PRODUCT_ADD"
+      }
+    },
+    "webhook-cpik_product_change_status": {
+      "post": {
+        "operationId": "webhook-cpik_product_change_status",
+        "description": "메이크샵 상품 상태변경시 (품절, 판매가능) 웹훅 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드 (상품 상태 변경 - PRODUCT_STATUS)"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "상품 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "uid": {
+                          "type": "integer",
+                          "description": "상품번호"
+                        },
+                        "product_status": {
+                          "type": "string",
+                          "description": "상품 판매 상태"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "uid": 0,
+              "product_status": "string"
+            }
+          ]
+        },
+        "summary": "상품 상태 변경",
+        "x-event-code": "PRODUCT_STATUS"
+      }
+    },
+    "webhook-cpik_product_delete": {
+      "post": {
+        "operationId": "webhook-cpik_product_delete",
+        "description": "메이크샵 상품 삭제시 웹훅 전송<br />* Header *<br />Licensekey: {크픽 전용 라이센스키}<br />Trace-Id: {추적용 아이디}",
+        "tags": [
+          "WEBHOOK"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_code": {
+                    "type": "string",
+                    "description": "이벤트 코드 (상품 삭제 - PRODUCT_DELETE)"
+                  },
+                  "shop_id": {
+                    "type": "string",
+                    "description": "상점 아이디"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "상품 리스트",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "uid": {
+                          "type": "integer",
+                          "description": "상품번호"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "event_code",
+                  "shop_id",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "event_code": "string",
+          "shop_id": "string",
+          "data": [
+            {
+              "uid": 0
+            }
+          ]
+        },
+        "summary": "상품 삭제",
+        "x-event-code": "PRODUCT_DELETE"
+      }
+    }
+  }
+}
