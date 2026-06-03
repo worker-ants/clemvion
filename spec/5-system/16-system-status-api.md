@@ -1,8 +1,10 @@
 ---
 id: system-status-api
-status: implemented
+status: partial
 code:
   - codebase/backend/src/modules/system-status/**
+pending_plans:
+  - plan/in-progress/system-status-recent-failed-capped.md
 ---
 
 # Spec: 시스템 상태 API (큐 모니터링)
@@ -48,6 +50,7 @@ SystemStatusOverviewDto {
   overall: "healthy" | "degraded" | "down"; // 큐 health 의 최악값 집계
   totalFailed: number;                      // 전 큐 failed(보관 중 누적) 합산
   totalRecentFailed: number;                // 전 큐 recentFailed(최근 윈도우) 합산
+  recentFailedCapped: boolean;              // 큐 중 하나라도 스캔 캡 소진으로 하한값이면 true (집계 OR)
   failedWindowMinutes: number;              // recentFailed 산정 윈도우(분). env SYSTEM_STATUS_FAILED_WINDOW_MINUTES, 기본 60
   queues: QueueStatusDto[];
 }
@@ -57,6 +60,7 @@ QueueStatusDto {
   group: "execution" | "knowledge-base" | "integration" | "system";
   counts: { waiting: number; active: number; delayed: number; failed: number; paused: number; };
   recentFailed: number;                     // 최근 윈도우 내 finishedOn 기준 실패 수 (스캔 캡 도달 시 하한값)
+  recentFailedCapped: boolean;              // 이 큐의 recentFailed 가 스캔 캡 소진으로 종료돼 하한값인지 여부
   concurrency: number;
   utilization: number;                      // active / concurrency, 소수 2자리. concurrency=0 이면 0
   isPaused: boolean;
@@ -69,7 +73,7 @@ QueueStatusDto {
 - **구현 / 비용**:
   - `waiting/active/delayed/failed/paused` 집계는 종전대로 큐별 `queue.getJobCounts(...)` + `queue.isPaused()` (큐당 상수 비용).
   - `recentFailed` 산정을 위해 큐마다 `queue.getFailed()` 를 **newest→역순으로 스캔**해 `finishedOn` 이 윈도우를 벗어나면 중단한다. 따라서 추가 비용은 더 이상 상수가 아니라 **윈도우 내 실패 수 + 스캔 캡에 비례**한다.
-  - 큐당 스캔 상한(캡) env `SYSTEM_STATUS_FAILED_SCAN_CAP`(기본 1000). 캡 도달 시 스캔을 멈추고 `recentFailed` 는 **하한값**으로 간주한다 (UI 는 "N+" 표기 가능).
+  - 큐당 스캔 상한(캡) env `SYSTEM_STATUS_FAILED_SCAN_CAP`(기본 1000). 캡 **소진**으로 스캔이 종료되면(윈도우 경계·실패 집합 끝이 아님) `recentFailed` 는 **하한값**이고 `recentFailedCapped=true` 로 표시한다. 윈도우 경계나 집합 끝에서 자연 종료되면 `recentFailedCapped=false`(정확값). 클라이언트는 이 플래그가 참일 때 수치를 "N+"(하한값)로 렌더한다. `SystemStatusOverviewDto.recentFailedCapped` 는 큐별 플래그의 OR 집계다.
   - 윈도우는 보관기간보다 짧게 운영하는 것을 전제로 한다 (기본 60분 ≪ 대부분 큐 보관기간). 보관기간이 윈도우보다 짧은 큐(`cafe24-token-refresh` 5분)는 `recentFailed` 가 보관분으로 제한될 수 있다.
   - 큐 enumerate 는 `QueueRegistry`.
 - 단일 큐가 Redis 오류로 조회 실패해도 전체 응답이 죽지 않도록, 해당 큐는 `health: "down"` + counts 0(`recentFailed` 0) 으로 degrade 표기하고 나머지는 정상 반환한다.
@@ -113,3 +117,4 @@ BullMQ 큐는 워크스페이스 경계 없는 전역 인프라이고 job payloa
 - **상수 비용 전제 포기 (연속성)**: §2 의 "큐 수 비례 상수 비용" 문장은 설계 원칙이 아니라 getJobCounts 만 쓰던 시점의 **구현 관찰**이었다. 이번 개정으로 그 문장을 삭제·대체했다. `recentFailed` 는 `getFailed()` 스캔이 필요해 상수성을 포기하지만, "현재 상태 반영" 을 우선하고 스캔 캡(`SYSTEM_STATUS_FAILED_SCAN_CAP`)으로 비용 상한을 보장한다.
 - **R-2 와의 대조**: R-2 의 throughput 추이는 별도 샘플링 cron·저장소가 필요하지만, `recentFailed` 는 단일 윈도우 스냅샷이라 별도 저장소가 불필요하다 — 시계열이 아니므로 R-2 의 v1 제외 결정과 충돌하지 않는다.
 - **health 를 윈도우로 옮긴 이유**: degraded 가 "지금" 문제인지를 반영하도록 규칙 3 의 비교 대상을 `recentFailed` 로 바꿨다. 기존엔 보관 실패 1건만 있어도 영구 degraded 되는 오탐이 있었고, 윈도우 기준이면 최근 실패가 사라지면 자동 healthy 복귀한다. **트레이드오프**: 보관 중 누적 실패가 윈도우 밖으로 벗어나면 degraded 신호가 자동 소멸할 수 있다 — 이를 인지하고, 디버깅용으로 누적(보관 중)을 부 지표로 계속 병기하는 것으로 보완한다.
+- **`recentFailedCapped` 를 별도 boolean 으로 둔 이유**: `recentFailed === scanCap` 단순 비교는 "정확히 캡과 같은 정상 케이스"와 "캡으로 잘린 케이스"를 구분하지 못한다. 스캔 종료 사유(윈도우 경계/집합 끝 vs 캡 소진)를 서버가 직접 추적해 정확한 하한값 신호를 준다. Overview 집계는 **보수적 OR**(하나라도 capped 면 시스템 전역 수치도 하한값일 수 있음)로 둬, 사용자가 "N+" 를 과소평가하지 않게 한다.

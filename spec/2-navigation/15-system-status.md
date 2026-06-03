@@ -1,8 +1,10 @@
 ---
 id: system-status
-status: implemented
+status: partial
 code:
   - codebase/frontend/src/app/(main)/system-status/page.tsx
+pending_plans:
+  - plan/in-progress/system-status-recent-failed-capped.md
 ---
 
 # Spec: 시스템 상태 화면
@@ -49,7 +51,7 @@ code:
 ### 2.3 큐 그룹 카드
 - 4개 그룹(실행 / 지식베이스 / 알림·통합 / 스케줄·시스템) 섹션으로 묶어 표시.
 - 각 큐 카드: health pill + counts(대기/처리중/지연) + 실패 병기 + 포화도 게이지(utilization).
-- **실패 표기**: "실패(최근 윈도우)" = `recentFailed` 를 주 수치(0 초과 시 강조)로, "누적 보관" = `counts.failed` 를 부 수치로 병기한다. 스캔 캡 초과 시 "N+" 표기를 허용한다.
+- **실패 표기**: "실패(최근 윈도우)" = `recentFailed` 를 주 수치(0 초과 시 강조)로, "누적 보관" = `counts.failed` 를 부 수치로 병기한다. 해당 큐의 `recentFailedCapped` 가 참이면 `recentFailed` 를 "N+"(하한값)로 표기한다. 종합 헤더의 `totalRecentFailed` 도 집계 `recentFailedCapped` 가 참이면 "N+".
 - `system` 그룹 cron 큐는 카운트가 보통 0 이므로 "정기 작업" 라벨을 함께 표기하고 paused 여부를 우선 강조한다.
 
 ### 2.4 갱신
@@ -74,3 +76,5 @@ code:
 
 ### R-3. 최근 실패를 주 지표, 누적을 부 지표로 둔 이유
 스냅샷 지표(대기/처리중/지연/포화도)는 이미 현재 상태를 반영하지만, 실패 수만 큐별 보관 정책에 따라 누적되어 "전 기간 누적" 으로 오인됐다. "지금 정상인가" 가 본 화면의 목적이므로 최근 윈도우 실패(`recentFailed`)를 주 지표로 전면화하고, 디버깅 참고용 누적(보관 중, `counts.failed`)은 부 지표로 병기한다. 산정 방식·비용·health 연동 근거는 [API spec R-5](../5-system/16-system-status-api.md#rationale) 참조.
+
+스캔 캡(`SYSTEM_STATUS_FAILED_SCAN_CAP`) 소진으로 `recentFailed` 가 하한값일 때는 서버가 `recentFailedCapped` 로 알리고 UI 가 "N+" 로 표기한다 — 초기엔 "허용" 으로 뒀으나, 하한값을 정확값처럼 보이게 두면 사용자가 과소평가하므로 명시 신호 + N+ 표기로 구현했다.
