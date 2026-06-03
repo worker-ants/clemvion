@@ -7,6 +7,28 @@ import { wrapBareAsNodeHandlerOutput } from '../handler-output.adapter';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
+ * Options accepted by {@link ExecutionContextService.createContext}.
+ *
+ * Required identifiers (`executionId`, `workflowId`) are positional; everything
+ * else is bundled here so that callers who only need `contextKey` (background
+ * subgraph paths) do not have to supply placeholder values for the preceding
+ * optional params.
+ */
+export interface CreateContextOptions {
+  /** Initial variable values merged into `context.variables`. */
+  initialVariables?: Record<string, unknown>;
+  /** Sub-workflow recursion depth (0 = top-level). */
+  recursionDepth?: number;
+  /**
+   * In-memory Map routing key (spec/conventions/execution-context.md 원칙 4).
+   * Defaults to `executionId` when omitted — non-background calls are unaffected.
+   * Background subgraph paths pass `bg:<executionId>:<backgroundRunId>` to
+   * isolate their context from the parent execution's context.
+   */
+  contextKey?: string;
+}
+
+/**
  * Engine-internal alias that drops the public `Readonly` qualifier on
  * `engineResolvedConfigCache` so the cache can be populated through the
  * dedicated setter while handlers still see the read-only public shape.
@@ -42,14 +64,7 @@ export class ExecutionContextService {
     // 규약(execution-context.md §Rationale "기각된 ExecutionOptions 추출")은
     // 핸들러 소비 표면인 `ExecutionContext` 필드를 묶는 안의 기각이며, 본 메서드
     // 인자 ergonomics 와는 별개 사안이라 충돌하지 않는다.
-    options: {
-      initialVariables?: Record<string, unknown>;
-      recursionDepth?: number;
-      // in-memory Map 라우팅 키 (spec/conventions/execution-context.md 원칙 4).
-      // 생략 시 executionId 와 동일 → 비-background 호출은 동작 불변. background
-      // 본문만 `bg:<executionId>:<backgroundRunId>` 를 전달해 부모와 키 격리한다.
-      contextKey?: string;
-    } = {},
+    options: CreateContextOptions = {},
   ): ExecutionContext {
     const { initialVariables = {}, recursionDepth, contextKey } = options;
     const key = contextKey ?? executionId;
@@ -79,6 +94,17 @@ export class ExecutionContextService {
     return context;
   }
 
+  /**
+   * Best-effort no-op + `[ctx-trace]` warn contract: when the context for
+   * `key` is absent (e.g. a race where the parent already called
+   * `deleteContext` before this write arrived), the call is silently ignored
+   * rather than thrown. A `[ctx-trace] <method> MISSING` warn is emitted so
+   * that incorrect key routing (`contextKeyOf` / `bgKey` mismatches) surfaces
+   * in production logs without crashing the caller.
+   *
+   * Contrast with {@link setNodeOutput}, which **throws** on a missing key
+   * because the strict handler-output path must guarantee delivery.
+   */
   setStructuredOutput(
     key: string,
     nodeId: string,
@@ -86,14 +112,7 @@ export class ExecutionContextService {
   ): void {
     const context = this.contexts.get(key);
     if (!context) {
-      // best-effort 캐시라 throw 하지 않고 no-op 을 유지하되, 잘못된 키 진단을
-      // 위해 warn 을 남긴다 (2026-06-03 ai-review INFO#7). 정상 경로(이미 삭제된
-      // context 로의 뒤늦은 write 등)는 거의 없으므로, 본 로그가 찍히면 키 라우팅
-      // (contextKeyOf / bgKey) 오류 신호다. `[ctx-trace]` prefix 로 grep 가능.
-      this.logger.warn(
-        `[ctx-trace] setStructuredOutput MISSING — key=${key} nodeId=${nodeId} ` +
-          `(no-op: context absent for this key).`,
-      );
+      this.warnContextMissing('setStructuredOutput', key, nodeId);
       return;
     }
     context.structuredOutputCache[nodeId] = adapted;
@@ -107,6 +126,9 @@ export class ExecutionContextService {
    *
    * Shallow-copies the input so callers can keep mutating their local
    * `resolvedConfig` reference without leaking changes into the cache.
+   *
+   * Applies the same best-effort no-op + `[ctx-trace]` warn policy as
+   * {@link setStructuredOutput} on a missing key.
    */
   setEngineResolvedConfig(
     key: string,
@@ -117,15 +139,28 @@ export class ExecutionContextService {
       | MutableExecutionContext
       | undefined;
     if (!context) {
-      // setStructuredOutput 과 동일 정책: no-op 유지 + 잘못된 키 진단 warn
-      // (2026-06-03 ai-review INFO#7).
-      this.logger.warn(
-        `[ctx-trace] setEngineResolvedConfig MISSING — key=${key} nodeId=${nodeId} ` +
-          `(no-op: context absent for this key).`,
-      );
+      this.warnContextMissing('setEngineResolvedConfig', key, nodeId);
       return;
     }
     context.engineResolvedConfigCache[nodeId] = { ...resolvedConfig };
+  }
+
+  /**
+   * Emit a standardised `[ctx-trace] <method> MISSING` warn log.
+   *
+   * Centralises the message format so that grep patterns stay stable even if
+   * additional context is added later. The `[ctx-trace]` prefix is the
+   * project-wide sentinel for execution-context diagnostic logs.
+   */
+  private warnContextMissing(
+    method: string,
+    key: string,
+    nodeId: string,
+  ): void {
+    this.logger.warn(
+      `[ctx-trace] ${method} MISSING — key=${key} nodeId=${nodeId} ` +
+        `(no-op: context absent for this key).`,
+    );
   }
 
   getContext(key: string): ExecutionContext | undefined {

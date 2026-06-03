@@ -1,5 +1,8 @@
 import { Logger } from '@nestjs/common';
-import { ExecutionContextService } from './execution-context.service';
+import {
+  ExecutionContextService,
+  CreateContextOptions,
+} from './execution-context.service';
 import { DEFAULT_THREAD_ID } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('ExecutionContextService', () => {
@@ -24,13 +27,14 @@ describe('ExecutionContextService', () => {
       });
     });
 
-    // INFO#3 (2026-06-03): optional 부가 인자는 단일 options 객체로 받는다.
+    // ai-review 2026-06-03: optional params are bundled in CreateContextOptions bag
     it('reads initialVariables and recursionDepth from the options bag', () => {
       const svc = new ExecutionContextService();
-      const ctx = svc.createContext('exec-opts', 'wf-1', {
+      const opts: CreateContextOptions = {
         initialVariables: { foo: 'bar' },
         recursionDepth: 2,
-      });
+      };
+      const ctx = svc.createContext('exec-opts', 'wf-1', opts);
       expect(ctx.variables).toEqual({ foo: 'bar' });
       expect(ctx.recursionDepth).toBe(2);
     });
@@ -158,9 +162,11 @@ describe('ExecutionContextService', () => {
     });
   });
 
-  // INFO#7 (2026-06-03): best-effort 캐시 setter 는 context 미존재 시 throw 하지
-  // 않고 no-op 을 유지하되, 잘못된 키 라우팅 진단을 위해 warn 을 남긴다.
-  describe('context-missing diagnostics (INFO#7)', () => {
+  // Best-effort setters (setStructuredOutput / setEngineResolvedConfig) silently
+  // no-op when the context key is absent, emitting a [ctx-trace] warn so that
+  // incorrect key routing surfaces in production logs without crashing the caller.
+  // ai-review 2026-06-03
+  describe('context-missing diagnostics — best-effort setters warn instead of throw', () => {
     let warnSpy: jest.SpyInstance;
 
     beforeEach(() => {
@@ -206,6 +212,39 @@ describe('ExecutionContextService', () => {
       });
       service.setEngineResolvedConfig(executionId, nodeId, { count: 1 });
       expect(warnSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // setNodeOutput uses STRICT mode (throw + logger.error) on a missing key —
+  // the opposite of the best-effort no-op policy in setStructuredOutput /
+  // setEngineResolvedConfig. This policy difference is intentional: handler
+  // output delivery must not be silently dropped; a missing context here
+  // indicates a race or lifecycle bug that must surface immediately.
+  // ai-review 2026-06-03
+  describe('setNodeOutput — strict mode: throws and logs error on a missing key', () => {
+    it('throws "Execution context not found" when the key does not exist', () => {
+      expect(() =>
+        service.setNodeOutput('nonexistent', nodeId, { result: 1 }),
+      ).toThrow('Execution context not found: nonexistent');
+    });
+
+    it('logs logger.error with [ctx-trace] prefix on a missing key', () => {
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation();
+
+      try {
+        service.setNodeOutput('nonexistent', nodeId, { result: 1 });
+      } catch {
+        // expected
+      }
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0][0]).toContain(
+        '[ctx-trace] setNodeOutput MISSING',
+      );
+      expect(errorSpy.mock.calls[0][0]).toContain('key=nonexistent');
+      errorSpy.mockRestore();
     });
   });
 

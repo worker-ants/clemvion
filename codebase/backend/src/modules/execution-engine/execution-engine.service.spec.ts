@@ -13,7 +13,10 @@ import {
 import { InvalidExecutionStateError } from './workflow-errors';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
-import { ExecutionContextService } from './context/execution-context.service';
+import {
+  ExecutionContextService,
+  CreateContextOptions,
+} from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
 import { ForEachExecutor } from './containers/foreach-executor';
@@ -4571,20 +4574,12 @@ describe('ExecutionEngineService', () => {
         service as unknown as { contextService: ExecutionContextService }
       ).contextService;
       const origCreate = contextService.createContext.bind(contextService);
-      // createContext 는 options-bag 시그니처(INFO#3): 주입 변수는
-      // options.initialVariables 안으로 병합한다.
+      // ai-review 2026-06-03: injects extra initialVariables into the options-bag
+      // to verify that template expression resolution reads $var.token correctly.
       jest
         .spyOn(contextService, 'createContext')
         .mockImplementation(
-          (
-            execId: string,
-            wfId: string,
-            options: {
-              initialVariables?: Record<string, unknown>;
-              recursionDepth?: number;
-              contextKey?: string;
-            } = {},
-          ) =>
+          (execId: string, wfId: string, options: CreateContextOptions = {}) =>
             origCreate(execId, wfId, {
               ...options,
               initialVariables: {
@@ -4657,20 +4652,12 @@ describe('ExecutionEngineService', () => {
         service as unknown as { contextService: ExecutionContextService }
       ).contextService;
       const origCreate = contextService.createContext.bind(contextService);
-      // createContext options-bag 시그니처(INFO#3) — 주입 변수는
-      // options.initialVariables 안으로 병합한다.
+      // ai-review 2026-06-03: injects a 'token' initialVariable via the options-bag
+      // to verify that $var.token is not overridden by conflicting input-data spreads.
       jest
         .spyOn(contextService, 'createContext')
         .mockImplementation(
-          (
-            execId: string,
-            wfId: string,
-            options: {
-              initialVariables?: Record<string, unknown>;
-              recursionDepth?: number;
-              contextKey?: string;
-            } = {},
-          ) =>
+          (execId: string, wfId: string, options: CreateContextOptions = {}) =>
             origCreate(execId, wfId, {
               ...options,
               initialVariables: {
