@@ -30,6 +30,7 @@ import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { McpClientService } from '../mcp/mcp-client.service';
 import { Cafe24ApiClient } from '../../nodes/integration/cafe24/cafe24-api.client';
+import { MakeshopApiClient } from '../../nodes/integration/makeshop/makeshop-api.client';
 import {
   Execution,
   ExecutionStatus,
@@ -407,6 +408,12 @@ describe('ExecutionEngineService', () => {
           provide: Cafe24ApiClient,
           useValue: {
             request: jest.fn(),
+          },
+        },
+        {
+          provide: MakeshopApiClient,
+          useValue: {
+            call: jest.fn(),
           },
         },
         {

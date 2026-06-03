@@ -6,7 +6,7 @@ order: 7
 summary: "HTTP Request, Database Query, Send Email, Cafe24로 외부 서비스와 연동하는 노드들을 설명해요."
 summary_en: "Nodes that connect to external services: HTTP Request, Database Query, Send Email, and Cafe24."
 spec: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/4-integration/4-cafe24.md"]
-code: ["codebase/backend/src/nodes/integration/http-request/http-request.schema.ts", "codebase/backend/src/nodes/integration/database-query/database-query.schema.ts", "codebase/backend/src/nodes/integration/send-email/send-email.schema.ts", "codebase/backend/src/nodes/integration/cafe24/cafe24.schema.ts"]
+code: ["codebase/backend/src/nodes/integration/http-request/http-request.schema.ts", "codebase/backend/src/nodes/integration/database-query/database-query.schema.ts", "codebase/backend/src/nodes/integration/send-email/send-email.schema.ts", "codebase/backend/src/nodes/integration/cafe24/cafe24.schema.ts", "codebase/backend/src/nodes/integration/makeshop/makeshop.schema.ts"]
 ---
 
 이 페이지에서는 외부 서비스와 연동하는 통합 노드 네 종류(HTTP Request, Database Query, Send Email, Cafe24)를 설명해요. 대부분의 통합 노드는 공통적으로 **Integration 엔티티**를 참조해 인증과 연결 정보를 재사용하고, 성공/실패를 각각 다른 출력 포트로 분기해요.

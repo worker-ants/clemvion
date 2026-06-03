@@ -23,6 +23,7 @@ import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { McpModule } from '../mcp/mcp.module';
 import { Cafe24Module } from '../../nodes/integration/cafe24/cafe24.module';
+import { MakeshopModule } from '../../nodes/integration/makeshop/makeshop.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import { BackgroundExecutionProcessor } from './queues/background-execution.processor';
@@ -57,6 +58,7 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     KnowledgeBaseModule,
     IntegrationsModule,
     Cafe24Module,
+    MakeshopModule,
     McpModule,
     NotificationsModule,
     BullModule.registerQueue({ name: BACKGROUND_EXECUTION_QUEUE }),
