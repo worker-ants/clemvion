@@ -92,6 +92,8 @@ Loop / Map / ForEach 는 모두 `body` 서브그래프를 반복 실행하고 `e
 
 반복/분기 노드는 항목 실행 중 에러 발생 시 `errorPolicy` 로 분기된다. **enum 값은 노드별로 다르다.**
 
+> **`config.errorPolicy` vs `config.errorHandling.policy` 구분**: 본 절의 `config.errorPolicy` 는 **컨테이너 전용**(Loop/ForEach/Map 등, 항목 단위 `stop`/`skip`/`continue`)이다. 일반 노드의 에러 처리 정책은 별개 레이어인 `config.errorHandling.{policy, retryConfig, defaultOutput}` (5값 enum, [Spec 노드 공통 §2.4](../../3-workflow-editor/1-node-common.md#24-에러-처리-정책)) 이며, 한 노드에서 두 키를 동시에 쓰지 않는다.
+
 **Map / ForEach** — `stop` / `skip` / `continue` (`map.schema.ts`, `foreach.schema.ts`):
 
 | 값 | 동작 |

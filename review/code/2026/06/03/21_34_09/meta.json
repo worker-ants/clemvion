@@ -1,0 +1,227 @@
+{
+  "timestamp": "2026-06-03T21:34:09.132150",
+  "files": [
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/knowledge-base/chunking/text-chunker.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/knowledge-base/chunking/text-chunker.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/knowledge-base/embedding/embedding.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/knowledge-base/embedding/embedding.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/knowledge-base/parsers/md.parser.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/knowledge-base/parsers/md.parser.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/knowledge-base/parsers/parser.factory.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/knowledge-base/parsers/pdf.parser.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/knowledge-base/parsers/pdf.parser.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/data/code/code.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/data/code/code.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/integration/database-query/database-query.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/integration/database-query/database-query.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/integration/send-email/send-email.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/integration/send-email/send-email.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/presentation/template/template.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/presentation/template/template.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/editor/expression/expression-constants.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/editor/settings-panel/__tests__/node-settings-panel-error-handling.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/i18n/dict/en/editor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/i18n/dict/ko/editor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/packages/expression-engine/src/evaluator.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/complete/spec-sync-data-common-gaps.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/complete/spec-sync-embedding-pipeline-gaps.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/complete/spec-sync-foreach-gaps.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/complete/spec-sync-node-common-gaps.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/complete/spec-sync-template-gaps.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/in-progress/spec-sync-integration-common-gaps.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/3-workflow-editor/1-node-common.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/4-nodes/1-logic/9-foreach.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/4-nodes/4-integration/0-common.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/4-nodes/5-data/0-common.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/4-nodes/6-presentation/0-common.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/4-nodes/6-presentation/5-template.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/5-system/5-expression-language.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/5-system/8-embedding-pipeline.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

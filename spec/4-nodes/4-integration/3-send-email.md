@@ -325,7 +325,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 
 ## 7. 캔버스 요약
 
-[공통 §5](./0-common.md#5-캔버스-요약) — `Send Email` 행 인용 (`to: {수신자}`, 2명 초과 시 `+N`).
+[공통 §5](./0-common.md#5-캔버스-요약) — `Send Email` 행 인용. `summaryTemplate: {{to.length}} recipients · {{subject}}` (라인 40자 초과 시 잘림). 수신자 수 + 제목 표기는 summaryTemplate DSL 이 배열 슬라이스/조건 카운트를 지원하지 않아 `to: {수신자} +N` 대신 채택한 downscope 다.
 
 ## 8. Rationale
 

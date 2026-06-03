@@ -399,15 +399,17 @@ pending_plans:
 | Text Classifier | `{모델} · {N} categories` | `gpt-4o-mini · 3 categories` |
 | Info Extractor | `{모델} · {N} fields` | `claude-sonnet · 4 fields` |
 | HTTP Request | `{METHOD} {url}` | `GET https://api.exam...` |
-| Database Query | `{queryType} · {쿼리 첫줄}` | `SELECT · SELECT * FROM us...` |
-| Send Email | `to: {수신자}` | `to: user@exam..., +2` |
+| Database Query | `{{queryType\|upper}} · {{query}}` | `SELECT · SELECT * FROM us...` |
+| Send Email | `{{to.length}} recipients · {{subject}}` | `2 recipients · Welcome` |
 | Transform | `{N} operations` | `3 operations` |
-| Code | `{language} · {N} lines` | `JavaScript · 12 lines` |
+| Code | `{{language\|upper}}` | `JAVASCRIPT` |
 | Carousel | `{layout} · {titleField}` | `card · name` |
 | Table | `{N} columns` + pagination 표시 | `3 columns · pagination` |
 | Chart | `{chartType} · {x}/{y}` | `bar · month / revenue` |
 | Form | `{N} fields · "{title}"` | `3 fields · "Approval"` |
-| Template | `{format} · {N} lines` | `html · 9 lines` |
+| Template | `{{outputFormat}} · {{buttons.length}} buttons` | `html · 2 buttons` |
+
+> 포맷 SoT 는 각 노드 spec 의 `summaryTemplate` 이다. downscope(예: Code 의 `N lines`, Send Email 의 `to: +N` 미지원) 근거는 해당 노드 Rationale / `0-common.md §5` 참조.
 
 #### 5.3.5 엣지 케이스
 

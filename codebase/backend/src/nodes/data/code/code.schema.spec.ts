@@ -1,4 +1,7 @@
-import { evaluateWarnings } from '@workflow/node-summary';
+import {
+  evaluateWarnings,
+  renderSummaryTemplate,
+} from '@workflow/node-summary';
 import {
   codeNodeConfigSchema,
   codeNodeMetadata,
@@ -107,5 +110,15 @@ describe('evaluateMetadataBlockingErrors integration (code)', () => {
     expect(errors).toContain(
       'timeout must be a number between 1 and 120 seconds',
     );
+  });
+});
+
+describe('codeNodeMetadata.summaryTemplate (캔버스 요약)', () => {
+  it('renders {{language|upper}}', () => {
+    expect(
+      renderSummaryTemplate(codeNodeMetadata.summaryTemplate, {
+        language: 'javascript',
+      }),
+    ).toMatchObject({ text: 'JAVASCRIPT' });
   });
 });

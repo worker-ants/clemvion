@@ -98,6 +98,8 @@ export class ExpressionResolverService {
         : undefined,
       $item: executionContext.itemContext?.item,
       $itemIndex: executionContext.itemContext?.index,
+      $itemIsFirst: executionContext.itemContext?.isFirst,
+      $itemIsLast: executionContext.itemContext?.isLast,
       // ConversationThread readonly view (spec/5-system/5-expression-language §4.4).
       // v1 only exposes simple indexing — turns / length / pre-rendered text.
       // `text` lazily renders via thread-renderer so consumers that don't
