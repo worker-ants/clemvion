@@ -9,6 +9,7 @@ import { resolveStablePortId } from '../../core/port-id.util';
 import {
   LlmService,
   extractRetryAfterMs,
+  isLlmRateLimit,
 } from '../../../modules/llm/llm.service';
 import { ChatResult } from '../../../modules/llm/interfaces/llm-client.interface';
 import { truncateForErrorDetails } from '../../core/error-codes';
@@ -208,8 +209,7 @@ export class TextClassifierHandler implements NodeHandler {
       // signalled a `Retry-After`). Rate-limit detection mirrors
       // `LlmService.chatWithRetry` (429 / "rate limit" substring). Both
       // LLM_RATE_LIMIT and LLM_CALL_FAILED are transient → retryable.
-      const isRateLimit =
-        message.includes('429') || message.toLowerCase().includes('rate limit');
+      const isRateLimit = isLlmRateLimit(message);
       const code = isRateLimit ? 'LLM_RATE_LIMIT' : 'LLM_CALL_FAILED';
       const retryAfterMs = isRateLimit ? extractRetryAfterMs(error) : null;
       const retryDetails: { retryable: boolean; retryAfterSec?: number } =

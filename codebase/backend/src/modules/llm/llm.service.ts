@@ -320,9 +320,7 @@ export class LlmService {
         if (lastError.name === 'AbortError') {
           throw lastError;
         }
-        const isRateLimit =
-          lastError.message.includes('429') ||
-          lastError.message.toLowerCase().includes('rate limit');
+        const isRateLimit = isLlmRateLimit(lastError.message);
         if (!isRateLimit || attempt === maxRetries) {
           throw lastError;
         }
@@ -346,6 +344,20 @@ export class LlmService {
     }
     throw lastError || new Error('Max retries exceeded');
   }
+}
+
+/**
+ * LLM provider 의 rate-limit 에러 여부 판별 — HTTP 429 또는 "rate limit" 문자열.
+ *
+ * text-classifier / information-extractor / LlmService.chatWithRetry 세 곳에서
+ * 동일한 판별식이 중복 구현되던 것을 단일 함수로 통합한다 (SUMMARY#W5).
+ *
+ * `message` 는 `Error.message` (string) 또는 임의 에러 값에서 추출한 문자열.
+ */
+export function isLlmRateLimit(message: string): boolean {
+  return (
+    message.includes('429') || message.toLowerCase().includes('rate limit')
+  );
 }
 
 /**
