@@ -3,10 +3,16 @@ export interface ChunkOptions {
   chunkOverlap: number;
 }
 
+export interface ChunkMetadata {
+  page?: number;
+  section?: string;
+}
+
 export interface Chunk {
   content: string;
   index: number;
   tokenCount: number;
+  metadata?: ChunkMetadata;
 }
 
 /**
@@ -88,6 +94,7 @@ function pushChunk(chunks: Chunk[], content: string, overlap: string): void {
     content: text.trim(),
     index: chunks.length,
     tokenCount: estimateTokens(text),
+    metadata: {},
   });
 }
 
@@ -119,6 +126,7 @@ function forceSplitAndPush(
         content,
         index: chunks.length,
         tokenCount: estimateTokens(content),
+        metadata: {},
       });
     }
     start = end - overlapChars;
@@ -132,6 +140,7 @@ function forceSplitAndPush(
         content: remaining,
         index: chunks.length,
         tokenCount: estimateTokens(remaining),
+        metadata: {},
       });
     }
   }
