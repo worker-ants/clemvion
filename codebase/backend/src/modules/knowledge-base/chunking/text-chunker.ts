@@ -16,9 +16,12 @@ export interface Chunk {
 }
 
 /**
- * Approximate token count (1 token ≈ 4 characters for English, ~2 for CJK)
+ * Approximate token count (1 token ≈ 4 characters for English, ~2 for CJK).
+ *
+ * Exported so csv-chunker can import from a single source of truth instead of
+ * maintaining a manually-synced copy (SUMMARY#W6).
  */
-function estimateTokens(text: string): number {
+export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3);
 }
 
