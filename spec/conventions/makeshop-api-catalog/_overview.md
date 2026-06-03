@@ -4,7 +4,7 @@
 
 본 디렉토리는 메이크샵 신형 Shop API(`/api/v1/{shopId}/…`, OAuth2 `bearerAuth`)의 **모든 endpoint** 를 섹션 단위로 enumerate 한 단일 진실(SoT)이다. 메이크샵 통합(AI agent MCP + workflow 노드) 구현에 **앞선 사전 준비 레퍼런스**로, cafe24-api-catalog 패턴을 따른다.
 
-> **주의 — cafe24 catalog 와의 차이**: cafe24 catalog 는 백엔드 메타데이터와 양방향 sync test 로 보호되는 구현 추적 문서다. 본 makeshop catalog 는 **구현 전 단계**라 대응 백엔드 메타데이터·sync test 가 아직 없다 — 따라서 `status`/`paginated`/`restricted` 컬럼 없이 순수 외부 API 레퍼런스로 시작한다. 구현 착수 시 cafe24 와 동일한 sync 체계로 승격한다.
+> **sync 승격 (Phase 0 완료)**: cafe24 catalog 와 동일하게, 본 makeshop catalog 는 backend 메타데이터(`codebase/backend/src/nodes/integration/makeshop/metadata/`)와 `catalog-sync.spec.ts` 양방향 test 로 보호된다. 섹션별 표에 `status`/`scope`/`paginated` 컬럼이 추가됐다 (§6). cafe24 와 달리 `restricted` 컬럼은 없다 — makeshop 은 별도 승인 티어가 없다 ([MakeShop 노드 §9.5](../../4-nodes/4-integration/5-makeshop.md#95-별도-승인restricted-scope-미도입)).
 
 ## 1. 추출 출처·재현 (provenance)
 
@@ -29,8 +29,12 @@ spec/conventions/makeshop-api-catalog/
 | `라벨 (한)` | 공식 문서 페이지 제목 |
 | `method` | `GET`/`POST` (webhook 은 `EVENT`) |
 | `path` | 공통 prefix `/api/v1/{shopId}/` 생략한 상대 경로 |
-| `권한 (x-scope)` | 메이크샵 권한 그룹 (주문/상품/상점 설정/회원/게시판/적립금/쿠폰) |
+| `scope` | `read`/`write` — 메타데이터 `scopeType` 과 일치 (wire scope `<scope-group>.<read\|write>`, §6) |
+| `paginated` | `✓` 또는 빈칸 — 메타데이터 `paginated` 와 일치 |
+| `status` | `supported`/`planned` — backend 메타데이터 row 존재 여부 (§6) |
 | `docs` | 공식 문서 페이지 URL |
+
+> REST 표 컬럼은 §6 의 sync 승격으로 위와 같이 확장됐다. webhook 표(`cpik.md`)는 `id / 라벨 (한) / event_code / docs` 컬럼을 유지한다 (trigger 후속).
 
 ## 4. Coverage Matrix
 
