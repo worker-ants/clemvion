@@ -94,11 +94,11 @@ Bob,25,Marketing
 3. **강제 분할**: 문장도 chunk_size를 초과하면 토큰 단위 강제 분할
 4. **오버랩**: 이전 청크의 마지막 chunk_overlap 토큰을 다음 청크 앞에 추가
 
-### 4.3 CSV 청킹 (미구현 — Planned)
+### 4.3 CSV 청킹
 
-> **현재 미구현.** CSV 전용 청킹 경로가 없다. `csv.parser.ts` 는 각 행을 `"name: …, age: …"` 텍스트로 변환한 뒤 `\n` 으로 join 한 단일 문자열을 반환하고, 이후 공통 `chunkText()` 가 `\n\n+`(단락) 기준으로 분할한다. 따라서 아래 행 단위 보장은 아직 적용되지 않으며 행 중간 분할이 발생할 수 있다. 추적: [`plan/in-progress/spec-sync-embedding-pipeline-gaps.md`](../../plan/in-progress/spec-sync-embedding-pipeline-gaps.md).
+CSV 파일은 전용 행 단위 청킹 경로(`chunking/csv-chunker.ts` `chunkCsv()`)를 거친다. `embedding.service.ts` 는 `doc.fileType === 'csv'` 일 때 공통 `chunkText()` 대신 `chunkCsv()` 를 사용한다.
 
-계획된 동작:
+동작:
 
 - 행 단위로 청크 구성
 - chunk_size 내에서 여러 행을 하나의 청크로 결합

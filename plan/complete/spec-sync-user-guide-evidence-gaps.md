@@ -10,8 +10,8 @@ owner: planner
 > 관련 spec: spec/conventions/user-guide-evidence.md
 
 ## 미구현 항목
-- [ ] §4 채널 2 — `.claude/agents/user-guide-writer.md` 에 "GUI 흐름 절 작성 시 `<ImplAnchor>` 동반 의무" 자가검증 체크리스트 항목 등재 (현재 해당 파일에 ImplAnchor/impl-anchor/user-guide-evidence 언급 0건)
-- [ ] §2 `impl-anchor-existence.test.ts` — `kind="api-endpoint"` anchor 에 대한 NestJS `@Post`/`@Get` 데코레이터 + path 매치 추가 검증 (현재 kind 분기 없이 file 실존 + symbol substring grep 만 적용)
+- [x] §4 채널 2 — `.claude/agents/user-guide-writer.md` 에 "GUI 흐름 절 작성 시 `<ImplAnchor>` 동반 의무" 자가검증 체크리스트 항목 등재 (현재 해당 파일에 ImplAnchor/impl-anchor/user-guide-evidence 언급 0건)
+- [x] §2 `impl-anchor-existence.test.ts` — `kind="api-endpoint"` anchor 에 대한 NestJS `@Post`/`@Get` 데코레이터 + path 매치 추가 검증 (현재 kind 분기 없이 file 실존 + symbol substring grep 만 적용)
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/conventions.md `### spec/conventions/user-guide-evidence.md` 절 참조.

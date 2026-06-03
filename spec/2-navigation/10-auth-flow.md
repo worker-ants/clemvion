@@ -1,8 +1,6 @@
 ---
 id: auth-flow
-status: partial
-pending_plans:
-  - plan/in-progress/spec-sync-auth-flow-gaps.md
+status: implemented
 code:
   - codebase/frontend/src/app/(auth)/**
   - codebase/frontend/src/components/auth/**
@@ -72,7 +70,7 @@ code:
 | 필드 | 검증 규칙 | 실시간 피드백 |
 |------|-----------|--------------|
 | Name | 필수, 2~50자 | 입력 즉시 |
-| Email | 필수, 이메일 형식 | blur 시 형식 검증 (blur 시 `POST /api/auth/check-email` 중복 확인은 **미구현 (Planned)** — 백엔드 엔드포인트·`authApi.checkEmail` 클라이언트는 존재하나 register 폼이 아직 호출하지 않음) |
+| Email | 필수, 이메일 형식 | blur 시 형식 검증 + `POST /api/auth/check-email` 중복 확인 (register 폼이 `onBlur` 에서 `checkEmailAvailability` 호출) |
 | Password | 필수, 최소 8자, 대소문자+숫자+특수문자 중 3가지 이상 | 입력 중 강도 바 표시 (약함/보통/강함) |
 | Terms | 필수 체크 | 미체크 시 버튼 비활성화 |
 
@@ -131,7 +129,7 @@ code:
 - 이메일 인증 링크 클릭 → 인증 페이지가 `POST /api/auth/verify-email` 호출 (token 은 **요청 본문**에 동봉; 링크 자체는 `?token=` 쿼리로 전달되나 검증 호출은 POST+body 다). 아래 §API 표 참조.
 - 인증 성공 → 자동 로그인 + 개인 워크스페이스 생성 + 대시보드(`/dashboard`)로 리다이렉트
 - 인증 토큰 유효기간: 24시간
-- **미구현 (Planned)**: Resend Email 버튼 + 60초 쿨다운 + `POST /api/auth/resend-verification`. 현재 화면(`codebase/frontend/src/app/(auth)/verify-email/verify-email-content.tsx`)은 "Back to login" 링크만 노출하며, 백엔드 `resend-verification` 핸들러도 아직 없다. 추적: `plan/in-progress/spec-sync-auth-flow-gaps.md`
+- Resend Email 버튼 + 60초 쿨다운 + `POST /api/auth/resend-verification`. 인증 안내 화면(`verify-email-content.tsx`)이 Resend 버튼과 60초 쿨다운(`RESEND_COOLDOWN_SECONDS = 60`)을 제공하며, 백엔드 핸들러는 throttle 5/min + email-enumeration-safe 응답이다
 
 ---
 
@@ -282,7 +280,7 @@ code:
 └──────────────────────────────────┘
 ```
 
-> **미구현 (Planned)**: 위 Resend Email 버튼은 아직 없다. 현재 안내 화면(`codebase/frontend/src/components/auth/forgot-password-form.tsx`)은 "Back to login" 링크만 노출한다 (`POST /api/auth/forgot-password` 자체는 재요청 시 동일하게 재호출 가능하나 전용 Resend UI 미배선).
+> 안내 화면(`forgot-password-form.tsx`)은 Resend Email 버튼 + 60초 쿨다운을 제공하며 `POST /api/auth/forgot-password` 를 재호출한다.
 
 ### 4.3 Step 3: 새 비밀번호 입력
 
@@ -441,7 +439,7 @@ code:
 | POST | /api/auth/register | 회원가입 (본문에 `invitationToken?` 동봉 시 [§2.6](#26-초대-토큰을-통한-가입-invitationtoken) 흐름) |
 | GET | /api/invitations/:token | 초대 토큰 메타 조회 (가입 페이지 prefill 용, 인증 불요) |
 | POST | /api/auth/verify-email | 이메일 인증 확인 (본문: `{ token }`) |
-| POST | /api/auth/resend-verification | 인증 이메일 재발송 — **미구현 (Planned)**, 백엔드 핸들러 부재. 추적: `plan/in-progress/spec-sync-auth-flow-gaps.md` |
+| POST | /api/auth/resend-verification | 인증 이메일 재발송 (throttle 5/min, email-enumeration-safe 응답) |
 | POST | /api/auth/login | 로그인 (2FA 활성 시 `{ requires2fa, methods, challengeToken }` 응답) |
 | POST | /api/auth/login/totp | 2FA TOTP 검증 (`{ challengeToken, code }`) — 옛 `/api/auth/verify-2fa` 표기는 폐기, canonical 정의는 [auth spec §5](../5-system/1-auth.md#5-api-엔드포인트) |
 | POST | /api/auth/2fa/webauthn/authenticate/options · /verify · /recovery | WebAuthn 2FA 흐름. canonical 정의는 [auth spec §5](../5-system/1-auth.md#5-api-엔드포인트) |

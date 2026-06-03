@@ -1,12 +1,10 @@
 ---
 id: workflow
-status: partial
+status: implemented
 code:
   - codebase/backend/src/nodes/flow/workflow/workflow.handler.ts
   - codebase/backend/src/nodes/flow/workflow/workflow.schema.ts
   - codebase/backend/src/nodes/flow/workflow/workflow.component.ts
-pending_plans:
-  - plan/in-progress/spec-sync-workflow-gaps.md
 ---
 
 # Spec: Workflow (Sub-Workflow)
@@ -38,7 +36,7 @@ pending_plans:
 
 ## 2. 설정 UI
 
-> ⚠️ **미구현 (Planned)**: 아래 와이어프레임 중 **Target Workflow 셀렉터 드롭다운**(워크플로우 후보 목록 노출)과 **`⚠ Missing workflow` 캔버스 배지**는 아직 구현되지 않았다. config 스키마는 `widget: 'workflow-selector'` 를 선언하지만, 프론트엔드 `WIDGET_REGISTRY` 에서 `workflow-selector` 가 `UnsupportedWidget` 스텁으로 매핑되어 있어(`widget-registry.ts:49`) 전용 셀렉터 UI 가 렌더되지 않는다. 현재 `workflowId` 는 텍스트/expression 입력만 가능하다. 셀렉터·Missing 배지는 `plan/in-progress/spec-sync-workflow-gaps.md` 로 추적한다.
+> **Target Workflow 셀렉터 드롭다운**(워크플로우 후보 목록 노출)과 **`⚠ Missing workflow` 캔버스 배지**는 구현돼 있다. config 스키마가 선언한 `widget: 'workflow-selector'` 는 프론트엔드 `WIDGET_REGISTRY` 에서 `WorkflowSelectorWidget` 로 매핑되어(`widget-registry.ts`) 전용 셀렉터 UI 가 렌더된다. `workflowId` 는 셀렉터 선택 또는 텍스트/expression 입력 모두 가능하다.
 
 ```
 ┌────────────────────────────────────────┐
@@ -69,10 +67,10 @@ pending_plans:
 └────────────────────────────────────────┘
 ```
 
-- (셀렉터 구현 시 계획) 셀렉터에서 선택 시 `workflowId` + `workflowName` 동시 저장
-- (셀렉터 구현 시 계획) 직접 입력 시 `workflowName` 초기화
-- (셀렉터 구현 시 계획) 같은 워크스페이스 내 워크플로우만 후보로 노출 (현재 편집 중 워크플로우 제외)
-- (미구현, Planned) 비활성 / 삭제된 워크플로우는 캔버스 배지에서 `⚠ Missing workflow` 표시 — 코드에 해당 배지 분기 없음
+- 셀렉터에서 선택 시 `workflowId` + `workflowName` 동시 저장
+- 직접 입력 시 `workflowName` 초기화
+- 같은 워크스페이스 내 워크플로우만 후보로 노출 (현재 편집 중 워크플로우 제외)
+- 삭제·비활성된 워크플로우(`workflowId` 有 + `workflowName` 無)는 캔버스 배지에서 `⚠ Missing workflow` 표시 (`warnWhen: 'workflowId && !workflowName'`)
 
 > ℹ️ **런타임 워크스페이스 격리 (구현됨, W-6)**: 셀렉터 후보 필터링과 별개로, 엔진은 sub-workflow 실행 시 `assertSameWorkspace` 로 대상 워크플로우가 호출자(부모)와 다른 워크스페이스이면 `WORKFLOW_FORBIDDEN_WORKSPACE` 를 throw 하여 cross-workspace 호출을 차단한다. handler 가 `parentWorkspaceId`(`context.variables.__workspaceId`)를 engine 의 `executeInline`/`executeAsync` 에 전달하며, 검증은 `execution-engine.service.ts:2562,2665` 에서 수행된다.
 
@@ -270,6 +268,6 @@ pending_plans:
 
 ## 7. 캔버스 요약
 
-> ⚠️ **미구현 (Planned)**: 아래 요약 템플릿(`{workflowName 또는 workflowId} · {mode}`)과 `⚠ Missing workflow` 배지는 아직 구현되지 않았다. `workflowNodeMetadata` 에 `summaryTemplate` 이 없어(타 노드 — parallel/http-request/map 등은 보유) 캔버스는 본문 요약을 렌더하지 않는다(`node-config-summary.ts`: `summaryTemplate` 부재 시 `null` 반환). 현재 노출되는 캔버스 텍스트는 `workflowId` 미설정 시 blocking warning 배지(`⚠ Target workflow must be selected.`)뿐이다. 요약 템플릿·Missing 배지는 `plan/in-progress/spec-sync-workflow-gaps.md` 로 추적한다.
+`workflowNodeMetadata.summaryTemplate` 은 `{{workflowName|fallback:workflowId}} · {{mode|default:sync}}` 로 정의되며 `node-config-summary.ts` 가 이를 렌더한다. 대상 워크플로우가 삭제·비활성화되어 `workflowName` 이 비면 `⚠ Missing workflow` 배지(`warnWhen: 'workflowId && !workflowName'`)가 표시된다. `workflowId` 미설정 시에는 blocking warning 배지(`⚠ Target workflow must be selected.`).
 
-(계획) [Flow 공통 §4](./0-common.md#4-캔버스-요약) — `Workflow` 행 인용 (`{workflowName 또는 workflowId} · {mode}`. 대상 워크플로우가 삭제·비활성화되면 `⚠ Missing workflow` 배지).
+[Flow 공통 §4](./0-common.md#4-캔버스-요약) — `Workflow` 행 인용 (`{workflowName 또는 workflowId} · {mode}`. 대상 워크플로우가 삭제·비활성화되면 `⚠ Missing workflow` 배지).

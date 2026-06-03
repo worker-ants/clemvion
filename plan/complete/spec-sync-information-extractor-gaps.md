@@ -10,8 +10,8 @@ owner: planner
 > 관련 spec: spec/4-nodes/3-ai/3-information-extractor.md
 
 ## 미구현 항목
-- [ ] `output.error.details.retryable` (필수, CONVENTIONS Principle 3.2.1 — LLM 계열 노드 한정 필수) 충전. 현재 handler 의 모든 error 경로 (`LLM_CALL_FAILED` / `LLM_RESPONSE_INVALID` / `MAX_COLLECTION_RETRIES_EXCEEDED`) 가 `details` 에 `retryable` 미설정 — `information-extractor.handler.ts` `buildErrorOutput` 및 multi-turn error 블록. invariant: `LLM_CALL_FAILED` / `LLM_RATE_LIMIT` → `true`, `LLM_RESPONSE_INVALID` / `MAX_COLLECTION_RETRIES_EXCEEDED` → `false`.
-- [ ] `output.error.details.retryAfterSec?` — `retryable === true` 일 때 provider 신호 기반 set (현재 미구현).
+- [x] `output.error.details.retryable` (필수, CONVENTIONS Principle 3.2.1 — LLM 계열 노드 한정 필수) 충전. 현재 handler 의 모든 error 경로 (`LLM_CALL_FAILED` / `LLM_RESPONSE_INVALID` / `MAX_COLLECTION_RETRIES_EXCEEDED`) 가 `details` 에 `retryable` 미설정 — `information-extractor.handler.ts` `buildErrorOutput` 및 multi-turn error 블록. invariant: `LLM_CALL_FAILED` / `LLM_RATE_LIMIT` → `true`, `LLM_RESPONSE_INVALID` / `MAX_COLLECTION_RETRIES_EXCEEDED` → `false`.
+- [x] `output.error.details.retryAfterSec?` — `retryable === true` 일 때 provider 신호 기반 set (현재 미구현).
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__3-ai__3-information-extractor.md 참조.

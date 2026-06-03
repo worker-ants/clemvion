@@ -42,3 +42,16 @@ owner: planner
 1. consistency-check --spec (본 draft + B/C draft 묶음).
 2. BLOCK:NO 시 A~E spec 반영 + 각 spec frontmatter `status` 재평가(partial→implemented 해당 항목).
 3. 각 spec-sync-*-gaps.md ticket 의 미해결 follow-up 해소 확인 → `git mv` 로 `plan/complete/` 이동 (`chore(plan): mark <name> complete`).
+
+## 처리 결과 (2026-06-03 groom)
+
+A~E 전 항목 spec marker flip / 본문 보강 완료. 각 spec 의 구현 실재를 코드에서 재검증한 뒤 flip:
+
+- **A** embedding §4.3(CSV 청킹) ✅ flip / **§6.1 chunk metadata 는 실제 미구현으로 확인** — flip 안 함, `spec-sync-embedding-pipeline-gaps.md` in-progress 유지. text-classifier(§3.2/§5.3/§7) ✅ / information-extractor(§5.3) ✅ / execution-history(§2.4) ✅ (별도 gaps ticket 없음).
+- **B** statistics(§2.1 기간/custom-range, §2.2 증감률) ✅ — `spec-fix-statistics-planned-markers.md` complete.
+- **C** node-summary 필터(`upper`/`lower`/`default:`/`fallback:`) → `4-nodes/0-overview §1.4.1` 신설 ✅ — `spec-fix-node-summary-fallback-filter.md` complete.
+- **D** workflow(셀렉터/Missing badge/summaryTemplate) ✅ / auth-flow(resend-verification/cooldown/onBlur + 1-auth §1.1 SHA-256 토큰 at-rest) ✅.
+- **E** chat-channel R-CC-12(d) ✅ + 12-webhook WH-EP-07/§202 단일진실 동기화 ✅.
+- 추가 정합: error-empty-states(§2.2/§2.3) ✅ / user-guide-evidence(§2 api-endpoint guard, §4 agent self-check) ✅.
+
+frontmatter `status: partial → implemented`: text-classifier / information-extractor / auth-flow / workflow / statistics / error-empty-states / user-guide-evidence (embedding 은 §6.1 잔여로 partial 유지). 해당 gaps ticket 전부 `plan/complete/` 이동 (embedding 제외).

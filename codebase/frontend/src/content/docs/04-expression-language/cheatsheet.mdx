@@ -293,6 +293,26 @@ https://api.example.com/users/{{ $input.userId }}/orders?from={{ formatDate($now
 ```
 </Example>
 
+## 대화 Thread 참조
+
+<Example title="누적 turn 개수로 분기">
+```ts
+{{ $thread.length > 5 }}
+```
+</Example>
+
+<Example title="전체 thread 텍스트를 후속 노드 입력으로 첨부">
+```ts
+{{ $thread.text }}
+```
+</Example>
+
+<Example title="첫 번째 turn 의 form 필드 참조">
+```ts
+{{ $thread.turns[0].data.email }}
+```
+</Example>
+
 ## 팁 & 참고
 
 - 전체 문법과 연산자 우선순위는 [표현식 기초](/docs/04-expression-language/basics)를 참고해요.

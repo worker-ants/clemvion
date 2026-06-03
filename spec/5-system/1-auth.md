@@ -29,6 +29,8 @@ pending_plans:
 | 로그인 | 이메일 + 비밀번호 → JWT 발급 |
 | 비밀번호 분실 | 이메일로 재설정 링크 발송 (유효기간 30분). 모든 이메일 보유 사용자에게 발급 (§1.1.A 참고) |
 | 로그인 실패 | 5회 실패 시 10분 잠금, 이메일 알림 |
+| 토큰 at-rest 저장 | 이메일 인증 토큰(`emailVerifyToken`)·비밀번호 재설정 토큰(`passwordResetToken`)은 **SHA-256 해시**로만 저장한다 (raw 토큰은 메일 링크로만 전달, DB 미저장). 검증 시 입력 토큰을 동일 해시로 변환해 비교 |
+| 인증 메일 재발송 | `POST /auth/resend-verification` — throttle 5/min, 이메일 enumeration-safe 응답 (존재 여부 무관 동일 응답) |
 
 #### 1.1.A 비밀번호 재설정 흐름과 가입 경로 (OAuth-only · WebAuthn 보유 사용자 포함)
 

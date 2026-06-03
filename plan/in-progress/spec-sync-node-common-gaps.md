@@ -16,3 +16,7 @@ owner: planner
 ## 비고
 - §1.3 노드별 포트표 불일치(Parallel done, Text Classifier fallback/error, Info Extractor 모드별, AI Agent cond_N+시스템+error, Workflow out+error, Filter 누락)는 코드에 이미 구현된 surface 이며 spec 서술만 stale 했던 건이라 본 audit 에서 본문 패치로 정정 완료(이 plan 의 미구현 항목 아님). SoT: codebase/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts + codebase/backend/src/nodes/**/*.schema.ts.
 - 각 항목의 근거(claim→코드부재)는 review/spec-coverage 산출 findings 참조.
+
+## ⚠ 재분류 (2026-06-03 groom): decision-free 아님 → planner 결정 필요
+- **config shape 불일치(핵심)**: 패널은 `config.errorPolicy`(flat string) 저장(`node-settings-panel.tsx:183`), 그러나 엔진은 `config.errorHandling.{policy, defaultOutput, retryConfig.{maxRetries, retryInterval}}`(nested, policy 값 `stop_workflow`) 를 읽음(`execution-engine.service.ts:6625-6644`, retry default 3/1000ms :6594). **현재 패널 저장값을 엔진이 소비하지 않음.**
+- **결정 필요**: config 스키마 통일(flat vs nested) + policy 값 vocabulary + "Reset to Type Default" 의 type-default 출처 정의. spec §2.4/§2.5.1 자체가 "Planned" 표기. JSON 에디터+검증 패턴: 동 파일 `CodeTab`(:278-335).
