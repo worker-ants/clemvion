@@ -13,7 +13,10 @@ import {
 import { InvalidExecutionStateError } from './workflow-errors';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
-import { ExecutionContextService } from './context/execution-context.service';
+import {
+  ExecutionContextService,
+  CreateContextOptions,
+} from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
 import { ForEachExecutor } from './containers/foreach-executor';
@@ -4571,12 +4574,19 @@ describe('ExecutionEngineService', () => {
         service as unknown as { contextService: ExecutionContextService }
       ).contextService;
       const origCreate = contextService.createContext.bind(contextService);
+      // ai-review 2026-06-03: injects extra initialVariables into the options-bag
+      // to verify that template expression resolution reads $var.token correctly.
       jest
         .spyOn(contextService, 'createContext')
         .mockImplementation(
-          (execId: string, wfId: string, vars?: Record<string, unknown>) => {
-            return origCreate(execId, wfId, { ...vars, token: 'xyz789' });
-          },
+          (execId: string, wfId: string, options: CreateContextOptions = {}) =>
+            origCreate(execId, wfId, {
+              ...options,
+              initialVariables: {
+                ...(options.initialVariables ?? {}),
+                token: 'xyz789',
+              },
+            }),
         );
 
       await service.execute(workflowId, {});
@@ -4642,12 +4652,19 @@ describe('ExecutionEngineService', () => {
         service as unknown as { contextService: ExecutionContextService }
       ).contextService;
       const origCreate = contextService.createContext.bind(contextService);
+      // ai-review 2026-06-03: injects a 'token' initialVariable via the options-bag
+      // to verify that $var.token is not overridden by conflicting input-data spreads.
       jest
         .spyOn(contextService, 'createContext')
         .mockImplementation(
-          (execId: string, wfId: string, vars?: Record<string, unknown>) => {
-            return origCreate(execId, wfId, { ...vars, token: 'original' });
-          },
+          (execId: string, wfId: string, options: CreateContextOptions = {}) =>
+            origCreate(execId, wfId, {
+              ...options,
+              initialVariables: {
+                ...(options.initialVariables ?? {}),
+                token: 'original',
+              },
+            }),
         );
 
       mockNodeRepo.findBy.mockResolvedValue([
