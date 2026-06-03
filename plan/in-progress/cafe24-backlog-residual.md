@@ -67,11 +67,13 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 
 **결과**: **464/500 은 method+path 정확 일치** ✅. 36개가 공식 docs 와 어긋나며, 1개 scope 불일치.
 
-> ⚠️ **주의**: 어긋남 = "metadata 가 틀렸다" 단정 아님. ① docs 가 재편/이름변경, ② 미문서화지만 동작하는
-> endpoint, ③ Chrome 식별 당시 metadata 오류 — 셋 다 가능. **확정엔 live API 호출 또는 cafe24 changelog
-> 확인 필요.** 단, 본 프로젝트 convention 상 **공식 docs 가 path/scope SoT** 이므로 docs 기준 불일치로 본다.
-> 또한 index(Chrome) 와 field-level 카탈로그(docs) 가 이 36건에서 **경로가 서로 다르다** — 새 레이어가
-> index 의 잠재 오류를 드러낸 셈.
+> ✅ **전제 확정 (사용자 결정 2026-06-03)**: 본 docs HTML 이 **API 의 최종(authoritative) 상태**이며
+> 코드베이스(metadata/index)보다 최신이다. 따라서 어긋남 36건 + scope 1건은 **metadata/index 측의
+> 정정 대상**이다 — (i) 경로/scope 오기인 경우 docs 값으로 **수정**, (ii) docs 에 해당 operation 자체가
+> 없는 경우 해당 연동을 **제거**(또는 cafe24 문의). index(Chrome) 와 field-level 카탈로그(docs) 의 경로
+> 불일치를 새 레이어가 처음 드러냈고, 카탈로그(docs 기준) 가 정답이다.
+> `catalog-sync` 는 metadata↔index 만 보므로 본 드리프트를 못 잡는다 — 정정 시 metadata·index 를 함께
+> docs 로 맞춰야 catalog-sync 통과가 유지된다.
 
 **(a) KNOWN_G2 (7)** — 위 G-2 기등재 docs 부재분. 신규 아님: `customer_get/update`, `coupon_get/delete`,
 `applications_list`, `webhooks_list`, `socials_apple_settings_get`.
@@ -95,4 +97,34 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 
 **(e) SCOPE_MISMATCH (1)**: `store/carts_setting_update` PUT `carts/setting` — metadata `write` vs **docs 기본스펙 `mall.read_store` (read)**. (docs 가 PUT 에 read 를 명시 — cafe24 docs 자체 오류 의심이나 어쨌든 불일치.)
 
-- [ ] **G-3 후속 (developer + planner 트랙)**: 위 (b)~(e) 를 cafe24 live API / changelog 로 대조해 metadata·index 정정 또는 docs-부재(G-2 류) 확정. translation 단/복수 (d) 가 사실이면 9개 endpoint 가 404 위험이므로 **최우선 검증**. catalog-sync 는 metadata↔index 만 보므로 본 docs 기준 드리프트는 잡지 못함 — 별도 가드 신설 검토.
+#### G-3 정정 작업 분해 (developer 트랙, docs = SoT)
+
+> 각 항목 = 해당 resource 의 `metadata/<resource>.ts` (path/method/scope) + index `cafe24-api-catalog/<resource>.md`
+> 행을 docs 값으로 정정하거나 row 제거. **field-level 카탈로그(`<resource>/<entity>.md`) 는 이미 docs
+> 기준이라 수정 불요** — 정정의 정답지로 사용. 정정 후 `npm test --workspace backend -- catalog-sync` 통과 확인.
+> 액션 표기: **FIX** = docs 에 동일 operation 존재, 경로/scope 문자열만 정정 / **DECIDE** = docs 에 해당
+> (method,path) 자체가 없음 → remove vs remap(다른 docs endpoint) vs cafe24 문의 판단 필요.
+
+- [ ] **G-3a translation (FIX ×9 — 최우선, 미정정 시 404 위험)**: 단수 `translation/` → 복수 `translations/`.
+  - `translation_products_list` `translation/products`→`translations/products`; `translation_products_update` `.../{product_no}` 동일 복수화
+  - `translation_categories_list`/`_update` → `translations/categories[/{category_no}]`
+  - `translation_store_list`/`_update` → `translations/store`
+  - `translation_themes_list` → `translations/themes`; `translation_themes_get`/`_update` `translation/themes/{theme_no}` → `translations/themes/{skin_no}` (**path param 명도 `theme_no`→`skin_no`**)
+- [ ] **G-3b order (FIX ×3 / DECIDE ×4)**:
+  - FIX: `orders_benefits_list` `orders/{order_id}/benefits`→`orders/benefits` (잉여 `{order_id}` 제거); `orders_coupons_list` `orders/{order_id}/coupons`→`orders/coupons`; `exchange_update_multiple` PUT `exchanges`→`exchange` (단수)
+  - FIX(path param 추가): `order_items_labels_delete` DELETE `.../labels`→`.../labels/{name}`
+  - DECIDE: `orders_calculation_total` POST `orders/{order_id}/calculation/total` → docs 는 `orders/calculation` (order_id·/total 없음, semantics 재확인); `order/control` `orders/control` → docs 무; `subscription_shipments_get` GET `subscription/shipments/{subscription_id}` → docs 는 PUT 만 (GET single 부재)
+- [ ] **G-3c personal (FIX ×2)**: `wishlists_list` `wishlists`→`customers/{member_id}/wishlist`; `customers_wishlist_count` `customers/wishlist/count`→`customers/{member_id}/wishlist/count` (둘 다 `{member_id}` 추가)
+- [ ] **G-3d salesreport (DECIDE ×2 — resource 재편)**: `salesreport_daily` `salesreport/sales`→`financials/dailysales`; `salesreport_products` `salesreport/products`→`reports/productsales`. 경로뿐 아니라 응답 스키마도 바뀌었을 수 있어 연동 코드 재확인.
+- [ ] **G-3e mileage (DECIDE ×2)**: `points_autoexpiration_get`/`_delete` `points/autoexpiration/{id}` → docs 는 `{id}` 없는 collection-level GET/POST/DELETE (단건 vs 목록 semantics 확인).
+- [ ] **G-3f community (DECIDE ×3)**: `board_article_get` GET `boards/{board_no}/articles/{article_no}` (docs PUT/DELETE 만); `financials_monthlyreviews_count` `.../count` (docs 무); `urgentinquiry_get` `urgentinquiry/{inquiry_no}` (docs list 만).
+- [ ] **G-3g notification (FIX ×1)**: `customers_invitation_send` POST `customers/invitation`→`customers/{member_id}/invitation`.
+- [ ] **G-3h design (DECIDE ×1)**: `theme_pages_get` GET `themes/{skin_no}/pages/{page_path}` → docs `themes/{skin_no}/pages` (`{page_path}` 없음).
+- [ ] **G-3i shipping (FIX/remap ×1)**: `shipping_companies_list` GET `shippingcompanies`→`carriers` (docs shipping = carriers). 응답 스키마 재확인.
+- [ ] **G-3j product (DECIDE ×1)**: `mains_products_delete` DELETE `mains/{display_group}/products` → docs GET/POST/PUT 만 (DELETE 부재).
+- [ ] **G-3k store (SCOPE FIX ×1)**: `carts_setting_update` PUT `carts/setting` scope `write`→`read` (docs 기본스펙 `mall.read_store`). PUT 에 read scope 는 이례적이라 정정 전 1회 확인 권장.
+- [ ] **G-3l KNOWN_G2 재검토 (7)**: HTML 이 최종 상태로 확정됐으므로, 위 G-2 의 "production 검증 전 보류" 전제가
+  해소됨 — docs 에 없는 `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·
+  `socials_apple_settings_get` 는 **최종 API 부재 확정**. 제거 여부를 G-2 결정과 합쳐 재판단 (planner 트랙).
+- [ ] **G-3m catalog-sync 가드 보강 (선택)**: metadata↔index 동기만으로는 docs 드리프트를 못 잡으므로,
+  field-level 카탈로그(또는 docs 스냅샷) 의 path/method/scope 와 metadata 를 대조하는 가드 신설 검토.
