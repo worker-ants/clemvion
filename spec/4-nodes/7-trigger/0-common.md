@@ -4,6 +4,10 @@ status: implemented
 code:
   - codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.handler.ts
   - codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts
+  - codebase/backend/src/modules/execution-engine/utils/resolve-trigger-parameters.ts
+  - codebase/backend/src/modules/hooks/hooks.service.ts
+  - codebase/backend/src/modules/schedules/schedule-runner.service.ts
+  - codebase/backend/src/modules/workflows/workflows.controller.ts
 ---
 
 # Spec: Trigger 노드 공통 규약
@@ -50,9 +54,11 @@ interface TriggerParameterDefinition {
 
 ---
 
-## 2. 캔버스 요약
+## 2. 캔버스 요약 (미구현 — Planned)
 
-| 노드 | 요약 포맷 | 예시 |
+> **현재 미구현**: `manualTriggerMetadata` (`manual-trigger.schema.ts`) 에 `summaryTemplate` 이 정의되어 있지 않아 캔버스 요약이 생성되지 않는다. 아래 포맷은 향후 계획이다.
+
+| 노드 | 요약 포맷 (계획) | 예시 |
 |------|-----------|------|
 | Manual Trigger | 파라미터 개수 | `Parameters: 2` 또는 `(none)` |
 

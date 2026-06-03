@@ -3,6 +3,8 @@ id: loop
 status: implemented
 code:
   - codebase/backend/src/nodes/logic/loop/loop.*.ts
+  - codebase/backend/src/modules/execution-engine/containers/loop-executor.ts
+  - codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.ts
 ---
 
 # Spec: Loop
@@ -71,7 +73,7 @@ code:
 5. **반복 간 입력 전달**: i 번째 반복의 body 입력은 (i-1) 번째 반복의 emit 출력. 첫 반복(i=0)의 입력은 `undefined`.
 6. **breakCondition 검사**: 매 반복 종료 후 (body 실행 직후) `engine` 이 `config.breakCondition` 표현식을 freshly built `expressionContext` (현재 `$loop.*`, `$var.*`, body 노드들의 최신 `$node[...].output` 반영) 와 함께 `evaluate()` 한다. truthy 면 즉시 조기 종료 + `meta.exitReason='break'`. 평가 에러는 silent false (loop 진행).
 7. **maxIterations 가드**: 반복 인덱스 i 가 `maxIterations` 에 도달하면 `MAX_ITERATIONS_EXCEEDED` throw.
-8. **완료 시점 (엔진 오버라이트)**: `collected.map(r => r.output)` 로 `iterations` 배열 생성 → 엔진이 `{ iterations }` 로 `output` 을 덮어쓴다 (§5.2, §5.7). 다운스트림은 `done` 포트로 라우팅. 반복 횟수가 필요하면 `output.iterations.length` 를 사용한다 (CONVENTIONS Principle 1.1 — config↔output 직교).
+8. **완료 시점 (엔진 오버라이트)**: `collected.iterations.map(r => r.output)` 로 `iterations` 배열 생성 → 엔진이 `{ iterations, count: iterations.length }` 로 `output` 을 덮어쓴다 (§5.2, §5.7; CONVENTIONS §9.2). 다운스트림은 `done` 포트로 라우팅. 실제 반복 횟수는 `output.count` / `output.iterations.length` / `meta.iterations` 중 무엇이든 동일하다 (사용자 설정값 `config.count` 와는 직교 — Principle 1.1).
 
 ### 4.1 실행 컨텍스트 변수 (`$loop.*`)
 
@@ -81,9 +83,10 @@ body 내부에서 다음 변수에 접근 가능:
 |------|------|------|
 | `$loop.index` | number | 현재 반복 인덱스 (0-based) |
 | `$loop.iteration` | number | 1-based 반복 횟수 (= `index + 1`) |
-| `$loop.count` | number | 총 반복 횟수 (= `config.count` 평가값) |
 | `$loop.isFirst` | boolean | 첫 번째 반복 여부 (`index === 0`) |
 | `$loop.isLast` | boolean | 마지막 반복 여부 (`index === count - 1`) |
+
+> `$loop` 표현식 뷰는 위 4개 키(`index` / `iteration` / `isFirst` / `isLast`)만 노출한다 (`expression-resolver.service.ts` 의 `$loop` 매핑). 내부 `loopContext` 는 `count` 도 보유하지만(`loop-executor.ts`), 표현식 컨텍스트로는 전달되지 않으므로 body 에서 `$loop.count` 는 `undefined` 다. 총 반복 횟수가 필요하면 `$node["Loop"].config.count` (설정값) 또는 완료 후 `$node["Loop"].output.iterations.length` 를 사용한다.
 
 > 중첩 Loop 시 `$loop` 은 가장 가까운 Loop 컨테이너의 컨텍스트를 가리킨다. 외부 Loop 의 컨텍스트는 [실행 엔진 §3.4 중첩 컨테이너 스코프](../../5-system/4-execution-engine.md#34-중첩-컨테이너-스코프) 참조.
 
@@ -128,7 +131,8 @@ body 내부에서 다음 변수에 접근 가능:
       "body emit result 0",
       "body emit result 1",
       "body emit result 2"
-    ]
+    ],
+    "count": 3
   },
   "meta": {
     "iterations": 3,
@@ -142,16 +146,18 @@ body 내부에서 다음 변수에 접근 가능:
 |------|------|------|------|
 | `config.*` | (§5.1과 동일) | config echo | 핸들러가 반환한 raw config 가 보존됨 (엔진 오버라이트는 `output` 만 영향) |
 | `output.iterations` | unknown[] | **engine override** (Principle 9.2) | 각 반복의 emit 노드 출력을 인덱스 순서로 수집한 배열. 길이 = 실제 실행된 반복 수 |
+| `output.count` | number | **engine override** (Principle 9.2) | 실제 실행된 반복 수 (= `iterations.length`). CONVENTIONS §9.2 가 컨테이너 최종 output 을 `{ iterations, count }` 로 규정하므로 엔진이 항상 포함한다 (`execution-engine.service.ts`). `meta.iterations` 와 동일 값 |
 | `meta.iterations` | number | **engine inject** (Principle 2) | 실제 실행된 반복 수. 정상 완료 시 `config.count` 와 같지만 `breakCondition` 이 truthy 가 되어 조기 종료된 경우 작아진다. `output.iterations.length` 와 동일 값 — `output` 은 결과 배열, `meta` 는 메트릭 축으로 분리되어 있음 |
 | `meta.maxIterationsReached` | boolean | engine inject (Principle 2) | `meta.exitReason === 'maxIterations'` 인 경우에만 `true`. 즉 break 없이 한도까지 정상 완료한 경우. 한도 초과 시점은 `MAX_ITERATIONS_EXCEEDED` throw 로 처리되므로 (§6) 이 플래그는 항상 "break 없는 정상 한도 완료" 만을 가리킨다 |
 | `meta.exitReason` | `'completed' \| 'break' \| 'maxIterations'` | engine inject (Principle 2) | 종료 원인. `'break'` 는 `config.breakCondition` 이 truthy 평가되어 조기 종료된 경우, `'maxIterations'` 는 `config.count === config.maxIterations` 로 한도까지 정상 완료된 경우, 그 외는 `'completed'` |
 | `meta.durationMs` | number | engine inject (CONVENTIONS Principle 2 공통) | 컨테이너 전체 소요 시간 (ms) |
 
-> CONVENTIONS Principle 1.1 (config ↔ output 직교) 준수를 위해 `output.count` 는 **제공하지 않는다** — 정상 완료 시 `config.count` 와 동일하고, 조기 종료 시에는 `output.iterations.length` 가 사실상의 실행 횟수다. 다운스트림은 항상 `output.iterations.length` 또는 `meta.iterations` 를 사용한다.
+> `output.count` 는 **실제 실행된 반복 수**(`iterations.length`)로, `config.count` (사용자 설정 raw 값) 와 의미가 다르다. 조기 종료(`break`) 시 `output.count < config.count` 가 될 수 있으므로 둘은 직교한다 (CONVENTIONS Principle 1.1 위배 아님 — `config.count` 는 설정, `output.count` 는 실행 결과 메트릭). 다운스트림은 실제 실행 횟수가 필요하면 `output.count` / `output.iterations.length` / `meta.iterations` 중 무엇을 써도 동일하다. CONVENTIONS §9.2 가 컨테이너 최종 output 키를 `{ iterations, count }` 로 통일 규정한다.
 
 **Expression 접근 예** (현재 엔진 동작 기준):
 - `$node["Loop"].output.iterations[0]` → `"body emit result 0"`
 - `$node["Loop"].output.iterations.length` → `3`
+- `$node["Loop"].output.count` → `3` (실제 실행된 반복 수)
 - `$node["Loop"].config.count` → `"10"` (raw, 사용자 설정값)
 
 ### 5.7 Case: 엔진 오버라이트 컨트랙트 (Principle 9)
@@ -162,7 +168,7 @@ body 내부에서 다음 변수에 접근 가능:
 |------|------|---------------|------|
 | 시작 (§5.1) | `LoopHandler` | `null` | Principle 9.1 — 엔진에 오버라이트 의도 신호 |
 | 반복 중 | `LoopExecutor` | (body 노드들이 자체 output 을 가짐) | `$node["Loop"].output` 는 아직 `null` — 다운스트림이 `done` 이후에만 의미 있는 값 본다 |
-| 완료 (§5.2) | engine | `{ iterations: [...] }` | Principle 9.2 — 컨테이너 컬렉션 키 = `iterations`. 횟수는 `iterations.length` (Principle 1.1 직교) |
+| 완료 (§5.2) | engine | `{ iterations: [...], count }` | Principle 9.2 / CONVENTIONS §9.2 — 컨테이너 컬렉션 키 = `iterations` + 실행 횟수 `count` (= `iterations.length`) |
 
 > 핸들러가 `output: null` 이외의 값을 반환하면 엔진은 오버라이트하지 않는다 (Principle 9.1). Loop 핸들러는 항상 `null` 을 반환하므로 이 분기는 발생하지 않는다.
 >

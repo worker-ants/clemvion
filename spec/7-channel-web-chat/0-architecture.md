@@ -23,7 +23,7 @@ pending_plans:
 호스트 사이트 (고객 웹페이지)
   <script src="https://<widget-cdn-base>/web-chat/v1/loader.js">
   ClemvionChat('boot', { triggerEndpointPath, profile, ... })
-       │ (1) loader 가 launcher + iframe 주입 (클라이언트)
+       │ (1) loader 가 iframe 주입 (클라이언트) — 런처는 iframe SPA 내부 렌더
        ▼
   ┌──── iframe (origin: 위젯 CDN) ── 정적 cross-origin CDN 문서 ────┐
   │  위젯 SPA = codebase/channel-web-chat (Next.js CSR-only)        │
@@ -37,7 +37,7 @@ pending_plans:
 | 레이어 | 책임 | 격리 경계 |
 |---|---|---|
 | Host page | 고객 사이트. SDK boot 호출만 | 호스트 origin |
-| SDK loader/API | launcher 주입, iframe lifecycle, host↔iframe bridge, 공개 JS API | 호스트 DOM 최소 발자국 |
+| SDK loader/API | iframe 주입(런처는 iframe 내부 렌더), iframe lifecycle, host↔iframe bridge, 공개 JS API | 호스트 DOM 최소 발자국 |
 | Widget SPA (iframe) | 채팅 UI, EIA 클라이언트(webhook/SSE/REST), conversation 상태기계 | 위젯 CDN origin — CSS/JS/storage 격리 |
 | Clemvion API | EIA 표면 (기존) | api origin |
 
@@ -102,7 +102,7 @@ Clemvion 은 SaaS + 셀프호스팅 병행이므로 본 spec 의 도메인은 **
 두 모드 모두 **동일 EIA 표면·per_execution 토큰**([3-auth-session](./3-auth-session.md))을 쓰며, 차이는 **렌더링 위치와 요청 Origin** 뿐이다.
 
 ### 5.1 M1 — Hosted iframe
-`boot()` 가 launcher + iframe 을 주입하고 위젯 SPA(정적 CDN 문서, §2.1)를 iframe 에 로드. EIA webhook/SSE/REST 호출은
+`boot()` 가 iframe 하나만 host body 에 주입하고 위젯 SPA(정적 CDN 문서, §2.1)를 iframe 에 로드 — 런처(collapsed)와 패널은 모두 iframe 내부 SPA 가 렌더(§R7 단일 iframe 크기 토글). EIA webhook/SSE/REST 호출은
 iframe 내부(위젯 CDN origin)에서 발생 → 호출 Origin 은 워크스페이스 무관 단일 고정값. v1 주력 산출.
 
 ### 5.2 origin 함의 → CORS

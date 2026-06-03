@@ -35,7 +35,7 @@
 | INT-AU-04 | 토큰 자동 갱신 (OAuth Refresh Token) | 필수 |
 | INT-AU-05 | 인증 정보 암호화 저장 | 필수 |
 | INT-AU-06 | OAuth 연동 생성 시 사용자에게 scope 체크박스 선택 제공 (서비스별 권장 기본값 프리셋) | 필수 |
-| INT-AU-07 | 노드 실행 중 `insufficient_scope` 감지 시 연동 상태를 `error(insufficient_scope)`로 전이하고, 상세 페이지에 누락 scope 배지 + "Scope 추가 요청" 액션 제공 | 필수 |
+| INT-AU-07 | 노드 실행 중 `insufficient_scope` 감지 시 연동 상태를 `error(insufficient_scope)`로 전이하고, 상세 페이지에 누락 scope 배지 + "Scope 추가 요청" 액션 제공. `insufficient_scope` 는 공통 statusReason union·알림 인프라로 존재하나, 현재 이를 실제로 **감지·전이하는 실행 경로는 cafe24 한정** (`cafe24-api.client.ts` / `cafe24-mcp-tool-provider.ts`); 타 핸들러(http/database/email)로의 일반화는 미구현(Planned) | 필수 |
 | INT-AU-08 | Basic Auth (username + password) 인증 지원 (HTTP/REST 연동용) | 필수 |
 | INT-AU-09 | Connection String 기반 인증 지원 (Database) | 필수 |
 | INT-AU-10 | SMTP 인증 (host/port/secure/user/pass) 지원 (Email) | 필수 |
@@ -44,7 +44,7 @@
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
-| INT-ST-01 | 연동 상태 Enum: `connected` / `expired` / `error(<reason>)`. `<reason>`은 `insufficient_scope`, `auth_failed`, `network`, `unknown` 등 머신 판독 가능 값 | 필수 |
+| INT-ST-01 | 연동 상태 Enum: `connected` / `expired` / `error` / `pending_install`. `error` 상태는 `statusReason` 머신 판독 값을 동반 — `auth_failed`, `insufficient_scope`, `network`, OAuth/Cafe24 install 관련 사유(`install_timeout`, `oauth_state_invalid`, `oauth_token_exchange_failed`, `oauth_invalid_scope` 등), 미분류 fallback `unknown_error`. union 밖 값은 `unknown_error` 로 정규화 (`integration-status-reason.ts`) | 필수 |
 | INT-ST-02 | 만료 스캐너 Cron — 4개 독립 BullMQ 잡. `connected-expiry` / `pending-install-ttl` / `usage-log-prune` 은 daily 00:00 UTC (임계치 7일/3일/당일에 상태·알림 생성, 24h TTL sweep, 90d retention prune). `cafe24-background-refresh` 는 6h `0 */6 * * *` UTC — refresh_token 14일 만기 사전 차단용 (cafe24 한정, `lastRotatedAt < now-7d OR IS NULL` 대상). 자세한 분기는 [통합 §11.1](../../2-navigation/4-integration.md#111-스캐너-잡) | 필수 |
 | INT-ST-03 | 사이드바 Integration 메뉴에 주의 필요(만료 임박/에러) 개수 배지 표시, 목록 카드와 상세 헤더에 상태 배지 노출 | 필수 |
 | INT-ST-04 | 인앱 알림(종 드롭다운)에 만료 임박·재인증 실패 이벤트 표시. 사용자별 이메일 알림 토글을 옵션으로 제공 | 필수 |
@@ -95,6 +95,9 @@
 | INT-SV-03 | Email (SMTP) — 이메일 전송 | 필수 |
 | INT-SV-04 | Webhook — 외부 이벤트 수신 | 필수 |
 | INT-SV-05 | Cafe24 — 한국 이커머스 SaaS 의 Admin API (상품·주문·회원 등 18 카테고리). 같은 Integration 이 워크플로 노드와 AI Agent MCP 도구 양쪽에서 활용 ([Spec Cafe24 노드](./4-cafe24.md)) | 필수 |
+| INT-SV-06 | Google — OAuth 2.0 기반 Google API 연동 (Drive / Sheets / Gmail send / Calendar scope). `service-registry.ts` 에 등록, 토큰 자동 갱신 지원 | 필수 |
+| INT-SV-07 | GitHub — OAuth 2.0 또는 Personal Access Token(Bearer) 인증. repo / read:org / workflow / gist scope. `service-registry.ts` 에 등록 | 필수 |
+| INT-SV-08 | MCP Server — 외부 MCP(Model Context Protocol) 서버 연동. `service-registry.ts` 에 등록 (`mcp`) | 필수 |
 
 ### 2.7 조직 레벨 연동
 
@@ -149,7 +152,9 @@
 
 ---
 
-## 4. Marketplace (마켓플레이스)
+## 4. Marketplace (마켓플레이스) — 미구현 (Planned)
+
+> **구현 상태**: 본 §4 전체는 **현재 미구현(Planned)** 이다. 백엔드/프론트엔드에 marketplace 모듈·라우트·식별자가 전무하다 (2026-06-03 spec-vs-code audit 기준 0% 구현). 아래 표의 요구사항은 **목표 정의**이며, 코드 현실은 아직 어떤 surface 도 제공하지 않는다.
 
 ### 4.1 콘텐츠 유형
 

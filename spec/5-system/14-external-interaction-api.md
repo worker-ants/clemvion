@@ -1,11 +1,15 @@
 ---
 id: external-interaction-api
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/spec-sync-external-interaction-api-gaps.md
 code:
   - codebase/backend/src/modules/external-interaction/**
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/triggers/dto/interaction-config.dto.ts
+  - codebase/backend/src/modules/triggers/triggers.controller.ts
+  - codebase/backend/src/modules/triggers/triggers.service.ts
   - codebase/channel-web-chat/src/lib/eia-client.ts
   - codebase/channel-web-chat/src/lib/eia-types.ts
 ---
@@ -52,12 +56,12 @@ code:
 | EIA-NX-03 | 페이로드는 HMAC-SHA256 으로 서명하여 `X-Clemvion-Signature: t=<unix>,v1=<hex>` 헤더로 전송 (Stripe-style). 알고리즘 식별자는 [Webhook §4.2](./12-webhook.md#42-hmac-서명) 의 화이트리스트 표기 (`sha256` / `sha512`) 와 동일 값을 trigger config 에 보관하되 (`hmacAlgorithm: 'sha256'`), 외부 표면 (notification.signing.algorithm) 에서는 `hmac-sha256` / `hmac-sha512` 의 명시적 prefix 형태로 노출해 inbound webhook 검증과 outbound notification 서명의 알고리즘 출처를 분리한다 (§R12) | 필수 |
 | EIA-NX-04 | 동일 이벤트는 동일 `X-Clemvion-Delivery: <uuid>` 헤더로 식별 — 재시도 시 같은 ID 유지 (at-least-once 보장) | 필수 |
 | EIA-NX-05 | 이벤트 발송 전 execution 상태를 재조회해 stale notification 차단 (예: `waiting_for_input` 발송 직전에 이미 `cancelled` 라면 발송 생략) | 필수 |
-| EIA-NX-06 | 2xx 응답만 성공으로 간주. 그 외 / 타임아웃 → 지수 백오프 재시도 (default 5회, 1s/4s/16s/64s/256s) | 필수 |
+| EIA-NX-06 | 2xx 응답만 성공으로 간주. 그 외 / 타임아웃 → 지수 백오프 재시도 (default 5회). **현재 구현은 BullMQ `exponential` backoff (base delay 1s, base*2^n → 1s/2s/4s/8s/16s)** ([`notification-dispatcher.service.ts`](../../codebase/backend/src/modules/external-interaction/notification-dispatcher.service.ts) `delay: 1000`). spec 이 본래 의도한 base-4 간격 (1s/4s/16s/64s/256s) 은 **미구현 (Planned)** — §6.6 참조 | 필수 |
 | EIA-NX-07 | 최종 실패 시 트리거의 `notificationHealth` 필드를 `'degraded'` 로 갱신 (트리거 자동 비활성화 금지 — 사용자 승인 필요) | 필수 |
 | EIA-NX-08 | 페이로드 안에 `seq` (= execution 내 monotonic counter, WebSocket §2.2 와 동일 값) 동봉 — 클라이언트가 정렬·dedupe 가능 | 필수 |
 | EIA-NX-09 | URL 은 `https://` 만 허용. 개발 환경 환경변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 예외 | 필수 |
 | EIA-NX-10 | SSRF 방지: 사설 IP·메타데이터 IP·loopback 차단. 워크스페이스 단위 allowlist 설정 가능 | 필수 |
-| EIA-NX-11 | Trigger 당 분당 최대 60건 outbound rate-limit. 초과분은 큐에 적재, 폭주 시 가장 오래된 이벤트부터 폐기하지 않고 `notificationHealth=degraded` 표시 | 권장 |
+| EIA-NX-11 | Trigger 당 분당 최대 60건 outbound rate-limit. 초과분은 큐에 적재, 폭주 시 가장 오래된 이벤트부터 폐기하지 않고 `notificationHealth=degraded` 표시 — **미구현 (Planned)** | 권장 |
 | EIA-NX-12 | secret rotation API (`POST /api/triggers/:id/notification/rotate-secret`) 지원 — old secret 은 grace 24h 병행 검증 | 권장 |
 
 ### 3.2 Inbound Interaction (REST + SSE)
@@ -309,7 +313,7 @@ POST /api/external/executions/550e8400-.../interact
 | `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 (예: completed 상태에서 submit_message, 또는 다른 nodeId). publisher 측 사전 검증([실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state))의 EIA 진입점 매핑 — WS 의 `INVALID_EXECUTION_STATE` 와 동일 의미를 EIA 는 `STATE_MISMATCH` 로 표기 |
 | `409 Conflict` | `IDEMPOTENCY_KEY_CONFLICT` | 같은 키 + 다른 body |
 | `410 Gone` | `EXECUTION_TERMINATED` | execution 이 이미 completed/failed/cancelled |
-| `429 Too Many Requests` | `RATE_LIMITED` | inbound rate-limit 초과 |
+| `429 Too Many Requests` | `RATE_LIMITED` | inbound rate-limit 초과 — **미구현 (Planned)**: 현재 `/interact`·status 조회에 per-execution rate-limit 이 적용되지 않아 본 코드는 발생하지 않는다. 구현된 유일한 429 는 SSE 동시연결 초과(`TOO_MANY_CONNECTIONS`, §5.2). §8.4 참조 |
 
 ### 5.2 SSE 이벤트 스트림 — `GET /api/external/executions/:executionId/stream`
 
@@ -362,6 +366,8 @@ data: { ... §6 payload ... }
 - 연결 수 제한 초과 시 `429 Too Many Requests`
 
 ### 5.3 단발 상태 조회 — `GET /api/external/executions/:executionId`
+
+> **구현 상태 (V1)**: 아래 응답 shape 중 `id` / `workflowId` / `status` / `result` / `error` / `updatedAt` 는 실제 값으로 채워진다. 단 **`currentNode` 와 `context` 는 현재 항상 `null`, `seq` 는 항상 `0` placeholder** 로 반환된다 ([`interaction.service.ts` `getStatus()`](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)). 자세한 노드 context 와 최신 seq 는 SSE 의 `waiting_for_input` 페이로드·`id:` 필드가 권위이며, 클라이언트는 SSE `Last-Event-Id` 로 보정한다. `currentNode`/`context`/`seq` 의 실값 노출은 **미구현 (Planned)**.
 
 ```jsonc
 GET /api/external/executions/{executionId}
@@ -539,7 +545,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 `execution.cancelled` 는 §6.3 의 `result` 자리에 `cancelledBy: "user" | "system" | "timeout"` 만 채운 변형.
 
-`execution.ai_message` 는 [Spec WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 의 `execution.ai_message` payload 를 포함하며, 본 spec 의 표준 envelope (`triggerId` / `workflowId` / `timestamp` / `seq`) 만 추가로 wrap 한다. WS payload 의 `presentations?: PresentationPayload[]` 필드 (AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉, [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)) 도 그대로 전달된다 — 외부 클라이언트 (SDK) 는 본 필드 존재 시 chat UI 에서 텍스트와 함께 inline 렌더 가능. **단, debug 전용 `llmCalls` 필드(raw LLM 요청/응답)는 [WS §4.4 `llmCalls[]` 노트의 strip-only 결정](./6-websocket-protocol.md#44-실행-진행-이벤트)에 따라 fanout seam 에서 제거되어 외부 수신자(본 SSE 스트림 포함)에는 전달되지 않는다 — 인증된 내부 WS(에디터) 채널 전용.**
+`execution.ai_message` 는 [Spec WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 의 `execution.ai_message` payload 를 포함하며, 본 spec 의 표준 envelope (`triggerId` / `workflowId` / `timestamp` / `seq`) 만 추가로 wrap 한다. WS payload 의 `presentations?: PresentationPayload[]` 필드 (AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉, [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)) 도 그대로 전달된다 — 외부 클라이언트 (SDK) 는 본 필드 존재 시 chat UI 에서 텍스트와 함께 inline 렌더 가능. **단, debug 전용 `llmCalls` 필드(raw LLM 요청/응답)는 [WS §4.4 `llmCalls[]` 노트의 strip-only 결정](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)에 따라 fanout seam 에서 제거되어 외부 수신자(본 SSE 스트림 포함)에는 전달되지 않는다 — 인증된 내부 WS(에디터) 채널 전용.**
 
 ### 6.6 재시도
 
@@ -548,7 +554,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 | 성공 기준 | HTTP `2xx` |
 | 타임아웃 | 10초 |
 | 재시도 횟수 | default 5회 (`notification.retry.maxAttempts`) |
-| backoff | 지수: 1s · 4s · 16s · 64s · 256s (default) |
+| backoff | **구현됨**: BullMQ `exponential` (base delay 1s, base*2^n → 1s · 2s · 4s · 8s · 16s). **Planned (미구현)**: spec 본래 의도의 base-4 간격 (1s · 4s · 16s · 64s · 256s) — BullMQ default exponential 식이 base*2^n 이라 현 구현은 2배율. 4배율 적용은 custom backoff strategy 필요 |
 | 동일 이벤트 식별 | `X-Clemvion-Delivery` 헤더 UUID (재시도해도 같음) |
 | 최종 실패 시 | Trigger.`notificationHealth = 'degraded'`. 자동 비활성화 금지 (사용자 승인 필요). 실패 이력은 trigger 상세 화면에 표시 |
 | Stale 차단 | 발송 직전 execution 상태 재조회 — 이미 cancelled 면 발송 skip |
@@ -630,14 +636,14 @@ ALTER TABLE trigger
 
 ### 8.4 Rate Limit
 
-| 대상 | 한도 |
-|------|------|
-| Inbound 명령 (`/interact`) | execution 당 분당 60 |
-| SSE 동시 연결 | execution 당 3 |
-| 단발 status 조회 | execution 당 분당 120 |
-| Outbound notification 발송 | trigger 당 분당 60 |
+| 대상 | 한도 | 구현 상태 |
+|------|------|------|
+| Inbound 명령 (`/interact`) | execution 당 분당 60 | **미구현 (Planned)** — per-execution rate-limit 가 코드에 없음 |
+| SSE 동시 연결 | execution 당 3 | **구현됨** — 초과 시 `429 TOO_MANY_CONNECTIONS` ([`interaction-stream.controller.ts`](../../codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts)) |
+| 단발 status 조회 | execution 당 분당 120 | **미구현 (Planned)** |
+| Outbound notification 발송 | trigger 당 분당 60 | **미구현 (Planned)** — EIA-NX-11 (권장) 미구현, §3.1 참조 |
 
-초과 시 `429 Too Many Requests` + `Retry-After` 헤더.
+구현된 제한(SSE 동시 연결)의 초과 응답은 `429 Too Many Requests` 다. Planned 항목의 `Retry-After` 헤더·`RATE_LIMITED` 코드는 해당 rate-limit 구현 시 함께 추가된다.
 
 ### 8.5 CORS
 
@@ -716,20 +722,28 @@ codebase/backend/src/modules/
     interaction-stream.controller.ts   # GET /api/external/executions/:id/stream  (SSE)
     # 모듈 prefix: @Controller('external/executions') — global prefix(`api`) 와 합쳐 실 경로 `/api/external/executions/...`. 기존 `/api/executions/*` 컨트롤러와 분리
     interaction.service.ts             # 토큰 검증 + 명령 dispatch (내부 WS 명령 경로로 forwarding)
+    interaction.guard.ts               # HTTP 진입점 InteractionGuard — iext_*/itk_* 검증 + ctx 합성 (scope set 금지, §3.3.1)
     interaction-token.service.ts       # iext_*, itk_* 발급/검증/blacklist
-    notification-dispatcher.service.ts # outbound webhook 발송 + 재시도
-    sse-adapter.service.ts             # Redis pub/sub → SSE stream
+    notification-fanout.service.ts     # 단일 sink executionEvents$ 구독 listener → NotificationDispatcher.enqueue 위임 (§R10)
+    notification-dispatcher.service.ts # outbound webhook enqueue facade (BullMQ)
+    notification-webhook.processor.ts  # BullMQ processor — 실제 HTTP POST + 재시도/HMAC 서명/degraded 처리
+    notification-signature.util.ts     # HMAC-SHA256/512 서명 계산 (§6.1)
+    sse-adapter.service.ts             # 단일 sink executionEvents$ 구독 → SSE stream fan-out (현재 in-memory, Redis pub/sub 은 Planned §R10)
+    idempotency.interceptor.ts         # Idempotency-Key 캐시/충돌 (EIA-IN-11)
+    entities/execution-token.entity.ts
     dto/
       interact.dto.ts
-      submit-form.dto.ts
-      submit-message.dto.ts
+      cancel.dto.ts
+      responses.dto.ts
       ...
   hooks/
     hooks.controller.ts                # 기존 — 응답에 interaction 필드 추가
     hooks.service.ts                   # 기존 — InteractionTokenService 의존 추가
   triggers/
-    triggers.service.ts                # 기존 — notification/interaction config 검증 추가
+    triggers.controller.ts             # 기존 — POST :id/notification/rotate-secret (EIA-NX-12) · POST :id/interaction/revoke-token (EIA-AU-07)
+    triggers.service.ts                # 기존 — notification/interaction config 검증 + rotate/revoke 로직
     dto/create-trigger.dto.ts          # 기존 — notification/interaction 필드 추가
+    dto/interaction-config.dto.ts      # interaction config DTO
 ```
 
 내부 WS 명령 경로 ([Spec WS §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server)) 는 `ExecutionEngineService` 가 책임. 본 모듈은 그 위의 facade.
@@ -911,11 +925,11 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 
 단일 sink `WebsocketService.executionEvents$` (RxJS Subject) 에는 **세 형제 listener** 가 직접 subscribe 한다 — 모두 같은 facade 계층이며, 셋 다 동일 `seq` 와 동일 TX commit timing 을 공유한다:
 
-- (a) **`NotificationDispatcher`** — 외부 HTTP POST (notification webhook). 다중 인스턴스 환경의 외부 SSE 클라이언트 fan-out 을 위해 **Redis pub/sub** 발행도 담당.
-- (b) **SSE 어댑터** — 외부 SSE 클라이언트가 임의 인스턴스에 접속 가능해야 하므로 Redis pub/sub 경유 구독.
+- (a) **`NotificationFanout`** ([`notification-fanout.service.ts`](../../codebase/backend/src/modules/external-interaction/notification-fanout.service.ts)) — 단일 sink 의 `executionEvents$` 를 `onModuleInit` 에서 구독하는 실제 listener. notification config 가 본 event 를 구독 중이면 `NotificationDispatcher.enqueue()` (BullMQ enqueue-only facade) 로 외부 HTTP POST (notification webhook) 를 위임한다. **현재는 단일 인스턴스 in-process 구독** — 다중 인스턴스 환경의 외부 SSE 클라이언트 fan-out 을 위한 **Redis pub/sub 발행은 미구현 (Planned)** (코드 주석상 v1 single-instance, 분산 fan-out follow-up).
+- (b) **SSE 어댑터** ([`sse-adapter.service.ts`](../../codebase/backend/src/modules/external-interaction/sse-adapter.service.ts)) — 현재 `executionEvents$` 를 **in-process(in-memory) 직접 구독** 하여 외부 SSE 스트림으로 fan-out. **Redis pub/sub 경유 구독은 미구현 (Planned)** — 코드 주석 "v1 은 single-instance in-memory — 분산 SSE fan-out 은 follow-up". 다중 인스턴스에서 외부 SSE 클라이언트가 임의 인스턴스에 접속 가능하게 하려면 향후 Redis pub/sub 도입 필요.
 - (c) **`ChatChannelDispatcher`** — 같은 process 내 in-process 구독으로 외부 채널 `sendMessage` 변환.
 
-즉 Chat Channel 어댑터는 NotificationDispatcher 의 downstream 이 **아니라** 단일 sink 의 형제 consumer 다 (NotificationDispatcher 가 chat-channel 용 EventEmitter 를 별도 emit 하지 않는다).
+즉 Chat Channel 어댑터는 NotificationFanout/NotificationDispatcher 의 downstream 이 **아니라** 단일 sink 의 형제 consumer 다 (notification 경로가 chat-channel 용 EventEmitter 를 별도 emit 하지 않는다).
 
 **chat-channel-internal 추가 listener 의 R10 허용 범위**: chat-channel 어댑터가 outbound 5종 (§6.1 화이트리스트) 외에 in-process fan-out 채널의 추가 이벤트 (현재 `execution.node.completed` — [Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력)) 를 sub-filter 로 attach 하는 것은 R10 허용 범위. 단일 sink 자체는 여전히 `WebsocketService.emit*` 하나이며, 어댑터는 그 sink 의 consumer (= NotificationDispatcher 와 동일 facade 계층) 한정 — 새 sink 도입 없음. 외부 HTTP webhook (§6.1) 화이트리스트 5종은 변경 없음 (chat-channel-internal 한정, 외부 SDK 미노출). 결정 SoT: [Chat Channel §R-CC-16](./15-chat-channel.md#r-cc-16-chat-channel-outbound-의-비-blocking-presentation--ai-render_-presentations-발화).
 

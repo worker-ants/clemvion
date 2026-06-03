@@ -240,9 +240,9 @@
 
 ---
 
-## 7. Integration 노드 (3종)
+## 7. Integration 노드 (4종)
 
-외부 서비스와 연동하여 데이터를 주고받는 노드이다. 범용 노드(HTTP Request, Database Query)와 서비스 특화 노드(Send Email)로 구성된다. 모든 Integration 노드는 Integration 엔티티에 저장된 인증 정보를 참조한다.
+외부 서비스와 연동하여 데이터를 주고받는 노드이다. 범용 노드(HTTP Request, Database Query)와 서비스 특화 노드(Send Email, Cafe24)로 구성된다. 모든 Integration 노드는 Integration 엔티티에 저장된 인증 정보를 참조한다.
 
 ### 7.1 HTTP Request
 
@@ -274,6 +274,17 @@
 | ND-EM-03 | 본문 형식: 텍스트 또는 HTML | 필수 | ✅ |
 | ND-EM-04 | 첨부 파일 지원 | 권장 | ✅ |
 | ND-EM-05 | 표현식을 통한 동적 수신자/본문 구성 | 필수 | ✅ |
+
+### 7.4 Cafe24
+
+한국 이커머스 SaaS Cafe24 의 Admin API 를 워크플로 노드와 AI Agent 도구 양쪽에서 호출하는 서비스 특화 노드. 상세: [Spec Cafe24 노드](./4-integration/4-cafe24.md).
+
+| ID | 요구사항 | 우선순위 | 상태 |
+|----|----------|----------|-------|
+| ND-CF-01 | Cafe24 Admin API 18 카테고리(resource) × operation 메타데이터 기반 동적 호출 | 필수 | ✅ |
+| ND-CF-02 | `service_type='cafe24'` Integration 의 OAuth 인증 정보 참조 | 필수 | ✅ |
+| ND-CF-03 | operation 별 입력 필드(`fields`)·페이지네이션(`pagination`) 동적 폼, 표현식(`{{ }}`) 지원 | 필수 | ✅ |
+| ND-CF-04 | 같은 Integration 을 AI Agent MCP 도구로 동시 노출 (`Cafe24McpToolProvider` in-process bridge) | 필수 | ✅ |
 
 ---
 
@@ -309,7 +320,7 @@
 
 ---
 
-## 9. Presentation 노드 (6종)
+## 9. Presentation 노드 (5종)
 
 워크플로우 실행 결과를 시각적으로 구조화하는 노드이다. (1) 다운스트림 노드로 렌더링된 콘텐츠를 전달하고 (2) 실행 결과 뷰어에서 시각적으로 확인할 수 있는 이중 목적을 가진다.
 

@@ -26,11 +26,11 @@ code:
 | headers | KeyValue[] | — | `[]` | 요청 헤더. `{key, value}` 항목. CRLF 포함 입력은 schema 단계에서 거부 |
 | queryParams | KeyValue[] | — | `[]` | URL 쿼리 파라미터. 동일 규약 |
 | body | unknown | — | — | 요청 본문 (JSON object / 문자열 / KeyValue[] 등 `bodyType` 에 따름) |
-| bodyType | Enum | — | `json` | `json` / `form-data` / `x-www-form-urlencoded` / `raw` / `binary` (legacy `form` → `x-www-form-urlencoded`) |
-| responseType | Enum | — | `json` | `json` / `text` / `binary` |
+| bodyType | Enum | — | `json` | `json` / `form-data` / `x-www-form-urlencoded` / `raw` / `binary` (legacy `form` → `x-www-form-urlencoded`). **`raw` 와 `binary` 는 현재 동일 처리** (else 분기 — 문자열은 그대로, 객체는 `JSON.stringify`). `binary` 전용 처리는 미구현 (Planned) |
+| responseType | Enum | — | `json` | `json` / `text` / `binary`. **`binary` 는 현재 `text` 와 동일하게 `res.text()` 처리** (전용 바이너리 디코딩 미구현, Planned) |
 | timeout | Integer | — | `30000` | 요청 타임아웃 (ms). `> 0` |
-| followRedirects | Boolean | — | `true` | 리다이렉트 따라가기 (`integration` 인증 시 5홉 한도 + 매 홉 SSRF 재검증) |
-| verifySsl | Boolean | — | `true` | SSL 인증서 검증 |
+| followRedirects | Boolean | — | `true` | 리다이렉트 따라가기. **현재 런타임 미반영 (Planned)** — 핸들러가 이 값을 읽지 않는다. 실제 동작: `integration` 인증일 때만 무조건 최대 5홉 manual follow + 매 홉 SSRF 재검증, `none`/`custom` 은 3xx 를 그대로 반환(follow 안 함). 토글로 끄거나 hop 수를 조정하는 기능은 미구현 |
+| verifySsl | Boolean | — | `true` | SSL 인증서 검증. **현재 런타임 미반영 (Planned)** — 핸들러가 이 값을 읽지 않으며(`rejectUnauthorized`/custom dispatcher 미설정) SSL 검증은 항상 활성. 검증을 끄는 기능은 미구현 |
 
 표현식(`{{ }}`)은 `url`·`headers[i].value`·`queryParams[i].value`·`body` 안에서 사용 가능.
 
@@ -92,9 +92,9 @@ code:
 5. **Query Params 병합**: 노드 `queryParams` → URL 에 append → `auth_type='api_key' & location='query'` credential append
 6. **Headers 병합** (뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 **integration 자격증명 헤더가 사용자 입력을 덮어쓴다** (사용자가 `Authorization` 을 위조해 자격증명을 무력화하는 경로 차단)
 7. **Body 직렬화**: `GET` / `HEAD` 외 method 일 때 `bodyType` 에 따라 직렬화. `form-data` 는 multipart boundary 자동 부여 (Content-Type 미지정)
-8. **SSRF 가드** (`authentication='integration'` 일 때만): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단. 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅 + Usage 로그 `failed` 기록 (D4)
-9. **fetch 호출**: `AbortController` 로 `timeout` 적용, `redirect: 'manual'`. `integration` 인증인 경우 3xx 응답을 받으면 최대 5홉까지 수동 follow + 매 홉 SSRF 재검증
-10. **응답 파싱**: `responseType='json'` → `res.json()` (실패 시 `null`), 그 외 `text`
+8. **SSRF 가드** (`authentication='integration'` 일 때만): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단(호스트 리터럴 검사) → 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS resolve 후 IP 재검사(DNS rebinding 방어). 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅 + Usage 로그 `failed` 기록 (D4)
+9. **fetch 호출**: `AbortController` 로 `timeout` 적용, `redirect: 'manual'` (무조건). `integration` 인증인 경우 3xx 응답을 받으면 최대 5홉까지 수동 follow + 매 홉 SSRF 재검증. `none`/`custom` 인증은 3xx 를 follow 하지 않고 그대로 §5.3 으로 반환. `config.followRedirects` / `config.verifySsl` 은 **현재 런타임에 반영되지 않는다 (Planned, §1 참조)**
+10. **응답 파싱**: `responseType='json'` → `res.json()` (실패 시 `null`), 그 외(`text` 및 `binary`) → `res.text()`. **`binary` 전용 디코딩은 미구현 (Planned)** — 현재 `binary` 도 `text` 와 동일하게 처리된다
 11. **Usage 로깅** (§4.2): `integration` 인증일 때만 `success` / `failed` 기록
 12. **반환 분기**:
     - `res.ok` → §5.1 (`port:'success'`)
@@ -137,6 +137,8 @@ code:
 > CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지. `output.response` 는 1차 네이밍 통일 (Principle 8.2). `meta.durationMs` 통일 ([공통 §6.1](./0-common.md#61-metaduration-vs-metadurationms-명명-통일)).
 >
 > `status` 는 비-블로킹 노드이므로 항상 생략.
+>
+> 절 번호: 성공(§5.1) / 에러(§5.3) 두 케이스만 존재한다. §5.2 는 의도적으로 비어 있다(연번 보존용).
 
 ### 5.1 Case: 2xx 성공 (port `success`)
 

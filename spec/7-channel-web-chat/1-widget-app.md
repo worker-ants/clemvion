@@ -33,7 +33,7 @@ pending_plans:
 **패널(expanded)**:
 | UI 요소 | 데이터 출처 | 동작 |
 |---|---|---|
-| 헤더 (봇 이름, 뒤로/닫기) | boot `headerTitle` (아바타는 차기 phase) | 닫기 → collapsed (대화 유지) |
+| 헤더 (봇 이름, 닫기) | boot `headerTitle` (아바타·뒤로 버튼은 차기 phase — 현재 닫기(✕)만 렌더) | 닫기 → collapsed (대화 유지) |
 | 환영 메시지 | boot `welcome` (정적 config) | 패널 open 시 즉시 표시(워크플로우 시작 전 클라이언트 렌더) |
 | 퀵 액션 버튼 | `waiting_for_input.buttonConfig` | 탭 → `click_button` |
 | 추천 질문 | boot `welcome.suggestions`/`launcher.suggestions` (정적) | 탭 → `submit_message` |

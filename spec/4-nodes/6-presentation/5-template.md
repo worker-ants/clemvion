@@ -1,10 +1,13 @@
 ---
 id: template
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/spec-sync-template-gaps.md
 code:
   - codebase/backend/src/nodes/presentation/template/template.handler.ts
   - codebase/backend/src/nodes/presentation/template/template.schema.ts
   - codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx
+  - codebase/frontend/src/lib/utils/node-config-summary.ts
 ---
 
 # Spec: Template

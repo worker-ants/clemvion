@@ -1,16 +1,20 @@
 ---
 id: webhook
-status: implemented
+status: partial
 code:
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
+  - codebase/backend/src/modules/hooks/public-webhook-throttle.guard.ts
+  - codebase/backend/src/modules/hooks/public-webhook-quota.service.ts
   - codebase/backend/src/modules/auth-configs/auth-configs.service.ts
   - codebase/backend/src/modules/triggers/triggers.service.ts
+pending_plans:
+  - plan/in-progress/spec-sync-webhook-gaps.md
 ---
 
 # Spec: Webhook 트리거 시스템
 
-> 관련 문서: [PRD Webhook](./12-webhook.md) · [Spec 트리거 목록](../2-navigation/2-trigger-list.md) · [Spec 데이터 모델](../1-data-model.md#28-trigger) · [Spec 실행 엔진](./4-execution-engine.md) · [Spec External Interaction API](./14-external-interaction-api.md) · [Spec Chat Channel](./15-chat-channel.md)
+> 관련 문서: [Spec 트리거 목록](../2-navigation/2-trigger-list.md) · [Spec 데이터 모델](../1-data-model.md#28-trigger) · [Spec 실행 엔진](./4-execution-engine.md) · [Spec External Interaction API](./14-external-interaction-api.md) · [Spec Chat Channel](./15-chat-channel.md)
 
 ---
 
@@ -50,7 +54,7 @@ code:
 | WH-EP-05-1 | Manual Trigger 노드가 선언한 `parameters` 스키마에 따라 body에서 파라미터를 추출/검증하여 `$input.parameters` / `$params`로 제공 | 필수 |
 | WH-EP-05-2 | required 파라미터 누락 또는 타입 강제 변환 실패 시 `400 Bad Request`와 누락 필드 목록 반환 | 필수 |
 | WH-EP-06 | 요청 헤더 정보를 메타데이터로 전달 (`headers`, `method`, `query`) | 권장 |
-| WH-EP-07 | 비활성 트리거로의 요청은 `410 Gone` 응답 반환. **예외**: `config.chatChannel` 이 설정된 트리거는 `202 Accepted + { ignored: true }` 반환 (Telegram 등 chat-channel provider 가 non-2xx 응답 시 webhook 자동 비활성화·retry 폭주를 유발하므로). 상세 — [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) | 필수 |
+| WH-EP-07 | 비활성 트리거로의 요청은 `410 Gone` 응답 반환. **예외 (미구현, Planned)**: `config.chatChannel` 이 설정된 트리거는 `202 Accepted + { ignored: true }` 를 반환해야 한다 (Telegram 등 chat-channel provider 가 non-2xx 응답 시 webhook 자동 비활성화·retry 폭주를 유발하므로). 상세 — [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract). **현행 구현은 `isActive=false` 체크가 chatChannel 분기보다 앞서 실행되어 chatChannel 트리거도 410 Gone 을 반환한다** — 이 예외 분기는 미구현 (`plan/in-progress/spec-sync-webhook-gaps.md`). | 필수 |
 
 #### 3.2 인증 및 보안
 
@@ -62,7 +66,7 @@ code:
 | WH-SC-02 | HMAC 서명 검증 — AuthConfig.type=`hmac`, `config.secret` 기반, 헤더는 `config.header` (default `X-Hub-Signature-256`) | 필수 |
 | WH-SC-03 | Bearer Token 검증 — AuthConfig.type=`bearer_token` (`Authorization: Bearer <token>`) | 필수 |
 | WH-SC-04 | 인증 실패 시 `401 Unauthorized` 응답 (단일 메시지 `AUTH_FAILED` — enumeration 방지) | 필수 |
-| WH-SC-05 | Rate limiting — 분당 최대 요청 수 (현행 구현: 글로벌 throttler **100 req/min**, [Spec API 규약 §7](./2-api-convention.md#7-rate-limiting)) | 권장 |
+| WH-SC-05 | Rate limiting — 분당 최대 요청 수 (현행 구현: 글로벌 throttler **100 req/min**, [Spec API 규약 §7](./2-api-convention.md#7-rate-limiting)). 추가로 공개 webhook(`auth_config_id IS NULL`)에는 `PublicWebhookThrottleGuard` 의 IP 단위 한도(분당 10·시간당 누적 20 기본)가 적용된다 — §6 참조 | 권장 |
 | WH-SC-06 | API Key 검증 — AuthConfig.type=`api_key`, 헤더 `config.headerName` (default `X-API-Key`) 의 값 비교 | 필수 |
 | WH-SC-07 | Basic Auth 검증 — AuthConfig.type=`basic_auth` (`Authorization: Basic base64(user:pass)`) | 필수 |
 | WH-SC-08 | 인증 성공 시 `AuthConfig.last_used_at = NOW()` fire-and-forget UPDATE (트랜잭션 외, 실패 시 미갱신) | 필수 |
@@ -98,7 +102,7 @@ code:
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
 | WH-NF-01 | webhook 수신 후 200ms 이내 응답 반환 (실행은 비동기) | 필수 |
-| WH-NF-02 | 요청 본문 최대 크기: 1MB | 필수 |
+| WH-NF-02 | 요청 본문 최대 크기. **현행 구현**: 공개(인증 없음 — `auth_config_id IS NULL`) webhook 에 한해 `PublicWebhookThrottleGuard` 가 **32KB** (`DEFAULT_MAX_BODY_BYTES`, config `publicWebhook.maxBodyBytes`) 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 를 반환한다. 인증 webhook 에는 별도의 본문 크기 게이트가 없다 (전역 body-parser limit 미설정 — express 기본값 적용). **1MB 통일 임계는 미구현 (Planned)** — `plan/in-progress/spec-sync-webhook-gaps.md`. | 필수 |
 | WH-NF-03 | 동시 다발 webhook 수신 처리 (실행 엔진은 독립적으로 동작) | 필수 |
 
 ---
@@ -195,7 +199,7 @@ POST /api/hooks/:endpointPath
 | `400 Bad Request` | 요청 본문 파싱 실패 |
 | `401 Unauthorized` | 인증 검증 실패 |
 | `404 Not Found` | endpointPath에 해당하는 트리거 없음 |
-| `410 Gone` | 트리거가 비활성 상태 (단, `config.chatChannel` 트리거는 [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) 적용 — 비활성도 `202 Accepted + { ignored: true }`) |
+| `410 Gone` | 트리거가 비활성 상태 (현행 구현은 `config.chatChannel` 트리거도 410 반환 — 비활성 chatChannel 트리거를 `202 Accepted + { ignored: true }` 로 처리하는 [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) 예외는 **미구현 (Planned)**, WH-EP-07 참조) |
 
 ### 3.2 기존 Trigger CRUD API
 
@@ -303,13 +307,16 @@ Webhook으로 수신된 데이터는 아래 구조로 워크플로우에 전달:
 
 ```
 codebase/backend/src/modules/hooks/
-  ├── hooks.module.ts          # 모듈 정의
-  ├── hooks.controller.ts      # POST /api/hooks/:endpointPath
-  └── hooks.service.ts         # 트리거 조회, 인증 검증, 실행 트리거
+  ├── hooks.module.ts                    # 모듈 정의
+  ├── hooks.controller.ts                # POST /api/hooks/:endpointPath
+  ├── hooks.service.ts                   # 트리거 조회, 인증 검증, 실행 트리거
+  ├── public-webhook-throttle.guard.ts   # 공개 webhook 전용 body 32KB 제한 + IP 단위 rate-limit (인증 webhook 은 무제한 통과)
+  └── public-webhook-quota.service.ts    # Redis fixed-window 카운터 (분당/시간당 누적 상한)
 ```
 
 - `/api/hooks/*` 경로는 JWT 인증 제외 (외부 서비스가 호출하므로)
-- Rate Limiting 적용: 글로벌 throttler **100 req/min** ([Spec API 규약 §7](./2-api-convention.md#7-rate-limiting))
+- Rate Limiting (전역): 글로벌 throttler **100 req/min** ([Spec API 규약 §7](./2-api-convention.md#7-rate-limiting))
+- Rate Limiting (공개 webhook 전용 추가): `PublicWebhookThrottleGuard` 가 `auth_config_id IS NULL` 트리거에 한해 IP 단위 시작 한도(기본 분당 10, config `publicWebhook.startupPerMinute`) + 시간당 누적 신규 상한(기본 20, `publicWebhook.hourlyNewMax`) 을 적용. 초과 시 `429 PUBLIC_WEBHOOK_RATE_LIMIT` / `PUBLIC_WEBHOOK_HOURLY_LIMIT`. 인증 webhook 은 이 Guard 를 무제한 통과. Redis 미가용 시 fail-open. (SoT: [Spec 웹채팅 보안 §4](../7-channel-web-chat/4-security.md))
 - 기존 `TriggersService.findByEndpointPath()` 재사용
 
 ---
@@ -321,7 +328,7 @@ codebase/backend/src/modules/hooks/
 2. HooksService.handleWebhook('abc-123-def', body, headers, query)
 3. TriggersService.findByEndpointPath('abc-123-def') → Trigger 엔티티
 4. Trigger 없으면 → 404 Not Found
-5. Trigger.isActive === false → `config.chatChannel` 가 있으면 step 6 (인증) → step 7c 의 silent skip 분기로 진입 (parseUpdate 호출 전에 isActive 미통과를 인지하고 update 무시, 응답은 202 + { ignored: true }). `config.chatChannel` 가 없으면 → 410 Gone 즉시 반환. (chatChannel 트리거의 비활성 상태에서도 인증은 그대로 수행 — auth 실패 시 401 반환. 정당화: (a) 보안 — auth 실패한 요청에 silent 202 를 주면 공격자가 trigger 활성 여부를 inference 할 수 없도록 함, (b) 운영 — auth 실패는 운영자 디버깅 가시성 401 필요. 상세 [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) 참조.)
+5. Trigger.isActive === false → **현행 구현**: chatChannel 유무와 무관하게 410 Gone 즉시 반환 (`HooksService.handleWebhook` 의 isActive 체크가 chatChannel 분기보다 앞서 실행됨). **목표 동작 (미구현, Planned — `plan/in-progress/spec-sync-webhook-gaps.md`)**: `config.chatChannel` 가 있으면 step 6 (인증) → step 7c 의 silent skip 분기로 진입 (parseUpdate 호출 전에 isActive 미통과를 인지하고 update 무시, 응답은 202 + { ignored: true }); `config.chatChannel` 가 없으면 410 Gone. (목표 동작 기준: chatChannel 트리거의 비활성 상태에서도 인증은 그대로 수행 — auth 실패 시 401 반환. 정당화: (a) 보안 — auth 실패한 요청에 silent 202 를 주면 공격자가 trigger 활성 여부를 inference 할 수 없도록 함, (b) 운영 — auth 실패는 운영자 디버깅 가시성 401 필요. 상세 [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) 참조.)
 6. 인증 검증:
    a. trigger.auth_config_id IS NULL → 통과 (none). (ip_whitelist 도 AuthConfig 종속이라 평가 대상 없음)
    b. authConfigsService.findById(trigger.auth_config_id, trigger.workspace_id) → AuthConfig row
@@ -337,7 +344,7 @@ codebase/backend/src/modules/hooks/
    d. ChannelConversationService.lookup(triggerId, update.conversationKey) → ChannelConversation 조회
    e. 활성 execution 이 있으면 InteractionService.interact() in-process 호출 (token bypass — [EIA §3.3 EIA-AU-08](./14-external-interaction-api.md#33-인증))
       없으면 ExecutionEngineService.execute() 시작 (입력 = parseUpdate 결과 변환)
-   f. 202 Accepted 즉시 반환 ([WH-NF-01](#4-비기능-요구사항) 200ms 이내, 후속 처리는 백그라운드)
+   f. 202 Accepted 즉시 반환 ([WH-NF-01](#4-비기능-요구사항) 200ms 이내, 후속 처리는 백그라운드). 단 일부 provider handshake/interactivity ack (Slack url_verification·Interactivity, Discord PING·Interactivity, native modal) 은 `200 OK` + 비-래핑 JSON 으로 직접 응답한다 (TransformInterceptor 우회) — 상세 [Spec Chat Channel §5.5·§5.5.1](./15-chat-channel.md#55-inbound-http-contract).
 8. config.chatChannel 가 없으면 (기존 경로):
    a. resolveTriggerParameters(workflow, body) 호출
       - required 누락 / coerce 실패 → 400 Bad Request (Execution 생성하지 않음)
@@ -359,8 +366,8 @@ codebase/backend/src/modules/hooks/
 | 엔드포인트 유추 방지 | UUID 기반 랜덤 경로 (brute force 불가) |
 | 비밀 키 저장 | Webhook 인증 자료는 모두 `auth_config.config` JSONB 에 AES-256-GCM 으로 암호화 저장 ([Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책)). API 응답 시 항상 마스킹, 평문 노출은 create / regenerate / reveal 3 경로만 |
 | last_used_at 갱신 | 인증 성공 직후 `auth_config.last_used_at = NOW()` fire-and-forget UPDATE. 트랜잭션 외라 race 시 last-write-wins, 실패 시 미갱신 (활성 가시성 차단) |
-| 본문 크기 제한 | 1MB 초과 시 `413 Payload Too Large` |
-| Rate Limiting | 글로벌 Throttler 적용 (100 req/min, [Spec API 규약 §7](./2-api-convention.md#7-rate-limiting)) |
+| 본문 크기 제한 | **현행**: 공개 webhook 만 32KB 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` (`PublicWebhookThrottleGuard`). 인증 webhook 은 별도 게이트 없음. 1MB 통일 임계는 미구현 (WH-NF-02, Planned) |
+| Rate Limiting | 글로벌 Throttler (100 req/min, [Spec API 규약 §7](./2-api-convention.md#7-rate-limiting)) + 공개 webhook 전용 IP 단위 한도 (분당 10·시간당 20 기본, `PublicWebhookThrottleGuard`/`PublicWebhookQuotaService`) |
 | JWT 제외 | `/api/hooks/*` 경로는 JWT guard에서 제외 |
 | CORS | webhook 엔드포인트는 CORS 제한 없음 |
 

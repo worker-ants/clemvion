@@ -3,7 +3,9 @@ id: data-hydration-surfaces
 status: implemented
 code:
   - codebase/frontend/src/lib/conversation/__tests__/hydration-coverage.test.ts
+  - codebase/frontend/src/lib/conversation/conversation-utils.ts
   - codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts
+  - codebase/frontend/src/components/editor/run-results/result-timeline.tsx
 ---
 
 # Data Hydration Surfaces
@@ -24,7 +26,7 @@ handler 의 output field 가 frontend 의 **여러 surface (live / waiting / exe
 |---|---|---|
 | `output.result.response` | single-turn out · multi-turn user_ended / max_turns / condition / error | (a) `messagesToConversationItems` (b) `parseHistoryMessages` (c) `applyExecutionSnapshot` waiting 분기 |
 | `output.result.messages` | 모든 multi-turn 종결 + waiting tick | (a)~(c) + (d) `threadTurnsToConversationItems` (live thread snapshot 의 대체 fallback) |
-| `output.result.turnCount` (+ `config.maxTurns`) | 동일 | (a)~(c) + `SummaryView` 의 turn counter · `ResultTimeline` 의 "Turn N/M" 표기 (분모 `M` 은 `config.maxTurns` 에서 읽는다 — `maxTurns` 는 output 에 echo 안 함, Principle 1.1) |
+| `output.result.turnCount` (+ `config.maxTurns`) | 동일 | (a)~(c) + `SummaryView`(`ConversationInspector`) 의 live turn counter — 분모 `M` 을 별도 prop `conversationConfig.maxTurns`(= 종결 출력 envelope 의 top-level `config.maxTurns`) 에서 읽는다 · `ResultTimeline` 의 "Turn N/M" 표기 — **현재 코드는 분모를 `output.conversationConfig.maxTurns` 에서 읽으나** handler 는 어떤 종결 분기에서도 `output.conversationConfig` 를 echo 하지 않아(top-level `config.maxTurns` 에만 존재) `ResultTimeline` 분모는 `0` fallback 으로 빠진다(`/M` 표기 숨김). `maxTurns` 는 static config 값이라 `output.result.*` 에 echo 안 함(Principle 1.1) — **`ResultTimeline` 의 reader 경로와 backend echo 위치가 불일치하는 코드 버그** (별도 추적) |
 | `output.result.presentations` | spec §7.10 echo — single-turn `out` / multi-turn final / condition route (`buildMultiTurnFinalOutput` / `buildConditionOutput` 의 `metadata.allPresentations`) | (a) `parseHistoryMessages` 의 last-assistant attach (b) `threadTurnsToConversationItems` 의 turn-level presentations 부착 (c) `AssistantPresentationsBlock` 렌더 (d) `applyExecutionSnapshot` 의 conversation seed 경로 |
 | `output.interaction` (resumed) | multi-turn `resumed` transient · `ai_form_render` waiting | (a) `pauseForConversation` 의 convConfig 부착 (b) WS handleAiMessage |
 | `output.error` (multi-turn error 종결) | multi-turn `port: 'error'` — `buildMultiTurnFinalOutput` 의 `errorPayload` 경로 (single source — `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts`). `details.retryable` / `retryAfterSec` 표준 필드는 [CONVENTIONS Principle 3.2.1](./node-output.md#321-details-의-공통-표준-필드-llm-계열-노드-한정-필수) | (a) `parseHistoryMessages` 가 `output.error` 가 set 된 multi-turn 종결 노드의 thread 마지막에 `system_error` ConversationItem 합성 (b) `threadTurnsToConversationItems` 의 `system_error` source 매핑 (`[Conversation Thread §9.1]`) (c) `applyExecutionSnapshot` 의 ended 분기 (d) WS `execution.node.failed` / `node.completed` (with error) → `useExecutionStore` APPEND ([Conversation Thread §9.7](./conversation-thread.md#97-ws-이벤트--store-변환-계약)) |
@@ -36,7 +38,7 @@ handler 의 output field 가 frontend 의 **여러 surface (live / waiting / exe
 | Field | Backend echo 위치 | Frontend hydration |
 |---|---|---|
 | `output.items` / `output.rows` / `output.data` / `output.rendered` | presentation handler waiting/resumed | `PresentationContent` (Preview 탭) |
-| `output.interaction` (form_submitted / button_click / button_continue) | resume tick | `inferInteractionTypeFromData` + `appendPresentationInteraction` thread push |
+| `output.interaction` (form_submitted / button_click / button_continue) | resume tick | `inferInteractionTypeFromData` (`conversation-utils.ts`) + `submitForm`(`use-execution-interaction-commands.ts`) 의 인라인 `addConversationMessage` 로 optimistic `presentation_user` turn push — 이후 WS authoritative thread snapshot 이 override |
 
 ---
 
@@ -48,7 +50,7 @@ handler 의 output field 가 frontend 의 **여러 surface (live / waiting / exe
 |---|---|
 | `execution.ai_message` event | `handleAiMessage` → `messagesToConversationItems` |
 | `execution.waiting_for_input` event (ai_conversation / ai_form_render) | `handleWaitingForInput` → `threadTurnsToConversationItems` + `mergeOrphanToolItems` (thread snapshot 우선) |
-| `execution.tool_call_started` / `_completed` event | `upsertToolItem` / `patchToolItem` |
+| `execution.tool_call_started` / `_completed` event | `upsertToolItem` / `updateToolItem` |
 
 ### 2.2 Waiting reconcile (페이지 mount / WS 재구독)
 

@@ -52,7 +52,8 @@ pending_plans:
 - **이벤트 구독 해제**: `on(event, cb)` 은 **구독 해제 함수**를 반환한다(`const un = chat.on('message', f); un();`).
   대등하게 `off(event, cb)`(특정 핸들러 해제) / `off(event)`(해당 이벤트 전체 해제) 도 제공 — SPA 언마운트 시
   핸들러 누수 방지(React `useEffect` cleanup 등). 스니펫 전역 큐 형태 `ClemvionChat('off', { event, cb })` 도 동일.
-- `loader.js` 책임: launcher 주입, iframe 생성·resize 적용, host↔iframe bridge, 명령 큐(boot 전 호출 버퍼링).
+- `loader.js` 책임: iframe 생성·resize 적용, host↔iframe bridge, 명령 큐(boot 전 호출 버퍼링). 런처(위젯 진입점)는
+  별도 DOM 주입이 아니라 iframe 내부 위젯 SPA 가 렌더하며, loader 는 `wc:resize`(`collapsed`↔`expanded`)로 iframe 박스만 조절한다.
 
 ## 2. npm 패키지 `@workflow/web-chat` (개발자용)
 
@@ -71,7 +72,9 @@ chat.shutdown();
 - 동일 코어를 모듈로 노출 + 타입 정의. ESM + UMD. loader.js = npm 코어의 IIFE thin wrapper(중복 구현 금지).
 - **EIA HTTP/SSE 호출은 기존 `@workflow/sdk`(EIA 클라이언트, PR #230) 재사용** — web-chat 은 그 위의 위젯(loader+
   iframe bridge+UI) 레이어. 의존 방향: `web-chat → @workflow/sdk`. **M2 BYO-UI headless client = `@workflow/sdk` 직접 사용**
-  ([0-architecture §5.3](./0-architecture.md)).
+  ([0-architecture §5.3](./0-architecture.md)). **현 increment 미배선 (계획)** — SDK 코어(타입·boot 검증·`wc:*` bridge·
+  명령 큐·iframe 주입)만 구현됐고 `@workflow/sdk` 는 아직 import 되지 않는다(`package.json` devDependencies 의 `file:../sdk` 만).
+  EIA 호출(triggerWebhook/SSE)·예시 배선은 [plan channel-web-chat-followups](../../plan/in-progress/channel-web-chat-followups.md) 에서 추적한다.
 
 ## 3. host ↔ iframe postMessage 프로토콜
 
@@ -83,7 +86,7 @@ chat.shutdown();
 | host → iframe | `wc:command` | `open`/`close`/`show`/`hide`/`sendMessage(text)`/`updateProfile`/`shutdown` |
 | iframe → host | `wc:ready` | 위젯 로드 완료 |
 | iframe → host | `wc:resize` | `{ width, height, state: 'collapsed' \| 'expanded' }` |
-| iframe → host | `wc:event` | `open`/`close`/`message`/`unread`/`conversationStarted`/`conversationEnded` |
+| iframe → host | `wc:event` | `{ name, data }` — `name` ∈ `open`/`close`/`message`/`unread`/`conversationStarted`/`conversationEnded`, `data` 는 이벤트별 페이로드 |
 - **origin 검증 필수**(양방향 `event.origin` 화이트리스트). 토큰·대화 내용은 iframe 내부 유지, host 로 비노출.
 - **`wc:resize` host 처리(필수)**: host(loader/WidgetBridge)는 `wc:resize` 수신 시 iframe 엘리먼트의 크기를
   payload(`width`/`height`/`state`)에 맞춰 적용한다 — `collapsed`(런처만) ↔ `expanded`(패널 전개) 전환 시

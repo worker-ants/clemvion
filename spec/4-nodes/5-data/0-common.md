@@ -1,9 +1,13 @@
 ---
 id: common
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/spec-sync-data-common-gaps.md
 code:
   - codebase/backend/src/nodes/data/transform/transform.handler.ts
   - codebase/backend/src/nodes/data/code/code.handler.ts
+  - codebase/backend/src/nodes/data/transform/transform.schema.ts
+  - codebase/backend/src/nodes/data/code/code.schema.ts
 ---
 
 # Spec: Data 노드 공통 규약
@@ -41,7 +45,9 @@ Code 노드는 [노드 실행 샌드박싱 정책](../0-overview.md#5-노드-실
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
 | Transform | `{N} operations` (operations 배열의 길이) | `3 operations` |
-| Code | `{language} · {N} lines` (코드 줄 수) | `JavaScript · 12 lines` |
+| Code | `{language} · {N} lines` (코드 줄 수) — **미구현 (Planned)** | `JavaScript · 12 lines` |
+
+> 캔버스 요약은 노드 metadata 의 `summaryTemplate` 에서 렌더된다 (`getConfigSummary` → `renderSummaryTemplate`). 현재 `transformNodeMetadata.summaryTemplate` 만 정의돼 있어 Transform 요약만 표시되고, `codeNodeMetadata` 에는 `summaryTemplate` 이 없어 Code 노드는 캔버스 본문 요약이 표시되지 않는다(`null`). `{language} · {N} lines` 는 계획 상태다.
 
 ---
 
@@ -53,7 +59,7 @@ Data 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 |------|--------------------------------|
 | `config` | 사용자 입력 raw echo (Principle 7). `code.code` 필드는 보안 차원에서 echo하되 길이 제한 없음 (사용자 본인이 작성한 코드). `transform.operations[]` 의 expression 템플릿 보존 |
 | `output` | **계산 결과**. `transform`: 변환 결과 (단일 객체 또는 배열). `code`: 사용자 코드의 `return` 값 |
-| `meta` | 실행 메트릭만 (Principle 2). `meta.durationMs` (공통). `code` 노드: `meta.{success: boolean, logs?: string[]}`. 런타임 에러는 `output.error` + `port:'error'` 로 처리 — `meta.error`/`meta.errorCode`/`exitReason` 별칭은 Phase 1 D 에서 폐기 (CONVENTIONS Principle 2 Code 행과 일치) |
+| `meta` | 실행 메트릭만 (Principle 2). `meta.durationMs` (공통). `transform` 노드: `meta.{operationsApplied: number, operationsSkipped: number}`. `code` 노드: `meta.{success: boolean, logs: string[]}`. 런타임 에러는 `output.error` + `port:'error'` 로 처리 — `meta.error`/`meta.errorCode`/`exitReason` 별칭은 Phase 1 (D) 에서 폐기 (CONVENTIONS Principle 2 Code 행과 일치) |
 | `port` | `transform`: `undefined` (단일 출력). `code`: `'success'` / `'error'` (런타임 에러 분기) |
 | `status` | Data 노드는 모두 비-블로킹 → `undefined` |
 

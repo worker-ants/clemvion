@@ -100,7 +100,7 @@ code:
 | Chat Channel | `inboundSigning` (provider-issued plaintext) | edit (입력) — 생성 시점만 | slack / discord 한정. 사용자가 외부 portal (Slack 앱 Basic Information / Discord Developer Portal General Information) 에서 발급된 값을 입력. 응답에 strip — 내부 `inboundSigningRef` 만 보관 ([Spec Chat Channel §4.1](../5-system/15-chat-channel.md#41-triggerconfigchatchannel)). telegram 은 server-issued 라 본 필드 미사용. 변경 (rotation) 은 v1 미정의 — 별 spec 대기. PATCH body 의 `config.chatChannel.inboundSigning` / `inboundSigningPlaintext` 직접 변경은 400 `VALIDATION_ERROR` (`details.field='inboundSigningPlaintext'`). 정당화 — [R-CC-10](../5-system/15-chat-channel.md#r-cc-10-bot-token-변경-single-path-rotate-api-only) 의 외부 provider 등록 token 패턴과 자원 성격이 달라 single-path 가 아니라 별 결정 사안 |
 | Chat Channel | `botToken` | edit (입력) + rotate 액션 (single-path) | write-only — 응답에는 `hasBotToken: boolean` 만 노출 ([Spec Chat Channel §5.4.2](../5-system/15-chat-channel.md#542-응답-dto-derived-필드--hasbottoken)). 마스킹 placeholder ("•••• \<last4\>"). 형식 검증 `^\d{6,}:[A-Za-z0-9_-]{30,}$` ([Spec Chat Channel §5.4](../5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약)). 변경 시 **항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token`** 만 사용 (24h grace). PATCH body 의 `botTokenRef` 변경은 차단 — 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`). 정당화 Rationale [R-CC-10](../5-system/15-chat-channel.md#r-cc-10-bot-token-변경-single-path-rotate-api-only) |
 | Chat Channel | `botIdentity.username` | read-only | `setupChannel()` 의 `getMe` 캐시 결과. trigger 활성화 시점에 자동 갱신 |
-| Chat Channel | `uiMapping.formMode` | edit | enum: `multi_step` (v1 은 이것만). 향후 `single_page` 추가 가능 |
+| Chat Channel | `uiMapping.formMode` | edit | enum: `multi_step` / `native_modal` / `auto`, default `auto`. `auto`=지원 provider+전 필드 modal 수용+fields≤5 면 native modal, 아니면 다단계. `native_modal`=modal 우선 (미충족 시 다단계 fallback). `multi_step`=강제 다단계 opt-out. 상세 [Convention §2.3](../conventions/chat-channel-adapter.md#23-chatchannelconfig) |
 | Chat Channel | `uiMapping.visualNode` | edit | enum: `text` / `photo` / `auto`, default `auto`. Carousel/Chart/Table 시각 렌더 모드. 상세 [Convention §2.3](../conventions/chat-channel-adapter.md#23-chatchannelconfig) + [Spec Chat Channel R-CC-11](../5-system/15-chat-channel.md#r-cc-11-uimappingvisualnode-enum-교체-text_onlytext--auto-신설) |
 | Chat Channel | `uiMapping.buttonLayout` | edit | enum: `auto` / `vertical` / `horizontal`, default `auto` |
 | Chat Channel | `rateLimitPerMinute` | edit | integer override, default 60 (CCH-NF-03). 텔레그램 group rate limit 정합 |
@@ -120,28 +120,47 @@ code:
 - `base_url`: SaaS의 경우 서비스 도메인, 셀프 호스팅의 경우 설정된 도메인. 프론트엔드는 `NEXT_PUBLIC_WEBHOOK_BASE_URL`(명시 override) → `NEXT_PUBLIC_API_URL`에서 후행 `/api` 제거 → `window.location.origin` 순으로 base 를 결정한다 (webhook 엔드포인트는 백엔드가 서빙하므로 base 는 백엔드 origin). 구현: `codebase/frontend/src/lib/utils/webhook-url.ts`. 정본 형식은 [Spec Webhook WH-EP-02](../5-system/12-webhook.md#31-webhook-엔드포인트).
 - `endpoint_path`: Trigger.endpoint_path 값
 
+### 2.5 트리거 생성
+
+목록 헤더 우측의 "Add Webhook" 버튼(`editor`+ — `RoleGate minRole="editor"`)이 모달 다이얼로그를 열어 **webhook 타입** 트리거를 생성한다. 제출 시 `POST /api/triggers` ([§3](#3-api)) 를 호출한다.
+
+| 필드 | 입력 | 비고 |
+|------|------|------|
+| 이름 (`name`) | 필수 텍스트 | |
+| 연결 워크플로우 (`workflowId`) | 필수 셀렉트 | 워크스페이스 워크플로우 목록 |
+| 인증 (`authConfigId`) | 선택 (AuthConfig 셀렉터) | `null` = 인증 없음 (R-15 경고 대상). inline 인증 필드 없음 (R-14) |
+| Chat Channel (토글) | 선택 | 켜면 `provider` (telegram / slack / discord), `botToken` (write-only), slack/discord 한정 `inboundSigningPlaintext` 입력. 생성 요청은 top-level `chatChannel` 필드로 전송되어 `setupChannel()` 자동 호출 진입. `uiMapping` 은 `{ formMode: "auto", visualNode: "auto", buttonLayout: "auto" }` 로 생성 |
+
+- `endpointPath` 는 클라이언트가 `crypto.randomUUID()` 로 생성해 전송한다 (UUID 가 사실상 capability token — [R-15](#r-15-외부-노출-webhook-무인증-경고-표시)).
+- `httpMethod` / `contentType` 는 v1 고정값이라 다이얼로그 입력 없음 (POST / `application/json`).
+- slack/discord `inboundSigningPlaintext` 는 client-side 형식 검증(hex) 후 전송 — 정규식은 `@workflow/chat-channel-validation` 패키지 단일 진실 (backend `assertInboundSigningPlaintextByProvider` 와 동일 export).
+- `schedule` 타입은 본 다이얼로그·`POST /api/triggers` 양쪽에서 생성할 수 없다 (Schedule 화면 전용 — [§3 참고](#3-api)).
+
 ---
 
 ## 3. API
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
+| POST | /api/triggers | 트리거 생성 (`editor`+). `webhook` / `manual` 타입만 — `schedule` 은 Schedules API 가 자동 생성하므로 미지원. 목록 화면 "Add Webhook" 다이얼로그가 본 endpoint 로 webhook 트리거를 생성한다 ([§2.5 트리거 생성](#25-트리거-생성)) |
 | GET | /api/triggers | 목록 조회 (쿼리: type, status, search, page, limit, sort, order). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | GET | /api/triggers/:id | 트리거 상세 조회 |
 | PATCH | /api/triggers/:id | 트리거 수정 (활성/비활성 토글 포함 — body `{ isActive: boolean }`). 별도 `/toggle` 서브경로는 없다 |
 | GET | /api/triggers/:id/history | 호출 이력 조회 |
 | DELETE | /api/triggers/:id | 트리거 삭제 — 자세한 권한·cascade·확인 UX 는 [§4 삭제 정책](#4-삭제-정책) |
 | POST | /api/triggers/:id/chat-channel/rotate-bot-token | Chat Channel bot token rotation (24h grace). 본 endpoint 는 [Spec Chat Channel §5.4](../5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약) 가 single-path SoT — PATCH body 의 `config.chatChannel.botTokenRef` 직접 변경은 차단됨 ([R-CC-10](../5-system/15-chat-channel.md#r-cc-10-bot-token-변경-single-path-rotate-api-only)) |
+| POST | /api/triggers/:id/notification/rotate-secret | Outbound notification HMAC secret 회전. 응답 `{ secret, rotatedAt }`. SoT 는 [Spec EIA §7](../5-system/14-external-interaction-api.md#7-시크릿-회전--token-revoke) |
+| POST | /api/triggers/:id/interaction/revoke-token | per_trigger inbound interaction 토큰 (itk_*) revoke. SoT 는 [Spec EIA §7](../5-system/14-external-interaction-api.md#7-시크릿-회전--token-revoke) |
 
 > Webhook 인증 자격증명의 회전은 트리거가 아니라 AuthConfig 책임 — `POST /api/auth-configs/:id/regenerate` ([Spec 설정 §3](./6-config.md#3-api)) 로 일원화한다. 과거 v1.1 예약 행 `POST /api/triggers/:id/auth/rotate-secret` 은 신설되지 않은 채 본 PR 에서 폐기됐다 (Rationale R-14).
 
-> `PATCH /api/triggers/:id` 본문은 다음 부분 갱신 키를 받는다 (모두 optional): `name`, `isActive`, `endpointPath`, `authConfigId` (top-level — AuthConfig binding, `null` 허용. 소속 검증은 backend `triggers.service` 가 `authConfigsService.findById(id, workspaceId)` 로 수행, 미스매치 시 400 `VALIDATION_ERROR` 또는 `AUTH_CONFIG_NOT_FOUND`), `config` (Deep merge — `config.notification` / `config.interaction` / `config.chatChannel.uiMapping` / `config.chatChannel.rateLimitPerMinute` / `config.chatChannel.languageHints` 등 서브 키 단위 부분 갱신). **인증 관련 inline 키 (`config.authType` / `hmacHeader` / `hmacSecret` / `bearerToken`) 는 제거됨** — 인증은 `authConfigId` binding 으로만 (Rationale R-14). **`config.chatChannel.botTokenRef` 는 PATCH 로 변경 불가** — single-path 정책에 따라 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 사용. 위반 시 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`). **`config.chatChannel.inboundSigning` / `inboundSigningPlaintext` 도 PATCH 로 변경 불가** (slack signing secret / discord public key rotation API 는 v1 미정의 — 별 spec 대기). 위반 시 400 `VALIDATION_ERROR` (`details.field='inboundSigningPlaintext'`). 상세 [Spec Chat Channel §5.4.1](../5-system/15-chat-channel.md#541-bot-token-변경-single-path-정책).
+> `PATCH /api/triggers/:id` 본문은 다음 부분 갱신 키를 **top-level 로** 받는다 (모두 optional): `name`, `isActive`, `endpointPath`, `authConfigId` (AuthConfig binding, `null` 허용. 소속 검증은 backend `triggers.service` 가 `authConfigsService.findById(id, workspaceId)` 로 수행, 미스매치 시 400 `VALIDATION_ERROR` 또는 `AUTH_CONFIG_NOT_FOUND`), `config` (그 외 JSONB 키의 부분 갱신), 그리고 `notification` / `interaction` / `chatChannel` (각각 EIA·Chat Channel 설정의 **top-level body 키** — `config.*` 하위가 아니라 별도 키로 수신한 뒤 backend `triggers.service` 가 `config` JSONB 안의 동명 키로 머지한다. 각 키는 명시되면 해당 객체를 통째로 교체 — 부분 머지가 아니라 전체 객체를 다시 send 해야 한다. SoT: `update-trigger.dto.ts` + `triggers.service.ts mergeExternalConfig`). **인증 관련 inline 키 (`config.authType` / `hmacHeader` / `hmacSecret` / `bearerToken`) 는 제거됨** — 인증은 `authConfigId` binding 으로만 (Rationale R-14). **`chatChannel.botTokenRef` 는 PATCH 로 변경 불가** — single-path 정책에 따라 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 사용. 위반 시 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`). **`chatChannel.inboundSigning` / `inboundSigningPlaintext` 도 PATCH 로 변경 불가** (slack signing secret / discord public key rotation API 는 v1 미정의 — 별 spec 대기). 위반 시 400 `VALIDATION_ERROR` (`details.field='inboundSigningPlaintext'`). 상세 [Spec Chat Channel §5.4.1](../5-system/15-chat-channel.md#541-bot-token-변경-single-path-정책).
 > Schedule 타입 트리거에 대한 PATCH 는 `name`, `isActive` 만 허용한다 — `endpointPath` / `config` / `authConfigId` 변경은 400 `VALIDATION_ERROR` (`details.field='type'`, Schedule 동기화 [Spec 데이터 모델 §2.9.1](../1-data-model.md#291-trigger--schedule-동기화-규칙) 보호).
 > `(workspace_id, endpoint_path)` UNIQUE 위반 시 409 `RESOURCE_CONFLICT` (세부 코드 `TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`). 길이/이름 검증 실패는 400 `VALIDATION_ERROR` ([Spec 에러 처리](../5-system/3-error-handling.md)).
 > Webhook 인증 자격증명 (secret/token/password) 은 trigger 응답에 노출되지 않는다 — AuthConfig 응답에서 `***<last4>` 마스킹 ([Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책)).
 
-> **참고**: 트리거 생성은 워크플로우 에디터에서 수행. 트리거 목록 화면에서는 관리(조회/수정/삭제)만 담당.
-> **참고**: Schedule 유형 트리거는 Trigger 화면에서 직접 생성할 수 없다. Schedule 화면에서만 생성 가능하며, 생성 시 자동으로 Trigger가 등록된다. ([스케줄 관리](./3-schedule.md#3-trigger-자동-생성-규칙) 참조)
+> **참고**: 목록 화면은 `webhook` 트리거 생성 ([§2.5](#25-트리거-생성)) + 전체 트리거 관리(조회/수정/삭제)를 담당한다. 워크플로우 에디터에서도 트리거를 만들 수 있다 (동일 `POST /api/triggers`).
+> **참고**: Schedule 유형 트리거는 Trigger 화면에서 직접 생성할 수 없다 (`POST /api/triggers` 도 `schedule` 타입 미지원). Schedule 화면에서만 생성 가능하며, 생성 시 자동으로 Trigger가 등록된다. ([스케줄 관리](./3-schedule.md#3-trigger-자동-생성-규칙) 참조)
 
 ---
 

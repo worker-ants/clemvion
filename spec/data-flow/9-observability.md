@@ -23,7 +23,7 @@
 - `codebase/backend/src/modules/health/health.service.ts` — DB · Redis · S3 ping
 - `codebase/backend/src/modules/dashboard/dashboard.service.ts` — KPI 계산
 - `codebase/backend/src/modules/statistics/statistics.service.ts` — 시계열 집계
-- `codebase/backend/src/modules/alerts/alerts-evaluator.service.ts` — `ALERTS_EVALUATOR_QUEUE` cron + processor
+- `codebase/backend/src/modules/alerts/alerts-evaluator.service.ts` — `ALERTS_EVALUATOR_QUEUE` BullMQ repeatable(`*/5 * * * *`) + 통합 `@Processor`
 - `codebase/backend/src/modules/alerts/alerts.service.ts` — alert_rule CRUD
 
 ---
@@ -38,15 +38,16 @@ sequenceDiagram
   participant H as HealthController
   participant PG as Postgres
   participant R as Redis
-  participant S3 as S3
   K->>H: GET /api/health
   H->>PG: SELECT 1
   H->>R: PING
-  H->>S3: HEAD bucket (optional)
-  H-->>K: { status, checks: { postgres, redis, s3 } }
+  H-->>K: { status, version, uptime, checks: { database, redis } }
 ```
 
-DB 적재 없음 — 매 호출이 stateless.
+DB 적재 없음 — 매 호출이 stateless. 현재 구현(`health.service.ts:53-88`)은 `database`(SELECT 1)·
+`redis`(ping) 두 의존만 점검한다. 응답 객체는 `{ status, version, uptime, checks }` 이고
+`checks` 키는 `database` / `redis` 다. Redis config 누락 시 `redis.status='unconfigured'` 로 degrade 하며
+이 경우 전체 `status` 는 `unhealthy`. **S3 ping 은 미구현 (Planned)** — 아래 Rationale 참고.
 
 ### 1.2 Dashboard / Statistics
 
@@ -57,7 +58,6 @@ flowchart LR
   LUL[llm_usage_log] --> DBS
   INT[integration] --> DBS
   WF[workflow] --> DBS
-  AR[audit_log] --> DBS
   DBS -->|GET /api/dashboard/...| Client
   STATS[StatisticsService] -->|date-bucket aggregates| Client
 ```
@@ -69,25 +69,30 @@ flowchart LR
 ```mermaid
 sequenceDiagram
   autonumber
-  participant Cron as cron sweep (5분)
+  participant Sched as BullMQ repeatable ('*/5 * * * *')
   participant Q as alerts-evaluator queue
   participant Eval as AlertsEvaluatorService @Processor
   participant PG as Postgres
   participant Noti as NotificationsService
-  participant ALS as AuditLogsService
 
-  Cron->>PG: SELECT alert_rule WHERE is_enabled=true
-  loop each rule
-    Cron->>Q: queue.add({ ruleId })
-  end
+  Sched->>Q: single repeatable job 'evaluate' { triggeredAt }
   Q-->>Eval: job
-  Eval->>PG: 평가 window 내 대상 집계 (예: execution 실패 수, LLM 비용 합계)
-  alt threshold 초과
-    Eval->>PG: UPDATE alert_rule SET last_triggered_at=now
-    Eval->>Noti: notify (channel=alert_rule.channel)
-    Eval->>ALS: record(resource_type='alert_rule', action='triggered', details={value, threshold})
+  Eval->>PG: SELECT alert_rule WHERE enabled=true (전체 직접 로드)
+  loop each rule
+    Eval->>PG: 평가 window 내 대상 집계 (failure_rate / duration / llm_cost)
+    alt threshold 초과 && not in cooldown
+      Eval->>Noti: createMany (admin 수신자별 in_app/email 알림)
+      Eval->>PG: UPDATE alert_rule SET last_triggered_at=now
+    end
   end
 ```
+
+`onModuleInit` 이 `queue.upsertJobScheduler` 로 **단일 repeatable job**(`'alerts-evaluator-5min'`,
+name `'evaluate'`, payload `{ triggeredAt }`)을 등록한다 — per-rule 큐잉이 아니다. processor 의 `run()` 이
+`enabled=true` rule 전체를 직접 로드해 순회 평가한다 (`alerts-evaluator.service.ts:58-103`). cooldown 은
+`lastTriggeredAt` 으로 윈도우 내 재발사를 억제한다. 발사 시 알림(`notificationsService.createMany`,
+수신자는 워크스페이스 admin)과 `last_triggered_at` 업데이트만 수행하며 **audit_log 기록은 없다**
+(`dispatchBreach`, `alerts-evaluator.service.ts:197-225`).
 
 ### 1.4 System Status (큐 집계)
 
@@ -108,9 +113,8 @@ flowchart LR
 
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 |
 | --- | --- | --- | --- |
-| `alert_rule` | CRUD | INSERT/UPDATE `workspace_id, workflow_id?, type (예: execution_failure_rate / llm_cost), threshold NUMERIC(12,4), window_iso (ISO 8601 duration, default 'PT1H'), channel ('in_app' default), is_enabled, last_triggered_at?, created_by?` (V016) | `idx_alert_rule_workspace (workspace_id)` |
-| `audit_log` | 알람 발사 | INSERT (action='alert_rule.triggered') | downstream |
-| `notification` | 알람 발사 | INSERT (type 별 후속) | downstream |
+| `alert_rule` | CRUD | INSERT/UPDATE `workspace_id, workflow_id?, type ('failure_rate' \| 'duration' \| 'llm_cost'), threshold NUMERIC(12,4), window_iso (ISO 8601 duration, default 'PT1H'), channel ('in_app' \| 'email', default 'in_app'), enabled, last_triggered_at?, created_by?` (V016) | `idx_alert_rule_workspace (workspace_id)`, `idx_alert_rule_enabled (enabled) WHERE enabled=true` (partial) |
+| `notification` | 알람 발사 | INSERT (`createMany`, type=`alert_<type>`, resource_type='alert_rule') | downstream |
 
 읽기만 하는 테이블 (Dashboard / Statistics):
 
@@ -126,7 +130,7 @@ flowchart LR
 
 | 큐 | producer | consumer | payload |
 | --- | --- | --- | --- |
-| `alerts-evaluator` | `AlertsEvaluatorService` cron | 동일 service (`@Processor`) | `{ ruleId }` (`alerts-evaluator.service.ts:13`) |
+| `alerts-evaluator` | `AlertsEvaluatorService` (`onModuleInit` repeatable scheduler) | 동일 service (`@Processor`) | `{ triggeredAt }` (`alerts-evaluator.service.ts:15-17,58-65`) |
 
 ### 2.3 외부
 
@@ -136,8 +140,9 @@ flowchart LR
 
 ## 3. 상태 전이
 
-상태 머신은 없다. `alert_rule.is_enabled` 토글만 존재. `last_triggered_at` 은 마지막 발사 추적용으로
-중복 알람 억제 (debounce) 에 사용 — 윈도우 안에 이미 발사된 rule 은 다시 발사하지 않는다.
+상태 머신은 없다. `alert_rule.enabled` 토글만 존재. `last_triggered_at` 은 마지막 발사 추적용으로
+중복 알람 억제 (cooldown) 에 사용 — 윈도우 안에 이미 발사된 rule 은 다시 발사하지 않는다
+(`isInCooldown`, `alerts-evaluator.service.ts:192-195`).
 
 ---
 
@@ -148,17 +153,18 @@ flowchart LR
 | Execution | read | dashboard / alert source |
 | LLM Usage | read | dashboard / alert source |
 | Integration | read | dashboard 상태 배지 |
-| Notifications | downstream | 알람 발사 시 |
-| Audit | downstream | 알람 발사 기록 |
+| Workspaces | read | 알람 수신자(admin) 조회 |
+| Notifications | downstream | 알람 발사 시 (`createMany`) |
 
 ---
 
 ## Rationale
 
-### Health check 의 S3 ping 은 optional
+### Health check 의 S3 ping 은 미구현 (Planned)
 
 S3 ping 은 외부 네트워크 의존이 강해 health check 가 느려질 수 있다. liveness probe 는 빠르게 끝나야
-하므로 S3 는 readiness 단계 또는 별도 endpoint 로 분리하는 것을 권장 (현재 구현은 비동기 best-effort).
+하므로 S3 는 readiness 단계 또는 별도 endpoint 로 분리하는 것을 권장한다. **현재 구현(`health.service.ts`)은
+`database`·`redis` 만 점검하고 S3 점검은 포함하지 않는다 (미구현).**
 
 ### `window_iso` 를 ISO 8601 duration 으로 둔 이유
 

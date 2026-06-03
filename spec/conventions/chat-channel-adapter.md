@@ -130,7 +130,7 @@ type EiaEvent =
   | { type: "execution.ai_message";        /* EIA §6.5 (ai_message) + WS §4.4 */ executionId: string; triggerId: string; workflowId: string; message: string; turnCount: number; messages: unknown[]; metadata?: unknown; /* debug 전용 llmCalls 는 fanout strip 되어 어댑터 미수신 (WS §4.4 strip-only) */ /** AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉. SoT: [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반) / [EIA §6.5 line 536](../5-system/14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message). */ presentations?: PresentationPayload[]; timestamp: string; seq: number }
   | { type: "execution.completed";         /* EIA §6.3 */ executionId: string; triggerId: string; workflowId: string; result: { outputs: unknown; finalNodeId: string; finalPort: string }; durationMs: number; timestamp: string; seq: number }
   | { type: "execution.failed";            /* EIA §6.4 */ executionId: string; triggerId: string; workflowId: string; error: { code: string; message: string; nodeId: string | null; details?: unknown }; durationMs: number; timestamp: string; seq: number }
-  | { type: "execution.cancelled";         /* EIA §6.5 (cancelled) */ executionId: string; triggerId: string; workflowId: string; result: { cancelledBy: "user" | "system" | "timeout" }; durationMs: number; timestamp: string; seq: number };
+  | { type: "execution.cancelled";         /* EIA §6.5 (cancelled) */ executionId: string; triggerId: string; workflowId: string; result: { cancelledBy: "user" | "system" | "timeout" }; /** §7.5 rehydration 실패로 인한 system cancel 의 사유 코드. `RESUME_*` (CHECKPOINT_MISSING/FAILED/INCOMPATIBLE_STATE) 면 어댑터가 generic "취소" 대신 graceful "세션 만료" 안내 (`languageHints.sessionExpired`) 를 렌더. 일반 user cancel 에는 부재. */ error?: { code: string; message?: string }; durationMs: number; timestamp: string; seq: number };
 ```
 
 내부 필드의 SoT 는 EIA §6 의 각 페이로드 형식. 본 컨벤션은 어댑터 입력으로 union 만 정의.
@@ -175,9 +175,10 @@ interface ChannelUpdate {
     | { kind: "start" }                                          // /start
     | { kind: "cancel" }                                         // /cancel
     | { kind: "text_message"; text: string }                    // 일반 텍스트
-    | { kind: "button_callback"; callbackData: string }         // inline_keyboard tap
+    | { kind: "button_callback"; callbackData: string; callbackQueryId: string }  // inline_keyboard tap. callbackQueryId = §1.1 ackInteraction (answerCallbackQuery) 대상 (텔레그램). ack 의무 없는 provider (Slack/Discord) 는 빈 문자열
     | { kind: "file_upload"; fileId: string; mimeType: string } // 파일 첨부
     | { kind: "contact_share"; phone: string }                   // share_contact
+    | { kind: "open_form_modal"; openContext: Record<string, string> } // §4.1 native modal 게이팅 — "양식 작성하기" 버튼 클릭. openContext = 이 시점에만 가용한 trigger_id (Slack) / interaction token (Discord). HooksService 가 openFormModal (§1.1) 로 modal open
     | { kind: "form_submission"; fields: Record<string, string> }; // §4.1 native modal 일괄 제출 (Slack view_submission / Discord MODAL_SUBMIT)
   idempotencyKey: string;          // provider 가 update id 등에서 도출 (텔레그램: update_id)
   receivedAt: string;              // ISO8601
@@ -206,6 +207,7 @@ interface ChannelButton {
   label: string;
   type: "callback" | "link";        // callback → click_button, link → 외부 URL
   url?: string;                     // type=link
+  style?: "primary" | "danger" | "none";  // 옵션 — 시각 강조. provider 별 매핑 (Discord PRIMARY/DANGER button style, Telegram ✅/⚠️ 라벨 prefix). 미설정 시 provider default
 }
 
 type KeyboardHint =
@@ -229,8 +231,12 @@ type KeyboardHint =
 ```typescript
 interface ChatChannelConfig {
   provider: string;
-  /** secret store ref (`secret://triggers/{id}/bot-token`). plaintext 는 어댑터의 side-effect 함수가 SecretResolver 로 resolve. */
-  botTokenRef: string;
+  /**
+   * secret store ref (`secret://triggers/{id}/bot-token`). plaintext 는 어댑터의 side-effect 함수가 SecretResolver 로 resolve.
+   * Optional — trigger 최초 생성 시점 (setupChannel/rotate-bot-token 이전) 에는 undefined. 레거시 row 는
+   * webhook 수신 시 `botTokenRef === undefined` → skip.
+   */
+  botTokenRef?: string;
   /**
    * Inbound webhook 출처 검증용 자료의 ref (`secret://triggers/{id}/inbound-signing`).
    * Provider 무관 단일 슬롯이며, 검증 알고리즘과 발급 주체는 backend 가 provider 별로 분기:
@@ -333,7 +339,7 @@ interface SendResult {
 | `execution.ai_message` | `message` (필수) + `presentations?[]` (옵션) | `text` 1건+ (chunked 가능) + (presentations 가 비어있지 않으면) 5종 presentation 각각을 v1 fallback 으로 렌더해 ChannelMessage 시퀀스로 text 뒤에 **sequential `await`** 추가 발송 (`Promise.all` 금지 — provider rate limit + 표시 순서 보장). 4종 display-only (`carousel`/`table`/`chart`/`template`) 는 [§5.4 v1 fallback](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) (CCH-MP-04 와 동일) 재사용. `render_form` (`presentations[*].type === 'form'`) 은 **v1 임시 텍스트 fallback** — fields 목록 + 답변 안내 텍스트로 발화 ([R-CC-17](../5-system/15-chat-channel.md#r-cc-17)). v2 가 native modal/Mini App 으로 격상하기 전까지 임시 정책. SoT: [AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반) / [EIA §6.5 line 536](../5-system/14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message). |
 | `execution.completed` | `result.outputs` | `text` 1건 — `languageHints.executionCompleted` 또는 result 의 summary |
 | `execution.failed` | `error.code` + `error.details.statusCode` (다른 필드 사용 금지) | `text` 1건 — 분류 helper [§3.1](#31-execution-failed-분류-알고리즘) 결과 `(key, placeholders)` → `languageHints[key]` lookup + placeholder 치환. [Spec Chat Channel §3.5 CCH-ERR-*](../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 가 시스템 의무 SoT |
-| `execution.cancelled` | `cancelledBy` | `text` 1건 |
+| `execution.cancelled` | `cancelledBy` + `error?.code` | `text` 1건 — `error.code` 가 `RESUME_*` (§7.5 rehydration 실패 system cancel) 면 graceful 세션 만료 안내 (`languageHints.sessionExpired`), 그 외 일반 취소 안내 |
 | `execution.node.completed` (presentation 노드 한정, **chat-channel-internal** — §1.3 `ChatChannelInternalEvent`) | `node.type ∈ {template, carousel, table, chart}` + `output` | `template`: `output.rendered` 를 `text` 1건 (MarkdownV2 escape). `carousel`/`table`/`chart`: §5.4 v1 fallback 의 `renderCarouselFallback`/`renderTableFallback`/`renderChartFallback` 그대로 재사용. **buttons 가 있는 (blocking) 케이스는 `execution.waiting_for_input` (interactionType=buttons) 행이 별도 처리** — 어댑터 sub-filter 가 `nodeExec.outputData.status === 'waiting_for_input'` 인 케이스를 사전 필터링. `form` 노드는 항상 blocking 이라 본 row 대상 아님. SoT: [Spec Chat Channel §3.1 CCH-AD-07](../5-system/15-chat-channel.md#31-실행-엔진과의-연결) / §3.3 CCH-MP-06. |
 
 ### 3.1 Execution Failed 분류 알고리즘

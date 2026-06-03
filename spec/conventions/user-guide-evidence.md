@@ -1,9 +1,14 @@
 ---
 id: user-guide-evidence
-status: implemented
+status: partial
 code:
   - codebase/frontend/src/components/docs/mdx/impl-anchor.tsx
   - codebase/frontend/src/lib/docs/__tests__/impl-anchor-existence.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/impl-anchor-parse.ts
+pending_plans:
+  - plan/in-progress/spec-sync-user-guide-evidence-gaps.md
 ---
 
 # Convention: User-Guide Evidence (`<ImplAnchor>`)
@@ -32,8 +37,8 @@ code:
 <ImplAnchor
   kind="ui-entry"
   file="codebase/frontend/src/app/(main)/triggers/page.tsx"
-  symbol="chatChannelCheckbox"
-  describes="트리거 생성 dialog 의 Chat Channel 체크박스"
+  symbol="chatChannelProvider"
+  describes="트리거 목록의 webhook Chat Channel provider 식별자"
 />
 ```
 
@@ -55,7 +60,7 @@ code:
 
 ### 1.3 렌더 정책
 
-일반 사용자 view 에서는 **hidden** (`display: none`) — 가이드 본문 가독성 보호. build-time 가드만 사용. (옵션: dev mode `?dev=1` 노출은 후속 enhancement, 본 컨벤션 범위 외)
+일반 사용자 view 에서는 **렌더 안 함** — 구현(`impl-anchor.tsx`)은 `return null` 로 DOM 출력 자체가 없다 (가이드 본문 가독성 보호). build-time 가드만 사용. (옵션: dev mode `?dev=1` 노출은 후속 enhancement, 본 컨벤션 범위 외)
 
 ## 2. Build-time 가드 (3건)
 
@@ -63,9 +68,9 @@ code:
 
 | 가드 | 검증 |
 |---|---|
-| `impl-anchor-existence.test.ts` | 모든 `<ImplAnchor>` 의 `file` 실존 + `symbol` 이 file 안 grep ≥1 매치. `kind=api-endpoint` 인 경우 file 안 NestJS `@Post`/`@Get` 데코레이터 + path 매치 추가 검증 |
-| `integrations-coverage.test.ts` | `06-integrations-and-config/<provider>.mdx` 의 "GUI flow" 절 (h2/h3 텍스트에 "GUI" 키워드 포함) 안에 `<ImplAnchor kind="ui-entry">` ≥1 의무 |
-| `triggers-coverage.test.ts` | `02-nodes/triggers.mdx` 의 provider 별 절 (h2/h3 텍스트가 provider 이름 포함) 도 동일 |
+| `impl-anchor-existence.test.ts` | 모든 `<ImplAnchor>` 의 `kind` enum 유효성 + `file` 실존 + `symbol` 이 file 안 substring grep ≥1 매치. (kind 별 분기 없음 — `api-endpoint` 도 동일한 substring grep 만 적용하며, NestJS `@Post`/`@Get` 데코레이터·path 매치 검증은 **미구현 (Planned)**) |
+| `integrations-coverage.test.ts` | `06-integrations-and-config/<provider>.mdx` 의 "GUI flow" 절 안에 `<ImplAnchor kind="ui-entry">` ≥1 의무. GUI flow 절 판별은 `findGuiFlowSections()` — **두 신호 OR**: (1) h2/h3 heading 텍스트에 bareword `GUI` 포함, 또는 (2) 절 본문에 `GUI` 를 포함한 bold strong(`**…GUI…**` / `__…GUI…__`) 존재 |
+| `triggers-coverage.test.ts` | `02-nodes/triggers.mdx`(및 `.en.mdx`) 에 대해 **동일한 `findGuiFlowSections()`** 적용. provider 이름 기반 절 탐지는 하지 않으며, provider 별 절이라도 위 GUI 신호가 없으면 비대상 |
 
 ### 2.1 다른 가드와의 관계
 
@@ -95,8 +100,8 @@ GUI 흐름 절은 **반드시 `<ImplAnchor kind="ui-entry">` 동반**:
 <ImplAnchor
   kind="ui-entry"
   file="codebase/frontend/src/app/(main)/triggers/page.tsx"
-  symbol="chatChannelCheckbox"
-  describes="트리거 생성 dialog 의 Chat Channel 체크박스"
+  symbol="chatChannelProvider"
+  describes="트리거 목록의 webhook Chat Channel provider 식별자"
 />
 
 1. 좌측 메뉴 → **Triggers** → 우측 상단 **"+ Webhook 트리거 추가"** 클릭
@@ -141,11 +146,11 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 ## 4. user-guide-writer sub-agent 통합
 
-`spec-impl-evidence` + 본 컨벤션의 강제력은 다음 3채널로 보장:
+`spec-impl-evidence` + 본 컨벤션의 강제력은 다음 채널로 보장:
 
-1. **build-time 가드 3건** (§2) — CI 차단
-2. **`user-guide-writer` 자가 검증 체크리스트** — GUI 흐름 절 작성 시 `<ImplAnchor>` 동반 의무 항목. `.claude/agents/user-guide-writer.md` 에 등재
-3. **`PROJECT.md §유저 가이드 파일 컨벤션 SoT 인덱스`** — 본 문서 등재 (결정 E-5)
+1. **build-time 가드 3건** (§2) — CI 차단 *(구현됨)*
+2. **`user-guide-writer` 자가 검증 체크리스트** — GUI 흐름 절 작성 시 `<ImplAnchor>` 동반 의무 항목을 `.claude/agents/user-guide-writer.md` 에 등재 — **미구현 (Planned)**. 현재 해당 agent 파일에는 `ImplAnchor`/`user-guide-evidence` 언급이 없어 이 채널은 build-time 가드(채널 1)만으로 대체 강제되고 있다. 추적: `plan/in-progress/spec-sync-user-guide-evidence-gaps.md`
+3. **`PROJECT.md §유저 가이드 파일 컨벤션 SoT 인덱스`** — 본 문서 등재 (결정 E-5) *(구현됨)*
 
 ## 5. i18n-userguide.md §Principle 7 와의 관계
 
@@ -158,9 +163,9 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 ## Rationale
 
-### R-1. `<ImplAnchor>` hidden 렌더 채택
+### R-1. `<ImplAnchor>` non-render (`return null`) 채택
 
-가이드 본문 가독성 보호. 일반 독자가 anchor 메타데이터를 봐야 할 이유 없음 — anchor 는 *검증용* 메타이지 *설명용* 콘텐츠가 아님. 단 dev mode 노출 (URL `?dev=1`) 은 가이드 작성자/리뷰어가 "여기 anchor 가 있는지" 시각 확인할 수 있어 작성 편의에 유익. 본 컨벤션 범위 외 enhancement 로 분리.
+가이드 본문 가독성 보호. 일반 독자가 anchor 메타데이터를 봐야 할 이유 없음 — anchor 는 *검증용* 메타이지 *설명용* 콘텐츠가 아님. 구현은 CSS `display: none` 으로 숨기는 대신 `return null` 로 DOM 출력 자체를 내지 않는다 (시각 결과는 동일). 단 dev mode 노출 (URL `?dev=1`) 은 가이드 작성자/리뷰어가 "여기 anchor 가 있는지" 시각 확인할 수 있어 작성 편의에 유익. 본 컨벤션 범위 외 enhancement 로 분리.
 
 ### R-2. `registry.test.ts` 와 분리 — symbol grep 검증의 필요성
 

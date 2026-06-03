@@ -223,7 +223,7 @@
 | ID | 요구사항 | 기준 |
 |----|----------|------|
 | ED-AI-32 | 단일 턴 LLM 호출 타임아웃 | [NF-AI-01](../4-nodes/3-ai/_product-overview.md#5-비기능-요구사항)에 따라 120초 |
-| ED-AI-33 | 한 턴당 tool-call 상한 | 16회. 초과 시 Assistant가 자동 종료 후 재시도 유도 |
+| ED-AI-33 | 한 턴당 tool-call 상한 | 활성 plan 규모에 비례하는 동적 budget(plan 없으면 기본 48, plan 있으면 actionable step × 3 + 8, hard cap 200) + 별도 LLM 라운드 상한 50. 초과 시 Assistant가 자동 종료(`ASSISTANT_TOO_MANY_TOOL_CALLS`) 후 후속 메시지로 재시도 유도 |
 | ED-AI-34 | 토큰 사용량은 기존 `llm_usage_log`에 `workflow_id`·`workspace_id`와 함께 기록 | 필수 |
 
 ### 10.9 실행 결과 조회 (진단·수정)

@@ -112,6 +112,11 @@ CREATE TABLE secret_store (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ref 형식 DB 가드 (V063 migration) — application 검증과 별개로 corrupt row 방지 (§1 URI scheme 강제).
+ALTER TABLE secret_store
+  ADD CONSTRAINT chk_secret_store_ref_format
+  CHECK (ref ~ '^secret://[a-z][a-z0-9-]*/[^/]+/[a-z0-9][a-z0-9.-]*$');
+
 CREATE INDEX idx_secret_store_workspace_id ON secret_store(workspace_id);
 ```
 
@@ -269,7 +274,7 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 
 ## 6. Trigger 삭제 시 cascade
 
-`SecretStore` 테이블은 `trigger` 테이블의 FK 를 갖지 않는다 (cross-scope 의 미래 확장을 위해 namespace 만 분리). Trigger 삭제 시 application 이 `secret://triggers/{id}/*` ref 를 명시적으로 `delete()` 호출 — `TriggersService.delete()` 의 의무.
+`SecretStore` 테이블은 `trigger` 테이블의 FK 를 갖지 않는다 (cross-scope 의 미래 확장을 위해 namespace 만 분리). Trigger 삭제 시 application 이 `secret://triggers/{id}/*` ref 를 명시적으로 정리한다 — `TriggersService.remove()` 가 개별 `delete()` 가 아닌 `deleteByPrefix('secret://triggers/{id}/')` 로 일괄 삭제하는 의무 (§2.1 / §5.3 참고).
 
 `workspace_id` 컬럼은 workspace 삭제 시 cascade 정리용 (`DELETE FROM secret_store WHERE workspace_id = $1`).
 

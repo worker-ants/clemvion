@@ -14,8 +14,8 @@
 
 코드 진입점:
 
-- `codebase/backend/src/modules/audit-logs/audit-logs.service.ts` — `record`, `findByWorkspace`
-- `codebase/backend/src/modules/auth/login-history.service.ts` — `record`, `findMyHistory`
+- `codebase/backend/src/modules/audit-logs/audit-logs.service.ts` — `record`, `findAll`
+- `codebase/backend/src/modules/auth/login-history.service.ts` — `record`, `findForUser`
 - 호출자: 각 도메인의 service (Workflows / Triggers / Integrations / Workspaces / Alerts 등)
 
 ---
@@ -43,12 +43,14 @@ sequenceDiagram
   participant Auth as AuthService / SessionsService
   participant LHS as LoginHistoryService
   participant PG as Postgres
-  Auth->>LHS: record({userId?, email, event, ip, ua, deviceLabel, familyId?, failureReason?})
+  Auth->>LHS: record({userId?, email, event, ip, userAgent, familyId?, failureReason?})
   LHS->>PG: INSERT login_history (...)
 ```
 
-`event` 종류: `login_success`, `login_failed`, `totp_failed`, `logout`, `session_revoked`,
-`token_reuse_detected` (`codebase/backend/src/modules/auth/entities/login-history.entity.ts:12`).
+`event` 종류 (7종): `login_success`, `login_failed`, `totp_failed`, `webauthn_failed`, `logout`,
+`session_revoked`, `token_reuse_detected` (`codebase/backend/src/modules/auth/entities/login-history.entity.ts:12-19`).
+`deviceLabel` 은 입력 인자가 아니라 service 내부에서 `userAgent` 로부터 파생한다 (`deriveDeviceLabel`,
+login-history.service.ts:82-84).
 
 ---
 
@@ -97,8 +99,12 @@ sequenceDiagram
 두 목적과 조회자가 다르므로 단일 테이블로 합치면 권한 분리·query pattern 모두 복잡해진다. 분리 결정은
 `spec/1-data-model.md §2.18` 의 노트로 inline 되어 있다.
 
-### Action / event 의 자유 문자열
+### Action 은 자유 문자열, event 는 DB CHECK 로 고정
 
-`audit_log.action` 과 `login_history.event` 모두 자유 문자열이다 (DB CHECK 없음 — entity 의 literal
-type 만). 새 액션 type 추가 시 마이그레이션이 필요 없다는 trade-off 의 반대편은 typo 가 DB 에 들어갈
-수 있다는 위험인데, application 단의 type 정의가 일정 수준 막아준다 (`LoginHistoryEvent` union type).
+`audit_log.action` 은 자유 문자열이다 (DB CHECK 없음 — `VARCHAR(100) NOT NULL`, V001). 새 액션
+type 추가 시 마이그레이션이 필요 없다는 trade-off 의 반대편은 typo 가 DB 에 들어갈 수 있다는 위험인데,
+application 단의 type 정의가 일정 수준 막아준다.
+
+반면 `login_history.event` 는 DB CHECK 제약(`chk_login_history_event`, V040 도입)으로 enum 값을 고정한다.
+따라서 event 종류 추가 시 마이그레이션이 필요하다 — 예: `webauthn_failed` 추가는 V058 에서 CHECK 제약을
+DROP + ADD 로 갱신했다. entity 의 `LoginHistoryEvent` union type 과 DB CHECK 가 함께 정합성을 강제한다.
