@@ -25,6 +25,8 @@ interface QueueStatus {
   name: string;
   group: QueueGroup;
   counts: QueueCounts;
+  recentFailed: number;
+  recentFailedCapped: boolean;
   concurrency: number;
   utilization: number;
   isPaused: boolean;
@@ -35,6 +37,9 @@ interface SystemStatusOverview {
   generatedAt: string;
   overall: QueueHealth;
   totalFailed: number;
+  totalRecentFailed: number;
+  recentFailedCapped: boolean;
+  failedWindowMinutes: number;
   queues: QueueStatus[];
 }
 
@@ -131,7 +136,13 @@ export default function SystemStatusPage() {
 
       {data && (
         <>
-          <OverallHeader overall={data.overall} totalFailed={data.totalFailed} />
+          <OverallHeader
+            overall={data.overall}
+            totalRecentFailed={data.totalRecentFailed}
+            recentFailedCapped={data.recentFailedCapped}
+            totalFailed={data.totalFailed}
+            failedWindowMinutes={data.failedWindowMinutes}
+          />
           {GROUP_ORDER.map((group) => {
             const queues = data.queues.filter((q) => q.group === group);
             if (queues.length === 0) return null;
@@ -199,10 +210,16 @@ function SystemStatusSkeleton() {
 
 function OverallHeader({
   overall,
+  totalRecentFailed,
+  recentFailedCapped,
   totalFailed,
+  failedWindowMinutes,
 }: {
   overall: QueueHealth;
+  totalRecentFailed: number;
+  recentFailedCapped: boolean;
   totalFailed: number;
+  failedWindowMinutes: number;
 }) {
   const t = useT();
   return (
@@ -217,17 +234,29 @@ function OverallHeader({
             {t(`systemStatus.overall.${overall}` as TranslationKey)}
           </span>
         </div>
-        <div className="text-sm text-muted-foreground">
-          {t("systemStatus.totalFailed")}:{" "}
-          <span
-            className={cn(
-              "font-semibold",
-              totalFailed > 0
-                ? "text-red-600 dark:text-red-400"
-                : "text-foreground",
-            )}
-          >
-            {totalFailed}
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          {/* 주 지표: 최근 윈도우 실패 */}
+          <span>
+            {t("systemStatus.totalRecentFailed", {
+              minutes: failedWindowMinutes,
+            })}
+            :{" "}
+            <span
+              className={cn(
+                "font-semibold",
+                totalRecentFailed > 0
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-foreground",
+              )}
+            >
+              {totalRecentFailed}
+              {recentFailedCapped ? "+" : ""}
+            </span>
+          </span>
+          {/* 부 지표: 누적 보관 */}
+          <span className="text-xs">
+            {t("systemStatus.totalRetainedFailed")}:{" "}
+            <span className="font-medium text-foreground">{totalFailed}</span>
           </span>
         </div>
       </CardContent>
@@ -261,12 +290,17 @@ function QueueCard({ queue }: { queue: QueueStatus }) {
           <CountCell label={t("systemStatus.counts.waiting")} value={queue.counts.waiting} />
           <CountCell label={t("systemStatus.counts.active")} value={queue.counts.active} />
           <CountCell label={t("systemStatus.counts.delayed")} value={queue.counts.delayed} />
+          {/* 주 수치: 최근 윈도우 실패 (recentFailed). 누적 보관은 아래 줄에 부 수치로 병기 */}
           <CountCell
-            label={t("systemStatus.counts.failed")}
-            value={queue.counts.failed}
-            danger={queue.counts.failed > 0}
+            label={t("systemStatus.counts.recentFailed")}
+            value={queue.recentFailed}
+            danger={queue.recentFailed > 0}
+            capped={queue.recentFailedCapped}
           />
         </dl>
+        <p className="text-center text-xs text-muted-foreground">
+          {t("systemStatus.counts.retainedFailed")}: {queue.counts.failed}
+        </p>
 
         {isSystemGroup ? (
           <p className="text-xs text-muted-foreground">
@@ -303,10 +337,13 @@ function CountCell({
   label,
   value,
   danger,
+  capped,
 }: {
   label: string;
   value: number;
   danger?: boolean;
+  /** 값이 스캔 캡 소진으로 하한값이면 "N+" 로 표기 */
+  capped?: boolean;
 }) {
   return (
     <div>
@@ -318,6 +355,7 @@ function CountCell({
         )}
       >
         {value}
+        {capped ? "+" : ""}
       </dd>
     </div>
   );

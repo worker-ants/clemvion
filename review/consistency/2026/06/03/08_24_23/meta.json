@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-03T08:24:23.985471",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-system-status-recent-failed.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
