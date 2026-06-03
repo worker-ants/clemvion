@@ -36,7 +36,7 @@ owner: project-planner
 §3 시퀀스 아래 `### 3.1 재로드 복원 시퀀스(per_execution)` 신설:
 > 1. iframe-origin storage 에서 `{executionId, token, expiresAt, endpoints}` 조회 — 없으면 신규(collapsed).
 > 2. `GET /api/external/executions/:id` 상태 확인:
->    - `200` 진행 중 → SSE 재연결(`Last-Event-Id` 절차 = [1-widget-app §3.1](./1-widget-app.md)) → 복원.
+>    - `200` 진행 중 → SSE 재연결(`Last-Event-Id` 절차 = [1-widget-app §3.1](../../spec/7-channel-web-chat/1-widget-app.md)) → 복원.
 >    - `410 Gone`(종료/만료) → storage 정리 후 `[ended]`.
 >    - `401` → 만료 vs blacklist 구분: per_execution 토큰은 execution 종료 시 즉시 **jti blacklist**
 >      (EIA §8.3, EIA-AU-04)되므로 재로드 `401` 은 (a) 단순 만료(refresh 가능) 또는 (b) 종료 후 blacklist
@@ -60,7 +60,7 @@ allowlist) 근거, (b) 임베드 검증 soft 기본/hard frame-ancestors opt-in 
 
 ### W5 — `0-architecture.md §4` + backend `.env.example` 에 `WEB_CHAT_WIDGET_ORIGINS` 명시
 §4 에 빌트인 CDN origin 의 backend env 키가 `WEB_CHAT_WIDGET_ORIGINS`(콤마 구분, `main.ts`→`parseWidgetOrigins`)
-임을 명시 + "allowlist 정책 SoT: [4-security §2/§2.1](./4-security.md)" cross-ref 병기.
+임을 명시 + "allowlist 정책 SoT: [4-security §2/§2.1](../../spec/7-channel-web-chat/4-security.md)" cross-ref 병기.
 **동반(developer):** `codebase/backend/.env.example` 에 `WEB_CHAT_WIDGET_ORIGINS=`(주석 포함) 추가.
 
 ## 섹션 4 — show/hide/updateProfile 위젯 핸들러 설계

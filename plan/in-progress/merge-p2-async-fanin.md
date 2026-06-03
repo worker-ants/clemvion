@@ -1,7 +1,7 @@
 # Merge 노드 P2 — 비동기 fan-in barrier + timeout / partialOnTimeout 활성화
 
 > 작성일: 2026-05-11
-> 분리 출처: [`../complete/logic-node-followups.md`](../complete/logic-node-followups.md) §5 (D3 결정의 fallback 경로)
+> 분리 출처: `../complete/logic-node-followups.md` §5 (D3 결정의 fallback 경로)
 
 ## Context
 

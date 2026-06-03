@@ -139,7 +139,7 @@ Slack 의 inbound 진입은 3종 envelope (Events API · Interactivity · Slash 
 | `"block_actions"` & `actions[0].action_id === "__open_form__"` | `{ kind: "open_form_modal", openContext: { triggerId } }` — `HooksService` 가 `openFormModal` 에서 `trigger_id` 로 `views.open` 호출 (§3.3 / §4.1 native modal 게이팅) |
 | `"block_actions"` (button tap) | `{ kind: "button_callback", callbackData: payload.actions[0].value }` |
 | `"block_actions"` (select menu) | `{ kind: "button_callback", callbackData: payload.actions[0].selected_option.value }` |
-| `"view_submission"` & `view.callback_id === "clemvion_form"` (modal submit) | **`{ kind: "form_submission", fields }`** — `payload.view.state.values` 를 `{ <field.name>: rawValue }` 로 평탄화 (block_id=field.name, element value 추출). native form modal 채택 ([R-S-6](#r-s-6-form--5-fields-이하-native-modal-6-또는-multi_step-opt-out-시-다단계)) |
+| `"view_submission"` & `view.callback_id === "clemvion_form"` (modal submit) | **`{ kind: "form_submission", fields }`** — `payload.view.state.values` 를 `{ <field.name>: rawValue }` 로 평탄화 (block_id=field.name, element value 추출). native form modal 채택 ([R-S-6](#r-s-6-form--5-fields-native-modal-6-또는-multi_step-opt-out-시-다단계)) |
 | `"shortcut"` / `"message_action"` / `"view_closed"` | v1 `null` (view_closed 시 execution 은 waiting 유지 — 버튼 메시지 잔존, 사용자 재클릭 가능. Convention §4) |
 
 **3초 ack 의무**: Slack Interactivity 는 endpoint 가 3초 안에 `200 OK` 를 반환해야 한다. `ackInteraction` 이 즉시 빈 body 200 응답 (구현됨) — 비동기 후속 갱신을 위한 `response_url` (1시간 유효, 5회 한도) POST 는 **미구현 (Planned)** (§5.2 step 3 참조).
@@ -219,7 +219,7 @@ server-side validation 실패 시: §4.1 modal 은 `view_submission` 응답 `res
 
 ### 5.4 Carousel / Chart / Table (CCH-MP-04)
 
-[Convention §3 매핑 표](../../../conventions/chat-channel-adapter.md#3-eia-event--rendernode-매핑) 의 `uiMapping.visualNode` enum 분기 적용. **v1 = mrkdwn 텍스트/monospace 표현** (의존성 추가 없음). v2 SSR PNG 격상 예정 (Telegram §5.4 와 동일 격상 trigger). v1 단계에서 `photo` 선택 시 fallback to text + warning 로그 (`chat_channel_health` 변경 없음).
+[Convention §3 매핑 표](../../../conventions/chat-channel-adapter.md#3-eia--internal-event--rendernode-매핑) 의 `uiMapping.visualNode` enum 분기 적용. **v1 = mrkdwn 텍스트/monospace 표현** (의존성 추가 없음). v2 SSR PNG 격상 예정 (Telegram §5.4 와 동일 격상 trigger). v1 단계에서 `photo` 선택 시 fallback to text + warning 로그 (`chat_channel_health` 변경 없음).
 
 **노드타입 × enum × 버전 매트릭스**:
 

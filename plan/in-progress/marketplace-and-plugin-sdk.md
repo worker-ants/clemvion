@@ -1,7 +1,7 @@
 # 마켓플레이스 + 노드 플러그인 SDK
 
 > 작성일: 2026-05-11
-> 상위 인덱스: [`0-unimplemented-overview.md`](./0-unimplemented-overview.md) §A
+> 상위 인덱스: `0-unimplemented-overview.md` §A
 
 ## 배경
 

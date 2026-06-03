@@ -95,7 +95,7 @@ parent: eia-distributed-seq-counter.md
 
 ## 4. 회귀·부하 테스트
 - [x] 분산 race regression — 100개 동시 `next()` → 1..100 유일(중복·gap 0). allocator spec (atomic INCR 계약 고정)
-- [x] 2-instance 실 부하 repro 는 **선택적 follow-up 으로 분리** → [`eia-distributed-seq-load-verify.md`](./eia-distributed-seq-load-verify.md) (plan §1 PoC 수준, 본 plan 범위 외)
+- [x] 2-instance 실 부하 repro 는 **선택적 follow-up 으로 분리** → [`eia-distributed-seq-load-verify.md`](../in-progress/eia-distributed-seq-load-verify.md) (plan §1 PoC 수준, 본 plan 범위 외)
 
 ## 5. TEST WORKFLOW
 - [x] lint — PASS (33s)

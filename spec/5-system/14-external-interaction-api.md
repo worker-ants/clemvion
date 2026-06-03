@@ -53,7 +53,7 @@ code:
 |----|---------|---------|
 | EIA-NX-01 | Trigger 등록 페이로드의 `notification.url` 로 이벤트를 HTTP POST 한다 | 필수 |
 | EIA-NX-02 | 이벤트 종류 화이트리스트 구독: `execution.waiting_for_input` / `execution.completed` / `execution.failed` / `execution.cancelled` / `execution.ai_message` | 필수 |
-| EIA-NX-03 | 페이로드는 HMAC-SHA256 으로 서명하여 `X-Clemvion-Signature: t=<unix>,v1=<hex>` 헤더로 전송 (Stripe-style). 알고리즘 식별자는 [Webhook §4.2](./12-webhook.md#42-hmac-서명) 의 화이트리스트 표기 (`sha256` / `sha512`) 와 동일 값을 trigger config 에 보관하되 (`hmacAlgorithm: 'sha256'`), 외부 표면 (notification.signing.algorithm) 에서는 `hmac-sha256` / `hmac-sha512` 의 명시적 prefix 형태로 노출해 inbound webhook 검증과 outbound notification 서명의 알고리즘 출처를 분리한다 (§R12) | 필수 |
+| EIA-NX-03 | 페이로드는 HMAC-SHA256 으로 서명하여 `X-Clemvion-Signature: t=<unix>,v1=<hex>` 헤더로 전송 (Stripe-style). 알고리즘 식별자는 [Webhook §4.2](./12-webhook.md#42-hmac-서명--authconfigtypehmac) 의 화이트리스트 표기 (`sha256` / `sha512`) 와 동일 값을 trigger config 에 보관하되 (`hmacAlgorithm: 'sha256'`), 외부 표면 (notification.signing.algorithm) 에서는 `hmac-sha256` / `hmac-sha512` 의 명시적 prefix 형태로 노출해 inbound webhook 검증과 outbound notification 서명의 알고리즘 출처를 분리한다 (§R12) | 필수 |
 | EIA-NX-04 | 동일 이벤트는 동일 `X-Clemvion-Delivery: <uuid>` 헤더로 식별 — 재시도 시 같은 ID 유지 (at-least-once 보장) | 필수 |
 | EIA-NX-05 | 이벤트 발송 전 execution 상태를 재조회해 stale notification 차단 (예: `waiting_for_input` 발송 직전에 이미 `cancelled` 라면 발송 생략) | 필수 |
 | EIA-NX-06 | 2xx 응답만 성공으로 간주. 그 외 / 타임아웃 → 지수 백오프 재시도 (default 5회). **현재 구현은 BullMQ `exponential` backoff (base delay 1s, base*2^n → 1s/2s/4s/8s/16s)** ([`notification-dispatcher.service.ts`](../../codebase/backend/src/modules/external-interaction/notification-dispatcher.service.ts) `delay: 1000`). spec 이 본래 의도한 base-4 간격 (1s/4s/16s/64s/256s) 은 **미구현 (Planned)** — §6.6 참조 | 필수 |
@@ -931,7 +931,7 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 
 즉 Chat Channel 어댑터는 NotificationFanout/NotificationDispatcher 의 downstream 이 **아니라** 단일 sink 의 형제 consumer 다 (notification 경로가 chat-channel 용 EventEmitter 를 별도 emit 하지 않는다).
 
-**chat-channel-internal 추가 listener 의 R10 허용 범위**: chat-channel 어댑터가 outbound 5종 (§6.1 화이트리스트) 외에 in-process fan-out 채널의 추가 이벤트 (현재 `execution.node.completed` — [Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력)) 를 sub-filter 로 attach 하는 것은 R10 허용 범위. 단일 sink 자체는 여전히 `WebsocketService.emit*` 하나이며, 어댑터는 그 sink 의 consumer (= NotificationDispatcher 와 동일 facade 계층) 한정 — 새 sink 도입 없음. 외부 HTTP webhook (§6.1) 화이트리스트 5종은 변경 없음 (chat-channel-internal 한정, 외부 SDK 미노출). 결정 SoT: [Chat Channel §R-CC-16](./15-chat-channel.md#r-cc-16-chat-channel-outbound-의-비-blocking-presentation--ai-render_-presentations-발화).
+**chat-channel-internal 추가 listener 의 R10 허용 범위**: chat-channel 어댑터가 outbound 5종 (§6.1 화이트리스트) 외에 in-process fan-out 채널의 추가 이벤트 (현재 `execution.node.completed` — [Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력)) 를 sub-filter 로 attach 하는 것은 R10 허용 범위. 단일 sink 자체는 여전히 `WebsocketService.emit*` 하나이며, 어댑터는 그 sink 의 consumer (= NotificationDispatcher 와 동일 facade 계층) 한정 — 새 sink 도입 없음. 외부 HTTP webhook (§6.1) 화이트리스트 5종은 변경 없음 (chat-channel-internal 한정, 외부 SDK 미노출). 결정 SoT: [Chat Channel §R-CC-16](./15-chat-channel.md#r-cc-16-chat-channel-outbound-의-비-blocking-presentation--ai-render-presentations-발화).
 
 ### R11. 외부 endpoint 경로 prefix 분리 — `/api/external/executions/*`
 
@@ -946,7 +946,7 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 
 ### R12. HMAC 알고리즘 표기 — inbound vs outbound 분리
 
-**채택**: Trigger 의 inbound webhook HMAC 검증 ([Spec Webhook §4.2](./12-webhook.md#42-hmac-서명)) 은 `hmacAlgorithm: 'sha256' | 'sha512'`. 본 spec 의 outbound notification 서명 표기는 `signing.algorithm: 'hmac-sha256' | 'hmac-sha512'`. inbound 는 외부 발신자(GitHub 등) 의 서명 헤더 형식 (`X-Hub-Signature-256: sha256=...`) 과 정합해야 하고, outbound 는 본 spec 의 자체 서명 헤더 (`X-Clemvion-Signature: t=...,v1=...`) 의 알고리즘 식별자 의미가 명시적이도록 `hmac-` prefix 를 부여한다.
+**채택**: Trigger 의 inbound webhook HMAC 검증 ([Spec Webhook §4.2](./12-webhook.md#42-hmac-서명--authconfigtypehmac)) 은 `hmacAlgorithm: 'sha256' | 'sha512'`. 본 spec 의 outbound notification 서명 표기는 `signing.algorithm: 'hmac-sha256' | 'hmac-sha512'`. inbound 는 외부 발신자(GitHub 등) 의 서명 헤더 형식 (`X-Hub-Signature-256: sha256=...`) 과 정합해야 하고, outbound 는 본 spec 의 자체 서명 헤더 (`X-Clemvion-Signature: t=...,v1=...`) 의 알고리즘 식별자 의미가 명시적이도록 `hmac-` prefix 를 부여한다.
 
 양쪽을 모두 `sha256` 으로 통일하는 안은 outbound 표기에서 "HMAC 서명" 임이 명시적이지 않아 향후 다른 서명 방식 (예: Ed25519) 추가 시 식별자 ambiguity 가 생기고, 양쪽을 모두 `hmac-sha256` 으로 통일하는 안은 inbound 가 외부 발신자가 정한 헤더 형식 (`sha256=<hex>`) 과 정합해야 하므로 12-webhook 의 기존 표기를 바꾸면 backward incompat 이 되어 모두 채택하지 않는다.
 

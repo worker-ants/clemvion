@@ -10,7 +10,7 @@ status: complete
 > Plan SoT: `/Users/gehrig/.claude/plans/lucky-seeking-dawn.md` (Plan v2)
 > 사용자 결정 5건은 plan Context 섹션 참고. 본 진행 메모는 phase 진척·결정·미해결 항목 추적 전용.
 >
-> **완료 (2026-06-03 grooming)**: Phase 0~7 전 단계가 main 에 landed (검증: spec 8파일 모두 반영, migration V065/V066, `auth-configs.service.ts` verifyWebhookRequest/reveal/maskConfig/HMAC, `/authentication` 페이지 + i18n + user guide, 커밋 `6906aae0`·`460fa78a` 등). 마이그레이션 번호는 draft 의 V064/V065 → 실제 V065/V066 으로 정정됨 (`76a07c6a`, V064 는 타 branch 선점). 본 plan 의 진짜 후속 항목은 별 plan [`auth-config-webhook-followups.md`](./auth-config-webhook-followups.md) 가 추적.
+> **완료 (2026-06-03 grooming)**: Phase 0~7 전 단계가 main 에 landed (검증: spec 8파일 모두 반영, migration V065/V066, `auth-configs.service.ts` verifyWebhookRequest/reveal/maskConfig/HMAC, `/authentication` 페이지 + i18n + user guide, 커밋 `6906aae0`·`460fa78a` 등). 마이그레이션 번호는 draft 의 V064/V065 → 실제 V065/V066 으로 정정됨 (`76a07c6a`, V064 는 타 branch 선점). 본 plan 의 진짜 후속 항목은 별 plan [`auth-config-webhook-followups.md`](../in-progress/auth-config-webhook-followups.md) 가 추적.
 
 ## Phase 0 — Spec 선행 갱신
 

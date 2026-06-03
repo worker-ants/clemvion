@@ -138,7 +138,7 @@ KB / MCP / 일반 provider 도구 호출이 발생한 노드는 `meta.ragSources
 
 ## 10. Conversation Context (자동 컨텍스트 주입)
 
-AI 카테고리 3 노드 공통 규약. v1 은 `ai_agent` 만 push + 자동 주입을 구현하고, `text_classifier` / `information_extractor` 는 동일 인터페이스로 v2 에 push hook (final assistant turn) + 자동 주입이 함께 추가된다 ([Spec Conversation Thread §2.3](../../conventions/conversation-thread.md#23-v1-적용-범위-push-vs-inject-구분)). 두 노드의 final assistant text 변환 규칙은 §1.4 의 v2 표기 행 참조.
+AI 카테고리 3 노드 공통 규약. v1 은 `ai_agent` 만 push + 자동 주입을 구현하고, `text_classifier` / `information_extractor` 는 동일 인터페이스로 v2 에 push hook (final assistant turn) + 자동 주입이 함께 추가된다 ([Spec Conversation Thread §2.3](../../conventions/conversation-thread.md#23-적용-범위-push-vs-inject-구분)). 두 노드의 final assistant text 변환 규칙은 §1.4 의 v2 표기 행 참조.
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |---|---|---|---|---|
@@ -210,7 +210,7 @@ UTC 워크스페이스의 출력:
 
 ### 11.4 주입 위치 및 ordering
 
-systemPrompt 의 최종 본문은 다음 순서로 build 된다 ([Spec AI Agent §6.1/6.2](./1-ai-agent.md#6-실행-로직), [Spec Information Extractor §5/§6](./3-information-extractor.md#5-실행-로직)):
+systemPrompt 의 최종 본문은 다음 순서로 build 된다 ([Spec AI Agent §6.1/6.2](./1-ai-agent.md#6-실행-로직), [Spec Information Extractor §5/§6](./3-information-extractor.md#5-출력-구조)):
 
 ```
 [1] System Context Prefix (본 §11)
@@ -252,7 +252,7 @@ systemPrompt 의 최종 본문은 다음 순서로 build 된다 ([Spec AI Agent 
 
 ### 시스템 컨텍스트 자동 주입 (§11)
 
-**문제**: AI 카테고리 3 노드 어디에도 LLM 에게 "지금이 몇 시인지·어느 timezone 인지" 를 자동으로 알려주는 경로가 없었다. 사용자는 systemPrompt 본문에 수동으로 `"오늘은 {{ $now }}"` 같은 표현식을 박아야 했고, 그것마저 `$now` 가 UTC ISO8601 ([Spec 실행 엔진 §6.2](../../5-system/4-execution-engine.md#62-제공-변수)) 이라 KST 사용자가 인지하지 못한 채 9시간 어긋난 reasoning 을 받는 회귀 가능성이 있었다.
+**문제**: AI 카테고리 3 노드 어디에도 LLM 에게 "지금이 몇 시인지·어느 timezone 인지" 를 자동으로 알려주는 경로가 없었다. 사용자는 systemPrompt 본문에 수동으로 `"오늘은 {{ $now }}"` 같은 표현식을 박아야 했고, 그것마저 `$now` 가 UTC ISO8601 ([Spec 실행 엔진 §6.2](../../5-system/4-execution-engine.md#62-저장-전략)) 이라 KST 사용자가 인지하지 못한 채 9시간 어긋난 reasoning 을 받는 회귀 가능성이 있었다.
 
 **결정**: §11 신설로 systemPrompt 앞에 `Current time` + `Timezone` prefix 자동 prepend. 기본 활성화 (`includeSystemContext: true`) + systemPrompt 앞 prefix + 섹션 단위 opt-out + 3 노드 공통 규약. 섹션은 default `['time', 'timezone']` 로 최소 정보만 — 워크스페이스/노드 정보는 디버깅 용도라 opt-in. 시각 정보는 LLM reasoning 의 일반 prefix 패턴이고 토큰 비용도 ~30 토큰으로 미미하므로 opt-in 이 아닌 default 활성화로 두어 시각 정보 누락에 의한 회귀 누적을 막는다. suffix 가 아닌 prefix 인 이유는 사용자 systemPrompt 의 마지막 지시 (`"답변은 JSON 으로"` 등) 가 묻히지 않도록 하기 위함이고, 노드별 별도 필드가 아닌 `0-common.md §11` 단일 정의인 이유는 3 노드가 동일 컨텍스트를 필요로 하여 drift 를 방지하기 위함이다.
 

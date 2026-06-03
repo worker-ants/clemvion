@@ -7,7 +7,7 @@ owner: developer
 # EIA — `@workflow/sdk` npm publish 정책
 
 > 작성일: 2026-05-21
-> 상위: [`plan/complete/external-interaction-api.md`](../complete/external-interaction-api.md) §"완료 후 잔여"
+> 상위: `plan/complete/external-interaction-api.md` §"완료 후 잔여"
 > 관련: `codebase/packages/sdk/` (PR #231, #236 머지본)
 
 ## 배경

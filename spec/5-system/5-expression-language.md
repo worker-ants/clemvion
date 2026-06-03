@@ -148,7 +148,7 @@ code:
 | 예시 | `"42" == 42` → strict 모드에서는 `false` (기본 모드에서는 `true`) |
 | 적용 범위 | `strictComparison`이 설정된 노드의 조건 평가에만 적용. 다른 노드의 표현식 평가에는 영향 없음 |
 
-> 참조: [Logic 공통 §1 ConditionGroup](../4-nodes/1-logic/0-common.md#1-conditiongroup-구조), [If/Else](../4-nodes/1-logic/1-if-else.md), [Switch](../4-nodes/1-logic/2-switch.md)
+> 참조: [Logic 공통 §1 ConditionGroup](../4-nodes/1-logic/0-common.md#1-condition-구조), [If/Else](../4-nodes/1-logic/1-if-else.md), [Switch](../4-nodes/1-logic/2-switch.md)
 
 ### 3.3 Null 안전 접근
 

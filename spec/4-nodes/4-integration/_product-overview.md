@@ -86,7 +86,7 @@
 
 ### 2.6 지원 서비스
 
-> 워크플로우 내에서 Integration을 노드로 사용하는 방법은 [PRD 노드 시스템 §7 Integration 노드](../_product-overview.md#7-integration-노드-3종)를 참조한다.
+> 워크플로우 내에서 Integration을 노드로 사용하는 방법은 [PRD 노드 시스템 §7 Integration 노드](../_product-overview.md#7-integration-노드-4종)를 참조한다.
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|

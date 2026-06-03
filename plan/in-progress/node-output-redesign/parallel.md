@@ -58,7 +58,7 @@ Parallel 은 **컨테이너** (병렬 fan-out). 단계 2개. Loop 와 같이 `ou
 
 1. **`output.count`** — ~~제거됨 (spec §5.2: "P1.1 직교성 — `branches.length` 가 SSOT"). 적절 (Principle 1.1 직교).~~ **(2026-06-03 spec-drift 결정 B 로 stale)**: 이 진단은 번복됨. §5.2 의 count 제거 노트가 컨테이너 공통 규약(`{<컬렉션>, count}`)·node-output.md Principle 9.2·엔진 구현과 모순되는 drift 였음이 밝혀져 `count` 가 **복원**됐다. Parallel `done` 출력은 `{ branches, count }` 를 방출한다.
 2. **`meta` 누락** — §5.2 JSON 예시에 `meta` 필드가 없음. CONVENTIONS Principle 2 에 따라 최소한 `meta.durationMs` 와 `meta.branches` (Container 메트릭) 가 채워져야 함. spec 보강 필요.
-3. **dead field `waitAll`** — schema 에 노출되지만 P1 에서 항상 `true` 로 동작. spec §1 미구현 마킹. raw echo 는 유지하나 사용자 혼동 우려 — schema 단계 제거 또는 reject 가 [개선안 logic/parallel.md §3](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/parallel.md#3-제안된-output-구조) 에서 제안. 본 plan 은 spec 본문에 dead field 경고가 잘 명시되어 있어 변경 없음.
+3. **dead field `waitAll`** — schema 에 노출되지만 P1 에서 항상 `true` 로 동작. spec §1 미구현 마킹. raw echo 는 유지하나 사용자 혼동 우려 — schema 단계 제거 또는 reject 가 개선안 logic/parallel.md §3 에서 제안. 본 plan 은 spec 본문에 dead field 경고가 잘 명시되어 있어 변경 없음.
 4. **`errorPolicy` config 누출 미흡** — schema 에 노출되지 않았다고 §1 미구현 마킹 — config echo 도 안 됨. P1 schema 노출 시 plan 갱신.
 
 ## 개선안 — 정리된 output
