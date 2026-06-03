@@ -1,6 +1,6 @@
 # Consistency Check (--impl-done, fresh) 통합 보고서
 
-**checker 원판정: BLOCK: YES** → **git 반증 후 실질 판정: BLOCK: NO**
+**BLOCK: NO** — impl-spec 정합 결함 0. (checker 자동판정은 YES 였으나 유일한 Critical C-1 을 git merge-tree 로 반증.)
 
 impl-spec 정합 체커(Cross-Spec/Rationale/Convention) 전부 LOW, Naming NONE. 유일한 Critical(C-1)은
 plan-coherence 의 **cross-worktree merge-conflict 예측**이며 git merge-tree 로 반증됨.
