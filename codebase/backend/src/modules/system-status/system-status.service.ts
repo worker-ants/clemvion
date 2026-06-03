@@ -76,12 +76,15 @@ export class SystemStatusService {
       (sum, q) => sum + q.recentFailed,
       0,
     );
+    // 보수적 OR — 하나라도 capped 면 시스템 전역 합산도 하한값일 수 있다 (spec R-5).
+    const recentFailedCapped = queues.some((q) => q.recentFailedCapped);
 
     return {
       generatedAt: new Date(now).toISOString(),
       overall,
       totalFailed,
       totalRecentFailed,
+      recentFailedCapped,
       failedWindowMinutes,
       queues,
     };
@@ -118,16 +121,17 @@ export class SystemStatusService {
 
       // recentFailed 는 보관 집합(failed)의 부분집합이므로 failed===0 이면 0 이다.
       // 정상 상태(대다수 큐)에서 getFailed() 스캔을 건너뛰어 Redis 비용을 제거한다.
-      const recentFailed =
+      const { recent: recentFailed, capped: recentFailedCapped } =
         counts.failed > 0
           ? await this.computeRecentFailed(handle.queue, cutoffMs, scanCap)
-          : 0;
+          : { recent: 0, capped: false };
 
       return {
         name: meta.name,
         group: meta.group,
         counts,
         recentFailed,
+        recentFailedCapped,
         concurrency: meta.concurrency,
         utilization: this.computeUtilization(counts.active, meta.concurrency),
         isPaused,
@@ -143,6 +147,7 @@ export class SystemStatusService {
         group: meta.group,
         counts: { ...ZERO_COUNTS },
         recentFailed: 0,
+        recentFailedCapped: false,
         concurrency: meta.concurrency,
         utilization: 0,
         isPaused: false,
@@ -156,7 +161,8 @@ export class SystemStatusService {
    *
    * BullMQ `getFailed()` 는 newest→oldest 로 반환한다. 페이지 단위로 역순 스캔하다
    * `finishedOn` 이 윈도우를 벗어나는 첫 job 에서 중단한다(이후는 모두 더 오래됨).
-   * 큐당 `scanCap` job 까지만 스캔하며, 캡에 도달하면 반환값은 **하한값**이다.
+   * 큐당 `scanCap` job 까지만 스캔하며, 캡 **소진**으로 종료되면(윈도우 경계·집합 끝이 아님)
+   * `capped: true` 로 반환값이 **하한값**임을 알린다.
    * `finishedOn` 이 없는(이론상) job 은 enqueue `timestamp` 로 대체하고, 둘 다 없으면
    * 판정 불가로 보아 집계에서 제외한다(카운트하지 않음).
    */
@@ -164,17 +170,21 @@ export class SystemStatusService {
     queue: QueueHandle['queue'],
     cutoffMs: number,
     scanCap: number,
-  ): Promise<number> {
+  ): Promise<{ recent: number; capped: boolean }> {
     let recent = 0;
     let scanned = 0;
     let offset = 0;
+    let crossedWindow = false;
+    let endOfSet = false;
 
     while (scanned < scanCap) {
       const limit = Math.min(FAILED_SCAN_PAGE, scanCap - scanned);
       const jobs = await queue.getFailed(offset, offset + limit - 1);
-      if (jobs.length === 0) break;
+      if (jobs.length === 0) {
+        endOfSet = true;
+        break;
+      }
 
-      let crossedWindow = false;
       for (const job of jobs) {
         scanned++;
         const ts = job.finishedOn ?? job.timestamp;
@@ -190,11 +200,16 @@ export class SystemStatusService {
       }
 
       if (crossedWindow) break;
-      if (jobs.length < limit) break; // 실패 집합 끝
+      if (jobs.length < limit) {
+        endOfSet = true; // 실패 집합 끝
+        break;
+      }
       offset += jobs.length;
     }
 
-    return recent;
+    // 윈도우 경계·집합 끝이 아니라 캡 소진(while 조건)으로 종료됐으면 하한값이다.
+    const capped = !crossedWindow && !endOfSet;
+    return { recent, capped };
   }
 
   private computeUtilization(active: number, concurrency: number): number {

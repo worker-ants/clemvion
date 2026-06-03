@@ -26,6 +26,7 @@ interface QueueStatus {
   group: QueueGroup;
   counts: QueueCounts;
   recentFailed: number;
+  recentFailedCapped: boolean;
   concurrency: number;
   utilization: number;
   isPaused: boolean;
@@ -37,6 +38,7 @@ interface SystemStatusOverview {
   overall: QueueHealth;
   totalFailed: number;
   totalRecentFailed: number;
+  recentFailedCapped: boolean;
   failedWindowMinutes: number;
   queues: QueueStatus[];
 }
@@ -137,6 +139,7 @@ export default function SystemStatusPage() {
           <OverallHeader
             overall={data.overall}
             totalRecentFailed={data.totalRecentFailed}
+            recentFailedCapped={data.recentFailedCapped}
             totalFailed={data.totalFailed}
             failedWindowMinutes={data.failedWindowMinutes}
           />
@@ -208,11 +211,13 @@ function SystemStatusSkeleton() {
 function OverallHeader({
   overall,
   totalRecentFailed,
+  recentFailedCapped,
   totalFailed,
   failedWindowMinutes,
 }: {
   overall: QueueHealth;
   totalRecentFailed: number;
+  recentFailedCapped: boolean;
   totalFailed: number;
   failedWindowMinutes: number;
 }) {
@@ -245,6 +250,7 @@ function OverallHeader({
               )}
             >
               {totalRecentFailed}
+              {recentFailedCapped ? "+" : ""}
             </span>
           </span>
           {/* 부 지표: 누적 보관 */}
@@ -289,6 +295,7 @@ function QueueCard({ queue }: { queue: QueueStatus }) {
             label={t("systemStatus.counts.recentFailed")}
             value={queue.recentFailed}
             danger={queue.recentFailed > 0}
+            capped={queue.recentFailedCapped}
           />
         </dl>
         <p className="text-center text-xs text-muted-foreground">
@@ -330,10 +337,13 @@ function CountCell({
   label,
   value,
   danger,
+  capped,
 }: {
   label: string;
   value: number;
   danger?: boolean;
+  /** 값이 스캔 캡 소진으로 하한값이면 "N+" 로 표기 */
+  capped?: boolean;
 }) {
   return (
     <div>
@@ -345,6 +355,7 @@ function CountCell({
         )}
       >
         {value}
+        {capped ? "+" : ""}
       </dd>
     </div>
   );

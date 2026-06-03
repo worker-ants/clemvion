@@ -40,9 +40,16 @@ export class QueueStatusDto {
   @ApiProperty({
     example: 0,
     description:
-      '최근 윈도우(failedWindowMinutes) 내 finishedOn 기준 실패 job 수. 보관 집합의 부분집합이므로 recentFailed <= counts.failed. 스캔 캡 도달 시 하한값',
+      '최근 윈도우(failedWindowMinutes) 내 finishedOn 기준 실패 job 수. 보관 집합의 부분집합이므로 recentFailed <= counts.failed. 스캔 캡 소진 시 하한값(recentFailedCapped 참고)',
   })
   recentFailed: number;
+
+  @ApiProperty({
+    example: false,
+    description:
+      '이 큐의 recentFailed 가 스캔 캡(SYSTEM_STATUS_FAILED_SCAN_CAP) 소진으로 종료돼 하한값인지 여부. 참이면 UI 는 "N+" 로 표기',
+  })
+  recentFailedCapped: boolean;
 
   @ApiProperty({ example: 1, description: 'worker concurrency' })
   concurrency: number;
@@ -90,6 +97,13 @@ export class SystemStatusOverviewDto {
     description: '전 큐 recentFailed(최근 윈도우) 합산',
   })
   totalRecentFailed: number;
+
+  @ApiProperty({
+    example: false,
+    description:
+      '큐 중 하나라도 스캔 캡 소진으로 recentFailed 가 하한값이면 true (집계 OR). 참이면 UI 는 totalRecentFailed 를 "N+" 로 표기',
+  })
+  recentFailedCapped: boolean;
 
   @ApiProperty({
     example: 60,

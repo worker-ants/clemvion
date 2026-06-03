@@ -84,9 +84,11 @@ describe('SystemStatusService.getOverview', () => {
     expect(res.overall).toBe('healthy');
     expect(res.totalFailed).toBe(0);
     expect(res.totalRecentFailed).toBe(0);
+    expect(res.recentFailedCapped).toBe(false);
     expect(res.failedWindowMinutes).toBe(60);
     expect(res.queues).toHaveLength(2);
     expect(res.queues[0].recentFailed).toBe(0);
+    expect(res.queues[0].recentFailedCapped).toBe(false);
     expect(typeof res.generatedAt).toBe('string');
     expect(new Date(res.generatedAt).toISOString()).toBe(res.generatedAt);
   });
@@ -211,6 +213,7 @@ describe('SystemStatusService.getOverview', () => {
     const res = await service.getOverview();
 
     expect(res.queues[0].recentFailed).toBe(3);
+    expect(res.queues[0].recentFailedCapped).toBe(false); // 윈도우 경계 종료 → 정확값
     expect(res.queues[0].health).toBe('degraded');
   });
 
@@ -233,8 +236,10 @@ describe('SystemStatusService.getOverview', () => {
 
       const res = await service.getOverview();
 
-      // 캡 2 까지만 스캔 → 하한값 2
+      // 캡 2 까지만 스캔 → 하한값 2 + capped 플래그
       expect(res.queues[0].recentFailed).toBe(2);
+      expect(res.queues[0].recentFailedCapped).toBe(true);
+      expect(res.recentFailedCapped).toBe(true); // 집계 OR
     } finally {
       if (prev === undefined) delete process.env.SYSTEM_STATUS_FAILED_SCAN_CAP;
       else process.env.SYSTEM_STATUS_FAILED_SCAN_CAP = prev;
@@ -263,6 +268,8 @@ describe('SystemStatusService.getOverview', () => {
       const res = await service.getOverview();
 
       expect(res.queues[0].recentFailed).toBe(2);
+      // 캡 소진(while 종료)으로 끝났으므로 보수적으로 capped=true (정확히 2 여도 하한 표기)
+      expect(res.queues[0].recentFailedCapped).toBe(true);
     } finally {
       if (prev === undefined) delete process.env.SYSTEM_STATUS_FAILED_SCAN_CAP;
       else process.env.SYSTEM_STATUS_FAILED_SCAN_CAP = prev;
@@ -290,6 +297,8 @@ describe('SystemStatusService.getOverview', () => {
     const res = await service.getOverview();
 
     expect(res.queues[0].recentFailed).toBe(0);
+    expect(res.queues[0].recentFailedCapped).toBe(false);
+    expect(res.recentFailedCapped).toBe(false);
     expect(getFailed).not.toHaveBeenCalled();
   });
 

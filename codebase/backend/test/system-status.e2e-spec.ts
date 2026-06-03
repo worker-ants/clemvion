@@ -51,6 +51,7 @@ interface QueueStatus {
     paused: number;
   };
   recentFailed: number;
+  recentFailedCapped: boolean;
   concurrency: number;
   utilization: number;
   isPaused: boolean;
@@ -87,6 +88,7 @@ describe('System Status API (e2e)', () => {
       overall: string;
       totalFailed: number;
       totalRecentFailed: number;
+      recentFailedCapped: boolean;
       failedWindowMinutes: number;
       queues: QueueStatus[];
     };
@@ -96,6 +98,7 @@ describe('System Status API (e2e)', () => {
     expect(HEALTH_VALUES).toContain(data.overall);
     expect(typeof data.totalFailed).toBe('number');
     expect(typeof data.totalRecentFailed).toBe('number');
+    expect(typeof data.recentFailedCapped).toBe('boolean');
     // 윈도우 길이는 양수 (env 미설정 시 기본 60)
     expect(typeof data.failedWindowMinutes).toBe('number');
     expect(data.failedWindowMinutes).toBeGreaterThan(0);
@@ -112,6 +115,7 @@ describe('System Status API (e2e)', () => {
       expect(typeof q.counts.failed).toBe('number');
       expect(typeof q.counts.paused).toBe('number');
       expect(typeof q.recentFailed).toBe('number');
+      expect(typeof q.recentFailedCapped).toBe('boolean');
       // recentFailed 는 보관 중 누적(failed)을 초과할 수 없다 (윈도우 부분집합)
       expect(q.recentFailed).toBeLessThanOrEqual(q.counts.failed);
       expect(typeof q.isPaused).toBe('boolean');
