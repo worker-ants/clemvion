@@ -1,4 +1,6 @@
 import vm from 'node:vm';
+import { createHash, randomUUID } from 'node:crypto';
+import dayjs from 'dayjs';
 import {
   ExecutionContext,
   NodeHandler,
@@ -10,6 +12,30 @@ import { codeNodeMetadata } from './code.schema.js';
 
 const DEFAULT_TIMEOUT_SEC = 30;
 const MAX_CONSOLE_LINES = 100;
+
+/**
+ * `$helpers` — built-in utilities injected into the sandbox (spec §2.2). The
+ * functions execute in the HOST realm (closures defined here), so they may use
+ * `Buffer` / `node:crypto` / `dayjs` even though those globals are *not* exposed
+ * inside the sandboxed vm context. Sandbox code only ever holds references to
+ * these closures, never the underlying host globals.
+ */
+function buildHelpers(): Record<string, unknown> {
+  return {
+    date: (value?: unknown) => dayjs(value as dayjs.ConfigType),
+    crypto: {
+      hash: (algorithm: string, data: string): string =>
+        createHash(algorithm).update(data).digest('hex'),
+      uuid: (): string => randomUUID(),
+    },
+    base64: {
+      encode: (data: string): string =>
+        Buffer.from(String(data), 'utf-8').toString('base64'),
+      decode: (data: string): string =>
+        Buffer.from(String(data), 'base64').toString('utf-8'),
+    },
+  };
+}
 
 interface CodeExecutionError extends Error {
   code?: string;
@@ -36,6 +62,7 @@ function buildSandbox(
   input: unknown,
   vars: Record<string, unknown>,
   execMeta: { executionId: string; workflowId: string },
+  nodeMeta: { id: string; label: string },
   logs: string[],
 ): Record<string, unknown> {
   const pushLog = (level: string, args: unknown[]): void => {
@@ -48,6 +75,8 @@ function buildSandbox(
     $input: input,
     $vars: vars,
     $execution: execMeta,
+    $node: nodeMeta,
+    $helpers: buildHelpers(),
     console: {
       log: (...args: unknown[]) => pushLog('log', args),
       warn: (...args: unknown[]) => pushLog('warn', args),
@@ -86,6 +115,12 @@ function buildSandbox(
     Atomics: undefined,
     SharedArrayBuffer: undefined,
     Intl: undefined,
+    // Explicit shadowing (spec §7.3) — non-deterministic scheduling is blocked.
+    // vm contexts already omit these, but shadowing makes the contract explicit
+    // and keeps the Promise.race timeout flow the single source of async bounds.
+    setTimeout: undefined,
+    setInterval: undefined,
+    setImmediate: undefined,
   };
 }
 
@@ -137,6 +172,7 @@ export class CodeHandler implements NodeHandler {
       input,
       varsClone,
       { executionId: context.executionId, workflowId: context.workflowId },
+      { id: context.nodeId ?? '', label: context.nodeLabel ?? '' },
       logs,
     );
 

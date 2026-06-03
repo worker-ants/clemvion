@@ -376,4 +376,76 @@ describe('CodeHandler', () => {
       expect(context.variables).toEqual({ counter: 1 });
     });
   });
+
+  describe('execute — $node (spec §2.1)', () => {
+    it('should expose $node.id and $node.label from context', async () => {
+      context.nodeId = 'node-42';
+      context.nodeLabel = 'My Code Step';
+      const result = (await handler.execute(
+        null,
+        { code: 'return { id: $node.id, label: $node.label };' },
+        context,
+      )) as unknown as { output: Record<string, string> };
+      expect(result.output).toEqual({ id: 'node-42', label: 'My Code Step' });
+    });
+
+    it('should expose $node with empty-string fallbacks when context omits id/label', async () => {
+      // Direct-invoke fixtures may omit nodeId/nodeLabel (interface allows it).
+      const result = (await handler.execute(
+        null,
+        { code: 'return { id: $node.id, label: $node.label };' },
+        context,
+      )) as unknown as { output: Record<string, string> };
+      expect(result.output).toEqual({ id: '', label: '' });
+    });
+  });
+
+  describe('execute — $helpers (spec §2.2)', () => {
+    it('should expose $helpers.crypto.uuid() returning a v4-shaped string', async () => {
+      const result = (await handler.execute(
+        null,
+        { code: 'return $helpers.crypto.uuid();' },
+        context,
+      )) as unknown as { output: string };
+      expect(result.output).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+    });
+
+    it('should expose $helpers.crypto.hash(algorithm, data) returning a hex digest', async () => {
+      const result = (await handler.execute(
+        null,
+        { code: 'return $helpers.crypto.hash("sha256", "abc");' },
+        context,
+      )) as unknown as { output: string };
+      // Known sha256("abc")
+      expect(result.output).toBe(
+        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      );
+    });
+
+    it('should expose $helpers.base64.encode / decode (round-trip)', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          code: 'const e = $helpers.base64.encode("hello"); return { e, d: $helpers.base64.decode(e) };',
+        },
+        context,
+      )) as unknown as { output: { e: string; d: string } };
+      expect(result.output.e).toBe('aGVsbG8=');
+      expect(result.output.d).toBe('hello');
+    });
+
+    it('should expose $helpers.date(value) as a dayjs-compatible object', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          code: 'const d = $helpers.date("2020-01-15"); return { y: d.year(), f: d.format("YYYY-MM-DD") };',
+        },
+        context,
+      )) as unknown as { output: { y: number; f: string } };
+      expect(result.output.y).toBe(2020);
+      expect(result.output.f).toBe('2020-01-15');
+    });
+  });
 });

@@ -50,8 +50,18 @@ export const codeNodeConfigSchema = z
           label: 'Code',
           widget: 'code',
           language: 'javascript',
-          hint: 'Use return to produce output. $input, $vars, $helpers are injected.',
+          hint: 'Use return to produce output. $input, $vars, $execution, $node, $helpers are injected.',
         },
+      }),
+    // Declared field (spec §1: 1–120s, default 30). Range *enforcement* stays
+    // in `validateCodeConfig` (spec §6 SoT — it owns the custom error message
+    // + non-numeric guard); the zod field declares the type/default and the
+    // UI slider bounds so the editor renders `Timeout [30] sec (1–120)`.
+    timeout: z
+      .number()
+      .default(30)
+      .meta({
+        ui: { label: 'Timeout (sec)', widget: 'number', min: 1, max: 120 },
       }),
   })
   .passthrough();
