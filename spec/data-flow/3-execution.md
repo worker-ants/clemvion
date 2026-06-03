@@ -165,7 +165,7 @@ sequenceDiagram
 | Event | 발행 시점 | 구독 room |
 | --- | --- | --- |
 | `execution.started/completed/failed/cancelled` | execution 상태 전이 | `workflow:<id>` 또는 `execution:<id>` |
-| `execution.node.started/completed/failed`, `execution.waiting_for_input` | node_execution 상태 전이 | 동일 |
+| `execution.node.started/completed/failed/cancelled/skipped`, `execution.waiting_for_input` | node_execution 상태 전이 | 동일 |
 | `execution.snapshot` | client connect 시 server push | 동일 |
 
 > 이벤트 이름의 정본은 `spec/5-system/6-websocket-protocol.md §Server → Client 이벤트 매핑` 표 (dot 표기). 위는 요약이며 충돌 시 그 표가 우선한다. Room 이름(`workflow:<id>`/`execution:<id>`)은 socket.io room 네임스페이스로 이벤트명과 별개다.
@@ -207,9 +207,11 @@ stateDiagram-v2
   running --> waiting_for_input: 블로킹 핸들러
   waiting_for_input --> completed: interaction_data 수신
   running --> skipped: 비활성 (`is_disabled=true`) 또는 조건 분기 미선택
+  running --> cancelled: abortSignal (AbortError) — cancel-others-on-fail / 사용자 cancel
   completed --> [*]
   failed --> [*]
   skipped --> [*]
+  cancelled --> [*]
 ```
 
 ### 3.3 Stuck 회수

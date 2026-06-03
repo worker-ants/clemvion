@@ -123,6 +123,14 @@ interval = min(retryInterval * backoffMultiplier ^ attempt, maxInterval)
 
 **언제 쓰나요**: 실패했을 때 **별도 복구 경로**(예: 관리자 알림, 대체 LLM 호출, 원본 입력 저장)를 태우고 싶을 때 써요.
 
+## cancelled 상태와 에러 정책
+
+**외부 abort**(병렬 분기 실패의 `cancel-others-on-fail` 또는 사용자 Stop 버튼)로 노드가 중단되면 `NodeExecution.status`는 `failed`가 아닌 **`cancelled`**로 기록돼요.
+
+- `cancelled` 노드는 에러 정책이 적용되지 않아요. 재시도·Skip·Default Output·Error Port 분기 모두 실행되지 않고 즉시 중단돼요.
+- 타임라인에서 별도 `cancelled` 상태로 표시되어 실패와 구분돼요.
+- Retry 정책이 설정된 노드라도 abort 신호를 받으면 재시도 없이 `cancelled`로 종결돼요.
+
 ## 정책 선택 가이드
 
 <FieldTable rows={[

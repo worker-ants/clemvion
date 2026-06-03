@@ -150,6 +150,10 @@ export enum NodeEventType {
   NODE_COMPLETED = 'execution.node.completed',
   NODE_FAILED = 'execution.node.failed',
   NODE_SKIPPED = 'execution.node.skipped',
+  // 노드 외부 I/O 가 abortSignal 로 중단됨 (AbortError) — failed 와 별도 terminal
+  // 이벤트로, 타임라인이 취소를 실패와 구분하고 running 에 잔류하지 않게 한다
+  // (spec/5-system/6-websocket-protocol.md §4.4 / node-cancellation §5.1).
+  NODE_CANCELLED = 'execution.node.cancelled',
 }
 
 /**

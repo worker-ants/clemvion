@@ -14,6 +14,7 @@ export type NodeExecutionStatus =
   | "running"
   | "completed"
   | "failed"
+  | "cancelled"
   | "skipped"
   | "waiting_for_input";
 

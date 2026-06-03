@@ -38,9 +38,11 @@
 
 > **후속 PR**. 본 PR 은 ExecutionContext 필드만 — 엔진은 이미 context 를 dispatch 직전 핸들러에 전달하므로 자동 전파. 사전 abort 체크 / cancelled status 분류 / 통합 테스트는 별 PR.
 
-- [ ] `executeNode` 류에서 dispatch 직전 `context.abortSignal?.aborted` 사전 체크
-- [ ] `NodeExecution.status = 'cancelled'` 추가 또는 `failed + error.name === 'AbortError'` 분류 결정
-- [ ] 통합 테스트
+> **결정/진행 (2026-06-03)**: §2 의 분류 결정은 **옵션 B(전용 `cancelled` status)** 로 확정. spec 결정 분리 → [`spec-draft-node-execution-cancelled.md`](./spec-draft-node-execution-cancelled.md), 구현은 `node-cancellation-engine` worktree (V069 migration + 엔진 dispatch 사전체크 + AbortError→CANCELLED 분류 + `execution.node.cancelled` WS 이벤트). 완료 시 아래 3항목 닫힘.
+
+- [ ] `executeNode` 류에서 dispatch 직전 `context.abortSignal?.aborted` 사전 체크 (→ cancel-status 작업)
+- [ ] `NodeExecution.status = 'cancelled'` 추가 또는 `failed + error.name === 'AbortError'` 분류 결정 (→ **옵션 B 확정**, cancel-status 작업)
+- [ ] 통합 테스트 (→ cancel-status 작업)
 
 ### 3. HTTP 노드 signal 전파 (최우선)
 

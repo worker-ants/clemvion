@@ -39,10 +39,14 @@ The left timeline lists **every executed node** in run order.
 
 <FieldTable rows={[
   { name: "Category color dot", type: "Visual", description: "Shows the node's category: Trigger=🟡, Logic=🔵, Flow=🟣, AI=🟢, Integration=🟠, Data=🔵, Presentation=🩷" },
-  { name: "Status icon", type: "Status", description: "⏳ Running, ✅ Completed, ❌ Failed, ⏸ Waiting, — Skipped" },
+  { name: "Status icon", type: "Status", description: "⏳ Running, ✅ Completed, ❌ Failed, ⏸ Waiting, — Skipped, ⊘ Cancelled" },
   { name: "Duration", type: "Duration", description: "Elapsed time such as 142ms or 1.2s." },
   { name: "`(iter N)` suffix", type: "Iteration", description: "Each body iteration of Loop/ForEach/Map shows as its own entry." }
 ]} />
+
+<Callout type="note">
+**Cancelled status**: when a node is interrupted by an external abort — a parallel branch's `cancel-others-on-fail`, or the user clicking Stop — it records `cancelled` instead of `failed`. Error policies (Retry, Skip, etc.) do not apply to cancelled nodes.
+</Callout>
 
 Clicking a timeline entry shows that node's result in the detail pane.
 
