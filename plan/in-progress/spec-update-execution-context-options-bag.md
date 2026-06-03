@@ -5,6 +5,13 @@ owner: resolution-applier
 ---
 # Spec Update Draft — execution-context options-bag & [ctx-trace] policy
 
+> **✅ APPLIED 2026-06-03** — `/consistency-check --spec` BLOCK: NO (`review/consistency/2026/06/03/21_00_19/`) 확인 후 본 draft 의 3개 변경을 spec 에 반영 완료:
+> 1. `spec/5-system/4-execution-engine.md` §6.1 createContext 시그니처 → options-bag.
+> 2. `spec/conventions/execution-context.md` §Rationale 기각 범위 한정 주석 추가.
+> 3. `spec/conventions/execution-context.md` 신규 `## 3. 진단 정책 ([ctx-trace])` 섹션 (별 섹션 배치 — consistency I3/I6 반영). best-effort no-op+warn vs strict throw+error 표 포함.
+>
+> consistency W1/W2/I4/I5 의 "코드가 positional/silent no-op 유지" 지적은 **stale-read false positive** (실제 코드는 f102dc0b+06c92d41 로 options-bag + `[ctx-trace]` warn 적용 완료 — `options: CreateContextOptions = {}`, `warnContextMissing` 헬퍼). draft 기술이 코드와 일치함을 확인하고 그대로 반영.
+
 ## 분류
 SPEC-DRIFT (코드 개선을 spec 에 반영) — 구현이 spec 을 의도적으로 개선·확장하였으며 spec 이 따라와야 한다. 코드 수정 금지.
 
