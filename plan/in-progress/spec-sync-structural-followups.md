@@ -40,8 +40,10 @@ owner: planner
 | statistics/dashboard/schedule | C-8, C-9, C-10, C-15 | `87d26c96` |
 | nodes/exec/migration/dead-code | C-4, C-6, C-7, C-13, C-14, C-16, C-19 | `7f413725` |
 | hooks/telegram | C-2, C-5 | `50eaec3c` |
-| Discord (C-11) | C-11 | `3450b6ce` |
-| Slack (C-12) | C-12 | `7a324a89` |
+| Discord (C-11) † | C-11 | `3450b6ce` |
+| Slack (C-12) † | C-12 | `7a324a89` |
+
+> † C-11/C-12 는 **코드 구현·단위테스트 완료**이나, 외부 Discord/Slack 프로토콜 정확성은 mock 기반 e2e 로 검증 불가(PROJECT.md: outbound 3rd-party stub 인프라 부재 = 구조적 한계). spec 의 "Planned" 해제는 실 provider 검증/통합 테스트 확보 후 — `spec-update-c-sync-promotions.md §1` 참조.
 
 처리 시 결정·비고:
 - **C-4** — If/Else regex 정상 동작 구현 채택. ⚠ spec `4-nodes/1-logic/1-if-else.md §6` 의 "regex no-op" 경고 문단은 If/Else 한정으로 **stale** 가 됐다 (정정은 planner — §스펙 승격 위임). **Switch expression mode 의 regex 는 본 PR 범위 밖** (여전히 no-op) — 후속 필요 시 별도 plan.
@@ -165,7 +167,7 @@ spec/2-navigation/0-dashboard.md:
 - **수정 힌트**: 라인 33의 구조 분해에 sort, order 추가 (현재는 page, limit, search만 추출). 라인 45의 orderBy 호출 전에 getSortColumn(sort) 메서드로 화이트리스트 검증 후 'w.' 접두사와 함께 적용. 다른 서비스(WorkflowsService:102-103, ExecutionsService, AuditLogsService)의 패턴 참조. 허용 컬럼: created_at, updated_at, name 등.
 - **근거(spec/plan)**: spec/2-navigation/3-schedule.md §4 라인 126 (GET /api/schedules의 sort/order 미구현/Planned 명시). plan/in-progress/spec-sync-schedule-gaps.md 라인 17 (미구현 항목 명시). PaginationQueryDto가 이미 sort:string(패턴 검증)와 order:'asc'|'desc'를 정의함.
 
-### C-11. Discord AI Multi Turn reply modal 진입점 및 setupChannel verify_key 검증 미구현  — ✅ FIXED (this PR)
+### C-11. Discord AI Multi Turn reply modal 진입점 및 setupChannel verify_key 검증 미구현  — ✅ FIXED (코드 구현 완료, 실 Discord 프로토콜 검증 대기)
 
 - **위치**: `codebase/backend/src/modules/chat-channel/providers/discord/discord-message.renderer.ts:76-88, discord-update.parser.ts:81-116, discord.adapter.ts:63-123`
 - **증상**: 1) renderAiMessage (line 76-88) 는 AI 응답 텍스트와 presentations 만 발송하며, "Reply" 버튼을 메시지에 첨부하지 않는다. 2) parseDiscordUpdate (line 81-116) 의 MESSAGE_COMPONENT 분기 (type=3) 에서 custom_id === "__open_form__" 는 처리하지만 custom_id === "__reply__" 분기는 없어서 Reply 버튼 클릭 진입점이 없다. 3) setupChannel (line 63-123) 에서 GET /applications/@me 응답의 verify_key 를 수신하지만(line 77), 사용자 입력 public key 와의 일치 검증이 없고, 검증 실패 시 BOT_TOKEN_INVALID 에러 분기가 없다.
@@ -173,7 +175,7 @@ spec/2-navigation/0-dashboard.md:
 - **수정 힌트**: 1) renderAiMessage 함수 내 chunkText(event.message) 이후 마지막 텍스트 청크에 Reply 버튼(custom_id="__reply__", style=2)을 추가하는 로직을 구현한다. 또는 별도 ChannelMessage 로 버튼만 발송하는 분기를 추가한다. 2) parseDiscordUpdate 의 MESSAGE_COMPONENT (type=3) 분기에서 __open_form__ 처리 다음(line 84-98)에 custom_id === "__reply__" 케이스를 추가하여, open_form_modal 과 동일한 구조의 openContext(interactionId, interactionToken) 를 담은 command 를 반환한다. 3) setupChannel 에서 botToken 으로 config.inboundSigningRef 의 public key 를 resolve 한 후, 응답 verify_key 와 정확히 비교(===)한다. 불일치 시 throw new Error('BOT_TOKEN_INVALID: verify_key mismatch')
 - **근거(spec/plan)**: spec/4-nodes/7-trigger/providers/discord.md §3.1 (line 67-100, verify_key 검증), §5.1 (line 180-197, AI Multi Turn reply 경로 (b) Button-Modal), §4 (line 150-175, MODAL_SUBMIT 분기). 근거: spec §3.1 (56행) "응답 verify_key 와 사용자 입력 public key 의 일치 검증은 **미구현 Planned**" 및 (76행) "불일치 시 BOT_TOKEN_INVALID error 분기". spec §5.1 (192행) "어댑터가 AI 응답 메시지 끝에 'Reply' 버튼...첨부", (193행) "현재 구현 상태: renderAiMessage 는 응답 텍스트(+presentations)만 발송하고 'Reply' 버튼을 첨부하지 않으며, parseUpdate 에 __reply__ 버튼 분기가 없다". 관련 plan: plan/in-progress/spec-sync-discord-gaps.md (§3.1 setupChannel public key cross-verify 14-15행, §5.1(b) AI Multi Turn reply button-modal 경로 15-16행).
 
-### C-12. Slack file_shared → files.info → submit_form 및 response_url 비동기 갱신 미구현  — ✅ FIXED (this PR)
+### C-12. Slack file_shared → files.info → submit_form 및 response_url 비동기 갱신 미구현  — ✅ FIXED (코드 구현 완료, 실 Slack 프로토콜 검증 대기)
 
 - **위치**: `codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts:73-87, codebase/backend/src/modules/hooks/hooks.service.ts:586, codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts:214, codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts:200-206`
 - **증상**: spec/4-nodes/7-trigger/providers/slack.md 의 §4.1 (line 129) 및 §5.2 (line 145), §5.3 (line 206) 에서 약속한 3가지 기능이 Phase 3/4 스텁으로 남아있음: (1) file_shared 이벤트 수신 후 HooksService 가 SlackClient.filesInfo(fileId) 를 호출하여 mimeType/filename/url_private 을 보강하고 EIA submit_form 을 호출하는 경로가 없음 (HooksService line 586 에 "Phase 4 에서 처리" 주석만 존재). (2) SlackClient.filesUploadV2(line 73-87) 가 Promise.reject() 로 항상 실패하므로 image/chart/table 등 시각형 노드 의 PNG 업로드 불가능 (현재 text fallback 으로 동작). (3) ackInteraction(line 214) 이 noop 이며, Slack Interactivity payload 의 response_url 을 사용한 비동기 갱신(replace_original/update) POST 경로가 없음 (slack.types.ts 에는 response_url 필드 정의만 존재하고 사용처 없음)
