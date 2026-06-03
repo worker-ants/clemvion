@@ -40,6 +40,9 @@ vi.mock("@/lib/api/executions", () => ({
               error: null,
               triggerSource: "manual",
               triggerLabel: "Alice",
+              totalNodeCount: 1,
+              completedNodeCount: 1,
+              failedNodeCount: 0,
               nodeExecutions: [
                 { id: "ne-1", nodeId: "n1", status: "completed", startedAt: "2024-01-15T14:02:30Z", finishedAt: "2024-01-15T14:02:31Z", durationMs: 800, inputData: {}, outputData: {}, error: null, retryCount: 0, node: { id: "n1", type: "transform", label: "Transform" } },
               ],
@@ -56,6 +59,9 @@ vi.mock("@/lib/api/executions", () => ({
               error: { message: "Connection timeout" },
               triggerSource: "schedule",
               triggerLabel: "매일 오전 9시 보고서",
+              totalNodeCount: 1,
+              completedNodeCount: 0,
+              failedNodeCount: 1,
               nodeExecutions: [
                 { id: "ne-2", nodeId: "n1", status: "failed", startedAt: "2024-01-15T13:55:10Z", finishedAt: "2024-01-15T13:55:11Z", durationMs: 1000, inputData: {}, outputData: null, error: { message: "Connection timeout" }, retryCount: 0, node: { id: "n1", type: "http_request", label: "API Call" } },
               ],
