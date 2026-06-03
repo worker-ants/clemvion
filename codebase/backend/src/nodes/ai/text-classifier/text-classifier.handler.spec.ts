@@ -399,8 +399,10 @@ describe('TextClassifierHandler', () => {
         createContext(),
       )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('error');
-      const err = (result.output as Record<string, unknown>)
-        .error as Record<string, unknown>;
+      const err = (result.output as Record<string, unknown>).error as Record<
+        string,
+        unknown
+      >;
       expect(err.code).toBe('LLM_RATE_LIMIT');
       const details = err.details as Record<string, unknown>;
       expect(details.retryable).toBe(true);
@@ -416,8 +418,10 @@ describe('TextClassifierHandler', () => {
         baseConfig,
         createContext(),
       )) as unknown as Record<string, unknown>;
-      const err = (result.output as Record<string, unknown>)
-        .error as Record<string, unknown>;
+      const err = (result.output as Record<string, unknown>).error as Record<
+        string,
+        unknown
+      >;
       expect(err.code).toBe('LLM_RATE_LIMIT');
       const details = err.details as Record<string, unknown>;
       expect(details.retryable).toBe(true);
@@ -892,7 +896,12 @@ describe('TextClassifierHandler', () => {
     });
 
     it('should route to error port on LLM failure in multi-label mode', async () => {
-      mockLlmService.chat.mockRejectedValueOnce(new Error('Rate limited'));
+      // Generic (non-rate-limit) provider failure → LLM_CALL_FAILED. Message is
+      // deliberately free of "429"/"rate limit" so it exercises the default
+      // branch rather than the LLM_RATE_LIMIT classification (covered below).
+      mockLlmService.chat.mockRejectedValueOnce(
+        new Error('Upstream provider unavailable'),
+      );
       const result = (await handler.execute(
         {},
         multiLabelConfig,
@@ -902,7 +911,26 @@ describe('TextClassifierHandler', () => {
       const data = result.output as Record<string, unknown>;
       const err = data.error as Record<string, unknown>;
       expect(err.code).toBe('LLM_CALL_FAILED');
-      expect(err.message).toBe('Rate limited');
+      expect(err.message).toBe('Upstream provider unavailable');
+    });
+
+    it('should classify a multi-label rate-limit throw as LLM_RATE_LIMIT', async () => {
+      mockLlmService.chat.mockRejectedValueOnce(
+        new Error('Provider rate limit exceeded'),
+      );
+      const result = (await handler.execute(
+        {},
+        multiLabelConfig,
+        createContext(),
+      )) as unknown as Record<string, unknown>;
+      expect((result as any).port).toBe('error');
+      const err = (result.output as Record<string, unknown>).error as Record<
+        string,
+        unknown
+      >;
+      expect(err.code).toBe('LLM_RATE_LIMIT');
+      const details = err.details as Record<string, unknown>;
+      expect(details.retryable).toBe(true);
     });
 
     it('should include execution metrics in meta on LLM failure (multi-label, Principle 2)', async () => {

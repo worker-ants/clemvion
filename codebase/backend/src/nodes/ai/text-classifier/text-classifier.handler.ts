@@ -209,8 +209,7 @@ export class TextClassifierHandler implements NodeHandler {
       // `LlmService.chatWithRetry` (429 / "rate limit" substring). Both
       // LLM_RATE_LIMIT and LLM_CALL_FAILED are transient → retryable.
       const isRateLimit =
-        message.includes('429') ||
-        message.toLowerCase().includes('rate limit');
+        message.includes('429') || message.toLowerCase().includes('rate limit');
       const code = isRateLimit ? 'LLM_RATE_LIMIT' : 'LLM_CALL_FAILED';
       const retryAfterMs = isRateLimit ? extractRetryAfterMs(error) : null;
       const retryDetails: { retryable: boolean; retryAfterSec?: number } =
