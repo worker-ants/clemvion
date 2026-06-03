@@ -96,9 +96,9 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 - `partial` → `implemented`: 마지막 `pending_plans` 가 `complete/` 로 이동한 commit 안에서 승격 (가드)
 - `*` → `archived`: spec 결정 폐기 시 즉시 (Rationale 본문에 사유 추가)
 
-## 4. Build-time 가드 (5건)
+## 4. Build-time 가드 (5건, 모두 build 차단)
 
-본 컨벤션의 정합성은 다음 5개 단위 테스트가 강제. 모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역에 위치.
+본 컨벤션의 정합성은 다음 5개 단위 테스트가 강제(빌드 실패 = 차단). 모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역에 위치. (§4.0 의 인접 가드·Gate D 는 이 5건 카운트에 포함되지 않는다 — 별개 항목.)
 
 | 가드 | 검증 |
 |---|---|
@@ -108,14 +108,14 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 | `spec-pending-plan-existence.test.ts` | `pending_plans:` 의 모든 path 가 `plan/in-progress/` 또는 `plan/complete/`(in-progress→complete 치환) 에 실존 |
 | `spec-plan-completion.test.ts` (**Gate C**) | `started ≥ 2026-06-04` 인 완료 plan 은 frontmatter `spec_impact` 선언 필수 (spec path 목록은 실존, 또는 `none`/`없음`). spec↔코드 정합 결정을 완료 시점에 강제. grandfather: cutoff 이전 시작 plan 면제 |
 
-### 4.0 인접 지식저장소 가드 (별도 SoT)
+### 4.0 인접 지식저장소 가드 (위 5건과 별개, 별도 SoT)
 
-본 frontmatter-evidence 가드 외에, 지식저장소 무결성을 함께 지키는 가드 — SoT 는 [`plan/in-progress/knowledge-base-quality-improvements.md`](../../plan/in-progress/knowledge-base-quality-improvements.md):
+본 frontmatter-evidence 가드(§4 의 5건) 외에, 지식저장소 무결성을 함께 지키는 **추가** 가드 — SoT 는 [`plan/in-progress/knowledge-base-quality-improvements.md`](../../plan/in-progress/knowledge-base-quality-improvements.md):
 
-- `spec-link-integrity.test.ts` — spec 본문 in-repo 링크/heading 앵커 실존
-- `spec-area-index.test.ts` — 영역 폴더 index 가 모든 sibling spec 링크
-- `plan-frontmatter.test.ts` — top-level in-progress plan 의 worktree/started/owner ([plan-lifecycle §4](../../.claude/docs/plan-lifecycle.md))
-- **Gate D** (advisory, build 아님): `/spec-coverage --mode reverse` — spec 미참조 controller route·이벤트·env 탐지 (impl→spec 역커버리지)
+- `spec-link-integrity.test.ts` (build 차단) — spec 본문 in-repo 링크/heading 앵커 실존
+- `spec-area-index.test.ts` (build 차단) — 영역 폴더 index 가 모든 sibling spec 링크
+- `plan-frontmatter.test.ts` (build 차단) — top-level in-progress plan 의 worktree/started/owner ([plan-lifecycle §4](../../.claude/docs/plan-lifecycle.md))
+- **Gate D** (**advisory — build 차단 아님**): `/spec-coverage --mode reverse` — spec 미참조 controller route·이벤트·env 탐지 (impl→spec 역커버리지). NLP 휴리스틱이라 보고형
 
 ### 4.1 가드와 다른 가드의 관계
 

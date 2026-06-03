@@ -40,6 +40,18 @@ describe("spec-link-integrity guard", () => {
     expect(files.some((f) => f.relPath === "spec/0-overview.md")).toBe(true);
   });
 
+  it("excludes generated API catalogs from scope", () => {
+    const files = collectSpecMarkdown(root);
+    // Exclusion must be non-trivial: catalog field files must actually exist…
+    const catalogDir = path.join(root, "spec", "conventions", "cafe24-api-catalog");
+    expect(
+      fs.existsSync(catalogDir),
+      "expected cafe24-api-catalog/ to exist so the exclusion is meaningful",
+    ).toBe(true);
+    // …yet none of them may appear in scope.
+    expect(files.every((f) => !f.relPath.includes("-api-catalog/"))).toBe(true);
+  });
+
   it("has no broken in-repo links or heading anchors", () => {
     const violations = findBrokenLinks(root);
     expect(violations, fmt(violations)).toEqual([]);

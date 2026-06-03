@@ -33,6 +33,29 @@ function startedDate(data: Record<string, unknown>): Date | null {
   return null;
 }
 
+// Pure enforcement predicates — unit-tested below so the gate is provably live
+// even while every real plan is still grandfathered (enforced set empty).
+export function isGateCEnforced(data: Record<string, unknown>): boolean {
+  const d = startedDate(data);
+  return d !== null && d.getTime() >= GATE_C_CUTOFF.getTime();
+}
+
+export function hasValidSpecImpact(
+  impact: unknown,
+  specExists: (p: string) => boolean,
+): boolean {
+  if (typeof impact === "string") {
+    return NONE_VALUES.has(impact.trim().toLowerCase());
+  }
+  if (Array.isArray(impact)) {
+    return (
+      impact.length > 0 &&
+      impact.every((p) => typeof p === "string" && specExists(p))
+    );
+  }
+  return false;
+}
+
 function collectCompletePlans(root: string): string[] {
   const dir = path.join(root, "plan", "complete");
   if (!fs.existsSync(dir)) return [];
@@ -122,4 +145,32 @@ describe("Gate C — plan-completion spec-consistency", () => {
       });
     });
   }
+});
+
+// Synthetic coverage so the gate logic is verified even when no real plan is
+// past the cutoff yet (otherwise the per-plan block above is vacuous).
+describe("Gate C enforcement logic", () => {
+  const exists = (p: string) => p === "spec/5-system/4-execution-engine.md";
+
+  it("grandfathers plans started before the cutoff", () => {
+    expect(isGateCEnforced({ started: "2026-06-03" })).toBe(false);
+    expect(isGateCEnforced({ started: new Date("2026-01-01T00:00:00Z") })).toBe(false);
+  });
+  it("enforces plans started on/after the cutoff", () => {
+    expect(isGateCEnforced({ started: "2026-06-04" })).toBe(true);
+    expect(isGateCEnforced({ started: "2026-12-31" })).toBe(true);
+  });
+  it("missing/invalid `started` is not enforced (can't determine)", () => {
+    expect(isGateCEnforced({})).toBe(false);
+    expect(isGateCEnforced({ started: "nope" })).toBe(false);
+  });
+  it("accepts `none`/`없음` and existing spec-path lists; rejects empty/dangling/absent", () => {
+    expect(hasValidSpecImpact("none", exists)).toBe(true);
+    expect(hasValidSpecImpact("없음", exists)).toBe(true);
+    expect(hasValidSpecImpact(["spec/5-system/4-execution-engine.md"], exists)).toBe(true);
+    expect(hasValidSpecImpact(undefined, exists)).toBe(false);
+    expect(hasValidSpecImpact([], exists)).toBe(false);
+    expect(hasValidSpecImpact(["spec/does-not-exist.md"], exists)).toBe(false);
+    expect(hasValidSpecImpact("maybe", exists)).toBe(false);
+  });
 });

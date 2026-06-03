@@ -49,6 +49,10 @@ describe("plan-frontmatter guard", () => {
       `repoRoot missing plan/in-progress/: ${root}`,
     ).toBe(true);
     expect(plans.length).toBeGreaterThan(20);
+    expect(
+      plans.some((p) => path.basename(p) === "knowledge-base-quality-improvements.md"),
+      "expected a known plan file to be discovered",
+    ).toBe(true);
   });
 
   for (const abs of plans) {
