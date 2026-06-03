@@ -96,4 +96,12 @@ cafe24 의 `catalog-sync.spec.ts` 양방향 동기 정책([cafe24-api-catalog `_
 
 ## 7. MCP Bridge 와의 매핑
 
-`MakeshopMcpToolProvider` 가 메타데이터에서 MCP 도구를 생성한다. operationId 의 하이픈은 MCP §5.2 sanitize 규칙으로 `_` 치환 (`get-product` → 도구명 토큰 `get_product`). bare operationId(하이픈 형태)는 allowlist (`mcpServers[].enabledTools`) 와 Bridge 내부 `execute(name, args)` 에서 유지한다 ([MakeShop 노드 §8.1](../4-nodes/4-integration/5-makeshop.md#81-도구-이름-매핑)).
+`MakeshopMcpToolProvider` 가 메타데이터에서 MCP 도구를 생성한다. operationId 의 하이픈은 MCP §5.2 sanitize 규칙으로 `_` 치환 (`get-product` → 도구명 토큰 `get_product`). bare operationId(하이픈 형태)는 allowlist (`mcpServers[].enabledTools`) 와 Bridge 내부 `execute(name, args)` 에서 유지한다 ([MakeShop 노드 §8.1](../4-nodes/4-integration/5-makeshop.md#81-도구-이름-매핑)). MakeShop operationId 는 `get-cart_free_config-update` 처럼 **하이픈·언더스코어 혼용** — MakeShop 공식 operationId 원형을 그대로 보존하기 때문이며 (cafe24 의 snake_case 통일과 다름), sanitize 후 resource 내 unique 성은 catalog-sync 테스트로 보장한다 (§5).
+
+## 8. 카탈로그 섹션 파일 frontmatter `id` 규약
+
+[`makeshop-api-catalog/<section>.md`](./makeshop-api-catalog/_overview.md) 의 frontmatter `id` 는 **`makeshop-<section>`** 형식이다 (`makeshop-shop`, `makeshop-product`, …). cafe24 카탈로그가 `id: <resource>` (prefix 없음) 를 쓰는 것과 의도적으로 다르다 — makeshop 섹션명(`shop`/`product`/`order` 등)이 cafe24 resource id 와 겹쳐 spec frontmatter `id` 전역 충돌을 일으키므로 service prefix 로 namespacing 한다. (cafe24 는 18 resource 가 먼저 자리잡아 prefix 없이 unique 했던 선례 — 두 번째 이커머스부터 prefix 가 필요해진 케이스.)
+
+## Rationale
+
+본 컨벤션의 형식 결정 배경은 노드 spec [MakeShop §9 Rationale](../4-nodes/4-integration/5-makeshop.md#9-rationale) 에 통합되어 있다 — 핵심: `restrictedApproval` 미도입(§9.5, 별도 승인 티어 없음), GET/POST 2종(§2, MakeShop Shop API 의 method 분포), flat JSON body(§9.4), 공백 구분 scope(§9.2). 본 문서는 cafe24-api-metadata 와 동형 형식이므로 결정 근거를 중복 기재하지 않고 cafe24 선례 + makeshop 분기만 참조한다.
