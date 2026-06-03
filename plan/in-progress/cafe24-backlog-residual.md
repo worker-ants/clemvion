@@ -149,3 +149,7 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 >   cafe24-extras/i18n 68 통과. e2e 후속.
 > - **남은 G-3**: G-3k(carts scope 실증, 외부 API), G-1-remaining(field-set: A REMAP 중 benefits/coupons
 >   등 fields 미세 보강 포함), G-3m(드리프트 가드). field-set 은 대량 확장 트랙으로 유지.
+> - **DECIDE `/ai-review`**: Critical 0, Warning 6. W4(`theme_pages_get` — docs 는 `path` query 필수
+>   단건 조회, 누락된 `path` query 추가) fix. W5(`shipping_companies_list` vs `carriers_get` 중복 아님 —
+>   목록/단건) · W6(community field-level 링크는 유효 entity) · W1~W3(breaking 우려는 정정 전 이미 404
+>   비동작) 은 문서화로 정리. 네이밍 정비(id rename = breaking)·field-set 은 후속 트랙. e2e 144 pass.

@@ -778,6 +778,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     responseShape: 'single',
   },
   {
+    // TODO(G-1-remaining): docs 의 필터 query 파라미터(shop_no 등) 확인 후 fields 보강.
     id: 'orders_benefits_list',
     description: 'Retrieve a list of order benefits.',
     scopeType: 'read',

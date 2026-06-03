@@ -59,6 +59,7 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
   },
   // Phase 6e — Mileage 보완
   {
+    // docs: GET/DELETE points/autoexpiration 는 store-level collection op (식별자·파라미터 없음).
     id: 'points_autoexpiration_get',
     description: 'Retrieve the automatic points-expiration rule.',
     scopeType: 'read',
