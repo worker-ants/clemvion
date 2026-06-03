@@ -26,6 +26,23 @@ export const workspacesApi = {
     const { data } = await apiClient.patch(`/workspaces/${workspaceId}`, patch);
     return data.data;
   },
+  /**
+   * 워크스페이스 설정(현재 interactionAllowedOrigins) 전체 교체 (Admin+).
+   * 응답 body 는 사용하지 않고 호출자가 `workspace-settings` 쿼리를 invalidate 해 정규화 값을 재로드한다.
+   */
+  updateSettings: async (
+    workspaceId: string,
+    patch: { interactionAllowedOrigins: string[] },
+  ): Promise<void> => {
+    await apiClient.patch(`/workspaces/${workspaceId}/settings`, patch);
+  },
+  /** 워크스페이스 설정 조회 (멤버 read) — 편집기 시드용. */
+  getSettings: async (
+    workspaceId: string,
+  ): Promise<{ interactionAllowedOrigins: string[] }> => {
+    const { data } = await apiClient.get(`/workspaces/${workspaceId}/settings`);
+    return data.data;
+  },
   delete: async (workspaceId: string): Promise<void> => {
     await apiClient.delete(`/workspaces/${workspaceId}`);
   },

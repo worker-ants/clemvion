@@ -287,4 +287,83 @@ describe('Workspace RBAC (e2e)', () => {
     );
     expect(stillThere.rows.length).toBe(1);
   });
+
+  it('G. PATCH/GET /workspaces/:id/settings — PATCH Admin+(owner 200/viewer·비멤버 403), GET 멤버 200/비멤버 403', async () => {
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-g-own'),
+      db,
+    );
+    const ws = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('G'),
+    );
+
+    const viewer = await inviteAndAccept(
+      BASE_URL,
+      owner.accessToken,
+      ws,
+      uniqueEmail('rbac-g-view'),
+      'viewer',
+      db,
+    );
+
+    // 다른 워크스페이스의 owner (이 워크스페이스의 비-멤버).
+    const outsider = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-g-out'),
+      db,
+    );
+
+    // owner → 200, settings 반영.
+    const ok = await request(BASE_URL)
+      .patch(`/api/workspaces/${ws}/settings`)
+      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .send({ interactionAllowedOrigins: ['https://example.com'] });
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.settings.interactionAllowedOrigins).toEqual([
+      'https://example.com',
+    ]);
+
+    // DB 에도 반영.
+    const persisted = await db.query<{ settings: Record<string, unknown> }>(
+      'SELECT settings FROM workspace WHERE id = $1',
+      [ws],
+    );
+    expect(persisted.rows[0].settings.interactionAllowedOrigins).toEqual([
+      'https://example.com',
+    ]);
+
+    // viewer → 403 (Admin+).
+    const viewerRes = await request(BASE_URL)
+      .patch(`/api/workspaces/${ws}/settings`)
+      .set('Authorization', `Bearer ${viewer.accessToken}`)
+      .send({ interactionAllowedOrigins: ['https://evil.example.com'] });
+    expect(viewerRes.status).toBe(403);
+    expect(viewerRes.body.error.code).toBe('ADMIN_REQUIRED');
+
+    // 비-멤버 (cross-workspace) → 403.
+    const outsiderRes = await request(BASE_URL)
+      .patch(`/api/workspaces/${ws}/settings`)
+      .set('Authorization', `Bearer ${outsider.accessToken}`)
+      .send({ interactionAllowedOrigins: ['https://evil.example.com'] });
+    expect(outsiderRes.status).toBe(403);
+    expect(outsiderRes.body.error.code).toBe('ADMIN_REQUIRED');
+
+    // GET /settings — viewer(멤버)는 200 으로 현재 값 조회(편집은 Admin+ 이나 조회는 모든 멤버).
+    const viewerGet = await request(BASE_URL)
+      .get(`/api/workspaces/${ws}/settings`)
+      .set('Authorization', `Bearer ${viewer.accessToken}`);
+    expect(viewerGet.status).toBe(200);
+    expect(viewerGet.body.data.interactionAllowedOrigins).toEqual([
+      'https://example.com',
+    ]);
+
+    // 비-멤버 GET → 403.
+    const outsiderGet = await request(BASE_URL)
+      .get(`/api/workspaces/${ws}/settings`)
+      .set('Authorization', `Bearer ${outsider.accessToken}`);
+    expect(outsiderGet.status).toBe(403);
+  });
 });

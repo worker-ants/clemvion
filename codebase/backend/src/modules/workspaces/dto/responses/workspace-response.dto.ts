@@ -33,6 +33,16 @@ export class WorkspaceDto {
   slug: string;
 }
 
+/** 워크스페이스 설정 조회 응답 (현재 interactionAllowedOrigins). */
+export class WorkspaceSettingsDto {
+  @ApiProperty({
+    type: [String],
+    example: ['https://example.com'],
+    description: '외부 상호작용 허용 origin 목록',
+  })
+  interactionAllowedOrigins: string[];
+}
+
 /** 워크스페이스 멤버 */
 export class WorkspaceMemberDto {
   @ApiProperty({ format: 'uuid' })

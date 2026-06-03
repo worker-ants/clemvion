@@ -34,7 +34,8 @@ code:
 | `AUTH_REQUIRED` | 인증 필요 | 토큰 없음 | 401 |
 | `TOKEN_EXPIRED` | 토큰 만료 | Access Token 만료 | 401 |
 | `TOKEN_INVALID` | 토큰 무효 | 변조/형식 오류 | 401 |
-| `FORBIDDEN` | 권한 없음 | 역할 권한 부족 | 403 |
+| `FORBIDDEN` | 권한 없음 | 역할 권한 부족(generic) | 403 |
+| `ADMIN_REQUIRED` | Admin 권한 필요 | 워크스페이스 Owner/Admin 역할 필요 시 발행되는 `FORBIDDEN` 의 컨텍스트 특화 코드(`WorkspacesService.assertAdmin()` 발행) | 403 |
 | `LOGIN_FAILED` | 로그인 실패 | 잘못된 자격 증명 | 401 |
 | `ACCOUNT_LOCKED` | 계정 잠김 | 로그인 시도 초과 | 423 |
 
