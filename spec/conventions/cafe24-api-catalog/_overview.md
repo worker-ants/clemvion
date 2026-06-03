@@ -153,7 +153,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 
 - **출처는 Cafe24 공식 Admin API Documentation (전체 페이지 HTML) 의 결정적(deterministic) 파싱**이다. 추측·날조로 field 를 채우지 않는다 — docs 에 없는 field 는 본 문서에도 없다.
 - docs 가 type 컬럼을 별도 제공하지 않으므로(설명문 내 산문 형태) 본 카탈로그도 `제약`(형식·길이·최대값·날짜 등 `<em>` 노트)과 `설명`을 그대로 옮긴다. 정식 type 추론은 backend 메타데이터 작업(`cafe24-api-metadata.md`) 의 몫.
-- docs 개정 시 **동일 추출 파이프라인으로 재생성**한다. 손으로 행을 추가할 때도 반드시 공식 docs 를 출처로 한다.
+- docs 개정 시 **동일 추출 파이프라인으로 재생성**한다 — 생성기는 [`_generator.py`](./_generator.py) (`python3 _generator.py <docs-full-page.html>`). 결정적·멱등이므로 재실행해도 손댄 적 없는 파일은 그대로다. 손으로 행을 추가할 때도 반드시 공식 docs 를 출처로 한다.
 
 ### 7.4 sync 테스트와의 관계
 
