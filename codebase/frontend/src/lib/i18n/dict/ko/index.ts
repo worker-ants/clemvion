@@ -12,6 +12,7 @@ import { triggers } from "./triggers";
 import { schedules } from "./schedules";
 import { integrations } from "./integrations";
 import { cafe24Catalog } from "./cafe24Catalog";
+import { makeshopCatalog } from "./makeshopCatalog";
 import { knowledgeBases } from "./knowledgeBases";
 import { llmConfigs } from "./llmConfigs";
 import { authentication } from "./authentication";
@@ -40,6 +41,7 @@ export const ko = {
   schedules,
   integrations,
   cafe24Catalog,
+  makeshopCatalog,
   knowledgeBases,
   llmConfigs,
   authentication,

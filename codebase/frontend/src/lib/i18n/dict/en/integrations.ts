@@ -231,4 +231,28 @@ export const integrations: Dict["integrations"] = {
   cafe24ValidatePrivateClientIdRequired: "Private apps require client_id.",
   cafe24ValidatePrivateClientSecretRequired:
     "Private apps require client_secret.",
+  // ----- MakeShop (install-first confidential client) -----
+  makeshopExtraFieldsHint:
+    "Enter the OAuth client_id / client_secret issued in MakeShop Partner Center. You do not enter the shop identifier (shop_uid) — it is delivered automatically when the ShopStore app is installed.",
+  makeshopValidateClientIdRequired: "MakeShop client_id is required.",
+  makeshopValidateClientSecretRequired: "MakeShop client_secret is required.",
+  makeshopPendingTitle: "Finish setup in MakeShop Partner Center",
+  makeshopPendingDesc:
+    "The integration was created in a pending state. Register the URLs below on your ShopStore app in MakeShop Partner Center, then install the app from your store to activate it automatically.",
+  makeshopAppUrlLabel: "App URL (register on the ShopStore app in MakeShop Partner Center)",
+  makeshopCallbackUrlLabel: "Redirect URI (register in MakeShop Partner Center)",
+  makeshopPendingSteps:
+    "① In MakeShop Partner Center → ShopStore app settings, copy and register the App URL and Redirect URI exactly as shown above (the App URL includes the trailing install token). ② Confirm the requested scopes match the app's permissions. ③ Install the app from your store to activate the integration.",
+  makeshopPendingViewList: "View integration",
+  makeshopPendingWaiting: "Waiting for the MakeShop app install to complete… (auto-refresh)",
+  makeshopPendingTimedOut:
+    "Still not active after 10 minutes. Refresh the page to re-check or open the integration detail.",
+  makeshopPendingExpired:
+    "The install expired before it completed. Delete the integration and register it again.",
+  makeshopPendingTerminal:
+    "This integration is no longer pending. Check its status and next steps on the detail page.",
+  makeshopPendingLastErrorLabel: "Last callback error",
+  makeshopDetailAppUrlTitle: "MakeShop App URL",
+  makeshopDetailAppUrlDesc:
+    "Register this value as the 'App URL' of your ShopStore app in MakeShop Partner Center. Installing the app from a store calls this URL. If the URL does not match, HMAC verification fails and the call is rejected.",
 };

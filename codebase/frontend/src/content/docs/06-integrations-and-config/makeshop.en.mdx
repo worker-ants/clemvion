@@ -1,0 +1,88 @@
+---
+title: "MakeShop integration"
+title_en: "MakeShop integration"
+section: "06-integrations-and-config"
+order: 10
+summary: "Register a MakeShop store as an integration and call its Shop API (7 resources, 161 operations) from both the makeshop workflow node and the AI Agent's MCP tool surface using the same credentials."
+summary_en: "Register a MakeShop store as an integration and call its Shop API (7 resources, 161 operations) from both the makeshop workflow node and the AI Agent's MCP tool surface using the same credentials."
+spec: ["spec/4-nodes/4-integration/5-makeshop.md", "spec/conventions/makeshop-api-metadata.md", "spec/2-navigation/4-integration.md", "spec/5-system/11-mcp-client.md"]
+code: ["codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts", "codebase/backend/src/nodes/integration/makeshop/makeshop.handler.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts", "codebase/backend/src/modules/integrations/integration-oauth.service.ts"]
+---
+
+This page walks you through registering a Korean e-commerce SaaS **MakeShop** store as an integration and using it from both workflow nodes and the AI Agent.
+
+## Why use the MakeShop integration?
+
+- **One credential, two surfaces** — A single MakeShop integration is usable from both (a) the `MakeShop` node on the workflow canvas and (b) the AI Agent node's MCP tools. Token refresh and activity logs are unified across both paths.
+- **Full coverage of 7 resources** — Call all 161 Shop API operations across Store settings, Product, Order, Member, Benefit, Board, and CPIK from one metadata-driven node. Common tasks take just two dropdowns: Resource → Operation.
+- **Natural-language calls from the AI Agent** — Through an in-process Internal MCP Bridge, the LLM turns a natural-language instruction like `"fetch last week's new orders"` into the right endpoint call automatically.
+
+## Creating a MakeShop integration
+
+MakeShop is an **install-first confidential client**. We cannot initiate the OAuth flow ourselves — it starts when the MakeShop ShopStore app install calls our App URL. (Same structure as a Cafe24 Private app.)
+
+### 1) Pick MakeShop in the Add-Integration modal
+
+Sidebar **Integrations** → **+ Add integration** → click the **🛒 MakeShop** card → go to the MakeShop creation form.
+
+### 2) Create your app in Partner Center first
+
+You first need a `client_id` / `client_secret` issued by MakeShop Partner Center.
+
+1. Sign in to MakeShop Partner Center with your store operator account.
+2. Go to the **ShopStore app** registration menu and create a new app.
+3. Note the issued `client_id` / `client_secret` (used in the next step).
+
+### 3) Step 1 — Enter credentials
+
+In the creation form, enter:
+
+| Field | Value |
+|---|---|
+| **Integration name** | Free text — e.g. `My MakeShop Store` |
+| **Client ID** | The `client_id` issued in Partner Center |
+| **Client Secret** | The `client_secret` issued in Partner Center (masked on save) |
+| **Scopes** | Check read/write per resource you plan to call. Six groups — `store` · `product` · `order` · `member` · `board` · `benefit` — each split into read/write |
+
+You do **not** enter the store identifier (**shop_uid**). It is delivered automatically via the install redirect when the ShopStore app is installed.
+
+### 4) [Connect with MakeShop] — register App URL + wait for install
+
+After Connect, the integration is created in a **pending** state and two URLs appear:
+
+| URL | Where to register |
+|---|---|
+| **App URL** | The **App URL** field of your ShopStore app in Partner Center. **Copy the whole value** including the trailing install token (don't hand-type it). |
+| **Redirect URI** | The **Redirect URI** field in Partner Center. Must match exactly (trailing slash / `http` vs `https` / port / typos all exact). |
+
+After registering both URLs, install the app from your store. The install redirect calls the App URL and completes OAuth. This screen **auto-polls** for install completion and routes to the integration detail page once connected. If it doesn't connect within 10 minutes you'll see a "still pending" notice (the integration remains on the backend, and polling resumes when you reopen or refresh).
+
+## Using it in a workflow — the `MakeShop` node
+
+Drop a `MakeShop` node on the canvas and in its config panel:
+
+1. **Integration** — pick the MakeShop integration you created.
+2. **Resource** — choose Store settings / Product / Order / Member / Benefit / Board / CPIK.
+3. **Operation** — pick from the resource's operation dropdown. Shown with human-friendly labels.
+4. **Fields** — the chosen operation's required/optional fields expand automatically. Every value supports expressions like `{{ $input.x }}`.
+5. (When the operation is paginated) **Limit / Offset** inputs appear as well.
+
+Unlike Cafe24, MakeShop has **no partner-approval markers (⚠)** — every operation is exposed the same way.
+
+## Using it from the AI Agent — MCP tools
+
+Add the MakeShop integration under the AI Agent node's **MCP servers** picker, and the LLM can call the Shop API in natural language. After adding it, expand **Operations allowlist** to check which operations are allowed per resource category. With all checked every operation is allowed; check a subset to restrict the LLM to just those.
+
+## Recommended OAuth scope presets
+
+Start with read-only scopes and add write scopes as needed.
+
+- **Product read automation**: `product.read` (+ `order.read` if needed)
+- **Order processing**: `order.read` · `order.write`
+- **Member/benefit management**: `member.read` · `benefit.read` (+ write if needed)
+
+## FAQ
+
+- **Where do I enter shop_uid?** — You don't. It arrives automatically when the app is installed.
+- **It won't connect** — Verify the App URL / Redirect URI are registered exactly in Partner Center, including the trailing install token. A single mismatched character fails HMAC verification and the call is rejected.
+- **How do I reauthorize?** — MakeShop integrations cannot be reauthorized from this screen. Reinstall the app from ShopStore to restart the OAuth flow.

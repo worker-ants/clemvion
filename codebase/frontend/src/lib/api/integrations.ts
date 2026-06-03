@@ -24,13 +24,29 @@ export interface Cafe24PrivatePendingBase {
   callbackUrl: string;
 }
 
+/**
+ * MakeShop install-first confidential-client pending result. Returned by
+ * `oauth/begin {service:'makeshop'}` — the merchant must register the returned
+ * `appUrl` as the ShopStore app's App URL in MakeShop Partner Center, then the
+ * ShopStore install drives the callback. shop_uid is NOT supplied at begin; it
+ * arrives via the install redirect. spec/2-navigation/4-integration.md §5.9.
+ */
+export interface MakeshopPendingBase {
+  mode: "makeshop_pending_install";
+  integrationId: string;
+  appUrl: string;
+  callbackUrl: string;
+}
+
 export type OAuthBeginResult =
   | { authUrl: string; state: string }
-  | Cafe24PrivatePendingBase;
+  | Cafe24PrivatePendingBase
+  | MakeshopPendingBase;
 
 export type RequestScopesResult =
   | { authUrl: string; state: string }
-  | (Cafe24PrivatePendingBase & { scopesAdded: string[] });
+  | (Cafe24PrivatePendingBase & { scopesAdded: string[] })
+  | (MakeshopPendingBase & { scopesAdded: string[] });
 
 export interface IntegrationMeta {
   appType: "public" | "private" | null;
@@ -369,6 +385,23 @@ export const integrationsApi = {
   ): Promise<Cafe24PrecheckResult> {
     const { data } = await apiClient.get("/integrations/cafe24/precheck", {
       params: { mallId },
+      signal,
+    });
+    return unwrap<Cafe24PrecheckResult>(data);
+  },
+
+  /**
+   * MakeShop shop_uid 사전 중복 감지 — cafe24Precheck 의 makeshop 대응.
+   * 같은 워크스페이스에 같은 shop_uid 의 makeshop 통합이 이미 존재하는지 확인.
+   * 응답 shape 은 cafe24 와 동일 (`Cafe24PrecheckResult`). `signal` 로 in-flight
+   * 요청 cancel 가능. spec/2-navigation/4-integration.md §5.9 / §9.2.
+   */
+  async makeshopPrecheck(
+    shopUid: string,
+    signal?: AbortSignal,
+  ): Promise<Cafe24PrecheckResult> {
+    const { data } = await apiClient.get("/integrations/makeshop/precheck", {
+      params: { shopUid },
       signal,
     });
     return unwrap<Cafe24PrecheckResult>(data);

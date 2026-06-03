@@ -33,6 +33,7 @@ import { ServiceIcon } from "../_shared/service-icons";
 import { CredentialsForm } from "../_shared/credentials-form";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { useCafe24PendingPolling } from "@/lib/integrations/use-cafe24-pending-polling";
+import { useMakeshopPendingPolling } from "@/lib/integrations/use-makeshop-pending-polling";
 import {
   ApprovalRequiredBadge,
   RestrictedScopeNotice,
@@ -169,6 +170,12 @@ export default function NewIntegrationPage() {
     appUrl: string;
     callbackUrl: string;
   } | null>(null);
+  // MakeShop install-first pending — appUrl/callbackUrl 등록 안내 + 설치 폴링.
+  const [makeshopPending, setMakeshopPending] = useState<{
+    integrationId: string;
+    appUrl: string;
+    callbackUrl: string;
+  } | null>(null);
 
   const clearOAuthTimeout = () => {
     if (oauthTimeoutRef.current) {
@@ -198,6 +205,17 @@ export default function NewIntegrationPage() {
                 : {}),
             }
           : {};
+      // MakeShop is confidential-client install-first — pass client_id /
+      // client_secret at begin (shop_uid is learned at install, NOT here).
+      // Backend reads body.clientId / body.clientSecret (same OAuthBeginDto
+      // fields cafe24 Private uses). spec/2-navigation/4-integration.md §5.9.
+      const makeshopExtra =
+        serviceType === "makeshop"
+          ? {
+              clientId: String(credentials.client_id ?? ""),
+              clientSecret: String(credentials.client_secret ?? ""),
+            }
+          : {};
       return integrationsApi.oauthBegin({
         service: serviceType,
         scopes: selectedScopes,
@@ -205,11 +223,21 @@ export default function NewIntegrationPage() {
         integrationName: name,
         scope,
         ...cafe24Extra,
+        ...makeshopExtra,
       });
     },
     onSuccess: (result) => {
       if ("mode" in result && result.mode === "cafe24_private_pending") {
         setPrivatePending({
+          integrationId: result.integrationId,
+          appUrl: result.appUrl,
+          callbackUrl: result.callbackUrl,
+        });
+        queryClient.invalidateQueries({ queryKey: ["integrations"] });
+        return;
+      }
+      if ("mode" in result && result.mode === "makeshop_pending_install") {
+        setMakeshopPending({
           integrationId: result.integrationId,
           appUrl: result.appUrl,
           callbackUrl: result.callbackUrl,
@@ -359,6 +387,14 @@ export default function NewIntegrationPage() {
           }
         }
       }
+      if (serviceType === "makeshop") {
+        if (!String(credentials.client_id ?? "").trim()) {
+          return t("integrations.makeshopValidateClientIdRequired");
+        }
+        if (!String(credentials.client_secret ?? "").trim()) {
+          return t("integrations.makeshopValidateClientSecretRequired");
+        }
+      }
       if (selectedScopes.length === 0) return t("integrations.selectAtLeastOneScope");
       if (!previewToken) return t("integrations.completeOauth");
       return null;
@@ -421,7 +457,7 @@ export default function NewIntegrationPage() {
         </div>
       </div>
 
-      {step === "auth" && !privatePending && (
+      {step === "auth" && !privatePending && !makeshopPending && (
         <AuthStep
           service={service}
           variant={variant}
@@ -448,6 +484,20 @@ export default function NewIntegrationPage() {
             if (selectedScopes.length === 0) {
               toast.error(t("integrations.selectAtLeastOneScope"));
               return;
+            }
+            if (serviceType === "makeshop") {
+              if (!String(credentials.client_id ?? "").trim()) {
+                toast.error(
+                  t("integrations.makeshopValidateClientIdRequired"),
+                );
+                return;
+              }
+              if (!String(credentials.client_secret ?? "").trim()) {
+                toast.error(
+                  t("integrations.makeshopValidateClientSecretRequired"),
+                );
+                return;
+              }
             }
             // 사전 감지로 중복이 이미 잡혔으면 backend 왕복 자체를 막는다.
             // backend 도 동일한 가드를 가지지만 사용자 입장에선 toast 만
@@ -479,6 +529,15 @@ export default function NewIntegrationPage() {
           appUrl={privatePending.appUrl}
           callbackUrl={privatePending.callbackUrl}
           integrationId={privatePending.integrationId}
+          t={t}
+        />
+      )}
+
+      {makeshopPending && (
+        <MakeshopPendingStep
+          appUrl={makeshopPending.appUrl}
+          callbackUrl={makeshopPending.callbackUrl}
+          integrationId={makeshopPending.integrationId}
           t={t}
         />
       )}
@@ -643,6 +702,13 @@ function AuthStep({
           publicAppAvailable={service.meta?.publicAppAvailable !== false}
           conflict={cafe24Conflict}
           precheckLoading={cafe24PrecheckLoading}
+        />
+      )}
+
+      {variant?.authType === "oauth2" && service.type === "makeshop" && (
+        <MakeshopExtraFields
+          credentials={credentials}
+          setCredentials={setCredentials}
         />
       )}
 
@@ -939,6 +1005,189 @@ function Cafe24ExtraFields({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * MakeShop-only extra fields for OAuth2 — Client ID + Client Secret. MakeShop is
+ * confidential-client install-first: there is NO public/private toggle and NO
+ * shop_uid input at begin (shop_uid arrives via the ShopStore install redirect).
+ * Stored on the same `credentials` map so the page-level oauthBegin handler can
+ * pluck them out at the call site. spec/2-navigation/4-integration.md §5.9.
+ */
+function MakeshopExtraFields({
+  credentials,
+  setCredentials,
+}: {
+  credentials: Record<string, unknown>;
+  setCredentials: (c: Record<string, unknown>) => void;
+}) {
+  const t = useT();
+  const set = (key: string, value: unknown) =>
+    setCredentials({ ...credentials, [key]: value });
+  const clientId = String(credentials.client_id ?? "");
+  const clientSecret = String(credentials.client_secret ?? "");
+
+  return (
+    <div className="space-y-4 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-4">
+      <p className="text-xs text-[hsl(var(--muted-foreground))]">
+        {t("integrations.makeshopExtraFieldsHint")}
+      </p>
+      <div>
+        <Label htmlFor="makeshop-client-id">
+          Client ID <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          id="makeshop-client-id"
+          value={clientId}
+          onChange={(e) => set("client_id", e.target.value)}
+        />
+      </div>
+      <div>
+        <Label htmlFor="makeshop-client-secret">
+          Client Secret <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          id="makeshop-client-secret"
+          type="password"
+          autoComplete="new-password"
+          value={clientSecret}
+          onChange={(e) => set("client_secret", e.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * MakeShop install-first pending step — mirror of `Cafe24PrivatePendingStep`.
+ * Shows the App URL (register in MakeShop Partner Center as the ShopStore app's
+ * App URL) + Redirect URI, and polls the integration row until the ShopStore
+ * install drives the callback to `connected`. spec/2-navigation/4-integration.md §5.9.
+ */
+function MakeshopPendingStep({
+  appUrl,
+  callbackUrl,
+  integrationId,
+  t,
+}: {
+  appUrl: string;
+  callbackUrl: string;
+  integrationId: string;
+  t: TFunction;
+}) {
+  const router = useRouter();
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copy = (value: string, field: string) => {
+    void navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const { poll, timedOut, lastErrorMessage } =
+    useMakeshopPendingPolling(integrationId);
+
+  return (
+    <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
+      <div>
+        <h2 className="text-lg font-semibold">
+          {t("integrations.makeshopPendingTitle")}
+        </h2>
+        <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+          {t("integrations.makeshopPendingDesc")}
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <Label className="mb-1 block text-xs font-medium text-[hsl(var(--muted-foreground))]">
+            {t("integrations.makeshopAppUrlLabel")}
+          </Label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 overflow-x-auto rounded bg-[hsl(var(--muted))] px-3 py-2 text-xs">
+              {appUrl}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copy(appUrl, "appUrl")}
+              className="shrink-0"
+            >
+              <Copy className="mr-1 h-3 w-3" />
+              {copiedField === "appUrl" ? t("integrations.copied") : "Copy"}
+            </Button>
+          </div>
+        </div>
+
+        <div>
+          <Label className="mb-1 block text-xs font-medium text-[hsl(var(--muted-foreground))]">
+            {t("integrations.makeshopCallbackUrlLabel")}
+          </Label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 overflow-x-auto rounded bg-[hsl(var(--muted))] px-3 py-2 text-xs">
+              {callbackUrl}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copy(callbackUrl, "callbackUrl")}
+              className="shrink-0"
+            >
+              <Copy className="mr-1 h-3 w-3" />
+              {copiedField === "callbackUrl"
+                ? t("integrations.copied")
+                : "Copy"}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {lastErrorMessage ? (
+        <div
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+        >
+          <strong>{t("integrations.makeshopPendingLastErrorLabel")}:</strong>{" "}
+          {lastErrorMessage}
+        </div>
+      ) : (
+        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+          {t("integrations.makeshopPendingSteps")}
+        </div>
+      )}
+
+      {poll?.status === "pending_install" && !timedOut && (
+        <p className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          {t("integrations.makeshopPendingWaiting")}
+        </p>
+      )}
+      {timedOut && (
+        <p className="text-xs text-amber-700 dark:text-amber-300">
+          {t("integrations.makeshopPendingTimedOut")}
+        </p>
+      )}
+      {poll &&
+        poll.status !== "pending_install" &&
+        poll.status !== "connected" && (
+          <p
+            role="status"
+            className="text-xs text-amber-700 dark:text-amber-300"
+          >
+            {poll.status === "expired" &&
+            poll.statusReason === "install_timeout"
+              ? t("integrations.makeshopPendingExpired")
+              : t("integrations.makeshopPendingTerminal")}
+          </p>
+        )}
+
+      <div className="flex justify-end">
+        <Button onClick={() => router.push(`/integrations/${integrationId}`)}>
+          {t("integrations.makeshopPendingViewList")}
+        </Button>
+      </div>
     </div>
   );
 }
