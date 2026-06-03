@@ -41,9 +41,20 @@ spec: spec/7-channel-web-chat
   - Critical 0. WARNING 4건(W1~W5)은 모두 **기존 spec/ 문서 갭**(SSE 재연결 시나리오·stale 토큰 blacklist 처리·`WEB_CHAT_WIDGET_ORIGINS` env 문서화·`4-security.md` Rationale 누락·spec-impl-evidence 가드)으로 본 dev-harness PR 범위 밖 → **project-planner 후속**으로 이관(아래 후속 항목).
   - 데모 구현 반영: **I6** (iframe 메시지 수신 시 `event.source`/origin 검증), **I9** (위젯 미구현 명령 `show`/`hide`/`updateProfile` 미노출 — `open`/`close`/`sendMessage` 만).
 
-## 후속(project-planner, 본 PR 밖)
-- [ ] W1: `1-widget-app.md §3.1` SSE 재연결 시나리오 명시
-- [ ] W2: `3-auth-session.md §3` 재로드 복원 시퀀스 명시
-- [ ] W3: `spec-impl-evidence.md §1` INCLUDE_PREFIXES 에 `spec/7-channel-web-chat/` 추가
-- [ ] W4: `4-security.md` `## Rationale` 추가
-- [ ] W5: `0-architecture.md §4` + backend `.env.example` 에 `WEB_CHAT_WIDGET_ORIGINS` 명시
+## 섹션2 — spec 갭 W1~W5 (사용자 결정 2026-06-03: 본 PR 에 포함)
+draft: `spec-draft-channel-web-chat-gaps.md`. consistency-check --spec(09_46_31) BLOCK 은 **타 worktree 동일파일
+경합(W3 spec-impl-evidence ↔ spec-sync-audit / W5 .env.example ↔ system-status)** 뿐 — 사용자가 "충돌 감수 진행 +
+재검토 생략" 결정. 머지 시 두 파일 수동 resolve 필요.
+- [x] W1: `1-widget-app.md §3.1` SSE 재연결 시나리오(Last-Event-Id/5분 버퍼/snapshot 폴백)
+- [x] W2: `3-auth-session.md §3.1` 재로드 복원 시퀀스 + 401 구분 + storage 정리 + Rationale R4
+- [x] W4: `4-security.md` `## Rationale`(CORS 분리·soft/hard·fixed-window) + §3-① blocked enum + §2.1 env 키
+- [x] W5(spec): `0-architecture.md §4` `WEB_CHAT_WIDGET_ORIGINS` 명시
+- [x] W3(spec): `spec-impl-evidence.md §1` INCLUDE_PREFIXES 에 `spec/7-channel-web-chat/**.md` 추가
+- [ ] W3(codebase): `spec-frontmatter-parse.ts` INCLUDE_PREFIXES 동기 + frontend `npm test -- spec-frontmatter`
+- [ ] W5(codebase): `codebase/backend/.env.example` 에 `WEB_CHAT_WIDGET_ORIGINS=` 추가
+
+## 섹션4 — show/hide/updateProfile (사용자 결정: 본 PR 에 포함)
+- [x] 설계: `1-widget-app §2/§3.2`(가시성 visible/hidden 축 + updateProfile 소급불가 + blocked 분리) + R5
+- [ ] 구현(developer): `use-widget` onCommand `show`/`hide`/`updateProfile` 핸들러 + reducer `hidden` 상태 +
+  `widget-app` 렌더 게이트 + 단위테스트
+- [ ] TEST + REVIEW WORKFLOW(섹션2·4 코드 변경 후)

@@ -59,6 +59,9 @@ owner: developer (TBD)
   `open`/`close`/`sendMessage`/`shutdown` 만 처리. `show`/`hide`(런처 가시성)는 1-widget-app §3 상태기계에 런처
   visible/hidden 상태 추가가 선행돼야 하고(project-planner), `updateProfile` 는 진행 중 세션 profile 갱신 의미
   정의 필요. spec 2-sdk §3 `wc:command` 표·§5 타입에는 명시됨 — handler 갭만 잔존.
+  - **✅ spec 설계 확정 (2026-06-03)**: [`1-widget-app §3.2`](../../spec/7-channel-web-chat/1-widget-app.md) 에
+    가시성 `visible`/`hidden` 축(open/close 와 직교) + `updateProfile` 소급불가 + `blocked` 분리 정의
+    (draft `spec-draft-channel-web-chat-gaps.md §4`). **구현은 `channel-web-chat-demo.md` 섹션4 에서 추적**(같은 PR).
 
 ### 5. per_execution 토큰 auto-refresh (spec 3-auth-session §3) — ✅ 완료 (2026-06-02, D#5)
 - `use-widget` 에 자동 갱신 스케줄러 연결(§3 step7). 만료 `TOKEN_REFRESH_LEAD_MS`(30분) 이전 시점에 setTimeout →
