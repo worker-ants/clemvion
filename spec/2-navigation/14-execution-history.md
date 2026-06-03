@@ -158,7 +158,7 @@ code:
 | Duration | 실행 소요 시간 (초/분 자동 전환). 실행 중이면 `—` 표시 | 가능 |
 | Nodes | 노드 실행 현황 (`완료 수/전체 수`, 실패 시 `(N failed)` 추가) | — |
 
-> ⚠️ Nodes 열 현황 (미구현, Planned): 클라이언트(`page.tsx`)는 `execution.nodeExecutions` 를 집계해 `완료 수/전체 수` 를 렌더하도록 작성돼 있으나, 목록 API(`GET /api/executions/workflow/:workflowId`)의 `ExecutionDto` 는 N+1 회피를 위해 노드 실행을 응답하지 않는다(`executions.service.ts` `toExecutionDto` 는 `executionPath: []` 만 채우고 `nodeExecutions` 필드 자체가 없음). 따라서 현재 목록의 Nodes 열은 항상 `—` 로 표시된다. 목록에서 실제 노드 현황을 표시하려면 목록 DTO 에 집계 컬럼(예: `completedNodeCount` / `totalNodeCount`)을 추가하거나 nodeExecutions 를 포함해야 한다 → 추적: `plan/in-progress/spec-sync-execution-history-gaps.md`.
+> Nodes 열 현황: 목록 API(`GET /api/executions/workflow/:workflowId`)의 `ExecutionDto` 는 N+1 을 회피하면서도 배치 집계 컬럼 `totalNodeCount` / `completedNodeCount` / `failedNodeCount` 를 응답한다(`executions.service.ts` 의 배치 `nodeCountMap`). 클라이언트(`page.tsx`)는 이 세 카운트로 `완료 수/전체 수` (실패 시 `(N failed)`) 를 렌더한다. 노드 실행 본문(`nodeExecutions`)은 여전히 목록 응답에 포함하지 않는다.
 
 #### Trigger 출처 분류
 

@@ -307,5 +307,8 @@ export const sendEmailNodeMetadata: NodeComponentMetadata = {
       message: 'Body must be entered.',
     },
   ],
+  summaryTemplate: {
+    template: '{{to.length}} recipients · {{subject}}',
+  },
   validateConfig: validateSendEmailConfig,
 };

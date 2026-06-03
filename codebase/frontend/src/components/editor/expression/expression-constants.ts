@@ -28,10 +28,13 @@ export const ROOT_VARIABLES: RootVariable[] = [
   { label: "$node", insertText: '$node["', type: "variable", detail: "Specific node output", isExpandable: true },
   { label: "$var", insertText: "$var", type: "variable", detail: "Workflow variables", isExpandable: true },
   { label: "$execution", insertText: "$execution", type: "variable", detail: "Execution context", isExpandable: true },
+  { label: "$thread", insertText: "$thread", type: "variable", detail: "Conversation thread (length, text, indexed access via turns[i])", isExpandable: true },
   { label: "$now", insertText: "$now", type: "variable", detail: "Current timestamp (UTC ISO 8601)" },
   { label: "$loop", insertText: "$loop", type: "variable", detail: "Loop context", isExpandable: true, scopeKey: "hasLoop" },
   { label: "$item", insertText: "$item", type: "variable", detail: "ForEach current item", isExpandable: true, scopeKey: "hasItem" },
   { label: "$itemIndex", insertText: "$itemIndex", type: "variable", detail: "ForEach index", scopeKey: "hasItem" },
+  { label: "$itemIsFirst", insertText: "$itemIsFirst", type: "variable", detail: "ForEach first-item flag", scopeKey: "hasItem" },
+  { label: "$itemIsLast", insertText: "$itemIsLast", type: "variable", detail: "ForEach last-item flag", scopeKey: "hasItem" },
   { label: "$trigger", insertText: "$trigger", type: "variable", detail: "Trigger data", isExpandable: true },
   { label: "$env", insertText: "$env", type: "variable", detail: "Environment variables", isExpandable: true },
 ];

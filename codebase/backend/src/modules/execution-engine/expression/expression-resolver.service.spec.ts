@@ -288,6 +288,33 @@ describe('ExpressionResolverService', () => {
       });
       expect(ctx.$item).toEqual({ name: 'item2' });
       expect(ctx.$itemIndex).toBe(2);
+      expect(ctx.$itemIsFirst).toBe(false);
+      expect(ctx.$itemIsLast).toBe(false);
+    });
+
+    it('exposes $itemIsFirst / $itemIsLast from itemContext flags', () => {
+      const nodeMap = new Map<string, Node>();
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
+        recursionDepth: 0,
+        itemContext: {
+          item: { name: 'first' },
+          index: 0,
+          isFirst: true,
+          isLast: false,
+        },
+      };
+
+      const ctx = service.buildExpressionContext(null, execContext, nodeMap);
+
+      expect(ctx.$itemIsFirst).toBe(true);
+      expect(ctx.$itemIsLast).toBe(false);
     });
 
     it('handles null input gracefully', () => {

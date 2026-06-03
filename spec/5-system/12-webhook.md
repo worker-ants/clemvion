@@ -54,7 +54,7 @@ pending_plans:
 | WH-EP-05-1 | Manual Trigger 노드가 선언한 `parameters` 스키마에 따라 body에서 파라미터를 추출/검증하여 `$input.parameters` / `$params`로 제공 | 필수 |
 | WH-EP-05-2 | required 파라미터 누락 또는 타입 강제 변환 실패 시 `400 Bad Request`와 누락 필드 목록 반환 | 필수 |
 | WH-EP-06 | 요청 헤더 정보를 메타데이터로 전달 (`headers`, `method`, `query`) | 권장 |
-| WH-EP-07 | 비활성 트리거로의 요청은 `410 Gone` 응답 반환. **예외 (미구현, Planned)**: `config.chatChannel` 이 설정된 트리거는 `202 Accepted + { ignored: true }` 를 반환해야 한다 (Telegram 등 chat-channel provider 가 non-2xx 응답 시 webhook 자동 비활성화·retry 폭주를 유발하므로). 상세 — [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract). **현행 구현은 `isActive=false` 체크가 chatChannel 분기보다 앞서 실행되어 chatChannel 트리거도 410 Gone 을 반환한다** — 이 예외 분기는 미구현 (`plan/in-progress/spec-sync-webhook-gaps.md`). | 필수 |
+| WH-EP-07 | 비활성 트리거로의 요청은 `410 Gone` 응답 반환. **예외**: `config.chatChannel` 이 설정된 트리거는 `202 Accepted + { executionId: 'ignored' }` 를 반환한다 (Telegram 등 chat-channel provider 가 non-2xx 응답 시 webhook 자동 비활성화·retry 폭주를 유발하므로). 구현상 `config.chatChannel` 분기가 `isActive` 검사보다 선행하며, inbound 서명 검증을 수행한 뒤(실패 시 401) 비활성 시 202 silent skip. 상세 — [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract). | 필수 |
 
 #### 3.2 인증 및 보안
 
@@ -199,7 +199,7 @@ POST /api/hooks/:endpointPath
 | `400 Bad Request` | 요청 본문 파싱 실패 |
 | `401 Unauthorized` | 인증 검증 실패 |
 | `404 Not Found` | endpointPath에 해당하는 트리거 없음 |
-| `410 Gone` | 트리거가 비활성 상태 (현행 구현은 `config.chatChannel` 트리거도 410 반환 — 비활성 chatChannel 트리거를 `202 Accepted + { ignored: true }` 로 처리하는 [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) 예외는 **미구현 (Planned)**, WH-EP-07 참조) |
+| `410 Gone` | 트리거가 비활성 상태 (`config.chatChannel` 트리거는 예외 — 비활성 시 `202 Accepted + { executionId: 'ignored' }`, [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) / WH-EP-07 참조) |
 
 ### 3.2 기존 Trigger CRUD API
 
@@ -328,7 +328,7 @@ codebase/backend/src/modules/hooks/
 2. HooksService.handleWebhook('abc-123-def', body, headers, query)
 3. TriggersService.findByEndpointPath('abc-123-def') → Trigger 엔티티
 4. Trigger 없으면 → 404 Not Found
-5. Trigger.isActive === false → **현행 구현**: chatChannel 유무와 무관하게 410 Gone 즉시 반환 (`HooksService.handleWebhook` 의 isActive 체크가 chatChannel 분기보다 앞서 실행됨). **목표 동작 (미구현, Planned — `plan/in-progress/spec-sync-webhook-gaps.md`)**: `config.chatChannel` 가 있으면 step 6 (인증) → step 7c 의 silent skip 분기로 진입 (parseUpdate 호출 전에 isActive 미통과를 인지하고 update 무시, 응답은 202 + { ignored: true }); `config.chatChannel` 가 없으면 410 Gone. (목표 동작 기준: chatChannel 트리거의 비활성 상태에서도 인증은 그대로 수행 — auth 실패 시 401 반환. 정당화: (a) 보안 — auth 실패한 요청에 silent 202 를 주면 공격자가 trigger 활성 여부를 inference 할 수 없도록 함, (b) 운영 — auth 실패는 운영자 디버깅 가시성 401 필요. 상세 [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) 참조.)
+5. Trigger.isActive === false → `config.chatChannel` 가 있으면 step 6 (인증) 을 먼저 수행한 뒤(서명 실패 시 401) step 7c 의 silent skip 분기로 진입 (update 무시, 응답은 202 + { executionId: 'ignored' }); `config.chatChannel` 가 없으면 410 Gone. 즉 `HooksService.handle` 의 chatChannel 분기가 isActive 검사보다 선행한다. (chatChannel 트리거는 비활성 상태에서도 인증을 그대로 수행 — 정당화: (a) 보안 — auth 실패한 요청에 silent 202 를 주면 공격자가 trigger 활성 여부를 inference 할 수 없도록 함, (b) 운영 — auth 실패는 운영자 디버깅 가시성 401 필요. 상세 [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) 참조.)
 6. 인증 검증:
    a. trigger.auth_config_id IS NULL → 통과 (none). (ip_whitelist 도 AuthConfig 종속이라 평가 대상 없음)
    b. authConfigsService.findById(trigger.auth_config_id, trigger.workspace_id) → AuthConfig row
@@ -340,7 +340,7 @@ codebase/backend/src/modules/hooks/
 7. config.chatChannel 가 있으면 (Chat Channel 분기):
    a. adapter = ChannelAdapterRegistry.get(config.chatChannel.provider)
    b. update = await adapter.parseUpdate(rawBody, config.chatChannel)   // 50ms 이내 (CCH-NF-01)
-   c. update === null 이면 (group chat / 무시 대상) → 202 Accepted + { ignored: true } 즉시 반환 (Execution 미생성)
+   c. update === null 이면 (group chat / 무시 대상) → 202 Accepted + { executionId: 'ignored' } 즉시 반환 (Execution 미생성)
    d. ChannelConversationService.lookup(triggerId, update.conversationKey) → ChannelConversation 조회
    e. 활성 execution 이 있으면 InteractionService.interact() in-process 호출 (token bypass — [EIA §3.3 EIA-AU-08](./14-external-interaction-api.md#33-인증))
       없으면 ExecutionEngineService.execute() 시작 (입력 = parseUpdate 결과 변환)

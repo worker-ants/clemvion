@@ -273,6 +273,26 @@ Execution ID: {{ $execution.id }}
 ```
 </Example>
 
+## Conversation thread
+
+<Example title="Branch on accumulated turn count">
+```ts
+{{ $thread.length > 5 }}
+```
+</Example>
+
+<Example title="Attach full thread text as input to a downstream node">
+```ts
+{{ $thread.text }}
+```
+</Example>
+
+<Example title="Pick a field from the first turn">
+```ts
+{{ $thread.turns[0].data.email }}
+```
+</Example>
+
 ## Tips & notes
 
 - Full syntax and operator precedence: [Expression basics](/docs/04-expression-language/basics).

@@ -1,8 +1,6 @@
 ---
 id: error-empty-states
-status: partial
-pending_plans:
-  - plan/in-progress/spec-sync-error-empty-states-gaps.md
+status: implemented
 code:
   - codebase/frontend/src/components/ui/empty-state.tsx
   - codebase/frontend/src/components/ui/error-page.tsx
@@ -94,21 +92,21 @@ code:
 
 ### 2.2 화면별 빈 상태 정의
 
-공유 `EmptyState` 컴포넌트(아이콘 + 안내 문구 + CTA)는 Dashboard / Workflows / Integration / Executions 화면에 적용되어 있다. **Triggers / Schedule 목록은 아직 공유 `EmptyState` 를 사용하지 않고**, CTA 없는 인라인 빈 상태(`Inbox` 아이콘 + 안내 문구)만 렌더한다 — 아래 표의 "트리거 추가" / "스케줄 추가" CTA 는 **미구현 (Planned)** 이다.
+공유 `EmptyState` 컴포넌트(아이콘 + 안내 문구 + CTA)는 Dashboard / Workflows / Integration / Executions / Triggers / Schedule 목록에 적용되어 있다.
 
 | 화면 | 아이콘 | 안내 문구 | CTA | 상태 |
 |------|--------|-----------|-----|------|
 | Dashboard — 최근 워크플로우 | 워크플로우 아이콘 | 아직 워크플로우가 없습니다. 첫 워크플로우를 만들어보세요. | **워크플로우 만들기** → 워크플로우 생성 | 구현됨 |
 | Dashboard — 최근 실행 | 실행 아이콘 | 아직 실행 기록이 없습니다. 워크플로우를 실행하면 여기에 표시됩니다. | — (CTA 없음) | 구현됨 |
 | Workflows 목록 | 워크플로우 아이콘 | 워크플로우가 없습니다. 자동화를 시작하려면 새 워크플로우를 만들어보세요. | **새 워크플로우** → 워크플로우 생성 | 구현됨 |
-| Triggers 목록 | 트리거 아이콘 | 트리거가 없습니다. 워크플로우를 자동으로 시작하려면 트리거를 추가하세요. | **트리거 추가** → 트리거 생성 | 미구현 (Planned) — 현재 CTA 없는 인라인 빈 상태(`Inbox`) |
-| Schedule 목록 | 달력 아이콘 | 스케줄이 없습니다. 워크플로우를 정기적으로 실행하려면 스케줄을 추가하세요. | **스케줄 추가** → 스케줄 생성 | 미구현 (Planned) — 현재 CTA 없는 인라인 빈 상태(`Inbox`) |
+| Triggers 목록 | 트리거 아이콘 | 트리거가 없습니다. 워크플로우를 자동으로 시작하려면 트리거를 추가하세요. | **트리거 추가** → 트리거 생성 | 구현됨 |
+| Schedule 목록 | 달력 아이콘 | 스케줄이 없습니다. 워크플로우를 정기적으로 실행하려면 스케줄을 추가하세요. | **스케줄 추가** → 스케줄 생성 | 구현됨 |
 | Integration 목록 | 연결 아이콘 | 연동된 서비스가 없습니다. 외부 서비스를 연결하여 워크플로우에서 활용하세요. | **서비스 연결** → 연동 추가 | 구현됨 |
 | Executions 목록 | 실행 아이콘 | 실행 기록이 없습니다. 워크플로우를 실행하면 여기에서 결과를 확인할 수 있습니다. | **워크플로우 목록** → 워크플로우 목록 이동 | 구현됨 |
 
-### 2.3 검색 결과 없음 (미구현 — Planned)
+### 2.3 검색 결과 없음
 
-> **상태**: 전용 "검색 결과 없음" 상태와 **필터 초기화** CTA 는 아직 구현되지 않았다. 현재 Workflows 목록은 검색·필터 적용 시 일반 빈 상태에 안내 문구(`adjustFiltersHint`: "검색어나 필터를 조정해 보세요")만 바꿔 표시하며, 전용 돋보기 메시지나 **필터 초기화** 버튼은 없다. 아래 정의는 목표 사양이다.
+검색 또는 필터 적용 결과가 0건일 때 전용 "검색 결과 없음" 상태와 **필터 초기화**(`workflows.resetFilters`) CTA 를 표시한다.
 
 검색 또는 필터 적용 결과가 0건인 경우, 일반 빈 상태와 다른 메시지를 표시한다.
 
