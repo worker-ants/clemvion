@@ -1,6 +1,6 @@
 ---
 id: conversation-thread
-status: implemented
+status: partial
 code:
   - codebase/backend/src/shared/conversation-thread/**
   - codebase/backend/src/modules/execution-engine/conversation-thread/**
@@ -12,6 +12,8 @@ code:
   - codebase/frontend/src/lib/stores/execution-store.ts
   - codebase/frontend/src/lib/websocket/use-execution-events.ts
   - codebase/frontend/src/components/editor/run-results/conversation-inspector.tsx
+pending_plans:
+  - plan/in-progress/ai-context-memory-auto.md
 ---
 
 # Conversation Thread (대화 스레드)
@@ -78,6 +80,8 @@ code:
 | `nextSeq` | Number | 다음 append 시 부여될 seq (== `turns.length`) |
 | `turns` | ConversationTurn[] | 시간순 누적 |
 | `totalChars` | Number | append 시 갱신되는 누적 char 길이 캐시 (cap 빠른 경로) |
+| `runningSummary?` | String | 롤링 요약 본문. AI Agent 의 `memoryStrategy ∈ {summary_buffer, persistent}` 전략에서만 set ([Spec AI Agent §6.1](../4-nodes/3-ai/1-ai-agent.md#6-실행-로직)). `manual` 전략에서는 미설정 |
+| `summarizedUpToSeq?` | Number | `runningSummary` 가 압축해 커버하는 마지막 turn 의 `seq`. 이 seq 이하 turn 은 요약 블록으로 대체되고 이후 turn 만 원문으로 유지. `summary_buffer`/`persistent` 전략에서만 set |
 
 ### 1.4 `text` 변환 규칙
 
@@ -204,7 +208,9 @@ race-free.
 | 실행 후 | NodeExecution 분산 저장 | `output.interaction` (presentation, `interaction.type` ∈ form_submitted/button_click/button_continue), `output.result.messages` (AI 멀티턴 누적 — waiting/resumed 시. D6 단일 경로 — [AI Agent §7.4·§7.5](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)), `output.result.response` (AI 최종 응답) 가 SoT. thread 자체는 재구성 가능한 derived view |
 | WS payload | `EXECUTION_WAITING_FOR_INPUT` 의 `conversationThread` snapshot 동봉 (선택) | UI 가 라이브 thread 표시 가능 |
 
-**v1 은 신규 DB 컬럼 도입 없음.** 향후 사용자 요구 명확해지면 `Execution.conversation_thread jsonb NULL` 컬럼 마이그레이션 검토.
+**v1 은 ConversationThread 본문에 신규 DB 컬럼 도입 없음.** 향후 사용자 요구 명확해지면 `Execution.conversation_thread jsonb NULL` 컬럼 마이그레이션 검토.
+
+> **자동 메모리 전략의 영속 경로** (AI Agent `memoryStrategy ∈ {summary_buffer, persistent}`): `runningSummary` / `summarizedUpToSeq` (§1.3) 는 실행 중 `ExecutionContext` (Redis 직렬화, 위 표 "실행 중" 행) 에 thread 의 일부로 포함되며, restart / 타 인스턴스 재개 시 ExecutionContext rehydration 으로 함께 복원된다 — **별도 DB 컬럼을 만들지 않는다** (위 "신규 DB 컬럼 없음" 조항은 ConversationThread 본문 한정 유지). 한편 `persistent` 전략의 **세션 간 영속 메모리** 는 thread 가 아니라 별도 테이블 `agent_memory` ([Spec Agent Memory](../5-system/17-agent-memory.md), [1-data-model §2.23](../1-data-model.md#223-agentmemory)) 에 저장된다 — ConversationThread 와 분리된 저장소이므로 본 조항과 모순되지 않는다.
 
 ---
 
@@ -242,7 +248,7 @@ race-free.
 
 **Sanitization**: `turn.text` 가 사용자 입력 (form 제출, ai_user 메시지) 에서 유래한 경우 prompt injection 방어를 위해 `LlmService` 의 user content sanitizer 와 동일한 방식으로 sanitize 한다.
 
-### 5.3 Cap (v1 — char 기반)
+### 5.3 Cap (v1)
 
 | 상수 | 값 | 동작 |
 |---|---|---|
@@ -251,6 +257,8 @@ race-free.
 | `MAX_INJECTED_CHARS` | `200_000` | 합산 char 추가 안전망 — 초과 시 오래된 turn 부터 추가 drop |
 
 `meta.contextInjection: { appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` 디버그 echo. `appliedScope`/`appliedMode` 는 config 값의 echo 가 아니라 **실제 적용 결과** 를 표기 (예: `contextScope='thread'` 더라도 thread 가 비어있으면 `appliedScope='none'`, cap 으로 잘리면 `injectedTurns < turns.length`). Principle 2 (meta = 런타임 측정값) 정합.
+
+> **`memoryStrategy` 별 cap 메커니즘**: 위 char-기반 cap (`MAX_INJECTED_TURNS` / `MAX_TURN_TEXT_CHARS` / `MAX_INJECTED_CHARS`) 은 **`memoryStrategy: 'manual'` (기본) 모드 한정** 으로 그대로 유지된다. `memoryStrategy ∈ {summary_buffer, persistent}` 모드는 char-cap 대신 **`memoryTokenBudget` token-budget** 을 트리거로 오래된 turn 부터 롤링 요약 압축한다 ([Spec AI Agent §6.1](../4-nodes/3-ai/1-ai-agent.md#6-실행-로직)). 두 메커니즘은 상호 배타 — manual=char-cap, 자동=token-budget.
 
 ---
 
@@ -271,9 +279,9 @@ race-free.
 ## 7. v2 로드맵
 
 - **Multi-thread**: 사용자 지정 key 로 한 execution 안에서 여러 thread 운영. presentation 노드가 어느 thread 에 push 할지 명시할 수 있게.
-- **Token-aware cap**: 현재 char-based cap (§5.3) 을 provider tokenizer 기반으로 — 모델별 정확한 토큰 budget 고려.
+- **Token-aware cap**: char-based cap (§5.3) 의 토큰 인식화는 AI Agent 의 `memoryStrategy ∈ {summary_buffer, persistent}` (token-budget 근사 방식, `memoryTokenBudget`) 으로 **부분 실현** 됐다 ([Spec AI Agent §12.10](../4-nodes/3-ai/1-ai-agent.md#1210-conversation-thread-v1v2-경계-번복의-근거)). 남은 로드맵: provider tokenizer-exact 방식 (모델별 정확한 토큰 카운트) 은 v3 로 잔존 — 현재는 근사 추정. manual 모드의 char-cap 은 유지.
 - **`text_classifier` / `information_extractor` 자동 주입 (contextScope) 확장**: 두 노드의 final-assistant **push 는 이미 출하**됐다 (§2.3 — `pushClassifierTurn` / `pushExtractorTurn`). 남은 로드맵은 자동 inject (`contextScope`) 를 분류·추출 노드까지 확장하는 것 (현재 inject 는 ai_agent 한정).
-- **DB 컬럼 신설**: `Execution.conversation_thread jsonb` 컬럼 마이그레이션 검토 — 현재는 NodeExecution 분산 저장이라 cross-node 조회가 N+1.
+- **DB 컬럼 신설**: `Execution.conversation_thread jsonb` 컬럼 마이그레이션 검토 — 현재는 NodeExecution 분산 저장이라 cross-node 조회가 N+1. (본 항목은 ConversationThread **본문** 의 DB 영속을 가리킨다 — AI Agent persistent 메모리의 별도 테이블 `agent_memory` ([Spec Agent Memory](../5-system/17-agent-memory.md)) 도입과는 무관하며, 후자는 본 항목과 독립적으로 이미 신설된다.)
 - **실행 이력 화면의 ConversationThread 크로스노드 뷰**: EH-DETAIL-06 과 함께 v2 UI spec 정의.
 - **Parallel 컨테이너 + Thread 정책**: 현재 §2.5 가 "Parallel 내부 thread 사용을 정의하지 않음" 으로 명시. 분기별 child thread 또는 merge point 재통합 정책 결정 필요. 사용 케이스 정의 후 spec write.
 - **`$thread.text` lazy 평가**: 현재 `buildExpressionContext` 가 호출마다 전체 thread 를 system_text 로 즉시 렌더 (성능 hot path). 측정 결과 비용이 크면 `Object.defineProperty` lazy getter 또는 `$thread.text` 를 별도 key 로 분리해 명시 요청 시만 렌더.
