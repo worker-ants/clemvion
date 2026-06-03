@@ -134,8 +134,8 @@ WARNING 13 + INFO 15 전부 Phase A 에서 해소. 확정 채택:
   - [x] `0-common.md §11.4` ordering 표 5a/5b/5c + 휘발성 꼬리 (W#8)
   - [x] spec write 직전 `/consistency-check --spec` 의무 — 완료(BLOCK NO). 산출: `review/consistency/2026/06/03/21_01_04/`
   - [x] build 가드 검증: frontmatter(spec-only/code:[]) + status-lifecycle(implemented→partial+pending_plans) 직접 확인 (frontend node_modules 미설치로 vitest 대신 수동 검증)
-- [x] **Phase B — 데이터 모델 / 마이그레이션** ✅: `agent_memory`(V071) + 차원별 partial
-      HNSW(V072~V077). workspace_id 격리. AgentMemoryEntity/Module.
+- [x] **Phase B — 데이터 모델 / 마이그레이션** ✅: `agent_memory`(V073) + 차원별 partial
+      HNSW(V074~V079). workspace_id 격리. AgentMemoryEntity/Module.
 - [x] **Phase C — summary_buffer** ✅: `agent-memory-injection.ts`(토큰추정·롤링요약·안정
       프리픽스), 임계치 트리거(미만 시 LLM 미호출), `runningSummary`/`summarizedUpToSeq`. unit.
 - [x] **Phase D — persistent** ✅: `AgentMemoryService`(회수 동기 top-k, 추출 비동기 BullMQ
@@ -144,7 +144,7 @@ WARNING 13 + INFO 15 전부 Phase A 에서 해소. 확정 채택:
       핸들러 분기(manual 무변경 + summary_buffer + persistent 회수), meta.memory echo.
       frontend backend-labels/mdx 동반 갱신.
 - [x] **Phase F — TEST WORKFLOW** ✅: lint✓ / unit✓(backend 5738, frontend 외 cafe24 pre-existing
-      만) / build✓ / e2e✓(144, Flyway V071~V077 docker 실행). manual 하위호환 회귀 테스트 통과.
+      만) / build✓ / e2e✓(144, Flyway V072~V078 docker 실행). manual 하위호환 회귀 테스트 통과.
 - [x] **Phase G — REVIEW** ✅: `/ai-review`(코드범위 전 14 reviewer, CRITICAL 0/WARNING 5) +
       `/consistency-check --impl-done`(BLOCK:NO) + 보안 2(W-2 indirect prompt injection wrap·
       W-1 scope_key 검증) + 테스트 5 fix(`eae813d4`) + RESOLUTION.md. TEST 재통과.

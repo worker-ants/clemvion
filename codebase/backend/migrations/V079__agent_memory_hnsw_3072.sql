@@ -1,4 +1,4 @@
--- V077: agent_memory 3072 차원용 halfvec partial HNSW 인덱스 (OpenAI text-embedding-3-large)
+-- V079: agent_memory 3072 차원용 halfvec partial HNSW 인덱스 (OpenAI text-embedding-3-large)
 -- requires pgvector >= 0.7 (halfvec)
 --
 -- DocumentChunk 의 3072 정책 (V023) 미러: vector 타입 HNSW 차원 제한(≤ 2000) 때문에 3072 는

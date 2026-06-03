@@ -1,4 +1,4 @@
--- V071: agent_memory 테이블 (AI Agent persistent 메모리 영속 저장소)
+-- V073: agent_memory 테이블 (AI Agent persistent 메모리 영속 저장소)
 -- requires pgvector (vector / halfvec) — V005 / V023 와 동일 extension 재사용
 --
 -- spec SoT: spec/5-system/17-agent-memory.md §1 (데이터 모델) · spec/1-data-model.md §2.23
@@ -8,7 +8,7 @@
 --
 -- embedding 컬럼은 DocumentChunk 와 동일하게 untyped vector (가변 차원) 로 둔다 (V021
 -- 정책). 차원별 partial HNSW 유사도 인덱스는 CREATE INDEX CONCURRENTLY 로 부착해야 하므로
--- 본 트랜잭션 파일에는 두지 않고 차원당 별도 마이그레이션 (V072~V077, .conf
+-- 본 트랜잭션 파일에는 두지 않고 차원당 별도 마이그레이션 (V074~V079, .conf
 -- executeInTransaction=false) 으로 분리한다 (README §5 — 한 파일 한 CONCURRENTLY).
 
 CREATE EXTENSION IF NOT EXISTS vector;

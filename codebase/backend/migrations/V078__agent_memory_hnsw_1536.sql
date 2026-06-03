@@ -1,4 +1,4 @@
--- V076: agent_memory 1536 차원 partial HNSW 인덱스 (OpenAI text-embedding-3-small / ada-002)
+-- V078: agent_memory 1536 차원 partial HNSW 인덱스 (OpenAI text-embedding-3-small / ada-002)
 -- requires pgvector >= 0.5 (HNSW)
 --
 -- DocumentChunk 의 차원별 partial HNSW 정책 (V031) 미러. agent_memory 의 기본 임베딩 모델

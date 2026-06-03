@@ -1,4 +1,4 @@
--- V073: agent_memory 512 차원 partial HNSW 인덱스 (cosine distance)
+-- V075: agent_memory 512 차원 partial HNSW 인덱스 (cosine distance)
 -- requires pgvector >= 0.5 (HNSW)
 --
 -- DocumentChunk 의 차원별 partial HNSW 정책 (V032) 미러. 회수 SQL 도 동일 cast/조건 사용.
