@@ -96,6 +96,7 @@ per-node task queue (1 Worker = 1 NodeExecution) 모델은 폐기한다.
 | 크래시 검출 | BullMQ stalled-job 검출 (active 세그먼트 job 한정) |
 | 미응답 시 동작 | stalled job 을 다른 워커에 재배달 → §7.5 rehydration 으로 세그먼트 재개 |
 | waiting_for_input | **대상 아님** — job 부재, 무기한 park 유지 |
+| `WORKER_HEARTBEAT_TIMEOUT` | **유지 + 의미 재정의**: 기존 "절대 30분 stale 일괄 fail" → "active 세그먼트 job 이 BullMQ stalled 재배달 attempts 를 모두 소진(terminal worker failure)" 시 Execution `failed`. §2.13·§9.2·§7.1 동기화. (consistency W1/W4 해소) |
 
 ---
 
@@ -164,7 +165,9 @@ per-node task queue (1 Worker = 1 NodeExecution) 모델은 폐기한다.
 - [ ] **spec 본문 반영 시 동시 갱신 목록** (cross-spec INFO 반영):
   - `spec/5-system/4-execution-engine.md`: §4.1–4.3(재정의) · §7.1(stalled-job 전면 교체) · §7.2(per-node 뉘앙스 제거) · §7.4/§7.5(intake 큐를 세그먼트 운반자로 명시) · §8(active-running) · **§9.3 큐 목록에 `execution-run` 행** · **§11 ENV 표에 `EXECUTION_RUN_WORKER_CONCURRENCY` 행**
   - `spec/0-overview.md`: §2.4(execution-level 정정) · **§2.6 Redis 큐 목록에 `execution-run` 추가** · Rationale(구 문구 옆에 변경 이유+본 결정 링크)
-  - `spec/1-data-model.md §2.13`: `Execution.error` 의 `EXECUTION_TIMEOUT` 설명("30분 heartbeat 없는 RUNNING")을 stalled-job·active-running 모델과 동기화 + 신규 `EXECUTION_TIME_LIMIT_EXCEEDED` 반영
+  - `spec/1-data-model.md §2.13`: `Execution.error` 의 `WORKER_HEARTBEAT_TIMEOUT` 설명("30분 heartbeat 없는 RUNNING") → "stalled 재배달 attempts 소진" 으로 재정의 + 신규 `EXECUTION_TIME_LIMIT_EXCEEDED` 행 추가 (W1/W2/W4)
+  - `spec/5-system/3-error-handling.md §1.4`: `EXECUTION_TIMEOUT` 정의 범위를 **Code 노드 스크립트 타임아웃 한정**으로 축소 + 엔진 누적 타임아웃 `EXECUTION_TIME_LIMIT_EXCEEDED` 신규 행 추가 (W3)
+  - `spec/5-system/4-execution-engine.md §8` 표의 "최대 실행 시간 초과 → EXECUTION_TIMEOUT" 을 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 교체 (W2)
   - `execute()` 비동기 계약 명시: spec §4(또는 §6.1.1)에 "`execute()` 는 `pending` 생성 후 `execution-run` 발행하고 즉시 반환(비동기)" 명문화
 - [ ] **side-effect — spec-sync plan 정리**: `plan/in-progress/spec-sync-execution-engine-gaps.md` 의 §4·§7.1·§8 추적 TODO 를 "per-node 모델 폐기로 대체됨 → 본 draft 로 forwarding" 으로 닫기. `execution-engine-residual-gaps.md G2`(cross-instance 재개)와 §7.1 stalled 재배달의 관계 명시.
 - [ ] **merge 순서 메모**: `spec/0-overview.md §Rationale` 수정은 경쟁 worktree(`competitive-analysis-e0569b`·`ai-context-memory-9c7e6e`)와 인접 hunk 충돌 위험 → 해당 PR 선행 병합 후 base 최신화 또는 수동 resolve.
