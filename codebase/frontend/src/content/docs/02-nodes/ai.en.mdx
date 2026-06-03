@@ -33,6 +33,11 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
   {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "How the thread is injected. `messages` prepends per-turn role messages to the LLM messages array; `system_text` renders the thread as a single text block appended to the system prompt.", default: "messages"},
   {name: "includeToolTurns", required: false, type: "boolean", description: "When true, also pushes KB/MCP/condition tool-call turns into the thread. Defaults to pushing only the final assistant response.", default: "false"},
   {name: "excludeFromConversationThread", required: false, type: "boolean", description: "When checked, skips pushing this node's user/assistant turns into the workflow thread (opt-out).", default: "false"},
+  {name: "memoryStrategy", required: false, type: "`manual` / `summary_buffer` / `persistent`", description: "Memory management strategy. `manual` uses the Conversation Context fields above as-is, `summary_buffer` rolls older turns past the token budget into a summary, and `persistent` adds cross-session recall on top of the summary buffer.", default: "manual"},
+  {name: "memoryTokenBudget", required: false, type: "integer", description: "Working-memory token budget. Older turns roll into a summary once exceeded. Shown for `summary_buffer` and `persistent`.", default: "8000"},
+  {name: "memoryKey", required: false, type: "expression", description: "Persistent memory scope key. The same key recalls the same memory across runs; empty isolates memory per execution. Shown for `persistent`.", default: "-"},
+  {name: "memoryTopK", required: false, type: "integer", description: "Number of memory chunks recalled per turn (independent of RAG Top-K). Shown for `persistent`.", default: "5"},
+  {name: "memoryThreshold", required: false, type: "float", description: "Minimum similarity (0–1) required for memory recall (independent of the RAG threshold). Shown for `persistent`.", default: "0.7"},
   {name: "presentationTools", required: false, type: "PresentationToolDef[]", description: "Virtual tools that let the LLM render responses as tables, charts, carousels, templates, or forms instead of plain text. Empty list disables the feature. Each entry has a required `type`, an optional `description` override, and an optional `defaults` overlay.", default: "[]"},
   {name: "maxTurns", required: false, type: "integer", description: "Max conversation turns in Multi Turn mode. `0` means unlimited.", default: "20"}
 ]} />
@@ -64,6 +69,24 @@ Injection mode (`contextInjectionMode`) has two flavors.
 By default the thread receives **only the final assistant response and user turns**. Turn on `includeToolTurns` to also persist KB / MCP / condition tool-call turns. Conversely, set `excludeFromConversationThread` to keep a node out of the thread entirely (handy for background classifier-style LLM calls).
 
 To reference the thread directly from expressions, use `{{ $thread.length }}`, `{{ $thread.text }}`, or `{{ $thread.turns[0].data.email }}`. See [Variables and context · $thread](/docs/04-expression-language/variables-and-context#thread-conversation-thread) for details.
+
+### Memory
+
+When a conversation grows long, or when you need to remember a user across sessions, pick a **memory strategy** (`memoryStrategy`) to automate context management. This is a separate **management axis** from the Conversation Context (`contextScope`) above.
+
+- `manual` (default) — uses the Conversation Context fields above as-is. No automatic summarization or cross-session recall; the thread is injected only as your `contextScope` dictates.
+- `summary_buffer` — keeps recent turns intact but rolls older turns past the **token budget** (`memoryTokenBudget`, default 8000) into a summary. Long conversations keep earlier context without runaway token growth.
+- `persistent` — adds **cross-session memory** that survives after the run ends, on top of the summary buffer. The next run recalls memory about the same user.
+
+When you choose `persistent`, you can scope the memory with a key.
+
+- `memoryKey` — the scope key for persistent memory. The same key recalls the same memory across runs. For example, passing a user identifier like `{{ $input.userId }}` carries that user's memory forward. **Leaving it empty isolates memory per execution**, so prior runs are not recalled.
+- `memoryTopK` (default 5) — number of memory chunks recalled per turn. Independent of RAG's `ragTopK`.
+- `memoryThreshold` (default 0.7) — minimum similarity (0–1) required to recall memory. Independent of RAG's `ragThreshold`.
+
+<Callout type="note">
+When `memoryStrategy` is not `manual`, the automatic strategy manages context, so the Conversation Context fields (`contextScope`, etc.) above are hidden in the config UI. Fields like the token budget and memory key appear only for the strategy that uses them.
+</Callout>
 
 ### Presentation Tools
 

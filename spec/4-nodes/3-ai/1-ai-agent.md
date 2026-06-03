@@ -9,7 +9,7 @@ code:
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md
-  - plan/in-progress/ai-context-memory-auto.md
+  - plan/in-progress/ai-context-memory-followup-v2.md
 ---
 
 # Spec: AI Agent

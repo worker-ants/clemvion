@@ -13,7 +13,7 @@ code:
   - codebase/frontend/src/lib/websocket/use-execution-events.ts
   - codebase/frontend/src/components/editor/run-results/conversation-inspector.tsx
 pending_plans:
-  - plan/in-progress/ai-context-memory-auto.md
+  - plan/in-progress/ai-context-memory-followup-v2.md
 ---
 
 # Conversation Thread (대화 스레드)
