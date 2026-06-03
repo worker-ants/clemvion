@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -89,6 +89,8 @@ function RegisterFormInner({
   const [emailCheck, setEmailCheck] = useState<
     "idle" | "checking" | "available" | "taken"
   >("idle");
+  // 마지막으로 서버에 확인 요청한 이메일 — blur 재트리거 시 중복 호출을 막는다.
+  const lastCheckedEmailRef = useRef<string>("");
   const [invitationState, setInvitationState] = useState<InvitationState>(
     invitationToken ? { kind: "loading" } : { kind: "none" },
   );
@@ -224,6 +226,12 @@ function RegisterFormInner({
       setEmailCheck("idle");
       return;
     }
+    // 이미 진행 중이거나, 직전 확인과 동일한 이메일이면 재요청하지 않는다.
+    // 서버 레이트 리밋(5 req/min)과 결합해 반복 blur 에 의한 열거를 차단한다.
+    if (emailCheck === "checking" || email === lastCheckedEmailRef.current) {
+      return;
+    }
+    lastCheckedEmailRef.current = email;
     setEmailCheck("checking");
     try {
       const response = await authApi.checkEmail(email);

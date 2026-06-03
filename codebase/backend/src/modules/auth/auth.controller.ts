@@ -439,6 +439,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('check-email')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

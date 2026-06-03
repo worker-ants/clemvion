@@ -72,8 +72,13 @@ export function VerifyEmailContent() {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   async function handleResend() {
-    if (!email || resendCooldown > 0 || isResending) return;
+    // Basic format guard: reject malformed ?email= param before hitting the API.
+    // The backend DTO (@IsEmail) is the authoritative validator; this is a
+    // cheap client-side shield against crafted links reusing the resend endpoint.
+    if (!email || !EMAIL_RE.test(email) || resendCooldown > 0 || isResending) return;
     setIsResending(true);
     const currentLocale = useLocaleStore.getState().locale;
     try {
