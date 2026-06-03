@@ -161,6 +161,19 @@ describe('parseDiscordUpdate — MESSAGE_COMPONENT', () => {
       idempotencyKey: 'I002',
     });
   });
+
+  // C-11 §5.1(b): "Reply" 버튼 → open_form_modal + openContext.modal='reply'.
+  it('§5.1(b) __reply__ → open_form_modal (modal=reply 마커)', () => {
+    const upd = parseDiscordUpdate(buttonClick('__reply__'));
+    expect(upd).toMatchObject({
+      conversationKey: 'C1',
+      channelUserKey: 'U1',
+      command: {
+        kind: 'open_form_modal',
+        openContext: { interactionId: 'I002', interactionToken: 't', modal: 'reply' },
+      },
+    });
+  });
 });
 
 describe('parseDiscordUpdate — MODAL_SUBMIT', () => {

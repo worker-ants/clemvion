@@ -214,6 +214,11 @@ export interface OpenFormModalParams {
   fields: FormModalField[];
   conversationKey: string;
   nodeId: string;
+  /**
+   * 'form' (기본) — pendingFormModal 의 fields 로 form modal.
+   * 'reply' — §5.1(b) AI Multi Turn reply modal (단일 TEXT_INPUT, fields 무시).
+   */
+  modalKind?: 'form' | 'reply';
 }
 
 /**

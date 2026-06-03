@@ -78,6 +78,26 @@ function renderAiMessage(
   config: ChatChannelConfig,
 ): ChannelMessage[] {
   const out: ChannelMessage[] = [...chunkText(event.message)];
+  // §5.1(b) — AI 응답 텍스트 끝에 "Reply" 버튼(custom_id __reply__, SECONDARY)을
+  // 첨부해 modal 기반 reply 진입점을 제공한다 (R-CC-13 inbound path b). 마지막 텍스트
+  // 청크를 buttons 메시지로 승격 (text 본문 유지). 텍스트가 없으면 (presentation only)
+  // 첨부하지 않는다.
+  const lastIdx = out.length - 1;
+  if (lastIdx >= 0 && out[lastIdx].body.kind === 'text') {
+    const lastBody = out[lastIdx].body as { kind: 'text'; text: string };
+    const replyButton: ChannelButton = {
+      id: '__reply__',
+      label:
+        config.languageHints?.replyButtonLabel ??
+        (config.languageLocale === 'en' ? 'Reply' : '답변하기'),
+      type: 'callback',
+      style: 'none',
+    };
+    out[lastIdx] = {
+      ...out[lastIdx],
+      body: { kind: 'buttons', text: lastBody.text, buttons: [replyButton] },
+    };
+  }
   const presentations = event.presentations;
   if (Array.isArray(presentations) && presentations.length > 0) {
     for (const p of presentations) {

@@ -96,6 +96,25 @@ export function parseDiscordUpdate(raw: unknown): ChannelUpdate | null {
         receivedAt,
       };
     }
+    // §5.1(b) AI Multi Turn reply — "Reply" 버튼 클릭. interaction token 을 운반해
+    // HooksService 가 reply modal (clemvion_reply, 단일 TEXT_INPUT message) 을 연다.
+    // modal:'reply' 마커로 __open_form__ (form modal) 과 구분.
+    if (i.data?.custom_id === '__reply__') {
+      return {
+        conversationKey: channelId,
+        channelUserKey: userId,
+        command: {
+          kind: 'open_form_modal',
+          openContext: {
+            interactionId: String(i.id),
+            interactionToken: String(i.token),
+            modal: 'reply',
+          },
+        },
+        idempotencyKey,
+        receivedAt,
+      };
+    }
     const componentType = i.data?.component_type;
     let callbackData: string | undefined;
     if (componentType === 2) {

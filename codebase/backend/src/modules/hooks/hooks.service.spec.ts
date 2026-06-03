@@ -639,6 +639,47 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
+    // C-11 §5.1(b): open_form_modal + openContext.modal='reply' → reply modal
+    // (pendingFormModal 없이도 동작, modalKind='reply' 전달).
+    it("§5.1(b) open_form_modal modal='reply' → openFormModal(modalKind=reply) + httpResponse", async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: {
+          kind: 'open_form_modal',
+          openContext: { interactionId: 'I9', interactionToken: 'tok9', modal: 'reply' },
+        },
+        idempotencyKey: 'I9',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      const openFormModal = jest.fn().mockResolvedValue({
+        httpResponse: { type: 9, data: { custom_id: 'clemvion_reply' } },
+      });
+      (mockAdapter as Record<string, unknown>).openFormModal = openFormModal;
+      (mockAdapter as Record<string, unknown>).supportsNativeForm = true;
+      (mockAdapter as Record<string, unknown>).buildFormSubmissionResponse =
+        jest.fn().mockReturnValue({});
+      // reply 는 pendingFormModal 없이 동작해야 한다.
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(openFormModal).toHaveBeenCalledWith(
+        expect.objectContaining({ modalKind: 'reply', fields: [] }),
+      );
+      expect(res).toMatchObject({
+        interactionHttpResponse: { type: 9, data: { custom_id: 'clemvion_reply' } },
+      });
+    });
+
     it('§4.1 form_submission → interact submit_form (pendingFormModal.nodeId + fields) + pendingFormModal clear', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       const channelUpdate = {

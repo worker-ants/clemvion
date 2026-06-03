@@ -307,6 +307,31 @@ export class HooksService {
         );
         return { executionId: state?.executionId ?? 'ignored' };
       }
+      // §5.1(b) AI Multi Turn reply modal — "Reply" 버튼은 pendingFormModal 없이
+      // openContext.modal='reply' 마커만 운반한다. 단일 TEXT_INPUT modal 을 연다.
+      if (update.command.openContext.modal === 'reply') {
+        if (isNativeFormAdapter(adapter)) {
+          const result = await adapter.openFormModal({
+            config,
+            openContext: update.command.openContext,
+            fields: [],
+            conversationKey: update.conversationKey,
+            nodeId: '',
+            modalKind: 'reply',
+          });
+          if (result.httpResponse !== undefined) {
+            return {
+              executionId: state?.executionId ?? 'ignored',
+              interactionHttpResponse: result.httpResponse,
+            };
+          }
+        } else {
+          this.logger.warn(
+            `open_form_modal(reply): adapter.openFormModal 미지원 — conversationKey=${update.conversationKey}`,
+          );
+        }
+        return { executionId: state?.executionId ?? 'ignored' };
+      }
       if (state?.pendingFormModal && isNativeFormAdapter(adapter)) {
         const result = await adapter.openFormModal({
           config,
