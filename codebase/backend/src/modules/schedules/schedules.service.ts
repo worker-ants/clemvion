@@ -30,7 +30,13 @@ export class SchedulesService {
     workspaceId: string,
     query: PaginationQueryDto,
   ): Promise<PaginatedResponseDto<Schedule>> {
-    const { page = 1, limit = 20, search, sort = 'created_at', order = 'desc' } = query;
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      sort = 'created_at',
+      order = 'desc',
+    } = query;
 
     const qb = this.scheduleRepository
       .createQueryBuilder('s')
@@ -42,7 +48,10 @@ export class SchedulesService {
       qb.andWhere('t.name ILIKE :search', { search: `%${search}%` });
     }
 
-    qb.orderBy(this.resolveOrderBy(sort), order.toUpperCase() as 'ASC' | 'DESC');
+    qb.orderBy(
+      this.resolveOrderBy(sort),
+      order.toUpperCase() as 'ASC' | 'DESC',
+    );
 
     const totalItems = await qb.getCount();
     const data = await qb

@@ -264,10 +264,7 @@ export class SlackAdapter implements NativeFormAdapter {
     if (update.command.kind !== 'file_upload') return update;
     try {
       const botToken = await this.resolveBotToken(config);
-      const info = await this.client.filesInfo(
-        botToken,
-        update.command.fileId,
-      );
+      const info = await this.client.filesInfo(botToken, update.command.fileId);
       if (info.ok && info.file) {
         return {
           ...update,

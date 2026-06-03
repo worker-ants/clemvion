@@ -107,14 +107,24 @@ describe('GraphWarningRule (parallel-p2 결정 D + E + I)', () => {
         { id: 'b', type: 'http', config: {}, label: 'b' },
       ]);
       expect(captured!.edges).toEqual([
-        { source: 'a', sourceHandle: 'branch_0', target: 'b', targetHandle: 'in' },
+        {
+          source: 'a',
+          sourceHandle: 'branch_0',
+          target: 'b',
+          targetHandle: 'in',
+        },
       ]);
     });
 
     it('skips a node whose type is undefined (no compile-time cast safety net)', () => {
       // entity 필드 누락(예: type undefined) 시 as 단언이면 런타임에서야 터지지만,
       // toRuleNode 는 평가 graph 에서 안전하게 제외한다.
-      const typeless = { id: 'x', label: 'x', workflowId: 'wf-1', config: {} } as unknown as Node;
+      const typeless = {
+        id: 'x',
+        label: 'x',
+        workflowId: 'wf-1',
+        config: {},
+      } as unknown as Node;
       const ok = makeNode('p', 'parallel', 'P');
       const graph = { nodes: [typeless, ok], edges: [] };
       let captured: { nodes: readonly { id: string }[] } | undefined;
@@ -192,7 +202,9 @@ describe('GraphWarningRule (parallel-p2 결정 D + E + I)', () => {
   describe('end-to-end with real parallelNodeMetadata.graphWarningRules', () => {
     // adapter (Node/Edge entity → 순수 shape) → 실제 패키지 rule 평가까지 통합.
     // resolver 는 backend registry 가 하듯 type → metadata.graphWarningRules 를 준다.
-    const realResolver = (type: string): readonly GraphWarningRule[] | undefined =>
+    const realResolver = (
+      type: string,
+    ): readonly GraphWarningRule[] | undefined =>
       type === 'parallel' ? parallelNodeMetadata.graphWarningRules : undefined;
 
     const branchEdge = (id: string, source: string, target: string): Edge =>
