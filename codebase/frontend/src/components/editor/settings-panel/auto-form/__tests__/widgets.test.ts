@@ -80,6 +80,18 @@ describe("buildNewItem — enum/select first-option fallback", () => {
     expect(buildNewItem(itemSchema, undefined)).toEqual({});
   });
 
+  it("does NOT pre-fill a boolean (checkbox) field", () => {
+    // booleans resolve to no select options, so the fallback must leave them
+    // absent (the checkbox renders its own unchecked default).
+    const itemSchema: JsonSchemaNode = {
+      type: "object",
+      properties: {
+        enabled: { type: "boolean", ui: { widget: "checkbox" } },
+      },
+    };
+    expect(buildNewItem(itemSchema, undefined)).toEqual({});
+  });
+
   it("keeps the required-id UUID behavior alongside the enum fallback", () => {
     const itemSchema: JsonSchemaNode = {
       type: "object",
@@ -104,6 +116,22 @@ describe("buildNewItem — enum/select first-option fallback", () => {
     };
     expect(buildNewItem(itemSchema, { type: "chart" })).toEqual({
       type: "chart",
+    });
+  });
+
+  it("keeps the enum fallback for fields a partial `ui.itemDefault` omits", () => {
+    // itemDefault only overrides the keys it sets; unspecified enum fields must
+    // still receive their first-option fallback.
+    const itemSchema: JsonSchemaNode = {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["table", "chart"] },
+        layout: { type: "string", enum: ["grid", "list"] },
+      },
+    };
+    expect(buildNewItem(itemSchema, { layout: "list" })).toEqual({
+      type: "table",
+      layout: "list",
     });
   });
 

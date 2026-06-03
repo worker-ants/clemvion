@@ -63,6 +63,8 @@ AI Agent 노드 config 의 `presentationTools[0]` 이 `{"type":"table"}` 가 아
   자체 node_modules/dist 선빌드 필요했음. lint `--fix` 가 건드린 범위 밖 기존 파일 6건은 revert)
 - [x] unit — PASS (backend 290 suites/5585, frontend 177 files; 신규: backend schema 2건,
   frontend widgets 8건)
-- [ ] build
-- [ ] e2e
-- [ ] /ai-review + SUMMARY
+- [x] build — PASS
+- [x] e2e — PASS (143 tests, docker compose 실 인프라; 리뷰 반영 후 재통과)
+- [x] /ai-review + SUMMARY — RISK=LOW, Critical 0, Warning 2 (둘 다 Testing). Warning 2 +
+  저비용 INFO 3건(#2 drift-free 리터럴·#4 배열 타입 방어·#9 partial itemDefault) 수동 조치.
+  RESOLUTION.md 기록. INFO #1(spec type default 명기)은 spec write 라 project-planner follow-up.

@@ -292,7 +292,9 @@ export function buildNewItem(
   // `resolveWidgetOptions` returns [] for them anyway.
   for (const [key, field] of Object.entries(props)) {
     if (item[key] !== undefined) continue;
-    const fieldType = field.type;
+    // `type` may be a union array (e.g. ["string", "null"]) — normalize to the
+    // primary type before excluding non-scalar fields.
+    const fieldType = Array.isArray(field.type) ? field.type[0] : field.type;
     if (fieldType === "array" || fieldType === "object") continue;
     const options = resolveWidgetOptions(field, field.ui);
     if (options.length > 0) {
