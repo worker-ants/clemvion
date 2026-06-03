@@ -248,6 +248,10 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts` — `06-integrations-and-config/<provider>.mdx` 의 GUI 흐름 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts` — `02-nodes/triggers.mdx` 의 provider 별 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts` — 사용자 가이드 MDX 본문(frontmatter / HTML·MDX 주석 / `<ImplAnchor>` 제거 후)에 내부 SoT (`spec/`·`plan/in-progress|complete/`·`별 plan`/`separate plan`·`CCH-XX-NN`·`R-XX-N`·`ERROR_KO` 등 i18n 매핑 테이블·`backend-labels.ts`) 가 노출되지 않는지 검증. SoT invariant: 본 절 §자주 누락되는 작성 패턴 + [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) Principle 6
+- `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — `spec/**.md` 본문 in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). SoT: `spec/conventions/spec-impl-evidence.md §4.2`
+- `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts` — 영역 폴더(≥2 sibling)의 index 가 모든 sibling spec 을 링크하는지 검증 (`spec/conventions/` flat reference 면제). SoT: `spec/conventions/spec-impl-evidence.md §4.2`
+- `codebase/frontend/src/lib/docs/__tests__/plan-frontmatter.test.ts` — top-level `plan/in-progress/*.md` 의 `worktree`(sentinel `(unstarted)` 허용)/`started`/`owner` frontmatter 강제. SoT: `.claude/docs/plan-lifecycle.md §4`
+- `codebase/frontend/src/lib/docs/__tests__/spec-plan-completion.test.ts` — `started ≥ 2026-06-04` 완료 plan 의 `spec_impact` 선언 강제 (Gate C, date-cutoff grandfather). SoT: `spec/conventions/spec-impl-evidence.md §4.2`
 
 이들은 코드 리뷰가 검출하지 못한 누락도 빌드 단계에서 차단한다 (마이그레이션 V번호 가드와 동일 패턴). 위반의 invariant 자체는 [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) · [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) · [`spec/conventions/user-guide-evidence.md`](spec/conventions/user-guide-evidence.md) 에 정식 등록되어 있어 `convention-compliance-checker` 가 sub-agent 단에서도 점검한다.
 
