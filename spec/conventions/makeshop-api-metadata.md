@@ -78,7 +78,7 @@ interface MakeshopOperationMetadata {
 ## 4. Wire format
 
 - **인증**: `Authorization: Bearer {access_token}` (OAuth 2.1 access token). base URL `https://connect.makeshop.co.kr/api/v1/{shop_uid}/{path}`.
-- **POST/PUT body**: **flat JSON** — Cafe24 의 `{request:{...}}` envelope 래핑 미적용 ([MakeShop 노드 §9.4](../4-nodes/4-integration/5-makeshop.md#94-postput-request-envelope-미적용)). ⚠ 구현 시 검증.
+- **POST body**: **flat JSON** — Cafe24 의 `{request:{...}}` envelope 래핑 미적용 ([MakeShop 노드 §9.4](../4-nodes/4-integration/5-makeshop.md#94-postput-request-envelope-미적용)). ⚠ 구현 시 검증. (MakeShop Shop API 는 PUT/DELETE 를 HTTP method 로 쓰지 않는다 — 삭제·수정도 `cart/delete`·`cart/update` 처럼 path segment + POST.)
 - **scope wire format**: OAuth 2.1 표준 **공백 구분** (`store.read store.write`) — Cafe24 콤마 예외 미적용 ([MakeShop 노드 §9.2](../4-nodes/4-integration/5-makeshop.md#92-oauth-scope-wire-format--공백-구분-표준-cafe24-콤마-quirk-없음)).
 - **timezone**: 미확인 — 구현 시 확정 ([MakeShop 노드 §4.1](../4-nodes/4-integration/5-makeshop.md#41-timezone-semantics)).
 

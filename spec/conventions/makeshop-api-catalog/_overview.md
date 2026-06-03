@@ -1,6 +1,6 @@
-# CONVENTION: Makeshop API Catalog — Overview
+# CONVENTION: MakeShop API Catalog — Overview
 
-> 관련: [Makeshop 공식 개발자센터](https://developer.makeshop.co.kr/docs/api/shop/상점-설정-정보) · 참고 패턴 [Cafe24 API Catalog](../cafe24-api-catalog/_overview.md)
+> 관련: [MakeShop 공식 개발자센터](https://developer.makeshop.co.kr/docs/api/shop/상점-설정-정보) · 참고 패턴 [Cafe24 API Catalog](../cafe24-api-catalog/_overview.md)
 
 본 디렉토리는 메이크샵 신형 Shop API(`/api/v1/{shopId}/…`, OAuth2 `bearerAuth`)의 **모든 endpoint** 를 섹션 단위로 enumerate 한 단일 진실(SoT)이다. 메이크샵 통합(AI agent MCP + workflow 노드) 구현에 **앞선 사전 준비 레퍼런스**로, cafe24-api-catalog 패턴을 따른다.
 
@@ -48,3 +48,15 @@ spec/conventions/makeshop-api-catalog/
 - **인증**: 전부 `bearerAuth`, path 전부 `/api/v1/{shopId}/` 템플릿.
 
 - **CPIK 섹션**: 외부 연동(장바구니/회원 join·login/online_order) REST + 상품·주문·배송·카테고리 변경 **webhook 이벤트**로 구성. webhook 은 호출형 REST 가 아니라 워크플로 trigger 노드 매핑 대상이다.
+
+## 6. 구현 착수 시 추가 컬럼 (sync 승격 — Phase 0)
+
+현재 섹션별 카탈로그(`<section>.md`)는 순수 레퍼런스라 `id / 라벨(한) / method / path / 권한 / docs` 컬럼만 가진다. 메이크샵 노드 구현([MakeShop 노드 §2](../../4-nodes/4-integration/5-makeshop.md#2-설정-ui))에 backend 메타데이터가 생기는 시점에, cafe24 catalog([cafe24-api-catalog `_overview.md §2·§3`](../cafe24-api-catalog/_overview.md))와 동일 체계로 아래 컬럼을 추가하고 `catalog-sync` 양방향 테스트로 보호한다.
+
+| 추가 컬럼 | 값 | 정의 |
+|----------|-----|------|
+| `status` | `supported` / `planned` | `supported` = backend 메타데이터에 row 존재(노드/MCP 호출 가능). `planned` = 카탈로그 등재만, 미구현(UI "지원 예정"). cafe24 의 `deprecated` 는 makeshop 미사용 |
+| `scope` | `read` / `write` | `<x-scope>.read` / `.write` 의 가운데 토큰 (메타데이터 `scopeType` 과 일치) |
+| `paginated` | `✓` 또는 빈칸 | 메타데이터 `paginated: boolean` 과 일치 |
+
+> **restricted 컬럼 없음**: cafe24 와 달리 makeshop 은 per-scope/operation 별도 승인 티어가 없다 ([MakeShop 노드 §9.5](../../4-nodes/4-integration/5-makeshop.md#95-별도-승인restricted-scope-미도입)) → `restricted` 컬럼·`restrictedApproval` 메타데이터 미도입. Phase 0 에서 `MakeshopOperationMetadata` 는 cafe24 형식에서 `restrictedApproval` 을 제거한 형태 ([makeshop-api-metadata §2](../makeshop-api-metadata.md#2-operation-메타데이터-형식)).

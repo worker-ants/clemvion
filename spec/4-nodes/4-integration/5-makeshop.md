@@ -67,9 +67,9 @@ pending_plans:
 1. **Config 정규화**: `resource` / `operation` → 메타데이터 조회 `{ method, path, requiredFields, optionalFields, paginated }`. 미존재 시 `MAKESHOP_UNKNOWN_OPERATION` 으로 §5.3 라우팅 (D4).
 2. **Config echo** (Principle 7): `integrationId`·`resource`·`operation`·`fields`·`pagination` echo. **자격증명 echo 금지**.
 3. **Integration 자격증명 해석**: `service_type='makeshop'` + `status='connected'` 검증. 실패 시 `INTEGRATION_*` 코드 ([공통 §4.2](./0-common.md#42-공통-에러-코드)).
-4. **credentials 충족 검증**: `shop_uid`, `access_token`, `refresh_token`, `client_id`, `client_secret` 누락 시 `INTEGRATION_INCOMPLETE` (D4). *(MakeShop OAuth 는 confidential client 모델이라 client_id/secret 가 항상 필요 — Cafe24 의 public/private 분기와 달리 단일 형태.)*
+4. **credentials 충족 검증 + shop_uid 형식**: `shop_uid`, `access_token`, `refresh_token`, `client_id`, `client_secret` 누락 시 `INTEGRATION_INCOMPLETE` (D4). `shop_uid` 가 형식 규약(영숫자·하이픈·언더스코어, SSRF 방어 — base URL path segment 주입 차단) 위반 시 `MAKESHOP_INVALID_SHOP_UID` (D4). *(MakeShop OAuth 는 confidential client 모델이라 client_id/secret 가 항상 필요 — Cafe24 의 public/private 분기와 달리 단일 형태. shop_uid 정확한 형식 정규식은 구현 시 makeshop 문서로 확정 — §9.7.)*
 5. **Required fields + constraints 검증**: Cafe24 §4 step 5 동일. 위반 시 `MAKESHOP_MISSING_FIELDS`.
-6. **토큰 만료 확인 및 갱신**: `Integration.token_expires_at` 만료/임박(60초) 시 자동 갱신. **갱신 endpoint = `https://auth.makeshop.com/oauth/token` (`grant_type=refresh_token`)**. refresh token 은 **1회 사용 후 회전(rotation)** 되므로 새 refresh_token 을 반드시 저장한다 (Cafe24 와 동일한 rotation 특성). access token TTL 1시간, refresh token TTL 기본 30일·최대 90일. 갱신 실패 분기·cross-pod 직렬화는 [Cafe24 §4 step 6](./4-cafe24.md#4-실행-로직) 및 [통합 §10.5](../../2-navigation/4-integration.md#105-토큰-자동-갱신) 정책 재사용.
+6. **토큰 만료 확인 및 갱신**: `Integration.token_expires_at` ([데이터 모델 §2.10](../../1-data-model.md#210-integration)) 만료/임박(60초) 시 자동 갱신. **갱신 endpoint = `https://auth.makeshop.com/oauth/token` (`grant_type=refresh_token`)**. refresh token 은 **1회 사용 후 회전(rotation)** 되므로 새 refresh_token 을 반드시 저장한다 (Cafe24 와 동일한 rotation 특성). access token TTL 1시간, refresh token TTL 기본 30일·최대 90일. cross-pod 직렬화는 **전용 `makeshop-token-refresh` BullMQ 큐 (`jobId = integrationId` dedup)** 를 신설한다 — cafe24 의 `cafe24-token-refresh` 큐와 분리 (service 별 token endpoint·rotation 정책이 달라 큐를 공유하지 않음). 갱신 실패 분기·reactive_401 직렬화 정책은 [Cafe24 §4 step 6](./4-cafe24.md#4-실행-로직) 및 [통합 §10.5](../../2-navigation/4-integration.md#105-토큰-자동-갱신) 와 동형.
 7. **URL 구성**: `https://connect.makeshop.co.kr/api/v1/{shop_uid}/{operation.path}` — `{path}` 는 메타데이터 path template (예: `information`, `product/{product_id}`, `cart/create`). path parameter 는 `fields` 에서 채움. *(Cafe24 의 `{mall_id}.cafe24api.com` 서브도메인 방식과 달리 단일 호스트 + `{shopId}` path segment.)*
 8. **Query / Body 구성**: 메타데이터 `fields[*].location` (path / query / body) 에 따라 분배. `pagination.{limit, offset}` 는 query. **POST/PUT body 는 flat JSON 그대로 전송** — Cafe24 의 `{request:{...}}` envelope 래핑은 MakeShop 에 적용하지 않는다 (§9.4. ⚠ 구현 시 makeshop 문서로 재확인).
 9. **호출 (rate-limit-aware + 401 reactive refresh)**: `MakeshopApiClient` wrapper — `Authorization: Bearer {access_token}` → fetch → **401 응답 시** refresh + 동일 요청 1회 재시도 (Cafe24 §6.1 401 분기 동일 정책). 403 은 즉시 격하. **rate limit**: MakeShop 은 data-call rate limit 헤더·정책을 공개 문서화하지 않았다 (§9.7) — 429 응답 시 `Retry-After` 헤더가 있으면 그 값만큼, 없으면 고정 backoff 로 최대 2회 재시도 후 `MAKESHOP_RATE_LIMITED`.
@@ -87,6 +87,8 @@ pending_plans:
 MakeShop API 의 date/time 필드 timezone 규약은 **구현 전 미확인 (open question)** 이다 (§9.7). 구현 착수 시 makeshop 공식 문서로 확정하고, KST 고정이면 Cafe24 §4.3·[Cafe24 API Metadata §5](../../conventions/cafe24-api-metadata.md#5-timezone-semantics) 와 동일하게 AI Agent 도구 description suffix 를 도입한다.
 
 ## 5. 출력 구조
+
+> CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 외 top-level 키 금지. `status` 는 비-블로킹 노드이므로 항상 생략.
 
 [Cafe24 §5](./4-cafe24.md#5-출력-구조) 와 동일한 5필드 envelope (`config`/`output`/`meta`/`port`, `status` 생략).
 
@@ -108,13 +110,13 @@ MakeShop API 의 date/time 필드 timezone 규약은 **구현 전 미확인 (ope
 }
 ```
 
-| 필드 | 출처 | 설명 |
-|------|------|------|
-| `config.*` | config echo (Principle 7) | 사용자 입력 raw — `{{ }}` 보존 |
-| `output.response` | runtime | MakeShop 응답 body 그대로 보존 (구조는 operation 별, [catalog openapi json](../../conventions/makeshop-api-catalog/_overview.md) 참조) |
-| `meta.statusCode` | engine inject | HTTP status (2xx) |
-| `meta.durationMs` | engine inject | 요청~응답 ms |
-| `port` | handler return | `'success'` |
+| 필드 | 타입 | 출처 | 설명 |
+|------|------|------|------|
+| `config.*` | object | config echo (Principle 7) | 사용자 입력 raw — `{{ }}` 보존 |
+| `output.response` | unknown | runtime | MakeShop 응답 body 그대로 보존 (구조는 operation 별, [catalog openapi json](../../conventions/makeshop-api-catalog/_overview.md) 참조) |
+| `meta.statusCode` | number | engine inject | HTTP status (2xx) |
+| `meta.durationMs` | number | engine inject | 요청~응답 ms |
+| `port` | `'success'` | handler return | 2xx 응답 분기 |
 
 ### 5.3 Case: API 에러 또는 Transport 실패 (port `error`)
 
@@ -191,7 +193,7 @@ CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?
 | `resource='product'`, `operation='get-product'` | `mcp_<int8자>__get_product` |
 | `resource='cpik'`, `operation='post-cart-create'` | `mcp_<int8자>__post_cart_create` |
 
-> **MakeShop operationId 의 하이픈**: MakeShop operationId 는 `get-product` 처럼 하이픈을 포함한다. MCP §5.2 도구 이름 규칙은 영숫자·underscore 외 문자를 sanitize 하므로 하이픈은 `_` 로 치환된다 (`get-product` → `get_product`). bare operation id(하이픈 형태)는 allowlist·Bridge 내부 API 에서 유지하고, sanitize 는 MCP Client 레이어가 도구 노출 시점에 적용한다.
+> **MakeShop operationId 의 하이픈·언더스코어 혼용**: MakeShop operationId 는 `get-product`·`get-cart_free_config` 처럼 하이픈과 언더스코어를 혼용한다. MCP §5.2 도구 이름 규칙은 영숫자·underscore 외 문자를 sanitize 하므로 하이픈은 `_` 로 치환된다 (`get-cart-free-config` → `get_cart_free_config`). **sanitize 충돌 방지**: 한 resource 안에서 sanitize 후 토큰이 충돌하면(예: `get-a_b` 와 `get-a-b` 가 모두 `get_a_b` 로) 도구 이름이 겹치므로, `catalog-sync` 테스트가 **resource 내 sanitize-후 operationId 의 unique 성**을 검증한다 (현재 catalog 161 op 은 충돌 없음 — 구현 시 가드로 고정). bare operation id(원형)는 allowlist·Bridge 내부 `execute(name, args)` 에서 유지하고, sanitize 는 MCP Client 레이어가 도구 노출 시점에 적용한다.
 
 ### 8.2 메타도구 미사용 / 8.3 allowlist / 8.4 Rate Limit 공유 / 8.5 UsageLog / 8.6 expired 자가 회복
 

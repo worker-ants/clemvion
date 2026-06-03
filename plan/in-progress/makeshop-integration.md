@@ -91,6 +91,60 @@ spec-only → implemented 승격(노드 구현 PR) 시 함께 갱신:
 
 > C-6 은 makeshop 구현 PR 에서 cafe24 하드코딩을 registry 로 전환하며 닫는다. 본 spec 작업은 그 전환이 만족해야 할 **derived-필드 규칙의 일반화**를 명세한다.
 
+### consistency-check --impl-prep (2026-06-03, `review/consistency/2026/06/03/20_56_05/`)
+
+**BLOCK: NO** — 구현 착수 가능. "Critical"(catalog status 컬럼 미정의)은 코드 모순 아닌 spec 보완으로 명시적 BLOCK: NO.
+
+**해소 완료 (makeshop spec)**: C#1(_overview §6 status/scope/paginated 컬럼 정의)·W1(§4 step4 shop_uid 형식검증)·W2(0-common §4.2 D4 일반화)·W8(§5 Principle 11 주석)·W9(§8.1 sanitize 충돌 dedup 정책)·W11(§4 step6 전용 `makeshop-token-refresh` 큐 신설 결정)·INFO2(metadata POST only)·INFO8(§5.1 타입 컬럼)·INFO9(_overview title MakeShop)·INFO10(§4 step6 data-model 링크).
+
+**미해소 — 처리 방침**:
+- **W6·W7 (status: spec-only "비표준 enum")**: **false positive** — `spec-impl-evidence.md §3` 가 `spec-only` 를 정식 enum 으로 명시(backlog/spec-only/partial/implemented/archived). 이전 `--spec` 1차 run 은 오히려 `planned→spec-only` 로 고치라 했음(checker 간 모순). spec-only 유지.
+- **W3·W4·W5·W10·INFO4·5·6·7·11 (타 spec 선재 이슈)**: send-email port `'out'` 표기·db-query/http `INTEGRATION_NOT_FOUND` surface·cafe24 B-3-7 rationale 누락·spec-sync-gaps 미결 3건·0-common Rationale 부재 등 — **makeshop 무관 기존 spec 이슈**. developer 범위 밖(spec = planner 영역) → 별도 planner follow-up 으로 분리(본 구현 PR 비포함).
+- **INFO12 (stale worktree 6개)**: 운영 cleanup — `./cleanup-worktree-all.sh` 별도 처리.
+
+## 구현 단계 (developer) — cafe24 구현 미러링
+
+> 전제: cafe24 구현 지도 기준. `service_type`·node type 모두 string 컬럼(DB enum 아님) → enum 마이그레이션 불필요, partial UNIQUE 인덱스(V071)만. 최신 마이그레이션 = V070. 각 Phase = 독립 PR 지향(개별 `/ai-review` + `--impl-done`).
+
+### Phase 0 — Foundation (metadata + 마이그레이션, 런타임 미배선)
+- `nodes/integration/makeshop/metadata/types.ts` — `MakeshopResource`(7), `MAKESHOP_RESOURCES`, field/constraint 타입 (cafe24 types.ts 미러, **`restrictedApproval` 제거**, method 'GET'|'POST')
+- `metadata/<shop|product|order|member|benefit|board|cpik>.ts` — **catalog `openapi/<section>.json` 에서 generator 로 161 op 생성** (id=operationId, scopeType=x-scope→read/write, method/path, requiredFields, fields{type,location})
+- `metadata/index.ts` — `MAKESHOP_OPERATIONS_BY_RESOURCE`, `findMakeshopOperation`, `scopeForOperation`, `listAllMakeshopOperations`
+- `metadata/constraint-validator.ts`, `metadata/public-meta.ts`(`buildMakeshopExtras`)
+- `metadata/catalog-sync.spec.ts`(catalog md ↔ metadata 양방향) + `metadata.spec.ts` + catalog 에 `status` 컬럼 추가
+- `migrations/V071__integration_makeshop_workspace_mall_idx.sql` — `(workspace_id, mall_id) WHERE service_type='makeshop'` partial UNIQUE
+- 테스트: catalog-sync, metadata unit
+
+### Phase 1 — C-6 registry + service-registry
+- `modules/integrations/integrations.service.ts` `buildIntegrationMeta` → `Map<serviceType, fn>` 레지스트리 전환 (cafe24 + makeshop appUrl/autoRefresh/mall_id 파생) — **C-6 해소**
+- `services/service-registry.ts` — `MAKESHOP_OAUTH_FIELDS`(shop_uid/client_id/client_secret/access_token/refresh_token), `MAKESHOP_SCOPES`(<x-scope>.read/.write 공백구분), SERVICE 엔트리(`type:'makeshop'`, `oauthProvider:'makeshop'`, `supportsTokenAutoRefresh:true`)
+- 테스트: integrations.service(레지스트리), service-registry
+
+### Phase 2 — API client + 노드
+- `makeshop-api.client.ts` — `MakeshopApiClient` (Bearer, base `connect.makeshop.co.kr/api/v1/{shop_uid}/`, **flat body**, 401 refresh+1retry, 429 Retry-After best-effort, refresh via `auth.makeshop.com/oauth/token` rotation)
+- `makeshop-token-refresh.processor.ts` + constants + BullMQ queue
+- `makeshop.schema.ts`·`makeshop.handler.ts`·`makeshop.component.ts`·`makeshop.module.ts`·`index.ts`
+- `nodes/index.ts` `ALL_NODE_COMPONENTS` 등록
+- 테스트: handler·api.client·processor spec
+
+### Phase 3 — OAuth + 설치
+- `integration-oauth.service` makeshop auth-code (authorize/token `auth.makeshop.com`, **공백구분 scope**, PKCE S256)
+- ShopStore 설치 HMAC 검증 endpoint (cafe24 install 미러 — ⚠ makeshop install URL·HMAC 메시지 구성 공식문서 확인 선행)
+- `third-party-oauth.controller.ts` makeshop 라우트 + shop_uid precheck
+- 테스트: oauth service spec
+
+### Phase 4 — MCP tool provider
+- `tool-providers/makeshop-mcp-tool-provider.ts` (cafe24 미러, **하이픈 operationId → `_` sanitize**), provider stack 등록
+- 테스트: provider spec
+
+### Phase 5 — Frontend
+- `IntegrationSelector` serviceTypes makeshop, catalog i18n `dict/{ko,en}/makeshopCatalog.ts`, Add Integration 폼(shop_uid/client_id/secret/scope), allowlist editor, 상세 카드, shop_uid precheck
+- user guide mdx (`user-guide-writer` 위임)
+- 테스트: frontend specs
+
+### Phase 6 — e2e + 마무리
+- makeshop 노드 실행 + OAuth 흐름 e2e, catalog `status` sync 승격, §9.7 open question 확정 반영
+
 ## 후속 (별도 plan)
 
 - **통합 공통 webhook/trigger 노드**: cafe24·makeshop 양쪽 모두 inbound webhook(이벤트 수신) trigger 가 아직 없다. makeshop cpik 11 webhook + cafe24 webhook 을 함께 다루는 trigger 노드 설계를 별 plan 으로 분리. makeshop 측 webhook 구독 등록 API 는 현재 미문서화(open question) — 구현 전 makeshop 파트너센터 확인 필요.
