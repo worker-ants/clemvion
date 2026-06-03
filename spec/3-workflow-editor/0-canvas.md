@@ -409,6 +409,8 @@ pending_plans:
 | Form | `{N} fields · "{title}"` | `3 fields · "Approval"` |
 | Template | `{{outputFormat}} · {{buttons.length}} buttons` | `html · 2 buttons` |
 
+> 포맷 SoT 는 각 노드 spec 의 `summaryTemplate` 이다. downscope(예: Code 의 `N lines`, Send Email 의 `to: +N` 미지원) 근거는 해당 노드 Rationale / `0-common.md §5` 참조.
+
 #### 5.3.5 엣지 케이스
 
 | 케이스 | 동작 |

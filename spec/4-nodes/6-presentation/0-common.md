@@ -168,6 +168,8 @@ Presentation 5 노드 (Carousel / Table / Chart / Form / Template) 모두 공통
 | Form | `{N} fields · "{title}"` (필드 수 + 폼 제목) | `3 fields · "Approval"` |
 | Template | `{{outputFormat}} · {{buttons.length}} buttons` (`summaryTemplate`) | `html · 2 buttons` |
 
+> Template 포맷 단일화(`N lines` 변형 포기) 근거는 [`5-template.md` §Rationale R-1](./5-template.md#rationale) 참조.
+
 ---
 
 ## 6. Run Results Drawer 렌더링
