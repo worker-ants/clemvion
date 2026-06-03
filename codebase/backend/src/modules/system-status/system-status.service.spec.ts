@@ -342,6 +342,49 @@ describe('SystemStatusService.getOverview', () => {
     const res = await service.getOverview();
 
     expect(res.queues[0].recentFailed).toBe(1);
+    // 집합 끝까지 스캔(캡 소진 아님) → 정확값
+    expect(res.queues[0].recentFailedCapped).toBe(false);
+  });
+
+  it('부분 capped — 한 큐만 capped 여도 집계 recentFailedCapped 는 OR=true', async () => {
+    const prev = process.env.SYSTEM_STATUS_FAILED_SCAN_CAP;
+    process.env.SYSTEM_STATUS_FAILED_SCAN_CAP = '2';
+    try {
+      const handles = [
+        // A: 최근 10건 → 캡 2 소진 → capped
+        makeHandle(
+          'a',
+          'execution',
+          2,
+          { active: 1, failed: 10 },
+          {
+            failedJobs: recentJobs(10),
+          },
+        ),
+        // B: 최근 1건만 → 집합 끝 → not capped
+        makeHandle(
+          'b',
+          'system',
+          1,
+          { active: 1, failed: 1 },
+          {
+            failedJobs: recentJobs(1),
+          },
+        ),
+      ];
+      const service = new SystemStatusService(handles);
+
+      const res = await service.getOverview();
+
+      const a = res.queues.find((q) => q.name === 'a')!;
+      const b = res.queues.find((q) => q.name === 'b')!;
+      expect(a.recentFailedCapped).toBe(true);
+      expect(b.recentFailedCapped).toBe(false);
+      expect(res.recentFailedCapped).toBe(true); // OR 집계
+    } finally {
+      if (prev === undefined) delete process.env.SYSTEM_STATUS_FAILED_SCAN_CAP;
+      else process.env.SYSTEM_STATUS_FAILED_SCAN_CAP = prev;
+    }
   });
 
   it('윈도우 길이 env 조정 — SYSTEM_STATUS_FAILED_WINDOW_MINUTES 반영', async () => {
@@ -395,6 +438,8 @@ describe('SystemStatusService.getOverview', () => {
     const broken = res.queues.find((q) => q.name === 'broken')!;
     expect(broken.health).toBe('down');
     expect(broken.recentFailed).toBe(0);
+    expect(broken.recentFailedCapped).toBe(false);
+    expect(res.recentFailedCapped).toBe(false);
     expect(broken.counts).toEqual({
       waiting: 0,
       active: 0,

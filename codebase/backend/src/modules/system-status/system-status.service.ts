@@ -42,6 +42,15 @@ const ZERO_COUNTS: QueueCountsDto = {
  */
 const FAILED_SCAN_PAGE = 100;
 
+/** computeRecentFailed 결과 — 최근 윈도우 실패 수 + 캡 소진으로 하한값인지. */
+interface RecentFailedResult {
+  recent: number;
+  capped: boolean;
+}
+
+/** failed===0(스캔 생략) · Redis 오류 fallback 공통 기본값. */
+const ZERO_RECENT: RecentFailedResult = { recent: 0, capped: false };
+
 /**
  * 전체 시스템(BullMQ 큐)의 집계 상태를 반환한다.
  * 개별 job·payload 는 노출하지 않는다 (spec/5-system/16-system-status-api.md §4).
@@ -124,7 +133,7 @@ export class SystemStatusService {
       const { recent: recentFailed, capped: recentFailedCapped } =
         counts.failed > 0
           ? await this.computeRecentFailed(handle.queue, cutoffMs, scanCap)
-          : { recent: 0, capped: false };
+          : ZERO_RECENT;
 
       return {
         name: meta.name,
@@ -170,7 +179,7 @@ export class SystemStatusService {
     queue: QueueHandle['queue'],
     cutoffMs: number,
     scanCap: number,
-  ): Promise<{ recent: number; capped: boolean }> {
+  ): Promise<RecentFailedResult> {
     let recent = 0;
     let scanned = 0;
     let offset = 0;

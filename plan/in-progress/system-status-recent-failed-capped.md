@@ -37,9 +37,9 @@ owner: planner → developer
 - [x] e2e 단언: `recentFailedCapped` boolean 타입 확인(overview·queue).
 
 ### Phase 5 — 품질 검증
-- [x] lint·unit·build·e2e green.
-- [ ] `/ai-review` + Critical/Warning fix.
-- [ ] 완료 시 plan complete 이동 + spec partial→implemented 재승격.
+- [x] lint·unit·build·e2e green (resolution fix 후 재통과).
+- [x] `/ai-review` (RISK=HIGH 보고됐으나 CRITICAL 2건은 documentation-reviewer 의 base/stale 오독 false positive — HEAD spec 검증으로 확인). WARNING 2 + 고가치 INFO 반영, RESOLUTION.md 기록.
+- [ ] plan complete 이동 + spec partial→implemented 재승격 (본 turn 마무리).
 
 ## Rationale
 

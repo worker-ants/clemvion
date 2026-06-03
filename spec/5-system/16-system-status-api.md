@@ -89,6 +89,7 @@ QueueStatusDto {
 
 - 규칙 1·2 는 변경 없다. 규칙 2 의 워커 미가동 판정(R-3)은 `recentFailed` 와 **독립 동작**한다.
 - 코드상수 ↔ env 매핑: `FAILED_DEGRADED_THRESHOLD` ← `SYSTEM_STATUS_FAILED_THRESHOLD`(기본 1), `DELAYED_DEGRADED_THRESHOLD` ← `SYSTEM_STATUS_DELAYED_THRESHOLD`(기본 50). 기본값은 운영 경험으로 재조정 가능.
+- 본 API 의 관련 env 일람: `SYSTEM_STATUS_FAILED_THRESHOLD`(기본 1), `SYSTEM_STATUS_DELAYED_THRESHOLD`(기본 50), `SYSTEM_STATUS_FAILED_WINDOW_MINUTES`(기본 60, `recentFailed` 윈도우), `SYSTEM_STATUS_FAILED_SCAN_CAP`(기본 1000, 큐당 getFailed 스캔 상한). 모두 음수·0 입력 시 안전값으로 폴백(§2).
 - **의미 변경 주의**: `SYSTEM_STATUS_FAILED_THRESHOLD` 의 비교 대상이 기존 "보관 중 누적 `failed`" 에서 **"최근 윈도우 `recentFailed`"** 로 바뀐다. 기존 설정값을 유지해 배포하면 degraded 판정 동작이 달라질 수 있으므로 운영자는 설정값을 재검토한다 (R-5).
 - `overall` 은 큐 health 의 최악값 (down > degraded > healthy).
 

@@ -10,8 +10,8 @@ import { registerAndLogin } from './helpers/auth';
  *
  * 검증 영역:
  *   1) 미인증 → 401 (전역 JWT 가드)
- *   2) 인증 → 200, {data:{generatedAt,overall,totalFailed,totalRecentFailed,failedWindowMinutes,queues}} 형태 + 12개 큐 enumerate
- *   3) 각 큐 항목 구조(counts/recentFailed/health/group/utilization) 정합
+ *   2) 인증 → 200, {data:{generatedAt,overall,totalFailed,totalRecentFailed,recentFailedCapped,failedWindowMinutes,queues}} 형태 + 12개 큐 enumerate
+ *   3) 각 큐 항목 구조(counts/recentFailed/recentFailedCapped/health/group/utilization) 정합
  *   4) 시스템 전역 API — X-Workspace-Id 유무가 결과 큐 집합에 영향 없음
  *
  * 실 BullMQ root 연결이 떠 있는 e2e 인프라에서만 의미가 있다.
