@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/date";
 import type { ConversationItem } from "@/lib/stores/execution-store";
 import {
   CheckCircle,
@@ -10,6 +11,7 @@ import {
   Info,
   AlertCircle,
 } from "lucide-react";
+import { formatDuration } from "./utils";
 
 interface ConversationTimelineItemProps {
   item: ConversationItem;
@@ -102,6 +104,19 @@ export function ConversationTimelineItem({
           )}
           {(item.metadata.toolCalls ?? 0) > 0 && (
             <span>🔧 {item.metadata.toolCalls}</span>
+          )}
+        </div>
+      )}
+      {/* spec/conventions/conversation-thread.md §9.12 — 요소별 발생 시각(절대)
+          + assistant·tool 소요시간. 결측 시 해당 표기 생략. */}
+      {(item.timestamp || item.durationMs != null) && (
+        <div className="ml-4 flex items-center gap-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
+          {item.timestamp && (
+            <span>{formatDate(item.timestamp, "time-seconds")}</span>
+          )}
+          {item.timestamp && item.durationMs != null && <span>·</span>}
+          {item.durationMs != null && (
+            <span>{formatDuration(item.durationMs)}</span>
           )}
         </div>
       )}

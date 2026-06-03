@@ -445,6 +445,8 @@ export function useExecutionEvents({
                       requestPayload?: unknown;
                       responsePayload?: unknown;
                       durationMs?: number;
+                      startedAt?: string;
+                      finishedAt?: string;
                     }>;
                   };
                   metadata?: { model?: string };
@@ -555,6 +557,8 @@ export function useExecutionEvents({
           requestPayload?: unknown;
           responsePayload?: unknown;
           durationMs?: number;
+          startedAt?: string;
+          finishedAt?: string;
         }>;
         durationMs?: number;
       };
@@ -611,6 +615,7 @@ export function useExecutionEvents({
         toolCallId?: string;
         name?: string;
         arguments?: string;
+        startedAt?: string;
       };
       if (!payload.toolCallId || !payload.name) return;
       upsertToolItem({
@@ -620,7 +625,10 @@ export function useExecutionEvents({
         toolCallId: payload.toolCallId,
         toolArgs: tryParseJson(payload.arguments),
         toolStatus: "pending",
-        timestamp: new Date().toISOString(),
+        // spec/5-system/6-websocket-protocol.md §4.4 — backend 동봉 startedAt 을
+        // 우선 사용해 라이브/영속(history) 발생 시각을 일치시킨다. 미동봉(legacy)
+        // 시에만 client 수신 시각으로 폴백.
+        timestamp: payload.startedAt ?? new Date().toISOString(),
       });
     },
     [upsertToolItem],
@@ -635,6 +643,8 @@ export function useExecutionEvents({
         status?: "success" | "error";
         error?: string;
         durationMs?: number;
+        startedAt?: string;
+        finishedAt?: string;
       };
       if (!payload.toolCallId) return;
       const patch: Partial<ConversationItem> = {
@@ -643,6 +653,11 @@ export function useExecutionEvents({
       };
       if (payload.durationMs !== undefined) {
         patch.durationMs = payload.durationMs;
+      }
+      // backend startedAt 으로 발생 시각을 권위값으로 reconcile (started 이벤트
+      // 유실 시에도 정확). §4.4 영속과 동일 값.
+      if (payload.startedAt !== undefined) {
+        patch.timestamp = payload.startedAt;
       }
       if (payload.error !== undefined) {
         patch.error = payload.error;
@@ -669,7 +684,7 @@ export function useExecutionEvents({
             ? { durationMs: payload.durationMs }
             : {}),
           ...(payload.error !== undefined ? { error: payload.error } : {}),
-          timestamp: new Date().toISOString(),
+          timestamp: payload.startedAt ?? new Date().toISOString(),
         });
         return;
       }

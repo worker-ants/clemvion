@@ -32,6 +32,7 @@ import { ButtonBar } from "./button-bar";
 import { ConversationInspector } from "./conversation-inspector";
 import { BackgroundRunSection } from "./background-run-section";
 import { parseHistoryMessages } from "./conversation-utils";
+import { formatDate } from "@/lib/utils/date";
 import { formatDuration } from "./utils";
 import { parseButtonConfig, openExternalLink } from "./button-config";
 import { useT, type TFunction } from "@/lib/i18n";
@@ -1162,6 +1163,12 @@ export function ResultDetail({
         </span>
         <StatusBadge status={result.status} />
         {isDryRunOutput(result.outputData) && <DryRunBadge />}
+        {/* spec/conventions/conversation-thread.md §9.12 — 노드 발생 시각(절대) + 소요시간 */}
+        {result.startedAt && (
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">
+            {formatDate(result.startedAt, "datetime")}
+          </span>
+        )}
         {result.duration != null && (
           <span className="text-xs text-[hsl(var(--muted-foreground))]">
             {formatDuration(result.duration)}

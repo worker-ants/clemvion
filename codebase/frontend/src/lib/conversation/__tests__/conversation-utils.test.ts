@@ -212,6 +212,84 @@ describe("messagesToConversationItems", () => {
     expect(assistants[1].metadata?.outputTokens).toBe(30);
   });
 
+  // spec/conventions/conversation-thread.md §9.12 — 요소별 절대 발생 시각.
+  it("populates assistant timestamp from llmCalls[].startedAt (tool-only response included)", () => {
+    const items = messagesToConversationItems(
+      [
+        { role: "user", content: "x" },
+        {
+          // tool-call 만 있는 (content blank) 어시스턴트 응답도 발생 시각을 가진다.
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "c1", name: "kb", arguments: "{}" }],
+        },
+        { role: "tool", toolCallId: "c1", content: "{}" },
+        { role: "assistant", content: "final" },
+      ],
+      {
+        debugByTurn: new Map([
+          [
+            1,
+            {
+              turnIndex: 1,
+              llmCalls: [
+                {
+                  requestPayload: {},
+                  responsePayload: {},
+                  durationMs: 100,
+                  startedAt: "2026-05-10T06:42:01.500Z",
+                  finishedAt: "2026-05-10T06:42:01.600Z",
+                },
+                {
+                  requestPayload: {},
+                  responsePayload: {},
+                  durationMs: 80,
+                  startedAt: "2026-05-10T06:42:02.000Z",
+                  finishedAt: "2026-05-10T06:42:02.080Z",
+                },
+              ],
+            },
+          ],
+        ]),
+      },
+    );
+
+    const assistants = items.filter((i) => i.type === "assistant");
+    expect(assistants[0].timestamp).toBe("2026-05-10T06:42:01.500Z");
+    expect(assistants[1].timestamp).toBe("2026-05-10T06:42:02.000Z");
+  });
+
+  it("populates tool timestamp from toolStatusByCallId.startedAt (history rebuild)", () => {
+    const items = messagesToConversationItems(
+      [
+        { role: "user", content: "x" },
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "call_a", name: "kb_search", arguments: "{}" }],
+        },
+        { role: "tool", toolCallId: "call_a", content: '{"ok":1}' },
+        { role: "assistant", content: "done" },
+      ],
+      {
+        toolStatusByCallId: new Map([
+          [
+            "call_a",
+            {
+              status: "success",
+              durationMs: 12,
+              startedAt: "2026-05-10T06:42:03.100Z",
+            },
+          ],
+        ]),
+      },
+    );
+
+    const tool = items.find((i) => i.type === "tool");
+    expect(tool?.timestamp).toBe("2026-05-10T06:42:03.100Z");
+    expect(tool?.durationMs).toBe(12);
+  });
+
   it("turnIndex increments per user message across multiple turns", () => {
     const items = messagesToConversationItems([
       { role: "user", content: "q1" },

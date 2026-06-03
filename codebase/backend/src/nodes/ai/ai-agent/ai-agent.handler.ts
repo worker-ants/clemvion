@@ -61,6 +61,10 @@ export interface ToolCallTrace {
   providerKey?: string;
   status: 'success' | 'error';
   durationMs: number;
+  /** ISO8601 — tool 실행 시작 절대 시각. spec/5-system/6-websocket-protocol.md §4.4 */
+  startedAt?: string;
+  /** ISO8601 — tool 실행 종료 절대 시각. */
+  finishedAt?: string;
   error?: string;
 }
 
@@ -787,6 +791,7 @@ export class AiAgentHandler implements NodeHandler {
   }): Promise<{ result: AgentToolResult; trace: ToolCallTrace }> {
     const { provider, call, executionId, nodeId, turnIndex } = args;
     const startedAt = Date.now();
+    const startedAtIso = new Date(startedAt).toISOString();
 
     const startedPayload: ToolCallStartedPayload = {
       nodeId,
@@ -794,6 +799,7 @@ export class AiAgentHandler implements NodeHandler {
       toolCallId: call.id,
       name: call.name,
       arguments: call.arguments,
+      startedAt: startedAtIso,
     };
     await this.eventEmitter?.emitExecution(
       executionId,
@@ -833,12 +839,15 @@ export class AiAgentHandler implements NodeHandler {
     }
 
     const durationMs = Date.now() - startedAt;
+    const finishedAtIso = new Date().toISOString();
     const trace: ToolCallTrace = {
       toolCallId: call.id,
       name: call.name,
       providerKey: provider.key,
       status,
       durationMs,
+      startedAt: startedAtIso,
+      finishedAt: finishedAtIso,
       ...(error !== undefined ? { error } : {}),
     };
 
@@ -858,6 +867,8 @@ export class AiAgentHandler implements NodeHandler {
       status,
       ...(error !== undefined ? { error } : {}),
       durationMs,
+      startedAt: startedAtIso,
+      finishedAt: finishedAtIso,
     };
     await this.eventEmitter?.emitExecution(
       executionId,
@@ -1183,6 +1194,8 @@ export class AiAgentHandler implements NodeHandler {
       requestPayload: unknown;
       responsePayload: unknown;
       durationMs: number;
+      startedAt?: string;
+      finishedAt?: string;
     }> = [];
     const toolCallTraces: ToolCallTrace[] = [];
     const singleTurnStartedAt = Date.now();
@@ -1214,6 +1227,8 @@ export class AiAgentHandler implements NodeHandler {
       requestPayload: firstRequest,
       responsePayload: result,
       durationMs: Date.now() - callStartedAt,
+      startedAt: new Date(callStartedAt).toISOString(),
+      finishedAt: new Date().toISOString(),
     });
 
     let toolCallCount = 0;
@@ -1426,6 +1441,8 @@ export class AiAgentHandler implements NodeHandler {
         requestPayload: loopRequest,
         responsePayload: result,
         durationMs: Date.now() - callStartedAt,
+        startedAt: new Date(callStartedAt).toISOString(),
+        finishedAt: new Date().toISOString(),
       });
     }
 
@@ -1953,6 +1970,8 @@ export class AiAgentHandler implements NodeHandler {
       requestPayload: unknown;
       responsePayload: unknown;
       durationMs: number;
+      startedAt?: string;
+      finishedAt?: string;
     }> = [];
     const toolCallTraces: ToolCallTrace[] = [];
     let callStart = Date.now();
@@ -1967,6 +1986,8 @@ export class AiAgentHandler implements NodeHandler {
       requestPayload: chatParams,
       responsePayload: result,
       durationMs: Date.now() - callStart,
+      startedAt: new Date(callStart).toISOString(),
+      finishedAt: new Date().toISOString(),
     });
 
     while (
@@ -2202,6 +2223,8 @@ export class AiAgentHandler implements NodeHandler {
         requestPayload: loopReq,
         responsePayload: result,
         durationMs: Date.now() - callStart,
+        startedAt: new Date(callStart).toISOString(),
+        finishedAt: new Date().toISOString(),
       });
     }
 
