@@ -150,7 +150,13 @@ WARNING 13 + INFO 15 전부 Phase A 에서 해소. 확정 채택:
 - [ ] **Phase G — REVIEW**: `/ai-review` + critical/warning fix (강제). `/spec-coverage`
       로 갭 확인.
 
-## 5. 미해결 / 결정 필요
-- [ ] persistent 추출 스키마(fact/preference/entity 분류 깊이) — Phase A 에서 확정.
-- [ ] 신규 system spec 문서 번호(`spec/5-system/<N>`) — Phase A 에서 채번.
-- [ ] 요약 LLM 콜이 쓰는 모델 — 노드 `model`/`llmConfigId` 재사용 vs 저비용 모델 분리.
+## 5. 미해결 / 결정 (Phase A 에서 모두 확정)
+- [x] persistent 추출 스키마 — v1 은 단순 텍스트 사실 단위(`metadata.kind` optional 분류). `17-agent-memory.md §3`.
+- [x] 신규 system spec 문서 번호 — `spec/5-system/17-agent-memory.md` 채번 완료.
+- [x] 요약 LLM 콜 모델 — 노드 `model`/`llmConfigId` 재사용으로 확정(신규 필드 없음).
+
+## 6. impl-prep consistency (2026-06-03 21:38)
+- BLOCK: 원판정 YES → **반증 후 NO**. Critical("17-agent-memory.md 부재")는 **main-baseline 거짓양성**
+  (origin/main 미존재 신규 파일, HEAD 커밋 2273f310 으로 git 반증). `review/consistency/2026/06/03/21_38_47/SUMMARY.md`.
+- 구현 반영 경고: naming W#5(`memoryStrategy:'manual'` ↔ `Trigger.type`)·W#6(`scope_key` ↔ `Integration.scope`)
+  → TS 타입 `MemoryStrategy` 별도 선언 + `AgentMemoryEntity.scopeKey` 명확 타입으로 해소.
