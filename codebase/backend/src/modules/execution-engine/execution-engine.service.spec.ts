@@ -2114,6 +2114,49 @@ describe('ExecutionEngineService', () => {
       );
     });
 
+    it('classifies a handler-thrown AbortError as CANCELLED (not FAILED) and emits NODE_CANCELLED (node-cancellation §5.1)', async () => {
+      const abortHandler = (): NodeHandler => ({
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+        }),
+      });
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-abort',
+          workflowId,
+          type: 'abort_node',
+          category: NodeCategory.LOGIC,
+          label: 'Aborted node',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      handlerRegistry.register('abort_node', abortHandler());
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // 노드는 CANCELLED (FAILED 아님) — abort 는 실패가 아니라 취소.
+      const ne = lastNodeExecSave('n-abort');
+      expect(ne?.status).toBe(NodeExecutionStatus.CANCELLED);
+      // NODE_CANCELLED 이벤트 발사 (NODE_FAILED 아님).
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'n-abort',
+        'execution.node.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
+      );
+      expect(mockWebsocketService.emitNodeEvent).not.toHaveBeenCalledWith(
+        executionId,
+        'n-abort',
+        'execution.node.failed',
+        expect.anything(),
+      );
+    });
+
     it('stops the workflow (ERROR_PORT_FALLBACK) when the error port has no connected edge', async () => {
       const nodes: Partial<Node>[] = [
         {

@@ -6213,6 +6213,39 @@ export class ExecutionEngineService
       // ParallelExecutor branches finishing concurrently.
       await this.appendExecutionPath(executionId, node.id);
     } catch (error: unknown) {
+      // spec/conventions/node-cancellation.md §5.1 — abortSignal 로 노드 외부 I/O
+      // 가 중단된 경우(AbortError)는 실패가 아니라 취소다. errorPolicy 와 무관하게
+      // NodeExecution.status=cancelled 로 기록하고 NODE_CANCELLED 이벤트를 발행한 뒤
+      // abort 를 그대로 re-throw 해 생산자(ParallelExecutor cancel-others-on-fail
+      // aggregation 등)가 워크플로 흐름을 마감하게 한다 (§5.2). 타임라인이 running
+      // 에 영구 잔류하지 않도록 terminal 이벤트를 반드시 발행한다.
+      if (error instanceof Error && error.name === 'AbortError') {
+        nodeExecution.status = NodeExecutionStatus.CANCELLED;
+        nodeExecution.error = { message: error.message };
+        nodeExecution.finishedAt = new Date();
+        nodeExecution.durationMs =
+          nodeExecution.finishedAt.getTime() -
+          nodeExecution.startedAt.getTime();
+        await this.nodeExecutionRepository.save(nodeExecution);
+        await this.eventEmitter.emitNode(
+          executionId,
+          node.id,
+          NodeEventType.NODE_CANCELLED,
+          {
+            nodeExecutionId: nodeExecution.id,
+            parentNodeExecutionId: context.parentNodeExecutionId,
+            status: NodeExecutionStatus.CANCELLED,
+            error: error.message,
+            nodeType: node.type,
+            nodeLabel: node.label ?? node.type,
+            input: nodeExecution.inputData,
+            startedAt: nodeExecution.startedAt?.toISOString?.(),
+            finishedAt: nodeExecution.finishedAt?.toISOString?.(),
+          },
+        );
+        throw error;
+      }
+
       // Apply error policy
       const errorPolicyConfig = this.getErrorPolicyConfig(node);
       const result = this.errorPolicyHandler.handleError(
@@ -6515,6 +6548,12 @@ export class ExecutionEngineService
   ): Promise<unknown> {
     const errorPolicyConfig = this.getErrorPolicyConfig(node);
 
+    // 노드 dispatch 직전 사전 abort 체크 (spec/conventions/node-cancellation.md
+    // §5.1). 이미 abort 된 cancellation 컨텍스트(예: cancel-others-on-fail 첫
+    // 분기 실패 후)면 핸들러를 실행하지 않고 즉시 AbortError 를 throw — executeNode
+    // catch 가 이를 cancelled 로 분류한다. signal 미설정 노드는 무영향.
+    context.abortSignal?.throwIfAborted();
+
     if (errorPolicyConfig.policy !== 'retry') {
       return handler.execute(input, config, context);
     }
@@ -6532,6 +6571,11 @@ export class ExecutionEngineService
       } catch (error: unknown) {
         lastError = error instanceof Error ? error : new Error(String(error));
         nodeExecution.retryCount = attempt + 1;
+
+        // abort 는 재시도 대상이 아님 — cancellation 은 terminal 이므로 즉시 전파.
+        if (lastError.name === 'AbortError') {
+          throw lastError;
+        }
 
         if (attempt < retryConfig.maxRetries) {
           const delay =

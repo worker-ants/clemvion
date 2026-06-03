@@ -134,6 +134,7 @@ describe("useExecutionEvents", () => {
     expect(boundEvents).toContain("execution.node.completed");
     expect(boundEvents).toContain("execution.node.failed");
     expect(boundEvents).toContain("execution.node.skipped");
+    expect(boundEvents).toContain("execution.node.cancelled");
     expect(boundEvents).toContain("execution.waiting_for_input");
     expect(boundEvents).toContain("execution.resumed");
     expect(boundEvents).toContain("execution.snapshot");
@@ -1154,6 +1155,29 @@ describe("useExecutionEvents", () => {
       const results = useExecutionStore.getState().nodeResults;
       expect(results).toHaveLength(1);
       expect(results[0].status).toBe("skipped");
+    });
+
+    it("execution.node.cancelled marks node cancelled (not failed) with error and adds to results", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+      const handler = getEventHandler("execution.node.cancelled");
+      handler({
+        nodeId: "node-1",
+        error: "The operation was aborted",
+        nodeType: "http_request",
+        nodeLabel: "Fetch",
+      });
+
+      const nodeStatus = useExecutionStore
+        .getState()
+        .nodeStatuses.get("node-1");
+      expect(nodeStatus?.status).toBe("cancelled");
+      expect(nodeStatus?.error).toBe("The operation was aborted");
+
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results).toHaveLength(1);
+      expect(results[0].status).toBe("cancelled");
     });
 
     it("execution.resumed resumes without clearing nodeResults", () => {
