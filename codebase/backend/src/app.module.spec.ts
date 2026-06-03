@@ -47,6 +47,7 @@ import { AlertRule } from './modules/alerts/entities/alert-rule.entity';
 import { WorkflowAssistantSession } from './modules/workflow-assistant/entities/workflow-assistant-session.entity';
 import { WorkflowAssistantMessage } from './modules/workflow-assistant/entities/workflow-assistant-message.entity';
 import { SecretStore } from './modules/secret-store/entities/secret-store.entity';
+import { AgentMemory } from './modules/agent-memory/entities/agent-memory.entity';
 
 const REQUIRED_ENTITIES = [
   User,
@@ -88,6 +89,7 @@ const REQUIRED_ENTITIES = [
   WorkflowAssistantSession,
   WorkflowAssistantMessage,
   SecretStore,
+  AgentMemory,
 ];
 
 describe('AppModule — root entities registration guard', () => {

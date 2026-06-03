@@ -154,6 +154,20 @@ export interface ConversationThread {
    * 사용하지 않는다 (각자 다른 컨텍스트 — append 누적 vs 주입 시점 cap).
    */
   totalChars: number;
+  /**
+   * 롤링 요약 본문. AI Agent 의 `memoryStrategy ∈ {summary_buffer, persistent}`
+   * 전략에서만 set (spec/conventions/conversation-thread.md §1.3,
+   * spec/4-nodes/3-ai/1-ai-agent.md §6.1). `manual` 전략에서는 미설정.
+   * 실행 중 `ExecutionContext` (Redis 직렬화) 에만 포함되고 신규 DB 컬럼을
+   * 만들지 않는다 (§4 영속화 — ConversationThread "신규 DB 컬럼 없음" 유지).
+   */
+  runningSummary?: string;
+  /**
+   * `runningSummary` 가 압축해 커버하는 마지막 turn 의 `seq`. 이 seq 이하 turn 은
+   * 요약 블록으로 대체되고 이후 turn 만 원문으로 유지된다 (휘발성 꼬리).
+   * `summary_buffer` / `persistent` 전략에서만 set.
+   */
+  summarizedUpToSeq?: number;
 }
 
 /**

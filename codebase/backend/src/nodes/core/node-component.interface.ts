@@ -325,6 +325,10 @@ export interface HandlerDependencies {
    *  Other handlers ignore. Optional so legacy test fixtures that build
    *  handler instances without the engine wiring still work. */
   conversationThreadService?: ConversationThreadService;
+  /** AI Agent `memoryStrategy: 'persistent'` 전략의 세션 간 추출 메모리 회수
+   *  (spec/5-system/17-agent-memory.md §4). 다른 핸들러는 무시. Optional —
+   *  미주입 시 persistent 회수는 빈 결과로 graceful degrade. */
+  agentMemoryService?: import('../../modules/agent-memory/agent-memory.service').AgentMemoryService;
 }
 
 /**

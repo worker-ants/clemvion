@@ -84,6 +84,82 @@ describe('aiAgentNodeConfigSchema', () => {
     });
   });
 
+  it('applies Memory strategy defaults (manual / 8000 / 5 / 0.7)', () => {
+    const result = aiAgentNodeConfigSchema.parse({});
+    // 하위호환 불변식 — 기존 워크플로는 memoryStrategy 키가 없으며 default 는
+    // manual (기존 contextScope 5필드 동작 그대로).
+    expect(result.memoryStrategy).toBe('manual');
+    expect(result.memoryTokenBudget).toBe(8000);
+    expect(result.memoryTopK).toBe(5);
+    expect(result.memoryThreshold).toBe(0.7);
+    // memoryKey 는 optional (default 없음).
+    expect(result.memoryKey).toBeUndefined();
+  });
+
+  it('accepts summary_buffer and persistent memory strategies', () => {
+    expect(
+      aiAgentNodeConfigSchema.parse({ memoryStrategy: 'summary_buffer' })
+        .memoryStrategy,
+    ).toBe('summary_buffer');
+    expect(
+      aiAgentNodeConfigSchema.parse({ memoryStrategy: 'persistent' })
+        .memoryStrategy,
+    ).toBe('persistent');
+  });
+
+  it('rejects an unknown memory strategy enum value', () => {
+    const result = aiAgentNodeConfigSchema.safeParse({
+      memoryStrategy: 'auto',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('serialises Memory field visibleWhen + group metadata to JSON Schema', () => {
+    const jsonSchema = z.toJSONSchema(aiAgentNodeConfigSchema) as unknown as {
+      properties?: Record<string, { ui?: Record<string, unknown> }>;
+    };
+    expect(jsonSchema.properties?.memoryStrategy?.ui).toMatchObject({
+      widget: 'select',
+      group: 'Memory',
+    });
+    // Token Budget — summary_buffer/persistent 둘 다에서 노출 (oneOf 화이트리스트,
+    // 단일-필드 평가기라 복합 AND 불가).
+    expect(jsonSchema.properties?.memoryTokenBudget?.ui).toMatchObject({
+      group: 'Memory',
+      visibleWhen: {
+        field: 'memoryStrategy',
+        oneOf: ['summary_buffer', 'persistent'],
+      },
+    });
+    // Memory Key / Top-K / Threshold — persistent 전용.
+    expect(jsonSchema.properties?.memoryKey?.ui).toMatchObject({
+      visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
+    });
+    expect(jsonSchema.properties?.memoryTopK?.ui).toMatchObject({
+      visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
+    });
+    expect(jsonSchema.properties?.memoryThreshold?.ui).toMatchObject({
+      visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
+    });
+  });
+
+  it('hides Conversation Context fields when memoryStrategy != manual (visibleWhen)', () => {
+    const jsonSchema = z.toJSONSchema(aiAgentNodeConfigSchema) as unknown as {
+      properties?: Record<string, { ui?: Record<string, unknown> }>;
+    };
+    // contextScope / contextInjectionMode / includeToolTurns 는 manual 일 때만
+    // 노출 (자동 전략이 5필드를 대체 — spec §1 비고).
+    expect(jsonSchema.properties?.contextScope?.ui).toMatchObject({
+      visibleWhen: { field: 'memoryStrategy', equals: 'manual' },
+    });
+    expect(jsonSchema.properties?.contextInjectionMode?.ui).toMatchObject({
+      visibleWhen: { field: 'memoryStrategy', equals: 'manual' },
+    });
+    expect(jsonSchema.properties?.includeToolTurns?.ui).toMatchObject({
+      visibleWhen: { field: 'memoryStrategy', equals: 'manual' },
+    });
+  });
+
   it('exposes the presentationTools item type default in JSON Schema', () => {
     // buildNewItem (frontend) reads JSON Schema `default` to pre-fill new rows
     // so the displayed first option is committed instead of saved as `{}`.

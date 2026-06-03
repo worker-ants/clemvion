@@ -15,6 +15,32 @@ import { PRESENTATION_TYPES } from '../../../shared/conversation-thread/conversa
  */
 export const DEFAULT_CONTEXT_SCOPE_N = 20;
 
+/**
+ * AI Agent 의 대화 컨텍스트 메모리 관리 전략 (spec/4-nodes/3-ai/1-ai-agent.md §1,
+ * §12.9). `contextScope` (범위 축) 와 직교하는 관리 축의 1급 enum.
+ *
+ * - `manual` (기본): 기존 contextScope 계열 5필드 동작 그대로 (하위호환 0 리스크).
+ * - `summary_buffer`: 단일 실행 내 토큰예산 롤링 요약 압축.
+ * - `persistent`: summary_buffer working-memory + 세션 간 추출 메모리 의미검색 회수.
+ *
+ * NOTE: `manual` 단어가 `Trigger.type: 'manual'` 과 표면상 겹치지만 namespace
+ * (`MemoryStrategy` vs `Trigger.type`) 가 다르다 — 의미 명료성을 우선해 **별도
+ * 타입으로 선언** 한다 (Trigger.type 재사용 금지, spec §12.9 결정).
+ */
+export const MEMORY_STRATEGIES = [
+  'manual',
+  'summary_buffer',
+  'persistent',
+] as const;
+export type MemoryStrategy = (typeof MEMORY_STRATEGIES)[number];
+
+/** `memoryTokenBudget` 기본값 — working-memory 토큰 예산 (spec §1). */
+export const DEFAULT_MEMORY_TOKEN_BUDGET = 8000;
+/** `memoryTopK` 기본값 — persistent 회수 top-k (KB `ragTopK` 와 독립). */
+export const DEFAULT_MEMORY_TOP_K = 5;
+/** `memoryThreshold` 기본값 — persistent 회수 최소 유사도 (KB `ragThreshold` 와 독립). */
+export const DEFAULT_MEMORY_THRESHOLD = 0.7;
+
 const mcpServerRefSchema = z.object({
   integrationId: z
     .string()
@@ -370,6 +396,10 @@ export const aiAgentNodeConfigSchema = z
           widget: 'select',
           order: 37,
           group: 'Conversation Context',
+          // `memoryStrategy != manual` 이면 자동 전략이 contextScope 계열 5필드를
+          // 대체하므로 숨긴다 (spec §1 비고 / §2 visibleWhen). 단일-필드 평가기라
+          // equals 한 조건만 — 그래도 strategy 가 manual 일 때만 노출돼 충분.
+          visibleWhen: { field: 'memoryStrategy', equals: 'manual' },
           options: [
             { value: 'none', label: 'None — system + user prompt only' },
             { value: 'thread', label: 'Thread — inject full thread' },
@@ -400,6 +430,8 @@ export const aiAgentNodeConfigSchema = z
           widget: 'select',
           order: 39,
           group: 'Conversation Context',
+          // manual 전략에서만 의미 — 자동 전략은 안정 프리픽스로 강제 (spec §1).
+          visibleWhen: { field: 'memoryStrategy', equals: 'manual' },
           options: [
             { value: 'messages', label: 'Messages — prepend to LLM messages' },
             {
@@ -418,6 +450,10 @@ export const aiAgentNodeConfigSchema = z
           widget: 'checkbox',
           order: 40,
           group: 'Conversation Context',
+          // 자동 주입 측면에서는 manual 전략에서만 의미 — 자동 전략은 안정
+          // 프리픽스로 대체 (spec §1). thread push 자체는 strategy 와 독립이나
+          // 본 토글의 자동-주입 영향은 manual 한정이므로 manual 일 때만 노출.
+          visibleWhen: { field: 'memoryStrategy', equals: 'manual' },
           hint: 'Push KB / MCP / condition tool turns to the thread (default: only the final assistant response).',
         },
       }),
@@ -440,6 +476,102 @@ export const aiAgentNodeConfigSchema = z
     // suffix 와 두 채널로 LLM 시각 추론 회귀를 차단.
     // Fragment SoT: shared/system-context-schema.ts (3 노드 공통 helper).
     ...buildSystemContextSchemaFields(42),
+
+    // ── Memory ──
+    // SoT: spec/4-nodes/3-ai/1-ai-agent.md §1·§6.1, spec/5-system/17-agent-memory.md.
+    // 메모리 관리 전략 (관리 축) — contextScope (범위 축) 와 직교 (§12.9).
+    // `manual` (기본) 이면 위 Conversation Context 5필드가 그대로 적용되고,
+    // `summary_buffer` / `persistent` 면 자동 전략이 그 5필드를 대체한다 (§1 비고).
+    // order 44-48 — System Context (42-43) 뒤, Multi Turn (50) 앞. 한 그룹으로
+    // 연속 배치해 frontend SchemaForm.groupEntries 가 쪼개지 않게 한다.
+    memoryStrategy: z
+      .enum(MEMORY_STRATEGIES)
+      .default('manual')
+      .meta({
+        ui: {
+          label: 'Memory Strategy',
+          widget: 'select',
+          order: 44,
+          group: 'Memory',
+          hint: 'manual = manage context with the fields below. summary_buffer = rolling token-budget summary. persistent = summary buffer + cross-session recall.',
+          options: [
+            {
+              value: 'manual',
+              label: 'Manual — use Conversation Context fields',
+            },
+            {
+              value: 'summary_buffer',
+              label: 'Summary Buffer — rolling token-budget summary',
+            },
+            {
+              value: 'persistent',
+              label: 'Persistent — summary buffer + cross-session memory',
+            },
+          ],
+        },
+      }),
+    memoryTokenBudget: z
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_MEMORY_TOKEN_BUDGET)
+      .meta({
+        ui: {
+          label: 'Token Budget',
+          widget: 'number',
+          order: 45,
+          group: 'Memory',
+          hint: 'Working-memory token budget. Older turns are rolled into a summary once exceeded.',
+          // 단일-필드 평가기라 복합 AND 불가 — summary_buffer/persistent 둘 다
+          // 노출해야 하므로 oneOf 화이트리스트 사용.
+          visibleWhen: {
+            field: 'memoryStrategy',
+            oneOf: ['summary_buffer', 'persistent'],
+          },
+        },
+      }),
+    memoryKey: z
+      .string()
+      .optional()
+      .meta({
+        ui: {
+          label: 'Memory Key',
+          widget: 'expression',
+          order: 46,
+          group: 'Memory',
+          placeholder: '{{ $input.userId }}',
+          hint: 'Persistent memory scope key. Same key recalls the same memory across runs. Empty = isolated per execution.',
+          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
+        },
+      }),
+    memoryTopK: z
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_MEMORY_TOP_K)
+      .meta({
+        ui: {
+          label: 'Memory Top-K',
+          widget: 'number',
+          order: 47,
+          group: 'Memory',
+          hint: 'Number of memory chunks recalled per turn (independent of KB RAG Top-K).',
+          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
+        },
+      }),
+    memoryThreshold: z
+      .number()
+      .default(DEFAULT_MEMORY_THRESHOLD)
+      .meta({
+        ui: {
+          label: 'Memory Threshold',
+          widget: 'number',
+          order: 48,
+          group: 'Memory',
+          hint: 'Minimum similarity (0-1) for memory recall (independent of KB RAG Threshold).',
+          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
+        },
+      }),
 
     // ── Multi Turn Settings ──
     maxTurns: z

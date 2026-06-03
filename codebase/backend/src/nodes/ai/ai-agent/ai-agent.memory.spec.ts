@@ -1,0 +1,512 @@
+/**
+ * Auto-memory strategy integration tests for AI Agent (single-turn focus).
+ *
+ * Covers spec/4-nodes/3-ai/1-ai-agent.md §6.1 (1.3 recall / 1.5 summary) and
+ * the meta.memory echo (§7), plus the **manual backward-compat regression**
+ * invariant (memoryStrategy unset/manual → contextScope path 100% unchanged,
+ * no meta.memory).
+ */
+import { AiAgentHandler } from './ai-agent.handler';
+import { ConversationThreadService } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
+import { ExecutionContext } from '../../core/node-handler.interface';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import type {
+  AgentMemoryService,
+  RecalledMemory,
+} from '../../../modules/agent-memory/agent-memory.service';
+
+function makeContext(
+  overrides: Partial<ExecutionContext> = {},
+): ExecutionContext {
+  return {
+    executionId: 'exec-1',
+    workflowId: 'wf-1',
+    nodeId: 'agent-1',
+    variables: { __workspaceId: 'ws-1' },
+    nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
+    recursionDepth: 0,
+    ...overrides,
+  };
+}
+
+describe('AiAgentHandler — auto-memory strategy', () => {
+  let mockLlmService: Record<string, jest.Mock>;
+  let conversationThreadService: ConversationThreadService;
+  let agentMemoryService: {
+    resolveScopeKey: jest.Mock;
+    recall: jest.Mock;
+    scheduleExtraction: jest.Mock;
+  };
+
+  function buildHandler(): AiAgentHandler {
+    return new AiAgentHandler(
+      mockLlmService as never,
+      [],
+      undefined,
+      conversationThreadService,
+      agentMemoryService as unknown as AgentMemoryService,
+    );
+  }
+
+  function seedThreadFromOtherNode(context: ExecutionContext): void {
+    conversationThreadService.appendAiAssistantMessage(context, {
+      node: { id: 'agent-prev', label: 'PrevAgent', type: 'ai_agent' },
+      content: 'Earlier assistant turn',
+    });
+  }
+
+  beforeEach(() => {
+    mockLlmService = {
+      resolveConfig: jest.fn().mockResolvedValue({
+        id: 'cfg-1',
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+      }),
+      chat: jest.fn().mockResolvedValue({
+        content: 'AI response',
+        usage: { inputTokens: 50, outputTokens: 20, totalTokens: 70 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      }),
+      embed: jest.fn(),
+    };
+    conversationThreadService = new ConversationThreadService();
+    agentMemoryService = {
+      resolveScopeKey: jest.fn((key: string | undefined, exec: string) =>
+        key && key.trim() !== '' ? key : exec,
+      ),
+      recall: jest.fn().mockResolvedValue([] as RecalledMemory[]),
+      scheduleExtraction: jest.fn().mockResolvedValue(undefined),
+    };
+  });
+
+  describe('manual backward-compat regression (CRITICAL invariant)', () => {
+    it('memoryStrategy unset → contextScope path unchanged, no meta.memory', async () => {
+      const context = makeContext();
+      seedThreadFromOtherNode(context);
+      const handler = buildHandler();
+
+      const result = await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'You are helpful',
+          userPrompt: 'How are you?',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          contextScope: 'thread',
+          contextInjectionMode: 'messages',
+          // memoryStrategy intentionally absent (legacy workflow shape).
+        },
+        context,
+      );
+
+      // contextInjection still echoed; meta.memory must NOT appear.
+      const meta = (result as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta.contextInjection).toBeDefined();
+      expect(meta.memory).toBeUndefined();
+      // No summary mutation on the thread.
+      expect(
+        conversationThreadService.getThread(context).runningSummary,
+      ).toBeUndefined();
+      // No recall call for manual strategy.
+      expect(agentMemoryService.recall).not.toHaveBeenCalled();
+
+      // Injected thread turns still prepended (manual messages mode unchanged).
+      const llmCall = mockLlmService.chat.mock.calls[0][1] as {
+        messages: { role: string; content: string }[];
+      };
+      expect(llmCall.messages[0].role).toBe('system');
+      expect(llmCall.messages[1].content).toContain('Earlier assistant turn');
+    });
+
+    it("explicit memoryStrategy:'manual' behaves identically (no meta.memory)", async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      const result = await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'manual',
+        },
+        context,
+      );
+      const meta = (result as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta.memory).toBeUndefined();
+      expect(agentMemoryService.recall).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('summary_buffer (single-turn)', () => {
+    it('echoes meta.memory with strategy + recalledCount=0 + no summary under budget', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      const result = await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'summary_buffer',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      const meta = (result as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta.memory).toMatchObject({
+        strategy: 'summary_buffer',
+        summarized: false,
+        recalledCount: 0,
+      });
+      // summary_buffer never recalls.
+      expect(agentMemoryService.recall).not.toHaveBeenCalled();
+      // Only the main chat call (no summary LLM call under budget).
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
+    });
+
+    it('compresses oldest turns + sets runningSummary when over budget', async () => {
+      const context = makeContext();
+      // Seed many large turns from another node so working memory exceeds budget.
+      const big = 'w'.repeat(500);
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      // First chat call = summary LLM call; second = main answer.
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: 'ROLLING SUMMARY',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        })
+        .mockResolvedValueOnce({
+          content: 'AI response',
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      const handler = buildHandler();
+      const result = await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'summary_buffer',
+          memoryTokenBudget: 300,
+        },
+        context,
+      );
+      const meta = (result as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta.memory).toMatchObject({
+        strategy: 'summary_buffer',
+        summarized: true,
+        recalledCount: 0,
+      });
+      // runningSummary persisted on the thread for resume reuse.
+      expect(conversationThreadService.getThread(context).runningSummary).toBe(
+        'ROLLING SUMMARY',
+      );
+      // The system message carries the summary block (stable prefix).
+      const mainCall = mockLlmService.chat.mock.calls[1][1] as {
+        messages: { role: string; content: string }[];
+      };
+      const systemMsg = mainCall.messages.find((m) => m.role === 'system');
+      expect(systemMsg?.content).toContain('ROLLING SUMMARY');
+    });
+  });
+
+  describe('persistent (single-turn)', () => {
+    it('recalls with resolved scope key + topK/threshold and injects into the stable prefix', async () => {
+      const recalledFacts: RecalledMemory[] = [
+        { content: 'User prefers concise answers', score: 0.95 },
+        { content: 'Account tier is gold', score: 0.88 },
+      ];
+      agentMemoryService.recall.mockResolvedValue(recalledFacts);
+      const context = makeContext();
+      const handler = buildHandler();
+      const result = await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-xyz',
+          systemPrompt: 'Sys',
+          userPrompt: 'What plan am I on?',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-42',
+          memoryTopK: 3,
+          memoryThreshold: 0.5,
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+
+      // Scope key resolved from memoryKey (truthy → personalised).
+      expect(agentMemoryService.resolveScopeKey).toHaveBeenCalledWith(
+        'user-42',
+        'exec-1',
+      );
+      // recall called with workspace, scopeKey, query, embed source, topK/threshold.
+      expect(agentMemoryService.recall).toHaveBeenCalledTimes(1);
+      const recallArgs = agentMemoryService.recall.mock.calls[0];
+      expect(recallArgs[0]).toBe('ws-1'); // workspaceId
+      expect(recallArgs[1]).toBe('user-42'); // scopeKey
+      expect(recallArgs[2]).toBe('What plan am I on?'); // queryText
+      expect(recallArgs[3]).toMatchObject({ llmConfigId: 'cfg-xyz' });
+      expect(recallArgs[4]).toMatchObject({ topK: 3, threshold: 0.5 });
+
+      // meta.memory echoes recalledCount.
+      const meta = (result as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta.memory).toMatchObject({
+        strategy: 'persistent',
+        recalledCount: 2,
+      });
+
+      // Recalled facts injected into the system message (stable prefix [5a]).
+      const mainCall = mockLlmService.chat.mock.calls.at(-1)?.[1] as {
+        messages: { role: string; content: string }[];
+      };
+      const systemMsg = mainCall.messages.find((m) => m.role === 'system');
+      expect(systemMsg?.content).toContain('User prefers concise answers');
+      expect(systemMsg?.content).toContain('Account tier is gold');
+    });
+
+    it('multi-turn re-recalls every turn and echoes meta.memory (system prefix injection)', async () => {
+      agentMemoryService.recall.mockResolvedValue([
+        { content: 'Loyalty member since 2020', score: 0.9 },
+      ] as RecalledMemory[]);
+      const context = makeContext();
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-1',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          memoryStrategy: 'persistent',
+          memoryKey: 'cust-7',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      const state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+      // First waiting tick performs no LLM call / no recall (no user query yet).
+      expect(agentMemoryService.recall).not.toHaveBeenCalled();
+
+      const turnResult = await handler.processMultiTurnMessage(
+        '주문 상태 알려줘',
+        state,
+      );
+
+      // Recall happened this turn with the resolved scope key + user query.
+      expect(agentMemoryService.recall).toHaveBeenCalledTimes(1);
+      expect(agentMemoryService.recall.mock.calls[0][1]).toBe('cust-7');
+      expect(agentMemoryService.recall.mock.calls[0][2]).toBe(
+        '주문 상태 알려줘',
+      );
+
+      // meta.memory echoed on the (waiting-again) turn result.
+      const meta =
+        (turnResult as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta.memory).toMatchObject({
+        strategy: 'persistent',
+        recalledCount: 1,
+      });
+
+      // Recalled fact injected into the system message stable prefix.
+      const mainCall = mockLlmService.chat.mock.calls.at(-1)?.[1] as {
+        messages: { role: string; content: string }[];
+      };
+      const systemMsg = mainCall.messages.find((m) => m.role === 'system');
+      expect(systemMsg?.content).toContain('Loyalty member since 2020');
+    });
+
+    it('falls back to executionId scope when memoryKey is empty', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      expect(agentMemoryService.resolveScopeKey).toHaveBeenCalledWith(
+        undefined,
+        'exec-1',
+      );
+      // resolveScopeKey returns exec id when key empty → recall uses it.
+      expect(agentMemoryService.recall.mock.calls[0][1]).toBe('exec-1');
+    });
+  });
+
+  describe('턴 경계 비동기 추출 enqueue (spec §3·§6.1 단계 2.7 — producer)', () => {
+    it('persistent single-turn 최종 응답 후 scheduleExtraction 호출 (payload·snapshot)', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-xyz',
+          systemPrompt: 'Sys',
+          userPrompt: '내 이름은 지수야',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-42',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+
+      expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(1);
+      const arg = agentMemoryService.scheduleExtraction.mock.calls[0][0];
+      expect(arg).toMatchObject({
+        workspaceId: 'ws-1',
+        scopeKey: 'user-42',
+        llmConfigId: 'cfg-xyz',
+        model: 'gpt-4o',
+      });
+      // snapshot 에 직전 user↔assistant 교환이 담긴다.
+      const texts = (arg.turns as { source: string; text: string }[]).map(
+        (t) => `${t.source}:${t.text}`,
+      );
+      expect(texts).toContain('ai_user:내 이름은 지수야');
+      expect(texts).toContain('ai_assistant:AI response');
+    });
+
+    it('snapshot 격리 — enqueue 후 thread 에 turn 을 push 해도 snapshot 불변', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: '질문',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      const arg = agentMemoryService.scheduleExtraction.mock.calls[0][0];
+      const lenAtEnqueue = (arg.turns as unknown[]).length;
+      // 이후 메인 루프가 새 turn 을 push 하는 상황을 모사.
+      conversationThreadService.appendAiAssistantMessage(context, {
+        node: { id: 'other', label: 'Other', type: 'ai_agent' },
+        content: 'later turn after extraction enqueue',
+      });
+      expect((arg.turns as unknown[]).length).toBe(lenAtEnqueue);
+    });
+
+    it('summary_buffer 전략은 scheduleExtraction 호출 안 함 (회귀 금지)', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'summary_buffer',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      expect(agentMemoryService.scheduleExtraction).not.toHaveBeenCalled();
+    });
+
+    it('manual 전략은 scheduleExtraction 호출 안 함 (하위호환)', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'manual',
+        },
+        context,
+      );
+      expect(agentMemoryService.scheduleExtraction).not.toHaveBeenCalled();
+    });
+
+    it('persistent multi-turn 매 turn 종료 후 enqueue (user query 도착 turn)', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-1',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          memoryStrategy: 'persistent',
+          memoryKey: 'cust-7',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      // 첫 waiting tick (user query 없음) 은 enqueue 안 함.
+      expect(agentMemoryService.scheduleExtraction).not.toHaveBeenCalled();
+
+      const state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+      await handler.processMultiTurnMessage('주문 상태 알려줘', state);
+
+      expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(1);
+      expect(
+        agentMemoryService.scheduleExtraction.mock.calls[0][0],
+      ).toMatchObject({
+        workspaceId: 'ws-1',
+        scopeKey: 'cust-7',
+      });
+    });
+  });
+});

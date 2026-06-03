@@ -10,6 +10,7 @@ import { Cafe24ApiClient } from '../../../nodes/integration/cafe24/cafe24-api.cl
 import { MakeshopApiClient } from '../../../nodes/integration/makeshop/makeshop-api.client';
 import { ExecutionEventEmitter } from '../events/execution-event-emitter.service';
 import { ConversationThreadService } from '../conversation-thread/conversation-thread.service';
+import { AgentMemoryService } from '../../agent-memory/agent-memory.service';
 
 /**
  * 노드 핸들러 (`NodeComponentRegistry.bootstrap`) 에 전달되는 런타임 의존성을
@@ -39,6 +40,8 @@ export class NodeHandlerDependenciesProvider {
     @Optional() private readonly makeshopApiClient?: MakeshopApiClient,
     @Optional()
     private readonly conversationThreadService?: ConversationThreadService,
+    @Optional()
+    private readonly agentMemoryService?: AgentMemoryService,
   ) {}
 
   /**
@@ -57,6 +60,7 @@ export class NodeHandlerDependenciesProvider {
       cafe24ApiClient: this.cafe24ApiClient,
       makeshopApiClient: this.makeshopApiClient,
       conversationThreadService: this.conversationThreadService,
+      agentMemoryService: this.agentMemoryService,
     };
   }
 }
