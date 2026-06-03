@@ -18,3 +18,7 @@ owner: planner
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__2-flow__1-workflow.md 참조.
 - 핸들러 출력 4케이스(sync/async/error/pre-flight)·에러코드 4종·manual_trigger throw·런타임 워크스페이스 격리(assertSameWorkspace)는 구현 정확 일치 — 강등 대상 아님.
 - 동일 템플릿/배지 claim 이 `spec/4-nodes/2-flow/0-common.md §4` 캔버스 요약 표(Workflow 행)에도 존재 — 함께 정정 필요(본 audit 스코프 밖, 별도 처리).
+
+## 구현 상태 (branch claude/spec-sync-impl-644d19, 2026-06-03)
+- 미구현 항목 **코드 구현 완료** — commit a96fac1. ai-review(13 reviewer)+resolution-applier 처리, build/lint/unit/e2e green. (workflow-selector 위젯 + missing-workflow badge + summaryTemplate)
+- **미해결 follow-up**: spec marker flip / 본문 보강(planner) → `plan/in-progress/spec-fix-impl-marker-flips.md`. 그 완료 시 본 ticket 을 `complete/` 이동 (plan-lifecycle §2).

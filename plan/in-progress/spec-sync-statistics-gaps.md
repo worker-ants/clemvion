@@ -17,3 +17,7 @@ owner: planner
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 참조.
 - 별도 코드 정합 이슈(spec 범위 밖): 프론트 `1d` 전송 vs 백엔드 enum 불일치는 spec 부정확이 아니라 구현 버그 가능성 — developer 검증 필요.
+
+## 구현 상태 (branch claude/spec-sync-impl-644d19, 2026-06-03)
+- 미구현 항목 **코드 구현 완료** — commit abab3831. ai-review(13 reviewer)+resolution-applier 처리, build/lint/unit/e2e green. (증감률+custom-range; 1d enum 은 upstream #443). spec 갱신=사용자 결정 '구현 유지'
+- **미해결 follow-up**: spec marker flip / 본문 보강(planner) → `plan/in-progress/spec-fix-impl-marker-flips.md`. 그 완료 시 본 ticket 을 `complete/` 이동 (plan-lifecycle §2).
