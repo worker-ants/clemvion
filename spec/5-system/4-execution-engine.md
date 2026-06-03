@@ -140,8 +140,9 @@ pending → running ──┤                     └─ cancelled
 ```
                     ┌─ completed
                     │
-pending → running ──┤
-                    ├─ failed
+pending → running ──┤─ failed
+                    │
+                    ├─ cancelled
                     │
                     ├─ skipped
                     │
@@ -156,7 +157,8 @@ pending → running ──┤
 | `running` | 실행 중 |
 | `waiting_for_input` | 사용자 입력 대기 중 — Form 노드, 버튼이 설정된 Presentation 노드, 또는 AI Agent Multi Turn 대화 입력 대기. turn 처리 중 LLM throw (429/timeout/connection) 시 `failed` 로 전이 (구현: `handleAiTurnError` — spec/4-nodes/3-ai/1-ai-agent.md §7.9 shape 으로 finalize). 또는 rehydration 실패(§7.5 의 `RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE` 세 케이스) 시에도 `failed` 로 전이 — 동반 Execution 은 `cancelled` 로 마감 |
 | `completed` | 정상 완료 |
-| `failed` | 실행 실패 |
+| `failed` | 실행 실패 (노드 핸들러 throw + Stop/route-error 정책, 또는 시스템 에러). **rehydration 인프라 실패도 `failed`** (§7.5) — 취소가 아닌 결함이므로 |
+| `cancelled` | 외부 cancellation signal (`ExecutionContext.abortSignal`) 로 노드의 외부 I/O 가 중단됨 — 핸들러가 throw 한 `AbortError`(`error.name === 'AbortError'`)를 엔진이 `failed` 가 아닌 `cancelled` 로 분류. dispatch 직전 이미 abort 된 경우도 동일(핸들러 미실행). 생산자: Parallel `cancel-others-on-fail` / 사용자 cancel / (향후) Workflow timeout. 종료 시 `execution.node.cancelled` WS 이벤트 발행. SoT: [node-cancellation §5](../conventions/node-cancellation.md#5-aborterror-분류) |
 | `skipped` | 건너뜀 (노드 비활성, Skip Node 정책, 조건 분기 미선택) |
 
 > **`retry_last_turn` 재진입은 새 row 를 spawn 한다**: AI Agent multi-turn 의 retryable error 로 `failed` 가 된 NodeExecution row 는 **전이시키지 않고 그대로 둔다**. `execution.retry_last_turn` 은 동일 nodeId 의 **새 NodeExecution row 를 `running` 으로 생성**(`_retryState` seed)해 마지막 turn 을 replay 한다 — 따라서 한 nodeId 가 복수 row 를 가질 수 있고, WS 명령이 `nodeExecutionId` (nodeId 아님) 로 row 를 식별하는 이유다 ([6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server)). §1.1 의 `failed → running` 은 이 새 row 구동에 따른 **Execution entity** 전이이며, 기존 `failed` row 의 전이가 아니다.
@@ -1218,9 +1220,9 @@ publisher 측 사전 검증의 0건/다중 row 케이스는 WS 쪽에서 `INVALI
 §7.5 rehydration 실패 케이스 (`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE`) 에서 Execution 은 `cancelled`, 동반 NodeExecution 은 `failed` 로 종결하는 이분 정책의 결정 근거:
 
 - **Execution `cancelled`**: 이 3개 코드는 모두 **인프라 실패** (checkpoint 손상, 큐 소진, schema 변경) 로 인한 종결이며 사용자의 의도적 취소(`cancel` 명령)와 의미가 다름에도, Re-run 진입 가능성을 열어두기 위해 `cancelled` 를 선택한다. `failed` 는 비즈니스/노드 에러로 워크플로우가 정상 종결된 경우이고, 인프라 실패는 "사용자가 다시 시도하면 성공할 수 있는" 범주이므로 `cancelled` 가 더 적합 — Re-run UI 가 `cancelled` 상태에서 활성화된다 ([Spec 실행 엔진 §6.3](./4-execution-engine.md#63-재실행조회-정책-replay-policy)).
-- **NodeExecution `failed`**: 노드는 정상 완료하지 못했으므로 `completed` 로 둘 수 없고, `cancelled` 는 NodeExecution enum 에 없다 (§1.2). `failed` 가 유일한 비-completed 단말 상태로 정합.
+- **NodeExecution `failed`**: 노드는 정상 완료하지 못했으므로 `completed` 로 둘 수 없다. NodeExecution `cancelled`(§1.2) 는 **abortSignal 경로 전용** (`AbortError` 분류 — [node-cancellation §5](../conventions/node-cancellation.md#5-aborterror-분류)) 이고, rehydration 실패는 abort 가 아닌 **인프라 결함**이므로 `cancelled` 가 아니라 `failed` 로 종결한다 — 두 단말의 의미(취소 vs 실패)를 구분한다.
 
-Execution 도 `failed` 로 통일하는 안은 Re-run 진입점이 `failed` 원인 (인프라 vs 비즈니스) 을 코드 외부에서 판별해야 해 UX 복잡도가 커지고, NodeExecution 에 `cancelled` enum 을 신설하는 안은 §1.2 enum 변경 비용과 외부 API / execution-history 필터 drift 위험이 있어 택하지 않는다.
+Execution 도 `failed` 로 통일하는 안은 Re-run 진입점이 `failed` 원인 (인프라 vs 비즈니스) 을 코드 외부에서 판별해야 해 UX 복잡도가 커져 택하지 않는다. (NodeExecution `cancelled` enum 은 2026-06-03 abortSignal cancellation 경로용으로 신설됐으나 — §1.2 / [node-cancellation §5.1](../conventions/node-cancellation.md#5-aborterror-분류) — rehydration 실패는 그 경로가 아니므로 본 케이스의 NodeExecution 단말은 `failed` 로 유지한다.)
 
 ### DLQ 모니터링 — 로그 기반 알람 선택 (Phase 3.1)
 

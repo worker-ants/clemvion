@@ -10,6 +10,7 @@ code:
   - codebase/frontend/src/lib/api/executions.ts
 pending_plans:
   - plan/in-progress/node-cancellation-infrastructure.md
+  - plan/in-progress/spec-draft-node-execution-cancelled.md
 ---
 
 # Node Cancellation 컨벤션 (AbortSignal 전파 기반)
@@ -101,13 +102,21 @@ if (upstream) {
 
 ## 5. `AbortError` 분류
 
-노드 핸들러는 abort 시 `error.name === 'AbortError'` 를 throw 또는 propagate. 엔진의 `errorPolicyHandler` 가 이 에러를 다음과 같이 분류:
+노드 핸들러는 abort 시 `error.name === 'AbortError'` 를 throw 또는 propagate. 엔진은 이 에러를 **노드 상태**와 **워크플로 흐름** 두 축으로 분류한다.
 
-- `errorPolicy === 'stop'` (default) — Parallel 또는 워크플로우 단위 FAILED 전이 (기존 동작과 동일)
-- `errorPolicy === 'continue'` — 그 노드 cancelled 로 기록, 후속 분기 계속
-- `errorPolicy === 'cancel-others-on-fail'` (parallel-p2 §5) — 이미 cancellation 중이므로 후속 분기도 cancelled 로 기록
+### 5.1 NodeExecution 상태 — `cancelled`
 
-`NodeExecution` 의 상태 분류는 본 컨벤션 범위 밖 — 현 `failed` 상태 + `error.name === 'AbortError'` 로 구분 가능. 별 `cancelled` status 추가는 후속 plan.
+`error.name === 'AbortError'` 인 throw 는 노드가 **실패한 것이 아니라 중단된 것**이므로, 엔진이 해당 `NodeExecution.status` 를 `failed` 가 아닌 **`cancelled`** 로 기록한다 ([실행 엔진 §1.2](../../spec/5-system/4-execution-engine.md#12-nodeexecution-상태) / [데이터 모델 §2.14](../../spec/1-data-model.md#214-nodeexecution)). dispatch 직전 `context.abortSignal?.aborted` 가 이미 true 면 핸들러를 실행하지 않고 즉시 `cancelled` 로 기록한다 (사전 체크). 종료 시 `execution.node.cancelled` WS 이벤트를 발행해 타임라인이 `running` 에 영구 잔류하지 않도록 한다 ([WebSocket §4.4](../../spec/5-system/6-websocket-protocol.md#44-실행-진행-이벤트)). `output.error` 는 표준 봉투(`code: 'AbortError'`)로 기록하되 `meta.success = false`.
+
+### 5.2 워크플로 흐름 — `errorPolicy`
+
+노드 상태가 `cancelled` 여도 dispatch 루프 진행은 노드의 `errorPolicy` 가 결정한다:
+
+- `errorPolicy === 'stop'` (default) — abort 가 상위 cancellation 컨텍스트에서 비롯됐으면 워크플로는 그 원인(사용자 cancel → Execution `cancelled`, cancel-others-on-fail → 최초 실패 원인으로 Execution `failed`)으로 마감. 단독 노드의 AbortError 자체가 워크플로를 새로 FAILED 시키지는 않는다.
+- `errorPolicy === 'continue'` — 그 노드 `cancelled` 기록 후 후속 분기 계속.
+- `errorPolicy === 'cancel-others-on-fail'` (parallel-p2 §5) — 이미 cancellation 중이므로 abort 된 후속 분기도 `cancelled` 로 기록. Root cause(최초 비-abort 실패)는 `ParallelExecutor` 가 별도 surface.
+
+> **rehydration 실패는 `cancelled` 아님**: §7.5 의 `RESUME_*` 인프라 실패는 abortSignal 경로가 아니므로 NodeExecution 은 `failed` 로 종결한다 ([실행 엔진 ##Rationale §4](../../spec/5-system/4-execution-engine.md#rationale)).
 
 ## 6. 구현 현황 / 후속
 
@@ -125,7 +134,7 @@ if (upstream) {
 | DB 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`database-query.handler.ts` — 진입 직전 `abortSignal?.aborted` → AbortError). in-flight `pg.client.cancel` 은 미구현 (Planned) |
 | Email 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`send-email.handler.ts`). in-flight SMTP `transporter.close()` 는 미구현 (Planned) |
 | chat-channel 노드 signal 전파 | — | 미구현 (Planned) |
-| `NodeExecution.status = 'cancelled'` 추가 (엔티티 + migration) | — | 미구현 (Planned). 현재 `NodeExecutionStatus` enum 에 `cancelled` 없음 — `failed` + `error.name === 'AbortError'` 로 구분 (§5) |
+| `NodeExecution.status = 'cancelled'` 추가 (엔티티 + migration) + `AbortError` → `cancelled` 분류 + dispatch 사전 abort 체크 + `execution.node.cancelled` WS 이벤트 | ✓ | `NodeExecutionStatus.CANCELLED` enum + V069 migration + 엔진 분류/WS emit (§5.1) |
 | Workflow 단위 timeout / graceful shutdown 의 노드 abort | — | 미구현 (Planned) |
 
 ## Rationale
