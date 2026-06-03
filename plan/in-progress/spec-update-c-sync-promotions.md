@@ -23,7 +23,7 @@ owner: developer→planner
 | C-3 | `4-nodes/1-logic/5-variable-modification.md` | — | UI 옵션 정합 |
 | C-4 | `4-nodes/1-logic/1-if-else.md` | — | **§6 본문 정정 필요 (아래 §2)** |
 | C-5 | `4-nodes/7-trigger/providers/telegram.md` | `spec-sync-telegram-gaps.md` | /help 정적 안내 |
-| C-6 | `data-flow/8-notifications.md` | `spec-sync-data-flow-8-notifications-gaps.md` | V069 로 CHECK 정합 |
+| C-6 | `data-flow/8-notifications.md` | `spec-sync-data-flow-8-notifications-gaps.md` | V070 로 CHECK 정합 |
 | C-7 | `2-navigation/14-execution-history.md` | `spec-sync-execution-history-gaps.md` | Nodes 열 카운트 |
 | C-8 | `2-navigation/0-dashboard.md` | — | 변수명 명확화(코드 로직 기정합) |
 | C-9 | `2-navigation/7-statistics.md` | `spec-sync-statistics-gaps.md` | 1d 프리셋 |
@@ -64,4 +64,4 @@ owner: developer→planner
 - **[WARNING] auth/integration/workspace/execution API 계약 spec** (`data-flow/2-auth.md §1.1~1.5`, `5-integration.md §1.2`, `12-workspace.md §1.3/1.6`, `3-execution.md §1.3`) — 이미 배포된 breaking change 를 기술한 spec. **프론트엔드 정합성 확인** 권고 (별 작업 — 본 §C 와 무관).
 - **[WARNING] 아키텍처/보안 관찰** — `WorkflowsService` SRP, `X-Workspace-Id` 헤더 우선 RBAC, thinking_tokens cost 제외 Rationale 부재 등. spec Rationale 보강 영역.
 - **[WARNING] workspace `(owner_id,type)` UNIQUE 마이그레이션 갭** (`12-workspace.md §2.1`) — TypeORM `@Unique` 만 있고 DB 마이그레이션 SQL 부재. (C-16.4 의 node 라벨 케이스와 동류 — planner 가 일괄 결정.)
-- **(stale 신호 — 무시 가능)** review 가 `alert_<rule.type>` CHECK 제약 갭(INFO 8)을 플래그했으나 **이미 본 PR C-6/V069 로 해소** 됨. review 가 본 spec 이 갱신 전 상태였던 데서 비롯된 stale 발견.
+- **(stale 신호 — 무시 가능)** review 가 `alert_<rule.type>` CHECK 제약 갭(INFO 8)을 플래그했으나 **이미 본 PR C-6/V070 로 해소** 됨. review 가 본 spec 이 갱신 전 상태였던 데서 비롯된 stale 발견.

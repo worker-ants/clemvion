@@ -1,4 +1,4 @@
--- V069: notification.type CHECK constraint 에 alert breach 동적 type 추가
+-- V070: notification.type CHECK constraint 에 alert breach 동적 type 추가
 --
 -- AlertsEvaluatorService.dispatchBreach() 가 INSERT 하는 type 값은
 -- `alert_<rule.type>` 동적 패턴(alert_failure_rate / alert_duration /
@@ -38,7 +38,7 @@ BEGIN
      );
     IF invalid_count > 0 THEN
         RAISE EXCEPTION
-            'V069 pre-flight failed: % notification row(s) carry a type value outside the new allow-list. Backfill/cleanup these rows before re-applying.',
+            'V070 pre-flight failed: % notification row(s) carry a type value outside the new allow-list. Backfill/cleanup these rows before re-applying.',
             invalid_count;
     END IF;
 END $$;

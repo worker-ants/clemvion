@@ -47,7 +47,7 @@ owner: planner
 
 처리 시 결정·비고:
 - **C-4** — If/Else regex 정상 동작 구현 채택. ⚠ spec `4-nodes/1-logic/1-if-else.md §6` 의 "regex no-op" 경고 문단은 If/Else 한정으로 **stale** 가 됐다 (정정은 planner — §스펙 승격 위임). **Switch expression mode 의 regex 는 본 PR 범위 밖** (여전히 no-op) — 후속 필요 시 별도 plan.
-- **C-6** — V069 마이그레이션 채택. Flyway placeholder(`${...}`) 회피 위해 주석은 `alert_<rule.type>` 표기.
+- **C-6** — V070 마이그레이션 채택. Flyway placeholder(`${...}`) 회피 위해 주석은 `alert_<rule.type>` 표기.
 - **C-16.2** — `chartOutputSchema` 는 audit hint 오보(실사용 중, `chart.component.ts`). **No action** — 코드 정상.
 - **C-16.4** — @Unique 데코레이터 제거 채택. spec(`5-system/5-expression-language.md §8.3.2`)이 이미 앱-레이어 유니크로 기술하므로 spec 변경 불필요.
 - **사전 결함(별건)** — cafe24 `catalog-sync.spec` 가 `[^seed]` footnote 파싱으로 실패하던 main 사전 결함을 함께 수정 (`896ec0be`). §C 와 무관하나 unit stage 차단 해소.
