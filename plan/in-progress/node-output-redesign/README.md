@@ -1,5 +1,7 @@
 # Node 개선안 — 노드별 종합 인덱스
 
+> **5차 갱신 (2026-06-03 구현 재검증)**: Phase E 착수 전 코드 재검증 결과 — (1) **template `helpers` echo** 는 이미 구현됨 (`template.handler.ts:48-52` `configEcho.helpers`, D1 era). (2) **text-classifier `originalInput` 위치 비대칭** 도 이미 해소됨 (`text-classifier.handler.ts:184-227`, 에러 시 `output.error.details.originalInput` 만 surface, D6). 두 항목에 대한 §"진행 상태 요약" Phase 2 표(template/text-classifier 행)의 "핵심 갭" 기술은 **stale**. 잔여 실착수 대상은 **Code 노드**(`timeout` schema 미정의 `code.schema.ts:37-57` + `$node`/`$helpers` 미주입 `code.handler.ts:35-90`; 추가로 `code.schema.ts:53` UI 힌트가 `$helpers` 주입을 광고하나 실제 미주입 — 거짓 광고), **ai-agent P0**(multi-turn error builder 는 구현됨 `:2384+`, **single-turn 경로만 미구현** `:1199` chat 호출에 try/catch 없음), **information-extractor P0/P1**(multi-turn thread push 미구현 `:131-135`).
+
 > **4차 갱신 (2026-05-17 D 결정 phase 완료)**: §"결정 사항" 의 6개 횡단 결정 (D1~D6) 이 모두 PR 로 머지됐다 — D1 #145, D2 #148, D3 #149, D4 #159, D5 #153, D6 #157. spec / backend handler / test 모두 D 결정 방향으로 정렬 완료. 본 plan 은 D 결정이 다루지 못한 **노드별 P0/P1/P2/P3 항목** (§"진행 상태 요약" Phase 2 / §"요약 — §B 구현 분석") 이 남아 있으므로 `in-progress` 유지. 다음 phase 는 P0 (ai-agent error builder, information-extractor ConversationThread v2 등) 부터 노드 단위 처리.
 
 > **3차 확장 (2026-05-16 구현 분석)**: 본 폴더는 28종 노드별 spec ↔ **backend 구현** ↔ 기존 plan 을 모두 비교한 종합 분석 단계로 확장됐다. 모든 노드 plan 파일에 `## 구현 분석 (2026-05-16)` 과 `## 종합 개선안 (2026-05-16)` 두 새 섹션이 추가되었다. 28종 중 **잔여 권고가 1건 이상인 노드 27 / 완전 부합 1**(split). 권고는 `(spec)` · `(impl)` · `(frontend)` 접두로 분류한다. 자세한 단면별 통계는 §"종합 개선안 통계 (2026-05-16)" 표.
