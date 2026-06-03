@@ -156,6 +156,14 @@ describe("formatDate", () => {
     expect(result).toMatch(/^\d{1,2}:\d{2}(\s?[AP]M)?$/i);
   });
 
+  it("formats with time-seconds format (hour:minute:second, client TZ)", () => {
+    const result = formatDate("2026-01-15T12:00:34Z", "time-seconds", "en");
+    // hour:minute:second with no date components — used by the execution
+    // debugging timeline to distinguish turns within the same minute.
+    expect(result).toMatch(/^\d{1,2}:\d{2}:\d{2}(\s?[AP]M)?$/i);
+    expect(result).toContain("34");
+  });
+
   it("formats with month-year (no day component)", () => {
     const result = formatDate("2026-01-15T12:00:00Z", "month-year", "en");
     expect(result).toContain("January");

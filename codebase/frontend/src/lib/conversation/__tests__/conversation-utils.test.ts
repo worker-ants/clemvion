@@ -5,6 +5,7 @@ import {
   mergeOrphanToolItems,
   groupToolCallItems,
   threadTurnsToConversationItems,
+  toolStatusMapFromItems,
   stripInlineMarkers,
   inferInteractionTypeFromData,
   type ConversationTurn,
@@ -210,6 +211,119 @@ describe("messagesToConversationItems", () => {
     expect(assistants[1].durationMs).toBe(80);
     expect(assistants[0].metadata?.inputTokens).toBe(100);
     expect(assistants[1].metadata?.outputTokens).toBe(30);
+  });
+
+  // spec/conventions/conversation-thread.md §9.12 — 요소별 절대 발생 시각.
+  it("populates assistant timestamp from llmCalls[].startedAt (tool-only response included)", () => {
+    const items = messagesToConversationItems(
+      [
+        { role: "user", content: "x" },
+        {
+          // tool-call 만 있는 (content blank) 어시스턴트 응답도 발생 시각을 가진다.
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "c1", name: "kb", arguments: "{}" }],
+        },
+        { role: "tool", toolCallId: "c1", content: "{}" },
+        { role: "assistant", content: "final" },
+      ],
+      {
+        debugByTurn: new Map([
+          [
+            1,
+            {
+              turnIndex: 1,
+              llmCalls: [
+                {
+                  requestPayload: {},
+                  responsePayload: {},
+                  durationMs: 100,
+                  startedAt: "2026-05-10T06:42:01.500Z",
+                  finishedAt: "2026-05-10T06:42:01.600Z",
+                },
+                {
+                  requestPayload: {},
+                  responsePayload: {},
+                  durationMs: 80,
+                  startedAt: "2026-05-10T06:42:02.000Z",
+                  finishedAt: "2026-05-10T06:42:02.080Z",
+                },
+              ],
+            },
+          ],
+        ]),
+      },
+    );
+
+    const assistants = items.filter((i) => i.type === "assistant");
+    expect(assistants[0].timestamp).toBe("2026-05-10T06:42:01.500Z");
+    expect(assistants[1].timestamp).toBe("2026-05-10T06:42:02.000Z");
+  });
+
+  it("populates tool timestamp from toolStatusByCallId.startedAt (history rebuild)", () => {
+    const items = messagesToConversationItems(
+      [
+        { role: "user", content: "x" },
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "call_a", name: "kb_search", arguments: "{}" }],
+        },
+        { role: "tool", toolCallId: "call_a", content: '{"ok":1}' },
+        { role: "assistant", content: "done" },
+      ],
+      {
+        toolStatusByCallId: new Map([
+          [
+            "call_a",
+            {
+              status: "success",
+              durationMs: 12,
+              startedAt: "2026-05-10T06:42:03.100Z",
+            },
+          ],
+        ]),
+      },
+    );
+
+    const tool = items.find((i) => i.type === "tool");
+    expect(tool?.timestamp).toBe("2026-05-10T06:42:03.100Z");
+    expect(tool?.durationMs).toBe(12);
+  });
+
+  // §9.12 W2 회귀 — live carry-over map (toolStatusMapFromItems) 이 startedAt 을
+  // 보존하지 않으면 ai_message 스냅샷 REPLACE 시 tool 발생 시각이 유실된다.
+  it("preserves tool timestamp across ai_message REPLACE via toolStatusMapFromItems", () => {
+    const prevItems: ConversationItem[] = [
+      {
+        type: "tool",
+        content: "kb_search",
+        turnIndex: 1,
+        toolCallId: "call_a",
+        toolStatus: "success",
+        durationMs: 12,
+        timestamp: "2026-05-10T06:42:03.100Z",
+      },
+    ];
+    const carry = toolStatusMapFromItems(prevItems);
+    expect(carry.get("call_a")?.startedAt).toBe("2026-05-10T06:42:03.100Z");
+
+    // 스냅샷 REPLACE 재구성 시 carry-over map 을 통해 timestamp 가 복원돼야 한다.
+    const rebuilt = messagesToConversationItems(
+      [
+        { role: "user", content: "x" },
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "call_a", name: "kb_search", arguments: "{}" }],
+        },
+        { role: "tool", toolCallId: "call_a", content: '{"ok":1}' },
+        { role: "assistant", content: "done" },
+      ],
+      { toolStatusByCallId: carry },
+    );
+    const tool = rebuilt.find((i) => i.type === "tool");
+    expect(tool?.timestamp).toBe("2026-05-10T06:42:03.100Z");
   });
 
   it("turnIndex increments per user message across multiple turns", () => {

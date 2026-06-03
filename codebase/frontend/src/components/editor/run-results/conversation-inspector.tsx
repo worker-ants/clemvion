@@ -397,6 +397,15 @@ function SelectedItemDetail({
             ? `Tool Call — Turn ${item.turnIndex}`
             : `AI Response — Turn ${item.turnIndex}`}
         </span>
+        {/* spec/conventions/conversation-thread.md §9.12 — 발생 시각(절대) + LLM latency.
+            tool-call 만 있는 응답도 동일 노출. */}
+        {(item.timestamp || item.durationMs != null) && (
+          <span className="ml-auto flex items-center gap-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
+            {item.timestamp && <span>{formatDate(item.timestamp, "datetime")}</span>}
+            {item.timestamp && item.durationMs != null && <span>·</span>}
+            {item.durationMs != null && <span>{item.durationMs}ms</span>}
+          </span>
+        )}
       </div>
       {!isContentBlank && (
         <div className="text-sm">
@@ -455,6 +464,12 @@ function ToolDetail({ item }: { item: ConversationItem }) {
           </span>
         )}
       </div>
+      {/* spec/conventions/conversation-thread.md §9.12 — tool 실행 발생 시각(절대) */}
+      {item.timestamp && (
+        <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+          {formatDate(item.timestamp, "datetime")}
+        </div>
+      )}
       {item.error && (
         <div className="rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-700 dark:text-red-300">
           {item.error}
@@ -1008,6 +1023,16 @@ function SummaryView({
                         count: toolCallCount,
                       })}
                     </span>
+                    {/* §9.12 — tool-call 만 있는 LLM 응답의 발생 시각 + latency */}
+                    {(item.timestamp || item.durationMs != null) && (
+                      <span className="ml-2 font-normal">
+                        {item.timestamp
+                          ? formatDate(item.timestamp, "time-seconds")
+                          : ""}
+                        {item.timestamp && item.durationMs != null ? " · " : ""}
+                        {item.durationMs != null ? `${item.durationMs}ms` : ""}
+                      </span>
+                    )}
                   </div>
                   {childIndices.length > 0 && (
                     <div className="ml-3 flex flex-col gap-1 border-l-2 border-[hsl(var(--border))] pl-3">
@@ -1056,9 +1081,18 @@ function SummaryView({
                                 · {child.error}
                               </span>
                             )}
-                            {child.durationMs != null && (
+                            {/* §9.12 — tool 발생 시각(절대) + 실행 소요시간 */}
+                            {(child.timestamp || child.durationMs != null) && (
                               <span className="ml-auto shrink-0 text-[10px]">
-                                {child.durationMs}ms
+                                {child.timestamp
+                                  ? formatDate(child.timestamp, "time-seconds")
+                                  : ""}
+                                {child.timestamp && child.durationMs != null
+                                  ? " · "
+                                  : ""}
+                                {child.durationMs != null
+                                  ? `${child.durationMs}ms`
+                                  : ""}
                               </span>
                             )}
                           </div>
@@ -1093,6 +1127,12 @@ function SummaryView({
                       {p?.nodeLabel ?? "Presentation"}
                     </span>
                     <span>· {t(getInteractionLabelKey(p?.interactionType))}</span>
+                    {/* §9.12 — presentation 발생 시각(절대) */}
+                    {item.timestamp && (
+                      <span className="ml-auto font-normal">
+                        {formatDate(item.timestamp, "time-seconds")}
+                      </span>
+                    )}
                   </div>
                   <PresentationCardBody item={item} />
                 </div>
@@ -1159,9 +1199,14 @@ function SummaryView({
                       · {item.error}
                     </span>
                   )}
-                  {item.durationMs != null && (
+                  {/* §9.12 — tool 발생 시각(절대) + 실행 소요시간 */}
+                  {(item.timestamp || item.durationMs != null) && (
                     <span className="ml-auto shrink-0 text-[10px]">
-                      {item.durationMs}ms
+                      {item.timestamp
+                        ? formatDate(item.timestamp, "time-seconds")
+                        : ""}
+                      {item.timestamp && item.durationMs != null ? " · " : ""}
+                      {item.durationMs != null ? `${item.durationMs}ms` : ""}
                     </span>
                   )}
                 </div>
@@ -1199,12 +1244,29 @@ function SummaryView({
                     "cursor-pointer transition-shadow hover:ring-1 hover:ring-[hsl(var(--primary))/0.3] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]",
                 )}
               >
-                <div className="mb-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
-                  {item.type === "user"
-                    ? "👤 User"
-                    : isRag
-                      ? `🔎 KB Reference${ragSourceCount > 0 ? ` · ${ragSourceCount} chunk(s)` : ""}`
-                      : "🤖 AI"}
+                <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
+                  <span>
+                    {item.type === "user"
+                      ? "👤 User"
+                      : isRag
+                        ? `🔎 KB Reference${ragSourceCount > 0 ? ` · ${ragSourceCount} chunk(s)` : ""}`
+                        : "🤖 AI"}
+                  </span>
+                  {/* §9.12 — 발생 시각(절대) + assistant LLM latency */}
+                  {(item.timestamp ||
+                    (isAssistant && item.durationMs != null)) && (
+                    <span className="ml-auto font-normal">
+                      {item.timestamp
+                        ? formatDate(item.timestamp, "time-seconds")
+                        : ""}
+                      {item.timestamp && isAssistant && item.durationMs != null
+                        ? " · "
+                        : ""}
+                      {isAssistant && item.durationMs != null
+                        ? `${item.durationMs}ms`
+                        : ""}
+                    </span>
+                  )}
                 </div>
                 {hasContent &&
                   (isAssistant ? (

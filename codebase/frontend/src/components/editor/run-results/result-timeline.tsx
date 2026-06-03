@@ -21,6 +21,7 @@ import { ConversationTimelineItem } from "./conversation-timeline-item";
 import { parseHistoryMessages } from "./conversation-utils";
 import { groupToolCallItems } from "@/lib/conversation/conversation-utils";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/date";
 import { formatDuration } from "./utils";
 import { isConversationOutput } from "./output-shape";
 import { buildConvConfigFromStructured } from "@/lib/websocket/apply-execution-snapshot";
@@ -242,6 +243,12 @@ function TimelineRow({
             {maxTurns > 0 ? `/${maxTurns}` : ""}
           </span>
         )}
+        {/* spec/conventions/conversation-thread.md §9.12 — 노드 발생 시각(절대). */}
+        {result.startedAt && (
+          <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
+            {formatDate(result.startedAt, "time-seconds")}
+          </span>
+        )}
         {result.duration != null && (
           <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
             {formatDuration(result.duration)}
@@ -300,6 +307,20 @@ function TimelineRow({
                       <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
                         {toolCallCount}개 도구 호출
                       </span>
+                      {/* §9.12 — tool-call 만 있는 LLM 응답의 발생 시각·LLM latency */}
+                      {(item.timestamp || item.durationMs != null) && (
+                        <span className="ml-auto shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
+                          {item.timestamp
+                            ? formatDate(item.timestamp, "time-seconds")
+                            : ""}
+                          {item.timestamp && item.durationMs != null
+                            ? " · "
+                            : ""}
+                          {item.durationMs != null
+                            ? formatDuration(item.durationMs)
+                            : ""}
+                        </span>
+                      )}
                     </button>
                     {childIndices.length > 0 && (
                       <div className="ml-3 border-l border-[hsl(var(--border))] pl-2">

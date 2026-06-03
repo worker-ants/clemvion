@@ -61,6 +61,7 @@ export type DateFormat =
   | "datetime"
   | "datetime-tz"
   | "time"
+  | "time-seconds"
   | "month-year";
 
 /**
@@ -71,6 +72,8 @@ export type DateFormat =
  *     (e.g. `"KST"`, `"GMT+9"`, `"PST"`). Use when the timestamp must be
  *     unambiguous across timezones (notifications, audit rows, etc.).
  *   - `"time"` — hour:minute only (client TZ).
+ *   - `"time-seconds"` — hour:minute:second (client TZ). 실행 디버깅 타임라인처럼
+ *     같은 분 안에서 일어난 여러 turn 을 구분해야 할 때 사용.
  *   - `"date"` / undefined — short month + year (default, client TZ).
  *
  * For non-`"iso"` formats the value is rendered in the **client's local
@@ -119,6 +122,14 @@ export function formatDate(date: string | Date, format?: DateFormat, locale?: Lo
     return d.toLocaleTimeString(intlLocale, {
       hour: "2-digit",
       minute: "2-digit",
+    });
+  }
+
+  if (format === "time-seconds") {
+    return d.toLocaleTimeString(intlLocale, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
     });
   }
 

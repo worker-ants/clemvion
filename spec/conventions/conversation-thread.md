@@ -578,3 +578,30 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 | `mergeOrphanToolItems(threadItems, prev)` | (threadItems, store prev) → merged items | `handleWaitingForInput` 내부 — REPLACE 직전 |
 
 신규 변환 path 도입 시 본 contract 표 갱신 + §9.11 의 등가성 정의 만족 여부 검토 의무.
+
+### 9.12 요소별 발생 시각·소요시간 표시 (강제)
+
+디버깅 surface 는 멀티턴 AI 노드의 **모든 conversation 요소**에 대해 발생 시각(절대)과, 의미 있는 요소에는 소요시간을 노출한다. "노드 단위" 가 아니라 **요소(turn) 단위** 노출이 SoT.
+
+**요소별 시각·소요시간 출처**
+
+| store `type` (wire source) | 발생 시각 출처 | 소요시간 출처 |
+| --- | --- | --- |
+| `user` (`ai_user`) | `item.timestamp` (= WS `user_message.receivedAt` / `turns[].timestamp`) | — (즉시 수신, 표시 안 함) |
+| `assistant` (`ai_assistant`) — tool-call 만 있는 응답 포함 | `item.timestamp` (= `llmCalls[].startedAt`, [WebSocket §4.4](../5-system/6-websocket-protocol.md#44-실행-진행-이벤트)) | `item.durationMs` (= `llmCalls[].durationMs`, LLM latency) |
+| `tool` (`ai_tool`) | `item.timestamp` (= `tool_call_started.startedAt` / `turnDebug[].toolCalls[].startedAt`) | `item.durationMs` (= `tool_call_completed.durationMs`) |
+| `presentation` (`presentation_user`) | `item.timestamp` (= `turns[].timestamp`) | — |
+| `system` / `system_error` | `item.timestamp` (= `turns[].timestamp` / 노드 `finishedAt`) | — |
+
+**표시 규약**
+
+1. **절대 시각**: 시각은 `@/lib/utils/date` 의 `formatDate(item.timestamp, "time-seconds")` (좁은 row — 같은 분 내 여러 turn 구분 위해 초까지 표시) 또는 `"datetime"` (상세 헤더) 로 렌더한다. `toLocaleString` 직접 호출 금지 (AGENTS.md Datetime 규약).
+2. **소요시간**: `assistant`·`tool` 의 `durationMs` 를 `formatDuration` 으로 렌더. tool-call 만 있는 assistant 응답도 동일하게 LLM latency 를 표시한다.
+3. **적용 surface (동시 적용 의무)** — §9.6 적용 surface 와 동일 두 timeline + 상세/이력:
+   - conversation Preview 탭 (`SummaryView`) 및 SelectedItemDetail 인스펙터
+   - 좌측 실행 트리 timeline (`ResultTimeline` → `ConversationTimelineItem`)
+   - 실행 내역 페이지(`/executions/:id`) 의 노드/요소 리스트·상세 헤더
+   라이브와 영속(실행 내역) 양쪽이 **동일 절대 시각**을 보여야 한다 ([WebSocket §4.4 요소별 발생 시각·소요시간 영속](../5-system/6-websocket-protocol.md#44-실행-진행-이벤트)).
+4. **결측 내성**: `timestamp`/`durationMs` optional — 미보유(과거 데이터·아직 미수신 pending) 시 해당 표기를 생략한다 (`—` 또는 비표시). 시각 결측이 레이아웃을 깨지 않는다.
+
+데이터 모델(`startedAt`/`finishedAt` 동봉)·영속 정책의 SoT 는 [WebSocket §4.4](../5-system/6-websocket-protocol.md#44-실행-진행-이벤트) 와 그 Rationale "요소별 절대 발생 시각·소요시간 노출".

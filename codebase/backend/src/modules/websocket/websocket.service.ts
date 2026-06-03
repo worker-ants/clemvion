@@ -107,6 +107,9 @@ export interface ToolCallStartedPayload {
   name: string;
   /** Raw JSON-string arguments from the LLM; the client parses defensively. */
   arguments: string;
+  /** ISO8601 — tool 실행 시작 절대 시각. 타임라인이 라이브/영속 동일 시각 표시.
+   *  SoT: spec/5-system/6-websocket-protocol.md §4.4 execution.tool_call_started. */
+  startedAt?: string;
 }
 
 /**
@@ -143,6 +146,10 @@ export interface ToolCallCompletedPayload {
   /** Sanitized human-readable error summary. Set when status='error'. */
   error?: string;
   durationMs: number;
+  /** ISO8601 — tool 실행 시작 절대 시각 (= 대응 tool_call_started.startedAt). */
+  startedAt?: string;
+  /** ISO8601 — tool 실행 종료 절대 시각. */
+  finishedAt?: string;
 }
 
 export enum NodeEventType {

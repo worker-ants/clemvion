@@ -474,6 +474,8 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `llmCalls[].requestPayload` | unknown? | LLM provider 에 보낸 raw 요청 (messages, tools, params 포함) |
 | `llmCalls[].responsePayload` | unknown? | LLM provider 가 반환한 raw 응답 (content, model, usage, stopReason 등) |
 | `llmCalls[].durationMs` | number? | **단일 LLM 요청** 소요시간 |
+| `llmCalls[].startedAt` | ISO8601 string? | 해당 LLM 호출을 **발신한 절대 시각**. 디버깅 타임라인이 어시스턴트 메시지(= tool-call 만 있는 응답 포함)의 발생 시각을 표시하는 1차 출처. `durationMs` 와 함께 `finishedAt = startedAt + durationMs` 관계를 만족한다 (engine 이 둘 다 직접 측정해 ms 단위 미세 차이 가능) |
+| `llmCalls[].finishedAt` | ISO8601 string? | 해당 LLM 호출 응답을 **수신한 절대 시각** |
 | `durationMs` | number? | **턴 전체** 소요시간 (모든 LLM 호출 + tool 실행 합) |
 | `presentations` | PresentationPayload[]? | AI Agent 가 `render_*` 표현 도구 ([Spec AI Agent §4.1](../4-nodes/3-ai/1-ai-agent.md#41-presentation-tool-family-render_)) 를 호출한 turn 에서만 동봉. `ai_assistant` ConversationTurn 의 top-level `presentations[]` snapshot. type 정의의 단일 진실은 [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반). 클라이언트가 chat UI 에서 텍스트와 함께 inline 렌더 |
 
@@ -504,7 +506,9 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
       {
         "requestPayload": { "messages": [ ... ], "tools": [ ... ] },
         "responsePayload": { "content": "...", "model": "...", "usage": { ... } },
-        "durationMs": 842
+        "durationMs": 842,
+        "startedAt": "2026-05-10T06:42:01.500Z",
+        "finishedAt": "2026-05-10T06:42:02.342Z"
       }
     ],
     "durationMs": 842
@@ -558,7 +562,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 
 **Tool 호출 시작 (`execution.tool_call_started`):**
 
-AI Agent 가 provider tool(KB·MCP 등)을 실행하기 직전에 발송한다. 디버깅 타임라인은 이 이벤트로 pending 상태의 tool 항목을 즉시 표시해 사용자에게 진행 상황을 보여준다. `arguments` 는 LLM 이 생성한 JSON 문자열 그대로 (parse 책임은 클라이언트).
+AI Agent 가 provider tool(KB·MCP 등)을 실행하기 직전에 발송한다. 디버깅 타임라인은 이 이벤트로 pending 상태의 tool 항목을 즉시 표시해 사용자에게 진행 상황을 보여준다. `arguments` 는 LLM 이 생성한 JSON 문자열 그대로 (parse 책임은 클라이언트). `startedAt` 은 tool 실행을 **시작한 절대 시각**(ISO8601) 으로, 타임라인이 라이브뿐 아니라 turn 종료 후 영속(`meta.turnDebug[].toolCalls[].startedAt`) 으로도 동일 시각을 복원하도록 동봉된다.
 
 ```json
 {
@@ -569,14 +573,15 @@ AI Agent 가 provider tool(KB·MCP 등)을 실행하기 직전에 발송한다. 
     "turnIndex": 1,
     "toolCallId": "call_abc123",
     "name": "kb_workspace_main",
-    "arguments": "{\"query\":\"오늘의 날씨\"}"
+    "arguments": "{\"query\":\"오늘의 날씨\"}",
+    "startedAt": "2026-05-10T06:42:03.100Z"
   }
 }
 ```
 
 **Tool 호출 완료 (`execution.tool_call_completed`):**
 
-provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status` 는 `success` 또는 `error`. 실패 시에도 핸들러는 LLM 에 에러 content 를 넘겨 회복 기회를 주므로 turn 자체는 계속 진행된다 — UI 는 이 이벤트로 항목을 success / error 상태로 전환한다.
+provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status` 는 `success` 또는 `error`. 실패 시에도 핸들러는 LLM 에 에러 content 를 넘겨 회복 기회를 주므로 turn 자체는 계속 진행된다 — UI 는 이 이벤트로 항목을 success / error 상태로 전환한다. `startedAt`(= 대응 `tool_call_started.startedAt`) / `finishedAt` 은 tool 실행의 시작·종료 절대 시각(ISO8601) 으로, `meta.turnDebug[].toolCalls[]` 에도 동일하게 영속되어 실행 내역 화면이 라이브와 같은 시각을 표시한다.
 
 ```json
 {
@@ -588,7 +593,9 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
     "toolCallId": "call_abc123",
     "content": "{\"results\":[...]}",
     "status": "success",
-    "durationMs": 1240
+    "durationMs": 1240,
+    "startedAt": "2026-05-10T06:42:03.100Z",
+    "finishedAt": "2026-05-10T06:42:04.340Z"
   }
 }
 ```
@@ -606,12 +613,16 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
     "content": "{\"error\":\"MCP server timeout\"}",
     "status": "error",
     "error": "MCP server timeout",
-    "durationMs": 30000
+    "durationMs": 30000,
+    "startedAt": "2026-05-10T06:42:05.000Z",
+    "finishedAt": "2026-05-10T06:42:35.000Z"
   }
 }
 ```
 
 > **Reconciliation**: `tool_call_started` / `tool_call_completed` / `user_message` 가 손실되어도 turn 종료 시 도착하는 `execution.ai_message` 의 `messages` 스냅샷과 `meta.turnDebug[].toolCalls` 가 권위적이다. 클라이언트는 tool 항목은 `toolCallId`, optimistic user bubble 은 `receivedAt` 을 키로 dedup 한다. 단, 클라이언트가 직접 발화해 송신 즉시 표시한 동일 발화 bubble 이 이미 있으면 `user_message` 는 새 bubble 을 append 하지 않고 기존 bubble 에 `receivedAt` 을 stamp 해 reconcile 한다 (`receivedAt` 은 이후 재emit 의 dedup 키로 계속 동작). 즉 `user_message` 는 q 의 조기 노출(라이브 UX)만 담당하고, 영속/이력 정합은 `ai_message` 스냅샷이 보장한다.
+>
+> **요소별 발생 시각·소요시간 영속**: `llmCalls[].startedAt`/`finishedAt` 와 `toolCalls[].startedAt`/`finishedAt` 는 라이브 WS 이벤트뿐 아니라 `meta.turnDebug[]` JSON(= `NodeExecution.output_data`) 에도 동봉 영속된다. 따라서 실행 내역 화면(라이브 이벤트 없이 영속 스냅샷에서 재구성)도 어시스턴트 응답·tool 실행의 절대 발생 시각을 라이브와 동일하게 표시한다. user 발화 시각은 `receivedAt`, presentation/system turn 은 `ConversationThread.turns[].timestamp` 가 1차 출처다. 모두 하위호환 optional 이라 미보유 과거 데이터는 시각을 생략(`—`)한다.
 
 #### 4.4.5 Conversation Thread snapshot (`conversationThread`)
 
@@ -986,3 +997,11 @@ KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`We
 ### `execution.retry_last_turn` 의 graph 진행 의미 — Re-run 과의 경계
 
 retry 는 "노드 단위 재시도" 라는 표현 때문에 일부 독자가 "downstream 도 의도적으로 차단" 으로 오독할 여지가 있었으나, spec 의 의도는 워크플로 Re-run ([§13](./13-replay-rerun.md)) 과의 단위 구분 (Execution 단위 vs 노드 단위) 이지 downstream traversal 차단이 아니다. 재진입한 turn 의 성공 후 graph 진행은 일반 노드 `COMPLETED` 와 동일한 워크플로 엔진의 기본 invariant 적용이며, AI Agent [§7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트) + [§12.8](../4-nodes/3-ai/1-ai-agent.md#128-retry_last_turn-성공-후-downstream-graph-진행) 이 동일 결정 근거를 공유한다.
+
+### 요소별 절대 발생 시각·소요시간 노출 — `startedAt`/`finishedAt` 동봉 (2026-06-03)
+
+디버깅 타임라인·실행 내역은 그간 노드/턴 단위 `durationMs` 만 노출했고, 멀티턴 AI 노드 내부 요소(유저 발화·LLM 응답·tool 실행)의 **절대 발생 시각**은 표시하지 못했다. user 발화는 `receivedAt`, presentation/system turn 은 `ConversationThread.turns[].timestamp` 로 이미 시각 데이터가 있었으나, **어시스턴트 LLM 응답과 tool 실행에는 시각 데이터 자체가 없어**(`llmCalls[]`·`toolCalls[]` 가 `durationMs` 만 보유) 프론트 표시 계층만으로는 불가능했다.
+
+- **결정**: `llmCalls[]` 와 `toolCalls[]`(= `tool_call_*` 이벤트) 에 `startedAt`/`finishedAt`(ISO8601) 을 추가한다. 엔진은 이미 `Date.now()` 기반 duration 측정을 위해 시작 시각을 캡처하므로, 그 값을 ISO 로 동봉만 하면 된다. 라이브 WS 이벤트와 `meta.turnDebug[]` JSON 영속 양쪽에 동일하게 싣는다.
+- **근거**: (1) DB 마이그레이션 불필요 — `meta.turnDebug` 는 `NodeExecution.output_data` JSONB 내부다. (2) 전부 하위호환 optional — 과거 데이터는 시각을 `—` 로 생략. (3) 라이브/영속 동일 출처라 에디터 디버깅 UI 와 실행 내역 페이지가 같은 절대 시각을 보인다. (4) `durationMs` 와 중복처럼 보이나, duration 만으로는 "언제" 를 복원할 수 없고(턴 사이 대기·공백 미반영) 절대 시각은 파생 추정이 부정확하므로 명시 동봉이 정공법이다.
+- **기각된 대안**: node.startedAt + 누적 duration 오프셋으로 시각을 **파생 추정**하는 안은 백엔드 무변경이지만 tool/대기 공백을 반영 못 해 부정확하고, 절대 시각으로 표기 시 오해를 부른다. 라이브 전용 client `new Date()` stamp 안은 영속 실행 내역 페이지에서 시각이 사라져 두 surface 가 불일치한다.

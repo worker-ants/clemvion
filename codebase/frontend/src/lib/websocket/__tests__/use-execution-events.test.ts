@@ -1523,6 +1523,63 @@ describe("useExecutionEvents", () => {
       expect(item?.toolResult).toEqual({ ok: 1 });
     });
 
+    // spec/5-system/6-websocket-protocol.md §4.4 (W1) — tool 발생 시각은
+    // backend startedAt 을 권위값으로 쓰고, 미동봉(legacy) 시에만 client 시각 폴백.
+    it("tool_call_started uses backend startedAt when present", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolStarted } = bind();
+      toolStarted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        name: "kb_search",
+        arguments: "{}",
+        startedAt: "2026-05-10T06:42:03.100Z",
+      });
+      const item = useExecutionStore
+        .getState()
+        .conversationMessages.find((i) => i.toolCallId === "call_1");
+      expect(item?.timestamp).toBe("2026-05-10T06:42:03.100Z");
+    });
+
+    it("tool_call_started falls back to a client ISO timestamp when startedAt absent", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolStarted } = bind();
+      toolStarted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        name: "kb_search",
+        arguments: "{}",
+      });
+      const item = useExecutionStore
+        .getState()
+        .conversationMessages.find((i) => i.toolCallId === "call_1");
+      // legacy 폴백: 정확한 값은 단정하지 않되 ISO8601 형태여야 한다.
+      expect(item?.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+
+    it("tool_call_completed reconciles timestamp from backend startedAt (started lost)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolCompleted } = bind();
+      // started 이벤트 유실 → completed 만 도착. backend startedAt 으로 시각 복원.
+      toolCompleted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_lost",
+        content: '{"ok":1}',
+        status: "success",
+        durationMs: 42,
+        startedAt: "2026-05-10T06:42:05.000Z",
+        finishedAt: "2026-05-10T06:42:05.042Z",
+      });
+      const item = useExecutionStore
+        .getState()
+        .conversationMessages.find((i) => i.toolCallId === "call_lost");
+      expect(item?.timestamp).toBe("2026-05-10T06:42:05.000Z");
+      expect(item?.durationMs).toBe(42);
+    });
+
     it("tool_call_completed marks status='error' and stores error message", () => {
       useExecutionStore.getState().startExecution("exec-1");
       const { toolStarted, toolCompleted } = bind();
