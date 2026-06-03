@@ -35,13 +35,23 @@ export class ExecutionContextService {
   createContext(
     executionId: string,
     workflowId: string,
-    initialVariables: Record<string, unknown> = {},
-    recursionDepth?: number,
-    // in-memory Map 라우팅 키 (spec/conventions/execution-context.md 원칙 4).
-    // 생략 시 executionId 와 동일 → 비-background 호출은 동작 불변. background
-    // 본문만 `bg:<executionId>:<backgroundRunId>` 를 전달해 부모와 키 격리한다.
-    contextKey?: string,
+    // 필수 식별자(executionId/workflowId)만 위치 인자로 두고, optional 부가
+    // 인자는 단일 options 객체로 묶는다 (2026-06-03 ai-review INFO#3). 후행
+    // contextKey 만 넘기려고 중간 기본값(`{}`, `0`)을 억지로 명시하던 background
+    // 호출의 불편(`createContext(id, wf, {}, 0, bgKey)`)을 없앤다. God Object 방지
+    // 규약(execution-context.md §Rationale "기각된 ExecutionOptions 추출")은
+    // 핸들러 소비 표면인 `ExecutionContext` 필드를 묶는 안의 기각이며, 본 메서드
+    // 인자 ergonomics 와는 별개 사안이라 충돌하지 않는다.
+    options: {
+      initialVariables?: Record<string, unknown>;
+      recursionDepth?: number;
+      // in-memory Map 라우팅 키 (spec/conventions/execution-context.md 원칙 4).
+      // 생략 시 executionId 와 동일 → 비-background 호출은 동작 불변. background
+      // 본문만 `bg:<executionId>:<backgroundRunId>` 를 전달해 부모와 키 격리한다.
+      contextKey?: string;
+    } = {},
   ): ExecutionContext {
+    const { initialVariables = {}, recursionDepth, contextKey } = options;
     const key = contextKey ?? executionId;
     const existing = this.contexts.get(key);
     if (existing) {
@@ -75,7 +85,17 @@ export class ExecutionContextService {
     adapted: NodeHandlerOutput,
   ): void {
     const context = this.contexts.get(key);
-    if (!context) return;
+    if (!context) {
+      // best-effort 캐시라 throw 하지 않고 no-op 을 유지하되, 잘못된 키 진단을
+      // 위해 warn 을 남긴다 (2026-06-03 ai-review INFO#7). 정상 경로(이미 삭제된
+      // context 로의 뒤늦은 write 등)는 거의 없으므로, 본 로그가 찍히면 키 라우팅
+      // (contextKeyOf / bgKey) 오류 신호다. `[ctx-trace]` prefix 로 grep 가능.
+      this.logger.warn(
+        `[ctx-trace] setStructuredOutput MISSING — key=${key} nodeId=${nodeId} ` +
+          `(no-op: context absent for this key).`,
+      );
+      return;
+    }
     context.structuredOutputCache[nodeId] = adapted;
   }
 
@@ -96,7 +116,15 @@ export class ExecutionContextService {
     const context = this.contexts.get(key) as
       | MutableExecutionContext
       | undefined;
-    if (!context) return;
+    if (!context) {
+      // setStructuredOutput 과 동일 정책: no-op 유지 + 잘못된 키 진단 warn
+      // (2026-06-03 ai-review INFO#7).
+      this.logger.warn(
+        `[ctx-trace] setEngineResolvedConfig MISSING — key=${key} nodeId=${nodeId} ` +
+          `(no-op: context absent for this key).`,
+      );
+      return;
+    }
     context.engineResolvedConfigCache[nodeId] = { ...resolvedConfig };
   }
 

@@ -1083,15 +1083,18 @@ export class ExecutionEngineService
       execution.id,
       execution.workflowId,
       {
-        __workspaceId: workflow.workspaceId ?? '',
-        __workspaceName: typeof workspaceName === 'string' ? workspaceName : '',
-        __workspaceTimezone:
-          typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
-        // dry-run 플래그 복원 (rehydration) — spec §7.2. 핸들러는
-        // `context.variables.__dryRun === true` 로 mock 분기.
-        __dryRun: execution.dryRun ?? false,
+        initialVariables: {
+          __workspaceId: workflow.workspaceId ?? '',
+          __workspaceName:
+            typeof workspaceName === 'string' ? workspaceName : '',
+          __workspaceTimezone:
+            typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
+          // dry-run 플래그 복원 (rehydration) — spec §7.2. 핸들러는
+          // `context.variables.__dryRun === true` 로 mock 분기.
+          __dryRun: execution.dryRun ?? false,
+        },
+        recursionDepth: execution.recursionDepth,
       },
-      execution.recursionDepth,
     );
     const executedNodes = new Set<string>();
     context._executedNodes = executedNodes;
@@ -2779,16 +2782,18 @@ export class ExecutionEngineService
         executionId,
         workflowId,
         {
-          __workspaceId: workflow?.workspaceId ?? '',
-          __workspaceName:
-            typeof workspaceName === 'string' ? workspaceName : '',
-          __workspaceTimezone:
-            typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
-          // dry-run 플래그 주입 — spec §7.2. 핸들러는
-          // `context.variables.__dryRun === true` 로 mock 분기.
-          __dryRun: savedExecution.dryRun ?? false,
+          initialVariables: {
+            __workspaceId: workflow?.workspaceId ?? '',
+            __workspaceName:
+              typeof workspaceName === 'string' ? workspaceName : '',
+            __workspaceTimezone:
+              typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
+            // dry-run 플래그 주입 — spec §7.2. 핸들러는
+            // `context.variables.__dryRun === true` 로 mock 분기.
+            __dryRun: savedExecution.dryRun ?? false,
+          },
+          recursionDepth: savedExecution.recursionDepth,
         },
-        savedExecution.recursionDepth,
       );
 
       // 9-10. nodeMap + maxNodeIterations 는 loadAndBuildGraph 결과를 그대로
@@ -7224,9 +7229,7 @@ export class ExecutionEngineService
     const context = this.contextService.createContext(
       job.executionId,
       job.workflowId,
-      {},
-      0,
-      bgKey,
+      { contextKey: bgKey },
     );
     context.variables = { ...job.variables };
     context.nodeOutputCache = { ...job.nodeOutputCache };

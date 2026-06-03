@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ExecutionContextService } from './execution-context.service';
 import { DEFAULT_THREAD_ID } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -21,6 +22,24 @@ describe('ExecutionContextService', () => {
         turns: [],
         totalChars: 0,
       });
+    });
+
+    // INFO#3 (2026-06-03): optional 부가 인자는 단일 options 객체로 받는다.
+    it('reads initialVariables and recursionDepth from the options bag', () => {
+      const svc = new ExecutionContextService();
+      const ctx = svc.createContext('exec-opts', 'wf-1', {
+        initialVariables: { foo: 'bar' },
+        recursionDepth: 2,
+      });
+      expect(ctx.variables).toEqual({ foo: 'bar' });
+      expect(ctx.recursionDepth).toBe(2);
+    });
+
+    it('defaults variables to {} and recursionDepth to 0 when options omitted', () => {
+      const svc = new ExecutionContextService();
+      const ctx = svc.createContext('exec-empty', 'wf-1');
+      expect(ctx.variables).toEqual({});
+      expect(ctx.recursionDepth).toBe(0);
     });
   });
 
@@ -139,6 +158,57 @@ describe('ExecutionContextService', () => {
     });
   });
 
+  // INFO#7 (2026-06-03): best-effort 캐시 setter 는 context 미존재 시 throw 하지
+  // 않고 no-op 을 유지하되, 잘못된 키 라우팅 진단을 위해 warn 을 남긴다.
+  describe('context-missing diagnostics (INFO#7)', () => {
+    let warnSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    });
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    it('setStructuredOutput stays a no-op but warns on a missing key', () => {
+      expect(() =>
+        service.setStructuredOutput('nonexistent', nodeId, {
+          config: {},
+          output: 1,
+        }),
+      ).not.toThrow();
+      // 미존재 키이므로 어떤 context 에도 쓰이지 않는다 (no-op 유지).
+      expect(service.getContext('nonexistent')).toBeUndefined();
+      // 진단 warn 1회 — `[ctx-trace]` prefix + 키/노드 식별자 포함.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain(
+        '[ctx-trace] setStructuredOutput MISSING',
+      );
+      expect(warnSpy.mock.calls[0][0]).toContain('key=nonexistent');
+    });
+
+    it('setEngineResolvedConfig stays a no-op but warns on a missing key', () => {
+      expect(() =>
+        service.setEngineResolvedConfig('nonexistent', nodeId, { count: 1 }),
+      ).not.toThrow();
+      expect(service.getContext('nonexistent')).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain(
+        '[ctx-trace] setEngineResolvedConfig MISSING',
+      );
+      expect(warnSpy.mock.calls[0][0]).toContain('key=nonexistent');
+    });
+
+    it('does not warn when the context exists for the key', () => {
+      service.setStructuredOutput(executionId, nodeId, {
+        config: {},
+        output: 1,
+      });
+      service.setEngineResolvedConfig(executionId, nodeId, { count: 1 });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+  });
+
   // Background 본문 race 회귀 차단: 본문은 부모와 같은 executionId 를 NodeExecution
   // 그룹핑·WS 채널용으로 공유하되, in-memory context Map 키는 별도 bgKey 로 분리해야
   // 한다 (spec/conventions/execution-context.md 원칙 4). 키를 공유하면 먼저 끝난
@@ -155,7 +225,7 @@ describe('ExecutionContextService', () => {
     it('registers under an explicit contextKey while keeping executionId field intact', () => {
       const svc = new ExecutionContextService();
       const bgKey = 'bg:exec-A:run-1';
-      const ctx = svc.createContext('exec-A', 'wf-1', {}, 0, bgKey);
+      const ctx = svc.createContext('exec-A', 'wf-1', { contextKey: bgKey });
 
       // executionId 필드는 실제 메인 실행 ID 유지 (NodeExecution/WS/권한 1차 키).
       expect(ctx.executionId).toBe('exec-A');
@@ -172,7 +242,7 @@ describe('ExecutionContextService', () => {
       svc.createContext('exec-A', 'wf-1');
       // background 본문 context — 키 = bgKey (별도)
       const bgKey = 'bg:exec-A:run-1';
-      const bg = svc.createContext('exec-A', 'wf-1', {}, 0, bgKey);
+      const bg = svc.createContext('exec-A', 'wf-1', { contextKey: bgKey });
 
       // 부모가 먼저 종료하며 executionId 키로 삭제 (runExecution finally).
       svc.deleteContext('exec-A');

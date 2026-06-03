@@ -4571,12 +4571,27 @@ describe('ExecutionEngineService', () => {
         service as unknown as { contextService: ExecutionContextService }
       ).contextService;
       const origCreate = contextService.createContext.bind(contextService);
+      // createContext 는 options-bag 시그니처(INFO#3): 주입 변수는
+      // options.initialVariables 안으로 병합한다.
       jest
         .spyOn(contextService, 'createContext')
         .mockImplementation(
-          (execId: string, wfId: string, vars?: Record<string, unknown>) => {
-            return origCreate(execId, wfId, { ...vars, token: 'xyz789' });
-          },
+          (
+            execId: string,
+            wfId: string,
+            options: {
+              initialVariables?: Record<string, unknown>;
+              recursionDepth?: number;
+              contextKey?: string;
+            } = {},
+          ) =>
+            origCreate(execId, wfId, {
+              ...options,
+              initialVariables: {
+                ...(options.initialVariables ?? {}),
+                token: 'xyz789',
+              },
+            }),
         );
 
       await service.execute(workflowId, {});
@@ -4642,12 +4657,27 @@ describe('ExecutionEngineService', () => {
         service as unknown as { contextService: ExecutionContextService }
       ).contextService;
       const origCreate = contextService.createContext.bind(contextService);
+      // createContext options-bag 시그니처(INFO#3) — 주입 변수는
+      // options.initialVariables 안으로 병합한다.
       jest
         .spyOn(contextService, 'createContext')
         .mockImplementation(
-          (execId: string, wfId: string, vars?: Record<string, unknown>) => {
-            return origCreate(execId, wfId, { ...vars, token: 'original' });
-          },
+          (
+            execId: string,
+            wfId: string,
+            options: {
+              initialVariables?: Record<string, unknown>;
+              recursionDepth?: number;
+              contextKey?: string;
+            } = {},
+          ) =>
+            origCreate(execId, wfId, {
+              ...options,
+              initialVariables: {
+                ...(options.initialVariables ?? {}),
+                token: 'original',
+              },
+            }),
         );
 
       mockNodeRepo.findBy.mockResolvedValue([
