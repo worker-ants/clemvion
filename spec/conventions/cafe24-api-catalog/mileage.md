@@ -29,3 +29,13 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 ## Rationale
 
 설계 근거 (컬럼 정의·동기 정책·status enum) 는 [`_overview.md`](./_overview.md) 의 §2·§4·§7. 별도 승인 라벨링의 의사결정 배경은 [`cafe24-restricted-scopes.md ## Rationale`](../cafe24-restricted-scopes.md#rationale).
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`mileage/credits.md`](./mileage/credits.md) · Credits — 12 fields, 1 ops
+- [`mileage/credits-report.md`](./mileage/credits-report.md) · Credits report — 4 fields, 1 ops
+- [`mileage/points.md`](./mileage/points.md) · Points — 18 fields, 2 ops
+- [`mileage/points-autoexpiration.md`](./mileage/points-autoexpiration.md) · Points autoexpiration — 9 fields, 3 ops
+- [`mileage/points-report.md`](./mileage/points-report.md) · Points report — 6 fields, 1 ops

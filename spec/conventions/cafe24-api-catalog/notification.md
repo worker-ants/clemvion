@@ -33,3 +33,15 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 ## Rationale
 
 설계 근거 (컬럼 정의·동기 정책·status enum) 는 [`_overview.md`](./_overview.md) 의 §2·§4·§7. 별도 승인 라벨링의 의사결정 배경은 [`cafe24-restricted-scopes.md ## Rationale`](../cafe24-restricted-scopes.md#rationale).
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`notification/automails.md`](./notification/automails.md) · Automails — 5 fields, 2 ops
+- [`notification/customers__invitation.md`](./notification/customers__invitation.md) · Customers invitation — 2 fields, 1 ops
+- [`notification/recipientgroups.md`](./notification/recipientgroups.md) · Recipientgroups — 25 fields, 5 ops
+- [`notification/sms.md`](./notification/sms.md) · Sms — 1 fields, 1 ops
+- [`notification/sms-balance.md`](./notification/sms-balance.md) · Sms balance — 3 fields, 1 ops
+- [`notification/sms-receivers.md`](./notification/sms-receivers.md) · Sms receivers — 8 fields, 1 ops
+- [`notification/sms-senders.md`](./notification/sms-senders.md) · Sms senders — 4 fields, 1 ops

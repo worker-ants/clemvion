@@ -24,3 +24,12 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `translation_themes_list` | 테마 번역 목록 조회 | Retrieve a list of theme translations | GET | `translation/themes` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-theme-translations) |
 | `translation_themes_get` | 테마 번역 단건 조회 | Retrieve a theme translation | GET | `translation/themes/{theme_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-theme-translation) |
 | `translation_themes_update` | 테마 번역 수정 | Update a theme translation | PUT | `translation/themes/{theme_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-theme-translation) |
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`translation/translations-categories.md`](./translation/translations-categories.md) · Translations categories — 3 fields, 2 ops
+- [`translation/translations-products.md`](./translation/translations-products.md) · Translations products — 4 fields, 2 ops
+- [`translation/translations-store.md`](./translation/translations-store.md) · Translations store — 2 fields, 2 ops
+- [`translation/translations-themes.md`](./translation/translations-themes.md) · Translations themes — 4 fields, 3 ops

@@ -129,3 +129,65 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 설계 근거 (컬럼 정의·동기 정책·status enum) 는 [`_overview.md`](./_overview.md) 의 §2·§4·§7. 별도 승인 라벨링의 의사결정 배경은 [`cafe24-restricted-scopes.md ## Rationale`](../cafe24-restricted-scopes.md#rationale).
 
 > ※ `paymentmethods_list` / `paymentmethods_paymentproviders_list` / `paymentmethods_paymentproviders_update_display` 는 사용자 자료에 명시되지 않아 빈칸 유지. 공식 문서 재검증 후 별도 승인 대상으로 확인되면 동시 갱신.
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`store/activitylogs.md`](./store/activitylogs.md) · Activitylogs — 7 fields, 2 ops
+- [`store/automessages-arguments.md`](./store/automessages-arguments.md) · Automessages arguments — 6 fields, 1 ops
+- [`store/automessages-setting.md`](./store/automessages-setting.md) · Automessages setting — 6 fields, 2 ops
+- [`store/benefits-setting.md`](./store/benefits-setting.md) · Benefits setting — 15 fields, 2 ops
+- [`store/boards-setting.md`](./store/boards-setting.md) · Boards setting — 6 fields, 2 ops
+- [`store/carts-setting.md`](./store/carts-setting.md) · Carts setting — 9 fields, 2 ops
+- [`store/categories-properties-setting.md`](./store/categories-properties-setting.md) · Categories properties setting — 6 fields, 2 ops
+- [`store/coupons-setting.md`](./store/coupons-setting.md) · Coupons setting — 17 fields, 2 ops
+- [`store/currency.md`](./store/currency.md) · Currency — 6 fields, 2 ops
+- [`store/customers-setting.md`](./store/customers-setting.md) · Customers setting — 21 fields, 2 ops
+- [`store/dashboard.md`](./store/dashboard.md) · Dashboard — 7 fields, 1 ops
+- [`store/financials-paymentgateway.md`](./store/financials-paymentgateway.md) · Financials paymentgateway — 9 fields, 1 ops
+- [`store/financials-store.md`](./store/financials-store.md) · Financials store — 3 fields, 1 ops
+- [`store/images-setting.md`](./store/images-setting.md) · Images setting — 2 fields, 2 ops
+- [`store/information.md`](./store/information.md) · Information — 5 fields, 2 ops
+- [`store/kakaoalimtalk-profile.md`](./store/kakaoalimtalk-profile.md) · Kakaoalimtalk profile — 2 fields, 1 ops
+- [`store/kakaoalimtalk-setting.md`](./store/kakaoalimtalk-setting.md) · Kakaoalimtalk setting — 2 fields, 2 ops
+- [`store/kakaopay-setting.md`](./store/kakaopay-setting.md) · Kakaopay setting — 10 fields, 2 ops
+- [`store/mains-properties-setting.md`](./store/mains-properties-setting.md) · Mains properties setting — 6 fields, 2 ops
+- [`store/menus.md`](./store/menus.md) · Menus — 6 fields, 1 ops
+- [`store/mobile-setting.md`](./store/mobile-setting.md) · Mobile setting — 3 fields, 2 ops
+- [`store/naverpay-setting.md`](./store/naverpay-setting.md) · Naverpay setting — 15 fields, 3 ops
+- [`store/orderform-setting.md`](./store/orderform-setting.md) · Orderform setting — 15 fields, 2 ops
+- [`store/orders-setting.md`](./store/orders-setting.md) · Orders setting — 33 fields, 2 ops
+- [`store/orders-status.md`](./store/orders-status.md) · Orders status — 5 fields, 2 ops
+- [`store/payment-freeinstallments.md`](./store/payment-freeinstallments.md) · Payment freeinstallments — 3 fields, 1 ops
+- [`store/payment-setting.md`](./store/payment-setting.md) · Payment setting — 8 fields, 2 ops
+- [`store/paymentgateway.md`](./store/paymentgateway.md) · Paymentgateway — 8 fields, 3 ops
+- [`store/paymentgateway__paymentmethods.md`](./store/paymentgateway__paymentmethods.md) · Paymentgateway paymentmethods — 6 fields, 4 ops
+- [`store/paymentmethods.md`](./store/paymentmethods.md) · Paymentmethods — 2 fields, 1 ops
+- [`store/paymentmethods__paymentproviders.md`](./store/paymentmethods__paymentproviders.md) · Paymentmethods paymentproviders — 3 fields, 2 ops
+- [`store/paymentservices.md`](./store/paymentservices.md) · Paymentservices — 6 fields, 1 ops
+- [`store/points-setting.md`](./store/points-setting.md) · Points setting — 17 fields, 2 ops
+- [`store/policy.md`](./store/policy.md) · Policy — 8 fields, 2 ops
+- [`store/privacy-boards.md`](./store/privacy-boards.md) · Privacy boards — 5 fields, 2 ops
+- [`store/privacy-join.md`](./store/privacy-join.md) · Privacy join — 7 fields, 2 ops
+- [`store/privacy-orders.md`](./store/privacy-orders.md) · Privacy orders — 7 fields, 2 ops
+- [`store/products-display-setting.md`](./store/products-display-setting.md) · Products display setting — 2 fields, 2 ops
+- [`store/products-properties-setting.md`](./store/products-properties-setting.md) · Products properties setting — 6 fields, 2 ops
+- [`store/products-setting.md`](./store/products-setting.md) · Products setting — 17 fields, 1 ops
+- [`store/redirects.md`](./store/redirects.md) · Redirects — 4 fields, 4 ops
+- [`store/restocknotification-setting.md`](./store/restocknotification-setting.md) · Restocknotification setting — 10 fields, 2 ops
+- [`store/seo-setting.md`](./store/seo-setting.md) · Seo setting — 28 fields, 2 ops
+- [`store/shippingmanager.md`](./store/shippingmanager.md) · Shippingmanager — 1 fields, 1 ops
+- [`store/shops.md`](./store/shops.md) · Shops — 27 fields, 2 ops
+- [`store/sms-setting.md`](./store/sms-setting.md) · Sms setting — 7 fields, 2 ops
+- [`store/socials-apple.md`](./store/socials-apple.md) · Socials apple — 7 fields, 2 ops
+- [`store/socials-kakaosync.md`](./store/socials-kakaosync.md) · Socials kakaosync — 8 fields, 2 ops
+- [`store/socials-naverlogin.md`](./store/socials-naverlogin.md) · Socials naverlogin — 4 fields, 2 ops
+- [`store/socials-navershopping.md`](./store/socials-navershopping.md) · Socials navershopping — 3 fields, 1 ops
+- [`store/store.md`](./store/store.md) · Store — 43 fields, 1 ops
+- [`store/store-accounts.md`](./store/store-accounts.md) · Store accounts — 7 fields, 1 ops
+- [`store/store-dropshipping.md`](./store/store-dropshipping.md) · Store dropshipping — 3 fields, 2 ops
+- [`store/store-setting.md`](./store/store-setting.md) · Store setting — 2 fields, 2 ops
+- [`store/subscription-shipments-setting.md`](./store/subscription-shipments-setting.md) · Subscription shipments setting — 20 fields, 4 ops
+- [`store/taxmanager.md`](./store/taxmanager.md) · Taxmanager — 1 fields, 1 ops
+- [`store/users.md`](./store/users.md) · Users — 20 fields, 2 ops

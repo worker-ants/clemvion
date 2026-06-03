@@ -26,22 +26,22 @@ owner: developer (다음 진입자)
 > G-1 의 path/method audit 은 완료(complete 기록). 아래는 docs field ↔ metadata 갭 보강으로
 > 수천 줄 규모라 별 PR 로 분리.
 
-> **⛔ BLOCKED / 보류 (결정 2026-06-02): 정확한 field 데이터 소스 확보 전까지 착수 불가.**
-> 조사 결과 — **field 전체 목록이 repo 어디에도 없다.** `spec/conventions/cafe24-api-catalog/*.md`
-> 는 endpoint(id/path/method/scope)만 enumerate 하고 field 목록은 미포함이며, backend metadata
-> `.ts` 는 *현재 구현된* field 만 선언한다. 확장 대상인 "docs 의 전체 field 목록" 은 **오직 Cafe24
-> 외부 공식 docs**(`developers.cafe24.com`, JS 렌더링 SPA + fragment 앵커)에만 존재하고 **WebFetch
-> 로 추출되지 않음**(검증 완료 — 빈 HTML). 따라서 workflow agent 가 field 를 채우려면 **추측·날조**
-> 하게 되어, 500 operation 에 부정확한 field 선언(잘못된 name/type/location → 런타임 API 에러)을
-> 양산한다 → 현재의 정직한 subset 보다 나쁨. impliesValue·constraint-only sweep 도 모두 "field 부재로
-> 확장 선행 필요" 라 같은 데이터에 묶여 동일 차단.
+> **✅ UNBLOCKED (2026-06-03): field 데이터 소스 확보 완료.**
+> 위 해소 조건 ① 충족 — 사용자가 Cafe24 공식 Admin API Documentation **전체 페이지를 렌더링된 HTML 로
+> 다운로드 제공**(3.2MB, `<td>` 15,734개). JS 렌더링 SPA 였던 docs 가 정적 HTML 로 고정돼 **결정적
+> 파싱이 가능**해졌다 — 추측·날조 없이 18 resource / 222 entity / 513 operation 의 응답 속성 + 요청
+> 파라미터를 그대로 추출. 이를 토대로 **field-level 상세 카탈로그**(`cafe24-api-catalog/<resource>/<entity>.md`,
+> 222개)를 생성했다 ([`_overview.md §7`](../../spec/conventions/cafe24-api-catalog/_overview.md)). 이 카탈로그가
+> 곧 G-1-remaining 의 "docs 의 전체 field 목록" docs-side SoT 다. (생성 작업: worktree `cafe24-api-catalog`)
 >
-> **해소 조건 (착수 전 필요)**: ① Cafe24 **OpenAPI/JSON 스키마** 또는 field 목록 데이터 제공(파일·URL)
-> → workflow 가 파싱해 정확 확장, 또는 ② JS 렌더링 지원 브라우저/스크래핑 도구로 docs 추출 경로 확보,
-> 또는 ③ 특정 high-value resource(product/order 등) field 를 사람이 docs 기준으로 제공 → 그 범위만 반영.
-> 위 중 하나가 확보되면 resource 별 Workflow fan-out 으로 진행 (사용자 결정: workflow 병렬 후 검토).
+> **이제 남은 것은 docs(카탈로그) ↔ backend metadata 의 field 갭 보강(developer 트랙)** — 아래 4개 하위 항목.
+> 각 항목은 해당 entity 의 `cafe24-api-catalog/<resource>/<entity>.md` 를 docs 기준으로 삼아 metadata `.ts`
+> 와 대조한다. 여전히 수천 줄 규모이므로 resource 별로 분리 진행 권장.
+>
+> _(이력) 2026-06-02 BLOCKED 사유: field 전체 목록이 repo 어디에도 없고 외부 docs 가 WebFetch 로 추출 불가
+> 했음. 2026-06-03 다운로드 HTML 제공으로 해소._
 
-- [ ] **G-1-remaining** (BLOCKED — 위 보류 사유):
+- [ ] **G-1-remaining** (데이터 확보 완료 — docs↔metadata 갭 보강만 잔여):
   - **store field-set 확장**: store 106 endpoint docs field 비교 audit 미수행.
   - **field-set 확장 (모든 resource)**: docs 에 있으나 metadata 에 누락된 field 추가 (예: product_list docs ~50 field vs 우리 8 field). 전 resource 적용 시 수천 줄.
   - **impliesValue metadata 적용**: 인프라 완료. 실제 ops 적용은 trigger field(refund_method, material_composite 등) 추가 후 — order cancellation/return/exchange + products create/update + bundleproducts create/update.

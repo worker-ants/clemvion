@@ -39,3 +39,17 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `urgentinquiry_reply_get` | 긴급 문의 답변 조회 | Retrieve a reply for urgent inquiry post | GET | `urgentinquiry/{article_no}/reply` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-reply-for-urgent-inquiry-post) |
 | `urgentinquiry_reply_create` | 긴급 문의 답변 작성 | Create a reply for urgent inquiry post | POST | `urgentinquiry/{article_no}/reply` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-reply-for-urgent-inquiry-post) |
 | `urgentinquiry_reply_update` | 긴급 문의 답변 수정 | Update a reply for urgent inquiry post | PUT | `urgentinquiry/{article_no}/reply` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-reply-for-urgent-inquiry-post) |
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`community/boards.md`](./community/boards.md) · Boards — 40 fields, 3 ops
+- [`community/boards__articles.md`](./community/boards__articles.md) · Boards articles — 39 fields, 4 ops
+- [`community/boards__articles__comments.md`](./community/boards__articles__comments.md) · Boards articles comments — 14 fields, 3 ops
+- [`community/boards__comments.md`](./community/boards__comments.md) · Boards comments — 15 fields, 1 ops
+- [`community/boards__seo.md`](./community/boards__seo.md) · Boards seo — 6 fields, 2 ops
+- [`community/commenttemplates.md`](./community/commenttemplates.md) · Commenttemplates — 6 fields, 5 ops
+- [`community/financials-monthlyreviews.md`](./community/financials-monthlyreviews.md) · Financials monthlyreviews — 4 fields, 1 ops
+- [`community/urgentinquiry.md`](./community/urgentinquiry.md) · Urgentinquiry — 15 fields, 1 ops
+- [`community/urgentinquiry__reply.md`](./community/urgentinquiry__reply.md) · Urgentinquiry reply — 9 fields, 3 ops

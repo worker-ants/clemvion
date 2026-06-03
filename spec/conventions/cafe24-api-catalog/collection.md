@@ -30,3 +30,13 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `classifications_list` | 사용자 정의 카테고리 목록 | Retrieve a list of custom categories | GET | `classifications` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-custom-categories) |
 | `classifications_count` | 사용자 정의 카테고리 수 | Retrieve a count of custom categories | GET | `classifications/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-custom-categories) |
 | `origin_list` | 원산지 목록 조회 | Retrieve a list of origins | GET | `origin` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-origins) |
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`collection/brands.md`](./collection/brands.md) · Brands — 7 fields, 5 ops
+- [`collection/classifications.md`](./collection/classifications.md) · Classifications — 7 fields, 2 ops
+- [`collection/manufacturers.md`](./collection/manufacturers.md) · Manufacturers — 13 fields, 5 ops
+- [`collection/origin.md`](./collection/origin.md) · Origin — 4 fields, 1 ops
+- [`collection/trends.md`](./collection/trends.md) · Trends — 6 fields, 2 ops

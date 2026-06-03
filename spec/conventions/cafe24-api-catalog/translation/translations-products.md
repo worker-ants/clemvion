@@ -1,0 +1,79 @@
+---
+resource: translation
+entity: translations-products
+cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#translations-products
+source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+---
+
+# Cafe24 API — Translation / Translations products
+
+> Field-level 카탈로그. Endpoint enumeration index: [`../translation.md`](../translation.md) · 규약: [`../_overview.md`](../_overview.md) · 공식 docs: [Translations products](https://developers.cafe24.com/docs/ko/api/admin/#translations-products)
+> 복합(nested) 필드의 하위 요소는 `↳` 로 표기한다.
+
+상품 번역 정보(Translations products)는, 상품의 번역 정보를 조회하거나 수정할 수 있는 기능입니다.
+
+## 응답 속성 (Property list)
+
+| Attribute | 제약 | 설명 |
+|---|---|---|
+| `shop_no` |  | 멀티쇼핑몰 번호 |
+| `product_no` |  | 상품번호 |
+| `product_name` | 최대글자수 : [250자] | 상품명 |
+| `translations` |  | 번역 정보 |
+
+## Operations
+
+### `GET /api/v2/admin/translations/products` — Retrieve a list of product translations
+
+- **Scope**: `mall.read_translation` (read)
+- **호출건수 제한**: 40
+- **Platform**: cafe24,youtube
+- **Docs**: https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-product-translations
+
+#### 요청 파라미터 (Request)
+
+| Parameter | 필수 | 제약 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+| `product_no` |  |  |  | 상품번호 ,(콤마)로 여러 건을 검색할 수 있다. |
+| `product_name` |  |  |  | 상품명 상품의 상품명에 해당되는 번역 정보를 검색 ,(콤마)로 여러 건을 검색할 수 있다. |
+| `language_code` |  |  |  | 언어 코드 번역 정보의 언어 코드에 해당되는 번역 정보를 검색 · 언어별로 번역된 정보에서 검색하고자 하는 언어를 선택하면, 해당 언어에 대한 번역 내용을 확인할 수 있습니다. ,(콤마)로 여러 건을 검색할 수 있다. |
+| `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
+| `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
+
+### `PUT /api/v2/admin/translations/products/{product_no}` — Update product translation
+
+- **Scope**: `mall.write_translation` (write)
+- **호출건수 제한**: 40
+- **1회당 요청건수 제한**: 1
+- **Platform**: cafe24,youtube
+- **Docs**: https://developers.cafe24.com/docs/ko/api/admin/#update-product-translation
+
+#### 요청 파라미터 (Request)
+
+| Parameter | 필수 | 제약 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+| `product_no` | ✓ |  |  | 상품번호 |
+| `translations` |  |  |  | 번역 정보 |
+| ↳ `language_code` | ✓ |  |  | 언어 코드 |
+| ↳ `product_name` |  |  |  | 상품명 |
+| ↳ `product_tag` |  |  |  | 상품 검색어 |
+| ↳ `payment_info` |  |  |  | 상품결제안내 |
+| ↳ `shipping_info` |  |  |  | 상품배송안내 |
+| ↳ `exchange_info` |  |  |  | 교환/반품안내 |
+| ↳ `service_info` |  |  |  | 서비스문의/안내 |
+| ↳ `summary_description` |  |  |  | 상품요약설명 |
+| ↳ `simple_description` |  |  |  | 상품 간략 설명 |
+| ↳ `description` |  |  |  | 상품상세설명 |
+| ↳ `mobile_description` |  |  |  | 모바일 상품 상세설명 |
+| ↳ `product_material` |  |  |  | 상품소재 |
+| ↳ `seo` |  | Array |  |  |
+| ↳ ↳ `meta_title` |  |  |  | 브라우저 타이틀 |
+| ↳ ↳ `meta_author` |  |  |  | 메타태그1 : Author |
+| ↳ ↳ `meta_description` |  |  |  | 메타태그2 : Description |
+| ↳ ↳ `meta_keywords` |  |  |  | 메타태그3 : Keywords |
+| ↳ ↳ `meta_alt` |  |  |  | 상품 이미지 Alt 텍스트 |
+| ↳ `options` |  | Array |  |  |
+| ↳ ↳ `name` |  |  |  | 옵션명 |
+| ↳ ↳ `value` |  |  |  | 옵션값 |
