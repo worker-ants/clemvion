@@ -14,10 +14,12 @@ related_plan: plan/in-progress/ai-context-memory-auto.md
 
 ## 미구현 surface (v2)
 
-- [ ] **멀티턴 누적 messages 물리 축소**: 현재 summary_buffer 는 요약 블록을 system 안정
-      프리픽스에 additive 로 추가하나, multi-turn 누적 `state.messages` 의 오래된 turn 을
-      물리적으로 제거하진 않는다 (tool_use↔tool_result 페어링 무결성 보존 위해). 토큰
-      절감 효과가 multi-turn 에서 부분적. 페어링 안전한 압축 전략 필요.
+- [x] **멀티턴 누적 messages 물리 축소** — 2026-06-04 구현 완료. `summary_buffer`/`persistent`
+      에서 요약이 오래된 exchange 를 커버하면(`summarizedUpToSeq` 전진) 다음 turn 으로 누적되는
+      `state.messages`/`_resumeState.messages` 를 `compactMessagesToTail(messages, keepUserExchanges)`
+      로 물리 축소. 페어링은 **`user` 메시지 경계에서만 자르는** 불변식으로 보존(tool_use↔tool_result
+      쌍 절대 무손상). `manual` 무영향(회귀 0). spec §6.2 d.6 + §12.14, `meta.memory.compactedMessages`
+      노출. 구현: `agent-memory-injection.ts` (순수 함수) + `ai-agent.handler.ts` 멀티턴 경로 배선.
 - [ ] **persistent 증분 추출 + 구조화 dedup**: 현재 매 turn 전체 thread 스냅샷 추출 +
       정확일치 dedup (FIFO 1000 으로 흡수). 직전 N turn 만 증분 추출 + 의미 기반 dedup/
       갱신(Mem0 식 fact 최신화). spec `17-agent-memory.md §6`.

@@ -393,6 +393,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
       - **`manual`**: `contextScope ≠ 'none'` 일 때 매 turn 마다 messages 배열을 `[system, ...injectedThread, ...selfHistory]` 로 재빌드 — `injectedThread` 는 자기 노드 turn 을 제외해 중복 방지 ([Spec Conversation Thread §5](../../conventions/conversation-thread.md#5-ai-agent-자동-주입)).
       - **`summary_buffer`**: §6.1 의 **1.5 (토큰예산 롤링 요약 압축)** 만 매 turn LLM 호출 전 적용. **1.3 (persistent 회수) 과 2.7 (비동기 추출) 은 미적용** — summary_buffer 는 단일 실행 내 working-memory 압축이라 세션 간 pgvector 회수/추출 경로를 호출하지 않는다.
       - **`persistent`**: §6.1 의 **1.3 (회수) + 1.5 (요약) 를 매 turn LLM 호출 전 모두 적용**하고, 턴 경계에서 **2.7 (비동기 추출) 도 수행**한다. (요약/회수 블록은 안정 프리픽스, 최근 원문은 휘발성 꼬리 — [공통 §11.4](./0-common.md#114-주입-위치-및-ordering))
+   d.6. **누적 messages 물리 압축 (`summary_buffer`/`persistent` 한정)**: d.5 의 롤링 요약이 오래된 turn 을 새로 커버하면 (`summarizedUpToSeq` 전진), 다음 turn 으로 누적되는 LLM `messages` 에서 **요약이 커버한 오래된 exchange 를 물리 제거**한다 — 단 **`user` 메시지 경계에서만 잘라** tool_use↔tool_result 페어링을 보존한다 (완결된 exchange 단위로만 제거). 결과는 `system` (요약 포함 안정 프리픽스) + 휘발성 꼬리만 유지. 제거 메시지 수는 `meta.memory.compactedMessages` 로 노출. `manual` 은 물리 압축하지 않는다 (누적 messages 무변경 — 하위호환 불변식).
    e. 갱신된 대화 이력으로 LLM 호출 + Tool/Condition 처리 (Single Turn 3단계와 동일한 분류 로직)
    f. 조건이 충족되면 해당 포트로 라우팅하고 종료 (§7.6)
    g. 조건 미충족 시 AI 응답을 WebSocket 으로 전달
@@ -1282,3 +1283,7 @@ display-only 의 `PRESENTATION_MAX_BYTES = 1MB` 은 `carousel.items` / `table.ro
 ### 12.13 요약 보관 필드 (`runningSummary` / `summarizedUpToSeq`) 유실 시 fallback
 
 **결정**: `runningSummary` / `summarizedUpToSeq` ([conversation-thread §1.3](../../conventions/conversation-thread.md#13-conversationthread)) 는 Redis `ExecutionContext` 직렬화에만 보관되고 별도 DB 컬럼을 만들지 않는다 (§12.10). 따라서 TTL 만료 / Redis 장애로 ExecutionContext 가 유실되면 요약 보관 필드도 함께 사라진다. 이때 **유실된 요약을 재요약으로 복구하지 않고, 원문 thread (messages history) 로 컨텍스트를 재구성하는 graceful degradation 으로 fallback** 한다 — 요약은 derived 압축물이라 손실돼도 대화 자체 (`output.result.messages` 누적, [conversation-thread §4](../../conventions/conversation-thread.md#4-영속화) NodeExecution SoT) 는 보존되므로, 다음 호출은 요약 없이 원문 turn 으로 진행하고 예산 초과 시 다시 임계치에서 롤링 요약을 시작한다. 요약 손실은 토큰 효율 저하일 뿐 대화 무결성 손상이 아니다.
+
+### 12.14 멀티턴 누적 messages 물리 압축 (additive 한계 해소)
+
+**결정**: 초기 구현에서 `summary_buffer`/`persistent` 의 멀티턴 요약은 system 안정 프리픽스에 **additive** 로만 추가되고, 누적 `messages` 의 오래된 turn 은 물리 제거하지 않았다 (tool_use↔tool_result 페어링이 깨질 우려). 이 경우 요약이 진행돼도 누적 messages 가 단조 증가해 토큰 절감이 system 프리픽스 압축에 그쳤다. **§6.2 d.6 으로 이 additive 한계를 해소** — 요약이 오래된 exchange 를 커버하면 다음 turn 으로 누적되는 `messages` 에서 그 exchange 를 물리 제거한다. 페어링은 **`user` 메시지 경계에서만 자르는** 불변식으로 보존한다 (모든 tool_use 의 tool_result 는 다음 `user` 메시지 전에 완결되므로, user 직전에서 자르면 쌍을 절대 가르지 않는다). `manual` 은 압축 대상이 아니다 (회귀 0).

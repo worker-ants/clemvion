@@ -314,6 +314,63 @@ export function appendStablePrefix(
 }
 
 /**
+ * 멀티턴 누적 `messages` 의 **물리 압축** (spec §6.2 d.5 — followup-v2).
+ *
+ * summary_buffer/persistent 에서 요약이 오래된 turn 을 커버하면, 다음 turn 으로
+ * 영속되는 누적 LLM `messages` 에서 그 오래된 exchange 들을 물리 제거해 멀티턴
+ * 토큰을 실제 절감한다. system(요약 포함) 메시지 + 휘발성 꼬리만 남긴다.
+ *
+ * **페어링 불변식 (절대 보존)**: 모든 `tool_use`(assistant.toolCalls) 뒤의
+ * `tool_result`(role:'tool', toolCallId) 는 다음 `user` 메시지 전에 완결된다
+ * (handler 멀티턴 루프의 message 누적 순서가 이를 보장). 따라서 **`user` 역할
+ * 메시지 경계에서만 자르면** tool_use↔tool_result 쌍을 절대 가르지 않는다.
+ * cut 위치는 항상 `user` 메시지 직전이므로, 완결된 exchange 단위로만 제거된다.
+ *
+ * 알고리즘:
+ *  - `messages[0]` 이 `system` 이면 보존 (방어적으로 role 확인). 아니면 보수적
+ *    무변경 (예상치 못한 형태 — 자르지 않음).
+ *  - `keepUserExchanges <= 0` 이면 보수적 무변경 (경계를 잡을 수 없음 — 자르면
+ *    꼬리가 통째로 날아갈 위험. 회귀 안전 우선).
+ *  - 배열 끝에서부터 `user` role 을 세어, 끝에서 `keepUserExchanges` 번째 user
+ *    메시지의 인덱스를 cut 위치로 삼는다 → 그 위치부터 끝까지가 휘발성 꼬리.
+ *    system 과 그 사이의 메시지(요약 커버 exchange)를 drop.
+ *  - 전체 user 메시지 수가 `keepUserExchanges` 이하이면 자를 게 없으므로 **무변경**.
+ *  - cut 위치가 이미 `system` 바로 다음(idx 1)이면 제거 대상이 없으므로 **무변경**
+ *    (idempotent — 이미 압축된 것 재압축 시 동일 배열).
+ *
+ * 결과 = `[system, ...messages.slice(cutIndex)]`.
+ */
+export function compactMessagesToTail(
+  messages: ChatMessage[],
+  keepUserExchanges: number,
+): ChatMessage[] {
+  // 방어: system 프리픽스가 없으면 자르지 않는다 (예상치 못한 형태).
+  if (messages.length === 0 || messages[0].role !== 'system') return messages;
+  // 보수: 유지할 exchange 경계를 잡을 수 없으면 무변경 (꼬리 전손 방지).
+  if (keepUserExchanges <= 0) return messages;
+
+  // 끝에서부터 user 메시지를 세어 keepUserExchanges 번째 user 의 인덱스를 찾는다.
+  let seen = 0;
+  let cutIndex = -1;
+  for (let i = messages.length - 1; i >= 1; i--) {
+    if (messages[i].role === 'user') {
+      seen += 1;
+      if (seen === keepUserExchanges) {
+        cutIndex = i;
+        break;
+      }
+    }
+  }
+
+  // 전체 user 수가 keepUserExchanges 미만 → 경계 미발견 → 자를 게 없음.
+  if (cutIndex < 0) return messages;
+  // cut 위치가 이미 system 바로 다음이면 제거 대상 0 (idempotent — 무변경).
+  if (cutIndex <= 1) return messages;
+
+  return [messages[0], ...messages.slice(cutIndex)];
+}
+
+/**
  * 자동 전략 (summary_buffer/persistent) 의 휘발성 꼬리 turn 선택 — 요약에
  * 커버되지 않은 (`seq > summarizedUpToSeq`) 최근 원문 turn 만 남긴다 (spec §11.4 [6]).
  */

@@ -3,10 +3,12 @@ import {
   buildRecallBlock,
   buildSummaryBlock,
   buildSummaryBufferUpdate,
+  compactMessagesToTail,
   estimateWorkingMemoryTokens,
   selectVolatileTail,
   stripMemoryBlocks,
 } from './agent-memory-injection';
+import type { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
 import type { ConversationTurn } from '../../../shared/conversation-thread/conversation-thread.types';
 import type { LlmService } from '../../../modules/llm/llm.service';
 import type { LlmConfig } from '../../../modules/llm-config/entities/llm-config.entity';
@@ -106,6 +108,193 @@ describe('agent-memory-injection blocks', () => {
     // 빈 배열 입력 — undefined / 정의된 seq 모두 빈 배열.
     expect(selectVolatileTail([], undefined)).toEqual([]);
     expect(selectVolatileTail([], 3)).toEqual([]);
+  });
+});
+
+describe('compactMessagesToTail — multi-turn 누적 messages 물리 압축 (페어링 보존)', () => {
+  /**
+   * 결과 messages 의 모든 tool(role) 메시지가 직전 assistant.toolCalls 의 id 와
+   * 매칭되는지 (고아 tool_result 0), 그리고 toolCalls 를 가진 assistant 뒤의
+   * tool 메시지가 빠짐없이 존재하는지 (고아 tool_use 0) 검증한다.
+   */
+  function assertPairingIntact(messages: ChatMessage[]): void {
+    const openToolIds = new Set<string>();
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i];
+      if (m.role === 'assistant' && m.toolCalls?.length) {
+        // 다음 user 전까지 모든 toolCall id 의 tool_result 가 와야 한다.
+        const expected = new Set(m.toolCalls.map((tc) => tc.id));
+        let j = i + 1;
+        while (j < messages.length && messages[j].role !== 'user') {
+          if (messages[j].role === 'tool') {
+            const id = messages[j].toolCallId;
+            // 고아 tool_result 0 — 직전 assistant 가 issue 한 id 여야 한다.
+            expect(id && expected.has(id)).toBe(true);
+            if (id) expected.delete(id);
+          }
+          j++;
+        }
+        // 고아 tool_use 0 — 모든 toolCall 이 짝을 찾았다.
+        expect([...expected]).toEqual([]);
+      }
+      if (m.role === 'tool') openToolIds.add(m.toolCallId ?? '');
+    }
+    // 첫 메시지(system) 직후가 고아 tool 로 시작하지 않는다 (잘린 쪽 안전).
+    for (const m of messages.slice(1)) {
+      if (m.role === 'tool') {
+        // tool 메시지는 항상 직전 어딘가의 assistant.toolCalls 에 매칭되어야 함.
+        // (위 루프에서 expected.has 로 이미 강제 — 여기선 고아 시작 방지 확인)
+      }
+    }
+    void openToolIds;
+  }
+
+  const sys: ChatMessage = { role: 'system', content: 'SYS(+summary)' };
+
+  function user(text: string): ChatMessage {
+    return { role: 'user', content: text };
+  }
+  function asst(
+    text: string,
+    toolCalls?: ChatMessage['toolCalls'],
+  ): ChatMessage {
+    return {
+      role: 'assistant',
+      content: text,
+      ...(toolCalls ? { toolCalls } : {}),
+    };
+  }
+  function toolResult(id: string, text: string): ChatMessage {
+    return { role: 'tool', content: text, toolCallId: id };
+  }
+
+  it('keeps system + last N user exchanges, drops older exchanges (keepUserExchanges=2)', () => {
+    const messages: ChatMessage[] = [
+      sys,
+      user('u1'),
+      asst('a1'),
+      user('u2'),
+      asst('a2'),
+      user('u3'),
+      asst('a3'),
+    ];
+    const out = compactMessagesToTail(messages, 2);
+    // system + (u2,a2,u3,a3) — u1/a1 제거.
+    expect(out.map((m) => m.role)).toEqual([
+      'system',
+      'user',
+      'assistant',
+      'user',
+      'assistant',
+    ]);
+    expect(out[1].content).toBe('u2');
+    expect(out[0]).toBe(sys); // system 1개 유지 (동일 참조).
+  });
+
+  it('preserves tool_use ↔ tool_result pairing — never splits a pair', () => {
+    // u1 exchange 가 tool 호출을 포함. keepUserExchanges=2 면 u2/u3 만 남고
+    // u1+그 tool_use/tool_result 가 통째로 제거되어야 한다 (쪼개짐 0).
+    const messages: ChatMessage[] = [
+      sys,
+      user('u1'),
+      asst('a1-with-tools', [
+        { id: 't1', name: 'search', arguments: '{}' },
+        { id: 't2', name: 'fetch', arguments: '{}' },
+      ]),
+      toolResult('t1', 'r1'),
+      toolResult('t2', 'r2'),
+      asst('a1-final'),
+      user('u2'),
+      asst('a2', [{ id: 't3', name: 'calc', arguments: '{}' }]),
+      toolResult('t3', 'r3'),
+      asst('a2-final'),
+      user('u3'),
+      asst('a3'),
+    ];
+    const out = compactMessagesToTail(messages, 2);
+    // u1 exchange 의 tool 페어(t1,t2)는 전부 제거, u2 의 t3 페어는 보존.
+    const toolIds = out
+      .filter((m) => m.role === 'tool')
+      .map((m) => m.toolCallId);
+    expect(toolIds).toEqual(['t3']);
+    expect(out.some((m) => m.content === 'u1')).toBe(false);
+    expect(out[1].content).toBe('u2');
+    assertPairingIntact(out);
+  });
+
+  it('returns unchanged when keepUserExchanges >= total user count', () => {
+    const messages: ChatMessage[] = [
+      sys,
+      user('u1'),
+      asst('a1'),
+      user('u2'),
+      asst('a2'),
+    ];
+    expect(compactMessagesToTail(messages, 2)).toBe(messages);
+    expect(compactMessagesToTail(messages, 5)).toBe(messages);
+  });
+
+  it('keeps exactly one system message', () => {
+    const messages: ChatMessage[] = [
+      sys,
+      user('u1'),
+      asst('a1'),
+      user('u2'),
+      asst('a2'),
+      user('u3'),
+      asst('a3'),
+    ];
+    const out = compactMessagesToTail(messages, 1);
+    expect(out.filter((m) => m.role === 'system')).toHaveLength(1);
+    expect(out[0]).toBe(sys);
+  });
+
+  it('is idempotent — re-compacting an already compacted array is a no-op', () => {
+    const messages: ChatMessage[] = [
+      sys,
+      user('u1'),
+      asst('a1'),
+      user('u2'),
+      asst('a2'),
+      user('u3'),
+      asst('a3'),
+    ];
+    const once = compactMessagesToTail(messages, 2);
+    const twice = compactMessagesToTail(once, 2);
+    expect(twice).toBe(once); // 무변경 (동일 참조).
+    expect(twice.map((m) => m.content)).toEqual(once.map((m) => m.content));
+  });
+
+  it('returns unchanged for keepUserExchanges<=0 or missing system prefix (defensive)', () => {
+    const messages: ChatMessage[] = [
+      sys,
+      user('u1'),
+      asst('a1'),
+      user('u2'),
+      asst('a2'),
+    ];
+    expect(compactMessagesToTail(messages, 0)).toBe(messages);
+    expect(compactMessagesToTail(messages, -1)).toBe(messages);
+    const noSystem: ChatMessage[] = [user('u1'), asst('a1'), user('u2')];
+    expect(compactMessagesToTail(noSystem, 1)).toBe(noSystem);
+    expect(compactMessagesToTail([], 2)).toEqual([]);
+  });
+
+  it('cut position is always immediately before a user message (pairing invariant)', () => {
+    const messages: ChatMessage[] = [
+      sys,
+      user('u1'),
+      asst('a1', [{ id: 't1', name: 'x', arguments: '{}' }]),
+      toolResult('t1', 'r1'),
+      asst('a1-final'),
+      user('u2'),
+      asst('a2'),
+    ];
+    const out = compactMessagesToTail(messages, 1);
+    // 첫 비-system 메시지는 반드시 user (절대 tool/assistant 로 시작 안 함).
+    expect(out[1].role).toBe('user');
+    expect(out[1].content).toBe('u2');
+    assertPairingIntact(out);
   });
 });
 

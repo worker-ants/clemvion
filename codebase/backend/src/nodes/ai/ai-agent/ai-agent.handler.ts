@@ -38,6 +38,7 @@ import {
   buildRecallBlock,
   buildSummaryBlock,
   buildSummaryBufferUpdate,
+  compactMessagesToTail,
   estimateWorkingMemoryTokens,
   mapTailToChatMessages,
   selectVolatileTail,
@@ -50,6 +51,7 @@ import {
 } from '../../../modules/websocket/websocket.service';
 import type {
   ConversationThread,
+  ConversationTurn,
   ConversationTurnToolCall,
   PresentationPayload,
 } from '../../../shared/conversation-thread/conversation-thread.types';
@@ -834,6 +836,13 @@ export class AiAgentHandler implements NodeHandler {
       recalledCount: number;
       tokenBudgetUsed: number;
     };
+    /**
+     * 휘발성 꼬리(요약에 커버되지 않은 `seq > summarizedUpToSeq` 구간)에 포함된
+     * `ai_user` turn 수. multi-turn 누적 `messages` 물리 압축 시
+     * `compactMessagesToTail(messages, keepUserExchanges)` 의 인자로 쓴다 — 끝에서
+     * 이 개수만큼의 user 메시지 경계까지만 남기고 요약 커버 exchange 를 drop.
+     */
+    keepUserExchanges: number;
   }> {
     const tokenBudget =
       (args.config.memoryTokenBudget as number) || DEFAULT_MEMORY_TOKEN_BUDGET;
@@ -928,6 +937,29 @@ export class AiAgentHandler implements NodeHandler {
     const tail = selectVolatileTail(turns, update.summarizedUpToSeq);
     const capped = applyCap(tail);
 
+    // multi-turn 누적 messages 물리 압축의 keepUserExchanges 도출.
+    //
+    // 압축 대상은 **에이전트 자신의 누적 messages** (user/assistant/tool) 다.
+    // summarization 에 쓰는 `turns` 는 self 노드를 제외하므로 에이전트 자신의
+    // ai_user turn 을 포함하지 않는다 — 따라서 휘발성 꼬리(`capped.turns`)의
+    // user 수만으로는 messages 압축 경계를 도출할 수 없다. 대신 **self 포함 전체
+    // thread** 에서 요약에 커버되지 않은 (`seq > summarizedUpToSeq`) user-bearing
+    // turn 수를 센다 — 이것이 "물리적으로 보존해야 할 최근 exchange 수" 이고,
+    // compactMessagesToTail 가 messages 끝에서 그만큼의 user 경계까지만 남긴다.
+    const fullThread =
+      this.conversationThreadService && args.target
+        ? this.conversationThreadService.getThread(args.target)
+        : undefined;
+    const fullTurns: readonly ConversationTurn[] = fullThread
+      ? fullThread.turns
+      : turns;
+    const keepUserExchanges = selectVolatileTail(
+      fullTurns,
+      update.summarizedUpToSeq,
+    ).filter(
+      (t) => t.source === 'ai_user' || t.source === 'presentation_user',
+    ).length;
+
     const mode =
       (args.config.contextInjectionMode as 'messages' | 'system_text') ??
       'messages';
@@ -956,6 +988,7 @@ export class AiAgentHandler implements NodeHandler {
         messages: newMessages,
         finalSystemPrompt: newSystemPrompt,
         memory: memoryMeta,
+        keepUserExchanges,
       };
     }
 
@@ -971,6 +1004,7 @@ export class AiAgentHandler implements NodeHandler {
         messages: newMessages,
         finalSystemPrompt: withTail,
         memory: memoryMeta,
+        keepUserExchanges,
       };
     }
 
@@ -989,6 +1023,7 @@ export class AiAgentHandler implements NodeHandler {
       messages: newMessages,
       finalSystemPrompt: newSystemPrompt,
       memory: memoryMeta,
+      keepUserExchanges,
     };
   }
 
@@ -2360,6 +2395,11 @@ export class AiAgentHandler implements NodeHandler {
           summarized: boolean;
           recalledCount: number;
           tokenBudgetUsed: number;
+          /**
+           * 이 turn 의 요약 압축이 누적 `messages` 에서 물리 제거한 메시지 수
+           * (요약이 커버한 오래된 exchange). 0 이면 물리 압축 미발생.
+           */
+          compactedMessages?: number;
         }
       | undefined;
     if (multiTurnMemoryStrategy !== 'manual') {
@@ -2392,6 +2432,28 @@ export class AiAgentHandler implements NodeHandler {
       messages.length = 0;
       messages.push(...mem.messages);
       memoryMeta = mem.memory;
+
+      // ── 멀티턴 누적 messages 물리 압축 (spec §6.2 d.5 — followup-v2) ──
+      // 요약이 이번 turn 에 오래된 turn 을 새로 커버했을 때만(summarized=true),
+      // 다음 turn 으로 영속되는 누적 messages 에서 요약이 커버한 오래된 exchange 를
+      // 물리 제거한다. system(요약 포함) 메시지는 위에서 이미 갱신됨 — 압축은 그
+      // system + 휘발성 꼬리만 남긴다. user 경계에서만 잘라 tool_use↔tool_result
+      // 페어링을 절대 보존한다. manual 은 이 분기에 들어오지 않음(회귀 0).
+      if (mem.memory.summarized && mem.keepUserExchanges > 0) {
+        const before = messages.length;
+        const compacted = compactMessagesToTail(
+          messages,
+          mem.keepUserExchanges,
+        );
+        if (compacted.length < before) {
+          messages.length = 0;
+          messages.push(...compacted);
+          memoryMeta = {
+            ...mem.memory,
+            compactedMessages: before - compacted.length,
+          };
+        }
+      }
     }
 
     const turnStartedAt = Date.now();

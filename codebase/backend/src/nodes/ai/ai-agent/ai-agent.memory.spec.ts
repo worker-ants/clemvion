@@ -255,6 +255,172 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(meta.memory).toMatchObject({ strategy: 'summary_buffer' });
     });
 
+    it('multi-turn: summary 압축이 진행되면 누적 _resumeState.messages 를 물리 축소 (system+휘발성 꼬리 유지)', async () => {
+      const context = makeContext();
+      const big = 'w'.repeat(600);
+      // 다른 노드의 큰 turn 들을 seed 해 첫 user turn 에서 예산 초과 → 요약.
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-1',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 50,
+          memoryStrategy: 'summary_buffer',
+          memoryTokenBudget: 200,
+        },
+        context,
+      );
+      let state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      // 매 turn: (요약 콜 발생 시) 요약 + 메인 콜. 요약 콜은 압축이 진행될 때만.
+      function queueAnswer(answer: string): void {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: answer,
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      }
+      function queueSummary(): void {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: 'ROLLING SUMMARY',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      }
+
+      // ── Turn 1: seeded turns 예산 초과 → 요약 콜 + 메인 콜. ──
+      queueSummary();
+      queueAnswer('answer-1');
+      const r1 = await handler.processMultiTurnMessage('질문1', state);
+      state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
+      expect(conversationThreadService.getThread(context).runningSummary).toBe(
+        'ROLLING SUMMARY',
+      );
+      const len1 = (state.messages as unknown[]).length;
+
+      // ── Turn 2: 다시 큰 seeded turn 추가 → 재요약 트리거(summarizedUpToSeq
+      //    전진) → 직전 누적 user 교환을 물리 압축해야 한다. ──
+      for (let i = 0; i < 4; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev2', label: 'Prev2', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      queueSummary();
+      queueAnswer('answer-2');
+      const r2 = await handler.processMultiTurnMessage('질문2', state);
+      state = (r2 as { _resumeState: Record<string, unknown> })._resumeState;
+
+      const meta2 = (r2 as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta2.memory).toMatchObject({
+        strategy: 'summary_buffer',
+        summarized: true,
+      });
+
+      const msgs2 = state.messages as {
+        role: string;
+        content: string;
+        toolCallId?: string;
+        toolCalls?: { id: string }[];
+      }[];
+
+      // system 메시지 1개 유지 + 요약 포함.
+      const systemMsgs = msgs2.filter((m) => m.role === 'system');
+      expect(systemMsgs).toHaveLength(1);
+      expect(systemMsgs[0].content).toContain('ROLLING SUMMARY');
+
+      // 물리 압축 흔적 — compactedMessages > 0 (직전 turn 의 오래된 exchange 제거).
+      expect(
+        (meta2.memory as { compactedMessages?: number }).compactedMessages,
+      ).toBeGreaterThan(0);
+
+      // 압축으로 누적 messages 가 단조 증가하지 않음 — turn2 길이 ≤ turn1 길이 + 신규.
+      // (압축이 없었다면 user2/assistant2 가 더해져 len1+2 였을 것)
+      const len2 = msgs2.length;
+      expect(len2).toBeLessThanOrEqual(len1);
+
+      // 페어링 불변식 — 모든 tool 메시지는 직전 assistant.toolCalls 와 매칭, 고아 0.
+      // (이 시나리오엔 tool 이 없지만 첫 비-system 메시지가 user 인지로 경계 검증)
+      const firstNonSystem = msgs2.find((m) => m.role !== 'system');
+      expect(firstNonSystem?.role).toBe('user');
+    });
+
+    it('multi-turn: manual 전략은 누적 messages 무변경 (물리 압축 회귀 금지)', async () => {
+      const context = makeContext();
+      const big = 'w'.repeat(600);
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-1',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 50,
+          memoryStrategy: 'manual',
+          memoryTokenBudget: 200,
+        },
+        context,
+      );
+      let state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      function queueAnswer(answer: string): void {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: answer,
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      }
+
+      queueAnswer('answer-1');
+      const r1 = await handler.processMultiTurnMessage('질문1', state);
+      state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
+      const len1 = (state.messages as unknown[]).length;
+
+      // 더 많은 seeded turn 을 추가해도 manual 은 요약/압축을 절대 안 한다.
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev2', label: 'Prev2', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      queueAnswer('answer-2');
+      const r2 = await handler.processMultiTurnMessage('질문2', state);
+      state = (r2 as { _resumeState: Record<string, unknown> })._resumeState;
+
+      // meta.memory 미출현 (manual 불변식) + messages 는 user2/assistant2 만큼 순증가.
+      const meta2 = (r2 as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta2.memory).toBeUndefined();
+      const len2 = (state.messages as unknown[]).length;
+      expect(len2).toBe(len1 + 2); // 압축 0 — user2 + assistant2 만 추가.
+      // 요약 콜 자체가 없었어야 한다 (manual).
+      expect(
+        conversationThreadService.getThread(context).runningSummary,
+      ).toBeUndefined();
+    });
+
     it('compresses oldest turns + sets runningSummary when over budget', async () => {
       const context = makeContext();
       // Seed many large turns from another node so working memory exceeds budget.
