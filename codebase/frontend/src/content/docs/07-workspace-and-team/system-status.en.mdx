@@ -24,7 +24,10 @@ The card at the top summarises the worst queue state across all 12 monitored que
 | 🟡 Partial delay | One or more queues have accumulated failed jobs or processing delays |
 | 🔴 Needs attention | One or more queues are paused or the worker appears to be down |
 
-The **total failed jobs** badge shows the sum of failed jobs across all queues.
+Two failure metrics are shown side by side in the header.
+
+- **Recent N-minute failures** (primary badge): the number of jobs that failed within the recent window (default 60 minutes). Highlighted when above zero — this is the main signal for current health. N reflects the server setting (`SYSTEM_STATUS_FAILED_WINDOW_MINUTES`, default 60).
+- **Retained total** (secondary badge): the count of failed jobs currently held in each queue's retention store. This is not a lifetime accumulation — it varies by queue retention policy. Use it as a debugging reference.
 
 ### Queue group cards
 
@@ -40,7 +43,7 @@ The 12 BullMQ queues are grouped into four sections.
 Each queue card shows:
 
 - **Health indicator**: per-queue status (healthy / degraded / down).
-- **Counts**: waiting · active · delayed · failed.
+- **Counts**: waiting · active · delayed · **failed (recent window)** (recentFailed). A secondary **retained total** count is shown separately at the bottom of each card for reference.
 - **Utilisation gauge**: `active / concurrency` ratio. Shown for execution, knowledge-base, and integration groups.
 - **Scheduled job** label: shown instead of the gauge for the system (cron) group.
 
@@ -54,10 +57,10 @@ Queue health is determined in the following priority order (heuristic, based on 
 
 1. **Paused** (`isPaused = true`) → 🔴 Needs attention
 2. **Waiting jobs with no active worker** (`waiting > 0`, `active = 0`) → 🔴 Needs attention (suspected worker down)
-3. **Failed or delayed above threshold** (`failed ≥ 1` or `delayed ≥ 50`) → 🟡 Degraded
+3. **Recent failures or delays above threshold** (recent-window failure count ≥ threshold, or `delayed ≥ 50`) → 🟡 Degraded
 4. Otherwise → 🟢 Healthy
 
-> Thresholds are configurable via environment variables (`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`). Rule 2 is a single-snapshot heuristic and may produce false positives when a low-concurrency queue is momentarily idle.
+> Thresholds are configurable via environment variables (`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`). Note that `SYSTEM_STATUS_FAILED_THRESHOLD` now compares against **recent-window failures** — retained historical failures alone no longer trigger a degraded state. Once recent failures clear, the queue automatically returns to healthy. The window length is controlled by `SYSTEM_STATUS_FAILED_WINDOW_MINUTES` (default 60 minutes). If a queue has a very large number of failures, only up to a scan cap (`SYSTEM_STATUS_FAILED_SCAN_CAP`, default 1000) are counted, so the "recent failures" figure may be a lower bound. In that case a "+" suffix (e.g. `1000+`) marks the value as a lower bound. Rule 2 is a single-snapshot heuristic and may produce false positives when a low-concurrency queue is momentarily idle.
 
 ## What this page does not show
 
