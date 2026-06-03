@@ -53,6 +53,14 @@ export interface ExecutionData {
   triggerLabel: string | null;
   nodeExecutions: NodeExecutionData[];
   /**
+   * 노드 실행 카운트 (실행 목록 Nodes 열, spec/2-navigation/14-execution-history.md §2.4).
+   * 목록 API(`ExecutionDto`)가 N+1 회피를 위해 집계해 내려준다. 상세 응답에는
+   * `nodeExecutions` 배열이 별도로 있으므로 목록 전용 보조 필드(optional).
+   */
+  totalNodeCount?: number;
+  completedNodeCount?: number;
+  failedNodeCount?: number;
+  /**
    * Re-run chain 메타 (spec/5-system/13-replay-rerun.md §8.2). 백엔드
    * `ExecutionDto` 가 GET 상세 / chain 항목 / list 모두에서 노출한다.
    * - `reRunOf`: 직전 원본 실행 ID. re-run 이 아니면 null.

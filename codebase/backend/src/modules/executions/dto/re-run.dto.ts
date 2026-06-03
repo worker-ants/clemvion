@@ -26,8 +26,9 @@ export class ReRunRequestDto {
 
   @ApiPropertyOptional({
     description:
-      'dry-run 모드 실행 여부. 기본 false (v1 미지원 — RERUN_DRY_RUN_NOT_APPLICABLE)',
+      'dry-run 모드로 실행할지. true 면 HTTP Request/Send Email/Database Query/Cafe24 같은 외부 부수효과 노드는 실제 호출 대신 mock 출력(_dryRun: true)을 반환. 기본 false (spec/5-system/13-replay-rerun.md §7·§8.1)',
     default: false,
+    example: false,
   })
   @IsOptional()
   @IsBoolean()

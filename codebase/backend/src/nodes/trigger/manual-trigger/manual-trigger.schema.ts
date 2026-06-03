@@ -41,6 +41,13 @@ export const manualTriggerOutputSchema = z
       })
       .passthrough()
       .optional(),
+    // 핸들러는 trigger 진입 경로를 meta.source 로 채운다 (spec §4.6/§5.1/§5.2).
+    meta: z
+      .object({
+        source: z.enum(['manual', 'webhook', 'schedule']),
+      })
+      .passthrough()
+      .optional(),
     port: z.string().optional(),
     status: z.string().optional(),
   })

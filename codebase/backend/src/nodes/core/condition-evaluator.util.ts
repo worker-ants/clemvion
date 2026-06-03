@@ -79,9 +79,10 @@ export interface EvaluateOptions {
   strict?: boolean;
   /**
    * Pre-compiled regex for the `regex` operator. Filter passes a per-item
-   * cached compile here; If/Else and Switch leave this unset (the schema
-   * accepts only string-literal patterns, and recompiling per call is
-   * acceptable cost). When undefined, `regex` returns `false`.
+   * cached compile; If/Else compiles its conditions once via
+   * {@link compileRegexCache} and passes the position-matched RegExp here.
+   * When undefined (no pattern / invalid / unset by a caller), `regex`
+   * returns `false`.
    */
   regex?: RegExp;
 }

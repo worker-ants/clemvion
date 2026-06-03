@@ -8,6 +8,7 @@ import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.j
 import {
   Condition,
   evaluateCondition,
+  compileRegexCache,
 } from '../../core/condition-evaluator.util.js';
 import { ifElseMetadata } from './if-else.schema.js';
 
@@ -48,9 +49,13 @@ export class IfElseHandler implements NodeHandler {
       strictComparison,
     } = config as unknown as IfElseConfig;
 
-    const options = { strict: strictComparison === true };
-    const results = conditions.map((cond) =>
-      evaluateCondition(input, cond, options),
+    // Compile regex patterns once (position-indexed) and pass the matching
+    // RegExp per condition so the `regex` operator actually evaluates instead
+    // of always returning false (Filter/Transform use the same helper).
+    const strict = strictComparison === true;
+    const regexCache = compileRegexCache(conditions);
+    const results = conditions.map((cond, i) =>
+      evaluateCondition(input, cond, { strict, regex: regexCache.get(i) }),
     );
 
     const passed =

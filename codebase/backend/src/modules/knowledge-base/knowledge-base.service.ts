@@ -643,10 +643,15 @@ export class KnowledgeBaseService {
 
   async remove(id: string, workspaceId: string): Promise<void> {
     const kb = await this.findById(id, workspaceId);
-    // Delete all docs from S3
-    const docs = await this.documentRepository.find({
-      where: { knowledgeBaseId: id },
-    });
+    // Delete all docs from S3. findById 가 이미 KB 소유권을 검증하지만,
+    // S3 정리 루프도 defense-in-depth 로 workspace 권한을 명시 검증한다
+    // (spec/data-flow/4-file-storage.md Rationale: workspace 격리는 DB 권한 검증으로 보장).
+    const docs = await this.documentRepository
+      .createQueryBuilder('d')
+      .innerJoin('d.knowledgeBase', 'kb')
+      .where('d.knowledge_base_id = :id', { id })
+      .andWhere('kb.workspace_id = :workspaceId', { workspaceId })
+      .getMany();
     for (const doc of docs) {
       try {
         await this.s3Service.delete(doc.fileUrl);

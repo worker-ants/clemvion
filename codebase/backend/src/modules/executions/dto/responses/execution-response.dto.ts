@@ -97,6 +97,18 @@ export class ExecutionDto {
   /** dry-run 모드로 생성된 실행 여부 (외부 부수효과 노드가 mock 출력, spec §7) */
   @ApiProperty({ example: false })
   dryRun: boolean;
+
+  /** 노드 실행 총 건수 (실행 목록 Nodes 열, spec/2-navigation/14-execution-history.md §2.4) */
+  @ApiProperty({ example: 0 })
+  totalNodeCount: number;
+
+  /** 완료(completed) 상태 노드 실행 건수 */
+  @ApiProperty({ example: 0 })
+  completedNodeCount: number;
+
+  /** 실패(failed) 상태 노드 실행 건수 */
+  @ApiProperty({ example: 0 })
+  failedNodeCount: number;
 }
 
 /** 노드 실행 이력 요약 */

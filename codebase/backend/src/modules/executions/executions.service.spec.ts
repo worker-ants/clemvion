@@ -55,7 +55,7 @@ describe('ExecutionsService', () => {
     findOne: jest.Mock;
     manager: { transaction: jest.Mock };
   };
-  let nodeExecutionRepo: { find: jest.Mock };
+  let nodeExecutionRepo: { find: jest.Mock; createQueryBuilder: jest.Mock };
   let executionNodeLogRepo: { find: jest.Mock };
   let engine: { cancelWaitingExecution: jest.Mock };
 
@@ -78,6 +78,24 @@ describe('ExecutionsService', () => {
     qb.innerJoin = jest.fn().mockReturnValue(qb);
     qb.select = jest.fn().mockReturnValue(qb);
     qb.where = jest.fn().mockReturnValue(qb);
+    qb.getRawMany = jest.fn().mockResolvedValue(rows);
+    return qb;
+  };
+
+  // C-7: node_execution status 집계 (Nodes 열). loadNodeExecutionCounts 가
+  // 호출하는 nodeExecutionRepository.createQueryBuilder 의 그룹 쿼리 mock.
+  type NodeCountRow = {
+    executionId: string;
+    total: string;
+    completed: string;
+    failed: string;
+  };
+  const buildNodeCountQB = (rows: NodeCountRow[]) => {
+    const qb: Record<string, jest.Mock> = {};
+    qb.select = jest.fn().mockReturnValue(qb);
+    qb.addSelect = jest.fn().mockReturnValue(qb);
+    qb.where = jest.fn().mockReturnValue(qb);
+    qb.groupBy = jest.fn().mockReturnValue(qb);
     qb.getRawMany = jest.fn().mockResolvedValue(rows);
     return qb;
   };
@@ -111,7 +129,11 @@ describe('ExecutionsService', () => {
       findOne: jest.fn(),
       manager: { transaction: jest.fn(transactionImpl) },
     } as unknown as typeof executionRepo;
-    nodeExecutionRepo = { find: jest.fn() };
+    nodeExecutionRepo = {
+      find: jest.fn(),
+      // 기본: 집계 행 없음 → 모든 count 0. 특정 테스트가 mockReturnValueOnce 로 override.
+      createQueryBuilder: jest.fn(() => buildNodeCountQB([])),
+    } as unknown as typeof nodeExecutionRepo;
     executionNodeLogRepo = { find: jest.fn().mockResolvedValue([]) };
     engine = { cancelWaitingExecution: jest.fn() };
     service = new ExecutionsService(
@@ -192,6 +214,40 @@ describe('ExecutionsService', () => {
       expect(data[0].executedBy).toBe('u1');
       // 라벨에 이메일 같은 PII 가 절대 들어가서는 안 된다.
       expect(JSON.stringify(data[0])).not.toMatch(/@/);
+    });
+
+    it('maps node execution counts (Nodes 열) from grouped aggregate query', async () => {
+      const row = baseFake({ id: 'e-cnt', triggerId: 't1' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+      nodeExecutionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildNodeCountQB([
+          { executionId: 'e-cnt', total: '5', completed: '3', failed: '1' },
+        ]) as never,
+      );
+
+      const { data } = await service.findByWorkflow('w1', {});
+      expect(data[0]).toMatchObject({
+        totalNodeCount: 5,
+        completedNodeCount: 3,
+        failedNodeCount: 1,
+      });
+    });
+
+    it('defaults node counts to 0 when no node_execution rows exist', async () => {
+      const row = baseFake({ id: 'e-zero', triggerId: 't1' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+      // nodeExecutionRepo.createQueryBuilder 기본 mock → 빈 집계.
+
+      const { data } = await service.findByWorkflow('w1', {});
+      expect(data[0]).toMatchObject({
+        totalNodeCount: 0,
+        completedNodeCount: 0,
+        failedNodeCount: 0,
+      });
     });
 
     it('subworkflow execution loads parent workflow.name once via batch QB and uses it as label', async () => {
