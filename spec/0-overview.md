@@ -228,9 +228,9 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 - 워크플로우 실행 오케스트레이션
 - 노드 그래프 순회 및 실행
 - 스케줄러 (Cron Job 기반 트리거)
-- **Message Queue** (Redis 기반) — 실행 태스크를 큐에 발행
-- **Worker Pool** (N개 인스턴스, 수평 확장) — 큐에서 태스크를 소비하여 노드 실행
-- 실행 상태 관리 및 장애 시 복구
+- **Execution intake 큐** (Redis/BullMQ `execution-run`) — `execute()` 가 실행 시작을 큐에 발행(work-stealing/backpressure). 워커는 실행 1건(active 세그먼트: 시작→첫 BLOCK/완료)을 통째로 처리하고, 세그먼트 내부 노드는 in-process dispatch (per-node task queue 없음). 재개 세그먼트는 `execution-continuation` 큐, `waiting_for_input` 은 큐 없는 durable DB park ([실행엔진 §4](./5-system/4-execution-engine.md#4-worker-모델))
+- **Worker Pool** (N개 인스턴스, 수평 확장) — `execution-run`/`execution-continuation` 큐를 work-stealing 으로 소비
+- 실행 상태 관리 및 장애 시 복구 (active 세그먼트 stalled-job 재배달; `waiting_for_input` 은 무기한 보존)
 
 ### 2.5 Integration Service
 - OAuth 인증 플로우 관리
@@ -240,7 +240,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 
 ### 2.6 Data Layer
 - **PostgreSQL**: 주 데이터베이스 (워크플로우, 사용자, 설정 등)
-- **Redis**: 캐시, BullMQ 큐 백엔드 (실행 태스크 / `execution-continuation` / `background-execution`), 운영 lock (`exec:recover:lock`), KB 채널 등, 세션 관리
+- **Redis**: 캐시, BullMQ 큐 백엔드 (`execution-run` intake / `execution-continuation` / `background-execution`), 운영 lock (`exec:recover:lock`), KB 채널 등, 세션 관리
 - **Vector DB**: Knowledge Base 임베딩 저장/검색
 - **Object Storage**: S3 호환 스토리지 (AWS S3 / MinIO). 파일 업로드, Knowledge Base 원본 문서 등 저장
 
@@ -381,7 +381,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 ### 실행 엔진: Redis 큐 + 분산 워커 풀 (§2.4)
 
 - **배경**: 워크플로우 실행은 (a) 노드별 외부 API 호출로 인한 가변적 latency, (b) Background / Parallel 등 동시 실행, (c) Form 등 사람-개입 노드의 장기 대기, (d) 셀프 호스팅 단일 노드부터 SaaS 멀티 노드까지 수평 확장이 동시에 필요하다.
-- **채택**: Redis 기반 BullMQ 큐 + N 개 워커 인스턴스. Execution = 큐 작업, NodeExecution = 워커가 핸들러 호출, Background/sub-workflow 는 별도 BullMQ 큐 (`background-execution`) 로 분리. (in-process 단일 프로세스는 SaaS 수평 확장 불가·장기 대기 점유 문제, Postgres `LISTEN/NOTIFY` 자체 큐는 retry/DLQ/rate limit/cross-pod 직렬화를 재구현해야 함.)
+- **채택**: Redis 기반 BullMQ 큐 + N 개 워커 인스턴스. **작업 단위는 execution-level active 세그먼트** — 워커가 실행 1건을 통째로(시작/재개→다음 BLOCK/완료) 처리하고, 세그먼트 내부 노드는 in-process dispatch (per-node task queue 아님). `execution-run`(intake) / `execution-continuation`(재개) / `background-execution`(Background/sub-workflow) 세 큐로 분리. per-node task queue 를 채택하지 않은 근거는 [실행엔진 §Rationale "per-node → execution-level intake 큐"](./5-system/4-execution-engine.md#rationale). (in-process 단일 프로세스는 SaaS 수평 확장 불가·장기 대기 점유 문제, Postgres `LISTEN/NOTIFY` 자체 큐는 retry/DLQ/rate limit/cross-pod 직렬화를 재구현해야 함.)
 - **trade-off**: Redis 가 추가 의존성이 되어 셀프 호스팅 설치 부담이 늘었지만 (Docker Compose 에 포함), BullMQ `execution-continuation` ([Spec 실행 엔진 §7.4 / §7.5](./5-system/4-execution-engine.md#74-분산-실행-multi-instance)) · `background-execution` · BullMQ 기반 cron · Cafe24 cross-pod refresh 직렬화 등 다른 시스템도 같은 Redis 를 재사용해 net 부담이 낮다. 큐 작업 직렬화의 trade-off (snapshot 격리 등) 는 [Spec 실행 엔진 §3](./5-system/4-execution-engine.md) 와 [Conversation Thread §3.2](./conventions/conversation-thread.md#32-background-격리-근거) 참조.
 
 ### Inline Alert 의 위치를 `0-overview.md` cross-cutting 자리로 (§3.4)
