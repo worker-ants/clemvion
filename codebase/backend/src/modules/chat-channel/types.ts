@@ -117,6 +117,12 @@ export interface ChannelUpdate {
   idempotencyKey: string;
   /** ISO8601. */
   receivedAt: string;
+  /**
+   * (옵션) Slack Interactivity payload 의 `response_url` — 비동기 UI 갱신용
+   * (1시간 유효, 5회 한도). ackInteraction 이 replace_original POST 에 사용.
+   * 다른 provider 는 미설정. SoT: spec/4-nodes/7-trigger/providers/slack.md §4.2.
+   */
+  responseUrl?: string;
 }
 
 export type ChannelCommand =
@@ -124,7 +130,14 @@ export type ChannelCommand =
   | { kind: 'cancel' }
   | { kind: 'text_message'; text: string }
   | { kind: 'button_callback'; callbackData: string; callbackQueryId: string }
-  | { kind: 'file_upload'; fileId: string; mimeType: string }
+  | {
+      kind: 'file_upload';
+      fileId: string;
+      mimeType: string;
+      /** (옵션) caller(HooksService.enrichInbound)가 files.info 로 보강 — Slack. */
+      filename?: string;
+      urlPrivate?: string;
+    }
   | { kind: 'contact_share'; phone: string }
   /**
    * §4.1 native modal 게이팅 — "양식 작성하기" 버튼 클릭. 어댑터가 이 시점에만 가용한
@@ -454,6 +467,18 @@ export interface ChatChannelAdapter {
    * 는 본 메서드 존재 여부를 type-guard 로 확인 후 best-effort 호출.
    */
   revokeBotToken?(oldBotToken: string): Promise<void>;
+
+  /**
+   * (옵션) parseUpdate 가 pure 계약(§1.1)상 외부 API 를 못 부르므로, 그 직후
+   * provider 별 비동기 보강을 수행한다. Slack 은 file_upload command 의
+   * mimeType/filename/urlPrivate 를 files.info 1회 호출로 보강 (R-S-7).
+   * 미구현 provider 는 update 를 그대로 반환(=호출 안 함). 입력 update 를
+   * 변형하지 말고 보강된 새 객체를 반환한다.
+   */
+  enrichInbound?(
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+  ): Promise<ChannelUpdate>;
 
   /**
    * (옵션, supportsNativeForm=true 어댑터 한정) §4.1 native modal open.

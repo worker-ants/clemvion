@@ -245,13 +245,18 @@ export class HooksService {
       return { executionId: 'ignored', discordPing: true };
     }
 
-    const update = await adapter.parseUpdate(input.body, config);
-    if (!update) {
+    const parsed = await adapter.parseUpdate(input.body, config);
+    if (!parsed) {
       // 무시 대상 (group/bot/unsupported) — parseUpdate 의 pure 계약 (I-6) 에 따라 호출자가 안내 발송.
       // raw body 의 chat 정보가 있으면 안내 sendMessage. 봇 메시지나 chat 정보 없으면 silent skip.
       await this.maybeNotifyIgnored(input.body, config, adapter);
       return { executionId: 'ignored' };
     }
+    // parseUpdate 직후 provider 별 비동기 보강 (Slack file_upload → files.info 로
+    // mimeType/filename/urlPrivate 채움). 미구현 provider 는 update 그대로 반환 (R-S-7).
+    const update = adapter.enrichInbound
+      ? await adapter.enrichInbound(parsed, config)
+      : parsed;
 
     // /help 명령 — v1 정적 안내 (Spec providers/telegram §7).
     if (
@@ -694,6 +699,13 @@ export class HooksService {
       value = {
         fileId: update.command.fileId,
         mimeType: update.command.mimeType,
+        // enrichInbound(files.info)가 채운 경우만 포함 (Slack).
+        ...(update.command.filename
+          ? { filename: update.command.filename }
+          : {}),
+        ...(update.command.urlPrivate
+          ? { urlPrivate: update.command.urlPrivate }
+          : {}),
       };
 
     formState.partialFormData[valueKey] = value;

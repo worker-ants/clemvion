@@ -192,12 +192,16 @@ function parseInteractivity(
     }
     const callbackData = a0.value ?? a0.selected_option?.value;
     if (typeof callbackData !== 'string') return null;
+    // §4.2 — response_url 은 비동기 갱신용. ackInteraction 이 replace_original POST 에 사용.
+    const responseUrl =
+      typeof parsed.response_url === 'string' ? parsed.response_url : undefined;
     return {
       conversationKey: channelId,
       channelUserKey: userId,
       command: { kind: 'button_callback', callbackData, callbackQueryId: '' },
       idempotencyKey: triggerId,
       receivedAt,
+      ...(responseUrl ? { responseUrl } : {}),
     };
   }
 
