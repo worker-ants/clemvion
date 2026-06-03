@@ -9,12 +9,34 @@ type Counts = {
   paused: number;
 };
 
+/** getFailed mock 용 최소 Job 형태 (newest→oldest 순서로 전달). */
+type FailedJobStub = { finishedOn?: number; timestamp?: number };
+
+const HOUR = 60 * 60 * 1000;
+
+/** 윈도우 안에 드는 실패 job N건 (finishedOn = 방금 전). */
+function recentJobs(n: number): FailedJobStub[] {
+  return Array.from({ length: n }, () => ({ finishedOn: Date.now() }));
+}
+
+/** 윈도우 밖(2시간 전) 실패 job N건. */
+function oldJobs(n: number): FailedJobStub[] {
+  return Array.from({ length: n }, () => ({
+    finishedOn: Date.now() - 2 * HOUR,
+  }));
+}
+
 function makeHandle(
   name: string,
   group: MonitoredQueue['group'],
   concurrency: number,
   counts: Partial<Counts>,
-  opts: { isPaused?: boolean; throws?: boolean } = {},
+  opts: {
+    isPaused?: boolean;
+    throws?: boolean;
+    /** 실패 집합 (newest→oldest). getFailed mock 이 이 배열을 슬라이스해 반환. */
+    failedJobs?: FailedJobStub[];
+  } = {},
 ): QueueHandle {
   const full: Counts = {
     waiting: 0,
@@ -24,6 +46,7 @@ function makeHandle(
     paused: 0,
     ...counts,
   };
+  const failedJobs = opts.failedJobs ?? [];
   return {
     meta: { name, group, concurrency },
     queue: {
@@ -35,12 +58,17 @@ function makeHandle(
         if (opts.throws) throw new Error('redis down');
         return opts.isPaused ?? false;
       }),
+      getFailed: jest.fn(async (start = 0, end = -1) => {
+        if (opts.throws) throw new Error('redis down');
+        const last = end < 0 ? failedJobs.length - 1 : end;
+        return failedJobs.slice(start, last + 1) as never;
+      }),
     },
   };
 }
 
 describe('SystemStatusService.getOverview', () => {
-  it('모든 큐 정상 — overall healthy, totalFailed 0', async () => {
+  it('모든 큐 정상 — overall healthy, totalFailed/totalRecentFailed 0, 윈도우 기본 60', async () => {
     const handles = [
       makeHandle('background-execution', 'execution', 3, { active: 1 }),
       makeHandle('document-embedding', 'knowledge-base', 3, {}),
@@ -51,7 +79,10 @@ describe('SystemStatusService.getOverview', () => {
 
     expect(res.overall).toBe('healthy');
     expect(res.totalFailed).toBe(0);
+    expect(res.totalRecentFailed).toBe(0);
+    expect(res.failedWindowMinutes).toBe(60);
     expect(res.queues).toHaveLength(2);
+    expect(res.queues[0].recentFailed).toBe(0);
     expect(typeof res.generatedAt).toBe('string');
     expect(new Date(res.generatedAt).toISOString()).toBe(res.generatedAt);
   });
@@ -102,18 +133,125 @@ describe('SystemStatusService.getOverview', () => {
     expect(res.queues[0].health).toBe('down');
   });
 
-  it('failed >= 임계(기본 1) → degraded, totalFailed 합산', async () => {
+  it('recentFailed >= 임계(기본 1) → degraded, totalFailed 는 누적 합산 유지', async () => {
     const handles = [
-      makeHandle('a', 'execution', 2, { active: 1, failed: 2 }),
-      makeHandle('b', 'system', 1, { active: 1, failed: 3 }),
+      makeHandle(
+        'a',
+        'execution',
+        2,
+        { active: 1, failed: 2 },
+        {
+          failedJobs: recentJobs(2),
+        },
+      ),
+      makeHandle(
+        'b',
+        'system',
+        1,
+        { active: 1, failed: 3 },
+        {
+          failedJobs: recentJobs(3),
+        },
+      ),
     ];
     const service = new SystemStatusService(handles);
 
     const res = await service.getOverview();
 
     expect(res.queues[0].health).toBe('degraded');
-    expect(res.totalFailed).toBe(5);
+    expect(res.queues[0].recentFailed).toBe(2);
+    expect(res.totalFailed).toBe(5); // 누적(보관 중) 합산
+    expect(res.totalRecentFailed).toBe(5); // 최근 윈도우 합산
     expect(res.overall).toBe('degraded');
+  });
+
+  it('보관 중 누적 failed 는 있으나 최근 윈도우 실패 0 → healthy (영구 degraded 회귀 방지, R-5)', async () => {
+    const handles = [
+      // 보관된 실패 5건이 모두 윈도우 밖(2시간 전) → recentFailed 0
+      makeHandle(
+        'a',
+        'execution',
+        2,
+        { active: 1, failed: 5 },
+        {
+          failedJobs: oldJobs(5),
+        },
+      ),
+    ];
+    const service = new SystemStatusService(handles);
+
+    const res = await service.getOverview();
+
+    expect(res.queues[0].recentFailed).toBe(0);
+    expect(res.queues[0].health).toBe('healthy');
+    expect(res.totalFailed).toBe(5);
+    expect(res.totalRecentFailed).toBe(0);
+    expect(res.overall).toBe('healthy');
+  });
+
+  it('윈도우 경계 — 최근 job 만 카운트하고 오래된 job 에서 스캔 중단', async () => {
+    const handles = [
+      makeHandle(
+        'a',
+        'execution',
+        2,
+        { active: 1, failed: 10 },
+        {
+          // newest→oldest: 최근 3건 + 오래된 7건
+          failedJobs: [...recentJobs(3), ...oldJobs(7)],
+        },
+      ),
+    ];
+    const service = new SystemStatusService(handles);
+
+    const res = await service.getOverview();
+
+    expect(res.queues[0].recentFailed).toBe(3);
+    expect(res.queues[0].health).toBe('degraded');
+  });
+
+  it('스캔 캡 도달 시 recentFailed 는 하한값 (캡=2)', async () => {
+    const prev = process.env.SYSTEM_STATUS_FAILED_SCAN_CAP;
+    process.env.SYSTEM_STATUS_FAILED_SCAN_CAP = '2';
+    try {
+      const handles = [
+        makeHandle(
+          'a',
+          'execution',
+          2,
+          { active: 1, failed: 10 },
+          {
+            failedJobs: recentJobs(10), // 모두 최근이지만 캡 2 에서 멈춤
+          },
+        ),
+      ];
+      const service = new SystemStatusService(handles);
+
+      const res = await service.getOverview();
+
+      // 캡 2 까지만 스캔 → 하한값 2
+      expect(res.queues[0].recentFailed).toBe(2);
+    } finally {
+      if (prev === undefined) delete process.env.SYSTEM_STATUS_FAILED_SCAN_CAP;
+      else process.env.SYSTEM_STATUS_FAILED_SCAN_CAP = prev;
+    }
+  });
+
+  it('윈도우 길이 env 조정 — SYSTEM_STATUS_FAILED_WINDOW_MINUTES 반영', async () => {
+    const prev = process.env.SYSTEM_STATUS_FAILED_WINDOW_MINUTES;
+    process.env.SYSTEM_STATUS_FAILED_WINDOW_MINUTES = '10';
+    try {
+      const handles = [makeHandle('a', 'execution', 1, { active: 1 })];
+      const service = new SystemStatusService(handles);
+
+      const res = await service.getOverview();
+
+      expect(res.failedWindowMinutes).toBe(10);
+    } finally {
+      if (prev === undefined)
+        delete process.env.SYSTEM_STATUS_FAILED_WINDOW_MINUTES;
+      else process.env.SYSTEM_STATUS_FAILED_WINDOW_MINUTES = prev;
+    }
   });
 
   it('delayed >= 임계(기본 50) → degraded', async () => {
@@ -149,6 +287,7 @@ describe('SystemStatusService.getOverview', () => {
 
     const broken = res.queues.find((q) => q.name === 'broken')!;
     expect(broken.health).toBe('down');
+    expect(broken.recentFailed).toBe(0);
     expect(broken.counts).toEqual({
       waiting: 0,
       active: 0,
@@ -164,7 +303,15 @@ describe('SystemStatusService.getOverview', () => {
   it('overall 은 최악값 (down > degraded > healthy)', async () => {
     const handles = [
       makeHandle('a', 'execution', 1, { active: 1 }), // healthy
-      makeHandle('b', 'system', 1, { active: 1, failed: 1 }), // degraded
+      makeHandle(
+        'b',
+        'system',
+        1,
+        { active: 1, failed: 1 },
+        {
+          failedJobs: recentJobs(1),
+        },
+      ), // degraded
     ];
     const service = new SystemStatusService(handles);
 
@@ -174,10 +321,19 @@ describe('SystemStatusService.getOverview', () => {
   });
 
   // I-8: 복합 조건 우선순위 테스트
-  it('paused + failed 초과 동시 → paused 우선 (down)', async () => {
-    // isPaused rule 1 이 failed rule 3 보다 먼저 평가된다
+  it('paused + recentFailed 초과 동시 → paused 우선 (down)', async () => {
+    // isPaused rule 1 이 recentFailed rule 3 보다 먼저 평가된다
     const handles = [
-      makeHandle('a', 'execution', 1, { failed: 5 }, { isPaused: true }),
+      makeHandle(
+        'a',
+        'execution',
+        1,
+        { failed: 5 },
+        {
+          isPaused: true,
+          failedJobs: recentJobs(5),
+        },
+      ),
     ];
     const service = new SystemStatusService(handles);
 
@@ -187,10 +343,18 @@ describe('SystemStatusService.getOverview', () => {
     expect(res.queues[0].health).toBe('down');
   });
 
-  it('waiting>0, active=0, failed>=임계 → waiting 우선 (down)', async () => {
-    // 규칙 2(waiting>0 && active=0) 가 규칙 3(failed>=임계) 보다 먼저 평가된다
+  it('waiting>0, active=0, recentFailed>=임계 → waiting 우선 (down)', async () => {
+    // 규칙 2(waiting>0 && active=0) 가 규칙 3(recentFailed>=임계) 보다 먼저 평가된다
     const handles = [
-      makeHandle('a', 'execution', 1, { waiting: 3, active: 0, failed: 2 }),
+      makeHandle(
+        'a',
+        'execution',
+        1,
+        { waiting: 3, active: 0, failed: 2 },
+        {
+          failedJobs: recentJobs(2),
+        },
+      ),
     ];
     const service = new SystemStatusService(handles);
 

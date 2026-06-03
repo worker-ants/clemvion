@@ -80,6 +80,23 @@ export function getDelayedDegradedThreshold(): number {
   return Number(process.env.SYSTEM_STATUS_DELAYED_THRESHOLD) || 50;
 }
 
+/**
+ * `recentFailed` 산정 윈도우(분). `finishedOn >= now - window` 인 실패 job 만 집계한다.
+ * env `SYSTEM_STATUS_FAILED_WINDOW_MINUTES`, 기본 60. spec §2·§3 / R-5.
+ */
+export function getFailedWindowMinutes(): number {
+  return Number(process.env.SYSTEM_STATUS_FAILED_WINDOW_MINUTES) || 60;
+}
+
+/**
+ * 큐당 `getFailed()` 역순 스캔 상한. 캡 도달 시 스캔을 멈추고 `recentFailed` 는
+ * 하한값으로 간주한다 (UI 는 "N+" 표기). env `SYSTEM_STATUS_FAILED_SCAN_CAP`, 기본 1000.
+ * 상수 비용을 포기하는 대신 비용 상한을 보장한다 (spec R-5).
+ */
+export function getFailedScanCap(): number {
+  return Number(process.env.SYSTEM_STATUS_FAILED_SCAN_CAP) || 1000;
+}
+
 /** @deprecated 테스트 또는 모듈 로드 순서에 영향을 받지 않도록 getter 를 사용하세요. */
 export const FAILED_DEGRADED_THRESHOLD = getFailedDegradedThreshold();
 /** @deprecated 테스트 또는 모듈 로드 순서에 영향을 받지 않도록 getter 를 사용하세요. */

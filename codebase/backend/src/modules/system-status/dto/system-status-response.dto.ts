@@ -37,6 +37,13 @@ export class QueueStatusDto {
   @ApiProperty({ type: QueueCountsDto })
   counts: QueueCountsDto;
 
+  @ApiProperty({
+    example: 0,
+    description:
+      '최근 윈도우(failedWindowMinutes) 내 finishedOn 기준 실패 job 수. 스캔 캡 도달 시 하한값',
+  })
+  recentFailed: number;
+
   @ApiProperty({ example: 1, description: 'worker concurrency' })
   concurrency: number;
 
@@ -72,8 +79,24 @@ export class SystemStatusOverviewDto {
   })
   overall: QueueHealth;
 
-  @ApiProperty({ example: 0, description: '전 큐 failed 합산' })
+  @ApiProperty({
+    example: 0,
+    description: '전 큐 failed(보관 중 누적) 합산',
+  })
   totalFailed: number;
+
+  @ApiProperty({
+    example: 0,
+    description: '전 큐 recentFailed(최근 윈도우) 합산',
+  })
+  totalRecentFailed: number;
+
+  @ApiProperty({
+    example: 60,
+    description:
+      'recentFailed 산정 윈도우(분). env SYSTEM_STATUS_FAILED_WINDOW_MINUTES, 기본 60',
+  })
+  failedWindowMinutes: number;
 
   @ApiProperty({ type: [QueueStatusDto] })
   queues: QueueStatusDto[];
