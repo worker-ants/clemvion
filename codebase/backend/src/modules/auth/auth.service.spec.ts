@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -18,6 +19,10 @@ import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
 import { LoginHistoryService } from './login-history.service';
+
+function sha256(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -191,6 +196,33 @@ describe('AuthService', () => {
         'Test',
         expect.any(String),
       );
+    });
+
+    it('stores hashed emailVerifyToken in DB and emails the raw token (register round-trip)', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+      usersService.create.mockResolvedValue(mockUser as User);
+
+      await service.register({
+        name: 'Test',
+        email: 'test@example.com',
+        password: 'Test123!@#',
+      });
+
+      const [createArg] = usersService.create.mock.calls[0] as [
+        { emailVerifyToken: string },
+      ];
+      const mailedToken = (
+        mailService.sendVerificationEmail.mock.calls[0] as [
+          string,
+          string,
+          string,
+        ]
+      )[2];
+
+      // DB stores SHA-256 hash (64-char hex), not the raw UUID.
+      expect(createArg.emailVerifyToken).toMatch(/^[0-9a-f]{64}$/);
+      // The mailed token hashes to the stored token — verify round-trip integrity.
+      expect(sha256(mailedToken)).toBe(createArg.emailVerifyToken);
     });
 
     it('should throw ConflictException for duplicate email', async () => {
@@ -575,12 +607,14 @@ describe('AuthService', () => {
       const mailCall = mailService.sendVerificationEmail.mock.calls[0];
       expect(mailCall[0]).toBe(mockUser.email);
       expect(mailCall[1]).toBe(mockUser.name);
-      // The mailed token must match the freshly persisted token.
       const [, patch] = usersService.update.mock.calls[0] as [
         string,
         { emailVerifyToken: string; emailVerifyExpiresAt: Date },
       ];
-      expect(mailCall[2]).toBe(patch.emailVerifyToken);
+      // DB stores SHA-256 hash; email carries the raw UUID.
+      // The raw token (mailed) must hash to the stored token.
+      expect(patch.emailVerifyToken).toMatch(/^[0-9a-f]{64}$/);
+      expect(sha256(mailCall[2])).toBe(patch.emailVerifyToken);
     });
 
     it('should NOT re-issue for an already-verified account', async () => {

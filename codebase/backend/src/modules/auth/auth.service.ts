@@ -78,7 +78,8 @@ export class AuthService {
       name: dto.name,
       email: dto.email,
       passwordHash,
-      emailVerifyToken,
+      // Store SHA-256 hash; only the raw token is emailed (mirrors passwordResetToken).
+      emailVerifyToken: this.hashToken(emailVerifyToken),
       emailVerifyExpiresAt,
       emailVerified: false,
     });
@@ -86,7 +87,7 @@ export class AuthService {
     await this.mailService.sendVerificationEmail(
       dto.email,
       dto.name,
-      emailVerifyToken,
+      emailVerifyToken, // raw UUID — only the hashed copy lives in DB
     );
 
     return { message: 'Registration successful. Please verify your email.' };
@@ -619,13 +620,14 @@ export class AuthService {
         const emailVerifyToken = uuidv4();
         const emailVerifyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
         await this.usersService.update(user.id, {
-          emailVerifyToken,
+          // Store SHA-256 hash; only the raw token is emailed (mirrors passwordResetToken).
+          emailVerifyToken: this.hashToken(emailVerifyToken),
           emailVerifyExpiresAt,
         });
         await this.mailService.sendVerificationEmail(
           user.email,
           user.name,
-          emailVerifyToken,
+          emailVerifyToken, // raw UUID — only the hashed copy lives in DB
         );
       }
     } catch {
@@ -791,9 +793,9 @@ export class AuthService {
   }
 
   private async findUserByVerifyToken(token: string): Promise<User | null> {
-    // Direct repository access for token-based lookup
+    // Hash-on-compare: DB stores the SHA-256 hash (mirrors passwordResetToken).
     const repo = this.refreshTokenRepository.manager.getRepository(User);
-    return repo.findOne({ where: { emailVerifyToken: token } });
+    return repo.findOne({ where: { emailVerifyToken: this.hashToken(token) } });
   }
 
   private async findUserByResetToken(token: string): Promise<User | null> {
