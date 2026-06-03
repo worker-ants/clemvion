@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { evaluateWarnings } from '@workflow/node-summary';
+import { evaluateWarnings, renderSummaryTemplate } from '@workflow/node-summary';
 import {
   templateNodeConfigSchema,
   templateNodeMetadata,
@@ -101,5 +101,16 @@ describe('buttonDefSchema — userMessage (spec/4-nodes/6-presentation/0-common.
     expect(
       jsonSchema.properties?.buttons?.items?.properties?.userMessage,
     ).toBeDefined();
+  });
+});
+
+describe('templateNodeMetadata.summaryTemplate (캔버스 요약)', () => {
+  it('renders {{outputFormat}} · {{buttons.length}} buttons', () => {
+    expect(
+      renderSummaryTemplate(templateNodeMetadata.summaryTemplate, {
+        outputFormat: 'html',
+        buttons: [{ id: 'a' }, { id: 'b' }],
+      }),
+    ).toMatchObject({ text: 'html · 2 buttons' });
   });
 });

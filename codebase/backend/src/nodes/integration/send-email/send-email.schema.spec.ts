@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { evaluateWarnings } from '@workflow/node-summary';
+import { evaluateWarnings, renderSummaryTemplate } from '@workflow/node-summary';
 import {
   sendEmailNodeConfigSchema,
   sendEmailNodeMetadata,
@@ -309,5 +309,16 @@ describe('Send Email node schema', () => {
         }),
       ).toEqual([]);
     });
+  });
+});
+
+describe('sendEmailNodeMetadata.summaryTemplate (캔버스 요약)', () => {
+  it('renders {{to.length}} recipients · {{subject}}', () => {
+    expect(
+      renderSummaryTemplate(sendEmailNodeMetadata.summaryTemplate, {
+        to: ['a@x.com', 'b@y.com'],
+        subject: 'Hello',
+      }),
+    ).toMatchObject({ text: '2 recipients · Hello' });
   });
 });

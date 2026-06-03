@@ -10,7 +10,7 @@ owner: planner
 > 관련 spec: spec/4-nodes/5-data/0-common.md
 
 ## 미구현 항목
-- [ ] §3 캔버스 요약: Code 노드 `{language} · {N} lines` (예: `JavaScript · 12 lines`). `codeNodeMetadata` (codebase/backend/src/nodes/data/code/code.schema.ts) 에 `summaryTemplate` 이 없어 캔버스 본문 요약이 표시되지 않는다 (`getConfigSummary` → `renderSummaryTemplate` → `null`). Transform 만 `summaryTemplate` 구현됨 (`transform.schema.ts:228`).
+- [x] §3 캔버스 요약: Code 노드 `{language} · {N} lines` (예: `JavaScript · 12 lines`). `codeNodeMetadata` (codebase/backend/src/nodes/data/code/code.schema.ts) 에 `summaryTemplate` 이 없어 캔버스 본문 요약이 표시되지 않는다 (`getConfigSummary` → `renderSummaryTemplate` → `null`). Transform 만 `summaryTemplate` 구현됨 (`transform.schema.ts:228`).
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__5-data__0-common.md 참조.

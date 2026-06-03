@@ -10,9 +10,9 @@ owner: planner
 > 관련 spec: spec/4-nodes/4-integration/0-common.md
 
 ## 미구현 항목
-- [ ] §5 Database Query 캔버스 요약 — `database-query.schema.ts` 에 `summaryTemplate` 추가 (`{queryType} · {쿼리 첫 줄}`). 현재 부재 → 요약 미렌더.
-- [ ] §5 Send Email 캔버스 요약 — `send-email.schema.ts` 에 `summaryTemplate` 추가 (`to: {수신자}` + 수신자 2명 초과 시 `+N`). 현재 부재.
-- [ ] §5 `⚠ Missing integration` 배지 — 삭제된 Integration 참조를 감지해 캔버스 요약에 앰버 배지를 표시하는 warningRule/렌더 로직. 현재 docs mdx 에만 기술, 코드 부재.
+- [x] §5 Database Query 캔버스 요약 — `database-query.schema.ts` `summaryTemplate: {{queryType|upper}} · {{query}}` (2026-06-03 구현, downscope: DSL 줄분리 미지원으로 "첫 줄" 대신 전체 query truncate).
+- [x] §5 Send Email 캔버스 요약 — `send-email.schema.ts` `summaryTemplate: {{to.length}} recipients · {{subject}}` (2026-06-03 구현, downscope: 배열 슬라이스/조건 카운트 미지원으로 "to: {수신자} +N" 대신 수신자 수 + 제목).
+- [ ] §5 `⚠ Missing integration` 배지 — 삭제된 Integration 참조를 감지해 캔버스 요약에 앰버 배지를 표시하는 warningRule/렌더 로직. 현재 docs mdx 에만 기술, 코드 부재. **티어3 (cross-entity 검증 — warningRule DSL 밖, 아키텍처 결정 필요, 보류).**
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__4-integration__0-common.md 참조.

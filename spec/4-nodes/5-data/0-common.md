@@ -1,8 +1,6 @@
 ---
 id: common
-status: partial
-pending_plans:
-  - plan/in-progress/spec-sync-data-common-gaps.md
+status: implemented
 code:
   - codebase/backend/src/nodes/data/transform/transform.handler.ts
   - codebase/backend/src/nodes/data/code/code.handler.ts
@@ -45,9 +43,9 @@ Code 노드는 [노드 실행 샌드박싱 정책](../0-overview.md#5-노드-실
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
 | Transform | `{N} operations` (operations 배열의 길이) | `3 operations` |
-| Code | `{language} · {N} lines` (코드 줄 수) — **미구현 (Planned)** | `JavaScript · 12 lines` |
+| Code | `{language}` (대문자, `summaryTemplate: {{language\|upper}}`) | `JAVASCRIPT` |
 
-> 캔버스 요약은 노드 metadata 의 `summaryTemplate` 에서 렌더된다 (`getConfigSummary` → `renderSummaryTemplate`). 현재 `transformNodeMetadata.summaryTemplate` 만 정의돼 있어 Transform 요약만 표시되고, `codeNodeMetadata` 에는 `summaryTemplate` 이 없어 Code 노드는 캔버스 본문 요약이 표시되지 않는다(`null`). `{language} · {N} lines` 는 계획 상태다.
+> 캔버스 요약은 노드 metadata 의 `summaryTemplate` 에서 렌더된다 (`getConfigSummary` → `renderSummaryTemplate`). `codeNodeMetadata.summaryTemplate` 은 `{{language|upper}}` 이다. 코드 줄 수(`N lines`)는 summaryTemplate DSL 이 개행 카운트를 지원하지 않아 요약에 포함하지 않는다 ([4-nodes/0-overview §1.4.1](../0-overview.md#141-템플릿-문법-filter-dsl)).
 
 ---
 

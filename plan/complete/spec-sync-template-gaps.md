@@ -10,7 +10,7 @@ owner: planner
 > 관련 spec: spec/4-nodes/6-presentation/5-template.md
 
 ## 미구현 항목
-- [ ] §7 캔버스 노드 요약 — `templateNodeMetadata` (`template.schema.ts:146-173`) 에 `summaryTemplate` 부재 → `node-config-summary.ts:89` 가 항상 빈 요약 ('html · N lines' / 'html · N buttons' 미표시)
+- [x] §7 캔버스 노드 요약 — `templateNodeMetadata` (`template.schema.ts:146-173`) 에 `summaryTemplate` 부재 → `node-config-summary.ts:89` 가 항상 빈 요약 ('html · N lines' / 'html · N buttons' 미표시)
 
 ## 비고
 - 근거(claim→코드부재)는 audit findings/4-nodes.md `### spec/4-nodes/6-presentation/5-template.md` 절 참조.
