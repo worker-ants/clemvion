@@ -8,6 +8,7 @@ import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.j
 import {
   Condition,
   evaluateCondition,
+  compileRegexCache,
 } from '../../core/condition-evaluator.util.js';
 import { switchNodeMetadata } from './switch.schema.js';
 type CaseValueType = 'string' | 'number' | 'boolean';
@@ -94,13 +95,31 @@ export class SwitchHandler implements NodeHandler {
     // to primitives before this handler is invoked, so we use the value
     // directly — no additional path lookup. Treating it as a path was a bug
     // (see plan/switch-node-input-lucky-dove).
+    // Compile each case's regex pattern once (mirrors If/Else) so the `regex`
+    // operator actually evaluates instead of being a no-op. Per-case single
+    // condition → reuse compileRegexCache (length guard + invalid-pattern skip).
+    const caseRegex = new Map<number, RegExp>();
+    if (resolvedMode === 'expression') {
+      cases.forEach((c, i) => {
+        if (
+          c.condition?.operator === 'regex' &&
+          typeof c.condition.value === 'string'
+        ) {
+          const compiled = compileRegexCache([c.condition]).get(0);
+          if (compiled) caseRegex.set(i, compiled);
+        }
+      });
+    }
     const matchedIndex =
       resolvedMode === 'expression'
         ? cases.findIndex(
-            (c) =>
+            (c, i) =>
               c.condition !== undefined &&
               c.condition !== null &&
-              evaluateCondition(input, c.condition, { strict }),
+              evaluateCondition(input, c.condition, {
+                strict,
+                regex: caseRegex.get(i),
+              }),
           )
         : this.matchByValueIndex(switchValue, cases, strict);
     const matchedCase = matchedIndex >= 0 ? cases[matchedIndex] : undefined;

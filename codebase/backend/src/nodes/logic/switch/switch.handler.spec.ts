@@ -267,6 +267,70 @@ describe('SwitchHandler', () => {
       expect(result).toMatchObject({ port: 'yes' });
     });
 
+    // Switch regex no-op fix (spec-sync §C-4 후속): expression mode 의 regex
+    // 연산자가 컴파일된 정규식을 전달받아 실제 평가된다 (이전엔 항상 false).
+    it('expression mode regex 연산자가 매칭되면 해당 case 로 라우팅', async () => {
+      const result = await handler.execute(
+        { email: 'alice@example.com' },
+        {
+          mode: 'expression',
+          cases: [
+            {
+              id: 'example_domain',
+              condition: {
+                field: 'email',
+                operator: 'regex',
+                value: '^[^@]+@example\\.com$',
+              },
+            },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'example_domain' });
+    });
+
+    it('expression mode regex 불일치 시 default 로', async () => {
+      const result = await handler.execute(
+        { email: 'bob@other.org' },
+        {
+          mode: 'expression',
+          cases: [
+            {
+              id: 'example_domain',
+              condition: {
+                field: 'email',
+                operator: 'regex',
+                value: '^[^@]+@example\\.com$',
+              },
+            },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'default' });
+    });
+
+    it('expression mode 잘못된 regex 패턴은 false (throw 없음) → default', async () => {
+      const result = await handler.execute(
+        { email: 'alice@example.com' },
+        {
+          mode: 'expression',
+          cases: [
+            {
+              id: 'bad',
+              condition: { field: 'email', operator: 'regex', value: '([' },
+            },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'default' });
+    });
+
     it('matches the falsy primitive 0 against a case with value 0', async () => {
       const result = await handler.execute(
         {},
