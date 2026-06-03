@@ -50,8 +50,10 @@ draft: `spec-draft-channel-web-chat-gaps.md`. consistency-check --spec(09_46_31)
 - [x] W4: `4-security.md` `## Rationale`(CORS 분리·soft/hard·fixed-window) + §3-① blocked enum + §2.1 env 키
 - [x] W5(spec): `0-architecture.md §4` `WEB_CHAT_WIDGET_ORIGINS` 명시
 - [x] W3(spec): `spec-impl-evidence.md §1` INCLUDE_PREFIXES 에 `spec/7-channel-web-chat/**.md` 추가
-- [x] W3(codebase): `spec-frontmatter-parse.ts` INCLUDE_PREFIXES 동기 → frontend 가드 4 files/842 tests 통과
+- [x] W3(codebase): `spec-frontmatter-parse.ts` INCLUDE_PREFIXES 동기 → frontend 가드 4 files/843 tests 통과
 - [x] W5(codebase): `codebase/backend/.env.example` 에 `WEB_CHAT_WIDGET_ORIGINS=`(CORS 섹션 배치, 말미충돌 회피)
+- [x] W7(후속): EIA `spec/5-system/14-external-interaction-api.md §5.2` 에 클라이언트 fallback 역방향 cross-ref
+  (`replay_unavailable` 구현 시 위젯 타이머 교체 의무) — review 10_10_09 W7 해소
 
 ## 섹션4 — show/hide/updateProfile (사용자 결정: 본 PR 에 포함)
 - [x] 설계: `1-widget-app §2/§3.2`(가시성 visible/hidden 축 + updateProfile 소급불가 + blocked 분리) + R5

@@ -357,6 +357,7 @@ data: { ... §6 payload ... }
 - `id` 필드 = execution 내 monotonic `seq` (= WebSocket §2.2 의 `seq` 와 같은 값)
 - `Last-Event-Id` 헤더 또는 query `?lastEventId=` 로 재연결 시 누락 이벤트 재전송 (5분 버퍼)
 - 버퍼 만료된 경우 `execution.replay_unavailable` 이벤트 (한 번) 발송 → 클라이언트는 `GET /api/external/executions/:id` 로 현재 상태 재조회. 이름이 내부 WS 의 `replay.unavailable` ([Spec WS §6.2](./6-websocket-protocol.md#62-놓친-이벤트-복구)) 과 다른 이유는 SSE 의 이벤트 namespace 컨벤션 (`execution.*`) 에 맞추기 위함 — 두 표면의 의미는 동일. **(계획·미구현)** — 현재 어댑터는 만료/누락분을 silent drop 하며 별도 만료 이벤트를 emit 하지 않는다. 버퍼 내(5분) 재전송은 손실 없이 동작하고(EIA-NF-03 충족), 만료 시엔 위 REST 재조회로 폴백한다. 만료 신호 emit 은 향후 하드닝 항목.
+  - **클라이언트 fallback(현 단계)**: `replay_unavailable` emit 이 미구현이므로 브라우저 클라이언트(예: web-chat 위젯)는 **버퍼 만료를 로컬 시간 기준(>5분)으로 판단**해 REST snapshot 폴백을 트리거한다. 향후 `replay_unavailable` 가 구현되면 클라이언트는 시간 기준 타이머를 **이벤트 기반 감지로 교체**해야 한다([Spec Channel Web Chat 1-widget-app §3.1](../7-channel-web-chat/1-widget-app.md)).
 - terminal 이벤트(`execution.completed` / `execution.failed` / `execution.cancelled`) 발송 후 서버가 SSE 연결 종료
 - 연결 수 제한 초과 시 `429 Too Many Requests`
 
