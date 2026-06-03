@@ -299,3 +299,9 @@ Template 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패
 | Template | `{{outputFormat}} · {{buttons.length}} buttons` | `html · 2 buttons` |
 
 > Run Results Drawer 렌더링은 [공통 §6.5](./0-common.md#65-template) 참조 (HTML iframe 샌드박스 / Markdown 변환 / Text `<pre>`).
+
+## Rationale
+
+### R-1. 캔버스 요약 단일 포맷 채택 (2026-06-03)
+
+초기 spec 은 버튼 유무에 따라 `{outputFormat} · {N} lines`(버튼 없음) / `{outputFormat} · {N} buttons`(버튼 있음) 두 변형을 명세했다. `summaryTemplate` 은 단일 정적 문자열이라 config(버튼 유무) 분기가 불가하고, "N lines"(템플릿 개행 수)는 summaryTemplate DSL 이 개행 카운트를 지원하지 않는다. 따라서 `{{outputFormat}} · {{buttons.length}} buttons` 단일 포맷으로 통일했다 (버튼 0개 시 `html · 0 buttons` — 차선이나 일관적). `0-common.md §5` inline 노트와 동기화.

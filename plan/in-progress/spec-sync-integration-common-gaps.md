@@ -24,3 +24,6 @@ owner: planner
 - **send-email**: `to: {수신자} +N` 은 `to:string[]` 에 슬라이스/조인/조건 카운트 필요 — DSL 불가. **결정 필요**(downscope vs DSL 확장).
 - **⚠ Missing integration 배지**: warningRule `when` DSL 은 node config(`integrationId`)만 봄 → **삭제된 integration 존재 검증 불가**. cross-entity 검증(frontend integration 목록 또는 backend join)은 warningRule 메커니즘 밖 → **아키텍처 결정 필요**.
 - 패턴(summaryTemplate): `http-request.schema.ts:234-238`, `cafe24.schema.ts:142-146`.
+
+## send-email downscope 확정 (2026-06-03 spec-inprogress-impl2)
+- send-email summaryTemplate = `{{to.length}} recipients · {{subject}}` 로 downscope 결정·구현 완료(상기 `## 미구현 항목` [x]). "to: {수신자} +N" 은 DSL 배열 슬라이스/조건 카운트 미지원으로 채택 불가. Missing-integration 배지만 티어3 잔여.
