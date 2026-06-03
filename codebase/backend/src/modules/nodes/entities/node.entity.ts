@@ -7,7 +7,6 @@ import {
   ManyToOne,
   JoinColumn,
   Check,
-  Unique,
   Index,
 } from 'typeorm';
 import { Workflow } from '../../workflows/entities/workflow.entity';
@@ -24,7 +23,10 @@ export enum NodeCategory {
 
 @Entity('node')
 @Check(`"NOT (container_id IS NOT NULL AND tool_owner_id IS NOT NULL)"`)
-@Unique('UQ_node_workflow_label', ['workflowId', 'label'])
+// 노드 라벨 유니크는 앱 레이어(노드 생성/이름변경/캔버스 저장 시 차단)와 런타임
+// #N 안전장치로 보장한다 — DB unique 제약은 두지 않는다 (spec/5-system/5-expression-language.md
+// §8.3.2 노드 라벨 유니크 정책 + 중복 라벨 안전장치). 과거 @Unique('UQ_node_workflow_label')
+// 데코레이터는 대응 마이그레이션이 없어 DB 에 적용되지 않는 오해성 선언이라 제거했다.
 @Index('IDX_node_workflow_label', ['workflowId', 'label'])
 export class Node {
   @PrimaryGeneratedColumn('uuid')

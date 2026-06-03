@@ -3,16 +3,16 @@ import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class QueryStatisticsDto {
-  /** 조회 기간 구분 (7d | 30d | 90d | custom). custom 선택 시 startDate/endDate 사용 */
+  /** 조회 기간 구분 (1d | 7d | 30d | 90d | custom). custom 선택 시 startDate/endDate 사용 */
   @ApiPropertyOptional({
     description:
-      '조회 기간 구분. 7d/30d/90d 는 현재 시각 기준 상대 구간, custom 은 startDate~endDate 구간 사용',
-    enum: ['7d', '30d', '90d', 'custom'],
+      '조회 기간 구분. 1d/7d/30d/90d 는 현재 시각 기준 상대 구간, custom 은 startDate~endDate 구간 사용',
+    enum: ['1d', '7d', '30d', '90d', 'custom'],
     default: '7d',
     example: '7d',
   })
   @IsOptional()
-  @IsIn(['7d', '30d', '90d', 'custom'])
+  @IsIn(['1d', '7d', '30d', '90d', 'custom'])
   period?: string = '7d';
 
   /** 특정 워크플로우로 필터링할 UUID (미지정 시 전체 대상) */

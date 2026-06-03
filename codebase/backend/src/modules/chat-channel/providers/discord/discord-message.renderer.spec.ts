@@ -252,14 +252,19 @@ describe('renderDiscordEvent — execution.ai_message presentations[] (CCH-MP-01
       CONFIG,
     );
     expect(msgs.length).toBeGreaterThan(1);
+    // C-11: ai_message 마지막 텍스트 청크는 Reply 버튼 첨부로 buttons body 가 된다.
     const allTexts = msgs
-      .map((m) => (m.body.kind === 'text' ? m.body.text : ''))
+      .map((m) =>
+        m.body.kind === 'text' || m.body.kind === 'buttons' ? m.body.text : '',
+      )
       .join('\n');
     expect(allTexts).toContain('AI 응답');
     expect(allTexts).toContain('템플릿 결과');
   });
 
-  it('presentations 미정의 → text 1건만 (기존 동작)', () => {
+  // C-11: §5.1(b) — ai_message 끝에 Reply 버튼(custom_id __reply__)을 첨부한다.
+  // 마지막 텍스트 청크가 buttons body 로 승격되며 본문 텍스트는 보존된다.
+  it('presentations 미정의 → 단일 메시지에 Reply 버튼 첨부 (text 보존)', () => {
     const msgs = renderDiscordEvent(
       {
         ...BASE,
@@ -270,7 +275,11 @@ describe('renderDiscordEvent — execution.ai_message presentations[] (CCH-MP-01
       CONFIG,
     );
     expect(msgs).toHaveLength(1);
-    expect(msgs[0].body.kind).toBe('text');
+    expect(msgs[0].body.kind).toBe('buttons');
+    if (msgs[0].body.kind === 'buttons') {
+      expect(msgs[0].body.text).toBe('plain');
+      expect(msgs[0].body.buttons.map((b) => b.id)).toContain('__reply__');
+    }
   });
 
   it('render_form (type === form) → v1 임시 fallback text 발화 (회귀 ④ fix, 2026-05-25)', () => {
@@ -297,10 +306,12 @@ describe('renderDiscordEvent — execution.ai_message presentations[] (CCH-MP-01
       },
       CONFIG,
     );
-    // text 1건 (ai_message) + form fallback 1건+
+    // text 1건 (ai_message, C-11 로 buttons body) + form fallback 1건+
     expect(msgs.length).toBeGreaterThan(1);
     const all = msgs
-      .map((m) => (m.body.kind === 'text' ? m.body.text : ''))
+      .map((m) =>
+        m.body.kind === 'text' || m.body.kind === 'buttons' ? m.body.text : '',
+      )
       .join('\n');
     expect(all).toContain('with form');
     expect(all).toContain('이름');

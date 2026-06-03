@@ -299,7 +299,6 @@ export type KbEventType =
   | 'document:graph_started'
   | 'document:graph_progress'
   | 'document:graph_completed'
-  | 'document:graph_error'
   | 'document:graph_retry'
   | 'document:graph_failed';
 

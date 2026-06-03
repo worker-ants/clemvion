@@ -151,11 +151,15 @@ function parseCatalogFile(filePath: string): CatalogRow[] {
       }
       continue;
     }
-    // data row
+    // data row. markdown footnote 주석(`supported [^seed]`,
+    // `autodisplay/{display_no}` [^display-no]` 등)은 셀 값의 일부가 아니라
+    // 문서 주석이므로 파싱 시 제거한다 — 그렇지 않으면 status/path 등이
+    // 메타데이터와 정확히 일치하지 않아 false-mismatch 가 발생한다.
+    // docs 셀의 `[↗](url)` 링크는 `[^` 패턴이 아니라 영향받지 않는다.
     const cells = line
       .split('|')
       .slice(1, -1)
-      .map((c) => c.trim());
+      .map((c) => c.trim().replace(/\s*\[\^[^\]]+\]/g, '').trim());
     if (cells.length < MIN_CATALOG_COLUMNS) continue;
 
     const idCell = cellOr(cells, columnIndex.id);

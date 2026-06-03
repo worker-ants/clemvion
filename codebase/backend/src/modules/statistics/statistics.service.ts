@@ -433,6 +433,9 @@ export class StatisticsService {
 
     const startDate = new Date(endDate);
     switch (query.period) {
+      case '1d':
+        startDate.setDate(startDate.getDate() - 1);
+        break;
       case '30d':
         startDate.setDate(startDate.getDate() - 30);
         break;

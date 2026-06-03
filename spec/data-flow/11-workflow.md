@@ -163,9 +163,12 @@ stateDiagram-v2
 
 **persist 되는** 한 턴의 정상 시퀀스는 `user` → `assistant` (with `tool_calls`) 다. tool 호출의 round-trip
 (`tool` × N → `assistant` final) 은 LLM 컨텍스트 안에서 in-memory 로만 일어나고 별도 `tool` row 로 저장되지
-않는다 (§2.1 참조). `finish_reason` 으로 기록되는 값은 `stop` / `tool_calls` / `error` 다 (stream 서비스의
-`yield {event:'done', data:{finishReason}}`). `auto_resumed = true` 는 V020 이후 도입된 "이전 미완료 응답
-자동 이어쓰기" flag (`spec/3-workflow-editor/4-ai-assistant.md` 참조).
+않는다 (§2.1 참조). 턴 종료 시 persist 되는 최종 row 의 `finish_reason` 값은 `stop` / `tool_calls` /
+`error` / `aborted` 다 (stream 서비스의 `yield {event:'done', data:{finishReason}}`; `aborted` 는 사용자
+Stop 버튼 → `AbortController.abort()` 경로). stall 자동 복구로 추가 라운드를 시작하기 전에 먼저 persist
+되는 **중간 row** 는 `auto_resume_pending` 마커를 사용한다. 권위 정의·전이 규칙은
+`spec/3-workflow-editor/4-ai-assistant.md` §8. `auto_resumed = true` 는 V020 이후 도입된 "이전 미완료 응답
+자동 이어쓰기" flag.
 
 ---
 

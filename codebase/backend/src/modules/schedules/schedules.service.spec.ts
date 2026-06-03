@@ -84,4 +84,54 @@ describe('SchedulesService.runNow', () => {
       { executedBy: 'user-1' },
     );
   });
+
+  // C-10: findAll 이 PaginationQueryDto 의 sort/order 를 무시하고 created_at DESC 로
+  // 고정 정렬하던 회귀 가드. 화이트리스트 매핑(alias 포함) + injection 폴백 검증.
+  describe('findAll sort/order', () => {
+    function makeQb() {
+      const orderBy = jest.fn().mockReturnThis();
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy,
+        getCount: jest.fn().mockResolvedValue(0),
+        offset: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      return { qb, orderBy };
+    }
+
+    it('기본값은 s.created_at DESC', async () => {
+      const { qb, orderBy } = makeQb();
+      scheduleRepo.createQueryBuilder.mockReturnValue(qb as never);
+      await service.findAll('ws-1', {});
+      expect(orderBy).toHaveBeenCalledWith('s.created_at', 'DESC');
+    });
+
+    it('sort=updated_at&order=asc 를 반영', async () => {
+      const { qb, orderBy } = makeQb();
+      scheduleRepo.createQueryBuilder.mockReturnValue(qb as never);
+      await service.findAll('ws-1', { sort: 'updated_at', order: 'asc' });
+      expect(orderBy).toHaveBeenCalledWith('s.updated_at', 'ASC');
+    });
+
+    it('sort=name 은 trigger 명(t.name)으로 매핑', async () => {
+      const { qb, orderBy } = makeQb();
+      scheduleRepo.createQueryBuilder.mockReturnValue(qb as never);
+      await service.findAll('ws-1', { sort: 'name', order: 'desc' });
+      expect(orderBy).toHaveBeenCalledWith('t.name', 'DESC');
+    });
+
+    it('미허용 sort 값은 s.created_at 로 폴백 (injection 차단)', async () => {
+      const { qb, orderBy } = makeQb();
+      scheduleRepo.createQueryBuilder.mockReturnValue(qb as never);
+      await service.findAll('ws-1', {
+        sort: 's.created_at; DROP TABLE schedule;--',
+        order: 'desc',
+      });
+      expect(orderBy).toHaveBeenCalledWith('s.created_at', 'DESC');
+    });
+  });
 });

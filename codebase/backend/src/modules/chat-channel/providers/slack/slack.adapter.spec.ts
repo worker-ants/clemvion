@@ -335,4 +335,166 @@ describe('SlackAdapter', () => {
       expect(r.httpResponse).toBeUndefined();
     });
   });
+
+  // C-12 §4.1 / R-S-7: file_shared → files.info 보강.
+  describe('enrichInbound (file_upload → files.info)', () => {
+    it('file_upload → mimeType/filename/urlPrivate 보강', async () => {
+      const client = makeClient();
+      jest.spyOn(client, 'filesInfo').mockResolvedValue({
+        ok: true,
+        file: {
+          id: 'F1',
+          name: 'photo.png',
+          mimetype: 'image/png',
+          url_private: 'https://files.slack.com/F1/photo.png',
+        },
+      });
+      const adapter = new SlackAdapter(client, makeSecretsMock());
+      const enriched = await adapter.enrichInbound(
+        {
+          conversationKey: 'C1',
+          channelUserKey: 'U1',
+          command: {
+            kind: 'file_upload',
+            fileId: 'F1',
+            mimeType: 'application/octet-stream',
+          },
+          idempotencyKey: 'e1',
+          receivedAt: '2026-06-03T00:00:00Z',
+        },
+        SLACK_CONFIG,
+      );
+      expect(enriched.command).toEqual({
+        kind: 'file_upload',
+        fileId: 'F1',
+        mimeType: 'image/png',
+        filename: 'photo.png',
+        urlPrivate: 'https://files.slack.com/F1/photo.png',
+      });
+    });
+
+    it('file_upload 외 command 는 그대로 반환 (files.info 미호출)', async () => {
+      const client = makeClient();
+      const spy = jest.spyOn(client, 'filesInfo');
+      const adapter = new SlackAdapter(client, makeSecretsMock());
+      const update = {
+        conversationKey: 'C1',
+        channelUserKey: 'U1',
+        command: { kind: 'text_message' as const, text: 'hi' },
+        idempotencyKey: 'e2',
+        receivedAt: '2026-06-03T00:00:00Z',
+      };
+      const out = await adapter.enrichInbound(update, SLACK_CONFIG);
+      expect(out).toBe(update);
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
+
+  // C-12 §4.2: button_callback + response_url → replace_original POST.
+  describe('ackInteraction (response_url 비동기 갱신)', () => {
+    it('responseUrl 있으면 replace_original POST', async () => {
+      const fetchSpy = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+      const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+      await adapter.ackInteraction(
+        {
+          conversationKey: 'C1',
+          channelUserKey: 'U1',
+          command: {
+            kind: 'button_callback',
+            callbackData: 'b1',
+            callbackQueryId: '',
+          },
+          idempotencyKey: 'k',
+          receivedAt: '2026-06-03T00:00:00Z',
+          responseUrl: 'https://hooks.slack.com/actions/resp',
+        },
+        SLACK_CONFIG,
+      );
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://hooks.slack.com/actions/resp',
+        expect.objectContaining({ method: 'POST' }),
+      );
+      const body = JSON.parse(
+        (fetchSpy.mock.calls[0][1] as { body: string }).body,
+      );
+      expect(body.replace_original).toBe(true);
+      fetchSpy.mockRestore();
+    });
+
+    it('responseUrl 없으면 noop (fetch 미호출)', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch');
+      const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+      await adapter.ackInteraction(
+        {
+          conversationKey: 'C1',
+          channelUserKey: 'U1',
+          command: {
+            kind: 'button_callback',
+            callbackData: 'b1',
+            callbackQueryId: '',
+          },
+          idempotencyKey: 'k',
+          receivedAt: '2026-06-03T00:00:00Z',
+        },
+        SLACK_CONFIG,
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+      fetchSpy.mockRestore();
+    });
+  });
+
+  // C-12 §5.4: image → files.uploadV2 (실패 시 text fallback).
+  describe('sendMessage(image) → files.uploadV2', () => {
+    it('image bytes → filesUploadV2 호출', async () => {
+      const client = makeClient();
+      const uploadSpy = jest
+        .spyOn(client, 'filesUploadV2')
+        .mockResolvedValue({ ok: true });
+      const adapter = new SlackAdapter(client, makeSecretsMock());
+      await adapter.sendMessage(
+        {
+          conversationKey: 'C1',
+          body: {
+            kind: 'image',
+            bytes: Buffer.from('PNGDATA'),
+            caption: 'chart',
+            fallbackText: 'chart fallback',
+          },
+        },
+        SLACK_CONFIG,
+      );
+      expect(uploadSpy).toHaveBeenCalledWith(
+        'xoxb-test-token',
+        expect.objectContaining({ channel_id: 'C1', initial_comment: 'chart' }),
+      );
+    });
+
+    it('filesUploadV2 실패 → chat.postMessage text fallback', async () => {
+      const client = makeClient();
+      jest
+        .spyOn(client, 'filesUploadV2')
+        .mockResolvedValue({ ok: false, error: 'upload_failed' });
+      const postSpy = jest
+        .spyOn(client, 'chatPostMessage')
+        .mockResolvedValue({ ok: true, channel: 'C1', ts: '1.1' });
+      const adapter = new SlackAdapter(client, makeSecretsMock());
+      await adapter.sendMessage(
+        {
+          conversationKey: 'C1',
+          body: {
+            kind: 'image',
+            bytes: Buffer.from('PNGDATA'),
+            fallbackText: 'chart fallback',
+          },
+        },
+        SLACK_CONFIG,
+      );
+      expect(postSpy).toHaveBeenCalledWith(
+        'xoxb-test-token',
+        expect.objectContaining({ channel: 'C1', text: 'chart fallback' }),
+      );
+    });
+  });
 });

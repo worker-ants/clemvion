@@ -52,6 +52,20 @@ describe('parseTelegramUpdate', () => {
     expect(r?.command.kind).toBe('cancel');
   });
 
+  // C-5: /help 는 v1 정적 안내. parser 가 null 로 떨어뜨리면 HooksService 의
+  // /help 분기가 도달 불가(dead code)가 되므로 text_message 로 통과시킨다.
+  it('/help → command.kind=text_message (정적 안내가 HooksService 에 도달)', () => {
+    const r = parseTelegramUpdate({
+      update_id: 106,
+      message: {
+        chat: { id: 1, type: 'private' },
+        from: { id: 2 },
+        text: '/help',
+      },
+    });
+    expect(r?.command).toEqual({ kind: 'text_message', text: '/help' });
+  });
+
   it('일반 텍스트 → text_message', () => {
     const r = parseTelegramUpdate({
       update_id: 103,

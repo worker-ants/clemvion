@@ -266,8 +266,6 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     opAppend: "Append",
     opPush: "Push",
     opPop: "Pop",
-    opSetField: "Set Field",
-    opDeleteField: "Delete Field",
     opValuePlaceholder: "Value or {{ expression }}",
     addModification: "Add Modification",
     recordValues: "Record values in meta",

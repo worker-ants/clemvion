@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type {
   SlackAuthTestResult,
   SlackChatPostMessageResult,
+  SlackFilesInfoResult,
 } from './slack.types';
 
 /**
@@ -68,22 +69,96 @@ export class SlackClient {
   }
 
   /**
-   * `files.uploadV2` — v1 carousel/chart/table fallback path (Spec §5.4). Phase 3 후속.
+   * `files.info` — file_shared event 의 file 메타데이터(mimetype/name/url_private) 조회.
+   * HooksService 가 inbound file_upload command 보강에 1회 호출 (R-S-7 normative).
+   * Spec [providers/slack §4.1 / R-S-7].
    */
-  filesUploadV2(
-    _botToken: string,
-    _params: {
+  filesInfo(botToken: string, fileId: string): Promise<SlackFilesInfoResult> {
+    return this.call<SlackFilesInfoResult>(botToken, 'files.info', {
+      file: fileId,
+    });
+  }
+
+  /**
+   * `files.uploadV2` — image/chart/table 등 시각형 노드의 PNG 업로드 (Spec §5.4).
+   * multipart/form-data 직접 전송 — JSON 기반 `call()` 과 별도 경로. 5초 timeout +
+   * 3회 지수 백오프 + 429 Retry-After 존중 (CCH-SE-01, `call()` 과 동일 정책).
+   */
+  async filesUploadV2(
+    botToken: string,
+    params: {
       channel_id: string;
       filename: string;
       file: Buffer;
       initial_comment?: string;
     },
   ): Promise<{ ok: boolean; error?: string }> {
-    return Promise.reject(
-      new Error(
-        'SlackClient.filesUploadV2 — Phase 3 후속 (v1 = text fallback)',
-      ),
+    const url = `${this.baseUrl}/files.uploadV2`;
+    const attempts = 3;
+    let lastError: unknown = null;
+    for (let i = 0; i < attempts; i += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const form = new FormData();
+        form.append('channel_id', params.channel_id);
+        form.append('filename', params.filename);
+        form.append(
+          'file',
+          new Blob([new Uint8Array(params.file)]),
+          params.filename,
+        );
+        if (params.initial_comment) {
+          form.append('initial_comment', params.initial_comment);
+        }
+        const res = await fetch(url, {
+          method: 'POST',
+          // content-type 은 fetch 가 multipart boundary 와 함께 자동 설정.
+          headers: { authorization: `Bearer ${botToken}` },
+          body: form,
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (res.status === 429) {
+          const retryAfter = Number(res.headers.get('retry-after') ?? '1');
+          const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : 1000;
+          lastError = new Error(`Slack files.uploadV2 429 retry-after=${retryAfter}`);
+          if (i < attempts - 1) {
+            await new Promise((r) => setTimeout(r, waitMs));
+            continue;
+          }
+        } else if (res.status >= 400 && res.status < 500) {
+          return (await res
+            .json()
+            .catch(() => ({ ok: false, error: `HTTP ${res.status}` }))) as {
+            ok: boolean;
+            error?: string;
+          };
+        } else if (!res.ok) {
+          lastError = new Error(`Slack files.uploadV2 HTTP ${res.status}`);
+        } else {
+          return (await res.json()) as { ok: boolean; error?: string };
+        }
+      } catch (err) {
+        clearTimeout(timer);
+        lastError = err;
+      }
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
+      }
+    }
+    this.logger.warn(
+      `SlackClient.filesUploadV2 3회 재시도 실패: ${
+        lastError instanceof Error ? lastError.message : String(lastError)
+      }`,
     );
+    return {
+      ok: false,
+      error:
+        lastError instanceof Error
+          ? lastError.message
+          : 'Unknown error in filesUploadV2',
+    };
   }
 
   /**

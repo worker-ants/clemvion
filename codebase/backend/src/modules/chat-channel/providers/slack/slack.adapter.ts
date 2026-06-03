@@ -197,8 +197,21 @@ export class SlackAdapter implements NativeFormAdapter {
       return wrapSendResult(res, 'chat.postMessage(form_modal)');
     }
     if (message.body.kind === 'image') {
-      // v1 = files.uploadV2 미구현 — fallbackText 로 text 발송 (R-S §5.4).
-      const text = message.body.caption ?? message.body.fallbackText;
+      const imageBody = message.body;
+      // 실 PNG 업로드 (files.uploadV2). 실패 시 fallbackText 로 text 발송 (R-S §5.4).
+      const uploaded = await this.client.filesUploadV2(botToken, {
+        channel_id: channel,
+        filename: 'image.png',
+        file: imageBody.bytes,
+        initial_comment: imageBody.caption,
+      });
+      if (uploaded.ok) {
+        return { externalMsgId: '', sentAt: new Date().toISOString() };
+      }
+      this.logger.warn(
+        `files.uploadV2 실패 — text fallback: ${uploaded.error ?? 'unknown'}`,
+      );
+      const text = imageBody.caption ?? imageBody.fallbackText;
       const res = await this.client.chatPostMessage(botToken, {
         channel,
         text,
@@ -210,14 +223,68 @@ export class SlackAdapter implements NativeFormAdapter {
   }
 
   /**
-   * Spec §4.2 — Slack Interactivity 3초 ack 는 HooksController 의 HTTP response 로 즉시 반환.
-   * 본 함수는 noop — 비동기 후속 갱신은 sendMessage 가 response_url 로 처리.
+   * Spec §4.2 — Slack Interactivity 3초 ack 는 HooksController 가 HTTP 200 으로 즉시 반환.
+   * 본 함수는 비동기 후속 갱신: button_callback 의 response_url 로 replace_original POST
+   * 하여 메시지를 "선택 완료" 로 갱신한다 (1시간 유효, response_url 자체가 인증된 URL —
+   * botToken 불필요). responseUrl 부재 / button 외 command 면 noop.
    */
-  ackInteraction(
-    _update: ChannelUpdate,
-    _config: ChatChannelConfig,
+  async ackInteraction(
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
   ): Promise<void> {
-    return Promise.resolve();
+    if (!update.responseUrl || update.command.kind !== 'button_callback') {
+      return;
+    }
+    try {
+      await fetch(update.responseUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          replace_original: true,
+          text: config.languageHints?.selectionDone ?? '선택 완료',
+        }),
+      });
+    } catch (err) {
+      this.logger.warn(
+        `ackInteraction response_url POST 실패: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * §4.1 / R-S-7 — file_shared event 의 file_upload command 를 files.info 1회 호출로
+   * 보강한다 (mimeType/filename/urlPrivate). parseUpdate 는 pure 계약상 외부 호출 불가라
+   * placeholder mimeType 만 채우므로, HooksService 가 parseUpdate 직후 본 메서드를 호출한다.
+   * file_upload 외 command 는 그대로 반환.
+   */
+  async enrichInbound(
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+  ): Promise<ChannelUpdate> {
+    if (update.command.kind !== 'file_upload') return update;
+    try {
+      const botToken = await this.resolveBotToken(config);
+      const info = await this.client.filesInfo(
+        botToken,
+        update.command.fileId,
+      );
+      if (info.ok && info.file) {
+        return {
+          ...update,
+          command: {
+            ...update.command,
+            mimeType: info.file.mimetype ?? update.command.mimeType,
+            filename: info.file.name ?? update.command.filename,
+            urlPrivate: info.file.url_private ?? update.command.urlPrivate,
+          },
+        };
+      }
+    } catch (err) {
+      this.logger.warn(
+        `enrichInbound files.info 실패 — placeholder mimeType 유지: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return update;
   }
 
   /**

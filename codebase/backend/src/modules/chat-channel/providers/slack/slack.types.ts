@@ -126,3 +126,17 @@ export interface SlackChatPostMessageResult {
   ts?: string;
   error?: string;
 }
+
+/** files.info 응답 — file_shared event 보강용 (mimeType/filename/url_private). */
+export interface SlackFilesInfoResult {
+  ok: boolean;
+  error?: string;
+  file?: {
+    id?: string;
+    name?: string;
+    mimetype?: string;
+    filetype?: string;
+    url_private?: string;
+    size?: number;
+  };
+}

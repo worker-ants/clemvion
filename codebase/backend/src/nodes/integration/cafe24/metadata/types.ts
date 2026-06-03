@@ -195,24 +195,3 @@ export const CAFE24_RESOURCES: readonly Cafe24Resource[] = [
   'notification',
   'translation',
 ] as const;
-
-export const CAFE24_RESOURCE_LABELS: Record<Cafe24Resource, string> = {
-  store: 'Store (상점)',
-  product: 'Product (상품)',
-  order: 'Order (주문)',
-  customer: 'Customer (회원)',
-  community: 'Community (게시판)',
-  design: 'Design (디자인)',
-  promotion: 'Promotion (프로모션)',
-  application: 'Application (앱 관리)',
-  category: 'Category (상품분류)',
-  collection: 'Collection (판매분류)',
-  supply: 'Supply (공급사)',
-  shipping: 'Shipping (배송)',
-  salesreport: 'Salesreport (매출통계)',
-  personal: 'Personal (개인화)',
-  privacy: 'Privacy (개인정보)',
-  mileage: 'Mileage (적립금)',
-  notification: 'Notification (알림)',
-  translation: 'Translation (번역)',
-};

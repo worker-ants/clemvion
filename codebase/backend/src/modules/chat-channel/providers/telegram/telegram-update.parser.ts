@@ -114,8 +114,14 @@ function readCommand(message: TelegramMessageShape): ChannelCommand | null {
     if (trimmed === '/cancel') {
       return { kind: 'cancel' };
     }
+    if (trimmed === '/help') {
+      // /help 는 v1 정적 안내. HooksService 가 text_message '/help' 분기에서
+      // languageHints.help (또는 기본 문구) 를 발송하므로 text_message 로
+      // 통과시킨다 (conversation lookup 전에 가로채여 워크플로 시작 안 함).
+      return { kind: 'text_message', text };
+    }
     if (trimmed.startsWith('/')) {
-      // v1 은 /start /cancel /help 외 명령 무시 — /help 도 v1 정적 안내 (PR-E 처리). 그 외는 null.
+      // v1 은 /start /cancel /help 외 명령 무시. 그 외는 null.
       return null;
     }
     return { kind: 'text_message', text };

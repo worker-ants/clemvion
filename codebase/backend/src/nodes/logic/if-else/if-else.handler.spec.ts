@@ -100,6 +100,54 @@ describe('IfElseHandler', () => {
       });
     });
 
+    // C-4 regression guard: regex operator must actually evaluate (previously
+    // a no-op that always returned false because options.regex was never set).
+    it('should route to "true" when regex condition matches', async () => {
+      const result = await handler.execute(
+        { email: 'alice@example.com' },
+        {
+          conditions: [
+            { field: 'email', operator: 'regex', value: '^[^@]+@example\\.com$' },
+          ],
+          combineMode: 'and',
+        },
+        context,
+      );
+      expect(result).toMatchObject({
+        port: 'true',
+        meta: { conditionResult: true },
+      });
+    });
+
+    it('should route to "false" when regex condition does not match', async () => {
+      const result = await handler.execute(
+        { email: 'bob@other.org' },
+        {
+          conditions: [
+            { field: 'email', operator: 'regex', value: '^[^@]+@example\\.com$' },
+          ],
+          combineMode: 'and',
+        },
+        context,
+      );
+      expect(result).toMatchObject({
+        port: 'false',
+        meta: { conditionResult: false },
+      });
+    });
+
+    it('should route to "false" when regex pattern is invalid (no throw)', async () => {
+      const result = await handler.execute(
+        { email: 'alice@example.com' },
+        {
+          conditions: [{ field: 'email', operator: 'regex', value: '([' }],
+          combineMode: 'and',
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'false' });
+    });
+
     it('should route to "false" port when eq condition fails', async () => {
       const result = await handler.execute(
         { status: 'inactive' },

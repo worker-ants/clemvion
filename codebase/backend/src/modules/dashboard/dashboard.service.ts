@@ -70,7 +70,10 @@ export class DashboardService {
     const fourteenDaysAgo = new Date(sevenDaysAgo);
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 7);
 
-    const [runs7dResult, runs7dPrevious] = await Promise.all([
+    // total7dExecutions: status 무관 최근 7일 전체 실행 건수(running·pending·
+    // cancelled·completed·failed 포함). Success Rate 의 분모로 쓰인다
+    // (spec/2-navigation/0-dashboard.md §3·§7).
+    const [total7dExecutions, runs7dPrevious] = await Promise.all([
       this.executionRepository
         .createQueryBuilder('e')
         .innerJoin('e.workflow', 'w')
@@ -89,7 +92,7 @@ export class DashboardService {
     const runs7dChangePercent =
       runs7dPrevious > 0
         ? Math.round(
-            ((runs7dResult - runs7dPrevious) / runs7dPrevious) * 10000,
+            ((total7dExecutions - runs7dPrevious) / runs7dPrevious) * 10000,
           ) / 100
         : null;
 
@@ -101,9 +104,10 @@ export class DashboardService {
       .andWhere('e.status = :status', { status: ExecutionStatus.COMPLETED })
       .getCount();
 
+    // 분모는 모든 status 의 7일 실행 건수(total7dExecutions), 분자는 COMPLETED 만.
     const successRate =
-      runs7dResult > 0
-        ? Math.round((successCount / runs7dResult) * 10000) / 100
+      total7dExecutions > 0
+        ? Math.round((successCount / total7dExecutions) * 10000) / 100
         : 0;
 
     const avgResult = await this.executionRepository
@@ -122,7 +126,7 @@ export class DashboardService {
     return {
       totalWorkflows,
       activeWorkflows,
-      runs7d: runs7dResult,
+      runs7d: total7dExecutions,
       runs7dPrevious,
       runs7dChangePercent,
       successRate,

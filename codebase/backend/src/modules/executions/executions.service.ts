@@ -572,8 +572,54 @@ export class ExecutionsService {
       this.executionRepository,
       data,
     );
-    const dtoList = data.map((e) => this.toExecutionDto(e, parentNameMap));
+    const nodeCountMap = await this.loadNodeExecutionCounts(
+      data.map((e) => e.id),
+    );
+    const dtoList = data.map((e) =>
+      this.toExecutionDto(e, parentNameMap, nodeCountMap),
+    );
     return PaginatedResponseDto.create(dtoList, totalItems, page, limit);
+  }
+
+  /**
+   * 실행 목록의 Nodes 열(완료/전체, 실패 수)을 위해 node_execution 을
+   * execution_id 로 묶어 단일 그룹 쿼리로 집계한다 (N+1 회피). 관계 로드 없이
+   * status 별 COUNT 만 구한다. spec/2-navigation/14-execution-history.md §2.4.
+   */
+  private async loadNodeExecutionCounts(
+    executionIds: string[],
+  ): Promise<
+    Map<string, { total: number; completed: number; failed: number }>
+  > {
+    const map = new Map<
+      string,
+      { total: number; completed: number; failed: number }
+    >();
+    if (executionIds.length === 0) return map;
+
+    const rows = await this.nodeExecutionRepository
+      .createQueryBuilder('ne')
+      .select('ne.execution_id', 'executionId')
+      .addSelect('COUNT(*)', 'total')
+      .addSelect("COUNT(*) FILTER (WHERE ne.status = 'completed')", 'completed')
+      .addSelect("COUNT(*) FILTER (WHERE ne.status = 'failed')", 'failed')
+      .where('ne.execution_id IN (:...executionIds)', { executionIds })
+      .groupBy('ne.execution_id')
+      .getRawMany<{
+        executionId: string;
+        total: string;
+        completed: string;
+        failed: string;
+      }>();
+
+    for (const r of rows) {
+      map.set(r.executionId, {
+        total: Number(r.total),
+        completed: Number(r.completed),
+        failed: Number(r.failed),
+      });
+    }
+    return map;
   }
 
   /**
@@ -648,11 +694,20 @@ export class ExecutionsService {
   private toExecutionDto(
     execution: Execution,
     parentNameMap: Map<string, string | null>,
+    nodeCountMap?: Map<
+      string,
+      { total: number; completed: number; failed: number }
+    >,
   ): ExecutionDto {
     const parentName = execution.parentExecutionId
       ? (parentNameMap.get(execution.parentExecutionId) ?? null)
       : null;
     const trigger = deriveExecutionTrigger(execution, parentName);
+    const counts = nodeCountMap?.get(execution.id) ?? {
+      total: 0,
+      completed: 0,
+      failed: 0,
+    };
     return {
       id: execution.id,
       workflowId: execution.workflowId,
@@ -678,6 +733,9 @@ export class ExecutionsService {
       reRunOf: execution.reRunOf ?? null,
       chainId: execution.chainId ?? null,
       dryRun: execution.dryRun ?? false,
+      totalNodeCount: counts.total,
+      completedNodeCount: counts.completed,
+      failedNodeCount: counts.failed,
     };
   }
 

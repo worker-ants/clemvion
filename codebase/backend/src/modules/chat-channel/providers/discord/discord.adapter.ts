@@ -79,6 +79,22 @@ export class DiscordAdapter implements NativeFormAdapter {
     if (!application.id) {
       throw new Error('Discord application 응답에 id 누락');
     }
+    // §3.1 — GET /applications/@me 의 verify_key 와 사용자 입력 public key
+    // (inboundSigningRef) 일치 검증. 불일치면 BOT_TOKEN_INVALID (잘못된 앱/키 등록).
+    if (config.inboundSigningRef) {
+      const expectedPublicKey = await this.secrets.resolve(
+        config.inboundSigningRef,
+      );
+      if (
+        expectedPublicKey &&
+        application.verify_key &&
+        application.verify_key !== expectedPublicKey
+      ) {
+        throw new Error(
+          'BOT_TOKEN_INVALID: Discord verify_key 가 등록된 public key 와 불일치',
+        );
+      }
+    }
     // slash command bulk overwrite — default prefix '/workflow'.
     const slashPrefix = config.languageHints?.slashPrefix ?? 'workflow';
     await this.client.putApplicationCommands(botToken, application.id, [
@@ -259,6 +275,33 @@ export class DiscordAdapter implements NativeFormAdapter {
    * SoT: spec/conventions/chat-channel-adapter.md §4.1 / providers/discord §5.3.
    */
   openFormModal(params: OpenFormModalParams): Promise<OpenFormModalResult> {
+    // §5.1(b) AI Multi Turn reply modal — 단일 TEXT_INPUT (custom_id 'message').
+    // MODAL_SUBMIT(custom_id 'clemvion_reply') 는 parser 가 text_message 로 normalize.
+    if (params.modalKind === 'reply') {
+      const replyModal = {
+        type: 9,
+        data: {
+          custom_id: 'clemvion_reply',
+          title: params.config.languageHints?.replyModalTitle ?? '답변',
+          components: [
+            {
+              type: 1,
+              components: [
+                {
+                  type: 4,
+                  custom_id: 'message',
+                  label:
+                    params.config.languageHints?.replyModalLabel ?? '메시지',
+                  style: 2,
+                  required: true,
+                },
+              ],
+            },
+          ],
+        },
+      };
+      return Promise.resolve({ httpResponse: replyModal });
+    }
     const modal = {
       type: 9,
       data: {
