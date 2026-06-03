@@ -118,11 +118,23 @@ export class LlmUsageSummaryDto {
   @ApiProperty({ type: [LlmUsageByModelDto] })
   byModel: LlmUsageByModelDto[];
 
+  @ApiProperty({ description: '전체 input(prompt) 토큰 합계' })
+  totalPromptTokens: number;
+
+  @ApiProperty({ description: '전체 output(completion) 토큰 합계' })
+  totalCompletionTokens: number;
+
   @ApiProperty()
   totalTokens: number;
 
   @ApiPropertyOptional({ nullable: true })
   totalCostUsd?: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: '토큰 사용량 최다 프로바이더명 (사용량 0 이면 null)',
+  })
+  topProvider?: string | null;
 }
 
 /** 일자별 LLM 사용량 */
