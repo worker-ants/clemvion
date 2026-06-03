@@ -50,10 +50,14 @@ code: ["codebase/frontend/src/components/editor/run-results", "codebase/backend/
 
 <FieldTable rows={[
   { name: "카테고리 색상 점", type: "Visual", description: "노드 카테고리를 나타내요. Trigger=🟡, Logic=🔵, Flow=🟣, AI=🟢, Integration=🟠, Data=🔵, Presentation=🩷" },
-  { name: "상태 아이콘", type: "Status", description: "⏳ Running, ✅ Completed, ❌ Failed, ⏸ Waiting, — Skipped" },
+  { name: "상태 아이콘", type: "Status", description: "⏳ Running, ✅ Completed, ❌ Failed, ⏸ Waiting, — Skipped, ⊘ Cancelled" },
   { name: "실행 시간", type: "Duration", description: "142ms, 1.2s 같은 소요 시간이에요." },
   { name: "(iter N) 접미사", type: "반복", description: "Loop/ForEach/Map body 노드가 여러 번 실행될 때 각 반복이 독립 항목으로 나타나요." }
 ]} />
+
+<Callout type="note">
+**cancelled 상태**: 병렬 분기의 `cancel-others-on-fail` 또는 사용자 Stop 버튼으로 노드가 외부에서 중단되면 `failed`가 아닌 `cancelled`로 표시돼요. 에러 정책(Retry, Skip 등)이 적용되지 않는 별도 terminal 상태예요.
+</Callout>
 
 타임라인 항목을 클릭하면 오른쪽 상세 뷰에 해당 노드의 결과가 표시돼요.
 

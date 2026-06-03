@@ -12,7 +12,14 @@ export interface NodeExecutionData {
   id: string;
   executionId: string;
   nodeId: string;
-  status: "pending" | "running" | "completed" | "failed" | "skipped" | "waiting_for_input";
+  status:
+    | "pending"
+    | "running"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "skipped"
+    | "waiting_for_input";
   startedAt: string;
   finishedAt: string | null;
   durationMs: number | null;

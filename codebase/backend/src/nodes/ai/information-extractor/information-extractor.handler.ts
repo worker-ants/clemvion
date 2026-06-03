@@ -426,6 +426,7 @@ export class InformationExtractorHandler implements NodeHandler {
         initialPartialResult: {},
         startingRetryCount: 0,
         llmCalls,
+        abortSignal: context.abortSignal,
       },
       outputSchema,
     );
@@ -510,6 +511,8 @@ export class InformationExtractorHandler implements NodeHandler {
         initialPartialResult: state.partialResult,
         startingRetryCount: state.collectionRetryCount,
         llmCalls,
+        // resume(continuation) 경로 — cancel-others-on-fail 같은 abort 컨텍스트가
+        // 없으므로 signal 미전파 (optional). 초기 실행 경로(executeMultiTurn)만 전파.
       },
       state.outputSchema,
     );
@@ -602,6 +605,7 @@ export class InformationExtractorHandler implements NodeHandler {
       initialPartialResult: Record<string, unknown>;
       startingRetryCount: number;
       llmCalls: LlmCallTrace[];
+      abortSignal?: AbortSignal;
     },
     outputSchema: OutputField[],
   ): Promise<
@@ -631,15 +635,20 @@ export class InformationExtractorHandler implements NodeHandler {
       let trace: LlmCallTrace;
       let result: ChatResult;
       try {
-        // TODO(parallel-p2-followups §1): signal 미전파 — runTurnWithCollectionRetries
-        // params chain 에 abortSignal 추가 후 traceChat 3번째 인자로 전달 예정.
-        // 현재 cancel-others-on-fail 발화 시 이 루프 내 LLM 호출은 즉시 abort 되지 않음.
-        const call = await this.traceChat(params.llmConfig, {
-          model: params.model,
-          messages: [...messages],
-          tools: [finalizeTool],
-          toolChoice: 'auto',
-        });
+        // multi-turn 루프의 각 LLM 호출에 abortSignal 전파 (node-cancellation §2.1)
+        // — cancel-others-on-fail / 사용자 cancel 발화 시 진행 중 turn 의 LLM 호출이
+        // 즉시 abort 된다. abort 시 SDK 가 throw 하는 AbortError 는 그대로 전파돼
+        // 엔진이 cancelled 로 분류한다 (§5.1).
+        const call = await this.traceChat(
+          params.llmConfig,
+          {
+            model: params.model,
+            messages: [...messages],
+            tools: [finalizeTool],
+            toolChoice: 'auto',
+          },
+          params.abortSignal,
+        );
         result = call.result;
         trace = call.trace;
       } catch (error) {

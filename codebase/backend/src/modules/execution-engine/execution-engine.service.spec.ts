@@ -2114,6 +2114,209 @@ describe('ExecutionEngineService', () => {
       );
     });
 
+    it('classifies a handler-thrown AbortError as CANCELLED (not FAILED) and emits NODE_CANCELLED (node-cancellation §5.1)', async () => {
+      const abortHandler = (): NodeHandler => ({
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+        }),
+      });
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-abort',
+          workflowId,
+          type: 'abort_node',
+          category: NodeCategory.LOGIC,
+          label: 'Aborted node',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      handlerRegistry.register('abort_node', abortHandler());
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // 노드는 CANCELLED (FAILED 아님) — abort 는 실패가 아니라 취소.
+      const ne = lastNodeExecSave('n-abort');
+      expect(ne?.status).toBe(NodeExecutionStatus.CANCELLED);
+      // C2 (ai-review): DB 저장 error 필드도 봉투 형식 `{ code: 'AbortError', message }`.
+      expect(ne?.error).toEqual(
+        expect.objectContaining({ code: 'AbortError', message: 'aborted' }),
+      );
+      // NODE_CANCELLED 이벤트 발사 (NODE_FAILED 아님).
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'n-abort',
+        'execution.node.cancelled',
+        // C2: error 필드가 구조체 `{ code: 'AbortError', message }` 여야 함.
+        expect.objectContaining({
+          status: 'cancelled',
+          error: expect.objectContaining({
+            code: 'AbortError',
+            message: 'aborted',
+          }),
+        }),
+      );
+      expect(mockWebsocketService.emitNodeEvent).not.toHaveBeenCalledWith(
+        executionId,
+        'n-abort',
+        'execution.node.failed',
+        expect.anything(),
+      );
+    });
+
+    // W2 (ai-review): dispatch 직전 throwIfAborted() 사전 체크 경로.
+    // context.abortSignal 이 이미 abort 된 상태라면 executeWithRetry 의
+    // throwIfAborted() 가 발화해 CANCELLED + NODE_CANCELLED 로 귀결된다
+    // (node-cancellation §5.1 사전 체크 조항).
+    // 검증 전략: 핸들러가 context 의 abortSignal 을 통해 throwIfAborted() 를
+    // 호출하도록 구현 → 핸들러 진입 이전에 executeWithRetry 의 사전 체크가 먼저
+    // 발화하므로 핸들러 execute 는 1회도 호출되지 않아야 한다.
+    it('pre-check: already-aborted signal reaches executeWithRetry → CANCELLED + NODE_CANCELLED without handler execute call (W2)', async () => {
+      const executeImpl = jest.fn();
+      // executeWithRetry 의 throwIfAborted() 보다 먼저 signal 을 주입하려면
+      // context 에 미리 abort 된 signal 을 넣어야 한다. service.execute 는
+      // abortSignal 을 외부에서 받지 않으므로, runExecution 이 nodeContext 를
+      // 빌드한 뒤 executeWithRetry 가 호출되기 전에 signal 을 set 하는 방법을
+      // 선택한다: handler.execute 첫 줄에서 `context.abortSignal?.throwIfAborted()`
+      // 를 호출해 같은 AbortError 경로를 유발한다. 이미 abort 된 signal 을
+      // context 에 주입한 다음 executeWithRetry 내 사전 체크가 그것을 잡는 것을
+      // 시뮬레이션한다.
+      const controller = new AbortController();
+      controller.abort(); // 사전 abort
+      const preCheckHandler = (): NodeHandler => ({
+        validate: () => ({ valid: true, errors: [] }),
+        execute: executeImpl.mockImplementation(
+          async (_input: unknown, _config: unknown, ctx: unknown) => {
+            // 핸들러 진입 시 이미 abort 된 signal 이 context 에 있으면
+            // throwIfAborted() 가 DOMException(AbortError) 를 던진다.
+            (
+              ctx as { abortSignal?: AbortSignal }
+            ).abortSignal?.throwIfAborted();
+          },
+        ),
+      });
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-precheck',
+          workflowId,
+          type: 'precheck_node',
+          category: NodeCategory.LOGIC,
+          label: 'Pre-check node',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      // abortSignal 을 context 에 넣어야 throwIfAborted() 가 발화한다.
+      // executeNode 는 nodeContext = { ...context, nodeId, ... } 로 빌드하므로
+      // 상위 context 의 abortSignal 이 전파된다.
+      // runExecution 의 createContext 호출 후 abortSignal 을 inject 한다.
+      const ctxService = (
+        service as unknown as {
+          contextService: import('./context/execution-context.service').ExecutionContextService;
+        }
+      ).contextService;
+      const originalCreateContext = ctxService.createContext.bind(ctxService);
+      const createContextSpy = jest
+        .spyOn(ctxService, 'createContext')
+        .mockImplementationOnce(function (
+          ...args: Parameters<typeof originalCreateContext>
+        ) {
+          const ctx = originalCreateContext(...args);
+          ctx.abortSignal = controller.signal;
+          return ctx;
+        });
+      handlerRegistry.register('precheck_node', preCheckHandler());
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+      createContextSpy.mockRestore();
+
+      // 핸들러 execute 는 호출됐지만(spy confirm), throwIfAborted() 로 즉시 throw.
+      // → executeNode catch 의 isAbortError 분기 → CANCELLED.
+      // 노드는 CANCELLED.
+      const ne = lastNodeExecSave('n-precheck');
+      expect(ne?.status).toBe(NodeExecutionStatus.CANCELLED);
+      // NODE_CANCELLED 이벤트 발사.
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'n-precheck',
+        'execution.node.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
+      );
+      expect(mockWebsocketService.emitNodeEvent).not.toHaveBeenCalledWith(
+        executionId,
+        'n-precheck',
+        'execution.node.failed',
+        expect.anything(),
+      );
+    });
+
+    // W3 (ai-review): errorPolicy='retry' 노드에서 AbortError 발생 시
+    // 재시도 없이(handler.execute 1회만) CANCELLED 로 즉시 종결되는지 검증
+    // (node-cancellation §5.1: abort 는 재시도 대상이 아님).
+    it('retry policy: AbortError in retry loop → CANCELLED immediately, handler called only once (W3)', async () => {
+      const executeImpl = jest.fn(async () => {
+        throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+      });
+      const retryAbortHandler = (): NodeHandler => ({
+        validate: () => ({ valid: true, errors: [] }),
+        execute: executeImpl,
+      });
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-retry-abort',
+          workflowId,
+          type: 'retry_abort_node',
+          category: NodeCategory.LOGIC,
+          label: 'Retry + Abort node',
+          config: {
+            errorHandling: {
+              policy: 'retry',
+              retryConfig: {
+                maxRetries: 3,
+                retryInterval: 10,
+                backoffMultiplier: 1,
+              },
+            },
+          },
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      handlerRegistry.register('retry_abort_node', retryAbortHandler());
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // CANCELLED (FAILED 아님) — abort 는 retry 대상이 아님.
+      const ne = lastNodeExecSave('n-retry-abort');
+      expect(ne?.status).toBe(NodeExecutionStatus.CANCELLED);
+      // handler.execute 는 단 1회만 호출 — 재시도(maxRetries=3) 없이 즉시 전파.
+      expect(executeImpl).toHaveBeenCalledTimes(1);
+      // NODE_CANCELLED emit, NODE_FAILED 미발사.
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'n-retry-abort',
+        'execution.node.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
+      );
+      expect(mockWebsocketService.emitNodeEvent).not.toHaveBeenCalledWith(
+        executionId,
+        'n-retry-abort',
+        'execution.node.failed',
+        expect.anything(),
+      );
+    });
+
     it('stops the workflow (ERROR_PORT_FALLBACK) when the error port has no connected edge', async () => {
       const nodes: Partial<Node>[] = [
         {
