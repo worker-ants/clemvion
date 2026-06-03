@@ -10,9 +10,9 @@ owner: planner
 > 관련 spec: spec/2-navigation/7-statistics.md
 
 ## 미구현 항목
-- [ ] Total Runs 카드 "전 기간 대비 증감률" — `StatisticsSummaryDto` 및 프론트 카드 모두 증감률 필드 부재
-- [ ] 기간 필터 "커스텀 범위" 프론트 UI — 백엔드 `QueryStatisticsDto`(`period=custom` + `startDate`/`endDate`)는 지원하나 프론트에 범위 선택 UI 없음 (프리셋 `1d`/`7d`/`30d`/`90d` 버튼만)
-- [ ] 프리셋 `1d`(오늘) 백엔드 enum 정합 — 프론트는 `1d` 를 보내나 백엔드 `period` enum 은 `7d`/`30d`/`90d`/`custom` 만 허용 (구현 측 검증 필요)
+- [x] Total Runs 카드 "전 기간 대비 증감률" — `StatisticsSummaryDto` 및 프론트 카드 모두 증감률 필드 부재
+- [x] 기간 필터 "커스텀 범위" 프론트 UI — 백엔드 `QueryStatisticsDto`(`period=custom` + `startDate`/`endDate`)는 지원하나 프론트에 범위 선택 UI 없음 (프리셋 `1d`/`7d`/`30d`/`90d` 버튼만)
+- [x] 프리셋 `1d`(오늘) 백엔드 enum 정합 — 프론트는 `1d` 를 보내나 백엔드 `period` enum 은 `7d`/`30d`/`90d`/`custom` 만 허용 (구현 측 검증 필요)
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 참조.

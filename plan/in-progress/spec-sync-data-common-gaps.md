@@ -16,3 +16,7 @@ owner: planner
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__5-data__0-common.md 참조.
 - §3 (캔버스 요약) Code 행은 본문에서 "미구현 (Planned)" 으로 표기 분리됨.
 - §4 transform/code `meta` 형태 stale 은 본문만 코드에 맞게 패치 (강등 사유 아님 — 코드 실재 동작 반영).
+
+## ⚠ 재분류 (2026-06-03 groom): decision-free 아님 → planner 결정 필요
+- spec 약속 `JavaScript · 12 lines` 는 summaryTemplate DSL 로 **표현 불가**: (a) "12 lines" = `code` 의 줄 수인데 DSL `length` 는 **문자 수**만 지원(줄 세기 없음), (b) `language` enum 값은 소문자 `javascript` 인데 spec 은 title-case `JavaScript` — DSL 은 `upper`/`lower` 만 있고 title-case 없음.
+- **결정 필요**: summaryTemplate DSL 확장(`lines` primitive + title-case 필터) vs 약속 downscope(예: `{{language|upper}}` 만). 패턴 sibling: `transform.schema.ts:228-232`. 위치: `nodes/data/code/code.schema.ts:109-131`.

@@ -1,11 +1,9 @@
 ---
 id: statistics
-status: partial
+status: implemented
 code:
   - codebase/frontend/src/app/(main)/statistics/page.tsx
   - codebase/backend/src/modules/statistics/**
-pending_plans:
-  - plan/in-progress/spec-sync-statistics-gaps.md
 ---
 
 # Spec: 통계 화면
@@ -58,14 +56,14 @@ pending_plans:
 
 | 필터 | 옵션 |
 |------|------|
-| 기간 | 오늘(`1d`) / 최근 7일(`7d`, 기본) / 최근 30일(`30d`) / 최근 90일(`90d`) — 프리셋 버튼. **커스텀 범위는 미구현 (Planned)**: 백엔드 `QueryStatisticsDto` 는 `period=custom` + `startDate`/`endDate` 를 지원하나 프론트에 범위 선택 UI 없음. 반대로 프리셋 `1d`(오늘)는 프론트에만 있고 백엔드 enum(`7d`/`30d`/`90d`/`custom`)에는 없음 |
+| 기간 | 오늘(`1d`) / 최근 7일(`7d`, 기본) / 최근 30일(`30d`) / 최근 90일(`90d`) — 프리셋 버튼 + 커스텀 범위 선택. 백엔드 `QueryStatisticsDto` enum 은 `1d`/`7d`/`30d`/`90d`/`custom` 이며 `custom` 은 `startDate`/`endDate` 와 함께 사용한다. 프론트는 프리셋 버튼과 커스텀 범위 피커를 모두 제공한다 |
 | 워크플로우 | 전체 / 특정 워크플로우 선택 |
 
 ### 2.2 요약 카드
 
 | 카드 | 내용 |
 |------|------|
-| Total Runs | 선택 기간 내 총 실행 횟수. **전 기간 대비 증감률은 미구현 (Planned)** — `StatisticsSummaryDto` 및 프론트 카드 모두 증감률 필드 없음 |
+| Total Runs | 선택 기간 내 총 실행 횟수. 직전 동일 기간 대비 증감률(`totalExecutionsChangeRate`)을 함께 표시한다 (`StatisticsSummaryDto` 필드 → 프론트 카드 렌더) |
 | Success Rate | 성공 비율 (%) |
 | Failure Rate | 실패 비율 (%) |
 | Avg Duration | 평균 실행 시간 |

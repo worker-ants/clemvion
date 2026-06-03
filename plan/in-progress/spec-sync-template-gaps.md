@@ -15,3 +15,7 @@ owner: planner
 ## 비고
 - 근거(claim→코드부재)는 audit findings/4-nodes.md `### spec/4-nodes/6-presentation/5-template.md` 절 참조.
 - §6 에러 메시지 영문/한국어 차이는 spec 본문 patch 로 정정 완료.
+
+## ⚠ 재분류 (2026-06-03 groom): decision-free 아님 → planner 결정 필요
+- `html · N buttons` 는 표현 가능(`{{outputFormat}} · {{buttons.length}} buttons`)이나 `html · N lines` 는 **불가**(DSL 에 줄 세기 없음, code 노드와 동일 한계). 단일 정적 template 은 config 에 따라 lines/buttons 분기도 불가.
+- **결정 필요**: buttons-only 로 downscope vs DSL 확장. 패턴: `transform.schema.ts:228-232`. 위치: `nodes/presentation/template/template.schema.ts:146-173`. body=`template`, format=`outputFormat`, buttons=`buttons`.

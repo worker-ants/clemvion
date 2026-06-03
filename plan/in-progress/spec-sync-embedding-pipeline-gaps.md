@@ -10,7 +10,7 @@ owner: planner
 > 관련 spec: spec/5-system/8-embedding-pipeline.md
 
 ## 미구현 항목
-- [ ] §4.3 CSV 전용 청킹 — 행 단위 청크 구성 / chunk_size 내 다행 결합 / 행 중간 미분할. 현재 `csv.parser.ts` 가 행을 `\n` join 한 단일 문자열을 반환하고 공통 `chunkText()`(`\n\n+` 분할)를 통과하므로 행 중간 분할이 가능하다.
+- [x] §4.3 CSV 전용 청킹 — 행 단위 청크 구성 / chunk_size 내 다행 결합 / 행 중간 미분할. 현재 `csv.parser.ts` 가 행을 `\n` join 한 단일 문자열을 반환하고 공통 `chunkText()`(`\n\n+` 분할)를 통과하므로 행 중간 분할이 가능하다.
 - [ ] §6.1 DocumentChunk.metadata `{ page?, section? }` 채우기 — 현재 `embedding.service.ts` 가 모든 청크에 대해 `JSON.stringify({})` (빈 객체)를 INSERT. 파서가 page/section 을 추출해 청크 metadata 로 전달하는 경로 없음.
 
 ## 비고
@@ -18,5 +18,5 @@ owner: planner
 - 검증 근거: `codebase/backend/src/modules/knowledge-base/parsers/csv.parser.ts` (행을 `\n` join), `codebase/backend/src/modules/knowledge-base/chunking/text-chunker.ts` (`Chunk` 인터페이스에 metadata 필드 없음, `\n\n+` 분할), `codebase/backend/src/modules/knowledge-base/embedding/embedding.service.ts:273` (`JSON.stringify({})`).
 
 ## 구현 상태 (branch claude/spec-sync-impl-644d19, 2026-06-03)
-- 미구현 항목 **코드 구현 완료** — commit 836ce29f. ai-review(13 reviewer)+resolution-applier 처리, build/lint/unit/e2e green. (CSV row-aware chunking + chunk metadata)
-- **미해결 follow-up**: spec marker flip / 본문 보강(planner) → `plan/in-progress/spec-fix-impl-marker-flips.md`. 그 완료 시 본 ticket 을 `complete/` 이동 (plan-lifecycle §2).
+- **§4.3 CSV row-aware chunking 구현 완료** — commit 836ce29f. `chunking/csv-chunker.ts` `chunkCsv()` + `embedding.service.ts` 의 `fileType === 'csv'` 분기. spec marker flip 완료 (2026-06-03 groom).
+- **§6.1 chunk metadata `{page?, section?}` 는 여전히 미구현** — 재검증(2026-06-03 groom): `csv-chunker.ts:44` 및 text-chunker 가 `metadata: {}` 만 설정, `embedding.service.ts` 가 `chunk.metadata ?? {}` 를 INSERT 하므로 항상 `{}`. 파서가 page/section 을 추출하는 경로 부재. (commit 836ce29f 의 "chunk metadata" 는 metadata 컬럼 plumbing 일 뿐 page/section 채움 아님.) → spec §6.1 marker 유지, 본 ticket 은 in-progress 유지.

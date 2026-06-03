@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "started_at": "2026-06-03T20:27:03Z",
+  "summary_items_total": 7,
+  "items_resolved_ids": [6, 7],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "1": "out-of-scope-prior-PR",
+    "2": "out-of-scope-prior-PR",
+    "3": "deferred-infra-no-node_modules",
+    "4": "out-of-scope-prior-PR",
+    "5": "out-of-scope-prior-PR"
+  },
+  "commits_made": [
+    {
+      "sha": "3493bc69",
+      "summary_ids": [6, 7],
+      "info_ids": [7, 14, 15],
+      "scope": "docs,spec"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 0,
+  "e2e_last_status": "blocked",
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": "infra — no node_modules in fresh worktree; no backend code changed",
+  "last_reset_hint_sec": null
+}
