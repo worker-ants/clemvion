@@ -831,9 +831,13 @@ export class AiAgentHandler implements NodeHandler {
     messages: ChatMessage[];
     finalSystemPrompt: string;
     memory: {
+      /** 적용된 메모리 전략 (manual/summary_buffer/persistent). */
       strategy: MemoryStrategy;
+      /** 이 turn 에 롤링 요약 압축(요약 LLM 콜)이 새로 발생했는지. */
       summarized: boolean;
+      /** persistent 회수로 안정 프리픽스에 주입된 fact 수 (그 외 전략은 0). */
       recalledCount: number;
+      /** 안정 프리픽스 + 휘발성 꼬리의 working-memory 토큰 추정 사용량. */
       tokenBudgetUsed: number;
     };
     /**
@@ -2433,7 +2437,7 @@ export class AiAgentHandler implements NodeHandler {
       messages.push(...mem.messages);
       memoryMeta = mem.memory;
 
-      // ── 멀티턴 누적 messages 물리 압축 (spec §6.2 d.5 — followup-v2) ──
+      // ── 멀티턴 누적 messages 물리 압축 (spec §6.2 d.6 — followup-v2) ──
       // 요약이 이번 turn 에 오래된 turn 을 새로 커버했을 때만(summarized=true),
       // 다음 turn 으로 영속되는 누적 messages 에서 요약이 커버한 오래된 exchange 를
       // 물리 제거한다. system(요약 포함) 메시지는 위에서 이미 갱신됨 — 압축은 그
@@ -2453,6 +2457,13 @@ export class AiAgentHandler implements NodeHandler {
             compactedMessages: before - compacted.length,
           };
         }
+      } else if (mem.memory.summarized) {
+        // 요약은 발생했으나 keepUserExchanges=0 → 물리 압축 skip (fallback 진단).
+        // thread service 미주입(또는 getThread 미가용) 으로 보존할 user 경계를
+        // 도출하지 못한 경우 — 누적 messages 는 무변경으로 둔다 (회귀 안전).
+        AiAgentHandler.logger.debug(
+          'memory compaction skipped: keepUserExchanges=0 (missing thread service or no retained user exchange)',
+        );
       }
     }
 

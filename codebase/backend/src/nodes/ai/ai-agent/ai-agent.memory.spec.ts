@@ -591,6 +591,151 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(systemMsg?.content).toContain('Loyalty member since 2020');
     });
 
+    it('multi-turn: persistent + 낮은 budget 도 물리 압축 발생 (compactedMessages>0, 페어링 유지)', async () => {
+      // summary_buffer 와 동일하게 persistent 전략 + 낮은 memoryTokenBudget 에서도
+      // 누적 messages 물리 압축이 일어나야 한다 (전략 무관 d.6 경로 일관).
+      agentMemoryService.recall.mockResolvedValue([
+        { content: 'User prefers concise answers', score: 0.9 },
+      ] as RecalledMemory[]);
+      const context = makeContext();
+      const big = 'w'.repeat(600);
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-1',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 50,
+          memoryStrategy: 'persistent',
+          memoryKey: 'cust-7',
+          memoryTokenBudget: 200,
+        },
+        context,
+      );
+      let state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      function queueAnswer(answer: string): void {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: answer,
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      }
+      function queueSummary(): void {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: 'ROLLING SUMMARY',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      }
+
+      // Turn 1: seeded turns 예산 초과 → 요약 콜 + 메인 콜.
+      queueSummary();
+      queueAnswer('answer-1');
+      const r1 = await handler.processMultiTurnMessage('질문1', state);
+      state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
+      const len1 = (state.messages as unknown[]).length;
+
+      // Turn 2: 큰 seeded turn 추가 → 재요약 트리거 → 직전 user 교환 물리 압축.
+      for (let i = 0; i < 4; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev2', label: 'Prev2', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      queueSummary();
+      queueAnswer('answer-2');
+      const r2 = await handler.processMultiTurnMessage('질문2', state);
+      state = (r2 as { _resumeState: Record<string, unknown> })._resumeState;
+
+      const meta2 = (r2 as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta2.memory).toMatchObject({
+        strategy: 'persistent',
+        summarized: true,
+      });
+      // 물리 압축 흔적 — persistent 전략에서도 compactedMessages > 0.
+      expect(
+        (meta2.memory as { compactedMessages?: number }).compactedMessages,
+      ).toBeGreaterThan(0);
+
+      const msgs2 = state.messages as { role: string; content: string }[];
+      // system 1개 유지 + 요약 포함 + 단조 증가 차단.
+      expect(msgs2.filter((m) => m.role === 'system')).toHaveLength(1);
+      expect(msgs2.length).toBeLessThanOrEqual(len1);
+      // 페어링 경계 — 첫 비-system 메시지는 user.
+      expect(msgs2.find((m) => m.role !== 'system')?.role).toBe('user');
+    });
+
+    it('multi-turn: thread service 미주입 시 압축 skip (messages 무변경 — fallback 안전)', async () => {
+      // conversationThreadService 미주입 → fullTurns=turns(빈 배열 경로) →
+      // keepUserExchanges=0 → 물리 압축 skip. summary 콜이 일어나도 누적 messages
+      // 는 user/assistant 만큼만 순증한다 (압축 0).
+      const handlerNoThread = new AiAgentHandler(
+        mockLlmService as never,
+        [],
+        undefined,
+        undefined, // conversationThreadService 미주입.
+        agentMemoryService as unknown as AgentMemoryService,
+      );
+      const context = makeContext();
+      const first = await handlerNoThread.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-1',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 50,
+          memoryStrategy: 'summary_buffer',
+          // 매우 작은 budget — systemPrompt 만으로도 초과해 요약 시도 유도.
+          memoryTokenBudget: 1,
+        },
+        context,
+      );
+      let state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      function queueAnswer(answer: string): void {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: answer,
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      }
+
+      queueAnswer('answer-1');
+      const r1 = await handlerNoThread.processMultiTurnMessage('질문1', state);
+      state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
+      const len1 = (state.messages as unknown[]).length;
+
+      queueAnswer('answer-2');
+      const r2 = await handlerNoThread.processMultiTurnMessage('질문2', state);
+      state = (r2 as { _resumeState: Record<string, unknown> })._resumeState;
+
+      // thread service 미주입이라 turns 가 비어 keepUserExchanges=0 → 압축 skip.
+      const meta2 = (r2 as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(
+        (meta2.memory as { compactedMessages?: number }).compactedMessages,
+      ).toBeUndefined();
+      const len2 = (state.messages as unknown[]).length;
+      // user2 + assistant2 만 순증 (물리 압축으로 줄지 않음).
+      expect(len2).toBe(len1 + 2);
+    });
+
     it('recall 실패 시에도 핸들러는 graceful 하게 정상 응답을 낸다', async () => {
       // recall 이 reject 해도 (서비스 내부 graceful 가드를 우회한 극단 케이스)
       // 핸들러가 throw 하지 않고 빈 회수로 정상 응답을 내보내야 한다.

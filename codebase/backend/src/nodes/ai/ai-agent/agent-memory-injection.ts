@@ -314,7 +314,7 @@ export function appendStablePrefix(
 }
 
 /**
- * 멀티턴 누적 `messages` 의 **물리 압축** (spec §6.2 d.5 — followup-v2).
+ * 멀티턴 누적 `messages` 의 **물리 압축** (spec §6.2 d.6 — followup-v2).
  *
  * summary_buffer/persistent 에서 요약이 오래된 turn 을 커버하면, 다음 turn 으로
  * 영속되는 누적 LLM `messages` 에서 그 오래된 exchange 들을 물리 제거해 멀티턴
@@ -327,18 +327,19 @@ export function appendStablePrefix(
  * cut 위치는 항상 `user` 메시지 직전이므로, 완결된 exchange 단위로만 제거된다.
  *
  * 알고리즘:
- *  - `messages[0]` 이 `system` 이면 보존 (방어적으로 role 확인). 아니면 보수적
- *    무변경 (예상치 못한 형태 — 자르지 않음).
+ *  - 선두의 **연속된 system 메시지 블록 전체** 를 프리픽스로 보존한다 (보통 1개
+ *    지만, system 이 2개 이상이어도 모두 유지 — 첫 메시지가 system 이 아니면
+ *    프리픽스가 없는 예상치 못한 형태이므로 보수적 무변경).
  *  - `keepUserExchanges <= 0` 이면 보수적 무변경 (경계를 잡을 수 없음 — 자르면
  *    꼬리가 통째로 날아갈 위험. 회귀 안전 우선).
  *  - 배열 끝에서부터 `user` role 을 세어, 끝에서 `keepUserExchanges` 번째 user
  *    메시지의 인덱스를 cut 위치로 삼는다 → 그 위치부터 끝까지가 휘발성 꼬리.
- *    system 과 그 사이의 메시지(요약 커버 exchange)를 drop.
+ *    system 프리픽스와 그 사이의 메시지(요약 커버 exchange)를 drop.
  *  - 전체 user 메시지 수가 `keepUserExchanges` 이하이면 자를 게 없으므로 **무변경**.
- *  - cut 위치가 이미 `system` 바로 다음(idx 1)이면 제거 대상이 없으므로 **무변경**
+ *  - cut 위치가 이미 system 프리픽스 바로 다음이면 제거 대상이 없으므로 **무변경**
  *    (idempotent — 이미 압축된 것 재압축 시 동일 배열).
  *
- * 결과 = `[system, ...messages.slice(cutIndex)]`.
+ * 결과 = `[...leadingSystemBlock, ...messages.slice(cutIndex)]`.
  */
 export function compactMessagesToTail(
   messages: ChatMessage[],
@@ -349,13 +350,20 @@ export function compactMessagesToTail(
   // 보수: 유지할 exchange 경계를 잡을 수 없으면 무변경 (꼬리 전손 방지).
   if (keepUserExchanges <= 0) return messages;
 
+  // 선두의 연속된 system 블록 길이 — system 이 2개 이상이어도 전부 프리픽스로
+  // 보존한다 (다중 system 안전: 첫 user 전까지의 모든 system 을 유지).
+  let prefixLen = 0;
+  while (prefixLen < messages.length && messages[prefixLen].role === 'system') {
+    prefixLen += 1;
+  }
+
   // 끝에서부터 user 메시지를 세어 keepUserExchanges 번째 user 의 인덱스를 찾는다.
-  let seen = 0;
+  let tailUserCount = 0;
   let cutIndex = -1;
-  for (let i = messages.length - 1; i >= 1; i--) {
+  for (let i = messages.length - 1; i >= prefixLen; i--) {
     if (messages[i].role === 'user') {
-      seen += 1;
-      if (seen === keepUserExchanges) {
+      tailUserCount += 1;
+      if (tailUserCount === keepUserExchanges) {
         cutIndex = i;
         break;
       }
@@ -364,10 +372,10 @@ export function compactMessagesToTail(
 
   // 전체 user 수가 keepUserExchanges 미만 → 경계 미발견 → 자를 게 없음.
   if (cutIndex < 0) return messages;
-  // cut 위치가 이미 system 바로 다음이면 제거 대상 0 (idempotent — 무변경).
-  if (cutIndex <= 1) return messages;
+  // cut 위치가 이미 system 프리픽스 바로 다음이면 제거 대상 0 (idempotent — 무변경).
+  if (cutIndex <= prefixLen) return messages;
 
-  return [messages[0], ...messages.slice(cutIndex)];
+  return [...messages.slice(0, prefixLen), ...messages.slice(cutIndex)];
 }
 
 /**
