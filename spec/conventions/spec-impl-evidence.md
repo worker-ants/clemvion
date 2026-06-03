@@ -2,6 +2,8 @@
 id: spec-impl-evidence
 status: implemented
 code:
+  - codebase/frontend/src/lib/docs/__tests__/spec-frontmatter-parse.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-frontmatter-parse.test.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-frontmatter.test.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-code-paths.test.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-status-lifecycle.test.ts
@@ -41,7 +43,7 @@ code:
 - `spec/0-overview.md` (cross-cutting 진입 문서)
 - `spec/1-data-model.md` · `spec/6-brand.md` (단순 overview 성격)
 - `spec/_*.md` 및 `spec/<영역>/_*.md` (밑줄 prefix — leaf 가 아닌 layout/index 성격, 예: `_layout.md`, `_product-overview.md`, `_overview.md`)
-- `spec/conventions/<name>-api-catalog/<resource>/**.md` (API 레퍼런스 카탈로그의 **필드 단위 파일** — 생성기 산출물, frontmatter 가 `resource`/`entity`/`cafe24_docs`/`source` 인 lifecycle 비추적 레퍼런스. 카탈로그 최상위 `<name>-api-catalog/<resource>.md` 인덱스는 `id`/`status` 보유한 정식 spec 이므로 **검증 유지**. 근거 §Rationale R-7)
+- `spec/conventions/<name>-api-catalog/<resource>/**/*.md` (= 카탈로그 디렉토리 뒤에 경로 세그먼트가 **하나 이상** 있는 모든 `.md` — `<resource>/` 1단계든 그 아래 더 깊은 중첩이든 전부 제외) — API 레퍼런스 카탈로그의 **필드 단위 파일**. 생성기 산출물, frontmatter 가 `resource`/`entity`/`cafe24_docs`/`source` 인 lifecycle 비추적 레퍼런스다. 반면 카탈로그 최상위 `<name>-api-catalog/<resource>.md` 인덱스(세그먼트 0개)는 `id`/`status` 보유한 정식 spec 이므로 **검증 유지**. 근거 §Rationale R-7)
 
 ## 2. Frontmatter 스키마
 
