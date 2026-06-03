@@ -56,7 +56,7 @@ pending_plans:
 |------|-------|------|---------|------|
 | `in` | Input | data | false | 입력 데이터 (`$input` 으로 참조) |
 | `success` | Success | data | false | MakeShop API 2xx 응답 |
-| `error` | Error | error | false | MakeShop API 3xx/4xx/5xx, transport 실패, rate-limit 소진, 메타데이터 검증 실패 |
+| `error` | Error | error | false | MakeShop API 4xx/5xx (3xx 는 §4 step 12 — fetch 자동 추종), transport 실패, rate-limit 소진, 메타데이터 검증 실패 |
 
 `status` 는 비-블로킹 노드이므로 항상 생략 (Principle 0).
 
@@ -78,7 +78,7 @@ pending_plans:
     - `api_label` = catalog key `makeshop.<resource>.<operation>` (예: `makeshop.product.get-product`). frontend 가 `GET /api/integrations/services/makeshop/catalog` 응답 `labelKey` + i18n dict 로 렌더.
     - `api_method` = operation 의 `method` (`GET`/`POST`)
     - `api_path` = operation 의 `path` template (placeholder 그대로 — 예: `product/{product_id}`)
-12. **반환 분기**: 2xx → §5.1, 3xx/4xx/5xx → §5.3 (§6 분류), transport 실패 → `MAKESHOP_TRANSPORT_FAILED`.
+12. **반환 분기**: 2xx → §5.1, 4xx/5xx → §5.3 (§6 분류), transport 실패 → `MAKESHOP_TRANSPORT_FAILED`. 3xx 리다이렉트는 `fetch` 가 자동 추종하므로 통상 surface 되지 않으며, 잔여 3xx 응답은 `MAKESHOP_4XX` fallback 으로 분류한다 (별도 `MAKESHOP_3XX` 코드 미도입 — Cafe24 §6 과 동일).
 
 > **Re-run dry-run**: Cafe24 §4 동일 — WRITE(POST/PUT) operation 은 dry-run 시 외부 상태변경 차단 위해 mock 단락, GET 은 그대로 호출.
 
@@ -120,6 +120,41 @@ MakeShop API 의 date/time 필드 timezone 규약은 **구현 전 미확인 (ope
 
 CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?}`. 4xx/5xx 시 서버 응답 body 는 `output.response` 에 보존. 구조는 [Cafe24 §5.3](./4-cafe24.md#53-case-api-에러-또는-transport-실패-port-error) 동일하되 `code` 는 §6 의 `MAKESHOP_*`, `details` 에 `shopUid`·`resource`·`operation` 포함.
 
+```json
+{
+  "config": {
+    "integrationId": "int_makeshop_myshop",
+    "resource": "product",
+    "operation": "get-product",
+    "fields": { "product_id": "9999" }
+  },
+  "output": {
+    "response": { "error": { "code": "404", "message": "Not Found" } },
+    "error": {
+      "code": "MAKESHOP_404",
+      "message": "MakeShop API returned 404 — Not Found",
+      "details": {
+        "statusCode": 404,
+        "shopUid": "myshop",
+        "resource": "product",
+        "operation": "get-product"
+      }
+    }
+  },
+  "meta": { "statusCode": 404, "durationMs": 120 },
+  "port": "error"
+}
+```
+
+| 필드 | 출처 | 설명 |
+|------|------|------|
+| `output.response` | runtime | 4xx/5xx 시에도 MakeShop 응답 body 보존 |
+| `output.error.code` | handler return | §6 vocabulary (`MAKESHOP_*` / `INTEGRATION_*`) |
+| `output.error.message` | handler return | `MakeShop API returned <status> — <statusText>` |
+| `output.error.details.{statusCode, shopUid, resource, operation}` | handler return | 디버깅 컨텍스트 (`shopUid` = 호출 대상 상점) |
+| `meta.statusCode` | handler return | HTTP status (transport 실패 시 `0`) |
+| `port` | handler return | `'error'` |
+
 ## 6. 에러 코드
 
 런타임 (`port:'error'`) `output.error.code` enum — [`spec/conventions/error-codes.md`](../../conventions/error-codes.md) 의미 기반 명명 준수:
@@ -135,7 +170,7 @@ CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?
 | `MAKESHOP_MISSING_FIELDS` (D4) | `requiredFields` 누락 또는 `constraints` 위반 |
 | `MAKESHOP_INVALID_SHOP_UID` (D4) | `shop_uid` 형식 위반 |
 | `INTEGRATION_*` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) (D4) | Integration resolve / 자격증명 실패 |
-| `MAKESHOP_SERVICE_UNAVAILABLE` (D4) | `__workspaceId` 컨텍스트 누락 / `MakeshopApiClient` 미주입 (deployment 오류) — Cafe24 §6 대응 |
+| `INTEGRATION_SERVICE_UNAVAILABLE` (D4) | `__workspaceId` 컨텍스트 누락 / `MakeshopApiClient` 미주입 (deployment 오류). Cafe24 와 **동일한 공유 코드** 재사용 — service 별 prefix(`MAKESHOP_`) 를 두지 않는다 (동일 조건을 두 코드로 분기하지 않기 위함) |
 
 ### 6.1 인증 실패 자동 status 전환
 

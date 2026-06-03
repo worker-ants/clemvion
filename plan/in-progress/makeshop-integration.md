@@ -50,6 +50,17 @@ cafe24 통합과 동일 구조로 메이크샵을 **워크플로 노드 + AI Age
 ### 게이트
 - [x] `/consistency-check --spec` (2026-06-03, `review/consistency/2026/06/03/20_16_35/`) — **BLOCK: YES (Critical 1)** → 해소 후 통과. Critical(§3 포트 `dynamic` 컬럼 누락)·Warning 8(frontmatter enum·code 누락·Node.type 미등재·mall_id 표기·auth 호스트·0-common 4종) 모두 fix. 잔여 INFO 는 아래 "구현 승격 체크리스트" 로 이관.
 
+### consistency-check 재실행 (2026-06-03, `review/consistency/2026/06/03/20_31_06/`)
+
+재실행 BLOCK: YES 였으나 **Critical 1~4 + Warning 1,2,10 은 false positive** — checker 가 worktree HEAD 가 아니라 **origin/main 베이스라인과 비교**해 "main 미갱신 / dead link / plan 파일 미존재" 로 오판 (1차 실행은 working-tree 를 읽어 이 FP 없었음). git 으로 반증: 해당 파일들이 모두 본 브랜치에 커밋됨 (data-model makeshop 6곳, navigation 15곳 + §5.9 존재, plan 파일·C-6 TRIGGERED 존재). 이 cross-ref 들은 **같은 PR/브랜치에서 함께 merge** 되므로 정합.
+
+재실행의 **진짜 actionable 항목 (해소 완료)**:
+- `MAKESHOP_SERVICE_UNAVAILABLE` → **`INTEGRATION_SERVICE_UNAVAILABLE`** (cafe24 공유 코드 재사용, 동일 조건 이중 코드 방지) ✅
+- §5.3 에러 JSON 예시 + 필드 표 인라인 (node-output Principle 11) ✅
+- 3xx 라우팅 명확화 (§3·§4 step 12 — fetch 자동 추종, 잔여는 `MAKESHOP_4XX` fallback) ✅
+
+**병렬 편집 주의 (Warning #11)**: `spec/4-nodes/0-overview.md` 가 active worktree `claude/spec-inprogress-groom-c7568b` 와 동시 편집 중 — merge 시 충돌 가능. 먼저 merge 되는 쪽 기준으로 rebase 조율 필요.
+
 ## 구현 승격(implemented) 시 체크리스트 (consistency-check 잔여 INFO)
 
 spec-only → implemented 승격(노드 구현 PR) 시 함께 갱신:
@@ -57,6 +68,9 @@ spec-only → implemented 승격(노드 구현 PR) 시 함께 갱신:
 - `spec/4-nodes/4-integration/0-common.md §5` 캔버스 요약 색인에 makeshop 행 (현재 추가됨, 구현 시 "Planned" 제거)
 - `5-makeshop.md §5.3` 에러 JSON 예시 블록 인라인 (현재 cafe24 §5.3 참조) — node-output Principle 11
 - DB Enum 마이그레이션 `V05X__node_type_makeshop` + `(workspace_id, mall_id) WHERE service_type='makeshop'` partial UNIQUE
+- §9.7 open question 4건 확인 (OAuth 호스트·rate limit·timezone·envelope) — 확정 시 `5-makeshop.md` 본문 + `makeshop-api-metadata.md` 반영. **timezone 확정 시 `makeshop-api-metadata.md §4`/`5-makeshop.md §4.1` 동반 갱신**
+- catalog-sync 테스트 도입 + catalog `status` 컬럼 추가 (현재 makeshop catalog 미보호)
+- `makeshop-api-metadata.md` + `5-makeshop.md` 의 `pending_plans` 는 plan 이동(in-progress→complete) 시 양쪽 동기 갱신
 
 ## C-6 편입 — `buildIntegrationMeta` 레지스트리 전환 (cafe24 백로그)
 
