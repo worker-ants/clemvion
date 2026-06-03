@@ -96,9 +96,11 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 - `partial` → `implemented`: 마지막 `pending_plans` 가 `complete/` 로 이동한 commit 안에서 승격 (가드)
 - `*` → `archived`: spec 결정 폐기 시 즉시 (Rationale 본문에 사유 추가)
 
-## 4. Build-time 가드 (5건, 모두 build 차단)
+## 4. Build-time 가드 — frontmatter-evidence 5건
 
-본 컨벤션의 정합성은 다음 5개 단위 테스트가 강제(빌드 실패 = 차단). 모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역에 위치. (§4.0 의 인접 가드·Gate D 는 이 5건 카운트에 포함되지 않는다 — 별개 항목.)
+본 컨벤션(frontmatter evidence)의 정합성은 아래 **표의 5개** 단위 테스트가 강제(빌드 실패 = 차단). 모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역에 위치.
+
+> 카운트 경계: "5건" 은 **이 표** 만 가리킨다. §4.0 의 인접 지식저장소 가드(별도 SoT, build 차단 3건 + advisory Gate D 1건)는 frontmatter-evidence 가 아니므로 이 5건에 포함되지 않는다.
 
 | 가드 | 검증 |
 |---|---|
