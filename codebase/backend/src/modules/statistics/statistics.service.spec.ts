@@ -176,8 +176,7 @@ describe('StatisticsService.getSummary', () => {
 
     const startCall = andWhere.mock.calls.find(
       ([sql]) =>
-        typeof sql === 'string' &&
-        sql.includes('e.started_at >= :startDate'),
+        typeof sql === 'string' && sql.includes('e.started_at >= :startDate'),
     );
     const prevStartCall = andWhere.mock.calls.find(
       ([sql]) =>
