@@ -411,7 +411,10 @@ export class WebsocketService {
     // debug 전용 llmCalls 를 strip 한다 (WS §4.4 strip-only 결정). wireEnvelope
     // 은 위에서 이미 broadcast 됐고 여기선 새 clone 을 strip 하므로 WS copy 불변.
     const externalPayload = stripExternalOnlyFields(wireEnvelope);
-    const fanoutEnvelope = this.attachRoutingContext(executionId, externalPayload);
+    const fanoutEnvelope = this.attachRoutingContext(
+      executionId,
+      externalPayload,
+    );
     this.executionEventSubject.next({
       executionId,
       eventType,
