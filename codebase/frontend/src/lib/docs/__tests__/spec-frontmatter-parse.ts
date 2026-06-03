@@ -59,12 +59,25 @@ const EXCLUDE_BASENAMES = new Set<string>([
   "6-brand.md",
 ]);
 
+// API reference catalogs (e.g. cafe24-api-catalog) hold generated field-level
+// reference files (frontmatter: resource/entity/cafe24_docs/source), not
+// lifecycle-tracked specs. The top-level `<resource>.md` index files ARE specs
+// (id + status: implemented) and stay validated; only the nested per-entity
+// catalog files are excluded. SoT: spec/conventions/spec-impl-evidence.md §1
+// 제외 + spec-impl-evidence.md §Rationale R-7. Matches
+// `spec/conventions/<name>-api-catalog/<seg>/…md`
+// (a path segment AFTER the catalog dir → nested field file), so a top-level
+// `<name>-api-catalog/<resource>.md` does not match and stays validated.
+const CATALOG_FIELD_FILE =
+  /^spec\/conventions\/[^/]+-api-catalog\/[^/]+\/.+\.md$/;
+
 export function isApplicable(relPath: string): boolean {
   if (!relPath.endsWith(".md")) return false;
   if (!INCLUDE_PREFIXES.some((p) => relPath.startsWith(p))) return false;
   const base = path.basename(relPath);
   if (base.startsWith("_")) return false;
   if (EXCLUDE_BASENAMES.has(base)) return false;
+  if (CATALOG_FIELD_FILE.test(relPath)) return false;
   return true;
 }
 
