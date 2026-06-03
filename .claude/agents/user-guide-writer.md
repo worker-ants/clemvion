@@ -65,6 +65,7 @@ context=<자유 markdown — 어떤 변경인지, 어떤 섹션을 추가/갱신
   - 내부 docs 링크 slug 실존 검증
   - **내부 SoT 본문 노출 금지** — 사용자가 열람할 수 없는 `spec/<area>/...`·`/spec/...` 경로, `plan/in-progress/`·`plan/complete/` 경로, "별 plan `<name>`"·"separate plan" 표현, `CCH-XX-NN`·`R-XX-N` 같은 내부 anchor id, `ERROR_KO`·`WARNING_KO` 등 i18n 매핑 테이블 이름, `backend-labels.ts` 같은 내부 파일명을 본문에 적지 않는다. frontmatter 의 `spec:`/`code:` 필드는 빌드 검증용 metadata 라 별개 — 본문에는 같은 사실을 사용자 가시 표현으로 다시 적는다. SoT: PROJECT.md §자주 누락되는 작성 패턴 + [`spec/conventions/i18n-userguide.md`](../../spec/conventions/i18n-userguide.md) Principle 6-B. 가드: `no-internal-refs.test.ts`
   - **향후 진행 예정 사항 언급 금지** — "v2 (후속)"·"v2 (planned)"·"향후 ~ 예정"·"별 plan 진입 후" 같은 로드맵성 문구를 본문에 적지 않는다. 사용자 가이드는 **현재 동작하는 상태**만 서술한다. 변경이 합쳐지면 그 시점에 같은 PR 에서 본문을 갱신한다 (자동 검출 어려워 본 agent 가 작성 시점에 챙긴다)
+  - **GUI 흐름 절 작성 시 `<ImplAnchor>` 동반 의무** — "여기서 시작" 식 클릭 가능한 entry·API 호출·e2e 시나리오를 약속하는 GUI 흐름 절에는 그 약속이 실제 코드에 존재함을 증명하는 `<ImplAnchor>` (ui-entry / component / api-endpoint / e2e-scenario) 를 동반한다. `file` 은 레포 루트 상대경로 실존, `symbol` 은 그 파일 안 grep 매치, api-endpoint 는 `describes` 에 `METHOD /path` 표기. build-time 가드 (`impl-anchor-existence.test.ts` / `integrations-coverage.test.ts` / `triggers-coverage.test.ts`) 가 차단하므로 작성 시점에 챙긴다. SoT: [`spec/conventions/user-guide-evidence.md`](../../spec/conventions/user-guide-evidence.md)
 - §SoT 의 페이지 구조 규약 (3층 / 도입 → 상세 → 팁) 준수.
 
 ### 5. 다국어 sibling 처리
@@ -131,6 +132,7 @@ context=<자유 markdown — 어떤 변경인지, 어떤 섹션을 추가/갱신
 - [x] 프론트매터 `spec:` / `code:` 경로 실존 (Glob 확인)
 - [x] 본문에 내부 SoT (`spec/`·`plan/`·`CCH-`/`R-` 내부 식별자·`ERROR_KO` 등 매핑 테이블·`backend-labels.ts`) 노출 없음 (`no-internal-refs.test.ts` 통과)
 - [x] 본문에 "v2 (후속)"·"향후 ~ 예정"·"별 plan ..." 같은 로드맵성 문구 없음 (현재 동작 상태 서술로 통일)
+- [x] GUI 흐름 절에 `<ImplAnchor>` 동반 (entry/component/api-endpoint/e2e symbol 이 코드 실존, `impl-anchor-existence.test.ts` 통과)
 
 ## 동반 갱신 점검 (PROJECT.md §변경 유형 → 갱신 위치 매핑)
 - (매칭된 trigger 와 처리 결과 1-2줄)
