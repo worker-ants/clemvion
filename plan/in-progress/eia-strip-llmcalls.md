@@ -39,11 +39,18 @@ debug payload 미수신, 에디터 WS 만 유지. wireEnvelope 은 strip 전 bro
   전부 반영. (review/consistency/2026/06/03/09_02_06/SUMMARY.md)
 
 ## Phase B — backend (developer)
-- [ ] `websocket.service.ts`: fanout envelope 에서 `llmCalls` strip 헬퍼 + 적용
-- [ ] dead passthrough 제거: `chat-channel.dispatcher.ts` toChatChannelEvent llmCalls 복사 + `types.ts` EiaAiMessageEvent.llmCalls 필드
-- [ ] 테스트: websocket.service.spec(WS=full, fanout=stripped), external-interaction e2e / sse-adapter(SSE frame no llmCalls), chat-channel.dispatcher.spec
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
-- [ ] /ai-review + fix
+- [x] `websocket.service.ts`: fanout envelope `llmCalls` strip 헬퍼(`stripExternalOnlyFields`) + 적용 (commit 4f639106)
+- [x] dead passthrough 제거: chat-channel.dispatcher.ts + types.ts EiaAiMessageEvent.llmCalls + adapter 컨벤션
+- [x] 테스트: websocket.service.spec strip 4건(WS=full, fanout=stripped, wire 불변, no-op)
+- [x] TEST WORKFLOW: lint PASS · unit PASS · build PASS(docker) · e2e PASS(143)
+  - eslint --fix 무관 backend 6파일 revert (PR 범위 유지)
+- [x] /ai-review (range origin/main..HEAD): Critical 1(C-1) + Warning 5.
+  - **C-1 = false positive** (spec 은 83d60340 에 이미 strip-only 반영; reviewer 가
+    spec-draft 의 "Before" 블록을 현행 spec 으로 오인). spec 미수정.
+  - Warning 5 → resolution-applier 조치(a2e367d7): emitNodeEvent strip(W1/W4),
+    dispatcher llmCalls 회귀 테스트(W2), sse-adapter passthrough 검증(W3),
+    nextFanoutEvent 헬퍼 통합(W5), JSDoc top-level strip 명시(I2/I9).
+  - 재 TEST WORKFLOW: lint·unit·build·e2e(143) PASS. (review/code/2026/06/03/09_23_28/)
 
 ## 비고
 - frontend 변경 불필요(에디터는 WS 로 llmCalls 계속 수신; web-chat 위젯은 이미 무시 + 이제 미수신).
