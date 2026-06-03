@@ -603,6 +603,32 @@ export function userMessageSignalApplies(
   return source !== 'form_submitted';
 }
 
+/**
+ * `error.name === 'AbortError'` 판별 타입 가드. `AbortSignal.throwIfAborted()` /
+ * `AbortController.abort()` / 핸들러의 수동 `err.name = 'AbortError'` 세팅 모두 커버.
+ * executeNode catch 블록과 executeWithRetry 루프의 두 호출 지점을 단일 함수로 통일
+ * (node-cancellation §5.1 / ai-review W10).
+ *
+ * `instanceof Error` 만으로는 부족: Jest VM sandbox 등 일부 환경에서 `DOMException`
+ * (`AbortSignal.throwIfAborted()` 가 던지는 타입)이 다른 realm 의 `Error` 를 extends
+ * 하기 때문에 `instanceof Error` 가 `false` 를 반환할 수 있다. `name` 비교를 우선해
+ * 두 경우를 모두 포함한다.
+ */
+export function isAbortError(err: unknown): err is Error {
+  if (err instanceof Error && err.name === 'AbortError') return true;
+  // DOMException(AbortError) from AbortSignal.throwIfAborted() — in Jest VM
+  // sandbox DOMException may not satisfy `instanceof Error` across realm
+  // boundaries. Fallback: duck-type check on `name` only.
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { name?: unknown }).name === 'AbortError'
+  ) {
+    return true;
+  }
+  return false;
+}
+
 @Injectable()
 export class ExecutionEngineService
   implements OnModuleInit, OnApplicationBootstrap, WorkflowExecutor
@@ -6219,9 +6245,12 @@ export class ExecutionEngineService
       // abort 를 그대로 re-throw 해 생산자(ParallelExecutor cancel-others-on-fail
       // aggregation 등)가 워크플로 흐름을 마감하게 한다 (§5.2). 타임라인이 running
       // 에 영구 잔류하지 않도록 terminal 이벤트를 반드시 발행한다.
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (isAbortError(error)) {
+        // spec/conventions/node-cancellation.md §5.1 — `output.error` 봉투 형식:
+        // `{ code: 'AbortError', message }` (node-output.md Principle 3.2 와 동형).
+        const errorEnvelope = { code: 'AbortError', message: error.message };
         nodeExecution.status = NodeExecutionStatus.CANCELLED;
-        nodeExecution.error = { message: error.message };
+        nodeExecution.error = errorEnvelope;
         nodeExecution.finishedAt = new Date();
         nodeExecution.durationMs =
           nodeExecution.finishedAt.getTime() -
@@ -6235,7 +6264,7 @@ export class ExecutionEngineService
             nodeExecutionId: nodeExecution.id,
             parentNodeExecutionId: context.parentNodeExecutionId,
             status: NodeExecutionStatus.CANCELLED,
-            error: error.message,
+            error: errorEnvelope,
             nodeType: node.type,
             nodeLabel: node.label ?? node.type,
             input: nodeExecution.inputData,
@@ -6573,7 +6602,7 @@ export class ExecutionEngineService
         nodeExecution.retryCount = attempt + 1;
 
         // abort 는 재시도 대상이 아님 — cancellation 은 terminal 이므로 즉시 전파.
-        if (lastError.name === 'AbortError') {
+        if (isAbortError(lastError)) {
           throw lastError;
         }
 

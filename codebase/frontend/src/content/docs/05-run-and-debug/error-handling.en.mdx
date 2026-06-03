@@ -112,6 +112,14 @@ Shape of the payload on the error port:
 
 **When to use it**: when failures should trigger a **separate recovery path** — admin alert, alternative LLM call, archiving the original input, etc.
 
+## The cancelled status and error policies
+
+When a node is stopped by an **external abort** — a parallel branch failure with `cancel-others-on-fail`, or the user clicking Stop — the node records `NodeExecution.status = "cancelled"` instead of `"failed"`.
+
+- Error policies do **not** apply to cancelled nodes. Retry, Skip, Default Output, and Error Port branches are all bypassed; the node stops immediately.
+- The timeline shows a distinct `cancelled` badge so you can tell cancellation from failure at a glance.
+- Even if a node has the Retry policy set, receiving an abort signal terminates it as `cancelled` with no retries.
+
 ## Choosing a policy
 
 <FieldTable rows={[

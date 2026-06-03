@@ -13,6 +13,11 @@
 -- 외부 abortSignal 로 노드 외부 I/O 가 중단된 경우(핸들러가 throw 한 AbortError)
 -- 엔진이 failed 가 아닌 cancelled 로 분류한다 (node-cancellation §5.1).
 
-ALTER TABLE node_execution DROP CONSTRAINT node_execution_status_check;
+ALTER TABLE node_execution DROP CONSTRAINT IF EXISTS node_execution_status_check;
 ALTER TABLE node_execution ADD CONSTRAINT node_execution_status_check
     CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled', 'skipped', 'waiting_for_input'));
+
+-- DOWN:
+-- ALTER TABLE node_execution DROP CONSTRAINT IF EXISTS node_execution_status_check;
+-- ALTER TABLE node_execution ADD CONSTRAINT node_execution_status_check
+--     CHECK (status IN ('pending', 'running', 'completed', 'failed', 'skipped', 'waiting_for_input'));

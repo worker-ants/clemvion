@@ -41,7 +41,7 @@ pending_plans:
 | 호출 | signal 전파 |
 |---|---|
 | `fetch(url, init)` | `init.signal = context.abortSignal` (자체 timeout 과 결합 시 cascade — 본 컨벤션 §4). **구현됨** (HTTP 노드) |
-| Anthropic SDK | `client.messages.create({ ..., signal })`. **구현됨** (AI 노드 — ai-agent / text-classifier / information-extractor) |
+| Anthropic SDK | `client.messages.create({ ..., signal })`. **구현됨** (AI 노드 — ai-agent / text-classifier / information-extractor). **단, IE(`information-extractor`) 의 multi-turn resume/continuation 경로(`processMultiTurnMessage`)는 abort 컨텍스트가 없어 signal 미전파 — 초기 실행 경로(`executeMultiTurn`)만 전파.** resume 경로는 turn 경계에서 abort 체크를 도입하는 별도 작업으로 추적 (`node-cancellation-infrastructure.md`). |
 | PostgreSQL (`pg`) | `client.cancel()` 호출을 `signal.addEventListener('abort', ...)` 으로 등록. **미구현 (Planned)** — 현재 DB 노드는 진입 직전 `abortSignal?.aborted` 사전 체크만 (in-flight 쿼리 중단 X) |
 | MongoDB | driver 의 `signal` 옵션 직접 전달. **미구현 (Planned)** |
 | Email (nodemailer) | connection close 를 signal abort 시 등록. **미구현 (Planned)** — 현재 Email 노드는 진입 직전 사전 체크만 |
@@ -116,7 +116,7 @@ if (upstream) {
 - `errorPolicy === 'continue'` — 그 노드 `cancelled` 기록 후 후속 분기 계속.
 - `errorPolicy === 'cancel-others-on-fail'` (parallel-p2 §5) — 이미 cancellation 중이므로 abort 된 후속 분기도 `cancelled` 로 기록. Root cause(최초 비-abort 실패)는 `ParallelExecutor` 가 별도 surface.
 
-> **rehydration 실패는 `cancelled` 아님**: §7.5 의 `RESUME_*` 인프라 실패는 abortSignal 경로가 아니므로 NodeExecution 은 `failed` 로 종결한다 ([실행 엔진 ##Rationale §4](../../spec/5-system/4-execution-engine.md#rationale)).
+> **rehydration 실패는 `cancelled` 아님**: §7.5 의 `RESUME_*` 인프라 실패는 abortSignal 경로가 아니므로 NodeExecution 은 `failed` 로 종결한다 ([실행 엔진 Rationale §4](../../spec/5-system/4-execution-engine.md#rationale)).
 
 ## 6. 구현 현황 / 후속
 
