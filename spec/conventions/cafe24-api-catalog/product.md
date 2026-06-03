@@ -77,4 +77,33 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `mains_products_count` | 메인 카테고리 상품 개수 | Retrieve a count of products in main category | GET | `mains/{display_group}/products/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-products-in-main-category) |
 | `mains_products_set` | 메인 카테고리 상품 설정 | Set main category products | POST | `mains/{display_group}/products` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#set-main-category-products) |
 | `mains_products_update_sorting` | 메인 카테고리 상품 정렬 수정 | Update fixed sorting of products in main category | PUT | `mains/{display_group}/products` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-fixed-sorting-of-products-in-main-category) |
-| `mains_products_delete` | 메인 카테고리 상품 삭제 | Delete a product in main category | DELETE | `mains/{display_group}/products` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-in-main-category) |
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`product/bundleproducts.md`](./product/bundleproducts.md) · Bundleproducts — 86 fields, 5 ops
+- [`product/categories__products.md`](./product/categories__products.md) · Categories products — 9 fields, 5 ops
+- [`product/categories-properties.md`](./product/categories-properties.md) · Categories properties — 6 fields, 3 ops
+- [`product/mains__products.md`](./product/mains__products.md) · Mains products — 5 fields, 5 ops
+- [`product/mains-properties.md`](./product/mains-properties.md) · Mains properties — 4 fields, 3 ops
+- [`product/products.md`](./product/products.md) · Products — 133 fields, 6 ops
+- [`product/products__additionalimages.md`](./product/products__additionalimages.md) · Products additionalimages — 3 fields, 3 ops
+- [`product/products__approve.md`](./product/products__approve.md) · Products approve — 3 fields, 3 ops
+- [`product/products__customproperties.md`](./product/products__customproperties.md) · Products customproperties — 2 fields, 3 ops
+- [`product/products-customproperties.md`](./product/products-customproperties.md) · Products customproperties — 1 fields, 4 ops
+- [`product/products__decorationimages.md`](./product/products__decorationimages.md) · Products decorationimages — 6 fields, 4 ops
+- [`product/products-decorationimages.md`](./product/products-decorationimages.md) · Products decorationimages — 2 fields, 1 ops
+- [`product/products__discountprice.md`](./product/products__discountprice.md) · Products discountprice — 3 fields, 1 ops
+- [`product/products__hits.md`](./product/products__hits.md) · Products hits — 1 ops
+- [`product/products__icons.md`](./product/products__icons.md) · Products icons — 6 fields, 4 ops
+- [`product/products-icons.md`](./product/products-icons.md) · Products icons — 2 fields, 1 ops
+- [`product/products__images.md`](./product/products__images.md) · Products images — 6 fields, 2 ops
+- [`product/products-images.md`](./product/products-images.md) · Products images — 1 fields, 1 ops
+- [`product/products__memos.md`](./product/products__memos.md) · Products memos — 4 fields, 5 ops
+- [`product/products__options.md`](./product/products__options.md) · Products options — 13 fields, 4 ops
+- [`product/products-properties.md`](./product/products-properties.md) · Products properties — 3 fields, 3 ops
+- [`product/products__seo.md`](./product/products__seo.md) · Products seo — 7 fields, 2 ops
+- [`product/products__tags.md`](./product/products__tags.md) · Products tags — 4 fields, 4 ops
+- [`product/products__variants.md`](./product/products__variants.md) · Products variants — 18 fields, 5 ops
+- [`product/products__variants__inventories.md`](./product/products__variants__inventories.md) · Products variants inventories — 9 fields, 2 ops

@@ -35,3 +35,14 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `shipping_suppliers_get` | 공급사 배송 설정 조회 | Retrieve a supplier's shipping settings | GET | `shipping/suppliers/{supplier_code}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-supplier-s-shipping-settings) |
 | `shipping_suppliers_update` | 공급사 배송 설정 수정 | Update a supplier's shipping settings | PUT | `shipping/suppliers/{supplier_code}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-supplier-s-shipping-settings) |
 | `shipping_suppliers_additionalfees_get` | 공급사 국제 배송 추가비 조회 | Retrieve additional handling fees for supplier international shipping | GET | `shipping/suppliers/{supplier_code}/additionalfees` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-additional-handling-fees-for-supplier-international-shipping) |
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`supply/shipping-suppliers.md`](./supply/shipping-suppliers.md) · Shipping suppliers — 21 fields, 2 ops
+- [`supply/shipping-suppliers__additionalfees.md`](./supply/shipping-suppliers__additionalfees.md) · Shipping suppliers additionalfees — 10 fields, 1 ops
+- [`supply/suppliers.md`](./supply/suppliers.md) · Suppliers — 48 fields, 6 ops
+- [`supply/suppliers-users.md`](./supply/suppliers-users.md) · Suppliers users — 24 fields, 6 ops
+- [`supply/suppliers-users__regionalsurcharges.md`](./supply/suppliers-users__regionalsurcharges.md) · Suppliers users regionalsurcharges — 10 fields, 3 ops
+- [`supply/suppliers-users__regionalsurcharges-setting.md`](./supply/suppliers-users__regionalsurcharges-setting.md) · Suppliers users regionalsurcharges setting — 6 fields, 2 ops

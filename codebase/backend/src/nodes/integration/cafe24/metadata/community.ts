@@ -28,20 +28,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     responseShape: 'list',
     paginated: true,
   },
-  {
-    id: 'board_article_get',
-    description: 'Get a single article.',
-    scopeType: 'read',
-    method: 'GET',
-    path: 'boards/{board_no}/articles/{article_no}',
-    requiredFields: ['board_no', 'article_no'],
-    fields: {
-      board_no: { type: 'number', location: 'path' },
-      article_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
-    },
-    responseShape: 'single',
-  },
   // Phase 7c — Community boards CRUD + comments + commenttemplates + urgentinquiry
   {
     id: 'boards_settings_get',
@@ -271,33 +257,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['comment_no'],
     fields: {
       comment_no: { type: 'number', location: 'path' },
-    },
-    responseShape: 'single',
-  },
-  {
-    id: 'financials_monthlyreviews_count',
-    description: 'Retrieve the count of product reviews by month.',
-    scopeType: 'read',
-    method: 'GET',
-    path: 'financials/monthlyreviews/count',
-    requiredFields: [],
-    fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-      start_month: { type: 'string', location: 'query' },
-      end_month: { type: 'string', location: 'query' },
-    },
-    responseShape: 'single',
-  },
-  {
-    id: 'urgentinquiry_get',
-    description: 'Retrieve an urgent-inquiry article by inquiry_no.',
-    scopeType: 'read',
-    method: 'GET',
-    path: 'urgentinquiry/{inquiry_no}',
-    requiredFields: ['inquiry_no'],
-    fields: {
-      inquiry_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
   },

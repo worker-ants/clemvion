@@ -6,7 +6,7 @@ export const translationOperations: Cafe24OperationMetadata[] = [
     description: 'List product translations for a given language.',
     scopeType: 'read',
     method: 'GET',
-    path: 'translation/products',
+    path: 'translations/products',
     requiredFields: ['shop_no', 'language_code'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
@@ -20,17 +20,19 @@ export const translationOperations: Cafe24OperationMetadata[] = [
     responseShape: 'list',
     paginated: true,
   },
-  // Translation endpoint path 는 단수 `translation/...` 이 정답 —
-  // spec/conventions/cafe24-api-catalog/translation.md (SoT) 와 일치한다.
-  // (Cafe24 docs 의 anchor slug 가 `...-translations` 복수로 보이는 것은
-  // 리소스 개념 표기일 뿐 URL path 가 아니다.)
+  // Translation endpoint path 는 복수 `translations/...` 이 정답.
+  // 근거: Cafe24 공식 Admin API Documentation 전체 페이지 HTML 의 실제 표시 URL 이
+  // `/api/v2/admin/translations/...` (복수) 로 18/18 일치, 단수는 0건이다
+  // (field-level 카탈로그 spec/conventions/cafe24-api-catalog/translation/*.md = docs SoT).
+  // 과거 단수 표기는 anchor slug 와 URL 을 혼동한 오기였다 — 정정함
+  // (plan G-3a, 사용자 결정 2026-06-03: docs HTML 이 API 최종 상태).
   {
     id: 'translation_products_update',
     description:
       'Update product translation for a given language. Body fields are partial — provide only the ones to change.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'translation/products/{product_no}',
+    path: 'translations/products/{product_no}',
     requiredFields: ['product_no', 'shop_no', 'language_code'],
     fields: {
       product_no: { type: 'number', location: 'path' },
@@ -51,7 +53,7 @@ export const translationOperations: Cafe24OperationMetadata[] = [
     description: 'List category translations for a given language.',
     scopeType: 'read',
     method: 'GET',
-    path: 'translation/categories',
+    path: 'translations/categories',
     requiredFields: ['shop_no', 'language_code'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
@@ -66,7 +68,7 @@ export const translationOperations: Cafe24OperationMetadata[] = [
     description: 'Update category translation for a language.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'translation/categories/{category_no}',
+    path: 'translations/categories/{category_no}',
     requiredFields: ['category_no', 'shop_no', 'language_code'],
     fields: {
       category_no: { type: 'number', location: 'path' },
@@ -81,7 +83,7 @@ export const translationOperations: Cafe24OperationMetadata[] = [
     description: 'List store-level translations for a given language.',
     scopeType: 'read',
     method: 'GET',
-    path: 'translation/store',
+    path: 'translations/store',
     requiredFields: ['shop_no', 'language_code'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
@@ -96,7 +98,7 @@ export const translationOperations: Cafe24OperationMetadata[] = [
       'Update the store-level translations (mall name, policies, ...) for a given language.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'translation/store',
+    path: 'translations/store',
     requiredFields: ['shop_no', 'language_code'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
@@ -110,7 +112,7 @@ export const translationOperations: Cafe24OperationMetadata[] = [
     description: 'List theme-level translations for a given language.',
     scopeType: 'read',
     method: 'GET',
-    path: 'translation/themes',
+    path: 'translations/themes',
     requiredFields: ['shop_no', 'language_code'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
@@ -122,13 +124,13 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   // Phase 8c — Translation 완성 (테마 번역 단건 조회/수정)
   {
     id: 'translation_themes_get',
-    description: 'Retrieve a single theme translation entry by theme_no.',
+    description: 'Retrieve a single theme translation entry by skin_no.',
     scopeType: 'read',
     method: 'GET',
-    path: 'translation/themes/{theme_no}',
-    requiredFields: ['theme_no', 'language_code'],
+    path: 'translations/themes/{skin_no}',
+    requiredFields: ['skin_no', 'language_code'],
     fields: {
-      theme_no: { type: 'number', location: 'path' },
+      skin_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
       language_code: { type: 'string', location: 'query' },
     },
@@ -140,10 +142,10 @@ export const translationOperations: Cafe24OperationMetadata[] = [
       'Update a single theme translation entry (partial). Refer to Cafe24 docs for full body schema.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'translation/themes/{theme_no}',
-    requiredFields: ['theme_no', 'language_code'],
+    path: 'translations/themes/{skin_no}',
+    requiredFields: ['skin_no', 'language_code'],
     fields: {
-      theme_no: { type: 'number', location: 'path' },
+      skin_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
       language_code: { type: 'string', location: 'query' },
     },

@@ -59,15 +59,14 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
   },
   // Phase 6e — Mileage 보완
   {
+    // docs: GET/DELETE points/autoexpiration 는 store-level collection op (식별자·파라미터 없음).
     id: 'points_autoexpiration_get',
-    description:
-      'Retrieve an automatic points-expiration rule by id. Uses codebase `member_id` for the customer reference (Cafe24 docs vary by endpoint).',
+    description: 'Retrieve the automatic points-expiration rule.',
     scopeType: 'read',
     method: 'GET',
-    path: 'points/autoexpiration/{id}',
-    requiredFields: ['id'],
+    path: 'points/autoexpiration',
+    requiredFields: [],
     fields: {
-      id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
@@ -96,14 +95,12 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'points_autoexpiration_delete',
-    description: 'Remove an automatic points-expiration rule by id.',
+    description: 'Remove the automatic points-expiration rule.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'points/autoexpiration/{id}',
-    requiredFields: ['id'],
-    fields: {
-      id: { type: 'string', location: 'path' },
-    },
+    path: 'points/autoexpiration',
+    requiredFields: [],
+    fields: {},
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.mileage,
   },

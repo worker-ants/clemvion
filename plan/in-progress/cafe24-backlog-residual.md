@@ -26,22 +26,22 @@ owner: developer (다음 진입자)
 > G-1 의 path/method audit 은 완료(complete 기록). 아래는 docs field ↔ metadata 갭 보강으로
 > 수천 줄 규모라 별 PR 로 분리.
 
-> **⛔ BLOCKED / 보류 (결정 2026-06-02): 정확한 field 데이터 소스 확보 전까지 착수 불가.**
-> 조사 결과 — **field 전체 목록이 repo 어디에도 없다.** `spec/conventions/cafe24-api-catalog/*.md`
-> 는 endpoint(id/path/method/scope)만 enumerate 하고 field 목록은 미포함이며, backend metadata
-> `.ts` 는 *현재 구현된* field 만 선언한다. 확장 대상인 "docs 의 전체 field 목록" 은 **오직 Cafe24
-> 외부 공식 docs**(`developers.cafe24.com`, JS 렌더링 SPA + fragment 앵커)에만 존재하고 **WebFetch
-> 로 추출되지 않음**(검증 완료 — 빈 HTML). 따라서 workflow agent 가 field 를 채우려면 **추측·날조**
-> 하게 되어, 500 operation 에 부정확한 field 선언(잘못된 name/type/location → 런타임 API 에러)을
-> 양산한다 → 현재의 정직한 subset 보다 나쁨. impliesValue·constraint-only sweep 도 모두 "field 부재로
-> 확장 선행 필요" 라 같은 데이터에 묶여 동일 차단.
+> **✅ UNBLOCKED (2026-06-03): field 데이터 소스 확보 완료.**
+> 위 해소 조건 ① 충족 — 사용자가 Cafe24 공식 Admin API Documentation **전체 페이지를 렌더링된 HTML 로
+> 다운로드 제공**(3.2MB, `<td>` 15,734개). JS 렌더링 SPA 였던 docs 가 정적 HTML 로 고정돼 **결정적
+> 파싱이 가능**해졌다 — 추측·날조 없이 18 resource / 222 entity / 513 operation 의 응답 속성 + 요청
+> 파라미터를 그대로 추출. 이를 토대로 **field-level 상세 카탈로그**(`cafe24-api-catalog/<resource>/<entity>.md`,
+> 222개)를 생성했다 ([`_overview.md §7`](../../spec/conventions/cafe24-api-catalog/_overview.md)). 이 카탈로그가
+> 곧 G-1-remaining 의 "docs 의 전체 field 목록" docs-side SoT 다. (생성 작업: worktree `cafe24-api-catalog`)
 >
-> **해소 조건 (착수 전 필요)**: ① Cafe24 **OpenAPI/JSON 스키마** 또는 field 목록 데이터 제공(파일·URL)
-> → workflow 가 파싱해 정확 확장, 또는 ② JS 렌더링 지원 브라우저/스크래핑 도구로 docs 추출 경로 확보,
-> 또는 ③ 특정 high-value resource(product/order 등) field 를 사람이 docs 기준으로 제공 → 그 범위만 반영.
-> 위 중 하나가 확보되면 resource 별 Workflow fan-out 으로 진행 (사용자 결정: workflow 병렬 후 검토).
+> **이제 남은 것은 docs(카탈로그) ↔ backend metadata 의 field 갭 보강(developer 트랙)** — 아래 4개 하위 항목.
+> 각 항목은 해당 entity 의 `cafe24-api-catalog/<resource>/<entity>.md` 를 docs 기준으로 삼아 metadata `.ts`
+> 와 대조한다. 여전히 수천 줄 규모이므로 resource 별로 분리 진행 권장.
+>
+> _(이력) 2026-06-02 BLOCKED 사유: field 전체 목록이 repo 어디에도 없고 외부 docs 가 WebFetch 로 추출 불가
+> 했음. 2026-06-03 다운로드 HTML 제공으로 해소._
 
-- [ ] **G-1-remaining** (BLOCKED — 위 보류 사유):
+- [ ] **G-1-remaining** (데이터 확보 완료 — docs↔metadata 갭 보강만 잔여):
   - **store field-set 확장**: store 106 endpoint docs field 비교 audit 미수행.
   - **field-set 확장 (모든 resource)**: docs 에 있으나 metadata 에 누락된 field 추가 (예: product_list docs ~50 field vs 우리 8 field). 전 resource 적용 시 수천 줄.
   - **impliesValue metadata 적용**: 인프라 완료. 실제 ops 적용은 trigger field(refund_method, material_composite 등) 추가 후 — order cancellation/return/exchange + products create/update + bundleproducts create/update.
@@ -57,3 +57,110 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 - application: applications_list, webhooks_list
 - category: mains_update, mains_delete
 - store: socials_apple_settings_get
+
+### G-3 — metadata ↔ 공식 docs 경로/scope 교차검증 (2026-06-03, field-level 카탈로그 부산물)
+
+> **배경**: 기존 index `<resource>.md` + backend metadata 의 method/path/scope 는 **이전 Chrome
+> 식별 기반**이라 오류 가능성이 있었다 (사용자 우려). 새로 확보한 공식 docs 전체 HTML 의 authoritative
+> (method, path, scope) 와 backend metadata 500 operation 을 교차검증했다.
+> 검증 스크립트: 일회성(`xcheck`), 데이터 소스: [[project-cafe24-field-catalog]] 의 docs HTML.
+
+**결과**: **464/500 은 method+path 정확 일치** ✅. 36개가 공식 docs 와 어긋나며, 1개 scope 불일치.
+
+> ✅ **전제 확정 (사용자 결정 2026-06-03)**: 본 docs HTML 이 **API 의 최종(authoritative) 상태**이며
+> 코드베이스(metadata/index)보다 최신이다. 따라서 어긋남 36건 + scope 1건은 **metadata/index 측의
+> 정정 대상**이다 — (i) 경로/scope 오기인 경우 docs 값으로 **수정**, (ii) docs 에 해당 operation 자체가
+> 없는 경우 해당 연동을 **제거**(또는 cafe24 문의). index(Chrome) 와 field-level 카탈로그(docs) 의 경로
+> 불일치를 새 레이어가 처음 드러냈고, 카탈로그(docs 기준) 가 정답이다.
+> `catalog-sync` 는 metadata↔index 만 보므로 본 드리프트를 못 잡는다 — 정정 시 metadata·index 를 함께
+> docs 로 맞춰야 catalog-sync 통과가 유지된다.
+
+**(a) KNOWN_G2 (7)** — 위 G-2 기등재 docs 부재분. 신규 아님: `customer_get/update`, `coupon_get/delete`,
+`applications_list`, `webhooks_list`, `socials_apple_settings_get`.
+
+**(b) NOT_IN_DOCS (5)** — docs 에 유사 경로조차 없음. 재편/폐기 의심:
+- `salesreport/salesreport_daily` (`salesreport/sales`), `salesreport/salesreport_products` (`salesreport/products`) — docs 는 `financials/dailysales`·`reports/productsales` 등으로 **resource 재편**된 것으로 보임.
+- `shipping/shipping_companies_list` (`shippingcompanies`) — docs 에 없음 (docs shipping = `carriers`).
+- `personal/wishlists_list` (`wishlists`) — docs 는 `customers/{member_id}/wishlist`.
+- `order/orders_calculation_total` (`orders/{order_id}/calculation/total`) — docs 는 `orders/calculation` (POST, order_id 없음).
+
+**(c) METHOD_DIFF (4)** — docs 에 동일 path 있으나 우리가 쓰는 method 는 미문서화 (G-2 성격):
+- `community/board_article_get` GET `boards/{board_no}/articles/{article_no}` (docs: PUT/DELETE만)
+- `order/order_items_labels_delete` DELETE `.../labels` (docs: GET/POST/PUT만 — DELETE 는 `.../labels/{name}`)
+- `order/subscription_shipments_get` GET `subscription/shipments/{subscription_id}` (docs: PUT만)
+- `product/mains_products_delete` DELETE `mains/{display_group}/products` (docs: GET/POST/PUT만)
+
+**(d) PATH_VARIANT (20)** — docs 에 대응 경로가 있으나 metadata path 가 다름:
+- **translation 9개 — 단수 `translation/` vs docs 복수 `translations/`** (가장 큰 군집): `translation_products_list/_update`, `translation_categories_list/_update`, `translation_store_list/_update`, `translation_themes_list/_get/_update`. 추가로 `translation_themes_get/_update` 는 path param 도 `{theme_no}` vs docs `{skin_no}`.
+- order: `orders_benefits_list`·`orders_coupons_list` — metadata 에 잉여 `{order_id}` (docs: `orders/benefits`·`orders/coupons`); `order/control` (`orders/control`, docs 무); `exchange_update_multiple` PUT `exchanges` (docs 단수 `exchange`).
+- 잉여/누락 segment: `notification/customers_invitation_send`·`personal/customers_wishlist_count` — docs 에 `{member_id}` 추가; `mileage/points_autoexpiration_get/_delete` — docs 에 `/{id}` 없음; `design/theme_pages_get` — docs 에 `/{page_path}` 없음; `community/financials_monthlyreviews_count` — docs 에 `/count` 없음; `community/urgentinquiry_get` `{inquiry_no}` — docs 는 list 만.
+
+**(e) SCOPE_MISMATCH (1)**: `store/carts_setting_update` PUT `carts/setting` — metadata `write` vs **docs 기본스펙 `mall.read_store` (read)**. (docs 가 PUT 에 read 를 명시 — cafe24 docs 자체 오류 의심이나 어쨌든 불일치.)
+
+#### G-3 정정 작업 분해 (developer 트랙, docs = SoT)
+
+> 각 항목 = 해당 resource 의 `metadata/<resource>.ts` (path/method/scope) + index `cafe24-api-catalog/<resource>.md`
+> 행을 docs 값으로 정정하거나 row 제거. **field-level 카탈로그(`<resource>/<entity>.md`) 는 이미 docs
+> 기준이라 수정 불요** — 정정의 정답지로 사용. 정정 후 `npm test --workspace backend -- catalog-sync` 통과 확인.
+> 액션 표기: **FIX** = docs 에 동일 operation 존재, 경로/scope 문자열만 정정 / **DECIDE** = docs 에 해당
+> (method,path) 자체가 없음 → remove vs remap(다른 docs endpoint) vs cafe24 문의 판단 필요.
+
+- [x] **G-3a translation (FIX ×9 — 최우선, 미정정 시 404 위험)** ✅ 2026-06-03 정정 (metadata translation.ts + index translation.md, themes param `theme_no`→`skin_no`, 오기 주석 정정): 단수 `translation/` → 복수 `translations/`.
+  - `translation_products_list` `translation/products`→`translations/products`; `translation_products_update` `.../{product_no}` 동일 복수화
+  - `translation_categories_list`/`_update` → `translations/categories[/{category_no}]`
+  - `translation_store_list`/`_update` → `translations/store`
+  - `translation_themes_list` → `translations/themes`; `translation_themes_get`/`_update` `translation/themes/{theme_no}` → `translations/themes/{skin_no}` (**path param 명도 `theme_no`→`skin_no`**)
+- [ ] **G-3b order (FIX ×1 / DECIDE ×6)**:
+  - FIX: `exchange_update_multiple` PUT `exchanges`→`exchange` (단수). ✅ 2026-06-03 정정
+  - DECIDE(semantics 변경 — 단순 string fix 아님): `orders_benefits_list` `orders/{order_id}/benefits`·`orders_coupons_list` `orders/{order_id}/coupons` → docs 는 `orders/benefits`·`orders/coupons` (per-order endpoint 자체 부재 → collection 으로 의미 변경, 응답·노드 재설계 필요); `order_items_labels_delete` DELETE `.../labels` → docs `.../labels/{name}` (전체삭제 vs 단건삭제 = 다른 operation); ~~`orders_calculation_total` POST `orders/{order_id}/calculation/total` → docs `orders/calculation`~~ **✅ G-3m 가드 검출로 정정 완료(path+scope read→write, 2026-06-03)**; `order/control` `orders/control` → docs 무; `subscription_shipments_get` GET `subscription/shipments/{subscription_id}` → docs 는 PUT 만 (GET single 부재)
+- [ ] **G-3c personal (FIX ×1 / DECIDE ×1)**: FIX `customers_wishlist_count` `customers/wishlist/count`→`customers/{member_id}/wishlist/count` (이미 per-customer 의도, `{member_id}` path 화) — ✅ 2026-06-03 정정. DECIDE `wishlists_list` `wishlists` → docs 는 per-member `customers/{member_id}/wishlist` 만 (collection "전체 위시리스트" endpoint 부재 → 의미 변경, remap 판단 필요).
+- [ ] **G-3d salesreport (DECIDE ×2 — resource 재편)**: `salesreport_daily` `salesreport/sales`→`financials/dailysales`; `salesreport_products` `salesreport/products`→`reports/productsales`. 경로뿐 아니라 응답 스키마도 바뀌었을 수 있어 연동 코드 재확인.
+- [ ] **G-3e mileage (DECIDE ×2)**: `points_autoexpiration_get`/`_delete` `points/autoexpiration/{id}` → docs 는 `{id}` 없는 collection-level GET/POST/DELETE (단건 vs 목록 semantics 확인).
+- [ ] **G-3f community (DECIDE ×3)**: `board_article_get` GET `boards/{board_no}/articles/{article_no}` (docs PUT/DELETE 만); `financials_monthlyreviews_count` `.../count` (docs 무); `urgentinquiry_get` `urgentinquiry/{inquiry_no}` (docs list 만).
+- [x] **G-3g notification (FIX ×1)** ✅ 2026-06-03 정정 (member_id body→path): `customers_invitation_send` POST `customers/invitation`→`customers/{member_id}/invitation`.
+- [ ] **G-3h design (DECIDE ×1)**: `theme_pages_get` GET `themes/{skin_no}/pages/{page_path}` → docs `themes/{skin_no}/pages` (`{page_path}` 없음).
+- [ ] **G-3i shipping (DECIDE ×1)**: `shipping_companies_list` GET `shippingcompanies` → docs 엔 없고 `carriers` 가 대응이나 **다른 resource·응답 스키마** → 단순 remap 불가, 노드 출력 매핑 재설계 판단 필요.
+- [ ] **G-3j product (DECIDE ×1)**: `mains_products_delete` DELETE `mains/{display_group}/products` → docs GET/POST/PUT 만 (DELETE 부재).
+- [x] **G-3k store (SCOPE FIX ×1)** ✅ 2026-06-03 정정 (docs 기본스펙 재확인: PUT 이지만 `mall.read_store`): `carts_setting_update` PUT `carts/setting` scope `write`→`read`.
+- [ ] **G-3l KNOWN_G2 재검토 (7)**: HTML 이 최종 상태로 확정됐으므로, 위 G-2 의 "production 검증 전 보류" 전제가
+  해소됨 — docs 에 없는 `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·
+  `socials_apple_settings_get` 는 **최종 API 부재 확정**. 제거 여부를 G-2 결정과 합쳐 재판단 (planner 트랙).
+- [x] **G-3m catalog-sync 가드 보강** ✅ 2026-06-03 완료: `catalog-docs-drift.spec.ts` 신설 —
+  metadata 의 모든 supported op `(method, path, scope)` 를 field-level 카탈로그(docs SoT) 와 대조.
+  metadata↔index 동기(둘 다 Chrome 유래)로는 못 잡던 docs 드리프트를 단방향 검출. G-2 docs-부재
+  9개는 `KNOWN_DOCS_ABSENT` allowlist 면제. **즉시 실효 입증**: DECIDE 배치에서 누락된
+  `orders_calculation_total` (path `orders/{order_id}/calculation/total`→`orders/calculation`,
+  scope `read`→`write` 둘 다 오류)을 가드가 검출 → 정정. 이후 가드 green.
+
+> **G-3 FIX 배치 검증 결과 (2026-06-03)**: 구현(13 ops) 후 TEST WORKFLOW 전 단계 통과
+> (lint·unit[cafe24.handler 25/25, 변경 5 resource catalog-sync pass]·build·e2e[143 pass]).
+> `/ai-review`: Critical 0, Warning 10. W7(path-param 보간 테스트)·W8/W9(description) + INFO#9
+> (exchange 단수 주석) 본 배치에서 fix. breaking-change 우려(W1~3)는 해당 op 들이 정정 전 이미
+> 비동작(404)이라 회귀 아님으로 정리. carts scope 실증(W4/W10)·field-set(W5/W6)은 각각 G-3k·
+> G-1-remaining 으로 이관. (review 산출물은 gitignored — 본 노트가 PR trace.)
+> 잔존 catalog-sync 3 fail 은 `category.md` footnote 마커 pre-existing(본 변경 무관).
+
+> **G-3 DECIDE 배치 완료 (2026-06-03, 사용자 결정: A 전체 remap + B 즉시 제거)**:
+> - **A REMAP (10 ops)**: `orders_benefits_list`·`orders_coupons_list`(잉여 `{order_id}` 제거),
+>   `order_items_labels_delete`(`/{name}` 추가), `points_autoexpiration_get/delete`(`{id}` 제거),
+>   `theme_pages_get`(`{page_path}` 제거), `wishlists_list`(`customers/{member_id}/wishlist`),
+>   `salesreport_daily`→`financials/dailysales`, `salesreport_products`→`reports/productsales`,
+>   `shipping_companies_list`→`carriers`. metadata + index path 동기.
+> - **B REMOVE (6 ops)**: `board_article_get`·`urgentinquiry_get`·`financials_monthlyreviews_count`
+>   (community), `subscription_shipments_get`·`control`(order), `mains_products_delete`(product) —
+>   metadata + index row + i18n ko/en 라벨 + `_overview.md §5` coverage(500→494) 동기 제거.
+> - 검증: backend build·lint, catalog-sync 16/16, metadata/handler 93, frontend i18n parity 12 +
+>   cafe24-extras/i18n 68 통과. e2e 후속.
+> - **남은 G-3**: G-3k(carts scope 실증, 외부 API), G-1-remaining(field-set: A REMAP 중 benefits/coupons
+>   등 fields 미세 보강 포함), G-3m(드리프트 가드). field-set 은 대량 확장 트랙으로 유지.
+> - **DECIDE `/ai-review`**: Critical 0, Warning 6. W4(`theme_pages_get` — docs 는 `path` query 필수
+>   단건 조회, 누락된 `path` query 추가) fix. W5(`shipping_companies_list` vs `carriers_get` 중복 아님 —
+>   목록/단건) · W6(community field-level 링크는 유효 entity) · W1~W3(breaking 우려는 정정 전 이미 404
+>   비동작) 은 문서화로 정리. 네이밍 정비(id rename = breaking)·field-set 은 후속 트랙. e2e 144 pass.
+
+> **네이밍 정비 완료 (2026-06-03, 사용자 결정)**: sibling 컨벤션 일치 op id rename —
+> `shipping_companies_list`→`carriers_list` (형제 `carriers_get/create/update/delete`),
+> `wishlists_list`→`customers_wishlist_list` (형제 `customers_wishlist_count`). metadata + index +
+> i18n ko/en 동기 (해당 op 들은 정정 전 비동작이라 호환 영향 미미). salesreport id 는 resource 와
+> 일치하므로 유지(path namespace 가 financials/reports 로 분산된 것은 docs 측 분류). 검증:
+> catalog-sync 16/16·drift·frontend i18n parity 12 통과.

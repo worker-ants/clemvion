@@ -37,3 +37,16 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `webhooks_update` | Webhook 설정 수정 | Edit webhook settings | PUT | `webhooks/setting` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#edit-webhook-settings) |
 
 > ⚠ **docs 부재 seed (`applications_list`, `webhooks_list`)**: 두 row 의 endpoint 는 cafe24 admin docs (Latest 2026-03-01) 에 **노출되지 않는다** — `GET applications` / `GET webhooks` 미문서화. 메타데이터 row 는 backwards-compat seed 로 유지되며 cafe24 wire 상 실제 동작 여부는 **미확인 (production 검증 전)**. `status: supported` 는 §3 정의상 "노드에서 호출 가능 = 메타데이터 row 존재" 를 뜻하므로 유효하나, docs 링크는 잠정적이다. JSDoc ⚠ 마크 + 운영 검증/제거 결정 트랙: [`plan/in-progress/cafe24-backlog-residual.md §G-2`](../../../plan/in-progress/cafe24-backlog-residual.md). 근거: [`application.ts`](../../../codebase/backend/src/nodes/integration/cafe24/metadata/application.ts) JSDoc 주석.
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`application/apps.md`](./application/apps.md) · Apps — 5 fields, 2 ops
+- [`application/appstore-orders.md`](./application/appstore-orders.md) · Appstore orders — 8 fields, 2 ops
+- [`application/appstore-payments.md`](./application/appstore-payments.md) · Appstore payments — 14 fields, 2 ops
+- [`application/databridge-logs.md`](./application/databridge-logs.md) · Databridge logs — 9 fields, 1 ops
+- [`application/recipes.md`](./application/recipes.md) · Recipes — 3 fields, 3 ops
+- [`application/scripttags.md`](./application/scripttags.md) · Scripttags — 10 fields, 6 ops
+- [`application/webhooks-logs.md`](./application/webhooks-logs.md) · Webhooks logs — 11 fields, 1 ops
+- [`application/webhooks-setting.md`](./application/webhooks-setting.md) · Webhooks setting — 2 fields, 2 ops

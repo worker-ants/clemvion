@@ -418,6 +418,41 @@ describe('Cafe24Handler', () => {
       });
     });
 
+    // G-3c — `customers_wishlist_count` 의 `member_id` 를 location query→path 로
+    // 정정(공식 docs `customers/{member_id}/wishlist/count`)했으므로, path param
+    // 으로 승격된 필드가 실제로 URL 에 보간되고 query 에서 제거되는지 (그리고 같은
+    // operation 의 다른 location 필드 `shop_no` 는 query 에 남는지) 회귀 보호한다.
+    it('path-location field (migrated from query) interpolates into URL and is absent from query (customers_wishlist_count)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockResolvedValue({
+        status: 200,
+        body: { count: 3 },
+        headers: {},
+        retries: 0,
+      });
+
+      await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'personal',
+          operation: 'customers_wishlist_count',
+          fields: { member_id: 'tester01', shop_no: 1 },
+        },
+        makeContext(),
+      );
+
+      const callOpts = apiClient.call.mock.calls[0][1] as {
+        method: string;
+        path: string;
+        query: Record<string, unknown>;
+      };
+      expect(callOpts.method).toBe('GET');
+      expect(callOpts.path).toBe('customers/tester01/wishlist/count');
+      expect(callOpts.query).toEqual({ shop_no: 1 });
+      expect(callOpts.query).not.toHaveProperty('member_id');
+    });
+
     it('Cafe24 4xx (404) — routes to error port with CAFE24_404', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
       apiClient.call.mockResolvedValue({

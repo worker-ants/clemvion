@@ -4,6 +4,15 @@
 
 본 디렉토리(`spec/conventions/cafe24-api-catalog/`) 는 Cafe24 Admin API 의 **모든 endpoint** 를 18 resource 단위로 enumerate 한 단일 진실(single source of truth)이다. 노드 메타데이터(`codebase/backend/src/nodes/integration/cafe24/metadata/*.ts`) 가 어디까지 구현됐고 어디가 남았는지가 한 화면에서 보이도록 유지한다.
 
+카탈로그는 **두 레이어**로 구성된다.
+
+| 레이어 | 위치 | 내용 | sync 테스트 |
+|--------|------|------|------------|
+| **Index (endpoint enumeration)** | `<resource>.md` (top-level 18개) | operation 표 (id / method / path / scope / status …). 메타데이터와 양방향 동기. | `catalog-sync.spec.ts` 가 파싱 (§4) |
+| **Field-level 상세** | `<resource>/<entity>.md` (하위 폴더, 222개) | 각 sub-resource(entity) 의 **응답 속성(property list) + operation 별 요청 파라미터** — name / 필수 / 제약 / 기본값 / 설명. Cafe24 공식 docs 기준. | 미대상 (§7) |
+
+> Field-level 레이어는 **읽기 참조용**이다. `catalog-sync.spec.ts` 의 `readdirSync(CATALOG_DIR)` 는 top-level `.md` 만 본다 (하위 폴더는 디렉토리 엔트리라 `.endsWith('.md')` 필터에서 제외) — 따라서 하위 폴더 추가는 sync 테스트에 영향이 없다. 자세한 정책은 §7.
+
 ---
 
 ## 1. 디렉토리 구조
@@ -89,10 +98,10 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | Resource | Supported | Planned | Cafe24 docs sub-resource 수 |
 |----------|-----------|---------|---|
 | [store](./store.md) | 106 | 0 | 50+ |
-| [product](./product.md) | 63 | 0 | 28 |
-| [order](./order.md) | 106 | 0 | 47 |
+| [product](./product.md) | 62 | 0 | 28 |
+| [order](./order.md) | 104 | 0 | 47 |
 | [customer](./customer.md) | 24 | 0 | 12 |
-| [community](./community.md) | 24 | 0 | 9 |
+| [community](./community.md) | 21 | 0 | 9 |
 | [design](./design.md) | 9 | 0 | 3 |
 | [promotion](./promotion.md) | 35 | 0 | 10 |
 | [application](./application.md) | 19 | 0 | 8 |
@@ -106,7 +115,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | [mileage](./mileage.md) | 8 | 0 | 5 |
 | [notification](./notification.md) | 12 | 0 | 7 |
 | [translation](./translation.md) | 9 | 0 | 4 |
-| **합계** | **500** | **0** | **~250** |
+| **합계** | **494** | **0** | **~250** |
 
 > 18 resource 전부 0-planned. `store.md` 의 `privacy_*` id 명명 우려 (별 `privacy` resource 와 prefix 충돌) 는 별 트랙으로 follow-up 가능.
 
@@ -122,3 +131,32 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 4. `npm test --workspace backend -- catalog-sync` 통과 확인.
 
 > `spec/conventions/cafe24-api-metadata.md` §5 의 신규 endpoint 추가 절차도 본 카탈로그 row 갱신을 step 으로 포함한다.
+
+## 7. Field-level 상세 레이어 (`<resource>/<entity>.md`)
+
+각 resource 폴더 하위에 sub-resource(entity) 단위로 **field-level 상세 문서**를 둔다 (222개). Index 레이어(`<resource>.md` 의 표)가 "어떤 endpoint 가 있는가" 를 답한다면, 본 레이어는 "그 endpoint 가 어떤 field 를 주고받는가" 를 답한다.
+
+### 7.1 파일 1개 = entity 1개
+
+- 경로: `spec/conventions/cafe24-api-catalog/<resource>/<entity_id>.md` (예: `store/activitylogs.md`, `product/products.md`).
+- `<entity_id>` 는 Cafe24 docs 의 sub-resource 식별자 (snake_case). 한 resource 내 unique.
+- frontmatter: `resource`, `entity`, `cafe24_docs` (공식 docs anchor URL), `source` (추출 출처·일자).
+
+### 7.2 문서 구성
+
+1. **응답 속성 (Property list)** — entity 의 응답 객체 field. 컬럼: `Attribute` / `제약` / `설명`.
+2. **Operations** — 해당 entity 의 각 operation 마다:
+   - `method` / `path`, **Scope** (`mall.<read|write>_<resource>`), 호출건수 제한, 1회당 요청건수 제한, **Platform** (`cafe24` / `cafe24,youtube` — youtube shopping 채널 가용 여부), Docs anchor.
+   - **요청 파라미터 (Request)** — 컬럼: `Parameter` / `필수` / `제약` / `기본값` / `설명`.
+
+### 7.3 출처와 정확성 원칙
+
+- **출처는 Cafe24 공식 Admin API Documentation (전체 페이지 HTML) 의 결정적(deterministic) 파싱**이다. 추측·날조로 field 를 채우지 않는다 — docs 에 없는 field 는 본 문서에도 없다.
+- docs 가 type 컬럼을 별도 제공하지 않으므로(설명문 내 산문 형태) 본 카탈로그도 `제약`(형식·길이·최대값·날짜 등 `<em>` 노트)과 `설명`을 그대로 옮긴다. 정식 type 추론은 backend 메타데이터 작업(`cafe24-api-metadata.md`) 의 몫.
+- docs 개정 시 **동일 추출 파이프라인으로 재생성**한다 — 생성기는 [`_generator.py`](./_generator.py) (`python3 _generator.py <docs-full-page.html>`). 결정적·멱등이므로 재실행해도 손댄 적 없는 파일은 그대로다. 손으로 행을 추가할 때도 반드시 공식 docs 를 출처로 한다.
+
+### 7.4 sync 테스트와의 관계
+
+본 레이어는 `catalog-sync.spec.ts` 의 검증 대상이 **아니다** (§4 의 동기 규칙은 top-level index 표 ↔ 메타데이터 사이만 강제). Field-level 문서와 backend 메타데이터의 field 단위 정합(`constraints` 등)은 `metadata.spec.ts` 트랙에서 별도로 다루며, 본 레이어는 그 작업의 **docs-side 참조 SoT** 역할이다.
+
+> 본 레이어는 [`plan/in-progress/cafe24-backlog-residual.md`](../../../plan/in-progress/cafe24-backlog-residual.md) 의 `G-1-remaining` (docs field ↔ metadata 갭 보강) 착수를 위한 선행 데이터 확보로 생성됐다.

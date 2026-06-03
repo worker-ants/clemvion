@@ -1006,17 +1006,4 @@ export const productOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
-  {
-    id: 'mains_products_delete',
-    description: 'Delete products from a main display category.',
-    scopeType: 'write',
-    method: 'DELETE',
-    path: 'mains/{display_group}/products',
-    requiredFields: ['display_group'],
-    fields: {
-      display_group: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
-    },
-    responseShape: 'empty',
-  },
 ];

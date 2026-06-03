@@ -1,0 +1,66 @@
+---
+resource: translation
+entity: translations-store
+cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#translations-store
+source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+---
+
+# Cafe24 API — Translation / Translations store
+
+> Field-level 카탈로그. Endpoint enumeration index: [`../translation.md`](../translation.md) · 규약: [`../_overview.md`](../_overview.md) · 공식 docs: [Translations store](https://developers.cafe24.com/docs/ko/api/admin/#translations-store)
+> 복합(nested) 필드의 하위 요소는 `↳` 로 표기한다.
+
+상점 번역 정보(Translations store)는, 상점의 번역 정보를 조회하거나 수정할 수 있는 기능입니다.
+
+## 응답 속성 (Property list)
+
+| Attribute | 제약 | 설명 |
+|---|---|---|
+| `shop_no` |  | 멀티쇼핑몰 번호 |
+| `translations` |  | 번역 정보 |
+
+## Operations
+
+### `GET /api/v2/admin/translations/store` — Retrieve a list of store translations
+
+- **Scope**: `mall.read_translation` (read)
+- **호출건수 제한**: 40
+- **Platform**: cafe24
+- **Docs**: https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-store-translations
+
+#### 요청 파라미터 (Request)
+
+| Parameter | 필수 | 제약 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+| `language_code` |  |  |  | 언어 코드 언어별로 번역된 정보에서 검색하고자 하는 언어를 선택하면, 해당 언어에 대한 번역 내용을 확인할 수 있습니다. ,(콤마)로 여러 건을 검색할 수 있다. |
+
+### `PUT /api/v2/admin/translations/store` — Update the translations of a store
+
+- **Scope**: `mall.write_translation` (write)
+- **호출건수 제한**: 40
+- **1회당 요청건수 제한**: 1
+- **Platform**: cafe24
+- **Docs**: https://developers.cafe24.com/docs/ko/api/admin/#update-the-translations-of-a-store
+
+#### 요청 파라미터 (Request)
+
+| Parameter | 필수 | 제약 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+| `translations` |  |  |  | 번역 정보 |
+| ↳ `language_code` | ✓ |  |  | 언어 코드 |
+| ↳ `shop_name` |  |  |  | 쇼핑몰명 |
+| ↳ `company_name` |  |  |  | 상호명 |
+| ↳ `company_registration_no` |  |  |  | 사업자등록번호 |
+| ↳ `president_name` |  |  |  | 대표자명 |
+| ↳ `phone` |  |  |  | 전화번호 |
+| ↳ `email` |  |  |  | 이메일 |
+| ↳ `fax` |  |  |  | 팩스번호 |
+| ↳ `zipcode` |  |  |  | 우편번호 |
+| ↳ `address1` |  |  |  | 기본 주소 |
+| ↳ `address2` |  |  |  | 상세 주소 |
+| ↳ `customer_service_phone` |  |  |  | 고객센터 상담/주문 전화 |
+| ↳ `customer_service_hours` |  |  |  | 고객센터 운영시간 |
+| ↳ `privacy_officer_name` |  |  |  | 개인정보보호 책임자명 |
+| ↳ `privacy_officer_email` |  |  |  | 개인정보보호 책임자 이메일 |
