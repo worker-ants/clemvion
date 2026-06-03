@@ -99,6 +99,47 @@ export type EntityAwareTester = (
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 /**
+ * Per-service "store identifier already connected" 에러 매핑 — 통일 UNIQUE 인덱스
+ * `idx_integration_workspace_service_mall` (`(workspace_id, service_type, mall_id)`,
+ * V072) 위반을 service_type 별 에러 코드/메시지로 변환하는 레지스트리. 옛 코드는
+ * service 별 인덱스(`idx_integration_cafe24_workspace_mall` /
+ * `idx_integration_makeshop_workspace_mall`)마다 분기를 두었으나, 인덱스 통일 후
+ * 단일 constraint 위반을 본 레지스트리로 분기한다 (C-6 registry 패턴 일관).
+ *
+ * 신규 통합 추가 시: 인덱스/마이그레이션 추가는 불필요하고, 더 나은 메시지를
+ * 원하면 여기에 한 줄을 더하면 된다. 미등록 service 도 {@link GENERIC_ALREADY_CONNECTED}
+ * 로 graceful degrade (코드 변경 없이도 409 보장).
+ *
+ * cafe24/makeshop 의 코드·메시지·HTTP status 는 통일 이전과 **완전 동일** —
+ * 동작 변화 없음. spec/2-navigation/4-integration.md §9.4 / §5.9 race backstop.
+ */
+const ALREADY_CONNECTED_BY_SERVICE: Record<
+  string,
+  { code: string; message: string }
+> = {
+  cafe24: {
+    code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+    message:
+      'A Cafe24 integration with this mall_id already exists in this workspace. Use the existing integration or delete it first.',
+  },
+  makeshop: {
+    code: 'MAKESHOP_ALREADY_CONNECTED',
+    message:
+      'A MakeShop integration with this shop_uid already exists in this workspace. Use the existing integration or delete it first.',
+  },
+};
+
+/**
+ * 미등록/미상 service_type 의 통일 UNIQUE 위반에 대한 generic fallback. 신규
+ * 통합이 레지스트리 엔트리 없이도 409(중복) 로 degrade 하게 한다.
+ */
+const GENERIC_ALREADY_CONNECTED = {
+  code: 'INTEGRATION_ALREADY_CONNECTED',
+  message:
+    'An integration with this store identifier already exists in this workspace. Use the existing integration or delete it first.',
+};
+
+/**
  * Clamp a free-form error message to {@link MCP_ERROR_MESSAGE_MAX_LEN} so a
  * misbehaving external server cannot inflate the `last_error` JSONB column.
  * The same bound is applied to `IntegrationUsageLog.error.message` for
@@ -566,7 +607,7 @@ export class IntegrationsService {
     try {
       saved = await this.integrationRepository.save(entity);
     } catch (err) {
-      this.throwIfUniqueViolation(err);
+      this.throwIfUniqueViolation(err, body.serviceType);
       throw err;
     }
     // audit 기록은 best-effort — row 는 이미 commit 됐으므로 audit 실패가
@@ -630,7 +671,7 @@ export class IntegrationsService {
       }
       return this.toPublic(saved);
     } catch (err) {
-      this.throwIfUniqueViolation(err);
+      this.throwIfUniqueViolation(err, entity.serviceType);
       throw err;
     }
   }
@@ -1317,7 +1358,17 @@ export class IntegrationsService {
     return !!role && ADMIN_ROLES.has(role);
   }
 
-  private throwIfUniqueViolation(err: unknown): void {
+  /**
+   * Map a Postgres unique-violation (23505) onto the right 409 error.
+   *
+   * `serviceType` is supplied by the caller (the entity/DTO being saved) so the
+   * unified store-identifier UNIQUE index `idx_integration_workspace_service_mall`
+   * (V072 — `(workspace_id, service_type, mall_id)`) can be translated to the
+   * per-service "already connected" code via {@link ALREADY_CONNECTED_BY_SERVICE}
+   * instead of the old per-service index-name branches. Unknown/unmapped
+   * services degrade to {@link GENERIC_ALREADY_CONNECTED} (still a 409).
+   */
+  private throwIfUniqueViolation(err: unknown, serviceType?: string): void {
     const code = (err as { code?: string })?.code;
     const constraint = (err as { constraint?: string })?.constraint;
     if (code !== '23505') return;
@@ -1327,28 +1378,19 @@ export class IntegrationsService {
         message: 'Integration name is already in use within this workspace',
       });
     }
-    // V045 partial UNIQUE `(workspace_id, mall_id) WHERE service_type='cafe24'`
-    // — Cafe24 Public 흐름은 begin 단계에서 row 를 만들지 않아 finalize
-    // 단계의 동시 신청 race 또는 begin pre-check 통과 후 DB-level race 가
-    // 본 constraint 로 잡힌다. 옛 코드는 본 분기를 누락해 raw QueryFailedError
-    // 가 500 으로 빠지던 결함이 있었다. spec/2-navigation/4-integration.md
-    // §9.4 — `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 의 race backstop 분기.
-    if (constraint === 'idx_integration_cafe24_workspace_mall') {
+    // 통일 store-identifier UNIQUE `(workspace_id, service_type, mall_id) WHERE
+    // mall_id IS NOT NULL` (V072) — cafe24 Public finalize race / begin pre-check
+    // 통과 후 DB-level race / makeshop shop_uid 중복 등 모든 service 의 중복
+    // 식별자 INSERT 가 본 constraint 로 잡힌다. serviceType 으로 service 별 코드를
+    // 분기 (옛 per-service 인덱스 분기 대체). 미등록 service 는 generic 409 로
+    // degrade. spec/2-navigation/4-integration.md §9.4 / §5.9 race backstop.
+    if (constraint === 'idx_integration_workspace_service_mall') {
+      const mapped =
+        (serviceType && ALREADY_CONNECTED_BY_SERVICE[serviceType]) ||
+        GENERIC_ALREADY_CONNECTED;
       throw new ConflictException({
-        code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
-        message:
-          'A Cafe24 integration with this mall_id already exists in this workspace. Use the existing integration or delete it first.',
-      });
-    }
-    // V071 partial UNIQUE `(workspace_id, mall_id) WHERE service_type=
-    // 'makeshop'` — shop_uid (→ mall_id projection) duplicate. Same race
-    // backstop as cafe24. spec/2-navigation/4-integration.md §5.9 + makeshop
-    // node §9.3.
-    if (constraint === 'idx_integration_makeshop_workspace_mall') {
-      throw new ConflictException({
-        code: 'MAKESHOP_ALREADY_CONNECTED',
-        message:
-          'A MakeShop integration with this shop_uid already exists in this workspace. Use the existing integration or delete it first.',
+        code: mapped.code,
+        message: mapped.message,
       });
     }
   }

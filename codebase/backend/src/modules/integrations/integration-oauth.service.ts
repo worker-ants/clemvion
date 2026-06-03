@@ -1402,7 +1402,8 @@ export class IntegrationOAuthService {
       }
     } catch (err) {
       // Concurrent INSERT race: another request inserted the same
-      // (workspace_id, mall_id) just now. V045 partial UNIQUE caught it.
+      // (workspace_id, service_type, mall_id) just now. 통일 store-identifier
+      // UNIQUE (V072 — idx_integration_workspace_service_mall) caught it.
       // Translate to the same 409 the in-memory check would have raised.
       const constraint =
         (err as { constraint?: string; driverError?: { constraint?: string } })
@@ -1411,7 +1412,7 @@ export class IntegrationOAuthService {
           ?.constraint;
       if (
         isPostgresUniqueViolation(err) &&
-        constraint === 'idx_integration_cafe24_workspace_mall'
+        constraint === 'idx_integration_workspace_service_mall'
       ) {
         throw new ConflictException({
           code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
@@ -1884,7 +1885,9 @@ export class IntegrationOAuthService {
     try {
       await this.integrationRepository.save(target);
     } catch (err) {
-      // V071 partial UNIQUE race — another install for the same shop_uid won.
+      // 통일 store-identifier UNIQUE race (V072 —
+      // idx_integration_workspace_service_mall) — another install for the same
+      // shop_uid won.
       const constraint =
         (err as { constraint?: string; driverError?: { constraint?: string } })
           ?.constraint ??
@@ -1892,7 +1895,7 @@ export class IntegrationOAuthService {
           ?.constraint;
       if (
         isPostgresUniqueViolation(err) &&
-        constraint === 'idx_integration_makeshop_workspace_mall'
+        constraint === 'idx_integration_workspace_service_mall'
       ) {
         throw new ConflictException({
           code: 'MAKESHOP_ALREADY_CONNECTED',

@@ -636,7 +636,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
       const result = await service.begin(publicBeginParams());
       // Begin succeeds (returns authorize URL); duplicate is caught at
       // POST /api/integrations finalize by `throwIfUniqueViolation` against
-      // `idx_integration_cafe24_workspace_mall`.
+      // the unified `idx_integration_workspace_service_mall` (V072).
       expect((result as { authUrl: string }).authUrl).toMatch(
         /^https:\/\/pub-shop\.cafe24api\.com\/api\/v2\/oauth\/authorize\?/,
       );
