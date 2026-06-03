@@ -43,6 +43,9 @@ owner: developer
   확정 전 developer 단독 구현 불가. → spec 설계 후 별도 착수.
 
 ### G2 — errorPolicy `continue` 분기 on SIGTERM interrupt (§11) — ⛔ BLOCKED
+
+> **2026-06-04 — execution-level intake 큐 재정의와의 관계**: G2 의 "장애물 3 — cross-instance mid-execution 재개 인프라 부재"는 [`exec-intake-queue-impl.md`](./exec-intake-queue-impl.md) PR3(stalled active 세그먼트 재배달 + rehydration 일반 노드 확장)으로 **부분 해소**된다. 단 G2 본질인 `errorPolicy='continue'` 분기(장애물 1·2: schema 노출·용어 매핑)는 별개로 남는다 — intake 큐 구현이 인프라 토대를 제공하되 G2 자체를 닫지는 않는다.
+
 - spec `§11` 항목 4: RUNNING 노드가 grace 내 미완료 시 현재는 errorPolicy 무관 전부
   `failed` 처리(Phase 1 stop 동등). `errorPolicy='continue'` 인 노드는 `failed`
   마킹 대신 다음 노드를 `execution-continuation` 큐로 enqueue 해야 함.
