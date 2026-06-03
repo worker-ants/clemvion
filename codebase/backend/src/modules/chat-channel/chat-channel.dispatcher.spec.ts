@@ -498,6 +498,77 @@ describe('toEiaEvent — execution.ai_message presentations[] 추출 (CCH-MP-01 
 });
 
 // ---------------------------------------------------------------------------
+// W-2 회귀 보호: fanout seam 에서 strip 된 llmCalls 가 toChatChannelEvent 를
+// 거쳐 EiaAiMessageEvent 에도 나타나지 않음을 검증.
+//
+// llmCalls 는 WebsocketService.emitExecutionEvent 의 fanout seam 에서 이미
+// strip 되므로, dispatcher 가 받는 ExecutionChannelEvent.payload 에는 도달하지
+// 않는다. 본 테스트는 strip 이 실패한 경우(방어)에도 dispatcher 의 변환 결과
+// (EiaAiMessageEvent) 에 llmCalls 가 없음을 단언한다 (이중 방어).
+// SoT: WS spec §4.4 strip-only / EIA §6.5 / chat-channel CCH-MP-01.
+// ---------------------------------------------------------------------------
+describe('toChatChannelEvent — execution.ai_message llmCalls 미포함 회귀 (W-2)', () => {
+  const baseRouting = {
+    triggerId: 'trig-1',
+    workflowId: 'wf-1',
+    timestamp: '2026-06-03T09:00:00.000Z',
+  };
+
+  it('payload 에 llmCalls 가 있어도 EiaAiMessageEvent 에 llmCalls 없음 (strip 이 실패한 경우 방어)', () => {
+    // 실제 운용에서는 fanout seam strip 이 먼저 제거하지만,
+    // 만약 strip 이 실패해 payload 에 llmCalls 가 남아 있더라도
+    // dispatcher 의 변환이 llmCalls 를 전달하지 않는지 검증.
+    const event: ExecutionChannelEvent = {
+      executionId: 'exec-llm',
+      eventType: 'execution.ai_message',
+      seq: 3,
+      payload: {
+        ...baseRouting,
+        message: 'hello',
+        turnCount: 1,
+        messages: [{ role: 'assistant', content: 'hello' }],
+        metadata: { model: 'claude' },
+        llmCalls: [
+          {
+            requestPayload: { system: 'SECRET SYSTEM PROMPT', messages: [] },
+            responsePayload: { content: 'hello' },
+            durationMs: 150,
+          },
+        ],
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.ai_message') throw new Error();
+    // EiaAiMessageEvent 에 llmCalls 가 없어야 한다
+    expect(eia).not.toHaveProperty('llmCalls');
+    // 정상 필드는 보존
+    expect(eia.message).toBe('hello');
+    expect(eia.turnCount).toBe(1);
+  });
+
+  it('정상 경로 (llmCalls 없는 payload) — message/turnCount/metadata 보존', () => {
+    const event: ExecutionChannelEvent = {
+      executionId: 'exec-normal',
+      eventType: 'execution.ai_message',
+      seq: 4,
+      payload: {
+        ...baseRouting,
+        message: 'world',
+        turnCount: 2,
+        metadata: { model: 'claude-3' },
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.ai_message') throw new Error();
+    expect(eia).not.toHaveProperty('llmCalls');
+    expect(eia.message).toBe('world');
+    expect(eia.metadata).toEqual({ model: 'claude-3' });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 2026-05-25 — chat-channel-internal listener (CCH-AD-07 / CCH-MP-06)
 // presentation 노드 (carousel/table/chart/template) 비-blocking 완료 시
 // `execution.node.completed` 를 in-process WS Subject 에서 추가 픽업해

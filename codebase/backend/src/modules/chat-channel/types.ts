@@ -301,7 +301,8 @@ export interface EiaAiMessageEvent extends EiaEventBase {
   turnCount: number;
   messages?: unknown[];
   metadata?: unknown;
-  llmCalls?: unknown[];
+  // `llmCalls` (raw LLM debug payload) 는 fanout seam 에서 strip 되어 어댑터에
+  // 도달하지 않으므로 본 입력 계약에서 제외한다 (WS §4.4 strip-only 결정).
   /**
    * AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉.
    * SoT: [spec/conventions/chat-channel-adapter.md §1.2 line 89](../../../../spec/conventions/chat-channel-adapter.md#12-eiaevent-입력)

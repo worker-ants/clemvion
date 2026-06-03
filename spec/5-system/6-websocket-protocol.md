@@ -485,7 +485,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `durationMs` | number? | **턴 전체** 소요시간 (모든 LLM 호출 + tool 실행 합) |
 | `presentations` | PresentationPayload[]? | AI Agent 가 `render_*` 표현 도구 ([Spec AI Agent §4.1](../4-nodes/3-ai/1-ai-agent.md#41-presentation-tool-family-render_)) 를 호출한 turn 에서만 동봉. `ai_assistant` ConversationTurn 의 top-level `presentations[]` snapshot. type 정의의 단일 진실은 [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반). 클라이언트가 chat UI 에서 텍스트와 함께 inline 렌더 |
 
-> **`llmCalls[].requestPayload` / `responsePayload` 는 raw 디버그 payload** 다 — LLM provider 와의 원본 요청/응답(시스템 프롬프트·대화 이력·tool 정의·사용자 입력 등 민감 데이터 포함 가능)을 마스킹(redaction) 없이 운반하며, 에디터의 디버깅 타임라인(Response/Request/LLM Usage 탭) 같은 **개발자·에디터 surface** 전용이다. v1 은 별도 마스킹(redaction)을 적용하지 않으며, 에디터 surface 는 기존 워크플로 RBAC 로 간접 제한된다. 다중 테넌트·비편집자 노출 범위에 대한 **명시적 접근제어·마스킹 정책은 open item** (제품 결정 필요) — 본 노트는 현행 동작을 명문화할 뿐 정책을 규정하지 않는다. 설계 근거는 본 문서 ## Rationale 의 "`ai_message.llmCalls[]` raw payload 운반" 항목 참조.
+> **`llmCalls[].requestPayload` / `responsePayload` 는 raw 디버그 payload** 다 — LLM provider 와의 원본 요청/응답(시스템 프롬프트·대화 이력·tool 정의·사용자 입력 등 민감 데이터 포함 가능)을 운반하며, 에디터의 디버깅 타임라인(Response/Request/LLM Usage 탭) 같은 **개발자·에디터 surface** 전용이다. 따라서 `llmCalls` 는 **워크스페이스 인증·ownership 으로 게이트된 내부 WebSocket 채널(`execution:{executionId}`)에만 전달**되고, **모든 외부 fanout 수신자 — external-interaction SSE 스트림(`iext_*`/`itk_*` 토큰으로 인증), notification webhook, chat-channel 아웃바운드(텔레그램·web-chat 등) — 에서는 strip 된다.** 즉 채널 end-user 클라이언트는 최종 assistant 텍스트/`presentations` 만 받고 raw debug payload 는 받지 않는다. (strip 대상은 본 WS 이벤트 필드뿐이며, DB 영속 경로 `NodeExecution.output_data.meta.turnDebug[i].llmCalls` 및 그를 출처로 하는 실행 이력 디버그 패널은 영향 없다.) 설계 근거는 본 문서 ## Rationale 의 "`ai_message.llmCalls[]` 외부 수신자 strip" 항목 참조.
 
 ```json
 {
@@ -958,13 +958,17 @@ KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`We
 - **결정**: echo 가 동일 발화의 기존 optimistic bubble 을 발견하면 새 항목을 append 하지 않고 기존 bubble 에 `receivedAt` 을 **stamp** 해 reconcile 한다(append 대신). 로컬 bubble 이 없는 경로(채널 텍스트 인바운드 등)에서만 append 한다.
 - **근거**: 발신자의 즉시 피드백(로컬 optimistic)과 WS echo 유실 내성을 보존하면서 중복만 제거한다. stamp 이후 `receivedAt` 은 재emit/재구독 dedup 키로 계속 동작하고, 최종 정합은 turn 종료 `ai_message` 스냅샷 REPLACE 가 보장한다(stamp 는 그 보조 선행 단계). frontend 구현 식별자는 [Conversation Thread §9.7.1](../conventions/conversation-thread.md#971-store-reset-정책-실행-lifecycle-별) 방침에 따라 본문에 노출하지 않는다.
 
-### `ai_message.llmCalls[]` raw payload 운반 (v1, 마스킹 없음)
+### `ai_message.llmCalls[]` 외부 수신자 strip (strip-only 결정)
 
-디버깅 타임라인이 어시스턴트 메시지 단위로 Request/Response/Usage 를 보여주려면 LLM provider 와의 원본 payload 가 필요하다.
+본 항목은 직전의 "raw payload 운반 (v1, 마스킹 없음)" open item 을 사용자 결정(채널 실사용 + strip-only)으로 확정·대체한다.
 
-- **결정**: `llmCalls[].requestPayload` / `responsePayload` 를 마스킹(redaction) 없이 그대로 운반한다(§4.4 `llmCalls[]` 노트).
-- **근거**: v1 은 에디터 surface 전용이라 기존 워크플로 RBAC 로 간접 제한된다. 별도 redaction 배선 비용 대비 디버깅 가치가 크다.
-- **open item**: 다중 테넌트·비편집자 노출 범위에 대한 명시적 접근제어·마스킹 정책은 미결(제품 결정). 향후 보안/멀티테넌시 plan 신설 시 §4.4 `llmCalls[]` 노트를 체크리스트 항목으로 포함한다.
+디버깅 타임라인이 어시스턴트 메시지 단위로 Request/Response/Usage 를 보여주려면 LLM provider 와의 원본 payload 가 필요하다. 그러나 이 raw payload 는 시스템 프롬프트·대화 이력·tool 정의 등 민감 정보를 담는다.
+
+`execution.ai_message` 는 (1) 워크스페이스 ownership 으로 게이트된 내부 WebSocket 채널과 (2) external-interaction SSE / notification webhook / chat-channel 아웃바운드로 분기되는 fanout 양쪽으로 전달된다. SSE 는 `iext_*`/`itk_*` interaction 토큰만으로 접근 가능하고(워크스페이스 체크 없음) 채널 end-user 클라이언트에 전달되므로, raw payload 를 그대로 흘리면 채널 사용자에게 노출된다.
+
+- **결정 (strip-only)**: `llmCalls` (및 그 안의 `requestPayload`/`responsePayload`) 는 **인증된 내부 WS 채널에만** 포함하고, **fanout(외부) 경로에서는 strip** 한다. 채널 end-user 는 최종 assistant 텍스트/`presentations` 만 받는다. strip 대상은 WS 이벤트 필드뿐이며 DB 영속(`meta.turnDebug[i].llmCalls`)·실행 이력 디버그 패널은 불변.
+- **근거**: debug raw payload 는 본질적으로 에디터 전용 관심사다. 외부/채널 수신자는 이를 필요로 하지 않으므로, 단일 fanout seam 에서 제거하면 최소 변경으로 노출을 닫으면서 에디터 디버그 패널은 그대로 유지된다.
+- **기각된 대안**: 값-레벨 마스킹은 에디터 디버깅 가치를 훼손하고 부분적이며, 워크스페이스 내 viewer/editor 역할 게이트는 별도 RBAC 확장이 필요해 본 결정 범위를 넘는다. 향후 멀티테넌트 viewer 요구가 명확해지면 재검토한다.
 
 ### `execution.retry_last_turn` 의 graph 진행 의미 — Re-run 과의 경계
 
