@@ -16,11 +16,38 @@ iframe 내부에서 렌더되는 채팅 UI. **Next.js CSR 전용**(`output: 'exp
 
 ```
 npm install
-npm run dev        # 로컬 개발
+npm run dev        # 로컬 개발 — 포트 3013(.env 의 PORT 로 override 가능)
 npm run build      # 정적 export → out/
 npm run lint
 npm run typecheck
 ```
+
+포트는 backend(:3011)·frontend(:3012)와 겹치지 않도록 기본 **:3013** 이다(`${PORT:-3013}`). `.env`
+(미추적, `.env.example` 참고)에 `PORT=` 로 바꿀 수 있다.
+
+## 로컬 데모 (`/demo`, dev 전용)
+
+위젯 SPA(`/`)는 그 자체가 **iframe 안에서 도는 임베드 본체**라, `npm run dev` 로 `/` 를 직접 열면
+호스트로부터 boot 설정(`wc:boot`)을 받기 전이라 우측 하단 런처 버튼을 눌러도 패널이 열리지 않는다
+(설정 미주입 = 정상 동작 불가). 로컬에서 정상 테스트하려면 호스트 역할을 하는 데모 페이지를 쓴다:
+
+```
+npm run dev
+# http://localhost:3013/demo 접속
+```
+
+`/demo` 는 운영에서 SDK(`@workflow/web-chat`)가 하는 호스트 역할을 흉내내는 dev 하니스다:
+
+- 좌측 폼에 **API Host(apiBase)** 와 **공개 webhook trigger path** 를 입력(나머지 외형·추천질문은 선택).
+- **부팅** 클릭 → 우측 iframe 위젯에 `wc:boot` 를 postMessage 로 주입. 이때부터 런처/패널이 동작한다.
+- `open`/`close`/`sendMessage` 명령 버튼 + 위젯이 보내는 `wc:event` 이벤트 로그 제공.
+
+실제 대화까지 보려면 **backend(:3011)** 가 떠 있고, 그 안에 만든 **공개 webhook 트리거의 endpoint
+path(UUID)** 를 trigger 칸에 붙여넣어야 한다(backend 트리거 화면에서 복사). backend 없이도 위젯 UI
+부팅·패널 전개는 확인된다.
+
+`/demo` 는 `next dev`(개발)에서만 노출되고 `next build`(production static export)에서는 제외된다
+(게이팅: `src/app/demo/demo-config.ts` `isDemoEnabled`; prod 미리보기는 `NEXT_PUBLIC_ENABLE_DEMO=1`).
 
 ## 상태
 
