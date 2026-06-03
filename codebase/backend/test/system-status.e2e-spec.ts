@@ -10,8 +10,8 @@ import { registerAndLogin } from './helpers/auth';
  *
  * 검증 영역:
  *   1) 미인증 → 401 (전역 JWT 가드)
- *   2) 인증 → 200, {data:{generatedAt,overall,totalFailed,queues}} 형태 + 12개 큐 enumerate
- *   3) 각 큐 항목 구조(counts/health/group/utilization) 정합
+ *   2) 인증 → 200, {data:{generatedAt,overall,totalFailed,totalRecentFailed,failedWindowMinutes,queues}} 형태 + 12개 큐 enumerate
+ *   3) 각 큐 항목 구조(counts/recentFailed/health/group/utilization) 정합
  *   4) 시스템 전역 API — X-Workspace-Id 유무가 결과 큐 집합에 영향 없음
  *
  * 실 BullMQ root 연결이 떠 있는 e2e 인프라에서만 의미가 있다.
@@ -50,6 +50,7 @@ interface QueueStatus {
     failed: number;
     paused: number;
   };
+  recentFailed: number;
   concurrency: number;
   utilization: number;
   isPaused: boolean;
@@ -85,6 +86,8 @@ describe('System Status API (e2e)', () => {
       generatedAt: string;
       overall: string;
       totalFailed: number;
+      totalRecentFailed: number;
+      failedWindowMinutes: number;
       queues: QueueStatus[];
     };
 
@@ -92,6 +95,10 @@ describe('System Status API (e2e)', () => {
     expect(new Date(data.generatedAt).toISOString()).toBe(data.generatedAt);
     expect(HEALTH_VALUES).toContain(data.overall);
     expect(typeof data.totalFailed).toBe('number');
+    expect(typeof data.totalRecentFailed).toBe('number');
+    // 윈도우 길이는 양수 (env 미설정 시 기본 60)
+    expect(typeof data.failedWindowMinutes).toBe('number');
+    expect(data.failedWindowMinutes).toBeGreaterThan(0);
 
     const names = data.queues.map((q) => q.name).sort();
     expect(names).toEqual([...EXPECTED_QUEUE_NAMES].sort());
@@ -104,6 +111,9 @@ describe('System Status API (e2e)', () => {
       expect(typeof q.counts.delayed).toBe('number');
       expect(typeof q.counts.failed).toBe('number');
       expect(typeof q.counts.paused).toBe('number');
+      expect(typeof q.recentFailed).toBe('number');
+      // recentFailed 는 보관 중 누적(failed)을 초과할 수 없다 (윈도우 부분집합)
+      expect(q.recentFailed).toBeLessThanOrEqual(q.counts.failed);
       expect(typeof q.isPaused).toBe('boolean');
       expect(typeof q.utilization).toBe('number');
       // 집계만 노출 — 개별 job 식별자/payload 가 새지 않는다.
@@ -111,9 +121,11 @@ describe('System Status API (e2e)', () => {
       expect(q).not.toHaveProperty('payload');
     }
 
-    // totalFailed 는 큐별 failed 합산과 일치
+    // totalFailed / totalRecentFailed 는 각각 큐별 합산과 일치
     const sumFailed = data.queues.reduce((s, q) => s + q.counts.failed, 0);
     expect(data.totalFailed).toBe(sumFailed);
+    const sumRecent = data.queues.reduce((s, q) => s + q.recentFailed, 0);
+    expect(data.totalRecentFailed).toBe(sumRecent);
   });
 
   it('시스템 전역 API — X-Workspace-Id 유무가 큐 집합에 영향 없음', async () => {
