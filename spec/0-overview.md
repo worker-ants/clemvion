@@ -374,6 +374,8 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 - **배경**: Backend 가 NestJS + Prisma 를 사용하므로 `prisma migrate` 를 그대로 쓰는 것이 가장 자연스러운 선택지였다.
 - **채택**: SQL 기반 Flyway (`V<NNN>__<descriptor>.sql`) 를 별도 도구로 도입. `prisma migrate` 대신 SQL 기반을 쓰는 이유: (a) 운영 DB 에 적용되는 SQL 을 PR 에서 그대로 리뷰 가능, (b) `ALTER` 의 락 거동·트랜잭션 모드 세밀 제어, (c) extension·partial index·CHECK 제약·`NOT VALID` 등 Postgres 고유 기능 표현.
 - **trade-off**: Prisma client 의 schema 와 Flyway SQL 의 schema 가 이중으로 존재 — drift 위험. `codebase/backend/src/migrations.spec.ts` 가 CI 마다 schema_history vs 파일 정합성을 검증해 silent skip 을 차단하지만, schema 정의 자체의 이중 source 는 받아들인 비용이다. 상세 운영 규약: [Flyway 마이그레이션 운영 규약](./conventions/migrations.md).
+- **forward-only 채택 (§2.8 롤백 정책)**: 별도 undo 스크립트(`U{version}__...sql`)는 두지 않는다. 운영 사고 시 빠른 복구는 각 마이그레이션 파일 하단의 `-- DOWN:` 주석(migrations/README.md §2)으로 충분하고, 자동 undo 체인을 유지하는 비용·리스크(부분 적용 상태에서의 down 실패) 대비 이득이 낮다고 판단했다. (구 초안의 `U{version}` undo 스크립트 전제는 폐기.)
+- **CLI 인자 주입 채택 (§2.8 실행 방식)**: 환경별 `flyway-{env}.conf` 분리 파일 대신, 전용 Flyway Docker 이미지에 DB 접속 정보를 CLI 인자(`-url`/`-user`/`-password`)로 주입한다. 컨테이너 오케스트레이션(시크릿 주입)과 자연스럽게 맞고, 환경별 conf 파일을 레포에 두지 않아 시크릿 노출면을 줄인다. (구 초안의 환경별 conf 전제는 폐기.)
 
 ### 실행 엔진: Redis 큐 + 분산 워커 풀 (§2.4)
 

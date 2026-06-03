@@ -83,7 +83,7 @@ code:
 
 | 열 | 설명 |
 |----|------|
-| 상태 | 실행 status 별 아이콘: ✅ completed / ❌ failed / ⏳ running·pending / ⛔ cancelled / ✋ waiting_for_input. 매핑에 없는 값은 ❓ 폴백. (DTO 의 status enum 은 pending·running·completed·failed·cancelled) |
+| 상태 | 실행 status 별 아이콘: ✅ completed / ❌ failed / ⏳ running·pending / ⛔ cancelled / ✋ waiting_for_input. 매핑에 없는 값은 ❓ 폴백. (DTO 의 status enum 은 pending·running·completed·failed·cancelled·waiting_for_input — 6종, SoT [데이터 모델 §2.13](../1-data-model.md)) |
 | 워크플로우 이름 | 실행된 워크플로우 이름 |
 | 트리거 | 실행 출처(`subworkflow`/`manual`/`schedule`/`webhook`/`unknown`) 아이콘 + 라벨. 분류 규칙·보조 라벨 정책은 [실행 내역 spec §2.4 Trigger 출처 분류](./14-execution-history.md#trigger-출처-분류) 참조 |
 | 소요 시간 | 실행 소요 시간 (초/분) |
@@ -147,3 +147,17 @@ code:
 | ≥ 1280px | 요약 카드 4열, 최근 워크플로우·실행 이력 2열 |
 | 768px ~ 1279px | 요약 카드 2열, 최근 워크플로우·실행 이력 1열 (세로 스택) |
 | < 768px | 요약 카드 1열, 최근 워크플로우·실행 이력 1열 |
+
+---
+
+## Rationale
+
+> 본 절은 2026-06-03 spec-vs-code 동기화 시 코드 현실에 맞춰 정정한 항목의 근거다 (대안 비교형 ADR 이 아니라 code-sync 근거 기록).
+
+### Success Rate 분모 = 7일 전체 실행 건수 (§3)
+
+성공률 분모는 `completed/(completed+failed)` 가 아니라 **status 무관 7일 내 전체 실행 건수**(running·pending·cancelled 포함)다 (`dashboard.service.ts`). 초기 spec 초안은 분모를 `completed+failed` 로 적었으나, 구현은 7일 전체를 분모로 둔다 — "최근 활동 대비 성공 비율" 이라는 카드 의미상 진행 중·취소 건도 분모에 포함하는 현 구현을 SoT 로 채택하고 spec 을 맞췄다. (분모를 `completed+failed` 로 바꾸려면 구현 변경이 필요 — 현 시점 미채택.)
+
+### Avg Time 카드 미노출 (§2/§3)
+
+요약 카드는 Total / Active / Runs(7d) / Success 4종이며, 초기 초안의 **Avg Time 카드는 노출하지 않는다** (`dashboard/page.tsx`). 평균 실행 시간은 `summary` 응답(`avgExecutionTime`, ms)에는 포함되나 별도 카드로 시각화하지 않는 현 구현을 따른다.
