@@ -49,6 +49,14 @@ describe("normalizeApiBase", () => {
     expect(normalizeApiBase("https://api.example.com")).toBe("https://api.example.com");
     expect(normalizeApiBase("https://h/api/v1")).toBe("https://h/api/v1");
   });
+  it("handles empty / whitespace / slash-only input", () => {
+    expect(normalizeApiBase("")).toBe("");
+    expect(normalizeApiBase("   ")).toBe("");
+    expect(normalizeApiBase("/")).toBe("");
+  });
+  it("strips only one trailing /api segment (not repeated)", () => {
+    expect(normalizeApiBase("http://host/api/api")).toBe("http://host/api");
+  });
 });
 
 describe("buildBootConfig", () => {
@@ -94,6 +102,7 @@ describe("buildBootConfig", () => {
       launcherSuggestions: "",
       disclaimer: "",
     });
+    expect(cfg.apiBase).toBe("http://x"); // 후행 /api 정규화 적용 확인
     expect(cfg.headerTitle).toBeUndefined();
     expect(cfg.welcome).toBeUndefined();
     expect(cfg.launcher).toBeUndefined();

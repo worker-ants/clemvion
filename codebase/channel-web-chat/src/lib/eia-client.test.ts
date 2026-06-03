@@ -88,6 +88,25 @@ describe("openStream", () => {
     listeners["execution.ai_message"]?.({ data: JSON.stringify({ text: "응답" }) } as MessageEvent);
     expect(onEvent).toHaveBeenCalledWith("execution.ai_message", { text: "응답" });
   });
+
+  it("error 이벤트를 onError 로 전달(SSE/CORS 실패 가시화 seam)", () => {
+    const listeners: Record<string, (e: MessageEvent) => void> = {};
+    const es: EventSourceLike = {
+      addEventListener: (t, l) => {
+        listeners[t] = l;
+      },
+      close: () => {},
+    };
+    const client = new EiaClient({
+      apiBase: "https://api.test",
+      eventSourceFactory: () => es,
+    });
+    const onError = vi.fn();
+    client.openStream(endpoints, "iext_x", { onEvent: vi.fn(), onError });
+    const errEvent = { type: "error" } as unknown as MessageEvent;
+    listeners["error"]?.(errEvent);
+    expect(onError).toHaveBeenCalledWith(errEvent);
+  });
 });
 
 describe("refreshToken", () => {

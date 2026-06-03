@@ -123,6 +123,8 @@ export default function DemoHost() {
   );
 
   const ready = isBootReady(form);
+  // 실제 데모 origin (CORS 안내용). SSR/prerender 시엔 기본 포트 fallback, 브라우저에선 실제 origin.
+  const demoOrigin = typeof window === "undefined" ? "http://localhost:3013" : window.location.origin;
 
   return (
     <div style={S.root}>
@@ -158,11 +160,12 @@ export default function DemoHost() {
               endpoint path(UUID)를 붙여넣으세요.
             </p>
           )}
+          {/* CORS 주의는 ready 여부와 무관하게 항상 노출 — 부팅 전에 사전 안내해야 한다. */}
           <p style={S.hint}>
             ⚠️ <strong>스트림 응답</strong>을 받으려면 backend 가 이 데모 origin 을 <code>/api/external/*</code> CORS
             에 허용해야 합니다(SSE). 첫 메시지(webhook)는 무제한 CORS 로 전송되지만, AI 응답 SSE 는 워크스페이스
             allowlist 를 타기 때문입니다. 로컬은 backend <code>.env</code> 에{" "}
-            <code>WEB_CHAT_WIDGET_ORIGINS=http://localhost:3013</code> 설정(또는 워크스페이스
+            <code>WEB_CHAT_WIDGET_ORIGINS={demoOrigin}</code> 설정(또는 워크스페이스{" "}
             <code>interactionAllowedOrigins</code> 에 추가) 후 backend 재시작.
           </p>
         </Section>
