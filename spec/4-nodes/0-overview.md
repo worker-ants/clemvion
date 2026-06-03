@@ -128,12 +128,13 @@ codebase/backend/src/nodes/
 
 | filter | 효과 | 예시 |
 |--------|------|------|
-| `upper` | 대문자 변환 | `{{method\|upper}}` |
-| `lower` | 소문자 변환 | `{{method\|lower}}` |
-| `default:LIT` | 값이 비어 있으면 리터럴 문자열 출력 | `{{mode\|default:sync}}` |
-| `fallback:path` | 값이 비어 있으면 다른 config 경로의 값으로 대체 | `{{workflowName\|fallback:workflowId}}` |
+| `upper` | 대문자 변환 | `{{ config.method &#124; upper }}` |
+| `lower` | 소문자 변환 | `{{ config.method &#124; lower }}` |
+| `default:LIT` | 값이 비어 있으면 리터럴 문자열 출력 | `{{ config.mode &#124; default:sync }}` |
+| `fallback:path` | 값이 비어 있으면 다른 config 경로의 값으로 대체 | `{{ config.workflowName &#124; fallback:workflowId }}` |
+| `length` | 문자열 또는 배열의 길이(문자 수 / 항목 수) 반환 — 줄 수는 계산하지 않음 | `{{ config.label &#124; length }}` |
 
-`default:` 는 리터럴 문자열을, `fallback:` 은 다른 config 경로를 인수로 받는다. 필터는 좌→우로 연쇄 적용된다.
+표 셀 예시의 `&#124;` 는 Markdown 표 구분자 충돌 방지를 위한 파이프 HTML entity 이다. `default:` 는 리터럴 문자열을, `fallback:` 은 다른 config 경로를 인수로 받는다. 필터는 좌→우로 연쇄 적용된다.
 
 ---
 
