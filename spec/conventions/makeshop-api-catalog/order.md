@@ -1,9 +1,8 @@
 ---
 id: makeshop-order
-status: spec-only
-code: []
-pending_plans:
-  - plan/in-progress/makeshop-integration.md
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/makeshop/metadata/order.ts
 ---
 
 # Makeshop API Catalog — 주문 (Order)

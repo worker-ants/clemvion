@@ -1,9 +1,8 @@
 ---
 id: makeshop-product
-status: spec-only
-code: []
-pending_plans:
-  - plan/in-progress/makeshop-integration.md
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/makeshop/metadata/product.ts
 ---
 
 # Makeshop API Catalog — 상품 (Product)

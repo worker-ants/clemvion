@@ -1,9 +1,11 @@
 ---
 id: makeshop-api-metadata
-status: spec-only
-code: []
-pending_plans:
-  - plan/in-progress/makeshop-integration.md
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/makeshop/metadata/types.ts
+  - codebase/backend/src/nodes/integration/makeshop/metadata/index.ts
+  - codebase/backend/src/nodes/integration/makeshop/metadata/constraint-validator.ts
+  - codebase/backend/src/nodes/integration/makeshop/metadata/public-meta.ts
 ---
 
 # CONVENTION: MakeShop API Metadata

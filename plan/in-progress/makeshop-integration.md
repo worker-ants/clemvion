@@ -104,6 +104,22 @@ spec-only → implemented 승격(노드 구현 PR) 시 함께 갱신:
 
 ## 구현 단계 (developer) — cafe24 구현 미러링
 
+> **✅ 전체 완료 (2026-06-04)**: Phase 0~6 구현·테스트·리뷰 완료. 브랜치 `claude/makeshop-api-catalog-730deb`. TEST WORKFLOW green (lint·unit backend 5843·build docker·**e2e 168/168**). `/ai-review` ×2 (Phase 0 / Phase 1-6) Critical 0 → resolution-applier 처리 (Phase0 7/7, Phase1-6 5/7 + DRY 2건 follow-up 연기). makeshop spec `status: implemented` 승격, code: 채움.
+>
+> **follow-up (별도 PR)**: ① CPIK webhook 11 trigger 노드(cafe24 공통) ② DRY 추출 — `useAllowlistState` 훅 + `BRIDGE_CONFIG` 레지스트리 + metadata constraint-validator 공통화(3번째 Internal Bridge 시점, C-6 와 동일 트리거) ③ §9.7 open question(OAuth 호스트·rate limit·timezone·설치 HMAC 메시지) production 전 makeshop 공식 문서 확인 ④ `spec/4-nodes/0-overview.md` 병렬편집 브랜치 `spec-inprogress-groom-c7568b` 와 merge 조율.
+
+### Phase 1~6 — ✅ 완료 (2026-06-04)
+- **P1** `661b3169` service-registry + C-6 buildIntegrationMeta 레지스트리 + V071 (cafe24 회귀 0)
+- **P2** `b535d142` MakeshopApiClient + 노드(handler/schema/component/module) + token-refresh + 등록 (100 테스트)
+- **P3** `6977cb53` OAuth auth-code+PKCE + ShopStore 설치 HMAC + precheck + C-6 appUrl + 409 (414 테스트)
+- **P4** `baad4008` MakeshopMcpToolProvider (41 테스트) + MCP_CAPABLE 등록
+- **P5** `20882fb6` frontend (폼·catalog i18n ko/en·상세·allowlist·user guide·node config)
+- **P6** `f75f2ba2` e2e 24개 (install·precheck·begin) — e2e 168/168 green
+
+---
+
+### (원 계획) 구현 단계 상세
+
 > 전제: cafe24 구현 지도 기준. `service_type`·node type 모두 string 컬럼(DB enum 아님) → enum 마이그레이션 불필요, partial UNIQUE 인덱스(V071)만. 최신 마이그레이션 = V070. 각 Phase = 독립 PR 지향(개별 `/ai-review` + `--impl-done`).
 
 ### Phase 0 — Foundation (metadata + 마이그레이션, 런타임 미배선) — ✅ 완료 (2026-06-03)

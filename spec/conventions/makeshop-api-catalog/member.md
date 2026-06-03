@@ -1,9 +1,8 @@
 ---
 id: makeshop-member
-status: spec-only
-code: []
-pending_plans:
-  - plan/in-progress/makeshop-integration.md
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/makeshop/metadata/member.ts
 ---
 
 # Makeshop API Catalog — 회원 (Member)

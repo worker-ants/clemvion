@@ -1,16 +1,23 @@
 ---
 id: makeshop
-status: spec-only
-code: []
-pending_plans:
-  - plan/in-progress/makeshop-integration.md
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/makeshop/makeshop.handler.ts
+  - codebase/backend/src/nodes/integration/makeshop/makeshop.schema.ts
+  - codebase/backend/src/nodes/integration/makeshop/makeshop.component.ts
+  - codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts
+  - codebase/backend/src/nodes/integration/makeshop/makeshop-token-refresh.processor.ts
+  - codebase/backend/src/nodes/integration/makeshop/metadata/index.ts
+  - codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts
+  - codebase/backend/src/modules/integrations/integration-oauth.service.ts
+  - codebase/backend/src/modules/integrations/third-party-oauth.controller.ts
 ---
 
 # Spec: MakeShop
 
 > 관련 문서: [Integration 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진 §10](../../5-system/4-execution-engine.md#10-integration-handler-계약) · [Spec 통합 §5.9 MakeShop](../../2-navigation/4-integration.md#59-makeshop) · [Spec MCP Client §2.3 Internal Bridge](../../5-system/11-mcp-client.md#23-internal-bridge-in-process) · [CONVENTIONS](../../conventions/node-output.md) · [MakeShop API Metadata 컨벤션](../../conventions/makeshop-api-metadata.md) · [MakeShop API Catalog](../../conventions/makeshop-api-catalog/_overview.md) · **참조 패턴** [Cafe24 노드](./4-cafe24.md)
 
-> **구현 상태 (status: spec-only)**: 본 노드는 아직 구현 전이다 (frontmatter `status: spec-only`, `pending_plans` 가 [plan `makeshop-integration.md`](../../../plan/in-progress/makeshop-integration.md) 를 가리킨다). 설계는 [Cafe24 노드](./4-cafe24.md) 와 동형이며, 본 문서는 메이크샵 고유 분기를 명시하고 공유 메커니즘은 Cafe24 노드·통합 화면 spec 을 참조한다. **Phase 0 완료**: backend 메타데이터 레이어 (161 REST op) + `catalog-sync.spec.ts` 양방향 동기 보호 도입 완료 ([MakeShop API Catalog `_overview.md`](../../conventions/makeshop-api-catalog/_overview.md)). 구현 착수(Phase 1+) 시 `developer` 가 `/consistency-check --impl-prep` 부터 시작한다.
+> **구현 상태 (status: implemented)**: REST 노드 + AI Agent Internal MCP Bridge 구현 완료 (Phase 0~6). 161 REST operation 메타데이터 + `MakeshopApiClient` + 노드(handler/schema/component) + OAuth auth-code+PKCE + ShopStore 설치 HMAC + `MakeshopMcpToolProvider` + frontend + e2e. 설계는 [Cafe24 노드](./4-cafe24.md) 와 동형이며 메이크샵 고유 분기를 본 문서에 명시. **CPIK webhook 11개(이벤트 수신)는 본 노드 범위 밖** — 통합 공통 trigger 노드 후속 (§9.6). §9.7 의 OAuth 호스트·rate limit·timezone·설치 HMAC 메시지 구성은 makeshop 공식 문서 미확정분으로 코드에 `VERIFY` 마킹 + production 전 확인 필요.
 
 ## Overview (제품 정의)
 

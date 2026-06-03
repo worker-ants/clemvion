@@ -1,9 +1,8 @@
 ---
 id: makeshop-board
-status: spec-only
-code: []
-pending_plans:
-  - plan/in-progress/makeshop-integration.md
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/makeshop/metadata/board.ts
 ---
 
 # Makeshop API Catalog — 게시판 (Board)

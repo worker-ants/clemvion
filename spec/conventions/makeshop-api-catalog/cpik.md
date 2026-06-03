@@ -1,9 +1,8 @@
 ---
 id: makeshop-cpik
-status: spec-only
-code: []
-pending_plans:
-  - plan/in-progress/makeshop-integration.md
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/makeshop/metadata/cpik.ts
 ---
 
 # Makeshop API Catalog — CPIK (외부연동: 장바구니·회원·주문·webhook)
