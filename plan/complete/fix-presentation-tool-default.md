@@ -1,6 +1,9 @@
 ---
 worktree: fix-presentation-tool-default-dcecc3
-status: in-progress
+started: 2026-06-03
+owner: developer
+status: complete
+pr: 438
 ---
 
 # presentationTools 첫 옵션 미선택 저장 시 빈 객체(`{}`) 영속화 버그 수정
