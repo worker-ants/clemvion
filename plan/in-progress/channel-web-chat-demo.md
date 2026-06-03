@@ -21,16 +21,16 @@ spec: spec/7-channel-web-chat
 - 포트 **3013** (backend 3011 / frontend 3012 / web-chat 3013).
 
 ## 작업 항목
-- [ ] (1) dev 포트 분리 — `package.json` `dev`: `source .env 2>/dev/null; next dev --port ${PORT:-3013}`
-- [ ] (1) `.env.example`(committed) — PORT=3013 + 데모 prefill 변수 + prod opt-in 문서화
-- [ ] (1) `.gitignore` — `.env*` + `!.env.example` (frontend 미러; 현재 `.env*.local` 만)
-- [ ] (3) TDD: `demo-config.test.ts` — `buildBootConfig`/`parseSuggestions`/`isDemoEnabled` 순수함수
-- [ ] (2) `src/app/demo/demo-config.ts` — 순수 헬퍼 + 기본 폼 상태
-- [ ] (2) `src/app/demo/demo-host.tsx` — 설정 폼 + iframe(`src=/`) 임베드 + wc:boot 전송 + wc:event 로그
-- [ ] (2) `src/app/demo/page.tsx` — NODE_ENV 게이팅(notFound) + DemoHost 렌더
-- [ ] (4) DOCUMENTATION — `README.md` 데모 사용법 섹션, PROJECT.md 매핑 점검
-- [ ] (8) TEST WORKFLOW (lint·unit·build, e2e 판단)
-- [ ] (9) REVIEW WORKFLOW (/ai-review + fix + RESOLUTION)
+- [x] (1) dev 포트 분리 — `package.json` `dev`: `source .env 2>/dev/null; next dev --port ${PORT:-3013}`
+- [x] (1) `.env.example`(committed) — PORT=3013 + 데모 prefill 변수 + prod opt-in 문서화
+- [x] (1) `.gitignore` — `.env*` + `!.env.example` (frontend 미러; 현재 `.env*.local` 만)
+- [x] (3) TDD: `demo-config.test.ts` — `buildBootConfig`/`parseSuggestions`/`isDemoEnabled`/`isBootReady` 순수함수
+- [x] (2) `src/app/demo/demo-config.ts` — 순수 헬퍼 + 기본 폼 상태
+- [x] (2) `src/app/demo/demo-host.tsx` — 설정 폼 + iframe(`src=/`) 임베드 + wc:boot 전송 + wc:event 로그
+- [x] (2) `src/app/demo/page.tsx` — NODE_ENV 게이팅(notFound) + DemoHost 렌더
+- [x] (4) DOCUMENTATION — `README.md` 데모 사용법 섹션, PROJECT.md 매핑 점검(데모는 매트릭스 trigger 비해당)
+- [x] (8) TEST WORKFLOW — lint·unit(120건)·build(정적 export, prod /demo 제외 검증) 통과. e2e 보류 승인(사용자, 2026-06-03)
+- [x] (9) REVIEW WORKFLOW — `/ai-review` RISK LOW, Critical 0 / Warning 4 → 수동 fix + RESOLUTION (review/code/2026/06/03/09_15_11)
 
 ## 비목표
 - 위젯 본체 동작/상태기계 변경 없음(추가만). `wc:resize` 방출 미구현(위젯 측) — 데모 iframe 은 고정 박스, 수신 핸들러만 forward-compat.

@@ -1,6 +1,7 @@
 // 데모 호스트(dev 전용) 순수 헬퍼 — boot config 조립 / 게이팅. React 비의존이라 단위테스트 대상.
 import type { BootMessage } from "@/widget/host-bridge";
 
+/** 데모 호스트 좌측 설정 폼의 편집 상태. `buildBootConfig` 가 이를 wc:boot 페이로드로 변환한다. */
 export interface DemoFormState {
   apiBase: string;
   triggerEndpointPath: string;
@@ -46,6 +47,12 @@ export function buildBootConfig(form: DemoFormState): BootMessage {
   const welcomeSuggestions = parseSuggestions(form.welcomeSuggestions);
   const launcherSuggestions = parseSuggestions(form.launcherSuggestions);
 
+  // 필드별 1회 trim 후 재사용(중복 trim 제거).
+  const primaryColor = form.primaryColor.trim();
+  const headerTitle = form.headerTitle.trim();
+  const welcomeText = form.welcomeText.trim();
+  const disclaimer = form.disclaimer.trim();
+
   const cfg: BootMessage = {
     apiBase: form.apiBase.trim(),
     triggerEndpointPath: form.triggerEndpointPath.trim(),
@@ -53,18 +60,18 @@ export function buildBootConfig(form: DemoFormState): BootMessage {
   };
 
   const appearance: NonNullable<BootMessage["appearance"]> = { position: form.position };
-  if (form.primaryColor.trim()) appearance.primaryColor = form.primaryColor.trim();
+  if (primaryColor) appearance.primaryColor = primaryColor;
   cfg.appearance = appearance;
 
-  if (form.headerTitle.trim()) cfg.headerTitle = form.headerTitle.trim();
+  if (headerTitle) cfg.headerTitle = headerTitle;
 
   const welcome: NonNullable<BootMessage["welcome"]> = {};
-  if (form.welcomeText.trim()) welcome.text = form.welcomeText.trim();
+  if (welcomeText) welcome.text = welcomeText;
   if (welcomeSuggestions.length) welcome.suggestions = welcomeSuggestions;
   if (welcome.text || welcome.suggestions) cfg.welcome = welcome;
 
   if (launcherSuggestions.length) cfg.launcher = { suggestions: launcherSuggestions };
-  if (form.disclaimer.trim()) cfg.disclaimer = form.disclaimer.trim();
+  if (disclaimer) cfg.disclaimer = disclaimer;
 
   return cfg;
 }

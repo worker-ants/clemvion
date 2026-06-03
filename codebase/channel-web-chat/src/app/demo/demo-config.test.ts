@@ -15,6 +15,9 @@ describe("parseSuggestions", () => {
   it("returns [] for blank input", () => {
     expect(parseSuggestions("   \n , ")).toEqual([]);
   });
+  it("trims tab-padded entries", () => {
+    expect(parseSuggestions("\ta\t,\tb\t")).toEqual(["a", "b"]);
+  });
 });
 
 describe("isBootReady", () => {
@@ -24,6 +27,11 @@ describe("isBootReady", () => {
     expect(
       isBootReady({ ...defaultDemoForm, apiBase: "", triggerEndpointPath: "t1" }),
     ).toBe(false);
+  });
+  it("treats whitespace-only apiBase as not ready", () => {
+    expect(isBootReady({ ...defaultDemoForm, apiBase: "   ", triggerEndpointPath: "t1" })).toBe(
+      false,
+    );
   });
 });
 
@@ -76,6 +84,17 @@ describe("buildBootConfig", () => {
     // appearance still carries position even when nothing else set
     expect(cfg.appearance?.position).toBe("bottom-right");
   });
+
+  it("omits whitespace-only primaryColor", () => {
+    const cfg = buildBootConfig({
+      ...defaultDemoForm,
+      apiBase: "http://x/api",
+      triggerEndpointPath: "t",
+      primaryColor: "   ",
+    });
+    expect(cfg.appearance?.primaryColor).toBeUndefined();
+    expect(cfg.appearance?.position).toBe("bottom-right");
+  });
 });
 
 describe("isDemoEnabled", () => {
@@ -87,5 +106,8 @@ describe("isDemoEnabled", () => {
     expect(isDemoEnabled({ nodeEnv: "production" })).toBe(false);
     expect(isDemoEnabled({ nodeEnv: "production", enableFlag: "0" })).toBe(false);
     expect(isDemoEnabled({ nodeEnv: "production", enableFlag: "1" })).toBe(true);
+  });
+  it("enabled when nodeEnv is unset (treated as non-production)", () => {
+    expect(isDemoEnabled({})).toBe(true);
   });
 });

@@ -26,8 +26,14 @@ interface LogEntry {
 }
 
 // 위젯은 NEXT_PUBLIC_BASE_PATH 하위로 서빙될 수 있으므로 iframe src 도 동일 base 기준(0-architecture §4).
+// W2(코드리뷰): 본 데모는 위젯을 같은 dev origin(src=/)에 임베드한다는 전제로 targetOrigin/수신 필터를
+// window.location.origin 으로 고정한다. 위젯을 별도 CDN origin 에 띄우는 운영 경로는 SDK(@workflow/web-chat)
+// 담당이며, 데모를 그렇게 확장할 땐 NEXT_PUBLIC_WIDGET_ORIGIN 으로 발신/수신 origin 을 단일 소스화한다.
 const WIDGET_SRC = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/`;
+const MAX_LOG_ENTRIES = 60;
+const PANEL_WIDTH = 380;
 
+/** dev 전용 데모 호스트 컴포넌트 — 설정 폼으로 wc:boot 를 조립해 우측 iframe 위젯에 주입하고 wc:event 를 로깅한다. */
 export default function DemoHost() {
   const [form, setForm] = useState<DemoFormState>(defaultDemoForm);
   const [sendText, setSendText] = useState("");
@@ -48,7 +54,7 @@ export default function DemoHost() {
       type,
       detail: detail === undefined ? "" : JSON.stringify(detail),
     };
-    setLog((prev) => [entry, ...prev].slice(0, 60));
+    setLog((prev) => [entry, ...prev].slice(0, MAX_LOG_ENTRIES));
   }, []);
 
   const postToWidget = useCallback(
@@ -110,8 +116,11 @@ export default function DemoHost() {
     [postToWidget, sendText],
   );
 
-  const update = <K extends keyof DemoFormState>(key: K, value: DemoFormState[K]) =>
-    setForm((f) => ({ ...f, [key]: value }));
+  const update = useCallback(
+    <K extends keyof DemoFormState>(key: K, value: DemoFormState[K]) =>
+      setForm((f) => ({ ...f, [key]: value })),
+    [],
+  );
 
   const ready = isBootReady(form);
 
@@ -321,8 +330,8 @@ const S: Record<string, React.CSSProperties> = {
     color: "#111827",
   },
   panel: {
-    width: 380,
-    flex: "0 0 380px",
+    width: PANEL_WIDTH,
+    flex: `0 0 ${PANEL_WIDTH}px`,
     borderRight: "1px solid #e5e7eb",
     overflowY: "auto",
     padding: 16,
