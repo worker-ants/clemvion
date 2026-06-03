@@ -43,7 +43,12 @@ describe("plan-frontmatter guard", () => {
   const plans = collectTopLevelPlans(root);
 
   it("finds top-level in-progress plans to validate", () => {
-    expect(plans.length).toBeGreaterThan(10);
+    // Guard against repoRoot() misresolving → empty scan → vacuous pass.
+    expect(
+      fs.existsSync(path.join(root, "plan", "in-progress")),
+      `repoRoot missing plan/in-progress/: ${root}`,
+    ).toBe(true);
+    expect(plans.length).toBeGreaterThan(20);
   });
 
   for (const abs of plans) {

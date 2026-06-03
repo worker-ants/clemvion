@@ -60,7 +60,10 @@ describe("spec-area-index guard", () => {
   const areas = collectAreas(root);
 
   it("discovers multiple spec areas", () => {
+    // Guard against repoRoot() misresolving → empty scan → vacuous pass.
+    expect(fs.existsSync(path.join(root, "spec")), `repoRoot missing spec/: ${root}`).toBe(true);
     expect(areas.length).toBeGreaterThan(5);
+    expect(areas.some((a) => a.rel === "spec/5-system")).toBe(true);
   });
 
   for (const area of areas) {

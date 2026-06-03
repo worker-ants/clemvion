@@ -75,8 +75,14 @@ describe("Gate C — plan-completion spec-consistency", () => {
     return d !== null && d.getTime() >= GATE_C_CUTOFF.getTime();
   });
 
-  it("collects completed plans without crashing", () => {
-    expect(Array.isArray(plans)).toBe(true);
+  it("resolves a real repo root with a complete plan dir", () => {
+    // Guard against repoRoot() misresolving → empty scan → vacuous pass of the
+    // (currently all-grandfathered) enforcement set.
+    expect(
+      fs.existsSync(path.join(root, "plan", "complete")),
+      `repoRoot missing plan/complete/: ${root}`,
+    ).toBe(true);
+    expect(plans.length).toBeGreaterThan(10);
   });
 
   for (const abs of enforced) {

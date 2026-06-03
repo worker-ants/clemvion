@@ -13,44 +13,37 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { fromMarkdown } from "mdast-util-from-markdown";
+import { toString as mdToString } from "mdast-util-to-string";
+import GithubSlugger from "github-slugger";
+import type { Root, RootContent, Heading } from "mdast";
 
-// Word-character boundary used by CommonMark emphasis: ASCII alnum + the CJK
-// ranges that actually appear in these specs (Hangul, CJK ideographs, Kana).
-const WORDISH = "0-9A-Za-z\\uAC00-\\uD7A3\\u4E00-\\u9FFF\\u3040-\\u30FF";
-const EMPH_LEAD = new RegExp(`(?<![${WORDISH}])_+`, "gu");
-const EMPH_TRAIL = new RegExp(`_+(?![${WORDISH}])`, "gu");
+// Heading-anchor slugs are computed with the EXACT renderer pipeline the in-app
+// docs viewer uses — remark/mdast parse (so emphasis, code spans, and inline
+// markdown are resolved as CommonMark, e.g. `render_*` keeps its underscore but
+// `_emph_` is stripped) → github-slugger (the lib behind rehype-slug). Hand-
+// rolled slug regexes drift from this on edge cases (lone `_` before
+// punctuation), so we delegate to the real libraries instead.
 
-/**
- * GitHub-flavoured heading → anchor slug. Keeps CJK characters and intra-word
- * underscores; strips emphasis underscores at word boundaries and all other
- * punctuation; collapses each whitespace run-position to a single hyphen.
- */
-export function slugify(heading: string): string {
-  let s = heading.trim();
-  // [text](url) → text  (anchor uses the link text, not the URL)
-  s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
-  // Mask inline code spans so their content is inert to emphasis parsing
-  // (e.g. `_dryRun` keeps its leading underscore).
-  const codeSpans: string[] = [];
-  s = s.replace(/`([^`]*)`/g, (_m, inner: string) => {
-    codeSpans.push(inner);
-    return `\x00${codeSpans.length - 1}\x00`;
-  });
-  // Remove emphasis underscores at word boundaries; keep intra-word ones.
-  s = s.replace(EMPH_LEAD, "");
-  s = s.replace(EMPH_TRAIL, "");
-  // Restore code-span content verbatim.
-  s = s.replace(/\x00(\d+)\x00/g, (_m, d: string) => codeSpans[Number(d)] ?? "");
-  s = s.toLowerCase();
-  // Keep unicode letters/numbers/underscore, space and hyphen; drop the rest
-  // (`*`, `.`, `(`, `)`, `/`, `·`, em-dash, … all removed without collapsing).
-  s = s.replace(/[^\p{L}\p{N}_ \-]/gu, "");
-  s = s.trim();
-  s = s.replace(/ /g, "-");
-  return s;
+function collectHeadings(node: Root | RootContent, out: Heading[]): void {
+  if (node.type === "heading") out.push(node);
+  if ("children" in node && Array.isArray(node.children)) {
+    for (const child of node.children) collectHeadings(child as RootContent, out);
+  }
 }
 
-const FENCE_RE = /^(\s*)(```|~~~)/;
+/**
+ * GitHub-flavoured anchor slug for a single heading's text. The text is parsed
+ * in heading context (so a leading `1.` is inline text, not an ordered-list
+ * marker) then slugged with github-slugger.
+ */
+export function slugify(heading: string): string {
+  const tree = fromMarkdown(`# ${heading}`);
+  const headings: Heading[] = [];
+  collectHeadings(tree, headings);
+  const text = headings.length > 0 ? mdToString(headings[0]) : heading;
+  return new GithubSlugger().slug(text);
+}
 
 /** Set of valid heading anchor slugs for a markdown file (with `-1`/`-2` dups). */
 export function headingSlugs(absPath: string): Set<string> {
@@ -60,30 +53,16 @@ export function headingSlugs(absPath: string): Set<string> {
   } catch {
     return new Set();
   }
+  const tree = fromMarkdown(text);
+  const headings: Heading[] = [];
+  collectHeadings(tree, headings);
+  // One slugger per file → github-slugger appends `-1`/`-2` to duplicate
+  // headings exactly as rehype-slug does, in document order.
+  const slugger = new GithubSlugger();
   const slugs = new Set<string>();
-  const seen = new Map<string, number>();
-  let inFence = false;
-  for (const line of text.split(/\r?\n/)) {
-    if (FENCE_RE.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    const m = /^(#{1,6})\s+(.*)$/.exec(line);
-    if (!m) continue;
-    let title = m[2].trim();
-    title = title.replace(/\s+#+\s*$/, ""); // trailing closing #'s
-    const base = slugify(title);
-    if (base === "") continue;
-    const prev = seen.get(base);
-    if (prev === undefined) {
-      seen.set(base, 0);
-      slugs.add(base);
-    } else {
-      const next = prev + 1;
-      seen.set(base, next);
-      slugs.add(`${base}-${next}`);
-    }
+  for (const h of headings) {
+    const slug = slugger.slug(mdToString(h));
+    if (slug) slugs.add(slug);
   }
   return slugs;
 }
@@ -95,6 +74,7 @@ export interface MdLink {
 }
 
 const LINK_RE = /\[([^\]]*)\]\(([^)]+)\)/g;
+const FENCE_RE = /^(\s*)(```|~~~)/;
 
 /** Extract markdown links outside fenced/inline code. */
 export function extractLinks(absPath: string): MdLink[] {

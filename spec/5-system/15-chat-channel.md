@@ -83,7 +83,7 @@ pending_plans:
 
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
-| CCH-SE-01 | 어댑터의 외부 API 호출 (sendMessage 등) 에 5초 타임아웃 + 3회 지수 백오프 재시도. 최종 실패 시 trigger 의 `chat_channel_health` 를 `degraded` 로 갱신 ([§3.4.2](#42-trigger-테이블-신규-컬럼)). 자동 비활성화 금지 ([WH-MG-04 / EIA-NX-07](./12-webhook.md#34-관리) 와 동일 정책) | 필수 |
+| CCH-SE-01 | 어댑터의 외부 API 호출 (sendMessage 등) 에 5초 타임아웃 + 3회 지수 백오프 재시도. 최종 실패 시 trigger 의 `chat_channel_health` 를 `degraded` 로 갱신 ([§4.2](#42-trigger-테이블-신규-컬럼)). 자동 비활성화 금지 ([WH-MG-04 / EIA-NX-07](./12-webhook.md#34-관리) 와 동일 정책) | 필수 |
 | CCH-SE-02 | 인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급 (텔레그램 `update_id` 기반). 동일 `update_id` 30초 안 재도착은 무시 | 필수 |
 | CCH-SE-03 | 어댑터의 외부 API secret (provider 별 bot token) 과 inbound webhook 출처 검증용 자료 (Telegram secret_token / Slack signing secret / Discord public key) 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 secret store 에 backend AES-256-GCM 으로 암호화 보관 — config JSONB 평문 금지. `config.chatChannel` 에는 ref 만 ([`botTokenRef`](#41-triggerconfigchatchannel) / `inboundSigningRef`) 저장. ref 형식은 [secret-store.md §1](../conventions/secret-store.md#1-uri-scheme) — `secret://triggers/{triggerId}/{bot-token,inbound-signing}`. DB 는 ciphertext (BYTEA) 만 본다 | 필수 |
 | CCH-SE-04 | Bot token rotation API (`POST /api/triggers/:id/chat-channel/rotate-bot-token`) — old token 은 24h grace 동안 병행 받음 (텔레그램의 경우 setWebhook 재호출). 동사를 `rotate-bot-token` 으로 한 이유는 EIA 의 `rotate-secret` (HMAC signing secret) 과 자원 의미가 다르기 때문 (외부 provider bot token vs HMAC secret) — URL 만으로 의도 구별 가능 | 권장 |

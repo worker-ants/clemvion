@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { repoRoot } from "./spec-frontmatter-parse";
 import {
   collectSpecMarkdown,
@@ -30,10 +32,12 @@ function fmt(violations: LinkViolation[]): string {
 describe("spec-link-integrity guard", () => {
   const root = repoRoot();
 
-  it("scans a non-trivial set of spec markdown files", () => {
-    // Sanity: scope must not silently collapse to ~0 files (e.g. wrong root).
+  it("resolves a real repo root and scans a non-trivial spec set", () => {
+    // Guard against repoRoot() misresolving → empty scan → vacuous pass.
+    expect(fs.existsSync(path.join(root, "spec")), `repoRoot missing spec/: ${root}`).toBe(true);
     const files = collectSpecMarkdown(root);
-    expect(files.length).toBeGreaterThan(50);
+    expect(files.length).toBeGreaterThan(100);
+    expect(files.some((f) => f.relPath === "spec/0-overview.md")).toBe(true);
   });
 
   it("has no broken in-repo links or heading anchors", () => {
@@ -54,6 +58,10 @@ describe("slugify (github-slugger parity)", () => {
     ["api_label 규약", "api_label-규약"],
     ["_계획·미구현_", "계획미구현"],
     ["`_dryRun` 모드", "_dryrun-모드"],
+    // lone `_` before punctuation is kept (not emphasis) — regression guard for
+    // the hand-rolled slugger bug that stripped it.
+    ["AI render_* presentations[] 발화", "ai-render_-presentations-발화"],
+    ["4.4 상세 (`execution.waiting_for_input`)", "44-상세-executionwaiting_for_input"],
   ];
   for (const [heading, expected] of cases) {
     it(`${heading} -> ${expected}`, () => {

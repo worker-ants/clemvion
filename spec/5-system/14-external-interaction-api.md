@@ -931,7 +931,7 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 
 즉 Chat Channel 어댑터는 NotificationFanout/NotificationDispatcher 의 downstream 이 **아니라** 단일 sink 의 형제 consumer 다 (notification 경로가 chat-channel 용 EventEmitter 를 별도 emit 하지 않는다).
 
-**chat-channel-internal 추가 listener 의 R10 허용 범위**: chat-channel 어댑터가 outbound 5종 (§6.1 화이트리스트) 외에 in-process fan-out 채널의 추가 이벤트 (현재 `execution.node.completed` — [Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력)) 를 sub-filter 로 attach 하는 것은 R10 허용 범위. 단일 sink 자체는 여전히 `WebsocketService.emit*` 하나이며, 어댑터는 그 sink 의 consumer (= NotificationDispatcher 와 동일 facade 계층) 한정 — 새 sink 도입 없음. 외부 HTTP webhook (§6.1) 화이트리스트 5종은 변경 없음 (chat-channel-internal 한정, 외부 SDK 미노출). 결정 SoT: [Chat Channel §R-CC-16](./15-chat-channel.md#r-cc-16-chat-channel-outbound-의-비-blocking-presentation--ai-render-presentations-발화).
+**chat-channel-internal 추가 listener 의 R10 허용 범위**: chat-channel 어댑터가 outbound 5종 (§6.1 화이트리스트) 외에 in-process fan-out 채널의 추가 이벤트 (현재 `execution.node.completed` — [Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력)) 를 sub-filter 로 attach 하는 것은 R10 허용 범위. 단일 sink 자체는 여전히 `WebsocketService.emit*` 하나이며, 어댑터는 그 sink 의 consumer (= NotificationDispatcher 와 동일 facade 계층) 한정 — 새 sink 도입 없음. 외부 HTTP webhook (§6.1) 화이트리스트 5종은 변경 없음 (chat-channel-internal 한정, 외부 SDK 미노출). 결정 SoT: [Chat Channel §R-CC-16](./15-chat-channel.md#r-cc-16-chat-channel-outbound-의-비-blocking-presentation--ai-render_-presentations-발화).
 
 ### R11. 외부 endpoint 경로 prefix 분리 — `/api/external/executions/*`
 
