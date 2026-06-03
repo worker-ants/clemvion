@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { CAFE24_OPERATIONS_BY_RESOURCE, CAFE24_RESOURCES } from './index.js';
+import type { Cafe24OperationMetadata, Cafe24Resource } from './types.js';
 
 /**
  * G-3m — metadata ↔ field-level 카탈로그(docs SoT) 드리프트 가드.
@@ -31,6 +32,13 @@ function resolveRepoRoot(): string {
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
+    // git 부재 fallback: 본 파일 위치
+    // backend/src/nodes/integration/cafe24/metadata/ → repo root 까지 7 단계 상위.
+
+    console.warn(
+      '[catalog-docs-drift] git rev-parse 실패 — __dirname 7-up fallback 사용. ' +
+        '경로가 어긋나면 REPO_ROOT 산출을 점검하라.',
+    );
     return join(__dirname, '..', '..', '..', '..', '..', '..', '..');
   }
 }
@@ -43,7 +51,7 @@ const CATALOG_DIR = join(
 );
 
 /** path 정규화: `/api/v2/admin/` 접두 제거 + `{param}` → `{}` (param 명 차이 무시). */
-function normPath(p: string): string {
+export function normPath(p: string): string {
   return p
     .replace('/api/v2/admin/', '')
     .replace(/^\//, '')
@@ -53,8 +61,8 @@ function normPath(p: string): string {
 
 /**
  * docs 부재이나 운영상 유지 중인 operation (plan G-2 — 현행 유지, JSDoc ⚠).
- * production 검증 또는 cafe24 본사 문의로 docs 등재되면 제거한다.
- * `<resource>/<id>` 형식.
+ * production 검증 또는 cafe24 본사 문의로 docs 등재되면 제거한다. `<resource>/<id>` 형식.
+ * 무분별한 항목 추가로 가드가 우회되지 않도록 크기를 테스트로 고정한다(아래 it).
  */
 const KNOWN_DOCS_ABSENT = new Set<string>([
   'customer/customer_get',
@@ -72,7 +80,35 @@ interface DocsOp {
   scope: 'read' | 'write' | null;
 }
 
-/** field-level 카탈로그 전체를 파싱해 `${METHOD} ${normPath}` → {scope} 맵을 만든다. */
+/**
+ * 단일 field-level 카탈로그 markdown 본문에서 operation 을 파싱한다 (순수 함수 — 단위 테스트 가능).
+ *
+ * ⚠ 파싱 포맷은 `spec/conventions/cafe24-api-catalog/_overview.md §7.2` 규약에 종속된다 —
+ * operation heading `### \`METHOD /api/v2/admin/PATH\` — title` + `- **Scope**: \`mall.<read|write>_..\``.
+ * 카탈로그 생성기(`_generator.py`)·포맷이 바뀌면 본 정규식도 동시 갱신해야 가드가 무력화되지 않는다.
+ */
+export function parseOperationsFromMarkdown(raw: string): Map<string, DocsOp> {
+  const out = new Map<string, DocsOp>();
+  const headingRe = /^### `(GET|POST|PUT|DELETE) ([^`]+)`/gm;
+  const marks: { method: string; path: string; idx: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = headingRe.exec(raw)) !== null) {
+    marks.push({ method: m[1], path: m[2], idx: m.index });
+  }
+  marks.forEach((mark, i) => {
+    const section = raw.slice(
+      mark.idx,
+      i + 1 < marks.length ? marks[i + 1].idx : raw.length,
+    );
+    const sm = section.match(/- \*\*Scope\*\*: `mall\.(read|write)_/);
+    out.set(`${mark.method} ${normPath(mark.path)}`, {
+      scope: sm ? (sm[1] as 'read' | 'write') : null,
+    });
+  });
+  return out;
+}
+
+/** field-level 카탈로그 전체 파일을 읽어 operation 맵으로 집계한다 (I/O + aggregation). */
 function loadDocsOperations(): Map<string, DocsOp> {
   const out = new Map<string, DocsOp>();
   for (const resource of CAFE24_RESOURCES) {
@@ -80,48 +116,62 @@ function loadDocsOperations(): Map<string, DocsOp> {
     if (!existsSync(dir)) continue;
     for (const file of readdirSync(dir).filter((f) => f.endsWith('.md'))) {
       const raw = readFileSync(join(dir, file), 'utf-8');
-      // 각 operation 섹션: `### \`METHOD /api/v2/admin/PATH\` — title` 이후 `- **Scope**: \`mall.<read|write>_..\``
-      const headingRe = /^### `(GET|POST|PUT|DELETE) ([^`]+)`/gm;
-      let m: RegExpExecArray | null;
-      const marks: { method: string; path: string; idx: number }[] = [];
-      while ((m = headingRe.exec(raw)) !== null) {
-        marks.push({ method: m[1], path: m[2], idx: m.index });
-      }
-      marks.forEach((mark, i) => {
-        const section = raw.slice(
-          mark.idx,
-          i + 1 < marks.length ? marks[i + 1].idx : raw.length,
-        );
-        const sm = section.match(/- \*\*Scope\*\*: `mall\.(read|write)_/);
-        out.set(`${mark.method} ${normPath(mark.path)}`, {
-          scope: sm ? (sm[1] as 'read' | 'write') : null,
-        });
-      });
+      for (const [k, v] of parseOperationsFromMarkdown(raw)) out.set(k, v);
     }
   }
   return out;
 }
 
-describe('Cafe24 metadata ↔ field-level catalog (docs) drift guard — G-3m', () => {
-  const docsOps = loadDocsOperations();
+/** 검증 대상(allowlist 제외) supported op 들을 (resource, op) 로 평탄화. */
+function* opsForDriftCheck(): Generator<{
+  resource: Cafe24Resource;
+  op: Cafe24OperationMetadata;
+}> {
+  for (const resource of CAFE24_RESOURCES) {
+    for (const op of CAFE24_OPERATIONS_BY_RESOURCE[resource] ?? []) {
+      if (KNOWN_DOCS_ABSENT.has(`${resource}/${op.id}`)) continue;
+      yield { resource, op };
+    }
+  }
+}
 
-  it('parses a non-trivial number of operations from the field-level catalog', () => {
-    // sanity: 카탈로그 파싱이 깨지면 가드가 무력화되므로 하한선을 둔다.
-    expect(docsOps.size).toBeGreaterThan(300);
+describe('Cafe24 metadata ↔ field-level catalog (docs) drift guard — G-3m', () => {
+  let docsOps: Map<string, DocsOp>;
+
+  beforeAll(() => {
+    docsOps = loadDocsOperations();
+  });
+
+  it('parses the field-level catalog without regression (fail-loud, not silent-empty)', () => {
+    // sanity floor: 카탈로그는 2026-06-03 기준 ~513 op. 파싱이 깨지면 맵이 작아지므로
+    // 하한선을 두어 "조용히 비어 green" 을 차단한다. (정상치 513 의 ~88%)
+    expect(docsOps.size).toBeGreaterThan(450);
+  });
+
+  it('scope is parsed for the vast majority of operations (scope 정규식 퇴행 검출)', () => {
+    // scope 검증(아래)은 null scope 를 건너뛴다 — 파싱이 깨져 전부 null 이 되면
+    // scope 가드가 무력화된다. null 비율 상한으로 그 상황을 fail-loud 처리.
+    const total = docsOps.size;
+    const nullScope = Array.from(docsOps.values()).filter(
+      (v) => v.scope === null,
+    ).length;
+    expect(nullScope / total).toBeLessThan(0.2);
+  });
+
+  it('KNOWN_DOCS_ABSENT allowlist 크기 고정 (무분별 추가로 가드 우회 방지)', () => {
+    // 항목 추가/삭제 시 본 수치와 plan G-2 를 함께 갱신할 것.
+    expect(KNOWN_DOCS_ABSENT.size).toBe(9);
   });
 
   it('every supported metadata operation matches a docs operation by method+path', () => {
     const drift: string[] = [];
-    for (const resource of CAFE24_RESOURCES) {
-      for (const op of CAFE24_OPERATIONS_BY_RESOURCE[resource] ?? []) {
-        if (KNOWN_DOCS_ABSENT.has(`${resource}/${op.id}`)) continue;
-        const key = `${op.method} ${normPath(op.path)}`;
-        if (!docsOps.has(key)) {
-          drift.push(
-            `${resource}/${op.id}: ${key} — 공식 docs 카탈로그에 없음 (path/method 드리프트). ` +
-              `docs 가 맞다면 metadata 정정, 운영상 의도된 docs 부재면 KNOWN_DOCS_ABSENT 에 추가(plan G-2 근거).`,
-          );
-        }
+    for (const { resource, op } of opsForDriftCheck()) {
+      const key = `${op.method} ${normPath(op.path)}`;
+      if (!docsOps.has(key)) {
+        drift.push(
+          `${resource}/${op.id}: ${key} — 공식 docs 카탈로그에 없음 (path/method 드리프트). ` +
+            `docs 가 맞다면 metadata 정정, 운영상 의도된 docs 부재면 KNOWN_DOCS_ABSENT 에 추가(plan G-2 근거).`,
+        );
       }
     }
     if (drift.length > 0) {
@@ -133,16 +183,14 @@ describe('Cafe24 metadata ↔ field-level catalog (docs) drift guard — G-3m', 
   });
 
   it('matched operations agree on scope (read/write) with docs', () => {
+    // path 가 일치하는 op 에 한해 scope 를 비교한다 — path 불일치는 위 테스트에서 잡힌다.
     const mismatch: string[] = [];
-    for (const resource of CAFE24_RESOURCES) {
-      for (const op of CAFE24_OPERATIONS_BY_RESOURCE[resource] ?? []) {
-        if (KNOWN_DOCS_ABSENT.has(`${resource}/${op.id}`)) continue;
-        const doc = docsOps.get(`${op.method} ${normPath(op.path)}`);
-        if (doc && doc.scope && doc.scope !== op.scopeType) {
-          mismatch.push(
-            `${resource}/${op.id}: scope metadata='${op.scopeType}' vs docs='${doc.scope}' (${op.method} ${op.path})`,
-          );
-        }
+    for (const { resource, op } of opsForDriftCheck()) {
+      const doc = docsOps.get(`${op.method} ${normPath(op.path)}`);
+      if (doc && doc.scope && doc.scope !== op.scopeType) {
+        mismatch.push(
+          `${resource}/${op.id}: scope metadata='${op.scopeType}' vs docs='${doc.scope}' (${op.method} ${op.path})`,
+        );
       }
     }
     if (mismatch.length > 0) {
@@ -150,5 +198,17 @@ describe('Cafe24 metadata ↔ field-level catalog (docs) drift guard — G-3m', 
         `scope 불일치 ${mismatch.length}건:\n${mismatch.join('\n')}`,
       );
     }
+  });
+});
+
+describe('normPath', () => {
+  it.each([
+    ['/api/v2/admin/orders/benefits', 'orders/benefits'],
+    ['orders/{order_id}/coupons', 'orders/{}/coupons'],
+    ['themes/{skin_no}/pages/{page_path}', 'themes/{}/pages/{}'],
+    ['/carriers', 'carriers'],
+    ['customers/{member_id}/wishlist/count', 'customers/{}/wishlist/count'],
+  ])('normalizes %s → %s', (input, expected) => {
+    expect(normPath(input)).toBe(expected);
   });
 });

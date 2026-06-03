@@ -789,6 +789,9 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     responseShape: 'list',
   },
   {
+    // docs: POST orders/calculation (mall.write_order). 이전 path/scope 오류
+    // (orders/{order_id}/calculation/total · read) → G-3m 가드가 검출, 정정(2026-06-03).
+    // TODO(G-1-remaining): docs body 파라미터(items.* 등) 확인 후 fields 보강.
     id: 'orders_calculation_total',
     description: 'Calculate the total due for an order.',
     scopeType: 'write',
