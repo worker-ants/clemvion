@@ -370,6 +370,32 @@ describe('validateAiAgentConfig (imperative)', () => {
     expect(result.presentationTools).toHaveLength(5);
   });
 
+  it('defaults a presentationTool row with missing type to the first enum value', () => {
+    // Regression: the frontend field-array "add row" widget persisted `{}`
+    // because the native <select> showed the first option (table) without
+    // committing it to form state. The zod `.default` now coerces an absent
+    // type → first PRESENTATION_TYPES value so a stale `{}` row hydrates as a
+    // valid tool instead of triggering `RenderToolProvider: Skipping ... type:
+    // undefined` at runtime.
+    const result = aiAgentNodeConfigSchema.parse({ presentationTools: [{}] });
+    expect(result.presentationTools[0].type).toBe('table');
+  });
+
+  it('exposes the presentationTools item type default in JSON Schema', () => {
+    // buildNewItem (frontend) reads JSON Schema `default` to pre-fill new rows.
+    const jsonSchema = z.toJSONSchema(aiAgentNodeConfigSchema) as unknown as {
+      properties?: {
+        presentationTools?: {
+          items?: { properties?: { type?: { default?: unknown } } };
+        };
+      };
+    };
+    expect(
+      jsonSchema.properties?.presentationTools?.items?.properties?.type
+        ?.default,
+    ).toBe('table');
+  });
+
   it('accepts presentationTool with description and defaults overlay', () => {
     const result = aiAgentNodeConfigSchema.parse({
       presentationTools: [
