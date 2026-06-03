@@ -44,5 +44,10 @@ consistency-check INFO 중 spec-doc 보완 권장(developer read-only 영역). *
 
 ## 보류 (별 PR — 미착수)
 
-- [ ] **(pre-existing, 본 PR 무관)** `spec-frontmatter.test.ts` 444건 실패 — `spec/conventions/cafe24-api-catalog/**` 222 파일이 `id`/`status` frontmatter 없이(`resource`/`entity`/`cafe24_docs`/`source` 만) 커밋됨(#447 d9512d7b). frontmatter guard 가 `id` non-empty + `status` enum 을 요구. **main HEAD 에서 이미 red**. 조치 방향(project-planner 결정 필요): (a) catalog 파일에 `id`/`status` 추가 or (b) guard 의 검사 대상에서 cafe24-api-catalog 제외. 본 backend 변경과 무관해 별 task.
+- [ ] **(pre-existing, 본 PR 무관 — 별 branch/PR 로 실행 예정. 2026-06-03 진단 완료, 실행만 보류)** `spec-frontmatter.test.ts` 444건 실패. **별도 작업으로 분리** (background-context 와 무관 + convention SoT 편집 동반).
+  - **현상**: frontmatter guard 4종(`spec-frontmatter`/`spec-code-paths`/`spec-status-lifecycle`/`spec-pending-plan-existence`, 공유 helper `spec-frontmatter-parse.ts` 의 `collectApplicableSpecs`)이 `id` non-empty + `status` enum 을 요구. **main HEAD 66f4ffd9 에서도 동일 444건 red** (pre-existing).
+  - **Root cause**: #447(d9512d7b)이 `spec/conventions/cafe24-api-catalog/<resource>/<entity>.md` 222개(필드 단위 API 레퍼런스 카탈로그, `_generator.py` 생성물 — frontmatter 가 `resource`/`entity`/`cafe24_docs`/`source`)를 추가했으나, SoT `spec/conventions/spec-impl-evidence.md §1` 의 applicable inclusive list 가 `spec/conventions/**` 전체를 포함하고 제외 규칙에 카탈로그가 없어 222×2=444 assertion 실패.
+  - **구조 확인**: 최상위 19개 중 18개 리소스 인덱스(`application.md` 등)는 `id`+`status: implemented` 보유한 **진짜 spec → 유지**. `_overview.md` 는 `_` prefix 로 이미 제외. 실패는 **하위 디렉토리 222개 필드 카탈로그뿐**.
+  - **결정된 수정 방향 (옵션 b — 사용자 2026-06-03 승인 방향)**: 가짜 `id`/`status` 주입(a)은 생성기·의미상 부적절하므로 채택 안 함. (1) `spec-frontmatter-parse.ts` `isApplicable` 에 `spec/conventions/cafe24-api-catalog/<resource>/` **하위경로 제외** 규칙 추가(최상위 리소스 인덱스 18개는 계속 검증 — 즉 `cafe24-api-catalog/` 뒤에 추가 `/` 가 있는 경로만 제외). (2) SoT `spec-impl-evidence.md §1 제외` 에 해당 서브트리 제외 한 줄 추가 (project-planner 영역 — spec 편집). 두 변경은 공유 helper 라 4 guard 동시 정합.
+  - **검증**: 수정 후 `spec-frontmatter.test.ts` green + 18개 리소스 인덱스 spec 은 여전히 검증되는지 확인.
 - [ ] **(검토)** background 본문 interactive 노드 fail-fast 가드 + 에러코드(`BACKGROUND_INTERACTIVE_UNSUPPORTED`) — spec(12-background §4/§6) 변경 동반, project-planner 선행. 현재는 격리+타임아웃으로 안전 종결만 보장 (완료 기록 §1 "잔여 한계" 참조).
