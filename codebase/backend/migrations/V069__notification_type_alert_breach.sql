@@ -1,7 +1,7 @@
 -- V069: notification.type CHECK constraint 에 alert breach 동적 type 추가
 --
 -- AlertsEvaluatorService.dispatchBreach() 가 INSERT 하는 type 값은
--- `alert_${rule.type}` 동적 패턴(alert_failure_rate / alert_duration /
+-- `alert_<rule.type>` 동적 패턴(alert_failure_rate / alert_duration /
 -- alert_llm_cost)인데, V052 의 CHECK 화이트리스트에 빠져 있어 알림 규칙
 -- 위반 시 check_violation 으로 INSERT 가 실패하던 결함을 해소한다.
 -- (spec/data-flow/8-notifications.md §1.1 — alert_<rule.type> 동적 type)
