@@ -122,7 +122,9 @@ export class SlackClient {
         if (res.status === 429) {
           const retryAfter = Number(res.headers.get('retry-after') ?? '1');
           const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : 1000;
-          lastError = new Error(`Slack files.uploadV2 429 retry-after=${retryAfter}`);
+          lastError = new Error(
+            `Slack files.uploadV2 429 retry-after=${retryAfter}`,
+          );
           if (i < attempts - 1) {
             await new Promise((r) => setTimeout(r, waitMs));
             continue;

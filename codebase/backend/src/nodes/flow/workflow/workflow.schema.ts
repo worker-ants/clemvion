@@ -174,6 +174,21 @@ export const workflowNodeMetadata: NodeComponentMetadata = {
   icon: 'Workflow',
   color: '#8B5CF6',
   executionMetadata: { kind: 'standard' },
+  // Canvas one-liner: resolved workflow name (or the raw id when only a
+  // manual UUID was entered) · execution mode. `fallback:workflowId`
+  // resolves the *value* of the workflowId field — unlike `default:`, which
+  // would emit the literal string "workflowId". `warnWhen` surfaces the
+  // "missing workflow" badge: a `workflowId` set without a `workflowName`
+  // means the reference is not backed by a known workflow in the catalog
+  // (the selector always co-writes `workflowName` on pick; only manual /
+  // since-deleted references leave it empty). `no-workflow-selected`
+  // (warningRules, blocking) wins first when there is no id at all, so this
+  // warn channel only fires for the set-id-but-unresolved case.
+  summaryTemplate: {
+    template: '{{workflowName|fallback:workflowId}} · {{mode|default:sync}}',
+    warnWhen: 'workflowId && !workflowName',
+    warnMessage: 'Missing workflow',
+  },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `workflowSummary` warning ("Workflow not selected")

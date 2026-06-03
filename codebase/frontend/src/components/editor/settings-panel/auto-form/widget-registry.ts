@@ -19,6 +19,7 @@ import {
   LlmConfigSelectorWidget,
   KbSelectorWidget,
   McpServerSelectorWidget,
+  WorkflowSelectorWidget,
 } from "./selector-widgets";
 import { ButtonListWidget } from "./button-list-widget";
 import { registerWidgets } from "./widget-resolver";
@@ -26,10 +27,11 @@ import { registerWidgets } from "./widget-resolver";
 /**
  * Maps UI widget identifiers to React components. Most app-level selector
  * widgets (LLM config, KB, MCP server) have first-class auto-form components
- * — see `selector-widgets.tsx`. Widgets that still need an explicit per-node
- * override (`integration-selector`, `workflow-selector`, `condition-builder`,
- * `table-grid`) fall through to `UnsupportedWidget` so their owners are
- * forced to register custom UI rather than receiving a silent stub.
+ * — see `selector-widgets.tsx` (LLM config, KB, MCP server, workflow).
+ * Widgets that still need an explicit per-node override
+ * (`integration-selector`, `condition-builder`, `table-grid`) fall through to
+ * `UnsupportedWidget` so their owners are forced to register custom UI rather
+ * than receiving a silent stub.
  */
 export const WIDGET_REGISTRY: Record<UiWidget, ComponentType<WidgetProps>> = {
   text: TextWidget,
@@ -46,7 +48,7 @@ export const WIDGET_REGISTRY: Record<UiWidget, ComponentType<WidgetProps>> = {
   "llm-config-selector": LlmConfigSelectorWidget,
   "kb-selector": KbSelectorWidget,
   "mcp-server-selector": McpServerSelectorWidget,
-  "workflow-selector": UnsupportedWidget,
+  "workflow-selector": WorkflowSelectorWidget,
   "condition-builder": UnsupportedWidget,
   "field-array": FieldArrayWidget,
   "button-list": ButtonListWidget,

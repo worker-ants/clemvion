@@ -6,7 +6,11 @@ import {
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { resolveStablePortId } from '../../core/port-id.util';
-import { LlmService } from '../../../modules/llm/llm.service';
+import {
+  LlmService,
+  extractRetryAfterMs,
+  isLlmRateLimit,
+} from '../../../modules/llm/llm.service';
 import { ChatResult } from '../../../modules/llm/interfaces/llm-client.interface';
 import { truncateForErrorDetails } from '../../core/error-codes';
 import { textClassifierNodeMetadata } from './text-classifier.schema';
@@ -200,13 +204,25 @@ export class TextClassifierHandler implements NodeHandler {
       // semantic axes — `meta.durationMs` may diverge once retry/timeout
       // logic lands.
       const llmCallDurationMs = Date.now() - callStartedAt;
+      // spec §5.3/§6 + CONVENTIONS Principle 3.2.1 — classify the throw and
+      // expose `details.retryable` (and `retryAfterSec` when the provider
+      // signalled a `Retry-After`). Rate-limit detection mirrors
+      // `LlmService.chatWithRetry` (429 / "rate limit" substring). Both
+      // LLM_RATE_LIMIT and LLM_CALL_FAILED are transient → retryable.
+      const isRateLimit = isLlmRateLimit(message);
+      const code = isRateLimit ? 'LLM_RATE_LIMIT' : 'LLM_CALL_FAILED';
+      const retryAfterMs = isRateLimit ? extractRetryAfterMs(error) : null;
+      const retryDetails: { retryable: boolean; retryAfterSec?: number } =
+        retryAfterMs !== null
+          ? { retryable: true, retryAfterSec: Math.ceil(retryAfterMs / 1000) }
+          : { retryable: true };
       return {
         config: configEcho,
         output: {
           error: {
-            code: 'LLM_CALL_FAILED',
+            code,
             message,
-            details: { originalInput: truncatedInput },
+            details: { originalInput: truncatedInput, ...retryDetails },
           },
         },
         meta: {

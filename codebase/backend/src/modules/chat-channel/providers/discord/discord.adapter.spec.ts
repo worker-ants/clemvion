@@ -270,7 +270,11 @@ describe('DiscordAdapter', () => {
       const adapter = new DiscordAdapter(client, makeSecretsMock());
       const result = await adapter.openFormModal({
         config: DISCORD_CONFIG,
-        openContext: { interactionId: 'I1', interactionToken: 'tok', modal: 'reply' },
+        openContext: {
+          interactionId: 'I1',
+          interactionToken: 'tok',
+          modal: 'reply',
+        },
         fields: [],
         conversationKey: 'C1',
         nodeId: '',

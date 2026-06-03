@@ -7,7 +7,10 @@ import {
   ResumableMessageOptions,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
-import { LlmService } from '../../../modules/llm/llm.service';
+import {
+  LlmService,
+  extractRetryAfterMs,
+} from '../../../modules/llm/llm.service';
 import {
   ChatMessage,
   ChatResult,
@@ -261,6 +264,7 @@ export class InformationExtractorHandler implements NodeHandler {
           details: {
             attempts: attempt + 1,
             originalInput: inputField,
+            ...this.retryabilityDetails('LLM_CALL_FAILED', error),
           },
           durationMs: Date.now() - startedAt,
           model: lastModel,
@@ -319,6 +323,7 @@ export class InformationExtractorHandler implements NodeHandler {
         attempts: totalAttempts,
         originalInput: inputField,
         lastResponse,
+        ...this.retryabilityDetails('LLM_RESPONSE_INVALID'),
       },
       durationMs: Date.now() - startedAt,
       model: lastModel,
@@ -438,6 +443,7 @@ export class InformationExtractorHandler implements NodeHandler {
         details: {
           originalInput: inputField,
           turnCount: 0,
+          ...this.retryabilityDetails('LLM_CALL_FAILED', runResult.rawError),
         },
         durationMs: Date.now() - multiTurnStartedAt,
         model: resolvedModel,
@@ -524,6 +530,7 @@ export class InformationExtractorHandler implements NodeHandler {
         details: {
           turnCount: state.turnCount,
           collectionRetryCount: state.collectionRetryCount,
+          ...this.retryabilityDetails('LLM_CALL_FAILED', runResult.rawError),
         },
         durationMs: Date.now() - processStartedAt,
         model: state.model,
@@ -620,7 +627,7 @@ export class InformationExtractorHandler implements NodeHandler {
         totalThinkingTokens: number;
         forcedEnd?: 'max_retries';
       }
-    | { kind: 'error'; error: string }
+    | { kind: 'error'; error: string; rawError: unknown }
   > {
     const finalizeTool = this.buildFinalizationTool(outputSchema);
     let messages = [...params.initialMessages];
@@ -655,6 +662,7 @@ export class InformationExtractorHandler implements NodeHandler {
         return {
           kind: 'error',
           error: error instanceof Error ? error.message : String(error),
+          rawError: error,
         };
       }
       params.llmCalls.push(trace);
@@ -837,6 +845,7 @@ export class InformationExtractorHandler implements NodeHandler {
               missingFields,
               turnCount: state.turnCount,
               collectionRetryCount: state.collectionRetryCount,
+              ...this.retryabilityDetails('MAX_COLLECTION_RETRIES_EXCEEDED'),
             },
           },
           result: {
@@ -864,6 +873,7 @@ export class InformationExtractorHandler implements NodeHandler {
             details: {
               turnCount: state.turnCount,
               collectionRetryCount: state.collectionRetryCount,
+              ...this.retryabilityDetails('LLM_CALL_FAILED'),
             },
           },
           result: {
@@ -954,6 +964,29 @@ export class InformationExtractorHandler implements NodeHandler {
         totalDurationMs: Date.now() - startedAt,
       },
     ];
+  }
+
+  /**
+   * spec §5.3 / CONVENTIONS Principle 3.2.1 — every LLM-node error envelope
+   * exposes `details.retryable` (and `details.retryAfterSec` when retryable
+   * and the provider signalled a `Retry-After`). Invariant: transient
+   * provider failures (`LLM_CALL_FAILED` / `LLM_RATE_LIMIT`) are retryable;
+   * deterministic failures (`LLM_RESPONSE_INVALID` /
+   * `MAX_COLLECTION_RETRIES_EXCEEDED`) are not. `rawError` is the original
+   * thrown value (when available) so `extractRetryAfterMs` can read the
+   * RFC 7231 header; ms→sec, rounded up.
+   */
+  private retryabilityDetails(
+    code: string,
+    rawError?: unknown,
+  ): { retryable: boolean; retryAfterSec?: number } {
+    const retryable = code === 'LLM_CALL_FAILED' || code === 'LLM_RATE_LIMIT';
+    if (!retryable) return { retryable: false };
+    const retryAfterMs =
+      rawError !== undefined ? extractRetryAfterMs(rawError) : null;
+    return retryAfterMs !== null
+      ? { retryable: true, retryAfterSec: Math.ceil(retryAfterMs / 1000) }
+      : { retryable: true };
   }
 
   private buildErrorOutput(

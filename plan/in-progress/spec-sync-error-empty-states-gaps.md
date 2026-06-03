@@ -18,3 +18,7 @@ owner: planner
 - §1 에러 페이지 5종은 완전 구현 확인됨 (error-page.tsx). 강등 사유 아님.
 - §2.2 Dashboard / Workflows / Integration / Executions 빈 상태는 구현됨.
 - 각 항목의 근거(claim→코드부재)는 audit findings/2-navigation.md 참조.
+
+## 구현 상태 (branch claude/spec-sync-impl-644d19, 2026-06-03)
+- 미구현 항목 **코드 구현 완료** — commit ae20f7bd. ai-review(13 reviewer)+resolution-applier 처리, build/lint/unit/e2e green. (공유 EmptyState — Triggers/Schedules CTA + Workflows reset)
+- **미해결 follow-up**: spec marker flip / 본문 보강(planner) → `plan/in-progress/spec-fix-impl-marker-flips.md`. 그 완료 시 본 ticket 을 `complete/` 이동 (plan-lifecycle §2).

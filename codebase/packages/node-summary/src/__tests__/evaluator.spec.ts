@@ -168,6 +168,86 @@ describe('renderTemplate', () => {
     expect(renderTemplate('{{ name | upper }}', { name: 'foo' })).toBe('FOO');
     expect(renderTemplate('{{ name | lower }}', { name: 'BAR' })).toBe('bar');
   });
+
+  describe('fallback: filter (resolves arg as a config path, not a literal)', () => {
+    it('uses the primary value when present', () => {
+      expect(
+        renderTemplate('{{ workflowName | fallback:workflowId }}', {
+          workflowName: 'Checkout',
+          workflowId: 'wf-1',
+        }),
+      ).toBe('Checkout');
+    });
+
+    it('falls back to the other field value when primary is empty', () => {
+      expect(
+        renderTemplate('{{ workflowName | fallback:workflowId }}', {
+          workflowName: '',
+          workflowId: 'wf-1',
+        }),
+      ).toBe('wf-1');
+    });
+
+    it('falls back when primary is missing entirely', () => {
+      expect(
+        renderTemplate('{{ workflowName | fallback:workflowId }}', {
+          workflowId: 'wf-1',
+        }),
+      ).toBe('wf-1');
+    });
+
+    it('renders empty when both are absent', () => {
+      expect(
+        renderTemplate('{{ workflowName | fallback:workflowId }}', {}),
+      ).toBe('');
+    });
+
+    it('differs from default: which would emit the literal path name', () => {
+      // Guard the exact reason `default:workflowId` is wrong for fallback.
+      expect(
+        renderTemplate('{{ workflowName | default:workflowId }}', {
+          workflowId: 'wf-1',
+        }),
+      ).toBe('workflowId');
+    });
+
+    it('chained filter: fallback result is passed through subsequent filters (e.g. upper)', () => {
+      // Primary is absent → fallback resolves workflowId → upper applies to it.
+      expect(
+        renderTemplate(
+          '{{ workflowName | fallback:workflowId | upper }}',
+          { workflowId: 'wf-1' },
+        ),
+      ).toBe('WF-1');
+      // Primary present → upper applies to the primary value.
+      expect(
+        renderTemplate(
+          '{{ workflowName | fallback:workflowId | upper }}',
+          { workflowName: 'checkout', workflowId: 'wf-1' },
+        ),
+      ).toBe('CHECKOUT');
+    });
+
+    it('dot-path arg: resolves nested config field as fallback', () => {
+      expect(
+        renderTemplate('{{ name | fallback:meta.id }}', { meta: { id: 'x' } }),
+      ).toBe('x');
+      // Primary present → dot-path arg is never consulted.
+      expect(
+        renderTemplate('{{ name | fallback:meta.id }}', {
+          name: 'Alice',
+          meta: { id: 'x' },
+        }),
+      ).toBe('Alice');
+    });
+
+    it('empty arg (fallback:): resolves getPath(config, "") → undefined → renders empty string', () => {
+      // When the arg after the colon is blank, getPath gets '' as path.
+      // The empty-string path segment produces undefined, which stringify()
+      // converts to '' — making the overall output an empty string.
+      expect(renderTemplate('{{ name | fallback: }}', {})).toBe('');
+    });
+  });
 });
 
 describe('renderSummaryTemplate', () => {

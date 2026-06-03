@@ -663,9 +663,12 @@ describe('KnowledgeBaseService', () => {
       await service.remove('kb-1', 'ws-1');
 
       expect(qb.innerJoin).toHaveBeenCalledWith('d.knowledgeBase', 'kb');
-      expect(qb.andWhere).toHaveBeenCalledWith('kb.workspace_id = :workspaceId', {
-        workspaceId: 'ws-1',
-      });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'kb.workspace_id = :workspaceId',
+        {
+          workspaceId: 'ws-1',
+        },
+      );
       expect(mockS3Service.delete).toHaveBeenCalledWith('kb/kb-1/d1/a.txt');
       expect(mockS3Service.delete).toHaveBeenCalledWith('kb/kb-1/d2/b.txt');
       expect(mockKbRepo.remove).toHaveBeenCalledWith(kb);

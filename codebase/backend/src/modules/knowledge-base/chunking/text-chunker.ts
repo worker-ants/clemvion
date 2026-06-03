@@ -3,16 +3,25 @@ export interface ChunkOptions {
   chunkOverlap: number;
 }
 
+export interface ChunkMetadata {
+  page?: number;
+  section?: string;
+}
+
 export interface Chunk {
   content: string;
   index: number;
   tokenCount: number;
+  metadata?: ChunkMetadata;
 }
 
 /**
- * Approximate token count (1 token ≈ 4 characters for English, ~2 for CJK)
+ * Approximate token count (1 token ≈ 4 characters for English, ~2 for CJK).
+ *
+ * Exported so csv-chunker can import from a single source of truth instead of
+ * maintaining a manually-synced copy (SUMMARY#W6).
  */
-function estimateTokens(text: string): number {
+export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3);
 }
 
@@ -88,6 +97,7 @@ function pushChunk(chunks: Chunk[], content: string, overlap: string): void {
     content: text.trim(),
     index: chunks.length,
     tokenCount: estimateTokens(text),
+    metadata: {},
   });
 }
 
@@ -119,6 +129,7 @@ function forceSplitAndPush(
         content,
         index: chunks.length,
         tokenCount: estimateTokens(content),
+        metadata: {},
       });
     }
     start = end - overlapChars;
@@ -132,6 +143,7 @@ function forceSplitAndPush(
         content: remaining,
         index: chunks.length,
         tokenCount: estimateTokens(remaining),
+        metadata: {},
       });
     }
   }

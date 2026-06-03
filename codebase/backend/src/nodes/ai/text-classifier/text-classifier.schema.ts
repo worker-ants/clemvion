@@ -145,6 +145,26 @@ export const textClassifierNodePorts: NodePorts = {
  * schema (handler can pull from this list once Step 4 slimming lands).
  */
 const NONE_SENTINEL = '__none__';
+
+/**
+ * Output-port words reserved by the engine / spec. A user category whose
+ * `id` OR `name` resolves to one of these would shadow a structural port
+ * (`fallback` / `error`) or collide with a reserved AI-node terminal word,
+ * causing silent misrouting. Mirrors the `switch` node's RESERVED_CASE_IDS
+ * pattern (spec/4-nodes/3-ai/2-text-classifier.md §3.2).
+ */
+const RESERVED_PORT_WORDS = new Set([
+  'out',
+  'error',
+  'default',
+  'done',
+  'user_ended',
+  'max_turns',
+  'completed',
+  'fallback',
+  'continue',
+]);
+
 export function validateTextClassifierConfig(config: unknown): string[] {
   const c = (config ?? {}) as Record<string, unknown>;
   const errors: string[] = [];
@@ -160,10 +180,19 @@ export function validateTextClassifierConfig(config: unknown): string[] {
         errors.push(`Category ${i + 1}: name is required`);
       } else if (cat.name === NONE_SENTINEL) {
         errors.push(`Category ${i + 1}: "${NONE_SENTINEL}" is a reserved name`);
+      } else if (RESERVED_PORT_WORDS.has(cat.name.trim().toLowerCase())) {
+        errors.push(
+          `Category ${i + 1}: "${cat.name}" collides with a reserved output port word`,
+        );
       }
       if (typeof cat.id === 'string') {
         const trimmedId = cat.id.trim();
         if (trimmedId.length > 0) {
+          if (RESERVED_PORT_WORDS.has(trimmedId.toLowerCase())) {
+            errors.push(
+              `Category ${i + 1}: id "${trimmedId}" collides with a reserved output port word`,
+            );
+          }
           if (seenIds.has(trimmedId)) {
             errors.push(
               `Category ${i + 1}: duplicate id "${trimmedId}" — each category must have a unique id`,
@@ -192,6 +221,12 @@ export const textClassifierNodeMetadata: NodeComponentMetadata = {
     fallbackId: 'fallback',
     errorId: 'error',
   },
+  // 캔버스 요약 (spec/4-nodes/3-ai/2-text-classifier.md §7 + 공통 §8) —
+  // `{model} · {N} categories`. `{{model}}` 평문 path + `{{categories.length}}`
+  // (switch 노드의 `{{cases.length}}` 와 동일한 length-segment 문법) 만 사용해
+  // interpreter DSL 확장 없이 표현 가능. provider/categories 미설정 경고는
+  // 아래 warningRules 가 이미 담당하므로 warnWhen 은 두지 않는다.
+  summaryTemplate: '{{model}} · {{categories.length}} categories',
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `textClassifierSummary` warnings ("Default provider not

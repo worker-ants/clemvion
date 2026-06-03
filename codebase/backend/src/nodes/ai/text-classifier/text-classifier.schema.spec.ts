@@ -1,4 +1,7 @@
-import { evaluateWarnings } from '@workflow/node-summary';
+import {
+  evaluateWarnings,
+  renderSummaryTemplate,
+} from '@workflow/node-summary';
 import {
   categoryDefSchema,
   textClassifierNodeConfigSchema,
@@ -229,6 +232,52 @@ describe('validateTextClassifierConfig (imperative)', () => {
     ).toContain('Category 1: "__none__" is a reserved name');
   });
 
+  it('rejects category name colliding with a reserved output port word', () => {
+    // spec §3.2 reserved list: out/error/default/done/user_ended/max_turns/
+    // completed/fallback/continue.
+    const errors = validateTextClassifierConfig({
+      categories: [{ name: 'fallback' }],
+    });
+    expect(
+      errors.some(
+        (e) =>
+          e.includes('Category 1') &&
+          e.includes('"fallback"') &&
+          e.includes('reserved output port word'),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects reserved port word collision case-insensitively', () => {
+    expect(
+      validateTextClassifierConfig({ categories: [{ name: 'ERROR' }] }).some(
+        (e) => e.includes('reserved output port word'),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects category id colliding with a reserved output port word', () => {
+    const errors = validateTextClassifierConfig({
+      categories: [{ id: 'continue', name: 'Resume' }],
+    });
+    expect(
+      errors.some(
+        (e) =>
+          e.includes('Category 1') &&
+          e.includes('"continue"') &&
+          e.includes('reserved output port word'),
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts non-reserved names/ids unchanged', () => {
+    expect(
+      validateTextClassifierConfig({
+        categories: [{ id: 'billing_q', name: 'Billing' }],
+      }),
+    ).toEqual([]);
+  });
+
   it('rejects duplicate category ids (silent misroute prevention)', () => {
     const errors = validateTextClassifierConfig({
       categories: [
@@ -278,5 +327,18 @@ describe('evaluateMetadataBlockingErrors integration (text_classifier)', () => {
         inputField: '$input.text',
       }),
     ).toEqual([]);
+  });
+});
+
+describe('textClassifierNodeMetadata.summaryTemplate (spec §7)', () => {
+  it('renders `{model} · {N} categories` from config', () => {
+    const rendered = renderSummaryTemplate(
+      textClassifierNodeMetadata.summaryTemplate,
+      {
+        model: 'gpt-4o-mini',
+        categories: [{ name: 'A' }, { name: 'B' }, { name: 'C' }],
+      },
+    );
+    expect(rendered?.text).toBe('gpt-4o-mini · 3 categories');
   });
 });

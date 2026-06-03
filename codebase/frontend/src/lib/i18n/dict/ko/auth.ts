@@ -90,6 +90,8 @@ export const auth = {
     invitationFetchFailed: "초대 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
     invitationEmailMismatch: "초대받은 이메일과 가입 이메일이 일치해야 해요.",
     invitationSuccess: "가입과 동시에 워크스페이스에 참여했어요.",
+    emailChecking: "이메일 확인 중...",
+    emailTaken: "이미 사용 중인 이메일이에요.",
   },
   forgotPassword: {
     title: "비밀번호 찾기",
@@ -104,6 +106,9 @@ export const auth = {
     submittedTitle: "이메일을 확인해 주세요",
     submittedDescription: "해당 이메일로 가입된 계정이 있으면 비밀번호 재설정 링크를 보내드렸어요.",
     genericInfo: "해당 이메일로 가입된 계정이 있으면 재설정 링크를 보내드려요.",
+    resend: "이메일 재발송",
+    resendCooldown: "{{seconds}}초 후 다시 보낼 수 있어요",
+    resendSent: "재설정 메일을 다시 보내드렸어요.",
   },
   resetPassword: {
     title: "비밀번호 재설정",
@@ -145,6 +150,9 @@ export const auth = {
     redirecting: "대시보드로 이동하는 중...",
     verifiedToast: "이메일 인증을 완료했어요!",
     genericFailed: "인증에 실패했어요. 다시 시도해 주세요.",
+    resendCooldown: "{{seconds}}초 후 다시 보낼 수 있어요",
+    resendSent: "인증 메일을 다시 보내드렸어요.",
+    resendFailed: "메일 재발송에 실패했어요. 잠시 후 다시 시도해 주세요.",
   },
   twoFactor: {
     title: "2단계 인증",

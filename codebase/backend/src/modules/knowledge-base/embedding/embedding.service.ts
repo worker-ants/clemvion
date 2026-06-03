@@ -10,6 +10,7 @@ import { sanitizeLlmErrorMessage } from '../../llm/utils/sanitize-error.util';
 import { WebsocketService } from '../../websocket/websocket.service';
 import { parseDocument } from '../parsers/parser.factory';
 import { chunkText } from '../chunking/text-chunker';
+import { chunkCsv } from '../chunking/csv-chunker';
 import {
   isRetryableLlmError,
   retryWithBackoff,
@@ -178,10 +179,16 @@ export class EmbeddingService {
     }
 
     // 3. Chunk text
-    const chunks = chunkText(text, {
+    // CSV 는 행 중간 분할을 막기 위해 행 단위 전용 청커를 사용한다
+    // (spec/5-system/8-embedding-pipeline.md §4.3). 그 외 포맷은 공통 chunkText.
+    const chunkOptions = {
       chunkSize: kb.chunkSize,
       chunkOverlap: kb.chunkOverlap,
-    });
+    };
+    const chunks =
+      doc.fileType === 'csv'
+        ? chunkCsv(text, chunkOptions)
+        : chunkText(text, chunkOptions);
 
     if (chunks.length === 0) {
       await this.documentRepository.update(documentId, {
@@ -270,7 +277,9 @@ export class EmbeddingService {
           chunk.index,
           vectorStr,
           chunk.tokenCount,
-          JSON.stringify({}),
+          // 청크별 metadata { page?, section? } 를 그대로 INSERT. page/section 을
+          // 추출하지 않는 포맷은 빈 객체로 남는다 (spec/5-system/8-embedding-pipeline.md §6.1).
+          JSON.stringify(chunk.metadata ?? {}),
         );
         paramIdx += 7;
       }

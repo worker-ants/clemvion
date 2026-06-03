@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "started_at": "2026-06-03T18:43:09Z",
+  "summary_items_total": 10,
+  "items_resolved_ids": ["SUMMARY#C1-false-positive", "SUMMARY#W3-verified-safe", "SUMMARY#W4", "SUMMARY#W5", "SUMMARY#W6", "SEC-CRITICAL", "SEC-W1", "SEC-W2", "SEC-W3"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "SUMMARY#W1": "spec",
+    "SUMMARY#W2": "spec",
+    "SUMMARY#INFO3": "spec",
+    "SEC-W4": "accepted-low-risk"
+  },
+  "commits_made": [
+    {"sha": "80db1a40", "summary_id": "W4-W5-W6", "scope": "evaluator"},
+    {"sha": "7fc682c3", "summary_id": "SEC-CRITICAL", "scope": "auth"},
+    {"sha": "45e97307", "summary_id": "SEC-W1-W2-W3", "scope": "auth"},
+    {"sha": "25f53125", "summary_id": "lint-collateral", "scope": "style"},
+    {"sha": "a0f4f2ac", "summary_id": "spec-drafts", "scope": "plan"},
+    {"sha": "c6e94600", "summary_id": "e2e-adaptation", "scope": "auth-e2e"},
+    {"sha": "0fe85fd6", "summary_id": "resolution-doc", "scope": "review"}
+  ],
+  "spec_drafts_pending": [
+    "plan/in-progress/spec-fix-statistics-planned-markers.md",
+    "plan/in-progress/spec-fix-node-summary-fallback-filter.md"
+  ],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 2,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/e2e-20260603-190503.log",
+    "_test_logs/e2e-20260603-190839.log"
+  ],
+  "auto_fix_iterations": {"SEC-CRITICAL": 1},
+  "escalation_reason": "spec",
+  "last_reset_hint_sec": null
+}

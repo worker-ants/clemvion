@@ -16,3 +16,7 @@ owner: planner
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__8-embedding-pipeline.md 참조.
 - 검증 근거: `codebase/backend/src/modules/knowledge-base/parsers/csv.parser.ts` (행을 `\n` join), `codebase/backend/src/modules/knowledge-base/chunking/text-chunker.ts` (`Chunk` 인터페이스에 metadata 필드 없음, `\n\n+` 분할), `codebase/backend/src/modules/knowledge-base/embedding/embedding.service.ts:273` (`JSON.stringify({})`).
+
+## 구현 상태 (branch claude/spec-sync-impl-644d19, 2026-06-03)
+- 미구현 항목 **코드 구현 완료** — commit 836ce29f. ai-review(13 reviewer)+resolution-applier 처리, build/lint/unit/e2e green. (CSV row-aware chunking + chunk metadata)
+- **미해결 follow-up**: spec marker flip / 본문 보강(planner) → `plan/in-progress/spec-fix-impl-marker-flips.md`. 그 완료 시 본 ticket 을 `complete/` 이동 (plan-lifecycle §2).

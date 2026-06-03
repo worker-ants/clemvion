@@ -8,9 +8,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 const mockRegister = vi.fn();
+const mockCheckEmail = vi.fn();
 vi.mock("@/lib/api/auth", () => ({
   authApi: {
     register: (...args: unknown[]) => mockRegister(...args),
+    checkEmail: (...args: unknown[]) => mockCheckEmail(...args),
   },
 }));
 
@@ -53,6 +55,7 @@ describe("RegisterForm — invitation token flow", () => {
     useLocaleStore.setState({ locale: "ko" });
     mockPush.mockReset();
     mockRegister.mockReset();
+    mockCheckEmail.mockReset();
     mockGetByToken.mockReset();
     mockSetAccessToken.mockReset();
   });
@@ -155,7 +158,56 @@ describe("RegisterForm — invitation token flow", () => {
     await user.click(screen.getByRole("checkbox"));
     await user.click(screen.getByRole("button", { name: /계정 만들기/ }));
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/verify-email"));
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith(
+        "/verify-email?email=newbie%40example.com",
+      ),
+    );
     expect(mockSetAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("on email blur, calls checkEmail and shows a 'taken' error when unavailable", async () => {
+    mockCheckEmail.mockResolvedValue({ data: { data: { available: false } } });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    const email = screen.getByLabelText("이메일");
+    await user.type(email, "taken@example.com");
+    await user.tab(); // blur
+
+    await waitFor(() =>
+      expect(mockCheckEmail).toHaveBeenCalledWith("taken@example.com"),
+    );
+    expect(await screen.findByText(/이미 사용 중인 이메일/)).toBeDefined();
+  });
+
+  it("on email blur with an available email, shows no 'taken' error", async () => {
+    mockCheckEmail.mockResolvedValue({ data: { data: { available: true } } });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("이메일"), "free@example.com");
+    await user.tab();
+
+    await waitFor(() =>
+      expect(mockCheckEmail).toHaveBeenCalledWith("free@example.com"),
+    );
+    expect(screen.queryByText(/이미 사용 중인 이메일/)).toBeNull();
+  });
+
+  it("does NOT call checkEmail on blur for an empty/invalid email", async () => {
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    const email = screen.getByLabelText("이메일");
+    await user.click(email);
+    await user.tab(); // blur with empty value
+    expect(mockCheckEmail).not.toHaveBeenCalled();
+
+    await user.type(email, "not-an-email");
+    await user.tab();
+    expect(mockCheckEmail).not.toHaveBeenCalled();
   });
 });

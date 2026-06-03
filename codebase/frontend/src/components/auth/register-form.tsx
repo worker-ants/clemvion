@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -85,6 +85,12 @@ function RegisterFormInner({
   const passwordErrorId = useId();
   const termsErrorId = useId();
   const [isLoading, setIsLoading] = useState(false);
+  // 이메일 중복 확인(onBlur) 상태. 초대 흐름(읽기전용)에서는 사용하지 않는다.
+  const [emailCheck, setEmailCheck] = useState<
+    "idle" | "checking" | "available" | "taken"
+  >("idle");
+  // 마지막으로 서버에 확인 요청한 이메일 — blur 재트리거 시 중복 호출을 막는다.
+  const lastCheckedEmailRef = useRef<string>("");
   const [invitationState, setInvitationState] = useState<InvitationState>(
     invitationToken ? { kind: "loading" } : { kind: "none" },
   );
@@ -196,7 +202,7 @@ function RegisterFormInner({
         router.push("/dashboard");
       } else {
         toast.success(t("auth.register.success"));
-        router.push("/verify-email");
+        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
       }
     } catch (err) {
       const error = err as AxiosError<ApiErrorBody>;
@@ -210,6 +216,34 @@ function RegisterFormInner({
       setIsLoading(false);
     }
   }
+
+  // 이메일 Input blur 시 중복 확인 — 빈 값/형식 오류/초대 흐름은 건너뛴다.
+  // 가벼운 형식 가드로 빈/잘못된 이메일에 대한 불필요한 호출을 막는다.
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  async function checkEmailAvailability(value: string) {
+    const email = value.trim();
+    if (emailReadOnly || !email || !EMAIL_RE.test(email)) {
+      setEmailCheck("idle");
+      return;
+    }
+    // 이미 진행 중이거나, 직전 확인과 동일한 이메일이면 재요청하지 않는다.
+    // 서버 레이트 리밋(5 req/min)과 결합해 반복 blur 에 의한 열거를 차단한다.
+    if (emailCheck === "checking" || email === lastCheckedEmailRef.current) {
+      return;
+    }
+    lastCheckedEmailRef.current = email;
+    setEmailCheck("checking");
+    try {
+      const response = await authApi.checkEmail(email);
+      setEmailCheck(response.data.data?.available ? "available" : "taken");
+    } catch {
+      // 네트워크/서버 오류 시 차단하지 않는다 — 제출 시 백엔드가 최종 검증.
+      setEmailCheck("idle");
+    }
+  }
+
+  const emailField = register("email");
+  const emailTaken = emailCheck === "taken";
 
   const emailReadOnly = invitationState.kind === "ready";
   // submit 가능 여부: 일반 가입 OK / 초대 흐름에서는 ready 상태일 때만 허용.
@@ -259,14 +293,39 @@ function RegisterFormInner({
               autoComplete="email"
               readOnly={emailReadOnly}
               aria-readonly={emailReadOnly}
-              aria-invalid={errors.email ? "true" : undefined}
-              aria-describedby={errors.email ? emailErrorId : undefined}
+              aria-invalid={errors.email || emailTaken ? "true" : undefined}
+              aria-describedby={
+                errors.email || emailTaken ? emailErrorId : undefined
+              }
               className={emailReadOnly ? "bg-[hsl(var(--muted))]" : undefined}
-              {...register("email")}
+              {...emailField}
+              onBlur={(e) => {
+                void emailField.onBlur(e);
+                void checkEmailAvailability(e.target.value);
+              }}
+              onChange={(e) => {
+                void emailField.onChange(e);
+                // 입력이 바뀌면 이전 중복 확인 결과를 무효화한다.
+                if (emailCheck !== "idle") setEmailCheck("idle");
+              }}
             />
             {emailReadOnly && (
               <p className="text-xs text-[hsl(var(--muted-foreground))]">
                 {t("auth.register.invitationEmailLocked")}
+              </p>
+            )}
+            {!emailReadOnly && emailCheck === "checking" && (
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                {t("auth.register.emailChecking")}
+              </p>
+            )}
+            {!errors.email && emailTaken && (
+              <p
+                id={emailErrorId}
+                role="alert"
+                className="text-sm text-[hsl(var(--destructive))]"
+              >
+                {t("auth.register.emailTaken")}
               </p>
             )}
             {errors.email && (

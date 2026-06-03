@@ -170,7 +170,11 @@ describe('parseDiscordUpdate — MESSAGE_COMPONENT', () => {
       channelUserKey: 'U1',
       command: {
         kind: 'open_form_modal',
-        openContext: { interactionId: 'I002', interactionToken: 't', modal: 'reply' },
+        openContext: {
+          interactionId: 'I002',
+          interactionToken: 't',
+          modal: 'reply',
+        },
       },
     });
   });

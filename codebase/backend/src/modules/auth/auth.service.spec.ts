@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -18,6 +19,10 @@ import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
 import { LoginHistoryService } from './login-history.service';
+
+function sha256(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -191,6 +196,33 @@ describe('AuthService', () => {
         'Test',
         expect.any(String),
       );
+    });
+
+    it('stores hashed emailVerifyToken in DB and emails the raw token (register round-trip)', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+      usersService.create.mockResolvedValue(mockUser as User);
+
+      await service.register({
+        name: 'Test',
+        email: 'test@example.com',
+        password: 'Test123!@#',
+      });
+
+      const [createArg] = usersService.create.mock.calls[0] as [
+        { emailVerifyToken: string },
+      ];
+      const mailedToken = (
+        mailService.sendVerificationEmail.mock.calls[0] as [
+          string,
+          string,
+          string,
+        ]
+      )[2];
+
+      // DB stores SHA-256 hash (64-char hex), not the raw UUID.
+      expect(createArg.emailVerifyToken).toMatch(/^[0-9a-f]{64}$/);
+      // The mailed token hashes to the stored token — verify round-trip integrity.
+      expect(sha256(mailedToken)).toBe(createArg.emailVerifyToken);
     });
 
     it('should throw ConflictException for duplicate email', async () => {
@@ -542,6 +574,74 @@ describe('AuthService', () => {
       usersService.emailExists.mockResolvedValue(true);
       const result = await service.checkEmail('existing@example.com');
       expect(result.available).toBe(false);
+    });
+  });
+
+  describe('resendVerification', () => {
+    it('should return the same message regardless of email existence', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
+      const result = await service.resendVerification(
+        'nonexistent@example.com',
+      );
+      expect(result.message).toContain('If an account exists');
+      expect(mailService.sendVerificationEmail).not.toHaveBeenCalled();
+      expect(usersService.update).not.toHaveBeenCalled();
+    });
+
+    it('should re-issue a token and mail it for an unverified account', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: false,
+      } as User);
+
+      const result = await service.resendVerification('test@example.com');
+
+      expect(result.message).toContain('If an account exists');
+      expect(usersService.update).toHaveBeenCalledWith(
+        mockUser.id,
+        expect.objectContaining({
+          emailVerifyToken: expect.any(String),
+          emailVerifyExpiresAt: expect.any(Date),
+        }),
+      );
+      const mailCall = mailService.sendVerificationEmail.mock.calls[0];
+      expect(mailCall[0]).toBe(mockUser.email);
+      expect(mailCall[1]).toBe(mockUser.name);
+      const [, patch] = usersService.update.mock.calls[0] as [
+        string,
+        { emailVerifyToken: string; emailVerifyExpiresAt: Date },
+      ];
+      // DB stores SHA-256 hash; email carries the raw UUID.
+      // The raw token (mailed) must hash to the stored token.
+      expect(patch.emailVerifyToken).toMatch(/^[0-9a-f]{64}$/);
+      expect(sha256(mailCall[2])).toBe(patch.emailVerifyToken);
+    });
+
+    it('should NOT re-issue for an already-verified account', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: true,
+      } as User);
+
+      const result = await service.resendVerification('test@example.com');
+
+      expect(result.message).toContain('If an account exists');
+      expect(usersService.update).not.toHaveBeenCalled();
+      expect(mailService.sendVerificationEmail).not.toHaveBeenCalled();
+    });
+
+    it('should return the same message even if mail dispatch fails', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: false,
+      } as User);
+      mailService.sendVerificationEmail.mockRejectedValueOnce(
+        new Error('SMTP error'),
+      );
+
+      const result = await service.resendVerification('test@example.com');
+
+      expect(result.message).toContain('If an account exists');
     });
   });
 

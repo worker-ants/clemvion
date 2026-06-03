@@ -58,4 +58,9 @@ export const statistics: Dict["statistics"] = {
   colExecutions: "Executions",
   colAvgDuration: "Avg Duration",
   colErrorRate: "Error Rate",
+  periodCustom: "Custom",
+  customRangeStart: "Start date",
+  customRangeEnd: "End date",
+  customRangeApply: "Apply",
+  changeVsPrev: "vs prev period",
 };

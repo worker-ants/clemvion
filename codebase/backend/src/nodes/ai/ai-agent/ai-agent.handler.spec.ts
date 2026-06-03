@@ -2169,7 +2169,9 @@ describe('AiAgentHandler', () => {
       expect(llmCalls.length).toBeGreaterThan(0);
       expect(typeof llmCalls[0].startedAt).toBe('string');
       expect(typeof llmCalls[0].finishedAt).toBe('string');
-      const toolCalls = turnDebug[0].toolCalls as Array<Record<string, unknown>>;
+      const toolCalls = turnDebug[0].toolCalls as Array<
+        Record<string, unknown>
+      >;
       expect(toolCalls.length).toBeGreaterThan(0);
       expect(typeof toolCalls[0].startedAt).toBe('string');
       expect(typeof toolCalls[0].finishedAt).toBe('string');
