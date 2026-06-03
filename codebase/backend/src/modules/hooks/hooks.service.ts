@@ -88,26 +88,33 @@ export class HooksService {
       });
     }
 
-    // 2. Check active status
-    if (!trigger.isActive) {
-      throw new GoneException({
-        code: 'TRIGGER_INACTIVE',
-        message: 'Webhook trigger is inactive',
-      });
-    }
-
-    // 3a. Chat Channel 분기 — config.chatChannel 가 있으면 adapter 가 inbound 처리.
+    // 2. Chat Channel 분기 — config.chatChannel 가 있으면 adapter 가 inbound 처리.
     //     일반 webhook 경로와 별도 — auth / parameter schema 검증 모두 우회 (chat 채널은
     //     자체 inbound-signing 헤더/서명 검증 + parseUpdate 의 raw body 만 사용 —
     //     provider 별: Telegram secret_token / Slack X-Slack-Signature / Discord X-Signature-Ed25519).
+    //     active 검사는 chatChannel 판정 *뒤* 에 한다 — 비활성 chatChannel 트리거는
+    //     410 Gone 이 아니라 202 Accepted + { executionId: 'ignored' } 로 조용히 무시한다
+    //     (spec/5-system/15-chat-channel.md R-CC-12, §5.5 비활성 trigger 행;
+    //     spec/5-system/12-webhook.md WH-EP-07 의 chatChannel 예외).
     const chatChannelCfg = readChatChannelConfig(trigger.config);
     if (chatChannelCfg) {
+      if (!trigger.isActive) {
+        return { executionId: 'ignored' };
+      }
       return this.handleChatChannelWebhook(
         trigger,
         chatChannelCfg,
         input,
         rawBody?.toString('utf8') ?? '',
       );
+    }
+
+    // 3. Check active status — 일반 webhook 비활성은 410 Gone (WH-EP-07).
+    if (!trigger.isActive) {
+      throw new GoneException({
+        code: 'TRIGGER_INACTIVE',
+        message: 'Webhook trigger is inactive',
+      });
     }
 
     // 3. Authenticate — trigger.authConfigId 가 가리키는 AuthConfig 로 위임

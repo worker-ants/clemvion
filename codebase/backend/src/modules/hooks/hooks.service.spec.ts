@@ -494,6 +494,23 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
+    // C-2: 비활성 chatChannel 트리거는 410 Gone 이 아니라 202 + { executionId: 'ignored' }.
+    // isActive 검사가 chatChannel 판정보다 먼저 실행되던 결함의 회귀 가드
+    // (spec R-CC-12 / §5.5 비활성 trigger 행 / WH-EP-07 chatChannel 예외).
+    it('비활성 chatChannel 트리거 → Gone 대신 { executionId: "ignored" } (R-CC-12)', async () => {
+      triggerRepo.findOne.mockResolvedValue({
+        ...chatChannelTrigger,
+        isActive: false,
+      } as Trigger);
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(res).toMatchObject({ executionId: 'ignored' });
+      // adapter/parseUpdate 까지 가지 않고 즉시 무시.
+      expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
+      expect(engine.execute).not.toHaveBeenCalled();
+    });
+
     it('parseUpdate 성공 + conversation 없음 → 새 execution 시작 (CCH-CV-03 신규 경로)', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
