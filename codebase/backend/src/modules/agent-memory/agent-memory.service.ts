@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
@@ -38,6 +39,34 @@ export interface EmbedConfigSource {
 
 // KB 가 사용하는 기본 임베딩 모델 (knowledge_base.embedding_model DEFAULT 와 동기화).
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
+
+/**
+ * scope_key 최대 길이 상한 (W-1). memoryKey 는 Expression 평가값이라 극단 길이
+ * (예: 전체 transcript 를 키로 평가) 가 들어올 수 있다. 상한 초과 시 결정적
+ * 해시(SHA-256) 로 축약해 동일 입력이 항상 동일 scope 에 매핑되도록 한다.
+ */
+const SCOPE_KEY_MAX_LENGTH = 512;
+
+/**
+ * 저장 전 1차 instruction-style 필터 (W-2 보조). 추출 단계가 사이에 있어도
+ * 명백한 jailbreak/지시문 패턴이 메모리 content 로 새어 저장되면 이후 회수 주입
+ * 시 (data-fence 로 1차 방어하더라도) 위험을 키운다. 명백한 패턴만 결정적으로
+ * 걸러내는 가벼운 가드 — 정상 사실/선호는 통과시킨다 (false-positive 최소화).
+ * 주(主) 방어는 주입 시점 data-fence wrap 이고, 이는 defense-in-depth 보조다.
+ */
+const INSTRUCTION_PATTERNS: RegExp[] = [
+  /\bignore\s+(?:all\s+|the\s+|any\s+)?(?:previous|prior|above|earlier)\b/i,
+  /\bdisregard\s+(?:all\s+|the\s+|any\s+)?(?:previous|prior|above|earlier)\b/i,
+  /\bforget\s+(?:everything|all|previous|prior)\b/i,
+  /\byou\s+are\s+now\b/i,
+  /\bsystem\s*prompt\b/i,
+  /\bnew\s+instructions?\s*:/i,
+  /이전\s*(?:지시|명령|프롬프트)\w*\s*무시/,
+];
+
+function looksLikeInstruction(content: string): boolean {
+  return INSTRUCTION_PATTERNS.some((re) => re.test(content));
+}
 
 export interface RecallOptions {
   topK?: number;
@@ -118,15 +147,41 @@ export class AgentMemoryService {
    * - 미설정/빈값 → `executionId` fallback → 세션 단위 격리 (안전 디폴트)
    *
    * `workspace_id` 는 항상 별도 필터로 강제되며 (격리 의무 §5) scopeKey 안에 들어가지 않는다.
+   *
+   * **방어 (W-1)**: memoryKey 는 Expression 평가값이므로 제어문자/null byte 제거 +
+   * 길이 상한 (SCOPE_KEY_MAX_LENGTH) 을 적용한다. SQL 은 이미 파라미터 바인딩이라
+   * 인젝션은 막혀 있으나, 제어문자·극단 길이로 인한 인덱스/저장소 오염을 차단한다.
+   * 상한 초과 시 결정적 해시로 축약 (동일 입력 → 동일 scope 보장).
    */
   resolveScopeKey(
     memoryKey: string | undefined | null,
     executionId: string,
   ): string {
-    if (memoryKey != null && memoryKey.trim() !== '') {
-      return memoryKey;
+    if (memoryKey != null) {
+      const sanitized = this.sanitizeScopeKey(memoryKey);
+      if (sanitized !== '') {
+        return sanitized;
+      }
     }
+    // 빈/공백/제어문자-only → executionId fallback (세션 격리, 안전 디폴트).
     return executionId;
+  }
+
+  /**
+   * scope_key 정규화 (W-1): null byte/제어문자 제거 → trim → 길이 상한 적용.
+   * 상한 초과 시 SHA-256 해시 prefix 로 결정적 축약한다.
+   */
+  private sanitizeScopeKey(raw: string): string {
+    // null byte 및 C0/C1 제어문자 제거 (탭/개행 포함 — scope_key 는 단일 토큰).
+    // eslint-disable-next-line no-control-regex
+    const cleaned = raw.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim();
+    if (cleaned === '') return '';
+    if (cleaned.length <= SCOPE_KEY_MAX_LENGTH) return cleaned;
+    // 결정적 해시 축약 — 충돌 회피 위해 식별 가능한 prefix + 전체 해시.
+    const hash = createHash('sha256').update(cleaned).digest('hex');
+    // prefix(가독성) + ':' + hash. 합산 길이는 항상 상한 이하.
+    const prefixLen = SCOPE_KEY_MAX_LENGTH - hash.length - 1;
+    return `${cleaned.slice(0, prefixLen)}:${hash}`;
   }
 
   /**
@@ -212,7 +267,17 @@ export class AgentMemoryService {
     embedCfgSource: EmbedConfigSource,
   ): Promise<void> {
     if (!workspaceId || !scopeKey) return;
-    const valid = items.filter((it) => it.content?.trim());
+    const valid = items.filter((it) => {
+      if (!it.content?.trim()) return false;
+      // W-2 보조: 명백한 instruction-style content 는 저장 단계에서 1차 차단.
+      if (looksLikeInstruction(it.content)) {
+        this.logger.warn(
+          'Agent memory: dropping instruction-style extracted content before save',
+        );
+        return false;
+      }
+      return true;
+    });
     if (valid.length === 0) return;
 
     const model =

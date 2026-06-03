@@ -176,6 +176,85 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
     });
 
+    it('multi_turn: first turn over budget sets runningSummary, second turn reuses it in the stable prefix', async () => {
+      const context = makeContext();
+      // 예산 초과를 강제하기 위해 다른 노드의 큰 turn 들을 thread 에 seed.
+      const big = 'w'.repeat(500);
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-1',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          memoryStrategy: 'summary_buffer',
+          memoryTokenBudget: 300,
+        },
+        context,
+      );
+      const state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+      // 첫 waiting tick — LLM/요약 콜 없음 (user query 도착 전).
+      expect(mockLlmService.chat).not.toHaveBeenCalled();
+
+      // ── Turn 1: 예산 초과 → 요약 콜(1) + 메인 콜(1). ──
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: 'TURN1 ROLLING SUMMARY',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        })
+        .mockResolvedValueOnce({
+          content: 'first answer',
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      await handler.processMultiTurnMessage('첫 질문', state);
+
+      // runningSummary 가 thread (state.conversationThreadRef) 에 영속.
+      expect(conversationThreadService.getThread(context).runningSummary).toBe(
+        'TURN1 ROLLING SUMMARY',
+      );
+      const turn1Calls = mockLlmService.chat.mock.calls.length;
+
+      // ── Turn 2: 동일 thread 재사용. 이미 압축된 turn 은 재요약 금지 →
+      //    요약 콜 없이 메인 콜만, 그리고 stable prefix 에 기존 요약이 포함. ──
+      mockLlmService.chat.mockResolvedValue({
+        content: 'second answer',
+        usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      });
+      const turn2 = await handler.processMultiTurnMessage(
+        '두 번째 질문',
+        state,
+      );
+
+      // 두 번째 turn 은 메인 콜 1회만 추가 (재요약 없음 — 캐시 보호 불변식).
+      expect(mockLlmService.chat.mock.calls.length).toBe(turn1Calls + 1);
+
+      // 두 번째 turn 의 system 메시지에 기존 요약이 stable prefix 로 회수돼야 한다.
+      const mainCall = mockLlmService.chat.mock.calls.at(-1)?.[1] as {
+        messages: { role: string; content: string }[];
+      };
+      const systemMsg = mainCall.messages.find((m) => m.role === 'system');
+      expect(systemMsg?.content).toContain('TURN1 ROLLING SUMMARY');
+
+      const meta = (turn2 as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta.memory).toMatchObject({ strategy: 'summary_buffer' });
+    });
+
     it('compresses oldest turns + sets runningSummary when over budget', async () => {
       const context = makeContext();
       // Seed many large turns from another node so working memory exceeds budget.
@@ -344,6 +423,41 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       };
       const systemMsg = mainCall.messages.find((m) => m.role === 'system');
       expect(systemMsg?.content).toContain('Loyalty member since 2020');
+    });
+
+    it('recall 실패 시에도 핸들러는 graceful 하게 정상 응답을 낸다', async () => {
+      // recall 이 reject 해도 (서비스 내부 graceful 가드를 우회한 극단 케이스)
+      // 핸들러가 throw 하지 않고 빈 회수로 정상 응답을 내보내야 한다.
+      agentMemoryService.recall.mockRejectedValue(new Error('recall blew up'));
+      const context = makeContext();
+      const handler = buildHandler();
+      const result = await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: 'What plan am I on?',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-42',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+
+      // 메인 답변은 정상적으로 생성됐다.
+      expect(mockLlmService.chat).toHaveBeenCalled();
+      const meta = (result as { meta?: Record<string, unknown> }).meta ?? {};
+      // 회수 0 으로 graceful — recall 실패가 응답 경로를 깨지 않는다.
+      expect(meta.memory).toMatchObject({
+        strategy: 'persistent',
+        recalledCount: 0,
+      });
+      // 응답 객체가 정상 반환됐다 (throw 없이 graceful 종결).
+      expect(result).toBeDefined();
+      expect((result as { meta?: unknown }).meta).toBeDefined();
     });
 
     it('falls back to executionId scope when memoryKey is empty', async () => {

@@ -865,16 +865,27 @@ export class AiAgentHandler implements NodeHandler {
           ? (args.config.memoryThreshold as number)
           : DEFAULT_MEMORY_THRESHOLD;
       // 회수 임베딩 출처 — 노드 llmConfigId (요약/추출과 동일, scope-freeze §3).
-      recalled = await this.agentMemoryService.recall(
-        args.workspaceId,
-        scopeKey,
-        args.queryText,
-        {
-          llmConfigId: args.config.llmConfigId as string | undefined,
-          embeddingModel: undefined,
-        },
-        { topK, threshold },
-      );
+      // recall 은 서비스 내부에서 이미 graceful (빈 배열) 이지만, 회수 실패가
+      // 응답 경로를 깨면 안 되므로 여기서도 방어적으로 삼킨다 (defense-in-depth).
+      try {
+        recalled = await this.agentMemoryService.recall(
+          args.workspaceId,
+          scopeKey,
+          args.queryText,
+          {
+            llmConfigId: args.config.llmConfigId as string | undefined,
+            embeddingModel: undefined,
+          },
+          { topK, threshold },
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        AiAgentHandler.logger.warn(
+          `Agent memory recall failed (graceful): ${message}`,
+        );
+        recalled = [];
+      }
     }
 
     // ── [5b] 롤링 요약 압축 (임계치 도달 시에만 — 캐시 보호 불변식) ──
