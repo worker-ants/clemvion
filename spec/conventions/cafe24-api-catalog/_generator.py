@@ -146,7 +146,11 @@ def build_tree(data):
         for pos,kind,tid,text,end in toks:
             if kind=='h2':
                 cur=dict(id=tid,name=text.strip(),desc='',props=[],ops=[])
-                mp=re.search(r'\s*<p>(.*?)</p>', body[end:end+1500], re.S)
+                # entity 설명 <p> 는 h2 를 감싼 description <div> 안(첫 </div> 이전)에만 있다.
+                # 그 범위로 한정하지 않으면 설명 없는 entity 에서 뒤따르는 필드 셀 <p>(예: shop_no
+                # "멀티쇼핑몰 번호")를 잘못 집어 entity 설명으로 오기입한다.
+                intro=body[end:].split('</div>', 1)[0]
+                mp=re.search(r'<p>(.*?)</p>', intro, re.S)
                 if mp: cur['desc']=oneline_multi(mp.group(1))
                 entities.append(cur); curop=None
             elif kind=='h3':

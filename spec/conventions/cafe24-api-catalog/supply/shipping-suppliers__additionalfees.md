@@ -10,8 +10,6 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 > Field-level 카탈로그. Endpoint enumeration index: [`../supply.md`](../supply.md) · 규약: [`../_overview.md`](../_overview.md) · 공식 docs: [Shipping suppliers additionalfees](https://developers.cafe24.com/docs/ko/api/admin/#shipping-suppliers--additionalfees)
 > 복합(nested) 필드의 하위 요소는 `↳` 로 표기한다.
 
-멀티쇼핑몰 번호
-
 ## 응답 속성 (Property list)
 
 | Attribute | 제약 | 설명 |

@@ -10,8 +10,6 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 > Field-level 카탈로그. Endpoint enumeration index: [`../store.md`](../store.md) · 규약: [`../_overview.md`](../_overview.md) · 공식 docs: [Socials navershopping](https://developers.cafe24.com/docs/ko/api/admin/#socials-navershopping)
 > 복합(nested) 필드의 하위 요소는 `↳` 로 표기한다.
 
-최소값: [1]
-
 ## 응답 속성 (Property list)
 
 | Attribute | 제약 | 설명 |
