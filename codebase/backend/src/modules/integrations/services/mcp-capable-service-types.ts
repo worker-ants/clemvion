@@ -10,7 +10,7 @@
  * spec/2-navigation/4-integration.md §14.2 (IntegrationSelector
  * serviceTypes whitelist for AI Agent.mcpServers).
  */
-export const MCP_CAPABLE_SERVICE_TYPES = ['mcp', 'cafe24'] as const;
+export const MCP_CAPABLE_SERVICE_TYPES = ['mcp', 'cafe24', 'makeshop'] as const;
 
 export type McpCapableServiceType = (typeof MCP_CAPABLE_SERVICE_TYPES)[number];
 

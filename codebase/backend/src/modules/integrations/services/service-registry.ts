@@ -53,7 +53,7 @@ export interface ServiceDefinition {
   authVariants: AuthVariant[];
   scopes?: ScopeOption[];
   /** OAuth provider identifier, if any variant is oauth2 */
-  oauthProvider?: 'google' | 'github' | 'cafe24';
+  oauthProvider?: 'google' | 'github' | 'cafe24' | 'makeshop';
   /**
    * Whether this service supports background token auto-refresh.
    * True means the provider issues a `refresh_token` AND we run a refresh
@@ -202,6 +202,103 @@ const CAFE24_SCOPES: ScopeOption[] = [
     label: '개인정보 수정',
     requiresApproval: true,
   },
+];
+
+/**
+ * MakeShop — Korean e-commerce SaaS, cafe24 와 동형 설계의 2번째 OAuth-refresh
+ * provider. 동일 Integration 이 `makeshop` 노드와 AI Agent MCP tool 양쪽에서
+ * 사용된다. cafe24 의 `mall_id` 와 달리 단일 호스트 `connect.makeshop.co.kr`
+ * + `/api/v1/{shop_uid}/` path segment 모델 — `shop_uid` 가 상점 식별자이며
+ * `Integration.mall_id` 컬럼으로 투영된다. spec/2-navigation/4-integration.md
+ * §5.9 / spec/4-nodes/4-integration/5-makeshop.md §9.
+ *
+ * OAuth = Authorization-Code + PKCE (confidential client). cafe24 의
+ * public/private 분기와 달리 client_id/secret 가 항상 필요한 단일 형태라
+ * `app_type` enum 필드가 없다.
+ */
+const MAKESHOP_OAUTH_FIELDS: CredentialField[] = [
+  {
+    key: 'shop_uid',
+    label: 'Shop UID',
+    type: 'string',
+    required: true,
+    placeholder: 'myshop',
+    description:
+      'MakeShop 상점 식별자. base URL `https://connect.makeshop.co.kr/api/v1/{shop_uid}/...` 의 path segment 이자 `mall_id` 컬럼 투영 값 (ShopStore 설치 redirect 의 `shop_uid` 파라미터에서 획득)',
+  },
+  {
+    key: 'client_id',
+    label: 'Client ID',
+    type: 'string',
+    required: true,
+    description: 'OAuth client_id (파트너센터 앱 등록 시 발급)',
+  },
+  {
+    key: 'client_secret',
+    label: 'Client Secret',
+    type: 'string',
+    required: true,
+    secret: true,
+    description: 'OAuth client_secret. 설치 HMAC 검증 키 겸용',
+  },
+  {
+    key: 'access_token',
+    label: 'Access Token',
+    type: 'string',
+    // System-managed — populated by the OAuth callback handler, never typed
+    // in by the user (1시간 유효, §10.5 원자 갱신으로 동기화).
+    required: true,
+    secret: true,
+  },
+  {
+    key: 'refresh_token',
+    label: 'Refresh Token',
+    type: 'string',
+    // refresh token 회전(rotation) — 매 갱신 시 새 refresh_token 으로 교체 저장.
+    required: true,
+    secret: true,
+  },
+  {
+    key: 'scopes',
+    label: 'Scopes',
+    // string[] — registry CredentialField 에는 array primitive type 이 없어
+    // record 로 표현 (validateCredentials 는 object 만 검증). cafe24 의
+    // `credentials.scopes` 와 동일 시맨틱.
+    type: 'record',
+    required: true,
+    description:
+      '사용 권한 scope 목록. `<group>.read` / `<group>.write` 형식 (공백 구분 wire format)',
+  },
+  {
+    key: 'expires_at',
+    label: 'Expires At',
+    type: 'string',
+    required: true,
+    description:
+      '`access_token` 만료 시각 (ISO8601). §10.5 원자 갱신 정책으로 동기화',
+  },
+];
+
+/**
+ * MakeShop scope 프리셋 — catalog x-scope 그룹 × read/write. cafe24 의
+ * ⚠ 파트너 별도승인(restricted) 티어가 없어 `requiresApproval` 플래그를 두지
+ * 않는다 (앱 심사 시 일괄 검토만). scope wire format = 공백 구분 (OAuth 2.1
+ * 표준 — cafe24 의 콤마 예외 미적용). spec/2-navigation/4-integration.md §5.9
+ * "Scope 권장 프리셋" + spec/conventions/makeshop-api-catalog/_overview.md.
+ */
+const MAKESHOP_SCOPES: ScopeOption[] = [
+  { value: 'store.read', label: '상점 설정 조회', recommended: true },
+  { value: 'store.write', label: '상점 설정 수정' },
+  { value: 'product.read', label: '상품 조회', recommended: true },
+  { value: 'product.write', label: '상품 수정' },
+  { value: 'order.read', label: '주문 조회' },
+  { value: 'order.write', label: '주문 수정' },
+  { value: 'member.read', label: '회원 조회' },
+  { value: 'member.write', label: '회원 수정' },
+  { value: 'board.read', label: '게시판 조회' },
+  { value: 'board.write', label: '게시판 수정' },
+  { value: 'benefit.read', label: '적립금/쿠폰 조회' },
+  { value: 'benefit.write', label: '적립금/쿠폰 수정' },
 ];
 
 const HTTP_COMMON: CredentialField[] = [
@@ -571,6 +668,20 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
       },
     ],
     scopes: CAFE24_SCOPES,
+  },
+  {
+    type: 'makeshop',
+    name: 'MakeShop',
+    oauthProvider: 'makeshop',
+    supportsTokenAutoRefresh: true,
+    authVariants: [
+      {
+        authType: 'oauth2',
+        label: 'OAuth 2.0',
+        fields: MAKESHOP_OAUTH_FIELDS,
+      },
+    ],
+    scopes: MAKESHOP_SCOPES,
   },
   {
     type: 'webhook',

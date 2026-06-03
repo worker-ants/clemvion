@@ -7,6 +7,7 @@ import { KnowledgeBaseService } from '../../knowledge-base/knowledge-base.servic
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { McpClientService } from '../../mcp/mcp-client.service';
 import { Cafe24ApiClient } from '../../../nodes/integration/cafe24/cafe24-api.client';
+import { MakeshopApiClient } from '../../../nodes/integration/makeshop/makeshop-api.client';
 import { ExecutionEventEmitter } from '../events/execution-event-emitter.service';
 import { ConversationThreadService } from '../conversation-thread/conversation-thread.service';
 
@@ -35,6 +36,7 @@ export class NodeHandlerDependenciesProvider {
     private readonly mcpClientService: McpClientService,
     private readonly eventEmitter: ExecutionEventEmitter,
     @Optional() private readonly cafe24ApiClient?: Cafe24ApiClient,
+    @Optional() private readonly makeshopApiClient?: MakeshopApiClient,
     @Optional()
     private readonly conversationThreadService?: ConversationThreadService,
   ) {}
@@ -53,6 +55,7 @@ export class NodeHandlerDependenciesProvider {
       workflowExecutor,
       eventEmitter: this.eventEmitter,
       cafe24ApiClient: this.cafe24ApiClient,
+      makeshopApiClient: this.makeshopApiClient,
       conversationThreadService: this.conversationThreadService,
     };
   }

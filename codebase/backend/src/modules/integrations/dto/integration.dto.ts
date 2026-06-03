@@ -424,3 +424,27 @@ export class Cafe24PrecheckQueryDto {
   })
   mallId!: string;
 }
+
+/**
+ * MakeShop shop_uid 사전 중복 감지 query — Cafe24PrecheckQueryDto 의 makeshop
+ * 대응. `shop_uid` 가 base URL path segment (`/api/v1/{shop_uid}/`) 에 주입되므로
+ * SSRF 방어로 charset 을 제한한다. 정규식은 makeshop.handler.ts 의
+ * `SHOP_UID_PATTERN` / third-party-oauth.constants 의
+ * `MAKESHOP_SHOP_UID_PATTERN` 과 동일. spec/2-navigation/4-integration.md §5.9.
+ */
+export class MakeshopPrecheckQueryDto {
+  @ApiProperty({
+    description:
+      'MakeShop shop_uid — letters / digits / hyphens / underscores, 2–64자',
+    example: 'myshop',
+    pattern: '^[A-Za-z0-9_-]{2,64}$',
+  })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(64)
+  @Matches(/^[A-Za-z0-9_-]{2,64}$/, {
+    message:
+      'shopUid must match /^[A-Za-z0-9_-]{2,64}$/ — letters, digits, hyphens, underscores only',
+  })
+  shopUid!: string;
+}

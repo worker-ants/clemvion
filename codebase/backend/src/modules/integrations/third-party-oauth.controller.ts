@@ -18,6 +18,7 @@ import {
   ALLOWED_OAUTH_PROVIDERS,
   Cafe24InstallQuery,
   IntegrationOAuthService,
+  MakeshopInstallQuery,
 } from './integration-oauth.service';
 import { renderCallbackHtml } from './services/oauth-callback.template';
 import {
@@ -192,6 +193,132 @@ export class ThirdPartyOAuthController {
           .send(renderInstallErrorHtml(code, message));
       } else {
         // API H-1: 자체 API 규약 §5.3 envelope.
+        res.status(status).json({ error: { code, message } });
+      }
+    }
+  }
+
+  /**
+   * MakeShop ShopStore 설치 진입점 (App URL). MakeShop 마켓에서 앱 설치 시
+   * 등록된 App URL 로 `?shop_uid=...&timestamp=...&action_type=install&hmac=...`
+   * redirect 한다. path 의 install_token 으로 pending_install Integration 을
+   * 단일 row 조회하고 HMAC-SHA256(client_secret) 1회 검증 후 makeshop
+   * authorize URL (PKCE S256, space-separated scope) 로 302 redirect.
+   *
+   * cafe24 install 과 동일한 rate-limit (Layer 1 throttle + Layer 2 enumeration
+   * lockout) 보호를 재사용한다 — install_token 이 URL path 에 노출되므로.
+   *
+   * ⚠ MakeShop install 콜백 contract / HMAC 메시지 구성은 미확정 open question
+   * (spec/4-nodes/4-integration/5-makeshop.md §9.7). 서비스의
+   * `buildMakeshopHmacMessage` 가 단일 조정 지점이다.
+   * spec/2-navigation/4-integration.md §5.9 설치(ShopStore).
+   */
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('makeshop/install/:installToken')
+  @ApiOperation({
+    summary: 'MakeShop ShopStore 설치 진입점 (App URL — install_token)',
+    description:
+      'MakeShop 마켓 설치 시 호출되는 App URL 엔드포인트. path 의 install_token 으로 pending_install Integration 을 단일 row 조회하고 HMAC 검증 후 MakeShop authorize URL (PKCE S256) 로 302 redirect 합니다.',
+  })
+  @ApiParam({
+    name: 'installToken',
+    description: '16바이트 base64url (22자) install_token',
+    example: 'AbCdEfGhIjKlMnOpQrStUv',
+  })
+  @ApiOkResponse({ description: '302 redirect to MakeShop authorize URL' })
+  @ApiBadRequestResponse({
+    description:
+      'MAKESHOP_INSTALL_MISSING_PARAMS — shop_uid/timestamp/hmac 누락. MAKESHOP_INSTALL_REPLAY — timestamp 가 ±5분 윈도우 밖. MAKESHOP_INVALID_SHOP_UID — shop_uid 형식 위반.',
+  })
+  @ApiForbiddenResponse({
+    description: 'MAKESHOP_INSTALL_INVALID_HMAC — HMAC 검증 실패.',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'MAKESHOP_INSTALL_INVALID_TOKEN — install_token 형식 불일치 또는 미존재.',
+  })
+  @ApiTooManyRequestsResponse({
+    description:
+      'MAKESHOP_INSTALL_RATE_LIMITED — 같은 IP 의 조회/HMAC 실패가 임계치 초과 (enumeration 방어 lockout).',
+  })
+  async makeshopInstall(
+    @Param('installToken') installToken: string,
+    @Query('shop_uid') shopUid: string | undefined,
+    @Query('timestamp') timestamp: string | undefined,
+    @Query('hmac') hmac: string | undefined,
+    @Query('action_type') actionType: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const clientIp = req.ip;
+    if (await this.installRateLimit.isLockedOut(clientIp)) {
+      res.status(429).json({
+        error: {
+          code: 'MAKESHOP_INSTALL_RATE_LIMITED',
+          message: 'Too many failed install attempts. Please retry later.',
+        },
+      });
+      return;
+    }
+    if (!INSTALL_TOKEN_PATTERN.test(installToken)) {
+      await this.installRateLimit.recordFailure(clientIp);
+      res.status(404).json({
+        error: {
+          code: 'MAKESHOP_INSTALL_INVALID_TOKEN',
+          message: 'install_token format invalid',
+        },
+      });
+      return;
+    }
+    if (!shopUid || !timestamp || !hmac) {
+      res.status(400).json({
+        error: {
+          code: 'MAKESHOP_INSTALL_MISSING_PARAMS',
+          message: 'shop_uid, timestamp, hmac are required',
+        },
+      });
+      return;
+    }
+    const rawQuery = req.url.includes('?') ? req.url.split('?', 2)[1] : '';
+    const query: MakeshopInstallQuery = {
+      shop_uid: shopUid,
+      timestamp,
+      hmac,
+      action_type: actionType,
+      rawQuery,
+    };
+    try {
+      const redirectUrl = await this.oauthService.handleMakeshopInstall(
+        installToken,
+        query,
+      );
+      res.redirect(302, redirectUrl);
+    } catch (err) {
+      const e = err as {
+        status?: number;
+        response?: { code?: string; message?: string };
+        message?: string;
+      };
+      const status = e.status ?? 400;
+      const code = e.response?.code ?? 'MAKESHOP_INSTALL_FAILED';
+      const message = e.response?.message ?? e.message ?? 'Install failed';
+      // enumeration 신호(INVALID_TOKEN / INVALID_HMAC)만 실패 카운트.
+      if (
+        code === 'MAKESHOP_INSTALL_INVALID_TOKEN' ||
+        code === 'MAKESHOP_INSTALL_INVALID_HMAC'
+      ) {
+        await this.installRateLimit.recordFailure(clientIp);
+      }
+      const acceptHeader = req.headers?.['accept'] ?? '';
+      const acceptsHtml =
+        typeof acceptHeader === 'string' && acceptHeader.includes('text/html');
+      if (acceptsHtml) {
+        res
+          .status(status)
+          .setHeader('Content-Type', 'text/html; charset=utf-8')
+          .send(renderInstallErrorHtml(code, message));
+      } else {
         res.status(status).json({ error: { code, message } });
       }
     }

@@ -462,6 +462,7 @@ export const NODE_LABEL_KO: Record<string, string> = {
   "If/Else": "If/Else",
   "Information Extractor": "정보 추출기",
   Loop: "반복",
+  MakeShop: "MakeShop",
   "Manual Trigger": "수동 트리거",
   Map: "Map",
   Merge: "병합",
@@ -486,6 +487,8 @@ export const NODE_DESCRIPTION_KO: Record<string, string> = {
     "메인 플로우를 막지 않고 하위 분기를 백그라운드로 실행",
   "Call any Cafe24 Admin API endpoint via resource/operation":
     "Cafe24 Admin API 엔드포인트를 resource/operation 으로 호출",
+  "Call any MakeShop Shop API endpoint via resource/operation":
+    "MakeShop Shop API 엔드포인트를 resource/operation 으로 호출",
   "Display as slides": "슬라이드로 표시",
   "Visualize as chart": "차트로 시각화",
   "Run JavaScript code": "JavaScript 코드 실행",

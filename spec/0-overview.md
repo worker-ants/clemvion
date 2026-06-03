@@ -77,6 +77,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | **팀 워크스페이스·RBAC** | 데이터 모델(`Workspace.type = personal \| team`, `WorkspaceMember.role`) + 백엔드 모듈(`codebase/backend/src/modules/workspaces`) + 프런트엔드 UI(워크스페이스 전환, 멤버 초대·역할·소유권 이전). 회원가입 시 개인 워크스페이스가 자동 생성되고 `X-Workspace-Id`는 서버가 자동 매핑한다. |
 | **워크스페이스 단위 Integration 공유·RBAC** | Integration 은 워크스페이스 단위로 격리되어 팀 멤버 간 공유되며, 모든 엔드포인트가 `@WorkspaceId()` 로 스코프되고 작성/수정/삭제(create·update·delete·rotate)는 `@Roles('editor')` 가드로 Editor+ 로 제한된다 (`codebase/backend/src/modules/integrations/integrations.controller.ts`). **이 `editor` 는 라우트 가드 floor 이며, Personal vs Organization-scope 별 세부 RBAC(Organization-scope 의 생성·수정·전환은 Admin+)는 [Spec Integration §8](./2-navigation/4-integration.md#8-권한-규칙) + [Spec 사용자/워크스페이스 §4.2](./2-navigation/9-user-profile.md#42-역할-권한-매트릭스) 가 SoT — 본 행과 상보 관계(모순 아님).** navigation NAV-IN-07 ✅ 와 일치. 여러 워크스페이스를 가로지르는 조직(상위) 레벨 공유는 §6.3 참조. |
 | **Cafe24 통합** | 워크플로 `cafe24` 단일 노드 (18 카테고리 메타데이터 기반 Resource × Operation) + AI Agent Internal MCP Bridge 양방향 노출 + Public/Private 앱 OAuth + Cafe24 Developers "테스트 실행" / "앱으로 가기" App URL 흐름 + leaky-bucket rate limit + BullMQ 기반 cross-pod refresh 직렬화 + 7일 임계 + 6h cron 백그라운드 갱신 (refresh_token 14일 만료 전 자동 갱신) — 모두 구현 완료. spec: [Cafe24 노드](./4-nodes/4-integration/4-cafe24.md), [통합 §5.8](./2-navigation/4-integration.md#58-cafe24). 다른 first-party 이커머스(Shopify·Naver Smartstore)로의 Internal MCP Bridge 패턴 확장은 §6.3 참조. |
+| **MakeShop 통합** | 워크플로 `makeshop` 단일 노드 (7 섹션 메타데이터 기반 Resource × Operation, 161 REST operation) + AI Agent Internal MCP Bridge 양방향 노출 (`MakeshopMcpToolProvider`) + OAuth 2.1 auth-code+PKCE OAuth (`auth.makeshop.com`, refresh token rotation) + ShopStore 설치 HMAC + 전용 `makeshop-token-refresh` BullMQ 큐 cross-pod 직렬화 + frontend + e2e — 모두 구현 완료. Cafe24 와 동형 설계 (단일 호스트 `connect.makeshop.co.kr` + `shop_uid` path segment, flat JSON body). spec: [MakeShop 노드](./4-nodes/4-integration/5-makeshop.md), [통합 §5.9](./2-navigation/4-integration.md#59-makeshop), [API Catalog](./conventions/makeshop-api-catalog/_overview.md). CPIK webhook(이벤트 수신) 및 Shopify·Naver Smartstore 확장은 §6.3 참조. |
 | **시스템** | 인증/인가(개인·팀 워크스페이스), REST API, 에러 처리, 표현식 엔진(`{{ }}`), 실행 엔진(Redis 큐 + 워커 풀, BullMQ 영속 `execution-continuation` 큐 기반 분산 continuation + §7.5 rehydration), WebSocket 실시간 상태, Webhook 수신, 실행 이력 |
 
 #### 6.2 백엔드만 존재 / 부분 구현 (🚧)
@@ -95,7 +96,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
 | **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |
-| **Internal MCP Bridge 패턴 확장** | Cafe24 (구현 완료, §6.1) 이후 Shopify·Naver Smartstore 등 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge-in-process) 패턴으로 추가. |
+| **Internal MCP Bridge 패턴 확장** | Cafe24·MakeShop (둘 다 구현 완료, §6.1) 이후 추가 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge-in-process) 패턴으로 확장. Shopify·Naver Smartstore 등 추가 예정. |
 
 ---
 
@@ -389,9 +390,9 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 - **채택**: 영역별 layout 대신 본 `0-overview.md §3.4` 의 cross-cutting 자리에 둔다.
 - **trade-off**: cross-cutting 자리로 옮기면서 첫 사용처와의 물리적 거리가 멀어졌지만, 향후 webhook signing key 회전·notification preference 변경 등 navigation 외부로 사용처가 확장될 가능성을 고려할 때 영역 종속이 더 큰 비용으로 판단됐다.
 
-### Cafe24 통합을 §6.1 (완료) 분류로 (§6)
+### Cafe24·MakeShop 통합을 §6.1 (완료) 분류로 (§6)
 
-- **배경**: Cafe24 통합은 노드·OAuth·rate limit·cron 갱신까지 모두 구현 완료됐으므로 §6.1 (구현 완료 ✅) 로 분류한다.
+- **배경**: Cafe24·MakeShop 통합은 노드·OAuth·rate limit·token 갱신(cafe24 cron / makeshop 큐)까지 모두 구현 완료됐으므로 §6.1 (구현 완료 ✅) 로 분류한다.
 - **미래 확장**: Internal MCP Bridge 패턴을 Shopify·Naver Smartstore 등으로 확장하는 것은 §6.3 의 별도 행으로 유지.
 - **trade-off**: §6 의 분류는 "구현 상태" 와 "확장 계획" 두 축이 섞이기 쉽다. 같은 영역이 §6.1 (완료) 과 §6.3 (확장 로드맵) 에 동시 등장하는 패턴을 명시적으로 허용해 두 축을 분리한다.
 

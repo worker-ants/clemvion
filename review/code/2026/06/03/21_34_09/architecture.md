@@ -1,40 +1,55 @@
-# 아키텍처(Architecture) 리뷰
+# 아키텍처(Architecture) 리뷰 결과
 
 ## 발견사항
 
-### [INFO] ParsedSegment 인터페이스가 parser.factory.ts에 정의되어 ChunkMetadata를 역방향 참조
-- 위치: `codebase/backend/src/modules/knowledge-base/parsers/parser.factory.ts` (상단 import) + `md.parser.ts`, `pdf.parser.ts`
-- 상세: `ParsedSegment` 인터페이스가 `parser.factory.ts`에 선언되어 있고, 그 타입이 `ChunkMetadata`(chunking 레이어)를 가리킨다. 동시에 `md.parser.ts`와 `pdf.parser.ts`가 `parser.factory.ts`에서 `ParsedSegment`를 import한다. 즉 parsers → factory → chunking 방향으로 의존이 흐르는데, parsers 자체는 factory가 orchestrate하는 하위 모듈이다. 개념적으로는 `ParsedSegment`와 `ChunkMetadata`를 공유 타입 파일(예: `types.ts` 또는 `chunking/chunk-types.ts`)로 분리하면 parsers가 factory에 역으로 의존하는 구조를 제거할 수 있다. 현재 구조는 순환 위험은 없지만 레이어 방향이 약간 역전된다.
-- 제안: `ParsedSegment`와 `ChunkMetadata`를 별도 shared 타입 파일로 분리하거나, `ParsedSegment`를 `text-chunker.ts` 또는 독립 `types.ts`에 두어 parsers가 factory를 바라보지 않도록 한다.
+### [INFO] Data-Only 모듈의 명확한 단일 책임 분리
+- 위치: `metadata/benefit.ts`, `board.ts`, `cpik.ts`, `member.ts`, `order.ts`, `product.ts`, `shop.ts`
+- 상세: 각 섹션 파일은 순수 데이터 배열(`MakeshopOperationMetadata[]`) 만 export 하며 로직이 전혀 없다. 로직은 `index.ts`(조회), `constraint-validator.ts`(검증), `public-meta.ts`(프로젝션)으로 분리되어 단일 책임이 명확하다.
+- 제안: 현행 유지.
 
-### [INFO] parsePdf(flat)와 parsePdfSegments(per-page) 두 경로의 텍스트 추출 로직이 분리되어 중복 발생 가능
-- 위치: `codebase/backend/src/modules/knowledge-base/parsers/pdf.parser.ts`
-- 상세: `parsePdf`는 pdf-parse의 기본 렌더러(`result.text`)를 사용하고, `parsePdfSegments`는 `pagerender` 콜백으로 per-page 텍스트를 재구성한다. 두 경로는 동일 라이브러리를 다른 옵션으로 두 번 호출하는 구조이므로, 텍스트 품질(줄 처리 방식)이 내부적으로 미묘하게 다를 수 있다. `parseDocument`는 여전히 flat `parsePdf`를 csv 경로에서 사용하고, 비-csv 경로는 `parseDocumentSegments`를 사용하므로 호출 경로가 파일 타입에 따라 분기된다. 현재 embedding.service에서 csv는 `parseDocument`, 나머지는 `parseDocumentSegments`로 나뉘므로 두 경로가 공존하는 것은 의도적이나, `parsePdf`(flat)는 현재 실질적으로 `parseDocument('pdf')` 경로를 통해서만 도달 가능한데 그 경로는 embedding.service에서 더 이상 사용되지 않는다. 데드코드화 가능성이 있다.
-- 제안: `parsePdf` flat 경로가 실제로 사용되는지 확인하고, 미사용이면 제거 또는 `parsePdfSegments`에서 내부 위임으로 통합하여 로직을 단일화한다.
+### [INFO] Cafe24 metadata 레이어를 충실히 미러링한 개방-폐쇄 구조
+- 위치: `metadata/index.ts`, `types.ts`
+- 상세: 새 endpoint 추가 시 해당 섹션 배열에 row 1개 추가만으로 핸들러·MCP Bridge·프론트엔드 extras 모두 자동 반영된다. `findMakeshopOperation`, `listAllMakeshopOperations`, `scopeForOperation`이 외부 소비자의 진입점을 고정하여 섹션 파일 변경이 상위 레이어를 수정하지 않는 OCP 구조다.
+- 제안: 현행 유지.
 
-### [INFO] EmbeddingService가 segment 루프와 chunk index 재부여 로직을 서비스 코드에 직접 포함 (레이어 책임 경계)
-- 위치: `codebase/backend/src/modules/knowledge-base/embedding/embedding.service.ts` (변경 블록 `for segment / for chunk` 루프)
-- 상세: segment 순회 + chunk 병합 + index 연속 재부여 로직(`{ ...chunk, index: chunks.length }`)이 `EmbeddingService` 내부에 인라인으로 작성되어 있다. 이 조립 책임은 비즈니스 서비스보다 chunking 레이어에 가깝다. 향후 포맷이 추가되거나 segment 병합 전략이 바뀔 때 서비스 코드를 직접 수정해야 한다(OCP 위반 잠재성).
-- 제안: `chunkSegments(segments, options): Chunk[]` 같은 헬퍼를 chunking 레이어에 두어 segment 배열을 받아 index-renumbered chunk 배열을 반환하게 하면, EmbeddingService는 `parseDocumentSegments → chunkSegments → store` 파이프라인만 orchestrate하면 된다.
+### [WARNING] `SECTION_SCOPE` 매핑이 `index.ts` 내부에 숨겨진 암묵적 로직
+- 위치: `metadata/index.ts` L1189–L1197 (`SECTION_SCOPE` 상수)
+- 상세: `cpik` 리소스가 실제로는 두 scope 그룹(주문·회원)에 걸쳐 있음에도 `order` 하나로 고정되어 있고, 이 매핑은 파일 내 `private` 상수로만 존재한다. Phase 0 한시 결정임이 주석으로 명시되어 있으나, 향후 per-operation scope 관리(Phase 3) 시 이 상수 변경이 `scopeForOperation`의 반환값을 일괄 바꿔 테스트 외 사이드 이펙트가 발생할 수 있다. 또한 scope 그룹 매핑 정보가 `types.ts`·`spec`이 아닌 코드 내에만 존재해 spec-impl 정합성 검증 대상에서 벗어난다.
+- 제안: Phase 3 전환 시 per-operation `scopeGroup?: string` 필드를 `MakeshopOperationMetadata`에 추가하거나, `SECTION_SCOPE`를 `spec/conventions/makeshop-api-metadata.md §4`와 기계적으로 동기화하는 단위 테스트를 추가한다.
 
-### [INFO] NodeSettingsPanel의 errorHandling 상태 관리 및 마이그레이션 로직이 컴포넌트 내부에 집중
-- 위치: `codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx`
-- 상세: `LEGACY_POLICY_MAP` 상수, 초기 상태 파생, `errorHandling` 객체 빌드, JSON 파싱 유효성 검사, 레거시 키 삭제(`delete restConfig.errorPolicy`) 등 도메인 로직이 UI 컴포넌트인 `SettingsTab` 함수 본문에 집중되어 있다. 단일 책임 원칙 측면에서 "에러 핸들링 config 변환" 책임이 프레젠테이션 컴포넌트에 섞여 있다. useState 수가 늘고(policy, maxRetries, retryInterval, defaultOutputText, defaultOutputError) useCallback 의존성 배열도 그만큼 늘어났다.
-- 제안: `useErrorHandlingConfig(initialConfig)` 커스텀 훅으로 상태 + 파생 + 빌드 + 마이그레이션 로직을 분리하면 컴포넌트는 렌더링만 담당하고 로직의 단위 테스트가 용이해진다.
+### [WARNING] `constraint-validator.ts`가 Cafe24 버전의 "verbatim copy"로 선언됨
+- 위치: `metadata/constraint-validator.ts` L8 주석 — "Form copied verbatim from the Cafe24 validator"
+- 상세: 두 통합이 동일한 constraint 검증 로직을 각자 소유함으로써 로직 수정 시 양쪽을 동시에 갱신해야 하는 DRY 위반이다. 현재 Phase 0에서는 변경 가능성이 낮아 실질 위험은 제한적이나, constraint 종류(`kind`)가 확장될 경우 한쪽만 반영될 위험이 있다.
+- 제안: `packages/` 또는 `_base/` 공통 레이어에 `validateFieldConstraints<T>(operation, fields)` 제네릭 함수를 추출하고, Cafe24·MakeShop validator 모두 이를 래핑하도록 리팩터링을 Phase 2 이전에 고려한다. 단, 현 Phase 0 범위에서는 즉각 강제 사항은 아님.
 
-### [INFO] `$itemIsFirst`/`$itemIsLast` top-level 변수가 `ExpressionContext` 인터페이스, `expression-resolver.service.ts`, `expression-constants.ts` 세 곳에 병렬로 추가됨
-- 위치: `codebase/packages/expression-engine/src/evaluator.ts`, `codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.ts`, `codebase/frontend/src/components/editor/expression/expression-constants.ts`
-- 상세: 새 context 변수를 추가할 때 엔진 타입, 서비스 구현, 프론트엔드 자동완성 정의 세 곳을 동시에 손봐야 하는 구조다. 현재 변경은 세 곳 모두 일관성 있게 수정되었으나, 이 패턴은 확장 시 누락 위험이 있다. 근본적으로는 expression context 변수 레지스트리(타입 정의 + 문서 + 자동완성 소스)가 단일 진실 원천으로 수렴되지 않아 발생하는 구조적 결합이다.
-- 제안: 현재 변경 자체는 일관성 있게 처리되었으므로 즉각적인 수정 필요성은 낮다. 장기적으로 context 변수 레지스트리를 shared 패키지의 단일 정의로 수렴시키면 프론트엔드 자동완성이 런타임 타입에서 자동 파생되어 누락을 방지할 수 있다.
+### [INFO] `public-meta.ts`가 내부 URL 구조를 프론트엔드로부터 적절히 은닉
+- 위치: `metadata/public-meta.ts`
+- 상세: `method`·`path`를 `PublicMakeshopOperation`에서 의도적으로 제외하여 레이어 책임을 명확히 분리했다. Cafe24 패턴을 따르면서 MakeShop-특화 차이(`restrictedApproval` 제거)를 올바르게 반영했다.
+- 제안: 현행 유지.
 
-### [INFO] `ChunkMetadata` 인터페이스가 `page?: number, section?: string`으로 고정되어 있어 확장성 제한
-- 위치: `codebase/backend/src/modules/knowledge-base/chunking/text-chunker.ts`
-- 상세: 현재 메타데이터 필드가 두 개로 고정되어 있다. 향후 docx의 paragraph-id, html의 element-id 등 포맷별 추가 필드가 필요할 때 인터페이스를 수정해야 한다. `[key: string]: unknown` 인덱스 시그니처 추가 또는 제네릭 파라미터화로 개방성을 확보할 수 있다.
-- 제안: `ChunkMetadata` 를 `Record<string, unknown>` 으로 완전 열거나, `{ page?: number; section?: string; [key: string]: unknown }` 확장 인덱스 시그니처를 추가하여 새 포맷 추가 시 타입 변경 없이 대응 가능하게 한다.
+### [INFO] `catalog-sync.spec.ts`가 spec-impl 경계를 테스트로 보호
+- 위치: `metadata/catalog-sync.spec.ts`
+- 상세: `spec/conventions/makeshop-api-catalog/<resource>.md` Markdown 표를 직접 파싱하여 metadata 코드와 양방향 동기를 CI에서 강제한다. 아키텍처 관점에서 spec-impl 경계에 "비침투적 가드"를 두는 좋은 패턴이다. `resolveRepoRoot()`의 `git rev-parse` 폴백은 모노레포 구조상 적절하다.
+- 제안: 현행 유지.
+
+### [INFO] `cpik_member-check`/`cpik_member-login`의 `scopeType: 'write'` 일관성 문제
+- 위치: `metadata/cpik.ts` L961–L984, L1051–L1085 / `spec/conventions/makeshop-api-catalog/cpik.md`
+- 상세: `index.ts` 주석(L1164)은 "CPIK member check/login POSTs are read-style"이라고 언급하지만, `cpik.ts`에서 두 operation 모두 `scopeType: 'write'`로 등록되어 있고 catalog에도 `write`로 반영되어 있다. 코드와 주석이 불일치한다. types.ts의 상위 설명("check/login POSTs are read-style")은 `types.ts`가 아니라 `index.ts`에 있어 위치도 부적합하다.
+- 제안: (a) `scopeType`을 `'read'`로 수정하는 것이 의미상 더 정확하다면 catalog·metadata·테스트를 일괄 수정하고, (b) 현행 `'write'` 유지가 맞다면 `index.ts` 주석을 삭제 또는 수정한다. 주석-코드 불일치는 후속 개발자에게 혼란을 유발한다.
+
+### [INFO] `listAllMakeshopOperations()` 반환 타입 인라인 중복
+- 위치: `metadata/index.ts` L1221–L1237
+- 상세: `Array<{ resource: MakeshopResource; operation: MakeshopOperationMetadata }>` 타입이 함수 시그니처와 내부 변수 초기화에서 두 번 반복된다. 가독성 저하 수준이나 타입 확장 시 두 곳을 동시 수정해야 한다.
+- 제안: `type MakeshopResourceOperation = { resource: MakeshopResource; operation: MakeshopOperationMetadata }`를 로컬 또는 `types.ts` export로 추출한다.
+
+### [INFO] `findMakeshopOperation`의 `resource: string` 파라미터 타입 이완
+- 위치: `metadata/index.ts` L1203–L1215
+- 상세: `resource` 파라미터가 `string`으로 선언되어 있어 TypeScript의 유니온 타입 보호(`MakeshopResource`)를 우회한다. 내부에서 `as Record<string, ...>` 캐스트로 처리하는 것이 필요한 이유가 "알 수 없는 resource에 대해 undefined 반환"이라는 정책 때문임이 주석으로 설명되어 있어 의도는 명확하다. 그러나 오버로드(overload) 방식으로 `MakeshopResource` → `MakeshopOperationMetadata | undefined` + `string` → `MakeshopOperationMetadata | undefined`를 분리하면 타입 안전성이 개선된다.
+- 제안: Phase 0 허용 수준. 다만 호출 사이트에서 `MakeshopResource` 타입 인수를 전달할 때 TypeScript 가 타입 오류를 잡아내지 못하는 함정이 있으므로 Phase 2 착수 전 overload 정리를 권장한다.
 
 ## 요약
 
-이번 변경은 크게 세 가지 독립적인 기능 축으로 구성된다: (1) ForEach `$itemIsFirst`/`$itemIsLast` 표현식 변수 노출, (2) embedding 파이프라인의 segment-level metadata 전파(md/pdf 파서 분리 + baseMetadata 전파), (3) 노드 설정 패널의 errorHandling nested 계약 정합 + UI 확장. 전반적으로 레이어 책임 구분이 유지되고 있으며, 특히 embedding 파이프라인은 파서·청킹·서비스 레이어를 분리하는 방향으로 개선되었다. 다만 `ParsedSegment` 타입이 `parser.factory.ts`에 위치해 하위 파서 모듈이 팩토리를 역참조하는 구조, segment 조립 로직이 서비스 레이어에 인라인으로 포함된 점, NodeSettingsPanel 컴포넌트의 도메인 로직 집중은 향후 포맷 확장이나 정책 추가 시 유지보수 부담을 높일 수 있다. 순환 의존성이나 레이어 간 명백한 위반은 없으며, summaryTemplate 패턴의 노드별 일관 적용과 spec↔구현 정합 처리(plan/complete 이동)는 구조적으로 건전하다.
+Phase 0 MakeShop metadata 레이어는 기존 Cafe24 패턴을 충실히 미러링하여 섹션 분리·단일 진실(SoT)·spec-impl 양방향 sync guard 등 핵심 아키텍처 결정이 잘 이행되었다. 레이어 책임(data/logic/public projection) 분리가 명확하고 순환 의존성도 없으며, 161개 operation이 추가될 때 핸들러·MCP·프론트엔드를 수정 없이 자동 반영하는 OCP 구조가 확립되어 있다. 주의해야 할 지점은 두 가지다: (1) `SECTION_SCOPE`의 Phase 0 한시 매핑이 문서화는 됐지만 테스트로 보호되지 않아 Phase 3 전환 시 drift 가능성이 있고, (2) `constraint-validator.ts`가 Cafe24 코드의 verbatim copy로 유지되어 DRY 위반이 잠재한다. 두 항목 모두 현 Phase 0 범위에서는 즉각 차단 수준은 아니나, Phase 2 착수 전 해소를 권장한다.
 
 ## 위험도
 

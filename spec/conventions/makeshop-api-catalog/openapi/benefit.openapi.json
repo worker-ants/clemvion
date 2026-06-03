@@ -1,0 +1,4327 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Makeshop Shop API — 혜택 (Benefit)",
+    "version": "v1",
+    "x-source": "https://developer.makeshop.co.kr/docs/api/benefit",
+    "x-extracted": "2026-06-03 (Docusaurus chunk decode)"
+  },
+  "servers": [
+    {
+      "url": "https://connect.makeshop.co.kr",
+      "description": "Production server"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/{shopId}/coupon": {
+      "get": {
+        "operationId": "get-coupon",
+        "description": "쿠폰 정보를 조회합니다.\n\n:::info\n검색 조건이 없는 경우 나인큐브에서 생성된 쿠폰은 조회되지 않습니다.<br />purpose 항목을 통해서 나인큐브에서 생성된 쿠폰을 조회 할 수 있습니다.\n:::",
+        "tags": [
+          "쿠폰"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "couponnum": {
+                            "type": "string",
+                            "description": "쿠폰 번호"
+                          },
+                          "subject": {
+                            "type": "string",
+                            "description": "쿠폰명"
+                          },
+                          "minprice": {
+                            "type": "string",
+                            "description": "최소금액"
+                          },
+                          "brandcode": {
+                            "type": "string",
+                            "description": "적용상품군"
+                          },
+                          "discount": {
+                            "type": "string",
+                            "description": "쿠폰 할인"
+                          },
+                          "reserve": {
+                            "type": "string",
+                            "description": "쿠폰 적립금"
+                          },
+                          "coupon_type": {
+                            "type": "string",
+                            "description": "쿠폰 발급 방식"
+                          },
+                          "attribute": {
+                            "type": "string",
+                            "description": "쿠폰 속성"
+                          },
+                          "valid_date": {
+                            "type": "string",
+                            "description": "쿠폰 유효 기간"
+                          },
+                          "group_discount": {
+                            "type": "string",
+                            "description": "회원 그룹 할인 (Y : 회원 그룹할인 포함, N : 회원 그룹할인 비포함)"
+                          },
+                          "delivery_price_limit": {
+                            "type": "string",
+                            "description": "배송비 제한 (Y : 배송비 포함 결제, N : 배송비 비포함 결제)"
+                          },
+                          "option_discount": {
+                            "type": "string",
+                            "description": "옵션 할인 (Y : 옵션 할인 적용, N : 옵션 할인 미적용)"
+                          },
+                          "usage_limit": {
+                            "type": "string",
+                            "description": "구매 방법 제한 (N : 제한없음, Y : 현금 결제만 가능(실시간 계좌이체 포함), C : 카드 결제만 가능)"
+                          },
+                          "product_reserve_give": {
+                            "type": "string",
+                            "description": "상품 적립금 (Y : 쿠폰 사용시 상품 적립금 미지급, N : 쿠폰 사용시 상품 적립금 지급)"
+                          },
+                          "service_condition": {
+                            "type": "string",
+                            "description": "사용 조건"
+                          },
+                          "publish_option": {
+                            "type": "string",
+                            "description": "사용 조건"
+                          },
+                          "group_publish_option": {
+                            "type": "string",
+                            "description": "전체 그룹 발급 옵션"
+                          },
+                          "use_device": {
+                            "type": "string",
+                            "description": "쿠폰 사용 범위"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "description": "자동 노출 여부 (Y : 노출, N : 미노출, A : 가상분류시 원본 상품에도 노출)"
+                          },
+                          "totalnumber": {
+                            "type": "string",
+                            "description": "발행 쿠폰 수 (0 인 경우 무제한)"
+                          },
+                          "useid": {
+                            "type": "string",
+                            "description": "동일인 재발급 여부 (Y, N)"
+                          },
+                          "view_date": {
+                            "type": "string",
+                            "description": "쿠폰 노출시간"
+                          },
+                          "delicount": {
+                            "type": "string",
+                            "description": "쿠폰 지급 방법 (Y : 중복 발급 가능, N 구매시 1회 발급)"
+                          },
+                          "copaymethod": {
+                            "type": "string",
+                            "description": "주문 결제 방법 (N : 제한없음, C : 카드결제 주문만 가능, B : 현금결제만 가능)"
+                          },
+                          "orderprice": {
+                            "type": "string",
+                            "description": "쿠폰 발급 최소 금액"
+                          },
+                          "orderprice2": {
+                            "type": "string",
+                            "description": "쿠폰 발급 최대 금액"
+                          },
+                          "buy_brandcode": {
+                            "type": "string",
+                            "description": "구매 적용 상품군 (콤마 , 로 구분)"
+                          },
+                          "issue_type": {
+                            "type": "string",
+                            "description": "쿠폰 지급 기준 (O : 구매날짜 기준, B : 배송완료 날짜 기준, D : 기준없음)"
+                          },
+                          "ordersdate": {
+                            "type": "string",
+                            "description": "issue_type 기준에 따른 날짜 시작일"
+                          },
+                          "orderedate": {
+                            "type": "string",
+                            "description": "issue_type 기준에 따른 날짜 종료일"
+                          },
+                          "user": {
+                            "type": "string",
+                            "description": "쿠폰 발급 그룹"
+                          },
+                          "date": {
+                            "type": "string",
+                            "description": "쿠폰 생성일"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "couponnum",
+            "in": "query",
+            "required": false,
+            "description": "쿠폰번호. 쿠폰번호 조회 시 다른 검색 조건 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": false,
+            "description": "쿠폰 생성 업체. N_C : 나인큐브",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "쿠폰 조회",
+          "description": {
+            "content": "쿠폰 정보를 조회합니다.\n\n:::info\n검색 조건이 없는 경우 나인큐브에서 생성된 쿠폰은 조회되지 않습니다.<br />purpose 항목을 통해서 나인큐브에서 생성된 쿠폰을 조회 할 수 있습니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "coupon"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "쿠폰번호. 쿠폰번호 조회 시 다른 검색 조건 무시",
+                  "type": "text/plain"
+                },
+                "key": "couponnum",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "쿠폰 생성 업체. N_C : 나인큐브",
+                  "type": "text/plain"
+                },
+                "key": "purpose",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "쿠폰 조회"
+      }
+    },
+    "/api/v1/{shopId}/smart_coupon": {
+      "get": {
+        "operationId": "get-smart_coupon",
+        "description": "스마트 쿠폰 정보를 조회합니다.\n\n:::info\n[통합옵션] 스마트 쿠폰 적용 상점만 조회가능합니다.<br />검색 조건이 없는 경우 나인큐브에서 생성된 쿠폰은 조회되지 않습니다<br />purpose 항목을 통해서 나인큐브에서 생성된 쿠폰을 조회 할 수 있습니다.<br />쿠폰 수가 많은 경우 limit 항목을 추가하여 조회가 필요합니다.\n:::",
+        "tags": [
+          "쿠폰"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "couponnum": {
+                            "type": "string",
+                            "description": "쿠폰 번호"
+                          },
+                          "subject": {
+                            "type": "string",
+                            "description": "쿠폰명"
+                          },
+                          "comment": {
+                            "type": "string",
+                            "description": "쿠폰설명"
+                          },
+                          "issue_type": {
+                            "type": "string",
+                            "description": "쿠폰유형 (다운로드, 수동발급, 자동발급)"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "쿠폰 생성일"
+                          },
+                          "coupon_use_device": {
+                            "type": "string",
+                            "description": "쿠폰 사용 범위"
+                          },
+                          "coupon_issue_device": {
+                            "type": "string",
+                            "description": "쿠폰 발행 범위"
+                          },
+                          "benefit": {
+                            "type": "string",
+                            "description": "쿠폰혜택 (원, %, 배송비무료)"
+                          },
+                          "benefit_type": {
+                            "type": "string",
+                            "description": "쿠폰 혜택 종류 (할인쿠폰,적립쿠폰,배송비할인쿠폰,배송비무료쿠폰,사은품쿠폰)"
+                          },
+                          "discount_max": {
+                            "type": "string",
+                            "description": "최대 할인 금액"
+                          },
+                          "use_period": {
+                            "type": "string",
+                            "description": "사용 기간"
+                          },
+                          "use_week": {
+                            "type": "string",
+                            "description": "사용 가능 요일"
+                          },
+                          "issue_period": {
+                            "type": "string",
+                            "description": "발급 기간"
+                          },
+                          "issue_week": {
+                            "type": "string",
+                            "description": "가능 요일"
+                          },
+                          "view_period": {
+                            "type": "string",
+                            "description": "노출 기간"
+                          },
+                          "use_condition": {
+                            "type": "string",
+                            "description": "쿠폰 사용 가능 조건"
+                          },
+                          "use_condition_detail": {
+                            "type": "array",
+                            "description": "사용 가능 조건 리스트",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "cate1": {
+                                  "type": "string",
+                                  "description": "대분류 코드"
+                                },
+                                "cate2": {
+                                  "type": "string",
+                                  "description": "중분류 코드"
+                                },
+                                "cate3": {
+                                  "type": "string",
+                                  "description": "소분류 코드"
+                                },
+                                "category_name": {
+                                  "type": "string",
+                                  "description": "카테고리 명"
+                                },
+                                "product_id": {
+                                  "type": "string",
+                                  "description": "상품번호"
+                                },
+                                "product_name": {
+                                  "type": "string",
+                                  "description": "상품명"
+                                },
+                                "brand_id": {
+                                  "type": "string",
+                                  "description": "브랜드 대분류"
+                                },
+                                "brand_mid": {
+                                  "type": "string",
+                                  "description": "브랜드 중분류"
+                                },
+                                "brand_sid": {
+                                  "type": "string",
+                                  "description": "브랜드 소분류"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "description": "브랜드 명"
+                                }
+                              }
+                            }
+                          },
+                          "use_except_condition": {
+                            "type": "string",
+                            "description": "쿠폰 사용 제한 조건"
+                          },
+                          "use_except_condition_detail": {
+                            "type": "array",
+                            "description": "사용 제한 조건 리스트",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "cate1": {
+                                  "type": "string",
+                                  "description": "대분류 코드"
+                                },
+                                "cate2": {
+                                  "type": "string",
+                                  "description": "중분류 코드"
+                                },
+                                "cate3": {
+                                  "type": "string",
+                                  "description": "소분류 코드"
+                                },
+                                "category_name": {
+                                  "type": "string",
+                                  "description": "카테고리 명"
+                                },
+                                "product_id": {
+                                  "type": "string",
+                                  "description": "상품번호"
+                                },
+                                "product_name": {
+                                  "type": "string",
+                                  "description": "상품명"
+                                },
+                                "brand_id": {
+                                  "type": "string",
+                                  "description": "브랜드 대분류"
+                                },
+                                "brand_mid": {
+                                  "type": "string",
+                                  "description": "브랜드 중분류"
+                                },
+                                "brand_sid": {
+                                  "type": "string",
+                                  "description": "브랜드 소분류"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "description": "브랜드 명"
+                                }
+                              }
+                            }
+                          },
+                          "issue_condition": {
+                            "type": "string",
+                            "description": "발행 조건. 발급 상품군 (자동발급시 사용)"
+                          },
+                          "issue_condition_detail": {
+                            "type": "array",
+                            "description": "발행 조건 리스트",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "cate1": {
+                                  "type": "string",
+                                  "description": "대분류 코드"
+                                },
+                                "cate2": {
+                                  "type": "string",
+                                  "description": "중분류 코드"
+                                },
+                                "cate3": {
+                                  "type": "string",
+                                  "description": "소분류 코드"
+                                },
+                                "category_name": {
+                                  "type": "string",
+                                  "description": "카테고리 명"
+                                },
+                                "product_id": {
+                                  "type": "string",
+                                  "description": "상품번호"
+                                },
+                                "product_name": {
+                                  "type": "string",
+                                  "description": "상품명"
+                                },
+                                "brand_id": {
+                                  "type": "string",
+                                  "description": "브랜드 대분류"
+                                },
+                                "brand_mid": {
+                                  "type": "string",
+                                  "description": "브랜드 중분류"
+                                },
+                                "brand_sid": {
+                                  "type": "string",
+                                  "description": "브랜드 소분류"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "description": "브랜드 명"
+                                }
+                              }
+                            }
+                          },
+                          "min_order_price": {
+                            "type": "string",
+                            "description": "최소 주문 금액"
+                          },
+                          "order_price_condition": {
+                            "type": "string",
+                            "description": "구매 금액 조건"
+                          },
+                          "limit": {
+                            "type": "string",
+                            "description": "전체 발급 수량 (설정된 총 발급 수)"
+                          },
+                          "issue_coun": {
+                            "type": "string",
+                            "description": "발급 수량 (쿠폰이 발급된 수)"
+                          },
+                          "limit_user": {
+                            "type": "string",
+                            "description": "ID당 발급 수량"
+                          },
+                          "issue_group": {
+                            "type": "string",
+                            "description": "발급 가능 회원"
+                          },
+                          "coupon_view_page": {
+                            "type": "string",
+                            "description": "쿠폰 노출 범위"
+                          },
+                          "image": {
+                            "type": "string",
+                            "description": "PC 이미지"
+                          },
+                          "image_mobile": {
+                            "type": "string",
+                            "description": "모바일 이미지"
+                          },
+                          "auto_time": {
+                            "type": "string",
+                            "description": "쿠폰 자동 발급 시간"
+                          },
+                          "only_premium": {
+                            "type": "string",
+                            "description": "프리미엄 전용 쿠폰 - 프리미엄 전용 쿠폰일시 출력"
+                          },
+                          "use_place": {
+                            "type": "string",
+                            "description": "쿠폰 사용처 - ALL : 전체, ONLINE : 온라인전용, OFFLINE : 오프라인"
+                          },
+                          "min_price_type": {
+                            "type": "string",
+                            "description": "쿠폰 사용 조건 설정 - NONE : 제한없음, PRD : 상품 금액 기준, PRD_TOTAL : 총상품금액 옵션 포함"
+                          },
+                          "use_order_reserve": {
+                            "type": "string",
+                            "description": "쿠폰 / 적립금 사용설정 - Y : 쿠폰/적립금 동시사용 가능, N : 쿠폰/적 립금 동시사용 불가능"
+                          },
+                          "use_group_discount": {
+                            "type": "string",
+                            "description": "회원 추가 혜택 적용 - Y : 쿠폰 사용 시 회원 추가, N : 쿠폰 사용 시 회원추가 혜택 미적용"
+                          },
+                          "give_product_reserve": {
+                            "type": "string",
+                            "description": "적립금 지급 설정 - Y : 쿠폰 사용시 상품 적립금 지급, N : 쿠폰 사용시 상품 적립금 미지급"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": false,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryType",
+            "in": "query",
+            "required": false,
+            "description": "검색 타입. reg(생성일), mod(수정일), default : reg(생성일)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 50",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "couponnum",
+            "in": "query",
+            "required": false,
+            "description": "쿠폰번호. 쿠폰번호 조회 시 다른 검색 조건 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "issue_type",
+            "in": "query",
+            "required": false,
+            "description": "쿠폰유형. DOWN :다운로드, MANUAL : 수동발급, AUTO : 자동발급, 쿠폰유형 조회 시 다른 검색 조건 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": false,
+            "description": "쿠폰 생성 업체. N_C : 나인큐브",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=uid,cate1,product_name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "스마트 쿠폰 조회",
+          "description": {
+            "content": "스마트 쿠폰 정보를 조회합니다.\n\n:::info\n[통합옵션] 스마트 쿠폰 적용 상점만 조회가능합니다.<br />검색 조건이 없는 경우 나인큐브에서 생성된 쿠폰은 조회되지 않습니다<br />purpose 항목을 통해서 나인큐브에서 생성된 쿠폰을 조회 할 수 있습니다.<br />쿠폰 수가 많은 경우 limit 항목을 추가하여 조회가 필요합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "smart_coupon"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 타입. reg(생성일), mod(수정일), default : reg(생성일)",
+                  "type": "text/plain"
+                },
+                "key": "InquiryType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 50",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "쿠폰번호. 쿠폰번호 조회 시 다른 검색 조건 무시",
+                  "type": "text/plain"
+                },
+                "key": "couponnum",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "쿠폰유형. DOWN :다운로드, MANUAL : 수동발급, AUTO : 자동발급, 쿠폰유형 조회 시 다른 검색 조건 무시",
+                  "type": "text/plain"
+                },
+                "key": "issue_type",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "쿠폰 생성 업체. N_C : 나인큐브",
+                  "type": "text/plain"
+                },
+                "key": "purpose",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=uid,cate1,product_name",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "스마트 쿠폰 조회"
+      }
+    },
+    "/api/v1/{shopId}/smart_reserve": {
+      "get": {
+        "operationId": "get-smart_reserve",
+        "description": "스마트 적립금에 사용되는 적립금 항목을 조회합니다.\n\n:::info\nInquiryTimeFrom으로 유효기간을 검색 할 경우 최대 30일까지 검색이 가능합니다.<br />검색 조건이 없는 경우 전체 항목이 출력됩니다.<br />통합옵션 및 스마트 적립금 사용 상점에서만 사용이 가능합니다.\n:::",
+        "tags": [
+          "적립금"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "총 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "string",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "string",
+                      "description": "현재 페이지"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "적립금 코드"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "적립금명"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "적립금 지급 문구"
+                          },
+                          "use": {
+                            "type": "string",
+                            "description": "사용 여부 (Y : 사용 가능, N : 사용 불가)"
+                          },
+                          "method": {
+                            "type": "string",
+                            "description": "지급 방식 (AUTO : 자동지급, PRD : 구매혜택, DOWN : 다운로드, DIRECT : 즉시지급, REGULAR : 정기지급, MANUAL : 수기지급)"
+                          },
+                          "unit": {
+                            "type": "string",
+                            "description": "지급 금액 단위 (WON : 원, PERCENT : %)"
+                          },
+                          "price": {
+                            "type": "string",
+                            "description": "지급 금액"
+                          },
+                          "period_start_date": {
+                            "type": "string",
+                            "description": "유효 기간 시작일 (0000-00-00)",
+                            "format": "date"
+                          },
+                          "period_end_date": {
+                            "type": "string",
+                            "description": "유효 기간 종료일 (0000-00-00)",
+                            "format": "date"
+                          },
+                          "term_type": {
+                            "type": "string",
+                            "description": "유효 기간 단위 종류 (YEAR : 년, MONTH : 개월, DAY : 일)"
+                          },
+                          "term": {
+                            "type": "string",
+                            "description": "유효 기간 단위 (term_type 기준으로 적용)"
+                          },
+                          "limit": {
+                            "type": "string",
+                            "description": "전체 지급 가능 수 (0 인 경우 무제한)"
+                          },
+                          "user_limit": {
+                            "type": "string",
+                            "description": "ID 당 최대 지급 가능 수 (0 인 경우 무제한)"
+                          },
+                          "day_limit": {
+                            "type": "string",
+                            "description": "1일 최대 지급 가능 수 (0 인 경우 무제한)"
+                          },
+                          "send_sms_give": {
+                            "type": "string",
+                            "description": "SMS 발송 설정 (Y : 발송, N : 미발송)"
+                          },
+                          "send_sms_expire": {
+                            "type": "string",
+                            "description": "만료 시 SMS 전송 여부 (Y : 발송, N : 미발송)"
+                          },
+                          "send_mail_expire": {
+                            "type": "string",
+                            "description": "만료 시 mail 전송 여부 (Y : 발송, N : 미발송)"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "등록일"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": false,
+            "description": "검색 시작 일자. 0000-00-00, 유효기간 시작일과 종료일이 정해진 경우 조회 가능합니다.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00, 검색 시작 일자만 있는 경우 종료 일자는 당일 일자로 검색",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "description": "적립금 코드",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "description": "적립금 이름 (LIKE 검색 지원)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "use",
+            "in": "query",
+            "required": false,
+            "description": "사용 여부. Y : 사용 가능, N : 사용 불가",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "description": "적립금 지급 방식\n\nAUTO : 자동지급, PRD : 구매혜택, DOWN : 다운로드, DIRECT : 즉시지급, REGULAR : 정기지급, MANUAL : 수기지급",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "price",
+            "in": "query",
+            "required": false,
+            "description": "지급 금액",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "unit",
+            "in": "query",
+            "required": false,
+            "description": "지급 금액 단위. WON : 원, Default : WON",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "term_type",
+            "in": "query",
+            "required": false,
+            "description": "지급 기간 단위. YEAR : 년, MONTH : 개월, DAY : 일",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "term",
+            "in": "query",
+            "required": false,
+            "description": "지급 기간. term_type 기준으로 지급 되는 기간",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX: 1000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지. default: 1",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "스마트 적립금 항목 조회",
+          "description": {
+            "content": "스마트 적립금에 사용되는 적립금 항목을 조회합니다.\n\n:::info\nInquiryTimeFrom으로 유효기간을 검색 할 경우 최대 30일까지 검색이 가능합니다.<br />검색 조건이 없는 경우 전체 항목이 출력됩니다.<br />통합옵션 및 스마트 적립금 사용 상점에서만 사용이 가능합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "smart_reserve"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 시작 일자. 0000-00-00, 유효기간 시작일과 종료일이 정해진 경우 조회 가능합니다.",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00, 검색 시작 일자만 있는 경우 종료 일자는 당일 일자로 검색",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "적립금 코드",
+                  "type": "text/plain"
+                },
+                "key": "code",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "적립금 이름 (LIKE 검색 지원)",
+                  "type": "text/plain"
+                },
+                "key": "name",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "사용 여부. Y : 사용 가능, N : 사용 불가",
+                  "type": "text/plain"
+                },
+                "key": "use",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "적립금 지급 방식\n\nAUTO : 자동지급, PRD : 구매혜택, DOWN : 다운로드, DIRECT : 즉시지급, REGULAR : 정기지급, MANUAL : 수기지급",
+                  "type": "text/plain"
+                },
+                "key": "method",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "지급 금액",
+                  "type": "text/plain"
+                },
+                "key": "price",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "지급 금액 단위. WON : 원, Default : WON",
+                  "type": "text/plain"
+                },
+                "key": "unit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "지급 기간 단위. YEAR : 년, MONTH : 개월, DAY : 일",
+                  "type": "text/plain"
+                },
+                "key": "term_type",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "지급 기간. term_type 기준으로 지급 되는 기간",
+                  "type": "text/plain"
+                },
+                "key": "term",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX: 1000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지. default: 1",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "스마트 적립금 항목 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_coupon": {
+      "get": {
+        "operationId": "get-user_coupon",
+        "description": "회원의 쿠폰 정보를 조회합니다.\n\n:::info\n회원별 조회시는 배열 키값이 회원, 일정으로 조회시에는 순차적으로 리턴됩니다.<br />조회 기간은 30일로 제한됩니다.\n:::",
+        "tags": [
+          "쿠폰"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "hname": {
+                            "type": "string",
+                            "description": "회원명"
+                          },
+                          "mobile": {
+                            "type": "string",
+                            "description": "휴대폰"
+                          },
+                          "phone": {
+                            "type": "string",
+                            "description": "전화번호"
+                          },
+                          "couponnum": {
+                            "type": "string",
+                            "description": "쿠폰번호"
+                          },
+                          "subject": {
+                            "type": "string",
+                            "description": "쿠폰명"
+                          },
+                          "minprice": {
+                            "type": "string",
+                            "description": "최소금액"
+                          },
+                          "brandcode": {
+                            "type": "string",
+                            "description": "상품코드"
+                          },
+                          "issue_ordernum": {
+                            "type": "string",
+                            "description": "발급 사유 주문"
+                          },
+                          "used_ordernum": {
+                            "type": "string",
+                            "description": "쿠폰 사용 주문 번호"
+                          },
+                          "used": {
+                            "type": "string",
+                            "description": "쿠폰 사용 여부 (Y, N)"
+                          },
+                          "discount": {
+                            "type": "string",
+                            "description": "할인 (% : 퍼센트)"
+                          },
+                          "reserve": {
+                            "type": "string",
+                            "description": "적립금"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "쿠폰 등록일 (0000-00-00 00:00)"
+                          },
+                          "start_date": {
+                            "type": "string",
+                            "description": "쿠폰 일 (0000-00-00 00:00)"
+                          },
+                          "use_date": {
+                            "type": "string",
+                            "description": "쿠폰 사용일 (0000-00-00 00:00:00, 쿠폰 사용시)"
+                          },
+                          "expire_date": {
+                            "type": "string",
+                            "description": "쿠폰 만료일 (0000-00-00 00:00)"
+                          }
+                        }
+                      }
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "조회한 리스트 수"
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": false,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00 최대 31일 조회 가능",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "searchType",
+            "in": "query",
+            "required": false,
+            "description": "검색 타입. register : 쿠폰 발급일, expire : 쿠폰 만료일, used : 쿠폰 사용일",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "couponnum",
+            "in": "query",
+            "required": false,
+            "description": "쿠폰번호. 기간 검색시 필수",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "조회 아이디",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userids",
+            "in": "query",
+            "required": false,
+            "description": "다중 조회 아이디. MAX : 100 (Byte 확인 필요)",
+            "schema": {
+              "type": "array"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선. fields=uid,hname",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 쿠폰 조회",
+          "description": {
+            "content": "회원의 쿠폰 정보를 조회합니다.\n\n:::info\n회원별 조회시는 배열 키값이 회원, 일정으로 조회시에는 순차적으로 리턴됩니다.<br />조회 기간은 30일로 제한됩니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_coupon"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00 최대 31일 조회 가능",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 타입. register : 쿠폰 발급일, expire : 쿠폰 만료일, used : 쿠폰 사용일",
+                  "type": "text/plain"
+                },
+                "key": "searchType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "쿠폰번호. 기간 검색시 필수",
+                  "type": "text/plain"
+                },
+                "key": "couponnum",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회 아이디",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "다중 조회 아이디. MAX : 100 (Byte 확인 필요)",
+                  "type": "text/plain"
+                },
+                "key": "userids",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선. fields=uid,hname",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 쿠폰 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_emoney": {
+      "get": {
+        "operationId": "get-user_emoney",
+        "description": "예치금 정보를 조회합니다.\n\n:::info\n검색 기간은 시작 일자 기준으로 +1개월 까지 가능합니다.\n:::",
+        "tags": [
+          "예치금"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "총 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "string",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "string",
+                      "description": "현재 페이지"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "조회된 예치금 내역의 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "uid": {
+                            "type": "string",
+                            "description": "내역번호"
+                          },
+                          "ordernum": {
+                            "type": "string",
+                            "description": "주문 번호 (예치금이 주문과 연관이 없을 경우 미출력)"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "내용"
+                          },
+                          "emoney_type": {
+                            "type": "string",
+                            "description": "예치금 사용/지급 내역 (1: 회원 가입, 2: 결제 금액 적립 이벤트, 3: 기타, 4: 가입 추천인, 5: 가입 피추천인, 6: 상품평 등록, 7: 설문 참여, 11: 상품 구매에 사용, 13: 주문 취소, 14: 전환)"
+                          },
+                          "emoney": {
+                            "type": "string",
+                            "description": "예치금 변경 금액"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "등록날짜 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX: 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지. default: 1",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": false,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00, 등록일,특정 회원을 검색하는 경우가 아니면 필수 입력",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00, 검색 시작 일자만 있는 경우 종료 일자는 24시간이 추가된 일자로 검색",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "searchDateType",
+            "in": "query",
+            "required": false,
+            "description": "예치금 구분. U : 사용된 예치금, R : 지급된 예치금, 미입력 시 전체 출력",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 예치금 조회",
+          "description": {
+            "content": "예치금 정보를 조회합니다.\n\n:::info\n검색 기간은 시작 일자 기준으로 +1개월 까지 가능합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_emoney"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX: 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지. default: 1",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원ID",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 시작 일자. 0000-00-00 00:00:00, 등록일,특정 회원을 검색하는 경우가 아니면 필수 입력",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00, 검색 시작 일자만 있는 경우 종료 일자는 24시간이 추가된 일자로 검색",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "예치금 구분. U : 사용된 예치금, R : 지급된 예치금, 미입력 시 전체 출력",
+                  "type": "text/plain"
+                },
+                "key": "searchDateType",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 예치금 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_point": {
+      "get": {
+        "operationId": "get-user_point",
+        "description": "회원 포인트를 조회합니다.\n\n:::info\n조회 기간은 30일로 제한됩니다.\n:::",
+        "tags": [
+          "포인트"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "전체 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "string",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "string",
+                      "description": "검색 페이지"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 ID"
+                          },
+                          "status": {
+                            "type": "string",
+                            "description": "상태 (U : 포인트 차감 금액, R : 포인트 적립 금액)"
+                          },
+                          "point": {
+                            "type": "string",
+                            "description": "포인트 금액"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "사유"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "등록일 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          },
+                          "expire_date": {
+                            "type": "string",
+                            "description": "만료일 (0000-00-00)",
+                            "format": "date"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": true,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00 최대 30일 조회 가능",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원 ID. 회원 ID로 검색 시 검색일자를 포함하지 않아도 됩니다.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "사용 / 지급 여부. U : 포인트 사용, R : 포인트 적립 ,default : 전체",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 포인트 조회",
+          "description": {
+            "content": "회원 포인트를 조회합니다.\n\n:::info\n조회 기간은 30일로 제한됩니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_point"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 종료 일자. 0000-00-00 00:00:00 최대 30일 조회 가능",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 ID. 회원 ID로 검색 시 검색일자를 포함하지 않아도 됩니다.",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "사용 / 지급 여부. U : 포인트 사용, R : 포인트 적립 ,default : 전체",
+                  "type": "text/plain"
+                },
+                "key": "status",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 포인트 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_reserve": {
+      "get": {
+        "operationId": "get-user_reserve",
+        "description": "회원의 적립금을 조회합니다.\n\n:::info\n검색 기간은 시작 일자 기준으로 +24시간 까지 가능합니다.\n:::",
+        "tags": [
+          "적립금"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "총 검색 수"
+                    },
+                    "limit": {
+                      "type": "string",
+                      "description": "검색한도"
+                    },
+                    "totalPage": {
+                      "type": "string",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "string",
+                      "description": "현재 페이지"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "조회된 적립금 내역의 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "uid": {
+                            "type": "string",
+                            "description": "내역번호"
+                          },
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "date": {
+                            "type": "string",
+                            "description": "날짜 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "내용"
+                          },
+                          "reserve": {
+                            "type": "string",
+                            "description": "적립금 (양수는 지급, 음수는 차감)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX: 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지. default: 1",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원 ID. 회원ID 검색 시 기간 검색을 포함하지 않습니다.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00, 등록일, 특정 회원을 검색하는 경우가 아니면 필수 입력",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00, 검색 시작 일자만 있는 경우 종료 일자는 24시간이 추가된 일자로 검색",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "orderByType",
+            "in": "query",
+            "required": false,
+            "description": "정렬 순서. asc : 오름차순, desc : 내림차순 (default : asc)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": false,
+            "description": "적립금 타입. U : 사용된 적립금, R : 적립금 default : all(전체)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 적립금 조회",
+          "description": {
+            "content": "회원의 적립금을 조회합니다.\n\n:::info\n검색 기간은 시작 일자 기준으로 +24시간 까지 가능합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_reserve"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX: 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지. default: 1",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 ID. 회원ID 검색 시 기간 검색을 포함하지 않습니다.",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00 00:00:00, 등록일, 특정 회원을 검색하는 경우가 아니면 필수 입력",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00, 검색 시작 일자만 있는 경우 종료 일자는 24시간이 추가된 일자로 검색",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "정렬 순서. asc : 오름차순, desc : 내림차순 (default : asc)",
+                  "type": "text/plain"
+                },
+                "key": "orderByType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "적립금 타입. U : 사용된 적립금, R : 적립금 default : all(전체)",
+                  "type": "text/plain"
+                },
+                "key": "purpose",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 적립금 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_smart_coupon": {
+      "get": {
+        "operationId": "get-user_smart_coupon",
+        "description": "스마트 쿠폰 정보를 조회합니다.\n\n:::info\n스마트 쿠폰 이용 상점만 사용 가능합니다.<br />회원별 조회시 배열 키값이 회원, 일정으로 조회시에는 순차적으로 리턴됩니다.<br />조회 기간은 30일로 제한됩니다.\n:::",
+        "tags": [
+          "쿠폰"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "전체 검색 수 (회원 id로 검색시 미출력)"
+                    },
+                    "totalPage": {
+                      "type": "integer",
+                      "description": "총 페이지 수 (회원 id로 검색시 미출력)"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "검색 페이지 (회원 id로 검색시 미출력)"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트 (날짜조건 검색 시 array, 회원 아이디로 검색시 object)",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "cid": {
+                            "type": "string",
+                            "description": "쿠폰 발급 번호 (동일 쿠폰에 대한 구분)"
+                          },
+                          "sid": {
+                            "type": "string",
+                            "description": "쿠폰 발급 번호 (시리얼 발급내역 ID)"
+                          },
+                          "hname": {
+                            "type": "string",
+                            "description": "회원명"
+                          },
+                          "mobile": {
+                            "type": "string",
+                            "description": "휴대폰"
+                          },
+                          "phone": {
+                            "type": "string",
+                            "description": "전화번호"
+                          },
+                          "couponnum": {
+                            "type": "string",
+                            "description": "쿠폰번호"
+                          },
+                          "subject": {
+                            "type": "string",
+                            "description": "쿠폰명"
+                          },
+                          "comment": {
+                            "type": "string",
+                            "description": "쿠폰설명"
+                          },
+                          "used": {
+                            "type": "string",
+                            "description": "쿠폰 사용 여부 (Y, N)"
+                          },
+                          "used_ordernum": {
+                            "type": "string",
+                            "description": "쿠폰 사용 주문 번호"
+                          },
+                          "used_basketnum": {
+                            "type": "string",
+                            "description": "쿠폰 사용 주문 품목 번호"
+                          },
+                          "minprice": {
+                            "type": "string",
+                            "description": "최소금액"
+                          },
+                          "benefit": {
+                            "type": "string",
+                            "description": "쿠폰 혜택"
+                          },
+                          "benefit_type": {
+                            "type": "string",
+                            "description": "쿠폰 종류"
+                          },
+                          "issue_type": {
+                            "type": "string",
+                            "description": "발급 방식 (DOWN : 다운로드, SERIAL : 시리얼 등록, CRM : 관리자, AUTO_BIRTH : 생일 쿠폰, AUTO_JOIN : 회원 가입 쿠폰)"
+                          },
+                          "issue_device": {
+                            "type": "string",
+                            "description": "발급 기기 (PC,MOBILE,APP)"
+                          },
+                          "issue_referer": {
+                            "type": "string",
+                            "description": "발급 referer"
+                          },
+                          "issue_page": {
+                            "type": "string",
+                            "description": "발급 페이지 (MYPAGE = 마이페이지, SHOPDETAIL = 상품 상세, ORDER = 주문서, ADMIN = 관리자, CRM = 고객관리)"
+                          },
+                          "issue_serial": {
+                            "type": "string",
+                            "description": "발급된 시리얼 번호"
+                          },
+                          "issue_ordernum": {
+                            "type": "string",
+                            "description": "발급 사유 주문"
+                          },
+                          "issue_basketnum": {
+                            "type": "string",
+                            "description": "발급 사유 주문 품목"
+                          },
+                          "issue_sub_id": {
+                            "type": "string",
+                            "description": "발급한 부운영자 ID"
+                          },
+                          "issue_sms": {
+                            "type": "string",
+                            "description": "발급시 SMS 전송 여부 (Y : 전송, N : 미전송)"
+                          },
+                          "expire_sms": {
+                            "type": "string",
+                            "description": "만료시 SMS 전송 여부 (Y : 전송, N : 미전송)"
+                          },
+                          "start_date": {
+                            "type": "string",
+                            "description": "쿠폰 사용 가능일 (0000-00-00 00:00)"
+                          },
+                          "use_date": {
+                            "type": "string",
+                            "description": "쿠폰 사용일 (0000-00-00 00:00)"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "쿠폰 등록일 (0000-00-00 00:00)"
+                          },
+                          "expire_date": {
+                            "type": "string",
+                            "description": "쿠폰 만료일 (0000-00-00 00:00)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00 최대 30일 조회 가능",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "searchType",
+            "in": "query",
+            "required": false,
+            "description": "검색 타입. 쿠폰 발급일 : register, 쿠폰 만료일 : expire, 쿠폰 사용일 : used, 기간검색 시 필수 입력",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "couponnum",
+            "in": "query",
+            "required": false,
+            "description": "쿠폰번호. 기간검색 시 필수 입력",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "조회 아이디. 회원아이디로 검색",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userids",
+            "in": "query",
+            "required": false,
+            "description": "다중 조회 아이디. MAX : 100 (Byte 확인 필요)",
+            "schema": {
+              "type": "array"
+            }
+          },
+          {
+            "name": "used",
+            "in": "query",
+            "required": false,
+            "description": "쿠폰 사용 여부. Y : 사용, N : 미사용 default : 전체",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선. fields=uid,hname",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 스마트 쿠폰 조회",
+          "description": {
+            "content": "스마트 쿠폰 정보를 조회합니다.\n\n:::info\n스마트 쿠폰 이용 상점만 사용 가능합니다.<br />회원별 조회시 배열 키값이 회원, 일정으로 조회시에는 순차적으로 리턴됩니다.<br />조회 기간은 30일로 제한됩니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_smart_coupon"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00 최대 30일 조회 가능",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 타입. 쿠폰 발급일 : register, 쿠폰 만료일 : expire, 쿠폰 사용일 : used, 기간검색 시 필수 입력",
+                  "type": "text/plain"
+                },
+                "key": "searchType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "쿠폰번호. 기간검색 시 필수 입력",
+                  "type": "text/plain"
+                },
+                "key": "couponnum",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회 아이디. 회원아이디로 검색",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "다중 조회 아이디. MAX : 100 (Byte 확인 필요)",
+                  "type": "text/plain"
+                },
+                "key": "userids",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "쿠폰 사용 여부. Y : 사용, N : 미사용 default : 전체",
+                  "type": "text/plain"
+                },
+                "key": "used",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선. fields=uid,hname",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 스마트 쿠폰 조회"
+      }
+    },
+    "/api/v1/{shopId}/user_smart_reserve": {
+      "get": {
+        "operationId": "get-user_smart_reserve",
+        "description": "통합 옵션 이용 상점에서 사용 가능합니다.\n\n:::info\n스마트 적립금 사용 상점에서 사용 가능합니다.<br />등록일에 대한 검색은 최대 1일까지만 지원됩니다.<br />회원id 로 검색 시 use=Y 항목이 포함된 경우 기간 검색 없이 조회가 가능합니다.\n:::",
+        "tags": [
+          "적립금"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "총 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "string",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "string",
+                      "description": "현재 페이지"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "적립금 지급 id"
+                          },
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 ID"
+                          },
+                          "group_id": {
+                            "type": "string",
+                            "description": "회원 그룹 ID"
+                          },
+                          "reserve_code": {
+                            "type": "string",
+                            "description": "적립금 코드"
+                          },
+                          "reserve_name": {
+                            "type": "string",
+                            "description": "적립금명"
+                          },
+                          "reserve": {
+                            "type": "string",
+                            "description": "적립금"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "적립금 지급 문구"
+                          },
+                          "use": {
+                            "type": "string",
+                            "description": "사용 여부 (Y : 사용 가능, N : 사용 불가)"
+                          },
+                          "reserve_status": {
+                            "type": "string",
+                            "description": "지급 방식 (AUTO : 자동지급, PRD : 구매혜택, DOWN : 다운로드, DIRECT : 즉시지급, REGULAR : 정기지급, MANUAL : 수기지급)"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "지급일 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          },
+                          "expire_date": {
+                            "type": "string",
+                            "description": "만료일 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00, 등록일, 특정 회원을 검색하는 경우가 아니면 필수 입력",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00, 검색 시작 일자만 있는 경우 종료 일자는 당일 일자로 검색",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "expire_start_date",
+            "in": "query",
+            "required": false,
+            "description": "만료일 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "expire_end_date",
+            "in": "query",
+            "required": false,
+            "description": "만료일 종료 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "reserve_code",
+            "in": "query",
+            "required": false,
+            "description": "적립금 항목 코드. 특정 회원을 검색하는 경우가 아니면 필수 입력",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원 id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "use",
+            "in": "query",
+            "required": false,
+            "description": "적립금 이용 가능 여부. Y : 이용 가능, N : 이용 불가. 회원 id로 조회시 use=Y이면 기간 검색 없이 조회 가능합니다.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": false,
+            "description": "회원 그룹 id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reserve_name",
+            "in": "query",
+            "required": false,
+            "description": "적립금명 (LIKE 검색 지원)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "content",
+            "in": "query",
+            "required": false,
+            "description": "적립금 지급 문구 (LIKE 검색 지원)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reserve_status",
+            "in": "query",
+            "required": false,
+            "description": "지급 적립금 상태 (Y : 사용가능, U : 부분사용, F : 사용완료, N : 사용불가, E : 만료)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "receive_type",
+            "in": "query",
+            "required": false,
+            "description": "구분 (SAVE : 적립, USE : 사용, EXPIRE : 만료, RESTORE : 복구, SUB : 차감, TRANS : 승계)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX: 1000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지. default: 1",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "회원",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "회원"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 스마트 적립금 조회",
+          "description": {
+            "content": "통합 옵션 이용 상점에서 사용 가능합니다.\n\n:::info\n스마트 적립금 사용 상점에서 사용 가능합니다.<br />등록일에 대한 검색은 최대 1일까지만 지원됩니다.<br />회원id 로 검색 시 use=Y 항목이 포함된 경우 기간 검색 없이 조회가 가능합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "user_smart_reserve"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00 00:00:00, 등록일, 특정 회원을 검색하는 경우가 아니면 필수 입력",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00, 검색 시작 일자만 있는 경우 종료 일자는 당일 일자로 검색",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "만료일 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "expire_start_date",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "만료일 종료 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "expire_end_date",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "적립금 항목 코드. 특정 회원을 검색하는 경우가 아니면 필수 입력",
+                  "type": "text/plain"
+                },
+                "key": "reserve_code",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 id",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "적립금 이용 가능 여부. Y : 이용 가능, N : 이용 불가. 회원 id로 조회시 use=Y이면 기간 검색 없이 조회 가능합니다.",
+                  "type": "text/plain"
+                },
+                "key": "use",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 그룹 id",
+                  "type": "text/plain"
+                },
+                "key": "group_id",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "적립금명 (LIKE 검색 지원)",
+                  "type": "text/plain"
+                },
+                "key": "reserve_name",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "적립금 지급 문구 (LIKE 검색 지원)",
+                  "type": "text/plain"
+                },
+                "key": "content",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "지급 적립금 상태 (Y : 사용가능, U : 부분사용, F : 사용완료, N : 사용불가, E : 만료)",
+                  "type": "text/plain"
+                },
+                "key": "reserve_status",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "구분 (SAVE : 적립, USE : 사용, EXPIRE : 만료, RESTORE : 복구, SUB : 차감, TRANS : 승계)",
+                  "type": "text/plain"
+                },
+                "key": "receive_type",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX: 1000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지. default: 1",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 스마트 적립금 조회"
+      }
+    },
+    "/api/v1/{shopId}/coupon/give": {
+      "post": {
+        "operationId": "post-coupon-give",
+        "description": "쿠폰을 지급합니다.\n\n:::info\n1회에 최대 500개까지 쿠폰 발급이 가능합니다.<br />SMS 전송 서비스는 제공되지 않습니다.<br />쿠폰은 중복 지급됩니다.<br />즉시발급 쿠폰에 한해 지급됩니다.\n:::",
+        "tags": [
+          "쿠폰"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "회원아이디"
+                          },
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true : 성공, false : 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유 (result 값이 false 경우 출력)",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "couponnum": {
+                            "type": "string",
+                            "description": "쿠폰번호"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "처리 데이터",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "회원 아이디"
+                        },
+                        "couponnum": {
+                          "type": "string",
+                          "description": "쿠폰번호"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "couponnum"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "쿠폰",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "쿠폰"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "id": "string",
+              "couponnum": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "쿠폰 지급",
+          "description": {
+            "content": "쿠폰을 지급합니다.\n\n:::info\n1회에 최대 500개까지 쿠폰 발급이 가능합니다.<br />SMS 전송 서비스는 제공되지 않습니다.<br />쿠폰은 중복 지급됩니다.<br />즉시발급 쿠폰에 한해 지급됩니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "coupon",
+              "give"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "쿠폰 지급"
+      }
+    },
+    "/api/v1/{shopId}/point/give": {
+      "post": {
+        "operationId": "post-point-give",
+        "description": "포인트를 지급합니다.",
+        "tags": [
+          "포인트"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true : 성공, false : 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유 (result 값이 false 경우 출력)",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "처리 데이터",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "회원 아이디"
+                        },
+                        "point": {
+                          "type": "string",
+                          "description": "적립금 (-로 입력시 차감)"
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "사유"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "point",
+                        "content"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "적립금",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "적립금"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "id": "string",
+              "point": "string",
+              "content": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "포인트 지급",
+          "description": {
+            "content": "포인트를 지급합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "point",
+              "give"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "포인트 지급"
+      }
+    },
+    "/api/v1/{shopId}/reserve/give": {
+      "post": {
+        "operationId": "post-reserve-give",
+        "description": "적립금을 지급합니다.",
+        "tags": [
+          "적립금"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "회원아이디"
+                          },
+                          "reserve": {
+                            "type": "string",
+                            "description": "적립금액"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "적립금 지급 사유"
+                          },
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true : 성공, false : 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유 (result 값이 false 경우 출력)",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "처리 데이터",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "회원 아이디"
+                        },
+                        "reserve": {
+                          "type": "string",
+                          "description": "적립금 (-로 입력시 차감)"
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "사유"
+                        },
+                        "date": {
+                          "type": "string",
+                          "description": "0000-00-00 00:00:00",
+                          "format": "date-time",
+                          "example": "0000-00-00 00:00:00"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "reserve",
+                        "content"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "적립금",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "적립금"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "id": "string",
+              "reserve": "string",
+              "content": "string",
+              "date": "0000-00-00 00:00:00"
+            }
+          ]
+        },
+        "postman": {
+          "name": "적립금 지급",
+          "description": {
+            "content": "적립금을 지급합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "reserve",
+              "give"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "적립금 지급"
+      }
+    },
+    "/api/v1/{shopId}/reserve_temp/give": {
+      "post": {
+        "operationId": "post-reserve_temp-give",
+        "description": "적립금 지급을 요청합니다.",
+        "tags": [
+          "적립금"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "회원아이디"
+                          },
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true : 성공, false : 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유 (result 값이 false 경우 출력)",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "처리 데이터",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "회원 아이디"
+                        },
+                        "sub_admin_id": {
+                          "type": "string",
+                          "description": "부운영자 ID (적립금 지급 요청 권한 필요)"
+                        },
+                        "reserve": {
+                          "type": "string",
+                          "description": "적립금 (-로 입력시 차감)"
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "content"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sub_admin_id",
+                        "reserve",
+                        "content"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "적립금",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "적립금"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "id": "string",
+              "sub_admin_id": "string",
+              "reserve": "string",
+              "content": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "적립금 지급 요청",
+          "description": {
+            "content": "적립금 지급을 요청합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "reserve_temp",
+              "give"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "적립금 지급 요청"
+      }
+    },
+    "/api/v1/{shopId}/smart_coupon/give": {
+      "post": {
+        "operationId": "post-smart_coupon-give",
+        "description": "스마트 쿠폰을 지급합니다\n\n:::info\n1회에 최대 500개까지 쿠폰 발급이 가능합니다.<br />쿠폰은 중복 지급됩니다.\n:::",
+        "tags": [
+          "쿠폰"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "couponnum": {
+                            "type": "string",
+                            "description": "쿠폰번호"
+                          },
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true : 성공, false : 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유 (result 값이 false 경우 출력)",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "처리 데이터",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "회원 아이디"
+                        },
+                        "couponnum": {
+                          "type": "string",
+                          "description": "쿠폰번호"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "couponnum"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "쿠폰",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "쿠폰"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "id": "string",
+              "couponnum": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "스마트 쿠폰 지급",
+          "description": {
+            "content": "스마트 쿠폰을 지급합니다\n\n:::info\n1회에 최대 500개까지 쿠폰 발급이 가능합니다.<br />쿠폰은 중복 지급됩니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "smart_coupon",
+              "give"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "스마트 쿠폰 지급"
+      }
+    },
+    "/api/v1/{shopId}/smart_reserve/give": {
+      "post": {
+        "operationId": "post-smart_reserve-give",
+        "description": "스마트 적립금을 지급합니다.\n\n:::info\n적립금 항목은 기본 지급과 수기 지급 항목인 경우만 가능합니다.<br />reserve 값이 - 인 경우 금액이 차감으로 처리됩니다.\n:::",
+        "tags": [
+          "적립금"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userid": {
+                            "type": "string",
+                            "description": "회원아이디"
+                          },
+                          "reserve": {
+                            "type": "string",
+                            "description": "적립금액"
+                          },
+                          "reserve_code": {
+                            "type": "string",
+                            "description": "적립금 항목 코드"
+                          },
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true : 성공, false : 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유 (result 값이 false 경우 출력)",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "처리 데이터",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "userid": {
+                          "type": "string",
+                          "description": "회원 아이디"
+                        },
+                        "reserve_code": {
+                          "type": "string",
+                          "description": "스마트 적립금 항목 코드\n\n<a href='/docs/api/benefit/get-smart-reserve' target='_blank'>[스마트 적립금 항목 조회]</a> 에서 code(적립금 코드) 값에 해당 합니다."
+                        },
+                        "reserve": {
+                          "type": "string",
+                          "description": "적립금 (-로 입력시 차감)"
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "사유"
+                        }
+                      },
+                      "required": [
+                        "userid",
+                        "reserve_code",
+                        "reserve"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "적립금",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "적립금"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "userid": "string",
+              "reserve_code": "string",
+              "reserve": "string",
+              "content": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "스마트 적립금 지급",
+          "description": {
+            "content": "스마트 적립금을 지급합니다.\n\n:::info\n적립금 항목은 기본 지급과 수기 지급 항목인 경우만 가능합니다.<br />reserve 값이 - 인 경우 금액이 차감으로 처리됩니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "smart_reserve",
+              "give"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "스마트 적립금 지급"
+      }
+    }
+  }
+}

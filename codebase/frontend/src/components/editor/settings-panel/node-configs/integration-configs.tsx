@@ -9,11 +9,18 @@ import {
   readCafe24Extras,
   resolveCafe24OperationLabel,
 } from "@/lib/node-definitions/cafe24-extras";
+import {
+  readMakeshopExtras,
+  resolveMakeshopOperationLabel,
+} from "@/lib/node-definitions/makeshop-extras";
 import type {
   Cafe24NodeExtras,
   Cafe24OperationField,
   Cafe24PlannedOperation,
   Cafe24SupportedOperation,
+  MakeshopNodeExtras,
+  MakeshopOperationField,
+  MakeshopSupportedOperation,
 } from "@/lib/node-definitions/types";
 
 type Config = Record<string, unknown>;
@@ -609,6 +616,284 @@ export function Cafe24Config({
                 />
                 <NumberField
                   label={t("nodeConfigs.integration.cafe24Offset")}
+                  value={pagination.offset ?? 0}
+                  onChange={(v) =>
+                    onChange({
+                      ...config,
+                      pagination: { ...pagination, offset: v },
+                    })
+                  }
+                  min={0}
+                />
+              </div>
+            </FieldGroup>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ===== MakeShop =====
+// Resource keys mirror the backend `MakeshopResource` enum
+// (`codebase/backend/src/nodes/integration/makeshop/metadata/types.ts`) and
+// double as translation keys under `nodeConfigs.integration.makeshopResources.*`.
+// `catalog-sync.spec.ts` (backend) guards the catalog ↔ metadata side.
+const MAKESHOP_RESOURCE_KEYS = [
+  "shop",
+  "product",
+  "order",
+  "member",
+  "benefit",
+  "board",
+  "cpik",
+] as const;
+type MakeshopResourceKey = (typeof MAKESHOP_RESOURCE_KEYS)[number];
+
+function pruneMakeshopFieldsToOperation(
+  values: Record<string, string>,
+  op: MakeshopSupportedOperation | undefined,
+): Record<string, string> {
+  if (!op) return values;
+  const known = new Set(op.fields.map((f) => f.name));
+  const next: Record<string, string> = {};
+  for (const [k, v] of Object.entries(values)) {
+    if (known.has(k)) next[k] = v;
+  }
+  return next;
+}
+
+function findMakeshopOperation(
+  extras: MakeshopNodeExtras | null,
+  resource: string,
+  operation: string,
+): MakeshopSupportedOperation | undefined {
+  if (!extras || !resource || !operation) return undefined;
+  const list = extras.operationsByResource[resource];
+  return list?.find((op) => op.id === operation);
+}
+
+function MakeshopFieldRow({
+  field,
+  value,
+  onChange,
+  t,
+}: {
+  field: MakeshopOperationField;
+  value: string;
+  onChange: (next: string) => void;
+  t: ReturnType<typeof useT>;
+}) {
+  const hintBits: string[] = [];
+  if (field.description) hintBits.push(field.description);
+  if (field.type === "enum" && field.enum && field.enum.length > 0) {
+    hintBits.push(
+      t("nodeConfigs.integration.makeshopFieldsEnumHint", {
+        values: field.enum.join(" / "),
+      }),
+    );
+  } else if (field.type === "boolean") {
+    hintBits.push(t("nodeConfigs.integration.makeshopFieldsBooleanHint"));
+  }
+  if (field.default !== undefined) {
+    hintBits.push(
+      t("nodeConfigs.integration.makeshopFieldsDefaultHint", {
+        value: String(field.default),
+      }),
+    );
+  }
+  return (
+    <FieldGroup
+      label={field.name}
+      hint={hintBits.join(" · ") || undefined}
+      required={field.required}
+    >
+      <ExpressionInput bare label="" value={value} onChange={onChange} />
+    </FieldGroup>
+  );
+}
+
+export function MakeshopConfig({
+  config,
+  onChange,
+}: {
+  config: Config;
+  onChange: OnChange;
+}) {
+  const t = useT();
+  // MakeShop operation 라벨은 i18n nested key 와 호환 안 되는 flat dict
+  // (`makeshopCatalog.<dotted-key>`) 이라 locale 스토어를 직접 보고 dict 를
+  // import 해 lookup. SoT: spec/conventions/makeshop-api-metadata.md §2.
+  const locale = useLocaleStore((s) => s.locale);
+  const extras = readMakeshopExtras();
+
+  const resource = (config.resource as string) ?? "";
+  const operation = (config.operation as string) ?? "";
+  const supportedOp = findMakeshopOperation(extras, resource, operation);
+  const fieldValues = readFieldValues(config.fields);
+
+  const pagination =
+    (config.pagination as { limit?: number; offset?: number } | undefined) ?? {};
+
+  const resourceOptions = [
+    {
+      value: "",
+      label: t("nodeConfigs.integration.makeshopResourceSelectPlaceholder"),
+    },
+    ...MAKESHOP_RESOURCE_KEYS.map((key: MakeshopResourceKey) => ({
+      value: key,
+      label: t(`nodeConfigs.integration.makeshopResources.${key}` as const),
+    })),
+  ];
+
+  const supportedListForResource =
+    (resource && extras?.operationsByResource[resource]) || [];
+
+  // MakeShop has no planned tier — every catalog operation is supported.
+  const operationOptions = !resource
+    ? [
+        {
+          value: "",
+          label: t(
+            "nodeConfigs.integration.makeshopOperationSelectResourceFirst",
+          ),
+          disabled: true,
+        },
+      ]
+    : [
+        {
+          value: "",
+          label: t(
+            "nodeConfigs.integration.makeshopOperationSelectPlaceholder",
+          ),
+        },
+        ...supportedListForResource.map((op) => ({
+          value: op.id,
+          label: resolveMakeshopOperationLabel(locale, op.labelKey),
+        })),
+      ];
+
+  const coverageHint =
+    resource && extras
+      ? t("nodeConfigs.integration.makeshopOperationCoverageHint", {
+          supported: supportedListForResource.length,
+        })
+      : undefined;
+
+  const handleResourceChange = (next: string) => {
+    onChange({ ...config, resource: next, operation: "", fields: {} });
+  };
+
+  const handleOperationChange = (nextOpId: string) => {
+    const nextSupported = findMakeshopOperation(extras, resource, nextOpId);
+    const prunedFields = pruneMakeshopFieldsToOperation(
+      fieldValues,
+      nextSupported,
+    );
+    onChange({ ...config, operation: nextOpId, fields: prunedFields });
+  };
+
+  const handleFieldChange = (fieldName: string, nextValue: string) => {
+    onChange({
+      ...config,
+      fields: { ...fieldValues, [fieldName]: nextValue },
+    });
+  };
+
+  const requiredFields = supportedOp?.fields.filter((f) => f.required) ?? [];
+  const optionalFields = supportedOp?.fields.filter((f) => !f.required) ?? [];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <IntegrationSelector
+        label={t("nodeConfigs.integration.integrationLabel")}
+        value={(config.integrationId as string) ?? ""}
+        onChange={(v) => onChange({ ...config, integrationId: v })}
+        serviceTypes={["makeshop"]}
+        serviceDisplayName="MakeShop"
+      />
+      <SelectField
+        label={t("nodeConfigs.integration.makeshopResource")}
+        value={resource}
+        onChange={handleResourceChange}
+        options={resourceOptions}
+      />
+      <SelectField
+        label={t("nodeConfigs.integration.makeshopOperation")}
+        value={operation}
+        onChange={handleOperationChange}
+        options={operationOptions}
+        hint={coverageHint}
+      />
+      {!supportedOp && operation && resource && extras && (
+        <p className="text-[10px] text-amber-500">
+          {t("nodeConfigs.integration.makeshopOperationUnknown")}
+        </p>
+      )}
+      {supportedOp && (
+        <>
+          {requiredFields.length === 0 && optionalFields.length === 0 ? (
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              {t("nodeConfigs.integration.makeshopFieldsEmpty")}
+            </p>
+          ) : (
+            <>
+              {requiredFields.length > 0 && (
+                <FieldGroup
+                  label={t("nodeConfigs.integration.makeshopFieldsRequired")}
+                >
+                  <div className="flex flex-col gap-2">
+                    {requiredFields.map((f) => (
+                      <MakeshopFieldRow
+                        key={f.name}
+                        field={f}
+                        value={fieldValues[f.name] ?? ""}
+                        onChange={(v) => handleFieldChange(f.name, v)}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                </FieldGroup>
+              )}
+              {optionalFields.length > 0 && (
+                <FieldGroup
+                  label={t("nodeConfigs.integration.makeshopFieldsOptional")}
+                >
+                  <div className="flex flex-col gap-2">
+                    {optionalFields.map((f) => (
+                      <MakeshopFieldRow
+                        key={f.name}
+                        field={f}
+                        value={fieldValues[f.name] ?? ""}
+                        onChange={(v) => handleFieldChange(f.name, v)}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                </FieldGroup>
+              )}
+            </>
+          )}
+          {supportedOp.paginated && (
+            <FieldGroup
+              label={t("nodeConfigs.integration.makeshopPagination")}
+              hint={t("nodeConfigs.integration.makeshopPaginationHint")}
+            >
+              <div className="flex gap-3">
+                <NumberField
+                  label={t("nodeConfigs.integration.makeshopLimit")}
+                  value={pagination.limit ?? 50}
+                  onChange={(v) =>
+                    onChange({
+                      ...config,
+                      pagination: { ...pagination, limit: v },
+                    })
+                  }
+                  min={1}
+                  max={500}
+                />
+                <NumberField
+                  label={t("nodeConfigs.integration.makeshopOffset")}
                   value={pagination.offset ?? 0}
                   onChange={(v) =>
                     onChange({

@@ -35,7 +35,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | knowledgeBases | UUID[] | | `[]` | 참조할 Knowledge Base ID 목록. [공통 §2](./0-common.md#2-knowledge-base-연동) |
 | ragTopK | Integer | | `5` | KB tool 호출 시 반환할 청크 수의 기본값 (LLM 이 호출 인자로 override 가능) |
 | ragThreshold | Float | | `0.7` | 최소 유사도 임계값 (0-1) 의 기본값 (LLM 이 호출 인자로 override 가능) |
-| mcpServers | McpServerRef[] | | `[]` | MCP-capable Integration 참조 목록. `service_type ∈ ('mcp', 'cafe24')` 모두 수용 — 후자는 backend `Cafe24McpToolProvider` 가 in-process `AgentToolProvider` 구현체로 동작 ([Spec MCP Client §2.3 Internal Bridge](../../5-system/11-mcp-client.md#23-internal-bridge-in-process)). [공통 §3](./0-common.md#3-mcp-서버-연결-ai-agent-전용) |
+| mcpServers | McpServerRef[] | | `[]` | MCP-capable Integration 참조 목록. `service_type ∈ ('mcp', 'cafe24', 'makeshop')` 모두 수용 — `cafe24`·`makeshop` 은 backend `Cafe24McpToolProvider`·`MakeshopMcpToolProvider` 가 in-process `AgentToolProvider` 구현체로 동작 ([Spec MCP Client §2.3 Internal Bridge](../../5-system/11-mcp-client.md#23-internal-bridge-in-process)). [공통 §3](./0-common.md#3-mcp-서버-연결-ai-agent-전용) |
 | maxToolCalls | Integer | ✓ | `10` | 최대 도구 호출 횟수 (KB·MCP·일반 합산) |
 | includeSystemContext | Boolean | | `true` | systemPrompt 앞에 시각·timezone prefix 자동 prepend. [공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix) |
 | systemContextSections | String[] | | `['time', 'timezone']` | prefix 섹션. 허용 값: `time` / `timezone` / `workspace` / `node`. [공통 §11.1](./0-common.md#111-설정-필드-3-노드-공통) |
@@ -119,6 +119,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 │  [+ Add MCP Server]                      │
 │   🌐 Generic MCP (HTTP) servers          │
 │   🛒 Cafe24 stores (Internal Bridge)     │
+│   🛒 MakeShop stores (Internal Bridge)   │
 │                                          │
 │  ── Conditions ──  (선택 사항)           │
 │  ┌──────────────────────────────────────┐│
@@ -146,10 +147,11 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 └──────────────────────────────────────────┘
 ```
 
-**"Add MCP Server" 클릭 시 노출되는 후보 목록**: `service_type='mcp'` 와 `service_type='cafe24'` 의 워크스페이스 Integration 을 함께 표시한다 ([Spec 통합 §14.2](../../2-navigation/4-integration.md#142-워크플로우-에디터)). UI 는 두 그룹을 시각적으로 분리:
+**"Add MCP Server" 클릭 시 노출되는 후보 목록**: `service_type='mcp'`·`service_type='cafe24'`·`service_type='makeshop'` 의 워크스페이스 Integration 을 함께 표시한다 ([Spec 통합 §14.2](../../2-navigation/4-integration.md#142-워크플로우-에디터)). UI 는 그룹을 시각적으로 분리:
 
 - `🌐 Generic MCP (HTTP) servers` — `service_type='mcp'`
 - `🛒 Cafe24 stores (Internal Bridge)` — `service_type='cafe24'`
+- `🛒 MakeShop stores (Internal Bridge)` — `service_type='makeshop'`
 
 추가 후 행 표시에 Bridge 종류 아이콘(🌐/🛒)을 prefix 로 부착. "Add MCP Server" 라벨은 "MCP-capable Integration" 의 의미로 사용 — 라벨 변경 없이 화이트리스트 확장 (사용자 학습 비용 최소화). Workflow AI Assistant 의 candidate picker 도 두 service_type 을 모두 후보로 수집한다 ([Spec AI Assistant §4.3.1](../../3-workflow-editor/4-ai-assistant.md#431-pendinguserconfig-구조-candidate-picker)).
 
