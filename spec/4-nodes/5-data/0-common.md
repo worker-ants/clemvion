@@ -53,7 +53,7 @@ Data 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 |------|--------------------------------|
 | `config` | 사용자 입력 raw echo (Principle 7). `code.code` 필드는 보안 차원에서 echo하되 길이 제한 없음 (사용자 본인이 작성한 코드). `transform.operations[]` 의 expression 템플릿 보존 |
 | `output` | **계산 결과**. `transform`: 변환 결과 (단일 객체 또는 배열). `code`: 사용자 코드의 `return` 값 |
-| `meta` | 실행 메트릭만 (Principle 2). `meta.durationMs` (공통). `code` 노드: `meta.{success: boolean, logs?: string[], error?: {code,message}, errorCode?: string, exitReason?}` |
+| `meta` | 실행 메트릭만 (Principle 2). `meta.durationMs` (공통). `code` 노드: `meta.{success: boolean, logs?: string[]}`. 런타임 에러는 `output.error` + `port:'error'` 로 처리 — `meta.error`/`meta.errorCode`/`exitReason` 별칭은 Phase 1 D 에서 폐기 (CONVENTIONS Principle 2 Code 행과 일치) |
 | `port` | `transform`: `undefined` (단일 출력). `code`: `'success'` / `'error'` (런타임 에러 분기) |
 | `status` | Data 노드는 모두 비-블로킹 → `undefined` |
 
@@ -71,4 +71,4 @@ Data 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 | 노드 | 정상 케이스 | 에러 케이스 | Pre-flight throw |
 |------|-------------|-------------|---------------------|
 | [transform](./1-transform.md#5-출력-구조) | §5.1 | — | §5.8 (config·expression 오류) |
-| [code](./2-code.md#5-출력-구조) | §5.1 (`success` port) | §5.3 (`error` port) | §5.8 (코드 컴파일 실패) |
+| [code](./2-code.md#5-출력-구조) | §5.1 (`success` port) | §5.3 (`error` port) | §6 (코드 컴파일 실패) |
