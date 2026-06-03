@@ -77,7 +77,6 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `mains_products_count` | 메인 카테고리 상품 개수 | Retrieve a count of products in main category | GET | `mains/{display_group}/products/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-products-in-main-category) |
 | `mains_products_set` | 메인 카테고리 상품 설정 | Set main category products | POST | `mains/{display_group}/products` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#set-main-category-products) |
 | `mains_products_update_sorting` | 메인 카테고리 상품 정렬 수정 | Update fixed sorting of products in main category | PUT | `mains/{display_group}/products` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-fixed-sorting-of-products-in-main-category) |
-| `mains_products_delete` | 메인 카테고리 상품 삭제 | Delete a product in main category | DELETE | `mains/{display_group}/products` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-in-main-category) |
 
 ## Field-level 상세 카탈로그
 

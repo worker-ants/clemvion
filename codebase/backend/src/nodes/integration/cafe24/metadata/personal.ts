@@ -17,14 +17,14 @@ export const personalOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'wishlists_list',
-    description: 'List wishlists for members.',
+    description: "List the products in a customer's wishlist.",
     scopeType: 'read',
     method: 'GET',
-    path: 'wishlists',
-    requiredFields: ['shop_no'],
+    path: 'customers/{member_id}/wishlist',
+    requiredFields: ['member_id'],
     fields: {
+      member_id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
-      member_id: { type: 'string', location: 'query' },
     },
     responseShape: 'list',
     paginated: true,

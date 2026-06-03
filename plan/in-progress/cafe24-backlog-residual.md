@@ -135,3 +135,17 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 > 비동작(404)이라 회귀 아님으로 정리. carts scope 실증(W4/W10)·field-set(W5/W6)은 각각 G-3k·
 > G-1-remaining 으로 이관. (review 산출물은 gitignored — 본 노트가 PR trace.)
 > 잔존 catalog-sync 3 fail 은 `category.md` footnote 마커 pre-existing(본 변경 무관).
+
+> **G-3 DECIDE 배치 완료 (2026-06-03, 사용자 결정: A 전체 remap + B 즉시 제거)**:
+> - **A REMAP (10 ops)**: `orders_benefits_list`·`orders_coupons_list`(잉여 `{order_id}` 제거),
+>   `order_items_labels_delete`(`/{name}` 추가), `points_autoexpiration_get/delete`(`{id}` 제거),
+>   `theme_pages_get`(`{page_path}` 제거), `wishlists_list`(`customers/{member_id}/wishlist`),
+>   `salesreport_daily`→`financials/dailysales`, `salesreport_products`→`reports/productsales`,
+>   `shipping_companies_list`→`carriers`. metadata + index path 동기.
+> - **B REMOVE (6 ops)**: `board_article_get`·`urgentinquiry_get`·`financials_monthlyreviews_count`
+>   (community), `subscription_shipments_get`·`control`(order), `mains_products_delete`(product) —
+>   metadata + index row + i18n ko/en 라벨 + `_overview.md §5` coverage(500→494) 동기 제거.
+> - 검증: backend build·lint, catalog-sync 16/16, metadata/handler 93, frontend i18n parity 12 +
+>   cafe24-extras/i18n 68 통과. e2e 후속.
+> - **남은 G-3**: G-3k(carts scope 실증, 외부 API), G-1-remaining(field-set: A REMAP 중 benefits/coupons
+>   등 fields 미세 보강 포함), G-3m(드리프트 가드). field-set 은 대량 확장 트랙으로 유지.

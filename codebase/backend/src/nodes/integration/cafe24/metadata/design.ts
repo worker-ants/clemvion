@@ -45,11 +45,10 @@ export const designOperations: Cafe24OperationMetadata[] = [
     description: 'Retrieve theme page contents (HTML/CSS).',
     scopeType: 'read',
     method: 'GET',
-    path: 'themes/{skin_no}/pages/{page_path}',
-    requiredFields: ['skin_no', 'page_path'],
+    path: 'themes/{skin_no}/pages',
+    requiredFields: ['skin_no'],
     fields: {
       skin_no: { type: 'number', location: 'path' },
-      page_path: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',

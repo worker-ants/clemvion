@@ -98,10 +98,10 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | Resource | Supported | Planned | Cafe24 docs sub-resource 수 |
 |----------|-----------|---------|---|
 | [store](./store.md) | 106 | 0 | 50+ |
-| [product](./product.md) | 63 | 0 | 28 |
-| [order](./order.md) | 106 | 0 | 47 |
+| [product](./product.md) | 62 | 0 | 28 |
+| [order](./order.md) | 104 | 0 | 47 |
 | [customer](./customer.md) | 24 | 0 | 12 |
-| [community](./community.md) | 24 | 0 | 9 |
+| [community](./community.md) | 21 | 0 | 9 |
 | [design](./design.md) | 9 | 0 | 3 |
 | [promotion](./promotion.md) | 35 | 0 | 10 |
 | [application](./application.md) | 19 | 0 | 8 |
@@ -115,7 +115,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | [mileage](./mileage.md) | 8 | 0 | 5 |
 | [notification](./notification.md) | 12 | 0 | 7 |
 | [translation](./translation.md) | 9 | 0 | 4 |
-| **합계** | **500** | **0** | **~250** |
+| **합계** | **494** | **0** | **~250** |
 
 > 18 resource 전부 0-planned. `store.md` 의 `privacy_*` id 명명 우려 (별 `privacy` resource 와 prefix 충돌) 는 별 트랙으로 follow-up 가능.
 
