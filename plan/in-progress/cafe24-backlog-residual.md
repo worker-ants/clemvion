@@ -105,24 +105,23 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 > 액션 표기: **FIX** = docs 에 동일 operation 존재, 경로/scope 문자열만 정정 / **DECIDE** = docs 에 해당
 > (method,path) 자체가 없음 → remove vs remap(다른 docs endpoint) vs cafe24 문의 판단 필요.
 
-- [ ] **G-3a translation (FIX ×9 — 최우선, 미정정 시 404 위험)**: 단수 `translation/` → 복수 `translations/`.
+- [x] **G-3a translation (FIX ×9 — 최우선, 미정정 시 404 위험)** ✅ 2026-06-03 정정 (metadata translation.ts + index translation.md, themes param `theme_no`→`skin_no`, 오기 주석 정정): 단수 `translation/` → 복수 `translations/`.
   - `translation_products_list` `translation/products`→`translations/products`; `translation_products_update` `.../{product_no}` 동일 복수화
   - `translation_categories_list`/`_update` → `translations/categories[/{category_no}]`
   - `translation_store_list`/`_update` → `translations/store`
   - `translation_themes_list` → `translations/themes`; `translation_themes_get`/`_update` `translation/themes/{theme_no}` → `translations/themes/{skin_no}` (**path param 명도 `theme_no`→`skin_no`**)
-- [ ] **G-3b order (FIX ×3 / DECIDE ×4)**:
-  - FIX: `orders_benefits_list` `orders/{order_id}/benefits`→`orders/benefits` (잉여 `{order_id}` 제거); `orders_coupons_list` `orders/{order_id}/coupons`→`orders/coupons`; `exchange_update_multiple` PUT `exchanges`→`exchange` (단수)
-  - FIX(path param 추가): `order_items_labels_delete` DELETE `.../labels`→`.../labels/{name}`
-  - DECIDE: `orders_calculation_total` POST `orders/{order_id}/calculation/total` → docs 는 `orders/calculation` (order_id·/total 없음, semantics 재확인); `order/control` `orders/control` → docs 무; `subscription_shipments_get` GET `subscription/shipments/{subscription_id}` → docs 는 PUT 만 (GET single 부재)
-- [ ] **G-3c personal (FIX ×2)**: `wishlists_list` `wishlists`→`customers/{member_id}/wishlist`; `customers_wishlist_count` `customers/wishlist/count`→`customers/{member_id}/wishlist/count` (둘 다 `{member_id}` 추가)
+- [ ] **G-3b order (FIX ×1 / DECIDE ×6)**:
+  - FIX: `exchange_update_multiple` PUT `exchanges`→`exchange` (단수). ✅ 2026-06-03 정정
+  - DECIDE(semantics 변경 — 단순 string fix 아님): `orders_benefits_list` `orders/{order_id}/benefits`·`orders_coupons_list` `orders/{order_id}/coupons` → docs 는 `orders/benefits`·`orders/coupons` (per-order endpoint 자체 부재 → collection 으로 의미 변경, 응답·노드 재설계 필요); `order_items_labels_delete` DELETE `.../labels` → docs `.../labels/{name}` (전체삭제 vs 단건삭제 = 다른 operation); `orders_calculation_total` POST `orders/{order_id}/calculation/total` → docs `orders/calculation`; `order/control` `orders/control` → docs 무; `subscription_shipments_get` GET `subscription/shipments/{subscription_id}` → docs 는 PUT 만 (GET single 부재)
+- [ ] **G-3c personal (FIX ×1 / DECIDE ×1)**: FIX `customers_wishlist_count` `customers/wishlist/count`→`customers/{member_id}/wishlist/count` (이미 per-customer 의도, `{member_id}` path 화) — ✅ 2026-06-03 정정. DECIDE `wishlists_list` `wishlists` → docs 는 per-member `customers/{member_id}/wishlist` 만 (collection "전체 위시리스트" endpoint 부재 → 의미 변경, remap 판단 필요).
 - [ ] **G-3d salesreport (DECIDE ×2 — resource 재편)**: `salesreport_daily` `salesreport/sales`→`financials/dailysales`; `salesreport_products` `salesreport/products`→`reports/productsales`. 경로뿐 아니라 응답 스키마도 바뀌었을 수 있어 연동 코드 재확인.
 - [ ] **G-3e mileage (DECIDE ×2)**: `points_autoexpiration_get`/`_delete` `points/autoexpiration/{id}` → docs 는 `{id}` 없는 collection-level GET/POST/DELETE (단건 vs 목록 semantics 확인).
 - [ ] **G-3f community (DECIDE ×3)**: `board_article_get` GET `boards/{board_no}/articles/{article_no}` (docs PUT/DELETE 만); `financials_monthlyreviews_count` `.../count` (docs 무); `urgentinquiry_get` `urgentinquiry/{inquiry_no}` (docs list 만).
-- [ ] **G-3g notification (FIX ×1)**: `customers_invitation_send` POST `customers/invitation`→`customers/{member_id}/invitation`.
+- [x] **G-3g notification (FIX ×1)** ✅ 2026-06-03 정정 (member_id body→path): `customers_invitation_send` POST `customers/invitation`→`customers/{member_id}/invitation`.
 - [ ] **G-3h design (DECIDE ×1)**: `theme_pages_get` GET `themes/{skin_no}/pages/{page_path}` → docs `themes/{skin_no}/pages` (`{page_path}` 없음).
-- [ ] **G-3i shipping (FIX/remap ×1)**: `shipping_companies_list` GET `shippingcompanies`→`carriers` (docs shipping = carriers). 응답 스키마 재확인.
+- [ ] **G-3i shipping (DECIDE ×1)**: `shipping_companies_list` GET `shippingcompanies` → docs 엔 없고 `carriers` 가 대응이나 **다른 resource·응답 스키마** → 단순 remap 불가, 노드 출력 매핑 재설계 판단 필요.
 - [ ] **G-3j product (DECIDE ×1)**: `mains_products_delete` DELETE `mains/{display_group}/products` → docs GET/POST/PUT 만 (DELETE 부재).
-- [ ] **G-3k store (SCOPE FIX ×1)**: `carts_setting_update` PUT `carts/setting` scope `write`→`read` (docs 기본스펙 `mall.read_store`). PUT 에 read scope 는 이례적이라 정정 전 1회 확인 권장.
+- [x] **G-3k store (SCOPE FIX ×1)** ✅ 2026-06-03 정정 (docs 기본스펙 재확인: PUT 이지만 `mall.read_store`): `carts_setting_update` PUT `carts/setting` scope `write`→`read`.
 - [ ] **G-3l KNOWN_G2 재검토 (7)**: HTML 이 최종 상태로 확정됐으므로, 위 G-2 의 "production 검증 전 보류" 전제가
   해소됨 — docs 에 없는 `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·
   `socials_apple_settings_get` 는 **최종 API 부재 확정**. 제거 여부를 G-2 결정과 합쳐 재판단 (planner 트랙).

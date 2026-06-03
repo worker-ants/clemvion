@@ -1187,7 +1187,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     description: 'Update multiple order exchanges in bulk.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'exchanges',
+    path: 'exchange',
     requiredFields: [],
     fields: {},
     responseShape: 'single',

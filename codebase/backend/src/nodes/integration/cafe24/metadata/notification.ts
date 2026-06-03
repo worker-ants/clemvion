@@ -121,11 +121,11 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     description: 'Send an invitation to a member to activate their account.',
     scopeType: 'write',
     method: 'POST',
-    path: 'customers/invitation',
+    path: 'customers/{member_id}/invitation',
     requiredFields: ['member_id'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
-      member_id: { type: 'string', location: 'body' },
+      member_id: { type: 'string', location: 'path' },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,

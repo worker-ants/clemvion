@@ -104,7 +104,7 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `control` | 주문 컨트롤 | Order control | POST | `orders/control` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#order-control) |
 | `exchange_get` | 교환 조회 | Retrieve an exchange | GET | `exchange/{claim_code}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-an-exchange) |
 | `exchange_create_multiple` | 교환 일괄 생성 | Create multiple exchanges | POST | `exchange` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-multiple-exchanges) |
-| `exchange_update_multiple` | 교환 일괄 수정 | Update multiple order exchanges | PUT | `exchanges` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-multiple-order-exchanges) |
+| `exchange_update_multiple` | 교환 일괄 수정 | Update multiple order exchanges | PUT | `exchange` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-multiple-order-exchanges) |
 | `exchangerequests_create_bulk` | 교환 요청 일괄 생성 | Bulk exchange request API | POST | `exchangerequests` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#bulk-exchange-request-api) |
 | `exchangerequests_reject_multiple` | 교환 요청 일괄 거부 | Reject an exchange request for multiple items | PUT | `exchangerequests` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#reject-an-exchange-request-for-multiple-items) |
 | `fulfillments_create` | 풀필먼트 배송 생성 | Create shipping information for multiple orders via fulfillment | POST | `fulfillments` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-shipping-information-for-multiple-orders-via-fulfillment) |
