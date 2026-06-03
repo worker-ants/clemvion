@@ -106,7 +106,9 @@ spec-only → implemented 승격(노드 구현 PR) 시 함께 갱신:
 
 > 전제: cafe24 구현 지도 기준. `service_type`·node type 모두 string 컬럼(DB enum 아님) → enum 마이그레이션 불필요, partial UNIQUE 인덱스(V071)만. 최신 마이그레이션 = V070. 각 Phase = 독립 PR 지향(개별 `/ai-review` + `--impl-done`).
 
-### Phase 0 — Foundation (metadata + 마이그레이션, 런타임 미배선)
+### Phase 0 — Foundation (metadata + 마이그레이션, 런타임 미배선) — ✅ 완료 (2026-06-03)
+
+> 커밋 `721e832b`(feat) + `432bfe1e`(review fix) + `97b1734d`(RESOLUTION). 161 REST op 메타데이터 생성, catalog-sync 양방향 + constraint-validator + public-meta 테스트 **57개 통과**, lint·build green. `/ai-review` Critical 0/Warning 7 → resolution-applier 7/7 해소(RESOLUTION.md). e2e skip(런타임 surface 없음 — 노드 미등록). DB 마이그레이션 V071 은 Phase 1(service-registry) 과 함께. **잔여**: migration V071 은 Phase 1 로 이월.
 - `nodes/integration/makeshop/metadata/types.ts` — `MakeshopResource`(7), `MAKESHOP_RESOURCES`, field/constraint 타입 (cafe24 types.ts 미러, **`restrictedApproval` 제거**, method 'GET'|'POST')
 - `metadata/<shop|product|order|member|benefit|board|cpik>.ts` — **catalog `openapi/<section>.json` 에서 generator 로 161 op 생성** (id=operationId, scopeType=x-scope→read/write, method/path, requiredFields, fields{type,location})
 - `metadata/index.ts` — `MAKESHOP_OPERATIONS_BY_RESOURCE`, `findMakeshopOperation`, `scopeForOperation`, `listAllMakeshopOperations`
