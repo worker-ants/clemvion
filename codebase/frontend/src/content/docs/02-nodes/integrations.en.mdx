@@ -1,4 +1,4 @@
-This page covers the four integration nodes that talk to external services (HTTP Request, Database Query, Send Email, and Cafe24). Most of them share a common pattern: they reference an **Integration entity** for reusable auth/connection info, and they route success and failure through separate output ports.
+This page covers the five integration nodes that talk to external services (HTTP Request, Database Query, Send Email, Cafe24, and MakeShop). Most of them share a common pattern: they reference an **Integration entity** for reusable auth/connection info, and they route success and failure through separate output ports.
 
 ## Shared patterns
 
@@ -243,12 +243,61 @@ To/CC/BCC accept both arrays and comma-separated strings. Values are trimmed, bl
 If this is your first time, register the integration from **sidebar → Integrations → Cafe24** first. The full onboarding (app type, OAuth callback, registering a Private app) is covered in the [Cafe24 integration guide](/docs/06-integrations-and-config/cafe24). That page also explains how to expose the same integration as an MCP tool on an AI Agent node.
 </Callout>
 
+## MakeShop
+
+### When to use it
+
+- To call the Korean e-commerce SaaS **MakeShop** Shop API across its 7 sections (shop, product, order, member, benefit, board, CPIK — about 161 endpoints) from a workflow.
+- The same MakeShop integration is reused by both this node and the AI Agent's MCP tool surface, so OAuth tokens and call logs stay unified.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "integrationId", required: true, type: "UUID", description: "Reference to an Integration with `service_type='makeshop'`. Create one from sidebar → Integrations → MakeShop card.", default: "-"},
+  {name: "resource", required: true, type: "enum", description: "MakeShop section — one of 7 values: `shop`, `product`, `order`, `member`, `benefit`, `board`, `cpik`.", default: "-"},
+  {name: "operation", required: true, type: "string", description: "Operation identifier for the selected resource — e.g. `get-product`, `get-order-1`, `post-cart-create`. The metadata table fills the dropdown automatically.", default: "-"},
+  {name: "fields", required: false, type: "Record<string, unknown>", description: "Input fields for the selected operation. Expression `{{ }}` allowed.", default: "{}"},
+  {name: "pagination", required: false, type: "object", description: "`{ limit?, offset? }`. Meaningful only when the operation supports pagination.", default: "-"}
+]} />
+
+### Ports
+
+- `success` — API call succeeded
+- `error` — auth expired, API error, network failure, etc.
+
+### Example
+
+<Example title="Fetch a MakeShop product">
+```ts
+// config
+{
+  integrationId: "…",
+  resource: "product",
+  operation: "get-product",
+  fields: {
+    product_id: "{{ $input.productId }}"
+  }
+}
+
+// success port
+{ response: { product_id: "1001", product_name: "Sample product", … } }
+
+// error port
+{ error: { code: "MAKESHOP_API_ERROR", message: "…" } }
+```
+</Example>
+
+<Callout type="tip">
+If this is your first time, register the integration from **sidebar → Integrations → MakeShop** first. MakeShop integrations use an install-first flow: the integration stays in a pending state (pending_install) until the ShopStore app install completes and OAuth authentication finishes. The [MakeShop integration guide](/docs/06-integrations-and-config/makeshop) covers the full onboarding and how to expose the same integration as an MCP tool on an AI Agent node.
+</Callout>
+
 ## Canvas summary
 
 - HTTP Request: `{method} {url}` (URL trimmed at 35 chars)
 - Database Query: `{queryType} · {first line of the query}` (trimmed)
 - Send Email: `to: {recipient}` (with `+N` when there are more than 2)
 - Cafe24: `{resource} · {operation}` (operation name trimmed when long)
+- MakeShop: `{resource} · {operation}` (operation name trimmed when long)
 
 When the referenced Integration is deleted, a `⚠ Missing integration` badge appears on the canvas summary.
 

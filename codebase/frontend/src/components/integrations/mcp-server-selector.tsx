@@ -236,8 +236,9 @@ export function McpServerSelector({ value, onChange }: Props) {
                 )}
                 {/* Internal Bridge server — operation 단위 allowlist 편집
                     (advanced surface). Cafe24 는 별도 승인(⚠) 라벨을 에디터가
-                    자동 렌더 (§1 / spec §8.3); MakeShop 은 승인 tier 가 없어
-                    배지 없이 렌더. */}
+                    자동 렌더 (§1 / spec/4-nodes/4-integration/4-cafe24.md §8.3);
+                    MakeShop 은 승인 tier 가 없어 배지 없이 렌더
+                    (spec/4-nodes/4-integration/5-makeshop.md §8). */}
                 {!isMissing &&
                   (integration?.serviceType === "cafe24" ||
                     integration?.serviceType === "makeshop") && (

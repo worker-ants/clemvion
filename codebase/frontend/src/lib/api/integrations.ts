@@ -414,3 +414,10 @@ export interface Cafe24PrecheckResult {
   existingName?: string;
   status?: "connected" | "pending_install" | "expired" | "error";
 }
+
+/**
+ * MakeShop precheck response — identical shape to `Cafe24PrecheckResult`.
+ * Declared as an alias (INFO8) so callers in MakeShop context reference a
+ * MakeShop-specific type name, making future shape divergence easier to handle.
+ */
+export type MakeshopPrecheckResult = Cafe24PrecheckResult;

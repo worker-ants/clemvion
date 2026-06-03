@@ -151,3 +151,11 @@ spec-only → implemented 승격(노드 구현 PR) 시 함께 갱신:
 
 - **통합 공통 webhook/trigger 노드**: cafe24·makeshop 양쪽 모두 inbound webhook(이벤트 수신) trigger 가 아직 없다. makeshop cpik 11 webhook + cafe24 webhook 을 함께 다루는 trigger 노드 설계를 별 plan 으로 분리. makeshop 측 webhook 구독 등록 API 는 현재 미문서화(open question) — 구현 전 makeshop 파트너센터 확인 필요.
 - **메이크샵 노드 구현**: 본 spec merge 후 `developer` 가 `/consistency-check --impl-prep` 부터 착수. backend 메타데이터 생성 + catalog-sync 테스트 도입(현재 makeshop catalog 은 sync test 미보호).
+- **DRY 후속 — Internal Bridge 공통 훅/레지스트리 추출 (ai-review W5/W6 deferred)**:
+  Phase 6 ai-review 에서 `mcp-server-selector.tsx` 의 serviceType 분기 인라인 중복 (W5) 과
+  `MakeshopAllowlistEditor` 의 `Cafe24AllowlistEditor` verbatim copy (W6) 가 지적됐다.
+  Phase 0 의 constraint-validator DRY 추출 보류 결정과 동일한 근거로 **세 번째 Internal Bridge 추가 시** 트리거로 하기로 결정.
+  구체적 작업:
+    1. `useAllowlistState(allIds, enabledTools, onChange)` 커스텀 훅 추출 — `commit·toggleOp·setCategory·effectiveTools` 공통화.
+    2. `BRIDGE_CONFIG = { cafe24: { titleKey, Editor }, makeshop: { titleKey, Editor }, … }` 레지스트리로 `mcp-server-selector.tsx` 분기 인라인 제거.
+  트리거 조건: 세 번째 `serviceType` (예: Shopify·Naver 등) 이 Internal Bridge 로 추가되기 전.

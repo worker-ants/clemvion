@@ -25,6 +25,9 @@ import { join, resolve } from "node:path";
 
 import { makeshopCatalog as makeshopCatalogKo } from "@/lib/i18n/dict/ko/makeshopCatalog";
 import { makeshopCatalog as makeshopCatalogEn } from "@/lib/i18n/dict/en/makeshopCatalog";
+// INFO6: import the real implementation instead of re-declaring it locally —
+// prevents drift when the production function's logic changes.
+import { resolveMakeshopOperationLabel } from "@/lib/node-definitions/makeshop-extras";
 
 // Resolve repo root — frontend lives at <root>/codebase/frontend.
 const REPO_ROOT = resolve(__dirname, "../../../../../../");
@@ -211,15 +214,8 @@ describe("makeshop i18n dict ↔ catalog sync", () => {
 
 // ---------------------------------------------------------------------------
 // resolveMakeshopOperationLabel unit tests
+// Uses the real implementation imported above (INFO6) — no local re-declaration.
 // ---------------------------------------------------------------------------
-
-function resolveMakeshopOperationLabel(
-  locale: "ko" | "en",
-  labelKey: string,
-): string {
-  const dict = locale === "en" ? makeshopCatalogEn : makeshopCatalogKo;
-  return dict[labelKey] ?? labelKey;
-}
 
 describe("resolveMakeshopOperationLabel", () => {
   it("returns KO label for locale=ko", () => {

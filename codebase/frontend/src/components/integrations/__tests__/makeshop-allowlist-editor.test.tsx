@@ -154,4 +154,25 @@ describe("MakeshopAllowlistEditor", () => {
     );
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });
+
+  // INFO13: edge cases — enabledTools=[] and enabledTools=['*']
+  it("enabledTools=[] → 모든 체크박스 unchecked (아무것도 허용 안 함)", () => {
+    render(
+      <MakeshopAllowlistEditor enabledTools={[]} onChange={vi.fn()} />,
+    );
+    const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+    // 카테고리 2 + operation 4 = 6 체크박스, 모두 unchecked.
+    expect(boxes).toHaveLength(6);
+    expect(boxes.every((b) => !b.checked)).toBe(true);
+  });
+
+  it("enabledTools=['*'] → 모든 체크박스 checked (wildcard = 전부 허용)", () => {
+    render(
+      <MakeshopAllowlistEditor enabledTools={["*"]} onChange={vi.fn()} />,
+    );
+    const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+    // '*' wildcard 는 undefined 와 동일하게 전부 허용.
+    expect(boxes).toHaveLength(6);
+    expect(boxes.every((b) => b.checked)).toBe(true);
+  });
 });

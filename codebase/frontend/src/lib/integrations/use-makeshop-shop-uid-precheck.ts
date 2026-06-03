@@ -45,6 +45,12 @@ export interface UseMakeshopShopUidPrecheckResult {
 /**
  * `shop_uid` 입력값 기반 사전 중복 감지 훅.
  *
+ * **현재 사용처**: 없음 (INFO7). MakeShop 의 begin 흐름은 shop_uid 를 사용자가
+ * 입력하지 않으므로 (ShopStore 설치 redirect 로 전달됨) 현재 직접 사용하는 surface 가
+ * 없다. 의도한 미래 사용 시나리오: install 완료 후 식별된 shop_uid 의 중복 여부를
+ * 사용자에게 미리 표시하는 "post-install precheck" 뷰, 또는 admin 이 shop_uid 를
+ * 수동 입력할 수 있는 고급 통합 설정 화면.
+ *
  * @param shopUid — 식별값. 빈 문자열 또는 패턴 위반이면 fetch skip 후
  *   conflict/loading 즉시 클리어.
  * @param enabled — 호출자 가드. false 면 효과 없이 conflict null, loading false 반환.

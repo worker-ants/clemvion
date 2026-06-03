@@ -25,14 +25,32 @@ export interface MakeshopPendingPollResult {
 }
 
 /**
+ * Map a backend `statusReason` string to a user-safe i18n key.
+ *
+ * Known reasons are mapped to explicit i18n keys so raw internal error text
+ * (HMAC detail, token exchange trace) is never surfaced to users (W7).
+ * Unknown reasons fall back to a generic safe message.
+ */
+const STATUS_REASON_I18N_KEY: Record<string, string> = {
+  oauth_token_exchange_failed:
+    "integrations.makeshopErrorOauthTokenExchangeFailed",
+  oauth_state_mismatch: "integrations.makeshopErrorOauthStateMismatch",
+  oauth_state_expired: "integrations.makeshopErrorOauthStateExpired",
+  oauth_invalid_scope: "integrations.makeshopErrorOauthInvalidScope",
+  hmac_verification_failed: "integrations.makeshopErrorHmacVerificationFailed",
+};
+
+const GENERIC_CALLBACK_ERROR_KEY = "integrations.makeshopErrorGenericCallback";
+
+/**
  * Polling state machine for MakeShop install-first pending_install rows.
  *
  * Mirror of `useCafe24PendingPolling`. MakeShop's ShopStore install opens its
  * own flow whose `window.opener` is the MakeShop tab — our oauth_callback
  * postMessage listener never fires. This hook polls the integration row at 3s
  * cadence, transitions on `connected` by toasting + invalidating + routing to
- * the detail page, surfaces backend-recorded callback failures, and times out
- * after 10m.
+ * the detail page, surfaces backend-recorded callback failures (mapped to safe
+ * i18n messages — W7), and times out after 10m.
  *
  * spec/2-navigation/4-integration.md §5.9 + ## Rationale.
  */
@@ -75,16 +93,22 @@ export function useMakeshopPendingPolling(
       transitionedRef.current = true;
       toast.success(t("integrations.oauthCompletedToast"));
       void queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      router.replace(`/integrations/${integrationId}`);
+      // encodeURIComponent guards against path-traversal in integrationId
+      // (INFO4 — UUID format expected; encode as an additional belt-and-suspenders).
+      router.replace(`/integrations/${encodeURIComponent(integrationId)}`);
     }
   }, [poll, router, queryClient, integrationId, t]);
 
-  const lastErrorMessage =
-    poll?.status === "pending_install"
-      ? ((poll.lastError as { message?: string } | null)?.message ??
-        poll.statusReason ??
-        null)
-      : null;
+  // Map statusReason to a safe i18n message. Raw backend error text (HMAC
+  // trace, token exchange detail) is never passed through to the UI (W7).
+  const lastErrorMessage = (() => {
+    if (poll?.status !== "pending_install") return null;
+    const reason = poll.statusReason ?? null;
+    if (!reason) return null;
+    const i18nKey =
+      STATUS_REASON_I18N_KEY[reason] ?? GENERIC_CALLBACK_ERROR_KEY;
+    return t(i18nKey as Parameters<typeof t>[0]);
+  })();
 
   return { poll, timedOut, lastErrorMessage };
 }

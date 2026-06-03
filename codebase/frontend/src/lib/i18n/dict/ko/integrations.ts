@@ -233,7 +233,7 @@ export const integrations = {
     "Private 앱은 client_id 가 필수예요.",
   cafe24ValidatePrivateClientSecretRequired:
     "Private 앱은 client_secret 이 필수예요.",
-  // ----- MakeShop (install-first confidential client, 2026-06-03) -----
+  // ----- MakeShop (install-first confidential client) -----
   // cafe24 Private 대응 — client_id/client_secret 입력 + App URL 등록 + 설치 폴링.
   // shop_uid 는 begin 에 없고 ShopStore 설치 redirect 로 도착.
   // spec/2-navigation/4-integration.md §5.9.
@@ -257,6 +257,19 @@ export const integrations = {
   makeshopPendingTerminal:
     "이 통합은 더 이상 대기 상태가 아니에요. 상세 페이지에서 상태와 다음 단계를 확인하세요.",
   makeshopPendingLastErrorLabel: "마지막 콜백 오류",
+  // 알려진 statusReason → 사용자 친화 메시지 (W7: 내부 에러 원문 노출 방지)
+  makeshopErrorOauthTokenExchangeFailed:
+    "OAuth 토큰 교환에 실패했어요. MakeShop 파트너센터에서 설정을 확인하고 앱을 다시 설치해 주세요.",
+  makeshopErrorOauthStateMismatch:
+    "OAuth 상태 값이 일치하지 않아요. 설치 흐름을 다시 시작해 주세요.",
+  makeshopErrorOauthStateExpired:
+    "OAuth 상태 값이 만료됐어요. 설치 흐름을 다시 시작해 주세요.",
+  makeshopErrorOauthInvalidScope:
+    "요청한 scope 가 앱 권한과 일치하지 않아요. 파트너센터 앱 설정에서 scope 를 확인해 주세요.",
+  makeshopErrorHmacVerificationFailed:
+    "App URL HMAC 검증에 실패했어요. App URL 이 정확히 등록돼 있는지 확인해 주세요.",
+  makeshopErrorGenericCallback:
+    "설치 중 문제가 발생했어요. 파트너센터 설정을 확인하고 다시 시도해 주세요.",
   makeshopDetailAppUrlTitle: "MakeShop App URL",
   makeshopDetailAppUrlDesc:
     "MakeShop 파트너센터의 ShopStore 앱 'App URL' 에 이 값을 등록하세요. 상점의 앱 설치가 이 URL 을 호출합니다. URL 이 일치하지 않으면 HMAC 검증이 실패해 호출이 거부됩니다.",

@@ -31,6 +31,9 @@ interface Props {
  * 해당 id 만 제거한다 → 이후로는 명시 allowlist 로, 신규 operation 은 자동 포함되지
  * 않는다("내가 고른 것만"). 명시 배열이 전체와 일치하면 `undefined` 로 되돌려 default
  * 의미를 보존한다.
+ *
+ * @see ../cafe24-allowlist-editor.tsx — 미러링 원본. 공통 로직은 향후 세 번째
+ *   Internal Bridge 추가 시 `useAllowlistState` 훅으로 추출 예정 (DRY 후속 — W5/W6).
  */
 export function MakeshopAllowlistEditor({ enabledTools, onChange }: Props) {
   const t = useT();

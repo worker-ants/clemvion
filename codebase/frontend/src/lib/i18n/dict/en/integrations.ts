@@ -252,6 +252,19 @@ export const integrations: Dict["integrations"] = {
   makeshopPendingTerminal:
     "This integration is no longer pending. Check its status and next steps on the detail page.",
   makeshopPendingLastErrorLabel: "Last callback error",
+  // Known statusReason → user-safe messages (W7: prevent raw internal error exposure)
+  makeshopErrorOauthTokenExchangeFailed:
+    "OAuth token exchange failed. Check your app settings in MakeShop Partner Center and reinstall the app.",
+  makeshopErrorOauthStateMismatch:
+    "OAuth state mismatch. Please restart the install flow.",
+  makeshopErrorOauthStateExpired:
+    "OAuth state expired. Please restart the install flow.",
+  makeshopErrorOauthInvalidScope:
+    "The requested scopes do not match the app permissions. Check the scope settings in Partner Center.",
+  makeshopErrorHmacVerificationFailed:
+    "App URL HMAC verification failed. Make sure the App URL is registered exactly as shown.",
+  makeshopErrorGenericCallback:
+    "A problem occurred during install. Check your Partner Center settings and try again.",
   makeshopDetailAppUrlTitle: "MakeShop App URL",
   makeshopDetailAppUrlDesc:
     "Register this value as the 'App URL' of your ShopStore app in MakeShop Partner Center. Installing the app from a store calls this URL. If the URL does not match, HMAC verification fails and the call is rejected.",
