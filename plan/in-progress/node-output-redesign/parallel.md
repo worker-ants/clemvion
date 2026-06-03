@@ -56,7 +56,7 @@ Parallel 은 **컨테이너** (병렬 fan-out). 단계 2개. Loop 와 같이 `ou
 
 추가 점검:
 
-1. **`output.count` 제거됨** — spec §5.2 명시: "P1.1 직교성 — `branches.length` 가 SSOT". 적절 (Principle 1.1 직교).
+1. **`output.count`** — ~~제거됨 (spec §5.2: "P1.1 직교성 — `branches.length` 가 SSOT"). 적절 (Principle 1.1 직교).~~ **(2026-06-03 spec-drift 결정 B 로 stale)**: 이 진단은 번복됨. §5.2 의 count 제거 노트가 컨테이너 공통 규약(`{<컬렉션>, count}`)·node-output.md Principle 9.2·엔진 구현과 모순되는 drift 였음이 밝혀져 `count` 가 **복원**됐다. Parallel `done` 출력은 `{ branches, count }` 를 방출한다.
 2. **`meta` 누락** — §5.2 JSON 예시에 `meta` 필드가 없음. CONVENTIONS Principle 2 에 따라 최소한 `meta.durationMs` 와 `meta.branches` (Container 메트릭) 가 채워져야 함. spec 보강 필요.
 3. **dead field `waitAll`** — schema 에 노출되지만 P1 에서 항상 `true` 로 동작. spec §1 미구현 마킹. raw echo 는 유지하나 사용자 혼동 우려 — schema 단계 제거 또는 reject 가 [개선안 logic/parallel.md §3](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/parallel.md#3-제안된-output-구조) 에서 제안. 본 plan 은 spec 본문에 dead field 경고가 잘 명시되어 있어 변경 없음.
 4. **`errorPolicy` config 누출 미흡** — schema 에 노출되지 않았다고 §1 미구현 마킹 — config echo 도 안 됨. P1 schema 노출 시 plan 갱신.
@@ -141,7 +141,7 @@ Parallel 은 **컨테이너** (병렬 fan-out). 단계 2개. Loop 와 같이 `ou
      - 별도 `parallel.handler.spec.ts` 파일 부재 — 다른 노드(`if-else`/`foreach`/`merge`/`background`)는 분리되어 있어 횡단 컨벤션 위배.
 
 7. **횡단 일관성 (컨테이너 4종)**:
-   - Loop / ForEach / Map 은 완료 시점 `{<key>, count}` (count 포함) — Parallel 만 `{branches}` (count 제거, spec §5.2 footnote: "P1.1 직교성 — `branches.length` 가 SSOT"). 일관성을 위해 다른 3 노드의 `count` 도 제거 검토할지, 아니면 Parallel 만 추가할지 결정 필요. 현 spec 은 분기 의도 (Parallel 은 fan-out, 다른 노드는 반복 — count 의미 차이) 로 정당화하지만 동일 컨테이너 카테고리에서 비대칭.
+   - ~~Loop / ForEach / Map 은 완료 시점 `{<key>, count}` (count 포함) — Parallel 만 `{branches}` (count 제거). 일관성을 위해 다른 3 노드의 `count` 도 제거 검토할지, 아니면 Parallel 만 추가할지 결정 필요.~~ **(2026-06-03 결정 B 로 해소)**: Parallel 에 `count` 복원으로 4종 모두 `{<컬렉션>, count}` 균일. 비대칭 해소됨 — 추가 결정 불필요.
    - 완료 시점 `meta`: Loop / ForEach / Map 은 `meta.iterations` (Parallel: `meta.branches` 권고) — 횡단 명명 통일 필요 (`iterations` vs `branches` 차이는 의도).
 
 8. **구현 품질**: clean — clamp 로직 (`Math.max(2, Math.min(16, Math.floor(...)))`) 명확. `rawConfig ?? config` (`:51`) 패턴 일관. ParallelExecutor 위임 분리 깔끔.
