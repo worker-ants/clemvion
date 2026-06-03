@@ -46,6 +46,16 @@ npm run dev
 path(UUID)** 를 trigger 칸에 붙여넣어야 한다(backend 트리거 화면에서 복사). backend 없이도 위젯 UI
 부팅·패널 전개는 확인된다.
 
+> **apiBase 는 origin (`/api` 제외)**: EIA 클라이언트가 `/api/hooks/...` 를 직접 덧붙이므로 apiBase 는
+> `http://localhost:3011` 형태여야 한다(`…/api` 를 넣으면 `/api/api/hooks` 가 됨). 데모는 후행 `/api` 를
+> 자동 제거하지만 origin 으로 입력하는 것을 권장.
+>
+> **스트림 응답(SSE) CORS — 중요**: 첫 메시지(`POST /api/hooks/*`)는 무제한 CORS 라 통과하지만, **AI 응답
+> 스트림(`/api/external/*`)은 워크스페이스 allowlist CORS** 를 탄다([4-security §2](../../spec/7-channel-web-chat/4-security.md)).
+> 데모 origin(`http://localhost:3013`)이 backend 허용 목록에 없으면 **메시지는 전송되나 응답이 오지 않는다**.
+> 로컬 해결: backend `.env` 에 `WEB_CHAT_WIDGET_ORIGINS=http://localhost:3013` 추가(또는 워크스페이스
+> `interactionAllowedOrigins` 에 등록) 후 backend 재시작. (SSE 차단 시 위젯이 console 에 경고를 남긴다.)
+
 `/demo` 는 `next dev`(개발)에서만 노출되고 `next build`(production static export)에서는 제외된다
 (게이팅: `src/app/demo/demo-config.ts` `isDemoEnabled`; prod 미리보기는 `NEXT_PUBLIC_ENABLE_DEMO=1`).
 
