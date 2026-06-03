@@ -20,3 +20,6 @@ owner: planner
 ## ⚠ 재분류 (2026-06-03 groom): decision-free 아님 → planner 결정 필요
 - spec 약속 `JavaScript · 12 lines` 는 summaryTemplate DSL 로 **표현 불가**: (a) "12 lines" = `code` 의 줄 수인데 DSL `length` 는 **문자 수**만 지원(줄 세기 없음), (b) `language` enum 값은 소문자 `javascript` 인데 spec 은 title-case `JavaScript` — DSL 은 `upper`/`lower` 만 있고 title-case 없음.
 - **결정 필요**: summaryTemplate DSL 확장(`lines` primitive + title-case 필터) vs 약속 downscope(예: `{{language|upper}}` 만). 패턴 sibling: `transform.schema.ts:228-232`. 위치: `nodes/data/code/code.schema.ts:109-131`.
+
+## 결정 (2026-06-03 spec-inprogress-impl2)
+- **채택: DSL 확장 대신 downscope**. code summaryTemplate = `{{language|upper}}`. 근거: "N lines"(개행 카운트)·title-case 는 summaryTemplate DSL 미지원. DSL 확장(packages/node-summary 전역 영향)보다 downscope 가 비용 대비 적절. 기존 transform/http 패턴과 일치.

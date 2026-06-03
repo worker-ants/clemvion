@@ -20,3 +20,6 @@ owner: planner
 ## ⚠ 재분류 (2026-06-03 groom): decision-free 아님 → planner 결정 필요
 - **config shape 불일치(핵심)**: 패널은 `config.errorPolicy`(flat string) 저장(`node-settings-panel.tsx:183`), 그러나 엔진은 `config.errorHandling.{policy, defaultOutput, retryConfig.{maxRetries, retryInterval}}`(nested, policy 값 `stop_workflow`) 를 읽음(`execution-engine.service.ts:6625-6644`, retry default 3/1000ms :6594). **현재 패널 저장값을 엔진이 소비하지 않음.**
 - **결정 필요**: config 스키마 통일(flat vs nested) + policy 값 vocabulary + "Reset to Type Default" 의 type-default 출처 정의. spec §2.4/§2.5.1 자체가 "Planned" 표기. JSON 에디터+검증 패턴: 동 파일 `CodeTab`(:278-335).
+
+## 결정 (2026-06-03 spec-inprogress-impl2)
+- **채택: 패널을 엔진 nested `errorHandling` 계약에 맞춤**. 근거: 엔진(`error-policy.handler.ts`)이 SoT 이며 `config.errorHandling.{policy, retryConfig, defaultOutput}` 를 소비. 기존 flat `errorPolicy` 는 엔진이 읽지 않던 dead config → 마이그레이션. §2.5.2 타입추론은 별도 미구현 surface 로 Planned 유지(spec Rationale `1-node-common §R-1`).

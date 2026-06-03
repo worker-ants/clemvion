@@ -292,11 +292,10 @@ Template 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패
 
 ## 7. 캔버스 요약
 
-[공통 §5 캔버스 요약](./0-common.md#5-캔버스-요약) — `Template (버튼 없음)` / `Template (버튼 있음)` 행 인용.
+[공통 §5 캔버스 요약](./0-common.md#5-캔버스-요약) — `Template` 행 인용. `summaryTemplate` 은 단일 정적 문자열이라 config 분기(버튼 유무)가 불가하므로 `{{outputFormat}} · {{buttons.length}} buttons` 로 통일한다 (버튼 0개 시 `html · 0 buttons`). 줄 수(`N lines`)는 summaryTemplate DSL 이 개행 카운트를 지원하지 않아 표시하지 않는다.
 
-| 노드 상태 | 요약 포맷 | 예시 |
-|-----------|-----------|------|
-| 버튼 없음 | `{outputFormat} · {N} lines` | `html · 9 lines` |
-| 버튼 있음 | `{outputFormat} · {N} buttons` | `html · 2 buttons` |
+| 노드 | 요약 포맷 | 예시 |
+|------|-----------|------|
+| Template | `{{outputFormat}} · {{buttons.length}} buttons` | `html · 2 buttons` |
 
 > Run Results Drawer 렌더링은 [공통 §6.5](./0-common.md#65-template) 참조 (HTML iframe 샌드박스 / Markdown 변환 / Text `<pre>`).

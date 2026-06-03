@@ -541,7 +541,7 @@ interface NodeHandlerRegistry {
 | `$execution` | `{ id, workflowId, startedAt, mode }` |
 | `$now` | 실행 시점의 현재 시각 (ISO 8601, UTC). 같은 실행 안에서는 동일한 값으로 고정 |
 | `$loop` | loopContext (Loop 컨테이너 내부) |
-| `$item`, `$itemIndex` | itemContext (ForEach 컨테이너 내부) |
+| `$item`, `$itemIndex`, `$itemIsFirst`, `$itemIsLast` | itemContext (ForEach 컨테이너 내부) |
 | `$thread` | context.conversationThread | ConversationThread readonly view ([Spec Conversation Thread](../conventions/conversation-thread.md)). v1 은 `turns` / `length` / `text` 만 노출 — 표현식 문법 상세는 [Spec 표현식 §4.4](./5-expression-language.md#44-thread-속성) 참조 |
 
 **핸들러별 제외 규칙**:
