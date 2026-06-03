@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "started_at": "2026-06-03T21:49:00Z",
+  "summary_items_total": 7,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "432bfe1e", "summary_ids": [1, 2, 3, 4, 5, 6, 7], "scope": "makeshop"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 0,
+  "e2e_last_status": "skipped",
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
