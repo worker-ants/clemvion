@@ -109,8 +109,8 @@ export default function WorkflowsPage() {
         limit: String(PAGE_SIZE),
       };
       if (debouncedSearch) params.search = debouncedSearch;
-      if (filter === "active") params.isActive = "true";
-      if (filter === "inactive") params.isActive = "false";
+      if (filter === "active") params.status = "active";
+      if (filter === "inactive") params.status = "inactive";
       // 개인 워크스페이스에서는 ownership 자체가 UI 비노출이라 `all` 로 묶인다.
       // 명시적으로 `all` 인 경우 파라미터를 보내지 않아 backend 가 기본값(전체)로 처리.
       if (isTeamWorkspace && ownership !== "all") {

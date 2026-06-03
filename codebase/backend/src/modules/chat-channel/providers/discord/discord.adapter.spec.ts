@@ -9,7 +9,11 @@ import type { ChatChannelConfig } from '../../types';
 
 function makeSecretsMock(): jest.Mocked<SecretResolverService> {
   return {
-    resolve: jest.fn(async () => 'bot-token-discord'),
+    // ref-aware: inbound-signing ref → public key 'pk' (verify_key 와 일치),
+    // 그 외(botToken) → 'bot-token-discord'.
+    resolve: jest.fn(async (ref: string) =>
+      ref.includes('inbound-signing') ? 'pk' : 'bot-token-discord',
+    ),
     store: jest.fn(),
     rotate: jest.fn(),
     delete: jest.fn(),
@@ -64,6 +68,25 @@ describe('DiscordAdapter', () => {
       );
       expect(result.configUpdates?.botIdentity?.username).toBe('workflow-bot');
       expect(result.issuedInboundSigning).toBeUndefined();
+    });
+
+    // C-11 §3.1: 응답 verify_key 가 등록된 public key 와 불일치하면 BOT_TOKEN_INVALID.
+    it('verify_key 불일치 → BOT_TOKEN_INVALID throw', async () => {
+      const client = new DiscordClient();
+      jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+        id: 'A123',
+        name: 'workflow-bot',
+        verify_key: 'different-key',
+      });
+      const cmdSpy = jest
+        .spyOn(client, 'putApplicationCommands')
+        .mockResolvedValue([]);
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      await expect(
+        adapter.setupChannel(DISCORD_CONFIG, 'https://x/hook'),
+      ).rejects.toThrow(/BOT_TOKEN_INVALID/);
+      // 검증 실패 시 slash command 등록까지 가지 않는다.
+      expect(cmdSpy).not.toHaveBeenCalled();
     });
 
     it('getApplicationMe ok=false → throw', async () => {
@@ -239,6 +262,33 @@ describe('DiscordAdapter', () => {
       expect(ids).toEqual(['name', 'note']);
       // textarea → style 2 (paragraph).
       expect(modal.data.components[1].components[0].style).toBe(2);
+    });
+
+    // C-11 §5.1(b): modalKind='reply' → clemvion_reply modal, 단일 TEXT_INPUT 'message'.
+    it("modalKind='reply' → clemvion_reply modal (단일 TEXT_INPUT message)", async () => {
+      const client = new DiscordClient();
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const result = await adapter.openFormModal({
+        config: DISCORD_CONFIG,
+        openContext: { interactionId: 'I1', interactionToken: 'tok', modal: 'reply' },
+        fields: [],
+        conversationKey: 'C1',
+        nodeId: '',
+        modalKind: 'reply',
+      });
+      const modal = result.httpResponse as {
+        type: number;
+        data: {
+          custom_id: string;
+          components: Array<{
+            components: Array<{ custom_id: string; style: number }>;
+          }>;
+        };
+      };
+      expect(modal.type).toBe(9);
+      expect(modal.data.custom_id).toBe('clemvion_reply');
+      expect(modal.data.components).toHaveLength(1);
+      expect(modal.data.components[0].components[0].custom_id).toBe('message');
     });
   });
 

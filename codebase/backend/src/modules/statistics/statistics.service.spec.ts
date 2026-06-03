@@ -121,4 +121,30 @@ describe('StatisticsService.getSummary', () => {
       avgDurationMs: 0,
     });
   });
+
+  // C-9: '1d'(오늘) 프리셋이 프론트에만 있고 백엔드 enum/range 에 없어 거부되던 회귀 가드.
+  it("period='1d' 는 약 1일 전 startDate 로 범위를 좁힌다", async () => {
+    getRawOne.mockResolvedValue({
+      totalExecutions: 0,
+      successCount: 0,
+      failedCount: 0,
+      cancelledCount: 0,
+      avgDurationMs: 0,
+    });
+
+    const after = Date.now();
+    await service.getSummary('ws-1', { period: '1d' });
+
+    const startCall = andWhere.mock.calls.find(
+      ([sql]) =>
+        typeof sql === 'string' && sql.includes('e.started_at >= :startDate'),
+    );
+    expect(startCall).toBeDefined();
+    const { startDate } = startCall![1] as { startDate: Date };
+    const diffMs = after - startDate.getTime();
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    // 약 1일 (오차 허용). 기본 7일 구간과 명확히 구분된다.
+    expect(diffMs).toBeGreaterThanOrEqual(ONE_DAY - 5_000);
+    expect(diffMs).toBeLessThan(2 * ONE_DAY);
+  });
 });

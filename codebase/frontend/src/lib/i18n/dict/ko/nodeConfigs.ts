@@ -264,8 +264,6 @@ export const nodeConfigs = {
     opAppend: "뒤에 붙이기",
     opPush: "배열 push",
     opPop: "배열 pop",
-    opSetField: "필드 설정",
-    opDeleteField: "필드 삭제",
     opValuePlaceholder: "값 또는 {{ 표현식 }}",
     addModification: "변경 사항 추가",
     recordValues: "변경 전/후 값 기록",

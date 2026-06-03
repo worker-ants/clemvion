@@ -46,6 +46,7 @@ describe('KnowledgeBaseService', () => {
 
     mockDocRepo = {
       createQueryBuilder: jest.fn(() => ({
+        innerJoin: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
@@ -638,6 +639,36 @@ describe('KnowledgeBaseService', () => {
           fileType: 'txt',
         }),
       );
+    });
+  });
+
+  describe('remove (KB 삭제 시 S3 정리)', () => {
+    // C-19: S3 정리 루프가 workspace 필터 없이 문서를 조회하던 결함의 회귀 가드 —
+    // defense-in-depth 로 knowledgeBase JOIN + workspace_id 조건을 명시한다.
+    it('workspace 필터(innerJoin + kb.workspace_id)로 문서를 조회해 S3 정리 후 KB 삭제', async () => {
+      const kb = { id: 'kb-1', workspaceId: 'ws-1' };
+      mockKbRepo.findOne.mockResolvedValue(kb);
+
+      const qb = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([
+          { id: 'd1', fileUrl: 'kb/kb-1/d1/a.txt' },
+          { id: 'd2', fileUrl: 'kb/kb-1/d2/b.txt' },
+        ]),
+      };
+      mockDocRepo.createQueryBuilder.mockReturnValueOnce(qb);
+
+      await service.remove('kb-1', 'ws-1');
+
+      expect(qb.innerJoin).toHaveBeenCalledWith('d.knowledgeBase', 'kb');
+      expect(qb.andWhere).toHaveBeenCalledWith('kb.workspace_id = :workspaceId', {
+        workspaceId: 'ws-1',
+      });
+      expect(mockS3Service.delete).toHaveBeenCalledWith('kb/kb-1/d1/a.txt');
+      expect(mockS3Service.delete).toHaveBeenCalledWith('kb/kb-1/d2/b.txt');
+      expect(mockKbRepo.remove).toHaveBeenCalledWith(kb);
     });
   });
 

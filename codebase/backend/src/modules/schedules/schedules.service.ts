@@ -30,7 +30,7 @@ export class SchedulesService {
     workspaceId: string,
     query: PaginationQueryDto,
   ): Promise<PaginatedResponseDto<Schedule>> {
-    const { page = 1, limit = 20, search } = query;
+    const { page = 1, limit = 20, search, sort = 'created_at', order = 'desc' } = query;
 
     const qb = this.scheduleRepository
       .createQueryBuilder('s')
@@ -42,7 +42,7 @@ export class SchedulesService {
       qb.andWhere('t.name ILIKE :search', { search: `%${search}%` });
     }
 
-    qb.orderBy('s.created_at', 'DESC');
+    qb.orderBy(this.resolveOrderBy(sort), order.toUpperCase() as 'ASC' | 'DESC');
 
     const totalItems = await qb.getCount();
     const data = await qb
@@ -51,6 +51,22 @@ export class SchedulesService {
       .getMany();
 
     return PaginatedResponseDto.create(data, totalItems, page, limit);
+  }
+
+  /**
+   * PaginationQueryDto.sort 를 화이트리스트 컬럼(alias 포함)으로 매핑한다.
+   * `name` 은 schedule 자체 컬럼이 아니라 연결된 trigger 명(t.name)으로 정렬한다.
+   * 미허용 값은 기본 정렬(s.created_at)로 폴백 — SQL injection 차단.
+   */
+  private resolveOrderBy(sort: string): string {
+    const allowed: Record<string, string> = {
+      created_at: 's.created_at',
+      updated_at: 's.updated_at',
+      next_run_at: 's.next_run_at',
+      last_run_at: 's.last_run_at',
+      name: 't.name',
+    };
+    return allowed[sort] || 's.created_at';
   }
 
   async findById(id: string, workspaceId: string): Promise<Schedule> {

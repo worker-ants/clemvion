@@ -326,7 +326,7 @@ function maybeSeedAiConversationMessages(
  * 가 base, output.result 가 override (같은 `maxTurns` 가 양쪽에 있을 때
  * runtime 의 실제 값을 우선).
  */
-function buildConvConfigFromStructured(
+export function buildConvConfigFromStructured(
   raw: Record<string, unknown>,
 ): Record<string, unknown> {
   const handlerConfig =

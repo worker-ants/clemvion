@@ -589,7 +589,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | `autoResumed` | `boolean` | 이 assistant row 가 stall 자동 복구(§10)로 **새로 시작**된 row 이면 `true`. 정상 단일 턴의 단일 row 는 기본값 `false`. 한 턴이 stall 복구로 여러 row 로 쪼개진 경우, **복구 직전까지의 row 는 `false`**, **복구 이후 새로 시작된 row 는 `true`** 로 찍힌다 |
 | `autoResumeReason` | `string \| null` | `autoResumed=true` row 에서만 세팅. 현재 `'stall_pending_steps'` 한 종류 |
 | `autoResumeAttempt` | `number \| null` | 같은 턴 내 자동 복구 시도 순번. 1부터 시작하며 `MAX_STALL_ROUNDS` (현재 2) 까지 |
-| `finishReason` | `string \| null` | 복구 경계에서 먼저 persist 된 "중간 row" 는 `'auto_resume_pending'` 마커를 사용. 턴 종료 시 persist 되는 최종 row 는 기존 의미의 `'stop'` / `'tool_calls'` / `'error'` |
+| `finishReason` | `string \| null` | 복구 경계에서 먼저 persist 된 "중간 row" 는 `'auto_resume_pending'` 마커를 사용. 턴 종료 시 persist 되는 최종 row 는 `'stop'` / `'tool_calls'` / `'error'` / `'aborted'` (사용자 Stop → `AbortController.abort()`, 본 절 위 "사용자가 Stop 버튼" 행 참조). data-flow/11-workflow.md §3.3 과 동일 목록 |
 
 프론트는 rehydrate 시 `autoResumed=true` row 앞에 §3.2 의 divider 를 렌더해 자동 재개 경계를 시각화한다. 기존 session 의 row (마이그레이션 전) 는 `autoResumed=false`, 나머지 필드는 `null` 로 해석되어 호환성이 유지된다.
 

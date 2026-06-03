@@ -249,13 +249,10 @@ export default function ExecutionListPage({
               </thead>
               <tbody>
                 {executions.map((execution) => {
-                  const completedNodes = execution.nodeExecutions?.filter(
-                    (ne) => ne.status === "completed",
-                  ).length ?? 0;
-                  const totalNodes = execution.nodeExecutions?.length ?? 0;
-                  const failedNodes = execution.nodeExecutions?.filter(
-                    (ne) => ne.status === "failed",
-                  ).length ?? 0;
+                  // 목록 API(ExecutionDto)가 N+1 회피를 위해 집계한 노드 카운트.
+                  const completedNodes = execution.completedNodeCount ?? 0;
+                  const totalNodes = execution.totalNodeCount ?? 0;
+                  const failedNodes = execution.failedNodeCount ?? 0;
 
                   return (
                     <tr

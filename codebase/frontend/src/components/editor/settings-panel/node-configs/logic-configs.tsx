@@ -349,8 +349,6 @@ export function VariableModificationConfig({ config, onChange }: { config: Confi
             <option value="append">{t("nodeConfigs.logic.opAppend")}</option>
             <option value="push">{t("nodeConfigs.logic.opPush")}</option>
             <option value="pop">{t("nodeConfigs.logic.opPop")}</option>
-            <option value="set_field">{t("nodeConfigs.logic.opSetField")}</option>
-            <option value="delete_field">{t("nodeConfigs.logic.opDeleteField")}</option>
           </select>
           <ExpressionInput
             bare

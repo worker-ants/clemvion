@@ -88,26 +88,33 @@ export class HooksService {
       });
     }
 
-    // 2. Check active status
-    if (!trigger.isActive) {
-      throw new GoneException({
-        code: 'TRIGGER_INACTIVE',
-        message: 'Webhook trigger is inactive',
-      });
-    }
-
-    // 3a. Chat Channel 분기 — config.chatChannel 가 있으면 adapter 가 inbound 처리.
+    // 2. Chat Channel 분기 — config.chatChannel 가 있으면 adapter 가 inbound 처리.
     //     일반 webhook 경로와 별도 — auth / parameter schema 검증 모두 우회 (chat 채널은
     //     자체 inbound-signing 헤더/서명 검증 + parseUpdate 의 raw body 만 사용 —
     //     provider 별: Telegram secret_token / Slack X-Slack-Signature / Discord X-Signature-Ed25519).
+    //     active 검사는 chatChannel 판정 *뒤* 에 한다 — 비활성 chatChannel 트리거는
+    //     410 Gone 이 아니라 202 Accepted + { executionId: 'ignored' } 로 조용히 무시한다
+    //     (spec/5-system/15-chat-channel.md R-CC-12, §5.5 비활성 trigger 행;
+    //     spec/5-system/12-webhook.md WH-EP-07 의 chatChannel 예외).
     const chatChannelCfg = readChatChannelConfig(trigger.config);
     if (chatChannelCfg) {
+      if (!trigger.isActive) {
+        return { executionId: 'ignored' };
+      }
       return this.handleChatChannelWebhook(
         trigger,
         chatChannelCfg,
         input,
         rawBody?.toString('utf8') ?? '',
       );
+    }
+
+    // 3. Check active status — 일반 webhook 비활성은 410 Gone (WH-EP-07).
+    if (!trigger.isActive) {
+      throw new GoneException({
+        code: 'TRIGGER_INACTIVE',
+        message: 'Webhook trigger is inactive',
+      });
     }
 
     // 3. Authenticate — trigger.authConfigId 가 가리키는 AuthConfig 로 위임
@@ -238,13 +245,18 @@ export class HooksService {
       return { executionId: 'ignored', discordPing: true };
     }
 
-    const update = await adapter.parseUpdate(input.body, config);
-    if (!update) {
+    const parsed = await adapter.parseUpdate(input.body, config);
+    if (!parsed) {
       // 무시 대상 (group/bot/unsupported) — parseUpdate 의 pure 계약 (I-6) 에 따라 호출자가 안내 발송.
       // raw body 의 chat 정보가 있으면 안내 sendMessage. 봇 메시지나 chat 정보 없으면 silent skip.
       await this.maybeNotifyIgnored(input.body, config, adapter);
       return { executionId: 'ignored' };
     }
+    // parseUpdate 직후 provider 별 비동기 보강 (Slack file_upload → files.info 로
+    // mimeType/filename/urlPrivate 채움). 미구현 provider 는 update 그대로 반환 (R-S-7).
+    const update = adapter.enrichInbound
+      ? await adapter.enrichInbound(parsed, config)
+      : parsed;
 
     // /help 명령 — v1 정적 안내 (Spec providers/telegram §7).
     if (
@@ -298,6 +310,31 @@ export class HooksService {
         this.logger.warn(
           `open_form_modal channelUserKey mismatch — state.channelUserKey=${state.channelUserKey} update.channelUserKey=${update.channelUserKey} conversationKey=${update.conversationKey}`,
         );
+        return { executionId: state?.executionId ?? 'ignored' };
+      }
+      // §5.1(b) AI Multi Turn reply modal — "Reply" 버튼은 pendingFormModal 없이
+      // openContext.modal='reply' 마커만 운반한다. 단일 TEXT_INPUT modal 을 연다.
+      if (update.command.openContext.modal === 'reply') {
+        if (isNativeFormAdapter(adapter)) {
+          const result = await adapter.openFormModal({
+            config,
+            openContext: update.command.openContext,
+            fields: [],
+            conversationKey: update.conversationKey,
+            nodeId: '',
+            modalKind: 'reply',
+          });
+          if (result.httpResponse !== undefined) {
+            return {
+              executionId: state?.executionId ?? 'ignored',
+              interactionHttpResponse: result.httpResponse,
+            };
+          }
+        } else {
+          this.logger.warn(
+            `open_form_modal(reply): adapter.openFormModal 미지원 — conversationKey=${update.conversationKey}`,
+          );
+        }
         return { executionId: state?.executionId ?? 'ignored' };
       }
       if (state?.pendingFormModal && isNativeFormAdapter(adapter)) {
@@ -662,6 +699,13 @@ export class HooksService {
       value = {
         fileId: update.command.fileId,
         mimeType: update.command.mimeType,
+        // enrichInbound(files.info)가 채운 경우만 포함 (Slack).
+        ...(update.command.filename
+          ? { filename: update.command.filename }
+          : {}),
+        ...(update.command.urlPrivate
+          ? { urlPrivate: update.command.urlPrivate }
+          : {}),
       };
 
     formState.partialFormData[valueKey] = value;

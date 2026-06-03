@@ -494,6 +494,23 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
+    // C-2: 비활성 chatChannel 트리거는 410 Gone 이 아니라 202 + { executionId: 'ignored' }.
+    // isActive 검사가 chatChannel 판정보다 먼저 실행되던 결함의 회귀 가드
+    // (spec R-CC-12 / §5.5 비활성 trigger 행 / WH-EP-07 chatChannel 예외).
+    it('비활성 chatChannel 트리거 → Gone 대신 { executionId: "ignored" } (R-CC-12)', async () => {
+      triggerRepo.findOne.mockResolvedValue({
+        ...chatChannelTrigger,
+        isActive: false,
+      } as Trigger);
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(res).toMatchObject({ executionId: 'ignored' });
+      // adapter/parseUpdate 까지 가지 않고 즉시 무시.
+      expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
+      expect(engine.execute).not.toHaveBeenCalled();
+    });
+
     it('parseUpdate 성공 + conversation 없음 → 새 execution 시작 (CCH-CV-03 신규 경로)', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
@@ -620,6 +637,47 @@ describe('HooksService', () => {
         },
       });
       expect(engine.execute).not.toHaveBeenCalled();
+    });
+
+    // C-11 §5.1(b): open_form_modal + openContext.modal='reply' → reply modal
+    // (pendingFormModal 없이도 동작, modalKind='reply' 전달).
+    it("§5.1(b) open_form_modal modal='reply' → openFormModal(modalKind=reply) + httpResponse", async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: {
+          kind: 'open_form_modal',
+          openContext: { interactionId: 'I9', interactionToken: 'tok9', modal: 'reply' },
+        },
+        idempotencyKey: 'I9',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      const openFormModal = jest.fn().mockResolvedValue({
+        httpResponse: { type: 9, data: { custom_id: 'clemvion_reply' } },
+      });
+      (mockAdapter as Record<string, unknown>).openFormModal = openFormModal;
+      (mockAdapter as Record<string, unknown>).supportsNativeForm = true;
+      (mockAdapter as Record<string, unknown>).buildFormSubmissionResponse =
+        jest.fn().mockReturnValue({});
+      // reply 는 pendingFormModal 없이 동작해야 한다.
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(openFormModal).toHaveBeenCalledWith(
+        expect.objectContaining({ modalKind: 'reply', fields: [] }),
+      );
+      expect(res).toMatchObject({
+        interactionHttpResponse: { type: 9, data: { custom_id: 'clemvion_reply' } },
+      });
     });
 
     it('§4.1 form_submission → interact submit_form (pendingFormModal.nodeId + fields) + pendingFormModal clear', async () => {

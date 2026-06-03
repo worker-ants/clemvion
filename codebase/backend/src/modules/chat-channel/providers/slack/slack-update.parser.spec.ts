@@ -168,6 +168,22 @@ describe('parseSlackUpdate — Interactivity', () => {
     });
   });
 
+  // C-12 §4.2: block_actions 의 response_url 을 ChannelUpdate.responseUrl 로 운반.
+  it('block_actions response_url → responseUrl 으로 운반', () => {
+    const upd = parseSlackUpdate(
+      interactivity({
+        type: 'block_actions',
+        team: { id: 'T1' },
+        user: { id: 'U1' },
+        channel: { id: 'D1' },
+        trigger_id: 'trg.x',
+        response_url: 'https://hooks.slack.com/actions/resp',
+        actions: [{ action_id: 'a1', value: 'btn-123' }],
+      }),
+    );
+    expect(upd?.responseUrl).toBe('https://hooks.slack.com/actions/resp');
+  });
+
   it('static_select → button_callback (selected_option.value)', () => {
     const upd = parseSlackUpdate(
       interactivity({

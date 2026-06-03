@@ -23,6 +23,7 @@ import { groupToolCallItems } from "@/lib/conversation/conversation-utils";
 import { cn } from "@/lib/utils/cn";
 import { formatDuration } from "./utils";
 import { isConversationOutput } from "./output-shape";
+import { buildConvConfigFromStructured } from "@/lib/websocket/apply-execution-snapshot";
 import {
   buildTimelineTree,
   countDescendants,
@@ -149,24 +150,25 @@ function TimelineRow({
       ? parseHistoryMessages(result.outputData)
       : [];
 
-  // Turn counter derivation for AI multi-turn rows
+  // Turn counter derivation for AI multi-turn rows.
+  // Structured envelope (`{config, output:{result:{...}}}`) keeps `turnCount`
+  // in `output.result.*` and `maxTurns` in `config.*` — the handler never
+  // echoes a flattened `output.conversationConfig`, so we merge both via the
+  // same helper apply-execution-snapshot uses (legacy shape keeps the fields
+  // on a single `conversationConfig` object). Reading `output.conversationConfig`
+  // directly always missed `maxTurns` → denominator stuck at 0.
   const rawForConv = result.outputData as Record<string, unknown> | null;
-  const convPayload =
-    rawForConv &&
+  const isStructuredEnvelope =
+    !!rawForConv &&
     typeof rawForConv === "object" &&
     !Array.isArray(rawForConv) &&
     "config" in rawForConv &&
-    "output" in rawForConv
-      ? (rawForConv.output as Record<string, unknown> | null)
-      : rawForConv;
-  const convConfig = convPayload?.conversationConfig as
-    | Record<string, unknown>
-    | undefined;
-  const turnCount =
-    (convConfig?.turnCount as number) ??
-    (convPayload?.turnCount as number | undefined) ??
-    0;
-  const maxTurns = (convConfig?.maxTurns as number) ?? 0;
+    "output" in rawForConv;
+  const convConfig = isStructuredEnvelope
+    ? buildConvConfigFromStructured(rawForConv)
+    : (rawForConv?.conversationConfig as Record<string, unknown> | undefined);
+  const turnCount = (convConfig?.turnCount as number | undefined) ?? 0;
+  const maxTurns = (convConfig?.maxTurns as number | undefined) ?? 0;
 
   const categoryColor = getCategoryColor(result.nodeCategory);
 
