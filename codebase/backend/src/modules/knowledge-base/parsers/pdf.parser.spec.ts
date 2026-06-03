@@ -64,4 +64,35 @@ describe('parsePdfSegments (spec §6.1 page metadata)', () => {
     const segs = await parsePdfSegments(Buffer.from('x'));
     expect(segs[0]).toEqual({ text: 'line1\nline2', metadata: { page: 1 } });
   });
+
+  it('drops blank pages but keeps 1-based page numbers stable', async () => {
+    const pdfParse = jest.requireMock('pdf-parse');
+    pdfParse.mockImplementationOnce(
+      async (
+        _buffer: Buffer,
+        options?: {
+          pagerender?: (p: {
+            getTextContent: () => Promise<{
+              items: Array<{ str: string; transform?: number[] }>;
+            }>;
+          }) => Promise<string>;
+        },
+      ) => {
+        const page = (str: string) => ({
+          getTextContent: async () => ({
+            items: [{ str, transform: [1, 0, 0, 1, 0, 700] }],
+          }),
+        });
+        await options?.pagerender?.(page('first'));
+        await options?.pagerender?.(page('')); // blank page 2
+        await options?.pagerender?.(page('third'));
+        return { text: 'first\n\nthird', numpages: 3 };
+      },
+    );
+    const segs = await parsePdfSegments(Buffer.from('x'));
+    expect(segs).toEqual([
+      { text: 'first', metadata: { page: 1 } },
+      { text: 'third', metadata: { page: 3 } },
+    ]);
+  });
 });

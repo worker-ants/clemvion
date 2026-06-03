@@ -37,8 +37,13 @@ function savedConfig(): Record<string, unknown> {
 describe("NodeSettingsPanel — error handling", () => {
   beforeEach(() => {
     useLocaleStore.setState({ locale: "en" });
+    // Explicit store reset to isolate tests (no order-dependent leakage).
+    useEditorStore.setState({ nodes: [], edges: [], selectedNodeId: null });
   });
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    useEditorStore.setState({ nodes: [], edges: [], selectedNodeId: null });
+  });
 
   it("migrates legacy flat errorPolicy to the engine policy enum", () => {
     seedNode({ errorPolicy: "skip" });

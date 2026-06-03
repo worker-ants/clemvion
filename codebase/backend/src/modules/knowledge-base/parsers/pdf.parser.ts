@@ -59,5 +59,9 @@ export async function parsePdfSegments(
       return text;
     },
   });
-  return pages.map((text, i) => ({ text, metadata: { page: i + 1 } }));
+  // Map first to keep the 1-based page number stable, then drop blank pages
+  // (scanned/image-only PDFs) so they don't produce empty segments.
+  return pages
+    .map((text, i) => ({ text, metadata: { page: i + 1 } }))
+    .filter((segment) => segment.text.trim().length > 0);
 }

@@ -189,28 +189,29 @@ code:
 │  │   "status": "fallback"       ││
 │  │ }                            ││
 │  └──────────────────────────────┘│
-│  [Reset to Type Default]         │
+│  [Reset to Default]              │
 └──────────────────────────────────┘
 ```
 
-- JSON 에디터로 기본 출력값을 직접 편집
-- 구문 강조 및 JSON 유효성 실시간 검증
-- "Reset to Type Default" 버튼: 타입별 기본값으로 초기화
+- JSON 에디터로 기본 출력값을 직접 편집 (`config.errorHandling.defaultOutput` 으로 저장)
+- JSON 유효성 실시간 검증 — 파싱 실패 시 저장 차단 + 인라인 오류
+- "Reset to Default" 버튼: 에디터를 빈 객체 `{}` 로 초기화
+- 에디터를 비우고 저장하면 `defaultOutput` 은 `null` 로 저장된다 (런타임 폴백은 §2.5.2)
 
-#### 2.5.2 타입별 기본값 (사용자가 미지정 시)
+#### 2.5.2 미지정 시 폴백
 
-사용자가 기본값을 직접 설정하지 않은 경우, 노드 출력 타입에 따라 아래 값이 자동 적용된다:
+사용자가 기본값을 설정하지 않거나 빈 값으로 둔 경우, 엔진은 `errorHandling.defaultOutput ?? null` 규칙으로 **`null`** 을 출력한다 (`error-policy.handler.ts`).
 
-| 출력 타입 | 기본값 | 설명 |
-|-----------|--------|------|
-| Object | `{}` | 빈 객체 |
-| Array | `[]` | 빈 배열 |
-| String | `""` | 빈 문자열 |
-| Number | `0` | 영 |
-| Boolean | `false` | 거짓 |
-| Null/Unknown | `null` | null |
-
-> **타입 추론**: 노드의 마지막 정상 실행 출력에서 타입을 추론한다. 실행 이력이 없으면 `Object`(`{}`)를 기본 타입으로 사용한다.
+> **타입별 기본값 추론 (미구현 — Planned)**: 아래와 같이 노드 출력 타입(Object→`{}` / Array→`[]` / String→`""` / Number→`0` / Boolean→`false` / Null→`null`)을 마지막 정상 실행에서 추론해 적용하는 것은 계획 단계다. 현재 엔진·UI 모두 타입 추론을 수행하지 않으며 미지정 시 `null` 폴백만 적용한다.
+>
+> | 출력 타입 | (계획) 기본값 |
+> |-----------|--------|
+> | Object | `{}` |
+> | Array | `[]` |
+> | String | `""` |
+> | Number | `0` |
+> | Boolean | `false` |
+> | Null/Unknown | `null` |
 
 #### 2.5.3 실행 시 동작
 
@@ -218,7 +219,7 @@ code:
 1. 노드 실행 중 에러 발생
 2. 에러 처리 정책이 "Use Default Output"인지 확인
 3. 사용자가 설정한 기본값이 있으면 → 해당 값을 출력으로 사용
-4. 사용자 설정이 없으면 → 타입별 기본값 적용 (§2.5.2)
+4. 사용자 설정이 없으면 → `null` 폴백 (`defaultOutput ?? null`, §2.5.2. 타입별 기본값 추론은 미구현)
 5. 기본값을 출력 포트로 전달 → 다음 노드 정상 실행
 6. NodeExecution 상태: "completed" (에러 없이 성공 처리됨)
    - 단, node_execution.error 필드에 원래 에러 정보를 기록 (디버깅용)
