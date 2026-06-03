@@ -176,6 +176,7 @@ Mode:  [Off ▼]   (Off / Cross-encoder / Cross-encoder + LLM)
 
 ## 10. 반영 대상 spec (consistency-check 통과 후)
 
+> ✅ **반영 완료** (이 PR, consistency-check `00_02_05` BLOCK:NO 후). 아래 6개 파일에 Planned 표기로 반영함. 구현은 후속 PR(developer).
 > consistency-check `00_02_05` 반영: W1·W2(data-model)·W3(9-rag-search §3.1)·W4(graph 용어)·I8(swagger DTO) 항목 추가.
 
 1. `spec/5-system/9-rag-search.md` — §3 뒤에 "검색 후처리(리랭킹)" 절 신설; **§3.1 `$3 threshold` 설명에 `rerank_mode` 분기 명시**(off→cosine 임계 / ≠off→rerank 점수 임계, W3); §4.1 `ragSources[].score` 이중 의미 + `origin?: 'cosine' | 'reranked'`(I3); §4.2 `ragDiagnostics.rerank?` 서브객체 스키마(I2); §6 에러 처리 확장.
