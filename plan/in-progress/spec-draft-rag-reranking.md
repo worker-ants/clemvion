@@ -126,9 +126,12 @@ rerank?(query: string, documents: string[], model?: string,
 | 상황 | 처리 |
 | --- | --- |
 | RerankConfig 미구성/조회 실패 | 해당 KB 는 **`off` 로 fallback**(cosine 경로). 경고 로그. 노드 실패 아님 |
-| 리랭커 endpoint 호출 실패/타임아웃 | wide 회수 결과를 **cosine score 순**으로 top-k 컷 후 반환(fallback). `ragDiagnostics.rerank.error` 기록 |
-| `cross_encoder_llm` 의 grading LLM 실패 | cross-encoder 결과로 fallback(LLM 단계만 skip) |
+| 리랭커 endpoint 호출 실패/타임아웃 | wide 회수 결과를 **cosine score 순**으로 top-k 컷 후 반환(fallback). `ragDiagnostics.rerank.error = "RERANK_ENDPOINT_FAILED"` 기록 |
+| `cross_encoder_llm` 의 grading LLM 실패 | cross-encoder 결과로 fallback(LLM 단계만 skip). `error = "RERANK_LLM_GRADING_FAILED"` |
+| RerankConfig 미지원 provider 구성 | `error = "RERANK_CONFIG_INVALID"`(구성 시점) |
 | 회수 0건 | 기존대로 `results: []` |
+
+> 에러 코드는 `UPPER_SNAKE_CASE`([Spec 에러 처리 규약](../../spec/5-system/3-error-handling.md)). 신규 코드 `RERANK_ENDPOINT_FAILED` / `RERANK_LLM_GRADING_FAILED` / `RERANK_CONFIG_INVALID` 는 spec 반영 시 `spec/conventions/error-codes.md` 레지스트리 등재 여부 결정(I7). 단 이들은 노드 실패가 아니라 진단 필드 값이므로 cosine 경로로 안전 강등은 유지.
 
 > **원칙**: 리랭킹은 **품질 향상 부가 단계**이며, 어떤 실패도 검색 자체를 죽이지 않는다 — 항상 cosine 경로로 안전 강등. (기존 graceful degradation 원칙 §[9-rag-search §6] 확장.)
 
@@ -173,12 +176,15 @@ Mode:  [Off ▼]   (Off / Cross-encoder / Cross-encoder + LLM)
 
 ## 10. 반영 대상 spec (consistency-check 통과 후)
 
-1. `spec/5-system/9-rag-search.md` — §3 뒤에 "검색 후처리(리랭킹)" 절 신설, §4 ragDiagnostics 확장, §6 에러 처리 확장.
-2. `spec/5-system/7-llm-client.md` — `rerank()` capability, RerankConfig provider, `/rerank` 매핑.
+> consistency-check `00_02_05` 반영: W1·W2(data-model)·W3(9-rag-search §3.1)·W4(graph 용어)·I8(swagger DTO) 항목 추가.
+
+1. `spec/5-system/9-rag-search.md` — §3 뒤에 "검색 후처리(리랭킹)" 절 신설; **§3.1 `$3 threshold` 설명에 `rerank_mode` 분기 명시**(off→cosine 임계 / ≠off→rerank 점수 임계, W3); §4.1 `ragSources[].score` 이중 의미 + `origin?: 'cosine' | 'reranked'`(I3); §4.2 `ragDiagnostics.rerank?` 서브객체 스키마(I2); §6 에러 처리 확장.
+2. `spec/5-system/7-llm-client.md` — **`RerankClient`/`RerankClientFactory` 별도 인터페이스 경로**(LLMClientFactory 오염 방지, I1), §2 프로바이더 표에 Rerank 열, `/rerank` 매핑, RerankConfig provider.
 3. `spec/2-navigation/5-knowledge-base.md` — KB rerank 컬럼·UI, 워크스페이스 RerankConfig 관리.
-4. `spec/4-nodes/3-ai/1-ai-agent.md` — §1 `ragTopK`/`ragThreshold` 의미 보강 노트(리랭크 후 top-k / 점수 임계 해석).
-5. `spec/5-system/10-graph-rag.md` — "rerank"(centrality) vs cross-encoder 후처리 용어 disambiguation 1줄.
-6. (마이그레이션) `knowledge_base` 컬럼 추가 — 기존 행 `rerank_mode='off'` backfill.
+4. `spec/4-nodes/3-ai/1-ai-agent.md` — §1 `ragTopK`/`ragThreshold` 의미 보강 노트(리랭크 후 top-k / `rerank_mode≠off` KB 에서는 rerank 점수 임계로 해석, I4). ⚠️ **착수 전 `claude/ai-context-memory-9c7e6e` branch(같은 파일 §1 에 `memoryTopK`/`memoryThreshold` 추가, active·PR 없음) 의 main merge 여부 확인 — 미merge 시 직렬화/수동 resolve**(W5).
+5. `spec/1-data-model.md` — **§2.11 `KnowledgeBase` 에 5개 rerank 컬럼 동기화**(W1); **§1 ER 다이어그램 + 신규 §2.N `RerankConfig` 엔티티 등재**(W2).
+6. `spec/5-system/10-graph-rag.md` — graph 내부 score 재정렬을 **"centrality-weighted score blending"** 으로 명명, cross-encoder 후처리 reranking 과 disambiguation; **KB-GR-SR-05 설명 동기화**(W4).
+7. (마이그레이션 + DTO) `knowledge_base` 컬럼 추가(기존 행 `rerank_mode='off'` backfill); RerankConfig DTO·KB 확장 DTO 에 `swagger.md §1` 패턴(JSDoc 한국어 주석 + class-validator) 적용(I8).
 
 ---
 
@@ -186,6 +192,9 @@ Mode:  [Off ▼]   (Off / Cross-encoder / Cross-encoder + LLM)
 
 - **왜 완전 선택적(off 기본)인가**: 셀프호스팅 배포에서 리랭커 인프라(GPU·외부 API)를 강제하면 진입장벽·운영비가 오른다. `off` 기본은 (a) 하위호환 byte-identical (b) 리랭커 없는 배포에서도 제품 동작 (c) 점진 도입 가능. 리랭킹은 "품질 부가 단계"이지 필수 경로가 아니라는 §7 원칙과 일관.
 - **왜 KB 단위인가**: 검색 파이프라인 소유권을 KB 에 둔 기존 결정(`rag_mode`·`embedding_model`·graph 파라미터 KB 단위, [Graph RAG §120])과 일관. KB 마다 도메인·문서 성격이 달라 리랭크 전략도 KB 단위가 자연스럽다. 노드 단위로 빼면 같은 KB 를 여러 노드가 쓸 때 설정이 분산된다.
+- **왜 `rag_mode` 는 불변인데 `rerank_mode` 는 가변인가**(I5): `rag_mode`(vector/graph)는 임베딩·entity 추출 등 **적재 산출물의 형태**를 결정해 사후 변경 시 재임베딩·재추출이 필요하다. `rerank_mode` 는 **검색 시점에만** 적용되는 후처리라 적재 산출물에 영향이 없어 재임베딩·마이그레이션 없이 토글 가능하다. 따라서 비대칭이 정당하다.
+- **왜 `ragThreshold` 의미를 재해석(이중화)했나**(I4): 별도 신규 필드를 추가하기보다 기존 `ragThreshold` 를 `rerank_mode` 에 따라 분기 해석한다 — off 면 cosine 임계(현행), ≠off 면 rerank 점수 임계 default. 신규 노드 config 필드 증식을 피하고, "최소 관련도 컷" 이라는 사용자 의도가 두 경로에서 동일하기 때문. `ai-agent.md §1` 의 `ragThreshold` 행에 분기 주석을 명시한다.
+- **왜 rerank 구성 오류에 전용 에러 enum 을 안 만드나**(I6): rerank 미지원 provider 구성은 **실행 중 실패가 아니라 구성 시점 검증 실패**라 기존 `LLM_CONFIG_INVALID` 계열로 충분하다(`LLM_STREAMING_UNSUPPORTED` 같은 런타임 전용 코드와 성격이 다름). 단 검색 시점 endpoint 호출 실패는 진단 필드(`ragDiagnostics.rerank.error`)에 `RERANK_ENDPOINT_FAILED` 등으로 별도 기록한다(§7·§8).
 - **왜 cross-encoder 가 기본, LLM grading 은 escalate 인가** (D2): 심화 리서치상 broad 벤치에서 cross-encoder 가 LLM 리랭커와 동급~우위이면서 지연·비용 1~2 자릿수 낮음. fin.ai(고객지원 도메인) A/B 에서 listwise LLM 은 해결률 이점 0·40% 느림. LLM 의 실익은 정책·지시 판단·근거 인용 → escalate 한정. (출처: plan §5.)
 - **왜 동적 점수 컷인가** (D1): 고정 top-k 는 query-의존 최적 k 를 무시 → 의미 청크 누락 + lost-in-the-middle. 점수 임계 동적 컷이 토큰−60%·환각−10% (CAR). 컷 기준을 cosine→rerank 점수로 옮기는 게 핵심.
 - **왜 RerankConfig 를 LLMConfig 와 분리(sibling)했나**: 리랭커는 chat/embedding 과 API shape 가 다른 별도 model class. capability flag 로 LLMConfig 에 욱여넣기보다 sibling 리소스가 명확. 단 provider 추상화·SSRF 가드·secret-store 는 재사용 → 신규 인프라 최소.
