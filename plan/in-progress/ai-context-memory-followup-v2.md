@@ -47,3 +47,10 @@ related_plan: plan/in-progress/ai-context-memory-auto.md
 - [x] `conversation-thread.md §7` Token-aware cap 에 "tokenizer-exact 는 v3 잔존" 명시(SPEC-DRIFT I-11) — 기존 문구로 이미 충족.
 - [x] `1-ai-agent.md §12.12` 에 요약/추출 LLM 모델 재사용(별도 필드 없음) Rationale 소항(I-6).
 - [x] `1-ai-agent.md §12.13` Redis TTL 만료 시 runningSummary 유실 fallback 정책 명시(W-6).
+
+## v2 코드 리뷰 도출 백로그 (멀티턴 물리압축 후속)
+- [ ] `injectMemoryContext` 의 `getThread`/`getThreadExcludingNode` 이중 쿼리 단일화(I/O-backed 전환 대비, W-8).
+- [ ] `ConversationThreadService.updateSummaryState()` 신설 — runningSummary/summarizedUpToSeq 단일 변이 경로(I-7).
+- [ ] `buildSummaryBufferUpdate` rolling 루프 토큰 재계산 O(n²)→O(1) 증분(perf I-11).
+- [ ] `meta.memory.compactedMessages` 를 `_product-overview` ND-AG-30 열거에 등재(naming I-7).
+- [ ] §6.2 d.5 본문에 auto-memory multi-turn 실행 경로 부연(SPEC-DRIFT I-2).
