@@ -127,5 +127,8 @@ export const codeNodeMetadata: NodeComponentMetadata = {
       message: 'Body of the code to run must be entered.',
     },
   ],
+  summaryTemplate: {
+    template: '{{language|upper}}',
+  },
   validateConfig: validateCodeConfig,
 };

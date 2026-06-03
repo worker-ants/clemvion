@@ -178,6 +178,8 @@ code:
 | `$loop` | Object | Loop 노드 내부 컨텍스트 | `{{ $loop.index }}` |
 | `$item` | Object/Any | ForEach 현재 항목 | `{{ $item.name }}` |
 | `$itemIndex` | Number | ForEach 현재 인덱스 | `{{ $itemIndex }}` |
+| `$itemIsFirst` | Boolean | ForEach 첫 항목 여부 | `{{ $itemIsFirst }}` |
+| `$itemIsLast` | Boolean | ForEach 마지막 항목 여부 | `{{ $itemIsLast }}` |
 | `$trigger` | Object | 트리거 데이터 (webhook payload 등) — **미구현 (Planned)**. 엔진 타입·에디터 자동완성에는 노출되나 실행 엔진의 컨텍스트 빌더가 아직 주입하지 않음 | `{{ $trigger.body.event }}` |
 | `$thread` | Object | Conversation Thread 변수 — 사용자 인터랙션 + AI 대화 turn 누적. [§4.4](#44-thread-속성) | `{{ $thread.length }}` |
 

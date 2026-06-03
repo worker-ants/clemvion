@@ -1,14 +1,12 @@
 ---
 id: node-common
-status: partial
+status: implemented
 code:
   - codebase/frontend/src/components/editor/canvas/custom-node.tsx
   - codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx
   - codebase/frontend/src/components/editor/expression/*.tsx
   - codebase/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts
   - codebase/backend/src/nodes/**/*.schema.ts
-pending_plans:
-  - plan/in-progress/spec-sync-node-common-gaps.md
 ---
 
 # Spec: 노드 공통 스펙
@@ -165,18 +163,20 @@ pending_plans:
 | **Stop Workflow** (기본) | 에러 발생 시 워크플로우 실행 중단. 상태: failed |
 | **Skip Node** | 에러 발생 시 이 노드를 건너뛰고 다음 노드로 진행. 출력: null |
 | **Use Default Output** | 에러 발생 시 미리 설정한 기본 출력 값 사용. 아래 §2.5 참조 |
-| **Retry** | 재시도 (최대 재시도 횟수 `maxRetries`, 재시도 간격 `retryInterval` 설정). **구현 상태**: Error Handling select 에 `Retry` 옵션은 존재하나, `maxRetries`/`retryInterval` 입력 UI 는 미구현 (Planned) — `node-settings-panel.tsx` 에 별도 입력 필드 없음 |
+| **Retry** | 재시도. `Retry` 선택 시 설정 패널에 `maxRetries`(최대 재시도 횟수)·`retryInterval`(재시도 간격 ms) 입력 필드가 표시된다 (`node-settings-panel.tsx`). 엔진은 `retryInterval × backoffMultiplier^attempt` 의 지수 백오프로 재시도한다 (`backoffMultiplier` 기본 2) |
 | **Route to Error Port** | 에러 발생 시 에러 데이터를 `error` 포트로 전달. 선택 시 노드에 error 포트가 동적 생성됨. error 포트에 연결된 노드가 없으면 Stop Workflow 폴백. ([에러 처리 상세](../5-system/3-error-handling.md#32-route-to-error-port-상세) 참조) |
+
+> **config 저장 형태**: 설정 패널은 위 정책을 엔진 계약인 nested `config.errorHandling = { policy, retryConfig?: { maxRetries, retryInterval, backoffMultiplier }, defaultOutput? }` 로 저장한다 (`policy` enum: `stop_workflow`/`skip_node`/`use_default_output`/`retry`/`route_to_error_port`, `execution-engine`의 `error-policy.handler.ts` 와 일치). 과거 flat `config.errorPolicy` 단축값은 로드 시 자동 마이그레이션된다.
 
 ### 2.5 Use Default Output — 기본 출력값 정의
 
 "Use Default Output" 정책 선택 시, 에러가 발생하면 사용자가 미리 설정한 기본 출력값을 대신 출력 포트로 전달한다.
 
-#### 2.5.1 기본값 설정 UI (미구현 — Planned)
+#### 2.5.1 기본값 설정 UI
 
-> **구현 상태**: 현재 설정 패널의 Error Handling 은 단일 select(`Stop`/`Skip`/`Use Default Output`/`Retry`/`Route to Error Port`)만 렌더링한다. "Use Default Output" 선택 시 아래의 조건부 JSON 에디터·"Reset to Type Default" 버튼은 아직 구현되어 있지 않다 (`node-settings-panel.tsx` §Error handling policy). 아래는 계획된 UI 다.
+"Use Default Output" 선택 시 설정 패널에 조건부 JSON 에디터와 "Reset to Default" 버튼이 표시된다 (`node-settings-panel.tsx`). JSON 파싱 실패 시 저장이 차단되고 인라인 오류가 표시되며, 빈 값은 `null` 로 저장된다. 입력값은 `config.errorHandling.defaultOutput` 으로 저장된다.
 
-"Use Default Output" 선택 시 설정 패널에 기본값 입력 폼이 추가로 표시된다(계획):
+"Use Default Output" 선택 시 설정 패널에 기본값 입력 폼이 추가로 표시된다:
 
 ```
 ┌──────────────────────────────────┐
@@ -189,28 +189,29 @@ pending_plans:
 │  │   "status": "fallback"       ││
 │  │ }                            ││
 │  └──────────────────────────────┘│
-│  [Reset to Type Default]         │
+│  [Reset to Default]              │
 └──────────────────────────────────┘
 ```
 
-- JSON 에디터로 기본 출력값을 직접 편집
-- 구문 강조 및 JSON 유효성 실시간 검증
-- "Reset to Type Default" 버튼: 타입별 기본값으로 초기화
+- JSON 에디터로 기본 출력값을 직접 편집 (`config.errorHandling.defaultOutput` 으로 저장)
+- JSON 유효성 실시간 검증 — 파싱 실패 시 저장 차단 + 인라인 오류
+- "Reset to Default" 버튼: 에디터를 빈 객체 `{}` 로 초기화
+- 에디터를 비우고 저장하면 `defaultOutput` 은 `null` 로 저장된다 (런타임 폴백은 §2.5.2)
 
-#### 2.5.2 타입별 기본값 (사용자가 미지정 시)
+#### 2.5.2 미지정 시 폴백
 
-사용자가 기본값을 직접 설정하지 않은 경우, 노드 출력 타입에 따라 아래 값이 자동 적용된다:
+사용자가 기본값을 설정하지 않거나 빈 값으로 둔 경우, 엔진은 `errorHandling.defaultOutput ?? null` 규칙으로 **`null`** 을 출력한다 (`error-policy.handler.ts`).
 
-| 출력 타입 | 기본값 | 설명 |
-|-----------|--------|------|
-| Object | `{}` | 빈 객체 |
-| Array | `[]` | 빈 배열 |
-| String | `""` | 빈 문자열 |
-| Number | `0` | 영 |
-| Boolean | `false` | 거짓 |
-| Null/Unknown | `null` | null |
-
-> **타입 추론**: 노드의 마지막 정상 실행 출력에서 타입을 추론한다. 실행 이력이 없으면 `Object`(`{}`)를 기본 타입으로 사용한다.
+> **타입별 기본값 추론 (미구현 — Planned)**: 아래와 같이 노드 출력 타입(Object→`{}` / Array→`[]` / String→`""` / Number→`0` / Boolean→`false` / Null→`null`)을 마지막 정상 실행에서 추론해 적용하는 것은 계획 단계다. 현재 엔진·UI 모두 타입 추론을 수행하지 않으며 미지정 시 `null` 폴백만 적용한다.
+>
+> | 출력 타입 | (계획) 기본값 |
+> |-----------|--------|
+> | Object | `{}` |
+> | Array | `[]` |
+> | String | `""` |
+> | Number | `0` |
+> | Boolean | `false` |
+> | Null/Unknown | `null` |
 
 #### 2.5.3 실행 시 동작
 
@@ -218,7 +219,7 @@ pending_plans:
 1. 노드 실행 중 에러 발생
 2. 에러 처리 정책이 "Use Default Output"인지 확인
 3. 사용자가 설정한 기본값이 있으면 → 해당 값을 출력으로 사용
-4. 사용자 설정이 없으면 → 타입별 기본값 적용 (§2.5.2)
+4. 사용자 설정이 없으면 → `null` 폴백 (`defaultOutput ?? null`, §2.5.2. 타입별 기본값 추론은 미구현)
 5. 기본값을 출력 포트로 전달 → 다음 노드 정상 실행
 6. NodeExecution 상태: "completed" (에러 없이 성공 처리됨)
    - 단, node_execution.error 필드에 원래 에러 정보를 기록 (디버깅용)
@@ -261,7 +262,7 @@ pending_plans:
 | 기능 | 설명 |
 |------|------|
 | 자동완성 | `{{` 입력 시 사용 가능한 참조 목록 팝업. 현재 노드에서 접근 가능한 조상 노드·변수만 표시 (토폴로지 기반) |
-| 컨테이너 스코프 | 루프/ForEach 안에서만 `$loop` / `$item` / `$itemIndex` 제안. `parallel` 컨테이너는 바깥 스코프를 차단 |
+| 컨테이너 스코프 | 루프/ForEach 안에서만 `$loop` / `$item` / `$itemIndex` / `$itemIsFirst` / `$itemIsLast` 제안. `parallel` 컨테이너는 바깥 스코프를 차단 |
 | 노드 출력 스키마 | 이전 노드의 출력 구조를 트리 형태로 탐색/선택 |
 | 실시간 검증 | 문법 오류는 빨간색, 접근 불가 노드·스코프 밖 변수 참조는 주황색 경고 |
 | 미리보기 | 마지막 실행 데이터 기준으로 표현식 결과 미리보기 |
@@ -294,3 +295,12 @@ pending_plans:
 | N:1 합류 | 여러 입력이 도착하면 Merge 노드의 전략에 따라 처리 |
 | 조건부 분기 | If/Else, Switch 등은 조건에 맞는 출력 포트로만 데이터 전달 |
 | 에러 라우팅 | 에러 정책이 "Route to Error Port"인 노드에서 에러 발생 시 에러 데이터를 `error` 포트로 전달. 에러 엣지(빨간 점선)로 연결된 다음 노드가 에러 데이터를 입력으로 실행 |
+
+## Rationale
+
+### R-1. `Use Default Output` — 타입별 기본값 추론(§2.5.2)을 Planned 로 유지 (2026-06-03)
+
+§2.5.2 의 "출력 타입별 기본값 자동 추론(마지막 정상 실행에서 타입 추론)" 은 엔진·UI 어디에도 구현돼 있지 않다 — 엔진 `error-policy.handler.ts` 는 `config.errorHandling.defaultOutput ?? null` 단일 폴백만 적용한다. 본 작업(설정 패널의 JSON 에디터 §2.5.1)은 사용자가 **명시한** defaultOutput 을 저장·전달하는 표면만 구현했고, 타입 추론 레지스트리는 별도 기능으로 Planned 유지한다.
+
+- 따라서 에디터를 비우고 저장하면 `defaultOutput = null` 이 저장되고 런타임도 `null` 을 출력한다 (타입별 기본값 아님). 이는 엔진 현실(`?? null`)과 일치하는 의도된 동작이다.
+- "Reset to Type Default" 레이블은 타입 추론 미구현 상태와의 혼동을 피하기 위해 "Reset to Default"(빈 객체 `{}` 로 초기화)로 변경했다.

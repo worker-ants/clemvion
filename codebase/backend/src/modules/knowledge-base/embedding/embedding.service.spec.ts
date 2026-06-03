@@ -12,6 +12,9 @@ import { chunkText } from '../chunking/text-chunker';
 
 jest.mock('../parsers/parser.factory', () => ({
   parseDocument: jest.fn().mockResolvedValue('parsed text body'),
+  parseDocumentSegments: jest
+    .fn()
+    .mockResolvedValue([{ text: 'parsed text body', metadata: {} }]),
 }));
 
 jest.mock('../chunking/text-chunker', () => ({
@@ -130,6 +133,54 @@ describe('EmbeddingService - dimension consistency', () => {
     const update = findUpdateDimCall(mockDataSource.query);
     expect(update).toBeDefined();
     expect(update?.[1]).toEqual([3, 'kb-1']);
+  });
+
+  it('chunks each segment and feeds all segments through embedding (multi-segment)', async () => {
+    const { parseDocumentSegments } = jest.requireMock(
+      '../parsers/parser.factory',
+    );
+    (parseDocumentSegments as jest.Mock).mockResolvedValueOnce([
+      { text: 'seg-a', metadata: { section: 'A' } },
+      { text: 'seg-b', metadata: { section: 'B' } },
+    ]);
+    // One chunk per segment, echoing the segment text so we can assert that
+    // both segments were chunked and forwarded to embed in order.
+    chunkTextMock.mockImplementation((text) => [
+      { content: String(text), index: 0, tokenCount: 1, metadata: {} },
+    ]);
+
+    mockDocRepo.findOne.mockResolvedValue({
+      id: 'd1',
+      knowledgeBaseId: 'kb-1',
+      fileUrl: 's3://x',
+      fileType: 'md',
+    });
+    mockKbRepo.findOne.mockResolvedValue({
+      id: 'kb-1',
+      workspaceId: 'ws-1',
+      embeddingModel: 'text-embedding-3-small',
+      embeddingDimension: 3,
+      chunkSize: 1000,
+      chunkOverlap: 200,
+    });
+    mockLlm.embed.mockResolvedValue([
+      [0.1, 0.2, 0.3],
+      [0.4, 0.5, 0.6],
+    ]);
+
+    await service.processDocument('d1');
+
+    // Both segments produced a chunk and were embedded together (single batch).
+    // embed is called as embed(config, texts) — assert the texts argument.
+    expect(mockLlm.embed).toHaveBeenCalledTimes(1);
+    const embedCall = mockLlm.embed.mock.calls[0] as unknown[];
+    const texts = embedCall.find((a) => Array.isArray(a));
+    expect(texts).toEqual(['seg-a', 'seg-b']);
+    // Final chunkCount reflects chunks from all segments.
+    const completed = mockDocRepo.update.mock.calls.find(
+      (c) => (c[1] as { chunkCount?: number }).chunkCount === 2,
+    );
+    expect(completed).toBeDefined();
   });
 
   it('does not overwrite embedding_dimension when KB already has one', async () => {

@@ -1,8 +1,6 @@
 ---
 id: template
-status: partial
-pending_plans:
-  - plan/in-progress/spec-sync-template-gaps.md
+status: implemented
 code:
   - codebase/backend/src/nodes/presentation/template/template.handler.ts
   - codebase/backend/src/nodes/presentation/template/template.schema.ts
@@ -294,11 +292,16 @@ Template 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패
 
 ## 7. 캔버스 요약
 
-[공통 §5 캔버스 요약](./0-common.md#5-캔버스-요약) — `Template (버튼 없음)` / `Template (버튼 있음)` 행 인용.
+[공통 §5 캔버스 요약](./0-common.md#5-캔버스-요약) — `Template` 행 인용. `summaryTemplate` 은 단일 정적 문자열이라 config 분기(버튼 유무)가 불가하므로 `{{outputFormat}} · {{buttons.length}} buttons` 로 통일한다 (버튼 0개 시 `html · 0 buttons`). 줄 수(`N lines`)는 summaryTemplate DSL 이 개행 카운트를 지원하지 않아 표시하지 않는다.
 
-| 노드 상태 | 요약 포맷 | 예시 |
-|-----------|-----------|------|
-| 버튼 없음 | `{outputFormat} · {N} lines` | `html · 9 lines` |
-| 버튼 있음 | `{outputFormat} · {N} buttons` | `html · 2 buttons` |
+| 노드 | 요약 포맷 | 예시 |
+|------|-----------|------|
+| Template | `{{outputFormat}} · {{buttons.length}} buttons` | `html · 2 buttons` |
 
 > Run Results Drawer 렌더링은 [공통 §6.5](./0-common.md#65-template) 참조 (HTML iframe 샌드박스 / Markdown 변환 / Text `<pre>`).
+
+## Rationale
+
+### R-1. 캔버스 요약 단일 포맷 채택 (2026-06-03)
+
+초기 spec 은 버튼 유무에 따라 `{outputFormat} · {N} lines`(버튼 없음) / `{outputFormat} · {N} buttons`(버튼 있음) 두 변형을 명세했다. `summaryTemplate` 은 단일 정적 문자열이라 config(버튼 유무) 분기가 불가하고, "N lines"(템플릿 개행 수)는 summaryTemplate DSL 이 개행 카운트를 지원하지 않는다. 따라서 `{{outputFormat}} · {{buttons.length}} buttons` 단일 포맷으로 통일했다 (버튼 0개 시 `html · 0 buttons` — 차선이나 일관적). `0-common.md §5` inline 노트와 동기화.
