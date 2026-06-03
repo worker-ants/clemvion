@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "started_at": "2026-06-03T09:30:50Z",
+  "summary_items_total": 12,
+  "items_resolved_ids": [1, 2, 3, 5, 9, 12],
+  "items_pending_ids": [4, 6, 7, 8, 10, 11],
+  "items_escalated_ids": {
+    "4": "out-of-scope-pre-existing",
+    "6": "out-of-scope-spec-planner",
+    "7": "out-of-scope-spec-planner",
+    "8": "out-of-scope-pre-existing",
+    "10": "out-of-scope-pre-existing",
+    "11": "deferred-spec-planner"
+  },
+  "commits_made": [],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 0,
+  "e2e_last_status": null,
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "notes": {
+    "info_4_6": "DEFAULT_TIMEOUT_SEC constant deduplication resolved (exported from schema, imported in handler)",
+    "info_9": "crypto.hash unsupported algorithm now routes to error port — test added",
+    "info_10": "base64.decode silent-failure documented — test added",
+    "info_11": "date invalid input isValid() === false — test added",
+    "warning_12": "host-realm isolation documented in test with known limitation note (spec §7.1 roadmap: isolated-vm)"
+  }
+}

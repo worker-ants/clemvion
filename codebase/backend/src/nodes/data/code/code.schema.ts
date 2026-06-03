@@ -34,6 +34,10 @@ export const codeNodeOutputSchema = z
   })
   .passthrough();
 
+// Single source of truth for the default timeout value — also exported so
+// code.handler.ts can reference it without maintaining a separate copy (INFO-6).
+export const DEFAULT_TIMEOUT_SEC = 30;
+
 export const codeNodeConfigSchema = z
   .object({
     language: z
@@ -59,7 +63,7 @@ export const codeNodeConfigSchema = z
     // UI slider bounds so the editor renders `Timeout [30] sec (1–120)`.
     timeout: z
       .number()
-      .default(30)
+      .default(DEFAULT_TIMEOUT_SEC)
       .meta({
         ui: { label: 'Timeout (sec)', widget: 'number', min: 1, max: 120 },
       }),

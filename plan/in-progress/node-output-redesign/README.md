@@ -202,7 +202,7 @@ if-else / switch / loop / variable-declaration / split / filter / background / t
 | [send-email](./send-email.md) | 1 | 2 | 0 | body cap 일관성 |
 | [cafe24](./cafe24.md) | 2 | 3 | 0 | §1 pagination `cursor?: string` schema 폐기 잔재 정정 |
 | [transform](./transform.md) | 1 | 1 | 0 | 미시 보강만 |
-| [code](./code.md) | 1 | **4** | 0 | `timeout` schema 누락 (UI 30s slider ↔ schema 부재), `$node`/`$helpers` 미주입, timer 셰도잉 명시 누락 |
+| [code](./code.md) | 1 | 0 | 0 | P1 impl 4건 완료 (커밋 8419923b + ai-review fix). spec 잔여: `meta.durationMs` 출처 확정 (project-planner 영역) |
 | [carousel](./carousel.md) | 2 | 3 | 0 | `maxItems` echo 누락, `buttonConfig` runtime 생성 위치 |
 | [table](./table.md) | 2 | 3 | 0 | `output.rendered` HTML snapshot 위치 비대칭 (Carousel/Chart 는 client 전환 완료) |
 | [chart](./chart.md) | 1 | **4** | 0 | `chartOutputSchema` (schema:113-118) 옛 dead schema, `groupBy` 다중시리즈 미구현, raw echo 누락 |

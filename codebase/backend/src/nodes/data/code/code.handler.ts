@@ -8,10 +8,32 @@ import {
   ValidationResult,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
-import { codeNodeMetadata } from './code.schema.js';
-
-const DEFAULT_TIMEOUT_SEC = 30;
+import { codeNodeMetadata, DEFAULT_TIMEOUT_SEC } from './code.schema.js';
 const MAX_CONSOLE_LINES = 100;
+
+// Allowlist for $helpers.crypto.hash — guards against OpenSSL internal error
+// messages leaking through on unsupported algorithm strings (spec §2.2).
+const ALLOWED_HASH_ALGORITHMS = new Set([
+  'sha256',
+  'sha384',
+  'sha512',
+  'sha1',
+  'md5',
+]);
+
+/** Typed surface of the $helpers object injected into the sandbox (spec §2.2). */
+interface HelpersApi {
+  date: (value?: unknown) => ReturnType<typeof dayjs>;
+  crypto: {
+    hash: (algorithm: string, data: string) => string;
+    uuid: () => string;
+  };
+  base64: {
+    encode: (data: string) => string;
+    /** NOTE: silent-failure on invalid Base64 / non-UTF-8 input (returns string with replacement chars). */
+    decode: (data: string) => string;
+  };
+}
 
 /**
  * `$helpers` — built-in utilities injected into the sandbox (spec §2.2). The
@@ -20,12 +42,23 @@ const MAX_CONSOLE_LINES = 100;
  * inside the sandboxed vm context. Sandbox code only ever holds references to
  * these closures, never the underlying host globals.
  */
-function buildHelpers(): Record<string, unknown> {
+function buildHelpers(): HelpersApi {
   return {
     date: (value?: unknown) => dayjs(value as dayjs.ConfigType),
     crypto: {
-      hash: (algorithm: string, data: string): string =>
-        createHash(algorithm).update(data).digest('hex'),
+      hash: (algorithm: string, data: string): string => {
+        if (!ALLOWED_HASH_ALGORITHMS.has(algorithm)) {
+          throw new Error(
+            `Unsupported hash algorithm: "${algorithm}". Allowed: ${[...ALLOWED_HASH_ALGORITHMS].join(', ')}`,
+          );
+        }
+        if (typeof data !== 'string') {
+          throw new TypeError(
+            `$helpers.crypto.hash: data must be a string, got ${typeof data}`,
+          );
+        }
+        return createHash(algorithm).update(data).digest('hex');
+      },
       uuid: (): string => randomUUID(),
     },
     base64: {
