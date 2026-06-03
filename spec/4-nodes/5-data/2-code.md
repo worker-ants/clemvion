@@ -357,3 +357,20 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 ## 8. 캔버스 요약
 
 [Data 공통 §3](./0-common.md#3-캔버스-요약) — `Code` 행 인용 (`{language} · {N} lines`).
+
+## Rationale
+
+### `config.code` raw echo — Principle 7 의 "절대 echo 금지" 예외 아님 (2026-06-03 정합화)
+
+`config.code` (사용자 코드 본문) 는 `NodeHandlerOutput.config` 에 **raw 그대로 echo** 한다. 한때 [CONVENTIONS Principle 7](../../conventions/node-output.md) 의 "절대 echo 금지" 목록에 `code.config.code` 가 있어 본 spec(§5.1 config echo) 과 모순됐으나, 이는 두 개념의 혼동이었다:
+
+- **expression 평가 제외** (`expression-exclusions` 등록) — 코드 본문 안의 `{{ }}` 를 평가하지 않는다 (코드가 곧 데이터이므로). 이것이 등록의 의미.
+- **echo 금지** — `config` 에 싣지 않는다. 코드 본문은 여기 해당하지 **않는다**.
+
+코드 본문은 `systemPrompt`/`userPrompt`/`body` 와 동일 부류의 사용자 작성 raw 텍스트로, 디버깅·후속 노드 참조를 위해 echo 한다 (비민감 — 사용자 본인 코드, 에디터/UI 로 크기 bounded). 따라서 Principle 7 "항상 echo" 목록에 속한다. (정합화로 `node-output.md` Principle 7 금지 목록에서 `code.config.code` 삭제 + "항상 echo" 로 이동.)
+
+### `output` root 직접 배치 — Principle 8.2 의 `output.result` 래핑 미적용 (2026-06-03 정합화)
+
+Code 노드의 `output` 은 사용자 `return` 값을 **root 에 그대로** 담는다 (§5.1) — `output.result` 래핑을 적용하지 않는다. `output.result` 래핑은 [CONVENTIONS Principle 8.2](../../conventions/node-output.md) 의 **LLM 계열 노드 (ai_agent / text_classifier / information_extractor) 한정** 규칙이다. Code(및 Transform)는 사용자 코드/연산이 출력 shape 을 결정하므로 인위적 `result` 래핑은 다운스트림 expression 만 장황하게 만든다 (`$node["X"].output.result.foo` vs `$node["X"].output.foo`). 한때 Principle 8.2 표의 "코드 실행 결과 → `output.result`" 행이 이 결정과 모순됐으나, 정합화로 해당 행을 "root 직접 배치 (Code/Transform 예외)" 로 정정했다.
+
+**기각된 대안**: Code 출력을 `output.result` 로 래핑 — LLM 계열과의 표면적 일관성은 얻지만, 사용자가 `return { result: ... }` 를 직접 쓰면 `output.result.result` 이중 중첩이 발생하고, primitive return(`return 42`)이 `output.result: 42` 로 어색해진다. 사용자 코드의 자유로운 shape 가 핵심 가치이므로 root 직접 배치를 유지.
