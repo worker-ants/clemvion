@@ -134,21 +134,18 @@ WARNING 13 + INFO 15 전부 Phase A 에서 해소. 확정 채택:
   - [x] `0-common.md §11.4` ordering 표 5a/5b/5c + 휘발성 꼬리 (W#8)
   - [x] spec write 직전 `/consistency-check --spec` 의무 — 완료(BLOCK NO). 산출: `review/consistency/2026/06/03/21_01_04/`
   - [x] build 가드 검증: frontmatter(spec-only/code:[]) + status-lifecycle(implemented→partial+pending_plans) 직접 확인 (frontend node_modules 미설치로 vitest 대신 수동 검증)
-- [ ] **Phase B — 데이터 모델 / 마이그레이션 (developer)**: `agent_memory` 테이블
-      마이그레이션. workspace_id 격리, pgvector 컬럼·인덱스.
-- [ ] **Phase C — summary_buffer 구현 (developer, TDD)**: token 추정 유틸, 롤링 요약
-      빌더(요약 LLM 콜), 임계치 트리거, thread `runningSummary` 보관, 안정 프리픽스
-      배치. unit + integration.
-- [ ] **Phase D — persistent 구현 (developer, TDD)**: `AgentMemoryService`(추출
-      파이프라인 비동기, 회수 동기), 스코프 키 resolve(memoryKey ?? execution_id),
-      pgvector 재사용, top-k/threshold/forgetting. unit + integration.
-- [ ] **Phase E — 스키마/핸들러/UI (developer)**: `ai-agent.schema.ts` 5필드 +
-      visibleWhen, `ai-agent.handler.ts` `injectConversationContext` 확장, meta echo.
-      frontend 자동 생성 UI 확인.
-- [ ] **Phase F — e2e + 회귀 (developer)**: 장기 대화 시나리오(예산 초과 압축, 세션 간
-      회수), 하위호환(manual 무변경) 회귀.
-- [ ] **Phase G — REVIEW**: `/ai-review` + critical/warning fix (강제). `/spec-coverage`
-      로 갭 확인.
+- [x] **Phase B — 데이터 모델 / 마이그레이션** ✅: `agent_memory`(V071) + 차원별 partial
+      HNSW(V072~V077). workspace_id 격리. AgentMemoryEntity/Module.
+- [x] **Phase C — summary_buffer** ✅: `agent-memory-injection.ts`(토큰추정·롤링요약·안정
+      프리픽스), 임계치 트리거(미만 시 LLM 미호출), `runningSummary`/`summarizedUpToSeq`. unit.
+- [x] **Phase D — persistent** ✅: `AgentMemoryService`(회수 동기 top-k, 추출 비동기 BullMQ
+      processor, scopeKey resolve, forgetting 1000). unit.
+- [x] **Phase E — 스키마/핸들러/meta** ✅: schema 5필드(MemoryStrategy 타입, visibleWhen),
+      핸들러 분기(manual 무변경 + summary_buffer + persistent 회수), meta.memory echo.
+      frontend backend-labels/mdx 동반 갱신.
+- [x] **Phase F — TEST WORKFLOW** ✅: lint✓ / unit✓(backend 5738, frontend 외 cafe24 pre-existing
+      만) / build✓ / e2e✓(144, Flyway V071~V077 docker 실행). manual 하위호환 회귀 테스트 통과.
+- [ ] **Phase G — REVIEW**: `/ai-review` + `/consistency-check --impl-done` + critical/warning fix.
 
 ## 5. 미해결 / 결정 (Phase A 에서 모두 확정)
 - [x] persistent 추출 스키마 — v1 은 단순 텍스트 사실 단위(`metadata.kind` optional 분류). `17-agent-memory.md §3`.
