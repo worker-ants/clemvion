@@ -140,16 +140,16 @@ KB / MCP / 일반 provider 도구 호출이 발생한 노드는 `meta.ragSources
 
 ## 10. Conversation Context (자동 컨텍스트 주입)
 
-AI 카테고리 3 노드 공통 규약. v1 은 `ai_agent` 만 push + 자동 주입을 구현하고, `text_classifier` / `information_extractor` 는 동일 인터페이스로 v2 에 push hook (final assistant turn) + 자동 주입이 함께 추가된다 ([Spec Conversation Thread §2.3](../../conventions/conversation-thread.md#23-적용-범위-push-vs-inject-구분)). 두 노드의 final assistant text 변환 규칙은 §1.4 의 v2 표기 행 참조.
+AI 카테고리 3 노드 공통 규약. v1 은 `ai_agent` 의 push + 자동 주입을 구현하고, **`text_classifier` / `information_extractor` 의 final assistant push 도 v1 출하 완료** (세 노드 모두 push 출하 — handler 의 `pushClassifierTurn` / `pushExtractorTurn`). 다만 **자동 주입 (`contextScope` / `memoryStrategy` inject) 만 두 노드에 v2 예정** — push 완료 vs inject 미완을 구분한다 ([Spec Conversation Thread §2.3](../../conventions/conversation-thread.md#23-적용-범위-push-vs-inject-구분)). 두 노드의 final assistant text 변환 규칙은 §1.4 의 해당 행 참조.
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |---|---|---|---|---|
 | contextScope | `none` / `thread` / `lastN` | ✓ | `none` | 자동 주입할 thread 범위 |
 | contextScopeN | Integer | (lastN 시) | `20` | `lastN` 일 때 최근 N개 turn |
 | contextInjectionMode | `messages` / `system_text` | (scope ≠ none 시) | `messages` | 주입 형식 — LLM messages 배열 prepend / system prompt 텍스트 첨부 |
-| includeToolTurns | Boolean | | `false` | `ai_tool` turn (KB/MCP/condition 결과) 도 thread 에 push 할지 |
+| includeToolTurns | Boolean | | `false` | `ai_tool` turn (KB/MCP/condition 결과) 도 thread 에 push 할지. `memoryStrategy ≠ manual` 시 자동 주입 측면에서는 무효 — push (thread 누적) 는 전략과 독립 유지 |
 | excludeFromConversationThread | Boolean | | `false` | 본 노드의 user/assistant turn 을 thread 에서 제외 (opt-out) |
-| memoryStrategy | `manual` / `summary_buffer` / `persistent` | | `manual` | 메모리 **관리 전략** 축. `manual`(기본) = 위 5필드 동작 그대로. `summary_buffer`/`persistent` = 자동 전략 (위 5필드 무효 — 자동 전략이 대체). AI Agent 한정 (text_classifier/information_extractor 는 v2). 상세: [Spec AI Agent §1·§6](./1-ai-agent.md#1-설정-config) + [Spec Agent Memory](../../5-system/17-agent-memory.md) |
+| memoryStrategy | `manual` / `summary_buffer` / `persistent` | | `manual` | 메모리 **관리 전략** 축. `manual`(기본) = 위 5필드 동작 그대로. `summary_buffer`/`persistent` = 자동 전략 (위 5필드 무효 — 자동 전략이 대체). AI Agent 한정 (text_classifier/information_extractor 는 v2). 별도 필드 채택 근거 [AI Agent §12.9](./1-ai-agent.md#129-memorystrategy-를-contextscope-enum-확장이-아닌-별도-필드로-둔-근거). 상세: [Spec AI Agent §1·§6](./1-ai-agent.md#1-설정-config) + [Spec Agent Memory](../../5-system/17-agent-memory.md) |
 
 > **Default `contextScope: 'none'`** — 기존 워크플로우 영향 없음. 명시 opt-in 시에만 자동 주입 활성화.
 

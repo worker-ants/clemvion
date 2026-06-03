@@ -34,12 +34,14 @@ related_plan: plan/in-progress/ai-context-memory-auto.md
 
 ## spec 정밀화 백로그 (코드 리뷰 도출, 경미)
 
-- [ ] `0-common.md §10` memoryStrategy 행에 `[AI Agent §12.9]` 근거 링크(W-11), `includeToolTurns`
+> 아래 8건은 2026-06-03 spec 보정 PR 에서 모두 반영 완료.
+
+- [x] `0-common.md §10` memoryStrategy 행에 `[AI Agent §12.9]` 근거 링크(W-11), `includeToolTurns`
       행에 push/inject 분리 한 줄(W-12).
-- [ ] `1-ai-agent.md §7` Config echo 열거에 memory 5필드 추가(impl-done W-3).
-- [ ] `0-common.md §10` 첫 단락 "v1 세 노드 모두 push 출하, ai_agent 만 inject" 로 정밀화(W-7).
-- [ ] `1-ai-agent.md §6.1 d.5` summary_buffer(1.5만) vs persistent(1.3+1.5+2.7) 분기 명시(W-8).
-- [ ] `5-system/_product-overview.md` 에 AGM-01~07 등재(W-10).
-- [ ] `conversation-thread.md §7` Token-aware cap 에 "tokenizer-exact 는 v3 잔존" 명시(SPEC-DRIFT I-11).
-- [ ] `1-ai-agent.md §12.10/12.11` 에 요약 LLM 모델 재사용(별도 필드 없음) Rationale 소항(I-6).
-- [ ] Redis TTL 만료 시 runningSummary 유실 fallback 정책 명시(W-6).
+- [x] `1-ai-agent.md §7` Config echo 열거에 memory 5필드 추가(impl-done W-3).
+- [x] `0-common.md §10` 첫 단락 "v1 세 노드 모두 push 출하, ai_agent 만 inject" 로 정밀화(W-7).
+- [x] `1-ai-agent.md §6.2 d.5` summary_buffer(1.5만, 1.3·2.7 미적용) vs persistent(1.3+1.5+2.7) 분기 명시(W-8).
+- [x] `5-system/_product-overview.md` 에 AGM-01~07 등재(W-10).
+- [x] `conversation-thread.md §7` Token-aware cap 에 "tokenizer-exact 는 v3 잔존" 명시(SPEC-DRIFT I-11) — 기존 문구로 이미 충족.
+- [x] `1-ai-agent.md §12.12` 에 요약/추출 LLM 모델 재사용(별도 필드 없음) Rationale 소항(I-6).
+- [x] `1-ai-agent.md §12.13` Redis TTL 만료 시 runningSummary 유실 fallback 정책 명시(W-6).
