@@ -15,9 +15,10 @@ export interface DemoFormState {
   disclaimer: string;
 }
 
-// 기본 폼 — backend 로컬 기본(:3011) 가정. trigger 는 사용자가 공개 webhook UUID 를 붙여넣어야 부팅 가능.
+// 기본 폼 — backend 로컬 기본(:3011) 가정. apiBase 는 **origin(`/api` 제외)** 이어야 한다 — EIA 클라이언트가
+// `/api/hooks/...` 를 직접 덧붙이므로(eia-client). trigger 는 사용자가 공개 webhook UUID 를 붙여넣어야 부팅 가능.
 export const defaultDemoForm: DemoFormState = {
-  apiBase: "http://localhost:3011/api",
+  apiBase: "http://localhost:3011",
   triggerEndpointPath: "",
   locale: "ko",
   primaryColor: "#5B4FE9",
@@ -42,6 +43,18 @@ export function isBootReady(form: DemoFormState): boolean {
   return form.apiBase.trim().length > 0 && form.triggerEndpointPath.trim().length > 0;
 }
 
+/**
+ * apiBase 를 EIA origin 으로 정규화 — EIA 클라이언트가 `/api/hooks/...` 를 붙이므로 apiBase 는 origin 이어야
+ * 한다. 사용자가 frontend 식 `…:3011/api` 를 붙여넣어도 동작하도록 **후행 슬래시 + 후행 `/api` 1개를 제거**한다
+ * (예: `http://localhost:3011/api/` → `http://localhost:3011`). `api.example.com` 같은 호스트명은 영향 없음.
+ */
+export function normalizeApiBase(raw: string): string {
+  return raw
+    .trim()
+    .replace(/\/+$/, "") // 후행 슬래시 제거
+    .replace(/\/api$/i, ""); // 후행 `/api` 1개 제거(중복 `/api/api/hooks` 회피)
+}
+
 /** 폼 상태 → wc:boot 페이로드(BootMessage). 빈 선택 필드는 생략. */
 export function buildBootConfig(form: DemoFormState): BootMessage {
   const welcomeSuggestions = parseSuggestions(form.welcomeSuggestions);
@@ -54,7 +67,7 @@ export function buildBootConfig(form: DemoFormState): BootMessage {
   const disclaimer = form.disclaimer.trim();
 
   const cfg: BootMessage = {
-    apiBase: form.apiBase.trim(),
+    apiBase: normalizeApiBase(form.apiBase),
     triggerEndpointPath: form.triggerEndpointPath.trim(),
     locale: form.locale,
   };
