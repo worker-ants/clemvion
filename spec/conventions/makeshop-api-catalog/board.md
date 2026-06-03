@@ -1,3 +1,11 @@
+---
+id: makeshop-board
+status: spec-only
+code: []
+pending_plans:
+  - plan/in-progress/makeshop-integration.md
+---
+
 # Makeshop API Catalog — 게시판 (Board)
 
 > 상위: [`_overview.md`](./_overview.md) · 전체 스키마(요청/응답 필드): [`openapi/board.openapi.json`](./openapi/board.openapi.json)

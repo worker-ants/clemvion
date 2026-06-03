@@ -1,3 +1,11 @@
+---
+id: makeshop-benefit
+status: spec-only
+code: []
+pending_plans:
+  - plan/in-progress/makeshop-integration.md
+---
+
 # Makeshop API Catalog — 혜택 (Benefit)
 
 > 상위: [`_overview.md`](./_overview.md) · 전체 스키마(요청/응답 필드): [`openapi/benefit.openapi.json`](./openapi/benefit.openapi.json)

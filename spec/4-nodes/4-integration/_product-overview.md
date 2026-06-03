@@ -64,6 +64,7 @@
 | 통합 | `api_label` | `api_method` | `api_path` |
 |---|---|---|---|
 | cafe24 ([§4-cafe24.md](./4-cafe24.md)) | catalog key (`cafe24.<resource>.<operation>`) | operation 의 HTTP method (`GET`/`POST`/...) | operation 의 path template (placeholder 그대로 — `products/{product_no}`) |
+| makeshop ([§5-makeshop.md](./5-makeshop.md)) — Planned | catalog key (`makeshop.<resource>.<operation>`) | operation 의 HTTP method (`GET`/`POST`) | operation 의 path template (placeholder 그대로 — `product/{product_id}`) |
 | http-request ([§1-http-request.md](./1-http-request.md)) | NULL | HTTP method | host + path. query string 제거. baseUrl 없으면 path-only |
 | database-query ([§2-database-query.md](./2-database-query.md)) | NULL | SQL 동사 (`SELECT`/`INSERT`/`UPDATE`/`DELETE`) — `queryType='raw'` 처럼 첫 토큰이 SQL 동사가 아닌 경우 NULL 폴백 | driver (`postgres` / `mysql`) |
 | send-email ([§3-send-email.md](./3-send-email.md)) | NULL | `SEND` | SMTP host or NULL |
@@ -73,7 +74,7 @@
 **실행 경로 (api 동반 의무의 적용 범위)** — `integration_usage_log` 에 행을 쓰는 코드 경로는 두 부류이며, **양쪽 모두** `logUsage` 호출 시 위 표대로 `api` 를 채울 의무가 있다:
 
 1. **노드 핸들러 경로** — cafe24 / http-request / database-query / send-email 노드가 `IntegrationHandlerBase.logUsage` (`api` 인자 전달) 를 경유. base class 가 `api` 를 `IntegrationsService.logUsage` 로 forward.
-2. **AI Agent Internal Bridge 경로** — AI Agent 노드에 연결된 통합을 MCP tool 로 노출하는 provider (현재 cafe24: `Cafe24McpToolProvider`) 가 노드 base class 를 거치지 않고 `IntegrationsService.logUsage` 를 **직접 호출**한다. cafe24 Internal Bridge 는 노드 핸들러와 **동일한 catalog key 형식** (`cafe24.<resource>.<operation>`) 으로 `api.label` 을 채운다.
+2. **AI Agent Internal Bridge 경로** — AI Agent 노드에 연결된 통합을 MCP tool 로 노출하는 provider (현재 cafe24: `Cafe24McpToolProvider`, Planned: makeshop `MakeshopMcpToolProvider`) 가 노드 base class 를 거치지 않고 `IntegrationsService.logUsage` 를 **직접 호출**한다. cafe24·makeshop Internal Bridge 는 노드 핸들러와 **동일한 catalog key 형식** (`<service>.<resource>.<operation>`) 으로 `api.label` 을 채운다.
 
 > **누락 사각지대 주의**: Internal Bridge 경로는 노드 핸들러 base class 를 거치지 않으므로, `api` 채우기를 빠뜨려도 노드 핸들러 테스트는 통과한다. **신규 통합 실행 경로 (새 노드 핸들러 또는 새 Internal Bridge provider) 를 추가할 때 `logUsage` 호출의 `api` 동반은 필수 체크 항목이다.** 결정 근거: [`spec/2-navigation/4-integration.md ## Rationale`](../../2-navigation/4-integration.md#rationale).
 
@@ -98,6 +99,7 @@
 | INT-SV-06 | Google — OAuth 2.0 기반 Google API 연동 (Drive / Sheets / Gmail send / Calendar scope). `service-registry.ts` 에 등록, 토큰 자동 갱신 지원 | 필수 |
 | INT-SV-07 | GitHub — OAuth 2.0 또는 Personal Access Token(Bearer) 인증. repo / read:org / workflow / gist scope. `service-registry.ts` 에 등록 | 필수 |
 | INT-SV-08 | MCP Server — 외부 MCP(Model Context Protocol) 서버 연동. `service-registry.ts` 에 등록 (`mcp`) | 필수 |
+| INT-SV-09 | MakeShop — 한국 이커머스 SaaS 의 Shop API (상점설정·상품·주문·회원·혜택·게시판 7 섹션, 161 REST operation). Cafe24 와 동일하게 같은 Integration 이 워크플로 노드와 AI Agent MCP 도구 양쪽에서 활용. OAuth 2.1 Authorization-Code + refresh 인증 ([Spec MakeShop 노드](./5-makeshop.md)). **구현 상태: Planned** | 필수 |
 
 ### 2.7 조직 레벨 연동
 

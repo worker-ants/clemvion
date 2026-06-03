@@ -95,7 +95,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
 | **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |
-| **Internal MCP Bridge 패턴 확장** | Cafe24 (구현 완료, §6.1) 이후 Shopify·Naver Smartstore 등 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge-in-process) 패턴으로 추가. |
+| **Internal MCP Bridge 패턴 확장** | Cafe24 (구현 완료, §6.1) 이후 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge-in-process) 패턴으로 추가. **MakeShop** 은 spec 작성 완료(Planned) — 노드+MCP 161 REST operation, OAuth 2.1 auth-code+refresh. spec: [MakeShop 노드](./4-nodes/4-integration/5-makeshop.md), [통합 §5.9](./2-navigation/4-integration.md#59-makeshop), [API Catalog](./conventions/makeshop-api-catalog/_overview.md). 이후 Shopify·Naver Smartstore 등 추가 예정. |
 
 ---
 

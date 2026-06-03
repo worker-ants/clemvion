@@ -66,8 +66,8 @@ AI Agent 노드가 외부 [Model Context Protocol (MCP)](https://modelcontextpro
 
 | 항목 | 동작 |
 |------|------|
-| 적용 service_type | 현재 `cafe24` — 향후 first-party 통합(예: Shopify, Naver Smartstore)이 같은 패턴 사용 가능 |
-| 구현 형태 | backend 모듈이 AI Agent 핸들러의 `AgentToolProvider` 인터페이스를 직접 구현 (예: `Cafe24McpToolProvider`). HTTP fetch 가 아니라 직접 함수 호출 |
+| 적용 service_type | 현재 `cafe24`, **`makeshop` (Planned — [Spec MakeShop 노드 §8](../4-nodes/4-integration/5-makeshop.md#8-ai-agent-노출-internal-mcp-bridge))** — 향후 first-party 통합(예: Shopify, Naver Smartstore)이 같은 패턴 사용 가능 |
+| 구현 형태 | backend 모듈이 AI Agent 핸들러의 `AgentToolProvider` 인터페이스를 직접 구현 (예: `Cafe24McpToolProvider`, Planned `MakeshopMcpToolProvider`). HTTP fetch 가 아니라 직접 함수 호출 |
 | connect / initialize | no-op — 메모리 안에서 즉시 사용 가능. `capabilities` / `serverInfo` 는 정적 상수 |
 | 세션 | 노드 실행 단위 mutex 만 — `Mcp-Session-Id` 헤더 불필요 |
 | 인증 | Integration 의 자체 인증 (예: Cafe24 OAuth) 을 그대로 활용. `credentials.url` / `auth_type` 표(§3.2) 는 적용되지 않음 |

@@ -1,3 +1,11 @@
+---
+id: makeshop-cpik
+status: spec-only
+code: []
+pending_plans:
+  - plan/in-progress/makeshop-integration.md
+---
+
 # Makeshop API Catalog — CPIK (외부연동: 장바구니·회원·주문·webhook)
 
 > 상위: [`_overview.md`](./_overview.md) · 전체 스키마(요청/응답 필드): [`openapi/cpik.openapi.json`](./openapi/cpik.openapi.json)
