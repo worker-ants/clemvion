@@ -2,7 +2,7 @@
 resource: design
 entity: icons
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#icons
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Design / Icons
@@ -40,6 +40,48 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `type` |  |  | pc | 디자인 타입 pc : PC · mobile : 모바일 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `icons` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `id` |  | 아이콘 아이디 |
+| ↳ `type` |  | 디자인 타입 pc : PC · mobile : 모바일 |
+| ↳ `group_code` |  | 그룹 코드 A : 상품 아이콘 · B : 게시판 아이콘 · C : 카드 아이콘 · E : 이벤트 아이콘 |
+| ↳ `path` |  | 아이콘 URL |
+| ↳ `display` |  | 아이콘 노출여부 T : 노출함 · F : 노출안함 |
+| ↳ `description` |  | 아이콘 설명 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "icons": [
+        {
+            "shop_no": 1,
+            "id": 2,
+            "type": "pc",
+            "group_code": "A",
+            "path": "https://img.echosting.cafe24.com/design/skin/admin/ko_KR/ico_product_point.gif",
+            "display": "T",
+            "description": "Points for purchase"
+        },
+        {
+            "shop_no": 1,
+            "id": 8,
+            "type": "pc",
+            "group_code": "A",
+            "path": "https://img.echosting.cafe24.com/design/skin/admin/ko_KR/btn_prd_zoom.gif",
+            "display": "T",
+            "description": "Zoom-in"
+        }
+    ]
+}
+```
+
 ### `PUT /api/v2/admin/icons` — Update store icon settings
 
 - **Scope**: `mall.write_design` (write)
@@ -58,3 +100,34 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `type` |  |  | pc | 디자인 타입 pc : PC · mobile : 모바일 |
 | `path` |  | URL |  | 아이콘 URL |
 | `display` |  |  |  | 아이콘 노출여부 T : 노출함 · F : 노출안함 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `icons` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `id` |  | 아이콘 아이디 |
+| ↳ `type` |  | 디자인 타입 pc : PC · mobile : 모바일 |
+| ↳ `group_code` |  | 그룹 코드 A : 상품 아이콘 · B : 게시판 아이콘 · C : 카드 아이콘 · E : 이벤트 아이콘 |
+| ↳ `path` |  | 아이콘 URL |
+| ↳ `display` |  | 아이콘 노출여부 T : 노출함 · F : 노출안함 |
+| ↳ `description` |  | 아이콘 설명 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "icons": {
+        "shop_no": 1,
+        "id": 3,
+        "type": "pc",
+        "group_code": "A",
+        "path": "/web/upload/icon_202511241132420800.gif",
+        "display": "T",
+        "description": "Out of stock"
+    }
+}
+```

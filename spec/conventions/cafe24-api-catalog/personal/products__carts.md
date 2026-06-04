@@ -2,7 +2,7 @@
 resource: personal
 entity: products__carts
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--carts
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Personal / Products carts
@@ -40,6 +40,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `product_no` | ✓ |  |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
+
+```json
+{
+    "count": 7
+}
+```
+
 ### `GET /api/v2/admin/products/{product_no}/carts` — Retrieve a list of carts containing a product
 
 - **Scope**: `mall.read_personal` (read)
@@ -55,3 +71,54 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `product_no` | ✓ |  |  | 상품번호 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [10000] | 0 | 조회결과 시작위치 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `carts` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `created_date` |  | 담은일자 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `variant_code` |  | 상품 품목 코드 |
+| ↳ `quantity` |  | 수량 |
+| ↳ `product_bundle` |  | 세트상품 여부 T : 세트상품 · F : 세트상품 아님 |
+| `links` |  | link |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
+
+```json
+{
+    "carts": [
+        {
+            "shop_no": 1,
+            "member_id": "sampleid",
+            "created_date": "2020-05-06T10:49:11+09:00",
+            "product_no": 11,
+            "variant_code": "P000000L000A",
+            "quantity": 2,
+            "product_bundle": "T"
+        },
+        {
+            "shop_no": 1,
+            "member_id": "sampleid2",
+            "created_date": "2020-05-07T09:49:11+09:00",
+            "product_no": 11,
+            "variant_code": "P000000L000A",
+            "quantity": 1,
+            "product_bundle": "F"
+        }
+    ],
+    "links": [
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/products/11/carts?limit=10&offset=10"
+        }
+    ]
+}
+```

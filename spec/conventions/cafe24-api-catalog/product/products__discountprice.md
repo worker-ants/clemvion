@@ -2,7 +2,7 @@
 resource: product
 entity: products__discountprice
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--discountprice
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products discountprice
@@ -35,3 +35,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `product_no` | ✓ |  |  | 상품번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `discountprice` |  | 상품 할인판매가 리소스 |
+| ↳ `pc_discount_price` |  | PC 할인 판매가 |
+| ↳ `mobile_discount_price` |  | 모바일 할인 판매가 |
+| ↳ `app_discount_price` |  | 앱 할인 판매가 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "discountprice": {
+        "pc_discount_price": "7000.00",
+        "mobile_discount_price": "6000.00",
+        "app_discount_price": "5000.00"
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: application
 entity: webhooks-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#webhooks-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Application / Webhooks setting
@@ -30,6 +30,30 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 
 _요청 파라미터 없음._
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `webhook` |  | (응답 객체) |
+| ↳ `scopes` |  | 실시간 정보제공 권한 |
+| ↳ `reception_status` |  | 웹훅 수신 상태 T : 활성화 · F : 비활성화 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "webhook": {
+        "scopes": [
+            "mall.read_application",
+            "mall.read_product"
+        ],
+        "reception_status": "T"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/webhooks/setting` — Edit webhook settings
 
 - **Scope**: `mall.write_application` (write)
@@ -43,3 +67,22 @@ _요청 파라미터 없음._
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `reception_status` |  |  |  | 웹훅 수신 상태 T : 활성화 · F : 비활성화 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `webhook` |  | (응답 객체) |
+| ↳ `reception_status` |  | 웹훅 수신 상태 T : 활성화 · F : 비활성화 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "webhook": {
+        "reception_status": "T"
+    }
+}
+```

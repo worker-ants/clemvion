@@ -2,7 +2,7 @@
 resource: order
 entity: cashreceipt__cancellation
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#cashreceipt--cancellation
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Cashreceipt cancellation
@@ -37,3 +37,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `cashreceipt_no` | ✓ | 최소값: [1] |  | 현금영수증 번호 |
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
 | `type` | ✓ |  |  | 취소 타입 신청취소: request · 발행취소: issue |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `cancellation` |  | 취소상세 리소스 |
+| ↳ `cashreceipt_no` |  | 현금영수증 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `status` |  | 처리상태 신청취소: canceled_request · 발행취소: canceled_issuance |
+
+응답 예시 (JSON):
+
+```json
+{
+    "cancellation": {
+        "cashreceipt_no": 11,
+        "order_id": "20201013-0000096",
+        "status": "canceled_request"
+    }
+}
+```

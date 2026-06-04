@@ -2,7 +2,7 @@
 resource: store
 entity: automessages-arguments
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#automessages-arguments
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Automessages arguments
@@ -37,3 +37,42 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `arguments` |  | (목록) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `name` |  | 변수명 |
+| ↳ `description` |  | 변수 설명 |
+| ↳ `sample` |  | 변수 예제 |
+| ↳ `string_length` |  | 메시지 표시 최대 글자수 글자수 : 설정된 글자수 만큼 표시 · 가변 : 글자수 제한 없이 모두 표시 |
+| ↳ `send_case` |  | 사용 가능 발송 상황 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "arguments": [
+        {
+            "shop_no": 1,
+            "name": "[NAME]",
+            "description": "Customer name",
+            "sample": "John Doe",
+            "string_length": "3",
+            "send_case": "All occasions"
+        },
+        {
+            "shop_no": 1,
+            "name": "[PRODUCT]",
+            "description": "Product name",
+            "sample": "iPhone X",
+            "string_length": "8",
+            "send_case": "Back-in-stock notification (Manual), Notification on shipment, Successful delivery, or Refund"
+        }
+    ]
+}
+```

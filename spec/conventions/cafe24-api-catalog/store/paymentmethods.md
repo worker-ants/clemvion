@@ -2,7 +2,7 @@
 resource: store
 entity: paymentmethods
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#paymentmethods
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Paymentmethods
@@ -33,3 +33,30 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `paymentmethods` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `code` |  | 결제수단 코드 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "paymentmethods": [
+        {
+            "shop_no": 1,
+            "code": "cash"
+        },
+        {
+            "shop_no": 1,
+            "code": "cod"
+        }
+    ]
+}
+```

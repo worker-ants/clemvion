@@ -2,7 +2,7 @@
 resource: store
 entity: boards-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#boards-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Boards setting
@@ -38,6 +38,42 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `board` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `admin_name` |  | 게시판 관리자명 |
+| ↳ `password_rules` |  | 게시판 비밀번호 작성 규칙 설정 여부 |
+| ↳ `linked_board` |  | 게시판 연동 |
+| ↳ `review_button_mode` |  | 구매 후기 작성 버튼 노출 시점 |
+| ↳ `spam_auto_prevention` |  | 스팸 자동 생성 방지 설정 |
+| ↳ ↳ `type` |  | 스팸 자동 생성 방지 설정 방식 · S : 보안문자 입력 방식 · R : 구글 리캡챠 방식 |
+| ↳ ↳ `site_key` |  | 구글 리캡챠 사이트 키 |
+| ↳ ↳ `secret_key` |  | 구글 리캡챠 비밀 키 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "board": {
+        "shop_no": 1,
+        "admin_name": "name",
+        "password_rules": "T",
+        "linked_board": "F",
+        "review_button_mode": "all",
+        "spam_auto_prevention": {
+            "type": "R",
+            "site_key": "SAMPLE_RECAPTCHA_SITE_KEY",
+            "secret_key": "SAMPLE_RECAPTCHA_SECRET_KEY"
+        }
+    }
+}
+```
+
 ### `PUT /api/v2/admin/boards/setting` — Update board settings
 
 - **Scope**: `mall.write_store` (write)
@@ -59,3 +95,39 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `type` |  |  |  | 스팸 자동 생성 방지 설정 방식 · S : 보안문자 입력 방식 · R : 구글 리캡챠 방식 |
 | ↳ `site_key` | ✓ |  |  | 구글 리캡챠 사이트 키 |
 | ↳ `secret_key` | ✓ |  |  | 구글 리캡챠 비밀 키 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `board` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `admin_name` |  | 게시판 관리자명 |
+| ↳ `password_rules` |  | 게시판 비밀번호 작성 규칙 설정 여부 |
+| ↳ `linked_board` |  | 게시판 연동 |
+| ↳ `review_button_mode` |  | 구매 후기 작성 버튼 노출 시점 |
+| ↳ `spam_auto_prevention` |  | 스팸 자동 생성 방지 설정 |
+| ↳ ↳ `type` |  | 스팸 자동 생성 방지 설정 방식 · S : 보안문자 입력 방식 · R : 구글 리캡챠 방식 |
+| ↳ ↳ `site_key` |  | 구글 리캡챠 사이트 키 |
+| ↳ ↳ `secret_key` |  | 구글 리캡챠 비밀 키 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "board": {
+        "shop_no": 1,
+        "admin_name": "name",
+        "password_rules": "T",
+        "linked_board": "F",
+        "review_button_mode": "all",
+        "spam_auto_prevention": {
+            "type": "R",
+            "site_key": "SAMPLE_RECAPTCHA_SITE_KEY",
+            "secret_key": "SAMPLE_RECAPTCHA_SECRET_KEY"
+        }
+    }
+}
+```

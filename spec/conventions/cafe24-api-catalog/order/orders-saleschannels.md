@@ -2,7 +2,7 @@
 resource: order
 entity: orders-saleschannels
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders-saleschannels
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders saleschannels
@@ -36,6 +36,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최소: [1]~최대: [500] | 10 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [10000] | 0 | 조회결과 시작위치 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `saleschannels` |  | (목록) |
+| ↳ `sales_channel_id` |  | 판매처 아이디 |
+| ↳ `sales_channel_name` |  | 판매처 이름 |
+| ↳ `sales_channel_icon` |  | 판매처 아이콘 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "saleschannels": [
+        {
+            "sales_channel_id": "MORUGI",
+            "sales_channel_name": "MORUGI",
+            "sales_channel_icon": "https://img.echosting.cafe24.com/icon/ico_route_morugi.jpg"
+        },
+        {
+            "sales_channel_id": "gmarket",
+            "sales_channel_name": "gmarket",
+            "sales_channel_icon": "https://img.echosting.cafe24.com/icon/ico_route_gmarket.jpg"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/orders/saleschannels` — Create a sales channel
 
 - **Scope**: `mall.write_order` (write)
@@ -51,6 +81,29 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `sales_channel_id` | ✓ | 최대글자수 : [40자]; 형식 : [a-zA-Z0-9] |  | 판매처 아이디 |
 | `sales_channel_name` | ✓ | 최대글자수 : [100자] |  | 판매처 이름 |
 | `sales_channel_icon` | ✓ | URL; 최대글자수 : [500자] |  | 판매처 아이콘 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `saleschannel` |  | (응답 객체) |
+| ↳ `sales_channel_id` |  | 판매처 아이디 |
+| ↳ `sales_channel_name` |  | 판매처 이름 |
+| ↳ `sales_channel_icon` |  | 판매처 아이콘 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "saleschannel": {
+        "sales_channel_id": "MORUGI",
+        "sales_channel_name": "MORUGI",
+        "sales_channel_icon": "https://img.echosting.cafe24.com/icon/ico_route_morugi.jpg"
+    }
+}
+```
 
 ### `PUT /api/v2/admin/orders/saleschannels/{sales_channel_id}` — Update a sales channel
 
@@ -68,6 +121,29 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `sales_channel_name` |  | 최대글자수 : [100자] |  | 판매처 이름 |
 | `sales_channel_icon` |  | URL; 최대글자수 : [500자] |  | 판매처 아이콘 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `saleschannel` |  | (응답 객체) |
+| ↳ `sales_channel_id` |  | 판매처 아이디 |
+| ↳ `sales_channel_name` |  | 판매처 이름 |
+| ↳ `sales_channel_icon` |  | 판매처 아이콘 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "saleschannel": {
+        "sales_channel_id": "MORUGI",
+        "sales_channel_name": "MORUGI",
+        "sales_channel_icon": "https://img.echosting.cafe24.com/icon/ico_route_morugi.jpg"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/orders/saleschannels/{sales_channel_id}` — Delete a sales channel
 
 - **Scope**: `mall.write_order` (write)
@@ -80,3 +156,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `sales_channel_id` | ✓ | 최대글자수 : [40자]; 형식 : [a-zA-Z0-9] |  | 판매처 아이디 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `saleschannel` |  | (응답 객체) |
+| ↳ `sales_channel_id` |  | 판매처 아이디 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "saleschannel": {
+        "sales_channel_id": "MORUGI"
+    }
+}
+```

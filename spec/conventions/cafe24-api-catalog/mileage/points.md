@@ -2,7 +2,7 @@
 resource: mileage
 entity: points
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#points
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Mileage / Points
@@ -60,6 +60,75 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `points` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `case` |  | 적립금 타입 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `email` |  | 이메일 |
+| ↳ `group_name` |  | 회원등급명 |
+| ↳ `available_points_increase` |  | 적립금 증가 |
+| ↳ `available_points_decrease` |  | 적립금 차감 |
+| ↳ `available_points_total` |  | 가용 적립금 |
+| ↳ `unavailable_points` |  | 미가용 적립금 |
+| ↳ `order_date` |  | 주문일 |
+| ↳ `issue_date` |  | 적립금 지급일 |
+| ↳ `available_date` |  | 미가용 적립금 사용 가능일 |
+| ↳ `admin_id` |  | 관리자 아이디 |
+| ↳ `admin_name` |  | 관리자 이름 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `reason` |  | 적립 사유 적립금을 증가/차감하는 사유를 입력할 수 있다. |
+
+응답 예시 (JSON):
+
+```json
+{
+    "points": [
+        {
+            "shop_no": 1,
+            "case": "A",
+            "member_id": "testmember",
+            "email": "sample@sample.com",
+            "group_name": "sample group",
+            "available_points_increase": "500.00",
+            "available_points_decrease": null,
+            "available_points_total": "500.00",
+            "unavailable_points": null,
+            "order_date": null,
+            "issue_date": "2019-02-11T05:50:01+09:00",
+            "available_date": null,
+            "admin_id": "admin",
+            "admin_name": null,
+            "order_id": null,
+            "reason": "New products promotion"
+        },
+        {
+            "shop_no": 1,
+            "case": "A",
+            "member_id": "testmember",
+            "email": "sample@sample.com",
+            "group_name": "sample group",
+            "available_points_increase": null,
+            "available_points_decrease": "200.00",
+            "available_points_total": "300.00",
+            "unavailable_points": null,
+            "order_date": null,
+            "issue_date": "2019-02-11T05:55:01+09:00",
+            "available_date": null,
+            "admin_id": "admin",
+            "admin_name": null,
+            "order_id": null,
+            "reason": "Expired Points"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/points` — Issue and deduct points
 
 - **Scope**: `mall.write_mileage` (write)
@@ -78,3 +147,32 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `amount` | ✓ | 최소값: [0] |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
 | `type` | ✓ |  |  | 적립금 증가/차감 여부 적립금을 증가시킬지 차감시킬지 여부를 선택할 수 있다. increase : 증가 · decrease : 차감 |
 | `reason` |  |  |  | 적립 사유 적립금을 증가/차감하는 사유를 입력할 수 있다. |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `points` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
+| ↳ `type` |  | 적립금 증가/차감 여부 적립금을 증가시킬지 차감시킬지 여부를 선택할 수 있다. |
+| ↳ `reason` |  | 적립 사유 적립금을 증가/차감하는 사유를 입력할 수 있다. |
+
+응답 예시 (JSON):
+
+```json
+{
+    "points": {
+        "shop_no": 1,
+        "member_id": "testmember",
+        "order_id": "20200228-0000001",
+        "amount": "10.00",
+        "type": "increase",
+        "reason": "New products promotion"
+    }
+}
+```

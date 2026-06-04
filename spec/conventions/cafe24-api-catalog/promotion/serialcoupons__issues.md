@@ -2,7 +2,7 @@
 resource: promotion
 entity: serialcoupons__issues
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#serialcoupons--issues
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Promotion / Serialcoupons issues
@@ -43,6 +43,51 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [10000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [500] | 100 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `serialcoupons` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `coupon_no` |  | 쿠폰번호 |
+| ↳ `serial_code` |  | 시리얼코드 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `verify` |  | 인증여부 Y:인증 · N:미인증 |
+| ↳ `verify_datetime` |  | 인증일시 |
+| ↳ `used_datetime` |  | 사용일시 |
+| ↳ `deleted` |  | 쿠폰삭제 여부 T : 삭제 · F : 삭제되지 않음 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "serialcoupons": [
+        {
+            "shop_no": 1,
+            "coupon_no": "9000000000000000032",
+            "serial_code": "A1234567890Z",
+            "member_id": "sampleid",
+            "verify": "Y",
+            "verify_datetime": "2024-08-28T00:00:00+09:00",
+            "used_datetime": "2024-08-28T00:00:00+09:00",
+            "deleted": "F"
+        },
+        {
+            "shop_no": 1,
+            "coupon_no": "9000000000000000032",
+            "serial_code": "A1234567890Z",
+            "member_id": "",
+            "verify": "N",
+            "verify_datetime": "",
+            "used_datetime": "",
+            "deleted": "T"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/serialcoupons/{coupon_no}/issues` — Register a code of coupon codes
 
 - **Scope**: `mall.write_promotion` (write)
@@ -58,3 +103,33 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `coupon_no` |  |  |  | 쿠폰번호 |
 | `serial_code_list` | ✓ | 배열 최대사이즈: [10000] |  | 시리얼넘버 목록 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `serialcoupons` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `coupon_no` |  | 쿠폰번호 |
+| ↳ `serial_code` |  | 시리얼코드 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "serialcoupons": [
+        {
+            "shop_no": 1,
+            "coupon_no": "9000000000000000032",
+            "serial_code": "A1234567890Z"
+        },
+        {
+            "shop_no": 1,
+            "coupon_no": "9000000000000000032",
+            "serial_code": "A1234567891Z"
+        }
+    ]
+}
+```

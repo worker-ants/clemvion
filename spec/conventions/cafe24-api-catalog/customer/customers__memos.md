@@ -2,7 +2,7 @@
 resource: customer
 entity: customers__memos
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customers--memos
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Customer / Customers memos
@@ -39,6 +39,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `member_id` | ✓ |  |  | 회원아이디 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
+
+```json
+{
+    "count": 2
+}
+```
+
 ### `GET /api/v2/admin/customers/{member_id}/memos` — Retrieve a list of customer memos
 
 - **Scope**: `mall.read_customer` (read)
@@ -59,6 +75,45 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [10000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memos` |  | 메모 리소스 |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
+| ↳ `author_id` |  | 작성자 아이디 메모를 작성한 관리자의 아이디 정보. |
+| ↳ `memo` |  | 메모 내용 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `important_flag` |  | 중요 메모 여부 중요 메모의 구분여부. T : 중요 메모 · F : 일반 메모 |
+| ↳ `created_date` |  | 생성일 메모를 작성한 시간. |
+
+응답 예시 (JSON):
+
+```json
+{
+    "memos": [
+        {
+            "shop_no": 1,
+            "memo_no": 1,
+            "author_id": "subadmin1",
+            "memo": "This is a sample memo.",
+            "important_flag": "T",
+            "created_date": "2018-01-18T11:19:27+09:00"
+        },
+        {
+            "shop_no": 1,
+            "memo_no": 2,
+            "author_id": "subadmin2",
+            "memo": "This is a sample memo.",
+            "important_flag": "F",
+            "created_date": "2018-01-18T11:19:27+09:00"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/customers/{member_id}/memos/{memo_no}` — Retrieve a customer memo
 
 - **Scope**: `mall.read_customer` (read)
@@ -73,6 +128,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `memo_no` | ✓ |  |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
 | `member_id` | ✓ |  |  | 회원아이디 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memo` |  | 메모 내용 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
+| ↳ `author_id` |  | 작성자 아이디 메모를 작성한 관리자의 아이디 정보. |
+| ↳ `memo` |  | 메모 내용 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `important_flag` |  | 중요 메모 여부 중요 메모의 구분여부. T : 중요 메모 · F : 일반 메모 |
+| ↳ `created_date` |  | 생성일 메모를 작성한 시간. |
+
+응답 예시 (JSON):
+
+```json
+{
+    "memo": {
+        "shop_no": 1,
+        "memo_no": 1,
+        "author_id": "subadmin1",
+        "memo": "This is a sample memo.",
+        "important_flag": "T",
+        "created_date": "2018-01-18T11:19:27+09:00"
+    }
+}
+```
 
 ### `POST /api/v2/admin/customers/{member_id}/memos` — Create a customer memo
 
@@ -91,6 +175,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `author_id` | ✓ | 최대글자수 : [20자] |  | 작성자 아이디 메모를 작성한 관리자의 아이디 정보. |
 | `memo` | ✓ |  |  | 메모 메모의 내용. HTML을 사용하여 등록할 수 있다. |
 | `important_flag` |  |  | F | 중요 메모 여부 중요 메모의 구분여부. T : 중요 메모 · F : 일반 메모 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memo` |  | 메모 내용 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
+| ↳ `author_id` |  | 작성자 아이디 메모를 작성한 관리자의 아이디 정보. |
+| ↳ `memo` |  | 메모 내용 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `important_flag` |  | 중요 메모 여부 중요 메모의 구분여부. T : 중요 메모 · F : 일반 메모 |
+| ↳ `created_date` |  | 생성일 메모를 작성한 시간. |
+
+응답 예시 (JSON):
+
+```json
+{
+    "memo": {
+        "shop_no": 1,
+        "memo_no": 1,
+        "author_id": "subadmin1",
+        "memo": "This is a sample memo.",
+        "important_flag": "T",
+        "created_date": "2018-01-18T11:19:27+09:00"
+    }
+}
+```
 
 ### `PUT /api/v2/admin/customers/{member_id}/memos/{memo_no}` — Update a customer memo
 
@@ -112,6 +225,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `memo` |  |  |  | 메모 메모의 내용. HTML을 사용하여 등록할 수 있다. |
 | `important_flag` |  |  |  | 중요 메모 여부 중요 메모의 구분여부. T : 중요 메모 · F : 일반 메모 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memo` |  | 메모 내용 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
+| ↳ `author_id` |  | 작성자 아이디 메모를 작성한 관리자의 아이디 정보. |
+| ↳ `memo` |  | 메모 내용 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `important_flag` |  | 중요 메모 여부 중요 메모의 구분여부. T : 중요 메모 · F : 일반 메모 |
+| ↳ `created_date` |  | 생성일 메모를 작성한 시간. |
+
+응답 예시 (JSON):
+
+```json
+{
+    "memo": {
+        "shop_no": 1,
+        "memo_no": 1,
+        "author_id": "subadmin1",
+        "memo": "This is a sample memo.",
+        "important_flag": "T",
+        "created_date": "2018-01-18T11:19:27+09:00"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/customers/{member_id}/memos/{memo_no}` — Delete a customer memo
 
 - **Scope**: `mall.write_customer` (write)
@@ -126,3 +268,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `memo_no` | ✓ |  |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
 | `member_id` | ✓ |  |  | 회원아이디 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memo` |  | 메모 내용 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
+
+응답 예시 (JSON):
+
+```json
+{
+    "memo": {
+        "shop_no": 1,
+        "memo_no": 3
+    }
+}
+```

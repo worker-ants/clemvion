@@ -2,7 +2,7 @@
 resource: product
 entity: products__variants
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--variants
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products variants
@@ -52,6 +52,92 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `product_no` | ✓ |  |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
 | `inventories` |  |  |  | 재고 리소스 품목의 재고 리소스 · 조회시 Embed 파라메터를 사용하여 조회할 수 있다. ,(콤마)로 여러 건을 검색할 수 있다. |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `variants` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `variant_code` | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] | 상품 품목 코드 시스템이 품목에 부여한 코드. 해당 쇼핑몰 내에서 품목 코드는 중복되지 않음. |
+| ↳ `options` |  | 옵션 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `value` |  |  |
+| ↳ `custom_variant_code` | 최대글자수 : [40자] | 자체 품목 코드 사용자가 품목에 부여 가능한 코드. 재고 관리 등의 이유로 자체적으로 상품을 관리하고 있는 경우 사용함. |
+| ↳ `display` |  | 진열상태 해당 품목을 진열할지 여부. 품목을 진열할 경우 상품 상세 또는 상품 목록에서 해당 품목을 선택할 수 있다. 품목이 진열되어있지 않을 경우 해당 품목이 표시되지 않으며 해당 품목을 구매할 수 없다. T : 판매함 · F : 판매안함 |
+| ↳ `selling` |  | 판매상태 해당 품목을 판매할지 여부. 진열은 되어있으나 판매는 하지 않을 경우 해당 품목은 "품절"로 표시되며 해당 품목을 구매할 수 없다. 품목이 "판매함" 상태여도 "진열안함"으로 되어있다면 해당 품목을 구매할 수 없다. T : 진열함 · F : 진열안함 |
+| ↳ `display_order` | 최소: [1]~최대: [300] | 진열 순서 |
+| ↳ `additional_amount` |  | 추가금액 해당 품목을 구매할 경우, 상품의 판매가에 더하여 지불해야하는 추가 가격. |
+| ↳ `use_inventory` |  | 재고 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `important_inventory` |  | 중요재고 여부 A : 일반재고 · B : 중요재고 |
+| ↳ `inventory_control_type` |  | 재고 수량체크 기준 A : 주문기준 · B : 결제기준 |
+| ↳ `display_soldout` |  | 품절표시여부 T : 품절표시 사용 · F : 품절표시 사용안함 |
+| ↳ `quantity` |  | 수량 |
+| ↳ `safety_inventory` |  | 안전재고수량 |
+| ↳ `image` |  | 품목 이미지 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "variants": [
+        {
+            "shop_no": 1,
+            "variant_code": "P000000R000C",
+            "options": [
+                {
+                    "name": "Color",
+                    "value": "Blue"
+                },
+                {
+                    "name": "Size",
+                    "value": "Small"
+                }
+            ],
+            "custom_variant_code": "",
+            "display": "T",
+            "selling": "T",
+            "display_order": 1,
+            "additional_amount": "0.00",
+            "use_inventory": "T",
+            "important_inventory": "A",
+            "inventory_control_type": "A",
+            "display_soldout": "T",
+            "quantity": 6,
+            "safety_inventory": 7,
+            "image": "https://{domain}/web/product/medium/202402/b51c97e46192e6e2b97732cf196829ed.jpg"
+        },
+        {
+            "shop_no": 1,
+            "variant_code": "P000000R000D",
+            "options": [
+                {
+                    "name": "Color",
+                    "value": "Red"
+                },
+                {
+                    "name": "Size",
+                    "value": "Small"
+                }
+            ],
+            "custom_variant_code": "",
+            "display": "T",
+            "selling": "T",
+            "display_order": 2,
+            "additional_amount": "0.00",
+            "use_inventory": "T",
+            "important_inventory": "B",
+            "inventory_control_type": "A",
+            "display_soldout": "T",
+            "quantity": 15,
+            "safety_inventory": 0,
+            "image": "https://{domain}/web/product/medium/202402/b51c97e46192e6e2b97732cf196829ed.jpg"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/products/{product_no}/variants/{variant_code}` — Retrieve a product variant
 
 - **Scope**: `mall.read_product` (read)
@@ -67,6 +153,64 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `product_no` | ✓ |  |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
 | `variant_code` | ✓ | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] |  | 품목코드 |
 | `inventories` |  |  |  | 재고 리소스 · 조회시 Embed 파라메터를 사용하여 조회할 수 있다. |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `variant` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `variant_code` | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] | 상품 품목 코드 시스템이 품목에 부여한 코드. 해당 쇼핑몰 내에서 품목 코드는 중복되지 않음. |
+| ↳ `options` |  | 옵션 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `value` |  |  |
+| ↳ `custom_variant_code` | 최대글자수 : [40자] | 자체 품목 코드 사용자가 품목에 부여 가능한 코드. 재고 관리 등의 이유로 자체적으로 상품을 관리하고 있는 경우 사용함. |
+| ↳ `display` |  | 진열상태 해당 품목을 진열할지 여부. 품목을 진열할 경우 상품 상세 또는 상품 목록에서 해당 품목을 선택할 수 있다. 품목이 진열되어있지 않을 경우 해당 품목이 표시되지 않으며 해당 품목을 구매할 수 없다. T : 판매함 · F : 판매안함 |
+| ↳ `selling` |  | 판매상태 해당 품목을 판매할지 여부. 진열은 되어있으나 판매는 하지 않을 경우 해당 품목은 "품절"로 표시되며 해당 품목을 구매할 수 없다. 품목이 "판매함" 상태여도 "진열안함"으로 되어있다면 해당 품목을 구매할 수 없다. T : 진열함 · F : 진열안함 |
+| ↳ `display_order` | 최소: [1]~최대: [300] | 진열 순서 |
+| ↳ `additional_amount` |  | 추가금액 해당 품목을 구매할 경우, 상품의 판매가에 더하여 지불해야하는 추가 가격. |
+| ↳ `use_inventory` |  | 재고 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `important_inventory` |  | 중요재고 여부 A : 일반재고 · B : 중요재고 |
+| ↳ `inventory_control_type` |  | 재고 수량체크 기준 A : 주문기준 · B : 결제기준 |
+| ↳ `display_soldout` |  | 품절표시여부 T : 품절표시 사용 · F : 품절표시 사용안함 |
+| ↳ `quantity` |  | 수량 |
+| ↳ `safety_inventory` |  | 안전재고수량 |
+| ↳ `image` |  | 품목 이미지 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "variant": {
+        "shop_no": 1,
+        "variant_code": "P000000R000C",
+        "options": [
+            {
+                "name": "Color",
+                "value": "Black"
+            },
+            {
+                "name": "Size",
+                "value": "L"
+            }
+        ],
+        "custom_variant_code": "",
+        "display": "T",
+        "selling": "T",
+        "display_order": 1,
+        "additional_amount": "0.00",
+        "use_inventory": "T",
+        "important_inventory": "A",
+        "inventory_control_type": "A",
+        "display_soldout": "T",
+        "quantity": 3,
+        "safety_inventory": 8,
+        "image": "https://{domain}/web/product/extra/202402/620fafeb5c3f4616887b96c40579cbe2.png"
+    }
+}
+```
 
 ### `PUT /api/v2/admin/products/{product_no}/variants/{variant_code}` — Update a product variant
 
@@ -95,6 +239,71 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `display_soldout` |  |  |  | 품절표시여부 T : 품절표시 사용 · F : 품절표시 사용안함 |
 | `safety_inventory` |  |  |  | 안전재고수량 Youtube shopping 이용 시에는 미제공 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `variant` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `variant_code` | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] | 상품 품목 코드 시스템이 품목에 부여한 코드. 해당 쇼핑몰 내에서 품목 코드는 중복되지 않음. |
+| ↳ `options` |  | 옵션 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `value` |  |  |
+| ↳ `custom_variant_code` | 최대글자수 : [40자] | 자체 품목 코드 사용자가 품목에 부여 가능한 코드. 재고 관리 등의 이유로 자체적으로 상품을 관리하고 있는 경우 사용함. |
+| ↳ `duplicated_custom_variant_code` |  | 자체품목코드 중복여부 T : 중복됨 · F : 중복안됨 |
+| ↳ `display` |  | 진열상태 해당 품목을 진열할지 여부. 품목을 진열할 경우 상품 상세 또는 상품 목록에서 해당 품목을 선택할 수 있다. 품목이 진열되어있지 않을 경우 해당 품목이 표시되지 않으며 해당 품목을 구매할 수 없다. T : 판매함 · F : 판매안함 |
+| ↳ `selling` |  | 판매상태 해당 품목을 판매할지 여부. 진열은 되어있으나 판매는 하지 않을 경우 해당 품목은 "품절"로 표시되며 해당 품목을 구매할 수 없다. 품목이 "판매함" 상태여도 "진열안함"으로 되어있다면 해당 품목을 구매할 수 없다. T : 진열함 · F : 진열안함 |
+| ↳ `display_order` | 최소: [1]~최대: [300] | 진열 순서 |
+| ↳ `additional_amount` |  | 추가금액 해당 품목을 구매할 경우, 상품의 판매가에 더하여 지불해야하는 추가 가격. |
+| ↳ `inventories` |  | 재고 리소스 품목의 재고 리소스 |
+| ↳ ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ ↳ `variant_code` | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] | 상품 품목 코드 시스템이 품목에 부여한 코드. 해당 쇼핑몰 내에서 품목 코드는 중복되지 않음. |
+| ↳ ↳ `quantity` |  | 수량 |
+| ↳ ↳ `use_inventory` |  | 재고 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ ↳ `important_inventory` |  | 중요재고 여부 A : 일반재고 · B : 중요재고 |
+| ↳ ↳ `inventory_control_type` |  | 재고 수량체크 기준 A : 주문기준 · B : 결제기준 |
+| ↳ ↳ `display_soldout` |  | 품절표시여부 T : 품절표시 사용 · F : 품절표시 사용안함 |
+| ↳ ↳ `safety_inventory` |  | 안전재고수량 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "variant": {
+        "shop_no": 1,
+        "variant_code": "P000000R000A",
+        "options": [
+            {
+                "name": "Color",
+                "value": "Black"
+            },
+            {
+                "name": "Size",
+                "value": "L"
+            }
+        ],
+        "custom_variant_code": "OPTION_CUSTOM_CODE",
+        "duplicated_custom_variant_code": "F",
+        "display": "T",
+        "selling": "F",
+        "display_order": 1,
+        "additional_amount": "-1000.00",
+        "inventories": {
+            "shop_no": 1,
+            "variant_code": "P000000R000A",
+            "quantity": 15,
+            "use_inventory": "T",
+            "important_inventory": "A",
+            "inventory_control_type": "B",
+            "display_soldout": "T",
+            "safety_inventory": 10
+        }
+    }
+}
+```
+
 ### `PUT /api/v2/admin/products/{product_no}/variants` — Update multiple product variants
 
 - **Scope**: `mall.write_product` (write)
@@ -122,6 +331,100 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `display_soldout` |  |  |  | 품절표시여부 T : 품절표시 사용 · F : 품절표시 사용안함 |
 | `safety_inventory` |  |  |  | 안전재고수량 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `variants` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `variant_code` | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] | 상품 품목 코드 시스템이 품목에 부여한 코드. 해당 쇼핑몰 내에서 품목 코드는 중복되지 않음. |
+| ↳ `custom_variant_code` | 최대글자수 : [40자] | 자체 품목 코드 사용자가 품목에 부여 가능한 코드. 재고 관리 등의 이유로 자체적으로 상품을 관리하고 있는 경우 사용함. |
+| ↳ `options` |  | 옵션 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `value` |  |  |
+| ↳ `display` |  | 진열상태 해당 품목을 진열할지 여부. 품목을 진열할 경우 상품 상세 또는 상품 목록에서 해당 품목을 선택할 수 있다. 품목이 진열되어있지 않을 경우 해당 품목이 표시되지 않으며 해당 품목을 구매할 수 없다. T : 판매함 · F : 판매안함 |
+| ↳ `selling` |  | 판매상태 해당 품목을 판매할지 여부. 진열은 되어있으나 판매는 하지 않을 경우 해당 품목은 "품절"로 표시되며 해당 품목을 구매할 수 없다. 품목이 "판매함" 상태여도 "진열안함"으로 되어있다면 해당 품목을 구매할 수 없다. T : 진열함 · F : 진열안함 |
+| ↳ `display_order` | 최소: [1]~최대: [300] | 진열 순서 |
+| ↳ `additional_amount` |  | 추가금액 해당 품목을 구매할 경우, 상품의 판매가에 더하여 지불해야하는 추가 가격. |
+| ↳ `inventories` |  | 재고 리소스 품목의 재고 리소스 |
+| ↳ ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ ↳ `variant_code` | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] | 상품 품목 코드 시스템이 품목에 부여한 코드. 해당 쇼핑몰 내에서 품목 코드는 중복되지 않음. |
+| ↳ ↳ `quantity` |  | 수량 |
+| ↳ ↳ `use_inventory` |  | 재고 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ ↳ `important_inventory` |  | 중요재고 여부 A : 일반재고 · B : 중요재고 |
+| ↳ ↳ `inventory_control_type` |  | 재고 수량체크 기준 A : 주문기준 · B : 결제기준 |
+| ↳ ↳ `display_soldout` |  | 품절표시여부 T : 품절표시 사용 · F : 품절표시 사용안함 |
+| ↳ ↳ `safety_inventory` |  | 안전재고수량 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "variants": [
+        {
+            "shop_no": 1,
+            "variant_code": "P000000P000B",
+            "custom_variant_code": "OPTION_CUSTOM_CODE",
+            "options": [
+                {
+                    "name": "Color",
+                    "value": "Black"
+                },
+                {
+                    "name": "Size",
+                    "value": "L"
+                }
+            ],
+            "display": "T",
+            "selling": "F",
+            "display_order": 1,
+            "additional_amount": "-1000.00",
+            "inventories": {
+                "shop_no": 1,
+                "variant_code": "P000000P000B",
+                "quantity": 15,
+                "use_inventory": "T",
+                "important_inventory": "A",
+                "inventory_control_type": "B",
+                "display_soldout": "T",
+                "safety_inventory": 6
+            }
+        },
+        {
+            "shop_no": 1,
+            "variant_code": "P000000P000C",
+            "custom_variant_code": "OPTION_CUSTOM_CODE",
+            "options": [
+                {
+                    "name": "Color",
+                    "value": "Red"
+                },
+                {
+                    "name": "Size",
+                    "value": "M"
+                }
+            ],
+            "display": "T",
+            "selling": "F",
+            "display_order": 2,
+            "additional_amount": "-1000.00",
+            "inventories": {
+                "shop_no": 1,
+                "variant_code": "P000000P000B",
+                "quantity": 15,
+                "use_inventory": "T",
+                "important_inventory": "A",
+                "inventory_control_type": "B",
+                "display_soldout": "T",
+                "safety_inventory": 7
+            }
+        }
+    ]
+}
+```
+
 ### `DELETE /api/v2/admin/products/{product_no}/variants/{variant_code}` — Delete a product variant
 
 - **Scope**: `mall.write_product` (write)
@@ -135,3 +438,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `product_no` | ✓ |  |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
 | `variant_code` | ✓ | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] |  | 상품 품목 코드 시스템이 품목에 부여한 코드. 해당 쇼핑몰 내에서 품목 코드는 중복되지 않음. |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `variant` |  | (응답 객체) |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+| ↳ `variant_code` | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] | 상품 품목 코드 시스템이 품목에 부여한 코드. 해당 쇼핑몰 내에서 품목 코드는 중복되지 않음. |
+
+응답 예시 (JSON):
+
+```json
+{
+    "variant": {
+        "product_no": 16,
+        "variant_code": "P000000P000A"
+    }
+}
+```

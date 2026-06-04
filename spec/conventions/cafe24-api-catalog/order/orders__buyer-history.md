@@ -2,7 +2,7 @@
 resource: order
 entity: orders__buyer-history
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--buyer-history
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders buyer history
@@ -41,3 +41,51 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `history` |  | (목록) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `name` |  | 주문자명 |
+| ↳ `email` | 이메일 | 주문자 이메일 |
+| ↳ `phone` |  | 주문자 일반 전화 |
+| ↳ `cellphone` |  | 주문자 휴대 전화 |
+| ↳ `customer_notification` |  | 고객 알림 |
+| ↳ `updated_date` |  | 수정일 |
+| ↳ `user_id` |  | 주문자 수정자 ID |
+| ↳ `user_name` |  | 주문자 수정자 명 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "history": [
+        {
+            "shop_no": 1,
+            "name": "Floyd Mayweather",
+            "email": "sample@gmail.com",
+            "phone": "02-0000-0000",
+            "cellphone": "010-0000-0000",
+            "customer_notification": "Customer Notify Sample",
+            "updated_date": "2020-07-13T15:19:45+09:00",
+            "user_id": "sampleid",
+            "user_name": "John Doe"
+        },
+        {
+            "shop_no": 1,
+            "name": "Floyd Mayweather",
+            "email": "sample@gmail.com",
+            "phone": "02-0000-0000",
+            "cellphone": "010-0000-0000",
+            "customer_notification": "Customer Notify Sample",
+            "updated_date": "2020-07-13T15:19:45+09:00",
+            "user_id": "sampleid",
+            "user_name": "John Doe"
+        }
+    ]
+}
+```

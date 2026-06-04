@@ -2,7 +2,7 @@
 resource: community
 entity: financials-monthlyreviews
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#financials-monthlyreviews
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Community / Financials monthlyreviews
@@ -37,3 +37,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `start_month` | ✓ |  |  | 검색 시작월 |
 | `end_month` | ✓ |  |  | 검색 종료월 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `monthlyreviews` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `month` |  | 년월 |
+| ↳ `count` |  | 리뷰 개수 합계 |
+| ↳ `rating_average` |  | 리뷰 평점 평균 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "monthlyreviews": [
+        {
+            "shop_no": 1,
+            "month": "2022-04",
+            "count": 3,
+            "rating_average": 4
+        },
+        {
+            "shop_no": 1,
+            "month": "2022-05",
+            "count": 5,
+            "rating_average": 3.33
+        }
+    ]
+}
+```

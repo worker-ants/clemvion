@@ -2,7 +2,7 @@
 resource: store
 entity: shippingmanager
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#shippingmanager
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Shippingmanager
@@ -28,3 +28,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 - **Docs**: https://developers.cafe24.com/docs/ko/api/admin/#retrieve-activation-information-for-shipping-manager
 
 _요청 파라미터 없음._
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shippingmanager` |  | (응답 객체) |
+| ↳ `use` |  | 배송 관리자 활성화 정보 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "shippingmanager": {
+        "use": "T"
+    }
+}
+```

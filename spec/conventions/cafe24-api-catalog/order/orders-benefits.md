@@ -2,7 +2,7 @@
 resource: order
 entity: orders-benefits
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders-benefits
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders benefits
@@ -44,3 +44,54 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_id` | ✓ | 주문번호 |  | 주문번호 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `limit` |  | 최소: [1]~최대: [500] | 10 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `benefits` |  | 혜택 리소스 |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `order_item_code` |  | 품주코드 |
+| ↳ `benefit_no` |  | 혜택번호 |
+| ↳ `benefit_title` |  | 혜택 유형 |
+| ↳ `benefit_name` |  | 혜택명 |
+| ↳ `benefit_code` |  | 혜택코드 |
+| ↳ `benefit_percent` |  | 혜택 비율 |
+| ↳ `benefit_value` |  | 혜택 금액 |
+| ↳ `benefit_app_key` |  | 앱 클라이언트 ID |
+
+응답 예시 (JSON):
+
+```json
+{
+    "benefits": [
+        {
+            "shop_no": 1,
+            "order_id": "20201005-0000011",
+            "order_item_code": "20201005-0000011-01",
+            "benefit_no": 900,
+            "benefit_title": "bulk order discount",
+            "benefit_name": "bulk order discount name",
+            "benefit_code": 966,
+            "benefit_percent": "10%",
+            "benefit_value": "500.00",
+            "benefit_app_key": null
+        },
+        {
+            "shop_no": 1,
+            "order_id": "20201005-0000011",
+            "order_item_code": "20201005-0000011-01",
+            "benefit_no": 901,
+            "benefit_title": "customer discount",
+            "benefit_name": "customer discount name",
+            "benefit_code": 967,
+            "benefit_percent": null,
+            "benefit_value": "500.00",
+            "benefit_app_key": null
+        }
+    ]
+}
+```

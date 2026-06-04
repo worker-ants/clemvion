@@ -2,7 +2,7 @@
 resource: store
 entity: restocknotification-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#restocknotification-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Restocknotification setting
@@ -42,6 +42,46 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `restocknotification` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `use` |  | 사용 여부 T:사용 · F:사용안함 |
+| ↳ `is_button_show` |  | 버튼 노출 여부 T:노출함 · F:노출안함 |
+| ↳ `expiration_period` |  | 알림 유효기간 설정 1:1개월 · 3:3개월 · 6:6개월 · 12:1년 |
+| ↳ `button_show_target` |  | 버튼 노출 대상 A:모두 노출 · M:회원만 노출 |
+| ↳ `show_message_to_non_members` | 최대글자수 : [30자] | 비회원 메시지 |
+| ↳ `send_method` |  | 발송 방법 A:자동발송 · M:수동발송 |
+| ↳ `button_show_method` |  | 버튼 진열 타입 P:상품별 · G:품목별 |
+| ↳ `available_product` |  | 버튼 노출 상품 A:전체상품 · P:특정상품 · E:제외상품 |
+| ↳ `available_product_list` | 배열 최대사이즈: [200] | 버튼 노출 상품 리스트 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "restocknotification": {
+        "shop_no": 1,
+        "use": "T",
+        "is_button_show": "T",
+        "expiration_period": 3,
+        "button_show_target": "A",
+        "show_message_to_non_members": "Please sign in",
+        "send_method": "A",
+        "button_show_method": "P",
+        "available_product": "P",
+        "available_product_list": [
+            9,
+            10
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/restocknotification/setting` — Updated restocknotification settings
 
 - **Scope**: `mall.write_store` (write)
@@ -64,3 +104,43 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `button_show_method` |  |  |  | 버튼 진열 타입 P:상품별 · G:품목별 |
 | `available_product` |  |  |  | 버튼 노출 상품 A:전체상품 · P:특정상품 · E:제외상품 |
 | `available_product_list` |  | 배열 최대사이즈: [200] |  | 버튼 노출 상품 리스트 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `restocknotification` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `use` |  | 사용 여부 T:사용 · F:사용안함 |
+| ↳ `is_button_show` |  | 버튼 노출 여부 T:노출함 · F:노출안함 |
+| ↳ `expiration_period` |  | 알림 유효기간 설정 1:1개월 · 3:3개월 · 6:6개월 · 12:1년 |
+| ↳ `button_show_target` |  | 버튼 노출 대상 A:모두 노출 · M:회원만 노출 |
+| ↳ `show_message_to_non_members` | 최대글자수 : [30자] | 비회원 메시지 |
+| ↳ `send_method` |  | 발송 방법 A:자동발송 · M:수동발송 |
+| ↳ `button_show_method` |  | 버튼 진열 타입 P:상품별 · G:품목별 |
+| ↳ `available_product` |  | 버튼 노출 상품 A:전체상품 · P:특정상품 · E:제외상품 |
+| ↳ `available_product_list` | 배열 최대사이즈: [200] | 버튼 노출 상품 리스트 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "restocknotification": {
+        "shop_no": 1,
+        "use": "T",
+        "is_button_show": "T",
+        "expiration_period": 3,
+        "button_show_target": "A",
+        "show_message_to_non_members": "Please sign in",
+        "send_method": "A",
+        "button_show_method": "P",
+        "available_product": "P",
+        "available_product_list": [
+            9,
+            10
+        ]
+    }
+}
+```

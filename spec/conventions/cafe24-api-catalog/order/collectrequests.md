@@ -2,7 +2,7 @@
 resource: order
 entity: collectrequests
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#collectrequests
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Collectrequests
@@ -40,3 +40,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `request_no` | ✓ |  |  | 요청 번호 |
 | `collect_tracking_no` | ✓ | 최대글자수 : [40자] |  | 수거 송장 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `collectrequest` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `request_no` |  | 요청 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `order_item_code` |  | 품주코드 |
+| ↳ `shipping_company_name` |  | 수거 배송사명 |
+| ↳ `collect_tracking_no` |  | 수거 송장 번호 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "collectrequest": {
+        "shop_no": 1,
+        "request_no": 10,
+        "order_id": "20210101-0000001",
+        "order_item_code": [
+            "20210101-0000001-01",
+            "20210101-0000001-02"
+        ],
+        "shipping_company_name": "KOREA EXPRESS",
+        "collect_tracking_no": "636945749436"
+    }
+}
+```

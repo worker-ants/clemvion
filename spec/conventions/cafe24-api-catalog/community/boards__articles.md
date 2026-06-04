@@ -2,7 +2,7 @@
 resource: community
 entity: boards__articles
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#boards--articles
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Community / Boards articles
@@ -90,6 +90,173 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `articles` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `article_no` | 최대값: [2147483647] | 게시물 번호 |
+| ↳ `parent_article_no` |  | 부모 게시물 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `category_no` |  | 분류 번호 |
+| ↳ `board_category_no` |  | 게시판 카테고리 번호 |
+| ↳ `reply_sequence` |  | 답변 게시물 순서 |
+| ↳ `reply_depth` |  | 답변 차수 |
+| ↳ `created_date` | 날짜 | 생성일 |
+| ↳ `writer` |  | 작성자명 |
+| ↳ `writer_email` | 이메일 | 작성자 이메일 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `title` |  | 제목 |
+| ↳ `content` |  | 내용 |
+| ↳ `supplier_id` | 형식 : [a-z0-9]; 글자수 최소: [4자]~최대: [16자] | 공급사 아이디 |
+| ↳ `client_ip` | IP | 작성자 IP |
+| ↳ `nick_name` |  | 별명 |
+| ↳ `rating` | 최소: [1]~최대: [5] | 평점 |
+| ↳ `reply_mail` |  | 1:1 게시판 문의내용에 대한 답변 메일 여부 Y : 사용함 · N : 사용안함 |
+| ↳ `display` |  | 게시 여부 T : 게시함 · F : 게시안함 |
+| ↳ `secret` |  | 비밀글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `notice` |  | 공지 여부 T : 사용함 · F : 사용안함 |
+| ↳ `fixed` |  | 고정글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `deleted` |  | 삭제 구분 T: 삭제 · F: 비삭제 · B: 등록전 |
+| ↳ `input_channel` |  | 게시물 작성 경로 P : PC · M : 모바일 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `attach_file_urls` |  | 첨부 파일 상세 |
+| ↳ ↳ `no` |  |  |
+| ↳ ↳ `name` |  | 파일명 |
+| ↳ ↳ `url` |  | 파일 URL |
+| ↳ `hit` |  | 조회수 |
+| ↳ `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
+| ↳ `reply_user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
+| ↳ `reply_status` |  | 답변 처리 상태 N : 답변전 · P : 처리중 · C : 처리완료 |
+| ↳ `naverpay_review_id` |  | 네이버페이 리뷰 아이디 |
+| ↳ `display_time` |  | 노출시간 사용여부 |
+| ↳ `display_time_start_hour` |  | 노출시간 시작 시각 |
+| ↳ `display_time_end_hour` |  | 노출시간 종료 시각 |
+| `links` |  | link |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
+
+```json
+{
+    "articles": [
+        {
+            "shop_no": 1,
+            "article_no": 1,
+            "parent_article_no": 1,
+            "board_no": 4,
+            "product_no": 10,
+            "category_no": 1,
+            "board_category_no": 1,
+            "reply_sequence": 1,
+            "reply_depth": 0,
+            "created_date": "2019-04-30T16:44:21+09:00",
+            "writer": "John Doe",
+            "writer_email": "sample@sample.com",
+            "member_id": "sampleid",
+            "title": "subject text1",
+            "content": "contents text1",
+            "supplier_id": "sample",
+            "client_ip": "127.0.0.1",
+            "nick_name": "sample nickname",
+            "rating": 5,
+            "reply_mail": "N",
+            "display": "T",
+            "secret": "T",
+            "notice": "F",
+            "fixed": "F",
+            "deleted": "F",
+            "input_channel": "P",
+            "order_id": "20170710-0000013",
+            "attach_file_urls": [
+                {
+                    "no": 1,
+                    "name": "dev_starter_p1.png",
+                    "url": "https://{domain}/file_data/{mall_id}/2019/01/02/4f43130f0698818abc2d4b03ca7635ad.png"
+                },
+                {
+                    "no": 2,
+                    "name": "dev_basic_p2.png",
+                    "url": "https://{domain}/file_data/{mall_id}/2019/01/02/ea8203b11b4148f4cbf723e4e01c866f.png"
+                }
+            ],
+            "hit": 0,
+            "reply": "F",
+            "reply_user_id": "admin",
+            "reply_status": "C",
+            "naverpay_review_id": "naverid",
+            "display_time": "T",
+            "display_time_start_hour": 6,
+            "display_time_end_hour": 12
+        },
+        {
+            "shop_no": 1,
+            "article_no": 2,
+            "parent_article_no": 1,
+            "board_no": 4,
+            "product_no": 10,
+            "category_no": 1,
+            "board_category_no": 1,
+            "reply_sequence": 1,
+            "reply_depth": 1,
+            "created_date": "2019-04-30T17:44:21+09:00",
+            "writer": "John Doe",
+            "writer_email": "sample@sample.com",
+            "member_id": "sampleid",
+            "title": "subject text2",
+            "content": "contents text2",
+            "supplier_id": "sample",
+            "client_ip": "127.0.0.1",
+            "nick_name": "sample nickname",
+            "rating": 4,
+            "reply_mail": "N",
+            "display": "T",
+            "secret": "T",
+            "notice": "F",
+            "fixed": "F",
+            "deleted": "F",
+            "input_channel": "P",
+            "order_id": "20170710-0000013",
+            "attach_file_urls": [
+                {
+                    "no": 1,
+                    "name": "dev_starter_p1.png",
+                    "url": "https://{domain}/file_data/{mall_id}/2019/04/30/dfa1631de377efb25d78687700719233.png"
+                },
+                {
+                    "no": 2,
+                    "name": "dev_basic_p2.png",
+                    "url": "https://{domain}/file_data/{mall_id}/2019/04/30/e8786abe5442ddf5b725995c9e785036.png"
+                }
+            ],
+            "hit": 0,
+            "reply": "F",
+            "reply_user_id": "admin",
+            "reply_status": "C",
+            "naverpay_review_id": "naverid",
+            "display_time": "T",
+            "display_time_start_hour": 6,
+            "display_time_end_hour": 12
+        }
+    ],
+    "links": [
+        {
+            "rel": "prev",
+            "href": "https://{mallid}.cafe24api.com/api/v2/boards/4/articles?limit=10&offset=0"
+        },
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/boards/4/articles?limit=10&offset=20"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/boards/{board_no}/articles` — Create a board post
 
 - **Scope**: `mall.write_community` (write)
@@ -134,6 +301,183 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `name` |  |  |  | 파일명 |
 | ↳ `url` |  |  |  | 파일 URL |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `articles` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `article_no` | 최대값: [2147483647] | 게시물 번호 |
+| ↳ `parent_article_no` |  | 부모 게시물 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `category_no` |  | 분류 번호 |
+| ↳ `board_category_no` |  | 게시판 카테고리 번호 |
+| ↳ `reply_sequence` |  | 답변 게시물 순서 |
+| ↳ `reply_depth` |  | 답변 차수 |
+| ↳ `created_date` | 날짜 | 생성일 |
+| ↳ `writer` |  | 작성자명 |
+| ↳ `writer_email` | 이메일 | 작성자 이메일 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `title` |  | 제목 |
+| ↳ `content` |  | 내용 |
+| ↳ `client_ip` | IP | 작성자 IP |
+| ↳ `nick_name` |  | 별명 |
+| ↳ `rating` | 최소: [1]~최대: [5] | 평점 |
+| ↳ `reply_mail` |  | 1:1 게시판 문의내용에 대한 답변 메일 여부 Y : 사용함 · N : 사용안함 |
+| ↳ `display` |  | 게시 여부 T : 게시함 · F : 게시안함 |
+| ↳ `secret` |  | 비밀글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `notice` |  | 공지 여부 T : 사용함 · F : 사용안함 |
+| ↳ `fixed` |  | 고정글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `deleted` |  | 삭제 구분 T: 삭제 · F: 비삭제 · B: 등록전 |
+| ↳ `input_channel` |  | 게시물 작성 경로 P : PC · M : 모바일 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `attached_file_detail` |  | 첨부 파일 상세 |
+| ↳ ↳ `no` |  |  |
+| ↳ ↳ `path` |  |  |
+| ↳ ↳ `name` |  | 파일명 |
+| ↳ ↳ `size` |  |  |
+| ↳ ↳ `source` |  | 소스 코드 |
+| ↳ ↳ `type` |  |  |
+| ↳ ↳ `ext` |  |  |
+| ↳ ↳ `width` |  | 가로 |
+| ↳ ↳ `height` |  | 높이 |
+| ↳ ↳ `thumb` |  |  |
+| ↳ `hit` |  | 조회수 |
+| ↳ `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
+| ↳ `reply_user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
+| ↳ `reply_status` |  | 답변 처리 상태 N : 답변전 · P : 처리중 · C : 처리완료 |
+| ↳ `naverpay_review_id` |  | 네이버페이 리뷰 아이디 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "articles": [
+        {
+            "shop_no": 1,
+            "article_no": 50,
+            "parent_article_no": 40,
+            "board_no": 5,
+            "product_no": 10,
+            "category_no": 1,
+            "board_category_no": 1,
+            "reply_sequence": 1,
+            "reply_depth": 1,
+            "created_date": "2018-11-30T12:43:00+09:00",
+            "writer": "John Doe",
+            "writer_email": "sample@sample.com",
+            "member_id": "sampleid",
+            "title": "subject text1",
+            "content": "contents text1",
+            "client_ip": "127.0.0.1",
+            "nick_name": "sample nickname",
+            "rating": 0,
+            "reply_mail": "N",
+            "display": "T",
+            "secret": "T",
+            "notice": "F",
+            "fixed": "F",
+            "deleted": "F",
+            "input_channel": "P",
+            "order_id": "20170710-0000013",
+            "attached_file_detail": [
+                {
+                    "no": 1,
+                    "path": "/2019/01/02/4f43130f0698818abc2d4b03ca7635ad.png",
+                    "name": "/2019/01/02/4f43130f0698818abc2d4b03ca7635ad.png",
+                    "size": 87956,
+                    "source": "dev_starter_p1.png",
+                    "type": "image/png",
+                    "ext": "png",
+                    "width": 850,
+                    "height": 728,
+                    "thumb": "/gallery//2019/01/02/4f43130f0698818abc2d4b03ca7635ad.png"
+                },
+                {
+                    "no": 2,
+                    "path": "/2019/01/02/ea8203b11b4148f4cbf723e4e01c866f.png",
+                    "name": "/2019/01/02/ea8203b11b4148f4cbf723e4e01c866f.png",
+                    "size": 23072,
+                    "source": "dev_basic_p2.png",
+                    "type": "image/png",
+                    "ext": "png",
+                    "width": 821,
+                    "height": 292,
+                    "thumb": "/gallery//2019/01/02/ea8203b11b4148f4cbf723e4e01c866f.png"
+                }
+            ],
+            "hit": 0,
+            "reply": "F",
+            "reply_user_id": "admin",
+            "reply_status": "C",
+            "naverpay_review_id": "naverid"
+        },
+        {
+            "shop_no": 1,
+            "article_no": 51,
+            "parent_article_no": 40,
+            "board_no": 5,
+            "product_no": 10,
+            "category_no": 1,
+            "board_category_no": 1,
+            "reply_sequence": 1,
+            "reply_depth": 1,
+            "created_date": "2018-11-30T12:43:00+09:00",
+            "writer": "John Doe",
+            "writer_email": "sample@sample.com",
+            "member_id": "sampleid",
+            "title": "subject text2",
+            "content": "contents text2",
+            "client_ip": "127.0.0.1",
+            "nick_name": "sample nickname",
+            "rating": 0,
+            "reply_mail": "N",
+            "display": "T",
+            "secret": "F",
+            "notice": "F",
+            "fixed": "F",
+            "deleted": "F",
+            "input_channel": "P",
+            "order_id": "20170710-0000013",
+            "attached_file_detail": [
+                {
+                    "no": 1,
+                    "path": "/2019/01/02/dfa1631de377efb25d78687700719233.png",
+                    "name": "/2019/01/02/dfa1631de377efb25d78687700719233.png",
+                    "size": 87956,
+                    "source": "dev_starter_p1.png",
+                    "type": "image/png",
+                    "ext": "png",
+                    "width": 850,
+                    "height": 728,
+                    "thumb": "/gallery//2019/01/02/dfa1631de377efb25d78687700719233.png"
+                },
+                {
+                    "no": 2,
+                    "path": "/2019/01/02/e8786abe5442ddf5b725995c9e785036.png",
+                    "name": "/2019/01/02/e8786abe5442ddf5b725995c9e785036.png",
+                    "size": 23072,
+                    "source": "dev_basic_p2.png",
+                    "type": "image/png",
+                    "ext": "png",
+                    "width": 821,
+                    "height": 292,
+                    "thumb": "/gallery//2019/01/02/e8786abe5442ddf5b725995c9e785036.png"
+                }
+            ],
+            "hit": 0,
+            "reply": "F",
+            "reply_user_id": "admin",
+            "reply_status": "C",
+            "naverpay_review_id": "naverid"
+        }
+    ]
+}
+```
+
 ### `PUT /api/v2/admin/boards/{board_no}/articles/{article_no}` — Update a board post
 
 - **Scope**: `mall.write_community` (write)
@@ -165,6 +509,107 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `attach_file_url4` |  | URL |  | 파일 URL |
 | `attach_file_url5` |  | URL |  | 파일 URL |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `article` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `article_no` | 최대값: [2147483647] | 게시물 번호 |
+| ↳ `parent_article_no` |  | 부모 게시물 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `category_no` |  | 분류 번호 |
+| ↳ `board_category_no` |  | 게시판 카테고리 번호 |
+| ↳ `reply_sequence` |  | 답변 게시물 순서 |
+| ↳ `reply_depth` |  | 답변 차수 |
+| ↳ `created_date` | 날짜 | 생성일 |
+| ↳ `writer` |  | 작성자명 |
+| ↳ `writer_email` | 이메일 | 작성자 이메일 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `title` |  | 제목 |
+| ↳ `content` |  | 내용 |
+| ↳ `client_ip` | IP | 작성자 IP |
+| ↳ `nick_name` |  | 별명 |
+| ↳ `rating` | 최소: [1]~최대: [5] | 평점 |
+| ↳ `reply_mail` |  | 1:1 게시판 문의내용에 대한 답변 메일 여부 Y : 사용함 · N : 사용안함 |
+| ↳ `display` |  | 게시 여부 T : 게시함 · F : 게시안함 |
+| ↳ `secret` |  | 비밀글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `notice` |  | 공지 여부 T : 사용함 · F : 사용안함 |
+| ↳ `fixed` |  | 고정글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `deleted` |  | 삭제 구분 T: 삭제 · F: 비삭제 · B: 등록전 |
+| ↳ `input_channel` |  | 게시물 작성 경로 P : PC · M : 모바일 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `attached_file_urls` |  | 첨부 파일 상세 |
+| ↳ ↳ `no` |  |  |
+| ↳ ↳ `name` |  | 파일명 |
+| ↳ ↳ `url` |  | 파일 URL |
+| ↳ `hit` |  | 조회수 |
+| ↳ `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
+| ↳ `reply_user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
+| ↳ `reply_status` |  | 답변 처리 상태 N : 답변전 · P : 처리중 · C : 처리완료 |
+| ↳ `naverpay_review_id` |  | 네이버페이 리뷰 아이디 |
+| ↳ `display_time` |  | 노출시간 사용여부 |
+| ↳ `display_time_start_hour` |  | 노출시간 시작 시각 |
+| ↳ `display_time_end_hour` |  | 노출시간 종료 시각 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "article": {
+        "shop_no": 1,
+        "article_no": 50,
+        "parent_article_no": 40,
+        "board_no": 5,
+        "product_no": 10,
+        "category_no": 1,
+        "board_category_no": 1,
+        "reply_sequence": 1,
+        "reply_depth": 1,
+        "created_date": "2018-11-30T12:43:00+09:00",
+        "writer": "John Doe",
+        "writer_email": "sample@sample.com",
+        "member_id": "sampleid",
+        "title": "subject text",
+        "content": "contents text",
+        "client_ip": "127.0.0.1",
+        "nick_name": "sample nickname",
+        "rating": 0,
+        "reply_mail": "N",
+        "display": "T",
+        "secret": "T",
+        "notice": "F",
+        "fixed": "F",
+        "deleted": "F",
+        "input_channel": "P",
+        "order_id": "20170710-0000013",
+        "attached_file_urls": [
+            {
+                "no": 1,
+                "name": "dev_starter_p1.png",
+                "url": "https://{domain}/file_data/{mall_id}/2019/01/02/4f43130f0698818abc2d4b03ca7635ad.png"
+            },
+            {
+                "no": 2,
+                "name": "dev_basic_p2.png",
+                "url": "https://{domain}/file_data/{mall_id}/2019/01/02/ea8203b11b4148f4cbf723e4e01c866f.png"
+            }
+        ],
+        "hit": 0,
+        "reply": "F",
+        "reply_user_id": "admin",
+        "reply_status": "C",
+        "naverpay_review_id": "naverid",
+        "display_time": "T",
+        "display_time_start_hour": "1",
+        "display_time_end_hour": "12"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/boards/{board_no}/articles/{article_no}` — Delete a board post
 
 - **Scope**: `mall.write_community` (write)
@@ -179,3 +624,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `board_no` | ✓ |  |  | 게시판 번호 |
 | `article_no` | ✓ | 최대값: [2147483647] |  | 게시물 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `article` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `article_no` | 최대값: [2147483647] | 게시물 번호 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "article": {
+        "shop_no": 1,
+        "board_no": 1,
+        "article_no": 1
+    }
+}
+```

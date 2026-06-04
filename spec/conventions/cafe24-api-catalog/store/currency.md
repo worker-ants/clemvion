@@ -2,7 +2,7 @@
 resource: store
 entity: currency
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#currency
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Currency
@@ -34,6 +34,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 
 _요청 파라미터 없음._
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `currency` |  | 화폐단위 |
+| ↳ `exchange_rate` |  | 결제 화폐 환율 정보 |
+| ↳ `standard_currency_code` |  | 기준 화폐 코드 해당 쇼핑몰의 기본쇼핑몰에서 사용하는 화폐 코드. 기준 화폐란 일반적으로 쇼핑몰 운영자가 속한 국가에서 통용되는 화폐를 의미한다. |
+| ↳ `standard_currency_symbol` |  | 기준 화폐 심볼 해당 쇼핑몰의 기본쇼핑몰에서 사용하는 화폐의 화폐 기호. 기준 화폐란 일반적으로 쇼핑몰 운영자가 속한 국가에서 통용되는 화폐를 의미한다. |
+| ↳ `shop_currency_code` |  | 결제 화폐 코드 |
+| ↳ `shop_currency_symbol` |  | 결제 화폐 심볼 |
+| ↳ `shop_currency_format` |  | 결제 화폐 표시 방식 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "currency": {
+        "exchange_rate": "1004.00",
+        "standard_currency_code": "KRW",
+        "standard_currency_symbol": "￦",
+        "shop_currency_code": "USD",
+        "shop_currency_symbol": "$",
+        "shop_currency_format": "￦[:PRICE:]"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/currency` — Update a currency
 
 - **Scope**: `mall.write_store` (write)
@@ -48,3 +77,22 @@ _요청 파라미터 없음._
 |---|---|---|---|---|
 | `shop_no` | ✓ | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `exchange_rate` | ✓ |  |  | 결제 화폐 환율 정보 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `currency` |  | 화폐단위 |
+| ↳ `exchange_rate` |  | 결제 화폐 환율 정보 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "currency": {
+        "exchange_rate": "9.5697"
+    }
+}
+```

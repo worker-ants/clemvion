@@ -2,7 +2,7 @@
 resource: store
 entity: orders-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Orders setting
@@ -65,6 +65,102 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `claim_request` |  | 구매자 취소/교환/반품 신청 사용설정 T : 사용함 · F : 사용안함 |
+| ↳ `claim_request_type` |  | 구매자 취소/교환/반품 신청 시 표시항목 설정 claim_request 항목이 T일 때만 확인이 가능하다. S : 기본신청 항목 표시 · D : 상세신청 항목 표시 |
+| ↳ `claim_request_button_exposure` |  | 구매자 취소/교환/반품 신청버튼 노출 범위 설정 cancel_N10 : 취소신청 상품준비중 · cancel_N20 : 취소신청 배송준비중 · cancel_N22 : 취소신청 배송보류 · cancel_N21 : 취소신청 배송대기 · exchange_N00 : 교환신청 입금전 · exchange_N10 : 교환신청 상품준비중 · exchange_N20 : 교환신청 배송준비중 · exchange_N22 : 교환신청 배송보류 · exchange_N21 : 교환신청 배송대기 · exchange_N30 : 교환신청 배송중 · exchange_N40 : 교환신청 배송완료 · return_N30 : 반품신청 배송중 · return_N40 : 반품신청 배송완료 |
+| ↳ `claim_request_button_date_type` |  | 구매자 취소/교환/반품 신청버튼 노출 기준일 order_date : 주문 완료일 기준 · shipend_date : 배송완료일 기준 |
+| ↳ `claim_request_button_period` |  | 구매자 취소/교환/반품 신청버튼 노출 기간 |
+| ↳ `stock_recover` |  | 취소/반품 시 자동 수량복구 T : 기본 설정 · F : 개별 설정 |
+| ↳ `stock_recover_base` |  | 취소/반품 시 자동 수량복구 - 기본설정 T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ `stock_recover_individual` |  | 취소/반품 시 자동 수량복구 - 개별설정 |
+| ↳ ↳ `cancel_before` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 취소 시(입금전) · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ ↳ `cancel_after` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 취소 시(입금후) · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ ↳ `cancel_return` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 반품 시 · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ `refund_processing_setting` |  | 취소/교환/반품 접수 시 환불 접수 처리 설정 S : 동시에 처리함 · D : 분리하여 처리함 |
+| ↳ `claim_request_auto_accept` |  | 구매자 취소/반품 신청 건 자동 접수 설정 T : 사용함 · F : 사용안함 |
+| ↳ `refund_benefit_setting` |  | 취소/교환/반품 접수 시 할인/적립 금액 설정 |
+| ↳ `use_product_prepare_status` |  | 상품준비중 주문상태 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_purchase_confirmation_button` |  | 구매확정 버튼 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `purchase_confirmation_button_set_date` |  | 구매확정 버튼 적용 날짜 |
+| ↳ `use_purchase_confirmation_auto_check` |  | 구매확정 자동체크 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `purchase_confirmation_auto_check_day` |  | 구매확정 자동체크 기준일 |
+| ↳ `purchase_confirmation_auto_check_set_date` |  | 구매확정 자동체크 적용 날짜 |
+| ↳ `use_additional_fields` |  | 추가항목 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `customer_pays_return_shipping` |  | 배송 후 교환/반품 신청 시 구매자부담 배송비 결제 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `refund_bank_account_required` |  | 취소/교환/반품 시 환불계좌정보 등록 필수 여부 T : 필수 · F : 선택 |
+| ↳ `exchange_shipping_fee` |  | 교환배송비(왕복) 설정 |
+| ↳ `return_shipping_fee` |  | 반품배송비(편도) 설정 |
+| ↳ `auto_delivery_completion` |  | 배송완료 일괄체크 설정 T : 사용함 · F : 사용안함 |
+| ↳ `delivery_completion_after_days` |  | 배송완료 처리 기준일 |
+| ↳ `receiver_address_modify_button_exposure` |  | 배송지 변경 버튼 노출 범위 설정 N00 : 입금전 · N10 : 상품준비중 · N20 : 배송준비중 · N22 : 배송보류 |
+| ↳ `auto_cancel` |  | 미입금 주문 자동취소 사용설정 T : 사용함 · F : 사용안함 |
+| ↳ `auto_cancel_cash_unit` |  | 무통장입금 자동취소 단위 D : 일단위 · T : 시간단위 |
+| ↳ `auto_cancel_cash_period` |  | 무통장입금 자동취소 기간 |
+| ↳ `auto_cancel_virtual_account_period` |  | 가상계좌 자동취소 기간 |
+| ↳ `auto_cancel_cvs_period` |  | 편의점결제 자동취소 기간 |
+| ↳ `use_shipped_auto_check_start_day` |  | 배송완료 일괄체크 시작시점 사용여부 |
+| ↳ `shipped_auto_check_start_day` |  | 배송완료 일괄체크 시작일 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "order": {
+        "shop_no": 1,
+        "claim_request": "T",
+        "claim_request_type": "S",
+        "claim_request_button_exposure": [
+            "cancel_N20",
+            "return_N40"
+        ],
+        "claim_request_button_date_type": "order_date",
+        "claim_request_button_period": 30,
+        "stock_recover": "T",
+        "stock_recover_base": "T",
+        "stock_recover_individual": {
+            "cancel_before": null,
+            "cancel_after": null,
+            "cancel_return": null
+        },
+        "refund_processing_setting": "S",
+        "claim_request_auto_accept": "T",
+        "refund_benefit_setting": "U",
+        "use_product_prepare_status": "T",
+        "use_purchase_confirmation_button": "F",
+        "purchase_confirmation_button_set_date": null,
+        "use_purchase_confirmation_auto_check": "F",
+        "purchase_confirmation_auto_check_day": null,
+        "purchase_confirmation_auto_check_set_date": null,
+        "use_additional_fields": "F",
+        "customer_pays_return_shipping": "F",
+        "refund_bank_account_required": "F",
+        "exchange_shipping_fee": "0.00",
+        "return_shipping_fee": "0.00",
+        "auto_delivery_completion": "T",
+        "delivery_completion_after_days": 3,
+        "receiver_address_modify_button_exposure": [
+            "N10",
+            "N20"
+        ],
+        "auto_cancel": "T",
+        "auto_cancel_cash_unit": "D",
+        "auto_cancel_cash_period": 7,
+        "auto_cancel_virtual_account_period": 7,
+        "auto_cancel_cvs_period": 7,
+        "use_shipped_auto_check_start_day": "F",
+        "shipped_auto_check_start_day": null
+    }
+}
+```
+
 ### `PUT /api/v2/admin/orders/setting` — Update Order settings
 
 - **Scope**: `mall.write_store` (write)
@@ -111,3 +207,93 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `claim_request_auto_accept` |  |  |  | 구매자 취소/반품 신청 건 자동 접수 설정 Youtube shopping 이용 시에는 미제공 T : 사용함 · F : 사용안함 |
 | `use_shipped_auto_check_start_day` |  |  |  | 배송완료 일괄체크 시작시점 사용여부 T : 사용함 · F : 사용안함 |
 | `shipped_auto_check_start_day` |  | 날짜 |  | 배송완료 일괄체크 시작일 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `refund_benefit_setting` |  | 취소/교환/반품 접수 시 할인/적립 금액 설정 |
+| ↳ `use_product_prepare_status` |  | 상품준비중 주문상태 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_purchase_confirmation_button` |  | 구매확정 버튼 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `purchase_confirmation_button_set_date` |  | 구매확정 버튼 적용 날짜 |
+| ↳ `use_purchase_confirmation_auto_check` |  | 구매확정 자동체크 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `purchase_confirmation_auto_check_day` |  | 구매확정 자동체크 기준일 |
+| ↳ `purchase_confirmation_auto_check_set_date` |  | 구매확정 자동체크 적용 날짜 |
+| ↳ `exchange_shipping_fee` |  | 교환배송비(왕복) 설정 |
+| ↳ `return_shipping_fee` |  | 반품배송비(편도) 설정 |
+| ↳ `auto_delivery_completion` |  | 배송완료 일괄체크 설정 T : 사용함 · F : 사용안함 |
+| ↳ `delivery_completion_after_days` |  | 배송완료 처리 기준일 |
+| ↳ `receiver_address_modify_button_exposure` |  | 배송지 변경 버튼 노출 범위 설정 N00 : 입금전 · N10 : 상품준비중 · N20 : 배송준비중 · N22 : 배송보류 |
+| ↳ `auto_cancel` |  | 미입금 주문 자동취소 사용설정 T : 사용함 · F : 사용안함 |
+| ↳ `auto_cancel_cash_unit` |  | 무통장입금 자동취소 단위 D : 일단위 · T : 시간단위 |
+| ↳ `auto_cancel_cash_period` |  | 무통장입금 자동취소 기간 |
+| ↳ `auto_cancel_virtual_account_period` |  | 가상계좌 자동취소 기간 |
+| ↳ `auto_cancel_cvs_period` |  | 편의점결제 자동취소 기간 |
+| ↳ `claim_request` |  | 구매자 취소/교환/반품 신청 사용설정 T : 사용함 · F : 사용안함 |
+| ↳ `claim_request_type` |  | 구매자 취소/교환/반품 신청 시 표시항목 설정 claim_request 항목이 T일 때만 확인이 가능하다. S : 기본신청 항목 표시 · D : 상세신청 항목 표시 |
+| ↳ `claim_request_button_exposure` |  | 구매자 취소/교환/반품 신청버튼 노출 범위 설정 cancel_N10 : 취소신청 상품준비중 · cancel_N20 : 취소신청 배송준비중 · cancel_N22 : 취소신청 배송보류 · cancel_N21 : 취소신청 배송대기 · exchange_N00 : 교환신청 입금전 · exchange_N10 : 교환신청 상품준비중 · exchange_N20 : 교환신청 배송준비중 · exchange_N22 : 교환신청 배송보류 · exchange_N21 : 교환신청 배송대기 · exchange_N30 : 교환신청 배송중 · exchange_N40 : 교환신청 배송완료 · return_N30 : 반품신청 배송중 · return_N40 : 반품신청 배송완료 |
+| ↳ `claim_request_button_date_type` |  | 구매자 취소/교환/반품 신청버튼 노출 기준일 order_date : 주문 완료일 기준 · shipend_date : 배송완료일 기준 |
+| ↳ `claim_request_button_period` |  | 구매자 취소/교환/반품 신청버튼 노출 기간 |
+| ↳ `stock_recover` |  | 취소/반품 시 자동 수량복구 T : 기본 설정 · F : 개별 설정 |
+| ↳ `stock_recover_individual` |  | 취소/반품 시 자동 수량복구 - 개별설정 |
+| ↳ ↳ `cancel_before` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 취소 시(입금전) · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ ↳ `cancel_after` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 취소 시(입금후) · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ ↳ `cancel_return` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 반품 시 · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ `refund_bank_account_required` |  | 취소/교환/반품 시 환불계좌정보 등록 필수 여부 T : 필수 · F : 선택 |
+| ↳ `refund_processing_setting` |  | 취소/교환/반품 접수 시 환불 접수 처리 설정 S : 동시에 처리함 · D : 분리하여 처리함 |
+| ↳ `claim_request_auto_accept` |  | 구매자 취소/반품 신청 건 자동 접수 설정 T : 사용함 · F : 사용안함 |
+| ↳ `use_shipped_auto_check_start_day` |  | 배송완료 일괄체크 시작시점 사용여부 |
+| ↳ `shipped_auto_check_start_day` |  | 배송완료 일괄체크 시작일 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "order": {
+        "shop_no": 1,
+        "refund_benefit_setting": "U",
+        "use_product_prepare_status": "T",
+        "use_purchase_confirmation_button": "T",
+        "purchase_confirmation_button_set_date": "2023-01-12",
+        "use_purchase_confirmation_auto_check": "T",
+        "purchase_confirmation_auto_check_day": 1,
+        "purchase_confirmation_auto_check_set_date": "2023-01-12",
+        "exchange_shipping_fee": "0.00",
+        "return_shipping_fee": "0.00",
+        "auto_delivery_completion": "T",
+        "delivery_completion_after_days": 3,
+        "receiver_address_modify_button_exposure": [
+            "N10",
+            "N20"
+        ],
+        "auto_cancel": "T",
+        "auto_cancel_cash_unit": "D",
+        "auto_cancel_cash_period": 7,
+        "auto_cancel_virtual_account_period": 7,
+        "auto_cancel_cvs_period": 7,
+        "claim_request": "T",
+        "claim_request_type": "D",
+        "claim_request_button_exposure": [
+            "cancel_N10",
+            "cancel_N20"
+        ],
+        "claim_request_button_date_type": "shipend_date",
+        "claim_request_button_period": 30,
+        "stock_recover": "F",
+        "stock_recover_individual": {
+            "cancel_before": "T",
+            "cancel_after": "T",
+            "cancel_return": "T"
+        },
+        "refund_bank_account_required": "T",
+        "refund_processing_setting": "S",
+        "claim_request_auto_accept": "T",
+        "use_shipped_auto_check_start_day": "T",
+        "shipped_auto_check_start_day": "2025-08-01"
+    }
+}
+```
