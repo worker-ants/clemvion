@@ -145,9 +145,9 @@ LIMIT $4;
 | `$2` | Knowledge Base ID 배열 (KB tool 호출에서는 단일 KB) | - |
 | `$3` | 유사도 임계값 (threshold) | LLM 호출 인자 또는 0.7 |
 | `$4` | 최대 결과 수 (topK) | LLM 호출 인자 또는 5 |
+| `$5` | 워크스페이스 ID (멀티테넌시 격리) | - |
 
 > **`rerank_mode ≠ off` 시 분기** (§3.3, Planned): KB 의 `rerank_mode` 가 `off` 가 아니면 위 SQL 은 cosine 임계(`$3`)를 적용하지 않고 `rerank_candidate_k` 만큼 wide 회수만 수행한다 — 컷은 리랭크 단계 이후로 미뤄진다. 이때 `kb_*` 의 `threshold` 인자·노드 `ragThreshold` 는 **rerank 점수 임계**로 해석된다. `rerank_mode = 'off'`(기본)이면 위 SQL 그대로 cosine 임계+topK 컷 (현행 동작).
-| `$5` | 워크스페이스 ID (멀티테넌시 격리) | - |
 
 > 실제 쿼리는 임베딩 차원 `<dim>` 으로 `::vector(<dim>)` 캐스트를 양변에 적용하고, `vector_dims(dc.embedding) = <dim>` 으로 차원이 다른 청크를 배제하며, `knowledge_base` 조인의 `workspace_id` 로 테넌트를 격리한다. KB ID 필터는 동일 차원의 KB 들을 그룹핑한 뒤 그룹 단위로 바인딩된다 (`searchVectorGroup`, `rag-search.service.ts`). 위 SQL 은 핵심 score 계산을 보여주는 개념 축약본이다.
 
