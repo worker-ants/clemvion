@@ -2,6 +2,8 @@
 worktree: impl-exec-intake-queue
 started: 2026-06-04
 owner: resolution-applier
+spec_impact:
+  - spec/5-system/4-execution-engine.md
 ---
 # Spec Update Draft — exec-intake-queue PR1 (§4 배너·§9.3·§11)
 

@@ -1080,7 +1080,7 @@ SIGTERM 수신 시 동작 계약 — k8s 재배포 / Docker Compose `docker comp
 
 1. **새 Execution 시작 거부**. `POST /api/workflows/:id/execute` (HTTP) 및 WS [`execution.start`](./6-websocket-protocol.md#42-실행-제어-명령-client--server) 명령이 **503 Service Unavailable** 응답. response body 는 표준 API 에러 shape (`{ error: { code: 'SERVER_SHUTTING_DOWN', message: '...' } }`, [Spec API 규약](./2-api-convention.md)), `Retry-After: <ceil(SIGTERM_GRACE_MS / 1000)>` 헤더 동봉. LB drain 동안 traffic 이 다른 인스턴스로 라우팅.
 
-   > **Phase 1 구현 범위**: HTTP 진입점 (`POST /api/workflows/:id/execute`) gate 만 구현됨. WS `execution.start` 명령은 spec [§8.2](../3-workflow-editor/3-execution.md#82-execution-제어-명령) 에 정의되어 있으나, 현재 backend WebSocket gateway 에 해당 핸들러가 미구현 상태로 본 gate 도 적용 대상 외. Phase 2 (continuation-queue 본구현) 에서 WS handler 신설 시 동일 gate 추가 예정.
+   > **Phase 1 구현 범위**: HTTP 진입점 (`POST /api/workflows/:id/execute`) gate 만 구현됨. WS `execution.start` 명령은 spec [§8.2](../3-workflow-editor/3-execution.md#82-websocket-명령-클라이언트--서버) 에 정의되어 있으나, 현재 backend WebSocket gateway 에 해당 핸들러가 미구현 상태로 본 gate 도 적용 대상 외. Phase 2 (continuation-queue 본구현) 에서 WS handler 신설 시 동일 gate 추가 예정.
 2. BullMQ `execution-run` / `execution-continuation` / `background-execution` 의 active job 처리 중인 worker 는 현재 세그먼트(노드)를 완료까지 진행. 신규 job consume 중단. (한 세그먼트 내부 노드 dispatch 는 큐 미경유 in-process while-loop — §2.1 / §9.3)
 3. **WAITING_FOR_INPUT 상태의 Execution 은 건드리지 않음** — DB 상태 그대로 두고 in-memory resolver 만 자연 소실. 사용자 입력 도착 시 §7.5 rehydration 으로 재개.
 4. **RUNNING 상태의 노드** 는:
