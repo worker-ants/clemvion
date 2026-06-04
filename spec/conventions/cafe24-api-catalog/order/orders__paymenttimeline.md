@@ -2,7 +2,7 @@
 resource: order
 entity: orders__paymenttimeline
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--paymenttimeline
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders paymenttimeline
@@ -48,6 +48,62 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `end_date` |  | 날짜 |  | 검색 종료일 |
 | `date_type` |  |  |  | 검색날짜 유형 시작일과 종료일 기준으로 기간 검색시 date_type 미입력시 created_datetime 기준으로 검색 진행 created_datetime : 입력일 · payment_datetime : 결제일 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `paymenttimeline` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `payment_no` |  | 결제번호 |
+| ↳ `payment_settle_type` |  | 결제유형 O : 최초결제 · R : 추가결제 · P : 환불 |
+| ↳ `payment_methods` |  | 결제수단 |
+| ↳ `order_amount` |  | 주문금액 |
+| ↳ `additional_payment_amount` |  | 보조 결제금액 |
+| ↳ `paid_amount` |  | 결제금액 |
+| ↳ `payment_datetime` |  | 결제일 |
+| ↳ `created_datetime` |  | 입력일 |
+| ↳ `claim_code` |  | 취소/교환/반품 번호 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "paymenttimeline": [
+        {
+            "shop_no": 1,
+            "payment_no": 4,
+            "payment_settle_type": "O",
+            "payment_methods": [
+                "cash",
+                "point"
+            ],
+            "order_amount": "13500.00",
+            "additional_payment_amount": "3000.00",
+            "paid_amount": "10500.00",
+            "payment_datetime": "2020-09-05 21:57:30",
+            "created_datetime": "2020-09-05 21:53:37",
+            "claim_code": null
+        },
+        {
+            "payment_no": 7,
+            "payment_settle_type": "P",
+            "payment_methods": [
+                "point",
+                "credit"
+            ],
+            "order_amount": "-1000.00",
+            "additional_payment_amount": "-1000.00",
+            "paid_amount": "0.00",
+            "payment_datetime": "2020-09-06 20:29:50",
+            "created_datetime": "2020-09-06 20:25:23",
+            "claim_code": "B20221228-0000199"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/orders/{order_id}/paymenttimeline/{payment_no}` — Retrieve payment details of an order
 
 - **Scope**: `mall.read_order` (read)
@@ -62,3 +118,80 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `order_id` | ✓ |  |  | 주문번호 |
 | `payment_no` | ✓ | 최소값: [1] |  | 결제번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `paymenttimeline` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `payment_no` |  | 결제번호 |
+| ↳ `payment_settle_type` |  | 결제유형 O : 최초결제 · R : 추가결제 · P : 환불 |
+| ↳ `order_amount` |  | 주문금액 |
+| ↳ `additional_payment_amount` |  | 보조 결제금액 |
+| ↳ `paid_amount` |  | 결제금액 |
+| ↳ `payment_method_detail` |  | 결제수단별 결제금액 payment_method_detail code |
+| ↳ ↳ `code` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
+| ↳ `order_amount_detail` |  | 주문금액 상세 order_amount_detail code |
+| ↳ ↳ `code` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
+| ↳ ↳ `supplier_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 공급사 코드 |
+| ↳ ↳ `unit_price` |  |  |
+| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
+| ↳ `payment_datetime` |  | 결제일 |
+| ↳ `created_datetime` |  | 입력일 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "paymenttimeline": {
+        "shop_no": 1,
+        "payment_no": 155,
+        "payment_settle_type": "O",
+        "order_amount": "12500.00",
+        "additional_payment_amount": "2000.00",
+        "paid_amount": "10500.00",
+        "payment_method_detail": [
+            {
+                "code": 10100,
+                "name": "cash",
+                "amount": "10500.00"
+            },
+            {
+                "code": 10200,
+                "name": "point",
+                "amount": "2000.00"
+            }
+        ],
+        "order_amount_detail": [
+            {
+                "code": 1101,
+                "name": "Item price",
+                "order_item_code": "20200905-0000015-01",
+                "supplier_code": "SC000001",
+                "unit_price": "5000.00",
+                "quantity": 2,
+                "amount": "10000.00"
+            },
+            {
+                "code": 5101,
+                "name": "Default shipping fee",
+                "order_item_code": null,
+                "supplier_code": "SC000000",
+                "unit_price": "2500.00",
+                "quantity": 1,
+                "amount": "2500.00"
+            }
+        ],
+        "payment_datetime": "2020-09-05 21:57:30",
+        "created_datetime": "2020-09-05 21:53:37"
+    }
+}
+```

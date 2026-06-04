@@ -2,7 +2,7 @@
 resource: product
 entity: products-customproperties
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products-customproperties
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products customproperties
@@ -29,6 +29,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 
 _요청 파라미터 없음._
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `products` |  | (응답 객체) |
+| ↳ `custom_properties` |  | 자체 정의 속성 |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "products": {
+        "custom_properties": [
+            {
+                "property_no": 1001,
+                "property_name": "Color"
+            },
+            {
+                "property_no": 1002,
+                "property_name": "Size"
+            }
+        ]
+    }
+}
+```
+
 ### `POST /api/v2/admin/products/customproperties` — Create user-defined properties
 
 - **Scope**: `mall.write_product` (write)
@@ -43,6 +73,36 @@ _요청 파라미터 없음._
 |---|---|---|---|---|
 | `custom_properties` |  |  |  | 자체 정의 속성 |
 | ↳ `property_name` | ✓ |  |  | 자체 정의 속성 이름 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `custom_properties` |  | 자체 정의 속성 |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "product": {
+        "custom_properties": [
+            {
+                "property_no": 1001,
+                "property_name": "Color"
+            },
+            {
+                "property_no": 1002,
+                "property_name": "Size"
+            }
+        ]
+    }
+}
+```
 
 ### `PUT /api/v2/admin/products/customproperties/{property_no}` — Update user-defined properties
 
@@ -59,6 +119,36 @@ _요청 파라미터 없음._
 | `property_no` | ✓ |  |  | 자체 정의 속성 번호 |
 | `property_name` | ✓ | 최대글자수 : [250자] |  | 자체 정의 속성 이름 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `custom_properties` |  | 자체 정의 속성 |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "product": {
+        "custom_properties": [
+            {
+                "property_no": 1001,
+                "property_name": "Volumn"
+            },
+            {
+                "property_no": 1002,
+                "property_name": "Size"
+            }
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/products/customproperties/{property_no}` — Delete user-defined properties
 
 - **Scope**: `mall.write_product` (write)
@@ -71,3 +161,29 @@ _요청 파라미터 없음._
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `property_no` | ✓ |  |  | 자체 정의 속성 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `custom_properties` |  | 자체 정의 속성 |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "product": {
+        "custom_properties": [
+            {
+                "property_no": 1002,
+                "property_name": "Size"
+            }
+        ]
+    }
+}
+```

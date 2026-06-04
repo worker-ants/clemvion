@@ -2,7 +2,7 @@
 resource: privacy
 entity: products__wishlist-customers
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--wishlist-customers
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Privacy / Products wishlist customers
@@ -35,6 +35,33 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `product_no` | ✓ |  |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `customers` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `member_id` |  | 회원아이디 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "customers": [
+        {
+            "shop_no": 1,
+            "member_id": "sampleid"
+        },
+        {
+            "shop_no": 1,
+            "member_id": "sampleid2"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/products/{product_no}/wishlist/customers/count` — Retrieve a count of customers with a product in wishlist
 
 - **Scope**: `mall.read_privacy` (read)
@@ -48,3 +75,19 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `product_no` | ✓ |  |  | 상품번호 |
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
+
+```json
+{
+    "count": 2
+}
+```

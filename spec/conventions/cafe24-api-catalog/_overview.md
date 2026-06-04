@@ -149,12 +149,15 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 2. **Operations** — 해당 entity 의 각 operation 마다:
    - `method` / `path`, **Scope** (`mall.<read|write>_<resource>`), 호출건수 제한, 1회당 요청건수 제한, **Platform** (`cafe24` / `cafe24,youtube` — youtube shopping 채널 가용 여부), Docs anchor.
    - **요청 파라미터 (Request)** — 컬럼: `Parameter` / `필수` / `제약` / `기본값` / `설명`.
+   - **응답 (Response)** — 두 부분으로 구성된다. (1) **응답 파라미터 표** — 컬럼: `Parameter` / `제약` / `설명`. 대표 응답 샘플에 나타난 필드를 요청 파라미터처럼 정리한다(`↳` = 중첩, 배열은 대표 원소). 각 필드의 제약·설명은 HTML 을 대조해 다음 우선순위로 채운다 — ① 같은 entity 의 `## 응답 속성 (Property list)`, ② 같은 entity 의 operation 요청 파라미터(동일 리소스 → 동일 의미), ③ 문서 전체에서 설명이 **유일**한 필드명, ④ 설명 변형이 여러 개지만 가장 짧은 것이 나머지 전부의 **prefix(공통 base)** 인 필드(예: `shipping_fee` 의 "배송비"/"배송비 DEFAULT 0.00"/"배송비 배송비타입.." → base "배송비"). 어디에도 없거나 공통 base 없이 의미가 충돌하는 generic 명은 빈칸으로 둔다(추측 주입 금지). property list 에 없는 wrapper 는 `(응답 객체)`/`(목록)`. (2) **응답 예시 (JSON)** — code 엔드포인트(아래 §7.3)에서 operation 별로 가져온 실제 샘플 원본. 필드 의미·제약의 SoT 는 `## 응답 속성 (Property list)`, 표는 그 operation-scoped 투영(+HTML 대조 보강), JSON 은 형태·예시값.
 
 ### 7.3 출처와 정확성 원칙
 
-- **출처는 Cafe24 공식 Admin API Documentation (전체 페이지 HTML) 의 결정적(deterministic) 파싱**이다. 추측·날조로 field 를 채우지 않는다 — docs 에 없는 field 는 본 문서에도 없다.
+- **출처는 Cafe24 공식 Admin API Documentation 의 결정적(deterministic) 파싱**이다. 추측·날조로 field·샘플 을 채우지 않는다 — docs 에 없는 것은 본 문서에도 없다. 두 출처를 합친다:
+  - **field (응답 속성·요청 파라미터)**: 렌더링된 전체 페이지 HTML 의 표 파싱.
+  - **응답 body 샘플 (Response)**: HTML 의 request/response 예시는 JS 가 런타임에 별도 JSON 에서 주입하므로 정적 저장본엔 빈 `<pre>` 로만 남는다. 실제 샘플은 code 엔드포인트 `https://developers.cafe24.com/docs/code/api/admin/shell/<data-resource>.json` 에 operation 별 `{"<METHOD>_<Title>":{"<Title>":{"REQUEST","RESPONSE"}}}` 형태로 존재하며, 생성기가 entity 별로 fetch 해 `RESPONSE` 를 옮긴다. URL 의 `shell` 은 코드샘플 언어(shell/java/python/node/php/go) 중 하나일 뿐 — RESPONSE 는 언어무관이라 shell 하나만 받는다. `<data-resource>` 는 entity id 의 hyphen 을 underscore 로 치환한 값.
 - docs 가 type 컬럼을 별도 제공하지 않으므로(설명문 내 산문 형태) 본 카탈로그도 `제약`(형식·길이·최대값·날짜 등 `<em>` 노트)과 `설명`을 그대로 옮긴다. 정식 type 추론은 backend 메타데이터 작업(`cafe24-api-metadata.md`) 의 몫.
-- docs 개정 시 **동일 추출 파이프라인으로 재생성**한다 — 생성기는 [`_generator.py`](./_generator.py) (`python3 _generator.py <docs-full-page.html>`). 결정적·멱등이므로 재실행해도 손댄 적 없는 파일은 그대로다. 손으로 행을 추가할 때도 반드시 공식 docs 를 출처로 한다.
+- docs 개정 시 **동일 추출 파이프라인으로 재생성**한다 — 생성기는 [`_generator.py`](./_generator.py) (`python3 _generator.py <docs-full-page.html>` — 응답 fetch 포함, 캐시는 `.resp-cache/` gitignore. `--no-responses` 로 HTML 만 생성 가능). 결정적·멱등이므로 재실행해도 손댄 적 없는 파일은 그대로다. 손으로 행을 추가할 때도 반드시 공식 docs 를 출처로 한다.
 
 ### 7.4 sync 테스트와의 관계
 

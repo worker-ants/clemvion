@@ -2,7 +2,7 @@
 resource: product
 entity: categories-properties
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#categories-properties
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Categories properties
@@ -41,6 +41,59 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `separated_category` |  |  | F | 분류별 별도등록 T : 사용함 · F : 사용안함 |
 | `category_no` |  |  |  | 카테고리 번호 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `category` |  | 분류 번호 |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `display_group` | 최소: [1]~최대: [3] | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 |
+| ↳ `separated_category` |  | 분류별 별도등록 T : 사용함 · F : 사용안함 |
+| ↳ `category_no` |  | 카테고리 번호 |
+| ↳ `properties` |  | 항목 속성 |
+| ↳ ↳ `key` |  | 항목코드 |
+| ↳ ↳ `name` |  | 항목명 표시텍스트 |
+| ↳ ↳ `display` |  | 항목 표시여부 · DEFAULT F |
+| ↳ ↳ `display_name` |  | 항목명 표시설정 · T : 사용함 · F : 사용안함 · DEFAULT T |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) · DEFAULT N |
+| ↳ ↳ `font_size` |  | 글자 크기 · DEFAULT 12 |
+| ↳ ↳ `font_color` |  | 글자 색상 · DEFAULT #555555 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "category": {
+        "shop_no": 1,
+        "display_group": 1,
+        "separated_category": "F",
+        "category_no": null,
+        "properties": [
+            {
+                "key": "product_name",
+                "name": "Product Name",
+                "display": "F",
+                "display_name": "F",
+                "font_type": "N",
+                "font_size": 13,
+                "font_color": "#000000"
+            },
+            {
+                "key": "manufacturer_name",
+                "name": "Manufacturer",
+                "display": "T",
+                "display_name": "F",
+                "font_type": "N",
+                "font_size": 14,
+                "font_color": "#333333"
+            }
+        ]
+    }
+}
+```
+
 ### `POST /api/v2/admin/categories/properties` — Create a field for product list page
 
 - **Scope**: `mall.write_product` (write)
@@ -63,6 +116,53 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `font_size` |  |  |  | 글자 크기 · DEFAULT 12 |
 | ↳ `font_color` |  |  |  | 글자 색상 · DEFAULT #555555 |
 | ↳ `exposure_group_type` |  |  |  | 표시 대상 타입 · A: 전체 · M: 회원 · DEFAULT A |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `category` |  | 분류 번호 |
+| ↳ `property` |  | 항목 속성 |
+| ↳ ↳ `key` |  | 항목코드 |
+| ↳ ↳ `multishop_display_names` |  | (목록) |
+| ↳ ↳ ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ ↳ ↳ `name` |  | 항목명 표시텍스트 |
+| ↳ ↳ `display` |  | 항목 표시여부 · DEFAULT F |
+| ↳ ↳ `display_name` |  | 항목명 표시설정 · T : 사용함 · F : 사용안함 · DEFAULT T |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) · DEFAULT N |
+| ↳ ↳ `font_size` |  | 글자 크기 · DEFAULT 12 |
+| ↳ ↳ `font_color` |  | 글자 색상 · DEFAULT #555555 |
+| ↳ ↳ `exposure_group_type` |  | 표시 대상 타입 · A: 전체 · M: 회원 · DEFAULT A |
+
+응답 예시 (JSON):
+
+```json
+{
+    "category": {
+        "property": {
+            "key": "custom_option1",
+            "multishop_display_names": [
+                {
+                    "shop_no": 1,
+                    "name": "Custom Property1"
+                },
+                {
+                    "shop_no": 2,
+                    "name": "Custom Property2"
+                }
+            ],
+            "display": "T",
+            "display_name": "T",
+            "font_type": "N",
+            "font_size": 13,
+            "font_color": "#000000",
+            "exposure_group_type": "M"
+        }
+    }
+}
+```
 
 ### `PUT /api/v2/admin/categories/properties` — Update fields for products in the list
 
@@ -88,3 +188,56 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `font_type` |  |  |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) |
 | ↳ `font_size` |  |  |  | 글자 크기 |
 | ↳ `font_color` |  |  |  | 글자 색상 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `category` |  | 분류 번호 |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `display_group` | 최소: [1]~최대: [3] | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 |
+| ↳ `separated_category` |  | 분류별 별도등록 T : 사용함 · F : 사용안함 |
+| ↳ `category_no` |  | 카테고리 번호 |
+| ↳ `properties` |  | 항목 속성 |
+| ↳ ↳ `key` |  | 항목코드 |
+| ↳ ↳ `name` |  | 항목명 표시텍스트 |
+| ↳ ↳ `display` |  | 항목 표시여부 · DEFAULT F |
+| ↳ ↳ `display_name` |  | 항목명 표시설정 · T : 사용함 · F : 사용안함 · DEFAULT T |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) · DEFAULT N |
+| ↳ ↳ `font_size` |  | 글자 크기 · DEFAULT 12 |
+| ↳ ↳ `font_color` |  | 글자 색상 · DEFAULT #555555 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "category": {
+        "shop_no": 1,
+        "display_group": 1,
+        "separated_category": "F",
+        "category_no": null,
+        "properties": [
+            {
+                "key": "product_name",
+                "name": "Product Name",
+                "display": "F",
+                "display_name": "T",
+                "font_type": "N",
+                "font_size": 13,
+                "font_color": "#000000"
+            },
+            {
+                "key": "manufacturer_name",
+                "name": "Manufacturer",
+                "display": "T",
+                "display_name": "T",
+                "font_type": "N",
+                "font_size": 14,
+                "font_color": "#333333"
+            }
+        ]
+    }
+}
+```

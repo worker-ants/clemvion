@@ -2,7 +2,7 @@
 resource: store
 entity: paymentservices
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#paymentservices
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Paymentservices
@@ -37,3 +37,95 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `paymentservices` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `payment_gateway_name` |  | PG사 명 |
+| ↳ `partner_id` |  | PG사 발급 가맹점 ID |
+| ↳ `hash_code` |  | PG사 해시코드 |
+| ↳ `etc_code` |  | PG사 기타정보 |
+| ↳ `payment_methods` |  | 등록 결제수단 리스트 |
+| ↳ ↳ `code` |  |  |
+| ↳ ↳ `use` |  |  |
+
+응답 예시 (JSON):
+
+```json
+{
+    "paymentservices": [
+        [
+            {
+                "shop_no": 1,
+                "payment_gateway_name": "cafe24pay",
+                "partner_id": "dummy_partner_id_01",
+                "hash_code": "dummy_hash_code_01",
+                "etc_code": "dummy_etc_code_01",
+                "payment_methods": [
+                    {
+                        "code": "card",
+                        "use": "T"
+                    }
+                ]
+            },
+            {
+                "shop_no": 1,
+                "payment_gateway_name": "cafe24pay",
+                "partner_id": "dummy_partner_id_02",
+                "hash_code": "dummy_hash_code_01",
+                "etc_code": "dummy_etc_code_01",
+                "payment_methods": [
+                    {
+                        "code": "icash",
+                        "use": "T"
+                    }
+                ]
+            },
+            {
+                "shop_no": 1,
+                "payment_gateway_name": "inicis",
+                "partner_id": "dummy_partner_id_03",
+                "hash_code": "dummy_hash_code_02",
+                "etc_code": "dummy_etc_code_02",
+                "payment_methods": [
+                    {
+                        "code": "card",
+                        "use": "T"
+                    }
+                ]
+            },
+            {
+                "shop_no": 1,
+                "payment_gateway_name": "inicis",
+                "partner_id": "dummy_partner_id_04",
+                "hash_code": "dummy_hash_code_02",
+                "etc_code": "dummy_etc_code_02",
+                "payment_methods": [
+                    {
+                        "code": "tcash",
+                        "use": "T"
+                    }
+                ]
+            },
+            {
+                "shop_no": 1,
+                "payment_gateway_name": "inicis",
+                "partner_id": "dummy_partner_id_05",
+                "hash_code": "dummy_hash_code_02",
+                "etc_code": "dummy_etc_code_02",
+                "payment_methods": [
+                    {
+                        "code": "cvs",
+                        "use": "F"
+                    }
+                ]
+            }
+        ]
+    ]
+}
+```

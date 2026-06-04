@@ -2,7 +2,7 @@
 resource: translation
 entity: translations-themes
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#translations-themes
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Translation / Translations themes
@@ -32,6 +32,53 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 
 _요청 파라미터 없음._
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `themes` |  | (목록) |
+| ↳ `skin_no` |  | 디자인 번호 |
+| ↳ `translations` |  | 번역 정보 |
+| ↳ ↳ `language_code` |  | 언어 코드 |
+| ↳ ↳ `path` |  |  |
+
+응답 예시 (JSON):
+
+```json
+{
+    "themes": [
+        {
+            "skin_no": 3,
+            "translations": [
+                {
+                    "language_code": "en_US",
+                    "path": "/locale/en_US.json"
+                },
+                {
+                    "language_code": "es_ES",
+                    "path": "/locale/es_ES.json"
+                }
+            ]
+        },
+        {
+            "skin_no": 5,
+            "translations": [
+                {
+                    "language_code": "en_US",
+                    "path": "/locale/en_US.json"
+                },
+                {
+                    "language_code": "es_ES",
+                    "path": "/locale/es_ES.json"
+                }
+            ]
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/translations/themes/{skin_no}` — Retrieve a theme translation
 
 - **Scope**: `mall.read_translation` (read)
@@ -45,6 +92,36 @@ _요청 파라미터 없음._
 |---|---|---|---|---|
 | `skin_no` | ✓ |  |  | 디자인 번호 |
 | `language_code` | ✓ |  |  | 언어 코드 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `theme` |  | (응답 객체) |
+| ↳ `skin_no` |  | 디자인 번호 |
+| ↳ `skin_code` |  | 디자인 코드 |
+| ↳ `skin_translation` |  | 디자인 번역 정보 |
+| ↳ ↳ `language_code` |  | 언어 코드 |
+| ↳ ↳ `path` |  |  |
+| ↳ ↳ `source` |  | 소스 코드 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "theme": {
+        "skin_no": 3,
+        "skin_code": "skin1",
+        "skin_translation": {
+            "language_code": "en_US",
+            "path": "/locale/en_US.json",
+            "source": "{\\n    \\\"MEMBER_ID\\\": {\\n        \\\"FIND_YOUR_ID\\\": \\\"Find your ID\\\",\\n        \\\"NAME\\\": \\\"Name\\\",\\n        \\\"EMAIL_ADDRESS\\\": \\\"Email address\\\",\\n        \\\"LOG_IN\\\": \\\"Log in\\\",\\n        \\\"FORGOT_PASSWORD\\\": \\\"Forgot password?\\\"\\n    }\\n}"
+        }
+    }
+}
+```
 
 ### `PUT /api/v2/admin/translations/themes/{skin_no}` — Update a theme translation
 
@@ -62,3 +139,33 @@ _요청 파라미터 없음._
 | `skin_translation` |  |  |  | 디자인 번역 정보 |
 | ↳ `language_code` | ✓ |  |  | 언어 코드 |
 | ↳ `source` | ✓ |  |  | 소스 코드 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `theme` |  | (응답 객체) |
+| ↳ `skin_no` |  | 디자인 번호 |
+| ↳ `skin_code` |  | 디자인 코드 |
+| ↳ `skin_translation` |  | 디자인 번역 정보 |
+| ↳ ↳ `language_code` |  | 언어 코드 |
+| ↳ ↳ `path` |  |  |
+| ↳ ↳ `source` |  | 소스 코드 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "theme": {
+        "skin_no": 3,
+        "skin_code": "skin1",
+        "skin_translation": {
+            "language_code": "en_US",
+            "path": "/locale/en_US.json",
+            "source": "{\\n    \\\"MEMBER_ID\\\": {\\n        \\\"FIND_YOUR_ID\\\": \\\"Find your ID\\\",\\n        \\\"NAME\\\": \\\"Name\\\",\\n        \\\"EMAIL_ADDRESS\\\": \\\"Email address\\\",\\n        \\\"LOG_IN\\\": \\\"Log in\\\",\\n        \\\"FORGOT_PASSWORD\\\": \\\"Forgot password?\\\"\\n    }\\n}"
+        }
+    }
+}
+```

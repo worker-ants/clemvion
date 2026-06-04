@@ -2,7 +2,7 @@
 resource: notification
 entity: sms-balance
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#sms-balance
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Notification / Sms balance
@@ -30,3 +30,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 - **Docs**: https://developers.cafe24.com/docs/ko/api/admin/#retrieve-the-sms-balance
 
 _요청 파라미터 없음._
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `sms` |  | (응답 객체) |
+| ↳ `balance` |  | SMS 잔여 건수 |
+| ↳ `sms_count` |  | 단문(SMS) 발송 가능 건수 |
+| ↳ `lms_count` |  | 장문(LMS) 발송 가능 건수 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "sms": {
+        "balance": "10.3",
+        "sms_count": 10,
+        "lms_count": 3
+    }
+}
+```

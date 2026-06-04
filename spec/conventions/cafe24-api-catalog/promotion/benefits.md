@@ -2,7 +2,7 @@
 resource: promotion
 entity: benefits
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#benefits
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Promotion / Benefits
@@ -66,6 +66,94 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `benefits` |  | 혜택 리소스 |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호 |
+| ↳ `benefit_no` |  | 혜택번호 혜택이 생성된 경우 부여되는 고유 번호 |
+| ↳ `use_benefit` |  | 진행여부 |
+| ↳ `benefit_name` | 최대글자수 : [255자] | 혜택명 |
+| ↳ `benefit_division` |  | 혜택 유형 해당 혜택의 유형으로, 할인과 증정으로 구분됨 |
+| ↳ `benefit_type` |  | 혜택 상세유형 해당 혜택의 상세유형 · 할인 : 기간할인, 재구매할인, 대량구매할인, 회원할인, 신규상품할인, 배송비할인 · 증정 : 사은품증정, 1+N 이벤트 |
+| ↳ `use_benefit_period` |  | 혜택 기간 설정 해당 혜택이 적용되는 기간을 설정했는지 여부 |
+| ↳ `benefit_start_date` | 날짜 | 혜택 시작일 혜택이 적용되는 기간을 설정한 경우, 해당 혜택이 시작되는 일시 |
+| ↳ `benefit_end_date` | 날짜 | 혜택 종료일 혜택이 적용되는 기간을 설정한 경우, 해당 혜택이 종료되는 일시 |
+| ↳ `platform_types` |  | 혜택 사용범위 해당 혜택이 적용되는 범위 (PC, 모바일, 플러스앱) |
+| ↳ `use_group_binding` |  | 참여대상 설정 해당 혜택이 적용되는 대상을 설정 (회원+비회원, 비회원, 회원) |
+| ↳ `customer_group_list` |  | 회원 등급 참여대상을 회원으로 설정한 경우, 참여가 가능한 회원등급을 설정 |
+| ↳ `product_binding_type` |  | 상품 범위 해당 혜택이 적용되는 상품의 범위 · 전체상품 : 전체 상품에 혜택 적용 · 특정상품 : 선택한 특정 상품에 대해서만 혜택 적용 · 제외상품 : 선택한 특정 상품에 대해서만 혜택 적용 제외 · 상품분류 : 선택한 상품 분류에 속한 상품에 대해서만 혜택 적용 |
+| ↳ `use_except_category` |  | 상품분류 혜택제외 특정 상품분류에 대해 혜택 적용을 제외함 (각 유형별로 설정 가능여부가 다름) · 기간할인 : 전체상품, 특정상품인 경우 설정 가능 · 신규상품할인 : 전체상품인 경우 설정 가능 · 그 외 할인 및 증정유형에서는 설정 불가 |
+| ↳ `icon_url` |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 |
+| ↳ `available_coupon` |  | 쿠폰 사용범위 쿠폰이 있는 경우, 쿠폰을 중복하여 사용할 수 있는지 여부 |
+| ↳ `repurchase_sale` |  | 재구매 할인 설정 혜택의 상세유형이 재구매 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `bulk_purchase_sale` |  | 대량구매 수량 설정 혜택의 상세유형이 대량구매 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `member_sale` |  | 회원 할인 설정 혜택의 상세유형이 회원 할인인 경우 그와 관련한 상세 설정 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "benefits": [
+        {
+            "shop_no": 1,
+            "benefit_no": 3,
+            "use_benefit": "T",
+            "benefit_name": "Group Sale",
+            "benefit_division": "P",
+            "benefit_type": "PG",
+            "use_benefit_period": "T",
+            "benefit_start_date": "2018-12-04T00:00:00+09:00",
+            "benefit_end_date": "2018-12-04T23:55:00+09:00",
+            "platform_types": [
+                "P",
+                "M"
+            ],
+            "use_group_binding": "M",
+            "customer_group_list": [
+                1,
+                8,
+                9
+            ],
+            "product_binding_type": "A",
+            "use_except_category": "T",
+            "icon_url": "https://{domain}/web/upload/benefit/benefit_shop1_4975395c0f0de82b254843.gif",
+            "available_coupon": "T",
+            "repurchase_sale": null,
+            "bulk_purchase_sale": null,
+            "member_sale": null
+        },
+        {
+            "shop_no": 1,
+            "benefit_no": 2,
+            "use_benefit": "T",
+            "benefit_name": "New Product Sale",
+            "benefit_division": "D",
+            "benefit_type": "DN",
+            "use_benefit_period": null,
+            "benefit_start_date": null,
+            "benefit_end_date": null,
+            "platform_types": [
+                "P",
+                "M"
+            ],
+            "use_group_binding": "N",
+            "customer_group_list": [],
+            "product_binding_type": "E",
+            "use_except_category": "F",
+            "icon_url": "https://{domain}/web/upload/benefit/benefit_shop1_8376295c0fcd29hb22h893.gif",
+            "available_coupon": "T",
+            "repurchase_sale": null,
+            "bulk_purchase_sale": null,
+            "member_sale": null
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/benefits/count` — Retrieve a count of customer benefits
 
 - **Scope**: `mall.read_promotion` (read)
@@ -86,6 +174,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `benefit_end_date` |  | 날짜 |  | 검색 종료일 |
 | `platform_types` |  |  |  | 혜택 사용범위 ,(콤마)로 여러 건을 검색할 수 있다. P : PC 쇼핑몰 · M : 모바일쇼핑몰 · A : 브랜드앱 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
+
+```json
+{
+    "count": 3
+}
+```
+
 ### `GET /api/v2/admin/benefits/{benefit_no}` — Retrieve a customer benefit
 
 - **Scope**: `mall.read_promotion` (read)
@@ -99,6 +203,104 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `benefit_no` | ✓ |  |  | 혜택번호 혜택이 생성된 경우 부여되는 고유 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `benefit` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호 |
+| ↳ `benefit_no` |  | 혜택번호 혜택이 생성된 경우 부여되는 고유 번호 |
+| ↳ `use_benefit` |  | 진행여부 |
+| ↳ `benefit_name` | 최대글자수 : [255자] | 혜택명 |
+| ↳ `benefit_division` |  | 혜택 유형 해당 혜택의 유형으로, 할인과 증정으로 구분됨 |
+| ↳ `benefit_type` |  | 혜택 상세유형 해당 혜택의 상세유형 · 할인 : 기간할인, 재구매할인, 대량구매할인, 회원할인, 신규상품할인, 배송비할인 · 증정 : 사은품증정, 1+N 이벤트 |
+| ↳ `use_benefit_period` |  | 혜택 기간 설정 해당 혜택이 적용되는 기간을 설정했는지 여부 |
+| ↳ `benefit_start_date` | 날짜 | 혜택 시작일 혜택이 적용되는 기간을 설정한 경우, 해당 혜택이 시작되는 일시 |
+| ↳ `benefit_end_date` | 날짜 | 혜택 종료일 혜택이 적용되는 기간을 설정한 경우, 해당 혜택이 종료되는 일시 |
+| ↳ `platform_types` |  | 혜택 사용범위 해당 혜택이 적용되는 범위 (PC, 모바일, 플러스앱) |
+| ↳ `use_group_binding` |  | 참여대상 설정 해당 혜택이 적용되는 대상을 설정 (회원+비회원, 비회원, 회원) |
+| ↳ `customer_group_list` |  | 회원 등급 참여대상을 회원으로 설정한 경우, 참여가 가능한 회원등급을 설정 |
+| ↳ `product_binding_type` |  | 상품 범위 해당 혜택이 적용되는 상품의 범위 · 전체상품 : 전체 상품에 혜택 적용 · 특정상품 : 선택한 특정 상품에 대해서만 혜택 적용 · 제외상품 : 선택한 특정 상품에 대해서만 혜택 적용 제외 · 상품분류 : 선택한 상품 분류에 속한 상품에 대해서만 혜택 적용 |
+| ↳ `use_except_category` |  | 상품분류 혜택제외 특정 상품분류에 대해 혜택 적용을 제외함 (각 유형별로 설정 가능여부가 다름) · 기간할인 : 전체상품, 특정상품인 경우 설정 가능 · 신규상품할인 : 전체상품인 경우 설정 가능 · 그 외 할인 및 증정유형에서는 설정 불가 |
+| ↳ `available_coupon` |  | 쿠폰 사용범위 쿠폰이 있는 경우, 쿠폰을 중복하여 사용할 수 있는지 여부 |
+| ↳ `icon_url` |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 |
+| ↳ `created_date` |  | 혜택 등록일 해당 혜택이 등록된 일시 |
+| ↳ `period_sale` |  | 기간 할인 설정 혜택의 상세유형이 기간 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ ↳ `product_list` |  | 상품 목록 |
+| ↳ ↳ `add_category_list` |  | 상품 분류 |
+| ↳ ↳ `except_category_list` |  | 제외 분류 |
+| ↳ ↳ `discount_purchasing_quantity` |  | 할인 구매수량 · T : 구매수량에 따라 · F : 구매수량에 관계없이 |
+| ↳ ↳ `discount_value` |  | 할인 값 |
+| ↳ ↳ `discount_value_unit` |  | 할인 기준 · P : 비율 · W : 금액 |
+| ↳ ↳ `discount_truncation_unit` |  | 할인 반올림 단위 · F : 절사안함 · C : 0.01 · B : 0.1 · O : 1 · T : 10 · M : 100 · H : 1000 |
+| ↳ ↳ `discount_truncation_method` |  | 할인 단위 처리 · L : 내림 · U : 반올림 · C : 올림 |
+| ↳ `repurchase_sale` |  | 재구매 할인 설정 혜택의 상세유형이 재구매 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `bulk_purchase_sale` |  | 대량구매 수량 설정 혜택의 상세유형이 대량구매 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `member_sale` |  | 회원 할인 설정 혜택의 상세유형이 회원 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `new_product_sale` |  | 신규상품할인 설정 혜택의 상세유형이 신규상품 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ `shipping_fee_sale` |  | 배송비 할인 설정 혜택의 상세유형이 배송비 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ `gift` |  | 사은품 설정 혜택의 상세유형이 사은품 증정인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ `gift_product_bundle` |  | 1+N 이벤트 설정 혜택의 상세유형이 1+N 이벤트인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "benefit": {
+        "shop_no": 1,
+        "benefit_no": 3,
+        "use_benefit": "T",
+        "benefit_name": "Sample Benefit",
+        "benefit_division": "D",
+        "benefit_type": "DP",
+        "use_benefit_period": "T",
+        "benefit_start_date": "2019-01-01T12:00:00+09:00",
+        "benefit_end_date": "2019-01-31T12:00:00+09:00",
+        "platform_types": [
+            "P",
+            "M"
+        ],
+        "use_group_binding": "M",
+        "customer_group_list": [
+            8,
+            9
+        ],
+        "product_binding_type": "P",
+        "use_except_category": "T",
+        "available_coupon": "T",
+        "icon_url": "https://{domain}/web/upload/benefit/benefit_shop1_4975395c0f0de82b254843.gif",
+        "created_date": "2019-01-01T12:00:00+09:00",
+        "period_sale": {
+            "product_list": [
+                17,
+                25,
+                29
+            ],
+            "add_category_list": null,
+            "except_category_list": [
+                168,
+                175,
+                177
+            ],
+            "discount_purchasing_quantity": null,
+            "discount_value": "10.00",
+            "discount_value_unit": "P",
+            "discount_truncation_unit": "O",
+            "discount_truncation_method": "U"
+        },
+        "repurchase_sale": null,
+        "bulk_purchase_sale": null,
+        "member_sale": null,
+        "new_product_sale": null,
+        "shipping_fee_sale": null,
+        "gift": null,
+        "gift_product_bundle": null
+    }
+}
+```
 
 ### `POST /api/v2/admin/benefits` — Create a customer benefit
 
@@ -197,6 +399,104 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `product_bundle_count` | ✓ |  |  | 추가 상품 수량 |
 | `icon_url` |  |  |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `benefit` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호 |
+| ↳ `benefit_no` |  | 혜택번호 혜택이 생성된 경우 부여되는 고유 번호 |
+| ↳ `use_benefit` |  | 진행여부 |
+| ↳ `benefit_name` | 최대글자수 : [255자] | 혜택명 |
+| ↳ `benefit_division` |  | 혜택 유형 해당 혜택의 유형으로, 할인과 증정으로 구분됨 |
+| ↳ `benefit_type` |  | 혜택 상세유형 해당 혜택의 상세유형 · 할인 : 기간할인, 재구매할인, 대량구매할인, 회원할인, 신규상품할인, 배송비할인 · 증정 : 사은품증정, 1+N 이벤트 |
+| ↳ `use_benefit_period` |  | 혜택 기간 설정 해당 혜택이 적용되는 기간을 설정했는지 여부 |
+| ↳ `benefit_start_date` | 날짜 | 혜택 시작일 혜택이 적용되는 기간을 설정한 경우, 해당 혜택이 시작되는 일시 |
+| ↳ `benefit_end_date` | 날짜 | 혜택 종료일 혜택이 적용되는 기간을 설정한 경우, 해당 혜택이 종료되는 일시 |
+| ↳ `platform_types` |  | 혜택 사용범위 해당 혜택이 적용되는 범위 (PC, 모바일, 플러스앱) |
+| ↳ `use_group_binding` |  | 참여대상 설정 해당 혜택이 적용되는 대상을 설정 (회원+비회원, 비회원, 회원) |
+| ↳ `customer_group_list` |  | 회원 등급 참여대상을 회원으로 설정한 경우, 참여가 가능한 회원등급을 설정 |
+| ↳ `product_binding_type` |  | 상품 범위 해당 혜택이 적용되는 상품의 범위 · 전체상품 : 전체 상품에 혜택 적용 · 특정상품 : 선택한 특정 상품에 대해서만 혜택 적용 · 제외상품 : 선택한 특정 상품에 대해서만 혜택 적용 제외 · 상품분류 : 선택한 상품 분류에 속한 상품에 대해서만 혜택 적용 |
+| ↳ `use_except_category` |  | 상품분류 혜택제외 특정 상품분류에 대해 혜택 적용을 제외함 (각 유형별로 설정 가능여부가 다름) · 기간할인 : 전체상품, 특정상품인 경우 설정 가능 · 신규상품할인 : 전체상품인 경우 설정 가능 · 그 외 할인 및 증정유형에서는 설정 불가 |
+| ↳ `available_coupon` |  | 쿠폰 사용범위 쿠폰이 있는 경우, 쿠폰을 중복하여 사용할 수 있는지 여부 |
+| ↳ `icon_url` |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 |
+| ↳ `created_date` |  | 혜택 등록일 해당 혜택이 등록된 일시 |
+| ↳ `period_sale` |  | 기간 할인 설정 혜택의 상세유형이 기간 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ ↳ `product_list` |  | 상품 목록 |
+| ↳ ↳ `add_category_list` |  | 상품 분류 |
+| ↳ ↳ `except_category_list` |  | 제외 분류 |
+| ↳ ↳ `discount_purchasing_quantity` |  | 할인 구매수량 · T : 구매수량에 따라 · F : 구매수량에 관계없이 |
+| ↳ ↳ `discount_value` |  | 할인 값 |
+| ↳ ↳ `discount_value_unit` |  | 할인 기준 · P : 비율 · W : 금액 |
+| ↳ ↳ `discount_truncation_unit` |  | 할인 반올림 단위 · F : 절사안함 · C : 0.01 · B : 0.1 · O : 1 · T : 10 · M : 100 · H : 1000 |
+| ↳ ↳ `discount_truncation_method` |  | 할인 단위 처리 · L : 내림 · U : 반올림 · C : 올림 |
+| ↳ `repurchase_sale` |  | 재구매 할인 설정 혜택의 상세유형이 재구매 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `bulk_purchase_sale` |  | 대량구매 수량 설정 혜택의 상세유형이 대량구매 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `member_sale` |  | 회원 할인 설정 혜택의 상세유형이 회원 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `new_product_sale` |  | 신규상품할인 설정 혜택의 상세유형이 신규상품 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ `shipping_fee_sale` |  | 배송비 할인 설정 혜택의 상세유형이 배송비 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ `gift` |  | 사은품 설정 혜택의 상세유형이 사은품 증정인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ `gift_product_bundle` |  | 1+N 이벤트 설정 혜택의 상세유형이 1+N 이벤트인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "benefit": {
+        "shop_no": 1,
+        "benefit_no": 3,
+        "use_benefit": "T",
+        "benefit_name": "Sample Benefit",
+        "benefit_division": "D",
+        "benefit_type": "DP",
+        "use_benefit_period": "T",
+        "benefit_start_date": "2019-01-01T12:00:00+09:00",
+        "benefit_end_date": "2019-01-31T12:00:00+09:00",
+        "platform_types": [
+            "P",
+            "M"
+        ],
+        "use_group_binding": "M",
+        "customer_group_list": [
+            8,
+            9
+        ],
+        "product_binding_type": "P",
+        "use_except_category": "T",
+        "available_coupon": "T",
+        "icon_url": "https://{domain}/web/upload/benefit/benefit_shop1_3648075d918c2c5ecae6.10781112.png",
+        "created_date": "2019-01-01T12:00:00+09:00",
+        "period_sale": {
+            "product_list": [
+                17,
+                25,
+                29
+            ],
+            "add_category_list": null,
+            "except_category_list": [
+                168,
+                175,
+                177
+            ],
+            "discount_purchasing_quantity": null,
+            "discount_value": "10.00",
+            "discount_value_unit": "P",
+            "discount_truncation_unit": "O",
+            "discount_truncation_method": "U"
+        },
+        "repurchase_sale": null,
+        "bulk_purchase_sale": null,
+        "member_sale": null,
+        "new_product_sale": null,
+        "shipping_fee_sale": null,
+        "gift": null,
+        "gift_product_bundle": null
+    }
+}
+```
+
 ### `PUT /api/v2/admin/benefits/{benefit_no}` — Update a customer benefit
 
 - **Scope**: `mall.write_promotion` (write)
@@ -265,6 +565,104 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `include_regional_shipping_rate` |  |  |  | 지역별배송비 포함여부값 · T : 포함 · F : 미포함 |
 | `icon_url` |  |  |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 · (빈 값으로 요청 시, 기존에 등록된 아이콘 삭제됨) |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `benefit` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호 |
+| ↳ `benefit_no` |  | 혜택번호 혜택이 생성된 경우 부여되는 고유 번호 |
+| ↳ `use_benefit` |  | 진행여부 |
+| ↳ `benefit_name` | 최대글자수 : [255자] | 혜택명 |
+| ↳ `benefit_division` |  | 혜택 유형 해당 혜택의 유형으로, 할인과 증정으로 구분됨 |
+| ↳ `benefit_type` |  | 혜택 상세유형 해당 혜택의 상세유형 · 할인 : 기간할인, 재구매할인, 대량구매할인, 회원할인, 신규상품할인, 배송비할인 · 증정 : 사은품증정, 1+N 이벤트 |
+| ↳ `use_benefit_period` |  | 혜택 기간 설정 해당 혜택이 적용되는 기간을 설정했는지 여부 |
+| ↳ `benefit_start_date` | 날짜 | 혜택 시작일 혜택이 적용되는 기간을 설정한 경우, 해당 혜택이 시작되는 일시 |
+| ↳ `benefit_end_date` | 날짜 | 혜택 종료일 혜택이 적용되는 기간을 설정한 경우, 해당 혜택이 종료되는 일시 |
+| ↳ `platform_types` |  | 혜택 사용범위 해당 혜택이 적용되는 범위 (PC, 모바일, 플러스앱) |
+| ↳ `use_group_binding` |  | 참여대상 설정 해당 혜택이 적용되는 대상을 설정 (회원+비회원, 비회원, 회원) |
+| ↳ `customer_group_list` |  | 회원 등급 참여대상을 회원으로 설정한 경우, 참여가 가능한 회원등급을 설정 |
+| ↳ `product_binding_type` |  | 상품 범위 해당 혜택이 적용되는 상품의 범위 · 전체상품 : 전체 상품에 혜택 적용 · 특정상품 : 선택한 특정 상품에 대해서만 혜택 적용 · 제외상품 : 선택한 특정 상품에 대해서만 혜택 적용 제외 · 상품분류 : 선택한 상품 분류에 속한 상품에 대해서만 혜택 적용 |
+| ↳ `use_except_category` |  | 상품분류 혜택제외 특정 상품분류에 대해 혜택 적용을 제외함 (각 유형별로 설정 가능여부가 다름) · 기간할인 : 전체상품, 특정상품인 경우 설정 가능 · 신규상품할인 : 전체상품인 경우 설정 가능 · 그 외 할인 및 증정유형에서는 설정 불가 |
+| ↳ `available_coupon` |  | 쿠폰 사용범위 쿠폰이 있는 경우, 쿠폰을 중복하여 사용할 수 있는지 여부 |
+| ↳ `icon_url` |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 |
+| ↳ `created_date` |  | 혜택 등록일 해당 혜택이 등록된 일시 |
+| ↳ `period_sale` |  | 기간 할인 설정 혜택의 상세유형이 기간 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ ↳ `product_list` |  | 상품 목록 |
+| ↳ ↳ `add_category_list` |  | 상품 분류 |
+| ↳ ↳ `except_category_list` |  | 제외 분류 |
+| ↳ ↳ `discount_purchasing_quantity` |  | 할인 구매수량 · T : 구매수량에 따라 · F : 구매수량에 관계없이 |
+| ↳ ↳ `discount_value` |  | 할인 값 |
+| ↳ ↳ `discount_value_unit` |  | 할인 기준 · P : 비율 · W : 금액 |
+| ↳ ↳ `discount_truncation_unit` |  | 할인 반올림 단위 · F : 절사안함 · C : 0.01 · B : 0.1 · O : 1 · T : 10 · M : 100 · H : 1000 |
+| ↳ ↳ `discount_truncation_method` |  | 할인 단위 처리 · L : 내림 · U : 반올림 · C : 올림 |
+| ↳ `repurchase_sale` |  | 재구매 할인 설정 혜택의 상세유형이 재구매 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `bulk_purchase_sale` |  | 대량구매 수량 설정 혜택의 상세유형이 대량구매 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `member_sale` |  | 회원 할인 설정 혜택의 상세유형이 회원 할인인 경우 그와 관련한 상세 설정 |
+| ↳ `new_product_sale` |  | 신규상품할인 설정 혜택의 상세유형이 신규상품 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ `shipping_fee_sale` |  | 배송비 할인 설정 혜택의 상세유형이 배송비 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ `gift` |  | 사은품 설정 혜택의 상세유형이 사은품 증정인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+| ↳ `gift_product_bundle` |  | 1+N 이벤트 설정 혜택의 상세유형이 1+N 이벤트인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "benefit": {
+        "shop_no": 1,
+        "benefit_no": 3,
+        "use_benefit": "T",
+        "benefit_name": "Sample Benefit",
+        "benefit_division": "D",
+        "benefit_type": "DP",
+        "use_benefit_period": "T",
+        "benefit_start_date": "2019-01-01T12:00:00+09:00",
+        "benefit_end_date": "2019-01-31T12:00:00+09:00",
+        "platform_types": [
+            "P",
+            "M"
+        ],
+        "use_group_binding": "M",
+        "customer_group_list": [
+            8,
+            9
+        ],
+        "product_binding_type": "P",
+        "use_except_category": "T",
+        "available_coupon": "T",
+        "icon_url": "https://{domain}/web/upload/benefit/benefit_shop1_3648075d918c2c5ecae6.10781112.png",
+        "created_date": "2019-01-01T12:00:00+09:00",
+        "period_sale": {
+            "product_list": [
+                17,
+                25,
+                29
+            ],
+            "add_category_list": null,
+            "except_category_list": [
+                168,
+                175,
+                177
+            ],
+            "discount_purchasing_quantity": null,
+            "discount_value": "10.00",
+            "discount_value_unit": "P",
+            "discount_truncation_unit": "O",
+            "discount_truncation_method": "U"
+        },
+        "repurchase_sale": null,
+        "bulk_purchase_sale": null,
+        "member_sale": null,
+        "new_product_sale": null,
+        "shipping_fee_sale": null,
+        "gift": null,
+        "gift_product_bundle": null
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/benefits/{benefit_no}` — Delete a customer benefit
 
 - **Scope**: `mall.write_promotion` (write)
@@ -278,3 +676,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호 |
 | `benefit_no` | ✓ |  |  | 혜택번호 혜택이 생성된 경우 부여되는 고유 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `benefit` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호 |
+| ↳ `benefit_no` |  | 혜택번호 혜택이 생성된 경우 부여되는 고유 번호 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "benefit": {
+        "shop_no": 1,
+        "benefit_no": 3
+    }
+}
+```

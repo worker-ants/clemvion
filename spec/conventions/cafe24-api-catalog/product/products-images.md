@@ -2,7 +2,7 @@
 resource: product
 entity: products-images
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products-images
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products images
@@ -33,3 +33,27 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `image` | ✓ |  |  | 상세이미지 ● 이미지 파일 용량 제한 : 10MB · ● 한 호출당 이미지 전체 용량 제한 : 30MB |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `images` |  | (목록) |
+| ↳ `path` |  | 상세이미지 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "images": [
+        {
+            "path": "https://{domain}/web/upload/NNEditor/20180130/12ecf27747401c8502ddd6b2e79e1e64.png"
+        },
+        {
+            "path": "https://{domain}/web/upload/NNEditor/20180130/4672d70e72991f3e54627a8be4aea995.png"
+        }
+    ]
+}
+```

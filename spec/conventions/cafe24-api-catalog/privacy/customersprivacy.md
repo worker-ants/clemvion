@@ -2,7 +2,7 @@
 resource: privacy
 entity: customersprivacy
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customersprivacy
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Privacy / Customersprivacy
@@ -112,6 +112,192 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최소: [1]~최대: [1000] | 30 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 search_type이 created_date 일 경우 creted_start_date를 증가시키면서 전체 회원을 검색할 수 있으므로 offset은 사용할 수 없다. |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `customersprivacy` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `member_id` | 최대글자수 : [20자] | 회원아이디 |
+| ↳ `name` |  | 이름 해당 회원의 이름 |
+| ↳ `name_english` |  | 영문이름 해당 회원의 영문 이름 |
+| ↳ `name_phonetic` |  | 발음표기 이름 (일본어) 해당 회원의 발음 표기 이름(일본어) |
+| ↳ `phone` |  | 전화번호 해당 회원의 일반전화 |
+| ↳ `cellphone` |  | 휴대전화 해당 회원의 휴대전화 |
+| ↳ `email` |  | 이메일 해당 회원의 이메일 |
+| ↳ `wedding_anniversary` | 날짜 | 결혼기념일 해당 회원의 결혼기념일 |
+| ↳ `birthday` | 날짜 | 생일 해당 회원의 생일 |
+| ↳ `solar_calendar` |  | 양력여부 생일이 양력인지 음력인지 여부 T : 양력 · F : 음력 |
+| ↳ `total_points` |  | 총 적립금 |
+| ↳ `available_points` |  | 가용 적립금 |
+| ↳ `used_points` |  | 사용 적립금 |
+| ↳ `city` | 최대글자수 : [255자] | 시/군/도시 |
+| ↳ `state` | 최대글자수 : [255자] | 주/도 |
+| ↳ `address1` | 최대글자수 : [255자] | 기본 주소 해당 회원의 기본주소(시/군/도) |
+| ↳ `address2` | 최대글자수 : [255자] | 상세 주소 해당 회원의 상세주소 |
+| ↳ `group_no` |  | 회원등급번호 해당 회원의 회원등급의 번호 |
+| ↳ `job` |  | 직업 해당 회원의 직업 |
+| ↳ `job_class` |  | 직종 해당 회원의 직종 |
+| ↳ `zipcode` | 최대글자수 : [14자] | 우편번호 |
+| ↳ `created_date` |  | 가입일 해당 회원의 가입일시 |
+| ↳ `member_authentication` |  | 회원인증여부 회원 인증여부. 인증에 따라 회원은 4종류로 구분된다. 인증회원을 특별관리회원으로 설정할 경우 해당 회원은 가장 마지막에 설정한 특별관리회원으로 표시된다. T : 인증 · F : 미인증 · B : 특별관리회원 · J : 14세미만회원 |
+| ↳ `use_blacklist` |  | 불량회원설정 불량회원 여부. 불량회원일 경우 불량회원 타입에 따라 상품구매 차단, 로그인 차단, 로그인과 상품구매 모두를 차단할 수 있음. T : 설정함 · F : 설정안함 |
+| ↳ `blacklist_type` |  | 불량회원 차단설정 해당 회원의 불량회원 타입. 불량회원 타입에 따라 상품구매 차단, 로그인 차단, 로그인과 상품구매 모두를 차단할 수 있음. P : 상품구매차단 · L : 로그인차단 · A : 로그인&상품구매 차단 |
+| ↳ `last_login_date` |  | 최근 접속일시 해당 회원의 최종 로그인 일시 |
+| ↳ `member_authority` |  | 회원권한구분 회원 권한 구분. 회원 권한은 일반회원, 대표운영자, 부운영자, 공급사로 권한이 구분됨. C : 일반회원 · P : 대표 운영자 · A : 부운영자 · S : 공급사 |
+| ↳ `nick_name` | 최대글자수 : [50자] | 운영자 별명 해당 회원의 별명 |
+| ↳ `recommend_id` |  | 추천인아이디 해당 회원의 가입당시 입력한 추천인 아이디 |
+| ↳ `residence` |  | 지역코드 해당 회원의 주거지역 |
+| ↳ `interest` |  | 관심분야 해당 회원의 관심사 |
+| ↳ `gender` |  | 해당 회원의 성별 |
+| ↳ `member_type` |  | 회원타입 해당 회원의 회원 타입 p : 개인 · c : 사업자 · f : 외국인 |
+| ↳ `company_type` |  | 사업자 구분 해당 회원의 회원타입이 사업자일경우 p : 개인사업자 · c : 법인사업자 |
+| ↳ `foreigner_type` |  | 외국인 인증방법 해당 외국인 회원의 인증방법 f : 외국인등록번호 · p : 여권번호 · d : 국제운전면허증 |
+| ↳ `authentication_method` |  | 인증 수단 null : 인증안함 · i : 아이핀인증 · m : 휴대폰 본인인증 · e : 이메일인증 · d : 휴대폰 인증(중복 확인) · a : 앱 인증(기타 인증) |
+| ↳ `lifetime_member` |  | 평생회원 동의여부 T : 동의함 F : 동의안함 |
+| ↳ `corporate_name` |  | 법인명 해당 회원의 법인명 |
+| ↳ `nationality` |  | 국적 해당 회원이 "외국인 회원"일 경우, 해당 회원의 국적 |
+| ↳ `shop_name` |  | 쇼핑몰명 해당 회원의 상호명 |
+| ↳ `country_code` |  | 국가코드 해당 회원이 가입시 입력한 국가 |
+| ↳ `use_mobile_app` |  | 모바일앱 사용여부 해당 회원의 모바일앱 사용여부 T : 사용 · F : 사용안함 |
+| ↳ `join_path` |  | 가입경로 P : PC · M : 모바일 |
+| ↳ `fixed_group` |  | 회원등급 고정 여부 특정 회원이 회원자동등급변경에 적용되지 않기 위한 등급 고정 여부 · 회원자동등급변경 기능을 사용하는 몰에서만 사용 가능하다. T : 고정함 · F : 고정안함 |
+| ↳ `thirdparty_agree` |  | 제3자 제공 동의 여부 T : 동의함 · F : 동의안함 |
+| ↳ `refund_bank_code` | 최대글자수 : [20자] | 환불 은행 코드 |
+| ↳ `refund_bank_account_no` | 최대글자수 : [40자] | 환불 계좌번호 |
+| ↳ `refund_bank_account_holder` |  | 환불계좌 예금주 명의 |
+| ↳ `company_condition` | 최대글자수 : [50자] | 업태 |
+| ↳ `company_line` | 최대글자수 : [50자] | 종목 |
+| ↳ `sns_list` |  | 연동중인 SNS |
+| ↳ `account_reactivation_date` |  | 휴면회원 해제일 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "customersprivacy": [
+        {
+            "shop_no": 1,
+            "member_id": "sampleid",
+            "name": "John Doe",
+            "name_english": "John Doe",
+            "name_phonetic": "John Doe",
+            "phone": "02-0000-0000",
+            "cellphone": "010-000-0000",
+            "email": "sample@sample.com",
+            "wedding_anniversary": "2018-06-20",
+            "birthday": "2018-06-20",
+            "solar_calendar": "T",
+            "total_points": "0.00",
+            "available_points": "0.00",
+            "used_points": "0.00",
+            "city": "Seoul",
+            "state": "Sindaebang dong Dongjak-gu",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall",
+            "group_no": 1,
+            "job": "self-employment",
+            "job_class": "service",
+            "zipcode": "07071",
+            "created_date": "2018-01-18T11:19:27+09:00",
+            "member_authentication": "T",
+            "use_blacklist": "F",
+            "blacklist_type": "",
+            "last_login_date": "2018-01-18T11:19:27+09:00",
+            "member_authority": "C",
+            "nick_name": "nickname",
+            "recommend_id": "testid2",
+            "residence": "Seoul",
+            "interest": "animation, movie/theater",
+            "gender": "F",
+            "member_type": "p",
+            "company_type": "p",
+            "foreigner_type": "f",
+            "authentication_method": "m",
+            "lifetime_member": "T",
+            "corporate_name": "Sample company",
+            "nationality": "Korea",
+            "shop_name": "Sample Shop",
+            "country_code": "KR",
+            "use_mobile_app": "F",
+            "join_path": "P",
+            "fixed_group": "T",
+            "thirdparty_agree": "T",
+            "refund_bank_code": "bank_02",
+            "refund_bank_account_no": "1234-1234-1234567",
+            "refund_bank_account_holder": "John Doe",
+            "company_condition": null,
+            "company_line": null,
+            "sns_list": [
+                "FACEBOOK(2022-05-23 16:12:22)",
+                "KAKAO(2022-05-23 16:12:47)"
+            ],
+            "account_reactivation_date": "2018-01-18T11:19:27+09:00"
+        },
+        {
+            "shop_no": 1,
+            "member_id": "sampleid01",
+            "name": "Jane Doe",
+            "name_english": "Jane Doe",
+            "name_phonetic": "Jane Doe",
+            "phone": "02-0000-0000",
+            "cellphone": "010-000-0000",
+            "email": "sample@sample.com",
+            "wedding_anniversary": "2018-06-20",
+            "birthday": "2018-06-20",
+            "solar_calendar": "T",
+            "total_points": "0.00",
+            "available_points": "0.00",
+            "used_points": "0.00",
+            "city": "Seoul",
+            "state": "Sindaebang dong Dongjak-gu",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall",
+            "group_no": 1,
+            "job": "self-employment",
+            "job_class": "service",
+            "zipcode": "07071",
+            "created_date": "2018-01-18T11:19:27+09:00",
+            "member_authentication": "T",
+            "use_blacklist": "F",
+            "blacklist_type": "",
+            "last_login_date": "2018-01-18T11:19:27+09:00",
+            "member_authority": "C",
+            "nick_name": "nickname",
+            "recommend_id": "testid2",
+            "residence": "Seoul",
+            "interest": "animation, movie/theater",
+            "gender": "F",
+            "member_type": "p",
+            "company_type": "p",
+            "foreigner_type": "f",
+            "authentication_method": "i",
+            "lifetime_member": "T",
+            "corporate_name": "Sample company",
+            "nationality": "Korea",
+            "shop_name": "Sample Shop",
+            "country_code": "KR",
+            "use_mobile_app": "F",
+            "join_path": "M",
+            "fixed_group": "F",
+            "thirdparty_agree": "T",
+            "refund_bank_code": "bank_01",
+            "refund_bank_account_no": "1234-1234-1234567",
+            "refund_bank_account_holder": "John Doe",
+            "company_condition": null,
+            "company_line": null,
+            "sns_list": [
+                "FACEBOOK(2022-05-23 16:12:22)",
+                "KAKAO(2022-05-23 16:12:47)"
+            ],
+            "account_reactivation_date": "2018-01-18T11:19:27+09:00"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/customersprivacy/count` — Retrieve a count of customer information
 
 - **Scope**: `mall.read_privacy` (read)
@@ -146,6 +332,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `fixed_group` |  |  |  | 회원등급 고정 여부 Youtube shopping 이용 시에는 미제공 T : 고정함 · F : 고정안함 |
 | `is_simple_join` |  |  |  | 주문서 간단회원가입 조회 여부 Youtube shopping 이용 시에는 미제공 T : 조회 · F : 조회 안 함 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
+
+```json
+{
+    "count": 3
+}
+```
+
 ### `GET /api/v2/admin/customersprivacy/{member_id}` — Retrieve a customer information
 
 - **Scope**: `mall.read_privacy` (read)
@@ -159,6 +361,134 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `member_id` | ✓ | 최대글자수 : [20자] |  | 회원아이디 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `customersprivacy` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `member_id` | 최대글자수 : [20자] | 회원아이디 |
+| ↳ `name` |  | 이름 해당 회원의 이름 |
+| ↳ `name_english` |  | 영문이름 해당 회원의 영문 이름 |
+| ↳ `name_phonetic` |  | 발음표기 이름 (일본어) 해당 회원의 발음 표기 이름(일본어) |
+| ↳ `phone` |  | 전화번호 해당 회원의 일반전화 |
+| ↳ `cellphone` |  | 휴대전화 해당 회원의 휴대전화 |
+| ↳ `email` |  | 이메일 해당 회원의 이메일 |
+| ↳ `wedding_anniversary` | 날짜 | 결혼기념일 해당 회원의 결혼기념일 |
+| ↳ `birthday` | 날짜 | 생일 해당 회원의 생일 |
+| ↳ `solar_calendar` |  | 양력여부 생일이 양력인지 음력인지 여부 T : 양력 · F : 음력 |
+| ↳ `total_points` |  | 총 적립금 |
+| ↳ `available_points` |  | 가용 적립금 |
+| ↳ `used_points` |  | 사용 적립금 |
+| ↳ `available_credits` |  | 가용 예치금 |
+| ↳ `city` | 최대글자수 : [255자] | 시/군/도시 |
+| ↳ `state` | 최대글자수 : [255자] | 주/도 |
+| ↳ `address1` | 최대글자수 : [255자] | 기본 주소 해당 회원의 기본주소(시/군/도) |
+| ↳ `address2` | 최대글자수 : [255자] | 상세 주소 해당 회원의 상세주소 |
+| ↳ `group_no` |  | 회원등급번호 해당 회원의 회원등급의 번호 |
+| ↳ `job` |  | 직업 해당 회원의 직업 |
+| ↳ `job_class` |  | 직종 해당 회원의 직종 |
+| ↳ `zipcode` | 최대글자수 : [14자] | 우편번호 |
+| ↳ `created_date` |  | 가입일 해당 회원의 가입일시 |
+| ↳ `member_authentication` |  | 회원인증여부 회원 인증여부. 인증에 따라 회원은 4종류로 구분된다. 인증회원을 특별관리회원으로 설정할 경우 해당 회원은 가장 마지막에 설정한 특별관리회원으로 표시된다. T : 인증 · F : 미인증 · B : 특별관리회원 · J : 14세미만회원 |
+| ↳ `use_blacklist` |  | 불량회원설정 불량회원 여부. 불량회원일 경우 불량회원 타입에 따라 상품구매 차단, 로그인 차단, 로그인과 상품구매 모두를 차단할 수 있음. T : 설정함 · F : 설정안함 |
+| ↳ `blacklist_type` |  | 불량회원 차단설정 해당 회원의 불량회원 타입. 불량회원 타입에 따라 상품구매 차단, 로그인 차단, 로그인과 상품구매 모두를 차단할 수 있음. P : 상품구매차단 · L : 로그인차단 · A : 로그인&상품구매 차단 |
+| ↳ `last_login_date` |  | 최근 접속일시 해당 회원의 최종 로그인 일시 |
+| ↳ `member_authority` |  | 회원권한구분 회원 권한 구분. 회원 권한은 일반회원, 대표운영자, 부운영자, 공급사로 권한이 구분됨. C : 일반회원 · P : 대표 운영자 · A : 부운영자 · S : 공급사 |
+| ↳ `nick_name` | 최대글자수 : [50자] | 운영자 별명 해당 회원의 별명 |
+| ↳ `recommend_id` |  | 추천인아이디 해당 회원의 가입당시 입력한 추천인 아이디 |
+| ↳ `residence` |  | 지역코드 해당 회원의 주거지역 |
+| ↳ `interest` |  | 관심분야 해당 회원의 관심사 |
+| ↳ `gender` |  | 해당 회원의 성별 |
+| ↳ `member_type` |  | 회원타입 해당 회원의 회원 타입 p : 개인 · c : 사업자 · f : 외국인 |
+| ↳ `company_type` |  | 사업자 구분 해당 회원의 회원타입이 사업자일경우 p : 개인사업자 · c : 법인사업자 |
+| ↳ `foreigner_type` |  | 외국인 인증방법 해당 외국인 회원의 인증방법 f : 외국인등록번호 · p : 여권번호 · d : 국제운전면허증 |
+| ↳ `authentication_method` |  | 인증 수단 null : 인증안함 · i : 아이핀인증 · m : 휴대폰 본인인증 · e : 이메일인증 · d : 휴대폰 인증(중복 확인) · a : 앱 인증(기타 인증) |
+| ↳ `lifetime_member` |  | 평생회원 동의여부 T : 동의함 F : 동의안함 |
+| ↳ `corporate_name` |  | 법인명 해당 회원의 법인명 |
+| ↳ `nationality` |  | 국적 해당 회원이 "외국인 회원"일 경우, 해당 회원의 국적 |
+| ↳ `shop_name` |  | 쇼핑몰명 해당 회원의 상호명 |
+| ↳ `country_code` |  | 국가코드 해당 회원이 가입시 입력한 국가 |
+| ↳ `use_mobile_app` |  | 모바일앱 사용여부 해당 회원의 모바일앱 사용여부 T : 사용 · F : 사용안함 |
+| ↳ `additional_information` |  | 추가항목 해당 회원의 추가항목 |
+| ↳ `join_path` |  | 가입경로 P : PC · M : 모바일 |
+| ↳ `fixed_group` |  | 회원등급 고정 여부 특정 회원이 회원자동등급변경에 적용되지 않기 위한 등급 고정 여부 · 회원자동등급변경 기능을 사용하는 몰에서만 사용 가능하다. T : 고정함 · F : 고정안함 |
+| ↳ `thirdparty_agree` |  | 제3자 제공 동의 여부 T : 동의함 · F : 동의안함 |
+| ↳ `refund_bank_code` | 최대글자수 : [20자] | 환불 은행 코드 |
+| ↳ `refund_bank_account_no` | 최대글자수 : [40자] | 환불 계좌번호 |
+| ↳ `refund_bank_account_holder` |  | 환불계좌 예금주 명의 |
+| ↳ `company_condition` | 최대글자수 : [50자] | 업태 |
+| ↳ `company_line` | 최대글자수 : [50자] | 종목 |
+| ↳ `sns_list` |  | 연동중인 SNS |
+
+응답 예시 (JSON):
+
+```json
+{
+    "customersprivacy": {
+        "shop_no": 1,
+        "member_id": "sampleid",
+        "name": "John Doe",
+        "name_english": "John Doe",
+        "name_phonetic": "John Doe",
+        "phone": "02-0000-0000",
+        "cellphone": "010-000-0000",
+        "email": "sample@sample.com",
+        "wedding_anniversary": "2018-06-20",
+        "birthday": "2018-06-20",
+        "solar_calendar": "T",
+        "total_points": "0.00",
+        "available_points": "0.00",
+        "used_points": "0.00",
+        "available_credits": "0.00",
+        "city": "Seoul",
+        "state": "Sindaebang dong Dongjak-gu",
+        "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "address2": "Professional Construction Hall",
+        "group_no": 1,
+        "job": "self-employment",
+        "job_class": "service",
+        "zipcode": "07071",
+        "created_date": "2018-01-18T11:19:27+09:00",
+        "member_authentication": "T",
+        "use_blacklist": "F",
+        "blacklist_type": "",
+        "last_login_date": "2018-01-18T11:19:27+09:00",
+        "member_authority": "C",
+        "nick_name": "nickname",
+        "recommend_id": "testid2",
+        "residence": "Seoul",
+        "interest": "animation, movie/theater",
+        "gender": "F",
+        "member_type": "p",
+        "company_type": "p",
+        "foreigner_type": "f",
+        "authentication_method": "i",
+        "lifetime_member": "T",
+        "corporate_name": "Sample company",
+        "nationality": "Korea",
+        "shop_name": "Sample Shop",
+        "country_code": "KR",
+        "use_mobile_app": "F",
+        "additional_information": [],
+        "join_path": "M",
+        "fixed_group": "F",
+        "thirdparty_agree": "T",
+        "refund_bank_code": "bank_01",
+        "refund_bank_account_no": "1234-1234-1234567",
+        "refund_bank_account_holder": "John Doe",
+        "company_condition": null,
+        "company_line": null,
+        "sns_list": [
+            "FACEBOOK(2022-05-23 16:12:22)",
+            "KAKAO(2022-05-23 16:12:47)"
+        ]
+    }
+}
+```
 
 ### `PUT /api/v2/admin/customersprivacy/{member_id}` — Update a customer information
 
@@ -196,3 +526,73 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `refund_bank_account_no` |  | 최대글자수 : [40자] |  | 환불 계좌번호 Youtube shopping 이용 시에는 미제공 |
 | `refund_bank_account_holder` |  |  |  | 환불계좌 예금주 명의 Youtube shopping 이용 시에는 미제공 |
 | `fixed_group` |  |  |  | 회원등급 고정 여부 Youtube shopping 이용 시에는 미제공 T : 고정함 · F : 고정안함 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `customersprivacy` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `member_id` | 최대글자수 : [20자] | 회원아이디 |
+| ↳ `cellphone` |  | 휴대전화 해당 회원의 휴대전화 |
+| ↳ `email` |  | 이메일 해당 회원의 이메일 |
+| ↳ `birthday` | 날짜 | 생일 해당 회원의 생일 |
+| ↳ `solar_calendar` |  | 양력여부 생일이 양력인지 음력인지 여부 T : 양력 · F : 음력 |
+| ↳ `country_code` |  | 국가코드 해당 회원이 가입시 입력한 국가 |
+| ↳ `state` | 최대글자수 : [255자] | 주/도 |
+| ↳ `city` | 최대글자수 : [255자] | 시/군/도시 |
+| ↳ `address1` | 최대글자수 : [255자] | 기본 주소 해당 회원의 기본주소(시/군/도) |
+| ↳ `address2` | 최대글자수 : [255자] | 상세 주소 해당 회원의 상세주소 |
+| ↳ `zipcode` | 최대글자수 : [14자] | 우편번호 |
+| ↳ `sms` |  | 모바일 메시지 수신여부 SMS를 수신할지 여부. '수신거부' 시 광고, 영리성 목적 외 서비스에 필요한 주요 메일은 정상적으로 수신함. T : 수신 · F : 수신안함 |
+| ↳ `news_mail` |  | 뉴스메일 수신여부 이메일을 수신할지 여부. '수신거부' 시 광고, 영리성 목적 외 서비스에 필요한 주요 메일은 정상적으로 수신함. T : 수신 · F : 수신안함 |
+| ↳ `thirdparty_agree` |  | 제3자 제공 동의 여부 T : 동의함 · F : 동의안함 |
+| ↳ `fixed_group` |  | 회원등급 고정 여부 특정 회원이 회원자동등급변경에 적용되지 않기 위한 등급 고정 여부 · 회원자동등급변경 기능을 사용하는 몰에서만 사용 가능하다. T : 고정함 · F : 고정안함 |
+| ↳ `additional_information` |  | 추가항목 해당 회원의 추가항목 |
+| ↳ ↳ `key` |  | 추가항목 키 |
+| ↳ ↳ `value` |  | 추가항목 값 |
+| ↳ `refund_bank_code` | 최대글자수 : [20자] | 환불 은행 코드 |
+| ↳ `refund_bank_account_no` | 최대글자수 : [40자] | 환불 계좌번호 |
+| ↳ `refund_bank_account_holder` |  | 환불계좌 예금주 명의 |
+| ↳ `gender` |  | 해당 회원의 성별 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "customersprivacy": {
+        "shop_no": 1,
+        "member_id": "sampleid",
+        "cellphone": "010-000-0000",
+        "email": "sample@sample.com",
+        "birthday": "2018-06-20",
+        "solar_calendar": "T",
+        "country_code": "KOR",
+        "state": "Sindaebang dong Dongjak-gu",
+        "city": "Seoul",
+        "address1": "Sindaebang dong Dongjak-gu Seoul Republic of Korea",
+        "address2": "Professional Construction Hall",
+        "zipcode": "07071",
+        "sms": "T",
+        "news_mail": "T",
+        "thirdparty_agree": "T",
+        "fixed_group": "F",
+        "additional_information": [
+            {
+                "key": "add1",
+                "value": "add value 1"
+            },
+            {
+                "key": "add2",
+                "value": "add value 2"
+            }
+        ],
+        "refund_bank_code": "bank_01",
+        "refund_bank_account_no": "1234-1234-1234567",
+        "refund_bank_account_holder": "John Doe",
+        "gender": "F"
+    }
+}
+```

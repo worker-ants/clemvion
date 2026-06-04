@@ -2,7 +2,7 @@
 resource: order
 entity: orders__shortagecancellation
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--shortagecancellation
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders shortagecancellation
@@ -58,3 +58,41 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `items` |  |  |  | 품주코드 |
 | ↳ `order_item_code` | ✓ |  |  | 품주코드 |
 | ↳ `quantity` | ✓ |  |  | 수량 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shortagecancellation` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `status` |  | 주문상태 canceled : 취소완료 · canceling : 취소처리중 |
+| ↳ `claim_code` |  | 취소 번호 |
+| ↳ `items` |  | 품주코드 |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
+| ↳ ↳ `quantity` |  | 수량 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "shortagecancellation": {
+        "shop_no": 1,
+        "order_id": "20190805-0000011",
+        "status": "canceled",
+        "claim_code": "C20190805-0000007",
+        "items": [
+            {
+                "order_item_code": "20190805-0000011-01",
+                "quantity": 4
+            },
+            {
+                "order_item_code": "20190805-0000011-02",
+                "quantity": 4
+            }
+        ]
+    }
+}
+```

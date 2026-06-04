@@ -2,7 +2,7 @@
 resource: order
 entity: orders-coupons
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders-coupons
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders coupons
@@ -42,3 +42,48 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_id` | ✓ | 주문번호 |  | 주문번호 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `limit` |  | 최소: [1]~최대: [500] | 10 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `coupons` |  | 쿠폰 리소스 |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `order_item_code` |  | 품주코드 |
+| ↳ `coupon_name` |  | 쿠폰명 |
+| ↳ `coupon_code` |  | 쿠폰번호 |
+| ↳ `coupon_percent` |  | 쿠폰 비율 |
+| ↳ `coupon_value` |  | 쿠폰 금액 |
+| ↳ `coupon_value_final` |  | 최종 쿠폰 금액 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "coupons": [
+        {
+            "shop_no": 1,
+            "order_id": "20201005-0000011",
+            "order_item_code": "20201005-0000011-01",
+            "coupon_name": "coupon setting name",
+            "coupon_code": "6069019282400000002",
+            "coupon_percent": "1%",
+            "coupon_value": "900.00",
+            "coupon_value_final": "0.00"
+        },
+        {
+            "shop_no": 1,
+            "order_id": "20201005-0000011",
+            "order_item_code": "20201005-0000011-01",
+            "coupon_name": "coupon setting name",
+            "coupon_code": "6069019278500000001",
+            "coupon_percent": null,
+            "coupon_value": "500.00",
+            "coupon_value_final": "0.00"
+        }
+    ]
+}
+```

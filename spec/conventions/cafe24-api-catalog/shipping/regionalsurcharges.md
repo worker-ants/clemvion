@@ -2,7 +2,7 @@
 resource: shipping
 entity: regionalsurcharges
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#regionalsurcharges
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Shipping / Regionalsurcharges
@@ -38,6 +38,61 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `regionalsurcharge` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `use_regional_surcharge` |  | 지역별 배송비 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `region_setting_type` |  | 지역 설정 방식 A : 간편 설정 · N : 지명 설정 · Z : 우편번호 설정 |
+| ↳ `regional_surcharge_list` |  | 지역별 배송비 목록 |
+| ↳ ↳ `regional_surcharge_no` |  | 지역별 배송비 등록 번호 |
+| ↳ ↳ `region_name` | 최대글자수 : [255자] | 특수지역명 |
+| ↳ ↳ `surcharge_region_name` | 최대글자수 : [300자] | 지역명 |
+| ↳ ↳ `country_code` |  |  |
+| ↳ ↳ `start_zipcode` | 최대글자수 : [8자] | 시작 우편번호 |
+| ↳ ↳ `end_zipcode` | 최대글자수 : [8자] | 끝 우편번호 |
+| ↳ ↳ `regional_surcharge_amount` |  |  |
+| ↳ `jeju_surcharge_amount` |  | 제주 추가 배송비 |
+| ↳ `remote_area_surcharge_amount` |  | 도서산간 추가 배송비 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "regionalsurcharge": {
+        "shop_no": 1,
+        "use_regional_surcharge": "T",
+        "region_setting_type": "Z",
+        "regional_surcharge_list": [
+            {
+                "regional_surcharge_no": 1,
+                "region_name": "Gyeonggi-do",
+                "surcharge_region_name": null,
+                "country_code": null,
+                "start_zipcode": "11750",
+                "end_zipcode": "11750",
+                "regional_surcharge_amount": "2200.00"
+            },
+            {
+                "regional_surcharge_no": 2,
+                "region_name": "Seoul",
+                "surcharge_region_name": null,
+                "country_code": null,
+                "start_zipcode": "05200",
+                "end_zipcode": "05200",
+                "regional_surcharge_amount": "1000.00"
+            }
+        ],
+        "jeju_surcharge_amount": null,
+        "remote_area_surcharge_amount": null
+    }
+}
+```
+
 ### `PUT /api/v2/admin/regionalsurcharges` — Update regional surcharges
 
 - **Scope**: `mall.write_shipping` (write)
@@ -55,3 +110,30 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `region_setting_type` |  |  |  | 지역 설정 방식 A : 간편 설정 · N : 지명 설정 · Z : 우편번호 설정 |
 | `jeju_surcharge_amount` |  | 최소: [0]~최대: [999999999] |  | 제주 추가 배송비 |
 | `remote_area_surcharge_amount` |  | 최소: [0]~최대: [999999999] |  | 도서산간 추가 배송비 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `regionalsurcharge` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `use_regional_surcharge` |  | 지역별 배송비 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `region_setting_type` |  | 지역 설정 방식 A : 간편 설정 · N : 지명 설정 · Z : 우편번호 설정 |
+| ↳ `jeju_surcharge_amount` |  | 제주 추가 배송비 |
+| ↳ `remote_area_surcharge_amount` |  | 도서산간 추가 배송비 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "regionalsurcharge": {
+        "shop_no": 1,
+        "use_regional_surcharge": "T",
+        "region_setting_type": "A",
+        "jeju_surcharge_amount": "0.00",
+        "remote_area_surcharge_amount": "0.00"
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: product
 entity: products__tags
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--tags
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products tags
@@ -37,6 +37,30 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `product_no` | ✓ |  |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `tags` |  | 상품 태그 |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `tags` |  | 상품 태그 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "tags": {
+        "shop_no": 1,
+        "tags": [
+            "Tag1",
+            "Tag2"
+        ]
+    }
+}
+```
+
 ### `GET /api/v2/admin/products/{product_no}/tags/count` — Retrieve a count of a product's product tags
 
 - **Scope**: `mall.read_product` (read)
@@ -50,6 +74,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `product_no` | ✓ |  |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
+
+```json
+{
+    "count": 3
+}
+```
 
 ### `POST /api/v2/admin/products/{product_no}/tags` — Create product tags
 
@@ -68,6 +108,32 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `product_no` | ✓ |  |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
 | `tags` | ✓ | 배열 최대사이즈: [100] |  | 상품 태그 쇼핑 큐레이션 사용 시 - 배열 최대사이즈 : [100] |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `tag` |  | 상품 태그 검색 또는 분류를 위하여 상품에 입력하는 검색어 정보(해시태그) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `product_no` |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
+| ↳ `tags` |  | 상품 태그 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "tag": {
+        "shop_no": 1,
+        "product_no": 7,
+        "tags": [
+            "Tag1",
+            "Tag2"
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/products/{product_no}/tags/{tag}` — Delete a product tag
 
 - **Scope**: `mall.write_product` (write)
@@ -82,3 +148,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `product_no` | ✓ |  |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
 | `tag` |  |  |  | 상품 태그 검색 또는 분류를 위하여 상품에 입력하는 검색어 정보(해시태그) |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `tag` |  | 상품 태그 검색 또는 분류를 위하여 상품에 입력하는 검색어 정보(해시태그) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `product_no` |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
+| ↳ `tag` |  | 상품 태그 검색 또는 분류를 위하여 상품에 입력하는 검색어 정보(해시태그) |
+
+응답 예시 (JSON):
+
+```json
+{
+    "tag": {
+        "shop_no": 1,
+        "product_no": 7,
+        "tag": "Tag1"
+    }
+}
+```

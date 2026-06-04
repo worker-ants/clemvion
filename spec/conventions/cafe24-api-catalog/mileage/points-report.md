@@ -2,7 +2,7 @@
 resource: mileage
 entity: points-report
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#points-report
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Mileage / Points report
@@ -42,3 +42,32 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `group_no` |  |  |  | 회원등급번호 |
 | `start_date` | ✓ | 날짜 |  | 검색 시작일 |
 | `end_date` | ✓ | 날짜 |  | 검색 종료일 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `report` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `available_points_increase` |  | 가용 적립금 증가 |
+| ↳ `available_points_decrease` |  | 가용 적립금 차감 |
+| ↳ `available_points_total` |  | 가용 적립금 전체 |
+| ↳ `unavailable_points` |  | 미가용 적립금 |
+| ↳ `unavailable_coupon_points` |  | 미가용 회원 쿠폰 적립금 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "report": {
+        "shop_no": 1,
+        "available_points_increase": "100.00",
+        "available_points_decrease": "20.00",
+        "available_points_total": "80.00",
+        "unavailable_points": "1500.00",
+        "unavailable_coupon_points": "1169.00"
+    }
+}
+```

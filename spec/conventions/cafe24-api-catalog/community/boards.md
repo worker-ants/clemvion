@@ -2,7 +2,7 @@
 resource: community
 entity: boards
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#boards
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Community / Boards
@@ -72,6 +72,324 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `boards` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `board_type` |  | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `board_name` |  | 게시판 이름 |
+| ↳ `use_additional_board` |  | 게시판 추가여부 T : 추가게시판 · F : 기본게시판 |
+| ↳ `use_board` |  | 게시판 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_display` |  | 표시여부 T : 표시함 · F : 표시안함 |
+| ↳ `use_top_image` |  | 화면 상단 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `top_image_url` |  | 화면 상단 이미지 경로 |
+| ↳ `use_report` |  | 게시글 신고기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_writer_block` |  | 작성자 차단 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `display_order` |  | 정렬 순서 |
+| ↳ `attached_file` |  | 파일 첨부 T : 사용함 · F : 사용안함 |
+| ↳ `attached_file_size_limit` |  | 첨부파일용량제한 (Byte) |
+| ↳ `article_display_type` |  | 게시물 표시 A : 전체 게시물 표시 · T : 첨부 파일이 있는 게시물만 표시 · F : 첨부 파일이 없는 게시물만 표시 |
+| ↳ `image_display` |  | 이미지 표시 T : 사용함 · F : 사용안함 |
+| ↳ `image_resize` |  | 리사이징할 이미지 폭 (px) |
+| ↳ `use_category` |  | 카테고리 기능 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `categories` |  | 카테고리 정보 |
+| ↳ ↳ `id` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ `secret_only` |  | 비밀글만 등록 가능여부 T: 비밀글만 등록 · F: 공개글과 비밀글을 선택하여 등록 |
+| ↳ `admin_confirm` |  | 관리자 확인 기능 사용여부 T: 사용함 · F: 사용안함 |
+| ↳ `comment_author_display` |  | 댓글 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `comment_author_protection` |  | 댓글 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `author_name_type` |  | 보호 설정 · count : 일부 글자 수만 노출 · content : 대체 문구로 노출 |
+| ↳ ↳ `partial_character_display` |  | 작성자 보호 설정 시 노출할 일부 글자수 |
+| ↳ ↳ `alternative_text_display` |  | 작성자 보호 설정 시 대체 문구 |
+| ↳ `spam_auto_prevention` |  | 스팸 자동생성방지 기능 |
+| ↳ ↳ `apply_scope` |  | 적용범위 · post_actions : 글쓰기/수정/답변 · comment : 댓글 |
+| ↳ ↳ `member_scope` |  | 대상회원 · A : 전체 · M : 회원 · N : 비회원 |
+| ↳ `reply_feature` |  | 답변기능 T : 사용함 · F : 사용안함 |
+| ↳ `write_permission` |  | 쓰기 권한 A : 관리자 · V : 회원이상노출 · I : 회원이상 비노출 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `write_member_group_no` |  | 쓰기 권한 접근회원그룹 번호 |
+| ↳ `write_permission_extra` |  | 쓰기권한 부가설정 |
+| ↳ ↳ `is_member_buy` |  | 회원 구매내역 체크 여부 · T : 체크함 · F : 체크안함 |
+| ↳ ↳ `member_write_after` |  | 회원 쓰기권한 적용 시점 · place_date : 결제완료 이후 · shipbegin_date : 배송중 이후 · shipend_date : 배송완료 이후 |
+| ↳ ↳ `use_member_write_period` |  | 회원 쓰기권한 작성 기간 설정 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `member_write_period` |  | 회원 쓰기권한 작성 기간 |
+| ↳ ↳ `is_guest_buy` |  | 비회원 구매내역 체크 여부 · T : 체크함 · F : 체크안함 |
+| ↳ ↳ `guest_write_after` |  | 비회원 쓰기권한 적용 시점 · order_date : 주문완료 이후 · place_date : 결제완료 이후 · shipbegin_date : 배송중 이후 · shipend_date : 배송완료 이후 |
+| ↳ ↳ `use_guest_write_period` |  | 비회원 쓰기권한 작성 기간 설정 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `guest_write_period` |  | 비회원 쓰기권한 작성 기간 |
+| ↳ ↳ `product_info_option` |  | 상품정보 등록 옵션 · T : 글 작성 시 상품 정보 선택 허용 · F : 글 작성 시 상품 정보 선택 불가 |
+| ↳ ↳ `post_length_limit` |  | 글자수 제한여부 · T : 제한함 · F : 제한없음 |
+| ↳ ↳ `post_min_length` |  | 최소 글자수 |
+| ↳ ↳ `post_editable` |  | 글 수정/삭제 가능여부 · T : 가능 · F : 불가 |
+| ↳ `reply_permission` |  | 답변쓰기 권한 A : 관리자 · M : 회원이상 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `reply_member_group_no` |  | 답변쓰기 권한 접근회원그룹 번호 |
+| ↳ `author_display` |  | 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `author_protection` |  | 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `comment_writer_name_type` |  |  |
+| ↳ ↳ `partial_character_display` |  | 작성자 보호 설정 시 노출할 일부 글자수 |
+| ↳ ↳ `alternative_text_display` |  | 작성자 보호 설정 시 대체 문구 |
+| ↳ `board_guide` |  | 게시판 안내글 |
+| ↳ `use_comment` |  | 댓글 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `admin_title_fixed` |  | 게시글 제목을 관리자가 설정한 값으로 고정 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `admin_title_list` |  | 관리자 지정 제목 설정 |
+| ↳ ↳ `staff_skip_post_title` |  | 운영자가 게시글을 작성할 때 제목 고정 기능 미사용 · T : 사용함 · F : 사용안함 |
+| ↳ `admin_reply_fixed` |  | 답변글 제목을 관리자가 설정한 값으로 고정할지 여부 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `admin_reply_list` |  | 관리자 지정 답변글 설정 |
+| ↳ ↳ `staff_skip_reply_title` |  | 운영자가 게시글을 작성할 때 고정 제목 미사용 · T : 사용함 · F : 사용안함 |
+| ↳ `input_form` |  | 게시글 입력 양식 설정 여부 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `input_form_title` |  | 게시글 입력 양식 제목 |
+| ↳ ↳ `enable_input_form_title` |  | 게시글 입력 양식 제목 노출 여부 · T : 사용함 · F : 사용안함 |
+| ↳ `page_size` |  | 페이지당 목록 수 |
+| ↳ `product_page_size` |  | 상품 상세 정보 → 페이지당 목록 수 |
+| ↳ `page_display_count` |  | 페이지 표시 수 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "boards": [
+        {
+            "shop_no": 1,
+            "board_no": 1,
+            "board_type": 1,
+            "board_name": "Notice",
+            "use_additional_board": "T",
+            "use_board": "T",
+            "use_display": "T",
+            "use_top_image": "T",
+            "top_image_url": "https://www.example.com/image.jpg",
+            "use_report": "T",
+            "use_writer_block": "T",
+            "display_order": 1,
+            "attached_file": "F",
+            "attached_file_size_limit": 10485760,
+            "article_display_type": "A",
+            "image_display": "T",
+            "image_resize": 587,
+            "use_category": "T",
+            "categories": [
+                {
+                    "id": 1,
+                    "name": "Category1"
+                },
+                {
+                    "id": 2,
+                    "name": "Category2"
+                }
+            ],
+            "secret_only": "F",
+            "admin_confirm": "F",
+            "comment_author_display": "N",
+            "comment_author_protection": {
+                "is_use": "T",
+                "author_name_type": "count",
+                "partial_character_display": 1,
+                "alternative_text_display": "Alternative comment author name"
+            },
+            "spam_auto_prevention": {
+                "apply_scope": [
+                    "post_actions",
+                    "comment"
+                ],
+                "member_scope": "A"
+            },
+            "reply_feature": "T",
+            "write_permission": "A",
+            "write_member_group_no": [
+                1,
+                2
+            ],
+            "write_permission_extra": {
+                "is_member_buy": null,
+                "member_write_after": null,
+                "use_member_write_period": null,
+                "member_write_period": null,
+                "is_guest_buy": null,
+                "guest_write_after": null,
+                "use_guest_write_period": null,
+                "guest_write_period": null,
+                "product_info_option": null,
+                "post_length_limit": null,
+                "post_min_length": null,
+                "post_editable": null
+            },
+            "reply_permission": "M",
+            "reply_member_group_no": [
+                3,
+                4
+            ],
+            "author_display": "N",
+            "author_protection": {
+                "is_use": "T",
+                "comment_writer_name_type": "count",
+                "partial_character_display": 1,
+                "alternative_text_display": "Alternative author name"
+            },
+            "board_guide": "This is a guide for the board.",
+            "use_comment": "T",
+            "admin_title_fixed": {
+                "is_use": "T",
+                "admin_title_list": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "staff_skip_post_title": "T"
+            },
+            "admin_reply_fixed": {
+                "is_use": "T",
+                "admin_reply_list": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "staff_skip_reply_title": "T"
+            },
+            "input_form": {
+                "is_use": "T",
+                "input_form_title": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "enable_input_form_title": [
+                    "T",
+                    "F",
+                    "T"
+                ]
+            },
+            "page_size": 10,
+            "product_page_size": 10,
+            "page_display_count": 10
+        },
+        {
+            "shop_no": 1,
+            "board_no": 8,
+            "board_type": 1,
+            "board_name": "gallery",
+            "use_additional_board": "F",
+            "use_board": "T",
+            "use_display": "T",
+            "use_top_image": "T",
+            "top_image_url": "https://www.example.com/image.jpg",
+            "use_report": "T",
+            "use_writer_block": "T",
+            "display_order": 2,
+            "attached_file": "F",
+            "attached_file_size_limit": 3145728,
+            "article_display_type": "A",
+            "image_display": "T",
+            "image_resize": 587,
+            "use_category": "T",
+            "categories": [
+                {
+                    "id": 3,
+                    "name": "Category3"
+                },
+                {
+                    "id": 4,
+                    "name": "Category4"
+                }
+            ],
+            "secret_only": "F",
+            "admin_confirm": "F",
+            "comment_author_display": "U",
+            "comment_author_protection": {
+                "is_use": "F",
+                "author_name_type": "count",
+                "partial_character_display": 1,
+                "alternative_text_display": "Alternative comment author name"
+            },
+            "spam_auto_prevention": {
+                "apply_scope": [
+                    "post_actions",
+                    "comment"
+                ],
+                "member_scope": "N"
+            },
+            "reply_feature": "T",
+            "write_permission": "G",
+            "write_member_group_no": [
+                1,
+                2
+            ],
+            "write_permission_extra": {
+                "is_member_buy": "T",
+                "member_write_after": "shipend_date",
+                "use_member_write_period": "F",
+                "member_write_period": 10,
+                "is_guest_buy": "T",
+                "guest_write_after": "shipend_date",
+                "use_guest_write_period": "F",
+                "guest_write_period": 10,
+                "product_info_option": "T",
+                "post_length_limit": "F",
+                "post_min_length": 10,
+                "post_editable": "T"
+            },
+            "reply_permission": "M",
+            "reply_member_group_no": [
+                3,
+                4
+            ],
+            "author_display": "U",
+            "author_protection": {
+                "is_use": "T",
+                "author_name_type": "count",
+                "partial_character_display": 1,
+                "alternative_text_display": "Alternative author name"
+            },
+            "board_guide": "This is a guide for the board.",
+            "use_comment": "T",
+            "admin_title_fixed": {
+                "is_use": "T",
+                "admin_title_list": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "staff_skip_post_title": "T"
+            },
+            "admin_reply_fixed": {
+                "is_use": "T",
+                "admin_reply_list": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "staff_skip_reply_title": "T"
+            },
+            "input_form": {
+                "is_use": "T",
+                "input_form_title": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "enable_input_form_title": [
+                    "T",
+                    "F",
+                    "T"
+                ]
+            },
+            "page_size": 10,
+            "product_page_size": 10,
+            "page_display_count": 10
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/boards/{board_no}` — Retrieve the board settings
 
 - **Scope**: `mall.read_community` (read)
@@ -84,6 +402,208 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `board_no` | ✓ |  |  | 게시판 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `board` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `board_type` |  | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `board_name` |  | 게시판 이름 |
+| ↳ `use_additional_board` |  | 게시판 추가여부 T : 추가게시판 · F : 기본게시판 |
+| ↳ `use_board` |  | 게시판 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_display` |  | 표시여부 T : 표시함 · F : 표시안함 |
+| ↳ `use_top_image` |  | 화면 상단 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `top_image_url` |  | 화면 상단 이미지 경로 |
+| ↳ `use_report` |  | 게시글 신고기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_writer_block` |  | 작성자 차단 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `display_order` |  | 정렬 순서 |
+| ↳ `attached_file` |  | 파일 첨부 T : 사용함 · F : 사용안함 |
+| ↳ `attached_file_size_limit` |  | 첨부파일용량제한 (Byte) |
+| ↳ `article_display_type` |  | 게시물 표시 A : 전체 게시물 표시 · T : 첨부 파일이 있는 게시물만 표시 · F : 첨부 파일이 없는 게시물만 표시 |
+| ↳ `image_display` |  | 이미지 표시 T : 사용함 · F : 사용안함 |
+| ↳ `image_resize` |  | 리사이징할 이미지 폭 (px) |
+| ↳ `use_category` |  | 카테고리 기능 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `categories` |  | 카테고리 정보 |
+| ↳ ↳ `id` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ `secret_only` |  | 비밀글만 등록 가능여부 T: 비밀글만 등록 · F: 공개글과 비밀글을 선택하여 등록 |
+| ↳ `admin_confirm` |  | 관리자 확인 기능 사용여부 T: 사용함 · F: 사용안함 |
+| ↳ `comment_author_display` |  | 댓글 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `comment_author_protection` |  | 댓글 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `author_name_type` |  | 보호 설정 · count : 일부 글자 수만 노출 · content : 대체 문구로 노출 |
+| ↳ ↳ `partial_character_display` |  | 작성자 보호 설정 시 노출할 일부 글자수 |
+| ↳ ↳ `alternative_text_display` |  | 작성자 보호 설정 시 대체 문구 |
+| ↳ `spam_auto_prevention` |  | 스팸 자동생성방지 기능 |
+| ↳ ↳ `apply_scope` |  | 적용범위 · post_actions : 글쓰기/수정/답변 · comment : 댓글 |
+| ↳ ↳ `member_scope` |  | 대상회원 · A : 전체 · M : 회원 · N : 비회원 |
+| ↳ `reply_feature` |  | 답변기능 T : 사용함 · F : 사용안함 |
+| ↳ `write_permission` |  | 쓰기 권한 A : 관리자 · V : 회원이상노출 · I : 회원이상 비노출 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `write_member_group_no` |  | 쓰기 권한 접근회원그룹 번호 |
+| ↳ `write_permission_extra` |  | 쓰기권한 부가설정 |
+| ↳ ↳ `is_member_buy` |  | 회원 구매내역 체크 여부 · T : 체크함 · F : 체크안함 |
+| ↳ ↳ `member_write_after` |  | 회원 쓰기권한 적용 시점 · place_date : 결제완료 이후 · shipbegin_date : 배송중 이후 · shipend_date : 배송완료 이후 |
+| ↳ ↳ `use_member_write_period` |  | 회원 쓰기권한 작성 기간 설정 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `member_write_period` |  | 회원 쓰기권한 작성 기간 |
+| ↳ ↳ `is_guest_buy` |  | 비회원 구매내역 체크 여부 · T : 체크함 · F : 체크안함 |
+| ↳ ↳ `guest_write_after` |  | 비회원 쓰기권한 적용 시점 · order_date : 주문완료 이후 · place_date : 결제완료 이후 · shipbegin_date : 배송중 이후 · shipend_date : 배송완료 이후 |
+| ↳ ↳ `use_guest_write_period` |  | 비회원 쓰기권한 작성 기간 설정 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `guest_write_period` |  | 비회원 쓰기권한 작성 기간 |
+| ↳ ↳ `product_info_option` |  | 상품정보 등록 옵션 · T : 글 작성 시 상품 정보 선택 허용 · F : 글 작성 시 상품 정보 선택 불가 |
+| ↳ ↳ `post_length_limit` |  | 글자수 제한여부 · T : 제한함 · F : 제한없음 |
+| ↳ ↳ `post_min_length` |  | 최소 글자수 |
+| ↳ ↳ `post_editable` |  | 글 수정/삭제 가능여부 · T : 가능 · F : 불가 |
+| ↳ `reply_permission` |  | 답변쓰기 권한 A : 관리자 · M : 회원이상 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `reply_member_group_no` |  | 답변쓰기 권한 접근회원그룹 번호 |
+| ↳ `author_display` |  | 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `author_protection` |  | 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `comment_writer_name_type` |  |  |
+| ↳ ↳ `partial_character_display` |  | 작성자 보호 설정 시 노출할 일부 글자수 |
+| ↳ ↳ `alternative_text_display` |  | 작성자 보호 설정 시 대체 문구 |
+| ↳ `board_guide` |  | 게시판 안내글 |
+| ↳ `use_comment` |  | 댓글 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `admin_title_fixed` |  | 게시글 제목을 관리자가 설정한 값으로 고정 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `admin_title_list` |  | 관리자 지정 제목 설정 |
+| ↳ ↳ `staff_skip_post_title` |  | 운영자가 게시글을 작성할 때 제목 고정 기능 미사용 · T : 사용함 · F : 사용안함 |
+| ↳ `admin_reply_fixed` |  | 답변글 제목을 관리자가 설정한 값으로 고정할지 여부 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `admin_reply_list` |  | 관리자 지정 답변글 설정 |
+| ↳ ↳ `staff_skip_reply_title` |  | 운영자가 게시글을 작성할 때 고정 제목 미사용 · T : 사용함 · F : 사용안함 |
+| ↳ `input_form` |  | 게시글 입력 양식 설정 여부 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `input_form_title` |  | 게시글 입력 양식 제목 |
+| ↳ ↳ `enable_input_form_title` |  | 게시글 입력 양식 제목 노출 여부 · T : 사용함 · F : 사용안함 |
+| ↳ `page_size` |  | 페이지당 목록 수 |
+| ↳ `product_page_size` |  | 상품 상세 정보 → 페이지당 목록 수 |
+| ↳ `page_display_count` |  | 페이지 표시 수 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "board": {
+        "shop_no": 1,
+        "board_no": 1,
+        "board_type": 1,
+        "board_name": "Notice",
+        "use_additional_board": "T",
+        "use_board": "T",
+        "use_display": "T",
+        "use_top_image": "T",
+        "top_image_url": "https://www.example.com/image.jpg",
+        "use_report": "T",
+        "use_writer_block": "T",
+        "display_order": 1,
+        "attached_file": "F",
+        "attached_file_size_limit": 10485760,
+        "article_display_type": "A",
+        "image_display": "T",
+        "image_resize": 587,
+        "use_category": "T",
+        "categories": [
+            {
+                "id": 1,
+                "name": "Category1"
+            },
+            {
+                "id": 2,
+                "name": "Category2"
+            }
+        ],
+        "secret_only": "F",
+        "admin_confirm": "F",
+        "comment_author_display": "N",
+        "comment_author_protection": {
+            "is_use": "T",
+            "author_name_type": "count",
+            "partial_character_display": 1,
+            "alternative_text_display": "Alternative comment author name"
+        },
+        "spam_auto_prevention": {
+            "apply_scope": [
+                "post_actions",
+                "comment"
+            ],
+            "member_scope": "A"
+        },
+        "reply_feature": "T",
+        "write_permission": "A",
+        "write_member_group_no": [
+            1,
+            2
+        ],
+        "write_permission_extra": {
+            "is_member_buy": null,
+            "member_write_after": null,
+            "use_member_write_period": null,
+            "member_write_period": null,
+            "is_guest_buy": null,
+            "guest_write_after": null,
+            "use_guest_write_period": null,
+            "guest_write_period": null,
+            "product_info_option": null,
+            "post_length_limit": null,
+            "post_min_length": null,
+            "post_editable": null
+        },
+        "reply_permission": "M",
+        "reply_member_group_no": [
+            3,
+            4
+        ],
+        "author_display": "N",
+        "author_protection": {
+            "is_use": "T",
+            "comment_writer_name_type": "count",
+            "partial_character_display": 1,
+            "alternative_text_display": "Alternative author name"
+        },
+        "board_guide": "This is a guide for the board.",
+        "use_comment": "T",
+        "admin_title_fixed": {
+            "is_use": "T",
+            "admin_title_list": [
+                "first",
+                "second",
+                "third"
+            ],
+            "staff_skip_post_title": "T"
+        },
+        "admin_reply_fixed": {
+            "is_use": "T",
+            "admin_reply_list": [
+                "first",
+                "second",
+                "third"
+            ],
+            "staff_skip_reply_title": "T"
+        },
+        "input_form": {
+            "is_use": "T",
+            "input_form_title": [
+                "first",
+                "second",
+                "third"
+            ],
+            "enable_input_form_title": [
+                "T",
+                "F",
+                "T"
+            ]
+        },
+        "page_size": 10,
+        "product_page_size": 10,
+        "page_display_count": 10
+    }
+}
+```
 
 ### `PUT /api/v2/admin/boards/{board_no}` — Update the board settings
 
@@ -162,3 +682,201 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `board_name` |  | 최소글자수 : [1자]; 최대글자수 : [50자] |  | 게시판 이름 |
 | `board_type` |  |  |  | 게시판 분류 1 : 운영 · 2 : 일반 · 5 : 상품 |
 | `article_display_type` |  |  |  | 게시물 표시 A : 전체 게시물 표시 · T : 첨부 파일이 있는 게시물만 표시 · F : 첨부 파일이 없는 게시물만 표시 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `board` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `board_type` |  | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `board_name` |  | 게시판 이름 |
+| ↳ `use_additional_board` |  | 게시판 추가여부 T : 추가게시판 · F : 기본게시판 |
+| ↳ `use_board` |  | 게시판 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_display` |  | 표시여부 T : 표시함 · F : 표시안함 |
+| ↳ `use_top_image` |  | 화면 상단 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `top_image_url` |  | 화면 상단 이미지 경로 |
+| ↳ `display_order` |  | 정렬 순서 |
+| ↳ `attached_file` |  | 파일 첨부 T : 사용함 · F : 사용안함 |
+| ↳ `attached_file_size_limit` |  | 첨부파일용량제한 (Byte) |
+| ↳ `article_display_type` |  | 게시물 표시 A : 전체 게시물 표시 · T : 첨부 파일이 있는 게시물만 표시 · F : 첨부 파일이 없는 게시물만 표시 |
+| ↳ `image_display` |  | 이미지 표시 T : 사용함 · F : 사용안함 |
+| ↳ `image_resize` |  | 리사이징할 이미지 폭 (px) |
+| ↳ `use_category` |  | 카테고리 기능 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `categories` |  | 카테고리 정보 |
+| ↳ ↳ `id` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ `secret_only` |  | 비밀글만 등록 가능여부 T: 비밀글만 등록 · F: 공개글과 비밀글을 선택하여 등록 |
+| ↳ `admin_confirm` |  | 관리자 확인 기능 사용여부 T: 사용함 · F: 사용안함 |
+| ↳ `comment_author_display` |  | 댓글 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `comment_author_protection` |  | 댓글 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `author_name_type` |  | 보호 설정 · count : 일부 글자 수만 노출 · content : 대체 문구로 노출 |
+| ↳ ↳ `partial_character_display` |  | 작성자 보호 설정 시 노출할 일부 글자수 |
+| ↳ ↳ `alternative_text_display` |  | 작성자 보호 설정 시 대체 문구 |
+| ↳ `spam_auto_prevention` |  | 스팸 자동생성방지 기능 |
+| ↳ ↳ `apply_scope` |  | 적용범위 · post_actions : 글쓰기/수정/답변 · comment : 댓글 |
+| ↳ ↳ `member_scope` |  | 대상회원 · A : 전체 · M : 회원 · N : 비회원 |
+| ↳ `reply_feature` |  | 답변기능 T : 사용함 · F : 사용안함 |
+| ↳ `write_permission` |  | 쓰기 권한 A : 관리자 · V : 회원이상노출 · I : 회원이상 비노출 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `write_member_group_no` |  | 쓰기 권한 접근회원그룹 번호 |
+| ↳ `write_permission_extra` |  | 쓰기권한 부가설정 |
+| ↳ ↳ `is_member_buy` |  | 회원 구매내역 체크 여부 · T : 체크함 · F : 체크안함 |
+| ↳ ↳ `member_write_after` |  | 회원 쓰기권한 적용 시점 · place_date : 결제완료 이후 · shipbegin_date : 배송중 이후 · shipend_date : 배송완료 이후 |
+| ↳ ↳ `use_member_write_period` |  | 회원 쓰기권한 작성 기간 설정 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `member_write_period` |  | 회원 쓰기권한 작성 기간 |
+| ↳ ↳ `is_guest_buy` |  | 비회원 구매내역 체크 여부 · T : 체크함 · F : 체크안함 |
+| ↳ ↳ `guest_write_after` |  | 비회원 쓰기권한 적용 시점 · order_date : 주문완료 이후 · place_date : 결제완료 이후 · shipbegin_date : 배송중 이후 · shipend_date : 배송완료 이후 |
+| ↳ ↳ `use_guest_write_period` |  | 비회원 쓰기권한 작성 기간 설정 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `guest_write_period` |  | 비회원 쓰기권한 작성 기간 |
+| ↳ ↳ `product_info_option` |  | 상품정보 등록 옵션 · T : 글 작성 시 상품 정보 선택 허용 · F : 글 작성 시 상품 정보 선택 불가 |
+| ↳ ↳ `post_length_limit` |  | 글자수 제한여부 · T : 제한함 · F : 제한없음 |
+| ↳ ↳ `post_min_length` |  | 최소 글자수 |
+| ↳ ↳ `post_editable` |  | 글 수정/삭제 가능여부 · T : 가능 · F : 불가 |
+| ↳ `reply_permission` |  | 답변쓰기 권한 A : 관리자 · M : 회원이상 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `reply_member_group_no` |  | 답변쓰기 권한 접근회원그룹 번호 |
+| ↳ `author_display` |  | 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `author_protection` |  | 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `author_name_type` |  | 보호 설정 · count : 일부 글자 수만 노출 · content : 대체 문구로 노출 |
+| ↳ ↳ `partial_character_display` |  | 작성자 보호 설정 시 노출할 일부 글자수 |
+| ↳ ↳ `alternative_text_display` |  | 작성자 보호 설정 시 대체 문구 |
+| ↳ `board_guide` |  | 게시판 안내글 |
+| ↳ `use_comment` |  | 댓글 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `admin_title_fixed` |  | 게시글 제목을 관리자가 설정한 값으로 고정 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `admin_title_list` |  | 관리자 지정 제목 설정 |
+| ↳ ↳ `staff_skip_post_title` |  | 운영자가 게시글을 작성할 때 제목 고정 기능 미사용 · T : 사용함 · F : 사용안함 |
+| ↳ `admin_reply_fixed` |  | 답변글 제목을 관리자가 설정한 값으로 고정할지 여부 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `admin_reply_list` |  | 관리자 지정 답변글 설정 |
+| ↳ ↳ `staff_skip_reply_title` |  | 운영자가 게시글을 작성할 때 고정 제목 미사용 · T : 사용함 · F : 사용안함 |
+| ↳ `input_form` |  | 게시글 입력 양식 설정 여부 |
+| ↳ ↳ `is_use` |  | 보호 설정 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `input_form_title` |  | 게시글 입력 양식 제목 |
+| ↳ ↳ `enable_input_form_title` |  | 게시글 입력 양식 제목 노출 여부 · T : 사용함 · F : 사용안함 |
+| ↳ `page_size` |  | 페이지당 목록 수 |
+| ↳ `product_page_size` |  | 상품 상세 정보 → 페이지당 목록 수 |
+| ↳ `page_display_count` |  | 페이지 표시 수 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "board": {
+        "shop_no": 1,
+        "board_no": 4,
+        "board_type": 5,
+        "board_name": "Notice",
+        "use_additional_board": "T",
+        "use_board": "T",
+        "use_display": "T",
+        "use_top_image": "T",
+        "top_image_url": "https://www.example.com/image.jpg",
+        "display_order": 1,
+        "attached_file": "F",
+        "attached_file_size_limit": 10485760,
+        "article_display_type": "A",
+        "image_display": "T",
+        "image_resize": 587,
+        "use_category": "T",
+        "categories": [
+            {
+                "id": 27,
+                "name": "Category1"
+            },
+            {
+                "id": 28,
+                "name": "Category2"
+            }
+        ],
+        "secret_only": "F",
+        "admin_confirm": "F",
+        "comment_author_display": "U",
+        "comment_author_protection": {
+            "is_use": "T",
+            "author_name_type": "count",
+            "partial_character_display": "1",
+            "alternative_text_display": "Alternative comment author name"
+        },
+        "spam_auto_prevention": {
+            "apply_scope": [
+                "post_actions",
+                "comment"
+            ],
+            "member_scope": "N"
+        },
+        "reply_feature": "F",
+        "write_permission": "G",
+        "write_member_group_no": [
+            1,
+            2
+        ],
+        "write_permission_extra": {
+            "is_member_buy": "T",
+            "member_write_after": "shipend_date",
+            "use_member_write_period": "F",
+            "member_write_period": 10,
+            "is_guest_buy": "T",
+            "guest_write_after": "shipend_date",
+            "use_guest_write_period": "F",
+            "guest_write_period": 1,
+            "product_info_option": "T",
+            "post_length_limit": "T",
+            "post_min_length": 12,
+            "post_editable": "F"
+        },
+        "reply_permission": "G",
+        "reply_member_group_no": [
+            3,
+            4
+        ],
+        "author_display": "I",
+        "author_protection": {
+            "is_use": "T",
+            "author_name_type": "count",
+            "partial_character_display": "1",
+            "alternative_text_display": "Alternative author name"
+        },
+        "board_guide": "This is a guide for the board.",
+        "use_comment": "T",
+        "admin_title_fixed": {
+            "is_use": "T",
+            "admin_title_list": [
+                "first",
+                "second",
+                "third"
+            ],
+            "staff_skip_post_title": "T"
+        },
+        "admin_reply_fixed": {
+            "is_use": "T",
+            "admin_reply_list": [
+                "first",
+                "second",
+                "third"
+            ],
+            "staff_skip_reply_title": "T"
+        },
+        "input_form": {
+            "is_use": "T",
+            "input_form_title": [
+                "first",
+                "second",
+                "third"
+            ],
+            "enable_input_form_title": [
+                "T",
+                "F",
+                "T"
+            ]
+        },
+        "page_size": 10,
+        "product_page_size": 10,
+        "page_display_count": 10
+    }
+}
+```

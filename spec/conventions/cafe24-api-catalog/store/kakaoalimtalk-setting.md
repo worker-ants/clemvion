@@ -2,7 +2,7 @@
 resource: store
 entity: kakaoalimtalk-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#kakaoalimtalk-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Kakaoalimtalk setting
@@ -34,6 +34,27 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `kakaoalimtalk` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `use_kakaoalimtalk` |  | 카카오알림톡 사용 여부 T: 사용함 · F: 사용안함 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "kakaoalimtalk": {
+        "shop_no": 1,
+        "use_kakaoalimtalk": "T"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/kakaoalimtalk/setting` — Update the Kakao Info-talk settings
 
 - **Scope**: `mall.write_store` (write)
@@ -48,3 +69,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `use_kakaoalimtalk` |  |  |  | 카카오알림톡 사용 여부 T: 사용함 · F: 사용안함 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `kakaoalimtalk` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `use_kakaoalimtalk` |  | 카카오알림톡 사용 여부 T: 사용함 · F: 사용안함 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "kakaoalimtalk": {
+        "shop_no": 1,
+        "use_kakaoalimtalk": "T"
+    }
+}
+```

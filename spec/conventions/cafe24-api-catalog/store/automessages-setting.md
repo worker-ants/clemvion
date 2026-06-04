@@ -2,7 +2,7 @@
 resource: store
 entity: automessages-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#automessages-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Automessages setting
@@ -38,6 +38,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `automessages` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `use_sms` |  | SMS 사용 여부 T: 사용함 · F: 사용안함 |
+| ↳ `use_kakaoalimtalk` |  | 카카오알림톡 사용 여부 T: 사용함 · F: 사용안함 |
+| ↳ `use_push` |  | PUSH 사용 여부 T: 사용함 · F: 사용안함 |
+| ↳ `send_method` |  | 자동 발송 메시지 발송 방법 S: SMS · K: 카카오알림톡(발송 실패 시 · SMS로 대체 발송) |
+| ↳ `send_method_push` |  | 푸시 수신 대상에게 푸시 우선 발송 여부 T : 우선 발송함 · F : 우선 발송 안함 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "automessages": {
+        "shop_no": 1,
+        "use_sms": "T",
+        "use_kakaoalimtalk": "T",
+        "use_push": "T",
+        "send_method": "S",
+        "send_method_push": "F"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/automessages/setting` — Update an automated message
 
 - **Scope**: `mall.write_store` (write)
@@ -53,3 +82,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `send_method` | ✓ |  |  | 자동 발송 메시지 발송 방법 S: SMS · K: 카카오알림톡(발송 실패 시 · SMS로 대체 발송) |
 | `send_method_push` |  |  |  | 푸시 수신 대상에게 푸시 우선 발송 여부 Youtube shopping 이용 시에는 미제공 T : 우선 발송함 · F : 우선 발송 안함 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `automessages` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `send_method` |  | 자동 발송 메시지 발송 방법 S: SMS · K: 카카오알림톡(발송 실패 시 · SMS로 대체 발송) |
+| ↳ `send_method_push` |  | 푸시 수신 대상에게 푸시 우선 발송 여부 T : 우선 발송함 · F : 우선 발송 안함 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "automessages": {
+        "shop_no": 1,
+        "send_method": "S",
+        "send_method_push": "F"
+    }
+}
+```

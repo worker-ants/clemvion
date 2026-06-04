@@ -2,7 +2,7 @@
 resource: product
 entity: products__customproperties
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--customproperties
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products customproperties
@@ -35,6 +35,41 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `product_no` | ✓ |  |  | 상품번호 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `products` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `custom_properties` |  | 자체 정의 속성 |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
+| ↳ ↳ `property_value` |  | 자체 정의 속성 값 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "products": {
+        "shop_no": 1,
+        "custom_properties": [
+            {
+                "property_no": 1001,
+                "property_name": "Color",
+                "property_value": "Blue"
+            },
+            {
+                "property_no": 1002,
+                "property_name": "Size",
+                "property_value": "Large"
+            }
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/products/{product_no}/customproperties/{property_no}` — Update user-defined properties by product
 
 - **Scope**: `mall.write_product` (write)
@@ -52,6 +87,41 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] |  | 멀티쇼핑몰 번호 |
 | `property_value` |  |  |  | 자체 정의 속성 값 |
 
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `custom_properties` |  | 자체 정의 속성 |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
+| ↳ ↳ `property_value` |  | 자체 정의 속성 값 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "product": {
+        "shop_no": 1,
+        "custom_properties": [
+            {
+                "property_no": 1001,
+                "property_name": "Color",
+                "property_value": "Red"
+            },
+            {
+                "property_no": 1002,
+                "property_name": "Size",
+                "property_value": "Large"
+            }
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/products/{product_no}/customproperties/{property_no}` — Delete user-defined properties by product
 
 - **Scope**: `mall.write_product` (write)
@@ -66,3 +136,38 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `product_no` | ✓ |  |  | 상품번호 |
 | `property_no` | ✓ |  |  | 자체 정의 속성 번호 |
+
+#### 응답 (Response)
+
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `custom_properties` |  | 자체 정의 속성 |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
+| ↳ ↳ `property_value` |  | 자체 정의 속성 값 |
+
+응답 예시 (JSON):
+
+```json
+{
+    "product": {
+        "shop_no": 1,
+        "custom_properties": [
+            {
+                "property_no": 1001,
+                "property_name": "Color",
+                "property_value": ""
+            },
+            {
+                "property_no": 1002,
+                "property_name": "Size",
+                "property_value": "Large"
+            }
+        ]
+    }
+}
+```
