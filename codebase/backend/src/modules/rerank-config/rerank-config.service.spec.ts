@@ -95,6 +95,69 @@ describe('RerankConfigService', () => {
       expect(savedEntity.apiKey).toBeNull();
       expect(result.apiKey).toBeNull();
     });
+
+    it('R5: rejects cohere baseUrl pointing to a private/loopback host (SSRF)', async () => {
+      const dto = {
+        provider: 'cohere' as const,
+        name: 'Evil Cohere',
+        apiKey: 'co-test123456789abcdef',
+        baseUrl: 'http://169.254.169.254/latest/meta-data',
+        defaultModel: 'rerank-3.5',
+      };
+
+      await expect(service.create('workspace-1', dto)).rejects.toMatchObject({
+        response: { code: 'RERANK_CONFIG_INVALID' },
+      });
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('R5: allows tei baseUrl to target a private host (self-hosted exemption)', async () => {
+      const dto = {
+        provider: 'tei' as const,
+        name: 'TEI on private net',
+        baseUrl: 'http://10.0.0.5:8080',
+        defaultModel: 'bge-reranker-v2-m3',
+      };
+
+      await expect(service.create('workspace-1', dto)).resolves.toBeDefined();
+      expect(mockRepo.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('update (SSRF guard, R5)', () => {
+    it('rejects switching to cohere with an existing private baseUrl', async () => {
+      // 기존 tei + 사설 baseUrl 을 cohere 로 바꾸는 경로도 차단돼야 한다.
+      mockRepo.findOne.mockResolvedValueOnce({
+        id: 'r1',
+        workspaceId: 'ws1',
+        provider: 'tei',
+        baseUrl: 'http://127.0.0.1:8080',
+        apiKey: null,
+      });
+
+      await expect(
+        service.update('r1', 'ws1', { provider: 'cohere' }),
+      ).rejects.toMatchObject({
+        response: { code: 'RERANK_CONFIG_INVALID' },
+      });
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects updating cohere baseUrl to a loopback address', async () => {
+      mockRepo.findOne.mockResolvedValueOnce({
+        id: 'r1',
+        workspaceId: 'ws1',
+        provider: 'cohere',
+        baseUrl: 'https://api.cohere.com',
+        apiKey: null,
+      });
+
+      await expect(
+        service.update('r1', 'ws1', { baseUrl: 'http://localhost:9000' }),
+      ).rejects.toMatchObject({
+        response: { code: 'RERANK_CONFIG_INVALID' },
+      });
+    });
   });
 
   describe('resolveConfig', () => {

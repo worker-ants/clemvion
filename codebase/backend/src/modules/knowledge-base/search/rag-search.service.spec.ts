@@ -456,7 +456,9 @@ describe('RagSearchService', () => {
           workspaceId: 'ws-1',
           rerankConfigId: 'rc-1',
           topK: 5,
-          scoreThreshold: null,
+          // rerankScoreThreshold=null → 런타임 threshold(default 0.7) fallback (R1).
+          scoreThreshold: 0.7,
+          mode: 'cross_encoder',
           candidates: expect.arrayContaining([
             expect.objectContaining({ chunkId: 'c1' }),
           ]),
@@ -483,6 +485,133 @@ describe('RagSearchService', () => {
       expect(mockRerankService.rerankCandidates).not.toHaveBeenCalled();
       expect(result.results).toEqual([]);
       expect(result.rerank?.candidateCount).toBe(0);
+    });
+
+    it('R1: rerankScoreThreshold(KB 설정) 가 있으면 그것을 우선해 scoreThreshold 로 전달', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({
+            id: 'kb-1',
+            rerankMode: 'cross_encoder',
+            rerankScoreThreshold: 0.42,
+          }),
+        ])
+        .mockResolvedValueOnce([wideRow(1, 0.6)]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+      mockRerankService.rerankCandidates.mockResolvedValue({
+        results: [],
+        diagnostics: {
+          mode: 'cross_encoder',
+          candidateCount: 1,
+          returnedCount: 0,
+          llmGradingApplied: false,
+          cutoffApplied: true,
+          error: null,
+        },
+      });
+
+      // 런타임 threshold(0.9)를 넘겨도 KB 설정(0.42)이 우선해야 한다.
+      await service.searchWithMeta('q', ['kb-1'], 'ws-1', {
+        topK: 5,
+        threshold: 0.9,
+      });
+
+      expect(mockRerankService.rerankCandidates).toHaveBeenCalledWith(
+        expect.objectContaining({ scoreThreshold: 0.42 }),
+      );
+    });
+
+    it('R1: rerankScoreThreshold 미설정(NULL)이면 런타임/LLM threshold 로 fallback', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({
+            id: 'kb-1',
+            rerankMode: 'cross_encoder',
+            rerankScoreThreshold: null,
+          }),
+        ])
+        .mockResolvedValueOnce([wideRow(1, 0.6)]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+      mockRerankService.rerankCandidates.mockResolvedValue({
+        results: [],
+        diagnostics: {
+          mode: 'cross_encoder',
+          candidateCount: 1,
+          returnedCount: 0,
+          llmGradingApplied: false,
+          cutoffApplied: true,
+          error: null,
+        },
+      });
+
+      await service.searchWithMeta('q', ['kb-1'], 'ws-1', {
+        topK: 5,
+        threshold: 0.33,
+      });
+
+      expect(mockRerankService.rerankCandidates).toHaveBeenCalledWith(
+        expect.objectContaining({ scoreThreshold: 0.33 }),
+      );
+    });
+
+    it('R2: cross_encoder_llm 도 cross-encoder 재점수화 분기를 타고 mode 가 진단에 보존됨 (cosine 무음 강등 아님)', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({
+            id: 'kb-1',
+            rerankMode: 'cross_encoder_llm',
+            rerankConfigId: 'rc-1',
+          }),
+        ])
+        .mockResolvedValueOnce([wideRow(1, 0.6), wideRow(2, 0.55)]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+      mockRerankService.rerankCandidates.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'Doc 1',
+            content: 'content 1',
+            score: 0.9,
+            metadata: {},
+            origin: 'reranked',
+          },
+        ],
+        diagnostics: {
+          mode: 'cross_encoder_llm',
+          candidateCount: 2,
+          returnedCount: 1,
+          llmGradingApplied: false,
+          cutoffApplied: false,
+          error: null,
+        },
+      });
+
+      const result = await service.searchWithMeta('q', ['kb-1'], 'ws-1', {
+        topK: 5,
+      });
+
+      // cross-encoder 레이어를 통째로 skip 하지 않고 RerankService 로 위임돼야 한다.
+      expect(mockRerankService.rerankCandidates).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: 'cross_encoder_llm' }),
+      );
+      expect(result.rerank?.mode).toBe('cross_encoder_llm');
+      // LLM grading 단계는 후속 — breadcrumb 으로 false 노출 (무음 강등 아님).
+      expect(result.rerank?.llmGradingApplied).toBe(false);
+    });
+
+    it('R2: cross_encoder_llm 후보 0건이어도 진단 mode 가 cross_encoder_llm 로 노출', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({ id: 'kb-1', rerankMode: 'cross_encoder_llm' }),
+        ])
+        .mockResolvedValueOnce([]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      const result = await service.searchWithMeta('q', ['kb-1'], 'ws-1');
+
+      expect(mockRerankService.rerankCandidates).not.toHaveBeenCalled();
+      expect(result.rerank?.mode).toBe('cross_encoder_llm');
     });
 
     it('멀티 KB 면 cross_encoder 라도 리랭크 분기를 타지 않는다 (후속)', async () => {

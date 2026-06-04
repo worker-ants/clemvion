@@ -33,7 +33,9 @@ describe('AiAgentHandler', () => {
       embed: jest.fn().mockResolvedValue([[0.1, 0.2, 0.3]]),
     };
 
-    mockRagService = { searchWithMeta: jest.fn().mockResolvedValue({ results: [] }) };
+    mockRagService = {
+      searchWithMeta: jest.fn().mockResolvedValue({ results: [] }),
+    };
     mockKbService = {
       findById: jest
         .fn()
@@ -312,6 +314,66 @@ describe('AiAgentHandler', () => {
       expect(diag.attempted).toBe(true);
       expect(diag.searchedKbCount).toBe(1);
       expect(diag.resultCount).toBe(1);
+    });
+
+    it('R3: propagates rerank diagnostics into meta.ragDiagnostics.rerank', async () => {
+      const rerankDiag = {
+        mode: 'cross_encoder' as const,
+        candidateCount: 50,
+        returnedCount: 1,
+        llmGradingApplied: false,
+        cutoffApplied: true,
+        error: null,
+      };
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'refund.md',
+            content: '14-day refund window.',
+            score: 0.95,
+            metadata: {},
+          },
+        ],
+        rerank: rerankDiag,
+      });
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-kb-1',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"refund window"}',
+            },
+          ],
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'You have 14 days.',
+          usage: { inputTokens: 80, outputTokens: 20, totalTokens: 100 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'When can I request a refund?',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      )) as unknown as Record<string, unknown>;
+
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
+      const diag = meta.ragDiagnostics as Record<string, unknown>;
+      // 핸들러 RagAccumulator 가 provider 의 rerank delta 를 노드 메타로 흘려야 한다.
+      expect(diag.rerank).toEqual(rerankDiag);
     });
 
     it('runs parallel kb_ tool calls when LLM emits multiple in one response', async () => {

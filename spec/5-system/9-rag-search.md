@@ -256,7 +256,7 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 }
 ```
 
-`error` 는 실패 시 `RERANK_ENDPOINT_FAILED` / `RERANK_LLM_GRADING_FAILED` / `RERANK_CONFIG_INVALID` (UPPER_SNAKE_CASE). 어떤 값이든 검색은 cosine 경로로 안전 강등되며 노드 실패가 아니다 (§6).
+`error` 는 실패 시 `RERANK_ENDPOINT_FAILED` / `RERANK_NO_VALID_RESULTS` / `RERANK_LLM_GRADING_FAILED` / `RERANK_CONFIG_INVALID` (UPPER_SNAKE_CASE). 어떤 값이든 검색은 cosine 경로로 안전 강등되며 노드 실패가 아니다 (§6).
 
 ---
 
@@ -277,6 +277,7 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 | 검색 결과 0건 | `tool_result` 의 `results: []` 로 LLM 에 전달. LLM 이 재검색 또는 일반 답변 결정 |
 | 임베딩 API / pgvector 쿼리 실패 | `tool_result` 의 `error: "search_failed"` 로 LLM 에 전달. LLM 이 graceful 응답 결정. 노드 실패는 아님 |
 | 리랭커 endpoint 실패/타임아웃 | wide 회수 결과를 cosine score 순 top-k 컷으로 **안전 강등**. `ragDiagnostics.rerank.error = "RERANK_ENDPOINT_FAILED"` |
+| 리랭커가 유효 결과 0건 반환 (모든 index 가 후보 범위 밖) | wide 회수 결과를 cosine score 순 top-k 컷으로 **안전 강등**. `ragDiagnostics.rerank.error = "RERANK_NO_VALID_RESULTS"`. 경고 로그 |
 | RerankConfig 미구성/미지원 provider | 해당 KB `off` 강등 (cosine 경로). `RERANK_CONFIG_INVALID`. 경고 로그 |
 | `cross_encoder_llm` grading LLM 실패 (후속) | cross-encoder 결과로 fallback (LLM 단계만 skip). `RERANK_LLM_GRADING_FAILED` |
 | `maxToolCalls` 도달 | tool loop 종료 후 마지막 LLM 응답을 그대로 반환 |
