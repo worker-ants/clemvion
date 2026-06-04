@@ -1932,6 +1932,120 @@ describe('ExecutionEngineService', () => {
         runSpy.mockRestore();
       }
     });
+
+    it('W2: setup 단계 throw 시 catch 가 execution 을 FAILED 로 best-effort 마킹', async () => {
+      mockExecutionRepo.findOneBy
+        .mockResolvedValueOnce(pendingRow({ triggerId: 'trg-w2' }))
+        .mockResolvedValueOnce(
+          pendingRow({ status: ExecutionStatus.RUNNING, startedAt: new Date() }),
+        );
+      const runSpy = jest
+        .spyOn(
+          service as unknown as { runExecution: jest.Mock },
+          'runExecution',
+        )
+        .mockRejectedValueOnce(new Error('setup boom'));
+      mockExecutionRepo.save.mockClear();
+      try {
+        await service.runExecutionFromQueue(executionId, {});
+        await flushPromises();
+        await flushPromises();
+        const failedSave = mockExecutionRepo.save.mock.calls.find(
+          (c) => (c[0] as Partial<Execution>)?.status === ExecutionStatus.FAILED,
+        );
+        expect(failedSave).toBeDefined();
+      } finally {
+        runSpy.mockRestore();
+      }
+    });
+
+    it('W2: failFirstSegmentSetup 은 이미 terminal 이면 재마킹 no-op', async () => {
+      mockExecutionRepo.findOneBy
+        .mockResolvedValueOnce(pendingRow({ triggerId: 'trg-w2b' }))
+        .mockResolvedValueOnce(pendingRow({ status: ExecutionStatus.FAILED }));
+      const runSpy = jest
+        .spyOn(
+          service as unknown as { runExecution: jest.Mock },
+          'runExecution',
+        )
+        .mockRejectedValueOnce(new Error('boom'));
+      mockExecutionRepo.save.mockClear();
+      try {
+        await service.runExecutionFromQueue(executionId, {});
+        await flushPromises();
+        await flushPromises();
+        const failedSave = mockExecutionRepo.save.mock.calls.find(
+          (c) => (c[0] as Partial<Execution>)?.status === ExecutionStatus.FAILED,
+        );
+        expect(failedSave).toBeUndefined();
+      } finally {
+        runSpy.mockRestore();
+      }
+    });
+
+    it('W1: 동일 executionId 재 arm 시 이전 배리어가 settle 돼 awaiter 가 hang 하지 않음', async () => {
+      const arm = (
+        service as unknown as {
+          armFirstSegmentBarrier: (id: string) => Promise<void>;
+        }
+      ).armFirstSegmentBarrier.bind(service);
+      let firstResolved = false;
+      void arm(executionId).then(() => {
+        firstResolved = true;
+      });
+      // 동일 키 재 arm → 이전 배리어를 settle(awaiter 해제) 후 새 배리어로 교체.
+      void arm(executionId);
+      await flushPromises();
+      expect(firstResolved).toBe(true);
+    });
+
+    it('멱등: settleFirstSegment 이중 호출 시 resolve 1회 + 키 삭제 (두 번째 no-op)', async () => {
+      const svc = service as unknown as {
+        armFirstSegmentBarrier: (id: string) => Promise<void>;
+        settleFirstSegment: (id: string) => void;
+        firstSegmentBarriers: Map<string, unknown>;
+      };
+      let resolvedCount = 0;
+      void svc.armFirstSegmentBarrier(executionId).then(() => {
+        resolvedCount += 1;
+      });
+      svc.settleFirstSegment(executionId); // 첫 정착 — resolve + delete
+      svc.settleFirstSegment(executionId); // 두 번째 — 키 부재로 no-op (throw 없이)
+      await flushPromises();
+      expect(resolvedCount).toBe(1);
+      expect(svc.firstSegmentBarriers.has(executionId)).toBe(false);
+    });
+
+    it('signalParkBarrier: main flow 는 정착, background subgraph(bg: 키)는 no-op', async () => {
+      const svc = service as unknown as {
+        armFirstSegmentBarrier: (id: string) => Promise<void>;
+        signalParkBarrier: (ctx: {
+          executionId: string;
+          _contextKey?: string;
+        }) => void;
+        settleFirstSegment: (id: string) => void;
+        firstSegmentBarriers: Map<string, unknown>;
+      };
+
+      // (1) bg context (_contextKey = bg:...) → contextKeyOf ≠ executionId → no-op
+      let bgResolved = false;
+      void svc.armFirstSegmentBarrier(executionId).then(() => {
+        bgResolved = true;
+      });
+      svc.signalParkBarrier({
+        executionId,
+        _contextKey: `bg:${executionId}:run-1`,
+      });
+      await flushPromises();
+      expect(bgResolved).toBe(false);
+      expect(svc.firstSegmentBarriers.has(executionId)).toBe(true);
+
+      // (2) main context (_contextKey 없음) → contextKeyOf === executionId → 정착
+      svc.signalParkBarrier({ executionId });
+      await flushPromises();
+      expect(bgResolved).toBe(true);
+      expect(svc.firstSegmentBarriers.has(executionId)).toBe(false);
+    });
   });
 
   describe('rehydrateAndResume — chat-channel routing context 재등록 (재개 경로)', () => {
@@ -2795,6 +2909,103 @@ describe('ExecutionEngineService', () => {
       );
     });
 
+    // §4.x "active 세그먼트 + durable park" 회귀 가드 — worker job 반환.
+    // 옛 버그: `runExecutionFromQueue`(worker process() 가 await 하는 진입점)가
+    // `runExecution` 전체를 await 해 form park 동안 BullMQ job(concurrency=1
+    // 슬롯)을 점유 → 새 execution 미실행. 본 테스트는 `runExecutionFromQueue` 가
+    // **park 시점에 resolve** (= 슬롯 반환) 하면서도 execution 은 in-process 로
+    // 계속 parked (pendingContinuations 에 resolver 잔류) 임을 검증한다.
+    it('§4.x — runExecutionFromQueue 는 form park 시점에 resolve (worker job 반환), execution 은 계속 parked', async () => {
+      // execute() 의 자동 worker 브릿지를 우회하고 직접 worker 진입점을 호출한다.
+      const fromQueue = service.runExecutionFromQueue(executionId, {
+        data: 'test',
+      });
+
+      // worker 진입점은 park 시점에 반환해야 한다 — 절대 form 제출까지 hang 하지
+      // 않는다. (옛 버그라면 이 await 는 영원히 resolve 되지 않아 timeout.)
+      await expect(fromQueue).resolves.toBeUndefined();
+
+      // 그러나 execution 자체는 in-process 로 여전히 대기 중 — resolver 잔류로 증명.
+      const pendings = getPendings(service);
+      expect(pendings.has(executionId)).toBe(true);
+      // 아직 form 다음(End) 노드는 실행되지 않았다 (start 만).
+      expect(mockHandler.execute).toHaveBeenCalledTimes(1);
+
+      // 이후 사용자 제출이 도착하면 fast-path(in-memory resolver)로 lossless 재개.
+      void service.continueExecution(executionId, { approved: true });
+      await flushPromises();
+      expect(mockHandler.execute).toHaveBeenCalledTimes(2); // start + end
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.completed',
+        expect.objectContaining({ status: 'completed' }),
+      );
+    });
+
+    // §4.x — A 가 parked 인 동안 B 가 즉시 실행됨 (worker 슬롯 starvation 해소).
+    // 같은 service 인스턴스에서 두 execution 의 worker 진입점을 순차 호출하되,
+    // A 가 park 로 슬롯을 반환했으므로 B 의 runExecutionFromQueue 가 막힘 없이
+    // 끝까지 진행한다.
+    it('§4.x — execution A 가 parked 인 동안 execution B 가 즉시 실행 완료된다', async () => {
+      const execA = 'exec-A-parked';
+      const execB = 'exec-B-runs';
+
+      // findOneBy 가 두 execution 모두 PENDING 으로 반환하도록 라우팅. A 는
+      // 폼 워크플로(park), B 는 단순 노드 워크플로(즉시 완료)로 분기한다.
+      const statusById: Record<string, ExecutionStatus> = {
+        [execA]: ExecutionStatus.PENDING,
+        [execB]: ExecutionStatus.PENDING,
+      };
+      mockExecutionRepo.findOneBy.mockImplementation(({ id }: { id: string }) =>
+        Promise.resolve({
+          id,
+          workflowId,
+          status: statusById[id] ?? ExecutionStatus.PENDING,
+          inputData: {},
+          startedAt: new Date(),
+        }),
+      );
+      // updateExecutionStatus → save 가 상태를 갱신하면 후속 findOneBy 가 반영하도록.
+      mockExecutionRepo.save.mockImplementation(
+        (entity: Partial<Execution>) => {
+          if (entity.id && entity.status) {
+            statusById[entity.id] = entity.status;
+          }
+          return Promise.resolve(entity);
+        },
+      );
+
+      // A: 폼 워크플로로 park.
+      const aQueue = service.runExecutionFromQueue(execA, { data: 'a' });
+      await expect(aQueue).resolves.toBeUndefined();
+      expect(getPendings(service).has(execA)).toBe(true);
+
+      // B: 폼 없는 단순 워크플로(start→end, 모두 test_node)로 즉시 완료.
+      mockNodeRepo.findBy.mockResolvedValueOnce([
+        {
+          id: 'b-start',
+          workflowId,
+          type: 'test_node',
+          category: NodeCategory.LOGIC,
+          config: {},
+          isDisabled: false,
+        },
+      ]);
+      mockEdgeRepo.findBy.mockResolvedValueOnce([]);
+
+      const bQueue = service.runExecutionFromQueue(execB, { data: 'b' });
+      // B 의 worker 진입점은 A 의 park 와 무관하게 즉시 완료까지 진행 → resolve.
+      await expect(bQueue).resolves.toBeUndefined();
+      await flushPromises();
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        execB,
+        'execution.completed',
+        expect.objectContaining({ status: 'completed' }),
+      );
+      // A 는 여전히 parked.
+      expect(getPendings(service).has(execA)).toBe(true);
+    });
+
     // Engine hook (spec/conventions/conversation-thread.md §2.1) — form resume
     // must push a presentation_user turn to the
     // ConversationThread so downstream AI Agent nodes can auto-inject it.
@@ -3235,6 +3446,28 @@ describe('ExecutionEngineService', () => {
         }),
       );
     });
+
+    // §4.x 회귀 가드 (button) — worker job 반환 후 click 으로 lossless 재개.
+    it('§4.x — runExecutionFromQueue 는 button park 시점에 resolve, click 후 재개 완료', async () => {
+      const fromQueue = service.runExecutionFromQueue(executionId, {
+        data: 'test',
+      });
+      await expect(fromQueue).resolves.toBeUndefined();
+
+      const pendings = getPendings(service);
+      expect(pendings.has(executionId)).toBe(true);
+      expect(mockHandler.execute).toHaveBeenCalledTimes(1); // start only
+
+      void service.continueButtonClick(executionId, 'btn-1');
+      await flushPromises();
+      // btn-1 포트로 end 노드 라우팅 → 실행 완료.
+      expect(mockHandler.execute).toHaveBeenCalledTimes(2); // start + end
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.completed',
+        expect.objectContaining({ status: 'completed' }),
+      );
+    });
   });
 
   describe('AI Agent multi-turn — execution.ai_message emit shape', () => {
@@ -3383,6 +3616,57 @@ describe('ExecutionEngineService', () => {
       // accidental reintroduction.
       expect(payload).not.toHaveProperty('requestPayload');
       expect(payload).not.toHaveProperty('responsePayload');
+    });
+
+    // §4.x 회귀 가드 (AI multi-turn) — worker job 반환이 가장 중요한 케이스.
+    // AI 멀티턴의 `waitForAiConversation` 은 대화 종료까지 도는 **장수 루프**라
+    // 옛 구현에서는 worker 슬롯을 대화 수명 내내 점유했다 (가장 심각한 starvation).
+    // 본 테스트: `runExecutionFromQueue` 가 첫 turn park 시점에 resolve(슬롯 반환)
+    // 하면서도 대화는 in-process 로 계속 진행됨을 검증한다.
+    //
+    // 커버리지 노트 (ai-review testing Info): `information_extractor` multi-turn 의
+    // park 도 동일 공용 경로(`waitForAiConversation` → `signalParkBarrier`)를 타므로
+    // 본 ai_agent 테스트가 그 분기까지 함께 가드한다 (별도 노드-타입 테스트 불요).
+    it('§4.x — runExecutionFromQueue 는 AI 멀티턴 첫 park 시점에 resolve (장수 루프가 worker 슬롯을 점유하지 않음)', async () => {
+      const handler = makeAiAgentHandler(() => ({
+        config: { mode: 'multi_turn' },
+        output: {
+          result: {
+            messages: [
+              { role: 'user', content: 'hi' },
+              { role: 'assistant', content: 'hello' },
+            ],
+            message: 'hello',
+            turnCount: 1,
+          },
+        },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [
+            { role: 'user', content: 'hi' },
+            { role: 'assistant', content: 'hello' },
+          ],
+          turnCount: 1,
+          model: 'test-model',
+          totalInputTokens: 5,
+          totalOutputTokens: 2,
+          turnDebugHistory: [],
+        },
+      }));
+      handlerRegistry.register('ai_agent', handler);
+
+      const fromQueue = service.runExecutionFromQueue(executionId, {});
+      // 장수 대화 루프임에도 worker 진입점은 첫 park 에서 반환한다.
+      await expect(fromQueue).resolves.toBeUndefined();
+
+      // 대화는 in-process 로 여전히 진행 중 (resolver 잔류 = 다음 turn 대기).
+      expect(getPendings(service).has(executionId)).toBe(true);
+
+      // 후속 turn 입력은 fast-path 로 처리 (loop 상태 보존 — turnCount 진행).
+      void service.continueAiConversation(executionId, 'hi');
+      await flushPromises();
+      expect(handler.processMultiTurnMessage).toHaveBeenCalled();
     });
 
     // spec/5-system/6-websocket-protocol.md §4.4 execution.user_message +

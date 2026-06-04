@@ -665,6 +665,109 @@ export class ExecutionEngineService
   >();
 
   /**
+   * §4.x "active 세그먼트 + durable park" — `execution-run` / `execution-continuation`
+   * 워커 슬롯 해제 배리어.
+   *
+   * Key 는 `executionId` (main flow 한정 — background subgraph 의 `bg:` 키는 등록하지
+   * 않는다). Value 는 "첫 active 세그먼트 정착" 신호를 받는 단발 resolver.
+   *
+   * 배경: 옛 구현은 worker `process()` 가 `runExecution` 전체(=park 동안의
+   * `waitForX` 블로킹 포함)를 await 해 BullMQ job 을 park 내내 점유했다. 그 결과
+   * worker concurrency 슬롯이 사용자 입력 대기 동안 묶여 새 `execution-run` job 을
+   * pick up 하지 못했다 (spec §4.x 위반 — "BLOCK 진입 시 job 은 정상 ack").
+   *
+   * 본 배리어로 worker 는 첫 세그먼트가 **(a) 완료/실패/취소** 하거나 **(b) 사용자
+   * 입력 대기(`waiting_for_input`) 로 park** 하는 첫 순간에 깨어나 job 을 ack 하고
+   * 반환한다. `runExecution` 코루틴은 detach 되어 in-process 로 계속 살아있으므로
+   * 재개는 기존 fast-path(in-memory `pendingContinuations` resolve)로 lossless 하게
+   * 동작한다 (conversationThread / reachability / parallel·container 상태 무손실).
+   * 프로세스가 죽으면 §7.5 rehydration slow-path 가 DB 에서 재구성해 재개한다 —
+   * 두 경로 모두 무변경.
+   *
+   * 정리: `settleFirstSegment` 가 resolve 후 키 삭제(단발). `runExecution` finally
+   * 의 `settleFirstSegment(executionId)` 가 terminal 정착을 보장 (park 없이 끝난 경우).
+   */
+  private readonly firstSegmentBarriers = new Map<
+    string,
+    { resolve: () => void; settled: boolean }
+  >();
+
+  /**
+   * 첫 세그먼트 정착 배리어를 등록하고 그 Promise 를 반환한다. worker
+   * (`runExecutionFromQueue`)가 이 Promise 를 await 해 park/완료 시점에 job 을
+   * 반환한다. 등록 전에 이미 정착됐을 race 는 호출 측에서 즉시-반환으로 처리할 수
+   * 없으므로, 본 메서드는 `runExecution` 코루틴을 **launch 하기 직전** 호출해
+   * 배리어를 먼저 심는다.
+   */
+  private armFirstSegmentBarrier(executionId: string): Promise<void> {
+    // 방어 (ai-review W1): 동일 executionId 로 이미 arm 된 배리어가 있으면(중복
+    // dispatch·at-least-once 재진입 등) 먼저 settle 해 그 awaiter 가 고아 resolver
+    // 로 영구 hang 하지 않게 한 뒤 새 배리어로 교체한다. `runExecutionFromQueue`
+    // 의 `status!==PENDING` 가드로 현실 발생은 드물지만 Map.set 덮어쓰기의 결과를
+    // 결정적으로 만든다 (이전 worker 는 즉시 깨어나 ack/반환).
+    this.settleFirstSegment(executionId);
+    return new Promise<void>((resolve) => {
+      this.firstSegmentBarriers.set(executionId, { resolve, settled: false });
+    });
+  }
+
+  /**
+   * 첫 세그먼트가 정착(park 또는 terminal)했음을 배리어에 통지한다. 멱등 — 첫
+   * 호출만 resolve 하고 이후 호출은 no-op. park 시점(`waitForX` 의 pending 등록
+   * 직전)과 terminal 시점(`runExecution` finally) 양쪽에서 호출되며, 둘 중 먼저
+   * 도달한 쪽이 worker 를 깨운다.
+   */
+  private settleFirstSegment(executionId: string): void {
+    const barrier = this.firstSegmentBarriers.get(executionId);
+    if (!barrier || barrier.settled) return;
+    barrier.settled = true;
+    this.firstSegmentBarriers.delete(executionId);
+    barrier.resolve();
+  }
+
+  /**
+   * ai-review W2 — detached `runExecution` 의 setup 단계 throw(자체 try 진입 전)
+   * 로 execution 이 terminal 마킹되지 못한 경우의 best-effort 마감. 이미 terminal
+   * 이면(정상 경로 — runExecution 자체 catch 가 처리) no-op. 본 핸들러 자신이 다시
+   * throw 해 unhandled rejection 을 만들지 않도록 전체를 격리한다.
+   */
+  private async failFirstSegmentSetup(
+    executionId: string,
+    error: unknown,
+  ): Promise<void> {
+    try {
+      const row = await this.executionRepository.findOneBy({ id: executionId });
+      if (
+        !row ||
+        row.status === ExecutionStatus.COMPLETED ||
+        row.status === ExecutionStatus.FAILED ||
+        row.status === ExecutionStatus.CANCELLED
+      ) {
+        return;
+      }
+      const errMessage = error instanceof Error ? error.message : String(error);
+      row.status = ExecutionStatus.FAILED;
+      row.error = { message: errMessage };
+      row.finishedAt = new Date();
+      if (row.startedAt) {
+        row.durationMs = row.finishedAt.getTime() - row.startedAt.getTime();
+      }
+      await this.executionRepository.save(row);
+      await this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.EXECUTION_FAILED,
+        { status: ExecutionStatus.FAILED, error: errMessage },
+      );
+    } catch (markErr) {
+      this.logger.error(
+        `failFirstSegmentSetup(${executionId}) best-effort 마킹 실패: ${
+          markErr instanceof Error ? markErr.message : String(markErr)
+        }`,
+      );
+    }
+  }
+
+  /**
    * INFO #10 (Concurrency) — 실행 단위 LLM-default-config lookup 캐시.
    * Key: `${executionId}:${workspaceId}` → cached `Promise<boolean>`.
    *
@@ -2262,18 +2365,33 @@ export class ExecutionEngineService
       });
     }
 
-    try {
-      await this.runExecution(execution, input);
-    } catch (error: unknown) {
+    // §4.x "active 세그먼트 + durable park" — worker(`process()`)는 첫 active
+    // 세그먼트(시작 → 첫 BLOCK/완료)만 await 하고 반환해야 BullMQ job 이 park 내내
+    // 점유되지 않는다. `runExecution` 코루틴은 detach 해 in-process 로 계속 살리고,
+    // 본 메서드는 "첫 세그먼트 정착(park 또는 terminal)" 배리어를 await 한다.
+    //
+    // launch 직전 배리어를 arm 해 `runExecution` 이 첫 tick 에 park 해도 신호를
+    // 놓치지 않는다. 세그먼트가 park 없이 완료/실패하면 `runExecution` finally 의
+    // `settleFirstSegment` 가 동일 배리어를 깨운다.
+    const settled = this.armFirstSegmentBarrier(executionId);
+    this.runExecution(execution, input).catch((error: unknown) => {
+      // `runExecution` 은 자체 try/catch 로 terminal 상태를 마킹하므로 여기 도달은
+      // setup 단계(본문 진입 전) 미처리 throw 뿐이다. 배리어가 영구 hang 하지
+      // 않도록 정착 신호를 보내고 stale routing context 를 release 한다.
+      this.settleFirstSegment(executionId);
       this.logger.error(
         `Background execution failed for ${executionId}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
-      // setup 단계(본문 진입 전) throw 안전망 — terminal event 가 emit 되지 못해
-      // routing context 가 stale 로 남는 것을 차단. Map.delete 는 idempotent.
       this.eventEmitter.releaseExecutionRouting(executionId);
-    }
+      // 방어 (ai-review W2): setup 단계 throw 면 runExecution 자체 catch 가 terminal
+      // 마킹을 못 해 execution 이 PENDING/RUNNING 으로 잔류한다 (recoverStuckExecutions
+      // 백스톱이 30분 후 정리하지만 즉시 마감이 옳다). best-effort 로 FAILED 마킹.
+      void this.failFirstSegmentSetup(executionId, error);
+    });
+    // park 또는 terminal 중 먼저 도달한 시점에 깨어나 job 을 ack/반환한다.
+    await settled;
   }
 
   /**
@@ -2814,6 +2932,19 @@ export class ExecutionEngineService
   }
 
   /**
+   * §4.x — blocking 노드가 사용자 입력 대기(`waiting_for_input`)로 park 하기 직전
+   * 호출해 first-segment 배리어를 깨운다 (worker job 반환). main flow 한정 —
+   * background subgraph 의 `bg:` 컨텍스트는 별도 `execution-run` job 으로 운반되지
+   * 않으므로(부모 job 에 종속) 신호하지 않는다. 멱등이므로 멀티턴 후속 park 의
+   * 반복 호출은 안전하다 (배리어는 첫 정착 후 삭제).
+   */
+  private signalParkBarrier(context: ExecutionContext): void {
+    if (this.contextKeyOf(context) === context.executionId) {
+      this.settleFirstSegment(context.executionId);
+    }
+  }
+
+  /**
    * Runs the actual execution logic. Called in background after execute()
    * returns the execution ID to the caller.
    */
@@ -3184,6 +3315,9 @@ export class ExecutionEngineService
         },
       );
     } finally {
+      // 첫 세그먼트가 park 없이 terminal(완료/실패/취소) 도달한 경우 worker 를
+      // 깨운다 (멱등 — park 시점에 이미 정착됐으면 no-op).
+      this.settleFirstSegment(executionId);
       this.pendingContinuations.delete(executionId);
       this.contextService.deleteContext(executionId);
       this.clearLlmDefaultConfigCache(executionId);
@@ -3307,12 +3441,16 @@ export class ExecutionEngineService
     // `{type:'form_submitted', formData}` sentinel. Unwrap here so the rest
     // of the function continues to see raw formData (back-compat with the
     // pre-wrap signature).
+    // §4.x — pending 등록 직전 worker job 반환 (park). resolver 등록과 같은 동기
+    // tick 에서 신호하므로, worker 가 깨어난 직후 도착하는 continuation 의 fast-path
+    // (pendingContinuations hit) 와 race 하지 않는다.
     const submitted = await new Promise<unknown>((resolve, reject) => {
       this.pendingContinuations.set(this.contextKeyOf(context), {
         nodeId: node.id,
         resolve,
         reject,
       });
+      this.signalParkBarrier(context);
     });
     // spec §10.9 — sentinel unwrap. continueExecution 이 `{type:'form_submitted',
     // formData}` 로 wrap 해 publish 했으므로 sentinel guard 로 안전하게 unwrap.
@@ -4618,12 +4756,17 @@ export class ExecutionEngineService
         action = replayAction;
       } else {
         // Wait for user message or end signal (no timeout — external cancel only)
+        // §4.x — pending 등록 직전 worker job 반환 (park). 멀티턴은 매 turn 마다
+        // 이 지점에 도달하나, 배리어는 첫 정착 후 삭제되므로 signalParkBarrier 는
+        // 첫 turn 의 첫 park 에서만 실효(이후 no-op). 후속 turn 입력은 새 continuation
+        // job → fast-path 로 처리되며 worker 슬롯을 점유하지 않는다.
         const userData = await new Promise<unknown>((resolve, reject) => {
           this.pendingContinuations.set(this.contextKeyOf(context), {
             nodeId: node.id,
             resolve,
             reject,
           });
+          this.signalParkBarrier(context);
         });
         action = userData as ContinuationPayload;
       }
@@ -5806,12 +5949,14 @@ export class ExecutionEngineService
     );
 
     // Await user button click indefinitely; external cancel is the only exit.
+    // §4.x — pending 등록 직전 worker job 반환 (park).
     const clickData = await new Promise<unknown>((resolve, reject) => {
       this.pendingContinuations.set(this.contextKeyOf(context), {
         nodeId: node.id,
         resolve,
         reject,
       });
+      this.signalParkBarrier(context);
     });
 
     // Process the interaction result
