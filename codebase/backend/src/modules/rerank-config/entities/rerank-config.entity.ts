@@ -36,10 +36,12 @@ export class RerankConfig {
   name: string;
 
   // rerank apiKey 는 tei/local 셀프호스팅에서 선택 — nullable.
-  @Column({ name: 'api_key', length: 500, nullable: true })
+  // `string | null` 유니온은 reflect-metadata 가 design:type 을 Object 로 추론하므로
+  // 명시적 type 을 줘야 한다 (DataTypeNotSupportedError 방지).
+  @Column({ name: 'api_key', type: 'varchar', length: 500, nullable: true })
   apiKey: string | null;
 
-  @Column({ name: 'base_url', length: 500, nullable: true })
+  @Column({ name: 'base_url', type: 'varchar', length: 500, nullable: true })
   baseUrl: string | null;
 
   @Column({ name: 'default_model', length: 100 })
