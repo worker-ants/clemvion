@@ -2,7 +2,7 @@
 resource: store
 entity: automessages-arguments
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#automessages-arguments
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Automessages arguments
@@ -37,3 +37,30 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "arguments": [
+        {
+            "shop_no": 1,
+            "name": "[NAME]",
+            "description": "Customer name",
+            "sample": "John Doe",
+            "string_length": "3",
+            "send_case": "All occasions"
+        },
+        {
+            "shop_no": 1,
+            "name": "[PRODUCT]",
+            "description": "Product name",
+            "sample": "iPhone X",
+            "string_length": "8",
+            "send_case": "Back-in-stock notification (Manual), Notification on shipment, Successful delivery, or Refund"
+        }
+    ]
+}
+```

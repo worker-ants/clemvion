@@ -2,7 +2,7 @@
 resource: order
 entity: orders__exchangerequests
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--exchangerequests
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders exchangerequests
@@ -44,3 +44,28 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `reason` |  | 최대글자수 : [2000자] |  | 사유 |
 | `display_reject_reason` |  |  | F | 주문상세내역 노출설정 T : 노출함 · F : 노출안함 |
 | `reject_reason` |  | 최대글자수 : [2000자] |  | 거부 사유 고객에게 노출되는 접수 거부 사유 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "exchangerequests": {
+        "shop_no": 1,
+        "order_id": "20200723-0000001",
+        "order_item_code": [
+            "20200723-0000001-01",
+            "20200723-0000001-02"
+        ],
+        "undone": "T",
+        "additional_payment_gateway_cancel": {
+            "success": [
+                "20200723-0000001-01",
+                "20200723-0000001-02"
+            ],
+            "fail": null
+        }
+    }
+}
+```

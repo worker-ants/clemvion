@@ -2,7 +2,7 @@
 resource: store
 entity: store-accounts
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#store-accounts
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Store accounts
@@ -38,3 +38,32 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "accounts": [
+        {
+            "shop_no": 1,
+            "bank_account_id": 1,
+            "bank_name": "Hana Bank",
+            "bank_code": "bank_81",
+            "bank_account_no": "123123123",
+            "bank_account_holder": "Depositor Name",
+            "use_account": "T"
+        },
+        {
+            "shop_no": 1,
+            "bank_account_id": 2,
+            "bank_name": "KB Bank",
+            "bank_code": "bank_04",
+            "bank_account_no": "123456789",
+            "bank_account_holder": "Depositor Name",
+            "use_account": "T"
+        }
+    ]
+}
+```

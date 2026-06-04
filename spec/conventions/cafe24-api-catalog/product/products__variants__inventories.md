@@ -2,7 +2,7 @@
 resource: product
 entity: products__variants__inventories
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--variants--inventories
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products variants inventories
@@ -43,6 +43,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `product_no` | ✓ |  |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
 | `variant_code` | ✓ | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] |  | 품목코드 판매 수량을 검색할 품목 코드 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "inventory": {
+        "shop_no": 1,
+        "variant_code": "P000000R000C",
+        "use_inventory": "T",
+        "important_inventory": "A",
+        "inventory_control_type": "B",
+        "display_soldout": "F",
+        "quantity": 0,
+        "safety_inventory": 0,
+        "origin_code": "W00000BT"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/products/{product_no}/variants/{variant_code}/inventories` — Update a product variant inventory
 
 - **Scope**: `mall.write_product` (write)
@@ -65,3 +85,23 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `quantity` |  |  |  | 수량 해당 품목에 판매가 가능한 재고 수량. 재고 수량은 주문 또는 결제시 차감되며, 품절 표시를 위하여 체크된다. |
 | `safety_inventory` |  |  |  | 안전재고수량 |
 | `origin_code` |  |  |  | 출고지 코드 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "inventory": {
+        "shop_no": 1,
+        "variant_code": "P00000GR000A",
+        "use_inventory": "T",
+        "important_inventory": "A",
+        "inventory_control_type": "A",
+        "display_soldout": "T",
+        "quantity": 3,
+        "safety_inventory": 8,
+        "origin_code": "W00000BT"
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: store
 entity: payment-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#payment-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Payment setting
@@ -40,6 +40,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "setting": {
+        "use_escrow": "T",
+        "use_escrow_account_transfer": "T",
+        "use_escrow_virtual_account": "F",
+        "pg_shipping_registration": "A",
+        "purchase_protection_amount": 0,
+        "use_direct_pay": "T",
+        "payment_display_type": "T"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/payment/setting` — Update payment settings
 
 - **Scope**: `mall.write_store` (write)
@@ -59,3 +77,21 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `pg_shipping_registration` |  |  |  | PG사 배송등록 A : 자동 등록(매일 오후 8시 수집) · M : 수동 등록 |
 | `use_direct_pay` |  |  |  | 빠른 결제 수단 사용여부 T : 사용함 · F : 사용안함 |
 | `payment_display_type` |  |  |  | 결제수단 표기 방식 T : 텍스트 · L : 로고 아이콘 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "setting": {
+        "shop_no": 1,
+        "use_escrow": "T",
+        "use_escrow_account_transfer": "T",
+        "use_escrow_virtual_account": "T",
+        "pg_shipping_registration": "A",
+        "use_direct_pay": "T",
+        "payment_display_type": "T"
+    }
+}
+```

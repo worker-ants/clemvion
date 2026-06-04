@@ -2,7 +2,7 @@
 resource: store
 entity: store-dropshipping
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#store-dropshipping
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Store dropshipping
@@ -33,6 +33,27 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "dropshipping": [
+        {
+            "shop_no": 1,
+            "name": "ALI",
+            "use": "T"
+        },
+        {
+            "shop_no": 1,
+            "name": "SAMPLE",
+            "use": "F"
+        }
+    ]
+}
+```
+
 ### `PUT /api/v2/admin/store/dropshipping` — Manage dropshipping settings
 
 - **Scope**: `mall.write_store` (write)
@@ -48,3 +69,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `name` | ✓ | 최대글자수 : [50자] |  | 드롭쉬핑 공급사명 |
 | `use` | ✓ |  |  | 드롭쉬핑 계정연동 여부 T : 연동함 · F : 연동안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "dropshipping": [
+        {
+            "shop_no": 1,
+            "name": "ALI",
+            "use": "T"
+        },
+        {
+            "shop_no": 1,
+            "name": "SAMPLE",
+            "use": "F"
+        }
+    ]
+}
+```

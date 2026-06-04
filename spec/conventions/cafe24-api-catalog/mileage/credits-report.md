@@ -2,7 +2,7 @@
 resource: mileage
 entity: credits-report
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#credits-report
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Mileage / Credits report
@@ -42,3 +42,18 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `admin_id` |  |  |  | 관리자 아이디 |
 | `search_field` |  |  |  | 검색필드 id : 아이디 · reason : 처리사유 |
 | `keyword` |  |  |  | 검색어 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "report": {
+        "shop_no": 1,
+        "increase_amount": "1000.00",
+        "decrease_amount": "0.00",
+        "credits_total": "1000.00"
+    }
+}
+```

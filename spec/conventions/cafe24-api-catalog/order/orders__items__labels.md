@@ -2,7 +2,7 @@
 resource: order
 entity: orders__items__labels
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--items--labels
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders items labels
@@ -39,6 +39,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
 | `order_item_code` | ✓ |  |  | 품주코드 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "labels": {
+        "shop_no": 1,
+        "names": [
+            "label_1",
+            "label_2"
+        ]
+    }
+}
+```
+
 ### `POST /api/v2/admin/orders/{order_id}/items/{order_item_code}/labels` — Create an order label
 
 - **Scope**: `mall.write_order` (write)
@@ -55,6 +71,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
 | `order_item_code` | ✓ |  |  | 품주코드 |
 | `names` | ✓ |  |  | 주문 라벨명 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "label": {
+        "shop_no": 1,
+        "order_id": "20220928-0000013",
+        "order_item_code": "20220928-0000013-01",
+        "names": [
+            "label_1",
+            "label_2"
+        ]
+    }
+}
+```
 
 ### `PUT /api/v2/admin/orders/{order_id}/items/{order_item_code}/labels` — Update an order label
 
@@ -73,6 +107,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_item_code` | ✓ |  |  | 품주코드 |
 | `names` | ✓ |  |  | 주문 라벨명 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "label": {
+        "shop_no": 1,
+        "names": [
+            "label_1",
+            "label_2"
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/orders/{order_id}/items/{order_item_code}/labels/{name}` — Delete an order label
 
 - **Scope**: `mall.write_order` (write)
@@ -88,3 +138,18 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
 | `order_item_code` | ✓ |  |  | 품주코드 |
 | `name` | ✓ |  |  | 주문 라벨명 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "label": {
+        "shop_no": 1,
+        "order_id": "20220928-0000013",
+        "order_item_code": "20220928-0000013-01",
+        "name": "label_1"
+    }
+}
+```

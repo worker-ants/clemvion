@@ -2,7 +2,7 @@
 resource: store
 entity: subscription-shipments-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#subscription-shipments-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Subscription shipments setting
@@ -53,6 +53,99 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `subscription_no` |  |  |  | 정기배송 상품설정 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shipments": [
+        {
+            "shop_no": 1,
+            "subscription_no": 70,
+            "subscription_shipments_name": "SHIRTS SUBSCRIPTION SHIPMENTS",
+            "product_binding_type": "P",
+            "one_time_purchase": "T",
+            "product_list": [
+                11,
+                13
+            ],
+            "category_list": null,
+            "use_discount": "T",
+            "discount_value_unit": "P",
+            "discount_values": [
+                {
+                    "delivery_cycle": 1,
+                    "discount_amount": 10
+                },
+                {
+                    "delivery_cycle": 5,
+                    "discount_amount": 20
+                }
+            ],
+            "subscription_shipments_cycle_type": "T",
+            "subscription_shipments_cycle": [
+                "1M",
+                "2M"
+            ],
+            "subscription_shipments_count_type": "T",
+            "subscription_shipments_count": [
+                4,
+                6,
+                8,
+                10
+            ],
+            "use_order_price_condition": "T",
+            "order_price_greater_than": "25000.00",
+            "include_regional_shipping_rate": "F",
+            "shipments_start_date": 3,
+            "change_option": "F"
+        },
+        {
+            "shop_no": 1,
+            "subscription_no": 71,
+            "subscription_shipments_name": "SHIRTS SUBSCRIPTION SHIPMENTS",
+            "product_binding_type": "P",
+            "one_time_purchase": "T",
+            "product_list": [
+                11,
+                13
+            ],
+            "category_list": null,
+            "use_discount": "T",
+            "discount_value_unit": "P",
+            "discount_values": [
+                {
+                    "delivery_cycle": 1,
+                    "discount_amount": 10
+                },
+                {
+                    "delivery_cycle": 5,
+                    "discount_amount": 20
+                }
+            ],
+            "subscription_shipments_cycle_type": "T",
+            "subscription_shipments_cycle": [
+                "1M",
+                "2M"
+            ],
+            "subscription_shipments_count_type": "T",
+            "subscription_shipments_count": [
+                4,
+                6,
+                8,
+                10
+            ],
+            "use_order_price_condition": "T",
+            "order_price_greater_than": "25000.00",
+            "include_regional_shipping_rate": "F",
+            "shipments_start_date": 3,
+            "change_option": "T"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/subscription/shipments/setting` — Create a subscription payment rule
 
 - **Scope**: `mall.write_store` (write)
@@ -86,6 +179,56 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `include_regional_shipping_rate` |  |  |  | 지역별배송비 포함여부 T : 포함 · F : 미포함 |
 | `shipments_start_date` |  | 최소값: [1]; 최대값: [30] | 3 | 배송시작일 설정 |
 | `change_option` |  |  | F | 옵션 변경 가능 여부 T : 사용함 · F : 사용안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shipment": {
+        "shop_no": 1,
+        "subscription_no": 70,
+        "subscription_shipments_name": "SHIRTS SUBSCRIPTION SHIPMENTS",
+        "product_binding_type": "P",
+        "one_time_purchase": "T",
+        "product_list": [
+            11,
+            13
+        ],
+        "category_list": null,
+        "use_discount": "T",
+        "discount_value_unit": "P",
+        "discount_values": [
+            {
+                "delivery_cycle": 1,
+                "discount_amount": 10
+            },
+            {
+                "delivery_cycle": 5,
+                "discount_amount": 20
+            }
+        ],
+        "subscription_shipments_cycle_type": "T",
+        "subscription_shipments_cycle": [
+            "1M",
+            "2M"
+        ],
+        "subscription_shipments_count_type": "T",
+        "subscription_shipments_count": [
+            4,
+            6,
+            8,
+            10
+        ],
+        "use_order_price_condition": "T",
+        "order_price_greater_than": "25000.00",
+        "include_regional_shipping_rate": "F",
+        "shipments_start_date": 3,
+        "change_option": "F"
+    }
+}
+```
 
 ### `PUT /api/v2/admin/subscription/shipments/setting/{subscription_no}` — Update subscription products
 
@@ -122,6 +265,55 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shipments_start_date` |  | 최소값: [1]; 최대값: [30] |  | 배송시작일 설정 |
 | `change_option` |  |  |  | 옵션 변경 가능 여부 T : 사용함 · F : 사용안함 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shipment": {
+        "shop_no": 1,
+        "subscription_no": 72,
+        "subscription_shipments_name": "SHIRTS SUBSCRIPTION SHIPMENTS MODIFY",
+        "product_binding_type": "P",
+        "one_time_purchase": "T",
+        "product_list": [
+            11,
+            13
+        ],
+        "use_discount": "T",
+        "discount_value_unit": "P",
+        "discount_values": [
+            {
+                "delivery_cycle": 1,
+                "discount_amount": 10
+            },
+            {
+                "delivery_cycle": 5,
+                "discount_amount": 20
+            }
+        ],
+        "subscription_shipments_cycle_type": "T",
+        "subscription_shipments_cycle": [
+            "3M",
+            "5M"
+        ],
+        "subscription_shipments_count_type": "T",
+        "subscription_shipments_count": [
+            4,
+            6,
+            8,
+            10
+        ],
+        "use_order_price_condition": "T",
+        "order_price_greater_than": "30000.00",
+        "include_regional_shipping_rate": "F",
+        "shipments_start_date": 3,
+        "change_option": "F"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/subscription/shipments/setting/{subscription_no}` — Delete subscription products
 
 - **Scope**: `mall.write_store` (write)
@@ -135,3 +327,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `subscription_no` | ✓ |  |  | 정기배송 상품설정 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shipment": {
+        "shop_no": 1,
+        "subscription_no": 15
+    }
+}
+```

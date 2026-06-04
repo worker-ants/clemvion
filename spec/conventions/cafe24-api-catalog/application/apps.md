@@ -2,7 +2,7 @@
 resource: application
 entity: apps
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#apps
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Application / Apps
@@ -33,6 +33,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 
 _요청 파라미터 없음._
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "app": {
+        "version": "2020-03-01",
+        "version_expiration_date": null,
+        "initial_version": "2019-06-26",
+        "previous_version": "2019-12-11",
+        "extension_type": "section"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/apps` — Update an app information
 
 - **Scope**: `mall.write_application` (write)
@@ -47,3 +63,16 @@ _요청 파라미터 없음._
 |---|---|---|---|---|
 | `version` |  |  |  | 버전 |
 | `extension_type` |  |  |  | 확장 타입 section : 섹션(쇼핑몰 프론트에 html 삽입이 필요한 앱 타입) · embedded : 임베디드(쇼핑몰 프론트에 임베디드되어 자동으로 구동되는 앱 타입) |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "app": {
+        "version": "2019-12-11",
+        "extension_type": "section"
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: promotion
 entity: serialcoupons
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#serialcoupons
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Promotion / Serialcoupons
@@ -101,6 +101,165 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최소: [1]~최대: [500] | 100 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "serialcoupons": [
+        {
+            "shop_no": 1,
+            "coupon_no": "9000000000000000033",
+            "serial_no": "A1234567890Z",
+            "coupon_name": "Special Discount Coupon",
+            "coupon_description": null,
+            "created_date": "2017-12-19T14:39:22+09:00",
+            "deleted": "F",
+            "is_stopped_issued_coupon": "F",
+            "pause_begin_datetime": null,
+            "pause_end_datetime": null,
+            "benefit_text": "20.0% Discount. No cuts. Maximum discount 50",
+            "benefit_type": "B",
+            "benefit_price": null,
+            "benefit_percentage": "20.0",
+            "benefit_percentage_round_unit": "0.1",
+            "benefit_percentage_max_price": "50.00",
+            "include_regional_shipping_rate": null,
+            "include_foreign_delivery": null,
+            "issue_member_join": null,
+            "issue_member_join_recommend": null,
+            "issue_member_join_type": null,
+            "issue_order_amount_type": null,
+            "issue_order_start_date": null,
+            "issue_order_end_date": null,
+            "issue_order_amount_limit": null,
+            "issue_order_amount_min": null,
+            "issue_order_amount_max": null,
+            "issue_order_path": null,
+            "issue_order_type": "O",
+            "issue_order_available_product": "U",
+            "issue_order_available_category": "U",
+            "issue_anniversary_type": null,
+            "issue_anniversary_pre_issue_day": null,
+            "issue_module_type": null,
+            "issue_review_count": null,
+            "issue_review_has_image": null,
+            "issue_quantity_min": null,
+            "issue_quntity_type": null,
+            "issue_max_count": null,
+            "issue_max_count_by_user": null,
+            "issue_count_per_once": null,
+            "issued_count": "0",
+            "issue_member_group_no": null,
+            "issue_member_group_name": null,
+            "issue_no_purchase_period": null,
+            "issue_reserved": "F",
+            "issue_reserved_date": null,
+            "available_date": "2017-12-19 00:00 ~ 2017-12-22 23:00",
+            "available_period_type": "F",
+            "available_begin_datetime": "2017-12-19T00:00:00+09:00",
+            "available_end_datetime": "2017-12-22T23:00:00+09:00",
+            "available_site": "W,M",
+            "available_scope": "O",
+            "available_day_from_issued": null,
+            "available_price_type": "U",
+            "available_order_price_type": null,
+            "available_min_price": null,
+            "available_amount_type": "E",
+            "available_payment_method": "R,E,C,A,H,M,K,P,N,O,S,V,B,D,W,X",
+            "available_product": "I",
+            "available_product_list": [
+                10,
+                11
+            ],
+            "available_category": "I",
+            "available_category_list": [
+                25,
+                29
+            ],
+            "available_coupon_count_by_order": 1,
+            "serial_generate_method": null,
+            "coupon_image_type": "B",
+            "coupon_image_path": null,
+            "show_product_detail": null,
+            "use_notification_when_login": "F"
+        },
+        {
+            "shop_no": 1,
+            "coupon_no": "9000000000000000032",
+            "serial_no": "A1234567891Z",
+            "coupon_name": "Christmas Week Coupon",
+            "coupon_description": null,
+            "created_date": "2017-12-18T11:56:41+09:00",
+            "deleted": "F",
+            "is_stopped_issued_coupon": "F",
+            "pause_begin_datetime": null,
+            "pause_end_datetime": null,
+            "benefit_text": "discount for 10",
+            "benefit_type": "A",
+            "benefit_price": "10.00",
+            "benefit_percentage": null,
+            "benefit_percentage_round_unit": null,
+            "benefit_percentage_max_price": null,
+            "include_regional_shipping_rate": null,
+            "include_foreign_delivery": null,
+            "issue_member_join": null,
+            "issue_member_join_recommend": null,
+            "issue_member_join_type": null,
+            "issue_order_amount_type": null,
+            "issue_order_start_date": null,
+            "issue_order_end_date": null,
+            "issue_order_amount_limit": null,
+            "issue_order_amount_min": null,
+            "issue_order_amount_max": null,
+            "issue_order_path": null,
+            "issue_order_type": "O",
+            "issue_order_available_product": "U",
+            "issue_order_available_category": "U",
+            "issue_anniversary_type": null,
+            "issue_anniversary_pre_issue_day": null,
+            "issue_module_type": null,
+            "issue_review_count": null,
+            "issue_review_has_image": null,
+            "issue_quantity_min": null,
+            "issue_quntity_type": null,
+            "issue_max_count": null,
+            "issue_max_count_by_user": null,
+            "issue_count_per_once": null,
+            "issued_count": "0",
+            "issue_member_group_no": null,
+            "issue_member_group_name": null,
+            "issue_no_purchase_period": null,
+            "issue_reserved": "F",
+            "issue_reserved_date": null,
+            "available_date": "2017-12-18 00:00 ~ 2017-12-21 23:00",
+            "available_period_type": "F",
+            "available_begin_datetime": "2017-12-18T00:00:00+09:00",
+            "available_end_datetime": "2017-12-21T23:00:00+09:00",
+            "available_site": "W,M",
+            "available_scope": "O",
+            "available_day_from_issued": null,
+            "available_price_type": "U",
+            "available_order_price_type": null,
+            "available_min_price": null,
+            "available_amount_type": "E",
+            "available_payment_method": "R,E,C,A,H,M,K,P,N,O,S,V,B,D,W,X",
+            "available_product": "U",
+            "available_product_list": null,
+            "available_category": "U",
+            "available_category_list": null,
+            "available_coupon_count_by_order": 1,
+            "serial_generate_method": null,
+            "coupon_image_type": "B",
+            "coupon_image_path": null,
+            "show_product_detail": null,
+            "use_notification_when_login": "F"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/serialcoupons` — Generate coupon code
 
 - **Scope**: `mall.write_promotion` (write)
@@ -143,6 +302,59 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `issue_max_count` | ✓ |  |  | 자동생성 개수 |
 | ↳ `serial_code_length` | ✓ |  |  | 자동생성 시리얼코드 자리수 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "serialcoupons": {
+        "shop_no": 1,
+        "coupon_no": "9000000000000000018",
+        "coupon_name": "Special Discount Coupon",
+        "benefit_type": "A",
+        "available_period_type": "F",
+        "available_begin_datetime": "2019-04-10T00:00:00+09:00",
+        "available_end_datetime": "2019-04-13T23:00:00+09:00",
+        "available_day_from_issued": null,
+        "available_site": [
+            "W",
+            "M"
+        ],
+        "available_scope": "O",
+        "available_product": "I",
+        "available_product_list": [
+            1,
+            2
+        ],
+        "available_category": "I",
+        "available_category_list": [
+            1,
+            2
+        ],
+        "available_amount_type": "E",
+        "available_coupon_count_by_order": 1,
+        "available_price_type": "O",
+        "available_order_price_type": "U",
+        "available_min_price": "1.00",
+        "discount_amount": {
+            "benefit_price": "3.00"
+        },
+        "discount_rate": {
+            "benefit_percentage": null,
+            "benefit_percentage_round_unit": null,
+            "benefit_percentage_max_price": null
+        },
+        "serial_generate_method": "M",
+        "serial_code_type": "R",
+        "serial_generate_auto": {
+            "issue_max_count": 100,
+            "serial_code_length": 10
+        }
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/serialcoupons/{coupon_no}` — Delete coupon code
 
 - **Scope**: `mall.write_promotion` (write)
@@ -155,3 +367,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `coupon_no` |  |  |  | 쿠폰번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "serialcoupon": {
+        "coupon_no": "9000000000000000031"
+    }
+}
+```

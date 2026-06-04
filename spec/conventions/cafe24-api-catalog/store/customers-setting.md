@@ -2,7 +2,7 @@
 resource: store
 entity: customers-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customers-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Customers setting
@@ -53,6 +53,37 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customer": {
+        "shop_no": 1,
+        "simple_member_join": "T",
+        "member_authentication": "T",
+        "minimum_age_restriction": "T",
+        "adult_age_restriction": "F",
+        "adult_purchase_restriction": "F",
+        "adult_image_restriction": "F",
+        "gender_restriction": "B",
+        "member_rejoin_restriction": "T",
+        "member_rejoin_restriction_day": 30,
+        "password_authentication": "T",
+        "member_join_confirmation": "T",
+        "email_duplication": "T",
+        "password_recovery": "T",
+        "link_social_account": "T",
+        "save_member_id": "T",
+        "unregistration_admin_approval": "T",
+        "unregistration_reason": "T",
+        "display_group": "T",
+        "join_standard": "id"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/customers/setting` — Update customers setting
 
 - **Scope**: `mall.write_store` (write)
@@ -71,3 +102,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `minimum_age_restriction` |  |  |  | 14세미만 가입제한 M:인증 후 이용 · T:인증없이 바로 이용 · F:가입 불가 |
 | `join_standard` |  |  |  | 가입기준 id:아이디 · email:이메일 |
 | `use_update_birthday` |  |  |  | 생년월일 수정 T:허용함 · F:허용안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customer": {
+        "shop_no": 1,
+        "simple_member_join": "T",
+        "member_authentication": "F",
+        "minimum_age_restriction": "T",
+        "adult_age_restriction": "F",
+        "adult_purchase_restriction": "F",
+        "adult_image_restriction": "F",
+        "gender_restriction": "B",
+        "member_rejoin_restriction": "T",
+        "member_rejoin_restriction_day": 30,
+        "password_authentication": "T",
+        "member_join_confirmation": "T",
+        "email_duplication": "T",
+        "password_recovery": "T",
+        "link_social_account": "T",
+        "save_member_id": "T",
+        "unregistration_admin_approval": "T",
+        "unregistration_reason": "T",
+        "display_group": "T",
+        "join_standard": "id",
+        "use_update_birthday": "T"
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: store
 entity: orderform-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orderform-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Orderform setting
@@ -47,6 +47,58 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "orderform": {
+        "shop_no": 1,
+        "buy_limit_type": "M",
+        "guest_purchase_button_display": "T",
+        "junior_purchase_block": "F",
+        "reservation_order": "F",
+        "discount_amount_display": "T",
+        "order_item_delete": "F",
+        "quick_signup": "F",
+        "check_order_info": "F",
+        "order_form_input_type": "S",
+        "shipping_info": [
+            {
+                "key": "phone",
+                "use": "T",
+                "required": "F"
+            },
+            {
+                "key": "cellphone",
+                "use": "T",
+                "required": "F"
+            }
+        ],
+        "order_info": [
+            {
+                "key": "phone",
+                "use": "T",
+                "required": "F"
+            },
+            {
+                "key": "cellphone",
+                "use": "T",
+                "required": "F"
+            }
+        ],
+        "china_taiwan_id_input": "F",
+        "print_type": {
+            "invoice_print": "T",
+            "receipt_print": "F",
+            "address_print": "F"
+        },
+        "orderform_additional_enabled": "T"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/orderform/setting` — Update the order/order form settings
 
 - **Scope**: `mall.write_store` (write)
@@ -83,3 +135,55 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `receipt_print` |  |  |  | 매출전표 인쇄버튼 · T : 표시함 · F : 표시안함 |
 | ↳ `address_print` |  |  |  | 수령지정보 인쇄버튼 · T : 표시함 · F : 표시안함 |
 | `orderform_additional_enabled` |  |  |  | 주문서 추가항목 사용여부 T:사용 · F:사용안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "orderform": {
+        "shop_no": 1,
+        "buy_limit_type": "A",
+        "guest_purchase_button_display": "T",
+        "junior_purchase_block": "F",
+        "reservation_order": "T",
+        "discount_amount_display": "T",
+        "order_item_delete": "T",
+        "quick_signup": "T",
+        "check_order_info": "T",
+        "order_form_input_type": "S",
+        "shipping_info": [
+            {
+                "key": "phone",
+                "use": "T",
+                "required": "F"
+            },
+            {
+                "key": "cellphone",
+                "use": "T",
+                "required": "F"
+            }
+        ],
+        "order_info": [
+            {
+                "key": "phone",
+                "use": "T",
+                "required": "F"
+            },
+            {
+                "key": "cellphone",
+                "use": "T",
+                "required": "F"
+            }
+        ],
+        "china_taiwan_id_input": "T",
+        "print_type": {
+            "invoice_print": "T",
+            "receipt_print": "F",
+            "address_print": "F"
+        },
+        "orderform_additional_enabled": "T"
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: design
 entity: themes__pages
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#themes--pages
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Design / Themes pages
@@ -38,6 +38,21 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `skin_no` | ✓ |  |  | 디자인 번호 |
 | `path` | ✓ |  |  | 파일 경로 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "page": {
+        "skin_no": "1",
+        "skin_code": "skin",
+        "path": "/sample.html",
+        "source": "<!--@layout(/layout/basic/main.html)-->\\n\\n<div module=\\\"Layout_Dummy\\\"></div>"
+    }
+}
+```
+
 ### `POST /api/v2/admin/themes/{skin_no}/pages` — Create a theme page
 
 - **Scope**: `mall.write_design` (write)
@@ -55,6 +70,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `source` |  |  |  | 소스 코드 |
 | `display_location` |  |  |  | 화면 분류 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "page": {
+        "skin_no": "1",
+        "skin_code": "skin",
+        "path": "/sample.html",
+        "source": "<!--@layout(/layout/basic/main.html)-->\\n\\n<div module=\\\"Layout_Dummy\\\"></div>",
+        "display_location": "MAIN"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/themes/{skin_no}/pages` — Update a theme page
 
 - **Scope**: `mall.write_design` (write)
@@ -71,6 +102,21 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `path` | ✓ |  |  | 파일 경로 |
 | `source` | ✓ |  |  | 소스 코드 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "page": {
+        "skin_no": "1",
+        "skin_code": "skin",
+        "path": "/sample.html",
+        "source": "<!--@layout(/layout/basic/main.html)-->\\n\\n<div module=\\\"Layout_Dummy\\\"></div>"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/themes/{skin_no}/pages` — Delete a theme page
 
 - **Scope**: `mall.write_design` (write)
@@ -84,3 +130,17 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `skin_no` | ✓ |  |  | 디자인 번호 |
 | `path` | ✓ |  |  | 파일 경로 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "page": {
+        "skin_no": "1",
+        "skin_code": "skin",
+        "path": "/sample.html"
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: community
 entity: boards
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#boards
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Community / Boards
@@ -72,6 +72,245 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "boards": [
+        {
+            "shop_no": 1,
+            "board_no": 1,
+            "board_type": 1,
+            "board_name": "Notice",
+            "use_additional_board": "T",
+            "use_board": "T",
+            "use_display": "T",
+            "use_top_image": "T",
+            "top_image_url": "https://www.example.com/image.jpg",
+            "use_report": "T",
+            "use_writer_block": "T",
+            "display_order": 1,
+            "attached_file": "F",
+            "attached_file_size_limit": 10485760,
+            "article_display_type": "A",
+            "image_display": "T",
+            "image_resize": 587,
+            "use_category": "T",
+            "categories": [
+                {
+                    "id": 1,
+                    "name": "Category1"
+                },
+                {
+                    "id": 2,
+                    "name": "Category2"
+                }
+            ],
+            "secret_only": "F",
+            "admin_confirm": "F",
+            "comment_author_display": "N",
+            "comment_author_protection": {
+                "is_use": "T",
+                "author_name_type": "count",
+                "partial_character_display": 1,
+                "alternative_text_display": "Alternative comment author name"
+            },
+            "spam_auto_prevention": {
+                "apply_scope": [
+                    "post_actions",
+                    "comment"
+                ],
+                "member_scope": "A"
+            },
+            "reply_feature": "T",
+            "write_permission": "A",
+            "write_member_group_no": [
+                1,
+                2
+            ],
+            "write_permission_extra": {
+                "is_member_buy": null,
+                "member_write_after": null,
+                "use_member_write_period": null,
+                "member_write_period": null,
+                "is_guest_buy": null,
+                "guest_write_after": null,
+                "use_guest_write_period": null,
+                "guest_write_period": null,
+                "product_info_option": null,
+                "post_length_limit": null,
+                "post_min_length": null,
+                "post_editable": null
+            },
+            "reply_permission": "M",
+            "reply_member_group_no": [
+                3,
+                4
+            ],
+            "author_display": "N",
+            "author_protection": {
+                "is_use": "T",
+                "comment_writer_name_type": "count",
+                "partial_character_display": 1,
+                "alternative_text_display": "Alternative author name"
+            },
+            "board_guide": "This is a guide for the board.",
+            "use_comment": "T",
+            "admin_title_fixed": {
+                "is_use": "T",
+                "admin_title_list": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "staff_skip_post_title": "T"
+            },
+            "admin_reply_fixed": {
+                "is_use": "T",
+                "admin_reply_list": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "staff_skip_reply_title": "T"
+            },
+            "input_form": {
+                "is_use": "T",
+                "input_form_title": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "enable_input_form_title": [
+                    "T",
+                    "F",
+                    "T"
+                ]
+            },
+            "page_size": 10,
+            "product_page_size": 10,
+            "page_display_count": 10
+        },
+        {
+            "shop_no": 1,
+            "board_no": 8,
+            "board_type": 1,
+            "board_name": "gallery",
+            "use_additional_board": "F",
+            "use_board": "T",
+            "use_display": "T",
+            "use_top_image": "T",
+            "top_image_url": "https://www.example.com/image.jpg",
+            "use_report": "T",
+            "use_writer_block": "T",
+            "display_order": 2,
+            "attached_file": "F",
+            "attached_file_size_limit": 3145728,
+            "article_display_type": "A",
+            "image_display": "T",
+            "image_resize": 587,
+            "use_category": "T",
+            "categories": [
+                {
+                    "id": 3,
+                    "name": "Category3"
+                },
+                {
+                    "id": 4,
+                    "name": "Category4"
+                }
+            ],
+            "secret_only": "F",
+            "admin_confirm": "F",
+            "comment_author_display": "U",
+            "comment_author_protection": {
+                "is_use": "F",
+                "author_name_type": "count",
+                "partial_character_display": 1,
+                "alternative_text_display": "Alternative comment author name"
+            },
+            "spam_auto_prevention": {
+                "apply_scope": [
+                    "post_actions",
+                    "comment"
+                ],
+                "member_scope": "N"
+            },
+            "reply_feature": "T",
+            "write_permission": "G",
+            "write_member_group_no": [
+                1,
+                2
+            ],
+            "write_permission_extra": {
+                "is_member_buy": "T",
+                "member_write_after": "shipend_date",
+                "use_member_write_period": "F",
+                "member_write_period": 10,
+                "is_guest_buy": "T",
+                "guest_write_after": "shipend_date",
+                "use_guest_write_period": "F",
+                "guest_write_period": 10,
+                "product_info_option": "T",
+                "post_length_limit": "F",
+                "post_min_length": 10,
+                "post_editable": "T"
+            },
+            "reply_permission": "M",
+            "reply_member_group_no": [
+                3,
+                4
+            ],
+            "author_display": "U",
+            "author_protection": {
+                "is_use": "T",
+                "author_name_type": "count",
+                "partial_character_display": 1,
+                "alternative_text_display": "Alternative author name"
+            },
+            "board_guide": "This is a guide for the board.",
+            "use_comment": "T",
+            "admin_title_fixed": {
+                "is_use": "T",
+                "admin_title_list": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "staff_skip_post_title": "T"
+            },
+            "admin_reply_fixed": {
+                "is_use": "T",
+                "admin_reply_list": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "staff_skip_reply_title": "T"
+            },
+            "input_form": {
+                "is_use": "T",
+                "input_form_title": [
+                    "first",
+                    "second",
+                    "third"
+                ],
+                "enable_input_form_title": [
+                    "T",
+                    "F",
+                    "T"
+                ]
+            },
+            "page_size": 10,
+            "product_page_size": 10,
+            "page_display_count": 10
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/boards/{board_no}` — Retrieve the board settings
 
 - **Scope**: `mall.read_community` (read)
@@ -84,6 +323,129 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `board_no` | ✓ |  |  | 게시판 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "board": {
+        "shop_no": 1,
+        "board_no": 1,
+        "board_type": 1,
+        "board_name": "Notice",
+        "use_additional_board": "T",
+        "use_board": "T",
+        "use_display": "T",
+        "use_top_image": "T",
+        "top_image_url": "https://www.example.com/image.jpg",
+        "use_report": "T",
+        "use_writer_block": "T",
+        "display_order": 1,
+        "attached_file": "F",
+        "attached_file_size_limit": 10485760,
+        "article_display_type": "A",
+        "image_display": "T",
+        "image_resize": 587,
+        "use_category": "T",
+        "categories": [
+            {
+                "id": 1,
+                "name": "Category1"
+            },
+            {
+                "id": 2,
+                "name": "Category2"
+            }
+        ],
+        "secret_only": "F",
+        "admin_confirm": "F",
+        "comment_author_display": "N",
+        "comment_author_protection": {
+            "is_use": "T",
+            "author_name_type": "count",
+            "partial_character_display": 1,
+            "alternative_text_display": "Alternative comment author name"
+        },
+        "spam_auto_prevention": {
+            "apply_scope": [
+                "post_actions",
+                "comment"
+            ],
+            "member_scope": "A"
+        },
+        "reply_feature": "T",
+        "write_permission": "A",
+        "write_member_group_no": [
+            1,
+            2
+        ],
+        "write_permission_extra": {
+            "is_member_buy": null,
+            "member_write_after": null,
+            "use_member_write_period": null,
+            "member_write_period": null,
+            "is_guest_buy": null,
+            "guest_write_after": null,
+            "use_guest_write_period": null,
+            "guest_write_period": null,
+            "product_info_option": null,
+            "post_length_limit": null,
+            "post_min_length": null,
+            "post_editable": null
+        },
+        "reply_permission": "M",
+        "reply_member_group_no": [
+            3,
+            4
+        ],
+        "author_display": "N",
+        "author_protection": {
+            "is_use": "T",
+            "comment_writer_name_type": "count",
+            "partial_character_display": 1,
+            "alternative_text_display": "Alternative author name"
+        },
+        "board_guide": "This is a guide for the board.",
+        "use_comment": "T",
+        "admin_title_fixed": {
+            "is_use": "T",
+            "admin_title_list": [
+                "first",
+                "second",
+                "third"
+            ],
+            "staff_skip_post_title": "T"
+        },
+        "admin_reply_fixed": {
+            "is_use": "T",
+            "admin_reply_list": [
+                "first",
+                "second",
+                "third"
+            ],
+            "staff_skip_reply_title": "T"
+        },
+        "input_form": {
+            "is_use": "T",
+            "input_form_title": [
+                "first",
+                "second",
+                "third"
+            ],
+            "enable_input_form_title": [
+                "T",
+                "F",
+                "T"
+            ]
+        },
+        "page_size": 10,
+        "product_page_size": 10,
+        "page_display_count": 10
+    }
+}
+```
 
 ### `PUT /api/v2/admin/boards/{board_no}` — Update the board settings
 
@@ -162,3 +524,124 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `board_name` |  | 최소글자수 : [1자]; 최대글자수 : [50자] |  | 게시판 이름 |
 | `board_type` |  |  |  | 게시판 분류 1 : 운영 · 2 : 일반 · 5 : 상품 |
 | `article_display_type` |  |  |  | 게시물 표시 A : 전체 게시물 표시 · T : 첨부 파일이 있는 게시물만 표시 · F : 첨부 파일이 없는 게시물만 표시 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "board": {
+        "shop_no": 1,
+        "board_no": 4,
+        "board_type": 5,
+        "board_name": "Notice",
+        "use_additional_board": "T",
+        "use_board": "T",
+        "use_display": "T",
+        "use_top_image": "T",
+        "top_image_url": "https://www.example.com/image.jpg",
+        "display_order": 1,
+        "attached_file": "F",
+        "attached_file_size_limit": 10485760,
+        "article_display_type": "A",
+        "image_display": "T",
+        "image_resize": 587,
+        "use_category": "T",
+        "categories": [
+            {
+                "id": 27,
+                "name": "Category1"
+            },
+            {
+                "id": 28,
+                "name": "Category2"
+            }
+        ],
+        "secret_only": "F",
+        "admin_confirm": "F",
+        "comment_author_display": "U",
+        "comment_author_protection": {
+            "is_use": "T",
+            "author_name_type": "count",
+            "partial_character_display": "1",
+            "alternative_text_display": "Alternative comment author name"
+        },
+        "spam_auto_prevention": {
+            "apply_scope": [
+                "post_actions",
+                "comment"
+            ],
+            "member_scope": "N"
+        },
+        "reply_feature": "F",
+        "write_permission": "G",
+        "write_member_group_no": [
+            1,
+            2
+        ],
+        "write_permission_extra": {
+            "is_member_buy": "T",
+            "member_write_after": "shipend_date",
+            "use_member_write_period": "F",
+            "member_write_period": 10,
+            "is_guest_buy": "T",
+            "guest_write_after": "shipend_date",
+            "use_guest_write_period": "F",
+            "guest_write_period": 1,
+            "product_info_option": "T",
+            "post_length_limit": "T",
+            "post_min_length": 12,
+            "post_editable": "F"
+        },
+        "reply_permission": "G",
+        "reply_member_group_no": [
+            3,
+            4
+        ],
+        "author_display": "I",
+        "author_protection": {
+            "is_use": "T",
+            "author_name_type": "count",
+            "partial_character_display": "1",
+            "alternative_text_display": "Alternative author name"
+        },
+        "board_guide": "This is a guide for the board.",
+        "use_comment": "T",
+        "admin_title_fixed": {
+            "is_use": "T",
+            "admin_title_list": [
+                "first",
+                "second",
+                "third"
+            ],
+            "staff_skip_post_title": "T"
+        },
+        "admin_reply_fixed": {
+            "is_use": "T",
+            "admin_reply_list": [
+                "first",
+                "second",
+                "third"
+            ],
+            "staff_skip_reply_title": "T"
+        },
+        "input_form": {
+            "is_use": "T",
+            "input_form_title": [
+                "first",
+                "second",
+                "third"
+            ],
+            "enable_input_form_title": [
+                "T",
+                "F",
+                "T"
+            ]
+        },
+        "page_size": 10,
+        "product_page_size": 10,
+        "page_display_count": 10
+    }
+}
+```

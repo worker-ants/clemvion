@@ -2,7 +2,7 @@
 resource: order
 entity: refunds
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#refunds
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Refunds
@@ -103,6 +103,152 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최소: [1]~최대: [500] | 10 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [15000] | 0 | 조회결과 시작위치 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "refunds": [
+        {
+            "shop_no": 1,
+            "member_id": "sampleid",
+            "member_email": "sample@sample.com",
+            "buyer_email": "sample@sample.com",
+            "order_date": "2019-11-21T14:47:54+09:00",
+            "accepted_refund_date": "2019-11-21T14:49:45+09:00",
+            "refund_date": "2019-11-22T17:31:50+09:00",
+            "order_id": "20191121-0000032",
+            "refund_code": "C20191121-0000003",
+            "order_item_code": [
+                "20191121-0000032-01"
+            ],
+            "quantity": 1,
+            "actual_refund_amount": "12610.00",
+            "used_points": "0.00",
+            "used_credits": "0.00",
+            "currency": "KRW",
+            "payment_methods": [
+                "cash",
+                "card"
+            ],
+            "refund_payment_methods": [
+                "cash",
+                "card"
+            ],
+            "payment_gateway_cancel_statuses": [
+                {
+                    "payment_method": "card",
+                    "cancel_status": "T"
+                },
+                {
+                    "payment_method": "giftcard",
+                    "cancel_status": "T"
+                }
+            ],
+            "payment_gateway_cancel_dates": [
+                {
+                    "payment_method": "card",
+                    "cancel_date": "2023-07-10T12:05:10+09:00"
+                },
+                {
+                    "payment_method": "giftcard",
+                    "cancel_date": "2023-07-11T16:11:20+09:00"
+                }
+            ],
+            "status": "T",
+            "refund_methods": [
+                "Cash refund",
+                "Credit card refund"
+            ],
+            "refund_bank_name": "Woori Bank",
+            "refund_bank_account_no": "1234567890",
+            "refund_bank_account_holder": "John Doe",
+            "include_tax": "T",
+            "tax": [
+                {
+                    "name": "vat",
+                    "amount": "1000.00"
+                },
+                {
+                    "name": "tax",
+                    "amount": "800.00"
+                }
+            ],
+            "cancel_fee_amount": null
+        },
+        {
+            "shop_no": 1,
+            "member_id": "sampleid",
+            "member_email": "sample@sample.com",
+            "buyer_email": "sample@sample.com",
+            "order_date": "2019-11-18T17:28:33+09:00",
+            "accepted_refund_date": "2019-11-18T17:31:00+09:00",
+            "refund_date": "2019-11-18T17:31:50+09:00",
+            "order_id": "20191118-0000018",
+            "refund_code": "C20191118-0000001",
+            "order_item_code": [
+                "20191118-0000018-01",
+                "20191118-0000018-02"
+            ],
+            "quantity": 2,
+            "actual_refund_amount": "17610.00",
+            "used_points": "0.00",
+            "used_credits": "0.00",
+            "currency": "KRW",
+            "payment_methods": [
+                "cash",
+                "card"
+            ],
+            "refund_payment_methods": [
+                "cash",
+                "card"
+            ],
+            "payment_gateway_cancel_statuses": [
+                {
+                    "payment_method": "giftcard",
+                    "cancel_status": "T"
+                },
+                {
+                    "payment_method": "pointcard",
+                    "cancel_status": "T"
+                }
+            ],
+            "payment_gateway_cancel_dates": [
+                {
+                    "payment_method": "giftcard",
+                    "cancel_date": "2023-07-09T12:05:10+09:00"
+                },
+                {
+                    "payment_method": "pointcard",
+                    "cancel_date": "2023-07-08T16:11:20+09:00"
+                }
+            ],
+            "status": "T",
+            "refund_methods": [
+                "Cash refund",
+                "Credit card refund"
+            ],
+            "refund_bank_name": "Woori Bank",
+            "refund_bank_account_no": "1234567890",
+            "refund_bank_account_holder": "John Doe",
+            "include_tax": "F",
+            "tax": [
+                {
+                    "name": "vat",
+                    "amount": "1000.00"
+                },
+                {
+                    "name": "tax",
+                    "amount": "800.00"
+                }
+            ],
+            "cancel_fee_amount": null
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/refunds/{refund_code}` — Retrieve a refund
 
 - **Scope**: `mall.read_order` (read)
@@ -117,3 +263,81 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `refund_code` | ✓ |  |  | 환불번호 |
 | `items` |  |  |  | 품주 리소스 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "refund": {
+        "shop_no": 1,
+        "order_id": "20191118-0000018",
+        "refund_code": "C20191118-0000001",
+        "currency": "KRW",
+        "accepted_refund_date": "2019-11-18T17:31:00+09:00",
+        "refund_date": "2019-11-18T17:31:50+09:00",
+        "status": "T",
+        "refund_point": "0.00",
+        "refund_credit": "0.00",
+        "refund_naver_point": "0.00",
+        "refund_naver_cash": "0.00",
+        "refund_amount": "17610.00",
+        "product_price": "15110.00",
+        "shipping_fee": "2500.00",
+        "refund_shipping_fee": "2000.00",
+        "refund_regional_surcharge": "1000.00",
+        "return_shipping_fee": "-300.00",
+        "return_regional_surcharge": "-200.00",
+        "additional_shipping_fee": "0.00",
+        "international_shipping_insurance": "0.00",
+        "international_shipping_additional_fee": "0.00",
+        "shipping_fee_discount_amount": "0.00",
+        "cod_fees": "0.00",
+        "product_discount_amount": "0.00",
+        "member_group_discount_amount": "0.00",
+        "app_item_discount_amount": "0.00",
+        "app_discount_amount": "0.00",
+        "coupon_discount_amount": "0.00",
+        "product_bundle_discount_amount": "0.00",
+        "points_spent_amount": "0.00",
+        "credits_spent_amount": "0.00",
+        "naver_point": "0.00",
+        "naver_cash": "0.00",
+        "additional_product_amount": "0.00",
+        "manually_input_amount": "0.00",
+        "changed_refund_amount": "0.00",
+        "refund_bank_name": "Woori Bank",
+        "refund_bank_account_no": "1234567890",
+        "refund_bank_account_holder": "John Doe",
+        "refund_manager": "admin_user",
+        "refund_reason": "Refund to cash",
+        "refund_methods": [
+            "Cash refund",
+            "Credit card refund"
+        ],
+        "send_sms": "T",
+        "send_mail": "T",
+        "payment_methods": [
+            "cash",
+            "card"
+        ],
+        "refund_payment_methods": [
+            "cash",
+            "card"
+        ],
+        "include_tax": "T",
+        "tax": [
+            {
+                "name": "vat",
+                "amount": "1000.00"
+            },
+            {
+                "name": "tax",
+                "amount": "800.00"
+            }
+        ],
+        "cancel_fee_amount": null
+    }
+}
+```

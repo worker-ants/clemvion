@@ -2,7 +2,7 @@
 resource: category
 entity: autodisplay
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#autodisplay
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Category / Autodisplay
@@ -48,6 +48,66 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `display_no` |  |  |  | 자동진열 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "autodisplay": [
+        {
+            "shop_no": 1,
+            "display_no": 1,
+            "use_main": "T",
+            "category_no": 1,
+            "display_group": 2,
+            "display_count": 12,
+            "use_reservation": "T",
+            "start_date": "2020-01-01T10:00:00+09:00",
+            "use_hashtag": "F",
+            "hash_tags": null,
+            "display_sort": "ACD",
+            "timetable": [
+                12,
+                20
+            ],
+            "period": 1,
+            "except_categories_scope": "C",
+            "except_categories": [
+                30,
+                41
+            ]
+        },
+        {
+            "shop_no": 1,
+            "display_no": 2,
+            "use_main": "F",
+            "category_no": 24,
+            "display_group": 2,
+            "display_count": 48,
+            "use_reservation": "F",
+            "start_date": null,
+            "use_hashtag": "T",
+            "hash_tags": [
+                "new",
+                "winter"
+            ],
+            "display_sort": "RD",
+            "timetable": [
+                12,
+                20
+            ],
+            "period": 7,
+            "except_categories_scope": "A",
+            "except_categories": [
+                30,
+                41
+            ]
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/autodisplay` — Create auto layout for selected product category
 
 - **Scope**: `mall.write_category` (write)
@@ -75,6 +135,38 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `except_categories_scope` |  |  | A | 제외 분류 설정 A: 모든 분류에 적용 · C : 이 분류만 적용 |
 | `except_categories` |  |  |  | 제외 분류 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "autodisplay": {
+        "shop_no": 1,
+        "display_no": 1,
+        "use_main": "T",
+        "category_no": 1,
+        "display_group": 2,
+        "display_count": 12,
+        "use_reservation": "T",
+        "start_date": "2020-01-01T10:00:00+09:00",
+        "use_hashtag": "F",
+        "hash_tags": null,
+        "display_sort": "ACD",
+        "timetable": [
+            12,
+            20
+        ],
+        "period": 1,
+        "except_categories_scope": "A",
+        "except_categories": [
+            30,
+            41
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/autodisplay/{display_no}` — Update auto layout for selected product category
 
 - **Scope**: `mall.write_category` (write)
@@ -100,6 +192,38 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `except_categories_scope` |  |  |  | 제외 분류 설정 A: 모든 분류에 적용 · C : 이 분류만 적용 |
 | `except_categories` |  |  |  | 제외 분류 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "autodisplay": {
+        "shop_no": 1,
+        "display_no": 1,
+        "use_main": "T",
+        "category_no": 1,
+        "display_group": 2,
+        "display_count": 12,
+        "use_reservation": "T",
+        "start_date": "2020-01-01T10:00:00+09:00",
+        "use_hashtag": "F",
+        "hash_tags": null,
+        "display_sort": "ACD",
+        "timetable": [
+            0,
+            12
+        ],
+        "period": 1,
+        "except_categories_scope": "C",
+        "except_categories": [
+            30,
+            41
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/autodisplay/{display_no}` — Delete auto layout for selected product category
 
 - **Scope**: `mall.write_category` (write)
@@ -113,3 +237,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `display_no` | ✓ |  |  | 자동진열 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "autodisplay": {
+        "display_no": 1
+    }
+}
+```

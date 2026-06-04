@@ -2,7 +2,7 @@
 resource: customer
 entity: customers-properties
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customers-properties
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Customer / Customers properties
@@ -36,6 +36,33 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `type` |  |  | join | 회원가입항목 유형 join:회원가입 항목 · edit:회원정보 수정 항목 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customer": {
+        "shop_no": 1,
+        "type": "join",
+        "properties": [
+            {
+                "key": "sms_agree",
+                "name": "SMS subscription",
+                "use": "T",
+                "required": "T"
+            },
+            {
+                "key": "email_agree",
+                "name": "Email subscription",
+                "use": "T",
+                "required": "T"
+            }
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/customers/properties` — Edit account signup fields
 
 - **Scope**: `mall.write_customer` (write)
@@ -54,3 +81,30 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `key` |  |  |  | 항목키 |
 | ↳ `use` |  |  |  | 일반 회원가입 사용여부 · T:사용 · F:사용안함 |
 | ↳ `required` |  |  |  | 필수입력여부 · T:필수 · F:선택 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customer": {
+        "shop_no": 1,
+        "type": "join",
+        "properties": [
+            {
+                "key": "sms_agree",
+                "name": "SMS subscription",
+                "use": "T",
+                "required": "T"
+            },
+            {
+                "key": "birthday",
+                "name": "Date of birth",
+                "use": "T",
+                "required": "T"
+            }
+        ]
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: product
 entity: products__hits
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--hits
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products hits
@@ -27,3 +27,13 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `product_no` | ✓ |  |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플.
+
+```json
+{
+    "count": 3
+}
+```

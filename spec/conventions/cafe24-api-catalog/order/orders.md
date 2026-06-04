@@ -2,7 +2,7 @@
 resource: order
 entity: orders
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders
@@ -159,6 +159,503 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최소: [1]~최대: [1000] | 10 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
 | `offset` |  | 최대값: [15000] | 0 | 조회결과 시작위치 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "orders": [
+        {
+            "shop_no": 1,
+            "currency": "KRW",
+            "order_id": "20170710-0000013",
+            "market_id": "self",
+            "market_order_no": null,
+            "member_id": "sampleid",
+            "member_email": "sample@sample.com",
+            "member_authentication": "T",
+            "initial_order_amount": {
+                "order_price_amount": "5000.00",
+                "shipping_fee": "14000.00",
+                "points_spent_amount": "0.00",
+                "credits_spent_amount": "1500.00",
+                "coupon_discount_price": "1000.00",
+                "coupon_shipping_fee_amount": "0.00",
+                "membership_discount_amount": "0.00",
+                "shipping_fee_discount_amount": "5500.00",
+                "set_product_discount_amount": "0.00",
+                "app_discount_amount": "0.00",
+                "point_incentive_amount": "0.00",
+                "total_amount_due": "0.00",
+                "payment_amount": "30000.00",
+                "market_other_discount_amount": "0.00",
+                "tax": "150.00"
+            },
+            "actual_order_amount": {
+                "order_price_amount": "5000.00",
+                "shipping_fee": "14000.00",
+                "points_spent_amount": "0.00",
+                "credits_spent_amount": "1500.00",
+                "coupon_discount_price": "1000.00",
+                "coupon_shipping_fee_amount": "0.00",
+                "membership_discount_amount": "0.00",
+                "shipping_fee_discount_amount": "5500.00",
+                "set_product_discount_amount": "0.00",
+                "app_discount_amount": "0.00",
+                "point_incentive_amount": "0.00",
+                "total_amount_due": "0.00",
+                "payment_amount": "30000.00",
+                "market_other_discount_amount": "0.00",
+                "tax": "80.00"
+            },
+            "billing_name": "Test",
+            "bank_code": "bank_26",
+            "bank_code_name": "Sample Bank",
+            "payment_method": [
+                "card",
+                "cash"
+            ],
+            "payment_method_name": [
+                "Card",
+                "Cash"
+            ],
+            "payment_gateway_names": null,
+            "sub_payment_method_name": "PayPal",
+            "sub_payment_method_code": "PM002",
+            "transaction_ids": null,
+            "paid": "T",
+            "canceled": "F",
+            "order_date": "2018-07-04T11:21:35+09:00",
+            "first_order": "T",
+            "payment_date": "2018-07-04T11:21:35+09:00",
+            "order_from_mobile": "F",
+            "use_escrow": "F",
+            "bank_account_no": "12312422234",
+            "bank_account_owner_name": "John Doe",
+            "market_seller_id": null,
+            "payment_amount": "30000.00",
+            "cancel_date": null,
+            "order_place_name": "Naver Pay",
+            "order_place_id": "NCHECKOUT",
+            "payment_confirmation": null,
+            "commission": "0.00",
+            "postpay": "F",
+            "admin_additional_amount": "0.00",
+            "additional_shipping_fee": "0.00",
+            "international_shipping_insurance": "0.00",
+            "additional_handling_fee": "0.00",
+            "shipping_type": "A",
+            "shipping_type_text": "Domestic Shipping",
+            "shipping_status": "T",
+            "shipping_fee_detail": [
+                {
+                    "shipping_group_code": 80,
+                    "supplier_code": "S0000000",
+                    "shipping_fee": "2500.00",
+                    "cancel_shipping_fee": "0.00",
+                    "additional_shipping_fee": "0.00",
+                    "refunded_shipping_fee": "0.00",
+                    "return_shipping_fee": "0.00",
+                    "items": [
+                        "20170710-0000013-01",
+                        "20170710-0000013-02"
+                    ]
+                },
+                {
+                    "shipping_group_code": 81,
+                    "supplier_code": "S000000A",
+                    "shipping_fee": "2500.00",
+                    "cancel_shipping_fee": "0.00",
+                    "additional_shipping_fee": "0.00",
+                    "refunded_shipping_fee": "0.00",
+                    "return_shipping_fee": "0.00",
+                    "items": [
+                        "20170710-0000013-03",
+                        "20170710-0000013-04"
+                    ]
+                }
+            ],
+            "regional_surcharge_detail": [
+                {
+                    "shipping_group_code": 82,
+                    "supplier_code": "S0000000",
+                    "regional_surcharge_amount": "5000.00",
+                    "regional_surcharge_calculation_type": "custom",
+                    "template_code": 5,
+                    "template_name": "Jeju/Island Shipping",
+                    "cancel_shipping_fee": "0.00",
+                    "additional_shipping_fee": "0.00",
+                    "refunded_shipping_fee": "0.00",
+                    "return_shipping_fee": "0.00",
+                    "items": [
+                        "20170710-0000013-01",
+                        "20170710-0000013-02"
+                    ]
+                },
+                {
+                    "shipping_group_code": 83,
+                    "supplier_code": "S000000A",
+                    "regional_surcharge_amount": "4000.00",
+                    "regional_surcharge_calculation_type": "default",
+                    "template_code": 4,
+                    "template_name": "Default Template",
+                    "cancel_shipping_fee": "0.00",
+                    "additional_shipping_fee": "0.00",
+                    "refunded_shipping_fee": "0.00",
+                    "return_shipping_fee": "0.00",
+                    "items": [
+                        "20170710-0000013-03",
+                        "20170710-0000013-04"
+                    ]
+                }
+            ],
+            "wished_delivery_date": "",
+            "wished_delivery_time": null,
+            "wished_carrier_id": null,
+            "wished_carrier_name": null,
+            "return_confirmed_date": null,
+            "total_supply_price": "27000",
+            "naver_point": 0,
+            "additional_order_info_list": [
+                {
+                    "id": 1,
+                    "name": "addtional info1",
+                    "value": "lorem ipsu",
+                    "input_type": "A",
+                    "product_type": "A",
+                    "applied_product_list": [
+                        "iPhone X",
+                        "iPhone X case"
+                    ]
+                },
+                {
+                    "id": 2,
+                    "name": "addtional info2",
+                    "value": "Green",
+                    "input_type": "A",
+                    "product_type": "A",
+                    "applied_product_list": [
+                        "iPhone X",
+                        "iPhone X case"
+                    ]
+                }
+            ],
+            "store_pickup": "F",
+            "easypay_name": "",
+            "loan_status": null,
+            "subscription": "T",
+            "multiple_addresses": "F",
+            "exchange_rate": "1.0000",
+            "first_payment_methods": [
+                "card",
+                "giftcard"
+            ],
+            "naverpay_payment_information": "N",
+            "market_discount_info": null,
+            "include_tax": "F",
+            "tax_detail": [
+                {
+                    "name": "VAT",
+                    "amount": "60.00",
+                    "price_before_tax": "15000.00",
+                    "price_before_tax_type": "I",
+                    "order_item_code": [
+                        "20170710-0000013-01",
+                        "20170710-0000013-02"
+                    ],
+                    "country_tax_rate": "5.00",
+                    "region_tax": {
+                        "rate": "10.00",
+                        "taxation_method": "A"
+                    },
+                    "product_tax_override": {
+                        "rate": "7.00",
+                        "taxation_method": "A"
+                    },
+                    "shipping_tax_override": {
+                        "rate": null,
+                        "taxation_method": null
+                    }
+                },
+                {
+                    "name": "TAX",
+                    "amount": "20.00",
+                    "price_before_tax": "2500.00",
+                    "price_before_tax_type": "S",
+                    "order_item_code": [
+                        "20170710-0000013-01",
+                        "20170710-0000013-02"
+                    ],
+                    "country_tax_rate": "5.00",
+                    "region_tax": {
+                        "rate": "10.00",
+                        "taxation_method": "A"
+                    },
+                    "product_tax_override": {
+                        "rate": null,
+                        "taxation_method": null
+                    },
+                    "shipping_tax_override": {
+                        "rate": "7.00",
+                        "taxation_method": "A"
+                    }
+                }
+            ],
+            "service_type": "rental",
+            "service_data": [
+                {
+                    "key": "rental_period",
+                    "value": "12",
+                    "title": "rental period"
+                },
+                {
+                    "key": "rental_amount",
+                    "value": "10000",
+                    "title": "rental amount"
+                }
+            ],
+            "show_shipping_address": "T",
+            "social_member_code": null,
+            "social_name": null
+        },
+        {
+            "shop_no": 1,
+            "currency": "KRW",
+            "order_id": "20170711-0000014",
+            "market_id": "self",
+            "market_order_no": null,
+            "member_id": "sampleid",
+            "member_email": "sample@sample.com",
+            "member_authentication": "T",
+            "initial_order_amount": {
+                "order_price_amount": "5000.00",
+                "shipping_fee": "7000.00",
+                "points_spent_amount": "0.00",
+                "credits_spent_amount": "1500.00",
+                "coupon_discount_price": "1000.00",
+                "coupon_shipping_fee_amount": "0.00",
+                "membership_discount_amount": "0.00",
+                "shipping_fee_discount_amount": "5500.00",
+                "app_discount_amount": "0.00",
+                "point_incentive_amount": "0.00",
+                "total_amount_due": "0.00",
+                "payment_amount": "30000.00",
+                "market_other_discount_amount": "0.00",
+                "tax": "120.00"
+            },
+            "actual_order_amount": {
+                "order_price_amount": "5000.00",
+                "shipping_fee": "14000.00",
+                "points_spent_amount": "0.00",
+                "credits_spent_amount": "1500.00",
+                "coupon_discount_price": "1000.00",
+                "coupon_shipping_fee_amount": "0.00",
+                "membership_discount_amount": "0.00",
+                "shipping_fee_discount_amount": "5500.00",
+                "app_discount_amount": "0.00",
+                "point_incentive_amount": "0.00",
+                "total_amount_due": "0.00",
+                "payment_amount": "30000.00",
+                "market_other_discount_amount": "0.00",
+                "tax": "60.00"
+            },
+            "billing_name": "123",
+            "bank_code": "bank_26",
+            "bank_code_name": "Sample Bank",
+            "payment_method": [
+                "card",
+                "cash"
+            ],
+            "payment_method_name": [
+                "Card",
+                "Cash"
+            ],
+            "payment_gateway_names": null,
+            "sub_payment_method_name": "PayPal",
+            "sub_payment_method_code": "PM002",
+            "transaction_ids": null,
+            "paid": "T",
+            "canceled": "F",
+            "order_date": "2018-07-04T11:21:35+09:00",
+            "first_order": "F",
+            "payment_date": "2018-07-04T11:21:35+09:00",
+            "order_from_mobile": "F",
+            "use_escrow": "F",
+            "bank_account_no": "12312422234",
+            "bank_account_owner_name": "John Doe",
+            "market_seller_id": null,
+            "payment_amount": "10000.00",
+            "cancel_date": null,
+            "order_place_name": "Naver Pay",
+            "order_place_id": "NCHECKOUT",
+            "payment_confirmation": null,
+            "commission": "0.00",
+            "postpay": "F",
+            "admin_additional_amount": "0.00",
+            "additional_shipping_fee": "0.00",
+            "international_shipping_insurance": "0.00",
+            "additional_handling_fee": "0.00",
+            "shipping_type": "A",
+            "shipping_type_text": "Domestic Shipping",
+            "shipping_status": "M",
+            "shipping_fee_detail": [
+                {
+                    "shipping_group_code": 90,
+                    "supplier_code": "S0000000",
+                    "shipping_fee": "2500.00",
+                    "cancel_shipping_fee": "0.00",
+                    "additional_shipping_fee": "0.00",
+                    "refunded_shipping_fee": "0.00",
+                    "return_shipping_fee": "0.00",
+                    "items": [
+                        "20170711-0000014-01",
+                        "20170711-0000014-02"
+                    ]
+                },
+                {
+                    "shipping_group_code": 91,
+                    "supplier_code": "S000000A",
+                    "shipping_fee": "2500.00",
+                    "cancel_shipping_fee": "0.00",
+                    "additional_shipping_fee": "0.00",
+                    "refunded_shipping_fee": "0.00",
+                    "return_shipping_fee": "0.00",
+                    "items": [
+                        "20170711-0000014-03",
+                        "20170711-0000014-04"
+                    ]
+                }
+            ],
+            "regional_surcharge_detail": [
+                {
+                    "shipping_group_code": 92,
+                    "supplier_code": "S0000000",
+                    "regional_surcharge_amount": "1000.00",
+                    "regional_surcharge_calculation_type": "custom",
+                    "template_code": 7,
+                    "template_name": "Large Furniture",
+                    "cancel_shipping_fee": "0.00",
+                    "additional_shipping_fee": "0.00",
+                    "refunded_shipping_fee": "0.00",
+                    "return_shipping_fee": "0.00",
+                    "items": [
+                        "20170711-0000014-01",
+                        "20170711-0000014-02"
+                    ]
+                },
+                {
+                    "shipping_group_code": 93,
+                    "supplier_code": "S000000A",
+                    "regional_surcharge_amount": "1000.00",
+                    "regional_surcharge_calculation_type": "default",
+                    "template_code": 6,
+                    "template_name": "Default Template",
+                    "cancel_shipping_fee": "0.00",
+                    "additional_shipping_fee": "0.00",
+                    "refunded_shipping_fee": "0.00",
+                    "return_shipping_fee": "0.00",
+                    "items": [
+                        "20170711-0000014-03",
+                        "20170711-0000014-04"
+                    ]
+                }
+            ],
+            "wished_delivery_date": "",
+            "wished_delivery_time": null,
+            "wished_carrier_id": null,
+            "wished_carrier_name": null,
+            "return_confirmed_date": null,
+            "total_supply_price": "9000",
+            "naver_point": 0,
+            "additional_order_info_list": [],
+            "store_pickup": "F",
+            "easypay_name": "",
+            "loan_status": null,
+            "subscription": "F",
+            "multiple_addresses": "T",
+            "exchange_rate": "1063.2117",
+            "first_payment_methods": [
+                "card",
+                "giftcard"
+            ],
+            "naverpay_payment_information": null,
+            "include_tax": "F",
+            "tax_detail": [
+                {
+                    "name": "VAT",
+                    "amount": "50.00",
+                    "price_before_tax": "15000.00",
+                    "price_before_tax_type": "I",
+                    "order_item_code": [
+                        "20170710-0000014-01",
+                        "20170710-0000014-02"
+                    ],
+                    "country_tax_rate": "5.00",
+                    "region_tax": {
+                        "rate": "10.00",
+                        "taxation_method": "A"
+                    },
+                    "product_tax_override": {
+                        "rate": "7.00",
+                        "taxation_method": "A"
+                    },
+                    "shipping_tax_override": {
+                        "rate": null,
+                        "taxation_method": null
+                    }
+                },
+                {
+                    "name": "TAX",
+                    "amount": "10.00",
+                    "price_before_tax": "2500.00",
+                    "price_before_tax_type": "S",
+                    "order_item_code": [
+                        "20170710-0000014-01",
+                        "20170710-0000014-02"
+                    ],
+                    "country_tax_rate": "5.00",
+                    "region_tax": {
+                        "rate": "10.00",
+                        "taxation_method": "A"
+                    },
+                    "product_tax_override": {
+                        "rate": null,
+                        "taxation_method": null
+                    },
+                    "shipping_tax_override": {
+                        "rate": "7.00",
+                        "taxation_method": "A"
+                    }
+                }
+            ],
+            "service_type": "rental",
+            "service_data": [
+                {
+                    "key": "rental_period",
+                    "value": "12",
+                    "title": "rental period"
+                },
+                {
+                    "key": "rental_amount",
+                    "value": "10000",
+                    "title": "rental amount"
+                }
+            ],
+            "show_shipping_address": "T",
+            "social_member_code": null,
+            "social_name": null
+        }
+    ],
+    "links": [
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/orders?limit=10&offset=10"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/orders/{order_id}` — Retrieve an order
 
 - **Scope**: `mall.read_order` (read)
@@ -181,6 +678,267 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `cancellation` |  |  |  | 취소상세 리소스 |
 | `exchange` |  |  |  | 교환상세 리소스 |
 | `refunds` |  |  |  | 환불상세 리소스 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "order": {
+        "shop_no": 1,
+        "currency": "KRW",
+        "order_id": "20170710-0000013",
+        "market_id": "self",
+        "market_order_no": null,
+        "member_id": "sampleid",
+        "member_authentication": "T",
+        "customer_group_no_when_ordering": 1,
+        "initial_order_amount": {
+            "order_price_amount": "5000.00",
+            "shipping_fee": "14000.00",
+            "points_spent_amount": "0.00",
+            "credits_spent_amount": "1500.00",
+            "coupon_discount_price": "1000.00",
+            "coupon_shipping_fee_amount": "0.00",
+            "membership_discount_amount": "0.00",
+            "shipping_fee_discount_amount": "5500.00",
+            "set_product_discount_amount": "0.00",
+            "app_discount_amount": "0.00",
+            "point_incentive_amount": "0.00",
+            "total_amount_due": "0.00",
+            "payment_amount": "30000.00",
+            "market_other_discount_amount": "0.00",
+            "tax": "120.0"
+        },
+        "actual_order_amount": {
+            "order_price_amount": "5000.00",
+            "shipping_fee": "14000.00",
+            "points_spent_amount": "0.00",
+            "credits_spent_amount": "1500.00",
+            "coupon_discount_price": "0.00",
+            "coupon_shipping_fee_amount": "0.00",
+            "membership_discount_amount": "0.00",
+            "shipping_fee_discount_amount": "0.00",
+            "set_product_discount_amount": "0.00",
+            "app_discount_amount": "0.00",
+            "point_incentive_amount": "0.00",
+            "total_amount_due": "0.00",
+            "payment_amount": "16000.00",
+            "market_other_discount_amount": "0.00",
+            "tax": "60.0"
+        },
+        "billing_name": "Test",
+        "bank_code": "bank_26",
+        "bank_code_name": "Sample Bank",
+        "payment_method": [
+            "card",
+            "cash"
+        ],
+        "payment_method_name": [
+            "Card",
+            "Cash"
+        ],
+        "payment_gateway_names": null,
+        "sub_payment_method_name": "PayPal",
+        "sub_payment_method_code": "PM002",
+        "transaction_ids": null,
+        "paid": "T",
+        "canceled": "F",
+        "order_date": "2018-07-04T11:21:35+09:00",
+        "first_order": "T",
+        "payment_date": "2018-07-04T11:21:35+09:00",
+        "order_from_mobile": "F",
+        "use_escrow": "F",
+        "bank_account_no": "12312422234",
+        "bank_account_owner_name": "John Doe",
+        "market_seller_id": null,
+        "payment_amount": "30000.00",
+        "cancel_date": null,
+        "order_place_name": "Naver Pay",
+        "order_place_id": "NCHECKOUT",
+        "payment_confirmation": null,
+        "commission": "0.00",
+        "postpay": "F",
+        "admin_additional_amount": "0.00",
+        "additional_shipping_fee": "0.00",
+        "international_shipping_insurance": "0.00",
+        "additional_handling_fee": "0.00",
+        "shipping_type": "A",
+        "shipping_type_text": "Domestic Shipping",
+        "shipping_status": "T",
+        "shipping_fee_detail": [
+            {
+                "shipping_group_code": 80,
+                "supplier_code": "S0000000",
+                "shipping_fee": "2500.00",
+                "cancel_shipping_fee": "0.00",
+                "additional_shipping_fee": "0.00",
+                "refunded_shipping_fee": "0.00",
+                "return_shipping_fee": "0.00",
+                "items": [
+                    "20170710-0000013-01",
+                    "20170710-0000013-02"
+                ]
+            },
+            {
+                "shipping_group_code": 81,
+                "supplier_code": "S000000A",
+                "shipping_fee": "2500.00",
+                "cancel_shipping_fee": "0.00",
+                "additional_shipping_fee": "0.00",
+                "refunded_shipping_fee": "0.00",
+                "return_shipping_fee": "0.00",
+                "items": [
+                    "20170710-0000013-03",
+                    "20170710-0000013-04"
+                ]
+            }
+        ],
+        "regional_surcharge_detail": [
+            {
+                "shipping_group_code": 82,
+                "supplier_code": "S0000000",
+                "regional_surcharge_amount": "5000.00",
+                "regional_surcharge_calculation_type": "custom",
+                "template_code": 5,
+                "template_name": "Jeju/Island Shipping",
+                "cancel_shipping_fee": "0.00",
+                "additional_shipping_fee": "0.00",
+                "refunded_shipping_fee": "0.00",
+                "return_shipping_fee": "0.00",
+                "items": [
+                    "20170710-0000013-01",
+                    "20170710-0000013-02"
+                ]
+            },
+            {
+                "shipping_group_code": 83,
+                "supplier_code": "S000000A",
+                "regional_surcharge_amount": "4000.00",
+                "regional_surcharge_calculation_type": "default",
+                "template_code": 4,
+                "template_name": "Default Template",
+                "cancel_shipping_fee": "0.00",
+                "additional_shipping_fee": "0.00",
+                "refunded_shipping_fee": "0.00",
+                "return_shipping_fee": "0.00",
+                "items": [
+                    "20170710-0000013-03",
+                    "20170710-0000013-04"
+                ]
+            }
+        ],
+        "wished_delivery_date": "",
+        "wished_delivery_time": null,
+        "wished_carrier_id": null,
+        "wished_carrier_name": null,
+        "return_confirmed_date": null,
+        "total_supply_price": "27000",
+        "naver_point": 0,
+        "additional_order_info_list": [
+            {
+                "id": 1,
+                "name": "addtional info1",
+                "value": "lorem ipsu",
+                "input_type": "A",
+                "product_type": "A",
+                "applied_product_list": [
+                    "iPhone X",
+                    "iPhone X case"
+                ]
+            },
+            {
+                "id": 2,
+                "name": "addtional info2",
+                "value": "Green",
+                "input_type": "A",
+                "product_type": "A",
+                "applied_product_list": [
+                    "iPhone X",
+                    "iPhone X case"
+                ]
+            }
+        ],
+        "store_pickup": "F",
+        "easypay_name": "",
+        "loan_status": null,
+        "subscription": "T",
+        "multiple_addresses": "F",
+        "exchange_rate": "1063.2117",
+        "first_payment_methods": [
+            "card",
+            "giftcard"
+        ],
+        "naverpay_payment_information": "N",
+        "include_tax": "T",
+        "tax_detail": [
+            {
+                "name": "VAT",
+                "amount": "50.00",
+                "price_before_tax": "15000.00",
+                "price_before_tax_type": "I",
+                "order_item_code": [
+                    "20170710-0000013-01",
+                    "20170710-0000013-02"
+                ],
+                "country_tax_rate": "5.00",
+                "region_tax": {
+                    "rate": "10.00",
+                    "taxation_method": "A"
+                },
+                "product_tax_override": {
+                    "rate": "7.00",
+                    "taxation_method": "A"
+                },
+                "shipping_tax_override": {
+                    "rate": null,
+                    "taxation_method": null
+                }
+            },
+            {
+                "name": "TAX",
+                "amount": "10.00",
+                "price_before_tax": "2500.00",
+                "price_before_tax_type": "S",
+                "order_item_code": [
+                    "20170710-0000013-01",
+                    "20170710-0000013-02"
+                ],
+                "country_tax_rate": "5.00",
+                "region_tax": {
+                    "rate": "10.00",
+                    "taxation_method": "A"
+                },
+                "product_tax_override": {
+                    "rate": null,
+                    "taxation_method": null
+                },
+                "shipping_tax_override": {
+                    "rate": "7.00",
+                    "taxation_method": "A"
+                }
+            }
+        ],
+        "service_type": "rental",
+        "service_data": [
+            {
+                "key": "rental_period",
+                "value": "12",
+                "title": "rental period"
+            },
+            {
+                "key": "rental_amount",
+                "value": "10000",
+                "title": "rental amount"
+            }
+        ],
+        "show_shipping_address": "T",
+        "social_member_code": null,
+        "social_name": null
+    }
+}
+```
 
 ### `GET /api/v2/admin/orders/count` — Retrieve a count of orders
 
@@ -231,6 +989,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `labels` |  |  |  | 주문 라벨 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `refund_status` |  |  |  | CS(환불)상태 ,(콤마)로 여러 건을 검색할 수 있다. F : 환불전 · T : 환불완료 · M : 환불보류 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 3
+}
+```
+
 ### `PUT /api/v2/admin/orders` — Update status for multiple orders
 
 - **Scope**: `mall.write_order` (write)
@@ -251,6 +1019,41 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `collect_points` |  |  | F | 적립금 회수 Youtube shopping 이용 시에는 미제공 T: 회수 · F: 회수안함 |
 | `show_shipping_address` |  |  |  | 배송지 정보 표기 여부 T: 배송지 정보 표기 · F: 배송지 정보 가림 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "orders": [
+        {
+            "shop_no": 1,
+            "order_id": "20171207-0000021",
+            "process_status": "prepare",
+            "order_item_code": [
+                "20171207-0000021-01",
+                "20171207-0000021-02"
+            ],
+            "purchase_confirmation": null,
+            "collect_points": "F",
+            "show_shipping_address": null
+        },
+        {
+            "shop_no": 1,
+            "order_id": "20171207-0000023",
+            "process_status": "prepare",
+            "order_item_code": [
+                "20171207-0000023-01",
+                "20171207-0000023-02"
+            ],
+            "purchase_confirmation": null,
+            "collect_points": "F",
+            "show_shipping_address": null
+        }
+    ]
+}
+```
+
 ### `PUT /api/v2/admin/orders/{order_id}` — Update an order status
 
 - **Scope**: `mall.write_order` (write)
@@ -270,3 +1073,23 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `purchase_confirmation` |  |  |  | 구매확정 여부 T : 구매확정 · F : 구매확정 철회 |
 | `collect_points` |  |  | F | 적립금 회수 Youtube shopping 이용 시에는 미제공 T: 회수 · F: 회수안함 |
 | `show_shipping_address` |  |  |  | 배송지 정보 표기 여부 T: 배송지 정보 표기 · F: 배송지 정보 가림 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "order": {
+        "shop_no": 1,
+        "process_status": "prepare",
+        "order_item_code": [
+            "20180627-0000017-01",
+            "20180627-0000017-02"
+        ],
+        "purchase_confirmation": null,
+        "collect_points": "F",
+        "show_shipping_address": null
+    }
+}
+```

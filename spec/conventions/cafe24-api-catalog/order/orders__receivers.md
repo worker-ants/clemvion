@@ -2,7 +2,7 @@
 resource: order
 entity: orders__receivers
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--receivers
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders receivers
@@ -63,6 +63,41 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
 | `shipping_code` |  |  |  | 배송번호 ,(콤마)로 여러 건을 검색할 수 있다. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "receivers": [
+        {
+            "shop_no": 1,
+            "name": "John Doe",
+            "name_furigana": "John Doe",
+            "phone": "02-0000-0000",
+            "cellphone": "010-0000-0000",
+            "virtual_phone_no": null,
+            "zipcode": "06258",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall",
+            "name_en": null,
+            "city_en": null,
+            "state_en": null,
+            "street_en": null,
+            "country_code": "",
+            "country_name": null,
+            "country_name_en": null,
+            "shipping_message": "Sample shipping message",
+            "clearance_information_type": "C",
+            "clearance_information": "P123456789012",
+            "wished_delivery_date": "",
+            "wished_delivery_time": null,
+            "shipping_code": "D-20200928-0000011-00"
+        }
+    ]
+}
+```
+
 ### `PUT /api/v2/admin/orders/{order_id}/receivers` — Update order recipients
 
 - **Scope**: `mall.write_order` (write)
@@ -103,6 +138,85 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `start_hour` |  |  |  | 희망배송 시작시간 |
 | ↳ `end_hour` |  |  |  | 희망배송 종료시간 |
 | `use_fast_delivery_time` |  |  |  | 가능한 빠른 배송시간 설정 여부 가능한 빠른 배송일 설정 여부'가 'T' 일때는 null 로 응답함 T: 사용함 · F: 사용안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "receivers": [
+        {
+            "shop_no": 1,
+            "name": "John Doe",
+            "name_furigana": "",
+            "phone": "02-0000-0000",
+            "cellphone": "010-0000-0000",
+            "virtual_phone_no": "0500-0000-0000",
+            "zipcode": "06258",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall",
+            "address_state": "",
+            "address_city": "",
+            "address_street": "",
+            "address_full": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea Professional Construction Hall",
+            "name_en": "",
+            "city_en": "",
+            "state_en": "",
+            "street_en": "",
+            "country_code": "",
+            "country_name": "",
+            "country_name_en": "",
+            "shipping_message": "Sample shipping message",
+            "shipping_code": "D-20170710-0000013-00",
+            "clearance_information_type": null,
+            "clearance_information": null,
+            "change_default_shipping_address": "T",
+            "wished_delivery_date": "2017-07-17",
+            "use_fast_delivery_date": "F",
+            "wished_delivery_time": {
+                "start_hour": "08",
+                "end_hour": "12"
+            },
+            "use_fast_delivery_time": "F"
+        },
+        {
+            "shop_no": 1,
+            "name": "Jane Kim",
+            "name_furigana": "",
+            "phone": "02-0000-0000",
+            "cellphone": "010-0000-0000",
+            "virtual_phone_no": "0500-0000-0000",
+            "zipcode": "04312",
+            "address1": "5, Hyochangwon-ro 70-gil, Yongsan-gu, Seoul, Republic of Korea",
+            "address2": "2F, Shinwha Building",
+            "address_state": "",
+            "address_city": "",
+            "address_street": "",
+            "address_full": "5, Hyochangwon-ro 70-gil, Yongsan-gu, Seoul, Republic of Korea 2F, Shinwha Building",
+            "name_en": "",
+            "city_en": "",
+            "state_en": "",
+            "street_en": "",
+            "country_code": "",
+            "country_name": "",
+            "country_name_en": "",
+            "shipping_message": "Sample shipping message",
+            "shipping_code": "D-20170710-0000013-01",
+            "clearance_information_type": null,
+            "clearance_information": null,
+            "change_default_shipping_address": "F",
+            "wished_delivery_date": "2017-07-17",
+            "use_fast_delivery_date": "F",
+            "wished_delivery_time": {
+                "start_hour": "08",
+                "end_hour": "12"
+            },
+            "use_fast_delivery_time": "F"
+        }
+    ]
+}
+```
 
 ### `PUT /api/v2/admin/orders/{order_id}/receivers/{shipping_code}` — Change shipping information
 
@@ -145,3 +259,45 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `end_hour` |  |  |  | 희망배송 종료시간 |
 | `use_fast_delivery_time` |  |  |  | 가능한 빠른 배송시간 설정 여부 가능한 빠른 배송일 설정 여부'가 'T' 일때는 null 로 응답함 T: 사용함 · F: 사용안함 |
 | `receiver_direct_input_check` |  |  |  | 주소 직접입력 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "receiver": {
+        "shop_no": 1,
+        "name": "John Doe",
+        "name_furigana": "",
+        "phone": "02-0000-0000",
+        "cellphone": "010-0000-0000",
+        "virtual_phone_no": "0500-0000-0000",
+        "zipcode": "06258",
+        "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "address2": "Professional Construction Hall",
+        "address_state": "",
+        "address_city": "",
+        "address_street": "",
+        "address_full": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea Professional Construction Hall",
+        "name_en": "",
+        "city_en": "",
+        "state_en": "",
+        "street_en": "",
+        "country_code": "",
+        "country_name": "",
+        "country_name_en": "",
+        "shipping_message": "Sample shipping message",
+        "clearance_information_type": null,
+        "clearance_information": null,
+        "change_default_shipping_address": "F",
+        "wished_delivery_date": "2017-07-17",
+        "use_fast_delivery_date": "F",
+        "wished_delivery_time": {
+            "start_hour": "08",
+            "end_hour": "12"
+        },
+        "use_fast_delivery_time": "F"
+    }
+}
+```

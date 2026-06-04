@@ -2,7 +2,7 @@
 resource: order
 entity: orders-benefits
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders-benefits
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders benefits
@@ -44,3 +44,38 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_id` | ✓ | 주문번호 |  | 주문번호 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `limit` |  | 최소: [1]~최대: [500] | 10 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "benefits": [
+        {
+            "shop_no": 1,
+            "order_id": "20201005-0000011",
+            "order_item_code": "20201005-0000011-01",
+            "benefit_no": 900,
+            "benefit_title": "bulk order discount",
+            "benefit_name": "bulk order discount name",
+            "benefit_code": 966,
+            "benefit_percent": "10%",
+            "benefit_value": "500.00",
+            "benefit_app_key": null
+        },
+        {
+            "shop_no": 1,
+            "order_id": "20201005-0000011",
+            "order_item_code": "20201005-0000011-01",
+            "benefit_no": 901,
+            "benefit_title": "customer discount",
+            "benefit_name": "customer discount name",
+            "benefit_code": 967,
+            "benefit_percent": null,
+            "benefit_value": "500.00",
+            "benefit_app_key": null
+        }
+    ]
+}
+```

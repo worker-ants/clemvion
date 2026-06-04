@@ -2,7 +2,7 @@
 resource: notification
 entity: sms-senders
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#sms-senders
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Notification / Sms senders
@@ -36,3 +36,32 @@ SMS 발신자(Sms senders)는 SMS를 발송할 발신번호를 나타냅니다. 
 |---|---|---|---|---|
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "senders": [
+        {
+            "sender_no": 3,
+            "sender": "010-1234-5678",
+            "auth_status": "30",
+            "memo": {
+                "request_reason": "This is a number for emergency sms.",
+                "reject_reason": "Invalid phone number."
+            }
+        },
+        {
+            "sender_no": 2,
+            "sender": "01012345678",
+            "auth_status": "20",
+            "memo": {
+                "request_reason": "This is a number for regular sms.",
+                "reject_reason": "Invalid request reason."
+            }
+        }
+    ]
+}
+```

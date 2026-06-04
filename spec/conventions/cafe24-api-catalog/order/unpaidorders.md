@@ -2,7 +2,7 @@
 resource: order
 entity: unpaidorders
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#unpaidorders
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Unpaidorders
@@ -49,3 +49,50 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최소: [1]~최대: [500] | 10 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [15000] | 0 | 조회결과 시작위치 |
 | `order` |  |  | desc | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "unpaidorders": [
+        {
+            "shop_no": 1,
+            "order_id": "20250604-0000023",
+            "order_item_code": [
+                "20250604-0000023-01",
+                "20250605-0000023-02"
+            ],
+            "order_date": "2025-06-04T12:30:00+09:00",
+            "buyer_name": "John Doe",
+            "billing_name": "John Doe",
+            "bank_code": "bank_001",
+            "bank_name": "Kakao Bank",
+            "unpaid_amount": "1000",
+            "accounts": "123456",
+            "payment_method": "cash",
+            "settle_type": "S",
+            "payment_no": 2
+        },
+        {
+            "shop_no": 1,
+            "order_id": "20250604-0000024",
+            "order_item_code": [
+                "20210101-0000024-03",
+                "20210101-0000024-04"
+            ],
+            "order_date": "2025-06-04T12:30:00+09:00",
+            "buyer_name": "John Doe",
+            "billing_name": "John Doe124",
+            "bank_code": "bank_005",
+            "bank_name": "Shinhan Bank",
+            "unpaid_amount": "2000",
+            "accounts": "54321",
+            "payment_method": "icash",
+            "settle_type": "E",
+            "payment_no": 3
+        }
+    ]
+}
+```

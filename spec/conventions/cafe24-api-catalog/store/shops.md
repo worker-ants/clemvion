@@ -2,7 +2,7 @@
 resource: store
 entity: shops
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#shops
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Shops
@@ -55,6 +55,81 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 
 _요청 파라미터 없음._
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shops": [
+        {
+            "shop_no": 1,
+            "default": "T",
+            "shop_name": "My Shop",
+            "business_country_code": "KR",
+            "language_code": "ko_KR",
+            "language_name": "Korean",
+            "currency_code": "KRW",
+            "currency_name": "South Korean Won (KRW)",
+            "reference_currency_code": "",
+            "reference_currency_name": null,
+            "pc_skin_no": 1,
+            "mobile_skin_no": 2,
+            "base_domain": "sampleid.cafe24.com",
+            "primary_domain": "samplemall.com",
+            "slave_domain": [
+                "sampledomain1.com",
+                "ko.sampledomain1.com"
+            ],
+            "active": "T",
+            "timezone": "Asia/Seoul",
+            "timezone_name": "(UTC+09:00) Seoul",
+            "date_format": "YYYY-MM-DD",
+            "time_format": "hh:mm:ss",
+            "use_reference_currency": "F",
+            "is_https_active": "T",
+            "channel": "",
+            "site_connect": "T",
+            "use_translation": "F",
+            "unit_system": "metric",
+            "weight_unit": "kg"
+        },
+        {
+            "shop_no": 2,
+            "default": "F",
+            "shop_name": "My Shop USA",
+            "business_country_code": "KR",
+            "language_code": "en_US",
+            "language_name": "English",
+            "currency_code": "USD",
+            "currency_name": "United States Dollar (USD)",
+            "reference_currency_code": "",
+            "reference_currency_name": null,
+            "pc_skin_no": 3,
+            "mobile_skin_no": 4,
+            "base_domain": "sampleid.cafe24.com/shop2",
+            "primary_domain": "en.samplemall.com",
+            "slave_domain": [
+                "sampledomain2.com",
+                "en.sampledomain2.com"
+            ],
+            "active": "T",
+            "timezone": "America/Los_Angeles",
+            "timezone_name": "(UTC-08:00) Pacific Time (US & Canada)",
+            "date_format": "MM-DD-YYYY",
+            "time_format": "hh:mm:ss",
+            "use_reference_currency": "F",
+            "is_https_active": "T",
+            "channel": "",
+            "site_connect": "T",
+            "use_translation": "T",
+            "unit_system": "imperial",
+            "weight_unit": "lb"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/shops/{shop_no}` — Retrieve a shop
 
 - **Scope**: `mall.read_store` (read)
@@ -67,3 +142,42 @@ _요청 파라미터 없음._
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` | ✓ |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shop": {
+        "shop_no": 1,
+        "default": "T",
+        "shop_name": "My Shop",
+        "business_country_code": "KR",
+        "language_code": "ko_KR",
+        "language_name": "Korean",
+        "currency_code": "KRW",
+        "currency_name": "South Korean Won (KRW)",
+        "reference_currency_code": "",
+        "reference_currency_name": null,
+        "pc_skin_no": null,
+        "mobile_skin_no": null,
+        "base_domain": "sampleid.cafe24.com",
+        "primary_domain": "samplemall.com",
+        "slave_domain": [
+            "sampledomain1.com",
+            "ko.sampledomain1.com"
+        ],
+        "active": "T",
+        "timezone": "Asia/Seoul",
+        "timezone_name": "(UTC+09:00) Seoul",
+        "date_format": "YYYY-MM-DD",
+        "time_format": "hh:mm:ss",
+        "use_reference_currency": "F",
+        "is_https_active": "T",
+        "channel": "",
+        "site_connect": "T",
+        "use_translation": "T"
+    }
+}
+```

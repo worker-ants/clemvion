@@ -2,7 +2,7 @@
 resource: order
 entity: orders__refunds
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--refunds
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders refunds
@@ -43,3 +43,18 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `send_sms` |  |  | T | 환불처리후 SMS 발송 여부 T : 발송함 · F : 발송안함 |
 | `send_mail` |  |  | T | 환불처리후 메일 발송 여부 T : 발송함 · F : 발송안함 |
 | `payment_gateway_cancel` |  |  | F | PG 취소 요청 여부 T : 취소함 · F : 취소안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "refund": {
+        "shop_no": 1,
+        "refund_code": "C20190130-0000004",
+        "status": "complete",
+        "reason": "Refund complete"
+    }
+}
+```

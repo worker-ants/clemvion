@@ -2,7 +2,7 @@
 resource: translation
 entity: translations-store
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#translations-store
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Translation / Translations store
@@ -35,6 +35,58 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `language_code` |  |  |  | 언어 코드 언어별로 번역된 정보에서 검색하고자 하는 언어를 선택하면, 해당 언어에 대한 번역 내용을 확인할 수 있습니다. ,(콤마)로 여러 건을 검색할 수 있다. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "store": {
+        "shop_no": 1,
+        "translations": [
+            {
+                "language_code": "en_US",
+                "translated": "T",
+                "shop_name": "sample shop",
+                "company_name": "sample company",
+                "company_registration_no": "118-81-20586",
+                "president_name": "Jone Doe",
+                "phone": "02-0000-0000",
+                "email": "sample@sample.com",
+                "fax": "02-0000-0000",
+                "zipcode": "07071",
+                "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+                "address2": "Professional Construction Hall",
+                "customer_service_phone": "02-0000-0000",
+                "customer_service_hours": "9:00 AM ~ 5:00 PM",
+                "privacy_officer_name": "Jane Doe",
+                "privacy_officer_email": "sample1@sample.com",
+                "updated_date": "2022-01-10T11:19:27+09:00"
+            },
+            {
+                "language_code": "es_ES",
+                "translated": "T",
+                "shop_name": "tienda de muestras",
+                "company_name": "compañía de muestras",
+                "company_registration_no": "118-81-20586",
+                "president_name": "Jone Doe",
+                "phone": "02-0000-0000",
+                "email": "sample@sample.com",
+                "fax": "02-0000-0000",
+                "zipcode": "07071",
+                "address1": "Sindaebang dong Dongjak-gu, Seúl, República de Corea",
+                "address2": "Hall de construcción profesional",
+                "customer_service_phone": "02-0000-0000",
+                "customer_service_hours": "9 de la mañana a 5 de la tarde",
+                "privacy_officer_name": "Jane Doe",
+                "privacy_officer_email": "sample1@sample.com",
+                "updated_date": "2022-01-10T11:19:27+09:00"
+            }
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/translations/store` — Update the translations of a store
 
 - **Scope**: `mall.write_translation` (write)
@@ -64,3 +116,55 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `customer_service_hours` |  |  |  | 고객센터 운영시간 |
 | ↳ `privacy_officer_name` |  |  |  | 개인정보보호 책임자명 |
 | ↳ `privacy_officer_email` |  |  |  | 개인정보보호 책임자 이메일 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "store": {
+        "shop_no": 1,
+        "translations": [
+            {
+                "language_code": "en_US",
+                "translated": "T",
+                "shop_name": "sample shop",
+                "company_name": "sample company",
+                "company_registration_no": "118-81-20586",
+                "president_name": "Jone Doe",
+                "phone": "02-0000-0000",
+                "email": "sample@sample.com",
+                "fax": "02-0000-0000",
+                "zipcode": "07071",
+                "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+                "address2": "Professional Construction Hall",
+                "customer_service_phone": "02-0000-0000",
+                "customer_service_hours": "9:00 AM ~ 5:00 PM",
+                "privacy_officer_name": "Jane Doe",
+                "privacy_officer_email": "sample1@sample.com",
+                "updated_date": "2022-01-10T11:19:27+09:00"
+            },
+            {
+                "language_code": "es_ES",
+                "translated": "T",
+                "shop_name": "tienda de muestras",
+                "company_name": "compañía de muestras",
+                "company_registration_no": "118-81-20586",
+                "president_name": "Jone Doe",
+                "phone": "02-0000-0000",
+                "email": "sample@sample.com",
+                "fax": "02-0000-0000",
+                "zipcode": "07071",
+                "address1": "Sindaebang dong Dongjak-gu, Seúl, República de Corea",
+                "address2": "Hall de construcción profesional",
+                "customer_service_phone": "02-0000-0000",
+                "customer_service_hours": "9 de la mañana a 5 de la tarde",
+                "privacy_officer_name": "Jane Doe",
+                "privacy_officer_email": "sample1@sample.com",
+                "updated_date": "2022-01-10T11:19:27+09:00"
+            }
+        ]
+    }
+}
+```

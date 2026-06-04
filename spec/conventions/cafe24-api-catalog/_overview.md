@@ -149,12 +149,15 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 2. **Operations** — 해당 entity 의 각 operation 마다:
    - `method` / `path`, **Scope** (`mall.<read|write>_<resource>`), 호출건수 제한, 1회당 요청건수 제한, **Platform** (`cafe24` / `cafe24,youtube` — youtube shopping 채널 가용 여부), Docs anchor.
    - **요청 파라미터 (Request)** — 컬럼: `Parameter` / `필수` / `제약` / `기본값` / `설명`.
+   - **응답 (Response)** — 해당 operation 의 대표 응답 body 샘플(JSON). Cafe24 공식 docs 의 code 엔드포인트(아래 §7.3)에서 operation 별로 가져온 실제 샘플 그대로이며, 필드의 의미·제약은 위 `## 응답 속성 (Property list)` 가 SoT 다 (Response 블록은 형태 예시).
 
 ### 7.3 출처와 정확성 원칙
 
-- **출처는 Cafe24 공식 Admin API Documentation (전체 페이지 HTML) 의 결정적(deterministic) 파싱**이다. 추측·날조로 field 를 채우지 않는다 — docs 에 없는 field 는 본 문서에도 없다.
+- **출처는 Cafe24 공식 Admin API Documentation 의 결정적(deterministic) 파싱**이다. 추측·날조로 field·샘플 을 채우지 않는다 — docs 에 없는 것은 본 문서에도 없다. 두 출처를 합친다:
+  - **field (응답 속성·요청 파라미터)**: 렌더링된 전체 페이지 HTML 의 표 파싱.
+  - **응답 body 샘플 (Response)**: HTML 의 request/response 예시는 JS 가 런타임에 별도 JSON 에서 주입하므로 정적 저장본엔 빈 `<pre>` 로만 남는다. 실제 샘플은 code 엔드포인트 `https://developers.cafe24.com/docs/code/api/admin/shell/<data-resource>.json` 에 operation 별 `{"<METHOD>_<Title>":{"<Title>":{"REQUEST","RESPONSE"}}}` 형태로 존재하며, 생성기가 entity 별로 fetch 해 `RESPONSE` 를 옮긴다. URL 의 `shell` 은 코드샘플 언어(shell/java/python/node/php/go) 중 하나일 뿐 — RESPONSE 는 언어무관이라 shell 하나만 받는다. `<data-resource>` 는 entity id 의 hyphen 을 underscore 로 치환한 값.
 - docs 가 type 컬럼을 별도 제공하지 않으므로(설명문 내 산문 형태) 본 카탈로그도 `제약`(형식·길이·최대값·날짜 등 `<em>` 노트)과 `설명`을 그대로 옮긴다. 정식 type 추론은 backend 메타데이터 작업(`cafe24-api-metadata.md`) 의 몫.
-- docs 개정 시 **동일 추출 파이프라인으로 재생성**한다 — 생성기는 [`_generator.py`](./_generator.py) (`python3 _generator.py <docs-full-page.html>`). 결정적·멱등이므로 재실행해도 손댄 적 없는 파일은 그대로다. 손으로 행을 추가할 때도 반드시 공식 docs 를 출처로 한다.
+- docs 개정 시 **동일 추출 파이프라인으로 재생성**한다 — 생성기는 [`_generator.py`](./_generator.py) (`python3 _generator.py <docs-full-page.html>` — 응답 fetch 포함, 캐시는 `.resp-cache/` gitignore. `--no-responses` 로 HTML 만 생성 가능). 결정적·멱등이므로 재실행해도 손댄 적 없는 파일은 그대로다. 손으로 행을 추가할 때도 반드시 공식 docs 를 출처로 한다.
 
 ### 7.4 sync 테스트와의 관계
 

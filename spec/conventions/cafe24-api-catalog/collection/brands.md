@@ -2,7 +2,7 @@
 resource: collection
 entity: brands
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#brands
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Collection / Brands
@@ -44,6 +44,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "brands": [
+        {
+            "shop_no": 1,
+            "brand_code": "B0000000",
+            "brand_name": "Default Brand",
+            "use_brand": "T",
+            "search_keyword": "keyword",
+            "product_count": 2,
+            "created_date": "2017-12-19T14:39:22+09:00"
+        },
+        {
+            "shop_no": 1,
+            "brand_code": "B000000A",
+            "brand_name": "Default Brand",
+            "use_brand": "F",
+            "search_keyword": "keyword",
+            "product_count": 3,
+            "created_date": "2017-12-19T14:39:22+09:00"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/brands/count` — Retrieve a count of brands
 
 - **Scope**: `mall.read_collection` (read)
@@ -59,6 +88,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `brand_code` |  |  |  | 브랜드 코드 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `brand_name` |  |  |  | 브랜드 명 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `use_brand` |  |  |  | 브랜드 사용여부 T : 사용함 · F : 사용안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 2
+}
+```
 
 ### `POST /api/v2/admin/brands` — Create a brand
 
@@ -76,6 +115,23 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `brand_name` | ✓ |  |  | 브랜드 명 |
 | `use_brand` |  |  | T | 브랜드 사용여부 T : 사용함 · F : 사용안함 |
 | `search_keyword` |  | 최대글자수 : [200자] |  | 검색어 설정 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "brand": {
+        "shop_no": 1,
+        "brand_code": "B000000A",
+        "brand_name": "Sample Brand",
+        "use_brand": "T",
+        "search_keyword": "keyword",
+        "created_date": "2017-12-19T14:39:22+09:00"
+    }
+}
+```
 
 ### `PUT /api/v2/admin/brands/{brand_code}` — Update a brand
 
@@ -96,6 +152,23 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `use_brand` |  |  | T | 브랜드 사용여부 T : 사용함 · F : 사용안함 |
 | `search_keyword` |  | 최대글자수 : [200자] |  | 검색어 설정 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "brand": {
+        "shop_no": 1,
+        "brand_code": "B000000A",
+        "brand_name": "Sample Brand",
+        "use_brand": "T",
+        "search_keyword": "keyword",
+        "created_date": "2017-12-19T14:39:22+09:00"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/brands/{brand_code}` — Delete a brand
 
 - **Scope**: `mall.write_collection` (write)
@@ -108,3 +181,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `brand_code` | ✓ | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] |  | 브랜드 코드 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "brand": {
+        "brand_code": "B000000A"
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: community
 entity: urgentinquiry__reply
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#urgentinquiry--reply
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Community / Urgentinquiry reply
@@ -42,6 +42,37 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `article_no` | ✓ |  |  | 게시물 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "reply": {
+        "shop_no": 1,
+        "article_no": 2,
+        "created_date": "2022-04-13T15:42:37+09:00",
+        "status": "T",
+        "content": "reply content text",
+        "method": "E",
+        "count": 2,
+        "user_id": "admin",
+        "attached_file_detail": [
+            {
+                "no": 1,
+                "source": "dev_starter_p1.png",
+                "name": "/2022/04/06/696717133bf7971d5125f2a05ce16d49.png"
+            },
+            {
+                "no": 2,
+                "source": "dev_basic_p2.png",
+                "name": "/2022/04/06/d0d3944674d139312bdf79853201b4c6.png"
+            }
+        ]
+    }
+}
+```
+
 ### `POST /api/v2/admin/urgentinquiry/{article_no}/reply` — Create a reply for urgent inquiry post
 
 - **Scope**: `mall.write_community` (write)
@@ -63,6 +94,37 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `name` | ✓ |  |  | 파일명 |
 | ↳ `url` | ✓ |  |  | 파일 URL |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "reply": {
+        "shop_no": 1,
+        "article_no": 2,
+        "created_date": "2022-04-13T15:42:37+09:00",
+        "status": "T",
+        "content": "reply content text",
+        "method": "E",
+        "count": 2,
+        "user_id": "admin",
+        "attached_file_detail": [
+            {
+                "no": 1,
+                "source": "dev_starter_p1.png",
+                "name": "/2022/04/06/696717133bf7971d5125f2a05ce16d49.png"
+            },
+            {
+                "no": 2,
+                "source": "dev_basic_p2.png",
+                "name": "/2022/04/06/d0d3944674d139312bdf79853201b4c6.png"
+            }
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/urgentinquiry/{article_no}/reply` — Update a reply for urgent inquiry post
 
 - **Scope**: `mall.write_community` (write)
@@ -83,3 +145,34 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `attach_file_urls` |  |  |  | 첨부 파일 상세 |
 | ↳ `name` | ✓ |  |  | 파일명 |
 | ↳ `url` | ✓ |  |  | 파일 URL |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "reply": {
+        "shop_no": 1,
+        "article_no": 2,
+        "created_date": "2022-04-13T15:42:37+09:00",
+        "status": "T",
+        "content": "reply content text",
+        "method": "E",
+        "count": 2,
+        "user_id": "admin",
+        "attached_file_detail": [
+            {
+                "no": 1,
+                "source": "dev_starter_p1.png",
+                "name": "/2022/04/06/696717133bf7971d5125f2a05ce16d49.png"
+            },
+            {
+                "no": 2,
+                "source": "dev_basic_p2.png",
+                "name": "/2022/04/06/d0d3944674d139312bdf79853201b4c6.png"
+            }
+        ]
+    }
+}
+```

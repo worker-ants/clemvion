@@ -2,7 +2,7 @@
 resource: product
 entity: bundleproducts
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#bundleproducts
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Bundleproducts
@@ -149,6 +149,213 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "bundleproducts": [
+        {
+            "shop_no": 1,
+            "product_no": 24,
+            "product_code": "P000000X",
+            "bundle_product_components": [
+                {
+                    "product_no": 11,
+                    "product_name": "iPhone XS",
+                    "product_code": "P0000BTN",
+                    "product_price": "2000.00",
+                    "purchase_quantity": 1
+                },
+                {
+                    "product_no": 12,
+                    "product_name": "iPad Pro",
+                    "product_code": "P0000BTH",
+                    "product_price": "2000.00",
+                    "purchase_quantity": 1
+                }
+            ],
+            "custom_product_code": "",
+            "product_name": "iPhone X",
+            "eng_product_name": "iPhone Ten",
+            "supply_product_name": "iphone A1865 fdd lte",
+            "internal_product_name": "Sample Internal product name",
+            "model_name": "A1865",
+            "display": "T",
+            "selling": "F",
+            "product_condition": "U",
+            "product_used_month": 2,
+            "summary_description": "This is Product Summary.",
+            "product_tag": [
+                "edu",
+                "test",
+                "sample"
+            ],
+            "price_content": null,
+            "buy_limit_by_product": "T",
+            "buy_limit_type": "F",
+            "buy_group_list": [
+                8,
+                9
+            ],
+            "buy_member_id_list": [
+                "sampleid",
+                "testid"
+            ],
+            "repurchase_restriction": "F",
+            "single_purchase_restriction": "F",
+            "single_purchase": "F",
+            "points_by_product": "T",
+            "points_setting_by_payment": "C",
+            "points_amount": [
+                {
+                    "payment_method": "cash",
+                    "points_rate": "10.00%"
+                },
+                {
+                    "payment_method": "mileage",
+                    "points_rate": "10.00%"
+                }
+            ],
+            "except_member_points": "F",
+            "adult_certification": "F",
+            "detail_image": "https://{domain}/web/product/big/201711/20_shop1_750339.png",
+            "list_image": "https://{domain}/web/product/medium/201711/20_shop1_750339.png",
+            "tiny_image": "https://{domain}/web/product/tiny/201711/20_shop1_750339.png",
+            "small_image": "https://{domain}/web/product/small/201711/20_shop1_750339.png",
+            "use_naverpay": null,
+            "naverpay_type": null,
+            "icon_show_period": {
+                "start_date": "2017-10-30T09:00:00+09:00",
+                "end_date": "2017-11-02T16:00:00+09:00"
+            },
+            "icon": [
+                "icon_01_01",
+                "icon_02_01"
+            ],
+            "hscode": "4303101990",
+            "product_weight": "0.10",
+            "product_material": "",
+            "created_date": "2018-01-18T11:19:27+09:00",
+            "updated_date": "2018-01-19T11:19:27+09:00",
+            "english_product_material": null,
+            "cloth_fabric": null,
+            "list_icon": {
+                "soldout_icon": true,
+                "recommend_icon": false,
+                "new_icon": false
+            },
+            "sold_out": "F",
+            "exposure_limit_type": "M",
+            "exposure_group_list": [
+                8,
+                9
+            ],
+            "cultural_tax_deduction": "F"
+        },
+        {
+            "shop_no": 1,
+            "product_no": 23,
+            "product_code": "P000000W",
+            "bundle_product_components": [
+                {
+                    "product_no": 11,
+                    "product_name": "iPhone XS",
+                    "product_code": "P0000BTN",
+                    "product_price": "2000.00",
+                    "purchase_quantity": 1
+                },
+                {
+                    "product_no": 12,
+                    "product_name": "iPad Pro",
+                    "product_code": "P0000BTH",
+                    "product_price": "2000.00",
+                    "purchase_quantity": 1
+                }
+            ],
+            "custom_product_code": "",
+            "product_name": "iPhone X",
+            "eng_product_name": "iPhone Ten",
+            "supply_product_name": "iphone A1865 fdd lte",
+            "internal_product_name": "Sample Internal product name",
+            "model_name": "A1865",
+            "display": "T",
+            "selling": "F",
+            "product_condition": "U",
+            "product_used_month": 2,
+            "summary_description": "This is Product Summary.",
+            "product_tag": [
+                "edu",
+                "test",
+                "sample"
+            ],
+            "price_content": null,
+            "buy_limit_by_product": "T",
+            "buy_limit_type": "F",
+            "buy_group_list": [
+                8,
+                9
+            ],
+            "buy_member_id_list": [
+                "sampleid",
+                "testid"
+            ],
+            "repurchase_restriction": "F",
+            "single_purchase_restriction": "F",
+            "single_purchase": "F",
+            "points_by_product": "T",
+            "points_setting_by_payment": "C",
+            "points_amount": [
+                {
+                    "payment_method": "cash",
+                    "points_rate": "10.00%"
+                },
+                {
+                    "payment_method": "mileage",
+                    "points_rate": "10.00%"
+                }
+            ],
+            "except_member_points": "F",
+            "adult_certification": "F",
+            "detail_image": "https://{domain}/web/product/big/201711/20_shop1_750339.png",
+            "list_image": "https://{domain}/web/product/medium/201711/20_shop1_750339.png",
+            "tiny_image": "https://{domain}/web/product/tiny/201711/20_shop1_750339.png",
+            "small_image": "https://{domain}/web/product/small/201711/20_shop1_750339.png",
+            "use_naverpay": null,
+            "naverpay_type": null,
+            "icon_show_period": {
+                "start_date": "2017-10-30T09:00:00+09:00",
+                "end_date": "2017-11-02T16:00:00+09:00"
+            },
+            "icon": [
+                "icon_01_01",
+                "icon_02_01"
+            ],
+            "hscode": "4303101990",
+            "product_weight": "0.10",
+            "product_material": "",
+            "created_date": "2018-01-18T11:19:27+09:00",
+            "updated_date": "2018-01-19T11:19:27+09:00",
+            "english_product_material": null,
+            "cloth_fabric": null,
+            "list_icon": {
+                "soldout_icon": true,
+                "recommend_icon": false,
+                "new_icon": false
+            },
+            "sold_out": "F",
+            "exposure_limit_type": "M",
+            "exposure_group_list": [
+                8,
+                9
+            ],
+            "cultural_tax_deduction": "F"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/bundleproducts/{product_no}` — Retrieve a bundle
 
 - **Scope**: `mall.read_product` (read)
@@ -170,6 +377,207 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `seo` |  |  |  | 상품 Seo 리소스 |
 | `tags` |  |  |  | 상품 태그 리소스 |
 | `additionalimages` |  |  |  | 추가 이미지 리소스 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "bundleproduct": {
+        "shop_no": 1,
+        "product_no": 28,
+        "bundle_product_components": [
+            {
+                "product_no": 11,
+                "product_name": "iPhone XS",
+                "product_code": "P0000BTN",
+                "product_price": "2000.00",
+                "purchase_quantity": 1
+            },
+            {
+                "product_no": 12,
+                "product_name": "iPad Pro",
+                "product_code": "P0000BTH",
+                "product_price": "2000.00",
+                "purchase_quantity": 1
+            }
+        ],
+        "bundle_product_sales": {
+            "set_product_price": "2800.00",
+            "discount_value": "30.00",
+            "discount_type": "P",
+            "discount_round_unit": "F",
+            "discount_round_type": "F"
+        },
+        "category": [
+            {
+                "category_no": 27,
+                "recommend": "F",
+                "new": "T"
+            },
+            {
+                "category_no": 28,
+                "recommend": "T",
+                "new": "F"
+            }
+        ],
+        "project_no": [
+            31,
+            32
+        ],
+        "product_code": "P00000BB",
+        "custom_product_code": "",
+        "product_name": "iPhone X",
+        "eng_product_name": "iPhone Ten",
+        "supply_product_name": "iphone A1865 fdd lte",
+        "internal_product_name": "Sample Internal product name",
+        "model_name": "A1865",
+        "display": "T",
+        "selling": "T",
+        "product_condition": "U",
+        "product_used_month": 2,
+        "price_content": "Sample Content",
+        "buy_limit_by_product": "T",
+        "buy_limit_type": "F",
+        "buy_group_list": [
+            8,
+            9
+        ],
+        "buy_member_id_list": [
+            "sampleid",
+            "testid"
+        ],
+        "repurchase_restriction": "F",
+        "single_purchase_restriction": "F",
+        "single_purchase": "F",
+        "points_by_product": "T",
+        "points_setting_by_payment": "C",
+        "points_amount": [
+            {
+                "payment_method": "cash",
+                "points_rate": "10.00%"
+            },
+            {
+                "payment_method": "mileage",
+                "points_rate": "10.00%"
+            }
+        ],
+        "except_member_points": "F",
+        "adult_certification": "F",
+        "description": "Sample Description.",
+        "mobile_description": "Sample Mobile Description.",
+        "separated_mobile_description": "T",
+        "simple_description": "This is Product Description.",
+        "summary_description": "This is Product Summary.",
+        "payment_info": "Sample payment info. You have to Pay.",
+        "shipping_info": "Sample shipping info. You have to ship.",
+        "exchange_info": "Sample exchange info. You have to exchange.",
+        "service_info": "Sample service info. You have to service.",
+        "country_hscode": {
+            "JPN": "430310011",
+            "CHN": "43031020"
+        },
+        "product_tag": [
+            "edu",
+            "test",
+            "sample"
+        ],
+        "use_naverpay": null,
+        "naverpay_type": null,
+        "icon_show_period": {
+            "start_date": "2017-10-30T09:00:00+09:00",
+            "end_date": "2017-11-02T16:00:00+09:00"
+        },
+        "icon": [
+            "icon_01_01",
+            "icon_02_01"
+        ],
+        "hscode": "4303101990",
+        "shipping_calculation": "M",
+        "shipping_fee_by_product": "T",
+        "shipping_method": "01",
+        "shipping_period": {
+            "minimum": 4,
+            "maximum": 10
+        },
+        "shipping_scope": "A",
+        "shipping_area": "All around world",
+        "shipping_fee_type": "D",
+        "shipping_rates": [
+            {
+                "shipping_rates_min": "2000.00",
+                "shipping_rates_max": "4000.00",
+                "shipping_fee": "5000.00"
+            },
+            {
+                "shipping_rates_min": "4000.00",
+                "shipping_rates_max": "6000.00",
+                "shipping_fee": "2500.00"
+            }
+        ],
+        "updated_date": "2018-01-19T11:19:27+09:00",
+        "clearance_category_eng": "Necklaces",
+        "clearance_category_kor": "주얼리 > 목걸이",
+        "prepaid_shipping_fee": "P",
+        "clearance_category_code": "ACAB0000",
+        "list_icon": {
+            "soldout_icon": true,
+            "recommend_icon": true,
+            "new_icon": true
+        },
+        "additional_information": [
+            {
+                "key": "custom_option1",
+                "name": "gift option",
+                "value": "Yes"
+            }
+        ],
+        "image_upload_type": "A",
+        "detail_image": "https://{domain}/web/product/big/201511/30_shop1_638611.jpg",
+        "list_image": "https://{domain}/web/product/medium/201711/20_shop1_750339.png",
+        "tiny_image": "https://{domain}/web/product/tiny/201711/20_shop1_750339.png",
+        "small_image": "https://{domain}/web/product/small/201711/20_shop1_750339.png",
+        "product_weight": "0.10",
+        "main": [
+            3,
+            2
+        ],
+        "relational_product": [
+            {
+                "product_no": 9,
+                "interrelated": "T"
+            },
+            {
+                "product_no": 10,
+                "interrelated": "F"
+            }
+        ],
+        "product_material": "Aluminum",
+        "english_product_material": "Aluminum",
+        "cloth_fabric": "knit",
+        "created_date": "2018-05-29T14:23:51+09:00",
+        "additional_image": [
+            {
+                "big": "https://{domain}/web/product/extra/big/201810/a2803c44ee8299486ff19be239cef7d0.jpg",
+                "medium": "https://{domain}/web/product/extra/medium/201810/a2803c44ee8299486ff19be239cef7d0.jpg",
+                "small": "https://{domain}/web/product/extra/small/201810/a2803c44ee8299486ff19be239cef7d0.jpg"
+            },
+            {
+                "big": "https://{domain}/web/product/extra/big/201810/e1ab68969d69287a828438c7684b14c4.jpg",
+                "medium": "https://{domain}/web/product/extra/medium/201810/e1ab68969d69287a828438c7684b14c4.jpg",
+                "small": "https://{domain}/web/product/extra/small/201810/e1ab68969d69287a828438c7684b14c4.jpg"
+            }
+        ],
+        "exposure_limit_type": "M",
+        "exposure_group_list": [
+            8,
+            9
+        ],
+        "cultural_tax_deduction": "F"
+    }
+}
+```
 
 ### `POST /api/v2/admin/bundleproducts` — Create a bundle
 
@@ -259,6 +667,180 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `adult_certification` |  |  | F | 성인인증 성인인증이 필요한 상품인지 여부. 성인인증이 필요한 상품인 구매를 위해서는 본인인증을 거쳐야함. · [쇼핑몰 설정 > 고객 설정 > '회원 정책 설정 > 회원 관련 설정 > 회원가입 및 본인인증 설정'] 에서 성인인증 사용 시 구매차단 설정이 사용함이어야 성인인증이 적용된다. EC 베트남, 필리핀 버전에서는 사용할 수 없음. T : 사용함 · F : 사용안함 |
 | `exposure_limit_type` |  |  | A | 표시제한 범위 Youtube shopping 이용 시에는 미제공 A : 모두에게 표시 · M : 회원에게만 표시 |
 | `exposure_group_list` |  |  |  | 표시대상 회원 등급 Youtube shopping 이용 시에는 미제공 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "bundleproduct": {
+        "shop_no": 1,
+        "product_no": 28,
+        "bundle_product_components": [
+            {
+                "product_no": 11,
+                "product_name": "iPhone XS",
+                "product_code": "P0000BTN",
+                "product_price": "2000.00",
+                "purchase_quantity": 1
+            },
+            {
+                "product_no": 12,
+                "product_name": "iPad Pro",
+                "product_code": "P0000BTH",
+                "product_price": "2000.00",
+                "purchase_quantity": 1
+            }
+        ],
+        "bundle_product_sales": {
+            "set_product_price": "2800.00",
+            "discount_value": "30.00",
+            "discount_type": "P",
+            "discount_round_unit": "F",
+            "discount_round_type": "F"
+        },
+        "category": [
+            {
+                "category_no": 27,
+                "recommend": "F",
+                "new": "T"
+            },
+            {
+                "category_no": 28,
+                "recommend": "T",
+                "new": "F"
+            }
+        ],
+        "product_code": "P00000BB",
+        "custom_product_code": "",
+        "product_name": "iPhone X",
+        "eng_product_name": "iPhone Ten",
+        "supply_product_name": "iphone A1865 fdd lte",
+        "internal_product_name": "Sample Internal product name",
+        "model_name": "A1865",
+        "display": "T",
+        "price_content": "Sample Content",
+        "buy_limit_by_product": "T",
+        "buy_limit_type": "F",
+        "buy_group_list": [
+            8,
+            9
+        ],
+        "buy_member_id_list": [
+            "sampleid",
+            "testid"
+        ],
+        "repurchase_restriction": "F",
+        "single_purchase_restriction": "F",
+        "single_purchase": "F",
+        "points_by_product": "T",
+        "points_setting_by_payment": "C",
+        "points_amount": [
+            {
+                "payment_method": "cash",
+                "points_rate": "10.00%"
+            },
+            {
+                "payment_method": "mileage",
+                "points_rate": "10.00%"
+            }
+        ],
+        "adult_certification": "F",
+        "description": "Sample Description.",
+        "mobile_description": "Sample Mobile Description.",
+        "simple_description": "This is Product Description.",
+        "summary_description": "This is Product Summary.",
+        "payment_info": "Sample payment info. You have to Pay.",
+        "shipping_info": "Sample shipping info. You have to ship.",
+        "exchange_info": "Sample exchange info. You have to exchange.",
+        "service_info": "Sample service info. You have to service.",
+        "product_tag": [
+            "edu",
+            "test",
+            "sample"
+        ],
+        "use_naverpay": null,
+        "naverpay_type": null,
+        "icon": [
+            "icon_01_01",
+            "icon_02_01"
+        ],
+        "hscode": "4303101990",
+        "shipping_calculation": "M",
+        "shipping_fee_by_product": "T",
+        "shipping_method": "01",
+        "shipping_period": {
+            "minimum": 4,
+            "maximum": 10
+        },
+        "shipping_scope": "A",
+        "shipping_area": "All around world",
+        "shipping_fee_type": "D",
+        "shipping_rates": [
+            {
+                "shipping_rates_min": "2000.00",
+                "shipping_rates_max": "4000.00",
+                "shipping_fee": "5000.00"
+            },
+            {
+                "shipping_rates_min": "4000.00",
+                "shipping_rates_max": "6000.00",
+                "shipping_fee": "2500.00"
+            }
+        ],
+        "prepaid_shipping_fee": "P",
+        "clearance_category_code": "ACAB0000",
+        "image_upload_type": "A",
+        "detail_image": "https://{domain}/web/product/big/201511/30_shop1_638611.jpg",
+        "product_weight": "0.10",
+        "relational_product": [
+            {
+                "product_no": 9,
+                "interrelated": "T"
+            },
+            {
+                "product_no": 10,
+                "interrelated": "F"
+            }
+        ],
+        "product_material": "Aluminum",
+        "english_product_material": "Aluminum",
+        "cloth_fabric": "knit",
+        "created_date": "2018-05-29T14:23:51+09:00",
+        "additional_image": [
+            {
+                "big": "https://{domain}/web/product/extra/big/201810/a2803c44ee8299486ff19be239cef7d0.jpg",
+                "medium": "https://{domain}/web/product/extra/medium/201810/a2803c44ee8299486ff19be239cef7d0.jpg",
+                "small": "https://{domain}/web/product/extra/small/201810/a2803c44ee8299486ff19be239cef7d0.jpg"
+            },
+            {
+                "big": "https://{domain}/web/product/extra/big/201810/e1ab68969d69287a828438c7684b14c4.jpg",
+                "medium": "https://{domain}/web/product/extra/medium/201810/e1ab68969d69287a828438c7684b14c4.jpg",
+                "small": "https://{domain}/web/product/extra/small/201810/e1ab68969d69287a828438c7684b14c4.jpg"
+            }
+        ],
+        "additional_information": [
+            {
+                "key": "custom_option1",
+                "name": "option1",
+                "value": "Additional Information 1"
+            },
+            {
+                "key": "custom_option2",
+                "name": "option2",
+                "value": "Additional Information 2"
+            }
+        ],
+        "exposure_limit_type": "M",
+        "exposure_group_list": [
+            8,
+            9
+        ],
+        "cultural_tax_deduction": "F"
+    }
+}
+```
 
 ### `PUT /api/v2/admin/bundleproducts/{product_no}` — Update a bundle
 
@@ -356,6 +938,183 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `exposure_limit_type` |  |  |  | 표시제한 범위 Youtube shopping 이용 시에는 미제공 A : 모두에게 표시 · M : 회원에게만 표시 |
 | `exposure_group_list` |  |  |  | 표시대상 회원 등급 Youtube shopping 이용 시에는 미제공 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "bundleproduct": {
+        "shop_no": 1,
+        "product_no": 28,
+        "bundle_product_components": [
+            {
+                "product_no": 11,
+                "product_name": "iPhone XS",
+                "product_code": "P0000BTN",
+                "product_price": "2000.00",
+                "purchase_quantity": 1
+            },
+            {
+                "product_no": 12,
+                "product_name": "iPad Pro",
+                "product_code": "P0000BTH",
+                "product_price": "2000.00",
+                "purchase_quantity": 1
+            }
+        ],
+        "bundle_product_sales": {
+            "set_product_price": "2800.00",
+            "discount_value": "30.00",
+            "discount_type": "P",
+            "discount_round_unit": "F",
+            "discount_round_type": "F"
+        },
+        "category": [
+            {
+                "category_no": 27,
+                "recommend": "F",
+                "new": "T"
+            },
+            {
+                "category_no": 28,
+                "recommend": "T",
+                "new": "F"
+            }
+        ],
+        "product_code": "P00000BB",
+        "custom_product_code": "",
+        "product_name": "iPhone X",
+        "eng_product_name": "iPhone Ten",
+        "supply_product_name": "iphone A1865 fdd lte",
+        "internal_product_name": "Sample Internal product name",
+        "model_name": "A1865",
+        "display": "T",
+        "product_condition": "U",
+        "product_used_month": 2,
+        "price_content": "Sample Content",
+        "buy_limit_by_product": "T",
+        "buy_limit_type": "F",
+        "buy_group_list": [
+            8,
+            9
+        ],
+        "buy_member_id_list": [
+            "sampleid",
+            "testid"
+        ],
+        "repurchase_restriction": "F",
+        "single_purchase_restriction": "F",
+        "single_purchase": "F",
+        "points_by_product": "T",
+        "points_setting_by_payment": "C",
+        "points_amount": [
+            {
+                "payment_method": "cash",
+                "points_rate": "10.00%"
+            },
+            {
+                "payment_method": "mileage",
+                "points_rate": "10.00%"
+            }
+        ],
+        "except_member_points": "F",
+        "adult_certification": "F",
+        "description": "Sample Description.",
+        "mobile_description": "Sample Mobile Description.",
+        "simple_description": "This is Product Description.",
+        "summary_description": "This is Product Summary.",
+        "payment_info": "Sample payment info. You have to Pay.",
+        "shipping_info": "Sample shipping info. You have to ship.",
+        "exchange_info": "Sample exchange info. You have to exchange.",
+        "service_info": "Sample service info. You have to service.",
+        "product_tag": [
+            "edu",
+            "test",
+            "sample"
+        ],
+        "use_naverpay": null,
+        "naverpay_type": null,
+        "icon": [
+            "icon_01_01",
+            "icon_02_01"
+        ],
+        "hscode": "4303101990",
+        "shipping_calculation": "M",
+        "shipping_fee_by_product": "T",
+        "shipping_method": "01",
+        "shipping_period": {
+            "minimum": 4,
+            "maximum": 10
+        },
+        "shipping_scope": "A",
+        "shipping_area": "All around world",
+        "shipping_fee_type": "D",
+        "shipping_rates": [
+            {
+                "shipping_rates_min": "2000.00",
+                "shipping_rates_max": "4000.00",
+                "shipping_fee": "5000.00"
+            },
+            {
+                "shipping_rates_min": "4000.00",
+                "shipping_rates_max": "6000.00",
+                "shipping_fee": "2500.00"
+            }
+        ],
+        "prepaid_shipping_fee": "P",
+        "clearance_category_code": "ACAB0000",
+        "image_upload_type": "A",
+        "detail_image": "https://{domain}/web/product/big/201511/30_shop1_638611.jpg",
+        "product_weight": "0.10",
+        "relational_product": [
+            {
+                "product_no": 9,
+                "interrelated": "T"
+            },
+            {
+                "product_no": 10,
+                "interrelated": "F"
+            }
+        ],
+        "product_material": "Aluminum",
+        "english_product_material": "Aluminum",
+        "cloth_fabric": "knit",
+        "updated_date": "2018-05-29T14:23:51+09:00",
+        "additional_image": [
+            {
+                "big": "https://{domain}/web/product/extra/big/201810/a2803c44ee8299486ff19be239cef7d0.jpg",
+                "medium": "https://{domain}/web/product/extra/medium/201810/a2803c44ee8299486ff19be239cef7d0.jpg",
+                "small": "https://{domain}/web/product/extra/small/201810/a2803c44ee8299486ff19be239cef7d0.jpg"
+            },
+            {
+                "big": "https://{domain}/web/product/extra/big/201810/e1ab68969d69287a828438c7684b14c4.jpg",
+                "medium": "https://{domain}/web/product/extra/medium/201810/e1ab68969d69287a828438c7684b14c4.jpg",
+                "small": "https://{domain}/web/product/extra/small/201810/e1ab68969d69287a828438c7684b14c4.jpg"
+            }
+        ],
+        "additional_information": [
+            {
+                "key": "custom_option1",
+                "name": "option1",
+                "value": "Additional Information 1"
+            },
+            {
+                "key": "custom_option2",
+                "name": "option2",
+                "value": "Additional Information 2"
+            }
+        ],
+        "exposure_limit_type": "M",
+        "exposure_group_list": [
+            8,
+            9
+        ],
+        "cultural_tax_deduction": "F"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/bundleproducts/{product_no}` — Delete a bundle
 
 - **Scope**: `mall.write_product` (write)
@@ -369,3 +1128,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `product_no` | ✓ |  |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "bundleproduct": {
+        "product_no": 28
+    }
+}
+```

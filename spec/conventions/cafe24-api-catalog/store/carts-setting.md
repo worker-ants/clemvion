@@ -2,7 +2,7 @@
 resource: store
 entity: carts-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#carts-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Carts setting
@@ -41,6 +41,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "cart": {
+        "shop_no": 1,
+        "wishlist_display": "T",
+        "add_action_type": "M",
+        "cart_item_direct_purchase": "T",
+        "storage_period": "T",
+        "period": "7",
+        "icon_display": "T",
+        "cart_item_option_change": "T",
+        "discount_display": "T"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/carts/setting` — Update carts settings
 
 - **Scope**: `mall.read_store` (read)
@@ -62,3 +82,23 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `icon_display` |  |  |  | 장바구니 담기 아이콘 표시 여부 T: 사용함 · F: 사용안함 |
 | `cart_item_option_change` |  |  |  | 장바구니에서 상품 옵션 변경가능 하도록 제공 여부 T: 사용함 · F: 사용안함 |
 | `discount_display` |  |  |  | 장바구니에 할인 금액 표시 T: 사용함 · F: 사용안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "cart": {
+        "shop_no": 1,
+        "wishlist_display": "T",
+        "add_action_type": "M",
+        "cart_item_direct_purchase": "T",
+        "storage_period": "T",
+        "period": "7",
+        "icon_display": "T",
+        "cart_item_option_change": "T",
+        "discount_display": "T"
+    }
+}
+```

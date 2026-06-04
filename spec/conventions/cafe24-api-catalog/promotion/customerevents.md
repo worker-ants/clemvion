@@ -2,7 +2,7 @@
 resource: promotion
 entity: customerevents
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customerevents
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Promotion / Customerevents
@@ -57,6 +57,70 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customerevents": [
+        {
+            "shop_no": 1,
+            "no": 1,
+            "type": "E",
+            "name": "Member Information Update Event",
+            "description": "This is a description for the member information update event.",
+            "start_date": "2025-01-31T00:00:00+09:00",
+            "end_date": "2025-02-28T00:00:00+09:00",
+            "created_date": "2025-01-30T12:34:56+09:00",
+            "items": [
+                "zipcode",
+                "email"
+            ],
+            "reward_condition": "A",
+            "agree_restriction": "T",
+            "agree_restriction_period": 3,
+            "auto_reward": "T",
+            "use_point": "T",
+            "point_amount": "1000.00",
+            "use_coupon": "T",
+            "coupon_no": "9000000000000000033",
+            "popup_notification": "F"
+        },
+        {
+            "shop_no": 1,
+            "no": 2,
+            "type": "L",
+            "name": "Lifetime Member Event",
+            "description": "This is a description for the lifetime member event.",
+            "start_date": "2025-01-30T12:34:56+09:00",
+            "end_date": "9999-12-31T23:59:59+09:00",
+            "created_date": "2025-01-30T12:34:56+09:00",
+            "items": null,
+            "reward_condition": null,
+            "agree_restriction": null,
+            "agree_restriction_period": null,
+            "auto_reward": "T",
+            "use_point": null,
+            "point_amount": null,
+            "use_coupon": "T",
+            "coupon_no": "9000000000000000034",
+            "popup_notification": "T"
+        }
+    ],
+    "links": [
+        {
+            "rel": "prev",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/customerevents?limit=10&offset=0"
+        },
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/customerevents?limit=10&offset=20"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/customerevents` — Create a member information modification event
 
 - **Scope**: `mall.write_promotion` (write)
@@ -86,6 +150,38 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `coupon_no` |  |  |  | 혜택 자동 지급 쿠폰 |
 | `popup_notification` |  |  |  | 평생회원 전환 이벤트 안내 팝업 사용 여부 T: 사용함 · F: 사용안함 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customerevent": {
+        "shop_no": 1,
+        "no": 1,
+        "type": "E",
+        "name": "Member Information Update Event",
+        "description": "This is a description for the member information update event.",
+        "start_date": "2025-01-31T00:00:00+09:00",
+        "end_date": "2025-02-28T00:00:00+09:00",
+        "created_date": "2025-01-30T12:34:56+09:00",
+        "items": [
+            "zipcode",
+            "email"
+        ],
+        "reward_condition": "A",
+        "agree_restriction": "T",
+        "agree_restriction_period": 3,
+        "auto_reward": "T",
+        "use_point": "T",
+        "point_amount": "1000.00",
+        "use_coupon": "T",
+        "coupon_no": "9000000000000000033",
+        "popup_notification": "F"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/customerevents` — Update information update campaign status
 
 - **Scope**: `mall.write_promotion` (write)
@@ -101,3 +197,20 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `no` | ✓ |  |  | 이벤트 번호 |
 | `status` | ✓ |  |  | 이벤트 상태 S: 이벤트종료 · D: 이벤트삭제 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customerevent": {
+        "shop_no": 1,
+        "no": [
+            1,
+            2
+        ],
+        "status": "D"
+    }
+}
+```

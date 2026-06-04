@@ -2,7 +2,7 @@
 resource: shipping
 entity: shipping
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#shipping
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Shipping / Shipping
@@ -68,6 +68,159 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shipping": {
+        "shop_no": 1,
+        "shipping_method": "shipping_01",
+        "shipping_etc": null,
+        "shipping_type": "C",
+        "international_shipping_fee_criteria": null,
+        "shipping_place": null,
+        "shipping_period": {
+            "minimum": 3,
+            "maximum": 7
+        },
+        "product_weight": "1.00",
+        "shipping_fee_type": "D",
+        "shipping_fee": null,
+        "free_shipping_price": null,
+        "shipping_fee_by_quantity": null,
+        "shipping_rates": [
+            {
+                "min_value": "0.00",
+                "max_value": "10000.00",
+                "shipping_fee": "2500.00"
+            },
+            {
+                "min_value": "10000.00",
+                "max_value": "50000.00",
+                "shipping_fee": "1000.00"
+            }
+        ],
+        "shipping_fee_criteria": "D",
+        "prepaid_shipping_fee": "P",
+        "oversea_shipping_country": "T",
+        "oversea_shipping_country_list": [
+            {
+                "country_code": "US"
+            },
+            {
+                "country_code": "JP"
+            }
+        ],
+        "country_shipping_fee": "T",
+        "country_shipping_fee_list": [
+            {
+                "country_code": "US",
+                "conditional": "price",
+                "min_value": "1.00",
+                "max_value": "1000.00",
+                "shipping_fee": "1000.00"
+            },
+            {
+                "country_code": "JP",
+                "conditional": "quantity",
+                "min_value": "1",
+                "max_value": "3",
+                "shipping_fee": "1000.00"
+            }
+        ],
+        "international_shipping_insurance": "T",
+        "return_address": {
+            "zipcode": "07071",
+            "ziptype": "KOR",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall"
+        },
+        "package_volume": {
+            "width": "22",
+            "length": "19",
+            "height": "9"
+        },
+        "wished_delivery_date": {
+            "use": "T",
+            "range": {
+                "minimum": 1,
+                "maximum": 3
+            },
+            "default": {
+                "minimum": null,
+                "use_fast_delivery": "T"
+            }
+        },
+        "wished_delivery_time": {
+            "use": "T",
+            "range": [
+                {
+                    "start_hour": "08",
+                    "end_hour": "17"
+                },
+                {
+                    "start_hour": "00",
+                    "end_hour": "07"
+                }
+            ],
+            "default": {
+                "range": {
+                    "start_hour": "08",
+                    "end_hour": "17"
+                },
+                "use_fast_delivery": "F"
+            }
+        },
+        "hs_code": "4203109010",
+        "country_hs_code": [
+            {
+                "hs_code": "61102000",
+                "country_code": "CHN"
+            },
+            {
+                "hs_code": "392690010",
+                "country_code": "JPN"
+            }
+        ],
+        "individual_shipping_fee": "F",
+        "individual_fee_calculation_type": null,
+        "supplier_shipping_fee": "T",
+        "supplier_selection": "P",
+        "applicable_suppliers": [
+            {
+                "supplier_code": "S000000A",
+                "supplier_id": "sampleid1"
+            },
+            {
+                "supplier_code": "S000000B",
+                "supplier_id": "sampleid2"
+            }
+        ],
+        "supplier_shipping_calculation": "A",
+        "supplier_regional_surcharge": "A",
+        "additional_shipping_fee": null,
+        "shipping_company_type": [
+            {
+                "carrier_id": 1,
+                "is_selected": "F",
+                "shipping_carrier_code": "0012",
+                "shipping_type": "A",
+                "shipping_carrier": "우체국택배"
+            },
+            {
+                "carrier_id": 2,
+                "is_selected": "F",
+                "shipping_carrier_code": "0006",
+                "shipping_type": "B",
+                "shipping_carrier": "CJ대한통운"
+            }
+        ]
+    }
+}
+```
 
 ### `PUT /api/v2/admin/shipping` — Update store shipping/return settings
 
@@ -139,3 +292,120 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `unit` |  |  |  | 해외배송 부가금액 단위 · W : 정액 · P : 퍼센트 |
 | ↳ `rounding_unit` |  |  |  | 절사단위 · F : 절사안함 · 0 : 1원단위 · 1 : 10원단위 · 2 : 100원단위 · 3 : 1000원단위 |
 | ↳ `rounding_rule` |  |  |  | 절사 방법 · L : 내림 · U : 반올림 · C : 올림 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shipping": {
+        "shop_no": 1,
+        "shipping_method": "shipping_01",
+        "shipping_etc": null,
+        "shipping_type": "C",
+        "international_shipping_fee_criteria": "B",
+        "shipping_place": null,
+        "shipping_period": {
+            "minimum": 5,
+            "maximum": 12
+        },
+        "shipping_fee_type": "D",
+        "shipping_rates": [
+            {
+                "min_value": "0.00",
+                "max_value": "1000.00",
+                "shipping_fee": "3000.00"
+            },
+            {
+                "min_value": "1000.00",
+                "max_value": "10000.00",
+                "shipping_fee": "1500.00"
+            }
+        ],
+        "shipping_fee_criteria": "D",
+        "product_weight": "5.00",
+        "oversea_shipping_country": "T",
+        "oversea_shipping_country_list": [
+            {
+                "country_code": "US"
+            },
+            {
+                "country_code": "JP"
+            }
+        ],
+        "country_shipping_fee": "T",
+        "country_shipping_fee_list": [
+            {
+                "country_code": "US",
+                "conditional": "price",
+                "min_value": "1.00",
+                "max_value": "1000.00",
+                "shipping_fee": "1000.00"
+            },
+            {
+                "country_code": "JP",
+                "conditional": "quantity",
+                "min_value": "1",
+                "max_value": "3",
+                "shipping_fee": "1000.00"
+            }
+        ],
+        "international_shipping_insurance": "T",
+        "return_address": {
+            "zipcode": "07071",
+            "ziptype": "KOR",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall"
+        },
+        "package_volume": {
+            "width": "22",
+            "length": "19",
+            "height": "9"
+        },
+        "individual_shipping_fee": "F",
+        "individual_fee_calculation_type": null,
+        "additional_shipping_fee": null,
+        "shipping_company_type": [
+            {
+                "carrier_id": 1,
+                "is_selected": "F",
+                "shipping_carrier_code": "0012",
+                "shipping_type": "A",
+                "shipping_carrier": "우체국택배"
+            },
+            {
+                "carrier_id": 2,
+                "is_selected": "F",
+                "shipping_carrier_code": "0006",
+                "shipping_type": "B",
+                "shipping_carrier": "CJ대한통운"
+            }
+        ],
+        "hs_code": "4303101990",
+        "country_hs_code": [
+            {
+                "hs_code": "430310011",
+                "country_code": "JPN"
+            },
+            {
+                "hs_code": "43031020",
+                "country_code": "CHN"
+            }
+        ],
+        "oversea_additional_fee": "T",
+        "oversea_additional_fee_list": [
+            {
+                "country_code": "GH",
+                "fee_name": "oversea_additional",
+                "min_value": "0.00",
+                "max_value": "500000.00",
+                "additional_fee": "20000.00",
+                "unit": "W",
+                "rounding_unit": "F",
+                "rounding_rule": "L"
+            }
+        ]
+    }
+}
+```

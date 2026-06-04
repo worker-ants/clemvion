@@ -2,7 +2,7 @@
 resource: community
 entity: boards__articles
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#boards--articles
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Community / Boards articles
@@ -90,6 +90,125 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "articles": [
+        {
+            "shop_no": 1,
+            "article_no": 1,
+            "parent_article_no": 1,
+            "board_no": 4,
+            "product_no": 10,
+            "category_no": 1,
+            "board_category_no": 1,
+            "reply_sequence": 1,
+            "reply_depth": 0,
+            "created_date": "2019-04-30T16:44:21+09:00",
+            "writer": "John Doe",
+            "writer_email": "sample@sample.com",
+            "member_id": "sampleid",
+            "title": "subject text1",
+            "content": "contents text1",
+            "supplier_id": "sample",
+            "client_ip": "127.0.0.1",
+            "nick_name": "sample nickname",
+            "rating": 5,
+            "reply_mail": "N",
+            "display": "T",
+            "secret": "T",
+            "notice": "F",
+            "fixed": "F",
+            "deleted": "F",
+            "input_channel": "P",
+            "order_id": "20170710-0000013",
+            "attach_file_urls": [
+                {
+                    "no": 1,
+                    "name": "dev_starter_p1.png",
+                    "url": "https://{domain}/file_data/{mall_id}/2019/01/02/4f43130f0698818abc2d4b03ca7635ad.png"
+                },
+                {
+                    "no": 2,
+                    "name": "dev_basic_p2.png",
+                    "url": "https://{domain}/file_data/{mall_id}/2019/01/02/ea8203b11b4148f4cbf723e4e01c866f.png"
+                }
+            ],
+            "hit": 0,
+            "reply": "F",
+            "reply_user_id": "admin",
+            "reply_status": "C",
+            "naverpay_review_id": "naverid",
+            "display_time": "T",
+            "display_time_start_hour": 6,
+            "display_time_end_hour": 12
+        },
+        {
+            "shop_no": 1,
+            "article_no": 2,
+            "parent_article_no": 1,
+            "board_no": 4,
+            "product_no": 10,
+            "category_no": 1,
+            "board_category_no": 1,
+            "reply_sequence": 1,
+            "reply_depth": 1,
+            "created_date": "2019-04-30T17:44:21+09:00",
+            "writer": "John Doe",
+            "writer_email": "sample@sample.com",
+            "member_id": "sampleid",
+            "title": "subject text2",
+            "content": "contents text2",
+            "supplier_id": "sample",
+            "client_ip": "127.0.0.1",
+            "nick_name": "sample nickname",
+            "rating": 4,
+            "reply_mail": "N",
+            "display": "T",
+            "secret": "T",
+            "notice": "F",
+            "fixed": "F",
+            "deleted": "F",
+            "input_channel": "P",
+            "order_id": "20170710-0000013",
+            "attach_file_urls": [
+                {
+                    "no": 1,
+                    "name": "dev_starter_p1.png",
+                    "url": "https://{domain}/file_data/{mall_id}/2019/04/30/dfa1631de377efb25d78687700719233.png"
+                },
+                {
+                    "no": 2,
+                    "name": "dev_basic_p2.png",
+                    "url": "https://{domain}/file_data/{mall_id}/2019/04/30/e8786abe5442ddf5b725995c9e785036.png"
+                }
+            ],
+            "hit": 0,
+            "reply": "F",
+            "reply_user_id": "admin",
+            "reply_status": "C",
+            "naverpay_review_id": "naverid",
+            "display_time": "T",
+            "display_time_start_hour": 6,
+            "display_time_end_hour": 12
+        }
+    ],
+    "links": [
+        {
+            "rel": "prev",
+            "href": "https://{mallid}.cafe24api.com/api/v2/boards/4/articles?limit=10&offset=0"
+        },
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/boards/4/articles?limit=10&offset=20"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/boards/{board_no}/articles` — Create a board post
 
 - **Scope**: `mall.write_community` (write)
@@ -134,6 +253,135 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `name` |  |  |  | 파일명 |
 | ↳ `url` |  |  |  | 파일 URL |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "articles": [
+        {
+            "shop_no": 1,
+            "article_no": 50,
+            "parent_article_no": 40,
+            "board_no": 5,
+            "product_no": 10,
+            "category_no": 1,
+            "board_category_no": 1,
+            "reply_sequence": 1,
+            "reply_depth": 1,
+            "created_date": "2018-11-30T12:43:00+09:00",
+            "writer": "John Doe",
+            "writer_email": "sample@sample.com",
+            "member_id": "sampleid",
+            "title": "subject text1",
+            "content": "contents text1",
+            "client_ip": "127.0.0.1",
+            "nick_name": "sample nickname",
+            "rating": 0,
+            "reply_mail": "N",
+            "display": "T",
+            "secret": "T",
+            "notice": "F",
+            "fixed": "F",
+            "deleted": "F",
+            "input_channel": "P",
+            "order_id": "20170710-0000013",
+            "attached_file_detail": [
+                {
+                    "no": 1,
+                    "path": "/2019/01/02/4f43130f0698818abc2d4b03ca7635ad.png",
+                    "name": "/2019/01/02/4f43130f0698818abc2d4b03ca7635ad.png",
+                    "size": 87956,
+                    "source": "dev_starter_p1.png",
+                    "type": "image/png",
+                    "ext": "png",
+                    "width": 850,
+                    "height": 728,
+                    "thumb": "/gallery//2019/01/02/4f43130f0698818abc2d4b03ca7635ad.png"
+                },
+                {
+                    "no": 2,
+                    "path": "/2019/01/02/ea8203b11b4148f4cbf723e4e01c866f.png",
+                    "name": "/2019/01/02/ea8203b11b4148f4cbf723e4e01c866f.png",
+                    "size": 23072,
+                    "source": "dev_basic_p2.png",
+                    "type": "image/png",
+                    "ext": "png",
+                    "width": 821,
+                    "height": 292,
+                    "thumb": "/gallery//2019/01/02/ea8203b11b4148f4cbf723e4e01c866f.png"
+                }
+            ],
+            "hit": 0,
+            "reply": "F",
+            "reply_user_id": "admin",
+            "reply_status": "C",
+            "naverpay_review_id": "naverid"
+        },
+        {
+            "shop_no": 1,
+            "article_no": 51,
+            "parent_article_no": 40,
+            "board_no": 5,
+            "product_no": 10,
+            "category_no": 1,
+            "board_category_no": 1,
+            "reply_sequence": 1,
+            "reply_depth": 1,
+            "created_date": "2018-11-30T12:43:00+09:00",
+            "writer": "John Doe",
+            "writer_email": "sample@sample.com",
+            "member_id": "sampleid",
+            "title": "subject text2",
+            "content": "contents text2",
+            "client_ip": "127.0.0.1",
+            "nick_name": "sample nickname",
+            "rating": 0,
+            "reply_mail": "N",
+            "display": "T",
+            "secret": "F",
+            "notice": "F",
+            "fixed": "F",
+            "deleted": "F",
+            "input_channel": "P",
+            "order_id": "20170710-0000013",
+            "attached_file_detail": [
+                {
+                    "no": 1,
+                    "path": "/2019/01/02/dfa1631de377efb25d78687700719233.png",
+                    "name": "/2019/01/02/dfa1631de377efb25d78687700719233.png",
+                    "size": 87956,
+                    "source": "dev_starter_p1.png",
+                    "type": "image/png",
+                    "ext": "png",
+                    "width": 850,
+                    "height": 728,
+                    "thumb": "/gallery//2019/01/02/dfa1631de377efb25d78687700719233.png"
+                },
+                {
+                    "no": 2,
+                    "path": "/2019/01/02/e8786abe5442ddf5b725995c9e785036.png",
+                    "name": "/2019/01/02/e8786abe5442ddf5b725995c9e785036.png",
+                    "size": 23072,
+                    "source": "dev_basic_p2.png",
+                    "type": "image/png",
+                    "ext": "png",
+                    "width": 821,
+                    "height": 292,
+                    "thumb": "/gallery//2019/01/02/e8786abe5442ddf5b725995c9e785036.png"
+                }
+            ],
+            "hit": 0,
+            "reply": "F",
+            "reply_user_id": "admin",
+            "reply_status": "C",
+            "naverpay_review_id": "naverid"
+        }
+    ]
+}
+```
+
 ### `PUT /api/v2/admin/boards/{board_no}/articles/{article_no}` — Update a board post
 
 - **Scope**: `mall.write_community` (write)
@@ -165,6 +413,63 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `attach_file_url4` |  | URL |  | 파일 URL |
 | `attach_file_url5` |  | URL |  | 파일 URL |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "article": {
+        "shop_no": 1,
+        "article_no": 50,
+        "parent_article_no": 40,
+        "board_no": 5,
+        "product_no": 10,
+        "category_no": 1,
+        "board_category_no": 1,
+        "reply_sequence": 1,
+        "reply_depth": 1,
+        "created_date": "2018-11-30T12:43:00+09:00",
+        "writer": "John Doe",
+        "writer_email": "sample@sample.com",
+        "member_id": "sampleid",
+        "title": "subject text",
+        "content": "contents text",
+        "client_ip": "127.0.0.1",
+        "nick_name": "sample nickname",
+        "rating": 0,
+        "reply_mail": "N",
+        "display": "T",
+        "secret": "T",
+        "notice": "F",
+        "fixed": "F",
+        "deleted": "F",
+        "input_channel": "P",
+        "order_id": "20170710-0000013",
+        "attached_file_urls": [
+            {
+                "no": 1,
+                "name": "dev_starter_p1.png",
+                "url": "https://{domain}/file_data/{mall_id}/2019/01/02/4f43130f0698818abc2d4b03ca7635ad.png"
+            },
+            {
+                "no": 2,
+                "name": "dev_basic_p2.png",
+                "url": "https://{domain}/file_data/{mall_id}/2019/01/02/ea8203b11b4148f4cbf723e4e01c866f.png"
+            }
+        ],
+        "hit": 0,
+        "reply": "F",
+        "reply_user_id": "admin",
+        "reply_status": "C",
+        "naverpay_review_id": "naverid",
+        "display_time": "T",
+        "display_time_start_hour": "1",
+        "display_time_end_hour": "12"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/boards/{board_no}/articles/{article_no}` — Delete a board post
 
 - **Scope**: `mall.write_community` (write)
@@ -179,3 +484,17 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `board_no` | ✓ |  |  | 게시판 번호 |
 | `article_no` | ✓ | 최대값: [2147483647] |  | 게시물 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "article": {
+        "shop_no": 1,
+        "board_no": 1,
+        "article_no": 1
+    }
+}
+```

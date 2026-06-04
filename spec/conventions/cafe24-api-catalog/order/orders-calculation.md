@@ -2,7 +2,7 @@
 resource: order
 entity: orders-calculation
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders-calculation
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders calculation
@@ -81,3 +81,109 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `product_coupons` |  |  |  | 상품 쿠폰 |
 | `points_spent_amount` |  |  |  | 적립금사용금액 |
 | `order_coupons` |  |  |  | 주문서 쿠폰 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "calculation": {
+        "shop_no": 1,
+        "mobile": "F",
+        "device": "plusapp",
+        "member_id": "sampleid",
+        "payment_method": "cash",
+        "shipping_type": "A",
+        "country_code": "KR",
+        "carrier_id": 15,
+        "zipcode": "123-456",
+        "address_full": "Professional Construction Hall, Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "address_state": "STATE",
+        "items": [
+            {
+                "product_no": 14,
+                "variant_code": "P000000O000A",
+                "option_id": "000A",
+                "quantity": 1,
+                "product_price": "3000.00",
+                "option_price": "100.00",
+                "product_bundle": "F",
+                "product_bundle_no": null,
+                "prepaid_shipping_fee": "P",
+                "additional_discount_price": "930.00",
+                "additional_discount_detail": {
+                    "customer_discount_amount": null,
+                    "new_product_discount_amount": null,
+                    "individual_bundle_product_discount_amount": "310.00",
+                    "repurchase_discount_amount": null,
+                    "bulk_purchase_discount_amount": null,
+                    "period_discount_amount": "620.00"
+                }
+            },
+            {
+                "product_no": 10,
+                "variant_code": "P000000J000B",
+                "option_id": "000B",
+                "quantity": 1,
+                "product_price": "10000.00",
+                "option_price": "500.00",
+                "product_bundle": "T",
+                "product_bundle_no": 16,
+                "prepaid_shipping_fee": "P",
+                "additional_discount_price": "3150.00",
+                "additional_discount_detail": {
+                    "customer_discount_amount": null,
+                    "new_product_discount_amount": null,
+                    "individual_bundle_product_discount_amount": "2100.00",
+                    "repurchase_discount_amount": null,
+                    "bulk_purchase_discount_amount": null,
+                    "period_discount_amount": "1050.00"
+                },
+                "product_coupons": [
+                    {
+                        "coupon_no": "6082815071400000089",
+                        "coupon_price": "1000.00",
+                        "benefit_type": "MP"
+                    },
+                    {
+                        "coupon_no": "6082815070100000083",
+                        "coupon_price": "1000.00",
+                        "benefit_type": "DP"
+                    },
+                    {
+                        "coupon_no": "6082815067600000071",
+                        "coupon_price": "2700.00",
+                        "benefit_type": "DS"
+                    }
+                ]
+            }
+        ],
+        "points_spent_amount": "1000.00",
+        "coupon_discount_amount": "5000.00",
+        "membership_discount_amount": "800.00",
+        "shipping_fee_discount_amount": "0.00",
+        "product_discount_amount": "4080.00",
+        "order_price_amount": "13600.00",
+        "total_discount_amount": "9880.00",
+        "shipping_fee": "2700.00",
+        "total_amount_due": "2720.00",
+        "shipping_fee_information": {
+            "default_shipping_fee": "100.00",
+            "supplier_shipping_fee": null,
+            "additonal_abroad_shipping_fee": null,
+            "additional_handling_fee": null
+        },
+        "tax_free_amount": "0.00",
+        "vat_amount": "247.00",
+        "tax_amount": "2473.00",
+        "order_coupons": [
+            {
+                "coupon_no": "6082815066600000065",
+                "coupon_price": "1300.00",
+                "benefit_type": "DP"
+            }
+        ]
+    }
+}
+```

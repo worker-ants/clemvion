@@ -2,7 +2,7 @@
 resource: store
 entity: restocknotification-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#restocknotification-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Restocknotification setting
@@ -42,6 +42,30 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "restocknotification": {
+        "shop_no": 1,
+        "use": "T",
+        "is_button_show": "T",
+        "expiration_period": 3,
+        "button_show_target": "A",
+        "show_message_to_non_members": "Please sign in",
+        "send_method": "A",
+        "button_show_method": "P",
+        "available_product": "P",
+        "available_product_list": [
+            9,
+            10
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/restocknotification/setting` — Updated restocknotification settings
 
 - **Scope**: `mall.write_store` (write)
@@ -64,3 +88,27 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `button_show_method` |  |  |  | 버튼 진열 타입 P:상품별 · G:품목별 |
 | `available_product` |  |  |  | 버튼 노출 상품 A:전체상품 · P:특정상품 · E:제외상품 |
 | `available_product_list` |  | 배열 최대사이즈: [200] |  | 버튼 노출 상품 리스트 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "restocknotification": {
+        "shop_no": 1,
+        "use": "T",
+        "is_button_show": "T",
+        "expiration_period": 3,
+        "button_show_target": "A",
+        "show_message_to_non_members": "Please sign in",
+        "send_method": "A",
+        "button_show_method": "P",
+        "available_product": "P",
+        "available_product_list": [
+            9,
+            10
+        ]
+    }
+}
+```

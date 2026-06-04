@@ -2,7 +2,7 @@
 resource: order
 entity: orders__memos
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--memos
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders memos
@@ -46,6 +46,61 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "memos": [
+        {
+            "shop_no": 1,
+            "memo_no": 13,
+            "created_date": "2020-01-13T09:53:33+09:00",
+            "author_id": "sampleid",
+            "ip": "127.0.0.1",
+            "use_customer_inquiry": "F",
+            "attach_type": "P",
+            "content": "sample memo content",
+            "starred_memo": "F",
+            "fixed": "F",
+            "product_list": [
+                {
+                    "product_no": 11,
+                    "option_code": "000A"
+                },
+                {
+                    "product_no": 12,
+                    "option_code": "000A"
+                }
+            ]
+        },
+        {
+            "shop_no": 1,
+            "memo_no": 14,
+            "created_date": "2020-01-14T10:53:41+09:00",
+            "author_id": "sampleid",
+            "ip": "127.0.0.1",
+            "use_customer_inquiry": "F",
+            "attach_type": "P",
+            "content": "sample memo content",
+            "starred_memo": "F",
+            "fixed": "F",
+            "product_list": [
+                {
+                    "product_no": 11,
+                    "option_code": "000A"
+                },
+                {
+                    "product_no": 12,
+                    "option_code": "000A"
+                }
+            ]
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/orders/{order_id}/memos` — Create an order memo
 
 - **Scope**: `mall.write_order` (write)
@@ -68,6 +123,37 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `starred_memo` |  |  | F | 중요 메모 여부 T : 중요 메모 · F : 일반 메모 |
 | `fixed` |  |  | F | 상단고정 여부 T : 사용함 · F : 사용안함 |
 | `product_list` |  |  |  | 상품 목록 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "memo": {
+        "shop_no": 1,
+        "memo_no": 13,
+        "author_id": "sampleid",
+        "use_customer_inquiry": "F",
+        "topic_type": null,
+        "status": null,
+        "attach_type": "P",
+        "content": "sample memo content",
+        "starred_memo": "F",
+        "fixed": "F",
+        "product_list": [
+            {
+                "product_no": 11,
+                "option_code": "000A"
+            },
+            {
+                "product_no": 12,
+                "option_code": "000A"
+            }
+        ]
+    }
+}
+```
 
 ### `PUT /api/v2/admin/orders/{order_id}/memos/{memo_no}` — Update an order memo
 
@@ -93,6 +179,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `fixed` |  |  | F | 상단고정 여부 T : 사용함 · F : 사용안함 |
 | `product_list` |  |  |  | 상품 목록 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "memo": {
+        "shop_no": 1,
+        "memo_no": 13,
+        "use_customer_inquiry": "F",
+        "topic_type": null,
+        "status": null,
+        "attach_type": "P",
+        "content": "sample memo content",
+        "starred_memo": "F",
+        "fixed": "F",
+        "product_list": [
+            {
+                "product_no": 11,
+                "option_code": "000A"
+            },
+            {
+                "product_no": 12,
+                "option_code": "000A"
+            }
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/orders/{order_id}/memos/{memo_no}` — Delete an order memo
 
 - **Scope**: `mall.write_order` (write)
@@ -107,3 +223,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
 | `memo_no` | ✓ |  |  | 메모 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "memo": {
+        "shop_no": 1,
+        "memo_no": 13
+    }
+}
+```

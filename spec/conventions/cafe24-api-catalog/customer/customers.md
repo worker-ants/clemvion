@@ -2,7 +2,7 @@
 resource: customer
 entity: customers
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customers
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Customer / Customers
@@ -53,6 +53,59 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `cellphone` |  |  |  | 휴대전화 검색할 쇼핑몰 회원의 휴대전화번호. 개인정보 보호를 위해 전체 휴대전화번호를 입력해야 한다. cellphone 또는 member_id 중 하나는 반드시 검색 조건으로 지정되어야 한다. ,(콤마)로 여러 건을 검색할 수 있다. |
 | `member_id` |  | 최대글자수 : [20자] |  | 회원아이디 검색할 쇼핑몰 회원의 아이디. 개인정보 보호를 위해 전체 아이디를 입력해야 합니다.cellphone 또는 member_id 중 하나는 반드시 검색 조건으로 지정되어야 한다. ,(콤마)로 여러 건을 검색할 수 있다. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customers": [
+        {
+            "shop_no": 1,
+            "member_id": "sampleid",
+            "group_no": 1,
+            "member_authentication": "T",
+            "use_blacklist": "F",
+            "blacklist_type": "",
+            "authentication_method": "i",
+            "sms": "T",
+            "news_mail": "T",
+            "solar_calendar": "T",
+            "total_points": "0.00",
+            "available_points": "0.00",
+            "used_points": "0.00",
+            "last_login_date ": "2019-04-16T11:19:27+09:00",
+            "created_date": "2019-04-20T11:19:27+09:00",
+            "gender ": "M",
+            "use_mobile_app ": "T",
+            "available_credits ": "0.00",
+            "fixed_group": "T"
+        },
+        {
+            "shop_no": 1,
+            "member_id": "testid",
+            "group_no": 1,
+            "member_authentication": "T",
+            "use_blacklist": "F",
+            "blacklist_type": "F",
+            "authentication_method": "m",
+            "sms": "F",
+            "news_mail": "F",
+            "solar_calendar": "F",
+            "total_points": "0.00",
+            "available_points": "0.00",
+            "used_points": "0.00",
+            "last_login_date ": "2019-04-16T11:19:27+09:00",
+            "created_date": "2019-04-20T11:19:27+09:00",
+            "gender ": "F",
+            "use_mobile_app ": "F",
+            "available_credits ": "0.00",
+            "fixed_group": "F"
+        }
+    ]
+}
+```
+
 ### `DELETE /api/v2/admin/customers/{member_id}` — Delete an account
 
 - **Scope**: `mall.write_customer` (write)
@@ -67,3 +120,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `member_id` | ✓ | 최대글자수 : [20자] |  | 회원아이디 |
 | `is_point_check` |  |  |  | 적립금보유회원 탈퇴 처리 여부 F : 탈퇴 안 함 · T : 탈퇴 처리 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customer": {
+        "shop_no": 1,
+        "member_id": "sampleid"
+    }
+}
+```

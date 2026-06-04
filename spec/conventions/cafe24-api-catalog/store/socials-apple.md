@@ -2,7 +2,7 @@
 resource: store
 entity: socials-apple
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#socials-apple
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Socials apple
@@ -39,6 +39,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "apple": {
+        "shop_no": 1,
+        "use_apple_login": "T",
+        "client_id": "wpv6z7snuJiDYfSsN9ea",
+        "team_id": "T3VC5A6A2E",
+        "key_id": "N2Q4JKNZSM",
+        "auth_key_file_name": "AuthKey_N2Q4JKNZSM.p8",
+        "use_certification": "T"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/socials/apple` — Apple login sync settings
 
 - **Scope**: `mall.write_store` (write)
@@ -59,3 +77,21 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `auth_key_file_name` |  | 최대글자수 : [30자] |  | Auth Key 파일명 App ID의 Key파일로 .p8파일만 가능 |
 | `auth_key_file_contents` |  | 최대글자수 : [300자] |  | Auth Key 파일 내용 .p8파일을 텍스트 파일로 열어 줄바꿈 없이 값을 작성 |
 | `use_certification` |  |  |  | 애플 로그인 본인인증 T : 사용함 · F : 사용안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "apple": {
+        "shop_no": 1,
+        "use_apple_login": "T",
+        "client_id": "wpv6z7snuJiDYfSsN9ea",
+        "team_id": "T3VC5A6A2E",
+        "key_id": "N2Q4JKNZSM",
+        "auth_key_file_name": "AuthKey_N2Q4JKNZSM.p8",
+        "use_certification": "T"
+    }
+}
+```

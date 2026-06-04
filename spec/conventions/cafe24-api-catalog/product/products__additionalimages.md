@@ -2,7 +2,7 @@
 resource: product
 entity: products__additionalimages
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--additionalimages
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products additionalimages
@@ -38,6 +38,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `product_no` | ✓ |  |  | 상품번호 |
 | `additional_image` | ✓ |  |  | 추가이미지 ● 최대요청건수 : 20개 · ● 이미지 파일 용량 제한 : 5MB · ● 한 호출당 이미지 전체 용량 제한 : 30MB |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "additionalimage": {
+        "shop_no": 1,
+        "additional_image": [
+            {
+                "big": "http://{domain}/web/product/extra/big/201801/995feab7d359875e073ae82b4819a7.jpeg",
+                "medium": "http://{domain}/web/product/extra/medium/201801/995feab7d359875e073ae82b4819a7.jpeg",
+                "small": "http://{domain}/web/product/extra/small/201801/995feab7d359875e073ae82b4819a7.jpeg"
+            },
+            {
+                "big": "http://{domain}/web/product/extra/big/201801/95feab7d359875e073ae82b48192a.jpeg",
+                "medium": "http://{domain}/web/product/extra/medium/201801/95feab7d359875e073ae82b48192a.jpeg",
+                "small": "http://{domain}/web/product/extra/small/201801/95feab7d359875e073ae82b48192a.jpeg"
+            },
+            {
+                "big": "http://{domain}/web/product/extra/big/201801/995feab7d359875e073ae82b481.jpeg",
+                "medium": "http://{domain}/web/product/extra/medium/201801/995feab7d359875e073ae82b481.jpeg",
+                "small": "http://{domain}/web/product/extra/small/201801/995feab7d359875e073ae82b481.jpeg"
+            }
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/products/{product_no}/additionalimages` — Update an additional product image
 
 - **Scope**: `mall.write_product` (write)
@@ -54,6 +83,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `product_no` | ✓ |  |  | 상품번호 |
 | `additional_image` | ✓ |  |  | 추가이미지 ● 최대요청건수 : 20개 · ● 이미지 파일 용량 제한 : 5MB · ● 한 호출당 이미지 전체 용량 제한 : 30MB |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "additionalimage": {
+        "shop_no": 1,
+        "additional_image": [
+            {
+                "big": "http://{domain}/web/product/extra/big/201801/995feab7d359875e073ae82b4819a7.jpeg",
+                "medium": "http://{domain}/web/product/extra/medium/201801/995feab7d359875e073ae82b4819a7.jpeg",
+                "small": "http://{domain}/web/product/extra/small/201801/995feab7d359875e073ae82b4819a7.jpeg"
+            },
+            {
+                "big": "http://{domain}/web/product/extra/big/201801/95feab7d359875e073ae82b48192a.jpeg",
+                "medium": "http://{domain}/web/product/extra/medium/201801/95feab7d359875e073ae82b48192a.jpeg",
+                "small": "http://{domain}/web/product/extra/small/201801/95feab7d359875e073ae82b48192a.jpeg"
+            },
+            {
+                "big": "http://{domain}/web/product/extra/big/201801/995feab7d359875e073ae82b481.jpeg",
+                "medium": "http://{domain}/web/product/extra/medium/201801/995feab7d359875e073ae82b481.jpeg",
+                "small": "http://{domain}/web/product/extra/small/201801/995feab7d359875e073ae82b481.jpeg"
+            }
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/products/{product_no}/additionalimages` — Delete an additional product image
 
 - **Scope**: `mall.write_product` (write)
@@ -67,3 +125,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `product_no` | ✓ |  |  | 상품번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "additionalimage": {
+        "shop_no": 1,
+        "product_no": 20
+    }
+}
+```

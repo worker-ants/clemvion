@@ -2,7 +2,7 @@
 resource: supply
 entity: shipping-suppliers
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#shipping-suppliers
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Supply / Shipping suppliers
@@ -54,6 +54,65 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `supplier_id` | ✓ |  |  | 공급사 아이디 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "supplier": {
+        "shop_no": 1,
+        "supplier_id": "sampleid",
+        "supplier_code": "S000000A",
+        "shipping_method": "shipping_01",
+        "shipping_etc": null,
+        "shipping_type": "B",
+        "shipping_place": "A Region.",
+        "shipping_start_date": 3,
+        "shipping_end_date": 7,
+        "shipping_fee_type": "C",
+        "free_shipping_price": null,
+        "shipping_fee": null,
+        "shipping_fee_by_quantity": null,
+        "shipping_rates": [
+            {
+                "shipping_rates_min": "0.00",
+                "shipping_rates_max": "30000.00",
+                "shipping_fee": "3000.00"
+            },
+            {
+                "shipping_rates_min": "30000.00",
+                "shipping_rates_max": "50000.00",
+                "shipping_fee": "2500.00"
+            }
+        ],
+        "prepaid_shipping_fee": "P",
+        "shipping_fee_by_product": "T",
+        "product_weight": "1.00",
+        "hscode": "0101211000",
+        "country_hscode": [
+            {
+                "country_code": "JPN",
+                "hscode": "010121100"
+            },
+            {
+                "country_code": "CHN",
+                "hscode": "01022100"
+            }
+        ],
+        "oversea_shipping_country": "T",
+        "oversea_shipping_country_list": [
+            {
+                "country_code": "US"
+            },
+            {
+                "country_code": "JPN"
+            }
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/shipping/suppliers/{supplier_id}` — Update a supplier's shipping settings
 
 - **Scope**: `mall.write_supply` (write)
@@ -89,3 +148,53 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `country_hscode` |  | 배열 최대사이즈: [24] |  | 국가별 HS 코드 |
 | ↳ `country_code` |  |  |  | 국가코드 |
 | ↳ `hscode` |  |  |  | HS코드 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "supplier": {
+        "shop_no": 1,
+        "supplier_id": "sampleid",
+        "supplier_code": "S000000A",
+        "shipping_method": "shipping_01",
+        "shipping_etc": null,
+        "shipping_type": "B",
+        "shipping_place": "A Region.",
+        "shipping_start_date": 3,
+        "shipping_end_date": 7,
+        "shipping_fee_type": "D",
+        "free_shipping_price": null,
+        "shipping_fee": null,
+        "shipping_fee_by_quantity": null,
+        "shipping_rates": [
+            {
+                "shipping_rates_min": "0.00",
+                "shipping_rates_max": "30000.00",
+                "shipping_fee": "3000.00"
+            },
+            {
+                "shipping_rates_min": "30000.00",
+                "shipping_rates_max": "50000.00",
+                "shipping_fee": "2500.00"
+            }
+        ],
+        "prepaid_shipping_fee": "P",
+        "shipping_fee_by_product": "T",
+        "product_weight": "1.00",
+        "hscode": "0101211000",
+        "country_hscode": [
+            {
+                "country_code": "JPN",
+                "hscode": "010121100"
+            },
+            {
+                "country_code": "CHN",
+                "hscode": "01022100"
+            }
+        ]
+    }
+}
+```

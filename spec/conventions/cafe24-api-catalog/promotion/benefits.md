@@ -2,7 +2,7 @@
 resource: promotion
 entity: benefits
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#benefits
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Promotion / Benefits
@@ -66,6 +66,69 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "benefits": [
+        {
+            "shop_no": 1,
+            "benefit_no": 3,
+            "use_benefit": "T",
+            "benefit_name": "Group Sale",
+            "benefit_division": "P",
+            "benefit_type": "PG",
+            "use_benefit_period": "T",
+            "benefit_start_date": "2018-12-04T00:00:00+09:00",
+            "benefit_end_date": "2018-12-04T23:55:00+09:00",
+            "platform_types": [
+                "P",
+                "M"
+            ],
+            "use_group_binding": "M",
+            "customer_group_list": [
+                1,
+                8,
+                9
+            ],
+            "product_binding_type": "A",
+            "use_except_category": "T",
+            "icon_url": "https://{domain}/web/upload/benefit/benefit_shop1_4975395c0f0de82b254843.gif",
+            "available_coupon": "T",
+            "repurchase_sale": null,
+            "bulk_purchase_sale": null,
+            "member_sale": null
+        },
+        {
+            "shop_no": 1,
+            "benefit_no": 2,
+            "use_benefit": "T",
+            "benefit_name": "New Product Sale",
+            "benefit_division": "D",
+            "benefit_type": "DN",
+            "use_benefit_period": null,
+            "benefit_start_date": null,
+            "benefit_end_date": null,
+            "platform_types": [
+                "P",
+                "M"
+            ],
+            "use_group_binding": "N",
+            "customer_group_list": [],
+            "product_binding_type": "E",
+            "use_except_category": "F",
+            "icon_url": "https://{domain}/web/upload/benefit/benefit_shop1_8376295c0fcd29hb22h893.gif",
+            "available_coupon": "T",
+            "repurchase_sale": null,
+            "bulk_purchase_sale": null,
+            "member_sale": null
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/benefits/count` — Retrieve a count of customer benefits
 
 - **Scope**: `mall.read_promotion` (read)
@@ -86,6 +149,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `benefit_end_date` |  | 날짜 |  | 검색 종료일 |
 | `platform_types` |  |  |  | 혜택 사용범위 ,(콤마)로 여러 건을 검색할 수 있다. P : PC 쇼핑몰 · M : 모바일쇼핑몰 · A : 브랜드앱 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 3
+}
+```
+
 ### `GET /api/v2/admin/benefits/{benefit_no}` — Retrieve a customer benefit
 
 - **Scope**: `mall.read_promotion` (read)
@@ -99,6 +172,65 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `benefit_no` | ✓ |  |  | 혜택번호 혜택이 생성된 경우 부여되는 고유 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "benefit": {
+        "shop_no": 1,
+        "benefit_no": 3,
+        "use_benefit": "T",
+        "benefit_name": "Sample Benefit",
+        "benefit_division": "D",
+        "benefit_type": "DP",
+        "use_benefit_period": "T",
+        "benefit_start_date": "2019-01-01T12:00:00+09:00",
+        "benefit_end_date": "2019-01-31T12:00:00+09:00",
+        "platform_types": [
+            "P",
+            "M"
+        ],
+        "use_group_binding": "M",
+        "customer_group_list": [
+            8,
+            9
+        ],
+        "product_binding_type": "P",
+        "use_except_category": "T",
+        "available_coupon": "T",
+        "icon_url": "https://{domain}/web/upload/benefit/benefit_shop1_4975395c0f0de82b254843.gif",
+        "created_date": "2019-01-01T12:00:00+09:00",
+        "period_sale": {
+            "product_list": [
+                17,
+                25,
+                29
+            ],
+            "add_category_list": null,
+            "except_category_list": [
+                168,
+                175,
+                177
+            ],
+            "discount_purchasing_quantity": null,
+            "discount_value": "10.00",
+            "discount_value_unit": "P",
+            "discount_truncation_unit": "O",
+            "discount_truncation_method": "U"
+        },
+        "repurchase_sale": null,
+        "bulk_purchase_sale": null,
+        "member_sale": null,
+        "new_product_sale": null,
+        "shipping_fee_sale": null,
+        "gift": null,
+        "gift_product_bundle": null
+    }
+}
+```
 
 ### `POST /api/v2/admin/benefits` — Create a customer benefit
 
@@ -197,6 +329,65 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `product_bundle_count` | ✓ |  |  | 추가 상품 수량 |
 | `icon_url` |  |  |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "benefit": {
+        "shop_no": 1,
+        "benefit_no": 3,
+        "use_benefit": "T",
+        "benefit_name": "Sample Benefit",
+        "benefit_division": "D",
+        "benefit_type": "DP",
+        "use_benefit_period": "T",
+        "benefit_start_date": "2019-01-01T12:00:00+09:00",
+        "benefit_end_date": "2019-01-31T12:00:00+09:00",
+        "platform_types": [
+            "P",
+            "M"
+        ],
+        "use_group_binding": "M",
+        "customer_group_list": [
+            8,
+            9
+        ],
+        "product_binding_type": "P",
+        "use_except_category": "T",
+        "available_coupon": "T",
+        "icon_url": "https://{domain}/web/upload/benefit/benefit_shop1_3648075d918c2c5ecae6.10781112.png",
+        "created_date": "2019-01-01T12:00:00+09:00",
+        "period_sale": {
+            "product_list": [
+                17,
+                25,
+                29
+            ],
+            "add_category_list": null,
+            "except_category_list": [
+                168,
+                175,
+                177
+            ],
+            "discount_purchasing_quantity": null,
+            "discount_value": "10.00",
+            "discount_value_unit": "P",
+            "discount_truncation_unit": "O",
+            "discount_truncation_method": "U"
+        },
+        "repurchase_sale": null,
+        "bulk_purchase_sale": null,
+        "member_sale": null,
+        "new_product_sale": null,
+        "shipping_fee_sale": null,
+        "gift": null,
+        "gift_product_bundle": null
+    }
+}
+```
+
 ### `PUT /api/v2/admin/benefits/{benefit_no}` — Update a customer benefit
 
 - **Scope**: `mall.write_promotion` (write)
@@ -265,6 +456,65 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `include_regional_shipping_rate` |  |  |  | 지역별배송비 포함여부값 · T : 포함 · F : 미포함 |
 | `icon_url` |  |  |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 · (빈 값으로 요청 시, 기존에 등록된 아이콘 삭제됨) |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "benefit": {
+        "shop_no": 1,
+        "benefit_no": 3,
+        "use_benefit": "T",
+        "benefit_name": "Sample Benefit",
+        "benefit_division": "D",
+        "benefit_type": "DP",
+        "use_benefit_period": "T",
+        "benefit_start_date": "2019-01-01T12:00:00+09:00",
+        "benefit_end_date": "2019-01-31T12:00:00+09:00",
+        "platform_types": [
+            "P",
+            "M"
+        ],
+        "use_group_binding": "M",
+        "customer_group_list": [
+            8,
+            9
+        ],
+        "product_binding_type": "P",
+        "use_except_category": "T",
+        "available_coupon": "T",
+        "icon_url": "https://{domain}/web/upload/benefit/benefit_shop1_3648075d918c2c5ecae6.10781112.png",
+        "created_date": "2019-01-01T12:00:00+09:00",
+        "period_sale": {
+            "product_list": [
+                17,
+                25,
+                29
+            ],
+            "add_category_list": null,
+            "except_category_list": [
+                168,
+                175,
+                177
+            ],
+            "discount_purchasing_quantity": null,
+            "discount_value": "10.00",
+            "discount_value_unit": "P",
+            "discount_truncation_unit": "O",
+            "discount_truncation_method": "U"
+        },
+        "repurchase_sale": null,
+        "bulk_purchase_sale": null,
+        "member_sale": null,
+        "new_product_sale": null,
+        "shipping_fee_sale": null,
+        "gift": null,
+        "gift_product_bundle": null
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/benefits/{benefit_no}` — Delete a customer benefit
 
 - **Scope**: `mall.write_promotion` (write)
@@ -278,3 +528,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호 |
 | `benefit_no` | ✓ |  |  | 혜택번호 혜택이 생성된 경우 부여되는 고유 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "benefit": {
+        "shop_no": 1,
+        "benefit_no": 3
+    }
+}
+```

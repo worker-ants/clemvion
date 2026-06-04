@@ -2,7 +2,7 @@
 resource: shipping
 entity: carriers
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#carriers
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Shipping / Carriers
@@ -48,6 +48,273 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "carriers": [
+        {
+            "shop_no": 1,
+            "carrier_id": 3,
+            "shipping_carrier_code": "0022",
+            "shipping_carrier": "FASTBOX",
+            "track_shipment_url": null,
+            "shipping_type": "B",
+            "contact": "02-0000-0000",
+            "secondary_contact": "02-0000-0000",
+            "email": "sample@sample.com",
+            "default_shipping_fee": null,
+            "homepage_url": "sample.sample.com",
+            "default_shipping_carrier": "F",
+            "shipping_fee_setting": "T",
+            "shipping_fee_setting_detail": {
+                "shipping_type": "B",
+                "available_shipping_zone": "Sample place",
+                "min_shipping_period": 3,
+                "max_shipping_period": 7,
+                "shipping_information": "Sample text",
+                "shipping_fee_setting_domestic": {
+                    "shipping_fee_type": "D",
+                    "shipping_fee": null,
+                    "min_price": null,
+                    "use_product_category": "O",
+                    "product_category_list": [
+                        {
+                            "category_no": 29,
+                            "category_name": "Sample Category1"
+                        },
+                        {
+                            "category_no": 30,
+                            "category_name": "Sample Category2"
+                        }
+                    ],
+                    "shipping_fee_criteria": "D",
+                    "domestic_shipping_fee_list": [
+                        {
+                            "country_code": "KR",
+                            "conditional": "D",
+                            "min_value": "0.00",
+                            "max_value": "10000.00",
+                            "shipping_fee": "2500.00"
+                        },
+                        {
+                            "country_code": "KR",
+                            "conditional": "D",
+                            "min_value": "10000.00",
+                            "max_value": "20000.00",
+                            "shipping_fee": "2500.00"
+                        }
+                    ],
+                    "available_shipping_zone": null,
+                    "available_shipping_zone_list": null,
+                    "available_order_time": null,
+                    "start_time": null,
+                    "end_time": null
+                },
+                "shipping_fee_setting_oversea": {
+                    "shipping_fee_criteria": null,
+                    "shipping_country_list": [
+                        {
+                            "country_code": "KR",
+                            "country_name": "KOREA(KOREA)"
+                        },
+                        {
+                            "country_code": "PH",
+                            "country_name": "PHILIPPINES(PHILIPPINES)"
+                        }
+                    ],
+                    "country_shipping_fee_list": [
+                        {
+                            "country_code": "PH",
+                            "country_name": "PHILIPPINES(PHILIPPINES)",
+                            "conditional": "D",
+                            "min_value": "0.00",
+                            "max_value": "50000.00",
+                            "shipping_fee": "5000.00"
+                        },
+                        {
+                            "country_code": "PH",
+                            "country_name": "PHILIPPINES(PHILIPPINES)",
+                            "conditional": "D",
+                            "min_value": "50000.00",
+                            "max_value": "100000.00",
+                            "shipping_fee": "2500.00"
+                        }
+                    ],
+                    "additional_handling_fee": "T",
+                    "additional_handling_fee_list": [
+                        {
+                            "country_code": "PH",
+                            "country_name": "PHILIPPINES(PHILIPPINES)",
+                            "text": "Sample text",
+                            "min_value": "0.00",
+                            "max_value": "50000.00",
+                            "additional_handling_fee": "5000.00",
+                            "unit": "KRW",
+                            "rounding_unit": null,
+                            "rounding_rule": null
+                        },
+                        {
+                            "country_code": "PH",
+                            "country_name": "PHILIPPINES(PHILIPPINES)",
+                            "text": "Sample text",
+                            "min_value": "50000.00",
+                            "max_value": "100000.00",
+                            "additional_handling_fee": "2500.00",
+                            "unit": "KRW",
+                            "rounding_unit": null,
+                            "rounding_rule": null
+                        }
+                    ]
+                }
+            },
+            "express_exception_setting": {
+                "weight": "10000",
+                "volume": "120",
+                "shipping_type": null,
+                "box_type": null,
+                "sender_name": "SimplexInternet",
+                "sender_cellphone": "010-0000-0000",
+                "sender_phone": null,
+                "sender_zipcode": null,
+                "sender_address1": null,
+                "sender_address2": null
+            }
+        },
+        {
+            "shop_no": 1,
+            "carrier_id": 4,
+            "shipping_carrier_code": "0006",
+            "shipping_carrier": "FASTBOX",
+            "track_shipment_url": null,
+            "shipping_type": "B",
+            "contact": "02-0000-0000",
+            "secondary_contact": "02-0000-0000",
+            "email": "sample@sample.com",
+            "default_shipping_fee": null,
+            "homepage_url": "sample.sample.com",
+            "default_shipping_carrier": "F",
+            "shipping_fee_setting": "T",
+            "shipping_fee_setting_detail": {
+                "shipping_type": "B",
+                "available_shipping_zone": "Sample place",
+                "min_shipping_period": 3,
+                "max_shipping_period": 7,
+                "shipping_information": "Sample text",
+                "shipping_fee_setting_domestic": {
+                    "shipping_fee_type": "D",
+                    "shipping_fee": null,
+                    "min_price": null,
+                    "use_product_category": "O",
+                    "product_category_list": [
+                        {
+                            "category_no": 29,
+                            "category_name": "Sample Category1"
+                        },
+                        {
+                            "category_no": 30,
+                            "category_name": "Sample Category2"
+                        }
+                    ],
+                    "shipping_fee_criteria": "D",
+                    "domestic_shipping_fee_list": [
+                        {
+                            "country_code": "KR",
+                            "conditional": "D",
+                            "min_value": "0.00",
+                            "max_value": "10000.00",
+                            "shipping_fee": "2500.00"
+                        },
+                        {
+                            "country_code": "KR",
+                            "conditional": "D",
+                            "min_value": "10000.00",
+                            "max_value": "20000.00",
+                            "shipping_fee": "2500.00"
+                        }
+                    ],
+                    "available_shipping_zone": null,
+                    "available_shipping_zone_list": null,
+                    "available_order_time": null,
+                    "start_time": null,
+                    "end_time": null
+                },
+                "shipping_fee_setting_oversea": {
+                    "shipping_fee_criteria": null,
+                    "shipping_country_list": [
+                        {
+                            "country_code": "KR",
+                            "country_name": "KOREA(KOREA)"
+                        },
+                        {
+                            "country_code": "PH",
+                            "country_name": "PHILIPPINES(PHILIPPINES)"
+                        }
+                    ],
+                    "country_shipping_fee_list": [
+                        {
+                            "country_code": "PH",
+                            "country_name": "PHILIPPINES(PHILIPPINES)",
+                            "conditional": "D",
+                            "min_value": "0.00",
+                            "max_value": "50000.00",
+                            "shipping_fee": "5000.00"
+                        },
+                        {
+                            "country_code": "PH",
+                            "country_name": "PHILIPPINES(PHILIPPINES)",
+                            "conditional": "D",
+                            "min_value": "50000.00",
+                            "max_value": "100000.00",
+                            "shipping_fee": "2500.00"
+                        }
+                    ],
+                    "additional_handling_fee": "T",
+                    "additional_handling_fee_list": [
+                        {
+                            "country_code": "PH",
+                            "country_name": "PHILIPPINES(PHILIPPINES)",
+                            "text": "Sample text",
+                            "min_value": "0.00",
+                            "max_value": "50000.00",
+                            "additional_handling_fee": "5000.00",
+                            "unit": "KRW",
+                            "rounding_unit": null,
+                            "rounding_rule": null
+                        },
+                        {
+                            "country_code": "PH",
+                            "country_name": "PHILIPPINES(PHILIPPINES)",
+                            "text": "Sample text",
+                            "min_value": "50000.00",
+                            "max_value": "100000.00",
+                            "additional_handling_fee": "2500.00",
+                            "unit": "KRW",
+                            "rounding_unit": null,
+                            "rounding_rule": null
+                        }
+                    ]
+                }
+            },
+            "express_exception_setting": {
+                "weight": "10000",
+                "volume": "120",
+                "shipping_type": null,
+                "box_type": null,
+                "sender_name": "SimplexInternet",
+                "sender_cellphone": "010-0000-0000",
+                "sender_phone": null,
+                "sender_zipcode": null,
+                "sender_address1": null,
+                "sender_address2": null
+            }
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/carriers/{carrier_id}` — Retrieve a shipping carrier
 
 - **Scope**: `mall.read_shipping` (read)
@@ -61,6 +328,145 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `carrier_id` | ✓ |  |  | 배송업체 아이디 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "carrier": {
+        "shop_no": 1,
+        "carrier_id": 4,
+        "shipping_carrier_code": "0022",
+        "shipping_carrier": "FASTBOX",
+        "track_shipment_url": null,
+        "contact": "02-0000-0000",
+        "secondary_contact": "02-0000-0000",
+        "email": "sample@sample.com",
+        "default_shipping_fee": null,
+        "homepage_url": "sample.sample.com",
+        "default_shipping_carrier": "F",
+        "shipping_fee_setting": "T",
+        "shipping_fee_setting_detail": {
+            "shipping_type": "B",
+            "available_shipping_zone": "Sample place",
+            "min_shipping_period": 3,
+            "max_shipping_period": 7,
+            "shipping_information": "Sample text",
+            "shipping_fee_setting_domestic": {
+                "shipping_fee_type": "D",
+                "shipping_fee": null,
+                "min_price": null,
+                "use_product_category": "O",
+                "product_category_list": [
+                    {
+                        "category_no": 29,
+                        "category_name": "Sample Category1"
+                    },
+                    {
+                        "category_no": 30,
+                        "category_name": "Sample Category2"
+                    }
+                ],
+                "shipping_fee_criteria": "D",
+                "domestic_shipping_fee_list": [
+                    {
+                        "country_code": "KR",
+                        "conditional": "D",
+                        "min_value": "0.00",
+                        "max_value": "10000.00",
+                        "shipping_fee": "2500.00"
+                    },
+                    {
+                        "country_code": "KR",
+                        "conditional": "D",
+                        "min_value": "10000.00",
+                        "max_value": "20000.00",
+                        "shipping_fee": "2500.00"
+                    }
+                ],
+                "available_shipping_zone": null,
+                "available_shipping_zone_list": null,
+                "available_order_time": null,
+                "start_time": null,
+                "end_time": null
+            },
+            "shipping_fee_setting_oversea": {
+                "shipping_fee_criteria": null,
+                "shipping_country_list": [
+                    {
+                        "country_code": "KR",
+                        "country_name": "KOREA(KOREA)"
+                    },
+                    {
+                        "country_code": "PH",
+                        "country_name": "PHILIPPINES(PHILIPPINES)"
+                    }
+                ],
+                "country_shipping_fee_list": [
+                    {
+                        "country_code": "PH",
+                        "country_name": "PHILIPPINES(PHILIPPINES)",
+                        "conditional": "price",
+                        "min_value": "0.00",
+                        "max_value": "50000.00",
+                        "shipping_fee": "5000.00"
+                    },
+                    {
+                        "country_code": "PH",
+                        "country_name": "PHILIPPINES(PHILIPPINES)",
+                        "conditional": "price",
+                        "min_value": "50000.00",
+                        "max_value": "100000.00",
+                        "shipping_fee": "2500.00"
+                    }
+                ],
+                "additional_handling_fee": "T",
+                "additional_handling_fee_list": [
+                    {
+                        "country_code": "PH",
+                        "country_name": "PHILIPPINES(PHILIPPINES)",
+                        "text": "Sample text",
+                        "min_value": "0.00",
+                        "max_value": "50000.00",
+                        "additional_handling_fee": "5000.00",
+                        "unit": "KRW",
+                        "rounding_unit": null,
+                        "rounding_rule": null
+                    },
+                    {
+                        "country_code": "PH",
+                        "country_name": "PHILIPPINES(PHILIPPINES)",
+                        "text": "Sample text",
+                        "min_value": "50000.00",
+                        "max_value": "100000.00",
+                        "additional_handling_fee": "2500.00",
+                        "unit": "KRW",
+                        "rounding_unit": null,
+                        "rounding_rule": null
+                    }
+                ],
+                "maximum_quantity": null,
+                "product_category_limit": null,
+                "product_category_limit_list": null
+            }
+        },
+        "express_exception_setting": {
+            "weight": "10000",
+            "volume": "120",
+            "shipping_type": null,
+            "box_type": null,
+            "sender_name": "SimplexInternet",
+            "sender_cellphone": "010-0000-0000",
+            "sender_phone": null,
+            "sender_zipcode": null,
+            "sender_address1": null,
+            "sender_address2": null
+        }
+    }
+}
+```
 
 ### `POST /api/v2/admin/carriers` — Create a shipping carrier
 
@@ -136,6 +542,126 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ ↳ ↳ `category_no` |  |  |  | 카테고리 번호 |
 | ↳ ↳ ↳ `product_maximum_quantity` |  |  |  | 상품분류별 구매수량 제한 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "carrier": {
+        "shop_no": 1,
+        "shipping_carrier_code": "0022",
+        "shipping_carrier": "FASTBOX",
+        "carrier_id": 4,
+        "contact": "02-0000-0000",
+        "secondary_contact": "02-0000-0000",
+        "email": "sample@sample.com",
+        "default_shipping_fee": null,
+        "homepage_url": "sample.sample.com",
+        "track_shipment_url": null,
+        "shipping_fee_setting": "T",
+        "shipping_fee_setting_detail": {
+            "shipping_type": "B",
+            "available_shipping_zone": "Sample place",
+            "min_shipping_period": 3,
+            "max_shipping_period": 7,
+            "shipping_information": "Sample text",
+            "shipping_fee_setting_domestic": {
+                "shipping_fee_type": "D",
+                "shipping_fee": null,
+                "min_price": null,
+                "use_product_category": "O",
+                "product_category_list": [
+                    {
+                        "category_no": 29
+                    },
+                    {
+                        "category_no": 30
+                    }
+                ],
+                "shipping_fee_criteria": "D",
+                "domestic_shipping_fee_list": [
+                    {
+                        "min_value": "0.00",
+                        "max_value": "10000.00",
+                        "shipping_fee": "2500.00"
+                    },
+                    {
+                        "min_value": "10000.00",
+                        "max_value": "20000.00",
+                        "shipping_fee": "2500.00"
+                    }
+                ],
+                "available_shipping_zone": null,
+                "available_shipping_zone_list": null,
+                "available_order_time": null,
+                "start_time": null,
+                "end_time": null
+            },
+            "shipping_fee_setting_oversea": {
+                "shipping_fee_criteria": null,
+                "shipping_country_list": [
+                    {
+                        "country_code": "KR"
+                    },
+                    {
+                        "country_code": "PH"
+                    }
+                ],
+                "country_shipping_fee_list": [
+                    {
+                        "country_code": "PH",
+                        "conditional": "price",
+                        "min_value": "0.00",
+                        "max_value": "50000.00",
+                        "shipping_fee": "5000.00"
+                    },
+                    {
+                        "country_code": "PH",
+                        "conditional": "price",
+                        "min_value": "50000.00",
+                        "max_value": "100000.00",
+                        "shipping_fee": "2500.00"
+                    }
+                ],
+                "additional_handling_fee": "T",
+                "additional_handling_fee_list": [
+                    {
+                        "country_code": "PH",
+                        "text": "Sample text",
+                        "min_value": "0.00",
+                        "max_value": "50000.00",
+                        "additional_handling_fee": "5000.00",
+                        "unit": "W",
+                        "rounding_unit": null,
+                        "rounding_rule": null
+                    },
+                    {
+                        "country_code": "PH",
+                        "text": "Sample text",
+                        "min_value": "50000.00",
+                        "max_value": "100000.00",
+                        "additional_handling_fee": "2500.00",
+                        "unit": "W",
+                        "rounding_unit": null,
+                        "rounding_rule": null
+                    }
+                ],
+                "maximum_quantity": null,
+                "product_category_limit": null,
+                "product_category_limit_list": null
+            }
+        },
+        "links": [
+            {
+                "rel": "self",
+                "href": "https://{mallid}.cafe24api.com/api/v2/admin/carriers/4"
+            }
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/carriers/{carrier_id}` — Update a shipping carrier
 
 - **Scope**: `mall.write_shipping` (write)
@@ -152,6 +678,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `carrier_id` | ✓ |  |  | 배송사 아이디 |
 | `default_shipping_carrier` |  |  | T | 기본배송사 여부 T : 사용함 · F : 사용안함 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "carrier": {
+        "shop_no": 1,
+        "carrier_id": 4,
+        "default_shipping_carrier": "T",
+        "links": [
+            {
+                "rel": "self",
+                "href": "https://{mallid}.cafe24api.com/api/v2/admin/carriers/4"
+            }
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/carriers/{carrier_id}` — Delete a shipping carrier
 
 - **Scope**: `mall.write_shipping` (write)
@@ -166,3 +712,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `carrier_id` | ✓ |  |  | 배송사 아이디 |
 | `delete_default_carrier` |  |  | F | 기본배송사 삭제 여부 T : 삭제함 · F : 삭제안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "carrier": {
+        "shop_no": 1,
+        "carrier_id": 4
+    }
+}
+```

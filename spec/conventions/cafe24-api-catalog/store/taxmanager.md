@@ -2,7 +2,7 @@
 resource: store
 entity: taxmanager
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#taxmanager
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Taxmanager
@@ -28,3 +28,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 - **Docs**: https://developers.cafe24.com/docs/ko/api/admin/#retrieve-activation-information-for-tax-manager
 
 _요청 파라미터 없음._
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "taxmanager": {
+        "use": "T"
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: application
 entity: scripttags
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#scripttags
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Application / Scripttags
@@ -52,6 +52,51 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `updated_start_date` |  | 날짜 |  | 스크립트 수정일 검색 시작일 스크립트 수정 날짜가 해당 날짜 이후인 스크립트 검색 · 검색 종료일과 같이 사용해야함. |
 | `updated_end_date` |  | 날짜 |  | 스크립트 수정일 검색 종료일 스크립트 수정 날짜가 해당 날짜 이전인 스크립트 검색 · 검색 시작일과 같이 사용해야함. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "scripttags": [
+        {
+            "shop_no": 1,
+            "script_no": "1509432821494844",
+            "client_id": "AMj8UZhBC9zsyTlFGI6PzC",
+            "src": "https://yourdomain-sample.com/sample-script.js",
+            "display_location": [
+                "BOARD_FREE_LIST"
+            ],
+            "skin_no": [
+                1,
+                2
+            ],
+            "exclude_path": [
+                "/board/free/list.html"
+            ],
+            "integrity": "sha384-UttGu98Tj02YSyWJ5yU0dHmx4wisywedBShWqEz+TL3vFOCXdeMWmo6jMVR8IdFo",
+            "created_date": "2017-10-31T15:53:41+09:00",
+            "updated_date": "2017-11-03T18:05:32+09:00"
+        },
+        {
+            "shop_no": 1,
+            "script_no": "1509699932016345",
+            "client_id": "AMj8UZhBC9zsyTlFGI6PzC",
+            "src": "https://yourdomain-sample.com/sample-script.js",
+            "display_location": [
+                "PRODUCT_LIST",
+                "PRODUCT_DETAIL"
+            ],
+            "skin_no": null,
+            "exclude_path": null,
+            "integrity": "sha512-liS6Zvj8DUdCw4DyxdGvS3Bo1REcsEQBia6/MKKl2xgVGlUspT5MlCmFfdbtM32rwqwEgIUzJrgUYZFUsKcEeg==",
+            "created_date": "2017-11-03T18:05:32+09:00",
+            "updated_date": "2017-11-03T18:05:32+09:00"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/scripttags/count` — Retrieve a count of script tags
 
 - **Scope**: `mall.read_application` (read)
@@ -73,6 +118,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `updated_start_date` |  | 날짜 |  | 스크립트 수정일 검색 시작일 스크립트 수정 날짜가 해당 날짜 이후인 스크립트 검색 · 검색 종료일과 같이 사용해야함. |
 | `updated_end_date` |  | 날짜 |  | 스크립트 수정일 검색 종료일 스크립트 수정 날짜가 해당 날짜 이전인 스크립트 검색 · 검색 시작일과 같이 사용해야함. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 2
+}
+```
+
 ### `GET /api/v2/admin/scripttags/{script_no}` — Retrieve a script tag
 
 - **Scope**: `mall.read_application` (read)
@@ -86,6 +141,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `script_no` |  |  |  | script의 고유번호 스크립트의 고유 번호 검색 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "scripttag": {
+        "shop_no": 1,
+        "script_no": "1509699932016345",
+        "client_id": "AMj8UZhBC9zsyTlFGI6PzC",
+        "src": "https://yourdomain-sample.com/sample-script.js",
+        "display_location": [
+            "PRODUCT_LIST",
+            "PRODUCT_DETAIL"
+        ],
+        "exclude_path": [
+            "/product/list.html",
+            "/product/detail.html"
+        ],
+        "skin_no": [
+            3,
+            4
+        ],
+        "integrity": "sha384-UttGu98Tj02YSyWJ5yU0dHmx4wisywedBShWqEz+TL3vFOCXdeMWmo6jMVR8IdFo",
+        "created_date": "2017-11-03T18:05:32+09:00",
+        "updated_date": "2017-11-03T18:05:32+09:00"
+    }
+}
+```
 
 ### `POST /api/v2/admin/scripttags` — Create a script tag
 
@@ -105,6 +190,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `exclude_path` |  |  |  | 제외 경로 |
 | `skin_no` |  |  |  | 스킨 번호 스크립트를 적용할 스킨 번호. |
 | `integrity` |  |  |  | 하위 리소스 무결성 스크립트 위변조를 방지하기위한 무결성 검증용 해시. (sha384, sha512 해시 알고리즘 지원) · Integrity 해시 생성방법 참고 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "scripttag": {
+        "shop_no": 1,
+        "script_no": "1527128695613925",
+        "client_id": "AMj8UZhBC9zsyTlFGI6PzC",
+        "src": "https://yourdomain-sample.com/sample-script.js",
+        "display_location": [
+            "PRODUCT_LIST",
+            "PRODUCT_DETAIL"
+        ],
+        "exclude_path": [
+            "/product/list.html",
+            "/product/detail.html"
+        ],
+        "skin_no": [
+            3,
+            4
+        ],
+        "integrity": "sha384-UttGu98Tj02YSyWJ5yU0dHmx4wisywedBShWqEz+TL3vFOCXdeMWmo6jMVR8IdFo",
+        "created_date": "2017-03-15T13:27:53+09:00",
+        "updated_date": "2017-03-15T13:27:53+09:00"
+    }
+}
+```
 
 ### `PUT /api/v2/admin/scripttags/{script_no}` — Update a script tag
 
@@ -126,6 +241,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `skin_no` |  |  |  | 스킨 번호 스크립트를 적용할 스킨 번호. |
 | `integrity` |  |  |  | 하위 리소스 무결성 스크립트 위변조를 방지하기위한 무결성 검증용 해시. (sha384, sha512 해시 알고리즘 지원) · Integrity 해시 생성방법 참고 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "scripttag": {
+        "shop_no": 1,
+        "script_no": "1509432821494844",
+        "client_id": "AMj8UZhBC9zsyTlFGI6PzC",
+        "src": "https://yourdomain-sample.com/sample-script.js",
+        "display_location": [
+            "PRODUCT_LIST",
+            "PRODUCT_DETAIL"
+        ],
+        "exclude_path": [
+            "/product/list.html",
+            "/product/detail.html"
+        ],
+        "skin_no": [
+            3,
+            4
+        ],
+        "integrity": "sha384-UttGu98Tj02YSyWJ5yU0dHmx4wisywedBShWqEz+TL3vFOCXdeMWmo6jMVR8IdFo",
+        "created_date": "2017-10-31T15:53:41+09:00",
+        "updated_date": "2017-11-06T10:33:57+09:00"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/scripttags/{script_no}` — Delete a script tag
 
 - **Scope**: `mall.write_application` (write)
@@ -138,3 +283,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `script_no` | ✓ |  |  | script의 고유번호 스크립트의 고유 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "scripttag": {
+        "script_no": "1509699932016345"
+    }
+}
+```

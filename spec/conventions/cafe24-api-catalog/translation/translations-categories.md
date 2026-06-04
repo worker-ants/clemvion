@@ -2,7 +2,7 @@
 resource: translation
 entity: translations-categories
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#translations-categories
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Translation / Translations categories
@@ -39,6 +39,83 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "categories": [
+        {
+            "shop_no": 1,
+            "category_no": 27,
+            "translations": [
+                {
+                    "language_code": "en_US",
+                    "translated": "T",
+                    "category_name": "(Detailed Category) Cropped",
+                    "seo": {
+                        "meta_title": "Browser Title",
+                        "meta_author": "Cafe24",
+                        "meta_description": "This is a sample product.",
+                        "meta_keywords": "sample keyword1,sample keyword2, sample keyword3, ..."
+                    },
+                    "updated_date": "2018-01-19T11:19:27+09:00"
+                },
+                {
+                    "language_code": "es_ES",
+                    "translated": "T",
+                    "category_name": "(Detailed Category) Cropped",
+                    "seo": {
+                        "meta_title": "Browser Title",
+                        "meta_author": "Cafe24",
+                        "meta_description": "This is a sample product.",
+                        "meta_keywords": "sample keyword1,sample keyword2, sample keyword3, ..."
+                    },
+                    "updated_date": "2018-01-19T11:19:27+09:00"
+                }
+            ]
+        },
+        {
+            "shop_no": 1,
+            "category_no": 28,
+            "translations": [
+                {
+                    "language_code": "en_US",
+                    "translated": "T",
+                    "category_name": "(Detailed Category) Cropped",
+                    "seo": {
+                        "meta_title": "Browser Title",
+                        "meta_author": "Cafe24",
+                        "meta_description": "This is a sample product.",
+                        "meta_keywords": "sample keyword1,sample keyword2, sample keyword3, ..."
+                    },
+                    "updated_date": "2018-01-19T11:19:27+09:00"
+                },
+                {
+                    "language_code": "es_ES",
+                    "translated": "T",
+                    "category_name": "(Detailed Category) Cropped",
+                    "seo": {
+                        "meta_title": "Browser Title",
+                        "meta_author": "Cafe24",
+                        "meta_description": "This is a sample product.",
+                        "meta_keywords": "sample keyword1,sample keyword2, sample keyword3, ..."
+                    },
+                    "updated_date": "2018-01-19T11:19:27+09:00"
+                }
+            ]
+        }
+    ],
+    "links": [
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/translations/categories?limit=10&offset=10"
+        }
+    ]
+}
+```
+
 ### `PUT /api/v2/admin/translations/categories/{category_no}` — Update product category translation
 
 - **Scope**: `mall.write_translation` (write)
@@ -61,3 +138,41 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ ↳ `meta_author` |  |  |  | 메타태그1 : Author |
 | ↳ ↳ `meta_description` |  |  |  | 메타태그2 : Description |
 | ↳ ↳ `meta_keywords` |  |  |  | 메타태그3 : Keywords |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "category": {
+        "shop_no": 1,
+        "category_no": 27,
+        "translations": [
+            {
+                "language_code": "en_US",
+                "translated": "T",
+                "category_name": "(Detailed Category) Cropped",
+                "seo": {
+                    "meta_title": "Browser Title",
+                    "meta_author": "Cafe24",
+                    "meta_description": "This is a sample product.",
+                    "meta_keywords": "sample keyword1,sample keyword2, sample keyword3, ..."
+                },
+                "updated_date": "2018-01-19T11:19:27+09:00"
+            },
+            {
+                "language_code": "es_ES",
+                "category_name": "(Detailed Category) Cropped",
+                "seo": {
+                    "meta_title": "Browser Title",
+                    "meta_author": "Cafe24",
+                    "meta_description": "This is a sample product.",
+                    "meta_keywords": "sample keyword1,sample keyword2, sample keyword3, ..."
+                },
+                "updated_date": "2018-01-19T11:19:27+09:00"
+            }
+        ]
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: category
 entity: mains
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#mains
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Category / Mains
@@ -38,6 +38,33 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "mains": [
+        {
+            "shop_no": 1,
+            "module_code": "product_listmain_1",
+            "display_group": 2,
+            "group_name": "Main Recommendations",
+            "soldout_sort_type": "B",
+            "use_autodisplay": "T"
+        },
+        {
+            "shop_no": 1,
+            "module_code": "product_listmain_2",
+            "display_group": 3,
+            "group_name": "New Arrival",
+            "soldout_sort_type": "N",
+            "use_autodisplay": "F"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/mains` — Add main category
 
 - **Scope**: `mall.write_category` (write)
@@ -53,6 +80,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `group_name` | ✓ | 최대글자수 : [50자] |  | 메인분류 명 |
 | `soldout_sort_type` |  |  | N | 품절상품진열 B : 품절상품 맨 뒤로 · N : 품절상품 상관없음 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "mains": {
+        "shop_no": 1,
+        "module_code": "product_listmain_1",
+        "display_group": 2,
+        "group_name": "Main Recommendations",
+        "soldout_sort_type": "B"
+    }
+}
+```
 
 ### `PUT /api/v2/admin/mains/{display_group}` — Update main category
 
@@ -71,6 +114,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `group_name` |  | 최대글자수 : [50자] |  | 메인분류 명 |
 | `soldout_sort_type` |  |  |  | 품절상품진열 B : 품절상품 맨 뒤로 · N : 품절상품 상관없음 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "mains": {
+        "shop_no": 1,
+        "module_code": "product_listmain_1",
+        "display_group": 2,
+        "group_name": "Main Recommendations",
+        "soldout_sort_type": "B"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/mains/{display_group}` — Delete main category
 
 - **Scope**: `mall.write_category` (write)
@@ -84,3 +143,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `display_group` | ✓ |  |  | 메인분류 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "mains": {
+        "display_group": 6
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: order
 entity: orders__shippingfeecancellation
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--shippingfeecancellation
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders shippingfeecancellation
@@ -57,6 +57,87 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `order_id` | ✓ |  |  | 주문번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shippingfeecancellation": [
+        {
+            "shop_no": 1,
+            "order_id": "20200814-0000011",
+            "claim_code": "C20200814-0000001",
+            "claim_reason_type": "A",
+            "claim_reason": "Free shipping",
+            "status": "canceled",
+            "default_shipping_fee": "2500.00",
+            "supplier_shipping_fee": "0.00",
+            "individual_shipping_fee": "0.00",
+            "international_shipping_fee": "0.00",
+            "international_shipping_insurance_fee": "0.00",
+            "additional_shipping_fee": "0.00",
+            "additional_handling_fee": "0.00",
+            "regional_surcharge_amount": "0.00",
+            "refund_method": "Cash refund",
+            "shipping_discount_amount": "1000.00",
+            "coupon_discount_amount": "0.00",
+            "refund_amount": "1500.00",
+            "point_used": "0.00",
+            "credit_used": "0.00",
+            "mixed_refund_amount": "0.00",
+            "mixed_refund_methods": null,
+            "include_tax": "T",
+            "tax": [
+                {
+                    "name": "vat",
+                    "amount": "1000.00"
+                },
+                {
+                    "name": "tax",
+                    "amount": "800.00"
+                }
+            ]
+        },
+        {
+            "shop_no": 1,
+            "order_id": "20200814-0000011",
+            "claim_code": "C20200814-0000002",
+            "claim_reason_type": "B",
+            "claim_reason": "delayed delivery",
+            "status": "canceling",
+            "default_shipping_fee": "0.00",
+            "supplier_shipping_fee": "0.00",
+            "individual_shipping_fee": "0.00",
+            "international_shipping_fee": "0.00",
+            "international_shipping_insurance_fee": "0.00",
+            "additional_shipping_fee": "0.00",
+            "additional_handling_fee": "0.00",
+            "regional_surcharge_amount": "0.00",
+            "refund_method": "Cash refund",
+            "shipping_discount_amount": "0.00",
+            "coupon_discount_amount": "0.00",
+            "refund_amount": "1500.00",
+            "point_used": "0.00",
+            "credit_used": "0.00",
+            "mixed_refund_amount": "0.00",
+            "mixed_refund_methods": null,
+            "include_tax": "T",
+            "tax": [
+                {
+                    "name": "vat",
+                    "amount": "1100.00"
+                },
+                {
+                    "name": "tax",
+                    "amount": "900.00"
+                }
+            ]
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/orders/{order_id}/shippingfeecancellation` — Create an order shipping fee cancellation
 
 - **Scope**: `mall.write_order` (write)
@@ -80,3 +161,17 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `refund_bank_account_no` |  |  |  | 환불 계좌번호 |
 | `refund_bank_account_holder` |  | 최대글자수 : [30자] |  | 환불계좌 예금주 명의 |
 | `payment_gateway_cancel` |  |  | F | PG 취소 요청 여부 T : 취소함 · F : 취소안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shippingfeecancellation": {
+        "shop_no": 1,
+        "order_id": "20200814-0000011",
+        "claim_code": "C20200814-0000001"
+    }
+}
+```

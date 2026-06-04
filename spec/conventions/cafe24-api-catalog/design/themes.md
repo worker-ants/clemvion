@@ -2,7 +2,7 @@
 resource: design
 entity: themes
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#themes
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Design / Themes
@@ -49,6 +49,61 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `type` |  |  | pc | 디자인 타입 pc : PC · mobile : 모바일 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "themes": [
+        {
+            "skin_no": 3,
+            "skin_code": "skin2",
+            "skin_name": "My Shop Default Theme",
+            "skin_thumbnail_url": "https://img.echosting.cafe24.com/smartAdmin/img/design/img_skin_default.jpg",
+            "usage_type": "C",
+            "editor_type": "H",
+            "parent_skin_no": 1,
+            "seller_id": null,
+            "seller_skin_code": null,
+            "design_purchase_no": 0,
+            "design_product_code": null,
+            "language_code": "ko_KR",
+            "published_in": "unpublished",
+            "created_date": "2017-12-20T17:03:24+09:00",
+            "updated_date": "2017-12-20T17:03:24+09:00",
+            "skin_lock": "F",
+            "preview_domain": [
+                "https://myshop.cafe24.com/skin-skin2",
+                "https://myshop.cafe24.com/shop1/skin-skin2"
+            ]
+        },
+        {
+            "skin_no": 1,
+            "skin_code": "skin1",
+            "skin_name": "My Shop Old Theme",
+            "skin_thumbnail_url": "https://img.echosting.cafe24.com/smartAdmin/img/design/img_skin_default.jpg",
+            "usage_type": "S",
+            "editor_type": "D",
+            "parent_skin_no": null,
+            "seller_id": null,
+            "seller_skin_code": null,
+            "design_purchase_no": 0,
+            "design_product_code": null,
+            "language_code": "ko_KR",
+            "published_in": "1",
+            "created_date": "2016-10-04T22:52:43+09:00",
+            "updated_date": null,
+            "skin_lock": "T",
+            "preview_domain": [
+                "https://myshop.cafe24.com/skin-skin1",
+                "https://myshop.cafe24.com/shop1/skin-skin1"
+            ]
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/themes/count` — Retrieve a count of themes
 
 - **Scope**: `mall.read_design` (read)
@@ -62,6 +117,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `type` |  |  | pc | 디자인 타입 pc : PC · mobile : 모바일 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 1
+}
+```
+
 ### `GET /api/v2/admin/themes/{skin_no}` — Retrieve a theme
 
 - **Scope**: `mall.read_design` (read)
@@ -74,3 +139,34 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `skin_no` |  | 최소값: [1] |  | 디자인 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "theme": {
+        "skin_no": 1,
+        "skin_code": "skin1",
+        "skin_name": "My Shop Default Theme",
+        "skin_thumbnail_url": "https://img.echosting.cafe24.com/smartAdmin/img/design/img_skin_default.jpg",
+        "usage_type": "S",
+        "editor_type": "D",
+        "parent_skin_no": null,
+        "seller_id": null,
+        "seller_skin_code": null,
+        "design_purchase_no": 0,
+        "design_product_code": null,
+        "language_code": "ko_KR",
+        "published_in": "1",
+        "created_date": "2016-10-04T22:52:43+09:00",
+        "updated_date": null,
+        "skin_lock": "T",
+        "preview_domain": [
+            "https://myshop.cafe24.com/skin-skin1",
+            "https://myshop.cafe24.com/shop1/skin-skin1"
+        ]
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: collection
 entity: classifications
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#classifications
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Collection / Classifications
@@ -44,6 +44,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "classifications": [
+        {
+            "shop_no": 1,
+            "classification_code": "C000000A",
+            "classification_name": "Default Classification",
+            "classification_description": "Default Classification description",
+            "use_classification": "T",
+            "created_date": "2018-01-16T12:00:41+09:00",
+            "product_count": 2
+        },
+        {
+            "shop_no": 1,
+            "classification_code": "C000000B",
+            "classification_name": "Classification 1",
+            "classification_description": "Classification 1 description",
+            "use_classification": "T",
+            "created_date": "2018-01-16T12:00:41+09:00",
+            "product_count": 3
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/classifications/count` — Retrieve a count of custom categories
 
 - **Scope**: `mall.read_collection` (read)
@@ -59,3 +88,13 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `classification_code` |  |  |  | 자체분류 코드 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `classification_name` |  |  |  | 자체분류 명 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `use_classification` |  |  |  | 사용여부 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 3
+}
+```

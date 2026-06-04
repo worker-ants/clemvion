@@ -2,7 +2,7 @@
 resource: order
 entity: orders__return
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--return
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders return
@@ -82,6 +82,32 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `return_invoice_no` |  | 최대글자수 : [40자] |  | 반품 송장 번호 |
 | `return_shipping_company_name` |  | 최대글자수 : [30자] |  | 반품 배송업체명 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "return": {
+        "shop_no": 1,
+        "order_id": "20190805-0000011",
+        "status": "returned",
+        "claim_code": "C20190805-0000007",
+        "pickup_completed": "T",
+        "items": [
+            {
+                "order_item_code": "20190805-0000011-01",
+                "quantity": 4
+            },
+            {
+                "order_item_code": "20190805-0000011-02",
+                "quantity": 4
+            }
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/orders/{order_id}/return/{claim_code}` — Update an order return
 
 - **Scope**: `mall.write_order` (write)
@@ -128,3 +154,56 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `refund_bank_code` |  |  |  | 환불 은행 코드 |
 | `refund_bank_name` |  | 최대글자수 : [250자] |  | 환불은행명 |
 | `refund_bank_account_no` |  |  |  | 환불 계좌번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "return": {
+        "shop_no": 1,
+        "order_id": "20190228-0000011",
+        "claim_code": "C20190228-0000004",
+        "status": "processing",
+        "pickup_completed": "T",
+        "carrier_id": null,
+        "return_invoice_no": null,
+        "return_shipping_company_name": null,
+        "return_invoice_success": null,
+        "return_invoice_fail_reason": null,
+        "items": [
+            {
+                "order_item_code": "20190228-0000011-01"
+            },
+            {
+                "order_item_code": "20190228-0000011-02"
+            }
+        ],
+        "refund_method_code": [
+            "F",
+            "T"
+        ],
+        "refund_bank_code": "bank_82",
+        "refund_bank_account_no": "000000111111",
+        "refund_bank_account_holder": "John Doe",
+        "combined_refund_method": null,
+        "recover_inventory": "T",
+        "request_pickup": null,
+        "pickup": {
+            "name": null,
+            "phone": null,
+            "cellphone": null,
+            "zipcode": null,
+            "address1": null,
+            "address2": null
+        },
+        "undone": null,
+        "add_memo_too": null,
+        "undone_reason_type": null,
+        "undone_reason": null,
+        "expose_order_detail": null,
+        "exposed_undone_reason": null
+    }
+}
+```

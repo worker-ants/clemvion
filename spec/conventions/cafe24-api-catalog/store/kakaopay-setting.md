@@ -2,7 +2,7 @@
 resource: store
 entity: kakaopay-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#kakaopay-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Kakaopay setting
@@ -42,6 +42,33 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "kakaopay": {
+        "shop_no": 1,
+        "shop_key": "S12345",
+        "pixel_code": "653867785974233605",
+        "use_kakaopay": "T",
+        "product_detail_button_size": {
+            "pc": "210x83",
+            "mobile": "290x95"
+        },
+        "basket_button_size": {
+            "pc": "210x83",
+            "mobile": "290x95"
+        },
+        "use_dark_mode": "T",
+        "button_authorization_key": "dummy_12345",
+        "thirdparty_agree": "T",
+        "thirdparty_agree_date": "2021-07-15T17:59:00+09:00"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/kakaopay/setting` — Update settings for KakaoPay orders
 
 - **Scope**: `mall.write_store` (write)
@@ -68,3 +95,30 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `button_authorization_key` |  |  |  | 입점시 부여 받는 판매점의 버튼 인증 |
 | `thirdparty_agree` |  |  |  | 제3자 제공 동의 여부 T : 동의함 · F : 동의안함 |
 | `thirdparty_agree_date` |  | 날짜 |  | 제3자 제공 동의 날짜 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "kakaopay": {
+        "shop_no": 1,
+        "shop_key": "S12345",
+        "pixel_code": "653867785974233605",
+        "use_kakaopay": "T",
+        "product_detail_button_size": {
+            "pc": "210x83",
+            "mobile": "290x95"
+        },
+        "basket_button_size": {
+            "pc": "210x83",
+            "mobile": "290x95"
+        },
+        "use_dark_mode": "T",
+        "button_authorization_key": "dummy_12345",
+        "thirdparty_agree": "T",
+        "thirdparty_agree_date": "2021-07-15T17:59:00+09:00"
+    }
+}
+```

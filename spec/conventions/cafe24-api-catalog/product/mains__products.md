@@ -2,7 +2,7 @@
 resource: product
 entity: mains__products
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#mains--products
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Mains products
@@ -38,6 +38,29 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `display_group` | ✓ |  |  | 메인분류 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "products": [
+        {
+            "shop_no": 1,
+            "product_no": 7,
+            "product_name": "product_name",
+            "fixed_sort": false
+        },
+        {
+            "shop_no": 1,
+            "product_no": 8,
+            "product_name": "product_name2",
+            "fixed_sort": false
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/mains/{display_group}/products/count` — Retrieve a count of products in main category
 
 - **Scope**: `mall.read_product` (read)
@@ -51,6 +74,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `display_group` | ✓ |  |  | 메인분류 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 3
+}
+```
 
 ### `POST /api/v2/admin/mains/{display_group}/products` — Set main category products
 
@@ -68,6 +101,23 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `display_group` | ✓ |  |  | 메인분류 번호 |
 | `product_no` | ✓ |  |  | 상품번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "product": {
+        "shop_no": 1,
+        "product_no": [
+            7,
+            8,
+            9
+        ]
+    }
+}
+```
 
 ### `PUT /api/v2/admin/mains/{display_group}/products` — Update fixed sorting of products in main category
 
@@ -87,6 +137,27 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `product_no` | ✓ |  |  | 상품번호 요청한 상품번호의 순서 대로 진열순위가 지정 |
 | `fix_product_no` |  |  |  | 진열순위 고정 상품번호 진열순위를 고정하고자 하는 상품번호를 지정 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "product": {
+        "shop_no": 1,
+        "product_no": [
+            7,
+            8,
+            9
+        ],
+        "fix_product_no": [
+            8,
+            9
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/mains/{display_group}/products/{product_no}` — Delete a product in main category
 
 - **Scope**: `mall.write_product` (write)
@@ -101,3 +172,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `display_group` | ✓ |  |  | 메인분류 번호 |
 | `product_no` | ✓ |  |  | 상품번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "product": {
+        "shop_no": 1,
+        "product_no": 7
+    }
+}
+```

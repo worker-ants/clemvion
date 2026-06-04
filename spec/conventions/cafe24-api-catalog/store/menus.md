@@ -2,7 +2,7 @@
 resource: store
 entity: menus
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#menus
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Menus
@@ -40,3 +40,30 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `mode` |  |  | new_pro | 메뉴 모드 new_pro: PC 어드민 · mobile_admin : 모바일 어드민 |
 | `menu_no` |  |  |  | 메뉴 번호 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `contains_app_url` |  |  |  | 앱 URL 포함 여부 T : 포함 · F : 미포함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "menus": [
+        {
+            "shop_no": 1,
+            "mode": "new_pro",
+            "menu_no": "2",
+            "name": "Themes (PC)",
+            "path": "https://sample.cafe24.com/disp/admin/shop1/Manage/Index",
+            "contains_app_url": "F"
+        },
+        {
+            "shop_no": 1,
+            "mode": "new_pro",
+            "menu_no": "78",
+            "name": "Returns",
+            "path": "https://sample.cafe24.com/admin/php/shop1/s_new/order_returns.php",
+            "contains_app_url": "T"
+        }
+    ]
+}
+```

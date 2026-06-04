@@ -2,7 +2,7 @@
 resource: mileage
 entity: points-autoexpiration
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#points-autoexpiration
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Mileage / Points autoexpiration
@@ -41,6 +41,29 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "autoexpiration": {
+        "shop_no": 1,
+        "expiration_date": "2021-01-26",
+        "interval_month": 1,
+        "target_period_month": 12,
+        "group_no": 0,
+        "standard_point": "10.00",
+        "send_email": "T",
+        "send_sms": "F",
+        "notification_time_day": [
+            3,
+            7
+        ]
+    }
+}
+```
+
 ### `POST /api/v2/admin/points/autoexpiration` — Create an automatic points expiration
 
 - **Scope**: `mall.write_mileage` (write)
@@ -63,6 +86,29 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `send_sms` |  |  | F | SMS 발송 T: 설정함 · F: 설정안함 |
 | `notification_time_day` |  |  |  | 알람시기 선택 3: 3일 전 발송 · 7: 7일 전 발송 · 15: 15일 전 발송 · 30: 1개월 전 발송 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "autoexpiration": {
+        "shop_no": 1,
+        "expiration_date": "2021-01-26",
+        "interval_month": 1,
+        "target_period_month": 12,
+        "group_no": 0,
+        "standard_point": "10.00",
+        "send_email": "T",
+        "send_sms": "F",
+        "notification_time_day": [
+            3,
+            7
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/points/autoexpiration` — Delete an automatic points expiration
 
 - **Scope**: `mall.write_mileage` (write)
@@ -75,3 +121,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "autoexpiration": {
+        "shop_no": 1
+    }
+}
+```

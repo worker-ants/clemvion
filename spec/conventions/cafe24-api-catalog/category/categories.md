@@ -2,7 +2,7 @@
 resource: category
 entity: categories
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#categories
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Category / Categories
@@ -74,6 +74,115 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "categories": [
+        {
+            "shop_no": 1,
+            "category_no": 27,
+            "category_depth": 1,
+            "parent_category_no": 1,
+            "category_name": "(large scale classification) Bottoms",
+            "display_type": "A",
+            "full_category_name": {
+                "1": "(large scale classification) Bottoms",
+                "2": null,
+                "3": null,
+                "4": null
+            },
+            "full_category_no": {
+                "1": "27",
+                "2": null,
+                "3": null,
+                "4": null
+            },
+            "root_category_no": 27,
+            "use_main": "T",
+            "use_display": "T",
+            "display_order": 0,
+            "soldout_product_display": "B",
+            "sub_category_product_display": "T",
+            "hashtag_product_display": "T",
+            "hash_tags": [
+                "tag1",
+                "tag2"
+            ],
+            "product_display_scope": "A",
+            "product_display_type": "U",
+            "product_display_key": "A",
+            "product_display_sort": "D",
+            "product_display_period": "W",
+            "normal_product_display_type": null,
+            "normal_product_display_key": null,
+            "normal_product_display_sort": null,
+            "normal_product_display_period": null,
+            "recommend_product_display_type": null,
+            "recommend_product_display_key": null,
+            "recommend_product_display_sort": null,
+            "recommend_product_display_period": null,
+            "new_product_display_type": null,
+            "new_product_display_key": null,
+            "new_product_display_sort": null,
+            "new_product_display_period": null,
+            "access_authority": "T"
+        },
+        {
+            "shop_no": 1,
+            "category_no": 28,
+            "category_depth": 1,
+            "parent_category_no": 1,
+            "category_name": "(large scale classification) Accessories",
+            "display_type": "A",
+            "full_category_name": {
+                "1": "(large scale classification) Accessories",
+                "2": null,
+                "3": null,
+                "4": null
+            },
+            "full_category_no": {
+                "1": "28",
+                "2": null,
+                "3": null,
+                "4": null
+            },
+            "root_category_no": 28,
+            "use_main": "F",
+            "use_display": "T",
+            "display_order": 0,
+            "soldout_product_display": "B",
+            "sub_category_product_display": "T",
+            "hashtag_product_display": "T",
+            "hash_tags": [
+                "tag1",
+                "tag2"
+            ],
+            "product_display_scope": "A",
+            "product_display_type": "U",
+            "product_display_key": "A",
+            "product_display_sort": "D",
+            "product_display_period": "W",
+            "normal_product_display_type": null,
+            "normal_product_display_key": null,
+            "normal_product_display_sort": null,
+            "normal_product_display_period": null,
+            "recommend_product_display_type": null,
+            "recommend_product_display_key": null,
+            "recommend_product_display_sort": null,
+            "recommend_product_display_period": null,
+            "new_product_display_type": null,
+            "new_product_display_key": null,
+            "new_product_display_sort": null,
+            "new_product_display_period": null,
+            "access_authority": "F"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/categories/count` — Retrieve a count of product categories
 
 - **Scope**: `mall.read_category` (read)
@@ -93,6 +202,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `use_main` |  |  |  | 메인분류 표시상태 T : 표시함 · F : 표시안함 |
 | `use_display` |  |  |  | 표시상태 T : 표시함 · F : 표시안함 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 3
+}
+```
+
 ### `GET /api/v2/admin/categories/{category_no}` — Retrieve a product category
 
 - **Scope**: `mall.read_category` (read)
@@ -106,6 +225,63 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `category_no` | ✓ |  |  | 분류 번호 조회하고자 하는 상품분류의 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "category": {
+        "shop_no": 1,
+        "category_no": 40,
+        "category_depth": 4,
+        "parent_category_no": 37,
+        "category_name": "(Detailed Category) Cropped",
+        "display_type": "A",
+        "full_category_no": {
+            "1": "25",
+            "2": "28",
+            "3": "30",
+            "4": "40"
+        },
+        "full_category_name": {
+            "1": "(Main Category) Tops",
+            "2": "(Middle Category) Tees",
+            "3": "(Small Category) Long Sleeve",
+            "4": "(Detailed Category) Cropped"
+        },
+        "use_main": "F",
+        "use_display": "T",
+        "display_order": 0,
+        "soldout_product_display": "B",
+        "sub_category_product_display": "T",
+        "hashtag_product_display": "T",
+        "hash_tags": [
+            "tag1",
+            "tag2"
+        ],
+        "product_display_scope": "A",
+        "product_display_type": "U",
+        "product_display_key": "A",
+        "product_display_sort": "D",
+        "product_display_period": "W",
+        "normal_product_display_type": null,
+        "normal_product_display_key": null,
+        "normal_product_display_sort": null,
+        "normal_product_display_period": null,
+        "recommend_product_display_type": null,
+        "recommend_product_display_key": null,
+        "recommend_product_display_sort": null,
+        "recommend_product_display_period": null,
+        "new_product_display_type": null,
+        "new_product_display_key": null,
+        "new_product_display_sort": null,
+        "new_product_display_period": null,
+        "access_authority": "T"
+    }
+}
+```
 
 ### `POST /api/v2/admin/categories` — Create a product category
 
@@ -148,6 +324,64 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `new_product_display_sort` |  |  |  | 상품분류 진열방법 순서 신상품 영역의 진열 방법을 내림차순으로 할지, 오름차순으로 할지 설정 D: 내림차순 · A : 오름차순 |
 | `new_product_display_period` |  |  |  | 진열순서에 대한 기간 신상품 영역의 진열 방법이 판매량 높은 상품(S), 조회수가 높은 상품(C) 일 경우 기준이 되는 기간 W : 전체기간 · 1D : 1일 · 3D : 3일 · 7D : 7일 · 15D : 15일 · 1M : 1개월 · 3M : 3개월 · 6M : 6개월 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "category": {
+        "shop_no": 1,
+        "category_no": 40,
+        "category_depth": 1,
+        "parent_category_no": 1,
+        "category_name": "(large scale classification) Bottoms",
+        "display_type": "A",
+        "full_category_name": {
+            "1": "(large scale classification) Bottoms",
+            "2": null,
+            "3": null,
+            "4": null
+        },
+        "full_category_no": {
+            "1": "40",
+            "2": null,
+            "3": null,
+            "4": null
+        },
+        "root_category_no": 40,
+        "use_main": "T",
+        "use_display": "T",
+        "display_order": 5,
+        "soldout_product_display": "B",
+        "sub_category_product_display": "T",
+        "hashtag_product_display": "T",
+        "hash_tags": [
+            "tag1",
+            "tag2"
+        ],
+        "product_display_scope": "A",
+        "product_display_type": "U",
+        "product_display_key": "A",
+        "product_display_sort": "D",
+        "product_display_period": "W",
+        "normal_product_display_type": null,
+        "normal_product_display_key": null,
+        "normal_product_display_sort": null,
+        "normal_product_display_period": null,
+        "recommend_product_display_type": null,
+        "recommend_product_display_key": null,
+        "recommend_product_display_sort": null,
+        "recommend_product_display_period": null,
+        "new_product_display_type": null,
+        "new_product_display_key": null,
+        "new_product_display_sort": null,
+        "new_product_display_period": null,
+        "access_authority": "F"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/categories/{category_no}` — Update a product category
 
 - **Scope**: `mall.write_category` (write)
@@ -189,6 +423,64 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `new_product_display_sort` |  |  |  | 상품분류 진열방법 순서 신상품 영역의 진열 방법을 내림차순으로 할지, 오름차순으로 할지 설정 D: 내림차순 · A : 오름차순 |
 | `new_product_display_period` |  |  |  | 진열순서에 대한 기간 신상품 영역의 진열 방법이 판매량 높은 상품(S), 조회수가 높은 상품(C) 일 경우 기준이 되는 기간 W : 전체기간 · 1D : 1일 · 3D : 3일 · 7D : 7일 · 15D : 15일 · 1M : 1개월 · 3M : 3개월 · 6M : 6개월 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "category": {
+        "shop_no": 1,
+        "category_no": 40,
+        "category_depth": 4,
+        "parent_category_no": 37,
+        "category_name": "(large scale classification) Pants",
+        "display_type": "A",
+        "full_category_name": {
+            "1": "(Main Category) Tops",
+            "2": "(Middle Category) Tees",
+            "3": "(Small Category) Long Sleeve",
+            "4": "(large scale classification) Pants"
+        },
+        "full_category_no": {
+            "1": "25",
+            "2": "30",
+            "3": "37",
+            "4": "40"
+        },
+        "root_category_no": 25,
+        "use_main": "T",
+        "use_display": "T",
+        "display_order": 5,
+        "soldout_product_display": "B",
+        "sub_category_product_display": "T",
+        "hashtag_product_display": "F",
+        "hash_tags": [
+            "tag1",
+            "tag2"
+        ],
+        "product_display_scope": "G",
+        "product_display_type": null,
+        "product_display_key": null,
+        "product_display_sort": null,
+        "product_display_period": null,
+        "normal_product_display_type": "A",
+        "normal_product_display_key": "S",
+        "normal_product_display_sort": "D",
+        "normal_product_display_period": "1M",
+        "recommend_product_display_type": "A",
+        "recommend_product_display_key": "R",
+        "recommend_product_display_sort": "D",
+        "recommend_product_display_period": "W",
+        "new_product_display_type": "A",
+        "new_product_display_key": "C",
+        "new_product_display_sort": "D",
+        "new_product_display_period": "W",
+        "access_authority": "F"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/categories/{category_no}` — Delete a product category
 
 - **Scope**: `mall.write_category` (write)
@@ -201,3 +493,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `category_no` | ✓ |  |  | 분류 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "category": {
+        "category_no": 24
+    }
+}
+```

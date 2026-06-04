@@ -2,7 +2,7 @@
 resource: order
 entity: orders-memos
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders-memos
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders memos
@@ -46,3 +46,60 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_id` | ✓ | 주문번호 |  | 주문번호 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `limit` |  | 최소: [1]~최대: [500] | 10 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "memos": [
+        {
+            "shop_no": 1,
+            "memo_no": 13,
+            "order_id": "20200113-0000011",
+            "created_date": "2020-01-13T09:53:33+09:00",
+            "author_id": "sampleid",
+            "ip": "127.0.0.1",
+            "use_customer_inquiry": "F",
+            "attach_type": "P",
+            "content": "sample memo content",
+            "starred_memo": "F",
+            "fixed": "F",
+            "product_list": [
+                {
+                    "product_no": 11,
+                    "option_code": "000A"
+                },
+                {
+                    "product_no": 12,
+                    "option_code": "000A"
+                }
+            ]
+        },
+        {
+            "shop_no": 1,
+            "memo_no": 14,
+            "order_id": "20200113-0000011",
+            "created_date": "2020-01-14T10:53:41+09:00",
+            "author_id": "sampleid",
+            "ip": "127.0.0.1",
+            "use_customer_inquiry": "F",
+            "attach_type": "P",
+            "content": "sample memo content",
+            "starred_memo": "F",
+            "fixed": "F",
+            "product_list": [
+                {
+                    "product_no": 11,
+                    "option_code": "000A"
+                },
+                {
+                    "product_no": 12,
+                    "option_code": "000A"
+                }
+            ]
+        }
+    ]
+}
+```

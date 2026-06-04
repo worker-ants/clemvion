@@ -2,7 +2,7 @@
 resource: order
 entity: orders__buyer
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--buyer
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders buyer
@@ -51,6 +51,34 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "buyer": {
+        "shop_no": 1,
+        "member_id": "sampleid",
+        "member_group_no": 1,
+        "name": "Floyd Mayweather",
+        "names_furigana": "John Doe",
+        "email": "sample@gmail.com",
+        "phone": "02-0000-0000",
+        "cellphone": "010-0000-0000",
+        "customer_notification": "Customer Notify Sample",
+        "updated_date": "2018-09-03T17:20:49+09:00",
+        "user_id": "sampleid",
+        "user_name": "John Doe",
+        "company_name": "sample business name",
+        "company_registration_no": "123-45-67890",
+        "buyer_zipcode": "01234",
+        "buyer_address1": "sample street New York",
+        "buyer_address2": "34"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/orders/{order_id}/buyer` — Update customer information of an order
 
 - **Scope**: `mall.write_order` (write)
@@ -70,3 +98,21 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `phone` |  |  |  | 주문자 일반 전화 |
 | `cellphone` |  |  |  | 주문자 휴대 전화 |
 | `customer_notification` |  |  |  | 고객 알림 고객에게 알릴 문구 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "buyer": {
+        "shop_no": 1,
+        "order_id": "20180903-0000243",
+        "name": "Floyd Mayweather",
+        "email": "sample@gmail.com",
+        "phone": "02-0000-0000",
+        "cellphone": "010-0000-0000",
+        "customer_notification": "Customer Notify Sample"
+    }
+}
+```

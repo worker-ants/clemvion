@@ -2,7 +2,7 @@
 resource: order
 entity: orders__items
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--items
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders items
@@ -149,6 +149,475 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
 | `supplier_id` |  |  |  | 공급사 아이디 ,(콤마)로 여러 건을 검색할 수 있다. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "items": [
+        {
+            "shop_no": 1,
+            "item_no": 1,
+            "order_item_code": "20170710-0000013-01",
+            "variant_code": "P000000N000A",
+            "product_no": 14,
+            "product_code": "P000000N",
+            "internal_product_name": "iPhone XS",
+            "custom_product_code": "",
+            "custom_variant_code": "C001",
+            "eng_product_name": null,
+            "option_id": "000A",
+            "option_value": "",
+            "option_value_default": "",
+            "additional_option_value": "",
+            "additional_option_values": [
+                {
+                    "key": "item_option_add",
+                    "type": "text",
+                    "name": "gift option",
+                    "value": "yes"
+                },
+                {
+                    "key": "item_option_add",
+                    "type": "url",
+                    "name": "Attached File",
+                    "value": "http://sample.com/api/product/fileupload/?cmd=download&path=b%2Fe%2Fbee9c3eb338e6161886c8e6fefedbd4a5c170bac0dfc4&filename=35_shop1_123081.gif"
+                }
+            ],
+            "product_name": "iPhone X",
+            "product_name_default": "iPhone X",
+            "product_price": "30000.00",
+            "option_price": "0.00",
+            "additional_discount_price": "0.00",
+            "coupon_discount_price": "1000.00",
+            "app_item_discount_amount": "0.00",
+            "payment_amount": "29000.00",
+            "quantity": 1,
+            "product_tax_type": "A",
+            "tax_rate": 10,
+            "supplier_product_name": "",
+            "supplier_transaction_type": "D",
+            "supplier_id": "S0000000",
+            "supplier_name": "Apple",
+            "tracking_no": "12345678",
+            "shipping_code": "D-20170710-0000013-00",
+            "claim_code": "C20190107-0000001",
+            "claim_reason_type": "A",
+            "claim_reason": "Damaged product",
+            "refund_bank_name": "Woori Bank",
+            "refund_bank_account_no": "1234567890",
+            "refund_bank_account_holder": "Holders Name",
+            "post_express_flag": null,
+            "order_status": "N40",
+            "request_undone": null,
+            "claim_quantity": 0,
+            "order_status_additional_info": null,
+            "status_code": "N1",
+            "status_text": "Shipping Complete",
+            "open_market_status": "",
+            "bundled_shipping_type": "N",
+            "shipping_company_id": "2",
+            "shipping_company_name": "DHL",
+            "shipping_company_code": "0001",
+            "product_bundle": "F",
+            "product_bundle_no": "0",
+            "product_bundle_name": null,
+            "product_bundle_name_default": null,
+            "product_bundle_type": "C",
+            "was_product_bundle": null,
+            "original_bundle_item_no": null,
+            "naver_pay_order_id": null,
+            "naver_pay_claim_status": "PAYMENT_WAITING",
+            "individual_shipping_fee": "0.00",
+            "shipping_fee_type": "X",
+            "shipping_fee_type_text": "Free",
+            "shipping_payment_option": "F",
+            "payment_info_id": "0",
+            "original_item_no": [
+                242,
+                473
+            ],
+            "store_pickup": "F",
+            "ordered_date": "2017-07-10 15:55:51",
+            "shipped_date": "2017-07-10 15:56:52",
+            "delivered_date": "2017-07-10 15:57:05",
+            "purchaseconfirmation_date": "2017-07-10 15:58:07",
+            "cancel_date": null,
+            "return_confirmed_date": null,
+            "return_request_date": null,
+            "return_collected_date": null,
+            "cancel_request_date": null,
+            "refund_date": null,
+            "exchange_request_date": null,
+            "exchange_date": null,
+            "product_material": null,
+            "product_material_eng": null,
+            "cloth_fabric": null,
+            "product_weight": "1.00",
+            "volume_size": null,
+            "volume_size_weight": null,
+            "clearance_category": null,
+            "clearance_category_info": null,
+            "clearance_category_code": null,
+            "hs_code": "",
+            "one_plus_n_event": null,
+            "origin_place": "Domestic",
+            "origin_place_no": 1798,
+            "made_in_code": "KR",
+            "origin_place_value": "",
+            "gift": "F",
+            "item_granting_gift": null,
+            "subscription": "T",
+            "product_bundle_list": [
+                {
+                    "product_no": 15,
+                    "product_code": "P000000I",
+                    "variant_code": "P000000P000A",
+                    "product_name": "샘플상품 1",
+                    "product_name_default": "샘플상품 1",
+                    "option_id": "000A",
+                    "option_value": "",
+                    "option_value_default": "",
+                    "additional_option_value": "",
+                    "additional_option_values": [
+                        {
+                            "key": "item_option_add",
+                            "type": "text",
+                            "name": "gift option",
+                            "value": "yes"
+                        },
+                        {
+                            "key": "item_option_add",
+                            "type": "url",
+                            "name": "Attached File",
+                            "value": "http://sample.com/api/product/fileupload/?cmd=download&path=b%2Fe%2Fbee9c3eb338e6161886c8e6fefedbd4a5c170bac0dfc4&filename=35_shop1_123081.gif"
+                        }
+                    ],
+                    "quantity": 1,
+                    "supplier_id": "S0000000",
+                    "eng_product_name": null,
+                    "hs_code": "0201100000",
+                    "product_price": "10000.00",
+                    "option_price": "0.00",
+                    "custom_product_code": "",
+                    "custom_variant_code": null
+                },
+                {
+                    "product_no": 16,
+                    "product_code": "P000000Q",
+                    "variant_code": "P000000Q000A",
+                    "product_name": "샘플상품 3",
+                    "product_name_default": "샘플상품 3",
+                    "option_id": "000A",
+                    "option_value": "",
+                    "option_value_default": "",
+                    "additional_option_value": "",
+                    "additional_option_values": [
+                        {
+                            "key": "item_option_add",
+                            "type": "text",
+                            "name": "gift option",
+                            "value": "yes"
+                        },
+                        {
+                            "key": "item_option_add",
+                            "type": "url",
+                            "name": "Attached File",
+                            "value": "http://sample.com/api/product/fileupload/?cmd=download&path=b%2Fe%2Fbee9c3eb338e6161886c8e6fefedbd4a5c170bac0dfc4&filename=35_shop1_123081.gif"
+                        }
+                    ],
+                    "quantity": 1,
+                    "supplier_id": "S0000000",
+                    "eng_product_name": null,
+                    "hs_code": "0201201000",
+                    "product_price": "20000.00",
+                    "option_price": "0.00",
+                    "custom_product_code": "",
+                    "custom_variant_code": null
+                }
+            ],
+            "market_cancel_request": null,
+            "market_cancel_request_quantity": null,
+            "market_fail_reason": null,
+            "market_fail_reason_guide": null,
+            "market_fail_reason_type": null,
+            "market_item_no": null,
+            "market_custom_variant_code": null,
+            "option_type": "E",
+            "options": [
+                {
+                    "option_code": "O000000A",
+                    "option_name": null,
+                    "option_value": {
+                        "option_text": null,
+                        "value_no": 1
+                    }
+                },
+                {
+                    "option_code": "O000000B",
+                    "option_name": null,
+                    "option_value": {
+                        "option_text": null,
+                        "value_no": 2
+                    }
+                }
+            ],
+            "market_discount_amount": "0.00",
+            "labels": null,
+            "order_status_before_cs": null,
+            "supply_price": "1500.00",
+            "multi_invoice": [
+                {
+                    "type": "M",
+                    "tracking_no": "12345678",
+                    "shipping_company_id": 2,
+                    "shipping_company_name": "DHL",
+                    "shipping_company_code": "0001",
+                    "quantity": 1
+                },
+                {
+                    "type": "S",
+                    "tracking_no": "87654321",
+                    "shipping_company_id": 2,
+                    "shipping_company_name": "DHL",
+                    "shipping_company_code": "0001",
+                    "quantity": 2
+                }
+            ],
+            "shipping_expected_date": null
+        },
+        {
+            "shop_no": 1,
+            "item_no": 2,
+            "order_item_code": "20170710-0000013-02",
+            "variant_code": "P000000N000B",
+            "product_no": 14,
+            "product_code": "P000000N",
+            "internal_product_name": "iPhone XS",
+            "custom_product_code": "",
+            "custom_variant_code": "C002",
+            "eng_product_name": null,
+            "option_id": "000B",
+            "option_value": "",
+            "option_value_default": "",
+            "additional_option_value": "",
+            "additional_option_values": [
+                {
+                    "key": "item_option_add",
+                    "type": "text",
+                    "name": "gift option",
+                    "value": "yes"
+                },
+                {
+                    "key": "item_option_add",
+                    "type": "url",
+                    "name": "Attached File",
+                    "value": "http://sample.com/api/product/fileupload/?cmd=download&path=b%2Fe%2Fbee9c3eb338e6161886c8e6fefedbd4a5c170bac0dfc4&filename=35_shop1_123082.gif"
+                }
+            ],
+            "product_name": "iPhone XS",
+            "product_name_default": "iPhone XS",
+            "product_price": "30000.00",
+            "option_price": "0.00",
+            "additional_discount_price": "0.00",
+            "coupon_discount_price": "1000.00",
+            "app_item_discount_amount": "0.00",
+            "payment_amount": "29000.00",
+            "quantity": 1,
+            "product_tax_type": "A",
+            "tax_rate": 10,
+            "supplier_product_name": "",
+            "supplier_transaction_type": "D",
+            "supplier_id": "S0000000",
+            "supplier_name": "Apple",
+            "tracking_no": "12345678",
+            "shipping_code": "D-20170710-0000013-00",
+            "claim_code": "C20190107-0000002",
+            "claim_reason_type": "A",
+            "claim_reason": "Damaged product",
+            "refund_bank_name": "Woori Bank",
+            "refund_bank_account_no": "1234567890",
+            "refund_bank_account_holder": "Holders Name",
+            "post_express_flag": null,
+            "order_status": "N40",
+            "request_undone": null,
+            "claim_quantity": 0,
+            "order_status_additional_info": null,
+            "status_code": "N1",
+            "status_text": "Shipping Complete",
+            "open_market_status": "",
+            "bundled_shipping_type": "N",
+            "shipping_company_id": "2",
+            "shipping_company_name": "DHL",
+            "shipping_company_code": "0001",
+            "product_bundle": "F",
+            "product_bundle_no": "0",
+            "product_bundle_name": null,
+            "product_bundle_name_default": null,
+            "product_bundle_type": "C",
+            "was_product_bundle": null,
+            "original_bundle_item_no": null,
+            "naver_pay_order_id": null,
+            "naver_pay_claim_status": "PAYMENT_WAITING",
+            "individual_shipping_fee": "0.00",
+            "shipping_fee_type": "X",
+            "shipping_fee_type_text": "Free",
+            "shipping_payment_option": "F",
+            "payment_info_id": "0",
+            "original_item_no": [
+                242,
+                473
+            ],
+            "store_pickup": "F",
+            "ordered_date": "2017-07-10 15:55:51",
+            "shipped_date": "2017-07-10 15:56:52",
+            "delivered_date": "2017-07-10 15:57:05",
+            "purchaseconfirmation_date": "2017-07-10 15:58:07",
+            "cancel_date": null,
+            "return_confirmed_date": null,
+            "return_request_date": null,
+            "return_collected_date": null,
+            "cancel_request_date": null,
+            "refund_date": null,
+            "exchange_request_date": null,
+            "exchange_date": null,
+            "product_material": null,
+            "product_material_eng": null,
+            "cloth_fabric": null,
+            "product_weight": "1.00",
+            "volume_size": null,
+            "volume_size_weight": null,
+            "clearance_category": null,
+            "clearance_category_info": null,
+            "clearance_category_code": null,
+            "hs_code": "",
+            "one_plus_n_event": null,
+            "origin_place": "Domestic",
+            "origin_place_no": 1798,
+            "made_in_code": "KR",
+            "origin_place_value": "",
+            "gift": "F",
+            "item_granting_gift": null,
+            "subscription": "T",
+            "product_bundle_list": [
+                {
+                    "product_no": 15,
+                    "product_code": "P000000I",
+                    "variant_code": "P000000P000A",
+                    "product_name": "샘플상품 1",
+                    "product_name_default": "샘플상품 1",
+                    "option_id": "000A",
+                    "option_value": "",
+                    "option_value_default": "",
+                    "additional_option_value": "",
+                    "additional_option_values": [
+                        {
+                            "key": "item_option_add",
+                            "type": "text",
+                            "name": "gift option",
+                            "value": "yes"
+                        },
+                        {
+                            "key": "item_option_add",
+                            "type": "url",
+                            "name": "Attached File",
+                            "value": "http://sample.com/api/product/fileupload/?cmd=download&path=b%2Fe%2Fbee9c3eb338e6161886c8e6fefedbd4a5c170bac0dfc4&filename=35_shop1_123081.gif"
+                        }
+                    ],
+                    "quantity": 1,
+                    "supplier_id": "S0000000",
+                    "eng_product_name": null,
+                    "hs_code": "0201100000",
+                    "product_price": "10000.00",
+                    "option_price": "0.00"
+                },
+                {
+                    "product_no": 16,
+                    "product_code": "P000000Q",
+                    "variant_code": "P000000Q000A",
+                    "product_name": "샘플상품 3",
+                    "product_name_default": "샘플상품 3",
+                    "option_id": "000A",
+                    "option_value": "",
+                    "option_value_default": "",
+                    "additional_option_value": "",
+                    "additional_option_values": [
+                        {
+                            "key": "item_option_add",
+                            "type": "text",
+                            "name": "gift option",
+                            "value": "yes"
+                        },
+                        {
+                            "key": "item_option_add",
+                            "type": "url",
+                            "name": "Attached File",
+                            "value": "http://sample.com/api/product/fileupload/?cmd=download&path=b%2Fe%2Fbee9c3eb338e6161886c8e6fefedbd4a5c170bac0dfc4&filename=35_shop1_123081.gif"
+                        }
+                    ],
+                    "quantity": 1,
+                    "supplier_id": "S0000000",
+                    "eng_product_name": null,
+                    "hs_code": "0201201000",
+                    "product_price": "20000.00",
+                    "option_price": "0.00"
+                }
+            ],
+            "market_cancel_request": null,
+            "market_cancel_request_quantity": null,
+            "market_fail_reason": null,
+            "market_fail_reason_guide": null,
+            "market_fail_reason_type": null,
+            "market_item_no": null,
+            "market_custom_variant_code": null,
+            "option_type": "E",
+            "options": [
+                {
+                    "option_code": "O000000A",
+                    "option_name": null,
+                    "option_value": {
+                        "option_text": null,
+                        "value_no": 1
+                    }
+                },
+                {
+                    "option_code": "O000000B",
+                    "option_name": null,
+                    "option_value": {
+                        "option_text": null,
+                        "value_no": 2
+                    }
+                }
+            ],
+            "market_discount_amount": "0.00",
+            "labels": null,
+            "order_status_before_cs": "N20",
+            "supply_price": "1500.00",
+            "multi_invoice": [
+                {
+                    "type": "S",
+                    "tracking_no": "98765432",
+                    "shipping_company_id": 2,
+                    "shipping_company_name": "DHL",
+                    "shipping_company_code": "0001",
+                    "quantity": 1
+                },
+                {
+                    "type": "S",
+                    "tracking_no": "87654321",
+                    "shipping_company_id": 2,
+                    "shipping_company_name": "DHL",
+                    "shipping_company_code": "0001",
+                    "quantity": 2
+                }
+            ],
+            "shipping_expected_date": null
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/orders/{order_id}/items` — Create an order item
 
 - **Scope**: `mall.write_order` (write)
@@ -166,6 +635,263 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `was_product_bundle` |  |  | F | 세트품주 분리여부 T : 세트상품 나눔 · F : 세트상품 나눔 안함 |
 | `original_bundle_item_no` |  |  |  | 분리된 세트상품의 기존 품주번호 |
 | `variant_code` | ✓ | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] |  | 품목코드 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "items": [
+        {
+            "shop_no": 1,
+            "item_no": 3315,
+            "order_item_code": "20220908-0000017-02",
+            "variant_code": "P000000I000A",
+            "product_no": 9,
+            "product_code": "P000000I",
+            "custom_product_code": "",
+            "custom_variant_code": "",
+            "eng_product_name": "",
+            "option_id": "000A",
+            "option_value": "",
+            "option_value_default": "",
+            "additional_option_value": "",
+            "additional_option_values": [
+                {
+                    "key": "item_option_add",
+                    "type": "text",
+                    "name": "gift option",
+                    "value": "yes"
+                },
+                {
+                    "key": "item_option_add",
+                    "type": "url",
+                    "name": "Attached File",
+                    "value": "http://sample.com/api/product/fileupload/?cmd=download&path=b%2Fe%2Fbee9c3eb338e6161886c8e6fefedbd4a5c170bac0dfc4&filename=35_shop1_123081.gif"
+                }
+            ],
+            "product_name": "Sample Product 1",
+            "product_name_default": "Sample Product 1",
+            "product_price": "5000.00",
+            "option_price": "0.00",
+            "additional_discount_price": "9000.00",
+            "coupon_discount_price": "0.00",
+            "app_item_discount_amount": "0.00",
+            "payment_amount": "36000.00",
+            "quantity": 10,
+            "product_tax_type": "A",
+            "tax_rate": 10,
+            "supplier_product_name": "",
+            "supplier_transaction_type": "D",
+            "supplier_id": "S0000000",
+            "supplier_name": "Insourced",
+            "tracking_no": null,
+            "shipping_code": "D-20220908-0000017-00",
+            "claim_code": null,
+            "claim_reason_type": null,
+            "claim_reason": null,
+            "refund_bank_name": "",
+            "refund_bank_account_no": "",
+            "refund_bank_account_holder": "",
+            "post_express_flag": null,
+            "order_status": "N00",
+            "request_undone": null,
+            "order_status_additional_info": "",
+            "claim_quantity": 0,
+            "status_code": "N1",
+            "status_text": "awaiting payment",
+            "open_market_status": "",
+            "bundled_shipping_type": "N",
+            "shipping_company_id": "0",
+            "shipping_company_name": null,
+            "shipping_company_code": null,
+            "product_bundle": "F",
+            "product_bundle_no": "",
+            "product_bundle_name": null,
+            "product_bundle_name_default": null,
+            "product_bundle_type": "C",
+            "was_product_bundle": "T",
+            "original_bundle_item_no": "20220908-0000017-01",
+            "naver_pay_order_id": null,
+            "naver_pay_claim_status": null,
+            "individual_shipping_fee": "0.00",
+            "shipping_fee_type": "X",
+            "shipping_fee_type_text": "Flat rate",
+            "shipping_payment_option": "P",
+            "payment_info_id": "0",
+            "original_item_no": [],
+            "store_pickup": "F",
+            "ordered_date": null,
+            "shipped_date": null,
+            "delivered_date": null,
+            "cancel_date": null,
+            "return_confirmed_date": null,
+            "return_request_date": null,
+            "return_collected_date": null,
+            "cancel_request_date": null,
+            "refund_date": null,
+            "exchange_request_date": null,
+            "exchange_date": null,
+            "product_material": "",
+            "product_material_eng": null,
+            "cloth_fabric": null,
+            "product_weight": null,
+            "volume_size": null,
+            "volume_size_weight": null,
+            "clearance_category": null,
+            "clearance_category_info": null,
+            "clearance_category_code": null,
+            "hs_code": "",
+            "one_plus_n_event": null,
+            "origin_place": "Domestic",
+            "origin_place_no": 1798,
+            "made_in_code": "KR",
+            "origin_place_value": "",
+            "gift": "F",
+            "item_granting_gift": null,
+            "subscription": "F",
+            "product_bundle_list": null,
+            "market_cancel_request": null,
+            "market_cancel_request_quantity": null,
+            "market_fail_reason": null,
+            "market_fail_reason_guide": null,
+            "market_item_no": null,
+            "market_custom_variant_code": null,
+            "option_type": null,
+            "options": [],
+            "market_discount_amount": "0.00",
+            "order_status_before_cs": null,
+            "supply_price": "1500.00",
+            "multi_invoice": null,
+            "shipping_expected_date": null
+        },
+        {
+            "shop_no": 1,
+            "item_no": 3316,
+            "order_item_code": "20220908-0000017-03",
+            "variant_code": "P000000J000A",
+            "product_no": 10,
+            "product_code": "P000000J",
+            "custom_product_code": "",
+            "custom_variant_code": "",
+            "eng_product_name": "",
+            "option_id": "000A",
+            "option_value": "",
+            "option_value_default": "",
+            "additional_option_value": "",
+            "additional_option_values": [
+                {
+                    "key": "item_option_add",
+                    "type": "text",
+                    "name": "gift option",
+                    "value": "yes"
+                },
+                {
+                    "key": "item_option_add",
+                    "type": "url",
+                    "name": "Attached File",
+                    "value": "http://sample.com/api/product/fileupload/?cmd=download&path=b%2Fe%2Fbee9c3eb338e6161886c8e6fefedbd4a5c170bac0dfc4&filename=35_shop1_123081.gif"
+                }
+            ],
+            "product_name": "Sample Product 2",
+            "product_name_default": "Sample Product 2",
+            "product_price": "10000.00",
+            "option_price": "0.00",
+            "additional_discount_price": "18000.00",
+            "coupon_discount_price": "0.00",
+            "app_item_discount_amount": "0.00",
+            "payment_amount": "72000.00",
+            "quantity": 10,
+            "product_tax_type": "A",
+            "tax_rate": 10,
+            "supplier_product_name": "",
+            "supplier_transaction_type": "D",
+            "supplier_id": "S0000000",
+            "supplier_name": "Insourced",
+            "tracking_no": null,
+            "shipping_code": "D-20220908-0000017-00",
+            "claim_code": null,
+            "claim_reason_type": null,
+            "claim_reason": null,
+            "refund_bank_name": "",
+            "refund_bank_account_no": "",
+            "refund_bank_account_holder": "",
+            "post_express_flag": null,
+            "order_status": "N00",
+            "request_undone": null,
+            "order_status_additional_info": "",
+            "claim_quantity": 0,
+            "status_code": "N1",
+            "status_text": "awaiting payment",
+            "open_market_status": "",
+            "bundled_shipping_type": "N",
+            "shipping_company_id": "0",
+            "shipping_company_name": null,
+            "shipping_company_code": null,
+            "product_bundle": "F",
+            "product_bundle_no": "",
+            "product_bundle_name": null,
+            "product_bundle_name_default": null,
+            "product_bundle_type": "C",
+            "was_product_bundle": "T",
+            "original_bundle_item_no": "20220908-0000017-01",
+            "naver_pay_order_id": null,
+            "naver_pay_claim_status": null,
+            "individual_shipping_fee": "0.00",
+            "shipping_fee_type": "X",
+            "shipping_fee_type_text": "Flat rate",
+            "shipping_payment_option": "P",
+            "payment_info_id": "0",
+            "original_item_no": [],
+            "store_pickup": "F",
+            "ordered_date": null,
+            "shipped_date": null,
+            "delivered_date": null,
+            "cancel_date": null,
+            "return_confirmed_date": null,
+            "return_request_date": null,
+            "return_collected_date": null,
+            "cancel_request_date": null,
+            "refund_date": null,
+            "exchange_request_date": null,
+            "exchange_date": null,
+            "product_material": "",
+            "product_material_eng": null,
+            "cloth_fabric": null,
+            "product_weight": null,
+            "volume_size": null,
+            "volume_size_weight": null,
+            "clearance_category": null,
+            "clearance_category_info": null,
+            "clearance_category_code": null,
+            "hs_code": "",
+            "one_plus_n_event": null,
+            "origin_place": "Domestic",
+            "origin_place_no": 1798,
+            "made_in_code": "KR",
+            "origin_place_value": "",
+            "gift": "F",
+            "item_granting_gift": null,
+            "subscription": "F",
+            "product_bundle_list": null,
+            "market_cancel_request": null,
+            "market_cancel_request_quantity": null,
+            "market_fail_reason": null,
+            "market_fail_reason_guide": null,
+            "market_item_no": null,
+            "market_custom_variant_code": null,
+            "option_type": null,
+            "options": [],
+            "market_discount_amount": "0.00",
+            "order_status_before_cs": null,
+            "supply_price": "1500.00",
+            "multi_invoice": null,
+            "shipping_expected_date": null
+        }
+    ]
+}
+```
 
 ### `PUT /api/v2/admin/orders/{order_id}/items/{order_item_code}` — Update an order item
 
@@ -192,3 +918,41 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `shipping_company_id` |  |  |  | 배송업체 아이디 |
 | ↳ `quantity` |  |  |  | 수량 |
 | `shipping_expected_date` |  |  |  | 발송예정일 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "item": {
+        "shop_no": 1,
+        "order_id": "20190613-0000027",
+        "order_item_code": "20190613-0000027-01",
+        "claim_type": "C",
+        "claim_status": "T",
+        "claim_reason_type": "A",
+        "claim_reason": "Damaged product",
+        "claim_quantity": 1,
+        "multi_invoice": [
+            {
+                "type": "S",
+                "tracking_no": "12345678",
+                "shipping_company_id": 2,
+                "shipping_company_name": "DHL",
+                "shipping_company_code": "0001",
+                "quantity": 1
+            },
+            {
+                "type": "S",
+                "tracking_no": "87654321",
+                "shipping_company_id": 2,
+                "shipping_company_name": "DHL",
+                "shipping_company_code": "0001",
+                "quantity": 2
+            }
+        ],
+        "shipping_expected_date": null
+    }
+}
+```

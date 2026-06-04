@@ -2,7 +2,7 @@
 resource: translation
 entity: translations-products
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#translations-products
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Translation / Translations products
@@ -41,6 +41,197 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "products": [
+        {
+            "shop_no": 1,
+            "product_no": 10,
+            "product_name": "iPhone X",
+            "translations": [
+                {
+                    "translated": "T",
+                    "language_code": "en_US",
+                    "product_name": "iPhone X",
+                    "product_tag": "translated,edu,test,sample",
+                    "description": "Sample Translated Description.",
+                    "mobile_description": "Sample Translated Mobile Description.",
+                    "simple_description": "This is translated simple description.",
+                    "summary_description": "This is translated Product Summary.",
+                    "payment_info": "Sample translated payment info. You have to Pay.",
+                    "shipping_info": "Sample translated shipping info. You have to ship.",
+                    "exchange_info": "Sample translated exchange info. You have to exchange.",
+                    "service_info": "Sample translated service info. You have to service.",
+                    "product_material": "Translated material",
+                    "seo": {
+                        "meta_title": "product title",
+                        "meta_author": "This is Author",
+                        "meta_description": "This is Description.",
+                        "meta_keywords": "This is Keyword.",
+                        "meta_alt": "image1, image2"
+                    },
+                    "options": [
+                        {
+                            "name": "color",
+                            "value": [
+                                "red",
+                                "green",
+                                "blue"
+                            ]
+                        },
+                        {
+                            "name": "size",
+                            "value": [
+                                "large",
+                                "small"
+                            ]
+                        }
+                    ],
+                    "updated_date": "2018-01-19T11:19:27+09:00"
+                },
+                {
+                    "translated": "T",
+                    "language_code": "es_ES",
+                    "product_name": "iPhone X",
+                    "product_tag": "translated,edu,test,sample",
+                    "description": "Sample Translated Description.",
+                    "mobile_description": "Sample Translated Mobile Description.",
+                    "simple_description": "This is translated simple description.",
+                    "summary_description": "This is translated Product Summary.",
+                    "payment_info": "Sample translated payment info. You have to Pay.",
+                    "shipping_info": "Sample translated shipping info. You have to ship.",
+                    "exchange_info": "Sample translated exchange info. You have to exchange.",
+                    "service_info": "Sample translated service info. You have to service.",
+                    "product_material": "Translated material",
+                    "seo": {
+                        "meta_title": "product title",
+                        "meta_author": "This is Author",
+                        "meta_description": "This is Description.",
+                        "meta_keywords": "This is Keyword.",
+                        "meta_alt": "image1, image2"
+                    },
+                    "options": [
+                        {
+                            "name": "color",
+                            "value": [
+                                "red",
+                                "green",
+                                "blue"
+                            ]
+                        },
+                        {
+                            "name": "size",
+                            "value": [
+                                "large",
+                                "small"
+                            ]
+                        }
+                    ],
+                    "updated_date": "2018-01-19T11:19:27+09:00"
+                }
+            ]
+        },
+        {
+            "shop_no": 1,
+            "product_no": 11,
+            "product_name": "iPhone X",
+            "translations": [
+                {
+                    "translated": "T",
+                    "language_code": "en_US",
+                    "product_name": "iPhone X",
+                    "product_tag": "translated,edu,test,sample",
+                    "description": "Sample Translated Description.",
+                    "mobile_description": "Sample Translated Mobile Description.",
+                    "simple_description": "This is translated simple description.",
+                    "summary_description": "This is translated Product Summary.",
+                    "payment_info": "Sample translated payment info. You have to Pay.",
+                    "shipping_info": "Sample translated shipping info. You have to ship.",
+                    "exchange_info": "Sample translated exchange info. You have to exchange.",
+                    "service_info": "Sample translated service info. You have to service.",
+                    "product_material": "Translated material",
+                    "seo": {
+                        "meta_title": "product title",
+                        "meta_author": "This is Author",
+                        "meta_description": "This is Description.",
+                        "meta_keywords": "This is Keyword.",
+                        "meta_alt": "image1, image2"
+                    },
+                    "options": [
+                        {
+                            "name": "Color",
+                            "value": [
+                                "Red",
+                                "Blue",
+                                "Yellow"
+                            ]
+                        },
+                        {
+                            "name": "Size",
+                            "value": [
+                                "Small",
+                                "Large"
+                            ]
+                        }
+                    ],
+                    "updated_date": "2018-01-19T11:19:27+09:00"
+                },
+                {
+                    "translated": "T",
+                    "language_code": "es_ES",
+                    "product_name": "iPhone X",
+                    "product_tag": "translated,edu,test,sample",
+                    "description": "Sample Translated Description.",
+                    "mobile_description": "Sample Translated Mobile Description.",
+                    "simple_description": "This is translated simple description.",
+                    "summary_description": "This is translated Product Summary.",
+                    "payment_info": "Sample translated payment info. You have to Pay.",
+                    "shipping_info": "Sample translated shipping info. You have to ship.",
+                    "exchange_info": "Sample translated exchange info. You have to exchange.",
+                    "service_info": "Sample translated service info. You have to service.",
+                    "product_material": "Translated material",
+                    "seo": {
+                        "meta_title": "product title",
+                        "meta_author": "This is Author",
+                        "meta_description": "This is Description.",
+                        "meta_keywords": "This is Keyword.",
+                        "meta_alt": "image1, image2"
+                    },
+                    "options": [
+                        {
+                            "name": "Color",
+                            "value": [
+                                "Red",
+                                "Blue",
+                                "Yellow"
+                            ]
+                        },
+                        {
+                            "name": "Size",
+                            "value": [
+                                "Small",
+                                "Large"
+                            ]
+                        }
+                    ],
+                    "updated_date": "2018-01-19T11:19:27+09:00"
+                }
+            ]
+        }
+    ],
+    "links": [
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/translations/products?limit=10&offset=10"
+        }
+    ]
+}
+```
+
 ### `PUT /api/v2/admin/translations/products/{product_no}` — Update product translation
 
 - **Scope**: `mall.write_translation` (write)
@@ -77,3 +268,99 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `options` |  | Array |  |  |
 | ↳ ↳ `name` |  |  |  | 옵션명 |
 | ↳ ↳ `value` |  |  |  | 옵션값 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "product": {
+        "shop_no": 1,
+        "product_no": 10,
+        "product_name": "iPhone X",
+        "translations": [
+            {
+                "translated": "T",
+                "language_code": "en_US",
+                "product_name": "iPhone X",
+                "product_tag": "translated,edu,test,sample",
+                "description": "Sample Translated Description.",
+                "mobile_description": "Sample Translated Mobile Description.",
+                "simple_description": "This is translated simple description.",
+                "summary_description": "This is translated Product Summary.",
+                "payment_info": "Sample translated payment info. You have to Pay.",
+                "shipping_info": "Sample translated shipping info. You have to ship.",
+                "exchange_info": "Sample translated exchange info. You have to exchange.",
+                "service_info": "Sample translated service info. You have to service.",
+                "product_material": "Translated material",
+                "seo": {
+                    "meta_title": "product title",
+                    "meta_author": "This is Author",
+                    "meta_description": "This is Description.",
+                    "meta_keywords": "This is Keyword.",
+                    "meta_alt": "image1, image2"
+                },
+                "options": [
+                    {
+                        "name": "Color",
+                        "value": [
+                            "Red",
+                            "Blue",
+                            "Yellow"
+                        ]
+                    },
+                    {
+                        "name": "Size",
+                        "value": [
+                            "Small",
+                            "Large"
+                        ]
+                    }
+                ],
+                "updated_date": "2018-01-19T11:19:27+09:00"
+            },
+            {
+                "translated": "T",
+                "language_code": "es_ES",
+                "product_name": "iPhone X",
+                "product_tag": "translated,edu,test,sample",
+                "description": "Sample Translated Description.",
+                "mobile_description": "Sample Translated Mobile Description.",
+                "simple_description": "This is translated simple description.",
+                "summary_description": "This is translated Product Summary.",
+                "payment_info": "Sample translated payment info. You have to Pay.",
+                "shipping_info": "Sample translated shipping info. You have to ship.",
+                "exchange_info": "Sample translated exchange info. You have to exchange.",
+                "service_info": "Sample translated service info. You have to service.",
+                "product_material": "Translated material",
+                "seo": {
+                    "meta_title": "product title",
+                    "meta_author": "This is Author",
+                    "meta_description": "This is Description.",
+                    "meta_keywords": "This is Keyword.",
+                    "meta_alt": "image1, image2"
+                },
+                "options": [
+                    {
+                        "name": "Color",
+                        "value": [
+                            "Red",
+                            "Blue",
+                            "Yellow"
+                        ]
+                    },
+                    {
+                        "name": "Size",
+                        "value": [
+                            "Small",
+                            "Large"
+                        ]
+                    }
+                ],
+                "updated_date": "2018-01-19T11:19:27+09:00"
+            }
+        ]
+    }
+}
+```

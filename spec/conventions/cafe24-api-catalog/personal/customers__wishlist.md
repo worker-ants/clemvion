@@ -2,7 +2,7 @@
 resource: personal
 entity: customers__wishlist
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customers--wishlist
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Personal / Customers wishlist
@@ -43,6 +43,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `member_id` | ✓ |  |  | 회원아이디 |
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 2
+}
+```
+
 ### `GET /api/v2/admin/customers/{member_id}/wishlist` — Retrieve a list of products in customer wishlist
 
 - **Scope**: `mall.read_personal` (read)
@@ -56,3 +66,47 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `member_id` | ✓ |  |  | 회원아이디 |
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "wishlist": [
+        {
+            "shop_no": 1,
+            "wishlist_no": 1,
+            "product_no": 3,
+            "variant_code": "P000000R000C",
+            "additional_option": [
+                {
+                    "option_name": "Custom Option",
+                    "option_value": "Custom Option Value"
+                }
+            ],
+            "attached_file_option": [
+                {
+                    "file_path": "https://{domain}/api/product/fileupload/?cmd=download&path=b%2Fe%2Fbee9c3eb338e6161886c8e6fefedbd4a5c170bac0dfc4&filename=35_shop1_123081.gif"
+                }
+            ],
+            "price": "10000.00",
+            "product_bundle": "F",
+            "created_date": "2018-12-17T11:36:28+09:00",
+            "price_content": null
+        },
+        {
+            "shop_no": 1,
+            "wishlist_no": 2,
+            "product_no": 5,
+            "variant_code": "P000000S000D",
+            "additional_option": null,
+            "attached_file_option": null,
+            "price": "20000.00",
+            "product_bundle": "F",
+            "created_date": "2018-11-17T14:36:28+09:00",
+            "price_content": null
+        }
+    ]
+}
+```

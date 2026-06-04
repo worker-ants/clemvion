@@ -2,7 +2,7 @@
 resource: promotion
 entity: commonevents
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#commonevents
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Promotion / Commonevents
@@ -40,6 +40,43 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최대값: [100] | 20 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [8000] |  | 조회결과 시작위치 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "commonevents": [
+        {
+            "shop_no": 1,
+            "event_no": 3,
+            "name": "Outwear Common Event",
+            "status": "T",
+            "category_no": 24,
+            "register_date": "2025-08-18 11:05:01"
+        },
+        {
+            "shop_no": 1,
+            "event_no": 2,
+            "name": "All Common Event",
+            "status": "T",
+            "category_no": 0,
+            "register_date": "2025-08-18 11:01:54"
+        }
+    ],
+    "links": [
+        {
+            "rel": "prev",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/commonevents?limit=10&offset=0"
+        },
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/commonevents?limit=10&offset=20"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/commonevents` — Create a storewide promotion
 
 - **Scope**: `mall.write_promotion` (write)
@@ -58,6 +95,25 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `category_no` |  | 최소값: [0] | 0 | 카테고리 번호 0: 전체 |
 | `display_position` |  |  | top_detail | 표시 위치 top_detail: 상품상세정보 위 · side_image: 상품이미지 옆 |
 | `content` |  |  |  | 내용 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "commonevent": {
+        "shop_no": 1,
+        "event_no": 4,
+        "name": "Common Event",
+        "status": "T",
+        "category_no": 24,
+        "display_position": "top_detail",
+        "content": "Common Event Content",
+        "register_date": "2025-08-21 11:05:01"
+    }
+}
+```
 
 ### `PUT /api/v2/admin/commonevents/{event_no}` — Update a storewide promotion
 
@@ -79,6 +135,25 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `display_position` |  |  |  | 표시 위치 top_detail: 상품상세정보 위 · side_image: 상품이미지 옆 |
 | `content` |  |  |  | 내용 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "commonevent": {
+        "shop_no": 1,
+        "event_no": 123,
+        "name": "Updated Event Name",
+        "status": "T",
+        "category_no": 24,
+        "display_position": "top_detail",
+        "content": "This is updated event content.",
+        "register_date": "2025-08-21 11:20:30"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/commonevents/{event_no}` — Delete a storewide promotion
 
 - **Scope**: `mall.write_promotion` (write)
@@ -92,3 +167,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `event_no` | ✓ | 최소값: [1] |  | 이벤트 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "commonevent": {
+        "event_no": 4
+    }
+}
+```

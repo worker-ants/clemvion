@@ -38,3 +38,6 @@ temp/
 review/**/_prompts/
 _test_logs/
 codebase/packages/sdk/package-lock.json
+
+# Cafe24 카탈로그 생성기 응답 JSON 캐시 (재fetch 가능, 미커밋)
+spec/conventions/cafe24-api-catalog/.resp-cache/

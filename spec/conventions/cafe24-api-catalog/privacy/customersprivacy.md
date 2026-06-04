@@ -2,7 +2,7 @@
 resource: privacy
 entity: customersprivacy
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customersprivacy
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Privacy / Customersprivacy
@@ -112,6 +112,133 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최소: [1]~최대: [1000] | 30 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 search_type이 created_date 일 경우 creted_start_date를 증가시키면서 전체 회원을 검색할 수 있으므로 offset은 사용할 수 없다. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customersprivacy": [
+        {
+            "shop_no": 1,
+            "member_id": "sampleid",
+            "name": "John Doe",
+            "name_english": "John Doe",
+            "name_phonetic": "John Doe",
+            "phone": "02-0000-0000",
+            "cellphone": "010-000-0000",
+            "email": "sample@sample.com",
+            "wedding_anniversary": "2018-06-20",
+            "birthday": "2018-06-20",
+            "solar_calendar": "T",
+            "total_points": "0.00",
+            "available_points": "0.00",
+            "used_points": "0.00",
+            "city": "Seoul",
+            "state": "Sindaebang dong Dongjak-gu",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall",
+            "group_no": 1,
+            "job": "self-employment",
+            "job_class": "service",
+            "zipcode": "07071",
+            "created_date": "2018-01-18T11:19:27+09:00",
+            "member_authentication": "T",
+            "use_blacklist": "F",
+            "blacklist_type": "",
+            "last_login_date": "2018-01-18T11:19:27+09:00",
+            "member_authority": "C",
+            "nick_name": "nickname",
+            "recommend_id": "testid2",
+            "residence": "Seoul",
+            "interest": "animation, movie/theater",
+            "gender": "F",
+            "member_type": "p",
+            "company_type": "p",
+            "foreigner_type": "f",
+            "authentication_method": "m",
+            "lifetime_member": "T",
+            "corporate_name": "Sample company",
+            "nationality": "Korea",
+            "shop_name": "Sample Shop",
+            "country_code": "KR",
+            "use_mobile_app": "F",
+            "join_path": "P",
+            "fixed_group": "T",
+            "thirdparty_agree": "T",
+            "refund_bank_code": "bank_02",
+            "refund_bank_account_no": "1234-1234-1234567",
+            "refund_bank_account_holder": "John Doe",
+            "company_condition": null,
+            "company_line": null,
+            "sns_list": [
+                "FACEBOOK(2022-05-23 16:12:22)",
+                "KAKAO(2022-05-23 16:12:47)"
+            ],
+            "account_reactivation_date": "2018-01-18T11:19:27+09:00"
+        },
+        {
+            "shop_no": 1,
+            "member_id": "sampleid01",
+            "name": "Jane Doe",
+            "name_english": "Jane Doe",
+            "name_phonetic": "Jane Doe",
+            "phone": "02-0000-0000",
+            "cellphone": "010-000-0000",
+            "email": "sample@sample.com",
+            "wedding_anniversary": "2018-06-20",
+            "birthday": "2018-06-20",
+            "solar_calendar": "T",
+            "total_points": "0.00",
+            "available_points": "0.00",
+            "used_points": "0.00",
+            "city": "Seoul",
+            "state": "Sindaebang dong Dongjak-gu",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall",
+            "group_no": 1,
+            "job": "self-employment",
+            "job_class": "service",
+            "zipcode": "07071",
+            "created_date": "2018-01-18T11:19:27+09:00",
+            "member_authentication": "T",
+            "use_blacklist": "F",
+            "blacklist_type": "",
+            "last_login_date": "2018-01-18T11:19:27+09:00",
+            "member_authority": "C",
+            "nick_name": "nickname",
+            "recommend_id": "testid2",
+            "residence": "Seoul",
+            "interest": "animation, movie/theater",
+            "gender": "F",
+            "member_type": "p",
+            "company_type": "p",
+            "foreigner_type": "f",
+            "authentication_method": "i",
+            "lifetime_member": "T",
+            "corporate_name": "Sample company",
+            "nationality": "Korea",
+            "shop_name": "Sample Shop",
+            "country_code": "KR",
+            "use_mobile_app": "F",
+            "join_path": "M",
+            "fixed_group": "F",
+            "thirdparty_agree": "T",
+            "refund_bank_code": "bank_01",
+            "refund_bank_account_no": "1234-1234-1234567",
+            "refund_bank_account_holder": "John Doe",
+            "company_condition": null,
+            "company_line": null,
+            "sns_list": [
+                "FACEBOOK(2022-05-23 16:12:22)",
+                "KAKAO(2022-05-23 16:12:47)"
+            ],
+            "account_reactivation_date": "2018-01-18T11:19:27+09:00"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/customersprivacy/count` — Retrieve a count of customer information
 
 - **Scope**: `mall.read_privacy` (read)
@@ -146,6 +273,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `fixed_group` |  |  |  | 회원등급 고정 여부 Youtube shopping 이용 시에는 미제공 T : 고정함 · F : 고정안함 |
 | `is_simple_join` |  |  |  | 주문서 간단회원가입 조회 여부 Youtube shopping 이용 시에는 미제공 T : 조회 · F : 조회 안 함 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 3
+}
+```
+
 ### `GET /api/v2/admin/customersprivacy/{member_id}` — Retrieve a customer information
 
 - **Scope**: `mall.read_privacy` (read)
@@ -159,6 +296,74 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `member_id` | ✓ | 최대글자수 : [20자] |  | 회원아이디 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customersprivacy": {
+        "shop_no": 1,
+        "member_id": "sampleid",
+        "name": "John Doe",
+        "name_english": "John Doe",
+        "name_phonetic": "John Doe",
+        "phone": "02-0000-0000",
+        "cellphone": "010-000-0000",
+        "email": "sample@sample.com",
+        "wedding_anniversary": "2018-06-20",
+        "birthday": "2018-06-20",
+        "solar_calendar": "T",
+        "total_points": "0.00",
+        "available_points": "0.00",
+        "used_points": "0.00",
+        "available_credits": "0.00",
+        "city": "Seoul",
+        "state": "Sindaebang dong Dongjak-gu",
+        "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "address2": "Professional Construction Hall",
+        "group_no": 1,
+        "job": "self-employment",
+        "job_class": "service",
+        "zipcode": "07071",
+        "created_date": "2018-01-18T11:19:27+09:00",
+        "member_authentication": "T",
+        "use_blacklist": "F",
+        "blacklist_type": "",
+        "last_login_date": "2018-01-18T11:19:27+09:00",
+        "member_authority": "C",
+        "nick_name": "nickname",
+        "recommend_id": "testid2",
+        "residence": "Seoul",
+        "interest": "animation, movie/theater",
+        "gender": "F",
+        "member_type": "p",
+        "company_type": "p",
+        "foreigner_type": "f",
+        "authentication_method": "i",
+        "lifetime_member": "T",
+        "corporate_name": "Sample company",
+        "nationality": "Korea",
+        "shop_name": "Sample Shop",
+        "country_code": "KR",
+        "use_mobile_app": "F",
+        "additional_information": [],
+        "join_path": "M",
+        "fixed_group": "F",
+        "thirdparty_agree": "T",
+        "refund_bank_code": "bank_01",
+        "refund_bank_account_no": "1234-1234-1234567",
+        "refund_bank_account_holder": "John Doe",
+        "company_condition": null,
+        "company_line": null,
+        "sns_list": [
+            "FACEBOOK(2022-05-23 16:12:22)",
+            "KAKAO(2022-05-23 16:12:47)"
+        ]
+    }
+}
+```
 
 ### `PUT /api/v2/admin/customersprivacy/{member_id}` — Update a customer information
 
@@ -196,3 +401,44 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `refund_bank_account_no` |  | 최대글자수 : [40자] |  | 환불 계좌번호 Youtube shopping 이용 시에는 미제공 |
 | `refund_bank_account_holder` |  |  |  | 환불계좌 예금주 명의 Youtube shopping 이용 시에는 미제공 |
 | `fixed_group` |  |  |  | 회원등급 고정 여부 Youtube shopping 이용 시에는 미제공 T : 고정함 · F : 고정안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customersprivacy": {
+        "shop_no": 1,
+        "member_id": "sampleid",
+        "cellphone": "010-000-0000",
+        "email": "sample@sample.com",
+        "birthday": "2018-06-20",
+        "solar_calendar": "T",
+        "country_code": "KOR",
+        "state": "Sindaebang dong Dongjak-gu",
+        "city": "Seoul",
+        "address1": "Sindaebang dong Dongjak-gu Seoul Republic of Korea",
+        "address2": "Professional Construction Hall",
+        "zipcode": "07071",
+        "sms": "T",
+        "news_mail": "T",
+        "thirdparty_agree": "T",
+        "fixed_group": "F",
+        "additional_information": [
+            {
+                "key": "add1",
+                "value": "add value 1"
+            },
+            {
+                "key": "add2",
+                "value": "add value 2"
+            }
+        ],
+        "refund_bank_code": "bank_01",
+        "refund_bank_account_no": "1234-1234-1234567",
+        "refund_bank_account_holder": "John Doe",
+        "gender": "F"
+    }
+}
+```

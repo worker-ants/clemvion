@@ -2,7 +2,7 @@
 resource: store
 entity: store
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#store
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Store
@@ -74,3 +74,63 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "store": {
+        "shop_no": 1,
+        "shop_name": "My Shopping Mall",
+        "admin_name": "John Doe",
+        "mall_id": "myshop",
+        "base_domain": "sample.cafe24.com",
+        "primary_domain": "sample.com",
+        "company_registration_no": "118-81-20586",
+        "company_name": "My Shopping Mall",
+        "president_name": "John Doe",
+        "company_condition": "Retail",
+        "company_line": "E-Commerce Product",
+        "country": "Korea",
+        "country_code": "KOR",
+        "zipcode": "07071",
+        "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "address2": "Professional Construction Hall",
+        "phone": "02-0000-0000",
+        "fax": "02-0000-0000",
+        "email": "sample@sample.com",
+        "notification_only_email": "sample@sample.com",
+        "mall_url": "http://sample.com",
+        "mail_order_sales_registration": "T",
+        "mail_order_sales_registration_number": "강남 제 02-680-014호",
+        "missing_report_reason_type": "Preparing for Register",
+        "missing_report_reason": "Preparing to report ecommerce business",
+        "about_us_contents": "<b>My Shopping Mall Information</b>",
+        "company_map_url": "https://myshop.cafe24.com/web/upload/map.jpg",
+        "customer_service_phone": "02-0000-0000",
+        "customer_service_email": "sample@sample.com",
+        "customer_service_fax": "02-0000-0000",
+        "customer_service_sms": "02-0000-0000",
+        "customer_service_hours": "9:00 AM ~ 5:00 PM",
+        "privacy_officer_name": "Hong Gildong",
+        "privacy_officer_position": "Manager",
+        "privacy_officer_department": "Information Security Team",
+        "privacy_officer_phone": "02-0000-0000",
+        "privacy_officer_email": "sample@sample.com",
+        "contact_us_mobile": "T",
+        "contact_us_contents": "Service Information",
+        "sales_product_categories": [
+            "Apparel",
+            "FashionAccessories"
+        ],
+        "category_tags": [
+            "trendingItems",
+            "popularProducts"
+        ],
+        "business_country": "US",
+        "youtube_shops_logo": "https://myshop.cafe24.com/web/upload/logo/youtube_logo.png"
+    }
+}
+```

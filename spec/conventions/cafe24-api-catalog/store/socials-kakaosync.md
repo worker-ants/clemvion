@@ -2,7 +2,7 @@
 resource: store
 entity: socials-kakaosync
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#socials-kakaosync
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Socials kakaosync
@@ -40,6 +40,25 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "kakaosync": {
+        "shop_no": 1,
+        "use_kakaosync": "T",
+        "rest_api_key": "4acf565d122354e36b942c5a51dc129e",
+        "javascript_key": "a201bef3340f797aac6b83de0b5c27a1",
+        "auto_login": "T",
+        "thirdparty_agree": "T",
+        "thirdparty_agree_date": "2020-11-05T17:59:00+09:00",
+        "use_signup_result_page": "T"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/socials/kakaosync` — Kakao Sync updates
 
 - **Scope**: `mall.write_store` (write)
@@ -57,3 +76,19 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `javascript_key` | ✓ | 형식 : [a-zA-Z0-9]; 최대글자수 : [255자] |  | JavaScript 키 |
 | `auto_login` |  |  | F | 자동 로그인 사용 카카오 웹브라우저로 쇼핑몰 이용시 카카오 아이디로 로그인 기능 사용 여부 T : 사용함 · F : 사용안함 |
 | `use_signup_result_page` |  |  | F | 쇼핑몰 가입 후 이동 페이지 T : 가입 완료 페이지로 이동 · F : 가입 완료 페이지 없이 즉시 가입 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "kakaosync": {
+        "shop_no": 1,
+        "rest_api_key": "4acf565d122354e36b942c5a51dc129e",
+        "javascript_key": "a201bef3340f797aac6b83de0b5c27a1",
+        "auto_login": "T",
+        "use_signup_result_page": "T"
+    }
+}
+```

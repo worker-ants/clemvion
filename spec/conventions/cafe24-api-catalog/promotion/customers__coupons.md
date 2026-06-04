@@ -2,7 +2,7 @@
 resource: promotion
 entity: customers__coupons
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customers--coupons
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Promotion / Customers coupons
@@ -52,6 +52,61 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [10000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "coupons": [
+        {
+            "shop_no": 1,
+            "coupon_no": "9000000000000000032",
+            "issue_no": "9000000000000000040",
+            "coupon_name": "Christmas Week Coupon",
+            "available_price_type": "U",
+            "available_price_type_detail": null,
+            "available_min_price": null,
+            "available_payment_methods": [
+                "R",
+                "E"
+            ],
+            "benefit_type": "A",
+            "benefit_price": "10.00",
+            "benefit_percentage": null,
+            "benefit_percentage_round_unit": null,
+            "benefit_percentage_max_price": null,
+            "credit_amount": null,
+            "issued_date": "2019-09-19T11:56:41+09:00",
+            "available_begin_datetime": "2019-09-19T00:00:00+09:00",
+            "available_end_datetime": "2019-09-22T23:00:00+09:00"
+        },
+        {
+            "shop_no": 1,
+            "coupon_no": "9000000000000000033",
+            "issue_no": "9000000000000000050",
+            "coupon_name": "Special Discount Coupon",
+            "available_price_type": "O",
+            "available_price_type_detail": "U",
+            "available_min_price": "2.00",
+            "available_payment_methods": [
+                "R",
+                "E"
+            ],
+            "benefit_type": "B",
+            "benefit_price": null,
+            "benefit_percentage": "10.0",
+            "benefit_percentage_round_unit": "10",
+            "benefit_percentage_max_price": null,
+            "credit_amount": null,
+            "issued_date": "2019-09-20T11:56:41+09:00",
+            "available_begin_datetime": "2019-09-20T00:00:00+09:00",
+            "available_end_datetime": "2019-09-23T23:00:00+09:00"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/customers/{member_id}/coupons/count` — Retrieve a count of customer coupons
 
 - **Scope**: `mall.read_promotion` (read)
@@ -65,6 +120,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `member_id` | ✓ |  |  | 회원아이디 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 7
+}
+```
 
 ### `DELETE /api/v2/admin/customers/{member_id}/coupons/{coupon_no}` — Delete a customer coupon
 
@@ -81,3 +146,20 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `member_id` | ✓ |  |  | 회원아이디 |
 | `coupon_no` | ✓ |  |  | 쿠폰번호 |
 | `issue_no` |  |  |  | 쿠폰 발급번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "coupon": {
+        "shop_no": 1,
+        "coupon_no": "9000000000000000032",
+        "issue_no": [
+            "9000000000000000040",
+            "9000000000000000041"
+        ]
+    }
+}
+```

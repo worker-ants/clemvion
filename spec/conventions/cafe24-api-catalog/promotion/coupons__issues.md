@@ -2,7 +2,7 @@
 resource: promotion
 entity: coupons__issues
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#coupons--issues
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Promotion / Coupons issues
@@ -53,6 +53,47 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최소: [1]~최대: [500] | 10 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "issues": [
+        {
+            "shop_no": 1,
+            "coupon_no": "9000000000000000032",
+            "issue_no": "9000000000000000132",
+            "member_id": "sampleId",
+            "group_no": 1,
+            "issued_date": "2020-04-01T00:00:00+09:00",
+            "expiration_date": "2020-04-04T00:00:00+09:00",
+            "used_coupon": "F",
+            "used_date": "null",
+            "related_order_id": "null"
+        },
+        {
+            "shop_no": 1,
+            "coupon_no": "9000000000000000032",
+            "issue_no": "9000000000000000133",
+            "member_id": "sampleId2",
+            "group_no": 1,
+            "issued_date": "2020-04-02T00:00:00+09:00",
+            "expiration_date": "2020-04-05T00:00:00+09:00",
+            "used_coupon": "T",
+            "used_date": "2020-04-03T00:00:00+09:00",
+            "related_order_id": "20200403-0000014"
+        }
+    ],
+    "links": [
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/coupons/9000000000000000032/issues?limit=10&offset=10"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/coupons/{coupon_no}/issues` — Create coupon issuance history
 
 - **Scope**: `mall.write_promotion` (write)
@@ -79,3 +120,18 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `issued_by_action_type` |  |  |  | 앱 설치시 쿠폰 발급 앱 설치시 쿠폰이 발급되는 시점 INSTALLATION : 앱 설치시 쿠폰 발급 · ACCEPTING_PUSH : 앱 푸시 수신 On시 쿠폰 발급 |
 | `issued_by_event_type` |  |  |  | 발급 사유 구분 혜택으로 인한 쿠폰발급 시 해당되는 혜택 C : 출석체크 이벤트 · U : 회원정보 수정 이벤트 · B : 배너수익쉐어프로그램 · R : 룰렛게임(CMC)팀 · Z : 브랜드앱 설치(브랜드앱) · Y : 푸시알림 ON(브랜드앱) · X : 브랜드앱 주문(브랜드앱) · M : 리마인드 Me 주문 · W : 리마인드 Me 리워드 · V : 통합멤버십 · L : 평생회원 전환 이벤트 |
 | `request_admin_id` |  |  |  | 발급자 ID |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "issues": {
+        "shop_no": 1,
+        "count": {
+            "9000000000000000031": 3
+        }
+    }
+}
+```

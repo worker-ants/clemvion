@@ -2,7 +2,7 @@
 resource: product
 entity: categories__products
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#categories--products
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Categories products
@@ -44,6 +44,44 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `display_group` | ✓ | 최소: [1]~최대: [3] |  | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 |
 | `limit` |  | 최소: [1]~최대: [50000] | 50000 | 조회결과 최대건수 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "products": [
+        {
+            "shop_no": 1,
+            "product_no": 10,
+            "sequence_no": 1,
+            "auto_sort": true,
+            "sold_out": true,
+            "fixed_sort": true,
+            "not_for_sale": false
+        },
+        {
+            "shop_no": 1,
+            "product_no": 11,
+            "sequence_no": 2,
+            "auto_sort": true,
+            "sold_out": false,
+            "fixed_sort": true,
+            "not_for_sale": true
+        },
+        {
+            "shop_no": 1,
+            "product_no": 12,
+            "sequence_no": 3,
+            "auto_sort": true,
+            "sold_out": true,
+            "fixed_sort": false,
+            "not_for_sale": false
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/categories/{category_no}/products/count` — Retrieve a count of products by category
 
 - **Scope**: `mall.read_product` (read)
@@ -58,6 +96,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `category_no` | ✓ |  |  | 분류 번호 |
 | `display_group` | ✓ | 최소: [1]~최대: [3] |  | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 10
+}
+```
 
 ### `POST /api/v2/admin/categories/{category_no}/products` — Add products to a category
 
@@ -74,6 +122,23 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `category_no` | ✓ |  |  | 분류 번호 |
 | `display_group` |  | 최소: [1]~최대: [3] | 1 | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 |
 | `product_no` | ✓ |  |  | 상품번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "product": {
+        "display_group": 1,
+        "product_no": [
+            10,
+            12,
+            14
+        ]
+    }
+}
+```
 
 ### `PUT /api/v2/admin/categories/{category_no}/products` — Update a product in product category
 
@@ -95,6 +160,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `auto_sort` |  |  |  | 자동 정렬 여부 T : 자동 정렬 사용함 · F : 자동 정렬 사용안함 |
 | `fixed_sort` |  |  |  | 고정 여부 T : 진열순위 고정 사용함 · F : 진열순위 고정 사용안함 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "product": {
+        "shop_no": 1,
+        "product_no": 58,
+        "sequence": 3,
+        "auto_sort": "F",
+        "fixed_sort": "F"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/categories/{category_no}/products/{product_no}` — Delete a product by category
 
 - **Scope**: `mall.write_product` (write)
@@ -109,3 +190,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `category_no` | ✓ |  |  | 분류 번호 |
 | `product_no` | ✓ |  |  | 상품번호 |
 | `display_group` |  | 최소: [1]~최대: [3] | 1 | 상세 상품분류 일반상품 영역에서 진열안함 처리 시, 추천상품/신상품 영역에서도 동시에 진열안함 처리된다. 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "product": {
+        "display_group": 1,
+        "product_no": 12
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: store
 entity: orders-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Orders setting
@@ -65,6 +65,60 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "order": {
+        "shop_no": 1,
+        "claim_request": "T",
+        "claim_request_type": "S",
+        "claim_request_button_exposure": [
+            "cancel_N20",
+            "return_N40"
+        ],
+        "claim_request_button_date_type": "order_date",
+        "claim_request_button_period": 30,
+        "stock_recover": "T",
+        "stock_recover_base": "T",
+        "stock_recover_individual": {
+            "cancel_before": null,
+            "cancel_after": null,
+            "cancel_return": null
+        },
+        "refund_processing_setting": "S",
+        "claim_request_auto_accept": "T",
+        "refund_benefit_setting": "U",
+        "use_product_prepare_status": "T",
+        "use_purchase_confirmation_button": "F",
+        "purchase_confirmation_button_set_date": null,
+        "use_purchase_confirmation_auto_check": "F",
+        "purchase_confirmation_auto_check_day": null,
+        "purchase_confirmation_auto_check_set_date": null,
+        "use_additional_fields": "F",
+        "customer_pays_return_shipping": "F",
+        "refund_bank_account_required": "F",
+        "exchange_shipping_fee": "0.00",
+        "return_shipping_fee": "0.00",
+        "auto_delivery_completion": "T",
+        "delivery_completion_after_days": 3,
+        "receiver_address_modify_button_exposure": [
+            "N10",
+            "N20"
+        ],
+        "auto_cancel": "T",
+        "auto_cancel_cash_unit": "D",
+        "auto_cancel_cash_period": 7,
+        "auto_cancel_virtual_account_period": 7,
+        "auto_cancel_cvs_period": 7,
+        "use_shipped_auto_check_start_day": "F",
+        "shipped_auto_check_start_day": null
+    }
+}
+```
+
 ### `PUT /api/v2/admin/orders/setting` — Update Order settings
 
 - **Scope**: `mall.write_store` (write)
@@ -111,3 +165,54 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `claim_request_auto_accept` |  |  |  | 구매자 취소/반품 신청 건 자동 접수 설정 Youtube shopping 이용 시에는 미제공 T : 사용함 · F : 사용안함 |
 | `use_shipped_auto_check_start_day` |  |  |  | 배송완료 일괄체크 시작시점 사용여부 T : 사용함 · F : 사용안함 |
 | `shipped_auto_check_start_day` |  | 날짜 |  | 배송완료 일괄체크 시작일 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "order": {
+        "shop_no": 1,
+        "refund_benefit_setting": "U",
+        "use_product_prepare_status": "T",
+        "use_purchase_confirmation_button": "T",
+        "purchase_confirmation_button_set_date": "2023-01-12",
+        "use_purchase_confirmation_auto_check": "T",
+        "purchase_confirmation_auto_check_day": 1,
+        "purchase_confirmation_auto_check_set_date": "2023-01-12",
+        "exchange_shipping_fee": "0.00",
+        "return_shipping_fee": "0.00",
+        "auto_delivery_completion": "T",
+        "delivery_completion_after_days": 3,
+        "receiver_address_modify_button_exposure": [
+            "N10",
+            "N20"
+        ],
+        "auto_cancel": "T",
+        "auto_cancel_cash_unit": "D",
+        "auto_cancel_cash_period": 7,
+        "auto_cancel_virtual_account_period": 7,
+        "auto_cancel_cvs_period": 7,
+        "claim_request": "T",
+        "claim_request_type": "D",
+        "claim_request_button_exposure": [
+            "cancel_N10",
+            "cancel_N20"
+        ],
+        "claim_request_button_date_type": "shipend_date",
+        "claim_request_button_period": 30,
+        "stock_recover": "F",
+        "stock_recover_individual": {
+            "cancel_before": "T",
+            "cancel_after": "T",
+            "cancel_return": "T"
+        },
+        "refund_bank_account_required": "T",
+        "refund_processing_setting": "S",
+        "claim_request_auto_accept": "T",
+        "use_shipped_auto_check_start_day": "T",
+        "shipped_auto_check_start_day": "2025-08-01"
+    }
+}
+```

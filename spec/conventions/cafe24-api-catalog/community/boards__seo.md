@@ -2,7 +2,7 @@
 resource: community
 entity: boards__seo
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#boards--seo
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Community / Boards seo
@@ -39,6 +39,23 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `board_no` | ✓ |  |  | 게시판 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "seo": {
+        "shop_no": 1,
+        "board_no": 4,
+        "meta_title": "[ARTICLE_TITLE] [BOARD_NAME] - [MALL_NAME]",
+        "meta_author": "[MALL_NAME]",
+        "meta_description": "[BOARD_GUIDE]",
+        "meta_keywords": "[MALL_NAME], keyword1, keyword2"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/boards/{board_no}/seo` — Update SEO settings for board
 
 - **Scope**: `mall.write_community` (write)
@@ -57,3 +74,20 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `meta_author` |  |  |  | 메타태그1 : Author [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
 | `meta_description` |  |  |  | 메타태그2 : Description [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
 | `meta_keywords` |  |  |  | 메타태그3 : Keywords [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "seo": {
+        "shop_no": 1,
+        "board_no": 4,
+        "meta_title": "[ARTICLE_TITLE] [BOARD_NAME] - [MALL_NAME]",
+        "meta_author": "[MALL_NAME]",
+        "meta_description": "[BOARD_GUIDE]",
+        "meta_keywords": "[MALL_NAME], keyword1, keyword2"
+    }
+}
+```

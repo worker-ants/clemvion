@@ -2,7 +2,7 @@
 resource: order
 entity: control
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#control
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Control
@@ -35,3 +35,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `payments_control` | ✓ |  |  | 주문 입금확인 제한여부 T:사용함 · F:사용안함 |
 | `direct_url` | ✓ | URL |  | 연결 URL |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "control": {
+        "payments_control": "T",
+        "direct_url": "https://samplemall.cafe24.com/disp/admin/myapps/list"
+    }
+}
+```

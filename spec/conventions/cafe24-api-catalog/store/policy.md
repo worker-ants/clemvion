@@ -2,7 +2,7 @@
 resource: store
 entity: policy
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#policy
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Policy
@@ -40,6 +40,25 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "policy": {
+        "shop_no": 1,
+        "privacy_all": "<p>** This form is intended to assist in the operation...",
+        "terms_using_mall": "<p>**This form is provided by the Fair Trade Commission...",
+        "use_privacy_join": "T",
+        "privacy_join": "<p>1. Purposes of Collection and Use of Personal Information...",
+        "use_withdrawal": "T",
+        "required_withdrawal": "T",
+        "withdrawal": "<p>Withdrawal Policy Agreement...</p>"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/policy` — Update a store profile
 
 - **Scope**: `mall.write_store` (write)
@@ -61,3 +80,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `use_withdrawal` |  |  |  | 청약철회방침 사용여부 T: 사용함 · F: 사용안함 |
 | `required_withdrawal` |  |  |  | 청약철회방침 사용자 동의 필수 여부 T : 필수 · F : 선택 |
 | `withdrawal` |  |  |  | 청약철회방침 내용 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "policy": {
+        "shop_no": 1,
+        "privacy_all": "<p>** This form is intended to assist in the operation...",
+        "terms_using_mall": "<p>**This form is provided by the Fair Trade Commission...",
+        "use_privacy_join": "T",
+        "privacy_join": "<p>1. Purposes of Collection and Use of Personal Information...",
+        "use_withdrawal": "T",
+        "required_withdrawal": "T",
+        "withdrawal": "<p>Withdrawal Policy Agreement...</p>"
+    }
+}
+```

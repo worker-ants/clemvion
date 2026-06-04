@@ -2,7 +2,7 @@
 resource: store
 entity: dashboard
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#dashboard
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Dashboard
@@ -38,3 +38,103 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "dashboard": [
+        {
+            "shop_no": 1,
+            "daily_sales_stats": [
+                {
+                    "title": "December 20",
+                    "date": "2017-12-20",
+                    "order_price": "0.00",
+                    "paid_price": "0.00",
+                    "refund_price": "0.00",
+                    "order_count": 0,
+                    "payed_count": 0,
+                    "refund_count": 0,
+                    "prepareproduct_count": 0,
+                    "prepare_count": 0,
+                    "standby_count": 0,
+                    "shipping_count": 0,
+                    "shipped_count": 0,
+                    "canceled_count": 0,
+                    "returned_count": 0,
+                    "exchanged_count": 0,
+                    "ordered_total_count": 0
+                },
+                {
+                    "title": "December 21 (Today)",
+                    "date": "2017-12-21",
+                    "order_price": "0.00",
+                    "paid_price": "0.00",
+                    "refund_price": "0.00",
+                    "order_count": 0,
+                    "payed_count": 0,
+                    "refund_count": 0,
+                    "prepareproduct_count": 0,
+                    "prepare_count": 0,
+                    "standby_count": 0,
+                    "shipping_count": 0,
+                    "shipped_count": 0,
+                    "canceled_count": 0,
+                    "returned_count": 0,
+                    "exchanged_count": 0,
+                    "ordered_total_count": 0
+                }
+            ],
+            "weekly_sales_stats": {
+                "ordered_total_price": "0.00",
+                "payed_total_price": "0.00",
+                "refunded_total_price": "0.00",
+                "ordered_count": 0,
+                "payed_count": 0,
+                "refunded_count": 0,
+                "ordered_average_total_price": "0.00",
+                "payed_average_total_price": "0.00",
+                "refunded_average_total_price": "0.00",
+                "ordered_average_count": 0,
+                "payed_average_count": 0,
+                "refunded_average_count": 0
+            },
+            "monthly_sales_stats": {
+                "ordered_total_price": "0.00",
+                "payed_total_price": "0.00",
+                "refunded_total_price": "0.00",
+                "ordered_count": 0,
+                "payed_count": 0,
+                "refunded_count": 0,
+                "ordered_average_total_price": "0.00",
+                "payed_average_total_price": "0.00",
+                "refunded_average_total_price": "0.00",
+                "ordered_average_count": 0,
+                "payed_average_count": 0,
+                "refunded_average_count": 0
+            },
+            "sold_out_products_count": 0,
+            "new_members_count": 0,
+            "board_list": [
+                {
+                    "type": "B",
+                    "board_no": 1,
+                    "board_name": "공지사항",
+                    "new_registered_count": 0,
+                    "page_url": "/disp/admin/mobile/index#/bulletins?board_no=1"
+                },
+                {
+                    "type": "B",
+                    "board_no": 2,
+                    "board_name": "뉴스/이벤트",
+                    "new_registered_count": 0,
+                    "page_url": "/disp/admin/mobile/index#/bulletins?board_no=2"
+                }
+            ]
+        }
+    ]
+}
+```

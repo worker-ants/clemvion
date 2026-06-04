@@ -2,7 +2,7 @@
 resource: product
 entity: mains-properties
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#mains-properties
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Mains properties
@@ -37,6 +37,39 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `display_group` |  | 최소값: [2] | 2 | 상세 상품분류 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "main": {
+        "shop_no": 1,
+        "display_group": 2,
+        "properties": [
+            {
+                "key": "product_name",
+                "name": "Product Name",
+                "display": "F",
+                "display_name": "F",
+                "font_type": "N",
+                "font_size": 13,
+                "font_color": "#000000"
+            },
+            {
+                "key": "manufacturer_name",
+                "name": "Manufacturer",
+                "display": "T",
+                "display_name": "F",
+                "font_type": "N",
+                "font_size": 14,
+                "font_color": "#333333"
+            }
+        ]
+    }
+}
+```
+
 ### `POST /api/v2/admin/mains/properties` — Create a field for home page
 
 - **Scope**: `mall.write_product` (write)
@@ -60,6 +93,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `font_color` |  |  |  | 글자 색상 · DEFAULT #555555 |
 | ↳ `exposure_group_type` |  |  |  | 표시 대상 타입 · A: 전체 · M: 회원 · DEFAULT A |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "main": {
+        "property": {
+            "key": "custom_option1",
+            "multishop_display_names": [
+                {
+                    "shop_no": 1,
+                    "name": "Custom Property1"
+                },
+                {
+                    "shop_no": 2,
+                    "name": "Custom Property2"
+                }
+            ],
+            "display": "T",
+            "display_name": "T",
+            "font_type": "N",
+            "font_size": 13,
+            "font_color": "#000000",
+            "exposure_group_type": "M"
+        }
+    }
+}
+```
+
 ### `PUT /api/v2/admin/mains/properties` — Update fields for products on the main screen
 
 - **Scope**: `mall.write_product` (write)
@@ -82,3 +145,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `font_type` |  |  |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) |
 | ↳ `font_size` |  |  |  | 글자 크기 |
 | ↳ `font_color` |  |  |  | 글자 색상 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "main": {
+        "shop_no": 1,
+        "display_group": 2,
+        "properties": [
+            {
+                "key": "product_name",
+                "name": "Product Name",
+                "display": "F",
+                "display_name": "T",
+                "font_type": "N",
+                "font_size": 13,
+                "font_color": "#000000"
+            },
+            {
+                "key": "manufacturer_name",
+                "name": "Manufacturer",
+                "display": "T",
+                "display_name": "T",
+                "font_type": "N",
+                "font_size": 14,
+                "font_color": "#333333"
+            }
+        ]
+    }
+}
+```

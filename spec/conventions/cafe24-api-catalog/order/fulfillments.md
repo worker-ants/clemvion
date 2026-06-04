@@ -2,7 +2,7 @@
 resource: order
 entity: fulfillments
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#fulfillments
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Fulfillments
@@ -49,3 +49,42 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_item_code` |  |  |  | 품주코드 |
 | `carrier_id` |  |  |  | 배송사 아이디 |
 | `post_express_flag` |  |  |  | 우체국 택배연동 S : 송장 전송 완료 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "fulfillments": [
+        {
+            "shop_no": 1,
+            "tracking_no": "101080903",
+            "shipping_company_code": "0001",
+            "status": "shipping",
+            "order_id": "20190320-0000024",
+            "shipping_code": "D-20190320-0000024-00",
+            "order_item_code": [
+                "20190320-0000024-01",
+                "20190320-0000024-02"
+            ],
+            "carrier_id": 1,
+            "post_express_flag": "S"
+        },
+        {
+            "shop_no": 1,
+            "tracking_no": "101080904",
+            "shipping_company_code": "0001",
+            "status": "shipping",
+            "order_id": "20190320-0000019",
+            "shipping_code": "D-20190320-0000019-01",
+            "order_item_code": [
+                "20190320-0000019-01",
+                "20190320-0000019-02"
+            ],
+            "carrier_id": 1,
+            "post_express_flag": "S"
+        }
+    ]
+}
+```

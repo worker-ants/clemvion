@@ -2,7 +2,7 @@
 resource: store
 entity: users
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#users
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Users
@@ -54,6 +54,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `keyword` |  |  |  | 검색어 |
 | `admin_type` |  |  |  | 운영자 구분 P : 대표운영자 · A : 부운영자 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "users": [
+        {
+            "user_id": "admin",
+            "user_name": "John Doe",
+            "phone": "02-0000-0000",
+            "email": "sample@sample.com",
+            "ip_restriction_type": "A",
+            "admin_type": "P",
+            "last_login_date": "2022-01-01T12:00:00+09:00"
+        },
+        {
+            "user_id": "subadmin",
+            "user_name": "Jane Doe",
+            "phone": "02-0000-0000",
+            "email": "sample@sample.com",
+            "ip_restriction_type": "A",
+            "admin_type": "A",
+            "last_login_date": null
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/users/{user_id}` — Retrieve admin user details
 
 - **Scope**: `mall.read_store` (read)
@@ -67,3 +96,139 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `user_id` |  |  |  | 운영자 아이디 운영자 혹은 부운영자의 아이디 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "user": {
+        "shop_no": 1,
+        "admin_type": "A",
+        "user_name": "John Doe",
+        "nick_name": "Cool John",
+        "nick_name_icon_type": "S",
+        "nick_name_icon_url": "https://img.echosting.cafe24.com/design/skin/admin/ko_KR/ico_nick1.gif",
+        "board_exposure_setting": {
+            "admin_grade_icon": "T",
+            "nick_name_icon": "F",
+            "writer_name_icon": "F"
+        },
+        "phone": "02-1234-5678",
+        "email": "subadmin1@cafe24.com",
+        "memo": "test memo",
+        "available": "T",
+        "multishop_access_authority": "T",
+        "menu_access_authority": {
+            "order": {
+                "authority": true,
+                "detail_setting": {
+                    "74": {
+                        "key": "74",
+                        "name": "전체 주문 조회",
+                        "authority": true
+                    },
+                    "71": {
+                        "key": "71",
+                        "name": "입금전 관리",
+                        "authority": true
+                    },
+                    "72": {
+                        "key": "72",
+                        "name": "배송 준비중 관리",
+                        "authority": true
+                    }
+                }
+            },
+            "product": {
+                "authority": true,
+                "detail_setting": {
+                    "2037": {
+                        "key": "2037",
+                        "name": "상품목록",
+                        "authority": true
+                    },
+                    "2031": {
+                        "key": "2031",
+                        "name": "상품등록",
+                        "authority": true,
+                        "children": {
+                            "2032": {
+                                "key": "2032",
+                                "name": "간단 등록",
+                                "authority": true
+                            },
+                            "2033": {
+                                "key": "2033",
+                                "name": "일반 등록",
+                                "authority": true
+                            },
+                            "2138": {
+                                "key": "2138",
+                                "name": "세트 상품 등록",
+                                "authority": true
+                            },
+                            "2135": {
+                                "key": "2135",
+                                "name": "엑셀 등록",
+                                "authority": true
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "detail_authority_setting": {
+            "product": {
+                "edit_product_category": "F",
+                "modify_product_info": null,
+                "remove_product_info": "F",
+                "change_product_sale_status": "F",
+                "change_product_display_status": "F",
+                "edit_product_display_reservation": "F",
+                "download_product_excel_data_in_menu": "F",
+                "show_product_supply_business": "F",
+                "edit_product_supply_business": "F",
+                "edit_product_supply_production_cost": "F",
+                "show_supplier_product_name": "F",
+                "edit_product_manufacturer_info": "F",
+                "show_product_delivery_count": "F",
+                "show_product_sales_count": "F"
+            },
+            "order": {
+                "restrict_searching_order_info": "F",
+                "restrict_searching_personal_info": "F",
+                "restrict_printing_in_menu": "F",
+                "check_payment": "F",
+                "cancel_credit_payment": "F",
+                "cancel_payco_point_payment": "F",
+                "cancel_affiliated_gift_certificate_payment": "F",
+                "cancel_affiliation_point_payment": "F",
+                "cancel_order": "F",
+                "return_product": "F",
+                "exchange_product": "F",
+                "accept_refunding_product": "F",
+                "handle_refunding_product": "F",
+                "edit_order_memo": "F",
+                "download_order_data_in_menu": "F",
+                "show_dashboard_order_info": "F",
+                "show_total_ordered_amount": "F",
+                "show_integration_balance": "F",
+                "cancel_withdrawal": "F",
+                "exchange_withdrawal": "F",
+                "return_withdrawal": "F",
+                "refund_withdrawal": "F"
+            }
+        },
+        "ip_access_restriction": {
+            "usage": "T",
+            "registered_ip_list": [
+                "127.0.0.1"
+            ]
+        },
+        "access_permission": "F",
+        "admin_language": "en_US"
+    }
+}
+```

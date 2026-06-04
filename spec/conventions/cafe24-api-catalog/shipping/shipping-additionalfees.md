@@ -2,7 +2,7 @@
 resource: shipping
 entity: shipping-additionalfees
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#shipping-additionalfees
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Shipping / Shipping additionalfees
@@ -41,3 +41,48 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `limit` |  | 최소: [1]~최대: [500] | 100 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [500] | 0 | 조회결과 시작위치 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "additionalfees": [
+        {
+            "shop_no": 1,
+            "oversea_additional_fee": "T",
+            "country_code": "GH",
+            "fee_name": "oversea_additional",
+            "min_value": "0.00",
+            "max_value": "500000.00",
+            "additional_fee": "20000.00",
+            "unit": "W",
+            "rounding_unit": "F",
+            "rounding_rule": "L"
+        },
+        {
+            "shop_no": 1,
+            "oversea_additional_fee": "T",
+            "country_code": "US",
+            "fee_name": "usa_shipping",
+            "min_value": "0.00",
+            "max_value": "1000000.00",
+            "additional_fee": "30000.00",
+            "unit": "W",
+            "rounding_unit": "F",
+            "rounding_rule": "L"
+        }
+    ],
+    "links": [
+        {
+            "rel": "prev",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/shipping/additionalfees?shop_no=1&limit=100&offset=0"
+        },
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/shipping/additionalfees?shop_no=1&limit=100&offset=200"
+        }
+    ]
+}
+```

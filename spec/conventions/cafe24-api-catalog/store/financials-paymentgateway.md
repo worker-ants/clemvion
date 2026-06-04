@@ -2,7 +2,7 @@
 resource: store
 entity: financials-paymentgateway
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#financials-paymentgateway
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Financials paymentgateway
@@ -41,3 +41,34 @@ Financials paymentgateway(PG 정보)는 PG사별 계약정보를 제공합니다
 |---|---|---|---|---|
 | `payment_gateway_name` |  |  |  | PG 이름 |
 | `partner_id` |  |  |  | PG사 발급 가맹점 ID |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "paymentgateway": {
+        "partner_id": "cafe24_Test",
+        "payment_gateway_name": "cafe24payTest",
+        "contract_date": "2020-01-01",
+        "setting_date": "2020-01-02",
+        "status": "T",
+        "bank_code": "013",
+        "bank_account_no": "123456789123",
+        "bank_account_name": "Test",
+        "payment_method_information": [
+            {
+                "payment_method": "card",
+                "period": "M",
+                "period_information": "1"
+            },
+            {
+                "payment_method": "tcash",
+                "period": "W",
+                "period_information": "1"
+            }
+        ]
+    }
+}
+```

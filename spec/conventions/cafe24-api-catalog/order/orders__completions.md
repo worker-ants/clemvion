@@ -2,7 +2,7 @@
 resource: order
 entity: orders__completions
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--completions
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders completions
@@ -38,3 +38,19 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_id` | ✓ |  |  | 주문번호 |
 | `payment_code` | ✓ |  |  | 결제코드 |
 | `data` | ✓ |  |  | 암호화된 PG 결제 데이터 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "completion": {
+        "shop_no": 1,
+        "order_id": "20241208-0000001",
+        "payment_code": "P00000000000001",
+        "return_code": "0000",
+        "return_message": "Success"
+    }
+}
+```

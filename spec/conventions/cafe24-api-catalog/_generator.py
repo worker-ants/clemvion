@@ -5,14 +5,28 @@ Cafe24 공식 Admin API Documentation 의 **렌더링된 전체 페이지 HTML**
 파싱해 `<resource>/<entity>.md` (field-level 상세 카탈로그) 222개를 재생성하고, top-level
 `<resource>.md` index 의 `## Field-level 상세 카탈로그` 링크 섹션을 갱신한다.
 
-정책·산출물 설명: `_overview.md §7`. 추측·날조 금지 — docs HTML 에 있는 것만 옮긴다.
+정책·산출물 설명: `_overview.md §7`. 추측·날조 금지 — docs HTML(필드) + code 엔드포인트(응답
+샘플) 에 있는 것만 옮긴다.
 
 사용법:
-    python3 _generator.py /path/to/cafe24-admin-api-docs.html
+    python3 _generator.py /path/to/cafe24-admin-api-docs.html [옵션]
+    옵션:
+      --no-responses        operation 응답(Response) 샘플 fetch/주입을 생략 (HTML 만으로 생성)
+      --resp-cache DIR      응답 JSON 캐시 디렉토리 (기본: <generator>/.resp-cache, gitignore 대상)
+      --delay SEC           응답 fetch 간 sleep 초 (기본 2.0, rate-limit 회피)
 
 HTML 확보 방법: developers.cafe24.com 의 Admin API Documentation 전체 페이지를 브라우저에서
 "다른 이름으로 저장"(렌더링 완료 상태) → JS SPA 가 정적 HTML 로 고정된 파일. (WebFetch 로는
 빈 HTML 만 나오므로 불가.)
+
+응답(Response) 샘플 출처: 정적 HTML 의 request/response 예시는 JS 가 런타임에 별도 JSON 에서
+주입하므로 저장본엔 빈 <pre> 로만 남는다. 실제 샘플은 code 엔드포인트
+  https://developers.cafe24.com/docs/code/api/admin/shell/<entity_id>.json
+에 operation 별로 {"<METHOD>_<Title>": {"<Title>": {"REQUEST": curl, "RESPONSE": json}}} 형태로
+존재한다. URL 구성요소는 모두 HTML 에서 유도된다: host = developers.cafe24.com, base =
+#doc_info[data-codepath]="/docs/code/api/admin", "shell" = lang-selector option(shell/java/
+python/node/php/go 중 하나 — RESPONSE 는 언어무관), <entity_id> = data-resource(=entity id).
+?v= 쿼리는 캐시버스터로 생략 가능. RESPONSE 는 언어무관이라 shell 하나만 받는다.
 
 HTML 구조 가정 (docs 개정으로 깨지면 본 셀렉터를 갱신):
   <h1>=resource, <section class="endpoint title">의 <h2 id>=entity(+설명 <p>),
@@ -22,9 +36,102 @@ HTML 구조 가정 (docs 개정으로 깨지면 본 셀렉터를 갱신):
   재귀 구조(balanced-div 매칭). field 명 공백은 <wbr> 주입(제거), Required 는
   <strong class=inner-mark>Required</strong>, 타입은 <span class=text-muted> <i>Array</i></span>.
 """
-import re, html, os, sys
+import re, html, os, sys, json, time, shutil, subprocess
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+RESP_BASE = "https://developers.cafe24.com/docs/code/api/admin/shell/"
+
+def _norm(s):
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+def _http_get(url):
+    """(status_code, body_text). 환경의 TLS-intercepting proxy 와 호환되도록 curl 우선,
+    없으면 urllib. status_code 는 정수(HTTP) 또는 0(네트워크 오류)."""
+    if shutil.which("curl"):
+        # %{http_code} 를 마지막 줄에 분리 출력
+        p = subprocess.run(
+            ["curl", "-sS", "-m", "30", "-A", "catalog-generator",
+             "-w", "\n%{http_code}", url],
+            capture_output=True, text=True)
+        if p.returncode != 0:
+            return 0, p.stderr.strip()
+        body, _, code = p.stdout.rpartition("\n")
+        try:
+            return int(code), body
+        except ValueError:
+            return 0, p.stdout
+    import urllib.request, urllib.error
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "catalog-generator"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, r.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        return e.code, ""
+    except Exception as e:
+        return 0, str(e)
+
+def fetch_entity_json(entity_id, cache_dir, delay):
+    """code 엔드포인트의 <entity_id>.json 을 fetch (디스크 캐시·지수 backoff). dict 또는 None."""
+    os.makedirs(cache_dir, exist_ok=True)
+    cache = os.path.join(cache_dir, entity_id + ".json")
+    if os.path.exists(cache):
+        try:
+            with open(cache, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass  # 손상된 캐시는 재fetch
+    url = RESP_BASE + entity_id + ".json"
+    for attempt in range(6):
+        code, body = _http_get(url)
+        if code == 200:
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError:
+                back = delay * (2 ** attempt) + 3
+                sys.stderr.write(f"  [retry {attempt+1}] {entity_id} bad JSON, sleep {back:.0f}s\n")
+                time.sleep(back); continue
+            with open(cache, "w", encoding="utf-8") as f:
+                f.write(body)
+            time.sleep(delay)  # rate-limit 회피
+            return data
+        if code == 404:
+            return None
+        back = delay * (2 ** attempt) + 3
+        sys.stderr.write(f"  [retry {attempt+1}] {entity_id} HTTP/net {code}, sleep {back:.0f}s\n")
+        time.sleep(back)
+    sys.stderr.write(f"  [GIVE UP] {entity_id} after retries\n")
+    return None
+
+def resp_for_op(jsondata, method, title):
+    """(method, title) 에 해당하는 canonical RESPONSE 문자열을 찾는다. 없으면 None.
+
+    JSON 구조: {"<METHOD>_<canonical_title>": {"<example_title>": {"REQUEST","RESPONSE"}, ...}}.
+    한 operation 키 아래 여러 예시 중 operation 제목과 일치하는 예시를 우선 채택한다."""
+    if not jsondata:
+        return None
+    nt = _norm(title); m = method.upper()
+    canon_fallback = None
+    for topkey, inner in jsondata.items():
+        if not isinstance(inner, dict):
+            continue
+        if "_" not in topkey or topkey.split("_", 1)[0].upper() != m:
+            continue
+        canon = topkey.split("_", 1)[1]
+        # 1) operation 제목과 정확히 일치하는 예시
+        for ititle, payload in inner.items():
+            if isinstance(payload, dict) and _norm(ititle) == nt and payload.get("RESPONSE"):
+                return payload["RESPONSE"]
+        # 2) top-level canonical 키가 제목과 일치 → 그 키의 대표 예시를 fallback 으로 보관
+        if _norm(canon) == nt and canon_fallback is None:
+            for ititle, payload in inner.items():
+                if isinstance(payload, dict) and _norm(ititle) == _norm(canon) and payload.get("RESPONSE"):
+                    canon_fallback = payload["RESPONSE"]; break
+            if canon_fallback is None:
+                vals = [p.get("RESPONSE") for p in inner.values() if isinstance(p, dict) and p.get("RESPONSE")]
+                if vals:
+                    canon_fallback = vals[-1]
+    return canon_fallback
 
 def clean(t):
     t=re.sub(r"</?wbr[^>]*>","",t)
@@ -192,10 +299,10 @@ def cons_cell(constraints,note):
     if note: parts.append(f"_{note}_")
     return mdcell("; ".join(parts))
 
-def render_entity(rname, e):
+def render_entity(rname, e, jsondata=None):
     rl=rname.lower(); anchor=e['id'].replace('_','-')
     L=["---",f"resource: {rl}",f"entity: {e['id']}",f"cafe24_docs: {DOCS_BASE}{anchor}",
-       "source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03","---","",
+       "source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json","---","",
        f"# Cafe24 API — {rname} / {e['name']}","",
        f"> Field-level 카탈로그. Endpoint enumeration index: [`../{rl}.md`](../{rl}.md) · 규약: [`../_overview.md`](../_overview.md) · 공식 docs: [{e['name']}]({DOCS_BASE}{anchor})",
        "> 복합(nested) 필드의 하위 요소는 `↳` 로 표기한다."]
@@ -219,6 +326,11 @@ def render_entity(rname, e):
                     L.append(f"| {nm(p['name'],p['depth'])} | {'✓' if p['required'] else ''} | {cons_cell(p['constraints'],p['note'])} | {mdcell(p['default'])} | {mdcell(p['desc'])} |")
             else:
                 L += ["","_요청 파라미터 없음._"]
+            resp=resp_for_op(jsondata, o['method'], o['title'])
+            if resp:
+                note=("> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조."
+                      if e['props'] else "> Cafe24 공식 docs 의 대표 응답 샘플.")
+                L += ["","#### 응답 (Response)","", note, "","```json", resp.rstrip(), "```"]
     return "\n".join(L)+"\n"
 
 INDEX_MARK="## Field-level 상세 카탈로그"
@@ -239,19 +351,42 @@ def refresh_index(rl, ents):
     open(path,"w",encoding="utf-8").write(raw.rstrip()+"\n"+"\n".join(L))
 
 def main():
-    if len(sys.argv)<2:
-        sys.exit("usage: python3 _generator.py <cafe24-admin-api-docs.html>")
-    data=open(sys.argv[1],encoding="utf-8").read()
+    args=sys.argv[1:]
+    fetch_resp=True; cache_dir=os.path.join(HERE,".resp-cache"); delay=2.0; html_path=None
+    i=0
+    while i<len(args):
+        a=args[i]
+        if a=="--no-responses": fetch_resp=False
+        elif a=="--resp-cache": i+=1; cache_dir=args[i]
+        elif a=="--delay": i+=1; delay=float(args[i])
+        elif html_path is None: html_path=a
+        i+=1
+    if html_path is None:
+        sys.exit("usage: python3 _generator.py <cafe24-admin-api-docs.html> [--no-responses] [--resp-cache DIR] [--delay SEC]")
+    data=open(html_path,encoding="utf-8").read()
     tree=build_tree(data)
-    written=0
+    ne=sum(len(v) for v in tree.values())
+    written=0; resp_ok=0; resp_miss=[]
+    seq=0
     for rname,ents in tree.items():
         rl=rname.lower(); d=os.path.join(HERE,rl); os.makedirs(d,exist_ok=True)
         for e in ents:
-            open(os.path.join(d,f"{e['id']}.md"),"w",encoding="utf-8").write(render_entity(rname,e))
+            seq+=1
+            jsondata=None
+            if fetch_resp:
+                # 응답 JSON 엔드포인트는 data-resource(snake_case) 키를 쓴다. entity id 는
+                # h2 anchor(hyphen) 형태이므로 hyphen→underscore 로 data-resource 를 복원.
+                resource_key=e['id'].replace('-','_')
+                jsondata=fetch_entity_json(resource_key, cache_dir, delay)
+                if jsondata: resp_ok+=1
+                else: resp_miss.append(e['id'])
+                sys.stderr.write(f"[{seq}/{ne}] {rl}/{e['id']} resp={'Y' if jsondata else '-'}\n")
+            open(os.path.join(d,f"{e['id']}.md"),"w",encoding="utf-8").write(render_entity(rname,e,jsondata))
             written+=1
         refresh_index(rl, ents)
-    ne=sum(len(v) for v in tree.values())
-    print(f"resources={len(tree)} entities={ne} files_written={written}")
+    print(f"resources={len(tree)} entities={ne} files_written={written} resp_json_fetched={resp_ok}")
+    if resp_miss:
+        print(f"resp_json_missing({len(resp_miss)}): {', '.join(resp_miss)}")
 
 if __name__=="__main__":
     main()

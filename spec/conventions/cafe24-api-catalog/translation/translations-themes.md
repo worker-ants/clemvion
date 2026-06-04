@@ -2,7 +2,7 @@
 resource: translation
 entity: translations-themes
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#translations-themes
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Translation / Translations themes
@@ -32,6 +32,43 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 
 _요청 파라미터 없음._
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "themes": [
+        {
+            "skin_no": 3,
+            "translations": [
+                {
+                    "language_code": "en_US",
+                    "path": "/locale/en_US.json"
+                },
+                {
+                    "language_code": "es_ES",
+                    "path": "/locale/es_ES.json"
+                }
+            ]
+        },
+        {
+            "skin_no": 5,
+            "translations": [
+                {
+                    "language_code": "en_US",
+                    "path": "/locale/en_US.json"
+                },
+                {
+                    "language_code": "es_ES",
+                    "path": "/locale/es_ES.json"
+                }
+            ]
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/translations/themes/{skin_no}` — Retrieve a theme translation
 
 - **Scope**: `mall.read_translation` (read)
@@ -45,6 +82,24 @@ _요청 파라미터 없음._
 |---|---|---|---|---|
 | `skin_no` | ✓ |  |  | 디자인 번호 |
 | `language_code` | ✓ |  |  | 언어 코드 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "theme": {
+        "skin_no": 3,
+        "skin_code": "skin1",
+        "skin_translation": {
+            "language_code": "en_US",
+            "path": "/locale/en_US.json",
+            "source": "{\\n    \\\"MEMBER_ID\\\": {\\n        \\\"FIND_YOUR_ID\\\": \\\"Find your ID\\\",\\n        \\\"NAME\\\": \\\"Name\\\",\\n        \\\"EMAIL_ADDRESS\\\": \\\"Email address\\\",\\n        \\\"LOG_IN\\\": \\\"Log in\\\",\\n        \\\"FORGOT_PASSWORD\\\": \\\"Forgot password?\\\"\\n    }\\n}"
+        }
+    }
+}
+```
 
 ### `PUT /api/v2/admin/translations/themes/{skin_no}` — Update a theme translation
 
@@ -62,3 +117,21 @@ _요청 파라미터 없음._
 | `skin_translation` |  |  |  | 디자인 번역 정보 |
 | ↳ `language_code` | ✓ |  |  | 언어 코드 |
 | ↳ `source` | ✓ |  |  | 소스 코드 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "theme": {
+        "skin_no": 3,
+        "skin_code": "skin1",
+        "skin_translation": {
+            "language_code": "en_US",
+            "path": "/locale/en_US.json",
+            "source": "{\\n    \\\"MEMBER_ID\\\": {\\n        \\\"FIND_YOUR_ID\\\": \\\"Find your ID\\\",\\n        \\\"NAME\\\": \\\"Name\\\",\\n        \\\"EMAIL_ADDRESS\\\": \\\"Email address\\\",\\n        \\\"LOG_IN\\\": \\\"Log in\\\",\\n        \\\"FORGOT_PASSWORD\\\": \\\"Forgot password?\\\"\\n    }\\n}"
+        }
+    }
+}
+```

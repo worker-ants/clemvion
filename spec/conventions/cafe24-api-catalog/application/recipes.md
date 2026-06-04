@@ -2,7 +2,7 @@
 resource: application
 entity: recipes
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#recipes
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Application / Recipes
@@ -31,6 +31,27 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 
 _요청 파라미터 없음._
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "recipes": [
+        {
+            "recipe_code": "111149-123456",
+            "recipe_name": "recipeName001",
+            "active": "T"
+        },
+        {
+            "recipe_code": "111149-123457",
+            "recipe_name": "recipeName002",
+            "active": "F"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/recipes` — Create a recipe
 
 - **Scope**: `mall.write_application` (write)
@@ -55,6 +76,25 @@ _요청 파라미터 없음._
 | ↳ ↳ ↳ `value` |  |  |  | 조건 값 |
 | ↳ ↳ ↳ `operator` |  |  |  | 조건 연산자 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "recipes": [
+        {
+            "recipe_code": "111149-123456",
+            "active": "T"
+        },
+        {
+            "recipe_code": "111149-123457",
+            "active": "T"
+        }
+    ]
+}
+```
+
 ### `DELETE /api/v2/admin/recipes/{recipe_code}` — Delete a recipe
 
 - **Scope**: `mall.write_application` (write)
@@ -67,3 +107,15 @@ _요청 파라미터 없음._
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `recipe_code` | ✓ |  |  | 레시피 코드 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "recipe": {
+        "recipe_code": "111490-111682"
+    }
+}
+```

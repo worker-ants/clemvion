@@ -2,7 +2,7 @@
 resource: collection
 entity: origin
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#origin
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Collection / Origin
@@ -39,3 +39,32 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `foreign` |  |  |  | 해외 여부 |
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "origin": [
+        {
+            "origin_place_no": "1",
+            "origin_place_name": [
+                "Gangwon",
+                "Gangneung-si"
+            ],
+            "foreign": "F",
+            "made_in_code": "KR"
+        },
+        {
+            "origin_place_no": "2",
+            "origin_place_name": [
+                "Gangwon",
+                "Goseong-gun"
+            ],
+            "foreign": "F",
+            "made_in_code": "KR"
+        }
+    ]
+}
+```

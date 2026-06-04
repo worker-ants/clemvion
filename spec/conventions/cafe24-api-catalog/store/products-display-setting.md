@@ -2,7 +2,7 @@
 resource: store
 entity: products-display-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products-display-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Products display setting
@@ -34,6 +34,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "product": {
+        "shop_no": 1,
+        "sorting_options": [
+            "new_product",
+            "product_name",
+            "low_price",
+            "high_price",
+            "manufacture",
+            "review"
+        ]
+    }
+}
+```
+
 ### `PUT /api/v2/admin/products/display/setting` — Update a products display setting
 
 - **Scope**: `mall.write_store` (write)
@@ -48,3 +68,23 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `sorting_options` | ✓ |  |  | 상품정렬조건 new_product : 신상품 · product_name : 상품명 · low_price : 낮은가격 · high_price : 높은가격 · manufacture : 제조사 · popular_product : 인기상품 · review : 사용후기 · hit_count : 조회수 · like_count : 좋아요 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "product": {
+        "shop_no": 1,
+        "sorting_options": [
+            "new_product",
+            "product_name",
+            "low_price",
+            "high_price",
+            "manufacture",
+            "review"
+        ]
+    }
+}
+```

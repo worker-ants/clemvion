@@ -2,7 +2,7 @@
 resource: mileage
 entity: credits
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#credits
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Mileage / Credits
@@ -53,3 +53,42 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `keyword` |  |  |  | 검색어 |
 | `limit` |  | 최소: [1]~최대: [200] | 50 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [10000] | 0 | 조회결과 시작위치 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "credits": [
+        {
+            "shop_no": 1,
+            "issue_date": "2018-05-18T11:56:41+09:00",
+            "member_id": "sampleid",
+            "group_name": "Standard Membership",
+            "increase_amount": "1000.00",
+            "decrease_amount": "",
+            "balance": "1000.00",
+            "admin_id": "admin",
+            "admin_name": "John Doe",
+            "reason": "credits for order refund",
+            "case": "C",
+            "order_id": "20180421-0000010"
+        },
+        {
+            "shop_no": 1,
+            "issue_date": "2018-06-18T12:01:34+09:00",
+            "member_id": "sampleid",
+            "group_name": "Standard Membership",
+            "increase_amount": "1000.00",
+            "decrease_amount": "",
+            "balance": "2000.00",
+            "admin_id": "admin",
+            "admin_name": "John Doe",
+            "reason": "credits for order refund",
+            "case": "B",
+            "order_id": "20180425-0000012"
+        }
+    ]
+}
+```

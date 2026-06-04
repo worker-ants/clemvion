@@ -2,7 +2,7 @@
 resource: order
 entity: orders-paymentamount
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders-paymentamount
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders paymentamount
@@ -41,3 +41,60 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `order_item_code` | ✓ |  |  | 품주코드 ,(콤마)로 여러 건을 검색할 수 있다. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "paymentamount": [
+        {
+            "shop_no": 1,
+            "order_item_code": "20210511-0000011-01",
+            "items": {
+                "product_price": "9000.00",
+                "option_price": "1000.00",
+                "quantity": 1
+            },
+            "order_price_amount": "10000.00",
+            "order_discount_amount": {
+                "membership_discount_amount": "0.00",
+                "coupon_discount_price": "0.00",
+                "app_discount_amount": "0.00"
+            },
+            "item_discount_amount": {
+                "additional_discount_price": "300.00",
+                "coupon_discount_price": "0.00",
+                "app_discount_amount": "0.00"
+            },
+            "additional_payment_amount": "200.00",
+            "payment_amount": "9500.00",
+            "cancel_fee_amount": null
+        },
+        {
+            "shop_no": 1,
+            "order_item_code": "20210511-0000022-01",
+            "items": {
+                "product_price": "5000.00",
+                "option_price": "0.00",
+                "quantity": 1
+            },
+            "order_price_amount": "5000.00",
+            "order_discount_amount": {
+                "membership_discount_amount": "0.00",
+                "coupon_discount_price": "0.00",
+                "app_discount_amount": "0.00"
+            },
+            "item_discount_amount": {
+                "additional_discount_price": "200.00",
+                "coupon_discount_price": "0.00",
+                "app_discount_amount": "0.00"
+            },
+            "additional_payment_amount": "100.00",
+            "payment_amount": "4700.00",
+            "cancel_fee_amount": null
+        }
+    ]
+}
+```

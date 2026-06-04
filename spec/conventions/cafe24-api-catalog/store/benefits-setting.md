@@ -2,7 +2,7 @@
 resource: store
 entity: benefits-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#benefits-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Benefits setting
@@ -47,6 +47,34 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "benefit": {
+        "use_gift": "T",
+        "available_payment_methods": "all",
+        "allow_point_payment": "T",
+        "gift_calculation_scope": "all",
+        "gift_calculation_type": "total_order",
+        "include_shipping_fee": "I",
+        "display_soldout_gifts": "grayed",
+        "gift_grant_type": "S",
+        "gift_grant_mode": "S",
+        "gift_selection_mode": "S",
+        "gift_selection_step": [
+            "order_complete",
+            "order_detail"
+        ],
+        "gift_available_condition": "during_period",
+        "offer_only_one_in_automatic": "F",
+        "allow_gift_review": "T"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/benefits/setting` — Update incentive settings
 
 - **Scope**: `mall.write_store` (write)
@@ -75,3 +103,29 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `gift_available_condition` |  |  |  | 사은품 신청 가능 조건 사은품선택단계(gift_selection_step)에서 주문상세조회(order_detail)항목이 선택된 경우만 입력 가능 during_period : 설정 기간 동안만 신청 가능 · after_period : 설정 기간 이후에도 신청 가능 |
 | `offer_only_one_in_automatic` |  |  |  | 자동 지급형 사은품 지급수량 T : 1개만 지급 · F : 상품 구매수량에 따라 지급 |
 | `allow_gift_review` |  |  |  | 사은품 상품 상품후기 작성가능여부 T : 작성 가능 · F : 작성 불가 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "benefit": {
+        "use_gift": "T",
+        "available_payment_methods": "all",
+        "allow_point_payment": "T",
+        "gift_calculation_scope": "all",
+        "gift_calculation_type": "total_order",
+        "include_shipping_fee": "I",
+        "display_soldout_gifts": "grayed",
+        "gift_grant_type": "S",
+        "gift_selection_mode": "S",
+        "gift_selection_step": [
+            "order_complete",
+            "order_detail"
+        ],
+        "gift_available_condition": "during_period",
+        "allow_gift_review": "T"
+    }
+}
+```

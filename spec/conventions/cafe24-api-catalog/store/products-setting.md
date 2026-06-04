@@ -2,7 +2,7 @@
 resource: store
 entity: products-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Products setting
@@ -48,3 +48,54 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "product": {
+        "shop_no": 1,
+        "display_price_scope": "A",
+        "calculate_price_based_on": "P",
+        "price_rounding_unit": "1",
+        "price_rounding_rule": "U",
+        "auto_translation": "T",
+        "translation_items": [
+            "product_name",
+            "summary_description",
+            "simple_description",
+            "description",
+            "category_name",
+            "option",
+            "material"
+        ],
+        "popular_search_keywords": [
+            "New arrivals",
+            "Best sellers"
+        ],
+        "popup_menu": "T",
+        "display_sub_category": "T",
+        "display_sub_category_detail": {
+            "type": "S",
+            "visible_targets_by_depth": {
+                "category_depth_1": "category_depth_4",
+                "category_depth_2": "category_depth_4",
+                "category_depth_3": "category_depth_4"
+            }
+        },
+        "display_product_count": "T",
+        "option_preview": "T",
+        "wishlist_registration": "T",
+        "additional_image_action": "O",
+        "image_effect": "T",
+        "image_effect_detail": {
+            "type": "opacity",
+            "opacity_value": 10,
+            "border_color": "#ff0000",
+            "border_width": 1
+        }
+    }
+}
+```

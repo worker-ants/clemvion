@@ -2,7 +2,7 @@
 resource: customer
 entity: customers__paymentinformation
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customers--paymentinformation
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Customer / Customers paymentinformation
@@ -40,6 +40,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `member_id` | ✓ | 최대글자수 : [20자] |  | 회원아이디 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "paymentinformation": [
+        {
+            "shop_no": 1,
+            "member_id": "sampleid",
+            "payment_method": "card",
+            "payment_gateway": "inicis",
+            "created_date": "2020-08-24T18:35:05+09:00",
+            "payment_proiority": 0,
+            "payment_method_id": "20240808-0000123"
+        },
+        {
+            "shop_no": 1,
+            "member_id": "sampleid",
+            "payment_method": "tcash",
+            "payment_gateway": "inicis",
+            "created_date": "2020-08-25T18:35:05+09:00",
+            "payment_proiority": 1,
+            "payment_method_id": "20240808-0000257"
+        }
+    ]
+}
+```
+
 ### `DELETE /api/v2/admin/customers/{member_id}/paymentinformation` — Delete customer's payment information
 
 - **Scope**: `mall.write_customer` (write)
@@ -53,6 +82,19 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `member_id` | ✓ | 최대글자수 : [20자] |  | 회원아이디 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "paymentinformation": {
+        "shop_no": 1,
+        "member_id": "sampleid"
+    }
+}
+```
 
 ### `DELETE /api/v2/admin/customers/{member_id}/paymentinformation/{payment_method_id}` — Delete customer's payment information by payment method ID
 
@@ -68,3 +110,17 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `member_id` | ✓ | 최대글자수 : [20자] |  | 회원아이디 |
 | `payment_method_id` | ✓ | 주문번호 |  | 정기배송 결제수단 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "paymentinformation": {
+        "shop_no": 1,
+        "member_id": "sampleid",
+        "payment_method_id": "20240808-0000123"
+    }
+}
+```

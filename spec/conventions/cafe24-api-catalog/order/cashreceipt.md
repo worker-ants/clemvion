@@ -2,7 +2,7 @@
 resource: order
 entity: cashreceipt
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#cashreceipt
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Cashreceipt
@@ -60,6 +60,55 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최소: [1]~최대: [500] | 10 | 조회결과 최대건수 |
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "cashreceipt": [
+        {
+            "cashreceipt_no": 11,
+            "approval_no": "265409188",
+            "request_date": "2020-10-16",
+            "order_id": "20201013-0000096",
+            "member_id": "sampleid",
+            "name": "John Doe",
+            "order_price_amount": "13500.00",
+            "vat": "1227.00",
+            "subtotal": "13500.00",
+            "order_status": "non_delivered",
+            "status": "issued",
+            "pg_name": "allat",
+            "cash_bill_no": "2001468853",
+            "partner_id": "allat_parter_id"
+        },
+        {
+            "cashreceipt_no": 10,
+            "approval_no": "265409188",
+            "request_date": "2020-10-16",
+            "order_id": "20201013-0000102",
+            "member_id": "sampleid",
+            "name": "John Doe",
+            "order_price_amount": "13500.00",
+            "vat": "1227.00",
+            "subtotal": "13500.00",
+            "order_status": "canceled",
+            "status": "canceled_issuance",
+            "pg_name": "allat",
+            "cash_bill_no": "2001468853",
+            "partner_id": "allat_parter_id"
+        }
+    ],
+    "links": [
+        {
+            "rel": "next",
+            "href": "https://{mallid}.cafe24api.com/api/v2/admin/cashreceipt?limit=10&offset=10"
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/cashreceipt` — Create a cash receipt
 
 - **Scope**: `mall.write_order` (write)
@@ -76,6 +125,27 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `type` | ✓ |  |  | 발행 타입 개인: personal · 사업자: business |
 | `company_registration_no` |  | 사업자번호; 최대글자수 : [10자] |  | 사업자등록번호 |
 | `cellphone` |  | 모바일; 최대글자수 : [11자] |  | 휴대전화 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "cashreceipt": {
+        "cashreceipt_no": 10,
+        "approval_no": "265409188",
+        "order_id": "20201013-0000096",
+        "type": "personal",
+        "company_registration_no": null,
+        "cellphone": "01000000000",
+        "tax_amount": "13500.00",
+        "tax_free_amount": "0.00",
+        "supply_price": "12273.00",
+        "vat": "1227.00"
+    }
+}
+```
 
 ### `PUT /api/v2/admin/cashreceipt/{cashreceipt_no}` — Update a cash receipt
 
@@ -94,3 +164,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `type` |  |  |  | 발행 타입 개인: personal · 사업자: business |
 | `company_registration_no` |  | 사업자번호; 최대글자수 : [10자] |  | 사업자등록번호 |
 | `cellphone` |  | 모바일; 최대글자수 : [11자] |  | 휴대전화 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "cashreceipt": {
+        "cashreceipt_no": 10,
+        "approval_no": "265409188",
+        "order_id": "20201013-0000096",
+        "type": "personal",
+        "company_registration_no": null,
+        "cellphone": "01000000000",
+        "tax_amount": "13500.00",
+        "tax_free_amount": "0.00",
+        "supply_price": "12273.00",
+        "vat": "1227.00"
+    }
+}
+```

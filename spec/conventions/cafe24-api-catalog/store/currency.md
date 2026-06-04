@@ -2,7 +2,7 @@
 resource: store
 entity: currency
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#currency
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Currency
@@ -34,6 +34,23 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 
 _요청 파라미터 없음._
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "currency": {
+        "exchange_rate": "1004.00",
+        "standard_currency_code": "KRW",
+        "standard_currency_symbol": "￦",
+        "shop_currency_code": "USD",
+        "shop_currency_symbol": "$",
+        "shop_currency_format": "￦[:PRICE:]"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/currency` — Update a currency
 
 - **Scope**: `mall.write_store` (write)
@@ -48,3 +65,15 @@ _요청 파라미터 없음._
 |---|---|---|---|---|
 | `shop_no` | ✓ | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `exchange_rate` | ✓ |  |  | 결제 화폐 환율 정보 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "currency": {
+        "exchange_rate": "9.5697"
+    }
+}
+```

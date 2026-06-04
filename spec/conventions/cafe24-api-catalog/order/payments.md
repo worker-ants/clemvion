@@ -2,7 +2,7 @@
 resource: order
 entity: payments
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#payments
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Payments
@@ -50,3 +50,42 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `payment_method` |  |  |  | 결제수단 코드 · card : 신용카드 · tcash : 계좌이체 · icash : 가상계좌 · cell : 휴대폰 · deferpay : 후불 · cvs : 편의점 · easypay : 간편결제 · fpayment : 해외결제 |
 | ↳ `response_code` |  |  |  | 결제 PG 사의 응답 코드 |
 | ↳ `response_message` |  |  |  | 결제 PG 사의 응답 메시지 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "payments": [
+        {
+            "shop_no": 1,
+            "order_id": "20180402-0000032",
+            "status": "paid",
+            "payment_no": 10,
+            "cancel_request": {
+                "refund_status": "F",
+                "partial_cancel": "F",
+                "payment_gateway_name": null,
+                "payment_method": null,
+                "response_code": null,
+                "response_message": null
+            }
+        },
+        {
+            "shop_no": 1,
+            "order_id": "20180402-0000013",
+            "status": "unpaid",
+            "payment_no": 12,
+            "cancel_request": {
+                "refund_status": "F",
+                "partial_cancel": "F",
+                "payment_gateway_name": null,
+                "payment_method": null,
+                "response_code": null,
+                "response_message": null
+            }
+        }
+    ]
+}
+```

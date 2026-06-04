@@ -2,7 +2,7 @@
 resource: order
 entity: orders__items__history
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--items--history
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders items history
@@ -39,3 +39,54 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `order_item_code` | ✓ |  |  | 품주코드 |
 | `start_date` |  |  |  | 검색 시작일 |
 | `end_date` |  |  |  | 검색 종료일 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "history": [
+        {
+            "shop_no": 1,
+            "process_date": "2026-04-01T10:00:00+09:00",
+            "previous_order_status": "",
+            "current_order_status": "N00",
+            "manager_id": "system",
+            "manager_name": "system"
+        },
+        {
+            "shop_no": 1,
+            "process_date": "2026-04-02T14:30:00+09:00",
+            "previous_order_status": "N00",
+            "current_order_status": "N10",
+            "manager_id": "system",
+            "manager_name": "system"
+        },
+        {
+            "shop_no": 1,
+            "process_date": "2026-04-05T09:00:00+09:00",
+            "previous_order_status": "N10",
+            "current_order_status": "N20",
+            "manager_id": "checkout100",
+            "manager_name": "Master operator"
+        },
+        {
+            "shop_no": 1,
+            "process_date": "2026-04-07T11:00:00+09:00",
+            "previous_order_status": "N20",
+            "current_order_status": "N30",
+            "manager_id": "checkout100",
+            "manager_name": "Master operator"
+        },
+        {
+            "shop_no": 1,
+            "process_date": "2026-04-10T16:45:00+09:00",
+            "previous_order_status": "N30",
+            "current_order_status": "N40",
+            "manager_id": "system",
+            "manager_name": "system"
+        }
+    ]
+}
+```

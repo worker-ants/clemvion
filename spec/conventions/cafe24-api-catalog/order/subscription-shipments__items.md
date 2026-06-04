@@ -2,7 +2,7 @@
 resource: order
 entity: subscription-shipments__items
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#subscription-shipments--items
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Subscription shipments items
@@ -46,3 +46,29 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `subscription_shipments_cycle` |  |  |  | 배송주기 1W : 1주 · 2W : 2주 · 3W : 3주 · 4W : 4주 · 1M : 1개월 · 2M : 2개월 · 3M : 3개월 · 4M : 4개월 · 5M : 5개월 · 6M : 6개월 · 1Y : 1년 |
 | `changed_variant_code` |  | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] |  | 변경된 옵션 품목코드 |
 | `max_delivery_limit` |  | 최소값: [0]; 최대값: [12] |  | 정기배송 횟수 0 : 제한없음 · 2 : 2회 · 3 : 3회 · 4 : 4회 · 6 : 6회 · 10 : 10회 · 12 : 12회 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "items": [
+        {
+            "subscription_item_id": 101,
+            "quantity": 2,
+            "expected_delivery_date": "2021-07-16",
+            "subscription_shipments_cycle": "1M",
+            "max_delivery_limit": 6
+        },
+        {
+            "subscription_item_id": 21,
+            "subscription_state": "C"
+        },
+        {
+            "subscription_item_id": 103,
+            "changed_variant_code": "P00000BQ000D"
+        }
+    ]
+}
+```

@@ -2,7 +2,7 @@
 resource: promotion
 entity: discountcodes
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#discountcodes
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Promotion / Discountcodes
@@ -59,6 +59,41 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `sort` |  |  | created_date | 정렬 순서 값 discount_code_name : 혜택이름 · discount_code : 할인코드 · created_date : 등록시간 · available_start_date : 시작시간 · available_end_date : 종료시간 |
 | `order` |  |  | desc | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "discountcodes": [
+        {
+            "shop_no": 1,
+            "discount_code_no": 1,
+            "discount_code": "DISCOUNT1",
+            "discount_code_name": "123456",
+            "available_product_type": "P",
+            "available_start_date": "2024-09-10T11:10:34+09:00",
+            "available_end_date": "2024-09-20T13:10:34+09:00",
+            "created_date": "2019-12-13T10:10:10:34+09:00",
+            "issued_count": 30,
+            "available_issue_count": 100
+        },
+        {
+            "shop_no": 1,
+            "discount_code_no": 2,
+            "discount_code": "DISCOUNT2",
+            "discount_code_name": "123456",
+            "available_product_type": "P",
+            "available_start_date": "2024-09-10T11:10:34+09:00",
+            "available_end_date": "2024-09-20T13:10:34+09:00",
+            "created_date": "2019-12-13T10:10:10:34+09:00",
+            "issued_count": 30,
+            "available_issue_count": 100
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/discountcodes/{discount_code_no}` — Retrieve a discount code
 
 - **Scope**: `mall.read_promotion` (read)
@@ -72,6 +107,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `discount_code_no` | ✓ | 최소값: [1] |  | 할인코드 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "discountcode": {
+        "shop_no": 1,
+        "discount_code_no": 23,
+        "discount_code": "DISCOUNT1",
+        "discount_code_name": "discount for customer",
+        "discount_value": 10,
+        "discount_truncation_unit": "M",
+        "discount_max_price": 10000,
+        "available_start_date": "2024-09-10T11:10:34+09:00",
+        "available_end_date": "2024-09-20T13:10:34+09:00",
+        "available_product_type": "P",
+        "available_product": [
+            10,
+            12
+        ],
+        "available_category": null,
+        "available_min_price": 1000,
+        "available_issue_count": 1000,
+        "available_user": "A",
+        "max_usage_per_user": 3
+    }
+}
+```
 
 ### `POST /api/v2/admin/discountcodes` — Create a discount code
 
@@ -100,6 +165,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `available_issue_count` |  | 최대값: [10000] | 0 | 최대 발급 횟수 |
 | `available_user` |  |  | A | 사용가능 대상 M : 회원 · A : 전체 |
 | `max_usage_per_user` |  | 최대값: [999] | 0 | 회원당 사용가능 횟수 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "discountcode": {
+        "shop_no": 1,
+        "discount_code_no": 23,
+        "discount_code": "DISCOUNT1",
+        "discount_code_name": "discount for customer",
+        "discount_value": 10,
+        "discount_truncation_unit": "M",
+        "discount_max_price": 10000,
+        "available_start_date": "2036-10-05T11:10:34+09:00",
+        "available_end_date": "2036-10-20T13:10:34+09:00",
+        "available_product_type": "P",
+        "available_product": [
+            9,
+            10
+        ],
+        "available_category": null,
+        "available_min_price": 1000,
+        "available_issue_count": 1000,
+        "available_user": "A",
+        "max_usage_per_user": 3
+    }
+}
+```
 
 ### `PUT /api/v2/admin/discountcodes/{discount_code_no}` — Update a discount code
 
@@ -130,6 +225,36 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `available_user` |  |  |  | 사용가능 대상 M : 회원 · A : 전체 |
 | `max_usage_per_user` |  | 최대값: [999] |  | 회원당 사용가능 횟수 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "discountcode": {
+        "shop_no": 1,
+        "discount_code_no": 23,
+        "discount_code": "DISCOUNT1",
+        "discount_code_name": "discount for customer",
+        "discount_value": 10,
+        "discount_truncation_unit": "M",
+        "discount_max_price": 10000,
+        "available_start_date": "2036-09-10T11:10:34+09:00",
+        "available_end_date": "2036-09-20T13:10:34+09:00",
+        "available_product_type": "P",
+        "available_product": [
+            9,
+            10
+        ],
+        "available_category": null,
+        "available_min_price": 1000,
+        "available_issue_count": 1000,
+        "available_user": "A",
+        "max_usage_per_user": 3
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/discountcodes/{discount_code_no}` — Delete a discount code
 
 - **Scope**: `mall.write_promotion` (write)
@@ -142,3 +267,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `discount_code_no` | ✓ | 최소값: [1] |  | 할인코드 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "discountcode": {
+        "discount_code_no": 23
+    }
+}
+```

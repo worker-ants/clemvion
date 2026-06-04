@@ -2,7 +2,7 @@
 resource: order
 entity: orders__shipments
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--shipments
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders shipments
@@ -44,6 +44,53 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shipments": [
+        {
+            "shop_no": 1,
+            "shipping_code": "D-20180627-0000017-00",
+            "order_id": "20180627-0000017",
+            "tracking_no": "101080903",
+            "tracking_no_updated_date": "2018-09-03T17:20:49+09:00",
+            "shipping_company_code": "0001",
+            "items": [
+                {
+                    "order_item_code": "20180627-0000017-01",
+                    "status": "standby"
+                },
+                {
+                    "order_item_code": "20180627-0000017-02",
+                    "status": "shipping "
+                }
+            ]
+        },
+        {
+            "shop_no": 1,
+            "shipping_code": "D-20180627-0000017-01",
+            "order_id": "20180627-0000017",
+            "tracking_no": "101080904",
+            "tracking_no_updated_date": "2018-09-05T17:20:49+09:00",
+            "shipping_company_code": "0001",
+            "items": [
+                {
+                    "order_item_code": "20180627-0000017-03",
+                    "status": "standby"
+                },
+                {
+                    "order_item_code": "20180627-0000017-04",
+                    "status": "shipping "
+                }
+            ]
+        }
+    ]
+}
+```
+
 ### `POST /api/v2/admin/orders/{order_id}/shipments` — Create an order shipping information
 
 - **Scope**: `mall.write_order` (write)
@@ -65,6 +112,30 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shipping_code` |  |  |  | 배송번호 |
 | `carrier_id` |  |  |  | 배송사 아이디 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shipments": [
+        {
+            "shop_no": 1,
+            "shipping_code": "D-20180627-0000017-00",
+            "order_id": "20180627-0000017",
+            "status": "shipping",
+            "tracking_no": "101080903",
+            "shipping_company_code": "0001",
+            "order_item_code": [
+                "20180627-0000017-01",
+                "20180627-0000017-02"
+            ],
+            "carrier_id": 1
+        }
+    ]
+}
+```
+
 ### `PUT /api/v2/admin/orders/{order_id}/shipments/{shipping_code}` — Update an order shipping
 
 - **Scope**: `mall.write_order` (write)
@@ -85,6 +156,22 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `tracking_no` |  | 최대글자수 : [40자] |  | 송장번호 tracking_no 사용시 shipping_company_code를 함께 사용해야 하며, 송장번호 수정시 status는 사용 불가 |
 | `shipping_company_code` |  |  |  | 배송업체 코드 shipping_company_code · tracking_no 사용시 shipping_company_code를 함께 사용해야 하며, 송장번호 수정시 status는 사용 불가 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shipment": {
+        "shop_no": 1,
+        "status": "shipping",
+        "status_additional_info": "Arrived at Sorting Hub",
+        "tracking_no": null,
+        "shipping_company_code": null
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/orders/{order_id}/shipments/{shipping_code}` — Delete an order shipping
 
 - **Scope**: `mall.write_order` (write)
@@ -99,3 +186,21 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `order_id` | ✓ |  |  | 주문번호 |
 | `shipping_code` | ✓ |  |  | 배송번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "shipment": {
+        "shop_no": 1,
+        "order_id": "20181203-0000021",
+        "shipping_code": "D-20181203-0000021-00",
+        "order_item_code": [
+            "20181203-0000021-01",
+            "20181203-0000021-02"
+        ]
+    }
+}
+```

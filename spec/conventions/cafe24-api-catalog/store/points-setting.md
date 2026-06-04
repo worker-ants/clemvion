@@ -2,7 +2,7 @@
 resource: store
 entity: points-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#points-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Points setting
@@ -49,6 +49,34 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "point": {
+        "shop_no": 1,
+        "point_issuance_standard": "C",
+        "payment_period": 20,
+        "name": "mileage",
+        "format": "$[:PRICE:]",
+        "round_unit": "0.01",
+        "round_type": "A",
+        "display_type": "PW",
+        "unusable_points_change_type": "M",
+        "join_point": "100.00",
+        "use_email_agree_point": "T",
+        "use_sms_agree_point": "F",
+        "agree_change_type": "P",
+        "agree_restriction_period": 12,
+        "agree_point": "200.00",
+        "available_min_price": "10000.00",
+        "available_min_point": "1000.00"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/points/setting` — Update points settings
 
 - **Scope**: `mall.write_store` (write)
@@ -76,3 +104,29 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `agree_change_type` |  |  |  | 회원가입 시 수신동의 변경타입 T:변경가능 · F:변경불가 · P:일정기간 동안 변경 불가 |
 | `agree_restriction_period` |  |  |  | 수신동의 변경 불가 기간 1:1개월 · 3:3개월 · 6:6개월 · 12:1년 |
 | `agree_point` |  |  |  | 수신동의 적립금 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "point": {
+        "shop_no": 1,
+        "point_issuance_standard": "C",
+        "payment_period": 20,
+        "name": "mileage",
+        "format": "$[:PRICE:]",
+        "round_unit": "100",
+        "round_type": "A",
+        "display_type": "PW",
+        "unusable_points_change_type": "M",
+        "join_point": "100.00",
+        "use_email_agree_point": "T",
+        "use_sms_agree_point": "F",
+        "agree_change_type": "P",
+        "agree_restriction_period": 12,
+        "agree_point": "200.00"
+    }
+}
+```

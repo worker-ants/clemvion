@@ -2,7 +2,7 @@
 resource: order
 entity: orderform-properties
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orderform-properties
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orderform properties
@@ -50,6 +50,56 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "properties": {
+        "shop_no": 1,
+        "additional_items": [
+            {
+                "orderform_property_id": 1,
+                "input_type": "T",
+                "is_required": "T",
+                "subject": "text additional item name",
+                "description": "text additional item description",
+                "field_length": 10,
+                "max_input_length": 10,
+                "textarea_rows": 0,
+                "width_percentage": 0,
+                "option_values": "",
+                "display_lines_desktop": 0,
+                "display_lines_mobile": 0,
+                "available_product_type": "C",
+                "input_scope": "A",
+                "category_no": 24,
+                "product_no": null
+            },
+            {
+                "orderform_property_id": 6,
+                "input_type": "I",
+                "is_required": "F",
+                "subject": "time additional item name",
+                "description": "time additional item description",
+                "field_length": 0,
+                "max_input_length": 0,
+                "textarea_rows": 0,
+                "width_percentage": 0,
+                "option_values": "{\"time_start\":\"00:00\",\"time_end\":\"01:00\",\"time_interval\":\"60\"}",
+                "display_lines_desktop": 0,
+                "display_lines_mobile": 0,
+                "available_product_type": "P",
+                "input_scope": "A",
+                "category_no": null,
+                "product_no": "22,23"
+            }
+        ]
+    }
+}
+```
+
 ### `POST /api/v2/admin/orderform/properties` — Create an additional checkout field
 
 - **Scope**: `mall.write_order` (write)
@@ -78,6 +128,53 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `display_lines_mobile` |  | 최소: [1]~최대: [999] |  | 한 줄에 표시할 옵션 개수 (모바일) input_type를 "R", "C"로 선택 하였을때만 입력 가능 |
 | `category_no` |  |  |  | 주문서 추가항목 지정 상품분류 번호 available_product_type를 "P"로 선택 하였을때만 입력 가능(C도 마찬가지) |
 | `product_no` |  |  |  | 주문서 추가항목 지정 상품 번호 available_product_type를 "P"로 선택 하였을때만 입력 가능(C도 마찬가지) |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "properties": [
+        {
+            "shop_no": 1,
+            "input_type": "T",
+            "is_required": "T",
+            "subject": "text additional item name",
+            "available_product_type": "A",
+            "input_scope": "A",
+            "description": "text additional item description",
+            "field_length": 10,
+            "max_input_length": 10,
+            "textarea_rows": null,
+            "width_percentage": null,
+            "option_values": null,
+            "display_lines_desktop": null,
+            "display_lines_mobile": null,
+            "category_no": null,
+            "product_no": null
+        },
+        {
+            "shop_no": 1,
+            "input_type": "I",
+            "is_required": "F",
+            "subject": "time additional item name",
+            "available_product_type": "A",
+            "input_scope": "A",
+            "description": "time additional item description",
+            "field_length": null,
+            "max_input_length": null,
+            "textarea_rows": null,
+            "width_percentage": null,
+            "option_values": "{\"time_start\":\"00:00\",\"time_end\":\"01:00\",\"time_interval\":\"60\"}",
+            "display_lines_desktop": null,
+            "display_lines_mobile": null,
+            "category_no": null,
+            "product_no": null
+        }
+    ]
+}
+```
 
 ### `PUT /api/v2/admin/orderform/properties/{orderform_property_id}` — Update an additional checkout field
 
@@ -109,6 +206,26 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `category_no` |  |  |  | 주문서 추가항목 지정 상품분류 번호 available_product_type를 "P"로 선택 하였을때만 입력 가능(C도 마찬가지) |
 | `product_no` |  |  |  | 주문서 추가항목 지정 상품 번호 available_product_type를 "P"로 선택 하였을때만 입력 가능(C도 마찬가지) |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "properties": {
+        "shop_no": 1,
+        "input_type": "T",
+        "is_required": "T",
+        "subject": "text additional item name",
+        "description": "text additional item description",
+        "field_length": 10,
+        "max_input_length": 10,
+        "available_product_type": "A",
+        "input_scope": "A"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/orderform/properties/{orderform_property_id}` — Delete an additional checkout field
 
 - **Scope**: `mall.write_order` (write)
@@ -122,3 +239,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `orderform_property_id` | ✓ |  |  | 주문서 추가항목 고유번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "properties": {
+        "shop_no": 1,
+        "orderform_property_id": 10
+    }
+}
+```

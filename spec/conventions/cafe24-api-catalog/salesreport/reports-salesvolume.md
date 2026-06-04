@@ -2,7 +2,7 @@
 resource: salesreport
 entity: reports-salesvolume
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#reports-salesvolume
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Salesreport / Reports salesvolume
@@ -53,3 +53,44 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `supplier_id` |  | 최대글자수 : [20자] |  | 공급사 아이디 판매 수량 중 특정 공급사 ID로 등록된 수량 조회 |
 | `start_date` | ✓ | 날짜 |  | 검색 시작일 판매 수량을 조회할 검색 시작일(결제일 기준) · 검색 종료일과 같이 사용해야함. |
 | `end_date` | ✓ | 날짜 |  | 검색 종료일 판매 수량을 조회할 검색 종료일(결제일 기준) · 검색 시작일과 같이 사용해야함. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "salesvolume": [
+        {
+            "shop_no": "1",
+            "collection_date": "2018-10-27",
+            "collection_hour": "12",
+            "product_price": "10000.00",
+            "product_option_price": "0.00",
+            "settle_count": "2",
+            "exchane_product_count": "0",
+            "cancel_product_count": "0",
+            "return_product_count": "0",
+            "updated_date": "2018-10-27T14:51+09:00",
+            "product_no": 16,
+            "variants_code": "P0000BKE000A",
+            "total_sales": "2"
+        },
+        {
+            "shop_no": "1",
+            "collection_date": "2018-10-27",
+            "collection_hour": "12",
+            "product_price": "10000.00",
+            "product_option_price": "0.00",
+            "settle_count": "23",
+            "exchane_product_count": "0",
+            "cancel_product_count": "0",
+            "return_product_count": "0",
+            "updated_date": "2018-10-27T14:51+09:00",
+            "product_no": 16,
+            "variants_code": "P0000BKE000B",
+            "total_sales": "23"
+        }
+    ]
+}
+```

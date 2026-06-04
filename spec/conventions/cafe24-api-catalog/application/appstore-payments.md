@@ -2,7 +2,7 @@
 resource: application
 entity: appstore-payments
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#appstore-payments
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Application / Appstore payments
@@ -51,6 +51,49 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `limit` |  | 최소: [1]~최대: [50] | 20 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
 | `offset` |  | 최대값: [10000] | 0 | 조회결과 시작위치 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "payments": [
+        {
+            "order_id": "cafe24-20180704-100000000",
+            "payment_status": "paid",
+            "title": "App Name_App Store Order1",
+            "approval_no": "10000000",
+            "payment_gateway_name": "allat",
+            "payment_method": "card",
+            "payment_amount": "1000.00",
+            "refund_amount": "0.00",
+            "currency": "KRW",
+            "locale_code": "ko_KR",
+            "automatic_payment": "T",
+            "pay_date": "2018-07-04T11:19:27+09:00",
+            "refund_date": null,
+            "expiration_date": "2018-08-04T11:19:27+09:00"
+        },
+        {
+            "order_id": "cafe24-20180704-200000000",
+            "payment_status": "refund",
+            "title": "App Name_App Store Order2",
+            "approval_no": "20000000",
+            "payment_gateway_name": "allat",
+            "payment_method": "card",
+            "payment_amount": "1000.00",
+            "refund_amount": "1000.00",
+            "currency": "KRW",
+            "locale_code": "ko_KR",
+            "automatic_payment": "F",
+            "pay_date": "2018-07-04T11:19:27+09:00",
+            "refund_date": "2018-07-05T09:12:19+09:00",
+            "expiration_date": null
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/appstore/payments/count` — Retrieve a count of Cafe24 Store payments
 
 - **Scope**: `mall.read_application` (read)
@@ -66,3 +109,13 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `start_date` | ✓ | 날짜 |  | 검색 시작일 해당일 이후에 결제완료된 주문 검색 |
 | `end_date` | ✓ | 날짜 |  | 검색 종료일 해당일 이전에 결제완료된 주문 검색 |
 | `currency` |  |  |  | 화폐단위 KRW : ￦ 원 · USD : $ 달러 · JPY : ¥ 엔 · PHP : ₱ 페소 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 2
+}
+```

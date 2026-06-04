@@ -2,7 +2,7 @@
 resource: order
 entity: orders__payments
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--payments
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders payments
@@ -51,3 +51,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `admin_additional_amount` |  | 최소값: [0]; 최대값: [10000000] |  | 관리자 입력 금액 결제금액을 변경할 경우("change_payment_amount":"T"일 경우) 사용 가능 |
 | `commission` |  | 최소값: [0]; 최대값: [10000000] |  | 결제 수수료 결제수단을 다이비키로 변경할 경우("change_payment_amount:"T"이고 "payment_method":"daibiki"일 경우) 사용 가능 |
 | `change_payment_amount_reason` |  | 최대글자수 : [255자] |  | 결제금액 변경 사유 결제금액을 변경할 경우("change_payment_amount":"T"일 경우) 사용 가능 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "payment": {
+        "shop_no": 1,
+        "order_id": "20181203-0000022",
+        "change_payment_amount": "T",
+        "change_payment_method": "T",
+        "payment_method": "cash",
+        "payment_gateway_failure_message": null,
+        "admin_additional_amount": "1000.00",
+        "commission": null,
+        "initial_estimated_payment_amount": "11000.00",
+        "change_payment_amount_reason": "Remove shipping charge, add return fee"
+    }
+}
+```

@@ -2,7 +2,7 @@
 resource: supply
 entity: suppliers
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#suppliers
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Supply / Suppliers
@@ -84,6 +84,115 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "suppliers": [
+        {
+            "shop_no": 1,
+            "supplier_code": "S0000000",
+            "supplier_name": "Supply Name",
+            "status": "A",
+            "commission": "0.00",
+            "payment_period": "A",
+            "business_item": "Online Shop",
+            "payment_type": "D",
+            "supplier_type": "WS",
+            "use_supplier": "T",
+            "created_date": "",
+            "updated_date": "2018-09-04T13:42:04+09:00",
+            "country_code": "KOR",
+            "zipcode": "07071",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall",
+            "manager_information": [
+                {
+                    "no": 1,
+                    "name": "John Doe",
+                    "phone": "010-0000-0001",
+                    "email": "sample@sample.com",
+                    "use_sms": "F"
+                },
+                {
+                    "no": 2,
+                    "name": "Jane Doe",
+                    "phone": "010-0000-0002",
+                    "email": "sample@sample.com",
+                    "use_sms": "F"
+                }
+            ],
+            "payment_start_day": null,
+            "payment_end_day": null,
+            "payment_start_date": 1,
+            "payment_end_date": 2,
+            "trading_type": "D",
+            "bank_code": "bank_04",
+            "bank_account_no": "000-0000-00000",
+            "bank_account_name": "Acoount Name",
+            "company_registration_no": "118-81-20586",
+            "president_name": "Representative name",
+            "company_name": "Company Name",
+            "company_condition": "Industry",
+            "company_line": "Online",
+            "phone": "010-0000-0000",
+            "fax": "02-0000-0000"
+        },
+        {
+            "shop_no": 1,
+            "supplier_code": "S000000A",
+            "supplier_name": "Supply Name",
+            "status": "A",
+            "commission": "10.00",
+            "payment_period": "0",
+            "business_item": "Online Shop",
+            "payment_type": "P",
+            "supplier_type": "WS",
+            "use_supplier": "T",
+            "created_date": "2018-09-04T13:42:04+09:00",
+            "updated_date": "",
+            "country_code": "KOR",
+            "zipcode": "07071",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall",
+            "manager_information": [
+                {
+                    "no": 1,
+                    "name": "John Doe",
+                    "phone": "010-0000-0001",
+                    "email": "sample@sample.com",
+                    "use_sms": "F"
+                },
+                {
+                    "no": 2,
+                    "name": "Jane Doe",
+                    "phone": "010-0000-0002",
+                    "email": "sample@sample.com",
+                    "use_sms": "F"
+                }
+            ],
+            "payment_start_day": null,
+            "payment_end_day": null,
+            "payment_start_date": 9,
+            "payment_end_date": 30,
+            "trading_type": "C",
+            "bank_code": "bank_05",
+            "bank_account_no": "000-0000-00001",
+            "bank_account_name": "Acoount Name",
+            "company_registration_no": "118-81-20586",
+            "president_name": "Representative name",
+            "company_name": "Company Name",
+            "company_condition": "Industry",
+            "company_line": "Online",
+            "phone": "010-0000-0000",
+            "fax": "02-0000-0000"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/suppliers/count` — Retrieve a count of suppliers
 
 - **Scope**: `mall.read_supply` (read)
@@ -99,6 +208,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `supplier_code` |  |  |  | 공급사 코드 시스템이 부여한 공급사의 코드. 해당 쇼핑몰 내에서 공급사 코드는 중복되지 않는다. ,(콤마)로 여러 건을 검색할 수 있다. |
 | `supplier_name` |  |  |  | 공급사명 공급사의 이름. 공급사명은 쇼핑몰 관리자 화면에서 공급사를 구분할 수 있는 기본적인 정보이다. ,(콤마)로 여러 건을 검색할 수 있다. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 3
+}
+```
+
 ### `GET /api/v2/admin/suppliers/{supplier_code}` — Retrieve a supplier
 
 - **Scope**: `mall.read_supply` (read)
@@ -112,6 +231,85 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `supplier_code` | ✓ |  |  | 공급사 코드 시스템이 부여한 공급사의 코드. 해당 쇼핑몰 내에서 공급사 코드는 중복되지 않는다. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "supplier": {
+        "shop_no": 1,
+        "supplier_name": "Default Supplier",
+        "supplier_code": "S0000000",
+        "use_supplier": "T",
+        "trading_type": "D",
+        "supplier_type": "WS",
+        "status": "A",
+        "business_item": "Default Product Type",
+        "payment_type": "D",
+        "commission": "0.00",
+        "payment_period": "A",
+        "payment_method": 30,
+        "payment_start_day": null,
+        "payment_end_day": null,
+        "payment_start_date": 9,
+        "payment_end_date": 30,
+        "bank_code": "bank_04",
+        "bank_account_no": "000-0000-00000",
+        "bank_account_name": "Acoount Name",
+        "phone": "010-0000-0000",
+        "fax": "02-0000-0000",
+        "country_code": "KOR",
+        "zipcode": "07071",
+        "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "address2": "Professional Construction Hall",
+        "market_country_code": "KOR",
+        "market_zipcode": "07071",
+        "market_address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "market_address2": "Professional Construction Hall",
+        "exchange_country_code": "KOR",
+        "exchange_zipcode": "07071",
+        "exchange_address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "exchange_address2": "Professional Construction Hall",
+        "homepage_url": "sample.sample.com",
+        "mall_url": "sample.sample.com",
+        "manager_information": [
+            {
+                "no": 1,
+                "name": "John Doe",
+                "phone": "010-0000-0001",
+                "email": "sample@sample.com",
+                "use_sms": "F"
+            },
+            {
+                "no": 2,
+                "name": "Jane Doe",
+                "phone": "010-0000-0002",
+                "email": "sample@sample.com",
+                "use_sms": "F"
+            },
+            {
+                "no": 3,
+                "name": "Jane Doe",
+                "phone": "010-0000-0003",
+                "email": "sample@sample.com",
+                "use_sms": "F"
+            }
+        ],
+        "account_start_date": "2018-01-01",
+        "account_stop_date": "2018-01-02",
+        "show_supplier_info": "SP,SM",
+        "memo": "Memo Description",
+        "company_registration_no": "118-81-20586",
+        "company_name": "Company Name",
+        "president_name": "Representative name",
+        "company_condition": "Industry",
+        "company_line": "Online",
+        "company_introduction": "About company."
+    }
+}
+```
 
 ### `POST /api/v2/admin/suppliers` — Create a supplier
 
@@ -170,6 +368,85 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `company_condition` |  | 최대글자수 : [20자] |  | 업태 사업자 등록시 공급사에서 등록한 업태 |
 | `company_line` |  | 최대글자수 : [20자] |  | 종목 사업자 등록시 공급사에서 등록한 종목 |
 | `company_introduction` |  |  |  | 회사소개 공급사에 대한 간략한 소개 표시. 쇼핑몰의 회사 소개 화면에 표시된다. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "supplier": {
+        "shop_no": 1,
+        "supplier_name": "Default Supplier",
+        "supplier_code": "S000000J",
+        "use_supplier": "T",
+        "trading_type": "D",
+        "supplier_type": "WS",
+        "status": "A",
+        "business_item": "Default Product Type",
+        "payment_type": "D",
+        "commission": "0.00",
+        "payment_period": "A",
+        "payment_method": "30",
+        "payment_start_date": 9,
+        "payment_end_date": 30,
+        "payment_start_day": null,
+        "payment_end_day": null,
+        "bank_code": null,
+        "bank_account_no": "",
+        "bank_account_name": "",
+        "phone": "010-0000-0000",
+        "fax": "02-0000-0000",
+        "country_code": "KOR",
+        "zipcode": "07071",
+        "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "address2": "Professional Construction Hall",
+        "market_country_code": "KOR",
+        "market_zipcode": "07071",
+        "market_address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "market_address2": "Professional Construction Hall",
+        "exchange_country_code": "KOR",
+        "exchange_zipcode": "07071",
+        "exchange_address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "exchange_address2": "Professional Construction Hall",
+        "homepage_url": "sample.sample.com",
+        "mall_url": "sample.sample.com",
+        "manager_information": [
+            {
+                "no": 1,
+                "name": "John Doe",
+                "phone": "010-0000-0001",
+                "email": "sample@sample.com",
+                "use_sms": null
+            },
+            {
+                "no": 2,
+                "name": "Jane Doe",
+                "phone": "010-0000-0002",
+                "email": "sample@sample.com",
+                "use_sms": null
+            },
+            {
+                "no": 3,
+                "name": "Jane Doe",
+                "phone": "010-0000-0003",
+                "email": "sample@sample.com",
+                "use_sms": null
+            }
+        ],
+        "account_start_date": "2018-01-01",
+        "account_stop_date": "2018-01-02",
+        "show_supplier_info": "SP,SM",
+        "memo": "Memo Description",
+        "company_registration_no": "118-81-20586",
+        "company_name": "Company Name",
+        "president_name": "Representative name",
+        "company_condition": "Industry",
+        "company_line": "Online",
+        "company_introduction": "About company."
+    }
+}
+```
 
 ### `PUT /api/v2/admin/suppliers/{supplier_code}` — Update a supplier
 
@@ -231,6 +508,85 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `company_line` |  | 최대글자수 : [20자] |  | 종목 사업자 등록시 공급사에서 등록한 종목 |
 | `company_introduction` |  |  |  | 회사소개 공급사에 대한 간략한 소개 표시. 쇼핑몰의 회사 소개 화면에 표시된다. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "supplier": {
+        "shop_no": 1,
+        "supplier_name": "Default Supplier",
+        "supplier_code": "S000000J",
+        "use_supplier": "T",
+        "trading_type": "D",
+        "supplier_type": "WS",
+        "status": "A",
+        "business_item": "Default Product Type",
+        "payment_type": "D",
+        "commission": "0.00",
+        "payment_period": "A",
+        "payment_method": 30,
+        "payment_start_date": 9,
+        "payment_end_date": 30,
+        "payment_start_day": null,
+        "payment_end_day": null,
+        "bank_code": "bank_04",
+        "bank_account_no": "000-0000-00000",
+        "bank_account_name": "Acoount Name",
+        "phone": "010-0000-0000",
+        "fax": "02-0000-0000",
+        "country_code": "KOR",
+        "zipcode": "07071",
+        "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "address2": "Professional Construction Hall",
+        "market_country_code": "KOR",
+        "market_zipcode": "07071",
+        "market_address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "market_address2": "Professional Construction Hall",
+        "exchange_country_code": "KOR",
+        "exchange_zipcode": "07071",
+        "exchange_address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+        "exchange_address2": "Professional Construction Hall",
+        "homepage_url": "sample.sample.com",
+        "mall_url": "sample.sample.com",
+        "manager_information": [
+            {
+                "no": 1,
+                "name": "John Doe",
+                "phone": "010-0000-0001",
+                "email": "sample@sample.com",
+                "use_sms": "F"
+            },
+            {
+                "no": 2,
+                "name": "Jane Doe",
+                "phone": "010-0000-0002",
+                "email": "sample@sample.com",
+                "use_sms": "F"
+            },
+            {
+                "no": 3,
+                "name": "Jane Doe",
+                "phone": "010-0000-0003",
+                "email": "sample@sample.com",
+                "use_sms": "F"
+            }
+        ],
+        "account_start_date": "2018-01-01",
+        "account_stop_date": "2018-01-02",
+        "show_supplier_info": "SP,SM",
+        "memo": "Memo Description",
+        "company_registration_no": "118-81-20586",
+        "company_name": "Company Name",
+        "president_name": "Representative name",
+        "company_condition": "Industry",
+        "company_line": "Online",
+        "company_introduction": "About company."
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/suppliers/{supplier_code}` — Delete a supplier
 
 - **Scope**: `mall.write_supply` (write)
@@ -243,3 +599,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `supplier_code` | ✓ | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] |  | 공급사 코드 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "supplier": {
+        "supplier_code": "S000000J"
+    }
+}
+```

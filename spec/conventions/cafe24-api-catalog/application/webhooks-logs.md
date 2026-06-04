@@ -2,7 +2,7 @@
 resource: application
 entity: webhooks-logs
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#webhooks-logs
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Application / Webhooks logs
@@ -48,3 +48,40 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `log_type` |  |  |  | 로그 종류 G : 일반 발송 · R : 재발송 · T : 테스트 발송 |
 | `since_log_id` |  |  |  | 해당 로그 ID 이후 검색 |
 | `limit` |  | 최소: [1]~최대: [10000] |  | 조회결과 최대건수 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "logs": [
+        {
+            "log_id": "zV7Ur3oBsq3B53njmYm-",
+            "log_type": "G",
+            "event_no": 90001,
+            "mall_id": "bestshop",
+            "trace_id": "0d492786-ae82-4073-aa88-0991b08ee732",
+            "requested_time": "2020-08-03T10:10:10+09:00",
+            "request_endpoint": "https://app.com/webhooks/regist_product",
+            "request_body": "{\"event_no\":90001,\"resource\":{\"mall_id\":\"cafe24bestshop\",\"event_shop_no\":\"1\",\"product_code\":\"P000CCAO\"}}",
+            "success": "T",
+            "response_http_code": null,
+            "response_body": null
+        },
+        {
+            "log_id": "dV7Ur3oBsq3B53njJIbP",
+            "log_type": "G",
+            "event_no": 90001,
+            "mall_id": "bestshop",
+            "trace_id": "518e78fd-e59e-45e4-8fe7-46620ea9b000",
+            "requested_time": "2020-08-03T10:10:10+09:00",
+            "request_endpoint": "https://app.com/webhooks/regist_product",
+            "request_body": "{\"event_no\":90001,\"resource\":{\"mall_id\":\"cafe24bestshop\",\"event_shop_no\":\"1\",\"product_code\":\"P000CCAP\"}}",
+            "success": "F",
+            "response_http_code": 403,
+            "response_body": "<html><head><title>403 Forbidden</title></head><body><center><h1>403 Forbidden</h1></center></body></html>"
+        }
+    ]
+}
+```

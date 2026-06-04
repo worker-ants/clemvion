@@ -2,7 +2,7 @@
 resource: product
 entity: products__icons
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--icons
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products icons
@@ -39,6 +39,31 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `product_no` | ✓ |  |  | 상품번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "icons": {
+        "shop_no": 1,
+        "use_show_date": "T",
+        "show_start_date": "2017-10-30T09:00:00+09:00",
+        "show_end_date": "2017-11-02T16:00:00+09:00",
+        "image_list": [
+            {
+                "code": "custom_1",
+                "path": "https://{domain}/web/upload/custom_115855429954932.gif"
+            },
+            {
+                "code": "custom_2",
+                "path": "https://{domain}/web/upload/custom_215855430928360.gif"
+            }
+        ]
+    }
+}
+```
+
 ### `POST /api/v2/admin/products/{product_no}/icons` — Set icons for a product
 
 - **Scope**: `mall.write_product` (write)
@@ -55,6 +80,31 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `product_no` | ✓ |  |  | 상품번호 |
 | `image_list` | ✓ | 배열 최대사이즈: [5] |  | 상품 아이콘 리스트 |
 | ↳ `code` | ✓ |  |  | 상품 아이콘 코드 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "icon": {
+        "shop_no": 1,
+        "use_show_date": "T",
+        "show_start_date": "2017-10-30T09:00:00+09:00",
+        "show_end_date": "2017-11-02T16:00:00+09:00",
+        "image_list": [
+            {
+                "code": "custom_1",
+                "path": "https://{domain}/web/upload/custom_115855429954932.gif"
+            },
+            {
+                "code": "custom_2",
+                "path": "https://{domain}/web/upload/custom_215855430928360.gif"
+            }
+        ]
+    }
+}
+```
 
 ### `PUT /api/v2/admin/products/{product_no}/icons` — Update product icons
 
@@ -76,6 +126,31 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `image_list` |  | 배열 최대사이즈: [5] |  | 상품 아이콘 리스트 |
 | ↳ `code` | ✓ |  |  | 상품 아이콘 코드 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "icon": {
+        "shop_no": 1,
+        "use_show_date": "T",
+        "show_start_date": "2017-10-30T09:00:00+09:00",
+        "show_end_date": "2017-11-02T16:00:00+09:00",
+        "image_list": [
+            {
+                "code": "custom_1",
+                "path": "https://{domain}/web/upload/custom_115855429954932.gif"
+            },
+            {
+                "code": "custom_2",
+                "path": "https://{domain}/web/upload/custom_215855430928360.gif"
+            }
+        ]
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/products/{product_no}/icons/{code}` — Remove a product icon
 
 - **Scope**: `mall.write_product` (write)
@@ -90,3 +165,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `product_no` | ✓ |  |  | 상품번호 |
 | `code` | ✓ |  |  | 상품 아이콘 코드 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "icon": {
+        "shop_no": 1,
+        "code": "custom_1"
+    }
+}
+```

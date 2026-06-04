@@ -2,7 +2,7 @@
 resource: order
 entity: orders__receivers-history
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#orders--receivers-history
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Order / Orders receivers history
@@ -55,3 +55,64 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `order_id` | ✓ | 주문번호 |  | 주문번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "history": [
+        {
+            "shop_no": 1,
+            "name": "John Doe",
+            "phone": "02-0000-0000",
+            "cellphone": "010-0000-0000",
+            "zipcode": "06258",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall",
+            "address_state": "STATE",
+            "address_city": "CITY",
+            "address_street": "STREET",
+            "address_full": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea Professional Construction Hall",
+            "name_en": null,
+            "city_en": null,
+            "state_en": null,
+            "street_en": null,
+            "country_code": "",
+            "country_name": null,
+            "country_name_en": null,
+            "shipping_message": "Sample shipping message",
+            "updated_date": "2018-09-03T17:20:49+09:00",
+            "user_id": "sampleid",
+            "user_name": "John Doe",
+            "shipping_code": "D-20180903-0000243-00"
+        },
+        {
+            "shop_no": 1,
+            "name": "John Doe",
+            "phone": "02-0000-0000",
+            "cellphone": "010-0000-0000",
+            "zipcode": "06258",
+            "address1": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea",
+            "address2": "Professional Construction Hall",
+            "address_state": "STATE",
+            "address_city": "CITY",
+            "address_street": "STREET",
+            "address_full": "Sindaebang dong Dongjak-gu, Seoul, Republic of Korea Professional Construction Hall",
+            "name_en": null,
+            "city_en": null,
+            "state_en": null,
+            "street_en": null,
+            "country_code": "",
+            "country_name": null,
+            "country_name_en": null,
+            "shipping_message": "Sample shipping message",
+            "updated_date": "2018-09-03T17:20:49+09:00",
+            "user_id": "sampleid",
+            "user_name": "John Doe 2",
+            "shipping_code": "D-20180903-0000243-01"
+        }
+    ]
+}
+```

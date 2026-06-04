@@ -2,7 +2,7 @@
 resource: customer
 entity: customergroups
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customergroups
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Customer / Customergroups
@@ -48,6 +48,61 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `group_no` |  |  |  | 회원등급번호 ,(콤마)로 여러 건을 검색할 수 있다. |
 | `group_name` |  | 최대글자수 : [20자] |  | 회원등급명 ,(콤마)로 여러 건을 검색할 수 있다. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customergroups": [
+        {
+            "shop_no": 1,
+            "group_no": 1,
+            "group_name": "Standard Membership",
+            "group_description": "Group information",
+            "group_icon": "https://{domain}/web/bbs_member_icon/member/1457000663.png",
+            "benefits_paymethod": "A",
+            "buy_benefits": "D",
+            "ship_benefits": "F",
+            "product_availability": "A",
+            "discount_information": {
+                "amount_product": "100000.00",
+                "amount_discount": "100.00",
+                "discount_unit": "P",
+                "truncation_unit": "10",
+                "max_discount": "10.00"
+            },
+            "points_information": {
+                "amount_product": "100000.00",
+                "amount_discount": "20.00",
+                "discount_unit": "P",
+                "truncation_unit": "100",
+                "max_discount": "100.00"
+            },
+            "mobile_discount_information": {
+                "amount_product": "100000.00",
+                "amount_discount": "20.00",
+                "discount_unit": "P",
+                "truncation_unit": "100",
+                "max_discount": "100.00"
+            },
+            "mobile_points_information": {
+                "amount_product": "100000.00",
+                "amount_discount": "20.00",
+                "discount_unit": "P",
+                "truncation_unit": "100",
+                "max_discount": "100.00"
+            },
+            "discount_limit_information": {
+                "discount_limit_type": "B",
+                "discount_amount_limit": "100000.00",
+                "number_of_discount_limit": null
+            }
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/customergroups/count` — Retrieve a count of customer tiers
 
 - **Scope**: `mall.read_customer` (read)
@@ -63,6 +118,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `group_no` |  |  |  | 회원등급번호 시스템이 회원등급에 부여한 번호. ,(콤마)로 여러 건을 검색할 수 있다. |
 | `group_name` |  | 최대글자수 : [20자] |  | 회원등급명 회원등급을 만들 당시 지정한 회원등급의 이름. ,(콤마)로 여러 건을 검색할 수 있다. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 1
+}
+```
+
 ### `GET /api/v2/admin/customergroups/{group_no}` — Retrieve a customer tier
 
 - **Scope**: `mall.read_customer` (read)
@@ -76,3 +141,56 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `group_no` | ✓ |  |  | 회원등급번호 시스템이 회원등급에 부여한 번호. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customergroup": {
+        "shop_no": 1,
+        "group_no": 1,
+        "group_name": "Standard Membership",
+        "group_description": "Group information",
+        "group_icon": "https://{domain}/web/bbs_member_icon/member/1457000663.png",
+        "benefits_paymethod": "A",
+        "buy_benefits": "D",
+        "ship_benefits": "F",
+        "product_availability": "A",
+        "discount_information": {
+            "amount_product": "100000.00",
+            "amount_discount": "100.00",
+            "discount_unit": "P",
+            "truncation_unit": "10",
+            "max_discount": "10.00"
+        },
+        "points_information": {
+            "amount_product": "100000.00",
+            "amount_discount": "20.00",
+            "discount_unit": "P",
+            "truncation_unit": "100",
+            "max_discount": "100.00"
+        },
+        "mobile_discount_information": {
+            "amount_product": "100000.00",
+            "amount_discount": "20.00",
+            "discount_unit": "P",
+            "truncation_unit": "100",
+            "max_discount": "100.00"
+        },
+        "mobile_points_information": {
+            "amount_product": "100000.00",
+            "amount_discount": "20.00",
+            "discount_unit": "P",
+            "truncation_unit": "100",
+            "max_discount": "100.00"
+        },
+        "discount_limit_information": {
+            "discount_limit_type": "B",
+            "discount_amount_limit": "100000.00",
+            "number_of_discount_limit": null
+        }
+    }
+}
+```

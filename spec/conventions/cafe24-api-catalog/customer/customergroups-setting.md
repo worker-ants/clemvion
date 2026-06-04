@@ -2,7 +2,7 @@
 resource: customer
 entity: customergroups-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customergroups-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Customer / Customergroups setting
@@ -52,3 +52,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "customergroup": {
+        "shop_no": 1,
+        "auto_update": "T",
+        "use_auto_update": "T",
+        "customer_tier_criteria": "purchase_amount_and_purchase_count",
+        "standard_purchase_amount": "total_order_amount",
+        "offline_purchase_amount": null,
+        "standard_purchase_count": "order_count",
+        "offline_purchase_count": null,
+        "auto_update_criteria": "payment_complete",
+        "deduct_cancellation_refund": "T",
+        "interval_auto_update": "1m",
+        "total_period": "1m",
+        "interval_week": null,
+        "interval_month": 5,
+        "auto_update_set_date": "2022-12-05 03:00:00",
+        "use_discount_limit": "T",
+        "discount_limit_reset_period": "1m",
+        "discount_limit_reset_week": null,
+        "discount_limit_reset_date": 5,
+        "discount_limit_begin_date": "2022-12-05",
+        "discount_limit_end_date": "2023-01-05"
+    }
+}
+```

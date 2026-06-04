@@ -2,7 +2,7 @@
 resource: store
 entity: naverpay-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#naverpay-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Naverpay setting
@@ -47,6 +47,32 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "naverpay": {
+        "shop_no": "1",
+        "authentication_key": "s_abcdefg",
+        "naverpay_version": "2.1",
+        "shop_id": "c_abcdefg",
+        "is_button_show": "T",
+        "is_used_order": "T",
+        "is_used_review": "T",
+        "is_show_review": "T",
+        "s_order_page": "N",
+        "certi_key": "ABC1234A-1A1A-1A23-1234-A12345A1A12A",
+        "image_key": "ABC1234A-1A1A-1A23-1234-A12345A1A12A",
+        "naver_button_pc_product": "A|1|2",
+        "naver_button_pc_basket": "A|1|1",
+        "naver_button_mobile_product": "MA|1|2",
+        "naver_button_mobile_basket": "MA|1|1"
+    }
+}
+```
+
 ### `POST /api/v2/admin/naverpay/setting` — Create Naver Pay settings
 
 - **Scope**: `mall.write_store` (write)
@@ -75,6 +101,31 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `naver_button_mobile_product` |  |  | MA\|1\|2 | 네이버 버튼 디자인 : Mobile 상품상세페이지 |
 | `naver_button_mobile_basket` |  |  | MA\|1\|1 | 네이버 버튼 디자인 : Mobile 장바구니페이지 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "naverpay": {
+        "authentication_key": "s_abcdefg",
+        "naverpay_version": "2.1",
+        "shop_id": "c_abcdefg",
+        "is_button_show": "T",
+        "is_used_order": "T",
+        "is_used_review": "T",
+        "is_show_review": "T",
+        "s_order_page": "N",
+        "certi_key": "ABC1234A-1A1A-1A23-1234-A12345A1A12A",
+        "image_key": "ABC1234A-1A1A-1A23-1234-A12345A1A12A",
+        "naver_button_pc_product": "A|1|2",
+        "naver_button_pc_basket": "A|1|1",
+        "naver_button_mobile_product": "MA|1|2",
+        "naver_button_mobile_basket": "MA|1|1"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/naverpay/setting` — Update Naver Pay settings
 
 - **Scope**: `mall.write_store` (write)
@@ -89,3 +140,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `authentication_key` |  | 형식 : [a-zA-Z0-9_-]; 최대글자수 : [50자] |  | 네이버 공통 인증키 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "naverpay": {
+        "shop_no": 1,
+        "authentication_key": "s_abcdefg"
+    }
+}
+```

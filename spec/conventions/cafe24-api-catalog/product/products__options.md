@@ -2,7 +2,7 @@
 resource: product
 entity: products__options
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#products--options
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Product / Products options
@@ -46,6 +46,94 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | `product_no` | ✓ |  |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "option": {
+        "shop_no": 1,
+        "product_no": 7,
+        "has_option": "T",
+        "option_type": "E",
+        "option_list_type": "S",
+        "option_preset_code": "S000000A",
+        "options": [
+            {
+                "option_code": "O000000A",
+                "option_name": "Color",
+                "option_value": [
+                    {
+                        "option_image_file": "https://{domain}/web/product/option_button/201804/temp_shop1_831549.gif",
+                        "option_link_image": "https://{domain}/web/product/big/201604/1_shop1_423399.png",
+                        "option_color": "#000000",
+                        "option_text": "Black",
+                        "value_no": null,
+                        "additional_amount": "1000.00"
+                    },
+                    {
+                        "option_image_file": "https://{domain}/web/product/option_button/201804/temp_shop1_831549.gif",
+                        "option_link_image": "https://{domain}/web/product/big/201604/1_shop1_436875.png",
+                        "option_color": "#007543",
+                        "option_text": "Red",
+                        "value_no": null,
+                        "additional_amount": "1000.00"
+                    }
+                ],
+                "required_option": "T",
+                "option_display_type": "S"
+            },
+            {
+                "option_code": "O000000B",
+                "option_name": "Size",
+                "option_value": [
+                    {
+                        "option_image_file": "https://{domain}/web/product/option_button/201804/temp_shop1_931549.gif",
+                        "option_link_image": "",
+                        "option_color": "#000000",
+                        "option_text": "Small",
+                        "value_no": null,
+                        "additional_amount": "0.00"
+                    },
+                    {
+                        "option_image_file": "https://{domain}/web/product/option_button/201804/temp_shop1_931549.gif",
+                        "option_link_image": "",
+                        "option_color": "#007543",
+                        "option_text": "Large",
+                        "value_no": null,
+                        "additional_amount": "0.00"
+                    }
+                ],
+                "required_option": "T",
+                "option_display_type": "S"
+            }
+        ],
+        "select_one_by_option": "F",
+        "option_preset_name": "",
+        "use_additional_option": "T",
+        "additional_options": [
+            {
+                "additional_option_name": "Pattern",
+                "required_additional_option": "T",
+                "additional_option_text_length": 20
+            },
+            {
+                "additional_option_name": "Custom Option",
+                "required_additional_option": "F",
+                "additional_option_text_length": 10
+            }
+        ],
+        "use_attached_file_option": "T",
+        "attached_file_option": {
+            "option_name": "Pattern Images",
+            "required": "T",
+            "size_limit": 3
+        }
+    }
+}
+```
+
 ### `POST /api/v2/admin/products/{product_no}/options` — Create product options
 
 - **Scope**: `mall.write_product` (write)
@@ -80,6 +168,70 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `required_additional_option` | ✓ |  |  | 추가입력옵션 필수 여부 · T : 필수 · F : 선택 · DEFAULT T |
 | `use_attached_file_option` |  |  |  | 파일 첨부 옵션 사용여부 T : 사용함 · F : 사용안함 |
 | `attached_file_option` |  |  |  | 파일 첨부 옵션 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "option": {
+        "shop_no": 1,
+        "product_no": 24,
+        "has_option": "T",
+        "option_type": "T",
+        "option_list_type": "S",
+        "option_preset_code": "",
+        "options": [
+            {
+                "option_code": "",
+                "option_name": "Color",
+                "option_value": [
+                    {
+                        "option_image_file": "https://{domain}/web/product/option_button/201901/1b2fb6499d99b37581c79e10ad0b4d06.jpg",
+                        "option_link_image": "",
+                        "option_color": "#000000",
+                        "option_text": "Black",
+                        "value_no": null,
+                        "additional_amount": null
+                    },
+                    {
+                        "option_image_file": "https://{domain}/web/product/option_button/201901/7c5ge8616dc9b5j281c39dug740cjd28.jpg",
+                        "option_link_image": "",
+                        "option_color": "#007543",
+                        "option_text": "Red",
+                        "value_no": null,
+                        "additional_amount": null
+                    }
+                ],
+                "required_option": "T",
+                "option_display_type": "S"
+            }
+        ],
+        "select_one_by_option": "F",
+        "option_preset_name": "",
+        "use_additional_option": "T",
+        "additional_options": [
+            {
+                "additional_option_name": "Pattern",
+                "required_additional_option": "T",
+                "additional_option_text_length": 20
+            },
+            {
+                "additional_option_name": "Custom Option",
+                "required_additional_option": "F",
+                "additional_option_text_length": 10
+            }
+        ],
+        "use_attached_file_option": "T",
+        "attached_file_option": {
+            "option_name": "Pattern Images",
+            "required": "T",
+            "size_limit": 3
+        }
+    }
+}
+```
 
 ### `PUT /api/v2/admin/products/{product_no}/options` — Update product options
 
@@ -119,6 +271,92 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `use_attached_file_option` |  |  |  | 파일 첨부 옵션 사용여부 T : 사용함 · F : 사용안함 |
 | `attached_file_option` |  |  |  | 파일 첨부 옵션 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "option": {
+        "shop_no": 1,
+        "product_no": 24,
+        "has_option": "T",
+        "option_type": "T",
+        "option_list_type": "S",
+        "option_preset_code": "",
+        "options": [
+            {
+                "option_code": "",
+                "option_name": "Color",
+                "option_value": [
+                    {
+                        "option_image_file": "https://{domain}/web/product/option_button/201901/1b2fb6499d99b37581c79e10ad0b4d06.jpg",
+                        "option_link_image": "https://{domain}/web/product/big/201604/1_shop1_423399.png",
+                        "option_color": "#000000",
+                        "option_text": "Black",
+                        "value_no": null,
+                        "additional_amount": null
+                    },
+                    {
+                        "option_image_file": "https://{domain}/web/product/option_button/201901/7c5ge8616dc9b5j281c39dug740cjd28.jpg",
+                        "option_link_image": "https://{domain}/web/product/big/201604/1_shop1_436875.png",
+                        "option_color": "#007543",
+                        "option_text": "Red",
+                        "value_no": null,
+                        "additional_amount": null
+                    }
+                ],
+                "required_option": "T",
+                "option_display_type": "P"
+            },
+            {
+                "option_code": "",
+                "option_name": "Size",
+                "option_value": [
+                    {
+                        "option_image_file": "https://{domain}/web/product/option_button/201804/temp_shop1_931549.gif",
+                        "option_link_image": "",
+                        "option_color": "#000000",
+                        "option_text": "Small",
+                        "value_no": null,
+                        "additional_amount": null
+                    },
+                    {
+                        "option_image_file": "https://{domain}/web/product/option_button/201804/temp_shop1_931549.gif",
+                        "option_link_image": "",
+                        "option_color": "#007543",
+                        "option_text": "Large",
+                        "value_no": null,
+                        "additional_amount": null
+                    }
+                ],
+                "required_option": "T",
+                "option_display_type": "S"
+            }
+        ],
+        "use_additional_option": "T",
+        "additional_options": [
+            {
+                "additional_option_name": "Pattern",
+                "required_additional_option": "T",
+                "additional_option_text_length": 20
+            },
+            {
+                "additional_option_name": "Custom Option",
+                "required_additional_option": "F",
+                "additional_option_text_length": 10
+            }
+        ],
+        "use_attached_file_option": "T",
+        "attached_file_option": {
+            "option_name": "Pattern Images",
+            "required": "T",
+            "size_limit": 3
+        }
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/products/{product_no}/options` — Delete a product option
 
 - **Scope**: `mall.write_product` (write)
@@ -131,3 +369,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `product_no` | ✓ |  |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "option": {
+        "product_no": 24
+    }
+}
+```

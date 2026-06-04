@@ -2,7 +2,7 @@
 resource: store
 entity: sms-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#sms-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Sms setting
@@ -39,6 +39,24 @@ SMS 설정(Sms setting)은 쇼핑몰의 SMS 설정에 관한 기능입니다. ·
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "sms": {
+        "shop_no": 1,
+        "use_sms": "F",
+        "exclude_unsubscriber": "T",
+        "default_sender": "01012345678",
+        "unsubscribe_phone": "01012345678",
+        "send_method": "S",
+        "send_method_automatic": "L"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/sms/setting` — Update SMS settings
 
 - **Scope**: `mall.write_store` (write)
@@ -58,3 +76,21 @@ SMS 설정(Sms setting)은 쇼핑몰의 SMS 설정에 관한 기능입니다. ·
 | `unsubscribe_phone` |  | 최대글자수 : [14자] |  | 무료 수신거부 전화번호 |
 | `send_method` |  |  |  | SMS 발송방법 S: 단문 분할발송 · L: 장문발송(3건 차감) |
 | `send_method_automatic` |  |  |  | SMS 발송방법 (자동) L: 장문발송(3건차감) · S: 단문 분할발송 · N: 단문발송 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "sms": {
+        "shop_no": 1,
+        "use_sms": "F",
+        "exclude_unsubscriber": "T",
+        "default_sender": "01012345678",
+        "unsubscribe_phone": "01012345678",
+        "send_method": "S",
+        "send_method_automatic": "L"
+    }
+}
+```

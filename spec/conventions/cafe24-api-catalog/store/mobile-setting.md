@@ -2,7 +2,7 @@
 resource: store
 entity: mobile-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#mobile-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Mobile setting
@@ -35,6 +35,20 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "mobile": {
+        "shop_no": 1,
+        "use_mobile_page": "T",
+        "use_mobile_domain_redirection": "T"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/mobile/setting` — Update mobile settings
 
 - **Scope**: `mall.write_store` (write)
@@ -49,3 +63,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 | `use_mobile_page` |  |  |  | 모바일 쇼핑몰 사용설정 T : 사용함 · F : 사용안함 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "mobile": {
+        "shop_no": 1,
+        "use_mobile_page": "T"
+    }
+}
+```

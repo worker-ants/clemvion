@@ -2,7 +2,7 @@
 resource: category
 entity: categories__seo
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#categories--seo
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Category / Categories seo
@@ -40,6 +40,24 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `category_no` | ✓ |  |  | 분류 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "seo": {
+        "shop_no": 1,
+        "category_no": 24,
+        "search_engine_exposure": "T",
+        "meta_title": "Browser Title",
+        "meta_author": "Cafe24",
+        "meta_description": "This is a sample product.",
+        "meta_keywords": "sample keyword1,sample keyword2, sample keyword3, ..."
+    }
+}
+```
+
 ### `PUT /api/v2/admin/categories/{category_no}/seo` — Update a product category SEO
 
 - **Scope**: `mall.write_category` (write)
@@ -60,3 +78,21 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `meta_author` |  |  |  | 메타태그1 : Author |
 | `meta_description` |  |  |  | 메타태그2 : Description |
 | `meta_keywords` |  |  |  | 메타태그3 : Keywords |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "seo": {
+        "shop_no": 1,
+        "category_no": 24,
+        "search_engine_exposure": "T",
+        "meta_title": "Browser Title",
+        "meta_author": "Cafe24",
+        "meta_description": "This is a sample product.",
+        "meta_keywords": "sample keyword1,sample keyword2, sample keyword3, ..."
+    }
+}
+```

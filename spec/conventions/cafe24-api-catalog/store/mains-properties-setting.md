@@ -2,7 +2,7 @@
 resource: store
 entity: mains-properties-setting
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#mains-properties-setting
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Store / Mains properties setting
@@ -38,6 +38,38 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  | 최소값: [1] | 1 | 멀티쇼핑몰 번호 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "main": {
+        "shop_no": 1,
+        "strikethrough_retail_price": "F",
+        "strikethrough_price": "T",
+        "product_tax_type_text": {
+            "use": "T",
+            "color": "#999999",
+            "font_size": 12,
+            "font_type": "N"
+        },
+        "product_discount_price_text": {
+            "use": "T",
+            "color": "#FF5B59",
+            "font_size": 14,
+            "font_type": "N"
+        },
+        "optimum_discount_price_text": {
+            "use": "T",
+            "color": "#0066FF",
+            "font_size": 14,
+            "font_type": "N"
+        }
+    }
+}
+```
+
 ### `PUT /api/v2/admin/mains/properties/setting` — Update additional settings for products on the main screen
 
 - **Scope**: `mall.write_store` (write)
@@ -68,3 +100,35 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | ↳ `color` |  |  |  | 글자 색상 |
 | ↳ `font_size` |  |  |  | 글자 크기 |
 | ↳ `font_type` |  |  |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "main": {
+        "shop_no": 1,
+        "strikethrough_retail_price": "F",
+        "strikethrough_price": "T",
+        "product_tax_type_text": {
+            "use": "F",
+            "color": "#999999",
+            "font_size": "12",
+            "font_type": "N"
+        },
+        "product_discount_price_text": {
+            "use": "T",
+            "color": "#FF5B59",
+            "font_size": "14",
+            "font_type": "N"
+        },
+        "optimum_discount_price_text": {
+            "use": "T",
+            "color": "#0066FF",
+            "font_size": "14",
+            "font_type": "N"
+        }
+    }
+}
+```

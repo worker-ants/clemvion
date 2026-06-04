@@ -2,7 +2,7 @@
 resource: supply
 entity: suppliers-users
 cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#suppliers-users
-source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json
 ---
 
 # Cafe24 API — Supply / Suppliers users
@@ -61,6 +61,47 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `offset` |  | 최대값: [8000] | 0 | 조회결과 시작위치 |
 | `limit` |  | 최소: [1]~최대: [100] | 10 | 조회결과 최대건수 조회하고자 하는 최대 건수를 지정할 수 있음. · 예) 10 입력시 10건만 표시함. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "users": [
+        {
+            "user_id": "S0000000",
+            "supplier_code": "S0000000",
+            "supplier_name": "Default Supplier",
+            "permission_category_select": "",
+            "permission_product_modify": "T",
+            "permission_product_display": "",
+            "permission_product_selling": "T",
+            "permission_product_delete": "",
+            "permission_board_manage": "F",
+            "permission_amount_inquiry": "F",
+            "permission_order_menu": "F",
+            "permission_order_cs": "F",
+            "permission_order_refund": "F"
+        },
+        {
+            "user_id": "applesupply",
+            "supplier_code": "S000000A",
+            "supplier_name": "Apple",
+            "permission_category_select": "T",
+            "permission_product_modify": "T",
+            "permission_product_display": "T",
+            "permission_product_selling": "T",
+            "permission_product_delete": "T",
+            "permission_board_manage": "T",
+            "permission_amount_inquiry": "T",
+            "permission_order_menu": "F",
+            "permission_order_cs": "F",
+            "permission_order_refund": "F"
+        }
+    ]
+}
+```
+
 ### `GET /api/v2/admin/suppliers/users/count` — Retrieve a count of supplier users
 
 - **Scope**: `mall.read_supply` (read)
@@ -77,6 +118,16 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `supplier_code` |  | 최대글자수 : [8자] |  | 공급사 코드 시스템에서 부여한 공급사의 코드. 해당 쇼핑몰 내에서 공급사 코드는 중복되지 않는다. |
 | `supplier_name` |  | 최대글자수 : [100자] |  | 공급사명 공급사의 이름. 공급사명은 쇼핑몰 관리자 화면에서 공급사를 구분할 수 있는 기본적인 정보이다. |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "count": 2
+}
+```
+
 ### `GET /api/v2/admin/suppliers/users/{user_id}` — Retrieve supplier user details
 
 - **Scope**: `mall.read_supply` (read)
@@ -90,6 +141,48 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 |---|---|---|---|---|
 | `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
 | `user_id` |  | 형식 : [a-zA-Z0-9]; 글자수 최소: [4자]~최대: [16자] |  | 공급사 운영자 아이디 공급사 운영자가 로그인할 경우 사용하는 로그인 아이디. 부운영자와 마찬가지로 쇼핑몰 관리자 화면에 로그인하면 공급사 관리자 화면에 접근할 수 있다. |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "user": {
+        "user_id": "supplyone",
+        "supplier_code": "S000000A",
+        "supplier_name": "Apple",
+        "user_name": "Apple Product Supplier",
+        "nick_name": "Guysinapple",
+        "nick_name_icon_type": "D",
+        "nick_name_icon_url": "https://{domain}/web/upload/admin1.gif",
+        "use_nick_name_icon": "T",
+        "use_writer_name_icon": "F",
+        "email": "sample@sample.com",
+        "phone": "010-0000-0000",
+        "permission_shop_no": [
+            1,
+            2
+        ],
+        "permission_category_select": "T",
+        "permitted_category_list": [
+            29,
+            27,
+            28,
+            33
+        ],
+        "permission_product_modify": "T",
+        "permission_product_display": "T",
+        "permission_product_selling": "T",
+        "permission_product_delete": "F",
+        "permission_board_manage": "T",
+        "permission_amount_inquiry": "T",
+        "permission_order_menu": "F",
+        "permission_order_cs": "F",
+        "permission_order_refund": "F"
+    }
+}
+```
 
 ### `POST /api/v2/admin/suppliers/users` — Create a supplier user
 
@@ -129,6 +222,61 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `permission_order_refund` |  |  | F | 환불 완료 처리 T : 사용함 · F : 사용안함 |
 | `permission_delivery_fee_inquiry` |  |  | F | 배송비 조회 권한 T : 사용함 · F : 사용안함 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "user": {
+        "user_id": "sampleid",
+        "supplier_code": "S000000J",
+        "user_name": [
+            {
+                "shop_no": 1,
+                "user_name": "John Doe"
+            },
+            {
+                "shop_no": 2,
+                "user_name": "John Doe"
+            }
+        ],
+        "nick_name": [
+            {
+                "shop_no": 1,
+                "nick_name": "nickname1"
+            },
+            {
+                "shop_no": 2,
+                "nick_name": "nickname2"
+            }
+        ],
+        "use_nick_name_icon": "F",
+        "use_writer_name_icon": "F",
+        "email": "sample@sample.com",
+        "phone": "02-0000-0000",
+        "permission_shop_no": [
+            1,
+            2
+        ],
+        "permission_category_select": "T",
+        "permitted_category_list": [
+            1,
+            2
+        ],
+        "permission_product_modify": "T",
+        "permission_product_display": "T",
+        "permission_product_selling": "T",
+        "permission_product_delete": "T",
+        "permission_order_menu": "T",
+        "permission_amount_inquiry": "T",
+        "permission_order_cs": "F",
+        "permission_order_refund": "F",
+        "permission_delivery_fee_inquiry": "F"
+    }
+}
+```
+
 ### `PUT /api/v2/admin/suppliers/users/{user_id}` — Update a supplier user
 
 - **Scope**: `mall.write_supply` (write)
@@ -166,6 +314,62 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | `permission_order_refund` |  |  |  | 환불 완료 처리 T : 사용함 · F : 사용안함 |
 | `permission_delivery_fee_inquiry` |  |  | F | 배송비 조회 권한 T : 사용함 · F : 사용안함 |
 
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "user": {
+        "user_id": "sampleid",
+        "supplier_code": "S000000J",
+        "user_name": [
+            {
+                "shop_no": 1,
+                "user_name": "John Doe"
+            },
+            {
+                "shop_no": 2,
+                "user_name": "John Doe"
+            }
+        ],
+        "nick_name": [
+            {
+                "shop_no": 1,
+                "nick_name": "nickname1"
+            },
+            {
+                "shop_no": 2,
+                "nick_name": "nickname2"
+            }
+        ],
+        "use_nick_name_icon": "F",
+        "use_writer_name_icon": "F",
+        "email": "sample@sample.com",
+        "phone": "02-0000-0000",
+        "permission_shop_no": [
+            1,
+            2
+        ],
+        "permission_category_select": "T",
+        "permitted_category_list": [
+            1,
+            2,
+            3
+        ],
+        "permission_product_modify": "T",
+        "permission_product_display": "T",
+        "permission_product_selling": "T",
+        "permission_product_delete": "T",
+        "permission_amount_inquiry": "T",
+        "permission_order_menu": "T",
+        "permission_order_cs": "F",
+        "permission_order_refund": "F",
+        "permission_delivery_fee_inquiry": "F"
+    }
+}
+```
+
 ### `DELETE /api/v2/admin/suppliers/users/{user_id}` — Delete a supplier user
 
 - **Scope**: `mall.write_supply` (write)
@@ -178,3 +382,15 @@ source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
 | Parameter | 필수 | 제약 | 기본값 | 설명 |
 |---|---|---|---|---|
 | `user_id` | ✓ | 형식 : [a-z0-9]; 글자수 최소: [4자]~최대: [16자] |  | 공급사 운영자 아이디 |
+
+#### 응답 (Response)
+
+> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+
+```json
+{
+    "user": {
+        "user_id": "sampleid"
+    }
+}
+```
