@@ -1,4 +1,4 @@
--- V073: Execution active-running 누적 시간 (§8 active-running 타임아웃, PR2a)
+-- V083: Execution active-running 누적 시간 (§8 active-running 타임아웃, PR2a)
 --
 -- 관련 spec:
 --   - spec/5-system/4-execution-engine.md §8 (단일 Execution 최대 실행 시간 —
