@@ -35,7 +35,8 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
   }
 
   async process(job: Job<AgentMemoryExtractionJob>): Promise<void> {
-    const { workspaceId, scopeKey, llmConfigId, model, turns } = job.data ?? {};
+    const { workspaceId, scopeKey, llmConfigId, model, turns, ttlDays } =
+      job.data ?? {};
     if (!workspaceId || !scopeKey) return;
     if (!Array.isArray(turns) || turns.length === 0) return;
 
@@ -63,15 +64,25 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
     const facts = parseExtractionResponse(result.content);
     if (facts.length === 0) return;
 
+    // W4: payload ttlDays 런타임 검증 — 양의 유한수만 통과, 그 외(0/음수/NaN/
+    // 비숫자)는 undefined 로 정규화해 무만료로 본다 (오염된 payload 방어).
+    const safeTtlDays =
+      typeof ttlDays === 'number' && Number.isFinite(ttlDays) && ttlDays > 0
+        ? ttlDays
+        : undefined;
+
     await this.agentMemoryService.saveMemories(
       workspaceId,
       scopeKey,
-      facts.map((content) => ({
-        content,
-        metadata: { kind: 'fact', source: 'turn_boundary_extraction' },
+      facts.map((item) => ({
+        content: item.content,
+        // LLM 이 분류한 kind 를 metadata 에 저장 (AGM-11 — 기존 hardcoded 'fact' 대체).
+        metadata: { kind: item.kind, source: 'turn_boundary_extraction' },
       })),
       // 저장 임베딩 출처 — 회수/추출과 동일 llmConfigId (차원·endpoint 일치, §3).
       { llmConfigId: llmConfigId ?? undefined, embeddingModel: undefined },
+      // TTL (일) — 노드 config memoryTtlDays 전달분 (AGM-10). 미설정이면 무만료.
+      safeTtlDays,
     );
 
     this.logger.debug(

@@ -102,6 +102,7 @@ const LABEL_KO: Record<string, string> = {
   "Memory Strategy": "메모리 전략",
   "Memory Threshold": "메모리 임계값",
   "Memory Top-K": "메모리 Top-K",
+  "Memory TTL (days)": "메모리 TTL(일)",
   Mode: "모드",
   Model: "모델",
   "Model Override": "모델 재정의",
@@ -223,6 +224,8 @@ const HINT_KO: Record<string, string> = {
     "턴마다 회수할 메모리 청크 수예요 (KB RAG Top-K 와 독립).",
   "Minimum similarity (0-1) for memory recall (independent of KB RAG Threshold).":
     "메모리 회수에 필요한 최소 유사도(0~1)예요 (KB RAG 임계값과 독립).",
+  "Persistent memories expire after this many days. Empty = never expire.":
+    "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요.",
   "Merge arrived inputs when timeout elapses":
     "타임아웃 발생 시 도착한 입력들을 병합",
   "Minimum similarity score (0-1)": "최소 유사도 점수 (0~1)",
