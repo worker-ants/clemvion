@@ -1,7 +1,7 @@
 -- RAG 검색 후처리(리랭킹) — knowledge_base 컬럼 확장
 -- spec/5-system/9-rag-search.md §3.3, spec/1-data-model.md §2.11
 -- rerank_mode 기본 'off' → 기존 KB 는 현행 동작 유지(하위호환).
--- rerank_config 테이블은 V073 에서 생성된다.
+-- rerank_config 테이블은 V081 에서 생성된다.
 
 ALTER TABLE knowledge_base
   ADD COLUMN rerank_mode TEXT NOT NULL DEFAULT 'off',
