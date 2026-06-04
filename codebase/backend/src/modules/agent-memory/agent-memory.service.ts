@@ -84,7 +84,7 @@ function looksLikeInstruction(content: string): boolean {
  * 같은 batch 안의 신규 fact 끼리 비교한다 — recall/findSimilarFact 의 pgvector
  * cosine 과 동일 정의. 길이가 다르거나 0-norm 이면 0 (비유사) 반환.
  */
-function cosineSimilarity(a: number[], b: number[]): number {
+export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length || a.length === 0) return 0;
   let dot = 0;
   let normA = 0;
@@ -95,7 +95,15 @@ function cosineSimilarity(a: number[], b: number[]): number {
     normB += b[i] * b[i];
   }
   if (normA === 0 || normB === 0) return 0;
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  return dot / Math.sqrt(normA * normB);
+}
+
+/**
+ * `DataSource` 와 트랜잭션 `EntityManager` 모두가 만족하는 최소 쿼리 실행 인터페이스.
+ * saveMemories 내부 헬퍼들이 트랜잭션 manager 로 실행될 수 있도록 (W2) 둘 다 받는다.
+ */
+interface QueryRunnerLike {
+  query<T = unknown>(sql: string, params?: unknown[]): Promise<T>;
 }
 
 export interface RecallOptions {
@@ -166,7 +174,15 @@ export class AgentMemoryService {
           // TTL (일) — 노드 config memoryTtlDays → payload → processor → saveMemories (AGM-10).
           ttlDays: args.ttlDays ?? null,
         },
-        { removeOnComplete: 100, removeOnFail: 100 },
+        {
+          // W3 (TOCTOU 방지): 같은 (workspaceId, scopeKey) 의 추출 job 을 BullMQ
+          // 가 dedup/직렬화하도록 jobId 를 scope 단위로 고정한다. processor
+          // concurrency=2 에서도 같은 scope 의 findSimilarFact→insert 가 동시
+          // 실행되지 않아 중복 insert 를 막는다 (advisory lock 보다 간단·충분).
+          jobId: `agent-memory:${args.workspaceId}:${args.scopeKey}`,
+          removeOnComplete: 100,
+          removeOnFail: 100,
+        },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -296,13 +312,16 @@ export class AgentMemoryService {
    * 각 신규 fact 의 임베딩으로 같은 (workspace_id, scope_key) 안에서
    * `findSimilarFact` (recall cosine SQL 재사용, LIMIT 1, MEMORY_DEDUP_SIMILARITY)
    * 로 유사 기존 fact 를 찾는다. 있으면 그 row 를 UPDATE (content/embedding/
-   * metadata/expires_at/updated_at 갱신 — 같은 사실의 최신화), 없으면 INSERT.
-   * 같은 batch 안의 신규 fact 간 중복도 방지 — 직전 INSERT 한 fact 와 유사하면
+   * metadata/updated_at 갱신 — 같은 사실의 최신화), 없으면 INSERT.
+   * 같은 batch 안의 신규 fact 간 중복도 방지 — 직전 처리한 fact 와 유사하면
    * 그 row 를 다시 UPDATE 한다.
    *
-   * `ttlDays` 가 양수면 `expires_at = now() + ttlDays` 를 채운다 (미설정/0/음수
-   * = 무만료, NULL — 기존 동작 보존, AGM-10). 마지막에 forgetting evict
-   * (만료 row + FIFO 초과분) 를 호출한다. 모든 쿼리는 workspace_id 격리 (§5, AGM-07).
+   * `ttlDays` 가 양수면 INSERT/UPDATE 가 `expires_at = now() + ($N * INTERVAL
+   * '1 day')` 을 **파라미터 바인딩** 으로 채운다 (C1). 미설정/0/음수 면 INSERT 는
+   * 무만료(NULL), **UPDATE 는 기존 expires_at 을 보존** (W1 — 갱신이 기존 TTL 을
+   * 소실시키지 않도록 SET 절에서 제외). 마지막에 forgetting evict (만료 row +
+   * FIFO 초과분) 를 호출한다. 루프+evict 전체는 한 트랜잭션 (W2). 모든 쿼리는
+   * workspace_id 격리 (§5, AGM-07).
    */
   async saveMemories(
     workspaceId: string,
@@ -337,69 +356,96 @@ export class AgentMemoryService {
       model,
     );
 
-    // ttlDays 양수면 expires_at 절대시각. NULL = 무만료 (디폴트). 한 batch 의
-    // 모든 항목이 같은 만료 시각을 공유하도록 한 번만 계산.
-    const expiresAtSql =
-      ttlDays != null && ttlDays > 0
-        ? `now() + INTERVAL '${ttlDays} days'`
-        : null;
+    // ttlDays 양수면 TTL (일) 정규화 — INSERT/UPDATE 가 파라미터 바인딩으로
+    // `now() + ($N * INTERVAL '1 day')` 을 채운다 (C1 — SQL 리터럴 보간 금지).
+    // 미설정/0/음수 = 무만료 (디폴트). 한 batch 의 모든 항목이 같은 만료 정책을
+    // 공유한다.
+    const ttl = ttlDays != null && ttlDays > 0 ? ttlDays : null;
 
-    // 같은 batch 안에서 직전 항목들이 UPDATE/INSERT 한 row id 를 추적해, 후속
-    // 항목이 그 row 와 유사하면 새 INSERT 대신 그 row 를 다시 갱신 (batch 내
-    // 중복 방지). 사실상 같은 fact 가 한 추출 응답에 두 번 나오는 케이스.
-    const batchSeen: { id: string; embedding: number[] }[] = [];
+    // 부분 실패 정합성 (W2): dedup-insert/update 루프 + evict 전체를 한 트랜잭션
+    // 으로 감싼다. 내부 쿼리는 manager 로 실행한다.
+    await this.dataSource.transaction(async (manager) => {
+      // 같은 batch 안에서 직전 항목들이 UPDATE/INSERT 한 row id 를 추적해, 후속
+      // 항목이 그 row 와 유사하면 새 INSERT 대신 그 row 를 다시 갱신 (batch 내
+      // 중복 방지). 사실상 같은 fact 가 한 추출 응답에 두 번 나오는 케이스.
+      const batchSeen: { id: string; embedding: number[] }[] = [];
 
-    for (let i = 0; i < valid.length; i++) {
-      const item = valid[i];
-      const embedding = embeddings[i];
-      if (!embedding || embedding.length === 0) {
-        throw new Error('Embedding vector is empty');
-      }
+      for (let i = 0; i < valid.length; i++) {
+        const item = valid[i];
+        const embedding = embeddings[i];
+        if (!embedding || embedding.length === 0) {
+          throw new Error('Embedding vector is empty');
+        }
 
-      // 1) batch 내 직전 fact 중 유사한 것 — cosine 으로 in-memory 비교.
-      const batchMatch = this.findSimilarInBatch(embedding, batchSeen);
-      if (batchMatch) {
-        await this.updateMemory(
-          batchMatch,
+        // 1) batch 내 직전 fact 중 유사한 것 — cosine 으로 in-memory 비교.
+        const batchMatch = this.findSimilarInBatch(embedding, batchSeen);
+        if (batchMatch) {
+          await this.updateMemory(
+            manager,
+            batchMatch,
+            item.content,
+            embedding,
+            item.metadata,
+            ttl,
+          );
+          // I4: UPDATE 분기에도 갱신된 embedding 을 batchSeen 에 반영해야 같은
+          // batch 의 후속 항목이 이 row 를 다시 탐지한다 (갱신 embedding 기준).
+          this.recordBatchSeen(batchSeen, batchMatch, embedding);
+          continue;
+        }
+
+        // 2) DB 의 기존 fact 중 유사한 것 (recall cosine SQL 재사용, LIMIT 1).
+        const existingId = await this.findSimilarFact(
+          manager,
+          workspaceId,
+          scopeKey,
+          embedding,
+        );
+        if (existingId) {
+          await this.updateMemory(
+            manager,
+            existingId,
+            item.content,
+            embedding,
+            item.metadata,
+            ttl,
+          );
+          this.recordBatchSeen(batchSeen, existingId, embedding);
+          continue;
+        }
+
+        // 3) 신규 INSERT — id 회수해 batch 추적에 추가.
+        const insertedId = await this.insertMemory(
+          manager,
+          workspaceId,
+          scopeKey,
           item.content,
           embedding,
           item.metadata,
-          expiresAtSql,
+          ttl,
         );
-        continue;
+        batchSeen.push({ id: insertedId, embedding });
       }
 
-      // 2) DB 의 기존 fact 중 유사한 것 (recall cosine SQL 재사용, LIMIT 1).
-      const existingId = await this.findSimilarFact(
-        workspaceId,
-        scopeKey,
-        embedding,
-      );
-      if (existingId) {
-        await this.updateMemory(
-          existingId,
-          item.content,
-          embedding,
-          item.metadata,
-          expiresAtSql,
-        );
-        batchSeen.push({ id: existingId, embedding });
-        continue;
-      }
+      await this.evictExpiredAndOldest(manager, workspaceId, scopeKey);
+    });
+  }
 
-      // 3) 신규 INSERT — id 회수해 batch 추적에 추가.
-      const insertedId = await this.insertMemory(
-        workspaceId,
-        scopeKey,
-        item.content,
-        embedding,
-        item.metadata,
-        expiresAtSql,
-      );
-      batchSeen.push({ id: insertedId, embedding });
+  /**
+   * batch dedup 추적(batchSeen) 에 (id, embedding) 을 기록한다. 같은 id 가 이미
+   * 있으면 embedding 만 최신 갱신값으로 덮어쓴다 (UPDATE 분기 — I4). 없으면 추가.
+   */
+  private recordBatchSeen(
+    batchSeen: { id: string; embedding: number[] }[],
+    id: string,
+    embedding: number[],
+  ): void {
+    const existing = batchSeen.find((s) => s.id === id);
+    if (existing) {
+      existing.embedding = embedding;
+    } else {
+      batchSeen.push({ id, embedding });
     }
-
-    await this.evictExpiredAndOldest(workspaceId, scopeKey);
   }
 
   /**
@@ -410,6 +456,7 @@ export class AgentMemoryService {
    * 에러는 null (graceful — dedup 실패가 INSERT 경로를 막지 않게).
    */
   private async findSimilarFact(
+    runner: QueryRunnerLike,
     workspaceId: string,
     scopeKey: string,
     embedding: number[],
@@ -420,7 +467,7 @@ export class AgentMemoryService {
       const vectorStr = `[${embedding.join(',')}]`;
       const cast = getEmbeddingCastType(dim);
       const castExpr = `${cast}(${dim})`;
-      const rows = await this.dataSource.query<{ id: string }[]>(
+      const rows = await runner.query<{ id: string }[]>(
         `SELECT am.id
          FROM agent_memory am
          WHERE am.workspace_id = $2
@@ -457,52 +504,81 @@ export class AgentMemoryService {
     return null;
   }
 
-  /** 단일 fact INSERT — 생성된 id 반환 (batch dedup 추적용). */
+  /**
+   * 단일 fact INSERT — 생성된 id 반환 (batch dedup 추적용).
+   *
+   * `ttlDays` 양수면 `expires_at` 을 **파라미터 바인딩** 으로 채운다
+   * (`now() + ($N * INTERVAL '1 day')`, C1 — ttlDays 를 SQL 리터럴로 보간하지
+   * 않는다). null 이면 expires_at 절을 NULL 로 둔다 (무만료, AGM-10).
+   */
   private async insertMemory(
+    runner: QueryRunnerLike,
     workspaceId: string,
     scopeKey: string,
     content: string,
     embedding: number[],
     metadata: Record<string, unknown> | undefined,
-    expiresAtSql: string | null,
+    ttlDays: number | null,
   ): Promise<string> {
     const vectorStr = `[${embedding.join(',')}]`;
-    const rows = await this.dataSource.query<{ id: string }[]>(
+    const params: unknown[] = [
+      workspaceId,
+      scopeKey,
+      content,
+      vectorStr,
+      JSON.stringify(metadata ?? {}),
+    ];
+    // expires_at: ttlDays 양수면 $6 로 일수를 바인딩, 아니면 NULL.
+    const expiresAtExpr =
+      ttlDays != null ? `now() + ($6 * INTERVAL '1 day')` : 'NULL';
+    if (ttlDays != null) params.push(ttlDays);
+    const rows = await runner.query<{ id: string }[]>(
       `INSERT INTO agent_memory (workspace_id, scope_key, content, embedding, metadata, expires_at)
-       VALUES ($1, $2, $3, $4::vector, $5, ${expiresAtSql ?? 'NULL'})
+       VALUES ($1, $2, $3, $4::vector, $5, ${expiresAtExpr})
        RETURNING id`,
-      [
-        workspaceId,
-        scopeKey,
-        content,
-        vectorStr,
-        JSON.stringify(metadata ?? {}),
-      ],
+      params,
     );
     return rows[0].id;
   }
 
   /**
-   * 유사 기존 fact 를 최신 content/embedding/metadata/expires_at 으로 갱신
+   * 유사 기존 fact 를 최신 content/embedding/metadata 으로 갱신
    * (AGM-09 — 같은 사실의 최신화). updated_at 은 갱신 시각으로 바꾼다.
+   *
+   * **TTL 보존 (W1)**: `ttlDays` 가 제공된 경우(양수)에만 `expires_at` 을 재설정
+   * (파라미터 바인딩 — C1). null 이면 기존 row 의 `expires_at` 을 **건드리지 않는다**
+   * (SET 절에서 제외) — 갱신이 기존 TTL 을 의도치 않게 소실시키지 않도록.
    */
   private async updateMemory(
+    runner: QueryRunnerLike,
     id: string,
     content: string,
     embedding: number[],
     metadata: Record<string, unknown> | undefined,
-    expiresAtSql: string | null,
+    ttlDays: number | null,
   ): Promise<void> {
     const vectorStr = `[${embedding.join(',')}]`;
-    await this.dataSource.query(
+    const params: unknown[] = [
+      id,
+      content,
+      vectorStr,
+      JSON.stringify(metadata ?? {}),
+    ];
+    // ttlDays 제공 시에만 expires_at 재설정 ($5 바인딩). 미설정이면 SET 절에서
+    // 제외해 기존 만료를 보존한다 (W1).
+    const expiresAtSet =
+      ttlDays != null
+        ? `,\n           expires_at = now() + ($5 * INTERVAL '1 day')`
+        : '';
+    if (ttlDays != null) params.push(ttlDays);
+    await runner.query(
       `UPDATE agent_memory
        SET content = $2,
            embedding = $3::vector,
-           metadata = $4,
-           expires_at = ${expiresAtSql ?? 'NULL'},
+           metadata = $4${expiresAtSet},
            updated_at = now()
        WHERE id = $1`,
-      [id, content, vectorStr, JSON.stringify(metadata ?? {})],
+      params,
     );
   }
 
@@ -515,18 +591,19 @@ export class AgentMemoryService {
    * workspace_id 격리 강제.
    */
   private async evictExpiredAndOldest(
+    runner: QueryRunnerLike,
     workspaceId: string,
     scopeKey: string,
   ): Promise<void> {
     // 1) TTL 만료 row 삭제 — partial index idx_agent_memory_expires_at 활용.
-    await this.dataSource.query(
+    await runner.query(
       `DELETE FROM agent_memory
        WHERE workspace_id = $1 AND scope_key = $2
          AND expires_at IS NOT NULL AND expires_at < now()`,
       [workspaceId, scopeKey],
     );
     // 2) FIFO/LRU 초과분 삭제 (만료 정리 후 남은 row 기준).
-    await this.dataSource.query(
+    await runner.query(
       `DELETE FROM agent_memory
        WHERE id IN (
          SELECT id FROM agent_memory

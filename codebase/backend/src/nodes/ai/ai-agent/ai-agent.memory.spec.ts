@@ -1024,5 +1024,76 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       const arg = agentMemoryService.scheduleExtraction.mock.calls[0][0];
       expect(arg.ttlDays).toBeUndefined();
     });
+
+    it('W7: resolveMemoryTtlDays 경계 — 0/-5/NaN/비숫자→undefined, "30"→30, 1.7→1', async () => {
+      const cases: { raw: unknown; expected: number | undefined }[] = [
+        { raw: 0, expected: undefined },
+        { raw: -5, expected: undefined },
+        { raw: NaN, expected: undefined },
+        { raw: 'abc', expected: undefined },
+        { raw: undefined, expected: undefined },
+        { raw: '30', expected: 30 }, // 숫자 문자열 파싱.
+        { raw: 1.7, expected: 1 }, // floor.
+        { raw: 90, expected: 90 },
+      ];
+      for (const { raw, expected } of cases) {
+        agentMemoryService.scheduleExtraction.mockClear();
+        const context = makeContext();
+        const handler = buildHandler();
+        await handler.execute(
+          undefined,
+          {
+            mode: 'single_turn',
+            model: 'gpt-4o',
+            systemPrompt: 'Sys',
+            userPrompt: 'Hi',
+            responseFormat: 'text',
+            maxToolCalls: 10,
+            memoryStrategy: 'persistent',
+            memoryKey: 'user-1',
+            memoryTtlDays: raw,
+            memoryTokenBudget: 100000,
+          } as never,
+          context,
+        );
+        const arg = agentMemoryService.scheduleExtraction.mock.calls[0][0];
+        expect(arg.ttlDays).toBe(expected);
+      }
+    });
+
+    it('I20: 신규 turn 이 0개면(watermark 가 최신) scheduleExtraction 을 호출하지 않는다', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          memoryStrategy: 'persistent',
+          memoryKey: 'cust-20',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      let state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      // 1차 turn → enqueue #1, watermark 영속.
+      const r1 = await handler.processMultiTurnMessage('첫 질문', state);
+      state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
+      expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(1);
+
+      // watermark 를 thread 의 최신 seq 이상으로 인위적으로 올려, 신규 turn 이
+      // 없는 상태를 만든다 — 다음 추출 시도는 fresh.length===0 으로 skip 되어야.
+      state.lastExtractionTurnSeq = 1_000_000;
+      const r2 = await handler.processMultiTurnMessage('둘째 질문', state);
+      // 새 user/assistant turn(seq 작음)은 watermark 초과가 아니므로 enqueue 없음.
+      // (processMultiTurnMessage 가 push 하는 turn 의 seq < 1_000_000)
+      void r2;
+      expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(1);
+    });
   });
 });

@@ -1,6 +1,7 @@
 import {
   buildExtractionTranscript,
   parseExtractionResponse,
+  MEMORY_KINDS,
   type ExtractionTurnSnapshot,
 } from './agent-memory-extraction.queue';
 
@@ -42,6 +43,23 @@ describe('agent-memory-extraction queue helpers (spec §3)', () => {
         { source: 'presentation_user', text: '폼 제출 값', nodeLabel: 'Form' },
       ];
       expect(buildExtractionTranscript(turns)).toBe('사용자: 폼 제출 값');
+    });
+  });
+
+  describe('MEMORY_KINDS (I10 — 단일 진실)', () => {
+    it('MEMORY_KINDS 는 fact/preference/entity 단일 출처', () => {
+      expect([...MEMORY_KINDS]).toEqual(['fact', 'preference', 'entity']);
+    });
+
+    it('MEMORY_KINDS 에 포함된 kind 만 파싱이 보존, 그 외는 fact fallback', () => {
+      const parsed = parseExtractionResponse(
+        JSON.stringify(
+          MEMORY_KINDS.map((k) => ({ content: `c-${k}`, kind: k })),
+        ),
+      );
+      expect(parsed).toEqual(
+        MEMORY_KINDS.map((k) => ({ content: `c-${k}`, kind: k })),
+      );
     });
   });
 

@@ -64,6 +64,13 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
     const facts = parseExtractionResponse(result.content);
     if (facts.length === 0) return;
 
+    // W4: payload ttlDays 런타임 검증 — 양의 유한수만 통과, 그 외(0/음수/NaN/
+    // 비숫자)는 undefined 로 정규화해 무만료로 본다 (오염된 payload 방어).
+    const safeTtlDays =
+      typeof ttlDays === 'number' && Number.isFinite(ttlDays) && ttlDays > 0
+        ? ttlDays
+        : undefined;
+
     await this.agentMemoryService.saveMemories(
       workspaceId,
       scopeKey,
@@ -75,7 +82,7 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
       // 저장 임베딩 출처 — 회수/추출과 동일 llmConfigId (차원·endpoint 일치, §3).
       { llmConfigId: llmConfigId ?? undefined, embeddingModel: undefined },
       // TTL (일) — 노드 config memoryTtlDays 전달분 (AGM-10). 미설정이면 무만료.
-      ttlDays,
+      safeTtlDays,
     );
 
     this.logger.debug(

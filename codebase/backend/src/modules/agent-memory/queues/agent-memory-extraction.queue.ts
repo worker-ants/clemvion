@@ -55,12 +55,9 @@ export interface AgentMemoryExtractionJob {
  * entity 중 하나로 분류해 metadata.kind 로 저장한다. 미분류/미지원 값은 'fact'
  * fallback (단순 사실 단위가 안전 디폴트 — 기존 v1 동작 보존).
  */
-export type MemoryKind = 'fact' | 'preference' | 'entity';
-const MEMORY_KINDS: ReadonlySet<string> = new Set([
-  'fact',
-  'preference',
-  'entity',
-]);
+export const MEMORY_KINDS = ['fact', 'preference', 'entity'] as const;
+export type MemoryKind = (typeof MEMORY_KINDS)[number];
+const MEMORY_KIND_SET: ReadonlySet<string> = new Set(MEMORY_KINDS);
 
 /** 추출 항목 — content + 분류 kind (AGM-11). */
 export interface ExtractedItem {
@@ -171,7 +168,7 @@ export function parseExtractionResponse(
       if (typeof obj.content === 'string') {
         content = obj.content;
       }
-      if (typeof obj.kind === 'string' && MEMORY_KINDS.has(obj.kind)) {
+      if (typeof obj.kind === 'string' && MEMORY_KIND_SET.has(obj.kind)) {
         kind = obj.kind as MemoryKind;
       }
     }

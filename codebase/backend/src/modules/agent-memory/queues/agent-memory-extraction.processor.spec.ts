@@ -111,6 +111,25 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
     expect(callArgs[4]).toBe(14);
   });
 
+  it('W4: 비정상 ttlDays(0/음수/NaN/비숫자)는 undefined 로 정규화해 전달', async () => {
+    const bads: unknown[] = [0, -5, NaN, Infinity, '30'];
+    for (const bad of bads) {
+      agentMemoryService.saveMemories.mockClear();
+      const job = makeJob({});
+      job.data.ttlDays = bad as number;
+      await processor.process(job);
+      const callArgs = agentMemoryService.saveMemories.mock.calls[0];
+      expect(callArgs[4]).toBeUndefined();
+    }
+  });
+
+  it('W4: 양의 유한수 ttlDays 는 그대로 전달', async () => {
+    const job = makeJob({});
+    job.data.ttlDays = 14;
+    await processor.process(job);
+    expect(agentMemoryService.saveMemories.mock.calls[0][4]).toBe(14);
+  });
+
   it('추출 결과 빈 배열이면 saveMemories 호출 안 함 (no-op)', async () => {
     llmService.chat.mockResolvedValue({ content: '[]', model: 'gpt-4o' });
     await processor.process(makeJob({}));
