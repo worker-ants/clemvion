@@ -224,7 +224,7 @@ MakeShop 은 OAuth 2.1 표준을 따르므로 scope 를 **공백 구분** (`stor
 
 ### 9.3 단일 호스트 + shop_uid path segment
 
-Cafe24 는 `{mall_id}.cafe24api.com` 서브도메인이지만 MakeShop 은 **단일 호스트 `connect.makeshop.co.kr` + `/api/v1/{shop_uid}/` path segment** 다. 상점 식별자 `shop_uid` 는 Cafe24 의 `mall_id` 와 동일한 역할 — data-model `Integration` 의 **`mall_id` 컬럼**(`credentials.shop_uid` 재사용)으로 투영하고 `(workspace_id, mall_id) WHERE service_type='makeshop'` partial UNIQUE 로 중복 연결을 차단한다 ([data-model §2.10](../../1-data-model.md)). authorize/token 은 별도 호스트 `auth.makeshop.com`.
+Cafe24 는 `{mall_id}.cafe24api.com` 서브도메인이지만 MakeShop 은 **단일 호스트 `connect.makeshop.co.kr` + `/api/v1/{shop_uid}/` path segment** 다. 상점 식별자 `shop_uid` 는 Cafe24 의 `mall_id` 와 동일한 역할 — data-model `Integration` 의 **`mall_id` 컬럼**(`credentials.shop_uid` 재사용)으로 투영하고 통일 store-identifier partial UNIQUE `idx_integration_workspace_service_mall` (`(workspace_id, service_type, mall_id)`, V072) 로 중복 연결을 차단한다 ([data-model §2.10](../../1-data-model.md)). authorize/token 은 별도 호스트 `auth.makeshop.com`.
 
 ### 9.4 POST/PUT request envelope 미적용
 

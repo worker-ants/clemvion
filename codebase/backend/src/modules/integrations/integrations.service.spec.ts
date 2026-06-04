@@ -1269,37 +1269,72 @@ describe('IntegrationsService', () => {
       expect(createArg.lastRotatedAt).toBeInstanceOf(Date);
     });
 
-    // V045 partial UNIQUE `idx_integration_cafe24_workspace_mall` race
-    // backstop (2026-05-16) — Cafe24 Public 흐름은 begin 단계에서 row 를
-    // 만들지 않으므로 finalize (`POST /api/integrations`) 의 INSERT 가 동시
-    // 진입 시 V045 UNIQUE 위반을 일으킬 수 있다. 옛 `throwIfUniqueViolation`
-    // 은 `integration_workspace_name_unique` 만 처리해 raw QueryFailedError
-    // 가 500 으로 빠지던 결함을 해결. 두 race 경로 (public finalize +
-    // private begin 동시 신청) 모두 동일한 409 코드로 변환.
-    it('translates cafe24 mall_id unique violation to CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409)', async () => {
-      integrationRepo.save = jest.fn().mockRejectedValueOnce(
-        Object.assign(
-          new Error('duplicate key value violates unique constraint'),
-          {
-            code: '23505',
-            constraint: 'idx_integration_cafe24_workspace_mall',
-          },
-        ),
+    // 통일 store-identifier UNIQUE `idx_integration_workspace_service_mall`
+    // (V072 — `(workspace_id, service_type, mall_id)`) race backstop. Cafe24
+    // Public 흐름은 begin 단계에서 row 를 만들지 않으므로 finalize
+    // (`POST /api/integrations`) 의 INSERT 가 동시 진입 시 통일 UNIQUE 위반을
+    // 일으킬 수 있다. `throwIfUniqueViolation` 은 통일 constraint 를 serviceType
+    // 으로 분기해 service 별 409 코드로 변환 (옛 per-service 인덱스 분기 대체).
+    // 두 race 경로 (public finalize + private begin 동시 신청) 모두 동일 코드.
+    //
+    // service 별 매핑은 `throwIfUniqueViolation` 을 직접 호출해 검증한다 —
+    // credential validation 형태에 결합되지 않도록 (실제 INSERT race 에서는
+    // 본 메서드가 catch 분기에서 동일 인자로 호출된다).
+    const callThrowIfUniqueViolation = (
+      err: unknown,
+      serviceType?: string,
+    ): { response?: { code?: string } } | undefined => {
+      const throwFn = (
+        service as unknown as {
+          throwIfUniqueViolation: (e: unknown, s?: string) => void;
+        }
+      ).throwIfUniqueViolation.bind(service);
+      try {
+        throwFn(err, serviceType);
+      } catch (e) {
+        return e as { response?: { code?: string } };
+      }
+      return undefined;
+    };
+
+    const unifiedDupError = () =>
+      Object.assign(
+        new Error('duplicate key value violates unique constraint'),
+        {
+          code: '23505',
+          constraint: 'idx_integration_workspace_service_mall',
+        },
       );
-      const error = await service
-        .create('ws-1', 'user-1', 'member', {
-          serviceType: 'http',
-          authType: 'api_key',
-          name: 'My API',
-          credentials: {
-            location: 'header',
-            key_name: 'X-Api-Key',
-            value: 'secret',
-          },
-        })
-        .catch((e: Error) => e);
-      const response = (error as { response?: { code?: string } }).response;
-      expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+
+    it('translates unified store-identifier unique violation to CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409) for cafe24', () => {
+      const captured = callThrowIfUniqueViolation(unifiedDupError(), 'cafe24');
+      expect(captured?.response?.code).toBe(
+        'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+      );
+    });
+
+    it('translates unified store-identifier unique violation to MAKESHOP_ALREADY_CONNECTED (409) for makeshop', () => {
+      const captured = callThrowIfUniqueViolation(
+        unifiedDupError(),
+        'makeshop',
+      );
+      expect(captured?.response?.code).toBe('MAKESHOP_ALREADY_CONNECTED');
+    });
+
+    // 미등록 service_type 의 통일 UNIQUE 위반은 generic 409 로 graceful
+    // degrade — 신규 통합이 레지스트리 엔트리/코드 변경 없이도 중복을 409 로
+    // 반환.
+    it('falls back to generic INTEGRATION_ALREADY_CONNECTED (409) for an unmapped service', () => {
+      const captured = callThrowIfUniqueViolation(unifiedDupError(), 'shopify');
+      expect(captured?.response?.code).toBe('INTEGRATION_ALREADY_CONNECTED');
+    });
+
+    // INFO #2 — serviceType=undefined 시 generic fallback 동작 명시 검증.
+    // throwIfUniqueViolation 의 serviceType 은 optional 이며, 미전달 시
+    // GENERIC_ALREADY_CONNECTED 로 degrade 해야 한다 (silent fallback 의도 명시).
+    it('falls back to generic INTEGRATION_ALREADY_CONNECTED (409) when serviceType is undefined', () => {
+      const captured = callThrowIfUniqueViolation(unifiedDupError(), undefined);
+      expect(captured?.response?.code).toBe('INTEGRATION_ALREADY_CONNECTED');
     });
 
     it('translates integration name unique violation to INTEGRATION_NAME_TAKEN (409)', async () => {
