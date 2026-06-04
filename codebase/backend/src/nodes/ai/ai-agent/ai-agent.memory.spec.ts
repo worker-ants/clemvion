@@ -933,5 +933,167 @@ describe('AiAgentHandler — auto-memory strategy', () => {
         scopeKey: 'cust-7',
       });
     });
+
+    it('AGM-08: multi-turn 증분 추출 — 두 번째 turn 은 신규 turn 만 snapshot 하고 watermark 영속', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          memoryStrategy: 'persistent',
+          memoryKey: 'cust-9',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      let state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      // 1차 user 메시지 → enqueue #1 (전체 turn snapshot, watermark 미설정).
+      const r1 = await handler.processMultiTurnMessage('첫 질문', state);
+      const call1 = agentMemoryService.scheduleExtraction.mock.calls[0][0];
+      const snap1Len = (call1.turns as unknown[]).length;
+      state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
+      // watermark (lastExtractionTurnSeq) 가 state 로 영속됐다.
+      expect(typeof state.lastExtractionTurnSeq).toBe('number');
+      const wm1 = state.lastExtractionTurnSeq as number;
+
+      // 2차 user 메시지 → enqueue #2 는 seq > wm1 인 신규 turn 만.
+      const r2 = await handler.processMultiTurnMessage('둘째 질문', state);
+      const call2 = agentMemoryService.scheduleExtraction.mock.calls[1][0];
+      const snap2Len = (call2.turns as unknown[]).length;
+      state = (r2 as { _resumeState: Record<string, unknown> })._resumeState;
+      const wm2 = state.lastExtractionTurnSeq as number;
+
+      // 증분: 2차 snapshot 이 누적 전체보다 작고, watermark 가 전진한다.
+      expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(2);
+      expect(snap2Len).toBeLessThan(snap1Len + snap2Len);
+      expect(wm2).toBeGreaterThan(wm1);
+      // 2차 snapshot 에 1차 turn 텍스트는 없다 (이미 추출됨).
+      const texts2 = (call2.turns as { text: string }[]).map((t) => t.text);
+      expect(texts2).not.toContain('첫 질문');
+      expect(texts2).toContain('둘째 질문');
+    });
+
+    it('AGM-10: 노드 config memoryTtlDays 를 scheduleExtraction payload.ttlDays 로 전달', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: '내 이름은 지수',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-1',
+          memoryTtlDays: 30,
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      const arg = agentMemoryService.scheduleExtraction.mock.calls[0][0];
+      expect(arg.ttlDays).toBe(30);
+    });
+
+    it('AGM-10: memoryTtlDays 미설정이면 ttlDays=undefined (무만료)', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-1',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      const arg = agentMemoryService.scheduleExtraction.mock.calls[0][0];
+      expect(arg.ttlDays).toBeUndefined();
+    });
+
+    it('W7: resolveMemoryTtlDays 경계 — 0/-5/NaN/비숫자→undefined, "30"→30, 1.7→1', async () => {
+      const cases: { raw: unknown; expected: number | undefined }[] = [
+        { raw: 0, expected: undefined },
+        { raw: -5, expected: undefined },
+        { raw: NaN, expected: undefined },
+        { raw: 'abc', expected: undefined },
+        { raw: undefined, expected: undefined },
+        { raw: '30', expected: 30 }, // 숫자 문자열 파싱.
+        { raw: 1.7, expected: 1 }, // floor.
+        { raw: 90, expected: 90 },
+      ];
+      for (const { raw, expected } of cases) {
+        agentMemoryService.scheduleExtraction.mockClear();
+        const context = makeContext();
+        const handler = buildHandler();
+        await handler.execute(
+          undefined,
+          {
+            mode: 'single_turn',
+            model: 'gpt-4o',
+            systemPrompt: 'Sys',
+            userPrompt: 'Hi',
+            responseFormat: 'text',
+            maxToolCalls: 10,
+            memoryStrategy: 'persistent',
+            memoryKey: 'user-1',
+            memoryTtlDays: raw,
+            memoryTokenBudget: 100000,
+          } as never,
+          context,
+        );
+        const arg = agentMemoryService.scheduleExtraction.mock.calls[0][0];
+        expect(arg.ttlDays).toBe(expected);
+      }
+    });
+
+    it('I20: 신규 turn 이 0개면(watermark 가 최신) scheduleExtraction 을 호출하지 않는다', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          memoryStrategy: 'persistent',
+          memoryKey: 'cust-20',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      let state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      // 1차 turn → enqueue #1, watermark 영속.
+      const r1 = await handler.processMultiTurnMessage('첫 질문', state);
+      state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
+      expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(1);
+
+      // watermark 를 thread 의 최신 seq 이상으로 인위적으로 올려, 신규 turn 이
+      // 없는 상태를 만든다 — 다음 추출 시도는 fresh.length===0 으로 skip 되어야.
+      state.lastExtractionTurnSeq = 1_000_000;
+      const r2 = await handler.processMultiTurnMessage('둘째 질문', state);
+      // 새 user/assistant turn(seq 작음)은 watermark 초과가 아니므로 enqueue 없음.
+      // (processMultiTurnMessage 가 push 하는 turn 의 seq < 1_000_000)
+      void r2;
+      expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(1);
+    });
   });
 });

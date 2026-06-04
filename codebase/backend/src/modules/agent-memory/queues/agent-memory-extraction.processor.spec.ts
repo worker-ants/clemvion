@@ -69,6 +69,7 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
       agentMemoryService.saveMemories.mock.calls[0];
     expect(wsId).toBe('ws-1');
     expect(scopeKey).toBe('cust-7');
+    // 구 shape(문자열 배열) → kind=fact fallback.
     expect(items).toEqual([
       {
         content: '사용자 이름은 지수다',
@@ -80,6 +81,53 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
       },
     ]);
     expect(embedCfg).toMatchObject({ llmConfigId: 'cfg-1' });
+  });
+
+  it('AGM-11: 분류된 {content, kind} 응답을 metadata.kind 로 저장', async () => {
+    llmService.chat.mockResolvedValue({
+      content:
+        '[{"content": "이름은 지수다", "kind": "entity"}, {"content": "간결함을 선호", "kind": "preference"}]',
+      model: 'gpt-4o',
+    });
+    await processor.process(makeJob({}));
+    const [, , items] = agentMemoryService.saveMemories.mock.calls[0];
+    expect(items).toEqual([
+      {
+        content: '이름은 지수다',
+        metadata: { kind: 'entity', source: 'turn_boundary_extraction' },
+      },
+      {
+        content: '간결함을 선호',
+        metadata: { kind: 'preference', source: 'turn_boundary_extraction' },
+      },
+    ]);
+  });
+
+  it('AGM-10: job.ttlDays 를 saveMemories 5번째 인자로 전달', async () => {
+    const job = makeJob({});
+    job.data.ttlDays = 14;
+    await processor.process(job);
+    const callArgs = agentMemoryService.saveMemories.mock.calls[0];
+    expect(callArgs[4]).toBe(14);
+  });
+
+  it('W4: 비정상 ttlDays(0/음수/NaN/비숫자)는 undefined 로 정규화해 전달', async () => {
+    const bads: unknown[] = [0, -5, NaN, Infinity, '30'];
+    for (const bad of bads) {
+      agentMemoryService.saveMemories.mockClear();
+      const job = makeJob({});
+      job.data.ttlDays = bad as number;
+      await processor.process(job);
+      const callArgs = agentMemoryService.saveMemories.mock.calls[0];
+      expect(callArgs[4]).toBeUndefined();
+    }
+  });
+
+  it('W4: 양의 유한수 ttlDays 는 그대로 전달', async () => {
+    const job = makeJob({});
+    job.data.ttlDays = 14;
+    await processor.process(job);
+    expect(agentMemoryService.saveMemories.mock.calls[0][4]).toBe(14);
   });
 
   it('추출 결과 빈 배열이면 saveMemories 호출 안 함 (no-op)', async () => {

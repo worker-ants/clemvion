@@ -1,6 +1,7 @@
 import {
   buildExtractionTranscript,
   parseExtractionResponse,
+  MEMORY_KINDS,
   type ExtractionTurnSnapshot,
 } from './agent-memory-extraction.queue';
 
@@ -45,13 +46,51 @@ describe('agent-memory-extraction queue helpers (spec §3)', () => {
     });
   });
 
-  describe('parseExtractionResponse', () => {
-    it('JSON 문자열 배열을 그대로 파싱한다', () => {
+  describe('MEMORY_KINDS (I10 — 단일 진실)', () => {
+    it('MEMORY_KINDS 는 fact/preference/entity 단일 출처', () => {
+      expect([...MEMORY_KINDS]).toEqual(['fact', 'preference', 'entity']);
+    });
+
+    it('MEMORY_KINDS 에 포함된 kind 만 파싱이 보존, 그 외는 fact fallback', () => {
+      const parsed = parseExtractionResponse(
+        JSON.stringify(
+          MEMORY_KINDS.map((k) => ({ content: `c-${k}`, kind: k })),
+        ),
+      );
+      expect(parsed).toEqual(
+        MEMORY_KINDS.map((k) => ({ content: `c-${k}`, kind: k })),
+      );
+    });
+  });
+
+  describe('parseExtractionResponse (AGM-11 — kind 분류)', () => {
+    it('객체 {content, kind} 배열을 분류대로 파싱한다', () => {
       expect(
         parseExtractionResponse(
-          '["사용자는 간결한 답변을 선호한다", "계정 등급은 gold"]',
+          '[{"content": "사용자는 간결한 답변을 선호한다", "kind": "preference"}, {"content": "계정 등급은 gold", "kind": "entity"}]',
         ),
-      ).toEqual(['사용자는 간결한 답변을 선호한다', '계정 등급은 gold']);
+      ).toEqual([
+        { content: '사용자는 간결한 답변을 선호한다', kind: 'preference' },
+        { content: '계정 등급은 gold', kind: 'entity' },
+      ]);
+    });
+
+    it('문자열 항목(구 shape)은 kind=fact fallback (하위호환)', () => {
+      expect(parseExtractionResponse('["사실 A", "사실 B"]')).toEqual([
+        { content: '사실 A', kind: 'fact' },
+        { content: '사실 B', kind: 'fact' },
+      ]);
+    });
+
+    it('kind 결손/미지원 값은 fact fallback', () => {
+      expect(
+        parseExtractionResponse(
+          '[{"content": "A"}, {"content": "B", "kind": "weird"}]',
+        ),
+      ).toEqual([
+        { content: 'A', kind: 'fact' },
+        { content: 'B', kind: 'fact' },
+      ]);
     });
 
     it('빈 배열 → 빈 결과 (no-op)', () => {
@@ -60,8 +99,10 @@ describe('agent-memory-extraction queue helpers (spec §3)', () => {
 
     it('앞뒤 설명이 붙은 응답에서 첫 배열 리터럴만 회수한다', () => {
       expect(
-        parseExtractionResponse('추출 결과: ["사실 A", "사실 B"] 입니다.'),
-      ).toEqual(['사실 A', '사실 B']);
+        parseExtractionResponse(
+          '추출 결과: [{"content": "사실 A", "kind": "fact"}] 입니다.',
+        ),
+      ).toEqual([{ content: '사실 A', kind: 'fact' }]);
     });
 
     it('파싱 불가 응답은 빈 배열로 graceful fallback', () => {
@@ -71,10 +112,15 @@ describe('agent-memory-extraction queue helpers (spec §3)', () => {
       expect(parseExtractionResponse(undefined)).toEqual([]);
     });
 
-    it('비-string 항목 제외 + trim + 정확일치 dedup', () => {
+    it('content 결손/비-string 항목 제외 + trim + content 정확일치 dedup', () => {
       expect(
-        parseExtractionResponse('[" 사실 A ", "사실 A", 42, "", "사실 B"]'),
-      ).toEqual(['사실 A', '사실 B']);
+        parseExtractionResponse(
+          '[{"content": " 사실 A "}, {"content": "사실 A"}, 42, {"content": ""}, {"content": "사실 B", "kind": "fact"}]',
+        ),
+      ).toEqual([
+        { content: '사실 A', kind: 'fact' },
+        { content: '사실 B', kind: 'fact' },
+      ]);
     });
 
     it('객체(배열 아님) 응답은 빈 배열', () => {

@@ -572,6 +572,21 @@ export const aiAgentNodeConfigSchema = z
           visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
         },
       }),
+    memoryTtlDays: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .meta({
+        ui: {
+          label: 'Memory TTL (days)',
+          widget: 'number',
+          order: 49,
+          group: 'Memory',
+          hint: 'Persistent memories expire after this many days. Empty = never expire.',
+          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
+        },
+      }),
 
     // ── Multi Turn Settings ──
     maxTurns: z

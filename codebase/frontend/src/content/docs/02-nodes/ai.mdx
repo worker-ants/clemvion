@@ -49,6 +49,7 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
   {name: "memoryKey", required: false, type: "expression", description: "지속 메모리 범위 키예요. 같은 키는 실행을 넘어 같은 기억을 불러오고, 비우면 실행 단위로 격리돼요. `persistent`일 때 보여요.", default: "-"},
   {name: "memoryTopK", required: false, type: "integer", description: "턴마다 회수할 메모리 청크 수예요 (RAG Top-K와 독립). `persistent`일 때 보여요.", default: "5"},
   {name: "memoryThreshold", required: false, type: "float", description: "메모리 회수에 필요한 최소 유사도예요 (0~1, RAG 임계값과 독립). `persistent`일 때 보여요.", default: "0.7"},
+  {name: "memoryTtlDays", required: false, type: "integer", description: "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요. `persistent`일 때 보여요.", default: "-"},
   {name: "presentationTools", required: false, type: "PresentationToolDef[]", description: "LLM이 응답을 텍스트 대신 표·차트·캐러셀·템플릿·폼으로 렌더링할 수 있게 해주는 가상 도구 목록이에요. 비어 있으면 기능이 꺼져요. 각 항목은 `type`(필수), `description`(선택), `defaults`(선택)으로 구성돼요.", default: "[]"},
   {name: "maxTurns", required: false, type: "integer", description: "Multi Turn 모드의 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "20"}
 ]} />
@@ -94,6 +95,7 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
 - `memoryKey` — 지속 메모리의 범위 키예요. 같은 키는 실행을 넘어 같은 기억을 불러와요. 예를 들어 `{{ $input.userId }}` 처럼 사용자 식별자를 넣으면 같은 사용자의 기억이 이어져요. **비워 두면 실행 단위로 격리**돼서 이전 실행의 기억을 불러오지 않아요.
 - `memoryTopK` (기본 5) — 한 턴에 회수할 메모리 조각 수예요. RAG 검색의 `ragTopK` 와는 독립이에요.
 - `memoryThreshold` (기본 0.7) — 메모리를 회수할 때 요구하는 최소 유사도(0~1)예요. RAG 검색의 `ragThreshold` 와는 독립이에요.
+- `memoryTtlDays` — 지속 메모리의 보관 기간(일)이에요. 설정하면 그 일수가 지난 메모리는 만료돼 회수되지 않고 정리돼요. **비워 두면 만료 없이 계속 보관**돼요.
 
 <Callout type="note">
 `memoryStrategy` 가 `manual` 이 아니면 자동 전략이 맥락을 관리하므로 위 대화 컨텍스트 필드(`contextScope` 등)는 설정 UI에서 숨겨져요. 토큰 예산·메모리 키 같은 필드는 해당 전략을 골랐을 때만 나타나요.

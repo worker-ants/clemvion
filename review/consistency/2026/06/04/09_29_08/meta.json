@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-04T09:29:08.124846",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/4-nodes/3-ai/, diff-base=origin/main)",
+  "target_path": "spec/4-nodes/3-ai/",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
