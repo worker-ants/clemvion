@@ -1,5 +1,5 @@
 ---
-worktree: (assigned at impl-start)
+worktree: (unstarted)
 started: 2026-05-24
 owner: developer (TBD)
 status: backlog
@@ -7,7 +7,7 @@ status: backlog
 
 # Slack Socket Mode 지원 — v1 Webhook-mode only 의 보완
 
-Slack v1 의 [R-S-3](../../spec/4-nodes/7-trigger/providers/slack.md#r-s-3-v1--webhook-mode-only-socket-mode--v2-2026-05-24) "Webhook-mode only" 결정의 결과로 private network 안의 Slack 운영이 불가능. v2 에서 Socket Mode (WebSocket) 도입.
+Slack v1 의 [R-S-3](../../spec/4-nodes/7-trigger/providers/slack.md#r-s-3-v1--webhook-mode-only-socket-mode-는-v2) "Webhook-mode only" 결정의 결과로 private network 안의 Slack 운영이 불가능. v2 에서 Socket Mode (WebSocket) 도입.
 
 ## 진입 조건 (사용자 결정 필요)
 

@@ -17,7 +17,7 @@ code:
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |------|------|------|--------|------|
-| conditions | ConditionGroup[] | ✓ | `[]` | 조건 그룹 목록. 구조는 [공통 §1](./0-common.md#1-conditiongroup-구조) |
+| conditions | ConditionGroup[] | ✓ | `[]` | 조건 그룹 목록. 구조는 [공통 §1](./0-common.md#1-condition-구조) |
 | combineMode | `and` / `or` | ✓ | `and` | 조건 그룹 간 결합 방식 |
 | strictComparison | Boolean | | `false` | 엄격 타입 비교 모드. [표현식 §3.2.1](../../5-system/5-expression-language.md#321-strict-모드) |
 

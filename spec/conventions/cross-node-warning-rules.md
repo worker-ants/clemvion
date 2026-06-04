@@ -15,7 +15,7 @@ code:
 
 # Cross-Node WarningRule 컨벤션
 
-> 관련 문서: [노드 Output 규약](./node-output.md) · [parallel-p2.md 결정 D/E/I](../../plan/in-progress/parallel-p2.md) · [`graph-warning-rule.ts`](../../codebase/backend/src/nodes/core/graph-warning-rule.ts)
+> 관련 문서: [노드 Output 규약](./node-output.md) · [parallel-p2-followups.md 결정 D/E/I](../../plan/in-progress/parallel-p2-followups.md) · [`graph-warning-rule.ts`](../../codebase/backend/src/nodes/core/graph-warning-rule.ts)
 
 ## 1. 목적
 

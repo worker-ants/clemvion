@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-04T09:01:32.624908",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/conventions/spec-impl-evidence.md, diff-base=origin/main)",
+  "target_path": "spec/conventions/spec-impl-evidence.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

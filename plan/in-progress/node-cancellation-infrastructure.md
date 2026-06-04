@@ -1,14 +1,20 @@
+---
+worktree: (unstarted)
+started: 2026-05-30
+owner: developer
+---
+
 # Node Cancellation Infrastructure (AbortSignal 전파 기반)
 
 > 작성일: 2026-05-30
-> 분리 출처: [`parallel-p2.md`](./parallel-p2.md) 결정 H (cancellation 인프라를 별 plan 으로 분리)
-> 후속 plan: `parallel-p2.md` §5 (Parallel `cancel-others-on-fail` errorPolicy 활용)
+> 분리 출처: [`parallel-p2-followups.md`](./parallel-p2-followups.md) 결정 H (cancellation 인프라를 별 plan 으로 분리)
+> 후속 plan: `parallel-p2-followups.md` §5 (Parallel `cancel-others-on-fail` errorPolicy 활용)
 >
 > **재검증 (2026-06-03)**: §1·§3·§7(spec) 완료. 노드별 signal 전파는 §4 Database(`database-query.handler.ts`), §5 AI Agent·Text Classifier·IE **single-turn**, §6 Send Email 까지 구현됨(각 `*.handler.ts` + spec 테스트). **잔여**: §2 엔진단(dispatch 직전 `abortSignal.aborted` 사전체크 + `NodeExecution.status='cancelled'` enum/migration + AbortError 분류 — `execution-engine.service.ts` 에 `.aborted` 0건), §5 IE **multi-turn**(`information-extractor.handler.ts:634` TODO 잔존), §6 chat-channel, §7 e2e. **NodeExecution `cancelled` enum 작업은 [`parallel-p2-followups.md`](./parallel-p2-followups.md) §1 과 동일 작업** — 하나 닫으면 둘 다 닫힘. (체크박스는 단면 매핑이 모호해 본 note 로 상태 기록, §4~§6 박스는 후속 PR 에서 정밀 체크.)
 
 ## 배경
 
-`parallel-p2.md` 의 결정 A (`errorPolicy: 'cancel-others-on-fail'` — 첫 분기 실패 시 다른 분기 abort) 는 노드 단계 cancellation 인프라를 요구한다. 현재 `NodeHandler.execute(input, config, context)` 는 `AbortSignal` 인자가 없고, `ExecutionContext` 에도 abort 표면이 없어 장기 외부 I/O (HTTP/DB/AI) 가 시작되면 워크플로우 단위 cancel 이 불가능.
+`parallel-p2-followups.md` 의 결정 A (`errorPolicy: 'cancel-others-on-fail'` — 첫 분기 실패 시 다른 분기 abort) 는 노드 단계 cancellation 인프라를 요구한다. 현재 `NodeHandler.execute(input, config, context)` 는 `AbortSignal` 인자가 없고, `ExecutionContext` 에도 abort 표면이 없어 장기 외부 I/O (HTTP/DB/AI) 가 시작되면 워크플로우 단위 cancel 이 불가능.
 
 본 인프라는 Parallel `cancel-others-on-fail` 외에도 다음 향후 기능에 재사용된다:
 - **Workflow 단위 timeout** — 실행 시간 한도 초과 시 진행 중 노드 abort
@@ -38,7 +44,7 @@
 
 > **후속 PR**. 본 PR 은 ExecutionContext 필드만 — 엔진은 이미 context 를 dispatch 직전 핸들러에 전달하므로 자동 전파. 사전 abort 체크 / cancelled status 분류 / 통합 테스트는 별 PR.
 
-> **결정/진행 (2026-06-03)**: §2 의 분류 결정은 **옵션 B(전용 `cancelled` status)** 로 확정. spec 결정 분리 → [`spec-draft-node-execution-cancelled.md`](./spec-draft-node-execution-cancelled.md), 구현은 `node-cancellation-engine` worktree (V069 migration + 엔진 dispatch 사전체크 + AbortError→CANCELLED 분류 + `execution.node.cancelled` WS 이벤트). 완료 시 아래 3항목 닫힘.
+> **결정/진행 (2026-06-03)**: §2 의 분류 결정은 **옵션 B(전용 `cancelled` status)** 로 확정. spec 결정 분리 → [`spec-draft-node-execution-cancelled.md`](../complete/spec-draft-node-execution-cancelled.md), 구현은 `node-cancellation-engine` worktree (V069 migration + 엔진 dispatch 사전체크 + AbortError→CANCELLED 분류 + `execution.node.cancelled` WS 이벤트). 완료 시 아래 3항목 닫힘.
 
 - [ ] `executeNode` 류에서 dispatch 직전 `context.abortSignal?.aborted` 사전 체크 (→ cancel-status 작업)
 - [ ] `NodeExecution.status = 'cancelled'` 추가 또는 `failed + error.name === 'AbortError'` 분류 결정 (→ **옵션 B 확정**, cancel-status 작업)
@@ -82,7 +88,7 @@
 - abort 후 노드가 `cancelled` 상태로 기록 (또는 `failed` + `AbortError` 분류)
 - cancellation convention spec 작성
 - 단위/통합 테스트가 signal 전파를 잠금
-- 본 plan 완료 후 [`parallel-p2.md`](./parallel-p2.md) §5 가 진행 가능 상태
+- 본 plan 완료 후 [`parallel-p2-followups.md`](./parallel-p2-followups.md) §5 가 진행 가능 상태
 
 ## 의존성·리스크
 

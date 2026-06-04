@@ -1,5 +1,5 @@
 ---
-worktree: (assigned at impl-start)
+worktree: (unstarted)
 started: 2026-05-24
 owner: developer (TBD)
 status: backlog
@@ -7,7 +7,7 @@ status: backlog
 
 # Discord Gateway 도입 — v1 의 Interactions Webhook only 한계 해소
 
-Discord v1 의 [R-D-3](../../spec/4-nodes/7-trigger/providers/discord.md#r-d-3-v1--interactions-webhook-only-gateway--v2-2026-05-24) "Interactions Webhook only" 정책의 결과로 [R-CC-13](../../spec/5-system/15-chat-channel.md#r-cc-13-discord-v1--cch-mp-01------interactions-webhook-only--2026-05-24) 의 CCH-MP-01 부분 유예 — 자유 텍스트 DM 미수신. v2 에서 Gateway WebSocket 연결로 해소.
+Discord v1 의 [R-D-3](../../spec/4-nodes/7-trigger/providers/discord.md#r-d-3-v1--interactions-webhook-only-gateway-는-v2) "Interactions Webhook only" 정책의 결과로 [R-CC-13](../../spec/5-system/15-chat-channel.md#r-cc-13-discord-v1-의-cch-mp-01-부분-유예--interactions-webhook-only-의-결과) 의 CCH-MP-01 부분 유예 — 자유 텍스트 DM 미수신. v2 에서 Gateway WebSocket 연결로 해소.
 
 ## 진입 조건 (사용자 결정 필요)
 

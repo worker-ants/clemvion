@@ -2,7 +2,7 @@
 name: integration-index-unify
 worktree: integration-index-unify-2c7973
 status: in-progress
-created: 2026-06-04
+started: 2026-06-04
 owner: developer
 ---
 

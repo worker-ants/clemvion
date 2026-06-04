@@ -39,23 +39,23 @@ owner: 사용자 본인 / developer
 - [x] `code-review-summary`: SPEC-DRIFT 카테고리 태그 보존.
 - [x] code-review-agents SKILL §6: spec ESCALATE 행에 SPEC-DRIFT 명시.
 
-## C — plan 완료 시 spec 정합 결정 강제 (보류)
+## C — plan 완료 시 spec 정합 결정 강제 (적용 완료 — kb-quality #457)
 
-- [ ] plan 이 `complete/` 로 이동할 때, 그 plan 이 건드린 `code:` 연결 코드가 변경됐다면
-      plan 에 **(a) spec-update 섹션** 또는 **(b) "spec 변경 불필요" 명시적 단언** 중 하나가
-      있어야 통과하도록 강제.
-- [ ] 구현 방식: 기존 `spec-pending-plan-existence.test.ts` 패턴의 빌드 테스트 추가
-      (SoT: `spec/conventions/spec-impl-evidence.md`).
+- [x] 완료 plan 은 frontmatter `spec_impact` (spec path 목록 또는 `none`) 선언 필수.
+- [x] 구현: `spec-plan-completion.test.ts` (SoT: `spec/conventions/spec-impl-evidence.md §4`).
+- **설계 변경 기록**: 원안의 "건드린 `code:` 코드 변경 감지" 는 빌드 테스트가 git history 를
+      알아야 해 fragile → **frontmatter `spec_impact` 선언 + `started ≥ 2026-06-04` date-cutoff
+      grandfather** 방식으로 대체 (기존 백로그 소급 면제, lifecycle TTL 패턴 동형). 결정적·비-git.
 - [ ] 근거: `memory/feedback_plan_must_include_spec_updates.md` 의 강제화 버전 —
       "구현 plan 은 spec 갱신까지 정식 phase 로 포함" 을 advisory → enforced 로.
 - 목적: 문제 ② 의 누락 방지 (A·B 를 빠져나간 케이스를 plan 완료 시점에 회수).
 
-## D — reverse-coverage 탐지 (보류)
+## D — reverse-coverage 탐지 (적용 완료 — kb-quality #457, advisory)
 
-- [ ] `spec-coverage` 에 역방향 모드 추가 — 코드에 존재하나 **어떤 spec 의 `code:`/본문도
-      참조하지 않는** API route·UI surface·event/env 이름을 후보로 검출.
-- [ ] ADVISORY 유지 (NLP 휴리스틱 false-positive 부담 존중, 기존 결정과 일관). CI 차단 아님.
-- [ ] "spec 없는 신규 controller route" 같은 high-confidence 후보는 강조 표기.
+- [x] `spec-coverage --mode reverse` 추가 — Heuristic 4(spec 미참조 controller route, high)·
+      5(이벤트/큐, medium)·6(env, low). orchestrator `--mode {forward,reverse,both}` + agent §모드.
+- [x] ADVISORY 유지 (NLP 휴리스틱, CI 비차단).
+- [x] "spec 없는 신규 controller route" = high-confidence 강조.
 - 근거: `memory/project_spec_sync_audit_2026_06.md` 의 142-파일 수작업 audit
       (severe 4건) 을 상시 탐지기로 대체. 누적 drift 회수용 안전망.
 
@@ -66,7 +66,7 @@ A·B 가 양방향 강제 게이트를 닫고, C 는 누락 방지, D 는 누적
 
 ## 완료 조건
 
-- [ ] C 구현 + 테스트
+- [x] C 구현 + 테스트 (kb-quality #457)
 - [ ] D 구현
 - (A·B 만으로도 본 plan 의 핵심 목표는 달성. C·D 는 사용자 판단으로 착수 시점 결정 —
   착수 안 하기로 결정하면 본 plan 에 "C·D drop 결정" 명시 후 complete 이동 가능.)

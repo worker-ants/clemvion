@@ -1,0 +1,91 @@
+---
+worktree: kb-quality-fba2f2
+started: 2026-06-03
+owner: developer
+---
+
+# 지식 저장소 품질 개선 (knowledge-base quality)
+
+`spec/` · `plan/` · `review/` 지식 저장소의 품질을 한 단계 끌어올리기 위한 감사 결과와 실행 로드맵. 2026-06-03 4영역 실측 감사(링크 무결성 · QA 가드 인벤토리 · plan 라이프사이클 · spec 콘텐츠) 기반.
+
+## Overview — 감사 결론
+
+저장소의 **품질 인프라는 이미 강하고 콘텐츠도 건강**하다. 자동 가드(frontmatter 유효성, `code:` glob 생존성, spec→plan 링크, status 라이프사이클, i18n parity, mermaid 문법, 리뷰 커버리지 게이트, spec-drift Gate A/B)와 5종 on-demand consistency checker + spec-coverage 가 대부분의 차원을 덮는다. 콘텐츠 측면도 placeholder ≈ 0, `partial` 은 전부 `pending_plans` 추적, `implemented` 는 라인 단위로 코드와 일치.
+
+따라서 개선 레버리지는 "rot 제거"가 아니라 **(a) 자동 가드의 명확한 사각지대를 기존 build-test 패턴으로 가드화** + **(b) plan/ 라이프사이클 위생**에 있다.
+
+### 실측 핵심 갭
+
+| 갭 | 실측 | 현재 커버리지 |
+| --- | --- | --- |
+| in-body 마크다운 링크/앵커 무결성 | 깨진 링크 110건 (dead 38 + anchor 72) | **없음** (frontmatter 경로만 검증) |
+| plan-stale-audit 정확도 | `maxdepth 1` 로 28개 plan 누락(실제 92개), staleness=커밋나이만 | 도구 자체 결함 |
+| plan worktree 필드 | 라이브 worktree 참조 3 / ~56 | 허구 데이터 → plan-coherence 무력화 |
+| 완료된 plan 미이동 | 100% done 인데 in-progress 잔류 3건 | 수동 |
+| plan frontmatter 스키마 | 위반 12건 (무 frontmatter 6) | **없음** |
+| 영역 index 완전성 | 5-system 16중 4링크, providers index 부재 | **없음** |
+| impl→spec 역방향 커버리지 | 신규 라우트/이벤트/env 미참조 invisible | Gate D 보류 |
+| plan 완료 시 spec 정합 | 미강제 | Gate C 보류 |
+
+## 실행 로드맵 (item 1~7)
+
+### item 1 — in-body 링크/앵커 무결성 ⭐
+청소 78건(확실) 적용 → 빌드 가드 신설 → green.
+
+- [ ] `.kb-broken-links.tsv` confident 수정 78건 적용 (dead 19 + anchor 59)
+- [ ] UNKNOWN 32건 개별 조사 (삭제된 타깃은 링크 제거/대체, 모호한 것은 보류 기록)
+- [ ] `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` 신설 — 본문 in-repo 링크 타깃 존재 + `#anchor` heading slug 대조 (GitHub slug, CJK 유지). 카탈로그 scope 제외(`isApplicable` 재사용)
+- [ ] 전체 spec/plan green 확인 후 게이트 on
+
+### item 2 — plan-stale-audit.sh 수정 + 완료 plan 이동
+- [x] `find -maxdepth 1` → 재귀화 (node-output-redesign/ 포함 — 64→93 plan)
+- [x] staleness 신호 보강: 체크박스 전부 done `DONE?` + (worktree 미존재 ∧ done) `ORPHAN?` 복합 플래그
+- [x] 완료 plan `git mv` → complete/: `eia-strip-llmcalls`(8/8, spec 참조·잔여 마커 없음)
+- [x] 이동 보류 (검증 결과 부적격):
+  - `fix-spec-frontmatter-catalog`(7/7) — 본문에 "별 doc 수정·표현 명확화·노트 추가" pre-existing follow-up 4건 문서화 → lifecycle §5 미해결 follow-up 보유로 in-progress 유지
+  - `channel-web-chat-demo`(22/22) — `1-widget-app`·`3-auth-session` 두 partial spec 의 `pending_plans:` 타깃 → 이동 시 spec-status-lifecycle 졸업 로직과 결합, 일방 해소 위험. planner 판단으로 분리
+  - `channel-web-chat-followups`·`followup-conversation-reconcile` — 보류항목 보유(정당 잔류)
+- [x] 이동 후 spec-pending-plan-existence·spec-status-lifecycle 206 tests green 확인
+
+### item 3 — plan frontmatter 백필 + 가드
+- [x] 무 frontmatter 6건 백필 (top-level): `ai-agent-tool-connection-rewrite`, `marketplace-and-plugin-sdk`, `merge-p2-async-fanin`, `node-cancellation-infrastructure`, `parallel-p2-followups`, `self-hosting-deployment`
+- [x] 부분 위반 5건 정규화: `chat-channel-secret-store-infra`·`chat-channel-visual-ssr-png`·`security-jwt-secret-fallback`(created→started rename + worktree/owner 보강), `continuation-resume-optional-followups`·`followup-conversation-reconcile`(started/owner 보강)
+- [x] `plan-frontmatter.test.ts` 신설 — top-level plan 의 `worktree`/`started`(ISO)/`owner` 필수, sentinel 허용, placeholder 거부 (257 tests)
+- [x] scope: top-level `plan/in-progress/*.md` 만. subfolder 클러스터(node-output-redesign/) 면제 — `plan-lifecycle.md §4` 명문화
+
+### item 4 — worktree 필드 sentinel 정리
+- [x] 미착수 plan 7건 placeholder(`TBD`·`(assigned at impl-start)`·`(미정…)`·인라인 주석 값) → sentinel `worktree: (unstarted)` 정규화
+- [x] `plan-frontmatter.test.ts` 가 `(unstarted)` 허용 + 옛 placeholder 거부
+- [x] `plan-stale-audit.sh` 가 sentinel 을 "(none)" 으로 인식
+- [x] `plan-lifecycle.md §4` 에 sentinel 규약 명문화 (보수적 — 레지스트리 분리 아님, Rationale 참조)
+
+### item 5 — 거대 클러스터 트리아지 (비파괴적) — **직전 groom 이 이미 처리됨 확인**
+검증 결과, item 5 가 겨냥한 트리아지는 **2026-06-03 groom(본 세션 직전)** 이 이미 수행한 상태였다. 비파괴 원칙상 불필요한 재편집을 만들지 않고 검증으로 갈음:
+- [x] `spec-sync-*` 31개 → **전부 `owner: planner`** 로 이미 분류됨 (developer 큐 오염 없음). 7개는 `⚠ decision-free 아님 → planner 결정 필요` 마커 보유로 결정대기 가시화 완료
+- [x] `spec-sync-expression-language-gaps.md` → 자기모순 아님. `$thread`(decision-free) `[x]` 완료 / `$trigger`·`$env`(보안·데이터소스 결정 포함) `[ ]` planner 로 `## 처리 결과` 섹션이 명확 분리. 추가 조치 불요
+- [x] `node-output-redesign/README.md` → parked 아님. "5차 갱신(2026-06-03)" 노트가 stale 행·잔여 실착수 대상(Code 노드·ai-agent single-turn·information-extractor)을 코드 라인까지 명시한 **활성 재검증** 상태. 추가 조치 불요
+- 결론: 클러스터 위생은 이미 양호. 향후 재발 방지는 plan-stale-audit `DONE?`/`ORPHAN?` 플래그(item 2)가 담당
+
+### item 6 — 영역 index 완전성 + 가드
+- [x] `5-system/_product-overview.md` 에 **시스템 영역 spec 맵**(16개 전부) 추가
+- [x] `2-navigation/_product-overview.md` 에 **내비게이션 화면 spec 맵**(14개) 추가
+- [x] `7-channel-web-chat/_product-overview.md` 에 **구성요소 spec**(1-widget-app 등 4개) 추가
+- [x] `4-nodes/7-trigger/providers/` — 이미 `_overview.md`(Provider Catalog)가 slack·telegram·discord 링크. index 패턴에 `_overview.md` 포함시켜 인식
+- [x] `spec-area-index.test.ts` 신설 — 영역 폴더(≥2 sibling, conventions·catalog 제외)에 index 문서 존재 + 모든 sibling 링크 검증. 33 tests green
+- 비고: `spec/conventions/` 는 flat reference(의도적 무-index)라 가드 제외
+
+### item 7 — Gate C/D 재개
+- [x] Gate D (advisory): spec-coverage `--mode reverse` 추가 — Heuristic 4(spec 미참조 controller route, high)·5(이벤트/큐, medium)·6(env, low). orchestrator `--mode {forward,reverse,both}` 인자 + agent §모드/H4·5·6 + SKILL 문서. `review/spec-coverage` 산출, advisory(NLP FP)
+- [x] Gate C (hard build test): `spec-plan-completion.test.ts` — `started ≥ 2026-06-04` 완료 plan 은 frontmatter `spec_impact`(spec path 목록 실존 또는 `none`) 선언 필수. date cutoff grandfather(기존 백로그 소급 면제, lifecycle TTL 패턴 동형). 현 상태 즉시 green(전부 grandfather), 미래 완료부터 강제
+- [x] 문서화: plan-lifecycle §4/§5(spec_impact 스키마·자가점검), spec-impl-evidence §4(가드 5건+인접 가드+Gate D) + code: 등재
+
+## Rationale
+
+- **왜 in-body 링크 가드가 최우선인가**: 결정적 판정(NLP 휴리스틱 아님)이라 FP 없이 하드게이트 가능하고, 기존 `spec-*.test.ts` 패턴과 동형이라 비용이 낮다. 또한 메모리 `reference_consistency_check_main_baseline_fp.md` 가 기록한 consistency-checker 의 dead-link false Critical 의 근원(=positive 가드 부재)을 동시에 제거한다.
+- **item 4 보수적 선택(sentinel vs 레지스트리)**: worktree↔plan 매핑을 별도 레지스트리로 분리하는 대안은 ensure-worktree.sh·plan-coherence-checker 양쪽을 손대야 해 변경면이 넓다. 미착수 plan 에 명시 sentinel `(unstarted)` 를 두면 (a) plan-coherence 가 "죽은 worktree" 오탐을 멈추고 (b) 단일 진실이 plan frontmatter 에 유지된다. 더 큰 재설계가 필요하면 후속 plan 으로 승격.
+- **item 5 비파괴 트리아지**: 31+28개 plan 의 mass-move/삭제는 진행 맥락을 파괴할 위험이 크다. git 으로 복구 가능하나, 1차로는 reclassify(개발 vs 기획 결정대기)·상태표기만 수행하고, 실제 이동은 owner(planner) 판단으로 분리.
+- **Gate C/D 가 보류였던 이유와 재개**: `project_spec_drift_gate_backlog.md` 기준 A·B 만 적용되고 C·D 는 보류였다. D 는 NLP FP 위험으로 advisory 유지, C 는 결정적이라 hard 가능 — 두 보류 항목이 곧 남은 자동화 사각지대(impl→spec 역류·plan완료 정합)와 정확히 일치한다.
+
+## 출처
+
+4영역 감사 원자료는 본 세션 산출. 감사 스크립트/인벤토리: `.kb-broken-links.tsv` (worktree 루트, untracked).

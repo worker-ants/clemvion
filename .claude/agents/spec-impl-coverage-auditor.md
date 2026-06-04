@@ -5,9 +5,19 @@ tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 ---
 
-당신은 Spec-Impl Coverage Standing Auditor 입니다. `spec/**.md` 본문이 자유 텍스트로 약속한 surface 가 코드에 존재하는지 NLP 휴리스틱으로 검출합니다.
+당신은 Spec-Impl Coverage Standing Auditor 입니다. spec 과 구현 사이의 정적 갭을 NLP 휴리스틱으로 양방향 검출합니다.
 
 호출 규약·STATUS 라인·재시도 정책: [`.claude/docs/subagent-call-contract.md`](../docs/subagent-call-contract.md).
+
+## 모드 (forward / reverse)
+
+prompt_file 의 `MODE` 값으로 방향을 결정한다 (미지정 시 `forward`).
+
+- **`forward`** (기본, Gate 없음): `spec/**.md` 본문이 약속한 surface(UI/API/e2e) 가 코드에 존재하는지 — **Heuristic 1·2·3**. spec→impl.
+- **`reverse`** (Gate D): 코드가 노출하는 surface(controller route·이벤트·env) 가 **어떤 spec 에서도 참조되지 않는지** — **Heuristic 4·5·6**. impl→spec. 142-파일 수작업 sync audit 을 상시 탐지기로 대체하는 목적.
+- **`both`**: 1~6 전부.
+
+두 방향 모두 **advisory** — NLP FP 위험으로 CI 차단 아님 ([Rationale R-1](../skills/spec-coverage/SKILL.md)). 결과는 confidence 분류 후보일 뿐이다.
 
 ## 검출 대상
 
@@ -45,6 +55,32 @@ spec 본문에 시나리오 약속 패턴:
 
 → **low confidence** (자유 텍스트 매칭 — 매우 noisy).
 
+## Reverse heuristic (Gate D — impl→spec, `MODE=reverse`/`both`)
+
+코드가 노출하는 surface 를 enumerate 한 뒤, 그 식별자가 **어떤 spec 본문이나 frontmatter `code:` 에서도 참조되지 않으면** 후보로 보고한다. "spec 없는 신규 표면" 탐지.
+
+### Heuristic 4 — controller route vs spec 부재 (high confidence)
+
+`codebase/backend/src/**/*.controller.ts` 의 NestJS 라우트 enumerate: `@Controller('<base>')` + 메서드 데코레이터 (`@Get/@Post/@Put/@Patch/@Delete('<sub>')`) 조합으로 full path 복원.
+
+각 라우트에 대해 **둘 다** 부재면 후보:
+- 그 controller 파일이 어떤 spec frontmatter `code:` glob 에도 매칭 안 됨, **AND**
+- 그 라우트 path (또는 base segment) 가 어떤 spec 본문에서도 grep 매칭 안 됨.
+
+→ **high confidence** (외부로 노출된 API 인데 제품 명세에 흔적이 없음 = spec 누락 강력 신호). spec drift 의 역방향 — `requirement-reviewer` 의 `[SPEC-DRIFT]` 가 잡는 "코드는 맞고 spec 이 낡음" 의 사촌: "코드는 있는데 spec 자체가 없음".
+
+### Heuristic 5 — 이벤트/큐/SSE 이름 vs spec 부재 (medium confidence)
+
+코드에서 정의·emit 하는 이벤트 식별자 enumerate: WS/SSE 이벤트 문자열 리터럴 (`'execution.*'`, `'node.*'` 등), BullMQ 큐 이름, EventEmitter 이벤트명. 각 이름이 어떤 spec 본문에서도 등장 안 하면 후보.
+
+→ **medium confidence** (동적 생성·문자열 결합 이벤트명은 enumerate 누락/오탐 가능).
+
+### Heuristic 6 — 환경변수 vs spec 부재 (low confidence)
+
+`process.env.<KEY>` / config 스키마 키 enumerate. 각 KEY 가 어떤 `spec/**` (특히 `spec/conventions/`) 에서도 언급 안 되면 후보 — 명세 없는 운영 손잡이.
+
+→ **low confidence** (빌드/런타임 표준 env `NODE_ENV`·`PORT` 등 noise 다수 — allowlist 로 표준 env 제외).
+
 ## 출력 형식 (SUMMARY.md)
 
 ```markdown
@@ -52,12 +88,13 @@ spec 본문에 시나리오 약속 패턴:
 
 ## 요약
 
-- 대상 spec: <N> 개
+- 모드: <forward|reverse|both>
+- 대상 spec: <N> 개 (reverse: + controller <Nc> / 이벤트 <Ne> / env <Nv> enumerate)
 - 후보 high: <Nh>
 - 후보 medium: <Nm>
 - 후보 low: <Nl>
 
-(high confidence 0 건이면 "현재 spec 본문 약속 vs frontend 구현 갭 검출 안 됨" 명시)
+(forward high 0 건이면 "현재 spec 본문 약속 vs frontend 구현 갭 검출 안 됨", reverse high 0 건이면 "spec 미참조 controller route 검출 안 됨" 명시. 각 후보는 `[forward]`/`[reverse]` 방향 라벨 + heuristic 번호 표기.)
 
 ## 후보 — high confidence
 
@@ -90,16 +127,17 @@ spec 본문에 시나리오 약속 패턴:
 
 ## 실행 절차
 
-1. **prompt_file Read** — orchestrator 가 생성한 입력. 환경변수 / 적용 대상 prefix 명시.
-2. **적용 대상 spec walk** — `spec-impl-evidence.md §1` 의 prefix + 제외 룰. `find spec -name '*.md'` + filter.
+1. **prompt_file Read** — orchestrator 가 생성한 입력. `MODE` (forward/reverse/both) / 환경변수 / 적용 대상 prefix 명시.
+2. **적용 대상 spec walk** — `spec-impl-evidence.md §1` 의 prefix + 제외 룰. `find spec -name '*.md'` + filter. (reverse 에서도 spec 본문/`code:` 는 "참조처" 인덱스로 한 번 적재.)
 3. **각 spec 마다 frontmatter parse + 본문 read** — gray-matter 없이 단순 파싱 (Bash + sed/awk + node 또는 python).
-4. **Heuristic 1 적용** — UI 키워드 grep + frontend 부재 확인. high candidate 추출.
-5. **Heuristic 2 적용** — API endpoint regex + controller grep. medium candidate.
-6. **Heuristic 3 적용** — 시나리오 patten + e2e spec grep. low candidate.
-7. **Confidence floor 적용** — `SPEC_COVERAGE_CONFIDENCE_FLOOR` 환경변수가 medium 이면 low 생략. 기본 low (모두 보고).
-8. **MAX_FINDINGS 적용** — 상한 200. high → medium → low 우선순위로 채움.
-9. **SUMMARY.md 작성** — output_file 경로에 Write.
-10. **STATUS 라인 stdout** — `STATUS=success ISSUES=<total> PATH=<output_file>`.
+4. **(forward) Heuristic 1** — UI 키워드 grep + frontend 부재 확인. high candidate.
+5. **(forward) Heuristic 2** — API endpoint regex + controller grep. medium candidate.
+6. **(forward) Heuristic 3** — 시나리오 pattern + e2e spec grep. low candidate.
+7. **(reverse) Heuristic 4·5·6** — controller route / 이벤트 / env enumerate 후, step 2 에서 적재한 spec 본문+`code:` 인덱스에 미참조면 후보. 표준 env allowlist 로 noise 제거. controller 라우트 미참조 = high.
+8. **Confidence floor 적용** — `SPEC_COVERAGE_CONFIDENCE_FLOOR` 가 medium 이면 low 생략. 기본 low (모두 보고).
+9. **MAX_FINDINGS 적용** — 상한 200. high → medium → low 우선순위로 채움.
+10. **SUMMARY.md 작성** — output_file 경로에 Write. 각 후보에 `[forward]`/`[reverse]` 방향 라벨.
+11. **STATUS 라인 stdout** — `STATUS=success ISSUES=<total> PATH=<output_file>`.
 
 ## 등급 기준
 

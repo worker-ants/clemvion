@@ -22,7 +22,7 @@ code:
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |------|------|------|--------|------|
 | inputField | Expression | ✓ | `''` | 대상 배열. dot-path 문자열(`"items"`, `"order.items"`) 이면 `$input` 에 적용하고, `{{ $var.a }}` 처럼 inline 표현식이면 expression resolver 가 평가한 값(배열)을 그대로 사용 |
-| conditions | ConditionGroup[] | ✓ | `[]` | 필터 조건 목록. 구조는 [공통 §1](./0-common.md#1-conditiongroup-구조). `condition.field` 표현식 안에서 `$item` / `$itemIndex` 로 현재 배열 항목·인덱스를 참조 |
+| conditions | ConditionGroup[] | ✓ | `[]` | 필터 조건 목록. 구조는 [공통 §1](./0-common.md#1-condition-구조). `condition.field` 표현식 안에서 `$item` / `$itemIndex` 로 현재 배열 항목·인덱스를 참조 |
 | combineMode | `and` / `or` | ✓ | `and` | 조건 그룹 간 결합 방식 |
 | strictComparison | Boolean | | `false` | 엄격 타입 비교 모드. [표현식 §3.2.1](../../5-system/5-expression-language.md#321-strict-모드) |
 

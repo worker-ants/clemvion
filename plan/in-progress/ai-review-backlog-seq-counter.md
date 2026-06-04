@@ -1,5 +1,5 @@
 ---
-worktree: no-floating-promises-error-b004d8  # PR 1/3. PR 2·3 은 착수 시 신규 worktree
+worktree: (unstarted)
 started: 2026-06-02
 owner: developer
 parent: plan/complete/eia-distributed-seq-counter.md

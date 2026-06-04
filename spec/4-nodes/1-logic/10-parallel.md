@@ -202,7 +202,7 @@ drift 해소 시 두 방향이 검토됐다:
 
 **결정**: Parallel 노드는 항상 `waitAll=true` (default) 로 동작 — 모든 분기 종료 후 `done` 포트로 합산 emit. `waitAll=false` 를 명시한 워크플로우는 schema validate 에서 reject (위 §6 에러 코드 표 참조).
 
-> 옛 워크플로우 호환: DB 에 `config.waitAll: false` 가 저장된 케이스는 실행 시점에 schema validate 가 reject — 사용자가 워크플로우 편집기에서 수정 필요. 별도 마이그레이션 작업은 [`plan/in-progress/parallel-p2.md`](../../../plan/in-progress/parallel-p2.md) §2-E 의 후속 항목.
+> 옛 워크플로우 호환: DB 에 `config.waitAll: false` 가 저장된 케이스는 실행 시점에 schema validate 가 reject — 사용자가 워크플로우 편집기에서 수정 필요. 별도 마이그레이션 작업은 [`plan/in-progress/parallel-p2-followups.md`](../../../plan/in-progress/parallel-p2-followups.md) §2-E 의 후속 항목.
 
 ### 중첩 Parallel 허용 (깊이 ≤ 2, concurrency 곱셈 cap = 32, 2026-05-30 결정 #3 + G + D)
 

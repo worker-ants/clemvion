@@ -160,7 +160,7 @@ code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/edi
 | 사이드바 표시 | 모든 로그인 사용자 (권한 제한 없음) |
 | 비로그인 표시 | 현재는 로그인 필수(`(main)` 그룹이 보호됨). 차후 공개 경로로 분리 가능 |
 | 검색 | `DocsSearch` 로 제공. 데스크탑 사이드바·모바일 drawer 양쪽에 동일 노출 |
-| 모바일 진입 | `< lg(1024px)` 에서 article 상단의 sticky 토글 버튼 → 좌측 `SlideDrawer` 가 `DocsSidebar` + `DocsSearch` 를 동일 컴포넌트로 노출. 데스크탑 사이드바는 그대로(`hidden lg:block`). 글로벌 사이드바와 breakpoint 가 다른 이유는 [Rationale R-1](#r-1-docs-내부-사이드바-breakpoint-가-글로벌-1280px-과-다른-이유) 참조 |
+| 모바일 진입 | `< lg(1024px)` 에서 article 상단의 sticky 토글 버튼 → 좌측 `SlideDrawer` 가 `DocsSidebar` + `DocsSearch` 를 동일 컴포넌트로 노출. 데스크탑 사이드바는 그대로(`hidden lg:block`). 글로벌 사이드바와 breakpoint 가 다른 이유는 [Rationale R-1](#r-1-docs-내부-사이드바-breakpoint-가-글로벌--1280px-과-다른-이유) 참조 |
 | 인쇄용 CSS | 미포함 |
 
 ## 11. 성능

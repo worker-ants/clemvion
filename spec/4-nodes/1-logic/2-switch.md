@@ -31,7 +31,7 @@ code:
 | label | String | | 케이스 표시 라벨 (캔버스/UI). 포트 라우팅에 사용되지 않음 |
 | value | unknown | mode=value 시 권장 | 매칭 값 (mode=value). primitive (string/number/boolean) 또는 expression 결과 |
 | valueType | `string` / `number` / `boolean` | | mode=value 시 case `value` 가 문자열일 때 비교 전 타입 강제 변환. `'42'` + `valueType=number` → `42` (NaN 시 원본 유지) |
-| condition | ConditionGroup | mode=expression 시 ✓ | 조건식 (mode=expression). 구조는 [공통 §1](./0-common.md#1-conditiongroup-구조) |
+| condition | ConditionGroup | mode=expression 시 ✓ | 조건식 (mode=expression). 구조는 [공통 §1](./0-common.md#1-condition-구조) |
 
 > Source of truth: `codebase/backend/src/nodes/logic/switch/switch.schema.ts` (export `switchNodeConfigSchema`, `caseDefSchema`)
 

@@ -9,7 +9,7 @@ spec:
 # 동적·코드 기반 backend 메시지 localization — 구현
 
 > 작성일: 2026-06-02 / 선행 spec 확정: `i18n-userguide.md` Principle 3-C + `cross-node-warning-rules.md §3`
-> 대체: [`parallel-p2-followups.md`](./parallel-p2-followups.md) §6
+> 대체: [`parallel-p2-followups.md`](../in-progress/parallel-p2-followups.md) §6
 > 설계 근거·기각 대안: `i18n-userguide.md` Principle 3-C + `cross-node-warning-rules.md ## Rationale` (영문 SoT + 구조화 params, backend i18n 기각)
 
 ## 목표
