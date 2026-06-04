@@ -46,6 +46,7 @@ import { ExecutionEngineModule } from './modules/execution-engine/execution-engi
 import { WebsocketModule } from './modules/websocket/websocket.module';
 import { MailModule } from './modules/mail/mail.module';
 import { LlmConfigModule } from './modules/llm-config/llm-config.module';
+import { RerankConfigModule } from './modules/rerank-config/rerank-config.module';
 import { LlmModule } from './modules/llm/llm.module';
 import { WorkflowAssistantModule } from './modules/workflow-assistant/workflow-assistant.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
@@ -86,6 +87,7 @@ import { AuthOAuthState } from './modules/auth/entities/auth-oauth-state.entity'
 import { LoginHistory } from './modules/auth/entities/login-history.entity';
 import { WebAuthnCredential } from './modules/auth/webauthn/entities/webauthn-credential.entity';
 import { LlmConfig } from './modules/llm-config/entities/llm-config.entity';
+import { RerankConfig } from './modules/rerank-config/entities/rerank-config.entity';
 import { LlmUsageLog } from './modules/llm/entities/llm-usage-log.entity';
 import { KnowledgeBase } from './modules/knowledge-base/entities/knowledge-base.entity';
 import { Document } from './modules/knowledge-base/entities/document.entity';
@@ -134,6 +136,7 @@ export const ROOT_ENTITIES = [
   LoginHistory,
   WebAuthnCredential,
   LlmConfig,
+  RerankConfig,
   LlmUsageLog,
   KnowledgeBase,
   Document,
@@ -239,6 +242,7 @@ export const ROOT_ENTITIES = [
     WebsocketModule,
     MailModule,
     LlmConfigModule,
+    RerankConfigModule,
     LlmModule,
     KnowledgeBaseModule,
     AgentMemoryModule,

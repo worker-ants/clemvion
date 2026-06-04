@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { LlmService } from '../../llm/llm.service';
 import {
+  RerankService,
+  RerankDiagnostics,
+  RerankCandidate,
+} from './rerank.service';
+import {
   SearchResult,
   RagContext,
   GraphTraversalSummary,
@@ -20,6 +25,11 @@ interface KbRow {
   maxHops: number;
   vectorSeedTopK: number;
   expandedChunkLimit: number;
+  // 검색 후처리(리랭킹) — spec/5-system/9-rag-search.md §3.3
+  rerankMode: 'off' | 'cross_encoder' | 'cross_encoder_llm';
+  rerankConfigId: string | null;
+  rerankCandidateK: number;
+  rerankScoreThreshold: number | null;
 }
 
 type RawSearchRow = {
@@ -57,6 +67,7 @@ export class RagSearchService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly llmService: LlmService,
+    private readonly rerankService: RerankService,
   ) {}
 
   async search(
@@ -84,6 +95,7 @@ export class RagSearchService {
   ): Promise<{
     results: SearchResult[];
     graphTraversal?: GraphTraversalSummary;
+    rerank?: RerankDiagnostics;
   }> {
     if (!knowledgeBaseIds?.length || !query.trim()) {
       return { results: [] };
@@ -101,12 +113,23 @@ export class RagSearchService {
                 rag_mode AS "ragMode",
                 max_hops AS "maxHops",
                 vector_seed_top_k AS "vectorSeedTopK",
-                expanded_chunk_limit AS "expandedChunkLimit"
+                expanded_chunk_limit AS "expandedChunkLimit",
+                rerank_mode AS "rerankMode",
+                rerank_config_id AS "rerankConfigId",
+                rerank_candidate_k AS "rerankCandidateK",
+                rerank_score_threshold AS "rerankScoreThreshold"
          FROM knowledge_base
          WHERE id = ANY($1::uuid[]) AND workspace_id = $2`,
         [knowledgeBaseIds, workspaceId],
       );
       if (kbs.length === 0) return { results: [] };
+
+      // 검색 후처리(리랭킹) — 단일 KB + cross_encoder 모드일 때 wide 회수 → 리랭크 → 동적 컷.
+      // agentic 경로(KbToolProvider)는 항상 단일 KB 로 호출하므로 이 분기가 적용된다.
+      // 멀티-KB 리랭크는 후속(plan/in-progress/rag-rerank-followup.md).
+      if (kbs.length === 1 && kbs[0].rerankMode === 'cross_encoder') {
+        return this.searchWithRerank(kbs[0], query, topK, workspaceId);
+      }
 
       // KB 를 ragMode 로 분리: vector 는 (model, dim, llmConfig) 그룹화, graph 는 KB 단위 처리.
       // 각 그룹 / 각 graph KB 가 자체 embeddingLlmConfigId 를 resolveConfig 로 풀어 query 임베딩
@@ -167,6 +190,100 @@ export class RagSearchService {
       this.logger.warn(`RAG search failed: ${message}`);
       return { results: [] };
     }
+  }
+
+  // 단일 KB cross_encoder 리랭크 경로: wide 회수(cosine 임계 미적용) → RerankService → 동적 컷.
+  private async searchWithRerank(
+    kb: KbRow,
+    query: string,
+    topK: number,
+    workspaceId: string,
+  ): Promise<{
+    results: SearchResult[];
+    graphTraversal?: GraphTraversalSummary;
+    rerank: RerankDiagnostics;
+  }> {
+    const candidateK = kb.rerankCandidateK ?? 50;
+
+    let candidates: SearchResult[] = [];
+    let graphTraversal: GraphTraversalSummary | undefined;
+
+    if (kb.ragMode === 'graph') {
+      if (this.isGraphKbSearchable(kb)) {
+        const g = await this.searchGraphKb(kb, query, 0, workspaceId);
+        candidates = g.rows.slice(0, candidateK);
+        graphTraversal = {
+          mode: 'graph',
+          seedChunkCount: g.seedChunkCount,
+          traversedEntityCount: g.traversedEntityCount,
+          maxDepth: g.maxDepthUsed,
+          expandedChunkCount: g.expandedChunkCount,
+        };
+      }
+    } else if (
+      kb.embeddingDimension != null &&
+      SUPPORTED_EMBEDDING_DIMS.has(kb.embeddingDimension)
+    ) {
+      const group: VectorGroup = {
+        model: kb.embeddingModel,
+        dim: kb.embeddingDimension,
+        embeddingLlmConfigId: kb.embeddingLlmConfigId,
+        kbIds: [kb.id],
+      };
+      // wide 회수: threshold 0 (cosine 임계 미적용), candidateK 만큼.
+      candidates = await this.searchVectorGroup(
+        group,
+        query,
+        0,
+        candidateK,
+        workspaceId,
+      );
+    }
+
+    if (candidates.length === 0) {
+      return {
+        results: [],
+        graphTraversal,
+        rerank: {
+          mode: 'cross_encoder',
+          candidateCount: 0,
+          returnedCount: 0,
+          llmGradingApplied: false,
+          cutoffApplied: false,
+          error: null,
+        },
+      };
+    }
+
+    const rerankCandidates: RerankCandidate[] = candidates.map((c) => ({
+      chunkId: c.chunkId,
+      content: c.content,
+      score: c.score,
+      documentId: c.documentId,
+      documentName: c.documentName,
+      metadata: c.metadata,
+    }));
+
+    const { results, diagnostics } = await this.rerankService.rerankCandidates({
+      query,
+      candidates: rerankCandidates,
+      workspaceId,
+      rerankConfigId: kb.rerankConfigId,
+      topK,
+      scoreThreshold: kb.rerankScoreThreshold,
+    });
+
+    const mapped: SearchResult[] = results.map((r) => ({
+      chunkId: r.chunkId,
+      documentId: r.documentId as string,
+      documentName: r.documentName as string,
+      content: r.content,
+      score: r.score,
+      metadata: (r.metadata as Record<string, unknown>) ?? {},
+      origin: r.origin,
+    }));
+
+    return { results: mapped, graphTraversal, rerank: diagnostics };
   }
 
   private groupVectorKbs(kbs: KbRow[]): Map<string, VectorGroup> {
