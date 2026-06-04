@@ -1998,6 +1998,54 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
       expect(firstResolved).toBe(true);
     });
+
+    it('멱등: settleFirstSegment 이중 호출 시 resolve 1회 + 키 삭제 (두 번째 no-op)', async () => {
+      const svc = service as unknown as {
+        armFirstSegmentBarrier: (id: string) => Promise<void>;
+        settleFirstSegment: (id: string) => void;
+        firstSegmentBarriers: Map<string, unknown>;
+      };
+      let resolvedCount = 0;
+      void svc.armFirstSegmentBarrier(executionId).then(() => {
+        resolvedCount += 1;
+      });
+      svc.settleFirstSegment(executionId); // 첫 정착 — resolve + delete
+      svc.settleFirstSegment(executionId); // 두 번째 — 키 부재로 no-op (throw 없이)
+      await flushPromises();
+      expect(resolvedCount).toBe(1);
+      expect(svc.firstSegmentBarriers.has(executionId)).toBe(false);
+    });
+
+    it('signalParkBarrier: main flow 는 정착, background subgraph(bg: 키)는 no-op', async () => {
+      const svc = service as unknown as {
+        armFirstSegmentBarrier: (id: string) => Promise<void>;
+        signalParkBarrier: (ctx: {
+          executionId: string;
+          _contextKey?: string;
+        }) => void;
+        settleFirstSegment: (id: string) => void;
+        firstSegmentBarriers: Map<string, unknown>;
+      };
+
+      // (1) bg context (_contextKey = bg:...) → contextKeyOf ≠ executionId → no-op
+      let bgResolved = false;
+      void svc.armFirstSegmentBarrier(executionId).then(() => {
+        bgResolved = true;
+      });
+      svc.signalParkBarrier({
+        executionId,
+        _contextKey: `bg:${executionId}:run-1`,
+      });
+      await flushPromises();
+      expect(bgResolved).toBe(false);
+      expect(svc.firstSegmentBarriers.has(executionId)).toBe(true);
+
+      // (2) main context (_contextKey 없음) → contextKeyOf === executionId → 정착
+      svc.signalParkBarrier({ executionId });
+      await flushPromises();
+      expect(bgResolved).toBe(true);
+      expect(svc.firstSegmentBarriers.has(executionId)).toBe(false);
+    });
   });
 
   describe('rehydrateAndResume — chat-channel routing context 재등록 (재개 경로)', () => {
@@ -3575,6 +3623,10 @@ describe('ExecutionEngineService', () => {
     // 옛 구현에서는 worker 슬롯을 대화 수명 내내 점유했다 (가장 심각한 starvation).
     // 본 테스트: `runExecutionFromQueue` 가 첫 turn park 시점에 resolve(슬롯 반환)
     // 하면서도 대화는 in-process 로 계속 진행됨을 검증한다.
+    //
+    // 커버리지 노트 (ai-review testing Info): `information_extractor` multi-turn 의
+    // park 도 동일 공용 경로(`waitForAiConversation` → `signalParkBarrier`)를 타므로
+    // 본 ai_agent 테스트가 그 분기까지 함께 가드한다 (별도 노드-타입 테스트 불요).
     it('§4.x — runExecutionFromQueue 는 AI 멀티턴 첫 park 시점에 resolve (장수 루프가 worker 슬롯을 점유하지 않음)', async () => {
       const handler = makeAiAgentHandler(() => ({
         config: { mode: 'multi_turn' },
