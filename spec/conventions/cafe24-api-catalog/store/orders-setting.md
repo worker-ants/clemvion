@@ -71,7 +71,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `order` |  | (응답 객체) |
+| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `claim_request` |  | 구매자 취소/교환/반품 신청 사용설정 T : 사용함 · F : 사용안함 |
 | ↳ `claim_request_type` |  | 구매자 취소/교환/반품 신청 시 표시항목 설정 claim_request 항목이 T일 때만 확인이 가능하다. S : 기본신청 항목 표시 · D : 상세신청 항목 표시 |
@@ -81,9 +81,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `stock_recover` |  | 취소/반품 시 자동 수량복구 T : 기본 설정 · F : 개별 설정 |
 | ↳ `stock_recover_base` |  | 취소/반품 시 자동 수량복구 - 기본설정 T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
 | ↳ `stock_recover_individual` |  | 취소/반품 시 자동 수량복구 - 개별설정 |
-| ↳ ↳ `cancel_before` |  |  |
-| ↳ ↳ `cancel_after` |  |  |
-| ↳ ↳ `cancel_return` |  |  |
+| ↳ ↳ `cancel_before` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 취소 시(입금전) · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ ↳ `cancel_after` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 취소 시(입금후) · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ ↳ `cancel_return` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 반품 시 · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
 | ↳ `refund_processing_setting` |  | 취소/교환/반품 접수 시 환불 접수 처리 설정 S : 동시에 처리함 · D : 분리하여 처리함 |
 | ↳ `claim_request_auto_accept` |  | 구매자 취소/반품 신청 건 자동 접수 설정 T : 사용함 · F : 사용안함 |
 | ↳ `refund_benefit_setting` |  | 취소/교환/반품 접수 시 할인/적립 금액 설정 |
@@ -214,7 +214,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `order` |  | (응답 객체) |
+| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `refund_benefit_setting` |  | 취소/교환/반품 접수 시 할인/적립 금액 설정 |
 | ↳ `use_product_prepare_status` |  | 상품준비중 주문상태 사용여부 T : 사용함 · F : 사용안함 |
@@ -240,9 +240,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `claim_request_button_period` |  | 구매자 취소/교환/반품 신청버튼 노출 기간 |
 | ↳ `stock_recover` |  | 취소/반품 시 자동 수량복구 T : 기본 설정 · F : 개별 설정 |
 | ↳ `stock_recover_individual` |  | 취소/반품 시 자동 수량복구 - 개별설정 |
-| ↳ ↳ `cancel_before` |  |  |
-| ↳ ↳ `cancel_after` |  |  |
-| ↳ ↳ `cancel_return` |  |  |
+| ↳ ↳ `cancel_before` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 취소 시(입금전) · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ ↳ `cancel_after` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 취소 시(입금후) · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
+| ↳ ↳ `cancel_return` | _Youtube shopping 이용 시에는 미제공_ | 개별설정 자동수량 복구 - 반품 시 · T : 자동 복구함 · F : 자동 복구 안함 · M : 수량복구 여부를 확인함 |
 | ↳ `refund_bank_account_required` |  | 취소/교환/반품 시 환불계좌정보 등록 필수 여부 T : 필수 · F : 선택 |
 | ↳ `refund_processing_setting` |  | 취소/교환/반품 접수 시 환불 접수 처리 설정 S : 동시에 처리함 · D : 분리하여 처리함 |
 | ↳ `claim_request_auto_accept` |  | 구매자 취소/반품 신청 건 자동 접수 설정 T : 사용함 · F : 사용안함 |

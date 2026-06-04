@@ -551,8 +551,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `thirdparty_agree` |  | 제3자 제공 동의 여부 T : 동의함 · F : 동의안함 |
 | ↳ `fixed_group` |  | 회원등급 고정 여부 특정 회원이 회원자동등급변경에 적용되지 않기 위한 등급 고정 여부 · 회원자동등급변경 기능을 사용하는 몰에서만 사용 가능하다. T : 고정함 · F : 고정안함 |
 | ↳ `additional_information` |  | 추가항목 해당 회원의 추가항목 |
-| ↳ ↳ `key` |  |  |
-| ↳ ↳ `value` |  |  |
+| ↳ ↳ `key` |  | 추가항목 키 |
+| ↳ ↳ `value` |  | 추가항목 값 |
 | ↳ `refund_bank_code` | 최대글자수 : [20자] | 환불 은행 코드 |
 | ↳ `refund_bank_account_no` | 최대글자수 : [40자] | 환불 계좌번호 |
 | ↳ `refund_bank_account_holder` |  | 환불계좌 예금주 명의 |

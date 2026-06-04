@@ -91,7 +91,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `available_points_max` |  | 적립금 검색 최대값 |
 | ↳ `use_mobile_app` |  | 모바일앱 사용여부 T : 사용 · F : 사용안함 |
 | ↳ `plusapp_member_join` |  | 브랜드앱 경로 가입회원 여부 T : 사용함 · F : 사용안함 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

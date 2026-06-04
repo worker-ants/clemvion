@@ -81,31 +81,31 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `mileage_used` |  | 적립금사용금액 |
 | ↳ `deposit_used` |  | 예치금사용금액 |
 | ↳ `buyer` |  | 주문자정보 리소스 |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `address` |  |  |
-| ↳ ↳ `email` |  |  |
-| ↳ ↳ `phone` |  |  |
-| ↳ ↳ `cellphone` |  |  |
-| ↳ ↳ `message` |  |  |
+| ↳ ↳ `name` |  | 주문자 이름 |
+| ↳ ↳ `zipcode` |  | 주문자 우편번호 |
+| ↳ ↳ `address` |  | 주문자 기본 주소 |
+| ↳ ↳ `email` |  | 주문자 이메일 |
+| ↳ ↳ `phone` |  | 주문자 일반 전화 |
+| ↳ ↳ `cellphone` |  | 주문자 휴대 전화 |
+| ↳ ↳ `message` |  | 배송 메세지 |
 | ↳ `receivers` |  | 수령자정보 리소스 |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `address` |  |  |
-| ↳ ↳ `email` |  |  |
-| ↳ ↳ `phone` |  |  |
-| ↳ ↳ `cellphone` |  |  |
+| ↳ ↳ `name` |  | 주문자 이름 |
+| ↳ ↳ `zipcode` |  | 주문자 우편번호 |
+| ↳ ↳ `address` |  | 주문자 기본 주소 |
+| ↳ ↳ `email` |  | 주문자 이메일 |
+| ↳ ↳ `phone` |  | 주문자 일반 전화 |
+| ↳ ↳ `cellphone` |  | 주문자 휴대 전화 |
 | ↳ `items` |  | 품주 리소스 |
-| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
 | ↳ ↳ `payment_status` |  | 결제상태 |
 | ↳ ↳ `order_status` |  | 주문상태 |
 | ↳ ↳ `payed_amount` |  | 실결제금액 |
-| ↳ ↳ `product_no` |  |  |
-| ↳ ↳ `product_name` |  |  |
-| ↳ ↳ `option` |  |  |
-| ↳ ↳ `quantity` |  |  |
-| ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `total_payed_amount` |  |  |
+| ↳ ↳ `product_no` |  | 상품번호 |
+| ↳ ↳ `product_name` |  | 상품명 |
+| ↳ ↳ `option` |  | 상품 옵션 리소스 |
+| ↳ ↳ `quantity` |  | 수량 |
+| ↳ ↳ `product_price` |  | 상품 판매가 |
+| ↳ ↳ `total_payed_amount` |  | 품목별 실결제금액 |
 
 응답 예시 (JSON):
 
@@ -299,31 +299,31 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `mileage_used` |  | 적립금사용금액 |
 | ↳ `deposit_used` |  | 예치금사용금액 |
 | ↳ `buyer` |  | 주문자정보 리소스 |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `address` |  |  |
-| ↳ ↳ `email` |  |  |
-| ↳ ↳ `phone` |  |  |
-| ↳ ↳ `cellphone` |  |  |
-| ↳ ↳ `message` |  |  |
+| ↳ ↳ `name` |  | 주문자 이름 |
+| ↳ ↳ `zipcode` |  | 주문자 우편번호 |
+| ↳ ↳ `address` |  | 주문자 기본 주소 |
+| ↳ ↳ `email` |  | 주문자 이메일 |
+| ↳ ↳ `phone` |  | 주문자 일반 전화 |
+| ↳ ↳ `cellphone` |  | 주문자 휴대 전화 |
+| ↳ ↳ `message` |  | 배송 메세지 |
 | ↳ `receivers` |  | 수령자정보 리소스 |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `address` |  |  |
-| ↳ ↳ `email` |  |  |
-| ↳ ↳ `phone` |  |  |
-| ↳ ↳ `cellphone` |  |  |
+| ↳ ↳ `name` |  | 주문자 이름 |
+| ↳ ↳ `zipcode` |  | 주문자 우편번호 |
+| ↳ ↳ `address` |  | 주문자 기본 주소 |
+| ↳ ↳ `email` |  | 주문자 이메일 |
+| ↳ ↳ `phone` |  | 주문자 일반 전화 |
+| ↳ ↳ `cellphone` |  | 주문자 휴대 전화 |
 | ↳ `items` |  | 품주 리소스 |
-| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
 | ↳ ↳ `payment_status` |  | 결제상태 |
 | ↳ ↳ `order_status` |  | 주문상태 |
 | ↳ ↳ `payed_amount` |  | 실결제금액 |
-| ↳ ↳ `product_no` |  |  |
-| ↳ ↳ `product_name` |  |  |
-| ↳ ↳ `option` |  |  |
-| ↳ ↳ `quantity` |  |  |
-| ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `total_payed_amount` |  |  |
+| ↳ ↳ `product_no` |  | 상품번호 |
+| ↳ ↳ `product_name` |  | 상품명 |
+| ↳ ↳ `option` |  | 상품 옵션 리소스 |
+| ↳ ↳ `quantity` |  | 수량 |
+| ↳ ↳ `product_price` |  | 상품 판매가 |
+| ↳ ↳ `total_payed_amount` |  | 품목별 실결제금액 |
 
 응답 예시 (JSON):
 
@@ -518,31 +518,31 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `mileage_used` |  | 적립금사용금액 |
 | ↳ `deposit_used` |  | 예치금사용금액 |
 | ↳ `buyer` |  | 주문자정보 리소스 |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `address` |  |  |
-| ↳ ↳ `email` |  |  |
-| ↳ ↳ `phone` |  |  |
-| ↳ ↳ `cellphone` |  |  |
-| ↳ ↳ `message` |  |  |
+| ↳ ↳ `name` |  | 주문자 이름 |
+| ↳ ↳ `zipcode` |  | 주문자 우편번호 |
+| ↳ ↳ `address` |  | 주문자 기본 주소 |
+| ↳ ↳ `email` |  | 주문자 이메일 |
+| ↳ ↳ `phone` |  | 주문자 일반 전화 |
+| ↳ ↳ `cellphone` |  | 주문자 휴대 전화 |
+| ↳ ↳ `message` |  | 배송 메세지 |
 | ↳ `receivers` |  | 수령자정보 리소스 |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `address` |  |  |
-| ↳ ↳ `email` |  |  |
-| ↳ ↳ `phone` |  |  |
-| ↳ ↳ `cellphone` |  |  |
+| ↳ ↳ `name` |  | 주문자 이름 |
+| ↳ ↳ `zipcode` |  | 주문자 우편번호 |
+| ↳ ↳ `address` |  | 주문자 기본 주소 |
+| ↳ ↳ `email` |  | 주문자 이메일 |
+| ↳ ↳ `phone` |  | 주문자 일반 전화 |
+| ↳ ↳ `cellphone` |  | 주문자 휴대 전화 |
 | ↳ `items` |  | 품주 리소스 |
-| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
 | ↳ ↳ `payment_status` |  | 결제상태 |
 | ↳ ↳ `order_status` |  | 주문상태 |
 | ↳ ↳ `payed_amount` |  | 실결제금액 |
-| ↳ ↳ `product_no` |  |  |
-| ↳ ↳ `product_name` |  |  |
-| ↳ ↳ `option` |  |  |
-| ↳ ↳ `quantity` |  |  |
-| ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `total_payed_amount` |  |  |
+| ↳ ↳ `product_no` |  | 상품번호 |
+| ↳ ↳ `product_name` |  | 상품명 |
+| ↳ ↳ `option` |  | 상품 옵션 리소스 |
+| ↳ ↳ `quantity` |  | 수량 |
+| ↳ ↳ `product_price` |  | 상품 판매가 |
+| ↳ ↳ `total_payed_amount` |  | 품목별 실결제금액 |
 
 응답 예시 (JSON):
 

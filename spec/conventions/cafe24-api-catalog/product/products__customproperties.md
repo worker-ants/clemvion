@@ -44,9 +44,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | `products` |  | (응답 객체) |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `custom_properties` |  | 자체 정의 속성 |
-| ↳ ↳ `property_no` |  |  |
-| ↳ ↳ `property_name` |  |  |
-| ↳ ↳ `property_value` |  |  |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
+| ↳ ↳ `property_value` |  | 자체 정의 속성 값 |
 
 응답 예시 (JSON):
 
@@ -96,9 +96,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | `product` |  | (응답 객체) |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `custom_properties` |  | 자체 정의 속성 |
-| ↳ ↳ `property_no` |  |  |
-| ↳ ↳ `property_name` |  |  |
-| ↳ ↳ `property_value` |  |  |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
+| ↳ ↳ `property_value` |  | 자체 정의 속성 값 |
 
 응답 예시 (JSON):
 
@@ -146,9 +146,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | `product` |  | (응답 객체) |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `custom_properties` |  | 자체 정의 속성 |
-| ↳ ↳ `property_no` |  |  |
-| ↳ ↳ `property_name` |  |  |
-| ↳ ↳ `property_value` |  |  |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
+| ↳ ↳ `property_value` |  | 자체 정의 속성 값 |
 
 응답 예시 (JSON):
 

@@ -55,7 +55,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `content` | 최대글자수 : [4000자] | 자주 쓰는 답변 내용 |
 | ↳ `board_type` | 최소값: [1] | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
 | ↳ `created_date` | 날짜 | 생성일 |
-| ↳ `links` |  | (목록) |
+| ↳ `links` |  | link |
 | ↳ ↳ `rel` |  |  |
 | ↳ ↳ `href` |  |  |
 

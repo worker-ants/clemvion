@@ -73,8 +73,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `input_channel` |  | 쇼핑몰 구분 P : PC · M : 모바일 |
 | ↳ `attach_file_urls` |  | 첨부 파일 상세 |
 | ↳ ↳ `no` |  |  |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `url` |  |  |
+| ↳ ↳ `name` |  | 파일명 |
+| ↳ ↳ `url` |  | 파일 URL |
 
 응답 예시 (JSON):
 
@@ -200,7 +200,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `comment` |  | (응답 객체) |
+| `comment` |  | 댓글여부 T : 있음 · F : 없음 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `board_no` |  | 게시판 번호 |
 | ↳ `article_no` |  | 게시물 번호 |
@@ -216,8 +216,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `client_ip` | IP | 작성자 IP |
 | ↳ `attach_file_urls` |  | 첨부 파일 상세 |
 | ↳ ↳ `no` |  |  |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `url` |  |  |
+| ↳ ↳ `name` |  | 파일명 |
+| ↳ ↳ `url` |  | 파일 URL |
 
 응답 예시 (JSON):
 
@@ -275,7 +275,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `comment` |  | (응답 객체) |
+| `comment` |  | 댓글여부 T : 있음 · F : 없음 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `board_no` |  | 게시판 번호 |
 | ↳ `article_no` |  | 게시물 번호 |

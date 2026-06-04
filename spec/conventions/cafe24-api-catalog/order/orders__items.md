@@ -288,11 +288,11 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `market_custom_variant_code` |  | 마켓 자체 품목 코드 |
 | ↳ `option_type` |  | 옵션 구성방식 T : 조합형 · E : 연동형 · F : 독립형 |
 | ↳ `options` |  | 옵션 |
-| ↳ ↳ `option_code` |  |  |
-| ↳ ↳ `option_name` |  |  |
+| ↳ ↳ `option_code` |  | 연동형 옵션코드 |
+| ↳ ↳ `option_name` |  | 옵션명 |
 | ↳ ↳ `option_value` |  | 옵션값 주문한 상품의 옵션값 |
-| ↳ ↳ ↳ `option_text` |  |  |
-| ↳ ↳ ↳ `value_no` |  |  |
+| ↳ ↳ ↳ `option_text` |  | 옵션값 |
+| ↳ ↳ ↳ `value_no` |  | 연동형 옵션값 |
 | ↳ `market_discount_amount` |  | 상품별 마켓 할인금액 |
 | ↳ `labels` |  | 주문 라벨 |
 | ↳ `order_status_before_cs` |  | CS 전 주문상태 |

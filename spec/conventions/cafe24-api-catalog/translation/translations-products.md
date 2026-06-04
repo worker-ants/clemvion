@@ -53,29 +53,29 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
 | ↳ `translations` |  | 번역 정보 |
 | ↳ ↳ `translated` |  |  |
-| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `language_code` |  | 언어 코드 번역 정보의 언어 코드에 해당되는 번역 정보를 검색 · 언어별로 번역된 정보에서 검색하고자 하는 언어를 선택하면, 해당 언어에 대한 번역 내용을 확인할 수 있습니다. ,(콤마)로 여러 건을 검색할 수 있다. |
 | ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
-| ↳ ↳ `product_tag` |  |  |
-| ↳ ↳ `description` |  |  |
-| ↳ ↳ `mobile_description` |  |  |
-| ↳ ↳ `simple_description` |  |  |
-| ↳ ↳ `summary_description` |  |  |
-| ↳ ↳ `payment_info` |  |  |
-| ↳ ↳ `shipping_info` |  |  |
-| ↳ ↳ `exchange_info` |  |  |
-| ↳ ↳ `service_info` |  |  |
-| ↳ ↳ `product_material` |  |  |
+| ↳ ↳ `product_tag` |  | 상품 검색어 |
+| ↳ ↳ `description` |  | 상품상세설명 |
+| ↳ ↳ `mobile_description` |  | 모바일 상품 상세설명 |
+| ↳ ↳ `simple_description` |  | 상품 간략 설명 |
+| ↳ ↳ `summary_description` |  | 상품요약설명 |
+| ↳ ↳ `payment_info` |  | 상품결제안내 |
+| ↳ ↳ `shipping_info` |  | 상품배송안내 |
+| ↳ ↳ `exchange_info` |  | 교환/반품안내 |
+| ↳ ↳ `service_info` |  | 서비스문의/안내 |
+| ↳ ↳ `product_material` |  | 상품소재 |
 | ↳ ↳ `seo` |  | (응답 객체) |
-| ↳ ↳ ↳ `meta_title` |  |  |
-| ↳ ↳ ↳ `meta_author` |  |  |
-| ↳ ↳ ↳ `meta_description` |  |  |
-| ↳ ↳ ↳ `meta_keywords` |  |  |
-| ↳ ↳ ↳ `meta_alt` |  |  |
+| ↳ ↳ ↳ `meta_title` |  | 브라우저 타이틀 |
+| ↳ ↳ ↳ `meta_author` |  | 메타태그1 : Author |
+| ↳ ↳ ↳ `meta_description` |  | 메타태그2 : Description |
+| ↳ ↳ ↳ `meta_keywords` |  | 메타태그3 : Keywords |
+| ↳ ↳ ↳ `meta_alt` |  | 상품 이미지 Alt 텍스트 |
 | ↳ ↳ `options` |  | (목록) |
-| ↳ ↳ ↳ `name` |  |  |
-| ↳ ↳ ↳ `value` |  | (목록) |
+| ↳ ↳ ↳ `name` |  | 옵션명 |
+| ↳ ↳ ↳ `value` |  | 옵션값 |
 | ↳ ↳ `updated_date` |  |  |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 
@@ -317,27 +317,27 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
 | ↳ `translations` |  | 번역 정보 |
 | ↳ ↳ `translated` |  |  |
-| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `language_code` |  | 언어 코드 번역 정보의 언어 코드에 해당되는 번역 정보를 검색 · 언어별로 번역된 정보에서 검색하고자 하는 언어를 선택하면, 해당 언어에 대한 번역 내용을 확인할 수 있습니다. ,(콤마)로 여러 건을 검색할 수 있다. |
 | ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
-| ↳ ↳ `product_tag` |  |  |
-| ↳ ↳ `description` |  |  |
-| ↳ ↳ `mobile_description` |  |  |
-| ↳ ↳ `simple_description` |  |  |
-| ↳ ↳ `summary_description` |  |  |
-| ↳ ↳ `payment_info` |  |  |
-| ↳ ↳ `shipping_info` |  |  |
-| ↳ ↳ `exchange_info` |  |  |
-| ↳ ↳ `service_info` |  |  |
-| ↳ ↳ `product_material` |  |  |
+| ↳ ↳ `product_tag` |  | 상품 검색어 |
+| ↳ ↳ `description` |  | 상품상세설명 |
+| ↳ ↳ `mobile_description` |  | 모바일 상품 상세설명 |
+| ↳ ↳ `simple_description` |  | 상품 간략 설명 |
+| ↳ ↳ `summary_description` |  | 상품요약설명 |
+| ↳ ↳ `payment_info` |  | 상품결제안내 |
+| ↳ ↳ `shipping_info` |  | 상품배송안내 |
+| ↳ ↳ `exchange_info` |  | 교환/반품안내 |
+| ↳ ↳ `service_info` |  | 서비스문의/안내 |
+| ↳ ↳ `product_material` |  | 상품소재 |
 | ↳ ↳ `seo` |  | (응답 객체) |
-| ↳ ↳ ↳ `meta_title` |  |  |
-| ↳ ↳ ↳ `meta_author` |  |  |
-| ↳ ↳ ↳ `meta_description` |  |  |
-| ↳ ↳ ↳ `meta_keywords` |  |  |
-| ↳ ↳ ↳ `meta_alt` |  |  |
+| ↳ ↳ ↳ `meta_title` |  | 브라우저 타이틀 |
+| ↳ ↳ ↳ `meta_author` |  | 메타태그1 : Author |
+| ↳ ↳ ↳ `meta_description` |  | 메타태그2 : Description |
+| ↳ ↳ ↳ `meta_keywords` |  | 메타태그3 : Keywords |
+| ↳ ↳ ↳ `meta_alt` |  | 상품 이미지 Alt 텍스트 |
 | ↳ ↳ `options` |  | (목록) |
-| ↳ ↳ ↳ `name` |  |  |
-| ↳ ↳ ↳ `value` |  | (목록) |
+| ↳ ↳ ↳ `name` |  | 옵션명 |
+| ↳ ↳ ↳ `value` |  | 옵션값 |
 | ↳ ↳ `updated_date` |  |  |
 
 응답 예시 (JSON):

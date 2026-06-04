@@ -82,7 +82,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `use_coupon` |  | 혜택 자동 지급 쿠폰 사용 여부 T: 사용함 · F: 사용안함 |
 | ↳ `coupon_no` |  | 혜택 자동 지급 쿠폰 |
 | ↳ `popup_notification` |  | 평생회원 전환 이벤트 안내 팝업 사용 여부 T: 사용함 · F: 사용안함 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

@@ -54,11 +54,11 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `pixel_code` |  | 연동사(ECP/독립몰)에서 이미 사용중인 카카오 광고 픽셀 ID |
 | ↳ `use_kakaopay` |  | 카카오페이 구매 사용여부 T : 사용함 · F : 사용안함 |
 | ↳ `product_detail_button_size` |  | 쇼핑몰 상세상품 페이지 버튼 사이즈 |
-| ↳ ↳ `pc` |  |  |
-| ↳ ↳ `mobile` |  |  |
+| ↳ ↳ `pc` |  | pc |
+| ↳ ↳ `mobile` |  | mobile |
 | ↳ `basket_button_size` |  | 쇼핑몰 장바구니 페이지 버튼 사이즈 |
-| ↳ ↳ `pc` |  |  |
-| ↳ ↳ `mobile` |  |  |
+| ↳ ↳ `pc` |  | pc |
+| ↳ ↳ `mobile` |  | mobile |
 | ↳ `use_dark_mode` |  | 쇼핑몰 다크모드 적용여부 T : 활성화 · F : 비활성화 |
 | ↳ `button_authorization_key` |  | 입점시 부여 받는 판매점의 버튼 인증 |
 | ↳ `thirdparty_agree` |  | 제3자 제공 동의 여부 T : 동의함 · F : 동의안함 |
@@ -128,11 +128,11 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `pixel_code` |  | 연동사(ECP/독립몰)에서 이미 사용중인 카카오 광고 픽셀 ID |
 | ↳ `use_kakaopay` |  | 카카오페이 구매 사용여부 T : 사용함 · F : 사용안함 |
 | ↳ `product_detail_button_size` |  | 쇼핑몰 상세상품 페이지 버튼 사이즈 |
-| ↳ ↳ `pc` |  |  |
-| ↳ ↳ `mobile` |  |  |
+| ↳ ↳ `pc` |  | pc |
+| ↳ ↳ `mobile` |  | mobile |
 | ↳ `basket_button_size` |  | 쇼핑몰 장바구니 페이지 버튼 사이즈 |
-| ↳ ↳ `pc` |  |  |
-| ↳ ↳ `mobile` |  |  |
+| ↳ ↳ `pc` |  | pc |
+| ↳ ↳ `mobile` |  | mobile |
 | ↳ `use_dark_mode` |  | 쇼핑몰 다크모드 적용여부 T : 활성화 · F : 비활성화 |
 | ↳ `button_authorization_key` |  | 입점시 부여 받는 판매점의 버튼 인증 |
 | ↳ `thirdparty_agree` |  | 제3자 제공 동의 여부 T : 동의함 · F : 동의안함 |

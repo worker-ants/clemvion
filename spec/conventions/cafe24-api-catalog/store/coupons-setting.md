@@ -63,24 +63,24 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `allow_using_coupons_with_discounts` |  | 할인 동시사용 A:쿠폰+회원등급 할인 동시 사용 · C:쿠폰만 사용 · G:회원등급 할인만 사용 |
 | ↳ `allow_using_product_and_order_coupons` |  | 상품/주문서 동시사용 T:사용함 · F:사용안함 |
 | ↳ `recover_coupon_setting` |  | 쿠폰 복원 설정 |
-| ↳ ↳ `restore_viewpoint` |  |  |
-| ↳ ↳ `cancel_before_pay` |  |  |
-| ↳ ↳ `cancel_after_pay` |  |  |
-| ↳ ↳ `return` |  |  |
-| ↳ ↳ `exchange` |  |  |
-| ↳ ↳ `part` |  |  |
+| ↳ ↳ `restore_viewpoint` |  | 쿠폰 복원 시점 · A: 취소/교환/반품 접수 · B: 취소/교환/반품 완료 |
+| ↳ ↳ `cancel_before_pay` |  | 입금전취소 · T:자동 복원함 · F:자동 복원 안함 · M:쿠폰복원 여부를 확인함 |
+| ↳ ↳ `cancel_after_pay` |  | 입금후 취소 · T:자동 복원함 · F:자동 복원 안함 · M:쿠폰복원 여부를 확인함 |
+| ↳ ↳ `return` |  | 반품 · T:자동 복원함 · F:자동 복원 안함 · M:쿠폰복원 여부를 확인함 |
+| ↳ ↳ `exchange` |  | 교환 · T:자동 복원함 · F:자동 복원 안함 · M:쿠폰복원 여부를 확인함 |
+| ↳ ↳ `part` |  | 부분 취소/반품/교환 · F:쿠폰 복원 안함 · M:쿠폰복원 여부를 확인함 |
 | ↳ `max_coupon_count` |  | 쿠폰 사용 개수 제한 |
-| ↳ ↳ `product_per_product` |  |  |
-| ↳ ↳ `order_per_order` |  |  |
-| ↳ ↳ `product_and_order_per_order` |  |  |
-| ↳ ↳ `product_per_order` |  |  |
-| ↳ ↳ `product_and_order_per_day` |  |  |
+| ↳ ↳ `product_per_product` |  | 상품당 상품쿠폰 사용 개수 제한 |
+| ↳ ↳ `order_per_order` |  | 주문당 주문서 쿠폰 개수 제한 |
+| ↳ ↳ `product_and_order_per_order` |  | 주문당 쿠폰 사용 개수 제한 |
+| ↳ ↳ `product_per_order` |  | 주문당 상품쿠폰 쿠폰 개수 제한 |
+| ↳ ↳ `product_and_order_per_day` |  | 일일 쿠폰 사용 개수 제한 |
 | ↳ `use_additional_coupon` |  | 추가 사용 쿠폰 T:사용함 · F:사용안함 |
 | ↳ `additional_coupon_no` |  | 추가 사용 쿠폰 번호 |
-| ↳ ↳ `coupon_no` |  |  |
+| ↳ ↳ `coupon_no` |  | 쿠폰번호 |
 | ↳ `expiration_notice_date_setting` |  | 쿠폰 만료일 안내 발송 기준 설정 |
-| ↳ ↳ `expiration_notice_date_type` |  |  |
-| ↳ ↳ `expiration_notice_date` |  | (응답 객체) |
+| ↳ ↳ `expiration_notice_date_type` |  | 발송 기준 설정 · 발송기간 기준 설정:C · 발송기간 전체 설정:A |
+| ↳ ↳ `expiration_notice_date` |  | 발송기간 기준 설정 만료일 · 1일 전:one_day · 3일 전:three_day · 7일 전:seven_day |
 | ↳ ↳ ↳ `one_day` |  |  |
 | ↳ ↳ ↳ `three_day` |  |  |
 | ↳ ↳ ↳ `seven_day` |  |  |
@@ -203,25 +203,25 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `allow_using_coupons_with_discounts` |  | 할인 동시사용 A:쿠폰+회원등급 할인 동시 사용 · C:쿠폰만 사용 · G:회원등급 할인만 사용 |
 | ↳ `allow_using_product_and_order_coupons` |  | 상품/주문서 동시사용 T:사용함 · F:사용안함 |
 | ↳ `recover_coupon_setting` |  | 쿠폰 복원 설정 |
-| ↳ ↳ `restore_viewpoint` |  |  |
-| ↳ ↳ `cancel_before_pay` |  |  |
-| ↳ ↳ `cancel_after_pay` |  |  |
-| ↳ ↳ `return` |  |  |
-| ↳ ↳ `exchange` |  |  |
-| ↳ ↳ `part` |  |  |
+| ↳ ↳ `restore_viewpoint` |  | 쿠폰 복원 시점 · A: 취소/교환/반품 접수 · B: 취소/교환/반품 완료 |
+| ↳ ↳ `cancel_before_pay` |  | 입금전취소 · T:자동 복원함 · F:자동 복원 안함 · M:쿠폰복원 여부를 확인함 |
+| ↳ ↳ `cancel_after_pay` |  | 입금후 취소 · T:자동 복원함 · F:자동 복원 안함 · M:쿠폰복원 여부를 확인함 |
+| ↳ ↳ `return` |  | 반품 · T:자동 복원함 · F:자동 복원 안함 · M:쿠폰복원 여부를 확인함 |
+| ↳ ↳ `exchange` |  | 교환 · T:자동 복원함 · F:자동 복원 안함 · M:쿠폰복원 여부를 확인함 |
+| ↳ ↳ `part` |  | 부분 취소/반품/교환 · F:쿠폰 복원 안함 · M:쿠폰복원 여부를 확인함 |
 | ↳ `max_coupon_count` |  | 쿠폰 사용 개수 제한 |
-| ↳ ↳ `product_per_product` |  |  |
-| ↳ ↳ `product_per_item` |  |  |
-| ↳ ↳ `order_per_order` |  |  |
-| ↳ ↳ `product_and_order_per_order` |  |  |
-| ↳ ↳ `product_per_order` |  |  |
-| ↳ ↳ `product_and_order_per_day` |  |  |
+| ↳ ↳ `product_per_product` |  | 상품당 상품쿠폰 사용 개수 제한 |
+| ↳ ↳ `product_per_item` |  | 품목당 상품쿠폰 사용 개수 제한 |
+| ↳ ↳ `order_per_order` |  | 주문당 주문서 쿠폰 개수 제한 |
+| ↳ ↳ `product_and_order_per_order` |  | 주문당 쿠폰 사용 개수 제한 |
+| ↳ ↳ `product_per_order` |  | 주문당 상품쿠폰 쿠폰 개수 제한 |
+| ↳ ↳ `product_and_order_per_day` |  | 일일 쿠폰 사용 개수 제한 |
 | ↳ `use_additional_coupon` |  | 추가 사용 쿠폰 T:사용함 · F:사용안함 |
 | ↳ `additional_coupon_no` |  | 추가 사용 쿠폰 번호 |
-| ↳ ↳ `coupon_no` |  |  |
+| ↳ ↳ `coupon_no` |  | 쿠폰번호 |
 | ↳ `expiration_notice_date_setting` |  | 쿠폰 만료일 안내 발송 기준 설정 |
-| ↳ ↳ `expiration_notice_date_type` |  |  |
-| ↳ ↳ `expiration_notice_date` |  | (응답 객체) |
+| ↳ ↳ `expiration_notice_date_type` |  | 발송 기준 설정 · 발송기간 기준 설정:C · 발송기간 전체 설정:A |
+| ↳ ↳ `expiration_notice_date` |  | 발송기간 기준 설정 만료일 · 1일 전:one_day · 3일 전:three_day · 7일 전:seven_day |
 | ↳ ↳ ↳ `one_day` |  |  |
 | ↳ ↳ ↳ `three_day` |  |  |
 | ↳ ↳ ↳ `seven_day` |  |  |

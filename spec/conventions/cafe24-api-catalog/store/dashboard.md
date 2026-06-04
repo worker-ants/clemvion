@@ -49,13 +49,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | ↳ `daily_sales_stats` |  | 일일 현황 정보 일 단위의 매출 현황 정보 |
 | ↳ ↳ `title` |  |  |
-| ↳ ↳ `date` |  |  |
+| ↳ ↳ `date` |  | 날짜 |
 | ↳ ↳ `order_price` |  |  |
 | ↳ ↳ `paid_price` |  |  |
 | ↳ ↳ `refund_price` |  |  |
-| ↳ ↳ `order_count` |  |  |
+| ↳ ↳ `order_count` |  | 주문수 |
 | ↳ ↳ `payed_count` |  |  |
-| ↳ ↳ `refund_count` |  |  |
+| ↳ ↳ `refund_count` |  | 환불완료 수량 |
 | ↳ ↳ `prepareproduct_count` |  |  |
 | ↳ ↳ `prepare_count` |  |  |
 | ↳ ↳ `standby_count` |  |  |
@@ -95,8 +95,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `new_members_count` |  | 신규회원 수 신규가입한 회원의 숫자 |
 | ↳ `board_list` |  | 게시판 목록 해당 몰의 게시판의 리스트 |
 | ↳ ↳ `type` |  |  |
-| ↳ ↳ `board_no` |  |  |
-| ↳ ↳ `board_name` |  |  |
+| ↳ ↳ `board_no` |  | 게시판 번호 |
+| ↳ ↳ `board_name` |  | 게시판 이름 |
 | ↳ ↳ `new_registered_count` |  |  |
 | ↳ ↳ `page_url` |  |  |
 

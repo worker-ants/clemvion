@@ -115,9 +115,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `coupon_description` |  | 쿠폰설명 |
 | ↳ `created_date` |  | 생성일 |
 | ↳ `deleted` |  | 쿠폰삭제 여부 T : 삭제 · F : 삭제되지 않음 |
-| ↳ `is_stopped_issued_coupon` |  |  |
-| ↳ `pause_begin_datetime` |  |  |
-| ↳ `pause_end_datetime` |  |  |
+| ↳ `is_stopped_issued_coupon` |  | 쿠폰 완전삭제 (발급된 쿠폰 사용정지) 여부 쿠폰이 완전 삭제되었는지 여부. 쿠폰이 완전 삭제되면 기존에 발급된 쿠폰도 더 이상 사용이 불가함. T : 완전삭제 · F : 완전삭제 아님 |
+| ↳ `pause_begin_datetime` |  | 쿠폰 발급 일시정지 시작시간 쿠폰 발급을 조건부 자동발급으로 설정한 경우, 조건에 해당해도 발급을 일시정지하는 기간의 시작 시간 |
+| ↳ `pause_end_datetime` |  | 쿠폰 발급 일시정지 종료시간 쿠폰 발급을 조건부 자동발급으로 설정한 경우, 조건에 해당해도 발급을 일시정지하는 기간의 종료 시간 |
 | ↳ `benefit_text` |  | 쿠폰혜택 상세내역 출력 |
 | ↳ `benefit_type` |  | 혜택 구분 A : 할인금액 · B : 할인율 |
 | ↳ `benefit_price` |  | 혜택 금액 |
@@ -141,7 +141,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `issue_order_available_category` |  | 발급 대상 카테고리 U : 제한 없음 · I : 선택 상품 적용 · E : 선택 상품 제외 |
 | ↳ `issue_anniversary_type` |  |  |
 | ↳ `issue_anniversary_pre_issue_day` |  |  |
-| ↳ `issue_module_type` |  |  |
+| ↳ `issue_module_type` |  | 발급 조건 설치 모듈 유형 모듈 설치 발급 쿠폰의 설치 모듈 유형 S : 바로가기 · B : 즐겨찾기 · L : 라이브링콘 |
 | ↳ `issue_review_count` |  |  |
 | ↳ `issue_review_has_image` |  |  |
 | ↳ `issue_quantity_min` |  |  |
@@ -153,7 +153,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `issue_member_group_no` |  |  |
 | ↳ `issue_member_group_name` |  |  |
 | ↳ `issue_no_purchase_period` |  |  |
-| ↳ `issue_reserved` |  |  |
+| ↳ `issue_reserved` |  | 자동 발행 예약 사용 여부 T : 사용 · F : 사용하지 않음 |
 | ↳ `issue_reserved_date` |  |  |
 | ↳ `available_date` |  | 쿠폰 사용기간 |
 | ↳ `available_period_type` |  | 사용기간 유형 F : 일반 기간 · R : 쿠폰 발급일 기준 · M : 당월 말까지 사용 |
@@ -173,8 +173,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `available_category_list` |  | 쿠폰적용 분류 리스트 |
 | ↳ `available_coupon_count_by_order` |  | 주문서 당 동일쿠폰 최대 사용 수 |
 | ↳ `serial_generate_method` |  | 시리얼 쿠폰 생성방법 A:자동생성 · M:수동생성 |
-| ↳ `coupon_image_type` |  |  |
-| ↳ `coupon_image_path` |  |  |
+| ↳ `coupon_image_type` |  | 쿠폰 이미지 유형 쿠폰 이미지의 유형 B : 기본 이미지 사용 · C : 직접 업로드 |
+| ↳ `coupon_image_path` |  | 쿠폰 이미지 경로 쿠폰 이미지의 URL 경로 |
 | ↳ `show_product_detail` |  | 상품상세페이지 노출여부 T : 상품상세페이지 노출 · F : 상품상세페이지 미노출 |
 | ↳ `use_notification_when_login` |  |  |
 
@@ -413,7 +413,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `serial_code_type` |  | 시리얼코드 생성 방식 R: 다른 시리얼 코드로 생성 · S: 동일 시리얼 코드로 생성 |
 | ↳ `serial_generate_auto` |  | 시리얼 쿠폰 자동생성 추가 정보 |
 | ↳ ↳ `issue_max_count` |  | 최대 발급수 |
-| ↳ ↳ `serial_code_length` |  |  |
+| ↳ ↳ `serial_code_length` |  | 자동생성 시리얼코드 자리수 |
 
 응답 예시 (JSON):
 

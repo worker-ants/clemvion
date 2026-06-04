@@ -76,11 +76,11 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `status` |  | 주문상태 accept : 접수 · collected : 수거완료 · exchanged : 교환완료 |
 | ↳ `claim_code` |  | 교환번호 |
 | ↳ `items` |  | 품주코드 |
-| ↳ ↳ `order_item_code` |  |  |
-| ↳ ↳ `quantity` |  |  |
-| ↳ ↳ `exchange_variant_code` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
+| ↳ ↳ `quantity` |  | 수량 |
+| ↳ ↳ `exchange_variant_code` |  | (동일상품 다른 옵션 교환시) 교환 상품 품목 코드 |
 | ↳ `exchanged_items` |  | 교환상품 |
-| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
 | ↳ ↳ `origin_order_item_code` |  |  |
 
 응답 예시 (JSON):
@@ -179,15 +179,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `recover_inventory` |  | 재고복구 T : 복구함 · F : 복구안함 |
 | ↳ `exchanged_after_collected` |  | 수거완료시 교환완료 여부 T : 사용함 · F : 사용안함 |
 | ↳ `items` |  | 품주코드 |
-| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
 | ↳ `request_pickup` |  | 수거신청 여부 T : 사용함 · F : 사용안함 |
 | ↳ `pickup` |  | 수거지역 상세 |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `phone` |  |  |
-| ↳ ↳ `cellphone` |  |  |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `address1` |  |  |
-| ↳ ↳ `address2` |  |  |
+| ↳ ↳ `name` |  | 이름 |
+| ↳ ↳ `phone` |  | 전화번호 |
+| ↳ ↳ `cellphone` |  | 휴대전화 |
+| ↳ ↳ `zipcode` |  | 우편번호 |
+| ↳ ↳ `address1` |  | 기본 주소 |
+| ↳ ↳ `address2` |  | 상세 주소 |
 | ↳ `undone` |  | 철회 여부 T : 철회함 · F : 철회안함 |
 | ↳ `add_memo_too` |  | 관리자 메모에도 추가 T : 사용함 · F : 사용안함 |
 | ↳ `undone_reason_type` |  | 철회 사유 구분 A:고객변심 · B:배송지연 · J:배송오류 · C:배송불가지역 · L:수출/통관 불가 · D:포장불량 · E:상품 불만족 · F:상품정보상이 · K:상품불량 · G:서비스불만족 · H:품절 · I:기타 |

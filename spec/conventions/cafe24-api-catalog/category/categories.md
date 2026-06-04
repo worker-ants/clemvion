@@ -80,7 +80,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `categories` |  | (목록) |
+| `categories` |  | 카테고리 정보 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | ↳ `category_no` |  | 분류 번호 상품분류의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품분류 번호는 중복되지 않음. |
 | ↳ `category_depth` | 최소: [1]~최대: [4] | 분류 Depth 해당 상품분류가 하위 몇 차 상품분류에 있는 카테고리인지 표시함. 1~4차까지 상품분류가 존재한다. |

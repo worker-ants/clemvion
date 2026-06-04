@@ -109,7 +109,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `refunds` |  | (목록) |
+| `refunds` |  | 환불상세 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `member_id` |  | 회원아이디 |
 | ↳ `member_email` |  | 회원 이메일 |
@@ -141,7 +141,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `include_tax` |  | 가격에 세금 포함 T: 세금포함 · F: 세금제외 |
 | ↳ `tax` |  | 세금 정보 세금 관리자 앱을 사용 안 할 경우 null로 반환 |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `amount` |  |  |
+| ↳ ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
 | ↳ `cancel_fee_amount` |  | 취소수수료 |
 
 응답 예시 (JSON):
@@ -359,7 +359,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `include_tax` |  | 가격에 세금 포함 T: 세금포함 · F: 세금제외 |
 | ↳ `tax` |  | 세금 정보 세금 관리자 앱을 사용 안 할 경우 null로 반환 |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `amount` |  |  |
+| ↳ ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
 | ↳ `cancel_fee_amount` |  | 취소수수료 |
 
 응답 예시 (JSON):

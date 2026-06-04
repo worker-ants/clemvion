@@ -47,13 +47,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `display_group` |  | 상세 상품분류 |
 | ↳ `properties` |  | 항목 속성 |
-| ↳ ↳ `key` |  |  |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `display` |  |  |
-| ↳ ↳ `display_name` |  |  |
-| ↳ ↳ `font_type` |  |  |
-| ↳ ↳ `font_size` |  |  |
-| ↳ ↳ `font_color` |  |  |
+| ↳ ↳ `key` |  | 항목코드 |
+| ↳ ↳ `name` |  | 항목명 표시텍스트 |
+| ↳ ↳ `display` |  | 항목 표시여부 · DEFAULT F |
+| ↳ ↳ `display_name` |  | 항목명 표시설정 · T : 사용함 · F : 사용안함 · DEFAULT T |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) · DEFAULT N |
+| ↳ ↳ `font_size` |  | 글자 크기 · DEFAULT 12 |
+| ↳ ↳ `font_color` |  | 글자 색상 · DEFAULT #555555 |
 
 응답 예시 (JSON):
 
@@ -117,16 +117,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 |---|---|---|
 | `main` |  | (응답 객체) |
 | ↳ `property` |  | 항목 속성 |
-| ↳ ↳ `key` |  |  |
+| ↳ ↳ `key` |  | 항목코드 |
 | ↳ ↳ `multishop_display_names` |  | (목록) |
 | ↳ ↳ ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
-| ↳ ↳ ↳ `name` |  |  |
-| ↳ ↳ `display` |  |  |
-| ↳ ↳ `display_name` |  |  |
-| ↳ ↳ `font_type` |  |  |
-| ↳ ↳ `font_size` |  |  |
-| ↳ ↳ `font_color` |  |  |
-| ↳ ↳ `exposure_group_type` |  |  |
+| ↳ ↳ ↳ `name` |  | 항목명 표시텍스트 |
+| ↳ ↳ `display` |  | 항목 표시여부 · DEFAULT F |
+| ↳ ↳ `display_name` |  | 항목명 표시설정 · T : 사용함 · F : 사용안함 · DEFAULT T |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) · DEFAULT N |
+| ↳ ↳ `font_size` |  | 글자 크기 · DEFAULT 12 |
+| ↳ ↳ `font_color` |  | 글자 색상 · DEFAULT #555555 |
+| ↳ ↳ `exposure_group_type` |  | 표시 대상 타입 · A: 전체 · M: 회원 · DEFAULT A |
 
 응답 예시 (JSON):
 
@@ -189,13 +189,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `display_group` |  | 상세 상품분류 |
 | ↳ `properties` |  | 항목 속성 |
-| ↳ ↳ `key` |  |  |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `display` |  |  |
-| ↳ ↳ `display_name` |  |  |
-| ↳ ↳ `font_type` |  |  |
-| ↳ ↳ `font_size` |  |  |
-| ↳ ↳ `font_color` |  |  |
+| ↳ ↳ `key` |  | 항목코드 |
+| ↳ ↳ `name` |  | 항목명 표시텍스트 |
+| ↳ ↳ `display` |  | 항목 표시여부 · DEFAULT F |
+| ↳ ↳ `display_name` |  | 항목명 표시설정 · T : 사용함 · F : 사용안함 · DEFAULT T |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) · DEFAULT N |
+| ↳ ↳ `font_size` |  | 글자 크기 · DEFAULT 12 |
+| ↳ ↳ `font_color` |  | 글자 색상 · DEFAULT #555555 |
 
 응답 예시 (JSON):
 

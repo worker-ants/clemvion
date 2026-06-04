@@ -63,12 +63,12 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `status` |  | 주문상태 paid: 입금확인 · unpaid: 입금전 · canceled: 결제취소 |
 | ↳ `payment_no` |  | 결제번호 |
 | ↳ `cancel_request` |  | 결제취소 요청 정보 |
-| ↳ ↳ `refund_status` |  |  |
-| ↳ ↳ `partial_cancel` |  |  |
-| ↳ ↳ `payment_gateway_name` |  |  |
-| ↳ ↳ `payment_method` |  |  |
-| ↳ ↳ `response_code` |  |  |
-| ↳ ↳ `response_message` |  |  |
+| ↳ ↳ `refund_status` |  | 환불 처리 상태 · P: 환불완료 · F: 환불실패 · DEFAULT F |
+| ↳ ↳ `partial_cancel` |  | 부분 취소 여부 · T: 부분취소 · F: 전체취소 · DEFAULT F |
+| ↳ ↳ `payment_gateway_name` |  | 결제 PG사 이름 |
+| ↳ ↳ `payment_method` |  | 결제수단 코드 · card : 신용카드 · tcash : 계좌이체 · icash : 가상계좌 · cell : 휴대폰 · deferpay : 후불 · cvs : 편의점 · easypay : 간편결제 · fpayment : 해외결제 |
+| ↳ ↳ `response_code` |  | 결제 PG 사의 응답 코드 |
+| ↳ ↳ `response_message` |  | 결제 PG 사의 응답 메시지 |
 
 응답 예시 (JSON):
 

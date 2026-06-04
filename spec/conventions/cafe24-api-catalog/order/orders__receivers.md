@@ -202,8 +202,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `wished_delivery_date` |  | 희망배송일 |
 | ↳ `use_fast_delivery_date` |  | 가능한 빠른 배송일 설정 여부 T: 사용함 · F: 사용안함 |
 | ↳ `wished_delivery_time` |  | 희망배송시간 |
-| ↳ ↳ `start_hour` |  |  |
-| ↳ ↳ `end_hour` |  |  |
+| ↳ ↳ `start_hour` |  | 희망배송 시작시간 |
+| ↳ ↳ `end_hour` |  | 희망배송 종료시간 |
 | ↳ `use_fast_delivery_time` |  | 가능한 빠른 배송시간 설정 여부 T: 사용함 · F: 사용안함 |
 
 응답 예시 (JSON):
@@ -331,7 +331,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `receiver` |  | (응답 객체) |
+| `receiver` |  | 수령자 |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. DEFAULT 1 |
 | ↳ `name` |  | 수령자명 |
 | ↳ `name_furigana` |  | 수령자명 (발음) |
@@ -359,8 +359,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `wished_delivery_date` |  | 희망배송일 |
 | ↳ `use_fast_delivery_date` |  | 가능한 빠른 배송일 설정 여부 T: 사용함 · F: 사용안함 |
 | ↳ `wished_delivery_time` |  | 희망배송시간 |
-| ↳ ↳ `start_hour` |  |  |
-| ↳ ↳ `end_hour` |  |  |
+| ↳ ↳ `start_hour` |  | 희망배송 시작시간 |
+| ↳ ↳ `end_hour` |  | 희망배송 종료시간 |
 | ↳ `use_fast_delivery_time` |  | 가능한 빠른 배송시간 설정 여부 T: 사용함 · F: 사용안함 |
 
 응답 예시 (JSON):

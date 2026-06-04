@@ -61,7 +61,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `process_date` |  | 처리일시 |
 | ↳ `manager_id` | 형식 : [a-z0-9]; 글자수 최소: [4자]~최대: [16자] | 처리자 |
 | ↳ `manager_type` |  | 처리자 타입 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

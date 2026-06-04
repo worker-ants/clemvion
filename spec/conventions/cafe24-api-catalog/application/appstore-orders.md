@@ -46,7 +46,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `order` |  | (응답 객체) |
+| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
 | ↳ `order_id` |  | 주문아이디 앱스토어 주문의 주문 ID |
 | ↳ `order_name` |  | 주문명 앱스토어 주문의 주문 이름. 주문 생성시 지정이 가능하며, 사용자가 결제시 해당 결제의 내용이 무엇인지 알 수 있는 내용이어야 함. |
 | ↳ `order_amount` |  | 주문금액 앱스토어 주문 생성시 결제 요청한 주문 금액 |
@@ -94,7 +94,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `order` |  | (응답 객체) |
+| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
 | ↳ `order_id` |  | 주문아이디 앱스토어 주문의 주문 ID |
 | ↳ `order_name` |  | 주문명 앱스토어 주문의 주문 이름. 주문 생성시 지정이 가능하며, 사용자가 결제시 해당 결제의 내용이 무엇인지 알 수 있는 내용이어야 함. |
 | ↳ `order_amount` |  | 주문금액 앱스토어 주문 생성시 결제 요청한 주문 금액 |

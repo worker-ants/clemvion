@@ -95,8 +95,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `claim_code` |  | 반품번호 |
 | ↳ `pickup_completed` |  | 수거완료 여부 T : 수거완료 · F : 수거전 |
 | ↳ `items` |  | 품주코드 |
-| ↳ ↳ `order_item_code` |  |  |
-| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
+| ↳ ↳ `quantity` |  | 수량 |
 
 응답 예시 (JSON):
 
@@ -187,21 +187,21 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `return_invoice_success` |  | 반송장 처리 성공 여부 T : 성공 · F : 실패 · N : 미집하 |
 | ↳ `return_invoice_fail_reason` | 최대글자수 : [100자] | 반송장 처리 실패 사유 |
 | ↳ `items` |  | 품주코드 |
-| ↳ ↳ `order_item_code` |  |  |
-| ↳ `refund_method_code` |  | (목록) |
-| ↳ `refund_bank_code` |  |  |
-| ↳ `refund_bank_account_no` |  |  |
-| ↳ `refund_bank_account_holder` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
+| ↳ `refund_method_code` |  | 환불 방식 T : 현금 · F : 신용카드 · M : 적립금 · G : 계좌이체 · C : 휴대폰 · D : 예치금 · Z : 후불 · O : 선불금 · V : 편의점 · J : 제휴상품권 · K : 제휴포인트 · I : 기타 |
+| ↳ `refund_bank_code` |  | 환불 은행 코드 환불 방식(refund_method)이 현금(T)일 경우 필수 · refund_bank_code · ※ 해당 쇼핑몰이 EC Korea 쇼핑몰일 경우 필수 |
+| ↳ `refund_bank_account_no` |  | 환불 계좌번호 환불 방식(refund_method)이 현금(T)일 경우 필수 |
+| ↳ `refund_bank_account_holder` | 최대글자수 : [15자] | 환불계좌 예금주 명의 |
 | ↳ `combined_refund_method` |  |  |
 | ↳ `recover_inventory` |  | 재고복구 T : 복구함 · F : 복구안함 |
 | ↳ `request_pickup` |  | 수거신청 여부 T : 사용함 · F : 사용안함 |
 | ↳ `pickup` |  | 수거지역 상세 |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `phone` |  |  |
-| ↳ ↳ `cellphone` |  |  |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `address1` |  |  |
-| ↳ ↳ `address2` |  |  |
+| ↳ ↳ `name` |  | 이름 |
+| ↳ ↳ `phone` |  | 전화번호 |
+| ↳ ↳ `cellphone` |  | 휴대전화 |
+| ↳ ↳ `zipcode` |  | 우편번호 |
+| ↳ ↳ `address1` |  | 기본 주소 |
+| ↳ ↳ `address2` |  | 상세 주소 |
 | ↳ `undone` |  | 철회 여부 T : 철회함 · F : 철회안함 |
 | ↳ `add_memo_too` |  | 관리자 메모에도 추가 T : 사용함 · F : 사용안함 |
 | ↳ `undone_reason_type` |  | 철회 사유 구분 A:고객변심 · B:배송지연 · J:배송오류 · C:배송불가지역 · L:수출/통관 불가 · D:포장불량 · E:상품 불만족 · F:상품정보상이 · K:상품불량 · G:서비스불만족 · H:품절 · I:기타 |

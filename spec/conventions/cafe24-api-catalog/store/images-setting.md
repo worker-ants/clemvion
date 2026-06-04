@@ -43,16 +43,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | `image` |  | (응답 객체) |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `product_image_size` |  | 상품 이미지 사이즈 설정값 |
-| ↳ ↳ `detail_image_width` |  |  |
-| ↳ ↳ `detail_image_height` |  |  |
-| ↳ ↳ `list_image_width` |  |  |
-| ↳ ↳ `list_image_height` |  |  |
-| ↳ ↳ `tiny_image_width` |  |  |
-| ↳ ↳ `tiny_image_height` |  |  |
-| ↳ ↳ `zoom_image_width` |  |  |
-| ↳ ↳ `zoom_image_height` |  |  |
-| ↳ ↳ `small_image_width` |  |  |
-| ↳ ↳ `small_image_height` |  |  |
+| ↳ ↳ `detail_image_width` |  | 상세 이미지 가로 |
+| ↳ ↳ `detail_image_height` |  | 상세이미지 세로 |
+| ↳ ↳ `list_image_width` |  | 목록 이미지 가로 |
+| ↳ ↳ `list_image_height` |  | 목록 이미지 세로 |
+| ↳ ↳ `tiny_image_width` |  | 작은 목록 이미지 가로 |
+| ↳ ↳ `tiny_image_height` |  | 작은 목록 이미지 세로 |
+| ↳ ↳ `zoom_image_width` |  | 확대 이미지 가로 |
+| ↳ ↳ `zoom_image_height` |  | 확대 이미지 세로 |
+| ↳ ↳ `small_image_width` |  | 축소 이미지 가로 |
+| ↳ ↳ `small_image_height` |  | 축소 이미지 세로 |
 
 응답 예시 (JSON):
 
@@ -110,16 +110,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | `image` |  | (응답 객체) |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `product_image_size` |  | 상품 이미지 사이즈 설정값 |
-| ↳ ↳ `detail_image_width` |  |  |
-| ↳ ↳ `detail_image_height` |  |  |
-| ↳ ↳ `list_image_width` |  |  |
-| ↳ ↳ `list_image_height` |  |  |
-| ↳ ↳ `tiny_image_width` |  |  |
-| ↳ ↳ `tiny_image_height` |  |  |
-| ↳ ↳ `zoom_image_width` |  |  |
-| ↳ ↳ `zoom_image_height` |  |  |
-| ↳ ↳ `small_image_width` |  |  |
-| ↳ ↳ `small_image_height` |  |  |
+| ↳ ↳ `detail_image_width` |  | 상세 이미지 가로 |
+| ↳ ↳ `detail_image_height` |  | 상세이미지 세로 |
+| ↳ ↳ `list_image_width` |  | 목록 이미지 가로 |
+| ↳ ↳ `list_image_height` |  | 목록 이미지 세로 |
+| ↳ ↳ `tiny_image_width` |  | 작은 목록 이미지 가로 |
+| ↳ ↳ `tiny_image_height` |  | 작은 목록 이미지 세로 |
+| ↳ ↳ `zoom_image_width` |  | 확대 이미지 가로 |
+| ↳ ↳ `zoom_image_height` |  | 확대 이미지 세로 |
+| ↳ ↳ `small_image_width` |  | 축소 이미지 가로 |
+| ↳ ↳ `small_image_height` |  | 축소 이미지 세로 |
 
 응답 예시 (JSON):
 

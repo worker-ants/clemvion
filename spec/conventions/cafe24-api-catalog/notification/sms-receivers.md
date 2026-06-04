@@ -63,7 +63,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `user_id` |  | 운영자 아이디 |
 | ↳ `manager_name` |  | 담당자명 |
 | ↳ `cellphone` |  | 휴대전화 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

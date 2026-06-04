@@ -86,7 +86,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `variant_code` |  | 상품 품목 코드 |
 | ↳ `quantity` |  | 수량 |
 | ↳ `product_bundle` |  | 세트상품 여부 T : 세트상품 · F : 세트상품 아님 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

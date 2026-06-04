@@ -65,7 +65,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `fixed` |  | 상단고정 여부 T : 사용함 · F : 사용안함 |
 | ↳ `product_list` |  | 상품 목록 |
 | ↳ ↳ `product_no` |  |  |
-| ↳ ↳ `option_code` |  |  |
+| ↳ ↳ `option_code` |  | 연동형 옵션코드 |
 
 응답 예시 (JSON):
 
@@ -162,7 +162,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `fixed` |  | 상단고정 여부 T : 사용함 · F : 사용안함 |
 | ↳ `product_list` |  | 상품 목록 |
 | ↳ ↳ `product_no` |  |  |
-| ↳ ↳ `option_code` |  |  |
+| ↳ ↳ `option_code` |  | 연동형 옵션코드 |
 
 응답 예시 (JSON):
 
@@ -235,7 +235,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `fixed` |  | 상단고정 여부 T : 사용함 · F : 사용안함 |
 | ↳ `product_list` |  | 상품 목록 |
 | ↳ ↳ `product_no` |  |  |
-| ↳ ↳ `option_code` |  |  |
+| ↳ ↳ `option_code` |  | 연동형 옵션코드 |
 
 응답 예시 (JSON):
 

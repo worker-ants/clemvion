@@ -46,10 +46,10 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `type` |  | 회원가입항목 유형 |
 | ↳ `properties` |  | 항목 |
-| ↳ ↳ `key` |  |  |
+| ↳ ↳ `key` |  | 항목키 |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `required` |  |  |
+| ↳ ↳ `use` |  | 일반 회원가입 사용여부 · T:사용 · F:사용안함 |
+| ↳ ↳ `required` |  | 필수입력여부 · T:필수 · F:선택 |
 
 응답 예시 (JSON):
 
@@ -105,10 +105,10 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `type` |  | 회원가입항목 유형 |
 | ↳ `properties` |  | 항목 |
-| ↳ ↳ `key` |  |  |
+| ↳ ↳ `key` |  | 항목키 |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `required` |  |  |
+| ↳ ↳ `use` |  | 일반 회원가입 사용여부 · T:사용 · F:사용안함 |
+| ↳ ↳ `required` |  | 필수입력여부 · T:필수 · F:선택 |
 
 응답 예시 (JSON):
 

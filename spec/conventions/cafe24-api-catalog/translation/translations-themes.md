@@ -41,7 +41,7 @@ _요청 파라미터 없음._
 | `themes` |  | (목록) |
 | ↳ `skin_no` |  | 디자인 번호 |
 | ↳ `translations` |  | 번역 정보 |
-| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `language_code` |  | 언어 코드 |
 | ↳ ↳ `path` |  |  |
 
 응답 예시 (JSON):
@@ -103,9 +103,9 @@ _요청 파라미터 없음._
 | ↳ `skin_no` |  | 디자인 번호 |
 | ↳ `skin_code` |  | 디자인 코드 |
 | ↳ `skin_translation` |  | 디자인 번역 정보 |
-| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `language_code` |  | 언어 코드 |
 | ↳ ↳ `path` |  |  |
-| ↳ ↳ `source` |  |  |
+| ↳ ↳ `source` |  | 소스 코드 |
 
 응답 예시 (JSON):
 
@@ -150,9 +150,9 @@ _요청 파라미터 없음._
 | ↳ `skin_no` |  | 디자인 번호 |
 | ↳ `skin_code` |  | 디자인 코드 |
 | ↳ `skin_translation` |  | 디자인 번역 정보 |
-| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `language_code` |  | 언어 코드 |
 | ↳ ↳ `path` |  |  |
-| ↳ ↳ `source` |  |  |
+| ↳ ↳ `source` |  | 소스 코드 |
 
 응답 예시 (JSON):
 

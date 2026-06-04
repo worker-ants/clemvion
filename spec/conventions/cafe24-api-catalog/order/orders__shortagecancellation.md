@@ -71,8 +71,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `status` |  | 주문상태 canceled : 취소완료 · canceling : 취소처리중 |
 | ↳ `claim_code` |  | 취소 번호 |
 | ↳ `items` |  | 품주코드 |
-| ↳ ↳ `order_item_code` |  |  |
-| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
+| ↳ ↳ `quantity` |  | 수량 |
 
 응답 예시 (JSON):
 

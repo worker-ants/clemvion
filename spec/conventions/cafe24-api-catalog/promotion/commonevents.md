@@ -53,7 +53,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `status` |  | 이벤트 상태 |
 | ↳ `category_no` |  | 카테고리 번호 |
 | ↳ `register_date` |  | 등록일 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

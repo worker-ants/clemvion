@@ -73,7 +73,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `attach_file_urls` |  | 첨부 파일 상세 |
 | ↳ ↳ `no` |  |  |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `url` |  |  |
+| ↳ ↳ `url` |  | 파일 URL |
 | ↳ `links` |  | link |
 | ↳ ↳ `rel` |  |  |
 | ↳ ↳ `href` |  |  |

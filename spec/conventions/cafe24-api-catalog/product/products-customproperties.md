@@ -37,8 +37,8 @@ _요청 파라미터 없음._
 |---|---|---|
 | `products` |  | (응답 객체) |
 | ↳ `custom_properties` |  | 자체 정의 속성 |
-| ↳ ↳ `property_no` |  |  |
-| ↳ ↳ `property_name` |  |  |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
 
 응답 예시 (JSON):
 
@@ -82,8 +82,8 @@ _요청 파라미터 없음._
 |---|---|---|
 | `product` |  | (응답 객체) |
 | ↳ `custom_properties` |  | 자체 정의 속성 |
-| ↳ ↳ `property_no` |  |  |
-| ↳ ↳ `property_name` |  |  |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
 
 응답 예시 (JSON):
 
@@ -127,8 +127,8 @@ _요청 파라미터 없음._
 |---|---|---|
 | `product` |  | (응답 객체) |
 | ↳ `custom_properties` |  | 자체 정의 속성 |
-| ↳ ↳ `property_no` |  |  |
-| ↳ ↳ `property_name` |  |  |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
 
 응답 예시 (JSON):
 
@@ -170,8 +170,8 @@ _요청 파라미터 없음._
 |---|---|---|
 | `product` |  | (응답 객체) |
 | ↳ `custom_properties` |  | 자체 정의 속성 |
-| ↳ ↳ `property_no` |  |  |
-| ↳ ↳ `property_name` |  |  |
+| ↳ ↳ `property_no` |  | 자체 정의 속성 번호 |
+| ↳ ↳ `property_name` |  | 자체 정의 속성 이름 |
 
 응답 예시 (JSON):
 

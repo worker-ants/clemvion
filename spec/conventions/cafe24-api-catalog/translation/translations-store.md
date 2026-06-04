@@ -44,22 +44,22 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | `store` |  | (응답 객체) |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `translations` |  | 번역 정보 |
-| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `language_code` |  | 언어 코드 언어별로 번역된 정보에서 검색하고자 하는 언어를 선택하면, 해당 언어에 대한 번역 내용을 확인할 수 있습니다. ,(콤마)로 여러 건을 검색할 수 있다. |
 | ↳ ↳ `translated` |  |  |
-| ↳ ↳ `shop_name` |  |  |
-| ↳ ↳ `company_name` |  |  |
-| ↳ ↳ `company_registration_no` |  |  |
-| ↳ ↳ `president_name` |  |  |
-| ↳ ↳ `phone` |  |  |
-| ↳ ↳ `email` |  |  |
-| ↳ ↳ `fax` |  |  |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `address1` |  |  |
-| ↳ ↳ `address2` |  |  |
-| ↳ ↳ `customer_service_phone` |  |  |
-| ↳ ↳ `customer_service_hours` |  |  |
-| ↳ ↳ `privacy_officer_name` |  |  |
-| ↳ ↳ `privacy_officer_email` |  |  |
+| ↳ ↳ `shop_name` |  | 쇼핑몰명 |
+| ↳ ↳ `company_name` |  | 상호명 |
+| ↳ ↳ `company_registration_no` |  | 사업자등록번호 |
+| ↳ ↳ `president_name` |  | 대표자명 |
+| ↳ ↳ `phone` |  | 전화번호 |
+| ↳ ↳ `email` |  | 이메일 |
+| ↳ ↳ `fax` |  | 팩스번호 |
+| ↳ ↳ `zipcode` |  | 우편번호 |
+| ↳ ↳ `address1` |  | 기본 주소 |
+| ↳ ↳ `address2` |  | 상세 주소 |
+| ↳ ↳ `customer_service_phone` |  | 고객센터 상담/주문 전화 |
+| ↳ ↳ `customer_service_hours` |  | 고객센터 운영시간 |
+| ↳ ↳ `privacy_officer_name` |  | 개인정보보호 책임자명 |
+| ↳ ↳ `privacy_officer_email` |  | 개인정보보호 책임자 이메일 |
 | ↳ ↳ `updated_date` |  |  |
 
 응답 예시 (JSON):
@@ -151,22 +151,22 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | `store` |  | (응답 객체) |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `translations` |  | 번역 정보 |
-| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `language_code` |  | 언어 코드 언어별로 번역된 정보에서 검색하고자 하는 언어를 선택하면, 해당 언어에 대한 번역 내용을 확인할 수 있습니다. ,(콤마)로 여러 건을 검색할 수 있다. |
 | ↳ ↳ `translated` |  |  |
-| ↳ ↳ `shop_name` |  |  |
-| ↳ ↳ `company_name` |  |  |
-| ↳ ↳ `company_registration_no` |  |  |
-| ↳ ↳ `president_name` |  |  |
-| ↳ ↳ `phone` |  |  |
-| ↳ ↳ `email` |  |  |
-| ↳ ↳ `fax` |  |  |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `address1` |  |  |
-| ↳ ↳ `address2` |  |  |
-| ↳ ↳ `customer_service_phone` |  |  |
-| ↳ ↳ `customer_service_hours` |  |  |
-| ↳ ↳ `privacy_officer_name` |  |  |
-| ↳ ↳ `privacy_officer_email` |  |  |
+| ↳ ↳ `shop_name` |  | 쇼핑몰명 |
+| ↳ ↳ `company_name` |  | 상호명 |
+| ↳ ↳ `company_registration_no` |  | 사업자등록번호 |
+| ↳ ↳ `president_name` |  | 대표자명 |
+| ↳ ↳ `phone` |  | 전화번호 |
+| ↳ ↳ `email` |  | 이메일 |
+| ↳ ↳ `fax` |  | 팩스번호 |
+| ↳ ↳ `zipcode` |  | 우편번호 |
+| ↳ ↳ `address1` |  | 기본 주소 |
+| ↳ ↳ `address2` |  | 상세 주소 |
+| ↳ ↳ `customer_service_phone` |  | 고객센터 상담/주문 전화 |
+| ↳ ↳ `customer_service_hours` |  | 고객센터 운영시간 |
+| ↳ ↳ `privacy_officer_name` |  | 개인정보보호 책임자명 |
+| ↳ ↳ `privacy_officer_email` |  | 개인정보보호 책임자 이메일 |
 | ↳ ↳ `updated_date` |  |  |
 
 응답 예시 (JSON):

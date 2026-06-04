@@ -62,8 +62,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `order_item_code` |  | 품주코드 |
 | ↳ `product_bundle` |  | 세트상품 여부 |
 | ↳ `additional_options` |  | 추가입력 옵션 |
-| ↳ ↳ `additional_option_name` |  |  |
-| ↳ ↳ `additional_option_value` |  |  |
+| ↳ ↳ `additional_option_name` |  | 추가입력옵션명 |
+| ↳ ↳ `additional_option_value` |  | 추가입력 옵션 값 |
 | ↳ `bundle_additional_options` |  | 세트상품 추가입력 옵션 |
 
 응답 예시 (JSON):
@@ -120,8 +120,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `order_id` |  | 주문번호 |
 | ↳ `order_item_code` |  | 품주코드 |
 | ↳ `additional_options` |  | 추가입력 옵션 |
-| ↳ ↳ `additional_option_name` |  |  |
-| ↳ ↳ `additional_option_value` |  |  |
+| ↳ ↳ `additional_option_name` |  | 추가입력옵션명 |
+| ↳ ↳ `additional_option_value` |  | 추가입력 옵션 값 |
 
 응답 예시 (JSON):
 

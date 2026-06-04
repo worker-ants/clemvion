@@ -70,7 +70,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `order_id` |  | 주문번호 |
 | ↳ `items` |  | 품주 목록 |
 | ↳ ↳ `order_item_code` |  | 품주코드 |
-| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `quantity` |  | 수량 |
 
 응답 예시 (JSON):
 
@@ -142,7 +142,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `undone` |  | 접수거부 여부 |
 | ↳ `order_item_code` |  | 품주코드 |
 | ↳ `additional_payment_gateway_cancel` |  | 추가 PG 취소 |
-| ↳ ↳ `success` |  | (목록) |
+| ↳ ↳ `success` |  | 웹훅 발송 성공 여부 T : 성공 · F : 실패 |
 | ↳ ↳ `fail` |  |  |
 
 응답 예시 (JSON):

@@ -51,9 +51,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `linked_board` |  | 게시판 연동 |
 | ↳ `review_button_mode` |  | 구매 후기 작성 버튼 노출 시점 |
 | ↳ `spam_auto_prevention` |  | 스팸 자동 생성 방지 설정 |
-| ↳ ↳ `type` |  |  |
-| ↳ ↳ `site_key` |  |  |
-| ↳ ↳ `secret_key` |  |  |
+| ↳ ↳ `type` |  | 스팸 자동 생성 방지 설정 방식 · S : 보안문자 입력 방식 · R : 구글 리캡챠 방식 |
+| ↳ ↳ `site_key` |  | 구글 리캡챠 사이트 키 |
+| ↳ ↳ `secret_key` |  | 구글 리캡챠 비밀 키 |
 
 응답 예시 (JSON):
 
@@ -109,9 +109,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `linked_board` |  | 게시판 연동 |
 | ↳ `review_button_mode` |  | 구매 후기 작성 버튼 노출 시점 |
 | ↳ `spam_auto_prevention` |  | 스팸 자동 생성 방지 설정 |
-| ↳ ↳ `type` |  |  |
-| ↳ ↳ `site_key` |  |  |
-| ↳ ↳ `secret_key` |  |  |
+| ↳ ↳ `type` |  | 스팸 자동 생성 방지 설정 방식 · S : 보안문자 입력 방식 · R : 구글 리캡챠 방식 |
+| ↳ ↳ `site_key` |  | 구글 리캡챠 사이트 키 |
+| ↳ ↳ `secret_key` |  | 구글 리캡챠 비밀 키 |
 
 응답 예시 (JSON):
 

@@ -57,13 +57,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `quantity` |  |  |
 | ↳ `order_price_amount` |  | 상품구매금액 |
 | ↳ `order_discount_amount` |  | 주문 할인금액 |
-| ↳ ↳ `membership_discount_amount` |  |  |
+| ↳ ↳ `membership_discount_amount` |  | 회원등급 할인금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
-| ↳ ↳ `app_discount_amount` |  |  |
+| ↳ ↳ `app_discount_amount` |  | 앱 주문할인금액​​​ |
 | ↳ `item_discount_amount` |  | 상품 할인금액 |
-| ↳ ↳ `additional_discount_price` |  |  |
+| ↳ ↳ `additional_discount_price` |  | 상품추가할인액 상품에 대한 추가 할인금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
-| ↳ ↳ `app_discount_amount` |  |  |
+| ↳ ↳ `app_discount_amount` |  | 앱 주문할인금액​​​ |
 | ↳ `additional_payment_amount` |  | 보조 결제금액 |
 | ↳ `payment_amount` |  | 품목별 결제금액 |
 | ↳ `cancel_fee_amount` |  | 취소수수료 |

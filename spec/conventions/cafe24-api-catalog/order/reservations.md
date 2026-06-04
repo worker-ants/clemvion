@@ -92,7 +92,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `order_date` |  | 주문일 |
 | ↳ `payment_date` |  | 결제일 |
 | ↳ `member_id` |  | 회원아이디 |
-| ↳ `buyer_name` |  |  |
+| ↳ `buyer_name` |  | 주문자명 |
 | ↳ `order_status` |  | 주문상태 |
 | ↳ `paid` |  | 결제 여부 T : 결제 · F : 미결제 · M : 부분 결제 |
 | ↳ `product_no` |  | 상품번호 |
@@ -112,7 +112,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `service_available_end_date` |  | 서비스 이용가능기간 종료일 |
 | ↳ `service_completion_date` |  | 서비스 이용 완료일 |
 | ↳ `cancel_fee_amount` |  | 취소수수료 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `hredf` |  |  |
 

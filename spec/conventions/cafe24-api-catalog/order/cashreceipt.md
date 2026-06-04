@@ -81,7 +81,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `pg_name` |  | 신청결제사 |
 | ↳ `cash_bill_no` |  | 현금영수증 일련 번호 |
 | ↳ `partner_id` |  | PG사 발급 가맹점 ID |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

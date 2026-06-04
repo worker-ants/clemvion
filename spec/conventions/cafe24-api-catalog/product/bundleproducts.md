@@ -164,7 +164,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 상품의 이름. 상품명은 상품을 구분하는 가장 기초적인 정보이며 검색 정보가 된다. HTML을 사용하여 입력이 가능하다. |
 | ↳ ↳ `product_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 상품코드 시스템이 상품에 부여한 코드. 해당 쇼핑몰 내에서 상품코드는 중복되지 않음. |
 | ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `purchase_quantity` |  |  |
+| ↳ ↳ `purchase_quantity` |  | 세트상품 구매개수 |
 | ↳ `custom_product_code` | 최대글자수 : [40자] | 자체상품 코드 사용자가 상품에 부여 가능한 코드. 재고 관리등의 이유로 자체적으로 상품을 관리 하고 있는 경우 사용함. |
 | ↳ `product_name` | 최대글자수 : [250자] | 상품명 상품의 이름. 상품명은 상품을 구분하는 가장 기초적인 정보이며 검색 정보가 된다. HTML을 사용하여 입력이 가능하다. |
 | ↳ `eng_product_name` | 최대글자수 : [250자] | 영문 상품명 상품의 영문 이름. 해외 배송 등에 사용 가능함. |
@@ -189,7 +189,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `points_setting_by_payment` |  | 결제방식별 적립금 설정 여부 B : 기본 적립금설정 사용 · C : 결제방식에 따른 적립 |
 | ↳ `points_amount` |  | 적립금 설정 정보 |
 | ↳ ↳ `payment_method` |  |  |
-| ↳ ↳ `points_rate` |  |  |
+| ↳ ↳ `points_rate` |  | 적립율 |
 | ↳ `except_member_points` |  | 회원등급 추가 적립 제외 T : 회원등급 추가 적립 제외 설정함 · F : 회원등급 추가 적립 제외 설정안함 |
 | ↳ `adult_certification` |  | 성인인증 성인인증이 필요한 상품인지 여부. 성인인증이 필요한 상품인 구매를 위해서는 본인인증을 거쳐야함. T : 사용함 · F : 사용안함 |
 | ↳ `detail_image` |  | 상세이미지 상품 상세 화면에 표시되는 상품 이미지. |
@@ -459,17 +459,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 상품의 이름. 상품명은 상품을 구분하는 가장 기초적인 정보이며 검색 정보가 된다. HTML을 사용하여 입력이 가능하다. |
 | ↳ ↳ `product_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 상품코드 시스템이 상품에 부여한 코드. 해당 쇼핑몰 내에서 상품코드는 중복되지 않음. |
 | ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `purchase_quantity` |  |  |
+| ↳ ↳ `purchase_quantity` |  | 세트상품 구매개수 |
 | ↳ `bundle_product_sales` |  | 세트할인 정보 |
 | ↳ ↳ `set_product_price` |  |  |
-| ↳ ↳ `discount_value` |  |  |
-| ↳ ↳ `discount_type` |  |  |
-| ↳ ↳ `discount_round_unit` |  |  |
-| ↳ ↳ `discount_round_type` |  |  |
+| ↳ ↳ `discount_value` |  | 세트상품 할인가 |
+| ↳ ↳ `discount_type` |  | 세트상품 할인타입 · P : 퍼센트 · V : 정액 |
+| ↳ ↳ `discount_round_unit` |  | 세트상품 할인 절사 단위 · F : 절사안함 · -2 : 0.01단위 · -1 : 0.1단위 · 0 : 1단위 · 1 : 10단위 · 2 : 100단위 · 3 : 1000단위 |
+| ↳ ↳ `discount_round_type` |  | 세트상품 할인 절사 방식 · F : 내림 · R : 반올림 · C : 올림 |
 | ↳ `category` |  | 분류 번호 해당 상품이 진열되어있는 상품 분류. |
-| ↳ ↳ `category_no` |  |  |
-| ↳ ↳ `recommend` |  |  |
-| ↳ ↳ `new` |  |  |
+| ↳ ↳ `category_no` |  | 분류 번호 |
+| ↳ ↳ `recommend` |  | 추천상품 분류 등록 여부 · T : 추천상품 등록 · F : 추천상품 등록안함 · DEFAULT F |
+| ↳ ↳ `new` |  | 신상품 분류 등록 여부 · T : 신상품 등록 · F : 신상품 등록안함 · DEFAULT F |
 | ↳ `project_no` |  | 기획전 번호 |
 | ↳ `product_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 상품코드 시스템이 상품에 부여한 코드. 해당 쇼핑몰 내에서 상품코드는 중복되지 않음. |
 | ↳ `custom_product_code` | 최대글자수 : [40자] | 자체상품 코드 사용자가 상품에 부여 가능한 코드. 재고 관리등의 이유로 자체적으로 상품을 관리 하고 있는 경우 사용함. |
@@ -494,7 +494,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `points_setting_by_payment` |  | 결제방식별 적립금 설정 여부 B : 기본 적립금설정 사용 · C : 결제방식에 따른 적립 |
 | ↳ `points_amount` |  | 적립금 설정 정보 |
 | ↳ ↳ `payment_method` |  |  |
-| ↳ ↳ `points_rate` |  |  |
+| ↳ ↳ `points_rate` |  | 적립율 |
 | ↳ `except_member_points` |  | 회원등급 추가 적립 제외 T : 회원등급 추가 적립 제외 설정함 · F : 회원등급 추가 적립 제외 설정안함 |
 | ↳ `adult_certification` |  | 성인인증 성인인증이 필요한 상품인지 여부. 성인인증이 필요한 상품인 구매를 위해서는 본인인증을 거쳐야함. T : 사용함 · F : 사용안함 |
 | ↳ `description` |  | 상품상세설명 상품에 보다 상세한 정보가 포함되어있는 설명. HTML을 사용하여 입력이 가능하다. |
@@ -521,8 +521,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_fee_by_product` |  | 개별배송여부 상품에 배송비를 개별적으로 부과할 것인지 공통 배송비를 부과할 것인지에 대한 설정. · 개별 배송비를 사용하지 않을 경우 공통 배송비를 사용함. · shipping_calculation이 A(자동계산)일 경우 null로 반환. T : 사용함 · F : 사용안함 |
 | ↳ `shipping_method` |  | 배송방법 (개별배송비를 사용할 경우) 배송 수단 및 방법 · shipping_calculation이 A(자동계산)일 경우 null로 반환. 01 : 택배 · 02 : 빠른등기 · 03 : 일반등기 · 04 : 직접배송 · 05 : 퀵배송 · 06 : 기타 · 07 : 화물배송 · 08 : 매장직접수령 · 09 : 배송필요 없음 |
 | ↳ `shipping_period` |  | 배송기간 (개별배송비를 사용할 경우) 상품 배송시 평균적으로 소요되는 배송 기간. · shipping_calculation이 A(자동계산)일 경우 null로 반환. |
-| ↳ ↳ `minimum` |  |  |
-| ↳ ↳ `maximum` |  |  |
+| ↳ ↳ `minimum` |  | 최소 기간 · DEFAULT 1 |
+| ↳ ↳ `maximum` |  | 최대 기간 · DEFAULT 7 |
 | ↳ `shipping_scope` |  | 배송정보 국내에만 배송이 가능한 상품인지 해외에도 배송이 가능한 상품인지 표시. · [쇼핑몰 설정 > 배송 설정 > '배송 정책 설정 > 배송비 설정 > 개별배송비 설정'] 에서 상품별 개별 배송료 설정이 사용안함인 경우 설정 불가. · shipping_calculation이 A(자동계산)일 경우 null로 반환. A : 국내배송 · C : 해외배송 · B : 국내/해외배송 |
 | ↳ `shipping_area` | 최대글자수 : [255자] | 배송지역 (개별배송비를 사용할 경우) 상품을 배송할 수 있는 지역. · shipping_calculation이 A(자동계산)일 경우 null로 반환. |
 | ↳ `shipping_fee_type` |  | 배송비 타입 (개별배송비를 사용할 경우) 상품의 배송비 타입. · shipping_calculation이 A(자동계산)일 경우 null로 반환. T : 배송비 무료 · R : 고정배송비 사용 · M : 구매 금액에 따른 부과 · D : 구매 금액별 차등 배송료 사용 · W : 상품 무게별 차등 배송료 사용 · C : 상품 수량별 차등 배송료 사용 · N : 상품 수량에 비례하여 배송료 부과 |
@@ -540,9 +540,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `recommend_icon` |  |  |
 | ↳ ↳ `new_icon` |  |  |
 | ↳ `additional_information` |  | 추가항목 [쇼핑몰 설정 > 상품 설정 > '상품 보기 설정 > 상품 정보 표시 설정']에서 추가한 추가항목. · 기본적인 상품 정보 외에 추가로 표시항 항목이 있을 때 추가하여 사용함. |
-| ↳ ↳ `key` |  |  |
+| ↳ ↳ `key` |  | 추가항목 키 |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `value` |  |  |
+| ↳ ↳ `value` |  | 추가항목 값 |
 | ↳ `image_upload_type` |  | 이미지 업로드 타입 이미지 업로드시 이미지 업로드 타입. · "대표이미지 등록"시 상세이미지를 리사이징하여 목록이미지, 작은목록이미지, 축소이미지에 업로드 · "개별이미지 등록"시 상세이미지, 목록이미지, 작은목록이미지, 축소이미지를 각각 따로 업로드 · ※ EC Global은 FTP를 지원하지 않으므로 C는 사용할 수 없음 A : 대표이미지등록 · B : 개별이미지등록 · C : 웹FTP 등록 |
 | ↳ `detail_image` |  | 상세이미지 상품 상세 화면에 표시되는 상품 이미지. |
 | ↳ `list_image` |  | 목록이미지 상품 분류 화면, 메인 화면, 상품 검색 화면에 표시되는 상품의 목록 이미지. |
@@ -552,7 +552,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `main` |  | 메인진열 상품을 "추천상품", "신상품"과 같은 메인진열에 진열할 경우, 메인 진열 번호를 표시한다. |
 | ↳ `relational_product` | 배열 최대사이즈: [200] | 관련상품 해당 상품과 비슷한 상품 혹은 대체 가능한 상품. 관련 상품 등록시 해당 상품의 상세페이지 하단에 노출된다. |
 | ↳ ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
-| ↳ ↳ `interrelated` |  |  |
+| ↳ ↳ `interrelated` |  | 관련상품 상호등록 여부 · T : 상호등록 · F : 일방등록 |
 | ↳ `product_material` |  | 상품소재 상품의 소재. 복합 소재일 경우 상품의 소재와 함유랑을 함께 입력해야함. (예 : 면 80%, 레이온 20%) |
 | ↳ `english_product_material` |  | 영문 상품 소재 상품의 소재의 영어 표기. 해외 배송사를 이용할 경우 의류의 소재를 통관시 요구하는 경우가 있음. |
 | ↳ `cloth_fabric` |  | 옷감 상품이 의류인 경우, 옷감. 일본 택배사를 이용할 경우, 택배사에 따라 의류 통관시 옷감 정보를 입력 받는 경우가 있음. woven : 직물(woven) · knit : 편물(knit) |
@@ -867,17 +867,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 상품의 이름. 상품명은 상품을 구분하는 가장 기초적인 정보이며 검색 정보가 된다. HTML을 사용하여 입력이 가능하다. |
 | ↳ ↳ `product_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 상품코드 시스템이 상품에 부여한 코드. 해당 쇼핑몰 내에서 상품코드는 중복되지 않음. |
 | ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `purchase_quantity` |  |  |
+| ↳ ↳ `purchase_quantity` |  | 세트상품 구매개수 |
 | ↳ `bundle_product_sales` |  | 세트할인 정보 |
 | ↳ ↳ `set_product_price` |  |  |
-| ↳ ↳ `discount_value` |  |  |
-| ↳ ↳ `discount_type` |  |  |
-| ↳ ↳ `discount_round_unit` |  |  |
-| ↳ ↳ `discount_round_type` |  |  |
+| ↳ ↳ `discount_value` |  | 세트상품 할인가 |
+| ↳ ↳ `discount_type` |  | 세트상품 할인타입 · P : 퍼센트 · V : 정액 |
+| ↳ ↳ `discount_round_unit` |  | 세트상품 할인 절사 단위 · F : 절사안함 · -2 : 0.01단위 · -1 : 0.1단위 · 0 : 1단위 · 1 : 10단위 · 2 : 100단위 · 3 : 1000단위 |
+| ↳ ↳ `discount_round_type` |  | 세트상품 할인 절사 방식 · F : 내림 · R : 반올림 · C : 올림 |
 | ↳ `category` |  | 분류 번호 해당 상품이 진열되어있는 상품 분류. |
-| ↳ ↳ `category_no` |  |  |
-| ↳ ↳ `recommend` |  |  |
-| ↳ ↳ `new` |  |  |
+| ↳ ↳ `category_no` |  | 분류 번호 |
+| ↳ ↳ `recommend` |  | 추천상품 분류 등록 여부 · T : 추천상품 등록 · F : 추천상품 등록안함 · DEFAULT F |
+| ↳ ↳ `new` |  | 신상품 분류 등록 여부 · T : 신상품 등록 · F : 신상품 등록안함 · DEFAULT F |
 | ↳ `product_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 상품코드 시스템이 상품에 부여한 코드. 해당 쇼핑몰 내에서 상품코드는 중복되지 않음. |
 | ↳ `custom_product_code` | 최대글자수 : [40자] | 자체상품 코드 사용자가 상품에 부여 가능한 코드. 재고 관리등의 이유로 자체적으로 상품을 관리 하고 있는 경우 사용함. |
 | ↳ `product_name` | 최대글자수 : [250자] | 상품명 상품의 이름. 상품명은 상품을 구분하는 가장 기초적인 정보이며 검색 정보가 된다. HTML을 사용하여 입력이 가능하다. |
@@ -898,7 +898,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `points_setting_by_payment` |  | 결제방식별 적립금 설정 여부 B : 기본 적립금설정 사용 · C : 결제방식에 따른 적립 |
 | ↳ `points_amount` |  | 적립금 설정 정보 |
 | ↳ ↳ `payment_method` |  |  |
-| ↳ ↳ `points_rate` |  |  |
+| ↳ ↳ `points_rate` |  | 적립율 |
 | ↳ `adult_certification` |  | 성인인증 성인인증이 필요한 상품인지 여부. 성인인증이 필요한 상품인 구매를 위해서는 본인인증을 거쳐야함. T : 사용함 · F : 사용안함 |
 | ↳ `description` |  | 상품상세설명 상품에 보다 상세한 정보가 포함되어있는 설명. HTML을 사용하여 입력이 가능하다. |
 | ↳ `mobile_description` |  | 모바일 상품 상세설명 입력시 모바일 쇼핑몰에서 상품상세설명 대신 모바일 상품 상세 설명을 대신 표시함. |
@@ -917,8 +917,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_fee_by_product` |  | 개별배송여부 상품에 배송비를 개별적으로 부과할 것인지 공통 배송비를 부과할 것인지에 대한 설정. · 개별 배송비를 사용하지 않을 경우 공통 배송비를 사용함. · shipping_calculation이 A(자동계산)일 경우 null로 반환. T : 사용함 · F : 사용안함 |
 | ↳ `shipping_method` |  | 배송방법 (개별배송비를 사용할 경우) 배송 수단 및 방법 · shipping_calculation이 A(자동계산)일 경우 null로 반환. 01 : 택배 · 02 : 빠른등기 · 03 : 일반등기 · 04 : 직접배송 · 05 : 퀵배송 · 06 : 기타 · 07 : 화물배송 · 08 : 매장직접수령 · 09 : 배송필요 없음 |
 | ↳ `shipping_period` |  | 배송기간 (개별배송비를 사용할 경우) 상품 배송시 평균적으로 소요되는 배송 기간. · shipping_calculation이 A(자동계산)일 경우 null로 반환. |
-| ↳ ↳ `minimum` |  |  |
-| ↳ ↳ `maximum` |  |  |
+| ↳ ↳ `minimum` |  | 최소 기간 · DEFAULT 1 |
+| ↳ ↳ `maximum` |  | 최대 기간 · DEFAULT 7 |
 | ↳ `shipping_scope` |  | 배송정보 국내에만 배송이 가능한 상품인지 해외에도 배송이 가능한 상품인지 표시. · [쇼핑몰 설정 > 배송 설정 > '배송 정책 설정 > 배송비 설정 > 개별배송비 설정'] 에서 상품별 개별 배송료 설정이 사용안함인 경우 설정 불가. · shipping_calculation이 A(자동계산)일 경우 null로 반환. A : 국내배송 · C : 해외배송 · B : 국내/해외배송 |
 | ↳ `shipping_area` | 최대글자수 : [255자] | 배송지역 (개별배송비를 사용할 경우) 상품을 배송할 수 있는 지역. · shipping_calculation이 A(자동계산)일 경우 null로 반환. |
 | ↳ `shipping_fee_type` |  | 배송비 타입 (개별배송비를 사용할 경우) 상품의 배송비 타입. · shipping_calculation이 A(자동계산)일 경우 null로 반환. T : 배송비 무료 · R : 고정배송비 사용 · M : 구매 금액에 따른 부과 · D : 구매 금액별 차등 배송료 사용 · W : 상품 무게별 차등 배송료 사용 · C : 상품 수량별 차등 배송료 사용 · N : 상품 수량에 비례하여 배송료 부과 |
@@ -933,7 +933,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `product_weight` |  | 상품 중량 상품의 전체 중량(kg). 배송을 위해 상품 자체의 무게와 박스 무게, 포장무게를 모두 포함한 중량 기재가 필요하다. |
 | ↳ `relational_product` | 배열 최대사이즈: [200] | 관련상품 해당 상품과 비슷한 상품 혹은 대체 가능한 상품. 관련 상품 등록시 해당 상품의 상세페이지 하단에 노출된다. |
 | ↳ ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
-| ↳ ↳ `interrelated` |  |  |
+| ↳ ↳ `interrelated` |  | 관련상품 상호등록 여부 · T : 상호등록 · F : 일방등록 |
 | ↳ `product_material` |  | 상품소재 상품의 소재. 복합 소재일 경우 상품의 소재와 함유랑을 함께 입력해야함. (예 : 면 80%, 레이온 20%) |
 | ↳ `english_product_material` |  | 영문 상품 소재 상품의 소재의 영어 표기. 해외 배송사를 이용할 경우 의류의 소재를 통관시 요구하는 경우가 있음. |
 | ↳ `cloth_fabric` |  | 옷감 상품이 의류인 경우, 옷감. 일본 택배사를 이용할 경우, 택배사에 따라 의류 통관시 옷감 정보를 입력 받는 경우가 있음. woven : 직물(woven) · knit : 편물(knit) |
@@ -943,9 +943,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `medium` |  |  |
 | ↳ ↳ `small` |  |  |
 | ↳ `additional_information` |  | 추가항목 [쇼핑몰 설정 > 상품 설정 > '상품 보기 설정 > 상품 정보 표시 설정']에서 추가한 추가항목. · 기본적인 상품 정보 외에 추가로 표시항 항목이 있을 때 추가하여 사용함. |
-| ↳ ↳ `key` |  |  |
+| ↳ ↳ `key` |  | 추가항목 키 |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `value` |  |  |
+| ↳ ↳ `value` |  | 추가항목 값 |
 | ↳ `exposure_limit_type` |  | 표시제한 범위 A : 모두에게 표시 · M : 회원에게만 표시 |
 | ↳ `exposure_group_list` |  | 표시대상 회원 등급 |
 | ↳ `cultural_tax_deduction` |  | 문화비 소득공제 |
@@ -1232,17 +1232,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 상품의 이름. 상품명은 상품을 구분하는 가장 기초적인 정보이며 검색 정보가 된다. HTML을 사용하여 입력이 가능하다. |
 | ↳ ↳ `product_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 상품코드 시스템이 상품에 부여한 코드. 해당 쇼핑몰 내에서 상품코드는 중복되지 않음. |
 | ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `purchase_quantity` |  |  |
+| ↳ ↳ `purchase_quantity` |  | 세트상품 구매개수 |
 | ↳ `bundle_product_sales` |  | 세트할인 정보 |
 | ↳ ↳ `set_product_price` |  |  |
-| ↳ ↳ `discount_value` |  |  |
-| ↳ ↳ `discount_type` |  |  |
-| ↳ ↳ `discount_round_unit` |  |  |
-| ↳ ↳ `discount_round_type` |  |  |
+| ↳ ↳ `discount_value` |  | 세트상품 할인가 |
+| ↳ ↳ `discount_type` |  | 세트상품 할인타입 · P : 퍼센트 · V : 정액 |
+| ↳ ↳ `discount_round_unit` |  | 세트상품 할인 절사 단위 · F : 절사안함 · -2 : 0.01단위 · -1 : 0.1단위 · 0 : 1단위 · 1 : 10단위 · 2 : 100단위 · 3 : 1000단위 |
+| ↳ ↳ `discount_round_type` |  | 세트상품 할인 절사 방식 · F : 내림 · R : 반올림 · C : 올림 |
 | ↳ `category` |  | 분류 번호 해당 상품이 진열되어있는 상품 분류. |
-| ↳ ↳ `category_no` |  |  |
-| ↳ ↳ `recommend` |  |  |
-| ↳ ↳ `new` |  |  |
+| ↳ ↳ `category_no` |  | 분류 번호 |
+| ↳ ↳ `recommend` |  | 추천상품 분류 등록 여부 · T : 추천상품 등록 · F : 추천상품 등록안함 · DEFAULT F |
+| ↳ ↳ `new` |  | 신상품 분류 등록 여부 · T : 신상품 등록 · F : 신상품 등록안함 · DEFAULT F |
 | ↳ `product_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 상품코드 시스템이 상품에 부여한 코드. 해당 쇼핑몰 내에서 상품코드는 중복되지 않음. |
 | ↳ `custom_product_code` | 최대글자수 : [40자] | 자체상품 코드 사용자가 상품에 부여 가능한 코드. 재고 관리등의 이유로 자체적으로 상품을 관리 하고 있는 경우 사용함. |
 | ↳ `product_name` | 최대글자수 : [250자] | 상품명 상품의 이름. 상품명은 상품을 구분하는 가장 기초적인 정보이며 검색 정보가 된다. HTML을 사용하여 입력이 가능하다. |
@@ -1265,7 +1265,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `points_setting_by_payment` |  | 결제방식별 적립금 설정 여부 B : 기본 적립금설정 사용 · C : 결제방식에 따른 적립 |
 | ↳ `points_amount` |  | 적립금 설정 정보 |
 | ↳ ↳ `payment_method` |  |  |
-| ↳ ↳ `points_rate` |  |  |
+| ↳ ↳ `points_rate` |  | 적립율 |
 | ↳ `except_member_points` |  | 회원등급 추가 적립 제외 T : 회원등급 추가 적립 제외 설정함 · F : 회원등급 추가 적립 제외 설정안함 |
 | ↳ `adult_certification` |  | 성인인증 성인인증이 필요한 상품인지 여부. 성인인증이 필요한 상품인 구매를 위해서는 본인인증을 거쳐야함. T : 사용함 · F : 사용안함 |
 | ↳ `description` |  | 상품상세설명 상품에 보다 상세한 정보가 포함되어있는 설명. HTML을 사용하여 입력이 가능하다. |
@@ -1285,8 +1285,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_fee_by_product` |  | 개별배송여부 상품에 배송비를 개별적으로 부과할 것인지 공통 배송비를 부과할 것인지에 대한 설정. · 개별 배송비를 사용하지 않을 경우 공통 배송비를 사용함. · shipping_calculation이 A(자동계산)일 경우 null로 반환. T : 사용함 · F : 사용안함 |
 | ↳ `shipping_method` |  | 배송방법 (개별배송비를 사용할 경우) 배송 수단 및 방법 · shipping_calculation이 A(자동계산)일 경우 null로 반환. 01 : 택배 · 02 : 빠른등기 · 03 : 일반등기 · 04 : 직접배송 · 05 : 퀵배송 · 06 : 기타 · 07 : 화물배송 · 08 : 매장직접수령 · 09 : 배송필요 없음 |
 | ↳ `shipping_period` |  | 배송기간 (개별배송비를 사용할 경우) 상품 배송시 평균적으로 소요되는 배송 기간. · shipping_calculation이 A(자동계산)일 경우 null로 반환. |
-| ↳ ↳ `minimum` |  |  |
-| ↳ ↳ `maximum` |  |  |
+| ↳ ↳ `minimum` |  | 최소 기간 · DEFAULT 1 |
+| ↳ ↳ `maximum` |  | 최대 기간 · DEFAULT 7 |
 | ↳ `shipping_scope` |  | 배송정보 국내에만 배송이 가능한 상품인지 해외에도 배송이 가능한 상품인지 표시. · [쇼핑몰 설정 > 배송 설정 > '배송 정책 설정 > 배송비 설정 > 개별배송비 설정'] 에서 상품별 개별 배송료 설정이 사용안함인 경우 설정 불가. · shipping_calculation이 A(자동계산)일 경우 null로 반환. A : 국내배송 · C : 해외배송 · B : 국내/해외배송 |
 | ↳ `shipping_area` | 최대글자수 : [255자] | 배송지역 (개별배송비를 사용할 경우) 상품을 배송할 수 있는 지역. · shipping_calculation이 A(자동계산)일 경우 null로 반환. |
 | ↳ `shipping_fee_type` |  | 배송비 타입 (개별배송비를 사용할 경우) 상품의 배송비 타입. · shipping_calculation이 A(자동계산)일 경우 null로 반환. T : 배송비 무료 · R : 고정배송비 사용 · M : 구매 금액에 따른 부과 · D : 구매 금액별 차등 배송료 사용 · W : 상품 무게별 차등 배송료 사용 · C : 상품 수량별 차등 배송료 사용 · N : 상품 수량에 비례하여 배송료 부과 |
@@ -1301,7 +1301,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `product_weight` |  | 상품 중량 상품의 전체 중량(kg). 배송을 위해 상품 자체의 무게와 박스 무게, 포장무게를 모두 포함한 중량 기재가 필요하다. |
 | ↳ `relational_product` | 배열 최대사이즈: [200] | 관련상품 해당 상품과 비슷한 상품 혹은 대체 가능한 상품. 관련 상품 등록시 해당 상품의 상세페이지 하단에 노출된다. |
 | ↳ ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
-| ↳ ↳ `interrelated` |  |  |
+| ↳ ↳ `interrelated` |  | 관련상품 상호등록 여부 · T : 상호등록 · F : 일방등록 |
 | ↳ `product_material` |  | 상품소재 상품의 소재. 복합 소재일 경우 상품의 소재와 함유랑을 함께 입력해야함. (예 : 면 80%, 레이온 20%) |
 | ↳ `english_product_material` |  | 영문 상품 소재 상품의 소재의 영어 표기. 해외 배송사를 이용할 경우 의류의 소재를 통관시 요구하는 경우가 있음. |
 | ↳ `cloth_fabric` |  | 옷감 상품이 의류인 경우, 옷감. 일본 택배사를 이용할 경우, 택배사에 따라 의류 통관시 옷감 정보를 입력 받는 경우가 있음. woven : 직물(woven) · knit : 편물(knit) |
@@ -1311,9 +1311,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `medium` |  |  |
 | ↳ ↳ `small` |  |  |
 | ↳ `additional_information` |  | 추가항목 [쇼핑몰 설정 > 상품 설정 > '상품 보기 설정 > 상품 정보 표시 설정']에서 추가한 추가항목. · 기본적인 상품 정보 외에 추가로 표시항 항목이 있을 때 추가하여 사용함. |
-| ↳ ↳ `key` |  |  |
+| ↳ ↳ `key` |  | 추가항목 키 |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `value` |  |  |
+| ↳ ↳ `value` |  | 추가항목 값 |
 | ↳ `exposure_limit_type` |  | 표시제한 범위 A : 모두에게 표시 · M : 회원에게만 표시 |
 | ↳ `exposure_group_list` |  | 표시대상 회원 등급 |
 | ↳ `cultural_tax_deduction` |  | 문화비 소득공제 |

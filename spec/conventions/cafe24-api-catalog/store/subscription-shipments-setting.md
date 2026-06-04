@@ -70,8 +70,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `use_discount` |  | 정기배송 할인 사용여부 T : 사용함 · F : 사용안함 |
 | ↳ `discount_value_unit` |  | 할인 기준 P : 할인율 · W : 할인 금액 |
 | ↳ `discount_values` |  | 할인 값 |
-| ↳ ↳ `delivery_cycle` |  |  |
-| ↳ ↳ `discount_amount` |  |  |
+| ↳ ↳ `delivery_cycle` |  | 적용회차 |
+| ↳ ↳ `discount_amount` |  | 할인 값 |
 | ↳ `subscription_shipments_cycle_type` |  | 배송주기 제공여부 T : 사용함 · F : 사용안함 |
 | ↳ `subscription_shipments_cycle` |  | 배송주기 1W : 1주 · 2W : 2주 · 3W : 3주 · 4W : 4주 · 1M : 1개월 · 2M : 2개월 · 3M : 3개월 · 4M : 4개월 · 5M : 5개월 · 6M : 6개월 · 1Y : 1년 |
 | ↳ `subscription_shipments_count_type` |  | 정기배송 횟수 설정 T : 사용함 · F : 사용안함 |
@@ -224,8 +224,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `use_discount` |  | 정기배송 할인 사용여부 T : 사용함 · F : 사용안함 |
 | ↳ `discount_value_unit` |  | 할인 기준 P : 할인율 · W : 할인 금액 |
 | ↳ `discount_values` |  | 할인 값 |
-| ↳ ↳ `delivery_cycle` |  |  |
-| ↳ ↳ `discount_amount` |  |  |
+| ↳ ↳ `delivery_cycle` |  | 적용회차 |
+| ↳ ↳ `discount_amount` |  | 할인 값 |
 | ↳ `subscription_shipments_cycle_type` |  | 배송주기 제공여부 T : 사용함 · F : 사용안함 |
 | ↳ `subscription_shipments_cycle` |  | 배송주기 1W : 1주 · 2W : 2주 · 3W : 3주 · 4W : 4주 · 1M : 1개월 · 2M : 2개월 · 3M : 3개월 · 4M : 4개월 · 5M : 5개월 · 6M : 6개월 · 1Y : 1년 |
 | ↳ `subscription_shipments_count_type` |  | 정기배송 횟수 설정 T : 사용함 · F : 사용안함 |
@@ -335,8 +335,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `use_discount` |  | 정기배송 할인 사용여부 T : 사용함 · F : 사용안함 |
 | ↳ `discount_value_unit` |  | 할인 기준 P : 할인율 · W : 할인 금액 |
 | ↳ `discount_values` |  | 할인 값 |
-| ↳ ↳ `delivery_cycle` |  |  |
-| ↳ ↳ `discount_amount` |  |  |
+| ↳ ↳ `delivery_cycle` |  | 적용회차 |
+| ↳ ↳ `discount_amount` |  | 할인 값 |
 | ↳ `subscription_shipments_cycle_type` |  | 배송주기 제공여부 T : 사용함 · F : 사용안함 |
 | ↳ `subscription_shipments_cycle` |  | 배송주기 1W : 1주 · 2W : 2주 · 3W : 3주 · 4W : 4주 · 1M : 1개월 · 2M : 2개월 · 3M : 3개월 · 4M : 4개월 · 5M : 5개월 · 6M : 6개월 · 1Y : 1년 |
 | ↳ `subscription_shipments_count_type` |  | 정기배송 횟수 설정 T : 사용함 · F : 사용안함 |

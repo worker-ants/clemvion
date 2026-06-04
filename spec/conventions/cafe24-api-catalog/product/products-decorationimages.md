@@ -36,7 +36,7 @@ _요청 파라미터 없음._
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `decorationimages` |  | (목록) |
+| `decorationimages` |  | 꾸미기 이미지 리소스 |
 | ↳ `code` |  | 꾸미기 이미지 코드 |
 | ↳ `path` |  | 꾸미기 이미지 URL |
 

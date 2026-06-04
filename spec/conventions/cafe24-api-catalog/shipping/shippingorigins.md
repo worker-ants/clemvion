@@ -60,7 +60,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `address1` | 최대글자수 : [255자] | 기본 주소 |
 | ↳ `address2` | 최대글자수 : [255자] | 상세 주소 |
 | ↳ `variants` |  | 출고지 품목 정보 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 
@@ -143,7 +143,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `address1` | 최대글자수 : [255자] | 기본 주소 |
 | ↳ `address2` | 최대글자수 : [255자] | 상세 주소 |
 | ↳ `variants` |  | 출고지 품목 정보 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

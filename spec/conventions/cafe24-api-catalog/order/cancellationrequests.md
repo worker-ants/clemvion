@@ -59,7 +59,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `order_id` |  | 주문번호 |
 | ↳ `items` |  | 품주 목록 |
 | ↳ ↳ `order_item_code` |  | 품주코드 |
-| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `quantity` |  | 수량 |
 
 응답 예시 (JSON):
 

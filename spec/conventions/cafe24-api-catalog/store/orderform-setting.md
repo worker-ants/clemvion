@@ -65,18 +65,18 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `check_order_info` |  | 주문서 입력정보 확인 T : 사용함 · F : 사용안함 |
 | ↳ `order_form_input_type` |  | 주문서 입력정보 구성 A : 배송정보만 입력 · S : 주문/배송정보 개별입력 |
 | ↳ `shipping_info` |  | 주문서 입력정보 상세설정 > 배송 정보 |
-| ↳ ↳ `key` |  |  |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `required` |  |  |
+| ↳ ↳ `key` |  | 배송정보 설정항목키 · name(이름) · address(주소) · detail_address(상세주소) · phone(전화번호) · cellphone(휴대폰번호) · shipping_message(배송메시지) · email(이메일) : order_form_input_type이 S일때 입력 불가 |
+| ↳ ↳ `use` |  | 배송정보 설정항목 사용여부 |
+| ↳ ↳ `required` |  | 배송정보 설정항목 필수여부 |
 | ↳ `order_info` |  | 주문서 입력정보 상세설정 > 주문 정보 order_form_input_type이 A일때 order_info 입력 불가 |
-| ↳ ↳ `key` |  |  |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `required` |  |  |
+| ↳ ↳ `key` |  | 배송정보 설정항목키 · name(이름) · address(주소) · detail_address(상세주소) · phone(전화번호) · cellphone(휴대폰번호) · shipping_message(배송메시지) · email(이메일) : order_form_input_type이 S일때 입력 불가 |
+| ↳ ↳ `use` |  | 배송정보 설정항목 사용여부 |
+| ↳ ↳ `required` |  | 배송정보 설정항목 필수여부 |
 | ↳ `china_taiwan_id_input` |  | 중국/대만 신분증 ID 입력 T : 사용함 · F : 사용안함 |
 | ↳ `print_type` |  | 인쇄버튼 타입 |
-| ↳ ↳ `invoice_print` |  |  |
-| ↳ ↳ `receipt_print` |  |  |
-| ↳ ↳ `address_print` |  |  |
+| ↳ ↳ `invoice_print` |  | 거래명세서 인쇄버튼 · T : 표시함 · F : 표시안함 |
+| ↳ ↳ `receipt_print` |  | 매출전표 인쇄버튼 · T : 표시함 · F : 표시안함 |
+| ↳ ↳ `address_print` |  | 수령지정보 인쇄버튼 · T : 표시함 · F : 표시안함 |
 | ↳ `orderform_additional_enabled` |  | 주문서 추가항목 사용여부 T : 사용 · F : 사용안함 |
 
 응답 예시 (JSON):
@@ -184,18 +184,18 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `check_order_info` |  | 주문서 입력정보 확인 T : 사용함 · F : 사용안함 |
 | ↳ `order_form_input_type` |  | 주문서 입력정보 구성 A : 배송정보만 입력 · S : 주문/배송정보 개별입력 |
 | ↳ `shipping_info` |  | 주문서 입력정보 상세설정 > 배송 정보 |
-| ↳ ↳ `key` |  |  |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `required` |  |  |
+| ↳ ↳ `key` |  | 배송정보 설정항목키 · name(이름) · address(주소) · detail_address(상세주소) · phone(전화번호) · cellphone(휴대폰번호) · shipping_message(배송메시지) · email(이메일) : order_form_input_type이 S일때 입력 불가 |
+| ↳ ↳ `use` |  | 배송정보 설정항목 사용여부 |
+| ↳ ↳ `required` |  | 배송정보 설정항목 필수여부 |
 | ↳ `order_info` |  | 주문서 입력정보 상세설정 > 주문 정보 order_form_input_type이 A일때 order_info 입력 불가 |
-| ↳ ↳ `key` |  |  |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `required` |  |  |
+| ↳ ↳ `key` |  | 배송정보 설정항목키 · name(이름) · address(주소) · detail_address(상세주소) · phone(전화번호) · cellphone(휴대폰번호) · shipping_message(배송메시지) · email(이메일) : order_form_input_type이 S일때 입력 불가 |
+| ↳ ↳ `use` |  | 배송정보 설정항목 사용여부 |
+| ↳ ↳ `required` |  | 배송정보 설정항목 필수여부 |
 | ↳ `china_taiwan_id_input` |  | 중국/대만 신분증 ID 입력 T : 사용함 · F : 사용안함 |
 | ↳ `print_type` |  | 인쇄버튼 타입 |
-| ↳ ↳ `invoice_print` |  |  |
-| ↳ ↳ `receipt_print` |  |  |
-| ↳ ↳ `address_print` |  |  |
+| ↳ ↳ `invoice_print` |  | 거래명세서 인쇄버튼 · T : 표시함 · F : 표시안함 |
+| ↳ ↳ `receipt_print` |  | 매출전표 인쇄버튼 · T : 표시함 · F : 표시안함 |
+| ↳ ↳ `address_print` |  | 수령지정보 인쇄버튼 · T : 표시함 · F : 표시안함 |
 | ↳ `orderform_additional_enabled` |  | 주문서 추가항목 사용여부 T : 사용 · F : 사용안함 |
 
 응답 예시 (JSON):

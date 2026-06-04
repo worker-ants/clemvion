@@ -74,9 +74,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `keyword` |  | 검색어 |
 | ↳ `attached_file_detail` |  | 첨부 파일 상세 |
 | ↳ ↳ `no` |  |  |
-| ↳ ↳ `source` |  |  |
+| ↳ ↳ `source` |  | 소스 코드 |
 | ↳ ↳ `name` |  |  |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

@@ -84,7 +84,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `refund_credits` |  | 환불 예치금 |
 | ↳ `refund_naver_points` |  | 환불 네이버 마일리지 |
 | ↳ `refund_naver_cash` |  | 환불 네이버캐시 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

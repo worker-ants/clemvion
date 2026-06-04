@@ -49,20 +49,20 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `strikethrough_retail_price` |  | 소비자가 취소선 표시 |
 | ↳ `strikethrough_price` |  | 판매가 취소선 표시 |
 | ↳ `product_tax_type_text` |  | 판매가 부가세 표시문구 |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `color` |  |  |
-| ↳ ↳ `font_size` |  |  |
-| ↳ ↳ `font_type` |  |  |
+| ↳ ↳ `use` |  | 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `color` |  | 글자 색상 |
+| ↳ ↳ `font_size` |  | 글자 크기 |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) |
 | ↳ `product_discount_price_text` |  | 할인판매가 할인금액 표시문구 |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `color` |  |  |
-| ↳ ↳ `font_size` |  |  |
-| ↳ ↳ `font_type` |  |  |
+| ↳ ↳ `use` |  | 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `color` |  | 글자 색상 |
+| ↳ ↳ `font_size` |  | 글자 크기 |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) |
 | ↳ `optimum_discount_price_text` |  | 최적할인가 할인금액 표시문구 |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `color` |  |  |
-| ↳ ↳ `font_size` |  |  |
-| ↳ ↳ `font_type` |  |  |
+| ↳ ↳ `use` |  | 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `color` |  | 글자 색상 |
+| ↳ ↳ `font_size` |  | 글자 크기 |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) |
 
 응답 예시 (JSON):
 
@@ -136,20 +136,20 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `strikethrough_retail_price` |  | 소비자가 취소선 표시 |
 | ↳ `strikethrough_price` |  | 판매가 취소선 표시 |
 | ↳ `product_tax_type_text` |  | 판매가 부가세 표시문구 |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `color` |  |  |
-| ↳ ↳ `font_size` |  |  |
-| ↳ ↳ `font_type` |  |  |
+| ↳ ↳ `use` |  | 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `color` |  | 글자 색상 |
+| ↳ ↳ `font_size` |  | 글자 크기 |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) |
 | ↳ `product_discount_price_text` |  | 할인판매가 할인금액 표시문구 |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `color` |  |  |
-| ↳ ↳ `font_size` |  |  |
-| ↳ ↳ `font_type` |  |  |
+| ↳ ↳ `use` |  | 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `color` |  | 글자 색상 |
+| ↳ ↳ `font_size` |  | 글자 크기 |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) |
 | ↳ `optimum_discount_price_text` |  | 최적할인가 할인금액 표시문구 |
-| ↳ ↳ `use` |  |  |
-| ↳ ↳ `color` |  |  |
-| ↳ ↳ `font_size` |  |  |
-| ↳ ↳ `font_type` |  |  |
+| ↳ ↳ `use` |  | 사용 여부 · T : 사용함 · F : 사용안함 |
+| ↳ ↳ `color` |  | 글자 색상 |
+| ↳ ↳ `font_size` |  | 글자 크기 |
+| ↳ ↳ `font_type` |  | 글자 타입 · N : 보통(Normal) · B : 굵게(Bold) · I : 기울임(Italic) · D : 굵게 기울임(Bold Italic) |
 
 응답 예시 (JSON):
 

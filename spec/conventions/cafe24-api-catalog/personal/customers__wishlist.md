@@ -85,7 +85,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `product_no` |  | 상품번호 |
 | ↳ `variant_code` | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] | 품목코드 시스템이 품목에 부여한 코드. 해당 쇼핑몰 내에서 품목 코드는 중복되지 않음. |
 | ↳ `additional_option` |  | 추가입력 옵션 |
-| ↳ ↳ `option_name` |  |  |
+| ↳ ↳ `option_name` |  | 옵션명 |
 | ↳ ↳ `option_value` |  |  |
 | ↳ `attached_file_option` |  | 파일 첨부 옵션 |
 | ↳ ↳ `file_path` |  |  |

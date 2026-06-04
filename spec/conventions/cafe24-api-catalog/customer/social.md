@@ -54,7 +54,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `social_name` |  | 연동 된 SNS명 |
 | ↳ `social_member_code` |  | 연동 된 SNS 제공코드 |
 | ↳ `linked_date` |  | 연동 날짜 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

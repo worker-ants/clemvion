@@ -177,35 +177,35 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `initial_order_amount` |  | 최초 주문 금액 |
 | ↳ ↳ `order_price_amount` |  |  |
 | ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ `points_spent_amount` |  |  |
-| ↳ ↳ `credits_spent_amount` |  |  |
+| ↳ ↳ `points_spent_amount` |  | 적립금사용금액 |
+| ↳ ↳ `credits_spent_amount` |  | 예치금사용금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
 | ↳ ↳ `coupon_shipping_fee_amount` |  |  |
-| ↳ ↳ `membership_discount_amount` |  |  |
+| ↳ ↳ `membership_discount_amount` |  | 회원등급 할인금액 |
 | ↳ ↳ `shipping_fee_discount_amount` |  |  |
 | ↳ ↳ `set_product_discount_amount` |  |  |
-| ↳ ↳ `app_discount_amount` |  |  |
+| ↳ ↳ `app_discount_amount` |  | 앱 주문할인금액​​​ |
 | ↳ ↳ `point_incentive_amount` |  |  |
-| ↳ ↳ `total_amount_due` |  |  |
+| ↳ ↳ `total_amount_due` |  | 결제예정 금액 |
 | ↳ ↳ `payment_amount` |  | 최종 결제 금액 |
 | ↳ ↳ `market_other_discount_amount` |  |  |
-| ↳ ↳ `tax` |  |  |
+| ↳ ↳ `tax` |  | 세금 정보 세금 관리자 앱을 사용 안 할 경우 null로 반환 |
 | ↳ `actual_order_amount` |  | 현재 주문 금액 실결제금액 중 coupon_shipping_fee_amount는 할인 금액 자동 계산을 사용할 때만 품목별로 배송비 배분이 가능하기 때문에 할인 금액 자동 계산 기능을 사용할 때만 노출됨 |
 | ↳ ↳ `order_price_amount` |  |  |
 | ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ `points_spent_amount` |  |  |
-| ↳ ↳ `credits_spent_amount` |  |  |
+| ↳ ↳ `points_spent_amount` |  | 적립금사용금액 |
+| ↳ ↳ `credits_spent_amount` |  | 예치금사용금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
 | ↳ ↳ `coupon_shipping_fee_amount` |  |  |
-| ↳ ↳ `membership_discount_amount` |  |  |
+| ↳ ↳ `membership_discount_amount` |  | 회원등급 할인금액 |
 | ↳ ↳ `shipping_fee_discount_amount` |  |  |
 | ↳ ↳ `set_product_discount_amount` |  |  |
-| ↳ ↳ `app_discount_amount` |  |  |
+| ↳ ↳ `app_discount_amount` |  | 앱 주문할인금액​​​ |
 | ↳ ↳ `point_incentive_amount` |  |  |
-| ↳ ↳ `total_amount_due` |  |  |
+| ↳ ↳ `total_amount_due` |  | 결제예정 금액 |
 | ↳ ↳ `payment_amount` |  | 최종 결제 금액 |
 | ↳ ↳ `market_other_discount_amount` |  |  |
-| ↳ ↳ `tax` |  |  |
+| ↳ ↳ `tax` |  | 세금 정보 세금 관리자 앱을 사용 안 할 경우 null로 반환 |
 | ↳ `billing_name` |  | 결제자명 입금자 이름. 주문자 혹은 수령자 이름과는 다를 수 있음. |
 | ↳ `bank_code` |  | 은행코드 bank_code |
 | ↳ `bank_code_name` |  | 입금자 은행명 |
@@ -271,7 +271,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `id` |  |  |
 | ↳ ↳ `name` |  |  |
 | ↳ ↳ `value` |  |  |
-| ↳ ↳ `input_type` |  |  |
+| ↳ ↳ `input_type` |  | 주문서 추가항목 입력 형식 T : 텍스트박스(한줄) · M : 텍스트박스(여러줄) · R : 라디오버튼 · C : 체크박스 · S : 셀렉트박스 · D : 캘린더 · I : 시간 |
 | ↳ ↳ `product_type` |  |  |
 | ↳ ↳ `applied_product_list` |  | (목록) |
 | ↳ `store_pickup` |  | 매장수령여부 T : 매장수령 · F : 매장수령 아님 |
@@ -286,7 +286,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `include_tax` |  | 가격에 세금 포함 T: 세금포함 · F: 세금제외 |
 | ↳ `tax_detail` |  | 세금 상세 정보 |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `amount` |  |  |
+| ↳ ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
 | ↳ ↳ `price_before_tax` |  |  |
 | ↳ ↳ `price_before_tax_type` |  |  |
 | ↳ ↳ `order_item_code` |  | 품주코드 |
@@ -308,7 +308,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `show_shipping_address` |  | 배송지 정보 표기 여부 T: 배송지 정보 표기 · F: 배송지 정보 가림 |
 | ↳ `social_member_code` |  | 연동 된 SNS 제공코드 |
 | ↳ `social_name` |  | 연동 된 SNS명 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 
@@ -836,7 +836,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `order` |  | (응답 객체) |
+| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | ↳ `currency` |  | 화폐단위 해당 멀티쇼핑몰의 화폐단위 |
 | ↳ `order_id` |  | 주문번호 |
@@ -848,35 +848,35 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `initial_order_amount` |  | 최초 주문 금액 |
 | ↳ ↳ `order_price_amount` |  |  |
 | ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ `points_spent_amount` |  |  |
-| ↳ ↳ `credits_spent_amount` |  |  |
+| ↳ ↳ `points_spent_amount` |  | 적립금사용금액 |
+| ↳ ↳ `credits_spent_amount` |  | 예치금사용금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
 | ↳ ↳ `coupon_shipping_fee_amount` |  |  |
-| ↳ ↳ `membership_discount_amount` |  |  |
+| ↳ ↳ `membership_discount_amount` |  | 회원등급 할인금액 |
 | ↳ ↳ `shipping_fee_discount_amount` |  |  |
 | ↳ ↳ `set_product_discount_amount` |  |  |
-| ↳ ↳ `app_discount_amount` |  |  |
+| ↳ ↳ `app_discount_amount` |  | 앱 주문할인금액​​​ |
 | ↳ ↳ `point_incentive_amount` |  |  |
-| ↳ ↳ `total_amount_due` |  |  |
+| ↳ ↳ `total_amount_due` |  | 결제예정 금액 |
 | ↳ ↳ `payment_amount` |  | 최종 결제 금액 |
 | ↳ ↳ `market_other_discount_amount` |  |  |
-| ↳ ↳ `tax` |  |  |
+| ↳ ↳ `tax` |  | 세금 정보 세금 관리자 앱을 사용 안 할 경우 null로 반환 |
 | ↳ `actual_order_amount` |  | 현재 주문 금액 실결제금액 중 coupon_shipping_fee_amount는 할인 금액 자동 계산을 사용할 때만 품목별로 배송비 배분이 가능하기 때문에 할인 금액 자동 계산 기능을 사용할 때만 노출됨 |
 | ↳ ↳ `order_price_amount` |  |  |
 | ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ `points_spent_amount` |  |  |
-| ↳ ↳ `credits_spent_amount` |  |  |
+| ↳ ↳ `points_spent_amount` |  | 적립금사용금액 |
+| ↳ ↳ `credits_spent_amount` |  | 예치금사용금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
 | ↳ ↳ `coupon_shipping_fee_amount` |  |  |
-| ↳ ↳ `membership_discount_amount` |  |  |
+| ↳ ↳ `membership_discount_amount` |  | 회원등급 할인금액 |
 | ↳ ↳ `shipping_fee_discount_amount` |  |  |
 | ↳ ↳ `set_product_discount_amount` |  |  |
-| ↳ ↳ `app_discount_amount` |  |  |
+| ↳ ↳ `app_discount_amount` |  | 앱 주문할인금액​​​ |
 | ↳ ↳ `point_incentive_amount` |  |  |
-| ↳ ↳ `total_amount_due` |  |  |
+| ↳ ↳ `total_amount_due` |  | 결제예정 금액 |
 | ↳ ↳ `payment_amount` |  | 최종 결제 금액 |
 | ↳ ↳ `market_other_discount_amount` |  |  |
-| ↳ ↳ `tax` |  |  |
+| ↳ ↳ `tax` |  | 세금 정보 세금 관리자 앱을 사용 안 할 경우 null로 반환 |
 | ↳ `billing_name` |  | 결제자명 입금자 이름. 주문자 혹은 수령자 이름과는 다를 수 있음. |
 | ↳ `bank_code` |  | 은행코드 bank_code |
 | ↳ `bank_code_name` |  | 입금자 은행명 |
@@ -942,7 +942,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `id` |  |  |
 | ↳ ↳ `name` |  |  |
 | ↳ ↳ `value` |  |  |
-| ↳ ↳ `input_type` |  |  |
+| ↳ ↳ `input_type` |  | 주문서 추가항목 입력 형식 T : 텍스트박스(한줄) · M : 텍스트박스(여러줄) · R : 라디오버튼 · C : 체크박스 · S : 셀렉트박스 · D : 캘린더 · I : 시간 |
 | ↳ ↳ `product_type` |  |  |
 | ↳ ↳ `applied_product_list` |  | (목록) |
 | ↳ `store_pickup` |  | 매장수령여부 T : 매장수령 · F : 매장수령 아님 |
@@ -956,7 +956,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `include_tax` |  | 가격에 세금 포함 T: 세금포함 · F: 세금제외 |
 | ↳ `tax_detail` |  | 세금 상세 정보 |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `amount` |  |  |
+| ↳ ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
 | ↳ ↳ `price_before_tax` |  |  |
 | ↳ ↳ `price_before_tax_type` |  |  |
 | ↳ ↳ `order_item_code` |  | 품주코드 |
@@ -1397,7 +1397,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `order` |  | (응답 객체) |
+| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | ↳ `process_status` |  | 주문상태 prepare : 배송준비중 · prepareproduct : 상품준비중 · hold : 배송보류 · unhold : 배송보류해제 |
 | ↳ `order_item_code` |  | 품주코드 |

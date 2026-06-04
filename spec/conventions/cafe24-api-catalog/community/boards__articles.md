@@ -126,8 +126,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `order_id` |  | 주문번호 |
 | ↳ `attach_file_urls` |  | 첨부 파일 상세 |
 | ↳ ↳ `no` |  |  |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `url` |  |  |
+| ↳ ↳ `name` |  | 파일명 |
+| ↳ ↳ `url` |  | 파일 URL |
 | ↳ `hit` |  | 조회수 |
 | ↳ `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
 | ↳ `reply_user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
@@ -136,7 +136,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `display_time` |  | 노출시간 사용여부 |
 | ↳ `display_time_start_hour` |  | 노출시간 시작 시각 |
 | ↳ `display_time_end_hour` |  | 노출시간 종료 시각 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 
@@ -337,13 +337,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `attached_file_detail` |  | 첨부 파일 상세 |
 | ↳ ↳ `no` |  |  |
 | ↳ ↳ `path` |  |  |
-| ↳ ↳ `name` |  |  |
+| ↳ ↳ `name` |  | 파일명 |
 | ↳ ↳ `size` |  |  |
-| ↳ ↳ `source` |  |  |
+| ↳ ↳ `source` |  | 소스 코드 |
 | ↳ ↳ `type` |  |  |
 | ↳ ↳ `ext` |  |  |
-| ↳ ↳ `width` |  |  |
-| ↳ ↳ `height` |  |  |
+| ↳ ↳ `width` |  | 가로 |
+| ↳ ↳ `height` |  | 높이 |
 | ↳ ↳ `thumb` |  |  |
 | ↳ `hit` |  | 조회수 |
 | ↳ `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
@@ -544,8 +544,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `order_id` |  | 주문번호 |
 | ↳ `attached_file_urls` |  | 첨부 파일 상세 |
 | ↳ ↳ `no` |  |  |
-| ↳ ↳ `name` |  |  |
-| ↳ ↳ `url` |  |  |
+| ↳ ↳ `name` |  | 파일명 |
+| ↳ ↳ `url` |  | 파일 URL |
 | ↳ `hit` |  | 조회수 |
 | ↳ `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
 | ↳ `reply_user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |

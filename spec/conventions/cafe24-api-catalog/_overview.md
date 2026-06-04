@@ -149,7 +149,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 2. **Operations** — 해당 entity 의 각 operation 마다:
    - `method` / `path`, **Scope** (`mall.<read|write>_<resource>`), 호출건수 제한, 1회당 요청건수 제한, **Platform** (`cafe24` / `cafe24,youtube` — youtube shopping 채널 가용 여부), Docs anchor.
    - **요청 파라미터 (Request)** — 컬럼: `Parameter` / `필수` / `제약` / `기본값` / `설명`.
-   - **응답 (Response)** — 두 부분으로 구성된다. (1) **응답 파라미터 표** — 컬럼: `Parameter` / `제약` / `설명`. 대표 응답 샘플에 나타난 필드를 요청 파라미터처럼 정리하며, 제약·설명은 위 `## 응답 속성 (Property list)` 를 기준으로 엮는다(`↳` = 중첩, 배열은 대표 원소, property list 에 없는 wrapper 는 `(응답 객체)`/`(목록)`). (2) **응답 예시 (JSON)** — code 엔드포인트(아래 §7.3)에서 operation 별로 가져온 실제 샘플 원본. 필드 의미·제약의 SoT 는 `## 응답 속성 (Property list)`, 표는 그 operation-scoped 투영, JSON 은 형태·예시값.
+   - **응답 (Response)** — 두 부분으로 구성된다. (1) **응답 파라미터 표** — 컬럼: `Parameter` / `제약` / `설명`. 대표 응답 샘플에 나타난 필드를 요청 파라미터처럼 정리한다(`↳` = 중첩, 배열은 대표 원소). 각 필드의 제약·설명은 HTML 을 대조해 다음 우선순위로 채운다 — ① 같은 entity 의 `## 응답 속성 (Property list)`, ② 같은 entity 의 operation 요청 파라미터(동일 리소스 → 동일 의미), ③ 문서 전체에서 설명이 **유일**한 필드명(저위험). 어디에도 없거나 설명이 충돌(여러 의미)하는 generic 명은 빈칸으로 둔다(추측 주입 금지). property list 에 없는 wrapper 는 `(응답 객체)`/`(목록)`. (2) **응답 예시 (JSON)** — code 엔드포인트(아래 §7.3)에서 operation 별로 가져온 실제 샘플 원본. 필드 의미·제약의 SoT 는 `## 응답 속성 (Property list)`, 표는 그 operation-scoped 투영(+HTML 대조 보강), JSON 은 형태·예시값.
 
 ### 7.3 출처와 정확성 원칙
 

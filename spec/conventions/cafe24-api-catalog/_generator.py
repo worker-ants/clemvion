@@ -311,10 +311,39 @@ def _json_field_seq(val, depth, out):
             if isinstance(item, (dict, list)):
                 _json_field_seq(item, depth, out); break
 
-def resp_param_rows(resp_str, props):
-    """대표 응답 샘플(JSON 문자열)에 나타난 필드를, 응답 속성(property list) 기준 제약·설명으로
-    엮어 `| Parameter | 제약 | 설명 |` 표 행 리스트를 만든다. wrapper 키 등 property list 에
-    없는 컨테이너는 (응답 객체)/(목록) 으로만 표기한다. 표 불가(스칼라 응답 등)면 빈 리스트."""
+def build_desc_maps(tree):
+    """응답 필드 설명을 HTML 전체에서 대조하기 위한 fallback 맵을 만든다.
+
+    응답 속성(property list)은 깊은 중첩 필드를 종종 누락하지만, 같은 필드의 설명이
+    operation 요청 파라미터 표나 다른 리소스에 존재한다. 두 단계 fallback 을 만든다:
+      - req_by_entity[entity_id][name] = entry  : 같은 entity 의 요청 파라미터 (동일 리소스 → 동일 의미, 고신뢰)
+      - global_map[name] = entry                : 문서 전체에서 설명이 유일(unambiguous)한 필드만 (저위험)
+    설명이 충돌(여러 의미)하는 generic 명(no/name/url/id 등)은 global 에서 제외 — 틀린 설명 주입 방지."""
+    req_by_entity = {}
+    descs_by_name = {}  # name -> {desc: entry}
+    def reg(name, entry):
+        d = entry.get('desc')
+        if d:
+            descs_by_name.setdefault(name, {}).setdefault(d, entry)
+    for ents in tree.values():
+        for e in ents:
+            for p in e['props']:
+                reg(p['name'], p)
+            rm = {}
+            for o in e['ops']:
+                for p in o['params']:
+                    if p.get('desc'):
+                        rm.setdefault(p['name'], p)
+                    reg(p['name'], p)
+            req_by_entity[e['id']] = rm
+    global_map = {n: next(iter(dm.values())) for n, dm in descs_by_name.items() if len(dm) == 1}
+    return req_by_entity, global_map
+
+def resp_param_rows(resp_str, props, req_map=None, global_map=None):
+    """대표 응답 샘플(JSON 문자열)에 나타난 필드를 `| Parameter | 제약 | 설명 |` 표 행으로 만든다.
+
+    설명 우선순위: (1) 같은 entity 응답 속성(property list) → (2) 같은 entity 요청 파라미터 →
+    (3) 문서 전체 유일 설명. 어느 것에도 없는 컨테이너는 (응답 객체)/(목록), 스칼라는 빈칸."""
     try:
         data = json.loads(resp_str)
     except Exception:
@@ -323,23 +352,26 @@ def resp_param_rows(resp_str, props):
     _json_field_seq(data, 0, seq)
     if not seq:
         return []
+    req_map = req_map or {}; global_map = global_map or {}
     by_name = {}
     for p in (props or []):
         by_name.setdefault(p['name'], p)
     rows = []
     for name, depth, kind in seq:
-        p = by_name.get(name)
-        cons = cons_cell(p['constraints'], p['note']) if p else ""
-        if p and p.get('desc'):
-            desc = mdcell(p['desc'])
-        elif not p:
-            desc = "(응답 객체)" if kind == 'obj' else ("(목록)" if kind == 'arr' else "")
+        src = by_name.get(name)
+        if not (src and src.get('desc')):  # property list 에 없거나 설명 비어있으면 HTML 다른 곳 대조
+            src = req_map.get(name) or global_map.get(name) or src
+        if src:
+            cons = cons_cell(src.get('constraints', []), src.get('note'))
+            desc = mdcell(src.get('desc') or '')
         else:
-            desc = ""
+            cons = ''; desc = ''
+        if not desc and not src:
+            desc = "(응답 객체)" if kind == 'obj' else ("(목록)" if kind == 'arr' else "")
         rows.append(f"| {nm(name, depth)} | {cons} | {desc} |")
     return rows
 
-def render_entity(rname, e, jsondata=None):
+def render_entity(rname, e, jsondata=None, req_map=None, global_map=None):
     rl=rname.lower(); anchor=e['id'].replace('_','-')
     L=["---",f"resource: {rl}",f"entity: {e['id']}",f"cafe24_docs: {DOCS_BASE}{anchor}",
        "source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json","---","",
@@ -369,7 +401,7 @@ def render_entity(rname, e, jsondata=None):
             resp=resp_for_op(jsondata, o['method'], o['title'])
             if resp:
                 L += ["","#### 응답 (Response)",""]
-                rows=resp_param_rows(resp, e['props'])
+                rows=resp_param_rows(resp, e['props'], req_map, global_map)
                 if rows:
                     ref=" 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준" if e['props'] else ""
                     L += [f"> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터.{ref} (`↳` = 중첩, 배열은 대표 원소).",
@@ -413,6 +445,7 @@ def main():
         sys.exit("usage: python3 _generator.py <cafe24-admin-api-docs.html> [--no-responses] [--resp-cache DIR] [--delay SEC]")
     data=open(html_path,encoding="utf-8").read()
     tree=build_tree(data)
+    req_by_entity, global_map = build_desc_maps(tree)
     ne=sum(len(v) for v in tree.values())
     written=0; resp_ok=0; resp_miss=[]
     seq=0
@@ -429,7 +462,8 @@ def main():
                 if jsondata: resp_ok+=1
                 else: resp_miss.append(e['id'])
                 sys.stderr.write(f"[{seq}/{ne}] {rl}/{e['id']} resp={'Y' if jsondata else '-'}\n")
-            open(os.path.join(d,f"{e['id']}.md"),"w",encoding="utf-8").write(render_entity(rname,e,jsondata))
+            open(os.path.join(d,f"{e['id']}.md"),"w",encoding="utf-8").write(
+                render_entity(rname,e,jsondata,req_by_entity.get(e['id'],{}),global_map))
             written+=1
         refresh_index(rl, ents)
     print(f"resources={len(tree)} entities={ne} files_written={written} resp_json_fetched={resp_ok}")

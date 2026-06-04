@@ -83,61 +83,61 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `international_shipping_fee_criteria` |  | 해외 배송비 기준 설정 B : 쇼핑몰 자체 배송비 · E : 자동 책정 배송비(EMS) |
 | ↳ `shipping_place` |  | 배송지역 |
 | ↳ `shipping_period` |  | 배송기간 |
-| ↳ ↳ `minimum` |  |  |
-| ↳ ↳ `maximum` |  |  |
+| ↳ ↳ `minimum` |  | 최소 기간 |
+| ↳ ↳ `maximum` |  | 최대 기간 |
 | ↳ `product_weight` |  | 상품중량 |
 | ↳ `shipping_fee_type` |  | 배송비타입 T : 배송비 무료 · R : 고정배송비 사용 · M : 구매 금액에 따른 부과 · D : 구매 금액별 차등 배송료 사용 · W : 상품 무게별 차등 배송료 사용 · C : 상품 수량별 차등 배송료 사용 · N : 상품 수량에 비례하여 배송료 부과 |
 | ↳ `shipping_fee` | 최대값: [999999999] | 배송비 |
 | ↳ `free_shipping_price` | 최대값: [99999999999999] | 배송비 무료 최소금액 배송비 설정 > 구매 금액에 따른 부과 일 경우 사용 |
 | ↳ `shipping_fee_by_quantity` | 최대값: [999999999] | 상품 수량별 배송비 배송비 설정 > 상품 수량에 비례하여 배송료 부과 일 경우 사용 |
 | ↳ `shipping_rates` |  | 배송비 상세 설정 |
-| ↳ ↳ `min_value` |  |  |
-| ↳ ↳ `max_value` |  |  |
+| ↳ ↳ `min_value` |  | 조건 최소값 |
+| ↳ ↳ `max_value` |  | 조건 최대값 |
 | ↳ ↳ `shipping_fee` | 최대값: [999999999] | 배송비 |
 | ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 D : 할인전 정상판매가격 기준(권장) · L : 최종 주문(결제)금액 기준 · A : 할인 적용 후 결제 금액 기준 · R : 최종 실 결제금액 기준 |
 | ↳ `prepaid_shipping_fee` |  | 배송비 선결제 설정 C : 착불 · P : 선결제 · B : 착불/선결제 |
 | ↳ `oversea_shipping_country` |  | 해외배송가능 국가 제한 여부 T : 제한함 · F : 제한안함 |
 | ↳ `oversea_shipping_country_list` |  | 배송국가 |
-| ↳ ↳ `country_code` |  |  |
+| ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ `country_shipping_fee` |  | 배송비 국가별 개별 설정 여부 T : 사용함 · F : 사용안함 |
 | ↳ `country_shipping_fee_list` |  | 국가별 배송비 |
-| ↳ ↳ `country_code` |  |  |
-| ↳ ↳ `conditional` |  |  |
-| ↳ ↳ `min_value` |  |  |
-| ↳ ↳ `max_value` |  |  |
+| ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ `conditional` |  | 배송비 책정 조건 · quantity : 수량 · weight : 무게 · price : 가격 |
+| ↳ ↳ `min_value` |  | 조건 최소값 |
+| ↳ ↳ `max_value` |  | 조건 최대값 |
 | ↳ ↳ `shipping_fee` | 최대값: [999999999] | 배송비 |
 | ↳ `international_shipping_insurance` |  | 해외배송 보험료 T : 사용함 · F : 사용안함 |
 | ↳ `return_address` |  | 반품주소 |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `ziptype` |  |  |
-| ↳ ↳ `address1` |  |  |
-| ↳ ↳ `address2` |  |  |
+| ↳ ↳ `zipcode` |  | 우편번호 |
+| ↳ ↳ `ziptype` |  | 우편번호 선택 국가 |
+| ↳ ↳ `address1` |  | 기본 주소 |
+| ↳ ↳ `address2` |  | 상세 주소 |
 | ↳ `package_volume` |  | 배송규격 |
-| ↳ ↳ `width` |  |  |
-| ↳ ↳ `length` |  |  |
-| ↳ ↳ `height` |  |  |
+| ↳ ↳ `width` |  | 가로 |
+| ↳ ↳ `length` |  | 세로 |
+| ↳ ↳ `height` |  | 높이 |
 | ↳ `wished_delivery_date` |  | 희망배송일 |
 | ↳ ↳ `use` |  |  |
 | ↳ ↳ `range` |  | (응답 객체) |
-| ↳ ↳ ↳ `minimum` |  |  |
-| ↳ ↳ ↳ `maximum` |  |  |
+| ↳ ↳ ↳ `minimum` |  | 최소 기간 |
+| ↳ ↳ ↳ `maximum` |  | 최대 기간 |
 | ↳ ↳ `default` |  | (응답 객체) |
-| ↳ ↳ ↳ `minimum` |  |  |
+| ↳ ↳ ↳ `minimum` |  | 최소 기간 |
 | ↳ ↳ ↳ `use_fast_delivery` |  |  |
 | ↳ `wished_delivery_time` |  | 희망배송시간 |
 | ↳ ↳ `use` |  |  |
 | ↳ ↳ `range` |  | (목록) |
-| ↳ ↳ ↳ `start_hour` |  |  |
-| ↳ ↳ ↳ `end_hour` |  |  |
+| ↳ ↳ ↳ `start_hour` |  | 희망배송 시작시간 |
+| ↳ ↳ ↳ `end_hour` |  | 희망배송 종료시간 |
 | ↳ ↳ `default` |  | (응답 객체) |
 | ↳ ↳ ↳ `range` |  | (응답 객체) |
-| ↳ ↳ ↳ ↳ `start_hour` |  |  |
-| ↳ ↳ ↳ ↳ `end_hour` |  |  |
+| ↳ ↳ ↳ ↳ `start_hour` |  | 희망배송 시작시간 |
+| ↳ ↳ ↳ ↳ `end_hour` |  | 희망배송 종료시간 |
 | ↳ ↳ ↳ `use_fast_delivery` |  |  |
 | ↳ `hs_code` |  | HS코드 |
 | ↳ `country_hs_code` |  | 국가별 HS 코드 |
 | ↳ ↳ `hs_code` |  | HS코드 |
-| ↳ ↳ `country_code` |  |  |
+| ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ `individual_shipping_fee` |  | 상품별 개별배송비 설정 여부 T : 사용함 · F : 사용안함 |
 | ↳ `individual_fee_calculation_type` |  | 개별배송비 계산 기준 P : 상품별 · I : 품목별 |
 | ↳ `supplier_shipping_fee` |  | 공급사 배송비 사용 여부 T : 사용함 · F : 사용안함 |
@@ -149,11 +149,11 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `supplier_regional_surcharge` |  | 공급사 지역별 배송비 A : 대표 운영자의 지역별 배송료를 부과 · S : 공급사 관리자 설정에 따라 부과 |
 | ↳ `additional_shipping_fee` |  | 추가 배송비 설정 |
 | ↳ `shipping_company_type` |  | 배송업체 선택 |
-| ↳ ↳ `carrier_id` |  |  |
-| ↳ ↳ `is_selected` |  |  |
-| ↳ ↳ `shipping_carrier_code` |  |  |
+| ↳ ↳ `carrier_id` |  | 배송사 아이디 |
+| ↳ ↳ `is_selected` |  | 선택여부 · T: 선택 · F: 선택안함 |
+| ↳ ↳ `shipping_carrier_code` |  | 배송사 코드 shipping_company_code |
 | ↳ ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내배송 · C : 해외배송 · B : 국내/해외배송 |
-| ↳ ↳ `shipping_carrier` |  |  |
+| ↳ ↳ `shipping_carrier` |  | 배송사 명 |
 
 응답 예시 (JSON):
 
@@ -391,58 +391,58 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `international_shipping_fee_criteria` |  | 해외 배송비 기준 설정 B : 쇼핑몰 자체 배송비 · E : 자동 책정 배송비(EMS) |
 | ↳ `shipping_place` |  | 배송지역 |
 | ↳ `shipping_period` |  | 배송기간 |
-| ↳ ↳ `minimum` |  |  |
-| ↳ ↳ `maximum` |  |  |
+| ↳ ↳ `minimum` |  | 최소 기간 |
+| ↳ ↳ `maximum` |  | 최대 기간 |
 | ↳ `shipping_fee_type` |  | 배송비타입 T : 배송비 무료 · R : 고정배송비 사용 · M : 구매 금액에 따른 부과 · D : 구매 금액별 차등 배송료 사용 · W : 상품 무게별 차등 배송료 사용 · C : 상품 수량별 차등 배송료 사용 · N : 상품 수량에 비례하여 배송료 부과 |
 | ↳ `shipping_rates` |  | 배송비 상세 설정 |
-| ↳ ↳ `min_value` |  |  |
-| ↳ ↳ `max_value` |  |  |
+| ↳ ↳ `min_value` |  | 조건 최소값 |
+| ↳ ↳ `max_value` |  | 조건 최대값 |
 | ↳ ↳ `shipping_fee` | 최대값: [999999999] | 배송비 |
 | ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 D : 할인전 정상판매가격 기준(권장) · L : 최종 주문(결제)금액 기준 · A : 할인 적용 후 결제 금액 기준 · R : 최종 실 결제금액 기준 |
 | ↳ `product_weight` |  | 상품중량 |
 | ↳ `oversea_shipping_country` |  | 해외배송가능 국가 제한 여부 T : 제한함 · F : 제한안함 |
 | ↳ `oversea_shipping_country_list` |  | 배송국가 |
-| ↳ ↳ `country_code` |  |  |
+| ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ `country_shipping_fee` |  | 배송비 국가별 개별 설정 여부 T : 사용함 · F : 사용안함 |
 | ↳ `country_shipping_fee_list` |  | 국가별 배송비 |
-| ↳ ↳ `country_code` |  |  |
-| ↳ ↳ `conditional` |  |  |
-| ↳ ↳ `min_value` |  |  |
-| ↳ ↳ `max_value` |  |  |
+| ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ `conditional` |  | 배송비 책정 조건 · quantity : 수량 · weight : 무게 · price : 가격 |
+| ↳ ↳ `min_value` |  | 조건 최소값 |
+| ↳ ↳ `max_value` |  | 조건 최대값 |
 | ↳ ↳ `shipping_fee` | 최대값: [999999999] | 배송비 |
 | ↳ `international_shipping_insurance` |  | 해외배송 보험료 T : 사용함 · F : 사용안함 |
 | ↳ `return_address` |  | 반품주소 |
-| ↳ ↳ `zipcode` |  |  |
-| ↳ ↳ `ziptype` |  |  |
-| ↳ ↳ `address1` |  |  |
-| ↳ ↳ `address2` |  |  |
+| ↳ ↳ `zipcode` |  | 우편번호 |
+| ↳ ↳ `ziptype` |  | 우편번호 선택 국가 |
+| ↳ ↳ `address1` |  | 기본 주소 |
+| ↳ ↳ `address2` |  | 상세 주소 |
 | ↳ `package_volume` |  | 배송규격 |
-| ↳ ↳ `width` |  |  |
-| ↳ ↳ `length` |  |  |
-| ↳ ↳ `height` |  |  |
+| ↳ ↳ `width` |  | 가로 |
+| ↳ ↳ `length` |  | 세로 |
+| ↳ ↳ `height` |  | 높이 |
 | ↳ `individual_shipping_fee` |  | 상품별 개별배송비 설정 여부 T : 사용함 · F : 사용안함 |
 | ↳ `individual_fee_calculation_type` |  | 개별배송비 계산 기준 P : 상품별 · I : 품목별 |
 | ↳ `additional_shipping_fee` |  | 추가 배송비 설정 |
 | ↳ `shipping_company_type` |  | 배송업체 선택 |
-| ↳ ↳ `carrier_id` |  |  |
-| ↳ ↳ `is_selected` |  |  |
-| ↳ ↳ `shipping_carrier_code` |  |  |
+| ↳ ↳ `carrier_id` |  | 배송사 아이디 |
+| ↳ ↳ `is_selected` |  | 선택여부 · T: 선택 · F: 선택안함 |
+| ↳ ↳ `shipping_carrier_code` |  | 배송사 코드 shipping_company_code |
 | ↳ ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내배송 · C : 해외배송 · B : 국내/해외배송 |
-| ↳ ↳ `shipping_carrier` |  |  |
+| ↳ ↳ `shipping_carrier` |  | 배송사 명 |
 | ↳ `hs_code` |  | HS코드 |
 | ↳ `country_hs_code` |  | 국가별 HS 코드 |
 | ↳ ↳ `hs_code` |  | HS코드 |
-| ↳ ↳ `country_code` |  |  |
+| ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ `oversea_additional_fee` |  | 해외배송 부가금액 사용여부 T : 사용함 · F : 사용안함 |
 | ↳ `oversea_additional_fee_list` |  | 해외배송 부가금액 적용국가 |
-| ↳ ↳ `country_code` |  |  |
-| ↳ ↳ `fee_name` |  |  |
-| ↳ ↳ `min_value` |  |  |
-| ↳ ↳ `max_value` |  |  |
-| ↳ ↳ `additional_fee` |  |  |
-| ↳ ↳ `unit` |  |  |
-| ↳ ↳ `rounding_unit` |  |  |
-| ↳ ↳ `rounding_rule` |  |  |
+| ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ `fee_name` |  | 부과금액 명칭 |
+| ↳ ↳ `min_value` |  | 조건 최소값 |
+| ↳ ↳ `max_value` |  | 조건 최대값 |
+| ↳ ↳ `additional_fee` |  | 부가금액 |
+| ↳ ↳ `unit` |  | 해외배송 부가금액 단위 · W : 정액 · P : 퍼센트 |
+| ↳ ↳ `rounding_unit` |  | 절사단위 · F : 절사안함 · 0 : 1원단위 · 1 : 10원단위 · 2 : 100원단위 · 3 : 1000원단위 |
+| ↳ ↳ `rounding_rule` |  | 절사 방법 · L : 내림 · U : 반올림 · C : 올림 |
 
 응답 예시 (JSON):
 

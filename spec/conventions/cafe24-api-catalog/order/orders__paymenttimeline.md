@@ -135,7 +135,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `payment_method_detail` |  | 결제수단별 결제금액 payment_method_detail code |
 | ↳ ↳ `code` |  |  |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `amount` |  |  |
+| ↳ ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
 | ↳ `order_amount_detail` |  | 주문금액 상세 order_amount_detail code |
 | ↳ ↳ `code` |  |  |
 | ↳ ↳ `name` |  |  |
@@ -143,7 +143,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `supplier_code` |  |  |
 | ↳ ↳ `unit_price` |  |  |
 | ↳ ↳ `quantity` |  |  |
-| ↳ ↳ `amount` |  |  |
+| ↳ ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
 | ↳ `payment_datetime` |  | 결제일 |
 | ↳ `created_datetime` |  | 입력일 |
 

@@ -51,9 +51,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `show_end_date` |  | 표시기간 종료 일자 |
 | ↳ `image_list` |  | 꾸미기 이미지 리스트 수평위치(image_horizontal_position) · L : 왼쪽 · C : 가운데 · R : 오른쪽 · 수직위치(image_vertical_position) · T : 상단 · C : 중단 · B : 하단 |
 | ↳ ↳ `code` |  | 꾸미기 이미지 코드 |
-| ↳ ↳ `path` |  |  |
-| ↳ ↳ `image_vertical_position` |  |  |
-| ↳ ↳ `image_horizontal_position` |  |  |
+| ↳ ↳ `path` |  | 꾸미기 이미지 경로 |
+| ↳ ↳ `image_vertical_position` |  | 꾸미기 이미지 수직값 |
+| ↳ ↳ `image_horizontal_position` |  | 꾸미기 이미지 수평값 |
 
 응답 예시 (JSON):
 
@@ -117,9 +117,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `show_end_date` |  | 표시기간 종료 일자 |
 | ↳ `image_list` |  | 꾸미기 이미지 리스트 수평위치(image_horizontal_position) · L : 왼쪽 · C : 가운데 · R : 오른쪽 · 수직위치(image_vertical_position) · T : 상단 · C : 중단 · B : 하단 |
 | ↳ ↳ `code` |  | 꾸미기 이미지 코드 |
-| ↳ ↳ `path` |  |  |
-| ↳ ↳ `image_vertical_position` |  |  |
-| ↳ ↳ `image_horizontal_position` |  |  |
+| ↳ ↳ `path` |  | 꾸미기 이미지 경로 |
+| ↳ ↳ `image_vertical_position` |  | 꾸미기 이미지 수직값 |
+| ↳ ↳ `image_horizontal_position` |  | 꾸미기 이미지 수평값 |
 
 응답 예시 (JSON):
 
@@ -184,9 +184,9 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `show_end_date` |  | 표시기간 종료 일자 |
 | ↳ `image_list` |  | 꾸미기 이미지 리스트 수평위치(image_horizontal_position) · L : 왼쪽 · C : 가운데 · R : 오른쪽 · 수직위치(image_vertical_position) · T : 상단 · C : 중단 · B : 하단 |
 | ↳ ↳ `code` |  | 꾸미기 이미지 코드 |
-| ↳ ↳ `path` |  |  |
-| ↳ ↳ `image_vertical_position` |  |  |
-| ↳ ↳ `image_horizontal_position` |  |  |
+| ↳ ↳ `path` |  | 꾸미기 이미지 경로 |
+| ↳ ↳ `image_vertical_position` |  | 꾸미기 이미지 수직값 |
+| ↳ ↳ `image_horizontal_position` |  | 꾸미기 이미지 수평값 |
 
 응답 예시 (JSON):
 

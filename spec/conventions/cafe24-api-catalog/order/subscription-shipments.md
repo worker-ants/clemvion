@@ -106,35 +106,35 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `subscription_state` |  | 정기배송 상태 U:이용중 · P: 일시정지 · C:해지 |
 | ↳ `items` |  | 주문상품목록 |
 | ↳ ↳ `variants_code` |  |  |
-| ↳ ↳ `product_code` |  |  |
-| ↳ ↳ `subscription_item_id` |  |  |
-| ↳ ↳ `product_no` |  |  |
-| ↳ ↳ `product_name` |  |  |
+| ↳ ↳ `product_code` |  | 상품코드 |
+| ↳ ↳ `subscription_item_id` |  | 정기배송 아이템 번호 |
+| ↳ ↳ `product_no` |  | 상품번호 ,(콤마)로 여러 건을 검색할 수 있다. |
+| ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
 | ↳ ↳ `option_value` |  |  |
-| ↳ ↳ `option_value_default` |  |  |
-| ↳ ↳ `option_id` |  |  |
-| ↳ ↳ `quantity` |  |  |
-| ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `option_price` |  |  |
-| ↳ ↳ `shipping_payment_option` |  |  |
+| ↳ ↳ `option_value_default` |  | 기본옵션값 |
+| ↳ ↳ `option_id` |  | 상품옵션 아이디 · DEFAULT 000A |
+| ↳ ↳ `quantity` |  | 주문 수량 |
+| ↳ ↳ `product_price` |  | 상품 판매가 |
+| ↳ ↳ `option_price` |  | 옵션 추가 가격 |
+| ↳ ↳ `shipping_payment_option` |  | 선/착불 구분 · C : 착불 · P : 선결제 · F : 무료 |
 | ↳ ↳ `subscription_shipments_sequence` |  |  |
 | ↳ ↳ `subscription_state` |  | 정기배송 상태 U:이용중 · P: 일시정지 · C:해지 |
 | ↳ ↳ `expected_pay_date` |  |  |
 | ↳ ↳ `terminated_date` |  |  |
-| ↳ ↳ `product_bundle` |  |  |
+| ↳ ↳ `product_bundle` |  | 세트상품 여부 · T : 세트상품 · F : 세트상품 아님 · DEFAULT F |
 | ↳ ↳ `product_bundle_price` |  |  |
-| ↳ ↳ `bundle_product_components` |  | (목록) |
+| ↳ ↳ `bundle_product_components` |  | 세트상품의 구성상품 정보 |
 | ↳ ↳ ↳ `variants_code` |  |  |
-| ↳ ↳ ↳ `product_code` |  |  |
-| ↳ ↳ ↳ `product_no` |  |  |
-| ↳ ↳ ↳ `product_name` |  |  |
+| ↳ ↳ ↳ `product_code` |  | 상품코드 |
+| ↳ ↳ ↳ `product_no` |  | 상품번호 ,(콤마)로 여러 건을 검색할 수 있다. |
+| ↳ ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
 | ↳ ↳ ↳ `option_value` |  |  |
-| ↳ ↳ ↳ `option_value_default` |  |  |
-| ↳ ↳ ↳ `option_id` |  |  |
-| ↳ ↳ ↳ `quantity` |  |  |
-| ↳ ↳ ↳ `product_price` |  |  |
-| ↳ ↳ ↳ `option_price` |  |  |
-| ↳ ↳ `max_delivery_limit` |  |  |
+| ↳ ↳ ↳ `option_value_default` |  | 기본옵션값 |
+| ↳ ↳ ↳ `option_id` |  | 상품옵션 아이디 · DEFAULT 000A |
+| ↳ ↳ ↳ `quantity` |  | 주문 수량 |
+| ↳ ↳ ↳ `product_price` |  | 상품 판매가 |
+| ↳ ↳ ↳ `option_price` |  | 옵션 추가 가격 |
+| ↳ ↳ `max_delivery_limit` | 최소값: [0]; 최대값: [12] | 정기배송 횟수 0 : 제한없음 · 2 : 2회 · 3 : 3회 · 4 : 4회 · 6 : 6회 · 10 : 10회 · 12 : 12회 |
 
 응답 예시 (JSON):
 
@@ -422,8 +422,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | `shipments` |  | (목록) |
 | ↳ `subscription_id` |  | 정기배송 신청번호 |
 | ↳ `items` |  | 주문상품목록 |
-| ↳ ↳ `variant_code` |  |  |
-| ↳ ↳ `option_id` |  |  |
+| ↳ ↳ `variant_code` |  | 품목코드 |
+| ↳ ↳ `option_id` |  | 상품옵션 아이디 · DEFAULT 000A |
 
 응답 예시 (JSON):
 

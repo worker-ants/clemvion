@@ -42,7 +42,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `discountprice` |  | (응답 객체) |
+| `discountprice` |  | 상품 할인판매가 리소스 |
 | ↳ `pc_discount_price` |  | PC 할인 판매가 |
 | ↳ `mobile_discount_price` |  | 모바일 할인 판매가 |
 | ↳ `app_discount_price` |  | 앱 할인 판매가 |

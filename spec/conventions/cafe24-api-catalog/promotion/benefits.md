@@ -72,7 +72,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `benefits` |  | (목록) |
+| `benefits` |  | 혜택 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호 |
 | ↳ `benefit_no` |  | 혜택번호 혜택이 생성된 경우 부여되는 고유 번호 |
 | ↳ `use_benefit` |  | 진행여부 |
@@ -229,14 +229,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `icon_url` |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 |
 | ↳ `created_date` |  | 혜택 등록일 해당 혜택이 등록된 일시 |
 | ↳ `period_sale` |  | 기간 할인 설정 혜택의 상세유형이 기간 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
-| ↳ ↳ `product_list` |  | (목록) |
-| ↳ ↳ `add_category_list` |  |  |
-| ↳ ↳ `except_category_list` |  | (목록) |
-| ↳ ↳ `discount_purchasing_quantity` |  |  |
-| ↳ ↳ `discount_value` |  |  |
-| ↳ ↳ `discount_value_unit` |  |  |
-| ↳ ↳ `discount_truncation_unit` |  |  |
-| ↳ ↳ `discount_truncation_method` |  |  |
+| ↳ ↳ `product_list` |  | 상품 목록 |
+| ↳ ↳ `add_category_list` |  | 상품 분류 |
+| ↳ ↳ `except_category_list` |  | 제외 분류 |
+| ↳ ↳ `discount_purchasing_quantity` |  | 할인 구매수량 · T : 구매수량에 따라 · F : 구매수량에 관계없이 |
+| ↳ ↳ `discount_value` |  | 할인 값 |
+| ↳ ↳ `discount_value_unit` |  | 할인 기준 · P : 비율 · W : 금액 |
+| ↳ ↳ `discount_truncation_unit` |  | 할인 반올림 단위 · F : 절사안함 · C : 0.01 · B : 0.1 · O : 1 · T : 10 · M : 100 · H : 1000 |
+| ↳ ↳ `discount_truncation_method` |  | 할인 단위 처리 · L : 내림 · U : 반올림 · C : 올림 |
 | ↳ `repurchase_sale` |  | 재구매 할인 설정 혜택의 상세유형이 재구매 할인인 경우 그와 관련한 상세 설정 |
 | ↳ `bulk_purchase_sale` |  | 대량구매 수량 설정 혜택의 상세유형이 대량구매 할인인 경우 그와 관련한 상세 설정 |
 | ↳ `member_sale` |  | 회원 할인 설정 혜택의 상세유형이 회원 할인인 경우 그와 관련한 상세 설정 |
@@ -424,14 +424,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `icon_url` |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 |
 | ↳ `created_date` |  | 혜택 등록일 해당 혜택이 등록된 일시 |
 | ↳ `period_sale` |  | 기간 할인 설정 혜택의 상세유형이 기간 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
-| ↳ ↳ `product_list` |  | (목록) |
-| ↳ ↳ `add_category_list` |  |  |
-| ↳ ↳ `except_category_list` |  | (목록) |
-| ↳ ↳ `discount_purchasing_quantity` |  |  |
-| ↳ ↳ `discount_value` |  |  |
-| ↳ ↳ `discount_value_unit` |  |  |
-| ↳ ↳ `discount_truncation_unit` |  |  |
-| ↳ ↳ `discount_truncation_method` |  |  |
+| ↳ ↳ `product_list` |  | 상품 목록 |
+| ↳ ↳ `add_category_list` |  | 상품 분류 |
+| ↳ ↳ `except_category_list` |  | 제외 분류 |
+| ↳ ↳ `discount_purchasing_quantity` |  | 할인 구매수량 · T : 구매수량에 따라 · F : 구매수량에 관계없이 |
+| ↳ ↳ `discount_value` |  | 할인 값 |
+| ↳ ↳ `discount_value_unit` |  | 할인 기준 · P : 비율 · W : 금액 |
+| ↳ ↳ `discount_truncation_unit` |  | 할인 반올림 단위 · F : 절사안함 · C : 0.01 · B : 0.1 · O : 1 · T : 10 · M : 100 · H : 1000 |
+| ↳ ↳ `discount_truncation_method` |  | 할인 단위 처리 · L : 내림 · U : 반올림 · C : 올림 |
 | ↳ `repurchase_sale` |  | 재구매 할인 설정 혜택의 상세유형이 재구매 할인인 경우 그와 관련한 상세 설정 |
 | ↳ `bulk_purchase_sale` |  | 대량구매 수량 설정 혜택의 상세유형이 대량구매 할인인 경우 그와 관련한 상세 설정 |
 | ↳ `member_sale` |  | 회원 할인 설정 혜택의 상세유형이 회원 할인인 경우 그와 관련한 상세 설정 |
@@ -590,14 +590,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `icon_url` |  | 아이콘 URL 혜택이 적용되는 상품명에 아이콘이 노출되도록 아이콘 등록 |
 | ↳ `created_date` |  | 혜택 등록일 해당 혜택이 등록된 일시 |
 | ↳ `period_sale` |  | 기간 할인 설정 혜택의 상세유형이 기간 할인인 경우 그와 관련한 상세 설정 · 하위 요소가 입력되어야 정상적인 등록이 가능함 |
-| ↳ ↳ `product_list` |  | (목록) |
-| ↳ ↳ `add_category_list` |  |  |
-| ↳ ↳ `except_category_list` |  | (목록) |
-| ↳ ↳ `discount_purchasing_quantity` |  |  |
-| ↳ ↳ `discount_value` |  |  |
-| ↳ ↳ `discount_value_unit` |  |  |
-| ↳ ↳ `discount_truncation_unit` |  |  |
-| ↳ ↳ `discount_truncation_method` |  |  |
+| ↳ ↳ `product_list` |  | 상품 목록 |
+| ↳ ↳ `add_category_list` |  | 상품 분류 |
+| ↳ ↳ `except_category_list` |  | 제외 분류 |
+| ↳ ↳ `discount_purchasing_quantity` |  | 할인 구매수량 · T : 구매수량에 따라 · F : 구매수량에 관계없이 |
+| ↳ ↳ `discount_value` |  | 할인 값 |
+| ↳ ↳ `discount_value_unit` |  | 할인 기준 · P : 비율 · W : 금액 |
+| ↳ ↳ `discount_truncation_unit` |  | 할인 반올림 단위 · F : 절사안함 · C : 0.01 · B : 0.1 · O : 1 · T : 10 · M : 100 · H : 1000 |
+| ↳ ↳ `discount_truncation_method` |  | 할인 단위 처리 · L : 내림 · U : 반올림 · C : 올림 |
 | ↳ `repurchase_sale` |  | 재구매 할인 설정 혜택의 상세유형이 재구매 할인인 경우 그와 관련한 상세 설정 |
 | ↳ `bulk_purchase_sale` |  | 대량구매 수량 설정 혜택의 상세유형이 대량구매 할인인 경우 그와 관련한 상세 설정 |
 | ↳ `member_sale` |  | 회원 할인 설정 혜택의 상세유형이 회원 할인인 경우 그와 관련한 상세 설정 |

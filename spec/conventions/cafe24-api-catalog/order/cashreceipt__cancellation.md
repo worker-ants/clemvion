@@ -44,7 +44,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `cancellation` |  | (응답 객체) |
+| `cancellation` |  | 취소상세 리소스 |
 | ↳ `cashreceipt_no` |  | 현금영수증 번호 |
 | ↳ `order_id` |  | 주문번호 |
 | ↳ `status` |  | 처리상태 신청취소: canceled_request · 발행취소: canceled_issuance |

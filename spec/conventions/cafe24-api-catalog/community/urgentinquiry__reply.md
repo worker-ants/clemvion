@@ -48,7 +48,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `reply` |  | (응답 객체) |
+| `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `article_no` |  | 게시물 번호 |
 | ↳ `created_date` | 날짜 | 답변 등록일 |
@@ -59,8 +59,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
 | ↳ `attached_file_detail` |  | 첨부 파일 상세 |
 | ↳ ↳ `no` |  |  |
-| ↳ ↳ `source` |  |  |
-| ↳ ↳ `name` |  |  |
+| ↳ ↳ `source` |  | 소스 코드 |
+| ↳ ↳ `name` |  | 파일명 |
 
 응답 예시 (JSON):
 
@@ -118,7 +118,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `reply` |  | (응답 객체) |
+| `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `article_no` |  | 게시물 번호 |
 | ↳ `created_date` | 날짜 | 답변 등록일 |
@@ -129,8 +129,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
 | ↳ `attached_file_detail` |  | 첨부 파일 상세 |
 | ↳ ↳ `no` |  |  |
-| ↳ ↳ `source` |  |  |
-| ↳ ↳ `name` |  |  |
+| ↳ ↳ `source` |  | 소스 코드 |
+| ↳ ↳ `name` |  | 파일명 |
 
 응답 예시 (JSON):
 
@@ -188,7 +188,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `reply` |  | (응답 객체) |
+| `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `article_no` |  | 게시물 번호 |
 | ↳ `created_date` | 날짜 | 답변 등록일 |
@@ -199,8 +199,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
 | ↳ `attached_file_detail` |  | 첨부 파일 상세 |
 | ↳ ↳ `no` |  |  |
-| ↳ ↳ `source` |  |  |
-| ↳ ↳ `name` |  |  |
+| ↳ ↳ `source` |  | 소스 코드 |
+| ↳ ↳ `name` |  | 파일명 |
 
 응답 예시 (JSON):
 

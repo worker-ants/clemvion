@@ -45,7 +45,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `accounts` |  | (목록) |
+| `accounts` |  | 계좌번호 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `bank_account_id` |  | 무통장 입금 은행 ID |
 | ↳ `bank_name` |  | 은행명 |

@@ -70,53 +70,53 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_fee_setting` |  | 배송비 설정 여부 T : 사용함 · F : 사용안함 |
 | ↳ `shipping_fee_setting_detail` |  | 배송비 설정 데이터 |
 | ↳ ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내 · B : 국내/해외 · C : 해외 · F : 설정안함 |
-| ↳ ↳ `available_shipping_zone` |  |  |
-| ↳ ↳ `min_shipping_period` |  |  |
-| ↳ ↳ `max_shipping_period` |  |  |
-| ↳ ↳ `shipping_information` |  |  |
+| ↳ ↳ `available_shipping_zone` |  | 배송가능 지역 |
+| ↳ ↳ `min_shipping_period` |  | 배송가능 최소일 |
+| ↳ ↳ `max_shipping_period` |  | 배송가능 최대일 |
+| ↳ ↳ `shipping_information` |  | 주문서 배송안내 |
 | ↳ ↳ `shipping_fee_setting_domestic` |  | (응답 객체) |
-| ↳ ↳ ↳ `shipping_fee_type` |  |  |
-| ↳ ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ ↳ `min_price` |  |  |
-| ↳ ↳ ↳ `use_product_category` |  |  |
+| ↳ ↳ ↳ `shipping_fee_type` |  | 배송비 설정 |
+| ↳ ↳ ↳ `shipping_fee` |  | 배송비 |
+| ↳ ↳ ↳ `min_price` |  | 미만 조건금액 |
+| ↳ ↳ ↳ `use_product_category` |  | 선택 상품분류 적용 |
 | ↳ ↳ ↳ `product_category_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `category_no` |  |  |
+| ↳ ↳ ↳ ↳ `category_no` |  | 카테고리 번호 |
 | ↳ ↳ ↳ ↳ `category_name` |  |  |
-| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 |
 | ↳ ↳ ↳ `domestic_shipping_fee_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
-| ↳ ↳ ↳ ↳ `conditional` |  |  |
-| ↳ ↳ ↳ ↳ `min_value` |  |  |
-| ↳ ↳ ↳ ↳ `max_value` |  |  |
-| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ ↳ `available_shipping_zone` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ ↳ ↳ `conditional` |  | 구간 조건 |
+| ↳ ↳ ↳ ↳ `min_value` |  | 구간 금액 min |
+| ↳ ↳ ↳ ↳ `max_value` |  | 구간 금액 max |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  | 배송비 |
+| ↳ ↳ ↳ `available_shipping_zone` |  | 배송가능 지역 |
 | ↳ ↳ ↳ `available_shipping_zone_list` |  |  |
-| ↳ ↳ ↳ `available_order_time` |  |  |
-| ↳ ↳ ↳ `start_time` |  |  |
-| ↳ ↳ ↳ `end_time` |  |  |
+| ↳ ↳ ↳ `available_order_time` |  | 주문가능 시간 설정 |
+| ↳ ↳ ↳ `start_time` |  | 주문가능 시작 시간 |
+| ↳ ↳ ↳ `end_time` |  | 주문가능 마감 시간 |
 | ↳ ↳ `shipping_fee_setting_oversea` |  | (응답 객체) |
-| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 |
 | ↳ ↳ ↳ `shipping_country_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
-| ↳ ↳ ↳ ↳ `country_name` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ ↳ ↳ `country_name` |  | 국가명 |
 | ↳ ↳ ↳ `country_shipping_fee_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
-| ↳ ↳ ↳ ↳ `country_name` |  |  |
-| ↳ ↳ ↳ ↳ `conditional` |  |  |
-| ↳ ↳ ↳ ↳ `min_value` |  |  |
-| ↳ ↳ ↳ ↳ `max_value` |  |  |
-| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ ↳ ↳ `country_name` |  | 국가명 |
+| ↳ ↳ ↳ ↳ `conditional` |  | 구간 조건 |
+| ↳ ↳ ↳ ↳ `min_value` |  | 구간 금액 min |
+| ↳ ↳ ↳ ↳ `max_value` |  | 구간 금액 max |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  | 배송비 |
+| ↳ ↳ ↳ `additional_handling_fee` |  | 해외배송 부가금액 여부 |
 | ↳ ↳ ↳ `additional_handling_fee_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
-| ↳ ↳ ↳ ↳ `country_name` |  |  |
-| ↳ ↳ ↳ ↳ `text` |  |  |
-| ↳ ↳ ↳ ↳ `min_value` |  |  |
-| ↳ ↳ ↳ ↳ `max_value` |  |  |
-| ↳ ↳ ↳ ↳ `additional_handling_fee` |  |  |
-| ↳ ↳ ↳ ↳ `unit` |  |  |
-| ↳ ↳ ↳ ↳ `rounding_unit` |  |  |
-| ↳ ↳ ↳ ↳ `rounding_rule` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ ↳ ↳ `country_name` |  | 국가명 |
+| ↳ ↳ ↳ ↳ `text` |  | 부과금액 명칭 |
+| ↳ ↳ ↳ ↳ `min_value` |  | 구간 금액 min |
+| ↳ ↳ ↳ ↳ `max_value` |  | 구간 금액 max |
+| ↳ ↳ ↳ ↳ `additional_handling_fee` |  | 해외배송 부가금액 여부 |
+| ↳ ↳ ↳ ↳ `unit` |  | 해외배송 부가금액 단위 |
+| ↳ ↳ ↳ ↳ `rounding_unit` |  | 절사단위 |
+| ↳ ↳ ↳ ↳ `rounding_rule` |  | 절사 방법 |
 | ↳ `express_exception_setting` |  | 연동택배 예외정보 설정 |
 | ↳ ↳ `weight` |  |  |
 | ↳ ↳ `volume` |  |  |
@@ -429,55 +429,55 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_fee_setting` |  | 배송비 설정 여부 T : 사용함 · F : 사용안함 |
 | ↳ `shipping_fee_setting_detail` |  | 배송비 설정 데이터 |
 | ↳ ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내 · B : 국내/해외 · C : 해외 · F : 설정안함 |
-| ↳ ↳ `available_shipping_zone` |  |  |
-| ↳ ↳ `min_shipping_period` |  |  |
-| ↳ ↳ `max_shipping_period` |  |  |
-| ↳ ↳ `shipping_information` |  |  |
+| ↳ ↳ `available_shipping_zone` |  | 배송가능 지역 |
+| ↳ ↳ `min_shipping_period` |  | 배송가능 최소일 |
+| ↳ ↳ `max_shipping_period` |  | 배송가능 최대일 |
+| ↳ ↳ `shipping_information` |  | 주문서 배송안내 |
 | ↳ ↳ `shipping_fee_setting_domestic` |  | (응답 객체) |
-| ↳ ↳ ↳ `shipping_fee_type` |  |  |
-| ↳ ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ ↳ `min_price` |  |  |
-| ↳ ↳ ↳ `use_product_category` |  |  |
+| ↳ ↳ ↳ `shipping_fee_type` |  | 배송비 설정 |
+| ↳ ↳ ↳ `shipping_fee` |  | 배송비 |
+| ↳ ↳ ↳ `min_price` |  | 미만 조건금액 |
+| ↳ ↳ ↳ `use_product_category` |  | 선택 상품분류 적용 |
 | ↳ ↳ ↳ `product_category_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `category_no` |  |  |
+| ↳ ↳ ↳ ↳ `category_no` |  | 카테고리 번호 |
 | ↳ ↳ ↳ ↳ `category_name` |  |  |
-| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 |
 | ↳ ↳ ↳ `domestic_shipping_fee_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
-| ↳ ↳ ↳ ↳ `conditional` |  |  |
-| ↳ ↳ ↳ ↳ `min_value` |  |  |
-| ↳ ↳ ↳ ↳ `max_value` |  |  |
-| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ ↳ `available_shipping_zone` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ ↳ ↳ `conditional` |  | 구간 조건 |
+| ↳ ↳ ↳ ↳ `min_value` |  | 구간 금액 min |
+| ↳ ↳ ↳ ↳ `max_value` |  | 구간 금액 max |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  | 배송비 |
+| ↳ ↳ ↳ `available_shipping_zone` |  | 배송가능 지역 |
 | ↳ ↳ ↳ `available_shipping_zone_list` |  |  |
-| ↳ ↳ ↳ `available_order_time` |  |  |
-| ↳ ↳ ↳ `start_time` |  |  |
-| ↳ ↳ ↳ `end_time` |  |  |
+| ↳ ↳ ↳ `available_order_time` |  | 주문가능 시간 설정 |
+| ↳ ↳ ↳ `start_time` |  | 주문가능 시작 시간 |
+| ↳ ↳ ↳ `end_time` |  | 주문가능 마감 시간 |
 | ↳ ↳ `shipping_fee_setting_oversea` |  | (응답 객체) |
-| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 |
 | ↳ ↳ ↳ `shipping_country_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
-| ↳ ↳ ↳ ↳ `country_name` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ ↳ ↳ `country_name` |  | 국가명 |
 | ↳ ↳ ↳ `country_shipping_fee_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
-| ↳ ↳ ↳ ↳ `country_name` |  |  |
-| ↳ ↳ ↳ ↳ `conditional` |  |  |
-| ↳ ↳ ↳ ↳ `min_value` |  |  |
-| ↳ ↳ ↳ ↳ `max_value` |  |  |
-| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ ↳ ↳ `country_name` |  | 국가명 |
+| ↳ ↳ ↳ ↳ `conditional` |  | 구간 조건 |
+| ↳ ↳ ↳ ↳ `min_value` |  | 구간 금액 min |
+| ↳ ↳ ↳ ↳ `max_value` |  | 구간 금액 max |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  | 배송비 |
+| ↳ ↳ ↳ `additional_handling_fee` |  | 해외배송 부가금액 여부 |
 | ↳ ↳ ↳ `additional_handling_fee_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
-| ↳ ↳ ↳ ↳ `country_name` |  |  |
-| ↳ ↳ ↳ ↳ `text` |  |  |
-| ↳ ↳ ↳ ↳ `min_value` |  |  |
-| ↳ ↳ ↳ ↳ `max_value` |  |  |
-| ↳ ↳ ↳ ↳ `additional_handling_fee` |  |  |
-| ↳ ↳ ↳ ↳ `unit` |  |  |
-| ↳ ↳ ↳ ↳ `rounding_unit` |  |  |
-| ↳ ↳ ↳ ↳ `rounding_rule` |  |  |
-| ↳ ↳ ↳ `maximum_quantity` |  |  |
-| ↳ ↳ ↳ `product_category_limit` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ ↳ ↳ `country_name` |  | 국가명 |
+| ↳ ↳ ↳ ↳ `text` |  | 부과금액 명칭 |
+| ↳ ↳ ↳ ↳ `min_value` |  | 구간 금액 min |
+| ↳ ↳ ↳ ↳ `max_value` |  | 구간 금액 max |
+| ↳ ↳ ↳ ↳ `additional_handling_fee` |  | 해외배송 부가금액 여부 |
+| ↳ ↳ ↳ ↳ `unit` |  | 해외배송 부가금액 단위 |
+| ↳ ↳ ↳ ↳ `rounding_unit` |  | 절사단위 |
+| ↳ ↳ ↳ ↳ `rounding_rule` |  | 절사 방법 |
+| ↳ ↳ ↳ `maximum_quantity` |  | 총 구매수량 제한 |
+| ↳ ↳ ↳ `product_category_limit` |  | 상품분류 제한 여부 |
 | ↳ ↳ ↳ `product_category_limit_list` |  |  |
 | ↳ `express_exception_setting` |  | 연동택배 예외정보 설정 |
 | ↳ ↳ `weight` |  |  |
@@ -722,49 +722,49 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_fee_setting` |  | 배송비 설정 여부 T : 사용함 · F : 사용안함 |
 | ↳ `shipping_fee_setting_detail` |  | 배송비 설정 데이터 |
 | ↳ ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내 · B : 국내/해외 · C : 해외 · F : 설정안함 |
-| ↳ ↳ `available_shipping_zone` |  |  |
-| ↳ ↳ `min_shipping_period` |  |  |
-| ↳ ↳ `max_shipping_period` |  |  |
-| ↳ ↳ `shipping_information` |  |  |
+| ↳ ↳ `available_shipping_zone` |  | 배송가능 지역 |
+| ↳ ↳ `min_shipping_period` |  | 배송가능 최소일 |
+| ↳ ↳ `max_shipping_period` |  | 배송가능 최대일 |
+| ↳ ↳ `shipping_information` |  | 주문서 배송안내 |
 | ↳ ↳ `shipping_fee_setting_domestic` |  | (응답 객체) |
-| ↳ ↳ ↳ `shipping_fee_type` |  |  |
-| ↳ ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ ↳ `min_price` |  |  |
-| ↳ ↳ ↳ `use_product_category` |  |  |
+| ↳ ↳ ↳ `shipping_fee_type` |  | 배송비 설정 |
+| ↳ ↳ ↳ `shipping_fee` |  | 배송비 |
+| ↳ ↳ ↳ `min_price` |  | 미만 조건금액 |
+| ↳ ↳ ↳ `use_product_category` |  | 선택 상품분류 적용 |
 | ↳ ↳ ↳ `product_category_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `category_no` |  |  |
-| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ ↳ `category_no` |  | 카테고리 번호 |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 |
 | ↳ ↳ ↳ `domestic_shipping_fee_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `min_value` |  |  |
-| ↳ ↳ ↳ ↳ `max_value` |  |  |
-| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ ↳ `available_shipping_zone` |  |  |
+| ↳ ↳ ↳ ↳ `min_value` |  | 구간 금액 min |
+| ↳ ↳ ↳ ↳ `max_value` |  | 구간 금액 max |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  | 배송비 |
+| ↳ ↳ ↳ `available_shipping_zone` |  | 배송가능 지역 |
 | ↳ ↳ ↳ `available_shipping_zone_list` |  |  |
-| ↳ ↳ ↳ `available_order_time` |  |  |
-| ↳ ↳ ↳ `start_time` |  |  |
-| ↳ ↳ ↳ `end_time` |  |  |
+| ↳ ↳ ↳ `available_order_time` |  | 주문가능 시간 설정 |
+| ↳ ↳ ↳ `start_time` |  | 주문가능 시작 시간 |
+| ↳ ↳ ↳ `end_time` |  | 주문가능 마감 시간 |
 | ↳ ↳ `shipping_fee_setting_oversea` |  | (응답 객체) |
-| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 |
 | ↳ ↳ ↳ `shipping_country_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ ↳ ↳ `country_shipping_fee_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
-| ↳ ↳ ↳ ↳ `conditional` |  |  |
-| ↳ ↳ ↳ ↳ `min_value` |  |  |
-| ↳ ↳ ↳ ↳ `max_value` |  |  |
-| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
-| ↳ ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ ↳ ↳ `conditional` |  | 구간 조건 |
+| ↳ ↳ ↳ ↳ `min_value` |  | 구간 금액 min |
+| ↳ ↳ ↳ ↳ `max_value` |  | 구간 금액 max |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  | 배송비 |
+| ↳ ↳ ↳ `additional_handling_fee` |  | 해외배송 부가금액 여부 |
 | ↳ ↳ ↳ `additional_handling_fee_list` |  | (목록) |
-| ↳ ↳ ↳ ↳ `country_code` |  |  |
-| ↳ ↳ ↳ ↳ `text` |  |  |
-| ↳ ↳ ↳ ↳ `min_value` |  |  |
-| ↳ ↳ ↳ ↳ `max_value` |  |  |
-| ↳ ↳ ↳ ↳ `additional_handling_fee` |  |  |
-| ↳ ↳ ↳ ↳ `unit` |  |  |
-| ↳ ↳ ↳ ↳ `rounding_unit` |  |  |
-| ↳ ↳ ↳ ↳ `rounding_rule` |  |  |
-| ↳ ↳ ↳ `maximum_quantity` |  |  |
-| ↳ ↳ ↳ `product_category_limit` |  |  |
+| ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
+| ↳ ↳ ↳ ↳ `text` |  | 부과금액 명칭 |
+| ↳ ↳ ↳ ↳ `min_value` |  | 구간 금액 min |
+| ↳ ↳ ↳ ↳ `max_value` |  | 구간 금액 max |
+| ↳ ↳ ↳ ↳ `additional_handling_fee` |  | 해외배송 부가금액 여부 |
+| ↳ ↳ ↳ ↳ `unit` |  | 해외배송 부가금액 단위 |
+| ↳ ↳ ↳ ↳ `rounding_unit` |  | 절사단위 |
+| ↳ ↳ ↳ ↳ `rounding_rule` |  | 절사 방법 |
+| ↳ ↳ ↳ `maximum_quantity` |  | 총 구매수량 제한 |
+| ↳ ↳ ↳ `product_category_limit` |  | 상품분류 제한 여부 |
 | ↳ ↳ ↳ `product_category_limit_list` |  |  |
 | ↳ `links` |  | link |
 | ↳ ↳ `rel` |  |  |

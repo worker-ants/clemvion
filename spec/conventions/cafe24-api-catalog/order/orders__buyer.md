@@ -57,7 +57,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `buyer` |  | (응답 객체) |
+| `buyer` |  | 주문자정보 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | ↳ `member_id` |  | 회원아이디 |
 | ↳ `member_group_no` |  | 주문당시 주문자 회원 등급 번호 |
@@ -128,7 +128,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `buyer` |  | (응답 객체) |
+| `buyer` |  | 주문자정보 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | ↳ `order_id` | 주문번호 | 주문번호 |
 | ↳ `name` |  | 주문자명 |

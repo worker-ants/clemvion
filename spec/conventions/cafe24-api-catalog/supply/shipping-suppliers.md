@@ -75,19 +75,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_fee` | 최소값: [0]; 최대값: [999999999] | 배송비 배송비타입(shipping_fee_type)이 "R(고정배송비 사용)"이거나 "M(구매 금액에 따른 부과)"일 때 배송비 금액 |
 | ↳ `shipping_fee_by_quantity` | 최소값: [0]; 최대값: [999999999] | 상품 수량별 배송비 배송비타입(shipping_fee_type)이 "N(상품 수량에 비례하여 배송료 부과)"일 때 수량별 배송비 금액 |
 | ↳ `shipping_rates` | 배열 최대사이즈: [50] | 배송비 상세 설정 |
-| ↳ ↳ `shipping_rates_min` |  |  |
-| ↳ ↳ `shipping_rates_max` |  |  |
+| ↳ ↳ `shipping_rates_min` |  | 배송비 - 배송비 부과 기준 하한값 |
+| ↳ ↳ `shipping_rates_max` |  | 배송비 - 배송비 부과 기준 상한값 |
 | ↳ ↳ `shipping_fee` | 최소값: [0]; 최대값: [999999999] | 배송비 배송비타입(shipping_fee_type)이 "R(고정배송비 사용)"이거나 "M(구매 금액에 따른 부과)"일 때 배송비 금액 |
 | ↳ `prepaid_shipping_fee` |  | 배송비 선결제 설정 C : 착불 · P : 선결제 · B : 착불/선결제 |
 | ↳ `shipping_fee_by_product` |  | 상품별 개별 배송료 설정 T : 사용함 · F : 사용안함 |
 | ↳ `product_weight` | 최소값: [0]; 최대값: [30] | 상품중량 |
 | ↳ `hscode` | 최대글자수 : [20자] | HS코드 |
 | ↳ `country_hscode` | 배열 최대사이즈: [50] | 국가별 HS 코드 |
-| ↳ ↳ `country_code` |  |  |
+| ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ ↳ `hscode` | 최대글자수 : [20자] | HS코드 |
 | ↳ `oversea_shipping_country` |  | 해외배송가능 국가 제한 여부 T : 제한함 · F : 제한안함 |
 | ↳ `oversea_shipping_country_list` |  | 배송국가 |
-| ↳ ↳ `country_code` |  |  |
+| ↳ ↳ `country_code` |  | 국가코드 |
 
 응답 예시 (JSON):
 
@@ -203,15 +203,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_fee` | 최소값: [0]; 최대값: [999999999] | 배송비 배송비타입(shipping_fee_type)이 "R(고정배송비 사용)"이거나 "M(구매 금액에 따른 부과)"일 때 배송비 금액 |
 | ↳ `shipping_fee_by_quantity` | 최소값: [0]; 최대값: [999999999] | 상품 수량별 배송비 배송비타입(shipping_fee_type)이 "N(상품 수량에 비례하여 배송료 부과)"일 때 수량별 배송비 금액 |
 | ↳ `shipping_rates` | 배열 최대사이즈: [50] | 배송비 상세 설정 |
-| ↳ ↳ `shipping_rates_min` |  |  |
-| ↳ ↳ `shipping_rates_max` |  |  |
+| ↳ ↳ `shipping_rates_min` |  | 배송비 - 배송비 부과 기준 하한값 |
+| ↳ ↳ `shipping_rates_max` |  | 배송비 - 배송비 부과 기준 상한값 |
 | ↳ ↳ `shipping_fee` | 최소값: [0]; 최대값: [999999999] | 배송비 배송비타입(shipping_fee_type)이 "R(고정배송비 사용)"이거나 "M(구매 금액에 따른 부과)"일 때 배송비 금액 |
 | ↳ `prepaid_shipping_fee` |  | 배송비 선결제 설정 C : 착불 · P : 선결제 · B : 착불/선결제 |
 | ↳ `shipping_fee_by_product` |  | 상품별 개별 배송료 설정 T : 사용함 · F : 사용안함 |
 | ↳ `product_weight` | 최소값: [0]; 최대값: [30] | 상품중량 |
 | ↳ `hscode` | 최대글자수 : [20자] | HS코드 |
 | ↳ `country_hscode` | 배열 최대사이즈: [50] | 국가별 HS 코드 |
-| ↳ ↳ `country_code` |  |  |
+| ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ ↳ `hscode` | 최대글자수 : [20자] | HS코드 |
 
 응답 예시 (JSON):

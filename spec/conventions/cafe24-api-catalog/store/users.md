@@ -133,7 +133,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `available` |  | 사용여부 T : 사용함 · F : 사용안함 |
 | ↳ `multishop_access_authority` |  | 멀티쇼핑몰 접근 권한 T : 허용함 · F : 허용안함 |
 | ↳ `menu_access_authority` |  | 메뉴 접근 권한 |
-| ↳ ↳ `order` |  | (응답 객체) |
+| ↳ ↳ `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
 | ↳ ↳ ↳ `authority` |  |  |
 | ↳ ↳ ↳ `detail_setting` |  | (응답 객체) |
 | ↳ ↳ ↳ ↳ `74` |  | (응답 객체) |
@@ -192,7 +192,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ ↳ `edit_product_manufacturer_info` |  |  |
 | ↳ ↳ ↳ `show_product_delivery_count` |  |  |
 | ↳ ↳ ↳ `show_product_sales_count` |  |  |
-| ↳ ↳ `order` |  | (응답 객체) |
+| ↳ ↳ `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
 | ↳ ↳ ↳ `restrict_searching_order_info` |  |  |
 | ↳ ↳ ↳ `restrict_searching_personal_info` |  |  |
 | ↳ ↳ ↳ `restrict_printing_in_menu` |  |  |

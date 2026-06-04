@@ -59,7 +59,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `unit` |  | 해외배송 부가금액 단위 W : 정액 · P : 퍼센트 |
 | ↳ `rounding_unit` |  | 절사단위 F : 절사안함 · 0 : 1원단위 · 1 : 10원단위 · 2 : 100원단위 · 3 : 1000원단위 |
 | ↳ `rounding_rule` |  | 절사 방법 L : 내림 · U : 반올림 · C : 올림 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

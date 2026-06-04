@@ -61,7 +61,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `used_coupon` |  | 쿠폰사용 여부 |
 | ↳ `used_date` |  | 쿠폰 사용 일자 |
 | ↳ `related_order_id` |  | 관련 주문번호 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

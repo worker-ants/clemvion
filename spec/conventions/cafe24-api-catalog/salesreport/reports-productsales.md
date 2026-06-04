@@ -72,7 +72,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `return_product_count` |  | 반품완료 수량 |
 | ↳ `total_sale_count` |  | 누적 판매 수량 |
 | ↳ `total_cancel_count` |  | 누적 취소 수량 |
-| `links` |  | (목록) |
+| `links` |  | link |
 | ↳ `rel` |  |  |
 | ↳ `href` |  |  |
 

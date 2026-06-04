@@ -49,8 +49,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `use_regional_surcharge` |  | 지역별 배송비 사용여부 T : 사용함 · F : 사용안함 |
 | ↳ `region_setting_type` |  | 지역 설정 방식 A : 간편 설정 · N : 지명 설정 · Z : 우편번호 설정 |
 | ↳ `regional_surcharge_list` |  | 지역별 배송비 목록 |
-| ↳ ↳ `regional_surcharge_no` |  |  |
-| ↳ ↳ `region_name` |  |  |
+| ↳ ↳ `regional_surcharge_no` |  | 지역별 배송비 등록 번호 |
+| ↳ ↳ `region_name` | 최대글자수 : [255자] | 특수지역명 |
 | ↳ ↳ `surcharge_region_name` |  |  |
 | ↳ ↳ `country_code` |  |  |
 | ↳ ↳ `start_zipcode` |  |  |

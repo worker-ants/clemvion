@@ -101,16 +101,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `address_full` |  | 전체주소 |
 | ↳ `address_state` |  | 주/도 |
 | ↳ `items` |  | 주문상품목록 |
-| ↳ ↳ `product_no` |  |  |
-| ↳ ↳ `variant_code` |  |  |
-| ↳ ↳ `option_id` |  |  |
-| ↳ ↳ `quantity` |  |  |
-| ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `option_price` |  |  |
-| ↳ ↳ `product_bundle` |  |  |
-| ↳ ↳ `product_bundle_no` |  |  |
-| ↳ ↳ `prepaid_shipping_fee` |  |  |
-| ↳ ↳ `additional_discount_price` |  |  |
+| ↳ ↳ `product_no` |  | 상품번호 |
+| ↳ ↳ `variant_code` |  | 상품 품목 코드 |
+| ↳ ↳ `option_id` |  | 상품옵션 아이디 |
+| ↳ ↳ `quantity` |  | 수량 |
+| ↳ ↳ `product_price` |  | 상품 판매가 |
+| ↳ ↳ `option_price` |  | 옵션 추가 가격 |
+| ↳ ↳ `product_bundle` |  | 세트상품 여부 · T : 세트상품 · F : 세트상품 아님 · DEFAULT F |
+| ↳ ↳ `product_bundle_no` |  | 세트상품번호 |
+| ↳ ↳ `prepaid_shipping_fee` |  | 배송비 선결제 설정 · P : 선불 · C : 착불 · DEFAULT P |
+| ↳ ↳ `additional_discount_price` |  | 상품추가할인액 상품에 대한 추가 할인금액 |
 | ↳ ↳ `additional_discount_detail` |  | (응답 객체) |
 | ↳ ↳ ↳ `customer_discount_amount` |  |  |
 | ↳ ↳ ↳ `new_product_discount_amount` |  |  |
@@ -128,7 +128,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_fee` |  | 배송비 |
 | ↳ `total_amount_due` |  | 결제예정 금액 |
 | ↳ `shipping_fee_information` |  | 배송비 상세정보 |
-| ↳ ↳ `default_shipping_fee` |  |  |
+| ↳ ↳ `default_shipping_fee` |  | 기본 배송비 |
 | ↳ ↳ `supplier_shipping_fee` |  |  |
 | ↳ ↳ `additonal_abroad_shipping_fee` |  |  |
 | ↳ ↳ `additional_handling_fee` |  |  |
