@@ -136,6 +136,13 @@ interface RagDiagnostics {
   resultCount: number;
   /** 사유 — KB 미설정/빈 결과 등 사용자 디버깅용. */
   skipReason?: 'empty_kb_list' | 'no_results';
+  /**
+   * 리랭킹 후처리 진단 — `rerank_mode ≠ off` KB 호출 시에만 포함
+   * (spec/5-system/9-rag-search.md §4.2). KB tool 이 여러 번 호출되면 가장 최근
+   * rerank 진단을 보존한다 (단일 객체 스키마 — turn 단위 분리가 필요하면
+   * `meta.turnDebug[].ragDiagnostics` 에서 확인).
+   */
+  rerank?: import('../../../modules/knowledge-base/search/rerank.service').RerankDiagnostics;
 }
 
 interface ConditionDef {
@@ -377,6 +384,9 @@ class RagAccumulator {
   private readonly queries: string[] = [];
   private resultCount = 0;
   private attempted = false;
+  // 마지막으로 관측된 rerank 진단 (rerank_mode ≠ off KB 호출에서만 set). 여러 KB
+  // tool 호출 시 가장 최근 것을 보존 — 단일 객체 스키마(spec §4.2).
+  private rerank?: import('../../../modules/knowledge-base/search/rerank.service').RerankDiagnostics;
   private readonly sources: unknown[] = [];
   // Dedupe by chunkId — multi-turn conversations and parallel KB tool calls
   // can return the same chunk multiple times. Keeping the first occurrence
@@ -407,6 +417,9 @@ class RagAccumulator {
     this.searchedKbIds.add(d.kbId);
     this.queries.push(d.query);
     this.resultCount += d.resultCount;
+    // rerank 진단은 rerank_mode ≠ off KB 호출 시에만 delta 에 실린다. 있으면
+    // 가장 최근 것으로 갱신 (단일 객체 스키마 — spec §4.2).
+    if (d.rerank) this.rerank = d.rerank;
   }
 
   getSources(): unknown[] {
@@ -439,6 +452,10 @@ class RagAccumulator {
     };
     if (this.resultCount === 0) {
       base.skipReason = 'no_results';
+    }
+    // rerank_mode ≠ off KB 가 호출됐다면 가장 최근 rerank 진단을 노출 (spec §4.2).
+    if (this.rerank) {
+      base.rerank = this.rerank;
     }
     return base;
   }

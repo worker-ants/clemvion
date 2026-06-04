@@ -1,6 +1,8 @@
 ---
 id: llm-client
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/rag-rerank-followup.md
 code:
   - codebase/backend/src/modules/llm/clients/*.ts
   - codebase/backend/src/modules/llm/llm-client.factory.ts
@@ -8,6 +10,8 @@ code:
   - codebase/backend/src/modules/llm/llm.service.ts
   - codebase/backend/src/modules/llm/llm-preview.service.ts
   - codebase/backend/src/modules/llm/llm-usage-log.service.ts
+  - codebase/backend/src/modules/llm/rerank/rerank-client.factory.ts
+  - codebase/backend/src/modules/llm/rerank/clients/*.ts
 ---
 
 # Spec: LLM 클라이언트 추상화 계층
@@ -275,7 +279,7 @@ class RerankClientFactory {
 | provider | rerank() 엔드포인트 | 단계 |
 |----------|--------------------|------|
 | TEI | `POST {base_url}/rerank` (HF Text-Embeddings-Inference) | 1차 |
-| Cohere | `POST /v1/rerank` | 1차 |
+| Cohere | `POST /v2/rerank` (`{ model, query, documents, top_n }` → `{ results: [{ index, relevance_score }] }`) | 1차 |
 | Jina | `POST /rerank` | Planned |
 | Voyage | `POST /v1/rerank` | Planned |
 | Local | `POST {base_url}/rerank` (OpenAI-compatible) 또는 vLLM `/score` | Planned |
