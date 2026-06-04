@@ -650,10 +650,24 @@ export class ExecutionEngineService
 
   /**
    * PR2a — §8 active-running 누적 타임아웃.
-   * `maxActiveRunningMs`: 한도(ms, 0=무제한, 기본 30분, env override).
+   * `maxActiveRunningMs`: 한도(ms, 0=무제한, 기본 30분, env override 가능).
+   *   모듈 초기화 시 1회 평가 — 변경은 인스턴스 재시작 후 반영.
    * `segmentStartMs`: 현재 active 세그먼트의 시작 시각(ms). RUNNING 진입 시 기록,
    *   이탈 시 누적분(`Execution.activeRunningMs`)에 합산 후 제거. 세그먼트는 한
    *   인스턴스 안에서 처리되므로 in-memory Map 으로 충분(누적값은 row 에 영속).
+   *
+   * **설계 불변식 (W5 명시)**:
+   *   단일 Execution 은 한 번에 하나의 active 세그먼트만 처리된다(직렬화 불변).
+   *   `execution-run` / `execution-continuation` 큐는 동일 Execution 에 대해 동시
+   *   job 을 발행하지 않으므로 `segmentStartMs.set/delete` 쌍 상호 배제가 보장된다.
+   *   continuation worker concurrency > 1 이어도 서로 다른 Execution 의 job 이므로
+   *   동일 `executionId` 에 대한 `segmentStartMs` 경쟁 조건은 발생하지 않는다.
+   *
+   * **Graceful Shutdown under-count 허용 (W4 명시)**:
+   *   SIGTERM 이후 진행 중 세그먼트가 다른 worker 에 재배달되면 해당 세그먼트의
+   *   active 시간이 DB 에 누락(under-count)될 수 있다. 이는 over-count(실제보다 길게
+   *   측정해 정상 실행을 조기 종료)보다 덜 위험하므로 의도적으로 허용한다.
+   *   PR3 stalled-job 재배달 구현 시 세그먼트 flush 훅 추가를 검토한다.
    */
   private readonly maxActiveRunningMs = resolveMaxActiveRunningMs();
   private readonly segmentStartMs = new Map<string, number>();
@@ -8418,7 +8432,9 @@ export class ExecutionEngineService
    * 단일 세그먼트가 한도를 넘는 케이스를 잡는다. `maxActiveRunningMs <= 0` 은 무제한.
    * waiting_for_input park 시간은 RUNNING 이 아니라 누적에 포함되지 않는다(불변식).
    */
-  private assertActiveTimeWithinLimit(execution: Execution): void {
+  private assertActiveTimeWithinLimit(
+    execution: Pick<Execution, 'id' | 'activeRunningMs'>,
+  ): void {
     if (this.maxActiveRunningMs <= 0) return;
     const segStart = this.segmentStartMs.get(execution.id);
     const inProgress = segStart !== undefined ? Date.now() - segStart : 0;

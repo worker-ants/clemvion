@@ -2090,8 +2090,9 @@ describe('ExecutionEngineService', () => {
 
       it('진행 중 세그먼트 경과분(segmentStartMs)도 합산해 판정', () => {
         priv().maxActiveRunningMs = 1000;
-        // 누적 600 + 진행 중 세그먼트(500ms 전 시작) = 1100 ≥ 1000 → throw
-        priv().segmentStartMs.set('e3', Date.now() - 500);
+        // 누적 600 + 진행 중 세그먼트(명시적 600ms 전 시작) = 1200 ≥ 1000 → throw.
+        // CI 부하 영향 없이 결정론적으로 한도 초과를 보장하도록 충분한 여유값 사용.
+        priv().segmentStartMs.set('e3', Date.now() - 600);
         expect(() =>
           priv().assertActiveTimeWithinLimit({
             id: 'e3',
@@ -2122,8 +2123,9 @@ describe('ExecutionEngineService', () => {
         // PENDING → RUNNING: 세그먼트 시작 기록
         await priv().updateExecutionStatus(exec, ExecutionStatus.RUNNING);
         expect(priv().segmentStartMs.has(executionId)).toBe(true);
-        // 세그먼트를 과거 시점으로 당겨 경과분 확보
-        priv().segmentStartMs.set(executionId, Date.now() - 300);
+        // 세그먼트를 명시적 과거 시점으로 당겨 경과분 확보.
+        // CI 부하 영향 없이 결정론적이도록 충분히 큰 고정 오프셋 사용.
+        priv().segmentStartMs.set(executionId, Date.now() - 500);
         // RUNNING → COMPLETED: 누적 + segmentStart 제거
         await priv().updateExecutionStatus(exec, ExecutionStatus.COMPLETED);
         expect(exec.activeRunningMs).toBeGreaterThanOrEqual(300);
@@ -2136,13 +2138,14 @@ describe('ExecutionEngineService', () => {
           status: ExecutionStatus.RUNNING,
           activeRunningMs: 100,
         } as unknown as Execution;
-        priv().segmentStartMs.set(executionId, Date.now() - 200);
+        // 명시적 과거 시점으로 설정해 CI 부하 관계없이 결정론적 누적 보장.
+        priv().segmentStartMs.set(executionId, Date.now() - 500);
         await priv().updateExecutionStatus(
           exec,
           ExecutionStatus.WAITING_FOR_INPUT,
         );
         const afterPark = exec.activeRunningMs;
-        expect(afterPark).toBeGreaterThanOrEqual(300); // 100 + ~200
+        expect(afterPark).toBeGreaterThanOrEqual(300); // 100 + 최소 200(실제로는 ~500)
         // park: segmentStart 없음 → assertActiveTimeWithinLimit 는 누적분만 사용
         expect(priv().segmentStartMs.has(executionId)).toBe(false);
       });

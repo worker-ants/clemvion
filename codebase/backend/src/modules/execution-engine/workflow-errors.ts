@@ -143,6 +143,10 @@ export class RetryLastTurnError extends Error {
 export class ExecutionTimeLimitError extends Error {
   readonly code = ErrorCode.EXECUTION_TIME_LIMIT_EXCEEDED;
 
+  /**
+   * @param activeRunningMs 누적 active-running 시간(ms). waiting_for_input 제외.
+   * @param limitMs 설정된 한도(ms). `resolveMaxActiveRunningMs()` 반환값.
+   */
   constructor(activeRunningMs: number, limitMs: number) {
     super(
       `Execution exceeded the maximum active-running time ` +

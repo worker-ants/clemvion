@@ -13,6 +13,10 @@ export const DEFAULT_MAX_ACTIVE_RUNNING_MS = 30 * 60 * 1000; // 30분
  * (enforce 안 함, `MAX_NODE_ITERATIONS=0` 과 동일 관용). 비양수가 아닌 정수만 채택,
  * 비숫자·소수·공학표기·음수는 기본값 fallback (`resolveExecutionRunWorkerConcurrency`
  * 와 동일 정규식 선검증 규약).
+ *
+ * 모듈 초기화 시 1회 평가 — 변경 후 인스턴스 재시작 필요.
+ *
+ * @returns 0 if unlimited; positive integer = limit in milliseconds.
  */
 export function resolveMaxActiveRunningMs(
   env: NodeJS.ProcessEnv = process.env,

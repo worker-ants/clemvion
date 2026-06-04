@@ -2,6 +2,8 @@ import {
   DEFAULT_MAX_ACTIVE_RUNNING_MS,
   resolveMaxActiveRunningMs,
 } from './execution-limits';
+import { ExecutionTimeLimitError } from './workflow-errors';
+import { ErrorCode } from '../../nodes/core/error-codes';
 
 describe('resolveMaxActiveRunningMs', () => {
   it('기본값은 30분', () => {
@@ -27,5 +29,23 @@ describe('resolveMaxActiveRunningMs', () => {
         resolveMaxActiveRunningMs({ EXECUTION_MAX_ACTIVE_RUNNING_MS: bad }),
       ).toBe(DEFAULT_MAX_ACTIVE_RUNNING_MS);
     }
+  });
+});
+
+describe('ExecutionTimeLimitError', () => {
+  it('.code 는 EXECUTION_TIME_LIMIT_EXCEEDED', () => {
+    const err = new ExecutionTimeLimitError(1800000, 1800000);
+    expect(err.code).toBe(ErrorCode.EXECUTION_TIME_LIMIT_EXCEEDED);
+  });
+
+  it('message 에 activeRunningMs 와 limitMs 가 포함됨', () => {
+    const err = new ExecutionTimeLimitError(1800000, 1800000);
+    expect(err.message).toContain('1800000');
+    expect(err.name).toBe('ExecutionTimeLimitError');
+  });
+
+  it('instanceof Error', () => {
+    const err = new ExecutionTimeLimitError(0, 1000);
+    expect(err).toBeInstanceOf(Error);
   });
 });
