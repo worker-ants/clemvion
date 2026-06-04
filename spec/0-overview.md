@@ -231,6 +231,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 - **Execution intake 큐** (Redis/BullMQ `execution-run`) — `execute()` 가 실행 시작을 큐에 발행(work-stealing/backpressure). 워커는 실행 1건(active 세그먼트: 시작→첫 BLOCK/완료)을 통째로 처리하고, 세그먼트 내부 노드는 in-process dispatch (per-node task queue 없음). 재개 세그먼트는 `execution-continuation` 큐, `waiting_for_input` 은 큐 없는 durable DB park ([실행엔진 §4](./5-system/4-execution-engine.md#4-worker-모델))
 - **Worker Pool** (N개 인스턴스, 수평 확장) — `execution-run`/`execution-continuation` 큐를 work-stealing 으로 소비
 - 실행 상태 관리 및 장애 시 복구 (active 세그먼트 stalled-job 재배달; `waiting_for_input` 은 무기한 보존)
+- 단일 Execution **active-running 누적 타임아웃** (기본 30분, `EXECUTION_MAX_ACTIVE_RUNNING_MS`; `waiting_for_input` park 시간 제외 — [실행엔진 §8](./5-system/4-execution-engine.md#8-동시-실행-제한-부분-구현))
 
 ### 2.5 Integration Service
 - OAuth 인증 플로우 관리

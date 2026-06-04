@@ -165,6 +165,7 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 
 | 큐 이름 | 등록 모듈 | Producer | Consumer | 작업 단위 |
 | --- | --- | --- | --- | --- |
+| `execution-run` | `execution-engine.module.ts` | `ExecutionEngineService.execute` (Execution row `pending` 저장 후 발행) | `ExecutionRunProcessor` (work-stealing, `runExecutionFromQueue`) | Execution 첫 active 세그먼트 (시작→첫 BLOCK/완료) — intake 큐 ([실행 엔진 §4](../5-system/4-execution-engine.md#4-worker-모델)) |
 | `execution-continuation` | `execution-engine.module.ts` | `ContinuationBusService.publish` (WS gateway / REST controller 경유) | `ContinuationExecutionProcessor` | 사용자 입력 fan-out (form/button/AI message — [실행 엔진 §7.4/§7.5](../5-system/4-execution-engine.md)) |
 | `background-execution` | `execution-engine.module.ts` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | Background 노드의 자식 흐름 |
 | `document-embedding` | `knowledge-base.module.ts` | KB 문서 업로드·재임베딩 API | `DocumentEmbeddingProcessor` | 문서 1건 임베딩 |
