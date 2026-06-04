@@ -163,12 +163,13 @@ P6(UX) ── 독립 백로그
 ## 6. 남은 결정 (착수 전 확정 필요)
 
 - [ ] **Postgres 배포 환경**(RDS/Aurora·Cloud SQL·Supabase·self-host) → P2 lexical 스택 분기. **P2 최선결**.
-- [ ] P1 cross-encoder 호스팅(self-host ONNX vs rerank API) + D2 escalate 임계 — P0 A/B 후.
+- [x] **P1 리랭커 provider/호스팅 — 2026-06-04 확정**: 1차 `tei`(자가호스팅 HF TEI, Node thin HTTP client) + `cohere`(API). jina/voyage/local/builtin(Transformers.js 인프로세스) Planned.
+- [x] **P1 cross_encoder_llm escalate — 2026-06-04 확정**: 항상 LLM grading(v1). 점수기반 conditional escalate 정량 임계는 P0 보정 후 후속.
+- [x] **"정책 판단 KB" 표시 — 2026-06-04 확정**: 별도 플래그 없음, `rerank_mode = cross_encoder_llm` 자체가 표시자.
 - [ ] P3 읽기시점 3안(child / child+prefix / parent) A/B 결과 → P5 도입 여부.
 - [ ] 평가셋 규모·합성 비율(수동 50 + 합성 확장) 확정.
 - [ ] (선택) 형태소 분석기 Kiwi vs Okt(앱 레이어) — 한국어 BM25 벤치 Kiwi/Okt 상위.
-- [ ] **"정책 판단 KB" 표시 방법**(플래그 vs 휴리스틱) — `cross_encoder_llm` escalate 조건의 판단 근거. spec-draft-rag-reranking.md §4.2·Rationale 참조.
 
-> 리랭킹 상세 설계는 [`spec-draft-rag-reranking.md`](./spec-draft-rag-reranking.md)(P1 구체화, consistency-check `00_02_05` BLOCK:NO 통과) 로 분기.
+> 리랭킹 상세 설계는 [`spec-draft-rag-reranking.md`](./spec-draft-rag-reranking.md)(P1 구체화, consistency-check `00_02_05` BLOCK:NO 통과 + 2026-06-04 결정 확정·spec 반영) 로 분기.
 
 > 심화 리서치 5스트림(2026-06-03) 통합 완료. 다음 단계: 특정 Phase 의 spec 본문화(project-planner+consistency-check) 또는 P1 PoC 구현(developer).
