@@ -52,7 +52,26 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `unpaidorders` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `order_item_code` |  | 품주코드 |
+| ↳ `order_date` |  | 주문일 |
+| ↳ `buyer_name` |  | 주문자 이름 |
+| ↳ `billing_name` |  | 입금자명 |
+| ↳ `bank_code` |  | 은행코드 bank_code |
+| ↳ `bank_name` |  | 은행명 |
+| ↳ `unpaid_amount` |  | 미입금 금액 |
+| ↳ `accounts` |  | 계좌번호 |
+| ↳ `payment_method` |  | 결제수단 cash : 무통장 · icash : 가상계좌 |
+| ↳ `settle_type` |  | 결제타입 S: 기본결제 · E: 추가결제 |
+| ↳ `payment_no` |  | 결제번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

@@ -47,7 +47,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `image` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+| ↳ `detail_image` |  | 상세이미지 상품 상세 화면에 표시되는 상품 이미지. |
+| ↳ `list_image` |  | 목록이미지 상품 분류 화면, 메인 화면, 상품 검색 화면에 표시되는 상품의 목록 이미지. |
+| ↳ `tiny_image` |  | 작은목록이미지 상품 상세 화면 하단에 표시되는 상품 목록 이미지. |
+| ↳ `small_image` |  | 축소이미지 최근 본 상품 영역에 표시되는 상품의 목록 이미지. |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -78,7 +90,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `image` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+
+응답 예시 (JSON):
 
 ```json
 {

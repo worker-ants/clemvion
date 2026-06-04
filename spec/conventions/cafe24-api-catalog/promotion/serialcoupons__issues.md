@@ -45,7 +45,21 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `serialcoupons` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `coupon_no` |  | 쿠폰번호 |
+| ↳ `serial_code` |  | 시리얼코드 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `verify` |  | 인증여부 Y:인증 · N:미인증 |
+| ↳ `verify_datetime` |  | 인증일시 |
+| ↳ `used_datetime` |  | 사용일시 |
+| ↳ `deleted` |  | 쿠폰삭제 여부 T : 삭제 · F : 삭제되지 않음 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -92,7 +106,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `serialcoupons` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `coupon_no` |  | 쿠폰번호 |
+| ↳ `serial_code` |  | 시리얼코드 |
+
+응답 예시 (JSON):
 
 ```json
 {

@@ -42,7 +42,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -68,7 +74,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `carts` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `created_date` |  | 담은일자 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `variant_code` |  | 상품 품목 코드 |
+| ↳ `quantity` |  | 수량 |
+| ↳ `product_bundle` |  | 세트상품 여부 T : 세트상품 · F : 세트상품 아님 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

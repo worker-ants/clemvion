@@ -51,7 +51,30 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `dashboard` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `cancellation_request_count` |  | 취소신청 건수 |
+| ↳ `cancellation_received_count` |  | 취소접수 건수 |
+| ↳ `cancellation_processing_count` |  | 취소처리중 건수 |
+| ↳ `exchange_request_count` |  | 교환신청 건수 |
+| ↳ `exchange_received_count` |  | 교환접수 건수 |
+| ↳ `exchange_processing_count` |  | 교환처리중 건수 |
+| ↳ `return_request_count` |  | 반품신청 건수 |
+| ↳ `return_received_count` |  | 반품접수 건수 |
+| ↳ `return_processing_count` |  | 반품처리중 건수 |
+| ↳ `refund_pending_count` |  | 환불전 건수 |
+| ↳ `total_order_amount` |  | 총 주문 금액 |
+| ↳ `total_paid_amount` |  | 총 실 결제금액 |
+| ↳ `total_refund_amount` |  | 총 환불금액 |
+| ↳ `total_order_count` |  | 총 주문금액 건수 |
+| ↳ `total_paid_count` |  | 총 실결제 금액 건수 |
+| ↳ `total_refund_count` |  | 총 환불금액 건수 |
+
+응답 예시 (JSON):
 
 ```json
 {

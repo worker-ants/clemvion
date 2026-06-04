@@ -84,7 +84,21 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `return` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `status` |  | 주문상태 accepted : 반품접수 · processing : 반품처리중 · returned : 반품완료 |
+| ↳ `claim_code` |  | 반품번호 |
+| ↳ `pickup_completed` |  | 수거완료 여부 T : 수거완료 · F : 수거전 |
+| ↳ `items` |  | 품주코드 |
+| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `quantity` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -157,7 +171,45 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `return` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `claim_code` |  | 반품번호 |
+| ↳ `status` |  | 주문상태 accepted : 반품접수 · processing : 반품처리중 · returned : 반품완료 |
+| ↳ `pickup_completed` |  | 수거완료 여부 T : 수거완료 · F : 수거전 |
+| ↳ `carrier_id` |  | 배송사 아이디 |
+| ↳ `return_invoice_no` | 최대글자수 : [40자] | 반품 송장 번호 |
+| ↳ `return_shipping_company_name` | 최대글자수 : [30자] | 반품 배송업체명 |
+| ↳ `return_invoice_success` |  | 반송장 처리 성공 여부 T : 성공 · F : 실패 · N : 미집하 |
+| ↳ `return_invoice_fail_reason` | 최대글자수 : [100자] | 반송장 처리 실패 사유 |
+| ↳ `items` |  | 품주코드 |
+| ↳ ↳ `order_item_code` |  |  |
+| ↳ `refund_method_code` |  | (목록) |
+| ↳ `refund_bank_code` |  |  |
+| ↳ `refund_bank_account_no` |  |  |
+| ↳ `refund_bank_account_holder` |  |  |
+| ↳ `combined_refund_method` |  |  |
+| ↳ `recover_inventory` |  | 재고복구 T : 복구함 · F : 복구안함 |
+| ↳ `request_pickup` |  | 수거신청 여부 T : 사용함 · F : 사용안함 |
+| ↳ `pickup` |  | 수거지역 상세 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `cellphone` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address1` |  |  |
+| ↳ ↳ `address2` |  |  |
+| ↳ `undone` |  | 철회 여부 T : 철회함 · F : 철회안함 |
+| ↳ `add_memo_too` |  | 관리자 메모에도 추가 T : 사용함 · F : 사용안함 |
+| ↳ `undone_reason_type` |  | 철회 사유 구분 A:고객변심 · B:배송지연 · J:배송오류 · C:배송불가지역 · L:수출/통관 불가 · D:포장불량 · E:상품 불만족 · F:상품정보상이 · K:상품불량 · G:서비스불만족 · H:품절 · I:기타 |
+| ↳ `undone_reason` |  | 철회 사유 |
+| ↳ `expose_order_detail` |  | 주문상세내역 노출 여부 T : 노출함 · F : 노출안함 |
+| ↳ `exposed_undone_reason` |  | 주문상세내역 노출 철회 사유 |
+
+응답 예시 (JSON):
 
 ```json
 {

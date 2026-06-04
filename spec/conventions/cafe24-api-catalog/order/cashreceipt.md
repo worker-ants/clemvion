@@ -62,7 +62,30 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `cashreceipt` |  | (목록) |
+| ↳ `cashreceipt_no` |  | 현금영수증 번호 |
+| ↳ `approval_no` |  | 승인번호 |
+| ↳ `request_date` |  | 신청일자 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `name` |  | 요청자 이름 |
+| ↳ `order_price_amount` |  | 상품구매금액 |
+| ↳ `vat` |  | 부가세 |
+| ↳ `subtotal` |  | 총 신청금액 |
+| ↳ `order_status` |  | 주문상태 입금전: unpaid · 미배송: unshipped · 배송중: shipping · 배송대기: standby · 배송완료: shipped · 부분취소: partially_canceled · 전체취소: canceled |
+| ↳ `status` |  | 처리상태 신청: request · 발행대기: await_issuance · 발행: issued · 발행거부: issuance_rejected · 신청취소: canceled_request · 발행취소: canceled_issuance · 발행실패: failed_issuance |
+| ↳ `pg_name` |  | 신청결제사 |
+| ↳ `cash_bill_no` |  | 현금영수증 일련 번호 |
+| ↳ `partner_id` |  | PG사 발급 가맹점 ID |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -128,7 +151,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `cashreceipt` |  | (응답 객체) |
+| ↳ `cashreceipt_no` |  | 현금영수증 번호 |
+| ↳ `approval_no` |  | 승인번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `type` |  | 발행 타입 개인: personal · 사업자: business |
+| ↳ `company_registration_no` |  | 사업자등록번호 |
+| ↳ `cellphone` |  | 휴대전화 |
+| ↳ `tax_amount` |  | 과세금액 |
+| ↳ `tax_free_amount` |  | 면세금액 |
+| ↳ `supply_price` |  | 공급가액 |
+| ↳ `vat` |  | 부가세 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -167,7 +206,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `cashreceipt` |  | (응답 객체) |
+| ↳ `cashreceipt_no` |  | 현금영수증 번호 |
+| ↳ `approval_no` |  | 승인번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `type` |  | 발행 타입 개인: personal · 사업자: business |
+| ↳ `company_registration_no` |  | 사업자등록번호 |
+| ↳ `cellphone` |  | 휴대전화 |
+| ↳ `tax_amount` |  | 과세금액 |
+| ↳ `tax_free_amount` |  | 면세금액 |
+| ↳ `supply_price` |  | 공급가액 |
+| ↳ `vat` |  | 부가세 |
+
+응답 예시 (JSON):
 
 ```json
 {

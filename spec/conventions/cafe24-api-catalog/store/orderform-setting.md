@@ -49,7 +49,37 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `orderform` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `buy_limit_type` |  | 구매 제한 M:회원만 구매 · A:모두 구매 가능 |
+| ↳ `guest_purchase_button_display` |  | 비회원 구매버튼 노출 buy_limit_type를 M(회원만 구매)으로 선택 하였을때만 설정 가능 T : 사용함 · F : 사용안함 |
+| ↳ `junior_purchase_block` |  | 14세 미만 구매 차단 buy_limit_type를 A(모두 구매 가능)으로 선택하였을때만 설정 가능 T : 사용함 · F : 사용안함 |
+| ↳ `reservation_order` |  | 예약주문 T : 사용함 · F : 사용안함 |
+| ↳ `discount_amount_display` |  | 주문상품 할인금액 표시 T : 사용함 · F : 사용안함 |
+| ↳ `order_item_delete` |  | 주문서 내 상품삭제 T : 사용함 · F : 사용안함 |
+| ↳ `quick_signup` |  | 주문서 간단회원가입 T : 사용함 · F : 사용안함 |
+| ↳ `check_order_info` |  | 주문서 입력정보 확인 T : 사용함 · F : 사용안함 |
+| ↳ `order_form_input_type` |  | 주문서 입력정보 구성 A : 배송정보만 입력 · S : 주문/배송정보 개별입력 |
+| ↳ `shipping_info` |  | 주문서 입력정보 상세설정 > 배송 정보 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `use` |  |  |
+| ↳ ↳ `required` |  |  |
+| ↳ `order_info` |  | 주문서 입력정보 상세설정 > 주문 정보 order_form_input_type이 A일때 order_info 입력 불가 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `use` |  |  |
+| ↳ ↳ `required` |  |  |
+| ↳ `china_taiwan_id_input` |  | 중국/대만 신분증 ID 입력 T : 사용함 · F : 사용안함 |
+| ↳ `print_type` |  | 인쇄버튼 타입 |
+| ↳ ↳ `invoice_print` |  |  |
+| ↳ ↳ `receipt_print` |  |  |
+| ↳ ↳ `address_print` |  |  |
+| ↳ `orderform_additional_enabled` |  | 주문서 추가항목 사용여부 T : 사용 · F : 사용안함 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -138,7 +168,37 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `orderform` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `buy_limit_type` |  | 구매 제한 M:회원만 구매 · A:모두 구매 가능 |
+| ↳ `guest_purchase_button_display` |  | 비회원 구매버튼 노출 buy_limit_type를 M(회원만 구매)으로 선택 하였을때만 설정 가능 T : 사용함 · F : 사용안함 |
+| ↳ `junior_purchase_block` |  | 14세 미만 구매 차단 buy_limit_type를 A(모두 구매 가능)으로 선택하였을때만 설정 가능 T : 사용함 · F : 사용안함 |
+| ↳ `reservation_order` |  | 예약주문 T : 사용함 · F : 사용안함 |
+| ↳ `discount_amount_display` |  | 주문상품 할인금액 표시 T : 사용함 · F : 사용안함 |
+| ↳ `order_item_delete` |  | 주문서 내 상품삭제 T : 사용함 · F : 사용안함 |
+| ↳ `quick_signup` |  | 주문서 간단회원가입 T : 사용함 · F : 사용안함 |
+| ↳ `check_order_info` |  | 주문서 입력정보 확인 T : 사용함 · F : 사용안함 |
+| ↳ `order_form_input_type` |  | 주문서 입력정보 구성 A : 배송정보만 입력 · S : 주문/배송정보 개별입력 |
+| ↳ `shipping_info` |  | 주문서 입력정보 상세설정 > 배송 정보 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `use` |  |  |
+| ↳ ↳ `required` |  |  |
+| ↳ `order_info` |  | 주문서 입력정보 상세설정 > 주문 정보 order_form_input_type이 A일때 order_info 입력 불가 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `use` |  |  |
+| ↳ ↳ `required` |  |  |
+| ↳ `china_taiwan_id_input` |  | 중국/대만 신분증 ID 입력 T : 사용함 · F : 사용안함 |
+| ↳ `print_type` |  | 인쇄버튼 타입 |
+| ↳ ↳ `invoice_print` |  |  |
+| ↳ ↳ `receipt_print` |  |  |
+| ↳ ↳ `address_print` |  |  |
+| ↳ `orderform_additional_enabled` |  | 주문서 추가항목 사용여부 T : 사용 · F : 사용안함 |
+
+응답 예시 (JSON):
 
 ```json
 {

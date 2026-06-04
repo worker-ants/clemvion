@@ -43,7 +43,22 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `autoexpiration` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `expiration_date` |  | 최초 소멸 시행일 |
+| ↳ `interval_month` |  | 소멸 실행 주기 1: 1개월 · 3: 3개월 · 6: 6개월 · 12: 1년 |
+| ↳ `target_period_month` |  | 소멸 대상 적립금 6: 소멸일 기준 6개월 이전 적립금 · 12: 소멸일 기준 1년 이전 적립금 · 18: 소멸일 기준 1년 6개월 이전 적립금 · 24: 소멸일 기준 2년 이전 적립금 · 30: 소멸일 기준 2년 6개월 이전 적립금 · 36: 소멸일 기준 3년 이전 적립금 |
+| ↳ `group_no` |  | 소멸 대상 회원등급 0: 전체 회원 |
+| ↳ `standard_point` |  | 소멸 대상 기준 금액 |
+| ↳ `send_email` |  | 이메일 발송 T: 설정함 · F: 설정안함 |
+| ↳ `send_sms` |  | SMS 발송 T: 설정함 · F: 설정안함 |
+| ↳ `notification_time_day` |  | 알람시기 선택 3: 3일 전 발송 · 7: 7일 전 발송 · 15: 15일 전 발송 · 30: 1개월 전 발송 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -88,7 +103,22 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `autoexpiration` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `expiration_date` |  | 최초 소멸 시행일 |
+| ↳ `interval_month` |  | 소멸 실행 주기 1: 1개월 · 3: 3개월 · 6: 6개월 · 12: 1년 |
+| ↳ `target_period_month` |  | 소멸 대상 적립금 6: 소멸일 기준 6개월 이전 적립금 · 12: 소멸일 기준 1년 이전 적립금 · 18: 소멸일 기준 1년 6개월 이전 적립금 · 24: 소멸일 기준 2년 이전 적립금 · 30: 소멸일 기준 2년 6개월 이전 적립금 · 36: 소멸일 기준 3년 이전 적립금 |
+| ↳ `group_no` |  | 소멸 대상 회원등급 0: 전체 회원 |
+| ↳ `standard_point` |  | 소멸 대상 기준 금액 |
+| ↳ `send_email` |  | 이메일 발송 T: 설정함 · F: 설정안함 |
+| ↳ `send_sms` |  | SMS 발송 T: 설정함 · F: 설정안함 |
+| ↳ `notification_time_day` |  | 알람시기 선택 3: 3일 전 발송 · 7: 7일 전 발송 · 15: 15일 전 발송 · 30: 1개월 전 발송 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -124,7 +154,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `autoexpiration` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

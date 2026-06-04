@@ -47,7 +47,22 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `regionalsurcharges` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `regional_surcharge_no` |  | 지역별 배송비 등록 번호 |
+| ↳ `supplier_id` | 최대글자수 : [20자] | 공급사 아이디 |
+| ↳ `country_code` | 최대글자수 : [2자] | 국가코드 KR : 대한민국 · JP : 일본 · VN : 베트남 |
+| ↳ `region_name` | 최대글자수 : [255자] | 특수지역명 |
+| ↳ `surcharge_region_name` | 최대글자수 : [300자] | 지역명 추가배송비를 부과할 지역이름 · 지역 설정방식(region_setting_type)이 'N'으로 설정 되어있는 경우 필수 입력 |
+| ↳ `start_zipcode` | 최대글자수 : [8자] | 시작 우편번호 지역 설정 방식(region_setting_type)이 'Z'로 설정 되어있는 경우 필수 입력 |
+| ↳ `end_zipcode` | 최대글자수 : [8자] | 끝 우편번호 지역 설정 방식(region_setting_type)이 'Z'로 설정 되어있는 경우 필수 입력 |
+| ↳ `regional_surcharge_amount` | 최소: [1]~최대: [999999999] | 지역 추가 배송비 부과할 추가배송비 금액 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -102,7 +117,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `regionalsurcharge` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `regional_surcharge_no` |  | 지역별 배송비 등록 번호 |
+| ↳ `supplier_id` | 최대글자수 : [20자] | 공급사 아이디 |
+| ↳ `county_code` |  |  |
+| ↳ `region_name` | 최대글자수 : [255자] | 특수지역명 |
+| ↳ `use_regional_surcharge` |  | 지역별 배송비 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `surcharge_region_name` | 최대글자수 : [300자] | 지역명 추가배송비를 부과할 지역이름 · 지역 설정방식(region_setting_type)이 'N'으로 설정 되어있는 경우 필수 입력 |
+| ↳ `start_zipcode` | 최대글자수 : [8자] | 시작 우편번호 지역 설정 방식(region_setting_type)이 'Z'로 설정 되어있는 경우 필수 입력 |
+| ↳ `end_zipcode` | 최대글자수 : [8자] | 끝 우편번호 지역 설정 방식(region_setting_type)이 'Z'로 설정 되어있는 경우 필수 입력 |
+| ↳ `regional_surcharge_amount` | 최소: [1]~최대: [999999999] | 지역 추가 배송비 부과할 추가배송비 금액 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -138,7 +169,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `regionalsurcharge` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `supplier_id` | 최대글자수 : [20자] | 공급사 아이디 |
+| ↳ `regional_surcharge_no` |  | 지역별 배송비 등록 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

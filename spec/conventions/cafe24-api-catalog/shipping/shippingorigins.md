@@ -45,7 +45,26 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shippingorigins` |  | (목록) |
+| ↳ `origin_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 출고지 코드 |
+| ↳ `origin_name` | 최대글자수 : [50자] | 출고지 명 |
+| ↳ `default` |  | 출고지 기본설정 여부 T : 사용함 · F : 사용안함 |
+| ↳ `contact` |  | 대표 연락처 |
+| ↳ `secondary_contact` |  | 보조 연락처 |
+| ↳ `zipcode` | 최소글자수 : [2자]; 최대글자수 : [14자] | 우편번호 |
+| ↳ `country_code` | 최대글자수 : [2자] | 국가코드 |
+| ↳ `address1` | 최대글자수 : [255자] | 기본 주소 |
+| ↳ `address2` | 최대글자수 : [255자] | 상세 주소 |
+| ↳ `variants` |  | 출고지 품목 정보 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -109,7 +128,26 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shippingorigin` |  | (응답 객체) |
+| ↳ `origin_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 출고지 코드 |
+| ↳ `origin_name` | 최대글자수 : [50자] | 출고지 명 |
+| ↳ `default` |  | 출고지 기본설정 여부 T : 사용함 · F : 사용안함 |
+| ↳ `contact` |  | 대표 연락처 |
+| ↳ `secondary_contact` |  | 보조 연락처 |
+| ↳ `zipcode` | 최소글자수 : [2자]; 최대글자수 : [14자] | 우편번호 |
+| ↳ `country_code` | 최대글자수 : [2자] | 국가코드 |
+| ↳ `address1` | 최대글자수 : [255자] | 기본 주소 |
+| ↳ `address2` | 최대글자수 : [255자] | 상세 주소 |
+| ↳ `variants` |  | 출고지 품목 정보 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -160,7 +198,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shippingorigin` |  | (응답 객체) |
+| ↳ `origin_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 출고지 코드 |
+| ↳ `origin_name` | 최대글자수 : [50자] | 출고지 명 |
+| ↳ `default` |  | 출고지 기본설정 여부 T : 사용함 · F : 사용안함 |
+| ↳ `contact` |  | 대표 연락처 |
+| ↳ `secondary_contact` |  | 보조 연락처 |
+| ↳ `zipcode` | 최소글자수 : [2자]; 최대글자수 : [14자] | 우편번호 |
+| ↳ `country_code` | 최대글자수 : [2자] | 국가코드 |
+| ↳ `address1` | 최대글자수 : [255자] | 기본 주소 |
+| ↳ `address2` | 최대글자수 : [255자] | 상세 주소 |
+| ↳ `variants` |  | 출고지 품목 정보 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -203,7 +257,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shippingorigin` |  | (응답 객체) |
+| ↳ `origin_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 출고지 코드 |
+| ↳ `origin_name` | 최대글자수 : [50자] | 출고지 명 |
+| ↳ `default` |  | 출고지 기본설정 여부 T : 사용함 · F : 사용안함 |
+| ↳ `contact` |  | 대표 연락처 |
+| ↳ `secondary_contact` |  | 보조 연락처 |
+| ↳ `zipcode` | 최소글자수 : [2자]; 최대글자수 : [14자] | 우편번호 |
+| ↳ `country_code` | 최대글자수 : [2자] | 국가코드 |
+| ↳ `address1` | 최대글자수 : [255자] | 기본 주소 |
+| ↳ `address2` | 최대글자수 : [255자] | 상세 주소 |
+| ↳ `variants` |  | 출고지 품목 정보 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -237,7 +307,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shippingorigin` |  | (응답 객체) |
+| ↳ `origin_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 출고지 코드 |
+
+응답 예시 (JSON):
 
 ```json
 {

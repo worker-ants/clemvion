@@ -92,7 +92,55 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `articles` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `article_no` | 최대값: [2147483647] | 게시물 번호 |
+| ↳ `parent_article_no` |  | 부모 게시물 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `category_no` |  | 분류 번호 |
+| ↳ `board_category_no` |  | 게시판 카테고리 번호 |
+| ↳ `reply_sequence` |  | 답변 게시물 순서 |
+| ↳ `reply_depth` |  | 답변 차수 |
+| ↳ `created_date` | 날짜 | 생성일 |
+| ↳ `writer` |  | 작성자명 |
+| ↳ `writer_email` | 이메일 | 작성자 이메일 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `title` |  | 제목 |
+| ↳ `content` |  | 내용 |
+| ↳ `supplier_id` | 형식 : [a-z0-9]; 글자수 최소: [4자]~최대: [16자] | 공급사 아이디 |
+| ↳ `client_ip` | IP | 작성자 IP |
+| ↳ `nick_name` |  | 별명 |
+| ↳ `rating` | 최소: [1]~최대: [5] | 평점 |
+| ↳ `reply_mail` |  | 1:1 게시판 문의내용에 대한 답변 메일 여부 Y : 사용함 · N : 사용안함 |
+| ↳ `display` |  | 게시 여부 T : 게시함 · F : 게시안함 |
+| ↳ `secret` |  | 비밀글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `notice` |  | 공지 여부 T : 사용함 · F : 사용안함 |
+| ↳ `fixed` |  | 고정글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `deleted` |  | 삭제 구분 T: 삭제 · F: 비삭제 · B: 등록전 |
+| ↳ `input_channel` |  | 게시물 작성 경로 P : PC · M : 모바일 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `attach_file_urls` |  | 첨부 파일 상세 |
+| ↳ ↳ `no` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `url` |  |  |
+| ↳ `hit` |  | 조회수 |
+| ↳ `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
+| ↳ `reply_user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
+| ↳ `reply_status` |  | 답변 처리 상태 N : 답변전 · P : 처리중 · C : 처리완료 |
+| ↳ `naverpay_review_id` |  | 네이버페이 리뷰 아이디 |
+| ↳ `display_time` |  | 노출시간 사용여부 |
+| ↳ `display_time_start_hour` |  | 노출시간 시작 시각 |
+| ↳ `display_time_end_hour` |  | 노출시간 종료 시각 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -255,7 +303,55 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `articles` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `article_no` | 최대값: [2147483647] | 게시물 번호 |
+| ↳ `parent_article_no` |  | 부모 게시물 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `category_no` |  | 분류 번호 |
+| ↳ `board_category_no` |  | 게시판 카테고리 번호 |
+| ↳ `reply_sequence` |  | 답변 게시물 순서 |
+| ↳ `reply_depth` |  | 답변 차수 |
+| ↳ `created_date` | 날짜 | 생성일 |
+| ↳ `writer` |  | 작성자명 |
+| ↳ `writer_email` | 이메일 | 작성자 이메일 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `title` |  | 제목 |
+| ↳ `content` |  | 내용 |
+| ↳ `client_ip` | IP | 작성자 IP |
+| ↳ `nick_name` |  | 별명 |
+| ↳ `rating` | 최소: [1]~최대: [5] | 평점 |
+| ↳ `reply_mail` |  | 1:1 게시판 문의내용에 대한 답변 메일 여부 Y : 사용함 · N : 사용안함 |
+| ↳ `display` |  | 게시 여부 T : 게시함 · F : 게시안함 |
+| ↳ `secret` |  | 비밀글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `notice` |  | 공지 여부 T : 사용함 · F : 사용안함 |
+| ↳ `fixed` |  | 고정글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `deleted` |  | 삭제 구분 T: 삭제 · F: 비삭제 · B: 등록전 |
+| ↳ `input_channel` |  | 게시물 작성 경로 P : PC · M : 모바일 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `attached_file_detail` |  | 첨부 파일 상세 |
+| ↳ ↳ `no` |  |  |
+| ↳ ↳ `path` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `size` |  |  |
+| ↳ ↳ `source` |  |  |
+| ↳ ↳ `type` |  |  |
+| ↳ ↳ `ext` |  |  |
+| ↳ ↳ `width` |  |  |
+| ↳ ↳ `height` |  |  |
+| ↳ ↳ `thumb` |  |  |
+| ↳ `hit` |  | 조회수 |
+| ↳ `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
+| ↳ `reply_user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
+| ↳ `reply_status` |  | 답변 처리 상태 N : 답변전 · P : 처리중 · C : 처리완료 |
+| ↳ `naverpay_review_id` |  | 네이버페이 리뷰 아이디 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -415,7 +511,51 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `article` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `article_no` | 최대값: [2147483647] | 게시물 번호 |
+| ↳ `parent_article_no` |  | 부모 게시물 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `category_no` |  | 분류 번호 |
+| ↳ `board_category_no` |  | 게시판 카테고리 번호 |
+| ↳ `reply_sequence` |  | 답변 게시물 순서 |
+| ↳ `reply_depth` |  | 답변 차수 |
+| ↳ `created_date` | 날짜 | 생성일 |
+| ↳ `writer` |  | 작성자명 |
+| ↳ `writer_email` | 이메일 | 작성자 이메일 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `title` |  | 제목 |
+| ↳ `content` |  | 내용 |
+| ↳ `client_ip` | IP | 작성자 IP |
+| ↳ `nick_name` |  | 별명 |
+| ↳ `rating` | 최소: [1]~최대: [5] | 평점 |
+| ↳ `reply_mail` |  | 1:1 게시판 문의내용에 대한 답변 메일 여부 Y : 사용함 · N : 사용안함 |
+| ↳ `display` |  | 게시 여부 T : 게시함 · F : 게시안함 |
+| ↳ `secret` |  | 비밀글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `notice` |  | 공지 여부 T : 사용함 · F : 사용안함 |
+| ↳ `fixed` |  | 고정글 여부 T : 사용함 · F : 사용안함 |
+| ↳ `deleted` |  | 삭제 구분 T: 삭제 · F: 비삭제 · B: 등록전 |
+| ↳ `input_channel` |  | 게시물 작성 경로 P : PC · M : 모바일 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `attached_file_urls` |  | 첨부 파일 상세 |
+| ↳ ↳ `no` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `url` |  |  |
+| ↳ `hit` |  | 조회수 |
+| ↳ `reply` |  | 1:1 게시판 문의내용에 대한 답변여부 T : 사용함 · F : 사용안함 |
+| ↳ `reply_user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
+| ↳ `reply_status` |  | 답변 처리 상태 N : 답변전 · P : 처리중 · C : 처리완료 |
+| ↳ `naverpay_review_id` |  | 네이버페이 리뷰 아이디 |
+| ↳ `display_time` |  | 노출시간 사용여부 |
+| ↳ `display_time_start_hour` |  | 노출시간 시작 시각 |
+| ↳ `display_time_end_hour` |  | 노출시간 종료 시각 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -487,7 +627,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `article` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `article_no` | 최대값: [2147483647] | 게시물 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

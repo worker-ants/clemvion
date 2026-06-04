@@ -74,7 +74,86 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `boards` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `board_type` |  | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `board_name` |  | 게시판 이름 |
+| ↳ `use_additional_board` |  | 게시판 추가여부 T : 추가게시판 · F : 기본게시판 |
+| ↳ `use_board` |  | 게시판 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_display` |  | 표시여부 T : 표시함 · F : 표시안함 |
+| ↳ `use_top_image` |  | 화면 상단 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `top_image_url` |  | 화면 상단 이미지 경로 |
+| ↳ `use_report` |  | 게시글 신고기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_writer_block` |  | 작성자 차단 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `display_order` |  | 정렬 순서 |
+| ↳ `attached_file` |  | 파일 첨부 T : 사용함 · F : 사용안함 |
+| ↳ `attached_file_size_limit` |  | 첨부파일용량제한 (Byte) |
+| ↳ `article_display_type` |  | 게시물 표시 A : 전체 게시물 표시 · T : 첨부 파일이 있는 게시물만 표시 · F : 첨부 파일이 없는 게시물만 표시 |
+| ↳ `image_display` |  | 이미지 표시 T : 사용함 · F : 사용안함 |
+| ↳ `image_resize` |  | 리사이징할 이미지 폭 (px) |
+| ↳ `use_category` |  | 카테고리 기능 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `categories` |  | 카테고리 정보 |
+| ↳ ↳ `id` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ `secret_only` |  | 비밀글만 등록 가능여부 T: 비밀글만 등록 · F: 공개글과 비밀글을 선택하여 등록 |
+| ↳ `admin_confirm` |  | 관리자 확인 기능 사용여부 T: 사용함 · F: 사용안함 |
+| ↳ `comment_author_display` |  | 댓글 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `comment_author_protection` |  | 댓글 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `author_name_type` |  |  |
+| ↳ ↳ `partial_character_display` |  |  |
+| ↳ ↳ `alternative_text_display` |  |  |
+| ↳ `spam_auto_prevention` |  | 스팸 자동생성방지 기능 |
+| ↳ ↳ `apply_scope` |  | (목록) |
+| ↳ ↳ `member_scope` |  |  |
+| ↳ `reply_feature` |  | 답변기능 T : 사용함 · F : 사용안함 |
+| ↳ `write_permission` |  | 쓰기 권한 A : 관리자 · V : 회원이상노출 · I : 회원이상 비노출 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `write_member_group_no` |  | 쓰기 권한 접근회원그룹 번호 |
+| ↳ `write_permission_extra` |  | 쓰기권한 부가설정 |
+| ↳ ↳ `is_member_buy` |  |  |
+| ↳ ↳ `member_write_after` |  |  |
+| ↳ ↳ `use_member_write_period` |  |  |
+| ↳ ↳ `member_write_period` |  |  |
+| ↳ ↳ `is_guest_buy` |  |  |
+| ↳ ↳ `guest_write_after` |  |  |
+| ↳ ↳ `use_guest_write_period` |  |  |
+| ↳ ↳ `guest_write_period` |  |  |
+| ↳ ↳ `product_info_option` |  |  |
+| ↳ ↳ `post_length_limit` |  |  |
+| ↳ ↳ `post_min_length` |  |  |
+| ↳ ↳ `post_editable` |  |  |
+| ↳ `reply_permission` |  | 답변쓰기 권한 A : 관리자 · M : 회원이상 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `reply_member_group_no` |  | 답변쓰기 권한 접근회원그룹 번호 |
+| ↳ `author_display` |  | 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `author_protection` |  | 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `comment_writer_name_type` |  |  |
+| ↳ ↳ `partial_character_display` |  |  |
+| ↳ ↳ `alternative_text_display` |  |  |
+| ↳ `board_guide` |  | 게시판 안내글 |
+| ↳ `use_comment` |  | 댓글 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `admin_title_fixed` |  | 게시글 제목을 관리자가 설정한 값으로 고정 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `admin_title_list` |  | (목록) |
+| ↳ ↳ `staff_skip_post_title` |  |  |
+| ↳ `admin_reply_fixed` |  | 답변글 제목을 관리자가 설정한 값으로 고정할지 여부 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `admin_reply_list` |  | (목록) |
+| ↳ ↳ `staff_skip_reply_title` |  |  |
+| ↳ `input_form` |  | 게시글 입력 양식 설정 여부 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `input_form_title` |  | (목록) |
+| ↳ ↳ `enable_input_form_title` |  | (목록) |
+| ↳ `page_size` |  | 페이지당 목록 수 |
+| ↳ `product_page_size` |  | 상품 상세 정보 → 페이지당 목록 수 |
+| ↳ `page_display_count` |  | 페이지 표시 수 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -326,7 +405,86 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `board` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `board_type` |  | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `board_name` |  | 게시판 이름 |
+| ↳ `use_additional_board` |  | 게시판 추가여부 T : 추가게시판 · F : 기본게시판 |
+| ↳ `use_board` |  | 게시판 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_display` |  | 표시여부 T : 표시함 · F : 표시안함 |
+| ↳ `use_top_image` |  | 화면 상단 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `top_image_url` |  | 화면 상단 이미지 경로 |
+| ↳ `use_report` |  | 게시글 신고기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_writer_block` |  | 작성자 차단 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `display_order` |  | 정렬 순서 |
+| ↳ `attached_file` |  | 파일 첨부 T : 사용함 · F : 사용안함 |
+| ↳ `attached_file_size_limit` |  | 첨부파일용량제한 (Byte) |
+| ↳ `article_display_type` |  | 게시물 표시 A : 전체 게시물 표시 · T : 첨부 파일이 있는 게시물만 표시 · F : 첨부 파일이 없는 게시물만 표시 |
+| ↳ `image_display` |  | 이미지 표시 T : 사용함 · F : 사용안함 |
+| ↳ `image_resize` |  | 리사이징할 이미지 폭 (px) |
+| ↳ `use_category` |  | 카테고리 기능 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `categories` |  | 카테고리 정보 |
+| ↳ ↳ `id` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ `secret_only` |  | 비밀글만 등록 가능여부 T: 비밀글만 등록 · F: 공개글과 비밀글을 선택하여 등록 |
+| ↳ `admin_confirm` |  | 관리자 확인 기능 사용여부 T: 사용함 · F: 사용안함 |
+| ↳ `comment_author_display` |  | 댓글 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `comment_author_protection` |  | 댓글 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `author_name_type` |  |  |
+| ↳ ↳ `partial_character_display` |  |  |
+| ↳ ↳ `alternative_text_display` |  |  |
+| ↳ `spam_auto_prevention` |  | 스팸 자동생성방지 기능 |
+| ↳ ↳ `apply_scope` |  | (목록) |
+| ↳ ↳ `member_scope` |  |  |
+| ↳ `reply_feature` |  | 답변기능 T : 사용함 · F : 사용안함 |
+| ↳ `write_permission` |  | 쓰기 권한 A : 관리자 · V : 회원이상노출 · I : 회원이상 비노출 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `write_member_group_no` |  | 쓰기 권한 접근회원그룹 번호 |
+| ↳ `write_permission_extra` |  | 쓰기권한 부가설정 |
+| ↳ ↳ `is_member_buy` |  |  |
+| ↳ ↳ `member_write_after` |  |  |
+| ↳ ↳ `use_member_write_period` |  |  |
+| ↳ ↳ `member_write_period` |  |  |
+| ↳ ↳ `is_guest_buy` |  |  |
+| ↳ ↳ `guest_write_after` |  |  |
+| ↳ ↳ `use_guest_write_period` |  |  |
+| ↳ ↳ `guest_write_period` |  |  |
+| ↳ ↳ `product_info_option` |  |  |
+| ↳ ↳ `post_length_limit` |  |  |
+| ↳ ↳ `post_min_length` |  |  |
+| ↳ ↳ `post_editable` |  |  |
+| ↳ `reply_permission` |  | 답변쓰기 권한 A : 관리자 · M : 회원이상 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `reply_member_group_no` |  | 답변쓰기 권한 접근회원그룹 번호 |
+| ↳ `author_display` |  | 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `author_protection` |  | 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `comment_writer_name_type` |  |  |
+| ↳ ↳ `partial_character_display` |  |  |
+| ↳ ↳ `alternative_text_display` |  |  |
+| ↳ `board_guide` |  | 게시판 안내글 |
+| ↳ `use_comment` |  | 댓글 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `admin_title_fixed` |  | 게시글 제목을 관리자가 설정한 값으로 고정 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `admin_title_list` |  | (목록) |
+| ↳ ↳ `staff_skip_post_title` |  |  |
+| ↳ `admin_reply_fixed` |  | 답변글 제목을 관리자가 설정한 값으로 고정할지 여부 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `admin_reply_list` |  | (목록) |
+| ↳ ↳ `staff_skip_reply_title` |  |  |
+| ↳ `input_form` |  | 게시글 입력 양식 설정 여부 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `input_form_title` |  | (목록) |
+| ↳ ↳ `enable_input_form_title` |  | (목록) |
+| ↳ `page_size` |  | 페이지당 목록 수 |
+| ↳ `product_page_size` |  | 상품 상세 정보 → 페이지당 목록 수 |
+| ↳ `page_display_count` |  | 페이지 표시 수 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -527,7 +685,84 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `board` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `board_type` |  | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `board_name` |  | 게시판 이름 |
+| ↳ `use_additional_board` |  | 게시판 추가여부 T : 추가게시판 · F : 기본게시판 |
+| ↳ `use_board` |  | 게시판 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_display` |  | 표시여부 T : 표시함 · F : 표시안함 |
+| ↳ `use_top_image` |  | 화면 상단 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `top_image_url` |  | 화면 상단 이미지 경로 |
+| ↳ `display_order` |  | 정렬 순서 |
+| ↳ `attached_file` |  | 파일 첨부 T : 사용함 · F : 사용안함 |
+| ↳ `attached_file_size_limit` |  | 첨부파일용량제한 (Byte) |
+| ↳ `article_display_type` |  | 게시물 표시 A : 전체 게시물 표시 · T : 첨부 파일이 있는 게시물만 표시 · F : 첨부 파일이 없는 게시물만 표시 |
+| ↳ `image_display` |  | 이미지 표시 T : 사용함 · F : 사용안함 |
+| ↳ `image_resize` |  | 리사이징할 이미지 폭 (px) |
+| ↳ `use_category` |  | 카테고리 기능 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `categories` |  | 카테고리 정보 |
+| ↳ ↳ `id` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ `secret_only` |  | 비밀글만 등록 가능여부 T: 비밀글만 등록 · F: 공개글과 비밀글을 선택하여 등록 |
+| ↳ `admin_confirm` |  | 관리자 확인 기능 사용여부 T: 사용함 · F: 사용안함 |
+| ↳ `comment_author_display` |  | 댓글 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `comment_author_protection` |  | 댓글 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `author_name_type` |  |  |
+| ↳ ↳ `partial_character_display` |  |  |
+| ↳ ↳ `alternative_text_display` |  |  |
+| ↳ `spam_auto_prevention` |  | 스팸 자동생성방지 기능 |
+| ↳ ↳ `apply_scope` |  | (목록) |
+| ↳ ↳ `member_scope` |  |  |
+| ↳ `reply_feature` |  | 답변기능 T : 사용함 · F : 사용안함 |
+| ↳ `write_permission` |  | 쓰기 권한 A : 관리자 · V : 회원이상노출 · I : 회원이상 비노출 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `write_member_group_no` |  | 쓰기 권한 접근회원그룹 번호 |
+| ↳ `write_permission_extra` |  | 쓰기권한 부가설정 |
+| ↳ ↳ `is_member_buy` |  |  |
+| ↳ ↳ `member_write_after` |  |  |
+| ↳ ↳ `use_member_write_period` |  |  |
+| ↳ ↳ `member_write_period` |  |  |
+| ↳ ↳ `is_guest_buy` |  |  |
+| ↳ ↳ `guest_write_after` |  |  |
+| ↳ ↳ `use_guest_write_period` |  |  |
+| ↳ ↳ `guest_write_period` |  |  |
+| ↳ ↳ `product_info_option` |  |  |
+| ↳ ↳ `post_length_limit` |  |  |
+| ↳ ↳ `post_min_length` |  |  |
+| ↳ ↳ `post_editable` |  |  |
+| ↳ `reply_permission` |  | 답변쓰기 권한 A : 관리자 · M : 회원이상 · N : 비회원이상 · G : 접근회원그룹설정 |
+| ↳ `reply_member_group_no` |  | 답변쓰기 권한 접근회원그룹 번호 |
+| ↳ `author_display` |  | 작성자 표시 설정 N : 이름 · U : 별명(별명기입전 이름으로 노출) · I : 별명(별명기입전 아이디로 노출) |
+| ↳ `author_protection` |  | 작성자 보호 설정 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `author_name_type` |  |  |
+| ↳ ↳ `partial_character_display` |  |  |
+| ↳ ↳ `alternative_text_display` |  |  |
+| ↳ `board_guide` |  | 게시판 안내글 |
+| ↳ `use_comment` |  | 댓글 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `admin_title_fixed` |  | 게시글 제목을 관리자가 설정한 값으로 고정 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `admin_title_list` |  | (목록) |
+| ↳ ↳ `staff_skip_post_title` |  |  |
+| ↳ `admin_reply_fixed` |  | 답변글 제목을 관리자가 설정한 값으로 고정할지 여부 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `admin_reply_list` |  | (목록) |
+| ↳ ↳ `staff_skip_reply_title` |  |  |
+| ↳ `input_form` |  | 게시글 입력 양식 설정 여부 |
+| ↳ ↳ `is_use` |  |  |
+| ↳ ↳ `input_form_title` |  | (목록) |
+| ↳ ↳ `enable_input_form_title` |  | (목록) |
+| ↳ `page_size` |  | 페이지당 목록 수 |
+| ↳ `product_page_size` |  | 상품 상세 정보 → 페이지당 목록 수 |
+| ↳ `page_display_count` |  | 페이지 표시 수 |
+
+응답 예시 (JSON):
 
 ```json
 {

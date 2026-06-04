@@ -40,7 +40,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `page` |  | (응답 객체) |
+| ↳ `skin_no` |  | 디자인 번호 |
+| ↳ `skin_code` |  | 디자인 코드 |
+| ↳ `path` |  | 파일 경로 |
+| ↳ `source` |  | 소스 코드 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -72,7 +82,18 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `page` |  | (응답 객체) |
+| ↳ `skin_no` |  | 디자인 번호 |
+| ↳ `skin_code` |  | 디자인 코드 |
+| ↳ `path` |  | 파일 경로 |
+| ↳ `source` |  | 소스 코드 |
+| ↳ `display_location` |  | 화면 분류 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -104,7 +125,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `page` |  | (응답 객체) |
+| ↳ `skin_no` |  | 디자인 번호 |
+| ↳ `skin_code` |  | 디자인 코드 |
+| ↳ `path` |  | 파일 경로 |
+| ↳ `source` |  | 소스 코드 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -133,7 +164,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `page` |  | (응답 객체) |
+| ↳ `skin_no` |  | 디자인 번호 |
+| ↳ `skin_code` |  | 디자인 코드 |
+| ↳ `path` |  | 파일 경로 |
+
+응답 예시 (JSON):
 
 ```json
 {

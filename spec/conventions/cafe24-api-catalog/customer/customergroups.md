@@ -50,7 +50,50 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `customergroups` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `group_no` |  | 회원등급번호 |
+| ↳ `group_name` |  | 회원등급명 |
+| ↳ `group_description` |  | 회원 등급설명 |
+| ↳ `group_icon` |  | 회원등급 아이콘 |
+| ↳ `benefits_paymethod` |  | 혜택 결제조건 A : 모든 결제 · B : 현금 결제(무통장) · C : 현금 결제 외 모든 결제 |
+| ↳ `buy_benefits` |  | 구매시 할인/적립 혜택 F : 혜택없음 · D : 구매금액 할인 · M : 적립금 지급 · P : 할인/적립 동시 적용 |
+| ↳ `ship_benefits` |  | 배송비 혜택 T : 배송비무료설정 · F : 배송비무료설정안함 |
+| ↳ `product_availability` |  | 상품별 할인 중복설정 P : 상품별 가격할인만 적용 · M : 회원등급별 가격할인만 적용 · A : 둘다적용 |
+| ↳ `discount_information` |  | 구매금액 할인설정 |
+| ↳ ↳ `amount_product` |  |  |
+| ↳ ↳ `amount_discount` |  |  |
+| ↳ ↳ `discount_unit` |  |  |
+| ↳ ↳ `truncation_unit` |  |  |
+| ↳ ↳ `max_discount` |  |  |
+| ↳ `points_information` |  | 적립금 지급설정 |
+| ↳ ↳ `amount_product` |  |  |
+| ↳ ↳ `amount_discount` |  |  |
+| ↳ ↳ `discount_unit` |  |  |
+| ↳ ↳ `truncation_unit` |  |  |
+| ↳ ↳ `max_discount` |  |  |
+| ↳ `mobile_discount_information` |  | 모바일 추가 할인설정 |
+| ↳ ↳ `amount_product` |  |  |
+| ↳ ↳ `amount_discount` |  |  |
+| ↳ ↳ `discount_unit` |  |  |
+| ↳ ↳ `truncation_unit` |  |  |
+| ↳ ↳ `max_discount` |  |  |
+| ↳ `mobile_points_information` |  | 모바일 추가 적립금설정 |
+| ↳ ↳ `amount_product` |  |  |
+| ↳ ↳ `amount_discount` |  |  |
+| ↳ ↳ `discount_unit` |  |  |
+| ↳ ↳ `truncation_unit` |  |  |
+| ↳ ↳ `max_discount` |  |  |
+| ↳ `discount_limit_information` |  | 할인 제한설정 멀티쇼핑몰에서 등급별 할인 혜택 제한 사용 시 등급 별로 적용되는 할인 혜택 제한 설정 및 최대 할인 한도 정보. · 멀티쇼핑몰에서 등급별 할인 혜택 제한을 사용하지 않거나, · buy_benefits(구매 시 할인/적립 혜택)이 F(혜택없음) 또는 M(적립금 지급)일 경우 null로 반환 · discount_limit_type(할인 혜택 제한 설정) · - A : 제한없음 · - B : 할인금액 제한 · - C : 할인횟수 제한 · discount_amount_limit(최대 할인금액 한도) : discount_limit_type이 B가 아닐 경우 null · number_of_discount_limit(최대 할인횟수 한도) : discount_limit_type이 C가 아닐 경우 null로 반환. |
+| ↳ ↳ `discount_limit_type` |  |  |
+| ↳ ↳ `discount_amount_limit` |  |  |
+| ↳ ↳ `number_of_discount_limit` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -120,7 +163,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -144,7 +193,50 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `customergroup` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `group_no` |  | 회원등급번호 |
+| ↳ `group_name` |  | 회원등급명 |
+| ↳ `group_description` |  | 회원 등급설명 |
+| ↳ `group_icon` |  | 회원등급 아이콘 |
+| ↳ `benefits_paymethod` |  | 혜택 결제조건 A : 모든 결제 · B : 현금 결제(무통장) · C : 현금 결제 외 모든 결제 |
+| ↳ `buy_benefits` |  | 구매시 할인/적립 혜택 F : 혜택없음 · D : 구매금액 할인 · M : 적립금 지급 · P : 할인/적립 동시 적용 |
+| ↳ `ship_benefits` |  | 배송비 혜택 T : 배송비무료설정 · F : 배송비무료설정안함 |
+| ↳ `product_availability` |  | 상품별 할인 중복설정 P : 상품별 가격할인만 적용 · M : 회원등급별 가격할인만 적용 · A : 둘다적용 |
+| ↳ `discount_information` |  | 구매금액 할인설정 |
+| ↳ ↳ `amount_product` |  |  |
+| ↳ ↳ `amount_discount` |  |  |
+| ↳ ↳ `discount_unit` |  |  |
+| ↳ ↳ `truncation_unit` |  |  |
+| ↳ ↳ `max_discount` |  |  |
+| ↳ `points_information` |  | 적립금 지급설정 |
+| ↳ ↳ `amount_product` |  |  |
+| ↳ ↳ `amount_discount` |  |  |
+| ↳ ↳ `discount_unit` |  |  |
+| ↳ ↳ `truncation_unit` |  |  |
+| ↳ ↳ `max_discount` |  |  |
+| ↳ `mobile_discount_information` |  | 모바일 추가 할인설정 |
+| ↳ ↳ `amount_product` |  |  |
+| ↳ ↳ `amount_discount` |  |  |
+| ↳ ↳ `discount_unit` |  |  |
+| ↳ ↳ `truncation_unit` |  |  |
+| ↳ ↳ `max_discount` |  |  |
+| ↳ `mobile_points_information` |  | 모바일 추가 적립금설정 |
+| ↳ ↳ `amount_product` |  |  |
+| ↳ ↳ `amount_discount` |  |  |
+| ↳ ↳ `discount_unit` |  |  |
+| ↳ ↳ `truncation_unit` |  |  |
+| ↳ ↳ `max_discount` |  |  |
+| ↳ `discount_limit_information` |  | 할인 제한설정 멀티쇼핑몰에서 등급별 할인 혜택 제한 사용 시 등급 별로 적용되는 할인 혜택 제한 설정 및 최대 할인 한도 정보. · 멀티쇼핑몰에서 등급별 할인 혜택 제한을 사용하지 않거나, · buy_benefits(구매 시 할인/적립 혜택)이 F(혜택없음) 또는 M(적립금 지급)일 경우 null로 반환 · discount_limit_type(할인 혜택 제한 설정) · - A : 제한없음 · - B : 할인금액 제한 · - C : 할인횟수 제한 · discount_amount_limit(최대 할인금액 한도) : discount_limit_type이 B가 아닐 경우 null · number_of_discount_limit(최대 할인횟수 한도) : discount_limit_type이 C가 아닐 경우 null로 반환. |
+| ↳ ↳ `discount_limit_type` |  |  |
+| ↳ ↳ `discount_amount_limit` |  |  |
+| ↳ ↳ `number_of_discount_limit` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

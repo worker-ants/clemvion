@@ -35,7 +35,18 @@ _요청 파라미터 없음._
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `app` |  | (응답 객체) |
+| ↳ `version` |  | 버전 |
+| ↳ `version_expiration_date` |  | 버전 만료일 |
+| ↳ `initial_version` |  | 최초 버전 |
+| ↳ `previous_version` |  | 이전 버전 |
+| ↳ `extension_type` |  | 확장 타입 section : 섹션(쇼핑몰 프론트에 html 삽입이 필요한 앱 타입) · embedded : 임베디드(쇼핑몰 프론트에 임베디드되어 자동으로 구동되는 앱 타입) |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -66,7 +77,15 @@ _요청 파라미터 없음._
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `app` |  | (응답 객체) |
+| ↳ `version` |  | 버전 |
+| ↳ `extension_type` |  | 확장 타입 section : 섹션(쇼핑몰 프론트에 html 삽입이 필요한 앱 타입) · embedded : 임베디드(쇼핑몰 프론트에 임베디드되어 자동으로 구동되는 앱 타입) |
+
+응답 예시 (JSON):
 
 ```json
 {

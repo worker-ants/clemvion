@@ -47,7 +47,25 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `issuancecustomers` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `coupon_no` |  | 쿠폰번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `group_no` |  | 발급대상 회원등급 번호 |
+| ↳ `issued_date` |  | 쿠폰 발급일자 |
+| ↳ `expiration_date` |  | 만료일 |
+| ↳ `used_coupon` |  | 쿠폰사용 여부 |
+| ↳ `used_date` |  | 쿠폰 사용 일자 |
+| ↳ `related_order_id` |  | 관련 주문번호 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

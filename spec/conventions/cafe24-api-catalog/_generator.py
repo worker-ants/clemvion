@@ -299,6 +299,46 @@ def cons_cell(constraints,note):
     if note: parts.append(f"_{note}_")
     return mdcell("; ".join(parts))
 
+def _json_field_seq(val, depth, out):
+    """응답 JSON 을 document 순서로 (name, depth, kind) 시퀀스로 평탄화. 배열은 대표(첫) 원소만."""
+    if isinstance(val, dict):
+        for k, v in val.items():
+            kind = 'obj' if isinstance(v, dict) else ('arr' if isinstance(v, list) else 'val')
+            out.append((k, depth, kind))
+            _json_field_seq(v, depth + 1, out)
+    elif isinstance(val, list):
+        for item in val:
+            if isinstance(item, (dict, list)):
+                _json_field_seq(item, depth, out); break
+
+def resp_param_rows(resp_str, props):
+    """대표 응답 샘플(JSON 문자열)에 나타난 필드를, 응답 속성(property list) 기준 제약·설명으로
+    엮어 `| Parameter | 제약 | 설명 |` 표 행 리스트를 만든다. wrapper 키 등 property list 에
+    없는 컨테이너는 (응답 객체)/(목록) 으로만 표기한다. 표 불가(스칼라 응답 등)면 빈 리스트."""
+    try:
+        data = json.loads(resp_str)
+    except Exception:
+        return []
+    seq = []
+    _json_field_seq(data, 0, seq)
+    if not seq:
+        return []
+    by_name = {}
+    for p in (props or []):
+        by_name.setdefault(p['name'], p)
+    rows = []
+    for name, depth, kind in seq:
+        p = by_name.get(name)
+        cons = cons_cell(p['constraints'], p['note']) if p else ""
+        if p and p.get('desc'):
+            desc = mdcell(p['desc'])
+        elif not p:
+            desc = "(응답 객체)" if kind == 'obj' else ("(목록)" if kind == 'arr' else "")
+        else:
+            desc = ""
+        rows.append(f"| {nm(name, depth)} | {cons} | {desc} |")
+    return rows
+
 def render_entity(rname, e, jsondata=None):
     rl=rname.lower(); anchor=e['id'].replace('_','-')
     L=["---",f"resource: {rl}",f"entity: {e['id']}",f"cafe24_docs: {DOCS_BASE}{anchor}",
@@ -328,9 +368,17 @@ def render_entity(rname, e, jsondata=None):
                 L += ["","_요청 파라미터 없음._"]
             resp=resp_for_op(jsondata, o['method'], o['title'])
             if resp:
-                note=("> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조."
-                      if e['props'] else "> Cafe24 공식 docs 의 대표 응답 샘플.")
-                L += ["","#### 응답 (Response)","", note, "","```json", resp.rstrip(), "```"]
+                L += ["","#### 응답 (Response)",""]
+                rows=resp_param_rows(resp, e['props'])
+                if rows:
+                    ref=" 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준" if e['props'] else ""
+                    L += [f"> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터.{ref} (`↳` = 중첩, 배열은 대표 원소).",
+                          "","| Parameter | 제약 | 설명 |","|---|---|---|"]
+                    L += rows
+                    L += ["","응답 예시 (JSON):"]
+                else:
+                    L += ["> Cafe24 공식 docs 의 대표 응답 샘플."]
+                L += ["","```json", resp.rstrip(), "```"]
     return "\n".join(L)+"\n"
 
 INDEX_MARK="## Field-level 상세 카탈로그"

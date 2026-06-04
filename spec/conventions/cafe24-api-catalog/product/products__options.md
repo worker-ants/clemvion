@@ -48,7 +48,43 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `option` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+| ↳ `has_option` |  | 옵션 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `option_type` |  | 옵션 구성방식 옵션을 사용할 경우, 옵션의 유형 표시 · ● 조합형 : 옵션명을 기준으로 옵션값을 조합할 수 있음 · ● 상품 연동형 : 옵션표시방식은 조합형과 유사하지만 필수옵션과 선택옵션을 선택할 수 있음. 옵션의 조합을 제한 없이 생성할 수 있음. · ● 독립 선택형 : 독립적인 조건 여러개를 각각 선택할 수 있는 옵션으로 옵션 값이 조합되지 않고 각각의 품목으로 생성됨. T : 조합형 · E : 연동형 · F : 독립형 |
+| ↳ `option_list_type` |  | 옵션 표시방식 조합형 옵션을 사용할 경우, 조합형 옵션의 유형 표시 · * 조합 일체선택형 : 하나의 셀렉스박스(버튼 이나 라디오버튼)에 모든 옵션이 조합되어 표시됨 · * 조합 분리선택형 : 옵션을 각각의 셀렉스박스(버튼 이나 라디오버튼)로 선택할 수 있으며 옵션명을 기준으로 옵션값을 조합할 수 있음 · 독립형이나 상품 연동형 옵션을 사용하고 있을 경우 S(분리형)로 입력됨. C : 일체형 · S : 분리형 |
+| ↳ `option_preset_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 옵션세트 코드 상품연동형 옵션을 사용할 경우, 옵션 세트 코드 표시 |
+| ↳ `options` |  | 옵션 |
+| ↳ ↳ `option_code` |  |  |
+| ↳ ↳ `option_name` |  |  |
+| ↳ ↳ `option_value` |  | (목록) |
+| ↳ ↳ ↳ `option_image_file` |  |  |
+| ↳ ↳ ↳ `option_link_image` |  |  |
+| ↳ ↳ ↳ `option_color` |  |  |
+| ↳ ↳ ↳ `option_text` |  |  |
+| ↳ ↳ ↳ `value_no` |  |  |
+| ↳ ↳ ↳ `additional_amount` |  |  |
+| ↳ ↳ `required_option` |  |  |
+| ↳ ↳ `option_display_type` |  |  |
+| ↳ `select_one_by_option` |  | 옵션별로 한 개씩 선택 (독립형 옵션) 독립형 옵션을 사용할 경우, 하나의 옵션을 여러개 중복하여 선택할 수 없고 한개씩만 선택 가능함. T : 사용함 · F : 사용안함 |
+| ↳ `option_preset_name` |  | 연동형 옵션 세트명 상품연동형 옵션을 사용할 경우, 옵션 세트의 이름 표시 |
+| ↳ `use_additional_option` |  | 추가입력 옵션 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `additional_options` |  | 추가입력 옵션 |
+| ↳ ↳ `additional_option_name` |  |  |
+| ↳ ↳ `required_additional_option` |  |  |
+| ↳ ↳ `additional_option_text_length` |  |  |
+| ↳ `use_attached_file_option` |  | 파일 첨부 옵션 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `attached_file_option` |  | 파일 첨부 옵션 |
+| ↳ ↳ `option_name` |  |  |
+| ↳ ↳ `required` |  |  |
+| ↳ ↳ `size_limit` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -171,7 +207,43 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `option` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+| ↳ `has_option` |  | 옵션 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `option_type` |  | 옵션 구성방식 옵션을 사용할 경우, 옵션의 유형 표시 · ● 조합형 : 옵션명을 기준으로 옵션값을 조합할 수 있음 · ● 상품 연동형 : 옵션표시방식은 조합형과 유사하지만 필수옵션과 선택옵션을 선택할 수 있음. 옵션의 조합을 제한 없이 생성할 수 있음. · ● 독립 선택형 : 독립적인 조건 여러개를 각각 선택할 수 있는 옵션으로 옵션 값이 조합되지 않고 각각의 품목으로 생성됨. T : 조합형 · E : 연동형 · F : 독립형 |
+| ↳ `option_list_type` |  | 옵션 표시방식 조합형 옵션을 사용할 경우, 조합형 옵션의 유형 표시 · * 조합 일체선택형 : 하나의 셀렉스박스(버튼 이나 라디오버튼)에 모든 옵션이 조합되어 표시됨 · * 조합 분리선택형 : 옵션을 각각의 셀렉스박스(버튼 이나 라디오버튼)로 선택할 수 있으며 옵션명을 기준으로 옵션값을 조합할 수 있음 · 독립형이나 상품 연동형 옵션을 사용하고 있을 경우 S(분리형)로 입력됨. C : 일체형 · S : 분리형 |
+| ↳ `option_preset_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 옵션세트 코드 상품연동형 옵션을 사용할 경우, 옵션 세트 코드 표시 |
+| ↳ `options` |  | 옵션 |
+| ↳ ↳ `option_code` |  |  |
+| ↳ ↳ `option_name` |  |  |
+| ↳ ↳ `option_value` |  | (목록) |
+| ↳ ↳ ↳ `option_image_file` |  |  |
+| ↳ ↳ ↳ `option_link_image` |  |  |
+| ↳ ↳ ↳ `option_color` |  |  |
+| ↳ ↳ ↳ `option_text` |  |  |
+| ↳ ↳ ↳ `value_no` |  |  |
+| ↳ ↳ ↳ `additional_amount` |  |  |
+| ↳ ↳ `required_option` |  |  |
+| ↳ ↳ `option_display_type` |  |  |
+| ↳ `select_one_by_option` |  | 옵션별로 한 개씩 선택 (독립형 옵션) 독립형 옵션을 사용할 경우, 하나의 옵션을 여러개 중복하여 선택할 수 없고 한개씩만 선택 가능함. T : 사용함 · F : 사용안함 |
+| ↳ `option_preset_name` |  | 연동형 옵션 세트명 상품연동형 옵션을 사용할 경우, 옵션 세트의 이름 표시 |
+| ↳ `use_additional_option` |  | 추가입력 옵션 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `additional_options` |  | 추가입력 옵션 |
+| ↳ ↳ `additional_option_name` |  |  |
+| ↳ ↳ `required_additional_option` |  |  |
+| ↳ ↳ `additional_option_text_length` |  |  |
+| ↳ `use_attached_file_option` |  | 파일 첨부 옵션 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `attached_file_option` |  | 파일 첨부 옵션 |
+| ↳ ↳ `option_name` |  |  |
+| ↳ ↳ `required` |  |  |
+| ↳ ↳ `size_limit` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -273,7 +345,41 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `option` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+| ↳ `has_option` |  | 옵션 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `option_type` |  | 옵션 구성방식 옵션을 사용할 경우, 옵션의 유형 표시 · ● 조합형 : 옵션명을 기준으로 옵션값을 조합할 수 있음 · ● 상품 연동형 : 옵션표시방식은 조합형과 유사하지만 필수옵션과 선택옵션을 선택할 수 있음. 옵션의 조합을 제한 없이 생성할 수 있음. · ● 독립 선택형 : 독립적인 조건 여러개를 각각 선택할 수 있는 옵션으로 옵션 값이 조합되지 않고 각각의 품목으로 생성됨. T : 조합형 · E : 연동형 · F : 독립형 |
+| ↳ `option_list_type` |  | 옵션 표시방식 조합형 옵션을 사용할 경우, 조합형 옵션의 유형 표시 · * 조합 일체선택형 : 하나의 셀렉스박스(버튼 이나 라디오버튼)에 모든 옵션이 조합되어 표시됨 · * 조합 분리선택형 : 옵션을 각각의 셀렉스박스(버튼 이나 라디오버튼)로 선택할 수 있으며 옵션명을 기준으로 옵션값을 조합할 수 있음 · 독립형이나 상품 연동형 옵션을 사용하고 있을 경우 S(분리형)로 입력됨. C : 일체형 · S : 분리형 |
+| ↳ `option_preset_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 옵션세트 코드 상품연동형 옵션을 사용할 경우, 옵션 세트 코드 표시 |
+| ↳ `options` |  | 옵션 |
+| ↳ ↳ `option_code` |  |  |
+| ↳ ↳ `option_name` |  |  |
+| ↳ ↳ `option_value` |  | (목록) |
+| ↳ ↳ ↳ `option_image_file` |  |  |
+| ↳ ↳ ↳ `option_link_image` |  |  |
+| ↳ ↳ ↳ `option_color` |  |  |
+| ↳ ↳ ↳ `option_text` |  |  |
+| ↳ ↳ ↳ `value_no` |  |  |
+| ↳ ↳ ↳ `additional_amount` |  |  |
+| ↳ ↳ `required_option` |  |  |
+| ↳ ↳ `option_display_type` |  |  |
+| ↳ `use_additional_option` |  | 추가입력 옵션 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `additional_options` |  | 추가입력 옵션 |
+| ↳ ↳ `additional_option_name` |  |  |
+| ↳ ↳ `required_additional_option` |  |  |
+| ↳ ↳ `additional_option_text_length` |  |  |
+| ↳ `use_attached_file_option` |  | 파일 첨부 옵션 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `attached_file_option` |  | 파일 첨부 옵션 |
+| ↳ ↳ `option_name` |  |  |
+| ↳ ↳ `required` |  |  |
+| ↳ ↳ `size_limit` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -372,7 +478,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `option` |  | (응답 객체) |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+
+응답 예시 (JSON):
 
 ```json
 {

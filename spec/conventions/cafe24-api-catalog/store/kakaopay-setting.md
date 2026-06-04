@@ -44,7 +44,27 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `kakaopay` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `shop_key` |  | 입점시 부여 받는 판매점의 고유 식별자 |
+| ↳ `pixel_code` |  | 연동사(ECP/독립몰)에서 이미 사용중인 카카오 광고 픽셀 ID |
+| ↳ `use_kakaopay` |  | 카카오페이 구매 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `product_detail_button_size` |  | 쇼핑몰 상세상품 페이지 버튼 사이즈 |
+| ↳ ↳ `pc` |  |  |
+| ↳ ↳ `mobile` |  |  |
+| ↳ `basket_button_size` |  | 쇼핑몰 장바구니 페이지 버튼 사이즈 |
+| ↳ ↳ `pc` |  |  |
+| ↳ ↳ `mobile` |  |  |
+| ↳ `use_dark_mode` |  | 쇼핑몰 다크모드 적용여부 T : 활성화 · F : 비활성화 |
+| ↳ `button_authorization_key` |  | 입점시 부여 받는 판매점의 버튼 인증 |
+| ↳ `thirdparty_agree` |  | 제3자 제공 동의 여부 T : 동의함 · F : 동의안함 |
+| ↳ `thirdparty_agree_date` |  | 제3자 제공 동의 날짜 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -98,7 +118,27 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `kakaopay` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `shop_key` |  | 입점시 부여 받는 판매점의 고유 식별자 |
+| ↳ `pixel_code` |  | 연동사(ECP/독립몰)에서 이미 사용중인 카카오 광고 픽셀 ID |
+| ↳ `use_kakaopay` |  | 카카오페이 구매 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `product_detail_button_size` |  | 쇼핑몰 상세상품 페이지 버튼 사이즈 |
+| ↳ ↳ `pc` |  |  |
+| ↳ ↳ `mobile` |  |  |
+| ↳ `basket_button_size` |  | 쇼핑몰 장바구니 페이지 버튼 사이즈 |
+| ↳ ↳ `pc` |  |  |
+| ↳ ↳ `mobile` |  |  |
+| ↳ `use_dark_mode` |  | 쇼핑몰 다크모드 적용여부 T : 활성화 · F : 비활성화 |
+| ↳ `button_authorization_key` |  | 입점시 부여 받는 판매점의 버튼 인증 |
+| ↳ `thirdparty_agree` |  | 제3자 제공 동의 여부 T : 동의함 · F : 동의안함 |
+| ↳ `thirdparty_agree_date` |  | 제3자 제공 동의 날짜 |
+
+응답 예시 (JSON):
 
 ```json
 {

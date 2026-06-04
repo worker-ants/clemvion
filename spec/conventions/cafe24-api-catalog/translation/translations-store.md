@@ -37,7 +37,32 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `store` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `translations` |  | 번역 정보 |
+| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `translated` |  |  |
+| ↳ ↳ `shop_name` |  |  |
+| ↳ ↳ `company_name` |  |  |
+| ↳ ↳ `company_registration_no` |  |  |
+| ↳ ↳ `president_name` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `email` |  |  |
+| ↳ ↳ `fax` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address1` |  |  |
+| ↳ ↳ `address2` |  |  |
+| ↳ ↳ `customer_service_phone` |  |  |
+| ↳ ↳ `customer_service_hours` |  |  |
+| ↳ ↳ `privacy_officer_name` |  |  |
+| ↳ ↳ `privacy_officer_email` |  |  |
+| ↳ ↳ `updated_date` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -119,7 +144,32 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `store` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `translations` |  | 번역 정보 |
+| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `translated` |  |  |
+| ↳ ↳ `shop_name` |  |  |
+| ↳ ↳ `company_name` |  |  |
+| ↳ ↳ `company_registration_no` |  |  |
+| ↳ ↳ `president_name` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `email` |  |  |
+| ↳ ↳ `fax` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address1` |  |  |
+| ↳ ↳ `address2` |  |  |
+| ↳ ↳ `customer_service_phone` |  |  |
+| ↳ ↳ `customer_service_hours` |  |  |
+| ↳ ↳ `privacy_officer_name` |  |  |
+| ↳ ↳ `privacy_officer_email` |  |  |
+| ↳ ↳ `updated_date` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

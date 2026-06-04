@@ -161,7 +161,158 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `orders` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `currency` |  | 화폐단위 해당 멀티쇼핑몰의 화폐단위 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `market_id` |  | 마켓 구분값 가격 비교 사이트를 통하여 마켓 등에서 상품 구매 시 해당 사이트를 구분하기 위한 ID |
+| ↳ `market_order_no` |  | 마켓 주문 번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `member_email` |  | 회원 이메일 |
+| ↳ `member_authentication` |  | 회원인증여부 회원 인증여부. 인증여부에 따라 3가지로 회원타입이 나눠짐. T : 승인 · B : 특별관리회원 · J : 14세미만회원 |
+| ↳ `initial_order_amount` |  | 최초 주문 금액 |
+| ↳ ↳ `order_price_amount` |  |  |
+| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `points_spent_amount` |  |  |
+| ↳ ↳ `credits_spent_amount` |  |  |
+| ↳ ↳ `coupon_discount_price` |  |  |
+| ↳ ↳ `coupon_shipping_fee_amount` |  |  |
+| ↳ ↳ `membership_discount_amount` |  |  |
+| ↳ ↳ `shipping_fee_discount_amount` |  |  |
+| ↳ ↳ `set_product_discount_amount` |  |  |
+| ↳ ↳ `app_discount_amount` |  |  |
+| ↳ ↳ `point_incentive_amount` |  |  |
+| ↳ ↳ `total_amount_due` |  |  |
+| ↳ ↳ `payment_amount` |  | 최종 결제 금액 |
+| ↳ ↳ `market_other_discount_amount` |  |  |
+| ↳ ↳ `tax` |  |  |
+| ↳ `actual_order_amount` |  | 현재 주문 금액 실결제금액 중 coupon_shipping_fee_amount는 할인 금액 자동 계산을 사용할 때만 품목별로 배송비 배분이 가능하기 때문에 할인 금액 자동 계산 기능을 사용할 때만 노출됨 |
+| ↳ ↳ `order_price_amount` |  |  |
+| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `points_spent_amount` |  |  |
+| ↳ ↳ `credits_spent_amount` |  |  |
+| ↳ ↳ `coupon_discount_price` |  |  |
+| ↳ ↳ `coupon_shipping_fee_amount` |  |  |
+| ↳ ↳ `membership_discount_amount` |  |  |
+| ↳ ↳ `shipping_fee_discount_amount` |  |  |
+| ↳ ↳ `set_product_discount_amount` |  |  |
+| ↳ ↳ `app_discount_amount` |  |  |
+| ↳ ↳ `point_incentive_amount` |  |  |
+| ↳ ↳ `total_amount_due` |  |  |
+| ↳ ↳ `payment_amount` |  | 최종 결제 금액 |
+| ↳ ↳ `market_other_discount_amount` |  |  |
+| ↳ ↳ `tax` |  |  |
+| ↳ `billing_name` |  | 결제자명 입금자 이름. 주문자 혹은 수령자 이름과는 다를 수 있음. |
+| ↳ `bank_code` |  | 은행코드 bank_code |
+| ↳ `bank_code_name` |  | 입금자 은행명 |
+| ↳ `payment_method` |  | 결제수단 코드 주문자가 이용한 결제수단의 코드 cash : 무통장 · card : 신용카드 · cell : 휴대폰 · tcash : 계좌이체 · icash : 가상계좌 · prepaid : 선불금 · credit : 예치금 · point : 적립금 · pointfy : 통합포인트 · cvs : 편의점 · cod : 후불 · coupon : 쿠폰 · market_discount : 마켓할인 · giftcard : 제휴상품권 · pointcard : 제휴포인트 · etc : 기타 |
+| ↳ `payment_method_name` |  | 결제수단명 주문자가 이용한 결제수단의 이름 |
+| ↳ `payment_gateway_names` |  | PG 이름 |
+| ↳ `sub_payment_method_name` |  | 해외 결제수단명 |
+| ↳ `sub_payment_method_code` |  | 해외 결제수단코드 sub_payment_method_code |
+| ↳ `transaction_ids` |  | 카드 거래 아이디 |
+| ↳ `paid` |  | 결제 여부 결제가 완료되었는지 여부 T : 결제 · F : 미결제 · M : 부분 결제 |
+| ↳ `canceled` |  | 취소 여부 T : 취소 · F : 미취소 · M : 부분 취소 |
+| ↳ `order_date` |  | 주문일 |
+| ↳ `first_order` |  | 최초 주문여부 해당 주문이 최초 주문인지 여부 T : 최초 주문 · F : 최초 주문 아님 |
+| ↳ `payment_date` |  | 결제일 |
+| ↳ `order_from_mobile` |  | 모바일 구분 주문이 모바일에서 이루어졌는지 여부 T : 모바일 주문 · F : 모바일 주문 아님 |
+| ↳ `use_escrow` |  | 에스크로 사용여부 에스크로를 사용했는지 여부 T : 에스크로 사용 · F : 에스크로 미사용 |
+| ↳ `bank_account_no` |  | 계좌번호 해당 주문건에 대한 쇼핑몰의 계좌번호 |
+| ↳ `bank_account_owner_name` |  | 예금주 |
+| ↳ `market_seller_id` |  | 마켓 판매자 아이디 |
+| ↳ `payment_amount` |  | 최종 결제 금액 |
+| ↳ `cancel_date` |  | 주문취소일 |
+| ↳ `order_place_name` |  | 주문경로 텍스트 |
+| ↳ `order_place_id` |  | 주문경로 |
+| ↳ `payment_confirmation` |  | 후불결제 입금확인 가능 여부 T : 입금확인 · F : 입금미확인 |
+| ↳ `commission` |  | 결제 수수료 |
+| ↳ `postpay` |  | 후불결제여부 T : 후불결제 · F : 후불결제 아님 |
+| ↳ `admin_additional_amount` |  | 관리자 입력 금액 |
+| ↳ `additional_shipping_fee` |  | 추가 배송비 |
+| ↳ `international_shipping_insurance` |  | 해외배송 보험료 |
+| ↳ `additional_handling_fee` |  | 해외배송 부가금액 |
+| ↳ `shipping_type` |  | 배송 유형 배송 유형. 국내배송인지 해외배송인지 여부 A : 국내 · B : 해외 |
+| ↳ `shipping_type_text` |  | 배송 유형명 배송 유형. 국내배송인지 해외배송인지 여부 |
+| ↳ `shipping_status` |  | 배송상태 F : 배송전 · M : 배송중 · T : 배송완료 · W : 배송보류 · X : 발주전 |
+| ↳ `shipping_fee_detail` |  | 배송비 정보 |
+| ↳ ↳ `shipping_group_code` |  |  |
+| ↳ ↳ `supplier_code` |  |  |
+| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `cancel_shipping_fee` |  |  |
+| ↳ ↳ `additional_shipping_fee` |  | 추가 배송비 |
+| ↳ ↳ `refunded_shipping_fee` |  |  |
+| ↳ ↳ `return_shipping_fee` |  |  |
+| ↳ ↳ `items` |  | 품주 리소스 · 조회시 Embed 파라메터를 사용하여 조회할 수 있다. |
+| ↳ `regional_surcharge_detail` |  | 지역별 배송비 정보 |
+| ↳ ↳ `shipping_group_code` |  |  |
+| ↳ ↳ `supplier_code` |  |  |
+| ↳ ↳ `regional_surcharge_amount` |  |  |
+| ↳ ↳ `regional_surcharge_calculation_type` |  |  |
+| ↳ ↳ `template_code` |  |  |
+| ↳ ↳ `template_name` |  |  |
+| ↳ ↳ `cancel_shipping_fee` |  |  |
+| ↳ ↳ `additional_shipping_fee` |  | 추가 배송비 |
+| ↳ ↳ `refunded_shipping_fee` |  |  |
+| ↳ ↳ `return_shipping_fee` |  |  |
+| ↳ ↳ `items` |  | 품주 리소스 · 조회시 Embed 파라메터를 사용하여 조회할 수 있다. |
+| ↳ `wished_delivery_date` |  | 희망배송일 |
+| ↳ `wished_delivery_time` |  | 희망배송시간 |
+| ↳ `wished_carrier_id` |  | 희망배송사 코드 |
+| ↳ `wished_carrier_name` |  | 희망배송사 명 |
+| ↳ `return_confirmed_date` |  | 반품승인일시 |
+| ↳ `total_supply_price` |  | 총 공급가액 |
+| ↳ `naver_point` |  | 네이버포인트 |
+| ↳ `additional_order_info_list` |  | 주문서 추가항목 |
+| ↳ ↳ `id` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `value` |  |  |
+| ↳ ↳ `input_type` |  |  |
+| ↳ ↳ `product_type` |  |  |
+| ↳ ↳ `applied_product_list` |  | (목록) |
+| ↳ `store_pickup` |  | 매장수령여부 T : 매장수령 · F : 매장수령 아님 |
+| ↳ `easypay_name` |  | 간편결제 결제사 이름 |
+| ↳ `loan_status` |  | 여신상태 OK : GOOD · NG : NOT GOOD · ER : ERROR |
+| ↳ `subscription` |  | 정기결제 여부 T : 정기결제 · F : 정기결제 아님 |
+| ↳ `multiple_addresses` |  | 멀티 배송지 여부 T : 멀티 배송지 주문 · F : 멀티 배송지 주문 아님 |
+| ↳ `exchange_rate` |  | 결제 화폐 환율 정보 |
+| ↳ `first_payment_methods` |  | 최초 결제수단 코드 cash : 무통장 · card : 신용카드 · cell : 휴대폰 · tcash : 계좌이체 · icash : 가상계좌 · prepaid : 선불금 · credit : 예치금 · point : 적립금 · pointfy : 통합포인트 · cvs : 편의점 · cod : 후불 · giftcard : 제휴상품권 · pointcard : 제휴포인트 · etc : 기타 |
+| ↳ `naverpay_payment_information` |  | 네이버페이 PG 결제 정보 P : PG결제 · N : 네이버결제 |
+| ↳ `market_discount_info` |  |  |
+| ↳ `include_tax` |  | 가격에 세금 포함 T: 세금포함 · F: 세금제외 |
+| ↳ `tax_detail` |  | 세금 상세 정보 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `amount` |  |  |
+| ↳ ↳ `price_before_tax` |  |  |
+| ↳ ↳ `price_before_tax_type` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
+| ↳ ↳ `country_tax_rate` |  |  |
+| ↳ ↳ `region_tax` |  | (응답 객체) |
+| ↳ ↳ ↳ `rate` |  |  |
+| ↳ ↳ ↳ `taxation_method` |  |  |
+| ↳ ↳ `product_tax_override` |  | (응답 객체) |
+| ↳ ↳ ↳ `rate` |  |  |
+| ↳ ↳ ↳ `taxation_method` |  |  |
+| ↳ ↳ `shipping_tax_override` |  | (응답 객체) |
+| ↳ ↳ ↳ `rate` |  |  |
+| ↳ ↳ ↳ `taxation_method` |  |  |
+| ↳ `service_type` |  | 주문 서비스 유형 rental : 렌탈주문 |
+| ↳ `service_data` |  | 주문 서비스 데이터 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `value` |  |  |
+| ↳ ↳ `title` |  |  |
+| ↳ `show_shipping_address` |  | 배송지 정보 표기 여부 T: 배송지 정보 표기 · F: 배송지 정보 가림 |
+| ↳ `social_member_code` |  | 연동 된 SNS 제공코드 |
+| ↳ `social_name` |  | 연동 된 SNS명 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -681,7 +832,154 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `order` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `currency` |  | 화폐단위 해당 멀티쇼핑몰의 화폐단위 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `market_id` |  | 마켓 구분값 가격 비교 사이트를 통하여 마켓 등에서 상품 구매 시 해당 사이트를 구분하기 위한 ID |
+| ↳ `market_order_no` |  | 마켓 주문 번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `member_authentication` |  | 회원인증여부 회원 인증여부. 인증여부에 따라 3가지로 회원타입이 나눠짐. T : 승인 · B : 특별관리회원 · J : 14세미만회원 |
+| ↳ `customer_group_no_when_ordering` |  | 주문시 회원등급 주문 당시의 회원등급 |
+| ↳ `initial_order_amount` |  | 최초 주문 금액 |
+| ↳ ↳ `order_price_amount` |  |  |
+| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `points_spent_amount` |  |  |
+| ↳ ↳ `credits_spent_amount` |  |  |
+| ↳ ↳ `coupon_discount_price` |  |  |
+| ↳ ↳ `coupon_shipping_fee_amount` |  |  |
+| ↳ ↳ `membership_discount_amount` |  |  |
+| ↳ ↳ `shipping_fee_discount_amount` |  |  |
+| ↳ ↳ `set_product_discount_amount` |  |  |
+| ↳ ↳ `app_discount_amount` |  |  |
+| ↳ ↳ `point_incentive_amount` |  |  |
+| ↳ ↳ `total_amount_due` |  |  |
+| ↳ ↳ `payment_amount` |  | 최종 결제 금액 |
+| ↳ ↳ `market_other_discount_amount` |  |  |
+| ↳ ↳ `tax` |  |  |
+| ↳ `actual_order_amount` |  | 현재 주문 금액 실결제금액 중 coupon_shipping_fee_amount는 할인 금액 자동 계산을 사용할 때만 품목별로 배송비 배분이 가능하기 때문에 할인 금액 자동 계산 기능을 사용할 때만 노출됨 |
+| ↳ ↳ `order_price_amount` |  |  |
+| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `points_spent_amount` |  |  |
+| ↳ ↳ `credits_spent_amount` |  |  |
+| ↳ ↳ `coupon_discount_price` |  |  |
+| ↳ ↳ `coupon_shipping_fee_amount` |  |  |
+| ↳ ↳ `membership_discount_amount` |  |  |
+| ↳ ↳ `shipping_fee_discount_amount` |  |  |
+| ↳ ↳ `set_product_discount_amount` |  |  |
+| ↳ ↳ `app_discount_amount` |  |  |
+| ↳ ↳ `point_incentive_amount` |  |  |
+| ↳ ↳ `total_amount_due` |  |  |
+| ↳ ↳ `payment_amount` |  | 최종 결제 금액 |
+| ↳ ↳ `market_other_discount_amount` |  |  |
+| ↳ ↳ `tax` |  |  |
+| ↳ `billing_name` |  | 결제자명 입금자 이름. 주문자 혹은 수령자 이름과는 다를 수 있음. |
+| ↳ `bank_code` |  | 은행코드 bank_code |
+| ↳ `bank_code_name` |  | 입금자 은행명 |
+| ↳ `payment_method` |  | 결제수단 코드 주문자가 이용한 결제수단의 코드 cash : 무통장 · card : 신용카드 · cell : 휴대폰 · tcash : 계좌이체 · icash : 가상계좌 · prepaid : 선불금 · credit : 예치금 · point : 적립금 · pointfy : 통합포인트 · cvs : 편의점 · cod : 후불 · coupon : 쿠폰 · market_discount : 마켓할인 · giftcard : 제휴상품권 · pointcard : 제휴포인트 · etc : 기타 |
+| ↳ `payment_method_name` |  | 결제수단명 주문자가 이용한 결제수단의 이름 |
+| ↳ `payment_gateway_names` |  | PG 이름 |
+| ↳ `sub_payment_method_name` |  | 해외 결제수단명 |
+| ↳ `sub_payment_method_code` |  | 해외 결제수단코드 sub_payment_method_code |
+| ↳ `transaction_ids` |  | 카드 거래 아이디 |
+| ↳ `paid` |  | 결제 여부 결제가 완료되었는지 여부 T : 결제 · F : 미결제 · M : 부분 결제 |
+| ↳ `canceled` |  | 취소 여부 T : 취소 · F : 미취소 · M : 부분 취소 |
+| ↳ `order_date` |  | 주문일 |
+| ↳ `first_order` |  | 최초 주문여부 해당 주문이 최초 주문인지 여부 T : 최초 주문 · F : 최초 주문 아님 |
+| ↳ `payment_date` |  | 결제일 |
+| ↳ `order_from_mobile` |  | 모바일 구분 주문이 모바일에서 이루어졌는지 여부 T : 모바일 주문 · F : 모바일 주문 아님 |
+| ↳ `use_escrow` |  | 에스크로 사용여부 에스크로를 사용했는지 여부 T : 에스크로 사용 · F : 에스크로 미사용 |
+| ↳ `bank_account_no` |  | 계좌번호 해당 주문건에 대한 쇼핑몰의 계좌번호 |
+| ↳ `bank_account_owner_name` |  | 예금주 |
+| ↳ `market_seller_id` |  | 마켓 판매자 아이디 |
+| ↳ `payment_amount` |  | 최종 결제 금액 |
+| ↳ `cancel_date` |  | 주문취소일 |
+| ↳ `order_place_name` |  | 주문경로 텍스트 |
+| ↳ `order_place_id` |  | 주문경로 |
+| ↳ `payment_confirmation` |  | 후불결제 입금확인 가능 여부 T : 입금확인 · F : 입금미확인 |
+| ↳ `commission` |  | 결제 수수료 |
+| ↳ `postpay` |  | 후불결제여부 T : 후불결제 · F : 후불결제 아님 |
+| ↳ `admin_additional_amount` |  | 관리자 입력 금액 |
+| ↳ `additional_shipping_fee` |  | 추가 배송비 |
+| ↳ `international_shipping_insurance` |  | 해외배송 보험료 |
+| ↳ `additional_handling_fee` |  | 해외배송 부가금액 |
+| ↳ `shipping_type` |  | 배송 유형 배송 유형. 국내배송인지 해외배송인지 여부 A : 국내 · B : 해외 |
+| ↳ `shipping_type_text` |  | 배송 유형명 배송 유형. 국내배송인지 해외배송인지 여부 |
+| ↳ `shipping_status` |  | 배송상태 F : 배송전 · M : 배송중 · T : 배송완료 · W : 배송보류 · X : 발주전 |
+| ↳ `shipping_fee_detail` |  | 배송비 정보 |
+| ↳ ↳ `shipping_group_code` |  |  |
+| ↳ ↳ `supplier_code` |  |  |
+| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `cancel_shipping_fee` |  |  |
+| ↳ ↳ `additional_shipping_fee` |  | 추가 배송비 |
+| ↳ ↳ `refunded_shipping_fee` |  |  |
+| ↳ ↳ `return_shipping_fee` |  |  |
+| ↳ ↳ `items` |  | 품주 리소스 · 조회시 Embed 파라메터를 사용하여 조회할 수 있다. |
+| ↳ `regional_surcharge_detail` |  | 지역별 배송비 정보 |
+| ↳ ↳ `shipping_group_code` |  |  |
+| ↳ ↳ `supplier_code` |  |  |
+| ↳ ↳ `regional_surcharge_amount` |  |  |
+| ↳ ↳ `regional_surcharge_calculation_type` |  |  |
+| ↳ ↳ `template_code` |  |  |
+| ↳ ↳ `template_name` |  |  |
+| ↳ ↳ `cancel_shipping_fee` |  |  |
+| ↳ ↳ `additional_shipping_fee` |  | 추가 배송비 |
+| ↳ ↳ `refunded_shipping_fee` |  |  |
+| ↳ ↳ `return_shipping_fee` |  |  |
+| ↳ ↳ `items` |  | 품주 리소스 · 조회시 Embed 파라메터를 사용하여 조회할 수 있다. |
+| ↳ `wished_delivery_date` |  | 희망배송일 |
+| ↳ `wished_delivery_time` |  | 희망배송시간 |
+| ↳ `wished_carrier_id` |  | 희망배송사 코드 |
+| ↳ `wished_carrier_name` |  | 희망배송사 명 |
+| ↳ `return_confirmed_date` |  | 반품승인일시 |
+| ↳ `total_supply_price` |  | 총 공급가액 |
+| ↳ `naver_point` |  | 네이버포인트 |
+| ↳ `additional_order_info_list` |  | 주문서 추가항목 |
+| ↳ ↳ `id` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `value` |  |  |
+| ↳ ↳ `input_type` |  |  |
+| ↳ ↳ `product_type` |  |  |
+| ↳ ↳ `applied_product_list` |  | (목록) |
+| ↳ `store_pickup` |  | 매장수령여부 T : 매장수령 · F : 매장수령 아님 |
+| ↳ `easypay_name` |  | 간편결제 결제사 이름 |
+| ↳ `loan_status` |  | 여신상태 OK : GOOD · NG : NOT GOOD · ER : ERROR |
+| ↳ `subscription` |  | 정기결제 여부 T : 정기결제 · F : 정기결제 아님 |
+| ↳ `multiple_addresses` |  | 멀티 배송지 여부 T : 멀티 배송지 주문 · F : 멀티 배송지 주문 아님 |
+| ↳ `exchange_rate` |  | 결제 화폐 환율 정보 |
+| ↳ `first_payment_methods` |  | 최초 결제수단 코드 cash : 무통장 · card : 신용카드 · cell : 휴대폰 · tcash : 계좌이체 · icash : 가상계좌 · prepaid : 선불금 · credit : 예치금 · point : 적립금 · pointfy : 통합포인트 · cvs : 편의점 · cod : 후불 · giftcard : 제휴상품권 · pointcard : 제휴포인트 · etc : 기타 |
+| ↳ `naverpay_payment_information` |  | 네이버페이 PG 결제 정보 P : PG결제 · N : 네이버결제 |
+| ↳ `include_tax` |  | 가격에 세금 포함 T: 세금포함 · F: 세금제외 |
+| ↳ `tax_detail` |  | 세금 상세 정보 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `amount` |  |  |
+| ↳ ↳ `price_before_tax` |  |  |
+| ↳ ↳ `price_before_tax_type` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
+| ↳ ↳ `country_tax_rate` |  |  |
+| ↳ ↳ `region_tax` |  | (응답 객체) |
+| ↳ ↳ ↳ `rate` |  |  |
+| ↳ ↳ ↳ `taxation_method` |  |  |
+| ↳ ↳ `product_tax_override` |  | (응답 객체) |
+| ↳ ↳ ↳ `rate` |  |  |
+| ↳ ↳ ↳ `taxation_method` |  |  |
+| ↳ ↳ `shipping_tax_override` |  | (응답 객체) |
+| ↳ ↳ ↳ `rate` |  |  |
+| ↳ ↳ ↳ `taxation_method` |  |  |
+| ↳ `service_type` |  | 주문 서비스 유형 rental : 렌탈주문 |
+| ↳ `service_data` |  | 주문 서비스 데이터 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `value` |  |  |
+| ↳ ↳ `title` |  |  |
+| ↳ `show_shipping_address` |  | 배송지 정보 표기 여부 T: 배송지 정보 표기 · F: 배송지 정보 가림 |
+| ↳ `social_member_code` |  | 연동 된 SNS 제공코드 |
+| ↳ `social_name` |  | 연동 된 SNS명 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -991,7 +1289,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -1021,7 +1325,20 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `orders` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `process_status` |  | 주문상태 prepare : 배송준비중 · prepareproduct : 상품준비중 · hold : 배송보류 · unhold : 배송보류해제 |
+| ↳ `order_item_code` |  | 품주코드 |
+| ↳ `purchase_confirmation` |  | 구매확정 여부 |
+| ↳ `collect_points` |  | 적립금 회수 |
+| ↳ `show_shipping_address` |  | 배송지 정보 표기 여부 T: 배송지 정보 표기 · F: 배송지 정보 가림 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -1076,7 +1393,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `order` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `process_status` |  | 주문상태 prepare : 배송준비중 · prepareproduct : 상품준비중 · hold : 배송보류 · unhold : 배송보류해제 |
+| ↳ `order_item_code` |  | 품주코드 |
+| ↳ `purchase_confirmation` |  | 구매확정 여부 |
+| ↳ `collect_points` |  | 적립금 회수 |
+| ↳ `show_shipping_address` |  | 배송지 정보 표기 여부 T: 배송지 정보 표기 · F: 배송지 정보 가림 |
+
+응답 예시 (JSON):
 
 ```json
 {

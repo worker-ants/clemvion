@@ -103,7 +103,82 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `serialcoupons` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `coupon_no` |  | 쿠폰번호 |
+| ↳ `serial_no` |  |  |
+| ↳ `coupon_name` |  | 쿠폰명 |
+| ↳ `coupon_description` |  | 쿠폰설명 |
+| ↳ `created_date` |  | 생성일 |
+| ↳ `deleted` |  | 쿠폰삭제 여부 T : 삭제 · F : 삭제되지 않음 |
+| ↳ `is_stopped_issued_coupon` |  |  |
+| ↳ `pause_begin_datetime` |  |  |
+| ↳ `pause_end_datetime` |  |  |
+| ↳ `benefit_text` |  | 쿠폰혜택 상세내역 출력 |
+| ↳ `benefit_type` |  | 혜택 구분 A : 할인금액 · B : 할인율 |
+| ↳ `benefit_price` |  | 혜택 금액 |
+| ↳ `benefit_percentage` |  | 혜택 비율 |
+| ↳ `benefit_percentage_round_unit` |  | 혜택 비율 절사 단위 |
+| ↳ `benefit_percentage_max_price` |  | 혜택 비율 최대 금액 |
+| ↳ `include_regional_shipping_rate` |  | 배송비 할인 시 지역별 구분 포함 여부 T : 지역별 구분 포함 · F : 지역별 구분 미포함 |
+| ↳ `include_foreign_delivery` |  | 해외배송 포함여부 T : 해외배송 포함 · F : 해외배송 미포함 |
+| ↳ `issue_member_join` |  |  |
+| ↳ `issue_member_join_recommend` |  |  |
+| ↳ `issue_member_join_type` |  |  |
+| ↳ `issue_order_amount_type` |  | 발급가능 구매금액 유형 O : 구매금액 기준 · S : 실결제 금액기준 |
+| ↳ `issue_order_start_date` |  | 쿠폰발급 가능한 주문시작일시 |
+| ↳ `issue_order_end_date` |  | 쿠폰발급 가능한 주문종료일시 |
+| ↳ `issue_order_amount_limit` |  | 발급 가능 구매 금액 제한 유형 U : 제한 없음 · L : 최소 금액 · S : 금액 범위 |
+| ↳ `issue_order_amount_min` |  | 발급 가능 최소 구매 금액 |
+| ↳ `issue_order_amount_max` |  | 발급 가능 최대 구매 금액 |
+| ↳ `issue_order_path` |  | 주문경로 W : 웹 쇼핑몰 전용 · M : 모바일 쇼핑몰 전용 · P : 브랜드앱 전용 |
+| ↳ `issue_order_type` |  | 발급단위 O : 주문서단위 발급쿠폰 · P : 상품단위 발급쿠폰 |
+| ↳ `issue_order_available_product` |  | 발급 대상 상품 U : 제한 없음 · I : 선택 상품 적용 · E : 선택 상품 제외 |
+| ↳ `issue_order_available_category` |  | 발급 대상 카테고리 U : 제한 없음 · I : 선택 상품 적용 · E : 선택 상품 제외 |
+| ↳ `issue_anniversary_type` |  |  |
+| ↳ `issue_anniversary_pre_issue_day` |  |  |
+| ↳ `issue_module_type` |  |  |
+| ↳ `issue_review_count` |  |  |
+| ↳ `issue_review_has_image` |  |  |
+| ↳ `issue_quantity_min` |  |  |
+| ↳ `issue_quntity_type` |  |  |
+| ↳ `issue_max_count` |  | 최대 발급수 |
+| ↳ `issue_max_count_by_user` |  | 동일인 재발급 가능 여부 |
+| ↳ `issue_count_per_once` |  | 쿠폰발급 회당 발급수량 (1회 발급수량) |
+| ↳ `issued_count` |  | 발급된 수량 |
+| ↳ `issue_member_group_no` |  |  |
+| ↳ `issue_member_group_name` |  |  |
+| ↳ `issue_no_purchase_period` |  |  |
+| ↳ `issue_reserved` |  |  |
+| ↳ `issue_reserved_date` |  |  |
+| ↳ `available_date` |  | 쿠폰 사용기간 |
+| ↳ `available_period_type` |  | 사용기간 유형 F : 일반 기간 · R : 쿠폰 발급일 기준 · M : 당월 말까지 사용 |
+| ↳ `available_begin_datetime` |  | 사용 기간 시작 일시 |
+| ↳ `available_end_datetime` |  | 사용 기간 종료 일시 |
+| ↳ `available_site` |  | 사용 범위 유형 W : 웹 쇼핑몰 전용 · M : 모바일 쇼핑몰 전용 |
+| ↳ `available_scope` |  | 적용 범위 P : 상품 쿠폰 · O : 주문서 쿠폰 |
+| ↳ `available_day_from_issued` |  | 사용 가능 일수 |
+| ↳ `available_price_type` |  | 사용가능 구매 금액 유형 U : 제한 없음 · O : 주문 금액 기준 · P : 상품 금액 기준 |
+| ↳ `available_order_price_type` |  | 사용가능 구매 금액 상세 유형 U : 모든 상품의 주문 금액 · I : 쿠폰 적용 상품의 주문 금액 |
+| ↳ `available_min_price` | 최소: [0.01]~최대: [999999999] | 사용가능 구매 금액 |
+| ↳ `available_amount_type` |  | 적용 계산 기준 E : 할인(쿠폰 제외) 적용 전 결제 금액 · I : 할인(쿠폰 제외) 적용 후 결제 금액 |
+| ↳ `available_payment_method` |  | 사용가능 결제수단 all : 제한없음 · R : 무통장입금 · E : 가상계좌 · C : 신용카드 · A : 계좌이체 · H : 휴대폰 · M : 적립금 · K : 케이페이 · P : 페이나우 · N : 페이코 · O : 카카오페이 · S : 스마일페이 · V : 네이버페이 · B : 편의점 · D : 토스 |
+| ↳ `available_product` |  | 쿠폰적용 상품 선택 U : 제한 없음 · I : 선택 상품 적용 · E : 선택 상품 제외 |
+| ↳ `available_product_list` |  | 쿠폰적용 상품 리스트 |
+| ↳ `available_category` |  | 쿠폰적용 분류 선택 U : 제한 없음 · I : 선택 카테고리 적용 · E : 선택 카테고리 제외 |
+| ↳ `available_category_list` |  | 쿠폰적용 분류 리스트 |
+| ↳ `available_coupon_count_by_order` |  | 주문서 당 동일쿠폰 최대 사용 수 |
+| ↳ `serial_generate_method` |  | 시리얼 쿠폰 생성방법 A:자동생성 · M:수동생성 |
+| ↳ `coupon_image_type` |  |  |
+| ↳ `coupon_image_path` |  |  |
+| ↳ `show_product_detail` |  | 상품상세페이지 노출여부 T : 상품상세페이지 노출 · F : 상품상세페이지 미노출 |
+| ↳ `use_notification_when_login` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -304,7 +379,43 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `serialcoupons` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `coupon_no` |  | 쿠폰번호 |
+| ↳ `coupon_name` |  | 쿠폰명 |
+| ↳ `benefit_type` |  | 혜택 구분 A : 할인금액 · B : 할인율 |
+| ↳ `available_period_type` |  | 사용기간 유형 F : 일반 기간 · R : 쿠폰 발급일 기준 · M : 당월 말까지 사용 |
+| ↳ `available_begin_datetime` |  | 사용 기간 시작 일시 |
+| ↳ `available_end_datetime` |  | 사용 기간 종료 일시 |
+| ↳ `available_day_from_issued` |  | 사용 가능 일수 |
+| ↳ `available_site` |  | 사용 범위 유형 W : 웹 쇼핑몰 전용 · M : 모바일 쇼핑몰 전용 |
+| ↳ `available_scope` |  | 적용 범위 P : 상품 쿠폰 · O : 주문서 쿠폰 |
+| ↳ `available_product` |  | 쿠폰적용 상품 선택 U : 제한 없음 · I : 선택 상품 적용 · E : 선택 상품 제외 |
+| ↳ `available_product_list` |  | 쿠폰적용 상품 리스트 |
+| ↳ `available_category` |  | 쿠폰적용 분류 선택 U : 제한 없음 · I : 선택 카테고리 적용 · E : 선택 카테고리 제외 |
+| ↳ `available_category_list` |  | 쿠폰적용 분류 리스트 |
+| ↳ `available_amount_type` |  | 적용 계산 기준 E : 할인(쿠폰 제외) 적용 전 결제 금액 · I : 할인(쿠폰 제외) 적용 후 결제 금액 |
+| ↳ `available_coupon_count_by_order` |  | 주문서 당 동일쿠폰 최대 사용 수 |
+| ↳ `available_price_type` |  | 사용가능 구매 금액 유형 U : 제한 없음 · O : 주문 금액 기준 · P : 상품 금액 기준 |
+| ↳ `available_order_price_type` |  | 사용가능 구매 금액 상세 유형 U : 모든 상품의 주문 금액 · I : 쿠폰 적용 상품의 주문 금액 |
+| ↳ `available_min_price` | 최소: [0.01]~최대: [999999999] | 사용가능 구매 금액 |
+| ↳ `discount_amount` |  | 할인금액 |
+| ↳ ↳ `benefit_price` |  | 혜택 금액 |
+| ↳ `discount_rate` |  | 할인율 |
+| ↳ ↳ `benefit_percentage` |  | 혜택 비율 |
+| ↳ ↳ `benefit_percentage_round_unit` |  | 혜택 비율 절사 단위 |
+| ↳ ↳ `benefit_percentage_max_price` |  | 혜택 비율 최대 금액 |
+| ↳ `serial_generate_method` |  | 시리얼 쿠폰 생성방법 A:자동생성 · M:수동생성 |
+| ↳ `serial_code_type` |  | 시리얼코드 생성 방식 R: 다른 시리얼 코드로 생성 · S: 동일 시리얼 코드로 생성 |
+| ↳ `serial_generate_auto` |  | 시리얼 쿠폰 자동생성 추가 정보 |
+| ↳ ↳ `issue_max_count` |  | 최대 발급수 |
+| ↳ ↳ `serial_code_length` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -370,7 +481,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `serialcoupon` |  | (응답 객체) |
+| ↳ `coupon_no` |  | 쿠폰번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

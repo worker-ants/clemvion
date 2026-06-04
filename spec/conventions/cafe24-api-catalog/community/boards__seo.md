@@ -41,7 +41,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `seo` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `meta_title` |  | 브라우저 타이틀 [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
+| ↳ `meta_author` |  | 메타태그1 : Author [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
+| ↳ `meta_description` |  | 메타태그2 : Description [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
+| ↳ `meta_keywords` |  | 메타태그3 : Keywords [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -77,7 +89,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `seo` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `board_no` |  | 게시판 번호 |
+| ↳ `meta_title` |  | 브라우저 타이틀 [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
+| ↳ `meta_author` |  | 메타태그1 : Author [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
+| ↳ `meta_description` |  | 메타태그2 : Description [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
+| ↳ `meta_keywords` |  | 메타태그3 : Keywords [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
+
+응답 예시 (JSON):
 
 ```json
 {

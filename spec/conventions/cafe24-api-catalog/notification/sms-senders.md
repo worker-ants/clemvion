@@ -39,7 +39,19 @@ SMS 발신자(Sms senders)는 SMS를 발송할 발신번호를 나타냅니다. 
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `senders` |  | (목록) |
+| ↳ `sender_no` |  | 발신자 아이디 발신자의 고유한 일련번호 |
+| ↳ `sender` |  | 발신자 번호 발신자의 전화번호 |
+| ↳ `auth_status` |  | 인증 상태 발신자의 전화번호의 인증 상태. · 인증완료 상태인 발신자로만 SMS 를 발송할 수 있다. 00 : 삭제 · 10 : 등록 · 20 : 심사중 · 30 : 인증완료 · 40 : 반려 |
+| ↳ `memo` |  | 메모 request_reason: 요청 사유 · reject_reason: 반려 사유 |
+| ↳ ↳ `request_reason` |  |  |
+| ↳ ↳ `reject_reason` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

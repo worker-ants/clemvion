@@ -49,7 +49,18 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `items` |  | (목록) |
+| ↳ `subscription_item_id` |  | 정기배송 아이템 번호 |
+| ↳ `quantity` |  | 주문 수량 |
+| ↳ `expected_delivery_date` |  | 배송예정일 |
+| ↳ `subscription_shipments_cycle` |  | 배송주기 1W : 1주 · 2W : 2주 · 3W : 3주 · 4W : 4주 · 1M : 1개월 · 2M : 2개월 · 3M : 3개월 · 4M : 4개월 · 5M : 5개월 · 6M : 6개월 · 1Y : 1년 |
+| ↳ `max_delivery_limit` | 최소값: [0]; 최대값: [12] | 정기배송 횟수 0 : 제한없음 · 2 : 2회 · 3 : 3회 · 4 : 4회 · 6 : 6회 · 10 : 10회 · 12 : 12회 |
+
+응답 예시 (JSON):
 
 ```json
 {

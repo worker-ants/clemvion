@@ -51,7 +51,24 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `logs` |  | (목록) |
+| ↳ `log_id` |  | 로그 ID |
+| ↳ `log_type` |  | 로그 종류 G : 일반 발송 · R : 재발송 · T : 테스트 발송 |
+| ↳ `event_no` |  | 이벤트 번호 |
+| ↳ `mall_id` |  | 쇼핑몰 ID |
+| ↳ `trace_id` |  | Trace ID |
+| ↳ `requested_time` |  | 전송일시 |
+| ↳ `request_endpoint` |  | 요청 URL |
+| ↳ `request_body` |  | 요청 내용 |
+| ↳ `success` |  | 웹훅 발송 성공 여부 T : 성공 · F : 실패 |
+| ↳ `response_http_code` |  | 응답 http code |
+| ↳ `response_body` |  | 응답 내용 |
+
+응답 예시 (JSON):
 
 ```json
 {

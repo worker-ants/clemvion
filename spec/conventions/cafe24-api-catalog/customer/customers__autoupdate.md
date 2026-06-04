@@ -42,7 +42,20 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `autoupdate` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `next_grade` |  | 다음 예상 등급 |
+| ↳ `total_purchase_amount` |  | 등급 산정 기간 내 누적 사용 금액 |
+| ↳ `total_purchase_count` |  | 등급 산정 기간 내 누적 사용 건수 |
+| ↳ `required_purchase_amount` |  | 다음 등급까지 필요 금액 |
+| ↳ `required_purchase_count` |  | 다음 등급까지 필요 건수 |
+
+응답 예시 (JSON):
 
 ```json
 {

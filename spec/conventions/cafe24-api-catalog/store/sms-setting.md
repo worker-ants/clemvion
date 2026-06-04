@@ -41,7 +41,20 @@ SMS 설정(Sms setting)은 쇼핑몰의 SMS 설정에 관한 기능입니다. ·
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `sms` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `use_sms` |  | SMS 사용 여부 T: 사용함 · F: 사용안함 |
+| ↳ `exclude_unsubscriber` |  | 수신거부자 제외 발송 여부 T : 제외 · F : 포함 |
+| ↳ `default_sender` |  | 기본 발신번호 |
+| ↳ `unsubscribe_phone` |  | 무료 수신거부 전화번호 |
+| ↳ `send_method` |  | SMS 발송방법 S: 단문 분할발송 · L: 장문발송(3건 차감) |
+| ↳ `send_method_automatic` |  | SMS 발송방법 (자동) L: 장문발송(3건차감) · S: 단문 분할발송 · N: 단문발송 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -79,7 +92,20 @@ SMS 설정(Sms setting)은 쇼핑몰의 SMS 설정에 관한 기능입니다. ·
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `sms` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `use_sms` |  | SMS 사용 여부 T: 사용함 · F: 사용안함 |
+| ↳ `exclude_unsubscriber` |  | 수신거부자 제외 발송 여부 T : 제외 · F : 포함 |
+| ↳ `default_sender` |  | 기본 발신번호 |
+| ↳ `unsubscribe_phone` |  | 무료 수신거부 전화번호 |
+| ↳ `send_method` |  | SMS 발송방법 S: 단문 분할발송 · L: 장문발송(3건 차감) |
+| ↳ `send_method_automatic` |  | SMS 발송방법 (자동) L: 장문발송(3건차감) · S: 단문 분할발송 · N: 단문발송 |
+
+응답 예시 (JSON):
 
 ```json
 {

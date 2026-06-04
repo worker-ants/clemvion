@@ -42,7 +42,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `customers` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `group_no` |  | 회원등급번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `fixed_group` |  | 회원등급 고정 여부 특정 회원이 회원자동등급변경에 적용되지 않기 위한 등급 고정 여부. · 회원자동등급변경 기능을 사용하는 몰에서만 사용 가능하다. T : 고정함 · F : 고정안함 |
+
+응답 예시 (JSON):
 
 ```json
 {

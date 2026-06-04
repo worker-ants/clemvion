@@ -40,7 +40,18 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `plusapp` |  | (목록) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `os_type` |  | OS 타입 |
+| ↳ `install_date` |  | 설치일 |
+| ↳ `auto_login_flag` |  | 자동로그인 설정 여부 |
+| ↳ `use_push_flag` |  | 알림 수신 여부 |
+
+응답 예시 (JSON):
 
 ```json
 {

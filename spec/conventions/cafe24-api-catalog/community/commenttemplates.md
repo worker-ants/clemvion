@@ -44,7 +44,22 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `commenttemplates` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `comment_no` |  | 자주 쓰는 답변 번호 |
+| ↳ `title` | 최대글자수 : [256자] | 자주 쓰는 답변 제목 |
+| ↳ `content` | 최대글자수 : [4000자] | 자주 쓰는 답변 내용 |
+| ↳ `board_type` | 최소값: [1] | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `created_date` | 날짜 | 생성일 |
+| ↳ `links` |  | (목록) |
+| ↳ ↳ `rel` |  |  |
+| ↳ ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -97,7 +112,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `commenttemplate` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `comment_no` |  | 자주 쓰는 답변 번호 |
+| ↳ `title` | 최대글자수 : [256자] | 자주 쓰는 답변 제목 |
+| ↳ `content` | 최대글자수 : [4000자] | 자주 쓰는 답변 내용 |
+| ↳ `board_type` | 최소값: [1] | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `created_date` | 날짜 | 생성일 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -131,7 +158,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `commenttemplate` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `comment_no` |  | 자주 쓰는 답변 번호 |
+| ↳ `title` | 최대글자수 : [256자] | 자주 쓰는 답변 제목 |
+| ↳ `content` | 최대글자수 : [4000자] | 자주 쓰는 답변 내용 |
+| ↳ `board_type` | 최소값: [1] | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `created_date` | 날짜 | 생성일 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -166,7 +205,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `commenttemplate` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `comment_no` |  | 자주 쓰는 답변 번호 |
+| ↳ `title` | 최대글자수 : [256자] | 자주 쓰는 답변 제목 |
+| ↳ `content` | 최대글자수 : [4000자] | 자주 쓰는 답변 내용 |
+| ↳ `board_type` | 최소값: [1] | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `created_date` | 날짜 | 생성일 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -197,7 +248,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `commenttemplate` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `comment_no` |  | 자주 쓰는 답변 번호 |
+| ↳ `title` | 최대글자수 : [256자] | 자주 쓰는 답변 제목 |
+| ↳ `content` | 최대글자수 : [4000자] | 자주 쓰는 답변 내용 |
+| ↳ `board_type` | 최소값: [1] | 게시판 분류 1 : 운영 · 2 : 일반 · 3 : 자료실 · 4 : 기타 · 5 : 상품 · 6 : 갤러리 · 7 : 1:1상담 · 11 : 한줄메모 |
+| ↳ `created_date` | 날짜 | 생성일 |
+
+응답 예시 (JSON):
 
 ```json
 {

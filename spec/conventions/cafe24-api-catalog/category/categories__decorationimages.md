@@ -50,7 +50,28 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `decorationimage` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `category_no` |  | 분류 번호 |
+| ↳ `use_menu_image_pc` |  | 분류 PC 메뉴 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `menu_image_pc` |  | 분류 PC 메뉴 기본 이미지 |
+| ↳ `menu_over_image_pc` |  | 분류 PC 메뉴 오버 이미지 |
+| ↳ `use_top_image_pc` |  | 분류 PC 상단 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `top_images_pc` |  | 분류 PC 상단 이미지 |
+| ↳ `use_title_image_pc` |  | 분류 PC 타이틀 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `title_image_pc` |  | 분류 PC 타이틀 이미지 |
+| ↳ `use_menu_image_mobile` |  | 분류 모바일 메뉴 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `menu_image_mobile` |  | 분류 모바일 메뉴 기본 이미지 |
+| ↳ `use_top_image_mobile` |  | 분류 모바일 상단 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `top_images_mobile` | 배열 최대사이즈: [3] | 분류 모바일 상단 이미지 |
+| ↳ `use_title_image_mobile` |  | 분류 모바일 타이틀 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `title_image_mobile` |  | 분류 모바일 타이틀 이미지 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -107,7 +128,28 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `decorationimage` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `category_no` |  | 분류 번호 |
+| ↳ `use_menu_image_pc` |  | 분류 PC 메뉴 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `menu_image_pc` |  | 분류 PC 메뉴 기본 이미지 |
+| ↳ `menu_over_image_pc` |  | 분류 PC 메뉴 오버 이미지 |
+| ↳ `use_top_image_pc` |  | 분류 PC 상단 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `top_images_pc` |  | 분류 PC 상단 이미지 |
+| ↳ `use_title_image_pc` |  | 분류 PC 타이틀 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `title_image_pc` |  | 분류 PC 타이틀 이미지 |
+| ↳ `use_menu_image_mobile` |  | 분류 모바일 메뉴 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `menu_image_mobile` |  | 분류 모바일 메뉴 기본 이미지 |
+| ↳ `use_top_image_mobile` |  | 분류 모바일 상단 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `top_images_mobile` | 배열 최대사이즈: [3] | 분류 모바일 상단 이미지 |
+| ↳ `use_title_image_mobile` |  | 분류 모바일 타이틀 이미지 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `title_image_mobile` |  | 분류 모바일 타이틀 이미지 |
+
+응답 예시 (JSON):
 
 ```json
 {

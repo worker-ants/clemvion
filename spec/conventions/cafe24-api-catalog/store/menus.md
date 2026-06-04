@@ -43,7 +43,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `menus` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `mode` |  | 메뉴 모드 new_pro: PC 어드민 · mobile_admin : 모바일 어드민 |
+| ↳ `menu_no` |  | 메뉴 번호 |
+| ↳ `name` |  | 메뉴명 |
+| ↳ `path` |  | 메뉴 경로 |
+| ↳ `contains_app_url` |  | 앱 URL 포함 여부 T : 포함 · F : 미포함 |
+
+응답 예시 (JSON):
 
 ```json
 {

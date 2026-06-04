@@ -65,7 +65,35 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `receivers` |  | (목록) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. DEFAULT 1 |
+| ↳ `name` |  | 수령자명 |
+| ↳ `name_furigana` |  | 수령자명 (발음) |
+| ↳ `phone` |  | 전화번호 |
+| ↳ `cellphone` |  | 수령자 휴대 전화 |
+| ↳ `virtual_phone_no` |  | 수령자 안심번호 |
+| ↳ `zipcode` |  | 우편번호 |
+| ↳ `address1` |  | 기본 주소 |
+| ↳ `address2` |  | 상세 주소 |
+| ↳ `name_en` |  | 수령자명 (영문) |
+| ↳ `city_en` |  | 수령자 도시 (영문) |
+| ↳ `state_en` |  | 수령자 주 (영문) |
+| ↳ `street_en` |  | 수령자 주소 (영문) |
+| ↳ `country_code` |  | 국가코드 |
+| ↳ `country_name` |  | 국가명 |
+| ↳ `country_name_en` |  | 국가명 (영문) |
+| ↳ `shipping_message` |  | 배송 메세지 |
+| ↳ `clearance_information_type` |  | 통관정보 유형 I : 신분증 ID · P : 여권번호 · C : 개인통관고유부호 |
+| ↳ `clearance_information` |  | 통관정보 |
+| ↳ `wished_delivery_date` |  | 희망배송일 |
+| ↳ `wished_delivery_time` |  | 희망배송시간 |
+| ↳ `shipping_code` |  | 배송번호 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -141,7 +169,44 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `receivers` |  | (목록) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. DEFAULT 1 |
+| ↳ `name` |  | 수령자명 |
+| ↳ `name_furigana` |  | 수령자명 (발음) |
+| ↳ `phone` |  | 전화번호 |
+| ↳ `cellphone` |  | 수령자 휴대 전화 |
+| ↳ `virtual_phone_no` |  | 수령자 안심번호 |
+| ↳ `zipcode` |  | 우편번호 |
+| ↳ `address1` |  | 기본 주소 |
+| ↳ `address2` |  | 상세 주소 |
+| ↳ `address_state` |  | 주/도 |
+| ↳ `address_city` |  | 시/군/도시 |
+| ↳ `address_street` |  | 도로명 |
+| ↳ `address_full` |  | 전체주소 |
+| ↳ `name_en` |  | 수령자명 (영문) |
+| ↳ `city_en` |  | 수령자 도시 (영문) |
+| ↳ `state_en` |  | 수령자 주 (영문) |
+| ↳ `street_en` |  | 수령자 주소 (영문) |
+| ↳ `country_code` |  | 국가코드 |
+| ↳ `country_name` |  | 국가명 |
+| ↳ `country_name_en` |  | 국가명 (영문) |
+| ↳ `shipping_message` |  | 배송 메세지 |
+| ↳ `shipping_code` |  | 배송번호 |
+| ↳ `clearance_information_type` |  | 통관정보 유형 I : 신분증 ID · P : 여권번호 · C : 개인통관고유부호 |
+| ↳ `clearance_information` |  | 통관정보 |
+| ↳ `change_default_shipping_address` |  | 기본배송지 변경 여부 T : 변경함 · F : 변경안함 |
+| ↳ `wished_delivery_date` |  | 희망배송일 |
+| ↳ `use_fast_delivery_date` |  | 가능한 빠른 배송일 설정 여부 T: 사용함 · F: 사용안함 |
+| ↳ `wished_delivery_time` |  | 희망배송시간 |
+| ↳ ↳ `start_hour` |  |  |
+| ↳ ↳ `end_hour` |  |  |
+| ↳ `use_fast_delivery_time` |  | 가능한 빠른 배송시간 설정 여부 T: 사용함 · F: 사용안함 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -262,7 +327,43 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `receiver` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. DEFAULT 1 |
+| ↳ `name` |  | 수령자명 |
+| ↳ `name_furigana` |  | 수령자명 (발음) |
+| ↳ `phone` |  | 전화번호 |
+| ↳ `cellphone` |  | 수령자 휴대 전화 |
+| ↳ `virtual_phone_no` |  | 수령자 안심번호 |
+| ↳ `zipcode` |  | 우편번호 |
+| ↳ `address1` |  | 기본 주소 |
+| ↳ `address2` |  | 상세 주소 |
+| ↳ `address_state` |  | 주/도 |
+| ↳ `address_city` |  | 시/군/도시 |
+| ↳ `address_street` |  | 도로명 |
+| ↳ `address_full` |  | 전체주소 |
+| ↳ `name_en` |  | 수령자명 (영문) |
+| ↳ `city_en` |  | 수령자 도시 (영문) |
+| ↳ `state_en` |  | 수령자 주 (영문) |
+| ↳ `street_en` |  | 수령자 주소 (영문) |
+| ↳ `country_code` |  | 국가코드 |
+| ↳ `country_name` |  | 국가명 |
+| ↳ `country_name_en` |  | 국가명 (영문) |
+| ↳ `shipping_message` |  | 배송 메세지 |
+| ↳ `clearance_information_type` |  | 통관정보 유형 I : 신분증 ID · P : 여권번호 · C : 개인통관고유부호 |
+| ↳ `clearance_information` |  | 통관정보 |
+| ↳ `change_default_shipping_address` |  | 기본배송지 변경 여부 T : 변경함 · F : 변경안함 |
+| ↳ `wished_delivery_date` |  | 희망배송일 |
+| ↳ `use_fast_delivery_date` |  | 가능한 빠른 배송일 설정 여부 T: 사용함 · F: 사용안함 |
+| ↳ `wished_delivery_time` |  | 희망배송시간 |
+| ↳ ↳ `start_hour` |  |  |
+| ↳ ↳ `end_hour` |  |  |
+| ↳ `use_fast_delivery_time` |  | 가능한 빠른 배송시간 설정 여부 T: 사용함 · F: 사용안함 |
+
+응답 예시 (JSON):
 
 ```json
 {

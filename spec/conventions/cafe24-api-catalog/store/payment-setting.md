@@ -42,7 +42,20 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `setting` |  | (응답 객체) |
+| ↳ `use_escrow` |  | 에스크로 사용여부 |
+| ↳ `use_escrow_account_transfer` |  | 에스크로(계좌이체) 사용여부 |
+| ↳ `use_escrow_virtual_account` |  | 에스크로(가상계좌) 사용여부 |
+| ↳ `pg_shipping_registration` |  | PG사 배송등록 |
+| ↳ `purchase_protection_amount` |  | 매매보호 적용 결제금액 설정 |
+| ↳ `use_direct_pay` |  | 빠른 결제 수단 사용여부 |
+| ↳ `payment_display_type` |  | 결제수단 표기 방식 T : 텍스트 · L : 로고 아이콘 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -80,7 +93,20 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `setting` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `use_escrow` |  | 에스크로 사용여부 |
+| ↳ `use_escrow_account_transfer` |  | 에스크로(계좌이체) 사용여부 |
+| ↳ `use_escrow_virtual_account` |  | 에스크로(가상계좌) 사용여부 |
+| ↳ `pg_shipping_registration` |  | PG사 배송등록 |
+| ↳ `use_direct_pay` |  | 빠른 결제 수단 사용여부 |
+| ↳ `payment_display_type` |  | 결제수단 표기 방식 T : 텍스트 · L : 로고 아이콘 |
+
+응답 예시 (JSON):
 
 ```json
 {

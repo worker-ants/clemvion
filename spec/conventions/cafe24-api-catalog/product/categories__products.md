@@ -46,7 +46,20 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `products` |  | (목록) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+| ↳ `sequence_no` |  | 표시 순서 |
+| ↳ `auto_sort` |  | 자동 정렬 여부 |
+| ↳ `sold_out` |  | 품절여부 |
+| ↳ `fixed_sort` |  | 고정 여부 |
+| ↳ `not_for_sale` |  | 판매안함 여부 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -99,7 +112,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -125,7 +144,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `display_group` | 최소: [1]~최대: [3] | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 DEFAULT 1 |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -162,7 +189,18 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+| ↳ `sequence` | 최소: [1]~최대: [999998] | 진열 순서 |
+| ↳ `auto_sort` |  | 자동 정렬 여부 |
+| ↳ `fixed_sort` |  | 고정 여부 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -193,7 +231,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `display_group` | 최소: [1]~최대: [3] | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 DEFAULT 1 |
+| ↳ `product_no` |  | 상품번호 상품의 고유한 일련 번호. 해당 쇼핑몰 내에서 상품 번호는 중복되지 않음. |
+
+응답 예시 (JSON):
 
 ```json
 {

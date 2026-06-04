@@ -40,7 +40,26 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `regionalsurcharge` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `use_regional_surcharge` |  | 지역별 배송비 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `region_setting_type` |  | 지역 설정 방식 A : 간편 설정 · N : 지명 설정 · Z : 우편번호 설정 |
+| ↳ `regional_surcharge_list` |  | 지역별 배송비 목록 |
+| ↳ ↳ `regional_surcharge_no` |  |  |
+| ↳ ↳ `region_name` |  |  |
+| ↳ ↳ `surcharge_region_name` |  |  |
+| ↳ ↳ `country_code` |  |  |
+| ↳ ↳ `start_zipcode` |  |  |
+| ↳ ↳ `end_zipcode` |  |  |
+| ↳ ↳ `regional_surcharge_amount` |  |  |
+| ↳ `jeju_surcharge_amount` |  | 제주 추가 배송비 |
+| ↳ `remote_area_surcharge_amount` |  | 도서산간 추가 배송비 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -94,7 +113,18 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `regionalsurcharge` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `use_regional_surcharge` |  | 지역별 배송비 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `region_setting_type` |  | 지역 설정 방식 A : 간편 설정 · N : 지명 설정 · Z : 우편번호 설정 |
+| ↳ `jeju_surcharge_amount` |  | 제주 추가 배송비 |
+| ↳ `remote_area_surcharge_amount` |  | 도서산간 추가 배송비 |
+
+응답 예시 (JSON):
 
 ```json
 {

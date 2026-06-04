@@ -50,7 +50,86 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `carriers` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `carrier_id` |  | 배송사 아이디 |
+| ↳ `shipping_carrier_code` |  | 배송사 코드 shipping_company_code |
+| ↳ `shipping_carrier` |  | 배송사 명 |
+| ↳ `track_shipment_url` |  | 배송추적 URL |
+| ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내 · B : 국내/해외 · C : 해외 · F : 설정안함 |
+| ↳ `contact` |  | 대표 연락처 |
+| ↳ `secondary_contact` |  | 보조 연락처 |
+| ↳ `email` |  | 이메일 |
+| ↳ `default_shipping_fee` |  | 기본 배송비 |
+| ↳ `homepage_url` |  | 홈페이지 주소 |
+| ↳ `default_shipping_carrier` |  | 기본배송사 여부 T : 사용함 · F : 사용안함 |
+| ↳ `shipping_fee_setting` |  | 배송비 설정 여부 T : 사용함 · F : 사용안함 |
+| ↳ `shipping_fee_setting_detail` |  | 배송비 설정 데이터 |
+| ↳ ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내 · B : 국내/해외 · C : 해외 · F : 설정안함 |
+| ↳ ↳ `available_shipping_zone` |  |  |
+| ↳ ↳ `min_shipping_period` |  |  |
+| ↳ ↳ `max_shipping_period` |  |  |
+| ↳ ↳ `shipping_information` |  |  |
+| ↳ ↳ `shipping_fee_setting_domestic` |  | (응답 객체) |
+| ↳ ↳ ↳ `shipping_fee_type` |  |  |
+| ↳ ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ ↳ `min_price` |  |  |
+| ↳ ↳ ↳ `use_product_category` |  |  |
+| ↳ ↳ ↳ `product_category_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `category_no` |  |  |
+| ↳ ↳ ↳ ↳ `category_name` |  |  |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `domestic_shipping_fee_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `conditional` |  |  |
+| ↳ ↳ ↳ ↳ `min_value` |  |  |
+| ↳ ↳ ↳ ↳ `max_value` |  |  |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ ↳ `available_shipping_zone` |  |  |
+| ↳ ↳ ↳ `available_shipping_zone_list` |  |  |
+| ↳ ↳ ↳ `available_order_time` |  |  |
+| ↳ ↳ ↳ `start_time` |  |  |
+| ↳ ↳ ↳ `end_time` |  |  |
+| ↳ ↳ `shipping_fee_setting_oversea` |  | (응답 객체) |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `shipping_country_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `country_name` |  |  |
+| ↳ ↳ ↳ `country_shipping_fee_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `country_name` |  |  |
+| ↳ ↳ ↳ ↳ `conditional` |  |  |
+| ↳ ↳ ↳ ↳ `min_value` |  |  |
+| ↳ ↳ ↳ ↳ `max_value` |  |  |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ ↳ ↳ `additional_handling_fee_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `country_name` |  |  |
+| ↳ ↳ ↳ ↳ `text` |  |  |
+| ↳ ↳ ↳ ↳ `min_value` |  |  |
+| ↳ ↳ ↳ ↳ `max_value` |  |  |
+| ↳ ↳ ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ ↳ ↳ ↳ `unit` |  |  |
+| ↳ ↳ ↳ ↳ `rounding_unit` |  |  |
+| ↳ ↳ ↳ ↳ `rounding_rule` |  |  |
+| ↳ `express_exception_setting` |  | 연동택배 예외정보 설정 |
+| ↳ ↳ `weight` |  |  |
+| ↳ ↳ `volume` |  |  |
+| ↳ ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내 · B : 국내/해외 · C : 해외 · F : 설정안함 |
+| ↳ ↳ `box_type` |  |  |
+| ↳ ↳ `sender_name` |  |  |
+| ↳ ↳ `sender_cellphone` |  |  |
+| ↳ ↳ `sender_phone` |  |  |
+| ↳ ↳ `sender_zipcode` |  |  |
+| ↳ ↳ `sender_address1` |  |  |
+| ↳ ↳ `sender_address2` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -331,7 +410,88 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `carrier` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `carrier_id` |  | 배송사 아이디 |
+| ↳ `shipping_carrier_code` |  | 배송사 코드 shipping_company_code |
+| ↳ `shipping_carrier` |  | 배송사 명 |
+| ↳ `track_shipment_url` |  | 배송추적 URL |
+| ↳ `contact` |  | 대표 연락처 |
+| ↳ `secondary_contact` |  | 보조 연락처 |
+| ↳ `email` |  | 이메일 |
+| ↳ `default_shipping_fee` |  | 기본 배송비 |
+| ↳ `homepage_url` |  | 홈페이지 주소 |
+| ↳ `default_shipping_carrier` |  | 기본배송사 여부 T : 사용함 · F : 사용안함 |
+| ↳ `shipping_fee_setting` |  | 배송비 설정 여부 T : 사용함 · F : 사용안함 |
+| ↳ `shipping_fee_setting_detail` |  | 배송비 설정 데이터 |
+| ↳ ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내 · B : 국내/해외 · C : 해외 · F : 설정안함 |
+| ↳ ↳ `available_shipping_zone` |  |  |
+| ↳ ↳ `min_shipping_period` |  |  |
+| ↳ ↳ `max_shipping_period` |  |  |
+| ↳ ↳ `shipping_information` |  |  |
+| ↳ ↳ `shipping_fee_setting_domestic` |  | (응답 객체) |
+| ↳ ↳ ↳ `shipping_fee_type` |  |  |
+| ↳ ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ ↳ `min_price` |  |  |
+| ↳ ↳ ↳ `use_product_category` |  |  |
+| ↳ ↳ ↳ `product_category_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `category_no` |  |  |
+| ↳ ↳ ↳ ↳ `category_name` |  |  |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `domestic_shipping_fee_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `conditional` |  |  |
+| ↳ ↳ ↳ ↳ `min_value` |  |  |
+| ↳ ↳ ↳ ↳ `max_value` |  |  |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ ↳ `available_shipping_zone` |  |  |
+| ↳ ↳ ↳ `available_shipping_zone_list` |  |  |
+| ↳ ↳ ↳ `available_order_time` |  |  |
+| ↳ ↳ ↳ `start_time` |  |  |
+| ↳ ↳ ↳ `end_time` |  |  |
+| ↳ ↳ `shipping_fee_setting_oversea` |  | (응답 객체) |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `shipping_country_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `country_name` |  |  |
+| ↳ ↳ ↳ `country_shipping_fee_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `country_name` |  |  |
+| ↳ ↳ ↳ ↳ `conditional` |  |  |
+| ↳ ↳ ↳ ↳ `min_value` |  |  |
+| ↳ ↳ ↳ ↳ `max_value` |  |  |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ ↳ ↳ `additional_handling_fee_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `country_name` |  |  |
+| ↳ ↳ ↳ ↳ `text` |  |  |
+| ↳ ↳ ↳ ↳ `min_value` |  |  |
+| ↳ ↳ ↳ ↳ `max_value` |  |  |
+| ↳ ↳ ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ ↳ ↳ ↳ `unit` |  |  |
+| ↳ ↳ ↳ ↳ `rounding_unit` |  |  |
+| ↳ ↳ ↳ ↳ `rounding_rule` |  |  |
+| ↳ ↳ ↳ `maximum_quantity` |  |  |
+| ↳ ↳ ↳ `product_category_limit` |  |  |
+| ↳ ↳ ↳ `product_category_limit_list` |  |  |
+| ↳ `express_exception_setting` |  | 연동택배 예외정보 설정 |
+| ↳ ↳ `weight` |  |  |
+| ↳ ↳ `volume` |  |  |
+| ↳ ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내 · B : 국내/해외 · C : 해외 · F : 설정안함 |
+| ↳ ↳ `box_type` |  |  |
+| ↳ ↳ `sender_name` |  |  |
+| ↳ ↳ `sender_cellphone` |  |  |
+| ↳ ↳ `sender_phone` |  |  |
+| ↳ ↳ `sender_zipcode` |  |  |
+| ↳ ↳ `sender_address1` |  |  |
+| ↳ ↳ `sender_address2` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -544,7 +704,73 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `carrier` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `shipping_carrier_code` |  | 배송사 코드 shipping_company_code |
+| ↳ `shipping_carrier` |  | 배송사 명 |
+| ↳ `carrier_id` |  | 배송사 아이디 |
+| ↳ `contact` |  | 대표 연락처 |
+| ↳ `secondary_contact` |  | 보조 연락처 |
+| ↳ `email` |  | 이메일 |
+| ↳ `default_shipping_fee` |  | 기본 배송비 |
+| ↳ `homepage_url` |  | 홈페이지 주소 |
+| ↳ `track_shipment_url` |  | 배송추적 URL |
+| ↳ `shipping_fee_setting` |  | 배송비 설정 여부 T : 사용함 · F : 사용안함 |
+| ↳ `shipping_fee_setting_detail` |  | 배송비 설정 데이터 |
+| ↳ ↳ `shipping_type` |  | 국내/해외배송 설정 A : 국내 · B : 국내/해외 · C : 해외 · F : 설정안함 |
+| ↳ ↳ `available_shipping_zone` |  |  |
+| ↳ ↳ `min_shipping_period` |  |  |
+| ↳ ↳ `max_shipping_period` |  |  |
+| ↳ ↳ `shipping_information` |  |  |
+| ↳ ↳ `shipping_fee_setting_domestic` |  | (응답 객체) |
+| ↳ ↳ ↳ `shipping_fee_type` |  |  |
+| ↳ ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ ↳ `min_price` |  |  |
+| ↳ ↳ ↳ `use_product_category` |  |  |
+| ↳ ↳ ↳ `product_category_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `category_no` |  |  |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `domestic_shipping_fee_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `min_value` |  |  |
+| ↳ ↳ ↳ ↳ `max_value` |  |  |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ ↳ `available_shipping_zone` |  |  |
+| ↳ ↳ ↳ `available_shipping_zone_list` |  |  |
+| ↳ ↳ ↳ `available_order_time` |  |  |
+| ↳ ↳ ↳ `start_time` |  |  |
+| ↳ ↳ ↳ `end_time` |  |  |
+| ↳ ↳ `shipping_fee_setting_oversea` |  | (응답 객체) |
+| ↳ ↳ ↳ `shipping_fee_criteria` |  |  |
+| ↳ ↳ ↳ `shipping_country_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ `country_shipping_fee_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `conditional` |  |  |
+| ↳ ↳ ↳ ↳ `min_value` |  |  |
+| ↳ ↳ ↳ ↳ `max_value` |  |  |
+| ↳ ↳ ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ ↳ ↳ `additional_handling_fee_list` |  | (목록) |
+| ↳ ↳ ↳ ↳ `country_code` |  |  |
+| ↳ ↳ ↳ ↳ `text` |  |  |
+| ↳ ↳ ↳ ↳ `min_value` |  |  |
+| ↳ ↳ ↳ ↳ `max_value` |  |  |
+| ↳ ↳ ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ ↳ ↳ ↳ `unit` |  |  |
+| ↳ ↳ ↳ ↳ `rounding_unit` |  |  |
+| ↳ ↳ ↳ ↳ `rounding_rule` |  |  |
+| ↳ ↳ ↳ `maximum_quantity` |  |  |
+| ↳ ↳ ↳ `product_category_limit` |  |  |
+| ↳ ↳ ↳ `product_category_limit_list` |  |  |
+| ↳ `links` |  | link |
+| ↳ ↳ `rel` |  |  |
+| ↳ ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -680,7 +906,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `carrier` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `carrier_id` |  | 배송사 아이디 |
+| ↳ `default_shipping_carrier` |  | 기본배송사 여부 T : 사용함 · F : 사용안함 |
+| ↳ `links` |  | link |
+| ↳ ↳ `rel` |  |  |
+| ↳ ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -715,7 +953,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `carrier` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `carrier_id` |  | 배송사 아이디 |
+
+응답 예시 (JSON):
 
 ```json
 {

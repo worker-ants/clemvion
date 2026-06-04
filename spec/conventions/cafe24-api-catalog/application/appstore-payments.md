@@ -53,7 +53,27 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `payments` |  | (목록) |
+| ↳ `order_id` |  | 결제번호 앱스토어 주문의 주문 ID |
+| ↳ `payment_status` |  | 결제상태 paid : 결제완료 · refund : 환불 |
+| ↳ `title` |  | 결제 명 앱스토어 주문의 주문 이름. 주문 생성시 지정이 가능하며, 사용자가 결제시 해당 결제의 내용이 무엇인지 알 수 있는 내용이어야 함. |
+| ↳ `approval_no` |  | 승인번호 결제 승인 번호 |
+| ↳ `payment_gateway_name` |  | 결제 PG사 이름 |
+| ↳ `payment_method` |  | 결제수단 |
+| ↳ `payment_amount` |  | 결제금액 |
+| ↳ `refund_amount` |  | 환불금액 |
+| ↳ `currency` |  | 화폐단위 KRW : ￦ 원 · USD : $ 달러 · JPY : ¥ 엔 · PHP : ₱ 페소 |
+| ↳ `locale_code` |  | 결제국가 |
+| ↳ `automatic_payment` |  | 정기과금 여부 T : 사용함 · F : 사용안함 |
+| ↳ `pay_date` |  | 결제승인일 |
+| ↳ `refund_date` |  | 환불승인일 |
+| ↳ `expiration_date` |  | 만료일 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -112,7 +132,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

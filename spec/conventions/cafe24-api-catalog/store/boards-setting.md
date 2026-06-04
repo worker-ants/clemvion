@@ -40,7 +40,22 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `board` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `admin_name` |  | 게시판 관리자명 |
+| ↳ `password_rules` |  | 게시판 비밀번호 작성 규칙 설정 여부 |
+| ↳ `linked_board` |  | 게시판 연동 |
+| ↳ `review_button_mode` |  | 구매 후기 작성 버튼 노출 시점 |
+| ↳ `spam_auto_prevention` |  | 스팸 자동 생성 방지 설정 |
+| ↳ ↳ `type` |  |  |
+| ↳ ↳ `site_key` |  |  |
+| ↳ ↳ `secret_key` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -83,7 +98,22 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `board` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `admin_name` |  | 게시판 관리자명 |
+| ↳ `password_rules` |  | 게시판 비밀번호 작성 규칙 설정 여부 |
+| ↳ `linked_board` |  | 게시판 연동 |
+| ↳ `review_button_mode` |  | 구매 후기 작성 버튼 노출 시점 |
+| ↳ `spam_auto_prevention` |  | 스팸 자동 생성 방지 설정 |
+| ↳ ↳ `type` |  |  |
+| ↳ ↳ `site_key` |  |  |
+| ↳ ↳ `secret_key` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

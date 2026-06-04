@@ -84,7 +84,63 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `calculation` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `mobile` |  | 모바일 PC 여부 |
+| ↳ `device` |  | 접속 환경 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `payment_method` |  | 결제수단 코드 cash : 무통장 · card : 신용카드 · icash : 가상계좌 · tcash : 계좌이체 · cell : 휴대폰 · deferpay : 후불결제 · point : 적립금 |
+| ↳ `shipping_type` |  | 배송 유형 A : 국내 · B : 해외 |
+| ↳ `country_code` |  | 국가코드 |
+| ↳ `carrier_id` |  | 배송사 아이디 |
+| ↳ `zipcode` |  | 우편번호 |
+| ↳ `address_full` |  | 전체주소 |
+| ↳ `address_state` |  | 주/도 |
+| ↳ `items` |  | 주문상품목록 |
+| ↳ ↳ `product_no` |  |  |
+| ↳ ↳ `variant_code` |  |  |
+| ↳ ↳ `option_id` |  |  |
+| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `product_price` |  |  |
+| ↳ ↳ `option_price` |  |  |
+| ↳ ↳ `product_bundle` |  |  |
+| ↳ ↳ `product_bundle_no` |  |  |
+| ↳ ↳ `prepaid_shipping_fee` |  |  |
+| ↳ ↳ `additional_discount_price` |  |  |
+| ↳ ↳ `additional_discount_detail` |  | (응답 객체) |
+| ↳ ↳ ↳ `customer_discount_amount` |  |  |
+| ↳ ↳ ↳ `new_product_discount_amount` |  |  |
+| ↳ ↳ ↳ `individual_bundle_product_discount_amount` |  |  |
+| ↳ ↳ ↳ `repurchase_discount_amount` |  |  |
+| ↳ ↳ ↳ `bulk_purchase_discount_amount` |  |  |
+| ↳ ↳ ↳ `period_discount_amount` |  |  |
+| ↳ `points_spent_amount` |  | 적립금사용금액 |
+| ↳ `coupon_discount_amount` |  | 쿠폰 할인금액 |
+| ↳ `membership_discount_amount` |  | 회원등급 할인금액 |
+| ↳ `shipping_fee_discount_amount` |  | 배송비 할인금액 |
+| ↳ `product_discount_amount` |  | 상품별 할인금액 |
+| ↳ `order_price_amount` |  | 상품 구매금액 |
+| ↳ `total_discount_amount` |  | 총 할인금액 |
+| ↳ `shipping_fee` |  | 배송비 |
+| ↳ `total_amount_due` |  | 결제예정 금액 |
+| ↳ `shipping_fee_information` |  | 배송비 상세정보 |
+| ↳ ↳ `default_shipping_fee` |  |  |
+| ↳ ↳ `supplier_shipping_fee` |  |  |
+| ↳ ↳ `additonal_abroad_shipping_fee` |  |  |
+| ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ `tax_free_amount` |  | 면세 + 영세 |
+| ↳ `vat_amount` |  | 부가세 |
+| ↳ `tax_amount` |  | 과세 |
+| ↳ `order_coupons` |  | 주문서 쿠폰 |
+| ↳ ↳ `coupon_no` |  |  |
+| ↳ ↳ `coupon_price` |  |  |
+| ↳ ↳ `benefit_type` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

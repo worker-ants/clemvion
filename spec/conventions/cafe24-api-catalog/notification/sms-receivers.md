@@ -50,7 +50,24 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `receivers` |  | (목록) |
+| ↳ `no` |  | 번호 |
+| ↳ `recipient_type` |  | 수신자 구분 |
+| ↳ `supplier_name` |  | 공급사명 |
+| ↳ `supplier_id` |  | 공급사 아이디 |
+| ↳ `user_name` |  | 운영자명 |
+| ↳ `user_id` |  | 운영자 아이디 |
+| ↳ `manager_name` |  | 담당자명 |
+| ↳ `cellphone` |  | 휴대전화 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

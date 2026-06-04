@@ -41,7 +41,20 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `join` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `no` |  | 동의서 번호 |
+| ↳ `name` |  | 동의서명 |
+| ↳ `use` |  | 사용 여부 T: 사용함 · F: 사용안함 |
+| ↳ `required` |  | 필수/선택 여부 T : 필수 · F : 선택 |
+| ↳ `display` |  | 동의서 표시 화면 JOIN: 회원가입 · SIMPLE_ORDER_JOIN: 주문서 간단 회원가입 · SHOPPING_PAY_EASY_JOIN: 쇼핑페이 간편가입 |
+| ↳ `content` |  | 동의서 내용 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -96,7 +109,20 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `join` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `no` |  | 동의서 번호 |
+| ↳ `name` |  | 동의서명 |
+| ↳ `use` |  | 사용 여부 T: 사용함 · F: 사용안함 |
+| ↳ `required` |  | 필수/선택 여부 T : 필수 · F : 선택 |
+| ↳ `display` |  | 동의서 표시 화면 JOIN: 회원가입 · SIMPLE_ORDER_JOIN: 주문서 간단 회원가입 · SHOPPING_PAY_EASY_JOIN: 쇼핑페이 간편가입 |
+| ↳ `content` |  | 동의서 내용 |
+
+응답 예시 (JSON):
 
 ```json
 {

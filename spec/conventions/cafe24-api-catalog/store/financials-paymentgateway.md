@@ -44,7 +44,25 @@ Financials paymentgateway(PG 정보)는 PG사별 계약정보를 제공합니다
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `paymentgateway` |  | (응답 객체) |
+| ↳ `partner_id` |  | PG사 발급 가맹점 ID |
+| ↳ `payment_gateway_name` |  | PG 이름 inicis : 이니시스 · kcp : KCP · allat : 올앳 · ksnet : KSNET · dacom : 토스페이먼츠 · allthegate : 올더게이트 · settlebank : 세틀뱅크 · smartro : 스마트로 · kicc : 한국정보통신 · mobilians : 모빌리언스 · danal : 다날 |
+| ↳ `contract_date` |  | PG 계약일 |
+| ↳ `setting_date` |  | PG 세팅일 |
+| ↳ `status` |  | 금융제휴여부 T:제휴함 · F: 제휴안함 |
+| ↳ `bank_code` |  | 정산입금 은행코드 은행 코드 조회하기 |
+| ↳ `bank_account_no` |  | 정산입금 계좌정보 |
+| ↳ `bank_account_name` |  | 정산입금 예금주명 |
+| ↳ `payment_method_information` |  | 결제수단별 정산 정보 ※ payment_method_information 하위 요소에 대한 값 정의 · 1) payment_method_information > period(정산 기간) · D : 일별 · W : 주별 · M : 월별 |
+| ↳ ↳ `payment_method` |  |  |
+| ↳ ↳ `period` |  |  |
+| ↳ ↳ `period_information` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

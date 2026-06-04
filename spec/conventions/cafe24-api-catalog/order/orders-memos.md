@@ -49,7 +49,27 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memos` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `memo_no` |  | 메모 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `created_date` |  | 메모 등록일 |
+| ↳ `author_id` |  | 작성자 아이디 |
+| ↳ `ip` |  | 작성자 아이피 |
+| ↳ `use_customer_inquiry` |  | 고객상담 동시등록 여부 T : 사용함 · F : 사용안함 |
+| ↳ `attach_type` |  | 등록기준 O : 주문별 · P : 품목별 |
+| ↳ `content` |  | 메모 내용 |
+| ↳ `starred_memo` |  | 중요 메모 여부 T : 중요 메모 · F : 일반 메모 |
+| ↳ `fixed` |  | 상단고정 여부 T : 사용함 · F : 사용안함 |
+| ↳ `product_list` |  | 상품 목록 |
+| ↳ ↳ `product_no` |  |  |
+| ↳ ↳ `option_code` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

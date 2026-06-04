@@ -55,7 +55,33 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `customer` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `simple_member_join` |  | 회원가입항목 표시 T:기본항목 표시 · F:상세항목 표시 |
+| ↳ `member_authentication` |  | 회원 가입인증 T:사용함 · F:사용안함 |
+| ↳ `minimum_age_restriction` |  | 14세미만 가입제한 M:인증 후 이용 · T:인증없이 바로 이용 · F:가입 불가 |
+| ↳ `adult_age_restriction` |  | 19세미만 가입제한 T:사용함 · F:사용안함 |
+| ↳ `adult_purchase_restriction` |  | 성인인증 사용 시 구매차단 설정 T:사용함 · F:사용안함 |
+| ↳ `adult_image_restriction` |  | 성인인증 사용 시 19금 이미지 노출 설정 T:사용함 · F:사용안함 |
+| ↳ `gender_restriction` |  | 성별 가입제한 B:사용안함 · M:남성만 · F:여성만 |
+| ↳ `member_rejoin_restriction` |  | 회원 재가입제한 T:사용함 · F:사용안함 |
+| ↳ `member_rejoin_restriction_day` |  | 회원 재가입제한 기간 |
+| ↳ `password_authentication` |  | 회원정보수정 페이지 접속 시 비밀번호 인증 T:사용함 · F:사용안함 |
+| ↳ `member_join_confirmation` |  | 회원가입 입력 정보 확인 T:사용함 · F:사용안함 |
+| ↳ `email_duplication` |  | 이메일 중복 체크 T:사용함 · F:사용안함 |
+| ↳ `password_recovery` |  | 비밀번호 찾기 방법 설정 T:임시 비밀번호 전송 · N:비밀번호 즉시변경 |
+| ↳ `link_social_account` |  | 회원가입 시 SNS 계정 연동 T:SNS 가입 시 동일한 이메일을 가진 계정이 있으면 연동 화면을 제공 · F:연동 화면을 제공하지 않음 |
+| ↳ `save_member_id` |  | 아이디저장 T:사용함 · F:사용안함 |
+| ↳ `unregistration_admin_approval` |  | 탈퇴회원 관리자 승인 T:사용함 · F:사용안함 |
+| ↳ `unregistration_reason` |  | 탈퇴사유 T:사용함 · F:사용안함 |
+| ↳ `display_group` |  | 회원등급 표시 T:사용 · F:사용안함 |
+| ↳ `join_standard` |  | 가입기준 id:아이디 · email:이메일 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -105,7 +131,34 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `customer` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `simple_member_join` |  | 회원가입항목 표시 T:기본항목 표시 · F:상세항목 표시 |
+| ↳ `member_authentication` |  | 회원 가입인증 T:사용함 · F:사용안함 |
+| ↳ `minimum_age_restriction` |  | 14세미만 가입제한 M:인증 후 이용 · T:인증없이 바로 이용 · F:가입 불가 |
+| ↳ `adult_age_restriction` |  | 19세미만 가입제한 T:사용함 · F:사용안함 |
+| ↳ `adult_purchase_restriction` |  | 성인인증 사용 시 구매차단 설정 T:사용함 · F:사용안함 |
+| ↳ `adult_image_restriction` |  | 성인인증 사용 시 19금 이미지 노출 설정 T:사용함 · F:사용안함 |
+| ↳ `gender_restriction` |  | 성별 가입제한 B:사용안함 · M:남성만 · F:여성만 |
+| ↳ `member_rejoin_restriction` |  | 회원 재가입제한 T:사용함 · F:사용안함 |
+| ↳ `member_rejoin_restriction_day` |  | 회원 재가입제한 기간 |
+| ↳ `password_authentication` |  | 회원정보수정 페이지 접속 시 비밀번호 인증 T:사용함 · F:사용안함 |
+| ↳ `member_join_confirmation` |  | 회원가입 입력 정보 확인 T:사용함 · F:사용안함 |
+| ↳ `email_duplication` |  | 이메일 중복 체크 T:사용함 · F:사용안함 |
+| ↳ `password_recovery` |  | 비밀번호 찾기 방법 설정 T:임시 비밀번호 전송 · N:비밀번호 즉시변경 |
+| ↳ `link_social_account` |  | 회원가입 시 SNS 계정 연동 T:SNS 가입 시 동일한 이메일을 가진 계정이 있으면 연동 화면을 제공 · F:연동 화면을 제공하지 않음 |
+| ↳ `save_member_id` |  | 아이디저장 T:사용함 · F:사용안함 |
+| ↳ `unregistration_admin_approval` |  | 탈퇴회원 관리자 승인 T:사용함 · F:사용안함 |
+| ↳ `unregistration_reason` |  | 탈퇴사유 T:사용함 · F:사용안함 |
+| ↳ `display_group` |  | 회원등급 표시 T:사용 · F:사용안함 |
+| ↳ `join_standard` |  | 가입기준 id:아이디 · email:이메일 |
+| ↳ `use_update_birthday` |  | 생년월일 수정 T:허용함 · F:허용안함 |
+
+응답 예시 (JSON):
 
 ```json
 {

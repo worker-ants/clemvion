@@ -59,7 +59,39 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shippingfeecancellation` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `claim_code` |  | 취소 번호 |
+| ↳ `claim_reason_type` |  | 구분 A:고객변심 · B:배송지연 · J:배송오류 · C:배송불가지역 · L:수출/통관 불가 · D:포장불량 · E:상품 불만족 · F:상품정보상이 · K:상품불량 · G:서비스불만족 · H:품절 · I:기타 |
+| ↳ `claim_reason` |  | 사유 |
+| ↳ `status` |  | 주문상태 canceled: 취소완료 · canceling : 취소처리중 |
+| ↳ `default_shipping_fee` |  | 기본 배송비 |
+| ↳ `supplier_shipping_fee` |  | 공급사배송비 |
+| ↳ `individual_shipping_fee` |  | 개별배송비 |
+| ↳ `international_shipping_fee` |  | 해외배송비 |
+| ↳ `international_shipping_insurance_fee` |  | 해외배송 보험료 |
+| ↳ `additional_shipping_fee` |  | 추가 배송비 |
+| ↳ `additional_handling_fee` |  | 해외배송 부가금액 |
+| ↳ `regional_surcharge_amount` |  | 지역별 배송비 |
+| ↳ `refund_method` |  | 환불 방식 |
+| ↳ `shipping_discount_amount` |  | 배송비할인 취소액 |
+| ↳ `coupon_discount_amount` |  | 쿠폰할인 취소액 |
+| ↳ `refund_amount` |  | 환불금액 |
+| ↳ `point_used` |  | 사용된 적립금 반환액 |
+| ↳ `credit_used` |  | 사용된 예치금 반환액 |
+| ↳ `mixed_refund_amount` |  | 복합 환불 금액 |
+| ↳ `mixed_refund_methods` |  | 복합 환불 방식 |
+| ↳ `include_tax` |  | 가격에 세금 포함 T: 세금포함 · F: 세금제외 |
+| ↳ `tax` |  | 세금 정보 세금 관리자 앱을 사용 안 할 경우 null로 반환 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `amount` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -164,7 +196,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shippingfeecancellation` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `claim_code` |  | 취소 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

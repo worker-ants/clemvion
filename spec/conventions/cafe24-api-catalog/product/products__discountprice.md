@@ -38,7 +38,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `discountprice` |  | (응답 객체) |
+| ↳ `pc_discount_price` |  | PC 할인 판매가 |
+| ↳ `mobile_discount_price` |  | 모바일 할인 판매가 |
+| ↳ `app_discount_price` |  | 앱 할인 판매가 |
+
+응답 예시 (JSON):
 
 ```json
 {

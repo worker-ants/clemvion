@@ -49,7 +49,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `activitylogs` |  | (목록) |
+| ↳ `process_no` |  | 업무처리 넘버 |
+| ↳ `mode` |  | 모드 P : PC 어드민 · M : 모바일 어드민 · S : (구)스마트모드 |
+| ↳ `type` |  | 구분 |
+| ↳ `content` |  | 업무내용 |
+| ↳ `process_date` |  | 처리일시 |
+| ↳ `manager_id` | 형식 : [a-z0-9]; 글자수 최소: [4자]~최대: [16자] | 처리자 |
+| ↳ `manager_type` |  | 처리자 타입 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -97,7 +113,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `activitylog` |  | (응답 객체) |
+| ↳ `process_no` |  | 업무처리 넘버 |
+| ↳ `type` |  | 구분 |
+| ↳ `manager_id` | 형식 : [a-z0-9]; 글자수 최소: [4자]~최대: [16자] | 처리자 |
+| ↳ `manager_type` |  | 처리자 타입 |
+| ↳ `process_date` |  | 처리일시 |
+| ↳ `content` |  | 업무내용 |
+
+응답 예시 (JSON):
 
 ```json
 {

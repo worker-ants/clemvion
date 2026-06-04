@@ -42,7 +42,21 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `kakaosync` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `use_kakaosync` |  | 카카오싱크 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `rest_api_key` |  | REST API 키 |
+| ↳ `javascript_key` |  | JavaScript 키 |
+| ↳ `auto_login` |  | 자동 로그인 사용 카카오 웹브라우저로 쇼핑몰 이용시 카카오 아이디로 로그인 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `thirdparty_agree` |  | 제3자 제공 동의 여부 T : 동의함 · F : 동의안함 |
+| ↳ `thirdparty_agree_date` |  | 제3자 제공 동의 날짜 |
+| ↳ `use_signup_result_page` |  | 쇼핑몰 가입 후 이동 페이지 T : 가입 완료 페이지로 이동 · F : 가입 완료 페이지 없이 즉시 가입 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -79,7 +93,18 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `kakaosync` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `rest_api_key` |  | REST API 키 |
+| ↳ `javascript_key` |  | JavaScript 키 |
+| ↳ `auto_login` |  | 자동 로그인 사용 카카오 웹브라우저로 쇼핑몰 이용시 카카오 아이디로 로그인 기능 사용 여부 T : 사용함 · F : 사용안함 |
+| ↳ `use_signup_result_page` |  | 쇼핑몰 가입 후 이동 페이지 T : 가입 완료 페이지로 이동 · F : 가입 완료 페이지 없이 즉시 가입 |
+
+응답 예시 (JSON):
 
 ```json
 {

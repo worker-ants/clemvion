@@ -61,7 +61,41 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `recipientgroups` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `group_no` |  | 발송그룹 번호 |
+| ↳ `group_name` | 최대글자수 : [40자] | 발송그룹명 |
+| ↳ `group_description` | 최대글자수 : [255자] | 발송그룹 설명 |
+| ↳ `created_date` |  | 등록일 |
+| ↳ `group_member_count` |  | 발송그룹 회원 수 |
+| ↳ `news_mail` |  | 뉴스메일 수신여부 T : 수신허용 · F : 수신안함 · D : 절대수신안함 |
+| ↳ `sms` |  | 모바일 메시지 수신여부 T : 수신 · F : 수신안함 |
+| ↳ `member_group_no` |  | 회원등급번호 |
+| ↳ `member_class` |  | 회원구분 p : 개인 · c : 사업자 · f : 외국인 |
+| ↳ `member_type` |  | 회원타입 vip : 특별관리회원 · poor : 불량회원 |
+| ↳ `join_path` |  | 가입경로 P : PC · M : 모바일 |
+| ↳ `inflow_path` |  | 유입경로 |
+| ↳ `inflow_path_detail` |  | 유입경로 상세정보 |
+| ↳ `date_type` |  | 검색날짜 유형 join : 회원가입일 · birthday : 생일 · wedding : 결혼기념일 · partner : 배우자생일 |
+| ↳ `start_date` | 날짜 | 검색 시작일 |
+| ↳ `end_date` | 날짜 | 검색 종료일 |
+| ↳ `solar_calendar` |  | 양력여부 T : 양력 · F : 음력 |
+| ↳ `age_min` |  | 나이 검색 최소값 |
+| ↳ `age_max` |  | 나이 검색 최대값 |
+| ↳ `gender` |  | 성별 M : 남자 · F : 여자 |
+| ↳ `available_points_min` |  | 적립금 검색 최소값 |
+| ↳ `available_points_max` |  | 적립금 검색 최대값 |
+| ↳ `use_mobile_app` |  | 모바일앱 사용여부 T : 사용 · F : 사용안함 |
+| ↳ `plusapp_member_join` |  | 브랜드앱 경로 가입회원 여부 T : 사용함 · F : 사용안함 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -146,7 +180,38 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `recipientgroup` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `group_no` |  | 발송그룹 번호 |
+| ↳ `group_name` | 최대글자수 : [40자] | 발송그룹명 |
+| ↳ `group_description` | 최대글자수 : [255자] | 발송그룹 설명 |
+| ↳ `created_date` |  | 등록일 |
+| ↳ `group_member_count` |  | 발송그룹 회원 수 |
+| ↳ `news_mail` |  | 뉴스메일 수신여부 T : 수신허용 · F : 수신안함 · D : 절대수신안함 |
+| ↳ `sms` |  | 모바일 메시지 수신여부 T : 수신 · F : 수신안함 |
+| ↳ `member_group_no` |  | 회원등급번호 |
+| ↳ `member_class` |  | 회원구분 p : 개인 · c : 사업자 · f : 외국인 |
+| ↳ `member_type` |  | 회원타입 vip : 특별관리회원 · poor : 불량회원 |
+| ↳ `join_path` |  | 가입경로 P : PC · M : 모바일 |
+| ↳ `inflow_path` |  | 유입경로 |
+| ↳ `inflow_path_detail` |  | 유입경로 상세정보 |
+| ↳ `date_type` |  | 검색날짜 유형 join : 회원가입일 · birthday : 생일 · wedding : 결혼기념일 · partner : 배우자생일 |
+| ↳ `start_date` | 날짜 | 검색 시작일 |
+| ↳ `end_date` | 날짜 | 검색 종료일 |
+| ↳ `solar_calendar` |  | 양력여부 T : 양력 · F : 음력 |
+| ↳ `age_min` |  | 나이 검색 최소값 |
+| ↳ `age_max` |  | 나이 검색 최대값 |
+| ↳ `gender` |  | 성별 M : 남자 · F : 여자 |
+| ↳ `available_points_min` |  | 적립금 검색 최소값 |
+| ↳ `available_points_max` |  | 적립금 검색 최대값 |
+| ↳ `use_mobile_app` |  | 모바일앱 사용여부 T : 사용 · F : 사용안함 |
+| ↳ `plusapp_member_join` |  | 브랜드앱 경로 가입회원 여부 T : 사용함 · F : 사용안함 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -217,7 +282,38 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `recipientgroup` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `group_no` |  | 발송그룹 번호 |
+| ↳ `group_name` | 최대글자수 : [40자] | 발송그룹명 |
+| ↳ `group_description` | 최대글자수 : [255자] | 발송그룹 설명 |
+| ↳ `created_date` |  | 등록일 |
+| ↳ `group_member_count` |  | 발송그룹 회원 수 |
+| ↳ `news_mail` |  | 뉴스메일 수신여부 T : 수신허용 · F : 수신안함 · D : 절대수신안함 |
+| ↳ `sms` |  | 모바일 메시지 수신여부 T : 수신 · F : 수신안함 |
+| ↳ `member_group_no` |  | 회원등급번호 |
+| ↳ `member_class` |  | 회원구분 p : 개인 · c : 사업자 · f : 외국인 |
+| ↳ `member_type` |  | 회원타입 vip : 특별관리회원 · poor : 불량회원 |
+| ↳ `join_path` |  | 가입경로 P : PC · M : 모바일 |
+| ↳ `inflow_path` |  | 유입경로 |
+| ↳ `inflow_path_detail` |  | 유입경로 상세정보 |
+| ↳ `date_type` |  | 검색날짜 유형 join : 회원가입일 · birthday : 생일 · wedding : 결혼기념일 · partner : 배우자생일 |
+| ↳ `start_date` | 날짜 | 검색 시작일 |
+| ↳ `end_date` | 날짜 | 검색 종료일 |
+| ↳ `solar_calendar` |  | 양력여부 T : 양력 · F : 음력 |
+| ↳ `age_min` |  | 나이 검색 최소값 |
+| ↳ `age_max` |  | 나이 검색 최대값 |
+| ↳ `gender` |  | 성별 M : 남자 · F : 여자 |
+| ↳ `available_points_min` |  | 적립금 검색 최소값 |
+| ↳ `available_points_max` |  | 적립금 검색 최대값 |
+| ↳ `use_mobile_app` |  | 모바일앱 사용여부 T : 사용 · F : 사용안함 |
+| ↳ `plusapp_member_join` |  | 브랜드앱 경로 가입회원 여부 T : 사용함 · F : 사용안함 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -289,7 +385,38 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `recipientgroup` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `group_no` |  | 발송그룹 번호 |
+| ↳ `group_name` | 최대글자수 : [40자] | 발송그룹명 |
+| ↳ `group_description` | 최대글자수 : [255자] | 발송그룹 설명 |
+| ↳ `created_date` |  | 등록일 |
+| ↳ `group_member_count` |  | 발송그룹 회원 수 |
+| ↳ `news_mail` |  | 뉴스메일 수신여부 T : 수신허용 · F : 수신안함 · D : 절대수신안함 |
+| ↳ `sms` |  | 모바일 메시지 수신여부 T : 수신 · F : 수신안함 |
+| ↳ `member_group_no` |  | 회원등급번호 |
+| ↳ `member_class` |  | 회원구분 p : 개인 · c : 사업자 · f : 외국인 |
+| ↳ `member_type` |  | 회원타입 vip : 특별관리회원 · poor : 불량회원 |
+| ↳ `join_path` |  | 가입경로 P : PC · M : 모바일 |
+| ↳ `inflow_path` |  | 유입경로 |
+| ↳ `inflow_path_detail` |  | 유입경로 상세정보 |
+| ↳ `date_type` |  | 검색날짜 유형 join : 회원가입일 · birthday : 생일 · wedding : 결혼기념일 · partner : 배우자생일 |
+| ↳ `start_date` | 날짜 | 검색 시작일 |
+| ↳ `end_date` | 날짜 | 검색 종료일 |
+| ↳ `solar_calendar` |  | 양력여부 T : 양력 · F : 음력 |
+| ↳ `age_min` |  | 나이 검색 최소값 |
+| ↳ `age_max` |  | 나이 검색 최대값 |
+| ↳ `gender` |  | 성별 M : 남자 · F : 여자 |
+| ↳ `available_points_min` |  | 적립금 검색 최소값 |
+| ↳ `available_points_max` |  | 적립금 검색 최대값 |
+| ↳ `use_mobile_app` |  | 모바일앱 사용여부 T : 사용 · F : 사용안함 |
+| ↳ `plusapp_member_join` |  | 브랜드앱 경로 가입회원 여부 T : 사용함 · F : 사용안함 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -339,7 +466,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `recipientgroup` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `group_no` |  | 발송그룹 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

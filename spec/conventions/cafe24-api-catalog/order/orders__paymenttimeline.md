@@ -50,7 +50,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `paymenttimeline` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `payment_no` |  | 결제번호 |
+| ↳ `payment_settle_type` |  | 결제유형 O : 최초결제 · R : 추가결제 · P : 환불 |
+| ↳ `payment_methods` |  | 결제수단 |
+| ↳ `order_amount` |  | 주문금액 |
+| ↳ `additional_payment_amount` |  | 보조 결제금액 |
+| ↳ `paid_amount` |  | 결제금액 |
+| ↳ `payment_datetime` |  | 결제일 |
+| ↳ `created_datetime` |  | 입력일 |
+| ↳ `claim_code` |  | 취소/교환/반품 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -105,7 +121,33 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `paymenttimeline` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `payment_no` |  | 결제번호 |
+| ↳ `payment_settle_type` |  | 결제유형 O : 최초결제 · R : 추가결제 · P : 환불 |
+| ↳ `order_amount` |  | 주문금액 |
+| ↳ `additional_payment_amount` |  | 보조 결제금액 |
+| ↳ `paid_amount` |  | 결제금액 |
+| ↳ `payment_method_detail` |  | 결제수단별 결제금액 payment_method_detail code |
+| ↳ ↳ `code` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `amount` |  |  |
+| ↳ `order_amount_detail` |  | 주문금액 상세 order_amount_detail code |
+| ↳ ↳ `code` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `supplier_code` |  |  |
+| ↳ ↳ `unit_price` |  |  |
+| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `amount` |  |  |
+| ↳ `payment_datetime` |  | 결제일 |
+| ↳ `created_datetime` |  | 입력일 |
+
+응답 예시 (JSON):
 
 ```json
 {

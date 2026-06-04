@@ -38,7 +38,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `inflows` |  | (목록) |
+| ↳ `inflow_id` |  | 유입경로 그룹 멤버 아이디 |
+| ↳ `inflow_name` |  | 유입경로 그룹 멤버 이름 |
+| ↳ `inflow_icon` |  | 유입경로 아이콘 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -76,7 +85,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `inflow` |  | (응답 객체) |
+| ↳ `inflow_id` |  | 유입경로 그룹 멤버 아이디 |
+| ↳ `inflow_name` |  | 유입경로 그룹 멤버 이름 |
+| ↳ `inflow_icon` |  | 유입경로 아이콘 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -107,7 +125,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `inflow` |  | (응답 객체) |
+| ↳ `inflow_id` |  | 유입경로 그룹 멤버 아이디 |
+| ↳ `inflow_name` |  | 유입경로 그룹 멤버 이름 |
+| ↳ `inflow_icon` |  | 유입경로 아이콘 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -135,7 +162,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `inflow` |  | (응답 객체) |
+| ↳ `group_id` |  | 유입경로 그룹 아이디 |
+| ↳ `inflow_id` |  | 유입경로 그룹 멤버 아이디 |
+
+응답 예시 (JSON):
 
 ```json
 {

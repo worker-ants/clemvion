@@ -43,7 +43,43 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `products` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
+| ↳ `translations` |  | 번역 정보 |
+| ↳ ↳ `translated` |  |  |
+| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
+| ↳ ↳ `product_tag` |  |  |
+| ↳ ↳ `description` |  |  |
+| ↳ ↳ `mobile_description` |  |  |
+| ↳ ↳ `simple_description` |  |  |
+| ↳ ↳ `summary_description` |  |  |
+| ↳ ↳ `payment_info` |  |  |
+| ↳ ↳ `shipping_info` |  |  |
+| ↳ ↳ `exchange_info` |  |  |
+| ↳ ↳ `service_info` |  |  |
+| ↳ ↳ `product_material` |  |  |
+| ↳ ↳ `seo` |  | (응답 객체) |
+| ↳ ↳ ↳ `meta_title` |  |  |
+| ↳ ↳ ↳ `meta_author` |  |  |
+| ↳ ↳ ↳ `meta_description` |  |  |
+| ↳ ↳ ↳ `meta_keywords` |  |  |
+| ↳ ↳ ↳ `meta_alt` |  |  |
+| ↳ ↳ `options` |  | (목록) |
+| ↳ ↳ ↳ `name` |  |  |
+| ↳ ↳ ↳ `value` |  | (목록) |
+| ↳ ↳ `updated_date` |  |  |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -271,7 +307,40 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
+| ↳ `translations` |  | 번역 정보 |
+| ↳ ↳ `translated` |  |  |
+| ↳ ↳ `language_code` |  |  |
+| ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
+| ↳ ↳ `product_tag` |  |  |
+| ↳ ↳ `description` |  |  |
+| ↳ ↳ `mobile_description` |  |  |
+| ↳ ↳ `simple_description` |  |  |
+| ↳ ↳ `summary_description` |  |  |
+| ↳ ↳ `payment_info` |  |  |
+| ↳ ↳ `shipping_info` |  |  |
+| ↳ ↳ `exchange_info` |  |  |
+| ↳ ↳ `service_info` |  |  |
+| ↳ ↳ `product_material` |  |  |
+| ↳ ↳ `seo` |  | (응답 객체) |
+| ↳ ↳ ↳ `meta_title` |  |  |
+| ↳ ↳ ↳ `meta_author` |  |  |
+| ↳ ↳ ↳ `meta_description` |  |  |
+| ↳ ↳ ↳ `meta_keywords` |  |  |
+| ↳ ↳ ↳ `meta_alt` |  |  |
+| ↳ ↳ `options` |  | (목록) |
+| ↳ ↳ ↳ `name` |  |  |
+| ↳ ↳ ↳ `value` |  | (목록) |
+| ↳ ↳ `updated_date` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

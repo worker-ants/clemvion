@@ -38,7 +38,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `approve` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `status` |  | 상태 공급사가 승인 요청한 해당 상품의 승인 상태 N : 승인요청 (신규상품) 상태값 · E : 승인요청 (상품수정) 상태값 · C : 승인완료 상태값 · R : 승인거절 상태값 · I : 검수진행중 상태값 · Empty Value : 요청된적 없음 |
+| ↳ `product_no` |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -68,7 +77,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `approve` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `status` |  | 상태 공급사가 승인 요청한 해당 상품의 승인 상태 N : 승인요청 (신규상품) 상태값 · E : 승인요청 (상품수정) 상태값 · C : 승인완료 상태값 · R : 승인거절 상태값 · I : 검수진행중 상태값 · Empty Value : 요청된적 없음 |
+| ↳ `product_no` |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -99,7 +117,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `approve` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `status` |  | 상태 공급사가 승인 요청한 해당 상품의 승인 상태 N : 승인요청 (신규상품) 상태값 · E : 승인요청 (상품수정) 상태값 · C : 승인완료 상태값 · R : 승인거절 상태값 · I : 검수진행중 상태값 · Empty Value : 요청된적 없음 |
+| ↳ `product_no` |  | 상품번호 시스템에서 부여한 상품의 번호. 상품 번호는 쇼핑몰 내에서 중복되지 않는다. |
+
+응답 예시 (JSON):
 
 ```json
 {

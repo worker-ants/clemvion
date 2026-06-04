@@ -40,7 +40,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memos` |  | (목록) |
+| ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
+| ↳ `author_id` | 최대글자수 : [20자] | 작성자 아이디 메모를 작성한 관리자의 아이디 정보. |
+| ↳ `created_date` |  | 생성일 메모를 작성한 시간. |
+| ↳ `memo` |  | 메모 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -77,7 +87,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memo` |  | 메모 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
+| ↳ `author_id` | 최대글자수 : [20자] | 작성자 아이디 메모를 작성한 관리자의 아이디 정보. |
+| ↳ `created_date` |  | 생성일 메모를 작성한 시간. |
+| ↳ `memo` |  | 메모 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -108,7 +128,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memo` |  | 메모 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
+| ↳ `author_id` | 최대글자수 : [20자] | 작성자 아이디 메모를 작성한 관리자의 아이디 정보. |
+| ↳ `created_date` |  | 생성일 메모를 작성한 시간. |
+| ↳ `memo` |  | 메모 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -140,7 +170,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memo` |  | 메모 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
+| ↳ `author_id` | 최대글자수 : [20자] | 작성자 아이디 메모를 작성한 관리자의 아이디 정보. |
+| ↳ `created_date` |  | 생성일 메모를 작성한 시간. |
+| ↳ `memo` |  | 메모 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -169,7 +209,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `memo` |  | 메모 메모의 내용. HTML을 사용하여 등록할 수 있다. |
+| ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
+
+응답 예시 (JSON):
 
 ```json
 {

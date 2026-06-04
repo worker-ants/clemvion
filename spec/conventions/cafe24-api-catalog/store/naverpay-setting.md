@@ -49,7 +49,28 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `naverpay` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `authentication_key` |  | 네이버 공통 인증키 |
+| ↳ `naverpay_version` |  | 네이버페이 연동버전 |
+| ↳ `shop_id` |  | 페이센터 ID |
+| ↳ `is_button_show` |  | 네이버페이 구매 버튼 노출 |
+| ↳ `is_used_order` |  | 네이버 주문연동 |
+| ↳ `is_used_review` |  | 네이버 구매평연동 |
+| ↳ `is_show_review` |  | 네이버 구매평노출 |
+| ↳ `s_order_page` |  |  |
+| ↳ `certi_key` |  | 네이버 가맹점 인증키 |
+| ↳ `image_key` |  | 네이버 버튼 인증키 |
+| ↳ `naver_button_pc_product` |  | 네이버 버튼 디자인 : PC 상품상세페이지 |
+| ↳ `naver_button_pc_basket` |  | 네이버 버튼 디자인 : PC 장바구니페이지 |
+| ↳ `naver_button_mobile_product` |  | 네이버 버튼 디자인 : Mobile 상품상세페이지 |
+| ↳ `naver_button_mobile_basket` |  | 네이버 버튼 디자인 : Mobile 장바구니페이지 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -103,7 +124,27 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `naverpay` |  | (응답 객체) |
+| ↳ `authentication_key` |  | 네이버 공통 인증키 |
+| ↳ `naverpay_version` |  | 네이버페이 연동버전 |
+| ↳ `shop_id` |  | 페이센터 ID |
+| ↳ `is_button_show` |  | 네이버페이 구매 버튼 노출 |
+| ↳ `is_used_order` |  | 네이버 주문연동 |
+| ↳ `is_used_review` |  | 네이버 구매평연동 |
+| ↳ `is_show_review` |  | 네이버 구매평노출 |
+| ↳ `s_order_page` |  |  |
+| ↳ `certi_key` |  | 네이버 가맹점 인증키 |
+| ↳ `image_key` |  | 네이버 버튼 인증키 |
+| ↳ `naver_button_pc_product` |  | 네이버 버튼 디자인 : PC 상품상세페이지 |
+| ↳ `naver_button_pc_basket` |  | 네이버 버튼 디자인 : PC 장바구니페이지 |
+| ↳ `naver_button_mobile_product` |  | 네이버 버튼 디자인 : Mobile 상품상세페이지 |
+| ↳ `naver_button_mobile_basket` |  | 네이버 버튼 디자인 : Mobile 장바구니페이지 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -143,7 +184,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `naverpay` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `authentication_key` |  | 네이버 공통 인증키 |
+
+응답 예시 (JSON):
 
 ```json
 {

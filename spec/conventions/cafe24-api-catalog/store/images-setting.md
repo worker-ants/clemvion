@@ -36,7 +36,25 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `image` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `product_image_size` |  | 상품 이미지 사이즈 설정값 |
+| ↳ ↳ `detail_image_width` |  |  |
+| ↳ ↳ `detail_image_height` |  |  |
+| ↳ ↳ `list_image_width` |  |  |
+| ↳ ↳ `list_image_height` |  |  |
+| ↳ ↳ `tiny_image_width` |  |  |
+| ↳ ↳ `tiny_image_height` |  |  |
+| ↳ ↳ `zoom_image_width` |  |  |
+| ↳ ↳ `zoom_image_height` |  |  |
+| ↳ ↳ `small_image_width` |  |  |
+| ↳ ↳ `small_image_height` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -85,7 +103,25 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `image` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `product_image_size` |  | 상품 이미지 사이즈 설정값 |
+| ↳ ↳ `detail_image_width` |  |  |
+| ↳ ↳ `detail_image_height` |  |  |
+| ↳ ↳ `list_image_width` |  |  |
+| ↳ ↳ `list_image_height` |  |  |
+| ↳ ↳ `tiny_image_width` |  |  |
+| ↳ ↳ `tiny_image_height` |  |  |
+| ↳ ↳ `zoom_image_width` |  |  |
+| ↳ ↳ `zoom_image_height` |  |  |
+| ↳ ↳ `small_image_width` |  |  |
+| ↳ ↳ `small_image_height` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

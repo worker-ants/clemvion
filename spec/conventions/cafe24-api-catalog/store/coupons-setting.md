@@ -51,7 +51,47 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `coupon` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `use_coupon` |  | 쿠폰사용 T:사용함 · F:사용안함 |
+| ↳ `available_issue_type` |  | 쿠폰 사용 제한 A:주문서+상품별 쿠폰 사용 · O:주문서 쿠폰만 사용 · P:상품별 쿠폰만 사용 |
+| ↳ `allow_using_coupons_with_points` |  | 적립금 동시사용 T:사용함 · F:사용안함 |
+| ↳ `allow_using_coupons_with_discounts` |  | 할인 동시사용 A:쿠폰+회원등급 할인 동시 사용 · C:쿠폰만 사용 · G:회원등급 할인만 사용 |
+| ↳ `allow_using_product_and_order_coupons` |  | 상품/주문서 동시사용 T:사용함 · F:사용안함 |
+| ↳ `recover_coupon_setting` |  | 쿠폰 복원 설정 |
+| ↳ ↳ `restore_viewpoint` |  |  |
+| ↳ ↳ `cancel_before_pay` |  |  |
+| ↳ ↳ `cancel_after_pay` |  |  |
+| ↳ ↳ `return` |  |  |
+| ↳ ↳ `exchange` |  |  |
+| ↳ ↳ `part` |  |  |
+| ↳ `max_coupon_count` |  | 쿠폰 사용 개수 제한 |
+| ↳ ↳ `product_per_product` |  |  |
+| ↳ ↳ `order_per_order` |  |  |
+| ↳ ↳ `product_and_order_per_order` |  |  |
+| ↳ ↳ `product_per_order` |  |  |
+| ↳ ↳ `product_and_order_per_day` |  |  |
+| ↳ `use_additional_coupon` |  | 추가 사용 쿠폰 T:사용함 · F:사용안함 |
+| ↳ `additional_coupon_no` |  | 추가 사용 쿠폰 번호 |
+| ↳ ↳ `coupon_no` |  |  |
+| ↳ `expiration_notice_date_setting` |  | 쿠폰 만료일 안내 발송 기준 설정 |
+| ↳ ↳ `expiration_notice_date_type` |  |  |
+| ↳ ↳ `expiration_notice_date` |  | (응답 객체) |
+| ↳ ↳ ↳ `one_day` |  |  |
+| ↳ ↳ ↳ `three_day` |  |  |
+| ↳ ↳ ↳ `seven_day` |  |  |
+| ↳ `show_coupon_to_non_members` |  | 비회원 노출설정 T:노출함 · F:노출안함 |
+| ↳ `show_group_coupon_to_non_members` |  | 회원등급할인이 지정된 쿠폰 포함 T : 포함 · F : 미포함 |
+| ↳ `show_issued_coupon` |  | 발급된 쿠폰 표시 여부 T:노출함 · F:노출안함 |
+| ↳ `sorting_type` |  | 정렬 기준 A:쿠폰 시작일자 · B:쿠폰 종료일자 · C:쿠폰 발급일자 · D:할인/적립금액 · E:할인/적립율 |
+| ↳ `download_image_type` |  | 기본 쿠폰 다운로드 이미지 1:TYPE1 · 2:TYPE2 · 3:TYPE3 · 4:TYPE4 · 5:TYPE5 |
+| ↳ `background_image_type` |  | 기본 쿠폰 배경 이미지 1:TYPE1 · 2:TYPE2 · 3:TYPE3 · 4:TYPE4 · 5:TYPE5 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -151,7 +191,48 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `coupon` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `use_coupon` |  | 쿠폰사용 T:사용함 · F:사용안함 |
+| ↳ `available_issue_type` |  | 쿠폰 사용 제한 A:주문서+상품별 쿠폰 사용 · O:주문서 쿠폰만 사용 · P:상품별 쿠폰만 사용 |
+| ↳ `allow_using_coupons_with_points` |  | 적립금 동시사용 T:사용함 · F:사용안함 |
+| ↳ `allow_using_coupons_with_discounts` |  | 할인 동시사용 A:쿠폰+회원등급 할인 동시 사용 · C:쿠폰만 사용 · G:회원등급 할인만 사용 |
+| ↳ `allow_using_product_and_order_coupons` |  | 상품/주문서 동시사용 T:사용함 · F:사용안함 |
+| ↳ `recover_coupon_setting` |  | 쿠폰 복원 설정 |
+| ↳ ↳ `restore_viewpoint` |  |  |
+| ↳ ↳ `cancel_before_pay` |  |  |
+| ↳ ↳ `cancel_after_pay` |  |  |
+| ↳ ↳ `return` |  |  |
+| ↳ ↳ `exchange` |  |  |
+| ↳ ↳ `part` |  |  |
+| ↳ `max_coupon_count` |  | 쿠폰 사용 개수 제한 |
+| ↳ ↳ `product_per_product` |  |  |
+| ↳ ↳ `product_per_item` |  |  |
+| ↳ ↳ `order_per_order` |  |  |
+| ↳ ↳ `product_and_order_per_order` |  |  |
+| ↳ ↳ `product_per_order` |  |  |
+| ↳ ↳ `product_and_order_per_day` |  |  |
+| ↳ `use_additional_coupon` |  | 추가 사용 쿠폰 T:사용함 · F:사용안함 |
+| ↳ `additional_coupon_no` |  | 추가 사용 쿠폰 번호 |
+| ↳ ↳ `coupon_no` |  |  |
+| ↳ `expiration_notice_date_setting` |  | 쿠폰 만료일 안내 발송 기준 설정 |
+| ↳ ↳ `expiration_notice_date_type` |  |  |
+| ↳ ↳ `expiration_notice_date` |  | (응답 객체) |
+| ↳ ↳ ↳ `one_day` |  |  |
+| ↳ ↳ ↳ `three_day` |  |  |
+| ↳ ↳ ↳ `seven_day` |  |  |
+| ↳ `show_coupon_to_non_members` |  | 비회원 노출설정 T:노출함 · F:노출안함 |
+| ↳ `show_group_coupon_to_non_members` |  | 회원등급할인이 지정된 쿠폰 포함 T : 포함 · F : 미포함 |
+| ↳ `show_issued_coupon` |  | 발급된 쿠폰 표시 여부 T:노출함 · F:노출안함 |
+| ↳ `sorting_type` |  | 정렬 기준 A:쿠폰 시작일자 · B:쿠폰 종료일자 · C:쿠폰 발급일자 · D:할인/적립금액 · E:할인/적립율 |
+| ↳ `download_image_type` |  | 기본 쿠폰 다운로드 이미지 1:TYPE1 · 2:TYPE2 · 3:TYPE3 · 4:TYPE4 · 5:TYPE5 |
+| ↳ `background_image_type` |  | 기본 쿠폰 배경 이미지 1:TYPE1 · 2:TYPE2 · 3:TYPE3 · 4:TYPE4 · 5:TYPE5 |
+
+응답 예시 (JSON):
 
 ```json
 {

@@ -40,7 +40,31 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `strikethrough_retail_price` |  | 소비자가 취소선 표시 |
+| ↳ `strikethrough_price` |  | 판매가 취소선 표시 |
+| ↳ `product_tax_type_text` |  | 판매가 부가세 표시문구 |
+| ↳ ↳ `use` |  |  |
+| ↳ ↳ `color` |  |  |
+| ↳ ↳ `font_size` |  |  |
+| ↳ ↳ `font_type` |  |  |
+| ↳ `product_discount_price_text` |  | 할인판매가 할인금액 표시문구 |
+| ↳ ↳ `use` |  |  |
+| ↳ ↳ `color` |  |  |
+| ↳ ↳ `font_size` |  |  |
+| ↳ ↳ `font_type` |  |  |
+| ↳ `optimum_discount_price_text` |  | 최적할인가 할인금액 표시문구 |
+| ↳ ↳ `use` |  |  |
+| ↳ ↳ `color` |  |  |
+| ↳ ↳ `font_size` |  |  |
+| ↳ ↳ `font_type` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -103,7 +127,31 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `product` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `strikethrough_retail_price` |  | 소비자가 취소선 표시 |
+| ↳ `strikethrough_price` |  | 판매가 취소선 표시 |
+| ↳ `product_tax_type_text` |  | 판매가 부가세 표시문구 |
+| ↳ ↳ `use` |  |  |
+| ↳ ↳ `color` |  |  |
+| ↳ ↳ `font_size` |  |  |
+| ↳ ↳ `font_type` |  |  |
+| ↳ `product_discount_price_text` |  | 할인판매가 할인금액 표시문구 |
+| ↳ ↳ `use` |  |  |
+| ↳ ↳ `color` |  |  |
+| ↳ ↳ `font_size` |  |  |
+| ↳ ↳ `font_type` |  |  |
+| ↳ `optimum_discount_price_text` |  | 최적할인가 할인금액 표시문구 |
+| ↳ ↳ `use` |  |  |
+| ↳ ↳ `color` |  |  |
+| ↳ ↳ `font_size` |  |  |
+| ↳ ↳ `font_type` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

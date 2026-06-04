@@ -44,7 +44,26 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `additionalfees` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `oversea_additional_fee` |  | 해외배송 부가금액 사용여부 |
+| ↳ `country_code` |  | 국가코드 |
+| ↳ `fee_name` |  | 부과금액 명칭 |
+| ↳ `min_value` |  | 조건 최소값 |
+| ↳ `max_value` |  | 조건 최대값 |
+| ↳ `additional_fee` |  | 부가금액 |
+| ↳ `unit` |  | 해외배송 부가금액 단위 W : 정액 · P : 퍼센트 |
+| ↳ `rounding_unit` |  | 절사단위 F : 절사안함 · 0 : 1원단위 · 1 : 10원단위 · 2 : 100원단위 · 3 : 1000원단위 |
+| ↳ `rounding_rule` |  | 절사 방법 L : 내림 · U : 반올림 · C : 올림 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

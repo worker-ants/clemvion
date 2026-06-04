@@ -41,7 +41,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `labels` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `names` |  | 주문 라벨명 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -74,7 +82,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `label` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `order_item_code` |  | 품주코드 |
+| ↳ `names` |  | 주문 라벨명 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -109,7 +127,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `label` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `names` |  | 주문 라벨명 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -141,7 +167,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `label` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `order_item_code` |  | 품주코드 |
+| ↳ `name` |  | 주문 라벨명 |
+
+응답 예시 (JSON):
 
 ```json
 {

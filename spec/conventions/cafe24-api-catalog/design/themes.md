@@ -51,7 +51,30 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `themes` |  | (목록) |
+| ↳ `skin_no` | 최소값: [1] | 디자인 번호 |
+| ↳ `skin_code` |  | 디자인 코드 |
+| ↳ `skin_name` | 최대글자수 : [100자] | 디자인명 |
+| ↳ `skin_thumbnail_url` | 최대글자수 : [255자] | 디자인 썸네일 이미지 URL |
+| ↳ `usage_type` |  | 디자인 용도 구분 S : PC 기본스킨 · C : PC 복사된 스킨 · I : PC 상속된 스킨 · M : 모바일 기본스킨/상속된 스킨 · N : 모바일 복사된 스킨 |
+| ↳ `editor_type` |  | 에디터 타입 H : 스마트 디자인 (HTML) · D : 에디봇 디자인 (Drag & Drop) · W : 심플 디자인 (WYSIWYG) · E : 스마트디자인Easy · C : 콘텐츠스튜디오(Contents Studio) |
+| ↳ `parent_skin_no` |  | 부모 디자인 번호 |
+| ↳ `seller_id` |  | 판매자 디자인센터 아이디 |
+| ↳ `seller_skin_code` |  | 판매자 디자인 코드 |
+| ↳ `design_purchase_no` | 최소값: [0] | 디자인 구매 번호 |
+| ↳ `design_product_code` |  | 디자인센터 상품 코드 |
+| ↳ `language_code` | 최소글자수 : [5자]; 최대글자수 : [5자] | 언어 코드 ko_KR : 국문 · en_US : 영문 · zh_CN : 중문(간체) · zh_TW : 중문(번체) · ja_JP : 일문 · pt_PT : 포르투갈어 · es_ES : 스페인어 · vi_VN : 베트남어 |
+| ↳ `published_in` |  | 대표디자인 설정 멀티쇼핑몰 번호 |
+| ↳ `created_date` | 날짜 | 생성일 |
+| ↳ `updated_date` | 날짜 | 수정일 |
+| ↳ `skin_lock` |  | 디자인 잠금 T : 잠금 · F : 해제 |
+| ↳ `preview_domain` |  | 도메인 조회 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -119,7 +142,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -142,7 +171,30 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `theme` |  | (응답 객체) |
+| ↳ `skin_no` | 최소값: [1] | 디자인 번호 |
+| ↳ `skin_code` |  | 디자인 코드 |
+| ↳ `skin_name` | 최대글자수 : [100자] | 디자인명 |
+| ↳ `skin_thumbnail_url` | 최대글자수 : [255자] | 디자인 썸네일 이미지 URL |
+| ↳ `usage_type` |  | 디자인 용도 구분 S : PC 기본스킨 · C : PC 복사된 스킨 · I : PC 상속된 스킨 · M : 모바일 기본스킨/상속된 스킨 · N : 모바일 복사된 스킨 |
+| ↳ `editor_type` |  | 에디터 타입 H : 스마트 디자인 (HTML) · D : 에디봇 디자인 (Drag & Drop) · W : 심플 디자인 (WYSIWYG) · E : 스마트디자인Easy · C : 콘텐츠스튜디오(Contents Studio) |
+| ↳ `parent_skin_no` |  | 부모 디자인 번호 |
+| ↳ `seller_id` |  | 판매자 디자인센터 아이디 |
+| ↳ `seller_skin_code` |  | 판매자 디자인 코드 |
+| ↳ `design_purchase_no` | 최소값: [0] | 디자인 구매 번호 |
+| ↳ `design_product_code` |  | 디자인센터 상품 코드 |
+| ↳ `language_code` | 최소글자수 : [5자]; 최대글자수 : [5자] | 언어 코드 ko_KR : 국문 · en_US : 영문 · zh_CN : 중문(간체) · zh_TW : 중문(번체) · ja_JP : 일문 · pt_PT : 포르투갈어 · es_ES : 스페인어 · vi_VN : 베트남어 |
+| ↳ `published_in` |  | 대표디자인 설정 멀티쇼핑몰 번호 |
+| ↳ `created_date` | 날짜 | 생성일 |
+| ↳ `updated_date` | 날짜 | 수정일 |
+| ↳ `skin_lock` |  | 디자인 잠금 T : 잠금 · F : 해제 |
+| ↳ `preview_domain` |  | 도메인 조회 |
+
+응답 예시 (JSON):
 
 ```json
 {

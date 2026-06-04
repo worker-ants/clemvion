@@ -44,7 +44,25 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `reply` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `article_no` |  | 게시물 번호 |
+| ↳ `created_date` | 날짜 | 답변 등록일 |
+| ↳ `status` |  | 답변 처리 상태 F: 미처리 · I: 처리중 · T: 처리완료 |
+| ↳ `content` |  | 답변 내용 |
+| ↳ `method` |  | 답변 방법 E:이메일 · S:SMS · A:전부 |
+| ↳ `count` |  | 답변 처리 횟수 |
+| ↳ `user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
+| ↳ `attached_file_detail` |  | 첨부 파일 상세 |
+| ↳ ↳ `no` |  |  |
+| ↳ ↳ `source` |  |  |
+| ↳ ↳ `name` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -96,7 +114,25 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `reply` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `article_no` |  | 게시물 번호 |
+| ↳ `created_date` | 날짜 | 답변 등록일 |
+| ↳ `status` |  | 답변 처리 상태 F: 미처리 · I: 처리중 · T: 처리완료 |
+| ↳ `content` |  | 답변 내용 |
+| ↳ `method` |  | 답변 방법 E:이메일 · S:SMS · A:전부 |
+| ↳ `count` |  | 답변 처리 횟수 |
+| ↳ `user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
+| ↳ `attached_file_detail` |  | 첨부 파일 상세 |
+| ↳ ↳ `no` |  |  |
+| ↳ ↳ `source` |  |  |
+| ↳ ↳ `name` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -148,7 +184,25 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `reply` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `article_no` |  | 게시물 번호 |
+| ↳ `created_date` | 날짜 | 답변 등록일 |
+| ↳ `status` |  | 답변 처리 상태 F: 미처리 · I: 처리중 · T: 처리완료 |
+| ↳ `content` |  | 답변 내용 |
+| ↳ `method` |  | 답변 방법 E:이메일 · S:SMS · A:전부 |
+| ↳ `count` |  | 답변 처리 횟수 |
+| ↳ `user_id` |  | 처리중 또는 답변완료 한 운영자 아이디 |
+| ↳ `attached_file_detail` |  | 첨부 파일 상세 |
+| ↳ ↳ `no` |  |  |
+| ↳ ↳ `source` |  |  |
+| ↳ ↳ `name` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

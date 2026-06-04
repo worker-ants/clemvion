@@ -81,7 +81,42 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `reservations` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `order_item_code` |  | 품주코드 |
+| ↳ `order_date` |  | 주문일 |
+| ↳ `payment_date` |  | 결제일 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `buyer_name` |  |  |
+| ↳ `order_status` |  | 주문상태 |
+| ↳ `paid` |  | 결제 여부 T : 결제 · F : 미결제 · M : 부분 결제 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `product_name` |  | 상품명 |
+| ↳ `product_price` |  | 상품 판매가 |
+| ↳ `option_price` |  | 옵션 추가 가격 |
+| ↳ `quantity` |  | 수량 |
+| ↳ `option_value` |  | 옵션값 |
+| ↳ `additional_option_values` |  | 추가입력 옵션 목록 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `type` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `value` |  |  |
+| ↳ `payment_amount` |  | 품목별 결제금액 |
+| ↳ `service_use_date` |  | 서비스 이용일 |
+| ↳ `service_available_start_date` |  | 서비스 이용가능기간 시작일 |
+| ↳ `service_available_end_date` |  | 서비스 이용가능기간 종료일 |
+| ↳ `service_completion_date` |  | 서비스 이용 완료일 |
+| ↳ `cancel_fee_amount` |  | 취소수수료 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `hredf` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

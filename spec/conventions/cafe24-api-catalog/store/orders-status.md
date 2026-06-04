@@ -39,7 +39,18 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `status` |  | (목록) |
+| ↳ `status_name_id` |  | 주문상태 표기명 일련번호 |
+| ↳ `status_type` |  | 주문상태 유형 P: 결제 및 배송 · D: 후불 결제 · C: 취소 · R: 반품 · E: 교환 · U: 환불 · O: 기타 |
+| ↳ `basic_name` |  | 기본 표기 주문상태명 |
+| ↳ `custom_name` |  | 사용자 정의 주문상태명 |
+| ↳ `reservation_custom_name` |  | 예약주문 사용자 정의 주문상태명 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -81,7 +92,18 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `status` |  | (목록) |
+| ↳ `status_name_id` |  | 주문상태 표기명 일련번호 |
+| ↳ `status_type` |  | 주문상태 유형 P: 결제 및 배송 · D: 후불 결제 · C: 취소 · R: 반품 · E: 교환 · U: 환불 · O: 기타 |
+| ↳ `basic_name` |  | 기본 표기 주문상태명 |
+| ↳ `custom_name` |  | 사용자 정의 주문상태명 |
+| ↳ `reservation_custom_name` |  | 예약주문 사용자 정의 주문상태명 |
+
+응답 예시 (JSON):
 
 ```json
 {

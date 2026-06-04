@@ -41,7 +41,20 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `accounts` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `bank_account_id` |  | 무통장 입금 은행 ID |
+| ↳ `bank_name` |  | 은행명 |
+| ↳ `bank_code` | 최대글자수 : [50자] | 은행코드 bank_code |
+| ↳ `bank_account_no` |  | 계좌번호 |
+| ↳ `bank_account_holder` |  | 예금주 |
+| ↳ `use_account` |  | 사용여부 T : 사용함 · F : 사용안함 |
+
+응답 예시 (JSON):
 
 ```json
 {

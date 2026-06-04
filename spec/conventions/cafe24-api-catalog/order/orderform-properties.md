@@ -52,7 +52,31 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `properties` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `additional_items` |  | 주문서 추가항목 |
+| ↳ ↳ `orderform_property_id` |  | 주문서 추가항목 고유번호 |
+| ↳ ↳ `input_type` |  | 주문서 추가항목 입력 형식 T : 텍스트박스(한줄) · M : 텍스트박스(여러줄) · R : 라디오버튼 · C : 체크박스 · S : 셀렉트박스 · D : 캘린더 · I : 시간 |
+| ↳ ↳ `is_required` |  | 주문서 추가항목 필수 여부 T : 필수 · F : 선택 |
+| ↳ ↳ `subject` |  | 주문서 추가항목명 |
+| ↳ ↳ `description` |  | 주문서 추가항목 설명 |
+| ↳ ↳ `field_length` |  | 주문서 추가항목 필드 길이 (텍스트박스) |
+| ↳ ↳ `max_input_length` |  | 주문서 추가항목 입력 가능한 최대 글자 수 |
+| ↳ ↳ `textarea_rows` |  | 주문서 추가항목 행 수 (여러 줄 입력 시) |
+| ↳ ↳ `width_percentage` |  | 주문서 추가항목 가로길이 (%) |
+| ↳ ↳ `option_values` |  | 주문서 추가항목 입력값 |
+| ↳ ↳ `display_lines_desktop` |  | 한 줄에 표시할 옵션 개수 (PC) |
+| ↳ ↳ `display_lines_mobile` |  | 한 줄에 표시할 옵션 개수 (모바일) |
+| ↳ ↳ `available_product_type` |  | 적용 대상 상품 설정 A : 전체상품 · C : 상품분류별 · P : 개별상품 |
+| ↳ ↳ `input_scope` |  | 입력값 적용 범위 (공통 또는 상품별) A : 공통으로 한번만 입력 받기 · P : 상품별로 입력 받기 |
+| ↳ ↳ `category_no` |  | 주문서 추가항목 지정 상품분류 번호 |
+| ↳ ↳ `product_no` |  | 주문서 추가항목 지정 상품 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -131,7 +155,29 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `properties` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `input_type` |  | 주문서 추가항목 입력 형식 T : 텍스트박스(한줄) · M : 텍스트박스(여러줄) · R : 라디오버튼 · C : 체크박스 · S : 셀렉트박스 · D : 캘린더 · I : 시간 |
+| ↳ `is_required` |  | 주문서 추가항목 필수 여부 T : 필수 · F : 선택 |
+| ↳ `subject` |  | 주문서 추가항목명 |
+| ↳ `available_product_type` |  | 적용 대상 상품 설정 A : 전체상품 · C : 상품분류별 · P : 개별상품 |
+| ↳ `input_scope` |  | 입력값 적용 범위 (공통 또는 상품별) A : 공통으로 한번만 입력 받기 · P : 상품별로 입력 받기 |
+| ↳ `description` |  | 주문서 추가항목 설명 |
+| ↳ `field_length` |  | 주문서 추가항목 필드 길이 (텍스트박스) |
+| ↳ `max_input_length` |  | 주문서 추가항목 입력 가능한 최대 글자 수 |
+| ↳ `textarea_rows` |  | 주문서 추가항목 행 수 (여러 줄 입력 시) |
+| ↳ `width_percentage` |  | 주문서 추가항목 가로길이 (%) |
+| ↳ `option_values` |  | 주문서 추가항목 입력값 |
+| ↳ `display_lines_desktop` |  | 한 줄에 표시할 옵션 개수 (PC) |
+| ↳ `display_lines_mobile` |  | 한 줄에 표시할 옵션 개수 (모바일) |
+| ↳ `category_no` |  | 주문서 추가항목 지정 상품분류 번호 |
+| ↳ `product_no` |  | 주문서 추가항목 지정 상품 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -208,7 +254,22 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `properties` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `input_type` |  | 주문서 추가항목 입력 형식 T : 텍스트박스(한줄) · M : 텍스트박스(여러줄) · R : 라디오버튼 · C : 체크박스 · S : 셀렉트박스 · D : 캘린더 · I : 시간 |
+| ↳ `is_required` |  | 주문서 추가항목 필수 여부 T : 필수 · F : 선택 |
+| ↳ `subject` |  | 주문서 추가항목명 |
+| ↳ `description` |  | 주문서 추가항목 설명 |
+| ↳ `field_length` |  | 주문서 추가항목 필드 길이 (텍스트박스) |
+| ↳ `max_input_length` |  | 주문서 추가항목 입력 가능한 최대 글자 수 |
+| ↳ `available_product_type` |  | 적용 대상 상품 설정 A : 전체상품 · C : 상품분류별 · P : 개별상품 |
+| ↳ `input_scope` |  | 입력값 적용 범위 (공통 또는 상품별) A : 공통으로 한번만 입력 받기 · P : 상품별로 입력 받기 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -242,7 +303,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `properties` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `orderform_property_id` |  | 주문서 추가항목 고유번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

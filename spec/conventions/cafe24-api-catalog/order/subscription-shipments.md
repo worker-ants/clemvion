@@ -75,7 +75,68 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shipments` |  | (목록) |
+| ↳ `subscription_id` |  | 정기배송 신청번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `buyer_name` |  | 주문자 이름 |
+| ↳ `buyer_zipcode` |  | 주문자 우편번호 |
+| ↳ `buyer_address1` |  | 주문자 기본 주소 |
+| ↳ `buyer_address2` |  | 주문자 상세 주소 |
+| ↳ `buyer_phone` |  | 주문자 일반 전화 |
+| ↳ `buyer_cellphone` |  | 주문자 휴대 전화 |
+| ↳ `buyer_email` |  | 주문자 이메일 |
+| ↳ `receiver_name` | 최대글자수 : [100자] | 수령자 명 |
+| ↳ `receiver_zipcode` |  | 수령자 우편번호 |
+| ↳ `receiver_address1` |  | 수령자 기본 주소 |
+| ↳ `receiver_address2` |  | 수령자 상세 주소 |
+| ↳ `receiver_phone` |  | 수령자 일반 전화 |
+| ↳ `receiver_cellphone` |  | 수령자 휴대 전화 |
+| ↳ `shipping_message` |  | 배송 메세지 |
+| ↳ `shipping_type` |  |  |
+| ↳ `wished_delivery` |  | 희망배송일 사용여부 T : 사용함 · F : 사용안함 |
+| ↳ `wished_delivery_start_hour` |  | 희망배송시작시간 |
+| ↳ `wished_delivery_end_hour` |  | 희망배송종료시간 |
+| ↳ `wished_delivery_hour_asap` |  | 가능한 빠른 배송시간 T : 사용함 · F : 사용안함 |
+| ↳ `created_date` |  | 신청일자 |
+| ↳ `terminated_date` |  |  |
+| ↳ `subscription_state` |  | 정기배송 상태 U:이용중 · P: 일시정지 · C:해지 |
+| ↳ `items` |  | 주문상품목록 |
+| ↳ ↳ `variants_code` |  |  |
+| ↳ ↳ `product_code` |  |  |
+| ↳ ↳ `subscription_item_id` |  |  |
+| ↳ ↳ `product_no` |  |  |
+| ↳ ↳ `product_name` |  |  |
+| ↳ ↳ `option_value` |  |  |
+| ↳ ↳ `option_value_default` |  |  |
+| ↳ ↳ `option_id` |  |  |
+| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `product_price` |  |  |
+| ↳ ↳ `option_price` |  |  |
+| ↳ ↳ `shipping_payment_option` |  |  |
+| ↳ ↳ `subscription_shipments_sequence` |  |  |
+| ↳ ↳ `subscription_state` |  | 정기배송 상태 U:이용중 · P: 일시정지 · C:해지 |
+| ↳ ↳ `expected_pay_date` |  |  |
+| ↳ ↳ `terminated_date` |  |  |
+| ↳ ↳ `product_bundle` |  |  |
+| ↳ ↳ `product_bundle_price` |  |  |
+| ↳ ↳ `bundle_product_components` |  | (목록) |
+| ↳ ↳ ↳ `variants_code` |  |  |
+| ↳ ↳ ↳ `product_code` |  |  |
+| ↳ ↳ ↳ `product_no` |  |  |
+| ↳ ↳ ↳ `product_name` |  |  |
+| ↳ ↳ ↳ `option_value` |  |  |
+| ↳ ↳ ↳ `option_value_default` |  |  |
+| ↳ ↳ ↳ `option_id` |  |  |
+| ↳ ↳ ↳ `quantity` |  |  |
+| ↳ ↳ ↳ `product_price` |  |  |
+| ↳ ↳ ↳ `option_price` |  |  |
+| ↳ ↳ `max_delivery_limit` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -354,7 +415,17 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shipments` |  | (목록) |
+| ↳ `subscription_id` |  | 정기배송 신청번호 |
+| ↳ `items` |  | 주문상품목록 |
+| ↳ ↳ `variant_code` |  |  |
+| ↳ ↳ `option_id` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -413,7 +484,21 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `shipments` |  | (응답 객체) |
+| ↳ `receiver_name` | 최대글자수 : [100자] | 수령자 명 |
+| ↳ `receiver_zipcode` |  | 수령자 우편번호 |
+| ↳ `receiver_address1` |  | 수령자 기본 주소 |
+| ↳ `receiver_address2` |  | 수령자 상세 주소 |
+| ↳ `receiver_phone` |  | 수령자 일반 전화 |
+| ↳ `receiver_cellphone` |  | 수령자 휴대 전화 |
+| ↳ `shipping_message` |  | 배송 메세지 |
+| ↳ `subscription_state` |  | 정기배송 상태 U:이용중 · P: 일시정지 · C:해지 |
+
+응답 예시 (JSON):
 
 ```json
 {

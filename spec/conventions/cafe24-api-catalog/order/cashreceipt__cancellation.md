@@ -40,7 +40,16 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `cancellation` |  | (응답 객체) |
+| ↳ `cashreceipt_no` |  | 현금영수증 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `status` |  | 처리상태 신청취소: canceled_request · 발행취소: canceled_issuance |
+
+응답 예시 (JSON):
 
 ```json
 {

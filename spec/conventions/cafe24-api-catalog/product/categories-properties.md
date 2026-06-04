@@ -43,7 +43,25 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `category` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `display_group` | 최소: [1]~최대: [3] | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 |
+| ↳ `separated_category` |  | 분류별 별도등록 T : 사용함 · F : 사용안함 |
+| ↳ `category_no` |  | 카테고리 번호 |
+| ↳ `properties` |  | 항목 속성 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `display` |  |  |
+| ↳ ↳ `display_name` |  |  |
+| ↳ ↳ `font_type` |  |  |
+| ↳ ↳ `font_size` |  |  |
+| ↳ ↳ `font_color` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -101,7 +119,24 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `category` |  | (응답 객체) |
+| ↳ `property` |  | 항목 속성 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `multishop_display_names` |  | (목록) |
+| ↳ ↳ ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ ↳ ↳ `name` |  |  |
+| ↳ ↳ `display` |  |  |
+| ↳ ↳ `display_name` |  |  |
+| ↳ ↳ `font_type` |  |  |
+| ↳ ↳ `font_size` |  |  |
+| ↳ ↳ `font_color` |  |  |
+| ↳ ↳ `exposure_group_type` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -156,7 +191,25 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `category` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `display_group` | 최소: [1]~최대: [3] | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 |
+| ↳ `separated_category` |  | 분류별 별도등록 T : 사용함 · F : 사용안함 |
+| ↳ `category_no` |  | 카테고리 번호 |
+| ↳ `properties` |  | 항목 속성 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `display` |  |  |
+| ↳ ↳ `display_name` |  |  |
+| ↳ ↳ `font_type` |  |  |
+| ↳ ↳ `font_size` |  |  |
+| ↳ ↳ `font_color` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

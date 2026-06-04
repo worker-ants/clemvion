@@ -50,7 +50,30 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `carts` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `basket_product_no` |  | 장바구니 상품번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `created_date` |  | 담은일자 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `additional_option_values` |  | 추가입력 옵션 |
+| ↳ ↳ `key` |  |  |
+| ↳ ↳ `type` |  |  |
+| ↳ ↳ `value` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ `variant_code` | 형식 : [A-Z0-9]; 글자수 최소: [12자]~최대: [12자] | 상품 품목 코드 |
+| ↳ `quantity` |  | 수량 |
+| ↳ `product_price` |  | 상품 판매가 |
+| ↳ `option_price` |  | 옵션 추가 가격 |
+| ↳ `product_bundle` |  | 세트상품 여부 T : 세트상품 · F : 세트상품 아님 |
+| ↳ `shipping_type` |  | 배송 유형 A : 국내 · B : 해외 |
+| ↳ `category_no` |  | 분류 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

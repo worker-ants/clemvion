@@ -62,7 +62,29 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `points` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `case` |  | 적립금 타입 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `email` |  | 이메일 |
+| ↳ `group_name` |  | 회원등급명 |
+| ↳ `available_points_increase` |  | 적립금 증가 |
+| ↳ `available_points_decrease` |  | 적립금 차감 |
+| ↳ `available_points_total` |  | 가용 적립금 |
+| ↳ `unavailable_points` |  | 미가용 적립금 |
+| ↳ `order_date` |  | 주문일 |
+| ↳ `issue_date` |  | 적립금 지급일 |
+| ↳ `available_date` |  | 미가용 적립금 사용 가능일 |
+| ↳ `admin_id` |  | 관리자 아이디 |
+| ↳ `admin_name` |  | 관리자 이름 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `reason` |  | 적립 사유 적립금을 증가/차감하는 사유를 입력할 수 있다. |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -128,7 +150,19 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `points` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |
+| ↳ `type` |  | 적립금 증가/차감 여부 적립금을 증가시킬지 차감시킬지 여부를 선택할 수 있다. |
+| ↳ `reason` |  | 적립 사유 적립금을 증가/차감하는 사유를 입력할 수 있다. |
+
+응답 예시 (JSON):
 
 ```json
 {

@@ -63,7 +63,51 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `migrations` |  | (목록) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `order_date` |  | 주문일 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `payment_status` |  | 결제상태 |
+| ↳ `order_status` |  | 주문상태 |
+| ↳ `payed_amount` |  | 실결제금액 |
+| ↳ `bank_code_name` |  | 입금자 은행명 |
+| ↳ `bank_account_owner_name` |  | 예금주 |
+| ↳ `payment_method` |  | 결제수단 코드 |
+| ↳ `mileage_used` |  | 적립금사용금액 |
+| ↳ `deposit_used` |  | 예치금사용금액 |
+| ↳ `buyer` |  | 주문자정보 리소스 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address` |  |  |
+| ↳ ↳ `email` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `cellphone` |  |  |
+| ↳ ↳ `message` |  |  |
+| ↳ `receivers` |  | 수령자정보 리소스 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address` |  |  |
+| ↳ ↳ `email` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `cellphone` |  |  |
+| ↳ `items` |  | 품주 리소스 |
+| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `payment_status` |  | 결제상태 |
+| ↳ ↳ `order_status` |  | 주문상태 |
+| ↳ ↳ `payed_amount` |  | 실결제금액 |
+| ↳ ↳ `product_no` |  |  |
+| ↳ ↳ `product_name` |  |  |
+| ↳ ↳ `option` |  |  |
+| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `product_price` |  |  |
+| ↳ ↳ `total_payed_amount` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -237,7 +281,51 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `migrations` |  | (목록) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `order_date` |  | 주문일 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `payment_status` |  | 결제상태 |
+| ↳ `order_status` |  | 주문상태 |
+| ↳ `payed_amount` |  | 실결제금액 |
+| ↳ `bank_code_name` |  | 입금자 은행명 |
+| ↳ `bank_account_owner_name` |  | 예금주 |
+| ↳ `payment_method` |  | 결제수단 코드 |
+| ↳ `mileage_used` |  | 적립금사용금액 |
+| ↳ `deposit_used` |  | 예치금사용금액 |
+| ↳ `buyer` |  | 주문자정보 리소스 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address` |  |  |
+| ↳ ↳ `email` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `cellphone` |  |  |
+| ↳ ↳ `message` |  |  |
+| ↳ `receivers` |  | 수령자정보 리소스 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address` |  |  |
+| ↳ ↳ `email` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `cellphone` |  |  |
+| ↳ `items` |  | 품주 리소스 |
+| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `payment_status` |  | 결제상태 |
+| ↳ ↳ `order_status` |  | 주문상태 |
+| ↳ ↳ `payed_amount` |  | 실결제금액 |
+| ↳ ↳ `product_no` |  |  |
+| ↳ ↳ `product_name` |  |  |
+| ↳ ↳ `option` |  |  |
+| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `product_price` |  |  |
+| ↳ ↳ `total_payed_amount` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -412,7 +500,51 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `migrations` |  | (목록) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `order_date` |  | 주문일 |
+| ↳ `member_id` |  | 회원아이디 |
+| ↳ `payment_status` |  | 결제상태 |
+| ↳ `order_status` |  | 주문상태 |
+| ↳ `payed_amount` |  | 실결제금액 |
+| ↳ `bank_code_name` |  | 입금자 은행명 |
+| ↳ `bank_account_owner_name` |  | 예금주 |
+| ↳ `payment_method` |  | 결제수단 코드 |
+| ↳ `mileage_used` |  | 적립금사용금액 |
+| ↳ `deposit_used` |  | 예치금사용금액 |
+| ↳ `buyer` |  | 주문자정보 리소스 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address` |  |  |
+| ↳ ↳ `email` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `cellphone` |  |  |
+| ↳ ↳ `message` |  |  |
+| ↳ `receivers` |  | 수령자정보 리소스 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address` |  |  |
+| ↳ ↳ `email` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `cellphone` |  |  |
+| ↳ `items` |  | 품주 리소스 |
+| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `payment_status` |  | 결제상태 |
+| ↳ ↳ `order_status` |  | 주문상태 |
+| ↳ ↳ `payed_amount` |  | 실결제금액 |
+| ↳ ↳ `product_no` |  |  |
+| ↳ ↳ `product_name` |  |  |
+| ↳ ↳ `option` |  |  |
+| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `product_price` |  |  |
+| ↳ ↳ `total_payed_amount` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -551,7 +683,15 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `migration` |  | (응답 객체) |
+| ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

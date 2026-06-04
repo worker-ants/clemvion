@@ -59,7 +59,36 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `hourlysales` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `collection_date` |  | 정산 수집 일자 |
+| ↳ `collection_hour` |  | 정산 수집 시간 |
+| ↳ `order_count` |  | 주문수 |
+| ↳ `item_count` |  | 품목수 |
+| ↳ `order_price_amount` |  | 상품 구매금액 |
+| ↳ `shipping_fee` |  | 배송비 |
+| ↳ `order_sale_price` |  | 할인금액 |
+| ↳ `coupon_discount_price` |  | 쿠폰 할인금액 |
+| ↳ `actual_order_amount` |  | 실결제금액 |
+| ↳ `refund_amount` |  | 환불 금액 |
+| ↳ `sales` |  | 순매출 |
+| ↳ `used_points` |  | 적립금 |
+| ↳ `used_credits` |  | 예치금 |
+| ↳ `used_naver_points` |  | 네이버 마일리지 |
+| ↳ `used_naver_cash` |  | 네이버캐시 |
+| ↳ `refund_points` |  | 환불 적립금 |
+| ↳ `refund_credits` |  | 환불 예치금 |
+| ↳ `refund_naver_points` |  | 환불 네이버 마일리지 |
+| ↳ `refund_naver_cash` |  | 환불 네이버캐시 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

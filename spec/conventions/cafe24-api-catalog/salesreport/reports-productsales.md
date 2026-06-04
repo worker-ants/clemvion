@@ -53,7 +53,30 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `productsales` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `collection_date` |  | 정산 수집 일자 |
+| ↳ `collection_hour` |  | 정산 수집 시간 |
+| ↳ `product_no` |  | 상품번호 |
+| ↳ `variants_code` |  | 품목코드 |
+| ↳ `product_price` |  | 상품 구매금액 |
+| ↳ `settle_count` |  | 결제완료 수량 |
+| ↳ `refund_count` |  | 환불완료 수량 |
+| ↳ `sale_count` |  | 판매완료 수량 |
+| ↳ `exchange_product_count` |  | 교환완료 수량 |
+| ↳ `cancel_product_count` |  | 취소완료 수량 |
+| ↳ `return_product_count` |  | 반품완료 수량 |
+| ↳ `total_sale_count` |  | 누적 판매 수량 |
+| ↳ `total_cancel_count` |  | 누적 취소 수량 |
+| `links` |  | (목록) |
+| ↳ `rel` |  |  |
+| ↳ `href` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

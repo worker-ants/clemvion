@@ -61,7 +61,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `discountcodes` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `discount_code_no` |  | 할인코드 번호 |
+| ↳ `discount_code` |  | 할인코드 |
+| ↳ `discount_code_name` |  | 할인코드 이름 |
+| ↳ `available_product_type` |  | 할인코드 적용범위 할인코드의 적용범위가 A(전체상품) 일 경우 할인코드적용 상품(available_product) 및 할인코드적용 분류(available_category) 는 입력 필요 없음 · 할인코드의 적용범위가 P(특정상품) 일 경우 할인코드적용 상품(available_product) 은 필수 입력 · 할인코드의 적용범위가 C(특정분류) 일 경우 할인코드적용 분류(available_category)는 필수 입력 · A : 전체상품 · P : 특정상품 · C : 특정분류 |
+| ↳ `available_start_date` |  | 시작일 |
+| ↳ `available_end_date` |  | 종료일 |
+| ↳ `created_date` |  | 혜택 등록일 |
+| ↳ `issued_count` |  | 발급된 수량 |
+| ↳ `available_issue_count` |  | 최대 발급 횟수 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -110,7 +126,29 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `discountcode` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `discount_code_no` |  | 할인코드 번호 |
+| ↳ `discount_code` |  | 할인코드 |
+| ↳ `discount_code_name` |  | 할인코드 이름 |
+| ↳ `discount_value` |  | 할인 값 |
+| ↳ `discount_truncation_unit` |  | 절사 단위 C : 0.01단위 · B : 0.1단위 · F : 절사안함 · O : 1원단위 · T : 10원단위 · M : 100원단위 · H : 1000원 단위 |
+| ↳ `discount_max_price` |  | 혜택 최대 금액 |
+| ↳ `available_start_date` |  | 시작일 |
+| ↳ `available_end_date` |  | 종료일 |
+| ↳ `available_product_type` |  | 할인코드 적용범위 할인코드의 적용범위가 A(전체상품) 일 경우 할인코드적용 상품(available_product) 및 할인코드적용 분류(available_category) 는 입력 필요 없음 · 할인코드의 적용범위가 P(특정상품) 일 경우 할인코드적용 상품(available_product) 은 필수 입력 · 할인코드의 적용범위가 C(특정분류) 일 경우 할인코드적용 분류(available_category)는 필수 입력 · A : 전체상품 · P : 특정상품 · C : 특정분류 |
+| ↳ `available_product` |  | 특정상품 리스트 할인코드 적용범위(available_product_type)가 P(특정상품) 의 경우 상품번호를 배열로 입력한다. |
+| ↳ `available_category` |  | 특정분류 리스트 할인코드 적용범위(available_product_type)가 C(특정분류) 의 경우 분류번호를 배열로 입력한다. |
+| ↳ `available_min_price` |  | 이용 주문 최소 금액 |
+| ↳ `available_issue_count` |  | 최대 발급 횟수 |
+| ↳ `available_user` |  | 사용가능 대상 |
+| ↳ `max_usage_per_user` |  | 회원당 사용가능 횟수 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -168,7 +206,29 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `discountcode` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `discount_code_no` |  | 할인코드 번호 |
+| ↳ `discount_code` |  | 할인코드 |
+| ↳ `discount_code_name` |  | 할인코드 이름 |
+| ↳ `discount_value` |  | 할인 값 |
+| ↳ `discount_truncation_unit` |  | 절사 단위 C : 0.01단위 · B : 0.1단위 · F : 절사안함 · O : 1원단위 · T : 10원단위 · M : 100원단위 · H : 1000원 단위 |
+| ↳ `discount_max_price` |  | 혜택 최대 금액 |
+| ↳ `available_start_date` |  | 시작일 |
+| ↳ `available_end_date` |  | 종료일 |
+| ↳ `available_product_type` |  | 할인코드 적용범위 할인코드의 적용범위가 A(전체상품) 일 경우 할인코드적용 상품(available_product) 및 할인코드적용 분류(available_category) 는 입력 필요 없음 · 할인코드의 적용범위가 P(특정상품) 일 경우 할인코드적용 상품(available_product) 은 필수 입력 · 할인코드의 적용범위가 C(특정분류) 일 경우 할인코드적용 분류(available_category)는 필수 입력 · A : 전체상품 · P : 특정상품 · C : 특정분류 |
+| ↳ `available_product` |  | 특정상품 리스트 할인코드 적용범위(available_product_type)가 P(특정상품) 의 경우 상품번호를 배열로 입력한다. |
+| ↳ `available_category` |  | 특정분류 리스트 할인코드 적용범위(available_product_type)가 C(특정분류) 의 경우 분류번호를 배열로 입력한다. |
+| ↳ `available_min_price` |  | 이용 주문 최소 금액 |
+| ↳ `available_issue_count` |  | 최대 발급 횟수 |
+| ↳ `available_user` |  | 사용가능 대상 |
+| ↳ `max_usage_per_user` |  | 회원당 사용가능 횟수 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -227,7 +287,29 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `discountcode` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `discount_code_no` |  | 할인코드 번호 |
+| ↳ `discount_code` |  | 할인코드 |
+| ↳ `discount_code_name` |  | 할인코드 이름 |
+| ↳ `discount_value` |  | 할인 값 |
+| ↳ `discount_truncation_unit` |  | 절사 단위 C : 0.01단위 · B : 0.1단위 · F : 절사안함 · O : 1원단위 · T : 10원단위 · M : 100원단위 · H : 1000원 단위 |
+| ↳ `discount_max_price` |  | 혜택 최대 금액 |
+| ↳ `available_start_date` |  | 시작일 |
+| ↳ `available_end_date` |  | 종료일 |
+| ↳ `available_product_type` |  | 할인코드 적용범위 할인코드의 적용범위가 A(전체상품) 일 경우 할인코드적용 상품(available_product) 및 할인코드적용 분류(available_category) 는 입력 필요 없음 · 할인코드의 적용범위가 P(특정상품) 일 경우 할인코드적용 상품(available_product) 은 필수 입력 · 할인코드의 적용범위가 C(특정분류) 일 경우 할인코드적용 분류(available_category)는 필수 입력 · A : 전체상품 · P : 특정상품 · C : 특정분류 |
+| ↳ `available_product` |  | 특정상품 리스트 할인코드 적용범위(available_product_type)가 P(특정상품) 의 경우 상품번호를 배열로 입력한다. |
+| ↳ `available_category` |  | 특정분류 리스트 할인코드 적용범위(available_product_type)가 C(특정분류) 의 경우 분류번호를 배열로 입력한다. |
+| ↳ `available_min_price` |  | 이용 주문 최소 금액 |
+| ↳ `available_issue_count` |  | 최대 발급 횟수 |
+| ↳ `available_user` |  | 사용가능 대상 |
+| ↳ `max_usage_per_user` |  | 회원당 사용가능 횟수 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -270,7 +352,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `discountcode` |  | (응답 객체) |
+| ↳ `discount_code_no` |  | 할인코드 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

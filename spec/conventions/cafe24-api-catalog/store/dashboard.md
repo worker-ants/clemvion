@@ -41,7 +41,66 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `dashboard` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `daily_sales_stats` |  | 일일 현황 정보 일 단위의 매출 현황 정보 |
+| ↳ ↳ `title` |  |  |
+| ↳ ↳ `date` |  |  |
+| ↳ ↳ `order_price` |  |  |
+| ↳ ↳ `paid_price` |  |  |
+| ↳ ↳ `refund_price` |  |  |
+| ↳ ↳ `order_count` |  |  |
+| ↳ ↳ `payed_count` |  |  |
+| ↳ ↳ `refund_count` |  |  |
+| ↳ ↳ `prepareproduct_count` |  |  |
+| ↳ ↳ `prepare_count` |  |  |
+| ↳ ↳ `standby_count` |  |  |
+| ↳ ↳ `shipping_count` |  |  |
+| ↳ ↳ `shipped_count` |  |  |
+| ↳ ↳ `canceled_count` |  |  |
+| ↳ ↳ `returned_count` |  |  |
+| ↳ ↳ `exchanged_count` |  |  |
+| ↳ ↳ `ordered_total_count` |  |  |
+| ↳ `weekly_sales_stats` |  | 주간 매출 현황 주간 단위의 매출 현황 정보 |
+| ↳ ↳ `ordered_total_price` |  |  |
+| ↳ ↳ `payed_total_price` |  |  |
+| ↳ ↳ `refunded_total_price` |  |  |
+| ↳ ↳ `ordered_count` |  |  |
+| ↳ ↳ `payed_count` |  |  |
+| ↳ ↳ `refunded_count` |  |  |
+| ↳ ↳ `ordered_average_total_price` |  |  |
+| ↳ ↳ `payed_average_total_price` |  |  |
+| ↳ ↳ `refunded_average_total_price` |  |  |
+| ↳ ↳ `ordered_average_count` |  |  |
+| ↳ ↳ `payed_average_count` |  |  |
+| ↳ ↳ `refunded_average_count` |  |  |
+| ↳ `monthly_sales_stats` |  | 월간 매출 현황 월간 단위의 매출 현황 정보 |
+| ↳ ↳ `ordered_total_price` |  |  |
+| ↳ ↳ `payed_total_price` |  |  |
+| ↳ ↳ `refunded_total_price` |  |  |
+| ↳ ↳ `ordered_count` |  |  |
+| ↳ ↳ `payed_count` |  |  |
+| ↳ ↳ `refunded_count` |  |  |
+| ↳ ↳ `ordered_average_total_price` |  |  |
+| ↳ ↳ `payed_average_total_price` |  |  |
+| ↳ ↳ `refunded_average_total_price` |  |  |
+| ↳ ↳ `ordered_average_count` |  |  |
+| ↳ ↳ `payed_average_count` |  |  |
+| ↳ ↳ `refunded_average_count` |  |  |
+| ↳ `sold_out_products_count` |  | 품절된 상품 수 품절된 상품의 수. 재고관리기능과 품절기능이 활성화 되어있을 경우 집계에 포함됨. |
+| ↳ `new_members_count` |  | 신규회원 수 신규가입한 회원의 숫자 |
+| ↳ `board_list` |  | 게시판 목록 해당 몰의 게시판의 리스트 |
+| ↳ ↳ `type` |  |  |
+| ↳ ↳ `board_no` |  |  |
+| ↳ ↳ `board_name` |  |  |
+| ↳ ↳ `new_registered_count` |  |  |
+| ↳ ↳ `page_url` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

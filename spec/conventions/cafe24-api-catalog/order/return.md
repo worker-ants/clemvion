@@ -86,7 +86,210 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `return` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `claim_code` |  | 반품번호 |
+| ↳ `claim_reason_type` |  | 구분 판매자의 반품 접수 사유 구분. · 구매자의 반품 신청 사유는 items(품목 주문) > claim_reason_type으로 조회할 수 있다. A:고객변심 · B:배송지연 · J:배송오류 · C:배송불가지역 · L:수출/통관 불가 · D:포장불량 · E:상품 불만족 · F:상품정보상이 · K:상품불량 · G:서비스불만족 · H:품절 · I:기타 |
+| ↳ `claim_reason` |  | 사유 판매자의 반품 접수 사유 상세 내용. · 구매자의 반품 신청 사유 상세 내용은 items(품목 주문) > claim_reason으로 조회할 수 있다. |
+| ↳ `claim_due_date` |  | 반품처리 예정일 |
+| ↳ `return_address` |  | 반품주소 |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address1` |  |  |
+| ↳ ↳ `address2` |  |  |
+| ↳ ↳ `items` |  | 품주코드 |
+| ↳ `pickup` |  | 수거지역 상세 |
+| ↳ ↳ `use_pickup` |  |  |
+| ↳ ↳ `same_address` |  |  |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `cellphone` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address` |  |  |
+| ↳ `return_invoice_no` | 최대글자수 : [40자] | 반품 송장 번호 |
+| ↳ `return_shipping_company_name` | 최대글자수 : [30자] | 반품 배송업체명 |
+| ↳ `pickup_request_state` |  | 수거 신청 상태 E : 수거 미신청 · W : 수거 미접수 · S : 수거접수대기(송장발급전) · F : 수거접수실패 · T : 수거접수완료(송장발급완료) · N : 미집하 |
+| ↳ `refund_methods` |  | 환불 방식 |
+| ↳ `refund_reason` |  | 비고 |
+| ↳ `order_price_amount` |  | 상품구매금액 |
+| ↳ `refund_amounts` |  | 환불금액 |
+| ↳ ↳ `payment_method` |  |  |
+| ↳ ↳ `amount` |  |  |
+| ↳ `shipping_fee` |  | 배송비 DEFAULT 0.00 |
+| ↳ `refund_shipping_fee` |  | 환불배송비 DEFAULT 0.00 |
+| ↳ `refund_regional_surcharge` |  | 지역별 환불배송비 DEFAULT 0.00 |
+| ↳ `return_ship_type` |  | 반품배송비 적용구분 |
+| ↳ `return_shipping_fee` |  | 반품배송비 DEFAULT 0.00 |
+| ↳ `return_shipping_fee_detail` |  | 반품배송비 상세 |
+| ↳ ↳ `group_no` |  |  |
+| ↳ ↳ `return_shipping_fee` |  | 반품배송비 DEFAULT 0.00 |
+| ↳ ↳ `items` |  | 품주코드 |
+| ↳ `return_regional_surcharge` |  | 지역별 반품배송비 DEFAULT 0.00 |
+| ↳ `return_regional_surcharge_detail` |  | 지역별 반품배송비 상세 |
+| ↳ ↳ `group_no` |  |  |
+| ↳ ↳ `return_shipping_fee` |  | 반품배송비 DEFAULT 0.00 |
+| ↳ ↳ `items` |  | 품주코드 |
+| ↳ `additional_shipping_fee` |  | 추가 배송비 DEFAULT 0.00 |
+| ↳ `international_shipping_insurance` |  | 해외배송 보험료 DEFAULT 0.00 |
+| ↳ `international_shipping_additional_fee` |  | 해외배송 부가금액 DEFAULT 0.00 |
+| ↳ `defer_commission` |  | 후불 결제 수수료 |
+| ↳ `partner_discount_amount` |  | 제휴할인 취소액 |
+| ↳ `add_discount_amount` |  | 상품별추가할인 취소액 |
+| ↳ `member_grade_discount_amount` |  | 회원등급할인 취소액 |
+| ↳ `shipping_discount_amount` |  | 배송비할인 취소액 |
+| ↳ `coupon_discount_amount` |  | 쿠폰할인 취소액 |
+| ↳ `point_used` |  | 사용된 적립금 반환액 |
+| ↳ `credit_used` |  | 사용된 예치금 반환액 |
+| ↳ `undone` |  | 철회 여부 T : 철회함 · F : 철회안함 |
+| ↳ `undone_reason_type` |  | 철회 사유 구분 A:고객변심 · B:배송지연 · J:배송오류 · C:배송불가지역 · L:수출/통관 불가 · D:포장불량 · E:상품 불만족 · F:상품정보상이 · K:상품불량 · G:서비스불만족 · H:품절 · I:기타 |
+| ↳ `undone_reason` |  | 철회 사유 |
+| ↳ `expose_order_detail` |  | 주문상세내역 노출 여부 T : 노출함 · F : 노출안함 |
+| ↳ `exposed_undone_reason` |  | 주문상세내역 노출 철회 사유 |
+| ↳ `items` |  | 품주코드 |
+| ↳ ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ ↳ `item_no` |  |  |
+| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `variant_code` |  |  |
+| ↳ ↳ `product_no` |  |  |
+| ↳ ↳ `product_code` |  |  |
+| ↳ ↳ `custom_product_code` |  |  |
+| ↳ ↳ `eng_product_name` |  |  |
+| ↳ ↳ `option_id` |  |  |
+| ↳ ↳ `option_value` |  |  |
+| ↳ ↳ `option_value_default` |  |  |
+| ↳ ↳ `additional_option_value` |  |  |
+| ↳ ↳ `additional_option_values` |  | (목록) |
+| ↳ ↳ ↳ `key` |  |  |
+| ↳ ↳ ↳ `type` |  |  |
+| ↳ ↳ ↳ `name` |  |  |
+| ↳ ↳ ↳ `value` |  |  |
+| ↳ ↳ `product_name` |  |  |
+| ↳ ↳ `product_name_default` |  |  |
+| ↳ ↳ `product_price` |  |  |
+| ↳ ↳ `option_price` |  |  |
+| ↳ ↳ `additional_discount_price` |  |  |
+| ↳ ↳ `coupon_discount_price` |  |  |
+| ↳ ↳ `app_item_discount_amount` |  |  |
+| ↳ ↳ `quantity` |  |  |
+| ↳ ↳ `supplier_product_name` |  |  |
+| ↳ ↳ `supplier_transaction_type` |  |  |
+| ↳ ↳ `supplier_id` |  |  |
+| ↳ ↳ `supplier_name` |  |  |
+| ↳ ↳ `tracking_no` |  |  |
+| ↳ ↳ `shipping_code` |  |  |
+| ↳ ↳ `claim_code` |  | 반품번호 |
+| ↳ ↳ `claim_reason_type` |  | 구분 판매자의 반품 접수 사유 구분. · 구매자의 반품 신청 사유는 items(품목 주문) > claim_reason_type으로 조회할 수 있다. A:고객변심 · B:배송지연 · J:배송오류 · C:배송불가지역 · L:수출/통관 불가 · D:포장불량 · E:상품 불만족 · F:상품정보상이 · K:상품불량 · G:서비스불만족 · H:품절 · I:기타 |
+| ↳ ↳ `claim_reason` |  | 사유 판매자의 반품 접수 사유 상세 내용. · 구매자의 반품 신청 사유 상세 내용은 items(품목 주문) > claim_reason으로 조회할 수 있다. |
+| ↳ ↳ `refund_bank_name` |  |  |
+| ↳ ↳ `refund_bank_account_no` |  |  |
+| ↳ ↳ `refund_bank_account_holder` |  |  |
+| ↳ ↳ `post_express_flag` |  |  |
+| ↳ ↳ `order_status` |  |  |
+| ↳ ↳ `order_status_additional_info` |  |  |
+| ↳ ↳ `claim_quantity` |  |  |
+| ↳ ↳ `status_code` |  |  |
+| ↳ ↳ `status_text` |  |  |
+| ↳ ↳ `open_market_status` |  |  |
+| ↳ ↳ `bundled_shipping_type` |  |  |
+| ↳ ↳ `shipping_company_id` |  |  |
+| ↳ ↳ `shipping_company_name` |  |  |
+| ↳ ↳ `shipping_company_code` |  |  |
+| ↳ ↳ `product_bundle` |  |  |
+| ↳ ↳ `product_bundle_no` |  |  |
+| ↳ ↳ `product_bundle_name` |  |  |
+| ↳ ↳ `product_bundle_name_default` |  |  |
+| ↳ ↳ `product_bundle_type` |  |  |
+| ↳ ↳ `was_product_bundle` |  |  |
+| ↳ ↳ `original_bundle_item_no` |  |  |
+| ↳ ↳ `naver_pay_order_id` |  |  |
+| ↳ ↳ `naver_pay_claim_status` |  |  |
+| ↳ ↳ `individual_shipping_fee` |  |  |
+| ↳ ↳ `shipping_fee_type` |  |  |
+| ↳ ↳ `shipping_fee_type_text` |  |  |
+| ↳ ↳ `shipping_payment_option` |  |  |
+| ↳ ↳ `payment_info_id` |  |  |
+| ↳ ↳ `original_item_no` |  | (목록) |
+| ↳ ↳ `store_pickup` |  |  |
+| ↳ ↳ `ordered_date` |  |  |
+| ↳ ↳ `shipped_date` |  |  |
+| ↳ ↳ `delivered_date` |  |  |
+| ↳ ↳ `cancel_date` |  |  |
+| ↳ ↳ `return_request_date` |  |  |
+| ↳ ↳ `return_confirmed_date` |  |  |
+| ↳ ↳ `return_collected_date` |  |  |
+| ↳ ↳ `cancel_request_date` |  |  |
+| ↳ ↳ `refund_date` |  |  |
+| ↳ ↳ `exchange_request_date` |  |  |
+| ↳ ↳ `exchange_date` |  |  |
+| ↳ ↳ `product_material` |  |  |
+| ↳ ↳ `product_material_eng` |  |  |
+| ↳ ↳ `cloth_fabric` |  |  |
+| ↳ ↳ `product_weight` |  |  |
+| ↳ ↳ `volume_size` |  |  |
+| ↳ ↳ `volume_size_weight` |  |  |
+| ↳ ↳ `clearance_category` |  |  |
+| ↳ ↳ `clearance_category_info` |  |  |
+| ↳ ↳ `clearance_category_code` |  |  |
+| ↳ ↳ `hs_code` |  |  |
+| ↳ ↳ `one_plus_n_event` |  |  |
+| ↳ ↳ `origin_place` |  |  |
+| ↳ ↳ `gift` |  |  |
+| ↳ ↳ `item_granting_gift` |  |  |
+| ↳ ↳ `product_bundle_list` |  | (목록) |
+| ↳ ↳ ↳ `product_no` |  |  |
+| ↳ ↳ ↳ `product_code` |  |  |
+| ↳ ↳ ↳ `variant_code` |  |  |
+| ↳ ↳ ↳ `product_name` |  |  |
+| ↳ ↳ ↳ `product_name_default` |  |  |
+| ↳ ↳ ↳ `option_id` |  |  |
+| ↳ ↳ ↳ `option_value` |  |  |
+| ↳ ↳ ↳ `option_value_default` |  |  |
+| ↳ ↳ ↳ `additional_option_value` |  |  |
+| ↳ ↳ ↳ `additional_option_values` |  | (목록) |
+| ↳ ↳ ↳ ↳ `key` |  |  |
+| ↳ ↳ ↳ ↳ `type` |  |  |
+| ↳ ↳ ↳ ↳ `name` |  |  |
+| ↳ ↳ ↳ ↳ `value` |  |  |
+| ↳ ↳ ↳ `quantity` |  |  |
+| ↳ ↳ ↳ `supplier_id` |  |  |
+| ↳ ↳ ↳ `eng_product_name` |  |  |
+| ↳ ↳ ↳ `hs_code` |  |  |
+| ↳ ↳ ↳ `option_price` |  |  |
+| ↳ ↳ `market_cancel_request` |  |  |
+| ↳ ↳ `market_cancel_request_quantity` |  |  |
+| ↳ ↳ `market_fail_reason` |  |  |
+| ↳ ↳ `market_fail_reason_guide` |  |  |
+| ↳ ↳ `market_item_sequence` |  |  |
+| ↳ ↳ `market_item_no` |  |  |
+| ↳ ↳ `market_custom_variant_code` |  |  |
+| ↳ ↳ `option_type` |  |  |
+| ↳ ↳ `options` |  | (목록) |
+| ↳ ↳ ↳ `option_code` |  |  |
+| ↳ ↳ ↳ `option_name` |  |  |
+| ↳ ↳ ↳ `option_value` |  | (응답 객체) |
+| ↳ ↳ ↳ ↳ `option_text` |  |  |
+| ↳ ↳ ↳ ↳ `value_no` |  |  |
+| ↳ ↳ `market_discount_amount` |  |  |
+| ↳ ↳ `labels` |  |  |
+| ↳ ↳ `order_status_before_cs` |  |  |
+| ↳ ↳ `supply_price` |  |  |
+| ↳ ↳ `multi_invoice` |  |  |
+| ↳ ↳ `shipping_expected_date` |  |  |
+| ↳ ↳ `dropshipping_type` |  |  |
+| ↳ `include_tax` |  | 가격에 세금 포함 T: 세금포함 · F: 세금제외 |
+| ↳ `tax` |  | 세금 정보 세금 관리자 앱을 사용 안 할 경우 null로 반환 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `amount` |  |  |
+| ↳ `carrier_id` |  | 배송사 아이디 |
+| ↳ `return_invoice_success` |  | 반송장 처리 성공 여부 T : 성공 · F : 실패 · N : 미집하 |
+| ↳ `return_invoice_fail_reason` |  | 반송장 처리 실패 사유 |
+| ↳ `cancel_fee_amount` |  | 취소수수료 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -652,7 +855,21 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `return` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `status` |  | 주문상태 accepted : 반품접수 · processing : 반품처리중 · returned : 반품완료 |
+| ↳ `claim_code` |  | 반품번호 |
+| ↳ `pickup_completed` |  | 수거완료 여부 T : 수거완료 · F : 수거전 |
+| ↳ `items` |  | 품주코드 |
+| ↳ ↳ `order_item_code` |  |  |
+| ↳ ↳ `quantity` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -744,7 +961,45 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `return` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `order_id` |  | 주문번호 |
+| ↳ `claim_code` |  | 반품번호 |
+| ↳ `status` |  | 주문상태 accepted : 반품접수 · processing : 반품처리중 · returned : 반품완료 |
+| ↳ `pickup_completed` |  | 수거완료 여부 T : 수거완료 · F : 수거전 |
+| ↳ `carrier_id` |  | 배송사 아이디 |
+| ↳ `return_invoice_no` | 최대글자수 : [40자] | 반품 송장 번호 |
+| ↳ `return_shipping_company_name` | 최대글자수 : [30자] | 반품 배송업체명 |
+| ↳ `return_invoice_success` |  | 반송장 처리 성공 여부 T : 성공 · F : 실패 · N : 미집하 |
+| ↳ `return_invoice_fail_reason` |  | 반송장 처리 실패 사유 |
+| ↳ `items` |  | 품주코드 |
+| ↳ ↳ `order_item_code` |  |  |
+| ↳ `refund_method_code` |  | (목록) |
+| ↳ `refund_bank_code` |  |  |
+| ↳ `refund_bank_account_no` |  |  |
+| ↳ `refund_bank_account_holder` |  |  |
+| ↳ `combined_refund_method` |  |  |
+| ↳ `recover_inventory` |  | 재고복구 T : 복구함 · F : 복구안함 |
+| ↳ `request_pickup` |  | 수거신청 여부 T : 사용함 · F : 사용안함 |
+| ↳ `pickup` |  | 수거지역 상세 |
+| ↳ ↳ `name` |  |  |
+| ↳ ↳ `phone` |  |  |
+| ↳ ↳ `cellphone` |  |  |
+| ↳ ↳ `zipcode` |  |  |
+| ↳ ↳ `address1` |  |  |
+| ↳ ↳ `address2` |  |  |
+| ↳ `undone` |  | 철회 여부 T : 철회함 · F : 철회안함 |
+| ↳ `add_memo_too` |  | 관리자 메모에도 추가 T : 사용함 · F : 사용안함 |
+| ↳ `undone_reason_type` |  | 철회 사유 구분 A:고객변심 · B:배송지연 · J:배송오류 · C:배송불가지역 · L:수출/통관 불가 · D:포장불량 · E:상품 불만족 · F:상품정보상이 · K:상품불량 · G:서비스불만족 · H:품절 · I:기타 |
+| ↳ `undone_reason` |  | 철회 사유 |
+| ↳ `expose_order_detail` |  | 주문상세내역 노출 여부 T : 노출함 · F : 노출안함 |
+| ↳ `exposed_undone_reason` |  | 주문상세내역 노출 철회 사유 |
+
+응답 예시 (JSON):
 
 ```json
 {

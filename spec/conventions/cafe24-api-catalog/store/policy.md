@@ -42,7 +42,21 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `policy` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `privacy_all` |  | 개인정보처리방침 전체내용 |
+| ↳ `terms_using_mall` |  | 쇼핑몰 이용약관 |
+| ↳ `use_privacy_join` |  | 회원가입 개인정보처리방침 사용 여부 T: 사용함 · F: 사용안함 |
+| ↳ `privacy_join` |  | 회원가입 개인정보처리방침 내용 |
+| ↳ `use_withdrawal` |  | 청약철회방침 사용여부 T: 사용함 · F: 사용안함 |
+| ↳ `required_withdrawal` |  | 청약철회방침 사용자 동의 필수 여부 T : 필수 · F : 선택 |
+| ↳ `withdrawal` |  | 청약철회방침 내용 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -83,7 +97,21 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `policy` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `privacy_all` |  | 개인정보처리방침 전체내용 |
+| ↳ `terms_using_mall` |  | 쇼핑몰 이용약관 |
+| ↳ `use_privacy_join` |  | 회원가입 개인정보처리방침 사용 여부 T: 사용함 · F: 사용안함 |
+| ↳ `privacy_join` |  | 회원가입 개인정보처리방침 내용 |
+| ↳ `use_withdrawal` |  | 청약철회방침 사용여부 T: 사용함 · F: 사용안함 |
+| ↳ `required_withdrawal` |  | 청약철회방침 사용자 동의 필수 여부 T : 필수 · F : 선택 |
+| ↳ `withdrawal` |  | 청약철회방침 내용 |
+
+응답 예시 (JSON):
 
 ```json
 {

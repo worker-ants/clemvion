@@ -54,7 +54,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `scripttags` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `script_no` |  | script의 고유번호 스크립트의 고유 번호 |
+| ↳ `client_id` |  | Client ID 스크립트를 설치한 Client의 ID |
+| ↳ `src` | URL | 원본 script 경로 설치할 스크립트의 원본 경로(절대 경로) |
+| ↳ `display_location` |  | 화면 경로 스크립트를 표시할 "화면 경로". 화면 경로는 화면의 페이지 경로가 아니라 쇼핑몰의 각 페이지에 부여된 특정한 역할을 의미함. · (예 : 상품분류(product_list)에 스크립트를 삽입할 경우 쇼핑몰에서 상품분류로 사용되는 모든 페이지에 스크립트가 노출됨) · 화면의 역할은 해당 페이지에 사용된 모듈에 따라 자동으로 부여됨. 임의의 페이지에 상품분류 모듈을 추가하면 해당 페이지는 "상품분류" 역할로 인식된다. 쇼핑몰 관리자 화면의 [쇼핑몰 설정 > 사이트 설정 > '사이트 환경 설정 > 쇼핑몰 환경 설정 > 화면경로 > 화면경로 설정']에서 각 페이지에 부여된 화면 역할을 조회하고 설정할 수 있음. · "all" 일 경우 전체 페이지에 스크립트가 적용됨. · display_location_code |
+| ↳ `skin_no` |  | 스킨 번호 스크립트를 적용할 스킨 번호 |
+| ↳ `exclude_path` |  | 제외 경로 |
+| ↳ `integrity` |  | 하위 리소스 무결성 스크립트 위변조를 방지하기위한 무결성 검증용 해시. (sha384, sha512 해시 알고리즘 지원) · Integrity 해시 생성방법 참고 |
+| ↳ `created_date` |  | 생성일 스크립트 설치 날짜 |
+| ↳ `updated_date` |  | 수정일 스크립트 수정 날짜 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -120,7 +136,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `count` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -144,7 +166,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `scripttag` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `script_no` |  | script의 고유번호 스크립트의 고유 번호 |
+| ↳ `client_id` |  | Client ID 스크립트를 설치한 Client의 ID |
+| ↳ `src` | URL | 원본 script 경로 설치할 스크립트의 원본 경로(절대 경로) |
+| ↳ `display_location` |  | 화면 경로 스크립트를 표시할 "화면 경로". 화면 경로는 화면의 페이지 경로가 아니라 쇼핑몰의 각 페이지에 부여된 특정한 역할을 의미함. · (예 : 상품분류(product_list)에 스크립트를 삽입할 경우 쇼핑몰에서 상품분류로 사용되는 모든 페이지에 스크립트가 노출됨) · 화면의 역할은 해당 페이지에 사용된 모듈에 따라 자동으로 부여됨. 임의의 페이지에 상품분류 모듈을 추가하면 해당 페이지는 "상품분류" 역할로 인식된다. 쇼핑몰 관리자 화면의 [쇼핑몰 설정 > 사이트 설정 > '사이트 환경 설정 > 쇼핑몰 환경 설정 > 화면경로 > 화면경로 설정']에서 각 페이지에 부여된 화면 역할을 조회하고 설정할 수 있음. · "all" 일 경우 전체 페이지에 스크립트가 적용됨. · display_location_code |
+| ↳ `exclude_path` |  | 제외 경로 |
+| ↳ `skin_no` |  | 스킨 번호 스크립트를 적용할 스킨 번호 |
+| ↳ `integrity` |  | 하위 리소스 무결성 스크립트 위변조를 방지하기위한 무결성 검증용 해시. (sha384, sha512 해시 알고리즘 지원) · Integrity 해시 생성방법 참고 |
+| ↳ `created_date` |  | 생성일 스크립트 설치 날짜 |
+| ↳ `updated_date` |  | 수정일 스크립트 수정 날짜 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -193,7 +231,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `scripttag` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `script_no` |  | script의 고유번호 스크립트의 고유 번호 |
+| ↳ `client_id` |  | Client ID 스크립트를 설치한 Client의 ID |
+| ↳ `src` | URL | 원본 script 경로 설치할 스크립트의 원본 경로(절대 경로) |
+| ↳ `display_location` |  | 화면 경로 스크립트를 표시할 "화면 경로". 화면 경로는 화면의 페이지 경로가 아니라 쇼핑몰의 각 페이지에 부여된 특정한 역할을 의미함. · (예 : 상품분류(product_list)에 스크립트를 삽입할 경우 쇼핑몰에서 상품분류로 사용되는 모든 페이지에 스크립트가 노출됨) · 화면의 역할은 해당 페이지에 사용된 모듈에 따라 자동으로 부여됨. 임의의 페이지에 상품분류 모듈을 추가하면 해당 페이지는 "상품분류" 역할로 인식된다. 쇼핑몰 관리자 화면의 [쇼핑몰 설정 > 사이트 설정 > '사이트 환경 설정 > 쇼핑몰 환경 설정 > 화면경로 > 화면경로 설정']에서 각 페이지에 부여된 화면 역할을 조회하고 설정할 수 있음. · "all" 일 경우 전체 페이지에 스크립트가 적용됨. · display_location_code |
+| ↳ `exclude_path` |  | 제외 경로 |
+| ↳ `skin_no` |  | 스킨 번호 스크립트를 적용할 스킨 번호 |
+| ↳ `integrity` |  | 하위 리소스 무결성 스크립트 위변조를 방지하기위한 무결성 검증용 해시. (sha384, sha512 해시 알고리즘 지원) · Integrity 해시 생성방법 참고 |
+| ↳ `created_date` |  | 생성일 스크립트 설치 날짜 |
+| ↳ `updated_date` |  | 수정일 스크립트 수정 날짜 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -243,7 +297,23 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `scripttag` |  | (응답 객체) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
+| ↳ `script_no` |  | script의 고유번호 스크립트의 고유 번호 |
+| ↳ `client_id` |  | Client ID 스크립트를 설치한 Client의 ID |
+| ↳ `src` | URL | 원본 script 경로 설치할 스크립트의 원본 경로(절대 경로) |
+| ↳ `display_location` |  | 화면 경로 스크립트를 표시할 "화면 경로". 화면 경로는 화면의 페이지 경로가 아니라 쇼핑몰의 각 페이지에 부여된 특정한 역할을 의미함. · (예 : 상품분류(product_list)에 스크립트를 삽입할 경우 쇼핑몰에서 상품분류로 사용되는 모든 페이지에 스크립트가 노출됨) · 화면의 역할은 해당 페이지에 사용된 모듈에 따라 자동으로 부여됨. 임의의 페이지에 상품분류 모듈을 추가하면 해당 페이지는 "상품분류" 역할로 인식된다. 쇼핑몰 관리자 화면의 [쇼핑몰 설정 > 사이트 설정 > '사이트 환경 설정 > 쇼핑몰 환경 설정 > 화면경로 > 화면경로 설정']에서 각 페이지에 부여된 화면 역할을 조회하고 설정할 수 있음. · "all" 일 경우 전체 페이지에 스크립트가 적용됨. · display_location_code |
+| ↳ `exclude_path` |  | 제외 경로 |
+| ↳ `skin_no` |  | 스킨 번호 스크립트를 적용할 스킨 번호 |
+| ↳ `integrity` |  | 하위 리소스 무결성 스크립트 위변조를 방지하기위한 무결성 검증용 해시. (sha384, sha512 해시 알고리즘 지원) · Integrity 해시 생성방법 참고 |
+| ↳ `created_date` |  | 생성일 스크립트 설치 날짜 |
+| ↳ `updated_date` |  | 수정일 스크립트 수정 날짜 |
+
+응답 예시 (JSON):
 
 ```json
 {
@@ -286,7 +356,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `scripttag` |  | (응답 객체) |
+| ↳ `script_no` |  | script의 고유번호 스크립트의 고유 번호 |
+
+응답 예시 (JSON):
 
 ```json
 {

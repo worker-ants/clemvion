@@ -40,7 +40,21 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `paymentservices` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `payment_gateway_name` |  | PG사 명 |
+| ↳ `partner_id` |  | PG사 발급 가맹점 ID |
+| ↳ `hash_code` |  | PG사 해시코드 |
+| ↳ `etc_code` |  | PG사 기타정보 |
+| ↳ `payment_methods` |  | 등록 결제수단 리스트 |
+| ↳ ↳ `code` |  |  |
+| ↳ ↳ `use` |  |  |
+
+응답 예시 (JSON):
 
 ```json
 {

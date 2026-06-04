@@ -56,7 +56,25 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 #### 응답 (Response)
 
-> Cafe24 공식 docs 의 대표 응답 샘플. 실제 필드 정의는 위 [응답 속성](#응답-속성-property-list) 참조.
+> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터. 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준 (`↳` = 중첩, 배열은 대표 원소).
+
+| Parameter | 제약 | 설명 |
+|---|---|---|
+| `credits` |  | (목록) |
+| ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
+| ↳ `issue_date` |  | 등록일 |
+| ↳ `member_id` | 최대글자수 : [20자] | 회원아이디 |
+| ↳ `group_name` |  | 회원등급명 |
+| ↳ `increase_amount` |  | 지급 금액 |
+| ↳ `decrease_amount` |  | 차감 금액 |
+| ↳ `balance` |  | 잔액 |
+| ↳ `admin_id` |  | 관리자 아이디 |
+| ↳ `admin_name` |  | 관리자 이름 |
+| ↳ `reason` |  | 처리사유 |
+| ↳ `case` |  | 예치금 유형 |
+| ↳ `order_id` |  | 주문번호 |
+
+응답 예시 (JSON):
 
 ```json
 {
