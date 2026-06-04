@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-04T09:45:36.920590",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-update-exec-intake-queue-pr1.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
