@@ -125,7 +125,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 | `spec-link-integrity.test.ts` (build 차단) | `spec/**.md` 본문 in-repo `[..](path)` 타깃 존재 + `#anchor` heading slug 대조. slug 는 실제 렌더러(`rehype-slug`=`mdast`+`github-slugger`) 파이프라인과 동등 | 생성형 `*-api-catalog/` 트리. plan/ 링크(=plan-coherence 담당) |
 | `spec-area-index.test.ts` (build 차단) | 각 영역 폴더(≥2 sibling)에 index 문서 존재 + 모든 sibling spec 이 index 에서 링크 | `spec/conventions/`(flat reference, 무-index), 카탈로그 |
 | `plan-frontmatter.test.ts` (build 차단) | top-level `plan/in-progress/*.md` 의 `worktree`(sentinel `(unstarted)` 허용)/`started`(ISO)/`owner` 필수 | subfolder 클러스터, `0-`/`_` index 면제. **가드 규약 SoT = [plan-lifecycle §4](../../.claude/docs/plan-lifecycle.md)**; 본 절은 가드 파일 등재 위치만 선언 |
-| `spec-plan-completion.test.ts` (**Gate C**) | `started ≥ 2026-06-04` 인 완료 plan(`plan/complete/`)은 frontmatter `spec_impact` 선언 필수(spec path 목록 실존 또는 `none`/`없음`). plan↔spec 정합 결정을 완료 시점에 강제 | cutoff 이전 시작 plan 면제(grandfather). plan frontmatter 가드라 §4 frontmatter-evidence 가 아님. 근거 [R-8](#r-8-gate-c--plan-완료-시점-spec_impact-선언-의무화) |
+| `spec-plan-completion.test.ts` (**Gate C**) | `started ≥ 2026-06-04` 인 완료 plan(`plan/complete/`)은 frontmatter `spec_impact` 선언 필수(spec path 목록 실존, 또는 no-op sentinel `none`/`없음`/`n/a`/`na`). plan↔spec 정합 결정을 완료 시점에 강제 | cutoff 이전 시작 plan 면제(grandfather). plan frontmatter 가드라 §4 frontmatter-evidence 가 아님. 근거 [R-8](#r-8-gate-c--plan-완료-시점-spec_impact-선언-의무화) |
 | **Gate D** (**advisory — build 차단 아님**) | `/spec-coverage --mode reverse` (orchestrator `--mode` 인자로 **구현 완료**) — spec 미참조 controller route·이벤트·env 탐지(impl→spec 역커버리지) | NLP 휴리스틱이라 보고형, CI 비차단 |
 
 ## 5. 사용 예시
@@ -236,7 +236,7 @@ user_guide:
 원안(`plan/in-progress/spec-drift-gates.md §C`)은 "완료 plan 이 건드린 `code:` 코드가 변경됐으면 spec-update 강제" 였으나, "어떤 코드를 건드렸나" 를 build 테스트가 알려면 git history 분석이 필요해 fragile. 대신 **plan frontmatter `spec_impact` 선언** 으로 대체 — 완료 시 작성자가 정합 결정(spec 경로 목록 또는 `none`)을 명시하고 build 테스트는 그 선언 유무·실존만 결정적으로 검증한다.
 
 - **grandfather cutoff `2026-06-04`**: 기존 백로그 수십 개를 소급 강제하면 대량 red — `started ≥ cutoff` 인 신규 plan 부터만 적용. `spec-only` TTL 과 동일한 date-cutoff 패턴(R-2)이라 선례 일관. cutoff 값은 spec-impl-evidence·plan-lifecycle·test 3곳에 동기 유지(변경 시 3곳 동시 갱신).
-- **`none`/`없음` sentinel 채택, 빈 문자열 기각**: 빈 값은 "미작성(누락)" 과 "의식적 no-op" 을 구분 못 해 gate 의도(의식적 결정 강제)를 약화. 명시 sentinel 이라야 "검토 후 변경 불요" 임이 드러난다.
+- **no-op sentinel(`none`/`없음`/`n/a`/`na`) 채택, 빈 문자열 기각**: 빈 값은 "미작성(누락)" 과 "의식적 no-op" 을 구분 못 해 gate 의도(의식적 결정 강제)를 약화. 명시 sentinel 이라야 "검토 후 변경 불요" 임이 드러난다.
 - **분류**: plan/complete frontmatter 를 검증하므로 §4 frontmatter-evidence(spec frontmatter) 가 아닌 §4.2 plan 무결성 family.
 
 ### R-9. §4.2 지식저장소·plan 무결성 가드 — 별도 family 신설 근거
