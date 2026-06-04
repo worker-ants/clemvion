@@ -169,7 +169,7 @@ LIMIT $4;
 |---|---|
 | `off` (기본) | 후처리 없음 — §3.1 SQL 그대로 (cosine 임계 + topK). **현행과 byte-identical (하위호환)**. 셀프호스팅에 리랭커 의존성을 강제하지 않기 위한 기본값 |
 | `cross_encoder` | wide 회수 → cross-encoder 재점수화 → 동적 점수 컷 → top-k |
-| `cross_encoder_llm` | `cross_encoder` 후 escalate 조건 충족 시 listwise LLM grading 1콜 추가 |
+| `cross_encoder_llm` | `cross_encoder` 후 **항상** listwise LLM grading 1콜 추가 (정책·지시 기반 판단이 필요한 KB 용). 이 모드 선택 자체가 "LLM grading KB" 표시자 — 별도 플래그 없음 |
 
 #### 3.3.2 흐름 (`rerank_mode ≠ off`)
 
@@ -177,16 +177,16 @@ LIMIT $4;
 1) wide 회수: cosine 임계 미적용, rerank_candidate_k(기본 50) 만큼 회수
 2) cross-encoder rerank: (query, chunk.content) 쌍을 RerankConfig endpoint 로 점수화
    (LLMClient.rerank() — Spec LLM Client §3.6)
-3) [cross_encoder_llm] escalate 조건(① cross-encoder 상위 점수 평탄/모호 ② 정책·지시 판단 KB)
-   충족 시 survivors(~15) listwise LLM grading (id 순위 + 1~10 점수, 1콜; pointwise 금지)
+3) [cross_encoder_llm 만] survivors(~15) listwise LLM grading 항상 수행 (id 순위 + 1~10 점수, 1콜; pointwise 금지)
 4) 동적 점수 컷: rerank_score_threshold 가 있으면 점수 < 임계 청크 drop (없으면 정렬만)
 5) 최종 top_k(노드 ragTopK 또는 LLM override)로 slice
 ```
 
 - 컷 기준이 cosine → **rerank 점수**로 이동한다. 고정 top-k 컷으로 의미 있는 청크가 잘리는 문제를 점수 기반 동적 컷으로 해소한다.
 - 한국어 권장 cross-encoder 모델: `dragonkue/bge-reranker-v2-m3-ko` (자가호스팅 `tei`).
+- **v1 결정**: `cross_encoder_llm` 은 항상 LLM grading 을 수행한다(점수 평탄/모호 기반 conditional escalate 는 LLM 콜 비용 절감 최적화로, 정량 임계를 P0 평가셋으로 보정한 뒤 후속 도입). "정책 판단 KB" 는 별도 컬럼/휴리스틱 없이 `rerank_mode = cross_encoder_llm` 선택으로 표현한다.
 
-> 설계 결정·근거·폐기 대안: 위 draft `## Rationale`.
+> 설계 결정·근거·폐기 대안: [`plan/in-progress/spec-draft-rag-reranking.md`](../../plan/in-progress/spec-draft-rag-reranking.md) `## Rationale`.
 
 ---
 

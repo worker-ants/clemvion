@@ -58,6 +58,11 @@ import {
 } from '../mcp/mcp-client.service';
 import { listAllCafe24Operations } from '../../nodes/integration/cafe24/metadata';
 import { OperationCatalogDto } from './dto/responses/integration-response.dto';
+import {
+  STORE_IDENTIFIER_UNIQUE_CONSTRAINT,
+  ALREADY_CONNECTED_BY_SERVICE,
+  GENERIC_ALREADY_CONNECTED,
+} from './integrations.constants';
 
 /**
  * Public shape returned to the integrations UI for both `previewTest` and
@@ -566,7 +571,7 @@ export class IntegrationsService {
     try {
       saved = await this.integrationRepository.save(entity);
     } catch (err) {
-      this.throwIfUniqueViolation(err);
+      this.throwIfUniqueViolation(err, body.serviceType);
       throw err;
     }
     // audit 기록은 best-effort — row 는 이미 commit 됐으므로 audit 실패가
@@ -630,7 +635,7 @@ export class IntegrationsService {
       }
       return this.toPublic(saved);
     } catch (err) {
-      this.throwIfUniqueViolation(err);
+      this.throwIfUniqueViolation(err, entity.serviceType);
       throw err;
     }
   }
@@ -1317,7 +1322,24 @@ export class IntegrationsService {
     return !!role && ADMIN_ROLES.has(role);
   }
 
-  private throwIfUniqueViolation(err: unknown): void {
+  /**
+   * Map a Postgres unique-violation (23505) onto the right 409 error.
+   *
+   * `serviceType` is supplied by the caller (the entity/DTO being saved) so the
+   * unified store-identifier UNIQUE index ({@link STORE_IDENTIFIER_UNIQUE_CONSTRAINT},
+   * V072 — `(workspace_id, service_type, mall_id)`) can be translated to the
+   * per-service "already connected" code via the {@link ALREADY_CONNECTED_BY_SERVICE}
+   * `Record<string, {code, message}>` registry (see `integrations.constants.ts`)
+   * instead of the old per-service index-name branches. Unknown/unmapped
+   * services degrade to {@link GENERIC_ALREADY_CONNECTED} (still a 409).
+   *
+   * See `spec/1-data-model.md §3` for the full index table.
+   *
+   * @param err  The raw error thrown by the TypeORM/Postgres driver.
+   * @param serviceType  `integration.service_type` of the row being saved
+   *   (optional — omitting yields the generic 409 fallback).
+   */
+  private throwIfUniqueViolation(err: unknown, serviceType?: string): void {
     const code = (err as { code?: string })?.code;
     const constraint = (err as { constraint?: string })?.constraint;
     if (code !== '23505') return;
@@ -1327,28 +1349,19 @@ export class IntegrationsService {
         message: 'Integration name is already in use within this workspace',
       });
     }
-    // V045 partial UNIQUE `(workspace_id, mall_id) WHERE service_type='cafe24'`
-    // — Cafe24 Public 흐름은 begin 단계에서 row 를 만들지 않아 finalize
-    // 단계의 동시 신청 race 또는 begin pre-check 통과 후 DB-level race 가
-    // 본 constraint 로 잡힌다. 옛 코드는 본 분기를 누락해 raw QueryFailedError
-    // 가 500 으로 빠지던 결함이 있었다. spec/2-navigation/4-integration.md
-    // §9.4 — `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 의 race backstop 분기.
-    if (constraint === 'idx_integration_cafe24_workspace_mall') {
+    // 통일 store-identifier UNIQUE `(workspace_id, service_type, mall_id) WHERE
+    // mall_id IS NOT NULL` (V072) — cafe24 Public finalize race / begin pre-check
+    // 통과 후 DB-level race / makeshop shop_uid 중복 등 모든 service 의 중복
+    // 식별자 INSERT 가 본 constraint 로 잡힌다. serviceType 으로 service 별 코드를
+    // 분기 (옛 per-service 인덱스 분기 대체). 미등록 service 는 generic 409 로
+    // degrade. spec/2-navigation/4-integration.md §9.4 / §5.9 race backstop.
+    if (constraint === STORE_IDENTIFIER_UNIQUE_CONSTRAINT) {
+      const mapped =
+        (serviceType && ALREADY_CONNECTED_BY_SERVICE[serviceType]) ||
+        GENERIC_ALREADY_CONNECTED;
       throw new ConflictException({
-        code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
-        message:
-          'A Cafe24 integration with this mall_id already exists in this workspace. Use the existing integration or delete it first.',
-      });
-    }
-    // V071 partial UNIQUE `(workspace_id, mall_id) WHERE service_type=
-    // 'makeshop'` — shop_uid (→ mall_id projection) duplicate. Same race
-    // backstop as cafe24. spec/2-navigation/4-integration.md §5.9 + makeshop
-    // node §9.3.
-    if (constraint === 'idx_integration_makeshop_workspace_mall') {
-      throw new ConflictException({
-        code: 'MAKESHOP_ALREADY_CONNECTED',
-        message:
-          'A MakeShop integration with this shop_uid already exists in this workspace. Use the existing integration or delete it first.',
+        code: mapped.code,
+        message: mapped.message,
       });
     }
   }
