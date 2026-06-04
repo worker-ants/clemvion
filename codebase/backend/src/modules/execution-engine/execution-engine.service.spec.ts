@@ -1932,6 +1932,72 @@ describe('ExecutionEngineService', () => {
         runSpy.mockRestore();
       }
     });
+
+    it('W2: setup 단계 throw 시 catch 가 execution 을 FAILED 로 best-effort 마킹', async () => {
+      mockExecutionRepo.findOneBy
+        .mockResolvedValueOnce(pendingRow({ triggerId: 'trg-w2' }))
+        .mockResolvedValueOnce(
+          pendingRow({ status: ExecutionStatus.RUNNING, startedAt: new Date() }),
+        );
+      const runSpy = jest
+        .spyOn(
+          service as unknown as { runExecution: jest.Mock },
+          'runExecution',
+        )
+        .mockRejectedValueOnce(new Error('setup boom'));
+      mockExecutionRepo.save.mockClear();
+      try {
+        await service.runExecutionFromQueue(executionId, {});
+        await flushPromises();
+        await flushPromises();
+        const failedSave = mockExecutionRepo.save.mock.calls.find(
+          (c) => (c[0] as Partial<Execution>)?.status === ExecutionStatus.FAILED,
+        );
+        expect(failedSave).toBeDefined();
+      } finally {
+        runSpy.mockRestore();
+      }
+    });
+
+    it('W2: failFirstSegmentSetup 은 이미 terminal 이면 재마킹 no-op', async () => {
+      mockExecutionRepo.findOneBy
+        .mockResolvedValueOnce(pendingRow({ triggerId: 'trg-w2b' }))
+        .mockResolvedValueOnce(pendingRow({ status: ExecutionStatus.FAILED }));
+      const runSpy = jest
+        .spyOn(
+          service as unknown as { runExecution: jest.Mock },
+          'runExecution',
+        )
+        .mockRejectedValueOnce(new Error('boom'));
+      mockExecutionRepo.save.mockClear();
+      try {
+        await service.runExecutionFromQueue(executionId, {});
+        await flushPromises();
+        await flushPromises();
+        const failedSave = mockExecutionRepo.save.mock.calls.find(
+          (c) => (c[0] as Partial<Execution>)?.status === ExecutionStatus.FAILED,
+        );
+        expect(failedSave).toBeUndefined();
+      } finally {
+        runSpy.mockRestore();
+      }
+    });
+
+    it('W1: 동일 executionId 재 arm 시 이전 배리어가 settle 돼 awaiter 가 hang 하지 않음', async () => {
+      const arm = (
+        service as unknown as {
+          armFirstSegmentBarrier: (id: string) => Promise<void>;
+        }
+      ).armFirstSegmentBarrier.bind(service);
+      let firstResolved = false;
+      void arm(executionId).then(() => {
+        firstResolved = true;
+      });
+      // 동일 키 재 arm → 이전 배리어를 settle(awaiter 해제) 후 새 배리어로 교체.
+      void arm(executionId);
+      await flushPromises();
+      expect(firstResolved).toBe(true);
+    });
   });
 
   describe('rehydrateAndResume — chat-channel routing context 재등록 (재개 경로)', () => {

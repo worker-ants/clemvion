@@ -700,6 +700,12 @@ export class ExecutionEngineService
    * 배리어를 먼저 심는다.
    */
   private armFirstSegmentBarrier(executionId: string): Promise<void> {
+    // 방어 (ai-review W1): 동일 executionId 로 이미 arm 된 배리어가 있으면(중복
+    // dispatch·at-least-once 재진입 등) 먼저 settle 해 그 awaiter 가 고아 resolver
+    // 로 영구 hang 하지 않게 한 뒤 새 배리어로 교체한다. `runExecutionFromQueue`
+    // 의 `status!==PENDING` 가드로 현실 발생은 드물지만 Map.set 덮어쓰기의 결과를
+    // 결정적으로 만든다 (이전 worker 는 즉시 깨어나 ack/반환).
+    this.settleFirstSegment(executionId);
     return new Promise<void>((resolve) => {
       this.firstSegmentBarriers.set(executionId, { resolve, settled: false });
     });
@@ -717,6 +723,48 @@ export class ExecutionEngineService
     barrier.settled = true;
     this.firstSegmentBarriers.delete(executionId);
     barrier.resolve();
+  }
+
+  /**
+   * ai-review W2 — detached `runExecution` 의 setup 단계 throw(자체 try 진입 전)
+   * 로 execution 이 terminal 마킹되지 못한 경우의 best-effort 마감. 이미 terminal
+   * 이면(정상 경로 — runExecution 자체 catch 가 처리) no-op. 본 핸들러 자신이 다시
+   * throw 해 unhandled rejection 을 만들지 않도록 전체를 격리한다.
+   */
+  private async failFirstSegmentSetup(
+    executionId: string,
+    error: unknown,
+  ): Promise<void> {
+    try {
+      const row = await this.executionRepository.findOneBy({ id: executionId });
+      if (
+        !row ||
+        row.status === ExecutionStatus.COMPLETED ||
+        row.status === ExecutionStatus.FAILED ||
+        row.status === ExecutionStatus.CANCELLED
+      ) {
+        return;
+      }
+      const errMessage = error instanceof Error ? error.message : String(error);
+      row.status = ExecutionStatus.FAILED;
+      row.error = { message: errMessage };
+      row.finishedAt = new Date();
+      if (row.startedAt) {
+        row.durationMs = row.finishedAt.getTime() - row.startedAt.getTime();
+      }
+      await this.executionRepository.save(row);
+      await this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.EXECUTION_FAILED,
+        { status: ExecutionStatus.FAILED, error: errMessage },
+      );
+    } catch (markErr) {
+      this.logger.error(
+        `failFirstSegmentSetup(${executionId}) best-effort 마킹 실패: ${
+          markErr instanceof Error ? markErr.message : String(markErr)
+        }`,
+      );
+    }
   }
 
   /**
@@ -2337,6 +2385,10 @@ export class ExecutionEngineService
         }`,
       );
       this.eventEmitter.releaseExecutionRouting(executionId);
+      // 방어 (ai-review W2): setup 단계 throw 면 runExecution 자체 catch 가 terminal
+      // 마킹을 못 해 execution 이 PENDING/RUNNING 으로 잔류한다 (recoverStuckExecutions
+      // 백스톱이 30분 후 정리하지만 즉시 마감이 옳다). best-effort 로 FAILED 마킹.
+      void this.failFirstSegmentSetup(executionId, error);
     });
     // park 또는 terminal 중 먼저 도달한 시점에 깨어나 job 을 ack/반환한다.
     await settled;
