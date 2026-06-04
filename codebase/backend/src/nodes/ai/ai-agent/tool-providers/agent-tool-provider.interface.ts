@@ -176,4 +176,6 @@ export interface KbSearchDiagnostic {
   kbId: string;
   query: string;
   resultCount: number;
+  /** 리랭킹 후처리 진단 — `rerank_mode ≠ off` 호출 시에만 포함. */
+  rerank?: import('../../../../modules/knowledge-base/search/rerank.service').RerankDiagnostics;
 }

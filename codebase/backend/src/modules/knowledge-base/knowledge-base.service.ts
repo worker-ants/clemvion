@@ -121,6 +121,12 @@ export class KnowledgeBaseService {
       maxHops: dto.maxHops ?? 1,
       vectorSeedTopK: dto.vectorSeedTopK ?? 5,
       expandedChunkLimit: dto.expandedChunkLimit ?? 15,
+      // 검색 후처리(리랭킹) — 검색 시점 적용. 기본 off 면 현행 동작.
+      rerankMode: dto.rerankMode ?? 'off',
+      rerankConfigId: dto.rerankConfigId ?? null,
+      rerankCandidateK: dto.rerankCandidateK ?? 50,
+      rerankScoreThreshold: dto.rerankScoreThreshold ?? null,
+      rerankLlmConfigId: dto.rerankLlmConfigId ?? null,
     });
     return this.kbRepository.save(kb);
   }
@@ -161,6 +167,16 @@ export class KnowledgeBaseService {
     if (dto.expandedChunkLimit !== undefined) {
       kb.expandedChunkLimit = dto.expandedChunkLimit;
     }
+    // 검색 후처리(리랭킹) — 검색 시점 적용이라 갱신만 한다 (재임베딩 불요).
+    if (dto.rerankMode !== undefined) kb.rerankMode = dto.rerankMode;
+    if (dto.rerankConfigId !== undefined)
+      kb.rerankConfigId = dto.rerankConfigId;
+    if (dto.rerankCandidateK !== undefined)
+      kb.rerankCandidateK = dto.rerankCandidateK;
+    if (dto.rerankScoreThreshold !== undefined)
+      kb.rerankScoreThreshold = dto.rerankScoreThreshold;
+    if (dto.rerankLlmConfigId !== undefined)
+      kb.rerankLlmConfigId = dto.rerankLlmConfigId;
     return this.kbRepository.save(kb);
   }
 

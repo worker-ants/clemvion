@@ -10,6 +10,10 @@ function makeKbRow(overrides: Partial<KbRowFixture>): KbRowFixture {
     maxHops: 1,
     vectorSeedTopK: 5,
     expandedChunkLimit: 15,
+    rerankMode: 'off',
+    rerankConfigId: null,
+    rerankCandidateK: 50,
+    rerankScoreThreshold: null,
     ...overrides,
   } as KbRowFixture;
 }
@@ -22,12 +26,17 @@ interface KbRowFixture {
   maxHops: number;
   vectorSeedTopK: number;
   expandedChunkLimit: number;
+  rerankMode: 'off' | 'cross_encoder' | 'cross_encoder_llm';
+  rerankConfigId: string | null;
+  rerankCandidateK: number;
+  rerankScoreThreshold: number | null;
 }
 
 describe('RagSearchService', () => {
   let service: RagSearchService;
   let mockDataSource: Record<string, jest.Mock>;
   let mockLlmService: Record<string, jest.Mock>;
+  let mockRerankService: Record<string, jest.Mock>;
 
   beforeEach(() => {
     mockDataSource = {
@@ -43,9 +52,14 @@ describe('RagSearchService', () => {
       embed: jest.fn(),
     };
 
+    mockRerankService = {
+      rerankCandidates: jest.fn(),
+    };
+
     service = new RagSearchService(
       mockDataSource as never,
       mockLlmService as never,
+      mockRerankService as never,
     );
   });
 
@@ -361,6 +375,129 @@ describe('RagSearchService', () => {
         'This is relevant content about the topic.',
       );
       expect(result.sources).toHaveLength(1);
+    });
+  });
+
+  describe('search (cross_encoder rerank)', () => {
+    function wideRow(i: number, score: number) {
+      return {
+        chunkId: `c${i}`,
+        documentId: `d${i}`,
+        documentName: `Doc ${i}`,
+        content: `content ${i}`,
+        score: String(score),
+        metadata: {},
+      };
+    }
+
+    it('단일 KB cross_encoder: wide 회수(cosine 임계 0) 후 RerankService 위임 + 리랭크 결과/진단 반환', async () => {
+      mockDataSource.query
+        // 1) KB 메타
+        .mockResolvedValueOnce([
+          makeKbRow({
+            id: 'kb-1',
+            rerankMode: 'cross_encoder',
+            rerankConfigId: 'rc-1',
+            rerankCandidateK: 50,
+          }),
+        ])
+        // 2) wide vector 회수 (후보 3건)
+        .mockResolvedValueOnce([
+          wideRow(1, 0.6),
+          wideRow(2, 0.55),
+          wideRow(3, 0.5),
+        ]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      mockRerankService.rerankCandidates.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c3',
+            documentId: 'd3',
+            documentName: 'Doc 3',
+            content: 'content 3',
+            score: 0.95,
+            metadata: {},
+            origin: 'reranked',
+          },
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'Doc 1',
+            content: 'content 1',
+            score: 0.8,
+            metadata: {},
+            origin: 'reranked',
+          },
+        ],
+        diagnostics: {
+          mode: 'cross_encoder',
+          candidateCount: 3,
+          returnedCount: 2,
+          llmGradingApplied: false,
+          cutoffApplied: false,
+          error: null,
+        },
+      });
+
+      const result = await service.searchWithMeta('q', ['kb-1'], 'ws-1', {
+        topK: 5,
+      });
+
+      // wide 회수 SQL 은 threshold 0, LIMIT candidateK(50) 로 호출돼야 한다.
+      const vectorCall = mockDataSource.query.mock.calls[1];
+      expect(vectorCall[1]).toEqual(
+        expect.arrayContaining([0, 50]), // $3 threshold=0, $4 topK=candidateK
+      );
+
+      expect(mockRerankService.rerankCandidates).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: 'q',
+          workspaceId: 'ws-1',
+          rerankConfigId: 'rc-1',
+          topK: 5,
+          scoreThreshold: null,
+          candidates: expect.arrayContaining([
+            expect.objectContaining({ chunkId: 'c1' }),
+          ]),
+        }),
+      );
+
+      expect(result.results.map((r) => r.chunkId)).toEqual(['c3', 'c1']);
+      expect(result.results[0].origin).toBe('reranked');
+      expect(result.rerank).toEqual(
+        expect.objectContaining({ mode: 'cross_encoder', returnedCount: 2 }),
+      );
+    });
+
+    it('후보 0건이면 RerankService 호출 없이 빈 결과 + 진단 반환', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({ id: 'kb-1', rerankMode: 'cross_encoder' }),
+        ])
+        .mockResolvedValueOnce([]); // wide 회수 0건
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      const result = await service.searchWithMeta('q', ['kb-1'], 'ws-1');
+
+      expect(mockRerankService.rerankCandidates).not.toHaveBeenCalled();
+      expect(result.results).toEqual([]);
+      expect(result.rerank?.candidateCount).toBe(0);
+    });
+
+    it('멀티 KB 면 cross_encoder 라도 리랭크 분기를 타지 않는다 (후속)', async () => {
+      mockDataSource.query.mockResolvedValue([]); // 메타 빈 → 일반 경로
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({ id: 'kb-1', rerankMode: 'cross_encoder' }),
+          makeKbRow({ id: 'kb-2', rerankMode: 'cross_encoder' }),
+        ])
+        .mockResolvedValue([]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      await service.searchWithMeta('q', ['kb-1', 'kb-2'], 'ws-1');
+
+      expect(mockRerankService.rerankCandidates).not.toHaveBeenCalled();
     });
   });
 });

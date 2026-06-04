@@ -12,6 +12,9 @@ import { GraphController } from './graph.controller';
 import { KnowledgeBaseService } from './knowledge-base.service';
 import { EmbeddingService } from './embedding/embedding.service';
 import { RagSearchService } from './search/rag-search.service';
+import { RerankService } from './search/rerank.service';
+import { RerankClientFactory } from '../llm/rerank/rerank-client.factory';
+import { RerankConfigModule } from '../rerank-config/rerank-config.module';
 import { GraphExtractionService } from './graph/graph-extraction.service';
 import { GraphQueryService } from './graph/graph-query.service';
 import { KbStatsHelper } from './graph/kb-stats.helper';
@@ -35,6 +38,7 @@ import { StuckDocumentRecoveryService } from './queues/stuck-document-recovery.s
       GraphChunkEntity,
     ]),
     LlmModule,
+    RerankConfigModule,
     forwardRef(() => WebsocketModule),
     // attempts=1 명시 — service 내부 retryWithBackoff 가 일시 오류를 책임지므로
     // BullMQ 의 외부 retry 는 사용하지 않는다. 손상 payload 도 UnrecoverableError 와
@@ -53,6 +57,8 @@ import { StuckDocumentRecoveryService } from './queues/stuck-document-recovery.s
     KnowledgeBaseService,
     EmbeddingService,
     RagSearchService,
+    RerankService,
+    RerankClientFactory,
     GraphExtractionService,
     GraphQueryService,
     KbStatsHelper,

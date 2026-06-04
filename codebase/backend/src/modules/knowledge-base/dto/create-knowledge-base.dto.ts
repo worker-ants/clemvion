@@ -4,6 +4,7 @@ import {
   IsInt,
   IsIn,
   IsUUID,
+  IsNumber,
   Min,
   Max,
   MaxLength,
@@ -145,4 +146,60 @@ export class CreateKnowledgeBaseDto {
   @Min(1)
   @Max(100)
   expandedChunkLimit?: number;
+
+  // ──────── 검색 후처리(리랭킹) — Spec RAG 검색 §3.3 ────────
+  /** 리랭킹 모드 */
+  @ApiPropertyOptional({
+    description:
+      '검색 후처리(리랭킹) 모드. `off`(기본) 면 현행 cosine 검색, `cross_encoder` 는 wide 회수 후 cross-encoder 재점수화+동적 컷, `cross_encoder_llm` 은 추가 LLM grading(후속 구현). 검색 시점 적용이라 사후 변경 가능.',
+    enum: ['off', 'cross_encoder', 'cross_encoder_llm'],
+    example: 'off',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['off', 'cross_encoder', 'cross_encoder_llm'])
+  rerankMode?: 'off' | 'cross_encoder' | 'cross_encoder_llm';
+
+  /** 사용할 RerankConfig */
+  @ApiPropertyOptional({
+    description:
+      'cross-encoder 리랭커 설정(RerankConfig). 미지정 시 워크스페이스 default, 그것도 없으면 off 로 강등.',
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID()
+  rerankConfigId?: string;
+
+  /** 리랭크 후보 수(wide pool) */
+  @ApiPropertyOptional({
+    description: '리랭크에 투입할 1차 회수 후보 수 (기본 50, 1~200).',
+    minimum: 1,
+    maximum: 200,
+    example: 50,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  rerankCandidateK?: number;
+
+  /** 리랭크 점수 동적 컷 임계 */
+  @ApiPropertyOptional({
+    description:
+      '리랭크 점수 동적 컷 임계. 미지정 시 컷 없이 점수순 정렬 후 top-k.',
+    example: 0.5,
+  })
+  @IsOptional()
+  @IsNumber()
+  rerankScoreThreshold?: number;
+
+  /** cross_encoder_llm grading LLMConfig (후속) */
+  @ApiPropertyOptional({
+    description:
+      'cross_encoder_llm 모드의 listwise grading LLMConfig. 미지정 시 워크스페이스 default chat. (cross_encoder_llm 은 후속 구현)',
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID()
+  rerankLlmConfigId?: string;
 }

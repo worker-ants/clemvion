@@ -165,6 +165,11 @@ describe('KnowledgeBaseService', () => {
         maxHops: 1,
         vectorSeedTopK: 5,
         expandedChunkLimit: 15,
+        rerankMode: 'off',
+        rerankConfigId: null,
+        rerankCandidateK: 50,
+        rerankScoreThreshold: null,
+        rerankLlmConfigId: null,
       });
       expect(mockKbRepo.save).toHaveBeenCalled();
       expect(result).toBeDefined();
