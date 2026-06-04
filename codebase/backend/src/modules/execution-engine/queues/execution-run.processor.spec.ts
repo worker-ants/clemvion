@@ -52,4 +52,46 @@ describe('ExecutionRunProcessor', () => {
       processor.onFailed(undefined, new Error('no handle')),
     ).not.toThrow();
   });
+
+  // SUMMARY#11 — job 핸들 있는 경우의 onFailed 로그 경로 + opts.attempts undefined fallback
+  describe('onFailed — job 핸들 있는 경우', () => {
+    it('executionId·jobId·시도 횟수 포함 DEAD-LETTER 경고 로그 출력', () => {
+      const warnSpy = jest
+        .spyOn(
+          (processor as unknown as { logger: { warn: jest.Mock } }).logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+      const j = job({ executionId: 'exec-dead', input: {} });
+      processor.onFailed(j, new Error('crash'));
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[execution-run DEAD-LETTER]'),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('exec-dead'),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('crash'));
+      warnSpy.mockRestore();
+    });
+
+    it('job.opts?.attempts 가 undefined 이면 EXECUTION_RUN_QUEUE_DEFAULT_OPTS.attempts 로 fallback', () => {
+      const warnSpy = jest
+        .spyOn(
+          (processor as unknown as { logger: { warn: jest.Mock } }).logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+      // opts.attempts 를 undefined 로 명시
+      const j = {
+        id: 'exec-opts-undef',
+        data: { executionId: 'exec-opts-undef', input: {} },
+        attemptsMade: 1,
+        opts: { attempts: undefined },
+      } as unknown as Parameters<typeof processor.onFailed>[0];
+      processor.onFailed(j, new Error('opts-undef'));
+      // fallback: EXECUTION_RUN_QUEUE_DEFAULT_OPTS.attempts = 1 → "1/1"
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('1/1'));
+      warnSpy.mockRestore();
+    });
+  });
 });

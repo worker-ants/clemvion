@@ -2119,8 +2119,12 @@ export class ExecutionEngineService
   }
 
   /**
-   * Execute a workflow. Creates the execution record and starts execution
-   * in the background so the caller gets the execution ID immediately.
+   * Execute a workflow. Creates the execution record and enqueues execution
+   * start — the caller gets the execution ID immediately (PENDING row).
+   *
+   * **SUMMARY#15 — 타이밍 계약**: 반환 시 Execution row 는 `pending` 상태이며
+   * 실제 실행(노드 dispatch)은 `execution-run` 큐의 워커가 임의 시점·인스턴스에서
+   * 비동기로 시작한다. 반환 직후 실행이 곧바로 시작된다는 보장이 없다.
    *
    * `options.executedBy` 는 수동 실행(사용자가 ▶ 누름)일 때, `options.triggerId`
    * 는 schedule/webhook 트리거 발화일 때 채운다. 두 값은 Execution 행에 저장되어
@@ -2179,6 +2183,9 @@ export class ExecutionEngineService
     //    priority: 수동 실행(executedBy)을 트리거 실행보다 앞세운다(§4.3). webhook
     //    vs schedule 의 세부 3-tier 구분은 ExecuteOptions 가 trigger type 을 싣지
     //    않아 후속(triggerType threading)으로 미룬다 — 현재는 manual > 그 외.
+    // TODO(PR2): trigger type threading — ExecuteOptions 에 triggerType 필드 추가 시
+    //   'manual' | 'webhook' | 'schedule' 로 세분화. 현재 schedule 실행도 'webhook'
+    //   우선순위를 받는다(spec §4.3 3-tier 미완성 — 의도된 임시 처리).
     const triggerType = options?.executedBy ? 'manual' : 'webhook';
     await this.executionRunQueue.add(
       'execution-run',
@@ -2196,17 +2203,33 @@ export class ExecutionEngineService
   /**
    * PR1 — `execution-run` intake 큐 worker 진입점 (spec §4.1–4.3).
    *
+   * @internal — `ExecutionRunProcessor` 전용 진입점. NestJS DI 로 인해 `private`
+   *   선언이 불가하나 모듈 외부에서 직접 호출해서는 안 된다.
+   *
    * `ExecutionRunProcessor` 가 job 을 pick up 해 호출한다. row 를 재조회하고
    * (executionId), 아직 `pending` 인 경우에만 routing 재등록 후 `runExecution` 을
    * 수행한다. fire-and-forget 시절 `execute()` 의 routing 등록(step 3)·실패 시
    * routing release(step 4 .catch)를 이 곳으로 이동했다 — work-stealing 으로
    * job 을 실제 처리하는 인스턴스에서 등록/해제가 짝을 이루도록.
    *
+   * **SUMMARY#7 — input 소유권**: `input` 은 `execute()` 가 job payload 에 실어
+   * 보낸 원본 입력이다. row.inputData 와 동일 값이지만, worker 는 job payload 의
+   * `input` 을 `runExecution(execution, input)` 에 그대로 전달해 원본 형태를
+   * 보존한다. PR3 멱등 rehydration 도입 시 `runExecution(execution, execution.inputData)`
+   * 로 일원화하고 job payload 에서 `input` 을 제거 예정. 두 값이 diverge 하는
+   * 경우의 동작은 현재 미정의 — PR1 에서는 항상 일치한다고 가정.
+   *
    * 멱등성: jobId = executionId 라 중복 enqueue 는 BullMQ 가 차단하지만, 큐 대기
    * 중 cancel 된 경우 등을 위해 `status === pending` 을 재검증해 아니면 ack-discard.
    * 실행 실패는 `runExecution` 이 Execution 을 `failed` 로 마킹하고 정상 반환하므로
    * 본 메서드는 setup 단계 미처리 throw 만 catch 해 routing 을 정리한다 (PR1 은
    * crash-retry 미도입 — job 을 re-throw 없이 ack 하여 비멱등 노드 이중 실행 방지).
+   *
+   * **SUMMARY#1 — TOCTOU 보류**: status 재검증(`findOneBy`)과 `registerExecutionRouting`
+   * 사이에 cancel API / recoverStuckExecutions 가 row 상태를 변경하면 stale routing
+   * context 가 Map 에 잔류 가능. PR2 동시성 cap 구현 전 conditional UPDATE 원자화
+   * 예정 (현 단계: status 불일치 시 debug 로그로 ack-discard — stale routing 의
+   * 실질적 위험은 PR2 동시성 증가 후 구체화).
    */
   async runExecutionFromQueue(
     executionId: string,

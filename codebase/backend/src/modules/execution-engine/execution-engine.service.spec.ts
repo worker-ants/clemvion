@@ -1864,6 +1864,23 @@ describe('ExecutionEngineService', () => {
       });
     });
 
+    // SUMMARY#10 — conversationKey='' 경계값 테스트 복원
+    it('chatChannel.conversationKey 가 빈 문자열이면 chatChannel 등록 제외', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-bad2' }),
+      );
+      await service.runExecutionFromQueue(executionId, {
+        chatChannel: { provider: 'telegram', conversationKey: '' },
+      });
+      await flushPromises();
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, {
+        triggerId: 'trg-bad2',
+        workflowId,
+      });
+    });
+
     it('row 가 PENDING 이 아니면 ack-discard (재실행 안 함) — 큐 대기 중 cancel 케이스', async () => {
       mockExecutionRepo.findOneBy.mockResolvedValueOnce(
         pendingRow({ status: ExecutionStatus.CANCELLED, triggerId: 'trg-x' }),

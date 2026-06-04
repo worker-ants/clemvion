@@ -79,5 +79,22 @@ describe('execution-run.queue', () => {
         ).toBe(DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY);
       }
     });
+
+    // SUMMARY#12 — 공백 전용 문자열 + 극단값 동작 명시
+    it('공백 전용 문자열은 기본값 fallback (trim 후 빈 문자열 → \\d+ 불일치)', () => {
+      expect(
+        resolveExecutionRunWorkerConcurrency({
+          EXECUTION_RUN_WORKER_CONCURRENCY: '   ',
+        }),
+      ).toBe(DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY);
+    });
+
+    it('Number.MAX_SAFE_INTEGER 는 양의 정수로 채택 (극단값 동작 문서화)', () => {
+      expect(
+        resolveExecutionRunWorkerConcurrency({
+          EXECUTION_RUN_WORKER_CONCURRENCY: String(Number.MAX_SAFE_INTEGER),
+        }),
+      ).toBe(Number.MAX_SAFE_INTEGER);
+    });
   });
 });
