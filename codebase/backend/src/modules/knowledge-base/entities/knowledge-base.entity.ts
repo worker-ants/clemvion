@@ -89,6 +89,31 @@ export class KnowledgeBase {
   @Column({ name: 'reextract_status', type: 'text', default: 'idle' })
   reextractStatus: 'idle' | 'in_progress';
 
+  // ──────── 검색 후처리(리랭킹) 컬럼 (V074, spec/5-system/9-rag-search.md §3.3) ────────
+  // 검색 시점 적용 — 사후 변경 가능, 재임베딩 불요. 'off' 면 현행 동작(하위호환).
+  @Column({ name: 'rerank_mode', type: 'text', default: 'off' })
+  rerankMode: 'off' | 'cross_encoder' | 'cross_encoder_llm';
+
+  // cross-encoder 리랭커 설정(RerankConfig). NULL → 워크스페이스 default, 그것도 없으면 off 강등.
+  @Column({ name: 'rerank_config_id', type: 'uuid', nullable: true })
+  rerankConfigId: string | null;
+
+  // 리랭크에 투입할 1차 회수 후보 수(wide pool). off 시 무시.
+  @Column({ name: 'rerank_candidate_k', type: 'int', default: 50 })
+  rerankCandidateK: number;
+
+  // 리랭크 점수 동적 컷 임계. NULL 이면 컷 없이 점수순 정렬 후 top-k. off 시 무시.
+  @Column({
+    name: 'rerank_score_threshold',
+    type: 'double precision',
+    nullable: true,
+  })
+  rerankScoreThreshold: number | null;
+
+  // cross_encoder_llm 모드의 listwise grading LLM. NULL → 워크스페이스 default chat. (cross_encoder_llm 은 후속 구현)
+  @Column({ name: 'rerank_llm_config_id', type: 'uuid', nullable: true })
+  rerankLlmConfigId: string | null;
+
   @OneToMany(() => Document, (doc) => doc.knowledgeBase)
   documents: Document[];
 

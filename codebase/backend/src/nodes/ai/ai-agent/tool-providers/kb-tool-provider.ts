@@ -233,13 +233,18 @@ export class KbToolProvider implements AgentToolProvider {
     }
 
     let results: Awaited<ReturnType<RagSearchService['search']>> = [];
+    let rerankDiagnostics:
+      | Awaited<ReturnType<RagSearchService['searchWithMeta']>>['rerank']
+      | undefined;
     try {
-      results = await this.ragSearchService.search(
+      const meta = await this.ragSearchService.searchWithMeta(
         args.query,
         [kbId],
         ctx.workspaceId,
         { topK, threshold },
       );
+      results = meta.results;
+      rerankDiagnostics = meta.rerank;
     } catch (e) {
       const rawMsg = e instanceof Error ? e.message : String(e);
       KbToolProvider.logger.warn(`KB search failed (kb=${kbId}): ${rawMsg}`);
@@ -295,6 +300,10 @@ export class KbToolProvider implements AgentToolProvider {
         kbId,
         query: args.query,
         resultCount: results.length,
+        // rerank 진단은 rerank_mode ≠ off 인 KB 호출 시에만 포함됨.
+        ...(rerankDiagnostics !== undefined
+          ? { rerank: rerankDiagnostics }
+          : {}),
       },
     };
   }

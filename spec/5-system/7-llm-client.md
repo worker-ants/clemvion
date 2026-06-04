@@ -161,7 +161,7 @@ interface ModelInfo {
 }
 ```
 
-### 3.6 RerankClient (Planned)
+### 3.6 RerankClient
 
 cross-encoder 리랭킹은 chat/embedding 과 API shape 가 달라 `LLMClient` 에 욱여넣지 않고 **별도 인터페이스**로 둔다 (RAG 검색 §3.3 후처리에서 호출).
 
@@ -208,7 +208,7 @@ class LLMClientFactory {
 
 > 클래스명은 코드상 `GoogleClient` (스펙 서술의 `GoogleAIClient` 와 매핑). 팩토리 자체는 `provider` 만 검증하며, azure/local 의 `baseUrl` 누락은 `Error` 로 throw — 호출 측(§5.5 preview)이 이를 `LLM_CONFIG_INVALID` 로 래핑한다.
 
-### 4.1 RerankClientFactory (Planned)
+### 4.1 RerankClientFactory
 
 리랭커는 **별도 팩토리**로 분리해 `LLMClientFactory` 의 chat/embedding provider switch 를 오염시키지 않는다 (별개 provider 집합·별개 인터페이스). `RerankConfig` 에서 `{ provider, apiKey?, defaultModel, baseUrl? }` 를 받아 `RerankClient` 구현체를 생성한다.
 
@@ -270,7 +270,7 @@ class RerankClientFactory {
 - `api_key`는 선택 (없으면 빈 문자열)
 - 모델 목록: `GET {base_url}/v1/models` 또는 Ollama `GET /api/tags`
 
-### 5.6 Rerank 프로바이더 매핑 (Planned)
+### 5.6 Rerank 프로바이더 매핑
 
 | provider | rerank() 엔드포인트 | 단계 |
 |----------|--------------------|------|
@@ -400,3 +400,11 @@ class LlmService {
 
 - `chat()`은 모든 프로바이더에서 그대로 필수 구현. Assistant 외 기존 AI 노드·임베딩·연결 테스트는 계속 `chat()` 사용.
 - `stream()`은 Assistant 한정 기능이며, 향후 AI Agent 노드의 `ND-AG-09 (스트리밍 응답)` 요구사항이 필수화될 때 확장 적용.
+
+---
+
+## Rationale
+
+- **왜 RerankClient 를 LLMClient 와 분리된 별도 인터페이스로 둔 것인가**: 리랭커 API shape 는 chat/embed 와 근본적으로 다르다 — `rerank(query, documents[])` 는 스코어 배열 반환이며, 스트리밍·system_prompt·tool_call 등 chat 개념이 없다. capability flag(`supportsReranking?: boolean`) 로 LLMClient 에 욱여넣으면 (a) 타입 안전성 저하 (b) 미구현 프로바이더의 런타임 throw 처리 복잡화 (c) provider switch 가 리랭크/chat/embed 를 함께 처리해 단일책임 위반. 별도 인터페이스 + 별도 팩토리가 명확하다.
+- **왜 SSRF 가드·secret-store 는 재사용하는가**: 자가호스팅 `tei`/`local` 리랭커는 사설망 endpoint 를 받아 LLM 과 동일한 SSRF 공격 면이 있다. §5.5 의 `local`/`tei` 사설망 예외 규칙을 그대로 적용해 인프라를 중복 구현하지 않는다.
+- **왜 LLMClientFactory 에 통합하지 않았나**: LLMConfig 와 RerankConfig 는 별개 DB 테이블·별개 워크스페이스 리소스다. LLMClientFactory 는 `provider`·`apiKey`·`defaultModel`·`baseUrl?` 의 flat 옵션을 받는데, 리랭크 프로바이더 집합(`tei`·`cohere`·jina/voyage 후속)은 chat 프로바이더 집합(`openai`·`anthropic`·`google`·`azure`·`local`)과 교집합이 없다. 같은 팩토리에 두면 switch 가 불필요하게 커지고 RerankConfig 의 타입이 LLMConfig 로 오염된다.

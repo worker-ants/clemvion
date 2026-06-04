@@ -2,13 +2,13 @@ import { KbToolProvider, kbToolName } from './kb-tool-provider';
 import { ToolCall } from '../../../../modules/llm/interfaces/llm-client.interface';
 
 describe('KbToolProvider', () => {
-  let mockRagService: { search: jest.Mock };
+  let mockRagService: { searchWithMeta: jest.Mock };
   let mockKbService: { findById: jest.Mock };
   let provider: KbToolProvider;
 
   beforeEach(() => {
     mockRagService = {
-      search: jest.fn().mockResolvedValue([]),
+      searchWithMeta: jest.fn().mockResolvedValue({ results: [] }),
     };
     mockKbService = {
       findById: jest.fn(),
@@ -103,16 +103,18 @@ describe('KbToolProvider', () => {
         id: 'kb-1',
         name: 'Refund Policy',
       });
-      mockRagService.search.mockResolvedValue([
-        {
-          chunkId: 'c1',
-          documentId: 'd1',
-          documentName: 'refund-rules.md',
-          content: 'You may request a refund within 14 days of purchase.',
-          score: 0.872,
-          metadata: {},
-        },
-      ]);
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'refund-rules.md',
+            content: 'You may request a refund within 14 days of purchase.',
+            score: 0.872,
+            metadata: {},
+          },
+        ],
+      });
 
       const call: ToolCall = {
         id: 'tc-1',
@@ -121,7 +123,7 @@ describe('KbToolProvider', () => {
       };
       const result = await provider.execute(call, baseCtx);
 
-      expect(mockRagService.search).toHaveBeenCalledWith(
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledWith(
         'refund window',
         ['kb-1'],
         'ws-1',
@@ -146,6 +148,29 @@ describe('KbToolProvider', () => {
       });
     });
 
+    it('includes rerank diagnostics in ragDiagnosticsDelta when rerank_mode is active', async () => {
+      mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
+      const rerankDiag = {
+        mode: 'cross_encoder',
+        candidateCount: 50,
+        returnedCount: 3,
+        llmGradingApplied: false,
+        cutoffApplied: true,
+        error: null,
+      };
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [],
+        rerank: rerankDiag,
+      });
+      const call: ToolCall = {
+        id: 'tc-rerank',
+        name: kbToolName('kb-1'),
+        arguments: '{"query":"q"}',
+      };
+      const result = await provider.execute(call, baseCtx);
+      expect(result.ragDiagnosticsDelta?.rerank).toEqual(rerankDiag);
+    });
+
     it('honors LLM-provided top_k and threshold overrides', async () => {
       mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
       const call: ToolCall = {
@@ -154,7 +179,7 @@ describe('KbToolProvider', () => {
         arguments: '{"query":"x","top_k":10,"threshold":0.5}',
       };
       await provider.execute(call, baseCtx);
-      expect(mockRagService.search).toHaveBeenCalledWith(
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledWith(
         'x',
         ['kb-1'],
         'ws-1',
@@ -174,7 +199,7 @@ describe('KbToolProvider', () => {
         error: string;
       };
       expect(content.error).toMatch(/query/i);
-      expect(mockRagService.search).not.toHaveBeenCalled();
+      expect(mockRagService.searchWithMeta).not.toHaveBeenCalled();
       // status='error' surfaces a red badge in the inspector.
       expect(result.status).toBe('error');
       expect(result.error).toMatch(/query/i);
@@ -193,14 +218,14 @@ describe('KbToolProvider', () => {
         error: string;
       };
       expect(content.error).toBe('unknown_kb_tool');
-      expect(mockRagService.search).not.toHaveBeenCalled();
+      expect(mockRagService.searchWithMeta).not.toHaveBeenCalled();
       expect(result.status).toBe('error');
       expect(result.error).toBe('unknown_kb_tool');
     });
 
     it('returns search_failed tool_result and graceful diagnostic when RagSearchService throws', async () => {
       mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
-      mockRagService.search.mockRejectedValue(new Error('db down'));
+      mockRagService.searchWithMeta.mockRejectedValue(new Error('db down'));
       const call: ToolCall = {
         id: 'tc-5',
         name: kbToolName('kb-1'),
@@ -235,7 +260,7 @@ describe('KbToolProvider', () => {
         name: 'Refund Policy',
         description: 'desc',
       });
-      mockRagService.search.mockResolvedValue([]);
+      mockRagService.searchWithMeta.mockResolvedValue({ results: [] });
 
       // 1) buildTools 가 1회 findById (warm cache).
       await provider.buildTools({
@@ -279,7 +304,7 @@ describe('KbToolProvider', () => {
 
     it('omits status (defaults to success) on a normal search result', async () => {
       mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
-      mockRagService.search.mockResolvedValue([]);
+      mockRagService.searchWithMeta.mockResolvedValue({ results: [] });
       const call: ToolCall = {
         id: 'tc-ok',
         name: kbToolName('kb-1'),
