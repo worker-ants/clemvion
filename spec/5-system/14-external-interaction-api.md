@@ -529,7 +529,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
   "triggerId":   "uuid",
   "workflowId":  "uuid",
   "error": {
-    "code":    "EXECUTION_TIMEOUT" | "MAX_ITERATIONS_EXCEEDED" | "CYCLE_DETECTED" | ... ,  // 엔진 수준 에러코드 — 정본은 spec/5-system/3-error-handling.md §엔진 수준 에러. 노드 수준 실패는 `error.code` 에 노드 ErrorCode (예: LLM_TIMEOUT)
+    "code":    "EXECUTION_TIMEOUT" | "EXECUTION_TIME_LIMIT_EXCEEDED" | "MAX_ITERATIONS_EXCEEDED" | "CYCLE_DETECTED" | ... ,  // 엔진 수준 에러코드 — 정본은 spec/5-system/3-error-handling.md §1.4. EXECUTION_TIMEOUT=Code 노드 스크립트 타임아웃, EXECUTION_TIME_LIMIT_EXCEEDED=엔진 레벨 누적 active-running 타임아웃(§8). 노드 수준 실패는 `error.code` 에 노드 ErrorCode (예: LLM_TIMEOUT)
     //         (노드 ErrorCode 정식 목록: codebase/backend/src/nodes/core/error-codes.ts)
     "message": "사람-가독 메시지",
     "nodeId":  "uuid" | null,
