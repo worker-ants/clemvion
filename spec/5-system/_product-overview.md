@@ -97,3 +97,19 @@
 | NF-DP-04 | 환경 변수 기반 설정 관리 | 필수 | ✅ |
 | NF-DP-05 | CI/CD 파이프라인 구성 | 필수 | ✅ |
 | NF-DP-06 | 셀프 호스팅 설치/운영 문서 | 필수 | ❌ |
+
+---
+
+## 8. AI Agent 영속 메모리 (Agent Memory)
+
+AI Agent 노드 `memoryStrategy: 'persistent'` 의 세션 간 추출/회수 메모리 요구사항. 정의·파이프라인의 단일 진실은 [Spec Agent Memory](./17-agent-memory.md), 노드 설정 필드는 [Spec AI Agent §1](../4-nodes/3-ai/1-ai-agent.md#1-설정-config).
+
+| ID | 요구사항 | 우선순위 | 상태 |
+|----|----------|----------|-------|
+| AGM-01 | `agent_memory` 테이블 — pgvector 재사용, KnowledgeBase 와 분리된 별도 테이블 ([§1](./17-agent-memory.md#1-데이터-모델)) | 필수 | ✅ |
+| AGM-02 | `(workspace_id, scope_key)` 인덱스 + pgvector partial 유사도 인덱스 ([§1](./17-agent-memory.md#1-데이터-모델)) | 필수 | ✅ |
+| AGM-03 | 스코프 키 resolve — `memoryKey ?? execution_id`, 항상 `workspace_id` 와 결합 ([§2](./17-agent-memory.md#2-스코프-키)) | 필수 | ✅ |
+| AGM-04 | 턴 경계 비동기 추출 — `scheduleBackgroundBody` snapshot 격리 준수, 노드 model 재사용 ([§3](./17-agent-memory.md#3-추출-파이프라인-턴-경계-비동기)) | 필수 | ✅ |
+| AGM-05 | 동기 top-k 회수 — `memoryTopK`/`memoryThreshold` (KB 검색과 독립), 안정 프리픽스 주입 ([§4](./17-agent-memory.md#4-회수-top-k-동기--forgetting)) | 필수 | ✅ |
+| AGM-06 | Forgetting — scope 당 최신 `N=1000` FIFO/LRU evict (TTL 만료는 v2) ([§4](./17-agent-memory.md#4-회수-top-k-동기--forgetting)) | 필수 | ✅ |
+| AGM-07 | 워크스페이스 격리 — 모든 회수·추출·evict 가 `workspace_id` 필터 강제 (cross-workspace 누수 차단) ([§5](./17-agent-memory.md#5-격리-의무)) | 필수 | ✅ |

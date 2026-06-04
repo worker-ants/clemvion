@@ -98,6 +98,10 @@ const LABEL_KO: Record<string, string> = {
   "Max Turns": "최대 턴 수",
   "MCP Servers": "MCP 서버",
   Method: "메서드",
+  "Memory Key": "메모리 키",
+  "Memory Strategy": "메모리 전략",
+  "Memory Threshold": "메모리 임계값",
+  "Memory Top-K": "메모리 Top-K",
   Mode: "모드",
   Model: "모델",
   "Model Override": "모델 재정의",
@@ -142,6 +146,7 @@ const LABEL_KO: Record<string, string> = {
   "Timeout (seconds)": "타임아웃(초)",
   Title: "제목",
   "Title Field": "제목 필드",
+  "Token Budget": "토큰 예산",
   "Tool Description": "도구 설명",
   "Tool Name": "도구 이름",
   "Tool Node IDs": "도구 노드 ID",
@@ -208,6 +213,16 @@ const HINT_KO: Record<string, string> = {
     "비워두면 서버의 모든 일반 도구를 LLM 에 노출합니다.",
   "Max branches running concurrently (0 = same as branchCount, unlimited). When smaller than branchCount, the rest wait until a slot frees up.":
     "동시에 실행할 분기의 최대 개수 (0 = branchCount와 동일, 제한 없음). 값이 branchCount보다 작으면 나머지는 슬롯이 빌 때까지 대기합니다.",
+  "manual = manage context with the fields below. summary_buffer = rolling token-budget summary. persistent = summary buffer + cross-session recall.":
+    "manual = 아래 대화 컨텍스트 필드로 맥락을 직접 관리해요. summary_buffer = 토큰 예산을 넘는 오래된 턴을 자동 요약하는 롤링 방식이에요. persistent = 요약 버퍼에 더해 세션을 넘어 사용자 정보를 기억해요.",
+  "Working-memory token budget. Older turns are rolled into a summary once exceeded.":
+    "워킹 메모리 토큰 예산이에요. 예산을 넘으면 오래된 턴이 요약으로 말려 들어가요.",
+  "Persistent memory scope key. Same key recalls the same memory across runs. Empty = isolated per execution.":
+    "지속 메모리 범위 키예요. 같은 키는 실행을 넘어 같은 기억을 불러와요. 비우면 실행 단위로 격리돼요.",
+  "Number of memory chunks recalled per turn (independent of KB RAG Top-K).":
+    "턴마다 회수할 메모리 청크 수예요 (KB RAG Top-K 와 독립).",
+  "Minimum similarity (0-1) for memory recall (independent of KB RAG Threshold).":
+    "메모리 회수에 필요한 최소 유사도(0~1)예요 (KB RAG 임계값과 독립).",
   "Merge arrived inputs when timeout elapses":
     "타임아웃 발생 시 도착한 입력들을 병합",
   "Minimum similarity score (0-1)": "최소 유사도 점수 (0~1)",
@@ -292,6 +307,7 @@ const GROUP_KO: Record<string, string> = {
   Items: "항목",
   "Knowledge Base (RAG)": "지식 베이스 (RAG)",
   "MCP Servers": "MCP 서버",
+  Memory: "메모리",
   "Multi Turn Settings": "멀티턴 설정",
   "Presentation Tools": "프레젠테이션 도구",
   "Retry Settings": "재시도 설정",
@@ -312,9 +328,15 @@ const OPTION_LABEL_KO: Record<string, string> = {
   "Last N — inject most recent N turns":
     "최근 N — 가장 최근 N개 턴 주입",
   "Last N Messages": "최근 N개 메시지",
+  "Manual — use Conversation Context fields":
+    "Manual — 대화 컨텍스트 필드 사용",
   "Messages — prepend to LLM messages":
     "메시지 — LLM 메시지 앞쪽에 주입",
   Minimal: "최소",
+  "Persistent — summary buffer + cross-session memory":
+    "Persistent — 요약 버퍼 + 세션 간 메모리",
+  "Summary Buffer — rolling token-budget summary":
+    "Summary Buffer — 토큰 예산 기반 롤링 요약",
   "Multi Turn (Conversation)": "멀티턴 (대화)",
   None: "없음",
   "None — system + user prompt only":

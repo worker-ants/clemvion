@@ -87,7 +87,7 @@ pending_plans:
 | 분류 | 필수/권장 필드 |
 | --- | --- |
 | **공통** | `meta.durationMs: number` |
-| **LLM 계열** | `meta.model`, `meta.inputTokens`, `meta.outputTokens`, `meta.totalTokens`, `meta.thinkingTokens?`, `meta.toolCalls?`, `meta.contextInjection?` (ConversationThread 자동 주입 시 — `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` echo. 상세: [Spec Conversation Thread §5.3](./conversation-thread.md#53-cap-v1--char-기반)) |
+| **LLM 계열** | `meta.model`, `meta.inputTokens`, `meta.outputTokens`, `meta.totalTokens`, `meta.thinkingTokens?`, `meta.toolCalls?`, `meta.contextInjection?` (ConversationThread 자동 주입 시 — `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` echo. 상세: [Spec Conversation Thread §5.3](./conversation-thread.md#53-cap-v1)) |
 | **HTTP** | `meta.statusCode`, `meta.durationMs` |
 | **DB** | `meta.durationMs`, `meta.rowCount` |
 | **Code** | `meta.durationMs`, `meta.success`, `meta.logs?` (런타임 에러는 `output.error` + `port:'error'` — `meta.error`/`meta.errorCode` 별칭은 Phase 1 D 에서 폐기) |

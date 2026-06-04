@@ -61,6 +61,7 @@ export const aiAgentNodeComponent: NodeComponent = {
       providers,
       deps.eventEmitter,
       deps.conversationThreadService,
+      deps.agentMemoryService,
     );
   },
 };

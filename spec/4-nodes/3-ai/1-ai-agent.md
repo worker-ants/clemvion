@@ -9,6 +9,7 @@ code:
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md
+  - plan/in-progress/ai-context-memory-followup-v2.md
 ---
 
 # Spec: AI Agent
@@ -39,11 +40,16 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | maxToolCalls | Integer | ✓ | `10` | 최대 도구 호출 횟수 (KB·MCP·일반 합산) |
 | includeSystemContext | Boolean | | `true` | systemPrompt 앞에 시각·timezone prefix 자동 prepend. [공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix) |
 | systemContextSections | String[] | | `['time', 'timezone']` | prefix 섹션. 허용 값: `time` / `timezone` / `workspace` / `node`. [공통 §11.1](./0-common.md#111-설정-필드-3-노드-공통) |
-| contextScope | `none` / `thread` / `lastN` | ✓ | `none` | 자동 주입할 thread 범위. [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입) |
-| contextScopeN | Integer | | `20` | `lastN` 시 최근 N개 turn |
-| contextInjectionMode | `messages` / `system_text` | | `messages` | 주입 형식. [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입) |
-| includeToolTurns | Boolean | | `false` | `ai_tool` turn 도 thread 에 push (default 는 final assistant 만 push) |
-| excludeFromConversationThread | Boolean | | `false` | 본 노드 turn 을 thread 에서 제외 (opt-out) |
+| contextScope | `none` / `thread` / `lastN` | ✓ | `none` | 자동 주입할 thread 범위. [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입). **`memoryStrategy ≠ manual` 시 무효** (자동 전략이 대체) |
+| contextScopeN | Integer | | `20` | `lastN` 시 최근 N개 turn. **`memoryStrategy ≠ manual` 시 무효** |
+| contextInjectionMode | `messages` / `system_text` | | `messages` | 주입 형식. [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입). `memoryStrategy ∈ {summary_buffer, persistent}` 시에는 **최근 원문 turn 의 주입 형식**으로만 의미를 갖고 (요약/회수 블록은 항상 system_text 안정 프리픽스, §6.1), `manual` 외 strategy 의 thread 범위 선택은 무효 |
+| includeToolTurns | Boolean | | `false` | `ai_tool` turn 도 thread 에 push (default 는 final assistant 만 push). **`memoryStrategy ≠ manual` 시 자동 주입 측면에서는 무효** (push 자체는 thread 누적 컨트랙트라 유지) |
+| excludeFromConversationThread | Boolean | | `false` | 본 노드 turn 을 thread 에서 제외 (opt-out). thread 누적 opt-out 이므로 `memoryStrategy` 와 독립 (자동 전략에서도 적용) |
+| memoryStrategy | `manual` / `summary_buffer` / `persistent` | | `manual` | 대화 컨텍스트 메모리 **관리 전략** ([공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입)). `manual`(기본) = 위 contextScope 계열 5필드 동작 그대로 (하위호환). `summary_buffer` = 단일 실행 내 토큰예산 롤링 요약 압축. `persistent` = summary_buffer working-memory + 세션 간 추출 메모리 의미검색 회수 ([Spec Agent Memory](../../5-system/17-agent-memory.md)). **`manual` 외 선택 시 contextScope 계열 5필드는 무효** (자동 전략이 대체) |
+| memoryTokenBudget | Integer | | `8000` | `memoryStrategy ∈ {summary_buffer, persistent}` 시 working-memory 토큰 예산. 초과분을 오래된 turn 부터 롤링 요약 압축 (§6.1). char-기반 cap (contextScope 계열, [conversation-thread §5.3](../../conventions/conversation-thread.md#53-cap-v1)) 과 별개 메커니즘 |
+| memoryKey | String (Expression) | | — | `memoryStrategy: 'persistent'` 시 메모리 스코프 키. `(workspace_id, memoryKey)` 가 세션 간 영속 네임스페이스 (개인화). 미설정 시 `execution_id` 로 fallback → 세션 단위 격리 ([Spec Agent Memory §스코프 키](../../5-system/17-agent-memory.md)) |
+| memoryTopK | Integer | | `5` | `persistent` 메모리 회수 시 top-k 청크 수. **persistent 메모리 회수 전용 — KB 검색용 `ragTopK` 와 독립** (서로 다른 검색 대상: agent_memory vs KnowledgeBase) |
+| memoryThreshold | Float | | `0.7` | `persistent` 메모리 회수 최소 유사도 (0-1). **persistent 메모리 회수 전용 — KB 검색용 `ragThreshold` 와 독립** |
 | maxTurns | Integer | | `20` | Multi Turn 모드 시 최대 대화 턴 수 (`0` = 무제한). `mode=multi_turn` 일 때만 UI 표시 |
 | conditions | ConditionDef[] | | `[]` | 조건 목록. 조건이 있으면 조건별 동적 출력 포트(`{condition.id}`)를 생성한다 |
 | presentationTools | PresentationToolDef[] | | `[]` | LLM 응답 표현용 가상 도구 (`render_*`) 등록 목록. 비어 있으면 기능 OFF (기본). 워크플로 그래프의 다른 노드로 연결하는 방식이 아니라 AI 세션 내부에서 presentation 노드의 렌더링 페이로드를 만들기 위한 도구. 자세한 동작은 §4.1, dispatch 는 §6.1 단계 3, ConversationTurn 의 **top-level** `presentations[]` 운반은 §7.10 참조 (data? 내부가 아니라 별도 독립 필드) |
@@ -133,7 +139,17 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 │  └──────────────────────────────────────┘│
 │  [+ Add Condition]                       │
 │                                          │
+│  ── Memory ──                           │
+│  Strategy: [Manual ▼]                   │
+│  ┊ (strategy ∈ summary_buffer/persistent)│
+│  ┊  Token Budget: [8000]                │
+│  ┊ (strategy = persistent 시)            │
+│  ┊  Memory Key:  [{{ ... }}]            │
+│  ┊  Top-K:       [5]                    │
+│  ┊  Threshold:   [0.7]                  │
+│                                          │
 │  ── Conversation Context ──             │
+│  ┊ (strategy = manual 시에만 표시)       │
 │  Scope:  [None ▼]                       │
 │  ┊ (lastN 선택 시)                      │
 │  ┊  Last N: [20]                        │
@@ -146,6 +162,8 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 │  Max Turns:    [20__]                    │
 └──────────────────────────────────────────┘
 ```
+
+**Memory 섹션 `visibleWhen`**: `Strategy` 드롭다운은 항상 표시. `Token Budget` 은 `memoryStrategy ∈ {summary_buffer, persistent}` 일 때, `Memory Key`/`Top-K`/`Threshold` 는 `memoryStrategy == persistent` 일 때만 노출. `memoryStrategy == manual` (기본) 이면 Memory 섹션은 Strategy 만 보이고 Conversation Context 섹션의 5필드가 그대로 표시된다 (현행 유지). `memoryStrategy != manual` 이면 Conversation Context 섹션 전체가 숨겨진다 (자동 전략이 대체 — §1 비고).
 
 **"Add MCP Server" 클릭 시 노출되는 후보 목록**: `service_type='mcp'`·`service_type='cafe24'`·`service_type='makeshop'` 의 워크스페이스 Integration 을 함께 표시한다 ([Spec 통합 §14.2](../../2-navigation/4-integration.md#142-워크플로우-에디터)). UI 는 그룹을 시각적으로 분리:
 
@@ -331,14 +349,14 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 1. Knowledge Base / MCP 서버 setup:
    a. KB 도구(`kb_*`) 와 MCP 도구(`mcp_*`, 메타도구 포함)를 일반 도구·조건 도구와 함께 LLM 에 노출 — KB 검색은 [Spec RAG §2](../../5-system/9-rag-search.md#2-검색-호출-흐름-llm-tool-calling), MCP 는 [Spec MCP Client §7](../../5-system/11-mcp-client.md#7-실행-흐름-요약) 참조
    b. KB 검색은 LLM 의 능동 호출 시에만 실행되며 prefill 하지 않음
-1.5. **Conversation Thread 주입** (CONVENTIONS Conversation Thread §5) — LLM 호출 **전**:
-    - `contextScope ≠ 'none'` 일 때 `ConversationThreadService.getThreadExcludingNode(context, this.nodeId)` 로 자기 외 turn 을 가져온다
-    - `contextInjectionMode='messages'` 면 messages 배열 앞에 prepend ([Spec Conversation Thread §5.1](../../conventions/conversation-thread.md#51-messages-모드-매핑) 매핑표)
-    - `'system_text'` 면 systemPrompt 끝에 `thread-renderer` 결과 첨부
-    - cap 적용 후 dropped turn 수를 `meta.contextInjection.droppedTurns` 로 노출
+1.3. **persistent 메모리 회수 (`memoryStrategy: 'persistent'` 시, LLM 호출 전 동기)** — 스코프 키 `(workspace_id, memoryKey ?? execution_id)` 로 `agent_memory` 에서 top-k 의미검색 (`memoryTopK` / `memoryThreshold`) 을 동기 수행해 회수된 사실/선호를 **systemPrompt 안정 프리픽스 영역**에 주입한다 (회수 블록은 휘발성 최근 turn 보다 앞 — [공통 §11.4](./0-common.md#114-주입-위치-및-ordering) ordering 의 안정 프리픽스). 회수는 hot path 동기이지만 추출(2.7)은 비동기다. 회수 건수는 `meta.memory.recalledCount` 로 노출. SoT: [Spec Agent Memory §회수](../../5-system/17-agent-memory.md).
+1.5. **컨텍스트 메모리 주입** (CONVENTIONS Conversation Thread §5) — LLM 호출 **전**, `memoryStrategy` 에 따라 분기:
+    - **`manual`** (기본, 하위호환): `contextScope ≠ 'none'` 일 때 `ConversationThreadService.getThreadExcludingNode(context, this.nodeId)` 로 자기 외 turn 을 가져온다. `contextInjectionMode='messages'` 면 messages 배열 앞에 prepend ([Spec Conversation Thread §5.1](../../conventions/conversation-thread.md#51-messages-모드-매핑) 매핑표), `'system_text'` 면 systemPrompt 끝에 `thread-renderer` 결과 첨부. cap 적용 후 dropped turn 수를 `meta.contextInjection.droppedTurns` 로 노출. (`contextScope` 계열 5필드는 이 분기에서만 적용)
+    - **`summary_buffer` / `persistent`** (자동): working-memory (자기 history + 주입 thread) 의 토큰 추정치가 `memoryTokenBudget` 을 초과하면 **오래된 turn 부터 롤링 요약으로 압축**한다 — 요약 블록은 **system_text 안정 프리픽스** ([공통 §11.4](./0-common.md#114-주입-위치-및-ordering)) 에 배치하고 (1.3 의 회수 블록과 같은 안정 프리픽스 영역), 압축되지 않은 최근 원문 turn 만 휘발성 꼬리로 둔다. **요약 갱신은 예산 임계치 도달 시에만** 수행해 prompt cache 안정 프리픽스를 보호한다 (매 turn 재요약 금지). 요약 LLM 콜은 노드 `model`/`llmConfigId` 를 재사용한다 (별도 모델 필드 없음). 요약 보관은 `ConversationThread.runningSummary` / `summarizedUpToSeq` ([conversation-thread §1.3·§5.3](../../conventions/conversation-thread.md#13-conversationthread)). 압축 발생 여부는 `meta.memory.summarized`, 예산 사용량은 `meta.memory.tokenBudgetUsed` 로 노출.
 1.7. **`ai_user` turn push** (spec/conventions/conversation-thread.md §2.2) — LLM 호출 **전**, `userPrompt` resolved 직후 1회.
 2. systemPrompt + userPrompt로 LLM 호출 (tools 파라미터에 위 도구들이 포함됨)
 2.5. **`ai_assistant` turn push** — LLM 응답 직후. 정상 종료 시 최종 `output.result.response` (json 모드는 `JSON.stringify`) 를 push. condition route 시에도 분기 직전 마지막 assistant 응답 push. tool-loop 중 assistant / tool result push 는 `includeToolTurns: true` 시에만.
+2.7. **persistent 메모리 추출 (`memoryStrategy: 'persistent'` 시, 턴 경계 비동기)** — 턴 경계에서 직전 turn(들)에서 추출할 사실/선호를 **비동기 background** 로 추출해 스코프 키 `(workspace_id, memoryKey ?? execution_id)` 로 `agent_memory` 에 저장한다 (LLM latency 에 추출 LLM 콜을 얹지 않는다 — hot path 비차단). background 격리는 `scheduleBackgroundBody` 의 turns snapshot shallow-copy 격리 invariant 를 준수한다 ([Spec Agent Memory §추출](../../5-system/17-agent-memory.md)). `summary_buffer` 는 세션 간 추출이 없으므로 본 단계 미적용.
 3. LLM이 도구 호출을 요청하면:
    a. `toolCalls`를 **조건 도구**(`cond_*`) / **KB 도구**(`kb_*`) / **MCP 도구**(`mcp_*`) / **표현 도구**(`render_*`) / **일반 도구**(`tool_*`) 로 분류한다. 구현은 먼저 등록된 `toolProviders` 중 `matches(tc.name)` 가 참인 첫 provider 를 찾고 (kb → mcp → render 순으로 등록), provider 매칭이 없으면 condition 이름 집합과 대조하며, 그래도 매칭이 없으면 일반 도구로 분류한다. 모든 provider prefix(`kb_`/`mcp_`/`render_`)·`cond_` 가 서로 disjoint 하므로 provider-우선 검사라도 분류 결과는 결정적이다 (구현: `ai-agent.handler.ts` `classifyToolCalls`). 이름 prefix 가 동일하더라도 provider 가 등록되지 않았으면 (예: `presentationTools` 빈 배열일 때 LLM 이 환각으로 `render_xxx` 를 호출한 경우) 매칭 안 됨 → 일반 도구 분류. `tool_*` 재작성 미완 상태에서 일반 도구로 분류된 호출은 현재 LLM 에 가짜 성공 stub `{result: "Tool <name> executed", arguments: {...}}` tool_result 를 회신한다 (도구 미연결을 알리는 `tool_call_not_implemented` 회신은 **미구현 (Planned)** — `tool_*` 도구 연결 입력 경로 재작성 시 도입 예정).
    b. **조건 도구만 존재:** 해당 조건 포트로 즉시 라우팅
@@ -371,7 +389,11 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
    c.bypass. **form bypass — 사용자가 form 활성 중 일반 텍스트 메시지 발송**: `_resumeState.pendingFormToolCall` 이 set 인 상태에서 `execution.submit_message` (form 이 아닌 채팅) 가 들어오면 — (i) `pendingFormToolCall.toolCallId` 매칭하는 render_form tool 호출의 tool_result content 를 `{type:'cancelled', reason:'user_sent_message_instead'}` 로 채워 LLM 의 tool_use ↔ tool_result 매칭 요건을 충족시키고, (ii) `_resumeState.pendingFormToolCall` 클리어, (iii) 받은 텍스트를 정상 `ai_user` turn 으로 thread 에 push 한 뒤 다음 LLM 호출 진행. LLM 은 form 호출이 취소됐다는 신호를 reasoning 입력으로 받고 다음 행동 (form 재호출 / 텍스트 응답 / 다른 도구 호출) 을 스스로 결정한다 — 사용자의 form 우회 의도를 LLM 이 인식하도록 보장. UI 측은 MessageInput 이 항상 활성이라 사용자가 form 응답 대신 텍스트를 보낼 수 있다 (§12.5 결정).
    c.fallback. **`pendingFormToolCall` 누락 시 (invariant 예외)**: dispatch ([Presentation 공통 §10.9](../6-presentation/0-common.md#109-form-submission-wire-format-internal-bus-sentinel)) 가 `action.type === 'form_submitted'` 로 form turn 진입했으나 `state.pendingFormToolCall` 가 falsy 인 경우 — 예: 사용자가 `render_form` 호출 없는 turn 에 `execution.submit_form` 명령을 직접 보냄, 또는 race condition 으로 `pendingFormToolCall` 가 이미 클리어된 상태에서 늦은 제출 수신. **silent drop 금지** — form JSON 데이터를 plain `ai_user` 메시지로 thread 에 push 하여 LLM 이 raw JSON 을 reasoning 입력으로 받아 자연어 응답을 생성하도록 fallback 한다. `console.warn('[processMultiTurnMessage] form submission without pendingFormToolCall — fallback to plain user message', { executionId, nodeId, formData })` 로 진단 surface. 이는 §7.4 invariant ("`interactionType: 'ai_form_render'` 진입 ↔ `pendingFormToolCall` set 은 1:1") 의 예외 처리 경로 — invariant 위반 자체는 회귀 신호이나 사용자 surface 는 끊기지 않도록 graceful degradation (§12.4 의 KB/MCP 격리 패턴과 동형).
    d. Knowledge Base 가 설정된 경우 LLM 능동 호출 시 RAG 재검색
-   d.5. **Conversation Thread 재주입**: `contextScope ≠ 'none'` 일 때 매 turn 마다 messages 배열을 `[system, ...injectedThread, ...selfHistory]` 로 재빌드. `injectedThread` 는 자기 노드 turn 을 제외해 중복 방지 ([Spec Conversation Thread §5](../../conventions/conversation-thread.md#5-ai-agent-자동-주입))
+   d.5. **컨텍스트 메모리 재주입 (매 turn)**: `memoryStrategy` 에 따라 분기 (§6.1 단계 번호 참조) —
+      - **`manual`**: `contextScope ≠ 'none'` 일 때 매 turn 마다 messages 배열을 `[system, ...injectedThread, ...selfHistory]` 로 재빌드 — `injectedThread` 는 자기 노드 turn 을 제외해 중복 방지 ([Spec Conversation Thread §5](../../conventions/conversation-thread.md#5-ai-agent-자동-주입)).
+      - **`summary_buffer`**: §6.1 의 **1.5 (토큰예산 롤링 요약 압축)** 만 매 turn LLM 호출 전 적용. **1.3 (persistent 회수) 과 2.7 (비동기 추출) 은 미적용** — summary_buffer 는 단일 실행 내 working-memory 압축이라 세션 간 pgvector 회수/추출 경로를 호출하지 않는다.
+      - **`persistent`**: §6.1 의 **1.3 (회수) + 1.5 (요약) 를 매 turn LLM 호출 전 모두 적용**하고, 턴 경계에서 **2.7 (비동기 추출) 도 수행**한다. (요약/회수 블록은 안정 프리픽스, 최근 원문은 휘발성 꼬리 — [공통 §11.4](./0-common.md#114-주입-위치-및-ordering))
+   d.6. **누적 messages 물리 압축 (`summary_buffer`/`persistent` 한정)**: d.5 의 롤링 요약이 오래된 turn 을 새로 커버하면 (`summarizedUpToSeq` 전진), 다음 turn 으로 누적되는 LLM `messages` 에서 **요약이 커버한 오래된 exchange 를 물리 제거**한다 — 단 **`user` 메시지 경계에서만 잘라** tool_use↔tool_result 페어링을 보존한다 (완결된 exchange 단위로만 제거). 결과는 `system` (요약 포함 안정 프리픽스) + 휘발성 꼬리만 유지. 제거 메시지 수는 `meta.memory.compactedMessages` 로 노출. `manual` 은 물리 압축하지 않는다 (누적 messages 무변경 — 하위호환 불변식).
    e. 갱신된 대화 이력으로 LLM 호출 + Tool/Condition 처리 (Single Turn 3단계와 동일한 분류 로직)
    f. 조건이 충족되면 해당 포트로 라우팅하고 종료 (§7.6)
    g. 조건 미충족 시 AI 응답을 WebSocket 으로 전달
@@ -408,7 +430,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 > | §7.9 | multi_turn | 오류 | `error` | `ended` |
 > | §7.10 | both | (cross-cutting) `render_*` payload 운반 | — | — |
 >
-> **Config echo 정책 (CONVENTIONS Principle 7)**: 모든 종결 시점 (`out` / `{condition.id}` / `user_ended` / `max_turns` / `error`) 과 multi-turn 의 waiting / resumed 시점에서 `output.config` 는 **유저가 입력한 raw 값** (template `{{ ... }}` 보존) 을 echo 한다 — 엔진이 dispatch 직전 평가한 값이 아니다. multi-turn 의 후속 turn 에서도 `state.rawConfig` (engine 이 frozen snapshot 으로 운반) 를 통해 동일하게 raw 가 echo 된다. 후속 노드의 `$node["X"].config.{mode, model, systemPrompt, userPrompt, maxTurns, maxToolCalls, knowledgeBases, conditions, responseFormat, includeSystemContext?, systemContextSections?}` 는 수명 내내 raw 값을 본다. `includeSystemContext` / `systemContextSections` 는 default 값과 일치하면 echo 에서 생략 ([공통 §11.7](./0-common.md#117-config-echo)). multi-turn ended / condition-trigger 출력의 `config.model` 도 `rawConfig.model` 이 template 이면 그대로 echo — 다운스트림이 LLM 식별·로깅용으로 evaluated 값을 원하면 `meta.model` 에서 읽는다. credential (`llmConfigId` 가 가리키는 provider secret 등) 은 `maskSensitiveFields` 에 의해 자동 마스킹 (`adaptHandlerReturn` boundary).
+> **Config echo 정책 (CONVENTIONS Principle 7)**: 모든 종결 시점 (`out` / `{condition.id}` / `user_ended` / `max_turns` / `error`) 과 multi-turn 의 waiting / resumed 시점에서 `output.config` 는 **유저가 입력한 raw 값** (template `{{ ... }}` 보존) 을 echo 한다 — 엔진이 dispatch 직전 평가한 값이 아니다. multi-turn 의 후속 turn 에서도 `state.rawConfig` (engine 이 frozen snapshot 으로 운반) 를 통해 동일하게 raw 가 echo 된다. 후속 노드의 `$node["X"].config.{mode, model, systemPrompt, userPrompt, maxTurns, maxToolCalls, knowledgeBases, conditions, responseFormat, includeSystemContext?, systemContextSections?, memoryStrategy?, memoryTokenBudget?, memoryKey?, memoryTopK?, memoryThreshold?}` 는 수명 내내 raw 값을 본다. `includeSystemContext` / `systemContextSections` 와 memory 5필드 (`memoryStrategy` / `memoryTokenBudget` / `memoryKey` / `memoryTopK` / `memoryThreshold`) 는 **default 값과 일치하면 echo 에서 생략** (optional 필드 echo 규약 — 사용자가 명시 변경한 경우에만 `output.config` 에 노출, [공통 §11.7](./0-common.md#117-config-echo) 와 동일 패턴). multi-turn ended / condition-trigger 출력의 `config.model` 도 `rawConfig.model` 이 template 이면 그대로 echo — 다운스트림이 LLM 식별·로깅용으로 evaluated 값을 원하면 `meta.model` 에서 읽는다. credential (`llmConfigId` 가 가리키는 provider secret 등) 은 `maskSensitiveFields` 에 의해 자동 마스킹 (`adaptHandlerReturn` boundary).
 
 ### 7.1 Single Turn 모드 — 정상 완료 (`out` 포트)
 
@@ -488,7 +510,8 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 | `meta.ragDiagnostics` | object | RagAccumulator | KB 검색 진단 (`attempted`/`searchedKbCount`/`queriesUsed`/`resultCount`/`skipReason?`) |
 | `meta.mcpDiagnostics` | object? | McpDiagnostics | `mcpServers` 가 1개 이상이거나 LLM 이 MCP 도구를 1번 이상 호출한 경우만 포함. 필드: [MCP Client §6.2](../../5-system/11-mcp-client.md#62-진단-누적-mcpdiagnostics) |
 | `meta.turnDebug[]` | Array | handler return | 턴 단위 LLM 호출 트레이스. single 은 길이 1 — 멀티턴 출력 스키마와 일관성 유지 |
-| `meta.contextInjection` | object? | handler return | `contextScope ≠ 'none'` + thread non-empty 시에만 echo. `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` — 적용된 결과 (config echo 가 아님, Principle 2 정합). 상세: [Spec Conversation Thread §5.3](../../conventions/conversation-thread.md#53-cap-v1--char-기반) |
+| `meta.contextInjection` | object? | handler return | `contextScope ≠ 'none'` + thread non-empty 시에만 echo. `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` — 적용된 결과 (config echo 가 아님, Principle 2 정합). 상세: [Spec Conversation Thread §5.3](../../conventions/conversation-thread.md#53-cap-v1) |
+| `meta.memory` | object? | handler return | `memoryStrategy ≠ 'manual'` 시에만 echo. `{ strategy, summarized, recalledCount, tokenBudgetUsed }` — `strategy` 는 적용 전략, `summarized` 는 이 turn 에 롤링 요약 압축이 발생했는지 (Boolean), `recalledCount` 는 persistent 회수 청크 수 (summary_buffer 는 `0`), `tokenBudgetUsed` 는 working-memory 토큰 추정 사용량. 적용 결과 (config echo 아님, Principle 2 정합). SoT: [Spec Agent Memory](../../5-system/17-agent-memory.md) |
 | `meta.presentationSchemaViolations` | Array? | handler return | `render_*` 도구 호출이 zod schema 또는 1MB cap 위반으로 silent drop 된 경우만 echo. 각 entry `{toolName, issues, attempts}` (§4.1). turn 자체는 정상 종료 (`error` 포트로 흐르지 않음) |
 | `port` | `"out"` | handler return | 정상 종료 분기 |
 | `status` | `"ended"` | handler return | 노드 실행 완료 |
@@ -1229,3 +1252,38 @@ display-only 의 `PRESENTATION_MAX_BYTES = 1MB` 은 `carousel.items` / `table.ro
 
 - **downstream 도 차단 (현 구현 유지)** — 사용자가 retry 로 대화를 살린 뒤 워크플로의 나머지 분기는 별도 Re-run 으로 다시 돌려야 한다는 의미가 되어, "한 노드만 살리고 나머지 흐름은 그대로" 라는 retry 의 본래 목적과 충돌한다.
 - **별도 `execution.retry_last_turn_and_resume` 명령으로 분리** — 사용자가 두 가지 retry 행위를 구분해 선택해야 하는 추가 인지 부담. retry 의 본질은 항상 "그 노드를 살리고 워크플로를 정상 진행" 이라 분리할 이유가 없다.
+
+### 12.9 `memoryStrategy` 를 contextScope enum 확장이 아닌 별도 필드로 둔 근거
+
+**문제**: 자동 컨텍스트 메모리 (summary_buffer / persistent) 를 도입할 때 기존 `contextScope` enum (`none`/`thread`/`lastN`) 에 `auto` 값을 끼워넣는 안이 자연스러워 보인다 — UI 드롭다운 하나만 추가하면 되기 때문.
+
+**결정**: 별도 1급 필드 `memoryStrategy` 를 도입한다. `contextScope` 는 "어느 **범위**의 thread turn 을 주입할지" (범위 축) 이고, `memoryStrategy` 는 "메모리를 **어떻게 관리**할지" (관리 축) 라 의미 축이 다르다. enum 에 `auto` 를 섞으면 (1) 한 필드에 두 축이 얽혀 config echo·UI `visibleWhen` 규칙이 상호 의존하고, (2) `contextScopeN`/`contextInjectionMode`/`includeToolTurns` 가 `auto` 일 때 의미가 모호해지며, (3) 하위호환 echo 가 복잡해진다. 별도 필드면 `manual`(기본) 경로가 기존 5필드 동작을 **완전 무변경**으로 보존하고 (하위호환 0 리스크), 자동 전략은 직교 축으로 추가되며, `visibleWhen` 이 strategy 값만 보면 되어 단순하다. `manual` 단어가 `Trigger.type: 'manual'` 과 표면상 겹치나 namespace (`memoryStrategy` vs `Trigger.type`) 가 달라 의미 명료성을 우선해 그대로 둔다.
+
+### 12.10 conversation-thread v1/v2 경계 번복의 근거
+
+**배경**: [conversation-thread §7 v2 로드맵](../../conventions/conversation-thread.md#7-v2-로드맵) 은 "Token-aware cap" 과 "DB 컬럼 신설" 을 v2 로 유보했고, §12.1 의 v1/v2 경계표도 "token-aware cap·DB 컬럼은 v2" 로 기술했다. 본 작업은 토큰예산 압축과 DB 영속 메모리를 v1 노드에 도입하므로 외형상 그 유보를 번복한다.
+
+**근거 (deep-research 적대적 검증)**:
+- **번복이 아니라 합의된 실현**: §7 v2 로드맵의 "Token-aware cap" 은 "char-기반 cap 을 토큰 인식 방식으로" 라는 방향성 자체가 본 작업과 일치한다. 다만 본 작업은 **token-budget 근사** 방식 (`memoryTokenBudget`) 이고, provider tokenizer-exact 방식은 여전히 v3 로드맵 잔존이다 — §7 항목을 그 정밀도로 분리 표기했다 (부분 실현).
+- **트리거는 턴 수가 아니라 토큰 예산**: LangChain `ConversationSummaryBufferMemory`(max_token_limit), Anthropic compaction docs 등 업계·논문 공통이 토큰 예산을 트리거로 쓴다. 턴 크기 분산이 커서 "턴 수" 는 예산을 제어하지 못한다.
+- **요약은 net-positive (캐시 오해 기각)**: "요약이 prompt cache 를 깨서 역효과" 라는 우려는 적대적 검증에서 기각됐다 — 압축의 비용절감이 캐시 재구축을 상회한다. 단 안정 프리픽스(system+요약)/휘발성 꼬리(최근 원문) 분리 + 임계치 도달 시에만 갱신으로 캐시를 보호한다 (§12.11).
+- **요약만으로 부족 → 검색 회수 병행**: LongMemEval (arXiv 2410.10813) 에서 장기 대화 정확도가 크게 하락한다 (요약 압축의 디테일 손실). persistent 은 추출 사실의 의미검색 회수를 병행해 보완한다.
+- **DB 컬럼은 thread 가 아니라 별도 테이블**: §7 "DB 컬럼 신설" 은 `Execution.conversation_thread jsonb` 를 가리킨다. 본 작업의 DB 영속은 그 컬럼이 아니라 **별도 테이블 `agent_memory`** ([Spec Agent Memory](../../5-system/17-agent-memory.md)) 이며, ConversationThread 본문의 "v1 신규 DB 컬럼 없음" 조항은 그대로 유지된다 (모순 아님 — [conversation-thread §4](../../conventions/conversation-thread.md#4-영속화)). 실행 중 요약 보관 필드 (`runningSummary`/`summarizedUpToSeq`) 는 Redis `ExecutionContext` 직렬화에만 포함되고 신규 DB 컬럼을 만들지 않는다.
+
+### 12.11 요약·회수 블록을 system_text 안정 프리픽스에 배치하는 ordering 근거
+
+**문제**: 롤링 요약 블록과 persistent 회수 블록을 LLM 입력의 어디에 둘지 — messages 배열 안 (휘발성 영역) 인가, systemPrompt 안정 프리픽스 인가.
+
+**결정**: 둘 다 **system_text 안정 프리픽스 영역** ([공통 §11.4 ordering](./0-common.md#114-주입-위치-및-ordering)) 에 배치하고, 압축되지 않은 최근 원문 turn 만 휘발성 꼬리로 둔다. 근거: prompt cache 는 **접두사 안정성** 에 의존한다 — 매 turn 바뀌는 최근 원문이 앞에 오면 캐시가 매번 깨진다. 요약/회수 블록을 안정 프리픽스에 두고 **임계치 도달 시에만 갱신**하면 (매 turn 재요약·재회수 금지), 안정 프리픽스가 오래 유지되어 캐시 히트가 극대화된다. §11.4 ordering 표는 `System Context Prefix → 사용자 systemPrompt → KB/condition suffix → thread injection` 인데, 본 작업은 그 thread injection 단계 안에서 **요약/회수 블록 (안정) → 최근 원문 turn (휘발성)** 의 하위 순서를 추가한다 (휘발성 최근 turn 보다 요약·회수가 앞). ordering 의 단일 SoT 는 여전히 [공통 §11.4](./0-common.md#114-주입-위치-및-ordering) — 본 절은 그 안의 메모리 블록 하위 순서를 기술한다.
+
+### 12.12 요약·추출 LLM 콜이 노드 model 을 재사용하는 근거
+
+**결정**: `summary_buffer`/`persistent` 의 **요약 LLM 콜** (1.5) 과 `persistent` 의 **추출 LLM 콜** (2.7) 은 별도 모델 필드를 신설하지 않고 노드의 `model`/`llmConfigId` 를 그대로 재사용한다. 기각 대안은 **`summaryModel` (요약/추출 전용 저비용 모델) 별도 필드** 도입이다 — 요약·추출은 메인 응답보다 단순한 작업이라 저비용 모델로 비용을 줄일 여지가 있으나, v1 은 (1) config surface 를 최소화해 (전용 모델 필드 + provider/credential 선택 UI 추가) scope-freeze 를 지키고, (2) 노드가 이미 선택한 provider 의 토큰 회계·rate-limit·credential 경로를 단일하게 재사용하며, (3) 요약·추출이 노드 main 모델과 동일 품질을 쓰도록 보장한다. 저비용 전용 모델 옵션은 v2 로드맵으로 유보한다 ([conversation-thread §7](../../conventions/conversation-thread.md#7-v2-로드맵) "요약/추출 전용 저비용 모델" + [Spec Agent Memory §3](../../5-system/17-agent-memory.md#3-추출-파이프라인-턴-경계-비동기) 추출 모델 행).
+
+### 12.13 요약 보관 필드 (`runningSummary` / `summarizedUpToSeq`) 유실 시 fallback
+
+**결정**: `runningSummary` / `summarizedUpToSeq` ([conversation-thread §1.3](../../conventions/conversation-thread.md#13-conversationthread)) 는 Redis `ExecutionContext` 직렬화에만 보관되고 별도 DB 컬럼을 만들지 않는다 (§12.10). 따라서 TTL 만료 / Redis 장애로 ExecutionContext 가 유실되면 요약 보관 필드도 함께 사라진다. 이때 **유실된 요약을 재요약으로 복구하지 않고, 원문 thread (messages history) 로 컨텍스트를 재구성하는 graceful degradation 으로 fallback** 한다 — 요약은 derived 압축물이라 손실돼도 대화 자체 (`output.result.messages` 누적, [conversation-thread §4](../../conventions/conversation-thread.md#4-영속화) NodeExecution SoT) 는 보존되므로, 다음 호출은 요약 없이 원문 turn 으로 진행하고 예산 초과 시 다시 임계치에서 롤링 요약을 시작한다. 요약 손실은 토큰 효율 저하일 뿐 대화 무결성 손상이 아니다.
+
+### 12.14 멀티턴 누적 messages 물리 압축 (additive 한계 해소)
+
+**결정**: 초기 구현에서 `summary_buffer`/`persistent` 의 멀티턴 요약은 system 안정 프리픽스에 **additive** 로만 추가되고, 누적 `messages` 의 오래된 turn 은 물리 제거하지 않았다 (tool_use↔tool_result 페어링이 깨질 우려). 이 경우 요약이 진행돼도 누적 messages 가 단조 증가해 토큰 절감이 system 프리픽스 압축에 그쳤다. **§6.2 d.6 으로 이 additive 한계를 해소** — 요약이 오래된 exchange 를 커버하면 다음 turn 으로 누적되는 `messages` 에서 그 exchange 를 물리 제거한다. 페어링은 **`user` 메시지 경계에서만 자르는** 불변식으로 보존한다 (모든 tool_use 의 tool_result 는 다음 `user` 메시지 전에 완결되므로, user 직전에서 자르면 쌍을 절대 가르지 않는다). `manual` 은 압축 대상이 아니다 (회귀 0).
