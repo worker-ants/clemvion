@@ -2,6 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
+import {
+  EXECUTION_RUN_QUEUE,
+  EXECUTION_RUN_PRIORITY,
+} from './queues/execution-run.queue';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import {
   ExecutionEngineService,
@@ -67,6 +71,8 @@ function flushPromises(): Promise<void> {
 
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;
+  // PR1 — execution-run intake 큐 mock (execute() 가 enqueue 하는지 검증).
+  let mockExecutionRunQueue: { add: jest.Mock };
   // Phase 2 — ContinuationBusService mock 의 publish closure 가 lazy reference 로
   // 사용. service 는 Test.createTestingModule 이 끝난 뒤에야 set 되므로 외부 변수.
   let resolvedService: ExecutionEngineService | undefined;
@@ -174,12 +180,21 @@ describe('ExecutionEngineService', () => {
       startedAt: new Date(),
     };
 
+    // PR1 — execution-run 인라인 worker 브릿지(아래 큐 mock)가 runExecutionFromQueue
+    // 에서 findOneBy({id}) 로 row 를 재조회하므로, save 가 만든 최신 row(triggerId
+    // 등 포함)를 findOneBy 가 충실히 반환하도록 lastSaved 로 추적한다. 이로써
+    // execute() → enqueue → worker → runExecution 경로가 옛 fire-and-forget 계약과
+    // 동일하게 동작해 기존 execute() 테스트가 그대로 통과한다.
+    let lastSaved: Partial<Execution> = { ...savedExecution };
     mockExecutionRepo = {
       create: jest.fn().mockReturnValue({ ...savedExecution }),
       save: jest.fn().mockImplementation((entity: Partial<Execution>) => {
-        return Promise.resolve({ ...savedExecution, ...entity });
+        lastSaved = { ...savedExecution, ...entity };
+        return Promise.resolve(lastSaved);
       }),
-      findOneBy: jest.fn().mockResolvedValue({ ...savedExecution }),
+      findOneBy: jest
+        .fn()
+        .mockImplementation(() => Promise.resolve({ ...lastSaved })),
       find: jest.fn().mockResolvedValue([]),
     };
 
@@ -425,6 +440,35 @@ describe('ExecutionEngineService', () => {
             add: jest.fn().mockResolvedValue(undefined),
           },
         },
+        {
+          provide: getQueueToken(EXECUTION_RUN_QUEUE),
+          useValue: {
+            // 인라인 worker 브릿지 — production 의 ExecutionRunProcessor 가 job 을
+            // pick up 해 runExecutionFromQueue 를 호출하는 것을 테스트에서 동기
+            // 시뮬레이션한다. execute() 가 enqueue 만 하므로, 이 브릿지가 없으면
+            // 기존 execute() 테스트(실행이 돌아간다는 전제)가 전부 깨진다.
+            // enqueue 자체만 검증하는 테스트는 이 구현을 mockImplementationOnce 로
+            // override 해 순수 recorder 로 바꾼다.
+            add: jest
+              .fn()
+              .mockImplementation(
+                (
+                  _name: string,
+                  payload: { executionId: string; input?: unknown },
+                ) => {
+                  // fire-and-forget — production worker 처럼 enqueue 는 즉시 반환하고
+                  // 실행은 background 로 진행한다. await 하면 waiting_for_input
+                  // (multi-turn) 테스트에서 execute() 가 wait 블로킹까지 멈춰 옛
+                  // fire-and-forget 타이밍이 깨진다. 테스트는 이후 continuation 을
+                  // 보내고 flushPromises 로 진행시킨다.
+                  void service
+                    .runExecutionFromQueue(payload.executionId, payload.input)
+                    .catch(() => undefined);
+                  return Promise.resolve();
+                },
+              ),
+          },
+        },
         // Stateless service — use the real implementation so engine hooks
         // (form/button resume) actually mutate the in-context thread, which
         // lets future ConversationThread tests assert side-effects without
@@ -451,6 +495,7 @@ describe('ExecutionEngineService', () => {
     resolvedService = service;
     handlerRegistry = module.get<NodeHandlerRegistry>(NodeHandlerRegistry);
     mockWebsocketService = module.get(WebsocketService);
+    mockExecutionRunQueue = module.get(getQueueToken(EXECUTION_RUN_QUEUE));
     mockConfigService = module.get(ConfigService);
 
     // Test module 은 onModuleInit 을 자동 호출하지 않으므로, continuation
@@ -1683,27 +1728,89 @@ describe('ExecutionEngineService', () => {
     });
   });
 
-  describe('runExecution — chat-channel routing context registration', () => {
-    // Spec [chat-channel.md §3.1 CCH-AD-05]: ChatChannelDispatcher 가 trigger 와
-    // conversationKey 를 식별할 수 있어야 outbound 메시지 발송 가능. 엔진이
-    // execute() 진입 시점에 WebsocketService 에 (executionId → {triggerId,
-    // chatChannel}) 를 등록해야 이후 emit 되는 모든 이벤트의 fanout envelope 에
-    // 자동으로 routing context 가 첨부된다. terminal event 발송 시점에 release
-    // 도 의무 (메모리 누수 방지 + 같은 executionId 재사용 시 stale context 차단).
+  describe('execute() — execution-run intake 큐 발행 (PR1)', () => {
+    // spec/5-system/4-execution-engine.md §4.1–4.3: execute() 는 fire-and-forget
+    // in-process 호출 대신 execution-run 큐에 발행하고 즉시 executionId 반환.
+    // row 는 pending 으로 저장(executionId 즉시 발급 계약), job 은 executionId+input.
 
-    it('webhook trigger (options.triggerId + input.chatChannel) → register 1회 호출 + workflowId + chatChannel 동봉', async () => {
+    // 이 describe 의 테스트는 큐 브릿지를 순수 recorder 로 override 해 execute()
+    // 자체 동작만 격리한다 (브릿지 default 는 worker 를 인라인 실행하므로).
+    const asRecorder = (): void => {
+      mockExecutionRunQueue.add.mockImplementation(() => Promise.resolve());
+    };
+
+    it('execute() 는 execution-run 큐에 enqueue 하고 executionId 반환 (runExecution 직접 호출 안 함)', async () => {
+      asRecorder();
+      const runSpy = jest.spyOn(
+        service as unknown as { runExecution: jest.Mock },
+        'runExecution',
+      );
+      const result = await service.execute(
+        workflowId,
+        { data: 'test' },
+        { executedBy: 'u1' },
+      );
+      expect(result).toBe(executionId);
+      expect(mockExecutionRunQueue.add).toHaveBeenCalledTimes(1);
+      const [name, payload, opts] = mockExecutionRunQueue.add.mock.calls[0];
+      expect(name).toBe('execution-run');
+      expect(payload).toEqual({ executionId, input: { data: 'test' } });
+      expect(opts).toEqual(
+        expect.objectContaining({ jobId: executionId, attempts: 1 }),
+      );
+      // execute() 는 worker 가 호출할 runExecution 을 직접 호출하지 않는다.
+      expect(runSpy).not.toHaveBeenCalled();
+      runSpy.mockRestore();
+    });
+
+    it('수동 실행(executedBy)은 manual priority, 트리거 실행은 그보다 낮은 우선순위', async () => {
+      asRecorder();
+      await service.execute(workflowId, {}, { executedBy: 'u1' });
+      await service.execute(workflowId, {}, { triggerId: 'trg-1' });
+      const manualOpts = mockExecutionRunQueue.add.mock.calls[0][2];
+      const triggerOpts = mockExecutionRunQueue.add.mock.calls[1][2];
+      expect(manualOpts.priority).toBe(EXECUTION_RUN_PRIORITY.manual);
+      // PR1: webhook/schedule 세부 구분 전 — 트리거 실행은 manual 보다 낮은 우선순위.
+      expect(triggerOpts.priority).toBeGreaterThan(manualOpts.priority);
+    });
+
+    it('execute() 단계에서는 routing context 를 등록하지 않는다 (worker 로 이동)', async () => {
+      asRecorder();
       await service.execute(
         workflowId,
-        {
-          __triggerSource: 'webhook',
-          chatChannel: {
-            provider: 'telegram',
-            conversationKey: '12345',
-            channelUserKey: 'user-1',
-          },
-        },
+        { chatChannel: { provider: 'telegram', conversationKey: '12345' } },
         { triggerId: 'trg-tele' },
       );
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('runExecutionFromQueue — worker 진입점 + routing context 재등록', () => {
+    // routing 등록은 work-stealing 으로 job 을 실제 처리하는 인스턴스에서
+    // 일어나야 terminal event 의 release 와 짝이 맞는다 → execute() 가 아니라
+    // worker(runExecutionFromQueue)가 등록한다. Spec [chat-channel §3.1 CCH-AD-05].
+
+    const pendingRow = (over: Partial<Execution>): Partial<Execution> => ({
+      id: executionId,
+      workflowId,
+      status: ExecutionStatus.PENDING,
+      inputData: {},
+      ...over,
+    });
+
+    it('webhook trigger (triggerId + input.chatChannel) → register 1회 + workflowId + chatChannel 동봉', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-tele' }),
+      );
+      await service.runExecutionFromQueue(executionId, {
+        chatChannel: {
+          provider: 'telegram',
+          conversationKey: '12345',
+          channelUserKey: 'user-1',
+        },
+      });
       await flushPromises();
       expect(
         mockWebsocketService.registerExecutionRouting,
@@ -1719,11 +1826,10 @@ describe('ExecutionEngineService', () => {
     });
 
     it('일반 webhook (chatChannel 미설정) → triggerId + workflowId 만 register', async () => {
-      await service.execute(
-        workflowId,
-        { parameters: {} },
-        { triggerId: 'trg-wh' },
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-wh' }),
       );
+      await service.runExecutionFromQueue(executionId, { parameters: {} });
       await flushPromises();
       expect(
         mockWebsocketService.registerExecutionRouting,
@@ -1733,25 +1839,22 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    it('수동 실행 (executedBy, triggerId 없음) → register 호출 안 함', async () => {
-      await service.execute(workflowId, { data: 'x' }, { executedBy: 'u1' });
+    it('수동 실행 (triggerId 없음) → register 호출 안 함', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(pendingRow({}));
+      await service.runExecutionFromQueue(executionId, { data: 'x' });
       await flushPromises();
       expect(
         mockWebsocketService.registerExecutionRouting,
       ).not.toHaveBeenCalled();
     });
 
-    it('chatChannel.provider 가 빈 문자열이면 chatChannel 등록 제외 (triggerId + workflowId 만 등록)', async () => {
-      // extractChatChannelFromInput 의 경계값 검증 — provider 또는
-      // conversationKey 가 비어있으면 chatChannel 통째 미통과. dispatcher 가
-      // 잘못된 routing 으로 발송 시도하는 회귀 차단.
-      await service.execute(
-        workflowId,
-        {
-          chatChannel: { provider: '', conversationKey: '12345' },
-        },
-        { triggerId: 'trg-bad' },
+    it('chatChannel.provider 가 빈 문자열이면 chatChannel 등록 제외', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-bad' }),
       );
+      await service.runExecutionFromQueue(executionId, {
+        chatChannel: { provider: '', conversationKey: '12345' },
+      });
       await flushPromises();
       expect(
         mockWebsocketService.registerExecutionRouting,
@@ -1761,14 +1864,14 @@ describe('ExecutionEngineService', () => {
       });
     });
 
+    // SUMMARY#10 — conversationKey='' 경계값 테스트 복원
     it('chatChannel.conversationKey 가 빈 문자열이면 chatChannel 등록 제외', async () => {
-      await service.execute(
-        workflowId,
-        {
-          chatChannel: { provider: 'telegram', conversationKey: '' },
-        },
-        { triggerId: 'trg-bad2' },
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-bad2' }),
       );
+      await service.runExecutionFromQueue(executionId, {
+        chatChannel: { provider: 'telegram', conversationKey: '' },
+      });
       await flushPromises();
       expect(
         mockWebsocketService.registerExecutionRouting,
@@ -1778,12 +1881,39 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    it('runExecution 가 reject 하면 .catch 가 routing context 명시 release (안전망)', async () => {
-      // ExecutionEngine 의 fire-and-forget runExecution 이 throw 한 채 reject
-      // 하면 terminal event 가 emit 되지 않아 WebsocketService 의 자동
-      // release 가 작동하지 않는다. execute() 의 .catch 블록이 명시 release
-      // 로 안전망 제공 — Map 에 stale context 가 남아 같은 executionId
-      // 재사용 시 잘못 첨부되는 회귀를 차단.
+    it('row 가 PENDING 이 아니면 ack-discard (재실행 안 함) — 큐 대기 중 cancel 케이스', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ status: ExecutionStatus.CANCELLED, triggerId: 'trg-x' }),
+      );
+      const runSpy = jest.spyOn(
+        service as unknown as { runExecution: jest.Mock },
+        'runExecution',
+      );
+      await service.runExecutionFromQueue(executionId, {});
+      expect(runSpy).not.toHaveBeenCalled();
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).not.toHaveBeenCalled();
+      runSpy.mockRestore();
+    });
+
+    it('row 가 없으면 ack-discard', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(null);
+      const runSpy = jest.spyOn(
+        service as unknown as { runExecution: jest.Mock },
+        'runExecution',
+      );
+      await service.runExecutionFromQueue(executionId, {});
+      expect(runSpy).not.toHaveBeenCalled();
+      runSpy.mockRestore();
+    });
+
+    it('runExecution 가 reject 하면 catch 가 routing context 명시 release (안전망)', async () => {
+      // setup 단계 throw 시 terminal event 미emit → 자동 release 미작동.
+      // runExecutionFromQueue 의 catch 가 명시 release 로 stale context 차단.
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-throw' }),
+      );
       const runSpy = jest
         .spyOn(
           service as unknown as { runExecution: jest.Mock },
@@ -1791,11 +1921,9 @@ describe('ExecutionEngineService', () => {
         )
         .mockRejectedValueOnce(new Error('boom — runExecution reject'));
       try {
-        await service.execute(
-          workflowId,
-          { chatChannel: { provider: 'telegram', conversationKey: '12345' } },
-          { triggerId: 'trg-throw' },
-        );
+        await service.runExecutionFromQueue(executionId, {
+          chatChannel: { provider: 'telegram', conversationKey: '12345' },
+        });
         await flushPromises();
         expect(
           mockWebsocketService.releaseExecutionRouting,
@@ -11039,6 +11167,10 @@ describe('ExecutionEngineService — registerInFlight / unregisterInFlight pairi
         { provide: Cafe24ApiClient, useValue: { request: jest.fn() } },
         {
           provide: getQueueToken(BACKGROUND_EXECUTION_QUEUE),
+          useValue: { add: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: getQueueToken(EXECUTION_RUN_QUEUE),
           useValue: { add: jest.fn().mockResolvedValue(undefined) },
         },
         {

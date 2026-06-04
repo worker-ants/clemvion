@@ -1,7 +1,7 @@
 ---
-worktree: (구현 시 신설 — 본 plan 은 spec-exec-intake-queue worktree 에서 생성됨)
+worktree: impl-exec-intake-queue
 started: 2026-06-04
-owner: developer (예정)
+owner: developer
 ---
 
 # 구현 추적 — 실행엔진 분산: execution-level intake 큐
@@ -10,9 +10,36 @@ owner: developer (예정)
 > 본 plan 은 spec 재정의(project-planner) 이후 **developer 트랙**의 증분 구현을 추적한다. spec PR 머지 후 별 worktree 에서 착수.
 > 전신: `spec-sync-execution-engine-gaps.md` §4/§7.1/§8 (forwarding 원), `execution-engine-residual-gaps.md G2`.
 
+## consistency-check --impl-prep (2026-06-04)
+
+BLOCK: YES (원판정) — **Critical 2건 모두 `spec/5-system/1-auth.md`(초대 에러코드 casing·WebAuthn 응답 포맷)로, execution-engine PR1 과 무관한 기존 auth spec 이슈** (`--impl-prep spec/5-system/` 광범위 scope 아티팩트; branch 가 1-auth.md 무수정 확인). exec-engine 도메인 Critical 0 + Rationale Continuity NONE → **PR1 코드 구현 차단 안 됨, 진행.** 산출: `review/consistency/2026/06/04/08_46_26/SUMMARY.md`.
+
+후속:
+- [ ] **(project-planner)** execution-run 을 SoT 2곳에 등록: `spec/data-flow/0-overview.md §4`, `spec/5-system/16-system-status-api.md §1`(+§3 intake burst `waiting>0 && active===0` 오탐 note). #458 이 §2.4/§2.6/§9.3/§11 은 반영했으나 이 2곳 누락.
+- [ ] **(PR2 범위)** EIA `14-external-interaction-api.md §5.2` 예시 + `chat-channel/shared/execution-failure-classifier.ts` 에 `EXECUTION_TIME_LIMIT_EXCEEDED` 전파.
+- [ ] **(분리·무관)** auth Critical 2건은 본 작업과 무관 — 별도 항목으로 사용자/planner 위임.
+
+## SPEC-DRIFT 반영 (2026-06-04, ai-review #3-5 + --spec WARNING)
+
+PR1 구현 후 spec 본문이 "Planned" 로 stale → spec §4 배너·§9.3·§11·§9.2·§11 graceful·Rationale "두 개뿐→세 개" 를 "PR1 구현됨" 으로 flip(commit 별도). `/consistency-check --spec` BLOCK:NO. §7.1/§8/우선순위 3-tier 는 Planned(PR2-4) 유지.
+
+후속 (이번 PR 범위 외 — spec 문서 갱신, project-planner):
+- [ ] **`spec/data-flow/3-execution.md` §1.1 시퀀스 다이어그램 + §2.2 BullMQ 표 + `spec/data-flow/0-overview.md §4` 큐 카탈로그 + `spec/5-system/16-system-status-api.md §1` 에 `execution-run` 반영** — 현재 old in-process 흐름 기술. mermaid 포함 (--spec W1/#2, --impl-done W4).
+
+PR2 이관 (코드 — 재리뷰 사이클 회피):
+- [ ] **`execution-run` 을 `MONITORED_QUEUES`(system-status.constants.ts) + e2e `EXPECTED_QUEUE_NAMES` 에 등록** (--impl-done W3, "기능 영향" WARNING). PR2 의 §8 동시성 cap·active-count 작업이 system-status 를 직접 건드리므로 그때 함께. PR1 e2e 는 현재 통과(API 가 MONITORED 만 보고).
+
+## PR1 TEST WORKFLOW (2026-06-04)
+
+- [x] lint PASS · [x] unit PASS (전 스택; execution-engine 모듈 609/609→fix후 293) · [x] build PASS · [x] e2e PASS (168 tests)
+- [x] /ai-review + resolution (risk MEDIUM, Critical 0, Warning 15 → 12 fix + 4 PR2보류 + 3 SPEC-DRIFT 반영)
+- [x] /consistency-check --impl-done spec/5-system/4-execution-engine.md → **BLOCK: NO** (risk LOW, Critical 0; W1/W2 spec §4.2 정정 완료, W3 PR2 이관, W4 후속 등재)
+
 ## 증분 PR 계획
 
-- [ ] **PR1 — execution-run intake 큐**: `execute()` 를 fire-and-forget in-process `runResolution` → `execution-run` BullMQ 큐 발행(즉시 반환·비동기)으로 전환. `@Processor(execution-run)` 가 `runExecution` 호출. `EXECUTION_RUN_WORKER_CONCURRENCY` env. jobId `<executionId>:run:<seq>` (`exec:run:seq:<executionId>` INCR). BullMQ job priority `manual`>`webhook`>`schedule`. **선결: 동기 caller 식별** — `execute()` 를 인라인 await 해 결과 즉시 반환하는 호출자(REST API·chat-channel·EIA)를 찾아 (a) WS/SSE/이벤트 비동기 전환 또는 (b) inline job 완료 await 보전. 결과 silent drop 금지. waiting/resume 로직 무변경.
+> 2026-06-04 — spec PR #458 머지됨. **PR1 착수.** 동기 caller 조사 완료: execute() 의 6개 production caller(workflows.controller·executions.service·hooks(webhook/chat)·schedule-runner·schedules.runNow) 전부 executionId 만 사용(결과 비대기) → 동기 계약 caller 없음, 큐 전환 안전. row 는 execute() 가 PENDING 저장(executionId 즉시 발급 계약 유지), 큐 job 은 executionId 만 운반, worker 가 runExecution 수행.
+
+- [~] **PR1 — execution-run intake 큐** (구현+유닛 완료, TEST WORKFLOW 진행): `execute()` 를 fire-and-forget in-process → `execution-run` BullMQ 큐 발행(즉시 반환)으로 전환. `ExecutionRunProcessor` 가 `runExecutionFromQueue`(row 재조회→status 재검증→routing 재등록→runExecution) 호출. `EXECUTION_RUN_WORKER_CONCURRENCY` env. **jobId = executionId** (1:1 enqueue dedup — spec 의 `:run:<seq>` 는 향후 re-enqueue 용 일반형, PR1 불요). priority: **manual > 트리거**(webhook/schedule 세부 3-tier 는 ExecuteOptions 가 trigger type 미보유 → 후속). attempts:1 + maxStalledCount:0 (crash-retry 미도입, PR3/4). routing 등록을 worker 로 이동(work-stealing 시 실행 인스턴스에서 등록↔terminal release 짝). 동기 caller 0건 확인. 신규: `queues/execution-run.queue.ts`·`.processor.ts`(+spec). 유닛: execution-engine 모듈 609/609 통과(인라인 worker 브릿지로 기존 execute() 테스트 계약 보존).
 - [ ] **PR2 — §8 동시성 cap + active-running 타임아웃**: 워크스페이스 10·워크플로 3 동시 Execution 카운트 가드(intake 큐 + DB count). 누적 active-running 타임아웃 → `EXECUTION_TIME_LIMIT_EXCEEDED`(세그먼트 active 시간 합산, wait 제외). 큐 대기 5분 cancel.
 - [ ] **PR3 — 크래시 RUNNING checkpoint 재개**: stalled active 세그먼트를 §7.5 rehydration 으로 재개. rehydration 을 `ai_agent` 너머 일반 노드로 확장. 멱등성: jobId(§7.3)·`NodeExecution.status` 재검증(§7.5)·완료 노드 미재실행(§7.2). **`node-cancellation-infrastructure.md §2` 와 코드영역 겹침 → 직렬화 순서**: cancellation 인프라 선/후행을 PR3 착수 시 확정.
 - [ ] **PR4 — stalled-job 일원화 + 관측성**: `recoverStuckExecutions` 절대 30분 일괄 fail → BullMQ stalled 재배달로 대체. `WORKER_HEARTBEAT_TIMEOUT` 의미 재정의(stalled attempts 소진). `waiting_for_input` 무관 보장 재확인. DLQ/관측성 정리.

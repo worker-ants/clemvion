@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "started_at": "2026-06-04T09:30:00Z",
+  "summary_items_total": 15,
+  "items_resolved_ids": [1, 2, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  "items_pending_ids": [3, 4, 5],
+  "items_escalated_ids": {
+    "3": "spec-SPEC-DRIFT",
+    "4": "spec-SPEC-DRIFT",
+    "5": "spec-SPEC-DRIFT",
+    "1": "deferred-PR2-jsdoc-noted",
+    "2": "deferred-PR2",
+    "8": "deferred-PR2",
+    "9": "deferred-PR2"
+  },
+  "commits_made": [
+    {
+      "sha": "f2248a88",
+      "summary_ids": [6, 7, 10, 11, 12, 13, 14, 15],
+      "scope": "execution-engine"
+    }
+  ],
+  "spec_drafts_pending": [
+    "plan/in-progress/spec-update-exec-intake-queue-pr1.md"
+  ],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/e2e-20260604-094044.log"
+  ],
+  "auto_fix_iterations": {},
+  "escalation_reason": "SPEC-DRIFT items #3 #4 #5: spec §4 배너·§9.3·§11 갱신 project-planner 위임",
+  "last_reset_hint_sec": null
+}
