@@ -1,9 +1,11 @@
 ---
 id: rag-search
-status: implemented
+status: partial
 code:
   - codebase/backend/src/modules/knowledge-base/search/rag-search.service.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/kb-tool-provider.ts
+pending_plans:
+  - plan/in-progress/rag-rerank-followup.md
 ---
 
 # Spec: RAG 검색 엔진
@@ -176,7 +178,7 @@ LIMIT $4;
 ```
 1) wide 회수: cosine 임계 미적용, rerank_candidate_k(기본 50) 만큼 회수
 2) cross-encoder rerank: (query, chunk.content) 쌍을 RerankConfig endpoint 로 점수화
-   (LLMClient.rerank() — Spec LLM Client §3.6)
+   (RerankClient.rerank() — Spec LLM Client §3.6/§4.1)
 3) [cross_encoder_llm 만] survivors(~15) listwise LLM grading 항상 수행 (id 순위 + 1~10 점수, 1콜; pointwise 금지)
 4) 동적 점수 컷: rerank_score_threshold 가 있으면 점수 < 임계 청크 drop (없으면 정렬만)
 5) 최종 top_k(노드 ragTopK 또는 LLM override)로 slice
