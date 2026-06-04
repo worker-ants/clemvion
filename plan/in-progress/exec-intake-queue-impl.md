@@ -1,5 +1,5 @@
 ---
-worktree: impl-exec-intake-queue
+worktree: impl-exec-concurrency-cap
 started: 2026-06-04
 owner: developer
 ---
@@ -39,8 +39,10 @@ PR2 이관 (코드 — 재리뷰 사이클 회피):
 
 > 2026-06-04 — spec PR #458 머지됨. **PR1 착수.** 동기 caller 조사 완료: execute() 의 6개 production caller(workflows.controller·executions.service·hooks(webhook/chat)·schedule-runner·schedules.runNow) 전부 executionId 만 사용(결과 비대기) → 동기 계약 caller 없음, 큐 전환 안전. row 는 execute() 가 PENDING 저장(executionId 즉시 발급 계약 유지), 큐 job 은 executionId 만 운반, worker 가 runExecution 수행.
 
-- [~] **PR1 — execution-run intake 큐** (구현+유닛 완료, TEST WORKFLOW 진행): `execute()` 를 fire-and-forget in-process → `execution-run` BullMQ 큐 발행(즉시 반환)으로 전환. `ExecutionRunProcessor` 가 `runExecutionFromQueue`(row 재조회→status 재검증→routing 재등록→runExecution) 호출. `EXECUTION_RUN_WORKER_CONCURRENCY` env. **jobId = executionId** (1:1 enqueue dedup — spec 의 `:run:<seq>` 는 향후 re-enqueue 용 일반형, PR1 불요). priority: **manual > 트리거**(webhook/schedule 세부 3-tier 는 ExecuteOptions 가 trigger type 미보유 → 후속). attempts:1 + maxStalledCount:0 (crash-retry 미도입, PR3/4). routing 등록을 worker 로 이동(work-stealing 시 실행 인스턴스에서 등록↔terminal release 짝). 동기 caller 0건 확인. 신규: `queues/execution-run.queue.ts`·`.processor.ts`(+spec). 유닛: execution-engine 모듈 609/609 통과(인라인 worker 브릿지로 기존 execute() 테스트 계약 보존).
-- [ ] **PR2 — §8 동시성 cap + active-running 타임아웃**: 워크스페이스 10·워크플로 3 동시 Execution 카운트 가드(intake 큐 + DB count). 누적 active-running 타임아웃 → `EXECUTION_TIME_LIMIT_EXCEEDED`(세그먼트 active 시간 합산, wait 제외). 큐 대기 5분 cancel.
+- [x] **PR1 — execution-run intake 큐** — **머지됨(#463, 2026-06-04)**. `execute()` fire-and-forget → `execution-run` BullMQ 큐 발행. `ExecutionRunProcessor`+`runExecutionFromQueue`. jobId=executionId, attempts:1+maxStalledCount:0, priority manual>트리거. routing 등록 worker 이동.
+- **PR2 — §8 동시 실행 제한 (2026-06-04 사용자 승인 분할: PR2a→PR2b)**:
+  - [~] **PR2a — active-running 누적 타임아웃** (착수): `executions.active_running_ms` 컬럼(마이그레이션) + 세그먼트(execution-run/continuation) 종료 시 `now-세그먼트시작` 누적. 세그먼트 시작 시 누적>한도(기본 30분) → `EXECUTION_TIME_LIMIT_EXCEEDED`→failed. 단일 세그먼트 초과는 job 타임아웃 보강. `waiting_for_input` park 시간 제외(불변식). 곁들임: **W3**(execution-run→`MONITORED_QUEUES`+e2e `EXPECTED_QUEUE_NAMES`) · **EIA classifier**(`execution-failure-classifier.ts`+`14-eia §5.2`에 신규 코드 전파). 한도 출처는 **시스템 기본 상수(env override)** — per-workspace/workflow settings 필드는 후속(Q1=A).
+  - [ ] **PR2b — 동시성 cap**: 워크스페이스 10/워크플로 3 동시 RUNNING 제한. **worker 가 pending→running 전이 직전 DB count 확인**(workflow→workspace 조인) + 트랜잭션/`FOR UPDATE` 원자화(Q2=A). 초과 시 job delayed 재큐, 누적 대기 5분 초과 cancelled. **TOCTOU(#1)** 원자화도 이 전이 로직과 함께. priority 3-tier(triggerType threading)는 PR2a 곁들임 또는 여기.
 - [ ] **PR3 — 크래시 RUNNING checkpoint 재개**: stalled active 세그먼트를 §7.5 rehydration 으로 재개. rehydration 을 `ai_agent` 너머 일반 노드로 확장. 멱등성: jobId(§7.3)·`NodeExecution.status` 재검증(§7.5)·완료 노드 미재실행(§7.2). **`node-cancellation-infrastructure.md §2` 와 코드영역 겹침 → 직렬화 순서**: cancellation 인프라 선/후행을 PR3 착수 시 확정.
 - [ ] **PR4 — stalled-job 일원화 + 관측성**: `recoverStuckExecutions` 절대 30분 일괄 fail → BullMQ stalled 재배달로 대체. `WORKER_HEARTBEAT_TIMEOUT` 의미 재정의(stalled attempts 소진). `waiting_for_input` 무관 보장 재확인. DLQ/관측성 정리.
 

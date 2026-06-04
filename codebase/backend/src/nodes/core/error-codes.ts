@@ -45,6 +45,13 @@ export const ErrorCode = {
   SUB_WORKFLOW_NOT_FOUND: 'SUB_WORKFLOW_NOT_FOUND',
   SUB_WORKFLOW_TIMEOUT: 'SUB_WORKFLOW_TIMEOUT',
   SUB_WORKFLOW_QUEUE_FAILED: 'SUB_WORKFLOW_QUEUE_FAILED',
+  // Execution Engine — engine-level limits (spec/5-system/4-execution-engine.md §8).
+  // EXECUTION_TIME_LIMIT_EXCEEDED: a single Execution exceeded its max **active-running**
+  // cumulative time (default 30min; waiting_for_input park time excluded). Distinct from
+  // `EXECUTION_TIMEOUT`, which is the Code node's *script* timeout — see
+  // spec/5-system/3-error-handling.md §1.4. The two MUST be branched explicitly
+  // (e.g. chat-channel/shared/execution-failure-classifier.ts).
+  EXECUTION_TIME_LIMIT_EXCEEDED: 'EXECUTION_TIME_LIMIT_EXCEEDED',
   // Interaction / blocking — user-cancellation & timeout on presentation
   // or AI-conversation waits. Presentation node engine paths raise these
   // when a `waitFor*` promise is rejected externally.

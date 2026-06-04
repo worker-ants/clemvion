@@ -14,7 +14,10 @@ import {
   buildConversationMetaFromResumeState,
   userMessageSignalApplies,
 } from './execution-engine.service';
-import { InvalidExecutionStateError } from './workflow-errors';
+import {
+  InvalidExecutionStateError,
+  ExecutionTimeLimitError,
+} from './workflow-errors';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import {
@@ -2045,6 +2048,104 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
       expect(bgResolved).toBe(true);
       expect(svc.firstSegmentBarriers.has(executionId)).toBe(false);
+    });
+  });
+
+  describe('PR2a — §8 active-running 누적 타임아웃', () => {
+    // private 멤버 접근 헬퍼 (spec 의 기존 `service as unknown as {...}` 패턴).
+    const priv = () =>
+      service as unknown as {
+        maxActiveRunningMs: number;
+        segmentStartMs: Map<string, number>;
+        assertActiveTimeWithinLimit: (e: {
+          id: string;
+          activeRunningMs?: number;
+        }) => void;
+        updateExecutionStatus: (
+          e: Partial<Execution>,
+          s: ExecutionStatus,
+        ) => Promise<void>;
+      };
+
+    describe('assertActiveTimeWithinLimit', () => {
+      it('누적 active 시간이 한도 이상이면 ExecutionTimeLimitError throw', () => {
+        priv().maxActiveRunningMs = 1000;
+        expect(() =>
+          priv().assertActiveTimeWithinLimit({
+            id: 'e1',
+            activeRunningMs: 1000,
+          }),
+        ).toThrow(ExecutionTimeLimitError);
+      });
+
+      it('한도 미만이면 통과', () => {
+        priv().maxActiveRunningMs = 1000;
+        expect(() =>
+          priv().assertActiveTimeWithinLimit({
+            id: 'e2',
+            activeRunningMs: 500,
+          }),
+        ).not.toThrow();
+      });
+
+      it('진행 중 세그먼트 경과분(segmentStartMs)도 합산해 판정', () => {
+        priv().maxActiveRunningMs = 1000;
+        // 누적 600 + 진행 중 세그먼트(500ms 전 시작) = 1100 ≥ 1000 → throw
+        priv().segmentStartMs.set('e3', Date.now() - 500);
+        expect(() =>
+          priv().assertActiveTimeWithinLimit({
+            id: 'e3',
+            activeRunningMs: 600,
+          }),
+        ).toThrow(ExecutionTimeLimitError);
+        priv().segmentStartMs.delete('e3');
+      });
+
+      it('maxActiveRunningMs=0 은 무제한 — throw 안 함', () => {
+        priv().maxActiveRunningMs = 0;
+        expect(() =>
+          priv().assertActiveTimeWithinLimit({
+            id: 'e4',
+            activeRunningMs: 999_999,
+          }),
+        ).not.toThrow();
+      });
+    });
+
+    describe('updateExecutionStatus 누적 (RUNNING 진입/이탈)', () => {
+      it('RUNNING 진입 시 segmentStart 기록, 이탈 시 active 시간 누적', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.PENDING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        // PENDING → RUNNING: 세그먼트 시작 기록
+        await priv().updateExecutionStatus(exec, ExecutionStatus.RUNNING);
+        expect(priv().segmentStartMs.has(executionId)).toBe(true);
+        // 세그먼트를 과거 시점으로 당겨 경과분 확보
+        priv().segmentStartMs.set(executionId, Date.now() - 300);
+        // RUNNING → COMPLETED: 누적 + segmentStart 제거
+        await priv().updateExecutionStatus(exec, ExecutionStatus.COMPLETED);
+        expect(exec.activeRunningMs).toBeGreaterThanOrEqual(300);
+        expect(priv().segmentStartMs.has(executionId)).toBe(false);
+      });
+
+      it('waiting_for_input 으로 이탈해도 누적되고, 그 park 동안은 추가 누적 없음', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: 100,
+        } as unknown as Execution;
+        priv().segmentStartMs.set(executionId, Date.now() - 200);
+        await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.WAITING_FOR_INPUT,
+        );
+        const afterPark = exec.activeRunningMs;
+        expect(afterPark).toBeGreaterThanOrEqual(300); // 100 + ~200
+        // park: segmentStart 없음 → assertActiveTimeWithinLimit 는 누적분만 사용
+        expect(priv().segmentStartMs.has(executionId)).toBe(false);
+      });
     });
   });
 

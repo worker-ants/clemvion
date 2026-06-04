@@ -25,7 +25,9 @@ import {
   SubWorkflowTimeoutError,
   InvalidExecutionStateError,
   RetryLastTurnError,
+  ExecutionTimeLimitError,
 } from './workflow-errors';
+import { resolveMaxActiveRunningMs } from './execution-limits';
 import {
   ContinuationBusService,
   RECOVERY_LOCK_KEY,
@@ -645,6 +647,16 @@ export class ExecutionEngineService
   implements OnModuleInit, OnApplicationBootstrap, WorkflowExecutor
 {
   private readonly logger = new Logger(ExecutionEngineService.name);
+
+  /**
+   * PR2a — §8 active-running 누적 타임아웃.
+   * `maxActiveRunningMs`: 한도(ms, 0=무제한, 기본 30분, env override).
+   * `segmentStartMs`: 현재 active 세그먼트의 시작 시각(ms). RUNNING 진입 시 기록,
+   *   이탈 시 누적분(`Execution.activeRunningMs`)에 합산 후 제거. 세그먼트는 한
+   *   인스턴스 안에서 처리되므로 in-memory Map 으로 충분(누적값은 row 에 영속).
+   */
+  private readonly maxActiveRunningMs = resolveMaxActiveRunningMs();
+  private readonly segmentStartMs = new Map<string, number>();
 
   /**
    * Stores pending continuation resolvers for blocking nodes (form / button /
@@ -1375,6 +1387,8 @@ export class ExecutionEngineService
     let pointer = params.pointer;
 
     while (pointer < sortedNodeIds.length) {
+      // PR2a — §8 노드 사이마다 active-running 누적 타임아웃 검사 (초과 시 throw).
+      this.assertActiveTimeWithinLimit(savedExecution);
       const nodeId = sortedNodeIds[pointer];
       const node = nodeMap.get(nodeId);
       if (!node) {
@@ -1940,7 +1954,11 @@ export class ExecutionEngineService
       // §1.4 — ErrorPortFallbackError 의 엔진 레벨 code 만 보존. 임의 Error
       // (예: Node `SystemError`) 의 우발적 `.code` 가 Execution.error 로
       // 누수되지 않도록 sentinel 타입으로 좁힌다 (ai-review side-effect WARNING).
-      ...(error instanceof ErrorPortFallbackError ? { code: error.code } : {}),
+      // PR2a — ExecutionTimeLimitError(§8 active-running 타임아웃)도 동일 sentinel 경로.
+      ...(error instanceof ErrorPortFallbackError ||
+      error instanceof ExecutionTimeLimitError
+        ? { code: error.code }
+        : {}),
     };
     savedExecution.finishedAt = new Date();
     savedExecution.durationMs =
@@ -3035,6 +3053,8 @@ export class ExecutionEngineService
 
       let pointer = 0;
       while (pointer < sortedNodeIds.length) {
+        // PR2a — §8 노드 사이마다 active-running 누적 타임아웃 검사 (초과 시 throw).
+        this.assertActiveTimeWithinLimit(savedExecution);
         const nodeId = sortedNodeIds[pointer];
         const node = nodeMap.get(nodeId);
         if (!node) {
@@ -3297,7 +3317,9 @@ export class ExecutionEngineService
         // §1.4 — ErrorPortFallbackError 의 엔진 레벨 code 만 보존. 임의 Error
         // (예: Node `SystemError`) 의 우발적 `.code` 가 Execution.error 로
         // 누수되지 않도록 sentinel 타입으로 좁힌다 (ai-review side-effect WARNING).
-        ...(error instanceof ErrorPortFallbackError
+        // PR2a — ExecutionTimeLimitError(§8 active-running 타임아웃)도 동일 sentinel 경로.
+        ...(error instanceof ErrorPortFallbackError ||
+        error instanceof ExecutionTimeLimitError
           ? { code: error.code }
           : {}),
       };
@@ -8387,6 +8409,25 @@ export class ExecutionEngineService
    * WebSocket emit 은 본 헬퍼 호출 후 (트랜잭션 commit 후) 수행해야 한다 — 그렇지
    * 않으면 rollback 된 상태를 클라이언트가 잠시 관측할 수 있다.
    */
+  /**
+   * PR2a — §8 active-running 누적 타임아웃 enforce. dispatch loop 가 노드 사이마다
+   * 호출한다. 현재까지의 누적 active 시간(영속 `activeRunningMs` + 진행 중 세그먼트의
+   * 경과분)이 한도 이상이면 `ExecutionTimeLimitError` throw → run failure 빌더가
+   * `Execution.error.code = EXECUTION_TIME_LIMIT_EXCEEDED` 로 종결. 첫 호출은
+   * "세그먼트 시작 시 이미 한도 초과" 케이스(multi-segment 누적)를, 이후 호출은
+   * 단일 세그먼트가 한도를 넘는 케이스를 잡는다. `maxActiveRunningMs <= 0` 은 무제한.
+   * waiting_for_input park 시간은 RUNNING 이 아니라 누적에 포함되지 않는다(불변식).
+   */
+  private assertActiveTimeWithinLimit(execution: Execution): void {
+    if (this.maxActiveRunningMs <= 0) return;
+    const segStart = this.segmentStartMs.get(execution.id);
+    const inProgress = segStart !== undefined ? Date.now() - segStart : 0;
+    const activeNow = (execution.activeRunningMs ?? 0) + inProgress;
+    if (activeNow >= this.maxActiveRunningMs) {
+      throw new ExecutionTimeLimitError(activeNow, this.maxActiveRunningMs);
+    }
+  }
+
   private async updateExecutionStatus(
     execution: Execution,
     newStatus: ExecutionStatus,
@@ -8394,6 +8435,25 @@ export class ExecutionEngineService
     opts?: { allowRetryReentry?: boolean },
   ): Promise<void> {
     assertTransition(execution.status, newStatus, opts);
+    // PR2a — §8 active-running 누적 시간 추적. 모든 상태 전이의 단일 choke point.
+    // RUNNING 진입(어느 세그먼트 entry point 든) → 세그먼트 시작 시각 기록.
+    // RUNNING 이탈(waiting_for_input / completed / failed / cancelled) → 그 세그먼트의
+    // active 시간을 Execution.activeRunningMs 에 합산(아래 save 로 영속). waiting_for_input
+    // park 동안은 RUNNING 이 아니므로 자연히 제외된다(불변식).
+    const prevStatus = execution.status;
+    if (newStatus === ExecutionStatus.RUNNING && prevStatus !== newStatus) {
+      this.segmentStartMs.set(execution.id, Date.now());
+    } else if (
+      prevStatus === ExecutionStatus.RUNNING &&
+      newStatus !== ExecutionStatus.RUNNING
+    ) {
+      const segStart = this.segmentStartMs.get(execution.id);
+      if (segStart !== undefined) {
+        execution.activeRunningMs =
+          (execution.activeRunningMs ?? 0) + (Date.now() - segStart);
+        this.segmentStartMs.delete(execution.id);
+      }
+    }
     if (linkedNodeExec) {
       await this.dataSource.transaction(async (manager) => {
         execution.status = newStatus;

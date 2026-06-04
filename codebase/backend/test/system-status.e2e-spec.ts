@@ -23,6 +23,7 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 // 블랙박스 e2e 는 앱 소스를 import 하지 않는다 (constants 가 큐 상수를 서비스 파일에서
 // 끌어와 nodes 그래프 전체를 전이 로드 → e2e jest 모듈 해석 실패). 큐 추가 시 본 목록도 갱신.
 const EXPECTED_QUEUE_NAMES = [
+  'execution-run',
   'background-execution',
   'execution-continuation',
   'document-embedding',
