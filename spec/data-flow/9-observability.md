@@ -98,7 +98,7 @@ name `'evaluate'`, payload `{ triggeredAt }`)을 등록한다 — per-rule 큐�
 
 ```mermaid
 flowchart LR
-  REG[QueueRegistry · 12개 BullMQ 큐] --> SSS[SystemStatusService]
+  REG[QueueRegistry · 13개 BullMQ 큐] --> SSS[SystemStatusService]
   SSS -->|getJobCounts + isPaused| REDIS[(Redis · BullMQ)]
   SSS -->|GET /api/system-status/overview| Client
 ```
