@@ -58,7 +58,7 @@ code:
 | 청크 크기 | 문서 분할 청크 크기 (기본: 1000 토큰) |
 | 청크 오버랩 | 청크 간 오버랩 (기본: 200 토큰) |
 | 그래프 검색 파라미터 | `graph` 모드 일 때만 표시. `maxHops` (1/2, 기본 1), `vectorSeedTopK` (기본 5), `expandedChunkLimit` (기본 15) |
-| 리랭킹 (Reranking) | (Planned, 선택) 검색 후처리 정밀화. `Off` (기본) / `Cross-encoder` / `Cross-encoder + LLM`. **사후 변경 가능** (검색 시점 적용, 재임베딩 불요). `Off` 아닐 때만 하위 필드 노출 — Reranker(RerankConfig 선택), Candidate pool (기본 50), Score cutoff (비우면 컷 없음), Grading LLM (`Cross-encoder + LLM` 시). 상세: [Spec RAG 검색 §3.3](../../5-system/9-rag-search.md#33-검색-후처리--리랭킹-선택적) |
+| 리랭킹 (Reranking) | (Planned, 선택) 검색 후처리 정밀화. `Off` (기본) / `Cross-encoder` / `Cross-encoder + LLM`. **사후 변경 가능** (검색 시점 적용, 재임베딩 불요). `Off` 아닐 때만 하위 필드 노출 — Reranker(RerankConfig 선택), Candidate pool (기본 50), Score cutoff (비우면 컷 없음), Grading LLM (`Cross-encoder + LLM` 시). 상세: [Spec RAG 검색 §3.3](../5-system/9-rag-search.md#33-검색-후처리--리랭킹-선택적) |
 
 > 모드별 도움말은 폼에 인라인 안내로 표시: vector 는 "유사도 기반 단순 검색", graph 는 "entity·relation 추출 후 그래프 탐색을 결합 — 추출 LLM 호출이 추가 비용으로 발생". 리랭킹은 "Off(기본)면 동작 변화 없음 — 리랭커 설정 시에만 검색 정밀화. 셀프호스팅(TEI) 또는 외부 API(Cohere/Jina 등) 사용".
 

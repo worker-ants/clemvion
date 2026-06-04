@@ -3,16 +3,22 @@
 #   .claude/tools/plan-stale-audit.sh [--threshold-days N]
 #
 # Stale plan audit — surfaces in-progress plans that may be forgotten or
-# orphaned. Reports the following per plan/in-progress/*.md (excluding
-# 0-*.md index files):
+# orphaned. Recurses through plan/in-progress/**.md (excluding 0-*.md index
+# files), so grouped subfolders (e.g. node-output-redesign/) are covered.
+# Reports the following per plan:
 #
 #   - days since last commit (git log -1 --format=%ai)
 #   - checkbox progress (count `[x]` vs `[ ]` in body)
 #   - cross-link: which spec frontmatter `pending_plans:` references this plan
 #   - worktree existence (frontmatter `worktree:` field still exists?)
 #
-# Plans with last-commit age >= threshold (default 30 days) are flagged
-# STALE. The script never fails — it is an informational audit. SoT:
+# Flags (a single bulk-touch commit can reset commit-age, so age alone is a
+# weak signal — these composite flags catch what age misses):
+#   - STALE: last-commit age >= threshold (default 30 days)
+#   - DONE?: every checkbox is `[x]` (>0 boxes) — candidate to move to complete/
+#   - ORPHAN?: worktree MISSING *and* all checkboxes done — finished work whose
+#     worktree is gone but the plan was never moved.
+# The script never fails — it is an informational audit. SoT:
 # .claude/docs/plan-lifecycle.md §6.1.
 #
 # Exit codes:
@@ -65,7 +71,7 @@ while IFS= read -r f; do
     0-*.md) continue ;;
   esac
   PLANS+=("$f")
-done < <(find "$IN_PROGRESS_DIR" -maxdepth 1 -type f -name '*.md' | sort)
+done < <(find "$IN_PROGRESS_DIR" -type f -name '*.md' | sort)
 
 if [[ ${#PLANS[@]} -eq 0 ]]; then
   echo "No in-progress plans found under $IN_PROGRESS_DIR — nothing to audit."
@@ -94,6 +100,7 @@ printf '%-60s  %-10s  %-10s  %-15s  %s\n' \
 printf '%s\n' "----------------------------------------------------------------------------------------------------------------------"
 
 STALE_COUNT=0
+DONE_COUNT=0
 TOTAL=${#PLANS[@]}
 
 for plan in "${PLANS[@]}"; do
@@ -124,7 +131,7 @@ for plan in "${PLANS[@]}"; do
 
   # Worktree field check
   wt_value="$(sed -n -E 's/^worktree:[[:space:]]+([^[:space:]]+)/\1/p' "$plan" | head -n1)"
-  if [[ -z "$wt_value" ]] || [[ "$wt_value" == "pending" ]]; then
+  if [[ -z "$wt_value" ]] || [[ "$wt_value" == "pending" ]] || [[ "$wt_value" == "(unstarted)" ]]; then
     wt_status="(none)"
   elif [[ -d ".claude/worktrees/$wt_value" ]]; then
     wt_status="exists"
@@ -138,11 +145,19 @@ for plan in "${PLANS[@]}"; do
     ref="(no spec ref)"
   fi
 
-  # Stale flag
+  # Flags. Age is a weak signal (a bulk groom commit resets every plan's age),
+  # so also flag fully-checked plans and worktree-gone+done orphans.
   stale_tag=""
   if [[ "$age_days" =~ ^[0-9]+$ ]] && [[ "$age_days" -ge "$THRESHOLD_DAYS" ]]; then
     stale_tag=" STALE"
     STALE_COUNT=$((STALE_COUNT + 1))
+  fi
+  if [[ "$total_box" -gt 0 ]] && [[ "$done_box" -eq "$total_box" ]]; then
+    stale_tag="${stale_tag} DONE?"
+    DONE_COUNT=$((DONE_COUNT + 1))
+    if [[ "$wt_status" == "MISSING" ]]; then
+      stale_tag="${stale_tag} ORPHAN?"
+    fi
   fi
 
   printf '%-60s  %-10s  %-10s  %-15s  %s%s\n' \
@@ -150,6 +165,6 @@ for plan in "${PLANS[@]}"; do
 done
 
 echo ""
-echo "Total: ${TOTAL} in-progress plans. Stale (>= ${THRESHOLD_DAYS} days): ${STALE_COUNT}."
+echo "Total: ${TOTAL} in-progress plans. Stale (>= ${THRESHOLD_DAYS} days): ${STALE_COUNT}. Fully-checked (DONE?): ${DONE_COUNT}."
 echo "(This audit is informational only. To groom stale plans: review checkbox progress,"
 echo " move to plan/complete/ if done, or update with current status / new owner.)"

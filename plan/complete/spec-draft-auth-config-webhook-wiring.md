@@ -113,7 +113,7 @@ inline 인증 키 5개 삭제:
 
 ### 2.6 §8 보안 고려사항 갱신 (I-3: 현행 섹션 번호는 §8)
 
-- "비밀 키 저장" 행 삭제 → "Webhook 인증 자료는 모두 `auth_config.config` JSONB 에 AES-256-GCM 암호화 저장 ([`spec/1-data-model.md §2.17.2`](../1-data-model.md#2172-마스킹노출-정책)). 응답 시 항상 마스킹, 평문 노출은 create/regenerate/reveal 3 경로만."
+- "비밀 키 저장" 행 삭제 → "Webhook 인증 자료는 모두 `auth_config.config` JSONB 에 AES-256-GCM 암호화 저장 ([`spec/1-data-model.md §2.17.2`](../../spec/1-data-model.md#2172-마스킹노출-정책)). 응답 시 항상 마스킹, 평문 노출은 create/regenerate/reveal 3 경로만."
 - 신규 행: "AuthConfig `last_used_at` — 인증 성공 직후 fire-and-forget UPDATE. 트랜잭션 외 (race 시 last-write-wins), 실패 시 미갱신 (활성 가시성 차단)."
 
 ### 2.7 §7 처리 흐름 step 6 재작성 (C-3 반영)
@@ -196,7 +196,7 @@ code:
 ### 4.5 §A.4 마스킹과 Reveal 흐름 — 신규 sub-section
 
 #### 마스킹 표시 규칙
-`config.key`/`token`/`secret`/`password` → `***<last4>`. `headerName`/`header`/`algorithm`/`username` → 평문. (정의 SoT 는 [`spec/1-data-model.md §2.17.2`](../1-data-model.md#2172-마스킹노출-정책).)
+`config.key`/`token`/`secret`/`password` → `***<last4>`. `headerName`/`header`/`algorithm`/`username` → 평문. (정의 SoT 는 [`spec/1-data-model.md §2.17.2`](../../spec/1-data-model.md#2172-마스킹노출-정책).)
 
 #### Reveal 흐름
 ```
@@ -257,7 +257,7 @@ PATCH body deep-merge 키 목록에서 `config.authType` / `config.hmacHeader` /
 
 ### 6.1 §1.2 Webhook 진입 sequence — 인증 분기 재작성 (C-3 반영)
 
-> **C-3 핵심**: `ip_whitelist` 는 `AuthConfig` 종속 (`spec/1-data-model.md §2.17`) — Trigger 에는 ip_whitelist 컬럼 없음. 따라서 "ip_whitelist-only (auth_config_id IS NULL)" 경로는 **성립 불가**. 기존 `OR ip_whitelist` 표현이 부정확했음. 응답 코드도 `200` → `202` 정정 ([12-webhook §3.1](../5-system/12-webhook.md#3-api-명세) 정합).
+> **C-3 핵심**: `ip_whitelist` 는 `AuthConfig` 종속 (`spec/1-data-model.md §2.17`) — Trigger 에는 ip_whitelist 컬럼 없음. 따라서 "ip_whitelist-only (auth_config_id IS NULL)" 경로는 **성립 불가**. 기존 `OR ip_whitelist` 표현이 부정확했음. 응답 코드도 `200` → `202` 정정 ([12-webhook §3.1](../../spec/5-system/12-webhook.md#3-api-명세) 정합).
 
 **변경**:
 ```

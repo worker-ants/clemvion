@@ -1,6 +1,8 @@
 # PRD: 비기능 요구사항
 
-> 관련 문서: [제품 개요](../0-overview.md) · [Spec 인증/인가](./1-auth.md) · [Spec API 규칙](./2-api-convention.md) · [Spec 에러 처리](./3-error-handling.md)
+> 관련 문서: [제품 개요](../0-overview.md)
+>
+> **시스템 영역 spec 맵**: [인증/인가](./1-auth.md) · [API 설계 규칙](./2-api-convention.md) · [에러 처리](./3-error-handling.md) · [실행 엔진](./4-execution-engine.md) · [표현식 언어](./5-expression-language.md) · [WebSocket 프로토콜](./6-websocket-protocol.md) · [LLM 클라이언트](./7-llm-client.md) · [임베딩 파이프라인](./8-embedding-pipeline.md) · [RAG 검색](./9-rag-search.md) · [Graph RAG](./10-graph-rag.md) · [MCP Client](./11-mcp-client.md) · [Webhook 트리거](./12-webhook.md) · [Re-run](./13-replay-rerun.md) · [External Interaction API](./14-external-interaction-api.md) · [Chat Channel](./15-chat-channel.md) · [시스템 상태 API](./16-system-status-api.md)
 
 ---
 

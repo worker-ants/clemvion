@@ -2,7 +2,7 @@
 name: makeshop-integration
 worktree: makeshop-api-catalog-730deb
 status: in-progress
-created: 2026-06-03
+started: 2026-06-03
 owner: project-planner
 ---
 

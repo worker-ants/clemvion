@@ -1,5 +1,5 @@
 ---
-worktree: TBD
+worktree: (unstarted)
 started: 2026-06-03
 owner: developer
 ---

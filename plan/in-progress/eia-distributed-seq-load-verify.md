@@ -1,5 +1,5 @@
 ---
-worktree: (미정 — 착수 시 신규)
+worktree: (unstarted)
 started: 2026-06-02
 owner: developer
 priority: optional

@@ -88,7 +88,7 @@
 | Loop | 컨테이너 (반복) | [loop.md](./loop.md) |
 | Variable Declaration | side-effect (pass-through) | [variable-declaration.md](./variable-declaration.md) |
 | Variable Modification | side-effect (pass-through) | [variable-modification.md](./variable-modification.md) |
-| Split | 데이터 변형 (단일 출력) | [split.md](./split.md) |
+| Split | 데이터 변형 (단일 출력) | split.md |
 | Map | 컨테이너 (반복) | [map.md](./map.md) |
 | Filter | 분기 (양쪽 동시) | [filter.md](./filter.md) |
 | ForEach | 컨테이너 (반복) | [foreach.md](./foreach.md) |
@@ -100,7 +100,7 @@
 
 | 노드 | 카테고리 | plan 파일 |
 | --- | --- | --- |
-| Workflow (Sub-Workflow) | 호출 (sync/async) | [workflow.md](./11-workflow.md) |
+| Workflow (Sub-Workflow) | 호출 (sync/async) | [workflow.md](../../../spec/data-flow/11-workflow.md) |
 
 ### 3. AI 노드 (3 종)
 
@@ -154,7 +154,7 @@
 | --- | --- |
 | [parallel](./parallel.md) | §5.2 (`done`) `meta.durationMs` + `meta.branches` 보강 |
 | [merge](./merge.md) | `meta.strategy` / `meta.outputFormat` 의 `config` 중복 제거 검토 (D1 으로 일부 정리됐으나 `meta.*` echo 정책 별도 결정 필요) |
-| [workflow](./11-workflow.md) | Async `output.workflowId` / `output.status: 'started'` 중복 제거 |
+| [workflow](../../../spec/data-flow/11-workflow.md) | Async `output.workflowId` / `output.status: 'started'` 중복 제거 |
 | [http-request](./http-request.md) | Transport 실패 시 `output.response: { error }` legacy 잔재 제거 (D4 와 별개 — D4 는 throw → port:'error' 통일이고 본 항목은 transport-failed 본문 형태 정리) |
 
 #### D 결정 phase 로 처리된 노드 (잔여 권고 해소, 2026-05-17)
@@ -185,7 +185,7 @@ if-else / switch / loop / variable-declaration / split / filter / background / t
 | [if-else](./if-else.md) | 2 | 1 | 0 | `strictComparison` echo 누락, `matchedConditions` short-circuit 명시 |
 | [switch](./switch.md) | 1 | 2 | 0 | `hasDefault`/`strictComparison` echo 누락 |
 | [loop](./loop.md) | 1 | 2 | 0 | `count` schema 타입 echo 일치성 |
-| [split](./split.md) | **0** | **0** | **0** | **완전 부합 ✓** |
+| split | **0** | **0** | **0** | **완전 부합 ✓** |
 | [variable-declaration](./variable-declaration.md) | 0 | 1 | 0 | `rawConfig` fallback 안전성 |
 | [variable-modification](./variable-modification.md) | 1 | 2 | 0 | `recordValues` conditional echo (Principle 7 "항상 echo" 미세 충돌) |
 | [map](./map.md) | 2 | 3+1 | 0 | `errorPolicy` echo 누락, `meta.iterations/fellBackToEmpty` 부재, 시작 시점 output 표현 (items[] vs null) |

@@ -7,7 +7,7 @@ owner: developer
 # EIA — 분산 환경 seq counter 강화 (Redis INCR / DB row-level lock)
 
 > 작성일: 2026-05-21
-> 상위: [`plan/complete/external-interaction-api.md`](../complete/external-interaction-api.md) §"완료 후 잔여"
+> 상위: `plan/complete/external-interaction-api.md` §"완료 후 잔여"
 > 관련 spec: [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R7 보강 노트
 
 ## 배경

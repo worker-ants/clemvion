@@ -1,3 +1,9 @@
+---
+worktree: (unstarted)
+started: 2026-05-30
+owner: developer
+---
+
 # Parallel P2 — 후속 작업 잔여
 
 > 작성일: 2026-05-30 / 분리: 2026-06-01 (split)
@@ -12,7 +18,7 @@
 ### 1. signal-aware 노드 — 미구현 잔여
 > 완료: Database·AI Agent·Text Classifier·IE single-turn·Send Email 의 사전 체크/전파 (complete 기록 §1).
 - [ ] Information Extractor multi-turn (`runTurnWithCollectionRetries`) — params chain 에 signal 추가 (→ cancel-status 작업에서 함께 처리, `spec-draft-node-execution-cancelled.md`).
-- [ ] `NodeExecution.status='cancelled'` 추가 (엔티티 + migration) — **별 plan 구체화됨**: [`spec-draft-node-execution-cancelled.md`](./spec-draft-node-execution-cancelled.md) (옵션 B 확정, V069 migration), `node-cancellation-engine` worktree 구현 중.
+- [ ] `NodeExecution.status='cancelled'` 추가 (엔티티 + migration) — **별 plan 구체화됨**: [`spec-draft-node-execution-cancelled.md`](../complete/spec-draft-node-execution-cancelled.md) (옵션 B 확정, V069 migration), `node-cancellation-engine` worktree 구현 중.
 
 ### 2~4. e2e 통합 테스트 (묶음 — 별 PR)
 > 완료: §2 frontend canvas 배지·§3 backend save reject·§4 단위/통합 테스트 (complete 기록).
@@ -22,7 +28,7 @@
 - [ ] parallel-p2 + followups 누적 변경(#363~#377)에 대한 `ai-review` — Concurrency / Performance / Security 중심. Critical/Warning 해소 + RESOLUTION.md.
 
 ### 6. GRAPH_VALIDATION_FAILED i18n + 사용자 문서 갱신 (ai-review SUMMARY#20)
-> **2026-06-02 재범위**: 메시지가 동적 템플릿(`${node.label}` 등)이라 정적 매핑 불가 + `ERROR_KO` 인프라를 spec 이 미정의 상태였음이 드러나, i18n 아키텍처를 선행 spec 으로 분리 정의했다. 구현은 별 plan [`backend-msg-i18n-impl.md`](./backend-msg-i18n-impl.md) 로 이관 — 본 §6 은 그 plan 으로 대체된다.
+> **2026-06-02 재범위**: 메시지가 동적 템플릿(`${node.label}` 등)이라 정적 매핑 불가 + `ERROR_KO` 인프라를 spec 이 미정의 상태였음이 드러나, i18n 아키텍처를 선행 spec 으로 분리 정의했다. 구현은 별 plan [`backend-msg-i18n-impl.md`](../complete/backend-msg-i18n-impl.md) 로 이관 — 본 §6 은 그 plan 으로 대체된다.
 - [x] (선행 spec) 동적·코드 기반 backend 메시지 localization 정책 — `i18n-userguide.md` Principle 3-C (`ERROR_KO`·`GRAPH_WARNING_KO`·`translateBackendError`/`translateGraphWarning`) + `cross-node-warning-rules.md §3` rule 계약(`params`) 확정.
 - [x] (→ `backend-msg-i18n-impl.md`, 완료 `60c01585`) `GRAPH_VALIDATION_FAILED` 한국어 매핑 — i18n 아키텍처가 frontend 로 안착해 `backend-labels.ts:526` `translateBackendError` 매핑으로 구현 (plan 의 backend `ERROR_KO` 신설 위치 문구는 stale, 결과 동등).
 - [x] (→ `backend-msg-i18n-impl.md`, 완료 `60c01585`) user-guide MDX(`05-run-and-debug/validation-errors.mdx` + `.en`) graph validation 에러 안내 추가됨.

@@ -270,7 +270,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 
 ### 5.5 Case: Re-run dry-run (port `out`, mock)
 
-`context.variables.__dryRun === true` 인 재실행/리플레이 컨텍스트(`metadata.supportsDryRun: true`)에서만 발생. config 검증을 모두 통과한 뒤 실제 SMTP 발송 직전에 단락되어 **어떤 SMTP/provider 도 건드리지 않고** 정상(`out`) 흐름으로 진행한다. SoT: [Spec Re-run §7](../../5-system/13-replay-rerun.md#7-dry-run).
+`context.variables.__dryRun === true` 인 재실행/리플레이 컨텍스트(`metadata.supportsDryRun: true`)에서만 발생. config 검증을 모두 통과한 뒤 실제 SMTP 발송 직전에 단락되어 **어떤 SMTP/provider 도 건드리지 않고** 정상(`out`) 흐름으로 진행한다. SoT: [Spec Re-run §7](../../5-system/13-replay-rerun.md#7-dry-run-모드-정의).
 
 ```json
 {
@@ -300,7 +300,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.*` | (§5.1 과 동일) | config echo | raw 템플릿 echo |
-| `output._dryRun` | `true` | handler (`buildDryRunMock`) | dry-run 식별자. Run Results UI 가 시각 구분 ([Re-run §7.4](../../5-system/13-replay-rerun.md#7-dry-run)) |
+| `output._dryRun` | `true` | handler (`buildDryRunMock`) | dry-run 식별자. Run Results UI 가 시각 구분 ([Re-run §7.4](../../5-system/13-replay-rerun.md#7-dry-run-모드-정의)) |
 | `output.skippedReason` | `'dry-run mode'` | handler | 단락 사유 |
 | `output.wouldHaveCalled` | object | handler | 실제 호출됐을 작업 미리보기. `kind: 'send_email'` + 정규화된 `to` + 평가된 `subject` 만 노출 (`body` / 자격증명 비노출) |
 | `meta.deliveryStatus` | `'sent'` | handler | 흐름 정상 진행 신호. dry-run 은 `durationMs` 미부여 |

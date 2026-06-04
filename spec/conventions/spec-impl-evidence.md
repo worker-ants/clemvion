@@ -8,6 +8,11 @@ code:
   - codebase/frontend/src/lib/docs/__tests__/spec-code-paths.test.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-status-lifecycle.test.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-pending-plan-existence.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-plan-completion.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/plan-frontmatter.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-links.ts
 ---
 
 # Convention: Spec-Impl Evidence (frontmatter)
@@ -26,7 +31,7 @@ code:
 - `user-guide-sync-reviewer` — code → guide 단방향
 - `nodes-coverage` / `hydration-coverage` 등 build-time 가드 — 등록부 enumeration 만
 
-→ "spec 가 약속한 surface 가 *지금* 구현됐는가" 는 어떤 검사도 묻지 않음. 본 컨벤션은 spec 파일 frontmatter 에 `status` + `code:` + `pending_plans:` 를 의무화하고, 4개 build-time 가드로 정합성을 강제해 이 갭을 닫는다.
+→ "spec 가 약속한 surface 가 *지금* 구현됐는가" 는 어떤 검사도 묻지 않음. 본 컨벤션은 spec 파일 frontmatter 에 `status` + `code:` + `pending_plans:` 를 의무화하고, §4 의 frontmatter-evidence 가드(5건)로 정합성을 강제해 이 갭을 닫는다 (§4.0 의 지식저장소 무결성 가드는 별개 family).
 
 ## 1. 적용 대상
 
@@ -95,9 +100,9 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 - `partial` → `implemented`: 마지막 `pending_plans` 가 `complete/` 로 이동한 commit 안에서 승격 (가드)
 - `*` → `archived`: spec 결정 폐기 시 즉시 (Rationale 본문에 사유 추가)
 
-## 4. Build-time 가드 (4건)
+## 4. Build-time 가드 — frontmatter-evidence (4건)
 
-본 컨벤션의 정합성은 다음 4개 단위 테스트가 강제. 모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역에 위치.
+본 컨벤션(frontmatter evidence)의 정합성은 아래 표의 4개 단위 테스트가 강제(빌드 실패 = 차단). 모두 `codebase/frontend/src/lib/docs/__tests__/`. (plan frontmatter·링크·index·plan-완료 가드는 §4.2 의 별도 family — 분류 근거 [R-9](#r-9-42-지식저장소plan-무결성-가드--별도-family-신설-근거).)
 
 | 가드 | 검증 |
 |---|---|
@@ -110,6 +115,18 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 
 - `registry.test.ts` (user-guide MDX 의 `spec:`/`code:` 경로 실존) 와 본 가드는 **대상 문서 종류** 로 분리 — 본 가드는 `spec/**.md` 만, `registry.test.ts` 는 `codebase/frontend/src/content/docs/**.mdx` 만.
 - `nodes-coverage.test.ts` (backend 노드 → 가이드 본문 등장) 와는 **방향이 직교** — `nodes-coverage` 는 노드 enumeration → 가이드, 본 가드는 spec 약속 → 구현 코드.
+
+### 4.2 지식저장소·plan 무결성 가드 (별도 family, 본 절이 규약 SoT)
+
+§4 의 frontmatter-evidence 와 **별개 family** — 지식저장소(링크·index)·plan frontmatter·plan 완료 정합을 지키는 build 차단 4건 + advisory 1건. **본 절이 규약 SoT**, 도입 경위·로드맵은 [`plan/in-progress/knowledge-base-quality-improvements.md`](../../plan/in-progress/knowledge-base-quality-improvements.md). 4개 build 가드 구현 파일은 본 문서 frontmatter `code:` 에 등재. 근거 [R-9](#r-9-42-지식저장소plan-무결성-가드--별도-family-신설-근거).
+
+| 가드 | 대상 / 검증 | 예외 / 비고 |
+|---|---|---|
+| `spec-link-integrity.test.ts` (build 차단) | `spec/**.md` 본문 in-repo `[..](path)` 타깃 존재 + `#anchor` heading slug 대조. slug 는 실제 렌더러(`rehype-slug`=`mdast`+`github-slugger`) 파이프라인과 동등 | 생성형 `*-api-catalog/` 트리. plan/ 링크(=plan-coherence 담당) |
+| `spec-area-index.test.ts` (build 차단) | 각 영역 폴더(≥2 sibling)에 index 문서 존재 + 모든 sibling spec 이 index 에서 링크 | `spec/conventions/`(flat reference, 무-index), 카탈로그 |
+| `plan-frontmatter.test.ts` (build 차단) | top-level `plan/in-progress/*.md` 의 `worktree`(sentinel `(unstarted)` 허용)/`started`(ISO)/`owner` 필수 | subfolder 클러스터, `0-`/`_` index 면제. **가드 규약 SoT = [plan-lifecycle §4](../../.claude/docs/plan-lifecycle.md)**; 본 절은 가드 파일 등재 위치만 선언 |
+| `spec-plan-completion.test.ts` (**Gate C**) | `started ≥ 2026-06-04` 인 완료 plan(`plan/complete/`)은 frontmatter `spec_impact` 선언 필수(spec path 목록 실존, 또는 no-op sentinel `none`/`없음`/`n/a`/`na`). plan↔spec 정합 결정을 완료 시점에 강제 | cutoff 이전 시작 plan 면제(grandfather). plan frontmatter 가드라 §4 frontmatter-evidence 가 아님. 근거 [R-8](#r-8-gate-c--plan-완료-시점-spec_impact-선언-의무화) |
+| **Gate D** (**advisory — build 차단 아님**) | `/spec-coverage --mode reverse` (orchestrator `--mode` 인자로 **구현 완료**) — spec 미참조 controller route·이벤트·env 탐지(impl→spec 역커버리지) | NLP 휴리스틱이라 보고형, CI 비차단 |
 
 ## 5. 사용 예시
 
@@ -168,8 +185,8 @@ user_guide:
    - `spec/0-overview.md §6.3` 로드맵 매칭 → `backlog`
    - 부분 구현 + 후속 plan 존재 → `partial` + `pending_plans:` 채움
    - 그 외 → `spec-only`
-3. 4개 가드 테스트 동반 작성
-4. PROJECT.md §자동 가드 표에 4개 row 추가
+3. frontmatter-evidence 가드(§4, 현재 4건) + §4.2 지식저장소·plan 무결성 가드(build 4건 + advisory Gate D) 동반 작성. (초기 rollout 은 frontmatter-evidence 4건이었고, §4.2 family·Gate C 는 kb-quality 에서 추가 — 설계 근거 R-8·R-9.)
+4. PROJECT.md §자동 가드 표에 해당 row 추가
 
 ## Rationale
 
@@ -213,3 +230,18 @@ user_guide:
 `spec/conventions/cafe24-api-catalog/<resource>/<entity>.md` 같은 필드 단위 카탈로그는 외부 API 문서를 기계 추출한 **생성기 산출물**(`_overview.md` 의 `_generator.py`)로, frontmatter 가 `resource`/`entity`/`cafe24_docs`/`source` 다 — 제품 surface 의 구현 lifecycle (`backlog`→`implemented`) 을 추적하는 정식 spec 이 아니다. 따라서 `id`/`status` 를 부여하는 것은 (a) 의미상 부적절(추적할 구현 lifecycle 이 없음)하고 (b) 생성기가 매 재생성마다 수백 개 파일에 무의미한 메타를 찍어야 해 유지보수 부담이다.
 
 반면 카탈로그 **최상위 `<resource>.md` 인덱스**(`application.md` 등 18개)는 해당 리소스군의 metadata 구현(`code:`)을 약속하는 정식 spec 이라 `id`+`status: implemented` 를 보유하고 검증을 유지한다. 그래서 제외는 카탈로그 디렉토리 *뒤에 path segment 가 하나 더 있는* 중첩 경로(`<name>-api-catalog/<resource>/…`)로 한정한다 — `_*.md`(밑줄 prefix, leaf 아님) 제외와는 다른 논리(생성물 vs layout/index)이므로 별 항으로 둔다. 가드 구현은 `spec-frontmatter-parse.ts` 의 `CATALOG_FIELD_FILE` 정규식이 §1 제외와 동기화한다.
+
+### R-8. Gate C — plan 완료 시점 `spec_impact` 선언 의무화
+
+원안(`plan/in-progress/spec-drift-gates.md §C`)은 "완료 plan 이 건드린 `code:` 코드가 변경됐으면 spec-update 강제" 였으나, "어떤 코드를 건드렸나" 를 build 테스트가 알려면 git history 분석이 필요해 fragile. 대신 **plan frontmatter `spec_impact` 선언** 으로 대체 — 완료 시 작성자가 정합 결정(spec 경로 목록 또는 `none`)을 명시하고 build 테스트는 그 선언 유무·실존만 결정적으로 검증한다.
+
+- **grandfather cutoff `2026-06-04`**: 기존 백로그 수십 개를 소급 강제하면 대량 red — `started ≥ cutoff` 인 신규 plan 부터만 적용. `spec-only` TTL 과 동일한 date-cutoff 패턴(R-2)이라 선례 일관. cutoff 값은 spec-impl-evidence·plan-lifecycle·test 3곳에 동기 유지(변경 시 3곳 동시 갱신).
+- **no-op sentinel(`none`/`없음`/`n/a`/`na`) 채택, 빈 문자열 기각**: 빈 값은 "미작성(누락)" 과 "의식적 no-op" 을 구분 못 해 gate 의도(의식적 결정 강제)를 약화. 명시 sentinel 이라야 "검토 후 변경 불요" 임이 드러난다.
+- **분류**: plan/complete frontmatter 를 검증하므로 §4 frontmatter-evidence(spec frontmatter) 가 아닌 §4.2 plan 무결성 family.
+
+### R-9. §4.2 지식저장소·plan 무결성 가드 — 별도 family 신설 근거
+
+링크 무결성·영역 index·plan frontmatter·plan 완료(Gate C) 가드는 §4 frontmatter-evidence(= spec 가 약속한 surface 의 구현 증거)와 **검증 대상 도메인이 다르다**(spec/plan 문서 자체의 구조·연결 무결성). 그래서 한 표에 섞지 않고 §4.2 별도 family 로 둔다.
+
+- **SoT 를 본 문서로 택한 이유 vs 기각 대안**: (a) 별도 신규 convention 문서 분리 — 가드 4건에 새 spec 파일은 과하고 frontmatter-evidence 와 인접 도메인이라 한 문서가 응집적. (b) plan-lifecycle.md 통합 — plan-frontmatter 만 plan 도메인이고 link/area-index 는 spec 도메인이라 부적합. → 본 문서 §4.2 에 묶되, `plan-frontmatter` 가드의 *규약* SoT 만 plan-lifecycle §4 로 위임(필드 정의가 거기 있으므로).
+- **Gate D advisory 채택**: NLP 휴리스틱 false-positive 부담을 build 차단으로 지우면 마찰이 가치 초과(spec-coverage R-1 과 동일 판단). 보고형 유지.

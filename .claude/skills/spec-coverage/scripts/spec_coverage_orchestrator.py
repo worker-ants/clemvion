@@ -7,15 +7,23 @@ the sub-agent input payload, then print the directory absolute path. The
 caller (main Claude) invokes the sub-agent and reads SUMMARY.md back.
 
 Usage:
-  python3 .claude/skills/spec-coverage/scripts/spec_coverage_orchestrator.py
+  python3 .claude/skills/spec-coverage/scripts/spec_coverage_orchestrator.py [--mode forward|reverse|both]
+
+  forward (default) — spec→impl: spec body promises with no implementation (H1·2·3)
+  reverse  (Gate D) — impl→spec: controller routes / events / env with no spec
+                       reference (H4·5·6). Advisory.
+  both              — all six heuristics.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+VALID_MODES = ("forward", "reverse", "both")
 
 
 def repo_root() -> Path:
@@ -45,7 +53,15 @@ PROMPT_TEMPLATE = """# spec-impl-coverage-auditor invocation
 
 You are running for the `/spec-coverage` slash command. Walk every applicable
 spec (per `spec/conventions/spec-impl-evidence.md §1` — see below) and apply
-the 3 heuristics defined in your agent prompt (`.claude/agents/spec-impl-coverage-auditor.md`).
+the heuristics for the selected MODE per your agent prompt
+(`.claude/agents/spec-impl-coverage-auditor.md` §모드).
+
+## Direction
+
+- MODE={direction_mode}
+  - `forward` → Heuristic 1·2·3 (spec→impl gaps)
+  - `reverse` → Heuristic 4·5·6 (impl→spec: spec-less controller routes / events / env — Gate D)
+  - `both`    → all six
 
 ## Environment
 
@@ -71,11 +87,17 @@ STATUS=success ISSUES=<total candidate count> PATH=<output_file absolute path>
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="spec-coverage standing audit orchestrator")
+    parser.add_argument("--mode", choices=VALID_MODES, default="forward",
+                        help="forward (spec→impl, default) | reverse (impl→spec, Gate D) | both")
+    args = parser.parse_args()
+
     root = repo_root()
     sess = session_dir(root)
 
     env = env_summary()
     prompt_text = PROMPT_TEMPLATE.format(
+        direction_mode=args.mode,
         confidence_floor=env["SPEC_COVERAGE_CONFIDENCE_FLOOR"],
         max_findings=env["SPEC_COVERAGE_MAX_FINDINGS"],
     )
@@ -85,6 +107,7 @@ def main() -> int:
 
     meta = {
         "mode": "spec-coverage-standing-audit",
+        "direction": args.mode,
         "session_dir": str(sess),
         "summary_subagent_type": "spec-impl-coverage-auditor",
         "prompt_file": str(prompt_path),
@@ -94,7 +117,7 @@ def main() -> int:
     }
     (sess / "meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print("Mode: spec-coverage standing audit")
+    print(f"Mode: spec-coverage standing audit (direction={args.mode})")
     print(f"Sub-agent: spec-impl-coverage-auditor")
     print(f"Confidence floor: {env['SPEC_COVERAGE_CONFIDENCE_FLOOR']}  Max findings: {env['SPEC_COVERAGE_MAX_FINDINGS']}")
     print(str(sess))

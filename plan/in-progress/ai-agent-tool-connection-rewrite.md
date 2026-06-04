@@ -1,10 +1,16 @@
+---
+worktree: (unstarted)
+started: 2026-05-11
+owner: developer
+---
+
 # AI Agent 일반 도구 연결 재설계
 
 > 작성일: 2026-05-11
-> 상위 인덱스: [`0-unimplemented-overview.md`](./0-unimplemented-overview.md) §A
-> 선행 plan: [`plan/complete/ai-agent-tool-connection-rewrite.md`](../complete/ai-agent-tool-connection-rewrite.md) (이전 제거 작업의 사유·복원 절차)
+> 상위 인덱스: `0-unimplemented-overview.md` §A
+> 선행 plan: `plan/complete/ai-agent-tool-connection-rewrite.md` (이전 제거 작업의 사유·복원 절차)
 >
-> **관련 진행 작업 (2026-05-22 추가)**: [`ai-presentation-tools.md`](./ai-presentation-tools.md) — `render_*` 표현 도구 가족 추가. 본 plan 의 `tool_*` 재작성과 **직교** (의도·schema 출처 모두 다름). `tool_*` 모델 확정 시 본 plan §3 Spec 작성 단계에서 `spec/4-nodes/3-ai/1-ai-agent.md` §6.1 step 3a 의 dispatcher 분류 순서 표 (현재 `cond_* → kb_* → mcp_* → render_* → tool_*` 5단계) 를 갱신해야 한다. 도구 이름 충돌 없음 (`tool_*` 와 `render_*` prefix 다름).
+> **관련 진행 작업 (2026-05-22 추가)**: `ai-presentation-tools.md` — `render_*` 표현 도구 가족 추가. 본 plan 의 `tool_*` 재작성과 **직교** (의도·schema 출처 모두 다름). `tool_*` 모델 확정 시 본 plan §3 Spec 작성 단계에서 `spec/4-nodes/3-ai/1-ai-agent.md` §6.1 step 3a 의 dispatcher 분류 순서 표 (현재 `cond_* → kb_* → mcp_* → render_* → tool_*` 5단계) 를 갱신해야 한다. 도구 이름 충돌 없음 (`tool_*` 와 `render_*` prefix 다름).
 
 ## 배경
 

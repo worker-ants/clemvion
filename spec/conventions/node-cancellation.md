@@ -15,7 +15,7 @@ pending_plans:
 
 # Node Cancellation 컨벤션 (AbortSignal 전파 기반)
 
-> 관련 문서: [ExecutionContext 설계 규약](./execution-context.md) · [노드 Output 규약](./node-output.md) · [parallel-p2.md 결정 A + H](../../plan/in-progress/parallel-p2.md) · [`node-handler.interface.ts`](../../codebase/backend/src/nodes/core/node-handler.interface.ts) ExecutionContext.abortSignal JSDoc
+> 관련 문서: [ExecutionContext 설계 규약](./execution-context.md) · [노드 Output 규약](./node-output.md) · [parallel-p2-followups.md 결정 A + H](../../plan/in-progress/parallel-p2-followups.md) · [`node-handler.interface.ts`](../../codebase/backend/src/nodes/core/node-handler.interface.ts) ExecutionContext.abortSignal JSDoc
 >
 > **SoT 분리**: `abortSignal` 이 `ExecutionContext` 의 어느 분류에 속하는지 (Stable core) 의 **필드 정의 SoT 는 [`execution-context.md`](./execution-context.md) §원칙 1**, 그 **동작 계약 (전파 의무·best-effort·에러 분류) SoT 는 본 문서** 다.
 
@@ -106,7 +106,7 @@ if (upstream) {
 
 ### 5.1 NodeExecution 상태 — `cancelled`
 
-`error.name === 'AbortError'` 인 throw 는 노드가 **실패한 것이 아니라 중단된 것**이므로, 엔진이 해당 `NodeExecution.status` 를 `failed` 가 아닌 **`cancelled`** 로 기록한다 ([실행 엔진 §1.2](../../spec/5-system/4-execution-engine.md#12-nodeexecution-상태) / [데이터 모델 §2.14](../../spec/1-data-model.md#214-nodeexecution)). dispatch 직전 `context.abortSignal?.aborted` 가 이미 true 면 핸들러를 실행하지 않고 즉시 `cancelled` 로 기록한다 (사전 체크). 종료 시 `execution.node.cancelled` WS 이벤트를 발행해 타임라인이 `running` 에 영구 잔류하지 않도록 한다 ([WebSocket §4.4](../../spec/5-system/6-websocket-protocol.md#44-실행-진행-이벤트)). `output.error` 는 표준 봉투(`code: 'AbortError'`)로 기록하되 `meta.success = false`.
+`error.name === 'AbortError'` 인 throw 는 노드가 **실패한 것이 아니라 중단된 것**이므로, 엔진이 해당 `NodeExecution.status` 를 `failed` 가 아닌 **`cancelled`** 로 기록한다 ([실행 엔진 §1.2](../../spec/5-system/4-execution-engine.md#12-nodeexecution-상태) / [데이터 모델 §2.14](../../spec/1-data-model.md#214-nodeexecution)). dispatch 직전 `context.abortSignal?.aborted` 가 이미 true 면 핸들러를 실행하지 않고 즉시 `cancelled` 로 기록한다 (사전 체크). 종료 시 `execution.node.cancelled` WS 이벤트를 발행해 타임라인이 `running` 에 영구 잔류하지 않도록 한다 ([WebSocket §4.1](../../spec/5-system/6-websocket-protocol.md#41-실행-이벤트-server--client)). `output.error` 는 표준 봉투(`code: 'AbortError'`)로 기록하되 `meta.success = false`.
 
 ### 5.2 워크플로 흐름 — `errorPolicy`
 
