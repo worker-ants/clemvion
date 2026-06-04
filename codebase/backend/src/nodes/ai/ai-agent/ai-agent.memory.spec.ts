@@ -79,7 +79,8 @@ describe('AiAgentHandler — auto-memory strategy', () => {
         key && key.trim() !== '' ? key : exec,
       ),
       recall: jest.fn().mockResolvedValue([] as RecalledMemory[]),
-      scheduleExtraction: jest.fn().mockResolvedValue(undefined),
+      // 기본은 enqueue 수락 (true) — M1: 수락된 경우에만 watermark 전진.
+      scheduleExtraction: jest.fn().mockResolvedValue(true),
     };
   });
 
@@ -537,6 +538,112 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(systemMsg?.content).toContain('Account tier is gold');
     });
 
+    it('임베딩 모델: 노드 config embeddingModel 을 recall embed source 로 전달', async () => {
+      agentMemoryService.recall.mockResolvedValue([] as RecalledMemory[]);
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-xyz',
+          systemPrompt: 'Sys',
+          userPrompt: 'What plan am I on?',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-42',
+          embeddingModel: 'text-embedding-3-large',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      const recallArgs = agentMemoryService.recall.mock.calls[0];
+      // embed source (4번째 인자) 에 노드 config embeddingModel 이 그대로 전달 —
+      // 더 이상 undefined hardcode 가 아니다 (활성 프로덕션 버그 수정).
+      expect(recallArgs[3]).toMatchObject({
+        llmConfigId: 'cfg-xyz',
+        embeddingModel: 'text-embedding-3-large',
+      });
+    });
+
+    it('임베딩 모델: 노드 config embeddingModel 을 scheduleExtraction(추출) 로도 전달', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: '내 이름은 지수',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-42',
+          embeddingModel: 'text-embedding-3-large',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      // 회수와 추출이 동일 모델을 써야 차원이 일치한다.
+      const arg = agentMemoryService.scheduleExtraction.mock.calls[0][0];
+      expect(arg.embeddingModel).toBe('text-embedding-3-large');
+    });
+
+    it('M2: userPrompt 가 빈 값이면 systemPrompt 로 recall queryText fallback', async () => {
+      agentMemoryService.recall.mockResolvedValue([] as RecalledMemory[]);
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'You are a billing assistant for premium accounts',
+          // userPrompt 누락 (systemPrompt-only run) — 빈 query 면 recall 이
+          // early-return [] 이 되어 회수가 무음 no-op 가 되던 버그.
+          userPrompt: '',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-42',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      expect(agentMemoryService.recall).toHaveBeenCalledTimes(1);
+      const queryText = agentMemoryService.recall.mock.calls[0][2] as string;
+      // 빈 userPrompt → systemPrompt 본문으로 fallback (빈 문자열이 아님).
+      expect(queryText.trim()).not.toBe('');
+      expect(queryText).toContain('billing assistant');
+    });
+
+    it('M2: userPrompt 가 있으면 그대로 queryText 로 사용 (fallback 미발동)', async () => {
+      agentMemoryService.recall.mockResolvedValue([] as RecalledMemory[]);
+      const context = makeContext();
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'System body',
+          userPrompt: 'actual user question',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-42',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      expect(agentMemoryService.recall.mock.calls[0][2]).toBe(
+        'actual user question',
+      );
+    });
+
     it('multi-turn re-recalls every turn and echoes meta.memory (system prefix injection)', async () => {
       agentMemoryService.recall.mockResolvedValue([
         { content: 'Loyalty member since 2020', score: 0.9 },
@@ -978,6 +1085,56 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       const texts2 = (call2.turns as { text: string }[]).map((t) => t.text);
       expect(texts2).not.toContain('첫 질문');
       expect(texts2).toContain('둘째 질문');
+    });
+
+    it('M1: enqueue dedup-drop (scheduleExtraction=false) 시 watermark 를 전진시키지 않는다', async () => {
+      const context = makeContext();
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          memoryStrategy: 'persistent',
+          memoryKey: 'cust-9',
+          memoryTokenBudget: 100000,
+        },
+        context,
+      );
+      let state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      // 1차: 정상 enqueue 수락 → watermark 전진.
+      agentMemoryService.scheduleExtraction.mockResolvedValueOnce(true);
+      const r1 = await handler.processMultiTurnMessage('첫 질문', state);
+      state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
+      const wm1 = state.lastExtractionTurnSeq as number;
+      expect(typeof wm1).toBe('number');
+
+      // 2차: BullMQ dedup-drop (false) → 이 turn 들은 저장되지 않았으므로
+      // watermark 를 전진시키면 안 된다 (다음 turn 이 재-snapshot 하도록 보존).
+      agentMemoryService.scheduleExtraction.mockResolvedValueOnce(false);
+      const r2 = await handler.processMultiTurnMessage('둘째 질문', state);
+      state = (r2 as { _resumeState: Record<string, unknown> })._resumeState;
+      expect(state.lastExtractionTurnSeq).toBe(wm1); // 전진 안 함.
+
+      // 3차: 다시 정상 수락 → 직전 drop 된 '둘째 질문' 까지 포함해 재-snapshot.
+      agentMemoryService.scheduleExtraction.mockResolvedValueOnce(true);
+      const r3 = await handler.processMultiTurnMessage('셋째 질문', state);
+      const call3 =
+        agentMemoryService.scheduleExtraction.mock.calls[
+          agentMemoryService.scheduleExtraction.mock.calls.length - 1
+        ][0];
+      const texts3 = (call3.turns as { text: string }[]).map((t) => t.text);
+      // drop 됐던 '둘째 질문' 이 다음 정상 enqueue 의 snapshot 에 다시 들어온다.
+      expect(texts3).toContain('둘째 질문');
+      expect(texts3).toContain('셋째 질문');
+      state = (r3 as { _resumeState: Record<string, unknown> })._resumeState;
+      // 이제는 전진 (정상 수락).
+      expect(state.lastExtractionTurnSeq as number).toBeGreaterThan(wm1);
     });
 
     it('AGM-10: 노드 config memoryTtlDays 를 scheduleExtraction payload.ttlDays 로 전달', async () => {

@@ -35,8 +35,15 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
   }
 
   async process(job: Job<AgentMemoryExtractionJob>): Promise<void> {
-    const { workspaceId, scopeKey, llmConfigId, model, turns, ttlDays } =
-      job.data ?? {};
+    const {
+      workspaceId,
+      scopeKey,
+      llmConfigId,
+      model,
+      embeddingModel,
+      turns,
+      ttlDays,
+    } = job.data ?? {};
     if (!workspaceId || !scopeKey) return;
     if (!Array.isArray(turns) || turns.length === 0) return;
 
@@ -79,8 +86,13 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
         // LLM 이 분류한 kind 를 metadata 에 저장 (AGM-11 — 기존 hardcoded 'fact' 대체).
         metadata: { kind: item.kind, source: 'turn_boundary_extraction' },
       })),
-      // 저장 임베딩 출처 — 회수/추출과 동일 llmConfigId (차원·endpoint 일치, §3).
-      { llmConfigId: llmConfigId ?? undefined, embeddingModel: undefined },
+      // 저장 임베딩 출처 — 회수/추출과 동일 llmConfigId·embeddingModel (차원·
+      // endpoint 일치, §3). embeddingModel 미설정이면 saveMemories 가 워크스페이스
+      // 기본 → 최후 하드코딩 기본으로 폴백한다.
+      {
+        llmConfigId: llmConfigId ?? undefined,
+        embeddingModel: embeddingModel ?? undefined,
+      },
       // TTL (일) — 노드 config memoryTtlDays 전달분 (AGM-10). 미설정이면 무만료.
       safeTtlDays,
     );

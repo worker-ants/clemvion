@@ -43,6 +43,12 @@ export class AgentMemory {
   @Column({ type: 'jsonb', default: {} })
   metadata: Record<string, unknown>;
 
+  // TTL 만료 시각 (AGM-10, V080 migration). NULL = 무만료. saveMemories 가
+  // `now() + ttlDays * INTERVAL '1 day'` 로 채우고 forgetSweep 가 만료 row 를
+  // 삭제한다. spec/5-system/17-agent-memory.md §2.23 / §1 expires_at.
+  @Column({ type: 'timestamptz', name: 'expires_at', nullable: true })
+  expiresAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

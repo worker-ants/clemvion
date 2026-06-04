@@ -17,7 +17,9 @@ import {
 /**
  * scope 당 보존할 최신 메모리 건수 상한 (spec/5-system/17-agent-memory.md §4 forgetting,
  * spec/1-data-model.md §2.23). 초과 시 created_at 오래된 순으로 evict (FIFO/LRU).
- * ConversationThread.STORAGE_MAX_TURNS evict 패턴과 동형. TTL 만료는 v2 로드맵.
+ * ConversationThread.STORAGE_MAX_TURNS evict 패턴과 동형. TTL 만료(`expires_at`)는
+ * 별도 차원으로 #462 에서 구현됨 (saveMemories 의 expires_at + forgetSweep 의
+ * 만료 row 삭제, AGM-10) — 본 상한은 그와 독립인 scope 당 건수 캡이다.
  */
 export const AGENT_MEMORY_MAX_PER_SCOPE = 1000;
 
@@ -37,18 +39,25 @@ export const MEMORY_DEDUP_SIMILARITY = 0.85;
  * 해석 경로를 그대로 재사용한다 (EmbeddingService / RagSearchService 와 동형).
  *
  * - `llmConfigId`: truthy 면 그 LLMConfig, 아니면 워크스페이스 기본 LLMConfig (LlmService.resolveConfig).
- * - `embeddingModel`: 임베딩 모델 식별자. 미지정이면 KB default 와 동일한 `text-embedding-3-small`.
+ * - `embeddingModel`: 임베딩 모델 식별자. **출처 우선순위**:
+ *   1. AI Agent 노드 config 의 `embeddingModel` 필드 (유저가 노드에서 직접 선택).
+ *   2. (1 미지정 시) 워크스페이스 기본 LLMConfig 의 임베딩 모델 — `embedQuery`/
+ *      `embedTexts` 가 LlmService.resolveConfig 로 해석하는 기본.
+ *   3. (그 외 모두 미지정 시) 최후 하드코딩 기본 `DEFAULT_EMBEDDING_MODEL`.
  *
- * KB 는 per-KB 컬럼으로 이 둘을 보관하지만 agent_memory 는 전용 config 컬럼이 없으므로,
- * 호출부 (AI Agent 핸들러) 가 노드/워크스페이스 컨텍스트에서 이 출처를 넘긴다. 회수·추출이
- * 같은 출처를 써야 query 임베딩과 저장 임베딩의 차원·endpoint 가 일치한다.
+ * KB 는 per-KB 컬럼으로 이 둘을 보관하지만 agent_memory 는 전용 LLMConfig 컬럼이 없으므로
+ * (노드 config 필드로 충분 — llm_config 컬럼 확장 없음), 호출부 (AI Agent 핸들러) 가 노드/
+ * 워크스페이스 컨텍스트에서 이 출처를 넘긴다. 회수·추출이 같은 출처를 써야 query 임베딩과
+ * 저장 임베딩의 차원·endpoint 가 일치한다.
  */
 export interface EmbedConfigSource {
   llmConfigId?: string | null;
   embeddingModel?: string | null;
 }
 
-// KB 가 사용하는 기본 임베딩 모델 (knowledge_base.embedding_model DEFAULT 와 동기화).
+// 최후 폴백 임베딩 모델 — 노드 config `embeddingModel` 도, 워크스페이스 기본
+// LLMConfig 임베딩 모델도 모두 미지정일 때만 쓰는 하드코딩 기본 (KB
+// knowledge_base.embedding_model DEFAULT 와 동기화).
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
 
 /**
@@ -148,31 +157,51 @@ export class AgentMemoryService {
    * (graceful — 추출 enqueue 실패가 응답 경로를 깨면 안 된다).
    *
    * 빈 turns / 큐 미주입 / workspaceId·scopeKey 결손 시 no-op.
+   *
+   * **반환 계약 (M1)**: enqueue 가 **실제로 새 job 으로 수락**되면 `true`,
+   * 그렇지 않으면 (큐 미주입 · 인자 결손 · BullMQ jobId dedup-drop · enqueue 에러)
+   * `false` 를 반환한다. 호출부(핸들러)는 이 반환값이 `true` 인 경우에만 증분
+   * 추출 watermark 를 전진시켜, dedup 으로 drop 된 turn 들이 다음 회수에서
+   * 영구 제외되지 않게 한다.
+   *
+   * **dedup 검출**: 같은 (workspaceId, scopeKey) job 이 active 인 동안 2차
+   * enqueue 는 BullMQ 가 기존 job 참조를 그대로 반환하고 신규 job 을 만들지
+   * 않는다 (`addStandardJob`: EXISTS jobIdKey → handleDuplicatedJob). 본 메서드는
+   * payload 에 per-call 고유 nonce(`enqueueNonce`) 를 심고, `add()` 가 반환한
+   * job 의 nonce 가 우리 것과 다르면 dedup-drop 으로 판정한다 (결정적 — job
+   * 내부 타임스탬프 race 에 의존하지 않는다).
    */
   async scheduleExtraction(args: {
     workspaceId: string;
     scopeKey: string;
     llmConfigId?: string | null;
     model?: string | null;
+    embeddingModel?: string | null;
     turns: ExtractionTurnSnapshot[];
     ttlDays?: number | null;
-  }): Promise<void> {
-    if (!this.extractionQueue) return;
-    if (!args.workspaceId || !args.scopeKey) return;
-    if (!args.turns || args.turns.length === 0) return;
+  }): Promise<boolean> {
+    if (!this.extractionQueue) return false;
+    if (!args.workspaceId || !args.scopeKey) return false;
+    if (!args.turns || args.turns.length === 0) return false;
+    // per-call 고유 nonce — dedup-drop 검출용 (아래 반환 계약 참조).
+    const enqueueNonce = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     try {
-      await this.extractionQueue.add(
+      const job = await this.extractionQueue.add(
         'extract',
         {
           workspaceId: args.workspaceId,
           scopeKey: args.scopeKey,
           llmConfigId: args.llmConfigId ?? null,
           model: args.model ?? null,
+          // 추출(저장) 임베딩 모델 — 노드 config embeddingModel. 회수와 동일
+          // 값을 써 query/저장 임베딩의 차원이 일치하게 한다 (§3).
+          embeddingModel: args.embeddingModel ?? null,
           // 방어적 shallow-copy — 호출부가 이미 격리 스냅샷을 넘기지만,
           // producer 가 payload 직렬화 전 array 를 재참조하지 않도록 한 번 더.
           turns: [...args.turns],
           // TTL (일) — 노드 config memoryTtlDays → payload → processor → saveMemories (AGM-10).
           ttlDays: args.ttlDays ?? null,
+          enqueueNonce,
         },
         {
           // W3 (TOCTOU 방지): 같은 (workspaceId, scopeKey) 의 추출 job 을 BullMQ
@@ -180,13 +209,29 @@ export class AgentMemoryService {
           // concurrency=2 에서도 같은 scope 의 findSimilarFact→insert 가 동시
           // 실행되지 않아 중복 insert 를 막는다 (advisory lock 보다 간단·충분).
           jobId: `agent-memory:${args.workspaceId}:${args.scopeKey}`,
-          removeOnComplete: 100,
+          // M1: 완료 job 을 **즉시 제거** 한다 (`true`). BullMQ 의 jobId dedup 은
+          // jobIdKey 가 Redis 에 EXISTS 하는 한 발동하는데(완료-보존 job 포함),
+          // 완료 job 을 retain(100) 하면 직전 추출이 끝난 뒤에도 같은 scope 의
+          // 다음 enqueue 가 그 완료 job 으로 dedup-drop 돼 watermark 가 영원히
+          // 전진하지 못한다(livelock). 완료 즉시 제거하면 dedup 은 **실제 in-flight
+          // (waiting/active/delayed) job** 에 대해서만 발동 — 이것이 바로 M1 이
+          // "저장 없이 drop" 으로 watermark 를 보존해야 하는 케이스다. 본 큐는
+          // fire-and-forget producer 라 완료 job 을 보존할 필요가 없다
+          // (waitUntilFinished/getJob 의존 없음).
+          removeOnComplete: true,
           removeOnFail: 100,
         },
       );
+      // dedup-drop 판정: 반환 job 의 nonce 가 우리 것과 다르면 기존(active) job
+      // 이 반환된 것 → 이번 enqueue 는 저장 없이 drop 됐다 (M1 — watermark 미전진).
+      const accepted =
+        (job?.data as { enqueueNonce?: string } | undefined)?.enqueueNonce ===
+        enqueueNonce;
+      return accepted;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`Agent memory extraction enqueue failed: ${message}`);
+      return false;
     }
   }
 

@@ -797,7 +797,7 @@ AI Agent 노드의 `memoryStrategy: 'persistent'` 전략에서 세션 간 추출
 | AssistantSession | (workflow_id, status, last_interaction_at DESC) | 워크플로우별 최근 활성 세션 조회 |
 | AssistantSession | (workspace_id, user_id, updated_at DESC) | 사용자별 세션 목록 |
 | AssistantMessage | (session_id, created_at ASC) | 세션 내 메시지 시간순 페이징 |
-| AgentMemory | (workspace_id, scope_key) | persistent 메모리 스코프별 회수·evict 조회 (workspace 격리 강제) |
+| AgentMemory | (workspace_id, scope_key, created_at) | persistent 메모리 스코프별 회수·FIFO/LRU evict 조회 — `created_at` 을 포함해 evict 정렬을 인덱스로 커버 (workspace 격리 강제, V073) |
 | AgentMemory | partial HNSW/IVFFlat (embedding) | pgvector 유사도 회수 — `DocumentChunk` 와 동일 차원별 partial 인덱스 정책 ([Spec Agent Memory §회수](./5-system/17-agent-memory.md)) |
 | AgentMemory | partial (expires_at) `WHERE expires_at IS NOT NULL` | TTL evict 만료 스캔 가속. 무만료(NULL) row 제외로 인덱스 경량 (V080) |
 | Integration | (workspace_id, status) | 만료/에러 상태 배지 카운트 + `pending_install` TTL 스캐너 조회 + 중복 방지 lookup 겸용 ([Spec 통합 화면 §6](./2-navigation/4-integration.md#6-상태-전이)) |

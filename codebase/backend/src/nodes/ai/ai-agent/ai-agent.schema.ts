@@ -587,6 +587,20 @@ export const aiAgentNodeConfigSchema = z
           visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
         },
       }),
+    embeddingModel: z
+      .string()
+      .optional()
+      .meta({
+        ui: {
+          label: 'Embedding Model',
+          widget: 'text',
+          order: 49.5,
+          group: 'Memory',
+          placeholder: 'text-embedding-3-small',
+          hint: 'Embedding model used for memory recall/extraction (must match the dimensions of the model used when memories were first stored). Empty = workspace default LLMConfig embedding model.',
+          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
+        },
+      }),
 
     // ── Multi Turn Settings ──
     maxTurns: z
