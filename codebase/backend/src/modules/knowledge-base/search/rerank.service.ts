@@ -11,7 +11,7 @@ export interface RerankCandidate {
 }
 
 export interface RerankResult extends RerankCandidate {
-  origin: 'reranked';
+  origin?: 'reranked';
 }
 
 export interface RerankDiagnostics {
@@ -98,6 +98,14 @@ export class RerankService {
           origin: 'reranked' as const,
         }));
 
+      // 유효 index 필터 후 결과가 비어 있으면 cosine 강등 — 빈 배열을 조용히 반환하지 않는다.
+      if (reranked.length === 0 && candidates.length > 0) {
+        this.logger.warn(
+          `Rerank returned no valid results (provider=${config.provider}); falling back to cosine order`,
+        );
+        return this.fallback(params, 'RERANK_NO_VALID_RESULTS');
+      }
+
       // 동적 점수 컷 — threshold 가 있으면 미달 후보 drop.
       let cutoffApplied = false;
       if (params.scoreThreshold !== null) {
@@ -130,15 +138,14 @@ export class RerankService {
   }
 
   /**
-   * 안전 강등: 원본 cosine score 내림차순 정렬 후 topK slice. origin 은 보존하지
-   * 않고 reranked 도 아니므로 결과에는 리랭크 표식을 붙이지 않는다 — 대신
-   * diagnostics.error 로 강등을 표시한다.
+   * 안전 강등: 원본 cosine score 내림차순 정렬 후 topK slice. origin 은 붙이지
+   * 않는다 — 강등 결과는 reranked 가 아니며 diagnostics.error 로 강등 사실을 표시한다.
    */
   private fallback(params: RerankParams, error: string): RerankResponse {
     const sorted = [...params.candidates]
       .sort((a, b) => b.score - a.score)
       .slice(0, params.topK)
-      .map((c) => ({ ...c, origin: 'reranked' as const }));
+      .map((c) => ({ ...c }));
     return {
       results: sorted,
       diagnostics: {

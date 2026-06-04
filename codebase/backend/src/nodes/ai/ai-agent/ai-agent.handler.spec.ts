@@ -12,7 +12,7 @@ import { makeExecutionContext } from '../../../modules/execution-engine/__test__
 describe('AiAgentHandler', () => {
   let handler: AiAgentHandler;
   let mockLlmService: Record<string, jest.Mock>;
-  let mockRagService: { search: jest.Mock };
+  let mockRagService: { searchWithMeta: jest.Mock };
   let mockKbService: { findById: jest.Mock };
   let mockEventEmitter: { emitExecution: jest.Mock };
   let kbProvider: KbToolProvider;
@@ -33,7 +33,7 @@ describe('AiAgentHandler', () => {
       embed: jest.fn().mockResolvedValue([[0.1, 0.2, 0.3]]),
     };
 
-    mockRagService = { search: jest.fn().mockResolvedValue([]) };
+    mockRagService = { searchWithMeta: jest.fn().mockResolvedValue({ results: [] }) };
     mockKbService = {
       findById: jest
         .fn()
@@ -202,7 +202,7 @@ describe('AiAgentHandler', () => {
         baseContext,
       );
 
-      expect(mockRagService.search).not.toHaveBeenCalled();
+      expect(mockRagService.searchWithMeta).not.toHaveBeenCalled();
       const meta = readSingleTurnMeta(handler)(
         await handler.execute(
           {},
@@ -246,16 +246,18 @@ describe('AiAgentHandler', () => {
     });
 
     it('executes a kb_ tool call and feeds result back to the LLM', async () => {
-      mockRagService.search.mockResolvedValue([
-        {
-          chunkId: 'c1',
-          documentId: 'd1',
-          documentName: 'refund.md',
-          content: '14-day refund window.',
-          score: 0.9,
-          metadata: {},
-        },
-      ]);
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'refund.md',
+            content: '14-day refund window.',
+            score: 0.9,
+            metadata: {},
+          },
+        ],
+      });
 
       mockLlmService.chat
         .mockResolvedValueOnce({
@@ -288,7 +290,7 @@ describe('AiAgentHandler', () => {
         baseContext,
       )) as unknown as Record<string, unknown>;
 
-      expect(mockRagService.search).toHaveBeenCalledWith(
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledWith(
         'refund window',
         ['kb-1'],
         'ws-1',
@@ -313,17 +315,19 @@ describe('AiAgentHandler', () => {
     });
 
     it('runs parallel kb_ tool calls when LLM emits multiple in one response', async () => {
-      mockRagService.search.mockImplementation((q: string) =>
-        Promise.resolve([
-          {
-            chunkId: `c-${q}`,
-            documentId: 'd1',
-            documentName: `doc-${q}`,
-            content: `payload for ${q}`,
-            score: 0.8,
-            metadata: {},
-          },
-        ]),
+      mockRagService.searchWithMeta.mockImplementation((q: string) =>
+        Promise.resolve({
+          results: [
+            {
+              chunkId: `c-${q}`,
+              documentId: 'd1',
+              documentName: `doc-${q}`,
+              content: `payload for ${q}`,
+              score: 0.8,
+              metadata: {},
+            },
+          ],
+        }),
       );
 
       mockLlmService.chat
@@ -362,7 +366,7 @@ describe('AiAgentHandler', () => {
         baseContext,
       )) as unknown as Record<string, unknown>;
 
-      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledTimes(2);
       const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       expect(meta.toolCalls).toBe(2);
       const diag = meta.ragDiagnostics as Record<string, unknown>;
@@ -371,16 +375,18 @@ describe('AiAgentHandler', () => {
     });
 
     it('supports re-search across iterations until maxToolCalls is reached', async () => {
-      mockRagService.search.mockResolvedValue([
-        {
-          chunkId: 'c1',
-          documentId: 'd1',
-          documentName: 'doc',
-          content: 'first',
-          score: 0.7,
-          metadata: {},
-        },
-      ]);
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'doc',
+            content: 'first',
+            score: 0.7,
+            metadata: {},
+          },
+        ],
+      });
 
       mockLlmService.chat
         .mockResolvedValueOnce({
@@ -427,14 +433,14 @@ describe('AiAgentHandler', () => {
         baseContext,
       )) as unknown as Record<string, unknown>;
 
-      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledTimes(2);
       const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       const diag = meta.ragDiagnostics as Record<string, unknown>;
       expect(diag.queriesUsed as string[]).toEqual(['first', 'refined']);
     });
 
     it('stops the tool loop once maxToolCalls is reached', async () => {
-      mockRagService.search.mockResolvedValue([]);
+      mockRagService.searchWithMeta.mockResolvedValue({ results: [] });
       mockLlmService.chat.mockResolvedValue({
         content: null,
         toolCalls: [
@@ -472,21 +478,23 @@ describe('AiAgentHandler', () => {
       // 최대값이 1 이면 직렬, 2 이상이면 병렬.
       let inFlight = 0;
       let maxInFlight = 0;
-      mockRagService.search.mockImplementation(async (q: string) => {
+      mockRagService.searchWithMeta.mockImplementation(async (q: string) => {
         inFlight++;
         maxInFlight = Math.max(maxInFlight, inFlight);
         await new Promise<void>((resolve) => setTimeout(resolve, 30));
         inFlight--;
-        return [
-          {
-            chunkId: `c-${q}`,
-            documentId: 'd1',
-            documentName: `doc-${q}`,
-            content: `payload for ${q}`,
-            score: 0.8,
-            metadata: {},
-          },
-        ];
+        return {
+          results: [
+            {
+              chunkId: `c-${q}`,
+              documentId: 'd1',
+              documentName: `doc-${q}`,
+              content: `payload for ${q}`,
+              score: 0.8,
+              metadata: {},
+            },
+          ],
+        };
       });
 
       mockLlmService.chat
@@ -530,7 +538,7 @@ describe('AiAgentHandler', () => {
         baseContext,
       );
 
-      expect(mockRagService.search).toHaveBeenCalledTimes(3);
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledTimes(3);
       expect(maxInFlight).toBeGreaterThanOrEqual(2);
     });
 
@@ -538,7 +546,7 @@ describe('AiAgentHandler', () => {
       // batch 부분 truncate: maxToolCalls 잔여 R 보다 emit 된 tool_use 가 많으면
       // 앞쪽 R 건만 실제 실행하고, 나머지는 'tool_call_budget_exceeded' 코드의
       // tool_result 로 회신해야 한다 (Anthropic tool_use ↔ tool_result 매칭 요건).
-      mockRagService.search.mockResolvedValue([]);
+      mockRagService.searchWithMeta.mockResolvedValue({ results: [] });
 
       mockLlmService.chat
         .mockResolvedValueOnce({
@@ -583,7 +591,7 @@ describe('AiAgentHandler', () => {
       )) as unknown as Record<string, unknown>;
 
       // 잔여 한도 2 만큼만 실제 검색 수행
-      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledTimes(2);
 
       // 2번째 LLM 호출의 messages 에는 모든 3 개 tool_use 에 대응되는
       // tool_result 메시지가 포함돼야 함 (Anthropic 의 매칭 요건).
@@ -613,16 +621,18 @@ describe('AiAgentHandler', () => {
       // 같은 turn 의 두 병렬 호출이 동일 chunkId 를 반환하면 (예: 두 query 가
       // 같은 청크에 매칭) meta.ragSources 는 하나만 남아야 한다. References
       // 탭의 React key collision 방지 + 사용자에게 중복 청크 노출 차단.
-      mockRagService.search.mockImplementation(async (q: string) => [
-        {
-          chunkId: 'c-shared',
-          documentId: 'd-shared',
-          documentName: 'shared.md',
-          content: `result for ${q}`,
-          score: q === 'a' ? 0.95 : 0.85,
-          metadata: {},
-        },
-      ]);
+      mockRagService.searchWithMeta.mockImplementation(async (q: string) => ({
+        results: [
+          {
+            chunkId: 'c-shared',
+            documentId: 'd-shared',
+            documentName: 'shared.md',
+            content: `result for ${q}`,
+            score: q === 'a' ? 0.95 : 0.85,
+            metadata: {},
+          },
+        ],
+      }));
 
       mockLlmService.chat
         .mockResolvedValueOnce({
@@ -660,7 +670,7 @@ describe('AiAgentHandler', () => {
         baseContext,
       )) as unknown as Record<string, unknown>;
 
-      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledTimes(2);
 
       const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       const sources = meta.ragSources as Array<{ chunkId: string }>;
@@ -678,18 +688,20 @@ describe('AiAgentHandler', () => {
     it('isolates partial failures across parallel kb_ tool calls', async () => {
       // 병렬 호출 중 한 건이 실패해도 나머지는 성공 결과로 누적되며,
       // 실패한 건은 search_failed tool_result 로 LLM 에 전달된다.
-      mockRagService.search.mockImplementation(async (q: string) => {
+      mockRagService.searchWithMeta.mockImplementation(async (q: string) => {
         if (q === 'fail') throw new Error('db down');
-        return [
-          {
-            chunkId: `c-${q}`,
-            documentId: 'd1',
-            documentName: `doc-${q}`,
-            content: `data for ${q}`,
-            score: 0.85,
-            metadata: {},
-          },
-        ];
+        return {
+          results: [
+            {
+              chunkId: `c-${q}`,
+              documentId: 'd1',
+              documentName: `doc-${q}`,
+              content: `data for ${q}`,
+              score: 0.85,
+              metadata: {},
+            },
+          ],
+        };
       });
 
       mockLlmService.chat
@@ -762,7 +774,7 @@ describe('AiAgentHandler', () => {
       // multi-turn resume 경로도 single-turn 과 동일 헬퍼(executeProviderToolBatch)
       // 를 사용하므로 잔여 한도 < emit 수 시 동일하게 truncate 해야 한다. 한쪽만
       // 수정될 경우의 회귀를 가드.
-      mockRagService.search.mockResolvedValue([]);
+      mockRagService.searchWithMeta.mockResolvedValue({ results: [] });
       mockLlmService.chat
         .mockResolvedValueOnce({
           content: null,
@@ -831,7 +843,7 @@ describe('AiAgentHandler', () => {
       ).processMultiTurnMessage('turn2', resumeState);
 
       // 잔여 한도 2 만큼만 실제 검색 수행.
-      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledTimes(2);
 
       // 모든 3개 tool_use 가 tool_result 와 매칭되어야 함 (Anthropic 요건).
       const secondCall = mockLlmService.chat.mock.calls[1];
@@ -1047,7 +1059,7 @@ describe('AiAgentHandler', () => {
         baseContext,
       );
 
-      expect(mockRagService.search).not.toHaveBeenCalled();
+      expect(mockRagService.searchWithMeta).not.toHaveBeenCalled();
       const output = result as unknown as Record<string, unknown>;
       const state = output._resumeState as Record<string, unknown>;
       expect((state.ragSources as unknown[]).length).toBe(0);
@@ -1285,20 +1297,22 @@ describe('AiAgentHandler', () => {
       await handler.processMultiTurnMessage('Just chatting', state);
 
       // No tool call from the LLM means no KB search happens.
-      expect(mockRagService.search).not.toHaveBeenCalled();
+      expect(mockRagService.searchWithMeta).not.toHaveBeenCalled();
     });
 
     it('processes a follow-up kb_ tool call and accumulates ragSources across turns', async () => {
-      mockRagService.search.mockResolvedValue([
-        {
-          chunkId: 'c2',
-          documentId: 'd1',
-          documentName: 'doc',
-          content: 'New context',
-          score: 0.85,
-          metadata: {},
-        },
-      ]);
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c2',
+            documentId: 'd1',
+            documentName: 'doc',
+            content: 'New context',
+            score: 0.85,
+            metadata: {},
+          },
+        ],
+      });
 
       const state = {
         llmConfigId: 'config-1',
@@ -1347,7 +1361,7 @@ describe('AiAgentHandler', () => {
         state,
       );
 
-      expect(mockRagService.search).toHaveBeenCalledWith(
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledWith(
         'X',
         ['kb-1'],
         'ws-1',
@@ -1378,16 +1392,18 @@ describe('AiAgentHandler', () => {
       // Multi-turn conversations where the LLM re-queries the same KB chunk
       // used to push the duplicate into ragSources, which surfaced as a
       // duplicate-key warning on `<li key={s.chunkId}>` in the References tab.
-      mockRagService.search.mockResolvedValue([
-        {
-          chunkId: 'c-prev',
-          documentId: 'd1',
-          documentName: 'doc',
-          content: 'Same chunk re-fetched',
-          score: 0.9,
-          metadata: {},
-        },
-      ]);
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c-prev',
+            documentId: 'd1',
+            documentName: 'doc',
+            content: 'Same chunk re-fetched',
+            score: 0.9,
+            metadata: {},
+          },
+        ],
+      });
 
       const state = {
         llmConfigId: 'config-1',
@@ -1447,17 +1463,19 @@ describe('AiAgentHandler', () => {
     });
 
     it('accumulates multiple KB tool calls within the same turn into turnDebug delta', async () => {
-      mockRagService.search.mockImplementation((q: string) =>
-        Promise.resolve([
-          {
-            chunkId: `c-${q}`,
-            documentId: 'd1',
-            documentName: `doc-${q}`,
-            content: `payload for ${q}`,
-            score: 0.8,
-            metadata: {},
-          },
-        ]),
+      mockRagService.searchWithMeta.mockImplementation((q: string) =>
+        Promise.resolve({
+          results: [
+            {
+              chunkId: `c-${q}`,
+              documentId: 'd1',
+              documentName: `doc-${q}`,
+              content: `payload for ${q}`,
+              score: 0.8,
+              metadata: {},
+            },
+          ],
+        }),
       );
 
       const state = {
@@ -2109,16 +2127,18 @@ describe('AiAgentHandler', () => {
     });
 
     it('exposes turn-level ragSources in turnDebug[0] for single_turn KB call', async () => {
-      mockRagService.search.mockResolvedValue([
-        {
-          chunkId: 'c1',
-          documentId: 'd1',
-          documentName: 'refund.md',
-          content: '14-day refund window.',
-          score: 0.9,
-          metadata: {},
-        },
-      ]);
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'refund.md',
+            content: '14-day refund window.',
+            score: 0.9,
+            metadata: {},
+          },
+        ],
+      });
 
       mockLlmService.chat
         .mockResolvedValueOnce({
@@ -3134,16 +3154,18 @@ describe('AiAgentHandler', () => {
     }
 
     it('emits TOOL_CALL_STARTED + TOOL_CALL_COMPLETED around provider.execute', async () => {
-      mockRagService.search.mockResolvedValue([
-        {
-          chunkId: 'c1',
-          documentId: 'd1',
-          documentName: 'doc',
-          content: 'hello',
-          score: 0.9,
-          metadata: {},
-        },
-      ]);
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'doc',
+            content: 'hello',
+            score: 0.9,
+            metadata: {},
+          },
+        ],
+      });
       mockLlmService.chat
         .mockResolvedValueOnce({
           content: null,
@@ -3198,16 +3220,18 @@ describe('AiAgentHandler', () => {
     });
 
     it('records turnDebug.toolCalls with status=success for the executed provider tool', async () => {
-      mockRagService.search.mockResolvedValue([
-        {
-          chunkId: 'c1',
-          documentId: 'd1',
-          documentName: 'doc',
-          content: 'x',
-          score: 0.9,
-          metadata: {},
-        },
-      ]);
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'doc',
+            content: 'x',
+            score: 0.9,
+            metadata: {},
+          },
+        ],
+      });
       mockLlmService.chat
         .mockResolvedValueOnce({
           content: null,
@@ -3253,7 +3277,7 @@ describe('AiAgentHandler', () => {
     it('catches provider.execute errors → status=error, LLM gets error content, turn continues', async () => {
       // First LLM response asks for KB; provider then throws; second LLM call
       // should still happen with the error content as a tool message.
-      mockRagService.search.mockRejectedValue(new Error('KB DOWN'));
+      mockRagService.searchWithMeta.mockRejectedValue(new Error('KB DOWN'));
       mockLlmService.chat
         .mockResolvedValueOnce({
           content: null,
@@ -3337,7 +3361,7 @@ describe('AiAgentHandler', () => {
       const noWsHandler = new AiAgentHandler(mockLlmService as never, [
         kbProvider,
       ]);
-      mockRagService.search.mockResolvedValue([]);
+      mockRagService.searchWithMeta.mockResolvedValue({ results: [] });
       mockLlmService.chat
         .mockResolvedValueOnce({
           content: null,
@@ -3382,21 +3406,23 @@ describe('AiAgentHandler', () => {
       // 의 최대값이 2 이상이면 병렬, 1 이면 직렬 회귀.
       let inFlight = 0;
       let maxInFlight = 0;
-      mockRagService.search.mockImplementation(async (q: string) => {
+      mockRagService.searchWithMeta.mockImplementation(async (q: string) => {
         inFlight++;
         maxInFlight = Math.max(maxInFlight, inFlight);
         await new Promise<void>((resolve) => setTimeout(resolve, 30));
         inFlight--;
-        return [
-          {
-            chunkId: `c-${q}`,
-            documentId: 'd1',
-            documentName: `doc-${q}`,
-            content: `payload for ${q}`,
-            score: 0.8,
-            metadata: {},
-          },
-        ];
+        return {
+          results: [
+            {
+              chunkId: `c-${q}`,
+              documentId: 'd1',
+              documentName: `doc-${q}`,
+              content: `payload for ${q}`,
+              score: 0.8,
+              metadata: {},
+            },
+          ],
+        };
       });
 
       mockLlmService.chat
@@ -3461,7 +3487,7 @@ describe('AiAgentHandler', () => {
         }
       ).processMultiTurnMessage('turn2 question', resumeState);
 
-      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledTimes(2);
       expect(maxInFlight).toBeGreaterThanOrEqual(2);
     });
 
@@ -3469,7 +3495,7 @@ describe('AiAgentHandler', () => {
       // Resume into the second user turn — telemetry must report turnIndex=2,
       // not 1, so the timeline UI can group the tool call under the right
       // turn. Without this, multi-turn debugging mis-attributes tool events.
-      mockRagService.search.mockResolvedValue([]);
+      mockRagService.searchWithMeta.mockResolvedValue({ results: [] });
       mockLlmService.chat
         .mockResolvedValueOnce({
           content: null,
