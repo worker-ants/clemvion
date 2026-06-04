@@ -154,7 +154,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `coupons` |  | (목록) |
+| `coupons` |  | 쿠폰 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
 | ↳ `coupon_no` |  | 쿠폰번호 |
 | ↳ `coupon_type` |  | 쿠폰유형 쿠폰유형. 온라인 쿠폰과 오프라인 시리얼 쿠폰 유형이 있음. O : 온라인 쿠폰 · S : 오프라인 시리얼 쿠폰 |

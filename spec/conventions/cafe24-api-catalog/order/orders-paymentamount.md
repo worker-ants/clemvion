@@ -53,7 +53,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `order_item_code` |  | 품주코드 |
 | ↳ `items` |  | 품목 정보 |
 | ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `option_price` |  |  |
+| ↳ ↳ `option_price` |  | 옵션 추가 가격 |
 | ↳ ↳ `quantity` |  |  |
 | ↳ `order_price_amount` |  | 상품구매금액 |
 | ↳ `order_discount_amount` |  | 주문 할인금액 |

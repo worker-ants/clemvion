@@ -46,7 +46,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `seo` |  | (응답 객체) |
+| `seo` |  | 상품 Seo 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `category_no` |  | 분류 번호 |
 | ↳ `search_engine_exposure` |  | 검색 엔진 노출 설정 T : 사용함 · F : 사용안함 |
@@ -98,7 +98,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `seo` |  | (응답 객체) |
+| `seo` |  | 상품 Seo 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `category_no` |  | 분류 번호 |
 | ↳ `search_engine_exposure` |  | 검색 엔진 노출 설정 T : 사용함 · F : 사용안함 |

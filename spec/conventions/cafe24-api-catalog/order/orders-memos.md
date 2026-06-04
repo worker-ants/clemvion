@@ -53,7 +53,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `memos` |  | (목록) |
+| `memos` |  | 메모 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `memo_no` |  | 메모 번호 |
 | ↳ `order_id` |  | 주문번호 |

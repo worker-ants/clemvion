@@ -49,7 +49,7 @@ SMS 발신자(Sms senders)는 SMS를 발송할 발신번호를 나타냅니다. 
 | ↳ `auth_status` |  | 인증 상태 발신자의 전화번호의 인증 상태. · 인증완료 상태인 발신자로만 SMS 를 발송할 수 있다. 00 : 삭제 · 10 : 등록 · 20 : 심사중 · 30 : 인증완료 · 40 : 반려 |
 | ↳ `memo` |  | 메모 request_reason: 요청 사유 · reject_reason: 반려 사유 |
 | ↳ ↳ `request_reason` |  |  |
-| ↳ ↳ `reject_reason` |  |  |
+| ↳ ↳ `reject_reason` | 최대글자수 : [2000자] | 거부 사유 |
 
 응답 예시 (JSON):
 

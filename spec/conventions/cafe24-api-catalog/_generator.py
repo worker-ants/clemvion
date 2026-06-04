@@ -337,13 +337,25 @@ def build_desc_maps(tree):
                     reg(p['name'], p)
             req_by_entity[e['id']] = rm
     global_map = {n: next(iter(dm.values())) for n, dm in descs_by_name.items() if len(dm) == 1}
-    return req_by_entity, global_map
+    # variant-base: 설명이 여러 개지만 가장 짧은 것이 나머지 전부의 prefix 면(= 같은 개념의
+    # 변형) 그 base 설명으로 채운다. 예: shipping_fee 의 "배송비"/"배송비 DEFAULT 0.00"/
+    # "배송비 배송비타입..." → base "배송비". 추측이 아니라 HTML 에 실재하는 공통 설명.
+    variant_base_map = {}
+    for n, dm in descs_by_name.items():
+        if len(dm) < 2:
+            continue
+        ds = sorted(dm.keys(), key=len)
+        base = ds[0]
+        if all(d.startswith(base) for d in ds):
+            variant_base_map[n] = dm[base]
+    return req_by_entity, global_map, variant_base_map
 
-def resp_param_rows(resp_str, props, req_map=None, global_map=None):
+def resp_param_rows(resp_str, props, req_map=None, global_map=None, variant_map=None):
     """대표 응답 샘플(JSON 문자열)에 나타난 필드를 `| Parameter | 제약 | 설명 |` 표 행으로 만든다.
 
     설명 우선순위: (1) 같은 entity 응답 속성(property list) → (2) 같은 entity 요청 파라미터 →
-    (3) 문서 전체 유일 설명. 어느 것에도 없는 컨테이너는 (응답 객체)/(목록), 스칼라는 빈칸."""
+    (3) 문서 전체 유일 설명 → (4) variant-base(변형들의 공통 base 설명). 어느 것에도 없는
+    컨테이너는 (응답 객체)/(목록), 스칼라는 빈칸."""
     try:
         data = json.loads(resp_str)
     except Exception:
@@ -352,7 +364,7 @@ def resp_param_rows(resp_str, props, req_map=None, global_map=None):
     _json_field_seq(data, 0, seq)
     if not seq:
         return []
-    req_map = req_map or {}; global_map = global_map or {}
+    req_map = req_map or {}; global_map = global_map or {}; variant_map = variant_map or {}
     by_name = {}
     for p in (props or []):
         by_name.setdefault(p['name'], p)
@@ -360,7 +372,7 @@ def resp_param_rows(resp_str, props, req_map=None, global_map=None):
     for name, depth, kind in seq:
         src = by_name.get(name)
         if not (src and src.get('desc')):  # property list 에 없거나 설명 비어있으면 HTML 다른 곳 대조
-            src = req_map.get(name) or global_map.get(name) or src
+            src = req_map.get(name) or global_map.get(name) or variant_map.get(name) or src
         if src:
             cons = cons_cell(src.get('constraints', []), src.get('note'))
             desc = mdcell(src.get('desc') or '')
@@ -371,7 +383,7 @@ def resp_param_rows(resp_str, props, req_map=None, global_map=None):
         rows.append(f"| {nm(name, depth)} | {cons} | {desc} |")
     return rows
 
-def render_entity(rname, e, jsondata=None, req_map=None, global_map=None):
+def render_entity(rname, e, jsondata=None, req_map=None, global_map=None, variant_map=None):
     rl=rname.lower(); anchor=e['id'].replace('_','-')
     L=["---",f"resource: {rl}",f"entity: {e['id']}",f"cafe24_docs: {DOCS_BASE}{anchor}",
        "source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; operation 응답 샘플은 code 엔드포인트 /docs/code/api/admin/shell/<entity>.json","---","",
@@ -401,7 +413,7 @@ def render_entity(rname, e, jsondata=None, req_map=None, global_map=None):
             resp=resp_for_op(jsondata, o['method'], o['title'])
             if resp:
                 L += ["","#### 응답 (Response)",""]
-                rows=resp_param_rows(resp, e['props'], req_map, global_map)
+                rows=resp_param_rows(resp, e['props'], req_map, global_map, variant_map)
                 if rows:
                     ref=" 필드 정의는 위 [응답 속성](#응답-속성-property-list) 기준" if e['props'] else ""
                     L += [f"> 대표 응답 샘플에 나타난 필드를 정리한 응답 파라미터.{ref} (`↳` = 중첩, 배열은 대표 원소).",
@@ -445,7 +457,7 @@ def main():
         sys.exit("usage: python3 _generator.py <cafe24-admin-api-docs.html> [--no-responses] [--resp-cache DIR] [--delay SEC]")
     data=open(html_path,encoding="utf-8").read()
     tree=build_tree(data)
-    req_by_entity, global_map = build_desc_maps(tree)
+    req_by_entity, global_map, variant_map = build_desc_maps(tree)
     ne=sum(len(v) for v in tree.values())
     written=0; resp_ok=0; resp_miss=[]
     seq=0
@@ -463,7 +475,7 @@ def main():
                 else: resp_miss.append(e['id'])
                 sys.stderr.write(f"[{seq}/{ne}] {rl}/{e['id']} resp={'Y' if jsondata else '-'}\n")
             open(os.path.join(d,f"{e['id']}.md"),"w",encoding="utf-8").write(
-                render_entity(rname,e,jsondata,req_by_entity.get(e['id'],{}),global_map))
+                render_entity(rname,e,jsondata,req_by_entity.get(e['id'],{}),global_map,variant_map))
             written+=1
         refresh_index(rl, ents)
     print(f"resources={len(tree)} entities={ne} files_written={written} resp_json_fetched={resp_ok}")

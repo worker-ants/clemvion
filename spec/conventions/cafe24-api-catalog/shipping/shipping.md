@@ -143,8 +143,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `supplier_shipping_fee` |  | 공급사 배송비 사용 여부 T : 사용함 · F : 사용안함 |
 | ↳ `supplier_selection` |  | 공급사 배송비 사용 범위 A : 전체 공급사 · P : 특정 공급사 |
 | ↳ `applicable_suppliers` |  | 공급사 배송비 사용 공급사 |
-| ↳ ↳ `supplier_code` |  |  |
-| ↳ ↳ `supplier_id` |  |  |
+| ↳ ↳ `supplier_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 공급사 코드 |
+| ↳ ↳ `supplier_id` | 형식 : [a-z0-9]; 글자수 최소: [4자]~최대: [16자] | 공급사 아이디 |
 | ↳ `supplier_shipping_calculation` |  | 공급사 배송비 계산 기준 A : 전체 상품금액 합계 · S : 대표운영자와 공급사 상품 별도 합계 |
 | ↳ `supplier_regional_surcharge` |  | 공급사 지역별 배송비 A : 대표 운영자의 지역별 배송료를 부과 · S : 공급사 관리자 설정에 따라 부과 |
 | ↳ `additional_shipping_fee` |  | 추가 배송비 설정 |

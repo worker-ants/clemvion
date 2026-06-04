@@ -45,7 +45,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `seo` |  | (응답 객체) |
+| `seo` |  | 상품 Seo 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `board_no` |  | 게시판 번호 |
 | ↳ `meta_title` |  | 브라우저 타이틀 [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |
@@ -93,7 +93,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `seo` |  | (응답 객체) |
+| `seo` |  | 상품 Seo 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `board_no` |  | 게시판 번호 |
 | ↳ `meta_title` |  | 브라우저 타이틀 [MALL_NAME] : 쇼핑몰명 · [BOARD_NAME] : 게시판 제목 · [BOARD_GUIDE] : 게시판 안내글 · [ARTICLE_TITLE] : 게시물 제목 |

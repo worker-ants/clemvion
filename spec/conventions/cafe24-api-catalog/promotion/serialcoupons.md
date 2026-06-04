@@ -144,14 +144,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `issue_module_type` |  | 발급 조건 설치 모듈 유형 모듈 설치 발급 쿠폰의 설치 모듈 유형 S : 바로가기 · B : 즐겨찾기 · L : 라이브링콘 |
 | ↳ `issue_review_count` |  |  |
 | ↳ `issue_review_has_image` |  |  |
-| ↳ `issue_quantity_min` |  |  |
+| ↳ `issue_quantity_min` | 최소값: [1]; 최대값: [999] | 쿠폰 발급가능 최소구매수량 |
 | ↳ `issue_quntity_type` |  |  |
 | ↳ `issue_max_count` |  | 최대 발급수 |
 | ↳ `issue_max_count_by_user` |  | 동일인 재발급 가능 여부 |
 | ↳ `issue_count_per_once` |  | 쿠폰발급 회당 발급수량 (1회 발급수량) |
 | ↳ `issued_count` |  | 발급된 수량 |
-| ↳ `issue_member_group_no` |  |  |
-| ↳ `issue_member_group_name` |  |  |
+| ↳ `issue_member_group_no` |  | 발급대상 회원등급 번호 |
+| ↳ `issue_member_group_name` |  | 발급대상 회원등급 이름 |
 | ↳ `issue_no_purchase_period` |  |  |
 | ↳ `issue_reserved` |  | 자동 발행 예약 사용 여부 T : 사용 · F : 사용하지 않음 |
 | ↳ `issue_reserved_date` |  |  |

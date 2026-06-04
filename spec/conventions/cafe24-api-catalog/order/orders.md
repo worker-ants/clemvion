@@ -176,7 +176,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `member_authentication` |  | 회원인증여부 회원 인증여부. 인증여부에 따라 3가지로 회원타입이 나눠짐. T : 승인 · B : 특별관리회원 · J : 14세미만회원 |
 | ↳ `initial_order_amount` |  | 최초 주문 금액 |
 | ↳ ↳ `order_price_amount` |  |  |
-| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `shipping_fee` |  | 배송비 |
 | ↳ ↳ `points_spent_amount` |  | 적립금사용금액 |
 | ↳ ↳ `credits_spent_amount` |  | 예치금사용금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
@@ -192,7 +192,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `tax` |  | 세금 정보 세금 관리자 앱을 사용 안 할 경우 null로 반환 |
 | ↳ `actual_order_amount` |  | 현재 주문 금액 실결제금액 중 coupon_shipping_fee_amount는 할인 금액 자동 계산을 사용할 때만 품목별로 배송비 배분이 가능하기 때문에 할인 금액 자동 계산 기능을 사용할 때만 노출됨 |
 | ↳ ↳ `order_price_amount` |  |  |
-| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `shipping_fee` |  | 배송비 |
 | ↳ ↳ `points_spent_amount` |  | 적립금사용금액 |
 | ↳ ↳ `credits_spent_amount` |  | 예치금사용금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
@@ -241,8 +241,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_status` |  | 배송상태 F : 배송전 · M : 배송중 · T : 배송완료 · W : 배송보류 · X : 발주전 |
 | ↳ `shipping_fee_detail` |  | 배송비 정보 |
 | ↳ ↳ `shipping_group_code` |  |  |
-| ↳ ↳ `supplier_code` |  |  |
-| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `supplier_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 공급사 코드 |
+| ↳ ↳ `shipping_fee` |  | 배송비 |
 | ↳ ↳ `cancel_shipping_fee` |  |  |
 | ↳ ↳ `additional_shipping_fee` |  | 추가 배송비 |
 | ↳ ↳ `refunded_shipping_fee` |  |  |
@@ -250,7 +250,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `items` |  | 품주 리소스 · 조회시 Embed 파라메터를 사용하여 조회할 수 있다. |
 | ↳ `regional_surcharge_detail` |  | 지역별 배송비 정보 |
 | ↳ ↳ `shipping_group_code` |  |  |
-| ↳ ↳ `supplier_code` |  |  |
+| ↳ ↳ `supplier_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 공급사 코드 |
 | ↳ ↳ `regional_surcharge_amount` |  |  |
 | ↳ ↳ `regional_surcharge_calculation_type` |  |  |
 | ↳ ↳ `template_code` |  |  |
@@ -847,7 +847,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `customer_group_no_when_ordering` |  | 주문시 회원등급 주문 당시의 회원등급 |
 | ↳ `initial_order_amount` |  | 최초 주문 금액 |
 | ↳ ↳ `order_price_amount` |  |  |
-| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `shipping_fee` |  | 배송비 |
 | ↳ ↳ `points_spent_amount` |  | 적립금사용금액 |
 | ↳ ↳ `credits_spent_amount` |  | 예치금사용금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
@@ -863,7 +863,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `tax` |  | 세금 정보 세금 관리자 앱을 사용 안 할 경우 null로 반환 |
 | ↳ `actual_order_amount` |  | 현재 주문 금액 실결제금액 중 coupon_shipping_fee_amount는 할인 금액 자동 계산을 사용할 때만 품목별로 배송비 배분이 가능하기 때문에 할인 금액 자동 계산 기능을 사용할 때만 노출됨 |
 | ↳ ↳ `order_price_amount` |  |  |
-| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `shipping_fee` |  | 배송비 |
 | ↳ ↳ `points_spent_amount` |  | 적립금사용금액 |
 | ↳ ↳ `credits_spent_amount` |  | 예치금사용금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
@@ -912,8 +912,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_status` |  | 배송상태 F : 배송전 · M : 배송중 · T : 배송완료 · W : 배송보류 · X : 발주전 |
 | ↳ `shipping_fee_detail` |  | 배송비 정보 |
 | ↳ ↳ `shipping_group_code` |  |  |
-| ↳ ↳ `supplier_code` |  |  |
-| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `supplier_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 공급사 코드 |
+| ↳ ↳ `shipping_fee` |  | 배송비 |
 | ↳ ↳ `cancel_shipping_fee` |  |  |
 | ↳ ↳ `additional_shipping_fee` |  | 추가 배송비 |
 | ↳ ↳ `refunded_shipping_fee` |  |  |
@@ -921,7 +921,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `items` |  | 품주 리소스 · 조회시 Embed 파라메터를 사용하여 조회할 수 있다. |
 | ↳ `regional_surcharge_detail` |  | 지역별 배송비 정보 |
 | ↳ ↳ `shipping_group_code` |  |  |
-| ↳ ↳ `supplier_code` |  |  |
+| ↳ ↳ `supplier_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 공급사 코드 |
 | ↳ ↳ `regional_surcharge_amount` |  |  |
 | ↳ ↳ `regional_surcharge_calculation_type` |  |  |
 | ↳ ↳ `template_code` |  |  |

@@ -47,7 +47,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `category` |  | (응답 객체) |
+| `category` |  | 분류 번호 |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `display_group` | 최소: [1]~최대: [3] | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 |
 | ↳ `separated_category` |  | 분류별 별도등록 T : 사용함 · F : 사용안함 |
@@ -123,7 +123,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `category` |  | (응답 객체) |
+| `category` |  | 분류 번호 |
 | ↳ `property` |  | 항목 속성 |
 | ↳ ↳ `key` |  | 항목코드 |
 | ↳ ↳ `multishop_display_names` |  | (목록) |
@@ -195,7 +195,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `category` |  | (응답 객체) |
+| `category` |  | 분류 번호 |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `display_group` | 최소: [1]~최대: [3] | 상세 상품분류 1 : 일반상품 · 2 : 추천상품 · 3 : 신상품 |
 | ↳ `separated_category` |  | 분류별 별도등록 T : 사용함 · F : 사용안함 |

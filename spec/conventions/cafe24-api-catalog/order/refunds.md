@@ -132,7 +132,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `cancel_status` |  |  |
 | ↳ `payment_gateway_cancel_dates` |  | PG 취소처리 일자 |
 | ↳ ↳ `payment_method` |  |  |
-| ↳ ↳ `cancel_date` |  |  |
+| ↳ ↳ `cancel_date` |  | 주문취소일 |
 | ↳ `status` |  | 환불상태 T : 환불완료 · F : 환불전 |
 | ↳ `refund_methods` |  | 환불 방식 |
 | ↳ `refund_bank_name` |  | 환불은행명 |

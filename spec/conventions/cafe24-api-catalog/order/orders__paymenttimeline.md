@@ -139,8 +139,8 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `order_amount_detail` |  | 주문금액 상세 order_amount_detail code |
 | ↳ ↳ `code` |  |  |
 | ↳ ↳ `name` |  |  |
-| ↳ ↳ `order_item_code` |  |  |
-| ↳ ↳ `supplier_code` |  |  |
+| ↳ ↳ `order_item_code` |  | 품주코드 |
+| ↳ ↳ `supplier_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 공급사 코드 |
 | ↳ ↳ `unit_price` |  |  |
 | ↳ ↳ `quantity` |  |  |
 | ↳ ↳ `amount` |  | 적립금 증감액 1회당 최대 1,000,000원 이하까지 적립금을 지급할 수 있음. · 가용 적립금보다 큰 금액을 차감할 수 없다. |

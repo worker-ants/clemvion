@@ -51,10 +51,10 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `regional_surcharge_list` |  | 지역별 배송비 목록 |
 | ↳ ↳ `regional_surcharge_no` |  | 지역별 배송비 등록 번호 |
 | ↳ ↳ `region_name` | 최대글자수 : [255자] | 특수지역명 |
-| ↳ ↳ `surcharge_region_name` |  |  |
+| ↳ ↳ `surcharge_region_name` | 최대글자수 : [300자] | 지역명 |
 | ↳ ↳ `country_code` |  |  |
-| ↳ ↳ `start_zipcode` |  |  |
-| ↳ ↳ `end_zipcode` |  |  |
+| ↳ ↳ `start_zipcode` | 최대글자수 : [8자] | 시작 우편번호 |
+| ↳ ↳ `end_zipcode` | 최대글자수 : [8자] | 끝 우편번호 |
 | ↳ ↳ `regional_surcharge_amount` |  |  |
 | ↳ `jeju_surcharge_amount` |  | 제주 추가 배송비 |
 | ↳ `remote_area_surcharge_amount` |  | 도서산간 추가 배송비 |

@@ -52,7 +52,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `memos` |  | (목록) |
+| `memos` |  | 메모 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `memo_no` |  | 메모 번호 |
 | ↳ `created_date` |  | 메모 등록일 |
@@ -149,7 +149,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `memo` |  | (응답 객체) |
+| `memo` |  | 메모 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `memo_no` |  | 메모 번호 |
 | ↳ `author_id` |  | 작성자 아이디 |
@@ -223,7 +223,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `memo` |  | (응답 객체) |
+| `memo` |  | 메모 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `memo_no` |  | 메모 번호 |
 | ↳ `use_customer_inquiry` |  | 고객상담 동시등록 여부 T : 사용함 · F : 사용안함 |
@@ -286,7 +286,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `memo` |  | (응답 객체) |
+| `memo` |  | 메모 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `memo_no` |  | 메모 번호 |
 

@@ -105,12 +105,12 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `terminated_date` |  |  |
 | ↳ `subscription_state` |  | 정기배송 상태 U:이용중 · P: 일시정지 · C:해지 |
 | ↳ `items` |  | 주문상품목록 |
-| ↳ ↳ `variants_code` |  |  |
+| ↳ ↳ `variants_code` |  | 품목코드 |
 | ↳ ↳ `product_code` |  | 상품코드 |
 | ↳ ↳ `subscription_item_id` |  | 정기배송 아이템 번호 |
 | ↳ ↳ `product_no` |  | 상품번호 ,(콤마)로 여러 건을 검색할 수 있다. |
 | ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
-| ↳ ↳ `option_value` |  |  |
+| ↳ ↳ `option_value` |  | 옵션값 |
 | ↳ ↳ `option_value_default` |  | 기본옵션값 |
 | ↳ ↳ `option_id` |  | 상품옵션 아이디 · DEFAULT 000A |
 | ↳ ↳ `quantity` |  | 주문 수량 |
@@ -124,11 +124,11 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `product_bundle` |  | 세트상품 여부 · T : 세트상품 · F : 세트상품 아님 · DEFAULT F |
 | ↳ ↳ `product_bundle_price` |  |  |
 | ↳ ↳ `bundle_product_components` |  | 세트상품의 구성상품 정보 |
-| ↳ ↳ ↳ `variants_code` |  |  |
+| ↳ ↳ ↳ `variants_code` |  | 품목코드 |
 | ↳ ↳ ↳ `product_code` |  | 상품코드 |
 | ↳ ↳ ↳ `product_no` |  | 상품번호 ,(콤마)로 여러 건을 검색할 수 있다. |
 | ↳ ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
-| ↳ ↳ ↳ `option_value` |  |  |
+| ↳ ↳ ↳ `option_value` |  | 옵션값 |
 | ↳ ↳ ↳ `option_value_default` |  | 기본옵션값 |
 | ↳ ↳ ↳ `option_id` |  | 상품옵션 아이디 · DEFAULT 000A |
 | ↳ ↳ ↳ `quantity` |  | 주문 수량 |

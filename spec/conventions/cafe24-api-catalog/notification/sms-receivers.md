@@ -54,7 +54,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `receivers` |  | (목록) |
+| `receivers` |  | 수령자정보 리소스 |
 | ↳ `no` |  | 번호 |
 | ↳ `recipient_type` |  | 수신자 구분 |
 | ↳ `supplier_name` |  | 공급사명 |

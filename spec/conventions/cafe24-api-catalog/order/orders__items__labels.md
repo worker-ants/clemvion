@@ -45,7 +45,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `labels` |  | (응답 객체) |
+| `labels` |  | 주문 라벨 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 DEFAULT 1 |
 | ↳ `names` |  | 주문 라벨명 |
 

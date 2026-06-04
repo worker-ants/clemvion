@@ -529,7 +529,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_rates` |  | 구간별 배송비 개별배송비를 사용할 경우 상품의 개별 배송비. · shipping_fee_type이 R, N일 경우 배열 안에 shipping_fee를 정의하여 배송비를 설정할 수 있다. · shipping_fee_type이 M, D, W, C일 경우 배열 안에 다음과 같이 정의하여 배송비 구간을 설정할 수 있다. · shipping_rates_min : 배송비 구간 시작 기준 · shipping_rates_max : 배송비 구간 종료 기준 · shipping_fee : 배송비 · shipping_calculation이 A(자동계산)일 경우 null로 반환. |
 | ↳ ↳ `shipping_rates_min` |  |  |
 | ↳ ↳ `shipping_rates_max` |  |  |
-| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `shipping_fee` |  | 배송비 |
 | ↳ `updated_date` |  | 수정일 상품이 수정된 일시. |
 | ↳ `clearance_category_eng` |  | 해외통관용 상품구분 영문명 해외 통관시 통관용 상품 구분 정보로 사용하는 정보. 국문명 입력시 입력한 구분명이 자동으로 번역된 항목. · 번역된 영문명이 해외송장 상품명에 포함되어 전송됨. |
 | ↳ `clearance_category_kor` |  | 해외통관용 상품구분 국문명 해외 통관시 통관용 상품 구분 정보로 사용하는 정보. 자동으로 영문으로 번역되어 해외송장 상품명 정보에 포함하여 전송. |
@@ -925,7 +925,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_rates` |  | 구간별 배송비 개별배송비를 사용할 경우 상품의 개별 배송비. · shipping_fee_type이 R, N일 경우 배열 안에 shipping_fee를 정의하여 배송비를 설정할 수 있다. · shipping_fee_type이 M, D, W, C일 경우 배열 안에 다음과 같이 정의하여 배송비 구간을 설정할 수 있다. · shipping_rates_min : 배송비 구간 시작 기준 · shipping_rates_max : 배송비 구간 종료 기준 · shipping_fee : 배송비 · shipping_calculation이 A(자동계산)일 경우 null로 반환. |
 | ↳ ↳ `shipping_rates_min` |  |  |
 | ↳ ↳ `shipping_rates_max` |  |  |
-| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `shipping_fee` |  | 배송비 |
 | ↳ `prepaid_shipping_fee` |  | 배송비 선결제 설정 shipping_calculation이 A(자동계산)일 경우 null로 반환. C : 착불 · P : 선결제 · B : 선결제/착불 |
 | ↳ `clearance_category_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 해외통관코드 |
 | ↳ `image_upload_type` |  | 이미지 업로드 타입 이미지 업로드시 이미지 업로드 타입. · "대표이미지 등록"시 상세이미지를 리사이징하여 목록이미지, 작은목록이미지, 축소이미지에 업로드 · "개별이미지 등록"시 상세이미지, 목록이미지, 작은목록이미지, 축소이미지를 각각 따로 업로드 · ※ EC Global은 FTP를 지원하지 않으므로 C는 사용할 수 없음 A : 대표이미지등록 · B : 개별이미지등록 · C : 웹FTP 등록 |
@@ -1293,7 +1293,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `shipping_rates` |  | 구간별 배송비 개별배송비를 사용할 경우 상품의 개별 배송비. · shipping_fee_type이 R, N일 경우 배열 안에 shipping_fee를 정의하여 배송비를 설정할 수 있다. · shipping_fee_type이 M, D, W, C일 경우 배열 안에 다음과 같이 정의하여 배송비 구간을 설정할 수 있다. · shipping_rates_min : 배송비 구간 시작 기준 · shipping_rates_max : 배송비 구간 종료 기준 · shipping_fee : 배송비 · shipping_calculation이 A(자동계산)일 경우 null로 반환. |
 | ↳ ↳ `shipping_rates_min` |  |  |
 | ↳ ↳ `shipping_rates_max` |  |  |
-| ↳ ↳ `shipping_fee` |  |  |
+| ↳ ↳ `shipping_fee` |  | 배송비 |
 | ↳ `prepaid_shipping_fee` |  | 배송비 선결제 설정 shipping_calculation이 A(자동계산)일 경우 null로 반환. C : 착불 · P : 선결제 · B : 선결제/착불 |
 | ↳ `clearance_category_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 해외통관코드 |
 | ↳ `image_upload_type` |  | 이미지 업로드 타입 이미지 업로드시 이미지 업로드 타입. · "대표이미지 등록"시 상세이미지를 리사이징하여 목록이미지, 작은목록이미지, 축소이미지에 업로드 · "개별이미지 등록"시 상세이미지, 목록이미지, 작은목록이미지, 축소이미지를 각각 따로 업로드 · ※ EC Global은 FTP를 지원하지 않으므로 C는 사용할 수 없음 A : 대표이미지등록 · B : 개별이미지등록 · C : 웹FTP 등록 |

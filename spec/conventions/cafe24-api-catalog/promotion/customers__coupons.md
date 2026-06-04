@@ -58,7 +58,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `coupons` |  | (목록) |
+| `coupons` |  | 쿠폰 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `coupon_no` |  | 쿠폰번호 |
 | ↳ `issue_no` |  | 쿠폰 발급번호 |

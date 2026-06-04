@@ -131,7 +131,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `default_shipping_fee` |  | 기본 배송비 |
 | ↳ ↳ `supplier_shipping_fee` |  |  |
 | ↳ ↳ `additonal_abroad_shipping_fee` |  |  |
-| ↳ ↳ `additional_handling_fee` |  |  |
+| ↳ ↳ `additional_handling_fee` |  | 해외배송 부가금액 |
 | ↳ `tax_free_amount` |  | 면세 + 영세 |
 | ↳ `vat_amount` |  | 부가세 |
 | ↳ `tax_amount` |  | 과세 |

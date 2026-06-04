@@ -81,7 +81,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ ↳ `use_product_category` |  | 선택 상품분류 적용 |
 | ↳ ↳ ↳ `product_category_list` |  | (목록) |
 | ↳ ↳ ↳ ↳ `category_no` |  | 카테고리 번호 |
-| ↳ ↳ ↳ ↳ `category_name` |  |  |
+| ↳ ↳ ↳ ↳ `category_name` |  | 분류명 |
 | ↳ ↳ ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 |
 | ↳ ↳ ↳ `domestic_shipping_fee_list` |  | (목록) |
 | ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
@@ -99,7 +99,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ ↳ `shipping_country_list` |  | (목록) |
 | ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ ↳ ↳ ↳ `country_name` |  | 국가명 |
-| ↳ ↳ ↳ `country_shipping_fee_list` |  | (목록) |
+| ↳ ↳ ↳ `country_shipping_fee_list` |  | 국가별 배송비 |
 | ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ ↳ ↳ ↳ `country_name` |  | 국가명 |
 | ↳ ↳ ↳ ↳ `conditional` |  | 구간 조건 |
@@ -440,7 +440,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ ↳ `use_product_category` |  | 선택 상품분류 적용 |
 | ↳ ↳ ↳ `product_category_list` |  | (목록) |
 | ↳ ↳ ↳ ↳ `category_no` |  | 카테고리 번호 |
-| ↳ ↳ ↳ ↳ `category_name` |  |  |
+| ↳ ↳ ↳ ↳ `category_name` |  | 분류명 |
 | ↳ ↳ ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 |
 | ↳ ↳ ↳ `domestic_shipping_fee_list` |  | (목록) |
 | ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
@@ -458,7 +458,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ ↳ `shipping_country_list` |  | (목록) |
 | ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ ↳ ↳ ↳ `country_name` |  | 국가명 |
-| ↳ ↳ ↳ `country_shipping_fee_list` |  | (목록) |
+| ↳ ↳ ↳ `country_shipping_fee_list` |  | 국가별 배송비 |
 | ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ ↳ ↳ ↳ `country_name` |  | 국가명 |
 | ↳ ↳ ↳ ↳ `conditional` |  | 구간 조건 |
@@ -747,7 +747,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ ↳ `shipping_fee_criteria` |  | 배송비 청구 기준 주문금액 조건 설정 |
 | ↳ ↳ ↳ `shipping_country_list` |  | (목록) |
 | ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
-| ↳ ↳ ↳ `country_shipping_fee_list` |  | (목록) |
+| ↳ ↳ ↳ `country_shipping_fee_list` |  | 국가별 배송비 |
 | ↳ ↳ ↳ ↳ `country_code` |  | 국가코드 |
 | ↳ ↳ ↳ ↳ `conditional` |  | 구간 조건 |
 | ↳ ↳ ↳ ↳ `min_value` |  | 구간 금액 min |

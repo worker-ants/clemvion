@@ -44,7 +44,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `category` |  | (응답 객체) |
+| `category` |  | 분류 번호 |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `strikethrough_retail_price` |  | 소비자가 취소선 표시 |
 | ↳ `strikethrough_price` |  | 판매가 취소선 표시 |
@@ -131,7 +131,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `category` |  | (응답 객체) |
+| `category` |  | 분류 번호 |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `strikethrough_retail_price` |  | 소비자가 취소선 표시 |
 | ↳ `strikethrough_price` |  | 판매가 취소선 표시 |

@@ -46,7 +46,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `seo` |  | (응답 객체) |
+| `seo` |  | 상품 Seo 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | ↳ `meta_title` |  | 브라우저 타이틀 해당 상품의 상품 상세 페이지의 Title 태그에 표시되는 정보. Title 태그는 브라우저에 표시되는 정보로 검색엔진에서 검색시 가장 기본적인 정보이다. |
 | ↳ `meta_author` |  | 메타태그1 : Author 해당 상품의 상품 상세 페이지의 태그에 표시되는 정보. author 메타 태그에는 해당 상품을 제조한 사람 또는 등록한 사람을 기입한다. |
@@ -98,7 +98,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `seo` |  | (응답 객체) |
+| `seo` |  | 상품 Seo 리소스 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | ↳ `meta_title` |  | 브라우저 타이틀 해당 상품의 상품 상세 페이지의 Title 태그에 표시되는 정보. Title 태그는 브라우저에 표시되는 정보로 검색엔진에서 검색시 가장 기본적인 정보이다. |
 | ↳ `meta_author` |  | 메타태그1 : Author 해당 상품의 상품 상세 페이지의 태그에 표시되는 정보. author 메타 태그에는 해당 상품을 제조한 사람 또는 등록한 사람을 기입한다. |

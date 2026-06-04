@@ -62,13 +62,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `options` |  | 옵션 |
 | ↳ ↳ `option_code` |  | 연동형 옵션코드 |
 | ↳ ↳ `option_name` |  | 옵션명 |
-| ↳ ↳ `option_value` |  | (목록) |
+| ↳ ↳ `option_value` |  | 옵션값 |
 | ↳ ↳ ↳ `option_image_file` |  | 옵션 버튼 이미지 |
 | ↳ ↳ ↳ `option_link_image` |  | 옵션 연결 이미지 |
 | ↳ ↳ ↳ `option_color` |  | 컬러칩 색상 |
 | ↳ ↳ ↳ `option_text` |  | 옵션값 |
 | ↳ ↳ ↳ `value_no` |  | 연동형 옵션값 |
-| ↳ ↳ ↳ `additional_amount` |  |  |
+| ↳ ↳ ↳ `additional_amount` | 최소: [-2147483647]~최대: [2147483647] | 추가금액 |
 | ↳ ↳ `required_option` |  |  |
 | ↳ ↳ `option_display_type` |  | 옵션 표시방식 · S : 셀렉트박스 · P : 미리보기 · B : 텍스트버튼 · R : 라디오버튼 · DEFAULT S |
 | ↳ `select_one_by_option` |  | 옵션별로 한 개씩 선택 (독립형 옵션) 독립형 옵션을 사용할 경우, 하나의 옵션을 여러개 중복하여 선택할 수 없고 한개씩만 선택 가능함. T : 사용함 · F : 사용안함 |
@@ -221,13 +221,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `options` |  | 옵션 |
 | ↳ ↳ `option_code` |  | 연동형 옵션코드 |
 | ↳ ↳ `option_name` |  | 옵션명 |
-| ↳ ↳ `option_value` |  | (목록) |
+| ↳ ↳ `option_value` |  | 옵션값 |
 | ↳ ↳ ↳ `option_image_file` |  | 옵션 버튼 이미지 |
 | ↳ ↳ ↳ `option_link_image` |  | 옵션 연결 이미지 |
 | ↳ ↳ ↳ `option_color` |  | 컬러칩 색상 |
 | ↳ ↳ ↳ `option_text` |  | 옵션값 |
 | ↳ ↳ ↳ `value_no` |  | 연동형 옵션값 |
-| ↳ ↳ ↳ `additional_amount` |  |  |
+| ↳ ↳ ↳ `additional_amount` | 최소: [-2147483647]~최대: [2147483647] | 추가금액 |
 | ↳ ↳ `required_option` |  |  |
 | ↳ ↳ `option_display_type` |  | 옵션 표시방식 · S : 셀렉트박스 · P : 미리보기 · B : 텍스트버튼 · R : 라디오버튼 · DEFAULT S |
 | ↳ `select_one_by_option` |  | 옵션별로 한 개씩 선택 (독립형 옵션) 독립형 옵션을 사용할 경우, 하나의 옵션을 여러개 중복하여 선택할 수 없고 한개씩만 선택 가능함. T : 사용함 · F : 사용안함 |
@@ -359,13 +359,13 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ `options` |  | 옵션 |
 | ↳ ↳ `option_code` |  | 연동형 옵션코드 |
 | ↳ ↳ `option_name` |  | 옵션명 |
-| ↳ ↳ `option_value` |  | (목록) |
+| ↳ ↳ `option_value` |  | 옵션값 |
 | ↳ ↳ ↳ `option_image_file` |  | 옵션 버튼 이미지 |
 | ↳ ↳ ↳ `option_link_image` |  | 옵션 연결 이미지 |
 | ↳ ↳ ↳ `option_color` |  | 컬러칩 색상 |
 | ↳ ↳ ↳ `option_text` |  | 옵션값 |
 | ↳ ↳ ↳ `value_no` |  | 연동형 옵션값 |
-| ↳ ↳ ↳ `additional_amount` |  |  |
+| ↳ ↳ ↳ `additional_amount` | 최소: [-2147483647]~최대: [2147483647] | 추가금액 |
 | ↳ ↳ `required_option` |  |  |
 | ↳ ↳ `option_display_type` |  | 옵션 표시방식 · S : 셀렉트박스 · P : 미리보기 · B : 텍스트버튼 · R : 라디오버튼 · DEFAULT S |
 | ↳ `use_additional_option` |  | 추가입력 옵션 사용여부 T : 사용함 · F : 사용안함 |

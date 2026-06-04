@@ -69,7 +69,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `receivers` |  | (목록) |
+| `receivers` |  | 수령자정보 리소스 |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. DEFAULT 1 |
 | ↳ `name` |  | 수령자명 |
 | ↳ `name_furigana` |  | 수령자명 (발음) |
@@ -173,7 +173,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `receivers` |  | (목록) |
+| `receivers` |  | 수령자정보 리소스 |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. DEFAULT 1 |
 | ↳ `name` |  | 수령자명 |
 | ↳ `name_furigana` |  | 수령자명 (발음) |

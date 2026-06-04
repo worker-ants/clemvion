@@ -65,7 +65,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `exchange_info` |  | 교환/반품안내 |
 | ↳ ↳ `service_info` |  | 서비스문의/안내 |
 | ↳ ↳ `product_material` |  | 상품소재 |
-| ↳ ↳ `seo` |  | (응답 객체) |
+| ↳ ↳ `seo` |  | 상품 Seo 리소스 |
 | ↳ ↳ ↳ `meta_title` |  | 브라우저 타이틀 |
 | ↳ ↳ ↳ `meta_author` |  | 메타태그1 : Author |
 | ↳ ↳ ↳ `meta_description` |  | 메타태그2 : Description |
@@ -329,7 +329,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `exchange_info` |  | 교환/반품안내 |
 | ↳ ↳ `service_info` |  | 서비스문의/안내 |
 | ↳ ↳ `product_material` |  | 상품소재 |
-| ↳ ↳ `seo` |  | (응답 객체) |
+| ↳ ↳ `seo` |  | 상품 Seo 리소스 |
 | ↳ ↳ ↳ `meta_title` |  | 브라우저 타이틀 |
 | ↳ ↳ ↳ `meta_author` |  | 메타태그1 : Author |
 | ↳ ↳ ↳ `meta_description` |  | 메타태그2 : Description |

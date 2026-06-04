@@ -155,56 +155,56 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `order_item_code` |  | 품주코드 |
 | ↳ ↳ `variant_code` |  |  |
 | ↳ ↳ `product_no` |  |  |
-| ↳ ↳ `product_code` |  |  |
-| ↳ ↳ `custom_product_code` |  |  |
+| ↳ ↳ `product_code` |  | 상품코드 |
+| ↳ ↳ `custom_product_code` | 최대글자수 : [40자] | 자체상품 코드 |
 | ↳ ↳ `eng_product_name` |  |  |
-| ↳ ↳ `option_id` |  |  |
-| ↳ ↳ `option_value` |  |  |
+| ↳ ↳ `option_id` |  | 상품옵션 아이디 |
+| ↳ ↳ `option_value` |  | 옵션값 |
 | ↳ ↳ `option_value_default` |  | 기본옵션값 |
 | ↳ ↳ `additional_option_value` |  | 추가입력 옵션 값 |
-| ↳ ↳ `additional_option_values` |  | (목록) |
+| ↳ ↳ `additional_option_values` |  | 추가입력 옵션 |
 | ↳ ↳ ↳ `key` |  |  |
 | ↳ ↳ ↳ `type` |  |  |
 | ↳ ↳ ↳ `name` |  | 이름 |
 | ↳ ↳ ↳ `value` |  |  |
-| ↳ ↳ `product_name` |  |  |
+| ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
 | ↳ ↳ `product_name_default` |  | 기본 상품명 |
 | ↳ ↳ `product_price` |  |  |
-| ↳ ↳ `option_price` |  |  |
+| ↳ ↳ `option_price` |  | 옵션 추가 가격 |
 | ↳ ↳ `additional_discount_price` |  | 상품추가할인액 상품에 대한 추가 할인금액 |
 | ↳ ↳ `coupon_discount_price` |  |  |
 | ↳ ↳ `app_item_discount_amount` |  | 앱 상품할인금액 |
 | ↳ ↳ `quantity` |  | 수량 |
 | ↳ ↳ `supplier_product_name` |  | 공급사 상품명 공급사의 상품명 |
 | ↳ ↳ `supplier_transaction_type` |  | 공급사 거래 유형 공급사의 거래 유형 D: 직등록형 · P: 수수료형 |
-| ↳ ↳ `supplier_id` |  |  |
-| ↳ ↳ `supplier_name` |  |  |
+| ↳ ↳ `supplier_id` | 형식 : [a-z0-9]; 글자수 최소: [4자]~최대: [16자] | 공급사 아이디 |
+| ↳ ↳ `supplier_name` | 최대글자수 : [100자] | 공급사명 |
 | ↳ ↳ `tracking_no` |  |  |
-| ↳ ↳ `shipping_code` |  |  |
+| ↳ ↳ `shipping_code` |  | 배송번호 |
 | ↳ ↳ `claim_code` |  | 반품번호 |
 | ↳ ↳ `claim_reason_type` |  | 구분 판매자의 반품 접수 사유 구분. · 구매자의 반품 신청 사유는 items(품목 주문) > claim_reason_type으로 조회할 수 있다. A:고객변심 · B:배송지연 · J:배송오류 · C:배송불가지역 · L:수출/통관 불가 · D:포장불량 · E:상품 불만족 · F:상품정보상이 · K:상품불량 · G:서비스불만족 · H:품절 · I:기타 |
 | ↳ ↳ `claim_reason` |  | 사유 판매자의 반품 접수 사유 상세 내용. · 구매자의 반품 신청 사유 상세 내용은 items(품목 주문) > claim_reason으로 조회할 수 있다. |
 | ↳ ↳ `refund_bank_name` | 최대글자수 : [250자] | 환불은행명 환불 방식(refund_method)이 현금(T)일 경우 필수 · ※ 해당 쇼핑몰이 EC Global 쇼핑몰일 경우 필수 · 환불수단(refund_method)이 "현금(T)"일 때만 사용 가능 |
 | ↳ ↳ `refund_bank_account_no` |  | 환불 계좌번호 환불수단(refund_method)이 "현금(T)"일 때만 사용 가능 |
 | ↳ ↳ `refund_bank_account_holder` | 최대글자수 : [15자] | 환불계좌 예금주 명의 |
-| ↳ ↳ `post_express_flag` |  |  |
-| ↳ ↳ `order_status` |  |  |
+| ↳ ↳ `post_express_flag` |  | 우체국 택배연동 |
+| ↳ ↳ `order_status` |  | 주문상태 |
 | ↳ ↳ `order_status_additional_info` |  | 주문상태 추가정보 주문상태의 추가정보 |
-| ↳ ↳ `claim_quantity` |  |  |
+| ↳ ↳ `claim_quantity` |  | 취소/교환/반품 요청 수량 |
 | ↳ ↳ `status_code` |  | 현재 처리상태 코드 현재 처리상태의 코드 N1 : 정상 · N2 : 교환상품 · C1 : 입금전취소 · C2 : 배송전취소 · C3 : 반품 · E1 : 교환 |
 | ↳ ↳ `status_text` |  | 현재 처리상태 현재 처리상태 문구설명 |
 | ↳ ↳ `open_market_status` |  | 마켓연동 상태값 |
 | ↳ ↳ `bundled_shipping_type` |  | 묶음배송 타입 배송 대상 주문건의 묶음배송 유형 N : 단일 주문 일반 배송(Normal) · C :복합 주문 결합 배송(Combination) |
-| ↳ ↳ `shipping_company_id` |  |  |
+| ↳ ↳ `shipping_company_id` |  | 배송업체 아이디 |
 | ↳ ↳ `shipping_company_name` |  |  |
-| ↳ ↳ `shipping_company_code` |  |  |
-| ↳ ↳ `product_bundle` |  |  |
-| ↳ ↳ `product_bundle_no` |  |  |
+| ↳ ↳ `shipping_company_code` |  | 배송업체 코드 |
+| ↳ ↳ `product_bundle` |  | 세트상품 여부 |
+| ↳ ↳ `product_bundle_no` |  | 세트상품번호 |
 | ↳ ↳ `product_bundle_name` |  | 세트상품명 분리형 세트상품의 이름 · 일체형 세트 상품의 이름은 product_name에서 표시됨 |
 | ↳ ↳ `product_bundle_name_default` |  | 세트상품명(기본) 분리형 세트상품의 이름 · 일체형 세트 상품의 이름은 product_name에서 표시됨 |
 | ↳ ↳ `product_bundle_type` |  |  |
 | ↳ ↳ `was_product_bundle` |  |  |
-| ↳ ↳ `original_bundle_item_no` |  |  |
+| ↳ ↳ `original_bundle_item_no` |  | 분리된 세트상품의 기존 품주번호 |
 | ↳ ↳ `naver_pay_order_id` |  | 네이버페이 상품별 주문번호 네이버페이 주문의 상품별 주문번호 |
 | ↳ ↳ `naver_pay_claim_status` |  | 네이버페이 클레임 타입 네이버페이 주문의 클레임 타입 PAYMENT_WAITING : 입금대기 · PAYED : 결제완료 · DELIVERING : 배송중 · DELIVERED : 배송완료 · PURCHASE_DECIDED : 구매확정 · EXCHANGED : 교환 · CANCELED : 취소 · RETURNED : 반품 · CANCELED_BY_NOPAYMENT : 미입금취소 · NOT_YET : 발주 미확인 · OK : 발주 확인 · CANCEL : 발주 확인 해제 · CANCEL_REQUEST : 취소요청 · CANCELING : 취소처리중 · CANCEL_DONE : 취소처리완료 · CANCEL_REJECT : 취소철회 · RETURN_REQUEST : 반품요청 · COLLECTING : 수거처리중 · COLLECT_DONE : 수거완료 · RETURN_DONE : 반품완료 · RETURN_REJECT : 반품철회 · EXCHANGE_REQUEST : 교환요청 · COLLECTING : 수거처리중 · COLLECT_DONE : 수거완료 · EXCHANGE_REDELIVERING : 교환 재배송 중 · EXCHANGE_DONE : 교환완료 · EXCHANGE_REJECT : 교환거부 · PURCHASE_DECISION_HOLDBACK : 구매 확정 보류 · PURCHASE_DECISION_HOLDBACK_REDELIVERING : 구매 확정 보류 재배송 중 · PURCHASE_DECISION_REQUEST : 구매 확정 요청 · PURCHASE_DECISION_HOLDBACK_RELEASE : 구매 확정 보류 해제 · ADMIN_CANCELING : 직권 취소 중 · ADMIN_CANCEL_DONE : 직권 취소 완료 |
 | ↳ ↳ `individual_shipping_fee` |  |  |
@@ -217,7 +217,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `ordered_date` |  | 주문일 |
 | ↳ ↳ `shipped_date` |  | 배송시작일 배송 시작일 |
 | ↳ ↳ `delivered_date` |  | 배송완료일 배송 완료일 |
-| ↳ ↳ `cancel_date` |  |  |
+| ↳ ↳ `cancel_date` |  | 주문취소일 |
 | ↳ ↳ `return_request_date` |  | 반품요청일 반품 요청일 |
 | ↳ ↳ `return_confirmed_date` |  | 반품승인일시 |
 | ↳ ↳ `return_collected_date` |  | 반품수거일 |
@@ -225,7 +225,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `refund_date` |  |  |
 | ↳ ↳ `exchange_request_date` |  | 교환요청일 교환 요청일 |
 | ↳ ↳ `exchange_date` |  | 교환완료일 교환 완료일 |
-| ↳ ↳ `product_material` |  |  |
+| ↳ ↳ `product_material` |  | 상품소재 |
 | ↳ ↳ `product_material_eng` |  | 영문 상품 소재 상품소재 영문 설명 |
 | ↳ ↳ `cloth_fabric` |  |  |
 | ↳ ↳ `product_weight` |  |  |
@@ -233,33 +233,33 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `volume_size_weight` |  | 상품 부피 무게 상품의 부피 무게 |
 | ↳ ↳ `clearance_category` |  | 해외통관용 상품구분 |
 | ↳ ↳ `clearance_category_info` |  | 해외통관용 상품정보 |
-| ↳ ↳ `clearance_category_code` |  |  |
-| ↳ ↳ `hs_code` |  |  |
+| ↳ ↳ `clearance_category_code` | 형식 : [A-Z0-9]; 글자수 최소: [8자]~최대: [8자] | 해외통관코드 |
+| ↳ ↳ `hs_code` |  | HS코드 |
 | ↳ ↳ `one_plus_n_event` |  | 1+N이벤트 여부 1개 구매시 N개 증정하는 이벤트 여부 |
 | ↳ ↳ `origin_place` |  | 원산지정보 상품의 원산지 |
 | ↳ ↳ `gift` |  |  |
 | ↳ ↳ `item_granting_gift` |  | 사은품증정 조건품주목록 |
 | ↳ ↳ `product_bundle_list` |  | 세트상품 목록 |
 | ↳ ↳ ↳ `product_no` |  |  |
-| ↳ ↳ ↳ `product_code` |  |  |
+| ↳ ↳ ↳ `product_code` |  | 상품코드 |
 | ↳ ↳ ↳ `variant_code` |  |  |
-| ↳ ↳ ↳ `product_name` |  |  |
+| ↳ ↳ ↳ `product_name` | 최대글자수 : [250자] | 상품명 |
 | ↳ ↳ ↳ `product_name_default` |  | 기본 상품명 |
-| ↳ ↳ ↳ `option_id` |  |  |
-| ↳ ↳ ↳ `option_value` |  |  |
+| ↳ ↳ ↳ `option_id` |  | 상품옵션 아이디 |
+| ↳ ↳ ↳ `option_value` |  | 옵션값 |
 | ↳ ↳ ↳ `option_value_default` |  | 기본옵션값 |
 | ↳ ↳ ↳ `additional_option_value` |  | 추가입력 옵션 값 |
-| ↳ ↳ ↳ `additional_option_values` |  | (목록) |
+| ↳ ↳ ↳ `additional_option_values` |  | 추가입력 옵션 |
 | ↳ ↳ ↳ ↳ `key` |  |  |
 | ↳ ↳ ↳ ↳ `type` |  |  |
 | ↳ ↳ ↳ ↳ `name` |  | 이름 |
 | ↳ ↳ ↳ ↳ `value` |  |  |
 | ↳ ↳ ↳ `quantity` |  | 수량 |
-| ↳ ↳ ↳ `supplier_id` |  |  |
+| ↳ ↳ ↳ `supplier_id` | 형식 : [a-z0-9]; 글자수 최소: [4자]~최대: [16자] | 공급사 아이디 |
 | ↳ ↳ ↳ `eng_product_name` |  |  |
-| ↳ ↳ ↳ `hs_code` |  |  |
-| ↳ ↳ ↳ `option_price` |  |  |
-| ↳ ↳ `market_cancel_request` |  |  |
+| ↳ ↳ ↳ `hs_code` |  | HS코드 |
+| ↳ ↳ ↳ `option_price` |  | 옵션 추가 가격 |
+| ↳ ↳ `market_cancel_request` |  | 마켓 취소요청 여부 T : 취소 요청된 마켓 주문 |
 | ↳ ↳ `market_cancel_request_quantity` |  | 마켓 취소신청 수량 |
 | ↳ ↳ `market_fail_reason` |  | 마켓 실패사유 |
 | ↳ ↳ `market_fail_reason_guide` |  | 마켓 실패사유 가이드 |
@@ -270,14 +270,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `options` |  | (목록) |
 | ↳ ↳ ↳ `option_code` |  | 연동형 옵션코드 |
 | ↳ ↳ ↳ `option_name` |  | 옵션명 |
-| ↳ ↳ ↳ `option_value` |  | (응답 객체) |
+| ↳ ↳ ↳ `option_value` |  | 옵션값 |
 | ↳ ↳ ↳ ↳ `option_text` |  | 옵션값 |
 | ↳ ↳ ↳ ↳ `value_no` |  | 연동형 옵션값 |
 | ↳ ↳ `market_discount_amount` |  | 상품별 마켓 할인금액 |
-| ↳ ↳ `labels` |  |  |
+| ↳ ↳ `labels` |  | 주문 라벨 |
 | ↳ ↳ `order_status_before_cs` |  | CS 전 주문상태 |
 | ↳ ↳ `supply_price` |  |  |
-| ↳ ↳ `multi_invoice` |  |  |
+| ↳ ↳ `multi_invoice` |  | 멀티 송장 |
 | ↳ ↳ `shipping_expected_date` |  | 발송예정일 |
 | ↳ ↳ `dropshipping_type` |  |  |
 | ↳ `include_tax` |  | 가격에 세금 포함 T: 세금포함 · F: 세금제외 |

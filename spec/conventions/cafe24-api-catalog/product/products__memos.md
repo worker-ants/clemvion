@@ -44,7 +44,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `memos` |  | (목록) |
+| `memos` |  | 메모 리소스 |
 | ↳ `memo_no` |  | 메모 번호 시스템에서 부여한 상품 메모의 고유한 번호. 상품 메모 번호는 쇼핑몰 내에서 중복되지 않는다. |
 | ↳ `author_id` | 최대글자수 : [20자] | 작성자 아이디 메모를 작성한 관리자의 아이디 정보. |
 | ↳ `created_date` |  | 생성일 메모를 작성한 시간. |

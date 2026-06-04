@@ -56,7 +56,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `properties` |  | (응답 객체) |
+| `properties` |  | 항목 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `additional_items` |  | 주문서 추가항목 |
 | ↳ ↳ `orderform_property_id` |  | 주문서 추가항목 고유번호 |
@@ -159,7 +159,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `properties` |  | (목록) |
+| `properties` |  | 항목 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `input_type` |  | 주문서 추가항목 입력 형식 T : 텍스트박스(한줄) · M : 텍스트박스(여러줄) · R : 라디오버튼 · C : 체크박스 · S : 셀렉트박스 · D : 캘린더 · I : 시간 |
 | ↳ `is_required` |  | 주문서 추가항목 필수 여부 T : 필수 · F : 선택 |
@@ -258,7 +258,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `properties` |  | (응답 객체) |
+| `properties` |  | 항목 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `input_type` |  | 주문서 추가항목 입력 형식 T : 텍스트박스(한줄) · M : 텍스트박스(여러줄) · R : 라디오버튼 · C : 체크박스 · S : 셀렉트박스 · D : 캘린더 · I : 시간 |
 | ↳ `is_required` |  | 주문서 추가항목 필수 여부 T : 필수 · F : 선택 |
@@ -307,7 +307,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `properties` |  | (응답 객체) |
+| `properties` |  | 항목 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `orderform_property_id` |  | 주문서 추가항목 고유번호 |
 

@@ -52,7 +52,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 | ↳ ↳ `language_code` |  | 언어 코드 번역 정보의 언어 코드에 해당되는 번역 정보를 검색 · 언어별로 번역된 정보에서 검색하고자 하는 언어를 선택하면, 해당 언어에 대한 번역 내용을 확인할 수 있습니다. ,(콤마)로 여러 건을 검색할 수 있다. |
 | ↳ ↳ `translated` |  |  |
 | ↳ ↳ `category_name` |  | 분류명 |
-| ↳ ↳ `seo` |  | (응답 객체) |
+| ↳ ↳ `seo` |  | 상품 Seo 리소스 |
 | ↳ ↳ ↳ `meta_title` |  | 브라우저 타이틀 |
 | ↳ ↳ ↳ `meta_author` |  | 메타태그1 : Author |
 | ↳ ↳ ↳ `meta_description` |  | 메타태그2 : Description |
@@ -166,14 +166,14 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `category` |  | (응답 객체) |
+| `category` |  | 분류 번호 |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 |
 | ↳ `category_no` |  | 분류 번호 |
 | ↳ `translations` |  | 번역 정보 |
 | ↳ ↳ `language_code` |  | 언어 코드 번역 정보의 언어 코드에 해당되는 번역 정보를 검색 · 언어별로 번역된 정보에서 검색하고자 하는 언어를 선택하면, 해당 언어에 대한 번역 내용을 확인할 수 있습니다. ,(콤마)로 여러 건을 검색할 수 있다. |
 | ↳ ↳ `translated` |  |  |
 | ↳ ↳ `category_name` |  | 분류명 |
-| ↳ ↳ `seo` |  | (응답 객체) |
+| ↳ ↳ `seo` |  | 상품 Seo 리소스 |
 | ↳ ↳ ↳ `meta_title` |  | 브라우저 타이틀 |
 | ↳ ↳ ↳ `meta_author` |  | 메타태그1 : Author |
 | ↳ ↳ ↳ `meta_description` |  | 메타태그2 : Description |
