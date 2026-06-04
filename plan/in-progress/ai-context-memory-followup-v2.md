@@ -28,7 +28,7 @@ related_plan: plan/in-progress/ai-context-memory-auto.md
       대신 `findSimilarFact`(recall cosine SQL 재사용, LIMIT 1, `MEMORY_DEDUP_SIMILARITY=0.85`)
       로 유사 기존 fact 탐색 → 있으면 UPDATE(content/embedding/metadata/updated_at), 없으면
       INSERT. batch 내 중복도 in-memory cosine 으로 방지. spec `17-agent-memory.md §3·§4`.
-- [x] **persistent TTL 만료** — 2026-06-04 구현 완료 (AGM-10). 마이그레이션 `V079`
+- [x] **persistent TTL 만료** — 2026-06-04 구현 완료 (AGM-10). 마이그레이션 `V080`
       (`expires_at TIMESTAMPTZ NULL` + partial index `WHERE expires_at IS NOT NULL`).
       노드 config `memoryTtlDays`(Integer optional, visibleWhen persistent) → enqueue
       payload `ttlDays` → processor → `saveMemories(…, ttlDays)` → `expires_at = now()+ttlDays`.
@@ -70,7 +70,7 @@ related_plan: plan/in-progress/ai-context-memory-auto.md
 
 ## persistent 고도화 코드 리뷰 도출 백로그
 - [ ] SPEC-DRIFT: `17-agent-memory.md §3 AGM-04` "scheduleBackgroundBody snapshot" 표현 → 전용 BullMQ 큐(`agent-memory-extraction`, concurrency=2) 로 갱신(I1).
-- [ ] V079 `expires_at` 인덱스 무중단 배포 시 `CREATE INDEX CONCURRENTLY` 분리(V079a/b, executeInTransaction=false)(I9).
+- [ ] V080 `expires_at` 인덱스 무중단 배포 시 `CREATE INDEX CONCURRENTLY` 분리(V080a/b, executeInTransaction=false)(I9).
 - [ ] TTL 파싱(resolveMemoryTtlDays) 핸들러→AgentMemoryService/유틸 이전(I2).
 - [ ] saveMemories 포지셔널 5파라미터 → 옵션 객체(I3). cosine SQL WHERE 빌더 추출(I5).
 - [ ] `_resumeState.lastExtractionTurnSeq` → `memoryState` sub-namespace(I12).

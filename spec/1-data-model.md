@@ -799,7 +799,7 @@ AI Agent 노드의 `memoryStrategy: 'persistent'` 전략에서 세션 간 추출
 | AssistantMessage | (session_id, created_at ASC) | 세션 내 메시지 시간순 페이징 |
 | AgentMemory | (workspace_id, scope_key) | persistent 메모리 스코프별 회수·evict 조회 (workspace 격리 강제) |
 | AgentMemory | partial HNSW/IVFFlat (embedding) | pgvector 유사도 회수 — `DocumentChunk` 와 동일 차원별 partial 인덱스 정책 ([Spec Agent Memory §회수](./5-system/17-agent-memory.md)) |
-| AgentMemory | partial (expires_at) `WHERE expires_at IS NOT NULL` | TTL evict 만료 스캔 가속. 무만료(NULL) row 제외로 인덱스 경량 (V079) |
+| AgentMemory | partial (expires_at) `WHERE expires_at IS NOT NULL` | TTL evict 만료 스캔 가속. 무만료(NULL) row 제외로 인덱스 경량 (V080) |
 | Integration | (workspace_id, status) | 만료/에러 상태 배지 카운트 + `pending_install` TTL 스캐너 조회 + 중복 방지 lookup 겸용 ([Spec 통합 화면 §6](./2-navigation/4-integration.md#6-상태-전이)) |
 | Integration | (install_token) WHERE install_token IS NOT NULL | Cafe24 Private App URL (`/3rd-party/cafe24/install/:installToken`) 및 MakeShop ShopStore install-first App URL 의 단일 row 식별 — `pending_install` 상태에서 사용. NULL 비저장 부분 인덱스로 인덱스 크기 최소화. V043 |
 | Integration | (workspace_id, service_type, mall_id) WHERE mall_id IS NOT NULL UNIQUE | 통합 store-identifier 중복 방지 — `idx_integration_workspace_service_mall`. **service_type 무관 — 신규 통합은 인덱스 추가 불필요**. 한 workspace 안에서 같은 (service_type, mall_id) 의 통합은 최대 1행 (cafe24 는 `mall_id`, makeshop 은 `shop_uid` 투영; public 과 private 동시 보유 불가). 서로 다른 service 가 같은 mall_id 값을 가져도 무관(정상). 옛 per-service UNIQUE (V046 cafe24 / V071 makeshop) 통일. V072 (V045 컬럼 추가와 분리 — CONCURRENTLY 와 ALTER 가 한 마이그레이션에 공존 불가) |

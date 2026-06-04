@@ -273,7 +273,7 @@ export class AgentMemoryService {
       const cast = getEmbeddingCastType(dim);
       const castExpr = `${cast}(${dim})`;
 
-      // 검색 SQL 은 partial HNSW 인덱스(V072~V077)와 동일한 cast/차원 조건을 사용해야
+      // 검색 SQL 은 partial HNSW 인덱스(V074~V079)와 동일한 cast/차원 조건을 사용해야
       // 인덱스를 탄다. workspace_id + scope_key 로 네임스페이스 격리.
       const rows = await this.dataSource.query<
         { content: string; score: string }[]

@@ -1,8 +1,8 @@
--- V079: agent_memory TTL 만료 컬럼 (AI Agent persistent 메모리 시간 기반 만료)
+-- V080: agent_memory TTL 만료 컬럼 (AI Agent persistent 메모리 시간 기반 만료)
 --
 -- spec SoT: spec/5-system/17-agent-memory.md §4 (회수/forgetting — TTL), AGM-10
 --
--- 기존 forgetting (scope 당 최신 N=1000 FIFO/LRU evict, V072) 에 더해 시간 기반
+-- 기존 forgetting (scope 당 최신 N=1000 FIFO/LRU evict, V073) 에 더해 시간 기반
 -- 만료 옵션을 추가한다. 노드 config `memoryTtlDays` 가 set 되면 저장 시점에
 -- expires_at = now() + ttlDays 가 채워진다. NULL = 무만료 (디폴트, 기존 동작 보존).
 --
