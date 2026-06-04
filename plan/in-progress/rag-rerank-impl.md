@@ -20,10 +20,11 @@ owner: developer
 - [ ] graceful degradation (rerank 실패 → cosine 경로 안전 강등)
 
 ### TDD/검증 체크리스트
-- [ ] 테스트 선작성 (RerankClientFactory, Rerank 흐름, RagSearchService rerank path, RerankConfig service)
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
-- [ ] /ai-review + SUMMARY + Critical/Warning 0
-- [ ] /consistency-check --impl-done spec/5-system/ (spec 연결 코드 변경)
+- [x] 테스트 선작성/보강 (RerankClientFactory·clients·RerankConfig service·Rerank·RagSearchService rerank path)
+- [x] backend lint(0 err)·unit(5899 pass)·build(tsc 0)
+- [x] e2e: 1차 FAIL(`RerankConfig.apiKey` 명시 type 누락→DataTypeNotSupportedError) → `type:'varchar'` fix(cae68c59). 마이그레이션 V073/V074 정상(v074). **재실행 통과**(resolution-applier E2E=pass).
+- [x] /ai-review(`10_44_49`) — Critical 0, Warning 7. resolution-applier 6/6 fix(코드 24112949 + spec 6136a036), W7(followup)·entity 별도 해소. ESCALATE=no. ⚠️ router 가 "코드 변경 없음" 오판해 code reviewer 12명 skip(requirement·documentation 만 실행) — 선택적 `--route=all` 재리뷰 여지.
+- [ ] /consistency-check --impl-done spec/5-system/ (진행)
 
 ## 후속 분리 (이번 PR 미포함 — partial-implementation)
 
@@ -47,3 +48,9 @@ owner: developer
 ## 진행 메모
 - 2026-06-04 착수. 코드맵 확보(LLMConfig 미러·V071 최신·rag-search.service 구조).
 - 교정: cross_encoder 는 chat() 아닌 별도 `/rerank` 엔드포인트 → RerankClient 신설.
+- 통합 설계: searchWithMeta 안 "단일 KB + cross_encoder" 분기(wide 회수 candidateK·cosine 임계 skip → RerankService → 동적 컷). 멀티-KB 리랭크는 followup.
+- [x] KB 엔티티 rerank 컬럼 5개 추가
+- [x] V074 마이그레이션(knowledge_base rerank 컬럼) — V073(rerank_config)은 신규모듈 에이전트가 생성
+- [x] RagSearchService KbRow + KB SELECT 쿼리에 rerank 컬럼 추가
+- [ ] (에이전트) RerankConfig 엔티티/모듈/서비스 + RerankClient/Factory(tei·cohere) + RerankService + V073 + 단위테스트
+- [ ] (대기 후) searchWithMeta rerank 분기 + 모듈 와이어링(knowledge-base.module·app.module) + KB DTO rerank 필드 + 통합테스트
