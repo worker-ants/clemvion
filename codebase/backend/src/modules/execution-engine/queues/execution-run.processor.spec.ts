@@ -20,9 +20,12 @@ describe('ExecutionRunProcessor', () => {
   });
 
   const job = (data: ExecutionRunJob): Job<ExecutionRunJob> =>
-    ({ id: data.executionId, data, attemptsMade: 0, opts: {} }) as unknown as Job<
-      ExecutionRunJob
-    >;
+    ({
+      id: data.executionId,
+      data,
+      attemptsMade: 0,
+      opts: {},
+    }) as unknown as Job<ExecutionRunJob>;
 
   it('process() 는 engine.runExecutionFromQueue 에 executionId + input 위임', async () => {
     await processor.process(job({ executionId: 'exec-1', input: { a: 1 } }));

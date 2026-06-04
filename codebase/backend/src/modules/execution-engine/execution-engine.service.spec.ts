@@ -192,9 +192,9 @@ describe('ExecutionEngineService', () => {
         lastSaved = { ...savedExecution, ...entity };
         return Promise.resolve(lastSaved);
       }),
-      findOneBy: jest.fn().mockImplementation(() =>
-        Promise.resolve({ ...lastSaved }),
-      ),
+      findOneBy: jest
+        .fn()
+        .mockImplementation(() => Promise.resolve({ ...lastSaved })),
       find: jest.fn().mockResolvedValue([]),
     };
 
