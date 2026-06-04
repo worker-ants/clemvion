@@ -44,6 +44,11 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
   {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "Thread 주입 방식이에요. `messages`는 LLM messages 배열 앞에 turn 별로 prepend하고, `system_text`는 system 프롬프트 뒤에 한 덩어리로 append해요.", default: "messages"},
   {name: "includeToolTurns", required: false, type: "boolean", description: "true면 KB/MCP/조건 도구 호출 turn까지 thread에 push해요. 기본은 최종 assistant 응답만 push해요.", default: "false"},
   {name: "excludeFromConversationThread", required: false, type: "boolean", description: "체크하면 이 노드의 user/assistant turn을 워크플로우 thread에 push하지 않아요(opt-out).", default: "false"},
+  {name: "memoryStrategy", required: false, type: "`manual` / `summary_buffer` / `persistent`", description: "메모리 관리 전략이에요. `manual`은 위 대화 컨텍스트 필드를 그대로 쓰고, `summary_buffer`는 토큰 예산을 넘는 오래된 턴을 자동 요약하며, `persistent`는 요약 버퍼에 더해 세션을 넘어 사용자 정보를 기억해요.", default: "manual"},
+  {name: "memoryTokenBudget", required: false, type: "integer", description: "워킹 메모리 토큰 예산이에요. 예산을 넘으면 오래된 턴이 요약으로 말려 들어가요. `summary_buffer`·`persistent`일 때 보여요.", default: "8000"},
+  {name: "memoryKey", required: false, type: "expression", description: "지속 메모리 범위 키예요. 같은 키는 실행을 넘어 같은 기억을 불러오고, 비우면 실행 단위로 격리돼요. `persistent`일 때 보여요.", default: "-"},
+  {name: "memoryTopK", required: false, type: "integer", description: "턴마다 회수할 메모리 청크 수예요 (RAG Top-K와 독립). `persistent`일 때 보여요.", default: "5"},
+  {name: "memoryThreshold", required: false, type: "float", description: "메모리 회수에 필요한 최소 유사도예요 (0~1, RAG 임계값과 독립). `persistent`일 때 보여요.", default: "0.7"},
   {name: "presentationTools", required: false, type: "PresentationToolDef[]", description: "LLM이 응답을 텍스트 대신 표·차트·캐러셀·템플릿·폼으로 렌더링할 수 있게 해주는 가상 도구 목록이에요. 비어 있으면 기능이 꺼져요. 각 항목은 `type`(필수), `description`(선택), `defaults`(선택)으로 구성돼요.", default: "[]"},
   {name: "maxTurns", required: false, type: "integer", description: "Multi Turn 모드의 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "20"}
 ]} />
@@ -75,6 +80,24 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
 기본적으로 thread 에는 **최종 assistant 응답과 사용자 turn 만** push 돼요. KB/MCP/조건 도구 호출까지 보존하고 싶으면 `includeToolTurns` 를 켜요. 반대로 특정 AI Agent 노드를 thread 에서 제외하고 싶으면 `excludeFromConversationThread` 를 켜요(예: 백그라운드 분류용 LLM 호출).
 
 표현식에서 thread 를 직접 참조하려면 `{{ $thread.length }}`, `{{ $thread.text }}`, `{{ $thread.turns[0].data.email }}` 처럼 쓸 수 있어요. 자세한 내용은 [변수와 컨텍스트 §$thread](/docs/04-expression-language/variables-and-context#thread-conversation-thread) 를 참고해요.
+
+### 메모리
+
+대화가 길어지거나 세션을 넘어 사용자를 기억해야 할 때는 **메모리 전략**(`memoryStrategy`)을 골라 맥락 관리를 자동화할 수 있어요. 이 전략은 위 대화 컨텍스트(`contextScope`)와 별개의 **관리 축**이에요.
+
+- `manual` (기본) — 위 대화 컨텍스트 필드를 그대로 써요. 자동 요약이나 세션 간 기억 없이, 설정한 `contextScope` 대로만 thread 를 주입해요.
+- `summary_buffer` — 최근 턴을 그대로 두되, **토큰 예산**(`memoryTokenBudget`, 기본 8000)을 넘는 오래된 턴은 요약으로 말아 넣어요. 긴 대화에서 토큰이 폭증하지 않으면서도 앞선 맥락을 잃지 않아요.
+- `persistent` — 요약 버퍼에 더해, 실행이 끝난 뒤에도 남는 **세션 간 메모리**를 켜요. 다음 실행에서 같은 사용자에 대한 기억을 이어서 떠올려요.
+
+`persistent` 를 고르면 메모리를 묶는 키를 정할 수 있어요.
+
+- `memoryKey` — 지속 메모리의 범위 키예요. 같은 키는 실행을 넘어 같은 기억을 불러와요. 예를 들어 `{{ $input.userId }}` 처럼 사용자 식별자를 넣으면 같은 사용자의 기억이 이어져요. **비워 두면 실행 단위로 격리**돼서 이전 실행의 기억을 불러오지 않아요.
+- `memoryTopK` (기본 5) — 한 턴에 회수할 메모리 조각 수예요. RAG 검색의 `ragTopK` 와는 독립이에요.
+- `memoryThreshold` (기본 0.7) — 메모리를 회수할 때 요구하는 최소 유사도(0~1)예요. RAG 검색의 `ragThreshold` 와는 독립이에요.
+
+<Callout type="note">
+`memoryStrategy` 가 `manual` 이 아니면 자동 전략이 맥락을 관리하므로 위 대화 컨텍스트 필드(`contextScope` 등)는 설정 UI에서 숨겨져요. 토큰 예산·메모리 키 같은 필드는 해당 전략을 골랐을 때만 나타나요.
+</Callout>
 
 ### Presentation Tools
 

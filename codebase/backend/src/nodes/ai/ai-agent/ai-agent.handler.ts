@@ -28,7 +28,22 @@ import type { McpServerSummary } from './tool-providers/mcp-diagnostics';
 import {
   aiAgentNodeMetadata,
   DEFAULT_CONTEXT_SCOPE_N,
+  DEFAULT_MEMORY_TOKEN_BUDGET,
+  DEFAULT_MEMORY_TOP_K,
+  DEFAULT_MEMORY_THRESHOLD,
+  type MemoryStrategy,
 } from './ai-agent.schema';
+import {
+  appendStablePrefix,
+  buildRecallBlock,
+  buildSummaryBlock,
+  buildSummaryBufferUpdate,
+  compactMessagesToTail,
+  estimateWorkingMemoryTokens,
+  mapTailToChatMessages,
+  selectVolatileTail,
+  stripMemoryBlocks,
+} from './agent-memory-injection';
 import {
   ExecutionEventType,
   ToolCallCompletedPayload,
@@ -36,6 +51,7 @@ import {
 } from '../../../modules/websocket/websocket.service';
 import type {
   ConversationThread,
+  ConversationTurn,
   ConversationTurnToolCall,
   PresentationPayload,
 } from '../../../shared/conversation-thread/conversation-thread.types';
@@ -549,6 +565,15 @@ export class AiAgentHandler implements NodeHandler {
      * the handler then degrades to its original (no-thread) behaviour.
      */
     private readonly conversationThreadService?: import('../../../modules/execution-engine/conversation-thread/conversation-thread.service').ConversationThreadService,
+    /**
+     * Optional. AI Agent 의 `memoryStrategy: 'persistent'` 전략에서 세션 간
+     * 추출 메모리를 회수 (recall) 한다 (spec/5-system/17-agent-memory.md §4).
+     * `summary_buffer` 전략은 이 서비스를 쓰지 않고 (working-memory 압축만),
+     * `manual` 전략은 메모리 경로를 전혀 거치지 않는다. 추출 (extraction) 비동기
+     * processor 는 본 위임 범위 밖 (별도). Test fixtures 는 생략 가능 —
+     * 미주입 시 persistent 회수는 graceful 하게 빈 결과로 degrade 한다.
+     */
+    private readonly agentMemoryService?: import('../../../modules/agent-memory/agent-memory.service').AgentMemoryService,
   ) {}
 
   /* ─── ConversationThread push helpers (spec §2.2) ─────────────────────── */
@@ -750,6 +775,318 @@ export class AiAgentHandler implements NodeHandler {
         totalInjectedChars: capped.totalChars,
       },
     };
+  }
+
+  /**
+   * Resolve the configured memory strategy (spec §1). Unknown / missing →
+   * `manual` (하위호환 — 기존 워크플로는 `memoryStrategy` 키가 없다).
+   */
+  private resolveMemoryStrategy(
+    config: Record<string, unknown>,
+  ): MemoryStrategy {
+    const raw = config.memoryStrategy;
+    if (raw === 'manual' || raw === 'summary_buffer' || raw === 'persistent') {
+      return raw;
+    }
+    return 'manual';
+  }
+
+  /**
+   * 자동 메모리 전략 (`summary_buffer` / `persistent`) 의 LLM-호출-전 동기 주입.
+   * spec §6.1 단계 1.3 (persistent 회수) + 1.5 (롤링 요약 압축), §11.4 ordering
+   * ([5a] 회수 → [5b] 요약 → [6] 휘발성 꼬리).
+   *
+   * `manual` 전략에서는 호출되지 않는다 — 호출부가 strategy 로 분기한다 (하위호환
+   * 핵심 불변식: manual 경로 완전 무변경).
+   *
+   * 요약/회수 블록은 **system_text 안정 프리픽스** 로 systemPrompt 에 append 하고,
+   * 압축되지 않은 최근 원문 turn 만 휘발성 꼬리 (messages 모드면 messages 배열
+   * prepend, system_text 모드면 systemPrompt 뒤) 로 둔다.
+   *
+   * 요약 갱신은 **예산 임계치 도달 시에만** (캐시 보호 불변식 — 재요약 금지) —
+   * 갱신된 `runningSummary` / `summarizedUpToSeq` 는 in-memory thread 에 mutate 해
+   * 다음 turn (multi-turn resume) 에서 재사용된다.
+   */
+  private async injectMemoryContext(args: {
+    strategy: 'summary_buffer' | 'persistent';
+    target: ThreadHolder | undefined;
+    selfNodeId: string;
+    config: Record<string, unknown>;
+    messages: ChatMessage[];
+    finalSystemPrompt: string;
+    llmConfig: import('../../../modules/llm-config/entities/llm-config.entity').LlmConfig;
+    model: string;
+    workspaceId: string;
+    executionId: string;
+    /** 회수 쿼리 텍스트 (현재 사용자 메시지 / 최근 컨텍스트). */
+    queryText: string;
+    /**
+     * Volatile tail 주입 방식:
+     *  - `'prepend'` (single-turn): 휘발성 꼬리 turn 을 messages 배열에 prepend.
+     *  - `'system-only'` (multi-turn): 꼬리는 이미 누적 `messages` 에 있으므로
+     *    안정 프리픽스 (system 메시지) 만 갱신하고 꼬리는 다시 넣지 않는다.
+     */
+    tailMode: 'prepend' | 'system-only';
+  }): Promise<{
+    messages: ChatMessage[];
+    finalSystemPrompt: string;
+    memory: {
+      /** 적용된 메모리 전략 (manual/summary_buffer/persistent). */
+      strategy: MemoryStrategy;
+      /** 이 turn 에 롤링 요약 압축(요약 LLM 콜)이 새로 발생했는지. */
+      summarized: boolean;
+      /** persistent 회수로 안정 프리픽스에 주입된 fact 수 (그 외 전략은 0). */
+      recalledCount: number;
+      /** 안정 프리픽스 + 휘발성 꼬리의 working-memory 토큰 추정 사용량. */
+      tokenBudgetUsed: number;
+    };
+    /**
+     * 휘발성 꼬리(요약에 커버되지 않은 `seq > summarizedUpToSeq` 구간)에 포함된
+     * `ai_user` turn 수. multi-turn 누적 `messages` 물리 압축 시
+     * `compactMessagesToTail(messages, keepUserExchanges)` 의 인자로 쓴다 — 끝에서
+     * 이 개수만큼의 user 메시지 경계까지만 남기고 요약 커버 exchange 를 drop.
+     */
+    keepUserExchanges: number;
+  }> {
+    const tokenBudget =
+      (args.config.memoryTokenBudget as number) || DEFAULT_MEMORY_TOKEN_BUDGET;
+
+    // self 노드를 제외한 thread turns (중복 방지 — spec §6.2 d.5).
+    const turns =
+      this.conversationThreadService && args.target
+        ? this.conversationThreadService.getThreadExcludingNode(
+            args.target,
+            args.selfNodeId,
+          )
+        : [];
+
+    // ── [5a] persistent 회수 (LLM 호출 전 동기) ──
+    let recalled: import('../../../modules/agent-memory/agent-memory.service').RecalledMemory[] =
+      [];
+    if (args.strategy === 'persistent' && this.agentMemoryService) {
+      const evaluatedMemoryKey = args.config.memoryKey as
+        | string
+        | undefined
+        | null;
+      const scopeKey = this.agentMemoryService.resolveScopeKey(
+        evaluatedMemoryKey,
+        args.executionId,
+      );
+      const topK = (args.config.memoryTopK as number) || DEFAULT_MEMORY_TOP_K;
+      const threshold =
+        args.config.memoryThreshold !== undefined
+          ? (args.config.memoryThreshold as number)
+          : DEFAULT_MEMORY_THRESHOLD;
+      // 회수 임베딩 출처 — 노드 llmConfigId (요약/추출과 동일, scope-freeze §3).
+      // recall 은 서비스 내부에서 이미 graceful (빈 배열) 이지만, 회수 실패가
+      // 응답 경로를 깨면 안 되므로 여기서도 방어적으로 삼킨다 (defense-in-depth).
+      try {
+        recalled = await this.agentMemoryService.recall(
+          args.workspaceId,
+          scopeKey,
+          args.queryText,
+          {
+            llmConfigId: args.config.llmConfigId as string | undefined,
+            embeddingModel: undefined,
+          },
+          { topK, threshold },
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        AiAgentHandler.logger.warn(
+          `Agent memory recall failed (graceful): ${message}`,
+        );
+        recalled = [];
+      }
+    }
+
+    // ── [5b] 롤링 요약 압축 (임계치 도달 시에만 — 캐시 보호 불변식) ──
+    const thread = args.target?.conversationThread;
+    const priorSummary = thread?.runningSummary;
+    const priorUpToSeq = thread?.summarizedUpToSeq;
+
+    const update = await buildSummaryBufferUpdate({
+      turns,
+      runningSummary: priorSummary,
+      summarizedUpToSeq: priorUpToSeq,
+      tokenBudget,
+      systemPromptText: args.finalSystemPrompt,
+      llmConfig: args.llmConfig,
+      model: args.model,
+      llmService: this.llmService,
+    });
+
+    // 갱신된 요약을 in-memory thread 에 mutate (다음 turn 재사용 — Redis 직렬화로
+    // 영속되며 신규 DB 컬럼 없음, conversation-thread §1.3·§4).
+    if (update.summarized && thread) {
+      const mutable = thread as {
+        runningSummary?: string;
+        summarizedUpToSeq?: number;
+      };
+      mutable.runningSummary = update.runningSummary;
+      mutable.summarizedUpToSeq = update.summarizedUpToSeq;
+    }
+
+    // ── 안정 프리픽스 [5a]+[5b] 를 systemPrompt 에 append ──
+    const recallBlock = buildRecallBlock(recalled);
+    const summaryBlock = buildSummaryBlock(update.runningSummary);
+    const newSystemPrompt = appendStablePrefix(
+      args.finalSystemPrompt,
+      recallBlock,
+      summaryBlock,
+    );
+
+    // ── [6] 휘발성 꼬리 — 압축되지 않은 최근 원문 turn ──
+    const tail = selectVolatileTail(turns, update.summarizedUpToSeq);
+    const capped = applyCap(tail);
+
+    // multi-turn 누적 messages 물리 압축의 keepUserExchanges 도출.
+    //
+    // 압축 대상은 **에이전트 자신의 누적 messages** (user/assistant/tool) 다.
+    // summarization 에 쓰는 `turns` 는 self 노드를 제외하므로 에이전트 자신의
+    // ai_user turn 을 포함하지 않는다 — 따라서 휘발성 꼬리(`capped.turns`)의
+    // user 수만으로는 messages 압축 경계를 도출할 수 없다. 대신 **self 포함 전체
+    // thread** 에서 요약에 커버되지 않은 (`seq > summarizedUpToSeq`) user-bearing
+    // turn 수를 센다 — 이것이 "물리적으로 보존해야 할 최근 exchange 수" 이고,
+    // compactMessagesToTail 가 messages 끝에서 그만큼의 user 경계까지만 남긴다.
+    const fullThread =
+      this.conversationThreadService && args.target
+        ? this.conversationThreadService.getThread(args.target)
+        : undefined;
+    const fullTurns: readonly ConversationTurn[] = fullThread
+      ? fullThread.turns
+      : turns;
+    const keepUserExchanges = selectVolatileTail(
+      fullTurns,
+      update.summarizedUpToSeq,
+    ).filter(
+      (t) => t.source === 'ai_user' || t.source === 'presentation_user',
+    ).length;
+
+    const mode =
+      (args.config.contextInjectionMode as 'messages' | 'system_text') ??
+      'messages';
+
+    // working-memory 토큰 추정 사용량 (안정 프리픽스 + 휘발성 꼬리).
+    const tokenBudgetUsed = estimateWorkingMemoryTokens(
+      capped.turns,
+      newSystemPrompt,
+    );
+
+    const memoryMeta = {
+      strategy: args.strategy,
+      summarized: update.summarized,
+      recalledCount: recalled.length,
+      tokenBudgetUsed,
+    };
+
+    // ── system-only (multi-turn 누적 경로) ──
+    // 휘발성 꼬리는 이미 누적 `messages` 에 있으므로 안정 프리픽스 (system
+    // 메시지) 만 갱신한다. 꼬리를 다시 prepend 하면 중복된다.
+    if (args.tailMode === 'system-only') {
+      const newMessages = args.messages.map((m) =>
+        m.role === 'system' ? { ...m, content: newSystemPrompt } : m,
+      );
+      return {
+        messages: newMessages,
+        finalSystemPrompt: newSystemPrompt,
+        memory: memoryMeta,
+        keepUserExchanges,
+      };
+    }
+
+    if (mode === 'system_text') {
+      const tailText = renderThreadAsSystemText(capped.turns);
+      const withTail = tailText
+        ? `${newSystemPrompt}\n\n${tailText}`
+        : newSystemPrompt;
+      const newMessages = args.messages.map((m) =>
+        m.role === 'system' ? { ...m, content: withTail } : m,
+      );
+      return {
+        messages: newMessages,
+        finalSystemPrompt: withTail,
+        memory: memoryMeta,
+        keepUserExchanges,
+      };
+    }
+
+    // 'messages' 모드 — 안정 프리픽스는 system 메시지에 반영하고, 휘발성 꼬리
+    // 만 messages 배열에 prepend (spec §11.4: 최근 원문 turn 만 messages prepend,
+    // [5a]/[5b] 는 여전히 system_text 안정 프리픽스).
+    const tailMessages = mapTailToChatMessages(capped.turns);
+    const systemIdx = args.messages.findIndex((m) => m.role === 'system');
+    const newMessages = args.messages.map((m) =>
+      m.role === 'system' ? { ...m, content: newSystemPrompt } : m,
+    );
+    const insertAt = systemIdx >= 0 ? systemIdx + 1 : 0;
+    newMessages.splice(insertAt, 0, ...tailMessages);
+
+    return {
+      messages: newMessages,
+      finalSystemPrompt: newSystemPrompt,
+      memory: memoryMeta,
+      keepUserExchanges,
+    };
+  }
+
+  /**
+   * 턴 경계 비동기 추출 enqueue (spec/5-system/17-agent-memory.md §3, §6.1 단계
+   * 2.7 — producer 측). `persistent` 전략에서만, single-turn 최종 응답 후 /
+   * multi-turn 매 turn 종료 후 (= ai_assistant turn push 직후) 에 호출된다.
+   *
+   * **hot path 비차단**: enqueue (큐 add) 까지만 await — 실제 추출 LLM 콜은
+   * processor 에서 일어난다. **격리 invariant**: `getThreadExcludingNode` 가
+   * 반환하는 readonly turns 를 shallow-copy 한 스냅샷만 payload 에 담아
+   * (`cloneThread` 와 동형), 이후 메인 루프의 turn mutation 에 오염되지 않는다.
+   *
+   * `summary_buffer` / `manual` 전략은 호출되지 않는다 (회귀 금지 불변식 —
+   * 호출부가 strategy 로 분기). agentMemoryService 미주입 시 graceful no-op.
+   * enqueue 실패는 scheduleExtraction 내부에서 삼켜진다 (대화 계속).
+   */
+  private async scheduleMemoryExtraction(args: {
+    strategy: MemoryStrategy;
+    target: ThreadHolder | undefined;
+    selfNodeId: string;
+    config: Record<string, unknown>;
+    workspaceId: string;
+    executionId: string;
+  }): Promise<void> {
+    if (args.strategy !== 'persistent' || !this.agentMemoryService) return;
+    if (!this.conversationThreadService || !args.target) return;
+
+    const evaluatedMemoryKey = args.config.memoryKey as
+      | string
+      | undefined
+      | null;
+    const scopeKey = this.agentMemoryService.resolveScopeKey(
+      evaluatedMemoryKey,
+      args.executionId,
+    );
+
+    // 직전 user↔assistant 교환을 추출 대상으로 — self 노드의 ai_user /
+    // ai_assistant turn 이 핵심이므로 전체 thread 를 스냅샷한다 (회수와 달리
+    // self-제외 불필요: 추출 입력은 방금 끝난 대화 그 자체).
+    //
+    // shallow-copy 스냅샷 — ConversationTurn 은 push 후 frozen 이라 array
+    // map 복사만으로 격리 충분 (spec §3 격리 invariant, conversation-thread
+    // §3.2 — `cloneThread` 와 동형). 이후 메인 루프가 thread 에 새 turn 을
+    // push 해도 본 snapshot 배열은 영향받지 않는다.
+    const fullThread = this.conversationThreadService.getThread(args.target);
+    const snapshot = fullThread.turns.map((t) => ({
+      source: t.source,
+      text: t.text,
+      nodeLabel: t.nodeLabel,
+    }));
+
+    await this.agentMemoryService.scheduleExtraction({
+      workspaceId: args.workspaceId,
+      scopeKey,
+      llmConfigId: args.config.llmConfigId as string | undefined,
+      model: args.config.model as string | undefined,
+      turns: snapshot,
+    });
   }
 
   /**
@@ -1174,18 +1511,54 @@ export class AiAgentHandler implements NodeHandler {
       );
     }
 
-    // ConversationThread inject (spec §5) — single-turn runs once before
-    // the first chat. The helper updates both the system prompt and the
-    // messages array in lockstep.
-    const singleTurnInjection = this.injectThreadContext({
+    // ConversationThread / Memory inject (spec §5·§6.1) — single-turn runs
+    // once before the first chat. memoryStrategy 로 분기:
+    //  - manual (기본): 기존 contextScope 경로 완전 무변경 (하위호환 불변식).
+    //  - summary_buffer / persistent: 토큰예산 롤링 요약 + (persistent) 회수,
+    //    안정 프리픽스 + 휘발성 꼬리 주입.
+    const memoryStrategy = this.resolveMemoryStrategy(config);
+    let singleTurnInjection = this.injectThreadContext({
       target: context,
       selfNodeId: context.nodeId ?? '',
       config,
       messages,
       finalSystemPrompt,
     });
-    messages = singleTurnInjection.messages;
-    finalSystemPrompt = singleTurnInjection.finalSystemPrompt;
+    let memoryMeta:
+      | {
+          strategy: MemoryStrategy;
+          summarized: boolean;
+          recalledCount: number;
+          tokenBudgetUsed: number;
+        }
+      | undefined;
+    if (memoryStrategy === 'manual') {
+      messages = singleTurnInjection.messages;
+      finalSystemPrompt = singleTurnInjection.finalSystemPrompt;
+    } else {
+      const mem = await this.injectMemoryContext({
+        strategy: memoryStrategy,
+        target: context,
+        selfNodeId: context.nodeId ?? '',
+        config,
+        messages,
+        finalSystemPrompt,
+        llmConfig,
+        model: model || llmConfig.defaultModel,
+        workspaceId,
+        executionId: context.executionId,
+        queryText: userPrompt,
+        tailMode: 'prepend',
+      });
+      messages = mem.messages;
+      finalSystemPrompt = mem.finalSystemPrompt;
+      memoryMeta = mem.memory;
+      // 자동 전략은 contextScope 계열 무효 — contextInjection meta 미echo.
+      singleTurnInjection = {
+        ...singleTurnInjection,
+        injection: { ...singleTurnInjection.injection, appliedScope: 'none' },
+      };
+    }
 
     const tools = await this.buildTools(
       config,
@@ -1267,6 +1640,15 @@ export class AiAgentHandler implements NodeHandler {
           undefined,
           presentationPayloads.length > 0 ? presentationPayloads : undefined,
         );
+        // 턴 경계 비동기 추출 (condition-route 도 single-turn 응답 종결점).
+        await this.scheduleMemoryExtraction({
+          strategy: memoryStrategy,
+          target: context,
+          selfNodeId: context.nodeId ?? '',
+          config,
+          workspaceId,
+          executionId: context.executionId,
+        });
         return this.buildConditionOutput(
           classification.matchedCondition,
           reason,
@@ -1488,6 +1870,16 @@ export class AiAgentHandler implements NodeHandler {
         presentationPayloads.length > 0 ? presentationPayloads : undefined,
       );
     }
+    // 턴 경계 비동기 추출 enqueue (spec §6.1 단계 2.7 — single-turn 최종 응답
+    // 후). persistent 전략에서만 발화하며 enqueue 만 await (hot path 비차단).
+    await this.scheduleMemoryExtraction({
+      strategy: memoryStrategy,
+      target: context,
+      selfNodeId: context.nodeId ?? '',
+      config,
+      workspaceId,
+      executionId: context.executionId,
+    });
     return {
       config: {
         mode: 'single_turn' as const,
@@ -1544,6 +1936,9 @@ export class AiAgentHandler implements NodeHandler {
         ...(singleTurnInjection.injection.appliedScope !== 'none'
           ? { contextInjection: singleTurnInjection.injection }
           : {}),
+        // Auto-memory echo (spec §7 meta.memory). Echo only for non-manual
+        // strategies (manual 경로는 meta.memory 미출현 — 하위호환 불변식).
+        ...(memoryMeta ? { memory: memoryMeta } : {}),
         turnDebug: [
           {
             turnIndex: 1,
@@ -1630,13 +2025,32 @@ export class AiAgentHandler implements NodeHandler {
     // turns into `_resumeState.messages` for every subsequent chat. Each
     // future `processMultiTurnMessage` then just appends the new user/
     // assistant pair without re-injecting.
-    const multiTurnInjection = this.injectThreadContext({
-      target: context,
-      selfNodeId: context.nodeId ?? '',
-      config,
-      messages,
-      finalSystemPrompt,
-    });
+    //
+    // memoryStrategy != manual 이면 여기서 thread 를 baking 하지 않는다 — 자동
+    // 전략은 매 turn (processMultiTurnMessage) 안정 프리픽스 + 회수를 LLM 호출
+    // 전 동기로 재적용하기 때문 (spec §6.2 d.5). 첫 turn 은 LLM 호출도 없고
+    // 사용자 쿼리도 없어 회수 대상이 없으므로 noop 으로 둔다.
+    const multiTurnStrategy = this.resolveMemoryStrategy(config);
+    const multiTurnInjection =
+      multiTurnStrategy === 'manual'
+        ? this.injectThreadContext({
+            target: context,
+            selfNodeId: context.nodeId ?? '',
+            config,
+            messages,
+            finalSystemPrompt,
+          })
+        : {
+            messages,
+            finalSystemPrompt,
+            injection: {
+              appliedScope: 'none' as const,
+              appliedMode: 'messages' as const,
+              injectedTurns: 0,
+              droppedTurns: 0,
+              totalInjectedChars: 0,
+            },
+          };
     messages = multiTurnInjection.messages;
     finalSystemPrompt = multiTurnInjection.finalSystemPrompt;
 
@@ -1659,6 +2073,14 @@ export class AiAgentHandler implements NodeHandler {
       // `render_*` ToolDefs (spec §4.1 — RenderToolProvider reads
       // ctx.config.presentationTools).
       presentationTools: (config.presentationTools as unknown[]) || [],
+      // Auto-memory config — persisted so each resume turn re-applies the same
+      // strategy / budget / recall params (spec §6.2 d.5 — 매 turn 재적용).
+      memoryStrategy: config.memoryStrategy ?? 'manual',
+      memoryTokenBudget: config.memoryTokenBudget,
+      memoryKey: config.memoryKey,
+      memoryTopK: config.memoryTopK,
+      memoryThreshold: config.memoryThreshold,
+      contextInjectionMode: config.contextInjectionMode,
       workspaceId,
       executionId: context.executionId,
       nodeId: context.nodeId,
@@ -1964,6 +2386,87 @@ export class AiAgentHandler implements NodeHandler {
       mcpDiagnosticsAcc,
     );
 
+    // ── Auto-memory 재주입 (매 turn, spec §6.2 d.5) ──
+    // memoryStrategy 로 분기: manual 은 무변경 (누적 messages 그대로 — 첫 turn
+    // 의 thread injection 이 이미 반영됨), summary_buffer/persistent 는 LLM 호출
+    // 전 동기로 회수 (persistent) + 롤링 요약 (임계치 도달 시) 을 system 메시지
+    // 안정 프리픽스에 재적용한다. 휘발성 꼬리는 이미 누적 messages 에 있으므로
+    // tailMode='system-only' (중복 prepend 회피).
+    const multiTurnMemoryStrategy = this.resolveMemoryStrategy(state);
+    let memoryMeta:
+      | {
+          strategy: MemoryStrategy;
+          summarized: boolean;
+          recalledCount: number;
+          tokenBudgetUsed: number;
+          /**
+           * 이 turn 의 요약 압축이 누적 `messages` 에서 물리 제거한 메시지 수
+           * (요약이 커버한 오래된 exchange). 0 이면 물리 압축 미발생.
+           */
+          compactedMessages?: number;
+        }
+      | undefined;
+    if (multiTurnMemoryStrategy !== 'manual') {
+      const mem = await this.injectMemoryContext({
+        strategy: multiTurnMemoryStrategy,
+        target: this.threadHolderFromState(state),
+        selfNodeId: (state.nodeId as string) ?? '',
+        config: state,
+        messages,
+        // system 메시지 안정 프리픽스의 base 는 첫 turn 의 system 본문 (이미
+        // messages[0] 에 있음). injectMemoryContext 가 그 위에 [5a]/[5b] 를
+        // append 하려면 현재 system 본문을 base 로 넘긴다 — 단, 직전 turn 의
+        // 프리픽스 누적을 막기 위해 첫 system 본문만 base 로 쓸 수 없으므로
+        // (재append 누적) base 를 빈 문자열로 두고 system 메시지를 통째로
+        // 재생성하는 대신, 현재 system 메시지 content 를 그대로 base 로 쓴다.
+        // 안정 프리픽스는 임계치 도달 시에만 갱신되므로 (재요약 금지 불변식)
+        // 매 turn append 해도 요약 본문은 동일 — 단 회수 블록은 매 turn 갱신.
+        // 누적 방지를 위해 base 에서 이전 메모리 블록을 제거한 본문을 쓴다.
+        finalSystemPrompt: stripMemoryBlocks(
+          (messages.find((m) => m.role === 'system')?.content as string) ?? '',
+        ),
+        llmConfig,
+        model,
+        workspaceId,
+        executionId: executionId ?? '',
+        queryText: userMessage,
+        tailMode: 'system-only',
+      });
+      // injectMemoryContext 가 반환한 messages 는 system 메시지만 갱신된 사본.
+      messages.length = 0;
+      messages.push(...mem.messages);
+      memoryMeta = mem.memory;
+
+      // ── 멀티턴 누적 messages 물리 압축 (spec §6.2 d.6 — followup-v2) ──
+      // 요약이 이번 turn 에 오래된 turn 을 새로 커버했을 때만(summarized=true),
+      // 다음 turn 으로 영속되는 누적 messages 에서 요약이 커버한 오래된 exchange 를
+      // 물리 제거한다. system(요약 포함) 메시지는 위에서 이미 갱신됨 — 압축은 그
+      // system + 휘발성 꼬리만 남긴다. user 경계에서만 잘라 tool_use↔tool_result
+      // 페어링을 절대 보존한다. manual 은 이 분기에 들어오지 않음(회귀 0).
+      if (mem.memory.summarized && mem.keepUserExchanges > 0) {
+        const before = messages.length;
+        const compacted = compactMessagesToTail(
+          messages,
+          mem.keepUserExchanges,
+        );
+        if (compacted.length < before) {
+          messages.length = 0;
+          messages.push(...compacted);
+          memoryMeta = {
+            ...mem.memory,
+            compactedMessages: before - compacted.length,
+          };
+        }
+      } else if (mem.memory.summarized) {
+        // 요약은 발생했으나 keepUserExchanges=0 → 물리 압축 skip (fallback 진단).
+        // thread service 미주입(또는 getThread 미가용) 으로 보존할 user 경계를
+        // 도출하지 못한 경우 — 누적 messages 는 무변경으로 둔다 (회귀 안전).
+        AiAgentHandler.logger.debug(
+          'memory compaction skipped: keepUserExchanges=0 (missing thread service or no retained user exchange)',
+        );
+      }
+    }
+
     const turnStartedAt = Date.now();
     const toolsDef = tools.length > 0 ? tools : undefined;
     const chatParams = {
@@ -2075,6 +2578,7 @@ export class AiAgentHandler implements NodeHandler {
                 | undefined) ?? []),
               ...presentationPayloads,
             ],
+            ...(memoryMeta ? { memory: memoryMeta } : {}),
           },
           { llmCalls, totalDurationMs: Date.now() - turnStartedAt },
           condTurnDebugHistory,
@@ -2250,6 +2754,17 @@ export class AiAgentHandler implements NodeHandler {
       undefined,
       presentationPayloads.length > 0 ? presentationPayloads : undefined,
     );
+    // 턴 경계 비동기 추출 enqueue (spec §6.1 단계 2.7 — multi-turn 매 turn
+    // 종료 후). persistent 전략에서만 발화. config 는 state (turn-1 snapshot),
+    // target 은 state 가 들고 있는 thread ref.
+    await this.scheduleMemoryExtraction({
+      strategy: multiTurnMemoryStrategy,
+      target: this.threadHolderFromState(state),
+      selfNodeId: (state.nodeId as string) ?? '',
+      config: state,
+      workspaceId,
+      executionId: executionId ?? '',
+    });
 
     totalInputTokens += result.usage?.inputTokens ?? 0;
     totalOutputTokens += result.usage?.outputTokens ?? 0;
@@ -2293,6 +2808,7 @@ export class AiAgentHandler implements NodeHandler {
               []),
             ...presentationPayloads,
           ],
+          ...(memoryMeta ? { memory: memoryMeta } : {}),
         },
         { llmCalls, totalDurationMs: turnDurationMs },
         turnDebugHistory,
@@ -2351,6 +2867,8 @@ export class AiAgentHandler implements NodeHandler {
         interactionType: pendingFormBlock
           ? 'ai_form_render'
           : 'ai_conversation',
+        // Auto-memory echo (spec §7). Echo only for non-manual strategies.
+        ...(memoryMeta ? { memory: memoryMeta } : {}),
       },
       status: 'waiting_for_input',
       _resumeState: {
@@ -2472,6 +2990,16 @@ export class AiAgentHandler implements NodeHandler {
        * only fetches NodeExecution.outputData (no live thread snapshot).
        */
       allPresentations?: PresentationPayload[];
+      /**
+       * spec §7 meta.memory echo — `memoryStrategy ≠ 'manual'` 인 경우 마지막
+       * turn 의 auto-memory 적용 결과. manual 전략이면 undefined (미echo).
+       */
+      memory?: {
+        strategy: MemoryStrategy;
+        summarized: boolean;
+        recalledCount: number;
+        tokenBudgetUsed: number;
+      };
     },
     turnDebug?: {
       llmCalls?: unknown[];
@@ -2570,6 +3098,9 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
         ragDiagnostics: metadata.ragDiagnostics,
+        // Auto-memory echo (spec §7) — manual 전략이면 metadata.memory 가
+        // undefined 이라 키 자체가 생기지 않는다 (하위호환 불변식).
+        ...(metadata.memory ? { memory: metadata.memory } : {}),
         ...(AiAgentHandler.buildMcpDiagnosticsMeta(
           metadata.mcpServerSummaries,
         ) ?? {}),
@@ -2697,6 +3228,13 @@ export class AiAgentHandler implements NodeHandler {
       presentationSchemaViolations?: PresentationSchemaViolation[];
       /** spec §7.10 echo — accumulated render_* payloads for execution-history view. */
       allPresentations?: PresentationPayload[];
+      /** spec §7 meta.memory echo — non-manual 전략의 auto-memory 적용 결과. */
+      memory?: {
+        strategy: MemoryStrategy;
+        summarized: boolean;
+        recalledCount: number;
+        tokenBudgetUsed: number;
+      };
     },
     turnDebug?: {
       llmCalls?: unknown[];
@@ -2737,6 +3275,9 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
         ragDiagnostics: metadata.ragDiagnostics,
+        // Auto-memory echo (spec §7) — manual 전략이면 metadata.memory 가
+        // undefined 이라 키 자체가 생기지 않는다 (하위호환 불변식).
+        ...(metadata.memory ? { memory: metadata.memory } : {}),
         ...(AiAgentHandler.buildMcpDiagnosticsMeta(
           metadata.mcpServerSummaries,
         ) ?? {}),

@@ -1,11 +1,13 @@
 ---
 id: common
-status: implemented
+status: partial
 code:
   - codebase/backend/src/nodes/ai/shared/system-context-prefix.ts
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts
   - codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
+pending_plans:
+  - plan/in-progress/ai-context-memory-followup-v2.md
 ---
 
 # Spec: AI 노드 공통 규약
@@ -138,17 +140,20 @@ KB / MCP / 일반 provider 도구 호출이 발생한 노드는 `meta.ragSources
 
 ## 10. Conversation Context (자동 컨텍스트 주입)
 
-AI 카테고리 3 노드 공통 규약. v1 은 `ai_agent` 만 push + 자동 주입을 구현하고, `text_classifier` / `information_extractor` 는 동일 인터페이스로 v2 에 push hook (final assistant turn) + 자동 주입이 함께 추가된다 ([Spec Conversation Thread §2.3](../../conventions/conversation-thread.md#23-적용-범위-push-vs-inject-구분)). 두 노드의 final assistant text 변환 규칙은 §1.4 의 v2 표기 행 참조.
+AI 카테고리 3 노드 공통 규약. v1 은 `ai_agent` 의 push + 자동 주입을 구현하고, **`text_classifier` / `information_extractor` 의 final assistant push 도 v1 출하 완료** (세 노드 모두 push 출하 — handler 의 `pushClassifierTurn` / `pushExtractorTurn`). 다만 **자동 주입 (`contextScope` / `memoryStrategy` inject) 만 두 노드에 v2 예정** — push 완료 vs inject 미완을 구분한다 ([Spec Conversation Thread §2.3](../../conventions/conversation-thread.md#23-적용-범위-push-vs-inject-구분)). 두 노드의 final assistant text 변환 규칙은 §1.4 의 해당 행 참조.
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |---|---|---|---|---|
 | contextScope | `none` / `thread` / `lastN` | ✓ | `none` | 자동 주입할 thread 범위 |
 | contextScopeN | Integer | (lastN 시) | `20` | `lastN` 일 때 최근 N개 turn |
 | contextInjectionMode | `messages` / `system_text` | (scope ≠ none 시) | `messages` | 주입 형식 — LLM messages 배열 prepend / system prompt 텍스트 첨부 |
-| includeToolTurns | Boolean | | `false` | `ai_tool` turn (KB/MCP/condition 결과) 도 thread 에 push 할지 |
+| includeToolTurns | Boolean | | `false` | `ai_tool` turn (KB/MCP/condition 결과) 도 thread 에 push 할지. `memoryStrategy ≠ manual` 시 자동 주입 측면에서는 무효 — push (thread 누적) 는 전략과 독립 유지 |
 | excludeFromConversationThread | Boolean | | `false` | 본 노드의 user/assistant turn 을 thread 에서 제외 (opt-out) |
+| memoryStrategy | `manual` / `summary_buffer` / `persistent` | | `manual` | 메모리 **관리 전략** 축. `manual`(기본) = 위 5필드 동작 그대로. `summary_buffer`/`persistent` = 자동 전략 (위 5필드 무효 — 자동 전략이 대체). AI Agent 한정 (text_classifier/information_extractor 는 v2). 별도 필드 채택 근거 [AI Agent §12.9](./1-ai-agent.md#129-memorystrategy-를-contextscope-enum-확장이-아닌-별도-필드로-둔-근거). 상세: [Spec AI Agent §1·§6](./1-ai-agent.md#1-설정-config) + [Spec Agent Memory](../../5-system/17-agent-memory.md) |
 
 > **Default `contextScope: 'none'`** — 기존 워크플로우 영향 없음. 명시 opt-in 시에만 자동 주입 활성화.
+
+> **`memoryStrategy` 와의 관계** — 위 표의 `contextScope`/`contextScopeN`/`contextInjectionMode`/`includeToolTurns` 4필드 (범위 축) 는 `memoryStrategy: 'manual'` (기본) 일 때만 유효하다. `memoryStrategy ∈ {summary_buffer, persistent}` (관리 축) 이면 자동 전략이 컨텍스트 구성을 대체해 이 4필드는 무효가 된다 (`excludeFromConversationThread` 는 thread 누적 opt-out 이라 strategy 와 독립). 두 축의 분리 근거는 [AI Agent §12.9](./1-ai-agent.md#129-memorystrategy-를-contextscope-enum-확장이-아닌-별도-필드로-둔-근거), 자동 전략의 압축·회수·추출 동작은 [AI Agent §1·§6.1](./1-ai-agent.md#1-설정-config) 및 [Spec Agent Memory](../../5-system/17-agent-memory.md) 단일 진실.
 
 상세 규약 (자료구조·스코프·영속화·v2 로드맵) 은 [Spec Conversation Thread](../../conventions/conversation-thread.md) 단일 진실 공급원 참조.
 
@@ -217,10 +222,15 @@ systemPrompt 의 최종 본문은 다음 순서로 build 된다 ([Spec AI Agent 
 [2] 사용자 systemPrompt
 [3] KB_TOOL_GUIDANCE (knowledge base 가 있을 때)
 [4] Condition suffix (conditions 가 있을 때)
-[5] Thread injection (contextScope ≠ 'none' + contextInjectionMode='system_text' 때만)
+[5] Memory / Thread injection (안정 프리픽스):
+      [5a] persistent 회수 블록 (memoryStrategy='persistent' 일 때 — agent_memory top-k 회수)
+      [5b] 롤링 요약 블록 (memoryStrategy ∈ {summary_buffer, persistent} 일 때 — runningSummary)
+      [5c] manual thread injection (memoryStrategy='manual' + contextScope ≠ 'none' + contextInjectionMode='system_text' 때만)
+[6] (휘발성 꼬리) 압축되지 않은 최근 원문 turn — system_text 안정 프리픽스 [1]~[5] 보다 뒤
 ```
 
-- `messages` 모드의 thread injection 은 systemPrompt 본문이 아닌 messages 배열 prepend 이므로 [5] 가 적용되지 않는다.
+- **[5a]/[5b] 는 안정 프리픽스** — 휘발성 최근 turn ([6]) 보다 앞에 둔다. 요약/회수 블록은 임계치 도달 시에만 갱신해 prompt cache 접두사 안정성을 보호한다 (근거: [AI Agent §12.11](./1-ai-agent.md#1211-요약회수-블록을-system_text-안정-프리픽스에-배치하는-ordering-근거)). messages 모드에서는 최근 원문 turn ([6]) 만 messages 배열 prepend 이고 [5a]/[5b] 는 여전히 system_text 안정 프리픽스에 둔다.
+- `messages` 모드의 manual thread injection ([5c]) 은 systemPrompt 본문이 아닌 messages 배열 prepend 이므로 [5c] 가 적용되지 않는다.
 - `includeSystemContext: false` 면 [1] 단계만 skip — 나머지 ordering 유지.
 - [1] 은 항상 가장 앞 — 사용자 systemPrompt 가 시각 정보를 override 할 수 없도록 (사용자가 시각을 의도적으로 다르게 주입하려면 prefix 후 본문에서 명시).
 - multi-turn 의 후속 turn 에서도 prefix 는 systemPrompt 의 앞에 유지된다. `$now` 가 execution 단위 frozen 이므로 turn 마다 재계산해도 동일 값 — multi-turn 경로의 LLM 은 일관된 시각 정보를 본다.

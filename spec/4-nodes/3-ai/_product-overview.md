@@ -83,6 +83,10 @@
 | ND-AG-23 | Single Turn 모드의 포트 구조 — 조건 포트 + 기본 `out` 포트 + `error` 포트. 조건 0개 시 `out` + `error` | 필수 |
 | ND-AG-24 | Multi Turn 모드의 포트 구조 — 조건 포트 + `user_ended` + `max_turns` + `error` (`out` 없음). 조건 0개 시 `out` + `error` 제공 (하위 호환). 상세: [Spec AI Agent 포트](./1-ai-agent.md#3-포트) | 필수 |
 | ND-AG-26 | Presentation Tool Family (`render_*`) — `presentationTools[]` per-node opt-in 으로 LLM 응답 surface 를 텍스트에서 5종 (table·chart·carousel·template·form) 가상 도구로 확장. display-only 4종은 round-trip 불필요, `render_form` 은 blocking 흐름. presentation 노드 input schema 단일 진실 재사용. 워크플로 그래프 분기 흉내 금지 (cond_* 와 역할 분리). schema 위반은 silent fallback (error 포트 발화 X). 상세: [Spec AI Agent §4.1·§12.4](./1-ai-agent.md#41-presentation-tool-family-render_) | 필수 |
+| ND-AG-27 | 자동 컨텍스트 메모리 전략 선택 — `memoryStrategy` (`manual`/`summary_buffer`/`persistent`, default `manual`) + `memoryTokenBudget`/`memoryKey`/`memoryTopK`/`memoryThreshold` 설정 필드. `manual` 은 기존 contextScope 계열 5필드 동작 그대로 (하위호환), `manual` 외 선택 시 5필드 무효 (자동 전략 대체). 상세: [Spec AI Agent §1·§12.9](./1-ai-agent.md#1-설정-config) | 권장 |
+| ND-AG-28 | summary_buffer — 단일 실행 내 토큰예산(`memoryTokenBudget`) 기반 롤링 요약 압축. 초과분을 오래된 turn 부터 요약, 요약 블록은 system_text 안정 프리픽스 배치, 임계치 도달 시에만 갱신 (캐시 보호). 요약 LLM 콜은 노드 `model`/`llmConfigId` 재사용. 상세: [Spec AI Agent §6.1·§12.11](./1-ai-agent.md#6-실행-로직) | 권장 |
+| ND-AG-29 | persistent — 세션 간 추출 메모리. 스코프 키 `(workspace_id, memoryKey ?? execution_id)`, LLM 호출 전 동기 top-k 의미검색 회수 + 턴 경계 비동기 추출, `agent_memory` 테이블(pgvector 재사용). 상세: [Spec Agent Memory](../../5-system/17-agent-memory.md) | 권장 |
+| ND-AG-30 | 메모리 적용 결과 meta echo — `meta.memory.{strategy, summarized, recalledCount, tokenBudgetUsed}` (`memoryStrategy ≠ manual` 시에만). 상세: [Spec AI Agent §7.1](./1-ai-agent.md#71-single-turn-모드--정상-완료-out-포트) | 권장 |
 
 ### 3.3 Text Classifier 노드
 

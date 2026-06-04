@@ -49,6 +49,7 @@ import { LlmConfigModule } from './modules/llm-config/llm-config.module';
 import { LlmModule } from './modules/llm/llm.module';
 import { WorkflowAssistantModule } from './modules/workflow-assistant/workflow-assistant.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
+import { AgentMemoryModule } from './modules/agent-memory/agent-memory.module';
 import { HooksModule } from './modules/hooks/hooks.module';
 import { ExternalInteractionModule } from './modules/external-interaction/external-interaction.module';
 import { WebChatCorsModule } from './modules/web-chat-cors/web-chat-cors.module';
@@ -95,6 +96,7 @@ import { GraphChunkEntity } from './modules/knowledge-base/entities/chunk-entity
 import { WorkflowAssistantSession } from './modules/workflow-assistant/entities/workflow-assistant-session.entity';
 import { WorkflowAssistantMessage } from './modules/workflow-assistant/entities/workflow-assistant-message.entity';
 import { SecretStore } from './modules/secret-store/entities/secret-store.entity';
+import { AgentMemory } from './modules/agent-memory/entities/agent-memory.entity';
 
 /**
  * TypeORM root metadata 등록 대상. forFeature 로 module 이 Repository 를
@@ -143,6 +145,7 @@ export const ROOT_ENTITIES = [
   WorkflowAssistantSession,
   WorkflowAssistantMessage,
   SecretStore,
+  AgentMemory,
 ] as const;
 
 @Module({
@@ -238,6 +241,7 @@ export const ROOT_ENTITIES = [
     LlmConfigModule,
     LlmModule,
     KnowledgeBaseModule,
+    AgentMemoryModule,
     HooksModule,
     ExternalInteractionModule,
     WebChatCorsModule,

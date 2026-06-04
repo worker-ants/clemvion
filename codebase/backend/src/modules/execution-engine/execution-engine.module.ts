@@ -20,6 +20,7 @@ import { ParallelExecutor } from './containers/parallel-executor';
 import { WebsocketModule } from '../websocket/websocket.module';
 import { LlmModule } from '../llm/llm.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
+import { AgentMemoryModule } from '../agent-memory/agent-memory.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { McpModule } from '../mcp/mcp.module';
 import { Cafe24Module } from '../../nodes/integration/cafe24/cafe24.module';
@@ -58,6 +59,7 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     forwardRef(() => WebsocketModule),
     LlmModule,
     KnowledgeBaseModule,
+    AgentMemoryModule,
     IntegrationsModule,
     Cafe24Module,
     MakeshopModule,
