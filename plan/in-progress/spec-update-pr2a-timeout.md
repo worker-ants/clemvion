@@ -90,11 +90,13 @@ SPEC-DRIFT (코드 개선을 spec 에 반영) — PR2a(d4271ed9) 가 §8 timeout
 "code":    "EXECUTION_TIMEOUT" | "EXECUTION_TIME_LIMIT_EXCEEDED" | "MAX_ITERATIONS_EXCEEDED" | "CYCLE_DETECTED" | ... ,
 ```
 
-## 적용 우선순위
+## 적용 우선순위 — 전부 반영 완료 (PR2a, 2026-06-04)
 
-1. (즉시) §4 BullMQ 카탈로그 — `execution-run` 행 추가: PR1 누락 단순 보완.
-2. (즉시) EIA §6.4 error.code 예시 갱신: 한 줄 추가.
-3. (즉시) execution-engine.md §8 구현 상태 배너 + 표 "설정 위치" 컬럼 갱신: 사용자·개발자 오해 방지.
+1. ✅ §4 BullMQ 카탈로그 — `execution-run` 행 추가 (W8). `data-flow/0-overview.md §4` 표+인라인 반영.
+2. ✅ EIA §6.4 error.code 예시 갱신 (W9). `EXECUTION_TIME_LIMIT_EXCEEDED` 추가.
+3. ✅ execution-engine.md §8 구현 상태 배너 + 표 "설정 위치"(env 1단계/per-workflow 2단계) 갱신 (W1/W2/W3).
+
+> 모든 SPEC-DRIFT 항목(W1/W2/W3/W8/W9)이 spec 본문에 반영됨. `--consistency-check --spec` BLOCK:NO 후 `spec/` 적용 완료. 본 draft 는 PR2a 머지 시 `plan/complete/` 로 이동 대상.
 
 ## 관련 파일
 
