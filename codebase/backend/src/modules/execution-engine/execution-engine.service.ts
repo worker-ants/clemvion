@@ -8440,6 +8440,12 @@ export class ExecutionEngineService
     const inProgress = segStart !== undefined ? Date.now() - segStart : 0;
     const activeNow = (execution.activeRunningMs ?? 0) + inProgress;
     if (activeNow >= this.maxActiveRunningMs) {
+      // W3(ai-review SECURITY) — 수치(누적 ms / 한도 ms)는 서버 로그에만 기록.
+      // ExecutionTimeLimitError.message 는 고정 문자열이므로 REST/WS 에 수치가 노출되지 않는다.
+      this.logger.warn(
+        `Execution ${execution.id} active-running limit reached: ` +
+          `${activeNow}ms accumulated, limit ${this.maxActiveRunningMs}ms`,
+      );
       throw new ExecutionTimeLimitError(activeNow, this.maxActiveRunningMs);
     }
   }

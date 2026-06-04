@@ -38,10 +38,15 @@ describe('ExecutionTimeLimitError', () => {
     expect(err.code).toBe(ErrorCode.EXECUTION_TIME_LIMIT_EXCEEDED);
   });
 
-  it('message 에 activeRunningMs 와 limitMs 가 포함됨', () => {
+  it('message 는 고정 문자열 — 수치 미포함 (W3 ai-review SECURITY fix)', () => {
+    // W3: message 에 ms 수치를 포함하면 REST/WS 응답으로 노출됨.
+    // 수치는 activeRunningMs / limitMs 프로퍼티로 분리해 서버 로그 전용.
     const err = new ExecutionTimeLimitError(1800000, 1800000);
-    expect(err.message).toContain('1800000');
+    expect(err.message).toBe('Execution active-running time limit exceeded.');
+    expect(err.message).not.toContain('1800000');
     expect(err.name).toBe('ExecutionTimeLimitError');
+    expect(err.activeRunningMs).toBe(1800000);
+    expect(err.limitMs).toBe(1800000);
   });
 
   it('instanceof Error', () => {
