@@ -14,7 +14,7 @@ owner: planner
 
 > **2026-06-04 — §4/§7.1/§8 의 spec 표면이 재정의됨**: per-node task queue·별도 heartbeat 전제는 폐기되고 execution-level intake 큐(`execution-run`) + BullMQ stalled-job + active-running 타임아웃으로 spec 본문이 재작성됐다([`spec-draft-exec-intake-queue.md`](./spec-draft-exec-intake-queue.md)). 따라서 아래 3항목의 "spec 이 per-node 를 약속하는데 코드 부재" drift 는 해소(spec 이 더는 per-node 를 약속하지 않음). **구현 자체는 새 설계로 developer 트랙이 담당** — `plan/in-progress/exec-intake-queue-impl.md` 로 forwarding.
 
-- [x] **§4 Worker 모델** — ~~per-node task-queue~~ → execution-level intake 큐로 재정의(forwarding). 구현 PR1.
+- [x] **§4 Worker 모델** — ~~per-node task-queue~~ → execution-level intake 큐로 재정의 후 **PR1 구현 완료** (per-node 모델 폐기 — `exec-intake-queue-impl.md` PR1 으로 대체됨, 2026-06-04). §4 배너·§9.3·§11 spec 본문 "PR1 구현됨" 반영 완료.
 - [x] **§7.1 Worker Heartbeat** — ~~별도 heartbeat~~ → BullMQ stalled-job(active 세그먼트 한정)으로 재정의(forwarding). 구현 PR4. `WORKER_HEARTBEAT_TIMEOUT` 코드 유지+의미 재정의.
 - [x] **§8 동시 실행 제한** — active-running 누적 타임아웃 + `EXECUTION_TIME_LIMIT_EXCEEDED` + intake 큐 카운트 가드로 재정의(forwarding). 구현 PR2. spec 본문 §8 반영 완료.
 
