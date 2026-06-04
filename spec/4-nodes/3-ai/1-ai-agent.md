@@ -508,7 +508,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 | `meta.thinkingTokens` | number? | LLM provider response | 모델이 thinking 토큰을 보고하는 경우만 |
 | `meta.toolCalls` | number | handler accumulator | KB·MCP·일반 도구 호출 횟수 합산 (조건 도구 제외) |
 | `meta.ragSources` | Array | RagAccumulator | KB tool 의 chunk 누적치 (chunkId dedup 적용). graph 모드 KB 는 `origin: 'seed' \| 'expanded'` 부착. 상세: [Graph RAG §4.3](../../5-system/10-graph-rag.md#43-출력-메타데이터) |
-| `meta.ragDiagnostics` | object | RagAccumulator | KB 검색 진단 (`attempted`/`searchedKbCount`/`queriesUsed`/`resultCount`/`skipReason?`) |
+| `meta.ragDiagnostics` | object | RagAccumulator | KB 검색 진단 (`attempted`/`searchedKbCount`/`queriesUsed`/`resultCount`/`skipReason?`/`rerank?`). `rerank?` 는 `rerank_mode ≠ off` KB 호출 시에만 포함 — 스키마는 [RAG 검색 §4.2](../../5-system/9-rag-search.md#42-ragdiagnostics-검색-동작-진단) |
 | `meta.mcpDiagnostics` | object? | McpDiagnostics | `mcpServers` 가 1개 이상이거나 LLM 이 MCP 도구를 1번 이상 호출한 경우만 포함. 필드: [MCP Client §6.2](../../5-system/11-mcp-client.md#62-진단-누적-mcpdiagnostics) |
 | `meta.turnDebug[]` | Array | handler return | 턴 단위 LLM 호출 트레이스. single 은 길이 1 — 멀티턴 출력 스키마와 일관성 유지 |
 | `meta.contextInjection` | object? | handler return | `contextScope ≠ 'none'` + thread non-empty 시에만 echo. `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` — 적용된 결과 (config echo 가 아님, Principle 2 정합). 상세: [Spec Conversation Thread §5.3](../../conventions/conversation-thread.md#53-cap-v1) |

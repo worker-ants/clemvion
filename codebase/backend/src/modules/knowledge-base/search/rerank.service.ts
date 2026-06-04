@@ -15,10 +15,17 @@ export interface RerankResult extends RerankCandidate {
 }
 
 export interface RerankDiagnostics {
-  mode: 'cross_encoder';
+  // 라우팅된 rerank_mode. cross_encoder / cross_encoder_llm 둘 다 cross-encoder
+  // 재점수화 레이어를 타며, cross_encoder_llm 은 추가 LLM grading(후속)을 약속한다.
+  // 모드를 진단에 그대로 보존해 cross_encoder_llm 이 cross_encoder 로 무음 강등된
+  // 것처럼 보이지 않게 한다 (Spec RAG 검색 §3.3.1).
+  mode: 'cross_encoder' | 'cross_encoder_llm';
   candidateCount: number;
   returnedCount: number;
-  llmGradingApplied: false;
+  // listwise LLM grading 적용 여부. cross_encoder 는 항상 false. cross_encoder_llm
+  // 도 LLM grading 단계 구현 전까지는 false (후속) — false 자체가 "cross-encoder
+  // 까지만 적용됐고 LLM grading 은 아직 미적용" breadcrumb 이다 (§3.3.2 step 3).
+  llmGradingApplied: boolean;
   cutoffApplied: boolean;
   // null = 성공. 실패 시 UPPER_SNAKE_CASE 코드 (Spec RAG 검색 §3.3.2 / §6).
   error: string | null;
@@ -31,6 +38,9 @@ export interface RerankParams {
   rerankConfigId: string | null;
   topK: number;
   scoreThreshold: number | null;
+  // 라우팅된 rerank_mode — diagnostics.mode 로 그대로 보존된다. cross_encoder_llm
+  // 의 LLM grading 단계는 후속이지만, cross-encoder 재점수화는 두 모드 모두 수행.
+  mode: 'cross_encoder' | 'cross_encoder_llm';
 }
 
 export interface RerankResponse {
@@ -121,9 +131,11 @@ export class RerankService {
       return {
         results: sliced,
         diagnostics: {
-          mode: 'cross_encoder',
+          mode: params.mode,
           candidateCount: candidates.length,
           returnedCount: sliced.length,
+          // LLM grading 단계는 후속 — cross_encoder_llm 도 현재는 cross-encoder
+          // 까지만 적용된다 (§3.3.2 step 3, plan/in-progress/rag-rerank-followup.md).
           llmGradingApplied: false,
           cutoffApplied,
           error: null,
@@ -149,7 +161,7 @@ export class RerankService {
     return {
       results: sorted,
       diagnostics: {
-        mode: 'cross_encoder',
+        mode: params.mode,
         candidateCount: params.candidates.length,
         returnedCount: sorted.length,
         llmGradingApplied: false,

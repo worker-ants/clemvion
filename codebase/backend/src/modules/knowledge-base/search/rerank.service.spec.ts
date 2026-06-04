@@ -61,6 +61,7 @@ describe('RerankService', () => {
       rerankConfigId: null,
       topK: 10,
       scoreThreshold: null,
+      mode: 'cross_encoder',
     });
 
     expect(res.results.map((r) => r.chunkId)).toEqual(['c2', 'c0', 'c1']);
@@ -97,6 +98,7 @@ describe('RerankService', () => {
       rerankConfigId: null,
       topK: 10,
       scoreThreshold: 0.4,
+      mode: 'cross_encoder',
     });
 
     expect(res.results.map((r) => r.chunkId)).toEqual(['c0', 'c1']);
@@ -118,6 +120,7 @@ describe('RerankService', () => {
       rerankConfigId: null,
       topK: 2,
       scoreThreshold: null,
+      mode: 'cross_encoder',
     });
 
     expect(res.results).toHaveLength(2);
@@ -134,6 +137,7 @@ describe('RerankService', () => {
       rerankConfigId: null,
       topK: 10,
       scoreThreshold: 0.45, // ignored on fallback
+      mode: 'cross_encoder',
     });
 
     // cosine desc: c0(0.5), c1(0.4), c2(0.3)
@@ -154,11 +158,51 @@ describe('RerankService', () => {
       rerankConfigId: null,
       topK: 10,
       scoreThreshold: null,
+      mode: 'cross_encoder',
     });
 
     expect(res.results.map((r) => r.chunkId)).toEqual(['c0', 'c1', 'c2']);
     expect(res.diagnostics.error).toBe('RERANK_CONFIG_INVALID');
     expect(factory.create).not.toHaveBeenCalled();
+  });
+
+  it('falls back with RERANK_NO_VALID_RESULTS when all indices are out of range (R4)', async () => {
+    // 모든 index 가 후보 범위 밖 → 유효 결과 0건 → cosine 강등.
+    client.rerank.mockResolvedValueOnce([
+      { index: 99, score: 0.9 },
+      { index: -1, score: 0.8 },
+    ]);
+
+    const res = await service.rerankCandidates({
+      query: 'q',
+      candidates,
+      workspaceId: 'ws1',
+      rerankConfigId: null,
+      topK: 10,
+      scoreThreshold: null,
+      mode: 'cross_encoder',
+    });
+
+    expect(res.results.map((r) => r.chunkId)).toEqual(['c0', 'c1', 'c2']);
+    expect(res.diagnostics.error).toBe('RERANK_NO_VALID_RESULTS');
+  });
+
+  it('preserves cross_encoder_llm mode in diagnostics (no silent downgrade, R2)', async () => {
+    client.rerank.mockResolvedValueOnce([{ index: 0, score: 0.9 }]);
+
+    const res = await service.rerankCandidates({
+      query: 'q',
+      candidates,
+      workspaceId: 'ws1',
+      rerankConfigId: null,
+      topK: 10,
+      scoreThreshold: null,
+      mode: 'cross_encoder_llm',
+    });
+
+    expect(res.diagnostics.mode).toBe('cross_encoder_llm');
+    // LLM grading 단계는 후속 — false breadcrumb.
+    expect(res.diagnostics.llmGradingApplied).toBe(false);
   });
 
   it('never throws — fallback respects topK slice', async () => {
@@ -171,6 +215,7 @@ describe('RerankService', () => {
       rerankConfigId: null,
       topK: 1,
       scoreThreshold: null,
+      mode: 'cross_encoder',
     });
 
     expect(res.results).toHaveLength(1);

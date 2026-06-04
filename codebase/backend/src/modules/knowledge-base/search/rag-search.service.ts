@@ -124,11 +124,25 @@ export class RagSearchService {
       );
       if (kbs.length === 0) return { results: [] };
 
-      // 검색 후처리(리랭킹) — 단일 KB + cross_encoder 모드일 때 wide 회수 → 리랭크 → 동적 컷.
+      // 검색 후처리(리랭킹) — 단일 KB + rerank_mode ≠ off 일 때 wide 회수 → 리랭크 → 동적 컷.
+      // cross_encoder 와 cross_encoder_llm 둘 다 cross-encoder 재점수화 레이어를 탄다
+      // (§3.3.1 — cross_encoder_llm 은 cross_encoder 의 superset). cross_encoder_llm 의
+      // LLM grading 단계만 후속(plan/in-progress/rag-rerank-followup.md)이며, 그 사이에도
+      // cross-encoder 레이어를 통째로 skip 하지 않는다.
       // agentic 경로(KbToolProvider)는 항상 단일 KB 로 호출하므로 이 분기가 적용된다.
       // 멀티-KB 리랭크는 후속(plan/in-progress/rag-rerank-followup.md).
-      if (kbs.length === 1 && kbs[0].rerankMode === 'cross_encoder') {
-        return this.searchWithRerank(kbs[0], query, topK, workspaceId);
+      if (
+        kbs.length === 1 &&
+        (kbs[0].rerankMode === 'cross_encoder' ||
+          kbs[0].rerankMode === 'cross_encoder_llm')
+      ) {
+        return this.searchWithRerank(
+          kbs[0],
+          query,
+          topK,
+          threshold,
+          workspaceId,
+        );
       }
 
       // KB 를 ragMode 로 분리: vector 는 (model, dim, llmConfig) 그룹화, graph 는 KB 단위 처리.
@@ -192,11 +206,17 @@ export class RagSearchService {
     }
   }
 
-  // 단일 KB cross_encoder 리랭크 경로: wide 회수(cosine 임계 미적용) → RerankService → 동적 컷.
+  // 단일 KB cross_encoder/cross_encoder_llm 리랭크 경로:
+  // wide 회수(cosine 임계 미적용) → RerankService → 동적 컷.
+  // `threshold` 는 런타임/LLM 이 보낸 관련도 컷(kb_* 의 threshold 인자 또는 노드 ragThreshold).
+  // rerank 점수 컷은 `kb.rerankScoreThreshold ?? threshold` 로 결정한다 — KB 설정이
+  // 우선이고, 미설정(NULL)이면 런타임 threshold 로 fallback 한다 (§3.3 / Rationale I4:
+  // 신규 config 필드 증식 회피, ragThreshold 를 rerank 점수 임계로 재해석).
   private async searchWithRerank(
     kb: KbRow,
     query: string,
     topK: number,
+    threshold: number,
     workspaceId: string,
   ): Promise<{
     results: SearchResult[];
@@ -245,7 +265,10 @@ export class RagSearchService {
         results: [],
         graphTraversal,
         rerank: {
-          mode: 'cross_encoder',
+          mode:
+            kb.rerankMode === 'cross_encoder_llm'
+              ? 'cross_encoder_llm'
+              : 'cross_encoder',
           candidateCount: 0,
           returnedCount: 0,
           llmGradingApplied: false,
@@ -270,7 +293,13 @@ export class RagSearchService {
       workspaceId,
       rerankConfigId: kb.rerankConfigId,
       topK,
-      scoreThreshold: kb.rerankScoreThreshold,
+      // rerank 점수 컷: KB 설정 우선, 미설정(NULL)이면 런타임 threshold fallback.
+      // out-of-box(KB 설정 없음)에서도 관련도 컷이 걸리게 한다 (§3.3 / Rationale I4).
+      scoreThreshold: kb.rerankScoreThreshold ?? threshold,
+      mode:
+        kb.rerankMode === 'cross_encoder_llm'
+          ? 'cross_encoder_llm'
+          : 'cross_encoder',
     });
 
     const mapped: SearchResult[] = results.map((r) => ({

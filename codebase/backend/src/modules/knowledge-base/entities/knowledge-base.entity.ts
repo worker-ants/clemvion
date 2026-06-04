@@ -89,7 +89,7 @@ export class KnowledgeBase {
   @Column({ name: 'reextract_status', type: 'text', default: 'idle' })
   reextractStatus: 'idle' | 'in_progress';
 
-  // ──────── 검색 후처리(리랭킹) 컬럼 (V074, spec/5-system/9-rag-search.md §3.3) ────────
+  // ──────── 검색 후처리(리랭킹) 컬럼 (V082, spec/5-system/9-rag-search.md §3.3) ────────
   // 검색 시점 적용 — 사후 변경 가능, 재임베딩 불요. 'off' 면 현행 동작(하위호환).
   @Column({ name: 'rerank_mode', type: 'text', default: 'off' })
   rerankMode: 'off' | 'cross_encoder' | 'cross_encoder_llm';

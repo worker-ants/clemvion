@@ -12,6 +12,15 @@ import { UpdateRerankConfigDto } from './dto/update-rerank-config.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { encrypt, decrypt } from '../../common/utils/crypto.util';
+import { isPrivateHost, resolvesToPrivate } from '../../common/utils/ssrf.util';
+
+/**
+ * SSRF 가드 면제 provider — 자가호스팅 endpoint 가 사설망/loopback 을 가리키는
+ * 게 정상 사용 사례인 provider 들. spec/5-system/7-llm-client.md §4.1 (§5.5
+ * 재사용, tei/local 만 예외). `local` 은 Planned(후속) 이지만 면제 목록에는
+ * 미리 포함해 향후 provider 추가 시 가드를 다시 손대지 않는다.
+ */
+const SSRF_EXEMPT_RERANK_PROVIDERS = new Set(['tei', 'local']);
 
 @Injectable()
 export class RerankConfigService {
@@ -100,10 +109,41 @@ export class RerankConfigService {
     return def;
   }
 
+  /**
+   * 사용자 지정 baseUrl 이 사설망/loopback 을 가리키는 SSRF 시도를 차단한다.
+   * spec/5-system/7-llm-client.md §4.1 — §5.5 SSRF 가드 재사용, tei/local 만 예외.
+   * cohere 등 외부 provider 는 복호화된 Bearer 키로 baseUrl 에 요청하므로 가드 필수.
+   * llm-preview.service 의 검증과 동형 (isPrivateHost → resolvesToPrivate).
+   */
+  private async assertBaseUrlNotSsrf(
+    provider: string,
+    baseUrl: string | undefined | null,
+  ): Promise<void> {
+    if (!baseUrl) return;
+    if (SSRF_EXEMPT_RERANK_PROVIDERS.has(provider)) return;
+    if (isPrivateHost(baseUrl)) {
+      throw new BadRequestException({
+        code: 'RERANK_CONFIG_INVALID',
+        message:
+          'Private/loopback addresses are only allowed for the tei/local provider.',
+      });
+    }
+    // DNS rebinding 1차 방어 — 도메인이 사설 IP 로 해석되면 차단 (spec §5.5).
+    if (await resolvesToPrivate(baseUrl)) {
+      throw new BadRequestException({
+        code: 'RERANK_CONFIG_INVALID',
+        message:
+          'Hostname resolves to a private/loopback address; only the tei/local provider may target such hosts.',
+      });
+    }
+  }
+
   async create(
     workspaceId: string,
     dto: CreateRerankConfigDto,
   ): Promise<Record<string, unknown>> {
+    await this.assertBaseUrlNotSsrf(dto.provider, dto.baseUrl);
+
     let encryptedKey: string | null = null;
     if (dto.apiKey) {
       if (!this.encryptionKey) {
@@ -144,6 +184,13 @@ export class RerankConfigService {
     dto: UpdateRerankConfigDto,
   ): Promise<Record<string, unknown>> {
     const config = await this.findEntity(id, workspaceId);
+
+    // SSRF 가드 — 변경 후 유효 (provider, baseUrl) 조합으로 검증한다. provider 만
+    // 비-면제로 바꾸면서 기존 사설 baseUrl 을 유지하는 경로도 차단된다.
+    const effectiveProvider = dto.provider ?? config.provider;
+    const effectiveBaseUrl =
+      dto.baseUrl !== undefined ? dto.baseUrl || null : config.baseUrl;
+    await this.assertBaseUrlNotSsrf(effectiveProvider, effectiveBaseUrl);
 
     if (dto.apiKey) {
       if (!this.encryptionKey) {
