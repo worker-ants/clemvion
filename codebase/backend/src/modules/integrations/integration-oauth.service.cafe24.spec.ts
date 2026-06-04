@@ -567,6 +567,62 @@ describe('IntegrationOAuthService — Cafe24', () => {
     });
   });
 
+  // W-3 — V072 통일 인덱스명(`idx_integration_workspace_service_mall`)을 사용하는
+  // race-backstop catch 분기 검증. in-memory 사전 체크가 통과한 후 동시 INSERT 가
+  // UNIQUE 위반을 발생시키면 409(CAFE24_PRIVATE_APP_ALREADY_CONNECTED) 로 변환한다.
+  // ALREADY_CONNECTED_BY_SERVICE['cafe24'] 레지스트리 경유 — 에러 코드·메시지를
+  // throwIfUniqueViolation 과 공유.
+  describe('begin — private app concurrent INSERT race-backstop (V072 unified constraint)', () => {
+    function privateBeginParams() {
+      return {
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        service: 'cafe24' as const,
+        scopes: ['mall.read_product'],
+        mode: 'new' as const,
+        providerMeta: {
+          mall_id: 'priv-shop',
+          app_type: 'private' as const,
+          client_id: 'cid',
+          client_secret: 'csec',
+        },
+      };
+    }
+
+    it('translates idx_integration_workspace_service_mall violation → CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409)', async () => {
+      // No existing row in the pre-check (in-memory guard passes), but the
+      // concurrent INSERT triggers the unified UNIQUE constraint.
+      integrationRepo.find = jest.fn().mockResolvedValue([]);
+      integrationRepo.create.mockImplementation((d: unknown) => d);
+      const dbRaceError = Object.assign(
+        new Error('duplicate key value violates unique constraint'),
+        {
+          code: '23505',
+          constraint: 'idx_integration_workspace_service_mall',
+        },
+      );
+      integrationRepo.save = jest.fn().mockRejectedValueOnce(dbRaceError);
+
+      const error = await service.begin(privateBeginParams()).catch((e) => e);
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+      );
+    });
+
+    it('re-throws non-unique-violation errors from the race-backstop catch', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([]);
+      integrationRepo.create.mockImplementation((d: unknown) => d);
+      const otherError = Object.assign(new Error('connection reset'), {
+        code: '08006',
+      });
+      integrationRepo.save = jest.fn().mockRejectedValueOnce(otherError);
+
+      await expect(service.begin(privateBeginParams())).rejects.toMatchObject({
+        message: 'connection reset',
+      });
+    });
+  });
+
   // Public 흐름 사전 가드 (2026-05-16). 옛 코드는 public begin 단계에서
   // 중복 체크가 없어 사용자가 Cafe24 동의까지 마친 뒤 finalize 단계의
   // V045 partial UNIQUE 위반이 500 으로 빠지던 UX 결함을 막는다.

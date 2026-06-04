@@ -1329,6 +1329,14 @@ describe('IntegrationsService', () => {
       expect(captured?.response?.code).toBe('INTEGRATION_ALREADY_CONNECTED');
     });
 
+    // INFO #2 — serviceType=undefined 시 generic fallback 동작 명시 검증.
+    // throwIfUniqueViolation 의 serviceType 은 optional 이며, 미전달 시
+    // GENERIC_ALREADY_CONNECTED 로 degrade 해야 한다 (silent fallback 의도 명시).
+    it('falls back to generic INTEGRATION_ALREADY_CONNECTED (409) when serviceType is undefined', () => {
+      const captured = callThrowIfUniqueViolation(unifiedDupError(), undefined);
+      expect(captured?.response?.code).toBe('INTEGRATION_ALREADY_CONNECTED');
+    });
+
     it('translates integration name unique violation to INTEGRATION_NAME_TAKEN (409)', async () => {
       integrationRepo.save = jest.fn().mockRejectedValueOnce(
         Object.assign(

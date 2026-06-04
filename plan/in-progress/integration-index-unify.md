@@ -37,12 +37,12 @@ CREATE INDEX CONCURRENTLY idx_integration_service_mall
 **코드**: `integrations.service.ts#throwIfUniqueViolation` 의 인덱스명별 분기(cafe24/makeshop) → 통합 제약명 `idx_integration_workspace_service_mall` 단일 분기 + `Map<serviceType, {code,message}>` 레지스트리로 서비스별 already-connected 에러 매핑 (C-6 레지스트리 패턴 일관). serviceType 은 저장 대상 엔티티에서 전달.
 
 ## 산출물
-- [ ] `migrations/V072__integration_unify_store_identifier_index.sql` (+ .conf, non-transactional): DROP V046/V071 UNIQUE + V051 cafe24 lookup → CREATE 통합 UNIQUE + 통합 lookup
-- [ ] `integrations.service.ts` `throwIfUniqueViolation` 레지스트리화 (+ serviceType 전달)
-- [ ] `spec/1-data-model.md §3` 인덱스 표: 3 per-service 행 → 2 통합 행. §2.10 mall_id 비즈니스 규칙 wording 일반화
-- [ ] `spec/4-nodes/4-integration/4-cafe24.md`·`5-makeshop.md`·`spec/2-navigation/4-integration.md` 의 옛 인덱스명/`V045 partial UNIQUE` 참조 갱신
-- [ ] 테스트: integrations.service.spec (throwIfUniqueViolation 서비스별 매핑), e2e(스키마+중복검사)
-- [ ] TEST WORKFLOW + `/ai-review` + `/consistency-check --impl-done`
+- [x] `migrations/V072__integration_unify_store_identifier_index.sql` (+ .conf, non-transactional): DROP V046/V071 UNIQUE + V051 cafe24 lookup → CREATE 통합 UNIQUE + 통합 lookup
+- [x] `integrations.service.ts` `throwIfUniqueViolation` 레지스트리화 (+ serviceType 전달)
+- [x] `spec/1-data-model.md §3` 인덱스 표: 3 per-service 행 → 2 통합 행. §2.10 mall_id 비즈니스 규칙 wording 일반화 (+ `spec/data-flow/5-integration.md` 인덱스 정의 V072 갱신)
+- [x] `spec/4-nodes/4-integration/4-cafe24.md`·`5-makeshop.md`·`spec/2-navigation/4-integration.md` 의 옛 인덱스명/`V045 partial UNIQUE` 참조 갱신
+- [x] 테스트: integrations.service.spec (throwIfUniqueViolation 서비스별 매핑 + serviceType=undefined 케이스), race-backstop 단위 테스트 (cafe24.spec + makeshop.spec), e2e 168/168 통과 (commit 033d9323)
+- [x] TEST WORKFLOW + `/ai-review` (ai-review resolution 완료) + `/consistency-check --impl-done`
 
 ## 주의
 - DROP/CREATE INDEX CONCURRENTLY 는 트랜잭션 밖 — `.conf` `executeInTransaction=false` (V046/V051/V071 패턴).

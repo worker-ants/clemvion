@@ -392,6 +392,48 @@ describe('IntegrationOAuthService — MakeShop', () => {
       expect(url).toBe('https://app.example.com/integrations/mk-connected');
       delete process.env.FRONTEND_URL;
     });
+
+    // W-3 — V072 통일 인덱스명(`idx_integration_workspace_service_mall`)을 사용하는
+    // race-backstop catch 분기 검증. in-memory 사전 체크가 통과한 후 동시 save() 가
+    // UNIQUE 위반을 발생시키면 409(MAKESHOP_ALREADY_CONNECTED) 로 변환한다.
+    // ALREADY_CONNECTED_BY_SERVICE['makeshop'] 레지스트리 경유 — 에러 코드·메시지를
+    // throwIfUniqueViolation 과 공유.
+    it('translates idx_integration_workspace_service_mall violation → MAKESHOP_ALREADY_CONNECTED (409) on concurrent save', async () => {
+      const row = buildFakeMakeshopIntegration({ mallId: null });
+      integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+      integrationRepo.find = jest.fn().mockResolvedValue([]); // pre-check: no connected dup
+      const dbRaceError = Object.assign(
+        new Error('duplicate key value violates unique constraint'),
+        {
+          code: '23505',
+          constraint: 'idx_integration_workspace_service_mall',
+        },
+      );
+      integrationRepo.save = jest.fn().mockRejectedValueOnce(dbRaceError);
+
+      const query = makeInstallQuery('myshop', 'mk-client-secret');
+      const error = await service
+        .handleMakeshopInstall(INSTALL_TOKEN, query)
+        .catch((e) => e);
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'MAKESHOP_ALREADY_CONNECTED',
+      );
+    });
+
+    it('re-throws non-unique-violation errors from the makeshop race-backstop catch', async () => {
+      const row = buildFakeMakeshopIntegration({ mallId: null });
+      integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+      integrationRepo.find = jest.fn().mockResolvedValue([]);
+      const otherError = Object.assign(new Error('connection reset'), {
+        code: '08006',
+      });
+      integrationRepo.save = jest.fn().mockRejectedValueOnce(otherError);
+
+      const query = makeInstallQuery('myshop', 'mk-client-secret');
+      await expect(
+        service.handleMakeshopInstall(INSTALL_TOKEN, query),
+      ).rejects.toMatchObject({ message: 'connection reset' });
+    });
   });
 
   // -------------------------------------------------------------------

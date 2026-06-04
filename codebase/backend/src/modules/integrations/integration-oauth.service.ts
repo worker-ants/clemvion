@@ -27,6 +27,10 @@ import { IntegrationOAuthPreview } from './entities/integration-oauth-preview.en
 import { findService } from './services/service-registry';
 import { decryptJson } from './services/credentials-transformer';
 import { isPostgresUniqueViolation } from '../../common/db/pg-error';
+import {
+  STORE_IDENTIFIER_UNIQUE_CONSTRAINT,
+  ALREADY_CONNECTED_BY_SERVICE,
+} from './integrations.constants';
 import { normalizeStatusReason } from './integration-status-reason';
 import { pickRestrictedApprovalScopes } from '../../nodes/integration/cafe24/metadata/restricted-approval';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
@@ -1403,8 +1407,10 @@ export class IntegrationOAuthService {
     } catch (err) {
       // Concurrent INSERT race: another request inserted the same
       // (workspace_id, service_type, mall_id) just now. 통일 store-identifier
-      // UNIQUE (V072 — idx_integration_workspace_service_mall) caught it.
-      // Translate to the same 409 the in-memory check would have raised.
+      // UNIQUE (V072 — STORE_IDENTIFIER_UNIQUE_CONSTRAINT) caught it.
+      // Translate to the same 409 the in-memory check would have raised,
+      // using the shared ALREADY_CONNECTED_BY_SERVICE registry so the error
+      // code/message stays in sync with throwIfUniqueViolation.
       const constraint =
         (err as { constraint?: string; driverError?: { constraint?: string } })
           ?.constraint ??
@@ -1412,11 +1418,12 @@ export class IntegrationOAuthService {
           ?.constraint;
       if (
         isPostgresUniqueViolation(err) &&
-        constraint === 'idx_integration_workspace_service_mall'
+        constraint === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
       ) {
+        const mapped = ALREADY_CONNECTED_BY_SERVICE['cafe24'];
         throw new ConflictException({
-          code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
-          message: `A Cafe24 integration for mall_id "${meta.mall_id}" already exists in this workspace.`,
+          code: mapped.code,
+          message: mapped.message,
         });
       }
       throw err;
@@ -1885,9 +1892,10 @@ export class IntegrationOAuthService {
     try {
       await this.integrationRepository.save(target);
     } catch (err) {
-      // 통일 store-identifier UNIQUE race (V072 —
-      // idx_integration_workspace_service_mall) — another install for the same
-      // shop_uid won.
+      // 통일 store-identifier UNIQUE race (V072 — STORE_IDENTIFIER_UNIQUE_CONSTRAINT)
+      // — another install for the same shop_uid won.
+      // Uses the shared ALREADY_CONNECTED_BY_SERVICE registry so the error
+      // code/message stays in sync with throwIfUniqueViolation.
       const constraint =
         (err as { constraint?: string; driverError?: { constraint?: string } })
           ?.constraint ??
@@ -1895,11 +1903,12 @@ export class IntegrationOAuthService {
           ?.constraint;
       if (
         isPostgresUniqueViolation(err) &&
-        constraint === 'idx_integration_workspace_service_mall'
+        constraint === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
       ) {
+        const mapped = ALREADY_CONNECTED_BY_SERVICE['makeshop'];
         throw new ConflictException({
-          code: 'MAKESHOP_ALREADY_CONNECTED',
-          message: `A MakeShop integration for shop_uid "${query.shop_uid}" already exists in this workspace.`,
+          code: mapped.code,
+          message: mapped.message,
         });
       }
       throw err;
