@@ -71,8 +71,9 @@ owner: developer
 
 ## Phase B — park 즉시 해제 + slow-path 일원화 [A 완료 후]
 
-### B1. park 시 coroutine 반환(해제)
+### B1. park 시 coroutine 반환(해제) — 멀티턴 turn-단위(D4)
 - [ ] `waitForFormSubmission`/`waitForButtonInteraction`/`waitForAiConversation` 의 `await new Promise()` 대기 제거 — durable 영속 후 **즉시 반환**해 `runExecution` 세그먼트 종료.
+- [ ] **멀티턴 AI = turn-단위 park(D4)**: `runAiConversationLoop` 의 장수 루프를 매 turn 입력 대기에서 **해제** — 한 turn 처리=한 세그먼트, 다음 메시지에 rehydration 재개. 응답 없는 대화도 메모리 0 점유. (turn 마다 rehydration 비용은 사람-페이스라 수용.)
 - [ ] `runExecutionFromQueue` 의 detached coroutine + `firstSegmentBarriers` 대기 단순화/제거 (park 가 곧 세그먼트 종료이므로 배리어 불필요).
 
 ### B2. 재개 = 항상 rehydration
@@ -108,17 +109,24 @@ owner: developer
 - **A2 멀티턴 직렬화**: `_resumeState` 의 비직렬화 요소(핸들러 ref·closure)는 이미 checkpoint allow-list 로 배제됨 — 재구성이 node.config 안정성에 의존. 워크플로 정의가 park 중 변경되면(편집) 재구성 의미 모호 → 결정 D3.
 - **B 전환**: 매 재개가 rehydration 비용 — 재개는 사람-페이스라 수용 가능하나, 고빈도 멀티턴(자율 루프)에서 turn 마다 rehydration 시 비용 누적 가능 → B2 에서 멀티턴은 "한 세그먼트 = 대화 종료까지" 유지할지 turn-단위 park 할지 결정 D4.
 
-## ⛔ 착수 차단 — consistency-check --plan BLOCK: YES (2026-06-05, `review/consistency/2026/06/05/08_04_44`)
-병렬 active worktree 와의 코어 충돌로 **착수 전 직렬화 합의 필수**. (C2/W4 stale-worktree 오탐은 `fix/exec-engine-park-worker-job-release` 정리로 해소.)
-- **C1 (진짜) — D5 로 승격**: `impl-exec-intake-queue` **PR3** 가 "rehydration 을 ai_agent 너머 일반 노드로 확장 + 멱등 재개(jobId·status 재검증·완료노드 미재실행)"를 이미 소유(`exec-intake-queue-impl.md` L44). 본 plan A2/B2 와 동일 표면(`rehydrateContext`/`rehydrateAndResume`, §7.5). **중복·분기 불가** → 소유권·머지 순서 합의 필요.
-- **W6 (3-way)**: `node-cancellation-infrastructure.md §2`(branch `claude/node-cancellation-engine-6bfcaa`)도 재개/dispatch 경로 공유. PR3 자신도 cancellation 과 직렬화 순서 미확정.
+## 통합 결정 (consistency-check --plan BLOCK: YES → 해소, 2026-06-05, `review/consistency/2026/06/05/08_04_44`)
+병렬 active worktree 코어 충돌(C1/W6)을 **단일 worktree 통합**(D5, 사용자 결정)으로 해소한다. C2/W4 stale-worktree 오탐은 `fix/exec-engine-park-worker-job-release` 정리로 해소.
+- **본 plan 이 통합 umbrella**: 아래를 본 worktree(`exec-park-durable-resume`)로 흡수해 직렬 진행한다 —
+  - `impl-exec-intake-queue` **PR3**(rehydration 을 ai_agent 너머 일반 노드로 확장 + 멱등 재개: jobId·`NodeExecution.status` 재검증·완료노드 미재실행) → 본 plan **Phase 0/A2** 로 흡수.
+  - `node-cancellation-infrastructure.md §2`(재개/dispatch 경로 공유) → 직렬화 순서 본 plan **Phase 0** 에서 확정.
+- 출처 plan 상호 cross-link + 해당 항목 "→ exec-park-durable-resume 로 이관" 표기 (planner). exec-intake-queue 의 PR2(concurrency cap)/PR4(priority)는 통합 범위 외 — 그대로 유지.
+
+## Phase 0 — 통합 baseline [선행, Phase A 전]
+- [ ] exec-intake-queue PR3 의 rehydration 일반화(ai_agent → 일반 노드) + 멱등 재개 코드를 본 worktree baseline 으로 흡수(rebase/cherry-pick) 또는 PR3 머지 후 rebase.
+- [ ] node-cancellation §2(`NodeExecution.status='cancelled'` enum·재개 경로)와의 직렬화 순서·status 가드 겹침 확정.
+- [ ] 출처 plan(exec-intake-queue PR3·node-cancellation §2) 항목 이관 표기 + cross-link (planner).
 
 ## 미해결 결정 (사용자/planner)
 - **D1 (확정 제안)**: conversationThread 영속 = **`Execution.conversation_thread jsonb`** (spec 예고 컬럼 §4 L211/§9.11 L284 채택). → 사용자 승인 시 확정.
 - **D2**: user-defined variables 복원을 본 plan 범위에 포함할지, 별도 plan 분리할지.
 - **D3**: park 중 워크플로 정의 편집 시 재개 정책(현행 node.config 재유도 의미 유지 여부).
-- **D4**: 멀티턴 AI 를 turn-단위 park(매 turn 해제) vs 대화-단위 세그먼트(종료까지 유지) — 메모리 vs rehydration 비용 트레이드오프.
-- **D5 (BLOCK 해소 핵심)**: exec-intake-queue PR3 와의 관계 — (a) PR3 를 "rehydration 일반화 소유" 로 두고 본 plan(A2/B2)은 그 인프라를 **소비/전제**(PR3 선행 머지), (b) 본 plan 이 rehydration 일반화를 흡수하고 PR3 는 큐 인프라만, (c) 단일 worktree 통합. + node-cancellation 직렬화 순서.
+- **D4 (확정 2026-06-05)**: 멀티턴 AI = **turn-단위 park(매 turn 해제)** — 메모리 일관성 우선(B1 반영).
+- **D5 (확정 2026-06-05)**: **단일 worktree 통합** — 본 plan 이 exec-intake-queue PR3(rehydration)+node-cancellation §2 를 흡수해 직렬 진행(Phase 0). BLOCK 해소.
 
 ## 진행 메모
 - 2026-06-05 착수. #468 머지 확인(main `9f30216f`). durability 맵 조사 완료(본 plan "현행 durability 맵").
