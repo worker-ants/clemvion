@@ -20,11 +20,24 @@ related_plan: plan/in-progress/ai-context-memory-auto.md
       로 물리 축소. 페어링은 **`user` 메시지 경계에서만 자르는** 불변식으로 보존(tool_use↔tool_result
       쌍 절대 무손상). `manual` 무영향(회귀 0). spec §6.2 d.6 + §12.14, `meta.memory.compactedMessages`
       노출. 구현: `agent-memory-injection.ts` (순수 함수) + `ai-agent.handler.ts` 멀티턴 경로 배선.
-- [ ] **persistent 증분 추출 + 구조화 dedup**: 현재 매 turn 전체 thread 스냅샷 추출 +
-      정확일치 dedup (FIFO 1000 으로 흡수). 직전 N turn 만 증분 추출 + 의미 기반 dedup/
-      갱신(Mem0 식 fact 최신화). spec `17-agent-memory.md §6`.
-- [ ] **persistent TTL 만료**: 현재 scope 당 최신 1000 FIFO/LRU. 시간 기반 만료 옵션.
-- [ ] **추출 분류 깊이**: fact / preference / entity 구조화 (`metadata.kind`).
+- [x] **persistent 증분 추출 + 구조화 dedup** — 2026-06-04 구현 완료 (AGM-08·AGM-09).
+      **증분 추출**: 멀티턴 `_resumeState.lastExtractionTurnSeq` watermark 도입 —
+      `scheduleMemoryExtraction` 가 `seq > watermark` turn 만 snapshot 해 enqueue 후
+      새 max seq 를 반환하고 `_resumeState` 로 영속(신규 0개면 skip). single-turn 은
+      전체 추출 유지. **의미 dedup**: `AgentMemoryService.saveMemories` 가 무조건 INSERT
+      대신 `findSimilarFact`(recall cosine SQL 재사용, LIMIT 1, `MEMORY_DEDUP_SIMILARITY=0.85`)
+      로 유사 기존 fact 탐색 → 있으면 UPDATE(content/embedding/metadata/updated_at), 없으면
+      INSERT. batch 내 중복도 in-memory cosine 으로 방지. spec `17-agent-memory.md §3·§4`.
+- [x] **persistent TTL 만료** — 2026-06-04 구현 완료 (AGM-10). 마이그레이션 `V079`
+      (`expires_at TIMESTAMPTZ NULL` + partial index `WHERE expires_at IS NOT NULL`).
+      노드 config `memoryTtlDays`(Integer optional, visibleWhen persistent) → enqueue
+      payload `ttlDays` → processor → `saveMemories(…, ttlDays)` → `expires_at = now()+ttlDays`.
+      recall 은 `(expires_at IS NULL OR expires_at > now())` 필터, evict 는 만료 row
+      `DELETE WHERE expires_at < now()` 후 기존 FIFO. 미설정=무만료(기존 동작 보존).
+- [x] **추출 분류 깊이** — 2026-06-04 구현 완료 (AGM-11). 추출 프롬프트가 `{content, kind}`
+      (kind ∈ fact/preference/entity) JSON 반환. `parseExtractionResponse` 가 객체·문자열
+      (구 shape, fallback `fact`) 모두 수용. `metadata.kind` 에 분류 저장(기존 hardcoded
+      `fact` 대체).
 - [ ] **메모리 가시화 UI**: workspace 어드민이 scope 별 누적 메모리 조회/삭제.
 - [ ] **text_classifier / information_extractor 자동 주입(contextScope/memoryStrategy) 확장**:
       현재 자동 주입은 ai_agent 한정 (push 는 세 노드 모두 출하). `0-common.md §10`,

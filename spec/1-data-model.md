@@ -755,11 +755,12 @@ AI Agent 노드의 `memoryStrategy: 'persistent'` 전략에서 세션 간 추출
 | scope_key | String | 메모리 스코프 키. AI Agent 노드의 `memoryKey` (Expression 평가값) 가 있으면 그 값, 없으면 `execution_id` ([Spec Agent Memory §스코프 키](./5-system/17-agent-memory.md)). `(workspace_id, scope_key)` 가 한 메모리 네임스페이스 |
 | content | Text | 추출된 사실/선호 텍스트 원본 (회수 시 LLM 컨텍스트로 주입) |
 | embedding | Vector | `content` 의 벡터 임베딩 (pgvector — `DocumentChunk.embedding` 과 동일 확장·차원 정책) |
-| metadata | JSONB | `{ source_node_id?, source_execution_id?, kind?, … }` — 추출 출처·분류 메타 |
+| metadata | JSONB | `{ source_node_id?, source_execution_id?, kind?, … }` — 추출 출처·분류 메타. `kind ∈ fact/preference/entity` (추출 분류) |
 | created_at | Timestamp | 추출 시각 (forgetting FIFO/LRU evict 기준) |
-| updated_at | Timestamp | 마지막 갱신 시각 |
+| updated_at | Timestamp | 마지막 갱신 시각 (의미 dedup UPDATE 시 갱신) |
+| expires_at | Timestamp? | TTL 만료 시각 (nullable, NULL=무만료). `memoryTtlDays` set 시 `now() + ttlDays`. recall 은 미만료만, evict 는 만료 row 삭제 |
 
-**forgetting**: `(workspace_id, scope_key)` 당 최신 `AGENT_MEMORY_MAX_PER_SCOPE = 1000` 건만 보존 — 초과 시 `created_at` 오래된 순으로 evict (FIFO/LRU). TTL 기반 만료는 v2 ([Spec Agent Memory §forgetting](./5-system/17-agent-memory.md)).
+**의미 dedup/갱신**: 저장 시 cosine 유사도 ≥ `MEMORY_DEDUP_SIMILARITY = 0.85` 인 기존 fact 가 있으면 INSERT 대신 그 row UPDATE (같은 사실 최신화). **forgetting**: 만료 row 삭제(`expires_at < now()`) 후 `(workspace_id, scope_key)` 당 최신 `AGENT_MEMORY_MAX_PER_SCOPE = 1000` 건만 보존 — 초과 시 `created_at` 오래된 순으로 evict (FIFO/LRU). ([Spec Agent Memory §4](./5-system/17-agent-memory.md)).
 
 
 ---
@@ -798,6 +799,7 @@ AI Agent 노드의 `memoryStrategy: 'persistent'` 전략에서 세션 간 추출
 | AssistantMessage | (session_id, created_at ASC) | 세션 내 메시지 시간순 페이징 |
 | AgentMemory | (workspace_id, scope_key) | persistent 메모리 스코프별 회수·evict 조회 (workspace 격리 강제) |
 | AgentMemory | partial HNSW/IVFFlat (embedding) | pgvector 유사도 회수 — `DocumentChunk` 와 동일 차원별 partial 인덱스 정책 ([Spec Agent Memory §회수](./5-system/17-agent-memory.md)) |
+| AgentMemory | partial (expires_at) `WHERE expires_at IS NOT NULL` | TTL evict 만료 스캔 가속. 무만료(NULL) row 제외로 인덱스 경량 (V079) |
 | Integration | (workspace_id, status) | 만료/에러 상태 배지 카운트 + `pending_install` TTL 스캐너 조회 + 중복 방지 lookup 겸용 ([Spec 통합 화면 §6](./2-navigation/4-integration.md#6-상태-전이)) |
 | Integration | (install_token) WHERE install_token IS NOT NULL | Cafe24 Private App URL (`/3rd-party/cafe24/install/:installToken`) 및 MakeShop ShopStore install-first App URL 의 단일 row 식별 — `pending_install` 상태에서 사용. NULL 비저장 부분 인덱스로 인덱스 크기 최소화. V043 |
 | Integration | (workspace_id, service_type, mall_id) WHERE mall_id IS NOT NULL UNIQUE | 통합 store-identifier 중복 방지 — `idx_integration_workspace_service_mall`. **service_type 무관 — 신규 통합은 인덱스 추가 불필요**. 한 workspace 안에서 같은 (service_type, mall_id) 의 통합은 최대 1행 (cafe24 는 `mall_id`, makeshop 은 `shop_uid` 투영; public 과 private 동시 보유 불가). 서로 다른 service 가 같은 mall_id 값을 가져도 무관(정상). 옛 per-service UNIQUE (V046 cafe24 / V071 makeshop) 통일. V072 (V045 컬럼 추가와 분리 — CONCURRENTLY 와 ALTER 가 한 마이그레이션에 공존 불가) |

@@ -1052,9 +1052,18 @@ export class AiAgentHandler implements NodeHandler {
     config: Record<string, unknown>;
     workspaceId: string;
     executionId: string;
-  }): Promise<void> {
-    if (args.strategy !== 'persistent' || !this.agentMemoryService) return;
-    if (!this.conversationThreadService || !args.target) return;
+    /**
+     * 증분 추출 watermark — 직전 추출이 커버한 마지막 turn 의 seq (멀티턴
+     * `_resumeState.lastExtractionTurnSeq`). 이 seq 초과 turn 만 새로 snapshot
+     * 한다 (AGM-08). undefined (single-turn / 미설정) 면 전체 turn snapshot.
+     */
+    lastExtractionTurnSeq?: number;
+  }): Promise<number | undefined> {
+    const prevWatermark = args.lastExtractionTurnSeq;
+    if (args.strategy !== 'persistent' || !this.agentMemoryService) {
+      return prevWatermark;
+    }
+    if (!this.conversationThreadService || !args.target) return prevWatermark;
 
     const evaluatedMemoryKey = args.config.memoryKey as
       | string
@@ -1065,20 +1074,30 @@ export class AiAgentHandler implements NodeHandler {
       args.executionId,
     );
 
-    // 직전 user↔assistant 교환을 추출 대상으로 — self 노드의 ai_user /
-    // ai_assistant turn 이 핵심이므로 전체 thread 를 스냅샷한다 (회수와 달리
-    // self-제외 불필요: 추출 입력은 방금 끝난 대화 그 자체).
+    // 증분 추출 (AGM-08): watermark 가 있으면 seq > watermark 인 turn 만 새로
+    // snapshot 한다 (멀티턴에서 매 turn 전체 thread 를 재추출하지 않도록).
+    // watermark 없으면 (single-turn / 첫 추출) 전체 turn 을 snapshot.
     //
     // shallow-copy 스냅샷 — ConversationTurn 은 push 후 frozen 이라 array
     // map 복사만으로 격리 충분 (spec §3 격리 invariant, conversation-thread
     // §3.2 — `cloneThread` 와 동형). 이후 메인 루프가 thread 에 새 turn 을
     // push 해도 본 snapshot 배열은 영향받지 않는다.
     const fullThread = this.conversationThreadService.getThread(args.target);
-    const snapshot = fullThread.turns.map((t) => ({
+    const fresh =
+      prevWatermark === undefined
+        ? fullThread.turns
+        : fullThread.turns.filter((t) => t.seq > prevWatermark);
+
+    // 신규 turn 이 없으면 enqueue skip — watermark 는 그대로 유지.
+    if (fresh.length === 0) return prevWatermark;
+
+    const snapshot = fresh.map((t) => ({
       source: t.source,
       text: t.text,
       nodeLabel: t.nodeLabel,
     }));
+
+    const ttlDays = this.resolveMemoryTtlDays(args.config.memoryTtlDays);
 
     await this.agentMemoryService.scheduleExtraction({
       workspaceId: args.workspaceId,
@@ -1086,7 +1105,30 @@ export class AiAgentHandler implements NodeHandler {
       llmConfigId: args.config.llmConfigId as string | undefined,
       model: args.config.model as string | undefined,
       turns: snapshot,
+      ttlDays,
     });
+
+    // enqueue 한 snapshot 의 최대 seq 로 watermark 갱신 — 다음 turn state 로 영속.
+    const maxSeq = fresh.reduce(
+      (m, t) => (t.seq > m ? t.seq : m),
+      prevWatermark ?? -1,
+    );
+    return maxSeq;
+  }
+
+  /**
+   * 노드 config `memoryTtlDays` → 양의 정수 TTL (일) 또는 undefined (무만료).
+   * 0/음수/비숫자는 무만료로 본다 (안전 디폴트 — 기존 무만료 동작 보존, AGM-10).
+   */
+  private resolveMemoryTtlDays(raw: unknown): number | undefined {
+    const n =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string'
+          ? Number(raw)
+          : NaN;
+    if (!Number.isFinite(n) || n <= 0) return undefined;
+    return Math.floor(n);
   }
 
   /**
@@ -2080,6 +2122,8 @@ export class AiAgentHandler implements NodeHandler {
       memoryKey: config.memoryKey,
       memoryTopK: config.memoryTopK,
       memoryThreshold: config.memoryThreshold,
+      // persistent TTL (일) — saveMemories expires_at 산정용 (AGM-10). 매 turn 재적용.
+      memoryTtlDays: config.memoryTtlDays,
       contextInjectionMode: config.contextInjectionMode,
       workspaceId,
       executionId: context.executionId,
@@ -2757,13 +2801,21 @@ export class AiAgentHandler implements NodeHandler {
     // 턴 경계 비동기 추출 enqueue (spec §6.1 단계 2.7 — multi-turn 매 turn
     // 종료 후). persistent 전략에서만 발화. config 는 state (turn-1 snapshot),
     // target 은 state 가 들고 있는 thread ref.
-    await this.scheduleMemoryExtraction({
+    //
+    // 증분 추출 (AGM-08): state 의 watermark (lastExtractionTurnSeq) 를 넘겨 이
+    // 후 turn 만 추출하고, 반환된 새 watermark 를 _resumeState 로 영속한다.
+    const prevExtractionSeq =
+      typeof state.lastExtractionTurnSeq === 'number'
+        ? state.lastExtractionTurnSeq
+        : undefined;
+    const nextExtractionSeq = await this.scheduleMemoryExtraction({
       strategy: multiTurnMemoryStrategy,
       target: this.threadHolderFromState(state),
       selfNodeId: (state.nodeId as string) ?? '',
       config: state,
       workspaceId,
       executionId: executionId ?? '',
+      lastExtractionTurnSeq: prevExtractionSeq,
     });
 
     totalInputTokens += result.usage?.inputTokens ?? 0;
@@ -2885,6 +2937,11 @@ export class AiAgentHandler implements NodeHandler {
         lastTurnResponse: result,
         lastTurnDurationMs: turnDurationMs,
         turnDebugHistory,
+        // 증분 추출 watermark 영속 (AGM-08) — 다음 resume turn 이 이 seq 초과
+        // turn 만 추출하도록. undefined 면 키를 두지 않아 다음 turn 이 전체 추출.
+        ...(nextExtractionSeq !== undefined
+          ? { lastExtractionTurnSeq: nextExtractionSeq }
+          : {}),
         // spec §7.4 — pendingFormToolCall set when render_form triggered
         // blocking. Resumed turn re-attaches submission to this toolCallId.
         ...(pendingFormBlock ? { pendingFormToolCall: pendingFormBlock } : {}),

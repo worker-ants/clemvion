@@ -22,6 +22,17 @@ import {
 export const AGENT_MEMORY_MAX_PER_SCOPE = 1000;
 
 /**
+ * 의미기반 dedup/갱신 임계치 (spec/5-system/17-agent-memory.md §4 forgetting,
+ * AGM-09). 신규 추출 fact 의 임베딩이 같은 (workspace_id, scope_key) 의 기존
+ * fact 와 cosine 유사도가 이 값 이상이면 INSERT 대신 그 기존 row 를 UPDATE
+ * (같은 사실의 최신화 — Mem0 식). recall 의 cosine SQL 을 재사용한다.
+ *
+ * 0.85 — recall 기본 threshold(0.7)보다 보수적으로 높여, "관련은 있으나 다른
+ * 사실"(0.7~0.85)은 별도 저장하고 "사실상 같은 사실"(≥0.85)만 갱신한다.
+ */
+export const MEMORY_DEDUP_SIMILARITY = 0.85;
+
+/**
  * 임베딩에 사용할 LLMConfig·모델 출처. KnowledgeBase 의 (embeddingLlmConfigId, embeddingModel)
  * 해석 경로를 그대로 재사용한다 (EmbeddingService / RagSearchService 와 동형).
  *
@@ -66,6 +77,25 @@ const INSTRUCTION_PATTERNS: RegExp[] = [
 
 function looksLikeInstruction(content: string): boolean {
   return INSTRUCTION_PATTERNS.some((re) => re.test(content));
+}
+
+/**
+ * 두 임베딩 벡터의 cosine 유사도 (AGM-09 batch 내 dedup). DB round-trip 없이
+ * 같은 batch 안의 신규 fact 끼리 비교한다 — recall/findSimilarFact 의 pgvector
+ * cosine 과 동일 정의. 길이가 다르거나 0-norm 이면 0 (비유사) 반환.
+ */
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 export interface RecallOptions {
@@ -117,6 +147,7 @@ export class AgentMemoryService {
     llmConfigId?: string | null;
     model?: string | null;
     turns: ExtractionTurnSnapshot[];
+    ttlDays?: number | null;
   }): Promise<void> {
     if (!this.extractionQueue) return;
     if (!args.workspaceId || !args.scopeKey) return;
@@ -132,6 +163,8 @@ export class AgentMemoryService {
           // 방어적 shallow-copy — 호출부가 이미 격리 스냅샷을 넘기지만,
           // producer 가 payload 직렬화 전 array 를 재참조하지 않도록 한 번 더.
           turns: [...args.turns],
+          // TTL (일) — 노드 config memoryTtlDays → payload → processor → saveMemories (AGM-10).
+          ttlDays: args.ttlDays ?? null,
         },
         { removeOnComplete: 100, removeOnFail: 100 },
       );
@@ -237,6 +270,7 @@ export class AgentMemoryService {
           AND am.scope_key = $3
           AND vector_dims(am.embedding) = ${dim}
           AND am.embedding IS NOT NULL
+          AND (am.expires_at IS NULL OR am.expires_at > now())
           AND 1 - (am.embedding::${castExpr} <=> $1::${castExpr}) >= $4
         ORDER BY score DESC
         LIMIT $5`,
@@ -255,16 +289,27 @@ export class AgentMemoryService {
   }
 
   /**
-   * 추출된 사실/선호를 임베딩 후 insert + forgetting evict (spec §4, AGM-06).
-   * content 임베딩은 EmbeddingService/RagSearch 와 동일한 LlmService.embed 경로를 쓴다.
-   * insert 후 (workspace_id, scope_key) 당 AGENT_MEMORY_MAX_PER_SCOPE 초과분을
-   * created_at 오래된 순으로 삭제한다. 모든 쿼리는 workspace_id 격리 (§5, AGM-07).
+   * 추출된 사실/선호를 임베딩 후 **의미기반 dedup/갱신 (Mem0 식)** 으로 저장한다
+   * (spec §4, AGM-06/AGM-09). content 임베딩은 EmbeddingService/RagSearch 와
+   * 동일한 LlmService.embed 경로를 쓴다.
+   *
+   * 각 신규 fact 의 임베딩으로 같은 (workspace_id, scope_key) 안에서
+   * `findSimilarFact` (recall cosine SQL 재사용, LIMIT 1, MEMORY_DEDUP_SIMILARITY)
+   * 로 유사 기존 fact 를 찾는다. 있으면 그 row 를 UPDATE (content/embedding/
+   * metadata/expires_at/updated_at 갱신 — 같은 사실의 최신화), 없으면 INSERT.
+   * 같은 batch 안의 신규 fact 간 중복도 방지 — 직전 INSERT 한 fact 와 유사하면
+   * 그 row 를 다시 UPDATE 한다.
+   *
+   * `ttlDays` 가 양수면 `expires_at = now() + ttlDays` 를 채운다 (미설정/0/음수
+   * = 무만료, NULL — 기존 동작 보존, AGM-10). 마지막에 forgetting evict
+   * (만료 row + FIFO 초과분) 를 호출한다. 모든 쿼리는 workspace_id 격리 (§5, AGM-07).
    */
   async saveMemories(
     workspaceId: string,
     scopeKey: string,
     items: MemoryItem[],
     embedCfgSource: EmbedConfigSource,
+    ttlDays?: number | null,
   ): Promise<void> {
     if (!workspaceId || !scopeKey) return;
     const valid = items.filter((it) => {
@@ -292,47 +337,195 @@ export class AgentMemoryService {
       model,
     );
 
-    const values: string[] = [];
-    const params: unknown[] = [];
-    let paramIdx = 1;
+    // ttlDays 양수면 expires_at 절대시각. NULL = 무만료 (디폴트). 한 batch 의
+    // 모든 항목이 같은 만료 시각을 공유하도록 한 번만 계산.
+    const expiresAtSql =
+      ttlDays != null && ttlDays > 0
+        ? `now() + INTERVAL '${ttlDays} days'`
+        : null;
+
+    // 같은 batch 안에서 직전 항목들이 UPDATE/INSERT 한 row id 를 추적해, 후속
+    // 항목이 그 row 와 유사하면 새 INSERT 대신 그 row 를 다시 갱신 (batch 내
+    // 중복 방지). 사실상 같은 fact 가 한 추출 응답에 두 번 나오는 케이스.
+    const batchSeen: { id: string; embedding: number[] }[] = [];
+
     for (let i = 0; i < valid.length; i++) {
       const item = valid[i];
       const embedding = embeddings[i];
       if (!embedding || embedding.length === 0) {
         throw new Error('Embedding vector is empty');
       }
-      const vectorStr = `[${embedding.join(',')}]`;
-      values.push(
-        `($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}::vector, $${paramIdx + 4})`,
+
+      // 1) batch 내 직전 fact 중 유사한 것 — cosine 으로 in-memory 비교.
+      const batchMatch = this.findSimilarInBatch(embedding, batchSeen);
+      if (batchMatch) {
+        await this.updateMemory(
+          batchMatch,
+          item.content,
+          embedding,
+          item.metadata,
+          expiresAtSql,
+        );
+        continue;
+      }
+
+      // 2) DB 의 기존 fact 중 유사한 것 (recall cosine SQL 재사용, LIMIT 1).
+      const existingId = await this.findSimilarFact(
+        workspaceId,
+        scopeKey,
+        embedding,
       );
-      params.push(
+      if (existingId) {
+        await this.updateMemory(
+          existingId,
+          item.content,
+          embedding,
+          item.metadata,
+          expiresAtSql,
+        );
+        batchSeen.push({ id: existingId, embedding });
+        continue;
+      }
+
+      // 3) 신규 INSERT — id 회수해 batch 추적에 추가.
+      const insertedId = await this.insertMemory(
         workspaceId,
         scopeKey,
         item.content,
-        vectorStr,
-        JSON.stringify(item.metadata ?? {}),
+        embedding,
+        item.metadata,
+        expiresAtSql,
       );
-      paramIdx += 5;
+      batchSeen.push({ id: insertedId, embedding });
     }
 
-    await this.dataSource.query(
-      `INSERT INTO agent_memory (workspace_id, scope_key, content, embedding, metadata)
-       VALUES ${values.join(', ')}`,
-      params,
-    );
-
-    await this.evictOldest(workspaceId, scopeKey);
+    await this.evictExpiredAndOldest(workspaceId, scopeKey);
   }
 
   /**
-   * forgetting evict (spec §4): (workspace_id, scope_key) 당 최신 N=AGENT_MEMORY_MAX_PER_SCOPE
-   * 건만 보존. 초과 시 created_at 오래된 순 (동률은 id) 으로 삭제. ConversationThread 의
-   * STORAGE_MAX_TURNS evict 와 동형. workspace_id 격리 강제.
+   * 같은 (workspace_id, scope_key) 안에서 주어진 임베딩과 cosine 유사도가
+   * MEMORY_DEDUP_SIMILARITY 이상인 기존 fact 의 id 를 1건 찾는다 (AGM-09).
+   * recall 의 cosine SQL 을 미러하되 score 가 아닌 id 만, LIMIT 1 로 반환한다.
+   * 만료 row 는 갱신 대상에서 제외 (recall 과 동일 필터). 지원되지 않는 차원/
+   * 에러는 null (graceful — dedup 실패가 INSERT 경로를 막지 않게).
    */
-  private async evictOldest(
+  private async findSimilarFact(
+    workspaceId: string,
+    scopeKey: string,
+    embedding: number[],
+  ): Promise<string | null> {
+    const dim = embedding.length;
+    if (!SUPPORTED_EMBEDDING_DIMS.has(dim)) return null;
+    try {
+      const vectorStr = `[${embedding.join(',')}]`;
+      const cast = getEmbeddingCastType(dim);
+      const castExpr = `${cast}(${dim})`;
+      const rows = await this.dataSource.query<{ id: string }[]>(
+        `SELECT am.id
+         FROM agent_memory am
+         WHERE am.workspace_id = $2
+           AND am.scope_key = $3
+           AND vector_dims(am.embedding) = ${dim}
+           AND am.embedding IS NOT NULL
+           AND (am.expires_at IS NULL OR am.expires_at > now())
+           AND 1 - (am.embedding::${castExpr} <=> $1::${castExpr}) >= $4
+         ORDER BY 1 - (am.embedding::${castExpr} <=> $1::${castExpr}) DESC
+         LIMIT 1`,
+        [vectorStr, workspaceId, scopeKey, MEMORY_DEDUP_SIMILARITY],
+      );
+      return rows[0]?.id ?? null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`Agent memory dedup lookup failed: ${message}`);
+      return null;
+    }
+  }
+
+  /** batch 내 직전 처리한 fact 중 cosine 유사도 ≥ 임계치인 row id (AGM-09). */
+  private findSimilarInBatch(
+    embedding: number[],
+    seen: { id: string; embedding: number[] }[],
+  ): string | null {
+    for (const prev of seen) {
+      if (prev.embedding.length !== embedding.length) continue;
+      if (
+        cosineSimilarity(prev.embedding, embedding) >= MEMORY_DEDUP_SIMILARITY
+      ) {
+        return prev.id;
+      }
+    }
+    return null;
+  }
+
+  /** 단일 fact INSERT — 생성된 id 반환 (batch dedup 추적용). */
+  private async insertMemory(
+    workspaceId: string,
+    scopeKey: string,
+    content: string,
+    embedding: number[],
+    metadata: Record<string, unknown> | undefined,
+    expiresAtSql: string | null,
+  ): Promise<string> {
+    const vectorStr = `[${embedding.join(',')}]`;
+    const rows = await this.dataSource.query<{ id: string }[]>(
+      `INSERT INTO agent_memory (workspace_id, scope_key, content, embedding, metadata, expires_at)
+       VALUES ($1, $2, $3, $4::vector, $5, ${expiresAtSql ?? 'NULL'})
+       RETURNING id`,
+      [
+        workspaceId,
+        scopeKey,
+        content,
+        vectorStr,
+        JSON.stringify(metadata ?? {}),
+      ],
+    );
+    return rows[0].id;
+  }
+
+  /**
+   * 유사 기존 fact 를 최신 content/embedding/metadata/expires_at 으로 갱신
+   * (AGM-09 — 같은 사실의 최신화). updated_at 은 갱신 시각으로 바꾼다.
+   */
+  private async updateMemory(
+    id: string,
+    content: string,
+    embedding: number[],
+    metadata: Record<string, unknown> | undefined,
+    expiresAtSql: string | null,
+  ): Promise<void> {
+    const vectorStr = `[${embedding.join(',')}]`;
+    await this.dataSource.query(
+      `UPDATE agent_memory
+       SET content = $2,
+           embedding = $3::vector,
+           metadata = $4,
+           expires_at = ${expiresAtSql ?? 'NULL'},
+           updated_at = now()
+       WHERE id = $1`,
+      [id, content, vectorStr, JSON.stringify(metadata ?? {})],
+    );
+  }
+
+  /**
+   * forgetting evict (spec §4, AGM-06/AGM-10): 두 단계로 삭제한다.
+   *  1. **TTL 만료** — `expires_at < now()` 인 row 삭제 (partial index 활용).
+   *  2. **FIFO/LRU** — 만료 정리 후 (workspace_id, scope_key) 당 최신
+   *     N=AGENT_MEMORY_MAX_PER_SCOPE 건만 보존, 초과는 created_at 오래된 순
+   *     (동률은 id) 삭제. ConversationThread 의 STORAGE_MAX_TURNS evict 와 동형.
+   * workspace_id 격리 강제.
+   */
+  private async evictExpiredAndOldest(
     workspaceId: string,
     scopeKey: string,
   ): Promise<void> {
+    // 1) TTL 만료 row 삭제 — partial index idx_agent_memory_expires_at 활용.
+    await this.dataSource.query(
+      `DELETE FROM agent_memory
+       WHERE workspace_id = $1 AND scope_key = $2
+         AND expires_at IS NOT NULL AND expires_at < now()`,
+      [workspaceId, scopeKey],
+    );
+    // 2) FIFO/LRU 초과분 삭제 (만료 정리 후 남은 row 기준).
     await this.dataSource.query(
       `DELETE FROM agent_memory
        WHERE id IN (

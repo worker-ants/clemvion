@@ -42,6 +42,30 @@ export interface AgentMemoryExtractionJob {
   llmConfigId?: string | null;
   model?: string | null;
   turns: ExtractionTurnSnapshot[];
+  /**
+   * persistent 메모리 TTL (일). 노드 config `memoryTtlDays` 가 enqueue payload 로
+   * 전달돼 processor 가 saveMemories 의 `expires_at = now() + ttlDays` 로 쓴다
+   * (spec §4 TTL, AGM-10). 미설정/0/음수 = 무만료 (디폴트, NULL).
+   */
+  ttlDays?: number | null;
+}
+
+/**
+ * 추출 항목 분류 (spec §3 추출 분류, AGM-11). LLM 이 각 항목을 fact/preference/
+ * entity 중 하나로 분류해 metadata.kind 로 저장한다. 미분류/미지원 값은 'fact'
+ * fallback (단순 사실 단위가 안전 디폴트 — 기존 v1 동작 보존).
+ */
+export type MemoryKind = 'fact' | 'preference' | 'entity';
+const MEMORY_KINDS: ReadonlySet<string> = new Set([
+  'fact',
+  'preference',
+  'entity',
+]);
+
+/** 추출 항목 — content + 분류 kind (AGM-11). */
+export interface ExtractedItem {
+  content: string;
+  kind: MemoryKind;
 }
 
 /**
@@ -53,11 +77,15 @@ export interface AgentMemoryExtractionJob {
 export const EXTRACTION_SYSTEM_PROMPT =
   '당신은 대화에서 사용자에 관한 "영속할 사실과 선호" 만 추출하는 메모리 추출기입니다. ' +
   '다음 대화에서 향후 세션에서도 유효한 사용자 사실(예: 이름·소속·계정 등급·보유 정보) 과 ' +
-  '선호(예: 말투·답변 형식·관심사) 를 간결한 한국어 평서문 목록으로 추출하세요. ' +
+  '선호(예: 말투·답변 형식·관심사) 를 간결한 한국어 평서문으로 추출하세요. ' +
   '한 항목에는 하나의 사실/선호만 담습니다. ' +
   '일시적 잡담·인사·질문 그 자체·어시스턴트의 답변 내용은 추출하지 마세요. ' +
-  '추출할 사실/선호가 없으면 빈 목록을 반환하세요. ' +
-  '출력은 반드시 JSON 배열 (문자열들의 배열) 한 개만, 다른 텍스트 없이 반환하세요. 예: ["사용자는 간결한 답변을 선호한다", "계정 등급은 gold 다"]';
+  '추출할 사실/선호가 없으면 빈 배열을 반환하세요. ' +
+  '각 항목을 {"content": "<평서문>", "kind": "<분류>"} 객체로 만들고, ' +
+  'kind 는 다음 중 하나입니다: ' +
+  '"fact" (일반 사실), "preference" (말투·형식·관심사 같은 선호), "entity" (이름·소속·계정 등 식별 개체). ' +
+  '출력은 반드시 JSON 배열 (객체들의 배열) 한 개만, 다른 텍스트 없이 반환하세요. ' +
+  '예: [{"content": "사용자는 간결한 답변을 선호한다", "kind": "preference"}, {"content": "계정 등급은 gold 다", "kind": "entity"}]';
 
 /**
  * turn 스냅샷을 추출 LLM 콜의 user 메시지(대화 transcript) 로 렌더한다. 순수
@@ -92,17 +120,23 @@ export function buildExtractionTranscript(
 }
 
 /**
- * 추출 LLM 응답을 사실 문자열 배열로 파싱한다 (spec §3 — content 단위 사실).
+ * 추출 LLM 응답을 분류된 항목(`{content, kind}`) 배열로 파싱한다 (spec §3 추출
+ * 분류, AGM-11).
  *
  * 우선 전체를 JSON 배열로 파싱하고, 실패하면 응답 안의 첫 `[ ... ]` 블록을
  * 시도한다 (모델이 설명을 앞뒤에 붙인 경우 graceful 회수). 그래도 실패하면
  * 빈 배열 (no-op) — 추출 실패가 저장 경로를 깨지 않게 한다.
  *
- * 결과는 trim + 빈 문자열 제거 + (정확 일치) dedup 후 반환한다.
+ * 각 배열 원소는 두 shape 를 모두 수용한다 (하위호환):
+ *  - 객체 `{content, kind}` — kind 가 fact/preference/entity 면 그대로, 그 외/
+ *    결손이면 'fact' fallback.
+ *  - 문자열 — content 로 보고 kind='fact' fallback (구 프롬프트/모델 호환).
+ *
+ * 결과는 content trim + 빈 문자열 제거 + (content 정확 일치) dedup 후 반환한다.
  */
 export function parseExtractionResponse(
   raw: string | null | undefined,
-): string[] {
+): ExtractedItem[] {
   if (!raw || !raw.trim()) return [];
   const tryParse = (s: string): unknown => {
     try {
@@ -125,15 +159,28 @@ export function parseExtractionResponse(
   }
   if (!Array.isArray(parsed)) return [];
 
-  const out: string[] = [];
+  const out: ExtractedItem[] = [];
   const seen = new Set<string>();
   for (const item of parsed) {
-    if (typeof item !== 'string') continue;
-    const v = item.trim();
+    let content: string | undefined;
+    let kind: MemoryKind = 'fact';
+    if (typeof item === 'string') {
+      content = item;
+    } else if (item && typeof item === 'object') {
+      const obj = item as Record<string, unknown>;
+      if (typeof obj.content === 'string') {
+        content = obj.content;
+      }
+      if (typeof obj.kind === 'string' && MEMORY_KINDS.has(obj.kind)) {
+        kind = obj.kind as MemoryKind;
+      }
+    }
+    if (typeof content !== 'string') continue;
+    const v = content.trim();
     if (!v) continue;
     if (seen.has(v)) continue;
     seen.add(v);
-    out.push(v);
+    out.push({ content: v, kind });
   }
   return out;
 }
