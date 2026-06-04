@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "started_at": "2026-06-04T10:50:00Z",
+  "summary_items_total": 7,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "24112949", "summary_id": "1,2,INFO1", "scope": "rerank"},
+    {"sha": "6136a036", "summary_id": "3,4,5,6", "scope": "spec"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260604-110535.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "info_items": ["I1 — resolved as part of code fix commit"]
+}
