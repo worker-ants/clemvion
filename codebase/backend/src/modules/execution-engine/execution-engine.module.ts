@@ -27,6 +27,8 @@ import { MakeshopModule } from '../../nodes/integration/makeshop/makeshop.module
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import { BackgroundExecutionProcessor } from './queues/background-execution.processor';
+import { EXECUTION_RUN_QUEUE } from './queues/execution-run.queue';
+import { ExecutionRunProcessor } from './queues/execution-run.processor';
 import { CONTINUATION_EXECUTION_QUEUE } from './queues/continuation-execution.queue';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
 import { ContinuationExecutionProcessor } from './continuation/continuation-execution.processor';
@@ -65,6 +67,9 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     // Phase 2 (workflow-resumable-execution) — durable continuation 영속 큐.
     // SoT: spec/5-system/4-execution-engine.md §7.4 / §9.3.
     BullModule.registerQueue({ name: CONTINUATION_EXECUTION_QUEUE }),
+    // PR1 (exec-intake-queue) — execution intake 큐. execute() 의 fire-and-forget
+    // in-process 호출 대체, work-stealing 분산. SoT: §4.1–4.3 / §9.3.
+    BullModule.registerQueue({ name: EXECUTION_RUN_QUEUE }),
   ],
   providers: [
     ExecutionEngineService,
@@ -77,6 +82,8 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     ForEachExecutor,
     ParallelExecutor,
     BackgroundExecutionProcessor,
+    // PR1 — execution intake worker. execute() 발행 job 을 work-stealing 소비.
+    ExecutionRunProcessor,
     ContinuationBusService,
     // Phase 2 — BullMQ Worker. 옛 ContinuationBusService.registerContinuationHandlers
     // 의 in-process dispatch 대체.

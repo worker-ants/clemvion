@@ -98,6 +98,13 @@ import {
   BackgroundExecutionJob,
 } from './queues/background-execution.queue';
 import {
+  EXECUTION_RUN_QUEUE,
+  EXECUTION_RUN_QUEUE_DEFAULT_OPTS,
+  buildExecutionRunJobId,
+  resolveExecutionRunPriority,
+  type ExecutionRunJob,
+} from './queues/execution-run.queue';
+import {
   adaptHandlerReturn,
   toEngineFlatShape,
 } from './handler-output.adapter';
@@ -739,6 +746,8 @@ export class ExecutionEngineService
     private readonly parallelExecutor: ParallelExecutor,
     @InjectQueue(BACKGROUND_EXECUTION_QUEUE)
     private readonly backgroundQueue: Queue<BackgroundExecutionJob>,
+    @InjectQueue(EXECUTION_RUN_QUEUE)
+    private readonly executionRunQueue: Queue<ExecutionRunJob>,
     private readonly continuationBus: ContinuationBusService,
     private readonly conversationThreadService: ConversationThreadService,
     private readonly shutdownState: ShutdownStateService,
@@ -2153,44 +2162,95 @@ export class ExecutionEngineService
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
 
-    // 3. Register outbound routing context for `ChatChannelDispatcher` /
-    // `NotificationFanout`. 트리거 발화 경로 (schedule / webhook) 만 등록 —
-    // 수동 실행(executedBy)은 dispatcher 가 처리할 trigger 가 없어 skip.
-    // input.chatChannel 은 HooksService.handleChatChannelWebhook 가 주입한
-    // `{provider, conversationKey, channelUserKey}`. 등록된 routing context 는
-    // 이후 모든 emit 의 fanout envelope (internal subscriber) 에 자동 첨부되며
-    // wire envelope (frontend) 에는 첨부되지 않는다. [Spec Chat Channel §3.1
-    // CCH-AD-05 / §3.2].
-    if (options?.triggerId) {
+    // 3. Enqueue 실행 시작 to `execution-run` intake 큐 (spec §4.1–4.3).
+    //    현 fire-and-forget in-process 호출을 대체 — 임의 backend 인스턴스가
+    //    work-stealing 으로 첫 active 세그먼트를 처리한다. row 는 위에서 이미
+    //    `pending` 으로 저장됐으므로(executionId 즉시 발급 계약 유지) job 에는
+    //    executionId + input 만 싣고, worker(`runExecutionFromQueue`)가 row 재조회
+    //    → status 재검증 → routing 재등록 → runExecution 을 수행한다.
+    //
+    //    routing context 등록을 worker 로 옮긴 이유: registerExecutionRouting 은
+    //    in-memory Map 이라 job 을 consume 한 인스턴스에 등록돼야 그 인스턴스의
+    //    runExecution 이 emit 하는 terminal event 의 release 와 짝이 맞는다
+    //    (work-stealing 으로 다른 인스턴스가 consume 할 수 있음). §7.5 rehydration
+    //    slow path 가 routing 을 consumer 측에서 재등록하는 것과 동일 패턴.
+    //
+    //    jobId = executionId (1:1 enqueue) → BullMQ 가 중복 add 를 자동 dedup.
+    //    priority: 수동 실행(executedBy)을 트리거 실행보다 앞세운다(§4.3). webhook
+    //    vs schedule 의 세부 3-tier 구분은 ExecuteOptions 가 trigger type 을 싣지
+    //    않아 후속(triggerType threading)으로 미룬다 — 현재는 manual > 그 외.
+    const triggerType = options?.executedBy ? 'manual' : 'webhook';
+    await this.executionRunQueue.add(
+      'execution-run',
+      { executionId, input },
+      {
+        jobId: buildExecutionRunJobId(executionId),
+        priority: resolveExecutionRunPriority(triggerType),
+        ...EXECUTION_RUN_QUEUE_DEFAULT_OPTS,
+      },
+    );
+
+    return executionId;
+  }
+
+  /**
+   * PR1 — `execution-run` intake 큐 worker 진입점 (spec §4.1–4.3).
+   *
+   * `ExecutionRunProcessor` 가 job 을 pick up 해 호출한다. row 를 재조회하고
+   * (executionId), 아직 `pending` 인 경우에만 routing 재등록 후 `runExecution` 을
+   * 수행한다. fire-and-forget 시절 `execute()` 의 routing 등록(step 3)·실패 시
+   * routing release(step 4 .catch)를 이 곳으로 이동했다 — work-stealing 으로
+   * job 을 실제 처리하는 인스턴스에서 등록/해제가 짝을 이루도록.
+   *
+   * 멱등성: jobId = executionId 라 중복 enqueue 는 BullMQ 가 차단하지만, 큐 대기
+   * 중 cancel 된 경우 등을 위해 `status === pending` 을 재검증해 아니면 ack-discard.
+   * 실행 실패는 `runExecution` 이 Execution 을 `failed` 로 마킹하고 정상 반환하므로
+   * 본 메서드는 setup 단계 미처리 throw 만 catch 해 routing 을 정리한다 (PR1 은
+   * crash-retry 미도입 — job 을 re-throw 없이 ack 하여 비멱등 노드 이중 실행 방지).
+   */
+  async runExecutionFromQueue(
+    executionId: string,
+    input: unknown,
+  ): Promise<void> {
+    const execution = await this.executionRepository.findOneBy({
+      id: executionId,
+    });
+    if (!execution) {
+      this.logger.warn(
+        `[execution-run] Execution ${executionId} 없음 — ack-discard (이미 삭제됐거나 잘못된 job).`,
+      );
+      return;
+    }
+    if (execution.status !== ExecutionStatus.PENDING) {
+      // 큐 대기 중 cancel 됐거나(=> cancelled) 다른 경로로 이미 진행됨. 재실행 금지.
+      this.logger.debug(
+        `[execution-run] Execution ${executionId} 상태가 ${execution.status} (pending 아님) — ack-discard.`,
+      );
+      return;
+    }
+
+    // routing context 재등록 (execute() step 3 에서 이동). 트리거 발화 경로만.
+    if (execution.triggerId) {
       const chatChannel = extractChatChannelFromInput(input);
       this.eventEmitter.registerExecutionRouting(executionId, {
-        triggerId: options.triggerId,
-        // workflowId 는 ChatChannelDispatcher.toEiaEvent 가 EiaEvent.base 의
-        // 필수 필드로 요구 — 누락 시 dispatcher 가 `if (!workflowId) return null`
-        // 에서 silent skip 하여 outbound 메시지가 안 가던 PR #314 잔여 회귀
-        // (2026-05-25 사용자 production log 확인) 해소.
-        workflowId,
+        triggerId: execution.triggerId,
+        workflowId: execution.workflowId,
         ...(chatChannel ? { chatChannel } : {}),
       });
     }
 
-    // 4. Run execution in background (fire-and-forget)
-    this.runExecution(savedExecution, input).catch((error: unknown) => {
+    try {
+      await this.runExecution(execution, input);
+    } catch (error: unknown) {
       this.logger.error(
         `Background execution failed for ${executionId}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
-      // pair: 정상 경로는 `WebsocketService.emitExecutionEvent` 의 terminal
-      // event 분기 (`releaseExecutionRouting`) 가 자동 정리. runExecution 이
-      // terminal event 자체를 emit 하지 못한 경로 (예: 본문 진입 전 setup
-      // 단계 throw) 의 안전망 — routing context 가 stale 로 남아 같은
-      // executionId 재사용 시 잘못 첨부되는 것을 차단. `Map.delete` 가
-      // idempotent 하므로 정상 경로와 중복 호출돼도 무해.
+      // setup 단계(본문 진입 전) throw 안전망 — terminal event 가 emit 되지 못해
+      // routing context 가 stale 로 남는 것을 차단. Map.delete 는 idempotent.
       this.eventEmitter.releaseExecutionRouting(executionId);
-    });
-
-    return executionId;
+    }
   }
 
   /**
