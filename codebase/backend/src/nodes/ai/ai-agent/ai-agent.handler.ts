@@ -894,6 +894,13 @@ export class AiAgentHandler implements NodeHandler {
         args.config.memoryThreshold !== undefined
           ? (args.config.memoryThreshold as number)
           : DEFAULT_MEMORY_THRESHOLD;
+      // M2: queryText 가 빈 값(systemPrompt-only run — userPrompt='') 이면
+      // recall 이 `!queryText.trim()` early-return 으로 무음 no-op 가 된다.
+      // 빈 경우 현재 system 프롬프트로 fallback 해 의미있는 회수 쿼리를 구성한다
+      // (저장은 되는데 회수만 0건이 되는 비대칭 방지).
+      const queryText = args.queryText?.trim()
+        ? args.queryText
+        : args.finalSystemPrompt;
       // 회수 임베딩 출처 — 노드 llmConfigId (요약/추출과 동일, scope-freeze §3).
       // recall 은 서비스 내부에서 이미 graceful (빈 배열) 이지만, 회수 실패가
       // 응답 경로를 깨면 안 되므로 여기서도 방어적으로 삼킨다 (defense-in-depth).
@@ -901,10 +908,13 @@ export class AiAgentHandler implements NodeHandler {
         recalled = await this.agentMemoryService.recall(
           args.workspaceId,
           scopeKey,
-          args.queryText,
+          queryText,
           {
             llmConfigId: args.config.llmConfigId as string | undefined,
-            embeddingModel: undefined,
+            // 노드 config `embeddingModel` 을 회수 임베딩에 사용 (미지정이면
+            // 서비스가 워크스페이스 기본 → 하드코딩 기본으로 폴백). 추출(저장)
+            // 경로도 같은 값을 쓰므로 query/저장 임베딩의 차원이 일치한다 (§3).
+            embeddingModel: args.config.embeddingModel as string | undefined,
           },
           { topK, threshold },
         );
@@ -1116,14 +1126,24 @@ export class AiAgentHandler implements NodeHandler {
 
     const ttlDays = this.resolveMemoryTtlDays(args.config.memoryTtlDays);
 
-    await this.agentMemoryService.scheduleExtraction({
+    const enqueued = await this.agentMemoryService.scheduleExtraction({
       workspaceId: args.workspaceId,
       scopeKey,
       llmConfigId: args.config.llmConfigId as string | undefined,
       model: args.config.model as string | undefined,
+      // 추출(저장) 임베딩 모델 — 회수와 동일 노드 config 값을 써 query/저장
+      // 임베딩의 차원이 일치하게 한다 (§3, 차원 불일치 방지).
+      embeddingModel: args.config.embeddingModel as string | undefined,
       turns: snapshot,
       ttlDays,
     });
+
+    // M1: enqueue 가 **실제 수락된 경우에만** watermark 를 전진시킨다.
+    // BullMQ 의 고정 jobId dedup 으로 같은 scope job 이 active 인 동안 2차
+    // enqueue 는 저장 없이 drop 되는데, watermark 를 무조건 전진시키면 drop 된
+    // turn 들이 다음 회수에서 영구 제외된다. drop/에러 시 watermark 를 유지하면
+    // 다음 turn 이 그 turn 들을 다시 snapshot 한다.
+    if (!enqueued) return prevWatermark;
 
     // enqueue 한 snapshot 의 최대 seq 로 watermark 갱신 — 다음 turn state 로 영속.
     const maxSeq = fresh.reduce(

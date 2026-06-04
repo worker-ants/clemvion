@@ -41,6 +41,13 @@ export interface AgentMemoryExtractionJob {
   scopeKey: string;
   llmConfigId?: string | null;
   model?: string | null;
+  /**
+   * 임베딩(저장) 모델 식별자 — 노드 config `embeddingModel`. 회수 경로와 동일
+   * 값을 써 query/저장 임베딩의 차원이 일치하게 한다 (spec §임베딩 출처, §3).
+   * 미설정(null/undefined)이면 saveMemories 가 워크스페이스 기본 → 최후 하드코딩
+   * 기본으로 폴백한다.
+   */
+  embeddingModel?: string | null;
   turns: ExtractionTurnSnapshot[];
   /**
    * persistent 메모리 TTL (일). 노드 config `memoryTtlDays` 가 enqueue payload 로
@@ -48,6 +55,13 @@ export interface AgentMemoryExtractionJob {
    * (spec §4 TTL, AGM-10). 미설정/0/음수 = 무만료 (디폴트, NULL).
    */
   ttlDays?: number | null;
+  /**
+   * per-enqueue 고유 nonce (M1). `scheduleExtraction` 이 BullMQ 고정 jobId
+   * dedup-drop 을 결정적으로 검출하기 위해 심는 내부 마커 — `add()` 가 반환한
+   * job 의 nonce 가 우리 것과 다르면 dedup 으로 drop 된 것이다. processor 는
+   * 사용하지 않는다 (enqueue acceptance 검출 전용).
+   */
+  enqueueNonce?: string;
 }
 
 /**
