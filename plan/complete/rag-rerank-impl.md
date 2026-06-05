@@ -2,6 +2,10 @@
 worktree: rag-rerank-impl
 started: 2026-06-04
 owner: developer
+spec_impact:
+  - spec/5-system/9-rag-search.md
+  - spec/5-system/7-llm-client.md
+  - spec/1-data-model.md
 ---
 # RAG 리랭킹 P1 구현 (cross_encoder + 동적 컷)
 
