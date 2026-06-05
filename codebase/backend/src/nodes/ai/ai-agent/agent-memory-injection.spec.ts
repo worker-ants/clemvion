@@ -654,6 +654,132 @@ describe('buildSummaryBufferUpdate — O(n) incremental token recompute (B3)', (
     }
   });
 
+  it('summary block tokens count toward fixedOverhead — bit-identical sweep with a non-empty runningSummary', async () => {
+    // (B3-a) runningSummary 가 비어있지 않은 경로: buildSummaryBlock(runningSummary)
+    // 가 비지 않으므로 그 토큰이 estimateWorkingMemoryTokens 의 extra 로 들어가
+    // currentTokens(=fixedOverhead+Σturn) 에 포함된다. 구현의 remainingTokens 는
+    // currentTokens 에서 turn 토큰만 빼므로 summary block overhead 가 유지된다 —
+    // 오라클 referenceCut(fixedOverhead 보존) 과 cut 경계가 bit-identical 이어야 한다.
+    const turns = Array.from({ length: 18 }, (_, i) =>
+      turn(i, `MARK_${i}_X ` + 'w'.repeat(120 + (i % 5) * 17)),
+    );
+    const markerOf = (seq: number) => `MARK_${seq}_X`;
+    const systemPromptText = 'sys-prompt';
+    // 비어있지 않은 기존 요약 — 블록이 실제 토큰을 차지한다 (≠ '').
+    const priorSummary = 'EARLIER: ' + 'prior summary fact '.repeat(30);
+    const summaryBlockText = buildSummaryBlock(priorSummary);
+    expect(summaryBlockText).not.toBe(''); // 경로 전제: 요약 블록 비어있지 않음.
+
+    // summarizedUpToSeq=undefined → 모든 turn 이 uncompressed. currentTokens 에는
+    // systemPrompt + (비어있지 않은) summaryBlock 이 fixedOverhead 로 포함된다.
+    const currentTokens = estimateWorkingMemoryTokens(
+      turns,
+      systemPromptText,
+      summaryBlockText,
+    );
+    // 요약 블록이 fixedOverhead 에 실제로 기여하는지 직접 확인 (블록 제거 시 추정이
+    // 더 작아야 한다 — 회귀 가드).
+    const withoutSummary = estimateWorkingMemoryTokens(turns, systemPromptText);
+    expect(currentTokens).toBeGreaterThan(withoutSummary);
+
+    for (let budget = 50; budget <= currentTokens + 50; budget += 41) {
+      const expectedToCompress = referenceCut(
+        turns,
+        currentTokens,
+        budget,
+        MIN_RECENT_RAW_TURNS,
+      );
+
+      const llm = makeLlmServiceMock('MERGED');
+      const update = await buildSummaryBufferUpdate({
+        turns,
+        runningSummary: priorSummary,
+        summarizedUpToSeq: undefined,
+        tokenBudget: budget,
+        systemPromptText,
+        llmConfig,
+        model: 'gpt-4o',
+        llmService: llm,
+      });
+
+      if (expectedToCompress.length === 0) {
+        expect(llm.chat).not.toHaveBeenCalled();
+        expect(update.summarized).toBe(false);
+        // 변경 없으면 기존 요약/seq 그대로 보존.
+        expect(update.runningSummary).toBe(priorSummary);
+        expect(update.summarizedUpToSeq).toBeUndefined();
+      } else {
+        expect(llm.chat).toHaveBeenCalledTimes(1);
+        expect(update.summarized).toBe(true);
+        const expectedUpToSeq = expectedToCompress.reduce(
+          (max, t) => (t.seq > max ? t.seq : max),
+          -1,
+        );
+        expect(update.summarizedUpToSeq).toBe(expectedUpToSeq);
+        // 누적 압축: 요약 프롬프트에 기존 요약이 포함돼야 한다.
+        const callArgs = llm.chat.mock.calls[0][1] as {
+          messages: { content: string }[];
+        };
+        const prompt = callArgs.messages[0].content;
+        expect(prompt).toContain('EARLIER:');
+        // compressText 는 오라클 toCompress turn 만 렌더한다.
+        for (const t of expectedToCompress) {
+          expect(prompt).toContain(markerOf(t.seq));
+        }
+        const retained = turns[expectedToCompress.length];
+        if (retained) expect(prompt).not.toContain(markerOf(retained.seq));
+        expect(update.runningSummary).toBe('MERGED');
+      }
+    }
+  });
+
+  it('no-op at the exact boundary tokenBudget === currentTokens (no compression)', async () => {
+    // (B3-b) currentTokens 와 정확히 같은 예산에서는 `currentTokens <= tokenBudget`
+    // 가 참이라 압축하지 않는다 (경계 inclusive — LLM 미호출, 무변경).
+    const turns = Array.from({ length: 6 }, (_, i) =>
+      turn(i, 'b'.repeat(200 + i * 7)),
+    );
+    const systemPromptText = 'sys';
+    const summaryBlockText = buildSummaryBlock(undefined); // '' (요약 없음)
+    const currentTokens = estimateWorkingMemoryTokens(
+      turns,
+      systemPromptText,
+      summaryBlockText,
+    );
+    expect(currentTokens).toBeGreaterThan(0);
+
+    const llm = makeLlmServiceMock('SHOULD NOT BE CALLED');
+    const update = await buildSummaryBufferUpdate({
+      turns,
+      runningSummary: undefined,
+      summarizedUpToSeq: undefined,
+      tokenBudget: currentTokens, // 정확 경계 — `<=` 라 압축 안 함.
+      systemPromptText,
+      llmConfig,
+      model: 'gpt-4o',
+      llmService: llm,
+    });
+    expect(llm.chat).not.toHaveBeenCalled();
+    expect(update.summarized).toBe(false);
+    expect(update.runningSummary).toBeUndefined();
+    expect(update.summarizedUpToSeq).toBeUndefined();
+
+    // 한 토큰만 줄여도(예산 = currentTokens-1) 압축이 트리거됨을 대조로 확인.
+    const llm2 = makeLlmServiceMock('S');
+    const update2 = await buildSummaryBufferUpdate({
+      turns,
+      runningSummary: undefined,
+      summarizedUpToSeq: undefined,
+      tokenBudget: currentTokens - 1,
+      systemPromptText,
+      llmConfig,
+      model: 'gpt-4o',
+      llmService: llm2,
+    });
+    expect(llm2.chat).toHaveBeenCalledTimes(1);
+    expect(update2.summarized).toBe(true);
+  });
+
   it('compresses exactly the predicted number of turns at a chosen budget', async () => {
     // 10 uniform turns. Each turn text → estimateTurnTokens(t) tokens.
     const big = 'q'.repeat(300);
