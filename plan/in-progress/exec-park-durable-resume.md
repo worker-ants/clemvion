@@ -84,19 +84,23 @@ owner: developer
 
 ## Phase B — park 즉시 해제 + slow-path 일원화 [A 완료 후]
 
+> **PR 분할 (확정 2026-06-05, 사용자 결정)**: Phase B 를 **2개 PR** 로 분할한다(Phase A 4분할 선례·위험 격리). "B1·B2 분리 불가"(코루틴 해제⟺slow-path) 는 **park-site 단위로 유지** — 각 PR 이 자기 site 의 release+slow-path 를 함께 한다.
+> - **PR-B1 (form/button)**: `waitForFormSubmission`/`waitForButtonInteraction` 단발 상호작용을 park-release+rehydration 으로. form/button 은 `pendingContinuations` 에 더 이상 등록 안 함 → `applyContinuation` 의 fast-path 가지(`pendingContinuations.has`)를 자연스럽게 miss 해 항상 slow-path. **AI 멀티턴 루프는 PR-B1 에서 미변경**(in-memory 유지) — 그 fast-path 만 잠정 잔존. dockerized e2e(park→worker kill→무손실 재개) 포함.
+> - **PR-B2 (multi-turn AI)**: `runAiConversationLoop` 장수 루프 → turn-단위 park(D4, 매 turn 해제 + per-turn durable checkpoint). AI 도 `pendingContinuations` 등록 제거 → fast-path 가지·`pendingContinuations` Map·`firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier`/`firePayload` scheduler 완전 제거(B3). e2e(멀티턴 park→kill→재개) 포함.
+
 ### B1. park 시 coroutine 반환(해제) — 멀티턴 turn-단위(D4)
-- [ ] `waitForFormSubmission`/`waitForButtonInteraction`/`waitForAiConversation` 의 `await new Promise()` 대기 제거 — durable 영속 후 **즉시 반환**해 `runExecution` 세그먼트 종료.
-- [ ] **멀티턴 AI = turn-단위 park(D4)**: `runAiConversationLoop` 의 장수 루프를 매 turn 입력 대기에서 **해제** — 한 turn 처리=한 세그먼트, 다음 메시지에 rehydration 재개. 응답 없는 대화도 메모리 0 점유. (turn 마다 rehydration 비용은 사람-페이스라 수용.)
-- [ ] `runExecutionFromQueue` 의 detached coroutine + `firstSegmentBarriers` 대기 단순화/제거 (park 가 곧 세그먼트 종료이므로 배리어 불필요).
+- [x] **(PR-B1, commit 20836914)** `waitForFormSubmission`/`waitForButtonInteraction` 의 `await new Promise()` 대기 제거 — durable 영속 후 **즉시 반환**(PARK_RELEASED)해 `runExecution`/resume·retry 드라이브 세그먼트 종료. dockerized e2e(form park→cold rehydration→무손실 completed) 통과.
+- [ ] **(PR-B2)** 멀티턴 AI = turn-단위 park(D4): `runAiConversationLoop` 장수 루프 해제. PR-B1 은 in-memory 루프 유지(await).
+- [ ] **(PR-B2)** `runExecutionFromQueue` detached coroutine + `firstSegmentBarriers` 단순화/제거. PR-B1 은 form/button release 가 finally 의 `settleFirstSegment` 로 배리어를 깨워 worker job 반환(메커니즘 유지).
 
 ### B2. 재개 = 항상 rehydration
-- [ ] continuation 처리(`applyContinuation`)에서 fast-path(`pendingContinuations.has`) 제거 또는 "같은 프로세스 우연 생존 시 순수 최적화"로 강등(의존 금지).
-- [ ] 모든 재개가 `execution-continuation` job → `rehydrateAndResume` 로 일원화.
-- [ ] 불변식 보장: 동일 turn 이중 실행 0 (durable WAITING + status 가드), continuation 유실 0(durable 큐), 멱등.
+- [x] **(PR-B1, form/button)** fresh top-level park 가 `pendingContinuations` 미등록 → `applyContinuation` fast-path miss → 항상 `rehydrateAndResume`(slow-path). 멀티턴 AI 는 PR-B2 까지 fast-path 잔존.
+- [x] **(PR-B1, form/button)** 모든 form/button 재개가 `execution-continuation` job → `rehydrateAndResume` 로 일원화.
+- [x] **(PR-B1)** cancellation gap 수정: `applyCancellation` async + `cancelParkedExecution` — park-release 로 코루틴 없는 WAITING 행 직접 CANCELLED 마감. 불변식(동일 turn 이중 실행 0 = WAITING status 가드, 멱등 = affected 가드) 유지.
 
 ### B3. 정리(제거)
-- [ ] `pendingContinuations` Map (fast-path 의존 제거 후), `firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier` 제거 또는 축소.
-- [ ] #468 의 W1/W2 방어 로직 중 해제로 불필요해진 부분 정리.
+- [ ] **(PR-B2)** `pendingContinuations` Map (AI fast-path 제거 후), `firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier` 제거 또는 축소.
+- [ ] **(PR-B2)** #468 의 W1/W2 방어 로직 중 해제로 불필요해진 부분 정리.
 
 ---
 
@@ -105,7 +109,7 @@ owner: developer
 - `4-execution-engine.md §7.4`: Worker 동작 행의 "로컬 pendingMap 즉시 resolve(fast-path)" 서술 정정(제거/강등). (consistency W5/I2 — 누락분 추가)
 - `4-execution-engine.md §7.5`: rehydration 이 conversationThread·variables 를 복원함을 명시(무손실 보장) + case 1(fast-path) 문구 동반 정정.
 - `4-execution-engine.md §6.2` + `conventions/conversation-thread.md §4/§7/§8`(세 앵커): "신규 DB 컬럼 없음" → `Execution.conversation_thread` 채택으로 **한 PR 동기 갱신**, Rationale 기록. **[A1 완료 2026-06-05]** + `1-ai-agent.md §12.1/§12.10/§12.13` reconcile + **`1-data-model.md §2.13 Execution` 컬럼 행**(consistency W1) 동기 갱신 완료.
-- **[Phase B 선행 — 구현 착수 전 의무]** D4 turn-단위 park Rationale 명문화(`4-execution-engine.md §4.x` 또는 신규 §Rationale): 기존 "대화 전체=단일 waiting" 대비 차이, 채택 근거(메모리 bounded + slow-path 일원화 정합), 기각 대안("단일 waiting 유지+코루틴 누적 수용"). (consistency W4)
+- **[Phase B 선행 — 완료 2026-06-05]** spec 모델 개정: `4-execution-engine.md` §1.1 전이표·§4.x banner 2개(park=세그먼트 종료, slow-path 일원화)·§6.2 rawConfig(D3 fresh-per-turn)·§7.4 Worker 동작+diagram·§7.5 case diagram·**§Rationale 신규 "park 즉시 해제 + slow-path 일원화 (Phase B)"** (D4 turn-park·D3 fresh-config·B1/B2 결합·worker-side fast-path 제거 근거). consistency W1~W4 해소.
 - A2 채택 시 "ai_agent 한정" 문구 3곳(`4-execution-engine.md §1.3 L111`·`3-information-extractor.md §357`·`1-ai-agent.md §703`) 동기 갱신. (consistency I1/I4)
 - frontmatter `pending_plans:` 에 본 plan 등록 (`conversation-thread.md`·`4-execution-engine.md`·**`1-data-model.md`**). **[A1 완료]**
 - consistency-check `--spec`/`--impl-prep` 의무, `--plan`(본 plan) 점검. **[--impl-prep BLOCK:NO 2026-06-05 `review/consistency/2026/06/05/09_01_23`]**
@@ -114,9 +118,10 @@ owner: developer
 1. **PR-A1**: conversationThread durable 영속 + rehydration 복원 (+spec §7.5, conversation-thread.md).
 2. **PR-A2**: checkpoint 견고화 + information_extractor 확장.
 3. **PR-A3**(범위 시): user variables 영속 — 또는 별도 plan.
-4. **PR-B**: park 즉시 해제 + slow-path 일원화 + fast-path 제거 (+spec §4.x). e2e 회귀(park→worker kill→무손실 재개) 필수.
+4. **PR-B1**: form/button park-release + slow-path 일원화 (+spec staged note). e2e 회귀(park→worker kill→무손실 재개) 필수.
+5. **PR-B2**: multi-turn AI turn-park + pendingContinuations/barrier 완전 제거 (B3). e2e(멀티턴 park→kill→재개) 필수.
 
-> 각 PR 은 SDD+TDD, TEST/REVIEW WORKFLOW 이행. PR-B 는 실행엔진 코어라 e2e(dockerized) 무손실 재개 시나리오를 반드시 포함.
+> 각 PR 은 SDD+TDD, TEST/REVIEW WORKFLOW 이행. PR-B1/B2 는 실행엔진 코어라 e2e(dockerized) 무손실 재개 시나리오를 반드시 포함. (구 단일 "PR-B" 는 2026-06-05 사용자 결정으로 B1/B2 2분할.)
 
 ## 리스크
 - **A1 conversationThread 직렬화**: turns 는 frozen·JSON 가능하나 크기(대화 길이) 고려 — 컬럼 vs 테이블 선택이 성능에 영향.
@@ -140,9 +145,13 @@ owner: developer
 ## 미해결 결정 (사용자/planner)
 - **D1 (확정 2026-06-05)**: conversationThread 영속 = **`Execution.conversation_thread jsonb`** (spec 예고 컬럼 §4 L211/§7 L284 채택). 사용자 handoff 승인. spec 동기 갱신 완료(conversation-thread §4/§7/§8.4, 4-execution-engine §6.2/§7.5, 1-ai-agent §12.1/§12.10/§12.13, **1-data-model §2.13 Execution 컬럼 행** — consistency W1 해소). 마이그레이션 = **V084**(#469 PR2a 가 V083 선점 → §6.2 rebase-renumber 로 V083→V084 재부여, 2026-06-05).
 - **D2 (확정 2026-06-05)**: user-defined variables 복원 = **본 plan 포함**(PR-A3). 조사 결과 복원 필요·SMALL scope(A1 패턴 재사용)라 분리 불요. 마이그레이션 V085 `Execution.user_variables jsonb`.
-- **D3**: park 중 워크플로 정의 편집 시 재개 정책(현행 node.config 재유도 의미 유지 여부).
+- **D3 (확정 2026-06-05)**: park 중 워크플로 편집 시 재개 = **Fresh-per-turn 수용**(사용자 결정). Phase B 의 매-turn rehydration 이 `node.config` 를 fresh 재유도하므로 park 중 편집이 다음 turn 부터 반영된다 — 현행 frozen-per-conversation(첫 turn rawConfig 고정) 대비 변경. checkpoint 에 rawConfig 영속 불요(구현 단순). spec §6.2 frozen-rawConfig 노트·§Rationale 갱신 필요(Phase B). replay reproducibility 약화는 수용.
+- **(설계 발견 2026-06-05)**: **B1·B2 분리 불가** — 코루틴 진짜 해제(bounded 메모리)는 park 시 `await` 제거(runExecution 반환)를 요구하고, 그러면 in-memory resolve 가 사라져 **모든 재개가 rehydration(slow-path)**. 따라서 Phase B 코어 = B1+B2 한 덩어리(release+slow-path 일원화) + B3(barrier·pendingContinuations 정리). dockerized e2e "park→worker kill→무손실 재개" 필수.
 - **D4 (확정 2026-06-05)**: 멀티턴 AI = **turn-단위 park(매 turn 해제)** — 메모리 일관성 우선(B1 반영).
 - **D5 (확정 2026-06-05)**: **단일 worktree 통합** — 본 plan 이 exec-intake-queue PR3(rehydration)+node-cancellation §2 를 흡수해 직렬 진행(Phase 0). BLOCK 해소.
 
 ## 진행 메모
 - 2026-06-05 착수. #468 머지 확인(main `9f30216f`). durability 맵 조사 완료(본 plan "현행 durability 맵").
+- **2026-06-05 PR-B1 완료** (branch `claude/exec-park-b1`, base origin/main `84dd7314` #480): form/button park-release + slow-path 일원화 + cancellation gap 수정. 빌드·lint·unit(668)·dockerized e2e(29 suites/174, 신규 `execution-park-resume.e2e-spec.ts` 포함) 통과. ai-review(MEDIUM, Critical 0/Warning 19 → resolution 19/19 처리, e2e pass) → `--impl-done`(BLOCK:NO, `review/consistency/2026/06/05/15_27_01`).
+  - **`--impl-done` WARNING 처리**: W2(§6.3 frozen vs D3) = 이미 §6.3 L672 D3 노트로 정합(무조치). W1(§7.4 과도기 인라인 주석) = §Rationale 단계적 롤아웃이 cross-ref(선택 polish, 미반영). W3(`error-codes.md §3` skipReason scope 경계) = PR-B1 범위 밖, 후속.
+  - **W4 (cross-branch 운영 리스크, 미해결)**: `impl-concurrency-cap-pr2b` worktree 가 `spec/5-system/4-execution-engine.md` 를 **Phase B 이전 모델**로 수정 중 → PR-B1 머지 후 그 브랜치가 spec push 시 Phase B 서술 덮어쓰기 위험. **조치 필요**: PR-B1 머지 후 `impl-concurrency-cap-pr2b` rebase 선행을 `exec-intake-queue-impl.md` PR2b 착수조건에 명기(해당 worktree planner 담당). 본 plan 단독 해소 불가(타 worktree).
