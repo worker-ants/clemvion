@@ -1,0 +1,71 @@
+This page explains how to register and manage **reranker** providers used to improve retrieval precision in Knowledge Bases. After setup, you can activate reranking per collection from the [Knowledge Base](/docs/06-integrations-and-config/knowledge-base) Reranking tab.
+
+## What is a reranker?
+
+Vector similarity search is fast, but it can return chunks that are semantically similar in a mixed order. A **reranker (cross-encoder model)** rescores each `(query, chunk)` pair directly in a post-retrieval step, selecting the most relevant top results in a more accurate order.
+
+Key characteristics:
+
+- Applied only at query time — no re-embedding of existing documents is required.
+- Falls back gracefully to the original cosine order when the reranker encounters an error.
+- Can be enabled or disabled per Knowledge Base.
+
+## Supported providers
+
+<FieldTable rows={[
+  { name: "TEI (self-hosted)", type: "Self-hosted", required: "Base URL required", description: "Hugging Face Text-Embeddings-Inference server. Run on your own infrastructure. Example model for Korean: `dragonkue/bge-reranker-v2-m3-ko`." },
+  { name: "Cohere", type: "External API", required: "API Key required", description: "Cohere's reranker API. Example model: `rerank-3.5`. Requires internet access." }
+]} />
+
+## Adding a reranker
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/rerank-configs/page.tsx"
+  symbol="RerankConfigsPage"
+  describes="Reranker configs list page — add, edit, and set default reranker"
+/>
+
+At [Reranker configuration](/rerank-configs), click `[+ Add Reranker]` in the top right.
+
+<Steps>
+<Step>Pick a provider: `TEI (self-hosted)` or `Cohere`.</Step>
+<Step>Enter a name (alias).</Step>
+<Step>
+  Required fields depend on the provider.
+
+  - **TEI**: `Base URL` is required (e.g. `http://tei:8080`). API Key is optional.
+  - **Cohere**: `API Key` is required. Leave Base URL empty.
+</Step>
+<Step>Type the default model ID directly. For TEI: `dragonkue/bge-reranker-v2-m3-ko` or `bge-reranker-v2-m3`. For Cohere: `rerank-3.5`.</Step>
+<Step>Save. Mark the most-used config as ⭐ **Default** so Knowledge Bases that don't specify a reranker pick it automatically.</Step>
+</Steps>
+
+<Callout type="warn">API Keys are masked in all API responses after saving. Keep the original key in your provider console.</Callout>
+
+## Field reference
+
+<FieldTable rows={[
+  { name: "Provider type", type: "tei / cohere", required: "Required", description: "Provider selection. Cannot be changed after saving." },
+  { name: "Name", type: "string", required: "Required", description: "Alias shown in the Knowledge Base Reranking dropdown." },
+  { name: "API Key", type: "string (masked)", required: "Required for Cohere / Optional for TEI", description: "Cohere rejects calls without an API Key. For TEI running without authentication, leave this empty." },
+  { name: "Base URL", type: "string (URL)", required: "Required for TEI", description: "Endpoint of your self-hosted TEI server. Example: `http://tei:8080`. Not used for Cohere (official endpoint is fixed)." },
+  { name: "Default model", type: "string", required: "Required", description: "Model ID used for reranking. For TEI, use the model ID deployed on your server; for Cohere, use an official model ID such as `rerank-3.5`." }
+]} />
+
+## Setting a default reranker
+
+Click ⭐ **Default** in the list to designate the workspace-level default reranker. Knowledge Bases that have reranking enabled but no explicit reranker selected will use this default. If no default exists, reranking is safely bypassed for those collections.
+
+<Callout type="note">Changing the default takes effect on the next search. It does not affect Knowledge Bases that already have a reranker explicitly selected.</Callout>
+
+## Where the reranker is used
+
+Registered rerankers appear in the [Knowledge Base](/docs/06-integrations-and-config/knowledge-base) Reranking tab. Activating reranking on a collection means every AI Agent search against that collection automatically goes through the second-pass precision step.
+
+## Tips & notes
+
+- If you run a TEI server with a GPU, `dragonkue/bge-reranker-v2-m3-ko` significantly improves Korean retrieval quality.
+- Cohere is a cloud API — quick to get started without hosting infrastructure.
+- Deleting a reranker that is currently used by a Knowledge Base causes that KB to fall back to the cosine-only path.
+- For details on per-KB reranking options (candidate pool size, score cutoff), see [Knowledge Base](/docs/06-integrations-and-config/knowledge-base).
