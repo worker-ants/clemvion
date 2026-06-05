@@ -12,5 +12,7 @@
 ## 보류 (백로그)
 - ORDER BY MAX(updated_at) filesort 인덱스 — 기존부터 존재(본 변경 신규 회귀 아님), `(workspace_id, scope_key, updated_at)` 인덱스 마이그레이션은 버전충돌 리스크+admin 저빈도라 백로그 유지.
 
-## TEST 결과
-(게이트 재수행 결과로 채움)
+## TEST 결과 (전 단계 PASS)
+- lint PASS · unit PASS(backend 6120+ / frontend) · build PASS · e2e PASS(173)
+- consistency-check --impl-done: 5 checker BLOCK:NO (cross-spec embeddingModel→'text' 롤백, Gate C plan 완료이동)
+- embeddingModel widget 롤백 후 build/unit/lint/docs가드/e2e 재수행 GREEN
