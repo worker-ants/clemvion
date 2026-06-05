@@ -255,12 +255,29 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
   {name: "instructions", required: false, type: "string", description: "추가 추출 지시사항이에요.", default: "-"},
   {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "추출 모드예요.", default: "single_turn"},
   {name: "maxTurns", required: false, type: "integer", description: "`multi_turn`에서 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "10"},
-  {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread 자동 주입 범위예요. `none`은 입력만, `thread`는 thread 전체를, `lastN`은 최근 N turn 만 LLM에 함께 보내요. `multi_turn`은 첫 진입 때 1회 주입돼요. AI Agent와 동일한 인터페이스예요.", default: "none"},
+  {name: "memoryStrategy", required: false, type: "`manual` / `persistent`", description: "메모리 관리 전략이에요. `manual`은 위 대화 컨텍스트 필드를 그대로 쓰고, `persistent`는 추출 LLM 호출 전에 세션 간 메모리를 회수해 주입하고 추출 결과를 다시 메모리에 누적해요. AI Agent와 달리 `summary_buffer`는 없어요(추출 노드에는 working-memory 압축이 무의미해요).", default: "manual"},
+  {name: "memoryKey", required: false, type: "expression", description: "지속 메모리 범위 키예요. 같은 키는 실행을 넘어 같은 기억을 불러오고, 비우면 실행 단위로 격리돼요. `persistent`일 때 보여요.", default: "-"},
+  {name: "memoryTopK", required: false, type: "integer", description: "추출 전에 회수할 메모리 청크 수예요 (RAG Top-K와 독립). `persistent`일 때 보여요.", default: "5"},
+  {name: "memoryThreshold", required: false, type: "float", description: "메모리 회수에 필요한 최소 유사도예요 (0~1, RAG 임계값과 독립). `persistent`일 때 보여요.", default: "0.7"},
+  {name: "memoryTtlDays", required: false, type: "integer", description: "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요. `persistent`일 때 보여요.", default: "-"},
+  {name: "embeddingModel", required: false, type: "string", description: "메모리 회수·추출에 쓸 임베딩 모델이에요. 처음 저장했을 때와 차원이 일치해야 해요. 비우면 워크스페이스 기본 임베딩 모델을 써요. `persistent`일 때 보여요.", default: "-"},
+  {name: "extractionModel", required: false, type: "expression", description: "세션 간 메모리 추출에 쓸 별도 모델이에요. 비우면 노드 모델을 그대로 써요. 저비용 추출 모델로 비용을 줄일 수 있어요. `persistent`일 때 보여요.", default: "-"},
+  {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread 자동 주입 범위예요. `none`은 입력만, `thread`는 thread 전체를, `lastN`은 최근 N turn 만 LLM에 함께 보내요. `multi_turn`은 첫 진입 때 1회 주입돼요. `memoryStrategy`가 `manual`일 때만 적용돼요. AI Agent와 동일한 인터페이스예요.", default: "none"},
   {name: "contextScopeN", required: false, type: "integer", description: "`contextScope=lastN`일 때 주입할 최근 turn 수예요.", default: "20"},
   {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "Thread 주입 방식이에요. `messages`는 LLM messages 배열 앞에 turn 별로 prepend하고, `system_text`는 system 프롬프트 뒤에 한 덩어리로 append해요.", default: "messages"},
   {name: "includeToolTurns", required: false, type: "boolean", description: "true면 KB/MCP/조건 도구 호출 turn까지 thread에 push해요. 기본은 최종 assistant 응답만 push해요.", default: "false"},
   {name: "excludeFromConversationThread", required: false, type: "boolean", description: "체크하면 이 노드의 user/assistant turn을 워크플로우 thread에 push하지 않아요(opt-out).", default: "false"}
 ]} />
+
+### 세션 간 메모리(persistent)
+
+`memoryStrategy`를 `persistent`로 켜면 추출기가 **이전 세션에서 추출해 둔 사실**을 활용해요.
+
+- **회수(recall)** — 추출 LLM을 호출하기 직전에 같은 메모리 키로 저장된 사실을 의미 검색으로 회수해 시스템 프롬프트 앞에 붙여요. Single Turn과 Multi Turn 첫 진입 모두에서 1회 일어나요.
+- **추출(extraction)** — 추출 결과가 확정된 뒤(turn을 thread에 push한 직후) 그 내용을 비동기로 메모리에 누적해요. 응답 경로를 막지 않아요(hot-path 비차단). Multi Turn은 대화가 종결될 때 한 번 push·추출해요.
+- 메모리 범위는 `memoryKey`로 묶고, 비우면 실행 단위로 격리돼요. AI Agent의 메모리와 **같은 scope key 규칙**을 써서, 같은 키면 AI Agent와 추출기가 서로의 기억을 공유할 수 있어요.
+- AI Agent와 달리 `summary_buffer`는 제공하지 않아요 — 단일 추출 작업에는 working-memory 토큰 압축이 의미가 없기 때문이에요.
+- `persistent`를 고르면 위 대화 컨텍스트(`contextScope`) 필드는 설정 UI에서 숨겨지고, 메모리 키·임계값 같은 필드가 대신 나타나요.
 
 ### 포트
 

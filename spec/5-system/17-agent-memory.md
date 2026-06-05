@@ -17,9 +17,11 @@ pending_plans:
 
 AI Agent 노드의 `memoryStrategy: 'persistent'` 전략은 한 실행(세션) 을 넘어 사용자/대화에 관한 **사실·선호** 를 추출해 영속하고, 다음 호출에서 의미검색으로 회수해 LLM 컨텍스트에 주입한다. 챗봇·어시스턴트 시나리오에서 (1) 윈도우 밖으로 밀려난 초기 정보의 완전 소실, (2) 세션이 바뀌면 사용자를 매번 처음 보는 듯한 단절 — 두 문제를 해소한다.
 
-`summary_buffer` (단일 실행 내 토큰예산 롤링 요약) 가 working-memory 압축이라면, `persistent` 는 그 working-memory 동작을 포함(superset)하면서 **세션 간 추출 메모리 레이어** 를 추가한다. Mem0/Zep 형 추출·회수 패턴을 KB/RAG 인프라(pgvector) 재사용으로 구현한다.
+`summary_buffer` (단일 실행 내 토큰예산 롤링 요약) 가 working-memory 압축이라면, `persistent` 는 그 working-memory 동작을 포함(superset)하면서 **세션 간 추출 메모리 레이어** 를 추가한다. (이 superset 정의는 AI Agent 문맥 — `information_extractor` 는 `summary_buffer`(working-memory 압축) 없이 회수+추출 레이어만 적용한다.) Mem0/Zep 형 추출·회수 패턴을 KB/RAG 인프라(pgvector) 재사용으로 구현한다.
 
 본 문서는 persistent 메모리 저장소(테이블 `agent_memory`)·스코프 키·추출/회수 파이프라인·forgetting 의 단일 진실 공급원이다. 노드 설정 필드(`memoryStrategy`/`memoryTokenBudget`/`memoryKey`/`memoryTopK`/`memoryThreshold`)와 실행 단계 배치는 [Spec AI Agent §1·§6.1](../4-nodes/3-ai/1-ai-agent.md#1-설정-config) 가 SoT.
+
+> **메모리 producer/consumer 노드** (memory-strategy-extend-ie): persistent 메모리는 `ai_agent` 외에 **`information_extractor` (`memoryStrategy: 'persistent'`)** 도 producer(턴 경계 추출)이자 consumer(추출 LLM 콜 전 회수)다. IE 는 본 문서의 **동일 저장소·스코프 키(§2)·추출(§3)·회수(§4)·격리(§5) 규약을 그대로** 사용한다 — `resolveScopeKey(memoryKey, executionId)` 가 같으므로 같은 키면 ai_agent 와 IE 가 서로의 메모리를 공유한다. 단 IE 는 `summary_buffer`(working-memory 압축)를 쓰지 않으므로 본 문서의 회수+추출 레이어만 적용되고 롤링 요약(§Overview 둘째 문단)은 무관하다. IE 측 실행 단계 배치는 [3-information-extractor §7](../4-nodes/3-ai/3-information-extractor.md#7-persistent-메모리-recall--extraction) SoT. `text_classifier` 는 single-turn·상태없음으로 메모리 대상 아님.
 
 ---
 

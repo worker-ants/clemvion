@@ -16,5 +16,6 @@ export const informationExtractorNodeComponent: NodeComponent = {
     new InformationExtractorHandler(
       deps.llmService,
       deps.conversationThreadService,
+      deps.agentMemoryService,
     ),
 };
