@@ -64,3 +64,4 @@ owner: 사용자 본인 / developer
 ## 4. 미해결 / 사용자 확인 포인트
 - 실제 골든셋 생성에 쓸 **workspace/KB 지정** 은 실데이터·LLM config 필요 → generator 는 빌드·테스트하되 실 산출은 사용자가 대상 KB 지정 시. 본 PR 은 코드+example 픽스처까지.
 - `eval/golden.json` 실데이터를 repo 에 커밋할지(민감정보 가능성) — 기본은 example 만 커밋, 실 golden 은 사용자 결정.
+- **평가셋 규모·합성비율**: 적정 `--sample` N 값·KB 선정은 사용자 대상 KB 에 위임(`--sample` CLI 플래그로 제어). 상위 plan §P0 추적 대상.

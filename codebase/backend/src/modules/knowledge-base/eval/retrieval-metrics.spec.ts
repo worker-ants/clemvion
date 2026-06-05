@@ -1,6 +1,7 @@
 import { detectLanguage } from './lang-detect';
 import {
   evaluateRetrieval,
+  firstRelevantRank,
   hitRateAtK,
   mrrAtK,
   ndcgAtK,
@@ -278,5 +279,35 @@ describe('macroAverage NaN guard (W9)', () => {
     expect(Number.isNaN(report.overall.hitRate[1])).toBe(false);
     expect(Number.isNaN(report.overall.recall[1])).toBe(false);
     expect(Number.isNaN(report.overall.mrr)).toBe(false);
+  });
+});
+
+describe('firstRelevantRank — 직접 테스트 (I13)', () => {
+  it('첫 관련 청크의 1-based rank 반환', () => {
+    const ranked = ['a', 'b', 'c', 'd'];
+    expect(firstRelevantRank(ranked, new Set(['c']), 4)).toBe(3);
+    expect(firstRelevantRank(ranked, new Set(['a']), 4)).toBe(1);
+  });
+
+  it('gold 가 top-k 밖에 있으면 null 반환', () => {
+    const ranked = ['a', 'b', 'c', 'd'];
+    expect(firstRelevantRank(ranked, new Set(['c']), 2)).toBeNull();
+  });
+
+  it('gold 가 회수 목록에 없으면 null 반환', () => {
+    const ranked = ['a', 'b', 'c'];
+    expect(firstRelevantRank(ranked, new Set(['z']), 3)).toBeNull();
+  });
+});
+
+describe('precisionAtK(k <= 0) 방어 분기 (I14)', () => {
+  it('k=0 이면 0 반환', () => {
+    const gold = new Set(['c1']);
+    expect(precisionAtK(['c1'], gold, 0)).toBe(0);
+  });
+
+  it('k 음수도 0 반환', () => {
+    const gold = new Set(['c1']);
+    expect(precisionAtK(['c1'], gold, -1)).toBe(0);
   });
 });

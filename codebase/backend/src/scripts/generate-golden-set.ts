@@ -44,7 +44,7 @@ interface ChunkRow {
   content: string;
 }
 
-interface GeneratedQuestion {
+export interface GeneratedQuestion {
   question: string;
   answer: string;
 }
@@ -83,7 +83,8 @@ const GEN_JSON_SCHEMA = {
   required: ['questions'],
 } as const;
 
-function stableEntryId(
+// content-address identifier, not security hash
+export function stableEntryId(
   kbId: string,
   chunkId: string,
   question: string,
@@ -99,7 +100,7 @@ function langLabel(lang: GoldenLanguage): string {
   return lang === 'ko' ? 'Korean (한국어)' : 'English';
 }
 
-function parseQuestions(raw: string | null): GeneratedQuestion[] {
+export function parseQuestions(raw: string | null): GeneratedQuestion[] {
   if (!raw) return [];
   let parsed: unknown;
   try {
@@ -134,7 +135,7 @@ function parseQuestions(raw: string | null): GeneratedQuestion[] {
   return out;
 }
 
-function loadExisting(outPath: string): GoldenSet {
+export function loadExisting(outPath: string): GoldenSet {
   if (!existsSync(outPath)) {
     return { meta: { version: 1 }, entries: [] };
   }
@@ -171,6 +172,15 @@ async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   const outPath = resolve(process.cwd(), parseCliFlag('--out') ?? DEFAULT_OUT);
 
+  // W2: --out 경로 경계 가드 — CWD 하위로만 허용
+  if (
+    !outPath.startsWith(resolve(process.cwd()) + '/') &&
+    outPath !== resolve(process.cwd())
+  ) {
+    console.error(`--out 경로가 현재 디렉터리 밖을 가리킵니다: ${outPath}`);
+    process.exit(1);
+  }
+
   const app = await NestFactory.createApplicationContext(EvalCliModule, {
     logger: ['error', 'warn'],
   });
@@ -182,7 +192,9 @@ async function main(): Promise<void> {
       workspaceId,
     );
 
-    const orderBy = order === 'id' ? 'id' : 'random()';
+    // W7: ORDER BY 화이트리스트 const 맵 — 문자열 인터폴레이션 패턴 제거
+    const ALLOWED_ORDERS = { random: 'random()', id: 'id' } as const;
+    const orderBy = ALLOWED_ORDERS[order] ?? ALLOWED_ORDERS.random;
     const chunks: ChunkRow[] = await dataSource.query(
       `SELECT id, document_id, content
          FROM document_chunk
@@ -270,8 +282,9 @@ async function main(): Promise<void> {
             }
           } catch (err) {
             failed += 1;
-            const msg = err instanceof Error ? err.message : String(err);
-            console.warn(`청크 ${chunk.id} 생성 실패: ${msg}`);
+            const kind =
+              err instanceof Error ? err.constructor.name : 'UnknownError';
+            console.warn(`청크 ${chunk.id} 생성 실패: [${kind}]`);
           } finally {
             done += 1;
             if (done % 10 === 0 || done === chunks.length) {
@@ -326,7 +339,11 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// 직접 실행 시만 main() 호출 — import 시(단위 테스트 등) 실행 안 됨
+if (require.main === module) {
+  main().catch((err) => {
+    const kind = err instanceof Error ? err.constructor.name : 'UnknownError';
+    console.error(`치명 오류 [${kind}]: 실행 중단`);
+    process.exit(1);
+  });
+}

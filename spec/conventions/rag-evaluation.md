@@ -7,6 +7,7 @@ code:
   - codebase/backend/src/modules/knowledge-base/eval/retrieval-metrics.spec.ts
   - codebase/backend/src/modules/knowledge-base/eval/lang-detect.ts
   - codebase/backend/src/modules/knowledge-base/eval/eval-cli.module.ts
+  - codebase/backend/src/scripts/cli-utils.ts
   - codebase/backend/src/scripts/generate-golden-set.ts
   - codebase/backend/src/scripts/eval-retrieval.ts
   - codebase/backend/eval/golden.example.json
@@ -87,8 +88,8 @@ SoT: `retrieval-metrics.ts`. 모든 함수는 부수효과·난수 없이 입력
 ### 집계
 
 `evaluateRetrieval(goldenSet, retrievedByEntryId, ks=[1,3,5,10])` → `EvalReport`:
-positive(`shouldRetrieve:true`) entry 의 overall macro + 언어별(KO/EN) macro +
-negatives 통계(`retrievedAnyRate`, 정보 지표) + per-entry 상세.
+positive(`shouldRetrieve:true` 이면서 `goldChunkIds` 1개 이상) entry 의 overall macro +
+언어별(KO/EN) macro + negatives 통계(`retrievedAnyRate`, 정보 지표) + per-entry 상세.
 
 ---
 
@@ -98,7 +99,7 @@ negatives 통계(`retrievedAnyRate`, 정보 지표) + per-entry 상세.
 | --- | --- | --- |
 | ① 자동 합성 | `npm run eval:golden:generate -- --workspace-id .. --kb-id .. [--sample N]` | 제품 `LlmService` 사용. silver 산출 |
 | ③ SME 스팟검수 | golden.json 직접 편집 | 통과분 `reviewed:true` 승격. 20~30% 표본 |
-| 지표 실행 | `npm run eval:retrieval -- --golden eval/golden.json [--ks ..] [--fail-metric .. --fail-k .. --fail-under ..]` | `--fail-under` 로 CI 게이트 |
+| 지표 실행 | `npm run eval:retrieval -- --golden eval/golden.json [--ks ..] [--threshold 0] [--fail-metric .. --fail-k .. --fail-under ..]` | `--threshold 0`: 검색 점수 하한(기본 0). KB `rerank_mode=off` 시 cosine 임계, `cross_encoder` 시 rerank 점수 임계로 해석. `--fail-under` 로 CI 게이트 |
 
 **부트스트랩 격리**: 두 스크립트는 `EvalCliModule`(전용 경량 DI)로 부팅한다 —
 `KnowledgeBaseModule` 은 BullMQ 큐·프로세서를 동반하므로 `AppModule` 부팅 시 운영
@@ -120,12 +121,12 @@ negatives 통계(`retrievedAnyRate`, 정보 지표) + per-entry 상세.
 
 ## 5. 해석 가이드 (금지·주의)
 
-- ❌ 합성 silver 골든셋의 **절대 점수로 품질을 단정하지 않는다**. 변경 전후 상대
+- 금지: 합성 silver 골든셋의 **절대 점수로 품질을 단정하지 않는다**. 변경 전후 상대
   delta 로만 판단.
-- ❌ 한국어 LLM-judge raw 점수를 hard gate 로 쓰지 않는다(κ≈0.3). 본 1차 하베스는
+- 금지: 한국어 LLM-judge raw 점수를 hard gate 로 쓰지 않는다(κ≈0.3). 본 1차 하베스는
   LLM-judge 자체를 포함하지 않는다.
-- ✅ 같은 골든셋으로 `rerank_mode` off ↔ cross_encoder 를 번갈아 돌려 회귀를 본다.
-- ✅ KO/EN 격차는 언어별 macro 로 관찰한다.
+- 허용: 같은 골든셋으로 `rerank_mode` off ↔ cross_encoder 를 번갈아 돌려 회귀를 본다.
+- 허용: KO/EN 격차는 언어별 macro 로 관찰한다.
 
 ---
 

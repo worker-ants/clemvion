@@ -116,11 +116,18 @@ async function main(): Promise<void> {
     console.error('골든셋에 entry 가 없습니다.');
     process.exit(1);
   }
-  const ks = (parseCliFlag('--ks') ?? '1,3,5,10')
+  const ksParsed = (parseCliFlag('--ks') ?? '1,3,5,10')
     .split(',')
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isFinite(n) && n > 0);
-  const maxK = ks.length ? Math.max(...ks) : 10;
+  // I11: 유효 양정수 없으면 기본값으로 대체 — 빈 테이블 출력 방지
+  const ks = ksParsed.length > 0 ? ksParsed : [1, 3, 5, 10];
+  if (ksParsed.length === 0 && parseCliFlag('--ks') !== undefined) {
+    console.warn(
+      '경고: --ks 에 유효한 양정수가 없어 기본값 [1,3,5,10] 을 사용합니다.',
+    );
+  }
+  const maxK = Math.max(...ks);
   const topK = Number(parseCliFlag('--top-k') ?? maxK);
   const threshold = Number(parseCliFlag('--threshold') ?? 0);
   const outPath = parseCliFlag('--out');
