@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-06T02:08:03.682805",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=plan/in-progress/rag-eval-harness.md — 신규 RAG 평가 하베스(P0 Phase0+1). 변경: codebase/backend/src/modules/knowledge-base/eval/**, src/scripts/{generate-golden-set,eval-retrieval}.ts, codebase/backend/eval/**, package.json scripts, 신규 spec/conventions/rag-evaluation.md)",
+  "target_path": "plan/in-progress/rag-eval-harness.md — 신규 RAG 평가 하베스(P0 Phase0+1). 변경: codebase/backend/src/modules/knowledge-base/eval/**, src/scripts/{generate-golden-set,eval-retrieval}.ts, codebase/backend/eval/**, package.json scripts, 신규 spec/conventions/rag-evaluation.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
