@@ -6,6 +6,8 @@ code:
   - codebase/backend/src/modules/execution-engine/conversation-thread/**
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts
+  - codebase/backend/src/nodes/ai/shared/conversation-context-injection.ts
+  - codebase/backend/src/nodes/ai/shared/conversation-context-schema.ts
   - codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
   - codebase/frontend/src/lib/conversation/conversation-utils.ts
@@ -15,6 +17,7 @@ code:
 pending_plans:
   - plan/in-progress/ai-context-memory-followup-v2.md
   - plan/in-progress/exec-park-durable-resume.md
+  - plan/in-progress/memory-autoinject-extend.md
 ---
 
 # Conversation Thread (대화 스레드)
