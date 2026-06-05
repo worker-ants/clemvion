@@ -112,6 +112,27 @@ Shape of the payload on the error port:
 
 **When to use it**: when failures should trigger a **separate recovery path** — admin alert, alternative LLM call, archiving the original input, etc.
 
+## Execution time limit exceeded (`EXECUTION_TIME_LIMIT_EXCEEDED`)
+
+When a workflow's **accumulated active execution time** exceeds the limit (default **30 minutes**), the execution is automatically terminated with status `failed`. The error code is `EXECUTION_TIME_LIMIT_EXCEEDED`.
+
+**What is "active execution time"?**
+
+- Only the time nodes spend actively processing is counted.
+- **`waiting_for_input` wait time** — e.g. waiting for form submission or AI Agent conversation input — is excluded.
+- A workflow that spans multiple days waiting for user input will work fine as long as the accumulated active execution time stays under 30 minutes.
+
+<Callout type="info">
+This is separate from `EXECUTION_TIMEOUT` (Code node script timeout, per-node). `EXECUTION_TIME_LIMIT_EXCEEDED` measures the entire workflow's accumulated active execution time.
+</Callout>
+
+**Adjusting the limit**: set the server environment variable `EXECUTION_MAX_ACTIVE_RUNNING_MS` (in milliseconds). Set to `0` to disable the limit. A server restart is required after changing this value.
+
+```bash
+# Increase to 60 minutes
+EXECUTION_MAX_ACTIVE_RUNNING_MS=3600000
+```
+
 ## The cancelled status and error policies
 
 When a node is stopped by an **external abort** — a parallel branch failure with `cancel-others-on-fail`, or the user clicking Stop — the node records `NodeExecution.status = "cancelled"` instead of `"failed"`.

@@ -48,6 +48,7 @@ const LABEL_KO: Record<string, string> = {
   Description: "설명",
   "Description Field": "설명 필드",
   "Description override": "설명 재정의",
+  "Embedding Model": "임베딩 모델",
   "Enable Built-in Helpers": "기본 헬퍼 사용",
   "Enable Pagination": "페이지네이션 사용",
   "Enabled Tools": "활성 도구",
@@ -191,6 +192,8 @@ const HINT_KO: Record<string, string> = {
     "도트 경로(예: \"name\", \"address.city\") 또는 표현식(\"{{ $item.name }}\"). 비워두거나 \"$item\" 으로 두면 item 자체와 비교합니다.",
   "Dot-path or inline expression returning an array":
     "배열을 반환하는 점 경로 또는 인라인 표현식",
+  "Embedding model used for memory recall/extraction (must match the dimensions of the model used when memories were first stored). Empty = workspace default LLMConfig embedding model.":
+    "메모리 회상/추출에 사용할 임베딩 모델 (메모리를 처음 저장할 때 사용한 모델과 차원이 일치해야 합니다). 비우면 워크스페이스 기본 LLMConfig 임베딩 모델을 사용합니다.",
   "Exit loop when condition is met": "조건이 충족되면 루프를 종료",
   "Expose list/get meta-tools when the server reports prompts capability":
     "서버가 prompts capability 를 보고할 때 list/get 메타도구를 노출",
@@ -554,6 +557,10 @@ export const NODE_DESCRIPTION_KO: Record<string, string> = {
 export const ERROR_KO: Record<string, string> = {
   GRAPH_VALIDATION_FAILED:
     "워크플로우 그래프 검증에 실패했어요. 캔버스의 오류 배지를 확인해 주세요.",
+  // PR2a — §8 active-running 누적 타임아웃 에러코드 (spec/5-system/4-execution-engine.md §8).
+  // wall-clock 이 아닌 active 세그먼트 누적 시간(waiting_for_input 제외) 기준.
+  EXECUTION_TIME_LIMIT_EXCEEDED:
+    "실행 시간 한도(최대 active 실행 누적 시간)를 초과했어요.",
 };
 
 /**

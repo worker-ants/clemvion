@@ -90,7 +90,7 @@ flowchart LR
 | 항목 | 사실 |
 | --- | --- |
 | Primary DB | PostgreSQL (`pgvector/pgvector:pg18` — `docker-compose.yml` 기본값; k8s local overlay `k8s/overlays/local/infra-postgres.yaml` 는 아직 `pg16`), TypeORM 매핑. 마이그레이션은 Flyway (`codebase/backend/migrations/V*.sql`). |
-| Queue | Redis 7 + BullMQ. 현재 등록된 큐: `alerts-evaluator`, `background-execution`, `cafe24-token-refresh`, `makeshop-token-refresh`, `chat-channel-token-rotator`, `document-embedding`, `execution-continuation`, `graph-extraction`, `integration-expiry-scanner`, `login-history-pruner`, `notification-secret-rotator`, `notification-webhook`, `schedule-execution`. |
+| Queue | Redis 7 + BullMQ. 현재 등록된 큐: `alerts-evaluator`, `background-execution`, `cafe24-token-refresh`, `makeshop-token-refresh`, `chat-channel-token-rotator`, `document-embedding`, `execution-continuation`, `execution-run`, `graph-extraction`, `integration-expiry-scanner`, `login-history-pruner`, `notification-secret-rotator`, `notification-webhook`, `schedule-execution`. |
 | Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 (`codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts:726`). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
 | WebSocket | Socket.io. 실행 상태·KB 진행률·AI Assistant 스트리밍 emit. 단일 sink (`WebsocketService`). |
 | Auth | JWT access + rotated refresh (`refresh_token` table). Bearer 또는 cookie. |
@@ -165,6 +165,7 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 
 | 큐 이름 | 등록 모듈 | Producer | Consumer | 작업 단위 |
 | --- | --- | --- | --- | --- |
+| `execution-run` | `execution-engine.module.ts` | `ExecutionEngineService.execute` (Execution row `pending` 저장 후 발행) | `ExecutionRunProcessor` (work-stealing, `runExecutionFromQueue`) | Execution 첫 active 세그먼트 (시작→첫 BLOCK/완료) — intake 큐 ([실행 엔진 §4](../5-system/4-execution-engine.md#4-worker-모델)) |
 | `execution-continuation` | `execution-engine.module.ts` | `ContinuationBusService.publish` (WS gateway / REST controller 경유) | `ContinuationExecutionProcessor` | 사용자 입력 fan-out (form/button/AI message — [실행 엔진 §7.4/§7.5](../5-system/4-execution-engine.md)) |
 | `background-execution` | `execution-engine.module.ts` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | Background 노드의 자식 흐름 |
 | `document-embedding` | `knowledge-base.module.ts` | KB 문서 업로드·재임베딩 API | `DocumentEmbeddingProcessor` | 문서 1건 임베딩 |

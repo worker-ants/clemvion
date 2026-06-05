@@ -62,7 +62,7 @@ code:
 
 > 모드별 도움말은 폼에 인라인 안내로 표시: vector 는 "유사도 기반 단순 검색", graph 는 "entity·relation 추출 후 그래프 탐색을 결합 — 추출 LLM 호출이 추가 비용으로 발생". 리랭킹은 "Off(기본)면 동작 변화 없음 — 리랭커 설정 시에만 검색 정밀화. 셀프호스팅(TEI) 또는 외부 API(Cohere/Jina 등) 사용".
 
-> **리랭커 provider 설정(RerankConfig)** 은 워크스페이스 설정 화면에서 LLMConfig 와 동일 패턴으로 관리한다 (provider·endpoint·모델·API Key). KB 폼의 "Reranker" select 는 워크스페이스 RerankConfig 목록에서 선택한다. 엔티티: [Spec 데이터 모델 §2.16.1](../1-data-model.md#2161-rerankconfig-planned).
+> **리랭커 provider 설정(RerankConfig)** 은 워크스페이스 설정 화면에서 LLMConfig 와 동일 패턴으로 관리한다 (provider·endpoint·모델·API Key). KB 폼의 "Reranker" select 는 워크스페이스 RerankConfig 목록에서 선택한다. 엔티티: [Spec 데이터 모델 §2.16.1](../1-data-model.md#2161-rerankconfig).
 
 ### 2.2.1 컬렉션 카드 (목록)
 

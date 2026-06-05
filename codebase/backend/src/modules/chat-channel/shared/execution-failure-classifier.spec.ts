@@ -94,13 +94,14 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       expect(result.key).toBe('executionFailedThirdParty');
     });
 
-    it.each(['EXECUTION_TIMEOUT', 'CODE_TIMEOUT'])(
-      '%s → executionFailedTimeout',
-      (code) => {
-        const result = classifyExecutionFailure(makeEvent(code));
-        expect(result.key).toBe('executionFailedTimeout');
-      },
-    );
+    it.each([
+      'EXECUTION_TIMEOUT',
+      'EXECUTION_TIME_LIMIT_EXCEEDED',
+      'CODE_TIMEOUT',
+    ])('%s → executionFailedTimeout', (code) => {
+      const result = classifyExecutionFailure(makeEvent(code));
+      expect(result.key).toBe('executionFailedTimeout');
+    });
 
     it.each([
       'CODE_EXECUTION_FAILED',

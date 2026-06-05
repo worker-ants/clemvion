@@ -1,0 +1,138 @@
+{
+  "timestamp": "2026-06-04T14:35:37.238935",
+  "files": [
+    {
+      "file_path": "codebase/backend/.env.example",
+      "change_type": "Review",
+      "file_extension": "example"
+    },
+    {
+      "file_path": "codebase/backend/migrations/V073__execution_active_running_ms.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/chat-channel/shared/execution-failure-classifier.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/execution-engine.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/execution-limits.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/execution-limits.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/workflow-errors.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/executions/entities/execution.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/system-status/system-status.constants.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/core/error-codes.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/test/system-status.e2e-spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/exec-intake-queue-impl.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/06/04/14_06_05/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/06/04/14_06_05/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/06/04/14_06_05/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/06/04/14_06_05/cross_spec.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/06/04/14_06_05/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/06/04/14_06_05/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/06/04/14_06_05/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/06/04/14_06_05/rationale_continuity.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "database",
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

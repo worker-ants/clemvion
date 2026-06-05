@@ -19,6 +19,7 @@ code:
 
 | name | group | concurrency | 비고 |
 |------|-------|-------------|------|
+| execution-run | execution | 1 (env `EXECUTION_RUN_WORKER_CONCURRENCY`) | Execution intake — 첫 active 세그먼트 work-stealing (intake 큐 burst 시 `waiting>0 && active===0` 일시 오탐 가능) |
 | background-execution | execution | 1 (기본) | Background 노드 자식 흐름 |
 | execution-continuation | execution | 1 (env `CONTINUATION_WORKER_CONCURRENCY`) | 사용자 입력 fan-out |
 | document-embedding | knowledge-base | 3 | 문서 임베딩 |
