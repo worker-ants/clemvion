@@ -24,6 +24,28 @@ export type ConversationTurnSource =
   | 'system';
 
 /**
+ * Valid `ConversationTurnSource` 값 집합 — `rehydrateConversationThread` 의
+ * source 검증과 신규 source 추가 시 자동 동기화를 위해 배열로 추출한다.
+ * (단일 진실: 위 union 에서 파생)
+ */
+const CONVERSATION_TURN_SOURCES: readonly ConversationTurnSource[] = [
+  'presentation_user',
+  'ai_user',
+  'ai_assistant',
+  'ai_tool',
+  'system',
+] as const;
+
+/**
+ * `runningSummary` 복원 시 적용되는 길이 상한 (chars).
+ * AI 프롬프트 삽입 경로의 DoS성 토큰 과소비·프롬프트 인젝션 방어 — 비정상적으로
+ * 큰 DB 값이 그대로 삽입되지 않도록 합리적 상한을 두고 초과분은 trim 후 복원한다.
+ * thread-renderer 의 MAX_INJECTED_CHARS(200_000)·MAX_TURN_TEXT_CHARS(4_000) 스타일
+ * 참고 — runningSummary 는 전체 turn 들을 요약한 단일 텍스트이므로 그 사이 값으로 설정.
+ */
+export const MAX_RUNNING_SUMMARY_CHARS = 20_000;
+
+/**
  * Presentation payload emitted by an AI Agent `render_*` tool call.
  * SoT: spec/4-nodes/3-ai/1-ai-agent.md §7.10 (type definition single source).
  *
@@ -158,8 +180,9 @@ export interface ConversationThread {
    * 롤링 요약 본문. AI Agent 의 `memoryStrategy ∈ {summary_buffer, persistent}`
    * 전략에서만 set (spec/conventions/conversation-thread.md §1.3,
    * spec/4-nodes/3-ai/1-ai-agent.md §6.1). `manual` 전략에서는 미설정.
-   * 실행 중 `ExecutionContext` (Redis 직렬화) 에만 포함되고 신규 DB 컬럼을
-   * 만들지 않는다 (§4 영속화 — ConversationThread "신규 DB 컬럼 없음" 유지).
+   * thread 의 일부이므로 park 시 `Execution.conversation_thread` durable 스냅샷에
+   * 함께 commit 되어 rehydration(§7.5)으로 복원된다 (§4 영속화·§8.4). park 사이
+   * active 진행 중 ExecutionContext 유실 시 fallback 은 [1-ai-agent §12.13].
    */
   runningSummary?: string;
   /**
@@ -197,4 +220,82 @@ export function createEmptyConversationThread(): MutableConversationThread {
     turns: [],
     totalChars: 0,
   };
+}
+
+/**
+ * durable park 스냅샷(`Execution.conversation_thread` jsonb, spec
+ * conversation-thread.md §4·§8.4)에서 로드한 raw 값을 안전한
+ * `MutableConversationThread` 로 정규화한다 — §7.5 rehydration 진입점.
+ *
+ * jsonb 는 plain object 로 역직렬화되므로 `turns` 는 일반 배열이다. 본 함수는
+ * (a) 누락/손상 필드를 기본값으로 보강하고 (schema drift graceful), (b) `turns`
+ * 를 새 배열로 복사해 영속본 참조와 분리하며, (c) 개별 turn 의 최소 타입 검증을
+ * 수행해 손상 turn 을 skip 하고 (d) `nextSeq`/`totalChars` 를 생존 turns 에서
+ * 재유도해 append 불변량을 보존한다. raw 가 null/비객체면 빈 thread 를 반환한다.
+ *
+ * **nextSeq eviction-aware 불변량**: eviction(§STORAGE_MAX_TURNS) 후에는 오래된
+ * turn 이 drop 돼도 `nextSeq` 는 단조 증가 카운터를 유지하므로 `turns.length`
+ * 보다 클 수 있다. 저장값이 `turns.length` 이상이면 그대로 보존(seq 재사용
+ * 방지); 미만이거나 손상이면 `turns.length` 로 재유도한다.
+ *
+ * **runningSummary 상한**: `MAX_RUNNING_SUMMARY_CHARS` 초과 시 trim 후 복원 —
+ * 비정상 DB 값이 AI 프롬프트에 과도하게 삽입되는 것을 방어한다.
+ */
+export function rehydrateConversationThread(
+  raw: unknown,
+): MutableConversationThread {
+  if (!raw || typeof raw !== 'object') {
+    return createEmptyConversationThread();
+  }
+  const r = raw as Record<string, unknown>;
+  // turns 가 배열이 아니면 스냅샷 자체가 손상된 것 — 빈 thread 로 전체 리셋한다
+  // (회귀 없음). 정상 jsonb round-trip 에서는 발생하지 않는다.
+  if (!Array.isArray(r.turns)) {
+    return createEmptyConversationThread();
+  }
+  // 개별 turn 최소 검증: seq(non-negative integer), source(enum), text(string).
+  // 손상 turn 은 skip — 정상 jsonb round-trip 에서는 발생하지 않으며,
+  // 과도한 검증을 피해 정상 동작에 영향을 주지 않는 최소 가드만 적용한다.
+  const turns: ConversationTurn[] = (r.turns as unknown[]).filter(
+    (t): t is ConversationTurn => {
+      if (!t || typeof t !== 'object') return false;
+      const turn = t as Record<string, unknown>;
+      if (
+        typeof turn.seq !== 'number' ||
+        !Number.isInteger(turn.seq) ||
+        turn.seq < 0
+      )
+        return false;
+      if (
+        typeof turn.source !== 'string' ||
+        !(CONVERSATION_TURN_SOURCES as readonly string[]).includes(turn.source)
+      )
+        return false;
+      if (typeof turn.text !== 'string') return false;
+      return true;
+    },
+  );
+  const id = typeof r.id === 'string' ? r.id : DEFAULT_THREAD_ID;
+  // nextSeq eviction-aware 보존: 저장값이 turns.length 이상이면 보존(seq 재사용
+  // 방지), 비숫자거나 turns.length 미만(손상)이면 turns.length 로 재유도한다.
+  const storedNextSeq = r.nextSeq;
+  const nextSeq =
+    typeof storedNextSeq === 'number' && storedNextSeq >= turns.length
+      ? storedNextSeq
+      : turns.length;
+  // totalChars 는 생존 turns 에서 재계산 — eviction drift·손상 turn drop 후
+  // 캐시 일관성을 보장한다 (rehydration 은 hot path 가 아니므로 O(n) 허용).
+  const totalChars = turns.reduce((sum, t) => sum + t.text.length, 0);
+  const thread: MutableConversationThread = { id, nextSeq, turns, totalChars };
+  if (typeof r.runningSummary === 'string') {
+    // MAX_RUNNING_SUMMARY_CHARS 초과 시 trim — DoS성 토큰 과소비·프롬프트 인젝션 방어.
+    thread.runningSummary =
+      r.runningSummary.length > MAX_RUNNING_SUMMARY_CHARS
+        ? r.runningSummary.slice(0, MAX_RUNNING_SUMMARY_CHARS)
+        : r.runningSummary;
+  }
+  if (typeof r.summarizedUpToSeq === 'number') {
+    thread.summarizedUpToSeq = r.summarizedUpToSeq;
+  }
+  return thread;
 }
