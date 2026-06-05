@@ -89,18 +89,18 @@ owner: developer
 > - **PR-B2 (multi-turn AI)**: `runAiConversationLoop` 장수 루프 → turn-단위 park(D4, 매 turn 해제 + per-turn durable checkpoint). AI 도 `pendingContinuations` 등록 제거 → fast-path 가지·`pendingContinuations` Map·`firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier`/`firePayload` scheduler 완전 제거(B3). e2e(멀티턴 park→kill→재개) 포함.
 
 ### B1. park 시 coroutine 반환(해제) — 멀티턴 turn-단위(D4)
-- [ ] `waitForFormSubmission`/`waitForButtonInteraction`/`waitForAiConversation` 의 `await new Promise()` 대기 제거 — durable 영속 후 **즉시 반환**해 `runExecution` 세그먼트 종료.
-- [ ] **멀티턴 AI = turn-단위 park(D4)**: `runAiConversationLoop` 의 장수 루프를 매 turn 입력 대기에서 **해제** — 한 turn 처리=한 세그먼트, 다음 메시지에 rehydration 재개. 응답 없는 대화도 메모리 0 점유. (turn 마다 rehydration 비용은 사람-페이스라 수용.)
-- [ ] `runExecutionFromQueue` 의 detached coroutine + `firstSegmentBarriers` 대기 단순화/제거 (park 가 곧 세그먼트 종료이므로 배리어 불필요).
+- [x] **(PR-B1, commit 20836914)** `waitForFormSubmission`/`waitForButtonInteraction` 의 `await new Promise()` 대기 제거 — durable 영속 후 **즉시 반환**(PARK_RELEASED)해 `runExecution`/resume·retry 드라이브 세그먼트 종료. dockerized e2e(form park→cold rehydration→무손실 completed) 통과.
+- [ ] **(PR-B2)** 멀티턴 AI = turn-단위 park(D4): `runAiConversationLoop` 장수 루프 해제. PR-B1 은 in-memory 루프 유지(await).
+- [ ] **(PR-B2)** `runExecutionFromQueue` detached coroutine + `firstSegmentBarriers` 단순화/제거. PR-B1 은 form/button release 가 finally 의 `settleFirstSegment` 로 배리어를 깨워 worker job 반환(메커니즘 유지).
 
 ### B2. 재개 = 항상 rehydration
-- [ ] continuation 처리(`applyContinuation`)에서 fast-path(`pendingContinuations.has`) 제거 또는 "같은 프로세스 우연 생존 시 순수 최적화"로 강등(의존 금지).
-- [ ] 모든 재개가 `execution-continuation` job → `rehydrateAndResume` 로 일원화.
-- [ ] 불변식 보장: 동일 turn 이중 실행 0 (durable WAITING + status 가드), continuation 유실 0(durable 큐), 멱등.
+- [x] **(PR-B1, form/button)** fresh top-level park 가 `pendingContinuations` 미등록 → `applyContinuation` fast-path miss → 항상 `rehydrateAndResume`(slow-path). 멀티턴 AI 는 PR-B2 까지 fast-path 잔존.
+- [x] **(PR-B1, form/button)** 모든 form/button 재개가 `execution-continuation` job → `rehydrateAndResume` 로 일원화.
+- [x] **(PR-B1)** cancellation gap 수정: `applyCancellation` async + `cancelParkedExecution` — park-release 로 코루틴 없는 WAITING 행 직접 CANCELLED 마감. 불변식(동일 turn 이중 실행 0 = WAITING status 가드, 멱등 = affected 가드) 유지.
 
 ### B3. 정리(제거)
-- [ ] `pendingContinuations` Map (fast-path 의존 제거 후), `firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier` 제거 또는 축소.
-- [ ] #468 의 W1/W2 방어 로직 중 해제로 불필요해진 부분 정리.
+- [ ] **(PR-B2)** `pendingContinuations` Map (AI fast-path 제거 후), `firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier` 제거 또는 축소.
+- [ ] **(PR-B2)** #468 의 W1/W2 방어 로직 중 해제로 불필요해진 부분 정리.
 
 ---
 
