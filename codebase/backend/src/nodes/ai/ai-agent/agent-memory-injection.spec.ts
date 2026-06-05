@@ -4,12 +4,15 @@ import {
   buildSummaryBlock,
   buildSummaryBufferUpdate,
   compactMessagesToTail,
+  estimateTextTokens,
+  estimateTokensLanguageAware,
   estimateTurnTokens,
   MIN_RECENT_RAW_TURNS,
   estimateWorkingMemoryTokens,
   selectVolatileTail,
   stripMemoryBlocks,
 } from './agent-memory-injection';
+import { estimateTokens as kbEstimateTokens } from '../../../modules/knowledge-base/chunking/text-chunker';
 import type { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
 import type { ConversationTurn } from '../../../shared/conversation-thread/conversation-thread.types';
 import type { LlmService } from '../../../modules/llm/llm.service';
@@ -869,5 +872,82 @@ describe('estimateWorkingMemoryTokens', () => {
     const t = [turn(0, 'aaa'), turn(1, 'bbb')];
     const total = estimateWorkingMemoryTokens(t, 'cccc');
     expect(total).toBeGreaterThan(0);
+  });
+});
+
+describe('estimateTokensLanguageAware — A4 lite 무의존 language-aware 휴리스틱', () => {
+  // 균일 char/3 baseline (KB 청킹과 동일 공식) 과 직접 대조한다.
+  const uniformChar3 = (text: string) => Math.ceil(text.length / 3);
+
+  it('empty / non-string input → 0 (graceful)', () => {
+    expect(estimateTokensLanguageAware('')).toBe(0);
+    expect(estimateTextTokens('')).toBe(0);
+    // 비정상 입력(런타임 비-string) 도 throw 없이 0.
+    expect(estimateTokensLanguageAware(undefined as unknown as string)).toBe(0);
+    expect(estimateTokensLanguageAware(null as unknown as string)).toBe(0);
+    expect(estimateTokensLanguageAware(123 as unknown as string)).toBe(0);
+  });
+
+  it('pure English → fewer tokens than uniform char/3 (Latin ÷4 < ÷3)', () => {
+    const english = 'The quick brown fox jumps over the lazy dog.'.repeat(20);
+    const aware = estimateTokensLanguageAware(english);
+    expect(aware).toBeGreaterThan(0);
+    // 영문은 토큰이 줄어든다 (char/4 ≈ char/3 의 0.75배).
+    expect(aware).toBeLessThan(uniformChar3(english));
+    // 대략 char/4 수준 (±10% 오차 허용).
+    expect(aware).toBeCloseTo(english.length / 4, -1);
+  });
+
+  it('pure Korean (CJK) → more tokens than uniform char/3 (CJK ÷1.7 > ÷3)', () => {
+    const korean =
+      '안녕하세요 반갑습니다 메모리 토큰 추정 테스트입니다 '.repeat(20);
+    const aware = estimateTokensLanguageAware(korean);
+    expect(aware).toBeGreaterThan(0);
+    // 한국어는 공백(÷3)을 빼면 음절당 ~1/1.7 토큰 → char/3 보다 커야 한다.
+    expect(aware).toBeGreaterThan(uniformChar3(korean));
+  });
+
+  it('mixed Korean+English reflects both scripts (between the two single-ratio extremes)', () => {
+    const koOnly = '안녕하세요 반갑습니다 메모리 토큰 추정 '.repeat(15);
+    const enOnly = 'memory token estimation language aware '.repeat(15);
+    const mixed = koOnly + enOnly;
+    const aware = estimateTokensLanguageAware(mixed);
+    // 혼합 추정은 각 부분의 합과 일치한다 (per-codepoint 누적은 분할 가산적이지만
+    // ceil 경계로 ±1 오차가 날 수 있으므로 근사 일치).
+    const parts =
+      estimateTokensLanguageAware(koOnly) + estimateTokensLanguageAware(enOnly);
+    expect(Math.abs(aware - parts)).toBeLessThanOrEqual(1);
+    // 혼합은 순수 영문(÷4)보다 크고, 같은 길이 순수 한국어(÷1.7)보다 작다.
+    expect(aware).toBeGreaterThan(mixed.length / 4);
+    expect(aware).toBeLessThan(mixed.length / 1.7 + 1);
+  });
+
+  it('estimateWorkingMemoryTokens sums per-text language-aware estimates exactly', () => {
+    const t = [turn(0, 'hello world'), turn(1, '안녕 세계')];
+    const extra = 'system prompt text';
+    const total = estimateWorkingMemoryTokens(t, extra);
+    const expected =
+      estimateTextTokens('hello world') +
+      estimateTextTokens('안녕 세계') +
+      estimateTextTokens(extra);
+    expect(total).toBe(expected);
+    expect(estimateTurnTokens(t[0])).toBe(estimateTextTokens('hello world'));
+  });
+
+  it('does NOT mutate KB chunking estimateTokens (text-chunker stays uniform char/3)', () => {
+    // KB 청킹 경로는 무변경 — 동일 텍스트에서 char/3 공식을 그대로 유지해야 한다.
+    const samples = [
+      'plain english text here',
+      '안녕하세요 한국어 텍스트',
+      'mixed 혼합 text 텍스트',
+      '',
+    ];
+    for (const s of samples) {
+      expect(kbEstimateTokens(s)).toBe(uniformChar3(s));
+    }
+    // 그리고 memory 경로는 KB 경로와 (영문/CJK 에서) 실제로 달라야 한다 (분리 증명).
+    expect(estimateTextTokens('The quick brown fox '.repeat(10))).not.toBe(
+      kbEstimateTokens('The quick brown fox '.repeat(10)),
+    );
   });
 });
