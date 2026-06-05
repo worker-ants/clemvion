@@ -4,6 +4,8 @@ status: implemented
 code:
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.schema.ts
+pending_plans:
+  - plan/in-progress/exec-park-durable-resume.md
 ---
 
 # Spec: Information Extractor
@@ -354,7 +356,7 @@ handler 가 `output: { result: {...}, partial?: {...} }` 런타임 필드와 `_r
 | `output.partial.collectionRetryCount` | number | handler — runtime | 누적 재질의 횟수 (UI 진행률용) |
 | `meta.interactionType` | `'ai_conversation'` | handler — runtime | engine WS 페이로드 분류용 메타. 종결 시점에는 사용하지 않음 |
 | `status` | `'waiting_for_input'` | handler return | 엔진 일시 중단 트리거 |
-| `_resumeState` | object | handler internal | 다음 턴 처리에 필요한 internal state. expression 레이어에 노출되지 않음 (autocomplete/resolver 에서 숨김). DB 저장 시 strip — **`information_extractor` 는 `ai_agent` 의 `_resumeCheckpoint` 재시작-재개([실행 엔진 §1.3 / §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration))를 적용하지 않는다** (고유 state 필드 때문). 인스턴스 재시작 후 재개 시 graceful reset (`RESUME_INCOMPATIBLE_STATE`) — 사용자는 새 대화로 시작. 향후 작업으로 지원 검토 |
+| `_resumeState` | object | handler internal | 다음 턴 처리에 필요한 internal state. expression 레이어에 노출되지 않음 (autocomplete/resolver 에서 숨김). DB 저장 시 strip — 단 **`information_extractor` 도 `_resumeCheckpoint` 재시작-재개([실행 엔진 §1.3 / §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration))를 지원한다**: credential-strip 부분집합(고유 runtime state `partialResult`/`collectionRetryCount` 포함)이 `NodeExecution.outputData._resumeCheckpoint` 에 영속되고, 재개 시 config 필드(outputSchema/examples/instructions/maxCollectionRetries)는 `node.config` 에서 재유도된다. checkpoint 부재/손상/미래 버전 시에만 graceful reset (`RESUME_INCOMPATIBLE_STATE`) |
 
 **Expression 접근 예**:
 - `$node["X"].output.result.messages[-1].content` → 마지막 assistant 메시지

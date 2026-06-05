@@ -1822,7 +1822,7 @@ export class ExecutionEngineService
       } else if (
         isAiConversation &&
         resumeCheckpoint &&
-        node.type === 'ai_agent'
+        (node.type === 'ai_agent' || node.type === 'information_extractor')
       ) {
         // §7.5 Multi-turn AI 재개 — `_resumeCheckpoint` 로 `_resumeState` 재구성
         // 후 `waitForAiConversation` 재진입 (`buildRetryReentryState` 는 retry
@@ -4228,6 +4228,22 @@ export class ExecutionEngineService
         (resumeFields.mcpServers as unknown[] | undefined) ??
         (resolvedConfig.mcpServers as unknown[] | undefined) ??
         [],
+      // information_extractor config 필드 재유도 (node.config) + 고유 runtime
+      // state 기본값 보강 (spec §1.3 합집합). ai_agent 재구성에는 inert —
+      // ai_agent 핸들러가 읽지 않으며, IE 핸들러만 자기 필드를 소비한다.
+      outputSchema:
+        (resolvedConfig.outputSchema as unknown[] | undefined) ?? [],
+      examples: (resolvedConfig.examples as unknown[] | undefined) ?? [],
+      instructions: (resolvedConfig.instructions as string | undefined) ?? '',
+      maxCollectionRetries:
+        (resolvedConfig.maxCollectionRetries as number | undefined) ?? 3,
+      partialResult:
+        (resumeFields.partialResult as Record<string, unknown> | undefined) ??
+        {},
+      collectionRetryCount:
+        typeof resumeFields.collectionRetryCount === 'number'
+          ? resumeFields.collectionRetryCount
+          : 0,
       conversationThreadRef: context.conversationThread,
     };
     if (!('rawConfig' in resumeState)) {
@@ -4312,6 +4328,12 @@ export class ExecutionEngineService
       ragThreshold: s.ragThreshold,
       ragSources: (s.ragSources as unknown[] | undefined) ?? [],
       mcpServers: (s.mcpServers as unknown[] | undefined) ?? [],
+      // information_extractor 고유 runtime state (credential-free) — IE 멀티턴
+      // 재개에 필요. ai_agent 의 _resumeState 에는 부재이므로 기본값(빈 객체/0)
+      // 으로 inert. allow-list 합집합 정책 (spec §1.3).
+      partialResult:
+        (s.partialResult as Record<string, unknown> | undefined) ?? {},
+      collectionRetryCount: (s.collectionRetryCount as number | undefined) ?? 0,
       ...(pendingFormToolCall ? { pendingFormToolCall } : {}),
     };
   }
@@ -5027,12 +5049,11 @@ export class ExecutionEngineService
       delete persistedOutput._resumeState;
       // §7.5 rehydration — full `_resumeState` 는 위에서 strip 하되, 재시작 후
       // 재개를 위해 credential-strip 부분집합 `_resumeCheckpoint` 를 DB 영속한다.
-      // **`ai_agent` 한정** — 재구성기(`buildRetryReentryState`)와 checkpoint
-      // allow-list 가 ai_agent 의 `_resumeState` shape 에 맞춰져 있다. 다른
-      // ai_conversation 핸들러(information_extractor 등)는 고유 state 필드를
-      // 가지므로 checkpoint 를 영속하지 않고 (재구성 시 누락 방지) 재개 시
-      // graceful reset 으로 처리한다 (변경 전 동작 유지 — 회귀 없음).
-      if (node.type === 'ai_agent') {
+      // **`ai_agent` · `information_extractor`** (spec §1.3 allow-list 합집합).
+      // checkpoint allow-list 는 두 핸들러 runtime state 의 합집합이고 config
+      // 필드는 재개 시 node.config 에서 재유도된다. 그 외 ai_conversation 핸들러는
+      // 고유 state 미등록이라 미영속 → 재개 시 graceful reset.
+      if (node.type === 'ai_agent' || node.type === 'information_extractor') {
         const checkpoint = this.buildResumeCheckpoint(resumeState);
         if (checkpoint) {
           persistedOutput._resumeCheckpoint = checkpoint;
@@ -5287,9 +5308,9 @@ export class ExecutionEngineService
         } & Record<string, unknown>;
         // §7.5 rehydration — full `_resumeState` 는 strip, credential-strip
         // 부분집합 `_resumeCheckpoint` 만 DB 영속해 재시작 후 재개를 보장한다.
-        // `ai_agent` 한정 (emitAiWaitingForInput 와 동일 — 재구성기가 ai_agent
-        // shape 전용).
-        if (node.type === 'ai_agent') {
+        // `ai_agent` · `information_extractor` (emitAiWaitingForInput 와 동일 —
+        // allow-list 합집합, spec §1.3).
+        if (node.type === 'ai_agent' || node.type === 'information_extractor') {
           const checkpoint = this.buildResumeCheckpoint(
             _stripped as Record<string, unknown> | undefined,
           );
