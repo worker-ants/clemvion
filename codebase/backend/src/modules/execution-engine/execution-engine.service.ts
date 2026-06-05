@@ -1055,7 +1055,19 @@ export class ExecutionEngineService
    * 멱등 — 이미 terminal 이거나 재개로 RUNNING 이면 affected=0 → no-op(중복 emit
    * 회피). 옛 fast-path 의 "coroutine 에 ExecutionCancelledError 주입 →
    * runExecution catch 가 CANCELLED + emit" 과 동일 종착점을 코루틴 없이 DB-레벨로
-   * 달성한다. (NodeExecution 은 옛 catch 경로와 동일하게 별도 마킹하지 않는다.)
+   * 달성한다.
+   *
+   * NodeExecution 도 함께 CANCELLED 로 마킹한다: Execution 만 CANCELLED 로 전이하고
+   * NodeExecution 이 WAITING_FOR_INPUT 으로 잔류하면 UI 가 영구 WAITING 을 표시하고
+   * `resolveWaitingNodeExecutionId` 가 stale WAITING row 를 매칭할 수 있다 (W1/W6).
+   * `execution_id + status = WAITING_FOR_INPUT` 을 키로 단일 UPDATE — 해당 row 가
+   * 없으면(이미 CANCELLED / resume 으로 COMPLETED) 멱등 no-op.
+   *
+   * PR-B1 범위: form/button top-level park 전용. 멀티턴 AI in-memory 코루틴은
+   * `applyCancellation` 이 `rejectPending` 경로로 별도 처리하므로 본 함수에 도달하지
+   * 않는다. `finalizeRehydrationCleanup` 에 live AI contextService 가 없어 경합 없음.
+   *
+   * @remarks DB 오류는 내부 흡수 — 호출자에 예외 전파 없음 (best-effort cancel).
    */
   private async cancelParkedExecution(executionId: string): Promise<void> {
     try {
@@ -1072,6 +1084,19 @@ export class ExecutionEngineService
         // 이미 terminal / 재개로 RUNNING — 멱등 no-op.
         return;
       }
+      // 동반 WAITING NodeExecution 도 CANCELLED 로 마킹한다. Execution UPDATE 가
+      // affected:1 이었으므로 여기까지 온 경우만 실행(멱등 안전).
+      // `status = WAITING_FOR_INPUT` 가드: resume 으로 이미 COMPLETED/RUNNING 으로
+      // 전이된 row 는 건드리지 않는다.
+      await this.nodeExecutionRepository
+        .createQueryBuilder()
+        .update(NodeExecution)
+        .set({ status: NodeExecutionStatus.CANCELLED, finishedAt: new Date() })
+        .where('execution_id = :executionId', { executionId })
+        .andWhere('status = :waiting', {
+          waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+        })
+        .execute();
       // park 시 이미 해제됐을 수 있는 in-memory 잔여(context/resolver/llm 캐시)를
       // 멱등 정리한다.
       this.finalizeRehydrationCleanup(executionId);
@@ -1493,6 +1518,12 @@ export class ExecutionEngineService
    *   5. blocking node (form / button / AI multi-turn) → waitForX
    *   6. propagateReachability + back-edge 처리 → pointer 갱신
    *
+   * @returns `{ parked: boolean }` — `parked: true` 이면 루프가 blocking node
+   *   (`waitForX`)에서 PARK_RELEASED 를 수신해 park 로 종료(top-level fresh park,
+   *   caller 가 세그먼트 종료 처리). `parked: false` 이면 루프가 정상 완료(다음
+   *   노드 없음 또는 완료 경로). 양 경우 모두 caller 가 후속 cleanup 을 수행한다.
+   *   spec §4.x `runNodeDispatchLoop` 반환 계약 (SPEC-DRIFT W3 — 코드 동작이 옳고
+   *   spec 이 따라온다; spec 갱신은 spec-update-execution-engine.md 참조).
    * @throws {Error} `MAX_NODE_ITERATIONS` 초과 — 노드 순환 한도 초과 메시지 포함.
    *   호출자의 catch 블록이 실행 실패로 마감한다.
    * @throws {ExecutionCancelledError} 실행 취소 신호 수신 — 호출자의 catch 블록이
@@ -1798,6 +1829,9 @@ export class ExecutionEngineService
     // ≈ 5s) 으로 race window 를 덮는다. setImmediate self-reschedule 은 idle
     // worker 에서 microtask 로 즉시 소진돼, 실제 DB await 뒤에 일어나는 등록 전에
     // 한도가 바닥나 resume 이 영구 hang 하던 결함을 해소한다.
+    // PR-B2 에서 pendingContinuations 가 제거되면 이 폴링 메커니즘 전체가 삭제된다
+    // (임시 메커니즘 — W19). 동시 resume 증가 시 이벤트 루프 지연이 누적될 수 있으나
+    // 단발 form/button park 가 압도적 다수인 HITL 패턴에서 B1 만으로 대부분 해소된다.
     const FIRE_PAYLOAD_MAX_ATTEMPTS = 250;
     const FIRE_PAYLOAD_POLL_INTERVAL_MS = 20;
     // single-shot: pendingContinuations 키를 처음 본 tick 에 한 번 fire
@@ -3575,6 +3609,16 @@ export class ExecutionEngineService
    * Pause execution at a Form node and wait for the user to submit form data.
    * Transitions Execution → WAITING_FOR_INPUT, emits WS event, awaits Promise.
    * On resume: merges formData into node output, transitions back to RUNNING.
+   *
+   * @param parkMode `'release'` = fresh top-level park → unwinds coroutine
+   *   (returns PARK_RELEASED sentinel). `'await'` = §7.5 rehydration resume
+   *   re-entry (awaits Promise that firePayload resolves). Default: `'await'`.
+   * @returns `void` on normal resume (parkMode=`'await'`), or `PARK_RELEASED`
+   *   sentinel when parkMode=`'release'` (caller unwinds without awaiting input).
+   *
+   * @todo PR-B2/B3: 두 직교 동작(`'release'` vs `'await'`)을 Strategy 패턴
+   *   (ParkStrategy 인터페이스) 또는 함수 분리로 추출 예정. 현재 `parkMode`
+   *   파라미터로 혼재 (OCP 약화, W15).
    */
   private async waitForFormSubmission(
     savedExecution: Execution,
@@ -6165,6 +6209,16 @@ export class ExecutionEngineService
    * Pause execution at a Presentation node with buttons and wait for user interaction.
    * Transitions Execution → WAITING_FOR_INPUT, emits WS event, awaits Promise.
    * On resume: sets _selectedPort for port routing, transitions back to RUNNING.
+   *
+   * @param parkMode `'release'` = fresh top-level park → unwinds coroutine
+   *   (returns PARK_RELEASED sentinel). `'await'` = §7.5 rehydration resume
+   *   re-entry (awaits Promise that firePayload resolves). Default: `'await'`.
+   * @returns `void` on normal resume (parkMode=`'await'`), or `PARK_RELEASED`
+   *   sentinel when parkMode=`'release'` (caller unwinds without awaiting input).
+   *
+   * @todo PR-B2/B3: 두 직교 동작(`'release'` vs `'await'`)을 Strategy 패턴
+   *   (ParkStrategy 인터페이스) 또는 함수 분리로 추출 예정. 현재 `parkMode`
+   *   파라미터로 혼재 (OCP 약화, W15).
    */
   private async waitForButtonInteraction(
     savedExecution: Execution,

@@ -77,9 +77,11 @@ function flushPromises(): Promise<void> {
  * slow-path(`rehydrateAndResume` → detached `driveResumeDetached` + setTimeout
  * 기반 `firePayload`)로 일원화됐다. 따라서 resume 트리거 후 detached 드라이브가
  * 완료되도록 실제 타이머를 한 번 흘려보낸 뒤 assertion 한다. (firePayload 는
- * setTimeout(0) 시작 + 20ms 폴링이므로 40ms 면 첫 fire+그래프 구동을 덮는다.)
+ * setTimeout(0) 시작 + 20ms 폴링이므로 200ms 면 CI 고부하 환경에서도 첫
+ * fire+그래프 구동을 충분히 덮는다. 기존 40ms 는 CI 고부하 시 sporadic false
+ * negative 가 관측되었다 — W13.)
  */
-function flushResumeDrive(ms = 40): Promise<void> {
+function flushResumeDrive(ms = 200): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -1230,13 +1232,50 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    it('applyCancellation — 로컬 Map 키 없으면 silent skip (review W12)', () => {
+    // W11 — applyCancellation async 전환 후 실질 검증력 복원.
+    // (a) pendingContinuations 에 키 없음 → cancelParkedExecution(DB 경로) 실행 확인.
+    it('applyCancellation — pendingContinuations 키 없으면 cancelParkedExecution(createQueryBuilder) 경로 실행', async () => {
       const pendings = getPendings(service);
       pendings.clear();
 
-      // 미등록 executionId — 어떤 에러도 던지지 않음.
-      expect(() => service.applyCancellation('exec-not-here')).not.toThrow();
-      expect(pendings.size).toBe(0);
+      const execQb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      };
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(execQb);
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(execQb);
+
+      // affected:0 → 멱등 no-op. createQueryBuilder が呼ばれていること(= DB 경로 도달)을 확인.
+      await service.applyCancellation('exec-no-pending');
+      expect(mockExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+    });
+
+    // W12 — pendingContinuations 에 항목이 있으면 rejectPending 경로로 처리되며
+    // cancelParkedExecution(createQueryBuilder) 가 호출되지 않는다.
+    it('applyCancellation — pendingContinuations 에 항목 있으면 rejectPending 경로 (createQueryBuilder 미호출)', async () => {
+      const pendings = getPendings(service);
+      pendings.set('exec-with-pending', {
+        nodeId: 'n1',
+        resolve: jest.fn(),
+        reject: jest.fn(),
+      });
+
+      mockExecutionRepo.createQueryBuilder = jest.fn();
+
+      await service.applyCancellation('exec-with-pending');
+
+      // in-memory 코루틴 경로 — DB write 없음.
+      expect(mockExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      // reject 가 호출돼 코루틴이 깨어나야 한다.
+      const entry = pendings.get('exec-with-pending');
+      // rejectPending 이 Map 에서 삭제하므로 entry 는 undefined 가 된다.
+      expect(pendings.has('exec-with-pending')).toBe(false);
+      void entry; // used above indirectly
     });
 
     it('applyContinuation button_click — payload 누락 시 buttonId: undefined 로 resolve (review I9)', async () => {
@@ -1278,7 +1317,104 @@ describe('ExecutionEngineService', () => {
     });
   });
 
-  // review W11 — appendExecutionPath 의 best-effort catch 경로 검증.
+  // W10 — cancelParkedExecution durable WAITING cancel 3-way 분기 검증.
+  describe('cancelParkedExecution — durable WAITING cancel (W10)', () => {
+    // 재사용 helper: executionRepo + nodeExecutionRepo 의 createQueryBuilder 를
+    // affected: N 으로 무장한다.
+    const makeExecQb = (affected: number) => ({
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected }),
+    });
+    const makeNodeQb = () => ({
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 1 }),
+    });
+
+    it('affected:1 — Execution CANCELLED, NodeExecution CANCELLED, EXECUTION_CANCELLED emit', async () => {
+      mockExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(makeExecQb(1));
+      const nodeQb = makeNodeQb();
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(nodeQb);
+
+      await service.applyCancellation('exec-park-1');
+
+      // Execution UPDATE 호출 확인.
+      expect(mockExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+      // NodeExecution UPDATE 도 호출됐는지 확인 (W1/W6 핵심).
+      expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+      // EXECUTION_CANCELLED emit 확인.
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        'exec-park-1',
+        'execution.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
+      );
+    });
+
+    it('affected:0 — 이미 terminal / resume RUNNING → 멱등 no-op (emit 미호출)', async () => {
+      mockExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(makeExecQb(0));
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn();
+
+      const emitMock = mockWebsocketService.emitExecutionEvent;
+      const emitCallsBefore = emitMock.mock.calls.length;
+
+      await service.applyCancellation('exec-park-2');
+
+      // affected:0 → 조기 반환. NodeExecution UPDATE 미호출.
+      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      // emit 도 추가 호출 없음.
+      expect(emitMock.mock.calls.length).toBe(emitCallsBefore);
+    });
+
+    it('emit throw → warn 으로 흡수 (cancel 은 DB 반영됨, 호출자에 예외 전파 없음)', async () => {
+      mockExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(makeExecQb(1));
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(makeNodeQb());
+
+      const logger = (
+        service as unknown as { logger: { warn: jest.Mock; error: jest.Mock } }
+      ).logger;
+      const warnSpy = jest.spyOn(logger, 'warn');
+
+      // emitExecution 이 throw 하도록 강제.
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const origEmit = eventEmitter.emitExecution;
+      eventEmitter.emitExecution = jest
+        .fn()
+        .mockRejectedValue(new Error('ws disconnect'));
+
+      try {
+        // 예외가 호출자에 전파되지 않아야 한다.
+        await expect(
+          service.applyCancellation('exec-park-3'),
+        ).resolves.toBeUndefined();
+        // warn 이 emit 실패를 흡수했는지 확인.
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('emit 실패'),
+        );
+      } finally {
+        eventEmitter.emitExecution = origEmit;
+        warnSpy.mockRestore();
+      }
+    });
+  });
+
+  // review W11(old) — appendExecutionPath 의 best-effort catch 경로 검증.
   describe('appendExecutionPath best-effort 동작 (review W11)', () => {
     it('insert 실패 시 logger.warn 호출 후 흐름 중단 없이 계속 진행', async () => {
       const repo = (
@@ -3398,17 +3534,21 @@ describe('ExecutionEngineService', () => {
       // 없으므로 cancelParkedExecution 이 durable WAITING 행을 직접 CANCELLED 마감.
       // 그 마감은 createQueryBuilder().update()...execute() 의 affected>0 일 때만
       // EXECUTION_CANCELLED 를 emit 하므로, WAITING 행이 존재(affected:1)하도록 무장.
-      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          set: jest.fn().mockReturnValue({
-            where: jest.fn().mockReturnValue({
-              andWhere: jest.fn().mockReturnValue({
-                execute: jest.fn().mockResolvedValue({ affected: 1 }),
-              }),
-            }),
-          }),
-        }),
-      });
+      // NodeExecution UPDATE 도 동반 호출되므로 nodeExecutionRepo.createQueryBuilder
+      // 도 함께 무장한다 (W1/W6).
+      const cancelQb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(cancelQb);
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(cancelQb);
       service.cancelWaitingExecution(executionId);
       await flushResumeDrive();
 
@@ -11171,8 +11311,8 @@ describe('ExecutionEngineService', () => {
       const p = service.applyRetryLastTurn(EXEC, SPAWNED);
       // re-entry 가 cancel 핸들러 등록 + replay turn 시작까지 진행하도록 flush.
       await flushPromises();
-      // 외부 cancel 도달 (worker applyCancellation 경유와 동형).
-      service.applyCancellation(EXEC);
+      // 외부 cancel 도달 (worker applyCancellation 경유와 동형). fire-and-forget 의도.
+      void service.applyCancellation(EXEC);
       await p;
       await flushPromises();
 
@@ -11707,8 +11847,8 @@ describe('ExecutionEngineService', () => {
       const p = service.applyRetryLastTurn(EXEC, SPAWNED);
       // Allow applyRetryLastTurn to register the cancel-only pending continuation.
       await flushPromises();
-      // External cancel arrives while replay turn is pending.
-      service.applyCancellation(EXEC);
+      // External cancel arrives while replay turn is pending. fire-and-forget 의도.
+      void service.applyCancellation(EXEC);
       // Release replay gate (cancel has already won — replay result is discarded).
       releaseReplayTurn();
       await p;
