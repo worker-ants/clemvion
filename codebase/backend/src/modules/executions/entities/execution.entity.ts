@@ -117,7 +117,9 @@ export class Execution {
   //   하는 durable resume 매체 (V085). rehydration(§7.5)이 복원해 park 이전 변수를
   //   park 이후 노드가 $var.X 로 무손실 참조. 시스템 __* 는 rehydration 이 별도
   //   재주입하므로 미포함. NULL = park 한 적 없는 실행 / 배포 이전 row.
-  //   API 응답 DTO 미포함 — 내부 rehydration 전용. A1 conversation_thread 동일 패턴.
+  //   API 응답 DTO 미포함(확정) — ExecutionDto/ExecutionDetailDto 가 명시적 whitelist
+  //   필드 매핑 방식(직접 선언된 속성만 직렬화)이므로 userVariables 는 자동 배제됨.
+  //   conversation_thread 동일 패턴(A1 선례). execution-response.dto.ts 에 노출 없음.
   //   spec: 4-execution-engine §6.1/§6.2/§7.5, 1-data-model §2.13.
   @Column({ name: 'user_variables', type: 'jsonb', nullable: true })
   userVariables: Record<string, unknown> | null;

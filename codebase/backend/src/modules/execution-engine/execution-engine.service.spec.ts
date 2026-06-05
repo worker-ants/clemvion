@@ -3021,6 +3021,35 @@ describe('ExecutionEngineService', () => {
       expect(persisted.outputData?.meta?.interactionType).toBe('form');
     });
 
+    // PR-A3 WARNING #1 — form park 통합 경로에서 userVariables 가 DB save 인자에
+    // 포함되는지 검증. stageDurableResumeSnapshot → updateExecutionStatus 트랜잭션
+    // 경로(linkedNodeExec 있음 → dataSource.transaction → manager.save(Execution, ...))
+    // 를 통해 Execution.userVariables 가 영속됨을 통합 레벨에서 assert.
+    it('PR-A3 — form park: Execution save 에 userVariables 객체가 포함된다 (DB 영속 통합 가드)', async () => {
+      mockExecutionRepo.save.mockClear();
+
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // updateExecutionStatus 의 linkedNodeExec 경로는 dataSource.transaction 을
+      // 통해 manager.save(Execution, execution) 를 호출하고, 테스트의 transaction
+      // mock 이 이를 mockExecutionRepo.save 로 라우팅한다 (L288~310 mock 설정).
+      const execSaveCalls = mockExecutionRepo.save.mock.calls;
+      // WAITING_FOR_INPUT 상태로 저장된 Execution 행이 userVariables 를 포함해야 함.
+      const parkSave = execSaveCalls.find(
+        (c: unknown[]) =>
+          (c[0] as Partial<Execution>).status ===
+          ExecutionStatus.WAITING_FOR_INPUT,
+      );
+      expect(parkSave).toBeDefined();
+      const savedExecution = (parkSave as [Partial<Execution>])[0];
+      // userVariables 필드가 존재해야 함 (빈 객체여도 됨 — 변수 없는 워크플로우).
+      expect(
+        Object.prototype.hasOwnProperty.call(savedExecution, 'userVariables'),
+      ).toBe(true);
+      expect(savedExecution.userVariables).toBeDefined();
+    });
+
     it('should resume after continueExecution and complete all nodes', async () => {
       await service.execute(workflowId, { data: 'test' });
       await flushPromises();
@@ -3412,6 +3441,62 @@ describe('ExecutionEngineService', () => {
         'execution.node.completed',
         expect.objectContaining({ status: 'completed' }),
       );
+    });
+
+    // PR-A3 WARNING #2 — rehydration 통합 경로에서 userVariables 가 resume 후
+    // downstream 노드에 올바르게 전달되는지 검증.
+    // mock Execution 에 userVariables: { counter: 5 } 를 설정하고, rehydrateContext
+    // 가 context.variables.counter === 5 로 복원하는지 직접 확인한다.
+    // (통합 경로: rehydrateContext → createContext({ initialVariables: { ...userVars } }))
+    it('PR-A3 WARNING #2 — rehydration: mock Execution.userVariables 가 resume 후 context.variables 에 복원된다', async () => {
+      const rehydrateExecId = 'exec-w2-rehydrate-vars';
+      const waitingNodeExecForW2 = {
+        id: 'ne-w2-form',
+        nodeId: 'node-form',
+        outputData: {
+          interactionType: 'form',
+          meta: { interactionType: 'form' },
+          status: 'waiting_for_input',
+        },
+      };
+
+      // rehydrateContext 를 직접 호출해 user variables 가 복원됨을 검증.
+      // 이 경로는 applyContinuation slow-path 가 실제로 타는 경로.
+      type RehydrateSubject = {
+        rehydrateContext: (
+          execution: unknown,
+          waitingNodeExec: unknown,
+        ) => Promise<{ variables: Record<string, unknown> }>;
+        contextService: { deleteContext: (id: string) => void };
+      };
+      const subject = service as unknown as RehydrateSubject;
+      subject.contextService.deleteContext(rehydrateExecId);
+
+      mockWorkflowRepo.findOne.mockResolvedValueOnce({
+        ...mockWorkflow,
+        workspaceId: 'ws-rehydrate-w2',
+        workspace: { id: 'ws-rehydrate-w2', name: 'W2', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValueOnce([]);
+
+      const ctx = await subject.rehydrateContext(
+        {
+          id: rehydrateExecId,
+          workflowId,
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+          recursionDepth: 0,
+          dryRun: false,
+          conversationThread: null,
+          // park 이전에 counter: 5 가 영속된 시나리오.
+          userVariables: { counter: 5 },
+        },
+        waitingNodeExecForW2,
+      );
+
+      // downstream 노드가 context.variables.counter === 5 를 수신해야 함.
+      expect(ctx.variables['counter']).toBe(5);
+      // 시스템 변수도 공존해야 함 (충돌 없음).
+      expect(ctx.variables['__workspaceId']).toBe('ws-rehydrate-w2');
     });
   });
 
@@ -9193,13 +9278,85 @@ describe('ExecutionEngineService', () => {
       expect(ex.userVariables).not.toHaveProperty('__dryRun');
     });
 
-    it('rehydrateUserVariables normalizes snapshot (비객체→{}, 방어적 __* 제외)', () => {
+    // PR-A3 WARNING #3 — 배열/null 값 케이스 + shallow copy mutability 명시.
+    it('stageDurableResumeSnapshot: 배열 값·null 값 포함 variables — shallow copy 로 레퍼런스 공유 (의도적)', () => {
+      // shallow copy 이므로 배열은 원본과 레퍼런스를 공유한다.
+      // stage→save 는 동기 연속이므로 중간 mutation 이 개입할 수 없다 (설계 의도).
+      const tags = ['a', 'b'];
+      const execution = {
+        id: 'e-arr',
+        conversationThread: null,
+        userVariables: null,
+      } as unknown;
+      const context = {
+        conversationThread: {
+          id: 'default',
+          nextSeq: 0,
+          turns: [],
+          totalChars: 0,
+        },
+        variables: {
+          __workspaceId: 'ws-1',
+          tags,
+          score: null as unknown,
+        },
+      } as unknown;
+
+      ctxSubject().stageDurableResumeSnapshot(execution, context);
+
+      const ex = execution as { userVariables: Record<string, unknown> };
+      // 시스템 변수 제외.
+      expect(ex.userVariables).not.toHaveProperty('__workspaceId');
+      // 배열 값 포함.
+      expect(ex.userVariables['tags']).toEqual(['a', 'b']);
+      // shallow copy — 원본 배열과 레퍼런스가 동일 (의도적 shallow).
+      expect(ex.userVariables['tags']).toBe(tags);
+      // null 값 포함.
+      expect(
+        Object.prototype.hasOwnProperty.call(ex.userVariables, 'score'),
+      ).toBe(true);
+      expect(ex.userVariables['score']).toBeNull();
+    });
+
+    // PR-A3 WARNING #3 / INFO #8 — 시스템 변수만 있는 케이스 → userVariables === {}.
+    it('stageDurableResumeSnapshot: 시스템 변수(__*)만 있으면 userVariables 가 빈 객체', () => {
+      const execution = {
+        id: 'e-sys',
+        conversationThread: null,
+        userVariables: null,
+      } as unknown;
+      const context = {
+        conversationThread: {
+          id: 'default',
+          nextSeq: 0,
+          turns: [],
+          totalChars: 0,
+        },
+        variables: {
+          __workspaceId: 'ws-1',
+          __dryRun: false,
+          __workspaceName: 'Test',
+        },
+      } as unknown;
+
+      ctxSubject().stageDurableResumeSnapshot(execution, context);
+
+      const ex = execution as { userVariables: Record<string, unknown> };
+      expect(ex.userVariables).toEqual({});
+    });
+
+    it('rehydrateUserVariables normalizes snapshot (비객체→{}, 배열→{}, 방어적 __* 제외)', () => {
       const cs = ctxSubject();
       expect(cs.rehydrateUserVariables(null)).toEqual({});
       expect(cs.rehydrateUserVariables('garbage')).toEqual({});
-      expect(cs.rehydrateUserVariables({ counter: 5, __dryRun: true })).toEqual({
-        counter: 5,
-      });
+      // PR-A3 INFO #5 — 배열 입력 시 인덱스 키 유출 방지 (Array.isArray guard).
+      expect(cs.rehydrateUserVariables([])).toEqual({});
+      expect(cs.rehydrateUserVariables(['a', 'b'])).toEqual({});
+      expect(cs.rehydrateUserVariables({ counter: 5, __dryRun: true })).toEqual(
+        {
+          counter: 5,
+        },
+      );
     });
   });
 
