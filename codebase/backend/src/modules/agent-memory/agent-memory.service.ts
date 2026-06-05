@@ -89,6 +89,24 @@ function looksLikeInstruction(content: string): boolean {
 }
 
 /**
+ * `DataSource.query()` 의 DELETE/UPDATE 결과에서 영향받은 row 수를 안전하게
+ * 추출한다. TypeORM 0.3.x PostgresQueryRunner 는 DELETE/UPDATE 에 한해
+ * `[rowsArray, rowCount]` 튜플로 raw 결과를 반환한다 (integration-oauth.service
+ * `consumeOAuthState` 와 동일 계약). 따라서 결과 배열의 길이(`result.length`)를
+ * 그대로 affected 로 쓰면 항상 2 가 되어 0건 케이스를 놓친다 (AGM-13 — 부재 id
+ * 삭제가 NotFound 로 변환되지 않는 버그). 튜플의 `[0]` 위치 RETURNING rows 의
+ * 길이를 affected 로 쓴다. 방어적으로 비-튜플(rows 배열 직접) 형태도 허용한다.
+ */
+function deletedRowCount(
+  result: [{ id: string }[], number] | { id: string }[],
+): number {
+  if (Array.isArray(result) && Array.isArray(result[0])) {
+    return (result[0] as { id: string }[]).length;
+  }
+  return (result as { id: string }[]).length;
+}
+
+/**
  * 두 임베딩 벡터의 cosine 유사도 (AGM-09 batch 내 dedup). DB round-trip 없이
  * 같은 batch 안의 신규 fact 끼리 비교한다 — recall/findSimilarFact 의 pgvector
  * cosine 과 동일 정의. 길이가 다르거나 0-norm 이면 0 (비유사) 반환.
@@ -474,6 +492,187 @@ export class AgentMemoryService {
 
       await this.evictExpiredAndOldest(manager, workspaceId, scopeKey);
     });
+  }
+
+  // ---------------------------------------------------------------
+  // 메모리 관리 API (조회·삭제, admin surface — spec §6, AGM-12/13)
+  //
+  // 저장·회수·forgetting (위) 와 별개의 read/delete 경로. 모든 쿼리는
+  // workspace_id 격리 (§5, AGM-07) 를 강제하고 workspaceId 는 호출부(컨트롤러)가
+  // 인증 컨텍스트(@WorkspaceId())에서만 넘긴다 — 쿼리/바디로 받지 않는다.
+  // 회수·dedup 과 동일한 raw SQL 데이터접근 스타일을 따른다.
+  // ---------------------------------------------------------------
+
+  /**
+   * 워크스페이스의 distinct scope_key 목록 조회 (AGM-12). 각 항목은 해당 scope 의
+   * 메모리 건수(COUNT(*))와 최신 갱신 시각(MAX(updated_at)) 을 포함한다. `q` 가
+   * 주어지면 scope_key 부분일치(ILIKE) 필터. 총 distinct scope 수도 반환한다.
+   * workspace_id 격리 강제 (§5).
+   */
+  async listScopes(
+    workspaceId: string,
+    opts: { limit?: number; offset?: number; q?: string },
+  ): Promise<{
+    items: { scopeKey: string; count: number; latestUpdatedAt: string }[];
+    total: number;
+  }> {
+    const limit = opts.limit ?? 30;
+    const offset = opts.offset ?? 0;
+    const q = opts.q?.trim();
+
+    // q 있으면 ILIKE 부분일치 — '%'||$q||'%' 를 파라미터 바인딩으로 (C1: 리터럴
+    // 보간 금지, % 는 SQL 측에서 연결). scope 목록·총 개수 둘 다 같은 WHERE.
+    const filterSql = q ? `AND am.scope_key ILIKE '%' || $2 || '%'` : '';
+
+    const rows = await this.dataSource.query<
+      { scope_key: string; count: string; latest_updated_at: Date }[]
+    >(
+      `SELECT
+         am.scope_key AS scope_key,
+         COUNT(*) AS count,
+         MAX(am.updated_at) AS latest_updated_at
+       FROM agent_memory am
+       WHERE am.workspace_id = $1
+       ${filterSql}
+       GROUP BY am.scope_key
+       ORDER BY latest_updated_at DESC
+       LIMIT ${q ? '$3' : '$2'} OFFSET ${q ? '$4' : '$3'}`,
+      q ? [workspaceId, q, limit, offset] : [workspaceId, limit, offset],
+    );
+
+    const countRows = await this.dataSource.query<{ total: string }[]>(
+      `SELECT COUNT(*) AS total FROM (
+         SELECT am.scope_key
+         FROM agent_memory am
+         WHERE am.workspace_id = $1
+         ${filterSql}
+         GROUP BY am.scope_key
+       ) sub`,
+      q ? [workspaceId, q] : [workspaceId],
+    );
+
+    return {
+      items: rows.map((r) => ({
+        scopeKey: r.scope_key,
+        count: Number(r.count),
+        latestUpdatedAt: new Date(r.latest_updated_at).toISOString(),
+      })),
+      total: Number(countRows[0]?.total ?? 0),
+    };
+  }
+
+  /**
+   * 단일 scope 의 메모리 행 조회 (AGM-12). **embedding 은 절대 SELECT 하지 않는다**
+   * (명시 컬럼만 — id/content/metadata/scope_key/created_at/updated_at/expires_at).
+   * `kind` 가 주어지면 `metadata->>'kind' = $kind` 로 필터. created_at 내림차순.
+   * kind 표기는 응답 매핑에서 `metadata.kind ?? 'fact'` fallback (AGM-11).
+   * 총 개수도 반환. workspace_id + scope_key 격리 강제 (§5).
+   */
+  async listMemories(
+    workspaceId: string,
+    scopeKey: string,
+    opts: { kind?: string; limit?: number; offset?: number },
+  ): Promise<{
+    items: {
+      id: string;
+      content: string;
+      kind: string;
+      scopeKey: string;
+      createdAt: string;
+      updatedAt: string;
+      expiresAt: string | null;
+    }[];
+    total: number;
+  }> {
+    const limit = opts.limit ?? 30;
+    const offset = opts.offset ?? 0;
+    const kind = opts.kind;
+
+    const kindSql = kind ? `AND am.metadata->>'kind' = $3` : '';
+    const limitParam = kind ? '$4' : '$3';
+    const offsetParam = kind ? '$5' : '$4';
+
+    const rows = await this.dataSource.query<
+      {
+        id: string;
+        content: string;
+        kind: string | null;
+        scope_key: string;
+        created_at: Date;
+        updated_at: Date;
+        expires_at: Date | null;
+      }[]
+    >(
+      `SELECT
+         am.id AS id,
+         am.content AS content,
+         am.metadata->>'kind' AS kind,
+         am.scope_key AS scope_key,
+         am.created_at AS created_at,
+         am.updated_at AS updated_at,
+         am.expires_at AS expires_at
+       FROM agent_memory am
+       WHERE am.workspace_id = $1
+         AND am.scope_key = $2
+         ${kindSql}
+       ORDER BY am.created_at DESC
+       LIMIT ${limitParam} OFFSET ${offsetParam}`,
+      kind
+        ? [workspaceId, scopeKey, kind, limit, offset]
+        : [workspaceId, scopeKey, limit, offset],
+    );
+
+    const countRows = await this.dataSource.query<{ total: string }[]>(
+      `SELECT COUNT(*) AS total
+       FROM agent_memory am
+       WHERE am.workspace_id = $1
+         AND am.scope_key = $2
+         ${kind ? `AND am.metadata->>'kind' = $3` : ''}`,
+      kind ? [workspaceId, scopeKey, kind] : [workspaceId, scopeKey],
+    );
+
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        content: r.content,
+        // AGM-11 fallback: metadata.kind 결손 시 'fact' 표기.
+        kind: r.kind ?? 'fact',
+        scopeKey: r.scope_key,
+        createdAt: new Date(r.created_at).toISOString(),
+        updatedAt: new Date(r.updated_at).toISOString(),
+        expiresAt: r.expires_at ? new Date(r.expires_at).toISOString() : null,
+      })),
+      total: Number(countRows[0]?.total ?? 0),
+    };
+  }
+
+  /**
+   * 단건 hard delete (AGM-13). `WHERE id = $1 AND workspace_id = $2` 로 워크스페이스
+   * 교차 삭제를 차단한다 — 다른 워크스페이스의 id 를 알아도 affected=0 → 호출부가
+   * NotFound 로 변환. 영향받은 row 수를 반환한다.
+   */
+  async deleteMemory(workspaceId: string, id: string): Promise<number> {
+    const result = await this.dataSource.query<[{ id: string }[], number]>(
+      `DELETE FROM agent_memory
+       WHERE id = $1 AND workspace_id = $2
+       RETURNING id`,
+      [id, workspaceId],
+    );
+    return deletedRowCount(result);
+  }
+
+  /**
+   * 한 scope 전체 hard delete (AGM-13). `WHERE workspace_id = $1 AND scope_key = $2`.
+   * 삭제된 row 수를 반환한다 (호출부가 echo 용으로 사용 가능). workspace_id 격리 강제.
+   */
+  async clearScope(workspaceId: string, scopeKey: string): Promise<number> {
+    const result = await this.dataSource.query<[{ id: string }[], number]>(
+      `DELETE FROM agent_memory
+       WHERE workspace_id = $1 AND scope_key = $2
+       RETURNING id`,
+      [workspaceId, scopeKey],
+    );
+    return deletedRowCount(result);
   }
 
   /**

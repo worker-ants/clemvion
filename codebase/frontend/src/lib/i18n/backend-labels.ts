@@ -104,6 +104,7 @@ const LABEL_KO: Record<string, string> = {
   "Memory Threshold": "메모리 임계값",
   "Memory Top-K": "메모리 Top-K",
   "Memory TTL (days)": "메모리 TTL(일)",
+  "Embedding Model": "임베딩 모델",
   Mode: "모드",
   Model: "모델",
   "Model Override": "모델 재정의",
@@ -229,6 +230,8 @@ const HINT_KO: Record<string, string> = {
     "메모리 회수에 필요한 최소 유사도(0~1)예요 (KB RAG 임계값과 독립).",
   "Persistent memories expire after this many days. Empty = never expire.":
     "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요.",
+  "Embedding model used for memory recall/extraction (must match the dimensions of the model used when memories were first stored). Empty = workspace default LLMConfig embedding model.":
+    "메모리 회수/추출에 쓰는 임베딩 모델이에요 (메모리를 처음 저장할 때 쓴 모델과 차원이 같아야 해요). 비우면 워크스페이스 기본 LLMConfig 임베딩 모델을 써요.",
   "Merge arrived inputs when timeout elapses":
     "타임아웃 발생 시 도착한 입력들을 병합",
   "Minimum similarity score (0-1)": "최소 유사도 점수 (0~1)",

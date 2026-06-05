@@ -11,6 +11,7 @@ export const sidebar: Dict["sidebar"] = {
   authentication: "Authentication",
   statistics: "Statistics",
   systemStatus: "System Status",
+  agentMemory: "Agent Memory",
   userGuide: "User Guide",
   notifications: "Notifications",
   noNotifications: "No notifications",
