@@ -21,6 +21,12 @@ import { Logger } from '@nestjs/common';
 import { informationExtractorNodeMetadata } from './information-extractor.schema';
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
 import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
+import { injectConversationContext } from '../shared/conversation-context-injection';
+import type { ConversationContextInjectionResult } from '../shared/conversation-context-injection';
+import type { ThreadHolder } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
+
+/** ConversationThread injection debug echo snapshot (conversation-thread.md §5.3). */
+type ContextInjectionMeta = ConversationContextInjectionResult['injection'];
 
 interface OutputField {
   name: string;
@@ -110,6 +116,11 @@ interface MultiTurnState {
    * tick so subsequent turns read raw values from `state.rawConfig` rather
    * than the per-turn evaluated `config`. CONVENTIONS Principle 7. */
   rawConfig?: Record<string, unknown>;
+  /** ConversationThread injection debug echo (conversation-thread.md §5.3 —
+   * 세 노드 공통). Captured at first multi-turn entry (the only point injection
+   * runs) and carried through resume so the final `completed` / `max_turns`
+   * output can echo it. Absent when scope was `none` (noop). */
+  contextInjection?: ContextInjectionMeta;
   // Unused by this handler but kept so the engine can pass generic state fields
   toolCalls?: number;
   ragSources?: unknown[];
@@ -216,6 +227,27 @@ export class InformationExtractorHandler implements NodeHandler {
       this.buildSingleTurnSystemPrompt(outputSchema, instructions, examples);
     const jsonSchema = this.buildJsonSchema(outputSchema, false);
 
+    // Conversation Context 자동 주입 (spec/4-nodes/3-ai/0-common.md §10) —
+    // `contextScope ≠ none` 이면 ConversationThread (자기 노드 turn 제외) 를
+    // LLM 호출 직전 messages/systemPrompt 에 주입한다. retry 루프 전에 1회 빌드해
+    // 모든 attempt 가 동일 messages 를 쓴다. scope=none(default) / service 미주입
+    // 이면 noop — 기존 동작 불변.
+    const injected = injectConversationContext<ThreadHolder>({
+      reader: this.conversationThreadService,
+      target: context,
+      selfNodeId: context.nodeId ?? '',
+      config,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: inputField },
+      ],
+      finalSystemPrompt: systemPrompt,
+    });
+    // system_text 모드에서도 injected.finalSystemPrompt 는 별도로 쓰지 않는다 —
+    // injectConversationContext 가 messages[0](system) content 를 이미 동일하게
+    // 갱신하므로 injected.messages 만 LLM 으로 넘기면 충분 (두 표면 동기화됨).
+    const singleTurnMessages = injected.messages;
+
     const startedAt = Date.now();
     const maxRetries = 2;
     let lastError: Error | undefined;
@@ -246,10 +278,7 @@ export class InformationExtractorHandler implements NodeHandler {
           llmConfig,
           {
             model: model || llmConfig.defaultModel,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: inputField },
-            ],
+            messages: singleTurnMessages,
             responseFormat: 'json',
             jsonSchema,
           },
@@ -303,6 +332,12 @@ export class InformationExtractorHandler implements NodeHandler {
             totalTokens: result.usage?.totalTokens ?? 0,
             thinkingTokens: result.usage?.thinkingTokens ?? 0,
             turnDebug: this.buildSingleTurnDebug(llmCalls, startedAt),
+            // ConversationThread injection debug echo (conversation-thread.md
+            // §5.3 — 세 노드 공통). Echo only when injection happened so noop
+            // runs keep the meta lean (ai_agent 와 동일 형태).
+            ...(injected.injection.appliedScope !== 'none'
+              ? { contextInjection: injected.injection }
+              : {}),
           }),
           port: 'out',
           status: 'ended',
@@ -393,6 +428,8 @@ export class InformationExtractorHandler implements NodeHandler {
 
     // No inputField: skip initial LLM call and wait for the user's first
     // message from the UI. Mirrors AiAgentHandler's empty-userPrompt path.
+    // context injection 은 LLM 콜이 있는 resume 진입(아래 첫 turn)에서 1회 수행
+    // 한다 — 이 대기(no-LLM) 경로는 주입 불요 (주입은 첫 LLM 호출 직전에만 의미).
     if (!inputField) {
       const messages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
@@ -412,10 +449,23 @@ export class InformationExtractorHandler implements NodeHandler {
     }
 
     const multiTurnStartedAt = Date.now();
-    const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: inputField },
-    ];
+    // Conversation Context 자동 주입 (spec/4-nodes/3-ai/0-common.md §10) —
+    // multi-turn 은 첫 진입 시 1회 주입하고, 주입된 turn 은 runResult.messages →
+    // state.messages → 이후 turn 의 _resumeState.messages 로 운반된다 (AI Agent
+    // multi-turn 과 동일 패턴 — 후속 turn 은 재주입하지 않음). scope=none(default)
+    // / service 미주입이면 noop.
+    const injected = injectConversationContext<ThreadHolder>({
+      reader: this.conversationThreadService,
+      target: context,
+      selfNodeId: context.nodeId ?? '',
+      config,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: inputField },
+      ],
+      finalSystemPrompt: systemPrompt,
+    });
+    const messages: ChatMessage[] = injected.messages;
 
     const turnStartedAt = Date.now();
     const llmCalls: LlmCallTrace[] = [];
@@ -466,6 +516,11 @@ export class InformationExtractorHandler implements NodeHandler {
       totalOutputTokens: runResult.totalOutputTokens,
       totalThinkingTokens: runResult.totalThinkingTokens,
       turnDebugHistory,
+      // Carry the injection echo through resume so the final output can surface
+      // it (conversation-thread.md §5.3). Omit on noop to keep the state lean.
+      ...(injected.injection.appliedScope !== 'none'
+        ? { contextInjection: injected.injection }
+        : {}),
     };
 
     const durationMs = Date.now() - multiTurnStartedAt;
@@ -822,6 +877,12 @@ export class InformationExtractorHandler implements NodeHandler {
       thinkingTokens: state.totalThinkingTokens,
       collectionRetryCount: state.collectionRetryCount,
       turnDebug: state.turnDebugHistory,
+      // ConversationThread injection debug echo (conversation-thread.md §5.3 —
+      // 세 노드 공통). Carried from first-entry state; absent on noop runs.
+      ...(state.contextInjection &&
+      state.contextInjection.appliedScope !== 'none'
+        ? { contextInjection: state.contextInjection }
+        : {}),
     });
 
     // `max_retries` is an error path but with partial extraction preserved.
@@ -1411,6 +1472,9 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
       turnDebugHistory:
         (raw.turnDebugHistory as TurnDebugEntry[] | undefined) ?? [],
       rawConfig: raw.rawConfig as Record<string, unknown> | undefined,
+      contextInjection: raw.contextInjection as
+        | ContextInjectionMeta
+        | undefined,
     };
   }
 

@@ -12,5 +12,9 @@ export const informationExtractorNodeComponent: NodeComponent = {
   ports: informationExtractorNodePorts,
   configSchema: informationExtractorNodeConfigSchema,
   outputSchema: informationExtractorNodeOutputSchema,
-  createHandler: (deps) => new InformationExtractorHandler(deps.llmService),
+  createHandler: (deps) =>
+    new InformationExtractorHandler(
+      deps.llmService,
+      deps.conversationThreadService,
+    ),
 };
