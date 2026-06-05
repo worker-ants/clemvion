@@ -72,6 +72,17 @@ function flushPromises(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+/**
+ * Phase B (PR-B1) — form/button 재개는 fast-path(동기 resolve)가 아니라 §7.5
+ * slow-path(`rehydrateAndResume` → detached `driveResumeDetached` + setTimeout
+ * 기반 `firePayload`)로 일원화됐다. 따라서 resume 트리거 후 detached 드라이브가
+ * 완료되도록 실제 타이머를 한 번 흘려보낸 뒤 assertion 한다. (firePayload 는
+ * setTimeout(0) 시작 + 20ms 폴링이므로 40ms 면 첫 fire+그래프 구동을 덮는다.)
+ */
+function flushResumeDrive(ms = 40): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;
   // PR1 — execution-run intake 큐 mock (execute() 가 enqueue 하는지 검증).
@@ -331,7 +342,7 @@ describe('ExecutionEngineService', () => {
                 // service 인스턴스가 closure 외부에서 set 되므로 lazy reference.
                 if (!resolvedService) return null;
                 if (msg.type === 'cancel') {
-                  resolvedService.applyCancellation(msg.executionId);
+                  await resolvedService.applyCancellation(msg.executionId);
                 } else if (msg.type === 'continue') {
                   await resolvedService.applyContinuation(
                     msg.executionId,
@@ -553,6 +564,73 @@ describe('ExecutionEngineService', () => {
         >;
       }
     ).pendingContinuations;
+
+  // Phase B (PR-B1) — fresh top-level form/button park 은 코루틴을 release 하고
+  // pendingContinuations 에 resolver 를 남기지 않는다(PARK_RELEASED). runExecution
+  // 은 unwind 후 finally 에서 in-memory ExecutionContext 를 정리하므로, resume
+  // (continue*)은 항상 §7.5 slow-path(applyContinuation → pendingContinuations
+  // MISS → rehydrateAndResume → rehydrateContext 로 context 재구성 → detached
+  // driveResumeDetached)로 일원화됐다. 이 헬퍼는 그 slow-path 가 통과하는 DB
+  // lookup mock 을 무장한다 (Phase 2.7 통합 테스트 L3357~ 패턴의 재사용 추출):
+  //   - mockExecutionRepo.findOneBy → WAITING_FOR_INPUT execution
+  //   - mockNodeExecutionRepo.find → resolveWaitingNodeExecutionId 의 단일 WAITING row
+  //   - mockNodeExecutionRepo.findOneBy → rehydrateAndResume 의 NodeExecution lookup
+  //   - mockNodeRepo.findOneBy → Node 정의 lookup
+  // workflowRepo.findOne / executionNodeLogRepo.find 는 기본 mock(workspace 동봉
+  // workflow / 빈 log) 으로 rehydrateContext 가 자족한다.
+  const armSlowPathResume = (
+    waitingNodeId: string,
+    nodeDef: Partial<Node>,
+  ): void => {
+    const neId = `ne-${waitingNodeId}`;
+    const saveCalls = mockNodeExecutionRepo.save.mock.calls;
+    const waitingSave = saveCalls.find(
+      (c: unknown[]) =>
+        (c[0] as { status?: string; nodeId?: string })?.status ===
+          NodeExecutionStatus.WAITING_FOR_INPUT &&
+        (c[0] as { nodeId?: string })?.nodeId === waitingNodeId,
+    );
+    const rawPersisted =
+      ((waitingSave?.[0] as { outputData?: Record<string, unknown> }) ?? {})
+        .outputData ?? {};
+    // rehydrateContext 는 waiting node 의 outputData 를 flat nodeOutputCache 로만
+    // 복원한다(structuredOutputCache 미복원). 따라서 button 노드의 buttonConfig
+    // 처럼 `.output` 하위에 중첩된 필드를 waitForButtonInteraction 의 flat lookup
+    // (`flatNodeOutput.buttonConfig`)이 읽을 수 있도록, 영속 envelope 의 `.output`
+    // 을 top-level 로 펼친 flat 표현(엔진 toEngineFlatShape 와 동형 — 즉
+    // nodeOutputCache 가 보유하는 flat shape)을 findOneBy 가 반환하게 한다.
+    const nestedOutput = rawPersisted.output as
+      | Record<string, unknown>
+      | undefined;
+    const persistedOutput: Record<string, unknown> =
+      nestedOutput && typeof nestedOutput === 'object'
+        ? { ...rawPersisted, ...nestedOutput }
+        : rawPersisted;
+
+    // Execution 은 WAITING_FOR_INPUT (rehydrateAndResume 의 invariant 검증 통과).
+    mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+      id: executionId,
+      workflowId,
+      status: ExecutionStatus.WAITING_FOR_INPUT,
+      startedAt: new Date(),
+      recursionDepth: 0,
+    });
+    // resolveWaitingNodeExecutionId(find) → 단일 WAITING row 반환 (nodeExecutionId 확정).
+    mockNodeExecutionRepo.find.mockResolvedValueOnce([
+      { id: neId, nodeId: waitingNodeId, startedAt: new Date() },
+    ]);
+    // rehydrateAndResume 의 NodeExecution lookup (findOneBy by id).
+    mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+      id: neId,
+      executionId,
+      nodeId: waitingNodeId,
+      status: NodeExecutionStatus.WAITING_FOR_INPUT,
+      outputData: persistedOutput,
+      startedAt: new Date(),
+    });
+    // rehydrateAndResume 의 Node 정의 lookup (findOneBy by id).
+    mockNodeRepo.findOneBy = jest.fn().mockResolvedValue(nodeDef);
+  };
 
   describe('executeInline — Sub-Workflow parent linking', () => {
     let contextService: ExecutionContextService;
@@ -3054,9 +3132,15 @@ describe('ExecutionEngineService', () => {
       await service.execute(workflowId, { data: 'test' });
       await flushPromises();
 
-      // Resume with form data
+      // Resume with form data — Phase B (PR-B1): slow-path rehydration 으로 재개
+      // 되므로 detached 드라이브 완료까지 실제 타이머를 흘린다. slow-path 가
+      // 통과하는 DB lookup mock 을 무장한다.
+      armSlowPathResume(
+        'node-form',
+        formNodes.find((n) => n.id === 'node-form')!,
+      );
       void service.continueExecution(executionId, { approved: true });
-      await flushPromises();
+      await flushResumeDrive();
 
       // End node should now have been executed
       expect(mockHandler.execute).toHaveBeenCalledTimes(2); // start + end
@@ -3072,9 +3156,14 @@ describe('ExecutionEngineService', () => {
     // §4.x "active 세그먼트 + durable park" 회귀 가드 — worker job 반환.
     // 옛 버그: `runExecutionFromQueue`(worker process() 가 await 하는 진입점)가
     // `runExecution` 전체를 await 해 form park 동안 BullMQ job(concurrency=1
-    // 슬롯)을 점유 → 새 execution 미실행. 본 테스트는 `runExecutionFromQueue` 가
-    // **park 시점에 resolve** (= 슬롯 반환) 하면서도 execution 은 in-process 로
-    // 계속 parked (pendingContinuations 에 resolver 잔류) 임을 검증한다.
+    // 슬롯)을 점유 → 새 execution 미실행.
+    //
+    // Phase B (PR-B1) — 이제 fresh top-level form park 은 세그먼트 종료다:
+    // durable snapshot 영속 + WAITING 전이 후 PARK_RELEASED 로 코루틴을 **해제**한다
+    // (pendingContinuations 에 resolver 미등록 = bounded memory). worker job 은
+    // park 시점에 반환되고, 재개는 §7.5 slow-path(rehydration)로 일원화된다. 본
+    // 테스트의 새 불변식: park 후 **resolver 잔류 없음** (released), execution 행은
+    // DB 에서 WAITING_FOR_INPUT, 그리고 resume 은 slow-path 로 완료된다.
     it('§4.x — runExecutionFromQueue 는 form park 시점에 resolve (worker job 반환), execution 은 계속 parked', async () => {
       // execute() 의 자동 worker 브릿지를 우회하고 직접 worker 진입점을 호출한다.
       const fromQueue = service.runExecutionFromQueue(executionId, {
@@ -3085,15 +3174,19 @@ describe('ExecutionEngineService', () => {
       // 않는다. (옛 버그라면 이 await 는 영원히 resolve 되지 않아 timeout.)
       await expect(fromQueue).resolves.toBeUndefined();
 
-      // 그러나 execution 자체는 in-process 로 여전히 대기 중 — resolver 잔류로 증명.
+      // 새 불변식: 코루틴 해제 → in-memory resolver 잔류 없음 (bounded memory).
       const pendings = getPendings(service);
-      expect(pendings.has(executionId)).toBe(true);
+      expect(pendings.has(executionId)).toBe(false);
       // 아직 form 다음(End) 노드는 실행되지 않았다 (start 만).
       expect(mockHandler.execute).toHaveBeenCalledTimes(1);
 
-      // 이후 사용자 제출이 도착하면 fast-path(in-memory resolver)로 lossless 재개.
+      // 이후 사용자 제출은 §7.5 slow-path(rehydration)로 lossless 재개 → 완료.
+      armSlowPathResume(
+        'node-form',
+        formNodes.find((n) => n.id === 'node-form')!,
+      );
       void service.continueExecution(executionId, { approved: true });
-      await flushPromises();
+      await flushResumeDrive();
       expect(mockHandler.execute).toHaveBeenCalledTimes(2); // start + end
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
@@ -3138,7 +3231,11 @@ describe('ExecutionEngineService', () => {
       // A: 폼 워크플로로 park.
       const aQueue = service.runExecutionFromQueue(execA, { data: 'a' });
       await expect(aQueue).resolves.toBeUndefined();
-      expect(getPendings(service).has(execA)).toBe(true);
+      // Phase B (PR-B1) — fresh top-level park 은 코루틴을 release 하므로 A 는
+      // in-memory resolver 를 보유하지 않는다 (released). 대신 DB 행이
+      // WAITING_FOR_INPUT 으로 durable 영속됐다.
+      expect(getPendings(service).has(execA)).toBe(false);
+      expect(statusById[execA]).toBe(ExecutionStatus.WAITING_FOR_INPUT);
 
       // B: 폼 없는 단순 워크플로(start→end, 모두 test_node)로 즉시 완료.
       mockNodeRepo.findBy.mockResolvedValueOnce([
@@ -3162,8 +3259,9 @@ describe('ExecutionEngineService', () => {
         'execution.completed',
         expect.objectContaining({ status: 'completed' }),
       );
-      // A 는 여전히 parked.
-      expect(getPendings(service).has(execA)).toBe(true);
+      // A 는 여전히 parked (released coroutine, DB WAITING) — resolver 잔류 없음.
+      expect(getPendings(service).has(execA)).toBe(false);
+      expect(statusById[execA]).toBe(ExecutionStatus.WAITING_FOR_INPUT);
     });
 
     // Engine hook (spec/conventions/conversation-thread.md §2.1) — form resume
@@ -3187,8 +3285,12 @@ describe('ExecutionEngineService', () => {
 
       await service.execute(workflowId, { data: 'test' });
       await flushPromises();
+      armSlowPathResume(
+        'node-form',
+        formNodes.find((n) => n.id === 'node-form')!,
+      );
       void service.continueExecution(executionId, { approved: true });
-      await flushPromises();
+      await flushResumeDrive();
 
       expect(appendSpy).toHaveBeenCalledTimes(1);
       expect(appendSpy).toHaveBeenCalledWith(
@@ -3214,9 +3316,13 @@ describe('ExecutionEngineService', () => {
       // Clear mock to isolate resume events
       mockWebsocketService.emitExecutionEvent.mockClear();
 
-      // Resume with form data
+      // Resume with form data (slow-path rehydration)
+      armSlowPathResume(
+        'node-form',
+        formNodes.find((n) => n.id === 'node-form')!,
+      );
       void service.continueExecution(executionId, { approved: true });
-      await flushPromises();
+      await flushResumeDrive();
 
       // Should emit execution.resumed, NOT execution.started
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
@@ -3238,8 +3344,12 @@ describe('ExecutionEngineService', () => {
 
       mockWebsocketService.emitNodeEvent.mockClear();
 
+      armSlowPathResume(
+        'node-form',
+        formNodes.find((n) => n.id === 'node-form')!,
+      );
       void service.continueExecution(executionId, { approved: true });
-      await flushPromises();
+      await flushResumeDrive();
 
       // Form node should have a NODE_COMPLETED event
       expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
@@ -3284,9 +3394,23 @@ describe('ExecutionEngineService', () => {
       await service.execute(workflowId, { data: 'test' });
       await flushPromises();
 
-      // Cancel the waiting execution
+      // Cancel the waiting execution — Phase B (PR-B1): park-release 로 코루틴이
+      // 없으므로 cancelParkedExecution 이 durable WAITING 행을 직접 CANCELLED 마감.
+      // 그 마감은 createQueryBuilder().update()...execute() 의 affected>0 일 때만
+      // EXECUTION_CANCELLED 를 emit 하므로, WAITING 행이 존재(affected:1)하도록 무장.
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
+          set: jest.fn().mockReturnValue({
+            where: jest.fn().mockReturnValue({
+              andWhere: jest.fn().mockReturnValue({
+                execute: jest.fn().mockResolvedValue({ affected: 1 }),
+              }),
+            }),
+          }),
+        }),
+      });
       service.cancelWaitingExecution(executionId);
-      await flushPromises();
+      await flushResumeDrive();
 
       // Should emit cancelled event
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
@@ -3620,8 +3744,14 @@ describe('ExecutionEngineService', () => {
 
       await service.execute(workflowId, { data: 'test' });
       await flushPromises();
+      // Phase B (PR-B1) — button park-release → resume 은 §7.5 slow-path. slow-path
+      // DB lookup 무장 후 detached 드라이브 완료까지 실제 타이머를 흘린다.
+      armSlowPathResume(
+        'node-carousel',
+        carouselNodes.find((n) => n.id === 'node-carousel')!,
+      );
       void service.continueButtonClick(executionId, 'btn-1');
-      await flushPromises();
+      await flushResumeDrive();
 
       expect(appendSpy).toHaveBeenCalledTimes(1);
       expect(appendSpy).toHaveBeenCalledWith(
@@ -3664,6 +3794,8 @@ describe('ExecutionEngineService', () => {
     });
 
     // §4.x 회귀 가드 (button) — worker job 반환 후 click 으로 lossless 재개.
+    // Phase B (PR-B1) — button park 도 코루틴 release(resolver 미잔류) → resume 은
+    // §7.5 slow-path(rehydration). worker job 은 park 시점에 반환된다.
     it('§4.x — runExecutionFromQueue 는 button park 시점에 resolve, click 후 재개 완료', async () => {
       const fromQueue = service.runExecutionFromQueue(executionId, {
         data: 'test',
@@ -3671,12 +3803,24 @@ describe('ExecutionEngineService', () => {
       await expect(fromQueue).resolves.toBeUndefined();
 
       const pendings = getPendings(service);
-      expect(pendings.has(executionId)).toBe(true);
+      // 새 불변식: 코루틴 해제 → in-memory resolver 잔류 없음 (bounded memory).
+      expect(pendings.has(executionId)).toBe(false);
       expect(mockHandler.execute).toHaveBeenCalledTimes(1); // start only
 
+      // 클릭은 §7.5 slow-path(rehydration)로 재개 → btn-1 포트로 end 라우팅 → 완료.
+      armSlowPathResume(
+        'node-carousel',
+        carouselNodes.find((n) => n.id === 'node-carousel')!,
+      );
       void service.continueButtonClick(executionId, 'btn-1');
-      await flushPromises();
-      // btn-1 포트로 end 노드 라우팅 → 실행 완료.
+      // detached slow-path 드라이브 완료(execution.completed)까지 real-timer polling.
+      for (let i = 0; i < 50; i++) {
+        const done = (
+          mockWebsocketService.emitExecutionEvent.mock.calls as unknown[][]
+        ).some((c) => c[1] === 'execution.completed');
+        if (done) break;
+        await flushResumeDrive(20);
+      }
       expect(mockHandler.execute).toHaveBeenCalledTimes(2); // start + end
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
@@ -5050,6 +5194,14 @@ describe('ExecutionEngineService', () => {
     it('sentinel 없는 raw 값이 resolvePending 에 도달하면 warn log + raw 값 그대로 formData 로 사용', async () => {
       // spec §10.9 back-compat: continueExecution 경로 외 직접 resolvePending 시
       // sentinel 없이 raw 값이 들어올 수 있다. warn log 남기고 raw 값을 그대로 사용.
+      //
+      // Phase B (PR-B1) — fresh top-level form park 은 코루틴을 release 하므로
+      // (pending 미잔류) 비-sentinel fallback 분기는 이제 waitForFormSubmission 의
+      // `parkMode==='await'` 경로(= §7.5 slow-path resume 재진입)에만 남는다.
+      // 따라서 slow-path 를 통해 raw(non-sentinel) payload 를 전달해 그 분기를
+      // 구동한다: form slow-path mock 무장 후 applyContinuation 을 raw 값으로 직접
+      // 호출(continueExecution 의 sentinel-wrap 우회) → firePayload 가 그 raw 를
+      // 그대로 resolvePending 으로 전달 → await-mode waitForFormSubmission 의 fallback.
       const logger = (service as unknown as { logger: { warn: jest.Mock } })
         .logger;
       const warnSpy = jest.spyOn(logger, 'warn');
@@ -5057,19 +5209,14 @@ describe('ExecutionEngineService', () => {
       void service.execute(workflowId, { data: 'test' });
       await flushPromises();
 
-      // sentinel 없이 직접 resolvePending — 비정상 경로 시뮬레이션.
-      const pendings = (
-        service as unknown as {
-          pendingContinuations: Map<
-            string,
-            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
-          >;
-        }
-      ).pendingContinuations;
+      armSlowPathResume(
+        'node-form-w13',
+        formNodesW13.find((n) => n.id === 'node-form-w13')!,
+      );
+      // sentinel 없는 raw 값을 payload 로 직접 전달 — continueExecution 의 wrap 우회.
       const raw = { approved: true };
-      const pendingEntry = pendings.get(executionId);
-      pendingEntry?.resolve(raw);
-      await flushPromises();
+      void service.applyContinuation(executionId, 'ne-node-form-w13', raw);
+      await flushResumeDrive();
 
       // warn log 가 sentinel 없는 폴백 분기임을 알리는지.
       const warnCalls = warnSpy.mock.calls.map((c) => String(c[0]));
@@ -10327,10 +10474,11 @@ describe('ExecutionEngineService', () => {
       svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
       // waitForButtonInteraction: 현재 클릭 처리 후 반환(단일 상호작용).
       svcAny.waitForButtonInteraction = stubWaitForX(Promise.resolve());
-      // 다음 대기 노드에서 영구 대기하는 그래프 구동.
+      // 다음 대기 노드에서 영구 대기하는 그래프 구동. Phase B (PR-B1) —
+      // runNodeDispatchLoop 는 { parked } 를 반환하므로 gate 도 동형으로 resolve.
       let releaseDispatch!: () => void;
-      const dispatchGate = new Promise<void>((r) => {
-        releaseDispatch = r;
+      const dispatchGate = new Promise<{ parked: boolean }>((r) => {
+        releaseDispatch = () => r({ parked: false });
       });
       svcAny.runNodeDispatchLoop = jest.fn().mockReturnValue(dispatchGate);
 
@@ -10417,7 +10565,9 @@ describe('ExecutionEngineService', () => {
       svcAny.buildRetryReentryState = jest
         .fn()
         .mockReturnValue({ resumeState: {}, initialAction: undefined });
-      svcAny.runNodeDispatchLoop = jest.fn().mockResolvedValue(undefined);
+      svcAny.runNodeDispatchLoop = jest
+        .fn()
+        .mockResolvedValue({ parked: false });
       svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
       // 멀티턴 대화 진행 중 — 대화 종료(gate 해제) 전까지 반환하지 않는다.
       let releaseAi!: () => void;
@@ -11689,9 +11839,16 @@ describe('ExecutionEngineService', () => {
 
     // PR #371 ai-review W4 — downstream blocking 노드 (form/buttons/ai_conversation)
     // resume 경로 회귀 가드. retry 성공 후 downstream 의 blocking 노드가 정상적으로
-    // waitForX 진입 → continueExecution 으로 resume → Execution.COMPLETED 마감하는
-    // 전체 흐름을 검증한다 (runNodeDispatchLoop 의 blocking wait 분기 도달).
-
+    // waitForX 진입하는지 검증한다 (runNodeDispatchLoop 의 blocking wait 분기 도달).
+    //
+    // Phase B (PR-B1) — downstream form 은 이제 fresh top-level park 으로 **release**
+    // 된다: runNodeDispatchLoop 가 PARK_RELEASED 를 받아 `{ parked: true }` 를 반환하고
+    // resumeGraphAfterRetry 는 COMPLETED 마감을 **skip** 한 채 early-return 한다
+    // (Execution 은 WAITING_FOR_INPUT 로 잔류, 재개는 §7.5 rehydration). 따라서 옛
+    // "continueExecution → COMPLETED" 단언은 더 이상 성립하지 않는다. 본 테스트의 새
+    // 불변식: downstream form 에 도달하면 다시 **park**(waiting emit)되고 execution.
+    // completed 는 emit 되지 않는다 (re-park). retryPromise 는 park-release 로 코루틴이
+    // 풀려 continuation 없이도 resolve 된다.
     it('enters waitForFormSubmission when downstream is a form node, resumes on continueExecution (W4 form)', async () => {
       const agentNode: Partial<Node> = {
         id: AGENT_ID,
@@ -11754,24 +11911,29 @@ describe('ExecutionEngineService', () => {
         waitingNodeId: DOWNSTREAM_ID,
         interactionType: 'form',
       });
-      // Execution 은 아직 COMPLETED/FAILED 아님 (waitForFormSubmission 안에서 hang).
-      const completedDuringWait =
-        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
-          (c: unknown[]) => c[1] === 'execution.completed',
-        );
-      expect(completedDuringWait.length).toBe(0);
-
-      // 사용자 form submit 시뮬레이션.
-      void service.continueExecution(EXEC, { formData: { approved: true } });
+      // Phase B (PR-B1) — downstream form 의 park-release 로 코루틴이 풀려
+      // resumeGraphAfterRetry 가 COMPLETED 마감 없이 early-return 한다. 따라서
+      // retryPromise 는 continuation 없이도 resolve 된다.
       await retryPromise;
       await flushPromises();
 
-      // Execution 이 COMPLETED 로 마감됨.
+      // 새 불변식: downstream form 에서 re-park 됐을 뿐 COMPLETED 마감되지 않는다.
+      // (재개는 §7.5 rehydration 으로 일원화 — 별도 continuation job 경로.)
       const completed =
         mockWebsocketService.emitExecutionEvent.mock.calls.filter(
           (c: unknown[]) => c[1] === 'execution.completed',
         );
-      expect(completed.length).toBe(1);
+      expect(completed.length).toBe(0);
+      // waiting_for_input(downstream form) 은 정확히 1회 emit — re-park 확인.
+      const waitingAfter =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.waiting_for_input',
+        );
+      expect(waitingAfter.length).toBe(1);
+      expect(waitingAfter[0][2]).toMatchObject({
+        waitingNodeId: DOWNSTREAM_ID,
+        interactionType: 'form',
+      });
     });
 
     // W4 buttons / ai_conversation — `waitForX` private method spy 패턴.

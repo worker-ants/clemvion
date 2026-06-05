@@ -92,17 +92,14 @@ export class ContinuationExecutionProcessor extends WorkerHost {
         );
         break;
       case 'cancel':
-        // applyCancellation 은 sync (rejectPending 만 호출) — fire-and-forget.
-        // CONTINUATION_WORKER_CONCURRENCY > 1 동시성 안전: 본 호출이 동기 완료
-        // 되므로 process() 반환 전에 cancel 이 끝난다 (async race window 없음).
-        // 동일 executionId 의 cancel vs resume 가 서로 다른 slot 에서 동시 픽업
-        // 되는 순서 경합은 위 isNodeExecutionWaiting status 가드 + BullMQ jobId
-        // 멱등성이 흡수한다 (plan/in-progress/continuation-resume-optional-
-        // followups.md 항목2 — optimistic lock 강화는 in-memory 코루틴 누수까지
-        // 차단하는 후속 검토).
-        // TODO: applyCancellation 을 async 로 전환하면 `void` 제거 후 `await`
-        // 복원 필요 — 그때부터는 동기 완료 전제가 깨져 concurrency > 1 race 발생.
-        void this.engine.applyCancellation(executionId);
+        // Phase B (PR-B1) — applyCancellation 은 async. in-memory 코루틴 생존 시
+        // rejectPending(동기 완료), park-release 로 코루틴 없을 시 durable WAITING
+        // 행을 직접 CANCELLED 마감(async DB write). process() 가 반환 전에 cancel
+        // 완료를 await 해 job ack 시점에 terminal 마킹을 보장한다.
+        // 동일 executionId 의 cancel vs resume 동시 픽업 순서 경합은
+        // isNodeExecutionWaiting status 가드 + WAITING_FOR_INPUT andWhere 멱등
+        // 가드 + BullMQ jobId 멱등성이 흡수한다.
+        await this.engine.applyCancellation(executionId);
         break;
       case 'button_click':
         await this.engine.applyContinuation(executionId, nodeExecutionId, {
