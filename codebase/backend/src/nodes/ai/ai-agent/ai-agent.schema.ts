@@ -5,6 +5,10 @@ import {
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 import { buildSystemContextSchemaFields } from '../shared/system-context-schema.js';
+import {
+  buildConversationContextSchemaFields,
+  DEFAULT_CONTEXT_SCOPE_N as SHARED_DEFAULT_CONTEXT_SCOPE_N,
+} from '../shared/conversation-context-schema.js';
 import { PRESENTATION_TYPES } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
@@ -12,8 +16,11 @@ import { PRESENTATION_TYPES } from '../../../shared/conversation-thread/conversa
  * turns to inject when `contextScope: 'lastN'`. Single source of truth used
  * by both the schema default and the handler's runtime fallback so they can't
  * drift out of sync (ai-review W#13).
+ *
+ * 정의는 3 노드 공통 fragment (`shared/conversation-context-schema.ts`) 로 이전됐고,
+ * 본 export 는 하위호환 re-export 다.
  */
-export const DEFAULT_CONTEXT_SCOPE_N = 20;
+export const DEFAULT_CONTEXT_SCOPE_N = SHARED_DEFAULT_CONTEXT_SCOPE_N;
 
 /**
  * AI Agent 의 대화 컨텍스트 메모리 관리 전략 (spec/4-nodes/3-ai/1-ai-agent.md §1,
@@ -387,88 +394,13 @@ export const aiAgentNodeConfigSchema = z
     // ── Conversation Context (auto-injection from ConversationThread) ──
     // SoT: spec/conventions/conversation-thread.md §5
     //      spec/4-nodes/3-ai/0-common.md §10
-    contextScope: z
-      .enum(['none', 'thread', 'lastN'])
-      .default('none')
-      .meta({
-        ui: {
-          label: 'Conversation Context',
-          widget: 'select',
-          order: 37,
-          group: 'Conversation Context',
-          // `memoryStrategy != manual` 이면 자동 전략이 contextScope 계열 5필드를
-          // 대체하므로 숨긴다 (spec §1 비고 / §2 visibleWhen). 단일-필드 평가기라
-          // equals 한 조건만 — 그래도 strategy 가 manual 일 때만 노출돼 충분.
-          visibleWhen: { field: 'memoryStrategy', equals: 'manual' },
-          options: [
-            { value: 'none', label: 'None — system + user prompt only' },
-            { value: 'thread', label: 'Thread — inject full thread' },
-            { value: 'lastN', label: 'Last N — inject most recent N turns' },
-          ],
-        },
-      }),
-    contextScopeN: z
-      .number()
-      .int()
-      .positive()
-      .default(DEFAULT_CONTEXT_SCOPE_N)
-      .meta({
-        ui: {
-          label: 'Last N',
-          widget: 'number',
-          order: 38,
-          group: 'Conversation Context',
-          visibleWhen: { field: 'contextScope', equals: 'lastN' },
-        },
-      }),
-    contextInjectionMode: z
-      .enum(['messages', 'system_text'])
-      .default('messages')
-      .meta({
-        ui: {
-          label: 'Injection Mode',
-          widget: 'select',
-          order: 39,
-          group: 'Conversation Context',
-          // manual 전략에서만 의미 — 자동 전략은 안정 프리픽스로 강제 (spec §1).
-          visibleWhen: { field: 'memoryStrategy', equals: 'manual' },
-          options: [
-            { value: 'messages', label: 'Messages — prepend to LLM messages' },
-            {
-              value: 'system_text',
-              label: 'System Text — append to system prompt',
-            },
-          ],
-        },
-      }),
-    includeToolTurns: z
-      .boolean()
-      .default(false)
-      .meta({
-        ui: {
-          label: 'Include Tool Calls in Thread',
-          widget: 'checkbox',
-          order: 40,
-          group: 'Conversation Context',
-          // 자동 주입 측면에서는 manual 전략에서만 의미 — 자동 전략은 안정
-          // 프리픽스로 대체 (spec §1). thread push 자체는 strategy 와 독립이나
-          // 본 토글의 자동-주입 영향은 manual 한정이므로 manual 일 때만 노출.
-          visibleWhen: { field: 'memoryStrategy', equals: 'manual' },
-          hint: 'Push KB / MCP / condition tool turns to the thread (default: only the final assistant response).',
-        },
-      }),
-    excludeFromConversationThread: z
-      .boolean()
-      .default(false)
-      .meta({
-        ui: {
-          label: 'Exclude This Node from Thread',
-          widget: 'checkbox',
-          order: 41,
-          group: 'Conversation Context',
-          hint: 'Skip pushing this node’s user / assistant turns to the workflow thread (opt-out).',
-        },
-      }),
+    // Fragment SoT: shared/conversation-context-schema.ts (3 노드 공통 helper).
+    // AI Agent 는 `memoryStrategy` 필드를 가지므로 `gateOnManualMemoryStrategy:
+    // true` 로 자동 전략 시 contextScope 계열 필드를 숨긴다 (order 37-41, 종전
+    // 정의와 100% 동치 — visibleWhen/options/hint 모두 보존).
+    ...buildConversationContextSchemaFields(37, {
+      gateOnManualMemoryStrategy: true,
+    }),
 
     // ── System Context Prefix ──
     // SoT: spec/4-nodes/3-ai/0-common.md §11. Default true 로 시각·timezone 한 줄

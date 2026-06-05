@@ -27,12 +27,12 @@ import {
 import type { McpServerSummary } from './tool-providers/mcp-diagnostics';
 import {
   aiAgentNodeMetadata,
-  DEFAULT_CONTEXT_SCOPE_N,
   DEFAULT_MEMORY_TOKEN_BUDGET,
   DEFAULT_MEMORY_TOP_K,
   DEFAULT_MEMORY_THRESHOLD,
   type MemoryStrategy,
 } from './ai-agent.schema';
+import { injectConversationContext } from '../shared/conversation-context-injection';
 import {
   appendStablePrefix,
   buildRecallBlock,
@@ -502,56 +502,6 @@ class RagAccumulatorGroup {
   }
 }
 
-/**
- * Map ConversationTurn → LLM ChatMessage (messages-mode injection,
- * spec/conventions/conversation-thread.md §5.1). Pure function — extracted
- * from `injectThreadContext` so unit tests can exercise the per-source
- * mapping in isolation.
- *
- * `presentation_user` turns are prefixed with `[from <nodeLabel>]` so the
- * LLM can attribute the input back to the originating node.
- *
- * Every returned message carries `source: 'injected'` for the WebSocket
- * emit layer (spec/5-system/6-websocket-protocol.md §4.4.6) — set once at
- * the bottom of the function rather than per-case so adding a new turn
- * source can't accidentally drop the marker. System messages are filtered
- * out before reaching the emit payload (`buildConversationConfigFromOutput`),
- * so the marker on them is harmless.
- */
-function mapTurnsToChatMessages(
-  turns: readonly import('../../../shared/conversation-thread/conversation-thread.types').ConversationTurn[],
-): ChatMessage[] {
-  return turns
-    .map((t): ChatMessage => {
-      switch (t.source) {
-        case 'presentation_user':
-          return {
-            role: 'user',
-            content: `[from ${t.nodeLabel}] ${t.text}`,
-          } as ChatMessage;
-        case 'ai_user':
-          return { role: 'user', content: t.text } as ChatMessage;
-        case 'ai_assistant':
-          return {
-            role: 'assistant',
-            content: t.text,
-            ...(t.toolCalls ? { toolCalls: t.toolCalls } : {}),
-          } as ChatMessage;
-        case 'ai_tool':
-          return {
-            role: 'tool',
-            content: t.text,
-            ...(t.toolCallId ? { toolCallId: t.toolCallId } : {}),
-          } as ChatMessage;
-        case 'system':
-          return { role: 'system', content: t.text } as ChatMessage;
-        default:
-          return { role: 'user', content: t.text } as ChatMessage;
-      }
-    })
-    .map((m) => ({ ...m, source: 'injected' as const }));
-}
-
 export class AiAgentHandler implements NodeHandler {
   metadata = aiAgentNodeMetadata;
 
@@ -694,104 +644,18 @@ export class AiAgentHandler implements NodeHandler {
       totalInjectedChars: number;
     };
   } {
-    const noopMeta = {
-      appliedScope: 'none' as const,
-      appliedMode: 'messages' as const,
-      injectedTurns: 0,
-      droppedTurns: 0,
-      totalInjectedChars: 0,
-    };
-
-    const scope = args.config.contextScope as
-      | 'none'
-      | 'thread'
-      | 'lastN'
-      | undefined;
-    if (
-      !this.conversationThreadService ||
-      !args.target ||
-      !scope ||
-      scope === 'none'
-    ) {
-      return {
-        messages: args.messages,
-        finalSystemPrompt: args.finalSystemPrompt,
-        injection: noopMeta,
-      };
-    }
-
-    const allTurns = this.conversationThreadService.getThreadExcludingNode(
-      args.target,
-      args.selfNodeId,
-    );
-    if (allTurns.length === 0) {
-      return {
-        messages: args.messages,
-        finalSystemPrompt: args.finalSystemPrompt,
-        injection: { ...noopMeta, appliedScope: scope },
-      };
-    }
-
-    const scoped =
-      scope === 'lastN'
-        ? allTurns.slice(
-            -Math.max(
-              1,
-              (args.config.contextScopeN as number) ?? DEFAULT_CONTEXT_SCOPE_N,
-            ),
-          )
-        : allTurns;
-
-    // Cap (per spec §5.3 — char-based, last-resort safety).
-    const capped = applyCap(scoped);
-
-    const mode =
-      (args.config.contextInjectionMode as 'messages' | 'system_text') ??
-      'messages';
-
-    if (mode === 'system_text') {
-      const text = renderThreadAsSystemText(capped.turns);
-      const newSystemPrompt = args.finalSystemPrompt
-        ? `${args.finalSystemPrompt}\n\n${text}`
-        : text;
-      // Mirror the appended thread text into the messages array's system
-      // entry so callers don't need to re-sync the two surfaces.
-      const newMessages = args.messages.map((m) =>
-        m.role === 'system' ? { ...m, content: newSystemPrompt } : m,
-      );
-      return {
-        messages: newMessages,
-        finalSystemPrompt: newSystemPrompt,
-        injection: {
-          appliedScope: scope,
-          appliedMode: 'system_text',
-          injectedTurns: capped.turns.length,
-          droppedTurns: capped.droppedCount,
-          totalInjectedChars: capped.totalChars,
-        },
-      };
-    }
-
-    // 'messages' mode — prepend (after system) per spec §5.1 mapping.
-    const injected: ChatMessage[] = mapTurnsToChatMessages(capped.turns);
-
-    // Insert injected turns after the leading system message (if any).
-    const systemIdx = args.messages.findIndex((m) => m.role === 'system');
-    const newMessages = [...args.messages];
-    const insertAt = systemIdx >= 0 ? systemIdx + 1 : 0;
-    newMessages.splice(insertAt, 0, ...injected);
-
-    return {
-      messages: newMessages,
+    // 노드무관 thread 주입 로직은 공유 유틸로 추출됨 (3 AI 노드 공통,
+    // spec/conventions/conversation-thread.md §5). AI Agent 의 manual
+    // `contextScope` 동작은 100% 불변 — `memoryStrategy ∈ {summary_buffer,
+    // persistent}` 자동 메모리 경로는 호출부(execute)가 strategy 로 분기한다.
+    return injectConversationContext<ThreadHolder>({
+      reader: this.conversationThreadService,
+      target: args.target,
+      selfNodeId: args.selfNodeId,
+      config: args.config,
+      messages: args.messages,
       finalSystemPrompt: args.finalSystemPrompt,
-      injection: {
-        appliedScope: scope,
-        appliedMode: 'messages',
-        injectedTurns: capped.turns.length,
-        droppedTurns: capped.droppedCount,
-        totalInjectedChars: capped.totalChars,
-      },
-    };
+    });
   }
 
   /**
