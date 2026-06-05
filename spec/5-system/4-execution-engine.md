@@ -114,7 +114,8 @@ pending → running ──┤                     └─ cancelled
 - waiting_for_input 진입(`emitAiWaitingForInput`) 과 매 turn 영속(`handleAiMessageTurn`) 시점에 엔진이 `_resumeState` 의 **credential-strip 부분집합**을 `_resumeCheckpoint` 로 운반해 `NodeExecution.outputData._resumeCheckpoint` 에 DB 영속한다.
 - **`stripControlFields()` 는 `_resumeCheckpoint` 를 보존** (downstream 노드 input 전달 시에는 `_resumeState` 와 함께 제거 — internal-only).
 - shape: `_retryState` 와 동일 부분집합(messages / turnCount / model / temperature / maxTokens / knowledgeBases / RAG / MCP / pendingFormToolCall? 등)이되 **`expiresAt`(TTL) 없음** — 대화는 장시간 idle 후에도 재개 가능(waiting Execution 은 무기한 보존) — 과 **`lastUserMessage` 없음** — 재개 시 도착한 사용자 메시지(continuation payload)를 그대로 첫 turn 으로 처리. credential / context-binding 필드(`llmConfigId`/`workspaceId` 등)는 미동봉 (`maskSensitiveFields` 와 동일 정책), 재개 시 `node.config` 재평가로 재유도.
-- 소비: §7.5 rehydration 이 `outputData._resumeCheckpoint` 로드 → `buildRetryReentryState`(`_retryState` 와 공유) 로 `_resumeState` 재구성 → `waitForAiConversation` 재진입 → continuation payload 가 다음 turn 으로 처리. `_resumeCheckpoint` 부재(이 기능 배포 이전 진입한 waiting row) 또는 손상 시 graceful reset (§7.5 `RESUME_INCOMPATIBLE_STATE`).
+- **스키마 버전 (`schemaVersion`)**: checkpoint 는 `CHECKPOINT_SCHEMA_VERSION` 정수를 동봉해 스키마 진화에 대비한다. 재개 시: 버전 **부재**(기능 배포 이전 row) 또는 **현재 코드 버전 이하**면 누락 필드를 기본값으로 보강해 backward-compatible 재구성, **현재 코드 버전 초과**(롤링 배포 중 구 인스턴스가 신 포맷 checkpoint pickup)면 안전 재구성 불가로 graceful `RESUME_INCOMPATIBLE_STATE`.
+- 소비: §7.5 rehydration 이 `outputData._resumeCheckpoint` 로드 → 버전 검사 → `buildRetryReentryState`(`_retryState` 와 공유) 로 `_resumeState` 재구성(핵심 필드 누락 시 기본값 보강) → `waitForAiConversation` 재진입 → continuation payload 가 다음 turn 으로 처리. `_resumeCheckpoint` 부재(이 기능 배포 이전 진입한 waiting row)·손상·미래 버전 시 graceful reset (§7.5 `RESUME_INCOMPATIBLE_STATE`).
 
 **보존 예외 — `_retryState`** (retryable error 종결 시):
 
@@ -905,7 +906,7 @@ case 2 의 rehydration 경로는 §7.4 의 기존 원칙 "키 없음 → 즉시 
 | --- | --- |
 | `NodeExecution.outputData` 가 부재 또는 손상 | Execution `cancelled` + `error.code='RESUME_CHECKPOINT_MISSING'`, 동반 NodeExecution `failed` |
 | BullMQ attempts 소진 | Execution `cancelled` + `error.code='RESUME_FAILED'`, 동반 NodeExecution `failed` |
-| Multi-turn AI 노드의 `_resumeCheckpoint` 가 **부재**(이 기능 배포 이전 진입한 waiting row) 또는 **손상**(schema drift 로 `buildRetryReentryState` 재구성 실패) | Execution `cancelled` + `error.code='RESUME_INCOMPATIBLE_STATE'`, 동반 NodeExecution `failed`. 채널 어댑터는 이를 raw 에러가 아닌 **graceful "대화 세션 만료 — 새로 시작" 안내**로 사용자에게 표시하고, 사용자의 다음 메시지는 새 대화로 시작한다 (텔레그램 등). **정상 경로** — `_resumeCheckpoint` 가 존재하면 재구성 성공으로 재개되며 본 에러는 발생하지 않는다 |
+| Multi-turn AI 노드의 `_resumeCheckpoint` 가 **부재**(이 기능 배포 이전 진입한 waiting row)·**손상**(schema drift 로 `buildRetryReentryState` 재구성 실패)·**미래 버전**(`schemaVersion` 이 현재 코드 `CHECKPOINT_SCHEMA_VERSION` 초과 — 롤링 배포 중 구 인스턴스가 신 포맷 pickup, §1.3) | Execution `cancelled` + `error.code='RESUME_INCOMPATIBLE_STATE'`, 동반 NodeExecution `failed`. 채널 어댑터는 이를 raw 에러가 아닌 **graceful "대화 세션 만료 — 새로 시작" 안내**로 사용자에게 표시하고, 사용자의 다음 메시지는 새 대화로 시작한다 (텔레그램 등). **정상 경로** — `_resumeCheckpoint` 가 존재하고 버전이 호환되면 재구성 성공으로 재개되며 본 에러는 발생하지 않는다 |
 
 이 셋 모두 사용자에게는 [Spec WebSocket §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) 의 ack 에 `resumed: false` + `error` 객체로 노출된다.
 

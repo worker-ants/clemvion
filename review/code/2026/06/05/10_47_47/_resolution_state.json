@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "started_at": "2026-06-05T11:00:00Z",
+  "summary_items_total": 3,
+  "items_resolved_ids": [1, 2, 3],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "96444289", "summary_id": "1,2,3", "scope": "execution-engine"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260605-105924.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
