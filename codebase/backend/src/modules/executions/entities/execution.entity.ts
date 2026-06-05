@@ -9,6 +9,7 @@ import { Workflow } from '../../workflows/entities/workflow.entity';
 import { Trigger } from '../../triggers/entities/trigger.entity';
 import { User } from '../../users/entities/user.entity';
 import type { ConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import type { ResumeCallStack } from '../../../shared/execution-resume/resume-call-stack.types';
 
 export enum ExecutionStatus {
   PENDING = 'pending',
@@ -123,6 +124,19 @@ export class Execution {
   //   spec: 4-execution-engine §6.1/§6.2/§7.5, 1-data-model §2.13.
   @Column({ name: 'user_variables', type: 'jsonb', nullable: true })
   userVariables: Record<string, unknown> | null;
+
+  // resume_call_stack: 중첩 sub-workflow(executeInline) 안의 blocking 노드가
+  //   waiting_for_input 으로 park 할 때, 재개에 필요한 executeInline 호출 체인
+  //   (outermost→waiting inner 직전)을 commit 하는 durable resume 매체 (V087, D6).
+  //   rehydration(§7.5)이 이 스택으로 top-level→sub-workflow 프레임을 재귀적으로
+  //   재진입(executeInline 재호출)해 최내층 waiting 노드까지 도달한다. 컨테이너 body
+  //   blocking 은 §3.2 금지라 선형 스택만(iteration/branch 상태 없음). NULL = top-level
+  //   park(중첩 깊이 0) / park 한 적 없는 실행 / 배포 이전 row → rehydration 은 단일
+  //   레벨로 재개. conversation_thread(V084)·user_variables(V085) 동일 패턴 — API DTO
+  //   미포함(whitelist 매핑이라 자동 배제).
+  //   spec: 4-execution-engine §6.2/§7.5/§Rationale(D6), 1-data-model §2.13.
+  @Column({ name: 'resume_call_stack', type: 'jsonb', nullable: true })
+  resumeCallStack: ResumeCallStack | null;
 
   // 노드 실행 순서는 V035 부터 별도 `execution_node_log` 테이블에 append-only
   // 로 기록된다. ExecutionsService.findById 가 (execution_id, id) 정렬 쿼리로
