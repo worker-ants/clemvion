@@ -50,7 +50,7 @@ import { AgentMemory } from '../modules/agent-memory/entities/agent-memory.entit
  * app.module 과 별도 파일로 분리한 이유: eval CLI 모듈(`eval-cli.module.ts`)
  * 같은 경량 부트스트랩이 전체 `app.module`(노드 핸들러까지 transitive import)
  * 을 끌어오지 않고 이 entity 목록만 재사용할 수 있게 하기 위함. app.module 은
- * 여기서 re-export 한다.
+ * 이 배열을 re-export 하여 기존 `ROOT_ENTITIES` import 사이트 호환을 유지한다.
  */
 export const ROOT_ENTITIES = [
   User,

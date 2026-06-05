@@ -209,3 +209,74 @@ describe('detectLanguage', () => {
     expect(detectLanguage('12345 !!! ???')).toBe('en');
   });
 });
+
+describe('detectLanguage 엣지 케이스 (W3)', () => {
+  it('빈 문자열 → en(기본: total=0)', () => {
+    expect(detectLanguage('')).toBe('en');
+  });
+
+  it('일본어 전용 텍스트(한글/라틴 없음) → en(기본)', () => {
+    // 가타카나·히라가나는 HANGUL_RE/LATIN_RE 미포함 → total=0 → en 기본
+    expect(detectLanguage('こんにちは世界')).toBe('en');
+  });
+
+  it('KO_RATIO_THRESHOLD=0.2 정확한 경계 — 한글 20% → ko', () => {
+    // hangul=2, latin=8 → ratio=2/10=0.2 → ko
+    expect(detectLanguage('가나abcdefgh')).toBe('ko');
+  });
+
+  it('KO_RATIO_THRESHOLD=0.2 경계 미달 — 한글 19%→ en', () => {
+    // hangul=1, latin=9 → ratio 약 0.1 → en
+    expect(detectLanguage('가abcdefghi')).toBe('en');
+  });
+});
+
+describe('evaluateRetrieval — positive 0건 케이스 (W4)', () => {
+  it('모든 entry 가 shouldRetrieve=false 이면 overall.count=0, 지표는 0', () => {
+    const allNeg: GoldenSet = {
+      meta: { version: 1 },
+      entries: [
+        entry({ id: 'n1', shouldRetrieve: false, goldChunkIds: [] }),
+        entry({ id: 'n2', shouldRetrieve: false, goldChunkIds: [] }),
+      ],
+    };
+    const report = evaluateRetrieval(
+      allNeg,
+      { n1: [{ chunkId: 'x', score: 0.8 }], n2: [] },
+      [1, 3],
+    );
+    expect(report.overall.count).toBe(0);
+    // macroAverage 빈 배열 → 0 반환(NaN 오염 없음)
+    expect(report.overall.mrr).toBe(0);
+    expect(report.overall.recall[1]).toBe(0);
+    expect(report.overall.hitRate[1]).toBe(0);
+    expect(report.negatives.count).toBe(2);
+    expect(report.negatives.retrievedAnyRate).toBe(0.5); // n1 만 회수됨
+  });
+});
+
+describe('macroAverage NaN guard (W9)', () => {
+  it('gold 가 비어 NaN 을 반환하는 entry 가 섞여도 집계가 NaN 오염되지 않음', () => {
+    // shouldRetrieve=true 이지만 goldChunkIds=[] 인 비정상 entry
+    const mixedSet: GoldenSet = {
+      meta: { version: 1 },
+      entries: [
+        entry({ id: 'ok', goldChunkIds: ['c1'], shouldRetrieve: true }),
+        // goldChunkIds=[] 이면서 shouldRetrieve=true → 지표 함수가 NaN 반환
+        entry({ id: 'bad', goldChunkIds: [], shouldRetrieve: true }),
+      ],
+    };
+    const report = evaluateRetrieval(
+      mixedSet,
+      {
+        ok: [{ chunkId: 'c1', score: 0.9 }],
+        bad: [{ chunkId: 'x', score: 0.5 }],
+      },
+      [1],
+    );
+    // NaN entry 가 섞여도 overall 집계가 NaN 이 되지 않아야 한다.
+    expect(Number.isNaN(report.overall.hitRate[1])).toBe(false);
+    expect(Number.isNaN(report.overall.recall[1])).toBe(false);
+    expect(Number.isNaN(report.overall.mrr)).toBe(false);
+  });
+});

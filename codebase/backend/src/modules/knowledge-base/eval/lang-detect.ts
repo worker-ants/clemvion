@@ -13,9 +13,17 @@ const LATIN_RE = /[A-Za-z]/g;
 /** 한글 비율이 이 값 이상이면 'ko'. CS 문서의 영문 식별자 혼입을 고려한 낮은 컷. */
 const KO_RATIO_THRESHOLD = 0.2;
 
+/** 정규식 매치 수를 배열 생성 없이 카운팅한다(수천 문자 배열 GC 불필요). */
+function countMatches(re: RegExp, text: string): number {
+  re.lastIndex = 0; // /g 플래그 stateful 리셋
+  let count = 0;
+  while (re.exec(text) !== null) count += 1;
+  return count;
+}
+
 export function detectLanguage(text: string): 'ko' | 'en' {
-  const hangul = (text.match(HANGUL_RE) ?? []).length;
-  const latin = (text.match(LATIN_RE) ?? []).length;
+  const hangul = countMatches(HANGUL_RE, text);
+  const latin = countMatches(LATIN_RE, text);
   const total = hangul + latin;
   if (total === 0) return 'en'; // 문자 없음(숫자·기호만) → 기본 en
   return hangul / total >= KO_RATIO_THRESHOLD ? 'ko' : 'en';

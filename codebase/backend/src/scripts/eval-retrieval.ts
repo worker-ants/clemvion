@@ -14,12 +14,16 @@
  *   npx ts-node src/scripts/eval-retrieval.ts [--golden eval/golden.json] \
  *     [--ks 1,3,5,10] [--top-k 10] [--threshold 0] [--out report.json] \
  *     [--fail-metric hitRate|recall|ndcg|precision|mrr] [--fail-k 5] [--fail-under 0.6]
+ *
+ * 참고: --fail-metric mrr 시 --fail-k 는 무시되고 maxK(--ks 최댓값) 기반 MRR 이
+ * 사용된다. mrr 은 단일 스칼라이며 k 파라미터를 갖지 않기 때문이다.
  */
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { NestFactory } from '@nestjs/core';
 import { DataSource } from 'typeorm';
 import pLimit from 'p-limit';
+import { z } from 'zod';
 import { EvalCliModule } from '../modules/knowledge-base/eval/eval-cli.module';
 import { RagSearchService } from '../modules/knowledge-base/search/rag-search.service';
 import {
@@ -28,20 +32,32 @@ import {
   evaluateRetrieval,
   RetrievedChunk,
 } from '../modules/knowledge-base/eval/retrieval-metrics';
-import { GoldenSet } from '../modules/knowledge-base/eval/golden-set.types';
+import { parseCliFlag } from './cli-utils';
 
 const SEARCH_CONCURRENCY = 4;
 const DEFAULT_GOLDEN = 'eval/golden.json';
 
-function parseCliFlag(name: string): string | undefined {
-  const eqIdx = process.argv.findIndex((a) => a.startsWith(`${name}=`));
-  if (eqIdx >= 0) return process.argv[eqIdx].split('=', 2)[1];
-  const flagIdx = process.argv.indexOf(name);
-  if (flagIdx >= 0 && flagIdx < process.argv.length - 1) {
-    return process.argv[flagIdx + 1];
-  }
-  return undefined;
-}
+/** UUID v4 형식 정규식 — kbId 사전 검증에 사용. */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 골든셋 JSON 런타임 스키마(zod). 필수 구조만 검증하며, 알 수 없는 필드는 통과. */
+const GoldenEntrySchema = z.object({
+  id: z.string().min(1),
+  query: z.string().min(1),
+  language: z.enum(['ko', 'en']),
+  knowledgeBaseId: z.string().regex(UUID_RE, 'knowledgeBaseId must be a UUID'),
+  goldChunkIds: z.array(z.string()),
+  shouldRetrieve: z.boolean(),
+  source: z.enum(['synthetic', 'mined', 'manual']),
+  reviewed: z.boolean(),
+  difficulty: z.enum(['single', 'multi', 'paraphrase']),
+});
+
+const GoldenSetSchema = z.object({
+  meta: z.object({ version: z.literal(1) }),
+  entries: z.array(GoldenEntrySchema),
+});
 
 function fmt(v: number): string {
   return Number.isNaN(v) ? '  n/a' : v.toFixed(3);
@@ -75,7 +91,27 @@ async function main(): Promise<void> {
     console.error(`골든셋 파일 없음: ${goldenPath}`);
     process.exit(1);
   }
-  const goldenSet = JSON.parse(readFileSync(goldenPath, 'utf8')) as GoldenSet;
+
+  // W6: zod safeParse 로 런타임 스키마 검증
+  let rawParsed: unknown;
+  try {
+    rawParsed = JSON.parse(readFileSync(goldenPath, 'utf8'));
+  } catch {
+    console.error(`골든셋 파일 파싱 실패: ${goldenPath}`);
+    process.exit(1);
+  }
+  const schemaResult = GoldenSetSchema.safeParse(rawParsed);
+  if (!schemaResult.success) {
+    console.error(
+      `골든셋 스키마 검증 실패:\n${schemaResult.error.issues
+        .slice(0, 5)
+        .map((i) => `  ${i.path.join('.')}: ${i.message}`)
+        .join('\n')}`,
+    );
+    process.exit(1);
+  }
+  const goldenSet = schemaResult.data;
+
   if (!goldenSet.entries?.length) {
     console.error('골든셋에 entry 가 없습니다.');
     process.exit(1);
@@ -89,6 +125,15 @@ async function main(): Promise<void> {
   const threshold = Number(parseCliFlag('--threshold') ?? 0);
   const outPath = parseCliFlag('--out');
 
+  // W5: --out 경로 탐색 방지 — CWD 하위로만 허용
+  if (outPath) {
+    const outAbs = resolve(process.cwd(), outPath);
+    if (!outAbs.startsWith(resolve(process.cwd()))) {
+      console.error(`--out 경로가 현재 디렉터리 밖을 가리킵니다: ${outAbs}`);
+      process.exit(1);
+    }
+  }
+
   const app = await NestFactory.createApplicationContext(EvalCliModule, {
     logger: ['error', 'warn'],
   });
@@ -97,16 +142,24 @@ async function main(): Promise<void> {
     const dataSource = app.get(DataSource);
 
     // KB → workspace 매핑(검색 호출에 workspaceId 필요).
-    const wsCache = new Map<string, string | null>();
-    const resolveWorkspace = async (kbId: string): Promise<string | null> => {
-      if (wsCache.has(kbId)) return wsCache.get(kbId) ?? null;
-      const rows: Array<{ workspace_id: string }> = await dataSource.query(
-        `SELECT workspace_id FROM knowledge_base WHERE id = $1`,
-        [kbId],
-      );
-      const ws = rows[0]?.workspace_id ?? null;
-      wsCache.set(kbId, ws);
-      return ws;
+    // W11: 동일 kbId 중복 쿼리 방지 — Promise 를 캐시 값으로 저장.
+    const wsCache = new Map<string, Promise<string | null>>();
+    const resolveWorkspace = (kbId: string): Promise<string | null> => {
+      // W7: kbId UUID 형식 사전 검증
+      if (!UUID_RE.test(kbId)) {
+        return Promise.resolve(null);
+      }
+      const cached = wsCache.get(kbId);
+      if (cached) return cached;
+      const promise = dataSource
+        .query<Array<{ workspace_id: string }>>(
+          `SELECT workspace_id FROM knowledge_base WHERE id = $1`,
+          [kbId],
+        )
+        .then((rows) => rows[0]?.workspace_id ?? null)
+        .catch(() => null);
+      wsCache.set(kbId, promise);
+      return promise;
     };
 
     const limit = pLimit(SEARCH_CONCURRENCY);
@@ -135,8 +188,10 @@ async function main(): Promise<void> {
               score: r.score,
             }));
           } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.warn(`entry ${entry.id} 검색 실패: ${msg}`);
+            // W8: 에러 유형만 분류 출력 — DB 호스트명·쿼리·API 키 접두어 노출 방지.
+            const isKnown = err instanceof Error;
+            const kind = isKnown ? err.constructor.name : 'UnknownError';
+            console.warn(`entry ${entry.id} 검색 실패: [${kind}]`);
             retrievedByEntryId[entry.id] = [];
           } finally {
             searched += 1;
@@ -181,7 +236,15 @@ async function main(): Promise<void> {
     const failMetric = parseCliFlag('--fail-metric');
     const failUnder = parseCliFlag('--fail-under');
     if (failMetric && failUnder !== undefined) {
-      const failK = Number(parseCliFlag('--fail-k') ?? report.maxK);
+      const failKRaw = parseCliFlag('--fail-k');
+      const failK = Number(failKRaw ?? report.maxK);
+      // W10: mrr 은 단일 스칼라(maxK 기반) — --fail-k 지정 시 경고.
+      if (failMetric === 'mrr' && failKRaw !== undefined) {
+        console.warn(
+          `경고: --fail-metric mrr 시 --fail-k(${failKRaw})는 무시됩니다. ` +
+            `MRR 은 maxK(${report.maxK}) 기반 단일 스칼라입니다.`,
+        );
+      }
       const threshNum = Number(failUnder);
       const metricMap: Record<string, Record<number, number> | number> = {
         recall: report.overall.recall,
@@ -214,6 +277,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(err);
+  const kind = err instanceof Error ? err.constructor.name : 'UnknownError';
+  console.error(`치명 오류 [${kind}]: 실행 중단`);
   process.exit(1);
 });

@@ -18,6 +18,20 @@
 | 스키마 예시 | `eval/golden.example.json` |
 | 실 골든셋 | `eval/golden.json` (기본 git 미커밋 — 아래 참조) |
 
+## 사전 조건
+
+스크립트 실행 전 `codebase/backend/.env` 에 DB 접속 정보 및 LLM config 가 설정돼 있어야 한다.
+
+```env
+DATABASE_HOST=...
+DATABASE_PORT=5432
+DATABASE_USERNAME=...
+DATABASE_PASSWORD=...
+DATABASE_NAME=...
+```
+
+LLM 호출이 필요한 `generate-golden-set.ts` 는 LLM provider config(예: `LLM_API_KEY`) 도 추가로 필요하다.
+
 ## 워크플로
 
 ### 1. 자동 합성 (①)
@@ -31,6 +45,9 @@ npx ts-node src/scripts/generate-golden-set.ts \
   --sample 100 --questions-per-chunk 1 --lang auto \
   --out eval/golden.json
 # 먼저 --dry-run 으로 산출 미리보기 가능
+
+# 또는 npm scripts 사용:
+# npm run eval:golden:generate -- --workspace-id <uuid> --kb-id <uuid> --sample 100
 ```
 
 산출 entry 는 `source:"synthetic"`, `reviewed:false` (silver). 재실행 시 기존
@@ -52,8 +69,16 @@ npx ts-node src/scripts/generate-golden-set.ts \
 ```bash
 cd codebase/backend
 npx ts-node src/scripts/eval-retrieval.ts --golden eval/golden.json --ks 1,3,5,10
+# --threshold: 검색 결과 score 하한(기본 0.0). 이 값 미만 청크는 회수 결과에서 제외.
+#   리랭킹 비교 시: 동일 --threshold 로 off/cross_encoder 각각 실행 후 delta 비교.
+npx ts-node src/scripts/eval-retrieval.ts --golden eval/golden.json --ks 1,3,5,10 --threshold 0.3
+
 # CI 게이트 예: hit-rate@5 가 0.6 미만이면 비정상 종료
 npx ts-node src/scripts/eval-retrieval.ts --fail-metric hitRate --fail-k 5 --fail-under 0.6
+
+# 또는 npm scripts 사용:
+# npm run eval:retrieval -- --golden eval/golden.json --ks 1,3,5,10
+# npm run eval:retrieval -- --fail-metric hitRate --fail-k 5 --fail-under 0.6
 ```
 
 같은 골든셋으로 KB 의 `rerank_mode` 를 off ↔ cross_encoder 로 바꿔가며 두 번 돌려

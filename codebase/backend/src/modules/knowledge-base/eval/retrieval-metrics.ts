@@ -206,12 +206,13 @@ function macroAverage(entries: EntryEval[], ks: number[]): AggregateMetrics {
   let mrrSum = 0;
   for (const e of entries) {
     for (const k of ks) {
-      recall[k] += e.recall[k];
-      precision[k] += e.precision[k];
-      hitRate[k] += e.hitRate[k];
-      ndcg[k] += e.ndcg[k];
+      // NaN guard: gold-empty entry 는 NaN 을 반환하므로 집계에서 제외.
+      if (!Number.isNaN(e.recall[k])) recall[k] += e.recall[k];
+      if (!Number.isNaN(e.precision[k])) precision[k] += e.precision[k];
+      if (!Number.isNaN(e.hitRate[k])) hitRate[k] += e.hitRate[k];
+      if (!Number.isNaN(e.ndcg[k])) ndcg[k] += e.ndcg[k];
     }
-    mrrSum += e.mrr;
+    if (!Number.isNaN(e.mrr)) mrrSum += e.mrr;
   }
   const n = entries.length;
   if (n > 0) {
