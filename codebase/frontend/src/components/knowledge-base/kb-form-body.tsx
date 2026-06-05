@@ -1,7 +1,8 @@
 "use client";
 
-import { type RagMode } from "@/lib/api/knowledge-bases";
+import { type RagMode, type RerankMode } from "@/lib/api/knowledge-bases";
 import { type LlmConfigData } from "@/lib/api/llm-configs";
+import { type RerankConfigData } from "@/lib/api/rerank-configs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -15,7 +16,7 @@ import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-mo
 import { EmbeddingTestButton } from "@/components/knowledge-base/embedding-test-button";
 import { useT } from "@/lib/i18n";
 
-export type KbFormTab = "basic" | "embedding" | "graph";
+export type KbFormTab = "basic" | "embedding" | "graph" | "rerank";
 
 export interface KbFormBodyProps {
   activeTab: KbFormTab;
@@ -47,6 +48,19 @@ export interface KbFormBodyProps {
   setFormVectorSeedTopK: (v: string) => void;
   formExpandedChunkLimit: string;
   setFormExpandedChunkLimit: (v: string) => void;
+
+  // ──────── 검색 후처리(리랭킹) ────────
+  formRerankMode: RerankMode;
+  setFormRerankMode: (v: RerankMode) => void;
+  formRerankConfigId: string;
+  setFormRerankConfigId: (v: string) => void;
+  formRerankCandidateK: string;
+  setFormRerankCandidateK: (v: string) => void;
+  formRerankScoreThreshold: string;
+  setFormRerankScoreThreshold: (v: string) => void;
+  formRerankLlmConfigId: string;
+  setFormRerankLlmConfigId: (v: string) => void;
+  rerankConfigs: RerankConfigData[];
 
   llmConfigs: LlmConfigData[];
   // settings 모드: 기존 KB 의 임베딩 차원. 임베딩 테스트 버튼이 비교 표시할 때 사용.
@@ -82,12 +96,24 @@ export function KbFormBody({
   setFormVectorSeedTopK,
   formExpandedChunkLimit,
   setFormExpandedChunkLimit,
+  formRerankMode,
+  setFormRerankMode,
+  formRerankConfigId,
+  setFormRerankConfigId,
+  formRerankCandidateK,
+  setFormRerankCandidateK,
+  formRerankScoreThreshold,
+  setFormRerankScoreThreshold,
+  formRerankLlmConfigId,
+  setFormRerankLlmConfigId,
+  rerankConfigs,
   llmConfigs,
   currentEmbeddingDimension,
   embeddingModelChanged,
 }: KbFormBodyProps) {
   const t = useT();
   const isGraph = ragMode === "graph";
+  const rerankEnabled = formRerankMode !== "off";
 
   return (
     <Tabs
@@ -106,6 +132,9 @@ export function KbFormBody({
             {t("knowledgeBases.formTabGraph")}
           </TabsTrigger>
         )}
+        <TabsTrigger value="rerank">
+          {t("knowledgeBases.formTabRerank")}
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="basic" className={PANEL_CLS}>
@@ -290,6 +319,109 @@ export function KbFormBody({
           </div>
         </TabsContent>
       )}
+
+      <TabsContent value="rerank" className={PANEL_CLS}>
+        <div>
+          <Label>{t("knowledgeBases.rerankMode")}</Label>
+          <NativeSelect
+            value={formRerankMode}
+            onChange={(e) =>
+              setFormRerankMode(e.target.value as RerankMode)
+            }
+          >
+            <option value="off">
+              {t("knowledgeBases.rerankModeOff")}
+            </option>
+            <option value="cross_encoder">
+              {t("knowledgeBases.rerankModeCrossEncoder")}
+            </option>
+            <option value="cross_encoder_llm">
+              {t("knowledgeBases.rerankModeCrossEncoderLlm")}
+            </option>
+          </NativeSelect>
+          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+            {t("knowledgeBases.rerankModeHint")}
+          </p>
+        </div>
+
+        {rerankEnabled && (
+          <>
+            <div>
+              <Label>{t("knowledgeBases.rerankConfig")}</Label>
+              <NativeSelect
+                value={formRerankConfigId}
+                onChange={(e) => setFormRerankConfigId(e.target.value)}
+              >
+                <option value="">
+                  {t("nodeConfigs.llmConfigSelector.defaultOption")}
+                </option>
+                {rerankConfigs.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.defaultModel})
+                    {c.isDefault ? " *" : ""}
+                  </option>
+                ))}
+              </NativeSelect>
+              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.rerankConfigHint")}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">
+                  {t("knowledgeBases.rerankCandidateK")}
+                </Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="200"
+                  value={formRerankCandidateK}
+                  onChange={(e) => setFormRerankCandidateK(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">
+                  {t("knowledgeBases.rerankScoreThreshold")}
+                </Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formRerankScoreThreshold}
+                  onChange={(e) =>
+                    setFormRerankScoreThreshold(e.target.value)
+                  }
+                  placeholder=""
+                />
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  {t("knowledgeBases.rerankScoreThresholdHint")}
+                </p>
+              </div>
+            </div>
+            {formRerankMode === "cross_encoder_llm" && (
+              <div>
+                <Label>{t("knowledgeBases.rerankGradingLlm")}</Label>
+                <NativeSelect
+                  value={formRerankLlmConfigId}
+                  onChange={(e) => setFormRerankLlmConfigId(e.target.value)}
+                >
+                  <option value="">
+                    {t("nodeConfigs.llmConfigSelector.defaultOption")}
+                  </option>
+                  {llmConfigs.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.defaultModel})
+                      {c.isDefault ? " *" : ""}
+                    </option>
+                  ))}
+                </NativeSelect>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  {t("knowledgeBases.rerankGradingLlmHint")}
+                </p>
+              </div>
+            )}
+          </>
+        )}
+      </TabsContent>
     </Tabs>
   );
 }

@@ -6,8 +6,10 @@ import { Loader2 } from "lucide-react";
 import {
   knowledgeBasesApi,
   type RagMode,
+  type RerankMode,
 } from "@/lib/api/knowledge-bases";
 import { llmConfigsApi } from "@/lib/api/llm-configs";
+import { rerankConfigsApi } from "@/lib/api/rerank-configs";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,12 +52,25 @@ export function CreateKbFormDialog({
   const [formMaxHops, setFormMaxHops] = useState("1");
   const [formVectorSeedTopK, setFormVectorSeedTopK] = useState("5");
   const [formExpandedChunkLimit, setFormExpandedChunkLimit] = useState("15");
+  const [formRerankMode, setFormRerankMode] = useState<RerankMode>("off");
+  const [formRerankConfigId, setFormRerankConfigId] = useState("");
+  const [formRerankCandidateK, setFormRerankCandidateK] = useState("50");
+  const [formRerankScoreThreshold, setFormRerankScoreThreshold] = useState("");
+  const [formRerankLlmConfigId, setFormRerankLlmConfigId] = useState("");
 
   // 임베딩 LLMConfig select 가 vector 모드에서도 보여야 하므로 dialog 가 열려 있는 동안
   // 항상 fetch. graph 모드의 extraction LLM select 도 같은 데이터를 공유한다.
   const { data: llmConfigs = [] } = useQuery({
     queryKey: ["llm-configs"],
     queryFn: () => llmConfigsApi.list(),
+    staleTime: 30_000,
+    enabled: open,
+  });
+
+  // 리랭킹 섹션의 리랭커 select 용. dialog 가 열려 있는 동안 fetch.
+  const { data: rerankConfigs = [] } = useQuery({
+    queryKey: ["rerank-configs"],
+    queryFn: () => rerankConfigsApi.list(),
     staleTime: 30_000,
     enabled: open,
   });
@@ -73,6 +88,11 @@ export function CreateKbFormDialog({
     setFormMaxHops("1");
     setFormVectorSeedTopK("5");
     setFormExpandedChunkLimit("15");
+    setFormRerankMode("off");
+    setFormRerankConfigId("");
+    setFormRerankCandidateK("50");
+    setFormRerankScoreThreshold("");
+    setFormRerankLlmConfigId("");
   }
 
   const createMutation = useMutation({
@@ -93,6 +113,20 @@ export function CreateKbFormDialog({
               expandedChunkLimit: parseInt(formExpandedChunkLimit) || 15,
             }
           : {}),
+        rerankMode: formRerankMode,
+        ...(formRerankMode !== "off"
+          ? {
+              rerankConfigId: formRerankConfigId || undefined,
+              rerankCandidateK: parseInt(formRerankCandidateK) || 50,
+              ...(formRerankScoreThreshold.trim()
+                ? { rerankScoreThreshold: parseFloat(formRerankScoreThreshold) }
+                : {}),
+              ...(formRerankMode === "cross_encoder_llm" &&
+              formRerankLlmConfigId
+                ? { rerankLlmConfigId: formRerankLlmConfigId }
+                : {}),
+            }
+          : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
@@ -108,6 +142,14 @@ export function CreateKbFormDialog({
       setActiveTab("basic");
       toast.error(t("knowledgeBases.nameRequired"));
       return;
+    }
+    if (formRerankMode !== "off") {
+      const ck = parseInt(formRerankCandidateK, 10);
+      if (Number.isNaN(ck) || ck < 1 || ck > 200) {
+        setActiveTab("rerank");
+        toast.error(t("knowledgeBases.rerankCandidateKInvalid"));
+        return;
+      }
     }
     createMutation.mutate();
   }
@@ -154,6 +196,17 @@ export function CreateKbFormDialog({
           setFormVectorSeedTopK={setFormVectorSeedTopK}
           formExpandedChunkLimit={formExpandedChunkLimit}
           setFormExpandedChunkLimit={setFormExpandedChunkLimit}
+          formRerankMode={formRerankMode}
+          setFormRerankMode={setFormRerankMode}
+          formRerankConfigId={formRerankConfigId}
+          setFormRerankConfigId={setFormRerankConfigId}
+          formRerankCandidateK={formRerankCandidateK}
+          setFormRerankCandidateK={setFormRerankCandidateK}
+          formRerankScoreThreshold={formRerankScoreThreshold}
+          setFormRerankScoreThreshold={setFormRerankScoreThreshold}
+          formRerankLlmConfigId={formRerankLlmConfigId}
+          setFormRerankLlmConfigId={setFormRerankLlmConfigId}
+          rerankConfigs={rerankConfigs}
           llmConfigs={llmConfigs}
         />
         <DialogFooter>

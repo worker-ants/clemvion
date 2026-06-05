@@ -3,6 +3,8 @@ import { unwrap } from "./unwrap";
 
 export type RagMode = "vector" | "graph";
 
+export type RerankMode = "off" | "cross_encoder" | "cross_encoder_llm";
+
 export interface KnowledgeBaseData {
   id: string;
   name: string;
@@ -18,6 +20,11 @@ export interface KnowledgeBaseData {
   maxHops: number;
   vectorSeedTopK: number;
   expandedChunkLimit: number;
+  rerankMode: RerankMode;
+  rerankConfigId?: string | null;
+  rerankCandidateK: number;
+  rerankScoreThreshold?: number | null;
+  rerankLlmConfigId?: string | null;
   entityCount: number;
   relationCount: number;
   reembedStatus: "idle" | "in_progress";
@@ -161,6 +168,11 @@ export const knowledgeBasesApi = {
     maxHops?: number;
     vectorSeedTopK?: number;
     expandedChunkLimit?: number;
+    rerankMode?: RerankMode;
+    rerankConfigId?: string;
+    rerankCandidateK?: number;
+    rerankScoreThreshold?: number;
+    rerankLlmConfigId?: string;
   }) {
     const { data } = await apiClient.post("/knowledge-bases", payload);
     return data;

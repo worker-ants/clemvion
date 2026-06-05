@@ -184,4 +184,23 @@ export const knowledgeBases: Dict["knowledgeBases"] = {
   formTabBasic: "Basic",
   formTabEmbedding: "Embedding",
   formTabGraph: "Graph",
+  formTabRerank: "Reranking",
+  rerankSection: "Reranking",
+  rerankMode: "Rerank mode",
+  rerankModeOff: "Off",
+  rerankModeCrossEncoder: "Cross-encoder",
+  rerankModeCrossEncoderLlm: "Cross-encoder + LLM grading",
+  rerankModeHint:
+    "Rescores retrieved candidates with a cross-encoder. LLM grading adds a listwise evaluation pass.",
+  rerankConfig: "Reranker",
+  rerankConfigHint: "Reranker config used for rescoring. Falls back to the workspace default if unset.",
+  rerankCandidateK: "Candidate pool (1-200)",
+  rerankCandidateKHint: "Number of first-pass candidates fed into reranking.",
+  rerankScoreThreshold: "Score cutoff (optional)",
+  rerankScoreThresholdHint: "Leave empty to return the top-k by score with no cutoff.",
+  rerankGradingLlm: "Grading LLM",
+  rerankGradingLlmHint:
+    "Listwise grading LLM for cross_encoder_llm mode. Falls back to the workspace default chat if unset.",
+  rerankCandidateKInvalid: "Candidate pool must be between 1 and 200",
+  rerankConfigRequired: "Select a reranker to enable reranking",
 };

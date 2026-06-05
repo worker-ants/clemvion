@@ -18,6 +18,7 @@ import { cafe24Catalog } from "./cafe24Catalog";
 import { makeshopCatalog } from "./makeshopCatalog";
 import { knowledgeBases } from "./knowledgeBases";
 import { llmConfigs } from "./llmConfigs";
+import { rerankConfigs } from "./rerankConfigs";
 import { authentication } from "./authentication";
 import { statistics } from "./statistics";
 import { systemStatus } from "./systemStatus";
@@ -48,6 +49,7 @@ export const en: Dict = {
   makeshopCatalog,
   knowledgeBases,
   llmConfigs,
+  rerankConfigs,
   authentication,
   statistics,
   systemStatus,
