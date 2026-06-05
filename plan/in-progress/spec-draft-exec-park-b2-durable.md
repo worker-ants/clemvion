@@ -1,3 +1,9 @@
+---
+worktree: exec-park-durable-resume
+started: 2026-06-06
+owner: planner
+---
+
 # Spec Draft — exec-park PR-B2 full durable turn-park + 중첩 call stack 영속 (D6)
 
 > 대상 spec: `spec/5-system/4-execution-engine.md` (주), `spec/5-system/1-data-model.md §2.13 Execution`, `spec/5-system/13-replay-rerun.md`(직교 확인), `spec/conventions/migrations.md`(신규 마이그레이션).
@@ -11,7 +17,7 @@
 - **스키마**: `{ version: number, frames: ResumeCallStackFrame[] }`, `ResumeCallStackFrame = { workflowId: string, invokerNodeId: string, recursionDepth: number }` — outermost(top-level 바로 아래) → waiting inner 노드 직전까지. waiting inner 노드 자체는 기존 WAITING NodeExecution row + `_resumeCheckpoint` 로 식별.
   - `version`: **별도 상수 `CALL_STACK_SCHEMA_VERSION`** (기존 `CHECKPOINT_SCHEMA_VERSION` 과 독립 — 혼동/coupling 방지, W6). 필드명도 `_resumeCheckpoint.schemaVersion` 과 구분되도록 `version`.
   - `invokerNodeId`: **= 해당 sub-workflow 를 호출한 Workflow(sub-workflow) 노드의 `Node.id`** (부모 그래프 내). 재개 시 그 노드까지 전진 후 executeInline 재진입 키 (I10).
-- **마이그레이션**: `V087__execution_resume_call_stack.sql` (`ls migrations/V08*` 확인: 현재 최고 V086 #482 → next **V087** 확정). data-model §2.13 병기 번호도 V087.
+- **마이그레이션**: `V087__execution_resume_call_stack.sql` (현재 next=**V087**; 최고 V086 #482. migrations.md §5 대로 **구현 착수 직전 `ls migrations/V08* | tail -2` 재확인** 후 확정 — PR race 대비). data-model §2.13 병기 번호도 동일.
 - **data-model**: `1-data-model.md §2.13 Execution` 컬럼 표에 `resume_call_stack jsonb NULL` 행 추가 (conversation_thread/user_variables 와 같은 "durable park 스냅샷" 분류).
 
 ### C2. 멀티턴 AI = turn-단위 park (D4) — 장수 루프 제거
@@ -48,4 +54,4 @@
 - **per-node 분산(L1303 기각)과의 구분**: L1303 이 기각한 건 *모든 노드*를 워커로 분산(노드마다 전체 context 직렬화)하는 per-node task queue. D6 는 **park 지점(waiting node)에서만** 직렬화하는 "waiting 후 재개"의 중첩 확장 — 같은 범주이며 dispatch loop in-process 전제(L371)를 유지(한 세그먼트는 여전히 한 프로세스가 재귀 in-process 구동). 따라서 기각 대안의 재도입이 아니다.
 - **무손실 전제(Phase A) 위에 성립**: conversation_thread(V084)·user_variables(V085)·_resumeCheckpoint(A2) 가 이미 영속돼 turn/프레임 재구성이 무손실. resume_call_stack 은 그 마지막 빠진 조각.
 - **`_continuationCheckpoint` 컬럼 신설 기각(L1174)과의 구분(W2)**: 과거 §Rationale L1174 는 "continuation 페이로드/상태를 위한 별도 컬럼 신설"을 기각했다(continuation 은 BullMQ 큐가 durable 운반하므로 컬럼 불요). `resume_call_stack` 은 그것과 **다른 범주** — continuation 운반이 아니라 **park 시점의 중첩 실행 위상(호출 체인)** 영속이다. 큐가 운반하는 건 "어느 노드에 무슨 입력"이고, call stack 이 영속하는 건 "그 노드가 어느 sub-workflow 프레임 안에 있는가"다(직교). 따라서 기각 결정의 번복이 아니다. spec 적용 시 §Rationale 에 이 구분 주석 추가.
-- **spec 적용 시 챙길 동기화(checker W1/W4·I 군)**: §6.2 commit 목록 + §1-data-model §2.13 컬럼 행 동시 추가(W1); §7.5 에 `resume_call_stack IS NOT NULL` → 재귀 프레임 재진입 → 최내층 WAITING NodeExecution payload 전달 절차 추가(W4); L1257 단계적 롤아웃 note 는 "B1·B2 모두 완료(full durable)"로 **인라인 대체**(I3); 13-replay-rerun §14.3 직교 유지 확인(I8).
+- **spec 적용 시 챙길 동기화(checker W1/W4·I 군)**: §6.2 commit 목록 + §1-data-model §2.13 컬럼 행 동시 추가(W1); §7.5 에 `resume_call_stack IS NOT NULL` → 재귀 프레임 재진입 → 최내층 WAITING NodeExecution payload 전달 절차 추가(W4); L1257 단계적 롤아웃 note 는 인라인 대체 대신 **말미에 "(완료 — B1·B2 모두 머지, 2026-06-06; 중첩은 D6 call stack 영속)" append**(B1·B2 분리불가 원칙 사유 등 역사 맥락 보존, I3/I11); §1.3 에 `CALL_STACK_SCHEMA_VERSION` 독립 상수 주석(I6); 13-replay-rerun §14.3 직교 유지 확인(I8); §4-nodes/2-flow/1-workflow.md §4 에 "sync sub-workflow 내부 blocking park 시 executeInline 도 PARK_RELEASED 버블업" 추가(W2).
