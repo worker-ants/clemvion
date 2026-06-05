@@ -816,9 +816,20 @@ describe('AgentMemoryService', () => {
     });
 
     it('q 가 있으면 scope_key ILIKE 부분일치 필터 + 파라미터 바인딩 (단일쿼리)', async () => {
-      mockDataSource.query.mockResolvedValueOnce([]);
+      mockDataSource.query.mockResolvedValueOnce([
+        {
+          scope_key: 'cust-7',
+          count: 3,
+          latest_updated_at: '2026-05-02T00:00:00.000Z',
+          total: 1,
+        },
+      ]);
 
-      await service.listScopes('ws-9', { limit: 10, offset: 5, q: 'cust' });
+      const result = await service.listScopes('ws-9', {
+        limit: 10,
+        offset: 5,
+        q: 'cust',
+      });
 
       expect(mockDataSource.query).toHaveBeenCalledTimes(1);
       const [listSql, listParams] = mockDataSource.query.mock.calls[0];
@@ -826,6 +837,15 @@ describe('AgentMemoryService', () => {
       expect(listSql).toContain('COUNT(*) OVER()');
       // q 있으면 params: [ws, q, limit, offset].
       expect(listParams).toEqual(['ws-9', 'cust', 10, 5]);
+      // q 경로도 단일쿼리에서 total/items 를 정확히 파생한다.
+      expect(result.items).toEqual([
+        {
+          scopeKey: 'cust-7',
+          count: 3,
+          latestUpdatedAt: '2026-05-02T00:00:00.000Z',
+        },
+      ]);
+      expect(result.total).toBe(1);
     });
 
     it('빈 결과(또는 offset 초과)면 total 0 (윈도우 행 없음)', async () => {
