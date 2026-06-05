@@ -194,6 +194,8 @@ export class AgentMemoryService {
     scopeKey: string;
     llmConfigId?: string | null;
     model?: string | null;
+    /** 추출 LLM 콜 전용 모델 (노드 config `extractionModel`). 미설정 시 processor 가 model → llmConfig 기본 폴백. */
+    extractionModel?: string | null;
     embeddingModel?: string | null;
     turns: ExtractionTurnSnapshot[];
     ttlDays?: number | null;
@@ -211,6 +213,9 @@ export class AgentMemoryService {
           scopeKey: args.scopeKey,
           llmConfigId: args.llmConfigId ?? null,
           model: args.model ?? null,
+          // 추출 LLM 콜 전용 모델 — 노드 config extractionModel. 미설정이면 null
+          // 로 운반돼 processor 가 model → llmConfig 기본으로 폴백 (§3·§12.12).
+          extractionModel: args.extractionModel ?? null,
           // 추출(저장) 임베딩 모델 — 노드 config embeddingModel. 회수와 동일
           // 값을 써 query/저장 임베딩의 차원이 일치하게 한다 (§3).
           embeddingModel: args.embeddingModel ?? null,

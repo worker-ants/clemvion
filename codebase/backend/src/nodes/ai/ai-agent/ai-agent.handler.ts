@@ -833,6 +833,12 @@ export class AiAgentHandler implements NodeHandler {
     finalSystemPrompt: string;
     llmConfig: import('../../../modules/llm-config/entities/llm-config.entity').LlmConfig;
     model: string;
+    /**
+     * 요약 LLM 콜 전용 모델 (config `summaryModel` 평가값). 미설정이면 노드
+     * `model` 로 폴백한다 (fallback 체인 `summaryModel → model → llmConfig 기본`,
+     * spec §6.1 단계 1.5·§12.12). 기존 동작 (전용 필드 미설정) 100% 유지.
+     */
+    summaryModel?: string;
     workspaceId: string;
     executionId: string;
     /** 회수 쿼리 텍스트 (현재 사용자 메시지 / 최근 컨텍스트). */
@@ -933,6 +939,11 @@ export class AiAgentHandler implements NodeHandler {
     const priorSummary = thread?.runningSummary;
     const priorUpToSeq = thread?.summarizedUpToSeq;
 
+    // 요약 모델 폴백: summaryModel → model (→ buildSummaryBufferUpdate 내부에서
+    // llmConfig 기본은 chat 호출시 적용). args.model 자체가 이미
+    // `model || llmConfig.defaultModel` 로 호출부에서 합성된다. 추출 경로의
+    // `resolvedExtractionModel` 과 일관되게 named 변수로 분리 (W3).
+    const resolvedSummaryModel = args.summaryModel || args.model;
     const update = await buildSummaryBufferUpdate({
       turns,
       runningSummary: priorSummary,
@@ -940,7 +951,7 @@ export class AiAgentHandler implements NodeHandler {
       tokenBudget,
       systemPromptText: args.finalSystemPrompt,
       llmConfig: args.llmConfig,
-      model: args.model,
+      model: resolvedSummaryModel,
       llmService: this.llmService,
     });
 
@@ -1131,6 +1142,10 @@ export class AiAgentHandler implements NodeHandler {
       scopeKey,
       llmConfigId: args.config.llmConfigId as string | undefined,
       model: args.config.model as string | undefined,
+      // 추출 LLM 콜 전용 모델 — 미설정이면 processor 가 model → llmConfig 기본으로
+      // 폴백한다 (fallback 체인 `extractionModel → model → llmConfig 기본`,
+      // spec §3·§6.1 단계 2.7·§12.12). 기존 동작 (전용 필드 미설정) 100% 유지.
+      extractionModel: args.config.extractionModel as string | undefined,
       // 추출(저장) 임베딩 모델 — 회수와 동일 노드 config 값을 써 query/저장
       // 임베딩의 차원이 일치하게 한다 (§3, 차원 불일치 방지).
       embeddingModel: args.config.embeddingModel as string | undefined,
@@ -1624,6 +1639,8 @@ export class AiAgentHandler implements NodeHandler {
         finalSystemPrompt,
         llmConfig,
         model: model || llmConfig.defaultModel,
+        // 요약 전용 모델 (미설정이면 injectMemoryContext 가 model 로 폴백).
+        summaryModel: config.summaryModel as string | undefined,
         workspaceId,
         executionId: context.executionId,
         queryText: userPrompt,
@@ -2161,6 +2178,12 @@ export class AiAgentHandler implements NodeHandler {
       memoryThreshold: config.memoryThreshold,
       // persistent TTL (일) — saveMemories expires_at 산정용 (AGM-10). 매 turn 재적용.
       memoryTtlDays: config.memoryTtlDays,
+      // 요약/추출 전용 저비용 모델 (A3, AI Agent §12.12) — resume state 에
+      // 영속해야 멀티턴 turn2+ 에서도 전용 모델이 적용된다. 미저장 시
+      // state.summaryModel / state.extractionModel 이 undefined 가 되어 노드
+      // model 로 silent 폴백한다 (C1 회귀). 매 turn 재적용.
+      summaryModel: config.summaryModel as string | undefined,
+      extractionModel: config.extractionModel as string | undefined,
       contextInjectionMode: config.contextInjectionMode,
       workspaceId,
       executionId: context.executionId,
@@ -2508,6 +2531,8 @@ export class AiAgentHandler implements NodeHandler {
         ),
         llmConfig,
         model,
+        // 요약 전용 모델 (resume state 의 평가값; 미설정이면 model 로 폴백).
+        summaryModel: state.summaryModel as string | undefined,
         workspaceId,
         executionId: executionId ?? '',
         queryText: userMessage,

@@ -601,6 +601,42 @@ export const aiAgentNodeConfigSchema = z
           visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
         },
       }),
+    // SoT: spec/4-nodes/3-ai/1-ai-agent.md §1·§6.1·§12.12. 요약/추출 LLM 콜에
+    // 쓸 전용 모델 ID (expression). 미설정 시 노드 `model` → llmConfig 기본으로
+    // 폴백 (fallback 체인 `[전용] → [model] → [llmConfig 기본]`, 기존 동작 유지).
+    // `summaryModel` 은 summary_buffer/persistent 둘 다, `extractionModel` 은
+    // persistent 에서만 의미 (요약/추출 분기 — §2 visibleWhen).
+    summaryModel: z
+      .string()
+      .optional()
+      .meta({
+        ui: {
+          label: 'Summary Model',
+          widget: 'expression',
+          order: 49.6,
+          group: 'Memory',
+          placeholder: 'Leave empty to reuse the node Model',
+          hint: 'Optional low-cost model for the rolling-summary LLM call. Empty = reuse the node Model (then the provider default).',
+          visibleWhen: {
+            field: 'memoryStrategy',
+            oneOf: ['summary_buffer', 'persistent'],
+          },
+        },
+      }),
+    extractionModel: z
+      .string()
+      .optional()
+      .meta({
+        ui: {
+          label: 'Extraction Model',
+          widget: 'expression',
+          order: 49.7,
+          group: 'Memory',
+          placeholder: 'Leave empty to reuse the node Model',
+          hint: 'Optional low-cost model for the turn-boundary memory extraction LLM call. Empty = reuse the node Model (then the provider default).',
+          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
+        },
+      }),
 
     // ── Multi Turn Settings ──
     maxTurns: z

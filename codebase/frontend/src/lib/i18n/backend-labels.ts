@@ -48,7 +48,7 @@ const LABEL_KO: Record<string, string> = {
   Description: "설명",
   "Description Field": "설명 필드",
   "Description override": "설명 재정의",
-  "Embedding Model": "임베딩 모델",
+  "Extraction Model": "추출 모델",
   "Enable Built-in Helpers": "기본 헬퍼 사용",
   "Enable Pagination": "페이지네이션 사용",
   "Enabled Tools": "활성 도구",
@@ -108,6 +108,7 @@ const LABEL_KO: Record<string, string> = {
   Mode: "모드",
   Model: "모델",
   "Model Override": "모델 재정의",
+  "Summary Model": "요약 모델",
   Modifications: "변경 사항",
   "Multi-label Classification": "다중 라벨 분류",
   Name: "이름",
@@ -193,8 +194,10 @@ const HINT_KO: Record<string, string> = {
     "도트 경로(예: \"name\", \"address.city\") 또는 표현식(\"{{ $item.name }}\"). 비워두거나 \"$item\" 으로 두면 item 자체와 비교합니다.",
   "Dot-path or inline expression returning an array":
     "배열을 반환하는 점 경로 또는 인라인 표현식",
-  "Embedding model used for memory recall/extraction (must match the dimensions of the model used when memories were first stored). Empty = workspace default LLMConfig embedding model.":
-    "메모리 회상/추출에 사용할 임베딩 모델 (메모리를 처음 저장할 때 사용한 모델과 차원이 일치해야 합니다). 비우면 워크스페이스 기본 LLMConfig 임베딩 모델을 사용합니다.",
+  "Optional low-cost model for the rolling-summary LLM call. Empty = reuse the node Model (then the provider default).":
+    "롤링 요약 LLM 호출에 사용할 선택적 저비용 모델. 비우면 노드 모델을 재사용합니다(그다음 프로바이더 기본값).",
+  "Optional low-cost model for the turn-boundary memory extraction LLM call. Empty = reuse the node Model (then the provider default).":
+    "턴 경계 메모리 추출 LLM 호출에 사용할 선택적 저비용 모델. 비우면 노드 모델을 재사용합니다(그다음 프로바이더 기본값).",
   "Exit loop when condition is met": "조건이 충족되면 루프를 종료",
   "Expose list/get meta-tools when the server reports prompts capability":
     "서버가 prompts capability 를 보고할 때 list/get 메타도구를 노출",

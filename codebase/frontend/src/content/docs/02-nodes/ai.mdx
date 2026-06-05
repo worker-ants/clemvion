@@ -50,6 +50,8 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
   {name: "memoryTopK", required: false, type: "integer", description: "턴마다 회수할 메모리 청크 수예요 (RAG Top-K와 독립). `persistent`일 때 보여요.", default: "5"},
   {name: "memoryThreshold", required: false, type: "float", description: "메모리 회수에 필요한 최소 유사도예요 (0~1, RAG 임계값과 독립). `persistent`일 때 보여요.", default: "0.7"},
   {name: "memoryTtlDays", required: false, type: "integer", description: "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요. `persistent`일 때 보여요.", default: "-"},
+  {name: "summaryModel", required: false, type: "expression", description: "롤링 요약에 쓸 별도 모델이에요. 비우면 노드 모델을 그대로 써요. 요약은 비교적 단순한 작업이라 저비용 모델을 골라 비용을 줄일 수 있어요. `summary_buffer`·`persistent`일 때 보여요.", default: "-"},
+  {name: "extractionModel", required: false, type: "expression", description: "세션 간 메모리 추출에 쓸 별도 모델이에요. 비우면 노드 모델을 그대로 써요. 저비용 추출 모델로 비용을 줄일 수 있어요. `persistent`일 때 보여요.", default: "-"},
   {name: "presentationTools", required: false, type: "PresentationToolDef[]", description: "LLM이 응답을 텍스트 대신 표·차트·캐러셀·템플릿·폼으로 렌더링할 수 있게 해주는 가상 도구 목록이에요. 비어 있으면 기능이 꺼져요. 각 항목은 `type`(필수), `description`(선택), `defaults`(선택)으로 구성돼요.", default: "[]"},
   {name: "maxTurns", required: false, type: "integer", description: "Multi Turn 모드의 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "20"}
 ]} />
@@ -96,6 +98,7 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
 - `memoryTopK` (기본 5) — 한 턴에 회수할 메모리 조각 수예요. RAG 검색의 `ragTopK` 와는 독립이에요.
 - `memoryThreshold` (기본 0.7) — 메모리를 회수할 때 요구하는 최소 유사도(0~1)예요. RAG 검색의 `ragThreshold` 와는 독립이에요.
 - `memoryTtlDays` — 지속 메모리의 보관 기간(일)이에요. 설정하면 그 일수가 지난 메모리는 만료돼 회수되지 않고 정리돼요. **비워 두면 만료 없이 계속 보관**돼요.
+- `summaryModel` / `extractionModel` — 요약·추출 LLM 호출에만 쓸 **별도 모델**을 정할 수 있어요. 비워 두면 노드 모델을 그대로 써서 동작이 바뀌지 않아요. 메인 답변보다 단순한 요약·추출에 저비용 모델을 골라 **비용을 줄이는 선택지**예요. (`summaryModel` 은 `summary_buffer`·`persistent`, `extractionModel` 은 `persistent` 일 때 보여요.)
 
 <Callout type="note">
 `memoryStrategy` 가 `manual` 이 아니면 자동 전략이 맥락을 관리하므로 위 대화 컨텍스트 필드(`contextScope` 등)는 설정 UI에서 숨겨져요. 토큰 예산·메모리 키 같은 필드는 해당 전략을 골랐을 때만 나타나요.
