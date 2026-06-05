@@ -265,6 +265,24 @@ const NODE_ERROR_MESSAGE_MAX_LEN = 2000;
  * (spec: 4-execution-engine §1.3 보존 예외 / §7.5 실패 케이스 표)
  */
 const CHECKPOINT_SCHEMA_VERSION = 1;
+
+/**
+ * `_resumeCheckpoint` 저장·재개 허용 노드 타입 allow-list (spec §1.3 합집합).
+ * 새 멀티턴 타입 추가 시 이 한 곳만 갱신하면 3개 가드 모두 반영된다.
+ */
+const CHECKPOINT_ELIGIBLE_NODE_TYPES = new Set([
+  'ai_agent',
+  'information_extractor',
+]);
+
+/**
+ * `information_extractor` 핸들러의 `maxCollectionRetries` 기본값.
+ * `CHECKPOINT_SCHEMA_VERSION` 옆에 선언해 checkpoint 스키마 관련 상수를 한곳에
+ * 모은다. `buildRetryReentryState` 의 `?? 3` 을 이 상수로 교체해 IE 핸들러
+ * 기본값과의 동기화를 문서화한다.
+ */
+const DEFAULT_IE_MAX_COLLECTION_RETRIES = 3;
+
 function clampNodeErrorMessage(raw: string): string {
   return raw.length > NODE_ERROR_MESSAGE_MAX_LEN
     ? raw.slice(0, NODE_ERROR_MESSAGE_MAX_LEN) + '…'
@@ -1822,7 +1840,7 @@ export class ExecutionEngineService
       } else if (
         isAiConversation &&
         resumeCheckpoint &&
-        node.type === 'ai_agent'
+        this.isCheckpointEligibleNodeType(node.type)
       ) {
         // §7.5 Multi-turn AI 재개 — `_resumeCheckpoint` 로 `_resumeState` 재구성
         // 후 `waitForAiConversation` 재진입 (`buildRetryReentryState` 는 retry
@@ -4154,6 +4172,12 @@ export class ExecutionEngineService
    *
    * @returns resumeState (loop seed) + initialAction (실패 last turn replay;
    *   lastUserMessage 부재 시 undefined → replay 없이 wait loop 진입).
+   *
+   * @remarks IE 노드 확장 (PR-A2b) — `information_extractor` 고유 config 필드
+   * (`outputSchema` / `examples` / `instructions` / `maxCollectionRetries`) 는
+   * node.config 에서 재유도, runtime state(`partialResult` / `collectionRetryCount`)
+   * 는 checkpoint 에서 복원한다. ai_agent 재구성에는 inert (기본값만 주입). spec §1.3
+   * allow-list 합집합 — `buildResumeCheckpoint` 와 대칭 유지 필수.
    */
   private buildRetryReentryState(
     execution: Execution,
@@ -4228,6 +4252,23 @@ export class ExecutionEngineService
         (resumeFields.mcpServers as unknown[] | undefined) ??
         (resolvedConfig.mcpServers as unknown[] | undefined) ??
         [],
+      // information_extractor config 필드 재유도 (node.config) + 고유 runtime
+      // state 기본값 보강 (spec §1.3 합집합). ai_agent 재구성에는 inert —
+      // ai_agent 핸들러가 읽지 않으며, IE 핸들러만 자기 필드를 소비한다.
+      outputSchema:
+        (resolvedConfig.outputSchema as unknown[] | undefined) ?? [],
+      examples: (resolvedConfig.examples as unknown[] | undefined) ?? [],
+      instructions: (resolvedConfig.instructions as string | undefined) ?? '',
+      maxCollectionRetries:
+        (resolvedConfig.maxCollectionRetries as number | undefined) ??
+        DEFAULT_IE_MAX_COLLECTION_RETRIES,
+      partialResult:
+        (resumeFields.partialResult as Record<string, unknown> | undefined) ??
+        {},
+      collectionRetryCount:
+        typeof resumeFields.collectionRetryCount === 'number'
+          ? resumeFields.collectionRetryCount
+          : 0,
       conversationThreadRef: context.conversationThread,
     };
     if (!('rawConfig' in resumeState)) {
@@ -4268,6 +4309,16 @@ export class ExecutionEngineService
   }
 
   /**
+   * `_resumeCheckpoint` 저장·재개 허용 노드 타입 가드.
+   * `CHECKPOINT_ELIGIBLE_NODE_TYPES` allow-list 를 위임해 가드 3곳의 중복 제거.
+   * 새 멀티턴 타입 추가 시 모듈 상수 한 곳만 갱신하면 모든 가드에 반영된다
+   * (spec §1.3 allow-list 합집합 의미 보존).
+   */
+  private isCheckpointEligibleNodeType(t: string): boolean {
+    return CHECKPOINT_ELIGIBLE_NODE_TYPES.has(t);
+  }
+
+  /**
    * §7.5 rehydration — in-memory `_resumeState` 에서 DB 영속용
    * `_resumeCheckpoint` 부분집합을 만든다. credential / context-binding 필드
    * (`llmConfigId` / `workspaceId` / `executionId` / `nodeId` / `workflowId` /
@@ -4282,6 +4333,11 @@ export class ExecutionEngineService
    *
    * NOTE — allow-list 는 `AiAgentHandler.buildRetryState` 의 부분집합과 동기화
    * 유지. 새 비-credential resume 필드 추가 시 양쪽 모두 갱신.
+   *
+   * NOTE(IE 확장 — PR-A2b) — `partialResult` / `collectionRetryCount` 는 IE 멀티턴
+   * 고유 runtime state. ai_agent `_resumeState` 에는 부재이므로 기본값(빈 객체/0)
+   * 으로 inert. `buildRetryReentryState` 에서 대칭적으로 복원. allow-list 합집합
+   * (spec §1.3). IE 핸들러 state shape 변경 시 양쪽 함수 모두 갱신.
    */
   private buildResumeCheckpoint(
     resumeState: Record<string, unknown> | undefined,
@@ -4312,6 +4368,12 @@ export class ExecutionEngineService
       ragThreshold: s.ragThreshold,
       ragSources: (s.ragSources as unknown[] | undefined) ?? [],
       mcpServers: (s.mcpServers as unknown[] | undefined) ?? [],
+      // information_extractor 고유 runtime state (credential-free) — IE 멀티턴
+      // 재개에 필요. ai_agent 의 _resumeState 에는 부재이므로 기본값(빈 객체/0)
+      // 으로 inert. allow-list 합집합 정책 (spec §1.3).
+      partialResult:
+        (s.partialResult as Record<string, unknown> | undefined) ?? {},
+      collectionRetryCount: (s.collectionRetryCount as number | undefined) ?? 0,
       ...(pendingFormToolCall ? { pendingFormToolCall } : {}),
     };
   }
@@ -5027,12 +5089,11 @@ export class ExecutionEngineService
       delete persistedOutput._resumeState;
       // §7.5 rehydration — full `_resumeState` 는 위에서 strip 하되, 재시작 후
       // 재개를 위해 credential-strip 부분집합 `_resumeCheckpoint` 를 DB 영속한다.
-      // **`ai_agent` 한정** — 재구성기(`buildRetryReentryState`)와 checkpoint
-      // allow-list 가 ai_agent 의 `_resumeState` shape 에 맞춰져 있다. 다른
-      // ai_conversation 핸들러(information_extractor 등)는 고유 state 필드를
-      // 가지므로 checkpoint 를 영속하지 않고 (재구성 시 누락 방지) 재개 시
-      // graceful reset 으로 처리한다 (변경 전 동작 유지 — 회귀 없음).
-      if (node.type === 'ai_agent') {
+      // **`ai_agent` · `information_extractor`** (spec §1.3 allow-list 합집합).
+      // checkpoint allow-list 는 두 핸들러 runtime state 의 합집합이고 config
+      // 필드는 재개 시 node.config 에서 재유도된다. 그 외 ai_conversation 핸들러는
+      // 고유 state 미등록이라 미영속 → 재개 시 graceful reset.
+      if (this.isCheckpointEligibleNodeType(node.type)) {
         const checkpoint = this.buildResumeCheckpoint(resumeState);
         if (checkpoint) {
           persistedOutput._resumeCheckpoint = checkpoint;
@@ -5287,9 +5348,9 @@ export class ExecutionEngineService
         } & Record<string, unknown>;
         // §7.5 rehydration — full `_resumeState` 는 strip, credential-strip
         // 부분집합 `_resumeCheckpoint` 만 DB 영속해 재시작 후 재개를 보장한다.
-        // `ai_agent` 한정 (emitAiWaitingForInput 와 동일 — 재구성기가 ai_agent
-        // shape 전용).
-        if (node.type === 'ai_agent') {
+        // `ai_agent` · `information_extractor` (emitAiWaitingForInput 와 동일 —
+        // allow-list 합집합, spec §1.3).
+        if (this.isCheckpointEligibleNodeType(node.type)) {
           const checkpoint = this.buildResumeCheckpoint(
             _stripped as Record<string, unknown> | undefined,
           );

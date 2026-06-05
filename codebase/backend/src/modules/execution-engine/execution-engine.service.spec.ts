@@ -4084,6 +4084,205 @@ describe('ExecutionEngineService', () => {
       expect(serialized).not.toContain('cred-leak-canary');
     });
 
+    // W5 (ai-review) — emitAiWaitingForInput 가드: information_extractor 노드도
+    // waiting_for_input 진입 시 outputData._resumeCheckpoint 가 저장되고
+    // partialResult/collectionRetryCount 가 포함됨을 검증.
+    // (ai_agent 는 위 `persists outputData ... _resumeCheckpoint` 가 커버)
+    it('W5: information_extractor 노드 — emitAiWaitingForInput 가드: _resumeCheckpoint 에 IE runtime state(partialResult/collectionRetryCount) 저장', async () => {
+      const ieNodes: Partial<Node>[] = [
+        {
+          id: 'node-ie-w5',
+          workflowId,
+          type: 'information_extractor',
+          category: NodeCategory.AI,
+          label: 'IE',
+          config: {
+            mode: 'multi_turn',
+            outputSchema: [{ name: 'name', type: 'string' }],
+            maxCollectionRetries: 3,
+          },
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(ieNodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+
+      // IE handler — waiting_for_input 상태로 진입 + IE 전용 state 포함.
+      const ieHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: { mode: 'multi_turn' },
+          output: { result: { messages: [], message: '', turnCount: 0 } },
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          _resumeState: {
+            messages: [],
+            turnCount: 0,
+            model: 'test-model',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            partialResult: { name: 'Bob' },
+            collectionRetryCount: 1,
+          },
+        })),
+        processMultiTurnMessage: jest.fn(async () => ({
+          config: { mode: 'multi_turn' },
+          output: { result: { messages: [], message: '', turnCount: 1 } },
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          _resumeState: {
+            messages: [],
+            turnCount: 1,
+            partialResult: { name: 'Bob' },
+            collectionRetryCount: 1,
+          },
+        })),
+        endMultiTurnConversation: jest.fn(() => ({
+          config: { mode: 'multi_turn' },
+          output: {},
+          meta: {},
+          port: 'ended',
+          status: 'ended',
+        })),
+      } as unknown as NodeHandler;
+      handlerRegistry.register('information_extractor', ieHandler);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // emitAiWaitingForInput 경로에서 NodeExecution save 가 호출됨.
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalled();
+      const savedIeRows = mockNodeExecutionRepo.save.mock.calls
+        .map((call: unknown[]) => call[0] as Partial<NodeExecution>)
+        .filter((e) => e?.nodeId === 'node-ie-w5');
+      expect(savedIeRows.length).toBeGreaterThanOrEqual(1);
+
+      const lastSaved = savedIeRows[savedIeRows.length - 1];
+      const outputData = lastSaved.outputData as Record<string, unknown>;
+
+      // _resumeCheckpoint 가 저장됐는지 — IE 노드에도 guard 가 동작함.
+      expect(outputData).toHaveProperty('_resumeCheckpoint');
+      const checkpoint = outputData._resumeCheckpoint as Record<
+        string,
+        unknown
+      >;
+      // IE 고유 runtime state 가 checkpoint 에 포함됨.
+      expect(checkpoint).toMatchObject({
+        partialResult: { name: 'Bob' },
+        collectionRetryCount: 1,
+      });
+      // _resumeState 는 strip 돼야 한다 (credential-safe 정책).
+      expect(outputData).not.toHaveProperty('_resumeState');
+    });
+
+    // W5 (ai-review) — handleAiMessageTurn 가드: 멀티턴 후속 turn 에서도
+    // information_extractor 노드의 _resumeCheckpoint 가 저장되는지 검증.
+    it('W5: information_extractor 노드 — handleAiMessageTurn 가드: 후속 turn 에서 _resumeCheckpoint 에 IE runtime state 저장', async () => {
+      const ieNodes2: Partial<Node>[] = [
+        {
+          id: 'node-ie-w5b',
+          workflowId,
+          type: 'information_extractor',
+          category: NodeCategory.AI,
+          label: 'IE2',
+          config: {
+            mode: 'multi_turn',
+            outputSchema: [{ name: 'email', type: 'string' }],
+            maxCollectionRetries: 2,
+          },
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(ieNodes2);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+
+      const ieHandler2: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: { mode: 'multi_turn' },
+          output: { result: { messages: [], message: '', turnCount: 0 } },
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          _resumeState: {
+            messages: [],
+            turnCount: 0,
+            model: 'test-model',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            partialResult: {},
+            collectionRetryCount: 0,
+          },
+        })),
+        processMultiTurnMessage: jest.fn(async () => ({
+          config: { mode: 'multi_turn' },
+          output: {
+            result: {
+              messages: [
+                { role: 'user', content: 'hello' },
+                { role: 'assistant', content: 'hi' },
+              ],
+              message: 'hi',
+              turnCount: 1,
+            },
+          },
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          _resumeState: {
+            messages: [
+              { role: 'user', content: 'hello' },
+              { role: 'assistant', content: 'hi' },
+            ],
+            turnCount: 1,
+            partialResult: { email: 'x@y.z' },
+            collectionRetryCount: 1,
+          },
+        })),
+        endMultiTurnConversation: jest.fn(() => ({
+          config: { mode: 'multi_turn' },
+          output: {},
+          meta: {},
+          port: 'ended',
+          status: 'ended',
+        })),
+      } as unknown as NodeHandler;
+      handlerRegistry.register('information_extractor', ieHandler2);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // 첫 turn waiting 진입 후 후속 turn 처리.
+      mockNodeExecutionRepo.save.mockClear();
+
+      void service.continueAiConversation(executionId, 'hello');
+      await flushPromises();
+      await flushPromises();
+
+      // handleAiMessageTurn 경로에서 NodeExecution save 가 호출됨.
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalled();
+      const savedRows = mockNodeExecutionRepo.save.mock.calls
+        .map((call: unknown[]) => call[0] as Partial<NodeExecution>)
+        .filter((e) => e?.nodeId === 'node-ie-w5b');
+      expect(savedRows.length).toBeGreaterThanOrEqual(1);
+
+      const lastSaved = savedRows[savedRows.length - 1];
+      const outputData = lastSaved.outputData as Record<string, unknown>;
+      expect(outputData).toHaveProperty('_resumeCheckpoint');
+      const checkpoint = outputData._resumeCheckpoint as Record<
+        string,
+        unknown
+      >;
+      // handleAiMessageTurn 후속 turn 에서도 IE runtime state 가 checkpoint 에 포함.
+      expect(checkpoint).toMatchObject({
+        partialResult: { email: 'x@y.z' },
+        collectionRetryCount: 1,
+      });
+      expect(outputData).not.toHaveProperty('_resumeState');
+    });
+
     // WARN #21 — endAiConversation 종료 흐름 전체 테스트.
     //
     // 시나리오:
@@ -8949,12 +9148,11 @@ describe('ExecutionEngineService', () => {
     });
 
     it('buildRetryReentryState strips schemaVersion meta from the reconstructed resumeState', () => {
-      const ctx = cpSubject().contextService.createContext(
-        'exec-a2a-1',
-        'wf-1',
-        { initialVariables: { __workspaceId: 'ws-1' } },
-      );
-      const { resumeState } = cpSubject().buildRetryReentryState(
+      const cp = cpSubject();
+      const ctx = cp.contextService.createContext('exec-a2a-1', 'wf-1', {
+        initialVariables: { __workspaceId: 'ws-1' },
+      });
+      const { resumeState } = cp.buildRetryReentryState(
         { id: 'exec-a2a-1', startedAt: new Date() },
         { id: 'node-1', type: 'ai_agent', config: { mode: 'multi_turn' } },
         ctx,
@@ -8971,13 +9169,12 @@ describe('ExecutionEngineService', () => {
     });
 
     it('buildRetryReentryState applies defensive defaults for a legacy checkpoint missing core fields', () => {
-      const ctx = cpSubject().contextService.createContext(
-        'exec-a2a-2',
-        'wf-1',
-        { initialVariables: { __workspaceId: 'ws-1' } },
-      );
+      const cp = cpSubject();
+      const ctx = cp.contextService.createContext('exec-a2a-2', 'wf-1', {
+        initialVariables: { __workspaceId: 'ws-1' },
+      });
       // 구(舊) checkpoint — schemaVersion·messages·turnCount·tokens 부재.
-      const { resumeState } = cpSubject().buildRetryReentryState(
+      const { resumeState } = cp.buildRetryReentryState(
         { id: 'exec-a2a-2', startedAt: new Date() },
         { id: 'node-1', type: 'ai_agent', config: { mode: 'multi_turn' } },
         ctx,
@@ -9002,14 +9199,13 @@ describe('ExecutionEngineService', () => {
     // INFO #10 (SUMMARY) — 경계값: schemaVersion === 1 (현재 버전과 동일) 은
     // RESUME_INCOMPATIBLE_STATE 를 발생시키지 않아야 한다.
     it('buildRetryReentryState with schemaVersion:1 (current version) succeeds without throwing', () => {
-      const ctx = cpSubject().contextService.createContext(
-        'exec-a2a-v1',
-        'wf-1',
-        { initialVariables: { __workspaceId: 'ws-1' } },
-      );
+      const cp = cpSubject();
+      const ctx = cp.contextService.createContext('exec-a2a-v1', 'wf-1', {
+        initialVariables: { __workspaceId: 'ws-1' },
+      });
       // schemaVersion: 1 은 현재 지원 버전 — 재구성 가능.
       expect(() =>
-        cpSubject().buildRetryReentryState(
+        cp.buildRetryReentryState(
           { id: 'exec-a2a-v1', startedAt: new Date() },
           { id: 'node-1', type: 'ai_agent', config: { mode: 'multi_turn' } },
           ctx,
@@ -9022,6 +9218,129 @@ describe('ExecutionEngineService', () => {
           { resumeMode: true },
         ),
       ).not.toThrow();
+    });
+
+    // PR-A2b — information_extractor 멀티턴 checkpoint 확장 (spec §1.3 allow-list
+    // 합집합). IE 고유 runtime state(partialResult/collectionRetryCount) 영속 +
+    // config 필드(outputSchema/examples/instructions/maxCollectionRetries) 재유도.
+    describe('information_extractor checkpoint 확장 (PR-A2b)', () => {
+      it('buildResumeCheckpoint persists IE runtime state (partialResult / collectionRetryCount)', () => {
+        const checkpoint = cpSubject().buildResumeCheckpoint({
+          messages: [],
+          turnCount: 2,
+          partialResult: { name: 'Alice' },
+          collectionRetryCount: 1,
+        });
+        expect(checkpoint?.partialResult).toEqual({ name: 'Alice' });
+        expect(checkpoint?.collectionRetryCount).toBe(1);
+      });
+
+      it('buildResumeCheckpoint defaults IE fields when absent (ai_agent inert)', () => {
+        const checkpoint = cpSubject().buildResumeCheckpoint({
+          messages: [],
+          turnCount: 0,
+        });
+        expect(checkpoint?.partialResult).toEqual({});
+        expect(checkpoint?.collectionRetryCount).toBe(0);
+      });
+
+      it('buildRetryReentryState re-derives IE config from node.config + restores IE runtime state', () => {
+        // W4 (ai-review) — cpSubject() 를 단일화해 동일 it 내 두 번 호출로 인한
+        // 인스턴스 불일치 가능성을 제거한다.
+        const cp = cpSubject();
+        const ctx = cp.contextService.createContext('exec-a2b-ie', 'wf-1', {
+          initialVariables: { __workspaceId: 'ws-1' },
+        });
+        const { resumeState } = cp.buildRetryReentryState(
+          { id: 'exec-a2b-ie', startedAt: new Date() },
+          {
+            id: 'node-ie',
+            type: 'information_extractor',
+            config: {
+              mode: 'multi_turn',
+              outputSchema: [{ name: 'email', type: 'string' }],
+              examples: [{ in: 'a', out: 'b' }],
+              instructions: 'extract email',
+              maxCollectionRetries: 5,
+            },
+          },
+          ctx,
+          {
+            messages: [{ role: 'user', content: 'hi' }],
+            turnCount: 1,
+            partialResult: { email: 'x@y.z' },
+            collectionRetryCount: 2,
+          },
+          { resumeMode: true },
+        );
+        // config re-derived from node.config
+        expect(resumeState.outputSchema).toEqual([
+          { name: 'email', type: 'string' },
+        ]);
+        expect(resumeState.instructions).toBe('extract email');
+        expect(resumeState.maxCollectionRetries).toBe(5);
+        expect(resumeState.examples).toEqual([{ in: 'a', out: 'b' }]);
+        // IE runtime state restored from checkpoint
+        expect(resumeState.partialResult).toEqual({ email: 'x@y.z' });
+        expect(resumeState.collectionRetryCount).toBe(2);
+      });
+
+      it('buildRetryReentryState defaults IE config/state when absent', () => {
+        const cp = cpSubject();
+        const ctx = cp.contextService.createContext('exec-a2b-ie2', 'wf-1', {
+          initialVariables: { __workspaceId: 'ws-1' },
+        });
+        const { resumeState } = cp.buildRetryReentryState(
+          { id: 'exec-a2b-ie2', startedAt: new Date() },
+          {
+            id: 'node-ie',
+            type: 'information_extractor',
+            config: { mode: 'multi_turn' },
+          },
+          ctx,
+          { model: 'm' },
+          { resumeMode: true },
+        );
+        expect(resumeState.outputSchema).toEqual([]);
+        expect(resumeState.maxCollectionRetries).toBe(3);
+        expect(resumeState.instructions).toBe('');
+        expect(resumeState.partialResult).toEqual({});
+        expect(resumeState.collectionRetryCount).toBe(0);
+      });
+
+      // INFO #8 (ai-review) — collectionRetryCount 의 typeof === 'number' 방어 가드
+      // 엣지 케이스: 문자열 "2" / null 입력 시 0 수렴 검증.
+      it('buildRetryReentryState coerces non-number collectionRetryCount to 0 ("2" / null)', () => {
+        const cp = cpSubject();
+        const ctx = cp.contextService.createContext('exec-a2b-ie3', 'wf-1', {
+          initialVariables: { __workspaceId: 'ws-1' },
+        });
+        const { resumeState: rs1 } = cp.buildRetryReentryState(
+          { id: 'exec-a2b-ie3', startedAt: new Date() },
+          {
+            id: 'node-ie',
+            type: 'information_extractor',
+            config: { mode: 'multi_turn' },
+          },
+          ctx,
+          { collectionRetryCount: '2' as unknown as number },
+          { resumeMode: true },
+        );
+        expect(rs1.collectionRetryCount).toBe(0);
+
+        const { resumeState: rs2 } = cp.buildRetryReentryState(
+          { id: 'exec-a2b-ie3', startedAt: new Date() },
+          {
+            id: 'node-ie',
+            type: 'information_extractor',
+            config: { mode: 'multi_turn' },
+          },
+          ctx,
+          { collectionRetryCount: null as unknown as number },
+          { resumeMode: true },
+        );
+        expect(rs2.collectionRetryCount).toBe(0);
+      });
     });
   });
 
@@ -9077,6 +9396,11 @@ describe('ExecutionEngineService', () => {
       mockNodeExecutionRepo.createQueryBuilder = jest
         .fn()
         .mockImplementation(buildUpdateChain);
+    });
+
+    // W3 (ai-review) — 비동기 예외/강제 중단 시 spyOn 복원 누락 방지 안전망.
+    afterEach(() => {
+      jest.restoreAllMocks();
     });
 
     it('Execution not WAITING_FOR_INPUT → RESUME_CHECKPOINT_MISSING (execution 만 cancelled)', async () => {
@@ -9327,55 +9651,184 @@ describe('ExecutionEngineService', () => {
       });
       mockExecutionNodeLogRepo.find.mockResolvedValue([]);
 
+      // W3 (ai-review) — jest.spyOn 으로 교체해 비동기 예외/강제 중단 시
+      // 전역 서비스 인스턴스 오염을 방지한다. afterEach(() => jest.restoreAllMocks())
+      // 가 describe 블록에 등록돼 있어 개별 복원 코드 불필요.
       const svcAny = service as unknown as {
-        loadAndBuildGraph: jest.Mock;
-        waitForAiConversation: jest.Mock;
+        loadAndBuildGraph: (...args: unknown[]) => Promise<unknown>;
+        waitForAiConversation: (...args: unknown[]) => Promise<void>;
       };
       // 그래프는 waiting node 단일 — post-branch traversal 이 즉시 종료.
-      const origLoad = svcAny.loadAndBuildGraph;
-      const origWait = svcAny.waitForAiConversation;
-      svcAny.loadAndBuildGraph = jest.fn().mockResolvedValue({
-        graphNodes: [],
-        graphEdges: [],
-        forwardEdges: [],
-        backEdges: [],
-        sortedNodeIds: ['node-1'],
-        sortedIndexMap: new Map([['node-1', 0]]),
-        backEdgeMap: new Map(),
-        outgoingEdgeMap: new Map(),
-        incomingEdgeMap: new Map(),
-        nodeMap: new Map([['node-1', { id: 'node-1', type: 'ai_agent' }]]),
-      });
-      svcAny.waitForAiConversation = jest.fn().mockResolvedValue(undefined);
-
-      try {
-        await subject().rehydrateAndResume(executionId, 'ne-1', {
-          type: 'ai_message',
-          message: 'hi',
+      const loadSpy = jest
+        .spyOn(svcAny, 'loadAndBuildGraph')
+        .mockResolvedValue({
+          graphNodes: [],
+          graphEdges: [],
+          forwardEdges: [],
+          backEdges: [],
+          sortedNodeIds: ['node-1'],
+          sortedIndexMap: new Map([['node-1', 0]]),
+          backEdgeMap: new Map(),
+          outgoingEdgeMap: new Map(),
+          incomingEdgeMap: new Map(),
+          nodeMap: new Map([['node-1', { id: 'node-1', type: 'ai_agent' }]]),
         });
+      const waitSpy = jest
+        .spyOn(svcAny, 'waitForAiConversation')
+        .mockResolvedValue(undefined);
 
-        // 재구성 분기 도달 — waitForAiConversation 호출 (early throw 미발생).
-        expect(svcAny.waitForAiConversation).toHaveBeenCalledTimes(1);
+      await subject().rehydrateAndResume(executionId, 'ne-1', {
+        type: 'ai_message',
+        message: 'hi',
+      });
 
-        // RESUME_INCOMPATIBLE_STATE 로 cancel 되지 않았는지 — execution
-        // createQueryBuilder.set 에 해당 코드가 들어가지 않았다.
-        const cancelSetCalls =
-          mockExecutionRepo.createQueryBuilder.mock.results.flatMap(
-            (r) =>
-              (
-                r.value as {
-                  set?: { mock?: { calls: Array<Array<{ error?: unknown }>> } };
-                }
-              ).set?.mock?.calls ?? [],
-          );
-        const codes = cancelSetCalls
-          .map((c) => (c[0]?.error as { code?: string } | undefined)?.code)
-          .filter(Boolean);
-        expect(codes).not.toContain('RESUME_INCOMPATIBLE_STATE');
-      } finally {
-        svcAny.loadAndBuildGraph = origLoad;
-        svcAny.waitForAiConversation = origWait;
-      }
+      // 재구성 분기 도달 — waitForAiConversation 호출 (early throw 미발생).
+      expect(waitSpy).toHaveBeenCalledTimes(1);
+
+      // RESUME_INCOMPATIBLE_STATE 로 cancel 되지 않았는지 — execution
+      // createQueryBuilder.set 에 해당 코드가 들어가지 않았다.
+      const cancelSetCalls =
+        mockExecutionRepo.createQueryBuilder.mock.results.flatMap(
+          (r) =>
+            (
+              r.value as {
+                set?: { mock?: { calls: Array<Array<{ error?: unknown }>> } };
+              }
+            ).set?.mock?.calls ?? [],
+        );
+      const codes = cancelSetCalls
+        .map((c) => (c[0]?.error as { code?: string } | undefined)?.code)
+        .filter(Boolean);
+      expect(codes).not.toContain('RESUME_INCOMPATIBLE_STATE');
+
+      loadSpy.mockRestore();
+      waitSpy.mockRestore();
+    });
+
+    // PR-A2b — information_extractor 노드도 _resumeCheckpoint 재구성으로 재개된다
+    // (guard 확장: node.type === 'information_extractor' 도 재진입 분기 진입).
+    it('information_extractor 노드 + _resumeCheckpoint 존재 → 재구성 후 재진입 (RESUME_INCOMPATIBLE_STATE 미발생)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-ie',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          interactionType: 'ai_conversation',
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          // IE checkpoint — 고유 runtime state(partialResult/collectionRetryCount) 포함.
+          _resumeCheckpoint: {
+            schemaVersion: 1,
+            messages: [{ role: 'user', content: 'prev' }],
+            turnCount: 1,
+            partialResult: { email: 'a@b.c' },
+            collectionRetryCount: 1,
+          },
+        },
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-ie',
+        type: 'information_extractor',
+        config: {
+          mode: 'multi_turn',
+          outputSchema: [{ name: 'email', type: 'string' }],
+          maxCollectionRetries: 3,
+        },
+      });
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+
+      // W3 (ai-review) — jest.spyOn 으로 교체해 비동기 예외/강제 중단 시
+      // 전역 서비스 인스턴스 오염을 방지한다.
+      const svcAny = service as unknown as {
+        loadAndBuildGraph: (...args: unknown[]) => Promise<unknown>;
+        waitForAiConversation: (...args: unknown[]) => Promise<void>;
+        contextService: {
+          setNodeOutput: jest.Mock;
+          getContext: (
+            key: string,
+          ) => { nodeOutputCache: Record<string, unknown> } | undefined;
+        };
+      };
+      const loadSpy = jest
+        .spyOn(svcAny, 'loadAndBuildGraph')
+        .mockResolvedValue({
+          graphNodes: [],
+          graphEdges: [],
+          forwardEdges: [],
+          backEdges: [],
+          sortedNodeIds: ['node-ie'],
+          sortedIndexMap: new Map([['node-ie', 0]]),
+          backEdgeMap: new Map(),
+          outgoingEdgeMap: new Map(),
+          incomingEdgeMap: new Map(),
+          nodeMap: new Map([
+            ['node-ie', { id: 'node-ie', type: 'information_extractor' }],
+          ]),
+        });
+      const waitSpy = jest
+        .spyOn(svcAny, 'waitForAiConversation')
+        .mockResolvedValue(undefined);
+
+      // W6 (ai-review) — setNodeOutput 호출 인자를 캡처해 buildRetryReentryState 가
+      // checkpoint 로부터 partialResult/collectionRetryCount 를 실제 복원했는지
+      // toMatchObject 로 검증한다. waitForAiConversation 시그니처상 resumeState 가
+      // 인자로 오지 않으므로 context.setNodeOutput 에 seed 된 값을 조회한다.
+      const setNodeOutputSpy = jest.spyOn(
+        svcAny.contextService,
+        'setNodeOutput',
+      );
+
+      await subject().rehydrateAndResume(executionId, 'ne-1', {
+        type: 'ai_message',
+        message: 'hi',
+      });
+
+      // guard 확장으로 IE 도 재구성 분기 도달 — waitForAiConversation 호출.
+      expect(waitSpy).toHaveBeenCalledTimes(1);
+
+      // W6 — seeded nodeOutputCache 에 partialResult/collectionRetryCount 가 복원됐는지.
+      const seededCalls = setNodeOutputSpy.mock.calls;
+      expect(seededCalls.length).toBeGreaterThan(0);
+      const seededOutput = seededCalls[seededCalls.length - 1][2] as Record<
+        string,
+        unknown
+      >;
+      const seededResumeState = seededOutput._resumeState as
+        | Record<string, unknown>
+        | undefined;
+      expect(seededResumeState).toMatchObject({
+        partialResult: { email: 'a@b.c' },
+        collectionRetryCount: 1,
+      });
+
+      const cancelSetCalls =
+        mockExecutionRepo.createQueryBuilder.mock.results.flatMap(
+          (r) =>
+            (
+              r.value as {
+                set?: { mock?: { calls: Array<Array<{ error?: unknown }>> } };
+              }
+            ).set?.mock?.calls ?? [],
+        );
+      const codes = cancelSetCalls
+        .map((c) => (c[0]?.error as { code?: string } | undefined)?.code)
+        .filter(Boolean);
+      expect(codes).not.toContain('RESUME_INCOMPATIBLE_STATE');
+
+      setNodeOutputSpy.mockRestore();
+      loadSpy.mockRestore();
+      waitSpy.mockRestore();
     });
 
     // PR-A2a — checkpoint schemaVersion 미래 버전(롤링 배포 중 구 인스턴스가 신
@@ -9454,6 +9907,78 @@ describe('ExecutionEngineService', () => {
       expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
 
       waitSpy.mockRestore();
+    });
+
+    // INFO #9 (ai-review) — IE 노드 + schemaVersion:999 → RESUME_INCOMPATIBLE_STATE
+    // graceful reset (기존 ai_agent 미래 버전 테스트 패턴의 IE 버전).
+    it('IE 노드 + _resumeCheckpoint schemaVersion 미래 버전 → RESUME_INCOMPATIBLE_STATE (graceful reset)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        triggerId: 'trg-ie-fv',
+        startedAt: new Date(),
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-ie-fv',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          interactionType: 'ai_conversation',
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          _resumeCheckpoint: {
+            schemaVersion: 999, // 미래 버전 — 현재 코드 미지원
+            messages: [{ role: 'user', content: 'prev' }],
+            partialResult: { name: 'Alice' },
+            collectionRetryCount: 1,
+          },
+        },
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-ie-fv',
+        type: 'information_extractor',
+        config: { mode: 'multi_turn', outputSchema: [] },
+      });
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+
+      const svcAny2 = service as unknown as {
+        waitForAiConversation: (...args: unknown[]) => Promise<void>;
+      };
+      const waitSpyIe = jest
+        .spyOn(svcAny2, 'waitForAiConversation')
+        .mockResolvedValue(undefined);
+
+      await subject().rehydrateAndResume(executionId, 'ne-1', {
+        type: 'ai_message',
+        message: 'hi',
+      });
+
+      // 버전 가드 → 재진입(waitForAiConversation) 미발생.
+      expect(waitSpyIe).not.toHaveBeenCalled();
+
+      // RESUME_INCOMPATIBLE_STATE 마킹.
+      const cancelSetCalls =
+        mockExecutionRepo.createQueryBuilder.mock.results.flatMap(
+          (r) =>
+            (
+              r.value as {
+                set?: { mock?: { calls: Array<Array<{ error?: unknown }>> } };
+              }
+            ).set?.mock?.calls ?? [],
+        );
+      const codes = cancelSetCalls
+        .map((c) => (c[0]?.error as { code?: string } | undefined)?.code)
+        .filter(Boolean);
+      expect(codes.length).toBeGreaterThan(0);
+      expect(codes).toContain('RESUME_INCOMPATIBLE_STATE');
+
+      waitSpyIe.mockRestore();
     });
 
     // 회귀 가드 — continuation worker deadlock (운영 §7.4/§7.5).

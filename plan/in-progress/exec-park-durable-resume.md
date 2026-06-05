@@ -65,11 +65,11 @@ owner: developer
 - [x] spec: §7.5 `RESUME_INCOMPATIBLE_STATE` 케이스에 "checkpoint 버전 불일치" 추가(필요 시), §1.3 checkpoint 서술 보강.
 - 테스트: 구(舊)/버전없는 checkpoint → 재개 성공, 미래 버전·손상 → 명확한 graceful 종료.
 
-### A2b. information_extractor 멀티턴 checkpoint 확장 — ⭐⭐ [분리, 후속]
-- [ ] IE 전용 checkpoint builder(고유 필드 `outputSchema`/`partialResult`/`collectionRetryCount`/`maxCollectionRetries` 포함) + `buildRetryReentryState` 일반화(핸들러별 allow-list).
-- [ ] 가드 3곳 확장(`emitAiWaitingForInput` L4976 `node.type==='ai_agent'`, resumeFromCheckpoint L1617, handleAiMessageTurn L5238).
-- [ ] spec "ai_agent 한정" 문구 3곳 동기 갱신(`4-execution-engine §1.3 L111`·`3-information-extractor.md L357`·`1-ai-agent.md L703`) — IE 미적용→지원으로 전환, Rationale.
-- 주의: IE state 호환성·재구성기 안전성 판단 Rationale 기록(consistency I4).
+### A2b. information_extractor 멀티턴 checkpoint 확장 — ✅ 완료 (branch `claude/exec-park-a2b-infoextractor`, 2026-06-05)
+- [x] `buildResumeCheckpoint` allow-list 합집합화 — IE 고유 runtime state `partialResult`/`collectionRetryCount` 추가(credential-free). `buildRetryReentryState` 가 IE config(`outputSchema`/`examples`/`instructions`/`maxCollectionRetries`)를 generic `resolveRetryNodeConfig` 로 재유도. (별도 IE builder 불요 — 아키텍처가 이미 합집합/polymorphic 지원)
+- [x] 가드 3곳 확장(`ai_agent` → `ai_agent || information_extractor`): emitAiWaitingForInput·handleAiMessageTurn·driveResumeDetached 재진입. (IE 핸들러는 이미 `processMultiTurnMessage`/`endMultiTurnConversation` 보유 → 구조적 `isResumableNodeHandler` 가드 통과, 클래스 선언 변경 불요)
+- [x] spec "ai_agent 한정" 3곳(`4-execution-engine §1.3`·`3-information-extractor L357`·`1-ai-agent L703`) → IE 지원 전환 + §Rationale L1166 번복 근거(점진 확장 — polymorphic dispatch·generic config 재유도·credential-free 소형 state) 기록. frontmatter pending_plans 등록.
+- [x] 테스트: buildResumeCheckpoint IE 필드(2) + buildRetryReentryState IE config 재유도(2) + IE 재구성 통합(1). 789 모듈 회귀 green, build·lint OK.
 
 ### A3. user-defined variables 영속 + 복원 — ⭐⭐⭐ (범위 확인 필요)
 - [ ] Variable Declaration 등 런타임 variables 가 재개 의미에 필요한지 판단(범위 D2).
