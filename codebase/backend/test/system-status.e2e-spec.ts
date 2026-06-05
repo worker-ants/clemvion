@@ -10,7 +10,7 @@ import { registerAndLogin } from './helpers/auth';
  *
  * 검증 영역:
  *   1) 미인증 → 401 (전역 JWT 가드)
- *   2) 인증 → 200, {data:{generatedAt,overall,totalFailed,totalRecentFailed,recentFailedCapped,failedWindowMinutes,queues}} 형태 + 12개 큐 enumerate
+ *   2) 인증 → 200, {data:{generatedAt,overall,totalFailed,totalRecentFailed,recentFailedCapped,failedWindowMinutes,queues}} 형태 + 13개 큐 enumerate
  *   3) 각 큐 항목 구조(counts/recentFailed/recentFailedCapped/health/group/utilization) 정합
  *   4) 시스템 전역 API — X-Workspace-Id 유무가 결과 큐 집합에 영향 없음
  *
@@ -23,6 +23,7 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 // 블랙박스 e2e 는 앱 소스를 import 하지 않는다 (constants 가 큐 상수를 서비스 파일에서
 // 끌어와 nodes 그래프 전체를 전이 로드 → e2e jest 모듈 해석 실패). 큐 추가 시 본 목록도 갱신.
 const EXPECTED_QUEUE_NAMES = [
+  'execution-run',
   'background-execution',
   'execution-continuation',
   'document-embedding',
@@ -77,7 +78,7 @@ describe('System Status API (e2e)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('인증 시 12개 큐의 집계 상태를 반환한다', async () => {
+  it('인증 시 13개 큐의 집계 상태를 반환한다', async () => {
     const res = await request(BASE_URL)
       .get('/api/system-status/overview')
       .set('Authorization', `Bearer ${owner.accessToken}`);

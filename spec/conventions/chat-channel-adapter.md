@@ -384,7 +384,7 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 | `LLM_TIMEOUT` | — | `executionFailedTimeout` | `{}` |
 | `LLM_CALL_FAILED` · `LLM_RESPONSE_INVALID` · `MAX_COLLECTION_RETRIES_EXCEEDED` | — | `executionFailedThirdParty` | `{}` |
 | `EMAIL_SEND_FAILED` | — | `executionFailedThirdParty` | `{}` |
-| `EXECUTION_TIMEOUT` (engine) · `CODE_TIMEOUT` | — | `executionFailedTimeout` | `{}` |
+| `EXECUTION_TIMEOUT` (Code 노드 스크립트) · `EXECUTION_TIME_LIMIT_EXCEEDED` (엔진 active-running 누적, §8) · `CODE_TIMEOUT` | — | `executionFailedTimeout` | `{}` |
 | `CODE_EXECUTION_FAILED` · `SUB_WORKFLOW_FAILED` · `DB_*` · `RECURSION_DEPTH_EXCEEDED` · `MAX_ITERATIONS_EXCEEDED` · `CYCLE_DETECTED` · `INVALID_EXPRESSION` · `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` · `ERROR_PORT_FALLBACK` | — | `executionFailedInternal` | `{}` |
 | 그 외 모든 code (`error.code === null` 포함) | unknown — fallback | `executionFailedInternal` | `{}` (+ backend `warn` 로그, CCH-ERR-04) |
 

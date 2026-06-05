@@ -200,6 +200,12 @@ ENCRYPTION_KEY=<32-byte-hex>
 # Integration 자격증명(OAuth refresh token / API key / DB password 등)을 AES-256-GCM 으로
 # 암호화. 누락 시 평문 저장 + 부팅 경고. 운영에서는 반드시 설정 (분실 시 기존 행 복호화 불가).
 INTEGRATION_ENCRYPTION_KEY=<32-byte-hex>
+
+# Execution Engine
+# 단일 Execution 의 최대 active-running 누적 시간(ms). waiting_for_input park 시간 제외.
+# 초과 시 Execution 이 EXECUTION_TIME_LIMIT_EXCEEDED 코드로 실패 처리됨.
+# 기본값 1800000 (30분). 0 이면 무제한. 상세: codebase/backend/.env.example
+EXECUTION_MAX_ACTIVE_RUNNING_MS=1800000
 ```
 
 ### Google OAuth (SSO) 연동 — 선택

@@ -130,3 +130,35 @@ export class RetryLastTurnError extends Error {
     );
   }
 }
+
+/**
+ * PR2a — 엔진 레벨 active-running 누적 타임아웃 초과 (spec §8).
+ *
+ * 단일 Execution 의 누적 active 세그먼트 시간이 한도(기본 30분)를 초과하면 dispatch
+ * loop 가 본 에러를 throw 한다. run 실패 빌더(`runExecution` / resume)가 본 sentinel
+ * 타입을 인지해 `Execution.error.code = EXECUTION_TIME_LIMIT_EXCEEDED` 로 보존한다
+ * (임의 Error 의 우발적 `.code` 누수를 막는 `ErrorPortFallbackError` 와 동일 패턴).
+ * Code 노드 스크립트 타임아웃 `EXECUTION_TIMEOUT` 과는 별개 — spec §3-error-handling §1.4.
+ *
+ * W3(ai-review SECURITY) — `.message` 는 고정 문자열만. 누적 ms / 한도 ms 수치는
+ * REST API 응답·WS 이벤트에 노출되므로 `activeRunningMs` / `limitMs` 프로퍼티로 분리해
+ * 서버 로그 전용으로 기록한다 (`assertActiveTimeWithinLimit` 호출 지점에서 logger.warn).
+ */
+export class ExecutionTimeLimitError extends Error {
+  readonly code = ErrorCode.EXECUTION_TIME_LIMIT_EXCEEDED;
+  /** 서버 로그 전용. REST/WS 에 노출하지 않는다. */
+  readonly activeRunningMs: number;
+  /** 서버 로그 전용. REST/WS 에 노출하지 않는다. */
+  readonly limitMs: number;
+
+  /**
+   * @param activeRunningMs 누적 active-running 시간(ms). waiting_for_input 제외.
+   * @param limitMs 설정된 한도(ms). `resolveMaxActiveRunningMs()` 반환값.
+   */
+  constructor(activeRunningMs: number, limitMs: number) {
+    super(`Execution active-running time limit exceeded.`);
+    this.name = 'ExecutionTimeLimitError';
+    this.activeRunningMs = activeRunningMs;
+    this.limitMs = limitMs;
+  }
+}

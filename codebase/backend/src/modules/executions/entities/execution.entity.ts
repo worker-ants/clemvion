@@ -49,6 +49,15 @@ export class Execution {
   @Column({ name: 'duration_ms', nullable: true })
   durationMs: number;
 
+  /**
+   * 누적 active-running 시간(ms) — active 세그먼트(worker 가 노드를 전진시킨 구간)의
+   * 합. `waiting_for_input` park 시간은 제외(§8 active-running 타임아웃 기준).
+   * 엔진이 RUNNING 진입/이탈마다 누적하며, 세그먼트 시작 시 한도(기본 30분) 초과면
+   * `EXECUTION_TIME_LIMIT_EXCEEDED` 로 failed. wall-clock 총 소요는 `durationMs` 별도.
+   */
+  @Column({ name: 'active_running_ms', type: 'int', default: 0 })
+  activeRunningMs: number;
+
   @Column({ name: 'input_data', type: 'jsonb', nullable: true })
   inputData: Record<string, unknown>;
 

@@ -35,7 +35,11 @@ export interface ExecutionFailureClass {
 const TIMEOUT_CODES = new Set([
   'HTTP_TIMEOUT',
   'LLM_TIMEOUT',
+  // `EXECUTION_TIMEOUT` = Code 노드 *스크립트* 타임아웃.
+  // `EXECUTION_TIME_LIMIT_EXCEEDED` = 엔진 레벨 active-running 누적 타임아웃(§8).
+  // 의미는 다르나 사용자 대면 분류는 둘 다 timeout (PR2a — W5 명시적 구분).
   'EXECUTION_TIMEOUT',
+  'EXECUTION_TIME_LIMIT_EXCEEDED',
   'CODE_TIMEOUT',
 ]);
 

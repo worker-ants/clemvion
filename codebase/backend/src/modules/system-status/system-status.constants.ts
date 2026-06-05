@@ -1,5 +1,9 @@
 import { BACKGROUND_EXECUTION_QUEUE } from '../execution-engine/queues/background-execution.queue';
 import { CONTINUATION_EXECUTION_QUEUE } from '../execution-engine/queues/continuation-execution.queue';
+import {
+  EXECUTION_RUN_QUEUE,
+  resolveExecutionRunWorkerConcurrency,
+} from '../execution-engine/queues/execution-run.queue';
 import { DOCUMENT_EMBEDDING_QUEUE } from '../knowledge-base/queues/document-embedding.queue';
 import { GRAPH_EXTRACTION_QUEUE } from '../knowledge-base/queues/graph-extraction.queue';
 import { NOTIFICATION_WEBHOOK_QUEUE } from '../external-interaction/notification-dispatcher.types';
@@ -37,11 +41,19 @@ export interface MonitoredQueue {
 const continuationConcurrency =
   Number(process.env.CONTINUATION_WORKER_CONCURRENCY) || 1;
 
+/** execution-run intake worker concurrency (env, 기본 1) — PR1 패턴 재사용. */
+const executionRunConcurrency = resolveExecutionRunWorkerConcurrency();
+
 /**
  * 모니터링 대상 큐 레지스트리.
  * 큐 추가/삭제 시 data-flow/0-overview.md §4 카탈로그를 먼저 갱신하고 본 표를 동기화한다.
  */
 export const MONITORED_QUEUES: readonly MonitoredQueue[] = [
+  {
+    name: EXECUTION_RUN_QUEUE,
+    group: 'execution',
+    concurrency: executionRunConcurrency,
+  },
   { name: BACKGROUND_EXECUTION_QUEUE, group: 'execution', concurrency: 1 },
   {
     name: CONTINUATION_EXECUTION_QUEUE,

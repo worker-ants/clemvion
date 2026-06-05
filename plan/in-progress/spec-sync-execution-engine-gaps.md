@@ -16,7 +16,7 @@ owner: planner
 
 - [x] **§4 Worker 모델** — ~~per-node task-queue~~ → execution-level intake 큐로 재정의 후 **PR1 구현 완료** (per-node 모델 폐기 — `exec-intake-queue-impl.md` PR1 으로 대체됨, 2026-06-04). §4 배너·§9.3·§11 spec 본문 "PR1 구현됨" 반영 완료.
 - [x] **§7.1 Worker Heartbeat** — ~~별도 heartbeat~~ → BullMQ stalled-job(active 세그먼트 한정)으로 재정의(forwarding). 구현 PR4. `WORKER_HEARTBEAT_TIMEOUT` 코드 유지+의미 재정의.
-- [x] **§8 동시 실행 제한** — active-running 누적 타임아웃 + `EXECUTION_TIME_LIMIT_EXCEEDED` + intake 큐 카운트 가드로 재정의(forwarding). 구현 PR2. spec 본문 §8 반영 완료.
+- [x] **§8 동시 실행 제한** — 재정의(forwarding) 후 **(1단계) active-running 누적 타임아웃 = PR2a 구현 완료**(`EXECUTION_TIME_LIMIT_EXCEEDED`, env 상수, `impl-exec-concurrency-cap`). **(2단계) 워크스페이스/워크플로 동시성 cap·큐 대기 cancel = Planned(PR2b)**. spec 본문 §8 "부분 구현" 반영 완료(2026-06-04).
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings `5-system/5-system__4-execution-engine.md` 참조.
