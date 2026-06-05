@@ -200,7 +200,10 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
   {name: "includeConfidence", required: false, type: "boolean", description: "신뢰도 점수를 출력에 포함해요.", default: "false"},
   {name: "multiLabel", required: false, type: "boolean", description: "true면 여러 카테고리를 동시에 선택할 수 있어요.", default: "false"},
   {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread 자동 주입 범위예요. `none`은 입력 텍스트만, `thread`는 thread 전체를, `lastN`은 최근 N turn 만 LLM에 함께 보내요. AI Agent와 동일한 인터페이스예요.", default: "none"},
-  {name: "contextScopeN", required: false, type: "integer", description: "`contextScope=lastN`일 때 주입할 최근 turn 수예요.", default: "20"}
+  {name: "contextScopeN", required: false, type: "integer", description: "`contextScope=lastN`일 때 주입할 최근 turn 수예요.", default: "20"},
+  {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "Thread 주입 방식이에요. `messages`는 LLM messages 배열 앞에 turn 별로 prepend하고, `system_text`는 system 프롬프트 뒤에 한 덩어리로 append해요.", default: "messages"},
+  {name: "includeToolTurns", required: false, type: "boolean", description: "true면 KB/MCP/조건 도구 호출 turn까지 thread에 push해요. 기본은 최종 assistant 응답만 push해요.", default: "false"},
+  {name: "excludeFromConversationThread", required: false, type: "boolean", description: "체크하면 이 노드의 user/assistant turn을 워크플로우 thread에 push하지 않아요(opt-out).", default: "false"}
 ]} />
 
 ### 포트
@@ -253,7 +256,10 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
   {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "추출 모드예요.", default: "single_turn"},
   {name: "maxTurns", required: false, type: "integer", description: "`multi_turn`에서 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "10"},
   {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread 자동 주입 범위예요. `none`은 입력만, `thread`는 thread 전체를, `lastN`은 최근 N turn 만 LLM에 함께 보내요. `multi_turn`은 첫 진입 때 1회 주입돼요. AI Agent와 동일한 인터페이스예요.", default: "none"},
-  {name: "contextScopeN", required: false, type: "integer", description: "`contextScope=lastN`일 때 주입할 최근 turn 수예요.", default: "20"}
+  {name: "contextScopeN", required: false, type: "integer", description: "`contextScope=lastN`일 때 주입할 최근 turn 수예요.", default: "20"},
+  {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "Thread 주입 방식이에요. `messages`는 LLM messages 배열 앞에 turn 별로 prepend하고, `system_text`는 system 프롬프트 뒤에 한 덩어리로 append해요.", default: "messages"},
+  {name: "includeToolTurns", required: false, type: "boolean", description: "true면 KB/MCP/조건 도구 호출 turn까지 thread에 push해요. 기본은 최종 assistant 응답만 push해요.", default: "false"},
+  {name: "excludeFromConversationThread", required: false, type: "boolean", description: "체크하면 이 노드의 user/assistant turn을 워크플로우 thread에 push하지 않아요(opt-out).", default: "false"}
 ]} />
 
 ### 포트

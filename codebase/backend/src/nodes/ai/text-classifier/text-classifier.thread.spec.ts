@@ -166,10 +166,10 @@ describe('TextClassifierHandler — ConversationThread inject (contextScope, A2)
     });
   }
 
-  it('contextScope=thread injects prior thread turns into LLM messages', async () => {
+  it('contextScope=thread injects prior thread turns into LLM messages + echoes meta.contextInjection', async () => {
     const context = makeExecutionContext({ nodeId: 'classifier-1' });
     seedPriorTurn(context);
-    await handler.execute(
+    const result = (await handler.execute(
       { text: 'x' },
       {
         multiLabel: false,
@@ -180,7 +180,7 @@ describe('TextClassifierHandler — ConversationThread inject (contextScope, A2)
         contextInjectionMode: 'messages',
       },
       context,
-    );
+    )) as { meta?: Record<string, unknown> };
     const sentMessages = mockLlmService.chat.mock.calls[0][1].messages;
     // [system, injected(assistant), user]
     expect(
@@ -188,12 +188,18 @@ describe('TextClassifierHandler — ConversationThread inject (contextScope, A2)
         (m: { content: string }) => m.content === 'prior agent answer',
       ),
     ).toBe(true);
+    // conversation-thread.md §5.3 debug echo (세 노드 공통).
+    expect(result.meta?.contextInjection).toMatchObject({
+      appliedScope: 'thread',
+      appliedMode: 'messages',
+      injectedTurns: 1,
+    });
   });
 
-  it('contextScope default (none) leaves messages unchanged (regression)', async () => {
+  it('contextScope default (none) leaves messages unchanged + no meta.contextInjection (regression)', async () => {
     const context = makeExecutionContext({ nodeId: 'classifier-1' });
     seedPriorTurn(context);
-    await handler.execute(
+    const result = (await handler.execute(
       { text: 'x' },
       {
         multiLabel: false,
@@ -202,7 +208,7 @@ describe('TextClassifierHandler — ConversationThread inject (contextScope, A2)
         categories: [{ id: 'refund', name: 'refund', description: 'r' }],
       },
       context,
-    );
+    )) as { meta?: Record<string, unknown> };
     const sentMessages = mockLlmService.chat.mock.calls[0][1].messages;
     expect(sentMessages).toHaveLength(2); // system + user only
     expect(
@@ -210,6 +216,8 @@ describe('TextClassifierHandler — ConversationThread inject (contextScope, A2)
         (m: { content: string }) => m.content === 'prior agent answer',
       ),
     ).toBe(false);
+    // none → noop, meta stays lean (no echo).
+    expect(result.meta).not.toHaveProperty('contextInjection');
   });
 
   it('self-node turns are excluded from injection', async () => {

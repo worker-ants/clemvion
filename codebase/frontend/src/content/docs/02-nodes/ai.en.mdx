@@ -189,7 +189,10 @@ In Multi Turn mode, user responses are **awaited indefinitely**. No timeout fire
   {name: "includeConfidence", required: false, type: "boolean", description: "Include a confidence score in the output.", default: "false"},
   {name: "multiLabel", required: false, type: "boolean", description: "When true, multiple categories can match at once.", default: "false"},
   {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread auto-injection scope. `none` sends only the input text; `thread` injects the whole workflow thread; `lastN` injects the most recent N turns. Same interface as AI Agent.", default: "none"},
-  {name: "contextScopeN", required: false, type: "integer", description: "Number of most recent turns to inject when `contextScope=lastN`.", default: "20"}
+  {name: "contextScopeN", required: false, type: "integer", description: "Number of most recent turns to inject when `contextScope=lastN`.", default: "20"},
+  {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "How the thread is injected. `messages` prepends per-turn role messages to the LLM messages array; `system_text` renders the thread as a single text block appended to the system prompt.", default: "messages"},
+  {name: "includeToolTurns", required: false, type: "boolean", description: "When true, also pushes KB/MCP/condition tool-call turns into the thread. Defaults to pushing only the final assistant response.", default: "false"},
+  {name: "excludeFromConversationThread", required: false, type: "boolean", description: "When checked, skips pushing this node's user/assistant turns into the workflow thread (opt-out).", default: "false"}
 ]} />
 
 ### Ports
@@ -242,7 +245,10 @@ In Multi Turn mode, user responses are **awaited indefinitely**. No timeout fire
   {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "Extraction mode.", default: "single_turn"},
   {name: "maxTurns", required: false, type: "integer", description: "Max conversation turns in `multi_turn`. `0` means unlimited.", default: "10"},
   {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread auto-injection scope. `none` sends only the input; `thread` injects the whole thread; `lastN` injects the most recent N turns. In `multi_turn` it is injected once on first entry. Same interface as AI Agent.", default: "none"},
-  {name: "contextScopeN", required: false, type: "integer", description: "Number of most recent turns to inject when `contextScope=lastN`.", default: "20"}
+  {name: "contextScopeN", required: false, type: "integer", description: "Number of most recent turns to inject when `contextScope=lastN`.", default: "20"},
+  {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "How the thread is injected. `messages` prepends per-turn role messages to the LLM messages array; `system_text` renders the thread as a single text block appended to the system prompt.", default: "messages"},
+  {name: "includeToolTurns", required: false, type: "boolean", description: "When true, also pushes KB/MCP/condition tool-call turns into the thread. Defaults to pushing only the final assistant response.", default: "false"},
+  {name: "excludeFromConversationThread", required: false, type: "boolean", description: "When checked, skips pushing this node's user/assistant turns into the workflow thread (opt-out).", default: "false"}
 ]} />
 
 ### Ports

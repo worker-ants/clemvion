@@ -21,9 +21,7 @@ import {
   applyCap,
   renderThreadAsSystemText,
 } from '../../../shared/conversation-thread/thread-renderer';
-
-/** `contextScopeN` default (ai-agent.schema.ts `DEFAULT_CONTEXT_SCOPE_N` 와 동치). */
-export const DEFAULT_CONVERSATION_CONTEXT_SCOPE_N = 20;
+import { DEFAULT_CONTEXT_SCOPE_N } from './conversation-context-schema';
 
 export type ConversationContextScope = 'none' | 'thread' | 'lastN';
 export type ConversationContextMode = 'messages' | 'system_text';
@@ -155,8 +153,7 @@ export function injectConversationContext<Target>(args: {
       ? allTurns.slice(
           -Math.max(
             1,
-            (args.config.contextScopeN as number) ??
-              DEFAULT_CONVERSATION_CONTEXT_SCOPE_N,
+            (args.config.contextScopeN as number) ?? DEFAULT_CONTEXT_SCOPE_N,
           ),
         )
       : allTurns;

@@ -185,6 +185,9 @@ export class TextClassifierHandler implements NodeHandler {
       finalSystemPrompt,
     });
 
+    // system_text 모드에서도 injected.finalSystemPrompt 는 별도로 쓰지 않는다 —
+    // injectConversationContext 가 messages[0](system) 의 content 를 이미 동일하게
+    // 갱신하므로 injected.messages 만 LLM 으로 넘기면 충분 (두 표면 동기화됨).
     let result: ChatResult;
     const requestPayload = {
       model: model || llmConfig.defaultModel,
@@ -290,7 +293,15 @@ export class TextClassifierHandler implements NodeHandler {
         .filter((n): n is string => typeof n === 'string')
         .join(', ');
       this.pushClassifierTurn(context, config, labels);
-      return out;
+      // ConversationThread injection debug echo (conversation-thread.md §5.3 —
+      // 세 노드 공통). Echo only when injection actually happened so noop runs
+      // keep the meta lean (ai_agent 와 동일 형태).
+      return injected.injection.appliedScope !== 'none'
+        ? {
+            ...out,
+            meta: { ...out.meta, contextInjection: injected.injection },
+          }
+        : out;
     }
     const out = this.processSingleLabelResult(
       result,
@@ -308,7 +319,12 @@ export class TextClassifierHandler implements NodeHandler {
         ? out.output.result.category
         : '';
     this.pushClassifierTurn(context, config, single);
-    return out;
+    // ConversationThread injection debug echo (conversation-thread.md §5.3 —
+    // 세 노드 공통). Echo only when injection actually happened so noop runs
+    // keep the meta lean (ai_agent 와 동일 형태).
+    return injected.injection.appliedScope !== 'none'
+      ? { ...out, meta: { ...out.meta, contextInjection: injected.injection } }
+      : out;
   }
 
   private buildSingleLabelPrompt(

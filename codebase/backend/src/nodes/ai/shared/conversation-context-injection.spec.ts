@@ -9,10 +9,28 @@
  * is the shared core extracted from AI Agent's `injectThreadContext` and reused
  * by text_classifier / information_extractor.
  */
-import { injectConversationContext } from './conversation-context-injection';
+import {
+  injectConversationContext,
+  mapTurnsToChatMessages,
+} from './conversation-context-injection';
 import { ConversationThreadService } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import type { ConversationTurn } from '../../../shared/conversation-thread/conversation-thread.types';
 import type { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
+
+/** Minimal ConversationTurn factory for branch tests. */
+function turn(partial: Partial<ConversationTurn>): ConversationTurn {
+  return {
+    seq: 0,
+    nodeId: 'n',
+    nodeLabel: 'Node',
+    nodeType: 'ai_agent',
+    timestamp: '2026-06-05T00:00:00.000Z',
+    source: 'ai_assistant',
+    text: '',
+    ...partial,
+  };
+}
 
 function makeTarget() {
   return { conversationThread: createEmptyConversationThread() };
@@ -191,5 +209,66 @@ describe('injectConversationContext', () => {
     // system message mirrors the appended thread text
     const sys = result.messages.find((m) => m.role === 'system');
     expect(sys?.content).toContain('prior-answer');
+  });
+});
+
+describe('mapTurnsToChatMessages — per-source mapping', () => {
+  it('presentation_user → user role with [from <label>] prefix', () => {
+    const out = mapTurnsToChatMessages([
+      turn({
+        source: 'presentation_user',
+        nodeLabel: 'Form A',
+        text: 'submitted',
+      }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      role: 'user',
+      content: '[from Form A] submitted',
+      source: 'injected',
+    });
+  });
+
+  it('ai_tool → tool role carrying toolCallId when present', () => {
+    const out = mapTurnsToChatMessages([
+      turn({ source: 'ai_tool', text: 'tool-result', toolCallId: 'call_1' }),
+    ]);
+    expect(out[0]).toMatchObject({
+      role: 'tool',
+      content: 'tool-result',
+      toolCallId: 'call_1',
+      source: 'injected',
+    });
+  });
+
+  it('ai_tool without toolCallId → tool role, no toolCallId key', () => {
+    const out = mapTurnsToChatMessages([
+      turn({ source: 'ai_tool', text: 'tool-result' }),
+    ]);
+    expect(out[0]).toMatchObject({ role: 'tool', content: 'tool-result' });
+    expect('toolCallId' in out[0]).toBe(false);
+  });
+
+  it('system → system role', () => {
+    const out = mapTurnsToChatMessages([
+      turn({ source: 'system', text: 'sys-note' }),
+    ]);
+    expect(out[0]).toMatchObject({
+      role: 'system',
+      content: 'sys-note',
+      source: 'injected',
+    });
+  });
+
+  it('unknown/default source → user role fallback', () => {
+    const out = mapTurnsToChatMessages([
+      // Force an out-of-enum source to exercise the default branch.
+      turn({ source: 'mystery' as ConversationTurn['source'], text: 'x' }),
+    ]);
+    expect(out[0]).toMatchObject({
+      role: 'user',
+      content: 'x',
+      source: 'injected',
+    });
   });
 });

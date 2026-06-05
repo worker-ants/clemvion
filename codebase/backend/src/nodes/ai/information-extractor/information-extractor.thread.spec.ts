@@ -140,10 +140,10 @@ describe('InformationExtractorHandler — ConversationThread inject (contextScop
     });
   }
 
-  it('single-turn contextScope=thread injects prior thread turns into LLM messages', async () => {
+  it('single-turn contextScope=thread injects prior thread turns into LLM messages + echoes meta.contextInjection', async () => {
     const context = makeExecutionContext({ nodeId: 'extractor-1' });
     seedPriorTurn(context);
-    await handler.execute(
+    const result = (await handler.execute(
       { text: 'x' },
       {
         mode: 'single_turn',
@@ -154,19 +154,25 @@ describe('InformationExtractorHandler — ConversationThread inject (contextScop
         contextInjectionMode: 'messages',
       },
       context,
-    );
+    )) as { meta?: Record<string, unknown> };
     const sentMessages = mockLlmService.chat.mock.calls[0][1].messages;
     expect(
       sentMessages.some(
         (m: { content: string }) => m.content === 'prior agent answer',
       ),
     ).toBe(true);
+    // conversation-thread.md §5.3 debug echo (세 노드 공통).
+    expect(result.meta?.contextInjection).toMatchObject({
+      appliedScope: 'thread',
+      appliedMode: 'messages',
+      injectedTurns: 1,
+    });
   });
 
-  it('single-turn contextScope default (none) leaves messages unchanged (regression)', async () => {
+  it('single-turn contextScope default (none) leaves messages unchanged + no meta.contextInjection (regression)', async () => {
     const context = makeExecutionContext({ nodeId: 'extractor-1' });
     seedPriorTurn(context);
-    await handler.execute(
+    const result = (await handler.execute(
       { text: 'x' },
       {
         mode: 'single_turn',
@@ -175,7 +181,7 @@ describe('InformationExtractorHandler — ConversationThread inject (contextScop
         outputSchema: [{ name: 'name', type: 'string', required: true }],
       },
       context,
-    );
+    )) as { meta?: Record<string, unknown> };
     const sentMessages = mockLlmService.chat.mock.calls[0][1].messages;
     expect(sentMessages).toHaveLength(2);
     expect(
@@ -183,6 +189,7 @@ describe('InformationExtractorHandler — ConversationThread inject (contextScop
         (m: { content: string }) => m.content === 'prior agent answer',
       ),
     ).toBe(false);
+    expect(result.meta).not.toHaveProperty('contextInjection');
   });
 
   it('multi-turn first entry contextScope=thread injects into initial messages', async () => {
@@ -202,7 +209,7 @@ describe('InformationExtractorHandler — ConversationThread inject (contextScop
     });
     const context = makeExecutionContext({ nodeId: 'extractor-1' });
     seedPriorTurn(context);
-    await handler.execute(
+    const result = (await handler.execute(
       { text: 'x' },
       {
         mode: 'multi_turn',
@@ -213,12 +220,56 @@ describe('InformationExtractorHandler — ConversationThread inject (contextScop
         contextInjectionMode: 'messages',
       },
       context,
-    );
+    )) as { meta?: Record<string, unknown> };
     const sentMessages = mockLlmService.chat.mock.calls[0][1].messages;
     expect(
       sentMessages.some(
         (m: { content: string }) => m.content === 'prior agent answer',
       ),
     ).toBe(true);
+    // Finalized on first turn → completed output carries the injection echo
+    // forward from first-entry state (conversation-thread.md §5.3).
+    expect(result.meta?.contextInjection).toMatchObject({
+      appliedScope: 'thread',
+      appliedMode: 'messages',
+      injectedTurns: 1,
+    });
+  });
+
+  it('multi-turn first entry contextScope=none leaves initial messages unchanged + no meta.contextInjection (regression)', async () => {
+    mockLlmService.chat.mockReset();
+    mockLlmService.chat.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        {
+          id: 'tc1',
+          name: 'finalize_extraction',
+          arguments: JSON.stringify({ name: 'Bob' }),
+        },
+      ],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      model: 'gpt-4o-mini',
+    });
+    const context = makeExecutionContext({ nodeId: 'extractor-1' });
+    seedPriorTurn(context);
+    const result = (await handler.execute(
+      { text: 'x' },
+      {
+        mode: 'multi_turn',
+        model: 'gpt-4o-mini',
+        inputField: 'Bob',
+        outputSchema: [{ name: 'name', type: 'string', required: true }],
+        // contextScope omitted = default 'none'
+      },
+      context,
+    )) as { meta?: Record<string, unknown> };
+    const sentMessages = mockLlmService.chat.mock.calls[0][1].messages;
+    // system + user only — no injected prior turn.
+    expect(
+      sentMessages.some(
+        (m: { content: string }) => m.content === 'prior agent answer',
+      ),
+    ).toBe(false);
+    expect(result.meta).not.toHaveProperty('contextInjection');
   });
 });

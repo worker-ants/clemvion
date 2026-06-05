@@ -184,6 +184,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | `meta.{inputTokens, outputTokens, totalTokens}` | number | handler return | 토큰 사용량 |
 | `meta.thinkingTokens` | number? | handler return | 모델이 보고할 때만 |
 | `meta.llmCalls` | Array | handler return | LLM 호출 디버그 트레이스 (`requestPayload` / `responsePayload` / `durationMs`) |
+| `meta.contextInjection` | object? | handler return | `contextScope ≠ 'none'` + thread non-empty 시에만 echo. `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` — 적용된 결과 (config echo 가 아님, Principle 2 정합). 세 노드 공통 디버그 echo. 상세: [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입) · [Spec Conversation Thread §5.3](../../conventions/conversation-thread.md#53-cap-v1) |
 | `port` | String | handler return | 매칭 성공 시 `<category.id>` 또는 `class_${i}`. 매칭 실패 시 `'fallback'` |
 | `status` | `'ended'` | handler return | 종결 상태 (Principle 0) |
 
@@ -263,6 +264,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | `output.result.categories[i].confidence` | number? | handler return | `includeConfidence: true` 일 때만 |
 | `output.result.categories[i].evidence` | string[]? | handler return | `includeEvidence: true` 일 때만. JSON 파싱 실패의 substring fallback 시 `[]` |
 | `output.result.originalInput` | String | handler return | LLM 에 투입된 resolved 입력 |
+| `meta.contextInjection` | object? | handler return | `contextScope ≠ 'none'` + thread non-empty 시에만 echo (§5.1 정의와 동일). 세 노드 공통 디버그 echo. 상세: [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입) · [Spec Conversation Thread §5.3](../../conventions/conversation-thread.md#53-cap-v1) |
 | `port` | string[] \| `'fallback'` | handler return | 매칭된 카테고리들의 포트 id 배열 (Principle 5 fan-out). 매칭 없음 시 `'fallback'` |
 | `status` | `'ended'` | handler return | 종결 상태 (Principle 0) |
 
