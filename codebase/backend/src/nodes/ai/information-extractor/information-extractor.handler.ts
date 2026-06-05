@@ -27,7 +27,7 @@ import type { ThreadHolder } from '../../../modules/execution-engine/conversatio
 import {
   buildRecallBlock,
   appendStablePrefix,
-  resolveMemoryTtlDays,
+  scheduleMemoryExtraction as sharedScheduleMemoryExtraction,
 } from '../shared/agent-memory-injection';
 import {
   DEFAULT_MEMORY_TOP_K,
@@ -362,54 +362,22 @@ export class InformationExtractorHandler implements NodeHandler {
     executionId: string;
     lastExtractionTurnSeq?: number;
   }): Promise<number | undefined> {
-    const prevWatermark = args.lastExtractionTurnSeq;
-    if (args.strategy !== 'persistent' || !this.agentMemoryService) {
-      return prevWatermark;
-    }
-    if (!this.conversationThreadService || !args.target) return prevWatermark;
-
-    const evaluatedMemoryKey = args.config.memoryKey as
-      | string
-      | undefined
-      | null;
-    const scopeKey = this.agentMemoryService.resolveScopeKey(
-      evaluatedMemoryKey,
-      args.executionId,
+    // 구조 로직은 공유 헬퍼로 추출 (#484 후속, 동작 불변). ai_agent 와 동일
+    // 경로 — persistent 외 no-op, getThread 전체 thread snapshot, M1 watermark.
+    return sharedScheduleMemoryExtraction(
+      {
+        agentMemoryService: this.agentMemoryService,
+        conversationThreadService: this.conversationThreadService,
+      },
+      {
+        strategy: args.strategy,
+        target: args.target,
+        config: args.config,
+        workspaceId: args.workspaceId,
+        executionId: args.executionId,
+        lastExtractionTurnSeq: args.lastExtractionTurnSeq,
+      },
     );
-
-    const fullThread = this.conversationThreadService.getThread(args.target);
-    const fresh =
-      prevWatermark === undefined
-        ? fullThread.turns
-        : fullThread.turns.filter((t) => t.seq > prevWatermark);
-    if (fresh.length === 0) return prevWatermark;
-
-    // shallow-copy 스냅샷 — turn 은 push 후 frozen 이라 array map 만으로 격리
-    // 충분 (§3 격리 invariant). 이후 메인 루프 mutation 에 오염되지 않는다.
-    const snapshot = fresh.map((t) => ({
-      source: t.source,
-      text: t.text,
-      nodeLabel: t.nodeLabel,
-    }));
-
-    const ttlDays = resolveMemoryTtlDays(args.config.memoryTtlDays);
-
-    const enqueued = await this.agentMemoryService.scheduleExtraction({
-      workspaceId: args.workspaceId,
-      scopeKey,
-      llmConfigId: args.config.llmConfigId as string | undefined,
-      model: args.config.model as string | undefined,
-      // 추출 LLM 콜 전용 모델 — 미설정이면 processor 가 model → llmConfig 기본 폴백.
-      extractionModel: args.config.extractionModel as string | undefined,
-      embeddingModel: args.config.embeddingModel as string | undefined,
-      turns: snapshot,
-      ttlDays,
-    });
-
-    // M1: enqueue 가 실제 수락된 경우에만 watermark 전진 (dedup-drop 시 보존해
-    // drop 된 turn 들이 다음 회수에서 영구 제외되지 않게 한다).
-    if (!enqueued) return prevWatermark;
-    return fresh.reduce((m, t) => (t.seq > m ? t.seq : m), prevWatermark ?? -1);
   }
 
   validate(config: Record<string, unknown>): ValidationResult {
