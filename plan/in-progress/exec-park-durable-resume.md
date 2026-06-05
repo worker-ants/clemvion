@@ -152,3 +152,6 @@ owner: developer
 
 ## 진행 메모
 - 2026-06-05 착수. #468 머지 확인(main `9f30216f`). durability 맵 조사 완료(본 plan "현행 durability 맵").
+- **2026-06-05 PR-B1 완료** (branch `claude/exec-park-b1`, base origin/main `84dd7314` #480): form/button park-release + slow-path 일원화 + cancellation gap 수정. 빌드·lint·unit(668)·dockerized e2e(29 suites/174, 신규 `execution-park-resume.e2e-spec.ts` 포함) 통과. ai-review(MEDIUM, Critical 0/Warning 19 → resolution 19/19 처리, e2e pass) → `--impl-done`(BLOCK:NO, `review/consistency/2026/06/05/15_27_01`).
+  - **`--impl-done` WARNING 처리**: W2(§6.3 frozen vs D3) = 이미 §6.3 L672 D3 노트로 정합(무조치). W1(§7.4 과도기 인라인 주석) = §Rationale 단계적 롤아웃이 cross-ref(선택 polish, 미반영). W3(`error-codes.md §3` skipReason scope 경계) = PR-B1 범위 밖, 후속.
+  - **W4 (cross-branch 운영 리스크, 미해결)**: `impl-concurrency-cap-pr2b` worktree 가 `spec/5-system/4-execution-engine.md` 를 **Phase B 이전 모델**로 수정 중 → PR-B1 머지 후 그 브랜치가 spec push 시 Phase B 서술 덮어쓰기 위험. **조치 필요**: PR-B1 머지 후 `impl-concurrency-cap-pr2b` rebase 선행을 `exec-intake-queue-impl.md` PR2b 착수조건에 명기(해당 worktree planner 담당). 본 plan 단독 해소 불가(타 worktree).
