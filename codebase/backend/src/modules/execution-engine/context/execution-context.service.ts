@@ -4,7 +4,10 @@ import {
   NodeHandlerOutput,
 } from '../../../nodes/core/node-handler.interface';
 import { wrapBareAsNodeHandlerOutput } from '../handler-output.adapter';
-import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import {
+  createEmptyConversationThread,
+  MutableConversationThread,
+} from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
  * Options accepted by {@link ExecutionContextService.createContext}.
@@ -26,6 +29,13 @@ export interface CreateContextOptions {
    * isolate their context from the parent execution's context.
    */
   contextKey?: string;
+  /**
+   * rehydration(§7.5) 전용 — `Execution.conversation_thread` durable 스냅샷에서
+   * 복원한 thread. 지정하면 빈 thread 대신 이 값으로 초기화해 park→재시작/타
+   * 인스턴스 재개 시 대화 맥락을 무손실 복원한다. 일반 신규 실행은 미지정(빈 thread).
+   * (spec: conversation-thread §4·§8.4, 4-execution-engine §7.5)
+   */
+  conversationThread?: MutableConversationThread;
 }
 
 /**
@@ -66,7 +76,12 @@ export class ExecutionContextService {
     // 인자 ergonomics 와는 별개 사안이라 충돌하지 않는다.
     options: CreateContextOptions = {},
   ): ExecutionContext {
-    const { initialVariables = {}, recursionDepth, contextKey } = options;
+    const {
+      initialVariables = {},
+      recursionDepth,
+      contextKey,
+      conversationThread,
+    } = options;
     const key = contextKey ?? executionId;
     const existing = this.contexts.get(key);
     if (existing) {
@@ -88,7 +103,7 @@ export class ExecutionContextService {
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
       recursionDepth: recursionDepth ?? 0,
-      conversationThread: createEmptyConversationThread(),
+      conversationThread: conversationThread ?? createEmptyConversationThread(),
     };
     this.contexts.set(key, context);
     return context;

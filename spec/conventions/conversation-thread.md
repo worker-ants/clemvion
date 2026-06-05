@@ -14,6 +14,7 @@ code:
   - codebase/frontend/src/components/editor/run-results/conversation-inspector.tsx
 pending_plans:
   - plan/in-progress/ai-context-memory-followup-v2.md
+  - plan/in-progress/exec-park-durable-resume.md
 ---
 
 # Conversation Thread (대화 스레드)
@@ -204,13 +205,14 @@ race-free.
 
 | 단계 | 저장소 | 비고 |
 |---|---|---|
-| 실행 중 | `ExecutionContext` (실행 엔진 §6.2 정책에 따라 Redis 포함 직렬화) | `ExecutionContextService.createContext` 가 빈 thread (`{ id: 'default', nextSeq: 0, turns: [], totalChars: 0 }`) 로 초기화. TTL 은 실행 타임아웃 × 2 (execution-engine §6.2) |
-| 실행 후 | NodeExecution 분산 저장 | `output.interaction` (presentation, `interaction.type` ∈ form_submitted/button_click/button_continue), `output.result.messages` (AI 멀티턴 누적 — waiting/resumed 시. D6 단일 경로 — [AI Agent §7.4·§7.5](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)), `output.result.response` (AI 최종 응답) 가 SoT. thread 자체는 재구성 가능한 derived view |
+| 실행 중 | `ExecutionContext` (실행 엔진 §6.2) | `ExecutionContextService.createContext` 가 빈 thread (`{ id: 'default', nextSeq: 0, turns: [], totalChars: 0 }`) 로 초기화. 재시작·타 인스턴스 재개 시 `rehydrateContext` 는 이 thread 를 복원하지 못하므로(아래 park 스냅샷이 durable 복원원) thread 무손실 재개는 park 스냅샷에 의존한다 |
+| `waiting_for_input` park 진입 시 | PostgreSQL `Execution.conversation_thread jsonb NULL` | **durable resume 스냅샷**. 각 park (`waitForFormSubmission` / `waitForButtonInteraction` / `waitForAiConversation`) 직전 `context.conversationThread` 전체(`runningSummary`/`summarizedUpToSeq` 포함) 를 commit. rehydration (execution-engine §7.5) 이 이 컬럼에서 thread 를 무손실 복원 — derived-view 재구성에 의존하지 않는다 |
+| 실행 후 (이력 view) | NodeExecution 분산 저장 | `output.interaction` (presentation, `interaction.type` ∈ form_submitted/button_click/button_continue), `output.result.messages` (AI 멀티턴 누적 — waiting/resumed 시. D6 단일 경로 — [AI Agent §7.4·§7.5](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)), `output.result.response` (AI 최종 응답) 가 **실행 이력 화면**의 SoT. 이 경로의 thread view 는 재구성 가능한 derived view (EH-DETAIL-06) — durable resume 스냅샷과 목적·소비처가 분리된다 |
 | WS payload | `EXECUTION_WAITING_FOR_INPUT` 의 `conversationThread` snapshot 동봉 (선택) | UI 가 라이브 thread 표시 가능 |
 
-**v1 은 ConversationThread 본문에 신규 DB 컬럼 도입 없음.** 향후 사용자 요구 명확해지면 `Execution.conversation_thread jsonb NULL` 컬럼 마이그레이션 검토.
+**`Execution.conversation_thread jsonb NULL` 컬럼을 채택한다** (durable park resume — execution-engine §6.2/§7.5). 이 컬럼은 park 중 in-flight thread 의 **무손실 재개**만을 목적으로 하며, 실행 이력 화면의 thread view (위 "실행 후" 행, NodeExecution 분산 저장의 derived view) 를 대체하지 않는다 — 둘은 소비처(live resume vs 사후 이력)가 분리된 별도 SoT 다. (정책 전환 근거·derived-view-만 재구성 대안 기각: §8.4.)
 
-> **자동 메모리 전략의 영속 경로** (AI Agent `memoryStrategy ∈ {summary_buffer, persistent}`): `runningSummary` / `summarizedUpToSeq` (§1.3) 는 실행 중 `ExecutionContext` (Redis 직렬화, 위 표 "실행 중" 행) 에 thread 의 일부로 포함되며, restart / 타 인스턴스 재개 시 ExecutionContext rehydration 으로 함께 복원된다 — **별도 DB 컬럼을 만들지 않는다** (위 "신규 DB 컬럼 없음" 조항은 ConversationThread 본문 한정 유지). 한편 `persistent` 전략의 **세션 간 영속 메모리** 는 thread 가 아니라 별도 테이블 `agent_memory` ([Spec Agent Memory](../5-system/17-agent-memory.md), [1-data-model §2.23](../1-data-model.md#223-agentmemory)) 에 저장된다 — ConversationThread 와 분리된 저장소이므로 본 조항과 모순되지 않는다.
+> **자동 메모리 전략의 영속 경로** (AI Agent `memoryStrategy ∈ {summary_buffer, persistent}`): `runningSummary` / `summarizedUpToSeq` (§1.3) 는 thread 의 일부이므로 위 park 스냅샷(`Execution.conversation_thread`)에 thread 와 함께 commit 되고, restart / 타 인스턴스 재개 시 rehydration (execution-engine §7.5) 으로 thread 와 함께 복원된다. 한편 `persistent` 전략의 **세션 간 영속 메모리** 는 thread 가 아니라 별도 테이블 `agent_memory` ([Spec Agent Memory](../5-system/17-agent-memory.md), [1-data-model §2.23](../1-data-model.md#223-agentmemory)) 에 저장된다 — ConversationThread 와 분리된 저장소이므로 본 조항과 독립적이다.
 
 ---
 
@@ -281,7 +283,7 @@ race-free.
 - **Multi-thread**: 사용자 지정 key 로 한 execution 안에서 여러 thread 운영. presentation 노드가 어느 thread 에 push 할지 명시할 수 있게.
 - **Token-aware cap**: char-based cap (§5.3) 의 토큰 인식화는 AI Agent 의 `memoryStrategy ∈ {summary_buffer, persistent}` (token-budget 근사 방식, `memoryTokenBudget`) 으로 **부분 실현** 됐다 ([Spec AI Agent §12.10](../4-nodes/3-ai/1-ai-agent.md#1210-conversation-thread-v1v2-경계-번복의-근거)). 남은 로드맵: provider tokenizer-exact 방식 (모델별 정확한 토큰 카운트) 은 v3 로 잔존 — 현재는 근사 추정. manual 모드의 char-cap 은 유지.
 - **`text_classifier` / `information_extractor` 자동 주입 (contextScope) 확장**: 두 노드의 final-assistant **push 는 이미 출하**됐다 (§2.3 — `pushClassifierTurn` / `pushExtractorTurn`). 남은 로드맵은 자동 inject (`contextScope`) 를 분류·추출 노드까지 확장하는 것 (현재 inject 는 ai_agent 한정).
-- **DB 컬럼 신설**: `Execution.conversation_thread jsonb` 컬럼 마이그레이션 검토 — 현재는 NodeExecution 분산 저장이라 cross-node 조회가 N+1. (본 항목은 ConversationThread **본문** 의 DB 영속을 가리킨다 — AI Agent persistent 메모리의 별도 테이블 `agent_memory` ([Spec Agent Memory](../5-system/17-agent-memory.md)) 도입과는 무관하며, 후자는 본 항목과 독립적으로 이미 신설된다.)
+- ~~**DB 컬럼 신설**: `Execution.conversation_thread jsonb` 컬럼 마이그레이션 검토~~ → **채택 완료** (durable park resume, §4 영속화 표 + §8.4). 이 컬럼은 park 중 in-flight thread 의 무손실 재개용 스냅샷이다. 실행 이력 화면의 cross-node thread view 재구성(NodeExecution 분산 저장 derived view, N+1 회피)은 별개 과제로 EH-DETAIL-06 과 함께 v2 잔존.
 - **실행 이력 화면의 ConversationThread 크로스노드 뷰**: EH-DETAIL-06 과 함께 v2 UI spec 정의.
 - **Parallel 컨테이너 + Thread 정책**: 현재 §2.5 가 "Parallel 내부 thread 사용을 정의하지 않음" 으로 명시. 분기별 child thread 또는 merge point 재통합 정책 결정 필요. 사용 케이스 정의 후 spec write.
 - **`$thread.text` lazy 평가**: 현재 `buildExpressionContext` 가 호출마다 전체 thread 를 system_text 로 즉시 렌더 (성능 hot path). 측정 결과 비용이 크면 `Object.defineProperty` lazy getter 또는 `$thread.text` 를 별도 key 로 분리해 명시 요청 시만 렌더.
@@ -325,9 +327,17 @@ race-free.
 
 **시각·인터랙션 — `system_error` 가 `system` note 와 다른 컨테이너 강조 (빨간 라인)**: §9.1 매핑표가 system note (얇은 회색 텍스트) 와 system_error (얇은 빨간 라인 + 우측 액션 영역) 를 시각으로 분리. §9.2 의 3중 신호 (아이콘 + 컨테이너 + chip) 가 동시 적용된다 — 단일 신호 (예: 색상만) 로 구분하지 않는 정책은 system_error 에도 동일하게 강제.
 
----
+### 8.4 `Execution.conversation_thread` 컬럼 채택 — durable park resume
 
-## 9. 미리보기 UI 렌더 규칙
+**결정**: §4 영속화의 "신규 DB 컬럼 없음" 전제를 **durable park resume 한정으로 전환**하여 `Execution.conversation_thread jsonb NULL` 컬럼을 신설한다. park (`waiting_for_input` 진입) 직전 `context.conversationThread` 전체 스냅샷을 이 컬럼에 commit 하고, rehydration ([실행 엔진 §7.5](../5-system/4-execution-engine.md#75-resume-after-restart-rehydration)) 이 여기서 thread 를 무손실 복원한다.
+
+**배경 — 해결하는 drift**: 실행 엔진 §6.2/§7.5 와 본 문서 §4 는 "rehydration 이 conversationThread 를 복원" 한다고 약속했으나, 실제 구현(`rehydrateContext`)은 빈 thread (`createEmptyConversationThread()`) 로 리셋해 park→재시작/타 인스턴스 재개 시 thread·`runningSummary`·멀티턴 누적이 **소실**됐다. process-local `ExecutionContext` 는 Redis 영속이 미구현이라 재개 인스턴스가 복원할 매체가 없었다. 본 컬럼이 그 durable 매체를 제공해 약속을 실제 구현으로 정합화한다.
+
+**`Execution` 레벨 단일 컬럼인 이유**: ConversationThread 는 v1 에서 execution 당 단일 thread (`id: 'default'`, §1.3) 이므로 execution-scope 컬럼이 자연스럽다. NodeExecution 분산 저장은 cross-node 조회가 N+1 이고, park 마다 "현재 thread 전체" 를 단일 row 로 덮어쓰면 last-write 가 곧 최신 스냅샷이라 재개 로드가 단순(O(1))하다.
+
+**기각한 대안 — derived-view 재구성(컬럼 없이)**: 컬럼을 만들지 않고 rehydration 이 NodeExecution 분산 저장(`output.interaction` + `output.result.messages`) 에서 thread 를 재구성하는 안. 기각 사유 — 여러 노드의 presentation/AI turn 을 정확한 `seq`/timestamp/source 로 interleave 재구성하는 정책은 본 spec 이 실행 이력 view 용으로 EH-DETAIL-06(v2 UI) 에 위임한 **미해결 과제**이고, `runningSummary`/`summarizedUpToSeq` 같은 thread 메타는 per-node output 에 분산 저장되지 않아 재구성으로 무손실 복원이 불가능하다. 직접 스냅샷이 무손실·단순하므로 채택. (이력 화면용 derived view 는 별개 소비처로 §4 "실행 후" 행에 그대로 유지 — 본 컬럼이 그것을 대체하지 않는다.)
+
+**"신규 컬럼 없음" 원칙과의 정합**: 기존 원칙(§4 옛 문구 / 실행 엔진 §6.2 L725)은 **실행 이력 재구성** 목적에서 per-node SoT 로 충분하다는 판단이었고, durable in-flight resume 요구를 다루지 않았다. 본 컬럼은 그 미충족 요구(무손실 재개)를 위한 별도 매체이므로 원칙의 번복이 아니라 적용 범위 분리다.
 
 AI Agent 노드 run-results 패널의 conversation Preview 탭, 그리고 모든 노드의 conversation timeline 표시 UI 가 따르는 시각 규약. **1차 데이터 소스는 `waiting_for_input.conversationThread.turns` snapshot** ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) — emit messages (`ai_message.messages[]`) 가 아니다.
 

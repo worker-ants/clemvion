@@ -45,6 +45,47 @@ describe('ExecutionContextService', () => {
       expect(ctx.variables).toEqual({});
       expect(ctx.recursionDepth).toBe(0);
     });
+
+    // spec: conversation-thread §4·§8.4, 4-execution-engine §7.5 — rehydration 이
+    // durable park 스냅샷에서 복원한 thread 로 context 를 초기화 (무손실 재개).
+    it('initializes conversationThread from the options bag when provided (rehydration)', () => {
+      const svc = new ExecutionContextService();
+      const restored = {
+        id: DEFAULT_THREAD_ID,
+        nextSeq: 1,
+        turns: [
+          {
+            seq: 0,
+            nodeId: 'n1',
+            nodeLabel: 'Form',
+            nodeType: 'form',
+            timestamp: '2026-06-05T10:00:00.000Z',
+            source: 'presentation_user' as const,
+            text: 'hello',
+          },
+        ],
+        totalChars: 5,
+        runningSummary: '요약본',
+        summarizedUpToSeq: 0,
+      };
+      const ctx = svc.createContext('exec-rehydrate', 'wf-1', {
+        conversationThread: restored,
+      });
+      expect(ctx.conversationThread).toEqual(restored);
+    });
+
+    it('still initializes an empty conversationThread when option omitted (신규 실행 회귀 가드)', () => {
+      const svc = new ExecutionContextService();
+      const ctx = svc.createContext('exec-fresh', 'wf-1', {
+        recursionDepth: 1,
+      });
+      expect(ctx.conversationThread).toEqual({
+        id: DEFAULT_THREAD_ID,
+        nextSeq: 0,
+        turns: [],
+        totalChars: 0,
+      });
+    });
   });
 
   describe('setNodeOutput — production strict mode (NodeHandlerOutput contract)', () => {

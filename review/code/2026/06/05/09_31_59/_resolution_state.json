@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "started_at": "2026-06-05T09:45:00Z",
+  "summary_items_total": 4,
+  "items_resolved_ids": [1, 2, 3, 4],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "975d4c15", "summary_id": 1, "scope": "conversation-thread"},
+    {"sha": "975d4c15", "summary_id": 2, "scope": "conversation-thread"},
+    {"sha": "f8c9684e", "summary_id": 3, "scope": "execution-engine"},
+    {"sha": "f8c9684e", "summary_id": 4, "scope": "execution-engine.spec"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260605-094851.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
