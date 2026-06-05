@@ -27,7 +27,7 @@ import type { ThreadHolder } from '../../../modules/execution-engine/conversatio
 import {
   buildRecallBlock,
   appendStablePrefix,
-} from '../ai-agent/agent-memory-injection';
+} from '../shared/agent-memory-injection';
 import {
   DEFAULT_MEMORY_TOP_K,
   DEFAULT_MEMORY_THRESHOLD,

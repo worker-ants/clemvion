@@ -43,7 +43,7 @@ import {
   mapTailToChatMessages,
   selectVolatileTail,
   stripMemoryBlocks,
-} from './agent-memory-injection';
+} from '../shared/agent-memory-injection';
 import {
   ExecutionEventType,
   ToolCallCompletedPayload,
