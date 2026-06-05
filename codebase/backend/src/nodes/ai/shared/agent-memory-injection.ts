@@ -122,6 +122,25 @@ export function estimateWorkingMemoryTokens(
 }
 
 /**
+ * 노드 config `memoryTtlDays` → 양의 정수 TTL (일) 또는 undefined (무만료).
+ * 0/음수/비숫자는 무만료로 본다 (안전 디폴트 — 기존 무만료 동작 보존, AGM-10).
+ *
+ * ai_agent / information_extractor 핸들러가 동일 로직(byte-identical private
+ * 메서드)을 갖던 것을 공유 순수 함수로 추출 (#484 후속, 동작 불변). 경계
+ * (0/-5/NaN/"30"/1.7) 동작 보존.
+ */
+export function resolveMemoryTtlDays(raw: unknown): number | undefined {
+  const n =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string'
+        ? Number(raw)
+        : NaN;
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return Math.floor(n);
+}
+
+/**
  * 요약 LLM 콜의 출력 토큰 상한. 요약은 압축이 목적이므로 작게 cap.
  */
 const SUMMARY_MAX_TOKENS = 1024;

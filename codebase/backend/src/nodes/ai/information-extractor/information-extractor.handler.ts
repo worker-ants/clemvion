@@ -27,6 +27,7 @@ import type { ThreadHolder } from '../../../modules/execution-engine/conversatio
 import {
   buildRecallBlock,
   appendStablePrefix,
+  resolveMemoryTtlDays,
 } from '../shared/agent-memory-injection';
 import {
   DEFAULT_MEMORY_TOP_K,
@@ -391,7 +392,7 @@ export class InformationExtractorHandler implements NodeHandler {
       nodeLabel: t.nodeLabel,
     }));
 
-    const ttlDays = this.resolveMemoryTtlDays(args.config.memoryTtlDays);
+    const ttlDays = resolveMemoryTtlDays(args.config.memoryTtlDays);
 
     const enqueued = await this.agentMemoryService.scheduleExtraction({
       workspaceId: args.workspaceId,
@@ -409,21 +410,6 @@ export class InformationExtractorHandler implements NodeHandler {
     // drop 된 turn 들이 다음 회수에서 영구 제외되지 않게 한다).
     if (!enqueued) return prevWatermark;
     return fresh.reduce((m, t) => (t.seq > m ? t.seq : m), prevWatermark ?? -1);
-  }
-
-  /**
-   * 노드 config `memoryTtlDays` → 양의 정수 TTL(일) 또는 undefined(무만료).
-   * 0/음수/비숫자는 무만료 (안전 디폴트 — ai_agent 와 동형, AGM-10).
-   */
-  private resolveMemoryTtlDays(raw: unknown): number | undefined {
-    const n =
-      typeof raw === 'number'
-        ? raw
-        : typeof raw === 'string'
-          ? Number(raw)
-          : NaN;
-    if (!Number.isFinite(n) || n <= 0) return undefined;
-    return Math.floor(n);
   }
 
   validate(config: Record<string, unknown>): ValidationResult {

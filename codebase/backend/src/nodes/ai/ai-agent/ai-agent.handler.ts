@@ -41,6 +41,7 @@ import {
   compactMessagesToTail,
   estimateWorkingMemoryTokens,
   mapTailToChatMessages,
+  resolveMemoryTtlDays,
   selectVolatileTail,
   stripMemoryBlocks,
 } from '../shared/agent-memory-injection';
@@ -999,7 +1000,7 @@ export class AiAgentHandler implements NodeHandler {
       nodeLabel: t.nodeLabel,
     }));
 
-    const ttlDays = this.resolveMemoryTtlDays(args.config.memoryTtlDays);
+    const ttlDays = resolveMemoryTtlDays(args.config.memoryTtlDays);
 
     const enqueued = await this.agentMemoryService.scheduleExtraction({
       workspaceId: args.workspaceId,
@@ -1030,21 +1031,6 @@ export class AiAgentHandler implements NodeHandler {
       prevWatermark ?? -1,
     );
     return maxSeq;
-  }
-
-  /**
-   * 노드 config `memoryTtlDays` → 양의 정수 TTL (일) 또는 undefined (무만료).
-   * 0/음수/비숫자는 무만료로 본다 (안전 디폴트 — 기존 무만료 동작 보존, AGM-10).
-   */
-  private resolveMemoryTtlDays(raw: unknown): number | undefined {
-    const n =
-      typeof raw === 'number'
-        ? raw
-        : typeof raw === 'string'
-          ? Number(raw)
-          : NaN;
-    if (!Number.isFinite(n) || n <= 0) return undefined;
-    return Math.floor(n);
   }
 
   /**

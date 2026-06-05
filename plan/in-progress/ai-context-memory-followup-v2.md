@@ -41,7 +41,7 @@ related_plan: plan/complete/ai-context-memory-auto.md
 - [x] **메모리 가시화 UI**: workspace 어드민이 scope 별 누적 메모리 조회/삭제. 2026-06-05 완료 (A1 #471, AGM-12/13·NAV-AM).
 - [x] **contextScope 자동주입 두 노드 확장** — 2026-06-05 완료 (A2 #480, 공유유틸 추출).
 - [x] **memoryStrategy persistent — information_extractor 확장** — 2026-06-05 완료 (memory-strategy-extend-ie). IE 가 ai_agent 와 동일 scope key 로 cross-session 회수+추출, multi-turn 종결 thread 등록 해소. `summary_buffer` 제외(추출 노드에 working-memory 압축 무의미). **`text_classifier` 는 영구 제외** (single-turn·상태없음 — 회수/추출 대상 없음).
-- [ ] **provider tokenizer-exact 토큰 카운트**: 현재 char/4 근사. 모델별 정확 토큰화.
+- [x] **메모리 토큰 추정 language-aware 휴리스틱 (A4 lite)** — 2026-06-05 완료 (#485, 무의존 스크립트 가중). 정확 tokenizer(모델별 BPE)는 새 의존성+Claude 로컬 tokenizer 부재로 **v3 잔존**(별도).
 - [x] **요약/추출 전용 저비용 모델 옵션**: 현재 노드 `model` 재사용. 별도 모델 필드 검토. 2026-06-05 완료 (A3 #473, summaryModel/extractionModel, fallback 체인).
 
 > 위 항목들은 본 PR(`ai-context-memory-auto.md`) 범위 밖. 우선순위·picking 후 개별 착수.
@@ -76,7 +76,7 @@ related_plan: plan/complete/ai-context-memory-auto.md
 - [ ] `§7.1 meta.memory` 열거에 `compactedMessages?` + node-output Principle 2 에 meta.memory(impl-done W-1).
 
 ## A1 가시화 UI / A2 contextScope 확장 도출 백로그 (2026-06-05)
-- [ ] listScopes ORDER BY MAX(updated_at) filesort 인덱스 (`(workspace_id, scope_key, updated_at)`, CREATE INDEX CONCURRENTLY) — A1 backlog.
+- [x] listScopes ORDER BY MAX(updated_at) filesort 인덱스 — 2026-06-05 완료 (#482, V086 CONCURRENTLY).
 - [ ] AgentMemoryAdminService 분리 (SRP, admin read/delete 를 런타임 메모리 서비스에서 분리) — A1 backlog.
 - [ ] agent-memory `page.tsx`(412줄) 컴포넌트 분해 + 프론트 page 컴포넌트 테스트 — A1 backlog.
 - [ ] agent-memories pagination offset→프로젝트 표준 page DTO 정렬 — A1 backlog.
