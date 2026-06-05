@@ -1224,6 +1224,9 @@ export class ExecutionEngineService
    *     `Execution.conversation_thread` 스냅샷에서 `rehydrateConversationThread`
    *     로 무손실 복원 (spec §6.2/§7.5, conversation-thread §4·§8.4). NULL(park
    *     이력 없음/배포 이전 row)이면 빈 thread (회귀 없음).
+   *   - `variables` — `Execution.user_variables` 스냅샷에서 사용자 정의 변수를
+   *     merge 한 뒤 시스템 `__*` 변수를 덮어쓴다 (spec §6.1/§6.2/§7.5).
+   *     반환 context.variables 에는 user_variables 스냅샷이 merge 됨.
    *
    * 채워지지 않는 항목 (의도적):
    *   - `_resumeState` — multi-turn AI 의 in-memory 전용 (WARN #6). 영속 보존 X
@@ -1254,6 +1257,11 @@ export class ExecutionEngineService
       execution.workflowId,
       {
         initialVariables: {
+          // 사용자 정의 variables 무손실 복원 (spec §6.1/§6.2/§7.5) — park 시
+          // `Execution.user_variables` 에 durable commit 된 스냅샷에서 정규화 복원.
+          // NULL(park 이력 없음/배포 이전 row)이면 빈 객체(회귀 없음). 시스템 `__*`
+          // 는 아래에서 재주입하므로, user vars 를 먼저 펼쳐 충돌 시 `__*` 가 이긴다.
+          ...this.rehydrateUserVariables(execution.userVariables),
           __workspaceId: workflow.workspaceId ?? '',
           __workspaceName:
             typeof workspaceName === 'string' ? workspaceName : '',
@@ -3497,7 +3505,7 @@ export class ExecutionEngineService
     }
     // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
     // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원처).
-    this.stageConversationThreadSnapshot(savedExecution, context);
+    this.stageDurableResumeSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
     await this.updateExecutionStatus(
       savedExecution,
@@ -5107,7 +5115,7 @@ export class ExecutionEngineService
     }
     // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
     // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원처).
-    this.stageConversationThreadSnapshot(savedExecution, context);
+    this.stageDurableResumeSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
     await this.updateExecutionStatus(
       savedExecution,
@@ -6084,7 +6092,7 @@ export class ExecutionEngineService
     }
     // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
     // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원처).
-    this.stageConversationThreadSnapshot(savedExecution, context);
+    this.stageDurableResumeSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
     await this.updateExecutionStatus(
       savedExecution,
@@ -8587,19 +8595,54 @@ export class ExecutionEngineService
   }
 
   /**
-   * park(waiting_for_input) 직전, 현재 `conversationThread` 스냅샷을 Execution
-   * 행에 실어 둔다. 호출자가 곧바로 `updateExecutionStatus(..., WAITING_FOR_INPUT,
-   * linkedNodeExec)` 를 호출하면 thread 가 상태 전이와 **같은 트랜잭션**으로
-   * `Execution.conversation_thread` 에 durable commit 된다 (추가 DB 왕복 없음).
-   * §7.5 rehydration 이 이 스냅샷에서 thread 를 무손실 복원한다.
-   * cloneThread 로 깊은 복사해, 이후 turn mutation 이 영속본을 오염시키지 않게 한다.
-   * (spec: conversation-thread §4·§8.4, 4-execution-engine §6.2/§7.5, 1-data-model §2.13)
+   * 시스템 변수(`__*` prefix)를 제외한 사용자 정의 변수만 추출한다.
+   * `stageDurableResumeSnapshot` 과 `rehydrateUserVariables` 가 공유하는
+   * 단일 출처 — `__*` 필터 기준 변경 시 이 한 곳만 수정하면 된다.
+   * (INFO #4: `__` prefix 필터 로직 중복 해소)
    */
-  private stageConversationThreadSnapshot(
+  private filterUserVariables(
+    vars: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(vars)) {
+      if (!key.startsWith('__')) out[key] = value;
+    }
+    return out;
+  }
+
+  /**
+   * park(waiting_for_input) 직전, durable resume 에 필요한 in-flight 상태
+   * (`conversationThread` + 사용자 정의 `variables`)를 Execution 행에 실어 둔다.
+   * 호출자가 곧바로 `updateExecutionStatus(..., WAITING_FOR_INPUT, linkedNodeExec)`
+   * 를 호출하면 **상태 전이와 같은 트랜잭션**으로 `Execution.conversation_thread`
+   * / `Execution.user_variables` 에 durable commit 된다 (추가 DB 왕복 없음).
+   * §7.5 rehydration 이 이 스냅샷에서 thread/variables 를 무손실 복원한다.
+   * - thread: cloneThread 로 깊은 복사 (이후 turn mutation 격리).
+   * - variables: 시스템 `__*` 제외 사용자분만 스냅샷 — rehydration 이 `__*` 를
+   *   별도 재주입하므로 미포함. 값은 coerce-type 보장으로 JSON-serializable. stage→
+   *   save 가 동기 연속이라 얕은 필터로 충분(중간 mutation 없음).
+   * @remarks 호출처: 3개 park 진입 지점 모두에서 updateExecutionStatus 직전 호출
+   *   (form park L~3505, button park L~5115, AI park L~6092).
+   * (spec: conversation-thread §4·§8.4, 4-execution-engine §6.1/§6.2/§7.5, 1-data-model §2.13)
+   */
+  private stageDurableResumeSnapshot(
     execution: Execution,
     context: ExecutionContext,
   ): void {
     execution.conversationThread = cloneThread(context.conversationThread);
+    execution.userVariables = this.filterUserVariables(context.variables);
+  }
+
+  /**
+   * §7.5 rehydration — `Execution.user_variables` 스냅샷을 안전한 plain object 로
+   * 정규화한다. raw 가 null/비객체/배열이면 빈 객체(회귀 없음). 방어적으로 시스템
+   * `__*` 키는 제외한다 (스냅샷에 없어야 하나, 손상 대비 — `__*` 는 createContext 가
+   * 별도 재주입하므로 사용자 스냅샷이 덮어쓰면 안 됨).
+   * Array 입력은 숫자 인덱스 키 유출 방지를 위해 `{}` 반환 (INFO #5).
+   */
+  private rehydrateUserVariables(raw: unknown): Record<string, unknown> {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+    return this.filterUserVariables(raw as Record<string, unknown>);
   }
 
   private async updateExecutionStatus(

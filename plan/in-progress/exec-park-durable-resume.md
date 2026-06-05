@@ -71,10 +71,14 @@ owner: developer
 - [x] spec "ai_agent 한정" 3곳(`4-execution-engine §1.3`·`3-information-extractor L357`·`1-ai-agent L703`) → IE 지원 전환 + §Rationale L1166 번복 근거(점진 확장 — polymorphic dispatch·generic config 재유도·credential-free 소형 state) 기록. frontmatter pending_plans 등록.
 - [x] 테스트: buildResumeCheckpoint IE 필드(2) + buildRetryReentryState IE config 재유도(2) + IE 재구성 통합(1). 789 모듈 회귀 green, build·lint OK.
 
-### A3. user-defined variables 영속 + 복원 — ⭐⭐⭐ (범위 확인 필요)
-- [ ] Variable Declaration 등 런타임 variables 가 재개 의미에 필요한지 판단(범위 D2).
-- [ ] 필요 시 park 직전 `context.variables`(시스템 `__*` 제외 사용자분) 영속 + rehydration 복원.
-- 주의: 범위가 크면 별도 plan 분리.
+### A3. user-defined variables 영속 + 복원 — ✅ 완료 (branch `claude/exec-park-a3-variables`, 2026-06-05)
+> **조사 결론**: 복원 **필요**(실 data-flow: Variable Declaration→루프 modify→park 후 downstream 표현식 `$var.X` 읽음). **SMALL** — flat Record, coerce-type 가 JSON-serializable 보장, 컨테이너 스코프 격리 없음. → D2=포함.
+- [x] 마이그레이션 **V085** `Execution.user_variables jsonb NULL`.
+- [x] 헬퍼 `stageConversationThreadSnapshot` → **`stageDurableResumeSnapshot`** 확장: park 직전 thread + `context.variables` 중 `__*` 제외 사용자분을 `updateExecutionStatus` 트랜잭션과 원자 commit. (3 park 지점 rename)
+- [x] `rehydrateContext` 가 **`rehydrateUserVariables`**(비객체→{}, 방어적 `__*` 제외)로 복원해 initialVariables 에 머지(user vars 먼저 spread → 시스템 `__*` override 충돌 방어).
+- [x] spec: `4-execution-engine §6.1/§6.2/§7.5`, `1-data-model §2.13`.
+- [x] 테스트: rehydrateContext variables 복원·NULL 회귀 + stage(__* 제외)·normalizer 단위. 829 모듈 회귀 green, build·lint·migration-guard OK.
+> **consistency --impl-prep C1(BLOCK)**: `impl-concurrency-cap-pr2b`(docs-only 커밋, A1 머지 57d366b6 미포함=구 main stale)가 A1/A2b 를 "역행"한다는 발견 — **stale-baseline 거짓 양성**(git 반증: 해당 브랜치는 코드·마이그레이션 미착수, rebase 안 한 상태일 뿐). A3 변경은 현행 main 정합. PR2b 실착수 시 V086+ renumber 조율(현재 V085 자유).
 
 ---
 
@@ -135,7 +139,7 @@ owner: developer
 
 ## 미해결 결정 (사용자/planner)
 - **D1 (확정 2026-06-05)**: conversationThread 영속 = **`Execution.conversation_thread jsonb`** (spec 예고 컬럼 §4 L211/§7 L284 채택). 사용자 handoff 승인. spec 동기 갱신 완료(conversation-thread §4/§7/§8.4, 4-execution-engine §6.2/§7.5, 1-ai-agent §12.1/§12.10/§12.13, **1-data-model §2.13 Execution 컬럼 행** — consistency W1 해소). 마이그레이션 = **V084**(#469 PR2a 가 V083 선점 → §6.2 rebase-renumber 로 V083→V084 재부여, 2026-06-05).
-- **D2**: user-defined variables 복원을 본 plan 범위에 포함할지, 별도 plan 분리할지.
+- **D2 (확정 2026-06-05)**: user-defined variables 복원 = **본 plan 포함**(PR-A3). 조사 결과 복원 필요·SMALL scope(A1 패턴 재사용)라 분리 불요. 마이그레이션 V085 `Execution.user_variables jsonb`.
 - **D3**: park 중 워크플로 정의 편집 시 재개 정책(현행 node.config 재유도 의미 유지 여부).
 - **D4 (확정 2026-06-05)**: 멀티턴 AI = **turn-단위 park(매 turn 해제)** — 메모리 일관성 우선(B1 반영).
 - **D5 (확정 2026-06-05)**: **단일 worktree 통합** — 본 plan 이 exec-intake-queue PR3(rehydration)+node-cancellation §2 를 흡수해 직렬 진행(Phase 0). BLOCK 해소.
