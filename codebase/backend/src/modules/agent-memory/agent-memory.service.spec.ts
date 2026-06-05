@@ -765,23 +765,27 @@ describe('AgentMemoryService', () => {
   });
 
   describe('listScopes (spec §6, AGM-12)', () => {
-    it('distinct scope 목록을 GROUP BY scope_key + COUNT + MAX(updated_at) 로 집계 (workspace_id 격리)', async () => {
-      mockDataSource.query
-        .mockResolvedValueOnce([
-          {
-            scope_key: 'cust-1',
-            count: '3',
-            latest_updated_at: new Date('2026-06-01T00:00:00Z'),
-          },
-          {
-            scope_key: 'cust-2',
-            count: '1',
-            latest_updated_at: new Date('2026-05-01T00:00:00Z'),
-          },
-        ])
-        .mockResolvedValueOnce([{ total: '2' }]);
+    it('distinct scope 목록을 단일쿼리(GROUP BY + COUNT(*) OVER() total)로 집계 (workspace_id 격리)', async () => {
+      // 단일 쿼리: 각 grouped 행에 COUNT(*) OVER() total 이 부착돼 반환된다.
+      mockDataSource.query.mockResolvedValueOnce([
+        {
+          scope_key: 'cust-1',
+          count: '3',
+          latest_updated_at: new Date('2026-06-01T00:00:00Z'),
+          total: '2',
+        },
+        {
+          scope_key: 'cust-2',
+          count: '1',
+          latest_updated_at: new Date('2026-05-01T00:00:00Z'),
+          total: '2',
+        },
+      ]);
 
       const result = await service.listScopes('ws-1', { limit: 30, offset: 0 });
+
+      // 단일 쿼리만 실행 (별도 COUNT 패스 제거).
+      expect(mockDataSource.query).toHaveBeenCalledTimes(1);
 
       const [listSql, listParams] = mockDataSource.query.mock.calls[0];
       expect(listSql).toContain('FROM agent_memory');
@@ -789,6 +793,8 @@ describe('AgentMemoryService', () => {
       expect(listSql).toContain('GROUP BY am.scope_key');
       expect(listSql).toContain('COUNT(*)');
       expect(listSql).toContain('MAX(am.updated_at)');
+      // 단일쿼리 total 윈도우.
+      expect(listSql).toContain('COUNT(*) OVER()');
       expect(listParams[0]).toBe('ws-1');
       // q 없으면 limit=$2, offset=$3.
       expect(listParams).toEqual(['ws-1', 30, 0]);
@@ -805,31 +811,51 @@ describe('AgentMemoryService', () => {
           latestUpdatedAt: '2026-05-01T00:00:00.000Z',
         },
       ]);
+      // total 은 윈도우 함수 값에서 파생 (LIMIT/OFFSET 전 전체 그룹 수).
       expect(result.total).toBe(2);
     });
 
-    it('q 가 있으면 scope_key ILIKE 부분일치 필터 + 파라미터 바인딩', async () => {
-      mockDataSource.query
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ total: '0' }]);
+    it('q 가 있으면 scope_key ILIKE 부분일치 필터 + 파라미터 바인딩 (단일쿼리)', async () => {
+      mockDataSource.query.mockResolvedValueOnce([]);
 
       await service.listScopes('ws-9', { limit: 10, offset: 5, q: 'cust' });
 
+      expect(mockDataSource.query).toHaveBeenCalledTimes(1);
       const [listSql, listParams] = mockDataSource.query.mock.calls[0];
       expect(listSql).toContain("am.scope_key ILIKE '%' || $2 || '%'");
+      expect(listSql).toContain('COUNT(*) OVER()');
       // q 있으면 params: [ws, q, limit, offset].
       expect(listParams).toEqual(['ws-9', 'cust', 10, 5]);
+    });
 
-      const [countSql, countParams] = mockDataSource.query.mock.calls[1];
-      expect(countSql).toContain('am.workspace_id = $1');
-      expect(countSql).toContain("am.scope_key ILIKE '%' || $2 || '%'");
-      expect(countParams).toEqual(['ws-9', 'cust']);
+    it('빈 결과(또는 offset 초과)면 total 0 (윈도우 행 없음)', async () => {
+      mockDataSource.query.mockResolvedValueOnce([]);
+      const result = await service.listScopes('ws-1', {
+        limit: 30,
+        offset: 90,
+      });
+      expect(mockDataSource.query).toHaveBeenCalledTimes(1);
+      expect(result.items).toEqual([]);
+      expect(result.total).toBe(0);
+    });
+
+    it('total 은 반환 행수가 아니라 윈도우 total 값 (페이지 < 전체)', async () => {
+      // limit=1 로 1행만 받지만 total 윈도우는 전체 그룹 수(5)를 싣는다.
+      mockDataSource.query.mockResolvedValueOnce([
+        {
+          scope_key: 'cust-1',
+          count: '3',
+          latest_updated_at: new Date('2026-06-01T00:00:00Z'),
+          total: '5',
+        },
+      ]);
+      const result = await service.listScopes('ws-1', { limit: 1, offset: 0 });
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(5);
     });
 
     it('embedding 컬럼을 SELECT 하지 않는다', async () => {
-      mockDataSource.query
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ total: '0' }]);
+      mockDataSource.query.mockResolvedValueOnce([]);
       await service.listScopes('ws-1', {});
       const [listSql] = mockDataSource.query.mock.calls[0];
       expect(listSql).not.toContain('embedding');
