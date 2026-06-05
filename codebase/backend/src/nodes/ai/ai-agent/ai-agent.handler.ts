@@ -41,9 +41,10 @@ import {
   compactMessagesToTail,
   estimateWorkingMemoryTokens,
   mapTailToChatMessages,
+  scheduleMemoryExtraction as sharedScheduleMemoryExtraction,
   selectVolatileTail,
   stripMemoryBlocks,
-} from './agent-memory-injection';
+} from '../shared/agent-memory-injection';
 import {
   ExecutionEventType,
   ToolCallCompletedPayload,
@@ -939,7 +940,7 @@ export class AiAgentHandler implements NodeHandler {
    * multi-turn 매 turn 종료 후 (= ai_assistant turn push 직후) 에 호출된다.
    *
    * **hot path 비차단**: enqueue (큐 add) 까지만 await — 실제 추출 LLM 콜은
-   * processor 에서 일어난다. **격리 invariant**: `getThreadExcludingNode` 가
+   * processor 에서 일어난다. **격리 invariant**: `getThread` 가
    * 반환하는 readonly turns 를 shallow-copy 한 스냅샷만 payload 에 담아
    * (`cloneThread` 와 동형), 이후 메인 루프의 turn mutation 에 오염되지 않는다.
    *
@@ -961,90 +962,23 @@ export class AiAgentHandler implements NodeHandler {
      */
     lastExtractionTurnSeq?: number;
   }): Promise<number | undefined> {
-    const prevWatermark = args.lastExtractionTurnSeq;
-    if (args.strategy !== 'persistent' || !this.agentMemoryService) {
-      return prevWatermark;
-    }
-    if (!this.conversationThreadService || !args.target) return prevWatermark;
-
-    const evaluatedMemoryKey = args.config.memoryKey as
-      | string
-      | undefined
-      | null;
-    const scopeKey = this.agentMemoryService.resolveScopeKey(
-      evaluatedMemoryKey,
-      args.executionId,
+    // 구조 로직은 공유 헬퍼로 추출 (#484 후속). `selfNodeId` 는 호출부 추적용
+    // 으로만 받고 본 추출 경로는 `getThread` 전체 thread 를 snapshot 한다
+    // (종전 동작과 동일 — 본 메서드는 selfNodeId 를 읽지 않았다).
+    return sharedScheduleMemoryExtraction(
+      {
+        agentMemoryService: this.agentMemoryService,
+        conversationThreadService: this.conversationThreadService,
+      },
+      {
+        strategy: args.strategy,
+        target: args.target,
+        config: args.config,
+        workspaceId: args.workspaceId,
+        executionId: args.executionId,
+        lastExtractionTurnSeq: args.lastExtractionTurnSeq,
+      },
     );
-
-    // 증분 추출 (AGM-08): watermark 가 있으면 seq > watermark 인 turn 만 새로
-    // snapshot 한다 (멀티턴에서 매 turn 전체 thread 를 재추출하지 않도록).
-    // watermark 없으면 (single-turn / 첫 추출) 전체 turn 을 snapshot.
-    //
-    // shallow-copy 스냅샷 — ConversationTurn 은 push 후 frozen 이라 array
-    // map 복사만으로 격리 충분 (spec §3 격리 invariant, conversation-thread
-    // §3.2 — `cloneThread` 와 동형). 이후 메인 루프가 thread 에 새 turn 을
-    // push 해도 본 snapshot 배열은 영향받지 않는다.
-    const fullThread = this.conversationThreadService.getThread(args.target);
-    const fresh =
-      prevWatermark === undefined
-        ? fullThread.turns
-        : fullThread.turns.filter((t) => t.seq > prevWatermark);
-
-    // 신규 turn 이 없으면 enqueue skip — watermark 는 그대로 유지.
-    if (fresh.length === 0) return prevWatermark;
-
-    const snapshot = fresh.map((t) => ({
-      source: t.source,
-      text: t.text,
-      nodeLabel: t.nodeLabel,
-    }));
-
-    const ttlDays = this.resolveMemoryTtlDays(args.config.memoryTtlDays);
-
-    const enqueued = await this.agentMemoryService.scheduleExtraction({
-      workspaceId: args.workspaceId,
-      scopeKey,
-      llmConfigId: args.config.llmConfigId as string | undefined,
-      model: args.config.model as string | undefined,
-      // 추출 LLM 콜 전용 모델 — 미설정이면 processor 가 model → llmConfig 기본으로
-      // 폴백한다 (fallback 체인 `extractionModel → model → llmConfig 기본`,
-      // spec §3·§6.1 단계 2.7·§12.12). 기존 동작 (전용 필드 미설정) 100% 유지.
-      extractionModel: args.config.extractionModel as string | undefined,
-      // 추출(저장) 임베딩 모델 — 회수와 동일 노드 config 값을 써 query/저장
-      // 임베딩의 차원이 일치하게 한다 (§3, 차원 불일치 방지).
-      embeddingModel: args.config.embeddingModel as string | undefined,
-      turns: snapshot,
-      ttlDays,
-    });
-
-    // M1: enqueue 가 **실제 수락된 경우에만** watermark 를 전진시킨다.
-    // BullMQ 의 고정 jobId dedup 으로 같은 scope job 이 active 인 동안 2차
-    // enqueue 는 저장 없이 drop 되는데, watermark 를 무조건 전진시키면 drop 된
-    // turn 들이 다음 회수에서 영구 제외된다. drop/에러 시 watermark 를 유지하면
-    // 다음 turn 이 그 turn 들을 다시 snapshot 한다.
-    if (!enqueued) return prevWatermark;
-
-    // enqueue 한 snapshot 의 최대 seq 로 watermark 갱신 — 다음 turn state 로 영속.
-    const maxSeq = fresh.reduce(
-      (m, t) => (t.seq > m ? t.seq : m),
-      prevWatermark ?? -1,
-    );
-    return maxSeq;
-  }
-
-  /**
-   * 노드 config `memoryTtlDays` → 양의 정수 TTL (일) 또는 undefined (무만료).
-   * 0/음수/비숫자는 무만료로 본다 (안전 디폴트 — 기존 무만료 동작 보존, AGM-10).
-   */
-  private resolveMemoryTtlDays(raw: unknown): number | undefined {
-    const n =
-      typeof raw === 'number'
-        ? raw
-        : typeof raw === 'string'
-          ? Number(raw)
-          : NaN;
-    if (!Number.isFinite(n) || n <= 0) return undefined;
-    return Math.floor(n);
   }
 
   /**
