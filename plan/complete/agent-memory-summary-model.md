@@ -2,6 +2,11 @@
 worktree: agent-memory-summary-model-fa4efb
 started: 2026-06-05
 owner: developer
+status: complete
+spec_impact:
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/5-system/17-agent-memory.md
+  - spec/conventions/conversation-thread.md
 related_plan: plan/in-progress/ai-context-memory-followup-v2.md
 ---
 

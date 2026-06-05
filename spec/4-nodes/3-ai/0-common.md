@@ -10,7 +10,6 @@ code:
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
 pending_plans:
   - plan/in-progress/ai-context-memory-followup-v2.md
-  - plan/in-progress/memory-autoinject-extend.md
 ---
 
 # Spec: AI 노드 공통 규약

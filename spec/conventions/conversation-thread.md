@@ -17,7 +17,6 @@ code:
 pending_plans:
   - plan/in-progress/ai-context-memory-followup-v2.md
   - plan/in-progress/exec-park-durable-resume.md
-  - plan/in-progress/memory-autoinject-extend.md
 ---
 
 # Conversation Thread (대화 스레드)

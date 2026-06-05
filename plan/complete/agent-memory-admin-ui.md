@@ -1,6 +1,11 @@
 ---
 title: AI Agent 메모리 가시화/삭제 admin surface (A1)
-status: in-progress
+status: complete
+spec_impact:
+  - spec/5-system/17-agent-memory.md
+  - spec/2-navigation/16-agent-memory.md
+  - spec/2-navigation/_product-overview.md
+  - spec/5-system/_product-overview.md
 worktree: agent-memory-admin-ui-455467
 branch: claude/agent-memory-admin-ui-455467
 started: 2026-06-05
