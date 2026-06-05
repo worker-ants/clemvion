@@ -213,7 +213,7 @@ async function main(): Promise<void> {
       `\n# RAG 검색 지표 — entry ${report.totalEntries} (positive ${report.overall.count}, negative ${report.negatives.count}, ws-skip ${skipped})`,
     );
     console.log(
-      `골든셋: ${goldenPath} | topK=${topK} threshold=${threshold} | ⚠ silver 절대값 신뢰 금지, 상대비교 전용`,
+      `골든셋: ${goldenPath} | topK=${topK} threshold=${threshold} | [주의] silver 절대값 신뢰 금지, 상대비교 전용`,
     );
     printAggregate('Overall', report.overall, report.ks);
     for (const lang of Object.keys(report.byLanguage) as Array<'ko' | 'en'>) {
@@ -263,12 +263,12 @@ async function main(): Promise<void> {
       }
       if (value < threshNum) {
         console.error(
-          `\n❌ 게이트 실패: ${failMetric}@${failK}=${value.toFixed(3)} < ${threshNum}`,
+          `\n[FAIL] 게이트 실패: ${failMetric}@${failK}=${value.toFixed(3)} < ${threshNum}`,
         );
         process.exit(4);
       }
       console.log(
-        `\n✅ 게이트 통과: ${failMetric}@${failK}=${value.toFixed(3)} ≥ ${threshNum}`,
+        `\n[PASS] 게이트 통과: ${failMetric}@${failK}=${value.toFixed(3)} ≥ ${threshNum}`,
       );
     }
   } finally {

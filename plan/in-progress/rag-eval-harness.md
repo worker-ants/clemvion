@@ -40,25 +40,25 @@ owner: 사용자 본인 / developer
 ## 2. 작업 항목
 
 ### Phase A — 코드 (developer)
-- [ ] `eval/golden-set.types.ts` — `GoldenEntry`, `GoldenSet`(meta+entries) 타입.
-- [ ] `eval/retrieval-metrics.ts` — `recallAtK/precisionAtK/mrrAtK/ndcgAtK/hitRateAtK` + `evaluateRetrieval(goldenSet, retrievedByEntryId, ks)` → per-entry + macro 평균 리포트. 결정적 tie-break.
-- [ ] `eval/retrieval-metrics.spec.ts` — 결정적 픽스처 단위테스트(경계: 동점, gold 0개, k>결과수, should-retrieve=false).
-- [ ] `eval/lang-detect.ts`(또는 util 재사용) — 한글 비율 휴리스틱.
-- [ ] `src/scripts/generate-golden-set.ts` — `NestFactory.createApplicationContext(AppModule)` 부트스트랩 → `LlmService`+DataSource. args: `--workspace-id --kb-id --sample N --lang --questions-per-chunk --out --dry-run`. 청크 샘플→LLM JSON({questions:[{question,answer}]})→golden.json 머지(entry id 안정 해시, dedup).
-- [ ] `src/scripts/eval-retrieval.ts` — golden.json 로드→entry 별 `searchWithMeta`→지표 산출→리포트(stdout + `--out` json). `--fail-under` 로 CI 게이트.
-- [ ] `eval/golden.example.json` — 손작성 3 entry(KO×2,EN×1) 스키마 픽스처.
-- [ ] `eval/README.md` — 생성·검수·실행·해석(상대비교) 워크플로.
-- [ ] `package.json` npm scripts: `eval:golden:generate`, `eval:retrieval`.
+- [x] `eval/golden-set.types.ts` — `GoldenEntry`, `GoldenSet`(meta+entries) 타입.
+- [x] `eval/retrieval-metrics.ts` — `recallAtK/precisionAtK/mrrAtK/ndcgAtK/hitRateAtK` + `evaluateRetrieval(goldenSet, retrievedByEntryId, ks)` → per-entry + macro 평균 리포트. 결정적 tie-break.
+- [x] `eval/retrieval-metrics.spec.ts` — 결정적 픽스처 단위테스트(경계: 동점, gold 0개, k>결과수, should-retrieve=false).
+- [x] `eval/lang-detect.ts`(또는 util 재사용) — 한글 비율 휴리스틱.
+- [x] `src/scripts/generate-golden-set.ts` — `NestFactory.createApplicationContext(EvalCliModule)` 부트스트랩(큐·프로세서 제외) → `LlmService`+DataSource. args: `--workspace-id --kb-id --sample N --lang --questions-per-chunk --out --dry-run`. 청크 샘플→LLM JSON({questions:[{question,answer}]})→golden.json 머지(entry id 안정 해시, dedup).
+- [x] `src/scripts/eval-retrieval.ts` — golden.json 로드→entry 별 `searchWithMeta`→지표 산출→리포트(stdout + `--out` json). `--fail-under` 로 CI 게이트.
+- [x] `eval/golden.example.json` — 손작성 3 entry(KO×2,EN×1) 스키마 픽스처.
+- [x] `eval/README.md` — 생성·검수·실행·해석(상대비교) 워크플로.
+- [x] `package.json` npm scripts: `eval:golden:generate`, `eval:retrieval`.
 
 ### Phase B — spec (project-planner, consistency-check --spec)
-- [ ] `spec/conventions/rag-evaluation.md` 신규 — frontmatter(`id: rag-evaluation`, `status: implemented`, `code: codebase/backend/src/modules/knowledge-base/eval/**`) + `## Overview` + 본문(골든셋 스키마·지표 정의·결정성 규칙·silver→gold·해석 가이드) + `## Rationale`(D-E1~D-E6 근거).
-- [ ] `spec/5-system/9-rag-search.md` 에서 1줄 링크 + `pending_plans:` 에 본 plan 등재 검토.
+- [x] `spec/conventions/rag-evaluation.md` 신규 — frontmatter(`id: rag-evaluation`, `status: implemented`, `code: codebase/backend/src/modules/knowledge-base/eval/**`) + `## Overview` + 본문(골든셋 스키마·지표 정의·결정성 규칙·silver→gold·해석 가이드) + `## Rationale`(D-E1~D-E6 근거).
+- [x] `spec/5-system/9-rag-search.md` 에서 1줄 링크 + `pending_plans:` 에 본 plan 등재 검토.
 
 ## 3. 게이트 순서
-1. `/consistency-check --impl-prep` (BLOCK:NO 확인) — 본 plan 기준.
-2. Phase A 구현 + 단위테스트 green.
-3. Phase B spec 작성 (consistency-check --spec).
-4. `/ai-review` → Critical/Warning fix.
+1. [x] `/consistency-check --impl-prep` (BLOCK:NO 확인) — 본 plan 기준.
+2. [x] Phase A 구현 + 단위테스트 green.
+3. [x] Phase B spec 작성 (consistency-check --spec).
+4. [x] `/ai-review` → Critical/Warning fix.
 5. (선택) 실 KB 로 generator 스모크: 산출 golden.json 일부 커밋 여부는 사용자 확인 후.
 
 ## 4. 미해결 / 사용자 확인 포인트
