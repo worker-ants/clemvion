@@ -28,12 +28,21 @@ export interface ResumeCallStackFrame {
 }
 
 /**
- * `Execution.resume_call_stack` 의 envelope. `version` 은
- * `CALL_STACK_SCHEMA_VERSION`(execution-engine.service.ts, `CHECKPOINT_SCHEMA_VERSION`
- * 과 **독립** 상수)으로 스탬프된다. frames 는 outermost(top-level 바로 아래) →
- * waiting inner 노드 직전까지 순서.
+ * `Execution.resume_call_stack` 의 envelope. `version` 은 아래 `CALL_STACK_SCHEMA_VERSION`
+ * (`CHECKPOINT_SCHEMA_VERSION` 과 **독립** 상수 — 호출 체인 스키마와 checkpoint 스키마가
+ * 따로 진화하도록 의도적 분리)으로 스탬프된다. frames 는 outermost(top-level 바로 아래)
+ * → waiting inner 노드 직전까지 순서.
  */
 export interface ResumeCallStack {
   version: number;
   frames: ResumeCallStackFrame[];
 }
+
+/**
+ * `ResumeCallStack.version` 스탬프/가드용 스키마 버전. `_resumeCheckpoint` 의
+ * `CHECKPOINT_SCHEMA_VERSION`(execution-engine.service.ts) 과 **독립**이다 — 호출 체인
+ * 직렬화 포맷이 바뀌면 이 상수만 올린다. park 시 이 값으로 스탬프하고, rehydration 시
+ * 이 값 초과면 `RESUME_INCOMPATIBLE_STATE` 로 안전 종결한다(롤링 배포 중 구 인스턴스가
+ * 신 포맷 pickup 방어 — checkpoint 와 동일 패턴).
+ */
+export const CALL_STACK_SCHEMA_VERSION = 1;
