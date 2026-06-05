@@ -2,6 +2,10 @@
 worktree: fix-webchat-envelope-unwrap-9519af
 started: 2026-06-06
 owner: developer
+spec_impact:
+  - spec/7-channel-web-chat/3-auth-session.md
+  - spec/7-channel-web-chat/0-architecture.md
+  - spec/5-system/14-external-interaction-api.md
 ---
 
 # 웹챗 위젯 `{ data }` 봉투 미언랩 버그 수정
@@ -42,6 +46,14 @@ owner: developer
         package 직접 실행, e2e 는 dockerized backend(`make e2e-test`) 로 cross-stack 회귀 net 확보. backend/
         frontend/sdk 로컬 stage 는 fresh worktree 의 packages/sdk prepare-script(tsc<@types/node) 사전 결함으로
         bundled 실행 불가 — 본 변경과 무관(상세 RESOLUTION).
-- [ ] /ai-review + SUMMARY (진행 중)
-- [ ] consistency-check --impl-done
-- [ ] plan complete 이동
+- [x] /ai-review + SUMMARY — `review/code/2026/06/06/02_51_10/` 위험도 LOW, Critical 0 / Warning 6. resolution-applier 로 6/6 처리 (commit 86f23b9b) + RESOLUTION.md (commit ef764984). e2e 재통과(174).
+- [x] consistency-check --impl-done — `review/consistency/2026/06/06/03_05_42/` **BLOCK: NO** (Critical 0, WARNING 2/INFO 7 모두 비차단)
+- [ ] plan complete 이동 — 아래 optional 후속 잔여로 in-progress 유지
+
+## Optional 후속 (비차단 — 별도 처리 가능)
+
+impl-done/ai-review 가 INFO 로 제안한 선택 항목 (본 버그 수정 범위 밖, 차단 아님):
+- EIA `spec/5-system/14-external-interaction-api.md §5.3(getStatus)·§5.5(refreshToken)` 응답 예시에도 `{ data }` 봉투 표기 추가 (§4.1 과 동일 패턴). project-planner.
+- `3-auth-session.md` 또는 `0-architecture.md` Rationale 에 `unwrapData` 폴백 채택 근거(unit test 격리·방어 코드, 실운영 미발동) 1항목 추가.
+- stale plan frontmatter `worktree:` 갱신 (`channel-web-chat-impl/followups/demo.md`) — housekeeping.
+- (장기) `unwrapData` 를 web-chat ↔ `@workflow/sdk` 의존 확정 시 단일 헬퍼로 통합 (현재 양 패키지 독립, 런타임 충돌 없음).
