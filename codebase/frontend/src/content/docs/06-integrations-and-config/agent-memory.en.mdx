@@ -1,0 +1,35 @@
+This page explains how to browse and clean up the persistent memory an AI Agent has accumulated, using the **Agent Memory** screen.
+
+## What is agent memory?
+
+When an AI Agent node's `memoryStrategy` is set to **persistent**, the agent remembers facts, preferences, and entities across executions. The accumulated memory is grouped by **scope** — the `memoryKey` configured on the node (or the execution ID when none is set). Executions that share a scope inherit each other's memory.
+
+<Callout type="note">Memory accumulates per scope at the workspace level, not under a specific workflow or node. That's why it is managed from a dedicated sidebar screen rather than the node editor.</Callout>
+
+## Open the screen
+
+Click **Agent Memory** in the sidebar. The screen has two panes.
+
+- **Left — Scopes**: shows the memory count and most recent update time per scope. Use the search box for partial-match scope lookup, and **Load more** to page through long lists.
+- **Right — Memories**: pick a scope on the left to list its memory rows. Each row shows the content, a kind badge, and the update time; memories with a TTL also show an **Expires** time.
+
+## Inspecting memories
+
+After selecting a scope, narrow the list with the **kind filter** (All / Fact / Preference / Entity) at the top right.
+
+<FieldTable rows={[
+  { name: "Fact", type: "kind", required: "-", description: "Information the agent treats as true. e.g. order number format, refund policy." },
+  { name: "Preference", type: "kind", required: "-", description: "A user's or counterpart's preference. e.g. polite tone, summary-first." },
+  { name: "Entity", type: "kind", required: "-", description: "A named entity. e.g. a specific customer, product, or organization." }
+]} />
+
+## Cleaning up memories
+
+<Callout type="warn">Deletion is irreversible (hard delete). Delete actions are visible only to **editor and above** roles. Viewers can only browse.</Callout>
+
+- **Delete a single memory**: the 🗑 icon on a memory row → confirmation modal → only that memory is removed.
+- **Delete an entire scope**: the 🗑 icon on a scope row → a confirmation modal warning the count → every memory in that scope is removed at once.
+
+## When memory is empty
+
+If no scopes appear yet, the workspace has never accumulated persistent memory. Switch an AI Agent node's `memoryStrategy` to **persistent** and run it to start accumulating. Configure the AI Agent node by selecting it in the workflow editor.

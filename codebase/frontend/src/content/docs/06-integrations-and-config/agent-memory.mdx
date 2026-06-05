@@ -1,0 +1,46 @@
+---
+title: "에이전트 메모리"
+title_en: "Agent Memory"
+section: "06-integrations-and-config"
+order: 11
+summary: "AI Agent가 persistent 메모리 전략으로 누적한 영속 메모리를 scope 별로 조회하고 정리(삭제)하는 방법을 설명해요."
+summary_en: "Browse and clean up the persistent memory an AI Agent accumulates under the persistent memory strategy, organized by scope."
+spec: ["spec/2-navigation/16-agent-memory.md", "spec/5-system/17-agent-memory.md", "spec/4-nodes/3-ai/1-ai-agent.md"]
+code: ["codebase/frontend/src/app/(main)/agent-memory/page.tsx", "codebase/frontend/src/lib/api/agent-memories.ts"]
+---
+
+이 페이지에서는 **에이전트 메모리** 관리 화면에서 AI Agent가 쌓은 영속 메모리를 조회하고 정리하는 방법을 설명해요.
+
+## 에이전트 메모리란?
+
+AI Agent 노드의 `memoryStrategy` 를 **persistent** 로 설정하면, 에이전트는 실행을 가로질러 사실(fact)·선호(preference)·엔티티(entity)를 기억해요. 이렇게 쌓인 메모리는 **scope** 단위로 묶여요 — scope 는 노드에 지정한 `memoryKey`(없으면 실행 ID)예요. 같은 scope 를 공유하는 실행끼리 기억을 이어받아요.
+
+<Callout type="note">메모리는 특정 워크플로/노드가 아니라 워크스페이스 수준에서 scope 별로 누적돼요. 그래서 노드 에디터가 아니라 사이드바의 별도 화면에서 관리해요.</Callout>
+
+## 화면 열기
+
+사이드바 **에이전트 메모리** 메뉴를 눌러요. 화면은 두 칸으로 나뉘어요.
+
+- **왼쪽 — Scope 목록**: scope 별 메모리 건수와 가장 최근 갱신 시각을 보여줘요. 상단 검색창으로 scope 를 부분 일치 검색할 수 있고, 목록이 길면 **더 보기** 로 이어서 불러와요.
+- **오른쪽 — 메모리 목록**: 왼쪽에서 scope 를 고르면 해당 scope 의 메모리 행이 나와요. 각 행은 내용, kind 배지, 갱신 시각을 보여주고, TTL 이 설정된 메모리는 **만료 예정** 시각을 함께 표시해요.
+
+## 메모리 살펴보기
+
+scope 를 선택하면 오른쪽 상단에서 **kind 필터**(전체 / 사실 / 선호 / 엔티티)로 좁혀 볼 수 있어요.
+
+<FieldTable rows={[
+  { name: "사실(fact)", type: "kind", required: "-", description: "에이전트가 참으로 받아들인 정보. 예: 주문번호 양식, 환불 정책." },
+  { name: "선호(preference)", type: "kind", required: "-", description: "사용자/대화 상대의 선호. 예: 존댓말 사용, 요약 우선." },
+  { name: "엔티티(entity)", type: "kind", required: "-", description: "이름이 붙은 개체. 예: 특정 고객·상품·조직." }
+]} />
+
+## 메모리 정리하기
+
+<Callout type="warn">삭제는 되돌릴 수 없어요(hard delete). 삭제 액션은 **editor 이상** 역할에게만 보여요. viewer 는 조회만 할 수 있어요.</Callout>
+
+- **단건 삭제**: 메모리 행의 🗑 아이콘 → 확인 모달 → 해당 메모리만 삭제돼요.
+- **scope 전체 삭제**: scope 행의 🗑 아이콘 → 건수를 경고하는 확인 모달 → 그 scope 의 모든 메모리가 한 번에 삭제돼요.
+
+## 메모리가 비어 있을 때
+
+아직 어떤 scope 도 보이지 않는다면, persistent 메모리를 한 번도 쌓지 않은 워크스페이스예요. AI Agent 노드에서 `memoryStrategy` 를 **persistent** 로 바꾸고 실행하면 메모리가 누적되기 시작해요. AI Agent 노드 설정은 워크플로 에디터에서 해당 노드를 선택해 확인해요.
