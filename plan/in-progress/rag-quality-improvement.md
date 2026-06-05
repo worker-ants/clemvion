@@ -13,6 +13,8 @@ owner: 사용자 본인 / planner
 
 ---
 
+> **P1(리랭킹) 진행 현황 (2026-06-05)**: cross_encoder(#465)·threshold/진단(#466)·cross_encoder_llm grading + UI + spec 완결성(#478) 머지 완료. provider 확장(jina/voyage/local/builtin)은 DROP, conditional escalate 임계는 P0 의존. P0·P2·P3·P5·P6 는 미착수.
+
 ## 1. 배경 / 현재 구조 진단 (실측 기반)
 
 현 RAG 는 **dense-only + 리랭킹 없음 + 정량 평가 없음** 의 1세대 구조.
