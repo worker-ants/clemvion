@@ -9,6 +9,7 @@ import {
   type DocumentData,
   type KbGraphStats,
   type KbEmbeddingStats,
+  type RerankMode,
 } from "@/lib/api/knowledge-bases";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
 import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
 import { llmConfigsApi } from "@/lib/api/llm-configs";
+import { rerankConfigsApi } from "@/lib/api/rerank-configs";
 import { useKbEvents } from "@/lib/websocket/use-kb-events";
 import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
@@ -128,6 +130,11 @@ export default function KnowledgeBaseDetailPage({
   const [formMaxHops, setFormMaxHops] = useState("1");
   const [formVectorSeedTopK, setFormVectorSeedTopK] = useState("5");
   const [formExpandedChunkLimit, setFormExpandedChunkLimit] = useState("15");
+  const [formRerankMode, setFormRerankMode] = useState<RerankMode>("off");
+  const [formRerankConfigId, setFormRerankConfigId] = useState("");
+  const [formRerankCandidateK, setFormRerankCandidateK] = useState("50");
+  const [formRerankScoreThreshold, setFormRerankScoreThreshold] = useState("");
+  const [formRerankLlmConfigId, setFormRerankLlmConfigId] = useState("");
 
   const { data: kb, isLoading: kbLoading } = useQuery<KnowledgeBaseData>({
     queryKey: ["knowledge-base", id],
@@ -168,6 +175,14 @@ export default function KnowledgeBaseDetailPage({
   const { data: llmConfigs = [] } = useQuery({
     queryKey: ["llm-configs"],
     queryFn: () => llmConfigsApi.list(),
+    staleTime: 30_000,
+    enabled: showSettings,
+  });
+
+  // settings 다이얼로그가 열렸을 때만 RerankConfig 목록을 fetch (리랭킹 select 용).
+  const { data: rerankConfigs = [] } = useQuery({
+    queryKey: ["rerank-configs"],
+    queryFn: () => rerankConfigsApi.list(),
     staleTime: 30_000,
     enabled: showSettings,
   });
@@ -247,6 +262,11 @@ export default function KnowledgeBaseDetailPage({
     maxHops?: number;
     vectorSeedTopK?: number;
     expandedChunkLimit?: number;
+    rerankMode?: RerankMode;
+    rerankConfigId?: string;
+    rerankCandidateK?: number;
+    rerankScoreThreshold?: number;
+    rerankLlmConfigId?: string;
   };
   const updateMutation = useMutation({
     mutationFn: (payload: KbUpdatePayload) =>
@@ -322,6 +342,13 @@ export default function KnowledgeBaseDetailPage({
     setFormMaxHops(String(kb.maxHops));
     setFormVectorSeedTopK(String(kb.vectorSeedTopK));
     setFormExpandedChunkLimit(String(kb.expandedChunkLimit));
+    setFormRerankMode(kb.rerankMode ?? "off");
+    setFormRerankConfigId(kb.rerankConfigId ?? "");
+    setFormRerankCandidateK(String(kb.rerankCandidateK ?? 50));
+    setFormRerankScoreThreshold(
+      kb.rerankScoreThreshold != null ? String(kb.rerankScoreThreshold) : "",
+    );
+    setFormRerankLlmConfigId(kb.rerankLlmConfigId ?? "");
     setShowSettings(true);
   }
 
@@ -390,6 +417,44 @@ export default function KnowledgeBaseDetailPage({
       if (vsk !== kb.vectorSeedTopK) payload.vectorSeedTopK = vsk;
       if (ecl !== kb.expandedChunkLimit) payload.expandedChunkLimit = ecl;
     }
+
+    // ──────── 리랭킹 (rag_mode 무관, 검색 시점 적용이라 항상 편집 가능) ────────
+    const curRerankMode = kb.rerankMode ?? "off";
+    const rerankOn = formRerankMode !== "off";
+    let rck = kb.rerankCandidateK ?? 50;
+    if (rerankOn) {
+      rck = parseInt(formRerankCandidateK, 10);
+      if (Number.isNaN(rck) || rck < 1 || rck > 200) {
+        setSettingsTab("rerank");
+        toast.error(t("knowledgeBases.rerankCandidateKInvalid"));
+        return;
+      }
+    }
+    if (formRerankMode !== curRerankMode) payload.rerankMode = formRerankMode;
+    if (rerankOn) {
+      const newRerankCfg = formRerankConfigId || "";
+      const curRerankCfg = kb.rerankConfigId ?? "";
+      // backend update DTO 는 @IsUUID() 라 빈 문자열을 보낼 수 없다 → 값이 있을 때만 전송.
+      if (newRerankCfg && newRerankCfg !== curRerankCfg) {
+        payload.rerankConfigId = newRerankCfg;
+      }
+      if (rck !== (kb.rerankCandidateK ?? 50)) payload.rerankCandidateK = rck;
+      // threshold: 값이 있을 때만 전송. 비우면 기존 값 유지(backend 가 null 미수용).
+      if (formRerankScoreThreshold.trim()) {
+        const th = parseFloat(formRerankScoreThreshold);
+        if (!Number.isNaN(th) && th !== (kb.rerankScoreThreshold ?? null)) {
+          payload.rerankScoreThreshold = th;
+        }
+      }
+      if (formRerankMode === "cross_encoder_llm") {
+        const newRerankLlm = formRerankLlmConfigId || "";
+        const curRerankLlm = kb.rerankLlmConfigId ?? "";
+        if (newRerankLlm && newRerankLlm !== curRerankLlm) {
+          payload.rerankLlmConfigId = newRerankLlm;
+        }
+      }
+    }
+
     if (Object.keys(payload).length === 0) {
       setShowSettings(false);
       return;
@@ -633,6 +698,17 @@ export default function KnowledgeBaseDetailPage({
               setFormVectorSeedTopK={setFormVectorSeedTopK}
               formExpandedChunkLimit={formExpandedChunkLimit}
               setFormExpandedChunkLimit={setFormExpandedChunkLimit}
+              formRerankMode={formRerankMode}
+              setFormRerankMode={setFormRerankMode}
+              formRerankConfigId={formRerankConfigId}
+              setFormRerankConfigId={setFormRerankConfigId}
+              formRerankCandidateK={formRerankCandidateK}
+              setFormRerankCandidateK={setFormRerankCandidateK}
+              formRerankScoreThreshold={formRerankScoreThreshold}
+              setFormRerankScoreThreshold={setFormRerankScoreThreshold}
+              formRerankLlmConfigId={formRerankLlmConfigId}
+              setFormRerankLlmConfigId={setFormRerankLlmConfigId}
+              rerankConfigs={rerankConfigs}
               llmConfigs={llmConfigs}
               currentEmbeddingDimension={kb.embeddingDimension}
               embeddingModelChanged={formEmbeddingModel !== kb.embeddingModel}

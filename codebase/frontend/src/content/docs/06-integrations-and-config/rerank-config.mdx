@@ -1,0 +1,82 @@
+---
+title: "리랭커 설정"
+title_en: "Reranker configuration"
+section: "06-integrations-and-config"
+order: 3
+summary: "지식 저장소 검색의 2차 정밀화(리랭킹)에 사용할 리랭커 프로바이더와 모델을 등록하고 관리하는 방법을 설명해요."
+summary_en: "How to register and manage the reranker providers and models used for second-pass retrieval precision in Knowledge Bases."
+spec: ["spec/2-navigation/6-config.md", "spec/5-system/9-rag-search.md"]
+code: ["codebase/backend/src/modules/rerank-config/rerank-config.controller.ts", "codebase/backend/src/modules/rerank-config/rerank-config.service.ts", "codebase/backend/src/modules/rerank-config/entities/rerank-config.entity.ts", "codebase/frontend/src/app/(main)/rerank-configs/page.tsx"]
+---
+
+이 페이지에서는 지식 저장소의 검색 결과를 2차로 정밀화하는 **리랭커(Reranker)** 를 등록하고 관리하는 방법을 설명해요. 리랭커 설정을 마친 뒤에는 [지식 저장소](/docs/06-integrations-and-config/knowledge-base)의 Reranking 탭에서 컬렉션별로 활성화할 수 있어요.
+
+## 리랭커란?
+
+벡터 유사도 검색은 빠르지만, 의미적으로 비슷한 청크가 뒤섞여 반환될 수 있어요. **리랭커(cross-encoder 모델)** 는 검색 후처리 단계에서 `(질의, 청크)` 쌍을 직접 비교해 관련도 점수를 재계산하고, 더 정확한 순서로 상위 결과를 골라내요.
+
+주요 특징은 다음과 같아요.
+
+- 검색 시점에만 적용되므로 기존 임베딩을 다시 만들 필요가 없어요.
+- 리랭커 오류가 발생해도 벡터 유사도 순서로 안전하게 대체돼요.
+- 지식 저장소 단위로 켜거나 끌 수 있어요.
+
+## 지원 프로바이더
+
+<FieldTable rows={[
+  { name: "TEI (자가호스팅)", type: "Self-hosted", required: "Base URL 필수", description: "Hugging Face Text-Embeddings-Inference 서버. 사내망에서 직접 운영해요. 한국어 권장 모델 예: `dragonkue/bge-reranker-v2-m3-ko`." },
+  { name: "Cohere", type: "외부 API", required: "API Key 필수", description: "Cohere의 리랭커 API. 모델 예: `rerank-3.5`. 인터넷 연결이 필요해요." }
+]} />
+
+## 리랭커 추가하기
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/rerank-configs/page.tsx"
+  symbol="RerankConfigsPage"
+  describes="리랭커 설정 목록 화면 — 리랭커 추가·수정·기본 지정"
+/>
+
+[리랭커 설정](/rerank-configs) 에서 우측 상단의 `[+ Add Reranker]` 를 눌러요.
+
+<Steps>
+<Step>프로바이더 드롭다운에서 `TEI (self-hosted)` 또는 `Cohere` 를 골라요.</Step>
+<Step>이름(별칭)을 입력해요.</Step>
+<Step>
+  프로바이더에 따라 필수 필드가 달라요.
+
+  - **TEI**: `Base URL` 필수 (예: `http://tei:8080`). API Key 는 선택이에요.
+  - **Cohere**: `API Key` 필수. Base URL 은 입력하지 않아요.
+</Step>
+<Step>기본 모델 ID를 직접 입력해요. 예: TEI 의 경우 `dragonkue/bge-reranker-v2-m3-ko` 또는 `bge-reranker-v2-m3`, Cohere 의 경우 `rerank-3.5`.</Step>
+<Step>저장해요. 가장 자주 쓰는 설정은 ⭐ **기본 리랭커 설정** 으로 표시해 두면, 지식 저장소에서 리랭커를 별도로 지정하지 않아도 자동으로 선택돼요.</Step>
+</Steps>
+
+<Callout type="warn">API Key 는 저장 후 마스킹 처리되어 응답에 돌아와요. 원본 키는 프로바이더 콘솔에서 따로 관리해요.</Callout>
+
+## 필드 안내
+
+<FieldTable rows={[
+  { name: "프로바이더 유형", type: "tei / cohere", required: "필수", description: "프로바이더 선택. 저장 후에는 변경할 수 없어요." },
+  { name: "이름", type: "string", required: "필수", description: "워크스페이스 안에서 식별할 별칭이에요. 지식 저장소 Reranking 탭의 드롭다운에 표시돼요." },
+  { name: "API Key", type: "string (마스킹)", required: "Cohere 필수 / TEI 선택", description: "Cohere 는 API Key 가 없으면 호출이 거부돼요. TEI 는 인증 없이 운영하는 경우 비워도 돼요." },
+  { name: "Base URL", type: "string (URL)", required: "TEI 필수", description: "자가호스팅 TEI 서버의 endpoint 예요. 예: `http://tei:8080`. Cohere 는 고정 endpoint 를 사용하므로 입력하지 않아요." },
+  { name: "기본 모델", type: "string", required: "필수", description: "리랭킹 점수 계산에 사용할 모델 ID 예요. TEI 는 서버에 배포된 모델 ID 를, Cohere 는 공식 모델 ID(예: `rerank-3.5`)를 입력해요." }
+]} />
+
+## 기본 리랭커 설정
+
+목록에서 ⭐ **기본 리랭커 설정** 버튼을 누르면 워크스페이스 기본 리랭커가 지정돼요. 지식 저장소의 Reranking 탭에서 Reranker 를 따로 고르지 않으면 이 기본 리랭커가 사용돼요. 기본 리랭커가 없을 때는 해당 지식 저장소의 리랭킹이 비활성 상태로 안전하게 처리돼요.
+
+<Callout type="note">기본 리랭커 변경은 이후 검색부터 반영돼요. 이미 설정된 지식 저장소에는 영향을 주지 않아요.</Callout>
+
+## 리랭커가 쓰이는 곳
+
+등록한 리랭커는 [지식 저장소](/docs/06-integrations-and-config/knowledge-base) 의 Reranking 탭에서 컬렉션별로 활성화해요. 활성화하면 AI Agent 가 해당 지식 저장소를 검색할 때 자동으로 2차 정밀화가 적용돼요.
+
+## 팁 & 참고
+
+- TEI 서버를 운영 중이라면 GPU 가 있는 환경에서 `dragonkue/bge-reranker-v2-m3-ko` 모델을 사용하면 한국어 검색 품질이 크게 향상돼요.
+- Cohere 는 인터넷 연결이 필요해요. 클라우드 환경에서 빠르게 시작하기에 좋아요.
+- 리랭커를 삭제하면 해당 리랭커를 사용 중인 지식 저장소의 리랭킹이 비활성 상태로 대체돼요.
+- 지식 저장소 Reranking 탭의 상세 옵션(후보 풀 크기, 점수 컷)은 [지식 저장소](/docs/06-integrations-and-config/knowledge-base) 에서 설명해요.

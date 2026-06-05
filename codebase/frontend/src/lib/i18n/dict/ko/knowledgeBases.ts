@@ -179,4 +179,23 @@ export const knowledgeBases = {
   formTabBasic: "기본",
   formTabEmbedding: "임베딩",
   formTabGraph: "그래프",
+  formTabRerank: "리랭킹",
+  rerankSection: "리랭킹",
+  rerankMode: "리랭킹 모드",
+  rerankModeOff: "사용 안 함",
+  rerankModeCrossEncoder: "Cross-encoder",
+  rerankModeCrossEncoderLlm: "Cross-encoder + LLM grading",
+  rerankModeHint:
+    "검색 후 후보를 cross-encoder 로 재점수화해요. LLM grading 은 추가 listwise 평가를 적용해요.",
+  rerankConfig: "리랭커",
+  rerankConfigHint: "재점수화에 사용할 리랭커 설정이에요. 미지정 시 워크스페이스 기본값.",
+  rerankCandidateK: "후보 풀 (1~200)",
+  rerankCandidateKHint: "리랭크에 투입할 1차 회수 후보 수예요.",
+  rerankScoreThreshold: "점수 컷 임계 (선택)",
+  rerankScoreThresholdHint: "비워 두면 컷 없이 점수순 정렬 후 top-k 를 반환해요.",
+  rerankGradingLlm: "Grading LLM",
+  rerankGradingLlmHint:
+    "cross_encoder_llm 모드의 listwise grading LLM 이에요. 미지정 시 워크스페이스 기본 chat.",
+  rerankCandidateKInvalid: "후보 풀은 1~200 사이여야 해요",
+  rerankConfigRequired: "리랭킹을 켜려면 리랭커를 선택하세요",
 } as const;

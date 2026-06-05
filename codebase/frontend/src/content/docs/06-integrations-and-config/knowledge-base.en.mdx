@@ -96,6 +96,27 @@ After execution, the AI Agent result carries RAG-source metadata so you can see 
 
 <Callout type="tip">When the top match scores below `threshold`, the LLM is called without RAG context. If answers look weak, try lowering the threshold to about 0.6, or shrink chunk size and re-embed.</Callout>
 
+## Reranking
+
+<ImplAnchor
+  kind="component"
+  file="codebase/frontend/src/components/knowledge-base/kb-form-body.tsx"
+  symbol="formTabRerank"
+  describes="KB form Reranking tab — rerank mode and config fields"
+/>
+
+To add a second-pass precision step after vector search, open the **Reranking** tab in the KB settings form. The default is **Off**, preserving backward-compatible behavior.
+
+<FieldTable rows={[
+  { name: "Reranking mode", type: "Off / Cross-encoder / Cross-encoder + LLM", required: "Required", description: "Off (default): no reranking. Cross-encoder: rescores retrieved chunks with a cross-encoder model and selects the top results. Cross-encoder + LLM: applies cross-encoder rescoring and then an additional LLM pass for policy- or instruction-based judgment (best for KBs that answer policy questions)." },
+  { name: "Reranker", type: "RerankConfig selector", required: "Optional when not Off", description: "Choose a reranker config. Leave empty to use the workspace default reranker. To register one first, see [Reranker configuration](/docs/06-integrations-and-config/rerank-config)." },
+  { name: "Candidate pool", type: "integer", required: "Required when not Off", description: "Default 50. Number of candidate chunks to retrieve (without a cosine cutoff) before the cross-encoder rescores them." },
+  { name: "Score cutoff", type: "number (0.0–1.0)", required: "Optional", description: "Leave empty to return only the top-K results without any score threshold. Set a value to drop chunks below that reranker score." },
+  { name: "Grading LLM", type: "LLM Config selector", required: "Optional for Cross-encoder + LLM", description: "LLM to use for the second-pass judgment in Cross-encoder + LLM mode. Leave empty to use the workspace default LLM." }
+]} />
+
+<Callout type="note">Reranking is applied at query time only — changing the mode never requires re-embedding. If the reranker encounters an error, results fall back to cosine-score order automatically.</Callout>
+
 ## Tips & notes
 
 - When multiple collections are selected, KBs sharing the same embedding model share a single query; others are queried independently and the results merged.
