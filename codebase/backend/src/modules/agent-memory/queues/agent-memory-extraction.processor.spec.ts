@@ -168,4 +168,32 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
     await processor.process(makeJob({ llmConfigId: null }));
     expect(llmService.resolveConfig).toHaveBeenCalledWith(undefined, 'ws-1');
   });
+  describe('추출 모델 폴백 체인 (extractionModel → model → llmConfig 기본, A3)', () => {
+    it('extractionModel set 시 추출 LLM 콜이 그 모델을 쓴다', async () => {
+      const job = makeJob({});
+      (job.data as { extractionModel?: string }).extractionModel =
+        'cheap-extract';
+      await processor.process(job);
+      expect(llmService.chat.mock.calls[0][1].model).toBe('cheap-extract');
+    });
+
+    it('extractionModel 미설정·model 있으면 model 로 폴백', async () => {
+      // makeJob 기본 model='gpt-4o', extractionModel 없음.
+      await processor.process(makeJob({}));
+      expect(llmService.chat.mock.calls[0][1].model).toBe('gpt-4o');
+    });
+
+    it('extractionModel·model 모두 미설정이면 llmConfig.defaultModel 로 폴백', async () => {
+      const job = makeJob({});
+      (job.data as { model?: string | null }).model = null;
+      // resolveConfig 가 defaultModel='ws-default' 를 돌려주게.
+      llmService.resolveConfig.mockResolvedValue({
+        id: 'cfg-1',
+        provider: 'openai',
+        defaultModel: 'ws-default',
+      });
+      await processor.process(job);
+      expect(llmService.chat.mock.calls[0][1].model).toBe('ws-default');
+    });
+  });
 });

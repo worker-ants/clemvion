@@ -39,6 +39,8 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
   {name: "memoryTopK", required: false, type: "integer", description: "Number of memory chunks recalled per turn (independent of RAG Top-K). Shown for `persistent`.", default: "5"},
   {name: "memoryThreshold", required: false, type: "float", description: "Minimum similarity (0–1) required for memory recall (independent of the RAG threshold). Shown for `persistent`.", default: "0.7"},
   {name: "memoryTtlDays", required: false, type: "integer", description: "Persistent memories expire after this many days. Empty means they never expire. Shown for `persistent`.", default: "-"},
+  {name: "summaryModel", required: false, type: "expression", description: "Optional separate model for the rolling-summary call. Empty reuses the node model. Summaries are relatively simple, so a low-cost model can cut cost. Shown for `summary_buffer`/`persistent`.", default: "-"},
+  {name: "extractionModel", required: false, type: "expression", description: "Optional separate model for cross-session memory extraction. Empty reuses the node model. A low-cost extraction model can cut cost. Shown for `persistent`.", default: "-"},
   {name: "presentationTools", required: false, type: "PresentationToolDef[]", description: "Virtual tools that let the LLM render responses as tables, charts, carousels, templates, or forms instead of plain text. Empty list disables the feature. Each entry has a required `type`, an optional `description` override, and an optional `defaults` overlay.", default: "[]"},
   {name: "maxTurns", required: false, type: "integer", description: "Max conversation turns in Multi Turn mode. `0` means unlimited.", default: "20"}
 ]} />
@@ -85,6 +87,7 @@ When you choose `persistent`, you can scope the memory with a key.
 - `memoryTopK` (default 5) — number of memory chunks recalled per turn. Independent of RAG's `ragTopK`.
 - `memoryThreshold` (default 0.7) — minimum similarity (0–1) required to recall memory. Independent of RAG's `ragThreshold`.
 - `memoryTtlDays` — retention period (in days) for persistent memory. When set, memories older than this expire and are no longer recalled. **Leave it empty to keep memories without expiry.**
+- `summaryModel` / `extractionModel` — let you pick a **separate model** used only for the summary/extraction LLM calls. Leave them empty to reuse the node model (behavior unchanged). Choosing a low-cost model for these simpler-than-main tasks is a **cost-saving option**. (`summaryModel` is shown for `summary_buffer`/`persistent`, `extractionModel` for `persistent`.)
 
 <Callout type="note">
 When `memoryStrategy` is not `manual`, the automatic strategy manages context, so the Conversation Context fields (`contextScope`, etc.) above are hidden in the config UI. Fields like the token budget and memory key appear only for the strategy that uses them.

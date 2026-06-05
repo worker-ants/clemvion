@@ -40,6 +40,7 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
       scopeKey,
       llmConfigId,
       model,
+      extractionModel,
       embeddingModel,
       turns,
       ttlDays,
@@ -50,15 +51,21 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
     const transcript = buildExtractionTranscript(turns);
     if (!transcript.trim()) return;
 
-    // 추출 LLM 콜 — 노드 llmConfigId 재사용 (scope-freeze §3). 미지정이면
+    // 추출 LLM 콜 — 노드 llmConfigId(provider/credential) 재사용 (§3). 미지정이면
     // 워크스페이스 기본 LLMConfig (resolveConfig fallback).
     const llmConfig = await this.llmService.resolveConfig(
       llmConfigId ?? undefined,
       workspaceId,
     );
 
+    // 추출 모델 폴백 체인 (§3·§6.1 단계 2.7·§12.12):
+    //   extractionModel (전용 필드) → model (노드 메인) → llmConfig.defaultModel.
+    // 두 전용/노드 필드 모두 미설정이면 기존 동작 (노드 model → 기본) 100% 유지.
+    const resolvedExtractionModel =
+      extractionModel || model || llmConfig.defaultModel;
+
     const result = await this.llmService.chat(llmConfig, {
-      model: model || llmConfig.defaultModel,
+      model: resolvedExtractionModel,
       messages: [
         { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
         { role: 'user', content: transcript },

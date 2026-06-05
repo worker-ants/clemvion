@@ -32,8 +32,12 @@ export interface ExtractionTurnSnapshot {
  *
  * - `workspaceId` / `scopeKey`: 저장 네임스페이스 `(workspace_id, scope_key)`
  *   (격리 의무 §5 — workspaceId 는 execution context 권위 값에서만 온다).
- * - `llmConfigId` / `model`: 추출 LLM 콜이 재사용할 노드 config (scope-freeze §3,
- *   별도 추출 모델 필드 신설 없음).
+ * - `llmConfigId`: 추출 LLM 콜이 재사용할 노드 provider/credential (§3).
+ * - `model`: 노드 메인 모델. 추출 모델 폴백 체인의 2순위.
+ * - `extractionModel`: 추출 LLM 콜 전용 모델 (노드 config `extractionModel`).
+ *   미설정(null) 이면 processor 가 `model → llmConfig.defaultModel` 로 폴백한다
+ *   (fallback 체인 `extractionModel → model → 기본`, §3·§12.12). 미설정 시 기존
+ *   동작 (노드 model 재사용) 100% 유지.
  * - `turns`: 추출 대상 직전 turn 들의 shallow-copy 스냅샷 (격리 invariant).
  */
 export interface AgentMemoryExtractionJob {
@@ -41,6 +45,12 @@ export interface AgentMemoryExtractionJob {
   scopeKey: string;
   llmConfigId?: string | null;
   model?: string | null;
+  /**
+   * 추출 LLM 콜 전용 모델 식별자 — 노드 config `extractionModel`. 미설정
+   * (null/undefined) 이면 processor 가 `model → llmConfig.defaultModel` 로
+   * 폴백한다 (fallback 체인 `extractionModel → model → 기본`, §3·§12.12).
+   */
+  extractionModel?: string | null;
   /**
    * 임베딩(저장) 모델 식별자 — 노드 config `embeddingModel`. 회수 경로와 동일
    * 값을 써 query/저장 임베딩의 차원이 일치하게 한다 (spec §임베딩 출처, §3).

@@ -1253,4 +1253,148 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(1);
     });
   });
+  describe('요약/추출 전용 모델 (summaryModel / extractionModel — A3)', () => {
+    it('summaryModel set 시 요약 LLM 콜이 그 모델을 쓴다 (main 콜은 노드 model)', async () => {
+      const context = makeContext();
+      // 예산 초과를 만들기 위해 큰 turn 들을 seed.
+      const big = 'w'.repeat(500);
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      // 1st chat = 요약 콜, 2nd = main 응답.
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: 'ROLLING SUMMARY',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'cheap-mini',
+          finishReason: 'stop',
+        })
+        .mockResolvedValueOnce({
+          content: 'AI response',
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          summaryModel: 'cheap-mini',
+          systemPrompt: 'Sys',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'summary_buffer',
+          memoryTokenBudget: 300,
+        },
+        context,
+      );
+      // 요약 콜(첫 콜)은 summaryModel, main 콜(둘째)은 노드 model.
+      const summaryCall = mockLlmService.chat.mock.calls[0][1] as {
+        model: string;
+      };
+      const mainCall = mockLlmService.chat.mock.calls[1][1] as {
+        model: string;
+      };
+      expect(summaryCall.model).toBe('cheap-mini');
+      expect(mainCall.model).toBe('gpt-4o');
+    });
+
+    it('summaryModel 미설정 시 요약 LLM 콜은 노드 model 로 폴백 (기존 동작 유지)', async () => {
+      const context = makeContext();
+      const big = 'w'.repeat(500);
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: 'ROLLING SUMMARY',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        })
+        .mockResolvedValueOnce({
+          content: 'AI response',
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'summary_buffer',
+          memoryTokenBudget: 300,
+          // summaryModel intentionally absent.
+        },
+        context,
+      );
+      const summaryCall = mockLlmService.chat.mock.calls[0][1] as {
+        model: string;
+      };
+      expect(summaryCall.model).toBe('gpt-4o');
+    });
+
+    it('extractionModel 을 scheduleExtraction payload 로 전달 (set / 미설정 분기)', async () => {
+      // (a) set → payload.extractionModel 그대로.
+      const ctxA = makeContext();
+      await buildHandler().execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-xyz',
+          extractionModel: 'cheap-extract',
+          systemPrompt: 'Sys',
+          userPrompt: '내 이름은 지수야',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-42',
+          memoryTokenBudget: 100000,
+        },
+        ctxA,
+      );
+      expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(1);
+      expect(
+        agentMemoryService.scheduleExtraction.mock.calls[0][0],
+      ).toMatchObject({ extractionModel: 'cheap-extract', model: 'gpt-4o' });
+
+      // (b) 미설정 → payload.extractionModel undefined (processor 가 model 로 폴백).
+      agentMemoryService.scheduleExtraction.mockClear();
+      const ctxB = makeContext();
+      await buildHandler().execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'Sys',
+          userPrompt: '내 이름은 지수야',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'persistent',
+          memoryKey: 'user-42',
+          memoryTokenBudget: 100000,
+        },
+        ctxB,
+      );
+      const argB = agentMemoryService.scheduleExtraction.mock.calls[0][0];
+      expect(argB.extractionModel).toBeUndefined();
+      expect(argB.model).toBe('gpt-4o');
+    });
+  });
 });
