@@ -57,7 +57,7 @@ code:
 | 코드 | 설명 |
 |------|------|
 | `EXECUTION_TIMEOUT` | **Code 노드 스크립트 실행 타임아웃** (`nodes/data/code/code.handler.ts`). 엔진 레벨 누적 실행시간 초과는 `EXECUTION_TIME_LIMIT_EXCEEDED` 를 쓴다 |
-| `EXECUTION_TIME_LIMIT_EXCEEDED` | 엔진 레벨 — 단일 Execution 의 **누적 active-running 시간**(wall-clock 아님, `waiting_for_input` 대기 제외) 초과 → `failed` ([4-execution-engine §8](./4-execution-engine.md#8-동시-실행-제한-부분-구현)) |
+| `EXECUTION_TIME_LIMIT_EXCEEDED` | 엔진 레벨 — 단일 Execution 의 **누적 active-running 시간**(wall-clock 아님, `waiting_for_input` 대기 제외) 초과 → `failed` ([4-execution-engine §8](./4-execution-engine.md#8-동시-실행-제한)) |
 | `WORKER_HEARTBEAT_TIMEOUT` | active 세그먼트 job 이 BullMQ stalled 재배달 attempts 를 모두 소진(terminal worker failure) → `failed` ([4-execution-engine §7.1](./4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target)) |
 | `RECURSION_DEPTH_EXCEEDED` | 서브 워크플로우 재귀 깊이 초과 |
 | `MAX_ITERATIONS_EXCEEDED` | Loop/ForEach 최대 반복 횟수 초과 |

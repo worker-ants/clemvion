@@ -938,7 +938,7 @@ case 2 의 rehydration 경로는 §7.4 의 기존 원칙 "키 없음 → 즉시 
 
 ---
 
-## 8. 동시 실행 제한 (부분 구현)
+## 8. 동시 실행 제한
 
 > **구현 상태**: **단일 Execution active-running 누적 타임아웃은 PR2a 구현 완료**(`impl-exec-concurrency-cap`). 워크스페이스/워크플로우 동시 실행 cap·단일 Execution 최대 노드 수·큐 대기 제한은 **목표 정책(Planned, §4 intake 큐 + 카운트 가드)** 이며 enforcement 코드가 아직 없다. 본 절의 미구현 표면 추적: `plan/in-progress/spec-sync-execution-engine-gaps.md` / `plan/in-progress/exec-intake-queue-impl.md`(PR2b).
 
