@@ -46,7 +46,7 @@ describe('ContinuationExecutionProcessor', () => {
   beforeEach(async () => {
     const engineMock = {
       applyContinuation: jest.fn().mockResolvedValue(undefined),
-      applyCancellation: jest.fn().mockReturnValue(undefined),
+      applyCancellation: jest.fn().mockResolvedValue(undefined),
       isNodeExecutionWaiting: jest.fn().mockResolvedValue(true),
       applyRetryLastTurn: jest.fn().mockResolvedValue(undefined),
     };
@@ -116,7 +116,7 @@ describe('ContinuationExecutionProcessor', () => {
   });
 
   describe('cancel dispatch', () => {
-    it('calls applyCancellation with executionId (fire-and-forget)', async () => {
+    it('calls applyCancellation with executionId (await — Phase B PR-B1: async)', async () => {
       await processor.process(makeJob({ type: 'cancel' }));
       expect(engine.applyCancellation).toHaveBeenCalledWith('exec-1');
     });

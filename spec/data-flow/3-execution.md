@@ -48,8 +48,8 @@ sequenceDiagram
     Eng->>Handler: execute(input, context)
     alt blocking (waiting_for_input)
       Eng->>PG: UPDATE node_execution SET status='waiting_for_input'
-      Eng->>PG: UPDATE execution SET status='waiting_for_input'
-      Note over Eng: continuation-queue (BullMQ) consume → 폼 제출 / 버튼 클릭 / AI message 가 깨움. worker 가 자기 인스턴스의 in-memory resolver 보유 시 즉시 resolve, 없으면 §7.5 rehydration 경로
+      Eng->>PG: UPDATE execution SET status='waiting_for_input' (+ conversation_thread / user_variables durable commit)
+      Note over Eng: Phase B — park = 세그먼트 종료. 폼/버튼은 코루틴을 즉시 해제하고(메모리 0 점유) 재개는 §7.5 rehydration(slow-path)으로 일원화. 멀티턴 AI 는 PR-B2 전까지 in-memory 루프 유지(잠정 fast-path). continuation-queue(BullMQ) consume 가 깨운다
     else background dispatch
       Eng->>BG: queue.add('background-run', { snapshot, bodyEntryNodeIds })
       Note over Eng: 메인 흐름은 다음 노드로 계속 진행
@@ -108,11 +108,11 @@ sequenceDiagram
     API->>Bus: enqueue { type, executionId, nodeExecutionId, payload, jobId=`<exec>:<ne>:<seq>` }
     Bus-->>Proc: deliver (any instance — at-least-once)
     Proc->>Eng: applyContinuation(executionId, nodeExecutionId, payload)
-    alt 로컬 pendingContinuations hit (fast path)
+    alt 멀티턴 AI 로컬 pendingContinuations hit (잠정 fast path — PR-B2 에서 제거)
       Eng->>Eng: resolver 호출 → waitForX await 풀림
-    else local miss (§7.5 rehydration)
-      Eng->>PG: ExecutionContext 재구성 (execution_node_log + node_execution.output_data)
-      Eng->>Eng: waitForX 직접 invoke + setImmediate 로 resolver fire
+    else 폼/버튼 또는 local miss (§7.5 rehydration — Phase B 일원화)
+      Eng->>PG: ExecutionContext 재구성 (execution_node_log + node_execution.output_data + conversation_thread + user_variables)
+      Eng->>Eng: waitForX 직접 invoke(detached drive) + setTimeout 로 resolver fire
     end
     Eng->>PG: UPDATE execution SET status='running' + UPDATE node_execution SET status='completed'
     Eng->>Eng: 토폴로지 다음 단계 진행
