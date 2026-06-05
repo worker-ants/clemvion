@@ -31,13 +31,13 @@ owner: developer
 - [x] `6-config.md` RerankConfig 관리 화면 + `/api/rerank-configs` endpoint 절(LLMConfig 대칭).
 - [x] `5-knowledge-base.md` 리랭킹 행 "(Planned, 선택)" → "(선택, cross_encoder/cross_encoder_llm 구현)".
 - [x] `1-data-model §2.16.1` "(Planned)" 정리(앵커 보존 주의) + `9-rag-search §3.3` cross_encoder_llm "구현됨" 반영.
-- [ ] frontmatter: 모든 surface 구현 시 `9-rag-search` status partial→implemented 검토. UI 추가로 `5-knowledge-base`·`6-config` code: 갱신.
+- [x] frontmatter: (검토) 9-rag-search status 는 provider 확장·멀티-KB·escalate 잔여로 partial 유지. UI 추가로 5-knowledge-base·6-config 구현 시 `9-rag-search` status partial→implemented 검토. UI 추가로 `5-knowledge-base`·`6-config` code: 갱신.
 
 ## 검증 (정석 — rebase/리뷰 생략 금지, memory 2026-06-05 정정)
 - [x] consistency-check --impl-prep (12_59_45 BLOCK:NO)
-- [ ] TEST WORKFLOW (lint·unit·build·**frontend 포함**·e2e) — frontend node_modules 실제 부트스트랩 필요(turbopack)
-- [ ] /ai-review (full, route 오판 시 --route=all)
-- [ ] consistency-check --impl-done
+- [x] TEST WORKFLOW (lint·unit·build·**frontend 포함**·e2e) — frontend node_modules 실제 부트스트랩 필요(turbopack)
+- [x] /ai-review (full, route 오판 시 --route=all)
+- [x] consistency-check --impl-done
 
 ## 진행 메모
 - 2026-06-05 fresh worktree(864891) from main(#475까지). A.3·A.4 drop.
