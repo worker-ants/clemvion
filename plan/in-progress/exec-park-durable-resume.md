@@ -105,7 +105,7 @@ owner: developer
 - `4-execution-engine.md §7.4`: Worker 동작 행의 "로컬 pendingMap 즉시 resolve(fast-path)" 서술 정정(제거/강등). (consistency W5/I2 — 누락분 추가)
 - `4-execution-engine.md §7.5`: rehydration 이 conversationThread·variables 를 복원함을 명시(무손실 보장) + case 1(fast-path) 문구 동반 정정.
 - `4-execution-engine.md §6.2` + `conventions/conversation-thread.md §4/§7/§8`(세 앵커): "신규 DB 컬럼 없음" → `Execution.conversation_thread` 채택으로 **한 PR 동기 갱신**, Rationale 기록. **[A1 완료 2026-06-05]** + `1-ai-agent.md §12.1/§12.10/§12.13` reconcile + **`1-data-model.md §2.13 Execution` 컬럼 행**(consistency W1) 동기 갱신 완료.
-- **[Phase B 선행 — 구현 착수 전 의무]** D4 turn-단위 park Rationale 명문화(`4-execution-engine.md §4.x` 또는 신규 §Rationale): 기존 "대화 전체=단일 waiting" 대비 차이, 채택 근거(메모리 bounded + slow-path 일원화 정합), 기각 대안("단일 waiting 유지+코루틴 누적 수용"). (consistency W4)
+- **[Phase B 선행 — 완료 2026-06-05]** spec 모델 개정: `4-execution-engine.md` §1.1 전이표·§4.x banner 2개(park=세그먼트 종료, slow-path 일원화)·§6.2 rawConfig(D3 fresh-per-turn)·§7.4 Worker 동작+diagram·§7.5 case diagram·**§Rationale 신규 "park 즉시 해제 + slow-path 일원화 (Phase B)"** (D4 turn-park·D3 fresh-config·B1/B2 결합·worker-side fast-path 제거 근거). consistency W1~W4 해소.
 - A2 채택 시 "ai_agent 한정" 문구 3곳(`4-execution-engine.md §1.3 L111`·`3-information-extractor.md §357`·`1-ai-agent.md §703`) 동기 갱신. (consistency I1/I4)
 - frontmatter `pending_plans:` 에 본 plan 등록 (`conversation-thread.md`·`4-execution-engine.md`·**`1-data-model.md`**). **[A1 완료]**
 - consistency-check `--spec`/`--impl-prep` 의무, `--plan`(본 plan) 점검. **[--impl-prep BLOCK:NO 2026-06-05 `review/consistency/2026/06/05/09_01_23`]**
@@ -140,7 +140,8 @@ owner: developer
 ## 미해결 결정 (사용자/planner)
 - **D1 (확정 2026-06-05)**: conversationThread 영속 = **`Execution.conversation_thread jsonb`** (spec 예고 컬럼 §4 L211/§7 L284 채택). 사용자 handoff 승인. spec 동기 갱신 완료(conversation-thread §4/§7/§8.4, 4-execution-engine §6.2/§7.5, 1-ai-agent §12.1/§12.10/§12.13, **1-data-model §2.13 Execution 컬럼 행** — consistency W1 해소). 마이그레이션 = **V084**(#469 PR2a 가 V083 선점 → §6.2 rebase-renumber 로 V083→V084 재부여, 2026-06-05).
 - **D2 (확정 2026-06-05)**: user-defined variables 복원 = **본 plan 포함**(PR-A3). 조사 결과 복원 필요·SMALL scope(A1 패턴 재사용)라 분리 불요. 마이그레이션 V085 `Execution.user_variables jsonb`.
-- **D3**: park 중 워크플로 정의 편집 시 재개 정책(현행 node.config 재유도 의미 유지 여부).
+- **D3 (확정 2026-06-05)**: park 중 워크플로 편집 시 재개 = **Fresh-per-turn 수용**(사용자 결정). Phase B 의 매-turn rehydration 이 `node.config` 를 fresh 재유도하므로 park 중 편집이 다음 turn 부터 반영된다 — 현행 frozen-per-conversation(첫 turn rawConfig 고정) 대비 변경. checkpoint 에 rawConfig 영속 불요(구현 단순). spec §6.2 frozen-rawConfig 노트·§Rationale 갱신 필요(Phase B). replay reproducibility 약화는 수용.
+- **(설계 발견 2026-06-05)**: **B1·B2 분리 불가** — 코루틴 진짜 해제(bounded 메모리)는 park 시 `await` 제거(runExecution 반환)를 요구하고, 그러면 in-memory resolve 가 사라져 **모든 재개가 rehydration(slow-path)**. 따라서 Phase B 코어 = B1+B2 한 덩어리(release+slow-path 일원화) + B3(barrier·pendingContinuations 정리). dockerized e2e "park→worker kill→무손실 재개" 필수.
 - **D4 (확정 2026-06-05)**: 멀티턴 AI = **turn-단위 park(매 turn 해제)** — 메모리 일관성 우선(B1 반영).
 - **D5 (확정 2026-06-05)**: **단일 worktree 통합** — 본 plan 이 exec-intake-queue PR3(rehydration)+node-cancellation §2 를 흡수해 직렬 진행(Phase 0). BLOCK 해소.
 
