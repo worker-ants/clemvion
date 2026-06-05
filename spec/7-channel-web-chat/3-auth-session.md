@@ -9,6 +9,7 @@ pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
   - plan/in-progress/channel-web-chat-followups.md
   - plan/in-progress/channel-web-chat-demo.md
+  - plan/in-progress/fix-webchat-envelope-unwrap.md
 ---
 
 # Spec: Channel Web Chat — 인증 / 세션 흐름
@@ -38,7 +39,8 @@ pending_plans:
 
 ```
 1. 첫 사용자 입력 → 위젯: POST /api/hooks/:path { profile, firstMessage }   (인증 없음)
-2. API: 202 { executionId, interaction: { token: iext_*, expiresAt, endpoints } }
+2. API: 202 { data: { executionId, status: "pending", interaction: { token: iext_*, expiresAt, endpoints } } }
+       ↑ 전역 TransformInterceptor 가 모든 성공 응답을 { data } 로 래핑 (webhook §3.1). 위젯은 res.data 를 언랩해 읽는다.
 3. 위젯: GET .../:id/stream?token=iext_*           (SSE open)
 4. SSE: execution.waiting_for_input (ai_conversation) → 입력창 활성 + conversationConfig 렌더
 5. 사용자 입력 → POST .../:id/interact { command: submit_message, message }  (Authorization: Bearer iext_*)

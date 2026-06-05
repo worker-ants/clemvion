@@ -7,6 +7,7 @@ code:
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
   - plan/in-progress/channel-web-chat-followups.md
+  - plan/in-progress/fix-webchat-envelope-unwrap.md
 ---
 
 # Spec: Channel Web Chat — 아키텍처
@@ -59,7 +60,7 @@ pending_plans:
 
 | 위젯 동작 | EIA 표면 | 참조 |
 |---|---|---|
-| 대화 시작 | `POST /api/hooks/:endpointPath` → `202 { interaction: { token, endpoints } }` | EIA §4.1 |
+| 대화 시작 | `POST /api/hooks/:endpointPath` → `202 { data: { executionId, status, interaction: { token, expiresAt, endpoints } } }` (성공 응답은 전역 `TransformInterceptor` 가 `{ data }` 로 래핑 — webhook §3.1. 위젯은 `res.data` 언랩) | EIA §4.1 |
 | 실시간 이벤트 | `GET /api/external/executions/:id/stream` (SSE, `?token=`) | EIA §5.2 |
 | AI 메시지 | SSE `execution.ai_message` (+ `presentations[]`) | EIA §6.5 |
 | 입력 대기 진입 | SSE `execution.waiting_for_input` — **EIA 외부 `interactionType` ∈ `form`/`buttons`/`ai_conversation`** (EIA §6.2, 3값). render_form blocking 은 EIA 표면에서 **`ai_conversation` 으로 통합 노출** | EIA §6.2 |
