@@ -48,19 +48,28 @@ owner: developer
 
 > Phase B(해제)의 **전제**. A 완료 전 B 로 flip 하면 재개가 상시 손실/실패한다.
 
-### A1. conversationThread 영속 + rehydration 복원 — ⭐⭐⭐ (핵심, spec drift 정합화)
-- [ ] **영속 매체 = `Execution.conversation_thread jsonb`** — spec `conversation-thread.md §4 L211/§9.11 L284` 이 이미 이 컬럼을 예고("향후 …검토", 현 NodeExecution 분산 저장의 cross-node N+1 해소 목적). D1 은 이 예고 컬럼 채택으로 확정(아래).
-- [ ] migrations.md §5 절차로 `Execution.conversation_thread jsonb NULL` 마이그레이션.
-- [ ] park 직전(각 `waitForX`) `context.conversationThread` 스냅샷을 해당 컬럼에 durable 저장.
-- [ ] `rehydrateContext`(현 `createEmptyConversationThread()` 리셋, ~L91/L1194-1210)가 컬럼에서 thread 를 복원하도록 — spec §6.2/§7.5/§conversation-thread §4 L213 이 약속한 동작의 구현.
-- [ ] conversation-thread.md "신규 DB 컬럼 없음" 조항(§4/§7/§8 세 앵커) + `4-execution-engine.md §6.2` 를 **한 PR 로 동기 갱신**, Rationale 에 정책 전환 사유 명문화 (planner). (consistency W2/W3)
-- 테스트: park → thread 손실 없이 재개(같은 인스턴스·재시작·타 인스턴스).
+### A1. conversationThread 영속 + rehydration 복원 — ✅ 완료 (PR #470, 2026-06-05, main `57d366b6`)
+- [x] **영속 매체 = `Execution.conversation_thread jsonb`** — 마이그레이션 **V084**(#469 와 V083 충돌→rebase-renumber).
+- [x] park 직전(각 `waitForX`) `stageConversationThreadSnapshot` 로 `context.conversationThread` 스냅샷을 `updateExecutionStatus` 트랜잭션과 **원자 commit**.
+- [x] `rehydrateContext` 가 컬럼에서 `rehydrateConversationThread`(eviction-aware nextSeq·totalChars 재계산·turn sanitize·runningSummary cap) 로 무손실 복원 — createContext `conversationThread` 옵션 경유.
+- [x] spec 동기 갱신: conversation-thread §4/§7/§8.4, 4-execution-engine §6.2/§7.5/§4.x, 1-ai-agent §12.1/§12.10/§12.13, 1-data-model §2.13.
+- [x] 테스트: rehydrateContext 무손실 복원·NULL 회귀·park 스냅샷 + 정규화 단위(19) — 764 모듈 테스트·e2e 168 통과. consistency --impl-prep/--impl-done BLOCK:NO, ai-review LOW.
 
-### A2. _resumeCheckpoint 재구성 견고화 — ⭐⭐
-- [ ] `buildRetryReentryState` 재구성 실패(schema drift) 시 graceful 처리 경계 점검 — 어떤 node.config 변경이 `RESUME_INCOMPATIBLE_STATE` 를 유발하는지 목록화.
-- [ ] checkpoint 버전 필드 추가(스키마 진화 대비) + 누락 필드 기본값 보강.
-- [ ] information_extractor 멀티턴도 ai_agent 와 동일하게 checkpoint 저장(현재 ai_agent 한정 여부 확인 후 확장).
-- 테스트: 구(舊) checkpoint 포맷 → 재개 성공/명확한 graceful 종료.
+### A2 범위 분리 (2026-06-05, 사용자 결정)
+조사 결과 A2 가 두 갈래(① checkpoint 견고화 self-contained, ② information_extractor 확장 — IE 고유 state·builder 일반화·spec 3곳 필요)로 갈리고 후자가 큼. **A2a(견고화)만 본 차수로 진행, A2b(IE)는 분리.**
+
+### A2a. _resumeCheckpoint 견고화 — ✅ 완료 (PR-A2a, commit 7c32712f, 2026-06-05)
+- [x] checkpoint 에 **버전 필드**(`CHECKPOINT_SCHEMA_VERSION`) 추가 — `buildResumeCheckpoint` 가 stamp, 재구성 시 검사. 버전 부재(구 row)=legacy 허용, 미래 버전(코드 미지원)=graceful `RESUME_INCOMPATIBLE_STATE`.
+- [x] `buildRetryReentryState` 재구성 시 누락/비정상 checkpoint 필드 **기본값 보강** — 부분 손상이 크래시 대신 graceful 경계로.
+- [x] schema drift(node.config 변경: `maxTurns`/`llmConfigId` 등 context-binding 필드) → `RESUME_INCOMPATIBLE_STATE` 경계 점검·문서화(현 catch L1816-1823 유지·강화).
+- [x] spec: §7.5 `RESUME_INCOMPATIBLE_STATE` 케이스에 "checkpoint 버전 불일치" 추가(필요 시), §1.3 checkpoint 서술 보강.
+- 테스트: 구(舊)/버전없는 checkpoint → 재개 성공, 미래 버전·손상 → 명확한 graceful 종료.
+
+### A2b. information_extractor 멀티턴 checkpoint 확장 — ⭐⭐ [분리, 후속]
+- [ ] IE 전용 checkpoint builder(고유 필드 `outputSchema`/`partialResult`/`collectionRetryCount`/`maxCollectionRetries` 포함) + `buildRetryReentryState` 일반화(핸들러별 allow-list).
+- [ ] 가드 3곳 확장(`emitAiWaitingForInput` L4976 `node.type==='ai_agent'`, resumeFromCheckpoint L1617, handleAiMessageTurn L5238).
+- [ ] spec "ai_agent 한정" 문구 3곳 동기 갱신(`4-execution-engine §1.3 L111`·`3-information-extractor.md L357`·`1-ai-agent.md L703`) — IE 미적용→지원으로 전환, Rationale.
+- 주의: IE state 호환성·재구성기 안전성 판단 Rationale 기록(consistency I4).
 
 ### A3. user-defined variables 영속 + 복원 — ⭐⭐⭐ (범위 확인 필요)
 - [ ] Variable Declaration 등 런타임 variables 가 재개 의미에 필요한지 판단(범위 D2).
