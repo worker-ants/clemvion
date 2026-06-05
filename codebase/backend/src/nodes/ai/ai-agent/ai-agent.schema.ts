@@ -593,7 +593,7 @@ export const aiAgentNodeConfigSchema = z
       .meta({
         ui: {
           label: 'Embedding Model',
-          widget: 'text',
+          widget: 'expression',
           order: 49.5,
           group: 'Memory',
           placeholder: 'text-embedding-3-small',
