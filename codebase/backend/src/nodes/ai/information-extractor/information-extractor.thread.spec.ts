@@ -106,3 +106,119 @@ describe('InformationExtractorHandler — ConversationThread push (v2 single-tur
     ).resolves.toMatchObject({ port: 'out' });
   });
 });
+
+describe('InformationExtractorHandler — ConversationThread inject (contextScope, A2)', () => {
+  let mockLlmService: Record<string, jest.Mock>;
+  let conversationThreadService: ConversationThreadService;
+  let handler: InformationExtractorHandler;
+
+  beforeEach(() => {
+    mockLlmService = {
+      resolveConfig: jest.fn().mockResolvedValue({
+        id: 'cfg',
+        provider: 'openai',
+        defaultModel: 'gpt-4o-mini',
+      }),
+      chat: jest.fn().mockResolvedValue({
+        content: JSON.stringify({ name: 'Alice' }),
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        model: 'gpt-4o-mini',
+      }),
+      embed: jest.fn(),
+    };
+    conversationThreadService = new ConversationThreadService();
+    handler = new InformationExtractorHandler(
+      mockLlmService as never,
+      conversationThreadService,
+    );
+  });
+
+  function seedPriorTurn(context: ReturnType<typeof makeExecutionContext>) {
+    conversationThreadService.appendAiAssistantMessage(context, {
+      node: { id: 'agent-up', label: 'agent-up', type: 'ai_agent' },
+      content: 'prior agent answer',
+    });
+  }
+
+  it('single-turn contextScope=thread injects prior thread turns into LLM messages', async () => {
+    const context = makeExecutionContext({ nodeId: 'extractor-1' });
+    seedPriorTurn(context);
+    await handler.execute(
+      { text: 'x' },
+      {
+        mode: 'single_turn',
+        model: 'gpt-4o-mini',
+        inputField: 'text',
+        outputSchema: [{ name: 'name', type: 'string', required: true }],
+        contextScope: 'thread',
+        contextInjectionMode: 'messages',
+      },
+      context,
+    );
+    const sentMessages = mockLlmService.chat.mock.calls[0][1].messages;
+    expect(
+      sentMessages.some(
+        (m: { content: string }) => m.content === 'prior agent answer',
+      ),
+    ).toBe(true);
+  });
+
+  it('single-turn contextScope default (none) leaves messages unchanged (regression)', async () => {
+    const context = makeExecutionContext({ nodeId: 'extractor-1' });
+    seedPriorTurn(context);
+    await handler.execute(
+      { text: 'x' },
+      {
+        mode: 'single_turn',
+        model: 'gpt-4o-mini',
+        inputField: 'text',
+        outputSchema: [{ name: 'name', type: 'string', required: true }],
+      },
+      context,
+    );
+    const sentMessages = mockLlmService.chat.mock.calls[0][1].messages;
+    expect(sentMessages).toHaveLength(2);
+    expect(
+      sentMessages.some(
+        (m: { content: string }) => m.content === 'prior agent answer',
+      ),
+    ).toBe(false);
+  });
+
+  it('multi-turn first entry contextScope=thread injects into initial messages', async () => {
+    // finalize on first turn so the run completes deterministically.
+    mockLlmService.chat.mockReset();
+    mockLlmService.chat.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        {
+          id: 'tc1',
+          name: 'finalize_extraction',
+          arguments: JSON.stringify({ name: 'Bob' }),
+        },
+      ],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      model: 'gpt-4o-mini',
+    });
+    const context = makeExecutionContext({ nodeId: 'extractor-1' });
+    seedPriorTurn(context);
+    await handler.execute(
+      { text: 'x' },
+      {
+        mode: 'multi_turn',
+        model: 'gpt-4o-mini',
+        inputField: 'Bob',
+        outputSchema: [{ name: 'name', type: 'string', required: true }],
+        contextScope: 'thread',
+        contextInjectionMode: 'messages',
+      },
+      context,
+    );
+    const sentMessages = mockLlmService.chat.mock.calls[0][1].messages;
+    expect(
+      sentMessages.some(
+        (m: { content: string }) => m.content === 'prior agent answer',
+      ),
+    ).toBe(true);
+  });
+});
