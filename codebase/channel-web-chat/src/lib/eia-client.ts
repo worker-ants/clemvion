@@ -21,6 +21,19 @@ function joinUrl(base: string, path: string): string {
   return base.replace(/\/$/, "") + (path.startsWith("/") ? path : "/" + path);
 }
 
+/**
+ * 전역 `TransformInterceptor` 의 `{ data: ... }` 봉투 해제.
+ * 백엔드 성공 응답은 모두 `{ data }` 로 래핑된다 (SoT: webhook §3.1 / api-convention §5).
+ * 봉투가 없으면(`data` 키 부재) body 를 그대로 반환 — 하위 호환·테스트 안전.
+ * 에러 응답은 `{ error }`/`{ statusCode }` shape 이라 이 경로를 타지 않는다(success-path 전용).
+ */
+function unwrapData<T>(body: unknown): T {
+  if (body !== null && typeof body === "object" && "data" in body) {
+    return (body as { data: T }).data;
+  }
+  return body as T;
+}
+
 export class EiaClient {
   private readonly apiBase: string;
   private readonly fetchImpl: typeof fetch;
@@ -46,7 +59,7 @@ export class EiaClient {
     if (!res.ok) {
       throw new EiaError(`webhook 시작 실패(${res.status})`, res.status);
     }
-    return (await res.json()) as HookStartResponse;
+    return unwrapData<HookStartResponse>(await res.json());
   }
 
   /** 인터랙션 명령 제출 — POST endpoints.submit. Bearer 토큰. */
@@ -74,7 +87,7 @@ export class EiaClient {
     });
     if (res.status === 410) throw new EiaError("대화 종료됨", 410);
     if (!res.ok) throw new EiaError(`상태 조회 실패(${res.status})`, res.status);
-    return (await res.json()) as Record<string, unknown>;
+    return unwrapData<Record<string, unknown>>(await res.json());
   }
 
   /** 토큰 갱신 — POST endpoints.refresh (만료 30분 이내). */
@@ -87,7 +100,7 @@ export class EiaClient {
       headers: { authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new EiaError(`토큰 갱신 실패(${res.status})`, res.status);
-    return (await res.json()) as { token: string; expiresAt: string };
+    return unwrapData<{ token: string; expiresAt: string }>(await res.json());
   }
 
   /** SSE 스트림 — GET endpoints.stream?token=. EventSource 헤더 미지원 → 쿼리 토큰(EIA §8.3). */

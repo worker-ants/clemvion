@@ -19,7 +19,29 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("startConversation", () => {
-  it("202 응답을 파싱해 반환 + 올바른 URL/메서드", async () => {
+  it("전역 TransformInterceptor `{ data }` 봉투를 언랩해 반환 + 올바른 URL/메서드", async () => {
+    // 실제 백엔드 응답은 전역 TransformInterceptor 로 `{ data: {...} }` 래핑됨 (webhook §3.1 SoT).
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(202, {
+        data: {
+          executionId: "e1",
+          status: "pending",
+          interaction: { token: "iext_x", expiresAt: "2026-01-01", endpoints },
+        },
+      }),
+    );
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    const res = await client.startConversation("path-1", { firstMessage: "hi", profile: { a: 1 } });
+    expect(res.executionId).toBe("e1");
+    expect(res.interaction?.token).toBe("iext_x");
+    expect(res.interaction?.endpoints.stream).toBe(endpoints.stream);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://api.test/api/hooks/path-1");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toMatchObject({ firstMessage: "hi" });
+  });
+
+  it("봉투 없는 응답도 그대로 수용 (하위 호환·방어)", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(202, {
         executionId: "e1",
@@ -27,13 +49,9 @@ describe("startConversation", () => {
       }),
     );
     const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
-    const res = await client.startConversation("path-1", { firstMessage: "hi", profile: { a: 1 } });
+    const res = await client.startConversation("path-1", {});
     expect(res.executionId).toBe("e1");
     expect(res.interaction?.token).toBe("iext_x");
-    const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe("https://api.test/api/hooks/path-1");
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body)).toMatchObject({ firstMessage: "hi" });
   });
 
   it("비-2xx → EiaError(status)", async () => {
@@ -109,14 +127,36 @@ describe("openStream", () => {
   });
 });
 
-describe("refreshToken", () => {
-  it("새 토큰 반환", async () => {
+describe("getStatus", () => {
+  it("`{ data }` 봉투를 언랩해 상태 객체 반환", async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValue(jsonResponse(200, { token: "iext_new", expiresAt: "2026" }));
+      .mockResolvedValue(jsonResponse(200, { data: { status: "running", seq: 3 } }));
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    const r = await client.getStatus(endpoints, "iext_x");
+    expect(r.status).toBe("running");
+    expect(r.seq).toBe(3);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://api.test/api/external/executions/e1");
+    expect(init.headers.authorization).toBe("Bearer iext_x");
+  });
+
+  it("410 → 종료 에러", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(410, {}));
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    await expect(client.getStatus(endpoints, "t")).rejects.toMatchObject({ status: 410 });
+  });
+});
+
+describe("refreshToken", () => {
+  it("`{ data }` 봉투를 언랩해 새 토큰 반환", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { data: { token: "iext_new", expiresAt: "2026" } }));
     const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
     const r = await client.refreshToken(endpoints, "old");
     expect(r.token).toBe("iext_new");
+    expect(r.expiresAt).toBe("2026");
   });
 });
 
