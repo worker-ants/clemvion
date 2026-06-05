@@ -182,7 +182,11 @@ export class RerankService {
     query: string,
     survivors: RerankResult[],
     params: RerankParams,
-  ): Promise<{ applied: boolean; results: RerankResult[]; error: string | null }> {
+  ): Promise<{
+    applied: boolean;
+    results: RerankResult[];
+    error: string | null;
+  }> {
     const FAIL = {
       applied: false,
       results: [] as RerankResult[],
@@ -210,7 +214,11 @@ export class RerankService {
         const idx = id - 1;
         if (idx >= 0 && idx < survivors.length && !seen.has(idx)) {
           seen.add(idx);
-          graded.push({ ...survivors[idx], score: score / 10, origin: 'reranked' });
+          graded.push({
+            ...survivors[idx],
+            score: score / 10,
+            origin: 'reranked',
+          });
         }
       }
       if (graded.length === 0) return FAIL;
