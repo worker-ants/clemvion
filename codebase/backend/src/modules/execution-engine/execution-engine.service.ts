@@ -255,6 +255,16 @@ class ErrorPortFallbackError extends Error {
 /** error 포트 노드의 `output.error.message` 가 DB(JSONB)·WS payload 를 비대화
  *  시키지 않도록 상한을 둔다. 초과분은 `…` 로 잘라낸다. */
 const NODE_ERROR_MESSAGE_MAX_LEN = 2000;
+
+/**
+ * `_resumeCheckpoint`(§7.5 rehydration) 의 스키마 버전. checkpoint 구조가
+ * 진화할 때 1씩 올린다. `buildResumeCheckpoint` 가 stamp 하고, 재개 시 검사한다:
+ * - 부재(기능 배포 이전 row) / 현재 버전 이하 → 누락 필드 기본값 보강해 재구성.
+ * - 현재 버전 초과(롤링 배포 중 구 인스턴스가 신 포맷 pickup) → 안전 재구성 불가
+ *   → graceful `RESUME_INCOMPATIBLE_STATE`.
+ * (spec: 4-execution-engine §1.3 보존 예외 / §7.5 실패 케이스 표)
+ */
+const CHECKPOINT_SCHEMA_VERSION = 1;
 function clampNodeErrorMessage(raw: string): string {
   return raw.length > NODE_ERROR_MESSAGE_MAX_LEN
     ? raw.slice(0, NODE_ERROR_MESSAGE_MAX_LEN) + '…'
@@ -1619,6 +1629,21 @@ export class ExecutionEngineService
         'RESUME_INCOMPATIBLE_STATE',
         `Multi-turn AI 노드(${opts.node.type})의 _resumeCheckpoint 부재 — 재구성 불가 (배포 이전 waiting row 또는 손상). graceful reset: 사용자는 새 대화로 시작.`,
       );
+    }
+    // 스키마 버전 가드 (§1.3 / §7.5) — checkpoint 의 schemaVersion 이 현재 코드
+    // 지원 버전을 초과하면(롤링 배포 중 구 인스턴스가 신 포맷 pickup) 안전하게
+    // 재구성할 수 없으므로 graceful reset. 버전 부재(구 row)·이하는 호환 처리.
+    if (isAiConversation && resumeCheckpoint) {
+      const ckptVersion = resumeCheckpoint.schemaVersion;
+      if (
+        typeof ckptVersion === 'number' &&
+        ckptVersion > CHECKPOINT_SCHEMA_VERSION
+      ) {
+        throw new RehydrationError(
+          'RESUME_INCOMPATIBLE_STATE',
+          `Multi-turn AI 노드(${opts.node.type})의 _resumeCheckpoint schemaVersion(${ckptVersion}) 이 현재 지원 버전(${CHECKPOINT_SCHEMA_VERSION}) 초과 — 안전 재구성 불가. graceful reset: 사용자는 새 대화로 시작.`,
+        );
+      }
     }
 
     // 그래프 상태 재구축 — `loadAndBuildGraph` 가 3 호출자 공통 (PR #365
@@ -4141,17 +4166,22 @@ export class ExecutionEngineService
     initialAction: ContinuationPayload | undefined;
   } {
     // expiresAt 은 resume state 에 불필요. lastUserMessage/Source 는 replay 용.
+    // schemaVersion 은 checkpoint 메타데이터 — 버전 검사는 호출 측(§7.5)이 하고
+    // 여기서는 resumeState 본문에서 제외한다.
     const {
       expiresAt: _expiresAt,
+      schemaVersion: _schemaVersion,
       lastUserMessage,
       lastUserMessageSource,
       ...resumeFields
     } = retryState as Record<string, unknown> & {
       expiresAt?: unknown;
+      schemaVersion?: unknown;
       lastUserMessage?: unknown;
       lastUserMessageSource?: unknown;
     };
     void _expiresAt;
+    void _schemaVersion;
 
     const rawNodeConfig = node.config ?? {};
     const resolvedConfig = this.resolveRetryNodeConfig(
@@ -4163,6 +4193,28 @@ export class ExecutionEngineService
       (context.variables?.__workspaceId as string | undefined) ?? '';
     const resumeState: Record<string, unknown> = {
       ...resumeFields,
+      // 핵심 checkpoint 필드 방어적 기본값 — 구(舊)/부분 손상 checkpoint 가
+      // 필드를 누락해도 undefined 가 downstream(loop)으로 새지 않게 정규화.
+      // retry 모드(full `_retryState`)에서는 값이 이미 있어 no-op.
+      messages: Array.isArray(resumeFields.messages)
+        ? resumeFields.messages
+        : [],
+      turnCount:
+        typeof resumeFields.turnCount === 'number' ? resumeFields.turnCount : 0,
+      totalInputTokens:
+        typeof resumeFields.totalInputTokens === 'number'
+          ? resumeFields.totalInputTokens
+          : 0,
+      totalOutputTokens:
+        typeof resumeFields.totalOutputTokens === 'number'
+          ? resumeFields.totalOutputTokens
+          : 0,
+      totalThinkingTokens:
+        typeof resumeFields.totalThinkingTokens === 'number'
+          ? resumeFields.totalThinkingTokens
+          : 0,
+      toolCalls:
+        typeof resumeFields.toolCalls === 'number' ? resumeFields.toolCalls : 0,
       executionId: execution.id,
       nodeId: node.id,
       workspaceId,
@@ -4244,6 +4296,8 @@ export class ExecutionEngineService
     // 은 form schema, `messages` 는 이미 `output.result.messages` 로 평문 영속 중.
     // credential 참조(`llmConfigId` 등)는 미동봉하고 재개 시 node.config 에서 재유도.
     return {
+      // 스키마 진화 대비 버전 stamp — 재개 시 미래 버전이면 graceful reset (§7.5).
+      schemaVersion: CHECKPOINT_SCHEMA_VERSION,
       messages: (s.messages as unknown[] | undefined) ?? [],
       turnCount: (s.turnCount as number | undefined) ?? 0,
       totalInputTokens: (s.totalInputTokens as number | undefined) ?? 0,

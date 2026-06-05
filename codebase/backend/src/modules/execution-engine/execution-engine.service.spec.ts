@@ -8903,6 +8903,92 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // PR-A2a — `_resumeCheckpoint` 견고화 (spec §1.3 / §7.5). checkpoint 에 스키마
+  // 버전을 stamp 하고, 재구성 시 버전 메타를 strip + 핵심 필드 누락을 기본값으로
+  // 보강한다. buildResumeCheckpoint / buildRetryReentryState 를 직접 호출해 격리 검증.
+  describe('_resumeCheckpoint schemaVersion + 견고화 (PR-A2a)', () => {
+    type CheckpointSubject = {
+      buildResumeCheckpoint: (
+        s: Record<string, unknown> | undefined,
+      ) => Record<string, unknown> | undefined;
+      buildRetryReentryState: (
+        execution: unknown,
+        node: unknown,
+        context: unknown,
+        retryState: Record<string, unknown>,
+        opts?: { resumeMode?: boolean },
+      ) => { resumeState: Record<string, unknown>; initialAction: unknown };
+      contextService: {
+        createContext: (
+          id: string,
+          wf: string,
+          opts?: { initialVariables?: Record<string, unknown> },
+        ) => unknown;
+      };
+    };
+    const cpSubject = () => service as unknown as CheckpointSubject;
+
+    it('buildResumeCheckpoint stamps the current schemaVersion', () => {
+      const checkpoint = cpSubject().buildResumeCheckpoint({
+        messages: [{ role: 'user', content: 'hi' }],
+        turnCount: 2,
+        model: 'm',
+      });
+      expect(checkpoint?.schemaVersion).toBe(1);
+      // 안전 필드는 보존.
+      expect(checkpoint?.turnCount).toBe(2);
+      expect(checkpoint?.model).toBe('m');
+    });
+
+    it('buildResumeCheckpoint returns undefined for non-object input', () => {
+      expect(cpSubject().buildResumeCheckpoint(undefined)).toBeUndefined();
+    });
+
+    it('buildRetryReentryState strips schemaVersion meta from the reconstructed resumeState', () => {
+      const ctx = cpSubject().contextService.createContext(
+        'exec-a2a-1',
+        'wf-1',
+        { initialVariables: { __workspaceId: 'ws-1' } },
+      );
+      const { resumeState } = cpSubject().buildRetryReentryState(
+        { id: 'exec-a2a-1', startedAt: new Date() },
+        { id: 'node-1', type: 'ai_agent', config: { mode: 'multi_turn' } },
+        ctx,
+        {
+          schemaVersion: 1,
+          messages: [{ role: 'user', content: 'prev' }],
+          turnCount: 3,
+          model: 'm',
+        },
+        { resumeMode: true },
+      );
+      expect(resumeState).not.toHaveProperty('schemaVersion');
+      expect(resumeState.turnCount).toBe(3);
+    });
+
+    it('buildRetryReentryState applies defensive defaults for a legacy checkpoint missing core fields', () => {
+      const ctx = cpSubject().contextService.createContext(
+        'exec-a2a-2',
+        'wf-1',
+        { initialVariables: { __workspaceId: 'ws-1' } },
+      );
+      // 구(舊) checkpoint — schemaVersion·messages·turnCount·tokens 부재.
+      const { resumeState } = cpSubject().buildRetryReentryState(
+        { id: 'exec-a2a-2', startedAt: new Date() },
+        { id: 'node-1', type: 'ai_agent', config: { mode: 'multi_turn' } },
+        ctx,
+        { model: 'm' },
+        { resumeMode: true },
+      );
+      expect(resumeState.messages).toEqual([]);
+      expect(resumeState.turnCount).toBe(0);
+      expect(resumeState.totalInputTokens).toBe(0);
+      expect(resumeState.totalOutputTokens).toBe(0);
+      expect(resumeState.totalThinkingTokens).toBe(0);
+      expect(resumeState.toolCalls).toBe(0);
+    });
+  });
+
   // Phase 2.3a — §7.5 rehydration 본 구현 단위 검증. happy-path (form 제출 →
   // 워크플로 완료) 는 e2e 에서 별도 검증; 본 블록은 invariant fail-fast 분기를
   // 검증해 RESUME_* 코드 분류가 정확한지 보장한다.
@@ -9252,6 +9338,78 @@ describe('ExecutionEngineService', () => {
         expect(codes).not.toContain('RESUME_INCOMPATIBLE_STATE');
       } finally {
         svcAny.loadAndBuildGraph = origLoad;
+        svcAny.waitForAiConversation = origWait;
+      }
+    });
+
+    // PR-A2a — checkpoint schemaVersion 미래 버전(롤링 배포 중 구 인스턴스가 신
+    // 포맷 pickup) → 안전 재구성 불가 → graceful RESUME_INCOMPATIBLE_STATE (§1.3/§7.5).
+    it('Multi-turn AI 노드 + _resumeCheckpoint schemaVersion 미래 버전 → RESUME_INCOMPATIBLE_STATE (graceful reset)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        triggerId: 'trg-1',
+        startedAt: new Date(),
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          interactionType: 'ai_conversation',
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          _resumeCheckpoint: {
+            schemaVersion: 999, // 미래 버전 — 현재 코드 미지원
+            messages: [{ role: 'user', content: 'prev' }],
+            turnCount: 1,
+            model: 'm',
+          },
+        },
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-1',
+        type: 'ai_agent',
+        config: { mode: 'multi_turn' },
+      });
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+
+      const svcAny = service as unknown as {
+        waitForAiConversation: jest.Mock;
+      };
+      const origWait = svcAny.waitForAiConversation;
+      svcAny.waitForAiConversation = jest.fn().mockResolvedValue(undefined);
+
+      try {
+        await subject().rehydrateAndResume(executionId, 'ne-1', {
+          type: 'ai_message',
+          message: 'hi',
+        });
+
+        // 버전 가드가 graph rebuild 이전에 throw → 재진입(waitForAiConversation) 미발생.
+        expect(svcAny.waitForAiConversation).not.toHaveBeenCalled();
+
+        // RESUME_INCOMPATIBLE_STATE 로 cancel 마킹.
+        const cancelSetCalls =
+          mockExecutionRepo.createQueryBuilder.mock.results.flatMap(
+            (r) =>
+              (
+                r.value as {
+                  set?: { mock?: { calls: Array<Array<{ error?: unknown }>> } };
+                }
+              ).set?.mock?.calls ?? [],
+          );
+        const codes = cancelSetCalls
+          .map((c) => (c[0]?.error as { code?: string } | undefined)?.code)
+          .filter(Boolean);
+        expect(codes).toContain('RESUME_INCOMPATIBLE_STATE');
+      } finally {
         svcAny.waitForAiConversation = origWait;
       }
     });
