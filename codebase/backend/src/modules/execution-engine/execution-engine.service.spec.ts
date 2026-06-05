@@ -8994,11 +8994,15 @@ describe('ExecutionEngineService', () => {
       rehydrateContext: (
         execution: unknown,
         waitingNodeExec: unknown,
-      ) => Promise<{ conversationThread: unknown }>;
-      stageConversationThreadSnapshot: (
+      ) => Promise<{
+        conversationThread: unknown;
+        variables: Record<string, unknown>;
+      }>;
+      stageDurableResumeSnapshot: (
         execution: unknown,
         context: unknown,
       ) => void;
+      rehydrateUserVariables: (raw: unknown) => Record<string, unknown>;
       contextService: { deleteContext: (key: string) => void };
     };
     const ctxSubject = () => service as unknown as RehydrateCtxSubject;
@@ -9093,7 +9097,56 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    it('stageConversationThreadSnapshot copies the live thread onto the Execution row (park commit, 영속본 분리)', () => {
+    // PR-A3 — user-defined variables 무손실 복원 (spec §6.1/§6.2/§7.5).
+    it('restores user-defined variables from Execution.user_variables (park 이전 변수를 park 이후 참조)', async () => {
+      const execution = {
+        id: 'exec-rehydrate-vars',
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        recursionDepth: 0,
+        dryRun: false,
+        conversationThread: null,
+        userVariables: { counter: 7, payload: { ok: true } },
+      };
+      ctxSubject().contextService.deleteContext('exec-rehydrate-vars');
+
+      const ctx = await ctxSubject().rehydrateContext(
+        execution,
+        waitingNodeExec,
+      );
+
+      // 사용자 변수 복원 + 시스템 __* 동시 존재 (충돌 없음).
+      expect(ctx.variables.counter).toBe(7);
+      expect(ctx.variables.payload).toEqual({ ok: true });
+      expect(ctx.variables.__workspaceId).toBe('ws-1');
+    });
+
+    it('NULL user_variables → 사용자 변수 없이 시스템 __* 만 (회귀 가드)', async () => {
+      const execution = {
+        id: 'exec-rehydrate-vars-null',
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        recursionDepth: 0,
+        dryRun: false,
+        conversationThread: null,
+        userVariables: null,
+      };
+      ctxSubject().contextService.deleteContext('exec-rehydrate-vars-null');
+
+      const ctx = await ctxSubject().rehydrateContext(
+        execution,
+        waitingNodeExec,
+      );
+
+      expect(ctx.variables.__workspaceId).toBe('ws-1');
+      // 사용자 변수 키 없음.
+      const userKeys = Object.keys(ctx.variables).filter(
+        (k) => !k.startsWith('__'),
+      );
+      expect(userKeys).toEqual([]);
+    });
+
+    it('stageDurableResumeSnapshot stages thread (deep-cloned) + user variables (system __* 제외)', () => {
       const thread = {
         id: 'default',
         nextSeq: 1,
@@ -9110,17 +9163,43 @@ describe('ExecutionEngineService', () => {
         ],
         totalChars: 2,
       };
-      const execution = { id: 'e1', conversationThread: null } as unknown;
-      const context = { conversationThread: thread } as unknown;
+      const execution = {
+        id: 'e1',
+        conversationThread: null,
+        userVariables: null,
+      } as unknown;
+      const context = {
+        conversationThread: thread,
+        variables: {
+          __workspaceId: 'ws-1', // 시스템 — 제외돼야 함
+          __dryRun: false,
+          counter: 3, // 사용자 — 영속돼야 함
+          payload: { a: 1 },
+        },
+      } as unknown;
 
-      ctxSubject().stageConversationThreadSnapshot(execution, context);
+      ctxSubject().stageDurableResumeSnapshot(execution, context);
 
-      const staged = (execution as { conversationThread: unknown })
-        .conversationThread;
-      // 값은 동일하되 cloneThread 로 깊은 복사 — 이후 turn mutation 이 영속본을 오염 X.
-      expect(staged).toEqual(thread);
-      expect(staged).not.toBe(thread);
-      expect((staged as { turns: unknown[] }).turns).not.toBe(thread.turns);
+      const ex = execution as {
+        conversationThread: unknown;
+        userVariables: Record<string, unknown>;
+      };
+      // thread: 값 동일 + cloneThread 깊은 복사(영속본 분리).
+      expect(ex.conversationThread).toEqual(thread);
+      expect(ex.conversationThread).not.toBe(thread);
+      // variables: 시스템 __* 제외, 사용자분만.
+      expect(ex.userVariables).toEqual({ counter: 3, payload: { a: 1 } });
+      expect(ex.userVariables).not.toHaveProperty('__workspaceId');
+      expect(ex.userVariables).not.toHaveProperty('__dryRun');
+    });
+
+    it('rehydrateUserVariables normalizes snapshot (비객체→{}, 방어적 __* 제외)', () => {
+      const cs = ctxSubject();
+      expect(cs.rehydrateUserVariables(null)).toEqual({});
+      expect(cs.rehydrateUserVariables('garbage')).toEqual({});
+      expect(cs.rehydrateUserVariables({ counter: 5, __dryRun: true })).toEqual({
+        counter: 5,
+      });
     });
   });
 
