@@ -193,6 +193,7 @@ LIMIT $4;
 - 컷 기준이 cosine → **rerank 점수**로 이동한다. 고정 top-k 컷으로 의미 있는 청크가 잘리는 문제를 점수 기반 동적 컷으로 해소한다.
 - 한국어 권장 cross-encoder 모델: `dragonkue/bge-reranker-v2-m3-ko` (자가호스팅 `tei`).
 - **v1 결정**: `cross_encoder_llm` 은 항상 LLM grading 을 수행한다(점수 평탄/모호 기반 conditional escalate 는 LLM 콜 비용 절감 최적화로, 정량 임계를 P0 평가셋으로 보정한 뒤 후속 도입). "정책 판단 KB" 는 별도 컬럼/휴리스틱 없이 `rerank_mode = cross_encoder_llm` 선택으로 표현한다.
+- **v1 범위 — 단일 KB 한정**: 리랭킹은 `RagSearchService` 가 **단일 KB** 로 호출된 경로(agentic `KbToolProvider`)에서만 적용된다. 멀티-KB 인자 검색(디버그 컨트롤러 경로)은 기존 cosine score 병합 후 topK 컷을 유지하며 리랭크하지 않는다(멀티-KB 리랭크는 후속). 단일 KB 가 RAG 의 정상 경로(§1, §2.1)이므로 v1 커버리지로 충분하다.
 
 > 설계 결정·근거·폐기 대안: [`plan/in-progress/spec-draft-rag-reranking.md`](../../plan/in-progress/spec-draft-rag-reranking.md) `## Rationale`.
 

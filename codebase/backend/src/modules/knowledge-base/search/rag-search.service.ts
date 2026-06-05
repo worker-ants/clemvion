@@ -127,10 +127,9 @@ export class RagSearchService {
       if (kbs.length === 0) return { results: [] };
 
       // 검색 후처리(리랭킹) — 단일 KB + rerank_mode ≠ off 일 때 wide 회수 → 리랭크 → 동적 컷.
-      // cross_encoder 와 cross_encoder_llm 둘 다 cross-encoder 재점수화 레이어를 탄다
-      // (§3.3.1 — cross_encoder_llm 은 cross_encoder 의 superset). cross_encoder_llm 의
-      // LLM grading 단계만 후속(plan/in-progress/rag-rerank-followup.md)이며, 그 사이에도
-      // cross-encoder 레이어를 통째로 skip 하지 않는다.
+      // cross_encoder 와 cross_encoder_llm 둘 다 cross-encoder 재점수화 레이어를 타며
+      // (§3.3.1 — cross_encoder_llm 은 cross_encoder 의 superset), cross_encoder_llm 은
+      // RerankService 안에서 추가 listwise LLM grading 까지 수행한다.
       // agentic 경로(KbToolProvider)는 항상 단일 KB 로 호출하므로 이 분기가 적용된다.
       // 멀티-KB 리랭크는 후속(plan/in-progress/rag-rerank-followup.md).
       if (
