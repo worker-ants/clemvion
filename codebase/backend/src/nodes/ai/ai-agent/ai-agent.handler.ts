@@ -940,7 +940,7 @@ export class AiAgentHandler implements NodeHandler {
    * multi-turn 매 turn 종료 후 (= ai_assistant turn push 직후) 에 호출된다.
    *
    * **hot path 비차단**: enqueue (큐 add) 까지만 await — 실제 추출 LLM 콜은
-   * processor 에서 일어난다. **격리 invariant**: `getThreadExcludingNode` 가
+   * processor 에서 일어난다. **격리 invariant**: `getThread` 가
    * 반환하는 readonly turns 를 shallow-copy 한 스냅샷만 payload 에 담아
    * (`cloneThread` 와 동형), 이후 메인 루프의 turn mutation 에 오염되지 않는다.
    *

@@ -11,6 +11,12 @@ import {
   estimateWorkingMemoryTokens,
   selectVolatileTail,
   stripMemoryBlocks,
+  resolveMemoryTtlDays,
+  scheduleMemoryExtraction,
+} from './agent-memory-injection';
+import type {
+  AgentMemoryScheduler,
+  ConversationThreadReader,
 } from './agent-memory-injection';
 import { estimateTokens as kbEstimateTokens } from '../../../modules/knowledge-base/chunking/text-chunker';
 import type { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
@@ -965,5 +971,159 @@ describe('estimateTokensLanguageAware — A4 lite 무의존 language-aware 휴�
     expect(estimateTextTokens('The quick brown fox '.repeat(10))).not.toBe(
       kbEstimateTokens('The quick brown fox '.repeat(10)),
     );
+  });
+});
+
+describe('resolveMemoryTtlDays', () => {
+  // 경계: 0/음수/NaN/비숫자 → undefined (무만료, AGM-10). 양수는 floor 정수.
+  it('0 → undefined (무만료 안전 디폴트)', () => {
+    expect(resolveMemoryTtlDays(0)).toBeUndefined();
+  });
+  it('-5 → undefined (음수 무만료)', () => {
+    expect(resolveMemoryTtlDays(-5)).toBeUndefined();
+  });
+  it('NaN → undefined', () => {
+    expect(resolveMemoryTtlDays(NaN)).toBeUndefined();
+  });
+  it('비숫자 문자열 → undefined', () => {
+    expect(resolveMemoryTtlDays('abc')).toBeUndefined();
+  });
+  it('undefined → undefined', () => {
+    expect(resolveMemoryTtlDays(undefined)).toBeUndefined();
+  });
+  it('"30" (숫자 문자열) → 30', () => {
+    expect(resolveMemoryTtlDays('30')).toBe(30);
+  });
+  it('1.7 → 1 (floor)', () => {
+    expect(resolveMemoryTtlDays(1.7)).toBe(1);
+  });
+  it('30 → 30', () => {
+    expect(resolveMemoryTtlDays(30)).toBe(30);
+  });
+});
+
+describe('scheduleMemoryExtraction', () => {
+  // getThread 가 반환할 thread turns 를 mock 으로 주입. turn() 헬퍼는 seq/text 만
+  // 받으므로 nodeLabel/source 는 그 안에서 채워진다 (snapshot 은 source/text/nodeLabel 읽음).
+  function makeScheduler(scheduleResult = true) {
+    return {
+      resolveScopeKey: jest.fn().mockReturnValue('scope:resolved'),
+      scheduleExtraction: jest.fn().mockResolvedValue(scheduleResult),
+    } satisfies AgentMemoryScheduler & {
+      resolveScopeKey: jest.Mock;
+      scheduleExtraction: jest.Mock;
+    };
+  }
+  function makeThreadReader(turns: ConversationTurn[]) {
+    return {
+      getThread: jest.fn().mockReturnValue({ turns }),
+    } satisfies ConversationThreadReader & { getThread: jest.Mock };
+  }
+
+  const baseArgs = {
+    target: {} as never,
+    config: { memoryKey: 'mk' } as Record<string, unknown>,
+    workspaceId: 'ws1',
+    executionId: 'exec1',
+  };
+
+  it('(1) strategy!=="persistent" → no-op (scheduler 미호출, watermark 입력 그대로)', async () => {
+    const scheduler = makeScheduler();
+    const reader = makeThreadReader([turn(0, 'a'), turn(1, 'b')]);
+    const out = await scheduleMemoryExtraction(
+      {
+        agentMemoryService: scheduler,
+        conversationThreadService: reader,
+      },
+      { ...baseArgs, strategy: 'summary_buffer', lastExtractionTurnSeq: 3 },
+    );
+    expect(out).toBe(3);
+    expect(scheduler.scheduleExtraction).not.toHaveBeenCalled();
+    expect(reader.getThread).not.toHaveBeenCalled();
+  });
+
+  it('(2) scheduler 미주입 → graceful no-op (watermark 보존)', async () => {
+    const reader = makeThreadReader([turn(0, 'a')]);
+    const out = await scheduleMemoryExtraction(
+      {
+        agentMemoryService: undefined,
+        conversationThreadService: reader,
+      },
+      { ...baseArgs, strategy: 'persistent', lastExtractionTurnSeq: 7 },
+    );
+    expect(out).toBe(7);
+    expect(reader.getThread).not.toHaveBeenCalled();
+  });
+
+  it('(3) 신규 turn 0개 (모두 watermark 이하) → enqueue skip, watermark 유지', async () => {
+    const scheduler = makeScheduler();
+    const reader = makeThreadReader([turn(0, 'a'), turn(1, 'b')]);
+    const out = await scheduleMemoryExtraction(
+      {
+        agentMemoryService: scheduler,
+        conversationThreadService: reader,
+      },
+      { ...baseArgs, strategy: 'persistent', lastExtractionTurnSeq: 1 },
+    );
+    expect(out).toBe(1);
+    expect(scheduler.scheduleExtraction).not.toHaveBeenCalled();
+  });
+
+  it('(4) enqueued=false (dedup drop) → watermark 미전진', async () => {
+    const scheduler = makeScheduler(false);
+    const reader = makeThreadReader([turn(0, 'a'), turn(1, 'b')]);
+    const out = await scheduleMemoryExtraction(
+      {
+        agentMemoryService: scheduler,
+        conversationThreadService: reader,
+      },
+      { ...baseArgs, strategy: 'persistent', lastExtractionTurnSeq: undefined },
+    );
+    // enqueue 시도는 했으나 수락 안 됨 → watermark 는 입력값(undefined) 그대로.
+    expect(scheduler.scheduleExtraction).toHaveBeenCalledTimes(1);
+    expect(out).toBeUndefined();
+  });
+
+  it('(5) 정상 → enqueue payload(scopeKey·turns·모델) + maxSeq watermark 전진', async () => {
+    const scheduler = makeScheduler(true);
+    const reader = makeThreadReader([turn(0, 'a'), turn(1, 'b'), turn(2, 'c')]);
+    const out = await scheduleMemoryExtraction(
+      {
+        agentMemoryService: scheduler,
+        conversationThreadService: reader,
+      },
+      {
+        ...baseArgs,
+        config: {
+          memoryKey: 'mk',
+          llmConfigId: 'cfg-1',
+          model: 'gpt-4o',
+          extractionModel: 'gpt-4o-mini',
+          embeddingModel: 'text-embedding-3-small',
+          memoryTtlDays: 30,
+        },
+        strategy: 'persistent',
+        lastExtractionTurnSeq: 0,
+      },
+    );
+    // scopeKey 는 resolveScopeKey(memoryKey, executionId) 결과.
+    expect(scheduler.resolveScopeKey).toHaveBeenCalledWith('mk', 'exec1');
+    expect(scheduler.scheduleExtraction).toHaveBeenCalledTimes(1);
+    const payload = scheduler.scheduleExtraction.mock.calls[0][0];
+    expect(payload.scopeKey).toBe('scope:resolved');
+    expect(payload.workspaceId).toBe('ws1');
+    expect(payload.llmConfigId).toBe('cfg-1');
+    expect(payload.model).toBe('gpt-4o');
+    expect(payload.extractionModel).toBe('gpt-4o-mini');
+    expect(payload.embeddingModel).toBe('text-embedding-3-small');
+    expect(payload.ttlDays).toBe(30);
+    // 증분: watermark(0) 초과 turn(seq 1,2) 만 snapshot.
+    expect(payload.turns).toHaveLength(2);
+    expect(payload.turns.map((t: { text: string }) => t.text)).toEqual([
+      'b',
+      'c',
+    ]);
+    // watermark 는 enqueue 한 snapshot 의 maxSeq(2) 로 전진.
+    expect(out).toBe(2);
   });
 });

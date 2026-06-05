@@ -32,7 +32,7 @@ import {
 import {
   DEFAULT_MEMORY_TOP_K,
   DEFAULT_MEMORY_THRESHOLD,
-} from '../ai-agent/ai-agent.schema';
+} from '../shared/agent-memory-schema';
 
 /** ConversationThread injection debug echo snapshot (conversation-thread.md §5.3). */
 type ContextInjectionMeta = ConversationContextInjectionResult['injection'];
