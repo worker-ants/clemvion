@@ -593,7 +593,12 @@ export const aiAgentNodeConfigSchema = z
       .meta({
         ui: {
           label: 'Embedding Model',
-          widget: 'expression',
+          // NOTE: 'text' (not 'expression') — 의도적. summaryModel/extractionModel
+          // 은 stateless(매 콜 독립)라 expression 평가가 무해하나, embeddingModel 은
+          // scope 의 모든 저장 메모리와 차원이 일치해야 하는 불변식(17-agent-memory §3)
+          // 이라 실행마다 동적으로 바뀌면 차원 불일치로 recall 이 조용히 실패한다.
+          // 정적 리터럴(text)로 그 footgun 을 차단한다.
+          widget: 'text',
           order: 49.5,
           group: 'Memory',
           placeholder: 'text-embedding-3-small',
