@@ -5,8 +5,6 @@ code:
   - codebase/backend/src/modules/agent-memory/**
 pending_plans:
   - plan/in-progress/ai-context-memory-followup-v2.md
-  - plan/in-progress/agent-memory-admin-ui.md
-  - plan/in-progress/agent-memory-summary-model.md
 ---
 
 # Spec: Agent Memory (AI Agent 세션 간 영속 메모리)
