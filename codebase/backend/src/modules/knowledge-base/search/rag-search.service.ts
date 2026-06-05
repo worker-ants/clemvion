@@ -30,6 +30,7 @@ interface KbRow {
   rerankConfigId: string | null;
   rerankCandidateK: number;
   rerankScoreThreshold: number | null;
+  rerankLlmConfigId: string | null;
 }
 
 type RawSearchRow = {
@@ -117,7 +118,8 @@ export class RagSearchService {
                 rerank_mode AS "rerankMode",
                 rerank_config_id AS "rerankConfigId",
                 rerank_candidate_k AS "rerankCandidateK",
-                rerank_score_threshold AS "rerankScoreThreshold"
+                rerank_score_threshold AS "rerankScoreThreshold",
+                rerank_llm_config_id AS "rerankLlmConfigId"
          FROM knowledge_base
          WHERE id = ANY($1::uuid[]) AND workspace_id = $2`,
         [knowledgeBaseIds, workspaceId],
@@ -125,10 +127,9 @@ export class RagSearchService {
       if (kbs.length === 0) return { results: [] };
 
       // 검색 후처리(리랭킹) — 단일 KB + rerank_mode ≠ off 일 때 wide 회수 → 리랭크 → 동적 컷.
-      // cross_encoder 와 cross_encoder_llm 둘 다 cross-encoder 재점수화 레이어를 탄다
-      // (§3.3.1 — cross_encoder_llm 은 cross_encoder 의 superset). cross_encoder_llm 의
-      // LLM grading 단계만 후속(plan/in-progress/rag-rerank-followup.md)이며, 그 사이에도
-      // cross-encoder 레이어를 통째로 skip 하지 않는다.
+      // cross_encoder 와 cross_encoder_llm 둘 다 cross-encoder 재점수화 레이어를 타며
+      // (§3.3.1 — cross_encoder_llm 은 cross_encoder 의 superset), cross_encoder_llm 은
+      // RerankService 안에서 추가 listwise LLM grading 까지 수행한다.
       // agentic 경로(KbToolProvider)는 항상 단일 KB 로 호출하므로 이 분기가 적용된다.
       // 멀티-KB 리랭크는 후속(plan/in-progress/rag-rerank-followup.md).
       if (
@@ -292,6 +293,7 @@ export class RagSearchService {
       candidates: rerankCandidates,
       workspaceId,
       rerankConfigId: kb.rerankConfigId,
+      rerankLlmConfigId: kb.rerankLlmConfigId,
       topK,
       // rerank 점수 컷: KB 설정 우선, 미설정(NULL)이면 런타임 threshold fallback.
       // out-of-box(KB 설정 없음)에서도 관련도 컷이 걸리게 한다 (§3.3 / Rationale I4).

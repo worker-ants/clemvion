@@ -12,9 +12,9 @@ code:
   - codebase/backend/src/modules/llm/llm-preview.service.ts
 ---
 
-# Spec: 설정 (인증, LLM) 화면
+# Spec: 설정 (인증, LLM, Rerank) 화면
 
-> 관련 문서: [PRD 내비게이션](./_product-overview.md#36-authentication-인증-설정) · [PRD 내비게이션](./_product-overview.md#37-config--llm-llm-설정) · [Spec 레이아웃](./_layout.md) · [데이터 모델 - AuthConfig](../1-data-model.md#217-authconfig) · [데이터 모델 - LLMConfig](../1-data-model.md#216-llmconfig)
+> 관련 문서: [PRD 내비게이션](./_product-overview.md#36-authentication-인증-설정) · [PRD 내비게이션](./_product-overview.md#37-config--llm-llm-설정) · [Spec 레이아웃](./_layout.md) · [데이터 모델 - AuthConfig](../1-data-model.md#217-authconfig) · [데이터 모델 - LLMConfig](../1-data-model.md#216-llmconfig) · [데이터 모델 - RerankConfig](../1-data-model.md#2161-rerankconfig)
 
 ---
 
@@ -182,6 +182,47 @@ AI 노드에서 사용할 LLM 프로바이더와 모델을 관리한다.
 
 ---
 
+## Part C: Rerank (리랭커 설정)
+
+KB 검색 후처리(리랭킹)에 사용할 리랭커 provider 와 모델을 관리한다. LLMConfig 와 동일 패턴의 sibling 리소스로, KB 폼의 "Reranker" select 가 이 목록에서 선택한다 ([Spec Knowledge Base §2.2](./5-knowledge-base.md#22-컬렉션-생성), [Spec RAG 검색 §3.3](../5-system/9-rag-search.md#33-검색-후처리--리랭킹-선택적)). 엔티티: [데이터 모델 §2.16.1](../1-data-model.md#2161-rerankconfig).
+
+### C.1 화면 구조
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Config > Rerank                       [+ Add Reranker]      │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────────┐│
+│  │ ⭐ Self-hosted TEI                  Connected         ⋮  ││
+│  │    Default: dragonkue/bge-reranker-v2-m3-ko             ││
+│  │    http://tei:8080                                       ││
+│  ├──────────────────────────────────────────────────────────┤│
+│  │    Cohere                           Connected         ⋮  ││
+│  │    Default: rerank-3.5                                   ││
+│  └──────────────────────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────────┘
+```
+
+### C.2 리랭커 추가/수정
+
+| 필드 | 설명 |
+|------|------|
+| 프로바이더 유형 | 드롭다운: `tei` (자가호스팅 HF Text-Embeddings-Inference), `cohere` (외부 API) |
+| 이름 | 사용자 지정 별칭 |
+| API Key | provider 별 API 키 (마스킹 입력). **`cohere` 등 외부 provider 필수**, `tei` 는 선택 |
+| Base URL | 자가호스팅 endpoint. **`tei` 필수** (SSRF 가드 — 사설망 예외, [LLM Client §5.5](../5-system/7-llm-client.md)). `cohere` 는 불요 |
+| 기본 모델 | 기본 리랭커 모델 ID (예: `dragonkue/bge-reranker-v2-m3-ko`, `bge-reranker-v2-m3`, `rerank-3.5`) |
+| 기본 리랭커 설정 | ⭐ 아이콘으로 표시. KB `rerank_config_id` 미지정 시 기본 선택 |
+
+- **provider 별 필수 필드**: `tei` 는 자가호스팅이므로 Base URL 이 필수이고 API Key 는 선택이다. `cohere` 는 외부 API 이므로 API Key 가 필수이고 Base URL 은 받지 않는다 (provider 공식 endpoint 고정).
+- **마스킹**: 저장 후 응답에서 `api_key` 는 항상 마스킹된다 (LLMConfig 와 동일 정책).
+
+### C.3 기본 리랭커 설정 (set-default)
+
+⭐ 아이콘으로 워크스페이스 기본 리랭커를 지정한다. KB 가 `rerank_mode ≠ off` 이면서 `rerank_config_id` 를 지정하지 않은 경우 이 기본 리랭커가 사용되며, 기본 리랭커도 없으면 해당 KB 검색은 `off` 로 안전 강등된다 ([Spec RAG 검색 §6](../5-system/9-rag-search.md#6-에러-처리)).
+
+---
+
 ## 3. API
 
 ### Authentication API
@@ -211,6 +252,19 @@ AI 노드에서 사용할 LLM 프로바이더와 모델을 관리한다.
 | DELETE | /api/llm-configs/:id | 삭제 |
 | GET | /api/llm-configs/:id/models | 사용 가능한 모델 목록 조회 |
 
+### Rerank Config API
+
+mutation (POST / PATCH) 은 Editor+ ([Spec 인증 §3.2](../5-system/1-auth.md#32-리소스별-권한-매트릭스)). 조회는 Viewer 이상.
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/rerank-configs | 리랭커 목록 (쿼리: page, limit, sort, order, search). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
+| POST | /api/rerank-configs | 리랭커 추가 |
+| GET | /api/rerank-configs/:id | 상세 조회 |
+| PATCH | /api/rerank-configs/:id | 수정 |
+| PATCH | /api/rerank-configs/:id/set-default | 워크스페이스 기본 리랭커 설정 |
+| DELETE | /api/rerank-configs/:id | 리랭커 삭제 |
+
 ---
 
 ## Rationale
@@ -232,3 +286,11 @@ AI 노드에서 사용할 LLM 프로바이더와 모델을 관리한다.
 - **bearer_token 자동 발급 강제**: 사용자 입력 없이 자동 발급(`wft_<hex32>`)만 허용. 외부 호출자 발급 토큰은 제품이 충분한 엔트로피로 생성하는 게 일관적이며, 사용자 입력 토큰의 형식·엔트로피 검증 부담을 없앤다.
 - **Bearer Token 만료 시간 필드 v1 제외**: 토큰 만료·자동 회전을 다루지 않는다 — JSONB 스키마 `{ token }` 와 정합. 만료/회전이 필요해지면 후속 결정으로 재도입.
 - **항상 마스킹 + Reveal 엔드포인트** (§A.4): API 응답에서 secret 류는 항상 `***<last4>`. 평문은 create / regenerate / reveal 3 경로만. Reveal 은 Admin+ · 비밀번호 재확인 · audit 기록.
+
+### R-3. RerankConfig — LLMConfig sibling 리소스
+
+리랭커는 API Key·endpoint 를 가진 provider 리소스라 LLMConfig 와 동일 패턴의 sibling 으로 분리했다 (chat/embedding 과 API shape 가 다른 전용 `/rerank` 엔드포인트 — [Spec 데이터 모델 §2.16.1](../1-data-model.md#2161-rerankconfig)). API Key 마스킹·SSRF 가드·secret-store transformer 는 LLMConfig 인프라를 재사용한다.
+
+- **API 응답 schema**: `/api/rerank-configs` 응답 shape 은 LLMConfig 와 동형(마스킹된 `apiKey` 포함) — RerankConfig 엔티티 정의 [Spec 데이터 모델 §2.16.1](../1-data-model.md#2161-rerankconfig), rerank 호출 계약은 [Spec LLM Client §3.6](../5-system/7-llm-client.md).
+- **provider 1차 tei/cohere**: `tei`(자가호스팅, Base URL 필수) + `cohere`(API, API Key 필수). jina/voyage/local/builtin 은 후속.
+- **모델 연결 테스트 미제공**: LLMConfig 와 달리 리랭커는 모델 목록 조회·연결 테스트 엔드포인트가 없어 모델명을 자유 입력한다 (리랭커 provider 가 표준 model-list API 를 노출하지 않음).

@@ -310,6 +310,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | Auth Config | CRUD | CRUD | R | R |
 | Auth Config Reveal (평문 노출) | ✅ | ✅ | — | — |
 | LLM Config | CRUD | CRUD | R | R |
+| Rerank Config | CRUD | CRUD | R | R |
 | Statistics | R | R | R | R |
 | System Status ※ | R | R | R | R |
 | Marketplace 설치 | ✅ | ✅ | ✅ | — |
@@ -344,7 +345,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 트리거 | trigger.create, trigger.update, trigger.delete |
 | 스케줄 | schedule.create, schedule.update, schedule.delete |
 | Integration | integration.create, integration.update, integration.delete |
-| 설정 | auth_config.create, auth_config.update, auth_config.delete, auth_config.regenerate, auth_config.reveal, llm_config.* |
+| 설정 | auth_config.create, auth_config.update, auth_config.delete, auth_config.regenerate, auth_config.reveal, llm_config.*, rerank_config.create, rerank_config.update, rerank_config.delete |
 
 > 워크스페이스 컨텍스트가 없는 인증 이벤트(login, logout, login_failed 등)는 AuditLog 가 아닌 §4.3 **LoginHistory** 에 기록된다.
 

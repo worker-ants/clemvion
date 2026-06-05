@@ -6,6 +6,7 @@ export const sidebar = {
   integration: "통합",
   knowledgeBase: "지식 저장소",
   llmConfig: "LLM 설정",
+  reranker: "리랭커",
   authentication: "인증",
   statistics: "통계",
   systemStatus: "시스템 상태",

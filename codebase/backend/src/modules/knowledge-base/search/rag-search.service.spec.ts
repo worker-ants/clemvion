@@ -14,6 +14,7 @@ function makeKbRow(overrides: Partial<KbRowFixture>): KbRowFixture {
     rerankConfigId: null,
     rerankCandidateK: 50,
     rerankScoreThreshold: null,
+    rerankLlmConfigId: null,
     ...overrides,
   } as KbRowFixture;
 }
@@ -30,6 +31,7 @@ interface KbRowFixture {
   rerankConfigId: string | null;
   rerankCandidateK: number;
   rerankScoreThreshold: number | null;
+  rerankLlmConfigId: string | null;
 }
 
 describe('RagSearchService', () => {
