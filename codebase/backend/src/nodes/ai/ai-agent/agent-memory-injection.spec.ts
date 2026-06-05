@@ -4,6 +4,7 @@ import {
   buildSummaryBlock,
   buildSummaryBufferUpdate,
   compactMessagesToTail,
+  estimateTurnTokens,
   estimateWorkingMemoryTokens,
   selectVolatileTail,
   stripMemoryBlocks,
@@ -552,6 +553,182 @@ describe('buildSummaryBufferUpdate — token budget + cache-protection invariant
     expect(llm.chat).toHaveBeenCalledTimes(1);
     expect(update.summarized).toBe(false);
     expect(update.runningSummary).toBeUndefined();
+  });
+});
+
+describe('buildSummaryBufferUpdate — O(n) incremental token recompute (B3)', () => {
+  // Reference oracle: the original O(n²) loop logic. We assert the new O(n)
+  // implementation is bit-identical (same toCompress seq set, same newUpToSeq /
+  // summarized) against this oracle over many turns + several budgets.
+  function referenceCut(
+    uncompressed: ConversationTurn[],
+    currentTokens: number,
+    tokenBudget: number,
+    minRecentRaw: number,
+  ): ConversationTurn[] {
+    const toCompress: ConversationTurn[] = [];
+    const remaining = [...uncompressed];
+    let remainingTokens = currentTokens;
+    const fixedOverhead =
+      currentTokens -
+      remaining.reduce((acc, t) => acc + estimateTurnTokens(t), 0);
+    while (remainingTokens > tokenBudget && remaining.length > minRecentRaw) {
+      const oldest = remaining.shift();
+      if (!oldest) break;
+      toCompress.push(oldest);
+      remainingTokens =
+        fixedOverhead +
+        remaining.reduce((acc, t) => acc + estimateTurnTokens(t), 0);
+    }
+    return toCompress;
+  }
+
+  it('compresses the exact same seq set as the O(n²) oracle (bit-identical) over 24 turns and several budgets', async () => {
+    // Each turn carries a UNIQUE marker token so substring presence/absence in
+    // the rendered compressText is unambiguous (uniform fill alone would make a
+    // shorter turn a substring of a longer one). Padding length is varied so the
+    // per-turn token estimate is non-uniform and the cut boundary lands at many
+    // positions across the budget sweep.
+    const turns = Array.from({ length: 24 }, (_, i) =>
+      turn(i, `MARK_${i}_X ` + 'w'.repeat(120 + (i % 7) * 13)),
+    );
+    const markerOf = (seq: number) => `MARK_${seq}_X`;
+    const systemPromptText = 'sys-prompt';
+    const summaryBlockText = buildSummaryBlock(undefined); // '' here
+
+    const currentTokens = estimateWorkingMemoryTokens(
+      turns,
+      systemPromptText,
+      summaryBlockText,
+    );
+
+    // Sweep budgets across the full range so the cut lands at many positions.
+    for (let budget = 50; budget <= currentTokens + 50; budget += 37) {
+      const expectedToCompress = referenceCut(turns, currentTokens, budget, 2);
+
+      const llm = makeLlmServiceMock('SUMMARY');
+      const update = await buildSummaryBufferUpdate({
+        turns,
+        runningSummary: undefined,
+        summarizedUpToSeq: undefined,
+        tokenBudget: budget,
+        systemPromptText,
+        llmConfig,
+        model: 'gpt-4o',
+        llmService: llm,
+      });
+
+      if (expectedToCompress.length === 0) {
+        // No compression expected → no LLM call, no change.
+        expect(llm.chat).not.toHaveBeenCalled();
+        expect(update.summarized).toBe(false);
+        expect(update.summarizedUpToSeq).toBeUndefined();
+      } else {
+        expect(llm.chat).toHaveBeenCalledTimes(1);
+        expect(update.summarized).toBe(true);
+        const expectedUpToSeq = expectedToCompress.reduce(
+          (max, t) => (t.seq > max ? t.seq : max),
+          -1,
+        );
+        expect(update.summarizedUpToSeq).toBe(expectedUpToSeq);
+        // compressText passed to the LLM must render exactly the oracle's
+        // toCompress turns (range identity).
+        const callArgs = llm.chat.mock.calls[0][1] as {
+          messages: { content: string }[];
+        };
+        const prompt = callArgs.messages[0].content;
+        for (const t of expectedToCompress) {
+          expect(prompt).toContain(markerOf(t.seq));
+        }
+        // The first NON-compressed (retained) turn must NOT appear (cut is at
+        // exactly expectedToCompress.length — everything after is the tail).
+        const retained = turns[expectedToCompress.length];
+        if (retained) expect(prompt).not.toContain(markerOf(retained.seq));
+      }
+    }
+  });
+
+  it('compresses exactly the predicted number of turns at a chosen budget', async () => {
+    // 10 uniform turns. Each turn text → estimateTurnTokens(t) tokens.
+    const big = 'q'.repeat(300);
+    const turns = Array.from({ length: 10 }, (_, i) => turn(i, big));
+    const perTurn = estimateTurnTokens(turns[0]);
+    const sysTokens = estimateWorkingMemoryTokens([], 'sys');
+    const currentTokens = perTurn * turns.length + sysTokens;
+
+    // Pick a budget that should retain exactly 4 raw turns (compress 6).
+    // remainingTokens after compressing k = currentTokens - k*perTurn.
+    // We want the loop to stop when remaining count == 4, i.e. compress 6.
+    // Condition to keep going: remainingTokens > budget. After compressing 6,
+    // remaining = 4 turns: remainingTokens = sysTokens + 4*perTurn. Choose
+    // budget just below the 5-turn level and at/above the 4-turn level.
+    const fiveLevel = sysTokens + 5 * perTurn;
+    const fourLevel = sysTokens + 4 * perTurn;
+    const budget = Math.floor((fiveLevel + fourLevel) / 2);
+    expect(budget).toBeLessThan(fiveLevel);
+    expect(budget).toBeGreaterThanOrEqual(fourLevel);
+
+    const llm = makeLlmServiceMock('S');
+    const update = await buildSummaryBufferUpdate({
+      turns,
+      runningSummary: undefined,
+      summarizedUpToSeq: undefined,
+      tokenBudget: budget,
+      systemPromptText: 'sys',
+      llmConfig,
+      model: 'gpt-4o',
+      llmService: llm,
+    });
+    expect(currentTokens).toBeGreaterThan(0);
+    // Exactly 6 compressed → summarizedUpToSeq = seq 5.
+    expect(update.summarized).toBe(true);
+    expect(update.summarizedUpToSeq).toBe(5);
+  });
+
+  it('reads each turn.text O(1) times in the cut loop — linear, not quadratic (O(n) proof)', async () => {
+    // estimateTurnTokens(turn) reads turn.text. We instrument .text with a
+    // counting getter: the O(n²) loop re-sums all surviving turns each
+    // iteration → each surviving turn.text read ~O(n) times → total O(n²)
+    // reads. The O(n) loop reads each turn.text once in the prelude sum +
+    // once (compressed only) in the loop → ≤ 2 reads per turn, total ≤ 2n.
+    //
+    // NOTE: jest.spyOn on the module export does NOT intercept intra-module
+    // direct calls under CommonJS transpilation, so we count at the data layer
+    // (turn.text accesses) which faithfully reflects estimateTurnTokens calls.
+    const N = 30;
+    const reads: number[] = new Array(N).fill(0);
+    const turns: ConversationTurn[] = Array.from({ length: N }, (_, i) => {
+      const base = turn(i, '');
+      const body = 'p'.repeat(200);
+      return {
+        ...base,
+        get text() {
+          reads[i] += 1;
+          return body;
+        },
+      } as ConversationTurn;
+    });
+
+    const llm = makeLlmServiceMock('S');
+    await buildSummaryBufferUpdate({
+      turns,
+      runningSummary: undefined,
+      summarizedUpToSeq: undefined,
+      tokenBudget: 100, // tiny → compress down to MIN_RECENT_RAW_TURNS
+      systemPromptText: 'sys',
+      llmConfig,
+      model: 'gpt-4o',
+      llmService: llm,
+    });
+
+    const totalReads = reads.reduce((a, b) => a + b, 0);
+    // Budget for the prelude estimateWorkingMemoryTokens sum (1 read/turn) +
+    // the cut loop (≤1 read/turn) + renderThreadAsSystemText of compressed
+    // turns (a constant few reads/compressed turn). Keep the bound strictly
+    // below the quadratic floor (~N*(N+1)/2 ≈ 465 for N=30).
+    expect(totalReads).toBeLessThanOrEqual(4 * N);
+    // Sanity: every turn's text was actually consumed at least once.
+    expect(reads.every((r) => r >= 1)).toBe(true);
   });
 });
 

@@ -238,21 +238,30 @@ export async function buildSummaryBufferUpdate(
 
   // 예산 초과 — 오래된 uncompressed turn 부터 압축 대상에 누적해, 남은 원문이
   // 예산 안에 들어올 때까지 (또는 MIN_RECENT_RAW_TURNS 만 남을 때까지) 모은다.
-  const fixedOverhead =
-    estimateTextTokens(systemPromptText) + estimateTextTokens(summaryBlockText);
-
+  //
+  // O(n) 증분: oldest 한 개를 toCompress 로 옮길 때마다 그 turn 의 토큰만 빼면
+  // 된다. 불변식 estimateWorkingMemoryTokens(turns, ...extra) =
+  // Σ estimateTurnTokens(t) + Σ estimateTextTokens(extra) 에서
+  // currentTokens = fixedOverhead(systemPrompt+summaryBlock) +
+  // Σ estimateTurnTokens(uncompressed) 이므로 새 remainingTokens =
+  // 이전 remainingTokens − estimateTurnTokens(oldest). (인덱스 기반 —
+  // remaining 배열 copy/shift 도 제거해 진짜 O(n). 결과는 기존 while 루프와
+  // bit-identical: fixedOverhead 는 빼지 않으므로 별도 합산이 불필요하다.)
   const toCompress: ConversationTurn[] = [];
-  const remaining = [...uncompressed];
   let remainingTokens = currentTokens;
+  let remainingCount = uncompressed.length;
+  let cut = 0;
 
   while (
     remainingTokens > tokenBudget &&
-    remaining.length > MIN_RECENT_RAW_TURNS
+    remainingCount > MIN_RECENT_RAW_TURNS
   ) {
-    const oldest = remaining.shift();
+    const oldest = uncompressed[cut];
     if (!oldest) break;
     toCompress.push(oldest);
-    remainingTokens = fixedOverhead + estimateWorkingMemoryTokens(remaining);
+    remainingTokens -= estimateTurnTokens(oldest);
+    cut += 1;
+    remainingCount -= 1;
   }
 
   if (toCompress.length === 0) {
