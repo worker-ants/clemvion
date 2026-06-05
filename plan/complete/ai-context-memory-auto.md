@@ -2,6 +2,10 @@
 worktree: ai-context-memory-9c7e6e
 started: 2026-06-03
 owner: planner → developer
+status: complete
+spec_impact:
+  - spec/5-system/17-agent-memory.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
 ---
 
 # AI Agent 노드 — 자동 컨텍스트 메모리 관리 (summary_buffer + persistent)
@@ -118,6 +122,7 @@ WARNING 13 + INFO 15 전부 Phase A 에서 해소. 확정 채택:
 - 요구사항 ID: 노드측 `ND-AG-27`~ 순차, 메모리 저장소측 `AGM-*` (단층 약어; `SYS-MEM-*` 기각).
 - `memoryStrategy: 'manual'` 유지 (Trigger.type 와 namespace 분리, 의미 명료성 우선).
 - 요약 LLM 콜 모델 = v1 노드 `model`/`llmConfigId` 재사용 (scope-freeze, 신규 필드 없음).
+  → **2026-06-05 A3(#473)에서 번복**: `summaryModel`/`extractionModel` optional 필드 도입(미설정 시 model fallback). [AI Agent §12.12] 참조.
 - `1-data-model.md` 는 spec-impl-evidence frontmatter 제외 대상.
 
 ## 4. Phase 계획
@@ -155,6 +160,7 @@ WARNING 13 + INFO 15 전부 Phase A 에서 해소. 확정 채택:
 - [x] persistent 추출 스키마 — v1 은 단순 텍스트 사실 단위(`metadata.kind` optional 분류). `17-agent-memory.md §3`.
 - [x] 신규 system spec 문서 번호 — `spec/5-system/17-agent-memory.md` 채번 완료.
 - [x] 요약 LLM 콜 모델 — 노드 `model`/`llmConfigId` 재사용으로 확정(신규 필드 없음).
+      → **2026-06-05 A3(#473)에서 번복**: `summaryModel`/`extractionModel` optional 필드 도입(미설정 시 model fallback). [AI Agent §12.12] 참조.
 
 ## 6. impl-prep consistency (2026-06-03 21:38)
 - BLOCK: 원판정 YES → **반증 후 NO**. Critical("17-agent-memory.md 부재")는 **main-baseline 거짓양성**

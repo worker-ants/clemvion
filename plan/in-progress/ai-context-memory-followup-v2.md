@@ -2,7 +2,7 @@
 worktree: ai-context-memory-9c7e6e
 started: 2026-06-03
 owner: planner/developer
-related_plan: plan/in-progress/ai-context-memory-auto.md
+related_plan: plan/complete/ai-context-memory-auto.md
 ---
 
 # AI Agent 자동 컨텍스트 메모리 — v2 후속 surface
@@ -38,12 +38,11 @@ related_plan: plan/in-progress/ai-context-memory-auto.md
       (kind ∈ fact/preference/entity) JSON 반환. `parseExtractionResponse` 가 객체·문자열
       (구 shape, fallback `fact`) 모두 수용. `metadata.kind` 에 분류 저장(기존 hardcoded
       `fact` 대체).
-- [ ] **메모리 가시화 UI**: workspace 어드민이 scope 별 누적 메모리 조회/삭제.
-- [ ] **text_classifier / information_extractor 자동 주입(contextScope/memoryStrategy) 확장**:
-      현재 자동 주입은 ai_agent 한정 (push 는 세 노드 모두 출하). `0-common.md §10`,
-      `conversation-thread.md §2.3` 로드맵.
+- [x] **메모리 가시화 UI**: workspace 어드민이 scope 별 누적 메모리 조회/삭제. 2026-06-05 완료 (A1 #471, AGM-12/13·NAV-AM).
+- [x] **contextScope 자동주입 두 노드 확장** — 2026-06-05 완료 (A2 #480, 공유유틸 추출).
+- [ ] **memoryStrategy(summary_buffer/persistent) 자동메모리 두 노드 확장** — v2 (상태누적이라 ai_agent multi-turn 라이프사이클과 결합, 별도 설계).
 - [ ] **provider tokenizer-exact 토큰 카운트**: 현재 char/4 근사. 모델별 정확 토큰화.
-- [ ] **요약/추출 전용 저비용 모델 옵션**: 현재 노드 `model` 재사용. 별도 모델 필드 검토.
+- [x] **요약/추출 전용 저비용 모델 옵션**: 현재 노드 `model` 재사용. 별도 모델 필드 검토. 2026-06-05 완료 (A3 #473, summaryModel/extractionModel, fallback 체인).
 
 > 위 항목들은 본 PR(`ai-context-memory-auto.md`) 범위 밖. 우선순위·picking 후 개별 착수.
 
@@ -64,7 +63,7 @@ related_plan: plan/in-progress/ai-context-memory-auto.md
 ## v2 코드 리뷰 도출 백로그 (멀티턴 물리압축 후속)
 - [ ] `injectMemoryContext` 의 `getThread`/`getThreadExcludingNode` 이중 쿼리 단일화(I/O-backed 전환 대비, W-8).
 - [ ] `ConversationThreadService.updateSummaryState()` 신설 — runningSummary/summarizedUpToSeq 단일 변이 경로(I-7).
-- [ ] `buildSummaryBufferUpdate` rolling 루프 토큰 재계산 O(n²)→O(1) 증분(perf I-11).
+- [x] `buildSummaryBufferUpdate` rolling 루프 토큰 재계산 O(n²)→O(1) 증분(perf I-11). 2026-06-05 완료 (B3 #474, bit-identical 증분).
 - [ ] `meta.memory.compactedMessages` 를 `_product-overview` ND-AG-30 열거에 등재(naming I-7).
 - [ ] §6.2 d.5 본문에 auto-memory multi-turn 실행 경로 부연(SPEC-DRIFT I-2).
 
@@ -75,3 +74,11 @@ related_plan: plan/in-progress/ai-context-memory-auto.md
 - [ ] saveMemories 포지셔널 5파라미터 → 옵션 객체(I3). cosine SQL WHERE 빌더 추출(I5).
 - [ ] `_resumeState.lastExtractionTurnSeq` → `memoryState` sub-namespace(I12).
 - [ ] `§7.1 meta.memory` 열거에 `compactedMessages?` + node-output Principle 2 에 meta.memory(impl-done W-1).
+
+## A1 가시화 UI / A2 contextScope 확장 도출 백로그 (2026-06-05)
+- [ ] listScopes ORDER BY MAX(updated_at) filesort 인덱스 (`(workspace_id, scope_key, updated_at)`, CREATE INDEX CONCURRENTLY) — A1 backlog.
+- [ ] AgentMemoryAdminService 분리 (SRP, admin read/delete 를 런타임 메모리 서비스에서 분리) — A1 backlog.
+- [ ] agent-memory `page.tsx`(412줄) 컴포넌트 분해 + 프론트 page 컴포넌트 테스트 — A1 backlog.
+- [ ] agent-memories pagination offset→프로젝트 표준 page DTO 정렬 — A1 backlog.
+- [ ] clearScope 0건 삭제 시 toast 중립화/X-Deleted-Count — A1 backlog.
+- [ ] information_extractor §5.4/§5.5 meta 표에 contextInjection 행(waiting/resumed) — A2 backlog(minor).

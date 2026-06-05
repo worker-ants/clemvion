@@ -2,6 +2,10 @@
 worktree: rag-rerank-followup-864891
 started: 2026-06-05
 owner: developer
+spec_impact:
+  - spec/5-system/9-rag-search.md
+  - spec/2-navigation/6-config.md
+  - spec/1-data-model.md
 ---
 # RAG 리랭킹 후속 — A.1 cross_encoder_llm + A.2 UI + A.5 spec 완결성
 

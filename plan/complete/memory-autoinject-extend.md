@@ -1,6 +1,11 @@
 ---
 title: contextScope 자동주입 text_classifier·information_extractor 확장 (A2)
-status: in-progress
+status: complete
+spec_impact:
+  - spec/4-nodes/3-ai/0-common.md
+  - spec/conventions/conversation-thread.md
+  - spec/4-nodes/3-ai/2-text-classifier.md
+  - spec/4-nodes/3-ai/3-information-extractor.md
 worktree: memory-autoinject-extend-e102af
 branch: claude/memory-autoinject-extend-e102af
 started: 2026-06-05
