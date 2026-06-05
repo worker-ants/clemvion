@@ -2,6 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RerankConfigService } from '../../rerank-config/rerank-config.service';
 import { RerankConfig } from '../../rerank-config/entities/rerank-config.entity';
 import { RerankClientFactory } from '../../llm/rerank/rerank-client.factory';
+import { LlmService } from '../../llm/llm.service';
+
+// cross_encoder_llm 모드에서 cross-encoder 상위 후보 중 listwise LLM grading 에
+// 투입할 survivor 수 (Spec RAG 검색 §3.3.2 step 3 — "survivors(~15)").
+const LLM_GRADING_POOL = 15;
+// grading 프롬프트에 넣는 후보당 본문 최대 길이 (토큰 통제).
+const GRADING_CONTENT_CHARS = 500;
 
 export interface RerankCandidate {
   chunkId: string;
@@ -38,9 +45,11 @@ export interface RerankParams {
   rerankConfigId: string | null;
   topK: number;
   scoreThreshold: number | null;
-  // 라우팅된 rerank_mode — diagnostics.mode 로 그대로 보존된다. cross_encoder_llm
-  // 의 LLM grading 단계는 후속이지만, cross-encoder 재점수화는 두 모드 모두 수행.
+  // 라우팅된 rerank_mode — diagnostics.mode 로 그대로 보존된다. cross_encoder 는
+  // 재점수화까지, cross_encoder_llm 은 추가로 listwise LLM grading 을 수행한다.
   mode: 'cross_encoder' | 'cross_encoder_llm';
+  // cross_encoder_llm grading 에 사용할 chat LLMConfig. NULL → 워크스페이스 default.
+  rerankLlmConfigId?: string | null;
 }
 
 export interface RerankResponse {
@@ -62,6 +71,7 @@ export class RerankService {
   constructor(
     private readonly rerankConfigService: RerankConfigService,
     private readonly rerankClientFactory: RerankClientFactory,
+    private readonly llmService: LlmService,
   ) {}
 
   async rerankCandidates(params: RerankParams): Promise<RerankResponse> {
@@ -116,6 +126,21 @@ export class RerankService {
         return this.fallback(params, 'RERANK_NO_VALID_RESULTS');
       }
 
+      // cross_encoder_llm: cross-encoder 상위 survivors 에 listwise LLM grading 1콜
+      // (§3.3.2 step 3). 실패 시 cross-encoder 결과 유지(전체 cosine 강등 아님).
+      let llmGradingApplied = false;
+      let gradingError: string | null = null;
+      if (params.mode === 'cross_encoder_llm') {
+        const survivors = reranked.slice(0, LLM_GRADING_POOL);
+        const graded = await this.applyLlmGrading(query, survivors, params);
+        if (graded.applied) {
+          reranked = graded.results;
+          llmGradingApplied = true;
+        } else {
+          gradingError = graded.error;
+        }
+      }
+
       // 동적 점수 컷 — threshold 가 있으면 미달 후보 drop.
       let cutoffApplied = false;
       if (params.scoreThreshold !== null) {
@@ -134,11 +159,9 @@ export class RerankService {
           mode: params.mode,
           candidateCount: candidates.length,
           returnedCount: sliced.length,
-          // LLM grading 단계는 후속 — cross_encoder_llm 도 현재는 cross-encoder
-          // 까지만 적용된다 (§3.3.2 step 3, plan/in-progress/rag-rerank-followup.md).
-          llmGradingApplied: false,
+          llmGradingApplied,
           cutoffApplied,
-          error: null,
+          error: gradingError,
         },
       };
     } catch (err) {
@@ -146,6 +169,95 @@ export class RerankService {
         `Rerank endpoint failed (provider=${config.provider}); falling back to cosine order: ${this.errMsg(err)}`,
       );
       return this.fallback(params, 'RERANK_ENDPOINT_FAILED');
+    }
+  }
+
+  /**
+   * cross_encoder_llm — survivors 에 listwise LLM grading 1콜 (§3.3.2 step 3).
+   * chat LLM 에 numbered passages 를 주고 관련도 순위+점수(1-10)를 JSON 으로 받아
+   * 재정렬한다. 실패(설정/호출/파싱)는 throw 없이 applied=false 로 회신 →
+   * 호출부가 cross-encoder 결과를 유지한다 (전체 cosine 강등 아님).
+   */
+  private async applyLlmGrading(
+    query: string,
+    survivors: RerankResult[],
+    params: RerankParams,
+  ): Promise<{ applied: boolean; results: RerankResult[]; error: string | null }> {
+    const FAIL = {
+      applied: false,
+      results: [] as RerankResult[],
+      error: 'RERANK_LLM_GRADING_FAILED',
+    };
+    try {
+      const config = await this.llmService.resolveConfig(
+        params.rerankLlmConfigId ?? undefined,
+        params.workspaceId,
+      );
+      const result = await this.llmService.chat(config, {
+        model: config.defaultModel,
+        messages: [
+          { role: 'user', content: this.buildGradingPrompt(query, survivors) },
+        ],
+        responseFormat: 'json',
+      });
+      const ranking = this.parseGradingResponse(result.content);
+      if (!ranking || ranking.length === 0) return FAIL;
+
+      // ranking[].id 는 1-based survivor index. 유효 항목만 재정렬·점수 치환(1-10 → 0-1).
+      const graded: RerankResult[] = [];
+      const seen = new Set<number>();
+      for (const { id, score } of ranking) {
+        const idx = id - 1;
+        if (idx >= 0 && idx < survivors.length && !seen.has(idx)) {
+          seen.add(idx);
+          graded.push({ ...survivors[idx], score: score / 10, origin: 'reranked' });
+        }
+      }
+      if (graded.length === 0) return FAIL;
+      return { applied: true, results: graded, error: null };
+    } catch (err) {
+      this.logger.warn(
+        `LLM grading failed; keeping cross-encoder order: ${this.errMsg(err)}`,
+      );
+      return FAIL;
+    }
+  }
+
+  private buildGradingPrompt(query: string, survivors: RerankResult[]): string {
+    const passages = survivors
+      .map((s, i) => `[${i + 1}] ${s.content.slice(0, GRADING_CONTENT_CHARS)}`)
+      .join('\n\n');
+    return [
+      'You are a relevance grader for retrieval-augmented generation.',
+      'Given a user query and numbered passages, return ONLY a JSON object of the form:',
+      '{"ranking": [{"id": <passage number>, "score": <integer 1-10>}]}',
+      'List passages relevant to answering the query, ordered most-relevant first.',
+      'Omit clearly irrelevant passages. Do not include any commentary.',
+      '',
+      `Query: ${query}`,
+      '',
+      'Passages:',
+      passages,
+    ].join('\n');
+  }
+
+  private parseGradingResponse(
+    content: string | null,
+  ): { id: number; score: number }[] | null {
+    if (!content) return null;
+    try {
+      const cleaned = content.replace(/```json\s*|```/g, '').trim();
+      const parsed = JSON.parse(cleaned) as {
+        ranking?: { id: number; score: number }[];
+      };
+      if (!Array.isArray(parsed.ranking)) return null;
+      return parsed.ranking
+        .filter(
+          (r) => typeof r?.id === 'number' && typeof r?.score === 'number',
+        )
+        .map((r) => ({ id: r.id, score: Math.max(0, Math.min(10, r.score)) }));
+    } catch {
+      return null;
     }
   }
 

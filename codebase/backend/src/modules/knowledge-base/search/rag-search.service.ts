@@ -30,6 +30,7 @@ interface KbRow {
   rerankConfigId: string | null;
   rerankCandidateK: number;
   rerankScoreThreshold: number | null;
+  rerankLlmConfigId: string | null;
 }
 
 type RawSearchRow = {
@@ -117,7 +118,8 @@ export class RagSearchService {
                 rerank_mode AS "rerankMode",
                 rerank_config_id AS "rerankConfigId",
                 rerank_candidate_k AS "rerankCandidateK",
-                rerank_score_threshold AS "rerankScoreThreshold"
+                rerank_score_threshold AS "rerankScoreThreshold",
+                rerank_llm_config_id AS "rerankLlmConfigId"
          FROM knowledge_base
          WHERE id = ANY($1::uuid[]) AND workspace_id = $2`,
         [knowledgeBaseIds, workspaceId],
@@ -292,6 +294,7 @@ export class RagSearchService {
       candidates: rerankCandidates,
       workspaceId,
       rerankConfigId: kb.rerankConfigId,
+      rerankLlmConfigId: kb.rerankLlmConfigId,
       topK,
       // rerank 점수 컷: KB 설정 우선, 미설정(NULL)이면 런타임 threshold fallback.
       // out-of-box(KB 설정 없음)에서도 관련도 컷이 걸리게 한다 (§3.3 / Rationale I4).
