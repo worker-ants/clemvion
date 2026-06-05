@@ -1940,7 +1940,10 @@ describe('ExecutionEngineService', () => {
       mockExecutionRepo.findOneBy
         .mockResolvedValueOnce(pendingRow({ triggerId: 'trg-w2' }))
         .mockResolvedValueOnce(
-          pendingRow({ status: ExecutionStatus.RUNNING, startedAt: new Date() }),
+          pendingRow({
+            status: ExecutionStatus.RUNNING,
+            startedAt: new Date(),
+          }),
         );
       const runSpy = jest
         .spyOn(
@@ -1954,7 +1957,8 @@ describe('ExecutionEngineService', () => {
         await flushPromises();
         await flushPromises();
         const failedSave = mockExecutionRepo.save.mock.calls.find(
-          (c) => (c[0] as Partial<Execution>)?.status === ExecutionStatus.FAILED,
+          (c) =>
+            (c[0] as Partial<Execution>)?.status === ExecutionStatus.FAILED,
         );
         expect(failedSave).toBeDefined();
       } finally {
@@ -1978,7 +1982,8 @@ describe('ExecutionEngineService', () => {
         await flushPromises();
         await flushPromises();
         const failedSave = mockExecutionRepo.save.mock.calls.find(
-          (c) => (c[0] as Partial<Execution>)?.status === ExecutionStatus.FAILED,
+          (c) =>
+            (c[0] as Partial<Execution>)?.status === ExecutionStatus.FAILED,
         );
         expect(failedSave).toBeUndefined();
       } finally {
