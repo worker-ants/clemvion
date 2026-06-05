@@ -8762,6 +8762,145 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // PR-A1 — conversationThread durable 복원 (spec §6.2/§7.5, conversation-thread
+  // §4·§8.4). rehydrateContext 를 직접 호출해 thread 복원만 격리 검증한다 (resume
+  // 머신리와 무관). park 시 `Execution.conversation_thread` 에 commit 된 스냅샷이
+  // 무손실 복원되는지 + NULL(배포 이전 row)이면 빈 thread 로 회귀 없는지.
+  describe('rehydrateContext — conversationThread durable 복원', () => {
+    type RehydrateCtxSubject = {
+      rehydrateContext: (
+        execution: unknown,
+        waitingNodeExec: unknown,
+      ) => Promise<{ conversationThread: unknown }>;
+      contextService: { deleteContext: (key: string) => void };
+    };
+    const ctxSubject = () => service as unknown as RehydrateCtxSubject;
+
+    const waitingNodeExec = {
+      id: 'ne-rehydrate',
+      nodeId: 'node-1',
+      outputData: {
+        interactionType: 'form',
+        meta: { interactionType: 'form' },
+        status: 'waiting_for_input',
+      },
+    };
+
+    beforeEach(() => {
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+    });
+
+    it('restores the persisted thread losslessly (turns + runningSummary + summarizedUpToSeq)', async () => {
+      const persisted = {
+        id: 'default',
+        nextSeq: 2,
+        turns: [
+          {
+            seq: 0,
+            nodeId: 'node-1',
+            nodeLabel: 'Form',
+            nodeType: 'form',
+            timestamp: '2026-06-05T10:00:00.000Z',
+            source: 'presentation_user',
+            text: '환불해주세요',
+          },
+          {
+            seq: 1,
+            nodeId: 'node-1',
+            nodeLabel: 'Agent',
+            nodeType: 'ai_agent',
+            timestamp: '2026-06-05T10:00:01.000Z',
+            source: 'ai_assistant',
+            text: '처리하겠습니다',
+          },
+        ],
+        totalChars: 13, // '환불해주세요'(6) + '처리하겠습니다'(7)
+        runningSummary: '사용자 환불 요청',
+        summarizedUpToSeq: 0,
+      };
+      const execution = {
+        id: 'exec-rehydrate-thread',
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        recursionDepth: 0,
+        dryRun: false,
+        conversationThread: persisted,
+      };
+      // 기존 in-memory context 가 있으면 rehydrateContext 가 early-return 하므로 제거.
+      ctxSubject().contextService.deleteContext('exec-rehydrate-thread');
+
+      const ctx = await ctxSubject().rehydrateContext(
+        execution,
+        waitingNodeExec,
+      );
+
+      expect(ctx.conversationThread).toEqual(persisted);
+    });
+
+    it('falls back to an empty thread when the column is NULL (배포 이전 row / park 이력 없음 — 회귀 가드)', async () => {
+      const execution = {
+        id: 'exec-rehydrate-null',
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        recursionDepth: 0,
+        dryRun: false,
+        conversationThread: null,
+      };
+      ctxSubject().contextService.deleteContext('exec-rehydrate-null');
+
+      const ctx = await ctxSubject().rehydrateContext(
+        execution,
+        waitingNodeExec,
+      );
+
+      expect(ctx.conversationThread).toEqual({
+        id: 'default',
+        nextSeq: 0,
+        turns: [],
+        totalChars: 0,
+      });
+    });
+
+    it('stageConversationThreadSnapshot copies the live thread onto the Execution row (park commit, 영속본 분리)', () => {
+      const thread = {
+        id: 'default',
+        nextSeq: 1,
+        turns: [
+          {
+            seq: 0,
+            nodeId: 'n1',
+            nodeLabel: 'Form',
+            nodeType: 'form',
+            timestamp: '2026-06-05T10:00:00.000Z',
+            source: 'presentation_user',
+            text: 'hi',
+          },
+        ],
+        totalChars: 2,
+      };
+      const execution = { id: 'e1', conversationThread: null } as unknown;
+      const context = { conversationThread: thread } as unknown;
+
+      (
+        service as unknown as {
+          stageConversationThreadSnapshot: (e: unknown, c: unknown) => void;
+        }
+      ).stageConversationThreadSnapshot(execution, context);
+
+      const staged = (execution as { conversationThread: unknown })
+        .conversationThread;
+      // 값은 동일하되 cloneThread 로 깊은 복사 — 이후 turn mutation 이 영속본을 오염 X.
+      expect(staged).toEqual(thread);
+      expect(staged).not.toBe(thread);
+      expect((staged as { turns: unknown[] }).turns).not.toBe(thread.turns);
+    });
+  });
+
   // Phase 2.3a — §7.5 rehydration 본 구현 단위 검증. happy-path (form 제출 →
   // 워크플로 완료) 는 e2e 에서 별도 검증; 본 블록은 invariant fail-fast 분기를
   // 검증해 RESUME_* 코드 분류가 정확한지 보장한다.

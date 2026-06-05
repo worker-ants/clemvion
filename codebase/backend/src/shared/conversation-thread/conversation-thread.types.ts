@@ -158,8 +158,9 @@ export interface ConversationThread {
    * 롤링 요약 본문. AI Agent 의 `memoryStrategy ∈ {summary_buffer, persistent}`
    * 전략에서만 set (spec/conventions/conversation-thread.md §1.3,
    * spec/4-nodes/3-ai/1-ai-agent.md §6.1). `manual` 전략에서는 미설정.
-   * 실행 중 `ExecutionContext` (Redis 직렬화) 에만 포함되고 신규 DB 컬럼을
-   * 만들지 않는다 (§4 영속화 — ConversationThread "신규 DB 컬럼 없음" 유지).
+   * thread 의 일부이므로 park 시 `Execution.conversation_thread` durable 스냅샷에
+   * 함께 commit 되어 rehydration(§7.5)으로 복원된다 (§4 영속화·§8.4). park 사이
+   * active 진행 중 ExecutionContext 유실 시 fallback 은 [1-ai-agent §12.13].
    */
   runningSummary?: string;
   /**
@@ -197,4 +198,55 @@ export function createEmptyConversationThread(): MutableConversationThread {
     turns: [],
     totalChars: 0,
   };
+}
+
+/**
+ * durable park 스냅샷(`Execution.conversation_thread` jsonb, spec
+ * conversation-thread.md §4·§8.4)에서 로드한 raw 값을 안전한
+ * `MutableConversationThread` 로 정규화한다 — §7.5 rehydration 진입점.
+ *
+ * jsonb 는 plain object 로 역직렬화되므로 `turns` 는 일반 배열이다. 본 함수는
+ * (a) 누락/손상 필드를 기본값으로 보강하고 (schema drift graceful), (b) `turns`
+ * 를 새 배열로 복사해 영속본 참조와 분리하며, (c) `nextSeq`/`totalChars` 가
+ * 비정상이면 `turns` 로부터 재유도해 append 불변량(`nextSeq == turns.length`)을
+ * 보존한다. raw 가 null/비객체면 빈 thread 를 반환한다 (회귀 없음).
+ */
+export function rehydrateConversationThread(
+  raw: unknown,
+): MutableConversationThread {
+  if (!raw || typeof raw !== 'object') {
+    return createEmptyConversationThread();
+  }
+  const r = raw as Record<string, unknown>;
+  // turns 가 배열이 아니면 스냅샷 자체가 손상된 것 — 빈 thread 로 전체 리셋한다
+  // (회귀 없음). 정상 jsonb round-trip 에서는 발생하지 않는다.
+  if (!Array.isArray(r.turns)) {
+    return createEmptyConversationThread();
+  }
+  const turns: ConversationTurn[] = [...(r.turns as ConversationTurn[])];
+  const id = typeof r.id === 'string' ? r.id : DEFAULT_THREAD_ID;
+  // nextSeq 는 monotonic append 카운터다 — eviction(§STORAGE_MAX_TURNS) 으로
+  // 오래된 turn 이 drop 돼도 감소하지 않으므로 `turns.length` 보다 클 수 있다.
+  // 저장값이 number 이고 turns.length 이상이면 그대로 보존(seq 재사용 방지),
+  // 비숫자거나 turns.length 미만(손상)이면 turns.length 로 재유도한다.
+  const storedNextSeq = r.nextSeq;
+  const nextSeq =
+    typeof storedNextSeq === 'number' && storedNextSeq >= turns.length
+      ? storedNextSeq
+      : turns.length;
+  // totalChars 는 현재 turns 의 text.length 합과 일치한다 (service 가 eviction
+  // 시 제거분을 차감해 유지). rehydration 은 hot path 가 아니므로 turns 에서
+  // 재계산해 캐시 drift 를 제거한다 (정상 스냅샷에서는 저장값과 동일).
+  const totalChars = turns.reduce(
+    (sum, t) => sum + (typeof t?.text === 'string' ? t.text.length : 0),
+    0,
+  );
+  const thread: MutableConversationThread = { id, nextSeq, turns, totalChars };
+  if (typeof r.runningSummary === 'string') {
+    thread.runningSummary = r.runningSummary;
+  }
+  if (typeof r.summarizedUpToSeq === 'number') {
+    thread.summarizedUpToSeq = r.summarizedUpToSeq;
+  }
+  return thread;
 }

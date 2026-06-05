@@ -8,6 +8,7 @@ import {
 import { Workflow } from '../../workflows/entities/workflow.entity';
 import { Trigger } from '../../triggers/entities/trigger.entity';
 import { User } from '../../users/entities/user.entity';
+import type { ConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 export enum ExecutionStatus {
   PENDING = 'pending',
@@ -100,6 +101,15 @@ export class Execution {
   //   실행 전 수명 동안 고정 — rehydration 에서도 동일 값 복원. (V068)
   @Column({ name: 'dry_run', type: 'boolean', default: false })
   dryRun: boolean;
+
+  // conversation_thread: waiting_for_input park 진입 시 ExecutionContext의
+  //   conversationThread 전체 스냅샷을 commit 하는 durable resume 매체 (V084).
+  //   rehydration(§7.5)이 여기서 thread를 무손실 복원(runningSummary 포함).
+  //   NULL = park 한 적 없는 실행 / 배포 이전 row → rehydration 은 빈 thread 시작.
+  //   실행 이력 SoT(NodeExecution.output_data)와 목적·소비처 분리.
+  //   spec: conversation-thread §4·§8.4, 4-execution-engine §6.2/§7.5, 1-data-model §2.13.
+  @Column({ name: 'conversation_thread', type: 'jsonb', nullable: true })
+  conversationThread: ConversationThread | null;
 
   // 노드 실행 순서는 V035 부터 별도 `execution_node_log` 테이블에 append-only
   // 로 기록된다. ExecutionsService.findById 가 (execution_id, id) 정렬 쿼리로

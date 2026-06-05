@@ -9,6 +9,7 @@ pending_plans:
   - plan/in-progress/execution-engine-residual-gaps.md
   - plan/in-progress/spec-sync-execution-engine-gaps.md
   - plan/in-progress/exec-intake-queue-impl.md
+  - plan/in-progress/exec-park-durable-resume.md
 ---
 
 # Spec: 실행 엔진 상세
@@ -723,8 +724,8 @@ Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 |------|--------|------|
 | 실행 중 | Redis | 실행 컨텍스트를 Redis에 저장 (TTL: 실행 타임아웃 × 2) |
 | 노드 완료 시 | Redis + PostgreSQL | nodeOutputCache 업데이트(Redis), NodeExecution 레코드 저장(PostgreSQL) |
-| 노드 hook 시 | Redis (`ExecutionContext.conversationThread` 일부) | `ConversationThreadService.append*` 가 presentation `interaction` resume / AI Agent multi-turn message·assistant 발생 시 호출. NodeExecution.outputData (`output.interaction` / `output.messages` / `output.result.response`) 가 영구 SoT 이므로 별도 DB 컬럼 신설 없음 |
-| waiting_for_input 진입 시 | PostgreSQL (`NodeExecution.outputData`) + Redis (`ExecutionContext`) | 다음 노드 재개에 필요한 모든 정보를 commit. (a) `interactionType` 과 노드의 `rawConfig` snapshot (§5.5), (b) multi-turn 의 경우 `_resumeState` 의 credential-strip 부분집합인 `_resumeCheckpoint` (§1.3 — `_resumeState` full 은 in-memory 만), (c) 누적된 `conversationThread` (`output.messages` 또는 `output.interaction`). **별도 `_continuationCheckpoint` 컬럼 신설하지 않는다** — 기존 SoT 인 `NodeExecution.outputData` 를 §7.5 rehydration 의 단일 진실로 활용 |
+| 노드 hook 시 | Redis (`ExecutionContext.conversationThread` 일부) | `ConversationThreadService.append*` 가 presentation `interaction` resume / AI Agent multi-turn message·assistant 발생 시 호출. 실행 이력 화면의 SoT 는 NodeExecution.outputData (`output.interaction` / `output.messages` / `output.result.response`) — durable resume 스냅샷(`Execution.conversation_thread`)은 아래 "waiting_for_input 진입 시" 행에서 별도 commit |
+| waiting_for_input 진입 시 | PostgreSQL (`NodeExecution.outputData` + `Execution.conversation_thread`) + Redis (`ExecutionContext`) | 다음 노드 재개에 필요한 모든 정보를 commit. (a) `interactionType` 과 노드의 `rawConfig` snapshot (§5.5), (b) multi-turn 의 경우 `_resumeState` 의 credential-strip 부분집합인 `_resumeCheckpoint` (§1.3 — `_resumeState` full 은 in-memory 만), (c) 현재 `context.conversationThread` 전체 스냅샷을 **`Execution.conversation_thread jsonb`** 컬럼에 durable commit (last-write = 최신 스냅샷 — §7.5 rehydration 이 여기서 무손실 복원, [Spec Conversation Thread §4·§8.4](../conventions/conversation-thread.md#4-영속화)). **별도 `_continuationCheckpoint` 컬럼은 신설하지 않는다** — (a)/(b) 는 기존 SoT 인 `NodeExecution.outputData` 를 §7.5 rehydration 의 단일 진실로 활용 |
 | 실행 완료 시 | PostgreSQL | 전체 컨텍스트를 PostgreSQL에 영구 저장, Redis에서 삭제 |
 
 > **라이브 조기 노출 신호는 비영속**: multi-turn 재개 chokepoint(WS `execution.submit_message` 와 채널 텍스트 인바운드의 공통 경로 = [AI Agent §7.5](../4-nodes/3-ai/1-ai-agent.md#75-multi-turn-모드--사용자-메시지-수신-status-resumed-transient) `message_received` resume tick)는 다음 턴 LLM 호출 전에 WS `execution.user_message` 이벤트를 emit 해 사용자 발화를 라이브로 조기 노출한다 ([WebSocket §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)). 이는 `tool_call_*` 와 동형의 **라이브 전용 진행 신호로 영속 대상이 아니다** — `NodeExecution.outputData` 는 위 표대로 turn 경계에서만 저장(single-write 불변)되고, 사용자 발화의 영속 정합은 turn 종료 `execution.ai_message` 스냅샷(`output.result.messages`)이 보장한다. (§7 rehydration 의 "WS 신규 이벤트 도입 안 함" 원칙은 재개 사실이 `node.*` 이벤트로 이미 관측 가능한 *관측-중복* 이벤트(`resumed_after_restart`)를 특정 기각한 것이며, 본 라이브 진행 신호 — 수신 시점에 발화 내용을 싣는 이벤트가 기존에 부재 — 에는 적용되지 않는다.)
@@ -879,9 +880,11 @@ WAITING_FOR_INPUT 상태에서 인스턴스가 종료된 뒤 사용자 입력이
        │   · best-effort: 등록 실패 시 warn 로그만 남기고 rehydration 은 계속.
        │   · terminal event emit 시 자동 release (기존 동작).
        ├─ NodeExecution.outputData 에서 rawConfig snapshot /
-       │   _resumeCheckpoint (multi-turn) / conversationThread 로드
+       │   _resumeCheckpoint (multi-turn) 로드
+       ├─ Execution.conversation_thread 컬럼에서 conversationThread
+       │   스냅샷 무손실 복원 (§6.2 park commit, conversation-thread §4/§8.4)
        ├─ ExecutionContext 재구성 (Redis context 가 살아있으면
-       │   그것 우선, 없으면 DB 에서 복원)
+       │   그것 우선, 없으면 DB 에서 복원 — thread 는 위 컬럼이 복원원)
        ├─ 해당 노드의 waitForX() 메서드를 새로 invoke
        │   (in-memory resolver 등록)
        ├─ 즉시 같은 입력을 resolver() 에 전달

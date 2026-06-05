@@ -35,7 +35,10 @@ import {
 import type { ContinuationPayload } from './queues/continuation-execution.queue';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ShutdownStateService } from './shutdown/shutdown-state.service';
-import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
+import {
+  createEmptyConversationThread,
+  rehydrateConversationThread,
+} from '../../shared/conversation-thread/conversation-thread.types';
 import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
@@ -1189,13 +1192,14 @@ export class ExecutionEngineService
    *     해 graph loop 의 blocking check 가 인식.
    *   - `_executedNodes` (Set) — `gatherNodeInput` 이 predecessor 완료 여부
    *     판단에 사용.
+   *   - `conversationThread` — park 시 durable commit 된
+   *     `Execution.conversation_thread` 스냅샷에서 `rehydrateConversationThread`
+   *     로 무손실 복원 (spec §6.2/§7.5, conversation-thread §4·§8.4). NULL(park
+   *     이력 없음/배포 이전 row)이면 빈 thread (회귀 없음).
    *
    * 채워지지 않는 항목 (의도적):
    *   - `_resumeState` — multi-turn AI 의 in-memory 전용 (WARN #6). 영속 보존 X
    *     → 후속 `resumeFromCheckpoint` 가 ai_conversation 케이스를 거부.
-   *   - `conversationThread` — 본 phase 에서는 빈 thread 로 시작 (form / button
-   *     노드는 미사용). 후속 작업에서 NodeExecution.outputData.messages 누적
-   *     재구성 가능.
    */
   private async rehydrateContext(
     execution: Execution,
@@ -1232,6 +1236,14 @@ export class ExecutionEngineService
           __dryRun: execution.dryRun ?? false,
         },
         recursionDepth: execution.recursionDepth,
+        // conversationThread 무손실 복원 (spec §6.2/§7.5, conversation-thread
+        // §4·§8.4). park 시 durable commit 된 `Execution.conversation_thread`
+        // 스냅샷에서 thread 를 정규화 복원한다 — 빈 thread 리셋으로 인한 대화
+        // 맥락 소실(runningSummary 포함)을 제거. NULL(park 이력 없음/배포 이전
+        // row)이면 rehydrateConversationThread 가 빈 thread 를 반환(회귀 없음).
+        conversationThread: rehydrateConversationThread(
+          execution.conversationThread,
+        ),
       },
     );
     const executedNodes = new Set<string>();
@@ -3440,6 +3452,9 @@ export class ExecutionEngineService
         'form',
       );
     }
+    // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
+    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원원).
+    this.stageConversationThreadSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
     await this.updateExecutionStatus(
       savedExecution,
@@ -4975,6 +4990,9 @@ export class ExecutionEngineService
         initialInteractionType,
       );
     }
+    // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
+    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원원).
+    this.stageConversationThreadSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
     await this.updateExecutionStatus(
       savedExecution,
@@ -5949,6 +5967,9 @@ export class ExecutionEngineService
         'buttons',
       );
     }
+    // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
+    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원원).
+    this.stageConversationThreadSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
     await this.updateExecutionStatus(
       savedExecution,
@@ -8448,6 +8469,22 @@ export class ExecutionEngineService
       );
       throw new ExecutionTimeLimitError(activeNow, this.maxActiveRunningMs);
     }
+  }
+
+  /**
+   * park(waiting_for_input) 직전, 현재 `conversationThread` 스냅샷을 Execution
+   * 행에 실어 둔다. 호출자가 곧바로 `updateExecutionStatus(..., WAITING_FOR_INPUT,
+   * linkedNodeExec)` 를 호출하면 thread 가 상태 전이와 **같은 트랜잭션**으로
+   * `Execution.conversation_thread` 에 durable commit 된다 (추가 DB 왕복 없음).
+   * §7.5 rehydration 이 이 스냅샷에서 thread 를 무손실 복원한다.
+   * cloneThread 로 깊은 복사해, 이후 turn mutation 이 영속본을 오염시키지 않게 한다.
+   * (spec: conversation-thread §4·§8.4, 4-execution-engine §6.2/§7.5, 1-data-model §2.13)
+   */
+  private stageConversationThreadSnapshot(
+    execution: Execution,
+    context: ExecutionContext,
+  ): void {
+    execution.conversationThread = cloneThread(context.conversationThread);
   }
 
   private async updateExecutionStatus(
