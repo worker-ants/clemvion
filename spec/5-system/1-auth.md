@@ -229,6 +229,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 권한 부족 (발송·재발송·취소) | 403 | `forbidden` |
 | Rate limit 초과 | 429 | `rate_limited` |
 
+> **명명 — historical-artifact 예외**: 위 코드들은 [`node-output.md` Principle 3.2](../conventions/node-output.md#32-outputerror-표준-형태)·[`error-codes.md §1`](../conventions/error-codes.md#1-의미-기반-명명-핵심-원칙)의 `UPPER_SNAKE_CASE` 규약과 달리 `lower_snake_case` 다. v1 출하 시 이 형태로 정착했고 프론트엔드([`invitations.ts`](../../codebase/frontend/src/lib/api/invitations.ts) `INVITATION_ERROR_CODES`)가 `code` 값으로 직접 분기하므로, rename 은 API breaking change 가 된다([`error-codes.md §2`](../conventions/error-codes.md#2-안정성--rename-정책) "이름 정확성 향상만을 위한 rename 은 하지 않는다"). 따라서 [`error-codes.md §3` historical-artifact 레지스트리](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리)에 등재해 유지한다 — 신규 코드는 본 예외를 선례로 삼지 않고 처음부터 `UPPER_SNAKE_CASE` 를 쓴다.
+
 ---
 
 ## 2. 세션 관리

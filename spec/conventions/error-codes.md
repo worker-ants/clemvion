@@ -56,6 +56,7 @@ OAuth 등에서 인라인 문자열 리터럴로 발행되는 코드(`CAFE24_*`,
 | 코드 | HTTP | 이름이 부정확한 이유 | 진실(의미) | 근거 |
 |---|---|---|---|---|
 | `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` | 409 | `PRIVATE` 토큰은 historical artifact — 신설 당시 Private 한정이었으나 app_type 무관으로 확장 | 동일 `(workspaceId, mall_id)` 에 cafe24 Integration 중복 | [`4-integration.md` Rationale "CAFE24_PRIVATE_APP_ALREADY_CONNECTED 코드명 유지 결정"](../2-navigation/4-integration.md#rationale) |
+| `invitation_not_found` · `invitation_expired` · `invitation_already_used` · `invitation_email_mismatch` · `forbidden` · `rate_limited` | 404/410/400/403/429 | `lower_snake_case` — §1 `UPPER_SNAKE_CASE` 위반. 워크스페이스 초대 흐름 v1 출하 시 이 형태로 정착, 프론트(`invitations.ts` `INVITATION_ERROR_CODES`)·백엔드(`workspace-invitations.service.ts` / `auth.service.ts`)가 `code` 값으로 분기 → rename = breaking(§2) | 초대 토큰 부재/만료/사용됨/이메일 불일치/권한 부족/rate-limit | [`1-auth.md §1.5.4`](../5-system/1-auth.md#154-에러-응답) |
 
 ## Rationale
 
