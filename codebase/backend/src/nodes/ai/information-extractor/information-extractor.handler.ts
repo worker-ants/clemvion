@@ -24,6 +24,14 @@ import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
 import { injectConversationContext } from '../shared/conversation-context-injection';
 import type { ConversationContextInjectionResult } from '../shared/conversation-context-injection';
 import type { ThreadHolder } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
+import {
+  buildRecallBlock,
+  appendStablePrefix,
+} from '../ai-agent/agent-memory-injection';
+import {
+  DEFAULT_MEMORY_TOP_K,
+  DEFAULT_MEMORY_THRESHOLD,
+} from '../ai-agent/ai-agent.schema';
 
 /** ConversationThread injection debug echo snapshot (conversation-thread.md §5.3). */
 type ContextInjectionMeta = ConversationContextInjectionResult['injection'];
@@ -121,6 +129,42 @@ interface MultiTurnState {
    * runs) and carried through resume so the final `completed` / `max_turns`
    * output can echo it. Absent when scope was `none` (noop). */
   contextInjection?: ContextInjectionMeta;
+  /**
+   * persistent 메모리 전략 (memory-strategy-extend-ie). 멀티턴 resume turn
+   * (`processMultiTurnMessage`) / 종결(`buildMultiTurnFinalOutput`) 은 state 만
+   * 받으므로, 첫 진입에서 resolve 한 전략을 state 에 실어 운반한다. 미설정 = manual.
+   */
+  memoryStrategy?: 'manual' | 'persistent';
+  /**
+   * 첫 멀티턴 진입에서 캡처한 ConversationThread 참조 (memory-strategy-extend-ie).
+   * 종결(`buildMultiTurnFinalOutput`) 경로가 context 없이도 thread push + 추출
+   * source 를 얻기 위해 state 로 운반한다 (ai_agent `conversationThreadRef` 패턴).
+   * 직렬화로 영속되며, resume 시 같은 in-memory thread 로 복원된다.
+   */
+  conversationThreadRef?: import('../../../shared/conversation-thread/conversation-thread.types').ConversationThread;
+  /**
+   * 첫 멀티턴 진입의 executionId (memory-strategy-extend-ie). 종결 경로의 추출
+   * scope key resolve 에 필요 — `endMultiTurnConversation` 은 context 를 받지 않음.
+   */
+  executionId?: string;
+  /** 첫 멀티턴 진입의 nodeId — 종결 push 시 NodeRef 구성용. */
+  nodeId?: string;
+  /**
+   * 첫 멀티턴 진입의 **평가된** 메모리 config 스냅샷 (memory-strategy-extend-ie).
+   * rawConfig 는 `{{...}}` 템플릿이 보존된 미평가 값이라 scope key resolve 에
+   * 부적합하므로, 종결 추출에 필요한 평가값(memoryKey/llmConfigId/model/모델 폴백/
+   * TTL)만 별도로 운반한다. recall(첫 진입)은 evaluated `config` 를 직접 쓰므로 무관.
+   */
+  memoryConfig?: Record<string, unknown>;
+  /**
+   * persistent 메모리 증분 추출 watermark (memory-strategy-extend-ie) — 직전
+   * extraction enqueue 가 커버한 마지막 turn 의 seq. 멀티턴에서 이 seq 초과 turn 만
+   * 새로 snapshot 한다 (ai_agent §M1 패턴). undefined = 아직 추출 안 함.
+   *
+   * **A3 교훈**: 이 필드는 반드시 `stateBase` → resume state 로 운반돼야 한다.
+   * turn2+ 에서 유실되면 매 turn 전체 thread 를 재추출(또는 scopeKey 불일치)하게 된다.
+   */
+  lastExtractionTurnSeq?: number;
   // Unused by this handler but kept so the engine can pass generic state fields
   toolCalls?: number;
   ragSources?: unknown[];
@@ -143,12 +187,23 @@ export class InformationExtractorHandler implements NodeHandler {
      * spec/conventions/conversation-thread.md §1.4 + §2.3 v2. Test
      * fixtures may omit this; the helper degrades to no-op.
      *
-     * v2 limitation: only the single-turn `out` branch pushes today.
-     * Multi-turn (`completed` / `max_retries` / `max_turns` / `user_ended`)
-     * push hooks are tracked as a follow-up — they need the same
-     * state-carried thread reference pattern as ai-agent multi-turn.
+     * Both single-turn and multi-turn final-output paths push today
+     * (multi-turn push resolved in memory-strategy-extend-ie): the
+     * `buildMultiTurnFinalOutput` terminal path pushes the finalized snapshot
+     * once (waiting ticks do not push). This gives persistent extraction a
+     * `turns` source and downstream contextScope visibility, mirroring
+     * single-turn.
      */
     private readonly conversationThreadService?: import('../../../modules/execution-engine/conversation-thread/conversation-thread.service').ConversationThreadService,
+    /**
+     * Optional. Persistent memory recall (before the extraction LLM call) +
+     * turn-boundary async extraction (after the thread push). Only engaged
+     * when `config.memoryStrategy === 'persistent'`; `manual` (default) is a
+     * 100% no-op — recall/extract are never invoked (regression invariant).
+     * Test fixtures may omit this; the helpers degrade to no-op.
+     * SoT: spec/4-nodes/3-ai/3-information-extractor.md, spec/5-system/17-agent-memory.md.
+     */
+    private readonly agentMemoryService?: import('../../../modules/agent-memory/agent-memory.service').AgentMemoryService,
   ) {}
 
   /**
@@ -160,17 +215,207 @@ export class InformationExtractorHandler implements NodeHandler {
     config: Record<string, unknown>,
     extracted: Record<string, unknown>,
   ): void {
+    this.pushExtractorTurnTo(
+      context,
+      context.nodeId ?? '',
+      context.rawConfig ?? config,
+      extracted,
+    );
+  }
+
+  /**
+   * Push variant that takes an explicit thread holder + nodeId + config so the
+   * multi-turn terminal path (which has only `state`, no `context`) can push
+   * the finalized snapshot uniformly with single-turn (memory-strategy-extend-ie).
+   */
+  private pushExtractorTurnTo(
+    target: ThreadHolder,
+    nodeId: string,
+    config: Record<string, unknown> | undefined,
+    extracted: Record<string, unknown>,
+  ): void {
     if (!this.conversationThreadService) return;
-    const id = context.nodeId ?? '';
-    this.conversationThreadService.appendAiAssistantMessage(context, {
+    this.conversationThreadService.appendAiAssistantMessage(target, {
       node: {
-        id,
-        label: id,
+        id: nodeId,
+        label: nodeId,
         type: 'information_extractor',
-        config: context.rawConfig ?? config,
+        config: config ?? {},
       },
       content: JSON.stringify(extracted),
     });
+  }
+
+  /** Thread reference carried in `state` from the first multi-turn turn. */
+  private threadHolderFromState(
+    state: MultiTurnState,
+  ): ThreadHolder | undefined {
+    return state.conversationThreadRef
+      ? { conversationThread: state.conversationThreadRef }
+      : undefined;
+  }
+
+  /** Resolve memoryStrategy from config — `manual` (default) | `persistent`. */
+  private resolveMemoryStrategy(
+    config: Record<string, unknown>,
+  ): 'manual' | 'persistent' {
+    return config.memoryStrategy === 'persistent' ? 'persistent' : 'manual';
+  }
+
+  /**
+   * persistent 회수 (spec/5-system/17-agent-memory.md §4) — 추출 LLM 콜 직전에
+   * 1회 동기 호출. 이전 세션에서 추출·저장된 사실을 top-k 의미검색으로 회수해
+   * systemPrompt 의 안정 프리픽스(recall 블록)로 주입한다 (ai_agent
+   * `injectMemoryContext` 의 [5a] 블록 패턴 모방). manual / 서비스 미주입 시
+   * 입력 systemPrompt 그대로 반환 (no-op). 회수 실패는 graceful (빈 회수).
+   *
+   * IE 는 working-memory 압축(summary_buffer)이 없으므로 휘발성 꼬리/요약 블록은
+   * 다루지 않는다 — 안정 프리픽스(recall)만 systemPrompt 에 append.
+   */
+  private async injectRecallPrefix(args: {
+    strategy: 'manual' | 'persistent';
+    config: Record<string, unknown>;
+    systemPrompt: string;
+    workspaceId: string;
+    executionId: string;
+    queryText: string;
+  }): Promise<{ systemPrompt: string; recalledCount: number }> {
+    if (args.strategy !== 'persistent' || !this.agentMemoryService) {
+      return { systemPrompt: args.systemPrompt, recalledCount: 0 };
+    }
+    const evaluatedMemoryKey = args.config.memoryKey as
+      | string
+      | undefined
+      | null;
+    const scopeKey = this.agentMemoryService.resolveScopeKey(
+      evaluatedMemoryKey,
+      args.executionId,
+    );
+    const topK = (args.config.memoryTopK as number) || DEFAULT_MEMORY_TOP_K;
+    const threshold =
+      args.config.memoryThreshold !== undefined
+        ? (args.config.memoryThreshold as number)
+        : DEFAULT_MEMORY_THRESHOLD;
+    // 빈 query 면 systemPrompt 로 폴백 (저장만 되고 회수 0 이 되는 비대칭 방지 —
+    // ai_agent M2 와 동형).
+    const queryText = args.queryText?.trim()
+      ? args.queryText
+      : args.systemPrompt;
+
+    let recalled: Awaited<
+      ReturnType<
+        import('../../../modules/agent-memory/agent-memory.service').AgentMemoryService['recall']
+      >
+    > = [];
+    try {
+      recalled = await this.agentMemoryService.recall(
+        args.workspaceId,
+        scopeKey,
+        queryText,
+        {
+          llmConfigId: args.config.llmConfigId as string | undefined,
+          // 회수/추출 동일 embeddingModel — query/저장 임베딩 차원 일치 (§3).
+          embeddingModel: args.config.embeddingModel as string | undefined,
+        },
+        { topK, threshold },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(
+        `Information Extractor memory recall failed (graceful): ${message}`,
+      );
+      recalled = [];
+    }
+
+    const recallBlock = buildRecallBlock(recalled);
+    const newSystemPrompt = appendStablePrefix(
+      args.systemPrompt,
+      recallBlock,
+      '',
+    );
+    return { systemPrompt: newSystemPrompt, recalledCount: recalled.length };
+  }
+
+  /**
+   * 턴 경계 비동기 추출 enqueue (spec/5-system/17-agent-memory.md §3) — persistent
+   * 전략에서만, thread push 직후(추출 source 가 thread 에 들어간 뒤) 호출한다.
+   * ai_agent `scheduleMemoryExtraction` 모방 — hot-path 비차단(enqueue 까지만 await),
+   * 증분 watermark(`lastExtractionTurnSeq`) 로 seq 초과 turn 만 snapshot, enqueue
+   * 가 실제 수락된 경우에만 watermark 전진(M1). manual / 서비스·thread 미주입 시 no-op.
+   *
+   * @returns 전진된(또는 보존된) watermark — 멀티턴 resume state 로 영속한다.
+   */
+  private async scheduleMemoryExtraction(args: {
+    strategy: 'manual' | 'persistent';
+    target: ThreadHolder | undefined;
+    config: Record<string, unknown>;
+    workspaceId: string;
+    executionId: string;
+    lastExtractionTurnSeq?: number;
+  }): Promise<number | undefined> {
+    const prevWatermark = args.lastExtractionTurnSeq;
+    if (args.strategy !== 'persistent' || !this.agentMemoryService) {
+      return prevWatermark;
+    }
+    if (!this.conversationThreadService || !args.target) return prevWatermark;
+
+    const evaluatedMemoryKey = args.config.memoryKey as
+      | string
+      | undefined
+      | null;
+    const scopeKey = this.agentMemoryService.resolveScopeKey(
+      evaluatedMemoryKey,
+      args.executionId,
+    );
+
+    const fullThread = this.conversationThreadService.getThread(args.target);
+    const fresh =
+      prevWatermark === undefined
+        ? fullThread.turns
+        : fullThread.turns.filter((t) => t.seq > prevWatermark);
+    if (fresh.length === 0) return prevWatermark;
+
+    // shallow-copy 스냅샷 — turn 은 push 후 frozen 이라 array map 만으로 격리
+    // 충분 (§3 격리 invariant). 이후 메인 루프 mutation 에 오염되지 않는다.
+    const snapshot = fresh.map((t) => ({
+      source: t.source,
+      text: t.text,
+      nodeLabel: t.nodeLabel,
+    }));
+
+    const ttlDays = this.resolveMemoryTtlDays(args.config.memoryTtlDays);
+
+    const enqueued = await this.agentMemoryService.scheduleExtraction({
+      workspaceId: args.workspaceId,
+      scopeKey,
+      llmConfigId: args.config.llmConfigId as string | undefined,
+      model: args.config.model as string | undefined,
+      // 추출 LLM 콜 전용 모델 — 미설정이면 processor 가 model → llmConfig 기본 폴백.
+      extractionModel: args.config.extractionModel as string | undefined,
+      embeddingModel: args.config.embeddingModel as string | undefined,
+      turns: snapshot,
+      ttlDays,
+    });
+
+    // M1: enqueue 가 실제 수락된 경우에만 watermark 전진 (dedup-drop 시 보존해
+    // drop 된 turn 들이 다음 회수에서 영구 제외되지 않게 한다).
+    if (!enqueued) return prevWatermark;
+    return fresh.reduce((m, t) => (t.seq > m ? t.seq : m), prevWatermark ?? -1);
+  }
+
+  /**
+   * 노드 config `memoryTtlDays` → 양의 정수 TTL(일) 또는 undefined(무만료).
+   * 0/음수/비숫자는 무만료 (안전 디폴트 — ai_agent 와 동형, AGM-10).
+   */
+  private resolveMemoryTtlDays(raw: unknown): number | undefined {
+    const n =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string'
+          ? Number(raw)
+          : NaN;
+    if (!Number.isFinite(n) || n <= 0) return undefined;
+    return Math.floor(n);
   }
 
   validate(config: Record<string, unknown>): ValidationResult {
@@ -246,7 +491,28 @@ export class InformationExtractorHandler implements NodeHandler {
     // system_text 모드에서도 injected.finalSystemPrompt 는 별도로 쓰지 않는다 —
     // injectConversationContext 가 messages[0](system) content 를 이미 동일하게
     // 갱신하므로 injected.messages 만 LLM 으로 넘기면 충분 (두 표면 동기화됨).
-    const singleTurnMessages = injected.messages;
+    let singleTurnMessages = injected.messages;
+
+    // persistent 회수 (spec/5-system/17-agent-memory.md §4) — contextScope 주입
+    // 위에 별도 안정 프리픽스(recall 블록)를 system 메시지에 append 한다. manual
+    // (기본) 이면 no-op (recall 미호출, messages 불변 — 회귀 불변식).
+    const memoryStrategy = this.resolveMemoryStrategy(config);
+    const recalledSystemContent =
+      singleTurnMessages.find((m) => m.role === 'system')?.content ??
+      systemPrompt;
+    const recall = await this.injectRecallPrefix({
+      strategy: memoryStrategy,
+      config,
+      systemPrompt: recalledSystemContent,
+      workspaceId,
+      executionId: context.executionId,
+      queryText: inputField,
+    });
+    if (recall.recalledCount > 0) {
+      singleTurnMessages = singleTurnMessages.map((m) =>
+        m.role === 'system' ? { ...m, content: recall.systemPrompt } : m,
+      );
+    }
 
     const startedAt = Date.now();
     const maxRetries = 2;
@@ -313,6 +579,16 @@ export class InformationExtractorHandler implements NodeHandler {
 
         // ConversationThread push (spec §1.4 v2 — single-turn final).
         this.pushExtractorTurn(context, config, extracted);
+
+        // 턴 경계 비동기 추출 (persistent) — push 직후, 추출 source 가 thread 에
+        // 들어간 뒤 호출. manual 이면 no-op (hot-path 비차단).
+        await this.scheduleMemoryExtraction({
+          strategy: memoryStrategy,
+          target: context,
+          config,
+          workspaceId,
+          executionId: context.executionId,
+        });
 
         return {
           config: configEcho,
@@ -414,6 +690,9 @@ export class InformationExtractorHandler implements NodeHandler {
     // initial-turn ended path (forcedEnd / completed / max_turns within
     // executeMultiTurn) consistent before any waiting tick has happened.
     const rawConfig: Record<string, unknown> = context.rawConfig ?? config;
+    // persistent 메모리 전략 — resume turn / 종결이 state 만 받으므로 stateBase 에
+    // 실어 운반한다 (A3 교훈: 신규 memory state 필드 유실 방지). manual=기존 동작.
+    const memoryStrategy = this.resolveMemoryStrategy(config);
     const stateBase = {
       llmConfigId,
       model: resolvedModel,
@@ -424,6 +703,26 @@ export class InformationExtractorHandler implements NodeHandler {
       maxTurns,
       maxCollectionRetries,
       rawConfig,
+      memoryStrategy,
+      // persistent 종결 push/추출이 context 없이도 동작하도록 thread ref/식별자
+      // 운반 (manual 이면 미사용). A3 교훈 — resume turn 에서 유실 방지 위해
+      // stateBase 에 싣는다.
+      ...(memoryStrategy === 'persistent'
+        ? {
+            conversationThreadRef: context.conversationThread,
+            executionId: context.executionId,
+            nodeId: context.nodeId ?? '',
+            // 평가된 메모리 config 스냅샷 — 종결 추출 scope/모델 폴백에 사용.
+            memoryConfig: {
+              memoryKey: config.memoryKey,
+              llmConfigId: config.llmConfigId,
+              model: config.model,
+              extractionModel: config.extractionModel,
+              embeddingModel: config.embeddingModel,
+              memoryTtlDays: config.memoryTtlDays,
+            },
+          }
+        : {}),
     };
 
     // No inputField: skip initial LLM call and wait for the user's first
@@ -465,7 +764,26 @@ export class InformationExtractorHandler implements NodeHandler {
       ],
       finalSystemPrompt: systemPrompt,
     });
-    const messages: ChatMessage[] = injected.messages;
+    let messages: ChatMessage[] = injected.messages;
+
+    // persistent 회수 (spec §4) — 멀티턴 첫 진입 시 1회. 회수 블록을 system
+    // 메시지에 append 하면 state.messages → 후속 turn 으로 자연히 운반된다
+    // (재주입 안 함, contextScope 와 동형). manual 이면 no-op.
+    const recalledSystemContent =
+      messages.find((m) => m.role === 'system')?.content ?? systemPrompt;
+    const recall = await this.injectRecallPrefix({
+      strategy: memoryStrategy,
+      config,
+      systemPrompt: recalledSystemContent,
+      workspaceId,
+      executionId: context.executionId,
+      queryText: inputField,
+    });
+    if (recall.recalledCount > 0) {
+      messages = messages.map((m) =>
+        m.role === 'system' ? { ...m, content: recall.systemPrompt } : m,
+      );
+    }
 
     const turnStartedAt = Date.now();
     const llmCalls: LlmCallTrace[] = [];
@@ -867,6 +1185,38 @@ export class InformationExtractorHandler implements NodeHandler {
       state.outputSchema,
     );
     const port = this.portForEndReason(endReason);
+
+    // ── ConversationThread push (멀티턴 종결 — memory-strategy-extend-ie) ──
+    // 종결 시점에 최종 추출 스냅샷을 ai_assistant turn 으로 1회 push 한다
+    // (single-turn 과 동형, 현 v2 limitation 해소). waiting 상태에선 push 하지
+    // 않으므로 종결 경로에서만 발생. 이 push 가 persistent 추출 source + 다운스트림
+    // contextScope 가시성을 준다. thread ref/식별자는 state 가 운반한다.
+    //
+    // push 는 동기. 추출 enqueue 는 fire-and-forget (hot-path 비차단 — 본 메서드는
+    // 엔진이 동기 호출 후 즉시 정규화하므로 await 불가; 추출은 비동기 producer 라
+    // 응답을 막지 않는다). 멀티턴은 종결 1회 push 라 watermark 운반 불필요.
+    //
+    // `error` endReason 은 LLM 호출 실패 종결이므로 push 하지 않는다 (불완전 결과를
+    // thread/메모리에 누적하지 않음 — single-turn error 경로도 push 안 함).
+    const target = this.threadHolderFromState(state);
+    if (endReason !== 'error' && target) {
+      this.pushExtractorTurnTo(
+        target,
+        state.nodeId ?? '',
+        state.rawConfig,
+        extracted,
+      );
+      // 턴 경계 비동기 추출 (persistent) — push 직후, fire-and-forget. manual /
+      // 서비스 미주입이면 즉시 no-op. enqueue 실패는 서비스 내부에서 삼켜진다.
+      void this.scheduleMemoryExtraction({
+        strategy: state.memoryStrategy ?? 'manual',
+        target,
+        config: state.memoryConfig ?? {},
+        workspaceId: state.workspaceId,
+        executionId: state.executionId ?? '',
+        lastExtractionTurnSeq: state.lastExtractionTurnSeq,
+      }).catch(() => undefined);
+    }
 
     const meta = defined({
       durationMs: opts.durationMs ?? 0,
@@ -1475,6 +1825,14 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
       contextInjection: raw.contextInjection as
         | ContextInjectionMeta
         | undefined,
+      memoryStrategy: raw.memoryStrategy as 'manual' | 'persistent' | undefined,
+      conversationThreadRef: raw.conversationThreadRef as
+        | import('../../../shared/conversation-thread/conversation-thread.types').ConversationThread
+        | undefined,
+      executionId: raw.executionId as string | undefined,
+      nodeId: raw.nodeId as string | undefined,
+      memoryConfig: raw.memoryConfig as Record<string, unknown> | undefined,
+      lastExtractionTurnSeq: raw.lastExtractionTurnSeq as number | undefined,
     };
   }
 
