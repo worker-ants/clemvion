@@ -4,9 +4,6 @@ status: implemented
 code:
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.schema.ts
-pending_plans:
-  - plan/in-progress/exec-park-durable-resume.md
-  - plan/in-progress/memory-strategy-extend-ie.md
 ---
 
 # Spec: Information Extractor

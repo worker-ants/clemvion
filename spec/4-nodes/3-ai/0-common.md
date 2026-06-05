@@ -10,7 +10,6 @@ code:
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
 pending_plans:
   - plan/in-progress/ai-context-memory-followup-v2.md
-  - plan/in-progress/memory-strategy-extend-ie.md
 ---
 
 # Spec: AI 노드 공통 규약
@@ -158,7 +157,7 @@ AI 카테고리 3 노드 공통 규약. **세 노드 (`ai_agent` / `text_classif
 
 > **노드별 적용** — `contextScope` / `contextScopeN` / `contextInjectionMode` / `includeToolTurns` / `excludeFromConversationThread` 5필드는 **세 노드 공통**이다 (공유 fragment `shared/conversation-context-schema.ts` 의 `buildConversationContextSchemaFields()`). 자동 주입 로직도 공유 유틸 `shared/conversation-context-injection.ts` (`injectConversationContext()`) 로 세 노드가 동일하게 사용한다. `memoryStrategy` 필드는 `ai_agent` (3값) 와 `information_extractor` (2값 — `manual`/`persistent`) 가 갖고, **`gateOnManualMemoryStrategy`** 로 자동 전략 시 contextScope 5필드를 숨긴다. `text_classifier` 는 본 필드가 없으므로 `contextScope` 가 (manual 분기 없이) 항상 적용된다.
 
-> **`memoryStrategy` 와의 관계** — 위 표의 `contextScope`/`contextScopeN`/`contextInjectionMode`/`includeToolTurns` 4필드 (범위 축) 는 `memoryStrategy: 'manual'` (기본) 일 때만 유효하다. `memoryStrategy ∈ {summary_buffer, persistent}` (관리 축) 이면 자동 전략이 컨텍스트 구성을 대체해 이 4필드는 무효가 된다 (`excludeFromConversationThread` 는 thread 누적 opt-out 이라 strategy 와 독립). 두 축의 분리 근거는 [AI Agent §12.9](./1-ai-agent.md#129-memorystrategy-를-contextscope-enum-확장이-아닌-별도-필드로-둔-근거), 자동 전략의 압축·회수·추출 동작은 [AI Agent §1·§6.1](./1-ai-agent.md#1-설정-config) 및 [Spec Agent Memory](../../5-system/17-agent-memory.md) 단일 진실.
+> **`memoryStrategy` 와의 관계** — 위 표의 `contextScope`/`contextScopeN`/`contextInjectionMode`/`includeToolTurns` 4필드 (범위 축) 는 `memoryStrategy: 'manual'` (기본) 일 때만 유효하다. `memoryStrategy` 가 자동 전략(관리 축; `ai_agent` 는 `summary_buffer`/`persistent`, `information_extractor` 는 `persistent`) 이면 자동 전략이 컨텍스트 구성을 대체해 이 4필드는 무효가 된다 (`excludeFromConversationThread` 는 thread 누적 opt-out 이라 strategy 와 독립). 두 축의 분리 근거는 [AI Agent §12.9](./1-ai-agent.md#129-memorystrategy-를-contextscope-enum-확장이-아닌-별도-필드로-둔-근거), 자동 전략의 압축·회수·추출 동작은 [AI Agent §1·§6.1](./1-ai-agent.md#1-설정-config) 및 [Spec Agent Memory](../../5-system/17-agent-memory.md) 단일 진실.
 
 상세 규약 (자료구조·스코프·영속화·v2 로드맵) 은 [Spec Conversation Thread](../../conventions/conversation-thread.md) 단일 진실 공급원 참조.
 

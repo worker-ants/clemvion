@@ -40,7 +40,7 @@ related_plan: plan/complete/ai-context-memory-auto.md
       `fact` 대체).
 - [x] **메모리 가시화 UI**: workspace 어드민이 scope 별 누적 메모리 조회/삭제. 2026-06-05 완료 (A1 #471, AGM-12/13·NAV-AM).
 - [x] **contextScope 자동주입 두 노드 확장** — 2026-06-05 완료 (A2 #480, 공유유틸 추출).
-- [ ] **memoryStrategy(summary_buffer/persistent) 자동메모리 두 노드 확장** — v2 (상태누적이라 ai_agent multi-turn 라이프사이클과 결합, 별도 설계).
+- [x] **memoryStrategy persistent — information_extractor 확장** — 2026-06-05 완료 (memory-strategy-extend-ie). IE 가 ai_agent 와 동일 scope key 로 cross-session 회수+추출, multi-turn 종결 thread 등록 해소. `summary_buffer` 제외(추출 노드에 working-memory 압축 무의미). **`text_classifier` 는 영구 제외** (single-turn·상태없음 — 회수/추출 대상 없음).
 - [ ] **provider tokenizer-exact 토큰 카운트**: 현재 char/4 근사. 모델별 정확 토큰화.
 - [x] **요약/추출 전용 저비용 모델 옵션**: 현재 노드 `model` 재사용. 별도 모델 필드 검토. 2026-06-05 완료 (A3 #473, summaryModel/extractionModel, fallback 체인).
 

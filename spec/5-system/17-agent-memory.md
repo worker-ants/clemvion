@@ -5,7 +5,6 @@ code:
   - codebase/backend/src/modules/agent-memory/**
 pending_plans:
   - plan/in-progress/ai-context-memory-followup-v2.md
-  - plan/in-progress/memory-strategy-extend-ie.md
 ---
 
 # Spec: Agent Memory (AI Agent 세션 간 영속 메모리)
@@ -18,7 +17,7 @@ pending_plans:
 
 AI Agent 노드의 `memoryStrategy: 'persistent'` 전략은 한 실행(세션) 을 넘어 사용자/대화에 관한 **사실·선호** 를 추출해 영속하고, 다음 호출에서 의미검색으로 회수해 LLM 컨텍스트에 주입한다. 챗봇·어시스턴트 시나리오에서 (1) 윈도우 밖으로 밀려난 초기 정보의 완전 소실, (2) 세션이 바뀌면 사용자를 매번 처음 보는 듯한 단절 — 두 문제를 해소한다.
 
-`summary_buffer` (단일 실행 내 토큰예산 롤링 요약) 가 working-memory 압축이라면, `persistent` 는 그 working-memory 동작을 포함(superset)하면서 **세션 간 추출 메모리 레이어** 를 추가한다. Mem0/Zep 형 추출·회수 패턴을 KB/RAG 인프라(pgvector) 재사용으로 구현한다.
+`summary_buffer` (단일 실행 내 토큰예산 롤링 요약) 가 working-memory 압축이라면, `persistent` 는 그 working-memory 동작을 포함(superset)하면서 **세션 간 추출 메모리 레이어** 를 추가한다. (이 superset 정의는 AI Agent 문맥 — `information_extractor` 는 `summary_buffer`(working-memory 압축) 없이 회수+추출 레이어만 적용한다.) Mem0/Zep 형 추출·회수 패턴을 KB/RAG 인프라(pgvector) 재사용으로 구현한다.
 
 본 문서는 persistent 메모리 저장소(테이블 `agent_memory`)·스코프 키·추출/회수 파이프라인·forgetting 의 단일 진실 공급원이다. 노드 설정 필드(`memoryStrategy`/`memoryTokenBudget`/`memoryKey`/`memoryTopK`/`memoryThreshold`)와 실행 단계 배치는 [Spec AI Agent §1·§6.1](../4-nodes/3-ai/1-ai-agent.md#1-설정-config) 가 SoT.
 

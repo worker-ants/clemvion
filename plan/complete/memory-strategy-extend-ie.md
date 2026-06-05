@@ -1,10 +1,15 @@
 ---
 title: information_extractor persistent 메모리 (recall+extract, multi-turn thread push) — memoryStrategy 확장 v2
-status: in-progress
+status: complete
 worktree: memory-strategy-extend-ad5987
 branch: claude/memory-strategy-extend-ad5987
 started: 2026-06-05
 owner: developer
+spec_impact:
+  - spec/4-nodes/3-ai/3-information-extractor.md
+  - spec/4-nodes/3-ai/0-common.md
+  - spec/conventions/conversation-thread.md
+  - spec/5-system/17-agent-memory.md
 spec:
   - spec/4-nodes/3-ai/3-information-extractor.md
   - spec/4-nodes/3-ai/0-common.md
