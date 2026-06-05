@@ -3453,7 +3453,7 @@ export class ExecutionEngineService
       );
     }
     // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
-    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원원).
+    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원처).
     this.stageConversationThreadSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
     await this.updateExecutionStatus(
@@ -4991,7 +4991,7 @@ export class ExecutionEngineService
       );
     }
     // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
-    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원원).
+    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원처).
     this.stageConversationThreadSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
     await this.updateExecutionStatus(
@@ -5968,7 +5968,7 @@ export class ExecutionEngineService
       );
     }
     // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
-    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원원).
+    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원처).
     this.stageConversationThreadSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
     await this.updateExecutionStatus(

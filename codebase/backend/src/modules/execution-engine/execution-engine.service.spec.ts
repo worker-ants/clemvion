@@ -8767,11 +8767,17 @@ describe('ExecutionEngineService', () => {
   // 머신리와 무관). park 시 `Execution.conversation_thread` 에 commit 된 스냅샷이
   // 무손실 복원되는지 + NULL(배포 이전 row)이면 빈 thread 로 회귀 없는지.
   describe('rehydrateContext — conversationThread durable 복원', () => {
+    // 단일 타입 별칭으로 private API 접근 일원화 — 메서드 시그니처 변경 시
+    // 이 한 곳만 수정하면 블록 전체에 전파된다 (WARNING 4 refactor).
     type RehydrateCtxSubject = {
       rehydrateContext: (
         execution: unknown,
         waitingNodeExec: unknown,
       ) => Promise<{ conversationThread: unknown }>;
+      stageConversationThreadSnapshot: (
+        execution: unknown,
+        context: unknown,
+      ) => void;
       contextService: { deleteContext: (key: string) => void };
     };
     const ctxSubject = () => service as unknown as RehydrateCtxSubject;
@@ -8886,11 +8892,7 @@ describe('ExecutionEngineService', () => {
       const execution = { id: 'e1', conversationThread: null } as unknown;
       const context = { conversationThread: thread } as unknown;
 
-      (
-        service as unknown as {
-          stageConversationThreadSnapshot: (e: unknown, c: unknown) => void;
-        }
-      ).stageConversationThreadSnapshot(execution, context);
+      ctxSubject().stageConversationThreadSnapshot(execution, context);
 
       const staged = (execution as { conversationThread: unknown })
         .conversationThread;

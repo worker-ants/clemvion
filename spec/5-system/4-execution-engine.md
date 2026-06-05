@@ -884,7 +884,7 @@ WAITING_FOR_INPUT 상태에서 인스턴스가 종료된 뒤 사용자 입력이
        ├─ Execution.conversation_thread 컬럼에서 conversationThread
        │   스냅샷 무손실 복원 (§6.2 park commit, conversation-thread §4/§8.4)
        ├─ ExecutionContext 재구성 (Redis context 가 살아있으면
-       │   그것 우선, 없으면 DB 에서 복원 — thread 는 위 컬럼이 복원원)
+       │   그것 우선, 없으면 DB 에서 복원 — thread 는 위 컬럼에서 복원됨)
        ├─ 해당 노드의 waitForX() 메서드를 새로 invoke
        │   (in-memory resolver 등록)
        ├─ 즉시 같은 입력을 resolver() 에 전달
