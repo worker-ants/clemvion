@@ -9,6 +9,12 @@ import {
   buildConversationContextSchemaFields,
   DEFAULT_CONTEXT_SCOPE_N as SHARED_DEFAULT_CONTEXT_SCOPE_N,
 } from '../shared/conversation-context-schema.js';
+import {
+  buildAgentMemorySchemaFields,
+  DEFAULT_MEMORY_TOKEN_BUDGET as SHARED_DEFAULT_MEMORY_TOKEN_BUDGET,
+  DEFAULT_MEMORY_TOP_K as SHARED_DEFAULT_MEMORY_TOP_K,
+  DEFAULT_MEMORY_THRESHOLD as SHARED_DEFAULT_MEMORY_THRESHOLD,
+} from '../shared/agent-memory-schema.js';
 import { PRESENTATION_TYPES } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
@@ -41,12 +47,16 @@ export const MEMORY_STRATEGIES = [
 ] as const;
 export type MemoryStrategy = (typeof MEMORY_STRATEGIES)[number];
 
+/**
+ * 메모리 필드 기본값 — 정의는 공유 fragment (`shared/agent-memory-schema.ts`)
+ * 로 이전됐고, 본 export 는 하위호환 re-export 다 (핸들러가 본 경로로 import).
+ */
 /** `memoryTokenBudget` 기본값 — working-memory 토큰 예산 (spec §1). */
-export const DEFAULT_MEMORY_TOKEN_BUDGET = 8000;
+export const DEFAULT_MEMORY_TOKEN_BUDGET = SHARED_DEFAULT_MEMORY_TOKEN_BUDGET;
 /** `memoryTopK` 기본값 — persistent 회수 top-k (KB `ragTopK` 와 독립). */
-export const DEFAULT_MEMORY_TOP_K = 5;
+export const DEFAULT_MEMORY_TOP_K = SHARED_DEFAULT_MEMORY_TOP_K;
 /** `memoryThreshold` 기본값 — persistent 회수 최소 유사도 (KB `ragThreshold` 와 독립). */
-export const DEFAULT_MEMORY_THRESHOLD = 0.7;
+export const DEFAULT_MEMORY_THRESHOLD = SHARED_DEFAULT_MEMORY_THRESHOLD;
 
 const mcpServerRefSchema = z.object({
   integrationId: z
@@ -414,166 +424,42 @@ export const aiAgentNodeConfigSchema = z
     // 메모리 관리 전략 (관리 축) — contextScope (범위 축) 와 직교 (§12.9).
     // `manual` (기본) 이면 위 Conversation Context 5필드가 그대로 적용되고,
     // `summary_buffer` / `persistent` 면 자동 전략이 그 5필드를 대체한다 (§1 비고).
-    // order 44-48 — System Context (42-43) 뒤, Multi Turn (50) 앞. 한 그룹으로
+    // order 44-49.7 — System Context (42-43) 뒤, Multi Turn (50) 앞. 한 그룹으로
     // 연속 배치해 frontend SchemaForm.groupEntries 가 쪼개지 않게 한다.
-    memoryStrategy: z
-      .enum(MEMORY_STRATEGIES)
-      .default('manual')
-      .meta({
-        ui: {
-          label: 'Memory Strategy',
-          widget: 'select',
-          order: 44,
-          group: 'Memory',
-          hint: 'manual = manage context with the fields below. summary_buffer = rolling token-budget summary. persistent = summary buffer + cross-session recall.',
-          options: [
-            {
-              value: 'manual',
-              label: 'Manual — use Conversation Context fields',
-            },
-            {
-              value: 'summary_buffer',
-              label: 'Summary Buffer — rolling token-budget summary',
-            },
-            {
-              value: 'persistent',
-              label: 'Persistent — summary buffer + cross-session memory',
-            },
-          ],
-        },
-      }),
-    memoryTokenBudget: z
-      .number()
-      .int()
-      .positive()
-      .default(DEFAULT_MEMORY_TOKEN_BUDGET)
-      .meta({
-        ui: {
-          label: 'Token Budget',
-          widget: 'number',
-          order: 45,
-          group: 'Memory',
-          hint: 'Working-memory token budget. Older turns are rolled into a summary once exceeded.',
-          // 단일-필드 평가기라 복합 AND 불가 — summary_buffer/persistent 둘 다
-          // 노출해야 하므로 oneOf 화이트리스트 사용.
-          visibleWhen: {
-            field: 'memoryStrategy',
-            oneOf: ['summary_buffer', 'persistent'],
+    // Fragment SoT: shared/agent-memory-schema.ts (2 노드 공통 helper). ai_agent 는
+    // memoryTokenBudget(45)·summaryModel(49.6) 을 갖는 superset (summary_buffer
+    // 경로 전용), memoryStrategy enum 은 3값. 종전 인라인 정의와 100% 동치.
+    ...buildAgentMemorySchemaFields({
+      strategy: {
+        values: MEMORY_STRATEGIES,
+        order: 44,
+        hint: 'manual = manage context with the fields below. summary_buffer = rolling token-budget summary. persistent = summary buffer + cross-session recall.',
+        options: [
+          {
+            value: 'manual',
+            label: 'Manual — use Conversation Context fields',
           },
-        },
-      }),
-    memoryKey: z
-      .string()
-      .optional()
-      .meta({
-        ui: {
-          label: 'Memory Key',
-          widget: 'expression',
-          order: 46,
-          group: 'Memory',
-          placeholder: '{{ $input.userId }}',
-          hint: 'Persistent memory scope key. Same key recalls the same memory across runs. Empty = isolated per execution.',
-          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
-        },
-      }),
-    memoryTopK: z
-      .number()
-      .int()
-      .positive()
-      .default(DEFAULT_MEMORY_TOP_K)
-      .meta({
-        ui: {
-          label: 'Memory Top-K',
-          widget: 'number',
-          order: 47,
-          group: 'Memory',
-          hint: 'Number of memory chunks recalled per turn (independent of KB RAG Top-K).',
-          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
-        },
-      }),
-    memoryThreshold: z
-      .number()
-      .default(DEFAULT_MEMORY_THRESHOLD)
-      .meta({
-        ui: {
-          label: 'Memory Threshold',
-          widget: 'number',
-          order: 48,
-          group: 'Memory',
-          hint: 'Minimum similarity (0-1) for memory recall (independent of KB RAG Threshold).',
-          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
-        },
-      }),
-    memoryTtlDays: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .meta({
-        ui: {
-          label: 'Memory TTL (days)',
-          widget: 'number',
-          order: 49,
-          group: 'Memory',
-          hint: 'Persistent memories expire after this many days. Empty = never expire.',
-          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
-        },
-      }),
-    embeddingModel: z
-      .string()
-      .optional()
-      .meta({
-        ui: {
-          label: 'Embedding Model',
-          // NOTE: 'text' (not 'expression') — 의도적. summaryModel/extractionModel
-          // 은 stateless(매 콜 독립)라 expression 평가가 무해하나, embeddingModel 은
-          // scope 의 모든 저장 메모리와 차원이 일치해야 하는 불변식(17-agent-memory §3)
-          // 이라 실행마다 동적으로 바뀌면 차원 불일치로 recall 이 조용히 실패한다.
-          // 정적 리터럴(text)로 그 footgun 을 차단한다.
-          widget: 'text',
-          order: 49.5,
-          group: 'Memory',
-          placeholder: 'text-embedding-3-small',
-          hint: 'Embedding model used for memory recall/extraction (must match the dimensions of the model used when memories were first stored). Empty = workspace default LLMConfig embedding model.',
-          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
-        },
-      }),
-    // SoT: spec/4-nodes/3-ai/1-ai-agent.md §1·§6.1·§12.12. 요약/추출 LLM 콜에
-    // 쓸 전용 모델 ID (expression). 미설정 시 노드 `model` → llmConfig 기본으로
-    // 폴백 (fallback 체인 `[전용] → [model] → [llmConfig 기본]`, 기존 동작 유지).
-    // `summaryModel` 은 summary_buffer/persistent 둘 다, `extractionModel` 은
-    // persistent 에서만 의미 (요약/추출 분기 — §2 visibleWhen).
-    summaryModel: z
-      .string()
-      .optional()
-      .meta({
-        ui: {
-          label: 'Summary Model',
-          widget: 'expression',
-          order: 49.6,
-          group: 'Memory',
-          placeholder: 'Leave empty to reuse the node Model',
-          hint: 'Optional low-cost model for the rolling-summary LLM call. Empty = reuse the node Model (then the provider default).',
-          visibleWhen: {
-            field: 'memoryStrategy',
-            oneOf: ['summary_buffer', 'persistent'],
+          {
+            value: 'summary_buffer',
+            label: 'Summary Buffer — rolling token-budget summary',
           },
-        },
-      }),
-    extractionModel: z
-      .string()
-      .optional()
-      .meta({
-        ui: {
-          label: 'Extraction Model',
-          widget: 'expression',
-          order: 49.7,
-          group: 'Memory',
-          placeholder: 'Leave empty to reuse the node Model',
-          hint: 'Optional low-cost model for the turn-boundary memory extraction LLM call. Empty = reuse the node Model (then the provider default).',
-          visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
-        },
-      }),
+          {
+            value: 'persistent',
+            label: 'Persistent — summary buffer + cross-session memory',
+          },
+        ],
+      },
+      tokenBudgetOrder: 45,
+      orders: {
+        memoryKey: 46,
+        memoryTopK: 47,
+        memoryThreshold: 48,
+        memoryTtlDays: 49,
+        embeddingModel: 49.5,
+        extractionModel: 49.7,
+      },
+      summaryModelOrder: 49.6,
+    }),
 
     // ── Multi Turn Settings ──
     maxTurns: z

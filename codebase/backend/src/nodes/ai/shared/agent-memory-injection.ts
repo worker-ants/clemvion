@@ -131,11 +131,7 @@ export function estimateWorkingMemoryTokens(
  */
 export function resolveMemoryTtlDays(raw: unknown): number | undefined {
   const n =
-    typeof raw === 'number'
-      ? raw
-      : typeof raw === 'string'
-        ? Number(raw)
-        : NaN;
+    typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
   if (!Number.isFinite(n) || n <= 0) return undefined;
   return Math.floor(n);
 }
