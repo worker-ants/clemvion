@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-06T03:33:26.595668",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/conventions/rag-evaluation.md + spec/5-system/9-rag-search.md — 2차 fix(이모지 제거·§2 positive 정의·§3 --threshold·cli-utils code 등재) 후 최종 정합 검증, diff-base=origin/main)",
+  "target_path": "spec/conventions/rag-evaluation.md + spec/5-system/9-rag-search.md — 2차 fix(이모지 제거·§2 positive 정의·§3 --threshold·cli-utils code 등재) 후 최종 정합 검증",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
