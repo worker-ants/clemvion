@@ -26,7 +26,7 @@
 ├── Authentication        # 외부 인증 방식 설정 (최상위 메뉴) — ✅
 ├── Statistics            # 실행 통계                         — ✅
 ├── System Status         # 전체 시스템(큐) 상태              — ✅
-├── Agent Memory         # AI Agent persistent 메모리 관리   — 🚧
+├── Agent Memory         # AI Agent persistent 메모리 관리   — ✅
 ├── User Guide            # 사용자 매뉴얼 (/docs)              — ✅
 └── Marketplace           # 마켓플레이스                       — ❌ (미구현)
 
@@ -200,9 +200,9 @@ AI Agent 노드의 `memoryStrategy: 'persistent'` 로 누적된 영속 메모리
 
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
-| NAV-AM-01 | 사이드바에 Agent Memory 메뉴 노출 (워크스페이스 멤버) | 필수 | 🚧 |
-| NAV-AM-02 | scope 목록 표시 — scope_key·건수·최신 갱신 시각, 검색·페이지네이션 | 필수 | 🚧 |
-| NAV-AM-03 | scope 선택 시 메모리 행 목록 — content·kind 배지·시각·TTL, kind 필터·페이지네이션 | 필수 | 🚧 |
-| NAV-AM-04 | 메모리 단건 삭제 (확인 모달, editor+) | 필수 | 🚧 |
-| NAV-AM-05 | scope 전체 삭제 (건수 경고 확인 모달, editor+) | 권장 | 🚧 |
-| NAV-AM-06 | 빈 상태 / 권한별 노출 (조회 viewer+, 삭제 editor+) | 필수 | 🚧 |
+| NAV-AM-01 | 사이드바에 Agent Memory 메뉴 노출 (워크스페이스 멤버) | 필수 | ✅ |
+| NAV-AM-02 | scope 목록 표시 — scope_key·건수·최신 갱신 시각, 검색·페이지네이션 | 필수 | ✅ |
+| NAV-AM-03 | scope 선택 시 메모리 행 목록 — content·kind 배지·시각·TTL, kind 필터·페이지네이션 | 필수 | ✅ |
+| NAV-AM-04 | 메모리 단건 삭제 (확인 모달, editor+) | 필수 | ✅ |
+| NAV-AM-05 | scope 전체 삭제 (건수 경고 확인 모달, editor+) | 권장 | ✅ |
+| NAV-AM-06 | 빈 상태 / 권한별 노출 (조회 viewer+, 삭제 editor+) | 필수 | ✅ |

@@ -1,7 +1,8 @@
 ---
 id: nav-agent-memory
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/agent-memory/page.tsx
 ---
 
 # Spec: Agent Memory 관리 화면
