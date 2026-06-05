@@ -5,8 +5,9 @@
 -- scope 목록을 정렬한다. 기존 idx_agent_memory_scope (workspace_id, scope_key, created_at)
 -- 는 회수·FIFO evict 용으로 created_at 만 커버해, scope 목록의 MAX(updated_at) 산출이
 -- heap fetch + filesort 를 유발했다. 본 인덱스는 updated_at 을 포함해 scope 별
--- MAX(updated_at) 를 index-only scan 으로 커버한다 (회수/evict 경로의 created_at 인덱스와
--- 직교 — 둘 다 유지).
+-- MAX(updated_at) 산출의 heap fetch 를 최소화하는 covering 인덱스다 (PostgreSQL 은
+-- loose index scan 이 없어 완전한 index-only 는 visibility map 최신 시에만 성립 —
+-- autovacuum 의존). 회수/evict 경로의 created_at 인덱스와 직교(둘 다 유지).
 --
 -- CREATE INDEX CONCURRENTLY 는 트랜잭션 안에서 실행할 수 없으므로 동봉된
 -- V086__agent_memory_scope_updated_index.conf (executeInTransaction=false) 와 함께

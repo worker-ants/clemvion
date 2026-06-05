@@ -8,9 +8,6 @@ owner: developer
 spec_impact:
   - spec/5-system/17-agent-memory.md
   - spec/1-data-model.md
-spec:
-  - spec/5-system/17-agent-memory.md
-  - spec/1-data-model.md
 code:
   - codebase/backend/migrations/V086__agent_memory_scope_updated_index.sql
 ---
