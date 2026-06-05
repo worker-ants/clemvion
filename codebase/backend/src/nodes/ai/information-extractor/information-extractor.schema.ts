@@ -5,6 +5,7 @@ import {
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 import { buildSystemContextSchemaFields } from '../shared/system-context-schema.js';
+import { buildConversationContextSchemaFields } from '../shared/conversation-context-schema.js';
 
 const fieldDefSchema = z.object({
   name: z.string().meta({ ui: { label: 'Name', widget: 'text' } }),
@@ -116,9 +117,13 @@ export const informationExtractorNodeConfigSchema = z
             'How many times to re-prompt the LLM when it reports completion but required fields are still missing. 0 = unlimited.',
         },
       }),
+    // ── Conversation Context (auto-injection, spec/4-nodes/3-ai/0-common.md §10) ──
+    // Fragment SoT: shared/conversation-context-schema.ts (3 노드 공통 helper).
+    // memoryStrategy 필드가 없으므로 가드 없이 항상 노출 (contextScope 항상 적용).
+    ...buildConversationContextSchemaFields(10),
     // ── System Context Prefix (spec/4-nodes/3-ai/0-common.md §11) ──
     // Fragment SoT: shared/system-context-schema.ts (3 노드 공통 helper).
-    ...buildSystemContextSchemaFields(10),
+    ...buildSystemContextSchemaFields(15),
   })
   .passthrough();
 export type InformationExtractorConfig = z.infer<

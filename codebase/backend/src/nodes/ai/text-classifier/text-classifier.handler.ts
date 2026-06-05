@@ -16,6 +16,9 @@ import { truncateForErrorDetails } from '../../core/error-codes';
 import { textClassifierNodeMetadata } from './text-classifier.schema';
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
 import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
+import { injectConversationContext } from '../shared/conversation-context-injection';
+import type { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
+import type { ThreadHolder } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
 
 interface Category {
   id?: string;
@@ -165,13 +168,30 @@ export class TextClassifierHandler implements NodeHandler {
     });
     const finalSystemPrompt = systemContextPrefix + systemPrompt;
 
+    // Conversation Context 자동 주입 (spec/4-nodes/3-ai/0-common.md §10) —
+    // `contextScope ≠ none` 이면 ConversationThread (자기 노드 turn 제외) 를
+    // LLM 호출 직전 messages/systemPrompt 에 주입한다. 공유 유틸 (3 노드 공통).
+    // service 미주입(legacy 테스트) / scope=none(default) 면 noop — 기존 동작 불변.
+    const baseMessages: ChatMessage[] = [
+      { role: 'system', content: finalSystemPrompt },
+      { role: 'user', content: inputField },
+    ];
+    const injected = injectConversationContext<ThreadHolder>({
+      reader: this.conversationThreadService,
+      target: context,
+      selfNodeId: context.nodeId ?? '',
+      config,
+      messages: baseMessages,
+      finalSystemPrompt,
+    });
+
+    // system_text 모드에서도 injected.finalSystemPrompt 는 별도로 쓰지 않는다 —
+    // injectConversationContext 가 messages[0](system) 의 content 를 이미 동일하게
+    // 갱신하므로 injected.messages 만 LLM 으로 넘기면 충분 (두 표면 동기화됨).
     let result: ChatResult;
     const requestPayload = {
       model: model || llmConfig.defaultModel,
-      messages: [
-        { role: 'system' as const, content: finalSystemPrompt },
-        { role: 'user' as const, content: inputField },
-      ],
+      messages: injected.messages,
       responseFormat: 'json' as const,
       jsonSchema,
     };
@@ -273,7 +293,15 @@ export class TextClassifierHandler implements NodeHandler {
         .filter((n): n is string => typeof n === 'string')
         .join(', ');
       this.pushClassifierTurn(context, config, labels);
-      return out;
+      // ConversationThread injection debug echo (conversation-thread.md §5.3 —
+      // 세 노드 공통). Echo only when injection actually happened so noop runs
+      // keep the meta lean (ai_agent 와 동일 형태).
+      return injected.injection.appliedScope !== 'none'
+        ? {
+            ...out,
+            meta: { ...out.meta, contextInjection: injected.injection },
+          }
+        : out;
     }
     const out = this.processSingleLabelResult(
       result,
@@ -291,7 +319,12 @@ export class TextClassifierHandler implements NodeHandler {
         ? out.output.result.category
         : '';
     this.pushClassifierTurn(context, config, single);
-    return out;
+    // ConversationThread injection debug echo (conversation-thread.md §5.3 —
+    // 세 노드 공통). Echo only when injection actually happened so noop runs
+    // keep the meta lean (ai_agent 와 동일 형태).
+    return injected.injection.appliedScope !== 'none'
+      ? { ...out, meta: { ...out.meta, contextInjection: injected.injection } }
+      : out;
   }
 
   private buildSingleLabelPrompt(

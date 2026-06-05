@@ -5,6 +5,7 @@ import {
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 import { buildSystemContextSchemaFields } from '../shared/system-context-schema.js';
+import { buildConversationContextSchemaFields } from '../shared/conversation-context-schema.js';
 
 /**
  * Single category definition for `text_classifier`.
@@ -92,9 +93,13 @@ export const textClassifierNodeConfigSchema = z
           order: 8,
         },
       }),
+    // ── Conversation Context (auto-injection, spec/4-nodes/3-ai/0-common.md §10) ──
+    // Fragment SoT: shared/conversation-context-schema.ts (3 노드 공통 helper).
+    // memoryStrategy 필드가 없으므로 가드 없이 항상 노출 (contextScope 항상 적용).
+    ...buildConversationContextSchemaFields(9),
     // ── System Context Prefix (spec/4-nodes/3-ai/0-common.md §11) ──
     // Fragment SoT: shared/system-context-schema.ts (3 노드 공통 helper).
-    ...buildSystemContextSchemaFields(9),
+    ...buildSystemContextSchemaFields(14),
   })
   .passthrough();
 export type TextClassifierConfig = z.infer<
