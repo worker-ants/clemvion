@@ -31,14 +31,17 @@ owner: developer
 ## 체크리스트
 
 - [x] consistency-check --impl-prep — `review/consistency/2026/06/06/02_34_39/` **BLOCK: NO** (WARNING 3건은 모두 본 plan 의 spec 갱신/plan 추적 항목과 일치)
-- [ ] 테스트 선작성/수정 (eia-client.test.ts — 봉투 shape 으로 교정 + 회귀)
-- [ ] eia-client 언랩 helper 적용 (startConversation/getStatus/refreshToken)
-- [ ] (spec) project-planner 위임 — 아래 3곳 모두 `{ interaction: ... }` → `{ data: { interaction: ... } }` 봉투 반영:
+- [x] 테스트 선작성/수정 (eia-client.test.ts — 봉투 shape 으로 교정 + getStatus/refreshToken 봉투 + 하위호환 회귀)
+- [x] eia-client 언랩 helper 적용 (unwrapData → startConversation/getStatus/refreshToken). commit 91786ca1
+- [x] (spec) project-planner 위임 완료 — 3곳 봉투 반영 + frontmatter pending_plans 등록. commit 84b5fa07
       - `spec/7-channel-web-chat/3-auth-session.md §3` 시퀀스 2행
-      - `spec/7-channel-web-chat/0-architecture.md §3` EIA 매핑 표 "대화 시작" 행 (`expiresAt` 도 보강)
-      - `spec/5-system/14-external-interaction-api.md §4.1` 응답 예시
-      - + 위 두 channel-web-chat spec frontmatter `pending_plans` 에 본 plan 등록
-- [ ] TEST WORKFLOW (lint/unit/build/e2e)
-- [ ] /ai-review + SUMMARY
+      - `spec/7-channel-web-chat/0-architecture.md §3` EIA 매핑 표 "대화 시작" 행 (`expiresAt` 보강)
+      - `spec/5-system/14-external-interaction-api.md §4.1` 응답 예시 + 전송 봉투 note
+- [x] TEST WORKFLOW — lint ✓ / unit ✓(143) / build ✓(TS clean) / e2e ✓(174 passed, 78s).
+      ※ 변경은 channel-web-chat 독립 SPA 한정(백엔드/프론트 import edge 없음). lint/unit/build 는 affected
+        package 직접 실행, e2e 는 dockerized backend(`make e2e-test`) 로 cross-stack 회귀 net 확보. backend/
+        frontend/sdk 로컬 stage 는 fresh worktree 의 packages/sdk prepare-script(tsc<@types/node) 사전 결함으로
+        bundled 실행 불가 — 본 변경과 무관(상세 RESOLUTION).
+- [ ] /ai-review + SUMMARY (진행 중)
 - [ ] consistency-check --impl-done
 - [ ] plan complete 이동

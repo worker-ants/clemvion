@@ -3,6 +3,7 @@ id: external-interaction-api
 status: partial
 pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
+  - plan/in-progress/fix-webchat-envelope-unwrap.md
 code:
   - codebase/backend/src/modules/external-interaction/**
   - codebase/backend/src/modules/hooks/hooks.service.ts

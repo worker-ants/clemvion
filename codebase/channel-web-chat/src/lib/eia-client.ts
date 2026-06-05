@@ -26,8 +26,9 @@ function joinUrl(base: string, path: string): string {
  * 백엔드 성공 응답은 모두 `{ data }` 로 래핑된다 (SoT: webhook §3.1 / api-convention §5).
  * 봉투가 없으면(`data` 키 부재) body 를 그대로 반환 — 하위 호환·테스트 안전.
  * 에러 응답은 `{ error }`/`{ statusCode }` shape 이라 이 경로를 타지 않는다(success-path 전용).
+ * @internal export — 단위 테스트 전용. 공개 API 아님.
  */
-function unwrapData<T>(body: unknown): T {
+export function unwrapData<T>(body: unknown): T {
   if (body !== null && typeof body === "object" && "data" in body) {
     return (body as { data: T }).data;
   }
@@ -80,7 +81,11 @@ export class EiaClient {
     }
   }
 
-  /** 단발 상태 조회 — GET endpoints.status. */
+  /**
+   * 단발 상태 조회 — GET endpoints.status. Bearer 토큰.
+   * 응답은 전역 TransformInterceptor 봉투(`{ data }`)를 언랩한 상태 객체 반환
+   * (status, seq, ... — EIA §5.3).
+   */
   async getStatus(endpoints: InteractionEndpoints, token: string): Promise<Record<string, unknown>> {
     const res = await this.fetchImpl(joinUrl(this.apiBase, endpoints.status), {
       headers: { authorization: `Bearer ${token}` },
@@ -90,7 +95,10 @@ export class EiaClient {
     return unwrapData<Record<string, unknown>>(await res.json());
   }
 
-  /** 토큰 갱신 — POST endpoints.refresh (만료 30분 이내). */
+  /**
+   * 토큰 갱신 — POST endpoints.refresh (만료 30분 이내).
+   * 응답 봉투(`{ data }`) 언랩 후 `{ token, expiresAt }` 반환 (EIA §5.5).
+   */
   async refreshToken(
     endpoints: InteractionEndpoints,
     token: string,

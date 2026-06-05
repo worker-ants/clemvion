@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { EiaClient, EiaError, type EventSourceLike } from "./eia-client";
+import { EiaClient, EiaError, unwrapData, type EventSourceLike } from "./eia-client";
 import type { InteractionEndpoints } from "./eia-types";
 
 const endpoints: InteractionEndpoints = {
@@ -17,6 +17,40 @@ function jsonResponse(status: number, body: unknown): Response {
     json: async () => body,
   } as Response;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// unwrapData 헬퍼 직접 단위 테스트 (WARNING-2)
+// ────────────────────────────────────────────────────────────────────────────
+describe("unwrapData", () => {
+  it("정상 { data } 봉투 언랩", () => {
+    expect(unwrapData<{ name: string }>({ data: { name: "ok" } })).toEqual({ name: "ok" });
+  });
+
+  it("{ data: null } — null 을 그대로 반환", () => {
+    expect(unwrapData<null>({ data: null })).toBeNull();
+  });
+
+  it("null 입력 — null 그대로 반환 (봉투 없음 경로)", () => {
+    expect(unwrapData<null>(null)).toBeNull();
+  });
+
+  it("배열 입력 — data 키 없으므로 배열 그대로 반환", () => {
+    expect(unwrapData<number[]>([1, 2, 3])).toEqual([1, 2, 3]);
+  });
+
+  it("원시형(string) 입력 — 그대로 반환", () => {
+    expect(unwrapData<string>("raw")).toBe("raw");
+  });
+
+  it("봉투 없는 객체 — 객체 그대로 반환 (하위 호환)", () => {
+    const body = { executionId: "e1" };
+    expect(unwrapData<typeof body>(body)).toBe(body);
+  });
+
+  it("{ data: [] } — 배열 data 언랩", () => {
+    expect(unwrapData<unknown[]>({ data: [1, 2] })).toEqual([1, 2]);
+  });
+});
 
 describe("startConversation", () => {
   it("전역 TransformInterceptor `{ data }` 봉투를 언랩해 반환 + 올바른 URL/메서드", async () => {
@@ -63,6 +97,7 @@ describe("startConversation", () => {
 
 describe("interact", () => {
   it("Bearer 토큰으로 명령 제출", async () => {
+    // interact 는 void 반환(응답 body 미소비) → { data } 봉투 언랩 불필요. raw shape 사용 의도적.
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(202, { accepted: true }));
     const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
     await client.interact(endpoints, "iext_x", { command: "submit_message", message: "안녕" });

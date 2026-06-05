@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "started_at": "2026-06-06T03:30:00Z",
+  "summary_items_total": 6,
+  "items_resolved_ids": [],
+  "items_pending_ids": [1, 2, 3, 4, 5, 6],
+  "items_escalated_ids": {},
+  "commits_made": [],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 0,
+  "e2e_last_status": null,
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
