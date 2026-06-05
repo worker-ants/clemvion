@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   useInfiniteQuery,
   useMutation,
@@ -15,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { RoleGate } from "@/components/auth/role-gate";
-import { useT } from "@/lib/i18n";
+import { useT, type TranslationKey } from "@/lib/i18n";
 import { timeAgo } from "@/lib/utils/date";
 import { toast } from "sonner";
 import {
@@ -29,18 +30,28 @@ import {
 const PAGE_SIZE = 20;
 const KIND_OPTIONS: MemoryKind[] = ["fact", "preference", "entity"];
 
-function kindBadgeClass(kind: string): string {
-  switch (kind) {
-    case "fact":
-      return "bg-[hsl(var(--primary)/0.15)] text-[hsl(var(--primary))]";
-    case "preference":
-      return "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]";
-    case "entity":
-      return "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]";
-    default:
-      return "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]";
-  }
-}
+// kind 별 배지 라벨(i18n 키)·색상을 한 곳에서 관리한다 (Q1 — badge/label 이중 switch 통합).
+const KIND_META: Record<
+  MemoryKind,
+  { labelKey: TranslationKey; className: string }
+> = {
+  fact: {
+    labelKey: "agentMemory.kind.fact",
+    className: "bg-[hsl(var(--primary)/0.15)] text-[hsl(var(--primary))]",
+  },
+  preference: {
+    labelKey: "agentMemory.kind.preference",
+    className:
+      "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]",
+  },
+  entity: {
+    labelKey: "agentMemory.kind.entity",
+    className: "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]",
+  },
+};
+
+const FALLBACK_KIND_CLASS =
+  "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]";
 
 export default function AgentMemoryPage() {
   const t = useT();
@@ -122,16 +133,12 @@ export default function AgentMemoryPage() {
   }
 
   function kindLabel(kind: string): string {
-    switch (kind) {
-      case "fact":
-        return t("agentMemory.kind.fact");
-      case "preference":
-        return t("agentMemory.kind.preference");
-      case "entity":
-        return t("agentMemory.kind.entity");
-      default:
-        return kind;
-    }
+    const meta = KIND_META[kind as MemoryKind];
+    return meta ? t(meta.labelKey) : kind;
+  }
+
+  function kindBadgeClass(kind: string): string {
+    return KIND_META[kind as MemoryKind]?.className ?? FALLBACK_KIND_CLASS;
   }
 
   return (
@@ -195,6 +202,12 @@ export default function AgentMemoryPage() {
                   <p className="text-xs">
                     {t("agentMemory.scopes.emptyHint")}
                   </p>
+                  <Link
+                    href="/docs/06-integrations-and-config/agent-memory"
+                    className="text-xs font-medium text-[hsl(var(--primary))] underline underline-offset-2"
+                  >
+                    {t("agentMemory.scopes.emptyHintLink")}
+                  </Link>
                 </div>
               )}
             {scopes.map((scope) => {
@@ -288,7 +301,7 @@ export default function AgentMemoryPage() {
                   </select>
                 </div>
                 <span className="font-mono text-xs text-[hsl(var(--muted-foreground))]">
-                  {t("agentMemory.scopes.count", { count: memoryTotal })}
+                  {t("agentMemory.memories.count", { count: memoryTotal })}
                 </span>
               </div>
 

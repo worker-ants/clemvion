@@ -45,8 +45,8 @@ import {
  * 않는다. 서비스 SQL 이 `workspace_id = $ws` 를 강제하므로 cross-workspace
  * 누수·삭제가 구조적으로 차단된다.
  *
- * **권한**: 조회(GET)는 워크스페이스 멤버(viewer+, @Roles 없음 — RolesGuard
- * default allow), 삭제(DELETE)는 editor+ (@Roles('editor')).
+ * **권한**: 조회(GET)는 워크스페이스 멤버(@Roles('viewer') — RolesGuard 가
+ * 멤버십을 검증), 삭제(DELETE)는 editor+ (@Roles('editor')).
  */
 @ApiTags('Agent Memory')
 @ApiBearerAuth('access-token')
@@ -55,6 +55,7 @@ export class AgentMemoryController {
   constructor(private readonly agentMemoryService: AgentMemoryService) {}
 
   @Get('scopes')
+  @Roles('viewer')
   @ApiOperation({
     summary: '메모리 scope 목록 조회',
     description:
@@ -80,6 +81,7 @@ export class AgentMemoryController {
   }
 
   @Get()
+  @Roles('viewer')
   @ApiOperation({
     summary: 'scope 의 메모리 행 조회',
     description:

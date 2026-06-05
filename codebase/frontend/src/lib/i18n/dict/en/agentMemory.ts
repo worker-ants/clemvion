@@ -12,15 +12,15 @@ export const agentMemory: Dict["agentMemory"] = {
     empty: "No memories yet",
     emptyHint:
       "Set an AI Agent node's memoryStrategy to persistent to accumulate memory across executions.",
+    emptyHintLink: "Read the agent memory setup guide",
     delete: "Delete entire scope",
   },
   memories: {
-    title: "Memories",
     selectScope: "Select a scope on the left to view its memories",
     empty: "This scope has no memories",
     loadFailed: "Failed to load memories",
+    count: "{{count}}",
     expiresAt: "Expires",
-    createdAt: "Created",
     updatedAt: "Updated",
     delete: "Delete memory",
   },

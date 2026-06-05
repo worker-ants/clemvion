@@ -89,6 +89,24 @@ function looksLikeInstruction(content: string): boolean {
 }
 
 /**
+ * `DataSource.query()` 의 DELETE/UPDATE 결과에서 영향받은 row 수를 안전하게
+ * 추출한다. TypeORM 0.3.x PostgresQueryRunner 는 DELETE/UPDATE 에 한해
+ * `[rowsArray, rowCount]` 튜플로 raw 결과를 반환한다 (integration-oauth.service
+ * `consumeOAuthState` 와 동일 계약). 따라서 결과 배열의 길이(`result.length`)를
+ * 그대로 affected 로 쓰면 항상 2 가 되어 0건 케이스를 놓친다 (AGM-13 — 부재 id
+ * 삭제가 NotFound 로 변환되지 않는 버그). 튜플의 `[0]` 위치 RETURNING rows 의
+ * 길이를 affected 로 쓴다. 방어적으로 비-튜플(rows 배열 직접) 형태도 허용한다.
+ */
+function deletedRowCount(
+  result: [{ id: string }[], number] | { id: string }[],
+): number {
+  if (Array.isArray(result) && Array.isArray(result[0])) {
+    return (result[0] as { id: string }[]).length;
+  }
+  return (result as { id: string }[]).length;
+}
+
+/**
  * 두 임베딩 벡터의 cosine 유사도 (AGM-09 batch 내 dedup). DB round-trip 없이
  * 같은 batch 안의 신규 fact 끼리 비교한다 — recall/findSimilarFact 의 pgvector
  * cosine 과 동일 정의. 길이가 다르거나 0-norm 이면 0 (비유사) 반환.
@@ -634,13 +652,13 @@ export class AgentMemoryService {
    * NotFound 로 변환. 영향받은 row 수를 반환한다.
    */
   async deleteMemory(workspaceId: string, id: string): Promise<number> {
-    const result = await this.dataSource.query<{ id: string }[]>(
+    const result = await this.dataSource.query<[{ id: string }[], number]>(
       `DELETE FROM agent_memory
        WHERE id = $1 AND workspace_id = $2
        RETURNING id`,
       [id, workspaceId],
     );
-    return result.length;
+    return deletedRowCount(result);
   }
 
   /**
@@ -648,13 +666,13 @@ export class AgentMemoryService {
    * 삭제된 row 수를 반환한다 (호출부가 echo 용으로 사용 가능). workspace_id 격리 강제.
    */
   async clearScope(workspaceId: string, scopeKey: string): Promise<number> {
-    const result = await this.dataSource.query<{ id: string }[]>(
+    const result = await this.dataSource.query<[{ id: string }[], number]>(
       `DELETE FROM agent_memory
        WHERE workspace_id = $1 AND scope_key = $2
        RETURNING id`,
       [workspaceId, scopeKey],
     );
-    return result.length;
+    return deletedRowCount(result);
   }
 
   /**

@@ -60,7 +60,9 @@ describe('AgentMemoryService', () => {
     });
 
     it('W-1: 제어문자/null byte 를 제거한다', () => {
-      expect(service.resolveScopeKey('cust\x00' + '42', 'exec-1')).toBe('cust42');
+      expect(service.resolveScopeKey('cust\x00' + '42', 'exec-1')).toBe(
+        'cust42',
+      );
       expect(service.resolveScopeKey('a\tb\nc', 'exec-1')).toBe('abc');
       // 제어문자만 있으면 빈 → executionId fallback.
       expect(service.resolveScopeKey('\x01\x02', 'exec-1')).toBe('exec-1');
@@ -897,6 +899,23 @@ describe('AgentMemoryService', () => {
       expect(countParams).toEqual(['ws-1', 'cust-1', 'fact']);
     });
 
+    it('kind + offset>0 조합에서 LIMIT/OFFSET 파라미터 순서가 $4/$5 로 정확하다', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ total: '0' }]);
+
+      await service.listMemories('ws-1', 'cust-1', {
+        kind: 'fact',
+        limit: 30,
+        offset: 60,
+      });
+
+      const [sql, params] = mockDataSource.query.mock.calls[0];
+      // kind 있으면 limit=$4, offset=$5 — 순서: [ws, scope, kind, limit, offset].
+      expect(sql).toContain('LIMIT $4 OFFSET $5');
+      expect(params).toEqual(['ws-1', 'cust-1', 'fact', 30, 60]);
+    });
+
     it('AGM-11: metadata.kind 결손 시 응답 매핑에서 fact 로 fallback', async () => {
       mockDataSource.query
         .mockResolvedValueOnce([
@@ -920,7 +939,7 @@ describe('AgentMemoryService', () => {
 
   describe('deleteMemory (spec §6, AGM-13)', () => {
     it('id + workspace_id 격리로 DELETE 하고 affected 수를 반환한다', async () => {
-      mockDataSource.query.mockResolvedValue([{ id: 'mem-1' }]);
+      mockDataSource.query.mockResolvedValue([[{ id: 'mem-1' }], 1]);
       const affected = await service.deleteMemory('ws-1', 'mem-1');
 
       const [sql, params] = mockDataSource.query.mock.calls[0];
@@ -931,15 +950,22 @@ describe('AgentMemoryService', () => {
     });
 
     it('다른 워크스페이스의 id 면 affected=0 (워크스페이스 교차 차단 — AGM-13)', async () => {
-      mockDataSource.query.mockResolvedValue([]); // RETURNING 빈 → 미삭제.
+      mockDataSource.query.mockResolvedValue([[], 0]); // RETURNING 빈 → 미삭제.
       const affected = await service.deleteMemory('ws-2', 'mem-of-ws-1');
       expect(affected).toBe(0);
+    });
+
+    it('TypeORM DELETE 의 [rows, count] 튜플에서 rows 길이를 affected 로 쓴다 (튜플 length=2 오인 방지)', async () => {
+      // 부재 id: RETURNING 빈 rows + count 0 → affected 0 (튜플 자체 length 2 가
+      // 아님). 이 계약이 깨지면 부재 삭제가 204 로 새어 NotFound 가 안 난다.
+      mockDataSource.query.mockResolvedValue([[], 0]);
+      expect(await service.deleteMemory('ws-1', 'absent')).toBe(0);
     });
   });
 
   describe('clearScope (spec §6, AGM-13)', () => {
     it('workspace_id + scope_key 격리로 scope 전체 DELETE, 삭제 수 반환', async () => {
-      mockDataSource.query.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+      mockDataSource.query.mockResolvedValue([[{ id: 'a' }, { id: 'b' }], 2]);
       const deleted = await service.clearScope('ws-1', 'cust-1');
 
       const [sql, params] = mockDataSource.query.mock.calls[0];
@@ -947,6 +973,12 @@ describe('AgentMemoryService', () => {
       expect(sql).toContain('WHERE workspace_id = $1 AND scope_key = $2');
       expect(params).toEqual(['ws-1', 'cust-1']);
       expect(deleted).toBe(2);
+    });
+
+    it('대상이 0건이면 affected 0 을 반환한다 (정상, 멱등)', async () => {
+      mockDataSource.query.mockResolvedValue([[], 0]); // RETURNING 빈 → 0건 삭제.
+      const deleted = await service.clearScope('ws-1', 'empty-scope');
+      expect(deleted).toBe(0);
     });
   });
 });

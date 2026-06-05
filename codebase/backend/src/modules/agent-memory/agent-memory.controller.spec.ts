@@ -43,19 +43,19 @@ describe('AgentMemoryController (spec §6, AGM-12/13)', () => {
       ).toEqual(['editor']);
     });
 
-    it('조회(listScopes/listMemories) 는 @Roles 미적용 (viewer+ 접근)', () => {
+    it('조회(listScopes/listMemories) 는 @Roles(viewer) 로 멤버십을 검증한다', () => {
       expect(
         reflector.get<string[]>(
           ROLES_KEY,
           AgentMemoryController.prototype.listScopes,
         ),
-      ).toBeUndefined();
+      ).toEqual(['viewer']);
       expect(
         reflector.get<string[]>(
           ROLES_KEY,
           AgentMemoryController.prototype.listMemories,
         ),
-      ).toBeUndefined();
+      ).toEqual(['viewer']);
     });
   });
 
@@ -161,6 +161,14 @@ describe('AgentMemoryController (spec §6, AGM-12/13)', () => {
         controller.clearScope('ws-1', { scopeKey: '   ' }),
       ).rejects.toThrow(BadRequestException);
       expect(service.clearScope).not.toHaveBeenCalled();
+    });
+
+    it('대상 0건(affected=0)이어도 정상 void 반환 (204, 멱등)', async () => {
+      service.clearScope.mockResolvedValue(0);
+      await expect(
+        controller.clearScope('ws-1', { scopeKey: 'empty-scope' }),
+      ).resolves.toBeUndefined();
+      expect(service.clearScope).toHaveBeenCalledWith('ws-1', 'empty-scope');
     });
   });
 });

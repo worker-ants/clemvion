@@ -10,15 +10,15 @@ export const agentMemory = {
     empty: "아직 메모리가 없습니다",
     emptyHint:
       "AI Agent 노드의 memoryStrategy 를 persistent 로 설정하면 실행을 가로질러 메모리가 누적돼요.",
+    emptyHintLink: "에이전트 메모리 설정 가이드 보기",
     delete: "scope 전체 삭제",
   },
   memories: {
-    title: "메모리",
     selectScope: "왼쪽에서 scope 를 선택하면 메모리를 볼 수 있어요",
     empty: "이 scope 에는 메모리가 없어요",
     loadFailed: "메모리를 불러올 수 없어요",
+    count: "{{count}}건",
     expiresAt: "만료 예정",
-    createdAt: "생성",
     updatedAt: "갱신",
     delete: "메모리 삭제",
   },

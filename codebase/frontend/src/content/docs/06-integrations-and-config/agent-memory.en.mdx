@@ -1,3 +1,14 @@
+---
+title: "Agent Memory"
+title_en: "Agent Memory"
+section: "06-integrations-and-config"
+order: 11
+summary: "Browse and clean up the persistent memory an AI Agent accumulates under the persistent memory strategy, organized by scope."
+summary_en: "Browse and clean up the persistent memory an AI Agent accumulates under the persistent memory strategy, organized by scope."
+spec: ["spec/2-navigation/16-agent-memory.md", "spec/5-system/17-agent-memory.md", "spec/4-nodes/3-ai/1-ai-agent.md"]
+code: ["codebase/frontend/src/app/(main)/agent-memory/page.tsx", "codebase/frontend/src/lib/api/agent-memories.ts"]
+---
+
 This page explains how to browse and clean up the persistent memory an AI Agent has accumulated, using the **Agent Memory** screen.
 
 ## What is agent memory?
@@ -12,6 +23,13 @@ Click **Agent Memory** in the sidebar. The screen has two panes.
 
 - **Left — Scopes**: shows the memory count and most recent update time per scope. Use the search box for partial-match scope lookup, and **Load more** to page through long lists.
 - **Right — Memories**: pick a scope on the left to list its memory rows. Each row shows the content, a kind badge, and the update time; memories with a TTL also show an **Expires** time.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/agent-memory/page.tsx"
+  symbol="AgentMemoryPage"
+  describes="Agent Memory screen entry — the sidebar route that renders the scope/memory panes"
+/>
 
 ## Inspecting memories
 
