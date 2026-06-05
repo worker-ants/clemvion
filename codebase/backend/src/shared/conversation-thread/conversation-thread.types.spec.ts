@@ -1,6 +1,7 @@
 import {
   ConversationTurn,
   DEFAULT_THREAD_ID,
+  MAX_RUNNING_SUMMARY_CHARS,
   createEmptyConversationThread,
   rehydrateConversationThread,
 } from './conversation-thread.types';
@@ -164,6 +165,109 @@ describe('rehydrateConversationThread', () => {
         totalChars: 0,
       });
       expect(restored.id).toBe(DEFAULT_THREAD_ID);
+    });
+  });
+
+  // WARNING 1 sanitize: 개별 turn 손상(invalid source / text null / seq 음수)
+  // 케이스 — 손상 turn 은 drop, 생존 turn 기반 nextSeq/totalChars 재유도.
+  describe('turn-level sanitize — 손상 turn drop + 파생값 재유도', () => {
+    it('drops turns with invalid source (unknown enum value)', () => {
+      const validTurn = makeTurn({ seq: 0, text: 'hello' });
+      const restored = rehydrateConversationThread({
+        id: DEFAULT_THREAD_ID,
+        nextSeq: 2,
+        turns: [
+          validTurn,
+          { ...makeTurn({ seq: 1, text: 'bad' }), source: 'invalid_source' },
+        ],
+        totalChars: 9,
+      });
+      expect(restored.turns).toHaveLength(1);
+      expect(restored.turns[0]).toEqual(validTurn);
+      // nextSeq 재유도: 손상 drop 후 생존 turns.length(1) 미만이었던 저장값(2) →
+      // 저장값은 생존 후 turns.length(1) 보다 크므로 보존됨.
+      expect(restored.nextSeq).toBe(2);
+      expect(restored.totalChars).toBe(5); // 'hello'.length
+    });
+
+    it('drops turns with text null/undefined (손상 turn — INFO #9 케이스)', () => {
+      const validTurn = makeTurn({ seq: 1, text: 'ok' });
+      const restored = rehydrateConversationThread({
+        id: DEFAULT_THREAD_ID,
+        nextSeq: 2,
+        turns: [
+          {
+            seq: 0,
+            nodeId: 'n',
+            nodeLabel: 'L',
+            nodeType: 'form',
+            timestamp: 't',
+            source: 'presentation_user',
+            text: null,
+          },
+          validTurn,
+        ],
+        totalChars: 0,
+      });
+      expect(restored.turns).toHaveLength(1);
+      expect(restored.turns[0]).toEqual(validTurn);
+      expect(restored.totalChars).toBe(2); // 'ok'.length
+    });
+
+    it('drops turns with negative seq', () => {
+      const validTurn = makeTurn({ seq: 0, text: 'a' });
+      const restored = rehydrateConversationThread({
+        id: DEFAULT_THREAD_ID,
+        nextSeq: 1,
+        turns: [{ ...makeTurn({ seq: -1, text: 'bad' }) }, validTurn],
+        totalChars: 4,
+      });
+      expect(restored.turns).toHaveLength(1);
+      expect(restored.turns[0]).toEqual(validTurn);
+    });
+
+    it('returns empty thread when all turns are damaged', () => {
+      const restored = rehydrateConversationThread({
+        id: DEFAULT_THREAD_ID,
+        nextSeq: 2,
+        turns: [
+          { seq: 0, text: null },
+          { seq: 1, source: 'bad_source', text: 'x' },
+        ],
+        totalChars: 1,
+      });
+      expect(restored.turns).toHaveLength(0);
+      expect(restored.totalChars).toBe(0);
+    });
+  });
+
+  // WARNING 2 sanitize: runningSummary 길이 상한 적용.
+  describe('runningSummary MAX_RUNNING_SUMMARY_CHARS 상한', () => {
+    it('trims runningSummary exceeding the cap (DoS 방어)', () => {
+      const oversized = 'x'.repeat(MAX_RUNNING_SUMMARY_CHARS + 100);
+      const restored = rehydrateConversationThread({
+        id: DEFAULT_THREAD_ID,
+        nextSeq: 0,
+        turns: [],
+        totalChars: 0,
+        runningSummary: oversized,
+      });
+      expect(restored.runningSummary).toHaveLength(MAX_RUNNING_SUMMARY_CHARS);
+      expect(restored.runningSummary).toBe(
+        oversized.slice(0, MAX_RUNNING_SUMMARY_CHARS),
+      );
+    });
+
+    it('preserves runningSummary within the cap without modification', () => {
+      const summary = '사용자는 환불을 요청했다.';
+      const restored = rehydrateConversationThread({
+        id: DEFAULT_THREAD_ID,
+        nextSeq: 0,
+        turns: [],
+        totalChars: 0,
+        runningSummary: summary,
+      });
+      expect(restored.runningSummary).toBe(summary);
     });
   });
 });

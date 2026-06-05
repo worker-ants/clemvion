@@ -107,6 +107,7 @@ export class Execution {
   //   rehydration(§7.5)이 여기서 thread를 무손실 복원(runningSummary 포함).
   //   NULL = park 한 적 없는 실행 / 배포 이전 row → rehydration 은 빈 thread 시작.
   //   실행 이력 SoT(NodeExecution.output_data)와 목적·소비처 분리.
+  //   API 응답 DTO 미포함 — 내부 rehydration 전용 (execution-response.dto.ts 에 노출 없음).
   //   spec: conversation-thread §4·§8.4, 4-execution-engine §6.2/§7.5, 1-data-model §2.13.
   @Column({ name: 'conversation_thread', type: 'jsonb', nullable: true })
   conversationThread: ConversationThread | null;
