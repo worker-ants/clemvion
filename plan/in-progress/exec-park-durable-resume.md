@@ -84,6 +84,10 @@ owner: developer
 
 ## Phase B — park 즉시 해제 + slow-path 일원화 [A 완료 후]
 
+> **PR 분할 (확정 2026-06-05, 사용자 결정)**: Phase B 를 **2개 PR** 로 분할한다(Phase A 4분할 선례·위험 격리). "B1·B2 분리 불가"(코루틴 해제⟺slow-path) 는 **park-site 단위로 유지** — 각 PR 이 자기 site 의 release+slow-path 를 함께 한다.
+> - **PR-B1 (form/button)**: `waitForFormSubmission`/`waitForButtonInteraction` 단발 상호작용을 park-release+rehydration 으로. form/button 은 `pendingContinuations` 에 더 이상 등록 안 함 → `applyContinuation` 의 fast-path 가지(`pendingContinuations.has`)를 자연스럽게 miss 해 항상 slow-path. **AI 멀티턴 루프는 PR-B1 에서 미변경**(in-memory 유지) — 그 fast-path 만 잠정 잔존. dockerized e2e(park→worker kill→무손실 재개) 포함.
+> - **PR-B2 (multi-turn AI)**: `runAiConversationLoop` 장수 루프 → turn-단위 park(D4, 매 turn 해제 + per-turn durable checkpoint). AI 도 `pendingContinuations` 등록 제거 → fast-path 가지·`pendingContinuations` Map·`firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier`/`firePayload` scheduler 완전 제거(B3). e2e(멀티턴 park→kill→재개) 포함.
+
 ### B1. park 시 coroutine 반환(해제) — 멀티턴 turn-단위(D4)
 - [ ] `waitForFormSubmission`/`waitForButtonInteraction`/`waitForAiConversation` 의 `await new Promise()` 대기 제거 — durable 영속 후 **즉시 반환**해 `runExecution` 세그먼트 종료.
 - [ ] **멀티턴 AI = turn-단위 park(D4)**: `runAiConversationLoop` 의 장수 루프를 매 turn 입력 대기에서 **해제** — 한 turn 처리=한 세그먼트, 다음 메시지에 rehydration 재개. 응답 없는 대화도 메모리 0 점유. (turn 마다 rehydration 비용은 사람-페이스라 수용.)
@@ -114,9 +118,10 @@ owner: developer
 1. **PR-A1**: conversationThread durable 영속 + rehydration 복원 (+spec §7.5, conversation-thread.md).
 2. **PR-A2**: checkpoint 견고화 + information_extractor 확장.
 3. **PR-A3**(범위 시): user variables 영속 — 또는 별도 plan.
-4. **PR-B**: park 즉시 해제 + slow-path 일원화 + fast-path 제거 (+spec §4.x). e2e 회귀(park→worker kill→무손실 재개) 필수.
+4. **PR-B1**: form/button park-release + slow-path 일원화 (+spec staged note). e2e 회귀(park→worker kill→무손실 재개) 필수.
+5. **PR-B2**: multi-turn AI turn-park + pendingContinuations/barrier 완전 제거 (B3). e2e(멀티턴 park→kill→재개) 필수.
 
-> 각 PR 은 SDD+TDD, TEST/REVIEW WORKFLOW 이행. PR-B 는 실행엔진 코어라 e2e(dockerized) 무손실 재개 시나리오를 반드시 포함.
+> 각 PR 은 SDD+TDD, TEST/REVIEW WORKFLOW 이행. PR-B1/B2 는 실행엔진 코어라 e2e(dockerized) 무손실 재개 시나리오를 반드시 포함. (구 단일 "PR-B" 는 2026-06-05 사용자 결정으로 B1/B2 2분할.)
 
 ## 리스크
 - **A1 conversationThread 직렬화**: turns 는 frozen·JSON 가능하나 크기(대화 길이) 고려 — 컬럼 vs 테이블 선택이 성능에 영향.
