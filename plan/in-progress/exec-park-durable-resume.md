@@ -102,6 +102,24 @@ owner: developer
 - [ ] **(PR-B2)** `pendingContinuations` Map (AI fast-path 제거 후), `firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier` 제거 또는 축소.
 - [ ] **(PR-B2)** #468 의 W1/W2 방어 로직 중 해제로 불필요해진 부분 정리.
 
+### PR-B2 구현 설계 (2026-06-06, 코드 정밀조사 기반 — branch `claude/exec-park-pr-b2`)
+> 대상: `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (8897줄). 무손실 전제 충족 확인 — `handleAiMessageTurn` waiting 분기(L5523-5542)가 **이미 매 turn `_resumeCheckpoint` 를 nodeExec 에 영속**. 단 thread/variables 스냅샷(`stageDurableResumeSnapshot`)은 첫 turn(`emitAiWaitingForInput` L5288)에서만 호출 → **PR-B2 핵심 델타 = 후속 turn park 에도 thread/variables 스냅샷 + WAITING 전이 추가**.
+>
+> **핵심 통찰 — B3 는 B2 가 enable**: worker(`runExecutionFromQueue` L~2603)가 `runExecution` 을 detached + `firstSegmentBarriers`(arm→await settled)로 띄우는 **유일한 이유는 AI 멀티턴 in-memory 루프**(park 에서 `runExecution` 미반환). AI 도 turn-park 하면 `runExecution` 이 park 에서 반환 → worker 는 `await runExecution()` 만으로 job 반환 가능 → barrier/detached/`firePayload`/`pendingContinuations` 전부 불필요.
+>
+> **payload 전달 경로 단순화**: 기존 = continuation `payload` → `firePayload` polling → `resolvePending` → 루프 내 await Promise. 신규 = `applyContinuation(payload)` → `rehydrateAndResume(payload)` → resume drive 가 payload 를 **함수 인자로** 단발 turn 처리기에 직접 전달 (Map 우회 불요).
+>
+> 변경 단위:
+> 1. **AI 단발 turn 처리기 신설**: `runAiConversationLoop` 의 while 루프를 제거하고, 도착한 단일 action 을 처리하는 경로로 대체. dispatch(end/message/form) → `handleAiMessageTurn`/`handleAiEndConversation` 재사용. (a) `conversationEnded` → `finalizeAiNode` → 그래프 전진(not parked). (b) 계속 → re-park: `stageDurableResumeSnapshot` + `updateExecutionStatus(WAITING_FOR_INPUT, nodeExec)` (turn resume 은 RUNNING→WAITING 정상 전이) → 반환(release).
+> 2. **첫 turn 진입**(`waitForAiConversation`, dispatch site `runNodeDispatchLoop` AI 분기 L~1690): `emitAiWaitingForInput`(park) 후 **루프 없이 PARK_RELEASED 반환** → `runNodeDispatchLoop` 가 `{parked:true}` 로 세그먼트 종료. (form/button 과 동일 패턴)
+> 3. **resume 경로**(`driveResumeDetached` AI 분기 L1977-2000): `_resumeCheckpoint`→`buildRetryReentryState`(resumeMode) 로 resumeState 재구성(기존 유지) 후 **도착 payload 로 단발 turn 처리기 호출** → park/finalize.
+> 4. **retry 경로**(`applyRetryLastTurn`, `runAiConversationLoop(initialAction)` 사용): 단발 turn 처리기의 replay 분기(외부 대기 없이 즉시 처리)로 이관. cancel race 보존.
+> 5. **worker-return 단순화**: `runExecutionFromQueue` — `armFirstSegmentBarrier`/`await settled`/detached 제거 → `await runExecution()` 직접. `resumeFromCheckpoint`/`driveResumeDetached` 도 detached 제거 → await.
+> 6. **B3 제거**: `pendingContinuations` Map·`applyContinuation` fast-path(L1022/L1045)·`resolvePending`/`rejectPending`·`firstSegmentBarriers`·`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier`·`firePayload` scheduler(L1843-1859). `applyCancellation` → 항상 `cancelParkedExecution`(rejectPending 분기 제거).
+> 7. **spec 재전환(별 commit)**: PR-B1 정직화로 "PR-B2 미적용" 표기한 §4.x banner·§7.4 L829 를 **완료형으로 재전환**(멀티턴 AI 도 turn-park·fast-path 제거 완료). §Rationale L1257 "단계적 롤아웃" note 는 "B1·B2 모두 완료"로 갱신. ← project-planner 위임.
+>
+> 테스트: 단발 turn 처리기 단위테스트(park/end/fail/replay/cancel-race), `pendingContinuations` 부재 후 applyContinuation 항상 slow-path, AI turn cancel(WAITING→CANCELLED), rehydrate 반복 turn thread 누적 무결성. **dockerized e2e**: 멀티턴 3턴 중 turn-2 park→worker kill→turn-2 재개 무손실; turn 중 cancel.
+
 ---
 
 ## Spec 변경 (project-planner)
