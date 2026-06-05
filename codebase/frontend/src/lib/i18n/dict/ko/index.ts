@@ -25,6 +25,7 @@ import { time } from "./time";
 import { errors } from "./errors";
 import { errorPage } from "./errorPage";
 import { assistant } from "./assistant";
+import { agentMemory } from "./agentMemory";
 
 export const ko = {
   common,
@@ -54,6 +55,7 @@ export const ko = {
   errors,
   errorPage,
   assistant,
+  agentMemory,
 } as const;
 
 export type { Dict } from "../types";

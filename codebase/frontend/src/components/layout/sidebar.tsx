@@ -22,6 +22,7 @@ import {
   BookOpen,
   BookMarked,
   Brain,
+  BrainCircuit,
   ChevronLeft,
   ChevronRight,
   User,
@@ -119,6 +120,7 @@ const navItems = [
   { labelKey: "sidebar.authentication", href: "/authentication", icon: Lock },
   { labelKey: "sidebar.statistics", href: "/statistics", icon: BarChart3 },
   { labelKey: "sidebar.systemStatus", href: "/system-status", icon: Activity },
+  { labelKey: "sidebar.agentMemory", href: "/agent-memory", icon: BrainCircuit },
   { labelKey: "sidebar.userGuide", href: "/docs", icon: BookMarked },
 ] as const satisfies ReadonlyArray<{
   labelKey: TranslationKey;
