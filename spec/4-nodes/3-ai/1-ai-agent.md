@@ -6,6 +6,8 @@ code:
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.component.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/*.ts
+  - codebase/backend/src/nodes/ai/shared/agent-memory-injection.ts
+  - codebase/backend/src/nodes/ai/shared/agent-memory-schema.ts
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md

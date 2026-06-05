@@ -4,6 +4,8 @@ status: implemented
 code:
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.schema.ts
+  - codebase/backend/src/nodes/ai/shared/agent-memory-injection.ts
+  - codebase/backend/src/nodes/ai/shared/agent-memory-schema.ts
 ---
 
 # Spec: Information Extractor
