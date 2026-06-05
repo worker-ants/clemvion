@@ -5,6 +5,7 @@ import {
   buildSummaryBufferUpdate,
   compactMessagesToTail,
   estimateTurnTokens,
+  MIN_RECENT_RAW_TURNS,
   estimateWorkingMemoryTokens,
   selectVolatileTail,
   stripMemoryBlocks,
@@ -604,7 +605,12 @@ describe('buildSummaryBufferUpdate — O(n) incremental token recompute (B3)', (
 
     // Sweep budgets across the full range so the cut lands at many positions.
     for (let budget = 50; budget <= currentTokens + 50; budget += 37) {
-      const expectedToCompress = referenceCut(turns, currentTokens, budget, 2);
+      const expectedToCompress = referenceCut(
+        turns,
+        currentTokens,
+        budget,
+        MIN_RECENT_RAW_TURNS,
+      );
 
       const llm = makeLlmServiceMock('SUMMARY');
       const update = await buildSummaryBufferUpdate({

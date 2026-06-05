@@ -58,7 +58,7 @@ const SUMMARY_MAX_TOKENS = 1024;
  * 하한. 예산 초과 시 오래된 turn 부터 압축하되, 최소 이만큼은 휘발성 꼬리로
  * 남겨 직전 맥락을 보존한다 (전부 요약되면 직전 발화 맥락이 손실됨).
  */
-const MIN_RECENT_RAW_TURNS = 2;
+export const MIN_RECENT_RAW_TURNS = 2;
 
 /**
  * 회수/요약 블록 헤더 다음에 박는 **data-fence 가이드 문구**. 회수된 메모리
@@ -249,19 +249,17 @@ export async function buildSummaryBufferUpdate(
   // bit-identical: fixedOverhead 는 빼지 않으므로 별도 합산이 불필요하다.)
   const toCompress: ConversationTurn[] = [];
   let remainingTokens = currentTokens;
-  let remainingCount = uncompressed.length;
-  let cut = 0;
+  let cutIdx = 0;
 
   while (
     remainingTokens > tokenBudget &&
-    remainingCount > MIN_RECENT_RAW_TURNS
+    uncompressed.length - cutIdx > MIN_RECENT_RAW_TURNS
   ) {
-    const oldest = uncompressed[cut];
+    const oldest = uncompressed[cutIdx];
     if (!oldest) break;
     toCompress.push(oldest);
     remainingTokens -= estimateTurnTokens(oldest);
-    cut += 1;
-    remainingCount -= 1;
+    cutIdx += 1;
   }
 
   if (toCompress.length === 0) {
