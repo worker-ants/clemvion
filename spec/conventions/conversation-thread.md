@@ -374,6 +374,10 @@ sequenceDiagram
   Note over FE: REPLACE thread + MERGE orphan tools
 ```
 
+## 9. 미리보기 UI 렌더 규칙
+
+Conversation Preview / history view 가 `conversationThread` snapshot 을 source 별로 렌더하는 강제 규약. `source` enum 1:1 시각 매핑(§9.1)·3중 구분 신호(§9.2)·데이터 소스 선택(§9.3)을 정의한다 (SoT 격상 근거 §8.2).
+
 ### 9.1 source 별 시각 매핑 (강제)
 
 | ConversationTurnSource | UI 형식 | 헤더 | 본문 |
