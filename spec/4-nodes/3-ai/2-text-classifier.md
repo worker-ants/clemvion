@@ -27,10 +27,17 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | includeConfidence | Boolean | | `false` | 신뢰도 점수 포함 여부 |
 | includeEvidence | Boolean | | `false` | 분류 근거(입력에서 발췌한 단어/문장) 포함 여부 |
 | multiLabel | Boolean | | `false` | Multi-label 분류 모드 |
+| contextScope | `none` / `thread` / `lastN` | | `none` | ConversationThread 자동 주입 범위. [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입) (세 노드 공통) |
+| contextScopeN | Integer | (lastN 시) | `20` | `lastN` 일 때 최근 N개 turn |
+| contextInjectionMode | `messages` / `system_text` | (scope ≠ none 시) | `messages` | 주입 형식 — LLM messages 배열 prepend / system prompt 텍스트 첨부 |
+| includeToolTurns | Boolean | | `false` | `ai_tool` turn 도 thread push 할지 (분류 노드는 tool turn 미발행이라 push 측 영향 없음 — 주입 측 인터페이스 일관성용) |
+| excludeFromConversationThread | Boolean | | `false` | 본 노드의 push turn 을 thread 에서 제외 (opt-out) |
 | includeSystemContext | Boolean | | `true` | systemPrompt 앞에 시각·timezone prefix 자동 prepend. [공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix) |
 | systemContextSections | String[] | | `['time', 'timezone']` | prefix 섹션. [공통 §11.1](./0-common.md#111-설정-필드-3-노드-공통) |
 
 > `llmConfigId` 와 `model` 은 schema 상 optional 이지만, 둘 다 비어 있으면 `text_classifier:no-llm-provider` warningRule 이 발화하여 검증 실패한다.
+
+> **Conversation Context (`contextScope` 외 5필드)** 는 AI Agent 와 **동일 인터페이스** ([공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입)) 로, 공유 fragment `buildConversationContextSchemaFields()` + 공유 주입 유틸 `injectConversationContext()` 를 통해 분류 LLM 호출 직전에 ConversationThread 를 주입한다. AI Agent 와 달리 `memoryStrategy` 필드가 없으므로 항상 contextScope 가 적용된다. default `contextScope: 'none'` 이라 기존 워크플로 동작은 불변.
 
 **CategoryDef 구조:**
 
@@ -110,6 +117,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
    - **Single-label**: `enum = [...categoryNames, '__none__']` — LLM 이 매칭 없음을 명시적으로 표현 가능
    - **Multi-label**: `categories: { type: 'array', items: { name: enum, … } }` — 매칭 없음은 빈 배열로 표현
 2. `includeConfidence` / `includeEvidence` 가 `true` 이면 응답 스키마에 `confidence: number` / `evidence: string[]` 을 추가하고 시스템 프롬프트에 해당 필드 설명을 주입한다.
+2.5. **Conversation Context 주입** ([공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입)) — `contextScope ≠ none` 이면 공유 유틸 `injectConversationContext()` 로 ConversationThread (자기 노드 turn 제외) 를 `contextInjectionMode` 에 따라 LLM messages 배열 prepend (`messages`) 또는 systemPrompt 텍스트 append (`system_text`) 한다. `contextScope: 'none'` (default) 이면 무변경.
 3. `LlmService.chat` 호출. 실패 시 §5.3 (`error` 포트, `LLM_CALL_FAILED`).
 4. JSON 응답을 파싱. 파싱 실패 시 카테고리 이름의 substring 매칭으로 fallback 한다 (텍스트 fallback 도 custom id 라우팅 유지).
 5. 모드별 결과 처리:
