@@ -670,21 +670,21 @@ Pre-flight 검증 (CONVENTIONS Principle 3.1 — throw):
 
 `memoryStrategy = persistent` 일 때 information_extractor 는 세션 간 메모리의 **consumer(회수)** 이자 **producer(추출)** 가 된다 ([§17 agent-memory](../../5-system/17-agent-memory.md)). ai_agent 의 메모리 회수/추출 패턴을 추출 노드에 맞게 부분 도입한 것으로, **회수 + 추출만** 쓰고 **working-memory 토큰 압축(summary_buffer)은 제외**한다.
 
-### 9.1 회수 (recall — consumer)
+### 7.1 회수 (recall — consumer)
 
 - 추출 LLM 콜 직전 1회: `AgentMemoryService.recall(workspaceId, scopeKey, queryText, { topK: memoryTopK, threshold: memoryThreshold, embeddingModel })`.
 - `scopeKey = resolveScopeKey(memoryKey, executionId)` — ai_agent 와 **동일 scope key 규칙** ([§17 §2](../../5-system/17-agent-memory.md)). 같은 키면 ai_agent 와 추출기가 같은 메모리를 공유한다. 비우면 `executionId` 로 세션 격리.
 - 회수 결과는 안정 프리픽스(recall 블록 — `[memory]…[/memory]` data-fence)로 system 메시지 뒤에 append 한다. `manual` 이면 호출 없이 무변경. single-turn / multi-turn 첫 진입 모두 적용.
 - 회수 실패는 graceful (빈 회수 → 무영향) — hot-path 를 깨지 않는다.
 
-### 9.2 추출 (extraction — producer)
+### 7.2 추출 (extraction — producer)
 
 - turn 경계(thread push 직후)에 `AgentMemoryService.scheduleExtraction({ workspaceId, scopeKey, llmConfigId, model, extractionModel, embeddingModel, turns, ttlDays })` 로 **비동기** enqueue (큐 add 까지만 await — 추출 LLM 콜은 worker). hot-path 비차단.
 - single-turn 은 최종 응답 push 후 1회. multi-turn 은 종결 push 후 1회 (각 turn 마다가 아님 — push 가 종결 1회뿐이므로).
 - `turns` 는 thread 스냅샷의 shallow-copy (격리 invariant). 증분 watermark(`lastExtractionTurnSeq`) 는 multi-turn state 로 운반되나, multi-turn 추출이 종결 1회라 실무상 전체 thread snapshot 한다.
 - enqueue 실패는 서비스 내부에서 삼켜진다 (대화 계속).
 
-### 9.3 manual 회귀 불변식
+### 7.3 manual 회귀 불변식
 
 `memoryStrategy = manual`(default) 이면 recall/extraction 모두 **호출되지 않으며** messages·출력은 기존과 100% 동일하다 (회귀 핀 테스트로 강제). `AgentMemoryService` 미주입(테스트 fixture·legacy) 시에도 graceful no-op.
 

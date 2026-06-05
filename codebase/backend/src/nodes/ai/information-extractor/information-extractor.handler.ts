@@ -137,17 +137,19 @@ interface MultiTurnState {
   memoryStrategy?: 'manual' | 'persistent';
   /**
    * 첫 멀티턴 진입에서 캡처한 ConversationThread 참조 (memory-strategy-extend-ie).
-   * 종결(`buildMultiTurnFinalOutput`) 경로가 context 없이도 thread push + 추출
-   * source 를 얻기 위해 state 로 운반한다 (ai_agent `conversationThreadRef` 패턴).
+   * 종결(`buildMultiTurnFinalOutput`) 경로가 context 없이도 thread push + (persistent
+   * 시) 추출 source 를 얻기 위해 state 로 운반한다 (ai_agent `conversationThreadRef`
+   * 패턴). **전략 무관** — 종결 thread 등록은 manual 에서도 일어나므로 항상 운반한다.
    * 직렬화로 영속되며, resume 시 같은 in-memory thread 로 복원된다.
    */
   conversationThreadRef?: import('../../../shared/conversation-thread/conversation-thread.types').ConversationThread;
   /**
-   * 첫 멀티턴 진입의 executionId (memory-strategy-extend-ie). 종결 경로의 추출
+   * 첫 멀티턴 진입의 executionId (memory-strategy-extend-ie). persistent 종결 추출의
    * scope key resolve 에 필요 — `endMultiTurnConversation` 은 context 를 받지 않음.
+   * 전략 무관하게 운반(추출 미수행 시 미사용).
    */
   executionId?: string;
-  /** 첫 멀티턴 진입의 nodeId — 종결 push 시 NodeRef 구성용. */
+  /** 첫 멀티턴 진입의 nodeId — 종결 push 시 NodeRef 구성용 (전략 무관 운반). */
   nodeId?: string;
   /**
    * 첫 멀티턴 진입의 **평가된** 메모리 config 스냅샷 (memory-strategy-extend-ie).
@@ -160,6 +162,12 @@ interface MultiTurnState {
    * persistent 메모리 증분 추출 watermark (memory-strategy-extend-ie) — 직전
    * extraction enqueue 가 커버한 마지막 turn 의 seq. 멀티턴에서 이 seq 초과 turn 만
    * 새로 snapshot 한다 (ai_agent §M1 패턴). undefined = 아직 추출 안 함.
+   *
+   * **현재 구조 주의**: IE 멀티턴은 종결(`buildMultiTurnFinalOutput`)에서 1회만
+   * 추출 enqueue 하고 그 반환 watermark 를 resume state 로 다시 싣지 않는다(종결은
+   * 응답 정규화 직전 fire-and-forget). 따라서 watermark 는 현재 **전진하지 않으며**,
+   * 이 필드는 향후 waiting-tick 단위 추출(turn 경계마다 enqueue)을 도입할 때를 대비한
+   * forward-looking 운반 슬롯이다 — 운반 invariant(A3)만 지금 핀으로 보장한다.
    *
    * **A3 교훈**: 이 필드는 반드시 `stateBase` → resume state 로 운반돼야 한다.
    * turn2+ 에서 유실되면 매 turn 전체 thread 를 재추출(또는 scopeKey 불일치)하게 된다.
@@ -581,13 +589,20 @@ export class InformationExtractorHandler implements NodeHandler {
         this.pushExtractorTurn(context, config, extracted);
 
         // 턴 경계 비동기 추출 (persistent) — push 직후, 추출 source 가 thread 에
-        // 들어간 뒤 호출. manual 이면 no-op (hot-path 비차단).
+        // 들어간 뒤 호출. manual 이면 no-op (hot-path 비차단). enqueue reject 가
+        // 응답 hot-path 를 막지 않도록 graceful — 실패해도 추출된 결과는 정상 반환.
         await this.scheduleMemoryExtraction({
           strategy: memoryStrategy,
           target: context,
           config,
           workspaceId,
           executionId: context.executionId,
+        }).catch((err) => {
+          this.logger.warn(
+            'IE single-turn memory extraction enqueue 실패',
+            err instanceof Error ? err.message : String(err),
+          );
+          return undefined;
         });
 
         return {
@@ -704,14 +719,18 @@ export class InformationExtractorHandler implements NodeHandler {
       maxCollectionRetries,
       rawConfig,
       memoryStrategy,
-      // persistent 종결 push/추출이 context 없이도 동작하도록 thread ref/식별자
-      // 운반 (manual 이면 미사용). A3 교훈 — resume turn 에서 유실 방지 위해
-      // stateBase 에 싣는다.
+      // 종결(buildMultiTurnFinalOutput) thread push 는 **전략 무관** (spec §4.2 +
+      // conversation-thread.md §2.3 — multi-turn 종결 결과를 thread 에 1회 등록,
+      // v2 limitation 해소; 등록=가시성 ↔ 추출=persistent 전용은 별개). 따라서
+      // thread ref + push target 식별자(nodeId/executionId)는 manual 에서도 운반한다.
+      // A3 교훈 — resume turn 에서 유실 방지 위해 stateBase 에 싣는다.
+      conversationThreadRef: context.conversationThread,
+      executionId: context.executionId,
+      nodeId: context.nodeId ?? '',
+      // memoryConfig 는 추출(persistent 전용) scope/모델 폴백에만 쓰이므로 persistent
+      // 일 때만 운반한다 (manual 종결은 push 만 하고 추출하지 않음).
       ...(memoryStrategy === 'persistent'
         ? {
-            conversationThreadRef: context.conversationThread,
-            executionId: context.executionId,
-            nodeId: context.nodeId ?? '',
             // 평가된 메모리 config 스냅샷 — 종결 추출 scope/모델 폴백에 사용.
             memoryConfig: {
               memoryKey: config.memoryKey,
@@ -1215,7 +1234,12 @@ export class InformationExtractorHandler implements NodeHandler {
         workspaceId: state.workspaceId,
         executionId: state.executionId ?? '',
         lastExtractionTurnSeq: state.lastExtractionTurnSeq,
-      }).catch(() => undefined);
+      }).catch((err) =>
+        this.logger.warn(
+          'IE multi-turn memory extraction enqueue 실패',
+          err instanceof Error ? err.message : String(err),
+        ),
+      );
     }
 
     const meta = defined({

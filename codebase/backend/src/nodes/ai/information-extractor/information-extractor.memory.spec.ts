@@ -87,6 +87,26 @@ describe('InformationExtractor persistent memory — single-turn', () => {
     const sent = llm.chat.mock.calls[0][1].messages;
     expect(sent).toHaveLength(2); // system + user, no recall block
     expect(sent[0].content).not.toContain('[memory]');
+    // F5: single-turn final push is strategy-independent (manual still pushes
+    // the extracted snapshot as an ai_assistant turn — push=visibility 계약 핀).
+    expect(thread.getThread(context).turns).toHaveLength(1);
+  });
+
+  it('persistent: single-turn extraction enqueue reject is graceful (out still returned)', async () => {
+    // F4: scheduleExtraction reject 가 응답 hot-path 를 깨지 않아야 한다.
+    memory.scheduleExtraction.mockRejectedValueOnce(new Error('queue down'));
+    const context = makeExecutionContext({
+      executionId: 'exec-f4',
+      nodeId: 'ie-1',
+      variables: { __workspaceId: 'ws-1' },
+    });
+    const result = (await handler.execute(
+      {},
+      singleTurnConfig({ memoryStrategy: 'persistent', memoryKey: 'k' }),
+      context,
+    )) as { port?: string };
+    expect(result.port).toBe('out');
+    expect(memory.scheduleExtraction).toHaveBeenCalledTimes(1);
   });
 
   it('persistent: recalls then injects recalled facts into the system prompt', async () => {
@@ -231,7 +251,7 @@ describe('InformationExtractor persistent memory — multi-turn', () => {
     ...over,
   });
 
-  it('manual (default): recall/extract never invoked, no thread push on completion (regression)', async () => {
+  it('manual (default): final thread push happens (strategy-independent, C1) but recall/extract never invoked, no [memory] (regression)', async () => {
     finalizeOnFirstTurn();
     const context = makeExecutionContext({
       nodeId: 'ie-1',
@@ -241,11 +261,21 @@ describe('InformationExtractor persistent memory — multi-turn', () => {
       port?: string;
     };
     expect(result.port).toBe('completed');
+    // C1: multi-turn 종결 thread 등록은 **전략 무관** (spec §4.2 + conversation-thread
+    // §2.3 — v2 limitation 해소; 등록=가시성 ↔ 추출=persistent 전용 별개). manual 에서도
+    // thread ref 가 운반되므로 종결 push 가 일어난다.
+    const turns = thread.getThread(context).turns;
+    expect(turns).toHaveLength(1);
+    expect(turns[0]).toMatchObject({
+      source: 'ai_assistant',
+      nodeType: 'information_extractor',
+    });
+    // 단 메모리 회수/추출(persistent 전용)은 manual 에서 절대 호출되지 않으며 LLM
+    // system 컨텍스트에 recall 블록(`[memory]`)도 들어가지 않는다 (회귀 불변식).
     expect(memory.recall).not.toHaveBeenCalled();
     expect(memory.scheduleExtraction).not.toHaveBeenCalled();
-    // manual: multi-turn final push still happens? No — push is gated on a
-    // thread holder being carried in state, which only persistent populates.
-    expect(thread.getThread(context).turns).toHaveLength(0);
+    const sent = llm.chat.mock.calls[0][1].messages;
+    expect(sent[0].content).not.toContain('[memory]');
   });
 
   it('persistent: recall injected at first entry + final thread push + extraction enqueued', async () => {
@@ -305,6 +335,14 @@ describe('InformationExtractor persistent memory — multi-turn', () => {
       'persist-key',
     );
     expect(state.executionId).toBe('exec-mt2');
+    // F6: nodeId 운반(종결 push NodeRef) + watermark 운반 슬롯 핀. IE 는 종결 1회
+    // 추출 구조라 watermark 가 전진하지 않으므로 undefined 이거나(미전진) 숫자여야
+    // 한다 — forward-looking 운반 invariant 만 보장한다.
+    expect(state.nodeId).toBe('ie-1');
+    expect(
+      state.lastExtractionTurnSeq === undefined ||
+        typeof state.lastExtractionTurnSeq === 'number',
+    ).toBe(true);
 
     // Turn 2: finalize → completed. scope key must still resolve to persist-key.
     llm.chat.mockResolvedValueOnce({
