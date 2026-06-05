@@ -43,6 +43,8 @@ owner: developer
 ### 2. ExecutionEngineService 단의 signal 전파
 
 > **후속 PR**. 본 PR 은 ExecutionContext 필드만 — 엔진은 이미 context 를 dispatch 직전 핸들러에 전달하므로 자동 전파. 사전 abort 체크 / cancelled status 분류 / 통합 테스트는 별 PR.
+>
+> **↔ `exec-park-durable-resume` cross-link (2026-06-06)**: 본 §2 의 dispatch 경로(`execution-engine.service.ts`)는 `exec-park-durable-resume` plan 의 **B3**(park 코루틴/`pendingContinuations`·barrier 제거)와 코드영역이 겹친다. 직렬화 순서 = **B3(PR-B2) 선행 → 본 §2 는 그 결과 위로 rebase**(해당 plan Phase 0 에서 확정). status 가드(`NodeExecution.status='cancelled'`)는 PR-B1 `cancelParkedExecution` 으로 form/button park 한정 이미 확보.
 
 > **결정/진행 (2026-06-03)**: §2 의 분류 결정은 **옵션 B(전용 `cancelled` status)** 로 확정. spec 결정 분리 → [`spec-draft-node-execution-cancelled.md`](../complete/spec-draft-node-execution-cancelled.md), 구현은 `node-cancellation-engine` worktree (V069 migration + 엔진 dispatch 사전체크 + AbortError→CANCELLED 분류 + `execution.node.cancelled` WS 이벤트). 완료 시 아래 3항목 닫힘.
 

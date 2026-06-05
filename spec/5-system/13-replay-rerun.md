@@ -443,7 +443,7 @@ Re-run 이 "현재 시점의 워크플로 정의의 raw config 를 다시 평가
 
 ### 14.3 Multi-turn snapshot 과의 직교성
 
-Multi-turn resume 은 진행 중 실행의 다음 turn 을 같은 Execution row 안에서 진행한다 (`state.rawConfig` frozen snapshot 사용). Re-run 은 새 Execution row 를 생성하므로 두 모드는 직교한다 — 같은 워크플로의 multi-turn 노드도 RR-PL-04 에 따라 새 세션으로 시작.
+Multi-turn resume 은 진행 중 실행의 다음 turn 을 같은 Execution row 안에서 진행한다 (`state.rawConfig` frozen snapshot 사용). Re-run 은 새 Execution row 를 생성하므로 두 모드는 직교한다 — 같은 워크플로의 multi-turn 노드도 RR-PL-04 에 따라 새 세션으로 시작. frozen snapshot 의 적용 범위는 **한 turn** 으로 한정된다 — park→재개 시 [Spec 실행 엔진 §6.1 rawConfig snapshot 정책](./4-execution-engine.md#61-컨텍스트-구조) 의 D3(fresh-config-per-turn)에 따라 `node.config` 를 fresh 재유도하므로, park 중 워크플로를 편집하면 다음 turn 부터 새 정의가 적용된다 (Re-run 의 "현재 시점 정의" 정책과 같은 방향).
 
 노드 단위 재시도 (`execution.retry_last_turn`, [Spec WebSocket §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) + [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)) 도 본 Re-run 모드와 직교한다. retry 는 동일 Execution 안에서 같은 노드의 마지막 LLM 호출만 새 NodeExecution row 로 재진입하며, 성공 시 그 노드의 downstream 은 일반 노드 `COMPLETED` 와 동일하게 진행된다. Re-run 은 새 Execution row 와 chain 깊이 증가를 만드는 반면 retry 는 동일 chain·동일 Execution 안의 in-place 재시도라는 점이 다르다 — retry 는 새 Execution row 를 생성하지 않으므로 §9 의 `re_run_of` / `chain_id` 에 관여하지 않으며, chain badge (§10.3) 도 부여되지 않는다.
 
