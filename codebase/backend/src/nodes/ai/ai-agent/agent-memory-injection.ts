@@ -12,7 +12,6 @@
  * (하위호환 0 리스크, 핵심 불변식).
  */
 
-import { estimateTokens } from '../../../modules/knowledge-base/chunking/text-chunker';
 import type { ConversationTurn } from '../../../shared/conversation-thread/conversation-thread.types';
 import { renderThreadAsSystemText } from '../../../shared/conversation-thread/thread-renderer';
 import { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
@@ -21,12 +20,86 @@ import type { LlmService } from '../../../modules/llm/llm.service';
 import type { RecalledMemory } from '../../../modules/agent-memory/agent-memory.service';
 
 /**
- * 텍스트 → 토큰 추정. KB 청킹의 `estimateTokens` (char/3 휴리스틱) 를 단일
- * 소스로 재사용한다 — provider tokenizer-exact 방식은 v3 로드맵 (spec §12.10).
+ * Script 별 평균 chars-per-token 가중치 (A4 lite — 무의존 language-aware 휴리스틱).
+ *
+ * 균일 `char/3` 는 영문(BPE 가 단어/서브워드를 묶어 ~4 chars/token)을 과대평가하고,
+ * CJK(한·중·일 — 토큰당 평균 1~2 chars)를 과소평가한다. 혼합 스크립트(한국어+영어)
+ * 메모리 예산에서 이 편향이 누적되므로, 코드포인트를 스크립트군별로 분류해 각기 다른
+ * 비율로 합산한다. 여전히 **근사**이며 provider tokenizer-exact (모델별 정확 카운트)
+ * 가 아니다 — 그것은 v3 로드맵 잔존 (spec §12.10, conversation-thread §7).
+ *
+ * 비율 근거:
+ *  - Latin/ASCII ~4: 영문 BPE 의 경험적 평균 (OpenAI/Anthropic 공개 가이드 ~4 chars/token).
+ *  - CJK ~1.7: 한·중·일 표의/음절 문자는 토큰당 1~2 자 (BPE 가 1~2 코드포인트로 분절).
+ *  - 그 외 ~3: 기존 char/3 와 동일 — 분류 불확실한 스크립트는 보수적으로 유지.
+ */
+const CHARS_PER_TOKEN_LATIN = 4;
+const CHARS_PER_TOKEN_CJK = 1.7;
+const CHARS_PER_TOKEN_OTHER = 3;
+
+/**
+ * 코드포인트가 CJK(한·중·일 — 한글 음절/자모, 한자 통합·확장, 가나, CJK 기호) 인지.
+ * 메모리 예산 추정에서 토큰당 char 가 적은 스크립트군을 식별하는 용도다.
+ */
+function isCjkCodePoint(cp: number): boolean {
+  return (
+    (cp >= 0xac00 && cp <= 0xd7a3) || // Hangul Syllables
+    (cp >= 0x1100 && cp <= 0x11ff) || // Hangul Jamo
+    (cp >= 0x3130 && cp <= 0x318f) || // Hangul Compatibility Jamo
+    (cp >= 0x4e00 && cp <= 0x9fff) || // CJK Unified Ideographs
+    (cp >= 0x3400 && cp <= 0x4dbf) || // CJK Extension A
+    (cp >= 0x3040 && cp <= 0x30ff) || // Hiragana + Katakana
+    (cp >= 0x3000 && cp <= 0x303f) || // CJK Symbols & Punctuation
+    (cp >= 0xff00 && cp <= 0xffef) // Halfwidth/Fullwidth Forms
+  );
+}
+
+/** 코드포인트가 Latin/ASCII (영문·서유럽 라틴 확장) 인지. */
+function isLatinCodePoint(cp: number): boolean {
+  return (
+    (cp >= 0x0000 && cp <= 0x024f) || // Basic Latin + Latin-1 + Latin Ext A/B
+    (cp >= 0x1e00 && cp <= 0x1eff) // Latin Extended Additional
+  );
+}
+
+/**
+ * Language-aware 토큰 추정 (A4 lite). 텍스트의 각 코드포인트를 스크립트군으로 분류해
+ * 그 군의 chars-per-token 가중치 역수를 누적 합산한 뒤 `ceil` 한다 (정수 토큰).
+ *
+ * 균일 `char/3` 대비: 영문은 토큰을 줄이고(÷4), CJK 는 토큰을 늘린다(÷1.7). 혼합
+ * 텍스트는 각 부분을 해당 비율로 반영하므로 단일 비율보다 편향이 작다. 빈/비정상
+ * 입력은 0 또는 char/3 수준으로 graceful — 새 의존성 0, 동기·순수 (hot-path 적합).
+ */
+export function estimateTokensLanguageAware(text: string): number {
+  if (!text || typeof text !== 'string') return 0;
+  let tokenAcc = 0;
+  // for…of 는 코드포인트 단위 iterate (서로게이트 페어 안전).
+  for (const ch of text) {
+    const cp = ch.codePointAt(0);
+    if (cp === undefined) continue;
+    if (isCjkCodePoint(cp)) {
+      tokenAcc += 1 / CHARS_PER_TOKEN_CJK;
+    } else if (isLatinCodePoint(cp)) {
+      tokenAcc += 1 / CHARS_PER_TOKEN_LATIN;
+    } else {
+      tokenAcc += 1 / CHARS_PER_TOKEN_OTHER;
+    }
+  }
+  return Math.ceil(tokenAcc);
+}
+
+/**
+ * 텍스트 → 토큰 추정 (memory 예산 경로 전용). 균일 char/3 대신 **language-aware
+ * 휴리스틱** ({@link estimateTokensLanguageAware}) 으로 혼합 스크립트(한국어+영어)
+ * 정확도를 개선한다 (A4 lite, 무의존). 여전히 근사이며 provider tokenizer-exact 는
+ * v3 로드맵 (spec §12.10).
+ *
+ * **주의**: KB 청킹의 `text-chunker.estimateTokens` (char/3) 는 이와 별개 — 청킹
+ * 경로는 무변경이다 (회귀 0).
  */
 export function estimateTextTokens(text: string): number {
   if (!text) return 0;
-  return estimateTokens(text);
+  return estimateTokensLanguageAware(text);
 }
 
 /**
