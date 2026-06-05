@@ -94,6 +94,18 @@ describe('AgentMemoryController (spec §6, AGM-12/13)', () => {
       });
       expect(result.pagination.page).toBe(3);
     });
+
+    it('서비스 total=0(over-page) 면 빈 페이지로 정합 (page 는 offset 파생)', async () => {
+      service.listScopes.mockResolvedValue({ items: [], total: 0 });
+      const result = await controller.listScopes('ws-1', {
+        limit: 30,
+        offset: 90,
+      });
+      expect(result.data).toEqual([]);
+      expect(result.pagination.page).toBe(4);
+      expect(result.pagination.totalItems).toBe(0);
+      expect(result.pagination.totalPages).toBe(0);
+    });
   });
 
   describe('listMemories (GET /agent-memories)', () => {

@@ -526,34 +526,46 @@ export class AgentMemoryService {
     const q = opts.q?.trim();
 
     // q 있으면 ILIKE 부분일치 — '%'||$q||'%' 를 파라미터 바인딩으로 (C1: 리터럴
-    // 보간 금지, % 는 SQL 측에서 연결). scope 목록·총 개수 둘 다 같은 WHERE.
+    // 보간 금지, % 는 SQL 측에서 연결).
     const filterSql = q ? `AND am.scope_key ILIKE '%' || $2 || '%'` : '';
+    const limitParam = q ? '$3' : '$2';
+    const offsetParam = q ? '$4' : '$3';
 
+    // 단일 쿼리 통합 (perf): GROUP BY 집계 패스를 1회만 돈다. CTE `grouped` 가
+    // (scope_key, count, latest_updated_at) 를 한 번 집계하고, 바깥 SELECT 가
+    // `COUNT(*) OVER()` 로 **LIMIT/OFFSET 적용 전 전체 그룹 수**(=distinct scope
+    // 총 개수)를 각 행에 부착한 뒤 페이지네이션한다. 윈도우는 LIMIT 전에 평가되어
+    // total 이 기존 별도 COUNT 서브쿼리와 동일하다. workspace_id 격리·q ILIKE·
+    // embedding 제외 모두 유지. (NOTE: OFFSET 이 전체 그룹 수를 넘어 0행이 반환되면
+    // total 행이 없어지나, 그 페이지엔 표시할 아이템도 없고 호출부 page 파생도
+    // 영향받지 않는다 — total 0 으로 처리.)
     const rows = await this.dataSource.query<
-      { scope_key: string; count: string; latest_updated_at: Date }[]
+      {
+        scope_key: string;
+        count: string;
+        latest_updated_at: Date;
+        total: string;
+      }[]
     >(
-      `SELECT
-         am.scope_key AS scope_key,
-         COUNT(*) AS count,
-         MAX(am.updated_at) AS latest_updated_at
-       FROM agent_memory am
-       WHERE am.workspace_id = $1
-       ${filterSql}
-       GROUP BY am.scope_key
-       ORDER BY latest_updated_at DESC
-       LIMIT ${q ? '$3' : '$2'} OFFSET ${q ? '$4' : '$3'}`,
-      q ? [workspaceId, q, limit, offset] : [workspaceId, limit, offset],
-    );
-
-    const countRows = await this.dataSource.query<{ total: string }[]>(
-      `SELECT COUNT(*) AS total FROM (
-         SELECT am.scope_key
+      `WITH grouped AS (
+         SELECT
+           am.scope_key AS scope_key,
+           COUNT(*) AS count,
+           MAX(am.updated_at) AS latest_updated_at
          FROM agent_memory am
          WHERE am.workspace_id = $1
          ${filterSql}
          GROUP BY am.scope_key
-       ) sub`,
-      q ? [workspaceId, q] : [workspaceId],
+       )
+       SELECT
+         grouped.scope_key AS scope_key,
+         grouped.count AS count,
+         grouped.latest_updated_at AS latest_updated_at,
+         COUNT(*) OVER() AS total
+       FROM grouped
+       ORDER BY grouped.latest_updated_at DESC
+       LIMIT ${limitParam} OFFSET ${offsetParam}`,
+      q ? [workspaceId, q, limit, offset] : [workspaceId, limit, offset],
     );
 
     return {
@@ -562,7 +574,9 @@ export class AgentMemoryService {
         count: Number(r.count),
         latestUpdatedAt: new Date(r.latest_updated_at).toISOString(),
       })),
-      total: Number(countRows[0]?.total ?? 0),
+      // COUNT(*) OVER() 는 반환된 모든 행에 동일 total 을 싣는다 — 첫 행에서 읽는다.
+      // 0행(빈 결과/offset 초과)이면 total 0.
+      total: Number(rows[0]?.total ?? 0),
     };
   }
 
