@@ -8,11 +8,12 @@
  * / `excludeFromConversationThread` 5 필드를 갖는다. 본 헬퍼가 라벨·hint·options·
  * default 의 단일 진실이다.
  *
- * `memoryStrategy` 필드를 갖는 AI Agent 는 일부 필드를 `memoryStrategy === 'manual'`
- * 일 때만 노출하므로 (자동 메모리 전략이 contextScope 계열을 대체, spec §1) 그
- * `visibleWhen` 가드를 opt-in 으로 받는다 (`gateOnManualMemoryStrategy: true`).
- * text_classifier / information_extractor 는 `memoryStrategy` 필드가 없으므로
- * 가드 없이(default) 항상 노출한다.
+ * `memoryStrategy` 필드를 갖는 노드(AI Agent, Information Extractor)는 일부 필드를
+ * `memoryStrategy === 'manual'` 일 때만 노출하므로 (자동 메모리 전략이 contextScope
+ * 계열을 대체, spec §1) 그 `visibleWhen` 가드를 opt-in 으로 받는다
+ * (`gateOnManualMemoryStrategy: true`). information_extractor 는 memoryStrategy
+ * (manual|persistent) 를 가지므로 `gateOnManualMemoryStrategy: true` 로 호출한다.
+ * text_classifier 는 `memoryStrategy` 필드가 없으므로 가드 없이(default) 항상 노출한다.
  *
  * AI Agent 의 기존 필드 정의(라벨·order·visibleWhen)를 100% 보존하기 위해
  * AI Agent 는 `orderStart: 37, gateOnManualMemoryStrategy: true` 로 호출한다.
@@ -28,10 +29,10 @@ const GROUP = 'Conversation Context';
 export interface BuildConversationContextSchemaFieldsOptions {
   /**
    * `true` 면 `contextScope` / `contextInjectionMode` / `includeToolTurns` 에
-   * `visibleWhen: { field: 'memoryStrategy', equals: 'manual' }` 를 단다 — AI Agent
-   * 전용 (자동 메모리 전략이 이 필드들을 대체하므로 숨김). default `false`
-   * (text_classifier / information_extractor 는 memoryStrategy 필드가 없어 가드
-   * 없이 항상 노출).
+   * `visibleWhen: { field: 'memoryStrategy', equals: 'manual' }` 를 단다 —
+   * memoryStrategy 필드를 갖는 노드(AI Agent / Information Extractor) 전용 (자동
+   * 메모리 전략이 이 필드들을 대체하므로 숨김). default `false`
+   * (text_classifier 는 memoryStrategy 필드가 없어 가드 없이 항상 노출).
    */
   gateOnManualMemoryStrategy?: boolean;
 }

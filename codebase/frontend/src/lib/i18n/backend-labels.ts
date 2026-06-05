@@ -223,6 +223,9 @@ const HINT_KO: Record<string, string> = {
     "동시에 실행할 분기의 최대 개수 (0 = branchCount와 동일, 제한 없음). 값이 branchCount보다 작으면 나머지는 슬롯이 빌 때까지 대기합니다.",
   "manual = manage context with the fields below. summary_buffer = rolling token-budget summary. persistent = summary buffer + cross-session recall.":
     "manual = 아래 대화 컨텍스트 필드로 맥락을 직접 관리해요. summary_buffer = 토큰 예산을 넘는 오래된 턴을 자동 요약하는 롤링 방식이에요. persistent = 요약 버퍼에 더해 세션을 넘어 사용자 정보를 기억해요.",
+  // information_extractor memoryStrategy (summary_buffer 미지원 — manual|persistent 만).
+  "manual = manage context with the fields below. persistent = cross-session recall + extraction.":
+    "manual = 아래 대화 컨텍스트 필드로 맥락을 직접 관리해요. persistent = 세션을 넘어 사용자 정보를 회수하고 추출해요.",
   "Working-memory token budget. Older turns are rolled into a summary once exceeded.":
     "워킹 메모리 토큰 예산이에요. 예산을 넘으면 오래된 턴이 요약으로 말려 들어가요.",
   "Persistent memory scope key. Same key recalls the same memory across runs. Empty = isolated per execution.":
@@ -347,6 +350,8 @@ const OPTION_LABEL_KO: Record<string, string> = {
   Minimal: "최소",
   "Persistent — summary buffer + cross-session memory":
     "Persistent — 요약 버퍼 + 세션 간 메모리",
+  "Persistent — cross-session memory recall + extraction":
+    "Persistent — 세션 간 메모리 회수 + 추출",
   "Summary Buffer — rolling token-budget summary":
     "Summary Buffer — 토큰 예산 기반 롤링 요약",
   "Multi Turn (Conversation)": "멀티턴 (대화)",

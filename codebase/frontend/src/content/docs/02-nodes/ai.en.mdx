@@ -244,12 +244,29 @@ In Multi Turn mode, user responses are **awaited indefinitely**. No timeout fire
   {name: "instructions", required: false, type: "string", description: "Extra extraction instructions.", default: "-"},
   {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "Extraction mode.", default: "single_turn"},
   {name: "maxTurns", required: false, type: "integer", description: "Max conversation turns in `multi_turn`. `0` means unlimited.", default: "10"},
-  {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread auto-injection scope. `none` sends only the input; `thread` injects the whole thread; `lastN` injects the most recent N turns. In `multi_turn` it is injected once on first entry. Same interface as AI Agent.", default: "none"},
+  {name: "memoryStrategy", required: false, type: "`manual` / `persistent`", description: "Memory management strategy. `manual` uses the Conversation Context fields above as-is; `persistent` recalls cross-session memory before the extraction LLM call and accumulates the extraction result back into memory. Unlike AI Agent there is no `summary_buffer` (working-memory compaction is meaningless for an extraction node).", default: "manual"},
+  {name: "memoryKey", required: false, type: "expression", description: "Persistent memory scope key. The same key recalls the same memory across runs; empty isolates per execution. Visible when `persistent`.", default: "-"},
+  {name: "memoryTopK", required: false, type: "integer", description: "Number of memory chunks recalled before extraction (independent of RAG Top-K). Visible when `persistent`.", default: "5"},
+  {name: "memoryThreshold", required: false, type: "float", description: "Minimum similarity (0-1) for memory recall (independent of RAG Threshold). Visible when `persistent`.", default: "0.7"},
+  {name: "memoryTtlDays", required: false, type: "integer", description: "Persistent memories expire after this many days. Empty = never expire. Visible when `persistent`.", default: "-"},
+  {name: "embeddingModel", required: false, type: "string", description: "Embedding model for memory recall/extraction. Must match the dimensions used when memories were first stored. Empty = workspace default. Visible when `persistent`.", default: "-"},
+  {name: "extractionModel", required: false, type: "expression", description: "Optional dedicated model for the cross-session memory extraction LLM call. Empty reuses the node Model. A low-cost model can reduce cost. Visible when `persistent`.", default: "-"},
+  {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread auto-injection scope. `none` sends only the input; `thread` injects the whole thread; `lastN` injects the most recent N turns. In `multi_turn` it is injected once on first entry. Applies only when `memoryStrategy` is `manual`. Same interface as AI Agent.", default: "none"},
   {name: "contextScopeN", required: false, type: "integer", description: "Number of most recent turns to inject when `contextScope=lastN`.", default: "20"},
   {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "How the thread is injected. `messages` prepends per-turn role messages to the LLM messages array; `system_text` renders the thread as a single text block appended to the system prompt.", default: "messages"},
   {name: "includeToolTurns", required: false, type: "boolean", description: "When true, also pushes KB/MCP/condition tool-call turns into the thread. Defaults to pushing only the final assistant response.", default: "false"},
   {name: "excludeFromConversationThread", required: false, type: "boolean", description: "When checked, skips pushing this node's user/assistant turns into the workflow thread (opt-out).", default: "false"}
 ]} />
+
+### Cross-session memory (persistent)
+
+Setting `memoryStrategy` to `persistent` lets the extractor leverage **facts extracted in earlier sessions**.
+
+- **Recall** — Just before the extraction LLM call, facts stored under the same memory key are recalled via semantic search and prepended to the system prompt. This happens once for Single Turn and on the first entry of Multi Turn.
+- **Extraction** — After the extraction result is finalized (right after the turn is pushed to the thread), it is accumulated into memory asynchronously, without blocking the response path (hot-path non-blocking). Multi Turn pushes and extracts once when the conversation terminates.
+- Memory is scoped by `memoryKey`; empty isolates per execution. It uses the **same scope-key rules** as AI Agent memory, so with the same key an AI Agent and an extractor can share each other's memory.
+- Unlike AI Agent, `summary_buffer` is not offered — working-memory token compaction is meaningless for a single extraction task.
+- Choosing `persistent` hides the Conversation Context (`contextScope`) fields in the config UI and reveals the memory key/threshold fields instead.
 
 ### Ports
 
