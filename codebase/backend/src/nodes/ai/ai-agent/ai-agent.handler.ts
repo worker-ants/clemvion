@@ -939,6 +939,11 @@ export class AiAgentHandler implements NodeHandler {
     const priorSummary = thread?.runningSummary;
     const priorUpToSeq = thread?.summarizedUpToSeq;
 
+    // 요약 모델 폴백: summaryModel → model (→ buildSummaryBufferUpdate 내부에서
+    // llmConfig 기본은 chat 호출시 적용). args.model 자체가 이미
+    // `model || llmConfig.defaultModel` 로 호출부에서 합성된다. 추출 경로의
+    // `resolvedExtractionModel` 과 일관되게 named 변수로 분리 (W3).
+    const resolvedSummaryModel = args.summaryModel || args.model;
     const update = await buildSummaryBufferUpdate({
       turns,
       runningSummary: priorSummary,
@@ -946,10 +951,7 @@ export class AiAgentHandler implements NodeHandler {
       tokenBudget,
       systemPromptText: args.finalSystemPrompt,
       llmConfig: args.llmConfig,
-      // 요약 모델 폴백: summaryModel → model (→ buildSummaryBufferUpdate 내부에서
-      // llmConfig 기본은 chat 호출시 적용). args.model 자체가 이미
-      // `model || llmConfig.defaultModel` 로 호출부에서 합성된다.
-      model: args.summaryModel || args.model,
+      model: resolvedSummaryModel,
       llmService: this.llmService,
     });
 
@@ -2176,6 +2178,12 @@ export class AiAgentHandler implements NodeHandler {
       memoryThreshold: config.memoryThreshold,
       // persistent TTL (일) — saveMemories expires_at 산정용 (AGM-10). 매 turn 재적용.
       memoryTtlDays: config.memoryTtlDays,
+      // 요약/추출 전용 저비용 모델 (A3, AI Agent §12.12) — resume state 에
+      // 영속해야 멀티턴 turn2+ 에서도 전용 모델이 적용된다. 미저장 시
+      // state.summaryModel / state.extractionModel 이 undefined 가 되어 노드
+      // model 로 silent 폴백한다 (C1 회귀). 매 turn 재적용.
+      summaryModel: config.summaryModel as string | undefined,
+      extractionModel: config.extractionModel as string | undefined,
       contextInjectionMode: config.contextInjectionMode,
       workspaceId,
       executionId: context.executionId,

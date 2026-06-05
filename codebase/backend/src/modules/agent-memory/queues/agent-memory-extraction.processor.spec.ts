@@ -18,6 +18,10 @@ function makeJob(
       scopeKey: data.scopeKey ?? 'cust-7',
       llmConfigId: 'llmConfigId' in data ? data.llmConfigId : 'cfg-1',
       model: data.model ?? 'gpt-4o',
+      // 추출 전용 모델 — 미지정이면 생략 (processor 가 model → 기본 폴백).
+      ...('extractionModel' in data
+        ? { extractionModel: data.extractionModel }
+        : {}),
       turns,
     },
   } as Job<AgentMemoryExtractionJob>;
@@ -170,10 +174,7 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
   });
   describe('추출 모델 폴백 체인 (extractionModel → model → llmConfig 기본, A3)', () => {
     it('extractionModel set 시 추출 LLM 콜이 그 모델을 쓴다', async () => {
-      const job = makeJob({});
-      (job.data as { extractionModel?: string }).extractionModel =
-        'cheap-extract';
-      await processor.process(job);
+      await processor.process(makeJob({ extractionModel: 'cheap-extract' }));
       expect(llmService.chat.mock.calls[0][1].model).toBe('cheap-extract');
     });
 

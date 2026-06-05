@@ -1254,6 +1254,113 @@ describe('AiAgentHandler — auto-memory strategy', () => {
     });
   });
   describe('요약/추출 전용 모델 (summaryModel / extractionModel — A3)', () => {
+    // C1 회귀 핀: multiTurnStateBase 에 summaryModel/extractionModel 미저장 시
+    // resume turn(turn2+)에서 state.summaryModel / state.extractionModel 이
+    // undefined 가 되어 노드 model 로 silent 폴백한다. 이 테스트는 turn2 의 요약
+    // LLM 콜이 summaryModel 을, 추출 enqueue payload 가 extractionModel 을 실제로
+    // 쓰는지 단언한다 (미수정 시 'cheap-mini'/'cheap-extract' 대신 'gpt-4o' 가
+    // 잡혀 실패).
+    it('multi-turn resume(turn2): 요약 콜=summaryModel, 추출 enqueue=extractionModel (state 영속)', async () => {
+      const context = makeContext();
+      const big = 'w'.repeat(600);
+      // 첫 turn 부터 예산 초과를 만들어 요약 콜이 매 turn 발화하도록 seed.
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-1',
+          summaryModel: 'cheap-mini',
+          extractionModel: 'cheap-extract',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 50,
+          memoryStrategy: 'persistent',
+          memoryKey: 'cust-7',
+          memoryTokenBudget: 200,
+        },
+        context,
+      );
+      let state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      // 전용 모델이 resume state 로 영속되었는지 직접 확인 (C1 핵심).
+      expect(state.summaryModel).toBe('cheap-mini');
+      expect(state.extractionModel).toBe('cheap-extract');
+
+      function queueAnswer(answer: string): void {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: answer,
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      }
+      function queueSummary(): void {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: 'ROLLING SUMMARY',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'cheap-mini',
+          finishReason: 'stop',
+        });
+      }
+
+      // Turn 1: seeded turns 예산 초과 → 요약 콜 + 메인 콜.
+      queueSummary();
+      queueAnswer('answer-1');
+      const r1 = await handler.processMultiTurnMessage('질문1', state);
+      state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
+
+      // Turn 2: 큰 seeded turn 추가 → 재요약 트리거.
+      for (let i = 0; i < 4; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev2', label: 'Prev2', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      agentMemoryService.scheduleExtraction.mockClear();
+      const callsBeforeTurn2 = mockLlmService.chat.mock.calls.length;
+      queueSummary();
+      queueAnswer('answer-2');
+      const r2 = await handler.processMultiTurnMessage('질문2', state);
+
+      const meta2 = (r2 as { meta?: Record<string, unknown> }).meta ?? {};
+      // 이 turn 에 요약이 실제로 발생했음을 보장 (요약 콜 단언의 전제).
+      expect(meta2.memory).toMatchObject({
+        strategy: 'persistent',
+        summarized: true,
+      });
+
+      // turn2 의 chat 콜들 중 첫 콜 = 요약 콜. summaryModel 을 써야 한다.
+      const summaryCall = mockLlmService.chat.mock.calls[
+        callsBeforeTurn2
+      ][1] as {
+        model: string;
+      };
+      expect(summaryCall.model).toBe('cheap-mini');
+      // 메인 콜(요약 직후)은 노드 model.
+      const mainCall = mockLlmService.chat.mock.calls[
+        callsBeforeTurn2 + 1
+      ][1] as { model: string };
+      expect(mainCall.model).toBe('gpt-4o');
+
+      // turn2 의 추출 enqueue payload 는 extractionModel 을 그대로 전달.
+      expect(agentMemoryService.scheduleExtraction).toHaveBeenCalled();
+      expect(
+        agentMemoryService.scheduleExtraction.mock.calls.at(-1)?.[0],
+      ).toMatchObject({
+        extractionModel: 'cheap-extract',
+        model: 'gpt-4o',
+      });
+    });
+
     it('summaryModel set 시 요약 LLM 콜이 그 모델을 쓴다 (main 콜은 노드 model)', async () => {
       const context = makeContext();
       // 예산 초과를 만들기 위해 큰 turn 들을 seed.
@@ -1340,6 +1447,52 @@ describe('AiAgentHandler — auto-memory strategy', () => {
           memoryStrategy: 'summary_buffer',
           memoryTokenBudget: 300,
           // summaryModel intentionally absent.
+        },
+        context,
+      );
+      const summaryCall = mockLlmService.chat.mock.calls[0][1] as {
+        model: string;
+      };
+      expect(summaryCall.model).toBe('gpt-4o');
+    });
+
+    it('summaryModel·model 모두 미설정 시 요약 LLM 콜은 llmConfig 기본 모델로 폴백 (fallback 3단째)', async () => {
+      // fallback 체인 3단째: summaryModel → model → llmConfig 기본.
+      // model 도 생략하면 호출부 `model || llmConfig.defaultModel` 로 합성되어
+      // 요약 콜이 llmConfig.defaultModel('gpt-4o')을 써야 한다.
+      const context = makeContext();
+      const big = 'w'.repeat(500);
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: 'ROLLING SUMMARY',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        })
+        .mockResolvedValueOnce({
+          content: 'AI response',
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      const handler = buildHandler();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          // model + summaryModel 모두 생략 → llmConfig.defaultModel('gpt-4o') 폴백.
+          systemPrompt: 'Sys',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          memoryStrategy: 'summary_buffer',
+          memoryTokenBudget: 300,
         },
         context,
       );
