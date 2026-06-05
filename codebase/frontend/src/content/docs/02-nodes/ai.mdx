@@ -198,7 +198,9 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
   {name: "categories", required: true, type: "CategoryDef[]", description: "분류 카테고리 목록이에요. 각 항목은 `name`, `description`, `examples`를 포함해요.", default: "[]"},
   {name: "instructions", required: false, type: "string", description: "추가 분류 지시사항이에요.", default: "-"},
   {name: "includeConfidence", required: false, type: "boolean", description: "신뢰도 점수를 출력에 포함해요.", default: "false"},
-  {name: "multiLabel", required: false, type: "boolean", description: "true면 여러 카테고리를 동시에 선택할 수 있어요.", default: "false"}
+  {name: "multiLabel", required: false, type: "boolean", description: "true면 여러 카테고리를 동시에 선택할 수 있어요.", default: "false"},
+  {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread 자동 주입 범위예요. `none`은 입력 텍스트만, `thread`는 thread 전체를, `lastN`은 최근 N turn 만 LLM에 함께 보내요. AI Agent와 동일한 인터페이스예요.", default: "none"},
+  {name: "contextScopeN", required: false, type: "integer", description: "`contextScope=lastN`일 때 주입할 최근 turn 수예요.", default: "20"}
 ]} />
 
 ### 포트
@@ -249,7 +251,9 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
   {name: "examples", required: false, type: "ExampleDef[]", description: "Few-shot 예시(입력 텍스트와 기대 출력)예요.", default: "[]"},
   {name: "instructions", required: false, type: "string", description: "추가 추출 지시사항이에요.", default: "-"},
   {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "추출 모드예요.", default: "single_turn"},
-  {name: "maxTurns", required: false, type: "integer", description: "`multi_turn`에서 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "10"}
+  {name: "maxTurns", required: false, type: "integer", description: "`multi_turn`에서 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "10"},
+  {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread 자동 주입 범위예요. `none`은 입력만, `thread`는 thread 전체를, `lastN`은 최근 N turn 만 LLM에 함께 보내요. `multi_turn`은 첫 진입 때 1회 주입돼요. AI Agent와 동일한 인터페이스예요.", default: "none"},
+  {name: "contextScopeN", required: false, type: "integer", description: "`contextScope=lastN`일 때 주입할 최근 turn 수예요.", default: "20"}
 ]} />
 
 ### 포트
