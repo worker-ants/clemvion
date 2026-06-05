@@ -518,6 +518,28 @@ describe('ExecutionEngineService', () => {
     expect(service).toBeDefined();
   });
 
+  // W1 (SUMMARY) — `CheckpointSubject` 타입을 describe 바깥 상위 스코프로 승격해
+  // checkpoint 관련 테스트 블록에서 재사용 가능하게 한다.
+  type CheckpointSubject = {
+    buildResumeCheckpoint: (
+      s: Record<string, unknown> | undefined,
+    ) => Record<string, unknown> | undefined;
+    buildRetryReentryState: (
+      execution: unknown,
+      node: unknown,
+      context: unknown,
+      retryState: Record<string, unknown>,
+      opts?: { resumeMode?: boolean },
+    ) => { resumeState: Record<string, unknown>; initialAction: unknown };
+    contextService: {
+      createContext: (
+        id: string,
+        wf: string,
+        opts?: { initialVariables?: Record<string, unknown> },
+      ) => unknown;
+    };
+  };
+
   // W2 (SUMMARY) — `pendingContinuations` Map 타입 단언 공유 헬퍼.
   // 여러 describe 블록에서 재사용하도록 최상위 describe 스코프로 승격.
   const getPendings = (
@@ -8907,25 +8929,7 @@ describe('ExecutionEngineService', () => {
   // 버전을 stamp 하고, 재구성 시 버전 메타를 strip + 핵심 필드 누락을 기본값으로
   // 보강한다. buildResumeCheckpoint / buildRetryReentryState 를 직접 호출해 격리 검증.
   describe('_resumeCheckpoint schemaVersion + 견고화 (PR-A2a)', () => {
-    type CheckpointSubject = {
-      buildResumeCheckpoint: (
-        s: Record<string, unknown> | undefined,
-      ) => Record<string, unknown> | undefined;
-      buildRetryReentryState: (
-        execution: unknown,
-        node: unknown,
-        context: unknown,
-        retryState: Record<string, unknown>,
-        opts?: { resumeMode?: boolean },
-      ) => { resumeState: Record<string, unknown>; initialAction: unknown };
-      contextService: {
-        createContext: (
-          id: string,
-          wf: string,
-          opts?: { initialVariables?: Record<string, unknown> },
-        ) => unknown;
-      };
-    };
+    // W1 (SUMMARY) — CheckpointSubject 는 최상위 describe 스코프에서 선언됨.
     const cpSubject = () => service as unknown as CheckpointSubject;
 
     it('buildResumeCheckpoint stamps the current schemaVersion', () => {
@@ -8986,6 +8990,38 @@ describe('ExecutionEngineService', () => {
       expect(resumeState.totalOutputTokens).toBe(0);
       expect(resumeState.totalThinkingTokens).toBe(0);
       expect(resumeState.toolCalls).toBe(0);
+    });
+
+    // INFO #11 (SUMMARY) — buildResumeCheckpoint(null) 도 toBeUndefined 단언.
+    it('buildResumeCheckpoint returns undefined for null input', () => {
+      expect(
+        cpSubject().buildResumeCheckpoint(null as unknown as undefined),
+      ).toBeUndefined();
+    });
+
+    // INFO #10 (SUMMARY) — 경계값: schemaVersion === 1 (현재 버전과 동일) 은
+    // RESUME_INCOMPATIBLE_STATE 를 발생시키지 않아야 한다.
+    it('buildRetryReentryState with schemaVersion:1 (current version) succeeds without throwing', () => {
+      const ctx = cpSubject().contextService.createContext(
+        'exec-a2a-v1',
+        'wf-1',
+        { initialVariables: { __workspaceId: 'ws-1' } },
+      );
+      // schemaVersion: 1 은 현재 지원 버전 — 재구성 가능.
+      expect(() =>
+        cpSubject().buildRetryReentryState(
+          { id: 'exec-a2a-v1', startedAt: new Date() },
+          { id: 'node-1', type: 'ai_agent', config: { mode: 'multi_turn' } },
+          ctx,
+          {
+            schemaVersion: 1,
+            messages: [{ role: 'user', content: 'hello' }],
+            turnCount: 1,
+            model: 'm',
+          },
+          { resumeMode: true },
+        ),
+      ).not.toThrow();
     });
   });
 
@@ -9380,38 +9416,44 @@ describe('ExecutionEngineService', () => {
       });
       mockExecutionNodeLogRepo.find.mockResolvedValue([]);
 
+      // W2 (SUMMARY) — jest.spyOn 으로 교체해 복원 누락 side-effect 방지.
       const svcAny = service as unknown as {
-        waitForAiConversation: jest.Mock;
+        waitForAiConversation: (...args: unknown[]) => Promise<void>;
       };
-      const origWait = svcAny.waitForAiConversation;
-      svcAny.waitForAiConversation = jest.fn().mockResolvedValue(undefined);
+      const waitSpy = jest
+        .spyOn(svcAny, 'waitForAiConversation')
+        .mockResolvedValue(undefined);
 
-      try {
-        await subject().rehydrateAndResume(executionId, 'ne-1', {
-          type: 'ai_message',
-          message: 'hi',
-        });
+      await subject().rehydrateAndResume(executionId, 'ne-1', {
+        type: 'ai_message',
+        message: 'hi',
+      });
 
-        // 버전 가드가 graph rebuild 이전에 throw → 재진입(waitForAiConversation) 미발생.
-        expect(svcAny.waitForAiConversation).not.toHaveBeenCalled();
+      // 버전 가드가 graph rebuild 이전에 throw → 재진입(waitForAiConversation) 미발생.
+      expect(waitSpy).not.toHaveBeenCalled();
 
-        // RESUME_INCOMPATIBLE_STATE 로 cancel 마킹.
-        const cancelSetCalls =
-          mockExecutionRepo.createQueryBuilder.mock.results.flatMap(
-            (r) =>
-              (
-                r.value as {
-                  set?: { mock?: { calls: Array<Array<{ error?: unknown }>> } };
-                }
-              ).set?.mock?.calls ?? [],
-          );
-        const codes = cancelSetCalls
-          .map((c) => (c[0]?.error as { code?: string } | undefined)?.code)
-          .filter(Boolean);
-        expect(codes).toContain('RESUME_INCOMPATIBLE_STATE');
-      } finally {
-        svcAny.waitForAiConversation = origWait;
-      }
+      // RESUME_INCOMPATIBLE_STATE 로 cancel 마킹.
+      const cancelSetCalls =
+        mockExecutionRepo.createQueryBuilder.mock.results.flatMap(
+          (r) =>
+            (
+              r.value as {
+                set?: { mock?: { calls: Array<Array<{ error?: unknown }>> } };
+              }
+            ).set?.mock?.calls ?? [],
+        );
+      const codes = cancelSetCalls
+        .map((c) => (c[0]?.error as { code?: string } | undefined)?.code)
+        .filter(Boolean);
+      // INFO #4 (SUMMARY) — false-pass 방지: codes 가 비어있으면 toContain 이
+      // 통과할 수 없으므로 사전 가드로 어설션 무결성을 보장한다.
+      expect(codes.length).toBeGreaterThan(0);
+      expect(codes).toContain('RESUME_INCOMPATIBLE_STATE');
+
+      // INFO #3 (SUMMARY) — spec §7.5 "동반 NodeExecution failed 마킹" 검증.
+      expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+
+      waitSpy.mockRestore();
     });
 
     // 회귀 가드 — continuation worker deadlock (운영 §7.4/§7.5).
