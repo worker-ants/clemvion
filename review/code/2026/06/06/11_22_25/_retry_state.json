@@ -1,0 +1,154 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/_router.md",
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_routing_decision.json",
+  "routing_status": "pending",
+  "routing_skip_reason": null,
+  "agents_forced": [
+    "dependency",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "dependency": [
+      "Dockerfile / docker-compose 변경 — base image·package install (dependency) + USER·secret·port·privileged (security): docker-compose.e2e.yml"
+    ],
+    "security": [
+      "Dockerfile / docker-compose 변경 — base image·package install (dependency) + USER·secret·port·privileged (security): docker-compose.e2e.yml",
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/clients/stub.client.ts, codebase/backend/src/modules/llm/llm.service.ts, codebase/backend/test/execution-park-resume.e2e-spec.ts"
+    ],
+    "requirement": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/clients/stub.client.ts, codebase/backend/src/modules/llm/llm.service.ts, codebase/backend/test/execution-park-resume.e2e-spec.ts"
+    ],
+    "scope": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/clients/stub.client.ts, codebase/backend/src/modules/llm/llm.service.ts, codebase/backend/test/execution-park-resume.e2e-spec.ts"
+    ],
+    "side_effect": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/clients/stub.client.ts, codebase/backend/src/modules/llm/llm.service.ts, codebase/backend/test/execution-park-resume.e2e-spec.ts"
+    ],
+    "maintainability": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/clients/stub.client.ts, codebase/backend/src/modules/llm/llm.service.ts, codebase/backend/test/execution-park-resume.e2e-spec.ts"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/clients/stub.client.ts, codebase/backend/src/modules/llm/llm.service.ts, codebase/backend/test/execution-park-resume.e2e-spec.ts"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/security.md"
+    },
+    {
+      "name": "performance",
+      "subagent_type": "performance-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/performance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/performance.md"
+    },
+    {
+      "name": "architecture",
+      "subagent_type": "architecture-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/architecture.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/architecture.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/requirement.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/scope.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/side_effect.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/maintainability.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/testing.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/documentation.md"
+    },
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/dependency.md"
+    },
+    {
+      "name": "database",
+      "subagent_type": "database-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/database.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/database.md"
+    },
+    {
+      "name": "concurrency",
+      "subagent_type": "concurrency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/concurrency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/concurrency.md"
+    },
+    {
+      "name": "api_contract",
+      "subagent_type": "api-contract-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/api_contract.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/api_contract.md"
+    },
+    {
+      "name": "user_guide_sync",
+      "subagent_type": "user-guide-sync-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/_prompts/user_guide_sync.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/exec-park-durable-resume/review/code/2026/06/06/11_22_25/user_guide_sync.md"
+    }
+  ],
+  "agents_pending": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

@@ -4078,14 +4078,22 @@ describe('ExecutionEngineService', () => {
           ],
         },
       }));
-      handlerRegistry.register('ai_agent', handler);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
 
       await service.execute(workflowId, {});
       await flushPromises();
       mockWebsocketService.emitExecutionEvent.mockClear();
 
+      // Phase B (exec-park D4) — top-level AI multi-turn 은 첫 응답 emit 후
+      // park-release 한다. 후속 turn 은 §7.5 slow-path(rehydration →
+      // processAiResumeTurn → handleAiMessageTurn) 로 처리되므로 slow-path
+      // DB lookup 을 무장한 뒤 detached drive 완료까지 실제 타이머를 흘린다.
+      armSlowPathResume('node-agent', aiNodes[0]);
       void service.continueAiConversation(executionId, 'hi');
-      await flushPromises();
+      await flushResumeDrive();
 
       const aiMessageCalls =
         mockWebsocketService.emitExecutionEvent.mock.calls.filter(
@@ -4119,15 +4127,17 @@ describe('ExecutionEngineService', () => {
     });
 
     // §4.x 회귀 가드 (AI multi-turn) — worker job 반환이 가장 중요한 케이스.
-    // AI 멀티턴의 `waitForAiConversation` 은 대화 종료까지 도는 **장수 루프**라
-    // 옛 구현에서는 worker 슬롯을 대화 수명 내내 점유했다 (가장 심각한 starvation).
-    // 본 테스트: `runExecutionFromQueue` 가 첫 turn park 시점에 resolve(슬롯 반환)
-    // 하면서도 대화는 in-process 로 계속 진행됨을 검증한다.
+    // 옛 구현에서 AI 멀티턴 `waitForAiConversation` 은 대화 종료까지 도는 장수
+    // 루프라 worker 슬롯을 대화 수명 내내 점유했다 (가장 심각한 starvation).
+    // Phase B (exec-park D4) — top-level AI 멀티턴은 첫 응답 emit 후 park-release:
+    // `runExecutionFromQueue` 가 첫 turn park 시점에 resolve(슬롯 반환)하고 in-memory
+    // resolver 를 **남기지 않는다** (bounded memory). 후속 turn 입력은 §7.5
+    // slow-path(rehydration → processAiResumeTurn)로 재개되며 worker 를 점유하지 않는다.
     //
     // 커버리지 노트 (ai-review testing Info): `information_extractor` multi-turn 의
-    // park 도 동일 공용 경로(`waitForAiConversation` → `signalParkBarrier`)를 타므로
-    // 본 ai_agent 테스트가 그 분기까지 함께 가드한다 (별도 노드-타입 테스트 불요).
-    it('§4.x — runExecutionFromQueue 는 AI 멀티턴 첫 park 시점에 resolve (장수 루프가 worker 슬롯을 점유하지 않음)', async () => {
+    // park 도 동일 공용 경로(`waitForAiConversation('release')` → PARK_RELEASED)를
+    // 타므로 본 ai_agent 테스트가 그 분기까지 함께 가드한다 (별도 노드-타입 테스트 불요).
+    it('§4.x — runExecutionFromQueue 는 AI 멀티턴 첫 park 시점에 resolve, resolver 미잔류 + 후속 turn 은 slow-path 재개', async () => {
       const handler = makeAiAgentHandler(() => ({
         config: { mode: 'multi_turn' },
         output: {
@@ -4154,18 +4164,23 @@ describe('ExecutionEngineService', () => {
           turnDebugHistory: [],
         },
       }));
-      handlerRegistry.register('ai_agent', handler);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
 
       const fromQueue = service.runExecutionFromQueue(executionId, {});
-      // 장수 대화 루프임에도 worker 진입점은 첫 park 에서 반환한다.
+      // park-release — worker 진입점은 첫 park 에서 반환한다.
       await expect(fromQueue).resolves.toBeUndefined();
 
-      // 대화는 in-process 로 여전히 진행 중 (resolver 잔류 = 다음 turn 대기).
-      expect(getPendings(service).has(executionId)).toBe(true);
+      // 새 불변식: 코루틴 해제 → in-memory resolver 잔류 없음 (bounded memory).
+      expect(getPendings(service).has(executionId)).toBe(false);
 
-      // 후속 turn 입력은 fast-path 로 처리 (loop 상태 보존 — turnCount 진행).
+      // 후속 turn 입력은 §7.5 slow-path(rehydration)로 재개 → 동일 노드의
+      // processMultiTurnMessage 가 호출된다.
+      armSlowPathResume('node-agent', aiNodes[0]);
       void service.continueAiConversation(executionId, 'hi');
-      await flushPromises();
+      await flushResumeDrive();
       expect(handler.processMultiTurnMessage).toHaveBeenCalled();
     });
 
@@ -4200,14 +4215,19 @@ describe('ExecutionEngineService', () => {
           turnDebugHistory: [],
         },
       }));
-      handlerRegistry.register('ai_agent', handler);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
 
       await service.execute(workflowId, {});
       await flushPromises();
       mockWebsocketService.emitExecutionEvent.mockClear();
 
+      // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn).
+      armSlowPathResume('node-agent', aiNodes[0]);
       void service.continueAiConversation(executionId, '주문 확인해줘');
-      await flushPromises();
+      await flushResumeDrive();
 
       const calls = mockWebsocketService.emitExecutionEvent.mock.calls;
       const userMsgCalls = calls.filter(
@@ -4292,14 +4312,19 @@ describe('ExecutionEngineService', () => {
           ],
         },
       }));
-      handlerRegistry.register('ai_agent', handler);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
 
       await service.execute(workflowId, {});
       await flushPromises();
       mockWebsocketService.emitExecutionEvent.mockClear();
 
+      // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn).
+      armSlowPathResume('node-agent', aiNodes[0]);
       void service.continueAiConversation(executionId, 'hi');
-      await flushPromises();
+      await flushResumeDrive();
 
       const aiMessageCalls =
         mockWebsocketService.emitExecutionEvent.mock.calls.filter(
@@ -4358,22 +4383,27 @@ describe('ExecutionEngineService', () => {
           llmConfigId: 'cred-leak-canary',
         },
       }));
-      handlerRegistry.register('ai_agent', handler);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
 
       await service.execute(workflowId, {});
       await flushPromises();
 
+      // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn).
+      // armSlowPathResume 가 첫 turn 의 WAITING save outputData(_resumeCheckpoint
+      // 포함)를 읽어 findOneBy mock 을 무장하므로, save mock clear 보다 먼저 호출한다.
+      armSlowPathResume('node-agent', aiNodes[0]);
+
       // 첫 turn waiting 진입 시점의 save 호출은 무시 — 후속 turn 만 검증.
       mockNodeExecutionRepo.save.mockClear();
 
-      // ai-review W4 — flushPromises 만으로는 깊은 Promise 체인이 누락될
-      // 수 있고, 미처리 rejection 도 false-negative 로 통과한다. 본
-      // entry point 자체는 동기 디스패치라 await 가 즉시 풀리지만,
-      // flushPromises 를 2회 호출해 후속 마이크로태스크 (NodeExec save 등)
-      // 가 모두 settle 될 시간을 확보한다.
+      // 후속 turn 입력 — slow-path 재개. detached drive(processAiResumeTurn →
+      // handleAiMessageTurn 의 waiting 분기 re-park persist)가 완료되도록 실제
+      // 타이머를 흘린다.
       void service.continueAiConversation(executionId, 'hi');
-      await flushPromises();
-      await flushPromises();
+      await flushResumeDrive();
 
       // 후속 turn waiting 분기에서 NodeExecution save 가 호출되어야 한다.
       // (Button/Form 대기 및 첫 turn 대기와 동일 패턴.)
@@ -4623,12 +4653,17 @@ describe('ExecutionEngineService', () => {
       await service.execute(workflowId, {});
       await flushPromises();
 
+      // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn
+      // → handleAiMessageTurn). armSlowPathResume 가 첫 turn WAITING save 의
+      // outputData(_resumeCheckpoint 포함)를 읽어 findOneBy mock 을 무장하므로,
+      // save mock clear 보다 먼저 호출한다.
+      armSlowPathResume('node-ie-w5b', ieNodes2[0]);
+
       // 첫 turn waiting 진입 후 후속 turn 처리.
       mockNodeExecutionRepo.save.mockClear();
 
       void service.continueAiConversation(executionId, 'hello');
-      await flushPromises();
-      await flushPromises();
+      await flushResumeDrive();
 
       // handleAiMessageTurn 경로에서 NodeExecution save 가 호출됨.
       expect(mockNodeExecutionRepo.save).toHaveBeenCalled();
@@ -4672,10 +4707,18 @@ describe('ExecutionEngineService', () => {
         port: 'ended',
         status: 'ended',
       }));
-      handlerRegistry.register('ai_agent', handler);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
 
       await service.execute(workflowId, {});
       await flushPromises();
+
+      // Phase B (exec-park D4) — 종료 turn(ai_end_conversation)도 §7.5
+      // slow-path(processAiResumeTurn → handleAiEndConversation + finalizeAiNode
+      // COMPLETED → 그래프 진행)로 처리된다. slow-path DB lookup 무장.
+      armSlowPathResume('node-agent', aiNodes[0]);
 
       // waiting state 진입 확인
       const waitingCalls =
@@ -4704,7 +4747,7 @@ describe('ExecutionEngineService', () => {
 
       // 사용자 종료
       void service.endAiConversation(executionId);
-      await flushPromises();
+      await flushResumeDrive();
 
       // (a) handler.endMultiTurnConversation 호출됨
       expect(handler.endMultiTurnConversation).toHaveBeenCalledTimes(1);
@@ -4771,21 +4814,28 @@ describe('ExecutionEngineService', () => {
           status: 'ended',
         }),
       );
-      handlerRegistry.register('ai_agent', handler);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
 
       await service.execute(workflowId, {});
       await flushPromises();
+
+      // Phase B (exec-park D4) — error turn 도 §7.5 slow-path(processAiResumeTurn
+      // → handleAiMessageTurn throw → finalizeAiNode FAILED). armSlowPathResume 가
+      // 첫 turn WAITING save 의 outputData 를 읽으므로 save mock clear 보다 먼저 호출.
+      armSlowPathResume('node-agent', aiNodes[0]);
 
       mockWebsocketService.emitExecutionEvent.mockClear();
       mockWebsocketService.emitNodeEvent.mockClear();
       mockNodeExecutionRepo.save.mockClear();
 
+      // FAILED 경로는 slow-path detached drive(processAiResumeTurn →
+      // handleAiMessageTurn try/catch → finalizeAiNode FAILED)를 거치므로
+      // detached drive 완료까지 실제 타이머를 흘린다.
       void service.continueAiConversation(executionId, 'trigger error');
-      // ai-review W4 / testing-W — FAILED 경로는 nodeExecutionRepository.save →
-      // eventEmitter.emitNode → sentinel throw → runExecution catch 체인을 거치므로
-      // 깊은 마이크로태스크 플러시를 위해 flushPromises 를 2회 호출한다.
-      await flushPromises();
-      await flushPromises();
+      await flushResumeDrive();
 
       // (a) handler.endMultiTurnConversation 이 'error' endReason + errorPayload
       //     로 1회 호출됨.
@@ -4842,13 +4892,25 @@ describe('ExecutionEngineService', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // W11 (SUMMARY) — waitForAiConversation form_submitted 분기 단위 테스트.
-  // W12 (SUMMARY) — unknown action.type warn+reenter 단위 테스트.
+  // W11 (SUMMARY) — form_submitted 분기 단위 테스트.
+  // W12 (SUMMARY) — unknown action.type warn+re-park 단위 테스트.
+  //
+  // Phase B (exec-park D4) — 옛 장수 루프(waitForAiConversation)의 dispatch body 는
+  // top-level resume 에서 단발 turn 처리기 `processAiResumeTurn` 으로 이관됐다.
+  // 따라서 본 블록은 turn 을 §7.5 slow-path(applyContinuation → rehydration →
+  // processAiResumeTurn)로 전달해 그 dispatch body 를 가드한다. INTENT 동일:
+  // form_submitted → handleAiMessageTurn(JSON.stringify(formData), source:'form_submitted');
+  // ai_message → processMultiTurnMessage(source:'ai_message');
+  // unknown → warn + re-park (silent drop / crash 금지);
+  // button_click → warn + re-park (대화 alive, MAX_UNKNOWN_SKIPS 누적 없음);
+  // buttonId → slice(0,64) + typeof 가드.
   // ---------------------------------------------------------------------------
-  describe('waitForAiConversation dispatch — form_submitted + unknown type (W11/W12)', () => {
-    // 버스 mock 이 handlers 에 즉시 dispatch 하는 특성 활용.
+  describe('processAiResumeTurn dispatch — form_submitted + unknown type (W11/W12)', () => {
     // `form_submitted` payload 가 handler.processMultiTurnMessage 에 도달하는지,
-    // unknown type 이 warn log 를 남기고 loop 를 재진입하는지 검증.
+    // unknown type 이 warn log 를 남기고 re-park 하는지 검증.
+    // W15 (ai-review) — flushResumeDrive(200ms) × 다수(button×22·인터리빙 등) 누적이
+    // jest 기본 5s 타임아웃에 근접해 CI 고부하 시 flaky → 본 파일 타임아웃 상향.
+    jest.setTimeout(15_000);
 
     const makeAiDispatchHandler = (
       processReturn: () => unknown,
@@ -4927,13 +4989,16 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      const execPromise = service.execute(workflowId, { data: 'test' });
+      await service.execute(workflowId, { data: 'test' });
       await flushPromises();
 
-      // form_submitted sentinel payload 로 continueExecution 호출.
+      // Phase B (exec-park D4) — form_submitted turn 을 §7.5 slow-path 로 전달
+      // (continueExecution → bus continue → applyContinuation → rehydration →
+      // processAiResumeTurn 의 form_submitted 분기).
+      armSlowPathResume('node-agent-dispatch', aiDispatchNodes[0]);
       const formPayload = { field1: 'value1', type: '주문 문의' };
       void service.continueExecution(executionId, formPayload);
-      await flushPromises();
+      await flushResumeDrive();
 
       // processMultiTurnMessage 가 첫 번째 인자로 JSON.stringify(formPayload) 를 받았는지.
       // 호출 시그니처: processMultiTurnMessage(userMessage: string, state, options)
@@ -4943,12 +5008,6 @@ describe('ExecutionEngineService', () => {
         expect.anything(),
         expect.objectContaining({ source: 'form_submitted' }),
       );
-
-      // 이후 ai_end_conversation 으로 종료 — processReturn 이 waiting_for_input
-      // 이어서 loop 이 다음 이벤트를 기다리므로 endAiConversation 후 flushPromises 필요.
-      void service.endAiConversation(executionId);
-      await flushPromises();
-      await execPromise;
     });
 
     it('W10 — ai_message dispatch: processMultiTurnMessage 가 { source: "ai_message" } 로 호출됨', async () => {
@@ -4975,35 +5034,42 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      const execPromise = service.execute(workflowId, { data: 'test' });
+      await service.execute(workflowId, { data: 'test' });
       await flushPromises();
 
-      // continueAiConversation → bus publish ai_message → handler 호출
+      // Phase B (exec-park D4) — ai_message turn 을 §7.5 slow-path 로 전달
+      // (continueAiConversation → bus ai_message → applyContinuation →
+      // rehydration → processAiResumeTurn 의 ai_message 분기).
+      armSlowPathResume('node-agent-dispatch', aiDispatchNodes[0]);
       void service.continueAiConversation(executionId, '안녕하세요');
-      await flushPromises();
+      await flushResumeDrive();
 
       expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
         '안녕하세요',
         expect.anything(),
         expect.objectContaining({ source: 'ai_message' }),
       );
-
-      void service.endAiConversation(executionId);
-      await flushPromises();
-      await execPromise;
     });
 
-    it('W12 — unknown action.type: logger.warn 호출 + loop 재진입 (silent drop 금지)', async () => {
-      // spec §10.9 — unknown type 은 warn log 남기고 loop 재진입.
-      // MAX_UNKNOWN_SKIPS cap 이 20이므로 1회 unknown 후 ai_end_conversation 으로 정상 종료.
-      const endReturn = {
+    it('W12 — unknown action.type: logger.warn 호출 + re-park (silent drop 금지)', async () => {
+      // spec §10.9 — unknown type 은 warn log 남기고 re-park (다음 입력 대기).
+      // Phase B (exec-park D4) — 옛 loop 의 MAX_UNKNOWN_SKIPS in-memory cap 은
+      // turn-park 에서 제거됐다 (각 turn = 별 continuation job). 따라서 본 테스트는
+      // unknown turn 이 crash 없이 warn + re-park(WAITING 복귀) 함을 가드한다.
+      const handler = makeAiDispatchHandler(() => ({
         config: { mode: 'multi_turn' },
-        output: {},
-        meta: {},
-        port: 'ended',
-        status: 'ended',
-      };
-      const handler = makeAiDispatchHandler(() => endReturn);
+        output: { result: { messages: [], message: 'ok', turnCount: 1 } },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [],
+          turnCount: 1,
+          turnDebugHistory: [],
+          model: 'test-model',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+        },
+      }));
       handlerRegistry.register('ai_agent', handler, {
         kind: 'blocking',
         interaction: 'ai_conversation',
@@ -5013,55 +5079,69 @@ describe('ExecutionEngineService', () => {
         .logger;
       const warnSpy = jest.spyOn(logger, 'warn');
 
-      const execPromise = service.execute(workflowId, { data: 'test' });
+      await service.execute(workflowId, { data: 'test' });
       await flushPromises();
 
-      // unknown type 메시지 주입 — bus handler 를 통해 pendingContinuations 에 직접 주입.
-      // 버스 mock 의 publish 는 type 으로 handler 조회하므로, 직접 resolvePending 사용.
-      const pendings = getPendings(service);
+      // unknown type turn 을 §7.5 slow-path 로 직접 주입 (공개 continue* 메서드는
+      // 알 수 없는 type 을 만들 수 없으므로 applyContinuation 직접 호출 — bus
+      // worker 가 dispatch 하는 것과 동일 진입점, payload 만 unknown).
+      armSlowPathResume('node-agent-dispatch', aiDispatchNodes[0]);
+      mockWebsocketService.emitExecutionEvent.mockClear();
+      await service.applyContinuation(executionId, 'ne-node-agent-dispatch', {
+        type: 'totally_unknown_type_xyz',
+      });
+      await flushResumeDrive();
 
-      // pending 이 있으면 unknown type 으로 resolve.
-      const pendingEntry = pendings.get(executionId);
-      if (pendingEntry) {
-        pendingEntry.resolve({ type: 'totally_unknown_type_xyz' });
-      }
-      await flushPromises();
-
-      // warn log 가 호출됐는지 — unknown type 포함.
+      // warn log 가 호출됐는지 — unknown type 명(직렬화 포함) 또는 unknown 문구.
       const warnCalls = warnSpy.mock.calls.map((c) => String(c[0]));
       const hasUnknownWarn = warnCalls.some(
         (msg) =>
-          msg.includes('Unknown continuation action.type') ||
+          msg.includes('unknown continuation action.type') ||
           msg.includes('totally_unknown_type_xyz'),
       );
       expect(hasUnknownWarn).toBe(true);
 
-      // 이후 ai_end_conversation 으로 정상 종료.
-      void service.endAiConversation(executionId);
-      await execPromise;
+      // crash 없이 re-park: 핸들러 turn 처리(processMultiTurnMessage)는 호출되지
+      // 않고, 대화가 종료(terminal)되지 않고 alive 유지된다 (turn-park 의 re-park 는
+      // durable WAITING_FOR_INPUT 으로 복귀하되 AI_MESSAGE/WAITING 재emit 없이 조용히
+      // 다음 입력을 기다린다 — 옛 loop 의 button/unknown skip 동작과 동일: 종료 emit 부재).
+      expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
+      const terminalEmits =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) =>
+            c[1] === 'execution.completed' ||
+            c[1] === 'execution.failed' ||
+            c[1] === 'execution.cancelled',
+        );
+      expect(terminalEmits.length).toBe(0);
 
       warnSpy.mockRestore();
     });
 
-    it('button_click action.type: MAX_UNKNOWN_SKIPS 카운팅 제외 — stale telegram 클릭 누적이 대화를 죽이지 않는다', async () => {
+    it('button_click action.type: re-park (스킵 cap 없음) — stale telegram 클릭 누적이 대화를 죽이지 않는다', async () => {
       // spec/4-nodes/6-presentation/0-common.md §10.9 line 400/407 —
       // `button_click` 은 enum-complete 케이스로 spec 이 명시한 "warn log +
-      // loop 재진입 graceful degradation" 그대로 동작해야 한다. 텔레그램 stale
-      // inline_keyboard 클릭이 누적돼도 MAX_UNKNOWN_SKIPS (=20) cap 이 발동해
-      // 대화가 FAILED 종결되는 회귀를 차단.
+      // graceful re-park" 그대로 동작해야 한다. 텔레그램 stale inline_keyboard
+      // 클릭이 누적돼도 대화가 FAILED 종결되지 않아야 한다.
       //
-      // 회귀 시나리오: 사용자가 Presentation Carousel 노드를 거친 뒤 후속 AI
-      // Agent 가 `waitForAiConversation` 진입. 텔레그램에 잔존한 이전 inline
-      // keyboard 의 콜백이 button_callback → continueButtonClick →
-      // bus.publish({type:'button_click'}) 경로로 본 루프에 도달.
-      const endReturn = {
+      // Phase B (exec-park D4) — 옛 loop 의 MAX_UNKNOWN_SKIPS cap 자체가 제거됐다
+      // (각 button_click = 별 continuation job → 별 turn-park). 따라서 회귀 가드는
+      // "cap warn 부재" 가 아니라 "매 button_click turn 이 crash 없이 re-park 하고
+      // 핸들러 turn 처리를 트리거하지 않는다" 로 강화한다.
+      const handler = makeAiDispatchHandler(() => ({
         config: { mode: 'multi_turn' },
-        output: {},
-        meta: {},
-        port: 'ended',
-        status: 'ended',
-      };
-      const handler = makeAiDispatchHandler(() => endReturn);
+        output: { result: { messages: [], message: 'ok', turnCount: 1 } },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [],
+          turnCount: 1,
+          turnDebugHistory: [],
+          model: 'test-model',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+        },
+      }));
       handlerRegistry.register('ai_agent', handler, {
         kind: 'blocking',
         interaction: 'ai_conversation',
@@ -5071,35 +5151,39 @@ describe('ExecutionEngineService', () => {
         .logger;
       const warnSpy = jest.spyOn(logger, 'warn');
 
-      const execPromise = service.execute(workflowId, { data: 'test' });
+      await service.execute(workflowId, { data: 'test' });
       await flushPromises();
 
-      const pendings = getPendings(service);
-
-      // 25회 — MAX_UNKNOWN_SKIPS (20) 를 충분히 초과. 모두 button_click 이므로
-      // skip 카운팅에서 제외되어야 한다. 매 iteration 마다 새 pending 이 등록
-      // 되므로 loop 가 살아 있어야 진행된다.
-      for (let i = 0; i < 25; i += 1) {
-        const pendingEntry = pendings.get(executionId);
-        expect(pendingEntry).toBeDefined(); // loop alive 검증
-        pendingEntry?.resolve({ type: 'button_click', buttonId: `btn-${i}` });
-        await flushPromises();
+      // stale button_click 반복 — 각각 별 continuation job(turn-park)으로 도착.
+      // 매 turn 마다 slow-path 를 재무장한다 (armSlowPathResume 의 mockResolvedValueOnce
+      // 들이 turn 당 한 번씩 소비되므로). 모두 crash 없이 re-park 해야 한다. (옛
+      // MAX_UNKNOWN_SKIPS=20 cap 이 살아있다면 21회째 FAILED 종결됐을 것 — cap
+      // 부재를 가드하기 위해 cap(20) 초과 횟수를 구동한다.)
+      for (let i = 0; i < 22; i += 1) {
+        armSlowPathResume('node-agent-dispatch', aiDispatchNodes[0]);
+        await service.applyContinuation(executionId, 'ne-node-agent-dispatch', {
+          type: 'button_click',
+          buttonId: `btn-${i}`,
+        });
+        await flushResumeDrive(40);
       }
 
-      // 21회 이상 button_click 후에도 대화가 alive 인지 — ai_end_conversation
-      // 으로 정상 종결되는지 확인.
-      const stillAlive = pendings.get(executionId);
-      expect(stillAlive).toBeDefined();
+      // 22회 stale 클릭(옛 cap 20 초과)에도 핸들러 turn 처리(processMultiTurnMessage)는
+      // 절대 호출되지 않는다 — button_click 은 상태 변경 없이 re-park 만 한다 (대화 alive).
+      expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
 
-      void service.endAiConversation(executionId);
-      await execPromise;
-
-      // FAILED 종결을 야기하는 cap 도달 warn 이 없어야 함.
+      // FAILED 종결을 야기하는 cap 도달 warn 이 없어야 함 (cap 자체가 제거됨).
       const warnCalls = warnSpy.mock.calls.map((c) => String(c[0]));
       const hasCapWarn = warnCalls.some((msg) =>
         msg.includes('unknown skip limit'),
       );
       expect(hasCapWarn).toBe(false);
+
+      // button_click re-park warn 은 매 turn 마다 발생 (silent drop 금지).
+      const hasButtonWarn = warnCalls.some((msg) =>
+        msg.includes('button_click received during ai_conversation'),
+      );
+      expect(hasButtonWarn).toBe(true);
 
       warnSpy.mockRestore();
     });
@@ -5132,55 +5216,74 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      const execPromise = service.execute(workflowId, { data: 'test' });
+      await service.execute(workflowId, { data: 'test' });
       await flushPromises();
 
-      const pendings = getPendings(service);
-
-      // stale button_click 3회 — skip 카운팅 제외, loop alive 유지.
+      // Phase B (exec-park D4) — 각 turn 은 별 continuation job(slow-path).
+      // stale button_click 3회 — 각각 crash 없이 re-park, 핸들러 turn 미트리거.
       for (let i = 0; i < 3; i += 1) {
-        const entry = pendings.get(executionId);
-        expect(entry).toBeDefined();
-        entry?.resolve({ type: 'button_click', buttonId: `stale-${i}` });
-        await flushPromises();
+        armSlowPathResume('node-agent-dispatch', aiDispatchNodes[0]);
+        await service.applyContinuation(executionId, 'ne-node-agent-dispatch', {
+          type: 'button_click',
+          buttonId: `stale-${i}`,
+        });
+        await flushResumeDrive();
       }
+      expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
 
       // ai_message 도달 — processMultiTurnMessage 가 호출되어야 한다.
-      const entryForMsg = pendings.get(executionId);
-      expect(entryForMsg).toBeDefined();
-      entryForMsg?.resolve({ type: 'ai_message', message: 'hello AI' });
-      await flushPromises();
+      armSlowPathResume('node-agent-dispatch', aiDispatchNodes[0]);
+      await service.applyContinuation(executionId, 'ne-node-agent-dispatch', {
+        type: 'ai_message',
+        message: 'hello AI',
+      });
+      await flushResumeDrive();
 
       expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
         'hello AI',
         expect.any(Object),
         expect.objectContaining({ source: 'ai_message' }),
       );
-
-      // ai_end_conversation 으로 정상 종결.
-      void service.endAiConversation(executionId);
-      await execPromise;
     });
 
     // -------------------------------------------------------------------------
     // W5 (SUMMARY) — buttonId 경계값 테스트 (64+, null, 숫자).
     // slice(0, 64) 가드가 올바르게 동작하는지 확인.
     // -------------------------------------------------------------------------
-    describe('W5 — buttonId 경계값 (slice(0,64) 가드)', () => {
-      const setupForButtonIdTest = async (): Promise<{
-        pendings: ReturnType<typeof getPendings>;
-        warnSpy: jest.SpyInstance;
-        execPromise: Promise<unknown>;
-      }> => {
-        const endReturn = {
+    // Phase B (exec-park D4) — buttonId slice(0,64) + typeof 가드는 중첩
+    // executeInline / retry 재진입에서 살아있는 `runAiConversationLoop` 의
+    // button_click 분기에 위치한다 (top-level resume 의 processAiResumeTurn 은
+    // 상태 변경 없이 re-park 만 함). 본 W5 블록은 그 loop dispatch body 를 직접
+    // 구동해 가드를 검증한다 (loop 는 여전히 존재).
+    describe('W5 — buttonId 경계값 (runAiConversationLoop slice(0,64) 가드)', () => {
+      type LoopSubject = {
+        runAiConversationLoop: (
+          executionId: string,
+          node: unknown,
+          context: unknown,
+          nodeExec: unknown,
+          initialResumeState: Record<string, unknown>,
+          initialAction?: unknown,
+        ) => Promise<'COMPLETED' | 'FAILED'>;
+        contextService: {
+          createContext: (e: string, w: string) => unknown;
+        };
+      };
+
+      // loop 를 직접 구동: context 생성 → runAiConversationLoop 시작 → loop 가
+      // pendingContinuations 에 등록한 resolver 로 button_click 주입 → 이어서
+      // ai_end_conversation 으로 정상 종료시켜 loop 를 반환시킨다.
+      const driveLoopButtonClick = async (
+        buttonId: unknown,
+      ): Promise<{ warnSpy: jest.SpyInstance }> => {
+        const endHandler = makeAiDispatchHandler(() => ({
           config: { mode: 'multi_turn' },
           output: {},
           meta: {},
           port: 'ended',
           status: 'ended',
-        };
-        const handler = makeAiDispatchHandler(() => endReturn);
-        handlerRegistry.register('ai_agent', handler, {
+        }));
+        handlerRegistry.register('ai_agent', endHandler, {
           kind: 'blocking',
           interaction: 'ai_conversation',
         });
@@ -5189,76 +5292,73 @@ describe('ExecutionEngineService', () => {
           .logger;
         const warnSpy = jest.spyOn(logger, 'warn');
 
-        const execPromise = service.execute(workflowId, { data: 'test' });
+        const subject = service as unknown as LoopSubject;
+        const context = subject.contextService.createContext(
+          executionId,
+          workflowId,
+        );
+        const node = aiDispatchNodes[0];
+        const pendings = getPendings(service);
+
+        const loopPromise = subject.runAiConversationLoop(
+          executionId,
+          node,
+          context,
+          null,
+          { messages: [], turnCount: 0 },
+        );
+        // loop 가 첫 wait 에서 pending 을 등록할 때까지 microtask 플러시.
         await flushPromises();
 
-        return { pendings: getPendings(service), warnSpy, execPromise };
+        // button_click 주입 — loop 는 warn 후 재진입(다음 wait 등록).
+        getPendings(service)
+          .get(executionId)
+          ?.resolve({ type: 'button_click', buttonId });
+        await flushPromises();
+
+        // 재진입한 loop 의 새 pending 을 ai_end_conversation 으로 종료.
+        getPendings(service)
+          .get(executionId)
+          ?.resolve({ type: 'ai_end_conversation' });
+        await flushPromises();
+        await loopPromise;
+        void pendings;
+        return { warnSpy };
       };
 
       it('buttonId 64자 초과 → 64자로 슬라이싱되어 warn log 에 포함', async () => {
-        const { pendings, warnSpy, execPromise } = await setupForButtonIdTest();
+        const { warnSpy } = await driveLoopButtonClick('a'.repeat(100));
 
-        const longId = 'a'.repeat(100);
-        const entry = pendings.get(executionId);
-        expect(entry).toBeDefined();
-        entry?.resolve({ type: 'button_click', buttonId: longId });
-        await flushPromises();
-
-        const warnCalls = warnSpy.mock.calls;
-        const hasButtonClickWarn = warnCalls.some((args) => {
+        const hasButtonClickWarn = warnSpy.mock.calls.some((args) => {
           const ctx = args[1] as { buttonId?: string } | undefined;
           return typeof ctx?.buttonId === 'string' && ctx.buttonId.length <= 64;
         });
         expect(hasButtonClickWarn).toBe(true);
-
-        void service.endAiConversation(executionId);
-        await execPromise;
         warnSpy.mockRestore();
       });
 
       it('buttonId null → 빈 문자열 fallback (TypeError 없음)', async () => {
-        const { pendings, warnSpy, execPromise } = await setupForButtonIdTest();
+        // null 은 ContinuationPayload 에서 string | undefined 이지만 런타임
+        // 신뢰 불가 — 방어 코드(typeof 가드) 검증. 예외 없이 loop 가 정상 종료.
+        const { warnSpy } = await driveLoopButtonClick(null);
 
-        const entry = pendings.get(executionId);
-        expect(entry).toBeDefined();
-        // null 은 ContinuationPayload 에서 string | undefined 이지만
-        // 런타임 신뢰 불가 — 방어 코드 검증.
-        entry?.resolve({
-          type: 'button_click',
-          buttonId: null as unknown as string,
+        const hasButtonClickWarn = warnSpy.mock.calls.some((args) => {
+          const ctx = args[1] as { buttonId?: string } | undefined;
+          return ctx?.buttonId === '';
         });
-        await flushPromises();
-
-        // 예외 없이 loop 재진입 확인.
-        const stillAlive = pendings.get(executionId);
-        expect(stillAlive).toBeDefined();
-
-        void service.endAiConversation(executionId);
-        await execPromise;
+        expect(hasButtonClickWarn).toBe(true);
         warnSpy.mockRestore();
       });
 
       it('buttonId 숫자 → 빈 문자열 fallback (typeof 가드)', async () => {
-        const { pendings, warnSpy, execPromise } = await setupForButtonIdTest();
+        const { warnSpy } = await driveLoopButtonClick(42);
 
-        const entry = pendings.get(executionId);
-        expect(entry).toBeDefined();
-        entry?.resolve({
-          type: 'button_click',
-          buttonId: 42 as unknown as string,
-        });
-        await flushPromises();
-
-        const warnCalls = warnSpy.mock.calls;
-        const hasButtonClickWarn = warnCalls.some((args) => {
+        const hasButtonClickWarn = warnSpy.mock.calls.some((args) => {
           const ctx = args[1] as { buttonId?: string } | undefined;
           // 숫자는 빈 문자열 fallback 이므로 buttonId === ''
           return ctx?.buttonId === '';
         });
         expect(hasButtonClickWarn).toBe(true);
-
-        void service.endAiConversation(executionId);
-        await execPromise;
         warnSpy.mockRestore();
       });
     });
@@ -6023,8 +6123,11 @@ describe('ExecutionEngineService', () => {
       await service.execute(wf, {});
       await flushPromises();
 
+      // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn
+      // → handleAiMessageTurn → processMultiTurnMessage). slow-path DB lookup 무장.
+      armSlowPathResume('rc-ai', aiNode);
       void service.continueAiConversation(executionId, 'hello');
-      await flushPromises();
+      await flushResumeDrive();
 
       expect(processSpy).toHaveBeenCalledTimes(1);
       const stateArg = processSpy.mock.calls[0][1];
@@ -10136,7 +10239,7 @@ describe('ExecutionEngineService', () => {
       expect(cancelledEmits).toHaveLength(0);
     });
 
-    it('Multi-turn AI 노드 + _resumeCheckpoint 존재 → 재구성 후 waitForAiConversation 재진입 (RESUME_INCOMPATIBLE_STATE 미발생)', async () => {
+    it('Multi-turn AI 노드 + _resumeCheckpoint 존재 → 재구성 후 processAiResumeTurn 재진입 (RESUME_INCOMPATIBLE_STATE 미발생)', async () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: executionId,
         workflowId,
@@ -10179,7 +10282,7 @@ describe('ExecutionEngineService', () => {
       // 가 describe 블록에 등록돼 있어 개별 복원 코드 불필요.
       const svcAny = service as unknown as {
         loadAndBuildGraph: (...args: unknown[]) => Promise<unknown>;
-        waitForAiConversation: (...args: unknown[]) => Promise<void>;
+        processAiResumeTurn: (...args: unknown[]) => Promise<void>;
       };
       // 그래프는 waiting node 단일 — post-branch traversal 이 즉시 종료.
       const loadSpy = jest
@@ -10196,8 +10299,11 @@ describe('ExecutionEngineService', () => {
           incomingEdgeMap: new Map(),
           nodeMap: new Map([['node-1', { id: 'node-1', type: 'ai_agent' }]]),
         });
-      const waitSpy = jest
-        .spyOn(svcAny, 'waitForAiConversation')
+      // Phase B (exec-park D4) — top-level AI resume 은 옛 장수 루프
+      // waitForAiConversation 대신 단발 turn 처리기 processAiResumeTurn 으로
+      // 재진입한다. 도착한 payload 1건만 처리하고 (계속이면 re-park) 반환.
+      const turnSpy = jest
+        .spyOn(svcAny, 'processAiResumeTurn')
         .mockResolvedValue(undefined);
 
       await subject().rehydrateAndResume(executionId, 'ne-1', {
@@ -10205,8 +10311,19 @@ describe('ExecutionEngineService', () => {
         message: 'hi',
       });
 
-      // 재구성 분기 도달 — waitForAiConversation 호출 (early throw 미발생).
-      expect(waitSpy).toHaveBeenCalledTimes(1);
+      // 재구성 분기 도달 — processAiResumeTurn 호출 (early throw 미발생).
+      expect(turnSpy).toHaveBeenCalledTimes(1);
+      // 도착한 turn(payload) 이 그대로 전달됐는지 — driveResumeDetached 가
+      // opts.payload 를 processAiResumeTurn 으로 직접 forward.
+      expect(turnSpy).toHaveBeenCalledWith(
+        expect.anything(), // savedExecution
+        executionId,
+        expect.objectContaining({ id: 'node-1' }),
+        expect.anything(), // context
+        expect.anything(), // nodeExec
+        expect.any(Object), // resumeState
+        { type: 'ai_message', message: 'hi' },
+      );
 
       // RESUME_INCOMPATIBLE_STATE 로 cancel 되지 않았는지 — execution
       // createQueryBuilder.set 에 해당 코드가 들어가지 않았다.
@@ -10225,7 +10342,7 @@ describe('ExecutionEngineService', () => {
       expect(codes).not.toContain('RESUME_INCOMPATIBLE_STATE');
 
       loadSpy.mockRestore();
-      waitSpy.mockRestore();
+      turnSpy.mockRestore();
     });
 
     // PR-A2b — information_extractor 노드도 _resumeCheckpoint 재구성으로 재개된다
@@ -10275,7 +10392,7 @@ describe('ExecutionEngineService', () => {
       // 전역 서비스 인스턴스 오염을 방지한다.
       const svcAny = service as unknown as {
         loadAndBuildGraph: (...args: unknown[]) => Promise<unknown>;
-        waitForAiConversation: (...args: unknown[]) => Promise<void>;
+        processAiResumeTurn: (...args: unknown[]) => Promise<void>;
         contextService: {
           setNodeOutput: jest.Mock;
           getContext: (
@@ -10299,14 +10416,17 @@ describe('ExecutionEngineService', () => {
             ['node-ie', { id: 'node-ie', type: 'information_extractor' }],
           ]),
         });
-      const waitSpy = jest
-        .spyOn(svcAny, 'waitForAiConversation')
+      // Phase B (exec-park D4) — IE multi-turn resume 도 동일 공용 경로:
+      // 단발 turn 처리기 processAiResumeTurn 으로 재진입.
+      const turnSpy = jest
+        .spyOn(svcAny, 'processAiResumeTurn')
         .mockResolvedValue(undefined);
 
       // W6 (ai-review) — setNodeOutput 호출 인자를 캡처해 buildRetryReentryState 가
       // checkpoint 로부터 partialResult/collectionRetryCount 를 실제 복원했는지
-      // toMatchObject 로 검증한다. waitForAiConversation 시그니처상 resumeState 가
-      // 인자로 오지 않으므로 context.setNodeOutput 에 seed 된 값을 조회한다.
+      // toMatchObject 로 검증한다. processAiResumeTurn 시그니처상 resumeState 가
+      // 인자로 오지만, 재구성 결과가 nodeOutputCache 에도 seed 되므로 양쪽 검증
+      // 가능 — 여기서는 기존대로 context.setNodeOutput 에 seed 된 값을 조회한다.
       const setNodeOutputSpy = jest.spyOn(
         svcAny.contextService,
         'setNodeOutput',
@@ -10317,8 +10437,8 @@ describe('ExecutionEngineService', () => {
         message: 'hi',
       });
 
-      // guard 확장으로 IE 도 재구성 분기 도달 — waitForAiConversation 호출.
-      expect(waitSpy).toHaveBeenCalledTimes(1);
+      // guard 확장으로 IE 도 재구성 분기 도달 — processAiResumeTurn 호출.
+      expect(turnSpy).toHaveBeenCalledTimes(1);
 
       // W6 — seeded nodeOutputCache 에 partialResult/collectionRetryCount 가 복원됐는지.
       const seededCalls = setNodeOutputSpy.mock.calls;
@@ -10351,7 +10471,7 @@ describe('ExecutionEngineService', () => {
 
       setNodeOutputSpy.mockRestore();
       loadSpy.mockRestore();
-      waitSpy.mockRestore();
+      turnSpy.mockRestore();
     });
 
     // PR-A2a — checkpoint schemaVersion 미래 버전(롤링 배포 중 구 인스턴스가 신
@@ -10648,11 +10768,15 @@ describe('ExecutionEngineService', () => {
       }
     });
 
-    it('slow-path ai_agent 재개: waitForAiConversation 멀티턴 루프가 영구 미반환이어도 worker(process()) 반환 — 텔레그램 대화가 다른 continuation 을 막지 않음', async () => {
-      // 운영 실측 회귀: 텔레그램 ai_message 재개가 worker 안에서
-      // waitForAiConversation(대화 종료까지 다음 메시지를 차례로 await 하는 장수
-      // 루프)을 await 하면, concurrency=1 worker 가 대화 수명 내내 점유돼 버튼
-      // 클릭 등 다른 continuation 이 wait 큐에 영구 적체됐다.
+    it('slow-path ai_agent 재개: processAiResumeTurn(단발 turn 처리)이 미반환이어도 worker(process()) 반환 — 텔레그램 대화가 다른 continuation 을 막지 않음', async () => {
+      // 운영 실측 회귀(원본): 텔레그램 ai_message 재개가 worker 안에서
+      // 장수 루프(옛 waitForAiConversation)를 await 하면 concurrency=1 worker 가
+      // 대화 수명 내내 점유돼 다른 continuation 이 영구 적체됐다.
+      //
+      // Phase B (exec-park D4) — 장수 루프 전제는 사라졌다. top-level AI resume 은
+      // 도착한 turn 1건을 processAiResumeTurn 으로 처리하고 (계속이면 re-park) 끝낸다.
+      // 본 테스트는 그 단발 turn 처리기조차 **미반환**(가장 보수적 가정)이어도
+      // worker 가 풀림 — 즉 worker 는 detached drive 를 await 하지 않음 — 을 가드한다.
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: executionId,
         workflowId,
@@ -10685,14 +10809,14 @@ describe('ExecutionEngineService', () => {
       const svcAny = service as unknown as {
         loadAndBuildGraph: jest.Mock;
         buildRetryReentryState: jest.Mock;
-        waitForAiConversation: jest.Mock;
+        processAiResumeTurn: jest.Mock;
         runNodeDispatchLoop: jest.Mock;
         updateExecutionStatus: jest.Mock;
       };
       const orig = {
         load: svcAny.loadAndBuildGraph,
         build: svcAny.buildRetryReentryState,
-        wait: svcAny.waitForAiConversation,
+        turn: svcAny.processAiResumeTurn,
         loop: svcAny.runNodeDispatchLoop,
         upd: svcAny.updateExecutionStatus,
       };
@@ -10709,12 +10833,12 @@ describe('ExecutionEngineService', () => {
         .fn()
         .mockResolvedValue({ parked: false });
       svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
-      // 멀티턴 대화 진행 중 — 대화 종료(gate 해제) 전까지 반환하지 않는다.
-      let releaseAi!: () => void;
-      const aiGate = new Promise<void>((r) => {
-        releaseAi = r;
+      // turn 처리기를 미반환 gate 로 스텁 — detach 검증의 가장 보수적 케이스.
+      let releaseTurn!: () => void;
+      const turnGate = new Promise<void>((r) => {
+        releaseTurn = r;
       });
-      svcAny.waitForAiConversation = stubWaitForX(aiGate);
+      svcAny.processAiResumeTurn = jest.fn().mockReturnValue(turnGate);
 
       const { guard, timer } = makeDeadlockGuard();
       try {
@@ -10725,19 +10849,29 @@ describe('ExecutionEngineService', () => {
           }),
           guard,
         ]);
-        // 핵심: waitForAiConversation 이 (대화 진행 중이라) 미반환이어도 worker 가
-        // 풀렸다 — 즉 worker 는 waitForAiConversation 을 await 하지 않는다.
+        // 핵심: processAiResumeTurn 이 미반환이어도 worker 가 풀렸다 — 즉 worker 는
+        // detached drive(processAiResumeTurn)를 await 하지 않는다.
         await flushPromises();
         await flushPromises();
-        expect(svcAny.waitForAiConversation).toHaveBeenCalledTimes(1);
+        expect(svcAny.processAiResumeTurn).toHaveBeenCalledTimes(1);
+        // 도착한 turn(payload)이 그대로 forward 됐는지.
+        expect(svcAny.processAiResumeTurn).toHaveBeenCalledWith(
+          expect.anything(), // savedExecution
+          executionId,
+          expect.objectContaining({ id: 'node-1' }),
+          expect.anything(), // context
+          expect.anything(), // nodeExec
+          expect.any(Object), // resumeState
+          { type: 'ai_message', message: 'hi' },
+        );
       } finally {
         clearTimeout(timer);
-        // 대화 종료 모사 → detached drive 가 완주하도록 gate 해제 후 drain.
-        releaseAi();
+        // detached drive 가 완주하도록 gate 해제 후 drain.
+        releaseTurn();
         await flushPromises();
         svcAny.loadAndBuildGraph = orig.load;
         svcAny.buildRetryReentryState = orig.build;
-        svcAny.waitForAiConversation = orig.wait;
+        svcAny.processAiResumeTurn = orig.turn;
         svcAny.runNodeDispatchLoop = orig.loop;
         svcAny.updateExecutionStatus = orig.upd;
       }

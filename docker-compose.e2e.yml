@@ -137,6 +137,10 @@ services:
       ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
       INTEGRATION_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
       OAUTH_STUB_MODE: "true"
+      # 멀티턴 AI park→재개 e2e(execution-park-resume.e2e-spec.ts) 활성화 — 실제 LLM
+      # 키/호출 없이 결정적 stub 클라이언트(LlmService.createClient)로 turn-park(§4.x)·
+      # rehydration(§7.5)을 검증한다. 미설정(프로덕션)이면 정상 provider 경로.
+      LLM_STUB_MODE: "true"
       # WebAuthn 2FA e2e(webauthn-2fa.e2e-spec.ts) 활성화. 미설정 시 기능이 503 으로
       # 꺼져 suite 가 전부 실패한다. 값은 test/helpers/webauthn.ts 의 RP_ID/RP_ORIGIN 과
       # 반드시 일치해야 한다(불일치 시 origin/rpIdHash 검증 실패).
