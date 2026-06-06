@@ -65,6 +65,15 @@ pending → running ──┤                     └─ cancelled
 
 > **원자성 보장**: `running ↔ waiting_for_input` 전이는 짝이 되는 `NodeExecution` 상태 변경 (`waiting_for_input` / `completed`) 과 **단일 DB 트랜잭션** 으로 묶여 commit / rollback 된다. 서버가 두 save 사이에 크래시해도 `Execution` 과 `NodeExecution` 의 상태 불일치가 발생하지 않는다 (구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 파라미터). WebSocket 이벤트 발행은 트랜잭션 commit 후 수행한다. `waiting_for_input → failed` 전이도 동일한 원자성 — `NodeExecution.status=FAILED` save + `Execution.status=FAILED` 가 단일 트랜잭션으로 묶이고, WS 이벤트 순서는 `NODE_FAILED` → `EXECUTION_FAILED`.
 
+> **Pre-park read-window 정규화 (intra-row inconsistency)**: `executeNode` 의 blocking 분기는 핸들러 봉투 (`NodeHandlerOutput.status='waiting_for_input'`) 를 `NodeExecution.outputData` 에 **먼저** 저장하고 `NodeExecution.status` 컬럼은 `running` 으로 유지한 채, 직후 `waitForButtonInteraction` / `waitForFormSubmission` / `waitForAiConversation` 이 status 를 atomic 전이한다. 두 save 사이의 read window 에서 snapshot 이 조회되면 같은 row 가 `status='running'` 인데 `outputData.status='waiting_for_input'` 인 **intra-row inconsistent** 상태로 노출된다 — 위 cross-entity 원자성 보장(Execution.status ↔ NodeExecution.status)은 이 창을 막지 않는다. `findById` 의 REPEATABLE READ 트랜잭션도 두 컬럼의 cross-query straddle 만 막고 같은 row 안의 컬럼 vs 봉투 불일치는 잡지 못한다.
+>
+> 이 창은 두 레이어에서 방어된다:
+>
+> 1. **Backend read-side normalization** (`ExecutionsService.findById` — `reconcilePreParkWaitingStatus`): snapshot 응답 직전, `status` 가 `running`/`pending` 이면서 `outputData.status==='waiting_for_input'` 인 row 의 응답 status 를 `waiting_for_input` 으로 surface 한다. DB write 와 엔진 원자성은 불변(순수 read-side 정규화). 모든 snapshot 소비자(웹 앱·channel-web-chat·external-interaction-api)에 일관 적용된다.
+> 2. **Frontend defense-in-depth** (`codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts` — `isNodeWaitingForInput`): WS `execution.snapshot` 이벤트·read-replica·legacy 응답 shape 등 backend normalization 이 적용되지 않은 경로에서도 intra-row 를 탐지하도록, frontend 는 `ne.status` 단일 필드만 신뢰하지 않고 `ne.outputData.status==='waiting_for_input'` 봉투도 함께 확인한다 (`running`/`pending` row 한정, terminal row 제외).
+>
+> 두 레이어는 **의도적 중복 방어**이며, 판정 조건(노드 status·봉투 status·terminal 제외)을 한쪽만 변경하면 불일치 창이 재개방된다 — 변경 시 양측(`reconcilePreParkWaitingStatus` ↔ `isNodeWaitingForInput`)을 반드시 동기화한다.
+
 ### 1.3 블로킹/재개 컨트랙트 (NodeHandlerOutput `status`)
 
 개별 노드는 `NodeHandlerOutput.status` 로 엔진 흐름 제어 디렉티브를 표현한다. 공통 블로킹/재개 컨트랙트 (CONVENTIONS Principle 4):
@@ -1164,6 +1173,24 @@ engine.runNode
 직접 `WFI → failed` 단일 전이 + NodeExecution.status=FAILED save + `NODE_FAILED` → `EXECUTION_FAILED` WS 이벤트 순서를 채택한다 — 단일 트랜잭션 commit 으로 §1.1 의 기존 원자성 정책과 동일하다. `WFI → running` 후 `running → failed` 의 두 단계 전이는 두 트랜잭션 분리로 단일 원자성이 깨져 더 복잡하므로 택하지 않는다.
 
 구현: `state-machine.ts` `ALLOWED_TRANSITIONS`.
+
+### Pre-park read-window 정규화 — read-side 채택 + 양측 중복 방어
+
+blocking 노드(carousel/form/AI)는 핸들러 봉투(`outputData.status='waiting_for_input'`)를 먼저 영속하고 `NodeExecution.status` 컬럼 전이는 직후 `waitForXxx` 의 atomic 트랜잭션에서 일어난다. 그 두 save 사이의 read window 에서 snapshot 이 조회되면 같은 row 가 `status='running'` + `outputData.status='waiting_for_input'` 인 **intra-row 불일치**로 노출된다. §1.1 cross-entity 원자성·`findById` 의 REPEATABLE READ 는 Execution↔NodeExecution 의 cross-query straddle 만 막아 이 창을 잡지 못한다.
+
+**배경 회귀**: frontend `applyExecutionSnapshot` 이 `ne.status` 단일 필드를 waiting 판정의 진실로 신뢰했기에, 이 inconsistent snapshot 이 도착하면 waiting UI 가 hydrate 되지 않거나, 먼저 도착한 WS `waiting_for_input` 이벤트가 set 한 waiting 상태를 resume 으로 오인해 wipe → Carousel 버튼이 콜백 없이 disabled 로 stuck. turn-park(PR-B) 아키텍처 도입 후 read window 노출 빈도가 올라 재발했다.
+
+**채택 — read-side 정규화 + 양측 defense-in-depth**:
+
+- **write-side 전이를 앞당기지 않는다**: `executeNode` 의 봉투 persist 시점에 `NodeExecution.status` 를 곧장 `waiting_for_input` 으로 올리면, 동반 `Execution.status` 전이는 아직 `waitForXxx` 에서 일어나므로 그 사이 크래시 시 Execution=running/NodeExecution=waiting 의 cross-entity 불일치가 영속돼 §1.1 원자성 보장을 깬다. 따라서 write 경로·엔진 원자성은 불변으로 두고 **read 경로에서 봉투 status 를 surface** 한다.
+- **backend `reconcilePreParkWaitingStatus` (1차, source)**: `findById` snapshot 응답에서 비terminal(`running`/`pending`) row 의 봉투가 waiting 이면 응답 status 를 surface — 모든 소비자(웹 앱·channel-web-chat·external-interaction-api)에 일관 적용. 이로써 snapshot 이 다시 (Execution=running, NodeExecution=waiting) 의 **기존 Phase-3 방어가 다루는 형태**로 정규화돼, 프론트의 검증된 reconcile 경로가 정상 작동한다.
+- **frontend `isNodeWaitingForInput` (2차, defense-in-depth)**: WS `execution.snapshot`·read-replica·legacy 응답 등 backend 정규화가 적용되지 않을 수 있는 경로를 위해, 프론트도 `ne.outputData.status` 봉투를 함께 본다. 단일 레이어 의존의 단일 실패점을 제거한다.
+
+두 레이어의 판정 규칙은 **의도적 중복**이므로(노드 status·봉투 status·terminal 제외 조건 동일), 한쪽만 변경하면 불일치 창이 재개방된다 — `reconcilePreParkWaitingStatus` 와 `isNodeWaitingForInput` 은 함께 변경한다.
+
+> **후속(범위 외)**: read window 자체의 근본 제거(봉투 persist 와 status 전이를 단일 트랜잭션으로 묶기)는 별도 작업으로 둔다. 본 결정은 원자성 불변 + 소비자 견고화로 회귀를 차단하는 것이 목적이다.
+
+구현: `ExecutionsService.findById` / `reconcilePreParkWaitingStatus` (backend), `apply-execution-snapshot.ts` / `isNodeWaitingForInput` (frontend).
 
 ### retryable error 종결 시 `_retryState` 보존 (R1 채택)
 

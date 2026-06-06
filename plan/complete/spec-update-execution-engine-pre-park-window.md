@@ -1,16 +1,24 @@
 ---
-worktree: .claude/worktrees/fix-carousel-waiting-status-4d4ed3
+worktree: .claude/worktrees/spec-pre-park-window-doc
 started: 2026-06-06
-owner: resolution-applier
+owner: project-planner
+status: complete
+spec_impact: [spec/5-system/4-execution-engine.md]
 ---
-# Spec Update Draft — execution-engine pre-park window & defense-in-depth
+# Spec Update — execution-engine pre-park window & defense-in-depth
 
 ## 분류
-SPEC-DRIFT (코드 개선을 spec 에 반영) — 두 항목 통합 draft.
+SPEC-DRIFT (코드 개선을 spec 에 반영) — 두 항목 통합. **반영 완료**.
+
+## 작업 항목
+- [x] `/consistency-check --spec` 수행 (2026-06-06 15_05_45 — BLOCK: NO, INFO만)
+- [x] spec §1.1 에 "Pre-park read-window 정규화 (intra-row inconsistency)" blockquote 삽입
+- [x] spec `## Rationale` 에 "Pre-park read-window 정규화 — read-side 채택 + 양측 중복 방어" 항목 추가
+- [x] 참조 완전 경로화 + cross-entity 배경 포함 (consistency INFO #3·#5·#10 반영)
 
 ## 처리 결정 (2026-06-06)
-사용자 결정으로 **fix-carousel PR 에서 spec 에 반영하지 않고 후속 plan 으로 분리**한다.
-project-planner 가 `/consistency-check --spec` 후 별도로 반영한다.
+#498(코드 fix) 머지 후, 사용자 요청으로 **별도 PR(`claude/spec-pre-park-window-doc`)** 에서
+spec 에 반영. `/consistency-check --spec` BLOCK: NO 확인 후 §1.1 본문 + Rationale 에 적용 완료.
 
 > **삽입 순서 NOTE (impl-done consistency W-1)**: 본 §1.1 삽입은 `exec-park-durable-resume`
 > Phase-B 의 §1.1 전이표 편집과 **순서 의존**이다 (텍스트 충돌 아님). 반영 시점에
