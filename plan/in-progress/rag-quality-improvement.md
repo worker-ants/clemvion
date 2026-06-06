@@ -84,12 +84,12 @@ owner: 사용자 본인 / planner
 
 ### P0 — 평가 하베스 (모든 것의 전제) ⭐
 - [ ] 응답 로깅: `(query, 회수 chunk_id+score, 최종답변, 인용, thumbs, "답변없음")` 구조화. 기존 `ragSources`/`ragDiagnostics` 재활용.
-- [ ] 골든셋 50~200건(KO+EN). CS 티켓 마이닝 + RAGAS(Python 1회 export) 합성. 태그: language / should-retrieve(bool) / gold 서브쿼리 / gold 인용 id. `eval/golden.json` git 버전관리.
-- [ ] **검색 지표(순수 TS, LLM비용 0)**: Recall@k/Precision@k/MRR/nDCG@k/hit-rate. **결정적 tie-break**(chunk id 2차 정렬), doc/chunk id 정규화. **매 PR** 게이트.
+- [x] 골든셋(KO+EN) — **자동 합성 경로 구현** ([`rag-eval-harness.md`](./rag-eval-harness.md), 2026-06-06). 청크 역방향 생성(gold 라벨 공짜)+SME 스팟검수. CS 티켓 마이닝은 후속. `eval/golden.json` gitignore(고객 데이터), example 만 커밋.
+- [x] **검색 지표(순수 TS, LLM비용 0)** — 구현 완료: Recall@k/Precision@k/MRR/nDCG@k/hit-rate, 결정적 tie-break(chunkId 2차 정렬), `--fail-under` CLI 게이트. ([`rag-eval-harness.md`](./rag-eval-harness.md)) _(CI yaml 자동 게이트는 미착수 — 수동 `--fail-under` CLI 제공, PR 자동화는 후속)_
 - [ ] **생성 지표(LLM-judge)**: `autoevals`(npm, RAG context 메트릭) + `@arizeai/phoenix-evals`(native multi-provider via ai-sdk, **tool-call evaluator**). retrieval/prompt 경로 PR 트리거만(매커밋 아님). temp=0, position swap, **한국어는 ensemble ≥2 judge·느슨 게이트**.
 - [ ] **agentic 지표**: tool-call accuracy, whether-to-retrieve accuracy, decomposition overlap, citation coverage.
 - [ ] 한국어 judge κ≈0.3 [강] → retrieval 지표·reference 기반 우선, raw 한국어 judge 점수는 hard gate 금지. promptfoo 쓰면 `llm-rubric`(string-match `context-recall` 금지).
-- [ ] **spec 갱신**: 신규 `spec/conventions/rag-evaluation.md` 또는 `spec/5-system/9-rag-search.md`.
+- [x] **spec 갱신**: 신규 `spec/conventions/rag-evaluation.md` 또는 `spec/5-system/9-rag-search.md`. (완료: rag-eval-harness 참조)
 
 ### P1 — 검색 후처리 재설계 ⭐ (D1+D2)
 - [ ] **점수 기반 동적 컷**(D1) — 최우선. 회수 폭 30~50, token-budget 상한, 생성 주입 ~8~12.

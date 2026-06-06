@@ -1,0 +1,49 @@
+{
+  "meta": {
+    "version": 1,
+    "description": "스키마 예시 픽스처. 실제 골든셋은 generate-golden-set.ts 산출 + SME 스팟검수. 실데이터(golden.json)는 기본적으로 커밋 대상 아님 — eval/README.md 참조."
+  },
+  "entries": [
+    {
+      "id": "example-ko-0001",
+      "query": "환불은 상품 수령 후 며칠 이내에 신청해야 하나요?",
+      "language": "ko",
+      "knowledgeBaseId": "00000000-0000-0000-0000-000000000000",
+      "goldChunkIds": ["11111111-1111-1111-1111-111111111111"],
+      "referenceAnswer": "상품 수령 후 7일 이내에 환불을 신청해야 합니다.",
+      "shouldRetrieve": true,
+      "source": "manual",
+      "reviewed": true,
+      "difficulty": "single"
+    },
+    {
+      "id": "example-ko-0002",
+      "query": "SKU-12345 상품의 재고 부족 시 입고 알림을 받을 수 있나요?",
+      "language": "ko",
+      "knowledgeBaseId": "00000000-0000-0000-0000-000000000000",
+      "goldChunkIds": ["22222222-2222-2222-2222-222222222222"],
+      "referenceAnswer": "상품 상세 페이지의 '재입고 알림' 신청 시 입고 시점에 알림을 받을 수 있습니다.",
+      "shouldRetrieve": true,
+      "source": "synthetic",
+      "reviewed": false,
+      "difficulty": "single",
+      "generatedFrom": {
+        "chunkId": "22222222-2222-2222-2222-222222222222",
+        "documentId": "33333333-3333-3333-3333-333333333333",
+        "model": "claude-haiku-4-5-20251001"
+      }
+    },
+    {
+      "id": "example-en-0001",
+      "query": "What is the maximum file size allowed for a document upload?",
+      "language": "en",
+      "knowledgeBaseId": "00000000-0000-0000-0000-000000000000",
+      "goldChunkIds": ["44444444-4444-4444-4444-444444444444"],
+      "referenceAnswer": "Document uploads are limited to 50 MB per file.",
+      "shouldRetrieve": true,
+      "source": "manual",
+      "reviewed": true,
+      "difficulty": "single"
+    }
+  ]
+}

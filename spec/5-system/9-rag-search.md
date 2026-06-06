@@ -6,11 +6,12 @@ code:
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/kb-tool-provider.ts
 pending_plans:
   - plan/in-progress/rag-rerank-followup.md
+  - plan/in-progress/rag-eval-harness.md
 ---
 
 # Spec: RAG 검색 엔진
 
-> 관련 문서: [PRD AI & 지식 저장소](../4-nodes/3-ai/_product-overview.md) · [Spec AI Agent](../4-nodes/3-ai/1-ai-agent.md) · [Spec 임베딩 파이프라인](./8-embedding-pipeline.md) · [Spec Graph RAG](./10-graph-rag.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md)
+> 관련 문서: [PRD AI & 지식 저장소](../4-nodes/3-ai/_product-overview.md) · [Spec AI Agent](../4-nodes/3-ai/1-ai-agent.md) · [Spec 임베딩 파이프라인](./8-embedding-pipeline.md) · [Spec Graph RAG](./10-graph-rag.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md) · [Convention RAG 평가 하베스](../conventions/rag-evaluation.md)
 
 ---
 
