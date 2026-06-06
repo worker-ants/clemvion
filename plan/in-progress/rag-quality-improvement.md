@@ -92,10 +92,10 @@ owner: 사용자 본인 / planner
 - [x] **spec 갱신**: 신규 `spec/conventions/rag-evaluation.md` 또는 `spec/5-system/9-rag-search.md`. (완료: rag-eval-harness 참조)
 
 ### P1 — 검색 후처리 재설계 ⭐ (D1+D2)
-- [ ] **점수 기반 동적 컷**(D1) — 최우선. 회수 폭 30~50, token-budget 상한, 생성 주입 ~8~12.
-- [ ] cross-encoder 리랭크 기본(`bge-reranker-v2-m3-ko`). NestJS 서비스(ONNX/Triton local 또는 rerank API).
-- [ ] listwise LLM grading **escalate 경로**(D2 escalate 조건) — `RagSearchService.search()` 내부, tool 인터페이스 불변.
-- [ ] "근거 없음" → agent 명시 전달.
+- [x] **점수 기반 동적 컷**(D1) — `rag-dynamic-cut` PR #500: 회수 폭 RAG_RECALL_K(50), token-budget(8000) + inject-cap(12) `applyDynamicCut`, ef_search recall 보전. (off·rerank·graph 통합 주입 단계 공통)
+- [x] cross-encoder 리랭크 기본(`bge-reranker-v2-m3-ko`/tei·cohere) — #465 머지.
+- [x] listwise LLM grading **escalate 경로**(D2) — #500: conditional escalate(`shouldEscalateGrading`, provisional 임계). 정량 A/B 는 §7.C(데이터 의존) 후속.
+- [x] "근거 없음" → agent 명시 전달 — #500: `gradingNoGrounding` → KB tool `grounding:"none"`.
 - [x] **spec 갱신** (2026-06-06, `rag-dynamic-cut` PR): `spec/5-system/9-rag-search.md` §3.1·§3.3·신규 §3.4·§4.2·§6·Rationale, `spec/4-nodes/3-ai/1-ai-agent.md`·`0-common.md` ragTopK optional, `17-agent-memory.md`·`10-graph-rag.md`·`1-data-model.md` 정합. consistency `--spec 14_53_44` BLOCK:NO.
 
 ### P2 — 3-신호 하이브리드 검색 (D3) — **배포 환경 선결**
@@ -203,4 +203,4 @@ P6(UX) ── 독립 백로그
 - [ ] `EVAL_CLI_ENTITIES` 최소 집합 분리, `eval-cli.module` DI 회귀 스펙.
 - [ ] `eval-retrieval.ts main()` 단계 함수 분리, 기존 마이그레이션 스크립트 `parseCliFlag` → `cli-utils` 통합.
 - [ ] perf 마이크로 최적화(ndcg log2 테이블·resolveWorkspace 배치 조회), `rag-evaluation.md` Rationale 에 D-E7(`root-entities.ts` 분리) 추가.
-- [ ] **pgvector ANN 파라미터 조정 (D1 wide 회수 후속)** — D1 동적 컷이 회수 폭을 `LIMIT 5→50`(`RAG_RECALL_K`)으로 넓혀 ANN 스캔 대상 증가. `hnsw.ef_search`(기본 40, `≥ 회수 폭` 권장)·`ivfflat.probes`(기본 1) 가 재현율 유지에 적합한지 프로덕션 부하 측정 후 조정 (필요 시 DB 세션 파라미터/KB config 노출). SoT: `spec/5-system/9-rag-search.md §3.4` follow-up 노트. (ai-review `16_08_38` I1 / `16_05_34` INFO8)
+- [x] **pgvector HNSW ef_search recall 보전 (D1 wide 회수 후속)** — `rag-followup-efsearch` PR 구현: `searchVectorGroup` wide 회수를 트랜잭션 안 `SET LOCAL hnsw.ef_search = clamp(LIMIT×2, 40, 1000)`(`hnswEfSearchFor`)로 상향. graph seed(seedTopK<40) 미적용. (`ivfflat` 미사용 — partial HNSW 만 운용.) **운영 부하에 따른 clamp 범위 정밀 튜닝**(값·KB config 노출)은 측정 후 후속. SoT: `spec/5-system/9-rag-search.md §3.4`. (ai-review `16_08_38` I1 / `16_05_34` INFO8)

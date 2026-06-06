@@ -112,7 +112,7 @@ code:
 | KB-GR-SR-02 | 검색 1단계: query 임베딩 → KB 의 chunk 에서 vector top-K (`vectorSeedTopK`, 기본 5) 회수 | 필수 | ✅ |
 | KB-GR-SR-03 | 검색 2단계: 회수된 chunk 가 언급한 entity 들에서 1~`maxHops` (기본 1) 까지 그래프 확장 | 필수 | ✅ (recursive CTE) |
 | KB-GR-SR-04 | 검색 3단계: 확장된 entity 들이 등장한 chunk 를 추가 회수 (총 chunk 수는 `expandedChunkLimit`, 기본 15 내) | 필수 | ✅ |
-| KB-GR-SR-05 | 검색 4단계 — **centrality-weighted score blending**: vector seed + expanded chunk 를 score 재정렬해 상위 `topK` 반환 (graph expansion 청크는 entity centrality 기반 가중치 부여). 이는 graph 내부 1차 정렬이며, cross-encoder 후처리 reranking([RAG 검색 §3.3](./9-rag-search.md#33-검색-후처리--리랭킹-선택적), Planned)과는 **별개 단계**다 | 필수 | ✅ |
+| KB-GR-SR-05 | 검색 4단계 — **centrality-weighted score blending**: vector seed + expanded chunk 를 score 재정렬 (graph expansion 청크는 entity centrality 기반 가중치 부여). 이는 graph 내부 1차 정렬이며, 최종 생성 주입 청크 수는 [RAG 검색 §3.4](./9-rag-search.md#34-동적-점수-컷-생성-주입-모든-모드-공통) **동적 점수 컷**(token-budget + inject-cap)이 결정한다(고정 `topK` 아님). cross-encoder 후처리 reranking([RAG 검색 §3.3](./9-rag-search.md#33-검색-후처리--리랭킹-선택적))과도 **별개 단계** | 필수 | ✅ |
 | KB-GR-SR-06 | 검색 결과 메타데이터에 그래프 순회 요약 (`seedChunkCount`, `traversedEntityCount`, `maxDepth`, `expandedChunkCount`) 포함 (§4.3) | 권장 | ✅ (`GraphTraversalSummary`. 출력은 개수형 — 목록형 ID 배열이 아님) |
 
 #### 3.5 KB 검색 파라미터 (`KB-GR-PA-*`)
