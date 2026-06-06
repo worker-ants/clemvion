@@ -15,7 +15,9 @@ describe('aiAgentNodeConfigSchema', () => {
     expect(result.mode).toBe('single_turn');
     expect(result.responseFormat).toBe('text');
     expect(result.knowledgeBases).toEqual([]);
-    expect(result.ragTopK).toBe(5);
+    // ragTopK 는 optional(no default) — 미지정 시 RagSearchService 동적 컷이 주입 수를
+    // 결정 (spec/5-system/9-rag-search.md §3.4). ragThreshold 는 기본 0.7 유지.
+    expect(result.ragTopK).toBeUndefined();
     expect(result.ragThreshold).toBe(0.7);
     expect(result.conditions).toEqual([]);
     expect(result.maxToolCalls).toBe(10);

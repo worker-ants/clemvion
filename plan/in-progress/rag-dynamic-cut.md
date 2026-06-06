@@ -28,12 +28,19 @@ spec_impact: yes
 - [ ] 2. 모호성 해소 (완료: 사용자 confirm 3건)
 - [x] 3. consistency-check --impl-prep (BLOCK:YES → spec-first 로 해소, 13_24_24)
 - [x] 4a. spec 갱신 (project-planner) — 6 spec 파일 적용, consistency `--spec 14_53_44` BLOCK:NO
-- [ ] 4b. 프론트 doc-sync (ai-agent FieldTable + i18n ragTopK) — developer 단계
-- [ ] 5-7. 테스트 선작성 + D1/D2 구현 + 보강
-- [ ] 8. TEST WORKFLOW (lint·unit·build·e2e)
+- [x] 4b. 프론트 doc-sync — ai-agent FieldTable(ko/en) + backend-labels(label/hint) + KB 가이드 예시 주석
+- [x] 5-7. 테스트 선작성 + D1/D2 구현 + 보강 (dynamic-cut.util + rag-search/rerank service + kb-tool-provider + schema/handler)
+- [x] 8. TEST WORKFLOW — lint·unit·build·e2e 全 PASS (2026-06-06). 주: channel-web-chat W8 은 full-suite 타이밍 flake(격리·standalone 16/16 통과, 본 변경 무관)
 - [ ] 9. /ai-review + fix + consistency-check --impl-done
 - [ ] eval-retrieval 동적컷 전/후 지표 비교
 - [ ] 10. plan 정리
+
+### 구현 요약 (2026-06-06)
+- `dynamic-cut.util.ts`(신규): `applyDynamicCut(sorted,{tokenBudget,maxCount})` 순수 헬퍼 + 상수 `RAG_RECALL_K`(50)/`RAG_INJECT_TOKEN_BUDGET`(8000)/`RAG_MAX_INJECT_COUNT`(12).
+- `rag-search.service`: off 경로 wide 회수(RAG_RECALL_K)→merged 동적 컷. rerank 경로엔 injectCap+tokenBudget 전달. searchWithMeta topK→injectCap(미지정 시 ceiling).
+- `rerank.service`: 전 후보 재점수화→conditional escalate(shouldEscalateGrading, provisional 임계)→동적 컷. `gradingNoGrounding` outcome. fallback 도 동적 컷.
+- `kb-tool-provider`: topK 명시 시에만 전달(undefined=동적 컷). gradingNoGrounding → tool_result `grounding:'none'` 신호.
+- `ai-agent.schema`: ragTopK `.default(5)`→`.optional()`, label "RAG Top-K (cap)". `handler`: ragTopK `||5`→`|undefined`(resume 보존).
 
 ## 진행 메모
 

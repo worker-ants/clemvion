@@ -30,7 +30,7 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
   {name: "responseFormat", required: false, type: "`text` / `json`", description: "응답 형식이에요. `json`일 때는 `jsonSchema`를 함께 지정해요.", default: "text"},
   {name: "jsonSchema", required: false, type: "JSONSchema", description: "`responseFormat=json` 시 출력 스키마예요.", default: "-"},
   {name: "knowledgeBases", required: false, type: "UUID[]", description: "RAG에 참조할 Knowledge Base 목록이에요.", default: "[]"},
-  {name: "ragTopK", required: false, type: "integer", description: "RAG 검색 결과 수예요.", default: "5"},
+  {name: "ragTopK", required: false, type: "integer", description: "주입할 청크 수 상한이에요(선택). 미설정 시 동적 컷이 개수를 정해요.", default: "동적 컷"},
   {name: "ragThreshold", required: false, type: "float", description: "RAG 유사도 임계값이에요 (0~1).", default: "0.7"},
   {name: "mcpServers", required: false, type: "McpServerRef[]", description: "AI Agent에 연결할 MCP(Model Context Protocol) 서버 목록이에요. 각 항목은 `integrationId`(필수)와 `enabledTools`·`includeResources`·`includePrompts`·`toolOverrides` 옵션을 포함해요. 등록한 서버의 도구가 LLM에게 자동 노출돼요.", default: "[]"},
   {name: "conditions", required: false, type: "ConditionDef[]", description: "조건 목록이에요. 각 조건은 `id`, `label`, `prompt`를 가지며, 각 조건마다 동적 출력 포트가 생겨요.", default: "[]"},

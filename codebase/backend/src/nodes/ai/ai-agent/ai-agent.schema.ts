@@ -277,15 +277,18 @@ export const aiAgentNodeConfigSchema = z
           group: 'Knowledge Base (RAG)',
         },
       }),
+    // optional (no default): 미지정 시 RagSearchService 의 동적 점수 컷(token-budget +
+    // 내부 inject-cap)이 주입 청크 수를 결정한다. 명시 시 그 값이 주입 ceiling override.
+    // (spec/5-system/9-rag-search.md §3.4, ragThreshold 와 달리 고정 기본값 없음)
     ragTopK: z
       .number()
       .int()
-      .default(5)
+      .optional()
       .meta({
         ui: {
-          label: 'RAG Top-K (default)',
+          label: 'RAG Top-K (cap)',
           widget: 'number',
-          hint: 'Default chunk count returned per KB tool call (LLM can override via call arguments)',
+          hint: 'Optional cap on chunks injected per KB tool call. If unset, a dynamic token-budget cut decides the count. The LLM can override via call arguments.',
           order: 11,
           group: 'Knowledge Base (RAG)',
         },
