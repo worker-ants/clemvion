@@ -5290,6 +5290,20 @@ export class ExecutionEngineService
     payload: unknown,
   ): Promise<void | ParkSignal> {
     const contextKey = this.contextKeyOf(context);
+    // W10 (ai-review) — `payload` 는 §7.5 rehydration 의 새 진입점이라 방어적 null
+    // guard. null/비객체(또는 `type` 부재) continuation 은 `action.type` 접근 전에
+    // 걸러 warn 후 re-park 한다 (옛 loop 의 unknown 분기와 동형 — 대화 alive 유지).
+    if (
+      payload === null ||
+      typeof payload !== 'object' ||
+      typeof (payload as { type?: unknown }).type !== 'string'
+    ) {
+      this.logger.warn(
+        `[processAiResumeTurn] malformed continuation payload (type 부재/비객체) for execution=${executionId} — re-park`,
+      );
+      await this.reparkAiResumeTurn(savedExecution, context, nodeExec);
+      return PARK_RELEASED;
+    }
     const action = payload as ContinuationPayload;
 
     // 대화 종료 신호 — 노드 단말 마킹 후 caller 가 그래프 진행.

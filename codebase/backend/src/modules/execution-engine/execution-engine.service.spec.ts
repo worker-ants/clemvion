@@ -4908,6 +4908,9 @@ describe('ExecutionEngineService', () => {
   describe('processAiResumeTurn dispatch — form_submitted + unknown type (W11/W12)', () => {
     // `form_submitted` payload 가 handler.processMultiTurnMessage 에 도달하는지,
     // unknown type 이 warn log 를 남기고 re-park 하는지 검증.
+    // W15 (ai-review) — flushResumeDrive(200ms) × 다수(button×22·인터리빙 등) 누적이
+    // jest 기본 5s 타임아웃에 근접해 CI 고부하 시 flaky → 본 파일 타임아웃 상향.
+    jest.setTimeout(15_000);
 
     const makeAiDispatchHandler = (
       processReturn: () => unknown,
