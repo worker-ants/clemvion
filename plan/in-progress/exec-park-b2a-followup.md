@@ -35,3 +35,10 @@ owner: developer
 
 ## 진행 메모
 - 2026-06-06 착수. origin/main `9fb4cfa7`(PR-B2b #501 머지 포함) fresh worktree. exec-park-b2b·exec-park-pr-b2 worktree 정리 완료.
+- **2026-06-06 완료**: 4개 항목 전부 구현.
+  - ① `7-llm-client §7.1` LLM_STUB_MODE + StubLlmClient 응답 계약(ai-review W3) 문서화.
+  - ② `14-external-interaction-api §8.3/§10.1` iext(글로벌 INTERACTION_JWT_SECRET)/itk(per-trigger) secret 출처 분리(SPEC-DRIFT). narrow scope(scope/revoke·§6.2/§6.5·notification_secret·202봉투 미수정). fallback 리터럴 노출 제거(ai-review W1).
+  - ③ `data-flow/3-execution.md` L48-51/L107-112 resume_call_stack(V087) park commit + frame-by-frame rehydration doc-sync. 0-overview no-op(anchor 없음).
+  - ④ `docker-compose.e2e.yml` ENCRYPTION_KEY 64-hex + 멀티턴 AI e2e DB-insert 우회→`POST /api/llm-configs` 정식 경로 커버.
+  - 게이트: `--impl-prep` BLOCK:NO(`17_13_16`), build·lint clean, dockerized e2e **176 pass**, `/ai-review` LOW Critical0/W4(W1·W3 조치, W2 수용·W4 충족 → RESOLUTION `17_27_54`), `--impl-done` BLOCK:NO(`17_27_55`).
+  - 후속(비차단): `.env.example` INTERACTION_JWT_SECRET·LLM_STUB_MODE 등재(I1/I2), InteractionTokenService prod fail-closed 명시 가드(W1 hardening), MERGED stale worktree 3건 정리(I7). cross-worktree: impl-concurrency-cap-pr2b rebase(타 worktree).
