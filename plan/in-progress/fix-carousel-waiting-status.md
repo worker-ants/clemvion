@@ -1,5 +1,7 @@
 ---
 worktree: .claude/worktrees/fix-carousel-waiting-status-4d4ed3
+started: 2026-06-06
+owner: developer
 branch: claude/fix-carousel-waiting-status-4d4ed3
 spec: spec/5-system/4-execution-engine.md
 status: in-progress
@@ -43,7 +45,8 @@ UI 가 버튼을 interactive 로 못 그리고 "실행 중(Running)" 스피너�
 - [x] /consistency-check --impl-prep (BLOCK: NO — Critical 0. Warning 2건은 코드-only 변경에 비적용. INFO 는 impl-done spec 동기화 후속)
 - [x] 테스트 선작성 (frontend unit / backend unit)
 - [x] 구현
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
+- [x] TEST WORKFLOW (lint·unit·build·e2e 전부 PASS — unit 40, e2e 175)
+      - 부수: channel-web-chat W8 eager-start flaky 테스트(race) 수정 — 기존 main 에서도 5회 중 2회 실패하던 것을 `waitFor(executionId)` 로 안정화
 - [ ] /ai-review + SUMMARY + critical/warning fix
 - [ ] /consistency-check --impl-done (spec 연결 코드 변경)
 </content>

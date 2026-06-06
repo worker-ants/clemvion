@@ -551,7 +551,9 @@ describe('ExecutionsService', () => {
           },
         },
       ]);
-      executionNodeLogRepo.find.mockResolvedValue([{ nodeId: 'carousel-node' }]);
+      executionNodeLogRepo.find.mockResolvedValue([
+        { nodeId: 'carousel-node' },
+      ]);
 
       const result = (await service.findById('eW1')) as {
         nodeExecutions: { status: string }[];
@@ -572,7 +574,9 @@ describe('ExecutionsService', () => {
           outputData: { status: 'waiting_for_input' }, // 봉투에 잔존하는 stale 문자열
         },
       ]);
-      executionNodeLogRepo.find.mockResolvedValue([{ nodeId: 'carousel-node' }]);
+      executionNodeLogRepo.find.mockResolvedValue([
+        { nodeId: 'carousel-node' },
+      ]);
 
       const result = (await service.findById('eW2')) as {
         nodeExecutions: { status: string }[];
