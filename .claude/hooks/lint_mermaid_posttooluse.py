@@ -37,6 +37,7 @@ import sys
 
 MARKDOWN_EXTS = (".md", ".markdown", ".mdx")
 FENCE_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})[ \t]*mermaid\b", re.IGNORECASE | re.MULTILINE)
+_NODE_TIMEOUT = 20.0  # seconds; a hung linter must never wedge PostToolUse
 
 
 def _read_payload() -> dict:
@@ -110,14 +111,15 @@ def main() -> int:
     try:
         proc = subprocess.run(
             ["node", script, os.path.abspath(target)],
-            capture_output=True, text=True, timeout=20.0,
+            capture_output=True, text=True, timeout=_NODE_TIMEOUT,
         )
     except FileNotFoundError:
         print("mermaid-lint: skipped (node not found on PATH).", file=sys.stderr)
         return 0
     except subprocess.TimeoutExpired:
         # A hung linter must never wedge the PostToolUse hook (and the session).
-        print("mermaid-lint: skipped (linter timed out after 20s).", file=sys.stderr)
+        print(f"mermaid-lint: skipped (linter timed out after {_NODE_TIMEOUT:g}s).",
+              file=sys.stderr)
         return 0
 
     if proc.returncode == 0:

@@ -39,20 +39,30 @@ EITHER of these coverage gates fails:
   a `review/code/**/SUMMARY.md` in the working tree whose
     - risk is resolved:  `## 전체 위험도` line is NONE/LOW, OR a sibling
       `RESOLUTION.md` exists (critical/warning were addressed), AND
-    - freshness:         its mtime >= the newest changed codebase file's mtime
-      (the review postdates the latest code edit).
+    - freshness:         it postdates the newest changed codebase file.
 
 "Fresh impl-done consistency report" =
   a `review/consistency/**/SUMMARY.md` whose session `meta.json` mode names
   `--impl-done` AND whose top `BLOCK:` line is NO (no Critical spec-impl
-  divergence), with mtime >= the newest spec-linked changed file's mtime.
+  divergence), postdating the newest spec-linked changed file.
 
-The freshness check uses filesystem mtime for both sides — they are compared
-within the *same* working tree at the same instant, so the comparison is
-internally consistent even though absolute mtimes are not portable across
-checkouts. This is a strong nudge, not a precise oracle; like the CWD-based
-worktree guard it errs toward not false-blocking, and BYPASS_REVIEW_GUARD=1
-(handled by callers) provides a conscious one-off override.
+Freshness uses **checkout-immune** clocks, NOT raw filesystem mtime. `git
+worktree add` / checkout / rebase reset a file's mtime to the checkout instant,
+which made a genuinely-resolved review look stale (its committed SUMMARY.md
+mtime jumped behind the code) and false-blocked. Instead:
+  - a review's "done" time is its session-dir timestamp (`<Y>/<m>/<d>/<H>_<M>_
+    <S>`, encoded in the path — never reset by checkout), with a just-written
+    (dirty) SUMMARY/RESOLUTION's mtime folded in;
+  - a code file's edit time is its last *commit* time when clean, or its mtime
+    when it carries an uncommitted change (genuinely just edited).
+Both sides therefore share one stable clock. Additionally, a review that has
+*started but not finished* (session dir + meta.json present, SUMMARY.md not yet
+written, within _IN_FLIGHT_TTL_SECONDS) suppresses the gate — the async
+`/ai-review` is mid-flight, not an unreviewed branch.
+
+This is a strong nudge, not a precise oracle; like the CWD-based worktree guard
+it errs toward not false-blocking, and BYPASS_REVIEW_GUARD=1 (handled by
+callers) provides a conscious one-off override.
 """
 
 from __future__ import annotations
@@ -251,10 +261,12 @@ def _authoritative_code_time(repo_root: str, rel_paths: list[str],
     return newest
 
 
-# Back-compat name retained as the seam evaluate_review/tests reference; the
-# body is now checkout-immune (see _authoritative_code_time).
-def _newest_code_mtime(repo_root: str, rel_paths: list[str]) -> float:
-    return _authoritative_code_time(repo_root, rel_paths)
+def _newest_code_mtime(repo_root: str, rel_paths: list[str],
+                       dirty: set[str] | None = None) -> float:
+    """Back-compat name retained as the seam evaluate_review/tests reference;
+    the body is now checkout-immune (see _authoritative_code_time). `dirty` is
+    an optional pre-computed dirty set to avoid a redundant `git status`."""
+    return _authoritative_code_time(repo_root, rel_paths, dirty)
 
 
 def _path_session_time(session_dir: str) -> float:
@@ -319,8 +331,10 @@ def _summary_is_resolved(summary_path: str) -> bool:
     risk_level = None
     for i, ln in enumerate(lines):
         if _RISK_LINE.search(ln):
-            for probe in lines[i:]:
-                if probe is not ln and probe.lstrip().startswith("#"):
+            # Index-based (`j > 0`) rather than `probe is not ln` — object
+            # identity would lean on CPython string interning.
+            for j, probe in enumerate(lines[i:]):
+                if j > 0 and probe.lstrip().startswith("#"):
                     break  # next section — stop before bleeding into it
                 m = _RISK_LEVEL.search(probe)
                 if m:
@@ -355,7 +369,8 @@ def _section_has_rows(lines: list[str], heading_token: str) -> bool:
     return False
 
 
-def _newest_resolved_review_mtime(repo_root: str) -> float:
+def _newest_resolved_review_mtime(repo_root: str,
+                                  dirty: set[str] | None = None) -> float:
     """Authoritative time of the most recent *resolved* review (0.0 if none).
 
     Checkout-immune: the review's "done" clock is the session-dir timestamp
@@ -364,8 +379,10 @@ def _newest_resolved_review_mtime(repo_root: str) -> float:
     committed) we also fold in its filesystem mtime — that is a genuine, later
     write time and covers the case where the resolving edits landed after the
     session dir was created. Committed-and-clean artifacts rely on the path time
-    alone, never on their (checkout-poisoned) mtime."""
-    dirty = _dirty_set(repo_root)
+    alone, never on their (checkout-poisoned) mtime. `dirty` may be passed in to
+    reuse a single `git status` across the evaluate_review call."""
+    if dirty is None:
+        dirty = _dirty_set(repo_root)
     best = 0.0
     for summary in _iter_summaries(repo_root):
         if not _summary_is_resolved(summary):
@@ -541,12 +558,14 @@ def _summary_block_is_no(summary_path: str) -> bool:
     return bool(m) and m.group(1).upper() == "NO"
 
 
-def _newest_resolved_impl_done_mtime(repo_root: str) -> float:
+def _newest_resolved_impl_done_mtime(repo_root: str,
+                                     dirty: set[str] | None = None) -> float:
     """Authoritative time of the most recent --impl-done consistency SUMMARY with
     BLOCK: NO (0.0 if none). Checkout-immune via the session-dir timestamp, with
     a dirty (just-written) SUMMARY's mtime folded in — same rule as the code
-    review side."""
-    dirty = _dirty_set(repo_root)
+    review side. `dirty` may be passed in to reuse a single `git status`."""
+    if dirty is None:
+        dirty = _dirty_set(repo_root)
     best = 0.0
     for summary in _iter_consistency_summaries(repo_root):
         session_dir = os.path.dirname(summary)
@@ -573,7 +592,8 @@ def _code_review_in_flight(repo_root: str, now: float | None = None) -> bool:
     no other way to see an async review in progress. We only honour recent
     sessions (within _IN_FLIGHT_TTL_SECONDS, by the checkout-immune session-dir
     timestamp) so an abandoned/crashed session cannot suppress the gate forever;
-    the push guard remains the hard backstop."""
+    the push guard remains the hard backstop. `now` is injectable for tests;
+    production callers omit it (defaults to time.time())."""
     now = time.time() if now is None else now
     root = os.path.join(repo_root, REVIEW_GLOB_ROOT)
     if not os.path.isdir(root):
@@ -582,8 +602,17 @@ def _code_review_in_flight(repo_root: str, now: float | None = None) -> bool:
         if "meta.json" not in files or "SUMMARY.md" in files:
             continue
         t = _path_session_time(dirpath)
-        if t > 0.0 and (now - t) <= _IN_FLIGHT_TTL_SECONDS:
-            return True
+        if t <= 0.0 or (now - t) > _IN_FLIGHT_TTL_SECONDS:
+            continue
+        # Require a parseable meta.json — a stray/empty file in the tree must not
+        # silently suppress the gate (defence-in-depth; the orchestrator always
+        # writes valid JSON here).
+        try:
+            with open(os.path.join(dirpath, "meta.json"), "r", encoding="utf-8") as f:
+                json.load(f)
+        except (OSError, ValueError):
+            continue
+        return True
     return False
 
 
@@ -618,9 +647,13 @@ def evaluate_review(cwd: str | None = None) -> ReviewDecision:
             False, "a code review session is in flight (started, SUMMARY pending) — allowed"
         )
 
+    # One `git status` shared across every freshness query below (the dirty set
+    # decides mtime-vs-commit-time per file on both the code and review sides).
+    dirty = _dirty_set(repo_root)
+
     # ---- Gate 1: code review coverage --------------------------------------
-    newest_code = _newest_code_mtime(repo_root, changed)
-    newest_review = _newest_resolved_review_mtime(repo_root)
+    newest_code = _newest_code_mtime(repo_root, changed, dirty)
+    newest_review = _newest_resolved_review_mtime(repo_root, dirty)
 
     if newest_review <= 0.0:
         return ReviewDecision(
@@ -641,8 +674,8 @@ def evaluate_review(cwd: str | None = None) -> ReviewDecision:
     # (matches a spec frontmatter `code:` glob) is held to this gate.
     spec_linked = _spec_linked_changes(repo_root, changed)
     if spec_linked:
-        newest_spec_code = _newest_code_mtime(repo_root, spec_linked)
-        newest_impl_done = _newest_resolved_impl_done_mtime(repo_root)
+        newest_spec_code = _newest_code_mtime(repo_root, spec_linked, dirty)
+        newest_impl_done = _newest_resolved_impl_done_mtime(repo_root, dirty)
         if newest_impl_done <= 0.0:
             return ReviewDecision(
                 True,

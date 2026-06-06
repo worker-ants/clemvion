@@ -30,11 +30,21 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import traceback
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Characters allowed verbatim in a marker filename component; everything else
+# (`/`, `..`, whitespace, …) is collapsed to `_` so an unexpected session_id /
+# branch token can never escape the state dir into another path.
+_MARKER_SAFE = re.compile(r"[^A-Za-z0-9._-]")
+
+
+def _sanitize_component(value: str) -> str:
+    return _MARKER_SAFE.sub("_", value)
 sys.path.insert(0, os.path.join(THIS_DIR, "_lib"))
 
 try:
@@ -92,9 +102,11 @@ def _marker_path(session_id: str | None, token: str) -> str:
     # A missing session_id must NOT disable the throttle (that would nudge on
     # every stop). Fall back to a stable sentinel so the once-per-branch marker
     # is still written; the worst case is throttling slightly across sessions,
-    # which is the safe direction (the push guard is the hard gate).
-    sid = session_id or "nosession"
-    return os.path.join(_state_dir(), f"{sid}__{token}")
+    # which is the safe direction (the push guard is the hard gate). Both
+    # components are sanitized — session_id comes from the harness payload and
+    # the token from `git`, so neither is trusted to stay inside the state dir.
+    sid = _sanitize_component(session_id or "nosession")
+    return os.path.join(_state_dir(), f"{sid}__{_sanitize_component(token)}")
 
 
 def _already_nudged(marker: str) -> bool:

@@ -15,6 +15,7 @@ audit surfaced:
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 import unittest
 from unittest import mock
@@ -67,6 +68,13 @@ class GlobBoundaryTest(unittest.TestCase):
         self.assertTrue(p.match("codebase/a/b/x.ts"))
         self.assertFalse(p.match("codebaseX/x.ts"))
 
+    def test_trailing_double_star_matches_any_path(self):
+        # Trailing `**` (no slash after) → `.*`, matches any descendant.
+        p = rg._glob_to_regex("codebase/backend/**")
+        self.assertTrue(p.match("codebase/backend/a.ts"))
+        self.assertTrue(p.match("codebase/backend/deep/nested/x.ts"))
+        self.assertFalse(p.match("codebase/frontend/a.ts"))
+
 
 class PathSessionTimeTest(unittest.TestCase):
     def test_parses_session_dir_timestamp(self):
@@ -105,6 +113,16 @@ class AuthoritativeCodeTimeTest(unittest.TestCase):
             t = rg._authoritative_code_time("/r", ["codebase/a.ts"])
         # checkout-poisoned mtime (10000) must be ignored for a clean file.
         self.assertEqual(t, 42.0)
+
+    def test_all_dirty_uses_only_mtime(self):
+        # Every path dirty → commit-time query gets an empty list, result is mtime.
+        with mock.patch.object(rg, "_dirty_set",
+                               return_value={"codebase/a.ts", "codebase/b.ts"}), \
+             mock.patch.object(rg, "_mtime", return_value=500.0), \
+             mock.patch.object(rg, "_newest_commit_time", return_value=0.0) as ct:
+            t = rg._authoritative_code_time("/r", ["codebase/a.ts", "codebase/b.ts"])
+        self.assertEqual(t, 500.0)
+        ct.assert_called_once_with("/r", [])
 
 
 class CodeReviewInFlightTest(unittest.TestCase):
@@ -154,6 +172,14 @@ class EvaluateInFlightShortCircuitTest(unittest.TestCase):
 
 
 class RiskLevelWindowTest(unittest.TestCase):
+    def _write(self, summary):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        sp = os.path.join(d, "SUMMARY.md")
+        with open(sp, "w", encoding="utf-8") as f:
+            f.write(summary)
+        return sp
+
     def test_high_risk_below_old_window_with_rows_is_unresolved(self):
         # Risk token sits 5 lines below the heading (past the old 3-line window)
         # AND a Critical row exists → must be unresolved.
@@ -163,11 +189,17 @@ class RiskLevelWindowTest(unittest.TestCase):
             "| # | 카테고리 | 발견 | 위치 | 제안 |\n|---|---|---|---|---|\n"
             "| 1 | 보안 | x | a.py:1 | fix |\n"
         )
-        d = tempfile.mkdtemp()
-        sp = os.path.join(d, "SUMMARY.md")
-        with open(sp, "w") as f:
-            f.write(summary)
-        self.assertFalse(rg._summary_is_resolved(sp))
+        self.assertFalse(rg._summary_is_resolved(self._write(summary)))
+
+    def test_medium_with_no_rows_is_resolved(self):
+        # After the dead-code removal: MEDIUM risk with no actionable rows and no
+        # RESOLUTION is a clean report → resolved.
+        summary = (
+            "# 보고서\n\n## 전체 위험도\n\n**MEDIUM**\n\n"
+            "## Critical 발견사항\n\n| # |\n|---|\n\n"
+            "## 경고 (WARNING)\n\n| # |\n|---|\n"
+        )
+        self.assertTrue(rg._summary_is_resolved(self._write(summary)))
 
 
 class StopThrottleTest(unittest.TestCase):
@@ -181,10 +213,31 @@ class StopThrottleTest(unittest.TestCase):
         p = stop._marker_path("sess1", "main")
         self.assertTrue(p.endswith("sess1__main"))
 
+    def test_marker_path_sanitizes_path_traversal(self):
+        # A session_id with `/` (the traversal vector) must not escape the state
+        # dir: the marker stays a single filename directly under it. Remaining
+        # `.` chars are harmless inside a filename component.
+        p = stop._marker_path("../../etc/evil", "main")
+        self.assertNotIn("/", os.path.basename(p))
+        self.assertEqual(os.path.dirname(p), stop._state_dir())
+
     def test_throttle_token_sanitizes_branch_slashes(self):
         with mock.patch("subprocess.run") as run:
             run.return_value = mock.Mock(returncode=0, stdout="claude/harden/x\n")
             self.assertEqual(stop._throttle_token(), "claude-harden-x")
+
+    def test_throttle_token_detached_head_returns_sha(self):
+        # abbrev-ref returns "HEAD" when detached → fall back to the short sha.
+        def fake_run(args, **kw):
+            if "--abbrev-ref" in args:
+                return mock.Mock(returncode=0, stdout="HEAD\n")
+            return mock.Mock(returncode=0, stdout="deadbee\n")
+        with mock.patch("subprocess.run", side_effect=fake_run):
+            self.assertEqual(stop._throttle_token(), "deadbee")
+
+    def test_throttle_token_no_git_returns_norepo(self):
+        with mock.patch("subprocess.run", side_effect=FileNotFoundError()):
+            self.assertEqual(stop._throttle_token(), "norepo")
 
 
 if __name__ == "__main__":
