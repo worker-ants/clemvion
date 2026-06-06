@@ -16,6 +16,7 @@ import {
   SubWorkflowTimeoutError,
 } from '../../../modules/execution-engine/workflow-errors.js';
 import { workflowNodeMetadata } from './workflow.schema.js';
+import { ParkReleaseSignal } from '../../../shared/execution-resume/park-release-signal.js';
 
 interface MappingDef {
   paramName: string;
@@ -153,6 +154,11 @@ export class WorkflowHandler implements NodeHandler {
           // workflow node's own row id, so the frontend timeline can render
           // a Sub-Workflow card grouping its children.
           parentNodeExecutionId: context.nodeExecutionId,
+          // exec-park D6 — 중첩 durable park 의 call-stack frame 키. 이 Workflow
+          // 노드의 Node.id 를 invoker 로 기록해, sub-workflow 안의 blocking 노드가
+          // park 하면 `resume_call_stack` 에 영속되고 §7.5 rehydration 이 부모
+          // 그래프에서 이 노드까지 전진 후 재진입하는 데 쓴다.
+          invokerNodeId: context.nodeId,
         },
       );
       const durationMs = Date.now() - startedAt;
@@ -168,6 +174,14 @@ export class WorkflowHandler implements NodeHandler {
         meta: { durationMs },
       };
     } catch (err) {
+      // exec-park D6 — sub-workflow 안의 blocking 노드가 durable release park 하면
+      // executeInline 이 `ParkReleaseSignal` 을 throw 한다. 이는 런타임 실패가
+      // 아니라 **park 신호**이므로 error 포트로 라우팅하면 안 된다 — 그대로 re-throw
+      // 해 엔진(executeNode→runExecution/runNodeDispatchLoop)이 세그먼트를 종료하고
+      // §7.5 rehydration 으로 재개하게 한다.
+      if (err instanceof ParkReleaseSignal) {
+        throw err;
+      }
       return this.buildSubWorkflowError(configEcho, err);
     }
   }

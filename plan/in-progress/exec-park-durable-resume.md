@@ -186,6 +186,32 @@ owner: developer
   - 현재 중첩 blocking 은 `driveResumeDetached` 가 executeInline 스택 미재진입이라 **재시작 후 재개 불가(latent gap)** — D6 가 이 gap 도 동반 수정.
 
 ## 진행 메모
+
+### PR-B2b 착수 (2026-06-06, branch `claude/exec-park-b2b-04a2f8`, base origin/main `f5a16bb7`)
+- 선행 확인: PR-B2a(#494) main 머지 완료(`8538ed8a`) — V087 `resume_call_stack` 컬럼·`ResumeCallStack`/`CALL_STACK_SCHEMA_VERSION` 타입·top-level turn-park(`processAiResumeTurn`/`reparkAiResumeTurn`) 랜딩됨. fresh worktree(origin/main).
+- **consistency-check --impl-prep BLOCK:NO** (`review/consistency/2026/06/06/12_28_50`) — 5 checker 모두 LOW, Critical 0. WARNING 4건(W1 spec §4.x PR-B2a 표기=머지로 자동해소·B2b flip 에서 완료형; W2 cross-worktree rebase=타 worktree 책임; W3 D6 레이블 namespace=spec flip 시 검토; W4 frontmatter build guard=spec flip 후 확인).
+
+#### PR-B2b 구현 설계 (코드 정밀조사 확정, 2026-06-06)
+**전파 메커니즘 — `ParkReleaseSignal` throw (중첩 한정).** top-level 은 기존 `PARK_RELEASED` 심볼 return 유지(PR-B1/B2a 무변경). 중첩 `executeInline` blocking 노드가 release park → `waitForX('release')` 가 PARK_RELEASED 반환 → executeInline 이 `throw new ParkReleaseSignal()` 로 deep call stack unwind(ExecutionCancelledError 전파 패턴 동형). unwind 경로 처리: workflow.handler catch 에서 error 포트 라우팅 전 re-throw; executeNode catch(L7064) isAbortError 다음 re-throw; runExecution 메인 catch(L3534) 맨 앞 `return`; runNodeDispatchLoop executeNode throw 시 `{parked:true}`. 정의=`src/shared/execution-resume/park-release-signal.ts`(handler·engine 공유 import).
+
+**call-stack 추적·영속.** `ExecutionContext._callStack?: ResumeCallStackFrame[]`. executeInline 진입(recursionDepth>0) push `{workflowId, invokerNodeId, recursionDepth}`, finally pop. `stageDurableResumeSnapshot` 확장: `execution.resumeCallStack = _callStack?.length ? {version, frames} : null`(top-level=NULL). invokerNodeId = 부모 그래프의 Workflow Node id → `InlineExecutionOptions.invokerNodeId` 신설, workflow.handler 가 `context.nodeId` 전달.
+
+**중첩 재개 — frame-by-frame pointer 기반.** `resumeFromCheckpoint` 에서 `resumeCallStack` non-null → 신규 `driveCallStackResume`(기존 top-level 분기는 stack NULL). executed-skip 아닌 pointer 기반(back-edge 보존, L3275). (1) 최내 frame: waiting node turn 처리(AI=processAiResumeTurn, form/button=직접 payload) → 계속이면 parked, 종료면 runNodeDispatchLoop(waitingPointer+1) forward → frame lastOutput. (2) 외곽 frame: invoker 출력 `{result:innerOutput}` 주입+executedNodes.add → runNodeDispatchLoop(invokerPointer+1) forward. (3) top-level: 동일 후 COMPLETED(중간 재park=parked return, 새 call-stack 재영속). 각 frame 새 fresh sub-call park → ParkReleaseSignal → parked 전파.
+
+**full B3 제거(중첩 durable 성립 후).** executeInline 3분기 'await'→throw. `runAiConversationLoop`/`signalParkBarrier`/`firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`firePayload`/`pendingContinuations`/`resolvePending`/`rejectPending` 제거. detached→await(runExecutionFromQueue/resumeFromCheckpoint/driveResumeDetached). applyContinuation 항상 rehydrate. applyCancellation 항상 cancelParkedExecution. applyRetryLastTurn replay→processAiResumeTurn 이관.
+
+#### PR-B2b 진행 상태 (2026-06-06)
+- [x] **8a 영속 stage**: `stageDurableResumeSnapshot` 확장 — `snapshotCallStack(context)` 가 `context._callStack` 을 `Execution.resume_call_stack`(V087, version envelope)로 직렬화. top-level(빈 stack)=NULL 명시 재설정. (unit 2건 green)
+- [x] **8a call-stack 추적**: `ExecutionContext._callStack` 필드 + `executeInline` push(recursionDepth>0, finally pop). `InlineExecutionOptions.invokerNodeId` 신설, `WorkflowHandler` 가 `context.nodeId` 전달.
+- [x] **8d executeInline park-release**: form/button/AI 3분기 `waitForX('release')` → PARK_RELEASED 시 `ParkReleaseSignal` throw. 전파: workflow.handler·executeNode·runExecution catch(return)·runNodeDispatchLoop({parked:true}).
+- [x] **8c 중첩 재개**: `driveCallStackResume`+`driveResumeFrame`(frame-by-frame pointer 기반)+`injectInvokerOutput`. `resumeFromCheckpoint` 가 `resumeCallStack` non-null 시 분기(스키마 버전 가드; form/button=firePayload, AI=processAiResumeTurn). innermost turn 은 기존 waitForX('await')/processAiResumeTurn 재사용(B3 전이라 in-memory 머신 존속).
+- [x] **검증**: nest build OK, eslint clean, execution-engine unit **304 pass**(신규 call-stack stage 2건 포함), workflow.handler 42 pass.
+- [ ] **full B3 제거 (남음)**: 직접 처리기(processForm/ButtonResumeTurn) 추출 → waitForX 'await' 분기·firePayload·pendingContinuations·barriers·runAiConversationLoop·signalParkBarrier 제거, detached→await, applyContinuation/Cancellation 일원화, applyRetryLastTurn replay 이관.
+- [ ] **dockerized e2e (남음)**: 중첩 sub-workflow blocking park→worker kill→재개 무손실 (D6 회귀 게이트).
+- [ ] **spec flip (남음, project-planner)**: §4.x banner·§7.4·§7.5 D6·§Rationale·1-data-model §2.13 완료형 전환 + D6 레이블 namespace(consistency W3).
+- [ ] **REVIEW WORKFLOW (남음)**: /ai-review + resolution + `--impl-done` (B3 까지 묶어 수행). PR-B2a follow-up(LLM_STUB_MODE 문서화·EIA §8.3·doc-sync·e2e ENCRYPTION_KEY) 동반.
+> **차수 메모**: step 8(중첩 durable resume)까지 building·unit-green. full B3 제거는 step 8 위에서 회귀 없이 진행하는 후속 단계(plan 시퀀싱 8→B3). e2e/review 는 B3 까지 묶어 수행.
+
 - 2026-06-05 착수. #468 머지 확인(main `9f30216f`). durability 맵 조사 완료(본 plan "현행 durability 맵").
 - **2026-06-05 PR-B1 완료** (branch `claude/exec-park-b1`, base origin/main `84dd7314` #480): form/button park-release + slow-path 일원화 + cancellation gap 수정. 빌드·lint·unit(668)·dockerized e2e(29 suites/174, 신규 `execution-park-resume.e2e-spec.ts` 포함) 통과. ai-review(MEDIUM, Critical 0/Warning 19 → resolution 19/19 처리, e2e pass) → `--impl-done`(BLOCK:NO, `review/consistency/2026/06/05/15_27_01`).
   - **`--impl-done` WARNING 처리**: W2(§6.3 frozen vs D3) = 이미 §6.3 L672 D3 노트로 정합(무조치). W1(§7.4 과도기 인라인 주석) = §Rationale 단계적 롤아웃이 cross-ref(선택 polish, 미반영). W3(`error-codes.md §3` skipReason scope 경계) = PR-B1 범위 밖, 후속.

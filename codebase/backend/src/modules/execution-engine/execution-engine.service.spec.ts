@@ -9748,6 +9748,102 @@ describe('ExecutionEngineService', () => {
         },
       );
     });
+
+    // exec-park D6 (PR-B2b) — 중첩 sub-workflow park 시 호출 체인(call stack)이
+    // `Execution.resume_call_stack` 에 durable 영속되는지 검증. stage 헬퍼가
+    // context._callStack 을 version envelope 로 직렬화한다.
+    it('stageDurableResumeSnapshot stages resume_call_stack from context._callStack (중첩 frame)', () => {
+      const execution = {
+        id: 'e-nested',
+        conversationThread: null,
+        userVariables: null,
+        resumeCallStack: null,
+      } as unknown;
+      const context = {
+        conversationThread: {
+          id: 'default',
+          nextSeq: 0,
+          turns: [],
+          totalChars: 0,
+        },
+        variables: { __workspaceId: 'ws-1' },
+        _callStack: [
+          {
+            workflowId: 'wf-sub-1',
+            invokerNodeId: 'node-wf-A',
+            recursionDepth: 1,
+          },
+          {
+            workflowId: 'wf-sub-2',
+            invokerNodeId: 'node-wf-B',
+            recursionDepth: 2,
+          },
+        ],
+      } as unknown;
+
+      ctxSubject().stageDurableResumeSnapshot(execution, context);
+
+      const ex = execution as {
+        resumeCallStack: { version: number; frames: unknown[] } | null;
+      };
+      expect(ex.resumeCallStack).not.toBeNull();
+      expect(ex.resumeCallStack?.version).toBe(1);
+      expect(ex.resumeCallStack?.frames).toEqual([
+        {
+          workflowId: 'wf-sub-1',
+          invokerNodeId: 'node-wf-A',
+          recursionDepth: 1,
+        },
+        {
+          workflowId: 'wf-sub-2',
+          invokerNodeId: 'node-wf-B',
+          recursionDepth: 2,
+        },
+      ]);
+      // frame 은 얕은 복사(이후 pop mutation 격리) — 원본 배열과 레퍼런스 분리.
+      expect(ex.resumeCallStack?.frames).not.toBe(
+        (context as { _callStack: unknown[] })._callStack,
+      );
+    });
+
+    // exec-park D6 — top-level park(중첩 없음)은 resume_call_stack 을 NULL 로
+    // 명시 재설정한다 (중첩→재개→top-level park 시 stale stack 누수 방지).
+    it('stageDurableResumeSnapshot sets resume_call_stack=null for top-level park (빈/미설정 _callStack)', () => {
+      const base = {
+        conversationThread: {
+          id: 'default',
+          nextSeq: 0,
+          turns: [],
+          totalChars: 0,
+        },
+        variables: { __workspaceId: 'ws-1' },
+      };
+      // (a) _callStack 미설정.
+      const exNoStack = {
+        id: 'e-top-a',
+        conversationThread: null,
+        userVariables: null,
+        resumeCallStack: { version: 1, frames: [{ x: 1 }] }, // 이전 stale 값
+      } as unknown;
+      ctxSubject().stageDurableResumeSnapshot(exNoStack, base as unknown);
+      expect(
+        (exNoStack as { resumeCallStack: unknown }).resumeCallStack,
+      ).toBeNull();
+      // (b) _callStack === [].
+      const exEmpty = {
+        id: 'e-top-b',
+        conversationThread: null,
+        userVariables: null,
+        resumeCallStack: { version: 1, frames: [{ x: 1 }] },
+      } as unknown;
+      ctxSubject().stageDurableResumeSnapshot(exEmpty, {
+        ...base,
+        _callStack: [],
+      } as unknown);
+      expect(
+        (exEmpty as { resumeCallStack: unknown }).resumeCallStack,
+      ).toBeNull();
+    });
   });
 
   // PR-A2a — `_resumeCheckpoint` 견고화 (spec §1.3 / §7.5). checkpoint 에 스키마

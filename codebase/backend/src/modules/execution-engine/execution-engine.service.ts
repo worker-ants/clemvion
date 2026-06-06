@@ -120,6 +120,11 @@ import {
   SubWorkflowResult,
   InlineExecutionOptions,
 } from '../../nodes/core/workflow-executor.interface';
+import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
+import {
+  CALL_STACK_SCHEMA_VERSION,
+  ResumeCallStack,
+} from '../../shared/execution-resume/resume-call-stack.types';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
@@ -1558,177 +1563,192 @@ export class ExecutionEngineService
     } = graphState;
     let pointer = params.pointer;
 
-    while (pointer < sortedNodeIds.length) {
-      // PR2a — §8 노드 사이마다 active-running 누적 타임아웃 검사 (초과 시 throw).
-      this.assertActiveTimeWithinLimit(savedExecution);
-      const nodeId = sortedNodeIds[pointer];
-      const node = nodeMap.get(nodeId);
-      if (!node) {
-        pointer++;
-        continue;
-      }
-      if (!reachable.has(nodeId)) {
-        pointer++;
-        continue;
-      }
-      const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
-      nodeExecutionCount.set(nodeId, count);
-      if (maxNodeIterations > 0 && count > maxNodeIterations) {
-        throw new Error(
-          `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}). ` +
-            `Set MAX_NODE_ITERATIONS=0 for unlimited.`,
-        );
-      }
-      if (node.isDisabled) {
-        await this.handleDisabledNode(
-          executionId,
-          nodeId,
-          node,
-          context,
-          executedNodes,
-        );
-        pointer++;
-        continue;
-      }
-      const nodeInput = this.gatherNodeInput(
-        nodeId,
-        graphEdges,
-        executedNodes,
-        context.nodeOutputCache,
-        input,
-        incomingEdgeMap,
-      );
-      await this.executeNode(
-        executionId,
-        node,
-        nodeInput,
-        context,
-        executedNodes,
-        nodeMap,
-        dispatchMeta,
-        outgoingEdgeMap,
-      );
-      const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
-      if (dispatchKind === 'container') {
-        await this.runContainer(
-          node,
-          nodes,
-          edges,
-          context,
-          executionId,
-          executedNodes,
-          dispatchMeta,
-        );
-      }
-      if (dispatchKind === 'background') {
-        await this.scheduleBackgroundBody(
-          node,
-          edges,
-          context,
-          executionId,
-          input,
-        );
-      }
-      if (
-        dispatchKind === 'parallel' &&
-        // PR #364 (default ON) 정책 정합 — runExecution / resumeFromCheckpoint
-        // 가 모두 'v1' default. helper 도 동일 default 사용해 retry 경로의
-        // 우연한 'off' default (PR #365 잔재) 도 동시 통일.
-        this.configService.get<string>('PARALLEL_ENGINE', 'v1') === 'v1'
-      ) {
-        // WARNING #14: `gatherNodeInput` 의 두 번째 호출을 제거 — 이미 위에서
-        // 동일 인자로 호출한 결과 `nodeInput` 을 재사용.
-        await this.runParallel(
-          node,
-          nodes,
-          edges,
-          forwardEdges,
-          backEdges,
-          outgoingEdgeMap,
-          context,
-          executionId,
-          executedNodes,
-          dispatchMeta,
-          reachable,
-          nodeInput,
-        );
-        pointer++;
-        continue;
-      }
-
-      // Blocking nodes (form / button / AI multi-turn — downstream 에 존재할 수
-      // 있음, 정상 흐름과 동일하게 처리).
-      const downstreamOutput = context.nodeOutputCache[node.id] as
-        | Record<string, unknown>
-        | undefined;
-      const downstreamInteraction = this.getInteractionType(context, node.id);
-      if (downstreamOutput?.status === 'waiting_for_input') {
-        const downstreamBlocking = this.handlerRegistry.getMetadata(node.type);
-        if (
-          downstreamBlocking.kind === 'blocking' &&
-          downstreamBlocking.interaction === 'form'
-        ) {
-          // Phase B (PR-B1) — resume/retry 드라이브가 downstream top-level
-          // 블로킹 노드에 도달해 fresh park 하면 release 한다. PARK_RELEASED 수신
-          // 시 이 드라이브 세그먼트를 종료하고 { parked:true } 를 caller
-          // (driveResumeDetached / resumeGraphAfterRetry)로 올려 코루틴을 해제한다.
-          const parkSignal = await this.waitForFormSubmission(
-            savedExecution,
-            executionId,
-            node,
-            context,
-            'release',
-          );
-          if (parkSignal === PARK_RELEASED) return { parked: true };
-        } else if (downstreamInteraction === 'buttons') {
-          const parkSignal = await this.waitForButtonInteraction(
-            savedExecution,
-            executionId,
-            node,
-            context,
-            graphEdges,
-            'release',
-          );
-          if (parkSignal === PARK_RELEASED) return { parked: true };
-        } else if (downstreamInteraction === 'ai_conversation') {
-          // Phase B (PR-B2, exec-park D4) — top-level 멀티턴 AI turn-park.
-          // resume/retry 드라이브가 downstream AI 노드에 도달해 fresh park 하면
-          // release 해 세그먼트 종료(코루틴 해제). 후속 turn 은 rehydration 재개.
-          const parkSignal = await this.waitForAiConversation(
-            savedExecution,
-            executionId,
-            node,
-            context,
-            'release',
-          );
-          if (parkSignal === PARK_RELEASED) return { parked: true };
-        }
-      }
-
-      this.graphTraversal.propagateReachability(
-        nodeId,
-        outgoingEdgeMap,
-        context.nodeOutputCache,
-        reachable,
-      );
-
-      const downstreamBackEdges = backEdgeMap.get(nodeId);
-      if (downstreamBackEdges?.length) {
-        const activated = this.findActivatedBackEdge(
-          nodeId,
-          downstreamBackEdges,
-          context.nodeOutputCache,
-        );
-        if (activated) {
-          for (let i = activated.targetIndex; i <= pointer; i++) {
-            reachable.delete(sortedNodeIds[i]);
-          }
-          reachable.add(sortedNodeIds[activated.targetIndex]);
-          pointer = activated.targetIndex;
+    try {
+      while (pointer < sortedNodeIds.length) {
+        // PR2a — §8 노드 사이마다 active-running 누적 타임아웃 검사 (초과 시 throw).
+        this.assertActiveTimeWithinLimit(savedExecution);
+        const nodeId = sortedNodeIds[pointer];
+        const node = nodeMap.get(nodeId);
+        if (!node) {
+          pointer++;
           continue;
         }
+        if (!reachable.has(nodeId)) {
+          pointer++;
+          continue;
+        }
+        const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
+        nodeExecutionCount.set(nodeId, count);
+        if (maxNodeIterations > 0 && count > maxNodeIterations) {
+          throw new Error(
+            `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}). ` +
+              `Set MAX_NODE_ITERATIONS=0 for unlimited.`,
+          );
+        }
+        if (node.isDisabled) {
+          await this.handleDisabledNode(
+            executionId,
+            nodeId,
+            node,
+            context,
+            executedNodes,
+          );
+          pointer++;
+          continue;
+        }
+        const nodeInput = this.gatherNodeInput(
+          nodeId,
+          graphEdges,
+          executedNodes,
+          context.nodeOutputCache,
+          input,
+          incomingEdgeMap,
+        );
+        await this.executeNode(
+          executionId,
+          node,
+          nodeInput,
+          context,
+          executedNodes,
+          nodeMap,
+          dispatchMeta,
+          outgoingEdgeMap,
+        );
+        const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
+        if (dispatchKind === 'container') {
+          await this.runContainer(
+            node,
+            nodes,
+            edges,
+            context,
+            executionId,
+            executedNodes,
+            dispatchMeta,
+          );
+        }
+        if (dispatchKind === 'background') {
+          await this.scheduleBackgroundBody(
+            node,
+            edges,
+            context,
+            executionId,
+            input,
+          );
+        }
+        if (
+          dispatchKind === 'parallel' &&
+          // PR #364 (default ON) 정책 정합 — runExecution / resumeFromCheckpoint
+          // 가 모두 'v1' default. helper 도 동일 default 사용해 retry 경로의
+          // 우연한 'off' default (PR #365 잔재) 도 동시 통일.
+          this.configService.get<string>('PARALLEL_ENGINE', 'v1') === 'v1'
+        ) {
+          // WARNING #14: `gatherNodeInput` 의 두 번째 호출을 제거 — 이미 위에서
+          // 동일 인자로 호출한 결과 `nodeInput` 을 재사용.
+          await this.runParallel(
+            node,
+            nodes,
+            edges,
+            forwardEdges,
+            backEdges,
+            outgoingEdgeMap,
+            context,
+            executionId,
+            executedNodes,
+            dispatchMeta,
+            reachable,
+            nodeInput,
+          );
+          pointer++;
+          continue;
+        }
+
+        // Blocking nodes (form / button / AI multi-turn — downstream 에 존재할 수
+        // 있음, 정상 흐름과 동일하게 처리).
+        const downstreamOutput = context.nodeOutputCache[node.id] as
+          | Record<string, unknown>
+          | undefined;
+        const downstreamInteraction = this.getInteractionType(context, node.id);
+        if (downstreamOutput?.status === 'waiting_for_input') {
+          const downstreamBlocking = this.handlerRegistry.getMetadata(
+            node.type,
+          );
+          if (
+            downstreamBlocking.kind === 'blocking' &&
+            downstreamBlocking.interaction === 'form'
+          ) {
+            // Phase B (PR-B1) — resume/retry 드라이브가 downstream top-level
+            // 블로킹 노드에 도달해 fresh park 하면 release 한다. PARK_RELEASED 수신
+            // 시 이 드라이브 세그먼트를 종료하고 { parked:true } 를 caller
+            // (driveResumeDetached / resumeGraphAfterRetry)로 올려 코루틴을 해제한다.
+            const parkSignal = await this.waitForFormSubmission(
+              savedExecution,
+              executionId,
+              node,
+              context,
+              'release',
+            );
+            if (parkSignal === PARK_RELEASED) return { parked: true };
+          } else if (downstreamInteraction === 'buttons') {
+            const parkSignal = await this.waitForButtonInteraction(
+              savedExecution,
+              executionId,
+              node,
+              context,
+              graphEdges,
+              'release',
+            );
+            if (parkSignal === PARK_RELEASED) return { parked: true };
+          } else if (downstreamInteraction === 'ai_conversation') {
+            // Phase B (PR-B2, exec-park D4) — top-level 멀티턴 AI turn-park.
+            // resume/retry 드라이브가 downstream AI 노드에 도달해 fresh park 하면
+            // release 해 세그먼트 종료(코루틴 해제). 후속 turn 은 rehydration 재개.
+            const parkSignal = await this.waitForAiConversation(
+              savedExecution,
+              executionId,
+              node,
+              context,
+              'release',
+            );
+            if (parkSignal === PARK_RELEASED) return { parked: true };
+          }
+        }
+
+        this.graphTraversal.propagateReachability(
+          nodeId,
+          outgoingEdgeMap,
+          context.nodeOutputCache,
+          reachable,
+        );
+
+        const downstreamBackEdges = backEdgeMap.get(nodeId);
+        if (downstreamBackEdges?.length) {
+          const activated = this.findActivatedBackEdge(
+            nodeId,
+            downstreamBackEdges,
+            context.nodeOutputCache,
+          );
+          if (activated) {
+            for (let i = activated.targetIndex; i <= pointer; i++) {
+              reachable.delete(sortedNodeIds[i]);
+            }
+            reachable.add(sortedNodeIds[activated.targetIndex]);
+            pointer = activated.targetIndex;
+            continue;
+          }
+        }
+        pointer++;
       }
-      pointer++;
+    } catch (err) {
+      // exec-park D6 — 그래프 순회 중 중첩 sub-workflow blocking 노드가 durable
+      // release park 하면 executeNode/runParallel/runContainer 가 `ParkReleaseSignal`
+      // 을 throw 한다. 세그먼트를 park 로 종료(코루틴 해제)하고 caller
+      // (driveResumeDetached / driveCallStackResume / resumeGraphAfterRetry)가
+      // COMPLETED 마감을 건너뛰게 한다. 다른 예외(ExecutionCancelledError /
+      // MAX_NODE_ITERATIONS 등)는 그대로 전파.
+      if (err instanceof ParkReleaseSignal) {
+        return { parked: true };
+      }
+      throw err;
     }
     // 자연 종결 — 그래프를 끝까지 순회(park 없이). caller 가 completion 진행.
     return { parked: false };
@@ -1795,6 +1815,65 @@ export class ExecutionEngineService
           `Multi-turn AI 노드(${opts.node.type})의 _resumeCheckpoint schemaVersion(${ckptVersion}) 이 현재 지원 버전(${CHECKPOINT_SCHEMA_VERSION}) 초과 — 안전 재구성 불가. graceful reset: 사용자는 새 대화로 시작.`,
         );
       }
+    }
+
+    // exec-park D6 — 중첩 sub-workflow 안에서 park 한 경우(`resume_call_stack`
+    // 영속) frame-by-frame 재진입 드라이브로 분기한다. waiting 노드가 top-level
+    // 그래프에 없으므로(서브워크플로 소속) 아래 top-level 경로는 못 쓴다.
+    const callStack = savedExecution.resumeCallStack;
+    if (
+      callStack &&
+      Array.isArray(callStack.frames) &&
+      callStack.frames.length
+    ) {
+      // 스키마 버전 가드 — 롤링 배포 중 구 인스턴스가 신 포맷 pickup 방어.
+      if (
+        typeof callStack.version === 'number' &&
+        callStack.version > CALL_STACK_SCHEMA_VERSION
+      ) {
+        throw new RehydrationError(
+          'RESUME_INCOMPATIBLE_STATE',
+          `resume_call_stack version(${callStack.version}) 이 지원 버전(${CALL_STACK_SCHEMA_VERSION}) 초과 — 안전 재진입 불가. graceful reset.`,
+        );
+      }
+      // 최내 form/button 은 driveResumeFrame 의 waitForX('await') 가 pending 을
+      // 등록하고 아래 firePayload polling 이 도착 payload 를 resolve 한다(AI 는
+      // processAiResumeTurn 가 직접 전달하므로 skip — top-level 경로와 동형).
+      if (!isAiConversation) {
+        const NESTED_FIRE_MAX_ATTEMPTS = 250;
+        const NESTED_FIRE_POLL_MS = 20;
+        const fireNested = (attemptsLeft: number): void => {
+          if (this.pendingContinuations.has(executionId)) {
+            this.resolvePending(executionId, opts.payload);
+            return;
+          }
+          if (attemptsLeft <= 0) {
+            this.logger.warn(
+              `중첩 재개 — pendingContinuations 등록 polling 한도 도달 (execution=${executionId}). waitForX 미등록 의심 경로.`,
+            );
+            return;
+          }
+          setTimeout(() => fireNested(attemptsLeft - 1), NESTED_FIRE_POLL_MS);
+        };
+        setTimeout(() => fireNested(NESTED_FIRE_MAX_ATTEMPTS), 0);
+      }
+      this.driveCallStackResume(savedExecution, context, {
+        node: opts.node,
+        nodeExec: opts.nodeExec,
+        callStack,
+        persistedInteractionType,
+        isAiConversation,
+        resumeCheckpoint,
+        cachedOutput,
+        payload: opts.payload,
+      }).catch((err: unknown) => {
+        this.logger.error(
+          `driveCallStackResume unexpected escape — execution=${executionId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      });
+      return;
     }
 
     // 그래프 상태 재구축 — `loadAndBuildGraph` 가 3 호출자 공통 (PR #365
@@ -2148,6 +2227,346 @@ export class ExecutionEngineService
     } finally {
       this.finalizeRehydrationCleanup(executionId);
     }
+  }
+
+  /**
+   * §7.5 rehydration — 중첩 sub-workflow(executeInline) 안에서 park 한 실행의
+   * **frame-by-frame 재진입** 드라이브 (exec-park D6). `Execution.resume_call_stack`
+   * (V087) 의 호출 체인을 따라: (1) 최내 frame 에서 waiting 노드 turn 을 처리(payload
+   * 전달)하고 그 sub-workflow 를 끝까지 forward, (2) 그 출력을 부모 frame 의
+   * invoker(Workflow) 노드 출력(`output.result`)으로 주입하고 부모 graph 를 invoker
+   * 다음부터 forward, (3) top-level 까지 bubble-up 후 Execution COMPLETED. 중간에 새
+   * blocking 노드가 fresh park 하면(`ParkReleaseSignal` → runNodeDispatchLoop
+   * `{parked}`) 세그먼트를 종료(Execution WAITING 유지, 새 call-stack 재영속)하고
+   * 다음 continuation 으로 재개한다. `driveResumeDetached`(top-level 단일 frame)의
+   * 중첩 일반화 — detach 호출이라 에러는 in-band 단말 처리(worker 전파 없음).
+   */
+  private async driveCallStackResume(
+    savedExecution: Execution,
+    context: ExecutionContext,
+    opts: {
+      node: Node;
+      nodeExec: NodeExecution;
+      callStack: ResumeCallStack;
+      persistedInteractionType: string | undefined;
+      isAiConversation: boolean;
+      resumeCheckpoint: Record<string, unknown> | undefined;
+      cachedOutput: Record<string, unknown> | undefined;
+      payload: unknown;
+    },
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+    const frames = opts.callStack.frames;
+    const executedNodes = context._executedNodes ?? new Set<string>();
+    context._executedNodes = executedNodes;
+    try {
+      // 사전 상태 전이: WAITING_FOR_INPUT → RUNNING (waitForX/processAiResumeTurn 의
+      // RUNNING→WAITING 전이 전제. driveResumeDetached 와 동일).
+      await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
+
+      // ── 최내 frame: waiting 노드 turn 처리 + 그 sub-workflow forward ──
+      const innermost = frames[frames.length - 1];
+      // 새 park / AI re-park 가 정확한 체인을 영속하도록 call-stack 을 full 로 set.
+      context._callStack = frames.map((f) => ({ ...f }));
+      context.recursionDepth = innermost.recursionDepth;
+      // 새 children 그룹핑: innermost invoker 의 NodeExecution 아래.
+      context.parentNodeExecutionId =
+        opts.nodeExec.parentNodeExecutionId ?? undefined;
+
+      let frameResult = await this.driveResumeFrame(savedExecution, context, {
+        workflowId: innermost.workflowId,
+        startNode: opts.node,
+        isInnermost: true,
+        nodeExec: opts.nodeExec,
+        persistedInteractionType: opts.persistedInteractionType,
+        isAiConversation: opts.isAiConversation,
+        resumeCheckpoint: opts.resumeCheckpoint,
+        cachedOutput: opts.cachedOutput,
+        payload: opts.payload,
+        executedNodes,
+      });
+      if (frameResult.parked) return;
+
+      // ── bubble up: 외곽 frame f(k-2)..f0 ──
+      for (let i = frames.length - 2; i >= 0; i--) {
+        context._callStack = frames.slice(0, i + 1).map((f) => ({ ...f }));
+        context.recursionDepth = frames[i].recursionDepth;
+        const invokerNodeId = frames[i + 1].invokerNodeId;
+        const invokerNode = await this.nodeRepository.findOneBy({
+          id: invokerNodeId,
+        });
+        if (!invokerNode) {
+          throw new RehydrationError(
+            'RESUME_CHECKPOINT_MISSING',
+            `중첩 재개 invoker 노드 ${invokerNodeId} 정의 부재 (execution=${executionId})`,
+          );
+        }
+        this.injectInvokerOutput(context, invokerNode, frameResult.output);
+        executedNodes.add(invokerNodeId);
+        frameResult = await this.driveResumeFrame(savedExecution, context, {
+          workflowId: frames[i].workflowId,
+          startNode: invokerNode,
+          isInnermost: false,
+          executedNodes,
+        });
+        if (frameResult.parked) return;
+      }
+
+      // ── top-level (W0): frames[0].invokerNodeId 이후 forward → COMPLETED ──
+      context._callStack = [];
+      context.recursionDepth = savedExecution.recursionDepth;
+      context.parentNodeExecutionId = undefined;
+      const topInvokerNode = await this.nodeRepository.findOneBy({
+        id: frames[0].invokerNodeId,
+      });
+      if (!topInvokerNode) {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `중첩 재개 top-level invoker 노드 ${frames[0].invokerNodeId} 부재 (execution=${executionId})`,
+        );
+      }
+      this.injectInvokerOutput(context, topInvokerNode, frameResult.output);
+      executedNodes.add(topInvokerNode.id);
+      const topResult = await this.driveResumeFrame(savedExecution, context, {
+        workflowId: savedExecution.workflowId,
+        startNode: topInvokerNode,
+        isInnermost: false,
+        executedNodes,
+      });
+      if (topResult.parked) return;
+
+      // COMPLETED 마감 (runExecution / driveResumeDetached 와 동일 형식).
+      await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.COMPLETED,
+      );
+      savedExecution.outputData =
+        (topResult.output as Record<string, unknown> | undefined) ?? {};
+      savedExecution.finishedAt = new Date();
+      savedExecution.durationMs =
+        savedExecution.finishedAt.getTime() -
+        savedExecution.startedAt.getTime();
+      await this.executionRepository.save(savedExecution);
+      await this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.EXECUTION_COMPLETED,
+        { status: ExecutionStatus.COMPLETED },
+      );
+    } catch (error: unknown) {
+      // detach 호출 — 에러를 worker 로 전파할 수 없어 in-band 단말 처리.
+      if (error instanceof ParkReleaseSignal) {
+        // 방어적 — 정상 경로는 runNodeDispatchLoop 가 {parked} 로 흡수.
+        return;
+      }
+      if (error instanceof RehydrationError) {
+        await this.markExecutionCancelled(executionId, error.code);
+        await this.markNodeExecutionFailed(opts.nodeExec.id, error.code);
+      } else {
+        await this.finalizeResumedExecutionOutcome(savedExecution, error);
+      }
+    } finally {
+      this.finalizeRehydrationCleanup(executionId);
+    }
+  }
+
+  /**
+   * exec-park D6 — 한 call-stack frame 의 workflow 그래프를 `startNode` 기준으로
+   * 재개 구동한다. innermost frame 이면 startNode = waiting 노드(turn 처리), 외곽
+   * frame 이면 startNode = invoker(Workflow) 노드(출력 이미 주입됨). 공통 후처리:
+   * startNode 를 executedNodes 에 등록 + reachability 전파 + back-edge 처리 후
+   * `runNodeDispatchLoop` 로 그 frame 의 남은 그래프를 forward. 반환: `{parked}`
+   * (forward 중 새 fresh park) 또는 `{output}` (마지막 노드 출력 = 이 frame 결과).
+   */
+  private async driveResumeFrame(
+    savedExecution: Execution,
+    context: ExecutionContext,
+    opts: {
+      workflowId: string;
+      startNode: Node;
+      isInnermost: boolean;
+      executedNodes: Set<string>;
+      nodeExec?: NodeExecution;
+      persistedInteractionType?: string | undefined;
+      isAiConversation?: boolean;
+      resumeCheckpoint?: Record<string, unknown> | undefined;
+      cachedOutput?: Record<string, unknown> | undefined;
+      payload?: unknown;
+    },
+  ): Promise<{ parked: boolean; output: unknown }> {
+    const executionId = savedExecution.id;
+    const graphState = await this.loadAndBuildGraph(opts.workflowId);
+    const {
+      sortedNodeIds,
+      sortedIndexMap,
+      nodeMap,
+      forwardEdges,
+      outgoingEdgeMap,
+      backEdgeMap,
+      graphEdges,
+    } = graphState;
+    const startPointer = sortedIndexMap.get(opts.startNode.id);
+    if (startPointer === undefined) {
+      throw new RehydrationError(
+        'RESUME_CHECKPOINT_MISSING',
+        `중첩 재개 노드 ${opts.startNode.id} 가 workflow ${opts.workflowId} sorted graph 에 없음`,
+      );
+    }
+    const reachable = this.graphTraversal.seedInitialReachability(
+      sortedNodeIds,
+      nodeMap,
+      forwardEdges,
+    );
+    for (const nid of opts.executedNodes) reachable.add(nid);
+    reachable.add(opts.startNode.id);
+    const nodeExecutionCount = new Map<string, number>();
+
+    // innermost frame: waiting 노드 turn 처리 (payload 전달).
+    if (opts.isInnermost) {
+      const blockingMeta = this.handlerRegistry.getMetadata(
+        opts.startNode.type,
+      );
+      if (
+        blockingMeta.kind === 'blocking' &&
+        blockingMeta.interaction === 'form'
+      ) {
+        // form: pending 등록 후 resumeFromCheckpoint 의 firePayload 가 resolve.
+        await this.waitForFormSubmission(
+          savedExecution,
+          executionId,
+          opts.startNode,
+          context,
+        );
+      } else if (opts.persistedInteractionType === 'buttons') {
+        await this.waitForButtonInteraction(
+          savedExecution,
+          executionId,
+          opts.startNode,
+          context,
+          graphEdges,
+        );
+      } else if (
+        opts.isAiConversation &&
+        opts.resumeCheckpoint &&
+        this.isCheckpointEligibleNodeType(opts.startNode.type)
+      ) {
+        let resumeState: Record<string, unknown>;
+        try {
+          ({ resumeState } = this.buildRetryReentryState(
+            savedExecution,
+            opts.startNode,
+            context,
+            opts.resumeCheckpoint,
+            { resumeMode: true },
+          ));
+        } catch (err) {
+          throw new RehydrationError(
+            'RESUME_INCOMPATIBLE_STATE',
+            `중첩 AI 노드(${opts.startNode.type}) _resumeCheckpoint 재구성 실패: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+        this.contextService.setNodeOutput(
+          this.contextKeyOf(context),
+          opts.startNode.id,
+          { ...(opts.cachedOutput ?? {}), _resumeState: resumeState },
+        );
+        const aiSignal = await this.processAiResumeTurn(
+          savedExecution,
+          executionId,
+          opts.startNode,
+          context,
+          opts.nodeExec ?? null,
+          resumeState,
+          opts.payload,
+        );
+        if (aiSignal === PARK_RELEASED) {
+          return { parked: true, output: undefined };
+        }
+      } else {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `중첩 재개 미지원 interaction: ${
+            opts.persistedInteractionType ?? '(unknown)'
+          } (node type=${opts.startNode.type})`,
+        );
+      }
+    }
+
+    // startNode 완료 → executedNodes 등록 + reachability 전파 + back-edge.
+    opts.executedNodes.add(opts.startNode.id);
+    this.graphTraversal.propagateReachability(
+      opts.startNode.id,
+      outgoingEdgeMap,
+      context.nodeOutputCache,
+      reachable,
+    );
+    let pointer = startPointer + 1;
+    const backEdgesFromStart = backEdgeMap.get(opts.startNode.id);
+    if (backEdgesFromStart?.length) {
+      const activated = this.findActivatedBackEdge(
+        opts.startNode.id,
+        backEdgesFromStart,
+        context.nodeOutputCache,
+      );
+      if (activated) {
+        for (let i = activated.targetIndex; i <= startPointer; i++) {
+          reachable.delete(sortedNodeIds[i]);
+        }
+        reachable.add(sortedNodeIds[activated.targetIndex]);
+        pointer = activated.targetIndex;
+      }
+    }
+    nodeExecutionCount.set(opts.startNode.id, 0);
+
+    const dispatchResult = await this.runNodeDispatchLoop({
+      executionId,
+      savedExecution,
+      context,
+      graphState,
+      executedNodes: opts.executedNodes,
+      reachable,
+      nodeExecutionCount,
+      pointer,
+      input: {},
+      dispatchMeta: {
+        startedAt: savedExecution.startedAt?.toISOString(),
+        mode: 'manual',
+      },
+    });
+    if (dispatchResult.parked) {
+      return { parked: true, output: undefined };
+    }
+    const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
+    const output = lastNodeId ? context.nodeOutputCache[lastNodeId] : undefined;
+    return { parked: false, output };
+  }
+
+  /**
+   * exec-park D6 — 중첩 재개 bubble-up 시, 완료된 sub-workflow 의 출력을 부모
+   * 그래프의 invoker(Workflow) 노드 출력으로 주입한다. `WorkflowHandler.execute`
+   * 의 sync 결과 wrapping(`output.result = subOutput`)과 동형이라, 부모 그래프의
+   * downstream 이 `$node["X"].output.result` 로 일관되게 읽는다.
+   */
+  private injectInvokerOutput(
+    context: ExecutionContext,
+    invokerNode: Node,
+    subOutput: unknown,
+  ): void {
+    const structured = {
+      config: invokerNode.config ?? {},
+      output: { result: subOutput },
+    };
+    this.contextService.setStructuredOutput(
+      this.contextKeyOf(context),
+      invokerNode.id,
+      structured,
+    );
+    this.contextService.setNodeOutput(
+      this.contextKeyOf(context),
+      invokerNode.id,
+      toEngineFlatShape(structured),
+    );
   }
 
   /**
@@ -2756,6 +3175,22 @@ export class ExecutionEngineService
       context.parentNodeExecutionId = parentNodeExecutionId;
     }
 
+    // exec-park D6 — 중첩 durable park 호출 체인 추적. 이 inline 진입을
+    // `context._callStack` 에 frame 으로 push 한다 (outermost→innermost). sub-workflow
+    // 안의 blocking 노드가 release park 하면 `stageDurableResumeSnapshot` 가 이 스택을
+    // `Execution.resume_call_stack`(V087) 에 영속하고, §7.5 rehydration 이 frame-by-frame
+    // 재진입한다. invokerNodeId 미전달(background body 등 비-Workflow-노드 진입)이면
+    // push 하지 않는다 — 그 경로는 외부 재개 대상이 아니다(fire-and-forget). finally 에서 pop.
+    const pushedCallStackFrame = options.invokerNodeId !== undefined;
+    if (pushedCallStackFrame) {
+      if (!context._callStack) context._callStack = [];
+      context._callStack.push({
+        workflowId,
+        invokerNodeId: options.invokerNodeId as string,
+        recursionDepth,
+      });
+    }
+
     const maxNodeIterations = this.configService.get<number>(
       'MAX_NODE_ITERATIONS',
       100,
@@ -2942,35 +3377,48 @@ export class ExecutionEngineService
             this.logger.log(
               `[executeInline] BLOCKING: "${node.label}" is waiting_for_input (type=${node.type})`,
             );
+            // exec-park D6 (full B3) — 중첩 blocking 도 top-level 과 동일하게
+            // **release park**: durable 영속(thread/variables + `resume_call_stack`)
+            // 후 PARK_RELEASED 를 받으면 `ParkReleaseSignal` 을 throw 해 deep call
+            // stack 을 unwind(코루틴 해제 → bounded 메모리). 재개는 §7.5 rehydration
+            // (`driveCallStackResume`)이 frame-by-frame 으로 재진입한다. 옛 'await'
+            // (in-memory pendingContinuations 루프)은 제거됐다.
             const blocking = this.handlerRegistry.getMetadata(node.type);
+            let parkSignal: void | ParkSignal = undefined;
             if (
               blocking.kind === 'blocking' &&
               blocking.interaction === 'form'
             ) {
-              await this.waitForFormSubmission(
+              parkSignal = await this.waitForFormSubmission(
                 execution,
                 executionId,
                 node,
                 context,
+                'release',
               );
             } else if (interactionType === 'buttons') {
-              await this.waitForButtonInteraction(
+              parkSignal = await this.waitForButtonInteraction(
                 execution,
                 executionId,
                 node,
                 context,
                 graphEdges,
+                'release',
               );
             } else if (
               interactionType === 'ai_conversation' ||
               interactionType === 'ai_form_render'
             ) {
-              await this.waitForAiConversation(
+              parkSignal = await this.waitForAiConversation(
                 execution,
                 executionId,
                 node,
                 context,
+                'release',
               );
+            }
+            if (parkSignal === PARK_RELEASED) {
+              throw new ParkReleaseSignal();
             }
           }
         }
@@ -3009,6 +3457,12 @@ export class ExecutionEngineService
       // Restore parent's recursion depth
       context.recursionDepth = prevDepth;
       context.parentNodeExecutionId = prevParentNodeExecutionId;
+      // exec-park D6 — 이 inline frame 을 call-stack 에서 pop. ParkReleaseSignal
+      // unwind 경로에서도 실행되지만, park 시점에 이미 `stageDurableResumeSnapshot`
+      // 가 DB 에 frame 을 영속했으므로 in-memory pop 은 무해(context 는 곧 해제).
+      if (pushedCallStackFrame) {
+        context._callStack?.pop();
+      }
     }
 
     return lastOutput;
@@ -3532,6 +3986,15 @@ export class ExecutionEngineService
         { status: ExecutionStatus.COMPLETED },
       );
     } catch (error: unknown) {
+      // exec-park D6 — 중첩 sub-workflow blocking 노드가 durable release park 했다.
+      // `waitForX('release')` 가 이미 Execution 을 WAITING_FOR_INPUT + thread/variables
+      // + `resume_call_stack` durable 영속했으므로, 여기서는 단지 세그먼트를 깨끗이
+      // 종료(return)한다 — FAILED 마킹하면 안 된다. 재개는 §7.5 rehydration
+      // (`driveCallStackResume`). finally 가 worker job 반환·context cleanup 처리.
+      if (error instanceof ParkReleaseSignal) {
+        return;
+      }
+
       // Cancelled while waiting for user input — mark as cancelled, not failed
       if (error instanceof ExecutionCancelledError) {
         savedExecution.status = ExecutionStatus.CANCELLED;
@@ -3635,19 +4098,14 @@ export class ExecutionEngineService
   }
 
   /**
-   * Pause execution at a Form node and wait for the user to submit form data.
-   * Transitions Execution → WAITING_FOR_INPUT, emits WS event, awaits Promise.
-   * On resume: merges formData into node output, transitions back to RUNNING.
+   * Park execution at a Form node (waiting_for_input), or — on resume re-entry
+   * (`parkMode='await'`) — await + process the submitted form data.
    *
-   * @param parkMode `'release'` = fresh top-level park → unwinds coroutine
-   *   (returns PARK_RELEASED sentinel). `'await'` = §7.5 rehydration resume
-   *   re-entry (awaits Promise that firePayload resolves). Default: `'await'`.
-   * @returns `void` on normal resume (parkMode=`'await'`), or `PARK_RELEASED`
-   *   sentinel when parkMode=`'release'` (caller unwinds without awaiting input).
-   *
-   * @todo PR-B2/B3: 두 직교 동작(`'release'` vs `'await'`)을 Strategy 패턴
-   *   (ParkStrategy 인터페이스) 또는 함수 분리로 추출 예정. 현재 `parkMode`
-   *   파라미터로 혼재 (OCP 약화, W15).
+   * @param parkMode `'release'` = fresh park → durable 영속 후 PARK_RELEASED 반환
+   *   (코루틴 해제; top-level dispatch + 중첩 executeInline 공통). `'await'` = §7.5
+   *   resume 드라이브(driveResumeDetached / driveCallStackResume)의 입력 전달 재진입
+   *   — pending 등록 후 firePayload 가 resolve 하는 payload 를 처리. Default `'await'`.
+   * @returns `'release'` 시 `PARK_RELEASED`, `'await'` 시 처리 후 `void`.
    */
   private async waitForFormSubmission(
     savedExecution: Execution,
@@ -3719,11 +4177,11 @@ export class ExecutionEngineService
       },
     );
 
-    // Phase B (PR-B1) — fresh top-level park = 세그먼트 종료. durable 영속
-    // (stageDurableResumeSnapshot + WAITING 전이)이 끝났으므로 대기 없이 즉시
-    // 반환해 `runExecution`(또는 resume 드라이브) 코루틴을 해제한다. 재개는
-    // §7.5 rehydration 으로 일원화된다 — in-process resolver 미등록 →
-    // applyContinuation fast-path miss. (caller 가 PARK_RELEASED 로 unwind.)
+    // park = 세그먼트 종료. durable 영속(stageDurableResumeSnapshot + WAITING 전이
+    // + resume_call_stack)이 끝났으므로 대기 없이 즉시 반환해 코루틴을 해제한다
+    // (top-level / 중첩 executeInline 공통 — exec-park D6). 재개는 §7.5 rehydration
+    // (top-level: driveResumeDetached, 중첩: driveCallStackResume)이 도착 payload 를
+    // 이 노드의 pending(아래 await)으로 전달해 처리한다.
     if (parkMode === 'release') {
       return PARK_RELEASED;
     }
@@ -3733,10 +4191,8 @@ export class ExecutionEngineService
     // `{type:'form_submitted', formData}` sentinel. Unwrap here so the rest
     // of the function continues to see raw formData (back-compat with the
     // pre-wrap signature).
-    // parkMode==='await' — 중첩 executeInline(fast-path 재개) 또는
-    // driveResumeDetached 의 입력 전달 재진입(firePayload resolver)에서 이 경로로
-    // 진입한다. pending 등록 직전 worker job 반환(park)은 signalParkBarrier 가
-    // 담당하며(중첩 fresh park), resume 드라이브에서는 배리어 미arm 으로 no-op.
+    // parkMode==='await' — §7.5 resume 드라이브(driveResumeDetached /
+    // driveCallStackResume)의 입력 전달 재진입(firePayload resolver) 경로.
     const submitted = await new Promise<unknown>((resolve, reject) => {
       this.pendingContinuations.set(this.contextKeyOf(context), {
         nodeId: node.id,
@@ -7098,6 +7554,16 @@ export class ExecutionEngineService
         throw error;
       }
 
+      // exec-park D6 — 중첩 Workflow 노드의 executeInline 이 sub-workflow blocking
+      // park 으로 `ParkReleaseSignal` 을 throw 한 경우. 노드 실패가 아니라 park 신호
+      // 이므로 error-policy(skip/use_default/fail)를 적용하지 않고 그대로 re-throw 해
+      // 상위(runExecution/runNodeDispatchLoop)가 세그먼트를 종료하게 한다. 이 invoker
+      // Workflow 노드의 NodeExecution 은 RUNNING 으로 잔류하고(COMPLETED 안 됨),
+      // 재개 시 `driveCallStackResume` 가 executeNode 우회로 frame 을 재진입한다.
+      if (error instanceof ParkReleaseSignal) {
+        throw error;
+      }
+
       // Apply error policy
       const errorPolicyConfig = this.getErrorPolicyConfig(node);
       const result = this.errorPolicyHandler.handleError(
@@ -9037,6 +9503,31 @@ export class ExecutionEngineService
   ): void {
     execution.conversationThread = cloneThread(context.conversationThread);
     execution.userVariables = this.filterUserVariables(context.variables);
+    // exec-park D6 — 중첩 sub-workflow(executeInline) 안에서 park 한 경우
+    // (`context._callStack` 비어있지 않음) 호출 체인을 함께 영속해 §7.5 rehydration
+    // 이 frame-by-frame 재진입할 수 있게 한다. top-level park(빈 스택)은 NULL 로
+    // 명시 재설정 — 같은 Execution 행이 이전 중첩 park 의 stale stack 을 보유하지
+    // 않도록(예: 중첩 park→재개→top-level 노드 park). version 으로 스키마 가드.
+    execution.resumeCallStack = this.snapshotCallStack(context);
+  }
+
+  /**
+   * exec-park D6 — `context._callStack`(중첩 executeInline 호출 체인)을
+   * `Execution.resume_call_stack`(V087) durable envelope 로 직렬화한다. 비어있거나
+   * 미설정(top-level park)이면 `null` 을 반환해 컬럼을 명시적으로 비운다.
+   * frames 는 cloneFrame(얕은 복사)으로 이후 pop mutation 과 격리한다.
+   */
+  private snapshotCallStack(context: ExecutionContext): ResumeCallStack | null {
+    const stack = context._callStack;
+    if (!stack || stack.length === 0) return null;
+    return {
+      version: CALL_STACK_SCHEMA_VERSION,
+      frames: stack.map((f) => ({
+        workflowId: f.workflowId,
+        invokerNodeId: f.invokerNodeId,
+        recursionDepth: f.recursionDepth,
+      })),
+    };
   }
 
   /**
