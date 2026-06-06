@@ -147,7 +147,9 @@ owner: developer
 2. **PR-A2**: checkpoint 견고화 + information_extractor 확장.
 3. **PR-A3**(범위 시): user variables 영속 — 또는 별도 plan.
 4. **PR-B1**: form/button park-release + slow-path 일원화 (+spec staged note). e2e 회귀(park→worker kill→무손실 재개) 필수.
-5. **PR-B2**: multi-turn AI turn-park + pendingContinuations/barrier 완전 제거 (B3). e2e(멀티턴 park→kill→재개) 필수.
+5. **PR-B2** → **재분할 (2026-06-06, 사용자 승인)**: 중첩 D6(call-stack durable) 흡수로 PR-B2 가 비대·고위험화 → 2분할.
+   - **PR-B2a (top-level 멀티턴 AI turn-park)** — `runAiConversationLoop` 장수 루프를 top-level AI 에서 해제(`processAiResumeTurn` 단발 처리 + re-park). 유저 #1 우려(top-level 응답 없는 대화 bounded-memory) 해소. **in-memory 머신(pendingContinuations/barriers/firePayload)은 nested/form-button resume 용으로 잠정 유지(partial B3)** = 현 main 과 동일 동작이라 회귀 아님. **진행: 구현 완료 + nest build 통과(commit, branch claude/exec-park-pr-b2). 남음: 실패 20 테스트 turn-park 모델 재작성 → dockerized e2e(top-level 멀티턴 park→kill→재개) → /ai-review + --impl-done → 머지.**
+   - **PR-B2b (중첩 call-stack D6 + full B3)** — 중첩 sub-workflow blocking durable(resume_call_stack stage + `driveResumeDetached` 재귀 executeInline 재진입 + executeInline park-release) → in-memory 머신 완전 제거(pendingContinuations/firstSegmentBarriers/armFirstSegmentBarrier/settleFirstSegment/signalParkBarrier/firePayload/detached) + §4.x 완료형 flip. 최고 난이도라 독립 PR 로 집중 리뷰. e2e(중첩 park→kill→재개) 필수. (V087 컬럼·타입·spec D6 "구현 예정" 표식은 기반 슬라이스로 이미 랜딩.)
 
 > 각 PR 은 SDD+TDD, TEST/REVIEW WORKFLOW 이행. PR-B1/B2 는 실행엔진 코어라 e2e(dockerized) 무손실 재개 시나리오를 반드시 포함. (구 단일 "PR-B" 는 2026-06-05 사용자 결정으로 B1/B2 2분할.)
 
