@@ -53,21 +53,38 @@ export type EiaEventName =
   | "execution.cancelled"
   | "execution.replay_unavailable";
 
+/**
+ * SSE `execution.waiting_for_input` — **WS wire 형태**. SSE 스트림은 fanout envelope 를
+ * 그대로 전송하므로 EIA §6.2 notification 형태(`node.id`/`context.*`)가 아니라 백엔드
+ * `execution-engine` 가 emit 하는 wire 필드명을 그대로 받는다(프론트엔드 store 와 동일 SoT).
+ * 매핑: nodeId=`waitingNodeId`, 타입=`interactionType`(top-level), ai config=`nodeOutput.conversationConfig`,
+ * buttons=`buttonConfig`, form=`nodeOutput`, thread=`conversationThread`(top-level).
+ */
 export interface WaitingForInputEvent {
-  type: "execution.waiting_for_input";
-  node?: { id: string; type: string; interactionType: ExternalInteractionType };
-  context?: {
-    formConfig?: Record<string, unknown>;
-    buttonConfig?: Record<string, unknown>;
+  status?: string;
+  waitingNodeId?: string;
+  waitingNodeType?: string;
+  interactionType?: ExternalInteractionType;
+  conversationThread?: ConversationThread;
+  /** AI(ai_conversation/ai_form_render): `conversationConfig` 동봉. form: form 선언. */
+  nodeOutput?: {
+    interactionType?: ExternalInteractionType;
+    config?: Record<string, unknown>;
     conversationConfig?: Record<string, unknown>;
-    conversationThread?: ConversationThread;
+    formConfig?: Record<string, unknown>;
+    /** form: nodeOutput 자체를 config 로 사용할 때 임의 필드 허용 (parseWaitingForInput fallback). */
+    [k: string]: unknown;
   };
+  /** buttons interactionType 전용 — `{ buttons, nodeOutput }`. */
+  buttonConfig?: Record<string, unknown>;
   seq?: number;
 }
 
+/** SSE `execution.ai_message` — wire 형태. 어시스턴트 텍스트는 `message`(not `text`). */
 export interface AiMessageEvent {
-  type: "execution.ai_message";
-  text?: string;
+  message?: string;
+  nodeId?: string;
+  turnCount?: number;
   presentations?: Array<Record<string, unknown>>;
   seq?: number;
 }

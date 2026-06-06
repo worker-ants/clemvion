@@ -3,6 +3,7 @@ id: external-interaction-api
 status: partial
 pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
+  - plan/in-progress/fix-webchat-sse-field-map.md
 code:
   - codebase/backend/src/modules/external-interaction/**
   - codebase/backend/src/modules/hooks/hooks.service.ts
@@ -504,6 +505,16 @@ header value   = "t={timestamp},v1={hex(signature)}"
 }
 ```
 
+> **SSE 스트림 wire 형태 주의**: 위 형태는 **outbound notification(webhook)** payload 다. **SSE 스트림**(`GET /api/external/executions/:id/stream`, §5.2)은 notification envelope 재구성 없이 execution-engine 의 fanout wire 를 그대로 전송하므로 필드명이 다르다 — 위젯/SDK 는 SSE 에서 아래를 읽어야 한다:
+> - `node.id` → **`waitingNodeId`** (최상위; `submit_message` 의 `nodeId` 로 그대로 사용)
+> - `node.interactionType` → **`interactionType`** (최상위)
+> - `context.conversationConfig` → **`nodeOutput.conversationConfig`**
+> - `context.buttonConfig` → **`buttonConfig`** (최상위)
+> - `context.formConfig` → **`nodeOutput.formConfig`** (없으면 `nodeOutput` 자체)
+> - `context.conversationThread` → **`conversationThread`** (최상위)
+>
+> 참조 구현(SoT): [`codebase/channel-web-chat/src/lib/eia-events.ts`](../../codebase/channel-web-chat/src/lib/eia-events.ts) `parseWaitingForInput`. (WS §4.4 도 `nodeId` 로 표기돼 wire 와 drift — 별도 backlog.)
+
 ### 6.3 페이로드 — `execution.completed`
 
 ```jsonc
@@ -550,6 +561,8 @@ header value   = "t={timestamp},v1={hex(signature)}"
 `execution.cancelled` 는 §6.3 의 `result` 자리에 `cancelledBy: "user" | "system" | "timeout"` 만 채운 변형.
 
 `execution.ai_message` 는 [Spec WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 의 `execution.ai_message` payload 를 포함하며, 본 spec 의 표준 envelope (`triggerId` / `workflowId` / `timestamp` / `seq`) 만 추가로 wrap 한다. WS payload 의 `presentations?: PresentationPayload[]` 필드 (AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉, [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)) 도 그대로 전달된다 — 외부 클라이언트 (SDK) 는 본 필드 존재 시 chat UI 에서 텍스트와 함께 inline 렌더 가능. **단, debug 전용 `llmCalls` 필드(raw LLM 요청/응답)는 [WS §4.4 `llmCalls[]` 노트의 strip-only 결정](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)에 따라 fanout seam 에서 제거되어 외부 수신자(본 SSE 스트림 포함)에는 전달되지 않는다 — 인증된 내부 WS(에디터) 채널 전용.**
+
+> **SSE wire 필드**: `execution.ai_message` SSE 프레임의 `data` 는 어시스턴트 텍스트를 **`message`** 필드로 전송한다(`text` 필드 아님 — 위젯/SDK 는 `message` 를 읽어야 한다). 그 외 `nodeId`, `turnCount`, `presentations?` 동봉. 참조 구현(SoT): [`codebase/channel-web-chat/src/lib/eia-events.ts`](../../codebase/channel-web-chat/src/lib/eia-events.ts) `parseAiMessage`.
 
 ### 6.6 재시도
 

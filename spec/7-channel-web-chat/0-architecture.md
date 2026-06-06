@@ -7,6 +7,7 @@ code:
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
   - plan/in-progress/channel-web-chat-followups.md
+  - plan/in-progress/fix-webchat-sse-field-map.md
 ---
 
 # Spec: Channel Web Chat — 아키텍처
@@ -73,6 +74,7 @@ pending_plans:
 
 - 위젯은 EIA inbound(REST+SSE)만 사용, outbound notification webhook 미사용(항상 SSE open).
 - **`retry_last_turn` 미지원** — EIA 외부 표면 미노출 내부 UI 한정 명령(EIA-IN-02). 위젯 v1 AI turn 재시도 버튼은 비목표.
+- **SSE wire 필드명 (notification §6.2 추상 표기와 다름)**: SSE 스트림은 내부 fanout envelope 를 그대로 전송한다(프론트엔드 WS store 와 동일 SoT). 따라서 `waiting_for_input` 은 `node.id`/`context.*` 가 아니라 **`waitingNodeId`**(= `submit_message` 의 `nodeId` 로 그대로 사용)·top-level **`interactionType`**·**`nodeOutput.conversationConfig`**(ai_conversation)/**`buttonConfig`**(buttons)/**`nodeOutput`**(form)·top-level **`conversationThread`** 로 도착하고, `ai_message` 의 어시스턴트 텍스트 필드는 **`message`**(not `text`) 다. 위젯 파서 SoT: [`codebase/channel-web-chat/src/lib/eia-events.ts`](../../codebase/channel-web-chat/src/lib/eia-events.ts). (EIA §6.2 / WS §4.4 는 `nodeId`/`node.id` 로 표기돼 wire 와 drift — 별도 backlog.)
 
 ## 4. 배포 / 도메인 설정 (환경별 — 플레이스홀더)
 
