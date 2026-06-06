@@ -1691,13 +1691,17 @@ export class ExecutionEngineService
           );
           if (parkSignal === PARK_RELEASED) return { parked: true };
         } else if (downstreamInteraction === 'ai_conversation') {
-          // 멀티턴 AI 는 PR-B2 에서 turn-park. PR-B1 은 in-memory 루프 유지(await).
-          await this.waitForAiConversation(
+          // Phase B (PR-B2, exec-park D4) — top-level 멀티턴 AI turn-park.
+          // resume/retry 드라이브가 downstream AI 노드에 도달해 fresh park 하면
+          // release 해 세그먼트 종료(코루틴 해제). 후속 turn 은 rehydration 재개.
+          const parkSignal = await this.waitForAiConversation(
             savedExecution,
             executionId,
             node,
             context,
+            'release',
           );
+          if (parkSignal === PARK_RELEASED) return { parked: true };
         }
       }
 
@@ -1856,7 +1860,14 @@ export class ExecutionEngineService
         FIRE_PAYLOAD_POLL_INTERVAL_MS,
       );
     };
-    setTimeout(() => firePayload(FIRE_PAYLOAD_MAX_ATTEMPTS), 0);
+    // Phase B (PR-B2, exec-park D4) — 멀티턴 AI turn-park 재개는 도착 payload 를
+    // `driveResumeDetached` 가 단발 turn 처리기({@link processAiResumeTurn})로 **직접**
+    // 전달하므로 firePayload(pending 등록 polling) 가 불필요하다. firePayload 는
+    // form/button 재개(여전히 `parkMode='await'` 로 pending 등록 후 firePayload 주입)
+    // 에만 쓰인다 — AI 일 때 스케줄하면 pending 미등록으로 한도 소진 warn 만 남으므로 skip.
+    if (!isAiConversation) {
+      setTimeout(() => firePayload(FIRE_PAYLOAD_MAX_ATTEMPTS), 0);
+    }
 
     // 전체 resume 구동(현재 노드 input 전달 → waitForX → 남은 그래프 순회 →
     // 종결)을 **detach** 한다. continuation worker 의 `process()` 는 본 setup
@@ -1888,6 +1899,9 @@ export class ExecutionEngineService
       isAiConversation,
       resumeCheckpoint,
       cachedOutput,
+      // Phase B (PR-B2) — 멀티턴 AI turn-park 재개가 단발 turn 처리기에 직접 전달할
+      // continuation payload (ai_message / form_submitted / ai_end_conversation).
+      payload: opts.payload,
     }).catch((err: unknown) => {
       // driveResumeDetached 는 내부 try/catch/finally 로 자기 완결적이지만, 단말
       // 마킹 DB save 자체가 실패하는 극단 케이스의 unhandledRejection 을 차단한다.
@@ -1924,6 +1938,8 @@ export class ExecutionEngineService
       isAiConversation: boolean;
       resumeCheckpoint: Record<string, unknown> | undefined;
       cachedOutput: Record<string, unknown> | undefined;
+      // Phase B (PR-B2) — 멀티턴 AI turn-park 재개의 도착 continuation payload.
+      payload: unknown;
     },
   ): Promise<void> {
     const executionId = savedExecution.id;
@@ -1997,8 +2013,8 @@ export class ExecutionEngineService
             }`,
           );
         }
-        // 재구성한 `_resumeState` 를 nodeOutputCache 에 주입 (waitForAiConversation
-        // / emitAiWaitingForInput 양쪽이 올바른 shape 을 보도록).
+        // 재구성한 `_resumeState` 를 nodeOutputCache 에 주입 (handleAiMessageTurn /
+        // emitAiWaitingForInput 양쪽이 올바른 shape 을 보도록).
         const seededOutput = {
           ...(cachedOutput ?? {}),
           _resumeState: resumeState,
@@ -2008,12 +2024,22 @@ export class ExecutionEngineService
           node.id,
           seededOutput,
         );
-        await this.waitForAiConversation(
+        // Phase B (PR-B2, exec-park D4) — 도착한 turn(opts.payload)을 **단발 처리**한다.
+        // 계속이면 re-park(PARK_RELEASED)해 세그먼트 종료(코루틴 해제) — 다음 turn 은
+        // 또 다른 continuation job 으로 재개. 종료면 finalizeAiNode 후 아래 그래프
+        // 순회로 이어진다. (옛 장수 루프 waitForAiConversation 대체.)
+        const aiTurnSignal = await this.processAiResumeTurn(
           savedExecution,
           executionId,
           node,
           context,
+          opts.nodeExec,
+          resumeState,
+          opts.payload,
         );
+        if (aiTurnSignal === PARK_RELEASED) {
+          return;
+        }
       } else {
         throw new RehydrationError(
           'RESUME_CHECKPOINT_MISSING',
@@ -3434,14 +3460,17 @@ export class ExecutionEngineService
             );
             if (parkSignal === PARK_RELEASED) return;
           } else if (interactionType === 'ai_conversation') {
-            // 멀티턴 AI 는 PR-B2 에서 turn-단위 park 로 전환. PR-B1 에선 기존
-            // in-memory 루프 유지(await) — signalParkBarrier 로 worker job 만 반환.
-            await this.waitForAiConversation(
+            // Phase B (PR-B2, exec-park D4) — top-level 멀티턴 AI turn-park.
+            // 첫 turn 진입에서 초기 AI 응답 emit + park-release → 세그먼트 종료.
+            // 후속 turn 은 continuation job → §7.5 rehydration(processAiResumeTurn).
+            const parkSignal = await this.waitForAiConversation(
               savedExecution,
               executionId,
               node,
               context,
+              'release',
             );
+            if (parkSignal === PARK_RELEASED) return;
           }
         }
 
@@ -4941,7 +4970,20 @@ export class ExecutionEngineService
     executionId: string,
     node: Node,
     context: ExecutionContext,
-  ): Promise<void> {
+    /**
+     * Phase B (PR-B2, exec-park D4) — top-level 멀티턴 AI 의 turn-단위 park.
+     * - `'release'`: 첫 turn 진입(top-level dispatch / resume drive)에서 초기 AI
+     *   응답을 emit + `waiting_for_input` park 한 뒤 **루프 없이 `PARK_RELEASED`
+     *   반환** → caller 가 세그먼트 종료(코루틴 해제). 후속 turn 은 continuation
+     *   job → §7.5 rehydration 의 단발 turn 처리({@link processAiResumeTurn})로 재개.
+     *   응답 없는 대화도 in-process 코루틴/컨텍스트 메모리 0 점유(bounded).
+     * - `'await'`(기본): 중첩 sub-workflow(`executeInline`) 안의 멀티턴 AI — 부모
+     *   스택이 살아있어야 하므로 기존 in-memory 장수 루프({@link runAiConversationLoop})
+     *   를 유지(same-instance best-effort). exec-park D6(중첩 call-stack durable)
+     *   전환 전까지 잠정.
+     */
+    parkMode: ParkMode = 'await',
+  ): Promise<void | ParkSignal> {
     const nodeOutput = context.nodeOutputCache[node.id] as Record<
       string,
       unknown
@@ -4976,6 +5018,17 @@ export class ExecutionEngineService
       resumeState,
     );
 
+    // Phase B (PR-B2, exec-park D4) — top-level turn-park: 초기 AI 응답 emit +
+    // park 가 끝났으므로 루프 없이 즉시 세그먼트 종료한다. 다음 turn 입력은 새
+    // continuation job 으로 도착해 §7.5 rehydration(processAiResumeTurn)이 재개한다.
+    // emitAiWaitingForInput 가 _resumeCheckpoint + conversation_thread + user_variables
+    // 를 durable 영속했으므로 재개는 무손실. in-memory resolver(pendingContinuations)
+    // 미등록 → applyContinuation fast-path miss → 항상 slow-path.
+    if (parkMode === 'release') {
+      return PARK_RELEASED;
+    }
+
+    // 'await' (중첩 executeInline) — 기존 in-memory 장수 루프 유지.
     const finalStatus = await this.runAiConversationLoop(
       executionId,
       node,
@@ -5207,6 +5260,144 @@ export class ExecutionEngineService
     }
 
     return finalStatus;
+  }
+
+  /**
+   * Phase B (PR-B2, exec-park D4) — §7.5 rehydration 의 멀티턴 AI **단발 turn 처리기**.
+   * 옛 {@link runAiConversationLoop} 장수 루프를 대체한다(top-level 멀티턴 AI 한정;
+   * 중첩 executeInline 은 D6 전까지 루프 유지): 도착한 continuation `payload` 1건만
+   * 처리하고, 대화가 **계속**되면 다음 turn 을 위해 re-park(durable 영속 +
+   * `waiting_for_input` 전이)한 뒤 `PARK_RELEASED` 를 반환해 세그먼트를 종료한다
+   * (코루틴 해제 — 응답 없는 대화도 in-process 메모리 0 점유). 대화가 **종료**되면
+   * {@link finalizeAiNode} 로 노드를 단말 마킹하고 `void` 를 반환해 caller
+   * (`driveResumeDetached`)가 남은 그래프 순회를 잇게 한다.
+   *
+   * 호출 시점 Execution 은 RUNNING(driveResumeDetached 전이). re-park 시
+   * {@link emitAiWaitingForInput} 가 RUNNING→WAITING_FOR_INPUT 으로 되돌리며
+   * `_resumeCheckpoint`(§1.3) + `conversation_thread`(V084) + `user_variables`(V085)
+   * 를 durable 영속 → 다음 turn rehydration 무손실. (응답은 `handleAiMessageTurn` 가
+   * `AI_MESSAGE` 로, 이어 re-park 가 `EXECUTION_WAITING_FOR_INPUT` 로 emit.)
+   *
+   * @returns 계속(re-park) 시 `PARK_RELEASED`, 종료 시 `void`.
+   */
+  private async processAiResumeTurn(
+    savedExecution: Execution,
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    nodeExec: NodeExecution | null,
+    resumeState: Record<string, unknown>,
+    payload: unknown,
+  ): Promise<void | ParkSignal> {
+    const contextKey = this.contextKeyOf(context);
+    const nodeOutput = context.nodeOutputCache[node.id] as Record<
+      string,
+      unknown
+    >;
+    const action = payload as ContinuationPayload;
+
+    // 대화 종료 신호 — 노드 단말 마킹 후 caller 가 그래프 진행.
+    if (action.type === 'ai_end_conversation') {
+      this.handleAiEndConversation(executionId, contextKey, node, resumeState);
+      await this.finalizeAiNode(
+        savedExecution,
+        executionId,
+        node,
+        context,
+        nodeExec,
+        'COMPLETED',
+      );
+      return;
+    }
+
+    // 정상 turn (ai_message / form_submitted: AI render_form 응답) — 한 turn 처리.
+    if (action.type === 'ai_message' || action.type === 'form_submitted') {
+      const message =
+        action.type === 'form_submitted'
+          ? JSON.stringify(action.formData ?? {})
+          : action.message;
+      const turn = await this.handleAiMessageTurn(
+        executionId,
+        contextKey,
+        node,
+        message,
+        resumeState,
+        nodeExec,
+        action.type === 'form_submitted' ? 'form_submitted' : 'ai_message',
+      );
+      if (turn.finalStatus === 'FAILED') {
+        await this.finalizeAiNode(
+          savedExecution,
+          executionId,
+          node,
+          context,
+          nodeExec,
+          'FAILED',
+        );
+        return;
+      }
+      if (turn.ended) {
+        await this.finalizeAiNode(
+          savedExecution,
+          executionId,
+          node,
+          context,
+          nodeExec,
+          'COMPLETED',
+        );
+        return;
+      }
+      // 계속 — 다음 turn 을 위해 re-park (durable 영속 + WAITING 전이 + waiting emit).
+      await this.emitAiWaitingForInput(
+        savedExecution,
+        executionId,
+        node,
+        context,
+        nodeExec,
+        nodeOutput,
+        turn.resumeState,
+      );
+      return PARK_RELEASED;
+    }
+
+    // spec/4-nodes/6-presentation/0-common.md §10.9 line 407 — ai_conversation 대기
+    // 중 presentation 본체 버튼은 표시·라우팅 안 됨. 도달(stale telegram
+    // inline_keyboard 재시도 등) 시 graceful: 상태 변경 없이 re-park (대화 alive 유지).
+    if (action.type === 'button_click') {
+      this.logger.warn(
+        '[processAiResumeTurn] button_click received during ai_conversation — stale inline_keyboard, re-park',
+        { executionId, nodeId: node.id },
+      );
+      await this.emitAiWaitingForInput(
+        savedExecution,
+        executionId,
+        node,
+        context,
+        nodeExec,
+        nodeOutput,
+        resumeState,
+      );
+      return PARK_RELEASED;
+    }
+
+    // 알 수 없는 action.type — silent skip 회피. warn 후 re-park (다음 입력 대기).
+    // (옛 loop 의 MAX_UNKNOWN_SKIPS in-memory 누적 cap 은 turn-park 에선 각 turn 이
+    // 별 continuation job 이라 비적용 — BullMQ attempts/dedup 이 폭주를 제한한다.)
+    this.logger.warn(
+      `[processAiResumeTurn] unknown continuation action.type=${String(
+        action.type,
+      ).slice(0, 64)} for execution=${executionId} — re-park`,
+    );
+    await this.emitAiWaitingForInput(
+      savedExecution,
+      executionId,
+      node,
+      context,
+      nodeExec,
+      nodeOutput,
+      resumeState,
+    );
+    return PARK_RELEASED;
   }
 
   /**
