@@ -129,7 +129,7 @@ owner: 사용자 본인 / planner
 
 ### P6 — 임베딩 모델 UX 보강 (백로그)
 
-> **구현 완료 (2026-06-06, [`embedding-model-ux.md`](./embedding-model-ux.md), PR 머지 대기)**. 아래 3항목 모두 반영.
+> **구현 완료 (2026-06-06, [`embedding-model-ux.md`](../complete/embedding-model-ux.md), PR #492 머지)**. 아래 3항목 모두 반영.
 
 - [x] 모델 선택 UI 한국어 추천 프리셋/힌트 — combobox option 라벨에 비강제 "한국어 추천" 배지(select-only 유지).
 - [x] 교체=전면 재임베딩 경고+진행률(기존 버튼) — 기존 구현 검증 + spec 명문화.
