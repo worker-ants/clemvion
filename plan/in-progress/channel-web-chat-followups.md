@@ -15,7 +15,7 @@ owner: developer (TBD)
 생기면 본 문서에서 재개하거나 별도 plan 으로 분리한다.
 
 - ✅ **완료**: §1(공개 webhook rate-limit) · §3(임베드 soft 검증) · §4(rich presentation + `show`/`hide`/`updateProfile`, PR #436) · §5(token auto-refresh) · §6(M2 BYO-UI) · §7·7-b(CI wiring · resize/on/data-global)
-- ⏸ **보류(비목표/추후)**: 동시 ≤3 캡(§1) · invisible challenge Turnstile/hCaptcha(§1) · 워크플로우 비용 가드(§2) · hard `frame-ancestors`(§3) · **`unwrapEnvelope` ↔ `@workflow/sdk` 헬퍼 통합**(§6 M2 BYO-UI sdk 배선 전제 — 현재 web-chat·sdk 양 패키지 독립 구현, 런타임 충돌 없음. `fix-webchat-envelope-unwrap` 에서 이관, 2026-06-06)
+- ⏸ **보류(비목표/추후)**: 동시 ≤3 캡(§1) · invisible challenge Turnstile/hCaptcha(§1) · 워크플로우 비용 가드(§2) · hard `frame-ancestors`(§3) · **`unwrapEnvelope`/`ExecutionStatus` ↔ `@workflow/sdk` 통합**(§6 M2 BYO-UI sdk 배선 전제 — 현재 web-chat·sdk 양 패키지 독립 구현, 런타임 충돌 없음. 배선 시 sdk 의 `unwrapData`·`ExecutionStatus` 를 SoT 로 `import type` 재사용하거나 `currentNode` 구조 정렬. `fix-webchat-envelope-unwrap` 에서 이관, 2026-06-06)
 - 본 plan 은 spec/7 `pending_plans` 참조 대상이라 **`in-progress/` 유지**(plan-lifecycle: deferred ≠ complete — 미완 surface 가 있으면 `complete/` 이동 금지). worktree 는 active 체크아웃 없어 `(unstarted)` sentinel — 재개 시 실제 worktree 배정.
 
 ## 잔여 항목
