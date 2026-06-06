@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-06T21:40:26.927083",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-kb-unsearchable-warning.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
