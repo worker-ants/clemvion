@@ -2,6 +2,12 @@
 worktree: exec-park-polish-080a4d
 started: 2026-06-06
 owner: developer
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/conventions/execution-context.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/5-system/14-external-interaction-api.md
+  - spec/data-flow/3-execution.md
 ---
 
 # Plan — exec-park 후속 polish (PR-B2b/B2a 리뷰 deferred A~C)
