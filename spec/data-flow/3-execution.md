@@ -48,7 +48,7 @@ sequenceDiagram
     Eng->>Handler: execute(input, context)
     alt blocking (waiting_for_input)
       Eng->>PG: UPDATE node_execution SET status='waiting_for_input'
-      Eng->>PG: UPDATE execution SET status='waiting_for_input' (+ conversation_thread / user_variables durable commit)
+      Eng->>PG: UPDATE execution SET status='waiting_for_input' (+ conversation_thread / user_variables / resume_call_stack durable commit — resume_call_stack 은 중첩 sub-workflow park 시 호출 체인을 commit, V087)
       Note over Eng: Phase B (full B3 완료) — park = 세그먼트 종료. 폼/버튼/멀티턴 AI 모두 코루틴을 즉시 해제하고(메모리 0 점유) 재개는 §7.5 rehydration 단일 경로로 일원화. continuation-queue(BullMQ) consume 가 깨운다
     else background dispatch
       Eng->>BG: queue.add('background-run', { snapshot, bodyEntryNodeIds })
@@ -109,7 +109,7 @@ sequenceDiagram
     Bus-->>Proc: deliver (any instance — at-least-once)
     Proc->>Eng: applyContinuation(executionId, nodeExecutionId, payload)
     Note over Eng: full B3 완료 — 모든 재개는 §7.5 rehydration 단일 경로(applyContinuation → rehydrateAndResume → driveResumeDetached/driveCallStackResume, await)
-    Eng->>PG: ExecutionContext 재구성 (execution_node_log + node_execution.output_data + conversation_thread + user_variables)
+    Eng->>PG: ExecutionContext 재구성 (execution_node_log + node_execution.output_data + conversation_thread + user_variables + resume_call_stack — resume_call_stack 은 frame-by-frame 재진입 driveCallStackResume, V087)
     Eng->>Eng: rehydrateAndResume → driveResumeDetached (await) → 직접 처리기(processFormResumeTurn / processButtonResumeTurn / processAiResumeTurn) dispatch
     Eng->>PG: UPDATE execution SET status='running' + UPDATE node_execution SET status='completed'
     Eng->>Eng: 토폴로지 다음 단계 진행
