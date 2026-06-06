@@ -56,7 +56,8 @@ interface ParallelBranchContext extends ExecutionContext {
 
 노드 핸들러가 **읽지 않고** 엔진의 그래프 순회·컨텍스트 라우팅에만 쓰이는 상태는 `_`-prefix 로 표기해 internal 임을 신호하고, `node-handler.interface.ts` 에 `_`-prefix optional 로 두되 **핸들러 계약 표면에는 포함하지 않는다**. Stable core(전 노드 공통 소비) 도 container-specific(원칙 2) 도 아닌 **엔진 전용** 범주다.
 
-- 선례: `_executedNodes` (sub-workflow inline 순회), `_resumeState` / `_retryState` (재개·리트라이 continuation). 이들은 본 분류 체계 도입 이전에 추가됐으며, 원칙 4 신설과 함께 소급 분류한다.
+- 선례: `_executedNodes` (sub-workflow inline 순회), `_resumeState` / `_retryState` (재개·리트라이 continuation), `_contextKey` (in-memory Map 라우팅 키 — 아래). 이들은 본 분류 체계 도입 이전에 추가됐으며, 원칙 4 신설과 함께 소급 분류한다.
+- `_callStack?: ResumeCallStackFrame[]` — 중첩 `executeInline` 호출 체인을 park/재개하기 위한 엔진 내부 프레임 스택. fresh park 시 durable `Execution.resume_call_stack`(V087) 으로 영속되고, rehydration 이 이 스택으로 sub-workflow 프레임을 frame-by-frame 재진입한다. **핸들러 비소비** — 엔진(`driveCallStackResume`/`driveResumeFrame`)만 참조한다. spec 참조: [execution-engine §7.5](../5-system/4-execution-engine.md#75-resume-after-restart-rehydration).
 - `_contextKey?: string` — `ExecutionContextService` 의 in-memory `Map<key, ExecutionContext>` 라우팅 키. **기본값 = `executionId`** (비-background context 는 항상 동일 → 동작 불변). background 서브그래프 한정으로 `bg:<executionId>:<backgroundRunId>` 형태의 별도 키를 쓴다. **in-memory Map 라우팅 전용** — Redis 키 패턴([execution-engine §9.1](../5-system/4-execution-engine.md#91-키-패턴))과 무관하다.
 
 ## 2. 새 필드 추가 결정 규칙

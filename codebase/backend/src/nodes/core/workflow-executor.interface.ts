@@ -31,6 +31,16 @@ export interface InlineExecutionOptions {
    */
   parentNodeExecutionId?: string;
   /**
+   * 부모 그래프에서 이 sub-workflow 를 호출한 Workflow 노드의 `Node.id`.
+   * `executeInline` 가 `context._callStack` frame 의 `invokerNodeId` 로 push 해
+   * 중첩 blocking park 시 `resume_call_stack`(V087) 에 영속한다 — §7.5 rehydration
+   * 이 부모 그래프에서 이 노드까지 전진한 뒤 sub-workflow 를 frame-by-frame
+   * 재진입하는 키. `WorkflowHandler` 가 sync inline 호출 시 `context.nodeId`
+   * (= 현 Workflow 노드)를 전달한다. 미전달(background body 등 비-Workflow-노드
+   * 진입)이면 call-stack frame 을 push 하지 않는다.
+   */
+  invokerNodeId?: string;
+  /**
    * If provided, override the default reachability seeding (which uses
    * trigger nodes, falling back to nodes with no incoming edges) and instead
    * start traversal from exactly these node ids. Used by the Background node
