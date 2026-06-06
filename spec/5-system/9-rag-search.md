@@ -3,6 +3,8 @@ id: rag-search
 status: partial
 code:
   - codebase/backend/src/modules/knowledge-base/search/rag-search.service.ts
+  - codebase/backend/src/modules/knowledge-base/search/rerank.service.ts
+  - codebase/backend/src/modules/knowledge-base/search/dynamic-cut.util.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/kb-tool-provider.ts
 pending_plans:
   - plan/in-progress/rag-rerank-followup.md

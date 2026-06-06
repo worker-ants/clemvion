@@ -2,7 +2,14 @@
 worktree: rag-dynamic-cut-12fac1
 started: 2026-06-06
 owner: developer
-spec_impact: yes
+spec_impact:
+  - spec/5-system/9-rag-search.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/4-nodes/3-ai/0-common.md
+  - spec/5-system/17-agent-memory.md
+  - spec/5-system/10-graph-rag.md
+  - spec/1-data-model.md
+  - spec/data-flow/6-knowledge-base.md
 ---
 # RAG P1 — D1 점수 기반 동적 컷 (+ D2 escalate 메커니즘)
 
