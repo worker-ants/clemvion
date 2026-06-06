@@ -128,10 +128,13 @@ owner: 사용자 본인 / planner
 - [ ] **spec 갱신**: `spec/5-system/8-embedding-pipeline.md` enrichment 단계.
 
 ### P6 — 임베딩 모델 UX 보강 (백로그)
-- [ ] 모델 선택 UI 한국어 추천 프리셋/힌트.
-- [ ] 교체=전면 재임베딩 경고+진행률(기존 버튼).
-- [ ] e5/voyage/cohere 선택 시 input_type/prefix(query vs passage) 자동 배선 — silent bug 방지.
-- [ ] **spec 갱신**: `spec/2-navigation/5-knowledge-base.md` / `spec/5-system/8-embedding-pipeline.md`.
+
+> **구현 완료 (2026-06-06, [`embedding-model-ux.md`](./embedding-model-ux.md), PR 머지 대기)**. 아래 3항목 모두 반영.
+
+- [x] 모델 선택 UI 한국어 추천 프리셋/힌트 — combobox option 라벨에 비강제 "한국어 추천" 배지(select-only 유지).
+- [x] 교체=전면 재임베딩 경고+진행률(기존 버튼) — 기존 구현 검증 + spec 명문화.
+- [x] input_type/prefix(query vs passage) 자동 배선 — silent bug 방지. **e5 계열 prefix + Google Gemini taskType** 자동 배선(voyage/cohere 는 client 부재로 OUT — provider 신규 추가는 별도 작업).
+- [x] **spec 갱신**: `spec/5-system/{7-llm-client §8.3·§3.3·Rationale, 8-embedding-pipeline §5.4, 9-rag-search §5, 17-agent-memory §4}`, `spec/2-navigation/5-knowledge-base.md §2.2`.
 
 ---
 

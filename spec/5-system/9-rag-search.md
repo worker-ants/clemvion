@@ -272,6 +272,7 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 - 검색 쿼리 임베딩은 **Knowledge Base의 embedding_model과 embedding_llm_config 와 동일한 endpoint** 사용
 - 한 KB tool 호출은 단일 KB 에 대해 검색하므로, 해당 KB 의 모델/endpoint 로 임베딩
 - LLM 이 같은 응답에서 여러 KB tool 을 호출하면 각 KB 의 임베딩 endpoint 가 독립적으로 사용됨
+- **비대칭 입력**: 검색 쿼리 임베딩은 `LlmService.embed(..., inputType:'query')` 로 호출한다 (적재 청크는 `'document'`). e5/Gemini 계열 모델에서 query/passage 를 올바르게 구분해 silent 회수 품질저하를 막는다 ([임베딩 파이프라인 §5.4](./8-embedding-pipeline.md), `rag-search.service.ts`).
 
 ---
 

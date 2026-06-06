@@ -44,41 +44,41 @@ spec_impact: [spec/5-system/8-embedding-pipeline.md, spec/2-navigation/5-knowled
 ## 2. 작업 항목
 
 ### Phase A — ③ input_type/prefix 배선 (백엔드, developer) ⭐ 핵심
-- [ ] `embedding/embedding-input-type.ts` — 모델 패턴 → 전략 순수함수 `resolveEmbeddingInputStrategy(model)` + `applyInputType(texts, strategy, inputType)`(e5 prefix 적용) / gemini taskType 매핑 헬퍼.
-- [ ] `embedding-input-type.spec.ts` — 패턴 매칭·prefix 적용·미매칭 기본값(none)·대소문자·경계 단위테스트.
-- [ ] `interfaces/llm-client.interface.ts` — `embed(texts, model?, inputType?)` 시그니처 확장.
-- [ ] `clients/openai.client.ts` — local/openai-compat 모델이면 e5-prefix 적용(OpenAI native 는 no-op). azure/local 상속 자동 반영.
-- [ ] `clients/google.client.ts` — Gemini `taskType` 배선(query→RETRIEVAL_QUERY, document→RETRIEVAL_DOCUMENT).
-- [ ] `clients/anthropic.client.ts` — 시그니처만 맞춤(throw 유지).
-- [ ] `llm.service.ts:194` — `embed` 에 inputType 전달 패스스루.
-- [ ] 호출부 inputType 명시: rag-search 373/443 + agent-memory 896 = `'query'`. embedding.service 231 + agent-memory 421 = `'document'`. probe 204 = `'document'`.
-- [ ] **W-2: AgentMemory 계층 준수** — agent-memory 호출부는 `LlmService.embed(texts, model, inputType)` 단일 계층으로 inputType 투명 전달. `embedding-input-type.ts` 순수함수를 agent-memory 서비스가 **직접 호출 금지**(중복 구현 방지, `17-agent-memory.md §3`).
-- [ ] **spec 갱신**(project-planner+consistency-check --spec):
+- [x] `llm/embedding-input-type.ts` (knowledge-base 아닌 **llm 모듈** — 결합 방향 보존) — 모델 패턴 → 전략 순수함수 `resolveEmbeddingInputStrategy(model)` + `applyEmbeddingInputPrefix(texts, model, inputType)` / `resolveGeminiTaskType` 매핑 헬퍼.
+- [x] `embedding-input-type.spec.ts` — 패턴 매칭·prefix 적용·미매칭 기본값(none)·대소문자·경계 단위테스트.
+- [x] `interfaces/llm-client.interface.ts` — `embed(texts, model?, inputType?)` 시그니처 확장.
+- [x] `clients/openai.client.ts` — local/openai-compat 모델이면 e5-prefix 적용(OpenAI native 는 no-op). azure/local 상속 자동 반영.
+- [x] `clients/google.client.ts` — Gemini `taskType` 배선(query→RETRIEVAL_QUERY, document→RETRIEVAL_DOCUMENT).
+- [x] `clients/anthropic.client.ts` — 시그니처만 맞춤(throw 유지).
+- [x] `llm.service.ts:194` — `embed` 에 inputType 전달 패스스루.
+- [x] 호출부 inputType 명시: rag-search 373/443 + agent-memory 896 = `'query'`. embedding.service 231 + agent-memory 421 = `'document'`. probe 204 = `'document'`.
+- [x] **W-2: AgentMemory 계층 준수** — agent-memory 호출부는 `LlmService.embed(texts, model, inputType)` 단일 계층으로 inputType 투명 전달. `embedding-input-type.ts` 순수함수를 agent-memory 서비스가 **직접 호출 금지**(중복 구현 방지, `17-agent-memory.md §3`).
+- [x] **spec 갱신**(project-planner+consistency-check --spec):
   - `8-embedding-pipeline.md §5` — input_type/prefix 비대칭 입력 처리·provider별 매핑 테이블(I-1)·재임베딩 정합성. frontmatter `code:` 에 `embedding-input-type.ts` 추가. Rationale 에 비대칭 재임베딩 케이스(I-3).
   - **W-1: `spec/5-system/7-llm-client.md §3.3`** — embed 시그니처 SoT(line 72 interface + 245/255/266 provider 표). `embed(texts, model?, inputType?: 'query'|'document')` 로 갱신. Rationale 에 "위치 인자 확장 채택, 파라미터 객체화는 EmbedResponse 도입 시까지 보류".
   - **W-2/W-3: `spec/5-system/17-agent-memory.md §3·§4`** — §3 임베딩 중복 구현 금지 계층 명시, §4 회수에 "inputType 변경 전 색인 메모리는 재임베딩 전까지 비대칭 가능" 주석.
 
 ### Phase B — ① 한국어 추천 프리셋/힌트 (프론트, developer)
-- [ ] **W-4: select-only(R-1) 원칙 유지** — 배지는 기존 select 옵션 위 표시 메타데이터만 추가, **자유 입력 경로 불가**(`5-knowledge-base.md §Rationale R-1`).
-- [ ] `components/knowledge-base/embedding-model-combobox.tsx` — 한국어 추천 모델 패턴 매칭 시 배지/힌트.
-- [ ] i18n KO/EN (`dict/{ko,en}/knowledgeBases.ts`) — 추천 배지·힌트 문구. (I-5: 키명 `koreanRecommendedBadge` 등 구체화로 `integrations` 사전과 구분).
-- [ ] (선택) 추천 패턴 상수 공유 위치 정리.
-- [ ] **spec 갱신(I-2)**: `2-navigation/5-knowledge-base.md §2.2` 임베딩 모델 행에 "패턴 매칭 시 한국어 추천 배지 표시(비강제)" 한 줄.
+- [x] **W-4: select-only(R-1) 원칙 유지** — 배지는 기존 select 옵션 위 표시 메타데이터만 추가, **자유 입력 경로 불가**(`5-knowledge-base.md §Rationale R-1`).
+- [x] `components/knowledge-base/embedding-model-combobox.tsx` — 한국어 추천 모델 패턴 매칭 시 배지/힌트.
+- [x] i18n KO/EN (`dict/{ko,en}/knowledgeBases.ts`) — 추천 배지·힌트 문구. (I-5: 키명 `koreanRecommendedBadge` 등 구체화로 `integrations` 사전과 구분).
+- [x] (선택) 추천 패턴 상수 공유 위치 정리.
+- [x] **spec 갱신(I-2)**: `2-navigation/5-knowledge-base.md §2.2` 임베딩 모델 행에 "패턴 매칭 시 한국어 추천 배지 표시(비강제)" 한 줄.
 
 ### Phase C — ② 재임베딩 경고+진행률 (검증 + spec 갭)
-- [ ] 기존 구현 동작 검증(모달·진행률·경고). 코드 변경 최소.
-- [ ] D-P6-4 비대칭 모델 배선 변경 시 재임베딩 권고 문구 추가 검토(i18n).
-- [ ] **spec 갱신**: `2-navigation/5-knowledge-base.md §2.3~2.4` 에 "모델 변경 경고" 명문화.
+- [x] 기존 구현 동작 검증(모달·진행률·경고). 코드 변경 최소.
+- [x] D-P6-4 비대칭 모델 배선 변경 시 재임베딩 권고 문구 추가 검토(i18n).
+- [x] **spec 갱신**: `2-navigation/5-knowledge-base.md §2.3~2.4` 에 "모델 변경 경고" 명문화.
 
 ## 3. 게이트 순서
-1. [ ] `/consistency-check --impl-prep` (BLOCK:NO 확인).
-2. [ ] Phase A 구현 + 단위테스트 green.
-3. [ ] Phase B·C 구현.
-4. [ ] spec 갱신 (consistency-check --spec).
-5. [ ] `/ai-review` → Critical/Warning fix.
-6. [ ] e2e/unit 회귀 확인.
+1. [x] `/consistency-check --impl-prep` (BLOCK:NO 확인).
+2. [x] Phase A 구현 + 단위테스트 green.
+3. [x] Phase B·C 구현.
+4. [x] spec 갱신 (consistency-check --spec).
+5. [x] `/ai-review` → Critical/Warning fix.
+6. [x] e2e/unit 회귀 확인.
 7. [ ] **W-5: 머지 순서** — `impl-concurrency-cap-pr2b` 브랜치와 `agent-memory.service.ts`/`knowledgeBases.ts`/`5-knowledge-base.md` 가법적 경합. 어느 쪽이 먼저 머지되든 rebase 로 흡수(충돌 사소). concurrency-cap 머지 임박 시 순서 양보.
-8. [ ] **I-4: PR 머지 후** `rag-quality-improvement.md §P6` 3개 체크박스 `[x]` 갱신.
+8. [x] **I-4:** `rag-quality-improvement.md §P6` 3개 체크박스 `[x]` 갱신 (2026-06-06, PR 머지 대기 명시).
 
 ## 4. 미해결 / 사용자 확인 포인트
 - D-P6-4 기존 KB 재임베딩 권고를 자동 트리거할지(현 ② 수동 버튼 재사용) vs 안내만 — 기본은 안내(자동 재임베딩 비용 우려). 사용자 확인 가능.

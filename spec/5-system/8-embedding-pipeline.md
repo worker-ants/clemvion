@@ -6,7 +6,6 @@ code:
   - codebase/backend/src/modules/knowledge-base/chunking/text-chunker.ts
   - codebase/backend/src/modules/knowledge-base/parsers/*.ts
   - codebase/backend/src/modules/knowledge-base/queues/document-embedding.processor.ts
-  - codebase/backend/src/modules/llm/embedding-input-type.ts
 ---
 
 # Spec: 벡터 임베딩 파이프라인
