@@ -293,10 +293,13 @@ export function useWidget() {
     [sendCommand, state.pending?.nodeId],
   );
 
+  /**
+   * 패널 open. **네트워크 부작용 주의(W3)**: eager 시작(§R6)이라 open 시 `start()` 가
+   * webhook `POST /api/hooks/:path` 를 발행해 execution 을 시작한다(중복/세션복원은 start 가드).
+   */
   const open = useCallback(() => {
     dispatch({ type: "OPEN" });
     bridgeRef.current?.sendEvent("open");
-    // eager 시작(§R6) — 패널 open 시 워크플로우 시작. start 가 중복/세션복원 가드를 가짐.
     void start();
   }, [start]);
   const close = useCallback(() => {
@@ -317,6 +320,8 @@ export function useWidget() {
     if (configRef.current) clearSession(configRef.current.triggerEndpointPath);
     sessionRef.current = null;
     startedRef.current = false;
+    // I1: 이전 대화 booting 중 큐된 텍스트가 새 대화 첫 waiting 에서 flush 되는 누수 차단.
+    pendingSendRef.current = null;
     dispatch({ type: "NEW_CHAT" });
     void start();
   }, [closeStream, start]);

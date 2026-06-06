@@ -1,5 +1,5 @@
 // 위젯 상태기계 reducer. SoT: spec/7-channel-web-chat/1-widget-app §3·§3.1.
-// phase: collapsed → (open) booting(eager 시작) → streaming ↔ awaiting_user_message → ended.
+// phase: collapsed → (open) panel(transient) → booting(eager 시작) → streaming ↔ awaiting_user_message → ended.
 // 워크플로우는 패널 open 시 시작한다(eager, §R6) — 첫 사용자 입력을 기다리지 않으며 firstMessage 미사용.
 
 import type { DisplayMessage } from "./conversation";
