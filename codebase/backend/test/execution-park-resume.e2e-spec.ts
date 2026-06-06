@@ -564,20 +564,26 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
   }
 
   it('multi-turn AI 는 매 turn park(durable)·cold-rehydration 재개하며 thread 를 무손실 누적하고 end_conversation 으로 completed 한다', async () => {
-    // 1. LLM config 준비. LLM_STUB_MODE=true 에서는 `LlmService.createClient` 가
-    //    복호화 이전에 StubLlmClient 를 반환하므로 (apiKey 는 실제로 사용되지 않음)
-    //    config 행만 존재하면 충분하다. e2e 의 ENCRYPTION_KEY 는 SecretResolver
-    //    (utf8 32B) 기준으로 세팅돼 있어 crypto.util.encrypt (hex 64자=32B 기대)
-    //    와 길이가 어긋나 `POST /api/llm-configs` 가 500 (Invalid key length) 을
-    //    낸다 — 이는 본 turn-park 기능과 무관한 e2e 환경 키 포맷 불일치다. 따라서
-    //    암호화 경로를 우회해 행을 DB 에 직접 insert 한다 (stub 이 키를 읽지 않음).
-    const llmConfigId = randomUUID();
-    await db.query(
-      `INSERT INTO llm_config
-         (id, workspace_id, provider, name, api_key, default_model, default_params, is_default)
-       VALUES ($1, $2, 'openai', $3, 'stub-not-used', 'stub-model', '{}'::jsonb, false)`,
-      [llmConfigId, workspaceId, uniqueName('aiturnpark-llm')],
-    );
+    // 1. LLM config 준비 — 정식 `POST /api/llm-configs` 경로로 생성한다.
+    //    api_key 는 `crypto.util.encrypt`(AES-256, ENCRYPTION_KEY=64-hex=32B)로
+    //    암호화 저장된다(docker-compose.e2e.yml 에서 64-hex 로 세팅 — PR-B2a
+    //    follow-up). LLM_STUB_MODE=true 에서는 `LlmService.createClient` 가
+    //    복호화 이전에 StubLlmClient 를 반환하므로 apiKey 값 자체는 호출에
+    //    쓰이지 않으나, 본 테스트는 생성 API(암호화 경로)까지 e2e 로 커버한다.
+    const llmCreateRes = await request(BASE_URL)
+      .post('/api/llm-configs')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({
+        provider: 'openai',
+        name: uniqueName('aiturnpark-llm'),
+        apiKey: 'stub-not-used',
+        defaultModel: 'stub-model',
+        defaultParams: {},
+        isDefault: false,
+      });
+    expect(llmCreateRes.status).toBe(201);
+    const llmConfigId = (llmCreateRes.body.data as { id: string }).id;
     expect(llmConfigId).toBeDefined();
 
     // 2. manual_trigger → ai_agent(multi_turn) 워크플로우.
