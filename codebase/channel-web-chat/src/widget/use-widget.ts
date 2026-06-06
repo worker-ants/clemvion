@@ -4,12 +4,12 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { EiaClient, EiaError, type EventSourceLike } from "@/lib/eia-client";
 import type {
   AiMessageEvent,
-  ExternalInteractionType,
   HookStartResponse,
   InteractCommand,
   InteractionEndpoints,
   WaitingForInputEvent,
 } from "@/lib/eia-types";
+import { parseAiMessage, parseWaitingForInput } from "@/lib/eia-events";
 import { threadToMessages } from "@/lib/conversation";
 import { clearSession, loadSession, saveSession } from "@/lib/session-store";
 import { initialState, widgetReducer } from "@/lib/widget-state";
@@ -108,26 +108,21 @@ export function useWidget() {
   const handleEiaEvent = useCallback(
     (name: string, data: unknown) => {
       if (name === "execution.waiting_for_input") {
-        const ev = data as WaitingForInputEvent;
-        const type = (ev.node?.interactionType ?? "ai_conversation") as ExternalInteractionType;
-        const cfg =
-          ev.context?.formConfig ?? ev.context?.buttonConfig ?? ev.context?.conversationConfig;
+        // SSE wire 형태 매핑 — nodeId=waitingNodeId 등 (eia-events). submit_message 가 이 nodeId 를 보낸다.
+        const { type, config, nodeId, conversationThread } = parseWaitingForInput(
+          data as WaitingForInputEvent,
+        );
         dispatch({
           type: "WAITING",
-          interaction: { type, config: cfg, nodeId: ev.node?.id },
-          threadMessages: threadToMessages(ev.context?.conversationThread),
+          interaction: { type, config, nodeId },
+          threadMessages: threadToMessages(conversationThread),
         });
       } else if (name === "execution.ai_message") {
-        const ev = data as AiMessageEvent;
-        const presentations =
-          Array.isArray(ev.presentations) && ev.presentations.length
-            ? ev.presentations
-            : undefined;
+        const { text, presentations } = parseAiMessage(data as AiMessageEvent);
         // 텍스트 또는 presentation 중 하나라도 있으면 메시지로 추가(presentation-only 도 렌더).
-        if (ev.text || presentations) {
-          dispatch({ type: "AI_MESSAGE", text: ev.text ?? "", presentations });
-          if (ev.text)
-            bridgeRef.current?.sendEvent("message", { role: "assistant", text: ev.text });
+        if (text || presentations) {
+          dispatch({ type: "AI_MESSAGE", text, presentations });
+          if (text) bridgeRef.current?.sendEvent("message", { role: "assistant", text });
         }
       } else if (
         name === "execution.completed" ||
