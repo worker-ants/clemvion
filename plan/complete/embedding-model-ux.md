@@ -1,12 +1,15 @@
 ---
 worktree: embedding-model-ux-c40698
 started: 2026-06-06
+completed: 2026-06-06
+status: complete
+pr: 492
+spec_impact: [spec/5-system/7-llm-client.md, spec/5-system/8-embedding-pipeline.md, spec/5-system/9-rag-search.md, spec/5-system/17-agent-memory.md, spec/2-navigation/5-knowledge-base.md]
 owner: 사용자 본인 / developer
-spec_impact: [spec/5-system/8-embedding-pipeline.md, spec/2-navigation/5-knowledge-base.md]
 ---
 # P6 — 임베딩 모델 UX 보강 (RAG 개선 로드맵 독립 백로그)
 
-> 상위 로드맵: [`rag-quality-improvement.md §P6`](./rag-quality-improvement.md). P6 은 의존 그래프상 유일 독립(평가셋·재임베딩 사이클·배포환경 결정과 무관).
+> 상위 로드맵: [`rag-quality-improvement.md §P6`](../in-progress/rag-quality-improvement.md). P6 은 의존 그래프상 유일 독립(평가셋·재임베딩 사이클·배포환경 결정과 무관).
 > 본 plan 은 3개 항목 전부 진행. 단 사전 코드 검토(2026-06-06)로 **②는 이미 구현됨** → 검증+spec 갭 메움으로 축소, 실작업은 ①·③.
 
 ## 참조 spec
