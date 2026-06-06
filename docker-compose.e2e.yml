@@ -134,7 +134,14 @@ services:
       JWT_SECRET: clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7
       JWT_ACCESS_EXPIRATION: "900"
       JWT_REFRESH_EXPIRATION: "604800"
-      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
+      # ENCRYPTION_KEY 는 64-hex(=32 byte, AES-256). `common/utils/crypto.util.ts`
+      # (llm-config api_key 암호화)가 `Buffer.from(key,'hex')` 로 정확히 32 byte 를
+      # 요구하므로 32-char(=16 byte) 면 `POST /api/llm-configs` 가 500 (Invalid key
+      # length). secret-store(secret-crypto)는 SHA-256 fallback 이라 길이 무관하지만,
+      # crypto.util 경로 e2e 커버를 위해 64-hex 로 둔다. 운영 절대 사용 금지.
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      # INTEGRATION_ENCRYPTION_KEY 는 credentials-transformer 가 SHA-256 derive 라
+      # 길이 무관 — 기존 값 유지(변경 불요).
       INTEGRATION_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
       OAUTH_STUB_MODE: "true"
       # 멀티턴 AI park→재개 e2e(execution-park-resume.e2e-spec.ts) 활성화 — 실제 LLM
