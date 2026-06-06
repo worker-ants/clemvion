@@ -2,6 +2,11 @@
 worktree: exec-park-durable-resume
 started: 2026-06-06
 owner: planner
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/1-data-model.md
+  - spec/conventions/execution-context.md
+  - spec/data-flow/3-execution.md
 ---
 
 # Spec Draft — exec-park PR-B2 full durable turn-park + 중첩 call stack 영속 (D6)
