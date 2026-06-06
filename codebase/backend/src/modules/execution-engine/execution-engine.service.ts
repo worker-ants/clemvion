@@ -122,6 +122,15 @@ import {
 } from '../../nodes/core/workflow-executor.interface';
 import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
 import {
+  PARK_RELEASED,
+  type ProcessTurnResult,
+} from '../../shared/execution-resume/process-turn-result';
+import type {
+  ResumeTurnContext,
+  ResumeTurnDispatch,
+  ResumeTurnSelector,
+} from './resume-turn-dispatch';
+import {
   CALL_STACK_SCHEMA_VERSION,
   ResumeCallStack,
 } from '../../shared/execution-resume/resume-call-stack.types';
@@ -261,28 +270,9 @@ class ErrorPortFallbackError extends Error {
  *  시키지 않도록 상한을 둔다. 초과분은 `…` 로 잘라낸다. */
 const NODE_ERROR_MESSAGE_MAX_LEN = 2000;
 
-/**
- * Phase B (PR-B1) — `waitForX` 가 **fresh top-level park**(세그먼트 종료) 시
- * 반환하는 sentinel. caller(`runExecution` 메인 루프 / `runNodeDispatchLoop`
- * resume·retry 드라이브)는 이 값을 받으면 코루틴을 즉시 unwind(반환·해제)하고,
- * 재개는 §7.5 rehydration(slow-path) 단일 경로로 일원화한다 — in-process
- * resolver 를 등록하지 않으므로 `applyContinuation` 의 fast-path 가 miss 해
- * rehydration 으로 떨어진다. `parkMode='await'`(중첩 `executeInline` /
- * `driveResumeAwaited` 의 입력 전달 재진입) 호출은 이 sentinel 을 반환하지 않고
- * 기존대로 입력을 처리한 뒤 void 반환한다(코루틴 유지·fast-path 재개).
- * (spec 4-execution-engine §4.x "park = 세그먼트 종료", §Rationale 단계적 롤아웃.)
- */
-const PARK_RELEASED = Symbol('park_released');
-type ParkSignal = typeof PARK_RELEASED;
-
-/**
- * park 신호를 반환할 수 있는 처리기/대기 메서드의 통일 반환 타입.
- * `void` = 정상 진행(종료/완료) · `ParkSignal`(PARK_RELEASED) = park 로 세그먼트 종료.
- * `waitForFormSubmission`/`waitForButtonInteraction`/`waitForAiConversation`(park-only)
- * 와 `processAiResumeTurn`(turn 처리 후 계속 시 re-park) 이 사용한다. ai-review W11 —
- * 인라인 `void | ParkSignal` 혼용을 named alias 로 통일해 처리기 추가 시 계약을 명시.
- */
-type ProcessTurnResult = void | ParkSignal;
+// `PARK_RELEASED` / `ParkSignal` / `ProcessTurnResult` 는
+// `shared/execution-resume/process-turn-result.ts` 로 이관됨 (top-level + 중첩 재개
+// dispatch 가 공유하는 park return-signal 어휘). 상단 import 참조.
 
 /**
  * `_resumeCheckpoint`(§7.5 rehydration) 의 스키마 버전. checkpoint 구조가
@@ -1821,6 +1811,137 @@ export class ExecutionEngineService
   }
 
   /**
+   * §7.5 rehydration 대기-노드 turn dispatch registry (extension seam, ai-review/
+   * exec-park B-1). 등록 순서대로 first-match-wins — 우선순위는 배열 순서가 표현한다
+   * (form → buttons → ai_conversation, 추출 전 if/else 와 동일). 새 blocking 노드
+   * 타입은 여기에 `ResumeTurnDispatch` 항목 1개를 추가하면 top-level
+   * (`driveResumeAwaited`)·중첩(`driveResumeFrame`) 양쪽 재개에 자동 반영된다.
+   * 지연 초기화 — `this` 처리기 메서드를 캡처하는 closure 이므로 첫 접근 시 빌드.
+   */
+  private _resumeTurnRegistry?: readonly ResumeTurnDispatch[];
+
+  private get resumeTurnRegistry(): readonly ResumeTurnDispatch[] {
+    return (this._resumeTurnRegistry ??= [
+      {
+        kind: 'form',
+        selects: (sel) => sel.blockingInteraction === 'form',
+        handle: async (ctx) => {
+          await this.processFormResumeTurn(
+            ctx.savedExecution,
+            ctx.executionId,
+            ctx.node,
+            ctx.context,
+            ctx.payload,
+          );
+        },
+      },
+      {
+        kind: 'buttons',
+        selects: (sel) => sel.persistedInteractionType === 'buttons',
+        handle: async (ctx) => {
+          await this.processButtonResumeTurn(
+            ctx.savedExecution,
+            ctx.executionId,
+            ctx.node,
+            ctx.context,
+            ctx.payload,
+          );
+        },
+      },
+      {
+        kind: 'ai_conversation',
+        selects: (sel) =>
+          sel.isAiConversation &&
+          sel.hasResumeCheckpoint &&
+          this.isCheckpointEligibleNodeType(sel.node.type),
+        handle: (ctx) => this.handleAiResumeTurn(ctx),
+      },
+    ]);
+  }
+
+  /**
+   * §7.5 rehydration — 대기 노드의 도착 continuation payload 를 노드-타입별 resume
+   * 처리기로 라우팅하는 **단일 진입점**. top-level(`driveResumeAwaited`)·중첩
+   * (`driveResumeFrame`) 양쪽이 공유한다 (추출 전 두 곳에 중복돼 있던 form/buttons/ai
+   * if/else 를 `resumeTurnRegistry` 조회로 일원화). 매칭 처리기 없음 =
+   * `RESUME_CHECKPOINT_MISSING`(graceful — 호출측 outer catch 가 단말 마킹).
+   * @returns `PARK_RELEASED` = (AI) turn 처리 후 re-park 로 세그먼트 종료 ·
+   *          `void` = 노드 완료(호출측이 그래프 순회 계속).
+   */
+  private async dispatchResumeTurn(
+    ctx: ResumeTurnContext,
+  ): Promise<ProcessTurnResult> {
+    const blockingMeta = this.handlerRegistry.getMetadata(ctx.node.type);
+    const selector: ResumeTurnSelector = {
+      node: ctx.node,
+      blockingInteraction:
+        blockingMeta.kind === 'blocking' ? blockingMeta.interaction : undefined,
+      persistedInteractionType: ctx.persistedInteractionType,
+      isAiConversation: ctx.isAiConversation,
+      hasResumeCheckpoint: !!ctx.resumeCheckpoint,
+    };
+    const handler = this.resumeTurnRegistry.find((h) => h.selects(selector));
+    if (!handler) {
+      throw new RehydrationError(
+        'RESUME_CHECKPOINT_MISSING',
+        `Unsupported interaction type for rehydration: ${
+          ctx.persistedInteractionType ?? '(unknown)'
+        } (node type=${ctx.node.type})`,
+      );
+    }
+    return handler.handle(ctx);
+  }
+
+  /**
+   * Multi-turn AI 재개(§7.5) handler — `_resumeCheckpoint` 로 `_resumeState` 를
+   * 재구성(`buildRetryReentryState` 는 retry 재진입과 공유하는 재구성기)해
+   * nodeOutputCache 에 seed 한 뒤, 도착 turn(payload)을 단발 처리한다
+   * (`processAiResumeTurn`). 계속이면 re-park(`PARK_RELEASED`)로 세그먼트 종료,
+   * 종료면 `void` 반환 후 호출측 그래프 순회로 이어진다. 재구성 실패(schema drift /
+   * 손상)는 graceful `RESUME_INCOMPATIBLE_STATE`.
+   */
+  private async handleAiResumeTurn(
+    ctx: ResumeTurnContext,
+  ): Promise<ProcessTurnResult> {
+    let resumeState: Record<string, unknown>;
+    try {
+      ({ resumeState } = this.buildRetryReentryState(
+        ctx.savedExecution,
+        ctx.node,
+        ctx.context,
+        ctx.resumeCheckpoint as Record<string, unknown>,
+        { resumeMode: true },
+      ));
+    } catch (err) {
+      throw new RehydrationError(
+        'RESUME_INCOMPATIBLE_STATE',
+        `Multi-turn AI 노드(${ctx.node.type}) _resumeCheckpoint 재구성 실패: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+    // 재구성한 `_resumeState` 를 nodeOutputCache 에 주입 (handleAiMessageTurn /
+    // emitAiWaitingForInput 양쪽이 올바른 shape 을 보도록).
+    this.contextService.setNodeOutput(
+      this.contextKeyOf(ctx.context),
+      ctx.node.id,
+      {
+        ...(ctx.cachedOutput ?? {}),
+        _resumeState: resumeState,
+      },
+    );
+    return this.processAiResumeTurn(
+      ctx.savedExecution,
+      ctx.executionId,
+      ctx.node,
+      ctx.context,
+      ctx.nodeExec,
+      resumeState,
+      ctx.payload,
+    );
+  }
+
+  /**
    * §7.5 rehydration (top-level) — `resumeFromCheckpoint` 가 **await** 하는 전체
    * resume 구동: 도착 continuation payload 를 대기 노드의 직접 처리기
    * (`processFormResumeTurn` / `processButtonResumeTurn` / `processAiResumeTurn`)로
@@ -1870,91 +1991,23 @@ export class ExecutionEngineService
       await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
 
       // 직접 처리기 invoke — executeNode 우회 + in-memory 머신 없이 도착 payload 를
-      // 직접 전달(exec-park D6 full B3). form/button 은 processX, AI 는
-      // processAiResumeTurn. (옛 waitForX('await') + pendingContinuations +
-      // firePayload 폴링 경로 제거.)
-      const blockingMeta = this.handlerRegistry.getMetadata(node.type);
-      if (
-        blockingMeta.kind === 'blocking' &&
-        blockingMeta.interaction === 'form'
-      ) {
-        await this.processFormResumeTurn(
-          savedExecution,
-          executionId,
-          node,
-          context,
-          opts.payload,
-        );
-      } else if (persistedInteractionType === 'buttons') {
-        await this.processButtonResumeTurn(
-          savedExecution,
-          executionId,
-          node,
-          context,
-          opts.payload,
-        );
-      } else if (
-        isAiConversation &&
-        resumeCheckpoint &&
-        this.isCheckpointEligibleNodeType(node.type)
-      ) {
-        // §7.5 Multi-turn AI 재개 — `_resumeCheckpoint` 로 `_resumeState` 재구성
-        // 후 `waitForAiConversation` 재진입 (`buildRetryReentryState` 는 retry
-        // 재진입과 공유하는 재구성기). 이 호출은 대화 종료까지 다음 메시지를
-        // 차례로 await 하는 장수 루프지만, 본 메서드가 detach 돼 있으므로 worker
-        // 슬롯을 점유하지 않는다 (후속 turn 은 새 continuation job → fast-path).
-        let resumeState: Record<string, unknown>;
-        try {
-          ({ resumeState } = this.buildRetryReentryState(
-            savedExecution,
-            node,
-            context,
-            resumeCheckpoint,
-            { resumeMode: true },
-          ));
-        } catch (err) {
-          // 재구성 실패 (schema drift / 손상) — graceful reset.
-          throw new RehydrationError(
-            'RESUME_INCOMPATIBLE_STATE',
-            `Multi-turn AI 노드(${node.type}) _resumeCheckpoint 재구성 실패: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-        }
-        // 재구성한 `_resumeState` 를 nodeOutputCache 에 주입 (handleAiMessageTurn /
-        // emitAiWaitingForInput 양쪽이 올바른 shape 을 보도록).
-        const seededOutput = {
-          ...(cachedOutput ?? {}),
-          _resumeState: resumeState,
-        };
-        this.contextService.setNodeOutput(
-          this.contextKeyOf(context),
-          node.id,
-          seededOutput,
-        );
-        // Phase B (PR-B2, exec-park D4) — 도착한 turn(opts.payload)을 **단발 처리**한다.
-        // 계속이면 re-park(PARK_RELEASED)해 세그먼트 종료(코루틴 해제) — 다음 turn 은
-        // 또 다른 continuation job 으로 재개. 종료면 finalizeAiNode 후 아래 그래프
-        // 순회로 이어진다. (옛 장수 루프 waitForAiConversation 대체.)
-        const aiTurnSignal = await this.processAiResumeTurn(
-          savedExecution,
-          executionId,
-          node,
-          context,
-          opts.nodeExec,
-          resumeState,
-          opts.payload,
-        );
-        if (aiTurnSignal === PARK_RELEASED) {
-          return;
-        }
-      } else {
-        throw new RehydrationError(
-          'RESUME_CHECKPOINT_MISSING',
-          `Unsupported interaction type for rehydration: ${
-            persistedInteractionType ?? '(unknown)'
-          } (node type=${node.type})`,
-        );
+      // 직접 전달(exec-park D6 full B3). 노드-타입별 분기는 `resumeTurnRegistry`
+      // (form/buttons/ai)로 일원화됐다 (`dispatchResumeTurn` — 중첩 `driveResumeFrame`
+      // 과 공유). AI 가 계속(re-park)이면 PARK_RELEASED 반환 → 세그먼트 종료.
+      const turnOutcome = await this.dispatchResumeTurn({
+        savedExecution,
+        executionId,
+        node,
+        context,
+        nodeExec: opts.nodeExec,
+        persistedInteractionType,
+        isAiConversation,
+        resumeCheckpoint,
+        cachedOutput,
+        payload: opts.payload,
+      });
+      if (turnOutcome === PARK_RELEASED) {
+        return;
       }
 
       // waitForX 종결 → waiting node 완료. executedNodes 에 등록 + reachability 전파.
@@ -2262,77 +2315,24 @@ export class ExecutionEngineService
     reachable.add(opts.startNode.id);
     const nodeExecutionCount = new Map<string, number>();
 
-    // innermost frame: waiting 노드 turn 처리 (payload 전달).
+    // innermost frame: waiting 노드 turn 처리 (payload 전달). 노드-타입별 분기는
+    // top-level `driveResumeAwaited` 와 동일한 `dispatchResumeTurn`(resumeTurnRegistry)
+    // 으로 공유 — full B3(in-memory 머신 없음). AI 가 계속(re-park)이면 PARK_RELEASED.
     if (opts.isInnermost) {
-      const blockingMeta = this.handlerRegistry.getMetadata(
-        opts.startNode.type,
-      );
-      if (
-        blockingMeta.kind === 'blocking' &&
-        blockingMeta.interaction === 'form'
-      ) {
-        // form/button: 도착 payload 를 직접 처리기로 전달(full B3 — in-memory 머신 없음).
-        await this.processFormResumeTurn(
-          savedExecution,
-          executionId,
-          opts.startNode,
-          context,
-          opts.payload,
-        );
-      } else if (opts.persistedInteractionType === 'buttons') {
-        await this.processButtonResumeTurn(
-          savedExecution,
-          executionId,
-          opts.startNode,
-          context,
-          opts.payload,
-        );
-      } else if (
-        opts.isAiConversation &&
-        opts.resumeCheckpoint &&
-        this.isCheckpointEligibleNodeType(opts.startNode.type)
-      ) {
-        let resumeState: Record<string, unknown>;
-        try {
-          ({ resumeState } = this.buildRetryReentryState(
-            savedExecution,
-            opts.startNode,
-            context,
-            opts.resumeCheckpoint,
-            { resumeMode: true },
-          ));
-        } catch (err) {
-          throw new RehydrationError(
-            'RESUME_INCOMPATIBLE_STATE',
-            `중첩 AI 노드(${opts.startNode.type}) _resumeCheckpoint 재구성 실패: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-        }
-        this.contextService.setNodeOutput(
-          this.contextKeyOf(context),
-          opts.startNode.id,
-          { ...(opts.cachedOutput ?? {}), _resumeState: resumeState },
-        );
-        const aiSignal = await this.processAiResumeTurn(
-          savedExecution,
-          executionId,
-          opts.startNode,
-          context,
-          opts.nodeExec ?? null,
-          resumeState,
-          opts.payload,
-        );
-        if (aiSignal === PARK_RELEASED) {
-          return { parked: true, output: undefined };
-        }
-      } else {
-        throw new RehydrationError(
-          'RESUME_CHECKPOINT_MISSING',
-          `중첩 재개 미지원 interaction: ${
-            opts.persistedInteractionType ?? '(unknown)'
-          } (node type=${opts.startNode.type})`,
-        );
+      const turnOutcome = await this.dispatchResumeTurn({
+        savedExecution,
+        executionId,
+        node: opts.startNode,
+        context,
+        nodeExec: opts.nodeExec ?? null,
+        persistedInteractionType: opts.persistedInteractionType,
+        isAiConversation: opts.isAiConversation ?? false,
+        resumeCheckpoint: opts.resumeCheckpoint,
+        cachedOutput: opts.cachedOutput,
+        payload: opts.payload,
+      });
+      if (turnOutcome === PARK_RELEASED) {
+        return { parked: true, output: undefined };
       }
     }
 

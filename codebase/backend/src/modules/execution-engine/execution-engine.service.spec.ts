@@ -16,6 +16,7 @@ import {
 } from './execution-engine.service';
 import { CALL_STACK_SCHEMA_VERSION } from '../../shared/execution-resume/resume-call-stack.types';
 import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
+import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
 import {
   InvalidExecutionStateError,
   ExecutionTimeLimitError,
@@ -10933,6 +10934,186 @@ describe('ExecutionEngineService', () => {
         svcAny.buildRetryReentryState = orig.build;
         svcAny.updateExecutionStatus = orig.upd;
       }
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // exec-park B-1 — resume dispatch registry (`dispatchResumeTurn`). top-level
+  // (`driveResumeAwaited`)·중첩(`driveResumeFrame`) 양쪽이 공유하는 단일 진입점의
+  // 선택 우선순위(form → buttons → ai)·미지원 throw·PARK_RELEASED 전파를 검증.
+  // 처리기(processForm/Button/handleAiResumeTurn)는 spy 로 라우팅만 확인. spec §7.5.
+  // ──────────────────────────────────────────────────────────────────────
+  describe('dispatchResumeTurn — resume dispatch registry (exec-park B-1)', () => {
+    type DispatchSubject = {
+      dispatchResumeTurn: (ctx: Record<string, unknown>) => Promise<unknown>;
+      processFormResumeTurn: (...a: unknown[]) => Promise<void>;
+      processButtonResumeTurn: (...a: unknown[]) => Promise<void>;
+      handleAiResumeTurn: (...a: unknown[]) => Promise<unknown>;
+    };
+
+    const makeCtx = (overrides: Record<string, unknown>) => ({
+      savedExecution: { id: 'exec-1' },
+      executionId: 'exec-1',
+      node: { id: 'n1', type: 'form' },
+      context: { variables: {} },
+      nodeExec: null,
+      persistedInteractionType: undefined,
+      isAiConversation: false,
+      resumeCheckpoint: undefined,
+      cachedOutput: undefined,
+      payload: { type: 'form_submitted', formData: {} },
+      ...overrides,
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('form interaction → processFormResumeTurn 라우팅 (void → 순회 계속)', async () => {
+      const svc = service as unknown as DispatchSubject;
+      jest
+        .spyOn(handlerRegistry, 'getMetadata')
+        .mockReturnValue({ kind: 'blocking', interaction: 'form' } as never);
+      const formSpy = jest
+        .spyOn(svc, 'processFormResumeTurn')
+        .mockResolvedValue(undefined);
+      const buttonSpy = jest
+        .spyOn(svc, 'processButtonResumeTurn')
+        .mockResolvedValue(undefined);
+
+      const out = await svc.dispatchResumeTurn(
+        makeCtx({ node: { id: 'f1', type: 'form' } }),
+      );
+
+      expect(out).toBeUndefined();
+      expect(formSpy).toHaveBeenCalledTimes(1);
+      expect(buttonSpy).not.toHaveBeenCalled();
+    });
+
+    it('persistedInteractionType=buttons → processButtonResumeTurn 라우팅', async () => {
+      const svc = service as unknown as DispatchSubject;
+      jest
+        .spyOn(handlerRegistry, 'getMetadata')
+        .mockReturnValue({ kind: 'blocking', interaction: 'buttons' } as never);
+      const formSpy = jest
+        .spyOn(svc, 'processFormResumeTurn')
+        .mockResolvedValue(undefined);
+      const buttonSpy = jest
+        .spyOn(svc, 'processButtonResumeTurn')
+        .mockResolvedValue(undefined);
+
+      const out = await svc.dispatchResumeTurn(
+        makeCtx({
+          node: { id: 'b1', type: 'carousel' },
+          persistedInteractionType: 'buttons',
+        }),
+      );
+
+      expect(out).toBeUndefined();
+      expect(buttonSpy).toHaveBeenCalledTimes(1);
+      expect(formSpy).not.toHaveBeenCalled();
+    });
+
+    it('ai_conversation + checkpoint + eligible node → handleAiResumeTurn 라우팅', async () => {
+      const svc = service as unknown as DispatchSubject;
+      jest
+        .spyOn(handlerRegistry, 'getMetadata')
+        .mockReturnValue({ kind: 'standard' } as never);
+      const aiSpy = jest
+        .spyOn(svc, 'handleAiResumeTurn')
+        .mockResolvedValue(undefined);
+
+      const out = await svc.dispatchResumeTurn(
+        makeCtx({
+          node: { id: 'ai1', type: 'ai_agent' },
+          persistedInteractionType: 'ai_conversation',
+          isAiConversation: true,
+          resumeCheckpoint: { schemaVersion: 1 },
+        }),
+      );
+
+      expect(out).toBeUndefined();
+      expect(aiSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('ai handler 가 PARK_RELEASED 반환 → dispatch 가 그대로 전파 (re-park)', async () => {
+      const svc = service as unknown as DispatchSubject;
+      jest
+        .spyOn(handlerRegistry, 'getMetadata')
+        .mockReturnValue({ kind: 'standard' } as never);
+      jest.spyOn(svc, 'handleAiResumeTurn').mockResolvedValue(PARK_RELEASED);
+
+      const out = await svc.dispatchResumeTurn(
+        makeCtx({
+          node: { id: 'ai1', type: 'information_extractor' },
+          persistedInteractionType: 'ai_conversation',
+          isAiConversation: true,
+          resumeCheckpoint: { schemaVersion: 1 },
+        }),
+      );
+
+      expect(out).toBe(PARK_RELEASED);
+    });
+
+    it('form 이 buttons 보다 우선 (interaction=form & persistedInteractionType=buttons → form)', async () => {
+      const svc = service as unknown as DispatchSubject;
+      jest
+        .spyOn(handlerRegistry, 'getMetadata')
+        .mockReturnValue({ kind: 'blocking', interaction: 'form' } as never);
+      const formSpy = jest
+        .spyOn(svc, 'processFormResumeTurn')
+        .mockResolvedValue(undefined);
+      const buttonSpy = jest
+        .spyOn(svc, 'processButtonResumeTurn')
+        .mockResolvedValue(undefined);
+
+      await svc.dispatchResumeTurn(
+        makeCtx({
+          node: { id: 'f1', type: 'form' },
+          persistedInteractionType: 'buttons',
+        }),
+      );
+
+      expect(formSpy).toHaveBeenCalledTimes(1);
+      expect(buttonSpy).not.toHaveBeenCalled();
+    });
+
+    it('매칭 처리기 없음 → RehydrationError(RESUME_CHECKPOINT_MISSING)', async () => {
+      const svc = service as unknown as DispatchSubject;
+      jest
+        .spyOn(handlerRegistry, 'getMetadata')
+        .mockReturnValue({ kind: 'standard' } as never);
+
+      await expect(
+        svc.dispatchResumeTurn(
+          makeCtx({
+            node: { id: 'w1', type: 'webhook' },
+            persistedInteractionType: 'unknown_kind',
+            isAiConversation: false,
+          }),
+        ),
+      ).rejects.toMatchObject({ code: 'RESUME_CHECKPOINT_MISSING' });
+    });
+
+    it('ai 인데 checkpoint 부재 → 매칭 없음(RESUME_CHECKPOINT_MISSING) — registry hasResumeCheckpoint 게이팅', async () => {
+      // 프로덕션 경로에선 resumeFromCheckpoint 가 진입 전에 RESUME_INCOMPATIBLE_STATE
+      // 로 미리 거르지만, dispatch 단독으로는 ai selector 가 hasResumeCheckpoint 를
+      // 요구하므로 매칭이 없어 RESUME_CHECKPOINT_MISSING (동작 보존: 추출 전 else throw).
+      const svc = service as unknown as DispatchSubject;
+      jest
+        .spyOn(handlerRegistry, 'getMetadata')
+        .mockReturnValue({ kind: 'standard' } as never);
+
+      await expect(
+        svc.dispatchResumeTurn(
+          makeCtx({
+            node: { id: 'ai1', type: 'ai_agent' },
+            persistedInteractionType: 'ai_conversation',
+            isAiConversation: true,
+            resumeCheckpoint: undefined,
+          }),
+        ),
+      ).rejects.toMatchObject({ code: 'RESUME_CHECKPOINT_MISSING' });
     });
   });
 
