@@ -107,6 +107,13 @@ export type ExecutionDetailWithTrigger = Execution & {
  * `{ ...ne, status: WAITING_FOR_INPUT }` 으로 교체한 새 배열을 반환한다.
  * `snapshotCache` 에 저장될 때 변이된 참조가 공유되는 캐시 오염을 방지한다.
  *
+ * **동기화 의무 (의도적 중복 방어 레이어)**: 이 함수의 판정 조건
+ * (`running`/`pending` + `outputData.status==='waiting_for_input'`, terminal 제외)
+ * 을 변경할 때는 frontend `apply-execution-snapshot.ts: isNodeWaitingForInput`
+ * 도 동일 조건으로 함께 변경해야 한다 — 두 레이어는 같은 intra-row inconsistency
+ * 를 각각 backend read-side / frontend defense-in-depth 로 막는 의도적 중복이라,
+ * 한쪽만 바뀌면 불일치 창이 재개방된다.
+ *
  * @param nodeExecutions — `findById` 트랜잭션에서 조회한 NodeExecution 배열.
  * @returns 정규화가 적용된 새 배열 (변이 없음).
  */
