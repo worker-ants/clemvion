@@ -13,6 +13,8 @@ spec_impact: [spec/5-system/8-embedding-pipeline.md, spec/2-navigation/5-knowled
 - [`spec/5-system/8-embedding-pipeline.md`](../../spec/5-system/8-embedding-pipeline.md) — status: implemented. §5 임베딩 생성에 input_type/prefix **미기술**. §7.3 재임베딩 기술됨.
 - [`spec/2-navigation/5-knowledge-base.md`](../../spec/2-navigation/5-knowledge-base.md) — status: implemented. §2.2 모델 선택 UI 기술. §2.3~2.4 재임베딩 상태 표시 부분 기술이나 "모델 변경 경고" 미기술.
 
+> **진행 (2026-06-06, 리뷰 후)**: ai-review Critical 0 / WARNING 8 → resolution-applier 7/8 fix(commit `17ef3879`) + e2e 174/174. 남은 1건(embed 시그니처 SPEC-DRIFT)은 `consistency-check --spec` BLOCK:NO 확인 후 본 plan 으로 흡수해 직접 반영: `7-llm-client.md §8.3` 에 `LlmService.embed(config, texts, model?, opts?, inputType?)` 명시(§3.3 LLMClient 인터페이스와 계층 구분), `8-embedding-pipeline.md §5.4` config 인자·링크(§8.3) 정정, `17-agent-memory.md` 회수 시그니처 정정. (auto-draft `spec-update-llm-embed-signature.md` 는 흡수 후 제거.)
+
 > **진행 (2026-06-06)**: consistency-check `--impl-prep` BLOCK:NO (WARNING 5건 plan 반영). Phase A(③ inputType 배선)·B(① 한국어 추천 배지)·C(spec 갱신 + ② 검증) 구현 완료. 핵심 모듈 `embedding-input-type.ts` 를 **llm 모듈로 배치**(결합 방향: knowledge-base→llm 유지). 단위테스트: backend 영향 모듈 567/567, frontend recommendation 14/14. tsc backend(수정 소스 클린)·frontend(0 에러). spec 4종 갱신(7-llm-client §3.3, 8-embedding-pipeline §5.4+Rationale, 17-agent-memory §4, 5-knowledge-base §2.2). 다음: `/ai-review` → fix.
 
 ## 사전 검토 결과 (2026-06-06)

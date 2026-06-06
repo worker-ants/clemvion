@@ -131,9 +131,9 @@ interface TokenUsage {
 }
 ```
 
-### 3.3 embed 시그니처
+### 3.3 embed 시그니처 (LLMClient 인터페이스)
 
-임베딩은 파라미터/응답 객체를 쓰지 않고 평탄한 시그니처를 사용한다.
+임베딩은 파라미터/응답 객체를 쓰지 않고 평탄한 시그니처를 사용한다. (서비스 계층 `LlmService.embed` 의 batch/opts 래퍼는 [§8.3](#83-서비스-레이어).)
 
 ```typescript
 // embed(texts, model?, inputType?: 'query' | 'document'): Promise<number[][]>
@@ -389,7 +389,18 @@ type ChatStreamEvent =
 
 ```typescript
 class LlmService {
-  // 기존 chat / embed / testConnection / resolveConfig 유지
+  // 기존 chat / testConnection / resolveConfig 유지
+
+  /** 배치 임베딩 — 20개 단위 chunking + 내부 재시도. §3.3 의 LLMClient.embed 래퍼.
+   *  opts(timeoutMs/disableInnerRetry)는 서비스 래퍼 전용이라 §3.3 LLMClient
+   *  인터페이스에는 없다. inputType 기본값 'document'(적재), 검색 query 만 'query'. */
+  embed(
+    config: LlmConfig,
+    texts: string[],
+    model?: string,
+    opts?: Pick<LlmCallOptions, 'timeoutMs' | 'disableInnerRetry'>,
+    inputType?: 'query' | 'document',   // 생략 시 'document'
+  ): Promise<number[][]>;
 
   /** 스트리밍 chat — client.stream 위임. done 이벤트에서 llmUsageLogService.record() fire-and-forget */
   chatStream(
@@ -400,6 +411,8 @@ class LlmService {
   ): AsyncIterable<ChatStreamEvent>;
 }
 ```
+
+> `LlmCallOptions`(timeoutMs/disableInnerRetry/signal)는 코드가 SoT(`llm.service.ts`). `embed` 은 그중 `timeoutMs`/`disableInnerRetry` 만 받는다.
 
 - 사용량 로깅(`llm_usage_log`)은 `done` 이벤트에서만 수행하며, 비동기 비차단.
 - 재시도(rate limit)는 스트리밍 중에는 적용하지 않는다. 시작 전 네트워크 초기화 단계에서만 기존 exponential backoff 규칙을 적용.

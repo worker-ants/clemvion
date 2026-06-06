@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "started_at": "2026-06-06T00:00:00Z",
+  "summary_items_total": 8,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7],
+  "items_pending_ids": [],
+  "items_escalated_ids": {"8": "spec"},
+  "commits_made": [
+    {"sha": "17ef3879", "summary_ids": [3, 4, 5, 6, 7], "scope": "embedding"}
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-update-llm-embed-signature.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260606-110808.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec",
+  "last_reset_hint_sec": null
+}
