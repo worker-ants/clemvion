@@ -343,6 +343,13 @@ LLM Config UI의 **기본 모델 선택** 지원을 위해, 아직 저장되지 
 - **API 응답**: 마스킹 처리 (`sk-...xxxx` 형태)
 - **로그**: API 키 절대 로깅 금지
 
+### 7.1 테스트 전용 Stub 모드 (`LLM_STUB_MODE`)
+
+dockerized e2e (`execution-park-resume.e2e-spec.ts`) 가 실제 LLM 키·외부 호출 없이 멀티턴 AI park→§8 / rehydration 경로를 결정적으로 검증하도록, env-gated 결정적 stub 클라이언트를 둔다 (`OAUTH_STUB_MODE` 선례).
+
+- `LlmService.createClient` 는 `process.env.LLM_STUB_MODE === 'true'` 일 때 **캐시/decrypt 경로보다 앞**에서 결정적 `StubLlmClient` 를 반환한다 — stub 이 항상 우선하도록 하여 실 클라이언트가 먼저 캐시된 상태에서의 오염을 막는다. 이 경로에서 llm-config `apiKey` 는 사용되지 않는다.
+- **프로덕션 차단**: `main.ts` 부팅 가드가 `NODE_ENV=production` + `LLM_STUB_MODE=true` 조합을 fail-closed 로 throw 한다 ("not allowed when NODE_ENV=production"). 프로덕션에서는 절대 활성화되지 않는다.
+
 ---
 
 ## 8. 스트리밍 (Streaming)

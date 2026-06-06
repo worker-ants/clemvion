@@ -646,7 +646,9 @@ ALTER TABLE trigger
 
 ### 8.3 Token 일반 규약
 
-- JWT HS256, secret 은 trigger 별 분리 (서로 다른 trigger 의 토큰을 cross-validate 불가)
+- **secret 출처는 토큰 family 별로 다르다**:
+  - `itk_*` (`per_trigger`) — trigger 가 발급하는 per-trigger opaque 토큰. trigger 별로 분리되어 서로 다른 trigger 의 토큰을 cross-validate 할 수 없다.
+  - `iext_*` (`per_execution`) — HS256 으로 서명하되 **단일 글로벌 secret** `INTERACTION_JWT_SECRET`(미설정 시 configService `jwt.secret` → `JWT_SECRET` → fallback `'interaction-fallback'` 순) 을 쓴다. trigger 별 분리가 아니라 execution scope 로 한정되는데, payload `{ sub: executionId, aud: 'interaction', jti }` 가 단일 execution 에 묶이고 jti 가 Redis blacklist 로 revoke 되기 때문이다 (아래).
 - `iext_*` 의 jti 는 Redis blacklist 가능 — execution 종료 시 즉시 blacklist 등록
 - HTTPS 강제 (개발 env 예외)
 - 토큰을 query parameter 로 받는 것은 SSE 한정 (`?token=` ; EventSource 가 헤더 미지원). 그 외는 모두 `Authorization: Bearer`
@@ -769,7 +771,7 @@ codebase/backend/src/modules/
 
 본 모듈의 컨트롤러는 워크스페이스 JWT (`access-token` scheme) 가 아니라 별도 토큰 family (`iext_*` / `itk_*`) 로 인증된다. 따라서 `spec/conventions/swagger.md §2-1` 의 `@ApiBearerAuth('access-token')` 대신:
 
-- `main.ts` 에 신규 Bearer scheme 등록: `interaction-token` (= JWT HS256, secret 은 trigger 별 분리)
+- `main.ts` 에 신규 Bearer scheme 등록: `interaction-token` (`iext_*` 은 글로벌 `INTERACTION_JWT_SECRET` 으로 서명한 HS256 JWT, `itk_*` 은 trigger 별 분리 opaque 토큰 — secret 출처 상세는 §8.3)
 - 컨트롤러 클래스 데코레이터: `@ApiBearerAuth('interaction-token')`
 - Swagger UI 의 토큰 입력란이 access-token 과 분리되어 표시되어야 한다
 
