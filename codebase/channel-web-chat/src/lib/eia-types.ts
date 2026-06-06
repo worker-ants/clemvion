@@ -72,6 +72,22 @@ export interface AiMessageEvent {
   seq?: number;
 }
 
+/**
+ * GET /api/external/executions/:id 단발 상태 조회 응답 (EIA §5.3 / EIA-IN-04).
+ * 전역 TransformInterceptor 봉투(`{ data }`) 언랩 후의 shape.
+ */
+export interface ExecutionStatus {
+  id: string;
+  workflowId?: string;
+  status: string;
+  currentNode?: string | null;
+  context?: Record<string, unknown> | null;
+  result?: unknown;
+  error?: unknown;
+  seq?: number;
+  updatedAt?: string;
+}
+
 /** /interact 명령. retry_last_turn 은 외부 미지원(EIA-IN-02). */
 export type InteractCommand =
   | { command: "submit_message"; nodeId?: string; message: string }

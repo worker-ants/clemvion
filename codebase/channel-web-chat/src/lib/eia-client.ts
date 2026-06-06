@@ -1,7 +1,7 @@
 // EIA 클라이언트 — 위젯이 EIA 외부 표면(webhook + REST + SSE)을 호출. SoT: spec/5-system/14, 7-channel-web-chat/0-architecture §3.
 // 브라우저 fetch + EventSource 사용. 테스트 위해 DI 가능.
 
-import type { HookStartResponse, InteractCommand, InteractionEndpoints } from "./eia-types";
+import type { ExecutionStatus, HookStartResponse, InteractCommand, InteractionEndpoints } from "./eia-types";
 
 export interface EiaClientDeps {
   apiBase: string;
@@ -21,6 +21,21 @@ function joinUrl(base: string, path: string): string {
   return base.replace(/\/$/, "") + (path.startsWith("/") ? path : "/" + path);
 }
 
+/**
+ * 전역 `TransformInterceptor` 의 `{ data: ... }` 봉투 해제.
+ * 백엔드 성공 응답은 모두 `{ data }` 로 래핑된다 (SoT: webhook §3.1 / api-convention §5).
+ * 봉투가 없으면(`data` 키 부재) body 를 그대로 반환 — 하위 호환·테스트 안전.
+ * 에러 응답은 `{ error }`/`{ statusCode }` shape 이라 이 경로를 타지 않는다(success-path 전용).
+ * @internal — unit-test seam only. Do not use in application code.
+ * (`@workflow/sdk` 의 동명 private 헬퍼와 구분하기 위해 `unwrapEnvelope` 로 명명 — naming-collision W2.)
+ */
+export function unwrapEnvelope<T>(body: unknown): T {
+  if (body !== null && typeof body === "object" && "data" in body) {
+    return (body as { data: T }).data;
+  }
+  return body as T;
+}
+
 export class EiaClient {
   private readonly apiBase: string;
   private readonly fetchImpl: typeof fetch;
@@ -33,7 +48,10 @@ export class EiaClient {
       deps.eventSourceFactory ?? ((url) => new EventSource(url) as unknown as EventSourceLike);
   }
 
-  /** 대화 시작 — POST /api/hooks/:endpointPath. auth 없음(공개). 202 + per_execution 토큰. */
+  /**
+   * 대화 시작 — POST /api/hooks/:endpointPath. auth 없음(공개). 202 + per_execution 토큰.
+   * 응답은 전역 TransformInterceptor 봉투(`{ data }`)를 언랩한 `HookStartResponse` 반환.
+   */
   async startConversation(
     endpointPath: string,
     payload: { profile?: Record<string, unknown>; firstMessage?: string; [k: string]: unknown },
@@ -46,7 +64,7 @@ export class EiaClient {
     if (!res.ok) {
       throw new EiaError(`webhook 시작 실패(${res.status})`, res.status);
     }
-    return (await res.json()) as HookStartResponse;
+    return unwrapEnvelope<HookStartResponse>(await res.json());
   }
 
   /** 인터랙션 명령 제출 — POST endpoints.submit. Bearer 토큰. */
@@ -67,17 +85,24 @@ export class EiaClient {
     }
   }
 
-  /** 단발 상태 조회 — GET endpoints.status. */
-  async getStatus(endpoints: InteractionEndpoints, token: string): Promise<Record<string, unknown>> {
+  /**
+   * 단발 상태 조회 — GET endpoints.status. Bearer 토큰.
+   * 응답은 전역 TransformInterceptor 봉투(`{ data }`)를 언랩한 상태 객체 반환
+   * (status, seq, ... — EIA §5.3).
+   */
+  async getStatus(endpoints: InteractionEndpoints, token: string): Promise<ExecutionStatus> {
     const res = await this.fetchImpl(joinUrl(this.apiBase, endpoints.status), {
       headers: { authorization: `Bearer ${token}` },
     });
     if (res.status === 410) throw new EiaError("대화 종료됨", 410);
     if (!res.ok) throw new EiaError(`상태 조회 실패(${res.status})`, res.status);
-    return (await res.json()) as Record<string, unknown>;
+    return unwrapEnvelope<ExecutionStatus>(await res.json());
   }
 
-  /** 토큰 갱신 — POST endpoints.refresh (만료 30분 이내). */
+  /**
+   * 토큰 갱신 — POST endpoints.refresh (만료 30분 이내).
+   * 응답 봉투(`{ data }`) 언랩 후 `{ token, expiresAt }` 반환 (EIA §5.5).
+   */
   async refreshToken(
     endpoints: InteractionEndpoints,
     token: string,
@@ -87,7 +112,7 @@ export class EiaClient {
       headers: { authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new EiaError(`토큰 갱신 실패(${res.status})`, res.status);
-    return (await res.json()) as { token: string; expiresAt: string };
+    return unwrapEnvelope<{ token: string; expiresAt: string }>(await res.json());
   }
 
   /** SSE 스트림 — GET endpoints.stream?token=. EventSource 헤더 미지원 → 쿼리 토큰(EIA §8.3). */
