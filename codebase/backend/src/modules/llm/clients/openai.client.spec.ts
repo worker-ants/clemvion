@@ -472,7 +472,11 @@ describe('OpenAIClient.embed (input_type prefix)', () => {
 
   it('e5 계열 + document → "passage: " prefix 적용', async () => {
     const { client, createMock } = makeEmbedClient();
-    await client.embed(['환불은 7일 이내'], 'multilingual-e5-large', 'document');
+    await client.embed(
+      ['환불은 7일 이내'],
+      'multilingual-e5-large',
+      'document',
+    );
     expect(createMock).toHaveBeenCalledWith({
       model: 'multilingual-e5-large',
       input: ['passage: 환불은 7일 이내'],

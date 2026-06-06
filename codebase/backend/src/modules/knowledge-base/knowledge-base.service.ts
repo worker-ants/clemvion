@@ -206,7 +206,7 @@ export class KnowledgeBaseService {
         cfg,
         ['probe'],
         dto.embeddingModel,
-        undefined,
+        undefined /* opts */,
         'document',
       );
     } catch (e) {

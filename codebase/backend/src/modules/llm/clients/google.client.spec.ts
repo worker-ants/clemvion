@@ -1316,6 +1316,19 @@ describe('GoogleClient.embed', () => {
     ]);
   });
 
+  // SUMMARY#6 — inputType 생략 시 기본값 RETRIEVAL_DOCUMENT 독립 검증
+  it('inputType 생략 시 RETRIEVAL_DOCUMENT 가 config 에 포함된다', async () => {
+    const { client, embedContent } = makeStubs({
+      embedResult: { embeddings: [{ values: [0.5] }] },
+    });
+    await client.embed(['doc-text']);
+    expect(embedContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: { taskType: 'RETRIEVAL_DOCUMENT' },
+      }),
+    );
+  });
+
   it('uses the provided model id when given', async () => {
     const { client, embedContent } = makeStubs({
       embedResult: { embeddings: [{ values: [1] }] },

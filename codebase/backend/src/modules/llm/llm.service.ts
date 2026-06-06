@@ -192,6 +192,14 @@ export class LlmService {
     }
   }
 
+  /**
+   * 배치 임베딩. 20개 단위로 chunking 해 client 에 위임한다.
+   * @param config - LlmConfig 엔티티 (provider·credential 포함).
+   * @param texts - 임베딩할 텍스트 배열.
+   * @param model - 임베딩 모델 ID. 생략 시 provider 기본값.
+   * @param opts - 타임아웃·내부 재시도 제어. `undefined` = 기본(재시도 ON, 타임아웃 없음).
+   * @param inputType - 비대칭 모델 힌트. 기본값 `'document'`(적재 경로). 검색 query 경로만 `'query'`.
+   */
   async embed(
     config: LlmConfig,
     texts: string[],

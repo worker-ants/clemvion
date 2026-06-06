@@ -422,7 +422,7 @@ export class AgentMemoryService {
       llmConfig,
       valid.map((it) => it.content),
       model,
-      undefined,
+      undefined /* opts */,
       // 메모리 저장 = passage(document). recall query 와 비대칭 모델에서 구분.
       'document',
     );
@@ -900,7 +900,7 @@ export class AgentMemoryService {
       llmConfig,
       [text],
       model,
-      undefined,
+      undefined /* opts */,
       // 메모리 recall = query. 저장(passage)과 비대칭 모델에서 구분.
       'query',
     );

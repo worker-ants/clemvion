@@ -145,7 +145,11 @@ export class AnthropicClient implements LLMClient {
     };
   }
 
-  embed(): Promise<number[][]> {
+  embed(
+    _texts?: string[],
+    _model?: string,
+    _inputType?: import('../embedding-input-type').EmbedInputType,
+  ): Promise<number[][]> {
     return Promise.reject(
       new Error(
         'Anthropic does not support embedding. Use OpenAI or another provider for embeddings.',

@@ -43,20 +43,29 @@ describe('resolveEmbeddingInputStrategy', () => {
 describe('applyEmbeddingInputPrefix', () => {
   it('e5 모델 + query → "query: " 접두사', () => {
     expect(
-      applyEmbeddingInputPrefix(['고객 환불 정책'], 'multilingual-e5-large', 'query'),
+      applyEmbeddingInputPrefix(
+        ['고객 환불 정책'],
+        'multilingual-e5-large',
+        'query',
+      ),
     ).toEqual(['query: 고객 환불 정책']);
   });
 
   it('e5 모델 + document → "passage: " 접두사', () => {
     expect(
-      applyEmbeddingInputPrefix(['환불은 7일 이내'], 'multilingual-e5-large', 'document'),
+      applyEmbeddingInputPrefix(
+        ['환불은 7일 이내'],
+        'multilingual-e5-large',
+        'document',
+      ),
     ).toEqual(['passage: 환불은 7일 이내']);
   });
 
   it('배치 전체에 접두사 적용', () => {
-    expect(
-      applyEmbeddingInputPrefix(['a', 'b'], 'e5-base', 'query'),
-    ).toEqual(['query: a', 'query: b']);
+    expect(applyEmbeddingInputPrefix(['a', 'b'], 'e5-base', 'query')).toEqual([
+      'query: a',
+      'query: b',
+    ]);
   });
 
   it('대칭 모델(none)은 입력 그대로 반환', () => {
@@ -67,7 +76,9 @@ describe('applyEmbeddingInputPrefix', () => {
   });
 
   it('model undefined → 입력 그대로', () => {
-    expect(applyEmbeddingInputPrefix(['x'], undefined, 'document')).toEqual(['x']);
+    expect(applyEmbeddingInputPrefix(['x'], undefined, 'document')).toEqual([
+      'x',
+    ]);
   });
 
   it('빈 배열 → 빈 배열', () => {

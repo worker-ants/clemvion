@@ -374,7 +374,7 @@ export class RagSearchService {
       llmConfig,
       [query],
       model,
-      undefined,
+      undefined /* opts */,
       'query',
     );
     const queryEmbedding = embeddings[0];
@@ -450,7 +450,7 @@ export class RagSearchService {
       llmConfig,
       [query],
       kb.embeddingModel,
-      undefined,
+      undefined /* opts */,
       'query',
     );
     const queryEmbedding = embeddings[0];
