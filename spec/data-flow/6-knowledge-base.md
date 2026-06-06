@@ -70,7 +70,7 @@ sequenceDiagram
   EP->>EP: parseDocument(buffer, file_type)
   EP->>EP: chunkText(text, { chunkSize, chunkOverlap })
   loop batch of 20 chunks
-    EP->>LLM: embed(texts[]) via LlmService (resolved with kb.embedding_llm_config_id or workspace default)
+    EP->>LLM: embed(texts[], inputType='document') via LlmService (resolved with kb.embedding_llm_config_id or workspace default)
     EP->>PG: INSERT document_chunk (document_id, knowledge_base_id, chunk_index, content, embedding=vector, token_count)
   end
   EP->>PG: UPDATE document SET embedding_status='completed', chunk_count, embedding_retry_count=0, embedding_error_message=NULL
@@ -114,7 +114,8 @@ sequenceDiagram
   participant LLM as LLM (embed)
 
   H->>R: search(kbId, query, topK)
-  R->>LLM: embed(query) — kb.embedding_llm_config_id 또는 ws default
+  R->>LLM: embed(query, inputType='query') — kb.embedding_llm_config_id 또는 ws default
+  Note over R,LLM: 비대칭 모델(e5/Gemini)은 색인=document, 검색=query 로 다르게 인코딩.<br/>SoT [임베딩 파이프라인 §5](../5-system/8-embedding-pipeline.md)
   R->>PG: SELECT chunks ORDER BY embedding <=> query_vec LIMIT topK
   Note over PG: HNSW partial index by dimension (V022/V030~V033)
   R-->>H: chunks[]
@@ -131,7 +132,7 @@ sequenceDiagram
   participant LLM as LLM (embed)
 
   H->>R: search(kbId, query)
-  R->>LLM: embed(query)
+  R->>LLM: embed(query, inputType='query')
   R->>PG: vector seed: SELECT chunks ORDER BY embedding <=> q LIMIT kb.vector_seed_top_k
   R->>G: expand(seedChunkIds, hops = kb.max_hops)
   G->>PG: chunk_entity → entity → relation (head/tail) → chunk_entity → chunks (kb.max_hops 회)

@@ -388,4 +388,45 @@ describe("EmbeddingModelCombobox", () => {
     // chat 모델은 노출되지 않아야 한다
     expect(optionValues()).not.toContain("gpt-4o");
   });
+
+  // renderOption 추천/비추천 분기 — 한국어 추천 모델만 option 라벨에 배지 suffix.
+  // (순수 분기 로직은 embedding-model-recommendation.test 의 formatEmbeddingOptionLabel
+  // 에서 단위 검증하고, 여기서는 combobox 가 그 라벨을 실제 option 텍스트로 렌더하는지 확인.)
+  it("appends the Korean-recommended badge only to recommended option labels", async () => {
+    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+      {
+        id: "multilingual-e5-large",
+        name: "multilingual-e5-large",
+        type: "embedding",
+      },
+      {
+        id: "text-embedding-3-small",
+        name: "text-embedding-3-small",
+        type: "embedding",
+      },
+    ]);
+
+    wrap(
+      <EmbeddingModelCombobox
+        value=""
+        onChange={vi.fn()}
+        llmConfigId="explicit-cfg"
+      />,
+    );
+
+    fireEvent.click(getLoadButton());
+
+    await waitFor(() => {
+      expect(optionValues()).toContain("multilingual-e5-large");
+    });
+
+    const optionText = (value: string): string =>
+      Array.from(getSelect().options).find((o) => o.value === value)
+        ?.textContent ?? "";
+
+    // 추천 모델: 배지 suffix 포함
+    expect(optionText("multilingual-e5-large")).toMatch(/한국어 추천/);
+    // 비추천(text-embedding-3, product 결정으로 제외): 배지 없음
+    expect(optionText("text-embedding-3-small")).not.toMatch(/한국어 추천/);
+  });
 });

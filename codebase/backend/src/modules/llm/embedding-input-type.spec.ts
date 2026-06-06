@@ -84,6 +84,30 @@ describe('applyEmbeddingInputPrefix', () => {
   it('빈 배열 → 빈 배열', () => {
     expect(applyEmbeddingInputPrefix([], 'e5-large', 'query')).toEqual([]);
   });
+
+  // 정책 고정: applyEmbeddingInputPrefix 는 멱등(idempotent)이 아니다 —
+  // 이미 prefix 가 붙은 텍스트에 다시 적용하면 prefix 가 누적된다. 의도된
+  // 설계로, 함수는 "이번 호출에서 한 번만 적용" 을 전제하며 호출자(embed 경로)가
+  // 단 한 번만 호출하는 책임을 진다. 이 테스트는 멱등성을 보장하지 *않는다*는
+  // 계약을 문서화/고정해, 향후 dedup 로직이 무심코 추가되거나 호출자가 이중
+  // 적용을 가정하지 않도록 한다.
+  it('멱등성 없음 — 이미 prefix 가 붙은 입력에 재적용하면 prefix 가 누적된다(정책)', () => {
+    const once = applyEmbeddingInputPrefix(
+      ['고객 환불'],
+      'multilingual-e5-large',
+      'query',
+    );
+    expect(once).toEqual(['query: 고객 환불']);
+
+    const twice = applyEmbeddingInputPrefix(
+      once,
+      'multilingual-e5-large',
+      'query',
+    );
+    // 멱등이라면 ['query: 고객 환불'] 이어야 하지만, 누적되어 이중 prefix 가 된다.
+    expect(twice).toEqual(['query: query: 고객 환불']);
+    expect(twice).not.toEqual(once);
+  });
 });
 
 describe('resolveGeminiTaskType', () => {

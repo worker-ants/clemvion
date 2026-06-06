@@ -321,6 +321,17 @@ describe('RagSearchService', () => {
           maxDepth: 2,
         }),
       );
+
+      // graph 모드 query 임베딩(searchGraphKb 경로)도 vector 경로와 동일하게
+      // inputType='query' 로 호출돼야 한다 — 비대칭 모델에서 query/passage 공간이
+      // 어긋나지 않게 하는 핵심 계약. KB 의 embeddingModel 을 그대로 전달.
+      expect(mockLlmService.embed).toHaveBeenCalledWith(
+        expect.anything(),
+        ['query'],
+        'text-embedding-3-small',
+        undefined,
+        'query',
+      );
     });
 
     it('skips graph KB with null embedding_dimension', async () => {

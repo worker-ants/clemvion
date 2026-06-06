@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { useEmbeddingModelLoader } from "@/components/llm-config/use-embedding-model-loader";
 import { useDefaultLlmConfigId } from "@/components/llm-config/use-default-llm-config-id";
 import { buildLoaderErrorMessages } from "@/components/llm-config/loader-error-messages";
 import { ModelSelectField } from "@/components/llm-config/model-select-field";
-import { isKoreanRecommendedEmbeddingModel } from "./embedding-model-recommendation";
+import { formatEmbeddingOptionLabel } from "./embedding-model-recommendation";
 
 interface EmbeddingModelComboboxProps {
   value: string;
@@ -61,6 +61,15 @@ export function EmbeddingModelCombobox({
     [models],
   );
 
+  // 추천 배지 라벨 생성을 순수함수에 위임하고 t 안정성에 묶어 useCallback 으로
+  // 메모. 현재 ModelSelectField 는 memo 가 아니라 리렌더 절감 효과는 없으나,
+  // 향후 memo 화 대비 + 매 렌더 람다 재생성 노이즈 제거 목적의 방어적 안정화.
+  const renderOption = useCallback(
+    (m: Parameters<typeof formatEmbeddingOptionLabel>[0]) =>
+      formatEmbeddingOptionLabel(m, t("knowledgeBases.koreanRecommendedBadge")),
+    [t],
+  );
+
   return (
     <ModelSelectField
       value={value}
@@ -75,14 +84,9 @@ export function EmbeddingModelCombobox({
         t("knowledgeBases.embeddingModelSavedFallback", { model })
       }
       // select-only(R-1) 유지 — 추천 배지는 기존 option 라벨 텍스트에만 덧붙는
-      // 표시용 메타데이터다. 자유 입력 경로를 추가하지 않는다. `<option>` 은
-      // 텍스트만 허용하므로 JSX 배지가 아닌 문자열 suffix 로 표시한다.
-      renderOption={(m) => {
-        const base = m.name && m.name !== m.id ? `${m.name} (${m.id})` : m.id;
-        return isKoreanRecommendedEmbeddingModel(m.id)
-          ? `${base} · ${t("knowledgeBases.koreanRecommendedBadge")}`
-          : base;
-      }}
+      // 표시용 메타데이터다. 자유 입력 경로를 추가하지 않는다. 라벨 생성 로직은
+      // formatEmbeddingOptionLabel 순수함수로 추출(단위 테스트 대상).
+      renderOption={renderOption}
       loadRequiredHint={t("knowledgeBases.embeddingModelLoadRequired")}
       loadedHint={t("knowledgeBases.embeddingModelHint")}
       placeholder={placeholder}
