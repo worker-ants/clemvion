@@ -8,6 +8,7 @@ code:
   - codebase/backend/src/modules/llm/llm-client.factory.ts
   - codebase/backend/src/modules/llm/interfaces/llm-client.interface.ts
   - codebase/backend/src/modules/llm/llm.service.ts
+  - codebase/backend/src/modules/llm/embedding-input-type.ts
   - codebase/backend/src/modules/llm/llm-preview.service.ts
   - codebase/backend/src/modules/llm/llm-usage-log.service.ts
   - codebase/backend/src/modules/llm/rerank/rerank-client.factory.ts
@@ -68,8 +69,13 @@ interface LLMClient {
    */
   chat(params: ChatParams, signal?: AbortSignal): Promise<ChatResult>;
 
-  /** 텍스트 임베딩 생성. 입력 텍스트 배열 → 벡터 배열만 반환 (메타데이터 없음) */
-  embed(texts: string[], model?: string): Promise<number[][]>;
+  /** 텍스트 임베딩 생성. 입력 텍스트 배열 → 벡터 배열만 반환 (메타데이터 없음).
+   *  `inputType` 은 비대칭 임베딩 모델에서 query/document(passage)를 구분한다 (§3.3) */
+  embed(
+    texts: string[],
+    model?: string,
+    inputType?: "query" | "document",
+  ): Promise<number[][]>;
 
   /** 사용 가능한 모델 목록 (`signal` 로 abort 가능) */
   listModels(signal?: AbortSignal): Promise<ModelInfo[]>;
@@ -130,13 +136,20 @@ interface TokenUsage {
 임베딩은 파라미터/응답 객체를 쓰지 않고 평탄한 시그니처를 사용한다.
 
 ```typescript
-// embed(texts: string[], model?: string): Promise<number[][]>
-//   texts : 임베딩할 입력 배열 (배치)
-//   model : 모델 ID. 생략 시 클라이언트별 기본 임베딩 모델
-//   반환  : 입력 순서에 대응하는 벡터 배열. usage/dimensions 등 메타데이터는 반환하지 않음
+// embed(texts, model?, inputType?: 'query' | 'document'): Promise<number[][]>
+//   texts     : 임베딩할 입력 배열 (배치)
+//   model     : 모델 ID. 생략 시 클라이언트별 기본 임베딩 모델
+//   inputType : 비대칭 검색 모델용 힌트. 생략 시 'document'(passage) — 적재 경로 기본값.
+//               검색 query 경로만 'query' 를 명시한다. 대칭 모델은 무시.
+//   반환      : 입력 순서에 대응하는 벡터 배열. usage/dimensions 등 메타데이터는 반환하지 않음
 ```
 
-> **참고**: 토큰 사용량·차원 메타데이터를 함께 반환하는 `EmbedResponse` 형태는 현재 미구현(Planned). 사용량 로깅이 필요한 임베딩 경로는 별도 토큰 추정에 의존한다.
+**inputType(비대칭 입력) 처리** — 일부 임베딩 모델은 query 와 document 를 다르게 인코딩해야 검색 품질이 나온다(asymmetric retrieval). 이를 누락하면 색인은 되지만 회수 품질이 조용히 떨어지는 silent bug 가 된다. provider/모델별 적용은 [`spec/5-system/8-embedding-pipeline.md §5`](./8-embedding-pipeline.md) 가 SoT 이며, 매핑 순수함수는 `codebase/backend/src/modules/llm/embedding-input-type.ts`:
+- **e5 계열**(multilingual-e5, e5-{small,base,large}): 입력 텍스트에 `query: ` / `passage: ` 접두사 적용(텍스트 변형). OpenAI 호환 경로에서 수행.
+- **Google Gemini**: `embedContent` 의 `taskType`(RETRIEVAL_QUERY / RETRIEVAL_DOCUMENT) 파라미터로 전달(텍스트 불변).
+- **대칭 모델**(OpenAI text-embedding-3, bge-m3 등): no-op. 미매칭 모델도 안전 기본값 no-op.
+
+> **참고**: 토큰 사용량·차원 메타데이터를 함께 반환하는 `EmbedResponse` 형태는 현재 미구현(Planned). `inputType` 도 그와 같은 이유로 **응답 객체화 대신 위치 인자 확장**을 채택했다 — `EmbedResponse` 도입 시 옵션 객체로 통합 검토. 사용량 로깅이 필요한 임베딩 경로는 별도 토큰 추정에 의존한다.
 
 ### 3.4 ToolDef / ToolCall
 
@@ -242,7 +255,7 @@ class RerankClientFactory {
 | 인터페이스 | OpenAI API |
 |-----------|-----------|
 | `chat()` | `POST /v1/chat/completions` |
-| `embed()` | `POST /v1/embeddings` |
+| `embed()` | `POST /v1/embeddings`. e5 계열 모델(OpenAI 호환 self-host)이면 입력에 `query:`/`passage:` 접두사 적용, native 모델은 no-op |
 | `listModels()` | `GET /v1/models` |
 | `responseFormat: 'json'` | `response_format: { type: "json_schema", json_schema }` |
 | `tools` | `tools` 파라미터 직접 매핑 |
@@ -263,7 +276,7 @@ class RerankClientFactory {
 | 인터페이스 | Google API |
 |-----------|-----------|
 | `chat()` | `ai.models.generateContent()` (`@google/genai` SDK) |
-| `embed()` | `ai.models.embedContent()` 배치 지원 |
+| `embed()` | `ai.models.embedContent()` 배치 지원. `config.taskType` = RETRIEVAL_QUERY / RETRIEVAL_DOCUMENT (inputType 매핑) |
 | `listModels()` | `ai.models.list()` — Gemini 모델 조회 API 실시간 호출. `supportedActions`에 `generateContent` 포함 시 chat, `embedContent` 포함 시 embedding 으로 분류 |
 | `stream()` | `ai.models.generateContentStream()` (신 SDK는 flat AsyncGenerator 반환) |
 | `tools` | `functionDeclarations` 로 매핑, 스키마는 OpenAPI 3.0 서브셋으로 sanitize |

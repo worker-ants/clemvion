@@ -422,6 +422,9 @@ export class AgentMemoryService {
       llmConfig,
       valid.map((it) => it.content),
       model,
+      undefined,
+      // 메모리 저장 = passage(document). recall query 와 비대칭 모델에서 구분.
+      'document',
     );
 
     // ttlDays 양수면 TTL (일) 정규화 — INSERT/UPDATE 가 파라미터 바인딩으로
@@ -893,7 +896,14 @@ export class AgentMemoryService {
       embedCfgSource.llmConfigId ?? undefined,
       workspaceId,
     );
-    const embeddings = await this.llmService.embed(llmConfig, [text], model);
+    const embeddings = await this.llmService.embed(
+      llmConfig,
+      [text],
+      model,
+      undefined,
+      // 메모리 recall = query. 저장(passage)과 비대칭 모델에서 구분.
+      'query',
+    );
     const embedding = embeddings[0];
     if (!embedding || embedding.length === 0) {
       this.logger.warn('Agent memory query embedding is empty');

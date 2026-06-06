@@ -106,6 +106,8 @@ describe('RagSearchService', () => {
         expect.anything(),
         ['query'],
         'text-embedding-3-large',
+        undefined,
+        'query',
       );
     });
 

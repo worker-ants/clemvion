@@ -1307,6 +1307,8 @@ describe('GoogleClient.embed', () => {
     expect(embedContent).toHaveBeenCalledWith({
       model: 'text-embedding-004',
       contents: ['a', 'b'],
+      // inputType 생략 시 document 기본값 → RETRIEVAL_DOCUMENT.
+      config: { taskType: 'RETRIEVAL_DOCUMENT' },
     });
     expect(result).toEqual([
       [0.1, 0.2],
@@ -1322,6 +1324,19 @@ describe('GoogleClient.embed', () => {
     expect(embedContent).toHaveBeenCalledWith({
       model: 'custom-embed-model',
       contents: ['x'],
+      config: { taskType: 'RETRIEVAL_DOCUMENT' },
+    });
+  });
+
+  it('maps inputType=query → RETRIEVAL_QUERY taskType (비대칭 검색)', async () => {
+    const { client, embedContent } = makeStubs({
+      embedResult: { embeddings: [{ values: [1] }] },
+    });
+    await client.embed(['q'], 'text-embedding-004', 'query');
+    expect(embedContent).toHaveBeenCalledWith({
+      model: 'text-embedding-004',
+      contents: ['q'],
+      config: { taskType: 'RETRIEVAL_QUERY' },
     });
   });
 

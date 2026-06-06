@@ -370,7 +370,13 @@ export class RagSearchService {
       embeddingLlmConfigId ?? undefined,
       workspaceId,
     );
-    const embeddings = await this.llmService.embed(llmConfig, [query], model);
+    const embeddings = await this.llmService.embed(
+      llmConfig,
+      [query],
+      model,
+      undefined,
+      'query',
+    );
     const queryEmbedding = embeddings[0];
     if (!queryEmbedding || queryEmbedding.length !== dim) {
       this.logger.warn(
@@ -444,6 +450,8 @@ export class RagSearchService {
       llmConfig,
       [query],
       kb.embeddingModel,
+      undefined,
+      'query',
     );
     const queryEmbedding = embeddings[0];
     if (!queryEmbedding || queryEmbedding.length !== dim) {

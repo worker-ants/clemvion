@@ -9,6 +9,7 @@ import {
   ChatStreamEvent,
   ModelInfo,
 } from './interfaces/llm-client.interface';
+import type { EmbedInputType } from './embedding-input-type';
 import { LlmUsageLogService } from './llm-usage-log.service';
 import { sanitizeLlmErrorMessage } from './utils/sanitize-error.util';
 import { withTimeout } from './utils/with-timeout.util';
@@ -196,6 +197,7 @@ export class LlmService {
     texts: string[],
     model?: string,
     opts?: Pick<LlmCallOptions, 'timeoutMs' | 'disableInnerRetry'>,
+    inputType: EmbedInputType = 'document',
   ): Promise<number[][]> {
     const client = this.createClient(config);
     // Batch embed in chunks of 20
@@ -206,8 +208,11 @@ export class LlmService {
       // batch 단위로 timeout 적용 — 한 batch 가 hang 되면 race 로 즉시 reject.
       const run = () =>
         opts?.timeoutMs && opts.timeoutMs > 0
-          ? withTimeout(() => client.embed(batch, model), opts.timeoutMs)
-          : client.embed(batch, model);
+          ? withTimeout(
+              () => client.embed(batch, model, inputType),
+              opts.timeoutMs,
+            )
+          : client.embed(batch, model, inputType);
       const embeddings = await (opts?.disableInnerRetry
         ? run()
         : this.withRetry(run));

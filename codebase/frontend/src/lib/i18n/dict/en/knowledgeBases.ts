@@ -76,6 +76,7 @@ export const knowledgeBases: Dict["knowledgeBases"] = {
   embeddingModelLoadFailed:
     "Failed to load embedding models. Check the LLM config and credentials, then try again",
   embeddingModelSavedFallback: "Current saved: {{model}}",
+  koreanRecommendedBadge: "Recommended for Korean",
   embeddingDimension: "Dimension",
   settingsTitle: "Knowledge base settings",
   settingsSave: "Save",

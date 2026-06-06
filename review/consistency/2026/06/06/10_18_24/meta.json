@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-06T10:18:24.242470",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=plan/in-progress/embedding-model-ux.md (worktree: embedding-model-ux-c40698, branch claude/embedding-model-ux-c40698, based on origin/main). P6 임베딩 모델 UX 보강 구현 착수 전 점검. 변경 예정: 백엔드 codebase/backend/src/modules/llm/{interfaces/llm-client.interface.ts,llm.service.ts,clients/{openai,google,anthropic}.client.ts} embed 시그니처에 inputType 추가 + 신규 codebase/backend/src/modules/knowledge-base/embedding/embedding-input-type.ts(모델→입력처리 전략 순수함수) + 호출부 6곳(rag-search.service.ts:373/443, agent-memory.service.ts:421/896, embedding.service.ts:231, knowledge-base.service.ts:204) inputType 명시. 프론트 components/knowledge-base/embedding-model-combobox.tsx 한국어 추천 배지 + i18n dict ko/en knowledgeBases.ts. spec 갱신 예정: spec/5-system/8-embedding-pipeline.md §5(input_type/prefix 비대칭 입력), spec/2-navigation/5-knowledge-base.md §2.3~2.4(모델 변경 경고). 관련 영역 spec/5-system/, spec/2-navigation/.)",
+  "target_path": "plan/in-progress/embedding-model-ux.md (worktree: embedding-model-ux-c40698, branch claude/embedding-model-ux-c40698, based on origin/main). P6 임베딩 모델 UX 보강 구현 착수 전 점검. 변경 예정: 백엔드 codebase/backend/src/modules/llm/{interfaces/llm-client.interface.ts,llm.service.ts,clients/{openai,google,anthropic}.client.ts} embed 시그니처에 inputType 추가 + 신규 codebase/backend/src/modules/knowledge-base/embedding/embedding-input-type.ts(모델→입력처리 전략 순수함수) + 호출부 6곳(rag-search.service.ts:373/443, agent-memory.service.ts:421/896, embedding.service.ts:231, knowledge-base.service.ts:204) inputType 명시. 프론트 components/knowledge-base/embedding-model-combobox.tsx 한국어 추천 배지 + i18n dict ko/en knowledgeBases.ts. spec 갱신 예정: spec/5-system/8-embedding-pipeline.md §5(input_type/prefix 비대칭 입력), spec/2-navigation/5-knowledge-base.md §2.3~2.4(모델 변경 경고). 관련 영역 spec/5-system/, spec/2-navigation/.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
