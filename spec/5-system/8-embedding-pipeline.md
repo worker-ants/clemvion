@@ -128,7 +128,7 @@ CSV 파일은 전용 행 단위 청킹 경로(`chunking/csv-chunker.ts` `chunkCs
 
 DocumentChunk 테이블의 `embedding` 컬럼은 가변 차원을 지원해야 하며, 컬렉션 내 모든 문서는 동일한 임베딩 모델/차원을 사용한다.
 
-### 5.4 비대칭 입력 (input_type / prefix)
+### 5.4 비대칭 입력 (inputType / prefix)
 
 일부 임베딩 모델은 **query 와 document(passage)를 다르게 인코딩**해야 검색 품질이 나온다(asymmetric retrieval). `LlmService.embed(config, texts, model?, opts?, inputType?)` 의 `inputType`(`'query' | 'document'`, 생략 시 `'document'`)으로 경로를 구분한다. 매핑 SoT 는 `codebase/backend/src/modules/llm/embedding-input-type.ts`(순수함수)이며, 서비스 시그니처 정의는 [`7-llm-client.md §8.3`](./7-llm-client.md#83-서비스-레이어).
 
@@ -362,7 +362,7 @@ SELECT id FROM document
   문서 0건이면 reembed_status='idle' 로 reset. spec/5-system/8-embedding-pipeline.md
   §7 / spec/1-data-model.md §2.11 / spec/2-navigation/5-knowledge-base.md API 표 갱신.
 
-### 결정: 비대칭 입력(input_type / prefix) 배선
+### 결정: 비대칭 입력(inputType / prefix) 배선
 
 e5 계열은 `query:`/`passage:` 접두사, Google Gemini 는 `taskType`(RETRIEVAL_QUERY/DOCUMENT)로 query·document 를 비대칭 인코딩해야 검색 품질이 나온다(§5.4). 기존 파이프라인은 이 구분이 없어 **색인은 되지만 회수 품질이 조용히 떨어지는 silent bug** 였다. `inputType` 인자로 적재(`document`)/검색(`query`) 경로를 구분해 배선했다.
 
