@@ -22,6 +22,19 @@ import {
   RAG_MAX_INJECT_COUNT,
 } from './dynamic-cut.util';
 
+/**
+ * `searchWithMeta` 반환 타입.
+ *
+ * `rerank` 는 리랭크 모드(cross_encoder / cross_encoder_llm) 경로에서만 존재한다.
+ * off 경로(vector/graph 직접 컷)에서는 undefined. 호출부는 존재 여부로 경로를 판별한다.
+ * rerank 경로임이 보장된 내부 경로는 `searchWithRerank` 반환(rerank: RerankDiagnostics, NonNullable)을 사용한다.
+ */
+export type SearchWithMetaResult = {
+  results: SearchResult[];
+  graphTraversal?: GraphTraversalSummary;
+  rerank?: RerankDiagnostics;
+};
+
 interface KbRow {
   id: string;
   embeddingModel: string;
@@ -94,16 +107,13 @@ export class RagSearchService {
 
   // graph 모드 KB 가 검색에 한 번이라도 참여했다면 graphTraversal 메타를 함께 반환.
   // 호출부 (AI Agent 등) 가 응답 metadata 에 노출할 수 있다.
+  // rerank 필드는 리랭크 모드 경로에서만 존재(off 경로는 undefined). SearchWithMetaResult 참조.
   async searchWithMeta(
     query: string,
     knowledgeBaseIds: string[],
     workspaceId: string,
     options?: { topK?: number; threshold?: number },
-  ): Promise<{
-    results: SearchResult[];
-    graphTraversal?: GraphTraversalSummary;
-    rerank?: RerankDiagnostics;
-  }> {
+  ): Promise<SearchWithMetaResult> {
     if (!knowledgeBaseIds?.length || !query.trim()) {
       return { results: [] };
     }

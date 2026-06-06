@@ -333,7 +333,7 @@ export class RerankService {
   private fallback(params: RerankParams, error: string): RerankResponse {
     // cosine score 순 정렬 후 동적 컷(token-budget + inject-cap) — 강등 경로도 §3.4 일관.
     const sorted = [...params.candidates].sort((a, b) => b.score - a.score);
-    const { kept } = applyDynamicCut(sorted, {
+    const { kept, cutoffApplied } = applyDynamicCut(sorted, {
       tokenBudget: params.tokenBudget,
       maxCount: params.injectCap,
     });
@@ -345,7 +345,7 @@ export class RerankService {
         returnedCount: kept.length,
         llmGradingApplied: false,
         gradingNoGrounding: false,
-        cutoffApplied: false,
+        cutoffApplied,
         error,
       },
     };

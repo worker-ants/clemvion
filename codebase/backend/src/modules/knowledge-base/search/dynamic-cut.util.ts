@@ -15,6 +15,7 @@ export const RAG_INJECT_TOKEN_BUDGET = 8000;
 // 생성 주입 청크 수 ceiling. 명시 top_k(노드 ragTopK 또는 LLM arg) 미지정 시 적용.
 export const RAG_MAX_INJECT_COUNT = 12;
 
+/** RAG 동적 점수 컷 옵션 (spec/5-system/9-rag-search.md §3.4). */
 export interface DynamicCutOptions {
   // 누적 토큰 추정이 이 값을 초과하면 중단 (단 최소 1개 보장).
   tokenBudget: number;
@@ -22,6 +23,7 @@ export interface DynamicCutOptions {
   maxCount: number;
 }
 
+/** RAG 동적 점수 컷 결과 (spec/5-system/9-rag-search.md §3.4). */
 export interface DynamicCutResult<T> {
   kept: T[];
   // budget 또는 cap 으로 후보를 하나라도 떨어뜨렸으면 true.
