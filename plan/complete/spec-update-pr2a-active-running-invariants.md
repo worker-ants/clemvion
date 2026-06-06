@@ -2,6 +2,8 @@
 worktree: impl-exec-concurrency-cap
 started: 2026-06-04
 owner: resolution-applier
+spec_impact:
+  - spec/5-system/4-execution-engine.md
 ---
 # Spec Update Draft — PR2a active-running invariants
 
