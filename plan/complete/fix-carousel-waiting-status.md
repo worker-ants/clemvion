@@ -4,6 +4,8 @@ started: 2026-06-06
 owner: developer
 branch: claude/fix-carousel-waiting-status-4d4ed3
 spec: spec/5-system/4-execution-engine.md
+spec_impact:
+  - spec/5-system/4-execution-engine.md
 status: complete
 pr: 498
 ---

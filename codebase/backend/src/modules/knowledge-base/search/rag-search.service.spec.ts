@@ -37,13 +37,28 @@ interface KbRowFixture {
 describe('RagSearchService', () => {
   let service: RagSearchService;
   let mockDataSource: Record<string, jest.Mock>;
+  let mockEm: { query: jest.Mock };
   let mockLlmService: Record<string, jest.Mock>;
   let mockRerankService: Record<string, jest.Mock>;
 
   beforeEach(() => {
     mockDataSource = {
       query: jest.fn(),
+      transaction: jest.fn(),
     };
+    // searchVectorGroup 의 recall 은 트랜잭션 안에서 `SET LOCAL hnsw.ef_search` 후 실행된다.
+    // em.query 는 SET LOCAL 을 흡수(빈 결과)하고 recall SQL 은 mockDataSource.query 로 위임 —
+    // 기존 recall mock(mockResolvedValueOnce)·SQL 호출 인덱스 단언이 그대로 유지된다.
+    mockEm = {
+      query: jest.fn((sql: string, params?: unknown[]) =>
+        /^\s*SET LOCAL/i.test(sql)
+          ? Promise.resolve([])
+          : mockDataSource.query(sql, params),
+      ),
+    };
+    mockDataSource.transaction.mockImplementation(
+      (cb: (em: { query: jest.Mock }) => unknown) => cb(mockEm),
+    );
 
     mockLlmService = {
       resolveConfig: jest.fn().mockResolvedValue({
@@ -367,6 +382,24 @@ describe('RagSearchService', () => {
 
       expect(result).toHaveLength(3);
     });
+
+    it('off 경로: wide 회수 시 트랜잭션 안에서 SET LOCAL hnsw.ef_search 를 LIMIT 비례 상향', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([makeKbRow({ id: 'kb-1' })])
+        .mockResolvedValueOnce([]); // recall 0건 (em.query 위임)
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      await service.search('query', ['kb-1'], 'ws-1');
+
+      // recall 은 트랜잭션 안에서 실행되고, 직전에 SET LOCAL hnsw.ef_search 가 호출돼야 한다.
+      // off 경로 LIMIT = RAG_RECALL_K(50) → ef_search = clamp(50×2, 40, 1000) = 100.
+      expect(mockDataSource.transaction).toHaveBeenCalled();
+      // 순서 단언: [0] SET LOCAL → [1] recall SELECT (역전 시 ef_search 무효).
+      expect(mockEm.query.mock.calls[0][0]).toContain(
+        'SET LOCAL hnsw.ef_search = 100',
+      );
+      expect(mockEm.query.mock.calls[1][0]).toContain('FROM document_chunk');
+    });
   });
 
   describe('search (graph mode)', () => {
@@ -419,6 +452,8 @@ describe('RagSearchService', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].origin).toBe('seed');
+      // graph seed 는 ef_search 미상향(seedTopK<40) — 트랜잭션 래핑 안 함 (의도 코드 가드).
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
       expect(graphTraversal).toEqual(
         expect.objectContaining({
           mode: 'graph',
@@ -510,6 +545,39 @@ describe('RagSearchService', () => {
         metadata: {},
       };
     }
+
+    it('rerank wide 회수도 candidateK 비례로 ef_search 상향 (candidateK=200 → 400)', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({
+            id: 'kb-1',
+            rerankMode: 'cross_encoder',
+            rerankCandidateK: 200,
+          }),
+        ])
+        .mockResolvedValueOnce([wideRow(1, 0.6)]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+      mockRerankService.rerankCandidates.mockResolvedValue({
+        results: [],
+        diagnostics: {
+          mode: 'cross_encoder',
+          candidateCount: 1,
+          returnedCount: 0,
+          llmGradingApplied: false,
+          gradingNoGrounding: false,
+          cutoffApplied: false,
+          error: null,
+        },
+      });
+
+      await service.searchWithMeta('q', ['kb-1'], 'ws-1');
+
+      // wide 회수 LIMIT = candidateK(200) → ef_search = clamp(200×2,40,1000) = 400.
+      const setLocal = mockEm.query.mock.calls.find((c) =>
+        /SET LOCAL hnsw\.ef_search/i.test(c[0] as string),
+      );
+      expect(setLocal![0]).toContain('hnsw.ef_search = 400');
+    });
 
     it('단일 KB cross_encoder: wide 회수(cosine 임계 0) 후 RerankService 위임 + 리랭크 결과/진단 반환', async () => {
       mockDataSource.query
