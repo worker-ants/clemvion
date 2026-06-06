@@ -102,6 +102,33 @@ owner: developer
 - [ ] **(PR-B2)** `pendingContinuations` Map (AI fast-path 제거 후), `firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier` 제거 또는 축소.
 - [ ] **(PR-B2)** #468 의 W1/W2 방어 로직 중 해제로 불필요해진 부분 정리.
 
+### PR-B2 구현 설계 (2026-06-06, 코드 정밀조사 기반 — branch `claude/exec-park-pr-b2`)
+> 대상: `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (8897줄). 무손실 전제 충족 확인 — `handleAiMessageTurn` waiting 분기(L5523-5542)가 **이미 매 turn `_resumeCheckpoint` 를 nodeExec 에 영속**. 단 thread/variables 스냅샷(`stageDurableResumeSnapshot`)은 첫 turn(`emitAiWaitingForInput` L5288)에서만 호출 → **PR-B2 핵심 델타 = 후속 turn park 에도 thread/variables 스냅샷 + WAITING 전이 추가**.
+>
+> **핵심 통찰 — B3 는 B2 가 enable**: worker(`runExecutionFromQueue` L~2603)가 `runExecution` 을 detached + `firstSegmentBarriers`(arm→await settled)로 띄우는 **유일한 이유는 AI 멀티턴 in-memory 루프**(park 에서 `runExecution` 미반환). AI 도 turn-park 하면 `runExecution` 이 park 에서 반환 → worker 는 `await runExecution()` 만으로 job 반환 가능 → barrier/detached/`firePayload`/`pendingContinuations` 전부 불필요.
+>
+> **payload 전달 경로 단순화**: 기존 = continuation `payload` → `firePayload` polling → `resolvePending` → 루프 내 await Promise. 신규 = `applyContinuation(payload)` → `rehydrateAndResume(payload)` → resume drive 가 payload 를 **함수 인자로** 단발 turn 처리기에 직접 전달 (Map 우회 불요).
+>
+> 변경 단위:
+> 1. **AI 단발 turn 처리기 신설**: `runAiConversationLoop` 의 while 루프를 제거하고, 도착한 단일 action 을 처리하는 경로로 대체. dispatch(end/message/form) → `handleAiMessageTurn`/`handleAiEndConversation` 재사용. (a) `conversationEnded` → `finalizeAiNode` → 그래프 전진(not parked). (b) 계속 → re-park: `stageDurableResumeSnapshot` + `updateExecutionStatus(WAITING_FOR_INPUT, nodeExec)` (turn resume 은 RUNNING→WAITING 정상 전이) → 반환(release).
+> 2. **첫 turn 진입**(`waitForAiConversation`, dispatch site `runNodeDispatchLoop` AI 분기 L~1690): `emitAiWaitingForInput`(park) 후 **루프 없이 PARK_RELEASED 반환** → `runNodeDispatchLoop` 가 `{parked:true}` 로 세그먼트 종료. (form/button 과 동일 패턴)
+> 3. **resume 경로**(`driveResumeDetached` AI 분기 L1977-2000): `_resumeCheckpoint`→`buildRetryReentryState`(resumeMode) 로 resumeState 재구성(기존 유지) 후 **도착 payload 로 단발 turn 처리기 호출** → park/finalize.
+> 4. **retry 경로**(`applyRetryLastTurn`, `runAiConversationLoop(initialAction)` 사용): 단발 turn 처리기의 replay 분기(외부 대기 없이 즉시 처리)로 이관. cancel race 보존.
+> 5. **worker-return 단순화**: `runExecutionFromQueue` — `armFirstSegmentBarrier`/`await settled`/detached 제거 → `await runExecution()` 직접. `resumeFromCheckpoint`/`driveResumeDetached` 도 detached 제거 → await.
+> 6. **B3 제거**: `pendingContinuations` Map·`applyContinuation` fast-path(L1022/L1045)·`resolvePending`/`rejectPending`·`firstSegmentBarriers`·`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier`·`firePayload` scheduler(L1843-1859). `applyCancellation` → 항상 `cancelParkedExecution`(rejectPending 분기 제거).
+> 7. **spec 재전환(별 commit)**: PR-B1 정직화로 "PR-B2 미적용" 표기한 §4.x banner·§7.4 L829 를 **완료형으로 재전환**(멀티턴 AI 도 turn-park·fast-path 제거 완료). §Rationale L1257 "단계적 롤아웃" note 는 "B1·B2 모두 완료"로 갱신. ← project-planner 위임.
+> 8. **★중첩 call stack durable 영속 (D6, full B3 의 전제)**: 변경 5/6(worker-return 단순화·full B3 제거)이 **안전하려면 중첩 sub-workflow blocking 도 durable** 이어야 한다(아니면 detached/pending 제거 시 중첩 재개 회귀). 작업:
+>   - (a) **신규 컬럼** `Execution.resume_call_stack jsonb NULL`(V086+, agent_memory V086 와 충돌 시 renumber) — park 시 executeInline 호출 체인 `[{workflowId, invokerNodeId, recursionDepth}]`(outermost→waiting) 영속. schemaVersion 포함.
+>   - (b) **park 시 stage**: `stageDurableResumeSnapshot` 확장 또는 신규 — 중첩 깊이>0 일 때 call stack 도 Execution 행에 실어 상태전이 트랜잭션과 원자 commit.
+>   - (c) **rehydration 재귀 재진입**: `driveResumeDetached`/`resumeFromCheckpoint` 가 call stack 을 읽어 top-level→sub-workflow 체인을 **재귀적으로 재진입**(executeInline 재호출), 각 프레임 executedNodes 를 DB(execution_node_log)에서 seed 해 완료 노드 skip, waiting inner 노드 도달 후 payload 전달. 프레임별 변수 스코프(`$parent`)·sub-workflow input 재seed.
+>   - (d) **executeInline blocking 도 park-release**: L2924/2931/2942 의 `'await'` → `'release'` 전환(form/button/AI 모두), 단발 turn 처리는 AI 와 동일.
+>   - (e) 중첩 cancel: `cancelParkedExecution` 가 중첩 inner WAITING NodeExecution 도 동일 처리(executionId 키라 자동).
+>   - 제약: 컨테이너 body blocking 은 spec §3.2 로 금지 유지(영속 불요). 깊이 한도 = 기존 recursionDepth cap.
+>
+> 테스트: 단발 turn 처리기 단위테스트(park/end/fail/replay/cancel-race), `pendingContinuations` 부재 후 applyContinuation 항상 slow-path, AI turn cancel(WAITING→CANCELLED), rehydrate 반복 turn thread 누적 무결성, **중첩 call stack stage/rehydrate round-trip**(2-depth). **dockerized e2e**: 멀티턴 3턴 중 turn-2 park→worker kill→turn-2 재개 무손실; turn 중 cancel; **중첩 sub-workflow blocking park→worker kill→재개 무손실**(D6 회귀 게이트).
+>
+> **시퀀싱(사용자 결정 2026-06-06 "정공법")**: 단일 PR-B2 로 1~8 통합. 단계 내부 순서 = 8(a~c durable 인프라) 먼저 → 그 위에 1~6(turn-park + B3 제거) → 7(spec 재전환). 8 이 선행돼야 5/6 제거가 회귀 없이 성립.
+
 ---
 
 ## Spec 변경 (project-planner)
@@ -120,7 +147,9 @@ owner: developer
 2. **PR-A2**: checkpoint 견고화 + information_extractor 확장.
 3. **PR-A3**(범위 시): user variables 영속 — 또는 별도 plan.
 4. **PR-B1**: form/button park-release + slow-path 일원화 (+spec staged note). e2e 회귀(park→worker kill→무손실 재개) 필수.
-5. **PR-B2**: multi-turn AI turn-park + pendingContinuations/barrier 완전 제거 (B3). e2e(멀티턴 park→kill→재개) 필수.
+5. **PR-B2** → **재분할 (2026-06-06, 사용자 승인)**: 중첩 D6(call-stack durable) 흡수로 PR-B2 가 비대·고위험화 → 2분할.
+   - **PR-B2a (top-level 멀티턴 AI turn-park)** — `runAiConversationLoop` 장수 루프를 top-level AI 에서 해제(`processAiResumeTurn` 단발 처리 + re-park). 유저 #1 우려(top-level 응답 없는 대화 bounded-memory) 해소. **in-memory 머신(pendingContinuations/barriers/firePayload)은 nested/form-button resume 용으로 잠정 유지(partial B3)** = 현 main 과 동일 동작이라 회귀 아님. **진행: 구현 완료 + nest build 통과(commit, branch claude/exec-park-pr-b2). 남음: 실패 20 테스트 turn-park 모델 재작성 → dockerized e2e(top-level 멀티턴 park→kill→재개) → /ai-review + --impl-done → 머지.**
+   - **PR-B2b (중첩 call-stack D6 + full B3)** — 중첩 sub-workflow blocking durable(resume_call_stack stage + `driveResumeDetached` 재귀 executeInline 재진입 + executeInline park-release) → in-memory 머신 완전 제거(pendingContinuations/firstSegmentBarriers/armFirstSegmentBarrier/settleFirstSegment/signalParkBarrier/firePayload/detached) + §4.x 완료형 flip. 최고 난이도라 독립 PR 로 집중 리뷰. e2e(중첩 park→kill→재개) 필수. (V087 컬럼·타입·spec D6 "구현 예정" 표식은 기반 슬라이스로 이미 랜딩.)
 
 > 각 PR 은 SDD+TDD, TEST/REVIEW WORKFLOW 이행. PR-B1/B2 는 실행엔진 코어라 e2e(dockerized) 무손실 재개 시나리오를 반드시 포함. (구 단일 "PR-B" 는 2026-06-05 사용자 결정으로 B1/B2 2분할.)
 
@@ -150,6 +179,11 @@ owner: developer
 - **(설계 발견 2026-06-05)**: **B1·B2 분리 불가** — 코루틴 진짜 해제(bounded 메모리)는 park 시 `await` 제거(runExecution 반환)를 요구하고, 그러면 in-memory resolve 가 사라져 **모든 재개가 rehydration(slow-path)**. 따라서 Phase B 코어 = B1+B2 한 덩어리(release+slow-path 일원화) + B3(barrier·pendingContinuations 정리). dockerized e2e "park→worker kill→무손실 재개" 필수.
 - **D4 (확정 2026-06-05)**: 멀티턴 AI = **turn-단위 park(매 turn 해제)** — 메모리 일관성 우선(B1 반영).
 - **D5 (확정 2026-06-05)**: **단일 worktree 통합** — 본 plan 이 exec-intake-queue PR3(rehydration)+node-cancellation §2 를 흡수해 직렬 진행(Phase 0). BLOCK 해소.
+- **D6 (확정 2026-06-06, 사용자 결정 "call stack 영속화 정공법")**: 중첩 sub-workflow(executeInline) blocking 도 **durable 영속 + rehydration 재개**로 일원화한다 — in-memory 의존 완전 제거 → **full B3 달성**. 근거 재검토:
+  - 컨테이너(Loop/ForEach/Map/Parallel) body 는 blocking **금지**(spec §3.2) → 남는 중첩은 sub-workflow 호출 체인뿐 = **선형 call stack**(iteration/branch 상태 영속 불요).
+  - 노드 출력은 이미 같은 executionId 타임라인으로 DB 영속, thread/variables 는 Phase A(V084/V085) 영속 → **빠진 건 call stack 구조뿐**. 신규 `Execution.resume_call_stack jsonb`(가칭, V086+) 로 영속.
+  - spec §Rationale L1303 이 기각한 건 *per-node 분산*(모든 노드 handoff)이지, **park 재개의 중첩 확장**("waiting 후 재개")이 아님 — 같은 범주라 tractable(엔진 재작성급 아님).
+  - 현재 중첩 blocking 은 `driveResumeDetached` 가 executeInline 스택 미재진입이라 **재시작 후 재개 불가(latent gap)** — D6 가 이 gap 도 동반 수정.
 
 ## 진행 메모
 - 2026-06-05 착수. #468 머지 확인(main `9f30216f`). durability 맵 조사 완료(본 plan "현행 durability 맵").
