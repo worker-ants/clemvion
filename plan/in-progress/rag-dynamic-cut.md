@@ -38,9 +38,16 @@ spec_impact:
 - [x] 4b. 프론트 doc-sync — ai-agent FieldTable(ko/en) + backend-labels(label/hint) + KB 가이드 예시 주석
 - [x] 5-7. 테스트 선작성 + D1/D2 구현 + 보강 (dynamic-cut.util + rag-search/rerank service + kb-tool-provider + schema/handler)
 - [x] 8. TEST WORKFLOW — lint·unit·build·e2e 全 PASS (2026-06-06). 주: channel-web-chat W8 은 full-suite 타이밍 flake(격리·standalone 16/16 통과, 본 변경 무관)
-- [ ] 9. /ai-review + fix + consistency-check --impl-done
-- [ ] eval-retrieval 동적컷 전/후 지표 비교
-- [ ] 10. plan 정리
+- [x] 9. /ai-review(15_47_11 LOW, fix affb8144) + 최종 재리뷰(16_08_38 LOW, disposition) + consistency `--impl-done` **BLOCK: NO** (16_24_16). 직전 2회 impl-done Critical 은 전부 FP(§3.4·gradingNoGrounding·conditional escalate 모두 spec 실재 — git·build 가드 8개 1343 통과로 반증); 실질 staleness 4건(code:/spec_impact/data-flow/data-model)만 fix.
+- [~] eval-retrieval 동적컷 전/후 지표 비교 — **데이터 의존 블록**: 실 `eval/golden.json`(populated KB + 임베딩 청크) 필요. SoT §7.B(대상 workspace/KB 지정 → `eval:golden:generate` → SME 검수) 미완. → `rag-quality-improvement.md §7.B/C` 추적. 동적 컷 동작은 신규 단위테스트(off ceiling·token-budget·escalate·gradingNoGrounding) + e2e 로 검증.
+- [x] 10. plan 정리 — rag-dynamic-cut.md **in-progress 유지**(eval-retrieval 블록 추적 + 9-rag-search pending_plans 링크 유지). D1+D2 코드/spec/리뷰/게이트 deliverable 완결.
+
+### 비차단 후속 (advisory, --impl-done 16_24_16 WARNING/INFO — 게이트 BLOCK:NO·"즉시 merge 가능")
+게이트 안정성·e2e cascade·loop 방지를 위해 본 PR 에서 미적용, 후속 정리:
+- 주변 spec 보강: `7-llm-client §3.6`(rerank topK=candidates.length 주석)·`10-graph-rag KB-GR-SR-05`(topK→동적 컷 표현)·`4-integration KB-AG-04`(ragTopK optional 반영).
+- `9-rag-search §3.3.2 v1 결정` 뒤 spec-draft §4.2 번복 cross-ref 1줄.
+- `ai-agent.handler.spec.ts` RerankDiagnostics fixture 에 `gradingNoGrounding:false` 추가.
+- `ragTopK:5` 하드코드 fixture 4곳에 "명시 cap=5" 주석 + `undefined`(동적 컷) 케이스 추가.
 
 ### 구현 요약 (2026-06-06)
 - `dynamic-cut.util.ts`(신규): `applyDynamicCut(sorted,{tokenBudget,maxCount})` 순수 헬퍼 + 상수 `RAG_RECALL_K`(50)/`RAG_INJECT_TOKEN_BUDGET`(8000)/`RAG_MAX_INJECT_COUNT`(12).
