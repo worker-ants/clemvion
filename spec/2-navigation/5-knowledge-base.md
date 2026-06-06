@@ -54,7 +54,7 @@ code:
 | 이름 | 컬렉션 이름 (필수) |
 | 설명 | 컬렉션 설명 (선택) |
 | 검색 모드 | `vector` (기본) / `graph` 중 선택. **생성 시에만 결정, 사후 변경 불가** |
-| 임베딩 모델 | 지정된 LLMConfig (미지정 시 워크스페이스 default) 의 임베딩 모델 목록을 "모델 불러오기" 버튼으로 조회한 뒤 select 로 선택. 자유 텍스트 입력은 허용하지 않는다. 미로드 / 조회 실패 시 select 비활성, 에러 메시지만 표시 ([설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정) 의 결정을 그대로 적용). **한국어 추천 모델**(multilingual-e5 / bge-m3 / text-embedding-3 / KURE / arctic-embed 패턴)은 option 라벨에 "한국어 추천" 텍스트 배지를 덧붙여 표시 — **비강제**(선택을 제한하지 않으며, select-only 원칙 유지: 배지는 기존 option 라벨 위 표시용 메타데이터일 뿐 자유 입력 경로를 추가하지 않는다). 패턴은 `embedding-model-recommendation.ts` |
+| 임베딩 모델 | 지정된 LLMConfig (미지정 시 워크스페이스 default) 의 임베딩 모델 목록을 "모델 불러오기" 버튼으로 조회한 뒤 select 로 선택. 자유 텍스트 입력은 허용하지 않는다. 미로드 / 조회 실패 시 select 비활성, 에러 메시지만 표시 ([설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정) 의 결정을 그대로 적용). **한국어 추천 모델**(KURE / arctic-embed / bge-m3 / multilingual-e5 패턴)은 option 라벨에 "한국어 추천" 텍스트 배지를 덧붙여 표시 — **비강제**(선택을 제한하지 않으며, select-only 원칙 유지: 배지는 기존 option 라벨 위 표시용 메타데이터일 뿐 자유 입력 경로를 추가하지 않는다). `text-embedding-3` (OpenAI 대칭) 은 한국어 검색 벤치마크 하위라 배지 대상에서 제외한다 — 사용은 가능하되 "추천" 으로 오인되지 않게 한다. 패턴은 `embedding-model-recommendation.ts` |
 | 추출 LLM | `graph` 모드 일 때만 표시. 그래프 추출에 사용할 LLMConfig 의 chat 모델. 미지정 시 워크스페이스 default |
 | 청크 크기 | 문서 분할 청크 크기 (기본: 1000 토큰) |
 | 청크 오버랩 | 청크 간 오버랩 (기본: 200 토큰) |

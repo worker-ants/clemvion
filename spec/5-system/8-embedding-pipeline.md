@@ -14,9 +14,17 @@ code:
 
 ---
 
+## Overview (제품 정의)
+
+사용자가 Knowledge Base 에 올린 문서를, 추가 조작 없이 검색 가능한 상태로 만드는 자동 적재 파이프라인이다. 업로드 즉시 백그라운드에서 청크 분할 → 벡터 임베딩 → 저장이 진행되며, 사용자는 진행 상태(대기/처리중/완료/실패)를 실시간으로 확인하고 실패 건만 재시도하거나 KB 전체를 재임베딩할 수 있다. 임베딩 모델은 KB 단위로 선택하고(워크스페이스 default LLMConfig 폴백), 모델이 비대칭(query/document 를 다르게 인코딩하는 e5·Gemini 계열)이면 적재는 document, 검색은 query 로 자동 배선해 회수 품질을 보존한다. 제품 맥락: [PRD AI & 지식 저장소](../4-nodes/3-ai/_product-overview.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md).
+
+---
+
 ## 1. 개요
 
 Knowledge Base에 문서가 업로드되면, 자동으로 청크 분할 → 벡터 임베딩 생성 → 저장하는 비동기 파이프라인.
+
+검색 시 query 임베딩 경로와 모델·LLMConfig 가 일치해야 벡터 공간이 어긋나지 않는다 (§5.4 비대칭 입력, [RAG 검색 §5 임베딩 모델 일관성](./9-rag-search.md#5-임베딩-모델-일관성)).
 
 ---
 
