@@ -111,6 +111,7 @@ owner: developer
 - `4-execution-engine.md §6.2` + `conventions/conversation-thread.md §4/§7/§8`(세 앵커): "신규 DB 컬럼 없음" → `Execution.conversation_thread` 채택으로 **한 PR 동기 갱신**, Rationale 기록. **[A1 완료 2026-06-05]** + `1-ai-agent.md §12.1/§12.10/§12.13` reconcile + **`1-data-model.md §2.13 Execution` 컬럼 행**(consistency W1) 동기 갱신 완료.
 - **[Phase B 선행 — 완료 2026-06-05]** spec 모델 개정: `4-execution-engine.md` §1.1 전이표·§4.x banner 2개(park=세그먼트 종료, slow-path 일원화)·§6.2 rawConfig(D3 fresh-per-turn)·§7.4 Worker 동작+diagram·§7.5 case diagram·**§Rationale 신규 "park 즉시 해제 + slow-path 일원화 (Phase B)"** (D4 turn-park·D3 fresh-config·B1/B2 결합·worker-side fast-path 제거 근거). consistency W1~W4 해소.
 - A2 채택 시 "ai_agent 한정" 문구 3곳(`4-execution-engine.md §1.3 L111`·`3-information-extractor.md §357`·`1-ai-agent.md §703`) 동기 갱신. (consistency I1/I4)
+- **[W1 정합화 — 완료 2026-06-06]** D3 turn-scope 전파(consistency `01_19_37` W1/W2): `4-execution-engine.md §6.3` 표 "Multi-turn resume" 행에 "frozen 범위 = 한 turn(D3) — §6.1/§Rationale" cross-ref 추가, `13-replay-rerun.md §14.3` 에 D3 fresh-config-per-turn 단서 + §6.1 링크 추가. 더불어 `§4.x` banner 2개(park=세그먼트 종료·slow-path 일원화)를 **단계 롤아웃 정직화**(PR-B1 form/button 완료 / PR-B2 멀티턴 AI 미적용·fast-path 잠정 잔존) — 본문이 PR-B2 를 완료형 over-claim 하던 drift 제거.
 - frontmatter `pending_plans:` 에 본 plan 등록 (`conversation-thread.md`·`4-execution-engine.md`·**`1-data-model.md`**). **[A1 완료]**
 - consistency-check `--spec`/`--impl-prep` 의무, `--plan`(본 plan) 점검. **[--impl-prep BLOCK:NO 2026-06-05 `review/consistency/2026/06/05/09_01_23`]**
 
@@ -139,8 +140,8 @@ owner: developer
 > **조사 결과(2026-06-05)**: exec-intake-queue PR3 는 **미구현**(branch `claude/impl-exec-intake-queue` 최신이 docs 커밋 `01bca178`). 흡수할 코드가 없으므로 PR3 의 "rehydration 일반화 + 멱등 재개" 는 본 plan 이 **Phase A2/B2 에서 직접 구현**한다. fix/exec-engine-park-worker-job-release 는 #468(`9f30216f`)로 main 랜딩 → C2/W4 해소, 본 worktree 가 그 위.
 > **A1 은 Phase 0 와 독립**(consistency W6 해소): A1(conversationThread durable 영속+복원)은 `rehydrateContext` 의 thread-복원 추가 + 신규 컬럼 + park 스냅샷으로 자기완결이며, PR3 의 rehydration 일반화(비-ai 노드 확장·멱등 jobId 재검증)와 표면이 겹치지 않는다. A1 선착수 가능.
 - [ ] (A2/B2 착수 전) PR3 의 rehydration 일반화(ai_agent → 일반 노드) + 멱등 재개를 본 plan A2/B2 로 직접 구현.
-- [ ] (A2/B 착수 전) node-cancellation §2(`NodeExecution.status='cancelled'` enum·재개 경로)와의 직렬화 순서·status 가드 겹침 확정.
-- [ ] 출처 plan(exec-intake-queue PR3·node-cancellation §2) 항목 이관 표기 + cross-link (planner).
+- [x] (A2/B 착수 전) node-cancellation §2(`NodeExecution.status='cancelled'` enum·재개 경로)와의 직렬화 순서·status 가드 겹침 **확정(2026-06-06)**: 직렬화 순서 = 본 umbrella 의 **B3(PR-B2 dispatch-path 정리)가 선행**, node-cancellation §2(별도 worktree·미착수)는 그 결과 위로 rebase. status 가드는 PR-B1 의 `cancelParkedExecution`(WAITING NodeExecution → `cancelled` 직접 마킹, §7.4)으로 이미 확보 — B3 의 코루틴 제거가 이 DB-level terminal 가드를 침해하지 않음을 PR-B2 e2e 로 회귀 보증.
+- [x] 출처 plan 이관 표기 + cross-link **완료(2026-06-06)**: `exec-intake-queue-impl.md` PR3·`node-cancellation-infrastructure.md §2` 에 "→ exec-park-durable-resume 로 이관(직접 구현)" 표기 추가. (exec-intake-queue PR3 는 L139 조사대로 미구현이라 본 plan A2/B2 가 직접 구현)
 
 ## 미해결 결정 (사용자/planner)
 - **D1 (확정 2026-06-05)**: conversationThread 영속 = **`Execution.conversation_thread jsonb`** (spec 예고 컬럼 §4 L211/§7 L284 채택). 사용자 handoff 승인. spec 동기 갱신 완료(conversation-thread §4/§7/§8.4, 4-execution-engine §6.2/§7.5, 1-ai-agent §12.1/§12.10/§12.13, **1-data-model §2.13 Execution 컬럼 행** — consistency W1 해소). 마이그레이션 = **V084**(#469 PR2a 가 V083 선점 → §6.2 rebase-renumber 로 V083→V084 재부여, 2026-06-05).
