@@ -275,9 +275,6 @@ const NODE_ERROR_MESSAGE_MAX_LEN = 2000;
 const PARK_RELEASED = Symbol('park_released');
 type ParkSignal = typeof PARK_RELEASED;
 
-/** `waitForX` 의 park 모드. 'release' = fresh top-level park → 코루틴 해제(PARK_RELEASED 반환). 'await' = 입력 대기·처리(중첩/resume 전달). */
-type ParkMode = 'await' | 'release';
-
 /**
  * `_resumeCheckpoint`(§7.5 rehydration) 의 스키마 버전. checkpoint 구조가
  * 진화할 때 1씩 올린다. `buildResumeCheckpoint` 가 stamp 하고, 재개 시 검사한다:
@@ -725,84 +722,12 @@ export class ExecutionEngineService
   private readonly maxActiveRunningMs = resolveMaxActiveRunningMs();
   private readonly segmentStartMs = new Map<string, number>();
 
-  /**
-   * Stores pending continuation resolvers for blocking nodes (form / button /
-   * ai_conversation) waiting for user input.
-   *
-   * Key 는 해당 노드를 구동한 ExecutionContext 의 Map 키(`contextKeyOf`)와 동일하다:
-   * - 메인 흐름·sub-workflow: `executionId` — 외부 `continueExecution(executionId)` 로 재개.
-   * - background 본문: `bg:<executionId>:<backgroundRunId>` — 외부 재개 대상이 아니며
-   *   (fire-and-forget, 메인 키와 격리) `executeBackgroundSubgraph` finally 가 정리한다.
-   */
-  private readonly pendingContinuations = new Map<
-    string,
-    {
-      nodeId: string;
-      resolve: (data?: unknown) => void;
-      reject: (err: Error) => void;
-    }
-  >();
-
-  /**
-   * §4.x "active 세그먼트 + durable park" — `execution-run` / `execution-continuation`
-   * 워커 슬롯 해제 배리어.
-   *
-   * Key 는 `executionId` (main flow 한정 — background subgraph 의 `bg:` 키는 등록하지
-   * 않는다). Value 는 "첫 active 세그먼트 정착" 신호를 받는 단발 resolver.
-   *
-   * 배경: 옛 구현은 worker `process()` 가 `runExecution` 전체(=park 동안의
-   * `waitForX` 블로킹 포함)를 await 해 BullMQ job 을 park 내내 점유했다. 그 결과
-   * worker concurrency 슬롯이 사용자 입력 대기 동안 묶여 새 `execution-run` job 을
-   * pick up 하지 못했다 (spec §4.x 위반 — "BLOCK 진입 시 job 은 정상 ack").
-   *
-   * 본 배리어로 worker 는 첫 세그먼트가 **(a) 완료/실패/취소** 하거나 **(b) 사용자
-   * 입력 대기(`waiting_for_input`) 로 park** 하는 첫 순간에 깨어나 job 을 ack 하고
-   * 반환한다. `runExecution` 코루틴은 detach 되어 in-process 로 계속 살아있으므로
-   * 재개는 기존 fast-path(in-memory `pendingContinuations` resolve)로 lossless 하게
-   * 동작한다 (conversationThread / reachability / parallel·container 상태 무손실).
-   * 프로세스가 죽으면 §7.5 rehydration slow-path 가 DB 에서 재구성해 재개한다 —
-   * 두 경로 모두 무변경.
-   *
-   * 정리: `settleFirstSegment` 가 resolve 후 키 삭제(단발). `runExecution` finally
-   * 의 `settleFirstSegment(executionId)` 가 terminal 정착을 보장 (park 없이 끝난 경우).
-   */
-  private readonly firstSegmentBarriers = new Map<
-    string,
-    { resolve: () => void; settled: boolean }
-  >();
-
-  /**
-   * 첫 세그먼트 정착 배리어를 등록하고 그 Promise 를 반환한다. worker
-   * (`runExecutionFromQueue`)가 이 Promise 를 await 해 park/완료 시점에 job 을
-   * 반환한다. 등록 전에 이미 정착됐을 race 는 호출 측에서 즉시-반환으로 처리할 수
-   * 없으므로, 본 메서드는 `runExecution` 코루틴을 **launch 하기 직전** 호출해
-   * 배리어를 먼저 심는다.
-   */
-  private armFirstSegmentBarrier(executionId: string): Promise<void> {
-    // 방어 (ai-review W1): 동일 executionId 로 이미 arm 된 배리어가 있으면(중복
-    // dispatch·at-least-once 재진입 등) 먼저 settle 해 그 awaiter 가 고아 resolver
-    // 로 영구 hang 하지 않게 한 뒤 새 배리어로 교체한다. `runExecutionFromQueue`
-    // 의 `status!==PENDING` 가드로 현실 발생은 드물지만 Map.set 덮어쓰기의 결과를
-    // 결정적으로 만든다 (이전 worker 는 즉시 깨어나 ack/반환).
-    this.settleFirstSegment(executionId);
-    return new Promise<void>((resolve) => {
-      this.firstSegmentBarriers.set(executionId, { resolve, settled: false });
-    });
-  }
-
-  /**
-   * 첫 세그먼트가 정착(park 또는 terminal)했음을 배리어에 통지한다. 멱등 — 첫
-   * 호출만 resolve 하고 이후 호출은 no-op. park 시점(`waitForX` 의 pending 등록
-   * 직전)과 terminal 시점(`runExecution` finally) 양쪽에서 호출되며, 둘 중 먼저
-   * 도달한 쪽이 worker 를 깨운다.
-   */
-  private settleFirstSegment(executionId: string): void {
-    const barrier = this.firstSegmentBarriers.get(executionId);
-    if (!barrier || barrier.settled) return;
-    barrier.settled = true;
-    this.firstSegmentBarriers.delete(executionId);
-    barrier.resolve();
-  }
+  // exec-park D6 full B3 (2026-06-06) — in-memory continuation/barrier 머신 제거.
+  // 옛 `pendingContinuations` Map(park coroutine resolver) + `firstSegmentBarriers`
+  // (worker 슬롯 해제 배리어) + `armFirstSegmentBarrier`/`settleFirstSegment` 는
+  // park 가 항상 코루틴을 해제(release)하고 재개가 §7.5 rehydration 단일 경로로
+  // 일원화되면서 전부 불필요해졌다. worker 는 `runExecution` 을 직접 await 한다
+  // (park=세그먼트 종료이므로 슬롯 점유 없음). SoT: exec-park-durable-resume.md §B3.
 
   /**
    * ai-review W2 — detached `runExecution` 의 setup 단계 throw(자체 try 진입 전)
@@ -870,16 +795,6 @@ export class ExecutionEngineService
    * 실행 경로 진입 시 검증.
    */
   private static readonly MAX_RECURSION_DEPTH = 10;
-
-  /**
-   * exec-park D6 — `resumeFromCheckpoint` 의 `fireNested` 폴링 상수.
-   * 최내 form/button waiting 이 `driveResumeFrame` 의 `waitForX('await')` 에서
-   * `pendingContinuations` 에 키를 등록하는 것을 polling 으로 대기한다 (최대 5초).
-   * INFO #8: 기존 메서드 지역 const 에서 모듈 수준 정적 상수로 승격 — 값 표류 방지.
-   * @todo full B3 에서 fireNested 폴링 자체를 제거(exec-park-durable-resume.md §B3).
-   */
-  private static readonly NESTED_FIRE_MAX_ATTEMPTS = 250;
-  private static readonly NESTED_FIRE_POLL_MS = 20;
 
   /**
    * Sub-workflow 진입점에서 호출자-피호출자 workspace 격리를 강제한다 (W-6).
@@ -1029,18 +944,9 @@ export class ExecutionEngineService
       return;
     }
 
-    // Fast path: 로컬 호스팅 인스턴스 (같은 인스턴스가 publish 후 같은 인스턴스
-    // worker 가 pick up 한 경우 + sticky LB session 등).
-    // NOTE: `executionId` 키로만 조회한다 — background 본문의 bgKey resolver 는
-    // fire-and-forget 라 외부 재개 대상이 아니며(maxDurationMs 로 종결), 여기서 절대
-    // hit 되지 않는다. (resolver 잔류로 오인해 키를 바꾸지 말 것.)
-    if (this.pendingContinuations.has(executionId)) {
-      this.resolvePending(executionId, payload);
-      return;
-    }
-
-    // Slow path (§7.5 rehydration): 다른 인스턴스가 publish 했거나, 본 인스턴스
-    // 가 재시작 후 인-메모리 resolver 가 사라진 경우.
+    // exec-park D6 full B3 — 단일 재개 경로(slow-path 일원화). park 가 항상
+    // 코루틴을 해제(release)하므로 깨울 in-memory resolver 가 없다 →
+    // §7.5 rehydration 으로만 재개한다. (옛 pendingContinuations fast-path 제거.)
     await this.rehydrateAndResume(executionId, nodeExecutionId, payload);
   }
 
@@ -1048,19 +954,11 @@ export class ExecutionEngineService
    * Phase 2 — BullMQ Worker 가 호출하는 cancel dispatch.
    * (cancelWaitingExecution → bus.publish → worker pick up → applyCancellation)
    *
-   * Phase B (PR-B1) — 두 갈래:
-   * - in-memory 코루틴 생존(PR-B2 전 멀티턴 AI in-memory 루프 / 중첩 executeInline
-   *   park 등 await 경로): `rejectPending` 으로 `ExecutionCancelledError` 를 주입해
-   *   코루틴 catch 가 CANCELLED 마감·정리한다.
-   * - park-release 로 코루틴이 없는 경우(form/button top-level park): 깨울 resolver
-   *   가 없으므로 durable WAITING 행을 `cancelParkedExecution` 으로 직접 CANCELLED
-   *   마감한다 (옛 fast-path 의 "coroutine 주입 → runExecution catch" 와 동일 종착).
+   * exec-park D6 full B3 — park 가 항상 코루틴을 해제하므로 깨울 in-memory resolver
+   * 가 없다. durable WAITING 행을 `cancelParkedExecution` 으로 직접 CANCELLED 마감한다
+   * (WAITING_FOR_INPUT 가드로 멱등 — 이미 terminal/RUNNING 이면 no-op).
    */
   async applyCancellation(executionId: string): Promise<void> {
-    if (this.pendingContinuations.has(executionId)) {
-      this.rejectPending(executionId, new ExecutionCancelledError());
-      return;
-    }
     await this.cancelParkedExecution(executionId);
   }
 
@@ -1695,7 +1593,6 @@ export class ExecutionEngineService
               executionId,
               node,
               context,
-              'release',
             );
             if (parkSignal === PARK_RELEASED) return { parked: true };
           } else if (downstreamInteraction === 'buttons') {
@@ -1705,7 +1602,6 @@ export class ExecutionEngineService
               node,
               context,
               graphEdges,
-              'release',
             );
             if (parkSignal === PARK_RELEASED) return { parked: true };
           } else if (downstreamInteraction === 'ai_conversation') {
@@ -1717,7 +1613,6 @@ export class ExecutionEngineService
               executionId,
               node,
               context,
-              'release',
             );
             if (parkSignal === PARK_RELEASED) return { parked: true };
           }
@@ -1780,8 +1675,6 @@ export class ExecutionEngineService
     context: ExecutionContext,
     opts: { node: Node; nodeExec: NodeExecution; payload: unknown },
   ): Promise<void> {
-    const executionId = savedExecution.id;
-
     // Persisted interaction type — meta.interactionType (preferred) or top-level
     // (legacy / blocking ai_form_render path).
     const cachedOutput = context.nodeOutputCache[opts.node.id] as
@@ -1846,32 +1739,12 @@ export class ExecutionEngineService
           `resume_call_stack version(${callStack.version}) 이 지원 버전(${CALL_STACK_SCHEMA_VERSION}) 초과 — 안전 재진입 불가. graceful reset.`,
         );
       }
-      // 최내 form/button 은 driveResumeFrame 의 waitForX('await') 가 pending 을
-      // 등록하고 아래 firePayload polling 이 도착 payload 를 resolve 한다(AI 는
-      // processAiResumeTurn 가 직접 전달하므로 skip — top-level 경로와 동형).
-      if (!isAiConversation) {
-        const fireNested = (attemptsLeft: number): void => {
-          if (this.pendingContinuations.has(executionId)) {
-            this.resolvePending(executionId, opts.payload);
-            return;
-          }
-          if (attemptsLeft <= 0) {
-            this.logger.warn(
-              `중첩 재개 — pendingContinuations 등록 polling 한도 도달 (execution=${executionId}). waitForX 미등록 의심 경로.`,
-            );
-            return;
-          }
-          setTimeout(
-            () => fireNested(attemptsLeft - 1),
-            ExecutionEngineService.NESTED_FIRE_POLL_MS,
-          );
-        };
-        setTimeout(
-          () => fireNested(ExecutionEngineService.NESTED_FIRE_MAX_ATTEMPTS),
-          0,
-        );
-      }
-      this.driveCallStackResume(savedExecution, context, {
+      // exec-park D6 full B3 — 최내 form/button/AI 모두 직접 처리기(processX /
+      // processAiResumeTurn)로 도착 payload 를 전달하므로 in-memory pending/firePayload
+      // 폴링이 불필요하다. drive 는 한 세그먼트(또는 re-park 까지)만 처리하고 반환하므로
+      // worker 가 직접 await 한다(옛 detach + barrier 제거). drive 는 내부 try/catch/finally
+      // 로 단말 상태를 자기 마킹하므로 예외를 worker 로 전파하지 않는다.
+      await this.driveCallStackResume(savedExecution, context, {
         node: opts.node,
         nodeExec: opts.nodeExec,
         callStack,
@@ -1880,12 +1753,6 @@ export class ExecutionEngineService
         resumeCheckpoint,
         cachedOutput,
         payload: opts.payload,
-      }).catch((err: unknown) => {
-        this.logger.error(
-          `driveCallStackResume unexpected escape — execution=${executionId}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
       });
       return;
     }
@@ -1921,66 +1788,15 @@ export class ExecutionEngineService
     // helper 호출 직전에 0 으로 set 한다 (WARNING #16 해소, 위 helper 호출 참조).
     const nodeExecutionCount = new Map<string, number>();
 
-    // Resolver fire scheduler — waitForX 가 pendingContinuations 에 키 등록 직후
-    // resolvePending 호출. time-bounded polling (MAX_ATTEMPTS × POLL_INTERVAL_MS
-    // ≈ 5s) 으로 race window 를 덮는다. setImmediate self-reschedule 은 idle
-    // worker 에서 microtask 로 즉시 소진돼, 실제 DB await 뒤에 일어나는 등록 전에
-    // 한도가 바닥나 resume 이 영구 hang 하던 결함을 해소한다.
-    // PR-B2 에서 pendingContinuations 가 제거되면 이 폴링 메커니즘 전체가 삭제된다
-    // (임시 메커니즘 — W19). 동시 resume 증가 시 이벤트 루프 지연이 누적될 수 있으나
-    // 단발 form/button park 가 압도적 다수인 HITL 패턴에서 B1 만으로 대부분 해소된다.
-    const FIRE_PAYLOAD_MAX_ATTEMPTS = 250;
-    const FIRE_PAYLOAD_POLL_INTERVAL_MS = 20;
-    // single-shot: pendingContinuations 키를 처음 본 tick 에 한 번 fire
-    // (resolvePending 이 키 삭제) 후 return — 재스케줄하지 않으므로, detached drive
-    // 가 다음 대기 노드 / ai_agent 멀티턴의 후속 turn 에서 같은 executionId 키를
-    // 재등록해도 이전 payload 를 잘못 주입하지 않는다 (후속 입력은 새 continuation
-    // job 으로 도착해 fast-path 로 처리). 한도 소진 시 warn 은 waitForX 등록 실패
-    // 의심 신호.
-    const firePayload = (attemptsLeft: number): void => {
-      if (this.pendingContinuations.has(executionId)) {
-        this.resolvePending(executionId, opts.payload);
-        return;
-      }
-      if (attemptsLeft <= 0) {
-        this.logger.warn(
-          `Rehydration — pendingContinuations 등록 polling 한도 도달 (execution=${executionId}). waitForX 가 정상 등록을 못한 비정상 경로.`,
-        );
-        return;
-      }
-      setTimeout(
-        () => firePayload(attemptsLeft - 1),
-        FIRE_PAYLOAD_POLL_INTERVAL_MS,
-      );
-    };
-    // Phase B (PR-B2, exec-park D4) — 멀티턴 AI turn-park 재개는 도착 payload 를
-    // `driveResumeDetached` 가 단발 turn 처리기({@link processAiResumeTurn})로 **직접**
-    // 전달하므로 firePayload(pending 등록 polling) 가 불필요하다. firePayload 는
-    // form/button 재개(여전히 `parkMode='await'` 로 pending 등록 후 firePayload 주입)
-    // 에만 쓰인다 — AI 일 때 스케줄하면 pending 미등록으로 한도 소진 warn 만 남으므로 skip.
-    if (!isAiConversation) {
-      setTimeout(() => firePayload(FIRE_PAYLOAD_MAX_ATTEMPTS), 0);
-    }
-
-    // 전체 resume 구동(현재 노드 input 전달 → waitForX → 남은 그래프 순회 →
-    // 종결)을 **detach** 한다. continuation worker 의 `process()` 는 본 setup
-    // (graph load + invariant 검증)까지만 await 하고 즉시 반환해야 한다 —
-    // fast-path 의 background `runExecution` 코루틴과 동일한 모델이다.
-    //
-    // 특히 ai_agent 멀티턴의 `waitForAiConversation` 은 대화 종료까지 다음
-    // 메시지를 차례로 await 하는 **장수 루프**다. 이를 worker 안에서 await 하면
-    // WorkerHost(concurrency=1) 슬롯이 대화 수명 내내 점유돼 이후 모든
-    // continuation job(버튼 클릭 등)이 wait 큐에 적체된다 (deadlock — 운영 실측).
-    // buttons/form 의 waitForX 는 단일 상호작용 후 반환하므로 점유가 짧지만,
-    // 동일 원칙(worker 는 waitForX 를 await 하지 않는다)을 적용해 일관 처리한다.
-    //
-    // detach 후 firePayload 가 도착한 `opts.payload` 를 background drive 의
-    // waitForX 로 전달하며, 이후 turn/다음 대기 노드의 입력은 **새 continuation
-    // job** 으로 도착해 fast-path(pendingContinuations hit → resolvePending)로
-    // 처리된다 — runExecution fast-path 와 동형. RehydrationError(unsupported
-    // interaction / ai 재구성 실패)도 detached drive 내부에서 graceful 단말
-    // 처리(markExecutionCancelled + node failed)하므로 채널 graceful 안내가 도달.
-    this.driveResumeDetached(savedExecution, context, {
+    // exec-park D6 full B3 — top-level resume 구동. 도착 payload 를
+    // `driveResumeDetached` 가 직접 처리기(processFormResumeTurn /
+    // processButtonResumeTurn / processAiResumeTurn)로 전달하므로 in-memory
+    // pendingContinuations/firePayload 폴링이 제거됐다. drive 는 한 세그먼트(또는
+    // 멀티턴 AI 의 한 turn → re-park)만 처리하고 반환하므로 worker 가 직접 await 한다
+    // (옛 detach 모델 폐기 — 장수 루프가 사라져 worker 슬롯 deadlock 위험 없음).
+    // drive 는 내부 try/catch/finally 로 단말 상태를 자기 마킹하므로 예외를 worker 로
+    // 전파하지 않는다.
+    await this.driveResumeDetached(savedExecution, context, {
       node: opts.node,
       nodeExec: opts.nodeExec,
       graphState,
@@ -1992,17 +1808,7 @@ export class ExecutionEngineService
       isAiConversation,
       resumeCheckpoint,
       cachedOutput,
-      // Phase B (PR-B2) — 멀티턴 AI turn-park 재개가 단발 turn 처리기에 직접 전달할
-      // continuation payload (ai_message / form_submitted / ai_end_conversation).
       payload: opts.payload,
-    }).catch((err: unknown) => {
-      // driveResumeDetached 는 내부 try/catch/finally 로 자기 완결적이지만, 단말
-      // 마킹 DB save 자체가 실패하는 극단 케이스의 unhandledRejection 을 차단한다.
-      this.logger.error(
-        `driveResumeDetached unexpected escape — execution=${executionId}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
     });
   }
 
@@ -2047,36 +1853,36 @@ export class ExecutionEngineService
       resumeCheckpoint,
       cachedOutput,
     } = opts;
-    const { sortedNodeIds, outgoingEdgeMap, backEdgeMap, graphEdges } =
-      graphState;
+    const { sortedNodeIds, outgoingEdgeMap, backEdgeMap } = graphState;
     try {
       // 사전 상태 전이: Execution 은 DB 에서 WAITING_FOR_INPUT 으로 로드됨.
       // waitForX 가 (RUNNING → WAITING_FOR_INPUT) 전이를 시도하므로 먼저 RUNNING
       // 으로 옮긴다 (spec §1.1 의 resume sentinel transition).
       await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
 
-      // waitForX 직접 invoke — executeNode 우회. waitForX 내부에서 nodeExec
-      // lookup → status WAITING_FOR_INPUT 갱신 + outputData save → emit →
-      // pending 등록 + await. firePayload(resumeFromCheckpoint 가 스케줄)가 도착한
-      // payload 를 그 pending 으로 전달해 현재 turn 을 처리한다.
+      // 직접 처리기 invoke — executeNode 우회 + in-memory 머신 없이 도착 payload 를
+      // 직접 전달(exec-park D6 full B3). form/button 은 processX, AI 는
+      // processAiResumeTurn. (옛 waitForX('await') + pendingContinuations +
+      // firePayload 폴링 경로 제거.)
       const blockingMeta = this.handlerRegistry.getMetadata(node.type);
       if (
         blockingMeta.kind === 'blocking' &&
         blockingMeta.interaction === 'form'
       ) {
-        await this.waitForFormSubmission(
+        await this.processFormResumeTurn(
           savedExecution,
           executionId,
           node,
           context,
+          opts.payload,
         );
       } else if (persistedInteractionType === 'buttons') {
-        await this.waitForButtonInteraction(
+        await this.processButtonResumeTurn(
           savedExecution,
           executionId,
           node,
           context,
-          graphEdges,
+          opts.payload,
         );
       } else if (
         isAiConversation &&
@@ -2426,7 +2232,6 @@ export class ExecutionEngineService
       forwardEdges,
       outgoingEdgeMap,
       backEdgeMap,
-      graphEdges,
     } = graphState;
     const startPointer = sortedIndexMap.get(opts.startNode.id);
     if (startPointer === undefined) {
@@ -2453,20 +2258,21 @@ export class ExecutionEngineService
         blockingMeta.kind === 'blocking' &&
         blockingMeta.interaction === 'form'
       ) {
-        // form: pending 등록 후 resumeFromCheckpoint 의 firePayload 가 resolve.
-        await this.waitForFormSubmission(
+        // form/button: 도착 payload 를 직접 처리기로 전달(full B3 — in-memory 머신 없음).
+        await this.processFormResumeTurn(
           savedExecution,
           executionId,
           opts.startNode,
           context,
+          opts.payload,
         );
       } else if (opts.persistedInteractionType === 'buttons') {
-        await this.waitForButtonInteraction(
+        await this.processButtonResumeTurn(
           savedExecution,
           executionId,
           opts.startNode,
           context,
-          graphEdges,
+          opts.payload,
         );
       } else if (
         opts.isAiConversation &&
@@ -2656,7 +2462,6 @@ export class ExecutionEngineService
    * `executeBackgroundSubgraph` finally 가 독립 정리하며 rehydration 경로와 교차하지 않는다.
    */
   private finalizeRehydrationCleanup(executionId: string): void {
-    this.pendingContinuations.delete(executionId);
     this.contextService.deleteContext(executionId);
     this.clearLlmDefaultConfigCache(executionId);
   }
@@ -2782,27 +2587,6 @@ export class ExecutionEngineService
       case 'RESUME_INCOMPATIBLE_STATE':
         return '대화 세션을 재개할 수 없습니다 — 새 대화를 시작해 주세요 (재개 체크포인트 부재/손상)';
     }
-  }
-
-  /**
-   * 로컬 `pendingContinuations` Map 의 resolver 호출 헬퍼. 키가 없으면
-   * silent skip — 다른 인스턴스가 호스팅 중이거나 이미 처리된 상태.
-   */
-  private resolvePending(executionId: string, value: unknown): void {
-    const pending = this.pendingContinuations.get(executionId);
-    if (!pending) return;
-    this.pendingContinuations.delete(executionId);
-    pending.resolve(value);
-  }
-
-  /**
-   * 로컬 `pendingContinuations` Map 의 reject 헬퍼. 키가 없으면 silent skip.
-   */
-  private rejectPending(executionId: string, error: Error): void {
-    const pending = this.pendingContinuations.get(executionId);
-    if (!pending) return;
-    this.pendingContinuations.delete(executionId);
-    pending.reject(error);
   }
 
   /**
@@ -3059,33 +2843,23 @@ export class ExecutionEngineService
       });
     }
 
-    // §4.x "active 세그먼트 + durable park" — worker(`process()`)는 첫 active
-    // 세그먼트(시작 → 첫 BLOCK/완료)만 await 하고 반환해야 BullMQ job 이 park 내내
-    // 점유되지 않는다. `runExecution` 코루틴은 detach 해 in-process 로 계속 살리고,
-    // 본 메서드는 "첫 세그먼트 정착(park 또는 terminal)" 배리어를 await 한다.
-    //
-    // launch 직전 배리어를 arm 해 `runExecution` 이 첫 tick 에 park 해도 신호를
-    // 놓치지 않는다. 세그먼트가 park 없이 완료/실패하면 `runExecution` finally 의
-    // `settleFirstSegment` 가 동일 배리어를 깨운다.
-    const settled = this.armFirstSegmentBarrier(executionId);
-    this.runExecution(execution, input).catch((error: unknown) => {
-      // `runExecution` 은 자체 try/catch 로 terminal 상태를 마킹하므로 여기 도달은
-      // setup 단계(본문 진입 전) 미처리 throw 뿐이다. 배리어가 영구 hang 하지
-      // 않도록 정착 신호를 보내고 stale routing context 를 release 한다.
-      this.settleFirstSegment(executionId);
+    // §4.x "active 세그먼트 + durable park" (exec-park D6 full B3) — `runExecution`
+    // 은 park 시 즉시 반환(코루틴 해제)하므로 worker 는 첫 active 세그먼트(시작 → 첫
+    // BLOCK/완료)만 await 하면 BullMQ job 이 park 내내 점유되지 않는다. 옛 detached
+    // 코루틴 + firstSegmentBarriers(arm/await/settle) 모델은 제거됐다 — park 가
+    // 세그먼트를 종료하므로 단순 `await` 로 동일 효과. setup 단계 throw 는 runExecution
+    // 자체 catch 가 못 잡으므로 여기서 best-effort 마감한다.
+    try {
+      await this.runExecution(execution, input);
+    } catch (error: unknown) {
       this.logger.error(
         `Background execution failed for ${executionId}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
       this.eventEmitter.releaseExecutionRouting(executionId);
-      // 방어 (ai-review W2): setup 단계 throw 면 runExecution 자체 catch 가 terminal
-      // 마킹을 못 해 execution 이 PENDING/RUNNING 으로 잔류한다 (recoverStuckExecutions
-      // 백스톱이 30분 후 정리하지만 즉시 마감이 옳다). best-effort 로 FAILED 마킹.
-      void this.failFirstSegmentSetup(executionId, error);
-    });
-    // park 또는 terminal 중 먼저 도달한 시점에 깨어나 job 을 ack/반환한다.
-    await settled;
+      await this.failFirstSegmentSetup(executionId, error);
+    }
   }
 
   /**
@@ -3416,7 +3190,6 @@ export class ExecutionEngineService
                 executionId,
                 node,
                 context,
-                'release',
               );
             } else if (interactionType === 'buttons') {
               parkSignal = await this.waitForButtonInteraction(
@@ -3425,7 +3198,6 @@ export class ExecutionEngineService
                 node,
                 context,
                 graphEdges,
-                'release',
               );
             } else if (
               interactionType === 'ai_conversation' ||
@@ -3436,7 +3208,6 @@ export class ExecutionEngineService
                 executionId,
                 node,
                 context,
-                'release',
               );
             }
             if (parkSignal === PARK_RELEASED) {
@@ -3658,19 +3429,6 @@ export class ExecutionEngineService
    */
   private contextKeyOf(context: ExecutionContext): string {
     return context._contextKey ?? context.executionId;
-  }
-
-  /**
-   * §4.x — blocking 노드가 사용자 입력 대기(`waiting_for_input`)로 park 하기 직전
-   * 호출해 first-segment 배리어를 깨운다 (worker job 반환). main flow 한정 —
-   * background subgraph 의 `bg:` 컨텍스트는 별도 `execution-run` job 으로 운반되지
-   * 않으므로(부모 job 에 종속) 신호하지 않는다. 멱등이므로 멀티턴 후속 park 의
-   * 반복 호출은 안전하다 (배리어는 첫 정착 후 삭제).
-   */
-  private signalParkBarrier(context: ExecutionContext): void {
-    if (this.contextKeyOf(context) === context.executionId) {
-      this.settleFirstSegment(context.executionId);
-    }
   }
 
   /**
@@ -3922,7 +3680,6 @@ export class ExecutionEngineService
               executionId,
               node,
               context,
-              'release',
             );
             if (parkSignal === PARK_RELEASED) return;
           } else if (interactionType === 'buttons') {
@@ -3932,7 +3689,6 @@ export class ExecutionEngineService
               node,
               context,
               graphEdges,
-              'release',
             );
             if (parkSignal === PARK_RELEASED) return;
           } else if (interactionType === 'ai_conversation') {
@@ -3944,7 +3700,6 @@ export class ExecutionEngineService
               executionId,
               node,
               context,
-              'release',
             );
             if (parkSignal === PARK_RELEASED) return;
           }
@@ -4069,10 +3824,8 @@ export class ExecutionEngineService
         },
       );
     } finally {
-      // 첫 세그먼트가 park 없이 terminal(완료/실패/취소) 도달한 경우 worker 를
-      // 깨운다 (멱등 — park 시점에 이미 정착됐으면 no-op).
-      this.settleFirstSegment(executionId);
-      this.pendingContinuations.delete(executionId);
+      // exec-park D6 full B3 — park 가 세그먼트를 종료하므로 firstSegmentBarriers /
+      // pendingContinuations 정리가 불필요하다. in-memory context / llm 캐시만 정리.
       this.contextService.deleteContext(executionId);
       this.clearLlmDefaultConfigCache(executionId);
     }
@@ -4120,26 +3873,17 @@ export class ExecutionEngineService
   }
 
   /**
-   * Park execution at a Form node (waiting_for_input), or — on resume re-entry
-   * (`parkMode='await'`) — await + process the submitted form data.
-   *
-   * @param parkMode `'release'` = fresh park → durable 영속 후 PARK_RELEASED 반환
-   *   (코루틴 해제; top-level dispatch + 중첩 executeInline 공통). `'await'` = §7.5
-   *   resume 드라이브(driveResumeDetached / driveCallStackResume)의 입력 전달 재진입
-   *   — pending 등록 후 firePayload 가 resolve 하는 payload 를 처리. Default `'await'`.
-   * @returns `'release'` 시 `PARK_RELEASED`, `'await'` 시 처리 후 `void`.
-   *
-   * @todo full B3 에서: waitForFormSubmission / waitForButtonInteraction /
-   *   waitForAiConversation 분기를 Strategy 패턴으로 추출 예정.
-   *   참고: exec-park-durable-resume.md §B3 (PR-B3 구현 설계).
-   * @see plan/in-progress/exec-park-durable-resume.md
+   * Park execution at a Form node (waiting_for_input) — durable 영속
+   * (stageDurableResumeSnapshot + WAITING 전이 + resume_call_stack) 후 즉시
+   * `PARK_RELEASED` 반환(코루틴 해제; top-level dispatch + 중첩 executeInline 공통,
+   * exec-park D6 full B3). 폼 제출 재개는 §7.5 rehydration 의 직접 처리기
+   * {@link processFormResumeTurn} 가 payload 로 수행한다.
    */
   private async waitForFormSubmission(
     savedExecution: Execution,
     executionId: string,
     node: Node,
     context: ExecutionContext,
-    parkMode: ParkMode = 'await',
   ): Promise<void | ParkSignal> {
     // Emit waiting event so frontend can render the form. Prefer the
     // structured cache entry (new NodeHandlerOutput shape) so the frontend
@@ -4204,40 +3948,43 @@ export class ExecutionEngineService
       },
     );
 
-    // park = 세그먼트 종료. durable 영속(stageDurableResumeSnapshot + WAITING 전이
-    // + resume_call_stack)이 끝났으므로 대기 없이 즉시 반환해 코루틴을 해제한다
-    // (top-level / 중첩 executeInline 공통 — exec-park D6). 재개는 §7.5 rehydration
-    // (top-level: driveResumeDetached, 중첩: driveCallStackResume)이 도착 payload 를
-    // 이 노드의 pending(아래 await)으로 전달해 처리한다.
-    if (parkMode === 'release') {
-      return PARK_RELEASED;
-    }
+    // park = 세그먼트 종료 — durable 영속(stageDurableResumeSnapshot + WAITING 전이
+    // + resume_call_stack)이 끝났으므로 대기 없이 즉시 PARK_RELEASED 반환(코루틴 해제,
+    // top-level / 중첩 executeInline 공통 — exec-park D6 full B3). 재개(폼 제출)는
+    // §7.5 rehydration 의 직접 처리기 {@link processFormResumeTurn} 가 payload 로
+    // 수행한다 — 옛 in-memory pendingContinuations + firePayload 경로는 제거됐다.
+    return PARK_RELEASED;
+  }
 
-    // Await user submission indefinitely; external cancel is the only exit.
-    // spec §10.9 — `'continue'` listener wraps payload as
-    // `{type:'form_submitted', formData}` sentinel. Unwrap here so the rest
-    // of the function continues to see raw formData (back-compat with the
-    // pre-wrap signature).
-    // parkMode==='await' — §7.5 resume 드라이브(driveResumeDetached /
-    // driveCallStackResume)의 입력 전달 재진입(firePayload resolver) 경로.
-    const submitted = await new Promise<unknown>((resolve, reject) => {
-      this.pendingContinuations.set(this.contextKeyOf(context), {
-        nodeId: node.id,
-        resolve,
-        reject,
-      });
-      this.signalParkBarrier(context);
+  /**
+   * §7.5 rehydration — 폼 제출 payload 로 waiting Form 노드를 직접 완료 처리한다
+   * (exec-park D6 full B3). `driveResumeDetached`(top-level) / `driveResumeFrame`
+   * (중첩 innermost) 가 도착 continuation payload 와 함께 호출한다. 옛
+   * `waitForFormSubmission('await')` + pendingContinuations + firePayload 폴링 경로를
+   * 대체 — in-memory 머신 없이 직접 전달. 처리: sentinel unwrap → 필드 화이트리스트 →
+   * structured/flat output 갱신 → ConversationThread append → NodeExecution
+   * COMPLETED + Execution RUNNING 전이 → NODE_COMPLETED / EXECUTION_RESUMED emit.
+   */
+  private async processFormResumeTurn(
+    savedExecution: Execution,
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    payload: unknown,
+  ): Promise<void> {
+    const nodeExec = await this.nodeExecutionRepository.findOne({
+      where: { executionId, nodeId: node.id },
+      order: { startedAt: 'DESC' },
     });
     // spec §10.9 — sentinel unwrap. continueExecution 이 `{type:'form_submitted',
     // formData}` 로 wrap 해 publish 했으므로 sentinel guard 로 안전하게 unwrap.
-    // back-compat: sentinel 이 아닌 값 (외부 직접 resolvePending 등) 은 그대로.
-    const formData = ExecutionEngineService.isFormSubmittedSentinel(submitted)
-      ? submitted.formData
+    const formData = ExecutionEngineService.isFormSubmittedSentinel(payload)
+      ? payload.formData
       : (() => {
           this.logger.warn(
-            `waitForFormSubmission — sentinel 없는 폴백 분기 진입 execution=${executionId}. continueExecution 경로 외 직접 resolvePending 등 비정상 경로.`,
+            `processFormResumeTurn — sentinel 없는 폴백 payload execution=${executionId} (continueExecution 경로 외 비정상).`,
           );
-          return submitted;
+          return payload;
         })();
 
     // Merge submitted form data into the structured NodeHandlerOutput.
@@ -4327,11 +4074,21 @@ export class ExecutionEngineService
     }
 
     // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
-    await this.updateExecutionStatus(
-      savedExecution,
-      ExecutionStatus.RUNNING,
-      nodeExec ?? undefined,
-    );
+    // 재개 드라이브(driveResumeDetached / driveResumeFrame)가 진입 시 이미
+    // WAITING_FOR_INPUT → RUNNING 전이를 수행했으므로, 이미 RUNNING 이면 상태 전이를
+    // 건너뛰고 NodeExecution 만 COMPLETED 영속한다 (RUNNING→RUNNING assertTransition
+    // 회피 — finalizeAiNode 의 동일 가드와 대칭).
+    if (savedExecution.status === ExecutionStatus.RUNNING) {
+      if (nodeExec) {
+        await this.nodeExecutionRepository.save(nodeExec);
+      }
+    } else {
+      await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.RUNNING,
+        nodeExec ?? undefined,
+      );
+    }
 
     if (nodeExec) {
       await this.eventEmitter.emitNode(
@@ -4807,36 +4564,33 @@ export class ExecutionEngineService
     );
 
     try {
-      const finalStatus = await this.runAiConversationLoop(
+      // exec-park D6 full B3 — 옛 runAiConversationLoop(initialAction) 장수 루프 replay
+      // 를 turn-park 모델의 단발 처리기로 이관한다. processAiResumeTurn 이 마지막 turn
+      // (initialAction)을 외부 대기 없이 즉시 replay 하고, 종료면 finalizeAiNode
+      // (retryReentry → FAILED→RUNNING 전이 허용)로 단말 마킹, **계속이면 re-park**
+      // (PARK_RELEASED) 해 다음 turn 을 fresh continuation 으로 받는다(코루틴 해제).
+      const turnSignal = await this.processAiResumeTurn(
+        execution,
         executionId,
         node,
         context,
         spawnedRow,
         resumeState,
         initialAction,
-      );
-
-      // finalizeAiNode: COMPLETED 면 spawn row COMPLETED + Execution RUNNING +
-      // EXECUTION_RESUMED, FAILED 면 spawn row FAILED + NODE_FAILED + sentinel throw.
-      // W5 / WARNING #5 — 본 호출은 retry 재진입이므로 retryReentry opt-in 을 켠다.
-      await this.finalizeAiNode(
-        execution,
-        executionId,
-        node,
-        context,
-        spawnedRow,
-        finalStatus,
         { retryReentry: true },
       );
-      // WARNING #10 해소 (spec/4-nodes/3-ai/1-ai-agent.md §7.9 + §12.8):
-      // 재진입 성공 후 일반 노드 COMPLETED 와 동일하게 출력 포트의 downstream
-      // 으로 graph 진행을 이어간다. downstream 이 없는 leaf 노드면 자연
-      // Execution.COMPLETED 마감 (이전 동작과 동일).
+      if (turnSignal === PARK_RELEASED) {
+        // 대화 계속 — re-park 됨(Execution WAITING). graph 진행 없이 종료, 다음
+        // turn 은 §7.5 rehydration 으로 재개.
+        return;
+      }
+      // 종료(COMPLETED/FAILED finalize 완료) — WARNING #10 (spec §7.9 + §12.8):
+      // 재진입 성공 후 일반 노드 COMPLETED 와 동일하게 downstream graph 진행.
+      // (FAILED 면 processAiResumeTurn 내 finalizeAiNode 가 sentinel throw → 아래 catch.)
       await this.resumeGraphAfterRetry(execution, executionId, context, node);
     } catch (error: unknown) {
       await this.failRetryExecution(execution, executionId, error);
     } finally {
-      this.pendingContinuations.delete(executionId);
       this.contextService.deleteContext(executionId);
       this.clearLlmDefaultConfigCache(executionId);
     }
@@ -5453,19 +5207,6 @@ export class ExecutionEngineService
     executionId: string,
     node: Node,
     context: ExecutionContext,
-    /**
-     * Phase B (PR-B2, exec-park D4) — top-level 멀티턴 AI 의 turn-단위 park.
-     * - `'release'`: 첫 turn 진입(top-level dispatch / resume drive)에서 초기 AI
-     *   응답을 emit + `waiting_for_input` park 한 뒤 **루프 없이 `PARK_RELEASED`
-     *   반환** → caller 가 세그먼트 종료(코루틴 해제). 후속 turn 은 continuation
-     *   job → §7.5 rehydration 의 단발 turn 처리({@link processAiResumeTurn})로 재개.
-     *   응답 없는 대화도 in-process 코루틴/컨텍스트 메모리 0 점유(bounded).
-     * - `'await'`(기본): 중첩 sub-workflow(`executeInline`) 안의 멀티턴 AI — 부모
-     *   스택이 살아있어야 하므로 기존 in-memory 장수 루프({@link runAiConversationLoop})
-     *   를 유지(same-instance best-effort). exec-park D6(중첩 call-stack durable)
-     *   전환 전까지 잠정.
-     */
-    parkMode: ParkMode = 'await',
   ): Promise<void | ParkSignal> {
     const nodeOutput = context.nodeOutputCache[node.id] as Record<
       string,
@@ -5501,255 +5242,21 @@ export class ExecutionEngineService
       resumeState,
     );
 
-    // Phase B (PR-B2, exec-park D4) — top-level turn-park: 초기 AI 응답 emit +
-    // park 가 끝났으므로 루프 없이 즉시 세그먼트 종료한다. 다음 turn 입력은 새
-    // continuation job 으로 도착해 §7.5 rehydration(processAiResumeTurn)이 재개한다.
-    // emitAiWaitingForInput 가 _resumeCheckpoint + conversation_thread + user_variables
-    // 를 durable 영속했으므로 재개는 무손실. in-memory resolver(pendingContinuations)
-    // 미등록 → applyContinuation fast-path miss → 항상 slow-path.
-    if (parkMode === 'release') {
-      return PARK_RELEASED;
-    }
-
-    // 'await' (중첩 executeInline) — 기존 in-memory 장수 루프 유지.
-    const finalStatus = await this.runAiConversationLoop(
-      executionId,
-      node,
-      context,
-      nodeExec,
-      resumeState,
-    );
-
-    await this.finalizeAiNode(
-      savedExecution,
-      executionId,
-      node,
-      context,
-      nodeExec,
-      finalStatus,
-    );
+    // exec-park D6 full B3 — turn-park: 초기 AI 응답 emit + park 가 끝났으므로 루프
+    // 없이 즉시 PARK_RELEASED 반환(세그먼트 종료, 코루틴 해제). top-level / 중첩
+    // executeInline 공통. 다음 turn 입력은 새 continuation job → §7.5 rehydration 의
+    // 단발 turn 처리({@link processAiResumeTurn})로 재개한다. emitAiWaitingForInput 가
+    // _resumeCheckpoint + conversation_thread + user_variables 를 durable 영속했으므로
+    // 무손실. 옛 in-memory 장수 루프(runAiConversationLoop)는 제거됐다 — 응답 없는
+    // 대화도 in-process 메모리 0 점유(bounded).
+    return PARK_RELEASED;
   }
 
   /**
-   * PR-H 후속 (2026-05-30) — multi-turn conversation while-loop 본체. emit/
-   * finalize 와 분리해 `waitForAiConversation` (첫 turn 진입) 과
-   * `applyRetryLastTurn` (retry 재진입) 이 공유한다.
-   *
-   * @param initialAction — 있으면 첫 iteration 에서 외부 입력을 기다리지 않고
-   *   본 action 을 즉시 처리한다 (retry 재진입의 "마지막 turn replay" 용도 —
-   *   spec/4-nodes/3-ai/1-ai-agent.md §7.9). 처리 후 종료되지 않았으면 평소대로
-   *   다음 turn 입력을 await 한다. undefined 면 첫 iteration 부터 입력 await
-   *   (정상 multi-turn 경로).
-   * @returns 종료 시 finalStatus (`COMPLETED` | `FAILED`).
-   */
-  private async runAiConversationLoop(
-    executionId: string,
-    node: Node,
-    context: ExecutionContext,
-    nodeExec: NodeExecution | null,
-    initialResumeState: Record<string, unknown>,
-    initialAction?: ContinuationPayload,
-  ): Promise<'COMPLETED' | 'FAILED'> {
-    let resumeState = initialResumeState;
-    // Conversation loop — exits when user ends OR handler returns terminal.
-    let conversationEnded = false;
-    // 2026-05-19 — spec/4-nodes/3-ai/1-ai-agent.md §7.9. handleAiMessageTurn
-    // 이 turn 처리 중 handler throw 를 catch 해 `finalStatus='FAILED'` 신호로
-    // loop 를 종료시키면, finalizeAiNode 가 FAILED 분기로 진입한다.
-    let finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED';
-    // W6 (SUMMARY) — unknown action.type 연속 skip 상한. maxTurns cap 과 별개로
-    // 알 수 없는 타입이 계속 들어오는 비정상 상황에서 루프를 종료한다.
-    let unknownSkipCount = 0;
-    const MAX_UNKNOWN_SKIPS = 20;
-    let pendingInitialAction = initialAction;
-    while (!conversationEnded) {
-      let action: ContinuationPayload;
-      if (pendingInitialAction !== undefined) {
-        // retry 재진입 — 마지막 turn 을 외부 입력 대기 없이 즉시 replay.
-        const replayAction = pendingInitialAction;
-        pendingInitialAction = undefined;
-
-        // W9 — replay turn 처리 중 도달하는 외부 cancel 이 소실되지 않게
-        // cancel-only reject 핸들러를 등록하고, replay turn 을 cancel 신호와
-        // race 한다. 정상 경로는 wait 단계에서 cancel 을 받지만 (아래 else),
-        // replay 는 wait 없이 즉시 처리되므로 이 race 가 그 대칭을 제공한다.
-        // cancel 이 이기면 ExecutionCancelledError 가 Promise.race 에서 throw 되고
-        // 아래 try 의 catch(finally) 를 경유해 `runAiConversationLoop` 밖으로 전파,
-        // `applyRetryLastTurn` 의 catch 가 Execution 을 CANCELLED 로 마감한다.
-        // (WARNING #3: cancel → throw → loop 탈출 경로 명시. finalStatus / conversationEnded
-        //  는 갱신되지 않은 채 throw 로 빠져나가므로 loop 재진입은 발생하지 않는다.)
-        //
-        // WARNING #2 — resolve: () => {} no-op 의 의미:
-        // replay 구간은 외부 사용자 메시지(continueAiConversation)를 수신하지 않는다.
-        // 이 타이밍 창에 메시지가 도달하면 resolve no-op 으로 조용히 drop 된다.
-        // 이는 정상 turn 중 외부 메시지가 drop 되는 동작과 동일하며 알려진 narrow
-        // window 다 — replay 는 단일 turn 이므로 창이 극히 짧다. 별도 AbortController
-        // 로 분리하면 Map 을 비우는 구간이 생겨 cancel 신호를 놓칠 위험이 있으므로
-        // 현재 no-op resolve + reject-only 패턴을 유지한다.
-        const replayMessage =
-          replayAction.type === 'form_submitted'
-            ? JSON.stringify(replayAction.formData ?? {})
-            : replayAction.type === 'ai_message'
-              ? replayAction.message
-              : undefined;
-        if (replayMessage !== undefined) {
-          const cancelSignal = new Promise<never>((_, reject) => {
-            this.pendingContinuations.set(this.contextKeyOf(context), {
-              nodeId: node.id,
-              resolve: () => {},
-              reject,
-            });
-          });
-          // turn 이 먼저 끝나면 cancelSignal 은 영구 pending 으로 남으므로
-          // unhandled-rejection 경고를 사전 차단한다.
-          cancelSignal.catch(() => {});
-          try {
-            const turn = await Promise.race([
-              this.handleAiMessageTurn(
-                executionId,
-                this.contextKeyOf(context),
-                node,
-                replayMessage,
-                resumeState,
-                nodeExec,
-                replayAction.type === 'form_submitted'
-                  ? 'form_submitted'
-                  : 'ai_message',
-              ),
-              cancelSignal,
-            ]);
-            resumeState = turn.resumeState;
-            conversationEnded = turn.ended;
-            if (turn.finalStatus === 'FAILED') {
-              finalStatus = 'FAILED';
-            }
-          } finally {
-            // race 종료 — 우리 cancel 핸들러를 제거해 다음 iteration 의 정상
-            // 등록과 충돌하지 않게 한다. cancel 이 이긴 경우 rejectPending 이
-            // 이미 삭제했으므로 delete 는 no-op. 키는 set 사이트(4435)와 동일하게
-            // contextKeyOf(context) — background 본문(bgKey)에서도 누수 없이 정리.
-            this.pendingContinuations.delete(this.contextKeyOf(context));
-          }
-          // 다음 iteration 은 정상 wait 경로로 진입.
-          continue;
-        }
-        // replay 액션이 message 형이 아닌 비정상 케이스 — 일반 dispatch 로 위임.
-        action = replayAction;
-      } else {
-        // Wait for user message or end signal (no timeout — external cancel only)
-        // §4.x — pending 등록 직전 worker job 반환 (park). 멀티턴은 매 turn 마다
-        // 이 지점에 도달하나, 배리어는 첫 정착 후 삭제되므로 signalParkBarrier 는
-        // 첫 turn 의 첫 park 에서만 실효(이후 no-op). 후속 turn 입력은 새 continuation
-        // job → fast-path 로 처리되며 worker 슬롯을 점유하지 않는다.
-        const userData = await new Promise<unknown>((resolve, reject) => {
-          this.pendingContinuations.set(this.contextKeyOf(context), {
-            nodeId: node.id,
-            resolve,
-            reject,
-          });
-          this.signalParkBarrier(context);
-        });
-        action = userData as ContinuationPayload;
-      }
-
-      if (action.type === 'ai_end_conversation') {
-        this.handleAiEndConversation(
-          executionId,
-          this.contextKeyOf(context),
-          node,
-          resumeState,
-        );
-        conversationEnded = true;
-      } else if (action.type === 'ai_message') {
-        const turn = await this.handleAiMessageTurn(
-          executionId,
-          this.contextKeyOf(context),
-          node,
-          action.message,
-          resumeState,
-          nodeExec,
-          'ai_message',
-        );
-        resumeState = turn.resumeState;
-        conversationEnded = turn.ended;
-        if (turn.finalStatus === 'FAILED') {
-          finalStatus = 'FAILED';
-        }
-      } else if (action.type === 'form_submitted') {
-        // spec/4-nodes/6-presentation/0-common.md §10.9 — `'continue'` bus
-        // listener wraps `execution.submit_form` payload as
-        // `{type:'form_submitted', formData}`. Form 필드명이 `type` 인
-        // 페이로드도 정확히 라우팅되도록 명시 매칭 (silent-drop 회귀 차단).
-        // AI Agent 의 render_form blocking (interactionType:'ai_form_render')
-        // 응답 경로 — handler.processMultiTurnMessage 가 state.pendingFormToolCall
-        // 을 기반으로 JSON-serialised form data 를 tool_result 로 splice.
-        // spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.
-        const formData = action.formData ?? {};
-        const turn = await this.handleAiMessageTurn(
-          executionId,
-          this.contextKeyOf(context),
-          node,
-          JSON.stringify(formData),
-          resumeState,
-          nodeExec,
-          'form_submitted',
-        );
-        resumeState = turn.resumeState;
-        conversationEnded = turn.ended;
-        if (turn.finalStatus === 'FAILED') {
-          finalStatus = 'FAILED';
-        }
-      } else if (action.type === 'button_click') {
-        // spec/4-nodes/6-presentation/0-common.md §10.9 line 400/407 —
-        // `button_click` 는 dispatch enum 의 4 케이스 중 하나로 명시돼 있으나,
-        // line 407 invariant: "AI conversation 대기 중 (`ai_conversation` /
-        // `ai_form_render` 상태) presentation 노드 본체 버튼은 표시·라우팅 안
-        // 됨" 이라서 정상 흐름에서는 도달하지 않는다. spec 은 "도달 시 graceful
-        // degradation = warn log + loop 재진입" 으로 명시 — 본 분기가 그 정확한
-        // 구현.
-        //
-        // 회귀 차단 (사용자 보고 2026-05-25): 텔레그램 stale inline_keyboard
-        // 클릭이 누적되면 truly-unknown 케이스의 `MAX_UNKNOWN_SKIPS` (20) cap
-        // 에 도달해 대화가 FAILED 종결되는 회귀. button_click 은 enum-known
-        // 이므로 skip count 에서 명시적으로 제외 — 무한 클릭에도 대화 alive
-        // 유지, 사용자는 다음 메시지 입력으로 자연스럽게 진행 가능.
-        const buttonIdStr =
-          typeof action.buttonId === 'string'
-            ? action.buttonId.slice(0, 64)
-            : '';
-        this.logger.warn(
-          '[waitForAiConversation] button_click received during ai_conversation — stale inline_keyboard click, loop re-entering',
-          { executionId, buttonId: buttonIdStr },
-        );
-      } else {
-        // spec §10.9 line 401 — 알 수 없는 action.type 은 silent skip 회피.
-        // warn log 남기고 loop 재진입 (다음 이벤트 대기). 새 action type 추가
-        // 시 dispatch 분기 누락이 silent failure 가 되지 않게 가드.
-        // W6 (SUMMARY) — unknown skip 최대 횟수 cap (MAX_UNKNOWN_SKIPS).
-        // button_click 은 enum-known 케이스로 위 else if 분기가 처리하므로
-        // 본 cap 의 대상에서 제외된다 (spec line 407).
-        unknownSkipCount += 1;
-        this.logger.warn(
-          `Unknown continuation action.type=${String(action.type).slice(0, 64)} for execution=${executionId} — loop re-entering (skip=${unknownSkipCount}/${MAX_UNKNOWN_SKIPS})`,
-        );
-        if (unknownSkipCount >= MAX_UNKNOWN_SKIPS) {
-          this.logger.warn(
-            `waitForAiConversation — unknown skip limit (${MAX_UNKNOWN_SKIPS}) reached for execution=${executionId}, terminating conversation loop`,
-          );
-          conversationEnded = true;
-          finalStatus = 'FAILED';
-        }
-      }
-    }
-
-    return finalStatus;
-  }
-
-  /**
-   * Phase B (PR-B2, exec-park D4) — §7.5 rehydration 의 멀티턴 AI **단발 turn 처리기**.
-   * 옛 {@link runAiConversationLoop} 장수 루프를 대체한다(top-level 멀티턴 AI 한정;
-   * 중첩 executeInline 은 D6 전까지 루프 유지): 도착한 continuation `payload` 1건만
-   * 처리하고, 대화가 **계속**되면 다음 turn 을 위해 re-park(durable 영속 +
+   * exec-park D4/D6 — §7.5 rehydration 의 멀티턴 AI **단발 turn 처리기**. 옛 in-memory
+   * 장수 루프를 대체한다(top-level + 중첩 executeInline 공통, full B3): 도착한
+   * continuation `payload` 1건만 처리하고, 대화가 **계속**되면 다음 turn 을 위해
+   * re-park(durable 영속 +
    * `waiting_for_input` 전이)한 뒤 `PARK_RELEASED` 를 반환해 세그먼트를 종료한다
    * (코루틴 해제 — 응답 없는 대화도 in-process 메모리 0 점유). 대화가 **종료**되면
    * {@link finalizeAiNode} 로 노드를 단말 마킹하고 `void` 를 반환해 caller
@@ -5761,6 +5268,9 @@ export class ExecutionEngineService
    * 를 durable 영속 → 다음 turn rehydration 무손실. (응답은 `handleAiMessageTurn` 가
    * `AI_MESSAGE` 로, 이어 re-park 가 `EXECUTION_WAITING_FOR_INPUT` 로 emit.)
    *
+   * @param opts.retryReentry — retry-last-turn 재진입(`applyRetryLastTurn`)에서 true.
+   *   종료 turn 의 `finalizeAiNode` 가 FAILED→RUNNING 전이(state-machine retry 전용)를
+   *   허용하도록 전파한다. 일반 resume turn 은 미설정.
    * @returns 계속(re-park) 시 `PARK_RELEASED`, 종료 시 `void`.
    */
   private async processAiResumeTurn(
@@ -5771,8 +5281,12 @@ export class ExecutionEngineService
     nodeExec: NodeExecution | null,
     resumeState: Record<string, unknown>,
     payload: unknown,
+    opts?: { retryReentry?: boolean },
   ): Promise<void | ParkSignal> {
     const contextKey = this.contextKeyOf(context);
+    const finalizeOpts = opts?.retryReentry
+      ? { retryReentry: true as const }
+      : undefined;
     // W10 (ai-review) — `payload` 는 §7.5 rehydration 의 새 진입점이라 방어적 null
     // guard. null/비객체(또는 `type` 부재) continuation 은 `action.type` 접근 전에
     // 걸러 warn 후 re-park 한다 (옛 loop 의 unknown 분기와 동형 — 대화 alive 유지).
@@ -5799,6 +5313,7 @@ export class ExecutionEngineService
         context,
         nodeExec,
         'COMPLETED',
+        finalizeOpts,
       );
       return;
     }
@@ -5826,6 +5341,7 @@ export class ExecutionEngineService
           context,
           nodeExec,
           'FAILED',
+          finalizeOpts,
         );
         return;
       }
@@ -5837,6 +5353,7 @@ export class ExecutionEngineService
           context,
           nodeExec,
           'COMPLETED',
+          finalizeOpts,
         );
         return;
       }
@@ -6904,28 +6421,18 @@ export class ExecutionEngineService
   }
 
   /**
-   * Pause execution at a Presentation node with buttons and wait for user interaction.
-   * Transitions Execution → WAITING_FOR_INPUT, emits WS event, awaits Promise.
-   * On resume: sets _selectedPort for port routing, transitions back to RUNNING.
-   *
-   * @param parkMode `'release'` = fresh top-level park → unwinds coroutine
-   *   (returns PARK_RELEASED sentinel). `'await'` = §7.5 rehydration resume
-   *   re-entry (awaits Promise that firePayload resolves). Default: `'await'`.
-   * @returns `void` on normal resume (parkMode=`'await'`), or `PARK_RELEASED`
-   *   sentinel when parkMode=`'release'` (caller unwinds without awaiting input).
-   *
-   * @todo PR-B2/B3: 두 직교 동작(`'release'` vs `'await'`)을 Strategy 패턴
-   *   (ParkStrategy 인터페이스) 또는 함수 분리로 추출 예정. 현재 `parkMode`
-   *   파라미터로 혼재 (OCP 약화, W15).
+   * Park execution at a Presentation node with buttons (waiting_for_input) —
+   * durable 영속 후 즉시 `PARK_RELEASED` 반환(코루틴 해제; top-level + 중첩
+   * executeInline 공통, exec-park D6 full B3). 버튼 클릭 재개는 §7.5 rehydration 의
+   * 직접 처리기 {@link processButtonResumeTurn} 가 payload 로 _selectedPort 라우팅·
+   * output 갱신을 수행한다. (`_graphEdges` 는 호출자 시그니처 호환용 — 미사용.)
    */
   private async waitForButtonInteraction(
     savedExecution: Execution,
     executionId: string,
     node: Node,
     context: ExecutionContext,
-
     _graphEdges: GraphEdge[],
-    parkMode: ParkMode = 'await',
   ): Promise<void | ParkSignal> {
     // Resolve buttonConfig up front so we can persist it on the node execution
     // before releasing control to the user. This means the REST polling
@@ -7007,29 +6514,49 @@ export class ExecutionEngineService
       },
     );
 
-    // Phase B (PR-B1) — fresh top-level park = 세그먼트 종료. durable 영속이
-    // 끝났으므로 대기 없이 즉시 반환해 코루틴을 해제하고, 재개는 §7.5 rehydration
-    // 으로 일원화한다 (waitForFormSubmission 과 동일 모델). caller 가 PARK_RELEASED
-    // 로 unwind.
-    if (parkMode === 'release') {
-      return PARK_RELEASED;
-    }
+    // park = 세그먼트 종료 — durable 영속 후 즉시 PARK_RELEASED 반환(코루틴 해제,
+    // top-level / 중첩 executeInline 공통 — exec-park D6 full B3). 재개(버튼 클릭)는
+    // §7.5 rehydration 의 직접 처리기 {@link processButtonResumeTurn} 가 payload 로
+    // 수행한다 — 옛 in-memory pendingContinuations + firePayload 경로는 제거됐다.
+    return PARK_RELEASED;
+  }
 
-    // Await user button click indefinitely; external cancel is the only exit.
-    // parkMode==='await' — 중첩 executeInline(fast-path) 또는 driveResumeDetached
-    // 입력 전달 재진입(firePayload resolver) 경로. signalParkBarrier 가 중첩 fresh
-    // park 의 worker job 반환을 담당(resume 드라이브에선 배리어 미arm → no-op).
-    const clickData = await new Promise<unknown>((resolve, reject) => {
-      this.pendingContinuations.set(this.contextKeyOf(context), {
-        nodeId: node.id,
-        resolve,
-        reject,
-      });
-      this.signalParkBarrier(context);
+  /**
+   * §7.5 rehydration — 버튼 클릭 payload 로 waiting Button 노드를 직접 완료 처리한다
+   * (exec-park D6 full B3). `driveResumeDetached`(top-level) / `driveResumeFrame`
+   * (중첩 innermost) 가 호출. 옛 `waitForButtonInteraction('await')` +
+   * pendingContinuations + firePayload 경로 대체 — buttonConfig/buttons/output 을
+   * context 에서 재계산하고 port 선택·structured/flat output·thread append·
+   * NodeExecution COMPLETED + RUNNING 전이·NODE_COMPLETED/EXECUTION_RESUMED emit.
+   */
+  private async processButtonResumeTurn(
+    savedExecution: Execution,
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    payload: unknown,
+  ): Promise<void> {
+    const flatNodeOutput = context.nodeOutputCache[node.id] as Record<
+      string,
+      unknown
+    >;
+    const structured = context.structuredOutputCache?.[node.id];
+    const structuredConfig = structured?.config;
+    const buttonConfig = (structuredConfig?.buttonConfig ??
+      flatNodeOutput?.buttonConfig) as ButtonConfig | undefined;
+    if (!buttonConfig || !Array.isArray(buttonConfig.buttons)) {
+      throw new Error(
+        `MISSING_BUTTON_CONFIG: Node ${node.id} resume without a buttonConfig`,
+      );
+    }
+    const buttons = buttonConfig.buttons;
+    const nodeExec = await this.nodeExecutionRepository.findOne({
+      where: { executionId, nodeId: node.id },
+      order: { startedAt: 'DESC' },
     });
 
     // Process the interaction result
-    const click = clickData as {
+    const click = payload as {
       type: string;
       buttonId?: string;
       action?: string;
@@ -7243,11 +6770,21 @@ export class ExecutionEngineService
     }
 
     // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
-    await this.updateExecutionStatus(
-      savedExecution,
-      ExecutionStatus.RUNNING,
-      nodeExec ?? undefined,
-    );
+    // 재개 드라이브(driveResumeDetached / driveResumeFrame)가 진입 시 이미
+    // WAITING_FOR_INPUT → RUNNING 전이를 수행했으므로, 이미 RUNNING 이면 상태 전이를
+    // 건너뛰고 NodeExecution 만 COMPLETED 영속한다 (RUNNING→RUNNING assertTransition
+    // 회피 — finalizeAiNode 의 동일 가드와 대칭).
+    if (savedExecution.status === ExecutionStatus.RUNNING) {
+      if (nodeExec) {
+        await this.nodeExecutionRepository.save(nodeExec);
+      }
+    } else {
+      await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.RUNNING,
+        nodeExec ?? undefined,
+      );
+    }
 
     if (nodeExec) {
       await this.eventEmitter.emitNode(
@@ -8577,15 +8114,23 @@ export class ExecutionEngineService
       } else {
         await run;
       }
+    } catch (err) {
+      // exec-park D6 full B3 — 본문이 interactive 노드(form/button/ai)로 park 하면
+      // executeInline 이 `ParkReleaseSignal` 을 throw 한다. background 는
+      // fire-and-forget 라 외부 continueExecution 으로 재개되지 않으므로(durable park
+      // 무의미) 여기서 graceful 하게 종료한다 — 옛 모델은 pendingContinuations(bgKey)에
+      // 등록 후 maxDurationMs 까지 hang 했으나, 이제 park 즉시 본문이 종료된다.
+      if (err instanceof ParkReleaseSignal) {
+        this.logger.debug(
+          `[background] body parked at interactive node — fire-and-forget 종료(외부 재개 불가). execution=${job.executionId}`,
+        );
+      } else {
+        throw err;
+      }
     } finally {
       // 본문 전용 bgKey context 를 자체 정리 — 메인 runExecution finally 의
       // deleteContext(executionId) 와 독립. (멱등: 미존재 시 no-op.)
       this.contextService.deleteContext(bgKey);
-      // 본문이 interactive 노드(form/button/ai)로 대기에 진입했다면 waitForX 가
-      // pendingContinuations 를 bgKey 로 등록한다. background 는 fire-and-forget 라
-      // 외부 continueExecution(executionId) 로 재개되지 않으므로(메인 키와 격리됨)
-      // maxDurationMs 타임아웃 후 본 finally 에서 resolver 누수를 정리한다.
-      this.pendingContinuations.delete(bgKey);
     }
   }
 
