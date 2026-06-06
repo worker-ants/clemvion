@@ -4,14 +4,14 @@
 
 | SUMMARY # | 분류 | 조치 commit | 비고 |
 |-----------|------|-------------|------|
-| #1 | 코드 (Testing) | (이번 fix commit) | driveCallStackResume/driveResumeFrame/injectInvokerOutput 단위 테스트 5케이스 신설 |
-| #2 | 코드 (Testing) | (이번 fix commit) | resumeFromCheckpoint callStack non-null 분기 통합 테스트 (spyOn + version:999 가드) |
-| #6 | 코드 (Requirement) | (이번 fix commit) | frames.length===0 방어 가드 — try 블록 내 RehydrationError |
-| #7 | 코드 (Testing) | (이번 fix commit) | WorkflowHandler ParkReleaseSignal re-throw 케이스 단위 테스트 추가 |
-| #8 | 코드 (Testing) | (이번 fix commit) | executeInline _callStack push/pop 동작 4케이스 단위 테스트 추가 |
-| #9 | 코드 (Testing) | (이번 fix commit) | park-release-signal.spec.ts 신설 (4케이스) |
-| #10 | 코드 (Testing) | (이번 fix commit) | snapshotCallStack 테스트 하드코딩 1 → CALL_STACK_SCHEMA_VERSION 상수 |
-| #11 | 코드 (Documentation) | (이번 fix commit) | waitForFormSubmission @todo B3 리마인더 주석 복원 |
+| #1 | 코드 (Testing) | e8aaeaa7 | driveCallStackResume/driveResumeFrame/injectInvokerOutput 단위 테스트 5케이스 신설 |
+| #2 | 코드 (Testing) | e8aaeaa7 | resumeFromCheckpoint callStack non-null 분기 통합 테스트 (spyOn + version:999 가드) |
+| #6 | 코드 (Requirement) | e8aaeaa7 | frames.length===0 방어 가드 — try 블록 내 RehydrationError |
+| #7 | 코드 (Testing) | e8aaeaa7 | WorkflowHandler ParkReleaseSignal re-throw 케이스 단위 테스트 추가 |
+| #8 | 코드 (Testing) | e8aaeaa7 | executeInline _callStack 스택 적재/반환 동작 4케이스 단위 테스트 추가 |
+| #9 | 코드 (Testing) | e8aaeaa7 | park-release-signal.spec.ts 신설 (4케이스) |
+| #10 | 코드 (Testing) | e8aaeaa7 | snapshotCallStack 테스트 하드코딩 1 → CALL_STACK_SCHEMA_VERSION 상수 |
+| #11 | 코드 (Documentation) | e8aaeaa7 | waitForFormSubmission @todo B3 리마인더 주석 복원 |
 | #16 (INFO) | spec (SPEC-DRIFT) | (draft 위임) | plan/in-progress/spec-update-exec-park-d6-rehydration-step2.md |
 | #17 (INFO) | spec (SPEC-DRIFT) | (draft 위임) | plan/in-progress/spec-update-exec-park-d6-rehydration-step2.md |
 
