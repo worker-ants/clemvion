@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-06T12:58:47.260589",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/7-channel-web-chat, diff-base=origin/main)",
+  "target_path": "spec/7-channel-web-chat",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

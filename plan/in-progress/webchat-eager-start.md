@@ -5,6 +5,8 @@ owner: developer
 spec_impact:
   - spec/7-channel-web-chat/1-widget-app.md
   - spec/7-channel-web-chat/3-auth-session.md
+  - spec/7-channel-web-chat/0-architecture.md
+  - spec/7-channel-web-chat/_product-overview.md
 ---
 
 # 웹챗 위젯 eager start-on-open (lazy 시작 → open 시작 전환)
@@ -36,11 +38,16 @@ spec_impact:
 - [x] TEST WORKFLOW — lint ✓ / unit ✓(181) / build ✓ / e2e ✓(174)
 - [x] /ai-review — `review/code/2026/06/06/12_14_27/` HIGH, Critical 1(C1 런처/추천질문 텍스트 유실)+Warning 10 → resolution-applier 처리(C1 queue-flush + W들), RESOLUTION.md (commit 6a4af359)
 - [x] SPEC-DRIFT(W2/I1/I2/I12) — 1-widget-app §2 런처 텍스트·§3 다이어그램 phase명(awaiting_user_message)·§3.2 updateProfile eager 기준 반영. (misplaced draft 정리)
-- [ ] consistency-check --impl-done (code+spec)
-- [ ] plan complete 이동
+- [x] 후속 라운드 — I1(newChat pendingSendRef 누수) 수정 + W3/I4 주석. unit 181·e2e 174 재통과 (commit fix). 최종 ai-review `review/code/2026/06/06/12_58_00/` LOW, Critical 0, Warning 7(전부 backlog/품질) → RESOLUTION.md 보류 처리.
+- [x] consistency-check --impl-done — `review/consistency/2026/06/06/12_58_47/` **BLOCK: NO** (Critical 0, Warning 2 비차단)
+- [ ] plan complete 이동 — 비차단 backlog 잔여로 in-progress 유지
 
-## 비차단 backlog (impl-done/ai-review)
-- W4 useWidget God hook 분리(useTokenRefresh 추출), W10 start() check-then-set, I4 방치 execution idle cleanup, I6 composer allowlist 전환, I10 SSE 이벤트명 배열 파생 — 후속.
+## 비차단 backlog (impl-done/ai-review — followup)
+- **M2 SDK firstMessage 잔재(impl-done W1)**: `codebase/packages/web-chat-sdk/README.md`·`examples/byo-ui-headless.ts` 가 폐기된 `firstMessage` 참조 — M2 BYO-UI 예제. 별도 패키지/경로라 본 M1 PR 범위 밖. submit_message 패턴 예제로 교체 후속.
+- **보안 하드닝**: `start()` 에러 메시지 UI 일반화(W1, 기존 동작), localStorage→sessionStorage 토큰.
+- **아키텍처/리팩터**: useWidget God hook 분리(useTokenRefresh/usePendingMessageQueue), `isTextInputSurface()` 헬퍼(텍스트표면 판정 3중 중복), teardownSession 헬퍼, start() check-then-set, composer allowlist 전환, SSE 이벤트명 배열 파생.
+- **테스트**: `ended` Composer 미렌더, fake timer 전환, C1 buttons/form 폐기·ended 재open 케이스, ERROR→ended reducer 케이스.
+- **spec**: 0-architecture §R6 중복 ID 재번호화, C1 buttons/form 폐기 동작 Rationale 한 줄.
 
 ## 결정해야 할 세부
 
