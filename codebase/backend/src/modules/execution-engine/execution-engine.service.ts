@@ -1168,19 +1168,18 @@ export class ExecutionEngineService
         nodeExec,
         payload,
       });
-      // 주의: `resumeFromCheckpoint` 는 setup(graph load + invariant 검증)까지만
-      // await 하고 **전체 resume 구동(waitForX + 그래프 순회 + 종결)을 detach** 하므로,
-      // 본 로그는 "resume 구동 launch" 시점이지 입력 처리/execution 종결 시점이
-      // 아니다. terminal state 는 detached drive 의 EXECUTION_COMPLETED/CANCELLED/
-      // FAILED emit 으로 별도 관측한다.
+      // 주의: `resumeFromCheckpoint` 는 내부 드라이브(`driveResumeDetached` 또는
+      // `driveCallStackResume`)를 **await** 해 재개 구동 전체를 완료한다 (exec-park D6
+      // full B3 이후 fire-and-forget 모델 제거). 따라서 본 로그는 입력 처리 +
+      // 그래프 순회 + 종결이 완료된 시점이다.
       this.logger.log(
-        `Rehydration launched (drive detached) — execution=${executionId} waitingNode=${nodeExec.nodeId}`,
+        `Rehydration completed (drive awaited) — execution=${executionId} waitingNode=${nodeExec.nodeId}`,
       );
     } catch (err) {
-      // 본 catch 는 detached drive launch **이전**(invariant 검증 / rehydrateContext
-      // / resumeFromCheckpoint 의 pre-check·graph load)에서 throw 된 경우만 도달한다
-      // (launch 후 에러는 driveResumeDetached 가 자체 finally 로 처리). 따라서 그
-      // 전에 rehydrateContext 가 생성한 in-memory context / pendingContinuations /
+      // 본 catch 는 `resumeFromCheckpoint` 내 드라이브(driveResumeDetached /
+      // driveCallStackResume)가 예외를 완전 흡수하고 반환하므로, invariant 검증 /
+      // rehydrateContext / resumeFromCheckpoint 의 pre-check·graph load 단계에서
+      // throw 된 경우에 도달한다. rehydrateContext 가 생성한 in-memory context /
       // config 캐시를 여기서 정리한다 — 미정리 시 동일 executionId 재시도가 오염된
       // context 를 재사용한다. (`finalizeRehydrationCleanup` 은 멱등.)
       this.finalizeRehydrationCleanup(executionId);
@@ -2864,7 +2863,20 @@ export class ExecutionEngineService
         }`,
       );
       this.eventEmitter.releaseExecutionRouting(executionId);
-      await this.failFirstSegmentSetup(executionId, error);
+      // W7 (ai-review) — `failFirstSegmentSetup` 자체가 throw 시 BullMQ worker 로
+      // 전파돼 동일 continuation 이중 재시도(double-exec)를 유발한다. best-effort
+      // 마감 실패는 worker 레벨 재시도보다 로그로 관측하는 것이 안전하다.
+      await this.failFirstSegmentSetup(executionId, error).catch(
+        (secondaryErr: unknown) => {
+          this.logger.error(
+            `failFirstSegmentSetup secondary error for ${executionId}: ${
+              secondaryErr instanceof Error
+                ? secondaryErr.message
+                : String(secondaryErr)
+            }`,
+          );
+        },
+      );
     }
   }
 

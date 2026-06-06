@@ -14063,3 +14063,804 @@ describe('ExecutionEngineService — registerInFlight / unregisterInFlight pairi
     expect(mockUnregister).toHaveBeenCalledWith('ne-w10');
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// WARNING #1 (SUMMARY) — processFormResumeTurn 단위 테스트.
+// 4개 경로: (a) sentinel 정상 unwrap, (b) non-sentinel warn 폴백,
+// (c) savedExecution.status === RUNNING skip-transition vs !== RUNNING transition,
+// (d) nodeExec null skip.
+// exec-park D6 full B3, spec §10.9, spec §7.5.
+// ────────────────────────────────────────────────────────────────────────────
+describe('processFormResumeTurn — 4 branches (SUMMARY W1)', () => {
+  let service2: ExecutionEngineService;
+  let mockExecRepo2: Record<string, jest.Mock>;
+  let mockNodeExecRepo2: Record<string, jest.Mock>;
+  let mockNodeRepo2: Record<string, jest.Mock>;
+  let mockEdgeRepo2: Record<string, jest.Mock>;
+  let mockWorkflowRepo2: Record<string, jest.Mock>;
+  let mockNodeLogRepo2: Record<string, jest.Mock>;
+  let registry2: NodeHandlerRegistry;
+
+  const wfId2 = 'wf-form-resume';
+  const execId2 = 'exec-form-resume';
+
+  beforeEach(async () => {
+    mockExecRepo2 = {
+      create: jest.fn(),
+      save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
+      findOneBy: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
+    };
+    mockNodeExecRepo2 = {
+      create: jest.fn().mockImplementation((d: Partial<NodeExecution>) => ({
+        id: `ne-${d.nodeId}`,
+        ...d,
+        startedAt: new Date(),
+      })),
+      save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
+      findOne: jest.fn().mockResolvedValue(null),
+      find: jest.fn().mockResolvedValue([]),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      }),
+    };
+    mockNodeRepo2 = {
+      findBy: jest.fn().mockResolvedValue([]),
+      findOneBy: jest.fn().mockResolvedValue(null),
+    };
+    mockEdgeRepo2 = { findBy: jest.fn().mockResolvedValue([]) };
+    mockWorkflowRepo2 = {
+      findOneBy: jest.fn().mockResolvedValue({ id: wfId2, name: 'WF2' }),
+      findOne: jest.fn().mockResolvedValue({
+        id: wfId2,
+        workspace: { id: 'ws-2', settings: {} },
+      }),
+    };
+    mockNodeLogRepo2 = {
+      insert: jest.fn().mockResolvedValue({ identifiers: [{ id: '1' }] }),
+      find: jest.fn().mockResolvedValue([]),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ExecutionEngineService,
+        ExecutionEventEmitter,
+        GraphTraversalService,
+        NodeHandlerDependenciesProvider,
+        NodeHandlerRegistry,
+        NodeComponentRegistry,
+        ExecutionContextService,
+        ErrorPolicyHandler,
+        ExpressionResolverService,
+        ForEachExecutor,
+        LoopExecutor,
+        ParallelExecutor,
+        ConversationThreadService,
+        ShutdownStateService,
+        {
+          provide: getRepositoryToken(Execution),
+          useValue: mockExecRepo2,
+        },
+        {
+          provide: getRepositoryToken(NodeExecution),
+          useValue: mockNodeExecRepo2,
+        },
+        { provide: getRepositoryToken(Node), useValue: mockNodeRepo2 },
+        { provide: getRepositoryToken(Edge), useValue: mockEdgeRepo2 },
+        {
+          provide: getRepositoryToken(Workflow),
+          useValue: mockWorkflowRepo2,
+        },
+        {
+          provide: getRepositoryToken(ExecutionNodeLog),
+          useValue: mockNodeLogRepo2,
+        },
+        {
+          provide: getDataSourceToken(),
+          useValue: {
+            transaction: jest.fn(
+              async (cb: (manager: unknown) => Promise<unknown>) => {
+                const manager = {
+                  save: jest.fn(async (target: unknown, entity?: unknown) => {
+                    if (target === Execution) return mockExecRepo2.save(entity);
+                    if (target === NodeExecution)
+                      return mockNodeExecRepo2.save(entity);
+                    return entity;
+                  }),
+                };
+                return cb(manager);
+              },
+            ),
+          },
+        },
+        {
+          provide: getQueueToken(BACKGROUND_EXECUTION_QUEUE),
+          useValue: { add: jest.fn() },
+        },
+        {
+          provide: getQueueToken(EXECUTION_RUN_QUEUE),
+          useValue: { add: jest.fn() },
+        },
+        {
+          provide: WebsocketService,
+          useValue: {
+            emitExecutionEvent: jest.fn().mockResolvedValue(undefined),
+            emitNodeEvent: jest.fn().mockResolvedValue(undefined),
+            registerExecutionRouting: jest.fn(),
+            releaseExecutionRouting: jest.fn(),
+          },
+        },
+        {
+          provide: ContinuationBusService,
+          useValue: {
+            publish: jest.fn(),
+            subscribe: jest.fn(),
+            close: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(undefined) },
+        },
+        { provide: LlmService, useValue: { chat: jest.fn() } },
+        {
+          provide: RagSearchService,
+          useValue: { search: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: KnowledgeBaseService,
+          useValue: { findOne: jest.fn(), findAll: jest.fn() },
+        },
+        {
+          provide: IntegrationsService,
+          useValue: {
+            findByWorkspace: jest.fn().mockResolvedValue([]),
+            findByType: jest.fn().mockResolvedValue([]),
+            findOne: jest.fn(),
+          },
+        },
+        {
+          provide: McpClientService,
+          useValue: { listTools: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: Cafe24ApiClient,
+          useValue: { request: jest.fn() },
+        },
+        {
+          provide: MakeshopApiClient,
+          useValue: { request: jest.fn() },
+        },
+      ],
+    }).compile();
+
+    service2 = module.get(ExecutionEngineService);
+    registry2 = module.get(NodeHandlerRegistry);
+
+    // Register a blocking/form handler so handlerRegistry.getMetadata returns
+    // the right metadata for processFormResumeTurn dispatch guards.
+    const formHandler: NodeHandler = {
+      validate: () => ({ valid: true, errors: [] }),
+      execute: jest.fn().mockResolvedValue({
+        config: {},
+        output: {},
+        status: 'waiting_for_input',
+        meta: { interactionType: 'form' },
+        port: 'out',
+      }),
+    };
+    registry2.register('form_node', formHandler, {
+      kind: 'blocking',
+      interaction: 'form',
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  // Helper: access private method via as-unknown-as pattern.
+  type FormResumeSubject = {
+    processFormResumeTurn: (
+      savedExecution: unknown,
+      executionId: string,
+      node: unknown,
+      context: unknown,
+      payload: unknown,
+    ) => Promise<void>;
+    contextService: {
+      createContext: (e: string, w: string) => ExecutionContext;
+    };
+    updateExecutionStatus: (
+      execution: unknown,
+      status: unknown,
+      nodeExec?: unknown,
+    ) => Promise<void>;
+  };
+
+  const subject = () => service2 as unknown as FormResumeSubject;
+
+  const makeFormNode = (nodeId = 'node-form-w1'): Partial<Node> => ({
+    id: nodeId,
+    workflowId: wfId2,
+    type: 'form_node',
+    category: NodeCategory.LOGIC,
+    label: 'Form',
+    config: { fields: [{ name: 'answer' }] },
+    isDisabled: false,
+  });
+
+  const makeExecution = (
+    status: ExecutionStatus = ExecutionStatus.WAITING_FOR_INPUT,
+  ): Partial<Execution> => ({
+    id: execId2,
+    workflowId: wfId2,
+    status,
+    startedAt: new Date(),
+    inputData: {},
+  });
+
+  const makeContext = () =>
+    subject().contextService.createContext(execId2, wfId2);
+
+  // (a) sentinel 정상 unwrap — `{type:'form_submitted', formData:{answer:'yes'}}` 가
+  //     올바르게 unwrap 돼 interactionData 에 반영된다.
+  it('(a) sentinel form_submitted — formData 정상 unwrap + nodeExec COMPLETED 갱신', async () => {
+    const nodeId = 'node-form-a';
+    const nodeExecRow: Partial<NodeExecution> = {
+      id: 'ne-form-a',
+      nodeId,
+      executionId: execId2,
+      status: NodeExecutionStatus.WAITING_FOR_INPUT,
+      startedAt: new Date(),
+    };
+    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
+
+    const ctx = makeContext();
+    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+
+    await subject().processFormResumeTurn(
+      saved,
+      execId2,
+      makeFormNode(nodeId),
+      ctx,
+      { type: 'form_submitted', formData: { answer: 'yes' } },
+    );
+
+    // nodeExec COMPLETED 로 갱신됐는지 확인.
+    expect(mockNodeExecRepo2.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: NodeExecutionStatus.COMPLETED }),
+    );
+    // nodeOutputCache 에 form_submitted 상호작용 기록 확인 (setNodeOutput 경로).
+    expect(ctx.nodeOutputCache[nodeId]).toBeDefined();
+  });
+
+  // (b) non-sentinel warn 폴백 — sentinel 없는 payload 는 warn 을 기록하고 payload 를
+  //     그대로 rawData 로 취급 (interactionData 로 진행, 예외 없음).
+  it('(b) non-sentinel payload — warn 기록 + 예외 없이 완료', async () => {
+    const nodeId = 'node-form-b';
+    const nodeExecRow: Partial<NodeExecution> = {
+      id: 'ne-form-b',
+      nodeId,
+      executionId: execId2,
+      status: NodeExecutionStatus.WAITING_FOR_INPUT,
+      startedAt: new Date(),
+    };
+    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
+
+    const ctx = makeContext();
+    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+
+    const logger = (service2 as unknown as { logger: { warn: jest.Mock } })
+      .logger;
+    const warnSpy = jest.spyOn(logger, 'warn');
+
+    // No sentinel — raw object payload.
+    await expect(
+      subject().processFormResumeTurn(
+        saved,
+        execId2,
+        makeFormNode(nodeId),
+        ctx,
+        { answer: 'raw-no-sentinel' },
+      ),
+    ).resolves.toBeUndefined();
+
+    // warn 이 기록됐는지 확인.
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('sentinel 없는 폴백'),
+    );
+    warnSpy.mockRestore();
+  });
+
+  // (c-running) status === RUNNING — RUNNING→RUNNING assertTransition 회피.
+  //   드라이브가 이미 RUNNING 전이했으면 nodeExec 만 save 하고 updateExecutionStatus 미호출.
+  it('(c-running) savedExecution.status === RUNNING — nodeExec 만 save, updateExecutionStatus 미호출', async () => {
+    const nodeId = 'node-form-c1';
+    const nodeExecRow: Partial<NodeExecution> = {
+      id: 'ne-form-c1',
+      nodeId,
+      executionId: execId2,
+      status: NodeExecutionStatus.WAITING_FOR_INPUT,
+      startedAt: new Date(),
+    };
+    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
+
+    const ctx = makeContext();
+    const saved = makeExecution(ExecutionStatus.RUNNING);
+
+    const updateStatusSpy = jest.spyOn(
+      service2 as unknown as { updateExecutionStatus: jest.Mock },
+      'updateExecutionStatus',
+    );
+
+    await subject().processFormResumeTurn(
+      saved,
+      execId2,
+      makeFormNode(nodeId),
+      ctx,
+      { type: 'form_submitted', formData: { answer: 'x' } },
+    );
+
+    // status === RUNNING 이면 updateExecutionStatus 미호출 (RUNNING→RUNNING 회피).
+    expect(updateStatusSpy).not.toHaveBeenCalled();
+    // nodeExec 은 save 됨.
+    expect(mockNodeExecRepo2.save).toHaveBeenCalled();
+  });
+
+  // (c-not-running) status !== RUNNING — updateExecutionStatus(RUNNING, nodeExec) 호출.
+  it('(c-not-running) savedExecution.status !== RUNNING — updateExecutionStatus 호출', async () => {
+    const nodeId = 'node-form-c2';
+    const nodeExecRow: Partial<NodeExecution> = {
+      id: 'ne-form-c2',
+      nodeId,
+      executionId: execId2,
+      status: NodeExecutionStatus.WAITING_FOR_INPUT,
+      startedAt: new Date(),
+    };
+    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
+
+    const ctx = makeContext();
+    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+
+    const statusCalls: unknown[] = [];
+    jest
+      .spyOn(
+        service2 as unknown as { updateExecutionStatus: jest.Mock },
+        'updateExecutionStatus',
+      )
+      .mockImplementation(async (_exec: unknown, status: unknown) => {
+        statusCalls.push(status);
+      });
+
+    await subject().processFormResumeTurn(
+      saved,
+      execId2,
+      makeFormNode(nodeId),
+      ctx,
+      { type: 'form_submitted', formData: { answer: 'y' } },
+    );
+
+    // updateExecutionStatus(RUNNING) 이 호출됐어야 한다.
+    expect(statusCalls).toContain(ExecutionStatus.RUNNING);
+  });
+
+  // (d) nodeExec null skip — findOne 이 null 이면 nodeExec 관련 save/emit 생략,
+  //     예외 없이 완료.
+  it('(d) nodeExec null — nodeExec save 스킵, 예외 없이 완료', async () => {
+    const nodeId = 'node-form-d';
+    // findOne returns null → nodeExec is null.
+    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(null);
+
+    const ctx = makeContext();
+    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+
+    const updateStatusSpy = jest
+      .spyOn(
+        service2 as unknown as { updateExecutionStatus: jest.Mock },
+        'updateExecutionStatus',
+      )
+      .mockResolvedValue(undefined);
+
+    await expect(
+      subject().processFormResumeTurn(
+        saved,
+        execId2,
+        makeFormNode(nodeId),
+        ctx,
+        { type: 'form_submitted', formData: { answer: 'z' } },
+      ),
+    ).resolves.toBeUndefined();
+
+    // nodeExec null → nodeExecutionRepo.save 미호출.
+    expect(mockNodeExecRepo2.save).not.toHaveBeenCalled();
+    // updateExecutionStatus 는 호출됨 (status !== RUNNING).
+    expect(updateStatusSpy).toHaveBeenCalled();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// WARNING #3 (SUMMARY) — driveCallStackResume 중 nested AI re-park.
+// processAiResumeTurn 이 PARK_RELEASED 반환 시 driveResumeFrame 이 {parked:true}
+// 를 반환해 runNodeDispatchLoop 가 호출되지 않음을 검증.
+// WARNING #5 (SUMMARY) — runExecutionFromQueue catch → failFirstSegmentSetup 직접 spy.
+// WARNING #6/W7 (SUMMARY) — rehydrateAndResume outer catch 흡수 +
+// failFirstSegmentSetup 2차 실패 로그 흡수.
+// ────────────────────────────────────────────────────────────────────────────
+describe('SUMMARY W3 / W5 / W6 / W7 보완 단위 테스트', () => {
+  // W3: driveCallStackResume 에서 nested AI PARK_RELEASED → {parked:true} 반환,
+  // runNodeDispatchLoop 미호출.
+  describe('W3 — driveCallStackResume nested AI re-park (PARK_RELEASED → {parked:true})', () => {
+    type DriveW3Subject = {
+      driveCallStackResume: (
+        savedExecution: unknown,
+        context: unknown,
+        opts: {
+          node: unknown;
+          nodeExec: unknown;
+          callStack: { version: number; frames: unknown[] };
+          persistedInteractionType: string | undefined;
+          isAiConversation: boolean;
+          resumeCheckpoint: Record<string, unknown> | undefined;
+          cachedOutput: Record<string, unknown> | undefined;
+          payload: unknown;
+        },
+      ) => Promise<void>;
+      driveResumeFrame: (
+        ...args: unknown[]
+      ) => Promise<{ parked: boolean; output: unknown }>;
+      runNodeDispatchLoop: (...args: unknown[]) => Promise<unknown>;
+      finalizeRehydrationCleanup: (id: string) => void;
+      updateExecutionStatus: (...args: unknown[]) => Promise<void>;
+      contextService: {
+        createContext: (e: string, w: string) => ExecutionContext;
+      };
+    };
+
+    let service3: ExecutionEngineService;
+
+    beforeEach(async () => {
+      const smallRepo = {
+        create: jest.fn(),
+        save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
+        findOneBy: jest.fn().mockResolvedValue(null),
+        find: jest.fn().mockResolvedValue([]),
+        createQueryBuilder: jest.fn().mockReturnValue({
+          update: jest.fn().mockReturnThis(),
+          set: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          execute: jest.fn().mockResolvedValue({ affected: 0 }),
+        }),
+      };
+      const module3 = await Test.createTestingModule({
+        providers: [
+          ExecutionEngineService,
+          ExecutionEventEmitter,
+          GraphTraversalService,
+          NodeHandlerDependenciesProvider,
+          NodeHandlerRegistry,
+          NodeComponentRegistry,
+          ExecutionContextService,
+          ErrorPolicyHandler,
+          ExpressionResolverService,
+          ForEachExecutor,
+          LoopExecutor,
+          ParallelExecutor,
+          ConversationThreadService,
+          ShutdownStateService,
+          { provide: getRepositoryToken(Execution), useValue: smallRepo },
+          { provide: getRepositoryToken(NodeExecution), useValue: smallRepo },
+          {
+            provide: getRepositoryToken(Node),
+            useValue: {
+              findBy: jest.fn().mockResolvedValue([]),
+              findOneBy: jest.fn().mockResolvedValue(null),
+            },
+          },
+          {
+            provide: getRepositoryToken(Edge),
+            useValue: { findBy: jest.fn().mockResolvedValue([]) },
+          },
+          {
+            provide: getRepositoryToken(Workflow),
+            useValue: {
+              findOneBy: jest
+                .fn()
+                .mockResolvedValue({ id: 'wf-w3', name: 'W3' }),
+              findOne: jest.fn().mockResolvedValue({
+                id: 'wf-w3',
+                workspace: { id: 'ws-w3', settings: {} },
+              }),
+            },
+          },
+          {
+            provide: getRepositoryToken(ExecutionNodeLog),
+            useValue: {
+              insert: jest
+                .fn()
+                .mockResolvedValue({ identifiers: [{ id: '1' }] }),
+              find: jest.fn().mockResolvedValue([]),
+            },
+          },
+          {
+            provide: getDataSourceToken(),
+            useValue: {
+              transaction: jest.fn(
+                async (cb: (m: unknown) => Promise<unknown>) =>
+                  cb({
+                    save: jest.fn((_t: unknown, e: unknown) =>
+                      Promise.resolve(e),
+                    ),
+                  }),
+              ),
+            },
+          },
+          {
+            provide: getQueueToken(BACKGROUND_EXECUTION_QUEUE),
+            useValue: { add: jest.fn() },
+          },
+          {
+            provide: getQueueToken(EXECUTION_RUN_QUEUE),
+            useValue: { add: jest.fn() },
+          },
+          {
+            provide: WebsocketService,
+            useValue: {
+              emitExecutionEvent: jest.fn().mockResolvedValue(undefined),
+              emitNodeEvent: jest.fn().mockResolvedValue(undefined),
+              registerExecutionRouting: jest.fn(),
+              releaseExecutionRouting: jest.fn(),
+            },
+          },
+          {
+            provide: ContinuationBusService,
+            useValue: {
+              publish: jest.fn(),
+              subscribe: jest.fn(),
+              close: jest.fn(),
+            },
+          },
+          {
+            provide: ConfigService,
+            useValue: { get: jest.fn().mockReturnValue(undefined) },
+          },
+          { provide: LlmService, useValue: { chat: jest.fn() } },
+          {
+            provide: RagSearchService,
+            useValue: { search: jest.fn().mockResolvedValue([]) },
+          },
+          {
+            provide: KnowledgeBaseService,
+            useValue: { findOne: jest.fn(), findAll: jest.fn() },
+          },
+          {
+            provide: IntegrationsService,
+            useValue: {
+              findByWorkspace: jest.fn().mockResolvedValue([]),
+              findByType: jest.fn().mockResolvedValue([]),
+              findOne: jest.fn(),
+            },
+          },
+          {
+            provide: McpClientService,
+            useValue: { listTools: jest.fn().mockResolvedValue([]) },
+          },
+          { provide: Cafe24ApiClient, useValue: { request: jest.fn() } },
+          { provide: MakeshopApiClient, useValue: { request: jest.fn() } },
+        ],
+      }).compile();
+      service3 = module3.get(ExecutionEngineService);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('driveResumeFrame 가 {parked:true} 반환 시 runNodeDispatchLoop 미호출 (nested AI PARK_RELEASED)', async () => {
+      const svc = service3 as unknown as DriveW3Subject;
+      const ctx = svc.contextService.createContext('exec-w3', 'wf-w3');
+
+      // driveResumeFrame → {parked:true} (AI re-park 시나리오).
+      const driveFrameSpy = jest
+        .spyOn(svc, 'driveResumeFrame')
+        .mockResolvedValue({ parked: true, output: undefined });
+      const dispatchSpy = jest
+        .spyOn(svc, 'runNodeDispatchLoop')
+        .mockResolvedValue({ parked: false });
+      jest
+        .spyOn(svc, 'finalizeRehydrationCleanup')
+        .mockImplementation(() => undefined);
+      jest.spyOn(svc, 'updateExecutionStatus').mockResolvedValue(undefined);
+
+      const callStack = {
+        version: CALL_STACK_SCHEMA_VERSION,
+        frames: [
+          {
+            workflowId: 'wf-sub-ai',
+            invokerNodeId: 'node-inv-ai',
+            recursionDepth: 1,
+          },
+        ],
+      };
+
+      await svc.driveCallStackResume(
+        {
+          id: 'exec-w3',
+          workflowId: 'wf-w3',
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+          startedAt: new Date(),
+          recursionDepth: 0,
+          inputData: {},
+        },
+        ctx,
+        {
+          node: { id: 'node-ai-1', type: 'ai_agent' },
+          nodeExec: {
+            id: 'ne-ai-1',
+            nodeId: 'node-ai-1',
+            executionId: 'exec-w3',
+            status: NodeExecutionStatus.WAITING_FOR_INPUT,
+          },
+          callStack,
+          persistedInteractionType: undefined,
+          isAiConversation: true,
+          resumeCheckpoint: { turnCount: 1 },
+          cachedOutput: undefined,
+          payload: { type: 'ai_message', message: 'next turn' },
+        },
+      );
+
+      // driveResumeFrame 가 {parked:true} 를 반환했으므로 runNodeDispatchLoop 미호출.
+      expect(driveFrameSpy).toHaveBeenCalledTimes(1);
+      expect(dispatchSpy).not.toHaveBeenCalled();
+    });
+
+    // W5: runExecutionFromQueue catch → failFirstSegmentSetup 직접 spy 검증.
+    // service3 재사용 (위 beforeEach 에서 생성됨).
+    it('W5 — runExecution throw 시 failFirstSegmentSetup 가 직접 호출된다', async () => {
+      type W5Subject = {
+        runExecution: (...args: unknown[]) => Promise<void>;
+        failFirstSegmentSetup: (
+          executionId: string,
+          error: unknown,
+        ) => Promise<void>;
+        executionRepository: { findOneBy: jest.Mock };
+      };
+      const svc = service3 as unknown as W5Subject;
+
+      svc.executionRepository.findOneBy = jest.fn().mockResolvedValue({
+        id: 'exec-w5',
+        workflowId: 'wf-w3',
+        status: ExecutionStatus.PENDING,
+        startedAt: new Date(),
+        inputData: {},
+        triggerId: 'trg-w5-spy',
+      });
+
+      const runSpy = jest
+        .spyOn(svc, 'runExecution')
+        .mockRejectedValueOnce(new Error('setup-throw-w5'));
+
+      const failSpy = jest
+        .spyOn(svc, 'failFirstSegmentSetup')
+        .mockResolvedValue(undefined);
+
+      await service3.runExecutionFromQueue('exec-w5', {});
+
+      expect(failSpy).toHaveBeenCalledWith('exec-w5', expect.any(Error));
+
+      runSpy.mockRestore();
+      failSpy.mockRestore();
+    });
+
+    // W6: rehydrateAndResume outer catch 흡수 검증.
+    it('W6 — resumeFromCheckpoint throw 가 rehydrateAndResume outer catch 에 흡수됨 (호출자 미전파)', async () => {
+      type W6Subject = {
+        rehydrateAndResume: (
+          executionId: string,
+          nodeExecutionId: string,
+          payload: unknown,
+        ) => Promise<void>;
+        resumeFromCheckpoint: (...args: unknown[]) => Promise<void>;
+        executionRepository: { findOneBy: jest.Mock };
+        nodeExecutionRepository: { findOne: jest.Mock };
+        nodeRepository: { findOneBy: jest.Mock };
+        workflowRepository: { findOne: jest.Mock };
+        executionNodeLogRepository: { find: jest.Mock };
+      };
+      const svc = service3 as unknown as W6Subject;
+
+      const rfcSpy = jest
+        .spyOn(svc, 'resumeFromCheckpoint')
+        .mockRejectedValueOnce(new Error('pre-drive-fail'));
+
+      svc.executionRepository.findOneBy = jest.fn().mockResolvedValue({
+        id: 'exec-w6',
+        workflowId: 'wf-w3',
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+        inputData: {},
+        resumeCallStack: null,
+      });
+      svc.nodeExecutionRepository.findOne = jest.fn().mockResolvedValue({
+        id: 'ne-w6',
+        nodeId: 'node-w6',
+        executionId: 'exec-w6',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          meta: { interactionType: 'form' },
+          status: 'waiting_for_input',
+        },
+        startedAt: new Date(),
+      });
+      svc.nodeRepository.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-w6',
+        type: 'form_node',
+        workflowId: 'wf-w3',
+        category: NodeCategory.LOGIC,
+        label: 'Form W6',
+        config: {},
+        isDisabled: false,
+      });
+      svc.workflowRepository.findOne = jest.fn().mockResolvedValue({
+        id: 'wf-w3',
+        workspace: { id: 'ws-w3', settings: {} },
+      });
+      svc.executionNodeLogRepository.find = jest.fn().mockResolvedValue([]);
+
+      await expect(
+        svc.rehydrateAndResume('exec-w6', 'ne-w6', {
+          type: 'form_submitted',
+          formData: {},
+        }),
+      ).resolves.toBeUndefined();
+
+      rfcSpy.mockRestore();
+    });
+
+    // W7: failFirstSegmentSetup 2차 실패 시 logger.error 로 흡수.
+    it('W7 — failFirstSegmentSetup 가 throw 해도 runExecutionFromQueue 는 throw 하지 않는다', async () => {
+      type W7Subject = {
+        runExecution: (...args: unknown[]) => Promise<void>;
+        failFirstSegmentSetup: (...args: unknown[]) => Promise<void>;
+        executionRepository: { findOneBy: jest.Mock };
+        logger: { error: jest.Mock };
+      };
+      const svc = service3 as unknown as W7Subject;
+
+      svc.executionRepository.findOneBy = jest.fn().mockResolvedValue({
+        id: 'exec-w7',
+        workflowId: 'wf-w3',
+        status: ExecutionStatus.PENDING,
+        startedAt: new Date(),
+        inputData: {},
+        triggerId: 'trg-w7',
+      });
+
+      const runSpy = jest
+        .spyOn(svc, 'runExecution')
+        .mockRejectedValueOnce(new Error('primary-error'));
+
+      const failSpy = jest
+        .spyOn(svc, 'failFirstSegmentSetup')
+        .mockRejectedValueOnce(new Error('secondary-error-w7'));
+
+      const errorSpy = jest.spyOn(svc.logger, 'error');
+
+      await expect(
+        service3.runExecutionFromQueue('exec-w7', {}),
+      ).resolves.toBeUndefined();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('secondary error'),
+      );
+
+      runSpy.mockRestore();
+      failSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+  });
+});
