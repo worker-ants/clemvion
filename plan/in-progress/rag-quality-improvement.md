@@ -203,4 +203,4 @@ P6(UX) ── 독립 백로그
 - [ ] `EVAL_CLI_ENTITIES` 최소 집합 분리, `eval-cli.module` DI 회귀 스펙.
 - [ ] `eval-retrieval.ts main()` 단계 함수 분리, 기존 마이그레이션 스크립트 `parseCliFlag` → `cli-utils` 통합.
 - [ ] perf 마이크로 최적화(ndcg log2 테이블·resolveWorkspace 배치 조회), `rag-evaluation.md` Rationale 에 D-E7(`root-entities.ts` 분리) 추가.
-- [ ] **pgvector ANN 파라미터 조정 (D1 wide 회수 후속)** — D1 동적 컷이 회수 폭을 `LIMIT 5→50`(`RAG_RECALL_K`)으로 넓혀 ANN 스캔 대상 증가. `hnsw.ef_search`(기본 40, `≥ 회수 폭` 권장)·`ivfflat.probes`(기본 1) 가 재현율 유지에 적합한지 프로덕션 부하 측정 후 조정 (필요 시 DB 세션 파라미터/KB config 노출). SoT: `spec/5-system/9-rag-search.md §3.4` follow-up 노트. (ai-review `16_08_38` I1 / `16_05_34` INFO8)
+- [x] **pgvector HNSW ef_search recall 보전 (D1 wide 회수 후속)** — `rag-followup-efsearch` PR 구현: `searchVectorGroup` wide 회수를 트랜잭션 안 `SET LOCAL hnsw.ef_search = clamp(LIMIT×2, 40, 1000)`(`hnswEfSearchFor`)로 상향. graph seed(seedTopK<40) 미적용. (`ivfflat` 미사용 — partial HNSW 만 운용.) **운영 부하에 따른 clamp 범위 정밀 튜닝**(값·KB config 노출)은 측정 후 후속. SoT: `spec/5-system/9-rag-search.md §3.4`. (ai-review `16_08_38` I1 / `16_05_34` INFO8)

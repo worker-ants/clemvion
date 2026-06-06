@@ -26,6 +26,6 @@ spec_impact:
 ## 체크리스트
 - [x] 0. worktree (rag-followup-efsearch-b6c8e8, off origin/main)
 - [x] 1. 작업 복구 (orphaned #2/#3 diff → fresh main 적용)
-- [ ] 2. TEST WORKFLOW (lint·unit·build·e2e)
-- [ ] 3. /ai-review + fix + consistency --impl-done
+- [x] 2. TEST WORKFLOW — lint·unit·build·e2e(176) 통과. (부수: PR #498 Gate C main breakage 해소)
+- [x] 3. /ai-review 18_06_44(MEDIUM=W1 scope FP 견인, 실코드 NONE/LOW) + consistency --impl-done 18_06_44 **BLOCK: NO**. W1 stale-local-main FP 반증(merge-base), 나머지 LOW nit advisory disposition(RESOLUTION).
 - [ ] 4. push + PR
