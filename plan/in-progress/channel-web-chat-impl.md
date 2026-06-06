@@ -1,5 +1,5 @@
 ---
-worktree: .claude/worktrees/channel-web-chat-followups-1feff2
+worktree: (unstarted)
 started: 2026-05-30
 owner: developer (TBD)
 ---

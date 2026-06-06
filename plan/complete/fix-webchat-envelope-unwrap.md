@@ -47,13 +47,14 @@ spec_impact:
         frontend/sdk 로컬 stage 는 fresh worktree 의 packages/sdk prepare-script(tsc<@types/node) 사전 결함으로
         bundled 실행 불가 — 본 변경과 무관(상세 RESOLUTION).
 - [x] /ai-review + SUMMARY — `review/code/2026/06/06/02_51_10/` 위험도 LOW, Critical 0 / Warning 6. resolution-applier 로 6/6 처리 (commit 86f23b9b) + RESOLUTION.md (commit ef764984). e2e 재통과(174).
-- [x] consistency-check --impl-done — `review/consistency/2026/06/06/03_05_42/` **BLOCK: NO** (Critical 0, WARNING 2/INFO 7 모두 비차단)
-- [ ] plan complete 이동 — 아래 optional 후속 잔여로 in-progress 유지
+- [x] consistency-check --impl-done — `review/consistency/2026/06/06/03_05_42/` + 후속 재실행 `09_34_19/` 모두 **BLOCK: NO**
+- [x] (W2 리네임) `unwrapData` → `unwrapEnvelope` — `@workflow/sdk` private 동명 헬퍼와 혼동 차단. eia-client.ts + test.
+- [x] plan complete 이동 — 본 commit 에서 `git mv` → `plan/complete/`.
 
 ## Optional 후속
 
 impl-done/ai-review 가 INFO 로 제안한 선택 항목:
 - [x] EIA `spec/5-system/14-external-interaction-api.md §5` 전 REST 엔드포인트 공통 `{ data }` 봉투 note 추가 (§5.3/§5.5 포함, §4.1 과 동일 패턴 — 헤더 단일 note 로 §5.1~§5.5 일괄 커버, SSE 예외 명시).
-- [x] `3-auth-session.md §Rationale R5` — `unwrapData` 봉투 언랩 + 폴백 채택 근거 추가.
-- [ ] (별도 grooming 으로 분리) stale plan frontmatter `worktree:` 갱신 (`channel-web-chat-impl/followups/demo.md`). 무관 plan 의 라이프사이클 편집이라 본 fix PR 에 섞지 않음 — `chore(plan)` 그루밍 별도 처리 대상.
-- [ ] (장기) `unwrapData` 를 web-chat ↔ `@workflow/sdk` 의존 확정 시 단일 헬퍼로 통합 (현재 양 패키지 독립, 런타임 충돌 없음).
+- [x] `3-auth-session.md §Rationale R5` — 봉투 언랩 + 폴백 채택 근거 추가.
+- [x] plan grooming (사용자 결정 2026-06-06: 본 PR 포함) — `channel-web-chat-demo.md`·`spec-draft-channel-web-chat-gaps.md` → `complete/` 이동, demo 를 `1-widget-app`/`3-auth-session` `pending_plans` 에서 제거, `channel-web-chat-impl`/`followups` 의 stale `worktree:` → `(unstarted)` sentinel.
+- [x] (장기) `unwrapEnvelope` ↔ `@workflow/sdk` 통합 — 즉시 실행 대상 아님(M2 BYO-UI sdk 배선 전제). `channel-web-chat-followups.md` 로 이관해 추적.

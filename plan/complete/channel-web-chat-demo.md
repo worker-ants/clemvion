@@ -3,6 +3,10 @@ worktree: .claude/worktrees/feat-web-chat-demo
 started: 2026-06-03
 owner: developer
 spec: spec/7-channel-web-chat
+spec_impact:
+  - spec/7-channel-web-chat
+  - spec/5-system/14-external-interaction-api.md
+  - spec/conventions/spec-impl-evidence.md
 ---
 
 # Channel Web Chat — 로컬 데모 호스트 + dev 포트 분리

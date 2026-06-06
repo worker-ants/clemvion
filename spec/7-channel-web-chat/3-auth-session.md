@@ -8,8 +8,6 @@ code:
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
   - plan/in-progress/channel-web-chat-followups.md
-  - plan/in-progress/channel-web-chat-demo.md
-  - plan/in-progress/fix-webchat-envelope-unwrap.md
 ---
 
 # Spec: Channel Web Chat — 인증 / 세션 흐름

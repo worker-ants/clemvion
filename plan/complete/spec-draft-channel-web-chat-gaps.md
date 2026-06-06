@@ -2,6 +2,9 @@
 worktree: feat-web-chat-demo
 started: 2026-06-03
 owner: project-planner
+spec_impact:
+  - spec/7-channel-web-chat
+  - spec/conventions/spec-impl-evidence.md
 ---
 
 # Spec draft — Channel Web Chat 갭 보강(W1~W5) + show/hide/updateProfile 설계
