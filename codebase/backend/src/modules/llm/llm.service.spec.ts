@@ -228,20 +228,24 @@ describe('LlmService', () => {
       const result = await service.embed(config, texts);
 
       expect(mockClient.embed).toHaveBeenCalledTimes(3);
+      // inputType 생략 → document 기본값 전달.
       expect(mockClient.embed).toHaveBeenNthCalledWith(
         1,
         texts.slice(0, 20),
         undefined,
+        'document',
       );
       expect(mockClient.embed).toHaveBeenNthCalledWith(
         2,
         texts.slice(20, 40),
         undefined,
+        'document',
       );
       expect(mockClient.embed).toHaveBeenNthCalledWith(
         3,
         texts.slice(40, 45),
         undefined,
+        'document',
       );
       expect(result).toHaveLength(45);
     });

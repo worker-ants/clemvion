@@ -269,6 +269,8 @@ describe('AgentMemoryService', () => {
         expect.anything(),
         ['user likes tea', 'user is in Seoul'],
         'text-embedding-3-small',
+        undefined,
+        'document',
       );
 
       const calls = mockDataSource.query.mock.calls;

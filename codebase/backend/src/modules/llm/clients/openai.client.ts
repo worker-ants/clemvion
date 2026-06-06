@@ -7,6 +7,10 @@ import {
   ModelInfo,
   ToolCall,
 } from '../interfaces/llm-client.interface';
+import {
+  applyEmbeddingInputPrefix,
+  type EmbedInputType,
+} from '../embedding-input-type';
 
 /**
  * gpt-oss / Harmony 포맷 제어 토큰. OpenAI 가 공식 제공하는 상위 모델에서는
@@ -194,10 +198,17 @@ export class OpenAIClient implements LLMClient {
     };
   }
 
-  async embed(texts: string[], model?: string): Promise<number[][]> {
+  async embed(
+    texts: string[],
+    model?: string,
+    inputType: EmbedInputType = 'document',
+  ): Promise<number[][]> {
+    // OpenAI native(text-embedding-3 등)는 대칭이라 no-op. self-host e5 계열을
+    // OpenAI 호환 엔드포인트로 서빙하는 경우만 query:/passage: 접두사가 붙는다.
+    const input = applyEmbeddingInputPrefix(texts, model, inputType);
     const response = await this.client.embeddings.create({
       model: model || 'text-embedding-3-small',
-      input: texts,
+      input,
     });
     return response.data.map((d) => d.embedding);
   }

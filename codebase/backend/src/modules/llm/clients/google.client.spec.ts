@@ -1307,11 +1307,26 @@ describe('GoogleClient.embed', () => {
     expect(embedContent).toHaveBeenCalledWith({
       model: 'text-embedding-004',
       contents: ['a', 'b'],
+      // inputType 생략 시 document 기본값 → RETRIEVAL_DOCUMENT.
+      config: { taskType: 'RETRIEVAL_DOCUMENT' },
     });
     expect(result).toEqual([
       [0.1, 0.2],
       [0.3, 0.4],
     ]);
+  });
+
+  // SUMMARY#6 — inputType 생략 시 기본값 RETRIEVAL_DOCUMENT 독립 검증
+  it('inputType 생략 시 RETRIEVAL_DOCUMENT 가 config 에 포함된다', async () => {
+    const { client, embedContent } = makeStubs({
+      embedResult: { embeddings: [{ values: [0.5] }] },
+    });
+    await client.embed(['doc-text']);
+    expect(embedContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: { taskType: 'RETRIEVAL_DOCUMENT' },
+      }),
+    );
   });
 
   it('uses the provided model id when given', async () => {
@@ -1322,6 +1337,19 @@ describe('GoogleClient.embed', () => {
     expect(embedContent).toHaveBeenCalledWith({
       model: 'custom-embed-model',
       contents: ['x'],
+      config: { taskType: 'RETRIEVAL_DOCUMENT' },
+    });
+  });
+
+  it('maps inputType=query → RETRIEVAL_QUERY taskType (비대칭 검색)', async () => {
+    const { client, embedContent } = makeStubs({
+      embedResult: { embeddings: [{ values: [1] }] },
+    });
+    await client.embed(['q'], 'text-embedding-004', 'query');
+    expect(embedContent).toHaveBeenCalledWith({
+      model: 'text-embedding-004',
+      contents: ['q'],
+      config: { taskType: 'RETRIEVAL_QUERY' },
     });
   });
 

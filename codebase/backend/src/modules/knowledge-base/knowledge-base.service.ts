@@ -201,7 +201,14 @@ export class KnowledgeBaseService {
     );
     let vectors: number[][];
     try {
-      vectors = await this.llmService.embed(cfg, ['probe'], dto.embeddingModel);
+      // 차원 감지용 probe — inputType 은 차원에 무관하나 명시적으로 document.
+      vectors = await this.llmService.embed(
+        cfg,
+        ['probe'],
+        dto.embeddingModel,
+        undefined /* opts */,
+        'document',
+      );
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
       throw new BadRequestException({

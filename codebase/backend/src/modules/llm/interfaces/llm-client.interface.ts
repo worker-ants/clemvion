@@ -1,3 +1,5 @@
+import type { EmbedInputType } from '../embedding-input-type';
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
@@ -122,7 +124,17 @@ export interface LLMClient {
    * SoT: spec/conventions/node-cancellation.md.
    */
   chat(params: ChatParams, signal?: AbortSignal): Promise<ChatResult>;
-  embed(texts: string[], model?: string): Promise<number[][]>;
+  /**
+   * `inputType` 은 비대칭 임베딩 모델(e5 prefix / Gemini taskType)에서 query 와
+   * document(passage) 를 다르게 인코딩하기 위한 힌트다. 대칭 모델은 무시한다.
+   * 생략 시 'document'(passage) — 적재 경로 기본값. 검색 query 경로만 'query'.
+   * SoT: spec/5-system/8-embedding-pipeline.md §5, embedding-input-type.ts.
+   */
+  embed(
+    texts: string[],
+    model?: string,
+    inputType?: EmbedInputType,
+  ): Promise<number[][]>;
   /**
    * Optional `signal` aborts the underlying HTTP request. Used by the service
    * layer's timeout wrapper to release sockets when the deadline is exceeded.

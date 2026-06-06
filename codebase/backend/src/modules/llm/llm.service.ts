@@ -9,6 +9,7 @@ import {
   ChatStreamEvent,
   ModelInfo,
 } from './interfaces/llm-client.interface';
+import type { EmbedInputType } from './embedding-input-type';
 import { LlmUsageLogService } from './llm-usage-log.service';
 import { sanitizeLlmErrorMessage } from './utils/sanitize-error.util';
 import { withTimeout } from './utils/with-timeout.util';
@@ -191,11 +192,20 @@ export class LlmService {
     }
   }
 
+  /**
+   * 배치 임베딩. 20개 단위로 chunking 해 client 에 위임한다.
+   * @param config - LlmConfig 엔티티 (provider·credential 포함).
+   * @param texts - 임베딩할 텍스트 배열.
+   * @param model - 임베딩 모델 ID. 생략 시 provider 기본값.
+   * @param opts - 타임아웃·내부 재시도 제어. `undefined` = 기본(재시도 ON, 타임아웃 없음).
+   * @param inputType - 비대칭 모델 힌트. 기본값 `'document'`(적재 경로). 검색 query 경로만 `'query'`.
+   */
   async embed(
     config: LlmConfig,
     texts: string[],
     model?: string,
     opts?: Pick<LlmCallOptions, 'timeoutMs' | 'disableInnerRetry'>,
+    inputType: EmbedInputType = 'document',
   ): Promise<number[][]> {
     const client = this.createClient(config);
     // Batch embed in chunks of 20
@@ -206,8 +216,11 @@ export class LlmService {
       // batch 단위로 timeout 적용 — 한 batch 가 hang 되면 race 로 즉시 reject.
       const run = () =>
         opts?.timeoutMs && opts.timeoutMs > 0
-          ? withTimeout(() => client.embed(batch, model), opts.timeoutMs)
-          : client.embed(batch, model);
+          ? withTimeout(
+              () => client.embed(batch, model, inputType),
+              opts.timeoutMs,
+            )
+          : client.embed(batch, model, inputType);
       const embeddings = await (opts?.disableInnerRetry
         ? run()
         : this.withRetry(run));

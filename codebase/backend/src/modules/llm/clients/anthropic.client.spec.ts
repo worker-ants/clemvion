@@ -181,6 +181,14 @@ describe('AnthropicClient.stream', () => {
     ]);
   });
 
+  // SUMMARY#7 — embed 는 미지원이라 throw 보증
+  it('embed 는 지원하지 않아 throw 한다', async () => {
+    const client = new AnthropicClient('sk-test', 'claude-haiku-4-5-20251001');
+    await expect(client.embed(['hello'])).rejects.toThrow(
+      'Anthropic does not support embedding',
+    );
+  });
+
   it('passes AbortSignal to the SDK models.list call', async () => {
     const client = new AnthropicClient('sk-test', 'claude-haiku-4-5-20251001');
     const list = jest.fn().mockReturnValue(asyncIter([]));

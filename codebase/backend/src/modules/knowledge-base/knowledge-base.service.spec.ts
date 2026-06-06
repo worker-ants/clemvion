@@ -424,6 +424,8 @@ describe('KnowledgeBaseService', () => {
         expect.objectContaining({ provider: 'openai' }),
         ['probe'],
         'text-embedding-3-small',
+        undefined,
+        'document',
       );
     });
 
