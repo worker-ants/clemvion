@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "started_at": "2026-06-06T14:00:00Z",
+  "summary_items_total": 4,
+  "items_resolved_ids": [3, 4],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {
+      "sha": "ecc17b15",
+      "summary_ids": [3, 4],
+      "scope": "execution"
+    },
+    {
+      "sha": "d6a84827",
+      "summary_ids": [1, 2],
+      "scope": "spec-draft"
+    }
+  ],
+  "spec_drafts_pending": [
+    "plan/in-progress/spec-update-execution-engine-pre-park-window.md"
+  ],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/e2e-20260606-141233.log"
+  ],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec — SUMMARY#1+2 SPEC-DRIFT draft ready",
+  "last_reset_hint_sec": null
+}

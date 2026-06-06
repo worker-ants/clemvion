@@ -263,12 +263,17 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
   // backend 와 동일 키로 mint 하기 위함. runner env 에 미주입이면 compose 값으로
   // fallback (테스트 전용 시크릿, repo 에 공개됨).
   const JWT_SECRET =
-    process.env.JWT_SECRET ?? 'clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7';
+    process.env.JWT_SECRET ??
+    'clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7';
 
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
-    const owner = await registerAndLogin(BASE_URL, uniqueEmail('aiturnpark'), db);
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('aiturnpark'),
+      db,
+    );
     ownerToken = owner.accessToken;
     workspaceId = await createTeamWorkspace(
       BASE_URL,
@@ -610,10 +615,7 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
     const finalAsstTexts = finalThread!.turns
       .filter((t) => t.source === 'ai_assistant')
       .map((t) => t.text);
-    expect(finalUserTexts).toEqual([
-      'turn-one-question',
-      'turn-two-followup',
-    ]);
+    expect(finalUserTexts).toEqual(['turn-one-question', 'turn-two-followup']);
     expect(finalAsstTexts).toEqual([
       '[stub] received: turn-one-question',
       '[stub] received: turn-two-followup',

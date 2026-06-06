@@ -264,7 +264,10 @@ describe("useWidget — eager 시작(§R6)", () => {
 
     // 재open → startedRef 가 false 로 복구됐으므로 새 POST 발생.
     act(() => result.current.actions.open());
-    await waitFor(() => expect(callCount).toBe(2));
-    expect(result.current.state.executionId).toBe("e2");
+    // executionId state 커밋을 직접 대기 — callCount===2(fetch 호출)는 두 번째
+    // POST 가 resolve 되어 executionId 가 state 에 반영되기 *전*에 도달하므로,
+    // callCount 를 기다린 뒤 곧바로 executionId 를 단언하면 race 로 flaky 했다.
+    await waitFor(() => expect(result.current.state.executionId).toBe("e2"));
+    expect(callCount).toBe(2);
   });
 });
