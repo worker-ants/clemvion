@@ -6,12 +6,14 @@
 # safe to run on every session start. Always exits 0 — bootstrap must never
 # block a session.
 #
-# Two responsibilities:
+# Three responsibilities:
 #   1. Point git at .githooks so the version-controlled pre-commit hooks
 #      (branch guard + mermaid lint) actually run. This replaces the
 #      easy-to-forget `scripts/setup-githooks.sh` step.
 #   2. Install the mermaid-lint tooling deps once, in the MAIN checkout
 #      (node_modules is gitignored, so worktrees share this single copy).
+#   3. Garbage-collect stale guard state markers (>30 days) so .claude/state/
+#      does not grow unbounded.
 
 set -u
 
@@ -38,5 +40,16 @@ if [ -f "$tool_dir/package.json" ] && [ ! -d "$tool_dir/node_modules" ]; then
             || echo "bootstrap: mermaid-lint install failed (lint will fail open)" >&2
     fi
 fi
+
+# 3. Garbage-collect stale guard state markers. These accumulate one file per
+#    (session, branch) and are never read once their session/branch is gone, so
+#    prune anything older than 30 days to keep the dirs from growing unbounded.
+for state_dir in \
+    "$main_root/.claude/state/review_stop_nudged" \
+    "$main_root/.claude/state/main_worktree_bash_warned"; do
+    if [ -d "$state_dir" ]; then
+        find "$state_dir" -type f -mtime +30 -delete 2>/dev/null || true
+    fi
+done
 
 exit 0
