@@ -31,12 +31,16 @@ spec_impact:
 
 - [x] (spec) 1-widget-app §2 state machine + §3 시작시점 + §R6(lazy→eager 전환 근거), 3-auth-session §3 시퀀스(open 시작·firstMessage 제거), 0-architecture/_product-overview 정합(pending_plans·nav)
 - [x] consistency-check (--impl-prep, rationale-continuity 결정번복 검토 포함) — `review/consistency/2026/06/06/11_57_11/` **BLOCK: NO** (R6 전환근거 완전기록 인정)
-- [ ] (code, developer) use-widget: open 시 start, firstMessage 제거, 첫 waiting 표면 렌더, 재open 시 재시작 금지(세션 복원)
-- [ ] 테스트
-- [ ] TEST WORKFLOW (lint/unit/build/e2e)
-- [ ] /ai-review + SUMMARY
-- [ ] consistency-check --impl-done
+- [x] (code) use-widget open→start(단일가드)·firstMessage 제거·첫 waiting 표면 렌더·세션복원 시 미시작, widget-state START 무인자, panel composer 게이팅, eia-client payload firstMessage 제거 (commit 4774e096)
+- [x] 테스트 — widget-state reducer 갱신 + eager-start hook 테스트(open→start, firstMessage 미포함, 중복 open 단일, 세션복원 미시작) + C1 queue-flush 회귀 + newChat/실패재시도 + panel composer 게이팅. unit 181
+- [x] TEST WORKFLOW — lint ✓ / unit ✓(181) / build ✓ / e2e ✓(174)
+- [x] /ai-review — `review/code/2026/06/06/12_14_27/` HIGH, Critical 1(C1 런처/추천질문 텍스트 유실)+Warning 10 → resolution-applier 처리(C1 queue-flush + W들), RESOLUTION.md (commit 6a4af359)
+- [x] SPEC-DRIFT(W2/I1/I2/I12) — 1-widget-app §2 런처 텍스트·§3 다이어그램 phase명(awaiting_user_message)·§3.2 updateProfile eager 기준 반영. (misplaced draft 정리)
+- [ ] consistency-check --impl-done (code+spec)
 - [ ] plan complete 이동
+
+## 비차단 backlog (impl-done/ai-review)
+- W4 useWidget God hook 분리(useTokenRefresh 추출), W10 start() check-then-set, I4 방치 execution idle cleanup, I6 composer allowlist 전환, I10 SSE 이벤트명 배열 파생 — 후속.
 
 ## 결정해야 할 세부
 
