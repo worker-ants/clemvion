@@ -90,8 +90,8 @@ owner: developer
 
 ### B1. park 시 coroutine 반환(해제) — 멀티턴 turn-단위(D4)
 - [x] **(PR-B1, commit 20836914)** `waitForFormSubmission`/`waitForButtonInteraction` 의 `await new Promise()` 대기 제거 — durable 영속 후 **즉시 반환**(PARK_RELEASED)해 `runExecution`/resume·retry 드라이브 세그먼트 종료. dockerized e2e(form park→cold rehydration→무손실 completed) 통과.
-- [ ] **(PR-B2)** 멀티턴 AI = turn-단위 park(D4): `runAiConversationLoop` 장수 루프 해제. PR-B1 은 in-memory 루프 유지(await).
-- [ ] **(PR-B2)** `runExecutionFromQueue` detached coroutine + `firstSegmentBarriers` 단순화/제거. PR-B1 은 form/button release 가 finally 의 `settleFirstSegment` 로 배리어를 깨워 worker job 반환(메커니즘 유지).
+- [x] **(PR-B2a #494)** 멀티턴 AI = turn-단위 park(D4): top-level `runAiConversationLoop` 해제 → `processAiResumeTurn`. **(PR-B2b `2dbb31b6`)** 중첩 포함 `runAiConversationLoop` 완전 제거.
+- [x] **(PR-B2b `2dbb31b6`)** `runExecutionFromQueue` detached coroutine + `firstSegmentBarriers` 제거 → `await runExecution` 직접(park=세그먼트 종료라 슬롯 점유 없음).
 
 ### B2. 재개 = 항상 rehydration
 - [x] **(PR-B1, form/button)** fresh top-level park 가 `pendingContinuations` 미등록 → `applyContinuation` fast-path miss → 항상 `rehydrateAndResume`(slow-path). 멀티턴 AI 는 PR-B2 까지 fast-path 잔존.
@@ -99,8 +99,8 @@ owner: developer
 - [x] **(PR-B1)** cancellation gap 수정: `applyCancellation` async + `cancelParkedExecution` — park-release 로 코루틴 없는 WAITING 행 직접 CANCELLED 마감. 불변식(동일 turn 이중 실행 0 = WAITING status 가드, 멱등 = affected 가드) 유지.
 
 ### B3. 정리(제거)
-- [ ] **(PR-B2)** `pendingContinuations` Map (AI fast-path 제거 후), `firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier` 제거 또는 축소.
-- [ ] **(PR-B2)** #468 의 W1/W2 방어 로직 중 해제로 불필요해진 부분 정리.
+- [x] **(PR-B2b `2dbb31b6`)** `pendingContinuations` Map·`firstSegmentBarriers`/`armFirstSegmentBarrier`/`settleFirstSegment`/`signalParkBarrier`/`resolvePending`/`rejectPending`/`firePayload`/`fireNested`/`NESTED_FIRE_*` 완전 제거.
+- [x] **(PR-B2b `2dbb31b6`)** #468 의 W1/W2 방어 로직(detach/barrier) 중 해제로 불필요해진 부분 정리 — worker `await` 직접 전환으로 흡수.
 
 ### PR-B2 구현 설계 (2026-06-06, 코드 정밀조사 기반 — branch `claude/exec-park-pr-b2`)
 > 대상: `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (8897줄). 무손실 전제 충족 확인 — `handleAiMessageTurn` waiting 분기(L5523-5542)가 **이미 매 turn `_resumeCheckpoint` 를 nodeExec 에 영속**. 단 thread/variables 스냅샷(`stageDurableResumeSnapshot`)은 첫 turn(`emitAiWaitingForInput` L5288)에서만 호출 → **PR-B2 핵심 델타 = 후속 turn park 에도 thread/variables 스냅샷 + WAITING 전이 추가**.
@@ -207,11 +207,13 @@ owner: developer
 - [x] **8c 중첩 재개**: `driveCallStackResume`+`driveResumeFrame`(frame-by-frame pointer 기반)+`injectInvokerOutput`. `resumeFromCheckpoint` 가 `resumeCallStack` non-null 시 분기(스키마 버전 가드; form/button=firePayload, AI=processAiResumeTurn). innermost turn 은 기존 waitForX('await')/processAiResumeTurn 재사용(B3 전이라 in-memory 머신 존속).
 - [x] **검증 (step 8)**: nest build OK, eslint clean, execution-engine unit **304+pass**, workflow.handler 42 pass. dockerized e2e **175 pass**(기존 suite 무회귀). commit `b0764ef9`.
 - [x] **REVIEW WORKFLOW (step 8)**: `/ai-review`(`review/code/2026/06/06/13_05_02`, HIGH — Critical 2=신규 resume 로직 단위테스트 공백/11 Warning) → `resolution-applier` 처리(fix commit `e8aaeaa7`: driveCallStackResume/driveResumeFrame/resumeFromCheckpoint 분기·버전가드 단위테스트 신설 + frames.length 가드·에러경로 방어 + WorkflowHandler/executeInline/park-release spec; 아키텍처 추출 4건 B3 로 deferred) → e2e 재통과 → RESOLUTION.md(`dfc8aecd`). `--impl-done` **BLOCK:NO**(`review/consistency/2026/06/06/13_43_53`, MEDIUM, W1~W4 모두 아래 spec flip 로 귀속).
-- [ ] **full B3 제거 (남음)**: 직접 처리기(processForm/ButtonResumeTurn) 추출 → waitForX 'await' 분기·firePayload(`fireNested` 포함)·pendingContinuations·barriers·runAiConversationLoop·signalParkBarrier 제거, detached→await, applyContinuation/Cancellation 일원화, applyRetryLastTurn replay 이관. + 아키텍처 추출(ai-review deferred: NestedResumeOrchestrator/ParkReleaseSignal→union-return 검토).
-- [ ] **dockerized e2e (남음)**: 중첩 sub-workflow blocking park→worker kill→재개 무손실 (D6 회귀 게이트). + crash-restart 시 executedNodes 재seed SoT 결정(--impl-done I2).
-- [ ] **spec flip (남음, project-planner)**: `--impl-done` W1~W4 일괄 — (W1) §Rationale "D6 구현 완료·B3 분리" 번경 근거, (W2) §7.5 step 2 알고리즘을 innermost-first `driveResumeFrame`+iterative bubble-up 으로 정정(SPEC-DRIFT draft `spec-update-exec-park-d6-rehydration-step2.md` 반영), (W3) §4.x·§7.5·§Rationale·1-data-model §2.13 "구현 완료(PR-B2b)" 배너 flip + D6 레이블 namespace, (W4) `conventions/execution-context.md` 원칙4 선례 목록에 `_callStack` 등재. project-planner 위임.
-- [ ] **PR-B2a follow-up (남음)**: LLM_STUB_MODE 문서화·EIA §8.3·doc-sync·e2e ENCRYPTION_KEY.
-> **차수 메모 (2026-06-06)**: **step 8(중첩 durable resume) 완료** — building·lint·unit·e2e green, ai-review resolved, `--impl-done` BLOCK:NO. commits `b0764ef9`(feat)·`e8aaeaa7`(fix)·`dfc8aecd`(resolution). full B3 제거·중첩 e2e·spec flip 은 동일 worktree 후속 커밋(plan 시퀀싱 8→B3). spec flip 은 step 8 이 spec 보다 앞선 SPEC-DRIFT(§7.5)를 포함하므로 B3 와 묶어 일괄 반영.
+- [x] **full B3 제거 완료** (commit `2dbb31b6`): 직접 처리기 `processForm/ButtonResumeTurn` 추출, waitForX 3종 park-only, `pendingContinuations`·`firstSegmentBarriers`·`armFirstSegmentBarrier`·`settleFirstSegment`·`signalParkBarrier`·`resolvePending`·`rejectPending`·`runAiConversationLoop`·`firePayload`/`fireNested`·`NESTED_FIRE_*` 제거, detached→await(runExecutionFromQueue/resumeFromCheckpoint), applyContinuation 항상 rehydrate·applyCancellation 항상 cancelParkedExecution, applyRetryLastTurn→processAiResumeTurn(retryReentry) 이관, background body park→ParkReleaseSignal graceful, processForm/Button RUNNING 가드. **단위 테스트 40개 신모델 재작성(execution-engine 679 pass)** + B3 ai-review 의 추가 단위테스트(W1/W3/W5)·예외전파 가드(W7)·stale 주석(W10) (commit `a053630f`). 아키텍처 추출(W11/W12: ProcessTurnResult 타입·updateExecutionStatus 멱등 가드)은 deferred(저위험, RESOLUTION 기록).
+- [x] **dockerized e2e 완료** (commit `247f5cb5`): 중첩 sub-workflow form park→cold rehydration(`driveCallStackResume`) 무손실 재개 + `resume_call_stack` durable 영속·terminal clear 검증. **e2e 176 pass**(기존 175 + 중첩 1). e2e 가 terminal resume_call_stack clear 누락(driveCallStackResume/finalizeResumedExecutionOutcome) 을 잡아 동반 수정.
+- [x] **spec flip 완료** (commits `5dc6444f`·`7c6d0f2c`·`35524fe4`): 4-execution-engine §4.x/§6.2/§7.4/§7.5(step2+diagram)/§12.2/§1.3/§Rationale·1-data-model §2.13·conventions/execution-context.md 원칙4·data-flow/3-execution §1.3·4-nodes/6-presentation/0-common §10.9·websocket-protocol §4.2 모두 full B3 완료형 정합. D6 레이블 disambiguate. SPEC-DRIFT draft 회수. `--impl-done` W1~W4 + ai-review W8/W9 + INFO6 해소.
+- [ ] **PR-B2a follow-up (남음, 분리)**: LLM_STUB_MODE 문서화·EIA §8.3·doc-sync·e2e ENCRYPTION_KEY. (본 PR 범위 밖 — 별도 처리.)
+- [ ] **umbrella 잔여(분리)**: Phase 0 PR3 rehydration 일반화(--impl-done I9 재검토), node-cancellation §2, W4 cross-worktree rebase(`impl-concurrency-cap-pr2b`), W11/W12 아키텍처 추출(ProcessTurnResult 타입·updateExecutionStatus 멱등 가드).
+- [ ] **잔여 doc polish(비차단, 최종 --impl-done `16_16_04` BLOCK:NO)**: (W2) `driveResumeDetached` JSDoc "void로(detach) 호출" → "worker 직접 await" 정정; (INFO8/9) `spec/conventions/execution-context.md`·`spec/5-system/4-execution-engine.md` frontmatter `code:` 에 `codebase/backend/src/shared/execution-resume/**` 등록; (INFO5) `1-ai-agent §7` 잔존 `runAiConversationLoop` 언급 turn-park 주석. — 리뷰-게이트 루프 회피 위해 본 PR 에서는 미적용(게이트 GREEN 유지), 후속 doc PR 또는 umbrella 정리 시 일괄.
+> **차수 메모 (2026-06-06)**: **PR-B2b 완료** (step 8 durable nested resume → full B3 제거 → 중첩 e2e → spec flip). 7+ commits, execution-engine unit 690+ pass, dockerized e2e 176 pass, build·lint clean. ai-review 2회(step8 HIGH→resolved, full-B3 MEDIUM 0-Critical→resolved), `--impl-done` BLOCK:NO. plan 시퀀싱(8→B3) 준수, 리뷰-게이트 루프 회피(코드 fix 배치 + review/** 전용 종결 커밋).
 
 - 2026-06-05 착수. #468 머지 확인(main `9f30216f`). durability 맵 조사 완료(본 plan "현행 durability 맵").
 - **2026-06-05 PR-B1 완료** (branch `claude/exec-park-b1`, base origin/main `84dd7314` #480): form/button park-release + slow-path 일원화 + cancellation gap 수정. 빌드·lint·unit(668)·dockerized e2e(29 suites/174, 신규 `execution-park-resume.e2e-spec.ts` 포함) 통과. ai-review(MEDIUM, Critical 0/Warning 19 → resolution 19/19 처리, e2e pass) → `--impl-done`(BLOCK:NO, `review/consistency/2026/06/05/15_27_01`).
