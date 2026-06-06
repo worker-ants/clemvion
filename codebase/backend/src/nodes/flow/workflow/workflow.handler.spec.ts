@@ -7,6 +7,7 @@ import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
 import { ErrorCode } from '../../core/error-codes.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import { ParkReleaseSignal } from '../../../shared/execution-resume/park-release-signal.js';
 
 describe('WorkflowHandler', () => {
   let handler: WorkflowHandler;
@@ -655,6 +656,41 @@ describe('WorkflowHandler', () => {
       // failed" fallback substring. The instanceof branch must take priority.
       const trap = new WorkflowNotFoundError('wf-queue-failed');
       expect(mapSubWorkflowError(trap)).toBe(ErrorCode.SUB_WORKFLOW_NOT_FOUND);
+    });
+  });
+
+  // WARNING #7 (ai-review) — WorkflowHandler 가 ParkReleaseSignal 을 re-throw 하는지
+  // 검증. 분기 누락 시 buildSubWorkflowError 로 흡수되어 잘못된 error 포트 라우팅 발생.
+  describe('execute - ParkReleaseSignal re-throw (exec-park D6)', () => {
+    const syncConfig = {
+      workflowId: 'sub-wf-park',
+      mode: 'sync' as const,
+    };
+
+    it('ParkReleaseSignal 은 error 포트로 라우팅되지 않고 re-throw 된다', async () => {
+      mockExecutor.executeInline.mockRejectedValue(new ParkReleaseSignal());
+
+      // handler 는 ParkReleaseSignal 을 buildSubWorkflowError 로 변환하지 않고
+      // 그대로 re-throw 해야 한다. executor(executeNode → runExecution)가
+      // 이 신호를 받아 세그먼트를 종료한다.
+      await expect(handler.execute({}, syncConfig, context)).rejects.toThrow(
+        ParkReleaseSignal,
+      );
+    });
+
+    it('ParkReleaseSignal 이 throw 되면 error 포트 결과가 반환되지 않는다', async () => {
+      mockExecutor.executeInline.mockRejectedValue(new ParkReleaseSignal());
+
+      let result: unknown;
+      try {
+        result = await handler.execute({}, syncConfig, context);
+      } catch {
+        // 정상 경로 — ParkReleaseSignal re-throw 로 인해 catch 에 도달한다.
+        result = 'caught-park-signal';
+      }
+      // buildSubWorkflowError 에 의해 error 포트 객체가 반환되지 않았다.
+      expect(result).toBe('caught-park-signal');
+      expect((result as { port?: string } | undefined)?.port).toBeUndefined();
     });
   });
 });

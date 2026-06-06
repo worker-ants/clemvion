@@ -1,4 +1,5 @@
 import type { ConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
+import type { ResumeCallStackFrame } from '../../shared/execution-resume/resume-call-stack.types';
 
 export interface ExecutionContext {
   executionId: string;
@@ -191,6 +192,19 @@ export interface ExecutionContext {
    * chat-channel 은 후속 PR 에서 점진 통합.
    */
   abortSignal?: AbortSignal;
+  /**
+   * 엔진 내부 상태 — 중첩 sub-workflow(`executeInline`) durable park/재개용
+   * **호출 체인 스택**. `executeInline` 진입 시(recursionDepth>0) outermost→innermost
+   * 순으로 frame(`{workflowId, invokerNodeId, recursionDepth}`)을 push, finally 에서
+   * pop 한다. 중첩 blocking 노드가 release park 할 때 `stageDurableResumeSnapshot` 가
+   * 이 스택을 `Execution.resume_call_stack`(V087) 에 상태전이 트랜잭션과 원자 영속하고,
+   * §7.5 rehydration 이 이를 읽어 frame-by-frame 재진입한다. top-level(중첩 없음)은
+   * 빈 배열/미설정 → 컬럼 NULL. 핸들러는 읽지 않는다 (`_` prefix = internal).
+   *
+   * 타입: `src/shared/execution-resume/resume-call-stack.types.ts` 의 `ResumeCallStackFrame`.
+   * spec: 5-system/4-execution-engine.md §7.5/§Rationale(exec-park D6), 1-data-model §2.13.
+   */
+  _callStack?: ResumeCallStackFrame[];
 }
 
 /**

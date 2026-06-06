@@ -14,6 +14,8 @@ import {
   buildConversationMetaFromResumeState,
   userMessageSignalApplies,
 } from './execution-engine.service';
+import { CALL_STACK_SCHEMA_VERSION } from '../../shared/execution-resume/resume-call-stack.types';
+import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
 import {
   InvalidExecutionStateError,
   ExecutionTimeLimitError,
@@ -73,13 +75,12 @@ function flushPromises(): Promise<void> {
 }
 
 /**
- * Phase B (PR-B1) — form/button 재개는 fast-path(동기 resolve)가 아니라 §7.5
- * slow-path(`rehydrateAndResume` → detached `driveResumeDetached` + setTimeout
- * 기반 `firePayload`)로 일원화됐다. 따라서 resume 트리거 후 detached 드라이브가
- * 완료되도록 실제 타이머를 한 번 흘려보낸 뒤 assertion 한다. (firePayload 는
- * setTimeout(0) 시작 + 20ms 폴링이므로 200ms 면 CI 고부하 환경에서도 첫
- * fire+그래프 구동을 충분히 덮는다. 기존 40ms 는 CI 고부하 시 sporadic false
- * negative 가 관측되었다 — W13.)
+ * exec-park D6 full B3 — form/button/AI 재개는 §7.5 rehydration
+ * (`applyContinuation` → `rehydrateAndResume` → awaited `driveResumeDetached` →
+ * 직접 처리기 processX)로 일원화됐다. resume 트리거(continue*)는 BullMQ publish
+ * 후 worker dispatch(applyContinuation)를 거치므로, 비동기 emit 정착을 위해 실제
+ * 타이머를 한 번 흘려보낸 뒤 assertion 한다. (200ms 는 CI 고부하 환경에서도 drive
+ * 완결을 충분히 덮는다 — 기존 40ms 는 CI 고부하 시 sporadic false negative — W13.)
  */
 function flushResumeDrive(ms = 200): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -553,26 +554,11 @@ describe('ExecutionEngineService', () => {
     };
   };
 
-  // W2 (SUMMARY) — `pendingContinuations` Map 타입 단언 공유 헬퍼.
-  // 여러 describe 블록에서 재사용하도록 최상위 describe 스코프로 승격.
-  const getPendings = (
-    svc: ExecutionEngineService,
-  ): Map<string, { nodeId: string; resolve: jest.Mock; reject: jest.Mock }> =>
-    (
-      svc as unknown as {
-        pendingContinuations: Map<
-          string,
-          { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
-        >;
-      }
-    ).pendingContinuations;
-
-  // Phase B (PR-B1) — fresh top-level form/button park 은 코루틴을 release 하고
-  // pendingContinuations 에 resolver 를 남기지 않는다(PARK_RELEASED). runExecution
-  // 은 unwind 후 finally 에서 in-memory ExecutionContext 를 정리하므로, resume
-  // (continue*)은 항상 §7.5 slow-path(applyContinuation → pendingContinuations
-  // MISS → rehydrateAndResume → rehydrateContext 로 context 재구성 → detached
-  // driveResumeDetached)로 일원화됐다. 이 헬퍼는 그 slow-path 가 통과하는 DB
+  // exec-park D6 full B3 — fresh top-level form/button park 은 durable persist +
+  // WAITING 전이로 완결하며 in-memory resolver/coroutine 잔류가 없다(PARK_RELEASED).
+  // resume(continue*)은 항상 §7.5 slow-path(applyContinuation → rehydrateAndResume
+  // → rehydrateContext 로 context 재구성 → awaited driveResumeDetached)로 일원화됐다.
+  // 아래 헬퍼는 그 slow-path 가 통과하는 DB
   // lookup mock 을 무장한다 (Phase 2.7 통합 테스트 L3357~ 패턴의 재사용 추출):
   //   - mockExecutionRepo.findOneBy → WAITING_FOR_INPUT execution
   //   - mockNodeExecutionRepo.find → resolveWaitingNodeExecutionId 의 단일 WAITING row
@@ -1042,8 +1028,6 @@ describe('ExecutionEngineService', () => {
       mockBus.publish.mockClear();
     });
 
-    // W8 (SUMMARY) / W2 (SUMMARY) — getPendings 공유 헬퍼 (최상위 describe 스코프) 사용.
-
     it('continueExecution → bus.publish({type:"continue", payload:{type:"form_submitted",formData}}) (spec §10.9 wrap)', async () => {
       // spec/4-nodes/6-presentation/0-common.md §10.9 — wrap 책임은
       // continueExecution. raw formData 가 아닌 sentinel 형태로 publish.
@@ -1162,27 +1146,32 @@ describe('ExecutionEngineService', () => {
       expect(mockBus.publish).not.toHaveBeenCalled();
     });
 
-    it('applyContinuation continue — msg.payload 를 그대로 resolvePending 으로 forward (spec §10.9 raw forward)', async () => {
-      // Phase 2 — BullMQ Worker (continuation-execution.processor) 가 호출하는
-      // applyContinuation 이 옛 `on('continue', handler)` 의 역할을 한다.
-      // payload sentinel 은 unwrap 없이 그대로 resolver 에 forward.
-      const resolveSpy = jest.fn();
-      const pendings = getPendings(service);
-      pendings.set('exec-1', {
-        nodeId: 'n1',
-        resolve: resolveSpy,
-        reject: jest.fn(),
-      });
+    it('applyContinuation continue — payload 를 그대로 rehydrateAndResume 로 forward (spec §10.9 raw forward)', async () => {
+      // exec-park D6 full B3 — park 가 항상 코루틴을 release 하므로 깨울 in-memory
+      // resolver 가 없다. applyContinuation 은 fast-path 없이 항상 §7.5 rehydration
+      // (rehydrateAndResume) 으로 진입하며 payload sentinel 을 unwrap 없이 그대로 전달한다.
+      const rehydrateSpy = jest
+        .spyOn(
+          service as unknown as {
+            rehydrateAndResume: (
+              id: string,
+              ne: string,
+              payload: unknown,
+            ) => Promise<void>;
+          },
+          'rehydrateAndResume',
+        )
+        .mockResolvedValue(undefined);
 
       await service.applyContinuation('exec-1', 'ne-1', {
         type: 'form_submitted',
         formData: { ok: 1 },
       });
-      expect(resolveSpy).toHaveBeenCalledWith({
+      expect(rehydrateSpy).toHaveBeenCalledWith('exec-1', 'ne-1', {
         type: 'form_submitted',
         formData: { ok: 1 },
       });
-      expect(pendings.has('exec-1')).toBe(false);
+      rehydrateSpy.mockRestore();
     });
 
     it('continueExecution — form 필드명이 "type" 인 페이로드도 sentinel wrap 으로 정확히 라우팅 (silent drop 회귀 방지, spec §10.9)', async () => {
@@ -1203,22 +1192,29 @@ describe('ExecutionEngineService', () => {
         },
       });
 
-      // applyContinuation dispatch 도 sentinel 을 그대로 resolver 에 forward 하는지 검증.
-      const resolveSpy = jest.fn();
-      const pendings = getPendings(service);
-      pendings.set('exec-coll', {
-        nodeId: 'n1',
-        resolve: resolveSpy,
-        reject: jest.fn(),
-      });
+      // applyContinuation dispatch 도 sentinel 을 unwrap 없이 그대로 rehydrateAndResume
+      // 로 forward 하는지 검증.
+      const rehydrateSpy = jest
+        .spyOn(
+          service as unknown as {
+            rehydrateAndResume: (
+              id: string,
+              ne: string,
+              payload: unknown,
+            ) => Promise<void>;
+          },
+          'rehydrateAndResume',
+        )
+        .mockResolvedValue(undefined);
       await service.applyContinuation('exec-coll', 'ne-coll', {
         type: 'form_submitted',
         formData: { type: '주문 문의', contact: '010-1234-5678' },
       });
-      expect(resolveSpy).toHaveBeenCalledWith({
+      expect(rehydrateSpy).toHaveBeenCalledWith('exec-coll', 'ne-coll', {
         type: 'form_submitted',
         formData: { type: '주문 문의', contact: '010-1234-5678' },
       });
+      rehydrateSpy.mockRestore();
     });
 
     it('continueExecution — undefined formData 도 sentinel wrap (빈 폼 제출, TypeError 회피)', async () => {
@@ -1232,12 +1228,9 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    // W11 — applyCancellation async 전환 후 실질 검증력 복원.
-    // (a) pendingContinuations 에 키 없음 → cancelParkedExecution(DB 경로) 실행 확인.
-    it('applyCancellation — pendingContinuations 키 없으면 cancelParkedExecution(createQueryBuilder) 경로 실행', async () => {
-      const pendings = getPendings(service);
-      pendings.clear();
-
+    // W11 — applyCancellation 는 exec-park D6 full B3 에서 항상 cancelParkedExecution
+    // (durable WAITING DB 마감) 으로 위임한다 (in-memory rejectPending 경로 제거).
+    it('applyCancellation — cancelParkedExecution(createQueryBuilder) 경로 실행', async () => {
       const execQb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
@@ -1255,65 +1248,53 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.createQueryBuilder).toHaveBeenCalled();
     });
 
-    // W12 — pendingContinuations 에 항목이 있으면 rejectPending 경로로 처리되며
-    // cancelParkedExecution(createQueryBuilder) 가 호출되지 않는다.
-    it('applyCancellation — pendingContinuations 에 항목 있으면 rejectPending 경로 (createQueryBuilder 미호출)', async () => {
-      const pendings = getPendings(service);
-      pendings.set('exec-with-pending', {
-        nodeId: 'n1',
-        resolve: jest.fn(),
-        reject: jest.fn(),
-      });
-
-      mockExecutionRepo.createQueryBuilder = jest.fn();
-
-      await service.applyCancellation('exec-with-pending');
-
-      // in-memory 코루틴 경로 — DB write 없음.
-      expect(mockExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
-      // reject 가 호출돼 코루틴이 깨어나야 한다.
-      const entry = pendings.get('exec-with-pending');
-      // rejectPending 이 Map 에서 삭제하므로 entry 는 undefined 가 된다.
-      expect(pendings.has('exec-with-pending')).toBe(false);
-      void entry; // used above indirectly
-    });
-
-    it('applyContinuation button_click — payload 누락 시 buttonId: undefined 로 resolve (review I9)', async () => {
-      const resolveSpy = jest.fn();
-      const pendings = getPendings(service);
-      pendings.set('exec-btn', {
-        nodeId: 'n1',
-        resolve: resolveSpy,
-        reject: jest.fn(),
-      });
+    it('applyContinuation button_click — payload 누락 시 buttonId: undefined 로 rehydrateAndResume forward (review I9)', async () => {
+      const rehydrateSpy = jest
+        .spyOn(
+          service as unknown as {
+            rehydrateAndResume: (
+              id: string,
+              ne: string,
+              payload: unknown,
+            ) => Promise<void>;
+          },
+          'rehydrateAndResume',
+        )
+        .mockResolvedValue(undefined);
 
       await service.applyContinuation('exec-btn', 'ne-btn', {
         type: 'button_click',
         buttonId: undefined,
       });
-      expect(resolveSpy).toHaveBeenCalledWith({
+      expect(rehydrateSpy).toHaveBeenCalledWith('exec-btn', 'ne-btn', {
         type: 'button_click',
         buttonId: undefined,
       });
+      rehydrateSpy.mockRestore();
     });
 
     it('applyContinuation ai_message — 길이 초과 메시지는 silent drop (인-프로세스 직접 publish 우회 방어)', async () => {
-      const resolveSpy = jest.fn();
-      const pendings = getPendings(service);
-      pendings.set('exec-ai', {
-        nodeId: 'n1',
-        resolve: resolveSpy,
-        reject: jest.fn(),
-      });
+      // 길이 가드는 rehydrateAndResume 진입 전에 동작 — drive 가 시작되지 않아야 한다.
+      const rehydrateSpy = jest
+        .spyOn(
+          service as unknown as {
+            rehydrateAndResume: (
+              id: string,
+              ne: string,
+              payload: unknown,
+            ) => Promise<void>;
+          },
+          'rehydrateAndResume',
+        )
+        .mockResolvedValue(undefined);
 
       const oversized = 'x'.repeat(10_001);
       await service.applyContinuation('exec-ai', 'ne-ai', {
         type: 'ai_message',
         message: oversized,
       });
-      expect(resolveSpy).not.toHaveBeenCalled();
-      // Map 은 그대로 — 호스트 인스턴스의 다른 정상 메시지를 기다릴 수 있도록.
-      expect(pendings.has('exec-ai')).toBe(true);
+      expect(rehydrateSpy).not.toHaveBeenCalled();
+      rehydrateSpy.mockRestore();
     });
   });
 
@@ -1721,50 +1702,6 @@ describe('ExecutionEngineService', () => {
       );
 
       expect(capturedKey).toBe(`bg:${executionId}:root`);
-      inlineSpy.mockRestore();
-    });
-
-    // interactive 본문 노드의 pendingContinuations 는 bgKey 로 격리돼야 하고
-    // (메인 executionId resolver stomp 금지), finally 에서 정리돼야 한다.
-    it('isolates body pendingContinuations under bgKey and cleans it up without stomping the main resolver', async () => {
-      const svcAny = service as unknown as {
-        pendingContinuations: Map<string, unknown>;
-      };
-      const bgKey = `bg:${executionId}:bg-run-iso`;
-
-      // 메인 흐름이 대기 중인 resolver (executionId 키) — bg 가 덮어쓰면 안 된다.
-      const mainEntry = {
-        nodeId: 'main',
-        resolve: jest.fn(),
-        reject: jest.fn(),
-      };
-      svcAny.pendingContinuations.set(executionId, mainEntry);
-
-      const inlineSpy = jest
-        .spyOn(service, 'executeInline')
-        .mockImplementation((_w, _i, options) => {
-          // waitForX 가 하는 일을 모사: 본문 context 키(bgKey)로 resolver 등록.
-          svcAny.pendingContinuations.set(
-            options.context._contextKey as string,
-            {
-              nodeId: 'body',
-              resolve: jest.fn(),
-              reject: jest.fn(),
-            },
-          );
-          return Promise.resolve(undefined);
-        });
-
-      await service.executeBackgroundSubgraph(
-        makeBgJob({ backgroundRunId: 'bg-run-iso' }),
-      );
-
-      // 본문 resolver 는 bgKey 로 등록됐다가 finally 에서 정리됨.
-      expect(svcAny.pendingContinuations.has(bgKey)).toBe(false);
-      // 메인 resolver(executionId)는 stomp/삭제되지 않고 그대로 유지.
-      expect(svcAny.pendingContinuations.get(executionId)).toBe(mainEntry);
-
-      svcAny.pendingContinuations.delete(executionId);
       inlineSpy.mockRestore();
     });
 
@@ -2227,68 +2164,27 @@ describe('ExecutionEngineService', () => {
       }
     });
 
-    it('W1: 동일 executionId 재 arm 시 이전 배리어가 settle 돼 awaiter 가 hang 하지 않음', async () => {
-      const arm = (
-        service as unknown as {
-          armFirstSegmentBarrier: (id: string) => Promise<void>;
-        }
-      ).armFirstSegmentBarrier.bind(service);
-      let firstResolved = false;
-      void arm(executionId).then(() => {
-        firstResolved = true;
-      });
-      // 동일 키 재 arm → 이전 배리어를 settle(awaiter 해제) 후 새 배리어로 교체.
-      void arm(executionId);
-      await flushPromises();
-      expect(firstResolved).toBe(true);
-    });
-
-    it('멱등: settleFirstSegment 이중 호출 시 resolve 1회 + 키 삭제 (두 번째 no-op)', async () => {
-      const svc = service as unknown as {
-        armFirstSegmentBarrier: (id: string) => Promise<void>;
-        settleFirstSegment: (id: string) => void;
-        firstSegmentBarriers: Map<string, unknown>;
-      };
-      let resolvedCount = 0;
-      void svc.armFirstSegmentBarrier(executionId).then(() => {
-        resolvedCount += 1;
-      });
-      svc.settleFirstSegment(executionId); // 첫 정착 — resolve + delete
-      svc.settleFirstSegment(executionId); // 두 번째 — 키 부재로 no-op (throw 없이)
-      await flushPromises();
-      expect(resolvedCount).toBe(1);
-      expect(svc.firstSegmentBarriers.has(executionId)).toBe(false);
-    });
-
-    it('signalParkBarrier: main flow 는 정착, background subgraph(bg: 키)는 no-op', async () => {
-      const svc = service as unknown as {
-        armFirstSegmentBarrier: (id: string) => Promise<void>;
-        signalParkBarrier: (ctx: {
-          executionId: string;
-          _contextKey?: string;
-        }) => void;
-        settleFirstSegment: (id: string) => void;
-        firstSegmentBarriers: Map<string, unknown>;
-      };
-
-      // (1) bg context (_contextKey = bg:...) → contextKeyOf ≠ executionId → no-op
-      let bgResolved = false;
-      void svc.armFirstSegmentBarrier(executionId).then(() => {
-        bgResolved = true;
-      });
-      svc.signalParkBarrier({
-        executionId,
-        _contextKey: `bg:${executionId}:run-1`,
-      });
-      await flushPromises();
-      expect(bgResolved).toBe(false);
-      expect(svc.firstSegmentBarriers.has(executionId)).toBe(true);
-
-      // (2) main context (_contextKey 없음) → contextKeyOf === executionId → 정착
-      svc.signalParkBarrier({ executionId });
-      await flushPromises();
-      expect(bgResolved).toBe(true);
-      expect(svc.firstSegmentBarriers.has(executionId)).toBe(false);
+    // exec-park D6 full B3 — 배리어(armFirstSegmentBarrier/settleFirstSegment/
+    // signalParkBarrier) 와 detach 모델이 제거됐다. runExecutionFromQueue 는
+    // try/catch 안에서 runExecution 을 직접 await 하며, park 는 세그먼트 종료
+    // (runExecution 정상 반환)이므로 worker 가 자연스럽게 반환한다.
+    it('runExecution 을 직접 await 하고 park(정상 반환) 후 worker 가 반환한다', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-park' }),
+      );
+      // park = runExecution 이 정상 resolve (segment end). 별도 배리어 await 없이
+      // runExecutionFromQueue 가 그 promise 를 await 후 반환해야 한다.
+      const runSpy = jest
+        .spyOn(
+          service as unknown as { runExecution: jest.Mock },
+          'runExecution',
+        )
+        .mockResolvedValueOnce(undefined);
+      await expect(
+        service.runExecutionFromQueue(executionId, {}),
+      ).resolves.toBeUndefined();
+      expect(runSpy).toHaveBeenCalledTimes(1);
+      runSpy.mockRestore();
     });
   });
 
@@ -2405,21 +2301,13 @@ describe('ExecutionEngineService', () => {
     // 의 graceful "세션 만료" 안내가 conversationKey 없이 emit 돼 ChatChannelDispatcher
     // 가 outbound skip → 사용자 무음. 본 describe 는 재개 시 재등록 회귀 가드.
 
-    // pendingContinuations 가 비어 있으면 applyContinuation 이 slow path
-    // (rehydrateAndResume) 로 진입한다. execution row 만 WAITING_FOR_INPUT 로
+    // exec-park D6 full B3 — applyContinuation 은 fast-path 없이 항상 rehydration
+    // (rehydrateAndResume) 으로 진입한다. execution row 만 WAITING_FOR_INPUT 로
     // 주고 nodeExec 를 null 로 만들어 RESUME_CHECKPOINT_MISSING 으로 조기 종료시킨다
     // (재등록은 그 실패 이전에 일어나므로 어떤 RESUME_* 케이스든 동일하게 보장됨).
     const driveResumeSlowPath = async (
       executionRow: Partial<Execution>,
     ): Promise<void> => {
-      // WARNING #2 — 다른 테스트가 같은 executionId 를 pendingContinuations 에
-      // 남기면 applyContinuation 이 fast-path 로 빠져 slow-path(rehydrateAndResume)
-      // 에 진입하지 않아 silent false-negative 가 된다. 매 호출마다 강제 비운다.
-      (
-        service as unknown as {
-          pendingContinuations: Map<string, unknown>;
-        }
-      ).pendingContinuations.clear();
       mockExecutionRepo.findOneBy.mockResolvedValueOnce(executionRow);
       mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValueOnce(null);
       mockWebsocketService.registerExecutionRouting.mockClear();
@@ -3310,10 +3198,9 @@ describe('ExecutionEngineService', () => {
       // 않는다. (옛 버그라면 이 await 는 영원히 resolve 되지 않아 timeout.)
       await expect(fromQueue).resolves.toBeUndefined();
 
-      // 새 불변식: 코루틴 해제 → in-memory resolver 잔류 없음 (bounded memory).
-      const pendings = getPendings(service);
-      expect(pendings.has(executionId)).toBe(false);
-      // 아직 form 다음(End) 노드는 실행되지 않았다 (start 만).
+      // exec-park D6 full B3 — park 는 durable persist + WAITING 전이로 완결되며
+      // in-memory resolver/coroutine 잔류가 없다 (bounded memory). 아직 form
+      // 다음(End) 노드는 실행되지 않았다 (start 만).
       expect(mockHandler.execute).toHaveBeenCalledTimes(1);
 
       // 이후 사용자 제출은 §7.5 slow-path(rehydration)로 lossless 재개 → 완료.
@@ -3367,10 +3254,9 @@ describe('ExecutionEngineService', () => {
       // A: 폼 워크플로로 park.
       const aQueue = service.runExecutionFromQueue(execA, { data: 'a' });
       await expect(aQueue).resolves.toBeUndefined();
-      // Phase B (PR-B1) — fresh top-level park 은 코루틴을 release 하므로 A 는
-      // in-memory resolver 를 보유하지 않는다 (released). 대신 DB 행이
-      // WAITING_FOR_INPUT 으로 durable 영속됐다.
-      expect(getPendings(service).has(execA)).toBe(false);
+      // exec-park D6 full B3 — fresh top-level park 은 durable persist + WAITING
+      // 전이로 완결한다 (in-memory coroutine 잔류 없음). A 의 DB 행이
+      // WAITING_FOR_INPUT 으로 영속됐다.
       expect(statusById[execA]).toBe(ExecutionStatus.WAITING_FOR_INPUT);
 
       // B: 폼 없는 단순 워크플로(start→end, 모두 test_node)로 즉시 완료.
@@ -3395,8 +3281,7 @@ describe('ExecutionEngineService', () => {
         'execution.completed',
         expect.objectContaining({ status: 'completed' }),
       );
-      // A 는 여전히 parked (released coroutine, DB WAITING) — resolver 잔류 없음.
-      expect(getPendings(service).has(execA)).toBe(false);
+      // A 는 여전히 parked (durable DB WAITING, in-memory coroutine 없음).
       expect(statusById[execA]).toBe(ExecutionStatus.WAITING_FOR_INPUT);
     });
 
@@ -3588,12 +3473,10 @@ describe('ExecutionEngineService', () => {
       ).outputData;
       expect(persistedFormOutput).toBeDefined();
 
-      // 3. 인스턴스 재시작 시뮬레이션 — in-memory resolver 강제 제거 + 같은 id 의
-      //    in-memory context 도 제거하여 rehydrateContext 가 DB 에서 재구성하도록.
-      const pendings = (
-        service as unknown as { pendingContinuations: Map<string, unknown> }
-      ).pendingContinuations;
-      pendings.clear();
+      // 3. 인스턴스 재시작 시뮬레이션 — 같은 id 의 in-memory context 를 제거하여
+      //    rehydrateContext 가 DB 에서 재구성하도록 한다. (exec-park D6 full B3 —
+      //    in-memory resolver/pendingContinuations 자체가 없으므로 applyContinuation
+      //    은 항상 rehydrateAndResume slow-path 로 진입한다.)
       const contextService = (
         service as unknown as { contextService: ExecutionContextService }
       ).contextService;
@@ -3674,15 +3557,15 @@ describe('ExecutionEngineService', () => {
       mockWebsocketService.emitNodeEvent.mockClear();
 
       // 5. BullMQ Worker pickup 시뮬레이션 — applyContinuation 직접 호출.
-      //    pendingContinuations 가 비어있으므로 rehydrateAndResume 로 진입.
+      //    exec-park D6 full B3 — applyContinuation 은 항상 rehydrateAndResume 로 진입.
       await service.applyContinuation('execution-1', 'ne-node-form', {
         type: 'form_submitted',
         formData: { approved: true },
       });
-      // applyContinuation 은 slow-path 에서 전체 resume 구동을 detach 하고 즉시
-      // 반환한다 (worker 비점유). 구동은 백그라운드에서 firePayload(real
-      // setTimeout 0 → 20ms polling)가 form 입력을 전달 → waitForFormSubmission
-      // → 그래프 순회 → COMPLETED 로 진행하므로, real-timer 로 완료까지 polling.
+      // applyContinuation → rehydrateAndResume → resumeFromCheckpoint →
+      // driveResumeDetached 가 도착 payload 를 processFormResumeTurn 으로 직접
+      // 전달하고 남은 그래프를 순회해 COMPLETED 로 진행한다. drive 는 await 되지만
+      // 비동기 emit 정착을 위해 안전하게 polling 한다.
       for (let i = 0; i < 50; i++) {
         const completed = (
           mockWebsocketService.emitExecutionEvent.mock.calls as unknown[][]
@@ -3942,9 +3825,8 @@ describe('ExecutionEngineService', () => {
       });
       await expect(fromQueue).resolves.toBeUndefined();
 
-      const pendings = getPendings(service);
-      // 새 불변식: 코루틴 해제 → in-memory resolver 잔류 없음 (bounded memory).
-      expect(pendings.has(executionId)).toBe(false);
+      // exec-park D6 full B3 — park 는 durable persist + WAITING 전이로 완결되며
+      // in-memory resolver/coroutine 잔류가 없다 (bounded memory).
       expect(mockHandler.execute).toHaveBeenCalledTimes(1); // start only
 
       // 클릭은 §7.5 slow-path(rehydration)로 재개 → btn-1 포트로 end 라우팅 → 완료.
@@ -4173,8 +4055,8 @@ describe('ExecutionEngineService', () => {
       // park-release — worker 진입점은 첫 park 에서 반환한다.
       await expect(fromQueue).resolves.toBeUndefined();
 
-      // 새 불변식: 코루틴 해제 → in-memory resolver 잔류 없음 (bounded memory).
-      expect(getPendings(service).has(executionId)).toBe(false);
+      // exec-park D6 full B3 — park 는 durable persist + WAITING 전이로 완결되며
+      // in-memory resolver/coroutine 잔류가 없다 (bounded memory).
 
       // 후속 turn 입력은 §7.5 slow-path(rehydration)로 재개 → 동일 노드의
       // processMultiTurnMessage 가 호출된다.
@@ -5247,43 +5129,44 @@ describe('ExecutionEngineService', () => {
     });
 
     // -------------------------------------------------------------------------
-    // W5 (SUMMARY) — buttonId 경계값 테스트 (64+, null, 숫자).
-    // slice(0, 64) 가드가 올바르게 동작하는지 확인.
+    // W5 (SUMMARY) — processAiResumeTurn 의 방어 가드.
+    // exec-park D6 full B3 — 옛 `runAiConversationLoop` 가 제거됐다. unknown
+    // action.type 의 `slice(0,64)` 가드와 stale button_click 의 graceful re-park 가
+    // 단발 turn 처리기 `processAiResumeTurn` 으로 이관됐다. 본 블록은 그 처리기를
+    // 직접 구동해 가드를 검증한다.
     // -------------------------------------------------------------------------
-    // Phase B (exec-park D4) — buttonId slice(0,64) + typeof 가드는 중첩
-    // executeInline / retry 재진입에서 살아있는 `runAiConversationLoop` 의
-    // button_click 분기에 위치한다 (top-level resume 의 processAiResumeTurn 은
-    // 상태 변경 없이 re-park 만 함). 본 W5 블록은 그 loop dispatch body 를 직접
-    // 구동해 가드를 검증한다 (loop 는 여전히 존재).
-    describe('W5 — buttonId 경계값 (runAiConversationLoop slice(0,64) 가드)', () => {
-      type LoopSubject = {
-        runAiConversationLoop: (
+    describe('W5 — processAiResumeTurn 방어 가드 (unknown type slice / stale button_click re-park)', () => {
+      type AiSubject = {
+        processAiResumeTurn: (
+          savedExecution: unknown,
           executionId: string,
           node: unknown,
           context: unknown,
           nodeExec: unknown,
-          initialResumeState: Record<string, unknown>,
-          initialAction?: unknown,
-        ) => Promise<'COMPLETED' | 'FAILED'>;
+          resumeState: Record<string, unknown>,
+          payload: unknown,
+          opts?: { retryReentry?: boolean },
+        ) => Promise<unknown>;
         contextService: {
-          createContext: (e: string, w: string) => unknown;
+          createContext: (e: string, w: string) => ExecutionContext;
         };
       };
 
-      // loop 를 직접 구동: context 생성 → runAiConversationLoop 시작 → loop 가
-      // pendingContinuations 에 등록한 resolver 로 button_click 주입 → 이어서
-      // ai_end_conversation 으로 정상 종료시켜 loop 를 반환시킨다.
-      const driveLoopButtonClick = async (
-        buttonId: unknown,
-      ): Promise<{ warnSpy: jest.SpyInstance }> => {
-        const endHandler = makeAiDispatchHandler(() => ({
+      // processAiResumeTurn 을 직접 구동한다. savedExecution 은 재개 드라이브가
+      // 이미 RUNNING 으로 전이한 상태를 모사(status=RUNNING)하므로, re-park 의
+      // RUNNING→WAITING_FOR_INPUT 전이가 유효하다. 반환값은 re-park 시 PARK_RELEASED
+      // (Symbol) 이다.
+      const driveResumeTurn = async (
+        payload: unknown,
+      ): Promise<{ warnSpy: jest.SpyInstance; result: unknown }> => {
+        const handler = makeAiDispatchHandler(() => ({
           config: { mode: 'multi_turn' },
           output: {},
           meta: {},
           port: 'ended',
           status: 'ended',
         }));
-        handlerRegistry.register('ai_agent', endHandler, {
+        handlerRegistry.register('ai_agent', handler, {
           kind: 'blocking',
           interaction: 'ai_conversation',
         });
@@ -5292,74 +5175,68 @@ describe('ExecutionEngineService', () => {
           .logger;
         const warnSpy = jest.spyOn(logger, 'warn');
 
-        const subject = service as unknown as LoopSubject;
+        const subject = service as unknown as AiSubject;
         const context = subject.contextService.createContext(
           executionId,
           workflowId,
         );
         const node = aiDispatchNodes[0];
-        const pendings = getPendings(service);
+        const savedExecution = {
+          id: executionId,
+          workflowId,
+          status: ExecutionStatus.RUNNING,
+          startedAt: new Date(),
+        };
 
-        const loopPromise = subject.runAiConversationLoop(
+        const result = await subject.processAiResumeTurn(
+          savedExecution,
           executionId,
           node,
           context,
           null,
           { messages: [], turnCount: 0 },
+          payload,
         );
-        // loop 가 첫 wait 에서 pending 을 등록할 때까지 microtask 플러시.
-        await flushPromises();
-
-        // button_click 주입 — loop 는 warn 후 재진입(다음 wait 등록).
-        getPendings(service)
-          .get(executionId)
-          ?.resolve({ type: 'button_click', buttonId });
-        await flushPromises();
-
-        // 재진입한 loop 의 새 pending 을 ai_end_conversation 으로 종료.
-        getPendings(service)
-          .get(executionId)
-          ?.resolve({ type: 'ai_end_conversation' });
-        await flushPromises();
-        await loopPromise;
-        void pendings;
-        return { warnSpy };
+        return { warnSpy, result };
       };
 
-      it('buttonId 64자 초과 → 64자로 슬라이싱되어 warn log 에 포함', async () => {
-        const { warnSpy } = await driveLoopButtonClick('a'.repeat(100));
+      it('unknown action.type 64자 초과 → 64자로 슬라이싱되어 warn log 에 포함 + re-park(PARK_RELEASED)', async () => {
+        const longType = 'a'.repeat(100);
+        const { warnSpy, result } = await driveResumeTurn({ type: longType });
 
-        const hasButtonClickWarn = warnSpy.mock.calls.some((args) => {
-          const ctx = args[1] as { buttonId?: string } | undefined;
-          return typeof ctx?.buttonId === 'string' && ctx.buttonId.length <= 64;
+        // unknown action.type 은 slice(0,64) 로 잘려 warn 메시지에 포함된다.
+        const hasSlicedWarn = warnSpy.mock.calls.some((args) => {
+          const msg = String(args[0]);
+          return (
+            msg.includes('unknown continuation action.type') &&
+            msg.includes('a'.repeat(64)) &&
+            !msg.includes('a'.repeat(65))
+          );
         });
-        expect(hasButtonClickWarn).toBe(true);
+        expect(hasSlicedWarn).toBe(true);
+        // 대화 alive — re-park 로 PARK_RELEASED 반환.
+        expect(typeof result).toBe('symbol');
         warnSpy.mockRestore();
       });
 
-      it('buttonId null → 빈 문자열 fallback (TypeError 없음)', async () => {
-        // null 은 ContinuationPayload 에서 string | undefined 이지만 런타임
-        // 신뢰 불가 — 방어 코드(typeof 가드) 검증. 예외 없이 loop 가 정상 종료.
-        const { warnSpy } = await driveLoopButtonClick(null);
-
-        const hasButtonClickWarn = warnSpy.mock.calls.some((args) => {
-          const ctx = args[1] as { buttonId?: string } | undefined;
-          return ctx?.buttonId === '';
-        });
-        expect(hasButtonClickWarn).toBe(true);
-        warnSpy.mockRestore();
-      });
-
-      it('buttonId 숫자 → 빈 문자열 fallback (typeof 가드)', async () => {
-        const { warnSpy } = await driveLoopButtonClick(42);
-
-        const hasButtonClickWarn = warnSpy.mock.calls.some((args) => {
-          const ctx = args[1] as { buttonId?: string } | undefined;
-          // 숫자는 빈 문자열 fallback 이므로 buttonId === ''
-          return ctx?.buttonId === '';
-        });
-        expect(hasButtonClickWarn).toBe(true);
-        warnSpy.mockRestore();
+      it('stale button_click → graceful re-park(PARK_RELEASED) + warn (TypeError 없음, buttonId 형태 무관)', async () => {
+        // ai_conversation 대기 중 도달한 button_click 은 상태 변경 없이 re-park.
+        // buttonId 가 어떤 형태든(긴 문자열/null/숫자) 처리기는 buttonId 를 읽지
+        // 않으므로 TypeError 없이 graceful re-park 한다.
+        for (const buttonId of ['a'.repeat(100), null, 42]) {
+          const { warnSpy, result } = await driveResumeTurn({
+            type: 'button_click',
+            buttonId,
+          });
+          const hasButtonWarn = warnSpy.mock.calls.some((args) =>
+            String(args[0]).includes(
+              'button_click received during ai_conversation',
+            ),
+          );
+          expect(hasButtonWarn).toBe(true);
+          expect(typeof result).toBe('symbol');
+          warnSpy.mockRestore();
+        }
       });
     });
   });
@@ -9748,6 +9625,104 @@ describe('ExecutionEngineService', () => {
         },
       );
     });
+
+    // exec-park D6 (PR-B2b) — 중첩 sub-workflow park 시 호출 체인(call stack)이
+    // `Execution.resume_call_stack` 에 durable 영속되는지 검증. stage 헬퍼가
+    // context._callStack 을 version envelope 로 직렬화한다.
+    it('stageDurableResumeSnapshot stages resume_call_stack from context._callStack (중첩 frame)', () => {
+      const execution = {
+        id: 'e-nested',
+        conversationThread: null,
+        userVariables: null,
+        resumeCallStack: null,
+      } as unknown;
+      const context = {
+        conversationThread: {
+          id: 'default',
+          nextSeq: 0,
+          turns: [],
+          totalChars: 0,
+        },
+        variables: { __workspaceId: 'ws-1' },
+        _callStack: [
+          {
+            workflowId: 'wf-sub-1',
+            invokerNodeId: 'node-wf-A',
+            recursionDepth: 1,
+          },
+          {
+            workflowId: 'wf-sub-2',
+            invokerNodeId: 'node-wf-B',
+            recursionDepth: 2,
+          },
+        ],
+      } as unknown;
+
+      ctxSubject().stageDurableResumeSnapshot(execution, context);
+
+      const ex = execution as {
+        resumeCallStack: { version: number; frames: unknown[] } | null;
+      };
+      expect(ex.resumeCallStack).not.toBeNull();
+      // WARNING #10 — 상수 참조로 교체: 하드코딩 1 → CALL_STACK_SCHEMA_VERSION.
+      // 상수가 변경될 경우 이 테스트도 자동으로 최신 값으로 검증된다.
+      expect(ex.resumeCallStack?.version).toBe(CALL_STACK_SCHEMA_VERSION);
+      expect(ex.resumeCallStack?.frames).toEqual([
+        {
+          workflowId: 'wf-sub-1',
+          invokerNodeId: 'node-wf-A',
+          recursionDepth: 1,
+        },
+        {
+          workflowId: 'wf-sub-2',
+          invokerNodeId: 'node-wf-B',
+          recursionDepth: 2,
+        },
+      ]);
+      // frame 은 얕은 복사(이후 pop mutation 격리) — 원본 배열과 레퍼런스 분리.
+      expect(ex.resumeCallStack?.frames).not.toBe(
+        (context as { _callStack: unknown[] })._callStack,
+      );
+    });
+
+    // exec-park D6 — top-level park(중첩 없음)은 resume_call_stack 을 NULL 로
+    // 명시 재설정한다 (중첩→재개→top-level park 시 stale stack 누수 방지).
+    it('stageDurableResumeSnapshot sets resume_call_stack=null for top-level park (빈/미설정 _callStack)', () => {
+      const base = {
+        conversationThread: {
+          id: 'default',
+          nextSeq: 0,
+          turns: [],
+          totalChars: 0,
+        },
+        variables: { __workspaceId: 'ws-1' },
+      };
+      // (a) _callStack 미설정.
+      const exNoStack = {
+        id: 'e-top-a',
+        conversationThread: null,
+        userVariables: null,
+        resumeCallStack: { version: 1, frames: [{ x: 1 }] }, // 이전 stale 값
+      } as unknown;
+      ctxSubject().stageDurableResumeSnapshot(exNoStack, base as unknown);
+      expect(
+        (exNoStack as { resumeCallStack: unknown }).resumeCallStack,
+      ).toBeNull();
+      // (b) _callStack === [].
+      const exEmpty = {
+        id: 'e-top-b',
+        conversationThread: null,
+        userVariables: null,
+        resumeCallStack: { version: 1, frames: [{ x: 1 }] },
+      } as unknown;
+      ctxSubject().stageDurableResumeSnapshot(exEmpty, {
+        ...base,
+        _callStack: [],
+      } as unknown);
+      expect(
+        (exEmpty as { resumeCallStack: unknown }).resumeCallStack,
+      ).toBeNull();
+    });
   });
 
   // PR-A2a — `_resumeCheckpoint` 견고화 (spec §1.3 / §7.5). checkpoint 에 스키마
@@ -9984,13 +9959,8 @@ describe('ExecutionEngineService', () => {
     const subject = () => service as unknown as RehydrationSubject;
 
     beforeEach(() => {
-      // 본 블록은 직접 rehydrateAndResume 을 호출하므로 fast-path 분기를
-      // 비활성화하기 위해 pendingContinuations 를 비운다.
-      (
-        service as unknown as {
-          pendingContinuations: Map<string, unknown>;
-        }
-      ).pendingContinuations.clear();
+      // exec-park D6 full B3 — rehydrateAndResume 은 fast-path 없이 항상 §7.5
+      // rehydration 으로 진입하므로 별도 비활성화가 필요 없다.
       mockExecutionRepo.findOneBy.mockReset();
       mockExecutionRepo.save.mockClear();
       // createQueryBuilder 의 chain mock — markExecutionCancelled /
@@ -10624,34 +10594,13 @@ describe('ExecutionEngineService', () => {
       waitSpyIe.mockRestore();
     });
 
-    // 회귀 가드 — continuation worker deadlock (운영 §7.4/§7.5).
-    // slow-path 재개는 BullMQ worker 의 process() 안에서 수행된다. worker 는
-    // **waitForX(현재 노드 재진입)도, 남은 그래프 구동도 await 하면 안 된다** —
-    // 그러면 다음 대기 노드 / ai_agent 멀티턴 대화에서 worker(WorkerHost
-    // concurrency=1)가 점유돼 이후 모든 continuation job 이 wait 큐에 적체된다
-    // (deadlock). 본 블록은 `driveResumeDetached` 가 영구 미완료(다음 노드 대기
-    // / 진행 중 대화)여도 `rehydrateAndResume`(worker 가 await 하는 promise)이
-    // 즉시 resolve 됨을 보장한다. 수정 전이면 hang → 1s deadlockGuard 로 실패.
-
-    // pendingContinuations 키를 등록하는 waitForX spy — firePayload 가 현재
-    // payload 를 한 번 전달(single-shot)한 뒤 polling 을 멈추게 해 테스트 타이머
-    // 누수를 방지한다. 반환 promise 는 호출자가 제어한다.
-    const stubWaitForX = (gate: Promise<unknown>): jest.Mock =>
-      jest.fn().mockImplementation((_se: unknown, eid: string) => {
-        (
-          service as unknown as {
-            pendingContinuations: Map<
-              string,
-              { nodeId: string; resolve: () => void; reject: () => void }
-            >;
-          }
-        ).pendingContinuations.set(eid, {
-          nodeId: 'node-1',
-          resolve: () => undefined,
-          reject: () => undefined,
-        });
-        return gate;
-      });
+    // exec-park D6 full B3 — slow-path 재개는 BullMQ worker 의 process() 안에서
+    // 수행되며, 이제 `driveResumeDetached` 를 **await** 한다 (옛 detach 모델 폐기).
+    // 단발 turn 처리기(processButtonResumeTurn / processAiResumeTurn)는 한 세그먼트
+    // (또는 멀티턴 AI 의 한 turn → re-park)만 처리하고 반환하므로 worker 슬롯
+    // deadlock 위험이 없다. 본 블록은 resume 드라이브가 도착 payload 를 직접 처리기로
+    // 전달하고 남은 그래프(runNodeDispatchLoop)를 구동해 완결됨을 가드한다. 1s
+    // completionGuard 로 hang 회귀를 잡는다.
 
     const twoNodeGraph = {
       graphNodes: [],
@@ -10672,7 +10621,7 @@ describe('ExecutionEngineService', () => {
       ]),
     };
 
-    function makeDeadlockGuard(): {
+    function makeCompletionGuard(): {
       guard: Promise<never>;
       timer: NodeJS.Timeout;
     } {
@@ -10682,7 +10631,7 @@ describe('ExecutionEngineService', () => {
           () =>
             reject(
               new Error(
-                'DEADLOCK: rehydrateAndResume 가 반환하지 않음 — worker 가 waitForX/그래프 구동을 await (detach 회귀)',
+                'HANG: rehydrateAndResume 가 반환하지 않음 — 처리기/그래프 구동이 완결되지 않음',
               ),
             ),
           1000,
@@ -10691,7 +10640,7 @@ describe('ExecutionEngineService', () => {
       return { guard, timer };
     }
 
-    it('slow-path resume 은 buttons waitForX + 다운스트림 그래프 구동을 detach — worker(process()) 즉시 반환', async () => {
+    it('slow-path resume 은 도착 payload 를 processButtonResumeTurn 으로 직접 전달하고 다운스트림 그래프를 await 구동해 완결한다', async () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: executionId,
         workflowId,
@@ -10720,30 +10669,29 @@ describe('ExecutionEngineService', () => {
 
       const svcAny = service as unknown as {
         loadAndBuildGraph: jest.Mock;
-        waitForButtonInteraction: jest.Mock;
+        processButtonResumeTurn: jest.Mock;
         runNodeDispatchLoop: jest.Mock;
         updateExecutionStatus: jest.Mock;
       };
       const orig = {
         load: svcAny.loadAndBuildGraph,
-        wait: svcAny.waitForButtonInteraction,
+        btn: svcAny.processButtonResumeTurn,
         loop: svcAny.runNodeDispatchLoop,
         upd: svcAny.updateExecutionStatus,
       };
       svcAny.loadAndBuildGraph = jest.fn().mockResolvedValue(twoNodeGraph);
       svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
-      // waitForButtonInteraction: 현재 클릭 처리 후 반환(단일 상호작용).
-      svcAny.waitForButtonInteraction = stubWaitForX(Promise.resolve());
-      // 다음 대기 노드에서 영구 대기하는 그래프 구동. Phase B (PR-B1) —
-      // runNodeDispatchLoop 는 { parked } 를 반환하므로 gate 도 동형으로 resolve.
-      let releaseDispatch!: () => void;
-      const dispatchGate = new Promise<{ parked: boolean }>((r) => {
-        releaseDispatch = () => r({ parked: false });
-      });
-      svcAny.runNodeDispatchLoop = jest.fn().mockReturnValue(dispatchGate);
+      // processButtonResumeTurn: 도착 click 을 직접 처리(단일 상호작용).
+      svcAny.processButtonResumeTurn = jest.fn().mockResolvedValue(undefined);
+      // 남은 그래프 구동 — 다음 노드에서 park (runNodeDispatchLoop 는 { parked } 반환).
+      svcAny.runNodeDispatchLoop = jest
+        .fn()
+        .mockResolvedValue({ parked: false });
 
-      const { guard, timer } = makeDeadlockGuard();
+      const { guard, timer } = makeCompletionGuard();
       try {
+        // resume 은 이제 await 된다 — 처리기 + 그래프 구동이 완결될 때까지 반환하지
+        // 않으며, 완결되면 정상 resolve 한다 (hang 없음).
         await Promise.race([
           subject().rehydrateAndResume(executionId, 'ne-1', {
             type: 'button_click',
@@ -10751,32 +10699,32 @@ describe('ExecutionEngineService', () => {
           }),
           guard,
         ]);
-        // worker 반환됨. detached drive 가 백그라운드에서 진행하는지 확인.
-        await flushPromises();
-        await flushPromises();
-        await flushPromises();
-        expect(svcAny.waitForButtonInteraction).toHaveBeenCalledTimes(1);
+        expect(svcAny.processButtonResumeTurn).toHaveBeenCalledTimes(1);
+        // 도착 payload 가 직접 처리기로 forward 됐는지.
+        expect(svcAny.processButtonResumeTurn).toHaveBeenCalledWith(
+          expect.anything(), // savedExecution
+          executionId,
+          expect.objectContaining({ id: 'node-1' }),
+          expect.anything(), // context
+          { type: 'button_click', buttonId: 'b1' },
+        );
         expect(svcAny.runNodeDispatchLoop).toHaveBeenCalledTimes(1);
       } finally {
         clearTimeout(timer);
-        releaseDispatch();
         await flushPromises();
         svcAny.loadAndBuildGraph = orig.load;
-        svcAny.waitForButtonInteraction = orig.wait;
+        svcAny.processButtonResumeTurn = orig.btn;
         svcAny.runNodeDispatchLoop = orig.loop;
         svcAny.updateExecutionStatus = orig.upd;
       }
     });
 
-    it('slow-path ai_agent 재개: processAiResumeTurn(단발 turn 처리)이 미반환이어도 worker(process()) 반환 — 텔레그램 대화가 다른 continuation 을 막지 않음', async () => {
-      // 운영 실측 회귀(원본): 텔레그램 ai_message 재개가 worker 안에서
-      // 장수 루프(옛 waitForAiConversation)를 await 하면 concurrency=1 worker 가
-      // 대화 수명 내내 점유돼 다른 continuation 이 영구 적체됐다.
-      //
-      // Phase B (exec-park D4) — 장수 루프 전제는 사라졌다. top-level AI resume 은
-      // 도착한 turn 1건을 processAiResumeTurn 으로 처리하고 (계속이면 re-park) 끝낸다.
-      // 본 테스트는 그 단발 turn 처리기조차 **미반환**(가장 보수적 가정)이어도
-      // worker 가 풀림 — 즉 worker 는 detached drive 를 await 하지 않음 — 을 가드한다.
+    it('slow-path ai_agent 재개: 도착 turn 을 processAiResumeTurn 으로 직접 전달하고 await 한다 — re-park(PARK_RELEASED) 시 그래프 구동 없이 완결', async () => {
+      // exec-park D6 full B3 — top-level AI resume 은 도착한 turn 1건을
+      // processAiResumeTurn 으로 처리하고 (계속이면 re-park) 끝낸다. resume 드라이브는
+      // 이제 await 되므로, 처리기가 반환할 때까지 기다린 뒤 정상 완결한다 (옛 detach
+      // 모델 폐기 — 단발 turn 이라 worker 슬롯 deadlock 위험 없음). re-park 면
+      // PARK_RELEASED 를 반환해 세그먼트를 종료(그래프 미진행)한다.
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: executionId,
         workflowId,
@@ -10833,15 +10781,12 @@ describe('ExecutionEngineService', () => {
         .fn()
         .mockResolvedValue({ parked: false });
       svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
-      // turn 처리기를 미반환 gate 로 스텁 — detach 검증의 가장 보수적 케이스.
-      let releaseTurn!: () => void;
-      const turnGate = new Promise<void>((r) => {
-        releaseTurn = r;
-      });
-      svcAny.processAiResumeTurn = jest.fn().mockReturnValue(turnGate);
+      // turn 처리기를 terminal(void resolve)로 스텁 — drive 가 이를 await 한다.
+      svcAny.processAiResumeTurn = jest.fn().mockResolvedValue(undefined);
 
-      const { guard, timer } = makeDeadlockGuard();
+      const { guard, timer } = makeCompletionGuard();
       try {
+        // resume 은 processAiResumeTurn(+남은 그래프)을 await 한 뒤 정상 완결한다.
         await Promise.race([
           subject().rehydrateAndResume(executionId, 'ne-1', {
             type: 'ai_message',
@@ -10849,10 +10794,6 @@ describe('ExecutionEngineService', () => {
           }),
           guard,
         ]);
-        // 핵심: processAiResumeTurn 이 미반환이어도 worker 가 풀렸다 — 즉 worker 는
-        // detached drive(processAiResumeTurn)를 await 하지 않는다.
-        await flushPromises();
-        await flushPromises();
         expect(svcAny.processAiResumeTurn).toHaveBeenCalledTimes(1);
         // 도착한 turn(payload)이 그대로 forward 됐는지.
         expect(svcAny.processAiResumeTurn).toHaveBeenCalledWith(
@@ -10866,8 +10807,6 @@ describe('ExecutionEngineService', () => {
         );
       } finally {
         clearTimeout(timer);
-        // detached drive 가 완주하도록 gate 해제 후 drain.
-        releaseTurn();
         await flushPromises();
         svcAny.loadAndBuildGraph = orig.load;
         svcAny.buildRetryReentryState = orig.build;
@@ -10994,6 +10933,949 @@ describe('ExecutionEngineService', () => {
         svcAny.buildRetryReentryState = orig.build;
         svcAny.updateExecutionStatus = orig.upd;
       }
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // CRITICAL #1 (ai-review) — driveCallStackResume / driveResumeFrame /
+  // injectInvokerOutput 단위 테스트. `as unknown as {...}` 패턴으로 private
+  // 접근. 5개 케이스 커버 (단일 depth AI COMPLETED; 2-depth bubble-up + invoker
+  // output 주입; 최내/외곽 frame parked → 반환; RehydrationError → markCancelled;
+  // ParkReleaseSignal catch 흡수). exec-park D6, spec §7.5.
+  // ──────────────────────────────────────────────────────────────────────
+  describe('driveCallStackResume / driveResumeFrame / injectInvokerOutput (CRITICAL #1)', () => {
+    // 공통 타입 — private API 를 노출해 직접 호출.
+    type DriveSubject = {
+      driveCallStackResume: (
+        savedExecution: unknown,
+        context: unknown,
+        opts: {
+          node: unknown;
+          nodeExec: unknown;
+          callStack: { version: number; frames: unknown[] };
+          persistedInteractionType: string | undefined;
+          isAiConversation: boolean;
+          resumeCheckpoint: Record<string, unknown> | undefined;
+          cachedOutput: Record<string, unknown> | undefined;
+          payload: unknown;
+        },
+      ) => Promise<void>;
+      driveResumeFrame: (
+        savedExecution: unknown,
+        context: unknown,
+        opts: Record<string, unknown>,
+      ) => Promise<{ parked: boolean; output: unknown }>;
+      injectInvokerOutput: (
+        context: unknown,
+        invokerNode: unknown,
+        subOutput: unknown,
+      ) => void;
+      markExecutionCancelled: (
+        executionId: string,
+        code: string,
+      ) => Promise<void>;
+      finalizeRehydrationCleanup: (executionId: string) => void;
+      updateExecutionStatus: (
+        execution: unknown,
+        status: unknown,
+      ) => Promise<void>;
+      executionRepository: { save: jest.Mock };
+      contextService: {
+        setStructuredOutput: (
+          key: string,
+          nodeId: string,
+          value: unknown,
+        ) => void;
+        setNodeOutput: (key: string, nodeId: string, value: unknown) => void;
+        createContext: (
+          executionId: string,
+          workflowId: string,
+        ) => ExecutionContext;
+      };
+    };
+
+    const driveSubject = () => service as unknown as DriveSubject;
+
+    let mockSavedExecution: Partial<Execution>;
+    let mockContext: ExecutionContext;
+    let mockNodeExec: Partial<NodeExecution>;
+    let buildChain: () => {
+      update: jest.Mock;
+      set: jest.Mock;
+      where: jest.Mock;
+      andWhere: jest.Mock;
+      execute: jest.Mock;
+    };
+
+    beforeEach(() => {
+      mockSavedExecution = {
+        id: 'exec-drive-1',
+        workflowId: 'wf-top-1',
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+        recursionDepth: 0,
+        inputData: {},
+      };
+      const contextService = (
+        service as unknown as {
+          contextService: {
+            createContext: (...a: unknown[]) => ExecutionContext;
+          };
+        }
+      ).contextService;
+      mockContext = contextService.createContext('exec-drive-1', 'wf-top-1');
+      mockContext.variables = {
+        ...(mockContext.variables ?? {}),
+        __workspaceId: 'ws-1',
+      };
+
+      mockNodeExec = {
+        id: 'ne-drive-1',
+        nodeId: 'node-form-1',
+        executionId: 'exec-drive-1',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        parentNodeExecutionId: undefined,
+      };
+
+      buildChain = () => {
+        const chain = {
+          update: jest.fn(),
+          set: jest.fn(),
+          where: jest.fn(),
+          andWhere: jest.fn(),
+          execute: jest.fn().mockResolvedValue({ affected: 1 }),
+        };
+        chain.update.mockReturnValue(chain);
+        chain.set.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        chain.andWhere.mockReturnValue(chain);
+        return chain;
+      };
+
+      mockExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockImplementation(buildChain);
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockImplementation(buildChain);
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    // ── CASE 1: 단일 depth AI COMPLETED ──────────────────────────────
+    // 1-frame: innermost(#1) + top-level forward(#2). bubble-up 루프 미실행.
+    it('Case1: driveResumeFrame 이 {parked:false} 반환 시 COMPLETED 마감 (단일 frame)', async () => {
+      const svcAny = service as unknown as {
+        driveCallStackResume: DriveSubject['driveCallStackResume'];
+        driveResumeFrame: (
+          ...args: unknown[]
+        ) => Promise<{ parked: boolean; output: unknown }>;
+        injectInvokerOutput: (...args: unknown[]) => void;
+        updateExecutionStatus: (...args: unknown[]) => Promise<void>;
+        finalizeRehydrationCleanup: (id: string) => void;
+      };
+
+      // updateExecutionStatus spy — RUNNING 및 COMPLETED 전이 추적.
+      const statusUpdates: unknown[] = [];
+      const origUpdate = svcAny.updateExecutionStatus.bind(service);
+      jest
+        .spyOn(svcAny, 'updateExecutionStatus')
+        .mockImplementation(async (exec, status) => {
+          statusUpdates.push(status);
+          return origUpdate(exec, status);
+        });
+
+      // driveResumeFrame spy — 두 번 호출 모두 not-parked 반환 (innermost + top).
+      jest
+        .spyOn(svcAny, 'driveResumeFrame')
+        .mockResolvedValue({ parked: false, output: { done: true } });
+
+      // injectInvokerOutput spy (top-level invoker 주입 경로).
+      jest
+        .spyOn(svcAny, 'injectInvokerOutput')
+        .mockImplementation(() => undefined);
+
+      // cleanup spy.
+      jest
+        .spyOn(svcAny, 'finalizeRehydrationCleanup')
+        .mockImplementation(() => undefined);
+
+      // top-level invoker node lookup (frames[0].invokerNodeId).
+      mockNodeRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValue({ id: 'node-invoker-1', type: 'workflow_node' });
+
+      const callStack = {
+        version: CALL_STACK_SCHEMA_VERSION,
+        frames: [
+          {
+            workflowId: 'wf-sub-1',
+            invokerNodeId: 'node-invoker-1',
+            recursionDepth: 1,
+          },
+        ],
+      };
+
+      await driveSubject().driveCallStackResume(
+        mockSavedExecution,
+        mockContext,
+        {
+          node: { id: 'node-form-1', type: 'form_node' } as unknown,
+          nodeExec: mockNodeExec,
+          callStack,
+          persistedInteractionType: 'ai_conversation',
+          isAiConversation: true,
+          resumeCheckpoint: {},
+          cachedOutput: undefined,
+          payload: { type: 'ai_message', message: 'hi' },
+        },
+      );
+
+      // RUNNING → COMPLETED 전이 확인.
+      expect(statusUpdates).toContain(ExecutionStatus.RUNNING);
+      expect(statusUpdates).toContain(ExecutionStatus.COMPLETED);
+      // driveResumeFrame: innermost(1) + top-level forward(1) = 2 회.
+      expect(svcAny.driveResumeFrame).toHaveBeenCalledTimes(2);
+      // cleanup 호출 확인.
+      expect(svcAny.finalizeRehydrationCleanup).toHaveBeenCalledWith(
+        'exec-drive-1',
+      );
+    });
+
+    // ── CASE 2: 2-depth bubble-up + invoker output 주입 ──────────────
+    it('Case2: 2-depth — innermost 완료 후 bubble-up 외곽 frame 구동, invoker output 주입', async () => {
+      const svcAny = service as unknown as {
+        driveResumeFrame: (
+          ...args: unknown[]
+        ) => Promise<{ parked: boolean; output: unknown }>;
+        injectInvokerOutput: (...args: unknown[]) => void;
+        finalizeRehydrationCleanup: (id: string) => void;
+      };
+
+      const frameResults = [
+        { parked: false, output: { inner: 'done' } }, // innermost: 완료
+        { parked: false, output: { outer: 'done' } }, // bubble-up frame (0)
+        { parked: false, output: { top: 'done' } }, // top-level forward
+      ];
+      let frameCallCount = 0;
+      jest.spyOn(svcAny, 'driveResumeFrame').mockImplementation(async () => {
+        return (
+          frameResults[frameCallCount++] ?? { parked: false, output: undefined }
+        );
+      });
+
+      const injectCalls: unknown[][] = [];
+      jest
+        .spyOn(svcAny, 'injectInvokerOutput')
+        .mockImplementation((...args: unknown[]) => {
+          injectCalls.push(args);
+        });
+
+      jest
+        .spyOn(svcAny, 'finalizeRehydrationCleanup')
+        .mockImplementation(() => undefined);
+
+      // invokerNode lookup: frames[1].invokerNodeId → node-invoker-B,
+      //                     frames[0].invokerNodeId → node-invoker-A (top-level)
+      const invokerNodeB = { id: 'node-invoker-B', type: 'workflow_node' };
+      const invokerNodeA = { id: 'node-invoker-A', type: 'workflow_node' };
+      let invokeLookupCount = 0;
+      mockNodeRepo.findOneBy = jest.fn().mockImplementation(() => {
+        return Promise.resolve(
+          invokeLookupCount++ === 0 ? invokerNodeB : invokerNodeA,
+        );
+      });
+
+      const callStack = {
+        version: CALL_STACK_SCHEMA_VERSION,
+        frames: [
+          {
+            workflowId: 'wf-sub-A',
+            invokerNodeId: 'node-invoker-A',
+            recursionDepth: 1,
+          },
+          {
+            workflowId: 'wf-sub-B',
+            invokerNodeId: 'node-invoker-B',
+            recursionDepth: 2,
+          },
+        ],
+      };
+
+      await driveSubject().driveCallStackResume(
+        mockSavedExecution,
+        mockContext,
+        {
+          node: { id: 'node-form-2', type: 'form_node' } as unknown,
+          nodeExec: mockNodeExec,
+          callStack,
+          persistedInteractionType: 'form',
+          isAiConversation: false,
+          resumeCheckpoint: undefined,
+          cachedOutput: undefined,
+          payload: { data: 'submitted' },
+        },
+      );
+
+      // driveResumeFrame: innermost(1) + bubble-up(1) + top(1) = 3 회
+      expect(svcAny.driveResumeFrame).toHaveBeenCalledTimes(3);
+      // injectInvokerOutput: bubble-up 마다 1회 + top-level 1회 = 2 회
+      expect(injectCalls).toHaveLength(2);
+      // 첫 주입: invokerNodeB 노드 + inner output
+      expect(injectCalls[0][1]).toMatchObject({ id: 'node-invoker-B' });
+      expect(injectCalls[0][2]).toEqual({ inner: 'done' });
+      // 두 번째 주입: invokerNodeA 노드 + outer output
+      expect(injectCalls[1][1]).toMatchObject({ id: 'node-invoker-A' });
+      expect(injectCalls[1][2]).toEqual({ outer: 'done' });
+    });
+
+    // ── CASE 3a: 최내 frame 이 parked → 즉시 return ─────────────────
+    it('Case3a: 최내 frame parked — return 으로 bubble-up 생략', async () => {
+      const svcAny = service as unknown as {
+        driveResumeFrame: (
+          ...args: unknown[]
+        ) => Promise<{ parked: boolean; output: unknown }>;
+        finalizeRehydrationCleanup: (id: string) => void;
+        updateExecutionStatus: (...args: unknown[]) => Promise<void>;
+      };
+
+      jest
+        .spyOn(svcAny, 'driveResumeFrame')
+        .mockResolvedValue({ parked: true, output: undefined });
+      jest
+        .spyOn(svcAny, 'finalizeRehydrationCleanup')
+        .mockImplementation(() => undefined);
+      const statusUpdates: unknown[] = [];
+      const origUpdate = svcAny.updateExecutionStatus.bind(service);
+      jest
+        .spyOn(svcAny, 'updateExecutionStatus')
+        .mockImplementation(async (exec, status) => {
+          statusUpdates.push(status);
+          return origUpdate(exec, status);
+        });
+
+      const callStack = {
+        version: CALL_STACK_SCHEMA_VERSION,
+        frames: [
+          {
+            workflowId: 'wf-sub-1',
+            invokerNodeId: 'node-inv-1',
+            recursionDepth: 1,
+          },
+        ],
+      };
+
+      await driveSubject().driveCallStackResume(
+        mockSavedExecution,
+        mockContext,
+        {
+          node: { id: 'node-form-3', type: 'form_node' } as unknown,
+          nodeExec: mockNodeExec,
+          callStack,
+          persistedInteractionType: 'form',
+          isAiConversation: false,
+          resumeCheckpoint: undefined,
+          cachedOutput: undefined,
+          payload: {},
+        },
+      );
+
+      // parked → RUNNING 으로만 전이, COMPLETED 없음.
+      expect(statusUpdates).toContain(ExecutionStatus.RUNNING);
+      expect(statusUpdates).not.toContain(ExecutionStatus.COMPLETED);
+      // driveResumeFrame 1회 (innermost 만 호출, bubble-up 없음)
+      expect(svcAny.driveResumeFrame).toHaveBeenCalledTimes(1);
+    });
+
+    // ── CASE 3b: 외곽 bubble-up frame parked → 즉시 return ──────────
+    it('Case3b: bubble-up 중 외곽 frame parked — COMPLETED 없이 return', async () => {
+      const svcAny = service as unknown as {
+        driveResumeFrame: (
+          ...args: unknown[]
+        ) => Promise<{ parked: boolean; output: unknown }>;
+        finalizeRehydrationCleanup: (id: string) => void;
+        updateExecutionStatus: (...args: unknown[]) => Promise<void>;
+        injectInvokerOutput: (...args: unknown[]) => void;
+      };
+
+      // innermost 완료, bubble-up frame parked
+      const results = [
+        { parked: false, output: { inner: 'ok' } },
+        { parked: true, output: undefined },
+      ];
+      let callIdx = 0;
+      jest
+        .spyOn(svcAny, 'driveResumeFrame')
+        .mockImplementation(
+          async () =>
+            results[callIdx++] ?? { parked: false, output: undefined },
+        );
+      jest
+        .spyOn(svcAny, 'injectInvokerOutput')
+        .mockImplementation(() => undefined);
+      jest
+        .spyOn(svcAny, 'finalizeRehydrationCleanup')
+        .mockImplementation(() => undefined);
+      const statusUpdates: unknown[] = [];
+      const origUpdate = svcAny.updateExecutionStatus.bind(service);
+      jest
+        .spyOn(svcAny, 'updateExecutionStatus')
+        .mockImplementation(async (exec, status) => {
+          statusUpdates.push(status);
+          return origUpdate(exec, status);
+        });
+
+      mockNodeRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValue({ id: 'node-inv-outer', type: 'workflow_node' });
+
+      const callStack = {
+        version: CALL_STACK_SCHEMA_VERSION,
+        frames: [
+          {
+            workflowId: 'wf-outer',
+            invokerNodeId: 'node-inv-outer',
+            recursionDepth: 1,
+          },
+          {
+            workflowId: 'wf-inner',
+            invokerNodeId: 'node-inv-inner',
+            recursionDepth: 2,
+          },
+        ],
+      };
+
+      await driveSubject().driveCallStackResume(
+        mockSavedExecution,
+        mockContext,
+        {
+          node: { id: 'node-form-4', type: 'form_node' } as unknown,
+          nodeExec: mockNodeExec,
+          callStack,
+          persistedInteractionType: 'form',
+          isAiConversation: false,
+          resumeCheckpoint: undefined,
+          cachedOutput: undefined,
+          payload: {},
+        },
+      );
+
+      // driveResumeFrame: innermost(1) + bubble-up(1) = 2 회, top-level forward 미호출
+      expect(svcAny.driveResumeFrame).toHaveBeenCalledTimes(2);
+      expect(statusUpdates).not.toContain(ExecutionStatus.COMPLETED);
+    });
+
+    // ── CASE 4: RehydrationError → markExecutionCancelled ───────────
+    it('Case4: 일반 Error 발생 시 finalizeResumedExecutionOutcome 경로 진입 (detach 에러 처리)', async () => {
+      const svcAny = service as unknown as {
+        driveResumeFrame: (
+          ...args: unknown[]
+        ) => Promise<{ parked: boolean; output: unknown }>;
+        markExecutionCancelled: (id: string, code: string) => Promise<void>;
+        finalizeRehydrationCleanup: (id: string) => void;
+      };
+
+      const cancelSpy = jest
+        .spyOn(svcAny, 'markExecutionCancelled')
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(svcAny, 'finalizeRehydrationCleanup')
+        .mockImplementation(() => undefined);
+
+      // 일반 Error(RehydrationError 아님) → finalizeResumedExecutionOutcome 경로.
+      jest
+        .spyOn(svcAny, 'driveResumeFrame')
+        .mockRejectedValue(new Error('generic-engine-error'));
+
+      const finalizeOutcomeSpy = jest.fn().mockResolvedValue(undefined);
+      (
+        service as unknown as { finalizeResumedExecutionOutcome: unknown }
+      ).finalizeResumedExecutionOutcome = finalizeOutcomeSpy;
+
+      const callStackForCase4 = {
+        version: CALL_STACK_SCHEMA_VERSION,
+        frames: [
+          {
+            workflowId: 'wf-err2',
+            invokerNodeId: 'node-inv-err2',
+            recursionDepth: 1,
+          },
+        ],
+      };
+
+      await driveSubject().driveCallStackResume(
+        mockSavedExecution,
+        mockContext,
+        {
+          node: { id: 'node-form-err', type: 'form_node' } as unknown,
+          nodeExec: mockNodeExec,
+          callStack: callStackForCase4,
+          persistedInteractionType: 'form',
+          isAiConversation: false,
+          resumeCheckpoint: undefined,
+          cachedOutput: undefined,
+          payload: {},
+        },
+      );
+
+      // 일반 Error → finalizeResumedExecutionOutcome 호출.
+      expect(finalizeOutcomeSpy).toHaveBeenCalled();
+      // markExecutionCancelled 는 일반 Error 경로에서는 미호출.
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    // ── CASE 5: ParkReleaseSignal catch 흡수 ──────────────────────────
+    it('Case5: ParkReleaseSignal 이 catch 에 도달하면 흡수(return) — 전파 없음', async () => {
+      const svcAny = service as unknown as {
+        driveResumeFrame: (
+          ...args: unknown[]
+        ) => Promise<{ parked: boolean; output: unknown }>;
+        finalizeRehydrationCleanup: (id: string) => void;
+      };
+
+      // driveResumeFrame 이 ParkReleaseSignal 을 throw (방어적 경로).
+      jest
+        .spyOn(svcAny, 'driveResumeFrame')
+        .mockRejectedValue(new ParkReleaseSignal());
+      jest
+        .spyOn(svcAny, 'finalizeRehydrationCleanup')
+        .mockImplementation(() => undefined);
+
+      const callStack = {
+        version: CALL_STACK_SCHEMA_VERSION,
+        frames: [
+          {
+            workflowId: 'wf-park',
+            invokerNodeId: 'node-inv-park',
+            recursionDepth: 1,
+          },
+        ],
+      };
+
+      // driveCallStackResume 는 throw 하지 않아야 한다 (catch 흡수).
+      await expect(
+        driveSubject().driveCallStackResume(mockSavedExecution, mockContext, {
+          node: { id: 'node-form-park', type: 'form_node' } as unknown,
+          nodeExec: mockNodeExec,
+          callStack,
+          persistedInteractionType: 'form',
+          isAiConversation: false,
+          resumeCheckpoint: undefined,
+          cachedOutput: undefined,
+          payload: {},
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    // ── CASE W6: frames.length === 0 방어 가드 ───────────────────────
+    it('W6: frames 가 빈 배열이면 RehydrationError 대신 markCancelled 경로 진입', async () => {
+      const svcAny = service as unknown as {
+        finalizeRehydrationCleanup: (id: string) => void;
+        markExecutionCancelled: (id: string, code: string) => Promise<void>;
+      };
+      jest
+        .spyOn(svcAny, 'finalizeRehydrationCleanup')
+        .mockImplementation(() => undefined);
+      const cancelSpy = jest
+        .spyOn(svcAny, 'markExecutionCancelled')
+        .mockResolvedValue(undefined);
+
+      const emptyCallStack = { version: CALL_STACK_SCHEMA_VERSION, frames: [] };
+
+      await driveSubject().driveCallStackResume(
+        mockSavedExecution,
+        mockContext,
+        {
+          node: { id: 'node-x', type: 'form_node' } as unknown,
+          nodeExec: mockNodeExec,
+          callStack: emptyCallStack,
+          persistedInteractionType: 'form',
+          isAiConversation: false,
+          resumeCheckpoint: undefined,
+          cachedOutput: undefined,
+          payload: {},
+        },
+      );
+
+      // frames.length === 0 → RehydrationError('RESUME_CHECKPOINT_MISSING') → markExecutionCancelled
+      expect(cancelSpy).toHaveBeenCalledWith(
+        'exec-drive-1',
+        'RESUME_CHECKPOINT_MISSING',
+      );
+    });
+
+    // ── injectInvokerOutput: output 주입 형태 검증 ───────────────────
+    it('injectInvokerOutput: setStructuredOutput + setNodeOutput 호출로 output.result wrapping', () => {
+      const structuredCalls: unknown[][] = [];
+      const flatCalls: unknown[][] = [];
+      (
+        service as unknown as {
+          contextService: {
+            setStructuredOutput: jest.Mock;
+            setNodeOutput: jest.Mock;
+          };
+        }
+      ).contextService.setStructuredOutput = jest.fn((...args) =>
+        structuredCalls.push(args),
+      );
+      (
+        service as unknown as {
+          contextService: {
+            setStructuredOutput: jest.Mock;
+            setNodeOutput: jest.Mock;
+          };
+        }
+      ).contextService.setNodeOutput = jest.fn((...args) =>
+        flatCalls.push(args),
+      );
+
+      const invokerNode = {
+        id: 'inv-node',
+        type: 'workflow',
+        config: { workflowId: 'wf-sub' },
+      };
+      const subOutput = { answer: 42 };
+
+      driveSubject().injectInvokerOutput(mockContext, invokerNode, subOutput);
+
+      // setStructuredOutput 은 { config, output: { result: subOutput } } 형태
+      expect(structuredCalls).toHaveLength(1);
+      expect(structuredCalls[0][2]).toMatchObject({
+        config: invokerNode.config,
+        output: { result: subOutput },
+      });
+      // setNodeOutput 도 호출됨
+      expect(flatCalls).toHaveLength(1);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // CRITICAL #2 (ai-review) — resumeFromCheckpoint callStack non-null 분기
+  // 통합 테스트: driveCallStackResume spyOn 검증 + version 가드.
+  // exec-park D6, spec §7.5 Rehydration §7.5 step 2.
+  // ──────────────────────────────────────────────────────────────────────
+  describe('resumeFromCheckpoint — callStack non-null 분기 (CRITICAL #2)', () => {
+    type ResumeFromCpSubject = {
+      resumeFromCheckpoint: (
+        savedExecution: unknown,
+        context: unknown,
+        opts: { node: unknown; nodeExec: unknown; payload: unknown },
+      ) => Promise<void>;
+      driveCallStackResume: (...args: unknown[]) => Promise<void>;
+      rehydrateAndResume: (
+        executionId: string,
+        nodeExecutionId: string,
+        payload: unknown,
+      ) => Promise<void>;
+    };
+    const rfcSubject = () => service as unknown as ResumeFromCpSubject;
+
+    const makeRehydrationSetup = (
+      resumeCallStack: Record<string, unknown> | null,
+      overrideNodeOutput?: Record<string, unknown>,
+    ) => {
+      mockExecutionRepo.findOneBy.mockReset();
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+        resumeCallStack,
+        inputData: {},
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-cs-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: overrideNodeOutput ?? {
+          interactionType: 'form',
+          meta: { interactionType: 'form' },
+          status: 'waiting_for_input',
+        },
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-1',
+        type: 'form_node',
+        workflowId,
+        category: NodeCategory.LOGIC,
+        label: 'Form',
+        config: {},
+        isDisabled: false,
+      });
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+    };
+
+    let buildChain: () => {
+      update: jest.Mock;
+      set: jest.Mock;
+      where: jest.Mock;
+      andWhere: jest.Mock;
+      execute: jest.Mock;
+    };
+
+    beforeEach(() => {
+      buildChain = () => {
+        const chain = {
+          update: jest.fn(),
+          set: jest.fn(),
+          where: jest.fn(),
+          andWhere: jest.fn(),
+          execute: jest.fn().mockResolvedValue({ affected: 1 }),
+        };
+        chain.update.mockReturnValue(chain);
+        chain.set.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        chain.andWhere.mockReturnValue(chain);
+        return chain;
+      };
+      mockExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockImplementation(buildChain);
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockImplementation(buildChain);
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    // C2-a: callStack non-null → driveCallStackResume 호출 검증
+    it('C2-a: resumeCallStack 영속 시 driveCallStackResume 가 호출된다', async () => {
+      const callStack = {
+        version: CALL_STACK_SCHEMA_VERSION,
+        frames: [
+          {
+            workflowId: 'wf-sub-cs',
+            invokerNodeId: 'node-wf-cs',
+            recursionDepth: 1,
+          },
+        ],
+      };
+      makeRehydrationSetup(callStack);
+
+      const driveSpy = jest
+        .spyOn(rfcSubject(), 'driveCallStackResume')
+        .mockResolvedValue(undefined);
+
+      await rfcSubject().rehydrateAndResume(executionId, 'ne-cs-1', {
+        data: 'submitted',
+      });
+
+      // driveCallStackResume 가 호출됐다.
+      expect(driveSpy).toHaveBeenCalledTimes(1);
+      // callStack 이 그대로 전달됐다.
+      const callArg = driveSpy.mock.calls[0][2] as { callStack: unknown };
+      expect(callArg.callStack).toMatchObject({
+        version: CALL_STACK_SCHEMA_VERSION,
+        frames: [expect.objectContaining({ workflowId: 'wf-sub-cs' })],
+      });
+    });
+
+    // C2-b: version > CALL_STACK_SCHEMA_VERSION → RESUME_INCOMPATIBLE_STATE
+    it('C2-b: version > CALL_STACK_SCHEMA_VERSION → RESUME_INCOMPATIBLE_STATE 취소 마킹', async () => {
+      const futureVersionCallStack = {
+        version: 999,
+        frames: [
+          {
+            workflowId: 'wf-sub-future',
+            invokerNodeId: 'node-wf-future',
+            recursionDepth: 1,
+          },
+        ],
+      };
+      makeRehydrationSetup(futureVersionCallStack);
+
+      await rfcSubject().rehydrateAndResume(executionId, 'ne-cs-1', {
+        data: 'submitted',
+      });
+
+      // RESUME_INCOMPATIBLE_STATE 로 마킹됐는지 확인 — createQueryBuilder().set 에 코드 포함.
+      expect(mockExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+      const setArg = mockExecutionRepo.createQueryBuilder.mock.results[0]?.value
+        ?.set?.mock?.calls?.[0]?.[0] as
+        | { error?: { code?: string } }
+        | undefined;
+      expect(setArg?.error?.code).toBe('RESUME_INCOMPATIBLE_STATE');
+    });
+
+    // C2-c: callStack === null → driveCallStackResume 미호출 (top-level resume 경로)
+    it('C2-c: resumeCallStack=null 이면 driveCallStackResume 미호출 (top-level 경로)', async () => {
+      makeRehydrationSetup(null);
+
+      const driveSpy = jest
+        .spyOn(rfcSubject(), 'driveCallStackResume')
+        .mockResolvedValue(undefined);
+
+      // top-level resume 경로: loadAndBuildGraph 를 spy 해 간단한 단일 노드 그래프로.
+      const svcAny = service as unknown as {
+        loadAndBuildGraph: (...args: unknown[]) => Promise<unknown>;
+        driveResumeDetached: (...args: unknown[]) => Promise<void>;
+      };
+      jest.spyOn(svcAny, 'loadAndBuildGraph').mockResolvedValue({
+        graphNodes: [],
+        graphEdges: [],
+        forwardEdges: [],
+        backEdges: [],
+        sortedNodeIds: ['node-1'],
+        sortedIndexMap: new Map([['node-1', 0]]),
+        backEdgeMap: new Map(),
+        outgoingEdgeMap: new Map(),
+        incomingEdgeMap: new Map(),
+        nodeMap: new Map([['node-1', { id: 'node-1', type: 'form_node' }]]),
+      });
+      jest.spyOn(svcAny, 'driveResumeDetached').mockResolvedValue(undefined);
+
+      await rfcSubject().rehydrateAndResume(executionId, 'ne-cs-1', {
+        data: 'submitted',
+      });
+
+      expect(driveSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // WARNING #8 (ai-review) — executeInline 의 _callStack push/pop 동작.
+  // invokerNodeId 있을 때 push, 정상 반환 후 pop, 예외 시에도 finally pop.
+  // exec-park D6, spec §7.5.
+  // ──────────────────────────────────────────────────────────────────────
+  describe('executeInline — _callStack push/pop (WARNING #8)', () => {
+    let contextService: ExecutionContextService;
+
+    beforeEach(() => {
+      contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('invokerNodeId 있을 때 frame 이 _callStack 에 push 된다', async () => {
+      const context = contextService.createContext(executionId, workflowId);
+      context._callStack = [];
+
+      let capturedStack: unknown[] | undefined;
+      // mockHandler.execute 에서 _callStack 상태를 캡처한다.
+      (mockHandler.execute as jest.Mock).mockImplementationOnce(
+        async (_input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+          // 핸들러 실행 중 _callStack 상태 캡처
+          capturedStack = ctx._callStack ? [...ctx._callStack] : undefined;
+          return { config: {}, output: { result: 'ok' } };
+        },
+      );
+
+      await service.executeInline(
+        workflowId,
+        {},
+        {
+          executionId,
+          context,
+          executedNodes: new Set<string>(),
+          recursionDepth: 1,
+          parentNodeExecutionId: 'parent-exec',
+          invokerNodeId: 'node-invoker-wf-1',
+        },
+      );
+
+      // 핸들러 실행 중 _callStack 에 frame 이 push 됐어야 한다.
+      expect(capturedStack).toBeDefined();
+      expect(capturedStack).toContainEqual(
+        expect.objectContaining({
+          workflowId,
+          invokerNodeId: 'node-invoker-wf-1',
+          recursionDepth: 1,
+        }),
+      );
+    });
+
+    it('정상 반환 후 _callStack 이 pop 된다 (frame 제거)', async () => {
+      const context = contextService.createContext(executionId, workflowId);
+      context._callStack = [];
+
+      (mockHandler.execute as jest.Mock).mockResolvedValue({
+        config: {},
+        output: { result: 'done' },
+      });
+
+      await service.executeInline(
+        workflowId,
+        {},
+        {
+          executionId,
+          context,
+          executedNodes: new Set<string>(),
+          recursionDepth: 1,
+          parentNodeExecutionId: 'parent-exec',
+          invokerNodeId: 'node-invoker-wf-2',
+        },
+      );
+
+      // 반환 후 _callStack 이 비어있어야 한다 (pop 됨).
+      expect(context._callStack).toHaveLength(0);
+    });
+
+    it('핸들러가 throw 해도 finally 로 _callStack 이 pop 된다', async () => {
+      const throwingHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(() => Promise.reject(new Error('handler-throw'))),
+      };
+      handlerRegistry.register('test_node', throwingHandler);
+
+      const context = contextService.createContext(executionId, workflowId);
+      context._callStack = [];
+
+      await expect(
+        service.executeInline(
+          workflowId,
+          {},
+          {
+            executionId,
+            context,
+            executedNodes: new Set<string>(),
+            recursionDepth: 1,
+            parentNodeExecutionId: 'parent-exec',
+            invokerNodeId: 'node-invoker-wf-3',
+          },
+        ),
+      ).rejects.toThrow('handler-throw');
+
+      // 예외가 발생해도 finally 에서 pop — _callStack 비어있음.
+      expect(context._callStack).toHaveLength(0);
+    });
+
+    it('invokerNodeId 없으면 _callStack 에 push 하지 않는다', async () => {
+      const context = contextService.createContext(executionId, workflowId);
+      context._callStack = [];
+
+      (mockHandler.execute as jest.Mock).mockResolvedValue({
+        config: {},
+        output: { ok: true },
+      });
+
+      await service.executeInline(
+        workflowId,
+        {},
+        {
+          executionId,
+          context,
+          executedNodes: new Set<string>(),
+          recursionDepth: 1,
+          parentNodeExecutionId: 'parent-exec',
+          // invokerNodeId 없음
+        },
+      );
+
+      // invokerNodeId 미전달 → push 없음 → length 그대로.
+      expect(context._callStack).toHaveLength(0);
     });
   });
 
@@ -11430,37 +12312,60 @@ describe('ExecutionEngineService', () => {
       );
     });
 
-    // W9 — replay turn 처리 중 외부 cancel 이 도달하면 소실되지 않고 Execution
-    // 이 CANCELLED 로 마감된다 (cancel-only 핸들러 + race).
+    // W9 — exec-park D6 full B3: replay turn(processAiResumeTurn 경유) 중 도달한
+    // 외부 cancel 은 옛 in-memory pending 코루틴에 ExecutionCancelledError 를
+    // 주입하던 race 가 사라졌다. cancel(applyCancellation → cancelParkedExecution)은
+    // `status = WAITING_FOR_INPUT` 가드의 UPDATE 라, RUNNING 인 replay 중에는 affected:0
+    // → graceful no-op (premature CANCELLED 미발사). replay 는 그대로 완결된다. cancel
+    // 은 다음 park(WAITING 전이) 시점에만 효력을 갖는다.
     // WARNING #11 — turnGate 정리는 afterEach 에서 보장 (microtask 누수 방지).
-    it('honors external cancel arriving during the replay turn → Execution CANCELLED (W9)', async () => {
+    it('replay turn(RUNNING) 중 도달한 cancel 은 graceful no-op — replay 는 완결, premature CANCELLED 미발사 (W9)', async () => {
       const turnGate = new Promise<void>((r) => {
         _releasePendingTurnGate = r;
       });
-      installReentry({
+      const { handler } = installReentry({
         // replay turn 이 gate 가 풀릴 때까지 hang — 그 사이 cancel 이 도달.
         processReturn: () => turnGate.then(() => terminalSuccess()),
       });
+      // cancelParkedExecution 의 createQueryBuilder UPDATE 가 affected:0 (RUNNING 이라
+      // WAITING 가드 미스) 을 반환하도록 무장 — 멱등 no-op 경로.
+      const noopQb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      };
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(noopQb);
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(noopQb);
 
       const p = service.applyRetryLastTurn(EXEC, SPAWNED);
-      // re-entry 가 cancel 핸들러 등록 + replay turn 시작까지 진행하도록 flush.
+      // replay turn 시작까지 진행하도록 flush.
       await flushPromises();
       // 외부 cancel 도달 (worker applyCancellation 경유와 동형). fire-and-forget 의도.
       void service.applyCancellation(EXEC);
+      await flushPromises();
+      // gate 해제 → replay turn 이 terminalSuccess 로 완결.
+      _releasePendingTurnGate?.();
       await p;
       await flushPromises();
 
+      // replay turn 이 실제로 구동됐다 (retry 재진입 경로 커버리지).
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledTimes(1);
+      // RUNNING 중 cancel 은 no-op → premature CANCELLED 미발사.
       const cancelled =
         mockWebsocketService.emitExecutionEvent.mock.calls.filter(
           (c: unknown[]) => c[1] === 'execution.cancelled',
         );
-      expect(cancelled.length).toBe(1);
-      // 성공/실패 종결 이벤트는 발사되지 않는다.
+      expect(cancelled.length).toBe(0);
+      // replay 는 정상 완결 → execution.completed 발사.
       const completed =
         mockWebsocketService.emitExecutionEvent.mock.calls.filter(
           (c: unknown[]) => c[1] === 'execution.completed',
         );
-      expect(completed.length).toBe(0);
+      expect(completed.length).toBe(1);
       // turnGate 정리는 afterEach 에서 수행 (_releasePendingTurnGate).
     });
   });
@@ -11939,69 +12844,11 @@ describe('ExecutionEngineService', () => {
       expect(failed16.length).toBe(0);
     });
 
-    // W4 — cancel 도달: retry 재진입 처리 중 cancel 이 도달하면 catch 경로가
-    // `failRetryExecution(CANCELLED)` 를 호출해 Execution 이 CANCELLED 로 마감된다.
-    // downstream traversal 진입 전 cancel 이 replay turn 구간에 도달하는 케이스.
-    // (downstream traversal 도중 blocking wait 에서 cancel 이 도달하는 고급 케이스는
-    // waitForX 블록 mock 이 필요해 별도 integration 테스트 영역이다.)
-    it('marks Execution CANCELLED when cancel arrives during retry replay → downstream never runs (W4)', async () => {
-      const agentNode: Partial<Node> = {
-        id: AGENT_ID,
-        workflowId,
-        type: 'ai_agent',
-        category: NodeCategory.AI,
-        label: 'RetryAgent',
-        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
-        isDisabled: false,
-      };
-      const downstreamNode: Partial<Node> = {
-        id: DOWNSTREAM_ID,
-        workflowId,
-        type: 'test_downstream_w10',
-        category: NodeCategory.LOGIC,
-        label: 'Downstream',
-        config: {},
-        isDisabled: false,
-      };
-      // Replay turn gate — cancel arrives while replay turn is pending.
-      let releaseReplayTurn!: () => void;
-      const replayGate = new Promise<void>((r) => {
-        releaseReplayTurn = r;
-      });
-      const { agentHandler, downstreamHandler } = installReentryWithDownstream({
-        nodes: [agentNode, downstreamNode],
-        edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
-      });
-      // Override processMultiTurnMessage to hang during replay turn so cancel
-      // arrives while the cancel-only pending continuation is registered.
-      agentHandler.processMultiTurnMessage = jest.fn(() =>
-        replayGate.then(() => terminalSuccess()),
-      );
-
-      const p = service.applyRetryLastTurn(EXEC, SPAWNED);
-      // Allow applyRetryLastTurn to register the cancel-only pending continuation.
-      await flushPromises();
-      // External cancel arrives while replay turn is pending. fire-and-forget 의도.
-      void service.applyCancellation(EXEC);
-      // Release replay gate (cancel has already won — replay result is discarded).
-      releaseReplayTurn();
-      await p;
-      await flushPromises();
-
-      // Execution is CANCELLED — failRetryExecution receives ExecutionCancelledError.
-      const cancelled =
-        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
-          (c: unknown[]) => c[1] === 'execution.cancelled',
-        );
-      expect(cancelled.length).toBe(1);
-      // Downstream was never reached.
-      expect(downstreamHandler.execute).not.toHaveBeenCalled();
-      const completed =
-        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
-          (c: unknown[]) => c[1] === 'execution.completed',
-        );
-      expect(completed.length).toBe(0);
-    });
+    // W4 (삭제) — 옛 in-memory cancel-during-replay race (replay turn 의 pending
+    // 코루틴에 ExecutionCancelledError 주입 → CANCELLED, downstream skip) 는
+    // exec-park D6 full B3 에서 제거됐다. cancel 은 이제 다음 park(WAITING) 시점에만
+    // 효력을 가지므로, RUNNING 인 replay 중 cancel 은 graceful no-op 이고 replay 는
+    // 완결된다. 새 semantics 는 applyRetryLastTurn 블록의 W9 테스트가 커버한다.
 
     // PR #371 ai-review W2 — parallel/background dispatchKind 회귀 가드.
     // retry 성공 후 downstream 에 parallel/background 노드가 존재할 때 정상
@@ -13214,5 +14061,806 @@ describe('ExecutionEngineService — registerInFlight / unregisterInFlight pairi
     // unregisterInFlight MUST still be called in finally even after throw.
     expect(mockUnregister).toHaveBeenCalledTimes(1);
     expect(mockUnregister).toHaveBeenCalledWith('ne-w10');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// WARNING #1 (SUMMARY) — processFormResumeTurn 단위 테스트.
+// 4개 경로: (a) sentinel 정상 unwrap, (b) non-sentinel warn 폴백,
+// (c) savedExecution.status === RUNNING skip-transition vs !== RUNNING transition,
+// (d) nodeExec null skip.
+// exec-park D6 full B3, spec §10.9, spec §7.5.
+// ────────────────────────────────────────────────────────────────────────────
+describe('processFormResumeTurn — 4 branches (SUMMARY W1)', () => {
+  let service2: ExecutionEngineService;
+  let mockExecRepo2: Record<string, jest.Mock>;
+  let mockNodeExecRepo2: Record<string, jest.Mock>;
+  let mockNodeRepo2: Record<string, jest.Mock>;
+  let mockEdgeRepo2: Record<string, jest.Mock>;
+  let mockWorkflowRepo2: Record<string, jest.Mock>;
+  let mockNodeLogRepo2: Record<string, jest.Mock>;
+  let registry2: NodeHandlerRegistry;
+
+  const wfId2 = 'wf-form-resume';
+  const execId2 = 'exec-form-resume';
+
+  beforeEach(async () => {
+    mockExecRepo2 = {
+      create: jest.fn(),
+      save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
+      findOneBy: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
+    };
+    mockNodeExecRepo2 = {
+      create: jest.fn().mockImplementation((d: Partial<NodeExecution>) => ({
+        id: `ne-${d.nodeId}`,
+        ...d,
+        startedAt: new Date(),
+      })),
+      save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
+      findOne: jest.fn().mockResolvedValue(null),
+      find: jest.fn().mockResolvedValue([]),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      }),
+    };
+    mockNodeRepo2 = {
+      findBy: jest.fn().mockResolvedValue([]),
+      findOneBy: jest.fn().mockResolvedValue(null),
+    };
+    mockEdgeRepo2 = { findBy: jest.fn().mockResolvedValue([]) };
+    mockWorkflowRepo2 = {
+      findOneBy: jest.fn().mockResolvedValue({ id: wfId2, name: 'WF2' }),
+      findOne: jest.fn().mockResolvedValue({
+        id: wfId2,
+        workspace: { id: 'ws-2', settings: {} },
+      }),
+    };
+    mockNodeLogRepo2 = {
+      insert: jest.fn().mockResolvedValue({ identifiers: [{ id: '1' }] }),
+      find: jest.fn().mockResolvedValue([]),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ExecutionEngineService,
+        ExecutionEventEmitter,
+        GraphTraversalService,
+        NodeHandlerDependenciesProvider,
+        NodeHandlerRegistry,
+        NodeComponentRegistry,
+        ExecutionContextService,
+        ErrorPolicyHandler,
+        ExpressionResolverService,
+        ForEachExecutor,
+        LoopExecutor,
+        ParallelExecutor,
+        ConversationThreadService,
+        ShutdownStateService,
+        {
+          provide: getRepositoryToken(Execution),
+          useValue: mockExecRepo2,
+        },
+        {
+          provide: getRepositoryToken(NodeExecution),
+          useValue: mockNodeExecRepo2,
+        },
+        { provide: getRepositoryToken(Node), useValue: mockNodeRepo2 },
+        { provide: getRepositoryToken(Edge), useValue: mockEdgeRepo2 },
+        {
+          provide: getRepositoryToken(Workflow),
+          useValue: mockWorkflowRepo2,
+        },
+        {
+          provide: getRepositoryToken(ExecutionNodeLog),
+          useValue: mockNodeLogRepo2,
+        },
+        {
+          provide: getDataSourceToken(),
+          useValue: {
+            transaction: jest.fn(
+              async (cb: (manager: unknown) => Promise<unknown>) => {
+                const manager = {
+                  save: jest.fn(async (target: unknown, entity?: unknown) => {
+                    if (target === Execution) return mockExecRepo2.save(entity);
+                    if (target === NodeExecution)
+                      return mockNodeExecRepo2.save(entity);
+                    return entity;
+                  }),
+                };
+                return cb(manager);
+              },
+            ),
+          },
+        },
+        {
+          provide: getQueueToken(BACKGROUND_EXECUTION_QUEUE),
+          useValue: { add: jest.fn() },
+        },
+        {
+          provide: getQueueToken(EXECUTION_RUN_QUEUE),
+          useValue: { add: jest.fn() },
+        },
+        {
+          provide: WebsocketService,
+          useValue: {
+            emitExecutionEvent: jest.fn().mockResolvedValue(undefined),
+            emitNodeEvent: jest.fn().mockResolvedValue(undefined),
+            registerExecutionRouting: jest.fn(),
+            releaseExecutionRouting: jest.fn(),
+          },
+        },
+        {
+          provide: ContinuationBusService,
+          useValue: {
+            publish: jest.fn(),
+            subscribe: jest.fn(),
+            close: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(undefined) },
+        },
+        { provide: LlmService, useValue: { chat: jest.fn() } },
+        {
+          provide: RagSearchService,
+          useValue: { search: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: KnowledgeBaseService,
+          useValue: { findOne: jest.fn(), findAll: jest.fn() },
+        },
+        {
+          provide: IntegrationsService,
+          useValue: {
+            findByWorkspace: jest.fn().mockResolvedValue([]),
+            findByType: jest.fn().mockResolvedValue([]),
+            findOne: jest.fn(),
+          },
+        },
+        {
+          provide: McpClientService,
+          useValue: { listTools: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: Cafe24ApiClient,
+          useValue: { request: jest.fn() },
+        },
+        {
+          provide: MakeshopApiClient,
+          useValue: { request: jest.fn() },
+        },
+      ],
+    }).compile();
+
+    service2 = module.get(ExecutionEngineService);
+    registry2 = module.get(NodeHandlerRegistry);
+
+    // Register a blocking/form handler so handlerRegistry.getMetadata returns
+    // the right metadata for processFormResumeTurn dispatch guards.
+    const formHandler: NodeHandler = {
+      validate: () => ({ valid: true, errors: [] }),
+      execute: jest.fn().mockResolvedValue({
+        config: {},
+        output: {},
+        status: 'waiting_for_input',
+        meta: { interactionType: 'form' },
+        port: 'out',
+      }),
+    };
+    registry2.register('form_node', formHandler, {
+      kind: 'blocking',
+      interaction: 'form',
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  // Helper: access private method via as-unknown-as pattern.
+  type FormResumeSubject = {
+    processFormResumeTurn: (
+      savedExecution: unknown,
+      executionId: string,
+      node: unknown,
+      context: unknown,
+      payload: unknown,
+    ) => Promise<void>;
+    contextService: {
+      createContext: (e: string, w: string) => ExecutionContext;
+    };
+    updateExecutionStatus: (
+      execution: unknown,
+      status: unknown,
+      nodeExec?: unknown,
+    ) => Promise<void>;
+  };
+
+  const subject = () => service2 as unknown as FormResumeSubject;
+
+  const makeFormNode = (nodeId = 'node-form-w1'): Partial<Node> => ({
+    id: nodeId,
+    workflowId: wfId2,
+    type: 'form_node',
+    category: NodeCategory.LOGIC,
+    label: 'Form',
+    config: { fields: [{ name: 'answer' }] },
+    isDisabled: false,
+  });
+
+  const makeExecution = (
+    status: ExecutionStatus = ExecutionStatus.WAITING_FOR_INPUT,
+  ): Partial<Execution> => ({
+    id: execId2,
+    workflowId: wfId2,
+    status,
+    startedAt: new Date(),
+    inputData: {},
+  });
+
+  const makeContext = () =>
+    subject().contextService.createContext(execId2, wfId2);
+
+  // (a) sentinel 정상 unwrap — `{type:'form_submitted', formData:{answer:'yes'}}` 가
+  //     올바르게 unwrap 돼 interactionData 에 반영된다.
+  it('(a) sentinel form_submitted — formData 정상 unwrap + nodeExec COMPLETED 갱신', async () => {
+    const nodeId = 'node-form-a';
+    const nodeExecRow: Partial<NodeExecution> = {
+      id: 'ne-form-a',
+      nodeId,
+      executionId: execId2,
+      status: NodeExecutionStatus.WAITING_FOR_INPUT,
+      startedAt: new Date(),
+    };
+    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
+
+    const ctx = makeContext();
+    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+
+    await subject().processFormResumeTurn(
+      saved,
+      execId2,
+      makeFormNode(nodeId),
+      ctx,
+      { type: 'form_submitted', formData: { answer: 'yes' } },
+    );
+
+    // nodeExec COMPLETED 로 갱신됐는지 확인.
+    expect(mockNodeExecRepo2.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: NodeExecutionStatus.COMPLETED }),
+    );
+    // nodeOutputCache 에 form_submitted 상호작용 기록 확인 (setNodeOutput 경로).
+    expect(ctx.nodeOutputCache[nodeId]).toBeDefined();
+  });
+
+  // (b) non-sentinel warn 폴백 — sentinel 없는 payload 는 warn 을 기록하고 payload 를
+  //     그대로 rawData 로 취급 (interactionData 로 진행, 예외 없음).
+  it('(b) non-sentinel payload — warn 기록 + 예외 없이 완료', async () => {
+    const nodeId = 'node-form-b';
+    const nodeExecRow: Partial<NodeExecution> = {
+      id: 'ne-form-b',
+      nodeId,
+      executionId: execId2,
+      status: NodeExecutionStatus.WAITING_FOR_INPUT,
+      startedAt: new Date(),
+    };
+    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
+
+    const ctx = makeContext();
+    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+
+    const logger = (service2 as unknown as { logger: { warn: jest.Mock } })
+      .logger;
+    const warnSpy = jest.spyOn(logger, 'warn');
+
+    // No sentinel — raw object payload.
+    await expect(
+      subject().processFormResumeTurn(
+        saved,
+        execId2,
+        makeFormNode(nodeId),
+        ctx,
+        { answer: 'raw-no-sentinel' },
+      ),
+    ).resolves.toBeUndefined();
+
+    // warn 이 기록됐는지 확인.
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('sentinel 없는 폴백'),
+    );
+    warnSpy.mockRestore();
+  });
+
+  // (c-running) status === RUNNING — RUNNING→RUNNING assertTransition 회피.
+  //   드라이브가 이미 RUNNING 전이했으면 nodeExec 만 save 하고 updateExecutionStatus 미호출.
+  it('(c-running) savedExecution.status === RUNNING — nodeExec 만 save, updateExecutionStatus 미호출', async () => {
+    const nodeId = 'node-form-c1';
+    const nodeExecRow: Partial<NodeExecution> = {
+      id: 'ne-form-c1',
+      nodeId,
+      executionId: execId2,
+      status: NodeExecutionStatus.WAITING_FOR_INPUT,
+      startedAt: new Date(),
+    };
+    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
+
+    const ctx = makeContext();
+    const saved = makeExecution(ExecutionStatus.RUNNING);
+
+    const updateStatusSpy = jest.spyOn(
+      service2 as unknown as { updateExecutionStatus: jest.Mock },
+      'updateExecutionStatus',
+    );
+
+    await subject().processFormResumeTurn(
+      saved,
+      execId2,
+      makeFormNode(nodeId),
+      ctx,
+      { type: 'form_submitted', formData: { answer: 'x' } },
+    );
+
+    // status === RUNNING 이면 updateExecutionStatus 미호출 (RUNNING→RUNNING 회피).
+    expect(updateStatusSpy).not.toHaveBeenCalled();
+    // nodeExec 은 save 됨.
+    expect(mockNodeExecRepo2.save).toHaveBeenCalled();
+  });
+
+  // (c-not-running) status !== RUNNING — updateExecutionStatus(RUNNING, nodeExec) 호출.
+  it('(c-not-running) savedExecution.status !== RUNNING — updateExecutionStatus 호출', async () => {
+    const nodeId = 'node-form-c2';
+    const nodeExecRow: Partial<NodeExecution> = {
+      id: 'ne-form-c2',
+      nodeId,
+      executionId: execId2,
+      status: NodeExecutionStatus.WAITING_FOR_INPUT,
+      startedAt: new Date(),
+    };
+    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
+
+    const ctx = makeContext();
+    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+
+    const statusCalls: unknown[] = [];
+    jest
+      .spyOn(
+        service2 as unknown as { updateExecutionStatus: jest.Mock },
+        'updateExecutionStatus',
+      )
+      .mockImplementation(async (_exec: unknown, status: unknown) => {
+        statusCalls.push(status);
+      });
+
+    await subject().processFormResumeTurn(
+      saved,
+      execId2,
+      makeFormNode(nodeId),
+      ctx,
+      { type: 'form_submitted', formData: { answer: 'y' } },
+    );
+
+    // updateExecutionStatus(RUNNING) 이 호출됐어야 한다.
+    expect(statusCalls).toContain(ExecutionStatus.RUNNING);
+  });
+
+  // (d) nodeExec null skip — findOne 이 null 이면 nodeExec 관련 save/emit 생략,
+  //     예외 없이 완료.
+  it('(d) nodeExec null — nodeExec save 스킵, 예외 없이 완료', async () => {
+    const nodeId = 'node-form-d';
+    // findOne returns null → nodeExec is null.
+    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(null);
+
+    const ctx = makeContext();
+    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+
+    const updateStatusSpy = jest
+      .spyOn(
+        service2 as unknown as { updateExecutionStatus: jest.Mock },
+        'updateExecutionStatus',
+      )
+      .mockResolvedValue(undefined);
+
+    await expect(
+      subject().processFormResumeTurn(
+        saved,
+        execId2,
+        makeFormNode(nodeId),
+        ctx,
+        { type: 'form_submitted', formData: { answer: 'z' } },
+      ),
+    ).resolves.toBeUndefined();
+
+    // nodeExec null → nodeExecutionRepo.save 미호출.
+    expect(mockNodeExecRepo2.save).not.toHaveBeenCalled();
+    // updateExecutionStatus 는 호출됨 (status !== RUNNING).
+    expect(updateStatusSpy).toHaveBeenCalled();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// WARNING #3 (SUMMARY) — driveCallStackResume 중 nested AI re-park.
+// processAiResumeTurn 이 PARK_RELEASED 반환 시 driveResumeFrame 이 {parked:true}
+// 를 반환해 runNodeDispatchLoop 가 호출되지 않음을 검증.
+// WARNING #5 (SUMMARY) — runExecutionFromQueue catch → failFirstSegmentSetup 직접 spy.
+// WARNING #6/W7 (SUMMARY) — rehydrateAndResume outer catch 흡수 +
+// failFirstSegmentSetup 2차 실패 로그 흡수.
+// ────────────────────────────────────────────────────────────────────────────
+describe('SUMMARY W3 / W5 / W6 / W7 보완 단위 테스트', () => {
+  // W3: driveCallStackResume 에서 nested AI PARK_RELEASED → {parked:true} 반환,
+  // runNodeDispatchLoop 미호출.
+  describe('W3 — driveCallStackResume nested AI re-park (PARK_RELEASED → {parked:true})', () => {
+    type DriveW3Subject = {
+      driveCallStackResume: (
+        savedExecution: unknown,
+        context: unknown,
+        opts: {
+          node: unknown;
+          nodeExec: unknown;
+          callStack: { version: number; frames: unknown[] };
+          persistedInteractionType: string | undefined;
+          isAiConversation: boolean;
+          resumeCheckpoint: Record<string, unknown> | undefined;
+          cachedOutput: Record<string, unknown> | undefined;
+          payload: unknown;
+        },
+      ) => Promise<void>;
+      driveResumeFrame: (
+        ...args: unknown[]
+      ) => Promise<{ parked: boolean; output: unknown }>;
+      runNodeDispatchLoop: (...args: unknown[]) => Promise<unknown>;
+      finalizeRehydrationCleanup: (id: string) => void;
+      updateExecutionStatus: (...args: unknown[]) => Promise<void>;
+      contextService: {
+        createContext: (e: string, w: string) => ExecutionContext;
+      };
+    };
+
+    let service3: ExecutionEngineService;
+
+    beforeEach(async () => {
+      const smallRepo = {
+        create: jest.fn(),
+        save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
+        findOneBy: jest.fn().mockResolvedValue(null),
+        find: jest.fn().mockResolvedValue([]),
+        createQueryBuilder: jest.fn().mockReturnValue({
+          update: jest.fn().mockReturnThis(),
+          set: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          execute: jest.fn().mockResolvedValue({ affected: 0 }),
+        }),
+      };
+      const module3 = await Test.createTestingModule({
+        providers: [
+          ExecutionEngineService,
+          ExecutionEventEmitter,
+          GraphTraversalService,
+          NodeHandlerDependenciesProvider,
+          NodeHandlerRegistry,
+          NodeComponentRegistry,
+          ExecutionContextService,
+          ErrorPolicyHandler,
+          ExpressionResolverService,
+          ForEachExecutor,
+          LoopExecutor,
+          ParallelExecutor,
+          ConversationThreadService,
+          ShutdownStateService,
+          { provide: getRepositoryToken(Execution), useValue: smallRepo },
+          { provide: getRepositoryToken(NodeExecution), useValue: smallRepo },
+          {
+            provide: getRepositoryToken(Node),
+            useValue: {
+              findBy: jest.fn().mockResolvedValue([]),
+              findOneBy: jest.fn().mockResolvedValue(null),
+            },
+          },
+          {
+            provide: getRepositoryToken(Edge),
+            useValue: { findBy: jest.fn().mockResolvedValue([]) },
+          },
+          {
+            provide: getRepositoryToken(Workflow),
+            useValue: {
+              findOneBy: jest
+                .fn()
+                .mockResolvedValue({ id: 'wf-w3', name: 'W3' }),
+              findOne: jest.fn().mockResolvedValue({
+                id: 'wf-w3',
+                workspace: { id: 'ws-w3', settings: {} },
+              }),
+            },
+          },
+          {
+            provide: getRepositoryToken(ExecutionNodeLog),
+            useValue: {
+              insert: jest
+                .fn()
+                .mockResolvedValue({ identifiers: [{ id: '1' }] }),
+              find: jest.fn().mockResolvedValue([]),
+            },
+          },
+          {
+            provide: getDataSourceToken(),
+            useValue: {
+              transaction: jest.fn(
+                async (cb: (m: unknown) => Promise<unknown>) =>
+                  cb({
+                    save: jest.fn((_t: unknown, e: unknown) =>
+                      Promise.resolve(e),
+                    ),
+                  }),
+              ),
+            },
+          },
+          {
+            provide: getQueueToken(BACKGROUND_EXECUTION_QUEUE),
+            useValue: { add: jest.fn() },
+          },
+          {
+            provide: getQueueToken(EXECUTION_RUN_QUEUE),
+            useValue: { add: jest.fn() },
+          },
+          {
+            provide: WebsocketService,
+            useValue: {
+              emitExecutionEvent: jest.fn().mockResolvedValue(undefined),
+              emitNodeEvent: jest.fn().mockResolvedValue(undefined),
+              registerExecutionRouting: jest.fn(),
+              releaseExecutionRouting: jest.fn(),
+            },
+          },
+          {
+            provide: ContinuationBusService,
+            useValue: {
+              publish: jest.fn(),
+              subscribe: jest.fn(),
+              close: jest.fn(),
+            },
+          },
+          {
+            provide: ConfigService,
+            useValue: { get: jest.fn().mockReturnValue(undefined) },
+          },
+          { provide: LlmService, useValue: { chat: jest.fn() } },
+          {
+            provide: RagSearchService,
+            useValue: { search: jest.fn().mockResolvedValue([]) },
+          },
+          {
+            provide: KnowledgeBaseService,
+            useValue: { findOne: jest.fn(), findAll: jest.fn() },
+          },
+          {
+            provide: IntegrationsService,
+            useValue: {
+              findByWorkspace: jest.fn().mockResolvedValue([]),
+              findByType: jest.fn().mockResolvedValue([]),
+              findOne: jest.fn(),
+            },
+          },
+          {
+            provide: McpClientService,
+            useValue: { listTools: jest.fn().mockResolvedValue([]) },
+          },
+          { provide: Cafe24ApiClient, useValue: { request: jest.fn() } },
+          { provide: MakeshopApiClient, useValue: { request: jest.fn() } },
+        ],
+      }).compile();
+      service3 = module3.get(ExecutionEngineService);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('driveResumeFrame 가 {parked:true} 반환 시 runNodeDispatchLoop 미호출 (nested AI PARK_RELEASED)', async () => {
+      const svc = service3 as unknown as DriveW3Subject;
+      const ctx = svc.contextService.createContext('exec-w3', 'wf-w3');
+
+      // driveResumeFrame → {parked:true} (AI re-park 시나리오).
+      const driveFrameSpy = jest
+        .spyOn(svc, 'driveResumeFrame')
+        .mockResolvedValue({ parked: true, output: undefined });
+      const dispatchSpy = jest
+        .spyOn(svc, 'runNodeDispatchLoop')
+        .mockResolvedValue({ parked: false });
+      jest
+        .spyOn(svc, 'finalizeRehydrationCleanup')
+        .mockImplementation(() => undefined);
+      jest.spyOn(svc, 'updateExecutionStatus').mockResolvedValue(undefined);
+
+      const callStack = {
+        version: CALL_STACK_SCHEMA_VERSION,
+        frames: [
+          {
+            workflowId: 'wf-sub-ai',
+            invokerNodeId: 'node-inv-ai',
+            recursionDepth: 1,
+          },
+        ],
+      };
+
+      await svc.driveCallStackResume(
+        {
+          id: 'exec-w3',
+          workflowId: 'wf-w3',
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+          startedAt: new Date(),
+          recursionDepth: 0,
+          inputData: {},
+        },
+        ctx,
+        {
+          node: { id: 'node-ai-1', type: 'ai_agent' },
+          nodeExec: {
+            id: 'ne-ai-1',
+            nodeId: 'node-ai-1',
+            executionId: 'exec-w3',
+            status: NodeExecutionStatus.WAITING_FOR_INPUT,
+          },
+          callStack,
+          persistedInteractionType: undefined,
+          isAiConversation: true,
+          resumeCheckpoint: { turnCount: 1 },
+          cachedOutput: undefined,
+          payload: { type: 'ai_message', message: 'next turn' },
+        },
+      );
+
+      // driveResumeFrame 가 {parked:true} 를 반환했으므로 runNodeDispatchLoop 미호출.
+      expect(driveFrameSpy).toHaveBeenCalledTimes(1);
+      expect(dispatchSpy).not.toHaveBeenCalled();
+    });
+
+    // W5: runExecutionFromQueue catch → failFirstSegmentSetup 직접 spy 검증.
+    // service3 재사용 (위 beforeEach 에서 생성됨).
+    it('W5 — runExecution throw 시 failFirstSegmentSetup 가 직접 호출된다', async () => {
+      type W5Subject = {
+        runExecution: (...args: unknown[]) => Promise<void>;
+        failFirstSegmentSetup: (
+          executionId: string,
+          error: unknown,
+        ) => Promise<void>;
+        executionRepository: { findOneBy: jest.Mock };
+      };
+      const svc = service3 as unknown as W5Subject;
+
+      svc.executionRepository.findOneBy = jest.fn().mockResolvedValue({
+        id: 'exec-w5',
+        workflowId: 'wf-w3',
+        status: ExecutionStatus.PENDING,
+        startedAt: new Date(),
+        inputData: {},
+        triggerId: 'trg-w5-spy',
+      });
+
+      const runSpy = jest
+        .spyOn(svc, 'runExecution')
+        .mockRejectedValueOnce(new Error('setup-throw-w5'));
+
+      const failSpy = jest
+        .spyOn(svc, 'failFirstSegmentSetup')
+        .mockResolvedValue(undefined);
+
+      await service3.runExecutionFromQueue('exec-w5', {});
+
+      expect(failSpy).toHaveBeenCalledWith('exec-w5', expect.any(Error));
+
+      runSpy.mockRestore();
+      failSpy.mockRestore();
+    });
+
+    // W6: rehydrateAndResume outer catch 흡수 검증.
+    it('W6 — resumeFromCheckpoint throw 가 rehydrateAndResume outer catch 에 흡수됨 (호출자 미전파)', async () => {
+      type W6Subject = {
+        rehydrateAndResume: (
+          executionId: string,
+          nodeExecutionId: string,
+          payload: unknown,
+        ) => Promise<void>;
+        resumeFromCheckpoint: (...args: unknown[]) => Promise<void>;
+        executionRepository: { findOneBy: jest.Mock };
+        nodeExecutionRepository: { findOne: jest.Mock };
+        nodeRepository: { findOneBy: jest.Mock };
+        workflowRepository: { findOne: jest.Mock };
+        executionNodeLogRepository: { find: jest.Mock };
+      };
+      const svc = service3 as unknown as W6Subject;
+
+      const rfcSpy = jest
+        .spyOn(svc, 'resumeFromCheckpoint')
+        .mockRejectedValueOnce(new Error('pre-drive-fail'));
+
+      svc.executionRepository.findOneBy = jest.fn().mockResolvedValue({
+        id: 'exec-w6',
+        workflowId: 'wf-w3',
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+        inputData: {},
+        resumeCallStack: null,
+      });
+      svc.nodeExecutionRepository.findOne = jest.fn().mockResolvedValue({
+        id: 'ne-w6',
+        nodeId: 'node-w6',
+        executionId: 'exec-w6',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          meta: { interactionType: 'form' },
+          status: 'waiting_for_input',
+        },
+        startedAt: new Date(),
+      });
+      svc.nodeRepository.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-w6',
+        type: 'form_node',
+        workflowId: 'wf-w3',
+        category: NodeCategory.LOGIC,
+        label: 'Form W6',
+        config: {},
+        isDisabled: false,
+      });
+      svc.workflowRepository.findOne = jest.fn().mockResolvedValue({
+        id: 'wf-w3',
+        workspace: { id: 'ws-w3', settings: {} },
+      });
+      svc.executionNodeLogRepository.find = jest.fn().mockResolvedValue([]);
+
+      await expect(
+        svc.rehydrateAndResume('exec-w6', 'ne-w6', {
+          type: 'form_submitted',
+          formData: {},
+        }),
+      ).resolves.toBeUndefined();
+
+      rfcSpy.mockRestore();
+    });
+
+    // W7: failFirstSegmentSetup 2차 실패 시 logger.error 로 흡수.
+    it('W7 — failFirstSegmentSetup 가 throw 해도 runExecutionFromQueue 는 throw 하지 않는다', async () => {
+      type W7Subject = {
+        runExecution: (...args: unknown[]) => Promise<void>;
+        failFirstSegmentSetup: (...args: unknown[]) => Promise<void>;
+        executionRepository: { findOneBy: jest.Mock };
+        logger: { error: jest.Mock };
+      };
+      const svc = service3 as unknown as W7Subject;
+
+      svc.executionRepository.findOneBy = jest.fn().mockResolvedValue({
+        id: 'exec-w7',
+        workflowId: 'wf-w3',
+        status: ExecutionStatus.PENDING,
+        startedAt: new Date(),
+        inputData: {},
+        triggerId: 'trg-w7',
+      });
+
+      const runSpy = jest
+        .spyOn(svc, 'runExecution')
+        .mockRejectedValueOnce(new Error('primary-error'));
+
+      const failSpy = jest
+        .spyOn(svc, 'failFirstSegmentSetup')
+        .mockRejectedValueOnce(new Error('secondary-error-w7'));
+
+      const errorSpy = jest.spyOn(svc.logger, 'error');
+
+      await expect(
+        service3.runExecutionFromQueue('exec-w7', {}),
+      ).resolves.toBeUndefined();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('secondary error'),
+      );
+
+      runSpy.mockRestore();
+      failSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
   });
 });

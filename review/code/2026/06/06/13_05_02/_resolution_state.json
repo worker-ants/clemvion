@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "started_at": "2026-06-06T13:30:00Z",
+  "summary_items_total": 13,
+  "items_resolved_ids": [1, 2, 6, 7, 8, 9, 10, 11],
+  "items_pending_ids": [],
+  "items_escalated_ids": {"1": "deferred-arch-full-B3", "2": "deferred-arch-full-B3", "3": "deferred-arch-full-B3"},
+  "spec_draft_items": [16, 17],
+  "deferred_arch_items": [1, 2, 3, 5],
+  "commits_made": [
+    {
+      "sha": "e8aaeaa7",
+      "summary_ids": [1, 2, 6, 7, 8, 9, 10, 11],
+      "scope": "exec-park-d6",
+      "message": "fix(exec-park-d6): ai-review Critical/Warning 해소 — 단위 테스트 신설·코드 방어 강화"
+    }
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-update-exec-park-d6-rehydration-step2.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec",
+  "last_reset_hint_sec": null
+}
