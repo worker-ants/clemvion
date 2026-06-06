@@ -526,5 +526,134 @@ describe('ExecutionsService', () => {
       // list 경로에서는 log repo 가 호출되지 않아야 한다 (N+1 회피).
       expect(executionNodeLogRepo.find).not.toHaveBeenCalled();
     });
+
+    // Carousel disabled stuck 회귀 — blocking 노드는 봉투(outputData.status=
+    // 'waiting_for_input')를 먼저 저장하고 status 컬럼은 'running' 으로 둔 뒤
+    // waitForXxx 가 atomic 전이한다. 그 사이 snapshot 이 읽히면 같은 row 가
+    // status='running' + outputData.status='waiting_for_input' 인 intra-row
+    // inconsistent. findById 가 봉투 status 를 surface 해 정규화해야 frontend 의
+    // ne.status 기반 reconciliation 이 waiting UI 를 wipe/누락하지 않는다.
+    it("blocking 노드의 status='running' + outputData.status='waiting_for_input' 를 waiting_for_input 으로 정규화", async () => {
+      const row = baseFake({ id: 'eW1', status: ExecutionStatus.RUNNING });
+      // INFO#9: mockReturnValueOnce 로 통일 — 단일 호출 테스트에서 영구 mock 불필요.
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([
+        {
+          id: 'ne-carousel',
+          nodeId: 'carousel-node',
+          status: 'running', // 컬럼은 아직 RUNNING (pre-park window)
+          outputData: {
+            config: { buttons: [{ id: 'b1', type: 'port', label: 'A' }] },
+            output: {},
+            status: 'waiting_for_input', // 봉투는 waiting
+            meta: { interactionType: 'buttons' },
+          },
+        },
+      ]);
+      executionNodeLogRepo.find.mockResolvedValue([
+        { nodeId: 'carousel-node' },
+      ]);
+
+      const result = (await service.findById('eW1')) as {
+        nodeExecutions: { status: string }[];
+      };
+      expect(result.nodeExecutions[0].status).toBe('waiting_for_input');
+    });
+
+    // INFO#1: PENDING 상태 노드의 봉투 신호 채택 경로.
+    it("blocking 노드의 status='pending' + outputData.status='waiting_for_input' 를 waiting_for_input 으로 정규화", async () => {
+      const row = baseFake({ id: 'eW3', status: ExecutionStatus.RUNNING });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([
+        {
+          id: 'ne-pending',
+          nodeId: 'form-node',
+          status: 'pending', // ← pending 상태에서도 봉투 채택해야 함
+          outputData: {
+            config: { fields: [] },
+            output: {},
+            status: 'waiting_for_input',
+            meta: { interactionType: 'form' },
+          },
+        },
+      ]);
+      executionNodeLogRepo.find.mockResolvedValue([{ nodeId: 'form-node' }]);
+
+      const result = (await service.findById('eW3')) as {
+        nodeExecutions: { status: string }[];
+      };
+      expect(result.nodeExecutions[0].status).toBe('waiting_for_input');
+    });
+
+    it('terminal(completed) 노드의 stale outputData.status 는 정규화하지 않음', async () => {
+      const row = baseFake({ id: 'eW2', status: ExecutionStatus.RUNNING });
+      // INFO#9: mockReturnValueOnce 로 통일.
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([
+        {
+          id: 'ne-done',
+          nodeId: 'carousel-node',
+          status: 'completed', // 이미 버튼 클릭 후 종결
+          outputData: { status: 'waiting_for_input' }, // 봉투에 잔존하는 stale 문자열
+        },
+      ]);
+      executionNodeLogRepo.find.mockResolvedValue([
+        { nodeId: 'carousel-node' },
+      ]);
+
+      const result = (await service.findById('eW2')) as {
+        nodeExecutions: { status: string }[];
+      };
+      expect(result.nodeExecutions[0].status).toBe('completed');
+    });
+
+    // INFO#4: 복수 nodeExecutions 혼합 케이스 — completed 노드는 그대로, running+봉투 만 정규화.
+    it('복수 nodeExecutions 혼합 — completed 노드는 그대로, intra-row inconsistent 만 waiting_for_input 으로 정규화', async () => {
+      const row = baseFake({ id: 'eW4', status: ExecutionStatus.RUNNING });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([
+        {
+          id: 'ne-trigger',
+          nodeId: 'trigger-node',
+          status: 'completed', // 이미 완료 — 정규화 대상 아님
+          outputData: null,
+        },
+        {
+          id: 'ne-carousel',
+          nodeId: 'carousel-node',
+          status: 'running', // ← intra-row inconsistent
+          outputData: {
+            config: { buttons: [{ id: 'b1', type: 'port', label: 'Next' }] },
+            output: {},
+            status: 'waiting_for_input',
+            meta: { interactionType: 'buttons' },
+          },
+        },
+      ]);
+      executionNodeLogRepo.find.mockResolvedValue([
+        { nodeId: 'trigger-node' },
+        { nodeId: 'carousel-node' },
+      ]);
+
+      const result = (await service.findById('eW4')) as {
+        nodeExecutions: { nodeId: string; status: string }[];
+      };
+      const triggerNe = result.nodeExecutions.find(
+        (ne) => ne.nodeId === 'trigger-node',
+      );
+      const carouselNe = result.nodeExecutions.find(
+        (ne) => ne.nodeId === 'carousel-node',
+      );
+      expect(triggerNe?.status).toBe('completed'); // 변경 없음
+      expect(carouselNe?.status).toBe('waiting_for_input'); // 정규화 적용
+    });
   });
 });
