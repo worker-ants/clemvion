@@ -150,7 +150,7 @@
 | KB-AG-01 | AI Agent 노드에서 참조할 Knowledge Base 컬렉션 선택 가능. 모드(`vector` / `graph`) 와 무관하게 동일 인터페이스 | 필수 |
 | KB-AG-02 | 검색 시 유사도 임계값 설정 | 권장 |
 | KB-AG-03 | 검색 결과 수(Top-K) 설정 | 권장 |
-| KB-AG-04 | graph 모드 KB 의 그래프 검색 파라미터 (`maxHops`, `vectorSeedTopK`, `expandedChunkLimit`) 는 KB 단위에서만 제어. AI Agent 노드는 그대로 `ragTopK` / `ragThreshold` 만 노출 | 필수 |
+| KB-AG-04 | graph 모드 KB 의 그래프 검색 파라미터 (`maxHops`, `vectorSeedTopK`, `expandedChunkLimit`) 는 KB 단위에서만 제어. AI Agent 노드는 그대로 `ragTopK` / `ragThreshold` 만 노출 (단 `ragTopK` 는 optional — 미지정 시 [RAG 검색 §3.4](../../5-system/9-rag-search.md#34-동적-점수-컷-생성-주입-모든-모드-공통) 동적 컷이 주입 수 결정, 명시 시 상한 override) | 필수 |
 
 ---
 

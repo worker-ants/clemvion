@@ -15,6 +15,28 @@ export const RAG_INJECT_TOKEN_BUDGET = 8000;
 // 생성 주입 청크 수 ceiling. 명시 top_k(노드 ragTopK 또는 LLM arg) 미지정 시 적용.
 export const RAG_MAX_INJECT_COUNT = 12;
 
+// pgvector HNSW ef_search 기본값(40)·상한(1000). recall@LIMIT 보전을 위해 ef_search ≥ LIMIT
+// 가 필요하며(미만이면 recall 저하), wide 회수(RAG_RECALL_K=50)·rerank candidateK(≤200)는
+// 기본 40 을 초과한다. (spec/5-system/9-rag-search.md §3.4)
+export const HNSW_EF_SEARCH_DEFAULT = 40;
+export const HNSW_EF_SEARCH_MAX = 1000;
+
+/**
+ * 회수 LIMIT 에 맞춘 HNSW `ef_search` 값. `ef_search ≥ LIMIT` 정설에 2× 헤드룸을 주되
+ * pgvector 기본(40) 하한·상한(1000) 안으로 clamp. SET LOCAL 로 트랜잭션 스코프 적용.
+ *
+ * 반환값은 **항상 [40, 1000] 정수** — SET LOCAL GUC 는 파라미터 바인딩이 안 돼 SQL 에
+ * 직접 보간되므로(`SET LOCAL hnsw.ef_search = <n>`) 정수·범위 보장이 안전성의 근거다.
+ * `Math.ceil` 은 비정수 limit, 가드는 비유한(NaN/Infinity) limit 에 대한 방어.
+ */
+export function hnswEfSearchFor(limit: number): number {
+  if (!Number.isFinite(limit)) return HNSW_EF_SEARCH_DEFAULT;
+  return Math.min(
+    HNSW_EF_SEARCH_MAX,
+    Math.max(HNSW_EF_SEARCH_DEFAULT, Math.ceil(limit) * 2),
+  );
+}
+
 /** RAG 동적 점수 컷 옵션 (spec/5-system/9-rag-search.md §3.4). */
 export interface DynamicCutOptions {
   // 누적 토큰 추정이 이 값을 초과하면 중단 (단 최소 1개 보장).

@@ -1,5 +1,6 @@
 import {
   applyDynamicCut,
+  hnswEfSearchFor,
   RAG_MAX_INJECT_COUNT,
   RAG_INJECT_TOKEN_BUDGET,
   RAG_RECALL_K,
@@ -66,5 +67,22 @@ describe('applyDynamicCut', () => {
     expect(RAG_RECALL_K).toBe(50);
     expect(RAG_INJECT_TOKEN_BUDGET).toBe(8000);
     expect(RAG_MAX_INJECT_COUNT).toBe(12);
+  });
+});
+
+describe('hnswEfSearchFor', () => {
+  it('LIMIT×2 에 기본 40 하한·1000 상한 clamp', () => {
+    expect(hnswEfSearchFor(RAG_RECALL_K)).toBe(100); // 50×2
+    expect(hnswEfSearchFor(5)).toBe(40); // 10 < 40 → 하한
+    expect(hnswEfSearchFor(200)).toBe(400); // rerank candidateK 최대
+    expect(hnswEfSearchFor(600)).toBe(1000); // 1200 > 1000 → 상한
+  });
+
+  it('비정수·비유한 입력 방어 (SET LOCAL 보간 안전)', () => {
+    expect(hnswEfSearchFor(5.5)).toBe(40); // ceil(5.5)=6, 12 < 40 → 하한
+    expect(hnswEfSearchFor(25.1)).toBe(52); // ceil=26, 52
+    expect(hnswEfSearchFor(NaN)).toBe(40); // 비유한 → 기본값
+    expect(hnswEfSearchFor(Infinity)).toBe(40); // 비유한 → 기본값
+    expect(Number.isInteger(hnswEfSearchFor(33.7))).toBe(true);
   });
 });

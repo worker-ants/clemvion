@@ -193,6 +193,8 @@ interface RerankClient {
 }
 ```
 
+> **`opts.topK` 의미 (D1 이후)**: `RerankService` 는 `rerank()` 호출 시 `topK = candidates.length` 로 **전 후보를 재점수화**한다 — 작은 topK 로 미리 굶기면 후속 동적 컷이 무의미해지기 때문. 최종 주입 청크 수는 `rerank()` 가 아니라 `RerankService` 의 §3.4 동적 컷(`applyDynamicCut`: token-budget + inject-cap, [RAG 검색 §3.4](./9-rag-search.md#34-동적-점수-컷-생성-주입-모든-모드-공통))이 결정한다. 즉 `opts.topK` 는 클라이언트 레벨 상한일 뿐 생성 주입 컷의 단일 진실이 아니다.
+
 ---
 
 ## 4. LLMClientFactory

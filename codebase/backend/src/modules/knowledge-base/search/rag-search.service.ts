@@ -17,6 +17,7 @@ import {
 } from '../embedding/embedding-dimensions.const';
 import {
   applyDynamicCut,
+  hnswEfSearchFor,
   RAG_RECALL_K,
   RAG_INJECT_TOKEN_BUDGET,
   RAG_MAX_INJECT_COUNT,
@@ -416,8 +417,17 @@ export class RagSearchService {
     const cast = getEmbeddingCastType(dim);
     const castExpr = `${cast}(${dim})`;
 
-    const rows = await this.dataSource.query<RawSearchRow[]>(
-      `SELECT
+    // wide 회수의 recall 보전 (§3.4): HNSW `ef_search`(기본 40)가 LIMIT 미만이면
+    // recall@LIMIT 가 저하된다. D1 이 회수폭을 넓혔으므로(RAG_RECALL_K=50 > 40, rerank
+    // candidateK 는 최대 200) LIMIT 에 비례해 ef_search 를 상향한다. `SET LOCAL` 이라
+    // 트랜잭션 스코프 — 풀 커넥션 오염 없음. (pgvector 표준 GUC — 전 매니지드 동작)
+    // efSearch 는 hnswEfSearchFor 가 [40,1000] 정수로 clamp 보장 — SET LOCAL GUC 는
+    // 파라미터 바인딩($n)이 불가하므로 직접 보간하되 정수·범위 보장이 인젝션 안전 근거.
+    const efSearch = hnswEfSearchFor(topK);
+    const rows = await this.dataSource.transaction(async (em) => {
+      await em.query(`SET LOCAL hnsw.ef_search = ${efSearch}`);
+      return em.query<RawSearchRow[]>(
+        `SELECT
         dc.id AS "chunkId",
         dc.document_id AS "documentId",
         d.name AS "documentName",
@@ -434,8 +444,9 @@ export class RagSearchService {
         AND 1 - (dc.embedding::${castExpr} <=> $1::${castExpr}) >= $3
       ORDER BY score DESC
       LIMIT $4`,
-      [vectorStr, kbIds, threshold, topK, workspaceId],
-    );
+        [vectorStr, kbIds, threshold, topK, workspaceId],
+      );
+    });
 
     return rows.map((r) => ({
       chunkId: r.chunkId,
@@ -500,6 +511,10 @@ export class RagSearchService {
     const seedTopK = kb.vectorSeedTopK;
     const expandLimit = kb.expandedChunkLimit;
     const maxHops = kb.maxHops;
+
+    // 참고: seed CTE 의 ANN LIMIT 는 seedTopK(기본 5) < HNSW_EF_SEARCH_DEFAULT(40) 라
+    // 기본 ef_search 로 충분 → searchVectorGroup 과 달리 ef_search 미상향. seedTopK 를
+    // 40 초과로 설정하는 시나리오를 지원하면 hnswEfSearchFor(seedTopK) 적용을 재검토한다.
 
     // 단일 SQL 로 seed + expansion + rerank 까지 처리.
     // seed CTE: vector top-K (threshold 적용)

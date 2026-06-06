@@ -212,5 +212,5 @@ Mode:  [Off ▼]   (Off / Cross-encoder / Cross-encoder + LLM)
   - *VectorChord/ColBERT 등 in-DB 리랭킹*: 한국어 토크나이저 부재·인프라 복잡. cross-encoder API/TEI 로 충분(plan D7).
 - **남은 결정 — 2026-06-04 확정**:
   - ① RerankConfig provider 1차 범위 → **`tei` + `cohere`** 2종. jina/voyage/local/builtin 은 Planned(동일 `/rerank` 래퍼라 후속 저렴). 자가호스팅: TEI 컨테이너(Node 는 thin HTTP client)가 기본, builtin(Transformers.js 인프로세스)은 제로-인프라용 후속.
-  - ② `cross_encoder_llm` = **항상 LLM grading**(v1). 점수 기반 conditional escalate 의 정량 임계는 P0 평가셋 보정 후 후속 최적화.
+  - ② `cross_encoder_llm` = **항상 LLM grading**(v1). 점수 기반 conditional escalate 의 정량 임계는 P0 평가셋 보정 후 후속 최적화. → **[SUPERSEDED 2026-06-06]** `rag-dynamic-cut` PR(#500, D2)에서 **conditional escalate**(상위 점수 평탄/모호 시에만 grading, provisional 임계)로 대체됨. 근거·정량 임계 후속 계획: [`spec/5-system/9-rag-search.md §3.3.2·§Rationale`](../../spec/5-system/9-rag-search.md).
   - ③ "정책 판단 KB" 표시 → **별도 플래그 없음**, `rerank_mode = cross_encoder_llm` 선택 자체가 표시자.

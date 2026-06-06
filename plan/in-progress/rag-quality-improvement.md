@@ -92,10 +92,10 @@ owner: 사용자 본인 / planner
 - [x] **spec 갱신**: 신규 `spec/conventions/rag-evaluation.md` 또는 `spec/5-system/9-rag-search.md`. (완료: rag-eval-harness 참조)
 
 ### P1 — 검색 후처리 재설계 ⭐ (D1+D2)
-- [ ] **점수 기반 동적 컷**(D1) — 최우선. 회수 폭 30~50, token-budget 상한, 생성 주입 ~8~12.
-- [ ] cross-encoder 리랭크 기본(`bge-reranker-v2-m3-ko`). NestJS 서비스(ONNX/Triton local 또는 rerank API).
-- [ ] listwise LLM grading **escalate 경로**(D2 escalate 조건) — `RagSearchService.search()` 내부, tool 인터페이스 불변.
-- [ ] "근거 없음" → agent 명시 전달.
+- [x] **점수 기반 동적 컷**(D1) — `rag-dynamic-cut` PR #500: 회수 폭 RAG_RECALL_K(50), token-budget(8000) + inject-cap(12) `applyDynamicCut`, ef_search recall 보전. (off·rerank·graph 통합 주입 단계 공통)
+- [x] cross-encoder 리랭크 기본(`bge-reranker-v2-m3-ko`/tei·cohere) — #465 머지.
+- [x] listwise LLM grading **escalate 경로**(D2) — #500: conditional escalate(`shouldEscalateGrading`, provisional 임계). 정량 A/B 는 §7.C(데이터 의존) 후속.
+- [x] "근거 없음" → agent 명시 전달 — #500: `gradingNoGrounding` → KB tool `grounding:"none"`.
 - [x] **spec 갱신** (2026-06-06, `rag-dynamic-cut` PR): `spec/5-system/9-rag-search.md` §3.1·§3.3·신규 §3.4·§4.2·§6·Rationale, `spec/4-nodes/3-ai/1-ai-agent.md`·`0-common.md` ragTopK optional, `17-agent-memory.md`·`10-graph-rag.md`·`1-data-model.md` 정합. consistency `--spec 14_53_44` BLOCK:NO.
 
 ### P2 — 3-신호 하이브리드 검색 (D3) — **배포 환경 선결**

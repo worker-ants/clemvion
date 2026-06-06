@@ -38,7 +38,7 @@ KB 의 `rag_mode` 에 따라 흐름이 분기된다:
 
 **호출 결과의 분리 유지**: 각 `kb_*` 호출은 단일 KB 만 검색하며, 결과는 호출별로 분리된 tool_result 메시지로 LLM 에 전달된다. **호출 간 score 기준 병합·재정렬은 수행하지 않는다** — 에이전트가 각 호출 결과를 그대로 인용·종합해 최종 답변을 만든다. 노드 메타(`meta.ragSources`) 누적 시점에는 chunkId 기반 dedup 만 적용해 References UI 의 중복 표시를 막을 뿐, LLM 에 전달되는 tool_result content 는 가공 없이 호출별로 분리된다.
 
-> 참고: `RagSearchService.search()` 자체는 multi-KB 인자 호출 시 score 기준 병합 후 topK slicing 을 수행하지만, 이는 디버그 컨트롤러(`POST /api/knowledge-bases/search`) 의 멀티-KB 검색 경로에서만 사용된다. AI Agent 노드의 `KbToolProvider` 는 항상 단일 KB 로 호출하므로 위 병합 로직이 작동하지 않는다.
+> 참고: `RagSearchService.search()` 자체는 multi-KB 인자 호출 시 score 기준 병합 후 §3.4 동적 점수 컷(token-budget + inject-cap)을 수행하지만, 이는 디버그 컨트롤러(`POST /api/knowledge-bases/search`) 의 멀티-KB 검색 경로에서만 사용된다. AI Agent 노드의 `KbToolProvider` 는 항상 단일 KB 로 호출하므로 위 병합 로직이 작동하지 않는다.
 
 ---
 
@@ -212,7 +212,7 @@ LIMIT $4;
 
 - 컷 기준이 cosine → **rerank 점수**로 이동한다. **고정 COUNT 컷(top-k)으로 의미 있는 청크가 잘리는 문제**를 §3.4 점수 기반 동적 컷(token-budget + inject-cap)으로 해소한다.
 - 한국어 권장 cross-encoder 모델: `dragonkue/bge-reranker-v2-m3-ko` (자가호스팅 `tei`).
-- **v1 결정 (2026-06-06 갱신)**: `cross_encoder_llm` 은 cross-encoder 상위 점수가 평탄/모호할 때만 listwise grading 으로 **conditional escalate** 한다. escalate 진입 **정량 임계는 합리적 default** 로 시작(§Rationale)하고, P0 골든셋 기반 A/B 확정은 후속([`rag-rerank-followup.md`](../../plan/in-progress/rag-rerank-followup.md)). escalate 미발생은 cross-encoder 결과를 그대로 사용한다(기존 동작의 부분집합 → 회귀 안전). "정책 판단 KB" 는 별도 컬럼/휴리스틱 없이 `rerank_mode = cross_encoder_llm` 선택으로 표현한다.
+- **v1 결정 (2026-06-06 갱신 — [`spec-draft-rag-reranking.md §Rationale②`](../../plan/complete/spec-draft-rag-reranking.md) "항상 grading(v1)" 결정 번복)**: `cross_encoder_llm` 은 cross-encoder 상위 점수가 평탄/모호할 때만 listwise grading 으로 **conditional escalate** 한다. escalate 진입 **정량 임계는 합리적 default** 로 시작(§Rationale)하고, P0 골든셋 기반 A/B 확정은 후속([`rag-rerank-followup.md`](../../plan/in-progress/rag-rerank-followup.md)). escalate 미발생은 cross-encoder 결과를 그대로 사용한다(기존 동작의 부분집합 → 회귀 안전). "정책 판단 KB" 는 별도 컬럼/휴리스틱 없이 `rerank_mode = cross_encoder_llm` 선택으로 표현한다.
 - **grader '근거 없음' 전달**: listwise grading 이 survivors 전부를 무관(저점)으로 판정하면 그 사실을 검색 결과 메타로 노출해 agent 가 "관련 근거 없음" 을 인지·명시하도록 한다 (환각 억제, Self-RAG 인용정밀도).
 - **v1 범위 — 단일 KB 한정**: 리랭킹은 `RagSearchService` 가 **단일 KB** 로 호출된 경로(agentic `KbToolProvider`)에서만 적용된다. 멀티-KB 인자 검색(디버그 컨트롤러 경로)은 cosine score 병합 후 §3.4 동적 컷(token-budget + inject-cap)을 적용하며 리랭크는 하지 않는다(멀티-KB 리랭크는 후속). 단일 KB 가 RAG 의 정상 경로(§1, §2.1)이므로 v1 커버리지로 충분하다.
 
@@ -242,7 +242,7 @@ LIMIT $4;
 - **토큰 추정**: KB 청킹 경로의 `chunking/text-chunker.estimateTokens`(char/3, 동기·무의존)를 재사용한다 — KB 청크 도메인과 동일 추정. ai-agent working-memory 의 language-aware 추정과는 의도적 분리(서로 다른 도메인, 회귀 0).
 - **적용 경로**: 단일 KB vector · multi-KB merge(디버그 컨트롤러) · graph 통합 결과 모두 최종 주입 단계에 동일 적용된다.
 - **실패 처리**: 동적 컷은 in-process 순수 후처리(필터·합산)라 별도 실패 모드가 없다. 상위 예외는 기존 검색 try/catch(빈 결과/`search_failed`)가 커버한다 (§6).
-- **pgvector 인덱스 파라미터 (follow-up)**: wide 회수(`LIMIT 5 → LIMIT RAG_RECALL_K(50)`) 도입으로 ANN 스캔 대상이 늘어난다. 재현율 유지를 위해 `hnsw.ef_search`(기본 40, `ef_search ≥ 회수 폭` 권장) / `ivfflat.probes`(기본 1, 낮으면 50 회수 미달) 파라미터가 적합한지 프로덕션 부하 측정 후 조정이 필요할 수 있다 — 필요 시 DB 세션 파라미터 또는 KB config 로 노출(후속).
+- **pgvector HNSW `ef_search` (recall 보전)**: wide 회수(`LIMIT 5 → RAG_RECALL_K(50)`, rerank `candidateK` ≤ 200)는 HNSW 기본 `ef_search=40` 을 초과하므로, 그대로 두면 `ef_search < LIMIT` 이 되어 recall@LIMIT 가 저하된다. vector 회수 쿼리(`searchVectorGroup`)는 `SET LOCAL hnsw.ef_search = clamp(LIMIT×2, 40, 1000)`(`hnswEfSearchFor`)를 **트랜잭션 스코프**로 적용해 재현율을 보전한다 — `SET LOCAL` 이라 풀 커넥션 오염이 없고, pgvector 표준 GUC 라 **전 매니지드에서 동일 동작**(별도 확장 불요). graph seed(`seedTopK` 기본 5 < 40)는 기본값으로 충분하므로 미적용. (`ivfflat` 미사용 — 차원별 partial HNSW 만 운용.) 프로덕션 부하에 따른 정밀 튜닝(값·KB config 노출)은 후속.
 
 ---
 
@@ -340,6 +340,7 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 | 리랭커가 유효 결과 0건 반환 (모든 index 가 후보 범위 밖) | wide 회수 결과를 cosine score 순 정렬 후 §3.4 동적 컷으로 **안전 강등**. `ragDiagnostics.rerank.error = "RERANK_NO_VALID_RESULTS"`. 경고 로그 |
 | RerankConfig 미구성/미지원 provider | 해당 KB `off` 강등 (cosine 경로). `RERANK_CONFIG_INVALID`. 경고 로그 |
 | `cross_encoder_llm` grading LLM 실패 | cross-encoder 결과로 fallback (LLM 단계만 skip). `RERANK_LLM_GRADING_FAILED` |
+| `cross_encoder_llm` grading 이 모든 후보 무관 판정 (**정상, 에러 아님**) | 결과 비우고 `gradingNoGrounding=true` (§4.2). KB tool 이 `grounding:"none"` 으로 '관련 근거 없음' 을 agent 에 명시 (§2.2·§3.3.2 환각 억제). `error=null` |
 | 동적 점수 컷 (§3.4) | in-process 순수 후처리(필터·합산) — 별도 실패 모드 없음. 상위 검색 실패는 기존 `search_failed`/빈 결과 fallback 으로 커버 |
 | `maxToolCalls` 도달 | tool loop 종료 후 마지막 LLM 응답을 그대로 반환 |
 
