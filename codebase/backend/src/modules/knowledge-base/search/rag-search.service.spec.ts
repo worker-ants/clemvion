@@ -206,6 +206,65 @@ describe('RagSearchService', () => {
       expect(mockLlmService.embed).not.toHaveBeenCalled();
     });
 
+    it('should gracefully skip a group when embed returns a vector of unexpected dimension', async () => {
+      // embed 가 kb.embeddingDimension 과 다른 길이의 벡터를 반환하면(모델/엔드포인트
+      // 불일치 등) 해당 그룹을 경고 후 스킵하고 chunk 검색 SQL 을 실행하지 않는다.
+      mockDataSource.query.mockResolvedValueOnce([
+        makeKbRow({ id: 'kb-1', embeddingDimension: 1536 }),
+      ]);
+      // 기대 1536 인데 1280 반환 → length 불일치 → graceful skip.
+      mockLlmService.embed.mockResolvedValue([new Array(1280).fill(0.1)]);
+
+      const result = await service.search('query', ['kb-1'], 'ws-1');
+
+      expect(result).toEqual([]);
+      expect(mockLlmService.embed).toHaveBeenCalledTimes(1);
+      // KB 메타 조회(1회)만 일어나고 chunk 검색 SQL 은 실행되지 않아야 한다.
+      expect(mockDataSource.query).toHaveBeenCalledTimes(1);
+    });
+
+    it('should skip only the dimension-mismatched group and keep other group results', async () => {
+      // 두 그룹 중 한 그룹만 dim 불일치로 스킵되고, 정상 그룹 결과는 유지된다.
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({ id: 'kb-1', embeddingDimension: 1536 }),
+          makeKbRow({
+            id: 'kb-2',
+            embeddingModel: 'text-embedding-3-large',
+            embeddingDimension: 3072,
+          }),
+        ])
+        .mockImplementation((sql: string) => {
+          // 정상 그룹(3072)의 chunk 검색만 결과를 돌려준다.
+          if (sql.includes('vector_dims(dc.embedding) = 3072')) {
+            return Promise.resolve([
+              {
+                chunkId: 'c1',
+                documentId: 'd1',
+                documentName: 'A.txt',
+                content: 'ok',
+                metadata: {},
+                score: '0.9',
+              },
+            ]);
+          }
+          return Promise.resolve([]);
+        });
+      mockLlmService.embed.mockImplementation(
+        (_cfg: unknown, _texts: string[], model: string) =>
+          // 1536 그룹은 차원 불일치 벡터, 3072 그룹은 정상 벡터.
+          model === 'text-embedding-3-large'
+            ? Promise.resolve([new Array(3072).fill(0.1)])
+            : Promise.resolve([new Array(1280).fill(0.1)]),
+      );
+
+      const result = await service.search('query', ['kb-1', 'kb-2'], 'ws-1');
+
+      expect(mockLlmService.embed).toHaveBeenCalledTimes(2);
+      expect(result).toHaveLength(1);
+      expect(result[0].chunkId).toBe('c1');
+    });
+
     it('should merge results across groups and respect topK', async () => {
       mockDataSource.query
         .mockResolvedValueOnce([
@@ -320,6 +379,17 @@ describe('RagSearchService', () => {
           traversedEntityCount: 5,
           maxDepth: 2,
         }),
+      );
+
+      // graph 모드 query 임베딩(searchGraphKb 경로)도 vector 경로와 동일하게
+      // inputType='query' 로 호출돼야 한다 — 비대칭 모델에서 query/passage 공간이
+      // 어긋나지 않게 하는 핵심 계약. KB 의 embeddingModel 을 그대로 전달.
+      expect(mockLlmService.embed).toHaveBeenCalledWith(
+        expect.anything(),
+        ['query'],
+        'text-embedding-3-small',
+        undefined,
+        'query',
       );
     });
 

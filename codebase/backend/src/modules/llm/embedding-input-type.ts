@@ -62,6 +62,9 @@ const E5_PREFIX: Record<EmbedInputType, string> = {
  * @param model - 임베딩 모델 ID. `undefined` 허용 — 전략 'none' 으로 폴백.
  * @param inputType - 'query' 또는 'document'. 전략이 'none' 이면 무시.
  * @returns 접두사가 적용된 텍스트 배열(전략 'none' 이면 원본 배열 그대로).
+ * @remarks 멱등(idempotent) 아님 — 이미 접두사가 붙은 텍스트에 재적용하면
+ *   접두사가 누적된다(`query: query: ...`). 호출자(embed 경로)가 입력당 단 한 번만
+ *   호출할 책임을 진다. 정책 고정 테스트: `embedding-input-type.spec.ts`.
  */
 export function applyEmbeddingInputPrefix(
   texts: string[],

@@ -250,6 +250,72 @@ describe('LlmService', () => {
       );
       expect(result).toHaveLength(45);
     });
+
+    it('inputType "query" 를 각 배치에 그대로 전달한다(검색 경로)', async () => {
+      // 최소 픽스처 — embed 경로는 provider/model 만 의미 있고 나머지 LlmConfig
+      // 컬럼은 createClient mock 이 무시하므로 `as any` 로 타입만 충족(파일 내 embed
+      // describe 의 기존 픽스처 패턴과 동일).
+      const config = {
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      } as any;
+
+      // 25개 → 20 + 5 두 배치. 두 배치 모두 inputType='query' 가 붙어야 한다.
+      const texts = Array.from({ length: 25 }, (_, i) => `q-${i}`);
+      mockClient.embed
+        .mockResolvedValueOnce(Array.from({ length: 20 }, () => [0.1]))
+        .mockResolvedValueOnce(Array.from({ length: 5 }, () => [0.2]));
+
+      await service.embed(
+        config,
+        texts,
+        'multilingual-e5-large',
+        undefined /* opts */,
+        'query',
+      );
+
+      expect(mockClient.embed).toHaveBeenCalledTimes(2);
+      expect(mockClient.embed).toHaveBeenNthCalledWith(
+        1,
+        texts.slice(0, 20),
+        'multilingual-e5-large',
+        'query',
+      );
+      expect(mockClient.embed).toHaveBeenNthCalledWith(
+        2,
+        texts.slice(20, 25),
+        'multilingual-e5-large',
+        'query',
+      );
+    });
+
+    it('timeout 설정 시에도 inputType 이 client.embed 로 전달된다(withTimeout 경유)', async () => {
+      // 최소 픽스처 (위 케이스와 동일 이유) — `as any` 로 타입만 충족.
+      const config = {
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      } as any;
+
+      mockClient.embed.mockResolvedValue([[0.1, 0.2]]);
+
+      // timeoutMs 가 양수면 withTimeout(() => client.embed(...)) 경로를 탄다.
+      // 그래도 위치 인자 (batch, model, inputType) 는 보존되어야 한다.
+      await service.embed(
+        config,
+        ['검색어'],
+        'multilingual-e5-large',
+        { timeoutMs: 5_000 },
+        'query',
+      );
+
+      expect(mockClient.embed).toHaveBeenCalledWith(
+        ['검색어'],
+        'multilingual-e5-large',
+        'query',
+      );
+    });
   });
 
   describe('testConnection', () => {

@@ -672,6 +672,7 @@ Pre-flight 검증 (CONVENTIONS Principle 3.1 — throw):
 ### 7.1 회수 (recall — consumer)
 
 - 추출 LLM 콜 직전 1회: `AgentMemoryService.recall(workspaceId, scopeKey, queryText, { topK: memoryTopK, threshold: memoryThreshold, embeddingModel })`.
+- recall 은 `queryText` 를 **`inputType:'query'`** 로 임베딩한다 — scope 메모리는 적재 시 `'document'` 로 임베딩되므로, 비대칭 모델(e5·Gemini)에서 query/document 인코딩이 어긋나지 않게 검색 측만 query 로 배선한다 (회수 임베딩 상세: [§17 agent-memory §4](../../5-system/17-agent-memory.md#4-회수-top-k-동기--forgetting)).
 - `scopeKey = resolveScopeKey(memoryKey, executionId)` — ai_agent 와 **동일 scope key 규칙** ([§17 §2](../../5-system/17-agent-memory.md)). 같은 키면 ai_agent 와 추출기가 같은 메모리를 공유한다. 비우면 `executionId` 로 세션 격리.
 - 회수 결과는 안정 프리픽스(recall 블록 — `[memory]…[/memory]` data-fence)로 system 메시지 뒤에 append 한다. `manual` 이면 호출 없이 무변경. single-turn / multi-turn 첫 진입 모두 적용.
 - 회수 실패는 graceful (빈 회수 → 무영향) — hot-path 를 깨지 않는다.
