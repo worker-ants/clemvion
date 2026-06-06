@@ -2,6 +2,10 @@
 worktree: exec-park-b2a-followup-9fdefc
 started: 2026-06-06
 owner: developer
+spec_impact:
+  - spec/5-system/7-llm-client.md
+  - spec/5-system/14-external-interaction-api.md
+  - spec/data-flow/3-execution.md
 ---
 
 # Plan — PR-B2a 리뷰 follow-up (LLM_STUB_MODE 문서화 · EIA §8.3 검증 · durable 컬럼 doc-sync · e2e ENCRYPTION_KEY)
