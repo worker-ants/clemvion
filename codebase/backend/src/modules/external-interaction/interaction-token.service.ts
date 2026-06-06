@@ -91,8 +91,18 @@ export class InteractionTokenService {
       process.env.JWT_SECRET ??
       null;
     if (!envSecret) {
+      // Fail-closed (OAUTH_STUB_MODE / LLM_STUB_MODE 부팅 가드 패턴): 프로덕션에서
+      // interaction 토큰 secret 이 없으면 비보안 fallback 으로 서명하지 않고 즉시
+      // throw 해 부팅을 막는다. (실무상 JWT_SECRET 가 앱 인증에 필수라 도달 드물지만,
+      // 계약을 명시해 fallback 서명 가능성을 원천 차단.) dev/test 는 placeholder 유지.
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+          'InteractionTokenService: INTERACTION_JWT_SECRET (또는 JWT_SECRET) 미설정 — ' +
+            'NODE_ENV=production 에서는 필수입니다 (fail-closed; 비보안 fallback 서명 불가).',
+        );
+      }
       this.logger.warn(
-        'InteractionTokenService: JWT secret 미설정 — fallback "interaction-fallback" 사용. ' +
+        'InteractionTokenService: JWT secret 미설정 — dev 전용 비보안 fallback 사용. ' +
           '프로덕션에서는 반드시 INTERACTION_JWT_SECRET (또는 JWT_SECRET) 환경변수를 설정해야 함.',
       );
     }
