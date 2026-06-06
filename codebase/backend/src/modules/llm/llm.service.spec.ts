@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { LlmService, extractRetryAfterMs } from './llm.service';
+import { StubLlmClient } from './clients/stub.client';
 
 describe('LlmService', () => {
   let service: LlmService;
@@ -722,6 +723,43 @@ describe('LlmService', () => {
         // backoff setTimeout 이 호출되지 않아야 함 (즉시 throw).
         expect(setTimeoutSpy).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('LLM_STUB_MODE (createClient) — review W3', () => {
+    const config = {
+      id: 'config-1',
+      provider: 'openai',
+      defaultModel: 'gpt-4o',
+      baseUrl: undefined,
+    } as never;
+    const prev = process.env.LLM_STUB_MODE;
+    afterEach(() => {
+      if (prev === undefined) delete process.env.LLM_STUB_MODE;
+      else process.env.LLM_STUB_MODE = prev;
+    });
+
+    it('LLM_STUB_MODE=true 면 StubLlmClient 를 반환하고 실 provider/복호화 경로를 타지 않는다', () => {
+      process.env.LLM_STUB_MODE = 'true';
+      const client = service.createClient(config);
+      expect(client).toBeInstanceOf(StubLlmClient);
+      expect(mockClientFactory.create).not.toHaveBeenCalled();
+      expect(mockLlmConfigService.getDecryptedApiKey).not.toHaveBeenCalled();
+    });
+
+    it('LLM_STUB_MODE 미설정이면 정상 provider 클라이언트를 반환한다', () => {
+      delete process.env.LLM_STUB_MODE;
+      const client = service.createClient(config);
+      expect(client).not.toBeInstanceOf(StubLlmClient);
+      expect(mockClientFactory.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('LLM_STUB_MODE=true 면 같은 config.id 에 대해 동일 stub 인스턴스를 캐시한다', () => {
+      process.env.LLM_STUB_MODE = 'true';
+      const a = service.createClient(config);
+      const b = service.createClient(config);
+      expect(a).toBe(b);
+      expect(a).toBeInstanceOf(StubLlmClient);
     });
   });
 });

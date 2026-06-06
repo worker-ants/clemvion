@@ -48,6 +48,15 @@ async function bootstrap() {
       'OAUTH_STUB_MODE=true is not allowed when NODE_ENV=production',
     );
   }
+  // Fail-closed: LLM_STUB_MODE replaces every LLM provider call with a
+  // deterministic stub (e2e only). In production it would silently substitute
+  // all AI responses — refuse to boot. (OAUTH_STUB_MODE 와 동일 패턴.)
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.LLM_STUB_MODE === 'true'
+  ) {
+    throw new Error('LLM_STUB_MODE=true is not allowed when NODE_ENV=production');
+  }
 
   // rawBody: true 는 HMAC 웹훅(`AuthConfigsService.verifyWebhookRequest`) 의 서명 검증에 필수다.
   // 미설정 시 `req.rawBody` 가 undefined 가 되어 HMAC 분기가 항상 401 을 반환한다.

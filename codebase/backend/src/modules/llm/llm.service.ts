@@ -69,19 +69,24 @@ export class LlmService {
   ) {}
 
   createClient(config: LlmConfig): LLMClient {
-    const cached = this.clientCache.get(config.id);
-    if (cached) {
-      return cached;
-    }
-
     // 테스트 전용(`OAUTH_STUB_MODE` 선례) — dockerized e2e 가 실제 LLM 키/호출 없이
     // 멀티턴 AI park→재개(§4.x turn-park, §7.5 rehydration)를 결정적으로 검증하도록,
-    // env-gated 시 결정적 stub 클라이언트를 반환한다. 프로덕션(env 미설정)에는 절대
-    // 활성화되지 않는다.
+    // env-gated 시 결정적 stub 클라이언트를 반환한다. 프로덕션(env 미설정 + main.ts
+    // 부팅 가드)에는 절대 활성화되지 않는다. **캐시 체크보다 앞**에 둬 stub 이 항상
+    // 우선하도록 한다(실 클라이언트가 먼저 캐시된 상태에서의 오염 방지 — review W5/I7).
     if (process.env.LLM_STUB_MODE === 'true') {
+      const cachedStub = this.clientCache.get(config.id);
+      if (cachedStub instanceof StubLlmClient) {
+        return cachedStub;
+      }
       const stub = new StubLlmClient();
       this.clientCache.set(config.id, stub);
       return stub;
+    }
+
+    const cached = this.clientCache.get(config.id);
+    if (cached) {
+      return cached;
     }
 
     const apiKey = this.llmConfigService.getDecryptedApiKey(config);
