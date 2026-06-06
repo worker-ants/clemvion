@@ -6,7 +6,6 @@ code:
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/kb-tool-provider.ts
 pending_plans:
   - plan/in-progress/rag-rerank-followup.md
-  - plan/in-progress/rag-eval-harness.md
 ---
 
 # Spec: RAG 검색 엔진

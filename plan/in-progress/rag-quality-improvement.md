@@ -84,8 +84,8 @@ owner: 사용자 본인 / planner
 
 ### P0 — 평가 하베스 (모든 것의 전제) ⭐
 - [ ] 응답 로깅: `(query, 회수 chunk_id+score, 최종답변, 인용, thumbs, "답변없음")` 구조화. 기존 `ragSources`/`ragDiagnostics` 재활용.
-- [x] 골든셋(KO+EN) — **자동 합성 경로 구현** ([`rag-eval-harness.md`](./rag-eval-harness.md), 2026-06-06). 청크 역방향 생성(gold 라벨 공짜)+SME 스팟검수. CS 티켓 마이닝은 후속. `eval/golden.json` gitignore(고객 데이터), example 만 커밋.
-- [x] **검색 지표(순수 TS, LLM비용 0)** — 구현 완료: Recall@k/Precision@k/MRR/nDCG@k/hit-rate, 결정적 tie-break(chunkId 2차 정렬), `--fail-under` CLI 게이트. ([`rag-eval-harness.md`](./rag-eval-harness.md)) _(CI yaml 자동 게이트는 미착수 — 수동 `--fail-under` CLI 제공, PR 자동화는 후속)_
+- [x] 골든셋(KO+EN) — **자동 합성 경로 구현** ([`rag-eval-harness.md`](../complete/rag-eval-harness.md), 2026-06-06). 청크 역방향 생성(gold 라벨 공짜)+SME 스팟검수. CS 티켓 마이닝은 후속. `eval/golden.json` gitignore(고객 데이터), example 만 커밋.
+- [x] **검색 지표(순수 TS, LLM비용 0)** — 구현 완료: Recall@k/Precision@k/MRR/nDCG@k/hit-rate, 결정적 tie-break(chunkId 2차 정렬), `--fail-under` CLI 게이트. ([`rag-eval-harness.md`](../complete/rag-eval-harness.md)) _(CI yaml 자동 게이트는 미착수 — 수동 `--fail-under` CLI 제공, PR 자동화는 후속)_
 - [ ] **생성 지표(LLM-judge)**: `autoevals`(npm, RAG context 메트릭) + `@arizeai/phoenix-evals`(native multi-provider via ai-sdk, **tool-call evaluator**). retrieval/prompt 경로 PR 트리거만(매커밋 아님). temp=0, position swap, **한국어는 ensemble ≥2 judge·느슨 게이트**.
 - [ ] **agentic 지표**: tool-call accuracy, whether-to-retrieve accuracy, decomposition overlap, citation coverage.
 - [ ] 한국어 judge κ≈0.3 [강] → retrieval 지표·reference 기반 우선, raw 한국어 judge 점수는 hard gate 금지. promptfoo 쓰면 `llm-rubric`(string-match `context-recall` 금지).
@@ -175,3 +175,28 @@ P6(UX) ── 독립 백로그
 > 리랭킹 상세 설계는 [`spec-draft-rag-reranking.md`](./spec-draft-rag-reranking.md)(P1 구체화, consistency-check `00_02_05` BLOCK:NO 통과 + 2026-06-04 결정 확정·spec 반영) 로 분기.
 
 > 심화 리서치 5스트림(2026-06-03) 통합 완료. 다음 단계: 특정 Phase 의 spec 본문화(project-planner+consistency-check) 또는 P1 PoC 구현(developer).
+
+---
+
+## 7. 후속 작업 추적 (P0 Phase 0+1 first-cut 완료 후, 2026-06-06)
+
+> 평가 하베스 [`rag-eval-harness.md`](../complete/rag-eval-harness.md)(PR #488 머지) 완료 후 남은 작업. 우선순위 **B → C → D**, E 는 비차단 백로그. (A=plan 위생은 본 갱신으로 처리.)
+
+### B. 하베스 실사용 — baseline 생성 ⭐ (다음 우선순위)
+- [ ] 대상 workspace/KB 지정 → `npm run eval:golden:generate -- --workspace-id .. --kb-id .. --sample N` 으로 실 골든셋 생성.
+- [ ] SME 스팟검수(20~30%) → `reviewed:true` 승격.
+- [ ] `npm run eval:retrieval` baseline 산출 → `rerank_mode` off↔cross_encoder delta 비교.
+- [ ] 결정: 실 `golden.json` repo 커밋 여부(고객 데이터 민감도), 적정 `--sample` 규모·KB 선정.
+
+### C. 하베스가 unblock 한 downstream (로드맵 본체)
+- [ ] **D2 conditional escalate 임계 튜닝** — cross_encoder vs cross_encoder_llm A/B (P0 선행조건 충족됨). §6 "P1 escalate 정량 임계" 와 연결.
+- [ ] P2 3-신호 하이브리드 / P3 parent-document / P5 contextual — 각 §3 Phase, 평가셋으로 A/B.
+
+### D. 평가 하베스 확장 (Phase 2+, §P0 잔여)
+- [ ] 생성 지표 LLM-judge(autoevals/phoenix, 한국어 ensemble·느슨 게이트).
+- [ ] agentic 지표, 실 CS 로그 마이닝, **CI yaml 자동 게이트**(현재 수동 `--fail-under` CLI).
+
+### E. 리뷰 backlog (비차단, ai-review RESOLUTION 기록)
+- [ ] `EVAL_CLI_ENTITIES` 최소 집합 분리, `eval-cli.module` DI 회귀 스펙.
+- [ ] `eval-retrieval.ts main()` 단계 함수 분리, 기존 마이그레이션 스크립트 `parseCliFlag` → `cli-utils` 통합.
+- [ ] perf 마이크로 최적화(ndcg log2 테이블·resolveWorkspace 배치 조회), `rag-evaluation.md` Rationale 에 D-E7(`root-entities.ts` 분리) 추가.

@@ -2,10 +2,17 @@
 worktree: rag-eval-harness-b8cc46
 started: 2026-06-06
 owner: 사용자 본인 / developer
+status: complete
+completed: 2026-06-06
+spec_impact:
+  - spec/conventions/rag-evaluation.md
+  - spec/5-system/9-rag-search.md
 ---
 # RAG 평가 하베스 — P0 Phase 0+1 first cut (자동 합성 위주)
 
-> 상위 로드맵: [`rag-quality-improvement.md §P0`](./rag-quality-improvement.md). 본 plan 은 그 P0 의 **부분집합** — "**자동 합성 골든셋 + 순수-TS 검색지표**" 두 항목만 "①자동 합성 + ③SME 최소" 방향으로 좁혀 1차 구현한다. P0 의 나머지(LLM-judge·autoevals·phoenix·agentic·온라인루프)는 본 범위 OUT, 상위 P0 체크리스트에서 별도 미착수로 유지. 완료 시 상위 P0 체크박스는 해당 2항목만 분리 갱신.
+> **완료 (2026-06-06, PR #488 머지).** Phase A(코드)·B(spec) 전부 구현·머지. 실 골든셋 생성·baseline(B) 및 D2 escalate 임계 튜닝·평가셋 규모 결정 등 **후속은 상위 로드맵 [`rag-quality-improvement.md`](../in-progress/rag-quality-improvement.md) §P0·§7 에서 추적**(B~E).
+
+> 상위 로드맵: [`rag-quality-improvement.md §P0`](../in-progress/rag-quality-improvement.md). 본 plan 은 그 P0 의 **부분집합** — "**자동 합성 골든셋 + 순수-TS 검색지표**" 두 항목만 "①자동 합성 + ③SME 최소" 방향으로 좁혀 1차 구현한다. P0 의 나머지(LLM-judge·autoevals·phoenix·agentic·온라인루프)는 본 범위 OUT, 상위 P0 체크리스트에서 별도 미착수로 유지. 완료 시 상위 P0 체크박스는 해당 2항목만 분리 갱신.
 > 결정 근거(D1~D7, 한국어 judge κ≈0.3): 상위 plan §2·§5.
 
 ## 참조 spec
@@ -59,9 +66,10 @@ owner: 사용자 본인 / developer
 2. [x] Phase A 구현 + 단위테스트 green.
 3. [x] Phase B spec 작성 (consistency-check --spec).
 4. [x] `/ai-review` → Critical/Warning fix.
-5. (선택) 실 KB 로 generator 스모크: 산출 golden.json 일부 커밋 여부는 사용자 확인 후.
+5. [x] (선택) 부팅 스모크 — example 골든셋으로 EvalCliModule 라이브 부팅·DataSource·지표·리포트 경로 검증 완료(워커 미기동 확인). **실 KB 산출은 후속 B 로 이관** → roadmap §P0·§7.
 
-## 4. 미해결 / 사용자 확인 포인트
-- 실제 골든셋 생성에 쓸 **workspace/KB 지정** 은 실데이터·LLM config 필요 → generator 는 빌드·테스트하되 실 산출은 사용자가 대상 KB 지정 시. 본 PR 은 코드+example 픽스처까지.
-- `eval/golden.json` 실데이터를 repo 에 커밋할지(민감정보 가능성) — 기본은 example 만 커밋, 실 golden 은 사용자 결정.
-- **평가셋 규모·합성비율**: 적정 `--sample` N 값·KB 선정은 사용자 대상 KB 에 위임(`--sample` CLI 플래그로 제어). 상위 plan §P0 추적 대상.
+## 4. 후속 이관 (B — roadmap 추적, 본 plan 완료 차단 아님)
+> 아래는 실데이터·사용자 결정이 필요한 운영 단계로, 상위 로드맵 [`rag-quality-improvement.md`](../in-progress/rag-quality-improvement.md) §P0·§7 에서 추적한다(본 구현 plan 의 완료 조건 아님).
+- 실 골든셋 생성에 쓸 **workspace/KB 지정** (실데이터·LLM config 필요).
+- `eval/golden.json` 실데이터를 repo 에 커밋할지(민감정보 가능성) — 기본은 example 만, 실 golden 은 사용자 결정.
+- **평가셋 규모·합성비율**: 적정 `--sample` N·KB 선정 (현재 기본 30, `--sample` CLI 제어).
