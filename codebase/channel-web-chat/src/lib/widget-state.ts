@@ -1,5 +1,6 @@
 // 위젯 상태기계 reducer. SoT: spec/7-channel-web-chat/1-widget-app §3·§3.1.
-// phase: collapsed → (open) panel → (첫 입력) booting → streaming ↔ awaiting_user_message → ended.
+// phase: collapsed → (open) panel(transient) → booting(eager 시작) → streaming ↔ awaiting_user_message → ended.
+// 워크플로우는 패널 open 시 시작한다(eager, §R6) — 첫 사용자 입력을 기다리지 않으며 firstMessage 미사용.
 
 import type { DisplayMessage } from "./conversation";
 import type { ExternalInteractionType } from "./eia-types";
@@ -48,7 +49,8 @@ export const initialState: WidgetState = {
 export type WidgetAction =
   | { type: "OPEN" }
   | { type: "CLOSE" }
-  | { type: "START"; userText: string }
+  /** I11: eager 시작(§R6) — open 시 발행. userText 없음. phase → booting. */
+  | { type: "START" }
   | { type: "RESTORED"; executionId: string }
   | { type: "BOOTED"; executionId: string }
   | { type: "WAITING"; interaction: PendingInteraction; threadMessages?: DisplayMessage[] }
@@ -88,11 +90,11 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
     case "CLOSE":
       return { ...state, open: false, phase: state.phase === "panel" ? "collapsed" : state.phase };
     case "START":
+      // eager 시작(패널 open 시) — 사용자 입력/메시지 없이 execution 만 시작(§R6).
       return {
         ...state,
         phase: "booting",
         open: true,
-        messages: [...state.messages, userMsg(action.userText)],
         pending: null,
       };
     case "RESTORED":

@@ -19,15 +19,17 @@ describe("widgetReducer", () => {
     expect(s.phase).toBe("collapsed");
   });
 
-  it("START: 첫 입력 → booting + 사용자 메시지", () => {
-    const s = reduce([{ type: "OPEN" }, { type: "START", userText: "안녕" }]);
+  it("START: eager 시작(open 시) → booting, 사용자 메시지 없음(§R6)", () => {
+    const s = reduce([{ type: "OPEN" }, { type: "START" }]);
     expect(s.phase).toBe("booting");
-    expect(s.messages.at(-1)).toMatchObject({ role: "user", text: "안녕" });
+    expect(s.open).toBe(true);
+    // eager 시작은 firstMessage 가 없으므로 메시지를 추가하지 않는다.
+    expect(s.messages).toHaveLength(0);
   });
 
   it("BOOTED → streaming + executionId", () => {
     const s = reduce([
-      { type: "START", userText: "x" },
+      { type: "START" },
       { type: "BOOTED", executionId: "e1" },
     ]);
     expect(s.phase).toBe("streaming");
@@ -84,7 +86,7 @@ describe("widgetReducer", () => {
 
   it("NEW_CHAT → 초기화 + panel open", () => {
     const prev = reduce([
-      { type: "START", userText: "x" },
+      { type: "START" },
       { type: "AI_MESSAGE", text: "y" },
       { type: "ENDED" },
     ]);
