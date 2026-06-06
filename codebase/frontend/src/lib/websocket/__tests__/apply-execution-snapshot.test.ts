@@ -326,6 +326,116 @@ describe("applyExecutionSnapshot — REST → store bridge (Carousel disabled st
     expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
   });
 
+  // ── Intra-row inconsistency (status 컬럼 vs outputData.status) ──────────────
+  // Backend blocking 노드는 봉투(outputData.status='waiting_for_input')를 먼저
+  // 저장하고 NodeExecution.status 컬럼은 'running' 으로 둔 뒤 waitForXxx 가 atomic
+  // 전이한다. 그 사이 snapshot 은 같은 row 가 status='running' + outputData.status=
+  // 'waiting_for_input'. ne.status 한 필드만 보던 기존 reconciliation 은 이 형태를
+  // 놓쳐 waiting UI 를 wipe/누락했다 (turn-park 아키텍처 변경 후 재발한 회귀).
+  it("intra-row inconsistent (ne.status=running + outputData.status=waiting) — prevStatus=waiting 시 waiting state 보존 (wipe 차단)", () => {
+    useExecutionStore.setState({
+      status: "waiting_for_input",
+      waitingNodeId: "carousel-node",
+      waitingInteractionType: "buttons",
+      waitingButtonConfig: { buttons: [{ id: "btn", type: "port" }] },
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "running",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "carousel-node",
+            nodeType: "carousel",
+            status: "running", // ← 컬럼은 running (pre-park window)
+            startedAt: "2026-04-01T00:00:00Z",
+            outputData: {
+              config: {},
+              output: {},
+              status: "waiting_for_input", // ← 봉투만 waiting
+              meta: { interactionType: "buttons" },
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(useExecutionStore.getState().status).toBe("waiting_for_input");
+    expect(useExecutionStore.getState().waitingNodeId).toBe("carousel-node");
+    expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
+  });
+
+  it("intra-row inconsistent (ne.status=running + outputData.status=waiting) — prevStatus=running 첫 진입도 reconcile 로 waiting 진입", () => {
+    useExecutionStore.setState({
+      executionId: "exec-1",
+      status: "running",
+      waitingNodeId: null,
+      waitingInteractionType: null,
+      waitingButtonConfig: null,
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "running",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "carousel-node",
+            nodeType: "carousel",
+            status: "running",
+            startedAt: "2026-04-01T00:00:00Z",
+            outputData: {
+              config: { items: [{ title: "Slide 1" }] },
+              output: {},
+              status: "waiting_for_input",
+              meta: { interactionType: "buttons" },
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(useExecutionStore.getState().status).toBe("waiting_for_input");
+    expect(useExecutionStore.getState().waitingNodeId).toBe("carousel-node");
+    expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
+    // 노드 타임라인 배지도 waiting 으로 반영 (per-node status 매핑).
+    expect(
+      useExecutionStore.getState().nodeStatuses.get("carousel-node")?.status,
+    ).toBe("waiting_for_input");
+  });
+
+  it("terminal(completed) row 의 stale outputData.status=waiting 는 waiting 으로 오인하지 않음", () => {
+    useExecutionStore.setState({ status: "running" });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "running",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "carousel-node",
+            nodeType: "carousel",
+            status: "completed", // 버튼 클릭 후 종결
+            startedAt: "2026-04-01T00:00:00Z",
+            durationMs: 100,
+            outputData: { status: "waiting_for_input" }, // 봉투 잔존 문자열
+          },
+        ],
+      }),
+    );
+
+    // reconcile 되지 않아야 — 종결 노드를 waiting 으로 되살리면 안 됨.
+    expect(useExecutionStore.getState().status).toBe("running");
+    expect(useExecutionStore.getState().waitingNodeId).toBeNull();
+    expect(
+      useExecutionStore.getState().nodeStatuses.get("carousel-node")?.status,
+    ).toBe("completed");
+  });
+
   it("terminal status (completed) 는 reconcile 안 함 — node 가 stale 이라도", () => {
     useExecutionStore.setState({ status: "running" });
 

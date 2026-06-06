@@ -71,7 +71,9 @@ export function applyExecutionSnapshot(
     for (const ne of sorted) {
       const nodeType = ne.node?.type ?? "unknown";
       const nodeLabel = ne.node?.label ?? ne.nodeId;
-      const incomingStatus = mapNodeStatus(ne.status);
+      const incomingStatus = isNodeWaitingForInput(ne)
+        ? "waiting_for_input"
+        : mapNodeStatus(ne.status);
 
       // status downgrade 차단 — node.completed 가 snapshot 보다 먼저 도착한
       // race 에서 stale snapshot 이 terminal → running 으로 되돌리지 않게.
@@ -124,7 +126,7 @@ export function applyExecutionSnapshot(
   const reconcileToWaiting =
     !isTerminal &&
     execution.status !== "waiting_for_input" &&
-    execution.nodeExecutions?.some((ne) => ne.status === "waiting_for_input");
+    execution.nodeExecutions?.some(isNodeWaitingForInput);
   const effectiveExecutionStatus = reconcileToWaiting
     ? ("waiting_for_input" as const)
     : execution.status;
@@ -150,9 +152,8 @@ export function applyExecutionSnapshot(
     // 그 경우 local state 가 실제 backend 상태와 일치하므로 resume 분기를
     // skip — 그렇지 않으면 buttons/form/AI 의 waiting UI 가 wipe 되어
     // disabled stuck 회귀 (이 분기가 root cause).
-    const hasWaitingNode = execution.nodeExecutions?.some(
-      (ne) => ne.status === "waiting_for_input",
-    );
+    const hasWaitingNode =
+      execution.nodeExecutions?.some(isNodeWaitingForInput);
     if (hasWaitingNode) {
       return;
     }
@@ -185,9 +186,7 @@ export function applyExecutionSnapshot(
   }
   if (effectiveExecutionStatus === "waiting_for_input") {
     const { waitingNodeId: currentWaiting } = useExecutionStore.getState();
-    const waitingNode = execution.nodeExecutions?.find(
-      (ne) => ne.status === "waiting_for_input",
-    );
+    const waitingNode = execution.nodeExecutions?.find(isNodeWaitingForInput);
     if (currentWaiting && currentWaiting === waitingNode?.nodeId) {
       // form/buttons 의 waitingConfig 는 store 가 그대로 보존되므로 재설정
       // 불필요. 다만 AI 대화의 `conversationMessages` 는 별도 슬롯이라,
@@ -345,6 +344,34 @@ export function buildConvConfigFromStructured(
 // ────────────────────────────────────────────────────────────────────────────
 // Internal helpers (also used by use-execution-events.ts).
 // ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * NodeExecution 이 사용자 입력 대기 상태인지 — `status` 컬럼과 `outputData.status`
+ * 봉투 신호를 **함께** 본다.
+ *
+ * Backend blocking 노드(carousel/form/AI)는 `executeNode` 가 핸들러 봉투
+ * (`outputData.status='waiting_for_input'`)를 먼저 저장하고 `NodeExecution.status`
+ * 컬럼은 `running` 으로 둔 뒤, 직후 `waitForXxx` 가 atomic 으로 `waiting_for_input`
+ * 전이한다 (spec §전이 원자성). 그 사이 snapshot 이 읽히면 `ne.status==='running'`
+ * 인데 `outputData.status==='waiting_for_input'` 인 intra-row inconsistent row 가
+ * 도착한다 (backend `executions.service.findById` 가 1차 정규화하지만, WS snapshot·
+ * read-replica·legacy 응답 경로에선 여전히 도착 가능). `ne.status` 한 필드만 신뢰하면
+ * waiting UI 가 hydrate 되지 않거나(첫 진입), 먼저 도착한 WS waiting 이벤트의 상태가
+ * resume 으로 오인돼 wipe 된다 (Carousel disabled stuck 회귀).
+ *
+ * terminal(completed/failed/skipped/cancelled) row 는 stale 봉투 문자열이
+ * 재트리거하지 않도록 제외 — `running`/`pending` 일 때만 봉투 신호를 채택한다.
+ */
+export function isNodeWaitingForInput(ne: NodeExecutionData): boolean {
+  if (ne.status === "waiting_for_input") return true;
+  if (ne.status === "running" || ne.status === "pending") {
+    return (
+      (ne.outputData as { status?: unknown } | null)?.status ===
+      "waiting_for_input"
+    );
+  }
+  return false;
+}
 
 export function mapNodeStatus(
   status: NodeExecutionData["status"],

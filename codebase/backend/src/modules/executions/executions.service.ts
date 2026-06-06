@@ -9,7 +9,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Execution, ExecutionStatus } from './entities/execution.entity';
-import { NodeExecution } from '../node-executions/entities/node-execution.entity';
+import {
+  NodeExecution,
+  NodeExecutionStatus,
+} from '../node-executions/entities/node-execution.entity';
 import { ExecutionNodeLog } from '../execution-engine/entities/execution-node-log.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
@@ -73,6 +76,45 @@ export type ExecutionDetailWithTrigger = Execution & {
   executionPath: string[];
   executionPathTruncated: boolean;
 };
+
+/**
+ * Carousel/Form/AI blocking 노드 waiting 진입의 intra-row inconsistency 정규화.
+ *
+ * 엔진의 `executeNode` blocking 분기는 핸들러가 반환한 봉투
+ * (`output.status === 'waiting_for_input'`)를 **`NodeExecution.status` 컬럼은
+ * `running` 인 채 `outputData` 에만** 먼저 저장하고, 직후 메인 루프가
+ * `waitForButtonInteraction` / `waitForFormSubmission` / `waitForAiConversation`
+ * 을 호출해야 비로소 status 컬럼을 `waiting_for_input` 으로 **atomic 전이**한다
+ * (spec/5-system/4-execution-engine.md §전이 표 "원자성 보장" — Execution↔
+ * NodeExecution 짝 전이). 그 두 save 사이에 snapshot 이 읽히면 같은 row 가
+ * `status='running'` + `outputData.status='waiting_for_input'` 인 inconsistent
+ * 상태가 된다.
+ *
+ * 기존 Phase 3 fix(REPEATABLE READ 트랜잭션)는 Execution.status vs
+ * NodeExecution.status 의 **cross-query straddle** 만 막는다 — 이 **intra-row**
+ * (status 컬럼 vs outputData.status) 불일치는 잡지 못한다. frontend
+ * `applyExecutionSnapshot` 은 `ne.status` 를 waiting 판정의 진실로 신뢰하므로,
+ * inconsistent snapshot 이 도착하면 waiting UI 가 hydrate 되지 않거나, 먼저 도착한
+ * WS `waiting_for_input` 이벤트가 set 한 waiting 상태가 resume 으로 오인돼 wipe 된다
+ * (Carousel 버튼이 콜백 없이 disabled 로 stuck).
+ *
+ * snapshot 단계에서 봉투 status 를 surface 해 일관성을 복원한다 — DB write/원자성은
+ * 불변(순수 read-side normalization)이고, 모든 snapshot 소비자(웹 앱·channel-web-chat
+ * ·external-interaction-api)에 일관 적용된다. terminal row 의 stale 봉투 문자열이
+ * 재트리거하지 않도록 `running`/`pending` 인 row 만 채택한다.
+ */
+function reconcilePreParkWaitingStatus(nodeExecutions: NodeExecution[]): void {
+  for (const ne of nodeExecutions) {
+    if (
+      (ne.status === NodeExecutionStatus.RUNNING ||
+        ne.status === NodeExecutionStatus.PENDING) &&
+      (ne.outputData as { status?: unknown } | null)?.status ===
+        'waiting_for_input'
+    ) {
+      ne.status = NodeExecutionStatus.WAITING_FOR_INPUT;
+    }
+  }
+}
 
 @Injectable()
 export class ExecutionsService {
@@ -501,6 +543,7 @@ export class ExecutionsService {
             take: MAX_EXECUTION_PATH_ROWS,
           }),
         ]);
+        reconcilePreParkWaitingStatus(nodeExecutions);
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
         // UI 는 이 플래그로 배너를 띄우거나 후속 페이지 요청을 결정한다.
