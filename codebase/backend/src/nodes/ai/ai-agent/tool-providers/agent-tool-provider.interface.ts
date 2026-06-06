@@ -176,6 +176,12 @@ export interface KbSearchDiagnostic {
   kbId: string;
   query: string;
   resultCount: number;
+  /**
+   * KB 가 검색 불가 상태(embedding_dimension NULL — 모델 변경 후 미재임베딩 /
+   * 재임베딩 진행 중)라 사전 차단된 호출이면 true. 노드 진단의 `skipReason`
+   * (`kb_unsearchable`) 산정에 쓰인다 (spec/5-system/9-rag-search.md §4.2).
+   */
+  unsearchable?: boolean;
   /** 리랭킹 후처리 진단 — `rerank_mode ≠ off` 호출 시에만 포함. */
   rerank?: import('../../../../modules/knowledge-base/search/rerank.service').RerankDiagnostics;
 }

@@ -118,6 +118,8 @@ export const knowledgeBases = {
   expandedChunkLimitInvalid: "확장 청크 상한은 1~100 사이여야 해요",
   graphBadge: "GRAPH",
   vectorBadge: "VECTOR",
+  reembeddingRequired: "재임베딩 필요 · 검색 불가",
+  reembeddingInProgress: "재임베딩 중",
   graphBuildStatus: "그래프 추출 상태",
   graphExtractedDocs: "{{count}}개 문서 추출 완료",
   graphFailedDocs: "{{count}}개 실패",

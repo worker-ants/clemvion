@@ -240,6 +240,9 @@ export class KbToolProvider implements AgentToolProvider {
     let rerankDiagnostics:
       | Awaited<ReturnType<RagSearchService['searchWithMeta']>>['rerank']
       | undefined;
+    let unsearchable:
+      | Awaited<ReturnType<RagSearchService['searchWithMeta']>>['unsearchable']
+      | undefined;
     try {
       const meta = await this.ragSearchService.searchWithMeta(
         args.query,
@@ -249,6 +252,7 @@ export class KbToolProvider implements AgentToolProvider {
       );
       results = meta.results;
       rerankDiagnostics = meta.rerank;
+      unsearchable = meta.unsearchable;
     } catch (e) {
       const rawMsg = e instanceof Error ? e.message : String(e);
       KbToolProvider.logger.warn(`KB search failed (kb=${kbId}): ${rawMsg}`);
@@ -273,6 +277,31 @@ export class KbToolProvider implements AgentToolProvider {
           kbId,
           query: args.query,
           resultCount: 0,
+        },
+      };
+    }
+
+    // 검색 불가(embedding_dimension NULL) 신호: KB 가 모델 변경 후 미재임베딩이거나
+    // 재임베딩 진행 중이라 사전 차단된 경우, 빈 KB·무관 결과로 오인하지 않도록
+    // `status:"not_searchable"` 봉투로 명시한다 (spec/5-system/9-rag-search.md §2.2/§6).
+    // 노드 실패가 아니므로 status 'error' 가 아닌 graceful 신호 (top-level status 미설정).
+    const unsearchableHit = unsearchable?.find((u) => u.kbId === kbId);
+    if (unsearchableHit && results.length === 0) {
+      return {
+        toolCallId: call.id,
+        content: JSON.stringify({
+          kb: kbName,
+          query: args.query,
+          status: 'not_searchable',
+          reason: unsearchableHit.reason,
+          note: 'This knowledge base is being (re)embedded and is temporarily unsearchable. Tell the user it needs re-embedding (or that it is in progress); do not claim the KB is empty or fabricate an answer.',
+          results: [],
+        }),
+        ragDiagnosticsDelta: {
+          kbId,
+          query: args.query,
+          resultCount: 0,
+          unsearchable: true,
         },
       };
     }

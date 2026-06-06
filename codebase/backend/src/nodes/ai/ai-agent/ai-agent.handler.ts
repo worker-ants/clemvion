@@ -135,8 +135,13 @@ interface RagDiagnostics {
   queriesUsed: string[];
   /** 모든 KB tool 호출에서 회수된 chunk 수의 합. */
   resultCount: number;
-  /** 사유 — KB 미설정/빈 결과 등 사용자 디버깅용. */
-  skipReason?: 'empty_kb_list' | 'no_results';
+  /**
+   * 사유 — KB 미설정 / 검색 불가 / 빈 결과 등 사용자 디버깅용
+   * (spec/5-system/9-rag-search.md §4.2). `resultCount === 0` 일 때만 세팅되며,
+   * 우선순위 `empty_kb_list` → `kb_unsearchable` → `no_results`.
+   * `kb_unsearchable`: 호출된 KB 가 전부 검색 불가(embedding_dimension NULL).
+   */
+  skipReason?: 'empty_kb_list' | 'kb_unsearchable' | 'no_results';
   /**
    * 리랭킹 후처리 진단 — `rerank_mode ≠ off` KB 호출 시에만 포함
    * (spec/5-system/9-rag-search.md §4.2). KB tool 이 여러 번 호출되면 가장 최근
@@ -385,6 +390,10 @@ class RagAccumulator {
   private readonly queries: string[] = [];
   private resultCount = 0;
   private attempted = false;
+  // KB tool 호출 횟수와 그중 검색 불가(unsearchable) 호출 수. 모든 호출이
+  // unsearchable 이고 결과가 0건이면 skipReason='kb_unsearchable' (spec §4.2).
+  private diagnosticCount = 0;
+  private unsearchableCount = 0;
   // 마지막으로 관측된 rerank 진단 (rerank_mode ≠ off KB 호출에서만 set). 여러 KB
   // tool 호출 시 가장 최근 것을 보존 — 단일 객체 스키마(spec §4.2).
   private rerank?: import('../../../modules/knowledge-base/search/rerank.service').RerankDiagnostics;
@@ -418,6 +427,8 @@ class RagAccumulator {
     this.searchedKbIds.add(d.kbId);
     this.queries.push(d.query);
     this.resultCount += d.resultCount;
+    this.diagnosticCount += 1;
+    if (d.unsearchable) this.unsearchableCount += 1;
     // rerank 진단은 rerank_mode ≠ off KB 호출 시에만 delta 에 실린다. 있으면
     // 가장 최근 것으로 갱신 (단일 객체 스키마 — spec §4.2).
     if (d.rerank) this.rerank = d.rerank;
@@ -452,7 +463,13 @@ class RagAccumulator {
       resultCount: this.resultCount,
     };
     if (this.resultCount === 0) {
-      base.skipReason = 'no_results';
+      // 우선순위: 호출된 KB 가 전부 검색 불가(embedding_dimension NULL)면
+      // kb_unsearchable, 그 외(검색은 됐으나 임계 미달 등)면 no_results (spec §4.2).
+      base.skipReason =
+        this.diagnosticCount > 0 &&
+        this.unsearchableCount === this.diagnosticCount
+          ? 'kb_unsearchable'
+          : 'no_results';
     }
     // rerank_mode ≠ off KB 가 호출됐다면 가장 최근 rerank 진단을 노출 (spec §4.2).
     if (this.rerank) {
