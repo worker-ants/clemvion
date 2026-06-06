@@ -4,6 +4,7 @@ status: implemented
 code:
   - codebase/backend/src/nodes/core/node-handler.interface.ts
   - codebase/backend/src/modules/execution-engine/context/execution-context.service.ts
+  - codebase/backend/src/shared/execution-resume/resume-call-stack.types.ts
 pending_plans: []
 ---
 
