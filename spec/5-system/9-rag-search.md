@@ -287,6 +287,7 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
     "candidateCount": 50,
     "returnedCount": 6,
     "llmGradingApplied": false,
+    "gradingNoGrounding": false,
     "cutoffApplied": true,
     "error": null
   }
@@ -296,6 +297,7 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 `error` 는 실패 시 `RERANK_ENDPOINT_FAILED` / `RERANK_NO_VALID_RESULTS` / `RERANK_LLM_GRADING_FAILED` / `RERANK_CONFIG_INVALID` (UPPER_SNAKE_CASE). 어떤 값이든 검색은 cosine 경로로 안전 강등되며 노드 실패가 아니다 (§6).
 
 - `llmGradingApplied`: `cross_encoder` 는 항상 `false`. `cross_encoder_llm` 은 **conditional escalate 로 escalate + grading 성공 시에만** `true` — escalate 미발생(상위 점수가 평탄/모호하지 않음) 또는 grading 실패 강등 시 `false`. 따라서 `false` 는 두 케이스(escalate 안 됨 / grading 실패)를 포함하며 `mode`·`error` 로 구분한다.
+- `gradingNoGrounding`: `cross_encoder_llm` 의 conditional escalate 로 **listwise grading 이 실행됐고 grader 가 모든 survivor 를 무관(근거 없음)으로 판정**한 경우 `true` (§3.3.2 '근거 없음' 전달). grading 미실행/일부 관련 시 `false`. 이 신호를 받은 KB tool 호출은 결과 메타에 '관련 근거 없음' 을 명시해 agent 환각을 억제한다. grading parse 실패(`RERANK_LLM_GRADING_FAILED`)와는 구분된다(후자는 cross-encoder 결과로 fallback).
 - `cutoffApplied`: §3.4 동적 점수 컷이 후보를 하나라도 떨어뜨렸으면 `true` — rerank 점수 컷(θ) / token-budget 컷 / inject-cap 컷 중 **어느 것이든** 적용 시 포함(의미 확장). 별도 `dynamicCutApplied` 필드는 v1 미신설(진단 schema 증식 회피). `rerank` 서브객체는 `rerank_mode ≠ off` 호출에만 존재하므로 off 경로의 동적 컷 적용 여부는 v1 에서 진단에 노출하지 않는다(의도적 생략).
 
 ---
