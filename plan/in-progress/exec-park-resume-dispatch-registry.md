@@ -40,7 +40,10 @@ owner: developer
 ## 워크플로
 - [x] 사전 일관성 검토: `/consistency-check --impl-prep spec/5-system/` → BLOCK:NO(`18_51_56`, W5/W6 반영).
 - [x] TEST(lint 0err / unit 6402 / build / e2e 176 — `execution-park-resume.e2e-spec.ts` 포함) 전부 PASS.
-- [ ] `/ai-review` → `/consistency-check --impl-done spec/5-system/4-execution-engine.md`.
+- [x] `/ai-review`(`19_18_43` LOW/7W → fix `8e07a29c` → 최종 `19_32_46` LOW/4W) +
+      `/consistency-check --impl-done`(`19_32_46` BLOCK:NO/MEDIUM 2W). 모든 W 조치/수용/후속.
+- [x] SPEC-DRIFT(§7.5/§6.2·interaction-type-registry dispatch 레이어 미반영) → 비차단,
+      `spec-sync-resume-dispatch-registry.md` 신설 추적(planner). 본 PR 코드 무변경 종결(루프 회피).
 - spec 변경 불요(동작·allow-list 불변, registry 는 내부 메커니즘). 신규 파일 2개는 모두 기존
   spec frontmatter 글롭(`modules/execution-engine/**`·`shared/execution-resume/**`)에 포함.
 
