@@ -76,7 +76,7 @@ function flushPromises(): Promise<void> {
 
 /**
  * exec-park D6 full B3 — form/button/AI 재개는 §7.5 rehydration
- * (`applyContinuation` → `rehydrateAndResume` → awaited `driveResumeDetached` →
+ * (`applyContinuation` → `rehydrateAndResume` → awaited `driveResumeAwaited` →
  * 직접 처리기 processX)로 일원화됐다. resume 트리거(continue*)는 BullMQ publish
  * 후 worker dispatch(applyContinuation)를 거치므로, 비동기 emit 정착을 위해 실제
  * 타이머를 한 번 흘려보낸 뒤 assertion 한다. (200ms 는 CI 고부하 환경에서도 drive
@@ -557,7 +557,7 @@ describe('ExecutionEngineService', () => {
   // exec-park D6 full B3 — fresh top-level form/button park 은 durable persist +
   // WAITING 전이로 완결하며 in-memory resolver/coroutine 잔류가 없다(PARK_RELEASED).
   // resume(continue*)은 항상 §7.5 slow-path(applyContinuation → rehydrateAndResume
-  // → rehydrateContext 로 context 재구성 → awaited driveResumeDetached)로 일원화됐다.
+  // → rehydrateContext 로 context 재구성 → awaited driveResumeAwaited)로 일원화됐다.
   // 아래 헬퍼는 그 slow-path 가 통과하는 DB
   // lookup mock 을 무장한다 (Phase 2.7 통합 테스트 L3357~ 패턴의 재사용 추출):
   //   - mockExecutionRepo.findOneBy → WAITING_FOR_INPUT execution
@@ -3563,7 +3563,7 @@ describe('ExecutionEngineService', () => {
         formData: { approved: true },
       });
       // applyContinuation → rehydrateAndResume → resumeFromCheckpoint →
-      // driveResumeDetached 가 도착 payload 를 processFormResumeTurn 으로 직접
+      // driveResumeAwaited 가 도착 payload 를 processFormResumeTurn 으로 직접
       // 전달하고 남은 그래프를 순회해 COMPLETED 로 진행한다. drive 는 await 되지만
       // 비동기 emit 정착을 위해 안전하게 polling 한다.
       for (let i = 0; i < 50; i++) {
@@ -10283,7 +10283,7 @@ describe('ExecutionEngineService', () => {
 
       // 재구성 분기 도달 — processAiResumeTurn 호출 (early throw 미발생).
       expect(turnSpy).toHaveBeenCalledTimes(1);
-      // 도착한 turn(payload) 이 그대로 전달됐는지 — driveResumeDetached 가
+      // 도착한 turn(payload) 이 그대로 전달됐는지 — driveResumeAwaited 가
       // opts.payload 를 processAiResumeTurn 으로 직접 forward.
       expect(turnSpy).toHaveBeenCalledWith(
         expect.anything(), // savedExecution
@@ -10595,7 +10595,7 @@ describe('ExecutionEngineService', () => {
     });
 
     // exec-park D6 full B3 — slow-path 재개는 BullMQ worker 의 process() 안에서
-    // 수행되며, 이제 `driveResumeDetached` 를 **await** 한다 (옛 detach 모델 폐기).
+    // 수행되며, 이제 `driveResumeAwaited` 를 **await** 한다 (옛 detach 모델 폐기).
     // 단발 turn 처리기(processButtonResumeTurn / processAiResumeTurn)는 한 세그먼트
     // (또는 멀티턴 AI 의 한 turn → re-park)만 처리하고 반환하므로 worker 슬롯
     // deadlock 위험이 없다. 본 블록은 resume 드라이브가 도착 payload 를 직접 처리기로
@@ -10869,7 +10869,7 @@ describe('ExecutionEngineService', () => {
         nodeMap: new Map([['node-1', { id: 'node-1', type: 'ai_agent' }]]),
       });
       svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
-      // 재구성 실패 (schema drift) 모사 — driveResumeDetached 내부에서
+      // 재구성 실패 (schema drift) 모사 — driveResumeAwaited 내부에서
       // RehydrationError(RESUME_INCOMPATIBLE_STATE)로 래핑된다.
       svcAny.buildRetryReentryState = jest.fn().mockImplementation(() => {
         throw new Error('schema drift');
@@ -10903,7 +10903,7 @@ describe('ExecutionEngineService', () => {
         // 동반 NodeExecution failed 마킹도 수행 (createQueryBuilder 사용).
         expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
 
-        // RUNNING-stuck 가드 — 본 경로는 driveResumeDetached 가
+        // RUNNING-stuck 가드 — 본 경로는 driveResumeAwaited 가
         // updateExecutionStatus(RUNNING) 이후 도달하므로, Execution cancel UPDATE 의
         // status 조건이 **RUNNING 도 포함**해야 한다 (WAITING_FOR_INPUT 만이면
         // 운영에서 affected=0 → cancel 미반영 + EXECUTION_CANCELLED emit 억제 →
@@ -11717,7 +11717,7 @@ describe('ExecutionEngineService', () => {
       // top-level resume 경로: loadAndBuildGraph 를 spy 해 간단한 단일 노드 그래프로.
       const svcAny = service as unknown as {
         loadAndBuildGraph: (...args: unknown[]) => Promise<unknown>;
-        driveResumeDetached: (...args: unknown[]) => Promise<void>;
+        driveResumeAwaited: (...args: unknown[]) => Promise<void>;
       };
       jest.spyOn(svcAny, 'loadAndBuildGraph').mockResolvedValue({
         graphNodes: [],
@@ -11731,7 +11731,7 @@ describe('ExecutionEngineService', () => {
         incomingEdgeMap: new Map(),
         nodeMap: new Map([['node-1', { id: 'node-1', type: 'form_node' }]]),
       });
-      jest.spyOn(svcAny, 'driveResumeDetached').mockResolvedValue(undefined);
+      jest.spyOn(svcAny, 'driveResumeAwaited').mockResolvedValue(undefined);
 
       await rfcSubject().rehydrateAndResume(executionId, 'ne-cs-1', {
         data: 'submitted',
