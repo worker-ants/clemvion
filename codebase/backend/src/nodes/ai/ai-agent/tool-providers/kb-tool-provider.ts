@@ -116,7 +116,8 @@ export class KbToolProvider implements AgentToolProvider {
     const kbIds = (ctx.config.knowledgeBases as string[]) || [];
     if (kbIds.length === 0) return [];
 
-    const defaultTopK = (ctx.config.ragTopK as number) || 5;
+    // ragTopK 는 optional — 미지정 시 동적 컷이 주입 수를 결정하므로 tool description 에
+    // 고정 default 를 노출하지 않는다 (spec/5-system/9-rag-search.md §3.4).
     const defaultThreshold = (ctx.config.ragThreshold as number) || 0.7;
 
     const tools: ToolDef[] = [];
@@ -156,7 +157,8 @@ export class KbToolProvider implements AgentToolProvider {
             },
             top_k: {
               type: 'integer',
-              description: `Maximum chunks to return (default ${defaultTopK}). Increase for broader recall.`,
+              description:
+                'Max chunks to inject. If omitted, a dynamic token-budget cut decides the count. Increase for broader recall.',
               minimum: 1,
               maximum: 50,
             },
@@ -209,9 +211,11 @@ export class KbToolProvider implements AgentToolProvider {
       };
     }
 
-    const defaultTopK = (ctx.config.ragTopK as number) || 5;
+    // topK(주입 상한)는 명시(LLM arg 또는 노드 ragTopK) 시에만 전달 — 미지정이면
+    // undefined 로 두어 RagSearchService 의 동적 컷이 ceiling 을 결정한다 (§3.4).
+    const explicitTopK =
+      args.topK ?? (ctx.config.ragTopK as number | undefined);
     const defaultThreshold = (ctx.config.ragThreshold as number) || 0.7;
-    const topK = args.topK ?? defaultTopK;
     const threshold = args.threshold ?? defaultThreshold;
 
     let kbName = kbId;
@@ -241,7 +245,7 @@ export class KbToolProvider implements AgentToolProvider {
         args.query,
         [kbId],
         ctx.workspaceId,
-        { topK, threshold },
+        { topK: explicitTopK, threshold },
       );
       results = meta.results;
       rerankDiagnostics = meta.rerank;
@@ -273,9 +277,18 @@ export class KbToolProvider implements AgentToolProvider {
       };
     }
 
+    // D2 '근거 없음' 전달: conditional escalate LLM grading 이 모든 후보를 무관 판정하면
+    // (gradingNoGrounding) agent 가 환각 대신 "관련 근거 없음" 을 명시하도록 신호한다 (§3.3.2).
+    const noGrounding = rerankDiagnostics?.gradingNoGrounding === true;
     const content = JSON.stringify({
       kb: kbName,
       query: args.query,
+      ...(noGrounding
+        ? {
+            grounding: 'none',
+            note: 'Relevance grading found no passages in this knowledge base that ground the query. Do not fabricate an answer from this KB.',
+          }
+        : {}),
       results: results.map((r) => ({
         source: r.documentName,
         score: Number(r.score.toFixed(3)),

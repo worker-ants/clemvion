@@ -37,7 +37,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | responseFormat | `text` / `json` | ✓ | `text` | 응답 형식 |
 | jsonSchema | JSONSchema | | — | `responseFormat=json` 시 출력 스키마 |
 | knowledgeBases | UUID[] | | `[]` | 참조할 Knowledge Base ID 목록. [공통 §2](./0-common.md#2-knowledge-base-연동-ai-agent-전용) |
-| ragTopK | Integer | | `5` | KB tool 호출 시 반환할 청크 수의 기본값 (LLM 이 호출 인자로 override 가능). KB `rerank_mode ≠ off` 면 **리랭크 후** 최종 청크 수로 해석 ([Spec RAG 검색 §3.3](../../5-system/9-rag-search.md#33-검색-후처리--리랭킹-선택적)) |
+| ragTopK | Integer | | — | KB tool 호출 시 주입 청크 수 **상한(override, optional)**. **미지정 시 동적 점수 컷**(token-budget + 내부 inject-cap 12)이 주입 수를 결정하고, 명시 시 그 값이 ceiling (LLM 이 호출 인자로 override 가능). KB `rerank_mode ≠ off` 면 리랭크 후 적용 ([Spec RAG 검색 §3.4](../../5-system/9-rag-search.md#34-동적-점수-컷-생성-주입-모든-모드-공통)) |
 | ragThreshold | Float | | `0.7` | 최소 유사도 임계값 (0-1) 의 기본값 (LLM 이 호출 인자로 override 가능). KB `rerank_mode ≠ off` 면 cosine 임계가 아니라 **리랭크 점수 임계**로 해석 |
 | mcpServers | McpServerRef[] | | `[]` | MCP-capable Integration 참조 목록. `service_type ∈ ('mcp', 'cafe24', 'makeshop')` 모두 수용 — `cafe24`·`makeshop` 은 backend `Cafe24McpToolProvider`·`MakeshopMcpToolProvider` 가 in-process `AgentToolProvider` 구현체로 동작 ([Spec MCP Client §2.3 Internal Bridge](../../5-system/11-mcp-client.md#23-internal-bridge-in-process)). [공통 §3](./0-common.md#3-mcp-서버-연결-ai-agent-전용) |
 | maxToolCalls | Integer | ✓ | `10` | 최대 도구 호출 횟수 (KB·MCP·일반 합산) |
@@ -664,7 +664,6 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
     "temperature": 0.7,
     "maxTokens": 2048,
     "knowledgeBases": ["kb-1"],
-    "ragTopK": 5,
     "ragThreshold": 0.7,
     "maxToolCalls": 10,
     "maxTurns": 20,

@@ -292,11 +292,12 @@ describe('AiAgentHandler', () => {
         baseContext,
       )) as unknown as Record<string, unknown>;
 
+      // config 에 ragTopK 미설정 → topK undefined (동적 컷이 주입 수 결정, §3.4).
       expect(mockRagService.searchWithMeta).toHaveBeenCalledWith(
         'refund window',
         ['kb-1'],
         'ws-1',
-        { topK: 5, threshold: 0.7 },
+        { topK: undefined, threshold: 0.7 },
       );
 
       // 두 번째 LLM 호출에는 tool_result 메시지가 포함돼야 한다.

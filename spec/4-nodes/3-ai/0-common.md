@@ -42,7 +42,7 @@ AI Agent 노드는 다음 필드로 Knowledge Base 검색을 활성화한다 (Te
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | knowledgeBases | UUID[] | 참조할 Knowledge Base ID 목록. 모드(`vector` / `graph`)는 KB 마다 다를 수 있으며 RagSearchService 가 KB 별로 흐름을 분기한다 |
-| ragTopK | Integer | RAG 검색 결과 수 (기본: 5). graph 모드 KB 에서도 동일 (rerank 후 상위 K 만 컨텍스트에 주입) |
+| ragTopK | Integer | RAG 주입 청크 수 **상한**(optional). 미지정 시 동적 점수 컷(token-budget + inject-cap)이 주입 수를 결정, 명시 시 그 값이 ceiling. graph 모드 KB 도 최종 주입 단계에 동일 동적 컷 적용 ([Spec RAG 검색 §3.4](../../5-system/9-rag-search.md#34-동적-점수-컷-생성-주입-모든-모드-공통)) |
 | ragThreshold | Float | RAG 유사도 임계값 (기본: 0.7). graph 모드 KB 의 vector seed 단계에 적용 |
 
 KB 검색은 LLM 의 능동 호출 시에만 실행되며 prefill 하지 않는다. 도구 인터페이스/이름 규칙은 [Spec RAG 검색 §2.1](../../5-system/9-rag-search.md#21-kb-tool-정의) 참조.

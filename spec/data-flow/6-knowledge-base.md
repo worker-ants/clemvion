@@ -113,11 +113,12 @@ sequenceDiagram
   participant PG as Postgres (pgvector)
   participant LLM as LLM (embed)
 
-  H->>R: search(kbId, query, topK)
+  H->>R: searchWithMeta(kbId, query, {threshold?, topK?})
   R->>LLM: embed(query, inputType='query') — kb.embedding_llm_config_id 또는 ws default
   Note over R,LLM: 비대칭 모델(e5/Gemini)은 색인=document, 검색=query 로 다르게 인코딩.<br/>SoT [임베딩 파이프라인 §5](../5-system/8-embedding-pipeline.md)
-  R->>PG: SELECT chunks ORDER BY embedding <=> query_vec LIMIT topK
-  Note over PG: HNSW partial index by dimension (V022/V030~V033)
+  R->>PG: SELECT chunks WHERE score≥θ ORDER BY score DESC LIMIT RAG_RECALL_K(50)
+  Note over PG: HNSW partial index by dimension. wide 회수 — 고정 topK 선차단 폐기
+  R->>R: applyDynamicCut(token-budget + inject-cap) — 최종 주입 결정 (RAG 검색 §3.4)
   R-->>H: chunks[]
 ```
 

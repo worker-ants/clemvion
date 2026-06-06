@@ -317,5 +317,98 @@ describe('KbToolProvider', () => {
       expect(result.status).toBeUndefined();
       expect(result.error).toBeUndefined();
     });
+
+    it('ragTopK 미설정 시 topK 를 undefined 로 전달 (동적 컷이 ceiling 결정)', async () => {
+      mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
+      mockRagService.searchWithMeta.mockResolvedValue({ results: [] });
+      const ctx = {
+        config: { knowledgeBases: ['kb-1'] }, // ragTopK 없음
+        workspaceId: 'ws-1',
+      };
+      await provider.execute(
+        { id: 'tc-n', name: kbToolName('kb-1'), arguments: '{"query":"q"}' },
+        ctx,
+      );
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledWith(
+        'q',
+        ['kb-1'],
+        'ws-1',
+        { topK: undefined, threshold: 0.7 },
+      );
+    });
+
+    it('LLM 인자 top_k 는 ragTopK 미설정이어도 명시 override 로 전달', async () => {
+      mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
+      mockRagService.searchWithMeta.mockResolvedValue({ results: [] });
+      const ctx = { config: { knowledgeBases: ['kb-1'] }, workspaceId: 'ws-1' };
+      await provider.execute(
+        {
+          id: 'tc-o',
+          name: kbToolName('kb-1'),
+          arguments: '{"query":"q","top_k":8}',
+        },
+        ctx,
+      );
+      expect(mockRagService.searchWithMeta).toHaveBeenCalledWith(
+        'q',
+        ['kb-1'],
+        'ws-1',
+        { topK: 8, threshold: 0.7 },
+      );
+    });
+
+    it("gradingNoGrounding 시 tool_result content 에 '근거 없음' 신호 포함 (D2)", async () => {
+      mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [],
+        rerank: {
+          mode: 'cross_encoder_llm',
+          candidateCount: 5,
+          returnedCount: 0,
+          llmGradingApplied: true,
+          gradingNoGrounding: true,
+          cutoffApplied: false,
+          error: null,
+        },
+      });
+      const call: ToolCall = {
+        id: 'tc-ng',
+        name: kbToolName('kb-1'),
+        arguments: '{"query":"q"}',
+      };
+      const result = await provider.execute(call, baseCtx);
+      const content = JSON.parse(result.content) as {
+        grounding?: string;
+        note?: string;
+        results: unknown[];
+      };
+      expect(content.grounding).toBe('none');
+      expect(content.note).toMatch(/no passages|ground/i);
+      expect(content.results).toEqual([]);
+    });
+
+    it('gradingNoGrounding 아닐 때는 grounding 신호 미포함 (기존 동작 불변)', async () => {
+      mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [],
+        rerank: {
+          mode: 'cross_encoder',
+          candidateCount: 5,
+          returnedCount: 0,
+          llmGradingApplied: false,
+          gradingNoGrounding: false,
+          cutoffApplied: true,
+          error: null,
+        },
+      });
+      const call: ToolCall = {
+        id: 'tc-ok2',
+        name: kbToolName('kb-1'),
+        arguments: '{"query":"q"}',
+      };
+      const result = await provider.execute(call, baseCtx);
+      const content = JSON.parse(result.content) as { grounding?: string };
+      expect(content.grounding).toBeUndefined();
+    });
   });
 });

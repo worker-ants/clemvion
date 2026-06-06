@@ -320,6 +320,53 @@ describe('RagSearchService', () => {
       expect(result[0].chunkId).toBe('c2');
       expect(result[0].score).toBeCloseTo(0.99);
     });
+
+    it('off 경로: wide 회수(RAG_RECALL_K=50) + 동적 컷 ceiling(미지정 시 12)', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([makeKbRow({ id: 'kb-1' })])
+        .mockResolvedValueOnce(
+          Array.from({ length: 20 }, (_, i) => ({
+            chunkId: `c${i}`,
+            documentId: `d${i}`,
+            documentName: 'D',
+            content: 'short',
+            metadata: {},
+            score: String(0.95 - i * 0.01),
+          })),
+        );
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      // topK 미지정 → 동적 컷 ceiling(12) 이 주입 수를 결정.
+      const result = await service.search('query', ['kb-1'], 'ws-1');
+
+      // wide 회수 SQL 의 $4(LIMIT) = RAG_RECALL_K(50).
+      const vecParams = mockDataSource.query.mock.calls[1][1] as unknown[];
+      expect(vecParams[3]).toBe(50);
+      // 20개 회수됐지만 ceiling 12 로 컷.
+      expect(result).toHaveLength(12);
+    });
+
+    it('off 경로: 명시 topK 는 inject-cap override', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([makeKbRow({ id: 'kb-1' })])
+        .mockResolvedValueOnce(
+          Array.from({ length: 20 }, (_, i) => ({
+            chunkId: `c${i}`,
+            documentId: `d${i}`,
+            documentName: 'D',
+            content: 'short',
+            metadata: {},
+            score: String(0.95 - i * 0.01),
+          })),
+        );
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      const result = await service.search('query', ['kb-1'], 'ws-1', {
+        topK: 3,
+      });
+
+      expect(result).toHaveLength(3);
+    });
   });
 
   describe('search (graph mode)', () => {
@@ -529,7 +576,9 @@ describe('RagSearchService', () => {
           query: 'q',
           workspaceId: 'ws-1',
           rerankConfigId: 'rc-1',
-          topK: 5,
+          // 명시 top_k=5 → injectCap, token-budget 동반 (§3.4).
+          injectCap: 5,
+          tokenBudget: 8000,
           // rerankScoreThreshold=null → 런타임 threshold(default 0.7) fallback (R1).
           scoreThreshold: 0.7,
           mode: 'cross_encoder',

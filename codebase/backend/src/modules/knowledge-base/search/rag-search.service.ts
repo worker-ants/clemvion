@@ -15,6 +15,25 @@ import {
   SUPPORTED_EMBEDDING_DIMS,
   getEmbeddingCastType,
 } from '../embedding/embedding-dimensions.const';
+import {
+  applyDynamicCut,
+  RAG_RECALL_K,
+  RAG_INJECT_TOKEN_BUDGET,
+  RAG_MAX_INJECT_COUNT,
+} from './dynamic-cut.util';
+
+/**
+ * `searchWithMeta` 반환 타입.
+ *
+ * `rerank` 는 리랭크 모드(cross_encoder / cross_encoder_llm) 경로에서만 존재한다.
+ * off 경로(vector/graph 직접 컷)에서는 undefined. 호출부는 존재 여부로 경로를 판별한다.
+ * rerank 경로임이 보장된 내부 경로는 `searchWithRerank` 반환(rerank: RerankDiagnostics, NonNullable)을 사용한다.
+ */
+export type SearchWithMetaResult = {
+  results: SearchResult[];
+  graphTraversal?: GraphTraversalSummary;
+  rerank?: RerankDiagnostics;
+};
 
 interface KbRow {
   id: string;
@@ -88,21 +107,20 @@ export class RagSearchService {
 
   // graph 모드 KB 가 검색에 한 번이라도 참여했다면 graphTraversal 메타를 함께 반환.
   // 호출부 (AI Agent 등) 가 응답 metadata 에 노출할 수 있다.
+  // rerank 필드는 리랭크 모드 경로에서만 존재(off 경로는 undefined). SearchWithMetaResult 참조.
   async searchWithMeta(
     query: string,
     knowledgeBaseIds: string[],
     workspaceId: string,
     options?: { topK?: number; threshold?: number },
-  ): Promise<{
-    results: SearchResult[];
-    graphTraversal?: GraphTraversalSummary;
-    rerank?: RerankDiagnostics;
-  }> {
+  ): Promise<SearchWithMetaResult> {
     if (!knowledgeBaseIds?.length || !query.trim()) {
       return { results: [] };
     }
 
-    const topK = options?.topK ?? 5;
+    // 주입 ceiling(inject-cap): 명시 top_k(노드 ragTopK 또는 LLM arg) 있으면 그 값,
+    // 미지정 시 내부 상수 RAG_MAX_INJECT_COUNT 까지 동적 컷이 결정 (§3.4).
+    const injectCap = options?.topK ?? RAG_MAX_INJECT_COUNT;
     const threshold = options?.threshold ?? 0.7;
 
     try {
@@ -140,7 +158,7 @@ export class RagSearchService {
         return this.searchWithRerank(
           kbs[0],
           query,
-          topK,
+          injectCap,
           threshold,
           workspaceId,
         );
@@ -155,8 +173,10 @@ export class RagSearchService {
 
       const vectorGroups = this.groupVectorKbs(vectorKbs);
 
+      // wide 회수: 고정 COUNT 선차단 폐기 — θ(cosine) 게이트는 SQL 에서 유지하되
+      // LIMIT 은 RAG_RECALL_K 로 넓힌다. 최종 주입 수는 아래 동적 컷이 결정 (§3.4).
       const vectorTasks = Array.from(vectorGroups.values()).map((g) =>
-        this.searchVectorGroup(g, query, threshold, topK, workspaceId),
+        this.searchVectorGroup(g, query, threshold, RAG_RECALL_K, workspaceId),
       );
 
       // graph KB 는 maxHops/seedTopK 가 KB 마다 다를 수 있어 KB 단위 분리 처리.
@@ -174,7 +194,12 @@ export class RagSearchService {
         ...graphResultsRaw.flatMap((g) => g.rows),
       ];
       merged.sort((a, b) => b.score - a.score);
-      const sliced = merged.slice(0, topK);
+      // 동적 점수 컷: token-budget + inject-cap (§3.4). 고정 topK slice 대체.
+      // θ 게이트는 vector(cosine SQL)·graph(seed SQL)에서 이미 적용된 상태.
+      const { kept: sliced } = applyDynamicCut(merged, {
+        tokenBudget: RAG_INJECT_TOKEN_BUDGET,
+        maxCount: injectCap,
+      });
 
       let graphTraversal: GraphTraversalSummary | undefined;
       if (graphResultsRaw.length > 0) {
@@ -216,7 +241,7 @@ export class RagSearchService {
   private async searchWithRerank(
     kb: KbRow,
     query: string,
-    topK: number,
+    injectCap: number,
     threshold: number,
     workspaceId: string,
   ): Promise<{
@@ -273,6 +298,7 @@ export class RagSearchService {
           candidateCount: 0,
           returnedCount: 0,
           llmGradingApplied: false,
+          gradingNoGrounding: false,
           cutoffApplied: false,
           error: null,
         },
@@ -294,7 +320,9 @@ export class RagSearchService {
       workspaceId,
       rerankConfigId: kb.rerankConfigId,
       rerankLlmConfigId: kb.rerankLlmConfigId,
-      topK,
+      // 동적 컷: inject-cap(명시 top_k 또는 내부 ceiling) + token-budget (§3.4).
+      injectCap,
+      tokenBudget: RAG_INJECT_TOKEN_BUDGET,
       // rerank 점수 컷: KB 설정 우선, 미설정(NULL)이면 런타임 threshold fallback.
       // out-of-box(KB 설정 없음)에서도 관련도 컷이 걸리게 한다 (§3.3 / Rationale I4).
       scoreThreshold: kb.rerankScoreThreshold ?? threshold,
