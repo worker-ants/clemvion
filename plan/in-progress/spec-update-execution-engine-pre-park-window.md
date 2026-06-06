@@ -8,6 +8,16 @@ owner: resolution-applier
 ## 분류
 SPEC-DRIFT (코드 개선을 spec 에 반영) — 두 항목 통합 draft.
 
+## 처리 결정 (2026-06-06)
+사용자 결정으로 **fix-carousel PR 에서 spec 에 반영하지 않고 후속 plan 으로 분리**한다.
+project-planner 가 `/consistency-check --spec` 후 별도로 반영한다.
+
+> **삽입 순서 NOTE (impl-done consistency W-1)**: 본 §1.1 삽입은 `exec-park-durable-resume`
+> Phase-B 의 §1.1 전이표 편집과 **순서 의존**이다 (텍스트 충돌 아님). 반영 시점에
+> **그때의 main HEAD 기준으로 §1.1 원자성 보장 blockquote 의 정확한 끝 위치를 재확인**한
+> 뒤 신규 blockquote 를 삽입할 것. exec-park Phase-B spec 갱신이 main 에 먼저 랜딩되면
+> 그 결과 뒤에 이어 붙인다.
+
 ## 원본 발견사항
 
 SUMMARY#1: `spec/5-system/4-execution-engine.md` §1.1 "원자성 보장" 이 `pre-park window` intra-row inconsistency 와 `reconcilePreParkWaitingStatus` 보정 전략을 기술하지 않음. 코드가 올바르고 spec 이 낡음.
