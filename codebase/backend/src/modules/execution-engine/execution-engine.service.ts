@@ -1850,6 +1850,10 @@ export class ExecutionEngineService
       },
       {
         kind: 'ai_conversation',
+        // selects 가 `this.isCheckpointEligibleNodeType` 를 캡처한다 — registry 항목
+        // 자체가 서비스 인스턴스에서 빌드(handle 도 this.processX 를 호출)되므로 의도된
+        // 결합이다. (ai-review W6 — 인터페이스는 순수 데이터지만 본 registry 는
+        // service-bound 가 전제. 외부에서 독립 구성할 계약이 아니다.)
         selects: (sel) =>
           sel.isAiConversation &&
           sel.hasResumeCheckpoint &&
@@ -1863,10 +1867,13 @@ export class ExecutionEngineService
    * §7.5 rehydration — 대기 노드의 도착 continuation payload 를 노드-타입별 resume
    * 처리기로 라우팅하는 **단일 진입점**. top-level(`driveResumeAwaited`)·중첩
    * (`driveResumeFrame`) 양쪽이 공유한다 (추출 전 두 곳에 중복돼 있던 form/buttons/ai
-   * if/else 를 `resumeTurnRegistry` 조회로 일원화). 매칭 처리기 없음 =
-   * `RESUME_CHECKPOINT_MISSING`(graceful — 호출측 outer catch 가 단말 마킹).
+   * if/else 를 `resumeTurnRegistry` 조회로 일원화).
    * @returns `PARK_RELEASED` = (AI) turn 처리 후 re-park 로 세그먼트 종료 ·
    *          `void` = 노드 완료(호출측이 그래프 순회 계속).
+   * @throws {RehydrationError} code=`RESUME_CHECKPOINT_MISSING` — 매칭 처리기 없음
+   *          (지원하지 않는 interaction). 호출측 outer catch 가 단말 마킹.
+   * @throws {RehydrationError} code=`RESUME_INCOMPATIBLE_STATE` — AI handler 의
+   *          `_resumeCheckpoint` 재구성 실패(schema drift/손상). graceful reset.
    */
   private async dispatchResumeTurn(
     ctx: ResumeTurnContext,

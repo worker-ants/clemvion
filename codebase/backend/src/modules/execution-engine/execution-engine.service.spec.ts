@@ -10944,11 +10944,16 @@ describe('ExecutionEngineService', () => {
   // 처리기(processForm/Button/handleAiResumeTurn)는 spy 로 라우팅만 확인. spec §7.5.
   // ──────────────────────────────────────────────────────────────────────
   describe('dispatchResumeTurn — resume dispatch registry (exec-park B-1)', () => {
+    // private 메서드를 직접 spy/호출하기 위한 테스트 전용 캐스팅 타입.
     type DispatchSubject = {
       dispatchResumeTurn: (ctx: Record<string, unknown>) => Promise<unknown>;
+      handleAiResumeTurn: (ctx: Record<string, unknown>) => Promise<unknown>;
       processFormResumeTurn: (...a: unknown[]) => Promise<void>;
       processButtonResumeTurn: (...a: unknown[]) => Promise<void>;
-      handleAiResumeTurn: (...a: unknown[]) => Promise<unknown>;
+      processAiResumeTurn: (...a: unknown[]) => Promise<unknown>;
+      buildRetryReentryState: (...a: unknown[]) => { resumeState: unknown };
+      contextKeyOf: (...a: unknown[]) => string;
+      _resumeTurnRegistry?: unknown;
     };
 
     const makeCtx = (overrides: Record<string, unknown>) => ({
@@ -10967,6 +10972,9 @@ describe('ExecutionEngineService', () => {
 
     afterEach(() => {
       jest.restoreAllMocks();
+      // lazy registry 캐시 리셋 — restoreAllMocks 는 spy 만 복원하므로 명시 초기화
+      // (ai-review W4 — 향후 registry 순서/항목 테스트 간 상태 누수 방지).
+      (service as unknown as DispatchSubject)._resumeTurnRegistry = undefined;
     });
 
     it('form interaction → processFormResumeTurn 라우팅 (void → 순회 계속)', async () => {
@@ -11114,6 +11122,60 @@ describe('ExecutionEngineService', () => {
           }),
         ),
       ).rejects.toMatchObject({ code: 'RESUME_CHECKPOINT_MISSING' });
+    });
+
+    // handleAiResumeTurn 내부 로직(ai-review W3) — dispatch 라우팅 테스트는 이 메서드를
+    // spy 대체하므로, 재구성 실패→throw / 정상 경로→seed+processAiResumeTurn 은 여기서 직접 검증.
+    it('handleAiResumeTurn: buildRetryReentryState 실패 → RESUME_INCOMPATIBLE_STATE 전파', async () => {
+      const svc = service as unknown as DispatchSubject;
+      jest.spyOn(svc, 'buildRetryReentryState').mockImplementation(() => {
+        throw new Error('checkpoint corrupt');
+      });
+
+      await expect(
+        svc.handleAiResumeTurn(
+          makeCtx({
+            node: { id: 'ai1', type: 'ai_agent' },
+            isAiConversation: true,
+            resumeCheckpoint: { schemaVersion: 1 },
+          }),
+        ),
+      ).rejects.toMatchObject({ code: 'RESUME_INCOMPATIBLE_STATE' });
+    });
+
+    it('handleAiResumeTurn: 정상 → _resumeState seed(setNodeOutput) + processAiResumeTurn 결과 전달', async () => {
+      const svc = service as unknown as DispatchSubject;
+      const resumeState = { messages: [], turnCount: 2 };
+      jest
+        .spyOn(svc, 'buildRetryReentryState')
+        .mockReturnValue({ resumeState });
+      jest.spyOn(svc, 'contextKeyOf').mockReturnValue('ctx-key');
+      const setOutputSpy = jest
+        .spyOn(
+          (service as unknown as { contextService: { setNodeOutput: unknown } })
+            .contextService as { setNodeOutput: (...a: unknown[]) => void },
+          'setNodeOutput',
+        )
+        .mockImplementation(() => undefined);
+      const aiSpy = jest
+        .spyOn(svc, 'processAiResumeTurn')
+        .mockResolvedValue(PARK_RELEASED);
+
+      const out = await svc.handleAiResumeTurn(
+        makeCtx({
+          node: { id: 'ai1', type: 'ai_agent' },
+          isAiConversation: true,
+          resumeCheckpoint: { schemaVersion: 1 },
+          cachedOutput: { foo: 'bar' },
+        }),
+      );
+
+      expect(out).toBe(PARK_RELEASED);
+      expect(setOutputSpy).toHaveBeenCalledTimes(1);
+      // seed 는 cachedOutput 병합 + _resumeState 주입.
+      const seedArg = setOutputSpy.mock.calls[0][2] as Record<string, unknown>;
+      expect(seedArg).toMatchObject({ foo: 'bar', _resumeState: resumeState });
+      expect(aiSpy).toHaveBeenCalledTimes(1);
     });
   });
 
