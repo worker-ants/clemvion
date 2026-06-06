@@ -414,7 +414,7 @@ KB.rag_mode 별로 `RagSearchService.search()` 가 분기한다. `vector` 모드
        - expanded chunk: cosine similarity × centrality_weight
        - centrality_weight = log(entity.mention_count + 1) / log(MAX_MENTION + 1)
     ↓
-[7] 상위 ragTopK 만 컨텍스트에 주입
+[7] 통합 결과를 동적 점수 컷(token-budget + inject-cap, 명시 top_k 시 그 값)으로 컨텍스트에 주입 ([RAG 검색 §3.4](./9-rag-search.md#34-동적-점수-컷-생성-주입-모든-모드-공통))
 ```
 
 ### 4.2 SQL 흐름 (recursive CTE)
@@ -468,7 +468,7 @@ SELECT chunk_id, content, score FROM (
    WHERE ec.chunk_id NOT IN (SELECT chunk_id FROM seed)
 ) t
 ORDER BY score DESC
-LIMIT $5;        -- ragTopK
+LIMIT $5;        -- 회수 폭(recall): vectorSeedTopK + expandedChunkLimit. 최종 주입 청크 수는 app-layer 동적 점수 컷(RAG 검색 §3.4)이 결정
 ```
 
 > 위 SQL 은 개념 정의이며 실제 구현은 차원별 partial HNSW (V022 / V023) 와 동일 cast 표현식을 따른다.

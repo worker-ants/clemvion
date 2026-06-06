@@ -96,7 +96,7 @@ owner: 사용자 본인 / planner
 - [ ] cross-encoder 리랭크 기본(`bge-reranker-v2-m3-ko`). NestJS 서비스(ONNX/Triton local 또는 rerank API).
 - [ ] listwise LLM grading **escalate 경로**(D2 escalate 조건) — `RagSearchService.search()` 내부, tool 인터페이스 불변.
 - [ ] "근거 없음" → agent 명시 전달.
-- [ ] **spec 갱신**: `spec/5-system/9-rag-search.md` 흐름·컷 정책, `spec/4-nodes/3-ai/1-ai-agent.md` ragTopK/threshold 의미.
+- [x] **spec 갱신** (2026-06-06, `rag-dynamic-cut` PR): `spec/5-system/9-rag-search.md` §3.1·§3.3·신규 §3.4·§4.2·§6·Rationale, `spec/4-nodes/3-ai/1-ai-agent.md`·`0-common.md` ragTopK optional, `17-agent-memory.md`·`10-graph-rag.md`·`1-data-model.md` 정합. consistency `--spec 14_53_44` BLOCK:NO.
 
 ### P2 — 3-신호 하이브리드 검색 (D3) — **배포 환경 선결**
 - [ ] **선결 결정**: Postgres 배포 환경 → lexical 스택 분기(§아래 표).
@@ -169,7 +169,7 @@ P6(UX) ── 독립 백로그
 
 - [ ] **Postgres 배포 환경**(RDS/Aurora·Cloud SQL·Supabase·self-host) → P2 lexical 스택 분기. **P2 최선결**.
 - [x] **P1 리랭커 provider/호스팅 — 2026-06-04 확정**: 1차 `tei`(자가호스팅 HF TEI, Node thin HTTP client) + `cohere`(API). jina/voyage/local/builtin(Transformers.js 인프로세스) Planned.
-- [x] **P1 cross_encoder_llm escalate — 2026-06-04 확정**: 항상 LLM grading(v1). 점수기반 conditional escalate 정량 임계는 P0 보정 후 후속.
+- [x] **P1 cross_encoder_llm escalate — 2026-06-06 재결정**: conditional escalate **메커니즘**(상위 점수 평탄/모호 시에만 listwise grading)을 `rag-dynamic-cut` PR(D2)에서 도입(기존 2026-06-04 "항상 grading(v1)" 대체 — 그 결정은 비용 보호용 단순화였고 escalate 미발생 시 cross-encoder 결과 사용=v1 부분집합이라 회귀 안전). escalate 진입 **정량 임계**는 합리적 default 로 시작, P0 골든셋 A/B 확정은 후속.
 - [x] **"정책 판단 KB" 표시 — 2026-06-04 확정**: 별도 플래그 없음, `rerank_mode = cross_encoder_llm` 자체가 표시자.
 - [ ] P3 읽기시점 3안(child / child+prefix / parent) A/B 결과 → P5 도입 여부.
 - [ ] 평가셋 규모·합성 비율(수동 50 + 합성 확장) 확정.
@@ -192,7 +192,7 @@ P6(UX) ── 독립 백로그
 - [ ] 결정: 실 `golden.json` repo 커밋 여부(고객 데이터 민감도), 적정 `--sample` 규모·KB 선정.
 
 ### C. 하베스가 unblock 한 downstream (로드맵 본체)
-- [ ] **D2 conditional escalate 임계 튜닝** — cross_encoder vs cross_encoder_llm A/B (P0 선행조건 충족됨). §6 "P1 escalate 정량 임계" 와 연결.
+- [~] **D2 conditional escalate** — **메커니즘 구현 완료**(`rag-dynamic-cut` PR: 상위 점수 평탄/모호 시 escalate + '근거 없음' 전달). **정량 임계 튜닝**(cross_encoder vs cross_encoder_llm A/B)은 P0 baseline(§7.B) 실 골든셋 확보 후. §6 "P1 escalate 정량 임계" 와 연결.
 - [ ] P2 3-신호 하이브리드 / P3 parent-document / P5 contextual — 각 §3 Phase, 평가셋으로 A/B.
 
 ### D. 평가 하베스 확장 (Phase 2+, §P0 잔여)
