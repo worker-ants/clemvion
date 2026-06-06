@@ -247,7 +247,7 @@ POST /api/triggers
 
 ## 5. API 명세 — Inbound
 
-> **전송 봉투 (전 REST 엔드포인트 공통)**: 아래 §5.1~§5.5 의 성공 응답 JSON 블록은 **논리 payload** (= `data` 객체의 내용물) 다. 실제 wire format 은 전역 `TransformInterceptor` 가 `{ "data": { ... } }` 로 래핑한다 ([Webhook §3.1](./12-webhook.md#31-응답-형식) / [API 규약 §5](./2-api-convention.md#5-응답-형식)). 예: §5.3 단발 상태 조회의 실제 응답은 `{ "data": { "id", "status", ... } }`, §5.5 토큰 갱신은 `{ "data": { "token", "expiresAt" } }`. 클라이언트는 `res.data` 를 언랩해 읽어야 한다. **예외**: §5.2 SSE 스트림 프레임(`data: <payload>`)은 인터셉터를 거치지 않아 봉투가 없다.
+> **전송 봉투 (전 REST 엔드포인트 공통)**: 아래 §5.1~§5.5 의 성공 응답 JSON 블록은 **논리 payload** (= `data` 객체의 내용물) 다. 실제 wire format 은 전역 `TransformInterceptor` 가 `{ "data": { ... } }` 로 래핑한다 ([Webhook §3.1](./12-webhook.md#31-응답-형식) / [API 규약 §5](./2-api-convention.md#5-응답-형식)). 예: §5.3 단발 상태 조회의 실제 응답은 `{ "data": { "id", "status", ... } }`, §5.5 토큰 갱신은 `{ "data": { "token", "expiresAt" } }`. 클라이언트는 `res.data` 를 언랩해 읽어야 한다. **예외 1**: §5.2 SSE 스트림 프레임(`data: <payload>`)은 인터셉터를 거치지 않아 봉투가 없다. **예외 2**: §5.1(`interact`)는 성공 시 `202 Accepted` + body 없음(no-content path) — 클라이언트는 body 를 소비하지 않으므로 봉투 언랩 해당 없음.
 
 ### 5.1 인터랙션 명령 제출 — `POST /api/external/executions/:executionId/interact`
 
