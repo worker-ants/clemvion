@@ -10,6 +10,7 @@ import {
   ModelInfo,
 } from './interfaces/llm-client.interface';
 import { LlmUsageLogService } from './llm-usage-log.service';
+import { StubLlmClient } from './clients/stub.client';
 import { sanitizeLlmErrorMessage } from './utils/sanitize-error.util';
 import { withTimeout } from './utils/with-timeout.util';
 
@@ -71,6 +72,16 @@ export class LlmService {
     const cached = this.clientCache.get(config.id);
     if (cached) {
       return cached;
+    }
+
+    // 테스트 전용(`OAUTH_STUB_MODE` 선례) — dockerized e2e 가 실제 LLM 키/호출 없이
+    // 멀티턴 AI park→재개(§4.x turn-park, §7.5 rehydration)를 결정적으로 검증하도록,
+    // env-gated 시 결정적 stub 클라이언트를 반환한다. 프로덕션(env 미설정)에는 절대
+    // 활성화되지 않는다.
+    if (process.env.LLM_STUB_MODE === 'true') {
+      const stub = new StubLlmClient();
+      this.clientCache.set(config.id, stub);
+      return stub;
     }
 
     const apiKey = this.llmConfigService.getDecryptedApiKey(config);
