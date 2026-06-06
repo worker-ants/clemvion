@@ -133,7 +133,7 @@ interface TokenUsage {
 
 ### 3.3 embed 시그니처 (LLMClient 인터페이스)
 
-임베딩은 파라미터/응답 객체를 쓰지 않고 평탄한 시그니처를 사용한다. (서비스 계층 `LlmService.embed` 의 batch/opts 래퍼는 [§8.3](#83-서비스-레이어).)
+임베딩은 파라미터/응답 객체를 쓰지 않고 평탄한 시그니처를 사용한다. (서비스 계층 `LlmService.embed` 의 batch/opts 래퍼는 [§8.3](#83-서비스-레이어).) `inputType?` 같은 **plain scalar 위치 인자 추가는 객체화(파라미터/응답 객체 도입)가 아니므로 평탄한 시그니처 원칙 범위 내**다 — 원칙이 금지하는 것은 `EmbedParams`/`EmbedResponse` 같은 wrapper 객체이지 optional scalar 확장이 아니다 ([근거: ## Rationale](#rationale)).
 
 ```typescript
 // embed(texts, model?, inputType?: 'query' | 'document'): Promise<number[][]>
@@ -413,6 +413,7 @@ class LlmService {
 ```
 
 > `LlmCallOptions`(timeoutMs/disableInnerRetry/signal)는 코드가 SoT(`llm.service.ts`). `embed` 은 그중 `timeoutMs`/`disableInnerRetry` 만 받는다.
+> **호출 예시**: `opts` 가 불필요하고 query 임베딩만 원할 때는 4번째 인자에 `undefined` 를 명시한다 — `embed(config, texts, model, undefined, 'query')`. (위치 인자라 `inputType` 단독 전달 시 `opts` 자리를 건너뛰어야 한다.)
 
 - 사용량 로깅(`llm_usage_log`)은 `done` 이벤트에서만 수행하며, 비동기 비차단.
 - 재시도(rate limit)는 스트리밍 중에는 적용하지 않는다. 시작 전 네트워크 초기화 단계에서만 기존 exponential backoff 규칙을 적용.
