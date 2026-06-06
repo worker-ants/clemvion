@@ -130,7 +130,7 @@ const LABEL_KO: Record<string, string> = {
   "RAG Threshold": "RAG 임계값",
   "RAG Threshold (default)": "RAG 임계값 (기본값)",
   "RAG Top-K": "RAG Top-K",
-  "RAG Top-K (default)": "RAG Top-K (기본값)",
+  "RAG Top-K (cap)": "RAG Top-K (상한)",
   Required: "필수",
   Resource: "리소스",
   "Response Format": "응답 형식",
@@ -184,8 +184,8 @@ const HINT_KO: Record<string, string> = {
   "Array data source (leave empty for previous node input)":
     "배열 데이터 소스 (비우면 이전 노드의 입력 사용)",
   "Compare without type coercion": "타입 변환 없이 비교",
-  "Default chunk count returned per KB tool call (LLM can override via call arguments)":
-    "KB tool 호출 시 반환할 청크 수의 기본값 (LLM 이 호출 인자로 override 가능)",
+  "Optional cap on chunks injected per KB tool call. If unset, a dynamic token-budget cut decides the count. The LLM can override via call arguments.":
+    "KB tool 호출당 주입할 청크 수 상한(선택)이에요. 미설정 시 동적 컷이 개수를 정해요. LLM 이 호출 인자로 조정할 수 있어요.",
   "Default minimum similarity threshold (0-1) (LLM can override via call arguments)":
     "최소 유사도 임계값 (0-1) 의 기본값 (LLM 이 호출 인자로 override 가능)",
   "Describe the background task's purpose or caveats — handy for teammates collaborating later.":

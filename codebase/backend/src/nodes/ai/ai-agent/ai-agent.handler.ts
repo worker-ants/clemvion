@@ -1862,7 +1862,10 @@ export class AiAgentHandler implements NodeHandler {
     const temperature = config.temperature as number | undefined;
     const maxTokens = config.maxTokens as number | undefined;
     const knowledgeBases = (config.knowledgeBases as string[]) || [];
-    const ragTopK = (config.ragTopK as number) || 5;
+    // ragTopK 는 optional — 미지정 시 undefined 를 그대로 보존해 multi-turn resume
+    // 의 turnConfig 에도 undefined 가 흘러가게 한다 (KbToolProvider 가 동적 컷 ceiling
+    // 을 적용하도록; ||5 로 굳히면 resume 가 5로 고정돼 동적 컷이 무력화됨). §3.4.
+    const ragTopK = config.ragTopK as number | undefined;
     const ragThreshold = (config.ragThreshold as number) || 0.7;
     const maxToolCalls = (config.maxToolCalls as number) || 10;
     const maxTurns = (config.maxTurns as number) ?? 20;

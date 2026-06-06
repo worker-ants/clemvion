@@ -15,7 +15,7 @@ owner: developer
 - [x] **KB 폼 Reranking UI** (`spec/2-navigation/5-knowledge-base.md §2.2`) — frontend.
 - [x] **워크스페이스 RerankConfig 관리 UI** (`6-config.md`, LLMConfig 패턴) — frontend.
 - [~] **provider 확장** (jina/voyage/local/builtin) — **DROP (2026-06-05 사용자 결정, A.3)**. 1차 tei+cohere 로 종결.
-- [ ] **conditional escalate 정량 임계** (점수 평탄/모호) — P0 평가셋 보정 후 도입. cross_encoder_llm 은 현재 "항상 grading"(#478); escalate 는 LLM 콜 절감 최적화로 P0 의존.
+- [~] **conditional escalate** (점수 평탄/모호) — **메커니즘**(escalate 진입 구조 + 합리적 default 임계)은 `rag-dynamic-cut` PR(D2)에서 구현. cross_encoder_llm 은 이제 "항상 grading" 이 아니라 상위 점수 평탄/모호 시에만 escalate. **정량 임계 A/B 확정**은 P0 baseline([`rag-quality-improvement.md §7.B`](./rag-quality-improvement.md)) 확보 후 후속.
 - [x] RerankConfig RBAC 행 (`spec/5-system/1-auth.md §3.2`).
 - [x] `## Rationale` 섹션 신설 (`9-rag-search.md`·`7-llm-client.md`) — resolution-applier 가 반영 완료.
 

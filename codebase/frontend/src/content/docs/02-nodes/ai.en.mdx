@@ -19,7 +19,7 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
   {name: "responseFormat", required: false, type: "`text` / `json`", description: "Response format. When `json`, also set `jsonSchema`.", default: "text"},
   {name: "jsonSchema", required: false, type: "JSONSchema", description: "Output schema when `responseFormat=json`.", default: "-"},
   {name: "knowledgeBases", required: false, type: "UUID[]", description: "Knowledge Bases referenced by RAG.", default: "[]"},
-  {name: "ragTopK", required: false, type: "integer", description: "Top K results retrieved from RAG.", default: "5"},
+  {name: "ragTopK", required: false, type: "integer", description: "Optional cap on injected chunks. If unset, a dynamic cut decides the count.", default: "dynamic cut"},
   {name: "ragThreshold", required: false, type: "float", description: "RAG similarity threshold (0–1).", default: "0.7"},
   {name: "mcpServers", required: false, type: "McpServerRef[]", description: "MCP (Model Context Protocol) servers to expose to the agent. Each entry takes a required `integrationId` plus optional `enabledTools`, `includeResources`, `includePrompts`, and `toolOverrides`. Tools from the registered servers become callable by the LLM automatically.", default: "[]"},
   {name: "conditions", required: false, type: "ConditionDef[]", description: "Conditions. Each has `id`, `label`, and `prompt`, and each condition gets its own dynamic output port.", default: "[]"},

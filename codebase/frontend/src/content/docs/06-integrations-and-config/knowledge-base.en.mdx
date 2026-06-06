@@ -85,7 +85,7 @@ The AI Agent node's settings panel has a multi-select `Knowledge Bases` field. S
       "kb_01H...FAQ",
       "kb_01H...POLICY"
     ],
-    "ragTopK": 5,           // max results (default 5)
+    "ragTopK": 5,           // optional cap on injected chunks (dynamic cut decides count if unset)
     "ragThreshold": 0.7     // cosine similarity floor (default 0.7)
   }
 }
