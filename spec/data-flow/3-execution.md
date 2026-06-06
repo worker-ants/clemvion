@@ -108,9 +108,9 @@ sequenceDiagram
     API->>Bus: enqueue { type, executionId, nodeExecutionId, payload, jobId=`<exec>:<ne>:<seq>` }
     Bus-->>Proc: deliver (any instance — at-least-once)
     Proc->>Eng: applyContinuation(executionId, nodeExecutionId, payload)
-    Note over Eng: full B3 완료 — 모든 재개는 §7.5 rehydration 단일 경로(applyContinuation → rehydrateAndResume → driveResumeDetached/driveCallStackResume, await)
+    Note over Eng: full B3 완료 — 모든 재개는 §7.5 rehydration 단일 경로(applyContinuation → rehydrateAndResume → driveResumeAwaited/driveCallStackResume, await)
     Eng->>PG: ExecutionContext 재구성 (execution_node_log + node_execution.output_data + conversation_thread + user_variables + resume_call_stack — resume_call_stack 은 frame-by-frame 재진입 driveCallStackResume, V087)
-    Eng->>Eng: rehydrateAndResume → driveResumeDetached (await) → 직접 처리기(processFormResumeTurn / processButtonResumeTurn / processAiResumeTurn) dispatch
+    Eng->>Eng: rehydrateAndResume → driveResumeAwaited (await) → 직접 처리기(processFormResumeTurn / processButtonResumeTurn / processAiResumeTurn) dispatch
     Eng->>PG: UPDATE execution SET status='running' + UPDATE node_execution SET status='completed'
     Eng->>Eng: 토폴로지 다음 단계 진행
   end

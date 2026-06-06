@@ -430,4 +430,46 @@ describe('InteractionTokenService — itk_* (per_trigger)', () => {
     const long = `${ITK_PREFIX}${'a'.repeat(64)}`;
     expect(service.verifyPerTrigger(short, long)).toBe(false);
   });
+
+  // PR-B2a follow-up (W1 hardening) — secret 미설정 fail-closed (prod). OAUTH/LLM
+  // STUB_MODE 부팅 가드 패턴. dev/test 는 비보안 fallback 유지.
+  describe('constructor — secret 미설정 시 prod fail-closed', () => {
+    const OLD_ENV = process.env.NODE_ENV;
+    const OLD_INT = process.env.INTERACTION_JWT_SECRET;
+    const OLD_JWT = process.env.JWT_SECRET;
+    const noSecretConfig = { get: jest.fn(() => undefined) };
+    afterEach(() => {
+      process.env.NODE_ENV = OLD_ENV;
+      if (OLD_INT === undefined) delete process.env.INTERACTION_JWT_SECRET;
+      else process.env.INTERACTION_JWT_SECRET = OLD_INT;
+      if (OLD_JWT === undefined) delete process.env.JWT_SECRET;
+      else process.env.JWT_SECRET = OLD_JWT;
+    });
+
+    it('NODE_ENV=production + secret 전무 → 생성자 throw (fail-closed)', () => {
+      delete process.env.INTERACTION_JWT_SECRET;
+      delete process.env.JWT_SECRET;
+      process.env.NODE_ENV = 'production';
+      expect(
+        () =>
+          new InteractionTokenService(
+            noSecretConfig as never,
+            undefined as never,
+          ),
+      ).toThrow(/NODE_ENV=production/);
+    });
+
+    it('NODE_ENV!=production + secret 전무 → throw 안 함 (dev fallback)', () => {
+      delete process.env.INTERACTION_JWT_SECRET;
+      delete process.env.JWT_SECRET;
+      process.env.NODE_ENV = 'test';
+      expect(
+        () =>
+          new InteractionTokenService(
+            noSecretConfig as never,
+            undefined as never,
+          ),
+      ).not.toThrow();
+    });
+  });
 });

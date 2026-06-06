@@ -648,7 +648,7 @@ ALTER TABLE trigger
 
 - **secret 출처는 토큰 family 별로 다르다**:
   - `itk_*` (`per_trigger`) — trigger 가 발급하는 per-trigger opaque 토큰. trigger 별로 분리되어 서로 다른 trigger 의 토큰을 cross-validate 할 수 없다.
-  - `iext_*` (`per_execution`) — HS256 으로 서명하되 **단일 글로벌 secret** `INTERACTION_JWT_SECRET`(미설정 시 configService `jwt.secret` → `JWT_SECRET` 순으로 fallback; 셋 다 미설정인 dev 환경은 비보안 placeholder 로 떨어지므로 프로덕션은 반드시 `INTERACTION_JWT_SECRET` 또는 `JWT_SECRET` 를 설정해야 한다) 을 쓴다. trigger 별 분리가 아니라 execution scope 로 한정되는데, payload `{ sub: executionId, aud: 'interaction', jti }` 가 단일 execution 에 묶이고 jti 가 Redis blacklist 로 revoke 되기 때문이다 (아래).
+  - `iext_*` (`per_execution`) — HS256 으로 서명하되 **단일 글로벌 secret** `INTERACTION_JWT_SECRET`(미설정 시 configService `jwt.secret` → `JWT_SECRET` 순으로 fallback; 셋 다 미설정이면 dev 는 비보안 placeholder 로 떨어지지만 **`NODE_ENV=production` 에서는 `InteractionTokenService` 생성자가 throw 해 서버 부팅을 차단한다**(fail-closed — `OAUTH_STUB_MODE`/`LLM_STUB_MODE` 부팅 가드와 동형, 비보안 fallback 서명 원천 차단). 따라서 프로덕션은 `INTERACTION_JWT_SECRET` 또는 `JWT_SECRET` 중 하나를 반드시 설정해야 한다) 을 쓴다. trigger 별 분리가 아니라 execution scope 로 한정되는데, payload `{ sub: executionId, aud: 'interaction', jti }` 가 단일 execution 에 묶이고 jti 가 Redis blacklist 로 revoke 되기 때문이다 (아래).
 - `iext_*` 의 jti 는 Redis blacklist 가능 — execution 종료 시 즉시 blacklist 등록
 - HTTPS 강제 (개발 env 예외)
 - 토큰을 query parameter 로 받는 것은 SSE 한정 (`?token=` ; EventSource 가 헤더 미지원). 그 외는 모두 `Authorization: Bearer`
