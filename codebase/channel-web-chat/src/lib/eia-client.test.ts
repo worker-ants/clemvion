@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { EiaClient, EiaError, type EventSourceLike } from "./eia-client";
+import { EiaClient, EiaError, unwrapEnvelope, type EventSourceLike } from "./eia-client";
 import type { InteractionEndpoints } from "./eia-types";
 
 const endpoints: InteractionEndpoints = {
@@ -18,8 +18,76 @@ function jsonResponse(status: number, body: unknown): Response {
   } as Response;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// unwrapEnvelope 헬퍼 직접 단위 테스트
+// ────────────────────────────────────────────────────────────────────────────
+describe("unwrapEnvelope", () => {
+  it("정상 { data } 봉투 언랩", () => {
+    expect(unwrapEnvelope<{ name: string }>({ data: { name: "ok" } })).toEqual({ name: "ok" });
+  });
+
+  it("{ data: null } — null 을 그대로 반환", () => {
+    expect(unwrapEnvelope<null>({ data: null })).toBeNull();
+  });
+
+  it("null 입력 — null 그대로 반환 (봉투 없음 경로)", () => {
+    expect(unwrapEnvelope<null>(null)).toBeNull();
+  });
+
+  it("배열 입력 — data 키 없으므로 배열 그대로 반환", () => {
+    expect(unwrapEnvelope<number[]>([1, 2, 3])).toEqual([1, 2, 3]);
+  });
+
+  it("원시형(string) 입력 — 그대로 반환", () => {
+    expect(unwrapEnvelope<string>("raw")).toBe("raw");
+  });
+
+  it("봉투 없는 객체 — 객체 그대로 반환 (하위 호환)", () => {
+    const body = { executionId: "e1" };
+    expect(unwrapEnvelope<typeof body>(body)).toBe(body);
+  });
+
+  it("{ data: [] } — 배열 data 언랩", () => {
+    expect(unwrapEnvelope<unknown[]>({ data: [1, 2] })).toEqual([1, 2]);
+  });
+
+  it("{ data: undefined } — undefined 반환 ('data' 키 존재하므로 언랩 경로 진입)", () => {
+    expect(unwrapEnvelope<undefined>({ data: undefined })).toBeUndefined();
+  });
+
+  it("{ data: 0 } — 0(falsy 숫자) 반환", () => {
+    expect(unwrapEnvelope<number>({ data: 0 })).toBe(0);
+  });
+
+  it("{ data: false } — false(falsy 불리언) 반환", () => {
+    expect(unwrapEnvelope<boolean>({ data: false })).toBe(false);
+  });
+});
+
 describe("startConversation", () => {
-  it("202 응답을 파싱해 반환 + 올바른 URL/메서드", async () => {
+  it("전역 TransformInterceptor `{ data }` 봉투를 언랩해 반환 + 올바른 URL/메서드", async () => {
+    // 실제 백엔드 응답은 전역 TransformInterceptor 로 `{ data: {...} }` 래핑됨 (webhook §3.1 SoT).
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(202, {
+        data: {
+          executionId: "e1",
+          status: "pending",
+          interaction: { token: "iext_x", expiresAt: "2026-01-01", endpoints },
+        },
+      }),
+    );
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    const res = await client.startConversation("path-1", { firstMessage: "hi", profile: { a: 1 } });
+    expect(res.executionId).toBe("e1");
+    expect(res.interaction?.token).toBe("iext_x");
+    expect(res.interaction?.endpoints.stream).toBe(endpoints.stream);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://api.test/api/hooks/path-1");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toMatchObject({ firstMessage: "hi" });
+  });
+
+  it("봉투 없는 응답도 그대로 수용 (하위 호환·방어)", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse(202, {
         executionId: "e1",
@@ -27,13 +95,9 @@ describe("startConversation", () => {
       }),
     );
     const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
-    const res = await client.startConversation("path-1", { firstMessage: "hi", profile: { a: 1 } });
+    const res = await client.startConversation("path-1", {});
     expect(res.executionId).toBe("e1");
     expect(res.interaction?.token).toBe("iext_x");
-    const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe("https://api.test/api/hooks/path-1");
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body)).toMatchObject({ firstMessage: "hi" });
   });
 
   it("비-2xx → EiaError(status)", async () => {
@@ -45,6 +109,7 @@ describe("startConversation", () => {
 
 describe("interact", () => {
   it("Bearer 토큰으로 명령 제출", async () => {
+    // interact 는 void 반환(응답 body 미소비) → { data } 봉투 언랩 불필요. raw shape 사용 의도적.
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(202, { accepted: true }));
     const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
     await client.interact(endpoints, "iext_x", { command: "submit_message", message: "안녕" });
@@ -109,14 +174,81 @@ describe("openStream", () => {
   });
 });
 
-describe("refreshToken", () => {
-  it("새 토큰 반환", async () => {
+describe("getStatus", () => {
+  it("`{ data }` 봉투를 언랩해 상태 객체 반환", async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValue(jsonResponse(200, { token: "iext_new", expiresAt: "2026" }));
+      .mockResolvedValue(jsonResponse(200, { data: { status: "running", seq: 3 } }));
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    const r = await client.getStatus(endpoints, "iext_x");
+    expect(r.status).toBe("running");
+    expect(r.seq).toBe(3);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://api.test" + endpoints.status);
+    expect(init.headers.authorization).toBe("Bearer iext_x");
+  });
+
+  it("410 → 종료 에러", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(410, {}));
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    await expect(client.getStatus(endpoints, "t")).rejects.toMatchObject({ status: 410 });
+  });
+
+  it("비-410 에러(500) → EiaError", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(500, {}));
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    await expect(client.getStatus(endpoints, "t")).rejects.toMatchObject({
+      name: "EiaError",
+      status: 500,
+    });
+  });
+
+  it("비-410 에러(401) → EiaError", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(401, {}));
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    await expect(client.getStatus(endpoints, "t")).rejects.toMatchObject({
+      name: "EiaError",
+      status: 401,
+    });
+  });
+});
+
+describe("refreshToken", () => {
+  it("`{ data }` 봉투를 언랩해 새 토큰 반환", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { data: { token: "iext_new", expiresAt: "2026" } }));
     const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
     const r = await client.refreshToken(endpoints, "old");
     expect(r.token).toBe("iext_new");
+    expect(r.expiresAt).toBe("2026");
+  });
+
+  it("401 → EiaError (토큰 무효/만료)", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(401, {}));
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    await expect(client.refreshToken(endpoints, "expired")).rejects.toMatchObject({
+      name: "EiaError",
+      status: 401,
+    });
+  });
+
+  it("403 → EiaError (권한 없음)", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(403, {}));
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    await expect(client.refreshToken(endpoints, "t")).rejects.toMatchObject({
+      name: "EiaError",
+      status: 403,
+    });
+  });
+
+  it("500 → EiaError (서버 오류)", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(500, {}));
+    const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
+    await expect(client.refreshToken(endpoints, "t")).rejects.toMatchObject({
+      name: "EiaError",
+      status: 500,
+    });
   });
 });
 
