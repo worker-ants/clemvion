@@ -6,6 +6,7 @@ import { useEmbeddingModelLoader } from "@/components/llm-config/use-embedding-m
 import { useDefaultLlmConfigId } from "@/components/llm-config/use-default-llm-config-id";
 import { buildLoaderErrorMessages } from "@/components/llm-config/loader-error-messages";
 import { ModelSelectField } from "@/components/llm-config/model-select-field";
+import { isKoreanRecommendedEmbeddingModel } from "./embedding-model-recommendation";
 
 interface EmbeddingModelComboboxProps {
   value: string;
@@ -73,6 +74,15 @@ export function EmbeddingModelCombobox({
       formatSavedFallback={(model) =>
         t("knowledgeBases.embeddingModelSavedFallback", { model })
       }
+      // select-only(R-1) 유지 — 추천 배지는 기존 option 라벨 텍스트에만 덧붙는
+      // 표시용 메타데이터다. 자유 입력 경로를 추가하지 않는다. `<option>` 은
+      // 텍스트만 허용하므로 JSX 배지가 아닌 문자열 suffix 로 표시한다.
+      renderOption={(m) => {
+        const base = m.name && m.name !== m.id ? `${m.name} (${m.id})` : m.id;
+        return isKoreanRecommendedEmbeddingModel(m.id)
+          ? `${base} · ${t("knowledgeBases.koreanRecommendedBadge")}`
+          : base;
+      }}
       loadRequiredHint={t("knowledgeBases.embeddingModelLoadRequired")}
       loadedHint={t("knowledgeBases.embeddingModelHint")}
       placeholder={placeholder}

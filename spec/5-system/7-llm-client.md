@@ -8,6 +8,7 @@ code:
   - codebase/backend/src/modules/llm/llm-client.factory.ts
   - codebase/backend/src/modules/llm/interfaces/llm-client.interface.ts
   - codebase/backend/src/modules/llm/llm.service.ts
+  - codebase/backend/src/modules/llm/embedding-input-type.ts
   - codebase/backend/src/modules/llm/llm-preview.service.ts
   - codebase/backend/src/modules/llm/llm-usage-log.service.ts
   - codebase/backend/src/modules/llm/rerank/rerank-client.factory.ts
@@ -68,8 +69,13 @@ interface LLMClient {
    */
   chat(params: ChatParams, signal?: AbortSignal): Promise<ChatResult>;
 
-  /** 텍스트 임베딩 생성. 입력 텍스트 배열 → 벡터 배열만 반환 (메타데이터 없음) */
-  embed(texts: string[], model?: string): Promise<number[][]>;
+  /** 텍스트 임베딩 생성. 입력 텍스트 배열 → 벡터 배열만 반환 (메타데이터 없음).
+   *  `inputType` 은 비대칭 임베딩 모델에서 query/document(passage)를 구분한다 (§3.3) */
+  embed(
+    texts: string[],
+    model?: string,
+    inputType?: "query" | "document",
+  ): Promise<number[][]>;
 
   /** 사용 가능한 모델 목록 (`signal` 로 abort 가능) */
   listModels(signal?: AbortSignal): Promise<ModelInfo[]>;
@@ -125,18 +131,25 @@ interface TokenUsage {
 }
 ```
 
-### 3.3 embed 시그니처
+### 3.3 embed 시그니처 (LLMClient 인터페이스)
 
-임베딩은 파라미터/응답 객체를 쓰지 않고 평탄한 시그니처를 사용한다.
+임베딩은 파라미터/응답 객체를 쓰지 않고 평탄한 시그니처를 사용한다. (서비스 계층 `LlmService.embed` 의 batch/opts 래퍼는 [§8.3](#83-서비스-레이어).) `inputType?` 같은 **plain scalar 위치 인자 추가는 객체화(파라미터/응답 객체 도입)가 아니므로 평탄한 시그니처 원칙 범위 내**다 — 원칙이 금지하는 것은 `EmbedParams`/`EmbedResponse` 같은 wrapper 객체이지 optional scalar 확장이 아니다 ([근거: ## Rationale](#rationale)).
 
 ```typescript
-// embed(texts: string[], model?: string): Promise<number[][]>
-//   texts : 임베딩할 입력 배열 (배치)
-//   model : 모델 ID. 생략 시 클라이언트별 기본 임베딩 모델
-//   반환  : 입력 순서에 대응하는 벡터 배열. usage/dimensions 등 메타데이터는 반환하지 않음
+// embed(texts, model?, inputType?: 'query' | 'document'): Promise<number[][]>
+//   texts     : 임베딩할 입력 배열 (배치)
+//   model     : 모델 ID. 생략 시 클라이언트별 기본 임베딩 모델
+//   inputType : 비대칭 검색 모델용 힌트. 생략 시 'document'(passage) — 적재 경로 기본값.
+//               검색 query 경로만 'query' 를 명시한다. 대칭 모델은 무시.
+//   반환      : 입력 순서에 대응하는 벡터 배열. usage/dimensions 등 메타데이터는 반환하지 않음
 ```
 
-> **참고**: 토큰 사용량·차원 메타데이터를 함께 반환하는 `EmbedResponse` 형태는 현재 미구현(Planned). 사용량 로깅이 필요한 임베딩 경로는 별도 토큰 추정에 의존한다.
+**inputType(비대칭 입력) 처리** — 일부 임베딩 모델은 query 와 document 를 다르게 인코딩해야 검색 품질이 나온다(asymmetric retrieval). 이를 누락하면 색인은 되지만 회수 품질이 조용히 떨어지는 silent bug 가 된다. provider/모델별 적용은 [`spec/5-system/8-embedding-pipeline.md §5.4`](./8-embedding-pipeline.md#54-비대칭-입력-inputtype--prefix) 가 SoT 이며, 매핑 순수함수는 `codebase/backend/src/modules/llm/embedding-input-type.ts`:
+- **e5 계열**(multilingual-e5, e5-{small,base,large}): 입력 텍스트에 `query: ` / `passage: ` 접두사 적용(텍스트 변형). OpenAI 호환 경로에서 수행.
+- **Google Gemini**: `embedContent` 의 `taskType`(RETRIEVAL_QUERY / RETRIEVAL_DOCUMENT) 파라미터로 전달(텍스트 불변).
+- **대칭 모델**(OpenAI text-embedding-3, bge-m3 등): no-op. 미매칭 모델도 안전 기본값 no-op.
+
+> **참고**: 토큰 사용량·차원 메타데이터를 함께 반환하는 `EmbedResponse` 형태는 현재 미구현(Planned). `inputType` 도 그와 같은 이유로 **응답 객체화 대신 위치 인자 확장**을 채택했다 — `EmbedResponse` 도입 시 옵션 객체로 통합 검토. 사용량 로깅이 필요한 임베딩 경로는 별도 토큰 추정에 의존한다.
 
 ### 3.4 ToolDef / ToolCall
 
@@ -242,7 +255,7 @@ class RerankClientFactory {
 | 인터페이스 | OpenAI API |
 |-----------|-----------|
 | `chat()` | `POST /v1/chat/completions` |
-| `embed()` | `POST /v1/embeddings` |
+| `embed()` | `POST /v1/embeddings`. e5 계열 모델(OpenAI 호환 self-host)이면 입력에 `query:`/`passage:` 접두사 적용, native 모델은 no-op |
 | `listModels()` | `GET /v1/models` |
 | `responseFormat: 'json'` | `response_format: { type: "json_schema", json_schema }` |
 | `tools` | `tools` 파라미터 직접 매핑 |
@@ -263,7 +276,7 @@ class RerankClientFactory {
 | 인터페이스 | Google API |
 |-----------|-----------|
 | `chat()` | `ai.models.generateContent()` (`@google/genai` SDK) |
-| `embed()` | `ai.models.embedContent()` 배치 지원 |
+| `embed()` | `ai.models.embedContent()` 배치 지원. `config.taskType` = RETRIEVAL_QUERY / RETRIEVAL_DOCUMENT (inputType 매핑) |
 | `listModels()` | `ai.models.list()` — Gemini 모델 조회 API 실시간 호출. `supportedActions`에 `generateContent` 포함 시 chat, `embedContent` 포함 시 embedding 으로 분류 |
 | `stream()` | `ai.models.generateContentStream()` (신 SDK는 flat AsyncGenerator 반환) |
 | `tools` | `functionDeclarations` 로 매핑, 스키마는 OpenAPI 3.0 서브셋으로 sanitize |
@@ -376,7 +389,18 @@ type ChatStreamEvent =
 
 ```typescript
 class LlmService {
-  // 기존 chat / embed / testConnection / resolveConfig 유지
+  // 기존 chat / testConnection / resolveConfig 유지
+
+  /** 배치 임베딩 — 20개 단위 chunking + 내부 재시도. §3.3 의 LLMClient.embed 래퍼.
+   *  opts(timeoutMs/disableInnerRetry)는 서비스 래퍼 전용이라 §3.3 LLMClient
+   *  인터페이스에는 없다. inputType 기본값 'document'(적재), 검색 query 만 'query'. */
+  embed(
+    config: LlmConfig,
+    texts: string[],
+    model?: string,
+    opts?: Pick<LlmCallOptions, 'timeoutMs' | 'disableInnerRetry'>,
+    inputType?: 'query' | 'document',   // 생략 시 'document'
+  ): Promise<number[][]>;
 
   /** 스트리밍 chat — client.stream 위임. done 이벤트에서 llmUsageLogService.record() fire-and-forget */
   chatStream(
@@ -387,6 +411,9 @@ class LlmService {
   ): AsyncIterable<ChatStreamEvent>;
 }
 ```
+
+> `LlmCallOptions`(timeoutMs/disableInnerRetry/signal)는 코드가 SoT(`llm.service.ts`). `embed` 은 그중 `timeoutMs`/`disableInnerRetry` 만 받는다.
+> **호출 예시**: `opts` 가 불필요하고 query 임베딩만 원할 때는 4번째 인자에 `undefined` 를 명시한다 — `embed(config, texts, model, undefined, 'query')`. (위치 인자라 `inputType` 단독 전달 시 `opts` 자리를 건너뛰어야 한다.)
 
 - 사용량 로깅(`llm_usage_log`)은 `done` 이벤트에서만 수행하며, 비동기 비차단.
 - 재시도(rate limit)는 스트리밍 중에는 적용하지 않는다. 시작 전 네트워크 초기화 단계에서만 기존 exponential backoff 규칙을 적용.
@@ -409,6 +436,7 @@ class LlmService {
 
 ## Rationale
 
+- **왜 `LlmService.embed` 에 `opts`/`inputType` 을 위치 인자로 추가했나 (§8.3)**: §3.3 의 `LLMClient.embed` 인터페이스는 "평탄한 시그니처(파라미터/응답 객체 없음)" 원칙을 유지한다. 그러나 서비스 계층(`LlmService.embed`)은 배치 chunking·timeout·재시도 래퍼라 운영 옵션(`timeoutMs`/`disableInnerRetry`)이 필요하고, 비대칭 검색 모델(e5/Gemini)을 위한 `inputType('query'|'document')` 힌트도 필요하다. 이를 응답/옵션 객체로 객체화(`EmbedResponse`/`EmbedOptions`)하는 대신 **위치 인자 확장**을 택한 이유: (a) `EmbedResponse`(usage/dimensions 반환)가 아직 Planned 라 지금 객체화하면 두 번 리팩토링, (b) 기존 호출부 하위호환(`inputType` 생략 시 `'document'`)을 유지해 변경 표면 최소화. `EmbedOptions` 객체 통합은 `EmbedResponse` 도입 시 함께 검토한다. **trade-off**: 위치 인자라 `opts` 없이 `inputType` 만 전달할 때 4번째 자리에 `undefined` 를 명시해야 한다(`embed(config, texts, model, undefined, 'query')`) — 호출부 DX 가 다소 떨어지지만, 객체화 2회 리팩토링 회피·하위호환 유지가 그 비용을 상회한다고 판단했다. `inputType` 의 provider 별 적용·재임베딩 정합성은 [8-embedding-pipeline §5.4](./8-embedding-pipeline.md#54-비대칭-입력-inputtype--prefix) SoT.
 - **왜 RerankClient 를 LLMClient 와 분리된 별도 인터페이스로 둔 것인가**: 리랭커 API shape 는 chat/embed 와 근본적으로 다르다 — `rerank(query, documents[])` 는 스코어 배열 반환이며, 스트리밍·system_prompt·tool_call 등 chat 개념이 없다. capability flag(`supportsReranking?: boolean`) 로 LLMClient 에 욱여넣으면 (a) 타입 안전성 저하 (b) 미구현 프로바이더의 런타임 throw 처리 복잡화 (c) provider switch 가 리랭크/chat/embed 를 함께 처리해 단일책임 위반. 별도 인터페이스 + 별도 팩토리가 명확하다.
 - **왜 SSRF 가드·secret-store 는 재사용하는가**: 자가호스팅 `tei`/`local` 리랭커는 사설망 endpoint 를 받아 LLM 과 동일한 SSRF 공격 면이 있다. §5.5 의 `local`/`tei` 사설망 예외 규칙을 그대로 적용해 인프라를 중복 구현하지 않는다.
 - **왜 LLMClientFactory 에 통합하지 않았나**: LLMConfig 와 RerankConfig 는 별개 DB 테이블·별개 워크스페이스 리소스다. LLMClientFactory 는 `provider`·`apiKey`·`defaultModel`·`baseUrl?` 의 flat 옵션을 받는데, 리랭크 프로바이더 집합(`tei`·`cohere`·jina/voyage 후속)은 chat 프로바이더 집합(`openai`·`anthropic`·`google`·`azure`·`local`)과 교집합이 없다. 같은 팩토리에 두면 switch 가 불필요하게 커지고 RerankConfig 의 타입이 LLMConfig 로 오염된다.

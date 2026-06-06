@@ -74,6 +74,7 @@ export const knowledgeBases = {
   embeddingModelLoadFailed:
     "모델 목록을 불러오지 못했어요. LLM 설정과 자격증명을 확인한 뒤 다시 시도해주세요",
   embeddingModelSavedFallback: "현재 저장값: {{model}}",
+  koreanRecommendedBadge: "한국어 추천",
   embeddingDimension: "차원",
   settingsTitle: "지식 저장소 설정",
   settingsSave: "저장",

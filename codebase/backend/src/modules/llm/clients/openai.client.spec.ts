@@ -437,3 +437,58 @@ describe('OpenAIClient.listModels', () => {
     });
   });
 });
+
+describe('OpenAIClient.embed (input_type prefix)', () => {
+  function makeEmbedClient(): {
+    client: OpenAIClient;
+    createMock: jest.Mock;
+  } {
+    const createMock = jest
+      .fn()
+      .mockResolvedValue({ data: [{ embedding: [0.1, 0.2] }] });
+    const client = new OpenAIClient('sk-test', 'text-embedding-3-small');
+    // @ts-expect-error — overwrite the internal SDK client with an embeddings stub.
+    client.client = { embeddings: { create: createMock } };
+    return { client, createMock };
+  }
+
+  it('OpenAI native 모델은 prefix 없이 원문 그대로 전달(대칭)', async () => {
+    const { client, createMock } = makeEmbedClient();
+    await client.embed(['hello'], 'text-embedding-3-small', 'query');
+    expect(createMock).toHaveBeenCalledWith({
+      model: 'text-embedding-3-small',
+      input: ['hello'],
+    });
+  });
+
+  it('e5 계열 + query → "query: " prefix 적용', async () => {
+    const { client, createMock } = makeEmbedClient();
+    await client.embed(['고객 환불'], 'multilingual-e5-large', 'query');
+    expect(createMock).toHaveBeenCalledWith({
+      model: 'multilingual-e5-large',
+      input: ['query: 고객 환불'],
+    });
+  });
+
+  it('e5 계열 + document → "passage: " prefix 적용', async () => {
+    const { client, createMock } = makeEmbedClient();
+    await client.embed(
+      ['환불은 7일 이내'],
+      'multilingual-e5-large',
+      'document',
+    );
+    expect(createMock).toHaveBeenCalledWith({
+      model: 'multilingual-e5-large',
+      input: ['passage: 환불은 7일 이내'],
+    });
+  });
+
+  it('inputType 생략 시 document 기본값(passage)', async () => {
+    const { client, createMock } = makeEmbedClient();
+    await client.embed(['doc'], 'e5-base');
+    expect(createMock).toHaveBeenCalledWith({
+      model: 'e5-base',
+      input: ['passage: doc'],
+    });
+  });
+});

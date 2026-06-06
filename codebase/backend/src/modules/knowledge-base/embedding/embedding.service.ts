@@ -235,6 +235,8 @@ export class EmbeddingService {
         // disableInnerRetry: 외부 retryWithBackoff 가 재시도를 통제하므로 LlmService 내부의
         // rate-limit-only withRetry 와 겹쳐 호출이 비선형 증폭되는 것을 막는다.
         { timeoutMs: EMBED_TIMEOUT_MS, disableInnerRetry: true },
+        // 문서 청크 적재 = passage. 비대칭 모델(e5/Gemini)에서 query 와 구분된다.
+        'document',
       );
 
       for (const v of embeddings) {

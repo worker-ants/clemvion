@@ -46,6 +46,10 @@ import {
   ModelInfo,
   ToolCall,
 } from '../interfaces/llm-client.interface';
+import {
+  resolveGeminiTaskType,
+  type EmbedInputType,
+} from '../embedding-input-type';
 
 function mapGoogleFinishReason(
   reason: string | undefined,
@@ -539,10 +543,18 @@ export class GoogleClient implements LLMClient {
     };
   }
 
-  async embed(texts: string[], model?: string): Promise<number[][]> {
+  async embed(
+    texts: string[],
+    model?: string,
+    inputType: EmbedInputType = 'document',
+  ): Promise<number[][]> {
+    // Gemini 는 텍스트 변형이 아니라 taskType 파라미터로 비대칭 검색을 지원한다
+    // (RETRIEVAL_QUERY / RETRIEVAL_DOCUMENT). 이를 누락하면 색인은 되지만
+    // 회수 품질이 조용히 떨어진다.
     const response = await this.ai.models.embedContent({
       model: model || 'text-embedding-004',
       contents: texts,
+      config: { taskType: resolveGeminiTaskType(inputType) },
     });
     const embeddings = response.embeddings ?? [];
     // Knowledge Base 파이프라인이 입력 순서에 맞춰 벡터를 저장하므로 길이·내용

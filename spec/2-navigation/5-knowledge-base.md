@@ -5,6 +5,7 @@ code:
   - codebase/frontend/src/app/(main)/knowledge-bases/page.tsx
   - codebase/frontend/src/app/(main)/knowledge-bases/[id]/page.tsx
   - codebase/frontend/src/components/knowledge-base/*.tsx
+  - codebase/frontend/src/components/knowledge-base/embedding-model-recommendation.ts
 ---
 
 # Spec: 지식 저장소 화면
@@ -53,7 +54,7 @@ code:
 | 이름 | 컬렉션 이름 (필수) |
 | 설명 | 컬렉션 설명 (선택) |
 | 검색 모드 | `vector` (기본) / `graph` 중 선택. **생성 시에만 결정, 사후 변경 불가** |
-| 임베딩 모델 | 지정된 LLMConfig (미지정 시 워크스페이스 default) 의 임베딩 모델 목록을 "모델 불러오기" 버튼으로 조회한 뒤 select 로 선택. 자유 텍스트 입력은 허용하지 않는다. 미로드 / 조회 실패 시 select 비활성, 에러 메시지만 표시 ([설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정) 의 결정을 그대로 적용) |
+| 임베딩 모델 | 지정된 LLMConfig (미지정 시 워크스페이스 default) 의 임베딩 모델 목록을 "모델 불러오기" 버튼으로 조회한 뒤 select 로 선택. 자유 텍스트 입력은 허용하지 않는다. 미로드 / 조회 실패 시 select 비활성, 에러 메시지만 표시 ([설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정) 의 결정을 그대로 적용). **한국어 추천 모델**(multilingual-e5 / bge-m3 / text-embedding-3 / KURE / arctic-embed 패턴)은 option 라벨에 "한국어 추천" 텍스트 배지를 덧붙여 표시 — **비강제**(선택을 제한하지 않으며, select-only 원칙 유지: 배지는 기존 option 라벨 위 표시용 메타데이터일 뿐 자유 입력 경로를 추가하지 않는다). 패턴은 `embedding-model-recommendation.ts` |
 | 추출 LLM | `graph` 모드 일 때만 표시. 그래프 추출에 사용할 LLMConfig 의 chat 모델. 미지정 시 워크스페이스 default |
 | 청크 크기 | 문서 분할 청크 크기 (기본: 1000 토큰) |
 | 청크 오버랩 | 청크 간 오버랩 (기본: 200 토큰) |
@@ -63,6 +64,8 @@ code:
 > 모드별 도움말은 폼에 인라인 안내로 표시: vector 는 "유사도 기반 단순 검색", graph 는 "entity·relation 추출 후 그래프 탐색을 결합 — 추출 LLM 호출이 추가 비용으로 발생". 리랭킹은 "Off(기본)면 동작 변화 없음 — 리랭커 설정 시에만 검색 정밀화. 셀프호스팅(TEI) 또는 외부 API(Cohere/Jina 등) 사용".
 
 > **리랭커 provider 설정(RerankConfig)** 은 워크스페이스 설정 화면에서 LLMConfig 와 동일 패턴으로 관리한다 (provider·endpoint·모델·API Key). KB 폼의 "Reranker" select 는 워크스페이스 RerankConfig 목록에서 선택한다. 엔티티: [Spec 데이터 모델 §2.16.1](../1-data-model.md#2161-rerankconfig).
+
+> **임베딩 모델 변경 경고**: KB 설정에서 임베딩 모델을 기존과 다른 값으로 바꾸면 "검색 정확도를 위해 KB 재임베딩이 필요" 하다는 인라인 경고를 표시한다(저장된 청크는 구 모델 차원/공간이라 신규 query 와 호환되지 않음). 재임베딩은 자동 트리거하지 않고 [KB 전체 재임베딩](#241-진행-박스-kb-상세-상단)(확인 모달 → `POST /re-embed`, vector/graph 비용 안내 분리) 으로 사용자가 명시 실행한다 — 비용 통제. 비대칭 입력(e5/Gemini) 모델로 전환·배선 변경 시에도 동일 재임베딩이 권장된다 ([Spec 임베딩 파이프라인 §5.4](../5-system/8-embedding-pipeline.md)).
 
 ### 2.2.1 컬렉션 카드 (목록)
 
