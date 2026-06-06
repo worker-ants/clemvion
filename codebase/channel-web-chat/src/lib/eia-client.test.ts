@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { EiaClient, EiaError, unwrapData, type EventSourceLike } from "./eia-client";
+import { EiaClient, EiaError, unwrapEnvelope, type EventSourceLike } from "./eia-client";
 import type { InteractionEndpoints } from "./eia-types";
 
 const endpoints: InteractionEndpoints = {
@@ -19,36 +19,36 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// unwrapData 헬퍼 직접 단위 테스트 (WARNING-2)
+// unwrapEnvelope 헬퍼 직접 단위 테스트 (WARNING-2)
 // ────────────────────────────────────────────────────────────────────────────
-describe("unwrapData", () => {
+describe("unwrapEnvelope", () => {
   it("정상 { data } 봉투 언랩", () => {
-    expect(unwrapData<{ name: string }>({ data: { name: "ok" } })).toEqual({ name: "ok" });
+    expect(unwrapEnvelope<{ name: string }>({ data: { name: "ok" } })).toEqual({ name: "ok" });
   });
 
   it("{ data: null } — null 을 그대로 반환", () => {
-    expect(unwrapData<null>({ data: null })).toBeNull();
+    expect(unwrapEnvelope<null>({ data: null })).toBeNull();
   });
 
   it("null 입력 — null 그대로 반환 (봉투 없음 경로)", () => {
-    expect(unwrapData<null>(null)).toBeNull();
+    expect(unwrapEnvelope<null>(null)).toBeNull();
   });
 
   it("배열 입력 — data 키 없으므로 배열 그대로 반환", () => {
-    expect(unwrapData<number[]>([1, 2, 3])).toEqual([1, 2, 3]);
+    expect(unwrapEnvelope<number[]>([1, 2, 3])).toEqual([1, 2, 3]);
   });
 
   it("원시형(string) 입력 — 그대로 반환", () => {
-    expect(unwrapData<string>("raw")).toBe("raw");
+    expect(unwrapEnvelope<string>("raw")).toBe("raw");
   });
 
   it("봉투 없는 객체 — 객체 그대로 반환 (하위 호환)", () => {
     const body = { executionId: "e1" };
-    expect(unwrapData<typeof body>(body)).toBe(body);
+    expect(unwrapEnvelope<typeof body>(body)).toBe(body);
   });
 
   it("{ data: [] } — 배열 data 언랩", () => {
-    expect(unwrapData<unknown[]>({ data: [1, 2] })).toEqual([1, 2]);
+    expect(unwrapEnvelope<unknown[]>({ data: [1, 2] })).toEqual([1, 2]);
   });
 });
 

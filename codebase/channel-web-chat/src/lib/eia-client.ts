@@ -27,8 +27,9 @@ function joinUrl(base: string, path: string): string {
  * 봉투가 없으면(`data` 키 부재) body 를 그대로 반환 — 하위 호환·테스트 안전.
  * 에러 응답은 `{ error }`/`{ statusCode }` shape 이라 이 경로를 타지 않는다(success-path 전용).
  * @internal export — 단위 테스트 전용. 공개 API 아님.
+ * (`@workflow/sdk` 의 동명 private 헬퍼와 구분하기 위해 `unwrapEnvelope` 로 명명 — naming-collision W2.)
  */
-export function unwrapData<T>(body: unknown): T {
+export function unwrapEnvelope<T>(body: unknown): T {
   if (body !== null && typeof body === "object" && "data" in body) {
     return (body as { data: T }).data;
   }
@@ -60,7 +61,7 @@ export class EiaClient {
     if (!res.ok) {
       throw new EiaError(`webhook 시작 실패(${res.status})`, res.status);
     }
-    return unwrapData<HookStartResponse>(await res.json());
+    return unwrapEnvelope<HookStartResponse>(await res.json());
   }
 
   /** 인터랙션 명령 제출 — POST endpoints.submit. Bearer 토큰. */
@@ -92,7 +93,7 @@ export class EiaClient {
     });
     if (res.status === 410) throw new EiaError("대화 종료됨", 410);
     if (!res.ok) throw new EiaError(`상태 조회 실패(${res.status})`, res.status);
-    return unwrapData<Record<string, unknown>>(await res.json());
+    return unwrapEnvelope<Record<string, unknown>>(await res.json());
   }
 
   /**
@@ -108,7 +109,7 @@ export class EiaClient {
       headers: { authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new EiaError(`토큰 갱신 실패(${res.status})`, res.status);
-    return unwrapData<{ token: string; expiresAt: string }>(await res.json());
+    return unwrapEnvelope<{ token: string; expiresAt: string }>(await res.json());
   }
 
   /** SSE 스트림 — GET endpoints.stream?token=. EventSource 헤더 미지원 → 쿼리 토큰(EIA §8.3). */
