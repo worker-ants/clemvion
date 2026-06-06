@@ -26,12 +26,25 @@ const KOREAN_RECOMMENDED_PATTERNS: RegExp[] = [
   /multilingual-e5/i, // intfloat/multilingual-e5-*
 ];
 
+/**
+ * 모델 ID 가 한국어 검색에 추천되는 패턴(KURE / arctic-embed / bge-m3 /
+ * multilingual-e5)에 매칭되는지 판정. 비강제 표시용 메타데이터 — 선택을 막거나
+ * 강제하지 않는다(select-only, R-1).
+ *
+ * @param modelId - 임베딩 모델 ID. `undefined` / `null` / 빈 문자열 허용 → false.
+ * @returns 한국어 추천 패턴 매칭 여부.
+ */
 export function isKoreanRecommendedEmbeddingModel(
   modelId: string | undefined | null,
 ): boolean {
   if (!modelId) return false;
   return KOREAN_RECOMMENDED_PATTERNS.some((re) => re.test(modelId));
 }
+
+// option 라벨 생성에 필요한 모델 최소 형태 — `formatEmbeddingOptionLabel` 입력과
+// combobox renderOption 콜백 파라미터가 공유하는 named type (장황한
+// `Parameters<typeof ...>` 추론 결합 제거).
+export type EmbeddingOptionModel = Pick<ModelInfo, "id" | "name">;
 
 /**
  * 임베딩 모델 select option 라벨 생성(순수함수).
@@ -45,7 +58,7 @@ export function isKoreanRecommendedEmbeddingModel(
  * @returns option 에 표시할 라벨 문자열.
  */
 export function formatEmbeddingOptionLabel(
-  model: Pick<ModelInfo, "id" | "name">,
+  model: EmbeddingOptionModel,
   recommendedBadge: string,
 ): string {
   const base =

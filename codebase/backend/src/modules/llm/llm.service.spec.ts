@@ -252,6 +252,9 @@ describe('LlmService', () => {
     });
 
     it('inputType "query" 를 각 배치에 그대로 전달한다(검색 경로)', async () => {
+      // 최소 픽스처 — embed 경로는 provider/model 만 의미 있고 나머지 LlmConfig
+      // 컬럼은 createClient mock 이 무시하므로 `as any` 로 타입만 충족(파일 내 embed
+      // describe 의 기존 픽스처 패턴과 동일).
       const config = {
         provider: 'openai',
         defaultModel: 'gpt-4o',
@@ -288,6 +291,7 @@ describe('LlmService', () => {
     });
 
     it('timeout 설정 시에도 inputType 이 client.embed 로 전달된다(withTimeout 경유)', async () => {
+      // 최소 픽스처 (위 케이스와 동일 이유) — `as any` 로 타입만 충족.
       const config = {
         provider: 'openai',
         defaultModel: 'gpt-4o',

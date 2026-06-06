@@ -1,5 +1,9 @@
 import { LocalClient } from './local.client';
 
+// 임의 더미 로컬 서버 주소 — 테스트는 내부 SDK client 를 stub 으로 교체하므로
+// 실제 네트워크 연결은 일어나지 않는다(Ollama/vLLM 의 OpenAI 호환 포트 형태).
+const LOCAL_ENDPOINT = 'http://localhost:1234/v1';
+
 // LocalClient 는 OpenAIClient 를 상속하므로 embed 의 e5 prefix 로직을 그대로
 // 물려받는다. self-host(Ollama/vLLM) 로 OpenAI 호환 엔드포인트에 띄운 e5 계열
 // 모델이 가장 흔한 실사용 경로라, 상속 경로가 깨지지 않는지 LocalClient 인스턴스로
@@ -12,7 +16,7 @@ describe('LocalClient.embed (inherited e5 prefix)', () => {
     const createMock = jest
       .fn()
       .mockResolvedValue({ data: [{ embedding: [0.1, 0.2] }] });
-    const client = new LocalClient(defaultModel, 'http://localhost:1234/v1');
+    const client = new LocalClient(defaultModel, LOCAL_ENDPOINT);
     // @ts-expect-error — 내부 SDK client 를 embeddings stub 으로 교체.
     client.client = { embeddings: { create: createMock } };
     return { client, createMock };

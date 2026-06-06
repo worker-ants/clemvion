@@ -6,7 +6,10 @@ import { useEmbeddingModelLoader } from "@/components/llm-config/use-embedding-m
 import { useDefaultLlmConfigId } from "@/components/llm-config/use-default-llm-config-id";
 import { buildLoaderErrorMessages } from "@/components/llm-config/loader-error-messages";
 import { ModelSelectField } from "@/components/llm-config/model-select-field";
-import { formatEmbeddingOptionLabel } from "./embedding-model-recommendation";
+import {
+  formatEmbeddingOptionLabel,
+  type EmbeddingOptionModel,
+} from "./embedding-model-recommendation";
 
 interface EmbeddingModelComboboxProps {
   value: string;
@@ -65,7 +68,7 @@ export function EmbeddingModelCombobox({
   // 메모. 현재 ModelSelectField 는 memo 가 아니라 리렌더 절감 효과는 없으나,
   // 향후 memo 화 대비 + 매 렌더 람다 재생성 노이즈 제거 목적의 방어적 안정화.
   const renderOption = useCallback(
-    (m: Parameters<typeof formatEmbeddingOptionLabel>[0]) =>
+    (m: EmbeddingOptionModel) =>
       formatEmbeddingOptionLabel(m, t("knowledgeBases.koreanRecommendedBadge")),
     [t],
   );
