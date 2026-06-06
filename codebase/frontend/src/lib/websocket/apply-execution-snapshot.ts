@@ -361,6 +361,13 @@ export function buildConvConfigFromStructured(
  *
  * terminal(completed/failed/skipped/cancelled) row 는 stale 봉투 문자열이
  * 재트리거하지 않도록 제외 — `running`/`pending` 일 때만 봉투 신호를 채택한다.
+ *
+ * **Backend 동기 변경 필요**: 이 함수의 판정 조건(`status` + `outputData.status`
+ * 봉투 신호 채택 범위, terminal 제외 기준)을 변경할 때는 backend
+ * `executions.service.ts: reconcilePreParkWaitingStatus` 도 **동일 조건으로**
+ * 함께 변경해야 한다. 두 함수는 의도적 중복 방어 레이어이며
+ * (backend read-side normalization + frontend defense-in-depth), 한쪽만 변경하면
+ * 불일치 창이 다시 열린다.
  */
 export function isNodeWaitingForInput(ne: NodeExecutionData): boolean {
   if (ne.status === "waiting_for_input") return true;

@@ -102,18 +102,28 @@ export type ExecutionDetailWithTrigger = Execution & {
  * 불변(순수 read-side normalization)이고, 모든 snapshot 소비자(웹 앱·channel-web-chat
  * ·external-interaction-api)에 일관 적용된다. terminal row 의 stale 봉투 문자열이
  * 재트리거하지 않도록 `running`/`pending` 인 row 만 채택한다.
+ *
+ * **Pure function**: 원본 TypeORM 엔티티를 변이하지 않고 정규화가 필요한 row 만
+ * `{ ...ne, status: WAITING_FOR_INPUT }` 으로 교체한 새 배열을 반환한다.
+ * `snapshotCache` 에 저장될 때 변이된 참조가 공유되는 캐시 오염을 방지한다.
+ *
+ * @param nodeExecutions — `findById` 트랜잭션에서 조회한 NodeExecution 배열.
+ * @returns 정규화가 적용된 새 배열 (변이 없음).
  */
-function reconcilePreParkWaitingStatus(nodeExecutions: NodeExecution[]): void {
-  for (const ne of nodeExecutions) {
+function reconcilePreParkWaitingStatus(
+  nodeExecutions: NodeExecution[],
+): NodeExecution[] {
+  return nodeExecutions.map((ne) => {
     if (
       (ne.status === NodeExecutionStatus.RUNNING ||
         ne.status === NodeExecutionStatus.PENDING) &&
       (ne.outputData as { status?: unknown } | null)?.status ===
-        'waiting_for_input'
+        NodeExecutionStatus.WAITING_FOR_INPUT
     ) {
-      ne.status = NodeExecutionStatus.WAITING_FOR_INPUT;
+      return { ...ne, status: NodeExecutionStatus.WAITING_FOR_INPUT };
     }
-  }
+    return ne;
+  });
 }
 
 @Injectable()
@@ -543,7 +553,8 @@ export class ExecutionsService {
             take: MAX_EXECUTION_PATH_ROWS,
           }),
         ]);
-        reconcilePreParkWaitingStatus(nodeExecutions);
+        const reconciledNodeExecutions =
+          reconcilePreParkWaitingStatus(nodeExecutions);
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
         // UI 는 이 플래그로 배너를 띄우거나 후속 페이지 요청을 결정한다.
@@ -563,7 +574,7 @@ export class ExecutionsService {
         // 방지).
         return {
           ...this.stripPrivateRelations(execution),
-          nodeExecutions,
+          nodeExecutions: reconciledNodeExecutions,
           triggerSource: trigger.source,
           triggerLabel: trigger.label,
           executionPath,
