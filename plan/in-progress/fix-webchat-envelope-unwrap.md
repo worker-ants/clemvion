@@ -50,10 +50,10 @@ spec_impact:
 - [x] consistency-check --impl-done — `review/consistency/2026/06/06/03_05_42/` **BLOCK: NO** (Critical 0, WARNING 2/INFO 7 모두 비차단)
 - [ ] plan complete 이동 — 아래 optional 후속 잔여로 in-progress 유지
 
-## Optional 후속 (비차단 — 별도 처리 가능)
+## Optional 후속
 
-impl-done/ai-review 가 INFO 로 제안한 선택 항목 (본 버그 수정 범위 밖, 차단 아님):
-- EIA `spec/5-system/14-external-interaction-api.md §5.3(getStatus)·§5.5(refreshToken)` 응답 예시에도 `{ data }` 봉투 표기 추가 (§4.1 과 동일 패턴). project-planner.
-- `3-auth-session.md` 또는 `0-architecture.md` Rationale 에 `unwrapData` 폴백 채택 근거(unit test 격리·방어 코드, 실운영 미발동) 1항목 추가.
-- stale plan frontmatter `worktree:` 갱신 (`channel-web-chat-impl/followups/demo.md`) — housekeeping.
-- (장기) `unwrapData` 를 web-chat ↔ `@workflow/sdk` 의존 확정 시 단일 헬퍼로 통합 (현재 양 패키지 독립, 런타임 충돌 없음).
+impl-done/ai-review 가 INFO 로 제안한 선택 항목:
+- [x] EIA `spec/5-system/14-external-interaction-api.md §5` 전 REST 엔드포인트 공통 `{ data }` 봉투 note 추가 (§5.3/§5.5 포함, §4.1 과 동일 패턴 — 헤더 단일 note 로 §5.1~§5.5 일괄 커버, SSE 예외 명시).
+- [x] `3-auth-session.md §Rationale R5` — `unwrapData` 봉투 언랩 + 폴백 채택 근거 추가.
+- [ ] (별도 grooming 으로 분리) stale plan frontmatter `worktree:` 갱신 (`channel-web-chat-impl/followups/demo.md`). 무관 plan 의 라이프사이클 편집이라 본 fix PR 에 섞지 않음 — `chore(plan)` 그루밍 별도 처리 대상.
+- [ ] (장기) `unwrapData` 를 web-chat ↔ `@workflow/sdk` 의존 확정 시 단일 헬퍼로 통합 (현재 양 패키지 독립, 런타임 충돌 없음).
