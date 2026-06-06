@@ -2176,6 +2176,10 @@ export class ExecutionEngineService
       savedExecution.durationMs =
         savedExecution.finishedAt.getTime() -
         savedExecution.startedAt.getTime();
+      // terminal 도달 — 중첩 호출 체인은 더 이상 재개 대상이 아니므로
+      // resume_call_stack 을 비운다(park 시점 stale 값이 COMPLETED 행에 잔류하지
+      // 않도록). 다음 park 가 있었다면 위 forward 가 새 stack 으로 재영속했을 것.
+      savedExecution.resumeCallStack = null;
       await this.executionRepository.save(savedExecution);
       await this.eventEmitter.emitExecution(
         executionId,
@@ -2409,6 +2413,8 @@ export class ExecutionEngineService
     error: unknown,
   ): Promise<void> {
     const executionId = savedExecution.id;
+    // terminal 도달 — 재개 routing 상태(중첩 call stack) 비움 (top-level 은 이미 null).
+    savedExecution.resumeCallStack = null;
     if (error instanceof ExecutionCancelledError) {
       savedExecution.status = ExecutionStatus.CANCELLED;
       savedExecution.finishedAt = new Date();

@@ -221,6 +221,160 @@ describe('Execution park → cold rehydration resume (e2e, PR-B1)', () => {
       'hello-from-e2e',
     );
   }, 60_000);
+
+  // exec-park D6 (PR-B2b) — 중첩 sub-workflow(executeInline) 안의 blocking 노드
+  // park → cold rehydration 재개 무손실. 핵심 불변식: 중첩 park 시
+  // `Execution.resume_call_stack`(V087) 이 호출 체인을 durable 영속하고,
+  // 재개는 `driveCallStackResume` 가 frame-by-frame 재진입(executeInline 우회)으로
+  // 구동한다. park-release 모델이라 코루틴은 park 즉시 해제됐으므로(bounded 메모리)
+  // 이 재개는 정의상 cold slow-path = "worker kill 후 다른 worker 가 큐에서 재개"와
+  // 동형이다.
+  it('중첩 sub-workflow form park 는 resume_call_stack 으로 durable 영속되고, cold rehydration(driveCallStackResume) 재개가 무손실 completed 한다', async () => {
+    // 1. 하위 워크플로: Manual Trigger → Form(note 필드).
+    const subWorkflowId = await createWorkflow();
+    const subTrigger: CanvasNode = {
+      id: randomUUID(),
+      type: MANUAL_TRIGGER_TYPE,
+      category: 'trigger',
+      label: 'Sub Start',
+      positionX: 0,
+      positionY: 0,
+    };
+    const subForm: CanvasNode = {
+      id: randomUUID(),
+      type: 'form',
+      category: 'presentation',
+      label: 'Nested Approval',
+      positionX: 240,
+      positionY: 0,
+      config: {
+        title: 'Nested Approval',
+        fields: [{ name: 'note', type: 'text', label: 'Note' }],
+      },
+    };
+    await saveCanvas(
+      subWorkflowId,
+      [subTrigger, subForm],
+      [
+        {
+          sourceNodeId: subTrigger.id,
+          sourcePort: 'out',
+          targetNodeId: subForm.id,
+          targetPort: 'in',
+        },
+      ],
+    );
+
+    // 2. 상위 워크플로: Manual Trigger → Workflow(sync, → subWorkflowId).
+    const parentWorkflowId = await createWorkflow();
+    const parentTrigger: CanvasNode = {
+      id: randomUUID(),
+      type: MANUAL_TRIGGER_TYPE,
+      category: 'trigger',
+      label: 'Parent Start',
+      positionX: 0,
+      positionY: 0,
+    };
+    const workflowNode: CanvasNode = {
+      id: randomUUID(),
+      type: 'workflow',
+      category: 'flow',
+      label: 'Call Sub',
+      positionX: 240,
+      positionY: 0,
+      config: { workflowId: subWorkflowId, mode: 'sync' },
+    };
+    await saveCanvas(
+      parentWorkflowId,
+      [parentTrigger, workflowNode],
+      [
+        {
+          sourceNodeId: parentTrigger.id,
+          sourcePort: 'out',
+          targetNodeId: workflowNode.id,
+          targetPort: 'in',
+        },
+      ],
+    );
+
+    // 3. 상위 실행 → 중첩 form 노드에서 park.
+    const execRes = await request(BASE_URL)
+      .post(`/api/workflows/${parentWorkflowId}/execute`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(execRes.status).toBe(202);
+    const executionId = (execRes.body.data as { executionId: string })
+      .executionId;
+    expect(executionId).toBeDefined();
+
+    const parkedStatus = await poll(
+      executionId,
+      (s) =>
+        s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+    );
+    expect(parkedStatus).toBe('waiting_for_input');
+
+    // 4. ★D6 핵심: resume_call_stack 이 호출 체인을 durable 영속했는지 확인.
+    //    중첩 깊이>0 이므로 NULL 이 아니어야 하며, frames 에 invoker(Workflow 노드)
+    //    id 가 들어있어야 한다. (top-level park 였다면 NULL.)
+    const execRow = await db.query(
+      `SELECT status, resume_call_stack FROM execution WHERE id = $1`,
+      [executionId],
+    );
+    expect(execRow.rows[0]?.status).toBe('waiting_for_input');
+    const callStack = execRow.rows[0]?.resume_call_stack as {
+      version: number;
+      frames: Array<{ workflowId: string; invokerNodeId: string }>;
+    } | null;
+    expect(callStack).not.toBeNull();
+    expect(callStack?.version).toBe(1);
+    expect(callStack?.frames?.length).toBeGreaterThanOrEqual(1);
+    expect(callStack?.frames?.[0]?.workflowId).toBe(subWorkflowId);
+    expect(callStack?.frames?.[0]?.invokerNodeId).toBe(workflowNode.id);
+
+    // 중첩 waiting node(서브워크플로의 form)는 같은 executionId 타임라인에 있다.
+    const waitingNode = await db.query(
+      `SELECT status FROM node_execution
+         WHERE execution_id = $1 AND node_id = $2
+         ORDER BY started_at DESC LIMIT 1`,
+      [executionId, subForm.id],
+    );
+    expect(waitingNode.rows[0]?.status).toBe('waiting_for_input');
+
+    // 5. 재개 — REST continue. driveCallStackResume 가 frame-by-frame 재진입.
+    const continueRes = await request(BASE_URL)
+      .post(`/api/executions/${executionId}/continue`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ formData: { note: 'nested-from-e2e' } });
+    expect([200, 202]).toContain(continueRes.status);
+
+    // 6. cold rehydration(driveCallStackResume) 으로 terminal 도달.
+    const finalStatus = await poll(executionId, (s) =>
+      TERMINAL_STATUSES.includes(s as never),
+    );
+    expect(finalStatus).toBe('completed');
+
+    // 7. 무손실 — 중첩 form 노드가 completed + 제출 데이터 반영.
+    const completedNode = await db.query(
+      `SELECT status, output_data FROM node_execution
+         WHERE execution_id = $1 AND node_id = $2
+         ORDER BY started_at DESC LIMIT 1`,
+      [executionId, subForm.id],
+    );
+    expect(completedNode.rows[0]?.status).toBe('completed');
+    expect(JSON.stringify(completedNode.rows[0]?.output_data ?? {})).toContain(
+      'nested-from-e2e',
+    );
+
+    // 8. 재개 완료 시 resume_call_stack 은 비워진다(top-level COMPLETED).
+    const doneRow = await db.query(
+      `SELECT resume_call_stack FROM execution WHERE id = $1`,
+      [executionId],
+    );
+    expect(doneRow.rows[0]?.resume_call_stack ?? null).toBeNull();
+  }, 90_000);
 });
 
 /**
