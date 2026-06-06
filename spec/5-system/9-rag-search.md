@@ -212,7 +212,7 @@ LIMIT $4;
 - 한국어 권장 cross-encoder 모델: `dragonkue/bge-reranker-v2-m3-ko` (자가호스팅 `tei`).
 - **v1 결정 (2026-06-06 갱신)**: `cross_encoder_llm` 은 cross-encoder 상위 점수가 평탄/모호할 때만 listwise grading 으로 **conditional escalate** 한다. escalate 진입 **정량 임계는 합리적 default** 로 시작(§Rationale)하고, P0 골든셋 기반 A/B 확정은 후속([`rag-rerank-followup.md`](../../plan/in-progress/rag-rerank-followup.md)). escalate 미발생은 cross-encoder 결과를 그대로 사용한다(기존 동작의 부분집합 → 회귀 안전). "정책 판단 KB" 는 별도 컬럼/휴리스틱 없이 `rerank_mode = cross_encoder_llm` 선택으로 표현한다.
 - **grader '근거 없음' 전달**: listwise grading 이 survivors 전부를 무관(저점)으로 판정하면 그 사실을 검색 결과 메타로 노출해 agent 가 "관련 근거 없음" 을 인지·명시하도록 한다 (환각 억제, Self-RAG 인용정밀도).
-- **v1 범위 — 단일 KB 한정**: 리랭킹은 `RagSearchService` 가 **단일 KB** 로 호출된 경로(agentic `KbToolProvider`)에서만 적용된다. 멀티-KB 인자 검색(디버그 컨트롤러 경로)은 기존 cosine score 병합 후 topK 컷을 유지하며 리랭크하지 않는다(멀티-KB 리랭크는 후속). 단일 KB 가 RAG 의 정상 경로(§1, §2.1)이므로 v1 커버리지로 충분하다.
+- **v1 범위 — 단일 KB 한정**: 리랭킹은 `RagSearchService` 가 **단일 KB** 로 호출된 경로(agentic `KbToolProvider`)에서만 적용된다. 멀티-KB 인자 검색(디버그 컨트롤러 경로)은 cosine score 병합 후 §3.4 동적 컷(token-budget + inject-cap)을 적용하며 리랭크는 하지 않는다(멀티-KB 리랭크는 후속). 단일 KB 가 RAG 의 정상 경로(§1, §2.1)이므로 v1 커버리지로 충분하다.
 
 > 설계 결정·근거·폐기 대안: [`plan/complete/spec-draft-rag-reranking.md`](../../plan/complete/spec-draft-rag-reranking.md) `## Rationale`.
 
@@ -334,8 +334,8 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 | LLM 이 KB tool 을 호출하지 않음 | 정상 — `ragDiagnostics.attempted=false` 로 노출 |
 | 검색 결과 0건 | `tool_result` 의 `results: []` 로 LLM 에 전달. LLM 이 재검색 또는 일반 답변 결정 |
 | 임베딩 API / pgvector 쿼리 실패 | `tool_result` 의 `error: "search_failed"` 로 LLM 에 전달. LLM 이 graceful 응답 결정. 노드 실패는 아님 |
-| 리랭커 endpoint 실패/타임아웃 | wide 회수 결과를 cosine score 순 top-k 컷으로 **안전 강등**. `ragDiagnostics.rerank.error = "RERANK_ENDPOINT_FAILED"` |
-| 리랭커가 유효 결과 0건 반환 (모든 index 가 후보 범위 밖) | wide 회수 결과를 cosine score 순 top-k 컷으로 **안전 강등**. `ragDiagnostics.rerank.error = "RERANK_NO_VALID_RESULTS"`. 경고 로그 |
+| 리랭커 endpoint 실패/타임아웃 | wide 회수 결과를 cosine score 순 정렬 후 §3.4 동적 컷(token-budget + inject-cap)으로 **안전 강등**. `ragDiagnostics.rerank.error = "RERANK_ENDPOINT_FAILED"` |
+| 리랭커가 유효 결과 0건 반환 (모든 index 가 후보 범위 밖) | wide 회수 결과를 cosine score 순 정렬 후 §3.4 동적 컷으로 **안전 강등**. `ragDiagnostics.rerank.error = "RERANK_NO_VALID_RESULTS"`. 경고 로그 |
 | RerankConfig 미구성/미지원 provider | 해당 KB `off` 강등 (cosine 경로). `RERANK_CONFIG_INVALID`. 경고 로그 |
 | `cross_encoder_llm` grading LLM 실패 | cross-encoder 결과로 fallback (LLM 단계만 skip). `RERANK_LLM_GRADING_FAILED` |
 | 동적 점수 컷 (§3.4) | in-process 순수 후처리(필터·합산) — 별도 실패 모드 없음. 상위 검색 실패는 기존 `search_failed`/빈 결과 fallback 으로 커버 |
