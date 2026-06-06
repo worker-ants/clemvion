@@ -49,6 +49,7 @@ export const initialState: WidgetState = {
 export type WidgetAction =
   | { type: "OPEN" }
   | { type: "CLOSE" }
+  /** I11: eager 시작(§R6) — open 시 발행. userText 없음. phase → booting. */
   | { type: "START" }
   | { type: "RESTORED"; executionId: string }
   | { type: "BOOTED"; executionId: string }
