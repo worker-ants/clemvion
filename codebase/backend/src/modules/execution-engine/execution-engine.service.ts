@@ -268,12 +268,21 @@ const NODE_ERROR_MESSAGE_MAX_LEN = 2000;
  * 재개는 §7.5 rehydration(slow-path) 단일 경로로 일원화한다 — in-process
  * resolver 를 등록하지 않으므로 `applyContinuation` 의 fast-path 가 miss 해
  * rehydration 으로 떨어진다. `parkMode='await'`(중첩 `executeInline` /
- * `driveResumeDetached` 의 입력 전달 재진입) 호출은 이 sentinel 을 반환하지 않고
+ * `driveResumeAwaited` 의 입력 전달 재진입) 호출은 이 sentinel 을 반환하지 않고
  * 기존대로 입력을 처리한 뒤 void 반환한다(코루틴 유지·fast-path 재개).
  * (spec 4-execution-engine §4.x "park = 세그먼트 종료", §Rationale 단계적 롤아웃.)
  */
 const PARK_RELEASED = Symbol('park_released');
 type ParkSignal = typeof PARK_RELEASED;
+
+/**
+ * park 신호를 반환할 수 있는 처리기/대기 메서드의 통일 반환 타입.
+ * `void` = 정상 진행(종료/완료) · `ParkSignal`(PARK_RELEASED) = park 로 세그먼트 종료.
+ * `waitForFormSubmission`/`waitForButtonInteraction`/`waitForAiConversation`(park-only)
+ * 와 `processAiResumeTurn`(turn 처리 후 계속 시 re-park) 이 사용한다. ai-review W11 —
+ * 인라인 `void | ParkSignal` 혼용을 named alias 로 통일해 처리기 추가 시 계약을 명시.
+ */
+type ProcessTurnResult = void | ParkSignal;
 
 /**
  * `_resumeCheckpoint`(§7.5 rehydration) 의 스키마 버전. checkpoint 구조가
@@ -1168,7 +1177,7 @@ export class ExecutionEngineService
         nodeExec,
         payload,
       });
-      // 주의: `resumeFromCheckpoint` 는 내부 드라이브(`driveResumeDetached` 또는
+      // 주의: `resumeFromCheckpoint` 는 내부 드라이브(`driveResumeAwaited` 또는
       // `driveCallStackResume`)를 **await** 해 재개 구동 전체를 완료한다 (exec-park D6
       // full B3 이후 fire-and-forget 모델 제거). 따라서 본 로그는 입력 처리 +
       // 그래프 순회 + 종결이 완료된 시점이다.
@@ -1176,7 +1185,7 @@ export class ExecutionEngineService
         `Rehydration completed (drive awaited) — execution=${executionId} waitingNode=${nodeExec.nodeId}`,
       );
     } catch (err) {
-      // 본 catch 는 `resumeFromCheckpoint` 내 드라이브(driveResumeDetached /
+      // 본 catch 는 `resumeFromCheckpoint` 내 드라이브(driveResumeAwaited /
       // driveCallStackResume)가 예외를 완전 흡수하고 반환하므로, invariant 검증 /
       // rehydrateContext / resumeFromCheckpoint 의 pre-check·graph load 단계에서
       // throw 된 경우에 도달한다. rehydrateContext 가 생성한 in-memory context /
@@ -1586,7 +1595,7 @@ export class ExecutionEngineService
             // Phase B (PR-B1) — resume/retry 드라이브가 downstream top-level
             // 블로킹 노드에 도달해 fresh park 하면 release 한다. PARK_RELEASED 수신
             // 시 이 드라이브 세그먼트를 종료하고 { parked:true } 를 caller
-            // (driveResumeDetached / resumeGraphAfterRetry)로 올려 코루틴을 해제한다.
+            // (driveResumeAwaited / resumeGraphAfterRetry)로 올려 코루틴을 해제한다.
             const parkSignal = await this.waitForFormSubmission(
               savedExecution,
               executionId,
@@ -1646,7 +1655,7 @@ export class ExecutionEngineService
       // exec-park D6 — 그래프 순회 중 중첩 sub-workflow blocking 노드가 durable
       // release park 하면 executeNode/runParallel/runContainer 가 `ParkReleaseSignal`
       // 을 throw 한다. 세그먼트를 park 로 종료(코루틴 해제)하고 caller
-      // (driveResumeDetached / driveCallStackResume / resumeGraphAfterRetry)가
+      // (driveResumeAwaited / driveCallStackResume / resumeGraphAfterRetry)가
       // COMPLETED 마감을 건너뛰게 한다. 다른 예외(ExecutionCancelledError /
       // MAX_NODE_ITERATIONS 등)는 그대로 전파.
       if (err instanceof ParkReleaseSignal) {
@@ -1760,7 +1769,7 @@ export class ExecutionEngineService
     // ai-review WARNING #11 해소).
     const graphState = await this.loadAndBuildGraph(savedExecution.workflowId);
     // graphEdges / backEdgeMap / outgoingEdgeMap 는 detached drive
-    // (`driveResumeDetached`) 가 graphState 에서 직접 destructure — 여기(worker 가
+    // (`driveResumeAwaited`) 가 graphState 에서 직접 destructure — 여기(worker 가
     // await 하는 setup)에서는 reachability seed / pointer 산출만 필요하다.
     const { sortedNodeIds, sortedIndexMap, nodeMap, forwardEdges } = graphState;
 
@@ -1788,14 +1797,14 @@ export class ExecutionEngineService
     const nodeExecutionCount = new Map<string, number>();
 
     // exec-park D6 full B3 — top-level resume 구동. 도착 payload 를
-    // `driveResumeDetached` 가 직접 처리기(processFormResumeTurn /
+    // `driveResumeAwaited` 가 직접 처리기(processFormResumeTurn /
     // processButtonResumeTurn / processAiResumeTurn)로 전달하므로 in-memory
     // pendingContinuations/firePayload 폴링이 제거됐다. drive 는 한 세그먼트(또는
     // 멀티턴 AI 의 한 turn → re-park)만 처리하고 반환하므로 worker 가 직접 await 한다
     // (옛 detach 모델 폐기 — 장수 루프가 사라져 worker 슬롯 deadlock 위험 없음).
     // drive 는 내부 try/catch/finally 로 단말 상태를 자기 마킹하므로 예외를 worker 로
     // 전파하지 않는다.
-    await this.driveResumeDetached(savedExecution, context, {
+    await this.driveResumeAwaited(savedExecution, context, {
       node: opts.node,
       nodeExec: opts.nodeExec,
       graphState,
@@ -1812,16 +1821,17 @@ export class ExecutionEngineService
   }
 
   /**
-   * §7.5 rehydration — `resumeFromCheckpoint` 가 setup 후 `void` 로(detach)
-   * 호출하는 **전체 resume 구동**: 현재 대기 노드로의 continuation 전달
-   * (waitForX 재진입) → 남은 그래프 순회 → 종결. continuation worker 의
-   * `process()` 는 본 메서드 완료를 기다리지 않고 즉시 반환하므로, ai_agent
-   * 멀티턴(`waitForAiConversation` 장수 루프)이나 다음 대기 노드에서 worker
-   * (concurrency=1)가 점유되는 deadlock 을 차단한다 (fast-path 의 background
-   * `runExecution` 코루틴과 동일 역할). 본 메서드는 스스로 단말 상태 마킹 +
-   * cleanup 을 책임진다 — detach 됐으므로 에러를 worker 로 전파하지 않는다.
+   * §7.5 rehydration (top-level) — `resumeFromCheckpoint` 가 **await** 하는 전체
+   * resume 구동: 도착 continuation payload 를 대기 노드의 직접 처리기
+   * (`processFormResumeTurn` / `processButtonResumeTurn` / `processAiResumeTurn`)로
+   * 전달 → 남은 그래프 순회(`runNodeDispatchLoop`) → 종결. **park = 세그먼트 종료**
+   * (full B3 — 옛 detached coroutine + `waitForAiConversation` 장수 루프 제거)이므로
+   * 한 turn(또는 한 세그먼트)만 처리하고 반환한다 → worker(concurrency=1) 슬롯
+   * 점유 deadlock 없음. 본 메서드는 단말 상태(COMPLETED/CANCELLED/FAILED)를 스스로
+   * 마킹·cleanup 하고, 그 자체의 2차 실패만 호출측(`rehydrateAndResume` outer catch)이
+   * 흡수한다. (메서드명은 옛 detach 모델의 잔재 — 현재는 awaited 구동.)
    */
-  private async driveResumeDetached(
+  private async driveResumeAwaited(
     savedExecution: Execution,
     context: ExecutionContext,
     opts: {
@@ -2057,7 +2067,7 @@ export class ExecutionEngineService
    * 다음부터 forward, (3) top-level 까지 bubble-up 후 Execution COMPLETED. 중간에 새
    * blocking 노드가 fresh park 하면(`ParkReleaseSignal` → runNodeDispatchLoop
    * `{parked}`) 세그먼트를 종료(Execution WAITING 유지, 새 call-stack 재영속)하고
-   * 다음 continuation 으로 재개한다. `driveResumeDetached`(top-level 단일 frame)의
+   * 다음 continuation 으로 재개한다. `driveResumeAwaited`(top-level 단일 frame)의
    * 중첩 일반화 — detach 호출이라 에러는 in-band 단말 처리(worker 전파 없음).
    */
   private async driveCallStackResume(
@@ -2090,7 +2100,7 @@ export class ExecutionEngineService
       }
 
       // 사전 상태 전이: WAITING_FOR_INPUT → RUNNING (waitForX/processAiResumeTurn 의
-      // RUNNING→WAITING 전이 전제. driveResumeDetached 와 동일).
+      // RUNNING→WAITING 전이 전제. driveResumeAwaited 와 동일).
       await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
 
       // ── 최내 frame: waiting 노드 turn 처리 + 그 sub-workflow forward ──
@@ -2164,7 +2174,7 @@ export class ExecutionEngineService
       });
       if (topResult.parked) return;
 
-      // COMPLETED 마감 (runExecution / driveResumeDetached 와 동일 형식).
+      // COMPLETED 마감 (runExecution / driveResumeAwaited 와 동일 형식).
       await this.updateExecutionStatus(
         savedExecution,
         ExecutionStatus.COMPLETED,
@@ -2403,7 +2413,7 @@ export class ExecutionEngineService
   /**
    * Resume(rehydration) 중 입력 처리 / 그래프 구동 실패를 Execution 단말 상태로
    * 마감한다. `ExecutionCancelledError` → `cancelled`, 그 외 → `failed`.
-   * `RehydrationError` 는 호출 측(`driveResumeDetached` catch / `rehydrateAndResume`
+   * `RehydrationError` 는 호출 측(`driveResumeAwaited` catch / `rehydrateAndResume`
    * outer)이 `markExecutionCancelled` 로 직접 처리하므로 여기로 넘기지 않는다
    * (도달 시 방어적으로 failed 처리).
    */
@@ -2493,7 +2503,7 @@ export class ExecutionEngineService
         })
         .where('id = :id', { id: executionId })
         // WAITING_FOR_INPUT **및 RUNNING** 둘 다 cancel 대상. 호출처 중
-        // `driveResumeDetached` 의 RehydrationError 분기(ai_agent _resumeCheckpoint
+        // `driveResumeAwaited` 의 RehydrationError 분기(ai_agent _resumeCheckpoint
         // 재구성 실패 등)는 `updateExecutionStatus(RUNNING)` **이후**에 도달하므로
         // 이 시점 Execution.status 는 RUNNING 이다. WAITING_FOR_INPUT 만 매치하면
         // affected=0 → DB cancel 미반영(Execution RUNNING 고착) + EXECUTION_CANCELLED
@@ -3198,7 +3208,7 @@ export class ExecutionEngineService
             // (`driveCallStackResume`)이 frame-by-frame 으로 재진입한다. 옛 'await'
             // (in-memory pendingContinuations 루프)은 제거됐다.
             const blocking = this.handlerRegistry.getMetadata(node.type);
-            let parkSignal: void | ParkSignal = undefined;
+            let parkSignal: ProcessTurnResult = undefined;
             if (
               blocking.kind === 'blocking' &&
               blocking.interaction === 'form'
@@ -3902,7 +3912,7 @@ export class ExecutionEngineService
     executionId: string,
     node: Node,
     context: ExecutionContext,
-  ): Promise<void | ParkSignal> {
+  ): Promise<ProcessTurnResult> {
     // Emit waiting event so frontend can render the form. Prefer the
     // structured cache entry (new NodeHandlerOutput shape) so the frontend
     // can read the form declaration from `.config`; fall back to the flat
@@ -3976,7 +3986,7 @@ export class ExecutionEngineService
 
   /**
    * §7.5 rehydration — 폼 제출 payload 로 waiting Form 노드를 직접 완료 처리한다
-   * (exec-park D6 full B3). `driveResumeDetached`(top-level) / `driveResumeFrame`
+   * (exec-park D6 full B3). `driveResumeAwaited`(top-level) / `driveResumeFrame`
    * (중첩 innermost) 가 도착 continuation payload 와 함께 호출한다. 옛
    * `waitForFormSubmission('await')` + pendingContinuations + firePayload 폴링 경로를
    * 대체 — in-memory 머신 없이 직접 전달. 처리: sentinel unwrap → 필드 화이트리스트 →
@@ -4092,7 +4102,7 @@ export class ExecutionEngineService
     }
 
     // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
-    // 재개 드라이브(driveResumeDetached / driveResumeFrame)가 진입 시 이미
+    // 재개 드라이브(driveResumeAwaited / driveResumeFrame)가 진입 시 이미
     // WAITING_FOR_INPUT → RUNNING 전이를 수행했으므로, 이미 RUNNING 이면 상태 전이를
     // 건너뛰고 NodeExecution 만 COMPLETED 영속한다 (RUNNING→RUNNING assertTransition
     // 회피 — finalizeAiNode 의 동일 가드와 대칭).
@@ -5225,7 +5235,7 @@ export class ExecutionEngineService
     executionId: string,
     node: Node,
     context: ExecutionContext,
-  ): Promise<void | ParkSignal> {
+  ): Promise<ProcessTurnResult> {
     const nodeOutput = context.nodeOutputCache[node.id] as Record<
       string,
       unknown
@@ -5278,9 +5288,9 @@ export class ExecutionEngineService
    * `waiting_for_input` 전이)한 뒤 `PARK_RELEASED` 를 반환해 세그먼트를 종료한다
    * (코루틴 해제 — 응답 없는 대화도 in-process 메모리 0 점유). 대화가 **종료**되면
    * {@link finalizeAiNode} 로 노드를 단말 마킹하고 `void` 를 반환해 caller
-   * (`driveResumeDetached`)가 남은 그래프 순회를 잇게 한다.
+   * (`driveResumeAwaited`)가 남은 그래프 순회를 잇게 한다.
    *
-   * 호출 시점 Execution 은 RUNNING(driveResumeDetached 전이). re-park 시
+   * 호출 시점 Execution 은 RUNNING(driveResumeAwaited 전이). re-park 시
    * {@link emitAiWaitingForInput} 가 RUNNING→WAITING_FOR_INPUT 으로 되돌리며
    * `_resumeCheckpoint`(§1.3) + `conversation_thread`(V084) + `user_variables`(V085)
    * 를 durable 영속 → 다음 turn rehydration 무손실. (응답은 `handleAiMessageTurn` 가
@@ -5300,7 +5310,7 @@ export class ExecutionEngineService
     resumeState: Record<string, unknown>,
     payload: unknown,
     opts?: { retryReentry?: boolean },
-  ): Promise<void | ParkSignal> {
+  ): Promise<ProcessTurnResult> {
     const contextKey = this.contextKeyOf(context);
     const finalizeOpts = opts?.retryReentry
       ? { retryReentry: true as const }
@@ -6391,11 +6401,11 @@ export class ExecutionEngineService
 
     // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
     // W5 — retry 재진입 경로일 때만 FAILED → RUNNING opt-in 을 전달.
-    // Phase B (PR-B2, exec-park D4) — turn-park 재개 경로(`driveResumeDetached` →
+    // Phase B (PR-B2, exec-park D4) — turn-park 재개 경로(`driveResumeAwaited` →
     // `processAiResumeTurn`)는 진입 시 이미 Execution 을 RUNNING 으로 전이했으므로,
     // 대화 종료 turn 에서 finalize 시 RUNNING→RUNNING(assertTransition 금지)을 피한다:
     // 이미 RUNNING 이면 상태 전이를 건너뛰고 NodeExecution 만 COMPLETED 영속한다
-    // (활성 시간 누적은 driveResumeDetached 의 RUNNING 진입 시 이미 시작됐고, 다음
+    // (활성 시간 누적은 driveResumeAwaited 의 RUNNING 진입 시 이미 시작됐고, 다음
     // 그래프 종결/park 에서 닫힌다). 옛 loop 경로(Execution=WAITING_FOR_INPUT 으로
     // finalize 도달)는 정상 WAITING→RUNNING 전이를 그대로 탄다.
     if (savedExecution.status === ExecutionStatus.RUNNING) {
@@ -6451,7 +6461,7 @@ export class ExecutionEngineService
     node: Node,
     context: ExecutionContext,
     _graphEdges: GraphEdge[],
-  ): Promise<void | ParkSignal> {
+  ): Promise<ProcessTurnResult> {
     // Resolve buttonConfig up front so we can persist it on the node execution
     // before releasing control to the user. This means the REST polling
     // reconciler (which reads `nodeExecution.outputData` every 2s) sees the
@@ -6541,7 +6551,7 @@ export class ExecutionEngineService
 
   /**
    * §7.5 rehydration — 버튼 클릭 payload 로 waiting Button 노드를 직접 완료 처리한다
-   * (exec-park D6 full B3). `driveResumeDetached`(top-level) / `driveResumeFrame`
+   * (exec-park D6 full B3). `driveResumeAwaited`(top-level) / `driveResumeFrame`
    * (중첩 innermost) 가 호출. 옛 `waitForButtonInteraction('await')` +
    * pendingContinuations + firePayload 경로 대체 — buttonConfig/buttons/output 을
    * context 에서 재계산하고 port 선택·structured/flat output·thread append·
@@ -6788,7 +6798,7 @@ export class ExecutionEngineService
     }
 
     // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
-    // 재개 드라이브(driveResumeDetached / driveResumeFrame)가 진입 시 이미
+    // 재개 드라이브(driveResumeAwaited / driveResumeFrame)가 진입 시 이미
     // WAITING_FOR_INPUT → RUNNING 전이를 수행했으므로, 이미 RUNNING 이면 상태 전이를
     // 건너뛰고 NodeExecution 만 COMPLETED 영속한다 (RUNNING→RUNNING assertTransition
     // 회피 — finalizeAiNode 의 동일 가드와 대칭).
