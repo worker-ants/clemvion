@@ -21,31 +21,41 @@ import type {
  * 프로덕션 경로에는 절대 활성화되지 않는다(env 미설정 시 `createClient` 가 본 stub 을
  * 거치지 않음).
  */
+// 매직 넘버 추출 (review I6) — echo 슬라이스 길이 · embedding 차원.
+export const STUB_ECHO_MAX_CHARS = 200;
+export const STUB_EMBEDDING_DIMS = 3;
+
 export class StubLlmClient implements LLMClient {
-  async chat(params: ChatParams): Promise<ChatResult> {
+  // 메서드는 결정적·동기 본문이라 `async` 없이 `Promise.resolve` 로 인터페이스의
+  // Promise 반환 계약만 충족한다 (eslint `require-await` 회피).
+  chat(params: ChatParams): Promise<ChatResult> {
     const lastUser = [...params.messages]
       .reverse()
       .find((m) => m.role === 'user');
-    const echo = (lastUser?.content ?? '').slice(0, 200);
-    return {
+    const echo = (lastUser?.content ?? '').slice(0, STUB_ECHO_MAX_CHARS);
+    return Promise.resolve({
       content: `[stub] received: ${echo}`,
       toolCalls: [],
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
       model: params.model || 'stub-model',
       finishReason: 'stop',
-    };
+    });
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
-    // 결정적 3차원 zero 벡터 — embedding 경로 e2e 가 없으므로 형태만 충족.
-    return texts.map(() => [0, 0, 0]);
+  embed(texts: string[]): Promise<number[][]> {
+    // 결정적 zero 벡터 — embedding 경로 e2e 가 없으므로 형태만 충족.
+    return Promise.resolve(
+      texts.map(() => Array.from({ length: STUB_EMBEDDING_DIMS }, () => 0)),
+    );
   }
 
-  async listModels(): Promise<ModelInfo[]> {
-    return [{ id: 'stub-model', name: 'Stub Model', type: 'chat' }];
+  listModels(): Promise<ModelInfo[]> {
+    return Promise.resolve([
+      { id: 'stub-model', name: 'Stub Model', type: 'chat' },
+    ]);
   }
 
-  async testConnection(): Promise<boolean> {
-    return true;
+  testConnection(): Promise<boolean> {
+    return Promise.resolve(true);
   }
 }

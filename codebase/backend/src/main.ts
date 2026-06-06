@@ -55,7 +55,9 @@ async function bootstrap() {
     process.env.NODE_ENV === 'production' &&
     process.env.LLM_STUB_MODE === 'true'
   ) {
-    throw new Error('LLM_STUB_MODE=true is not allowed when NODE_ENV=production');
+    throw new Error(
+      'LLM_STUB_MODE=true is not allowed when NODE_ENV=production',
+    );
   }
 
   // rawBody: true 는 HMAC 웹훅(`AuthConfigsService.verifyWebhookRequest`) 의 서명 검증에 필수다.

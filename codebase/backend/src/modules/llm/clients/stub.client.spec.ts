@@ -50,7 +50,10 @@ describe('StubLlmClient', () => {
     });
 
     it('model 미지정 시 stub-model 로 fallback', async () => {
-      const res = await client.chat({ model: '', messages: [msg('user', 'q')] });
+      const res = await client.chat({
+        model: '',
+        messages: [msg('user', 'q')],
+      });
       expect(res.model).toBe('stub-model');
     });
   });
