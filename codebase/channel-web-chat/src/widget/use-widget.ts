@@ -118,6 +118,7 @@ export function useWidget() {
           threadMessages: threadToMessages(conversationThread),
         });
       } else if (name === "execution.ai_message") {
+        // SSE wire 형태 매핑 — text=ev.message(not text 필드), presentations 빈 배열은 undefined (eia-events.parseAiMessage).
         const { text, presentations } = parseAiMessage(data as AiMessageEvent);
         // 텍스트 또는 presentation 중 하나라도 있으면 메시지로 추가(presentation-only 도 렌더).
         if (text || presentations) {

@@ -10,9 +10,18 @@ import type {
 } from "./eia-types";
 
 export interface ParsedWaiting {
+  /** interactionType 결정 우선순위: top-level → nodeOutput.interactionType → "ai_conversation" */
   type: ExternalInteractionType;
+  /**
+   * interactionType 별 config shape:
+   * - ai_conversation: `nodeOutput.conversationConfig`
+   * - buttons: `buttonConfig`
+   * - form: `nodeOutput.formConfig` (있을 때) 또는 `nodeOutput` 자체 (formConfig 없는 wire)
+   */
   config?: Record<string, unknown>;
+  /** submit_message 명령의 nodeId 로 그대로 사용 — backend 가 요구하는 waitingNodeId. */
   nodeId?: string;
+  /** AI multi-turn 대화 히스토리 스레드 (선택). */
   conversationThread?: ConversationThread;
 }
 
@@ -31,7 +40,8 @@ export function parseWaitingForInput(ev: WaitingForInputEvent): ParsedWaiting {
     type === "buttons"
       ? ev.buttonConfig
       : type === "form"
-        ? (ev.nodeOutput?.formConfig ?? ev.nodeOutput)
+        ? // form: nodeOutput.formConfig 우선, 없으면 nodeOutput 자체가 form 선언
+          (ev.nodeOutput?.formConfig ?? ev.nodeOutput)
         : ev.nodeOutput?.conversationConfig;
   return {
     type,
@@ -42,7 +52,9 @@ export function parseWaitingForInput(ev: WaitingForInputEvent): ParsedWaiting {
 }
 
 export interface ParsedAiMessage {
+  /** 어시스턴트 텍스트 — wire 의 `message` 필드(not `text`). 없으면 빈 문자열. */
   text: string;
+  /** carousel/table/chart/template presentation 페이로드. 빈 배열은 undefined 로 정규화. */
   presentations?: Array<Record<string, unknown>>;
 }
 

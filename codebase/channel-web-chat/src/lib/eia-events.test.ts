@@ -66,6 +66,28 @@ describe("parseWaitingForInput — SSE wire 형태 매핑", () => {
     const r = parseWaitingForInput(legacy);
     expect(r.nodeId).toBeUndefined(); // wire 형태가 아니므로 nodeId 없음 — 의도된 동작
   });
+
+  it("interactionType 두 필드 모두 없을 때 'ai_conversation' 기본값 (INFO-5)", () => {
+    // top-level interactionType 도 nodeOutput.interactionType 도 없는 최소 픽스처
+    const ev = { waitingNodeId: "n-default" } as unknown as WaitingForInputEvent;
+    const r = parseWaitingForInput(ev);
+    expect(r.type).toBe("ai_conversation");
+    expect(r.nodeId).toBe("n-default");
+  });
+
+  it("form: formConfig 없으면 nodeOutput 자체가 config fallback (INFO-6)", () => {
+    // formConfig 키 없이 nodeOutput 에 직접 fields 가 있는 wire 형태
+    const ev = {
+      waitingNodeId: "n-form-fallback",
+      interactionType: "form",
+      nodeOutput: { fields: [{ name: "x", label: "X" }] },
+    } as unknown as WaitingForInputEvent;
+    const r = parseWaitingForInput(ev);
+    expect(r.type).toBe("form");
+    expect(r.nodeId).toBe("n-form-fallback");
+    // nodeOutput 전체가 config 로 노출 — formConfig fallback 의도된 동작
+    expect((r.config as { fields: unknown[] })?.fields?.[0]).toMatchObject({ name: "x" });
+  });
 });
 
 describe("parseAiMessage — SSE wire 형태 매핑", () => {
@@ -76,10 +98,14 @@ describe("parseAiMessage — SSE wire 형태 매핑", () => {
     expect(r.presentations).toBeUndefined();
   });
 
-  it("presentations 동봉 시 전달, 빈 배열은 undefined", () => {
+  it("presentations 빈 배열은 undefined 로 정규화 (INFO-8a)", () => {
     expect(parseAiMessage({ message: "", presentations: [] } as AiMessageEvent).presentations).toBeUndefined();
+  });
+
+  it("presentations 비빈 배열은 그대로 전달 (INFO-8b)", () => {
     const r = parseAiMessage({ message: "x", presentations: [{ kind: "carousel" }] } as AiMessageEvent);
     expect(r.presentations?.length).toBe(1);
+    expect(r.presentations?.[0]).toMatchObject({ kind: "carousel" });
   });
 
   it("구 형태 .text 는 무시 — message 없으면 빈 문자열", () => {

@@ -72,6 +72,7 @@ export interface WaitingForInputEvent {
     config?: Record<string, unknown>;
     conversationConfig?: Record<string, unknown>;
     formConfig?: Record<string, unknown>;
+    /** form: nodeOutput 자체를 config 로 사용할 때 임의 필드 허용 (parseWaitingForInput fallback). */
     [k: string]: unknown;
   };
   /** buttons interactionType 전용 — `{ buttons, nodeOutput }`. */
