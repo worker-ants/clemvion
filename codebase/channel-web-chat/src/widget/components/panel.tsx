@@ -102,7 +102,16 @@ export function Panel({ state, config, actions }: PanelProps) {
       </div>
 
       {!isEnded && (
-        <Composer disabled={pending?.type === "form"} onSend={actions.submitMessage} />
+        // eager 시작(§R6): execution 이 첫 입력 대기(awaiting_user_message)에 들어왔을 때만 자유 텍스트 입력 활성.
+        // booting/streaming(AI 처리 중) 또는 buttons/form 표면일 때는 비활성 — 사용자는 선택/제출로 응답.
+        <Composer
+          disabled={
+            phase !== "awaiting_user_message" ||
+            pending?.type === "buttons" ||
+            pending?.type === "form"
+          }
+          onSend={actions.submitMessage}
+        />
       )}
 
       {config.disclaimer && <footer className="wc-disclaimer">{config.disclaimer}</footer>}

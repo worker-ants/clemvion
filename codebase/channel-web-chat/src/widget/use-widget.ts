@@ -96,6 +96,9 @@ export function useWidget() {
   const sessionRef = useRef<SessionRef | null>(null);
   const streamRef = useRef<EventSourceLike | null>(null);
   const configRef = useRef<BootMessage | null>(null);
+  // eager 시작 가드(§R6) — 패널 open 시 execution 을 1회만 시작. 재open·중복 open 에서 재시작 방지.
+  // 세션 복원/새 대화 시 재설정. true = 이미 시작(또는 진행 중).
+  const startedRef = useRef(false);
   // per_execution 토큰 자동 갱신(3-auth-session §3 step7) 타이머 + schedule 함수 ref(mount effect 에서 설정).
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleRefreshRef = useRef<() => void>(() => {});
@@ -181,31 +184,34 @@ export function useWidget() {
     return session;
   }, []);
 
-  /** 첫 사용자 입력 → 워크플로우 시작. */
-  const start = useCallback(
-    async (firstMessage: string) => {
-      const cfg = configRef.current;
-      const client = clientRef.current;
-      if (!cfg || !client) return;
-      dispatch({ type: "START", userText: firstMessage });
-      try {
-        const res = await client.startConversation(cfg.triggerEndpointPath, {
-          profile: cfg.profile,
-          firstMessage,
-        });
-        dispatch({ type: "BOOTED", executionId: res.executionId });
-        bridgeRef.current?.sendEvent("conversationStarted", { executionId: res.executionId });
-        const session = persist(cfg, res);
-        if (session) {
-          openStream(session);
-          scheduleRefreshRef.current(); // 토큰 자동 갱신 예약(§3 step7).
-        }
-      } catch (e) {
-        dispatch({ type: "ERROR", message: errMessage(e) });
+  /**
+   * 워크플로우 시작 — 패널 open 시(eager, §R6). firstMessage 미동봉(profile 만).
+   * 1회만 실행(startedRef 가드) — 재open·중복 호출 시 no-op. 첫 노드가 AI/캐러셀/폼 무엇이든
+   * 첫 `waiting_for_input` 으로 표면을 렌더한다. 첫 사용자 텍스트는 일반 submit_message 로 보낸다.
+   */
+  const start = useCallback(async () => {
+    const cfg = configRef.current;
+    const client = clientRef.current;
+    if (!cfg || !client) return;
+    if (startedRef.current || sessionRef.current) return; // 이미 시작/복원됨 → 중복 시작 방지.
+    startedRef.current = true;
+    dispatch({ type: "START" });
+    try {
+      const res = await client.startConversation(cfg.triggerEndpointPath, {
+        profile: cfg.profile,
+      });
+      dispatch({ type: "BOOTED", executionId: res.executionId });
+      bridgeRef.current?.sendEvent("conversationStarted", { executionId: res.executionId });
+      const session = persist(cfg, res);
+      if (session) {
+        openStream(session);
+        scheduleRefreshRef.current(); // 토큰 자동 갱신 예약(§3 step7).
       }
-    },
-    [openStream, persist],
-  );
+    } catch (e) {
+      startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
+      dispatch({ type: "ERROR", message: errMessage(e) });
+    }
+  }, [openStream, persist]);
 
   const sendCommand = useCallback(
     async (command: InteractCommand) => {
@@ -228,14 +234,13 @@ export function useWidget() {
 
   const submitMessage = useCallback(
     (text: string) => {
-      if (state.phase === "panel" || state.phase === "collapsed") {
-        void start(text);
-        return;
-      }
+      // eager 시작이라 execution 은 open 시 이미 시작됨 — 첫 메시지도 일반 submit_message 다(§R6).
+      // 아직 세션이 없으면(시작 직후 race) 무시 — 입력창은 awaiting_user_message 에서만 활성(panel.tsx).
+      if (!sessionRef.current) return;
       dispatch({ type: "USER_MESSAGE", text });
       void sendCommand({ command: "submit_message", nodeId: state.pending?.nodeId, message: text });
     },
-    [sendCommand, start, state.pending?.nodeId, state.phase],
+    [sendCommand, state.pending?.nodeId],
   );
 
   const clickButton = useCallback(
@@ -255,12 +260,22 @@ export function useWidget() {
   const open = useCallback(() => {
     dispatch({ type: "OPEN" });
     bridgeRef.current?.sendEvent("open");
-  }, []);
+    // eager 시작(§R6) — 패널 open 시 워크플로우 시작. start 가 중복/세션복원 가드를 가짐.
+    void start();
+  }, [start]);
   const close = useCallback(() => {
     dispatch({ type: "CLOSE" });
     bridgeRef.current?.sendEvent("close");
   }, []);
-  const newChat = useCallback(() => dispatch({ type: "NEW_CHAT" }), []);
+  /** 새 대화 — 기존 세션/스트림 정리 후 새 execution 을 eager 시작(§R6). */
+  const newChat = useCallback(() => {
+    closeStream();
+    if (configRef.current) clearSession(configRef.current.triggerEndpointPath);
+    sessionRef.current = null;
+    startedRef.current = false;
+    dispatch({ type: "NEW_CHAT" });
+    void start();
+  }, [closeStream, start]);
   // 위젯(런처) 가시성 — open/close 와 직교한 축(§3.2). hide 해도 대화·SSE 유지.
   const show = useCallback(() => dispatch({ type: "SHOW" }), []);
   const hide = useCallback(() => dispatch({ type: "HIDE" }), []);
@@ -335,6 +350,7 @@ export function useWidget() {
       const saved = loadSession(cfg.triggerEndpointPath);
       if (saved) {
         sessionRef.current = saved;
+        startedRef.current = true; // 복원된 세션 — open 시 새 execution 시작 금지(§R6 재open 복원).
         dispatch({ type: "RESTORED", executionId: saved.executionId });
         openStream(saved);
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
