@@ -69,7 +69,7 @@ def _resolve_tool_dir(near: str) -> str | None:
     try:
         common = subprocess.run(
             ["git", "-C", workdir, "rev-parse", "--path-format=absolute", "--git-common-dir"],
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, check=True, timeout=5.0,
         ).stdout.strip()
     except Exception:
         return None
@@ -110,10 +110,14 @@ def main() -> int:
     try:
         proc = subprocess.run(
             ["node", script, os.path.abspath(target)],
-            capture_output=True, text=True,
+            capture_output=True, text=True, timeout=20.0,
         )
     except FileNotFoundError:
         print("mermaid-lint: skipped (node not found on PATH).", file=sys.stderr)
+        return 0
+    except subprocess.TimeoutExpired:
+        # A hung linter must never wedge the PostToolUse hook (and the session).
+        print("mermaid-lint: skipped (linter timed out after 20s).", file=sys.stderr)
         return 0
 
     if proc.returncode == 0:

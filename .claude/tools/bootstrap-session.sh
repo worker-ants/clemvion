@@ -39,4 +39,15 @@ if [ -f "$tool_dir/package.json" ] && [ ! -d "$tool_dir/node_modules" ]; then
     fi
 fi
 
+# 3. Garbage-collect stale guard state markers. These accumulate one file per
+#    (session, branch) and are never read once their session/branch is gone, so
+#    prune anything older than 30 days to keep the dirs from growing unbounded.
+for state_dir in \
+    "$main_root/.claude/state/review_stop_nudged" \
+    "$main_root/.claude/state/main_worktree_bash_warned"; do
+    if [ -d "$state_dir" ]; then
+        find "$state_dir" -type f -mtime +30 -delete 2>/dev/null || true
+    fi
+done
+
 exit 0

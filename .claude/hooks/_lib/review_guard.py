@@ -61,7 +61,9 @@ import json
 import os
 import re
 import subprocess
+import time
 from dataclasses import dataclass
+from datetime import datetime
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -81,6 +83,21 @@ CONSISTENCY_GLOB_ROOT = os.path.join("review", "consistency")
 # carries this token (see consistency_orchestrator.py mode_label for --impl-done).
 _IMPL_DONE_MODE_TOKEN = "--impl-done"
 _BLOCK_LINE = re.compile(r"BLOCK:\s*(YES|NO)", re.IGNORECASE)
+
+# How long a started-but-unfinished review session suppresses the gate. A
+# `/ai-review` run that has created its session dir (meta.json) but not yet
+# written SUMMARY.md is "in flight" — blocking turn-end then would fire the
+# nudge for a review the model is *already* running. Past this TTL an abandoned
+# session no longer suppresses enforcement (the push guard still hard-gates).
+_IN_FLIGHT_TTL_SECONDS = 1800  # 30 min — comfortably covers a slow review fan-out
+
+# Trailing `<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>` of a review/consistency session dir.
+# This path is checkout-immune (it is the directory *name*, not its mtime), so
+# it is the authoritative "when did this review run" clock — unlike file mtime,
+# which `git worktree add` / checkout / rebase reset to the checkout instant.
+_SESSION_TS_RE = re.compile(
+    r"(?P<Y>\d{4})/(?P<m>\d{2})/(?P<d>\d{2})/(?P<H>\d{2})_(?P<M>\d{2})_(?P<S>\d{2})/?$"
+)
 
 
 @dataclass(frozen=True)
@@ -149,15 +166,25 @@ def _uncommitted_code_changes(cwd: str) -> list[str]:
     rc, out, _ = _run_git(["status", "--porcelain", "--", CODE_PREFIX], cwd)
     if rc != 0 or not out:
         return []
-    files: list[str] = []
-    for ln in out.splitlines():
-        # porcelain v1: "XY <path>" (path starts at col 3). Handles renames "->".
-        path = ln[3:].strip()
-        if "->" in path:
-            path = path.split("->", 1)[1].strip()
-        if path:
-            files.append(path)
-    return files
+    return [p for p in (_porcelain_path(ln) for ln in out.splitlines()) if p]
+
+
+def _porcelain_path(ln: str) -> str:
+    """Extract the (destination) path from one `git status --porcelain v1` line.
+
+    Format: "XY <path>" where the status code is the first two columns and the
+    path starts at column 3. For a rename the payload is "<old> -> <new>" — we
+    want <new>. The split is anchored on git's literal `" -> "` separator (with
+    surrounding spaces) and only applied when the status code's first column is
+    `R`/`C`; a bare `"->"` substring inside an ordinary filename must not split.
+    """
+    if len(ln) < 4:
+        return ""
+    code = ln[:2]
+    path = ln[3:].strip()
+    if code and code[0] in ("R", "C") and " -> " in path:
+        path = path.split(" -> ", 1)[1].strip()
+    return path
 
 
 def _mtime(path: str) -> float:
@@ -167,13 +194,86 @@ def _mtime(path: str) -> float:
         return 0.0
 
 
-def _newest_code_mtime(repo_root: str, rel_paths: list[str]) -> float:
+def _dirty_set(repo_root: str) -> set[str]:
+    """Repo-relative paths with any uncommitted change (one `git status` call).
+
+    Used to decide, per file, whether its *real* edit time is the filesystem
+    mtime (the file was just edited in the working tree) or its last commit time
+    (the file is clean — its mtime may be a meaningless checkout/rebase artifact).
+    """
+    rc, out, _ = _run_git(["status", "--porcelain"], repo_root)
+    if rc != 0 or not out:
+        return set()
+    return {p for p in (_porcelain_path(ln) for ln in out.splitlines()) if p}
+
+
+def _newest_commit_time(repo_root: str, rel_paths: list[str]) -> float:
+    """Commit time (epoch) of the most recent commit touching any of rel_paths.
+
+    Checkout-immune: `git worktree add`, `git checkout`, `git rebase` and friends
+    reset file *mtime* to the checkout instant but never change commit time. 0.0
+    if none are tracked / committed. One `git log` call regardless of count."""
+    if not rel_paths:
+        return 0.0
+    rc, out, _ = _run_git(
+        ["log", "-1", "--format=%ct", "HEAD", "--", *rel_paths], repo_root
+    )
+    if rc != 0 or not out.strip():
+        return 0.0
+    try:
+        return float(out.strip().splitlines()[0])
+    except (ValueError, IndexError):
+        return 0.0
+
+
+def _authoritative_code_time(repo_root: str, rel_paths: list[str],
+                             dirty: set[str] | None = None) -> float:
+    """Newest *real* edit time across rel_paths, immune to checkout mtime resets.
+
+    Dirty (uncommitted) files → filesystem mtime (they were genuinely just
+    edited). Clean tracked files → their last commit time (mtime would be a
+    checkout artifact in a worktree). This is the same clock on both the code
+    and review sides, so the freshness comparison stays internally consistent."""
+    if not rel_paths:
+        return 0.0
+    if dirty is None:
+        dirty = _dirty_set(repo_root)
+    dirty_paths = [p for p in rel_paths if p in dirty]
+    clean_paths = [p for p in rel_paths if p not in dirty]
     newest = 0.0
-    for rel in rel_paths:
+    for rel in dirty_paths:
         m = _mtime(os.path.join(repo_root, rel))
         if m > newest:
             newest = m
+    ct = _newest_commit_time(repo_root, clean_paths)
+    if ct > newest:
+        newest = ct
     return newest
+
+
+# Back-compat name retained as the seam evaluate_review/tests reference; the
+# body is now checkout-immune (see _authoritative_code_time).
+def _newest_code_mtime(repo_root: str, rel_paths: list[str]) -> float:
+    return _authoritative_code_time(repo_root, rel_paths)
+
+
+def _path_session_time(session_dir: str) -> float:
+    """Epoch parsed from a review session dir's `<Y>/<m>/<d>/<H>_<M>_<S>` tail.
+
+    Checkout-immune authoritative "when this review ran" clock. 0.0 if the path
+    does not carry the timestamp layout."""
+    posix = session_dir.replace(os.sep, "/")
+    m = _SESSION_TS_RE.search(posix)
+    if not m:
+        return 0.0
+    try:
+        dt = datetime(
+            int(m["Y"]), int(m["m"]), int(m["d"]),
+            int(m["H"]), int(m["M"]), int(m["S"]),
+        )
+        return dt.timestamp()
+    except (ValueError, OverflowError):
+        return 0.0
 
 
 def _iter_summaries(repo_root: str) -> list[str]:
@@ -212,14 +312,20 @@ def _summary_is_resolved(summary_path: str) -> bool:
 
     lines = text.splitlines()
 
-    # Overall risk: the level token on/just after the '전체 위험도' heading.
+    # Overall risk: the first level token after the '전체 위험도' heading, up to
+    # the next markdown heading (the level often sits a few lines below the
+    # heading, e.g. under a bold "**HIGH**" line — a fixed 3-line window missed
+    # those and silently defaulted risk_level to None).
     risk_level = None
     for i, ln in enumerate(lines):
         if _RISK_LINE.search(ln):
-            window = "\n".join(lines[i:i + 3])
-            m = _RISK_LEVEL.search(window)
-            if m:
-                risk_level = m.group(1)
+            for probe in lines[i:]:
+                if probe is not ln and probe.lstrip().startswith("#"):
+                    break  # next section — stop before bleeding into it
+                m = _RISK_LEVEL.search(probe)
+                if m:
+                    risk_level = m.group(1)
+                    break
             break
 
     # Count actionable rows under the Critical and Warning sections.
@@ -231,10 +337,8 @@ def _summary_is_resolved(summary_path: str) -> bool:
         return False
     if has_actionable:
         return False
-    # NONE/LOW/MEDIUM with no actionable rows, and no RESOLUTION → treat MEDIUM
-    # as unresolved only if it carried rows (already handled). Clean report.
-    if risk_level in (None, "MEDIUM") and has_actionable:
-        return False
+    # NONE/LOW/MEDIUM (or unparsed) with no actionable rows and no RESOLUTION:
+    # a clean report that surfaced nothing to act on → resolved.
     return True
 
 
@@ -252,18 +356,32 @@ def _section_has_rows(lines: list[str], heading_token: str) -> bool:
 
 
 def _newest_resolved_review_mtime(repo_root: str) -> float:
-    """mtime of the most recent *resolved* review SUMMARY.md (0.0 if none)."""
+    """Authoritative time of the most recent *resolved* review (0.0 if none).
+
+    Checkout-immune: the review's "done" clock is the session-dir timestamp
+    (encoded in the path, never reset by a worktree checkout). For a RESOLUTION
+    or SUMMARY that is still *dirty* (just written this session, not yet
+    committed) we also fold in its filesystem mtime — that is a genuine, later
+    write time and covers the case where the resolving edits landed after the
+    session dir was created. Committed-and-clean artifacts rely on the path time
+    alone, never on their (checkout-poisoned) mtime."""
+    dirty = _dirty_set(repo_root)
     best = 0.0
     for summary in _iter_summaries(repo_root):
         if not _summary_is_resolved(summary):
             continue
-        # Freshness anchored on the latest of SUMMARY.md / RESOLUTION.md mtime.
-        m = _mtime(summary)
-        res = os.path.join(os.path.dirname(summary), "RESOLUTION.md")
+        session_dir = os.path.dirname(summary)
+        t = _path_session_time(session_dir)
+        rel_summary = os.path.relpath(summary, repo_root).replace(os.sep, "/")
+        if rel_summary in dirty:
+            t = max(t, _mtime(summary))
+        res = os.path.join(session_dir, "RESOLUTION.md")
         if os.path.exists(res):
-            m = max(m, _mtime(res))
-        if m > best:
-            best = m
+            rel_res = os.path.relpath(res, repo_root).replace(os.sep, "/")
+            if rel_res in dirty:
+                t = max(t, _mtime(res))
+        if t > best:
+            best = t
     return best
 
 
@@ -282,10 +400,15 @@ def _glob_to_regex(glob: str) -> re.Pattern:
         c = glob[i]
         if c == "*":
             if i + 1 < n and glob[i + 1] == "*":
-                out.append(".*")           # ** → cross-directory wildcard
                 i += 2
-                if i < n and glob[i] == "/":  # consume the slash in `**/`
+                if i < n and glob[i] == "/":
+                    # `**/` → zero or more *whole* directory segments. Emitting a
+                    # bare `.*` here let `**/x` match `ax`; `(?:.*/)?` keeps the
+                    # match on a segment boundary.
+                    out.append("(?:.*/)?")
                     i += 1
+                else:
+                    out.append(".*")       # trailing `**` → cross-directory wildcard
                 continue
             out.append("[^/]*")            # * → within one path segment
         elif c == "?":
@@ -409,16 +532,21 @@ def _summary_block_is_no(summary_path: str) -> bool:
     Critical spec-impl divergence). Unparseable / BLOCK: YES → False."""
     try:
         with open(summary_path, "r", encoding="utf-8", errors="replace") as f:
-            head = f.read(4096)
+            text = f.read()
     except OSError:
         return False
-    m = _BLOCK_LINE.search(head)
+    # Read the whole file: a 4 KB cap could miss a BLOCK: line pushed past the
+    # boundary by a long preamble. SUMMARY.md files are small (a few KB).
+    m = _BLOCK_LINE.search(text)
     return bool(m) and m.group(1).upper() == "NO"
 
 
 def _newest_resolved_impl_done_mtime(repo_root: str) -> float:
-    """mtime of the most recent --impl-done consistency SUMMARY with BLOCK: NO
-    (0.0 if none)."""
+    """Authoritative time of the most recent --impl-done consistency SUMMARY with
+    BLOCK: NO (0.0 if none). Checkout-immune via the session-dir timestamp, with
+    a dirty (just-written) SUMMARY's mtime folded in — same rule as the code
+    review side."""
+    dirty = _dirty_set(repo_root)
     best = 0.0
     for summary in _iter_consistency_summaries(repo_root):
         session_dir = os.path.dirname(summary)
@@ -426,10 +554,37 @@ def _newest_resolved_impl_done_mtime(repo_root: str) -> float:
             continue
         if not _summary_block_is_no(summary):
             continue
-        m = _mtime(summary)
-        if m > best:
-            best = m
+        t = _path_session_time(session_dir)
+        rel_summary = os.path.relpath(summary, repo_root).replace(os.sep, "/")
+        if rel_summary in dirty:
+            t = max(t, _mtime(summary))
+        if t > best:
+            best = t
     return best
+
+
+def _code_review_in_flight(repo_root: str, now: float | None = None) -> bool:
+    """True when a `/ai-review` session has been *started* but not finished.
+
+    A started review has created its session dir + meta.json (the orchestrator's
+    --prepare step) but not yet written SUMMARY.md (the reviewers are still
+    running). Blocking turn-end in that window is the root of the "I just
+    launched /ai-review and the Stop hook fired anyway" symptom — the gate has
+    no other way to see an async review in progress. We only honour recent
+    sessions (within _IN_FLIGHT_TTL_SECONDS, by the checkout-immune session-dir
+    timestamp) so an abandoned/crashed session cannot suppress the gate forever;
+    the push guard remains the hard backstop."""
+    now = time.time() if now is None else now
+    root = os.path.join(repo_root, REVIEW_GLOB_ROOT)
+    if not os.path.isdir(root):
+        return False
+    for dirpath, _dirs, files in os.walk(root):
+        if "meta.json" not in files or "SUMMARY.md" in files:
+            continue
+        t = _path_session_time(dirpath)
+        if t > 0.0 and (now - t) <= _IN_FLIGHT_TTL_SECONDS:
+            return True
+    return False
 
 
 def evaluate_review(cwd: str | None = None) -> ReviewDecision:
@@ -453,6 +608,15 @@ def evaluate_review(cwd: str | None = None) -> ReviewDecision:
 
     if not changed:
         return ReviewDecision(False, "no codebase/ changes on this branch — allowed")
+
+    # A `/ai-review` started this turn but still running is not an unreviewed
+    # branch — it is a review mid-flight. Don't fire the nudge for work the model
+    # is already doing; the push guard still hard-gates if the review never
+    # lands. (Targets the async-review ↔ synchronous-Stop race.)
+    if _code_review_in_flight(repo_root):
+        return ReviewDecision(
+            False, "a code review session is in flight (started, SUMMARY pending) — allowed"
+        )
 
     # ---- Gate 1: code review coverage --------------------------------------
     newest_code = _newest_code_mtime(repo_root, changed)

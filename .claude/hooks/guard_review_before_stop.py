@@ -16,9 +16,10 @@ Stop-hook contract (Claude Code):
 Anti-wedge: this guard never loops.
   1. If `stop_hook_active` is set (the model is already continuing from a prior
      stop-block), allow immediately — a hard loop-break.
-  2. Otherwise it nudges AT MOST ONCE per (session_id, HEAD sha). After firing
+  2. Otherwise it nudges AT MOST ONCE per (session_id, branch). After firing
      it writes a marker under `.claude/state/review_stop_nudged/` (gitignored);
-     the same HEAD will not be blocked again. New commits → new HEAD → re-armed.
+     the same branch will not be nudged again in this session. Keying on the
+     branch (not HEAD) avoids re-arming the nudge on every new commit.
 
 The hard gate remains guard_review_before_push.py: even if the model stops
 after this single nudge, it cannot push/ship the branch unreviewed. Override
@@ -53,17 +54,33 @@ def _read_payload() -> dict:
         return {}
 
 
-def _head_sha() -> str:
+def _throttle_token() -> str:
+    """Per-(session, *branch*) throttle key — NOT per-commit.
+
+    The nudge fires at most once per this token. Keying on the branch (not HEAD
+    sha) means a multi-commit session is nudged once, not re-armed on every new
+    commit ("commit → block → fix → commit → block …" was the firing amplifier).
+    Falls back to the short HEAD sha on a detached HEAD, and to "norepo" when git
+    is unavailable."""
     try:
+        p = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, timeout=5.0,
+        )
+        if p.returncode == 0:
+            ref = p.stdout.strip()
+            if ref and ref != "HEAD":
+                return ref.replace("/", "-")  # slashes are path separators
+        # Detached HEAD (ref == "HEAD") → fall back to the commit sha.
         p = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
             capture_output=True, text=True, timeout=5.0,
         )
-        if p.returncode == 0:
-            return p.stdout.strip() or "nohead"
+        if p.returncode == 0 and p.stdout.strip():
+            return p.stdout.strip()
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
-    return "nohead"
+    return "norepo"
 
 
 def _state_dir() -> str:
@@ -71,19 +88,20 @@ def _state_dir() -> str:
     return os.path.join(project_dir, ".claude", "state", "review_stop_nudged")
 
 
-def _marker_path(session_id: str | None, head: str) -> str | None:
-    if not session_id:
-        return None
-    return os.path.join(_state_dir(), f"{session_id}__{head}")
+def _marker_path(session_id: str | None, token: str) -> str:
+    # A missing session_id must NOT disable the throttle (that would nudge on
+    # every stop). Fall back to a stable sentinel so the once-per-branch marker
+    # is still written; the worst case is throttling slightly across sessions,
+    # which is the safe direction (the push guard is the hard gate).
+    sid = session_id or "nosession"
+    return os.path.join(_state_dir(), f"{sid}__{token}")
 
 
-def _already_nudged(marker: str | None) -> bool:
-    return bool(marker) and os.path.exists(marker)  # type: ignore[arg-type]
+def _already_nudged(marker: str) -> bool:
+    return os.path.exists(marker)
 
 
-def _mark_nudged(marker: str | None) -> None:
-    if not marker:
-        return
+def _mark_nudged(marker: str) -> None:
     try:
         os.makedirs(os.path.dirname(marker), exist_ok=True)
         with open(marker, "w") as f:
@@ -117,9 +135,9 @@ def main() -> int:
         return _allow()
 
     session_id = payload.get("session_id") or payload.get("sessionId")
-    marker = _marker_path(session_id, _head_sha())
+    marker = _marker_path(session_id, _throttle_token())
     if _already_nudged(marker):
-        return _allow()  # one nudge per (session, HEAD) — push guard still gates.
+        return _allow()  # one nudge per (session, branch) — push guard still gates.
 
     _mark_nudged(marker)
 
@@ -131,8 +149,8 @@ def main() -> int:
         "(또는 수동 조치 + RESOLUTION.md).\n"
         "  3. TEST WORKFLOW 재수행.\n"
         "리뷰를 다음 턴/PR 로 미루지 마세요. 정말 지금 멈춰야 하는 사정이 "
-        "있으면 사용자에게 그 사정을 먼저 보고하세요. (이 nudge 는 현재 HEAD "
-        "기준 1회만 표시됩니다.)"
+        "있으면 사용자에게 그 사정을 먼저 보고하세요. (이 nudge 는 현재 branch "
+        "기준 세션당 1회만 표시됩니다.)"
     )
     print(json.dumps({"decision": "block", "reason": reason}))
     return 0

@@ -99,7 +99,9 @@ def _origin_default_branch(cwd: str) -> str | None:
         return out  # unexpected format; pass through
 
     # Method 2: ask the remote. May hit the network; cap with short timeout.
-    rc, out, _ = _run_git(["remote", "show", "origin"], cwd, timeout=4.0)
+    # This runs on every Stop / push PreToolUse, so keep the worst-case stall
+    # small — Method 1 (local symbolic-ref) covers the normal case for free.
+    rc, out, _ = _run_git(["remote", "show", "origin"], cwd, timeout=2.0)
     if rc == 0 and out:
         for line in out.splitlines():
             stripped = line.strip()
