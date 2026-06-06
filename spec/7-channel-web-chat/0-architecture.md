@@ -8,6 +8,7 @@ pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
   - plan/in-progress/channel-web-chat-followups.md
   - plan/in-progress/fix-webchat-sse-field-map.md
+  - plan/in-progress/webchat-eager-start.md
 ---
 
 # Spec: Channel Web Chat — 아키텍처

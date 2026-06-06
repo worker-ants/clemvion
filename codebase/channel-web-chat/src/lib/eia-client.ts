@@ -54,7 +54,8 @@ export class EiaClient {
    */
   async startConversation(
     endpointPath: string,
-    payload: { profile?: Record<string, unknown>; firstMessage?: string; [k: string]: unknown },
+    // eager 시작(§R6) — webhook payload 는 profile 만. firstMessage 폐기(AI 첫 턴은 submit_message).
+    payload: { profile?: Record<string, unknown>; [k: string]: unknown },
   ): Promise<HookStartResponse> {
     const res = await this.fetchImpl(joinUrl(this.apiBase, `/api/hooks/${endpointPath}`), {
       method: "POST",

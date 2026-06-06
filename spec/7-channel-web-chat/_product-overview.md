@@ -6,7 +6,7 @@
 > [Webhook 트리거](../5-system/12-webhook.md) · [Chat Channel](../5-system/15-chat-channel.md) ·
 > [Convention Conversation Thread](../conventions/conversation-thread.md).
 >
-> **구성요소 spec**: [위젯 SPA](./1-widget-app.md) · [SDK](./2-sdk.md) · [인증·세션 흐름](./3-auth-session.md) · [보안](./4-security.md)
+> **구성요소 spec**: [아키텍처](./0-architecture.md) · [위젯 SPA](./1-widget-app.md) · [SDK](./2-sdk.md) · [인증·세션 흐름](./3-auth-session.md) · [보안](./4-security.md)
 
 ---
 

@@ -77,14 +77,17 @@ describe("startConversation", () => {
       }),
     );
     const client = new EiaClient({ apiBase: "https://api.test", fetchImpl });
-    const res = await client.startConversation("path-1", { firstMessage: "hi", profile: { a: 1 } });
+    // W5: §R6 eager 시작 — payload 에 firstMessage 를 포함하지 않는다(폐기). profile 만 포함.
+    const res = await client.startConversation("path-1", { profile: { a: 1 } });
     expect(res.executionId).toBe("e1");
     expect(res.interaction?.token).toBe("iext_x");
     expect(res.interaction?.endpoints.stream).toBe(endpoints.stream);
     const [url, init] = fetchImpl.mock.calls[0];
     expect(url).toBe("https://api.test/api/hooks/path-1");
     expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body)).toMatchObject({ firstMessage: "hi" });
+    // firstMessage 가 payload 에 포함되지 않아야 한다(§R6 계약).
+    expect(JSON.parse(init.body)).not.toHaveProperty("firstMessage");
+    expect(JSON.parse(init.body)).toMatchObject({ profile: { a: 1 } });
   });
 
   it("봉투 없는 응답도 그대로 수용 (하위 호환·방어)", async () => {
