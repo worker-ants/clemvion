@@ -872,6 +872,16 @@ export class ExecutionEngineService
   private static readonly MAX_RECURSION_DEPTH = 10;
 
   /**
+   * exec-park D6 — `resumeFromCheckpoint` 의 `fireNested` 폴링 상수.
+   * 최내 form/button waiting 이 `driveResumeFrame` 의 `waitForX('await')` 에서
+   * `pendingContinuations` 에 키를 등록하는 것을 polling 으로 대기한다 (최대 5초).
+   * INFO #8: 기존 메서드 지역 const 에서 모듈 수준 정적 상수로 승격 — 값 표류 방지.
+   * @todo full B3 에서 fireNested 폴링 자체를 제거(exec-park-durable-resume.md §B3).
+   */
+  private static readonly NESTED_FIRE_MAX_ATTEMPTS = 250;
+  private static readonly NESTED_FIRE_POLL_MS = 20;
+
+  /**
    * Sub-workflow 진입점에서 호출자-피호출자 workspace 격리를 강제한다 (W-6).
    *
    * 호출자 workspaceId 가 비어 있으면(옛 진입 경로, 트리거에서 직접 실행 등)
@@ -1840,8 +1850,6 @@ export class ExecutionEngineService
       // 등록하고 아래 firePayload polling 이 도착 payload 를 resolve 한다(AI 는
       // processAiResumeTurn 가 직접 전달하므로 skip — top-level 경로와 동형).
       if (!isAiConversation) {
-        const NESTED_FIRE_MAX_ATTEMPTS = 250;
-        const NESTED_FIRE_POLL_MS = 20;
         const fireNested = (attemptsLeft: number): void => {
           if (this.pendingContinuations.has(executionId)) {
             this.resolvePending(executionId, opts.payload);
@@ -1853,9 +1861,15 @@ export class ExecutionEngineService
             );
             return;
           }
-          setTimeout(() => fireNested(attemptsLeft - 1), NESTED_FIRE_POLL_MS);
+          setTimeout(
+            () => fireNested(attemptsLeft - 1),
+            ExecutionEngineService.NESTED_FIRE_POLL_MS,
+          );
         };
-        setTimeout(() => fireNested(NESTED_FIRE_MAX_ATTEMPTS), 0);
+        setTimeout(
+          () => fireNested(ExecutionEngineService.NESTED_FIRE_MAX_ATTEMPTS),
+          0,
+        );
       }
       this.driveCallStackResume(savedExecution, context, {
         node: opts.node,
@@ -2260,6 +2274,16 @@ export class ExecutionEngineService
     const executedNodes = context._executedNodes ?? new Set<string>();
     context._executedNodes = executedNodes;
     try {
+      // WARNING #6 — frames 가 빈 배열이면 frames[frames.length - 1] 이 undefined 로
+      // silent 접근한다. resumeFromCheckpoint 가 length > 0 을 보장하나, 방어적으로
+      // try 블록 안에서 체크해 catch 의 in-band 단말 처리(markExecutionCancelled)를 받게 한다.
+      if (!frames.length) {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `resume_call_stack frames is empty — execution=${executionId}. 데이터 손상 또는 잘못된 호출 경로.`,
+        );
+      }
+
       // 사전 상태 전이: WAITING_FOR_INPUT → RUNNING (waitForX/processAiResumeTurn 의
       // RUNNING→WAITING 전이 전제. driveResumeDetached 와 동일).
       await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
@@ -2553,17 +2577,15 @@ export class ExecutionEngineService
     invokerNode: Node,
     subOutput: unknown,
   ): void {
+    // INFO #9: contextKeyOf 를 지역 변수에 한 번만 계산 (중복 호출 제거).
+    const ctxKey = this.contextKeyOf(context);
     const structured = {
       config: invokerNode.config ?? {},
       output: { result: subOutput },
     };
-    this.contextService.setStructuredOutput(
-      this.contextKeyOf(context),
-      invokerNode.id,
-      structured,
-    );
+    this.contextService.setStructuredOutput(ctxKey, invokerNode.id, structured);
     this.contextService.setNodeOutput(
-      this.contextKeyOf(context),
+      ctxKey,
       invokerNode.id,
       toEngineFlatShape(structured),
     );
@@ -4106,6 +4128,11 @@ export class ExecutionEngineService
    *   resume 드라이브(driveResumeDetached / driveCallStackResume)의 입력 전달 재진입
    *   — pending 등록 후 firePayload 가 resolve 하는 payload 를 처리. Default `'await'`.
    * @returns `'release'` 시 `PARK_RELEASED`, `'await'` 시 처리 후 `void`.
+   *
+   * @todo full B3 에서: waitForFormSubmission / waitForButtonInteraction /
+   *   waitForAiConversation 분기를 Strategy 패턴으로 추출 예정.
+   *   참고: exec-park-durable-resume.md §B3 (PR-B3 구현 설계).
+   * @see plan/in-progress/exec-park-durable-resume.md
    */
   private async waitForFormSubmission(
     savedExecution: Execution,
