@@ -5290,10 +5290,6 @@ export class ExecutionEngineService
     payload: unknown,
   ): Promise<void | ParkSignal> {
     const contextKey = this.contextKeyOf(context);
-    const nodeOutput = context.nodeOutputCache[node.id] as Record<
-      string,
-      unknown
-    >;
     const action = payload as ContinuationPayload;
 
     // 대화 종료 신호 — 노드 단말 마킹 후 caller 가 그래프 진행.
@@ -5347,16 +5343,8 @@ export class ExecutionEngineService
         );
         return;
       }
-      // 계속 — 다음 turn 을 위해 re-park (durable 영속 + WAITING 전이 + waiting emit).
-      await this.emitAiWaitingForInput(
-        savedExecution,
-        executionId,
-        node,
-        context,
-        nodeExec,
-        nodeOutput,
-        turn.resumeState,
-      );
+      // 계속 — 다음 turn 을 위해 re-park (durable 영속 + WAITING 전이).
+      await this.reparkAiResumeTurn(savedExecution, context, nodeExec);
       return PARK_RELEASED;
     }
 
@@ -5368,15 +5356,7 @@ export class ExecutionEngineService
         '[processAiResumeTurn] button_click received during ai_conversation — stale inline_keyboard, re-park',
         { executionId, nodeId: node.id },
       );
-      await this.emitAiWaitingForInput(
-        savedExecution,
-        executionId,
-        node,
-        context,
-        nodeExec,
-        nodeOutput,
-        resumeState,
-      );
+      await this.reparkAiResumeTurn(savedExecution, context, nodeExec);
       return PARK_RELEASED;
     }
 
@@ -5388,16 +5368,33 @@ export class ExecutionEngineService
         action.type,
       ).slice(0, 64)} for execution=${executionId} — re-park`,
     );
-    await this.emitAiWaitingForInput(
-      savedExecution,
-      executionId,
-      node,
-      context,
-      nodeExec,
-      nodeOutput,
-      resumeState,
-    );
+    await this.reparkAiResumeTurn(savedExecution, context, nodeExec);
     return PARK_RELEASED;
+  }
+
+  /**
+   * Phase B (PR-B2, exec-park D4) — 계속되는 멀티턴 AI turn 후 **re-park**.
+   * `handleAiMessageTurn` 가 이미 credential-strip 된 `_resumeCheckpoint` 를
+   * NodeExecution.outputData 에 영속하고 `AI_MESSAGE` 응답을 emit 했으므로, re-park 는
+   * (a) `conversation_thread`/`user_variables` durable 스냅샷 스테이징과
+   * (b) RUNNING→WAITING_FOR_INPUT 전이(NodeExecution 동반 save)만 수행한다.
+   * `emitAiWaitingForInput` 를 재호출하지 않는 이유: 그 persist 는 top-level-only
+   * `_resumeState` strip 이라 `handleAiMessageTurn` 의 `setNodeOutput` 가 만든 nested
+   * `output._resumeState`(systemPrompt/llmConfigId 포함)를 재영속 시 누락(credential
+   * 유출)시킨다 — 재영속 자체를 제거해 회피한다. button_click/unknown(상태 미변경)
+   * re-park 도 동일 경로(기존 checkpoint 보존 + WAITING 복귀).
+   */
+  private async reparkAiResumeTurn(
+    savedExecution: Execution,
+    context: ExecutionContext,
+    nodeExec: NodeExecution | null,
+  ): Promise<void> {
+    this.stageDurableResumeSnapshot(savedExecution, context);
+    await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.WAITING_FOR_INPUT,
+      nodeExec ?? undefined,
+    );
   }
 
   /**
@@ -6362,12 +6359,25 @@ export class ExecutionEngineService
 
     // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
     // W5 — retry 재진입 경로일 때만 FAILED → RUNNING opt-in 을 전달.
-    await this.updateExecutionStatus(
-      savedExecution,
-      ExecutionStatus.RUNNING,
-      nodeExec ?? undefined,
-      allowRetryReentry ? { allowRetryReentry: true } : undefined,
-    );
+    // Phase B (PR-B2, exec-park D4) — turn-park 재개 경로(`driveResumeDetached` →
+    // `processAiResumeTurn`)는 진입 시 이미 Execution 을 RUNNING 으로 전이했으므로,
+    // 대화 종료 turn 에서 finalize 시 RUNNING→RUNNING(assertTransition 금지)을 피한다:
+    // 이미 RUNNING 이면 상태 전이를 건너뛰고 NodeExecution 만 COMPLETED 영속한다
+    // (활성 시간 누적은 driveResumeDetached 의 RUNNING 진입 시 이미 시작됐고, 다음
+    // 그래프 종결/park 에서 닫힌다). 옛 loop 경로(Execution=WAITING_FOR_INPUT 으로
+    // finalize 도달)는 정상 WAITING→RUNNING 전이를 그대로 탄다.
+    if (savedExecution.status === ExecutionStatus.RUNNING) {
+      if (nodeExec) {
+        await this.nodeExecutionRepository.save(nodeExec);
+      }
+    } else {
+      await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.RUNNING,
+        nodeExec ?? undefined,
+        allowRetryReentry ? { allowRetryReentry: true } : undefined,
+      );
+    }
 
     if (nodeExec) {
       await this.eventEmitter.emitNode(
