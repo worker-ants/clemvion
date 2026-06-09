@@ -2,6 +2,8 @@
 worktree: exec-park-followup-272c4f
 started: 2026-06-06
 owner: developer
+completed: 2026-06-10
+spec_impact: none
 ---
 
 # Plan — resume dispatch registry 추출 (exec-park B-1 "rehydration 일반화")

@@ -2,6 +2,10 @@
 worktree: fix-bg-context-followups
 started: 2026-06-03
 owner: resolution-applier
+completed: 2026-06-10
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/conventions/execution-context.md
 ---
 # Spec Update Draft — execution-context options-bag & [ctx-trace] policy
 
