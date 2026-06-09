@@ -10,6 +10,7 @@ function makeKbRow(overrides: Partial<KbRowFixture>): KbRowFixture {
     maxHops: 1,
     vectorSeedTopK: 5,
     expandedChunkLimit: 15,
+    reembedStatus: 'idle',
     rerankMode: 'off',
     rerankConfigId: null,
     rerankCandidateK: 50,
@@ -27,6 +28,7 @@ interface KbRowFixture {
   maxHops: number;
   vectorSeedTopK: number;
   expandedChunkLimit: number;
+  reembedStatus: 'idle' | 'in_progress';
   rerankMode: 'off' | 'cross_encoder' | 'cross_encoder_llm';
   rerankConfigId: string | null;
   rerankCandidateK: number;
@@ -169,6 +171,84 @@ describe('RagSearchService', () => {
 
       expect(result).toEqual([]);
       expect(mockLlmService.embed).not.toHaveBeenCalled();
+    });
+
+    it('should surface unsearchable (reembedding_required) for idle KB with null dimension', async () => {
+      mockDataSource.query.mockResolvedValueOnce([
+        makeKbRow({
+          id: 'kb-1',
+          embeddingDimension: null,
+          reembedStatus: 'idle',
+        }),
+      ]);
+
+      const meta = await service.searchWithMeta('query', ['kb-1'], 'ws-1');
+
+      expect(meta.results).toEqual([]);
+      expect(meta.unsearchable).toEqual([
+        { kbId: 'kb-1', reason: 'reembedding_required' },
+      ]);
+      // 사전 차단 — vector 쿼리/임베딩을 아예 실행하지 않는다.
+      expect(mockLlmService.embed).not.toHaveBeenCalled();
+    });
+
+    it('should surface unsearchable (reembedding_in_progress) while re-embedding', async () => {
+      mockDataSource.query.mockResolvedValueOnce([
+        makeKbRow({
+          id: 'kb-1',
+          embeddingDimension: null,
+          reembedStatus: 'in_progress',
+        }),
+      ]);
+
+      const meta = await service.searchWithMeta('query', ['kb-1'], 'ws-1');
+
+      expect(meta.results).toEqual([]);
+      expect(meta.unsearchable).toEqual([
+        { kbId: 'kb-1', reason: 'reembedding_in_progress' },
+      ]);
+    });
+
+    it('should omit unsearchable when all KBs are searchable', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([makeKbRow({ id: 'kb-1' })])
+        .mockResolvedValueOnce([]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      const meta = await service.searchWithMeta('query', ['kb-1'], 'ws-1');
+
+      expect(meta.unsearchable).toBeUndefined();
+    });
+
+    it('should search searchable KBs and still report the unsearchable one (mixed)', async () => {
+      // kb-1 searchable (1536), kb-2 null dimension → unsearchable.
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({ id: 'kb-1' }),
+          makeKbRow({ id: 'kb-2', embeddingDimension: null }),
+        ])
+        .mockResolvedValueOnce([
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'doc',
+            content: 'hit',
+            metadata: {},
+            score: '0.9',
+          },
+        ]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      const meta = await service.searchWithMeta(
+        'query',
+        ['kb-1', 'kb-2'],
+        'ws-1',
+      );
+
+      expect(meta.results).toHaveLength(1);
+      expect(meta.unsearchable).toEqual([
+        { kbId: 'kb-2', reason: 'reembedding_required' },
+      ]);
     });
 
     it('should use halfvec cast for 3072-dim group (matches V023 partial index)', async () => {

@@ -24,6 +24,16 @@ import {
 } from './dynamic-cut.util';
 
 /**
+ * KB 검색 불가 사유 (embedding_dimension NULL). tool_result `reason` 으로 그대로
+ * 노출된다 (spec/5-system/9-rag-search.md §2.2).
+ * - `reembedding_in_progress`: `reembed_status='in_progress'` (재임베딩 진행 중)
+ * - `reembedding_required`: `reembed_status='idle'` 인데 dimension NULL (모델 변경 후 미재임베딩)
+ */
+export type KbUnsearchableReason =
+  | 'reembedding_in_progress'
+  | 'reembedding_required';
+
+/**
  * `searchWithMeta` 반환 타입.
  *
  * `rerank` 는 리랭크 모드(cross_encoder / cross_encoder_llm) 경로에서만 존재한다.
@@ -34,6 +44,12 @@ export type SearchWithMetaResult = {
   results: SearchResult[];
   graphTraversal?: GraphTraversalSummary;
   rerank?: RerankDiagnostics;
+  /**
+   * 검색 불가(embedding_dimension NULL)로 사전 차단된 KB 들. stale 벡터 비교를
+   * 막기 위해 검색에서 제외하되, silent 빈 결과가 아니라 호출부(KbToolProvider)가
+   * `status:"not_searchable"` 신호로 변환할 수 있도록 노출한다 (§2.2/§3.1/§6).
+   */
+  unsearchable?: { kbId: string; reason: KbUnsearchableReason }[];
 };
 
 interface KbRow {
@@ -45,6 +61,8 @@ interface KbRow {
   maxHops: number;
   vectorSeedTopK: number;
   expandedChunkLimit: number;
+  // KB 전체 재임베딩 잠금 상태. embedding_dimension NULL 시 검색 불가 사유 변형에 사용.
+  reembedStatus: 'idle' | 'in_progress';
   // 검색 후처리(리랭킹) — spec/5-system/9-rag-search.md §3.3
   rerankMode: 'off' | 'cross_encoder' | 'cross_encoder_llm';
   rerankConfigId: string | null;
@@ -134,6 +152,7 @@ export class RagSearchService {
                 max_hops AS "maxHops",
                 vector_seed_top_k AS "vectorSeedTopK",
                 expanded_chunk_limit AS "expandedChunkLimit",
+                reembed_status AS "reembedStatus",
                 rerank_mode AS "rerankMode",
                 rerank_config_id AS "rerankConfigId",
                 rerank_candidate_k AS "rerankCandidateK",
@@ -145,6 +164,27 @@ export class RagSearchService {
       );
       if (kbs.length === 0) return { results: [] };
 
+      // 검색 불가(embedding_dimension NULL) 사전 차단 (§3.1/§6): 저장 청크가 현재
+      // 모델과 차원/공간이 일치한다는 보장이 없어 stale 비교가 되므로 vector/seed
+      // 쿼리를 아예 실행하지 않는다. silent 빈 결과 대신 unsearchable 로 노출해
+      // 호출부가 `status:"not_searchable"` 신호로 변환하게 한다 (§2.2).
+      const unsearchable = kbs
+        .filter((kb) => kb.embeddingDimension == null)
+        .map((kb) => ({
+          kbId: kb.id,
+          reason: (kb.reembedStatus === 'in_progress'
+            ? 'reembedding_in_progress'
+            : 'reembedding_required') as KbUnsearchableReason,
+        }));
+      const mergeUnsearchable = (
+        r: SearchWithMetaResult,
+      ): SearchWithMetaResult =>
+        unsearchable.length ? { ...r, unsearchable } : r;
+      const searchableKbs = kbs.filter((kb) => kb.embeddingDimension != null);
+      if (searchableKbs.length === 0) {
+        return mergeUnsearchable({ results: [] });
+      }
+
       // 검색 후처리(리랭킹) — 단일 KB + rerank_mode ≠ off 일 때 wide 회수 → 리랭크 → 동적 컷.
       // cross_encoder 와 cross_encoder_llm 둘 다 cross-encoder 재점수화 레이어를 타며
       // (§3.3.1 — cross_encoder_llm 은 cross_encoder 의 superset), cross_encoder_llm 은
@@ -152,16 +192,18 @@ export class RagSearchService {
       // agentic 경로(KbToolProvider)는 항상 단일 KB 로 호출하므로 이 분기가 적용된다.
       // 멀티-KB 리랭크는 후속(plan/in-progress/rag-rerank-followup.md).
       if (
-        kbs.length === 1 &&
-        (kbs[0].rerankMode === 'cross_encoder' ||
-          kbs[0].rerankMode === 'cross_encoder_llm')
+        searchableKbs.length === 1 &&
+        (searchableKbs[0].rerankMode === 'cross_encoder' ||
+          searchableKbs[0].rerankMode === 'cross_encoder_llm')
       ) {
-        return this.searchWithRerank(
-          kbs[0],
-          query,
-          injectCap,
-          threshold,
-          workspaceId,
+        return mergeUnsearchable(
+          await this.searchWithRerank(
+            searchableKbs[0],
+            query,
+            injectCap,
+            threshold,
+            workspaceId,
+          ),
         );
       }
 
@@ -169,8 +211,8 @@ export class RagSearchService {
       // 각 그룹 / 각 graph KB 가 자체 embeddingLlmConfigId 를 resolveConfig 로 풀어 query 임베딩
       // 호출에 사용한다. 청크가 비-default LLMConfig 로 임베딩됐다면 query 도 같은 endpoint 로
       // 임베딩해야 유사도가 맞기 때문.
-      const vectorKbs = kbs.filter((kb) => kb.ragMode === 'vector');
-      const graphKbs = kbs.filter((kb) => kb.ragMode === 'graph');
+      const vectorKbs = searchableKbs.filter((kb) => kb.ragMode === 'vector');
+      const graphKbs = searchableKbs.filter((kb) => kb.ragMode === 'graph');
 
       const vectorGroups = this.groupVectorKbs(vectorKbs);
 
@@ -225,7 +267,7 @@ export class RagSearchService {
         };
       }
 
-      return { results: sliced, graphTraversal };
+      return mergeUnsearchable({ results: sliced, graphTraversal });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`RAG search failed: ${message}`);

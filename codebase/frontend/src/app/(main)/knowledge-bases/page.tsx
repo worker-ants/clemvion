@@ -15,7 +15,15 @@ import { RoleGate } from "@/components/auth/role-gate";
 import { CreateKbFormDialog } from "@/components/knowledge-base/create-kb-form-dialog";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { toast } from "sonner";
-import { Plus, Loader2, Inbox, Trash2, BookOpen, FileText } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  Inbox,
+  Trash2,
+  BookOpen,
+  FileText,
+  AlertTriangle,
+} from "lucide-react";
 import { useT } from "@/lib/i18n";
 
 const PAGE_SIZE = 20;
@@ -152,6 +160,40 @@ export default function KnowledgeBasesPage() {
                       {kb.embeddingDimension}d
                     </span>
                   )}
+                  {/* 검색 불가 경고: embedding_dimension 이 NULL 인 KB 는 RAG 검색에서
+                      제외된다 (모델 변경 후 미재임베딩 / 재임베딩 진행 중). 에이전트
+                      검색이 조용히 0건 나는 회귀를 목록에서 인지하도록 노출.
+                      SoT: spec/2-navigation/5-knowledge-base.md §2.2.1 */}
+                  {kb.embeddingDimension == null &&
+                    (() => {
+                      // reembedStatus 를 한 번만 평가해 className·아이콘·텍스트가
+                      // 같은 분기를 공유하도록 단일 참조점으로 고정.
+                      const isReembedding = kb.reembedStatus === "in_progress";
+                      return (
+                        <span
+                          className={`flex items-center gap-1 rounded px-1.5 py-0.5 font-medium ${
+                            isReembedding
+                              ? "bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]"
+                              : "bg-[hsl(var(--destructive)/0.12)] text-[hsl(var(--destructive))]"
+                          }`}
+                        >
+                          {isReembedding ? (
+                            <Loader2
+                              className="h-3 w-3 animate-spin"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <AlertTriangle
+                              className="h-3 w-3"
+                              aria-hidden="true"
+                            />
+                          )}
+                          {isReembedding
+                            ? t("knowledgeBases.reembeddingInProgress")
+                            : t("knowledgeBases.reembeddingRequired")}
+                        </span>
+                      );
+                    })()}
                   {kb.ragMode === "graph" && (
                     <span className="font-mono">
                       {kb.entityCount}E · {kb.relationCount}R
