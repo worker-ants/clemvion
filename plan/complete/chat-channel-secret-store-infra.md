@@ -1,9 +1,14 @@
 ---
 worktree: (unstarted)
-status: backlog
+status: complete
 started: 2026-05-22
 owner: project-planner
 priority: v2 (인프라 의존 — 사용자 결정 필요)
+completed: 2026-06-10
+spec_impact:
+  - spec/5-system/15-chat-channel.md
+  - spec/5-system/14-external-interaction-api.md
+  - spec/conventions/secret-store.md
 ---
 
 # Plan — Secret store 인프라 도입 (Chat Channel + Notification 공용)

@@ -1,9 +1,16 @@
 ---
 name: makeshop-integration
 worktree: makeshop-api-catalog-730deb
-status: in-progress
+status: complete
 started: 2026-06-03
 owner: project-planner
+completed: 2026-06-10
+spec_impact:
+  - spec/4-nodes/4-integration/5-makeshop.md
+  - spec/conventions/makeshop-api-metadata.md
+  - spec/2-navigation/4-integration.md
+  - spec/1-data-model.md
+  - spec/5-system/11-mcp-client.md
 ---
 
 # Plan: 메이크샵(MakeShop) 통합 spec 작성
