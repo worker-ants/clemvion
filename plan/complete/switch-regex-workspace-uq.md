@@ -2,6 +2,10 @@
 worktree: switch-regex-workspace-uq
 started: 2026-06-03
 owner: developer
+completed: 2026-06-10
+spec_impact:
+  - spec/4-nodes/1-logic/1-if-else.md
+  - spec/data-flow/12-workspace.md
 ---
 
 # spec-sync §C 후속 — Switch regex no-op 수정 + workspace (owner_id,type) UNIQUE 정정
