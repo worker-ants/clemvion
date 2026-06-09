@@ -1,9 +1,16 @@
 ---
 name: integration-index-unify
 worktree: integration-index-unify-2c7973
-status: in-progress
+status: complete
 started: 2026-06-04
 owner: developer
+completed: 2026-06-10
+spec_impact:
+  - spec/1-data-model.md
+  - spec/data-flow/5-integration.md
+  - spec/4-nodes/4-integration/4-cafe24.md
+  - spec/4-nodes/4-integration/5-makeshop.md
+  - spec/2-navigation/4-integration.md
 ---
 
 # Plan: Integration store-identifier 인덱스 통일

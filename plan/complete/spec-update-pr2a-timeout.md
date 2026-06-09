@@ -2,6 +2,11 @@
 worktree: impl-exec-concurrency-cap
 started: 2026-06-04
 owner: resolution-applier
+completed: 2026-06-09
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/data-flow/0-overview.md
+  - spec/5-system/14-external-interaction-api.md
 ---
 # Spec Update Draft — PR2a active-running 타임아웃 (§8 · data-flow · EIA)
 

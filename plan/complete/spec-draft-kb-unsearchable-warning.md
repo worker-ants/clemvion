@@ -1,3 +1,14 @@
+---
+worktree: (complete)
+started: 2026-06-02
+completed: 2026-06-10
+spec_impact:
+  - spec/5-system/9-rag-search.md
+  - spec/2-navigation/5-knowledge-base.md
+  - spec/5-system/8-embedding-pipeline.md
+owner: project-planner
+---
+
 # Spec draft: KB 검색 불가(재임베딩 필요/진행 중) 신호화 + 목록 경고
 
 대상 spec 3개. 구현은 developer 후속 (codebase 변경 없음, 본 draft 는 spec 한정).
