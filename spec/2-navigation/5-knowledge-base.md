@@ -1,13 +1,11 @@
 ---
 id: knowledge-base
-status: partial
+status: implemented
 code:
   - codebase/frontend/src/app/(main)/knowledge-bases/page.tsx
   - codebase/frontend/src/app/(main)/knowledge-bases/[id]/page.tsx
   - codebase/frontend/src/components/knowledge-base/*.tsx
   - codebase/frontend/src/components/knowledge-base/embedding-model-recommendation.ts
-pending_plans:
-  - plan/in-progress/kb-unsearchable-warning.md
 ---
 
 # Spec: 지식 저장소 화면
