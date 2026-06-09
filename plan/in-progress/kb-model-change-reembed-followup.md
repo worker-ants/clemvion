@@ -33,4 +33,9 @@ started: 2026-06-06
 - `spec/5-system/9-rag-search.md` §6 (not_searchable 신호 — 본 PR에서 도입)
 
 ## 비고
-spec 변경(정책 결정 반영)이 필요하므로 착수 시 project-planner 선행.
+
+**착수 전 project-planner spec 선갱신 필수 (의무)**: 위 3가지 선택지는 모두 제품 정책
+(비용·UX) 결정이라 `spec/5-system/8-embedding-pipeline.md §7.3`·`spec/5-system/9-rag-search.md §5`
+및 `spec/2-navigation/5-knowledge-base.md §2.2` 갱신이 선행돼야 한다. 어느 선택지든 구현 착수
+전에 project-planner 가 spec 을 먼저 확정하고 `/consistency-check --spec` BLOCK:NO 를 받은 뒤
+developer 가 구현한다 (spec diverge 방지). consistency --impl-done 07_15_48 WARNING#1 반영.
