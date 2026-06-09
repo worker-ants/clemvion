@@ -100,3 +100,68 @@ describe("KnowledgeBasesPage — pagination", () => {
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 });
+
+describe("KnowledgeBasesPage — unsearchable warning", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    cleanup();
+  });
+
+  function kbCard(overrides: Record<string, unknown>) {
+    return {
+      id: "kb-1",
+      name: "Plans",
+      embeddingModel: "multilingual-e5-large",
+      ragMode: "vector",
+      chunkSize: 1000,
+      chunkOverlap: 200,
+      documentCount: 8,
+      reembedStatus: "idle",
+      createdAt: "",
+      updatedAt: "",
+      ...overrides,
+    };
+  }
+
+  it("shows 're-embedding required' when embeddingDimension is null and reembed idle", async () => {
+    getAllMock.mockResolvedValue({
+      data: [kbCard({ embeddingDimension: null, reembedStatus: "idle" })],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Plans");
+    expect(
+      screen.getByText("Re-embedding required · not searchable"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows 're-embedding…' when reembed in_progress", async () => {
+    getAllMock.mockResolvedValue({
+      data: [
+        kbCard({ embeddingDimension: null, reembedStatus: "in_progress" }),
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Plans");
+    expect(screen.getByText("Re-embedding…")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Re-embedding required · not searchable"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the warning for a healthy KB (dimension set)", async () => {
+    getAllMock.mockResolvedValue({
+      data: [kbCard({ embeddingDimension: 1024, reembedStatus: "idle" })],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Plans");
+    expect(
+      screen.queryByText("Re-embedding required · not searchable"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("1024d")).toBeInTheDocument();
+  });
+});

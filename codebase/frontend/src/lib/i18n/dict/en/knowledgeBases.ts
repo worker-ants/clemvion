@@ -121,6 +121,8 @@ export const knowledgeBases: Dict["knowledgeBases"] = {
   expandedChunkLimitInvalid: "Expanded chunk limit must be between 1 and 100",
   graphBadge: "GRAPH",
   vectorBadge: "VECTOR",
+  reembeddingRequired: "Re-embedding required · not searchable",
+  reembeddingInProgress: "Re-embedding…",
   graphBuildStatus: "Graph build status",
   graphExtractedDocs: "{{count}} document(s) extracted",
   graphFailedDocs: "{{count}} failed",

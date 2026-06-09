@@ -377,6 +377,53 @@ describe('AiAgentHandler', () => {
       expect(diag.rerank).toEqual(rerankDiag);
     });
 
+    it('sets skipReason=kb_unsearchable when the only searched KB is unsearchable', async () => {
+      // KB 가 embedding_dimension NULL 이라 검색 불가 → KbToolProvider 가
+      // not_searchable 봉투 + unsearchable:true delta 를 반환 → 노드 진단은
+      // skipReason='kb_unsearchable' (spec/5-system/9-rag-search.md §4.2).
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [],
+        unsearchable: [{ kbId: 'kb-1', reason: 'reembedding_required' }],
+      });
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-kb-ns',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"요금제 종류"}',
+            },
+          ],
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'This knowledge base needs re-embedding.',
+          usage: { inputTokens: 80, outputTokens: 20, totalTokens: 100 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: '요금제 종류 알려줘',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      )) as unknown as Record<string, unknown>;
+
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
+      const diag = meta.ragDiagnostics as Record<string, unknown>;
+      expect(diag.attempted).toBe(true);
+      expect(diag.resultCount).toBe(0);
+      expect(diag.skipReason).toBe('kb_unsearchable');
+    });
+
     it('runs parallel kb_ tool calls when LLM emits multiple in one response', async () => {
       mockRagService.searchWithMeta.mockImplementation((q: string) =>
         Promise.resolve({

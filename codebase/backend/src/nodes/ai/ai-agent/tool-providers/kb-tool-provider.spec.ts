@@ -148,6 +148,59 @@ describe('KbToolProvider', () => {
       });
     });
 
+    it('returns not_searchable tool_result when KB is unsearchable (reembedding_required)', async () => {
+      mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: '요금제' });
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [],
+        unsearchable: [{ kbId: 'kb-1', reason: 'reembedding_required' }],
+      });
+      const call: ToolCall = {
+        id: 'tc-ns',
+        name: kbToolName('kb-1'),
+        arguments: '{"query":"요금제 종류"}',
+      };
+      const result = await provider.execute(call, baseCtx);
+
+      const content = JSON.parse(result.content) as {
+        status?: string;
+        reason?: string;
+        note?: string;
+        error?: string;
+        results: unknown[];
+      };
+      expect(content.status).toBe('not_searchable');
+      expect(content.reason).toBe('reembedding_required');
+      expect(content.note).toMatch(/re-embed/i);
+      expect(content.results).toEqual([]);
+      // 일시 실패(search_failed)와 구분 — 에러 봉투가 아니다.
+      expect(content.error).toBeUndefined();
+      // graceful 신호이지 노드 실패가 아님 — top-level status 'error' 미설정.
+      expect(result.status).toBeUndefined();
+      expect(result.ragDiagnosticsDelta).toEqual({
+        kbId: 'kb-1',
+        query: '요금제 종류',
+        resultCount: 0,
+        unsearchable: true,
+      });
+      expect(result.ragSourcesDelta).toBeUndefined();
+    });
+
+    it('maps reembed in_progress to reembedding_in_progress reason', async () => {
+      mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
+      mockRagService.searchWithMeta.mockResolvedValue({
+        results: [],
+        unsearchable: [{ kbId: 'kb-1', reason: 'reembedding_in_progress' }],
+      });
+      const call: ToolCall = {
+        id: 'tc-ns2',
+        name: kbToolName('kb-1'),
+        arguments: '{"query":"q"}',
+      };
+      const result = await provider.execute(call, baseCtx);
+      const content = JSON.parse(result.content) as { reason?: string };
+      expect(content.reason).toBe('reembedding_in_progress');
+    });
+
     it('includes rerank diagnostics in ragDiagnosticsDelta when rerank_mode is active', async () => {
       mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
       const rerankDiag = {
