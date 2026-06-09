@@ -1,6 +1,6 @@
 ---
 name: kb-unsearchable-warning
-owner: project-planner→developer
+owner: developer
 worktree: .claude/worktrees/kb-unsearchable-warning-b47e20
 started: 2026-06-06
 spec_impact:

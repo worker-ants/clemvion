@@ -1,7 +1,7 @@
 ---
 name: kb-model-change-reembed-followup
 owner: developer
-worktree: TBD
+worktree: (unstarted)
 started: 2026-06-06
 ---
 

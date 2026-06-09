@@ -164,27 +164,36 @@ export default function KnowledgeBasesPage() {
                       제외된다 (모델 변경 후 미재임베딩 / 재임베딩 진행 중). 에이전트
                       검색이 조용히 0건 나는 회귀를 목록에서 인지하도록 노출.
                       SoT: spec/2-navigation/5-knowledge-base.md §2.2.1 */}
-                  {kb.embeddingDimension == null && (
-                    <span
-                      className={`flex items-center gap-1 rounded px-1.5 py-0.5 font-medium ${
-                        kb.reembedStatus === "in_progress"
-                          ? "bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]"
-                          : "bg-[hsl(var(--destructive)/0.12)] text-[hsl(var(--destructive))]"
-                      }`}
-                    >
-                      {kb.reembedStatus === "in_progress" ? (
-                        <Loader2
-                          className="h-3 w-3 animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                      )}
-                      {kb.reembedStatus === "in_progress"
-                        ? t("knowledgeBases.reembeddingInProgress")
-                        : t("knowledgeBases.reembeddingRequired")}
-                    </span>
-                  )}
+                  {kb.embeddingDimension == null &&
+                    (() => {
+                      // reembedStatus 를 한 번만 평가해 className·아이콘·텍스트가
+                      // 같은 분기를 공유하도록 단일 참조점으로 고정.
+                      const isReembedding = kb.reembedStatus === "in_progress";
+                      return (
+                        <span
+                          className={`flex items-center gap-1 rounded px-1.5 py-0.5 font-medium ${
+                            isReembedding
+                              ? "bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]"
+                              : "bg-[hsl(var(--destructive)/0.12)] text-[hsl(var(--destructive))]"
+                          }`}
+                        >
+                          {isReembedding ? (
+                            <Loader2
+                              className="h-3 w-3 animate-spin"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <AlertTriangle
+                              className="h-3 w-3"
+                              aria-hidden="true"
+                            />
+                          )}
+                          {isReembedding
+                            ? t("knowledgeBases.reembeddingInProgress")
+                            : t("knowledgeBases.reembeddingRequired")}
+                        </span>
+                      );
+                    })()}
                   {kb.ragMode === "graph" && (
                     <span className="font-mono">
                       {kb.entityCount}E · {kb.relationCount}R

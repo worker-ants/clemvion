@@ -24,13 +24,6 @@ import {
 } from './dynamic-cut.util';
 
 /**
- * `searchWithMeta` 반환 타입.
- *
- * `rerank` 는 리랭크 모드(cross_encoder / cross_encoder_llm) 경로에서만 존재한다.
- * off 경로(vector/graph 직접 컷)에서는 undefined. 호출부는 존재 여부로 경로를 판별한다.
- * rerank 경로임이 보장된 내부 경로는 `searchWithRerank` 반환(rerank: RerankDiagnostics, NonNullable)을 사용한다.
- */
-/**
  * KB 검색 불가 사유 (embedding_dimension NULL). tool_result `reason` 으로 그대로
  * 노출된다 (spec/5-system/9-rag-search.md §2.2).
  * - `reembedding_in_progress`: `reembed_status='in_progress'` (재임베딩 진행 중)
@@ -40,6 +33,13 @@ export type KbUnsearchableReason =
   | 'reembedding_in_progress'
   | 'reembedding_required';
 
+/**
+ * `searchWithMeta` 반환 타입.
+ *
+ * `rerank` 는 리랭크 모드(cross_encoder / cross_encoder_llm) 경로에서만 존재한다.
+ * off 경로(vector/graph 직접 컷)에서는 undefined. 호출부는 존재 여부로 경로를 판별한다.
+ * rerank 경로임이 보장된 내부 경로는 `searchWithRerank` 반환(rerank: RerankDiagnostics, NonNullable)을 사용한다.
+ */
 export type SearchWithMetaResult = {
   results: SearchResult[];
   graphTraversal?: GraphTraversalSummary;
@@ -176,13 +176,13 @@ export class RagSearchService {
             ? 'reembedding_in_progress'
             : 'reembedding_required') as KbUnsearchableReason,
         }));
-      const withUnsearchable = (
+      const mergeUnsearchable = (
         r: SearchWithMetaResult,
       ): SearchWithMetaResult =>
         unsearchable.length ? { ...r, unsearchable } : r;
       const searchableKbs = kbs.filter((kb) => kb.embeddingDimension != null);
       if (searchableKbs.length === 0) {
-        return withUnsearchable({ results: [] });
+        return mergeUnsearchable({ results: [] });
       }
 
       // 검색 후처리(리랭킹) — 단일 KB + rerank_mode ≠ off 일 때 wide 회수 → 리랭크 → 동적 컷.
@@ -196,7 +196,7 @@ export class RagSearchService {
         (searchableKbs[0].rerankMode === 'cross_encoder' ||
           searchableKbs[0].rerankMode === 'cross_encoder_llm')
       ) {
-        return withUnsearchable(
+        return mergeUnsearchable(
           await this.searchWithRerank(
             searchableKbs[0],
             query,
@@ -267,7 +267,7 @@ export class RagSearchService {
         };
       }
 
-      return withUnsearchable({ results: sliced, graphTraversal });
+      return mergeUnsearchable({ results: sliced, graphTraversal });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`RAG search failed: ${message}`);

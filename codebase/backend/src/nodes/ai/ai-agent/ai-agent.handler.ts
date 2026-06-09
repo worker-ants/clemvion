@@ -384,16 +384,20 @@ export function capFormDataBytes(
 /**
  * Provider 가 반환한 diagnostic delta 를 노드 단위로 누적.
  * `meta.ragDiagnostics` / `meta.ragSources` 의 값을 한곳에서 만들기 위한 헬퍼.
+ *
+ * `skipReason` 판정 (`getDiagnostics`, spec §4.2): `resultCount === 0` 일 때만
+ * 세팅하며 우선순위는 `empty_kb_list` → `kb_unsearchable` → `no_results`. 그중
+ * `kb_unsearchable` 은 **모든 KB 호출이 검색 불가**일 때 — 즉
+ * `unsearchableKbCallCount === kbCallCount (> 0)` — 로 판정한다.
  */
 class RagAccumulator {
   private readonly searchedKbIds = new Set<string>();
   private readonly queries: string[] = [];
   private resultCount = 0;
   private attempted = false;
-  // KB tool 호출 횟수와 그중 검색 불가(unsearchable) 호출 수. 모든 호출이
-  // unsearchable 이고 결과가 0건이면 skipReason='kb_unsearchable' (spec §4.2).
-  private diagnosticCount = 0;
-  private unsearchableCount = 0;
+  // KB tool 호출 총 횟수와 그중 검색 불가(unsearchable) 판정된 호출 수.
+  private kbCallCount = 0;
+  private unsearchableKbCallCount = 0;
   // 마지막으로 관측된 rerank 진단 (rerank_mode ≠ off KB 호출에서만 set). 여러 KB
   // tool 호출 시 가장 최근 것을 보존 — 단일 객체 스키마(spec §4.2).
   private rerank?: import('../../../modules/knowledge-base/search/rerank.service').RerankDiagnostics;
@@ -427,8 +431,8 @@ class RagAccumulator {
     this.searchedKbIds.add(d.kbId);
     this.queries.push(d.query);
     this.resultCount += d.resultCount;
-    this.diagnosticCount += 1;
-    if (d.unsearchable) this.unsearchableCount += 1;
+    this.kbCallCount += 1;
+    if (d.unsearchable) this.unsearchableKbCallCount += 1;
     // rerank 진단은 rerank_mode ≠ off KB 호출 시에만 delta 에 실린다. 있으면
     // 가장 최근 것으로 갱신 (단일 객체 스키마 — spec §4.2).
     if (d.rerank) this.rerank = d.rerank;
@@ -466,8 +470,8 @@ class RagAccumulator {
       // 우선순위: 호출된 KB 가 전부 검색 불가(embedding_dimension NULL)면
       // kb_unsearchable, 그 외(검색은 됐으나 임계 미달 등)면 no_results (spec §4.2).
       base.skipReason =
-        this.diagnosticCount > 0 &&
-        this.unsearchableCount === this.diagnosticCount
+        this.kbCallCount > 0 &&
+        this.unsearchableKbCallCount === this.kbCallCount
           ? 'kb_unsearchable'
           : 'no_results';
     }
