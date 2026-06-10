@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Workflow } from './entities/workflow.entity';
@@ -265,9 +266,15 @@ export class WorkflowsService {
       });
       const savedWorkflow = await manager.save(Workflow, workflow);
 
-      // Create nodes with new UUIDs, keeping a map from index to new ID
-      const nodeIdMap: string[] = [];
-      for (const nodeDto of dto.nodes) {
+      // perf #10 — 노드/엣지를 행 단위 save 루프 대신 배치 insert 2회로.
+      // UUID 를 앱 측에서 사전 생성해 containerIndex/toolOwnerIndex remap 을
+      // insert 페이로드에 바로 포함한다 (2차 update 루프 제거: N+P+M → ~3 왕복).
+      // 주의: manager.insert 는 @BeforeInsert hook·cascade 를 건너뛴다 — Node/
+      // Edge 엔티티에는 둘 다 없음(2026-06-10 확인). 향후 hook 추가 시 배열
+      // save 로 되돌릴 것.
+      const nodeIdMap: string[] = dto.nodes.map(() => randomUUID());
+
+      const nodeEntities = dto.nodes.map((nodeDto, i) => {
         const withDefaults = this.registry.applyConfigDefaults(
           nodeDto.type,
           nodeDto.config ?? {},
@@ -279,7 +286,21 @@ export class WorkflowsService {
             ? { ...withDefaults, llmConfigId: defaultLlmId }
             : withDefaults;
 
-        const node = manager.create(Node, {
+        // Export 는 container/toolOwner 참조를 nodes 배열 인덱스로 내보낸다 —
+        // 사전 생성한 UUID 로 즉시 remap (범위 밖 인덱스는 기존과 동일하게 무시).
+        const containerId =
+          typeof nodeDto.containerIndex === 'number' &&
+          nodeIdMap[nodeDto.containerIndex]
+            ? nodeIdMap[nodeDto.containerIndex]
+            : undefined;
+        const toolOwnerId =
+          typeof nodeDto.toolOwnerIndex === 'number' &&
+          nodeIdMap[nodeDto.toolOwnerIndex]
+            ? nodeIdMap[nodeDto.toolOwnerIndex]
+            : undefined;
+
+        return manager.create(Node, {
+          id: nodeIdMap[i],
           workflowId: savedWorkflow.id,
           type: nodeDto.type,
           category: nodeDto.category,
@@ -289,51 +310,33 @@ export class WorkflowsService {
           config: finalConfig,
           isDisabled: nodeDto.isDisabled ?? false,
           description: nodeDto.description,
+          containerId,
+          toolOwnerId,
         });
-        const savedNode = await manager.save(Node, node);
-        nodeIdMap.push(savedNode.id);
-      }
-
-      // Resolve container / toolOwner references after all nodes are created.
-      // Export emits these as nodes-array indices; remap to the new UUIDs here.
-      for (let i = 0; i < dto.nodes.length; i++) {
-        const nodeDto = dto.nodes[i];
-        const patch: { containerId?: string; toolOwnerId?: string } = {};
-        if (
-          typeof nodeDto.containerIndex === 'number' &&
-          nodeIdMap[nodeDto.containerIndex]
-        ) {
-          patch.containerId = nodeIdMap[nodeDto.containerIndex];
-        }
-        if (
-          typeof nodeDto.toolOwnerIndex === 'number' &&
-          nodeIdMap[nodeDto.toolOwnerIndex]
-        ) {
-          patch.toolOwnerId = nodeIdMap[nodeDto.toolOwnerIndex];
-        }
-        if (patch.containerId || patch.toolOwnerId) {
-          await manager.update(Node, nodeIdMap[i], patch);
-        }
+      });
+      if (nodeEntities.length > 0) {
+        await manager.insert(Node, nodeEntities);
       }
 
       // Create edges using index-to-ID mapping
-      if (dto.edges?.length) {
-        for (const edgeDto of dto.edges) {
-          const sourceId = nodeIdMap[edgeDto.sourceNodeIndex];
-          const targetId = nodeIdMap[edgeDto.targetNodeIndex];
-          if (sourceId && targetId) {
-            const edge = manager.create(Edge, {
-              workflowId: savedWorkflow.id,
-              sourceNodeId: sourceId,
-              sourcePort: edgeDto.sourcePort ?? 'out',
-              targetNodeId: targetId,
-              targetPort: edgeDto.targetPort ?? 'in',
-              type: (edgeDto.type as EdgeType) ?? EdgeType.DATA,
-              condition: edgeDto.condition,
-            });
-            await manager.save(Edge, edge);
-          }
-        }
+      const edgeEntities = (dto.edges ?? []).flatMap((edgeDto) => {
+        const sourceId = nodeIdMap[edgeDto.sourceNodeIndex];
+        const targetId = nodeIdMap[edgeDto.targetNodeIndex];
+        if (!sourceId || !targetId) return [];
+        return [
+          manager.create(Edge, {
+            workflowId: savedWorkflow.id,
+            sourceNodeId: sourceId,
+            sourcePort: edgeDto.sourcePort ?? 'out',
+            targetNodeId: targetId,
+            targetPort: edgeDto.targetPort ?? 'in',
+            type: (edgeDto.type as EdgeType) ?? EdgeType.DATA,
+            condition: edgeDto.condition,
+          }),
+        ];
+      });
+      if (edgeEntities.length > 0) {
+        await manager.insert(Edge, edgeEntities);
       }
 
       return savedWorkflow;

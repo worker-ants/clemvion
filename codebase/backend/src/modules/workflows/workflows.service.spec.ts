@@ -647,6 +647,7 @@ describe('WorkflowsService', () => {
   describe('importWorkflow', () => {
     beforeEach(() => {
       mockTransactionManager.update = jest.fn().mockResolvedValue(undefined);
+      mockTransactionManager.insert = jest.fn().mockResolvedValue(undefined);
       mockTransactionManager.save = jest
         .fn()
         .mockImplementation((entity, data) => {
@@ -658,6 +659,12 @@ describe('WorkflowsService', () => {
           return Promise.resolve({ id: 'new-wf-id', ...data });
         });
     });
+
+    // perf #10 — 노드 배치 insert 페이로드 헬퍼.
+    const insertedNodes = () =>
+      (mockTransactionManager.insert as jest.Mock).mock.calls.find(
+        ([entity]) => entity === Node,
+      )?.[1] as Array<Record<string, unknown>> | undefined;
 
     it('remaps containerIndex to the new node UUID', async () => {
       const dto = {
@@ -691,11 +698,15 @@ describe('WorkflowsService', () => {
 
       await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
 
-      expect(mockTransactionManager.update).toHaveBeenCalledWith(
-        Node,
-        'new-HTTP',
-        { containerId: 'new-Loop' },
-      );
+      // perf #10 — remap 은 사전 생성 UUID 로 insert 페이로드에 포함되고,
+      // 2차 update 루프는 사라진다 (왕복 N+P+M → ~3).
+      const nodes = insertedNodes();
+      expect(nodes).toHaveLength(3);
+      expect(typeof nodes![1].id).toBe('string');
+      expect(nodes![2].containerId).toBe(nodes![1].id);
+      expect(nodes![0].containerId).toBeUndefined();
+      expect(mockTransactionManager.update).not.toHaveBeenCalled();
+      expect(mockTransactionManager.insert).toHaveBeenCalledTimes(1); // edges 0건 → Node 1회만
     });
 
     it('remaps toolOwnerIndex to the new node UUID', async () => {
@@ -730,11 +741,50 @@ describe('WorkflowsService', () => {
 
       await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
 
-      expect(mockTransactionManager.update).toHaveBeenCalledWith(
-        Node,
-        'new-Tool',
-        { toolOwnerId: 'new-AI' },
-      );
+      const nodes = insertedNodes();
+      expect(nodes).toHaveLength(3);
+      expect(nodes![2].toolOwnerId).toBe(nodes![1].id);
+      expect(mockTransactionManager.update).not.toHaveBeenCalled();
+    });
+
+    it('edges 는 사전 생성 UUID 매핑으로 단일 배치 insert 된다 (범위 밖 인덱스 skip)', async () => {
+      const dto = {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'http_request',
+            category: NodeCategory.INTEGRATION,
+            label: 'HTTP',
+            positionX: 0,
+            positionY: 0,
+          },
+        ],
+        edges: [
+          { sourceNodeIndex: 0, targetNodeIndex: 1 },
+          { sourceNodeIndex: 0, targetNodeIndex: 99 }, // 범위 밖 — skip
+        ],
+      };
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
+
+      const nodes = insertedNodes();
+      const edgeCall = (
+        mockTransactionManager.insert as jest.Mock
+      ).mock.calls.find(([entity]) => entity === Edge);
+      expect(edgeCall).toBeDefined();
+      const edges = edgeCall![1] as Array<Record<string, unknown>>;
+      expect(edges).toHaveLength(1);
+      expect(edges[0].sourceNodeId).toBe(nodes![0].id);
+      expect(edges[0].targetNodeId).toBe(nodes![1].id);
+      expect(edges[0].sourcePort).toBe('out');
+      expect(edges[0].targetPort).toBe('in');
     });
 
     it('rejects payload with duplicate node labels', async () => {
@@ -768,6 +818,7 @@ describe('WorkflowsService', () => {
   describe('importWorkflow — config defaults & LLM 주입', () => {
     beforeEach(() => {
       mockTransactionManager.update = jest.fn().mockResolvedValue(undefined);
+      mockTransactionManager.insert = jest.fn().mockResolvedValue(undefined);
       mockTransactionManager.save = jest
         .fn()
         .mockImplementation((entity, data) => {
@@ -788,11 +839,15 @@ describe('WorkflowsService', () => {
       ...overrides,
     });
 
-    const findSavedNode = (label: string) =>
-      mockTransactionManager.save.mock.calls.find(
-        ([entity, data]) =>
-          entity === Node && (data as { label: string }).label === label,
-      )?.[1] as { config: Record<string, unknown> } | undefined;
+    // perf #10 — 노드는 배치 insert 페이로드에서 찾는다 (행 단위 save 제거).
+    const findSavedNode = (label: string) => {
+      const nodeInsert = (
+        mockTransactionManager.insert as jest.Mock
+      ).mock.calls.find(([entity]) => entity === Node)?.[1] as
+        | Array<{ label: string; config: Record<string, unknown> }>
+        | undefined;
+      return nodeInsert?.find((n) => n.label === label);
+    };
 
     it('applies schema defaults via the registry', async () => {
       mockRegistry.applyConfigDefaults.mockImplementation((type, raw) =>
