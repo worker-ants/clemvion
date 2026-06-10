@@ -90,7 +90,7 @@
 
 ### M-1 [Major] WS resume ack — spec 내부 문구 모순 정리로 성격 축소
 
-- [ ] ⏭️ planner 선행 — ✅ 사용자 승인했으나 spec §4.2+§7.5 동시 정정은 developer `spec/` read-only 위반(impl-prep 21_36_50 WARNING 1·3) → project-planner 트랙으로 분리. — `websocket.gateway.ts:437/511/584/654`
+- [x] ✅ 완료 (2026-06-10, planner 트랙) — spec §4.2 `resumed` 정의 정정 + 엔진 §7.5↔§7.5.1 모순 해소 + 양 파일 §Rationale 보강. 프론트 가드 확인 결과 ack `resumed` 를 상태 전이 근거로 쓰는 곳 없어 코드 변경·developer 후속 불요. plan: `plan/complete/spec-update-ws-resumed-ack.md`. — `websocket.gateway.ts:437/511/584/654`
 
 **spec 대조**: **A** — WS §4.2 가 이미 정의: "`queued` … enqueue 보장 … **관측·디버깅 용도, routing 결정에 사용하지 않는다**" — 원안의 "문서화 필요" 는 소멸. **잔존 모순 2건**: ① §4.2 의 `resumed` = "재개 성공 여부" 정의 ↔ gateway 는 enqueue 성공 시 `resumed: true` 하드코딩 (항상-enqueue 모델에서 동기 ack 는 재개 성공을 알 수 없음). ② 엔진 §7.5 "셋 모두 ack 에 `resumed: false` 노출" ↔ §7.5.1 "RESUME_* 는 후행 이벤트" — spec 내부 충돌.
 
