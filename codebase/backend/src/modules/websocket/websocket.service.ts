@@ -49,7 +49,7 @@ export interface ExecutionRoutingContext {
   /** 트리거 발화로 시작된 execution 만 set. 수동 실행은 undefined. */
   triggerId?: string;
   /**
-   * Workflow id — `ChatChannelDispatcher.toEiaEvent` 가 EiaEvent.base 의 필수
+   * Workflow id — `ChatChannelDispatcher.toChatChannelEvent` 가 EiaEvent.base 의 필수
    * 필드로 사용. PR #314 의 초기 routing context 에는 누락되어 있었고, 그 결과
    * dispatcher 가 `if (!workflowId) return null` 에서 silent skip 하여 outbound
    * 가 안 가던 회귀 (2026-05-25 사용자 production log 확인) 를 해소한다. trigger

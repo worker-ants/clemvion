@@ -113,8 +113,3 @@ export function getFailedScanCap(): number {
   // Math.max(1, …): 음수·0 입력 시 스캔이 0 회가 되어 recentFailed 가 항상 0 이 되는 것을 방지(최소 1).
   return Math.max(1, Number(process.env.SYSTEM_STATUS_FAILED_SCAN_CAP) || 1000);
 }
-
-/** @deprecated 테스트 또는 모듈 로드 순서에 영향을 받지 않도록 getter 를 사용하세요. */
-export const FAILED_DEGRADED_THRESHOLD = getFailedDegradedThreshold();
-/** @deprecated 테스트 또는 모듈 로드 순서에 영향을 받지 않도록 getter 를 사용하세요. */
-export const DELAYED_DEGRADED_THRESHOLD = getDelayedDegradedThreshold();

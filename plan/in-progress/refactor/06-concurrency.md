@@ -90,7 +90,7 @@
 
 ### M-1 [Major] WS resume ack — spec 내부 문구 모순 정리로 성격 축소
 
-- [ ] 진행 확정 — ✅ 2026-06-10 사용자 승인 (확정안: A — 권고안대로 planner 문구 정리 + 프론트 가드 확인) — `websocket.gateway.ts:437/511/584/654`
+- [ ] ⏭️ planner 선행 — ✅ 사용자 승인했으나 spec §4.2+§7.5 동시 정정은 developer `spec/` read-only 위반(impl-prep 21_36_50 WARNING 1·3) → project-planner 트랙으로 분리. — `websocket.gateway.ts:437/511/584/654`
 
 **spec 대조**: **A** — WS §4.2 가 이미 정의: "`queued` … enqueue 보장 … **관측·디버깅 용도, routing 결정에 사용하지 않는다**" — 원안의 "문서화 필요" 는 소멸. **잔존 모순 2건**: ① §4.2 의 `resumed` = "재개 성공 여부" 정의 ↔ gateway 는 enqueue 성공 시 `resumed: true` 하드코딩 (항상-enqueue 모델에서 동기 ack 는 재개 성공을 알 수 없음). ② 엔진 §7.5 "셋 모두 ack 에 `resumed: false` 노출" ↔ §7.5.1 "RESUME_* 는 후행 이벤트" — spec 내부 충돌.
 
@@ -190,7 +190,7 @@
 
 ### M-5 [Major] parallel branch `nodeOutputCache` shallow clone
 
-- [ ] 진행 확정 — ✅ 2026-06-10 사용자 승인 (확정안: 단기 1안 — dev/test deep freeze, spec 불변) — `containers/parallel-executor.ts:166-176`
+- [x] 완료 — ✅ 2026-06-10 (refactor-approved-batch): `freezeSharedCacheValues` dev/test deep freeze(NODE_ENV!==production), branch clone 직후 한정, production 무변경. 회귀 가드 2건. — `containers/parallel-executor.ts`
 
 **spec 대조**: **A** — `10-parallel.md:14` "variables 는 structuredClone, **nodeOutputCache 는 shallow copy 로 격리**" (:69·:149 동일) — deep clone 비용 회피 결정 포함 spec·코드 모두 의도. **단 "값 내부 mutate 금지" invariant 가 JSDoc 합의뿐** — 위반 핸들러 등장 시 last-write-wins 비결정성이 조용히 발생. (structuredClone 전환[3안]은 승인 범위 밖 — spec 개정 선행 조건 유지.)
 

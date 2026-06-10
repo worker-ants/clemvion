@@ -362,7 +362,7 @@ enforcement 비대칭.
 
 ### m-4 [Minor] database-query 노드 Pool 캐시 — credential rotation 전파 지연 ✅
 
-- [ ] 진행 확정 — ✅ 2026-06-10 사용자 승인 (pub/sub 전파) — `database-query.handler.ts:345-376`
+- [ ] ⏭️ planner 선행 후 별도 PR — ✅ 사용자 승인했으나 spec(`2-database-query §2`+Rationale+Redis 채널명) 선행 필요 + subscriber 인프라 신설로 dead-code 묶음과 규모 상이(impl-prep WARNING 2·4) → 분리. — `database-query.handler.ts:345-376`
 
 ✅ 승인(2026-06-10) — 권고안(근본: pub/sub 전파)대로 진행 확정.
 
