@@ -27,6 +27,7 @@
 flowchart LR
   subgraph Client["Client (Next.js SPA)"]
     UI[UI · Editor · Forms]
+    WIDGET[Web-chat 위젯 SPA<br/>channel-web-chat]
   end
 
   subgraph Backend["Backend (Nest.js)"]
@@ -37,6 +38,9 @@ flowchart LR
     KBS[KnowledgeBaseService]
     INTEG[IntegrationsService]
     SCHED[ScheduleRunnerService]
+    CHCH[ChatChannelDispatcher]
+    EIA[SseAdapter<br/>External Interaction SSE]
+    AMEM[AgentMemoryExtraction<br/>Processor]
   end
 
   subgraph Storage["Storage Layer"]
@@ -51,13 +55,18 @@ flowchart LR
     SMTP[SMTP / Mail]
     MCP[MCP Servers]
     WEBHOOK_IN[Webhook 호출자]
+    CHATP[Chat Platforms<br/>Telegram · Slack · Discord]
   end
 
   UI -->|REST + JWT| GW
   GW --> APP
   UI -.->|Socket.io ack/JWT| WS
+  WIDGET -->|REST embed-config · interact| APP
+  EIA -->|SSE text/event-stream| WIDGET
 
   WEBHOOK_IN -->|POST /api/hooks/:endpointPath| APP
+  CHATP -->|webhook update| APP
+  CHCH -->|provider API 발송| CHATP
 
   APP -->|TypeORM| PG
   APP -->|BullMQ enqueue| REDIS
@@ -83,6 +92,12 @@ flowchart LR
   APP -->|SMTP| SMTP
 
   WS -->|broadcast room| UI
+  WS -.->|executionEvents$ fan-out| CHCH
+  WS -.->|executionEvents$ fan-out| EIA
+
+  AMEM -->|BullMQ process| REDIS
+  AMEM -->|TypeORM + pgvector| PG
+  AMEM -->|추출 LLM 호출| LLM
 ```
 
 ### 1.2 핵심 사실
@@ -90,16 +105,18 @@ flowchart LR
 | 항목 | 사실 |
 | --- | --- |
 | Primary DB | PostgreSQL (`pgvector/pgvector:pg18` — `docker-compose.yml` 기본값; k8s local overlay `k8s/overlays/local/infra-postgres.yaml` 는 아직 `pg16`), TypeORM 매핑. 마이그레이션은 Flyway (`codebase/backend/migrations/V*.sql`). |
-| Queue | Redis 7 + BullMQ. 현재 등록된 큐: `alerts-evaluator`, `background-execution`, `cafe24-token-refresh`, `makeshop-token-refresh`, `chat-channel-token-rotator`, `document-embedding`, `execution-continuation`, `execution-run`, `graph-extraction`, `integration-expiry-scanner`, `login-history-pruner`, `notification-secret-rotator`, `notification-webhook`, `schedule-execution`. |
-| Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 (`codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts:726`). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
-| WebSocket | Socket.io. 실행 상태·KB 진행률·AI Assistant 스트리밍 emit. 단일 sink (`WebsocketService`). |
+| Queue | Redis 7 + BullMQ. 현재 등록된 큐 (15개): `agent-memory-extraction`, `alerts-evaluator`, `background-execution`, `cafe24-token-refresh`, `makeshop-token-refresh`, `chat-channel-token-rotator`, `document-embedding`, `execution-continuation`, `execution-run`, `graph-extraction`, `integration-expiry-scanner`, `login-history-pruner`, `notification-secret-rotator`, `notification-webhook`, `schedule-execution`. 상세는 [§4 카탈로그](#4-bullmq-큐-카탈로그). |
+| Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 — `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts` 의 `s3Key` 구성 (`kb/{kbId}/{docId}/{filename}`). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
+| WebSocket | Socket.io. 실행 상태·노드 이벤트·KB 진행률·background run emit. 단일 sink (`WebsocketService`) — 같은 facade 의 `executionEvents$` RxJS fan-out 을 `SseAdapter`(External Interaction)·`ChatChannelDispatcher`·`NotificationDispatcher` 가 구독한다 (`websocket.service.ts` 헤더 주석, EIA §R10). |
+| SSE | `text/event-stream` 2곳 — ① 워크플로 에디터 AI Assistant 스트리밍 (`workflow-assistant.controller.ts`, 직접 SSE write, WebSocket 미경유 — [workflow data-flow](./11-workflow.md)), ② External Interaction 라이브 이벤트 스트림 (`SseAdapter` — [external-interaction data-flow](./15-external-interaction.md)). |
 | Auth | JWT access + rotated refresh (`refresh_token` table). Bearer 또는 cookie. |
+| Secret 저장 | `secret_store` 테이블 (`@Entity('secret_store')`) — 도메인 횡단 자격증명 공통 sink. 도메인 config JSONB 는 평문 대신 SecretRef 로 간접 참조하고, 값은 `ENCRYPTION_KEY` 기반 AES-256-GCM 으로 암호화 저장. 모든 도메인 모듈 (triggers / chat-channel / external-interaction / 향후 cafe24·OAuth) 은 `SecretResolverService` 를 경유해 읽고 쓴다. SoT: [`conventions/secret-store.md`](../conventions/secret-store.md). |
 
 ---
 
 ## 2. 도메인 인덱스
 
-다음 13개 도메인 spec 이 본 폴더에 있다. 각 문서는 권장 5요소 (System role · Source→Sink 다이어그램 ·
+다음 15개 도메인 spec 이 본 폴더에 있다. 각 문서는 권장 5요소 (System role · Source→Sink 다이어그램 ·
 Schema 매핑 표 · 상태 전이 · 외부 의존) 를 따른다.
 
 | 도메인 | 파일 | 한 줄 요약 |
@@ -108,7 +125,7 @@ Schema 매핑 표 · 상태 전이 · 외부 의존) 를 따른다.
 | 워크스페이스 | [`workspace.md`](./12-workspace.md) | 워크스페이스·멤버·초대 토큰·RBAC 흐름 |
 | 워크플로우 | [`workflow.md`](./11-workflow.md) | 워크플로우·노드·엣지 CRUD, 버전 스냅샷, AI Assistant 세션 |
 | 실행 | [`execution.md`](./3-execution.md) | 워크플로우 실행 엔진·BullMQ 큐·노드 실행 로그 |
-| Knowledge Base | [`knowledge-base.md`](./6-knowledge-base.md) | KB 생성·문서 업로드·임베딩 파이프라인·Graph RAG·RAG 검색 |
+| Knowledge Base | [`knowledge-base.md`](./6-knowledge-base.md) | KB 생성·문서 업로드·임베딩 파이프라인·Graph RAG·RAG 검색·리랭킹 |
 | Integration | [`integration.md`](./5-integration.md) | 외부 OAuth credential 암호화 저장·만료 스캔·사용 로그 |
 | Trigger | [`triggers.md`](./10-triggers.md) | Webhook·Schedule·Manual trigger 진입과 Execution 연결 |
 | LLM Usage | [`llm-usage.md`](./7-llm-usage.md) | LLM Config 해석·LLM 호출·usage_log 적재 |
@@ -116,6 +133,9 @@ Schema 매핑 표 · 상태 전이 · 외부 의존) 를 따른다.
 | Notifications | [`notifications.md`](./8-notifications.md) | `notification` table·이메일·WebSocket emit 흐름 |
 | Audit | [`audit.md`](./1-audit.md) | `audit_log` 와 `login_history` 적재 흐름 |
 | Observability | [`observability.md`](./9-observability.md) | Health check·Dashboard·Statistics·Alerts evaluator |
+| Agent Memory | [`agent-memory.md`](./13-agent-memory.md) | persistent 메모리 턴 경계 추출 큐·`agent_memory` 적재·recall 주입 흐름 |
+| Chat Channel | [`chat-channel.md`](./14-chat-channel.md) | 외부 chat 플랫폼 inbound→대화 상태(Redis)→실행 연결, outbound 발송, bot token 회전 |
+| External Interaction | [`external-interaction.md`](./15-external-interaction.md) | 외부 인터랙션 토큰·interact/cancel 재개·SSE 스트림·notification webhook 발송 |
 
 ---
 
@@ -170,24 +190,27 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 | `background-execution` | `execution-engine.module.ts` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | Background 노드의 자식 흐름 |
 | `document-embedding` | `knowledge-base.module.ts` | KB 문서 업로드·재임베딩 API | `DocumentEmbeddingProcessor` | 문서 1건 임베딩 |
 | `graph-extraction` | `knowledge-base.module.ts` | 임베딩 완료 hook·재추출 API | `GraphExtractionProcessor` | 문서 1건 entity/relation 추출 |
+| `agent-memory-extraction` | `agent-memory.module.ts` | `AgentMemoryService` (AI Agent/Information Extractor `memoryStrategy: 'persistent'` 의 턴 경계 비동기 추출 enqueue — hot path 비차단, enqueue 실패는 삼킴) | `AgentMemoryExtractionProcessor` (concurrency 2) | 대화 턴 1건 메모리 추출 ([Agent Memory data-flow](./13-agent-memory.md)) |
 | `schedule-execution` | `schedules.module.ts` | `ScheduleRunnerService` (BullMQ repeatable scheduler, schedule 별 `upsertJobScheduler`) | `ScheduleRunnerService` (`@Processor`) | 스케줄 1회 실행 트리거 |
 | `alerts-evaluator` | `alerts.module.ts` | `AlertsEvaluatorService` (BullMQ repeatable scheduler, 5분 주기 `upsertJobScheduler`) | 동일 service | alert_rule 1건 평가 |
 | `integration-expiry-scanner` | `integrations.module.ts` | `IntegrationExpiryScanner` (BullMQ repeatable scheduler, daily `upsertJobScheduler`) | 동일 module 내 processor | OAuth 만료 후보 1건 처리 |
-| `cafe24-token-refresh` | `integrations.module.ts` · `cafe24.module.ts` | `IntegrationExpiryScanner` (background·0d refresh enqueue) | `Cafe24TokenRefreshProcessor` | cafe24 통합 1건 token refresh |
-| `makeshop-token-refresh` | `makeshop.module.ts` | `MakeshopApiClient` (proactive·reactive_401 enqueue — background cron 없음, refresh TTL 30~90일) | `MakeshopTokenRefreshProcessor` | makeshop 통합 1건 token refresh |
+| `cafe24-token-refresh` | `integrations.module.ts` · `cafe24.module.ts` | `IntegrationExpiryScanner` (6시간 주기 repeatable `cafe24-background-refresh`, pattern `0 */6 * * *`) · `Cafe24ApiClient` (proactive/reactive 직접 enqueue + `QueueEvents` 완료 대기) | `Cafe24TokenRefreshProcessor` | cafe24 통합 1건 token refresh |
+| `makeshop-token-refresh` | `makeshop.module.ts` | `MakeshopApiClient` (proactive·reactive_401 enqueue + MCP tool provider 가 `refreshTokenViaQueue` 로 호출하는 source `background` self-heal — scanner background cron 없음, refresh TTL 30~90일) | `MakeshopTokenRefreshProcessor` | makeshop 통합 1건 token refresh |
 | `notification-webhook` | `external-interaction.module.ts` | `NotificationDispatcher` | `NotificationWebhookProcessor` | webhook 알림 1건 발송 |
 | `login-history-pruner` | `auth.module.ts` | `LoginHistoryPrunerService` (daily scheduler, `0 3 * * *` Asia/Seoul) | 동일 service (`@Processor`) | login_history 180일 경과 prune |
 | `chat-channel-token-rotator` | `chat-channel.module.ts` | `ChatChannelTokenRotatorService` (hourly scheduler) | 동일 service (`@Processor`) | chat_channel_token_v2 24h grace 정리 |
 | `notification-secret-rotator` | `triggers.module.ts` | `NotificationSecretRotatorService` (hourly scheduler) | 동일 service (`@Processor`) | notification_secret_v2 24h grace 승격 |
 
 > 큐가 늘어나면 본 표와 해당 도메인 spec 의 `외부 의존` 섹션 모두 갱신한다.
+> 코드 측 큐 모니터링 레지스트리 `codebase/backend/src/modules/system-status/system-status.constants.ts` 의
+> `MONITORED_QUEUES` 는 본 표를 SoT 로 삼는다 — 큐 추가/삭제 시 **본 카탈로그를 먼저 갱신하고** 그 레지스트리를 동기화한다.
 
 ---
 
 ## 5. 다중 인스턴스·동시성 모델
 
 - **Stateless backend**: 모든 controller·service 는 stateless. 인스턴스 간 작업 조정은 Redis (BullMQ 영속 큐 + 보조 Pub/Sub) 가 담당.
-- **Continuation bus**: 실행 엔진은 form 제출·button click 같은 비동기 재개 신호를 BullMQ 영속 큐 `execution-continuation` (`ContinuationBusService`) 로 동기화. 옛 Redis pub/sub `execution:continuation` 채널은 폐기 (at-most-once 문제 해소 — `spec/5-system/4-execution-engine.md §7.4 / §7.5 / §Rationale "Durable Continuation"`). 어느 인스턴스가 사용자 입력을 받아도 다른 인스턴스가 BullMQ Worker 로 pick up 해 재개 가능 — 호스팅 인스턴스가 부재하면 §7.5 rehydration 경로로 진입.
+- **Continuation bus**: 실행 엔진은 form 제출·button click 같은 비동기 재개 신호를 BullMQ 영속 큐 `execution-continuation` (`ContinuationBusService`) 로 동기화. 옛 Redis pub/sub `execution:continuation` 채널은 폐기 (at-most-once 문제 해소 — `spec/5-system/4-execution-engine.md §7.4 / §7.5 / §Rationale "Durable Continuation"`). 어느 인스턴스가 사용자 입력을 받아도 다른 인스턴스가 BullMQ Worker 로 pick up 해 재개 가능. 재개는 §7.5 rehydration **단일 경로** — exec-park full B3 이후 park 가 항상 코루틴을 해제(release)하므로 깨울 in-memory resolver 가 없고, 옛 `pendingContinuations` fast-path 는 제거됐다 (`execution-engine.service.ts` 의 continuation dispatch 주석 "exec-park D6 full B3 — 단일 재개 경로").
 - **HNSW 인덱스**: pgvector HNSW 인덱스는 차원별로 분리된 partial index (`V022/V030~V033`) — KB 마다 차원이 다르면 각자 인덱스에 매칭된다.
 - **재시도 / 멱등**: BullMQ 의 `attempts` 와 service-level retry (`retryWithBackoff`) 양층. 두 층은 도메인 spec 의 상태 전이에 동기로 반영된다.
 
@@ -212,7 +235,7 @@ read/write 되는 컬럼** 만 발췌하고, 전체 정의는 `1-data-model.md` 
 ### S3 key 의 코드/spec 불일치 처리
 
 `spec/0-overview.md` §2.7 은 S3 버킷 구조를 `{bucket}/{workspaceId}/knowledge-base/{kbId}/...` 로
-기술하지만, 현재 코드 (`knowledge-base.service.ts:726`) 는 `kb/{kbId}/{docId}/{filename}` 으로
+기술하지만, 현재 코드 (`knowledge-base.service.ts` 의 `s3Key` 구성) 는 `kb/{kbId}/{docId}/{filename}` 으로
 업로드한다. data-flow 는 **현재 코드 동작이 진실** 이라는 원칙으로 후자를 기재하고,
 `file-storage.md` 의 Rationale 에 이 불일치를 명시했다. spec/0-overview.md §2.7 의 재구성은 본 작업의
 범위를 벗어나며, 별도 plan 에서 다룬다.
