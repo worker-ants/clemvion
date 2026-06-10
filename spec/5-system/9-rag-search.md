@@ -9,7 +9,6 @@ code:
 pending_plans:
   - plan/in-progress/rag-rerank-followup.md
   - plan/in-progress/rag-dynamic-cut.md
-  - plan/in-progress/kb-unsearchable-warning.md
 ---
 
 # Spec: RAG 검색 엔진
