@@ -7,10 +7,13 @@ code:
   - codebase/backend/src/nodes/integration/makeshop/makeshop.component.ts
   - codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts
   - codebase/backend/src/nodes/integration/makeshop/makeshop-token-refresh.processor.ts
+  - codebase/backend/src/nodes/integration/makeshop/makeshop.module.ts
   - codebase/backend/src/nodes/integration/makeshop/metadata/index.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts
   - codebase/backend/src/modules/integrations/integration-oauth.service.ts
+  - codebase/backend/src/modules/integrations/integrations.service.ts
   - codebase/backend/src/modules/integrations/third-party-oauth.controller.ts
+  - codebase/frontend/src/components/integrations/makeshop-allowlist-editor.tsx
 ---
 
 # Spec: MakeShop
@@ -145,7 +148,7 @@ CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?
     "response": { "error": { "code": "404", "message": "Not Found" } },
     "error": {
       "code": "MAKESHOP_404",
-      "message": "MakeShop API returned 404 — Not Found",
+      "message": "MakeShop API returned 404",
       "details": {
         "statusCode": 404,
         "shopUid": "myshop",
@@ -163,7 +166,7 @@ CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?
 |------|------|------|
 | `output.response` | runtime | 4xx/5xx 시에도 MakeShop 응답 body 보존 |
 | `output.error.code` | handler return | §6 vocabulary (`MAKESHOP_*` / `INTEGRATION_*`) |
-| `output.error.message` | handler return | `MakeShop API returned <status> — <statusText>` |
+| `output.error.message` | handler return | `MakeShop API returned <status>` (statusText 미포함 — 서버 측 사유는 `details` 의 makeshop 응답 필드로 부분 보존) |
 | `output.error.details.{statusCode, shopUid, resource, operation}` | handler return | 디버깅 컨텍스트 (`shopUid` = 호출 대상 상점) |
 | `meta.statusCode` | handler return | HTTP status (transport 실패 시 `0`) |
 | `port` | handler return | `'error'` |
@@ -191,7 +194,7 @@ CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?
 
 ## 7. 캔버스 요약
 
-[공통 §5](./0-common.md#5-캔버스-요약) — `MakeShop` 행. 요약 포맷: `{resource} · {operation}` (예: `product · get-product`). 연결 Integration 삭제 시 `⚠ Missing integration`.
+[공통 §5](./0-common.md#5-캔버스-요약) — `MakeShop` 행. 요약 포맷: `{resource} · {operation}` (예: `product · get-product`). 연결 Integration 삭제 시 `⚠ Missing integration` — **계획 (미구현)**, [공통 §5](./0-common.md#5-캔버스-요약) 의 미구현 항목 참조.
 
 ## 8. AI Agent 노출 (Internal MCP Bridge)
 

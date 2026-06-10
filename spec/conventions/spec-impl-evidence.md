@@ -31,7 +31,7 @@ code:
 - `user-guide-sync-reviewer` — code → guide 단방향
 - `nodes-coverage` / `hydration-coverage` 등 build-time 가드 — 등록부 enumeration 만
 
-→ "spec 가 약속한 surface 가 *지금* 구현됐는가" 는 어떤 검사도 묻지 않음. 본 컨벤션은 spec 파일 frontmatter 에 `status` + `code:` + `pending_plans:` 를 의무화하고, §4 의 frontmatter-evidence 가드(5건)로 정합성을 강제해 이 갭을 닫는다 (§4.0 의 지식저장소 무결성 가드는 별개 family).
+→ "spec 가 약속한 surface 가 *지금* 구현됐는가" 는 어떤 검사도 묻지 않음. 본 컨벤션은 spec 파일 frontmatter 에 `status` + `code:` + `pending_plans:` 를 의무화하고, §4 의 frontmatter-evidence 가드(4건)로 정합성을 강제해 이 갭을 닫는다 (§4.2 의 지식저장소 무결성 가드는 별개 family).
 
 ## 1. 적용 대상
 

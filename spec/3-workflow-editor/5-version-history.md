@@ -3,6 +3,7 @@ id: workflow-version-history
 status: implemented
 code:
   - codebase/frontend/src/components/editor/version-history/**
+  - codebase/backend/src/modules/workflow-versions/**
 ---
 
 # Spec: 워크플로우 버전 이력

@@ -34,7 +34,8 @@ sequenceDiagram
   participant Svc as WorkspacesService
   participant PG as Postgres
 
-  C->>Svc: POST /api/workspaces {name, type=team, slug?}
+  C->>Svc: POST /api/workspaces {name}
+  Note over Svc: type='team' 서버 고정, slug = "team-<uuid 앞 8자>" 자동 생성 (createTeam)
   Svc->>PG: INSERT workspace (name, type='team', owner_id=me, slug, settings={})
   Svc->>PG: INSERT workspace_member (workspace_id, user_id=me, role='owner', joined_at=now)
   Svc-->>C: 201 { workspace }
@@ -52,11 +53,22 @@ sequenceDiagram
 
   C->>Svc: POST /api/workspaces/:id/invitations {email, role}
   Svc->>PG: SELECT workspace_member WHERE workspace_id=:id AND user_id=me (RBAC 검사)
+  Note over Svc: team 워크스페이스 한정 (personal 은 403 workspace_type_mismatch)
+  alt 이메일이 이미 멤버
+    Svc-->>C: 409 code=already_a_member
+  end
   Svc->>Svc: token = randomBytes(48).toString('base64url')  // 64-char base64url
-  Svc->>PG: INSERT workspace_invitation (workspace_id, email, role, token, invited_by=me, expires_at=now+7d)
+  alt 동일 (workspace, email) 대기 초대 존재
+    Svc->>PG: UPDATE workspace_invitation SET token, role, invited_by=me, expires_at=now+7d (기존 토큰 즉시 무효)
+  else
+    Svc->>PG: INSERT workspace_invitation (workspace_id, email, role, token, invited_by=me, expires_at=now+7d)
+  end
   Svc->>Mail: send invite email (link with token)
   Svc-->>C: 201 { invitation }
 ```
+
+- 위 lookup+write 는 단일 트랜잭션이며, partial UNIQUE(§2.1) 경합 시 500 대신 `409 invitation_already_pending` 으로 매핑된다 (`workspace-invitations.service.ts` `create`).
+- **rate limit**: 초대 발급·재발송은 분당 10건(`workspaces.controller.ts` `INVITATION_THROTTLE`), 공개 토큰 메타 조회(`GET /api/invitations/:token`)는 분당 30건 — email-bombing / token enumeration 방어.
 
 ### 1.3 초대 수락 (이미 가입한 사용자)
 
@@ -68,13 +80,15 @@ sequenceDiagram
   participant PG as Postgres
 
   C->>Svc: POST /api/workspaces/invitations/accept {token}
-  Svc->>PG: SELECT workspace_invitation WHERE token=? AND accepted_at IS NULL AND expires_at > now
+  Svc->>PG: SELECT workspace_invitation WHERE token=?
+  Note over Svc: assertTokenUsable — 없음 404 / 사용됨 410 invitation_already_used / 만료 410 invitation_expired
   alt invitation.email != me.email
     Svc-->>C: 400 code=invitation_email_mismatch
   end
   Svc->>PG: BEGIN
-  Svc->>PG: INSERT workspace_member (workspace_id, user_id=me, role=invitation.role, joined_at=now)
-  Svc->>PG: UPDATE workspace_invitation SET accepted_at=now, accepted_by=me
+  Svc->>PG: UPDATE workspace_invitation SET accepted_at=now, accepted_by=me WHERE id=? AND accepted_at IS NULL
+  Note over Svc: atomic consume — affected=0 (동시 수락 경합) 이면 410 으로 race-out
+  Svc->>PG: INSERT workspace_member (workspace_id, user_id=me, role=invitation.role, joined_at=now)  — 이미 멤버면 skip
   Svc->>PG: COMMIT
   Svc-->>C: 200 { workspace }
 ```
@@ -88,7 +102,7 @@ sequenceDiagram
 2. `INSERT INTO workspace_member` (초대된 team workspace, `role=invitation.role`) — `invitationsService.consumeForRegistration()` 가 멤버십 삽입 + 초대 수락(accepted_at/by) 을 함께 수행
 3. `UPDATE workspace_invitation SET accepted_at, accepted_by` (위 consume 단계에 포함)
 
-> **personal workspace 는 이 경로에서 생성하지 않는다.** 초대받은 team workspace 가 가입 시 active workspace 의 진실원이며, JWT `workspaceId` 도 그 team 으로 발급된다 (`auth.service.ts` `resolveWorkspaceForToken`: "invitationToken sign-ups must NOT trigger a personal workspace"). personal workspace 는 일반(비초대) 가입 경로에서만 자동 생성된다.
+> **personal workspace 는 이 경로에서 생성하지 않는다.** 초대받은 team workspace 가 가입 시 active workspace 의 진실원이며, JWT `workspaceId` 도 그 team 으로 발급된다 (`auth.service.ts` `resolveTokenWorkspaceContext`: "invitationToken sign-ups must NOT trigger a personal workspace"). personal workspace 는 일반(비초대) 가입 경로에서만 자동 생성된다.
 
 ### 1.5 워크스페이스 전환 — 미구현 (Planned)
 
@@ -115,7 +129,7 @@ sequenceDiagram
 | --- | --- | --- |
 | `PATCH /api/workspaces/:id/members/:memberId` `{role}` | owner / admin | `UPDATE workspace_member.role`. **대상 멤버의 현재 role 이 owner 이거나 부여하려는 role 이 owner 면 무조건 차단**(`OWNER_ROLE_PROTECTED`). owner 부여/박탈은 별도 transfer-ownership 흐름으로만. |
 | `POST /api/workspaces/:id/transfer-ownership {newOwnerMemberId}` | owner (`@Roles('owner')` 가드 + service 재검증) | 단일 트랜잭션으로 (1) 현 owner.role='admin', (2) 대상 member.role='owner', (3) `workspace.owner_id = 대상.userId`. 본인 지정 시 `TARGET_IS_SELF`(400), 대상이 이미 owner 면 `TARGET_ALREADY_OWNER`(409), personal 워크스페이스는 이양 불가. `newOwnerMemberId` 는 user id 가 아니라 **member id**. |
-| `DELETE /api/workspaces/:id/members/:memberId` | owner / admin | `DELETE workspace_member`. owner 는 제거 불가. 본인 제거는 자가 탈퇴(`leaveWorkspace`)로 위임. |
+| `DELETE /api/workspaces/:id/members/:memberId` | owner / admin | `DELETE workspace_member`. owner 는 제거 불가. 본인 제거는 자가 탈퇴(`leaveWorkspace`, §1.10)로 위임. |
 
 ### 1.7 워크스페이스 설정 변경 (`settings`)
 
@@ -141,6 +155,27 @@ sequenceDiagram
   유지 — [7-channel-web-chat 보안 §2](../7-channel-web-chat/4-security.md), EIA §8.5). RBAC: [9-user-profile §4.3](../2-navigation/9-user-profile.md).
 - **Schema 매핑(§2.1)**: `workspace.settings`(JSONB) — 설정 변경은 `UPDATE workspace SET settings = settings || :patch`(부분 머지) 형태.
 
+### 1.8 초대 재발송 / 취소
+
+| 액션 | 권한 | 동작 |
+| --- | --- | --- |
+| `POST /api/workspaces/:id/invitations/:invitationId/resend` | owner / admin | 새 token 발급(기존 토큰 즉시 무효) + `expires_at = now+7d` 리셋 + `invited_by` 갱신 + 메일 재발송 (`resend`). 수락된 초대는 `409 invitation_already_accepted`. 분당 10건 throttle(§1.2). |
+| `DELETE /api/workspaces/:id/invitations/:invitationId` | owner / admin | 대기 초대 row **물리 삭제** (`revoke` — repository `remove`). 수락된 초대는 `409 invitation_already_accepted`. |
+
+### 1.9 멤버 직접 추가 (기가입 사용자)
+
+초대 토큰(§1.2~§1.4)과 **별개의 합류 경로** — `POST /api/workspaces/:id/members {email, role}`
+(`WorkspacesService.addMemberByEmail`, admin+). 이미 가입된 사용자를 메일 없이 즉시
+`INSERT workspace_member` 한다. team 전용. `role=owner` 부여 불가(`403 CANNOT_ASSIGN_OWNER`),
+미가입 이메일은 `404 USER_NOT_FOUND`(미가입자는 초대 흐름으로), 기존 멤버는 `409 ALREADY_A_MEMBER`.
+
+### 1.10 워크스페이스 삭제 / 나가기
+
+| 액션 | 권한 | 동작 |
+| --- | --- | --- |
+| `DELETE /api/workspaces/:id` | owner | team 전용(personal 은 `403 CANNOT_DELETE_PERSONAL`). 단일 트랜잭션 + 비관적 락(`pessimistic_write`)으로 멤버십·워크스페이스 row 를 잠근 뒤, FK 관계가 선언되지 않은 `workspace_invitation` 을 **명시 DELETE** → `workspace_member` DELETE → `workspace` 삭제 (`deleteWorkspace`). |
+| `POST /api/workspaces/:id/leave` | 멤버 본인 | team 전용(`403 CANNOT_LEAVE_PERSONAL`). 유일한 owner 는 `403 SOLE_OWNER_CANNOT_LEAVE` — sole-owner 판정과 멤버십 DELETE 를 비관적 락 트랜잭션 내에서 수행해 TOCTOU 방지 (`leaveWorkspace`). §1.6 의 "본인 제거는 자가 탈퇴로 위임" 이 이 흐름이다. |
+
 ---
 
 ## 2. Schema 매핑
@@ -151,16 +186,20 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | `workspace` | 생성 | INSERT `name, type IN (personal/team), owner_id, slug, settings={}, created_at` | `slug UNIQUE` (V001 컬럼 제약). personal 유일성(owner 당 1개)은 **앱 레이어**(`findOrCreatePersonalWorkspace`)로 보장 — team 다중 소유 허용이라 broad `(owner_id, type)` UNIQUE 는 두지 않음 (아래 Rationale 참고) |
 | `workspace` | 소유권 이전 | UPDATE `owner_id` | — |
-| `workspace_member` | 가입·초대 수락 | INSERT `workspace_id, user_id, role IN (owner/admin/editor/viewer), invited_at, joined_at` | `(workspace_id, user_id) UNIQUE` |
+| `workspace` | 삭제 (§1.10) | DELETE (선행: 동일 트랜잭션에서 `workspace_invitation`·`workspace_member` 명시 삭제) | — |
+| `workspace_member` | 가입·초대 수락·직접 추가(§1.9) | INSERT `workspace_id, user_id, role IN (owner/admin/editor/viewer), invited_at, joined_at` | `(workspace_id, user_id) UNIQUE` |
 | `workspace_member` | 역할 변경 | UPDATE `role` | — |
-| `workspace_invitation` | 발급 | INSERT `workspace_id, email, role IN (admin/editor/viewer), token, invited_by, expires_at = now+7d, created_at` | `token UNIQUE` (V017), `(email)` idx, `(workspace_id)` idx, 부분 UNIQUE `(workspace_id, email) WHERE accepted_at IS NULL` (대기 초대 중복 방지). owner 는 초대 role 로 불가 |
-| `workspace_invitation` | 수락 | UPDATE `accepted_at, accepted_by` | — |
+| `workspace_member` | 멤버 제거·자가 탈퇴 (§1.6, §1.10) | DELETE | — |
+| `workspace_invitation` | 발급 | INSERT `workspace_id, email, role IN (admin/editor/viewer), token, invited_by, expires_at = now+7d, created_at` — 동일 (workspace, email) 대기 초대 존재 시 INSERT 대신 해당 row UPDATE(upsert, §1.2) | `token UNIQUE` (V017), `(email)` idx, `(workspace_id)` idx, 부분 UNIQUE `(workspace_id, email) WHERE accepted_at IS NULL` (대기 초대 중복 방지). owner 는 초대 role 로 불가 |
+| `workspace_invitation` | 재발송 (§1.8) | UPDATE `token, invited_by, expires_at` | — |
+| `workspace_invitation` | 수락 | UPDATE `accepted_at, accepted_by` (guarded — `WHERE accepted_at IS NULL`) | — |
+| `workspace_invitation` | 취소(§1.8)·만료 정리(§3.1) | DELETE (revoke 물리 삭제 / `pruneExpired`) | — |
 
 ### 2.2 외부
 
 | Sink | 흐름 | 비고 |
 | --- | --- | --- |
-| SMTP | 초대 메일 발송 | `MailService.sendInvitationEmail`. SMTP 설정은 시스템 전역 (`spec/5-system/1-auth.md` Rationale 1.5.B) |
+| SMTP | 초대 메일 발송 | `MailService.sendWorkspaceInvitationEmail`. 발송 실패 시 초대 row 롤백 없이 에러 로그만 남긴다(admin 이 재발송 가능). SMTP 설정은 시스템 전역 (`spec/5-system/1-auth.md` Rationale 1.5.B) |
 
 ---
 
@@ -171,11 +210,18 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
   [*] --> Pending: INSERT (token, expires_at = now+7d)
+  Pending --> Pending: 재발급(upsert §1.2)·재발송(§1.8) — token/expires_at 갱신, 기존 token 무효
   Pending --> Accepted: 수락 (accepted_at, accepted_by 채움)
-  Pending --> Expired: now > expires_at (조회 시 거부)
+  Pending --> Expired: now > expires_at (조회 시 거부, 410 invitation_expired)
+  Pending --> Revoked: 취소 (§1.8) — row 물리 삭제
   Accepted --> [*]
   Expired --> [*]
+  Revoked --> [*]
 ```
+
+- **Expired 의 실제 수명**: 만료는 조회 시점 판정(`assertTokenUsable` → `410 invitation_expired`)일 뿐 row 는 남는다.
+  만료 row 정리용 `WorkspaceInvitationsService.pruneExpired` 가 존재하나(periodic job 용도) **현재 프로덕션 호출자가
+  없어** 만료 row 는 영구 잔존한다. 정리 job 연결은 미구현.
 
 ### 3.2 RBAC 매트릭스 (요약)
 

@@ -6,6 +6,8 @@ code:
   - codebase/backend/src/nodes/integration/makeshop/metadata/index.ts
   - codebase/backend/src/nodes/integration/makeshop/metadata/constraint-validator.ts
   - codebase/backend/src/nodes/integration/makeshop/metadata/public-meta.ts
+  - codebase/frontend/src/lib/node-definitions/types.ts
+  - codebase/frontend/src/lib/node-definitions/makeshop-extras.ts
 ---
 
 # CONVENTION: MakeShop API Metadata
@@ -22,7 +24,10 @@ code:
 
 ```
 codebase/backend/src/nodes/integration/makeshop/metadata/
-  index.ts             # 7 섹션 종합 export
+  index.ts                 # 7 섹션 종합 export
+  types.ts                 # MakeshopOperationMetadata 등 형식 타입 정의 (§2)
+  constraint-validator.ts  # 필드 constraints 검증 (oneOf / allOrNone / implies / impliesValue)
+  public-meta.ts           # frontend extras 용 strict subset (아래 노트)
   shop.ts              # Shop (상점 설정)
   product.ts           # Product (상품)
   order.ts             # Order (주문)
@@ -32,7 +37,9 @@ codebase/backend/src/nodes/integration/makeshop/metadata/
   cpik.ts              # CPIK (외부연동) — REST only. webhook 11개는 trigger 후속
 ```
 
-섹션 이름은 catalog 디렉토리 및 노드 `resource` enum 과 1:1 일치한다.
+(테스트 `catalog-sync.spec.ts`·`metadata.spec.ts` 등은 §5 동기 보호 참조.) 섹션 이름은 catalog 디렉토리 및 노드 `resource` enum 과 1:1 일치한다.
+
+> **frontend extras 노출 (`public-meta.ts`)**: `PublicMakeshopExtras` 는 노드 에디터 드롭다운용 **frontend-facing strict subset** — `method`/`path` 등 wire 세부를 client bundle 에 노출하지 않고 `labelKey`(`makeshop.<resource>.<operation>`) 기반으로만 노출한다. `labelKey` dict lookup 과 miss 시 key 그대로 노출하는 fallback 은 [Cafe24 API Metadata](./cafe24-api-metadata.md) §7.5 와 동형이되, makeshop 은 별도 승인 티어가 없어 planned tier 분기가 없다. FE 소비처는 `codebase/frontend/src/lib/node-definitions/makeshop-extras.ts` (+ 미러 타입 `types.ts`).
 
 ## 2. Operation 메타데이터 형식
 

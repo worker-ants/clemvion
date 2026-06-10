@@ -6,6 +6,8 @@ code:
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts
   - codebase/backend/src/nodes/integration/cafe24/cafe24.handler.ts
   - codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts
+  - codebase/frontend/src/lib/node-definitions/types.ts
+  - codebase/frontend/src/lib/node-definitions/cafe24-extras.ts
 ---
 
 # CONVENTION: Cafe24 API Metadata

@@ -4,6 +4,8 @@ status: partial
 code:
   - codebase/backend/src/modules/auth/**/*.ts
   - codebase/backend/src/modules/auth-configs/auth-configs.service.ts
+  - codebase/backend/src/modules/audit-logs/**/*.ts
+  - codebase/backend/src/modules/mail/**/*.ts
   - codebase/backend/src/common/guards/*.ts
   - codebase/backend/src/common/config/webauthn.config.ts
 pending_plans:
@@ -268,6 +270,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 현재 세션 식별 | 서버가 요청의 refresh-token 쿠키 해시를 조회해 `isCurrent` 플래그로 응답 — raw token은 JS로 노출하지 않음 |
 | 메타데이터 | 발급 시점의 IP·User-Agent·디바이스 라벨 및 마지막 사용 시각을 RefreshToken 에 기록 |
 | 클라이언트 IP | Cloudflare 무료 플랜 호환: `CF-Connecting-IP` 헤더를 1순위, `X-Forwarded-For` 첫 IP, `req.ip` 순으로 추출 |
+| Refresh 쿠키 Domain | `FRONTEND_URL`·`APP_URL` hostname 에서 자동 유도 (`common/config/app.config.ts` `computeCookieDomain`): 같은 host·localhost·IP → Domain 미지정 (backend origin 한정) · 공통 상위 도메인 보유 (예: `api.x.com`/`app.x.com`) → `.x.com` · 공통 도메인 없음 → 미지정 (cross-origin 은 `withCredentials` 의존). 별도 env 없음 — Rationale 2.3.A |
 
 ### 2.4 토큰 갱신 플로우
 
@@ -353,7 +356,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 - 관리자(Admin+)만 조회 가능
 - 기간, 사용자, 액션 유형으로 필터링
-- 최근 90일 보관 (설정 가능)
+- 보존 정책 **미정** — 현재는 정리 배치 없이 무제한 보관 ([Data Flow 감사 로그 §3 보존 정책](../data-flow/1-audit.md#3-보존-정책) 과 일치). "최근 90일 보관 (설정 가능)" 은 **계획(Planned)** 이며 미구현 (§4.3 LoginHistory 의 180일 일일 배치와 대조)
 
 ### 4.3 로그인 이력 (LoginHistory)
 
@@ -527,3 +530,7 @@ LoginHistoryService 는 AuthModule 과 WebAuthnModule 양쪽에 provider 로 둔
 
 - 같은 의미를 두 필드로 중복 표현하는 비용 — Swagger 문서·클라이언트 타입·DTO·테스트 mock 모두에서 노이즈 발생.
 - "두 필드 충돌 시 `requires2fa` 우선" 같은 정합성 규칙을 유지보수해야 하는 부담 제거.
+
+### 2.3.A — Refresh 쿠키 Domain 자동 유도 (명시 env 없음)
+
+Refresh 쿠키의 `Domain` 속성은 운영자 env 가 아니라 `FRONTEND_URL`/`APP_URL` 의 hostname 에서 공통 상위 도메인을 자동 유도한다 (§2.3 표, `common/config/app.config.ts` `computeCookieDomain`). 서브도메인 분리 배포(`api.x.com` / `app.x.com`)에서 별도 설정 없이 인증이 동작하고, 잘못된 명시 Domain 설정으로 쿠키가 전달되지 않는 운영 사고를 줄이기 위함이다. localhost·IP·공통 상위 도메인 부재 시에는 Domain 을 지정하지 않아 backend origin 한정으로 좁힌다 — 전혀 다른 도메인 간에는 쿠키 공유 자체가 불가능하므로 클라이언트의 `withCredentials` cross-origin 요청에 의존한다.

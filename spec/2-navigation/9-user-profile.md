@@ -4,11 +4,19 @@ status: partial
 code:
   - codebase/frontend/src/app/(main)/profile/**
   - codebase/frontend/src/app/(main)/workspace/settings/**
+  - codebase/frontend/src/components/workspace/**
   - codebase/frontend/src/lib/stores/workspace-store.ts
+  - codebase/frontend/src/lib/stores/theme-store.ts
+  - codebase/frontend/src/lib/stores/locale-store.ts
+  - codebase/frontend/src/lib/api/users.ts
+  - codebase/frontend/src/lib/api/sessions.ts
+  - codebase/frontend/src/lib/api/workspaces.ts
+  - codebase/frontend/src/lib/api/alerts.ts
   - codebase/backend/src/modules/users/**
   - codebase/backend/src/modules/workspaces/**
   - codebase/backend/src/modules/auth/sessions.controller.ts
   - codebase/backend/src/modules/notifications/**
+  - codebase/backend/src/modules/alerts/**
 pending_plans:
   - plan/in-progress/spec-sync-user-profile-gaps.md
 ---
@@ -226,7 +234,7 @@ pending_plans:
 
 ### 5.1 알림 유형별 채널
 
-> **구현 상태**: 아래 "사용자 변경 가능 (채널별 on/off)" 컬럼은 **미구현 (Planned)**. 알림 설정 조회/수정 엔드포인트(`GET/PATCH /api/notifications/settings`, §6.2)와 설정 저장 entity 가 없어, 현재는 표의 기본 채널로 고정 발송된다. (`profile/alerts` 페이지는 채널 on/off 설정이 아니라 별개의 **알림 규칙(failure_rate/duration/llm_cost 임계치)** 관리 화면이다.)
+> **구현 상태**: 아래 "사용자 변경 가능 (채널별 on/off)" 컬럼은 **미구현 (Planned)**. 알림 설정 조회/수정 엔드포인트(`GET/PATCH /api/notifications/settings`, §6.2)와 설정 저장 entity 가 없어, 현재는 표의 기본 채널로 고정 발송된다. (`profile/alerts` 페이지는 채널 on/off 설정이 아니라 별개의 **알림 규칙(failure_rate/duration/llm_cost 임계치)** 관리 화면이다 — §5.4.)
 
 | 항목 | 기본 채널 | 사용자 변경 가능 |
 |------|-----------|-----------------|
@@ -270,6 +278,16 @@ pending_plans:
 | 즉시 발송 | 실행 실패, Integration 만료, 팀 초대 |
 | 일일 요약 | 하루 동안의 실패 요약. **미구현 (Planned)** — "설정 가능" 토글은 §5.1 의 알림 설정 저장소가 없어 동작하지 않음 |
 | 수신 거부 | 이메일 하단 unsubscribe 링크 |
+
+### 5.4 알림 규칙 화면 (`/profile/alerts`)
+
+§5.1 의 채널 on/off 설정(미구현)과 별개로, **워크스페이스 단위 알림 규칙(Alert Rule)** 을 관리하는 화면이다. 실패율·평균 실행 시간·LLM 비용이 임계값을 넘으면 알림이 발사된다 — 평가 동작·스케줄은 [data-flow/9-observability.md §1.3](../data-flow/9-observability.md#13-alerts-evaluator) 참조. API 계약은 §6.3.
+
+| 항목 | 내용 |
+|------|------|
+| 규칙 목록 | 현재 워크스페이스의 모든 규칙 표시 — type(실패율/실행 시간/LLM 비용) · threshold · window · 활성 상태 컬럼. **멤버 전체 조회 가능** |
+| 생성 폼 | **Admin+ 에게만 노출** (`useHasRole("admin")`). type 선택 + threshold 숫자 입력 + window(ISO 8601 duration, 폼 기본값 `PT1H`) |
+| 활성 토글 · 삭제 | **Admin+ 전용** 행 액션. 비-admin 에게는 활성 상태가 readonly Badge 로만 표시 |
 
 ---
 
@@ -321,6 +339,17 @@ pending_plans:
 | POST | /api/notifications/:id/dismiss | 알림 단건 닫기 (soft delete, 멱등) |
 | ~~GET~~ | ~~/api/notifications/settings~~ | 알림 설정 조회 — **미구현 (Planned)**. 라우트·저장 entity 부재 (§5.1 채널 on/off 와 연동) |
 | ~~PATCH~~ | ~~/api/notifications/settings~~ | 알림 설정 수정 — **미구현 (Planned)** |
+
+### 6.3 알림 규칙 API
+
+§5.4 화면이 사용하는 워크스페이스 단위 알림 규칙 CRUD (`codebase/backend/src/modules/alerts/`). 규칙 평가·발사는 [data-flow/9-observability.md §1.3](../data-flow/9-observability.md#13-alerts-evaluator) 참조.
+
+| 메서드 | 경로 | 권한 | 설명 |
+|--------|------|------|------|
+| GET | /api/alerts | 멤버 | 현재 워크스페이스의 알림 규칙 목록 |
+| POST | /api/alerts | Admin+ | 규칙 생성. body: `type`(`failure_rate` 실패율 % \| `duration` 평균 실행 시간 ms \| `llm_cost` 누적 LLM 비용 USD) · `threshold`(number, ≥0, 단위는 type 별) · `window?`(ISO 8601 duration, 예 `PT1H` — 미지정 시 모듈 기본값) · `channel?`(`in_app` \| `email`, 기본 `in_app`) · `workflowId?`(UUID — 미지정 시 워크스페이스 전체 감시) · `enabled?`(기본 `true`) |
+| PATCH | /api/alerts/:id | Admin+ | 부분 수정 (`threshold`/`window`/`channel`/`enabled`). 워크스페이스 내 미존재 시 404 `ALERT_RULE_NOT_FOUND` |
+| DELETE | /api/alerts/:id | Admin+ | 영구 삭제 (204 No Content). 워크스페이스 내 미존재 시 404 `ALERT_RULE_NOT_FOUND` |
 
 ---
 

@@ -13,6 +13,7 @@ code:
   - codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
+  - codebase/packages/chat-channel-validation/src/index.ts
   - codebase/backend/test/chat-channel-discord.e2e-spec.ts
   - codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts
   - codebase/frontend/src/app/(main)/triggers/page.tsx

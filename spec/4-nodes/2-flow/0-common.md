@@ -41,7 +41,7 @@ Flow 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 | `output` | **Sync 모드**: 서브 워크플로우의 최종 출력. **Async 모드**: `{ executionId, workflowId, status }` 형식의 즉시 반환 메타. 두 경우 모두 분명히 다른 형태 → 노드 문서에서 case 분리 |
 | `meta` | 실행 메트릭만 (Principle 2). **현재 구현**: Sync 모드만 `meta.{durationMs}` 를 반환하고, Async 모드는 `meta` 를 반환하지 않음. `recursionDepth` 는 inline/async 호출 인자로만 전달되며 meta 로 노출하지 않음 (`workflow.handler.ts:158-169,115-123`). *계획*: `recursionDepth` / `subExecutionId` / `mode` 의 meta 노출은 미구현 (Planned). |
 | `port` | `'out'` (성공) / `'error'` (서브 워크플로우 실패, 동기 모드) |
-| `status` | Flow 노드는 비-블로킹 (sync 모드도 인라인 실행으로 즉시 종결) → `undefined` |
+| `status` | Flow 노드는 비-블로킹 → `undefined`. 단, sync 모드 sub-workflow 안에서 blocking 노드가 durable park 하면 핸들러 출력 없이 `ParkReleaseSignal` re-throw 로 세그먼트가 종료되고 [실행 엔진 §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration) rehydration 으로 재개된다 — 이 경우에도 handler 가 `status` 를 발행하는 것은 아니다 ([Workflow §4](./1-workflow.md#4-실행-로직)) |
 
 ### 2.1 에러 컨트랙트 (CONVENTIONS Principle 3)
 
@@ -72,6 +72,6 @@ Flow 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
-| Workflow | *계획*: `{workflowName 또는 workflowId} · {mode}` (`workflowName` 있으면 이름, 없으면 ID). | `Data Pipeline · sync` |
+| Workflow | `{{workflowName&#124;fallback:workflowId}} · {{mode&#124;default:sync}}` (`workflowName` 있으면 이름, 없으면 ID) | `Data Pipeline · sync` |
 
-> **현재 구현 (미완)**: `workflowNodeMetadata` 에 `summaryTemplate` 이 정의되지 않아 (`workflow.schema.ts:169-192`) 위 `{name} · {mode}` 요약은 렌더링되지 않으며, `⚠ Missing workflow` 텍스트도 존재하지 않는다 (미구현, Planned). `workflowId` 미설정 시에는 warningRule `workflow:no-workflow-selected` 가 발화해 `⚠ Target workflow must be selected.` 만 표시된다 (`workflow.schema.ts:184-190`).
+> **현재 구현**: `workflowNodeMetadata.summaryTemplate` 이 위 템플릿으로 정의되어 렌더링된다 (`workflow.schema.ts` 의 `summaryTemplate` — [Workflow §7](./1-workflow.md#7-캔버스-요약)). 대상 워크플로우가 삭제·비활성화되어 `workflowName` 이 비면 (`warnWhen: 'workflowId && !workflowName'`) `⚠ Missing workflow` 배지가 표시된다. `workflowId` 자체가 미설정이면 blocking warningRule `workflow:no-workflow-selected` 가 우선 발화해 `⚠ Target workflow must be selected.` 가 표시된다.
