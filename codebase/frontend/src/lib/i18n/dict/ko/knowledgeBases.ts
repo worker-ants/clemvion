@@ -14,7 +14,6 @@ export const knowledgeBases = {
   indexing: "인덱싱 중...",
   ready: "준비됨",
   failed: "실패",
-  embeddingModel: "임베딩 모델",
   chunkSize: "청크 크기",
   chunkOverlap: "청크 오버랩",
   created: "지식 저장소를 만들었어요",
@@ -98,9 +97,10 @@ export const knowledgeBases = {
   extractionLlm: "그래프 추출 LLM",
   extractionLlmHint:
     "그래프 추출에 사용할 LLM 설정. 비워 두면 워크스페이스 기본 LLM 을 사용해요.",
-  embeddingLlm: "임베딩 LLM",
-  embeddingLlmHint:
-    "임베딩에 사용할 LLM 설정. 비워 두면 워크스페이스 기본 LLM 을 사용해요. LLM 설정만 바꾸는 경우 재임베딩이 필요 없지만, 결과 차원이 달라지면 KB 재임베딩이 필요해요.",
+  embeddingModelConfig: "임베딩 모델 설정",
+  embeddingModelConfigHint:
+    "통합 Models 화면의 kind=embedding 설정에서 선택해요. 미지정 시 워크스페이스 기본 임베딩 설정을 사용해요.",
+  embeddingModelConfigDefaultOption: "워크스페이스 기본값",
   embeddingTestButton: "임베딩 테스트",
   embeddingTestIdle: "테스트 버튼을 누르면 모델 호출 + 차원을 확인해요.",
   embeddingTestPending: "테스트 중…",

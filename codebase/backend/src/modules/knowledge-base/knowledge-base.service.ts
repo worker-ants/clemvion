@@ -15,6 +15,7 @@ import { CreateKnowledgeBaseDto } from './dto/create-knowledge-base.dto';
 import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
 import { EmbeddingProbeDto } from './dto/embedding-probe.dto';
 import { LlmService } from '../llm/llm.service';
+import { ModelConfigService } from '../model-config/model-config.service';
 import { sanitizeLlmErrorMessage } from '../llm/utils/sanitize-error.util';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -64,6 +65,7 @@ export class KnowledgeBaseService {
     @InjectQueue(GRAPH_EXTRACTION_QUEUE)
     private readonly graphQueue: Queue<GraphExtractionJob>,
     private readonly llmService: LlmService,
+    private readonly modelConfigService: ModelConfigService,
   ) {}
 
   // ── Knowledge Base CRUD ──
@@ -205,10 +207,13 @@ export class KnowledgeBaseService {
     workspaceId: string,
     dto: EmbeddingProbeDto,
   ): Promise<{ dimension: number; provider: string }> {
-    const cfg = await this.llmService.resolveConfig(
-      dto.llmConfigId,
-      workspaceId,
-    );
+    const cfg = dto.embeddingModelConfigId
+      ? await this.modelConfigService.findEntity(
+          dto.embeddingModelConfigId,
+          workspaceId,
+          'embedding',
+        )
+      : await this.llmService.resolveConfig(dto.llmConfigId, workspaceId);
     let vectors: number[][];
     try {
       // 차원 감지용 probe — inputType 은 차원에 무관하나 명시적으로 document.

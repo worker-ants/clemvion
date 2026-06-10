@@ -16,7 +16,6 @@ export const knowledgeBases: Dict["knowledgeBases"] = {
   indexing: "Indexing...",
   ready: "Ready",
   failed: "Failed",
-  embeddingModel: "Embedding model",
   chunkSize: "Chunk size",
   chunkOverlap: "Chunk overlap",
   created: "Knowledge base created",
@@ -100,9 +99,10 @@ export const knowledgeBases: Dict["knowledgeBases"] = {
   extractionLlm: "Graph extraction LLM",
   extractionLlmHint:
     "LLM config used for graph extraction. Leave empty to use the workspace default.",
-  embeddingLlm: "Embedding LLM",
-  embeddingLlmHint:
-    "LLM config used to fetch embeddings. Leave empty to use the workspace default. Changing only the LLM config doesn't require re-embedding; if the resulting dimension differs, KB re-embedding is required.",
+  embeddingModelConfig: "Embedding model config",
+  embeddingModelConfigHint:
+    "Pick a kind=embedding config from the unified Models screen. Leave unset to use the workspace default embedding config.",
+  embeddingModelConfigDefaultOption: "Workspace default",
   embeddingTestButton: "Test embedding",
   embeddingTestIdle:
     "Tap the button to call the model and check the dimension.",

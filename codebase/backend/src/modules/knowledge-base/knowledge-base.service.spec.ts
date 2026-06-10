@@ -11,6 +11,7 @@ import { S3Service } from '../../common/services/s3.service';
 import { DOCUMENT_EMBEDDING_QUEUE } from './queues/document-embedding.queue';
 import { GRAPH_EXTRACTION_QUEUE } from './queues/graph-extraction.queue';
 import { LlmService } from '../llm/llm.service';
+import { ModelConfigService } from '../model-config/model-config.service';
 
 describe('KnowledgeBaseService', () => {
   let service: KnowledgeBaseService;
@@ -21,6 +22,7 @@ describe('KnowledgeBaseService', () => {
   let mockEmbeddingQueue: Record<string, jest.Mock>;
   let mockGraphQueue: Record<string, jest.Mock>;
   let mockLlmService: Record<string, jest.Mock>;
+  let mockModelConfigService: Record<string, jest.Mock>;
 
   beforeEach(async () => {
     const qbMock = {
@@ -95,6 +97,9 @@ describe('KnowledgeBaseService', () => {
       resolveConfig: jest.fn(),
       embed: jest.fn(),
     };
+    mockModelConfigService = {
+      findEntity: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -112,6 +117,7 @@ describe('KnowledgeBaseService', () => {
           useValue: mockGraphQueue,
         },
         { provide: LlmService, useValue: mockLlmService },
+        { provide: ModelConfigService, useValue: mockModelConfigService },
       ],
     }).compile();
 
@@ -463,6 +469,33 @@ describe('KnowledgeBaseService', () => {
         expect.objectContaining({ provider: 'openai' }),
         ['probe'],
         'text-embedding-3-small',
+        undefined,
+        'document',
+      );
+    });
+
+    it('resolves a kind=embedding ModelConfig when embeddingModelConfigId is given', async () => {
+      const embCfg = { id: 'emb-cfg-1', provider: 'tei', kind: 'embedding' };
+      mockModelConfigService.findEntity.mockResolvedValue(embCfg);
+      mockLlmService.embed.mockResolvedValue([new Array(1024).fill(0.02)]);
+
+      const result = await service.probeEmbedding('ws-1', {
+        embeddingModelConfigId: 'emb-cfg-1',
+        embeddingModel: 'bge-m3',
+      });
+
+      expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
+        'emb-cfg-1',
+        'ws-1',
+        'embedding',
+      );
+      // legacy chat resolveConfig must NOT be consulted on the 1급 path.
+      expect(mockLlmService.resolveConfig).not.toHaveBeenCalled();
+      expect(result).toEqual({ dimension: 1024, provider: 'tei' });
+      expect(mockLlmService.embed).toHaveBeenCalledWith(
+        embCfg,
+        ['probe'],
+        'bge-m3',
         undefined,
         'document',
       );

@@ -24,6 +24,15 @@ export class EmbeddingProbeDto {
   @IsUUID()
   llmConfigId?: string;
 
+  @ApiPropertyOptional({
+    description:
+      '테스트할 ModelConfig(kind=embedding). 지정 시 이 config 로 probe; 미지정 시 llmConfigId(legacy)/워크스페이스 default 사용.',
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID()
+  embeddingModelConfigId?: string;
+
   @ApiProperty({
     description: '테스트할 임베딩 모델 식별자',
     example: 'text-embedding-3-small',
