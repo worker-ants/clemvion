@@ -18,9 +18,11 @@ ALTER TABLE model_config
   ADD COLUMN kind VARCHAR(20) NOT NULL DEFAULT 'chat',
   ADD COLUMN dimension INTEGER;
 
+-- NOT VALID avoids an ACCESS EXCLUSIVE full-table scan on existing rows at deploy time.
+-- V089 VALIDATES this constraint in a separate transaction (short lock, rows already clean).
 ALTER TABLE model_config
   ADD CONSTRAINT chk_model_config_kind
-    CHECK (kind IN ('chat', 'embedding', 'rerank'));
+    CHECK (kind IN ('chat', 'embedding', 'rerank')) NOT VALID;
 
 -- 자가호스팅(local/tei) 및 rerank 흡수를 위해 api_key NULL 허용으로 완화.
 ALTER TABLE model_config ALTER COLUMN api_key DROP NOT NULL;

@@ -22,6 +22,11 @@ CREATE UNIQUE INDEX model_config_workspace_kind_default_unique
   ON model_config (workspace_id, kind)
   WHERE is_default = true;
 
+-- Validate the NOT VALID constraint added in V088 — rows are already clean after
+-- the UPDATE above, so this takes only a brief ShareUpdateExclusiveLock instead of
+-- the full-table ACCESS EXCLUSIVE acquired by adding a validated constraint.
+ALTER TABLE model_config VALIDATE CONSTRAINT chk_model_config_kind;
+
 -- 트리거 이름 정리(동작 동일 — V001 공용 함수 재사용).
 ALTER TRIGGER trg_llm_config_updated_at ON model_config
   RENAME TO trg_model_config_updated_at;

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { ModelConfigService } from './model-config.service';
 import { ModelConfig } from './entities/model-config.entity';
 import { encrypt, decrypt } from '../../common/utils/crypto.util';
+import * as ssrfUtil from '../../common/utils/ssrf.util';
 import { randomBytes } from 'crypto';
 
 const ENCRYPTION_KEY = randomBytes(32).toString('hex');
@@ -194,6 +195,146 @@ describe('ModelConfigService', () => {
     });
   });
 
+  // ── update ──────────────────────────────────────────────────────────────────
+
+  describe('update', () => {
+    const baseConfig = (overrides: Partial<ModelConfig> = {}): ModelConfig =>
+      ({
+        id: 'cfg-1',
+        workspaceId: 'ws-1',
+        kind: 'chat',
+        provider: 'openai',
+        name: 'Test',
+        apiKey: encrypt('sk-original-key-1234', ENCRYPTION_KEY),
+        baseUrl: null,
+        defaultModel: 'gpt-4o',
+        defaultParams: {},
+        dimension: null,
+        isDefault: false,
+        ...overrides,
+      }) as ModelConfig;
+
+    it('patches defaultParams only for chat kind', async () => {
+      mockRepo.findOne.mockResolvedValue(baseConfig({ kind: 'chat' }));
+      const dto = { defaultParams: { temperature: 0.5 } };
+      await service.update('cfg-1', 'ws-1', dto);
+      const saved = mockRepo.save.mock.calls[0][0];
+      expect(saved.defaultParams).toEqual({ temperature: 0.5 });
+    });
+
+    it('ignores defaultParams for embedding kind', async () => {
+      mockRepo.findOne.mockResolvedValue(
+        baseConfig({ kind: 'embedding', defaultParams: {} }),
+      );
+      const dto = { defaultParams: { temperature: 0.9 } };
+      await service.update('cfg-1', 'ws-1', dto);
+      const saved = mockRepo.save.mock.calls[0][0];
+      // embedding kind must not absorb defaultParams
+      expect(saved.defaultParams).toEqual({});
+    });
+
+    it('patches dimension only for embedding kind', async () => {
+      mockRepo.findOne.mockResolvedValue(
+        baseConfig({ kind: 'embedding', dimension: null }),
+      );
+      const dto = { dimension: 768 };
+      await service.update('cfg-1', 'ws-1', dto);
+      const saved = mockRepo.save.mock.calls[0][0];
+      expect(saved.dimension).toBe(768);
+    });
+
+    it('ignores dimension for chat kind', async () => {
+      mockRepo.findOne.mockResolvedValue(baseConfig({ kind: 'chat' }));
+      const dto = { dimension: 512 };
+      await service.update('cfg-1', 'ws-1', dto);
+      const saved = mockRepo.save.mock.calls[0][0];
+      expect(saved.dimension).toBeNull();
+    });
+
+    it('re-encrypts apiKey when provided', async () => {
+      mockRepo.findOne.mockResolvedValue(baseConfig());
+      const newKey = 'sk-new-key-abcde12345';
+      await service.update('cfg-1', 'ws-1', { apiKey: newKey });
+      const saved = mockRepo.save.mock.calls[0][0];
+      expect(saved.apiKey).not.toBe(newKey);
+      expect(decrypt(saved.apiKey, ENCRYPTION_KEY)).toBe(newKey);
+    });
+
+    it('does NOT change apiKey when apiKey is absent from dto', async () => {
+      const original = encrypt('sk-original-key-1234', ENCRYPTION_KEY);
+      mockRepo.findOne.mockResolvedValue(baseConfig({ apiKey: original }));
+      await service.update('cfg-1', 'ws-1', { name: 'Renamed' });
+      const saved = mockRepo.save.mock.calls[0][0];
+      expect(saved.apiKey).toBe(original);
+    });
+
+    it('isDefault=true triggers saveWithDefaultSwap transaction', async () => {
+      mockRepo.findOne.mockResolvedValue(baseConfig());
+      let txCalled = false;
+      mockRepo.manager.transaction.mockImplementation(
+        async (
+          cb: (m: {
+            update: jest.Mock;
+            save: jest.Mock;
+          }) => Promise<ModelConfig>,
+        ) => {
+          txCalled = true;
+          const txManager = {
+            update: jest.fn().mockResolvedValue(undefined),
+            save: jest
+              .fn()
+              .mockImplementation((_, entity) => Promise.resolve(entity)),
+          };
+          return cb(txManager);
+        },
+      );
+      await service.update('cfg-1', 'ws-1', { isDefault: true });
+      expect(txCalled).toBe(true);
+    });
+
+    it('isDefault=false sets isDefault to false without transaction', async () => {
+      mockRepo.findOne.mockResolvedValue(baseConfig({ isDefault: true }));
+      await service.update('cfg-1', 'ws-1', { isDefault: false });
+      const saved = mockRepo.save.mock.calls[0][0];
+      expect(saved.isDefault).toBe(false);
+      expect(mockRepo.manager.transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── create — ENCRYPTION_KEY_MISSING error path ───────────────────────────
+
+  describe('ENCRYPTION_KEY_MISSING', () => {
+    it('throws ENCRYPTION_KEY_MISSING when encryptionKey is empty', async () => {
+      // Build a service instance with no encryption key configured
+      const moduleNoKey: TestingModule = await Test.createTestingModule({
+        providers: [
+          ModelConfigService,
+          { provide: getRepositoryToken(ModelConfig), useValue: mockRepo },
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn().mockReturnValue(''), // empty encryption key
+            },
+          },
+        ],
+      }).compile();
+      const svcNoKey = moduleNoKey.get<ModelConfigService>(ModelConfigService);
+
+      const dto = {
+        kind: 'chat' as const,
+        provider: 'openai' as const,
+        name: 'X',
+        apiKey: 'sk-anything',
+        defaultModel: 'gpt-4o',
+      };
+      await expect(svcNoKey.create('ws-1', 'chat', dto)).rejects.toMatchObject({
+        response: { code: 'ENCRYPTION_KEY_MISSING' },
+      });
+    });
+  });
+
+  // ── setDefault — kind scope isolation ────────────────────────────────────
+
   describe('setDefault', () => {
     it('swaps default within the entity kind scope', async () => {
       mockRepo.findOne.mockResolvedValue({
@@ -204,7 +345,50 @@ describe('ModelConfigService', () => {
       await service.setDefault('test-id', 'ws-1');
       expect(mockRepo.manager.transaction).toHaveBeenCalled();
     });
+
+    it('scopes the "unset default" UPDATE to workspaceId × kind', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'cfg-emb',
+        workspaceId: 'ws-1',
+        kind: 'embedding',
+      });
+
+      const updateCalls: Array<Record<string, unknown>> = [];
+      mockRepo.manager.transaction.mockImplementation(
+        async (cb: (m: { update: jest.Mock }) => Promise<void>) => {
+          const txManager = {
+            update: jest.fn().mockImplementation((_, condition) => {
+              updateCalls.push(condition as Record<string, unknown>);
+              return Promise.resolve(undefined);
+            }),
+          };
+          await cb(txManager);
+        },
+      );
+
+      await service.setDefault('cfg-emb', 'ws-1');
+
+      // The first update call (unset old default) must scope to workspaceId × kind
+      expect(updateCalls[0]).toMatchObject({
+        workspaceId: 'ws-1',
+        kind: 'embedding',
+        isDefault: true,
+      });
+    });
+
+    it('throws NotFoundException when kind mismatch via expectedKind guard', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'rerank-id',
+        workspaceId: 'ws-1',
+        kind: 'rerank',
+      });
+      await expect(
+        service.setDefault('rerank-id', 'ws-1', 'chat'),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
+    });
   });
+
+  // ── resolveConfig ─────────────────────────────────────────────────────────
 
   describe('resolveConfig', () => {
     it('throws when no id and no default for the kind', async () => {
@@ -213,7 +397,38 @@ describe('ModelConfigService', () => {
         service.resolveConfig(undefined, 'ws-1', 'rerank'),
       ).rejects.toThrow();
     });
+
+    it('returns entity by id when id is provided', async () => {
+      const entity = {
+        id: 'cfg-1',
+        workspaceId: 'ws-1',
+        kind: 'chat',
+        apiKey: null,
+      } as ModelConfig;
+      mockRepo.findOne.mockResolvedValue(entity);
+      const result = await service.resolveConfig('cfg-1', 'ws-1', 'chat');
+      expect(result).toBe(entity);
+      expect(mockRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'cfg-1', workspaceId: 'ws-1' },
+      });
+    });
+
+    it('returns default entity when id is undefined and default exists', async () => {
+      const defaultEntity = {
+        id: 'default-cfg',
+        workspaceId: 'ws-1',
+        kind: 'chat',
+        isDefault: true,
+        apiKey: null,
+      } as ModelConfig;
+      // findEntity (for id path) returns null; findDefault returns defaultEntity
+      mockRepo.findOne.mockResolvedValueOnce(defaultEntity); // called by findDefault
+      const result = await service.resolveConfig(undefined, 'ws-1', 'chat');
+      expect(result).toBe(defaultEntity);
+    });
   });
+
+  // ── SSRF guard ────────────────────────────────────────────────────────────
 
   describe('SSRF guard', () => {
     it('rejects an external (cohere) baseUrl pointing to a loopback/link-local host', async () => {
@@ -258,6 +473,72 @@ describe('ModelConfigService', () => {
         service.update('r1', 'ws-1', { provider: 'cohere' }),
       ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_INVALID' } });
       expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects a domain-based SSRF that resolves to a private address', async () => {
+      // Mock resolvesToPrivate to simulate attacker.com → 10.0.0.1
+      const spy = jest
+        .spyOn(ssrfUtil, 'resolvesToPrivate')
+        .mockResolvedValue(true);
+
+      const dto = {
+        kind: 'chat' as const,
+        provider: 'openai' as const,
+        name: 'SSRF via DNS',
+        apiKey: 'sk-test-dns-ssrf-1234',
+        baseUrl: 'http://attacker.com/evil',
+        defaultModel: 'gpt-4o',
+      };
+      await expect(service.create('ws-1', 'chat', dto)).rejects.toMatchObject({
+        response: { code: 'MODEL_CONFIG_INVALID' },
+      });
+      expect(spy).toHaveBeenCalled();
+      expect(mockRepo.save).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('allows a domain whose DNS does NOT resolve to a private address', async () => {
+      const spy = jest
+        .spyOn(ssrfUtil, 'resolvesToPrivate')
+        .mockResolvedValue(false);
+
+      const dto = {
+        kind: 'chat' as const,
+        provider: 'openai' as const,
+        name: 'External LLM proxy',
+        apiKey: 'sk-test-proxy-key-1234',
+        baseUrl: 'https://proxy.example.com/v1',
+        defaultModel: 'gpt-4o',
+      };
+      await expect(service.create('ws-1', 'chat', dto)).resolves.toBeDefined();
+      expect(spy).toHaveBeenCalled();
+      spy.mockRestore();
+    });
+  });
+
+  // ── findEntity — expectedKind guard ──────────────────────────────────────
+
+  describe('findEntity expectedKind guard', () => {
+    it('returns entity when kind matches expectedKind', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'cfg-1',
+        workspaceId: 'ws-1',
+        kind: 'chat',
+      });
+      const entity = await service.findEntity('cfg-1', 'ws-1', 'chat');
+      expect(entity).toBeDefined();
+    });
+
+    it('throws NOT_FOUND when kind mismatches expectedKind (cross-kind leak prevention)', async () => {
+      // rerank config accessed via chat alias path
+      mockRepo.findOne.mockResolvedValue({
+        id: 'rerank-1',
+        workspaceId: 'ws-1',
+        kind: 'rerank',
+      });
+      await expect(
+        service.findEntity('rerank-1', 'ws-1', 'chat'),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
     });
   });
 });

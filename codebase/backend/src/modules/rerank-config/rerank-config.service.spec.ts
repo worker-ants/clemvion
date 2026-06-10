@@ -76,4 +76,30 @@ describe('RerankConfigService (rerank alias)', () => {
   it('getDecryptedApiKey passes through null (self-hosted)', () => {
     expect(service.getDecryptedApiKey({ apiKey: null } as any)).toBeNull();
   });
+
+  it("update delegates with expectedKind='rerank'", async () => {
+    const dto = { name: 'Renamed' };
+    await service.update('r1', 'ws-1', dto);
+    expect(mc.update).toHaveBeenCalledWith('r1', 'ws-1', dto, 'rerank');
+  });
+
+  it("setDefault delegates with expectedKind='rerank'", async () => {
+    await service.setDefault('r1', 'ws-1');
+    expect(mc.setDefault).toHaveBeenCalledWith('r1', 'ws-1', 'rerank');
+  });
+
+  it("remove delegates with expectedKind='rerank'", async () => {
+    await service.remove('r1', 'ws-1');
+    expect(mc.remove).toHaveBeenCalledWith('r1', 'ws-1', 'rerank');
+  });
+
+  it("findById delegates with expectedKind='rerank'", async () => {
+    await service.findById('r1', 'ws-1');
+    expect(mc.findById).toHaveBeenCalledWith('r1', 'ws-1', 'rerank');
+  });
+
+  it("findEntity delegates with expectedKind='rerank'", async () => {
+    await service.findEntity('r1', 'ws-1');
+    expect(mc.findEntity).toHaveBeenCalledWith('r1', 'ws-1', 'rerank');
+  });
 });

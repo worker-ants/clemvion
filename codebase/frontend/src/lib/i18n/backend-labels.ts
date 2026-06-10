@@ -572,6 +572,13 @@ export const ERROR_KO: Record<string, string> = {
   // wall-clock 이 아닌 active 세그먼트 누적 시간(waiting_for_input 제외) 기준.
   EXECUTION_TIME_LIMIT_EXCEEDED:
     "실행 시간 한도(최대 active 실행 누적 시간)를 초과했어요.",
+  // PR1 — 통합 모델 설정(ModelConfig) 에러 코드 (spec/2-navigation/6-config.md).
+  MODEL_CONFIG_INVALID:
+    "모델 설정 값이 올바르지 않아요. 입력 내용을 확인해 주세요.",
+  MODEL_CONFIG_NOT_FOUND:
+    "해당 모델 설정을 찾을 수 없어요.",
+  ENCRYPTION_KEY_MISSING:
+    "암호화 키가 설정되어 있지 않아요. 관리자에게 문의해 주세요.",
 };
 
 /**

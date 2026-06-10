@@ -7,10 +7,11 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
 /**
- * DEPRECATED — 리랭커 설정은 통합 ModelConfig(kind='rerank') 로 흡수됐다.
+ * @deprecated — PR4(plan/in-progress/unified-model-management.md) 에서 제거 예정.
+ * 리랭커 설정은 통합 ModelConfig(kind='rerank') 로 흡수됐다.
  * 본 서비스는 기존 소비자(rerank.service·구 /rerank-configs 컨트롤러)의 무변경을 위한
  * thin alias 로, 모든 호출을 kind='rerank' 로 ModelConfigService 에 위임한다.
- * PR4 에서 제거 예정. (spec/2-navigation/6-config.md Part B.6)
+ * (spec/2-navigation/6-config.md Part B.6)
  */
 @Injectable()
 export class RerankConfigService {
@@ -24,11 +25,12 @@ export class RerankConfigService {
   }
 
   findById(id: string, workspaceId: string): Promise<Record<string, unknown>> {
-    return this.modelConfigService.findById(id, workspaceId);
+    // Pass expectedKind to prevent cross-kind leak via deprecated /api/rerank-configs
+    return this.modelConfigService.findById(id, workspaceId, 'rerank');
   }
 
   findEntity(id: string, workspaceId: string): Promise<ModelConfig> {
-    return this.modelConfigService.findEntity(id, workspaceId);
+    return this.modelConfigService.findEntity(id, workspaceId, 'rerank');
   }
 
   findDefault(workspaceId: string): Promise<ModelConfig | null> {
@@ -62,15 +64,15 @@ export class RerankConfigService {
     workspaceId: string,
     dto: UpdateRerankConfigDto,
   ): Promise<Record<string, unknown>> {
-    return this.modelConfigService.update(id, workspaceId, dto);
+    return this.modelConfigService.update(id, workspaceId, dto, 'rerank');
   }
 
   setDefault(id: string, workspaceId: string): Promise<void> {
-    return this.modelConfigService.setDefault(id, workspaceId);
+    return this.modelConfigService.setDefault(id, workspaceId, 'rerank');
   }
 
   remove(id: string, workspaceId: string): Promise<void> {
-    return this.modelConfigService.remove(id, workspaceId);
+    return this.modelConfigService.remove(id, workspaceId, 'rerank');
   }
 
   /** rerank apiKey 는 tei/local 셀프호스팅에서 null 일 수 있다. */

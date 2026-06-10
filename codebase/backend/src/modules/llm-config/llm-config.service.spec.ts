@@ -76,4 +76,30 @@ describe('LlmConfigService (chat alias)', () => {
     mc.getDecryptedApiKey.mockReturnValue(null);
     expect(service.getDecryptedApiKey({} as ModelConfig)).toBe('');
   });
+
+  it("update delegates with expectedKind='chat'", async () => {
+    const dto = { name: 'Renamed' };
+    await service.update('cfg-1', 'ws-1', dto);
+    expect(mc.update).toHaveBeenCalledWith('cfg-1', 'ws-1', dto, 'chat');
+  });
+
+  it("setDefault delegates with expectedKind='chat'", async () => {
+    await service.setDefault('cfg-1', 'ws-1');
+    expect(mc.setDefault).toHaveBeenCalledWith('cfg-1', 'ws-1', 'chat');
+  });
+
+  it("remove delegates with expectedKind='chat'", async () => {
+    await service.remove('cfg-1', 'ws-1');
+    expect(mc.remove).toHaveBeenCalledWith('cfg-1', 'ws-1', 'chat');
+  });
+
+  it("findById delegates with expectedKind='chat'", async () => {
+    await service.findById('cfg-1', 'ws-1');
+    expect(mc.findById).toHaveBeenCalledWith('cfg-1', 'ws-1', 'chat');
+  });
+
+  it("findEntity delegates with expectedKind='chat'", async () => {
+    await service.findEntity('cfg-1', 'ws-1');
+    expect(mc.findEntity).toHaveBeenCalledWith('cfg-1', 'ws-1', 'chat');
+  });
 });

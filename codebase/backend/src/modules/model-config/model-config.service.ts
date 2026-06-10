@@ -63,14 +63,27 @@ export class ModelConfigService {
   async findById(
     id: string,
     workspaceId: string,
+    expectedKind?: ModelConfigKind,
   ): Promise<Record<string, unknown>> {
-    const config = await this.findEntity(id, workspaceId);
+    const config = await this.findEntity(id, workspaceId, expectedKind);
     return this.maskApiKey(config);
   }
 
-  async findEntity(id: string, workspaceId: string): Promise<ModelConfig> {
+  async findEntity(
+    id: string,
+    workspaceId: string,
+    expectedKind?: ModelConfigKind,
+  ): Promise<ModelConfig> {
     const config = await this.repo.findOne({ where: { id, workspaceId } });
     if (!config) {
+      throw new NotFoundException({
+        code: 'MODEL_CONFIG_NOT_FOUND',
+        message: 'Model config not found',
+      });
+    }
+    if (expectedKind && config.kind !== expectedKind) {
+      // Cross-kind access via deprecated alias endpoints is a security violation —
+      // treat as not-found so as not to leak existence of other-kind configs.
       throw new NotFoundException({
         code: 'MODEL_CONFIG_NOT_FOUND',
         message: 'Model config not found',
@@ -142,8 +155,9 @@ export class ModelConfigService {
     id: string,
     workspaceId: string,
     dto: UpdateModelConfigDto,
+    expectedKind?: ModelConfigKind,
   ): Promise<Record<string, unknown>> {
-    const config = await this.findEntity(id, workspaceId);
+    const config = await this.findEntity(id, workspaceId, expectedKind);
 
     const effectiveProvider = dto.provider ?? config.provider;
     const effectiveBaseUrl =
@@ -199,8 +213,12 @@ export class ModelConfigService {
     });
   }
 
-  async setDefault(id: string, workspaceId: string): Promise<void> {
-    const config = await this.findEntity(id, workspaceId);
+  async setDefault(
+    id: string,
+    workspaceId: string,
+    expectedKind?: ModelConfigKind,
+  ): Promise<void> {
+    const config = await this.findEntity(id, workspaceId, expectedKind);
     await this.repo.manager.transaction(async (manager) => {
       await manager.update(
         ModelConfig,
@@ -215,8 +233,12 @@ export class ModelConfigService {
     });
   }
 
-  async remove(id: string, workspaceId: string): Promise<void> {
-    const config = await this.findEntity(id, workspaceId);
+  async remove(
+    id: string,
+    workspaceId: string,
+    expectedKind?: ModelConfigKind,
+  ): Promise<void> {
+    const config = await this.findEntity(id, workspaceId, expectedKind);
     await this.repo.remove(config);
   }
 
