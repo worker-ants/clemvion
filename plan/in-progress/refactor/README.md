@@ -17,7 +17,7 @@
 
 | 문서 | 원 건수 | 유효 | 철회(E) | ⚠️ A-잔존문제 | 핵심 주제 |
 | --- | --- | --- | --- | --- | --- |
-| [01-performance.md](./01-performance.md) | 15 | 14 | 1 (#9) | 0 | N+1, 직렬 I/O, 프론트 O(N²) — #11/#13/#15 는 측정 선행 강등 |
+| [01-performance.md](./01-performance.md) | 15 | 13 | 2 (#9 철회, #13 종결) | 0 | N+1, 직렬 I/O, 프론트 O(N²) — ✅ 결정(2026-06-10): 전반 권장안 진행, #2=B안 확정(실검증), #13=C 종결 |
 | [02-architecture.md](./02-architecture.md) | 15 | 15 | 0 | 2 (C-2 일부, M-5) | god-class 분할, forwardRef(엔진↔WS 는 spec 의도), 레이어 침범 |
 | [03-maintainability.md](./03-maintainability.md) | 15 | 14 | 1 (M-3) | 4 (C-3, M-4, M-6, m-2) | 거대 메서드, cafe24/makeshop 미러(DRY-deferral 문서화됨) |
 | [04-security.md](./04-security.md) | 14 | 14 | 0 | 4 (C-2, M-2, M-3, m-4) | vm 탈출(spec 인지 트레이드오프), SSRF spec 내부 모순, WS 채널 spec 갭 |
