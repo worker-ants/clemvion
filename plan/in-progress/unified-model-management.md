@@ -167,6 +167,12 @@ related_plan:
 - [x] (b) PR0 spec 개정 완료 (88eec577).
 - [x] (c) PR 범위 상세 — 본 §4에 반영 완료, spec 확정 후 developer 위임.
 - [x] PR1 backend 구현 (acf2eaa8) + /ai-review 후속 수정 (577c9a6c, b1c37ac1).
+- [x] PR2 embedding 1급화 backend (V091 + resolveEmbedding 폴백) + SPEC-DRIFT spec 반영 + /ai-review + `--impl-done` BLOCK:NO.
+- [x] PR3 frontend 통합 `/models` 페이지 (353235b5) + i18n ratchet fix (176579f1) + user-guide(662f81f5).
+  - [x] TEST WORKFLOW lint·unit·build·e2e(179/179) 통과.
+  - [x] `/ai-review`(review/code/2026/06/11/00_30_05) — Critical 0, WARNING 12 → 11 fix(a1191baf) + 1 SPEC-DRIFT(maxTokens 4096) spec 반영(085a7d08, `--spec` BLOCK:NO).
+  - [x] `/consistency-check --impl-done`(01_04_49) BLOCK:NO. 비차단 WARNING 일부 fix(55e14ad1), 나머지 followup 이관.
+  - [ ] **이월(별 followup)**: KB 폼 embedding select 1급화(`config-models-followup-kb-embedding-ui.md`) · ModelConfigManager SRP 분리(`model-config-manager-refactor-followup.md`) · LLM→Models 명칭 전파+user-guide 통합(`models-rename-docs-unify-followup.md`).
 
 ## 7. PR1 /ai-review 후속 — 보류·후속 항목 (PR3/PR4 트리거)
 
