@@ -284,10 +284,11 @@ sequenceDiagram
         alt remain ≤ 0d
           Scan->>PG: UPDATE integration SET status='expired', status_reason='token_expired'
         else remain > 0d
-          Note over Scan: 알림만 (status 보존)
+          Note over Scan: status 보존
         end
+        Scan->>Noti: notify integration_expired (수신자: personal→소유자 / organization→Admin, email 은 preferences 따라 both)
+        Note over Scan,Noti: passive 알림은 refresh_token 없는 provider 만 (§11.2)
       end
-      Scan->>Noti: notify integration_expired (수신자: personal→소유자 / organization→Admin, email 은 preferences 따라 both)
     end
   and
     PT->>Q: enqueue { name: 'pending-install-ttl', triggeredAt }
