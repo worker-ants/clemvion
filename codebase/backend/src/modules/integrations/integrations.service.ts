@@ -138,6 +138,32 @@ function clampApiField(
   return raw.slice(0, max - 1) + '…';
 }
 
+/**
+ * provider operation 메타데이터 리스트를 `OperationCatalogDto` 로 투영한다.
+ * cafe24·makeshop 의 catalog key 조립이 동일해 (`<provider>.<resource>.<id>`)
+ * 단일 헬퍼로 묶는다 — `key`/`labelKey` 동일성과 `descriptionKey` suffix
+ * 규칙을 한곳에서 보장. 새 provider 추가 시 분기 한 줄만 늘리면 된다.
+ */
+function buildOperationCatalog(
+  provider: 'cafe24' | 'makeshop',
+  ops: ReadonlyArray<{
+    resource: string;
+    operation: { id: string; method: string; path: string };
+  }>,
+): OperationCatalogDto {
+  const operations = ops.map(({ resource, operation }) => {
+    const key = `${provider}.${resource}.${operation.id}`;
+    return {
+      key,
+      method: operation.method,
+      path: operation.path,
+      labelKey: key,
+      descriptionKey: `${key}.description`,
+    };
+  });
+  return { operations };
+}
+
 export const API_LABEL_MAX = 128;
 export const API_METHOD_MAX = 8;
 export const API_PATH_MAX = 256;
@@ -1165,28 +1191,10 @@ export class IntegrationsService {
    */
   getServiceCatalog(serviceType: string): OperationCatalogDto {
     if (serviceType === 'cafe24') {
-      const operations = listAllCafe24Operations().map(
-        ({ resource, operation }) => ({
-          key: `cafe24.${resource}.${operation.id}`,
-          method: operation.method,
-          path: operation.path,
-          labelKey: `cafe24.${resource}.${operation.id}`,
-          descriptionKey: `cafe24.${resource}.${operation.id}.description`,
-        }),
-      );
-      return { operations };
+      return buildOperationCatalog('cafe24', listAllCafe24Operations());
     }
     if (serviceType === 'makeshop') {
-      const operations = listAllMakeshopOperations().map(
-        ({ resource, operation }) => ({
-          key: `makeshop.${resource}.${operation.id}`,
-          method: operation.method,
-          path: operation.path,
-          labelKey: `makeshop.${resource}.${operation.id}`,
-          descriptionKey: `makeshop.${resource}.${operation.id}.description`,
-        }),
-      );
-      return { operations };
+      return buildOperationCatalog('makeshop', listAllMakeshopOperations());
     }
     return { operations: [] };
   }

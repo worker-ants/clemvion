@@ -1876,6 +1876,7 @@ describe('IntegrationsService', () => {
       const sample = result.operations[0];
       expect(sample.key).toMatch(/^cafe24\.[a-z0-9_]+\.[a-z0-9_]+$/i);
       expect(sample.labelKey).toBe(sample.key);
+      expect(sample.descriptionKey).toBe(`${sample.key}.description`);
       expect(typeof sample.method).toBe('string');
       expect(typeof sample.path).toBe('string');
     });
@@ -1888,6 +1889,7 @@ describe('IntegrationsService', () => {
       // (= frontend makeshopCatalog dict lookup 키). spec §9.3 초기 응답 정책.
       expect(sample.key).toMatch(/^makeshop\.[a-z0-9_]+\.[a-z0-9_-]+$/i);
       expect(sample.labelKey).toBe(sample.key);
+      expect(sample.descriptionKey).toBe(`${sample.key}.description`);
       expect(['GET', 'POST']).toContain(sample.method);
       expect(typeof sample.path).toBe('string');
     });
