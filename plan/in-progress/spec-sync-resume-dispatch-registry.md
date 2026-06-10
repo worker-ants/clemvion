@@ -18,7 +18,7 @@ owner: planner
   + 단일 `dispatchResumeTurn`(`resume-turn-dispatch.ts`)로 추출. 동작·매핑 보존.
 
 ## 항목 (planner — spec write)
-- [ ] **W1** `spec/5-system/4-execution-engine.md` §7.5 다이어그램(L905 영역)·§6.2 최내 frame
+- [x] **W1** (2026-06-10 spec 전수 감사에서 반영 완료 — §7.5 다이어그램·최내 frame 서술에 `dispatchResumeTurn`/`resumeTurnRegistry`/`resume-turn-dispatch.ts` 반영, branch claude/spec-sync-audit-998544) `spec/5-system/4-execution-engine.md` §7.5 다이어그램(L905 영역)·§6.2 최내 frame
       서술(L922 영역)에 "form/buttons/ai 분기는 `dispatchResumeTurn`(ordered `resumeTurnRegistry`,
       `resume-turn-dispatch.ts`) 단일 진입점으로 라우팅; AI 는 `handleAiResumeTurn` 경유" 한 줄 반영.
       기존 "form→processFormResumeTurn ..." 매핑 서술은 그대로 정합(처리기 불변) — indirection 레이어만 추가 기술.

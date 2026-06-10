@@ -7,7 +7,7 @@ code:
   - codebase/backend/src/common/swagger/error-response.dto.ts
   - codebase/backend/src/nodes/core/error-codes.ts
   - codebase/backend/src/modules/execution-engine/error/error-policy.handler.ts
-  - codebase/backend/src/modules/health/health.service.ts
+  - codebase/backend/src/modules/health/**/*.ts
 ---
 
 # Spec: 에러 처리 정책
@@ -44,8 +44,11 @@ code:
 | 코드 | 설명 | HTTP |
 |------|------|------|
 | `VALIDATION_ERROR` | 요청 데이터 유효성 실패 | 400 |
+| `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트 부재 — `X-Workspace-Id` 헤더와 JWT `workspaceId` 둘 다 없음 (`common/decorators/workspace.decorator.ts` 발행) | 400 |
 | `RESOURCE_NOT_FOUND` | 리소스 없음 | 404 |
 | `RESOURCE_CONFLICT` | 리소스 충돌 (이름 중복 등) | 409 |
+| `DUPLICATE_NODE_LABEL` | 노드 라벨 중복 — `RESOURCE_CONFLICT` 의 노드 라벨 특화 코드 (`nodes.service.ts`·캔버스 bulk save 경로의 `workflows.service.ts` 발행) | 409 |
+| `WORKFLOW_VERSION_CONFLICT` | 동시 캔버스 저장 경합 — 동일 워크플로우 버전 번호 unique 위반을 감지해 재시도 권고와 함께 반환 (`workflow-versions.service.ts` 발행) | 409 |
 | `INVALID_STATE` | 상태 전이 불가 (이미 실행 중인 워크플로우 삭제 등) | 422 |
 
 > WS commands 에서는 동일 의미를 `INVALID_EXECUTION_STATE` 코드로 표기 ([WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state)). REST 와 WS 의 routing 분기 가시성을 위해 의도적 분리.

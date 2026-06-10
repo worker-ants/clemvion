@@ -7,6 +7,8 @@ code:
   - codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx
   - codebase/frontend/src/lib/stores/editor-store.ts
   - codebase/frontend/src/lib/utils/edge-utils.ts
+  - codebase/frontend/src/app/(editor)/workflows/[id]/editor-loader.tsx
+  - codebase/backend/src/modules/edges/**
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md
   - plan/in-progress/spec-sync-edge-gaps.md
@@ -191,3 +193,26 @@ pending_plans:
 | 공간적 연관 | AI Agent 노드 옆의 Tool Area에 시각적으로만 배치 |
 | 실행 방식 | AI Agent의 LLM이 도구 호출 시 on-demand로 실행 (그래프 순회에 참여하지 않음) |
 | 연결 표시 | Tool Area와 AI Agent 사이에 점선 테두리로 소속 관계만 표시 (엣지 아님) |
+
+---
+
+## 8. 로드 시 엣지 정합성 검증 (stale 엣지 자동 제거)
+
+에디터가 워크플로우를 로드할 때, 저장된 엣지의 핸들(source/target 포트)이 **현재 노드 config 기준 포트 집합에 더 이상 존재하지 않으면** 해당 엣지를 자동으로 제거한다 (`editor-loader.tsx` → `dropStaleEdges`, `edge-utils.ts`).
+
+| 규칙 | 설명 |
+|------|------|
+| 발생 조건 | 저장 이후 노드의 dynamic-port 구성이 바뀐 경우 — 예: AI Agent `single_turn` → `multi_turn` 전환으로 `out` 포트 소멸, Information Extractor 모드 전환, Switch/Classifier 케이스 삭제 |
+| 제거 판정 | source 노드의 유효 출력 포트 집합(`resolveDynamicPorts` 결과)에 `sourceHandle` 이 없거나, target 노드의 유효 입력 포트 집합에 `targetHandle` 이 없으면 제거. 노드 정의를 찾을 수 없는 노드는 검증을 건너뛴다 (permissive) |
+| 사용자 알림 | 1개 이상 제거 시 경고 토스트 표시 (`editor.autoCleanedEdgesFull`, 제거 개수 포함) — 암묵적 삭제가 조용히 지나가지 않도록 한다 |
+| 영구 반영 시점 | 제거는 로드 시 store 진입 전에 일어나며, **사용자가 저장(Ctrl+S / 자동 저장)할 때 서버에 확정**된다. 저장하지 않고 닫으면 DB 의 엣지는 유지 |
+
+> 유사 사례: 캔버스 로드 시 `containerId` 재계산 ([Spec 캔버스 §11](./0-canvas.md#11-컨테이너-노드)).
+
+---
+
+## Rationale
+
+### R-1. 로드 시 stale 엣지 자동 제거 + 경고 토스트 (§8) (2026-06-10)
+
+저장 시점 이후 노드 config 변경으로 포트가 사라진 엣지는 React Flow 가 `Couldn't create edge for source handle id` 경고를 찍고 끊어진 stub 으로 렌더된다. 이를 로드 시점에 `dropStaleEdges` 로 일괄 정리하되, 워크플로우가 **암묵적으로 변형**되는 동작이므로 경고 토스트로 반드시 사용자에게 알리고, 영구 반영은 기존 저장 흐름(사용자 저장 시)에 위임한다. 조용한 자동 수정 대신 "정리 + 고지 + 저장 시 확정" 을 채택한 결정이다.

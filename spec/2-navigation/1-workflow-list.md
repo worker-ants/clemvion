@@ -3,8 +3,11 @@ id: workflow-list
 status: partial
 code:
   - codebase/frontend/src/app/(main)/workflows/page.tsx
-  - codebase/backend/src/modules/workflows/dto/query-workflow.dto.ts
+  - codebase/frontend/src/lib/api/workflows.ts
+  - codebase/backend/src/modules/workflows/dto/**
   - codebase/backend/src/modules/workflows/workflows.service.ts
+  - codebase/backend/src/modules/workflows/workflows.module.ts
+  - codebase/backend/src/modules/folders/**
 pending_plans:
   - plan/in-progress/spec-sync-workflow-list-gaps.md
 ---
@@ -122,8 +125,41 @@ pending_plans:
 | PATCH | /api/workflows/:id | 워크플로우 수정 (이름, 상태 등) |
 | POST | /api/workflows/:id/duplicate | 워크플로우 복제 |
 | DELETE | /api/workflows/:id | 워크플로우 삭제 |
-| GET | /api/workflows/:id/export | JSON 내보내기 |
-| POST | /api/workflows/import | JSON 가져오기 |
+| GET | /api/workflows/:id/export | JSON 내보내기 — 파일 포맷은 [§3.2](#32-exportimport-json-포맷) |
+| POST | /api/workflows/import | JSON 가져오기 — 검증·기본값 채움 동작은 [§3.2](#32-exportimport-json-포맷) |
+
+### 3.1 폴더 관리 API
+
+워크플로우 폴더(계층 구조)의 백엔드 API. 엔티티·제약 (`(workspace_id, parent_id, name)` UNIQUE, 최대 중첩 깊이 5) 의 SoT 는 [데이터 모델 §2.5 Folder](../1-data-model.md#25-folder) 다.
+
+> **미구현 (Planned)**: 프론트엔드는 본 API 를 아직 소비하지 않는다 — 폴더 필터·폴더 관리 UI 모두 없음 (§2.3 폴더 행 참고). 아래는 백엔드에 구현 완료된 계약이다 (`folders.controller.ts` / `folders.service.ts`).
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/folders | 폴더 목록 조회 — `sortOrder` → `name` 순 정렬. 계층 구조는 `parentId` 로 구성 |
+| GET | /api/folders/:id | 폴더 단건 조회 |
+| POST | /api/folders | 폴더 생성 (`editor`+). `parentId` 지정 시 하위로 생성. 깊이 5 초과 시 400 `VALIDATION_ERROR`, 동일 부모 아래 이름 중복 시 409 `RESOURCE_CONFLICT` (unique violation → 409 매핑, 전역 exception filter) |
+| PATCH | /api/folders/:id | 폴더 수정 (`editor`+) — 이름·부모·정렬 순서 부분 수정 |
+| DELETE | /api/folders/:id | 폴더 삭제 (`editor`+, 204). 하위 폴더는 DB cascade 로 함께 삭제, 폴더에 속한 워크플로우는 FK SET NULL 로 루트로 이동 (워크플로우 자체는 보존) |
+
+### 3.2 Export/Import JSON 포맷
+
+사용자에게 파일로 노출되어 손으로 편집·재가져오기 가능한 JSON 계약이다 (SoT: `import-workflow.dto.ts` / `ExportWorkflowDto`).
+
+**Export (`GET /api/workflows/:id/export`)** — top-level 키: `name` / `description` / `tags` / `settings` / `nodes[]` / `edges[]`. 노드 간 참조는 UUID 가 아니라 **`nodes[]` 배열 index** 기반이다:
+
+- edge: `sourceNodeIndex` / `targetNodeIndex` (+ `sourcePort` / `targetPort` / `type` / `condition`)
+- 노드: `containerIndex` / `toolOwnerIndex` (컨테이너 소속·Tool 소유 노드 참조, 없으면 `null`)
+
+> ⚠️ Swagger 응답 DTO (`ExportWorkflowDto`) 는 `formatVersion` 필드를 선언하지만, 현재 export 구현은 이 필드를 emit 하지 않고 import DTO 도 받지 않는다 — 포맷 버전 협상은 **미구현 (Planned)**.
+
+**Import (`POST /api/workflows/import`)** — 검증·동작 순서:
+
+1. 노드 `type` 은 허용 노드 타입 화이트리스트 (`@IsIn(ALL_NODE_TYPES)`) 로 DTO 검증 — 미지 타입은 400 `VALIDATION_ERROR`.
+2. 노드 `label` 은 워크플로우 내 unique — 중복 시 409 `DUPLICATE_NODE_LABEL`.
+3. 노드 `config` 는 해당 노드의 zod schema 로 parse 해 `.default(...)` 기본값을 overlay (`applyConfigDefaults`) — 캔버스에서 노드를 새로 만들 때와 동일한 기본값 채움. **parse 실패 (hand-edit JSON·타입 불일치 등) 시 raw config 를 그대로 보존**하는 permissive 정책 — 사용자가 에디터에서 수정 가능 ([Rationale §2](#rationale)).
+4. AI 노드는 `llmConfigId` 누락 시 워크스페이스 기본 LLM 을 자동 주입.
+5. index 기반 참조 (`containerIndex` / `toolOwnerIndex` / `sourceNodeIndex` / `targetNodeIndex`) 는 신규 발급 UUID 로 remap 되어 저장된다.
 
 ---
 
@@ -143,3 +179,11 @@ NAV-WF-07 의 "공유" 기준으로 두 옵션을 검토했다:
 - (b) 는 같은 팀 안에서 "내 것" 과 "남의 것" 을 다시 분리하는 정의지만, 그 구분은 §2.3 의 **소유 필터** 가 담당하므로 뱃지에서까지 중복으로 표현할 필요가 없다.
 
 결과적으로 뱃지(워크스페이스 = 공유)와 필터(작성자 단위 세분화)가 역할 분담된다.
+
+### 2. Import 의 permissive config 정책 (§3.2)
+
+JSON 가져오기 시 노드 `config` 의 schema parse 가 실패해도 가져오기를 거부하지 않고 raw config 를 그대로 보존한다.
+
+- import JSON 은 사용자가 손으로 편집할 수 있는 파일이라, 사소한 타입 불일치로 전체 가져오기를 400 으로 거부하면 복구 경로가 없다. 노드 단위 raw 보존이면 사용자가 에디터에서 해당 노드만 수정해 복구할 수 있다.
+- 반면 노드 `type` 화이트리스트·`label` unique 는 워크플로우 구조 자체의 무결성이라 DTO 레벨에서 hard-fail (400/409) 로 거부한다 — config 내용(soft)과 구조(hard)를 분리한 것.
+- 미지 nodeType 에 대한 `applyConfigDefaults` 의 raw 통과 분기는 forward-compat 방어 코드로, 실제로는 1번 화이트리스트 검증이 먼저 차단한다.

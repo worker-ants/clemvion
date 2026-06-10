@@ -1,5 +1,5 @@
 ---
-worktree: spec-sync-audit
+worktree: spec-sync-audit-998544
 started: 2026-06-03
 owner: planner
 ---
@@ -10,8 +10,8 @@ owner: planner
 > 관련 spec: spec/4-nodes/2-flow/0-common.md
 
 ## 미구현 항목
-- [ ] §4 캔버스 요약: workflow 노드 `summaryTemplate` 정의 (`{workflowName 또는 workflowId} · {mode}`). 현재 `workflowNodeMetadata` 에 `summaryTemplate` 부재 → 본문 요약 미렌더 (`workflow.schema.ts:169-192`).
-- [ ] §4 워크플로우 삭제 시 `⚠ Missing workflow` 캔버스 텍스트. 현재 0건 — 미선택 시 `⚠ Target workflow must be selected.` warningRule 만 존재.
+- [x] §4 캔버스 요약: workflow 노드 `summaryTemplate` 정의 (`{workflowName 또는 workflowId} · {mode}`). — 완료: `workflow.schema.ts` `workflowNodeMetadata.summaryTemplate` (`{{workflowName|fallback:workflowId}} · {{mode|default:sync}}`) 구현 (커밋 ae149dc6, #448).
+- [x] §4 워크플로우 삭제 시 `⚠ Missing workflow` 캔버스 텍스트. — 완료: `summaryTemplate.warnWhen: 'workflowId && !workflowName'` + `warnMessage: 'Missing workflow'` 구현 (커밋 ae149dc6, #448).
 - [ ] §2 `meta` 확장: Sync 모드 `meta` 에 `recursionDepth` / `subExecutionId` / `mode` 노출, Async 모드 `meta` 반환. 현재 sync 는 `meta.{durationMs}` 1필드만, async 는 meta 미반환 (`workflow.handler.ts:158-169,115-123`).
 
 ## 비고

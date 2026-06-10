@@ -1,6 +1,8 @@
 ---
 id: embedding-pipeline
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/kb-unsearchable-warning.md
 code:
   - codebase/backend/src/modules/knowledge-base/embedding/embedding.service.ts
   - codebase/backend/src/modules/knowledge-base/chunking/text-chunker.ts

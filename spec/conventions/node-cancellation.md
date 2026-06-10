@@ -10,7 +10,6 @@ code:
   - codebase/frontend/src/lib/api/executions.ts
 pending_plans:
   - plan/in-progress/node-cancellation-infrastructure.md
-  - plan/in-progress/spec-draft-node-execution-cancelled.md
 ---
 
 # Node Cancellation 컨벤션 (AbortSignal 전파 기반)
@@ -21,7 +20,7 @@ pending_plans:
 
 ## 1. 목적
 
-장기 외부 I/O 를 수행하는 노드 (HTTP / DB / AI / Email / chat-channel) 가 실행 도중 외부 cancellation 신호를 받을 수 있어야 한다. 그렇지 않으면 다음 기능이 모두 불가능:
+장기 외부 I/O 를 수행하는 노드 (HTTP / DB / AI / Email / chat-channel / 이커머스 통합 Cafe24·MakeShop) 가 실행 도중 외부 cancellation 신호를 받을 수 있어야 한다. 그렇지 않으면 다음 기능이 모두 불가능:
 
 - **Parallel `cancel-others-on-fail` errorPolicy** (parallel-p2 결정 A) — 첫 분기 실패 시 다른 분기의 외부 I/O 를 즉시 중단
 - **Workflow 단위 timeout** — 실행 시간 한도 초과 시 진행 중 노드의 외부 I/O 중단
@@ -56,7 +55,7 @@ signal 미지원 — best-effort. 자기 작업 완료까지 계속 진행해도
 ### 2.3 생산자 (signal 을 만들고 set 하는 caller)
 
 - **`ParallelExecutor`** (parallel-p2 §5, 구현됨) — `errorPolicy === 'cancel-others-on-fail'` 일 때 내부 `AbortController` 생성, 첫 branch 실패 시 `controller.abort()` 호출, 각 `branchContext.abortSignal` 에 set. 상위 `context.abortSignal` 이 있으면 그 abort 도 그룹 controller 로 cascade (`parallel-executor.ts`).
-- **향후 Workflow 단위 timeout** — `runExecution` 진입 시 타이머 시작, 한도 초과 시 abort
+- **Workflow 단위 시간 한도** (PR2a 구현 완료, 단 노드 abort 미통합) — 확정 설계는 wall-clock 타이머+abort 가 아니라 **active-running 누적 타임아웃**: dispatch loop 가 노드 사이마다 `assertActiveTimeWithinLimit` 를 호출해 누적 active 시간(`waiting_for_input` park 시간 제외)이 한도 초과면 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 종결한다 (SoT: [execution-engine §8](../5-system/4-execution-engine.md#8-동시-실행-제한)). **진행 중 노드의 abortSignal abort 통합** (in-flight 외부 I/O 즉시 중단) 만 잔여 Planned — 현재는 다음 노드 경계에서 판정
 - **사용자 cancel 버튼** (구현됨 2026-05-31) — REST API `POST /executions/:id/stop` 가 실행을 중단(running/pending → cancelled, waiting_for_input → continuation 취소). 에디터 툴바 Stop 버튼이 진입점.
 - **향후 graceful shutdown** — SIGTERM 수신 시 진행 중 execution 의 abort
 
@@ -134,8 +133,10 @@ if (upstream) {
 | DB 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`database-query.handler.ts` — 진입 직전 `abortSignal?.aborted` → AbortError). in-flight `pg.client.cancel` 은 미구현 (Planned) |
 | Email 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`send-email.handler.ts`). in-flight SMTP `transporter.close()` 는 미구현 (Planned) |
 | chat-channel 노드 signal 전파 | — | 미구현 (Planned) |
+| MakeShop 노드 signal 전파 | — | 미구현 (Planned) — `makeshop-api.client.ts` 는 자체 timeout 용 `AbortController` 만 사용, `context.abortSignal` cascade(§4)·진입 직전 사전 체크(§2.2) 모두 없음. `node-cancellation-infrastructure.md` 추적 |
+| Cafe24 노드 signal 전파 | — | 미구현 (Planned) — MakeShop 과 동일 상태 (`cafe24-api.client.ts`). `node-cancellation-infrastructure.md` 추적 |
 | `NodeExecution.status = 'cancelled'` 추가 (엔티티 + migration) + `AbortError` → `cancelled` 분류 + dispatch 사전 abort 체크 + `execution.node.cancelled` WS 이벤트 | ✓ | `NodeExecutionStatus.CANCELLED` enum + V069 migration + 엔진 분류/WS emit (§5.1) |
-| Workflow 단위 timeout / graceful shutdown 의 노드 abort | — | 미구현 (Planned) |
+| Workflow 단위 timeout / graceful shutdown 의 **노드 abort** | — | 노드 abort 통합 미구현 (Planned). 단 **워크플로 시간 한도 자체는 PR2a 구현 완료** — active-running 누적 타임아웃 (`assertActiveTimeWithinLimit`, 노드 경계 판정, §2.3 / [execution-engine §8](../5-system/4-execution-engine.md#8-동시-실행-제한)) |
 
 ## Rationale
 

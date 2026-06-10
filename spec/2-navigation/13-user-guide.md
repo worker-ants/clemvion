@@ -3,7 +3,9 @@ id: user-guide
 status: implemented
 code:
   - codebase/frontend/src/app/(main)/docs/layout.tsx
+  - codebase/frontend/src/app/(main)/docs/page.tsx
   - codebase/frontend/src/app/(main)/docs/[...slug]/page.tsx
+  - codebase/frontend/src/mdx-components.tsx
   - codebase/frontend/src/lib/docs/registry.ts
   - codebase/frontend/src/lib/docs/locale.ts
   - codebase/frontend/src/lib/docs/route.ts
@@ -58,13 +60,16 @@ code:
 ├── 06-integrations-and-config/
 │   ├── integration-management  # 통합 관리
 │   ├── llm-config             # LLM 설정
+│   ├── rerank-config          # 리랭커 설정
 │   ├── knowledge-base         # 지식 저장소
 │   ├── mcp-servers            # MCP 서버 통합 (AI Agent 도구 호출용)
 │   ├── cafe24                 # Cafe24 채널 연동
 │   ├── discord                # Discord 채널 연동
 │   ├── slack                  # Slack 채널 연동
 │   ├── telegram               # Telegram 채널 연동
-│   └── web-chat               # 임베드형 웹채팅 위젯 연동
+│   ├── web-chat               # 임베드형 웹채팅 위젯 연동
+│   ├── makeshop               # MakeShop 채널 연동
+│   └── agent-memory           # 에이전트 메모리
 ├── 07-workspace-and-team/
 │   └── workspaces-and-members  # 개인·팀 워크스페이스, 멤버 초대, 공유 표시
 └── 99-faq/                     # 항상 사이드바 맨 아래 (§5 규칙)

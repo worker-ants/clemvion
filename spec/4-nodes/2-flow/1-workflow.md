@@ -72,7 +72,7 @@ code:
 - 같은 워크스페이스 내 워크플로우만 후보로 노출 (현재 편집 중 워크플로우 제외)
 - 삭제·비활성된 워크플로우(`workflowId` 有 + `workflowName` 無)는 캔버스 배지에서 `⚠ Missing workflow` 표시 (`warnWhen: 'workflowId && !workflowName'`)
 
-> ℹ️ **런타임 워크스페이스 격리 (구현됨, W-6)**: 셀렉터 후보 필터링과 별개로, 엔진은 sub-workflow 실행 시 `assertSameWorkspace` 로 대상 워크플로우가 호출자(부모)와 다른 워크스페이스이면 `WORKFLOW_FORBIDDEN_WORKSPACE` 를 throw 하여 cross-workspace 호출을 차단한다. handler 가 `parentWorkspaceId`(`context.variables.__workspaceId`)를 engine 의 `executeInline`/`executeAsync` 에 전달하며, 검증은 `execution-engine.service.ts:2562,2665` 에서 수행된다.
+> ℹ️ **런타임 워크스페이스 격리 (구현됨, W-6)**: 셀렉터 후보 필터링과 별개로, 엔진은 sub-workflow 실행 시 `assertSameWorkspace` 로 대상 워크플로우가 호출자(부모)와 다른 워크스페이스이면 `WORKFLOW_FORBIDDEN_WORKSPACE` 를 throw 하여 cross-workspace 호출을 차단한다. handler 가 `parentWorkspaceId`(`context.variables.__workspaceId`)를 engine 의 `executeInline`/`executeAsync` 에 전달하며, 검증은 `execution-engine.service.ts` 의 `assertSameWorkspace` 호출부에서 수행된다.
 
 ## 3. 포트
 
@@ -100,10 +100,11 @@ code:
    - sync 모드에서 `context._executedNodes` 누락 → throw `Inline execution requires _executedNodes in context`
 2. **서브 입력 구성**: `inputMapping` 이 1개 이상이면 `{ [paramName]: expression(평가됨) }` 객체를 만들어 사용. 비어 있으면 부모 `input` 을 그대로 전달 (pass-through)
 3. **모드 분기**:
-   - **Sync**: `executionEngine.executeInline(workflowId, effectiveInput, { executionId, context, executedNodes, recursionDepth: depth+1, parentNodeExecutionId })` → 반환값을 `output: { result: <inlineResult> }` 으로 1단 래핑 (§5.1)
+   - **Sync**: `executionEngine.executeInline(workflowId, effectiveInput, { executionId, context, executedNodes, recursionDepth: depth+1, parentNodeExecutionId, invokerNodeId })` → 반환값을 `output: { result: <inlineResult> }` 으로 1단 래핑 (§5.1). `invokerNodeId` 는 이 Workflow 노드 자신의 Node.id — sub-workflow 안의 blocking 노드가 durable park 할 때 `resume_call_stack` frame 키로 영속되어 [실행 엔진 §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration) rehydration 이 부모 그래프에서 이 노드까지 전진 후 재진입하는 데 쓰인다
    - **Async**: `executionEngine.executeAsync(workflowId, effectiveInput, { parentExecutionId, recursionDepth: depth+1 })` → `output: { executionId, workflowId, status: 'started' }` + top-level `status: 'started'` 즉시 반환 (§5.2)
 4. **런타임 에러 처리** (Principle 3.2):
    - sync `executeInline` / async `executeAsync` 가 throw 한 경우 — `output.error.{code, message, details: {workflowId, mode}}` + `port: 'error'` (§5.3). `code` 는 executor 메시지에 따라 `SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `SUB_WORKFLOW_FAILED` (기본) 로 매핑된다 (§6 표 참조)
+   - **예외**: `ParkReleaseSignal` (sub-workflow 안 blocking 노드의 durable park 신호) 은 런타임 실패가 아니므로 error 포트로 라우팅하지 않고 그대로 re-throw 한다 — 엔진이 세그먼트를 종료하고 [실행 엔진 §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration) rehydration 으로 재개
 5. **재귀 깊이 누적**: 자식 호출 시 `recursionDepth` 를 +1 하여 전달. sync 는 `ExecutionContext`, async 는 Execution 레코드에 누적 (Flow 공통 §2.2)
 
 > sync 모드의 서브 워크플로우 진입점 trigger 는 `manual_trigger` 만 허용된다 — 다른 trigger 타입은 엔진이 명시적 throw (silent skip 금지). 이유: webhook/schedule trigger 는 외부 이벤트와 결합된 출처 분류 의미를 가져 부모 Execution 의 출처를 덮어쓰면 안 됨. 자세한 내용은 [실행 엔진 §6.1.1](../../5-system/4-execution-engine.md) 참조.
@@ -195,7 +196,7 @@ code:
 
 ### 5.3 Case: 런타임 에러 (port `error`)
 
-`executeInline` (sync) 또는 `executeAsync` (async) 가 throw 한 모든 케이스 — sub-workflow 내부 노드 실패, `Workflow not found`, expression 평가 에러, 큐 enqueue 실패 등.
+`executeInline` (sync) 또는 `executeAsync` (async) 가 throw 한 모든 케이스 — sub-workflow 내부 노드 실패, `Workflow not found`, expression 평가 에러, 큐 enqueue 실패 등. 단, `ParkReleaseSignal` (중첩 blocking park 신호) 은 런타임 실패가 아니므로 error 포트로 라우팅하지 않고 re-throw 한다 (§4-4 예외 — [실행 엔진 §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration) rehydration 으로 재개).
 
 ```json
 {

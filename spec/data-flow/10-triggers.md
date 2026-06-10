@@ -14,8 +14,10 @@
 - **Webhook**: 외부 HTTP 호출이 `/api/hooks/:endpointPath` 로 들어옴. 일반 webhook 과 Chat Channel inbound(Telegram/Slack/Discord) 두 갈래로 분기한다
 - **Schedule**: BullMQ **repeatable job (job scheduler)** 으로 cron 표현식에 따라 BullMQ 가 직접 발사한다. 별도의 DB polling/sweep 은 없다
 
-모두 최종적으로 `ExecutionEngineService.execute(workflowId, inputData, triggerId)` 로 수렴해
-`execution` row 를 생성한다.
+모두 최종적으로 `ExecutionEngineService.execute(workflowId, inputData, triggerId)` 로 수렴한다.
+execute() 는 `execution` row 를 `status=pending` 으로 INSERT 한 뒤 BullMQ `execution-run` intake 큐에
+job 을 발행하고 즉시 executionId 를 반환한다 — 트리거 타입이 job priority 를 결정한다 (§2.2,
+SoT: [Spec 실행 엔진 §4](../5-system/4-execution-engine.md#4-worker-모델)).
 
 코드 진입점:
 
@@ -33,13 +35,24 @@
 ```mermaid
 sequenceDiagram
   participant C as Client
-  participant Ctl as ExecutionsController
+  participant Ctl as WorkflowsController
   participant Eng as ExecutionEngineService
   participant PG as Postgres
-  C->>Ctl: POST /api/workflows/:id/execute { inputData }
-  Ctl->>Eng: execute(workflowId, inputData, { executedBy: me })
-  Eng->>PG: INSERT execution (..., executed_by=me, trigger_id=NULL)
+  C->>Ctl: POST /api/workflows/:id/execute { parameterValues?, input? }
+  alt graceful shutdown 중
+    Ctl-->>C: 503 SERVER_SHUTTING_DOWN (Retry-After 헤더)
+  end
+  Ctl->>Ctl: trigger parameter schema 검증
+  alt 검증 실패
+    Ctl-->>C: 400 INVALID_TRIGGER_PARAMETERS
+  end
+  Ctl->>Eng: execute(workflowId, { ...input, __triggerSource:'manual', parameters }, { executedBy: me })
+  Eng->>PG: INSERT execution (status=pending, executed_by=me, trigger_id=NULL)
 ```
+
+> 컨트롤러는 `WorkflowsController` (`@Post(':id/execute')`) 다. webhook(§1.2)과 동일하게
+> `__triggerSource:'manual'` 마커 + 검증된 `parameters` 가 inputData 에 스탬핑된다.
+> SIGTERM 수신 후의 503 게이트는 [Spec 실행 엔진 §11](../5-system/4-execution-engine.md#11-graceful-shutdown) 이 SoT.
 
 ### 1.2 Webhook 진입
 
@@ -58,11 +71,11 @@ sequenceDiagram
   alt not found
     Hk-->>Ext: 404 TRIGGER_NOT_FOUND
   end
-  alt trigger.is_active = false
-    Hk-->>Ext: 410 Gone TRIGGER_INACTIVE
-  end
   alt config.chatChannel 존재
-    Hk->>Hk: handleChatChannelWebhook (§1.5 — 일반 흐름 우회)
+    Hk->>Hk: handleChatChannelWebhook (§1.5 — 일반 흐름 우회, is_active 검사보다 먼저)
+  end
+  alt trigger.is_active = false (일반 webhook 만)
+    Hk-->>Ext: 410 Gone TRIGGER_INACTIVE
   end
   alt trigger.auth_config_id IS NOT NULL
     Hk->>AC: verifyWebhookRequest(authConfigId, workspaceId, {headers, rawBody, clientIp})
@@ -80,7 +93,9 @@ sequenceDiagram
   Hk-->>Ext: 202 { executionId } (interaction.enabled 면 status:'pending' + interaction token/endpoints 동봉)
 ```
 
-> webhook 인증·`ip_whitelist`·`last_used_at` 갱신은 모두 `AuthConfigsService.verifyWebhookRequest` 로 위임된다 — `HooksService` 는 호출만 한다. 실패는 type 무관 단일 `401 AUTH_FAILED` (enumeration 차단). `ip_whitelist` 는 `AuthConfig` 종속 ([Spec 데이터 모델 §2.17](../1-data-model.md#217-authconfig)) 이므로 `auth_config_id IS NULL` 이면 ip_whitelist 도 평가 대상이 없다 ("ip_whitelist-only" 경로는 존재하지 않음). 미존재 trigger 는 `404`, 비활성 trigger 는 `410 Gone` 으로 구분된다. 성공 응답 코드는 [Spec Webhook WH-RS-01](../5-system/12-webhook.md#33-응답-및-피드백) 의 `202 Accepted` 와 정합.
+> webhook 인증·`ip_whitelist`·`last_used_at` 갱신은 모두 `AuthConfigsService.verifyWebhookRequest` 로 위임된다 — `HooksService` 는 호출만 한다. 실패는 type 무관 단일 `401 AUTH_FAILED` (enumeration 차단). `ip_whitelist` 는 `AuthConfig` 종속 ([Spec 데이터 모델 §2.17](../1-data-model.md#217-authconfig)) 이므로 `auth_config_id IS NULL` 이면 ip_whitelist 도 평가 대상이 없다 ("ip_whitelist-only" 경로는 존재하지 않음). 미존재 trigger 는 `404`, 비활성 trigger 는 **일반 webhook 에 한해** `410 Gone` 으로 구분된다 — `chatChannel` 트리거는 is_active 검사보다 chatChannel 분기가 먼저라 비활성이어도 410 이 아니며, inbound 서명 검증 통과 후 `202 + { executionId: 'ignored' }` 로 조용히 무시된다 ([Spec Chat Channel R-CC-12](../5-system/15-chat-channel.md), [Spec Webhook WH-EP-07](../5-system/12-webhook.md) 의 chatChannel 예외). 성공 응답 코드는 [Spec Webhook WH-RS-01](../5-system/12-webhook.md#33-응답-및-피드백) 의 `202 Accepted` 와 정합.
+>
+> **진입 앞단**: `POST /api/hooks/:endpointPath` 에는 `PublicWebhookThrottleGuard` 가 걸려 있어, 공개(`auth_config_id IS NULL`) 트리거에 한해 IP 단위 rate-limit (기본 분당 10 · 시간당 신규 20, 초과 시 `429`; Redis fixed-window 카운터 — §2.2) + body 32KB 제한을 trigger 조회 후 가장 먼저 적용한다. 인증 webhook 은 무제한 통과. SoT: [Spec 웹채팅 보안 §4](../7-channel-web-chat/4-security.md#4-공개인증-없음-webhook-남용-방어) · [Spec Webhook WH-SC-05](../5-system/12-webhook.md). 같은 라우트의 두 번째 공개 엔드포인트로 `GET /api/hooks/:endpointPath/embed-config` (웹챗 위젯 임베드 설정 조회, SoT [spec/7-channel-web-chat](../7-channel-web-chat/4-security.md)) 가 있으나 실행을 트리거하지 않는다.
 
 ### 1.3 Schedule 발사
 
@@ -106,7 +121,7 @@ sequenceDiagram
   Proc->>PG: UPDATE schedule SET last_run_at=now, next_run_at=parseCron(cron, tz) (정보성 — 발사 트리거 아님)
 ```
 
-> `next_run_at` 은 발사를 트리거하지 않는다 — 발사는 전적으로 BullMQ job scheduler 가 담당하며, `next_run_at` 은 process() 가 완료 후 UI 표시용으로 재계산해 저장하는 정보성 컬럼이다. 큐 payload 는 `{ scheduleId, workspaceId }` 이며 processor 는 두 키로 schedule 을 조회한다. process() 는 `trigger.is_active` 를 직접 보지 않고 `schedule.is_active` 만 확인한다 (둘은 §1.4 에서 양방향 동기화).
+> `next_run_at` 은 발사를 트리거하지 않는다 — 발사는 전적으로 BullMQ job scheduler 가 담당하며, `next_run_at` 은 process() 가 완료 후 UI 표시용으로 재계산해 저장하는 정보성 컬럼이다. 큐 payload 는 `{ scheduleId, workspaceId }` 이며 processor 는 두 키로 schedule 을 조회한다. process() 는 `trigger.is_active` 를 직접 보지 않고 `schedule.is_active` 만 확인한다 (동기화는 Schedule→Trigger 정방향만 구현 — §1.4 구현 갭 참조).
 
 ### 1.4 Schedule ↔ Trigger 동기화
 
@@ -116,14 +131,19 @@ sequenceDiagram
 | --- | --- | --- |
 | `POST /api/schedules` | INSERT trigger(type='schedule') save **후** INSERT schedule save (순차 — 단일 트랜잭션 아님; 중간 실패 시 고아 trigger 가능). is_active 면 `registerJob` 으로 BullMQ 등록 | 먼저 생성 |
 | Schedule 이름 변경 | UPDATE schedule.name → UPDATE trigger.name | — |
-| Schedule is_active 토글 | UPDATE schedule.is_active → UPDATE trigger.is_active. active 면 `registerJob`, inactive 면 `removeJob` 으로 BullMQ job 등록/해제 | 역방향 동일 |
+| Schedule is_active 토글 | UPDATE schedule.is_active → UPDATE trigger.is_active. active 면 `registerJob`, inactive 면 `removeJob` 으로 BullMQ job 등록/해제 | **역방향 미구현 (구현 갭, 아래)** |
 | Schedule cron/timezone 변경 | UPDATE schedule + next_run_at 재계산 + `registerJob` 로 job scheduler upsert | — |
-| Schedule 삭제 | `removeJob` 으로 BullMQ job 해제 + CASCADE delete trigger | — |
+| Schedule 삭제 | `removeJob` 으로 BullMQ job 해제 + CASCADE delete trigger | Trigger API 직접 삭제는 `removeJob` 누락 (구현 갭, 아래) |
 | Trigger(type='schedule') 직접 생성 | — | 금지 (API 단 거부) |
+
+> **구현 갭 — 역방향(Trigger→Schedule) 동기화 부재**: [Spec 데이터 모델 §2.9.1](../1-data-model.md) 의 "역방향도 동일" 계약과 달리, 동기화는 Schedule→Trigger 정방향(`schedules.service.ts` update/remove)만 구현되어 있다.
+>
+> - **is_active**: 트리거 목록 화면이 schedule 타입 트리거에도 노출하는 `PATCH /api/triggers/:id { isActive }` 는 trigger row 만 갱신한다 — `triggers.service.ts` update() 는 `scheduleRepository` 쓰기·`ScheduleRunnerService.registerJob/removeJob` 호출이 없다 (모듈이 ScheduleRunnerService 를 주입하지도 않음). process() 는 `schedule.is_active` 만 보므로(§1.3) **트리거 쪽 비활성화로는 schedule 발사가 멈추지 않는다**.
+> - **삭제**: `DELETE /api/triggers/:id` (`triggers.service.ts` remove()) 는 trigger row 삭제로 schedule row 를 FK CASCADE 로 지우지만 `removeJob` 을 호출하지 않아 BullMQ job scheduler 엔트리(`schedule:<id>`)가 Redis 에 잔존한다 — cron tick 마다 process() 가 "Schedule not found" 로 영구 skip (실행은 안 되나 Redis 누수 + 로그 노이즈). Schedules API 삭제 경로(`schedules.service.ts` remove())는 계약대로 `removeJob` 후 trigger 를 삭제한다.
 
 ### 1.5 Webhook → Chat Channel inbound 분기
 
-`trigger.config.chatChannel` 이 존재하면 webhook 진입은 `handleChatChannelWebhook` 로 분기해 일반 webhook 흐름(§1.2 의 AuthConfig 인증 / trigger parameter schema 검증)을 **우회**한다. Chat Channel 경로는 provider 별 자체 inbound 서명/시크릿 검증을 쓴다 (Telegram `X-Telegram-Bot-Api-Secret-Token`, Slack `X-Slack-Signature`, Discord `X-Signature-Ed25519`). 상세 모델은 [Chat Channel adapter convention](../conventions/chat-channel-adapter.md) 이 SoT 이며, 여기서는 트리거 진입점으로서의 분기만 기술한다.
+`trigger.config.chatChannel` 이 존재하면 webhook 진입은 `handleChatChannelWebhook` 로 분기해 일반 webhook 흐름(§1.2 의 is_active `410 Gone` 게이트 / AuthConfig 인증 / trigger parameter schema 검증)을 **우회**한다. 비활성 트리거도 inbound 서명 검증은 먼저 수행하며(인증 실패는 401), 검증 통과 후 `202 + { executionId: 'ignored' }` 로 조용히 무시된다 (R-CC-12 — §1.2 주석 참조). Chat Channel 경로는 provider 별 자체 inbound 서명/시크릿 검증을 쓴다 (Telegram `X-Telegram-Bot-Api-Secret-Token`, Slack `X-Slack-Signature`, Discord `X-Signature-Ed25519`). 상세 모델은 [Chat Channel adapter convention](../conventions/chat-channel-adapter.md) 이 SoT 이며, 여기서는 트리거 진입점으로서의 분기만 기술한다.
 
 | 단계 | 처리 (`hooks.service.ts` `handleChatChannelWebhook`) |
 | --- | --- |
@@ -153,11 +173,14 @@ sequenceDiagram
 | `auth_config` | 검증 성공 (write) | UPDATE `last_used_at` (fire-and-forget, 트랜잭션 외) | — |
 | `execution` | 진입 시 | INSERT (자세히는 [`execution.md`](./3-execution.md)) | `trigger_id` FK SET NULL (트리거 삭제 시 실행 이력 보존) |
 
-### 2.2 Redis (BullMQ)
+### 2.2 Redis
 
-| 큐 | producer | consumer | payload |
+| 큐 (BullMQ) | producer | consumer | payload |
 | --- | --- | --- | --- |
 | `schedule-execution` | BullMQ **job scheduler** (`upsertJobScheduler`, cron pattern+tz) — 서버 sweep 아님 | `ScheduleRunnerService` (`@Processor`) | `{ scheduleId, workspaceId }` |
+| `execution-run` | `ExecutionEngineService.execute()` — 트리거 3종 모두 pending row INSERT 후 발행. **트리거 타입이 job priority 결정** (3-tier: manual=1 > webhook=2 > schedule=3; 현재는 `executedBy` 유무로 manual/그 외 이분이라 schedule 발사도 webhook priority — 의도된 임시, triggerType threading 후속) | execution-run worker (work-stealing) | `{ executionId, input }` (jobId=executionId 로 dedup) — 상세 SoT [Spec 실행 엔진 §4.1–4.3](../5-system/4-execution-engine.md#4-worker-모델) |
+
+큐 외 Redis sink: 공개 webhook IP rate-limit 의 **fixed-window 카운터** (`PublicWebhookQuotaService`, INCR+EXPIRE pipeline — §1.2 진입 앞단 참조).
 
 ### 2.3 외부
 
@@ -174,9 +197,9 @@ sequenceDiagram
 | 상태 | 의미 |
 | --- | --- |
 | true | Webhook 라우팅 활성, Schedule 의 BullMQ repeatable job 등록 |
-| false | Webhook 호출 시 `410 Gone` (TRIGGER_INACTIVE) — 미존재 trigger 의 `404` 와 구분. Schedule 은 `removeJob` 으로 BullMQ job 해제 |
+| false | 일반 Webhook 호출 시 `410 Gone` (TRIGGER_INACTIVE) — 미존재 trigger 의 `404` 와 구분. `chatChannel` 트리거는 410 아님 — inbound 서명 검증 후 `202 + { executionId: 'ignored' }` (§1.2·§1.5). Schedule 은 Schedules API 경유 토글 시 `removeJob` 으로 BullMQ job 해제 |
 
-Schedule 과의 동기화는 양방향 — 둘 중 하나만 변경해도 다른 쪽이 함께 갱신된다. is_active 변경 시 §1.4 대로 BullMQ job 도 register/remove 된다.
+Schedule 과의 동기화는 **Schedule→Trigger 정방향만** 구현되어 있다 — Schedule 쪽 변경 시 trigger.is_active 가 함께 갱신되고 §1.4 대로 BullMQ job 도 register/remove 되지만, Trigger API 쪽 `PATCH { isActive }` 는 schedule.is_active 와 BullMQ job 을 갱신하지 않는다 ([Spec 데이터 모델 §2.9.1](../1-data-model.md) 의 양방향 계약 대비 구현 갭 — §1.4 참조).
 
 ### 3.2 `schedule.next_run_at` 계산
 
@@ -213,5 +236,7 @@ webhook 진입 라우트는 `/api/hooks/:endpointPath` 단일 형태다 (`HooksC
 `(workspace_id, endpoint_path)` 가 UNIQUE 이므로 워크스페이스 스코프 안에서는 경로가 유일하다.
 다만 실제 라우팅 키는 `endpoint_path` 단독이다 — `HooksController` 가 workspace 필터 없이
 `findOne({ endpointPath, type: 'webhook' })` 로 조회한다 (외부 호출이라 workspace 컨텍스트 없음).
-충돌 회피는 `endpoint_path` 를 UUID 로 자동 발급(WH-MG-02)해 사실상 전역 고유로 만드는 방식에 의존한다.
+충돌 회피는 `endpoint_path` 를 UUID 로 자동 발급(WH-MG-02)해 사실상 전역 고유로 만드는 방식에 의존한다 —
+단, 이 자동 발급은 서버가 아니라 클라이언트(트리거 생성 화면의 `crypto.randomUUID()`)가 수행하며
+서버는 UUID 형식을 강제하지 않는다.
 공개 URL 형식은 `{base_url}/api/hooks/:endpointPath` 단일 형태다 (`spec/5-system/12-webhook.md` WH-EP-02).

@@ -4,6 +4,7 @@ status: partial
 pending_plans:
   - plan/in-progress/spec-sync-form-gaps.md
 code:
+  - codebase/backend/src/nodes/presentation/form/form.component.ts
   - codebase/backend/src/nodes/presentation/form/form.handler.ts
   - codebase/backend/src/nodes/presentation/form/form.schema.ts
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts

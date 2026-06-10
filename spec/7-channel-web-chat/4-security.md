@@ -6,6 +6,8 @@ code:
   - codebase/backend/src/modules/web-chat-cors/**
   - codebase/backend/src/modules/hooks/public-webhook-throttle.guard.ts
   - codebase/backend/src/modules/hooks/public-webhook-quota.service.ts
+  - codebase/backend/src/modules/hooks/embed-config.service.ts
+  - codebase/backend/src/modules/hooks/dto/responses/embed-config.dto.ts
   - codebase/channel-web-chat/src/widget/host-bridge.ts
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
