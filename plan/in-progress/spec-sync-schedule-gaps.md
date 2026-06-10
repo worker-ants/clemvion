@@ -14,7 +14,7 @@ owner: planner
 - [ ] 더보기 메뉴의 "트리거에서 보기" (→ Trigger 목록에서 해당 트리거로 이동) (§2.1).
 - [ ] 연결된 워크플로우 이름 클릭 시 에디터로 이동하는 링크 (§2.1). 현재는 단순 텍스트.
 - [ ] 타임존 미지정 시 워크스페이스 설정 기반 기본값 (§2.2). 현재 서버는 `'Asia/Seoul'` 하드코딩 fallback 이며, 워크스페이스에 timezone 설정 자체가 없음.
-- [ ] GET /api/schedules 의 `sort`/`order` 쿼리 반영 (§4). DTO 는 받지만 `findAll` 이 무시하고 `created_at DESC` 고정 정렬.
+- [x] GET /api/schedules 의 `sort`/`order` 쿼리 반영 (§4). — 구현 완료 확인 (schedules.service.ts:37-52 whitelist 기반 orderBy, 2026-06-10 impl-prep 검토에서 검증). spec §4 경고 문구도 동일 시점 제거.
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 참조.

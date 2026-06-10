@@ -20,6 +20,6 @@ import { ExecutionEngineModule } from '../execution-engine/execution-engine.modu
   ],
   controllers: [SchedulesController],
   providers: [SchedulesService, ScheduleRunnerService],
-  exports: [SchedulesService],
+  exports: [SchedulesService, ScheduleRunnerService],
 })
 export class SchedulesModule {}
