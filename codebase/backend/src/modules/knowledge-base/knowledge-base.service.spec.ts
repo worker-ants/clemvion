@@ -158,6 +158,7 @@ describe('KnowledgeBaseService', () => {
         name: 'New KB',
         description: undefined,
         embeddingModel: 'text-embedding-3-small',
+        embeddingModelConfigId: null,
         embeddingLlmConfigId: null,
         chunkSize: 1000,
         chunkOverlap: 200,

@@ -11,6 +11,8 @@ function makeKbRow(overrides: Partial<KbRowFixture>): KbRowFixture {
     vectorSeedTopK: 5,
     expandedChunkLimit: 15,
     reembedStatus: 'idle',
+    embeddingLlmConfigId: null,
+    embeddingModelConfigId: null,
     rerankMode: 'off',
     rerankConfigId: null,
     rerankCandidateK: 50,
@@ -41,6 +43,7 @@ describe('RagSearchService', () => {
   let mockDataSource: Record<string, jest.Mock>;
   let mockEm: { query: jest.Mock };
   let mockLlmService: Record<string, jest.Mock>;
+  let mockModelConfigService: Record<string, jest.Mock>;
   let mockRerankService: Record<string, jest.Mock>;
 
   beforeEach(() => {
@@ -75,9 +78,23 @@ describe('RagSearchService', () => {
       rerankCandidates: jest.fn(),
     };
 
+    // PR2: rag-search 는 modelConfigService.resolveEmbedding 으로 (config, model) 해석.
+    // legacy 폴백 동형: legacyModel 을 그대로 echo 해 기존 모델-전달 테스트를 보존한다.
+    mockModelConfigService = {
+      resolveEmbedding: jest
+        .fn()
+        .mockImplementation((opts: { legacyModel: string }) =>
+          Promise.resolve({
+            config: { id: 'config-1', provider: 'openai', workspaceId: 'ws-1' },
+            model: opts.legacyModel,
+          }),
+        ),
+    };
+
     service = new RagSearchService(
       mockDataSource as never,
       mockLlmService as never,
+      mockModelConfigService as never,
       mockRerankService as never,
     );
   });
@@ -97,7 +114,7 @@ describe('RagSearchService', () => {
 
     it('should gracefully degrade on error and return empty array', async () => {
       mockDataSource.query.mockResolvedValueOnce([makeKbRow({ id: 'kb-1' })]);
-      mockLlmService.resolveConfig.mockRejectedValue(
+      mockModelConfigService.resolveEmbedding.mockRejectedValue(
         new Error('Config not found'),
       );
 

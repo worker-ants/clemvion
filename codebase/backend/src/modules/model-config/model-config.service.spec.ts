@@ -451,6 +451,89 @@ describe('ModelConfigService', () => {
     });
   });
 
+  describe('resolveEmbedding (PR2 폴백 체인)', () => {
+    it('(1) embeddingModelConfigId 지정 → kind=embedding config + config.defaultModel', async () => {
+      mockRepo.findOne.mockResolvedValueOnce({
+        id: 'emb-1',
+        workspaceId: 'ws-1',
+        kind: 'embedding',
+        defaultModel: 'text-embedding-3-large',
+        dimension: 3072,
+      } as ModelConfig);
+      const { config, model } = await service.resolveEmbedding({
+        embeddingModelConfigId: 'emb-1',
+        legacyModel: 'legacy-x',
+        workspaceId: 'ws-1',
+      });
+      expect(config.id).toBe('emb-1');
+      expect(model).toBe('text-embedding-3-large');
+    });
+
+    it('(1) embeddingModelConfigId 가 embedding kind 아니면 NOT_FOUND', async () => {
+      mockRepo.findOne.mockResolvedValueOnce({
+        id: 'x',
+        workspaceId: 'ws-1',
+        kind: 'chat',
+      } as ModelConfig);
+      await expect(
+        service.resolveEmbedding({
+          embeddingModelConfigId: 'x',
+          legacyModel: 'm',
+          workspaceId: 'ws-1',
+        }),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
+    });
+
+    it('(2) 미지정 + ws default kind=embedding → 그 default + defaultModel', async () => {
+      mockRepo.findOne.mockImplementation(
+        (opts: { where: Record<string, unknown> }) =>
+          opts.where.kind === 'embedding' && opts.where.isDefault
+            ? Promise.resolve({
+                id: 'emb-def',
+                workspaceId: 'ws-1',
+                kind: 'embedding',
+                defaultModel: 'emb-model',
+              } as ModelConfig)
+            : Promise.resolve(null),
+      );
+      const { config, model } = await service.resolveEmbedding({
+        legacyModel: 'legacy-x',
+        workspaceId: 'ws-1',
+      });
+      expect(config.id).toBe('emb-def');
+      expect(model).toBe('emb-model');
+    });
+
+    it('(3) embedding 없음 → legacy(embeddingLlmConfigId + legacyModel)', async () => {
+      mockRepo.findOne.mockImplementation(
+        (opts: { where: Record<string, unknown> }) => {
+          if (opts.where.kind === 'embedding') return Promise.resolve(null);
+          if (opts.where.id === 'chat-1')
+            return Promise.resolve({
+              id: 'chat-1',
+              workspaceId: 'ws-1',
+              kind: 'chat',
+            } as ModelConfig);
+          return Promise.resolve(null);
+        },
+      );
+      const { config, model } = await service.resolveEmbedding({
+        embeddingLlmConfigId: 'chat-1',
+        legacyModel: 'text-embedding-3-small',
+        workspaceId: 'ws-1',
+      });
+      expect(config.id).toBe('chat-1');
+      expect(model).toBe('text-embedding-3-small');
+    });
+
+    it('(3) legacy 둘 다 없으면 NOT_FOUND', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.resolveEmbedding({ legacyModel: 'm', workspaceId: 'ws-1' }),
+      ).rejects.toThrow();
+    });
+  });
+
   // ── SSRF guard ────────────────────────────────────────────────────────────
 
   describe('SSRF guard', () => {

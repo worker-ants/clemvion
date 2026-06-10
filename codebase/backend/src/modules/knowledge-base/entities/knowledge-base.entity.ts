@@ -61,8 +61,15 @@ export class KnowledgeBase {
   @Column({ name: 'extraction_llm_config_id', type: 'uuid', nullable: true })
   extractionLlmConfigId: string | null;
 
-  // 임베딩에 사용할 LLMConfig. NULL 이면 워크스페이스 default LLMConfig.
-  // 자기호스팅/Azure 등 default 가 아닌 endpoint 의 임베딩 모델을 KB 마다 선택할 수 있게 한다.
+  // 임베딩에 사용할 1급 ModelConfig(kind=embedding) `(V091)`. NULL 이면 워크스페이스
+  // default kind=embedding → (그것도 없으면) 아래 legacy 폴백 순으로 resolve.
+  // 모델 식별자·provider·차원은 참조된 ModelConfig 가 소유 (embed 시 config.defaultModel 사용).
+  @Column({ name: 'embedding_model_config_id', type: 'uuid', nullable: true })
+  embeddingModelConfigId: string | null;
+
+  // [LEGACY — PR4(V092)에서 제거 예정] 구 piggyback 경로. embedding_model_config_id 와
+  // 워크스페이스 default kind=embedding 가 모두 없을 때만 폴백으로 쓰인다
+  // (embedding_llm_config_id 가 가리키는 config + embedding_model 문자열로 embed).
   @Column({ name: 'embedding_llm_config_id', type: 'uuid', nullable: true })
   embeddingLlmConfigId: string | null;
 

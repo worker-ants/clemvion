@@ -7,6 +7,7 @@ import { DocumentChunk } from '../entities/document-chunk.entity';
 import { KnowledgeBase } from '../entities/knowledge-base.entity';
 import { S3Service } from '../../../common/services/s3.service';
 import { LlmService } from '../../llm/llm.service';
+import { ModelConfigService } from '../../model-config/model-config.service';
 import { WebsocketService } from '../../websocket/websocket.service';
 import { chunkText } from '../chunking/text-chunker';
 
@@ -32,6 +33,7 @@ describe('EmbeddingService - dimension consistency', () => {
   let mockKbRepo: Record<string, jest.Mock>;
   let mockChunkRepo: Record<string, jest.Mock>;
   let mockS3: Record<string, jest.Mock>;
+  let mockModelConfig: Record<string, jest.Mock>;
   let mockLlm: Record<string, jest.Mock>;
   let mockWs: Record<string, jest.Mock>;
   let mockDataSource: Record<string, jest.Mock>;
@@ -69,6 +71,18 @@ describe('EmbeddingService - dimension consistency', () => {
       }),
       embed: jest.fn(),
     };
+    // PR2: embedding.service 는 modelConfigService.resolveEmbedding 으로 (config, model) 해석.
+    // legacy 폴백 동형 — legacyModel 을 echo 해 기존 모델-전달 테스트를 보존.
+    mockModelConfig = {
+      resolveEmbedding: jest
+        .fn()
+        .mockImplementation((opts: { legacyModel: string }) =>
+          Promise.resolve({
+            config: { id: 'cfg', provider: 'openai', workspaceId: 'ws-1' },
+            model: opts.legacyModel,
+          }),
+        ),
+    };
     mockWs = {
       emitExecutionEvent: jest.fn(),
       emitKbEvent: jest.fn(),
@@ -86,6 +100,7 @@ describe('EmbeddingService - dimension consistency', () => {
         { provide: getRepositoryToken(KnowledgeBase), useValue: mockKbRepo },
         { provide: S3Service, useValue: mockS3 },
         { provide: LlmService, useValue: mockLlm },
+        { provide: ModelConfigService, useValue: mockModelConfig },
         { provide: WebsocketService, useValue: mockWs },
         { provide: DataSource, useValue: mockDataSource },
       ],

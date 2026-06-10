@@ -113,6 +113,7 @@ export class KnowledgeBaseService {
       name: dto.name,
       description: dto.description || undefined,
       embeddingModel: dto.embeddingModel || 'text-embedding-3-small',
+      embeddingModelConfigId: dto.embeddingModelConfigId ?? null,
       embeddingLlmConfigId: dto.embeddingLlmConfigId ?? null,
       chunkSize: dto.chunkSize || 1000,
       chunkOverlap: dto.chunkOverlap || 200,
@@ -160,6 +161,15 @@ export class KnowledgeBaseService {
     // (사전 안내는 frontend EmbeddingTestButton 의 인라인 경고가 담당.)
     if (dto.embeddingLlmConfigId !== undefined) {
       kb.embeddingLlmConfigId = dto.embeddingLlmConfigId;
+    }
+    // 1급 embedding config(kind=embedding) 변경 — config 가 바뀌면 모델·차원이 달라질 수
+    // 있어 dimension 을 NULL 로 초기화해 첫 임베딩에서 재결정한다(embeddingModel 변경과 동형).
+    if (
+      dto.embeddingModelConfigId !== undefined &&
+      dto.embeddingModelConfigId !== kb.embeddingModelConfigId
+    ) {
+      kb.embeddingModelConfigId = dto.embeddingModelConfigId;
+      kb.embeddingDimension = null;
     }
     if (dto.maxHops !== undefined) kb.maxHops = dto.maxHops;
     if (dto.vectorSeedTopK !== undefined)

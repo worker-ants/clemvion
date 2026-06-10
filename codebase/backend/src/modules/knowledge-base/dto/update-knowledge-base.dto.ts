@@ -90,7 +90,19 @@ export class UpdateKnowledgeBaseDto {
   @IsUUID()
   extractionLlmConfigId?: string | null;
 
-  /** 임베딩 LLMConfig 변경. null 로 보내면 워크스페이스 default 로 되돌림. */
+  /** 임베딩 ModelConfig(kind=embedding) 변경 (PR2). null 로 보내면 default/legacy 폴백으로 되돌림. */
+  @ApiPropertyOptional({
+    description:
+      '임베딩에 사용할 ModelConfig(kind=embedding) 변경. null 로 보내면 default/legacy 폴백으로 되돌립니다. 적용은 다음 임베딩부터. 모델/차원이 달라지면 재임베딩이 필요합니다.',
+    format: 'uuid',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  embeddingModelConfigId?: string | null;
+
+  /** [LEGACY] 임베딩 LLMConfig 변경(폴백). null 로 보내면 워크스페이스 default 로 되돌림. */
   @ApiPropertyOptional({
     description:
       '임베딩에 사용할 LLMConfig 변경. null 로 보내면 워크스페이스 default LLMConfig 로 되돌립니다. 적용은 다음 임베딩부터. 차원이 달라지면 KB 재임베딩이 필요합니다.',

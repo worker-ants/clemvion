@@ -121,6 +121,57 @@ export class ModelConfigService {
     return def;
   }
 
+  /**
+   * KB 임베딩에 사용할 `(config, model)` 을 점진적·하위호환 폴백 체인으로 해석한다 (PR2,
+   * spec/5-system/8-embedding-pipeline.md). 임베딩 1급화는 KB 무중단을 위해 단계적으로 전환한다:
+   *   (1) `embeddingModelConfigId` 지정 → 1급 kind=embedding config + `config.defaultModel`
+   *   (2) 미지정 → 워크스페이스 default kind=embedding config + 그 `defaultModel`
+   *   (3) 둘 다 없음(legacy) → 구 `embeddingLlmConfigId`(없으면 ws default chat) + `legacyModel` 문자열
+   */
+  async resolveEmbedding(opts: {
+    embeddingModelConfigId?: string | null;
+    embeddingLlmConfigId?: string | null;
+    legacyModel: string;
+    workspaceId: string;
+  }): Promise<{ config: ModelConfig; model: string }> {
+    const {
+      embeddingModelConfigId,
+      embeddingLlmConfigId,
+      legacyModel,
+      workspaceId,
+    } = opts;
+
+    // (1) 명시 지정된 1급 embedding config
+    if (embeddingModelConfigId) {
+      const config = await this.findEntity(
+        embeddingModelConfigId,
+        workspaceId,
+        'embedding',
+      );
+      return { config, model: config.defaultModel };
+    }
+
+    // (2) 워크스페이스 default kind=embedding
+    const embDefault = await this.findDefault(workspaceId, 'embedding');
+    if (embDefault) {
+      return { config: embDefault, model: embDefault.defaultModel };
+    }
+
+    // (3) legacy 폴백 — 구 embedding_llm_config_id(없으면 ws default chat) + embedding_model 문자열.
+    // legacy config 는 구 piggyback 이라 kind 무관(보통 chat)으로 조회한다.
+    const legacy = embeddingLlmConfigId
+      ? await this.findEntity(embeddingLlmConfigId, workspaceId)
+      : await this.findDefault(workspaceId, 'chat');
+    if (!legacy) {
+      throw new BadRequestException({
+        code: 'MODEL_CONFIG_NOT_FOUND',
+        message:
+          'No embedding model config resolved for workspace (no embedding/chat config)',
+      });
+    }
+    return { config: legacy, model: legacyModel };
+  }
+
   async create(
     workspaceId: string,
     kind: ModelConfigKind,
