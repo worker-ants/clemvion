@@ -37,14 +37,18 @@ deep freeze 하는 메커니즘(`FREEZE_BRANCH_CACHE`/`freezeSharedCacheValues`)
   와 동일 격리 규약). **확인됨**: `grep -n structuredOutputCache spec/conventions/execution-context.md`
   → **0건** (현재 미표기 — 추가 필요).
 
-## 2. (선택) `spec/5-system/4-execution-engine.md §7.4` 구현 상태 메모 날짜
+## 2. ~~(선택) `spec/5-system/4-execution-engine.md §7.4` 구현 상태 메모 날짜~~ — 반영 안 함
 
-in-memory continuation 머신 full B3 제거가 2026-06-10 에 완성 (`registerContinuationHandlers`
-no-op stub + `ContinuationBusService.on()` deprecated 메서드 제거). §7.4 구현 메모 날짜를
-2026-06-10 으로 갱신 (선택 — 서사는 이미 worker 단일 경로로 정합).
+**판정 (project-planner, 2026-06-10)**: 반영 불요. §7.4 의 "full B3 완료(2026-06-06, PR-B2b)" 날짜는
+정확하다 — in-memory continuation 머신(`pendingContinuations`/`firstSegmentBarriers`/`runAiConversationLoop`
+등)의 **실제 제거**가 그때 완성됐다. 2026-06-10 의 dead code 제거는 그 후 잔존한 **이미 no-op 이던
+stub**(`registerContinuationHandlers` 빈 본체 + `ContinuationBusService.on()` deprecated 메서드)을 치운
+것으로 **동작 무변경**이라 §7.4 서사(worker 단일 경로)에 영향이 없다. 날짜를 2026-06-10 으로 바꾸면
+오히려 full B3 완성 시점을 오기재하게 된다.
 
 ## 체크리스트
 
-- [ ] project-planner: `/consistency-check --spec` → BLOCK 확인
-- [ ] 1 반영 (필수), 2 반영 (선택). frontmatter `code:` 영향 없음 확인
-- [ ] 반영 후 본 draft 를 `plan/complete/` 로 이동
+- [x] project-planner: `/consistency-check --spec` (세션 `22_43_16`) → **BLOCK: NO**
+- [x] 1·1b 반영 (system-status §3 getter + R-5 인근 메모, 10-parallel :14 + §Rationale freeze invariant,
+      execution-context §1 structuredOutputCache). §2 는 위 판정대로 반영 안 함. frontmatter `code:` 영향 없음 확인
+- [x] 반영 후 본 draft 를 `plan/complete/` 로 이동
