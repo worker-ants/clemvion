@@ -17,6 +17,7 @@ import { Node } from '../nodes/entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { IntegrationCacheBus } from '../../common/redis/integration-cache-bus.service';
 import {
   IntegrationOAuthService,
   type BeginResult,
@@ -381,11 +382,28 @@ export class IntegrationsService {
     private readonly oauthService: IntegrationOAuthService,
     private readonly auditLogsService: AuditLogsService,
     private readonly mcpTestConnection: McpTestConnectionService,
+    private readonly integrationCacheBus: IntegrationCacheBus,
   ) {
     this.transportTesters = new Map<string, TransportTester>([
       ['mcp', this.testMcpTransport.bind(this)],
       ['email', this.testEmailTransport.bind(this)],
     ]);
+  }
+
+  /**
+   * refactor 04 m-4 — 자격증명이 바뀌거나 integration 이 삭제될 때, 전 인스턴스의
+   * 인스턴스-로컬 자격증명 캐시(예: database-query 연결 풀)를 Redis pub/sub 으로
+   * 즉시 evict 시킨다. fail-safe: bus 가 미가용이어도 각 핸들러의 credsHash 비교
+   * evict 가 다음 실행에서 stale 자원을 교체하므로 best-effort 다 (await 하되 throw 안 함).
+   *
+   * 적용 지점은 **동기 자격증명 변경**인 `rotate`(회전) 와 `remove`(삭제) 다. `update`
+   * 는 name 만 바꾸고, OAuth 토큰 갱신은 DB/email 같은 풀-캐시 소비자가 OAuth 자격증명을
+   * 쓰지 않아(구독자 부재) broadcast 대상이 아니다.
+   */
+  private async broadcastCredentialChange(
+    integrationId: string,
+  ): Promise<void> {
+    await this.integrationCacheBus.publish(integrationId);
   }
 
   /**
@@ -672,6 +690,9 @@ export class IntegrationsService {
         name: entity.name,
       },
     });
+    // 삭제된 integration 의 잔존 연결을 전 인스턴스에서 정리 (TypeORM remove 후
+    // entity.id 는 unset 될 수 있어 param `id` 를 쓴다).
+    await this.broadcastCredentialChange(id);
   }
 
   // ---------------------------------------------------------------
@@ -985,6 +1006,8 @@ export class IntegrationsService {
       resourceId: saved.id,
       details: { authType: saved.authType },
     });
+    // 회전된 자격증명의 stale 연결을 전 인스턴스에서 즉시 차단 (MTTR).
+    await this.broadcastCredentialChange(saved.id);
     return this.toPublic(saved);
   }
 

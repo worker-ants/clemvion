@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-11T07:23:30.924426",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/db-pool-creds-pubsub.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

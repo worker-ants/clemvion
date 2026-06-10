@@ -129,6 +129,32 @@ describe('DatabaseQueryHandler', () => {
     jest.requireMock('mysql2/promise').createPool.mockClear();
   });
 
+  describe('integration cache bus (04 m-4)', () => {
+    it('registers a pool-invalidator that drops the cached pool on broadcast', () => {
+      let registered: ((id: string) => void | Promise<void>) | undefined;
+      const bus = {
+        register: jest.fn((fn: (id: string) => void | Promise<void>) => {
+          registered = fn;
+        }),
+      };
+
+      const handler = new DatabaseQueryHandler(undefined, bus as never);
+
+      expect(bus.register).toHaveBeenCalledTimes(1);
+      const invalidateSpy = jest
+        .spyOn(handler, 'invalidatePool')
+        .mockResolvedValue(undefined);
+
+      registered?.('int-1');
+
+      expect(invalidateSpy).toHaveBeenCalledWith('int-1');
+    });
+
+    it('constructs without a bus (legacy fixtures) and degrades to local evict', () => {
+      expect(() => new DatabaseQueryHandler()).not.toThrow();
+    });
+  });
+
   describe('validate', () => {
     const handler = new DatabaseQueryHandler();
 

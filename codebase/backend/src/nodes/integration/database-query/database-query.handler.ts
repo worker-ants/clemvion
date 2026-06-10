@@ -21,6 +21,7 @@ import {
   toLogError,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import { IntegrationCacheBus } from '../../../common/redis/integration-cache-bus.service.js';
 import { assertSafeOutboundHostResolved } from '../http-request/http-safety.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';
@@ -80,8 +81,26 @@ export class DatabaseQueryHandler
     | { driver: 'mysql'; pool: MysqlPool; credsHash: string }
   >();
 
-  constructor(integrationsService?: IntegrationsService) {
+  /**
+   * 04 m-4 — bus 에 등록하는 invalidator 의 안정적 참조. register 가 받는 `Set` 은
+   * 동일 함수 참조에만 idempotent 하므로, 매 등록마다 새 arrow 를 만들지 않고 인스턴스
+   * 프로퍼티로 고정해 (비싱글톤 시나리오의) 중복 누적을 원천 차단한다.
+   */
+  private readonly invalidatePoolOnBroadcast = (
+    integrationId: string,
+  ): void => {
+    void this.invalidatePool(integrationId);
+  };
+
+  constructor(
+    integrationsService?: IntegrationsService,
+    integrationCacheBus?: IntegrationCacheBus,
+  ) {
     super(integrationsService);
+    // refactor 04 m-4 — credential 회전이 타 인스턴스에서 발생하면 pub/sub 으로
+    // 통지받아 해당 integrationId 풀을 즉시 evict 한다. bus 미주입(레거시 fixture)
+    // 시엔 §resolvePgPool/resolveMysqlPool 의 credsHash 비교 evict 로 degrade.
+    integrationCacheBus?.register(this.invalidatePoolOnBroadcast);
   }
 
   metadata = databaseQueryNodeMetadata;
