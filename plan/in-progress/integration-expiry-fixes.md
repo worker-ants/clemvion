@@ -34,11 +34,11 @@ spec_impact:
 
 ## 체크리스트
 
-- [ ] /consistency-check --impl-prep spec/2-navigation/
-- [ ] 단위 테스트 선작성/수정 (scanner: makeshop 면제·token_expired·refresh-capable 알림 제외 / system-status: makeshop 큐 등록)
-- [ ] 구현
-- [ ] spec 정합 (§11.1·data-flow/5·1-data-model token_expired 확정·16-system-status)
-- [ ] e2e (system-status 큐 노출 + 기존 회귀)
-- [ ] TEST WORKFLOW (lint→unit→build→e2e)
+- [x] /consistency-check --impl-prep spec/2-navigation/ — BLOCK YES: Critical 은 §11.1↔§11.2 모순(본 작업 대상). spec 정합 선행으로 해소. 범위 밖 WARNING(14-execution-history·0-dashboard·16-agent-memory)은 후속 backlog
+- [x] 단위 테스트 선작성/수정 (scanner: cafe24 알림 테스트 §11.2 갱신 + makeshop 2케이스 신규 / system-status.constants.spec 신설)
+- [x] 구현 — 커밋 1286b3e5
+- [x] spec 정합 (§11.1·data-flow/5·1-data-model) — 커밋 78af3d00. 16-system-status 표는 이미 makeshop 행 보유(코드만 누락이었음)
+- [x] e2e (system-status.e2e 13→14 큐 갱신 — 큐 추가에 따른 정당 갱신)
+- [x] TEST WORKFLOW (lint·unit·build·e2e 전부 PASS — e2e 30 suites/184 tests, 2026-06-11)
 - [ ] /ai-review + resolution
 - [ ] /consistency-check --impl-done spec/2-navigation/
