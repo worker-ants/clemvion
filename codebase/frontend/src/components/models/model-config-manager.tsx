@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   modelConfigsApi,
@@ -21,6 +21,8 @@ import { Plus, Loader2, Inbox, Trash2, X, Star, Plug, Pencil } from "lucide-reac
 import { useT } from "@/lib/i18n";
 
 const PAGE_SIZE = 20;
+const DEFAULT_TEMPERATURE = 0.7;
+const DEFAULT_MAX_TOKENS = 4096;
 
 const PROVIDERS_BY_KIND: Record<
   ModelConfigKind,
@@ -82,10 +84,14 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
   const [formApiKey, setFormApiKey] = useState("");
   const [formBaseUrl, setFormBaseUrl] = useState("");
   const [formModel, setFormModel] = useState("");
-  const [formTemperature, setFormTemperature] = useState("0.7");
-  const [formMaxTokens, setFormMaxTokens] = useState("4096");
+  const [formTemperature, setFormTemperature] = useState(String(DEFAULT_TEMPERATURE));
+  const [formMaxTokens, setFormMaxTokens] = useState(String(DEFAULT_MAX_TOKENS));
+  const [formDimension, setFormDimension] = useState("");
 
   const showParams = kind === "chat";
+  const showDimension = kind === "embedding";
+  // rerank: API Key 는 cohere 만 필수. tei(self-hosted) 는 불필요.
+  const showApiKey = kind !== "rerank" || formProvider === "cohere";
   const showTest = kind !== "rerank";
   const freeInputModel = kind === "rerank";
   const providers = PROVIDERS_BY_KIND[kind];
@@ -117,9 +123,12 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
         defaultModel: formModel,
         defaultParams: showParams
           ? {
-              temperature: parseFloat(formTemperature) || 0.7,
-              max_tokens: parseInt(formMaxTokens) || 4096,
+              temperature: parseFloat(formTemperature) || DEFAULT_TEMPERATURE,
+              max_tokens: parseInt(formMaxTokens) || DEFAULT_MAX_TOKENS,
             }
+          : undefined,
+        dimension: showDimension && formDimension.trim()
+          ? parseInt(formDimension) || undefined
           : undefined,
       }),
     onSuccess: () => {
@@ -167,7 +176,7 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
       if (result.success) toast.success(t("models.connectionSucceeded"));
       else
         toast.error(
-          t("models.connectionFailed", { error: result.error ?? "" }),
+          t("models.connectionFailed", { error: result.message ?? "" }),
         );
     },
     onError: () => toast.error(t("models.testFailedShort")),
@@ -181,8 +190,9 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
     setFormApiKey("");
     setFormBaseUrl("");
     setFormModel("");
-    setFormTemperature("0.7");
-    setFormMaxTokens("4096");
+    setFormTemperature(String(DEFAULT_TEMPERATURE));
+    setFormMaxTokens(String(DEFAULT_MAX_TOKENS));
+    setFormDimension("");
   }
 
   function openEdit(config: ModelConfigData) {
@@ -193,11 +203,12 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
     setFormBaseUrl(config.baseUrl || "");
     setFormModel(config.defaultModel);
     setFormTemperature(
-      String((config.defaultParams?.temperature as number) ?? 0.7),
+      String((config.defaultParams?.temperature as number) ?? DEFAULT_TEMPERATURE),
     );
     setFormMaxTokens(
-      String((config.defaultParams?.max_tokens as number) ?? 4096),
+      String((config.defaultParams?.max_tokens as number) ?? DEFAULT_MAX_TOKENS),
     );
+    setFormDimension(config.dimension != null ? String(config.dimension) : "");
     setShowDialog(true);
   }
 
@@ -224,9 +235,12 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
       };
       if (showParams) {
         payload.defaultParams = {
-          temperature: parseFloat(formTemperature) || 0.7,
-          max_tokens: parseInt(formMaxTokens) || 4096,
+          temperature: parseFloat(formTemperature) || DEFAULT_TEMPERATURE,
+          max_tokens: parseInt(formMaxTokens) || DEFAULT_MAX_TOKENS,
         };
+      }
+      if (showDimension && formDimension.trim()) {
+        payload.dimension = parseInt(formDimension) || undefined;
       }
       if (formApiKey.trim()) payload.apiKey = formApiKey;
       updateMutation.mutate({ id: editId, data: payload });
@@ -236,6 +250,17 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+
+  // ESC key closes modals (accessibility — focus-trap migration to shadcn Dialog deferred to followup)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      if (showDialog) resetForm();
+      if (deleteTarget) setDeleteTarget(null);
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showDialog, deleteTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6">
@@ -288,19 +313,21 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
                   placeholder={t("models.namePlaceholder")}
                 />
               </div>
-              <div>
-                <Label>{t("models.apiKey")}</Label>
-                <Input
-                  type="password"
-                  value={formApiKey}
-                  onChange={(e) => setFormApiKey(e.target.value)}
-                  placeholder={
-                    editId
-                      ? t("models.apiKeyPlaceholderEdit")
-                      : t("models.apiKeyPlaceholderNew")
-                  }
-                />
-              </div>
+              {showApiKey && (
+                <div>
+                  <Label>{t("models.apiKey")}</Label>
+                  <Input
+                    type="password"
+                    value={formApiKey}
+                    onChange={(e) => setFormApiKey(e.target.value)}
+                    placeholder={
+                      editId
+                        ? t("models.apiKeyPlaceholderEdit")
+                        : t("models.apiKeyPlaceholderNew")
+                    }
+                  />
+                </div>
+              )}
               {needsBaseUrl(formProvider) && (
                 <div>
                   <Label>{t("models.baseUrl")}</Label>
@@ -333,6 +360,18 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
                   />
                 )}
               </div>
+              {showDimension && (
+                <div>
+                  <Label>{t("models.dimension")}</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={formDimension}
+                    onChange={(e) => setFormDimension(e.target.value)}
+                    placeholder={t("models.dimensionPlaceholder")}
+                  />
+                </div>
+              )}
               {showParams && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -461,7 +500,7 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
                       {config.defaultModel}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-[hsl(var(--muted-foreground))]">
-                      {config.apiKey ?? "—"}
+                      {config.apiKey ? "••••••••" : "—"}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">

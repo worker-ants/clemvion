@@ -310,6 +310,39 @@ describe("useModelLoader", () => {
     expect(result.current.models[0].id).toBe("gpt-4o");
   });
 
+  // SUMMARY#W10 (api injection): custom api mock 주입 시 해당 mock 이 호출됨
+  it("uses injected api instead of default llmConfigsApi when api prop is provided", async () => {
+    const customApi = {
+      listModels: vi.fn().mockResolvedValue([
+        { id: "custom-model", name: "Custom Model", type: "chat" as const },
+      ]),
+      previewModels: vi.fn().mockResolvedValue([]),
+    };
+
+    const { result } = renderHook(
+      () =>
+        useModelLoader({
+          provider: "anthropic",
+          apiKey: "",
+          configId: "cfg-custom",
+          fallbackErrorMessage: "failed",
+          api: customApi,
+        }),
+      { wrapper },
+    );
+
+    act(() => result.current.load());
+    await waitFor(() => {
+      expect(customApi.listModels).toHaveBeenCalledWith("cfg-custom");
+    });
+    // Default llmConfigsApi must NOT be called
+    expect(llmConfigsApi.listModels).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.models).toHaveLength(1);
+      expect(result.current.models[0].id).toBe("custom-model");
+    });
+  });
+
   // SUMMARY#2(INFO): apiKey / baseUrl 이 trim 되어 API 에 전달됨
   it("trims apiKey and baseUrl before calling previewModels", async () => {
     vi.mocked(llmConfigsApi.previewModels).mockResolvedValue([]);

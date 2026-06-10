@@ -65,7 +65,7 @@ export const modelConfigsApi = {
    */
   async list(kind: ModelConfigKind): Promise<ModelConfigData[]> {
     const { data: raw } = await apiClient.get("/model-configs", {
-      params: { kind },
+      params: { kind, limit: 9999 },
     });
     const enveloped = (raw as { data?: ModelConfigData[] } | undefined)?.data;
     if (Array.isArray(enveloped)) return enveloped;
@@ -94,7 +94,7 @@ export const modelConfigsApi = {
 
   async testConnection(id: string) {
     const response = await apiClient.post(`/model-configs/${id}/test`);
-    return unwrap<{ success: boolean; error?: string }>(response);
+    return unwrap<{ success: boolean; latencyMs?: number; message?: string | null }>(response);
   },
 
   async listModels(id: string, opts?: { type?: "chat" | "embedding" }) {

@@ -2,6 +2,14 @@
 
 import { useMemo } from "react";
 import { llmConfigsApi, type ModelInfo } from "@/lib/api/llm-configs";
+import {
+  LOCAL_PROVIDER,
+  PROVIDERS_REQUIRING_BASE_URL,
+} from "@/lib/llm-providers";
+import {
+  useBaseModelLoader,
+  type UseBaseModelLoaderResult,
+} from "./use-base-model-loader";
 
 /**
  * preview/listModels 만 추상화한 모델-로더 API 계약. llmConfigsApi(구 /llm-configs alias)
@@ -12,14 +20,6 @@ export interface ModelLoaderApi {
   listModels(id: string, opts?: { type?: "chat" | "embedding" }): Promise<ModelInfo[]>;
   previewModels(payload: { provider: string; apiKey: string; baseUrl?: string }): Promise<ModelInfo[]>;
 }
-import {
-  LOCAL_PROVIDER,
-  PROVIDERS_REQUIRING_BASE_URL,
-} from "@/lib/llm-providers";
-import {
-  useBaseModelLoader,
-  type UseBaseModelLoaderResult,
-} from "./use-base-model-loader";
 
 function providerRequiresApiKey(provider: string) {
   return provider !== "" && provider !== LOCAL_PROVIDER;

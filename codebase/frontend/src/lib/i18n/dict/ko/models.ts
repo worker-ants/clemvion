@@ -17,6 +17,8 @@ export const models = {
   defaultModel: "기본 모델",
   modelPlaceholder: "모델을 불러온 뒤 선택하세요",
   rerankModelPlaceholder: "예: dragonkue/bge-reranker-v2-m3-ko",
+  dimension: "차원(Dimension)",
+  dimensionPlaceholder: "예: 1536 또는 3072",
   temperature: "Temperature",
   maxTokens: "Max Tokens",
   updateBtn: "수정",

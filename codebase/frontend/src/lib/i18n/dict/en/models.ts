@@ -17,6 +17,8 @@ export const models = {
   defaultModel: "Default Model",
   modelPlaceholder: "Load models, then select",
   rerankModelPlaceholder: "e.g. dragonkue/bge-reranker-v2-m3-ko",
+  dimension: "Dimension",
+  dimensionPlaceholder: "e.g. 1536 or 3072",
   temperature: "Temperature",
   maxTokens: "Max Tokens",
   updateBtn: "Update",
