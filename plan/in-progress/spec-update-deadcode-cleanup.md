@@ -33,8 +33,9 @@ deep freeze 하는 메커니즘(`FREEZE_BRANCH_CACHE`/`freezeSharedCacheValues`)
 - `spec/4-nodes/1-logic/10-parallel.md §Rationale`(:14 shallow copy 결정 인근)에 "branch-local
   `nodeOutputCache` 값 객체 내부 mutate 금지 invariant — dev/test(`NODE_ENV in {development,test}`)
   에서 deep `Object.freeze` 로 기계 강제, production 무적용" 1줄 추가.
-- `spec/conventions/execution-context.md §1` 에 `structuredOutputCache` 필드가 표기 누락이면 추가
-  (`nodeOutputCache` 와 동일 격리 규약).
+- `spec/conventions/execution-context.md §1` 에 `structuredOutputCache` 필드 추가 (`nodeOutputCache`
+  와 동일 격리 규약). **확인됨**: `grep -n structuredOutputCache spec/conventions/execution-context.md`
+  → **0건** (현재 미표기 — 추가 필요).
 
 ## 2. (선택) `spec/5-system/4-execution-engine.md §7.4` 구현 상태 메모 날짜
 

@@ -31,10 +31,13 @@ export type ParallelErrorPolicy = 'stop' | 'continue' | 'cancel-others-on-fail';
  * 에서 freeze 가 켜지지 않도록 `development`/`test` **allowlist** 로 한정한다
  * (`!== 'production'` 의 음성 판별은 미정의를 dev 로 오인).
  */
+/** @internal — test-only export (M-5 가드의 환경 전제 단언용). 프로덕션 코드에서 사용 금지. */
 export const FREEZE_BRANCH_CACHE =
   process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
 
 function deepFreeze(value: unknown): void {
+  // 배열도 `typeof value === 'object'` 이므로 본 분기에서 함께 처리된다
+  // (엘리먼트는 Object.values 순회로 재귀 freeze).
   if (value === null || typeof value !== 'object') return;
   if (Object.isFrozen(value)) return;
   Object.freeze(value);
