@@ -18,10 +18,21 @@ export type ParallelErrorPolicy = 'stop' | 'continue' | 'cancel-others-on-fail';
  * 객체를 **deep** `Object.freeze` 한다 — 중첩 속성까지 위반 mutate 시도가 strict
  * mode 에서 TypeError 로 표면화된다. production 은 미적용 (freeze 비용 회피 + 동작
  * 불변). 적용 지점은 본 helper 호출(=branch context 생성) 한 곳으로 한정한다.
- * cache 값은 직렬화 가능한 output envelope 이라 순환 참조가 없으나, 방어적으로
- * 이미 frozen 인 객체는 재귀에서 건너뛴다.
+ *
+ * **주의 (ai-review W1)**: branch 의 `nodeOutputCache` 는 shallow copy 라 값 객체는
+ * **원본과 동일 참조를 공유**한다 — 따라서 freeze 는 부모 context 의 값 객체에도
+ * 적용된다. 이는 의도다: 부모/branch 어느 쪽이든 공유 값 내부 mutate 는 spec
+ * invariant 위반이므로 양쪽 모두에서 검출돼야 한다. cache 값은 직렬화 가능한
+ * output envelope 이라 순환 참조가 없으나, 방어적으로 이미 frozen 인 객체는 재귀
+ * 에서 건너뛴다. deep freeze 비용은 첫 branch 실행에 집중되고 이후는 `isFrozen`
+ * 조기 반환으로 무시 가능하다.
+ *
+ * **환경 판별 (ai-review W2·INFO6)**: `NODE_ENV` 미정의(undefined) 시 production
+ * 에서 freeze 가 켜지지 않도록 `development`/`test` **allowlist** 로 한정한다
+ * (`!== 'production'` 의 음성 판별은 미정의를 dev 로 오인).
  */
-const FREEZE_BRANCH_CACHE = process.env.NODE_ENV !== 'production';
+export const FREEZE_BRANCH_CACHE =
+  process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
 
 function deepFreeze(value: unknown): void {
   if (value === null || typeof value !== 'object') return;
@@ -32,6 +43,11 @@ function deepFreeze(value: unknown): void {
   }
 }
 
+/**
+ * branch-local shallow copy `cache` 의 **값 객체들**만 dev/test 에서 deep freeze
+ * 한다 (cache 객체 자체는 freeze 안 함 — top-level 키 추가는 branch 격리 동작).
+ * production 에선 no-op. 위 {@link FREEZE_BRANCH_CACHE} 주석 참조.
+ */
 function freezeSharedCacheValues<T extends Record<string, unknown>>(
   cache: T,
 ): T {
