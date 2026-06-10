@@ -395,3 +395,13 @@
 - **검증**: optimistic reconcile/tool dedup unit 무변화.
 - **회귀 위험**: 사실상 없음.
 - **spec 갱신**: 불요.
+
+---
+
+## 구현 진행 메모 (worktree: plan-complete-turn-timing-aa533b, branch: perf-backlog-01)
+
+- 2026-06-10: 구현 착수 준비 — consistency-check --impl-prep 세션 `review/consistency/2026/06/10/19_06_27` 실행 중 (BLOCK 대기).
+- 사전 분석 확정 사항:
+  - #12 seed 동등성 분석 결과 **비동등**: 메인 쿼리 외부 `LIMIT (seedTopK+expandLimit)` 가 expanded 행 수·점수에 따라 seed 행을 evict 할 수 있어, 2차 카운트 쿼리의 seed(반환된 seedRows)와 메인 CTE seed 의 모집합이 다를 수 있음 → plan 분기대로 **C(현 2회 왕복 유지) 종결 예정**.
+  - #3/#8(frontend): 정렬 순서에 의미 의존하는 소비처 2곳 추가 식별 — `use-expression-context.ts:115`(last-write=최신), `transform/preview.tsx:29`(역순 스캔). B안 적용 시 정렬 accessor 전환 대상.
+  - #10: import 테스트가 2차 update 루프를 단언(:694,:733) — 배치 insert 전환 시 테스트 갱신 동반.
