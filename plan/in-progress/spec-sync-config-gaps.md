@@ -8,6 +8,8 @@ owner: planner
 
 > 출처: 2026-06-03 spec-vs-code audit (review/spec-coverage/2026/06/03/08_05_49). 본 spec 을 `partial` 로 강등하며 분리한 미구현 항목 추적.
 > 관련 spec: spec/2-navigation/6-config.md
+>
+> **Scope**: 본 plan 은 `6-config.md` 중 **Part A(인증 설정)** 의 미구현 gap 만 다룬다. **Part B/C(Models — Chat/Embedding/Rerank 통합)** 는 `plan/in-progress/unified-model-management.md` 가 담당한다 (두 plan 이 같은 spec frontmatter 에 공존하므로 scope 분리 명시).
 
 ## 미구현 항목
 - [ ] §A.3 인증 사용량/이력 — **소스 IP** 컬럼 (호출 이력 테이블). 현재 `getUsage`(auth-configs.service.ts:399-450) 의 `recentCalls` 는 triggerName/status/startedAt 만 반환.

@@ -6,6 +6,9 @@ pending_plans:
   - plan/in-progress/unified-model-management.md
 code:
   - codebase/frontend/src/app/(main)/authentication/page.tsx
+  - codebase/frontend/src/app/(main)/models/page.tsx
+  - codebase/frontend/src/components/models/model-config-manager.tsx
+  - codebase/frontend/src/lib/api/model-configs.ts
   - codebase/frontend/src/app/(main)/llm-configs/page.tsx
   - codebase/frontend/src/app/(main)/rerank-configs/page.tsx
   - codebase/frontend/src/components/llm-config/**
