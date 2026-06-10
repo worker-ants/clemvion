@@ -16,7 +16,7 @@
 | W10 | 코드 | a1191baf | `useModelLoader`, `ModelCombobox`, `useEmbeddingModelLoader` — custom `api` 주입 테스트 케이스 추가 |
 | W11 | 코드 | a1191baf | `models-page.test.tsx` — `?tab=embedding` API 호출 검증 + 탭 전환 `router.replace` URL 검증 |
 | W12 | 코드 | a1191baf | `modelConfigsApi.list()` — `limit: 9999` 쿼리 추가 |
-| INFO10 (SPEC-DRIFT) | spec | a2d9d753 | `max_tokens` 기본값 4096 — 구 코드 및 신규 코드 모두 4096 일관. spec §B.4 는 2048 로 낡았음. spec 갱신 draft 생성 |
+| INFO10 (SPEC-DRIFT) | spec | 085a7d08 | `max_tokens` 기본값 4096 — spec §B.4 `2048`→`4096` 정정 + Rationale R-5 신설 + ai-agent.md 예시 동반 갱신. consistency-check `--spec` BLOCK:NO(`00_56_14`) 후 반영. draft → `plan/complete/spec-update-model-config-defaults.md` |
 
 ## TEST 결과
 
@@ -26,8 +26,7 @@
 
 ## 보류·후속 항목
 
-- **W5 (Architecture)**: `ModelConfigManager` SRP 분리 — `ModelConfigFormDialog`, `ModelConfigDeleteDialog` 서브컴포넌트 + `useModelConfigForm` hook 추출. 중기 리팩토링. PR4 이전 착수 권장.
-- **W6 partial (Architecture)**: 인라인 모달 → shadcn/ui `<Dialog>` / `<AlertDialog>` 교체로 focus-trap 완전 구현. W5 리팩토링과 함께 처리 권장.
-- **INFO10 spec-drift**: `plan/in-progress/spec-update-model-config-defaults.md` — spec §B.4 `max_tokens` 기본값 2048 → 4096 갱신 요청. project-planner 에 위임 필요.
+- **W5 + W6 partial (Architecture)** → `plan/in-progress/model-config-manager-refactor-followup.md` 로 이관: `ModelConfigManager` SRP 분리(`ModelConfigFormDialog`/`ModelConfigDeleteDialog`/`useModelConfigForm`) + 인라인 모달 → shadcn `<Dialog>`/`<AlertDialog>` focus-trap. 대형 리팩토링이라 in-PR fix 에서 이월(기능·정합성 영향 없음, ESC 닫기는 W6 에서 추가 완료).
+- **INFO10 spec-drift**: ✅ 반영 완료 (commit 085a7d08). draft → `plan/complete/spec-update-model-config-defaults.md`.
 - **INFO8 (Architecture)**: 사이드바 레거시 i18n 키(`llmConfig`, `reranker`) — PR4 에서 제거.
 - **INFO13-15 (Documentation)**: 사용자 문서 구 API 경로 교체 + `[+ Add Provider]` → `[+ Add Model]` 레이블 + Embedding 탭 가이드 미작성 — PR4 문서 업데이트 시 처리.
