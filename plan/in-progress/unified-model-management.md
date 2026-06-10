@@ -180,16 +180,34 @@ related_plan:
 - **#13 Rolling deploy rename safety**: V088 `ALTER TABLE llm_config RENAME TO model_config` —
   단일 컷오버 배포 운영 또는 `CREATE VIEW llm_config AS SELECT * FROM model_config` 추가로 구 인스턴스 보호.
   배포 가이드에 "롤링 배포 비허용 — 컷오버 필수" 명시.
-- **#21 구 에러 코드 호환성**: `RERANK_CONFIG_*`/`LLM_CONFIG_*` → `MODEL_CONFIG_*` 변경.
+- **#21 구 에러 코드 호환성 (W2/I7)**: `RERANK_CONFIG_*`/`LLM_CONFIG_*` → `MODEL_CONFIG_*` 변경.
   PR4 alias 제거 전 클라이언트 마이그레이션 가이드 또는 alias 서비스에서 catch + 구 코드 재매핑.
+  alias 엔드포인트는 PR4에서 제거 예정이므로 중간 재매핑 레이어는 throwaway complexity — PR4 시점에 최종 처리.
+- **W3 컨트롤러→LlmService 직결 의존**: PR4 alias 제거 시 `ModelConfigController`의 `LlmService.clearClientCache()` 직접 호출이 사라지므로 구조적으로 해소됨.
+- **W4 forwardRef 순환 (LlmConfigModule↔ModelConfigModule)**: `preview-llm-models.dto` 이동으로 근본 원인 해소 — PR4 alias 모듈 제거 시 함께 처리.
+- **W5 expectedKind ISP 누출**: PR4에서 alias 제거 + `expectedKind` 파라미터 삭제 시 해소.
+- **I18 Deprecation/Sunset 헤더**: alias 엔드포인트 RFC 8594 `Sunset` 헤더 — PR4 삭제 시점에 불필요.
 
 ### 중기 아키텍처 백로그 (별도 plan)
 
 - **#3/#4 OCP/provider-set 리팩토링**: `ModelConfig` 단일 엔티티 nullable 필드 혼재 →
   kind별 partial check constraint 추가 또는 서브타입 분리 중기 검토.
 - **#11 V089 lock window**: 배포 가이드에 "무중단 배포 시 migration 윈도우를 트래픽 저점에 적용" 명시.
+- **W10 (workspace_id, kind) 복합 인덱스**: `model_config`는 워크스페이스당 소수 행 — 전용 목록 인덱스 불필요. 규모 성장 시 재검토.
 
-### 이미 처리됨 (577c9a6c)
+### 재검토 후 기각 (false positive / 범위 외)
 
-- 모든 Critical(C1/C2/C3) + Warning(W9/W14/W15/W16/W17/W18/W19/W20/W23/W25) 코드 수정 완료.
+- **W9 parseKind BadRequest code 필드**: `ModelConfigController.parseKind`에 이미 `code: 'MODEL_CONFIG_INVALID'` 포함됨 — FALSE POSITIVE. 추가 조치 불필요.
+- **I6 V089 index 이름 spec 누락 (SPEC-DRIFT)**: 동작 변경 없는 index 이름 누락. plan §3 마이그레이션 표에 `model_config_workspace_kind_default_unique` 이름 기록으로 충분 — spec 변경 불필요.
+
+### 이미 처리됨
+
+- 모든 Critical(C1/C2/C3) + Warning(W9/W14/W15/W16/W17/W18/W19/W20/W23/W25) 코드 수정 완료 (577c9a6c).
 - forwardRef 순환 의존 해소 (b1c37ac1).
+- **W1/I5/I8/I9/I12/I14/I15** 재리뷰 수정 완료 (063c2a9e):
+  - W1: `resolveConfig` id 경로 kind 가드 누락 수정 (`findEntity(id, workspaceId, kind)`).
+  - I5: `findAll` `getManyAndCount()` 단일 쿼리로 통합.
+  - I8: `maskApiKey` 매직 넘버 → `MASKED_SUFFIX_LEN` 상수 추출.
+  - I9: 중복 `NotFoundException` → `private notFound()` 헬퍼 추출.
+  - I14: `update()` `expectedKind` mismatch 테스트 추가.
+  - I15: `LlmConfigService.getDecryptedApiKey` non-null 경로 테스트 추가.
