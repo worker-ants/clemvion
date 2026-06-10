@@ -45,6 +45,39 @@ function repo(): Record<string, Mock> {
   };
 }
 
+/**
+ * W-4: 반복되는 알림 검증 패턴을 헬퍼로 추출.
+ *
+ * `getNotifResourceIds` — `notificationsService.createMany` 에 전달된 알림 배열의
+ * `resourceId` 목록을 반환한다.  `createMany` 가 아직 호출되지 않은 경우 빈 배열.
+ * 기존 이중 `.flat()` 패턴(`mock.calls.flat().flat()`)은 `createMany` 가 미호출이어도
+ * 빈 배열이 되어 "알림 없음" assertion 이 항상 통과하는 약점이 있었다.
+ * 본 헬퍼는 호출 횟수 검증을 분리하므로 그 약점을 드러낸다.
+ */
+function getNotifResourceIds(notificationsSvc: {
+  createMany: jest.Mock;
+}): string[] {
+  if (notificationsSvc.createMany.mock.calls.length === 0) return [];
+  const firstCall = notificationsSvc.createMany.mock.calls[0][0] as Array<{
+    resourceId?: string;
+  }>;
+  return firstCall.map((n) => n.resourceId ?? '');
+}
+
+/**
+ * W-4: `integrationRepo.save` 가 `status='expired'` 인 행을 포함해 호출됐는지 검사.
+ * 기존 `mock.calls.flat().arr.some(...)` 중첩 패턴 대체.
+ */
+function hasSavedExpired(integrationRepoMock: { save: jest.Mock }): boolean {
+  if (integrationRepoMock.save.mock.calls.length === 0) return false;
+  const firstCallArg = integrationRepoMock.save.mock.calls[0][0] as Array<{
+    status?: string;
+  }>;
+  return Array.isArray(firstCallArg)
+    ? firstCallArg.some((i) => i?.status === 'expired')
+    : false;
+}
+
 describe('IntegrationExpiryScannerService.run', () => {
   let scanner: IntegrationExpiryScannerService;
   let integrationRepo: Record<string, Mock>;
@@ -222,31 +255,12 @@ describe('IntegrationExpiryScannerService.run', () => {
     });
 
     // status 격하 없음 — save() 가 expired 로 호출되면 안 됨.
-    const savedArgs = integrationRepo.save.mock.calls.flat();
-    const savedExpired = savedArgs.some((arr: unknown) =>
-      Array.isArray(arr)
-        ? arr.some(
-            (i: unknown) =>
-              typeof i === 'object' &&
-              i !== null &&
-              (i as { status?: string }).status === 'expired',
-          )
-        : false,
-    );
-    expect(savedExpired).toBe(false);
+    expect(hasSavedExpired(integrationRepo)).toBe(false);
 
     // §11.2: refresh-capable provider (cafe24) 는 passive integration_expired 알림 제외.
-    const notifs = (
-      notificationsService.createMany.mock.calls.flat() as unknown[]
-    ).flat();
-    expect(
-      notifs.some(
-        (n) =>
-          typeof n === 'object' &&
-          n !== null &&
-          (n as { resourceId?: string }).resourceId === 'cafe24-int-1',
-      ),
-    ).toBe(false);
+    expect(getNotifResourceIds(notificationsService)).not.toContain(
+      'cafe24-int-1',
+    );
   });
 
   it('falls back to expired flip for cafe24 row missing refresh_token at 0d', async () => {
@@ -311,30 +325,11 @@ describe('IntegrationExpiryScannerService.run', () => {
 
     await expect(scanner.run(now)).resolves.toBeDefined();
     // status 격하도 없음 (refresh-capable 분기에 들어감).
-    const savedArgs = integrationRepo.save.mock.calls.flat();
-    const savedExpired = savedArgs.some((arr: unknown) =>
-      Array.isArray(arr)
-        ? arr.some(
-            (i: unknown) =>
-              typeof i === 'object' &&
-              i !== null &&
-              (i as { status?: string }).status === 'expired',
-          )
-        : false,
-    );
-    expect(savedExpired).toBe(false);
+    expect(hasSavedExpired(integrationRepo)).toBe(false);
     // §11.2: refresh-capable provider 는 enqueue 성공/실패 무관하게 passive 알림 미발사.
-    const notifs3 = (
-      notificationsService.createMany.mock.calls.flat() as unknown[]
-    ).flat();
-    expect(
-      notifs3.some(
-        (n) =>
-          typeof n === 'object' &&
-          n !== null &&
-          (n as { resourceId?: string }).resourceId === 'cafe24-int-3',
-      ),
-    ).toBe(false);
+    expect(getNotifResourceIds(notificationsService)).not.toContain(
+      'cafe24-int-3',
+    );
   });
 
   // 빈 문자열 refresh_token 은 refresh-capable 분기에 들어가지 않아야 한다 —
@@ -405,30 +400,11 @@ describe('IntegrationExpiryScannerService.run', () => {
     // makeshop 은 cafe24 전용 큐 enqueue 대상 아님.
     expect(cafe24RefreshQueue.add).not.toHaveBeenCalled();
     // expired 격하 없음.
-    const savedArgs = integrationRepo.save.mock.calls.flat();
-    const savedExpired = savedArgs.some((arr: unknown) =>
-      Array.isArray(arr)
-        ? arr.some(
-            (i: unknown) =>
-              typeof i === 'object' &&
-              i !== null &&
-              (i as { status?: string }).status === 'expired',
-          )
-        : false,
-    );
-    expect(savedExpired).toBe(false);
+    expect(hasSavedExpired(integrationRepo)).toBe(false);
     // passive 알림 없음.
-    const mkNotifs = (
-      notificationsService.createMany.mock.calls.flat() as unknown[]
-    ).flat();
-    expect(
-      mkNotifs.some(
-        (n) =>
-          typeof n === 'object' &&
-          n !== null &&
-          (n as { resourceId?: string }).resourceId === 'makeshop-int-1',
-      ),
-    ).toBe(false);
+    expect(getNotifResourceIds(notificationsService)).not.toContain(
+      'makeshop-int-1',
+    );
   });
 
   // makeshop 이지만 refresh_token 부재 → refresh_token-less 경로: expired + token_expired + 알림.
@@ -462,17 +438,87 @@ describe('IntegrationExpiryScannerService.run', () => {
         }),
       ]),
     );
-    const mk2Notifs = (
-      notificationsService.createMany.mock.calls.flat() as unknown[]
-    ).flat();
-    expect(
-      mk2Notifs.some(
-        (n) =>
-          typeof n === 'object' &&
-          n !== null &&
-          (n as { resourceId?: string }).resourceId === 'makeshop-int-2',
-      ),
-    ).toBe(true);
+    // passive 알림이 makeshop-int-2 에 대해 발사됐는지 확인.
+    expect(notificationsService.createMany).toHaveBeenCalledTimes(1);
+    expect(getNotifResourceIds(notificationsService)).toContain(
+      'makeshop-int-2',
+    );
+  });
+
+  // W-2: spec §11.2 — refresh-capable provider 는 7d/3d 임계에서도 알림 면제.
+  // 0d 케이스만 커버되던 기존 테스트를 보완 — cafe24 + refresh_token 이 7d 이내이지만
+  // 아직 만료되지 않은(tokenExpiresAt = now+5d) 경우 passive 알림이 발사되지 않아야 한다.
+  it('exempts cafe24 + refresh_token from passive alert at 7d threshold (§11.2)', async () => {
+    const now = new Date('2026-06-10T00:00:00Z');
+    // tokenExpiresAt = now + 5d → classifyThreshold → '7d' 임계
+    const expires = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+    integrationRepo.find.mockResolvedValue([
+      {
+        id: 'cafe24-7d-int',
+        workspaceId: 'ws-1',
+        name: 'Cafe24 7d',
+        scope: 'personal',
+        status: 'connected',
+        serviceType: 'cafe24',
+        credentials: {
+          access_token: 'a',
+          refresh_token: 'r-valid',
+          mall_id: 'myshop',
+        },
+        createdBy: 'user-1',
+        tokenExpiresAt: expires,
+      },
+    ]);
+    userRepo.find.mockResolvedValue([
+      { id: 'user-1', notificationPreferences: {} },
+    ]);
+
+    const count = await scanner.run(now);
+
+    // refresh-capable 이므로 claim 없이 continue → 알림 0건
+    expect(count).toBe(0);
+    // dedup claim 도 생성하지 않는다 (§11.2 의도적 설계 — W-3 주석 참조)
+    expect(dispatchRepo.__insertBuilder.values).not.toHaveBeenCalled();
+    // passive 알림 미발사
+    const args = (notificationsService.createMany.mock.calls[0]?.[0] ??
+      []) as Array<{ resourceId?: string }>;
+    expect(args.some((n) => n.resourceId === 'cafe24-7d-int')).toBe(false);
+  });
+
+  // W-2: makeshop + refresh_token 이 3d 이내(tokenExpiresAt = now+2d) 인 경우에도
+  // passive 알림 면제 — spec §11.2.
+  it('exempts makeshop + refresh_token from passive alert at 3d threshold (§11.2)', async () => {
+    const now = new Date('2026-06-10T00:00:00Z');
+    // tokenExpiresAt = now + 2d → classifyThreshold → '3d' 임계
+    const expires = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    integrationRepo.find.mockResolvedValue([
+      {
+        id: 'makeshop-3d-int',
+        workspaceId: 'ws-1',
+        name: 'MakeShop 3d',
+        scope: 'personal',
+        status: 'connected',
+        serviceType: 'makeshop',
+        credentials: {
+          access_token: 'a',
+          refresh_token: 'mk-r',
+          mall_id: 'myshop',
+        },
+        createdBy: 'user-1',
+        tokenExpiresAt: expires,
+      },
+    ]);
+    userRepo.find.mockResolvedValue([
+      { id: 'user-1', notificationPreferences: {} },
+    ]);
+
+    const count = await scanner.run(now);
+
+    expect(count).toBe(0);
+    expect(dispatchRepo.__insertBuilder.values).not.toHaveBeenCalled();
+    const args = (notificationsService.createMany.mock.calls[0]?.[0] ??
+      []) as Array<{ resourceId?: string }>;
+    expect(args.some((n) => n.resourceId === 'makeshop-3d-int')).toBe(false);
   });
 
   it('skips thresholds already dispatched (unique violation)', async () => {
