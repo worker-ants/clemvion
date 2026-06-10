@@ -11,6 +11,8 @@ pending_plans:
   - plan/in-progress/spec-sync-execution-engine-gaps.md
   - plan/in-progress/exec-intake-queue-impl.md
   - plan/in-progress/exec-park-durable-resume.md
+  - plan/in-progress/spec-sync-resume-dispatch-registry.md
+  - plan/in-progress/spec-update-execution-context-options-bag.md
 ---
 
 # Spec: 실행 엔진 상세
@@ -62,7 +64,7 @@ pending → running ──┤                     └─ cancelled
 | waiting_for_input | failed            | AI Agent multi-turn turn 처리 중 LLM throw (429/timeout/connection) — `handleAiTurnError` 가 [§7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트) shape (`port='error', status='ended'`) 으로 finalize                                                                                                                                                                                                                                                           |
 | waiting_for_input | waiting_for_input | 재개 (rehydration) — Execution.status enum 자체는 변하지 않고, 사용자 입력 도착 시 임의 worker 가 §7.5 rehydration 으로 컨텍스트를 재구성해 다음 세그먼트를 시작 (Phase B: park 시 코루틴 해제로 모든 재개가 rehydration. 같은 인스턴스 우연 픽업이어도 동일 경로)                                                                                                                                                                                                                    |
 | waiting_for_input | cancelled         | 사용자 취소, 타임아웃, 또는 rehydration 실패의 단말 케이스 (`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE` — §7.5)                                                                                                                                                                                                                                                                                                                                       |
-| failed            | running           | **`execution.retry_last_turn` 재진입 전용** (`allowRetryReentry` opt-in) — AI Agent multi-turn retryable error 종결로 `failed` 가 된 Execution 을 동일 nodeId 의 새 NodeExecution row 구동을 위해 `running` 으로 전이. 성공 종결 시 다시 `completed`, 재실패 시 `failed`. replay 가 RUNNING 으로 도는 중 도착한 cancel 은 graceful no-op 이며(full B3 — RUNNING resume/replay drive 에는 깨울 in-memory 코루틴이 없다), 취소는 다음 `waiting_for_input` park 에서 비로소 발효된다(`cancelParkedExecution` 의 WAITING 가드가 `cancelled` 로 마킹 — §12.2). 일반 경로엔 없음 — [§1.3](#13-블로킹재개-컨트랙트-nodehandleroutput-status) / [6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) |
+| failed            | running           | **`execution.retry_last_turn` 재진입 전용** (`allowRetryReentry` opt-in) — AI Agent multi-turn retryable error 종결로 `failed` 가 된 Execution 을 동일 nodeId 의 새 NodeExecution row 구동을 위해 `running` 으로 전이. 성공 종결 시 다시 `completed`, 재실패 시 `failed`. replay 가 RUNNING 으로 도는 중 도착한 cancel 은 graceful no-op 이며(full B3 — RUNNING resume/replay drive 에는 깨울 in-memory 코루틴이 없다), 취소는 다음 `waiting_for_input` park 에서 비로소 발효된다(`cancelParkedExecution` 의 WAITING 가드가 `cancelled` 로 마킹 — [§7.4](#74-분산-실행-multi-instance) Worker 동작의 취소 경로). 일반 경로엔 없음 — [§1.3](#13-블로킹재개-컨트랙트-nodehandleroutput-status) / [6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) |
 
 > **원자성 보장**: `running ↔ waiting_for_input` 전이는 짝이 되는 `NodeExecution` 상태 변경 (`waiting_for_input` / `completed`) 과 **단일 DB 트랜잭션** 으로 묶여 commit / rollback 된다. 서버가 두 save 사이에 크래시해도 `Execution` 과 `NodeExecution` 의 상태 불일치가 발생하지 않는다 (구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 파라미터). WebSocket 이벤트 발행은 트랜잭션 commit 후 수행한다. `waiting_for_input → failed` 전이도 동일한 원자성 — `NodeExecution.status=FAILED` save + `Execution.status=FAILED` 가 단일 트랜잭션으로 묶이고, WS 이벤트 순서는 `NODE_FAILED` → `EXECUTION_FAILED`.
 
@@ -125,7 +127,7 @@ pending → running ──┤                     └─ cancelled
 - **`stripControlFields()` 는 `_resumeCheckpoint` 를 보존** (downstream 노드 input 전달 시에는 `_resumeState` 와 함께 제거 — internal-only).
 - shape: `_retryState` 와 동일 부분집합(messages / turnCount / model / temperature / maxTokens / knowledgeBases / RAG / MCP / pendingFormToolCall? 등)이되 **`expiresAt`(TTL) 없음** — 대화는 장시간 idle 후에도 재개 가능(waiting Execution 은 무기한 보존) — 과 **`lastUserMessage` 없음** — 재개 시 도착한 사용자 메시지(continuation payload)를 그대로 첫 turn 으로 처리. credential / context-binding 필드(`llmConfigId`/`workspaceId` 등)는 미동봉 (`maskSensitiveFields` 와 동일 정책), 재개 시 `node.config` 재평가로 재유도.
 - **스키마 버전 (`schemaVersion`)**: checkpoint 는 `CHECKPOINT_SCHEMA_VERSION` 정수를 동봉해 스키마 진화에 대비한다. 재개 시: 버전 **부재**(기능 배포 이전 row) 또는 **현재 코드 버전 이하**면 누락 필드를 기본값으로 보강해 backward-compatible 재구성, **현재 코드 버전 초과**(롤링 배포 중 구 인스턴스가 신 포맷 checkpoint pickup)면 안전 재구성 불가로 graceful `RESUME_INCOMPATIBLE_STATE`.
-- 소비: §7.5 rehydration 이 `outputData._resumeCheckpoint` 로드 → 버전 검사 → `buildRetryReentryState`(`_retryState` 와 공유) 로 `_resumeState` 재구성(핵심 필드 누락 시 기본값 보강) → `driveResumeAwaited`/`driveResumeFrame` 가 도착 continuation payload 를 `processAiResumeTurn`(단발 turn 처리기)으로 직접 전달해 그 turn 을 처리. `_resumeCheckpoint` 부재(이 기능 배포 이전 진입한 waiting row)·손상·미래 버전 시 graceful reset (§7.5 `RESUME_INCOMPATIBLE_STATE`).
+- 소비: §7.5 rehydration 이 `outputData._resumeCheckpoint` 로드 → 버전 검사 → `buildRetryReentryState`(`_retryState` 와 공유) 로 `_resumeState` 재구성(핵심 필드 누락 시 기본값 보강) → `driveResumeAwaited`/`driveResumeFrame` 가 도착 continuation payload 를 `dispatchResumeTurn`(ordered `resumeTurnRegistry` — `resume-turn-dispatch.ts`) 경유로 `handleAiResumeTurn` → `processAiResumeTurn`(단발 turn 처리기)에 전달해 그 turn 을 처리. `_resumeCheckpoint` 부재(이 기능 배포 이전 진입한 waiting row)·손상·미래 버전 시 graceful reset (§7.5 `RESUME_INCOMPATIBLE_STATE`).
 
 **보존 예외 — `_retryState`** (retryable error 종결 시):
 
@@ -534,14 +536,30 @@ Legacy `{ port, data }` 패턴은 제거되었으며, 이행 기간 호환성을
 
 ```
 interface NodeHandlerRegistry {
-  register(nodeType: string, handler: NodeHandler) → void
+  register(nodeType: string, handler: NodeHandler, metadata?: NodeTypeMetadata) → void
   get(nodeType: string) → NodeHandler
+  getMetadata(nodeType: string) → NodeTypeMetadata   // 미등록 metadata 는 { kind: 'standard' } sentinel 반환
+  assertConsistency() → void                          // 부팅 시 등록 일관성 검증
 }
 ```
 
 - 시스템 시작 시 모든 빌트인 노드 핸들러를 레지스트리에 등록
-- 마켓플레이스를 통해 설치된 커스텀 플러그인 노드도 동일 레지스트리에 등록
+- 마켓플레이스를 통해 설치된 커스텀 플러그인 노드의 동일 레지스트리 등록은 **Planned** ([4-nodes 개요 §4](../4-nodes/0-overview.md) 마켓플레이스 로드맵과 동일 단계)
 - 미등록 nodeType 조회 시 `UNKNOWN_NODE_TYPE` 에러
+
+**`NodeTypeMetadata` 기반 dispatch** (`node-type-metadata.ts`): `register` 의 3번째 인자 `metadata` 는 엔진 dispatch 가 노드 타입별 특수 실행 경로를 선택하는 데 쓰는 discriminated union 이다 — 종전의 hard-coded 노드 타입 분기를 대체한다 (PR-G).
+
+| `kind`       | 의미                                                                                                                                | 현재 등록 타입               |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `standard`   | 일반 노드 — 특수 dispatch 없음                                                                                                      | 대부분 노드 (sentinel 기본) |
+| `container`  | 컨테이너 — `containerId` 자식 그룹화 + iteration 별 body 재실행 (§3)                                                                | `foreach` / `loop` / `map`   |
+| `background` | `background` 포트 sub-graph 를 비동기 큐 실행 (§3.3)                                                                                | `background`                 |
+| `parallel`   | N branch 동시 실행 (`p-limit` semaphore)                                                                                            | `parallel`                   |
+| `blocking`   | 정적으로 항상 blocking (`interaction: 'form'`) — buttons/ai_conversation 은 본 metadata 가 아니라 런타임 `meta.interactionType` 분기 | `form`                       |
+| `trigger`    | 워크플로우 진입점                                                                                                                   | `manual_trigger`             |
+
+- `getMetadata(type)` 는 metadata 미등록 타입에 sentinel `{ kind: 'standard' }` 를 반환한다 — dispatch 분기가 명시 분기 없이 안전 동작.
+- **부팅 검증 `assertConsistency()`**: `onApplicationBootstrap` 시점에 등록 일관성(모든 등록 type 의 metadata 보유, dedicated executor 주입 등)을 검사한다 — **production 에서는 위반 시 throw**, 비-production 에서는 warn 로깅만 (테스트의 metadata 생략 등록 허용 — 이 경우 sentinel 로 안전 동작).
 
 ### 5.5 표현식 해석 단계
 
@@ -573,6 +591,8 @@ interface NodeHandlerRegistry {
 | `$loop`                                              | loopContext (Loop 컨테이너 내부)                                                              |
 | `$item`, `$itemIndex`, `$itemIsFirst`, `$itemIsLast` | itemContext (ForEach 컨테이너 내부)                                                           |
 | `$thread`                                            | context.conversationThread                                                                    | ConversationThread readonly view ([Spec Conversation Thread](../conventions/conversation-thread.md)). v1 은 `turns` / `length` / `text` 만 노출 — 표현식 문법 상세는 [Spec 표현식 §4.4](./5-expression-language.md#44-thread-속성) 참조 |
+
+> **Template 노드 예외 — 입력 root-spread**: `template` 노드에 한해, 입력(nodeInput)이 **비-배열 객체**이면 엔진이 `buildExpressionContext` 직후 그 최상위 키들을 위 컨텍스트의 root-level 변수로 spread 한다 — `{{ name }}` 이 `{{ $input.name }}` 과 동등. 단 `$`-builtin 등 기존 컨텍스트 키와 동명이면 기존 키 우선 (`Object.hasOwn` 가드, 덮어쓰지 않음). 입력이 배열·원시값이면 spread 하지 않는다. SoT: `execution-engine.service.ts` 의 `NODE_TYPES.TEMPLATE` 분기. 상세: [Spec Template §4 실행 로직](../4-nodes/6-presentation/5-template.md#4-실행-로직).
 
 **핸들러별 제외 규칙**:
 
@@ -672,7 +692,7 @@ interface NodeHandlerRegistry {
 | `rawConfig`                 | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | 노드 정의에 저장된 **원본 config** (expression 미평가). 핸들러가 `NodeHandlerOutput.config` echo 에 사용 (Principle 7). Shallow `Object.freeze` 적용 — top-level mutation 차단, 중첩 객체는 read-only 로 다룬다                                                                                                                                                                                                                                                                                                                          |
 | `engineResolvedConfigCache` | 엔진이 expression 평가 직후, 노드별로 누적 갱신    | 노드별로 **expression 평가가 끝난 config** 의 snapshot. `runContainerInner` / `runParallel` 같이 핸들러 종료 후 별도 단계에서 동작 파라미터(Loop `count`, Parallel `branchCount`/`maxConcurrency`/`waitAll`, ForEach `errorPolicy` 등) 를 다시 읽어야 하는 경로가 사용한다. **expression 컨텍스트에는 노출하지 않는다** — `$node["X"].config` 는 여전히 raw echo 를 반환해야 한다 (Principle 7 보존). 핸들러가 raw 만 echo 하는 컨테이너의 동작 파라미터가 silent default fallback 되거나 `Number("{{...}}")` 가 NaN 이 되던 문제를 차단 |
 
-**엔진 내부 Map 키 (`_contextKey`)**: `ExecutionContextService` 의 in-memory `Map<key, ExecutionContext>` 라우팅 키. `createContext(executionId, workflowId, options?: { initialVariables?, recursionDepth?, contextKey? })` 에서 Map 키 = `options?.contextKey ?? executionId` — 비-background 호출은 `contextKey` 를 생략해 항상 `executionId` 와 동일(동작 불변). background 본문만 `bg:<executionId>:<backgroundRunId>` 를 전달해 부모 컨텍스트와 키 격리한다 (§3.3, [Background §4](../4-nodes/1-logic/12-background.md#4-실행-로직)). **이 키는 in-memory 전용** — Redis 키 패턴(§9.1)과 무관하다. 결정 SoT: [execution-context 규약 §Rationale](../conventions/execution-context.md#rationale).
+**엔진 내부 Map 키 (`_contextKey`)**: `ExecutionContextService` 의 in-memory `Map<key, ExecutionContext>` 라우팅 키. `createContext(executionId, workflowId, options?: { initialVariables?, recursionDepth?, contextKey?, conversationThread? })` 에서 Map 키 = `options?.contextKey ?? executionId` — `conversationThread?: MutableConversationThread` 는 §7.5 rehydration 이 `Execution.conversation_thread` 컬럼에서 복원한 thread 를 새 컨텍스트에 seed 하는 옵션 (PR-A1, §6.2/§7.5) — 비-background 호출은 `contextKey` 를 생략해 항상 `executionId` 와 동일(동작 불변). background 본문만 `bg:<executionId>:<backgroundRunId>` 를 전달해 부모 컨텍스트와 키 격리한다 (§3.3, [Background §4](../4-nodes/1-logic/12-background.md#4-실행-로직)). **이 키는 in-memory 전용** — Redis 키 패턴(§9.1)과 무관하다. 결정 SoT: [execution-context 규약 §Rationale](../conventions/execution-context.md#rationale).
 
 **Multi-turn 재개 시 `rawConfig` snapshot 정책**:
 
@@ -901,9 +921,12 @@ WAITING_FOR_INPUT 상태에서 인스턴스가 종료된 뒤 사용자 입력이
        ├─ ExecutionContext 재구성 (Redis context 가 살아있으면
        │   그것 우선, 없으면 DB 에서 복원 — thread/variables 는 위 컬럼에서 복원됨)
        ├─ `driveResumeAwaited`(top-level, awaited)/`driveCallStackResume`(중첩)가
-       │   도착한 입력 payload 로 해당 노드의 turn 핸들러를 직접 호출
-       │   (form → `processFormResumeTurn`, button → `processButtonResumeTurn`,
-       │    AI → `processAiResumeTurn`) — in-memory resolver 등록·replay 없이 직접 구동
+       │   도착한 입력 payload 로 해당 노드의 turn 핸들러를 호출 — form/buttons/ai
+       │   분기는 `dispatchResumeTurn`(ordered `resumeTurnRegistry`,
+       │   `resume-turn-dispatch.ts`) 단일 진입점으로 라우팅된다 (#507 추출,
+       │   first-match-wins: form → `processFormResumeTurn`, button →
+       │   `processButtonResumeTurn`, AI → `handleAiResumeTurn` 경유
+       │   `processAiResumeTurn`) — in-memory resolver 등록·replay 없이 직접 구동
        └─ 이후 그래프 순회를 평소대로 진행 (`runNodeDispatchLoop` forward)
 ```
 
@@ -919,7 +942,7 @@ park 한 노드가 중첩 sub-workflow(`executeInline`) 안에 있으면 (`Execu
 
 1. **버전 가드**: `resume_call_stack.version` 이 `CALL_STACK_SCHEMA_VERSION` 초과면 `RESUME_INCOMPATIBLE_STATE` 로 안전 종결 (롤링 배포 중 구 인스턴스가 신 포맷 pickup 방어 — `_resumeCheckpoint` 와 동일 패턴, checkpoint 와 **독립 상수**).
 2. **frame-by-frame 재진입 (innermost-first + bubble-up)**: `executeInline` 을 재호출하지 않고 `driveCallStackResume` 이 `frames` 를 직접 구동한다.
-   - **a. 최내(innermost) frame**: waiting 노드의 turn 을 처리한다 (form → `processFormResumeTurn`, button → `processButtonResumeTurn`, AI → `processAiResumeTurn`). 이어 `driveResumeFrame` 이 그 frame 의 나머지 그래프를 `runNodeDispatchLoop` 로 forward 한다.
+   - **a. 최내(innermost) frame**: waiting 노드의 turn 을 처리한다 — top-level 과 동일하게 `dispatchResumeTurn`(ordered `resumeTurnRegistry`) 단일 진입점으로 라우팅 (form → `processFormResumeTurn`, button → `processButtonResumeTurn`, AI → `handleAiResumeTurn` 경유 `processAiResumeTurn`). 이어 `driveResumeFrame` 이 그 frame 의 나머지 그래프를 `runNodeDispatchLoop` 로 forward 한다.
    - **b. 외곽 frame (bubble-up)**: 최내 frame 이 완료되면 그 sub-workflow 출력을 부모 frame 의 invoker(Workflow) 노드 출력으로 `injectInvokerOutput` 주입하고, `driveResumeFrame` 으로 부모 frame 의 나머지를 forward 한다. `i = frames.length-2` 부터 `i=0` 까지 반복.
    - **c. top-level forward**: 모든 frame 이 완료되면 `frames[0].invokerNodeId` 노드 출력을 주입하고 top-level 그래프의 나머지를 forward 한 뒤 Execution 을 COMPLETED 로 마감한다.
    - forward 도중 새 blocking 노드가 fresh park 하면 `executeInline` 이 `ParkReleaseSignal` 을 throw 하고 `runNodeDispatchLoop` 가 `{parked:true}` 로 흡수해 세그먼트가 종료된다 (Execution WAITING 유지, 새 call-stack 재영속). 다음 continuation 이 같은 절차로 재개한다.
@@ -1030,8 +1053,9 @@ park 한 노드가 중첩 sub-workflow(`executeInline`) 안에 있으면 (`Execu
 | `exec:recover:lock`                       | 부팅 시 stuck recovery 분산 lock — 워크스페이스 단위가 아닌 **전역**. 단일 인스턴스만 recovery UPDATE 를 수행하도록 보장 (§7.4 참조)                                                                                                                                                                                                                                                                                               | 60초                                                                  |
 | `exec:cont:seq:<executionId>`             | continuation publish 의 monotonic seq (Redis INCR per executionId) — BullMQ jobId (`${executionId}:${nodeExecutionId}:${seq}`) 의 idempotency key. executionId 는 UUID, 워크스페이스 단위가 아닌 **전역**. 8 bytes 미만. **sliding-window TTL** — 매 publish (`nextSeq`) 가 EXPIRE 를 갱신해 continuation 이 활성인 동안 키가 유지되고, executionId 종결 후 (publish 중단) TTL 경과 시 자연 소멸. seq 단조성은 활성 구간 내내 보존 | `CONTINUATION_SEQ_TTL_SECONDS` (기본 86400 = 24시간, 매 publish 갱신) |
 | `exec:run:seq:<executionId>`              | (PR3/PR4 활성화 — **PR1 미사용**) `execution-run` intake job 의 monotonic seq (Redis INCR per executionId). **PR1 은 jobId = executionId 직접 사용**(1:1 enqueue dedup)이므로 seq 가 불필요하다. re-enqueue(crash 재개)가 도입되는 PR3/PR4 에서 jobId 를 `<executionId>:run:<seq>` 로 확장할 때 활성화한다. continuation seq 와 **namespace 분리**(`run` vs `cont`). executionId 는 UUID, **전역**                                 | `CONTINUATION_SEQ_TTL_SECONDS` 준용 (구현 시 결정)                    |
+| `exec:seq:<executionId>`                  | emit-event seq (`ExecutionSeqAllocator`, Redis `INCR`) — WS envelope `seq`(§[6-websocket-protocol §2.2](./6-websocket-protocol.md#22-서버--클라이언트-이벤트-래퍼)) · 외부 SSE `id:` · Outbound Notification `seq` 가 **공유하는 execution 별 monotonic counter** ([Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification) 의 "execution 별 atomic INCR" 구현체). `exec:cont:seq:` 와 namespace 분리. executionId 는 UUID, **전역**. **sliding-window TTL** — 매 발급(INCR+EXPIRE 단일 pipeline)이 EXPIRE 를 갱신, terminal event 발송 후 best-effort `DEL`. Redis 미가용 시 in-memory per-instance degraded fallback (분산 monotonic 미보장 — 수용된 trade-off, [6-websocket-protocol §Rationale](./6-websocket-protocol.md#rationale)) | `EXECUTION_SEQ_TTL_SECONDS` (기본 86400 = 24시간, 매 발급 갱신)       |
 
-> 전역 키 `exec:recover:lock` 및 `exec:cont:seq:<executionId>` 는 §9.1 의 `{service}:{workspaceId}:{resource}` 패턴을 따르지 않는다. 부팅 단일 진입 가드라는 **워크스페이스에 종속되지 않는** 책임을 가지므로 전역 키로 둔다. (옛 `execution:continuation` Redis pub/sub 채널은 BullMQ 큐 `execution-continuation` 로 교체되어 폐기 — §9.3 / §Rationale "Durable Continuation".)
+> 전역 키 `exec:recover:lock`, `exec:cont:seq:<executionId>` 및 `exec:seq:<executionId>` 는 §9.1 의 `{service}:{workspaceId}:{resource}` 패턴을 따르지 않는다. **워크스페이스에 종속되지 않는** 책임(부팅 단일 진입 가드 / execution 단위 seq — executionId 가 이미 전역 유일 UUID)을 가지므로 전역 키로 둔다. (옛 `execution:continuation` Redis pub/sub 채널은 BullMQ 큐 `execution-continuation` 로 교체되어 폐기 — §9.3 / §Rationale "Durable Continuation".)
 
 ### 9.3 BullMQ 큐 목록
 
@@ -1303,6 +1327,7 @@ PR3 에서 flush 정책을 명시적으로 확정한다. (under-count 방향은 
 - **불변식 보존**: 동일 turn 이중 실행 0(durable `WAITING_FOR_INPUT` + `NodeExecution.status` 재검증 가드 §7.5), continuation 유실 0(durable BullMQ 큐 §7.4), 멱등(jobId). park→worker kill→무손실 재개는 dockerized e2e 회귀로 보증한다.
 - **단계적 롤아웃 (B1 → B2a → B2b, 2026-06-05/06, 완료)**: 위 최종 모델은 **단계 적용**됐다(park-site 단위로 "release+slow-path 를 함께" — B1·B2 분리 불가 원칙 유지). **PR-B1(form/button)**: 단발 상호작용(`waitForFormSubmission`/`waitForButtonInteraction`)을 park-release+rehydration 으로 전환. 이들은 더 이상 in-memory resolver 를 등록하지 않으므로 그 재개는 항상 §7.5 rehydration 으로 간다. **PR-B2a(top-level 멀티턴 AI, 2026-06-06)**: `runAiConversationLoop` 장수 루프를 **top-level 한정** turn-단위 park(D4)로 전환 — `waitForAiConversation('release')`(첫 turn park) + `processAiResumeTurn`(재개 시 단발 turn 처리 + re-park). 응답 없는 top-level 멀티턴 대화도 코루틴/메모리 0 점유(bounded). **PR-B2b(중첩 exec-park D6 + full B3, 2026-06-06, 완료)**: 중첩 `executeInline` blocking 의 durable 화(call-stack 영속 `resume_call_stack` V087 + frame-by-frame rehydration `driveCallStackResume`/`driveResumeFrame`, exec-park D6)와, 그때 비로소 불필요해진 in-memory 머신(`pendingContinuations`·`firstSegmentBarriers` 일가·`firePayload` scheduler·`runAiConversationLoop`·detached) **완전 제거(full B3)**. 이로써 §7.4 "worker-side fast-path 제거"·`pendingContinuations` Map 제거 서술이 실제 코드와 일치하고, worker 는 `runExecution` 을 직접 await 한다. bounded-메모리의 핵심 수혜(응답 없는 park 누적 차단)는 단발 park + top-level 멀티턴이 압도적 다수인 HITL 패턴에서 PR-B1+B2a 로 대부분 달성됐고, PR-B2b 가 중첩 케이스까지 확장 완성했다.
   - **W1 — D6+full-B3 의 PR-B2b 내 착지 (Rationale 번경 기록)**: exec-park D6(중첩 durable resume)와 full B3(in-memory 머신 완전 제거)는 본래 "한 PR(PR-B2b)" 로 함께 수행하기로 계획됐으나(B1·B2 분리 불가 원칙의 연장 — D6 가 완성돼야 in-memory 머신을 안전히 제거 가능), 실제로는 같은 브랜치 위 두 커밋으로 순차 착지했다 — 먼저 **step-8(durable D6)** 커밋(call-stack 영속 + frame-by-frame rehydration), 이어 **full-B3** 커밋(in-memory 머신 제거 + worker 직접 await). 두 커밋 모두 PR-B2b 범위 안이며 본 spec flip 시점(2026-06-06)에 둘 다 완료됐다 — 과도기적 partial-B3(머신 잠정 잔존) 서술은 더 이상 유효하지 않다.
+- **resume turn dispatch registry 추출 (#507, 2026-06-06)**: §7.5 의 form/buttons/ai turn 분기는 `driveResumeAwaited`(top-level)·`driveResumeFrame`(중첩) 두 곳의 하드코딩 분기에서 ordered `resumeTurnRegistry`(form → buttons → ai, first-match-wins) + 단일 진입점 `dispatchResumeTurn`(`resume-turn-dispatch.ts`)으로 추출됐다 — 동작 보존 리팩토링(핸들러 매핑·우선순위·에러코드 불변), 새 blocking 노드 타입은 registry 항목 1개 등록으로 plug-in 된다. 같은 변경에서 `PARK_RELEASED`/`ParkSignal`/`ProcessTurnResult` 도 `shared/execution-resume/process-turn-result.ts` 로 이관됐다.
 - **`runNodeDispatchLoop` 반환 계약 (PR-B1, SPEC-DRIFT W3)**: `runNodeDispatchLoop` 는 `Promise<{ parked: boolean }>` 를 반환한다. `parked: true` = blocking node(`waitForX`)에서 PARK_RELEASED sentinel 을 수신해 park 로 루프 종료(top-level fresh park, caller 가 세그먼트 종료 처리). `parked: false` = 정상 완료(다음 노드 없음 등). Phase B 이전의 `Promise<void>` 에서 변경됐으며, 이 반환값으로 caller(`runExecution` / `driveResumeAwaited`) 가 세그먼트 종료 여부를 판단한다. (코드가 옳고 spec 이 따라온다 — SPEC-DRIFT.)
 - **exec-park D6 — 중첩 sub-workflow blocking durable 영속 (2026-06-06, 사용자 결정 "call stack 영속화 정공법")** *(레이블: `exec-park-durable-resume` plan 결정 D6 — AI 노드 spec 의 동명 `D6` 와 무관)* *(구현 상태: 구현 완료 — PR-B2b. V087 컬럼·타입·`CALL_STACK_SCHEMA_VERSION`, park stage(`executeInline` park-release + `_callStack` 영속), §7.5 frame-by-frame rehydration(`driveCallStackResume`/`driveResumeFrame`), full B3 제거 모두 반영)*: 중첩 sub-workflow(`executeInline`) 안의 blocking 노드도 park-release + rehydration 으로 일원화해 **in-memory 의존을 완전히 제거**(full B3)했다. 빠졌던 조각은 **호출 체인 구조뿐**이라(노드 출력은 같은 executionId 타임라인으로 DB 영속, thread/variables 는 V084/V085 영속), 신규 `Execution.resume_call_stack jsonb`(V087)로 영속하고 §7.5 가 frame-by-frame 재진입한다.
   - **선형 스택으로 충분한 이유**: 컨테이너(Loop/ForEach/Map/Parallel) body blocking 은 §3.2 로 금지 → 남는 중첩은 sub-workflow 호출 체인뿐 = 선형(iteration/branch 상태 영속 불요).

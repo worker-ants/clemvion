@@ -6,9 +6,11 @@ pending_plans:
 code:
   - codebase/backend/src/modules/websocket/websocket.gateway.ts
   - codebase/backend/src/modules/websocket/websocket.service.ts
+  - codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts
   - codebase/backend/src/modules/websocket/ws-error-codes.ts
   - codebase/backend/src/modules/external-interaction/sse-adapter.service.ts
   - codebase/frontend/src/lib/websocket/ws-client.ts
+  - codebase/frontend/src/lib/websocket/use-execution-interaction-commands.ts
 ---
 
 # Spec: WebSocket 프로토콜
@@ -101,7 +103,7 @@ wss://{base_url}/ws        # Socket.IO namespace '/ws'
 |-----------|------|
 | `executionId` | 채널 execution ID (envelope top-level 자동 첨부) |
 | `timestamp` | 서버 이벤트 발생 시각 (ISO 8601) |
-| `seq` | 채널 내 순서 번호 (재연결 시 놓친 이벤트 감지용). `execution:{executionId}` 채널의 경우 = "execution 내 monotonic counter" (`ExecutionSeqAllocator`, Redis `INCR`), 외부 SSE 의 `id:` / Outbound Notification 의 `seq` 와 동일 값 공유 — [Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification) |
+| `seq` | 채널 내 순서 번호 (재연결 시 놓친 이벤트 감지용). `execution:{executionId}` 채널의 경우 = "execution 내 monotonic counter" (`ExecutionSeqAllocator`, Redis `INCR exec:seq:<executionId>` — 키 정의는 [실행 엔진 §9.2](./4-execution-engine.md#92-용도별-키-정의-및-ttl), sliding-window TTL env `EXECUTION_SEQ_TTL_SECONDS` 기본 86400), 외부 SSE 의 `id:` / Outbound Notification 의 `seq` 와 동일 값 공유 — [Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification). **저장소 정책은 Redis-only (2026-06-02 결정, DB fallback 미사용)**: Redis 미가용 시 in-memory per-instance counter 로 degrade 해 emit 을 멈추지 않는다 — degraded 구간의 분산(cross-instance) monotonic 은 미보장 (수용된 trade-off, `logger.warn` 기록. 정상 경로에서도 자기 인스턴스 발급분을 mirror 해 장애 전환 시 high-water mark 를 이어받는다) |
 
 ---
 
@@ -189,8 +191,8 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `execution.stop` _(계획·미구현 WS 경로)_ | `{ executionId, force? }` | 실행 중단 요청. **현재는 REST `POST /executions/:id/stop`** 사용 |
 | `execution.continue` _(계획·미구현)_ | `{ executionId }` | 브레이크포인트 후 계속 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
 | `execution.step` _(계획·미구현)_ | `{ executionId }` | 한 노드만 실행 후 다시 정지 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
-| `execution.submit_form` | `{ executionId, nodeId, formData, toolCallId? }` | Form 노드에 사용자 입력 제출. `toolCallId` 는 AI Agent 의 `render_form` 도구 응답 시에만 동봉 — `interactionType: 'ai_form_render'` 의 `conversationConfig.pendingFormToolCall.toolCallId` 와 일치해야 한다 ([Spec AI Agent §6.2 step 2](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)). 미일치 시 reject. **외부 wire 호환**: 본 payload shape 은 internal continuation bus 의 sentinel wrap (`{type:'form_submitted', formData}`, [Presentation 공통 §10.9](../4-nodes/6-presentation/0-common.md#109-form-submission-wire-format-internal-bus-sentinel)) 과 layer 분리 — 외부 wire 는 본 표 형식 유지, internal bus 만 sentinel wrap |
-| `execution.click_button` | `{ executionId, nodeId, buttonId }` | 버튼이 설정된 Presentation 노드에서 버튼 클릭. `buttonId`는 port 타입 버튼의 UUID 또는 `__continue__` (link 전용 시 Continue 액션) |
+| `execution.submit_form` | `{ executionId, formData }` | Form 노드에 사용자 입력 제출. `nodeId`/`toolCallId` 는 **클라이언트 전달 필드가 아니다** — 대기 노드 식별은 server lookup(§[실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state)), AI Agent `render_form` 응답의 toolCallId 매칭은 서버가 보관한 `pendingFormToolCall` resume state 로 처리한다 ([Spec AI Agent §6.2 step 2](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)). **외부 wire 호환**: 본 payload shape 은 internal continuation bus 의 sentinel wrap (`{type:'form_submitted', formData}`, [Presentation 공통 §10.9](../4-nodes/6-presentation/0-common.md#109-form-submission-wire-format-internal-bus-sentinel)) 과 layer 분리 — 외부 wire 는 본 표 형식 유지, internal bus 만 sentinel wrap |
+| `execution.click_button` | `{ executionId, buttonId }` | 버튼이 설정된 Presentation 노드에서 버튼 클릭. `buttonId`는 port 타입 버튼의 UUID 또는 `__continue__` (link 전용 시 Continue 액션). `nodeId` 는 선택 수신되나 서버가 사용하지 않는다 (대기 노드 식별은 server lookup) |
 | `execution.submit_message` | `{ executionId, nodeId, message }` | AI Agent Multi Turn 모드에서 사용자 메시지 전송. **form bypass**: `interactionType: 'ai_form_render'` 활성 중 본 명령이 수신되면 backend 가 `pendingFormToolCall.toolCallId` 매칭하는 render_form 도구의 tool_result content 를 `{type:'cancelled', reason:'user_sent_message_instead'}` 로 채우고 `pendingFormToolCall` 클리어 후 정상 `ai_user` turn 진행 ([Spec AI Agent §6.2 step 2.c.bypass](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)) — LLM 의 다음 reasoning 자유 보존. UI 의 MessageInput 은 항상 활성 (form 우회 허용) |
 | `execution.end_conversation` | `{ executionId, nodeId }` | AI Agent Multi Turn 대화 종료 요청 |
 | `execution.retry_last_turn` | `{ executionId, nodeExecutionId }` | AI Agent Multi Turn 의 retryable error (`output.error.details.retryable === true`) 종결 후 동일 nodeId 의 새 NodeExecution row 를 spawn 해 마지막 LLM 호출 재진입. `nodeId` 대신 `nodeExecutionId` 사용 사유: 동일 nodeId 가 여러 NodeExecution row 를 가질 수 있어 row 단위 식별 필요. 워크플로우 Re-run ([§13 replay-rerun](./13-replay-rerun.md)) 과 다름 — 동일 Execution 안 노드 단위 재시도. |
@@ -236,20 +238,22 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `executionId` | uuid | 실행 ID (공통) |
-| `nodeId` | uuid | 대상 노드 ID (공통) |
 | `resumed` | boolean | 재개 성공 여부 |
 | `queued` | boolean | continuation-queue 정상 enqueue 여부 (`true` = 정상, `false` = Redis 장애 등 publish 실패) |
 | 명령별 식별자 | — | `buttonId` (click_button) / `formData` 없음 (submit_form) / `message` 없음 (submit_message) / — (end_conversation) |
 
-**폼 제출 응답 (`execution.submit_form.ack`):**
+> ack data 에 `nodeId` 는 포함되지 않는다 — 대기 노드는 서버가 lookup 하며 클라이언트는 `executionId` 만으로 ack 를 매칭한다.
+
+**폼 제출 응답 (ack 이벤트명 `execution.form_submitted`):**
+
+> 폼 제출의 ack 이벤트명만 `<명령>.ack` 패턴이 아닌 `execution.form_submitted` 다 (historical artifact — §Rationale 참조).
 
 ```json
 {
-  "type": "execution.submit_form.ack",
+  "type": "execution.form_submitted",
   "id": "req-uuid",
   "payload": {
     "executionId": "uuid",
-    "nodeId": "uuid",
     "resumed": true,
     "queued": true
   }
@@ -264,7 +268,6 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
   "id": "req-uuid",
   "payload": {
     "executionId": "uuid",
-    "nodeId": "uuid",
     "resumed": true,
     "queued": true
   }
@@ -279,7 +282,6 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
   "id": "req-uuid",
   "payload": {
     "executionId": "uuid",
-    "nodeId": "uuid",
     "resumed": true,
     "queued": true
   }
@@ -410,7 +412,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `buttonConfig` | `interactionType = buttons` 시 존재. 버튼 정의 + 노드 렌더링 출력 (`{ buttons, nodeOutput }`). 버튼 클릭까지 무제한 대기 — 타임아웃 필드 없음 ([Presentation 공통 §3·§6.1](../4-nodes/6-presentation/0-common.md)) |
 | `buttonConfig.nodeOutput` | 노드의 구조화 출력 (`NodeHandlerOutput`: `{ config, output, meta?, port?, status }`). 클라이언트가 콘텐츠 + 버튼을 함께 표시. 노드 종류는 상위 `payload.nodeType` 로 식별 — `nodeOutput` 에 `type` 판별자 래퍼는 두지 않는다 ([node-output.md Principle 1.1.4](../conventions/node-output.md)) |
 | `conversationConfig` | `interactionType ∈ {ai_conversation, ai_form_render}` 시 존재. AI Agent Multi Turn 대화 설정 |
-| `conversationConfig.pendingFormToolCall` | **`interactionType = ai_form_render` 한정**. shape `{ toolCallId: string, formConfig: object }` — `toolCallId` 는 클라이언트가 `execution.submit_form` 매칭 근거, `formConfig` 는 LLM 페이로드 ∪ `presentationTools[*].defaults` overlay 결과 (form 노드 input schema shape). UI 의 `AssistantPresentationsBlock` 이 assistant turn 의 `presentations[*]` 중 `payload.toolCallId === pendingFormToolCall.toolCallId` 인 form 페이로드를 interactive `DynamicFormUI` 로 렌더 ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn) / [§7.4](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)) |
+| `conversationConfig.pendingFormToolCall` | **`interactionType = ai_form_render` 한정**. shape `{ toolCallId: string, formConfig: object }` — `toolCallId` 는 UI 가 렌더할 form 페이로드를 식별하는 매칭 키 (submit 시 클라이언트가 되돌려 보내는 필드는 아니다 — §4.2 `submit_form` payload 는 `{ executionId, formData }` 뿐, 서버가 보관한 `pendingFormToolCall` 로 매칭), `formConfig` 는 LLM 페이로드 ∪ `presentationTools[*].defaults` overlay 결과 (form 노드 input schema shape). UI 의 `AssistantPresentationsBlock` 이 assistant turn 의 `presentations[*]` 중 `payload.toolCallId === pendingFormToolCall.toolCallId` 인 form 페이로드를 interactive `DynamicFormUI` 로 렌더 ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn) / [§7.4](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)) |
 
 **AI Agent Multi Turn 노드 (`interactionType: "ai_conversation"`):**
 
@@ -1005,3 +1007,8 @@ retry 는 "노드 단위 재시도" 라는 표현 때문에 일부 독자가 "do
 - **결정**: `llmCalls[]` 와 `toolCalls[]`(= `tool_call_*` 이벤트) 에 `startedAt`/`finishedAt`(ISO8601) 을 추가한다. 엔진은 이미 `Date.now()` 기반 duration 측정을 위해 시작 시각을 캡처하므로, 그 값을 ISO 로 동봉만 하면 된다. 라이브 WS 이벤트와 `meta.turnDebug[]` JSON 영속 양쪽에 동일하게 싣는다.
 - **근거**: (1) DB 마이그레이션 불필요 — `meta.turnDebug` 는 `NodeExecution.output_data` JSONB 내부다. (2) 전부 하위호환 optional — 과거 데이터는 시각을 `—` 로 생략. (3) 라이브/영속 동일 출처라 에디터 디버깅 UI 와 실행 내역 페이지가 같은 절대 시각을 보인다. (4) `durationMs` 와 중복처럼 보이나, duration 만으로는 "언제" 를 복원할 수 없고(턴 사이 대기·공백 미반영) 절대 시각은 파생 추정이 부정확하므로 명시 동봉이 정공법이다.
 - **기각된 대안**: node.startedAt + 누적 duration 오프셋으로 시각을 **파생 추정**하는 안은 백엔드 무변경이지만 tool/대기 공백을 반영 못 해 부정확하고, 절대 시각으로 표기 시 오해를 부른다. 라이브 전용 client `new Date()` stamp 안은 영속 실행 내역 페이지에서 시각이 사라져 두 surface 가 불일치한다.
+
+### §4.2 submit_form/click_button payload·ack 정정 — 구현 현실 채택 (2026-06-10 spec-sync audit)
+
+- **정정 내용**: (1) `execution.submit_form` payload 를 `{ executionId, formData }` 로, `execution.click_button` 을 `{ executionId, buttonId }` 로 정정 — 양단 구현(frontend `use-execution-interaction-commands.ts`, backend `websocket.gateway.ts` handler 시그니처) 모두 `nodeId` 를 보내지도 받지도 않는다. 대기 노드 식별은 publisher 측 server lookup (§7.5.1 경로) 이 수행하므로 클라이언트 전달이 불필요하다. (2) 옛 표기의 `toolCallId?` 클라이언트 필드도 제거 — `render_form` 도구 응답 매칭은 클라이언트 전달값이 아니라 서버 보관 `pendingFormToolCall` resume state 로 처리된다. (3) 공통 ack payload 표에서 `nodeId` 행 제거 — 4개 continuation 명령의 ack data 어디에도 `nodeId` 가 없다.
+- **폼 제출 ack 이벤트명 `execution.form_submitted`**: `<명령>.ack` 패턴(`execution.click_button.ack` 등)과 달리 폼 제출만 `execution.form_submitted` 를 ack 이벤트명으로 쓴다. 이는 도입 초기 명명이 그대로 양단(backend 반환·frontend listen)에 굳은 **historical artifact** 다. 외부 wire 양단이 이미 합의된 동작 계약이라 rename 은 호환성 파손 대비 이득이 없어, spec 이 구현 현실을 채택해 기록한다 (향후 v2 프로토콜 정리 시 일괄 재검토 대상).
