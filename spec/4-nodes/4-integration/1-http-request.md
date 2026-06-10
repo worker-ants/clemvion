@@ -5,6 +5,7 @@ code:
   - codebase/backend/src/nodes/integration/http-request/http-request.handler.ts
   - codebase/backend/src/nodes/integration/http-request/http-request.schema.ts
   - codebase/backend/src/nodes/integration/http-request/http-safety.ts
+  - codebase/backend/src/nodes/integration/_base/sanitize-response-headers.util.ts
 ---
 
 # Spec: HTTP Request
@@ -184,7 +185,7 @@ code:
 | `output.response` | unknown | runtime — `res.json()` / `res.text()` | 응답 body. `responseType='json'` 에서 파싱 실패 시 `null` |
 | `output.requestBody?` | unknown | runtime — evaluated | 실제 wire 에 나간 평가된 본문. 256KB 초과 시 잘림 (`bodyTruncated:true`). `body=undefined` 면 생략 |
 | `output.requestBodyType` | string | runtime — evaluated | 실제 적용된 `bodyType` (schema 기본값 `'json'` 적용 후) |
-| `output.responseHeaders?` | Record<string,string> | runtime | 응답 헤더. key 는 lowercase. `Authorization` / `Cookie` / `Set-Cookie` / `X-*-Token` / `X-*-Key` 등 자격증명-shape 값은 `[REDACTED]` |
+| `output.responseHeaders?` | Record<string,string> | runtime | 응답 헤더. key 는 lowercase. `Authorization` / `Cookie` / `Set-Cookie` / `X-*-Token` / `X-*-Key` 등 자격증명-shape 값과 `Location` (3xx redirect 대상 URL — §8.1) 은 `[REDACTED]` (SoT: `_base/sanitize-response-headers.util.ts`) |
 | `output.bodyTruncated?` | boolean | runtime | 256KB cap 적용 시에만 `true` |
 | `meta.statusCode` | number | engine inject (handler return) | HTTP 응답 status (2xx) |
 | `meta.durationMs` | number | engine inject (handler return) | 요청 시작부터 응답 수신까지의 ms ([공통 §6.1](./0-common.md#61-metaduration-vs-metadurationms-명명-통일)) |
@@ -339,3 +340,9 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 ## 7. 캔버스 요약
 
 [공통 §5](./0-common.md#5-캔버스-요약) — `HTTP Request` 행 인용 (`{method} {url}`, URL 35자 초과 시 잘림). 연결된 Integration 이 삭제된 경우 `⚠ Missing integration` (앰버색).
+
+## 8. Rationale
+
+### 8.1 `Location` 응답 헤더 redaction — `sanitizeUrlCredentials` 와 대칭
+
+`Location` 은 자격증명-shape 이름은 아니지만 redaction exact blacklist 에 포함한다 (`_base/sanitize-response-headers.util.ts`). 3xx redirect 대상 URL 을 `output.responseHeaders` 로 노출하면 `output.error.details.url` 에서 `sanitizeUrlCredentials` 가 막는 URL 내 자격증명(`user:pass@`, 자격증명 쿼리 파라미터) 누출이 응답 헤더 경로로 재도입되기 때문 — 두 sanitize 경로의 대칭 유지가 목적이다 (결정 배경은 해당 유틸 파일 헤더 주석에 기록).

@@ -4,9 +4,13 @@ status: implemented
 code:
   - codebase/frontend/src/components/editor/canvas/custom-node.tsx
   - codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx
+  - codebase/frontend/src/components/editor/settings-panel/node-configs/**
+  - codebase/frontend/src/components/editor/settings-panel/auto-form/**
+  - codebase/frontend/src/components/editor/expression/*.ts
   - codebase/frontend/src/components/editor/expression/*.tsx
   - codebase/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts
   - codebase/backend/src/nodes/**/*.schema.ts
+  - codebase/backend/src/modules/nodes/**
 ---
 
 # Spec: 노드 공통 스펙
@@ -62,6 +66,8 @@ code:
 | HTTP Request | 1 | 2 | `success`, `error` |
 | Database Query | 1 | 1 | `out` |
 | Send Email | 1 | 1 | `out` |
+| Cafe24 | 1 | 2 | `success`(data), `error`(error) |
+| Makeshop | 1 | 2 | `success`(data), `error`(error) |
 | Transform | 1 | 1 | `out` |
 | Code | 1 | 1 | `out` |
 | Carousel | 1 | 1 또는 N (동적) | `out` (기본). 버튼 설정 시 `out` 제거 → port 버튼별 동적 포트 (`{button.id}`) + link 전용 시 `continue` 자동 생성 |
@@ -226,6 +232,47 @@ code:
    - 캔버스에서 해당 노드에 ⚠️ 아이콘 표시 (성공했지만 기본값이 사용되었음을 표시)
 ```
 
+### 2.6 스키마 기반 자동 폼 (auto-form)
+
+Settings 탭의 노드별 고유 설정 폼은 **2-트랙 렌더 전략**으로 동작한다 (`node-configs/index.tsx` `NodeConfigRenderer`):
+
+1. **Override 트랙** — `node-configs/override-registry.ts` 의 `OVERRIDE_REGISTRY` 에 등록된 노드는 수작업 bespoke 폼 컴포넌트(`node-configs/*-configs.tsx`)로 렌더된다.
+2. **Auto-form 트랙 (fallback)** — 등록되지 않은 노드는 backend zod 스키마(`GET /api/nodes/definitions` 로 로드, [노드 개요 §1.0 메타데이터 API](../4-nodes/0-overview.md#메타데이터-api)) 의 `.meta({ ui: UiHint })` 힌트를 읽어 `SchemaForm` (`auto-form/schema-form.tsx`) 이 폼을 자동 생성한다.
+
+노드를 override → auto-form 으로 이행하려면 registry 에서 항목을 제거하고 backend 스키마에 충분한 `ui` 힌트를 보강하면 된다.
+
+#### 2.6.1 UiHint DSL
+
+SoT 는 backend `nodes/core/node-component.interface.ts` 의 `UiHint`. 주요 어휘:
+
+| 키 | 의미 |
+|----|------|
+| `widget` | 렌더 위젯 id (§2.6.2) |
+| `label` / `placeholder` / `hint` | 라벨 · 플레이스홀더 · 항상 노출 캡션 (§2.3.1 FieldHelp 와 공존) |
+| `order` | 폼 내 정렬 순서 (작을수록 먼저) |
+| `hidden` | auto-form 렌더에서 숨김 (스키마 검증은 유지) |
+| `visibleWhen` | 조건부 표시 — `{ field, equals }` / `{ field, notEquals }` / `{ field, oneOf }` 3형. `equals` 는 strict equality 단일값 전용이며 배열 화이트리스트는 `oneOf` 를 쓴다 |
+| `required` / `requiredWhen` | UI 필수 표시(asterisk). `requiredWhen` 은 `{ field, equals }` 단일형 — `equals` 가 단일값(`===`) 또는 배열(화이트리스트). 런타임 강제는 `NodeHandler.validate()` 소관 |
+| `clearFields` | 이 필드 값 변경 시 함께 비울 config 키 목록 (모드 전환 등). 예약 키(`__proto__` 등)는 prototype pollution 방지를 위해 제거 불가 |
+| `group` / `collapsible` | 섹션 그루핑 · 접기 토글 여부 |
+| `options` / `language` / `multiline` / `rows` / `itemLabel` / `itemDefault` | 위젯별 보조 옵션 |
+
+#### 2.6.2 Widget 어휘 (19종)
+
+widget id → 컴포넌트 매핑의 SoT 는 frontend `auto-form/widget-registry.ts`:
+
+| 분류 | widget id |
+|------|-----------|
+| 기본 입력 (10) | `text` · `textarea` · `number` · `select` · `multiselect` · `checkbox` · `expression` (§3.3 표현식 에디터) · `kv` · `kv-expression` · `code` |
+| 공용 selector (4) | `llm-config-selector` · `kb-selector` · `mcp-server-selector` · `workflow-selector` (`auto-form/selector-widgets.tsx`. AI Assistant 의 후보 조회 계약은 [Spec AI Assistant §4.3.1](./4-ai-assistant.md#431-pendinguserconfig-구조-candidate-picker)) |
+| 배열 편집 (2) | `field-array` · `button-list` |
+| 강제 override (3) | `integration-selector` · `condition-builder` · `table-grid` — `UnsupportedWidget` 으로 매핑되어 auto-form 단독 렌더 불가. 이 위젯을 쓰는 노드는 override 트랙에 남아야 한다 |
+
+#### 2.6.3 트랙 배정 현황
+
+- **auto-form 이행 완료**: `split` · `map` · `foreach` · `merge` · `carousel` · `ai_agent`
+- **override 잔존** (`OVERRIDE_REGISTRY` 기준): `manual_trigger`, `if_else`, `switch`, `loop`, `variable_declaration`, `variable_modification`, `parallel`, `filter`, `workflow`, `text_classifier`, `information_extractor`, `http_request`, `database_query`, `send_email`, `cafe24`, `makeshop`, `transform`, `code`, `table`, `chart`, `form`, `template` — cross-field side effect (예: table 의 column/row 동기화) 등 auto-form 표현력 밖의 요구가 남은 노드들
+
 ---
 
 ## 3. 표현식 시스템
@@ -304,3 +351,7 @@ code:
 
 - 따라서 에디터를 비우고 저장하면 `defaultOutput = null` 이 저장되고 런타임도 `null` 을 출력한다 (타입별 기본값 아님). 이는 엔진 현실(`?? null`)과 일치하는 의도된 동작이다.
 - "Reset to Type Default" 레이블은 타입 추론 미구현 상태와의 혼동을 피하기 위해 "Reset to Default"(빈 객체 `{}` 로 초기화)로 변경했다.
+
+### R-2. 노드 설정 폼의 2-트랙 전략 (override → auto-form) 을 SoT 로 명문화 (§2.6) (2026-06-10)
+
+설정 패널의 schema-driven auto-form 시스템(SchemaForm · UiHint DSL · widget registry · override registry)은 구현이 선행됐고 여러 spec 이 단편적으로만 참조해 왔다 (Switch 의 `requiredWhen`, AI Agent 의 `visibleWhen`, AI Assistant 의 selector widget 등). 본 문서 §2.6 을 시스템 전체의 SoT 섹션으로 신설해 2-트랙 렌더 전략, UiHint 어휘, widget 19종, 트랙 배정 현황을 한 곳에서 관리한다. 개별 노드 spec 의 frontend 설정 UI 매핑도 노드별 분산 대신 본 문서 frontmatter (`node-configs/**` · `auto-form/**`) 1곳에 매핑한다 — 유지보수 부담 최소화 목적 (2026-06 spec-sync audit).

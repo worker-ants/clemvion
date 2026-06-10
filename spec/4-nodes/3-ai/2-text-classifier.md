@@ -359,7 +359,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | 코드 | 의미 | 발생 조건 | 시점 |
 |------|------|-----------|------|
 | `LLM_CALL_FAILED` | LLM provider 호출 실패 | 네트워크 / 타임아웃 / 5xx / SDK throw | runtime (`error` 포트) |
-| `LLM_RATE_LIMIT` | provider 429 | rate limit (현재 핸들러는 `LLM_CALL_FAILED` 로 통합 — reserved) | runtime |
+| `LLM_RATE_LIMIT` | provider 429 | rate limit — 429 시 발화, `details.retryable: true` (+ provider `Retry-After` 신호 시 `retryAfterSec` 동봉, §5.3) | runtime (`error` 포트) |
 | `LLM_RESPONSE_INVALID` | 응답 형식 오류 | JSON 파싱 실패 + substring fallback 도 실패 (현재 핸들러는 fallback 으로 회복하므로 미발화 — reserved) | runtime |
 
 **Pre-flight 검증** (CONVENTIONS Principle 3.1, schema warningRules + `validateTextClassifierConfig`):
