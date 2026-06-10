@@ -9,6 +9,8 @@ code:
   - codebase/backend/src/modules/schedules/schedules.controller.ts
   - codebase/backend/src/modules/schedules/schedules.service.ts
   - codebase/backend/src/modules/schedules/schedule-runner.service.ts
+  - codebase/backend/src/modules/schedules/schedules.module.ts
+  - codebase/backend/src/modules/schedules/dto/**
 ---
 
 # Spec: 스케줄 관리 화면

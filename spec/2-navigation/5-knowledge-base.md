@@ -6,6 +6,12 @@ code:
   - codebase/frontend/src/app/(main)/knowledge-bases/[id]/page.tsx
   - codebase/frontend/src/components/knowledge-base/*.tsx
   - codebase/frontend/src/components/knowledge-base/embedding-model-recommendation.ts
+  - codebase/frontend/src/components/knowledge-base/graph-constants.ts
+  - codebase/frontend/src/lib/api/knowledge-bases.ts
+  - codebase/frontend/src/lib/websocket/use-kb-events.ts
+  - codebase/backend/src/modules/knowledge-base/knowledge-base.controller.ts
+  - codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts
+  - codebase/backend/src/modules/knowledge-base/dto/**
 ---
 
 # Spec: 지식 저장소 화면
@@ -55,6 +61,7 @@ code:
 | 설명 | 컬렉션 설명 (선택) |
 | 검색 모드 | `vector` (기본) / `graph` 중 선택. **생성 시에만 결정, 사후 변경 불가** |
 | 임베딩 모델 | 지정된 LLMConfig (미지정 시 워크스페이스 default) 의 임베딩 모델 목록을 "모델 불러오기" 버튼으로 조회한 뒤 select 로 선택. 자유 텍스트 입력은 허용하지 않는다. 미로드 / 조회 실패 시 select 비활성, 에러 메시지만 표시 ([설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정) 의 결정을 그대로 적용). **한국어 추천 모델**(KURE / arctic-embed / bge-m3 / multilingual-e5 패턴)은 option 라벨에 "한국어 추천" 텍스트 배지를 덧붙여 표시 — **비강제**(선택을 제한하지 않으며, select-only 원칙 유지: 배지는 기존 option 라벨 위 표시용 메타데이터일 뿐 자유 입력 경로를 추가하지 않는다). `text-embedding-3` (OpenAI 대칭) 은 한국어 검색 벤치마크 하위라 배지 대상에서 제외한다 — 사용은 가능하되 "추천" 으로 오인되지 않게 한다. 패턴은 `embedding-model-recommendation.ts` |
+| 임베딩 테스트 | (버튼) 선택한 LLMConfig(미지정 시 워크스페이스 default) + 임베딩 모델 조합으로 1회 `embed('probe')` 를 수행해 **실측 차원·provider** 를 인라인 표시 (`POST /embedding-probe`, [§3 API](#3-api)). 자가호스팅/Azure 처럼 모델명이 같아도 차원이 다른 endpoint 를 KB 저장 전에 확인하는 용도. 실패 시 sanitize 된 에러 메시지만 표시. probe 는 read-only 검증 — 측정한 차원을 `embedding_dimension` 에 미리 저장하지 않는다 ([RAG 검색 §5](../5-system/9-rag-search.md#5-임베딩-모델-일관성)·[Rationale](../5-system/9-rag-search.md#rationale)) |
 | 추출 LLM | `graph` 모드 일 때만 표시. 그래프 추출에 사용할 LLMConfig 의 chat 모델. 미지정 시 워크스페이스 default |
 | 청크 크기 | 문서 분할 청크 크기 (기본: 1000 토큰) |
 | 청크 오버랩 | 청크 간 오버랩 (기본: 200 토큰) |
@@ -192,6 +199,7 @@ KB 상세 화면에 그래프 통계/탐색 영역을 추가한다.
 |--------|------|------|
 | GET | /api/knowledge-bases | 컬렉션 목록 조회 (쿼리: page, limit, sort, order, search). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | POST | /api/knowledge-bases | 컬렉션 생성 |
+| POST | /api/knowledge-bases/embedding-probe | 임베딩 라이브 probe — LLMConfig + 모델 조합으로 1회 `embed('probe')` 호출, 실측 차원·provider 반환 (§2.2 "임베딩 테스트" 버튼). editor, Throttle 30회/분. 실패 시 400 `EMBEDDING_PROBE_FAILED` (sanitize 메시지) |
 | GET | /api/knowledge-bases/:id | 컬렉션 상세 조회 |
 | PATCH | /api/knowledge-bases/:id | 컬렉션 설정 수정 |
 | DELETE | /api/knowledge-bases/:id | 컬렉션 삭제 |
@@ -201,6 +209,9 @@ KB 상세 화면에 그래프 통계/탐색 영역을 추가한다.
 | DELETE | /api/knowledge-bases/:id/documents/:docId | 문서 삭제 |
 | POST | /api/knowledge-bases/:id/documents/:docId/re-embed | 문서 단건 재임베딩 요청 |
 | POST | /api/knowledge-bases/:id/re-embed | KB 전체 재임베딩 요청 (모든 문서 청크 삭제 후 재처리). `reembed_status` 가 `idle` 일 때만 진입, 진행 중이면 409 `KB_REEMBED_IN_PROGRESS` |
+| GET | /api/knowledge-bases/:id/embedding-stats | 임베딩 진행 통계 (완료/실패/진행 카운트, vector/graph 무관) — [§2.4.1 진행 박스](#241-진행-박스-kb-상세-상단) polling 소스 |
+| POST | /api/knowledge-bases/:id/retry-failed | 실패 문서 일괄 재시도. body `{ scope: 'embedding' / 'graph' / 'all' }` — 계약·UI 동작은 [§2.4.1](#241-진행-박스-kb-상세-상단). editor, Throttle 3회/분 |
+| POST | /api/knowledge-bases/search | RAG 검색 디버그 엔드포인트 (query + knowledgeBaseIds, topK/threshold). 디버깅/테스트 용도 — 실제 워크플로 실행은 노드 엔진이 검색 서비스를 직접 호출 ([RAG 검색 §1](../5-system/9-rag-search.md#1-개요)) |
 | POST | /api/knowledge-bases/:id/documents/:docId/re-extract | (graph 모드) 문서 단건 그래프 재추출 |
 | POST | /api/knowledge-bases/:id/re-extract | (graph 모드) KB 전체 그래프 재추출. `reextract_status` atomic 잠금, 진행 중이면 409 `KB_REEXTRACT_IN_PROGRESS` |
 | GET | /api/knowledge-bases/:id/graph/stats | (graph 모드) entity/relation 카운트 + 추출 진행 요약 |

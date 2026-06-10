@@ -1,3 +1,12 @@
+---
+id: layout
+status: implemented
+code:
+  - codebase/frontend/src/components/layout/**
+  - codebase/frontend/src/lib/stores/sidebar-store.ts
+  - codebase/frontend/src/lib/notifications/*.ts
+---
+
 # Spec: 전체 레이아웃
 
 > 관련 문서: [PRD 내비게이션](./_product-overview.md) · [Spec 아키텍처 개요](../0-overview.md)
@@ -27,9 +36,11 @@
 │ │  Integ.    │                                              │ │
 │ │  KB        │                                              │ │
 │ │  LLM Cfg   │                                              │ │
+│ │  Rerank    │                                              │ │
 │ │  Auth      │                                              │ │
 │ │  Stats     │                                              │ │
 │ │  SysStatus │                                              │ │
+│ │  AgentMem  │                                              │ │
 │ │  User Gd   │                                              │ │
 │ │            │                                              │ │
 │ │  --------  │                                              │ │
@@ -64,12 +75,14 @@
 | 5 | Integration | 퍼즐 아이콘 (Puzzle) | /integrations | HTTP·DB·Email·MCP 서버 등 외부 통합 |
 | 6 | Knowledge Base | 책 아이콘 (BookOpen) | /knowledge-bases | RAG용 컬렉션. Vector·Graph 모드 지원. 상세는 [Knowledge Base](./5-knowledge-base.md) |
 | 7 | LLM Config | 두뇌 아이콘 (Brain) | /llm-configs | AI 노드가 호출할 LLM 프로바이더·기본 모델·파라미터. 상세는 [Config](./6-config.md) Part B |
-| 8 | Authentication | 자물쇠 아이콘 (Lock) | /authentication | 외부 호출자용 API Key·Bearer·Basic 인증. 상세는 [Config](./6-config.md) Part A |
-| 9 | Statistics | 차트 아이콘 (BarChart3) | /statistics | |
-| 10 | System Status | 활동 아이콘 (Activity) | /system-status | 전체 시스템(큐) 상태 지표. 워크스페이스/유저 무관. 상세는 [System Status](./15-system-status.md) 참조 |
-| 11 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
+| 8 | Reranking | 필터 아이콘 (ListFilter) | /rerank-configs | RAG 검색 결과 리랭커 설정. 상세는 [Config](./6-config.md) Part C |
+| 9 | Authentication | 자물쇠 아이콘 (Lock) | /authentication | 외부 호출자용 API Key·Bearer·Basic 인증. 상세는 [Config](./6-config.md) Part A |
+| 10 | Statistics | 차트 아이콘 (BarChart3) | /statistics | |
+| 11 | System Status | 활동 아이콘 (Activity) | /system-status | 전체 시스템(큐) 상태 지표. 워크스페이스/유저 무관. 상세는 [System Status](./15-system-status.md) 참조 |
+| 12 | Agent Memory | 두뇌 회로 아이콘 (BrainCircuit) | /agent-memory | 에이전트 장기 메모리 조회·관리. 상세는 [Agent Memory](./16-agent-memory.md) 참조 |
+| 13 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
 
-<!-- 로드맵 — Marketplace는 아직 미구현이며, 구현 시 System Status(10) 이후에 배치한다. -->
+<!-- 로드맵 — Marketplace는 아직 미구현이며, 구현 시 System Status(11) 이후에 배치한다. -->
 
 ### 2.3 사이드바 동작
 
@@ -98,8 +111,18 @@
 - 현재 워크스페이스 이름 표시 (축소 텍스트)
 - 알림 벨 아이콘 (visible 미읽은 알림 수 뱃지 표시 — `is_read=false AND dismissed_at IS NULL`, 사용자 영역 옆 또는 사이드바 하단)
   - 팝오버를 열면 알림 목록이 표시되며, 각 항목 hover 시 우측에 ✓(개별 읽음) / ✕(개별 닫기) 액션이 노출된다. 항목 본문 클릭 시 자동 읽음 처리 + `resource_type`/`resource_id` 기반 deep link 이동.
+  - 팝오버 상단에 **type 필터 칩 3종** — `all`(전체) / `general`(일반) / `integration-action-required`(통합 액션 필요) — 을 노출한다. `general` 은 `integration_action_required` 를 제외한 모든 알림을 포함한다 — 만료 7일 전 안내 같은 passive 알림인 `integration_expired` 와 type 누락 legacy 행도 보수적으로 `general` 로 분류한다 (`codebase/frontend/src/lib/notifications/filter.ts`).
+  - deep link 라우트는 알림 type 별로 아래 표와 같이 매핑된다 (`codebase/frontend/src/lib/notifications/href.ts`). `resource_id` 는 화이트리스트 패턴 `/^[a-zA-Z0-9_-]{1,128}$/` 검증을 통과해야 하며(경로 트래버설·URL 삽입 방지), 불일치·부재 시 목록 경로로 폴백한다. 매핑되지 않는 type 또는 type 없음은 클릭 시 라우팅하지 않는다.
+
+    | 알림 type | 이동 라우트 | 폴백 (id 부재·검증 불일치) |
+    |------|------|------|
+    | `integration_action_required` · `integration_expired` | `/integrations/<resource_id>` | `/integrations` |
+    | `execution_failed` · `background_failed` · `schedule_failed` | `/workflows/<resource_id>` (resource_id = workflow id) | `/workflows` |
+    | `team_invite` | `/profile` (id 불요) | — |
+    | 그 외 / type 없음 | 라우팅 없음 | — |
+
   - 팝오버 헤더 우측 메뉴에 "모두 읽음 처리"(`POST /notifications/mark-all-read`) 와 "모두 지우기"(`POST /notifications/dismiss-all`) 일괄 액션을 분리해 노출한다. 두 액션은 독립이며 한쪽이 다른쪽을 함의하지 않는다.
-  - 자세한 read/dismiss 라이프사이클·DTO·동사 선택 근거는 [data-flow/8-notifications.md §3-§4](../data-flow/8-notifications.md#3-상태-전이) 참조.
+  - 자세한 read/dismiss 라이프사이클·DTO·type 발사 조건은 [data-flow/8-notifications.md](../data-flow/8-notifications.md#3-상태-전이) (§1.1 type 분류, §3-§4 상태 전이) 참조.
 
 ### 3.2 클릭 시 팝업 메뉴
 
