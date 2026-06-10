@@ -313,3 +313,107 @@ describe('DashboardService.getRecentExecutions', () => {
     expect(result[0].triggerLabel).toBeNull();
   });
 });
+
+// W3a (SUMMARY) — dashboard prev7d [14d,7d) 구간 경계값 단언.
+// mock QB 로는 SQL FILTER off-by-one 자체는 검증 불가하므로, WHERE 파라미터
+// (fourteenDaysAgo/sevenDaysAgo) 와 andWhere 절이 올바르게 전달됨을 보장한다.
+// 6d/8d/13d/15d 는 integration 레벨에서 실 DB 로 검증하는 것이 정석이나,
+// 여기서는 날짜 수학과 파라미터 전달 계약을 단위로 고정한다.
+describe('DashboardService.getSummary — prev7d 경계 날짜 파라미터 계약 (W3a)', () => {
+  let service: DashboardService;
+  let workflowRepo: { createQueryBuilder: jest.Mock; count: jest.Mock };
+  let execRepo: { createQueryBuilder: jest.Mock };
+  let execQB: Record<string, jest.Mock>;
+
+  const buildAggQB = (raw: Record<string, unknown>) => {
+    const qb: Record<string, jest.Mock> = {};
+    qb.select = jest.fn().mockReturnValue(qb);
+    qb.addSelect = jest.fn().mockReturnValue(qb);
+    qb.innerJoin = jest.fn().mockReturnValue(qb);
+    qb.where = jest.fn().mockReturnValue(qb);
+    qb.andWhere = jest.fn().mockReturnValue(qb);
+    qb.setParameters = jest.fn().mockReturnValue(qb);
+    qb.getRawOne = jest.fn().mockResolvedValue(raw);
+    return qb;
+  };
+
+  beforeEach(() => {
+    const wfQB = buildAggQB({ total: '1', active: '1' });
+    execQB = buildAggQB({
+      total7d: '3',
+      prev7d: '2',
+      success7d: '2',
+      avg7d: '100',
+    });
+    workflowRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(wfQB),
+      count: jest.fn(),
+    };
+    execRepo = { createQueryBuilder: jest.fn().mockReturnValue(execQB) };
+    service = new DashboardService(workflowRepo as never, execRepo as never);
+  });
+
+  it('andWhere 절에 fourteenDaysAgo 파라미터가 사용돼 [14d, 7d) 하한이 설정된다', async () => {
+    const before = Date.now();
+    await service.getSummary('ws-1');
+    const after = Date.now();
+
+    // andWhere 호출 확인: fourteenDaysAgo binding
+    expect(execQB.andWhere).toHaveBeenCalledWith(
+      'e.started_at >= :fourteenDaysAgo',
+      expect.objectContaining({
+        fourteenDaysAgo: expect.any(Date),
+      }),
+    );
+
+    // fourteenDaysAgo 는 sevenDaysAgo 에서 7일 더 뺀 값이므로 약 14일 전이다.
+    const callArgs = execQB.andWhere.mock.calls[0] as [
+      string,
+      { fourteenDaysAgo: Date },
+    ];
+    const fourteenDaysAgo = callArgs[1].fourteenDaysAgo.getTime();
+    const expected14dAgo = before - 14 * 24 * 60 * 60 * 1000;
+    const expected14dAgoMax = after - 14 * 24 * 60 * 60 * 1000;
+    expect(fourteenDaysAgo).toBeGreaterThanOrEqual(expected14dAgo - 5000);
+    expect(fourteenDaysAgo).toBeLessThanOrEqual(expected14dAgoMax + 5000);
+  });
+
+  it('setParameters 에 sevenDaysAgo 가 포함돼 FILTER(>= 7d) 상한이 분리된다', async () => {
+    const before = Date.now();
+    await service.getSummary('ws-1');
+    const after = Date.now();
+
+    expect(execQB.setParameters).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sevenDaysAgo: expect.any(Date),
+      }),
+    );
+
+    const sevenDaysAgoVal = (
+      execQB.setParameters.mock.calls[0][0] as { sevenDaysAgo: Date }
+    ).sevenDaysAgo.getTime();
+    const expected7dAgo = before - 7 * 24 * 60 * 60 * 1000;
+    const expected7dAgoMax = after - 7 * 24 * 60 * 60 * 1000;
+    expect(sevenDaysAgoVal).toBeGreaterThanOrEqual(expected7dAgo - 5000);
+    expect(sevenDaysAgoVal).toBeLessThanOrEqual(expected7dAgoMax + 5000);
+  });
+
+  it('fourteenDaysAgo 는 sevenDaysAgo 보다 정확히 7일 앞서야 한다 (경계 분리 불변식)', async () => {
+    await service.getSummary('ws-1');
+
+    const andWhereArgs = execQB.andWhere.mock.calls[0] as [
+      string,
+      { fourteenDaysAgo: Date },
+    ];
+    const setParamsArgs = execQB.setParameters.mock.calls[0][0] as {
+      sevenDaysAgo: Date;
+    };
+
+    const diff =
+      setParamsArgs.sevenDaysAgo.getTime() -
+      andWhereArgs[1].fourteenDaysAgo.getTime();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    // 날짜 계산은 ms 단위이므로 setDate 특성상 정확히 7 * 24 * 3600 * 1000
+    expect(diff).toBe(sevenDaysMs);
+  });
+});

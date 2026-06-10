@@ -3708,8 +3708,8 @@ describe('ExecutionEngineService', () => {
           outputData: { output: { iter: 1 } },
         },
       ]);
-      const findOneCallsBefore = mockNodeExecutionRepo.findOne.mock.calls
-        .length;
+      const findOneCallsBefore =
+        mockNodeExecutionRepo.findOne.mock.calls.length;
 
       const ctx = await subject.rehydrateContext(
         {
@@ -3726,10 +3726,9 @@ describe('ExecutionEngineService', () => {
 
       // (a) 배치 1회 — findOne 미사용.
       expect(mockNodeExecutionRepo.find).toHaveBeenCalledTimes(1);
-      expect(
-        (mockNodeExecutionRepo.find as jest.Mock).mock.calls[0][0].where
-          .nodeId,
-      ).toEqual(In(['n1', 'n2', 'n3']));
+      expect(mockNodeExecutionRepo.find.mock.calls[0][0].where.nodeId).toEqual(
+        In(['n1', 'n2', 'n3']),
+      );
       expect(mockNodeExecutionRepo.findOne.mock.calls.length).toBe(
         findOneCallsBefore,
       );
@@ -13703,6 +13702,106 @@ describe('ExecutionEngineService', () => {
       expect(build(undefined)).toBeUndefined();
       expect(build(null)).toBeUndefined();
       expect(build('x' as unknown)).toBeUndefined();
+    });
+  });
+
+  // W2 (SUMMARY) — env read-once 캐시 회귀 가드: resolveMaxNodeIterations /
+  // resolveParallelEngineFlag 가 configService.get 을 최초 1회만 호출하는지
+  // spy call-count 로 직접 단언한다 (캐시가 깨져 매 실행마다 재읽기해도
+  // 값 자체는 동일해 침묵하는 회귀 방어).
+  describe('env read-once cache (perf #14) — W2', () => {
+    it('resolveMaxNodeIterations: configService.get 이 MAX_NODE_ITERATIONS 키로 첫 execute 에서 1회만 호출된다', async () => {
+      // 단순 워크플로우를 실행해 loadAndBuildGraph → resolveMaxNodeIterations 흐름을 타게 한다.
+      mockConfigService.get.mockClear();
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      const maxIterCalls = mockConfigService.get.mock.calls.filter(
+        (c: unknown[]) => c[0] === 'MAX_NODE_ITERATIONS',
+      );
+      expect(maxIterCalls).toHaveLength(1);
+    });
+
+    it('resolveMaxNodeIterations: 두 번째 execute 에서 configService.get 재호출 없음 (인스턴스 캐시 유지)', async () => {
+      // 첫 번째 실행으로 maxNodeIterationsOnce 캐시를 warm-up 한 뒤
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      mockConfigService.get.mockClear();
+
+      // 두 번째 실행 — 캐시가 있으므로 MAX_NODE_ITERATIONS get 재호출 없어야 함
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      const maxIterCalls = mockConfigService.get.mock.calls.filter(
+        (c: unknown[]) => c[0] === 'MAX_NODE_ITERATIONS',
+      );
+      expect(maxIterCalls).toHaveLength(0);
+    });
+  });
+
+  // W3b (SUMMARY) — assertNoContainerCycle(perf #5) 회귀 가드.
+  // private 메서드를 직접 호출해 CONTAINER_CYCLE 에러 발생과 에러 메시지를 단언한다.
+  // perf #5 리팩터(byId Map + children 재사용) 후 의미론은 동일함을 고정.
+  describe('assertNoContainerCycle — named-error 회귀 가드 (W3b)', () => {
+    type CycleSubject = {
+      assertNoContainerCycle: (
+        containerNode: Partial<Node>,
+        children: Partial<Node>[],
+        byId: Map<string, Partial<Node>>,
+      ) => void;
+    };
+
+    it('A.containerId=B, B.containerId=A 직접 사이클 → CONTAINER_CYCLE 에러 throws', () => {
+      // chain: child-a → container-x → child-a (containerId 순환)
+      // child-a.containerId = container-x (직접 부모), container-x.containerId = child-a
+      // assertNoContainerCycle 은 child-a 의 containerId 체인을 따라 순환을 검출한다.
+      const containerX: Partial<Node> = {
+        id: 'container-x',
+        label: 'ContainerX',
+        type: 'foreach',
+        containerId: 'child-a', // 순환 링크: container-x → child-a
+      };
+      const childA: Partial<Node> = {
+        id: 'child-a',
+        label: 'ChildA',
+        type: 'test_node',
+        containerId: 'container-x', // 직접 부모
+      };
+      const byId = new Map<string, Partial<Node>>([
+        ['container-x', containerX],
+        ['child-a', childA],
+      ]);
+
+      const svc = service as unknown as CycleSubject;
+      expect(() =>
+        svc.assertNoContainerCycle(containerX, [childA], byId),
+      ).toThrow(/CONTAINER_CYCLE/);
+    });
+
+    it('사이클 없는 정상 체인 → 예외 없음', () => {
+      const containerX: Partial<Node> = {
+        id: 'container-x',
+        label: 'ContainerX',
+        type: 'foreach',
+        containerId: null, // 최상위 컨테이너
+      };
+      const childA: Partial<Node> = {
+        id: 'child-a',
+        label: 'ChildA',
+        type: 'test_node',
+        containerId: 'container-x',
+      };
+      const byId = new Map<string, Partial<Node>>([
+        ['container-x', containerX],
+        ['child-a', childA],
+      ]);
+
+      const svc = service as unknown as CycleSubject;
+      expect(() =>
+        svc.assertNoContainerCycle(containerX, [childA], byId),
+      ).not.toThrow();
     });
   });
 });
