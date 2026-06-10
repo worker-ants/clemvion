@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-10T23:32:08.682209",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-update-ws-resumed-ack.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
