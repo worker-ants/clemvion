@@ -48,6 +48,7 @@ const executionRunConcurrency = resolveExecutionRunWorkerConcurrency();
 /**
  * 모니터링 대상 큐 레지스트리.
  * 큐 추가/삭제 시 data-flow/0-overview.md §4 카탈로그를 먼저 갱신하고 본 표를 동기화한다.
+ * 또한 `test/system-status.e2e-spec.ts` 의 `EXPECTED_QUEUE_NAMES` 목록도 함께 갱신할 것.
  */
 export const MONITORED_QUEUES: readonly MonitoredQueue[] = [
   {

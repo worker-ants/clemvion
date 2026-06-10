@@ -393,7 +393,12 @@ export class IntegrationExpiryScannerService
             );
           }
         }
-        // 격하·passive 알림 없음 — 다음 candidate 로.
+        // §11.2 의도적 설계: refresh-capable provider 는 dedup claim(integration_expiry_dispatch)
+        // 을 생성하지 않으며 passive 'integration_expired' 알림도 발사하지 않는다.
+        // access_token 만료는 자동 갱신(cafe24: background 큐, makeshop: in-call)으로
+        // 흡수되므로 '재인증하세요' notice 는 노이즈다. 향후 passive 알림을 재활성화
+        // 하려면 이 continue 를 제거하고 claim → notify 경로로 진입시킬 것 — 단,
+        // 반드시 spec/2-navigation/4-integration.md §11.2 와 함께 검토해야 한다.
         continue;
       }
 

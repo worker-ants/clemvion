@@ -10,7 +10,7 @@ import { registerAndLogin } from './helpers/auth';
  *
  * 검증 영역:
  *   1) 미인증 → 401 (전역 JWT 가드)
- *   2) 인증 → 200, {data:{generatedAt,overall,totalFailed,totalRecentFailed,recentFailedCapped,failedWindowMinutes,queues}} 형태 + 14개 큐 enumerate
+ *   2) 인증 → 200, {data:{generatedAt,overall,totalFailed,totalRecentFailed,recentFailedCapped,failedWindowMinutes,queues}} 형태 + EXPECTED_QUEUE_NAMES 기준 큐 enumerate
  *   3) 각 큐 항목 구조(counts/recentFailed/recentFailedCapped/health/group/utilization) 정합
  *   4) 시스템 전역 API — X-Workspace-Id 유무가 결과 큐 집합에 영향 없음
  *
@@ -79,7 +79,7 @@ describe('System Status API (e2e)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('인증 시 14개 큐의 집계 상태를 반환한다', async () => {
+  it(`인증 시 ${EXPECTED_QUEUE_NAMES.length}개 큐의 집계 상태를 반환한다`, async () => {
     const res = await request(BASE_URL)
       .get('/api/system-status/overview')
       .set('Authorization', `Bearer ${owner.accessToken}`);
