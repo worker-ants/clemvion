@@ -31,5 +31,5 @@ spec_impact:
 - [x] e2e (audit-logs.e2e-spec.ts 신설 5케이스: admin 200/viewer·editor 403/비멤버 위조 403/userId 필터)
 - [x] TEST WORKFLOW (lint·unit·build·e2e 184 전부 PASS, 2026-06-10 22:07)
 - [x] spec 갭 기술 플립 (data-flow/1-audit.md §2.1 권한·필터 / 15-external-interaction.md §1.5 승격 경로)
-- [ ] /ai-review + resolution
-- [ ] /consistency-check --impl-done spec/5-system/
+- [x] /ai-review + resolution — LOW (Critical 0 / Warning 3 + testing 재실행 2). resolution-applier 5/5 처리 (커밋 4977d961: config부재 v2클리어·Logger·Swagger403·테스트보강 등), SPEC-DRIFT 2건은 draft 적용(15-external-interaction 현행화). 초대 토큰 해시 전환 장기 검토는 backlog plan 등재
+- [x] /consistency-check --impl-done spec/5-system/ — BLOCK: NO (review/consistency/2026/06/10/22_31_02). W-1 merge 순서(unified-model-mgmt 후행 rebase) PR 본문 명시, W-2 spec-sync-auth-gaps worktree 필드 정정, I-4 는 FP 반증(§1·§3 인용 모두 올바른 맥락)
