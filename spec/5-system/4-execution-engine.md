@@ -547,7 +547,7 @@ interface NodeHandlerRegistry {
 - 마켓플레이스를 통해 설치된 커스텀 플러그인 노드의 동일 레지스트리 등록은 **Planned** ([4-nodes 개요 §4](../4-nodes/0-overview.md) 마켓플레이스 로드맵과 동일 단계)
 - 미등록 nodeType 조회 시 `UNKNOWN_NODE_TYPE` 에러
 
-**`NodeTypeMetadata` 기반 dispatch** (`node-type-metadata.ts`): `register` 의 3번째 인자 `metadata` 는 엔진 dispatch 가 노드 타입별 특수 실행 경로를 선택하는 데 쓰는 discriminated union 이다 — 종전의 hard-coded 노드 타입 분기를 대체한다 (PR-G).
+**`NodeTypeMetadata` 기반 dispatch** (`node-type-metadata.ts`): `register` 의 3번째 인자 `metadata` 는 엔진 dispatch 가 노드 타입별 특수 실행 경로를 선택하는 데 쓰는 discriminated union 이다 — 종전의 hard-coded 노드 타입 분기를 대체한다 (PR-G). `NodeTypeMetadata.kind` 는 핸들러 런타임 출력의 `executionMetadata.kind`(예: foreach 의 `'container'`) 와 동일 어휘를 쓰지만 **별개 객체·별개 소비처**(등록 시 static dispatch 선택 vs 실행 결과 메타) 다.
 
 | `kind`       | 의미                                                                                                                                | 현재 등록 타입               |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |

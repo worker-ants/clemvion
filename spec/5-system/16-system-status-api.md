@@ -33,8 +33,11 @@ code:
 | chat-channel-token-rotator | system | 1 (기본) | repeatable cron |
 | integration-expiry-scanner | system | 1 (기본) | repeatable cron (6h) |
 | alerts-evaluator | system | 1 (기본) | repeatable cron (5분) |
+| agent-memory-extraction | knowledge-base | 2 | Agent Memory 턴 경계 비동기 추출 ([data-flow §4](../data-flow/0-overview.md), [Agent Memory §3](./17-agent-memory.md)) |
 
 > concurrency 가 코드 worker 옵션에 명시되지 않은 큐는 BullMQ 기본값 1 로 본다.
+>
+> ⚠ **구현 갭**: 코드의 `MONITORED_QUEUES` (`system-status.constants.ts`) 에는 `makeshop-token-refresh` 와 `agent-memory-extraction` 이 아직 미등재 — 본 표(모니터링 대상 선언)와 코드 레지스트리의 동기화가 필요하다 (2026-06-10 감사 보고 V-15 추적).
 
 ## 2. API
 
