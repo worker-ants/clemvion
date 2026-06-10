@@ -16,7 +16,7 @@ code:
 
 ## Overview (제품 정의)
 
-사용자가 Knowledge Base 에 올린 문서를, 추가 조작 없이 검색 가능한 상태로 만드는 자동 적재 파이프라인이다. 업로드 즉시 백그라운드에서 청크 분할 → 벡터 임베딩 → 저장이 진행되며, 사용자는 진행 상태(대기/처리중/완료/실패)를 실시간으로 확인하고 실패 건만 재시도하거나 KB 전체를 재임베딩할 수 있다. 임베딩 모델은 KB 단위로 선택하고(워크스페이스 default LLMConfig 폴백), 모델이 비대칭(query/document 를 다르게 인코딩하는 e5·Gemini 계열)이면 적재는 document, 검색은 query 로 자동 배선해 회수 품질을 보존한다. 제품 맥락: [PRD AI & 지식 저장소](../4-nodes/3-ai/_product-overview.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md).
+사용자가 Knowledge Base 에 올린 문서를, 추가 조작 없이 검색 가능한 상태로 만드는 자동 적재 파이프라인이다. 업로드 즉시 백그라운드에서 청크 분할 → 벡터 임베딩 → 저장이 진행되며, 사용자는 진행 상태(대기/처리중/완료/실패)를 실시간으로 확인하고 실패 건만 재시도하거나 KB 전체를 재임베딩할 수 있다. 임베딩 모델은 KB 단위로 선택하고(워크스페이스 default ModelConfig (kind=embedding) 폴백), 모델이 비대칭(query/document 를 다르게 인코딩하는 e5·Gemini 계열)이면 적재는 document, 검색은 query 로 자동 배선해 회수 품질을 보존한다. 제품 맥락: [PRD AI & 지식 저장소](../4-nodes/3-ai/_product-overview.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md).
 
 ---
 
@@ -24,7 +24,7 @@ code:
 
 Knowledge Base에 문서가 업로드되면, 자동으로 청크 분할 → 벡터 임베딩 생성 → 저장하는 비동기 파이프라인.
 
-검색 시 query 임베딩 경로와 모델·LLMConfig 가 일치해야 벡터 공간이 어긋나지 않는다 (§5.4 비대칭 입력, [RAG 검색 §5 임베딩 모델 일관성](./9-rag-search.md#5-임베딩-모델-일관성)).
+검색 시 query 임베딩 경로와 모델·ModelConfig (kind=embedding) 가 일치해야 벡터 공간이 어긋나지 않는다 (§5.4 비대칭 입력, [RAG 검색 §5 임베딩 모델 일관성](./9-rag-search.md#5-임베딩-모델-일관성)).
 
 ---
 
@@ -122,8 +122,9 @@ CSV 파일은 전용 행 단위 청킹 경로(`chunking/csv-chunker.ts` `chunkCs
 
 ### 5.2 임베딩 모델
 
-- KnowledgeBase 엔티티의 `embedding_model` 필드에 지정
+- 임베딩 모델·provider·차원(dimension)은 KB 가 참조하는 `ModelConfig (kind=embedding)` 에서 온다 (`embedding_model_config_id`). chat 용 LLMConfig piggyback 도, KB 의 bare `embedding_model` 문자열도 아닌 자체 1급 설정이 소유한다.
 - 컬렉션 생성 시 선택 (변경 시 전체 재임베딩 필요)
+- `KB.embedding_dimension` 은 참조 `ModelConfig.dimension` 의 파생 캐시이며, 차원의 SoT 는 `ModelConfig.dimension` 이다.
 - 기본 모델: 프로바이더별 상이 (e.g., OpenAI → `text-embedding-3-small`)
 
 ### 5.3 벡터 차원
@@ -133,6 +134,8 @@ CSV 파일은 전용 행 단위 청킹 경로(`chunking/csv-chunker.ts` `chunkCs
 | text-embedding-3-small | 1536 |
 | text-embedding-3-large | 3072 |
 | text-embedding-ada-002 | 1536 |
+
+> **참고**: `ModelConfig.dimension` 이 차원 SoT — 본 표는 참고 예시.
 
 DocumentChunk 테이블의 `embedding` 컬럼은 가변 차원을 지원해야 하며, 컬렉션 내 모든 문서는 동일한 임베딩 모델/차원을 사용한다.
 
@@ -348,7 +351,8 @@ SELECT id FROM document
 - **RagSearchService**: KB 메타를 한 번에 조회 → `(model, dim)` 그룹핑 → `Promise.all` 로 그룹별 query 임베딩 + 차원 cast SQL 병렬 처리. NULL/unsupported 차원 KB 는 검색 제외(unsupported 는 ERROR 로그). `searchGroup` private 헬퍼 추출.
 - **공유 상수** `embedding/embedding-dimensions.const.ts`: `SUPPORTED_EMBEDDING_DIMS`, `EMBEDDING_MODEL_PATTERN`. RagSearch + Create/Update DTO 가 모두 참조.
 - **LlmService.listModels**: `{ type?: 'chat'|'embedding' }` 옵션을 서비스 레이어에서 필터링. `LlmConfigController` 는 `@ApiQuery` 데코레이터 추가.
-- **프론트엔드**: `EmbeddingModelCombobox` 신설(지정 LLM Config 의 embedding 모델을 "모델 불러오기" 버튼으로 조회한 뒤 select 로 선택. 자유 입력 fallback 없음 — [지식 저장소 §Rationale R-1](../2-navigation/5-knowledge-base.md#r-1-임베딩-모델-선택을-select-only-로-한정)). KB 생성 폼/상세 설정 모달에서 사용. KB 상세에 "지식 베이스 설정" 모달, "KB 전체 재임베딩" 버튼 + 확인 모달, embeddingDimension 메타 노출. payload 타입 `KbUpdatePayload` 명시, reEmbedAll 응답 envelope unwrap, chunkSize/chunkOverlap 사전 검증.
+- **`kind='embedding'` ModelConfig 1급화 (Unified Model Management)**: `kind='embedding'` ModelConfig 1급화로 `listModels type='embedding'` 필터가 불필요해지고(소스가 이미 embedding kind), 차원 SoT 를 ModelConfig.dimension 으로 일원화한다. 임베딩 모델은 chat 용 LLMConfig piggyback 이 아니라 자체 1급 설정이 소유한다.
+- **프론트엔드**: `EmbeddingModelCombobox` 신설(지정 ModelConfig (kind=embedding) 의 embedding 모델을 "모델 불러오기" 버튼으로 조회한 뒤 select 로 선택. 자유 입력 fallback 없음 — [지식 저장소 §Rationale R-1](../2-navigation/5-knowledge-base.md#r-1-임베딩-모델-선택을-select-only-로-한정)). KB 생성 폼/상세 설정 모달에서 사용. KB 상세에 "지식 베이스 설정" 모달, "KB 전체 재임베딩" 버튼 + 확인 모달, embeddingDimension 메타 노출. payload 타입 `KbUpdatePayload` 명시, reEmbedAll 응답 envelope unwrap, chunkSize/chunkOverlap 사전 검증.
 
 #### 후속 검토
 

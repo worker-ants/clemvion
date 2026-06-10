@@ -309,8 +309,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | Knowledge Base | CRUD | CRUD | CRUD | R |
 | Auth Config | CRUD | CRUD | R | R |
 | Auth Config Reveal (평문 노출) | ✅ | ✅ | — | — |
-| LLM Config | CRUD | CRUD | R | R |
-| Rerank Config | CRUD | CRUD | R | R |
+| Model Config | CRUD | CRUD | R | R |
 | Statistics | R | R | R | R |
 | System Status ※ | R | R | R | R |
 | Marketplace 설치 | ✅ | ✅ | ✅ | — |
@@ -345,7 +344,9 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 트리거 | trigger.create, trigger.update, trigger.delete |
 | 스케줄 | schedule.create, schedule.update, schedule.delete |
 | Integration | integration.create, integration.update, integration.delete |
-| 설정 | auth_config.create, auth_config.update, auth_config.delete, auth_config.regenerate, auth_config.reveal, llm_config.*, rerank_config.* (create/update/delete/set-default; reveal 미제공 — RerankConfig 는 평문 reveal 엔드포인트 없음) |
+| 설정 | auth_config.create, auth_config.update, auth_config.delete, auth_config.regenerate, auth_config.reveal, model_config.* (create/update/delete/set-default; reveal 미제공 — ModelConfig 는 평문 reveal 엔드포인트 없음) |
+
+> **감사 액션 통합 (model_config)**: 신규 이벤트는 `model_config.*` (create/update/delete/set-default) 로 기록한다. 통합 이전에 적재된 `llm_config.*`/`rerank_config.*` row 는 append-only 로 보존되며 재작성하지 않는다. 따라서 감사 조회는 전환 중·후 모두 두 액션 집합(`model_config.*` OR `llm_config.*`/`rerank_config.*`)을 OR 로 결합해 질의해야 한다.
 
 > 워크스페이스 컨텍스트가 없는 인증 이벤트(login, logout, login_failed 등)는 AuditLog 가 아닌 §4.3 **LoginHistory** 에 기록된다.
 

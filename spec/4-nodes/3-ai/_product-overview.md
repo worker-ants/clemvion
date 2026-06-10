@@ -60,7 +60,7 @@
 |----|----------|----------|
 | ND-AG-01 | LLM 기반 AI Agent 실행 | 필수 |
 | ND-AG-02 | System Prompt 설정 (마크다운, 표현식 지원) | 필수 |
-| ND-AG-03 | LLM 모델 선택 (Config > LLM 연동) | 필수 |
+| ND-AG-03 | LLM 모델 선택 (Config > Models > Chat 연동) | 필수 |
 | ND-AG-04 | 모델 파라미터 오버라이드 (temperature, max_tokens) | 필수 |
 | ND-AG-05 | Knowledge Base 연결 (RAG) | 필수 |
 | ND-AG-06 | Tool/Function Calling 지원 _(제거됨 — 재작성 예정)_ | 필수 |

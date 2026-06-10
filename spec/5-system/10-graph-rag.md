@@ -84,7 +84,7 @@ code:
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|------|
 | KB-GR-EX-01 | `graph` 모드 KB 의 문서가 임베딩 완료(`embedding_status = 'completed'`)되면 자동으로 그래프 추출 큐(`graph-extraction`)에 dispatch | 필수 | ✅ |
-| KB-GR-EX-02 | 추출 LLM 모델은 KB 의 `extractionLlmConfigId` 가 가리키는 LLMConfig 의 chat 모델을 사용 (미지정 시 워크스페이스 default LLMConfig) | 필수 | ✅ |
+| KB-GR-EX-02 | 추출 LLM 모델은 KB 의 `extractionLlmConfigId` 가 가리키는 ModelConfig (kind=chat) 의 chat 모델을 사용 (미지정 시 워크스페이스 default ModelConfig (kind=chat)) | 필수 | ✅ |
 | KB-GR-EX-03 | 추출 단위: chunk 1개 → entity 목록 + relation 목록. 추출 결과는 KB 범위에서 dedup (이름·타입 정규화) | 필수 | ✅ |
 | KB-GR-EX-04 | 추출 진행 상태는 문서별로 추적 (`graph_extraction_status`: pending / processing / completed / error / failed) | 필수 | ✅ |
 | KB-GR-EX-05 | 추출 실패 시 문서 단위 재시도 가능 (KB 상세에서 "Re-extract" 액션) | 필수 | ✅ (`POST /knowledge-bases/:id/documents/:docId/re-extract`) |
@@ -187,7 +187,7 @@ code:
 | 의존 항목 | 현재 상태 | 비고 |
 |----------|----------|------|
 | BullMQ `document-embedding` 큐 | ✅ | `graph-extraction` 큐 추가 완료 (동일 패턴) |
-| LLMConfig | ✅ | `V025` 에서 `extractionLlmConfigId` 컬럼 추가 완료 |
+| ModelConfig (kind=chat) | ✅ | `V025` 에서 `extractionLlmConfigId` 컬럼 추가 완료 |
 | pgvector | ✅ | vector seed 그대로 사용 |
 | KB 모드 선택 UI | ✅ | `kb-form-body.tsx` 셀렉트 도입 완료 |
 | AI Agent 의 KB 연동 | ✅ | 변경 없음 (`ragTopK`/`ragThreshold` 그대로) |
@@ -240,7 +240,7 @@ WebSocket 알림 (KB 상세 실시간 갱신)
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `rag_mode` | Enum | `vector` (default) / `graph`. **생성 시에만 결정, 사후 변경 불가** |
-| `extraction_llm_config_id` | UUID? | 그래프 추출에 사용할 LLMConfig 의 chat 모델. NULL 이면 워크스페이스 default LLMConfig |
+| `extraction_llm_config_id` | UUID? | 그래프 추출에 사용할 ModelConfig (kind=chat) 의 chat 모델. NULL 이면 워크스페이스 default ModelConfig (kind=chat) |
 | `max_hops` | Integer | 검색 시 그래프 확장 깊이 (1 또는 2, default 1). `vector` 모드에서는 무시 |
 | `vector_seed_top_k` | Integer | 검색 시 vector seed 개수 (default 5). `vector` 모드에서는 무시 |
 | `expanded_chunk_limit` | Integer | graph expansion 후 회수할 청크 상한 (default 15). `vector` 모드에서는 무시 |
@@ -330,7 +330,7 @@ document-embedding job (completed)
 
 1. `Document.graph_extraction_status = 'processing'` 갱신, WebSocket `document:graph_started` 발사
 2. 해당 document 의 모든 chunk 를 순회 (재시도 시 기존 entity/relation 은 KB 단위 dedup 으로 자연 통합)
-3. chunk 마다 LLM 호출 (`extraction_llm_config_id` 또는 default LLMConfig 의 chat 모델):
+3. chunk 마다 LLM 호출 (`extraction_llm_config_id` 또는 default ModelConfig (kind=chat) 의 chat 모델):
    - 시스템 prompt: entity 타입 / relation 형식 / JSON schema 강제
    - user 메시지: chunk content (max 2000 token)
    - 응답: `{ entities: [{ name, displayName, type, description? }], relations: [{ head, predicate, tail }] }`

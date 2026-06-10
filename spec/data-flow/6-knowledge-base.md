@@ -34,7 +34,7 @@ sequenceDiagram
   participant Svc as KnowledgeBaseService
   participant PG as Postgres
 
-  C->>Svc: POST /api/knowledge-bases { name, embedding_model, chunk_size, chunk_overlap, rag_mode IN (vector/graph), extraction_llm_config_id?, embedding_llm_config_id? }
+  C->>Svc: POST /api/knowledge-bases { name, embedding_model, chunk_size, chunk_overlap, rag_mode IN (vector/graph), extraction_llm_config_id?, embedding_model_config_id? }
   Svc->>PG: INSERT knowledge_base (workspace_id, ..., reembed_status='idle', rag_mode, reextract_status='idle')
   Svc-->>C: 201 { kb }
 ```
@@ -70,7 +70,7 @@ sequenceDiagram
   EP->>EP: parseDocument(buffer, file_type)
   EP->>EP: chunkText(text, { chunkSize, chunkOverlap })
   loop batch of 20 chunks
-    EP->>LLM: embed(texts[], inputType='document') via LlmService (resolved with kb.embedding_llm_config_id or workspace default)
+    EP->>LLM: embed(texts[], inputType='document') via LlmService (resolved with kb.embedding_model_config_id or workspace default)
     EP->>PG: INSERT document_chunk (document_id, knowledge_base_id, chunk_index, content, embedding=vector, token_count)
   end
   EP->>PG: UPDATE document SET embedding_status='completed', chunk_count, embedding_retry_count=0, embedding_error_message=NULL
@@ -114,7 +114,7 @@ sequenceDiagram
   participant LLM as LLM (embed)
 
   H->>R: searchWithMeta(kbId, query, {threshold?, topK?})
-  R->>LLM: embed(query, inputType='query') — kb.embedding_llm_config_id 또는 ws default
+  R->>LLM: embed(query, inputType='query') — kb.embedding_model_config_id 또는 ws default
   Note over R,LLM: 비대칭 모델(e5/Gemini)은 색인=document, 검색=query 로 다르게 인코딩.<br/>SoT [임베딩 파이프라인 §5](../5-system/8-embedding-pipeline.md)
   R->>PG: SELECT chunks WHERE score≥θ ORDER BY score DESC LIMIT RAG_RECALL_K(50)
   Note over PG: HNSW partial index by dimension. wide 회수 — 고정 topK 선차단 폐기
@@ -160,7 +160,7 @@ sequenceDiagram
 
 | Sink (table) | 흐름 | 핵심 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
-| `knowledge_base` | 생성 | `workspace_id, name, embedding_model, embedding_dimension?, chunk_size, chunk_overlap, document_count, reembed_status, rag_mode, extraction_llm_config_id?, embedding_llm_config_id? (V029), max_hops, vector_seed_top_k, expanded_chunk_limit, entity_count, relation_count, reextract_status` | FK CASCADE on `workspace_id` |
+| `knowledge_base` | 생성 | `workspace_id, name, embedding_model, embedding_dimension?, chunk_size, chunk_overlap, document_count, reembed_status, rag_mode, extraction_llm_config_id?, embedding_model_config_id? (V091), max_hops, vector_seed_top_k, expanded_chunk_limit, entity_count, relation_count, reextract_status` | FK CASCADE on `workspace_id` |
 | `knowledge_base` | 임베딩 완료 시 | UPDATE `embedding_dimension`(첫 임베딩), `document_count` | NULL reset 은 KB 전체 재임베딩 진입 시 (V021) |
 | `document` | 업로드 | INSERT `knowledge_base_id, name, file_type IN (txt/md/pdf/csv), file_url, file_size, embedding_status='pending', tags='{}', metadata={}` | FK CASCADE on `knowledge_base_id` |
 | `document` | 임베딩 라이프사이클 | UPDATE `embedding_status, embedding_retry_count, embedding_last_attempted_at, embedding_error_message, chunk_count` | V037 `embedding_status` CHECK 갱신, V039 legacy CHECK drop |

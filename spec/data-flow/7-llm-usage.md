@@ -8,13 +8,13 @@
 
 ### System role
 
-워크스페이스 단위 LLM Config (provider + API key + base_url + default_model) 를 관리하고, 모든
+워크스페이스 단위 Model Config (kind=chat/embedding — provider + API key + base_url + default_model) 를 관리하고, 모든
 LLM 호출을 단일 facade (`LlmService`) 로 통합한다. 호출마다 사용 토큰·비용을 `llm_usage_log` 에
-적재해 통계 / 알림 / 사용량 트래킹의 진실 소스로 삼는다.
+적재해 통계 / 알림 / 사용량 트래킹의 진실 소스로 삼는다. (rerank kind 는 전용 `/rerank` 경로 — 본 흐름 밖, [데이터 모델 §2.16](../1-data-model.md#216-modelconfig).)
 
 코드 진입점:
 
-- `codebase/backend/src/modules/llm-config/llm-config.service.ts` — LLMConfig CRUD
+- `codebase/backend/src/modules/model-config/model-config.service.ts` — ModelConfig CRUD (구 llm-config, `(V088)` 통합)
 - `codebase/backend/src/modules/llm/llm.service.ts` — `chat`, `embed`, `resolveConfig`
 - `codebase/backend/src/modules/llm/llm-client.factory.ts` — provider 별 client 생성. switch 분기 5종: `openai` · `anthropic` · `google` · `azure` · `local`. `local` 은 OpenAI 호환 엔드포인트(Ollama · vLLM 등)를 base_url 로 받는 `LocalClient` (`OpenAIClient` 확장) 이며 독립 provider enum 이 아니다 (`clients/local.client.ts`)
 - `codebase/backend/src/modules/llm/llm-usage-log.service.ts` — usage 적재
@@ -24,18 +24,18 @@ LLM 호출을 단일 facade (`LlmService`) 로 통합한다. 호출마다 사용
 
 ## 1. Source → Sink
 
-### 1.1 LLMConfig 등록
+### 1.1 ModelConfig 등록
 
 ```mermaid
 sequenceDiagram
   participant C as Client
-  participant Svc as LlmConfigService
+  participant Svc as ModelConfigService
   participant PG as Postgres
-  C->>Svc: POST /api/llm-configs { provider, name, api_key, base_url?, default_model, is_default? }
+  C->>Svc: POST /api/model-configs { kind, provider, name, api_key, base_url?, default_model, dimension?, is_default? }
   Svc->>Svc: api_key 암호화 (TypeORM transformer)
-  Svc->>PG: INSERT llm_config (workspace_id, ...)
+  Svc->>PG: INSERT model_config (workspace_id, kind, ...)
   alt is_default=true
-    Svc->>PG: UPDATE llm_config SET is_default=false WHERE workspace_id=? AND id<>new.id
+    Svc->>PG: UPDATE model_config SET is_default=false WHERE workspace_id=? AND kind=? AND id<>new.id
   end
 ```
 
@@ -46,17 +46,17 @@ sequenceDiagram
   autonumber
   participant Caller as Caller<br/>(AI Agent NodeHandler · Assistant Stream · EmbeddingService · GraphExtraction)
   participant LL as LlmService
-  participant Cf as LlmConfigService
+  participant Cf as ModelConfigService
   participant Fac as LlmClientFactory
   participant Prov as Provider
   participant PG as Postgres
   participant Log as LlmUsageLogService
 
   Caller->>LL: resolveConfig(llmConfigId?, workspaceId)
-  LL->>Cf: findEntity 또는 findDefault
-  Cf->>PG: SELECT llm_config WHERE id=? OR is_default=true
+  LL->>Cf: findEntity 또는 findDefault(kind=chat)
+  Cf->>PG: SELECT model_config WHERE id=? OR (kind='chat' AND is_default=true)
   Cf-->>LL: config (api_key 복호화)
-  LL-->>Caller: config (LlmConfig 엔티티)
+  LL-->>Caller: config (ModelConfig 엔티티, kind=chat)
   Caller->>LL: chat(config, params, context?, opts?)
   LL->>Fac: create — config 의 provider/base_url 사용
   LL->>Prov: chat completions (sync, streaming 은 chatStream)
@@ -85,7 +85,7 @@ sequenceDiagram
 
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
-| `llm_config` | 생성·갱신 | INSERT/UPDATE `workspace_id, provider, name, api_key (encrypted), base_url?, default_model, default_params, is_default` | V001 + `llm_config_workspace_default_unique` (`workspace_id WHERE is_default=true`) UNIQUE partial — 워크스페이스 당 default 1개 |
+| `model_config` | 생성·갱신 | INSERT/UPDATE `workspace_id, kind, provider, name, api_key (encrypted), base_url?, default_model, default_params, dimension?, is_default` | V001(구 llm_config)→`(V088)` rename + kind/dimension. `model_config_workspace_kind_default_unique` (`(workspace_id, kind) WHERE is_default=true`) UNIQUE partial `(V089)` — kind 별 default 1개 |
 | `llm_usage_log` | 호출 후 | INSERT `workspace_id, workflow_id?, execution_id?, node_execution_id?, llm_config_id?, provider, model, prompt_tokens, completion_tokens, total_tokens, thinking_tokens? (V018), cost_usd?` | V014/V018. `(workspace_id, created_at DESC)`, `(provider, model, created_at DESC)`, `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` (partial) 통계용 |
 
 ### 2.2 외부
@@ -130,9 +130,9 @@ provider 마다 SDK / API spec 이 다르지만 호출 측 (노드·KB·Assistan
 
 ### `is_default` partial UNIQUE
 
-워크스페이스마다 default LLMConfig 가 정확히 1개여야 한다. `WHERE is_default=true` 조건의 partial
-unique index (entity `llm_config_workspace_default_unique`) 로 DB 단에서 강제. application 단에서는
-새 default 설정 시 기존 default 를 동일 트랜잭션에서 unset 한다.
+워크스페이스마다 **kind 별** default ModelConfig 가 정확히 1개여야 한다. `(workspace_id, kind) WHERE is_default=true` 조건의 partial
+unique index (entity `model_config_workspace_kind_default_unique`) 로 DB 단에서 강제 `(V089)`. application 단에서는
+새 default 설정 시 동일 `(workspace, kind)` 의 기존 default 를 동일 트랜잭션에서 unset 한다.
 
 ### `llm_usage_log` 의 nullable context 컬럼들
 

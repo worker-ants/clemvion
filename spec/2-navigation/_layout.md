@@ -26,7 +26,7 @@
 │ │  Schedule  │                                              │ │
 │ │  Integ.    │                                              │ │
 │ │  KB        │                                              │ │
-│ │  LLM Cfg   │                                              │ │
+│ │  Models    │                                              │ │
 │ │  Auth      │                                              │ │
 │ │  Stats     │                                              │ │
 │ │  SysStatus │                                              │ │
@@ -63,7 +63,7 @@
 | 4 | Schedule | 달력 아이콘 (Calendar) | /schedules | |
 | 5 | Integration | 퍼즐 아이콘 (Puzzle) | /integrations | HTTP·DB·Email·MCP 서버 등 외부 통합 |
 | 6 | Knowledge Base | 책 아이콘 (BookOpen) | /knowledge-bases | RAG용 컬렉션. Vector·Graph 모드 지원. 상세는 [Knowledge Base](./5-knowledge-base.md) |
-| 7 | LLM Config | 두뇌 아이콘 (Brain) | /llm-configs | AI 노드가 호출할 LLM 프로바이더·기본 모델·파라미터. 상세는 [Config](./6-config.md) Part B |
+| 7 | Models | 두뇌 아이콘 (Brain) | /models | AI 노드가 호출할 LLM 프로바이더·기본 모델·파라미터. 상세는 [Config](./6-config.md) Part B |
 | 8 | Authentication | 자물쇠 아이콘 (Lock) | /authentication | 외부 호출자용 API Key·Bearer·Basic 인증. 상세는 [Config](./6-config.md) Part A |
 | 9 | Statistics | 차트 아이콘 (BarChart3) | /statistics | |
 | 10 | System Status | 활동 아이콘 (Activity) | /system-status | 전체 시스템(큐) 상태 지표. 워크스페이스/유저 무관. 상세는 [System Status](./15-system-status.md) 참조 |
