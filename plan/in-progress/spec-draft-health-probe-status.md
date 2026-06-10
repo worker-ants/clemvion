@@ -118,7 +118,7 @@ k8s manifest(`k8s/base/backend-deployment.yaml`)는 readinessProbe·livenessProb
 - [x] `.env.example`: `HEALTH_CHECK_LOG=false` + 주석
 - [x] e2e: `health.e2e-spec.ts` — `/api/health` 200·`/api/health/live` 200 (작성)
 - [x] TEST WORKFLOW: lint PASS, unit PASS (health/interceptor 15 tests green; frontend schedules-page 는 pre-existing order-flake, 재실행 통과)
-- [ ] TEST WORKFLOW: build·e2e (docker)
+- [x] TEST WORKFLOW: build PASS, e2e PASS (181 tests, health.e2e-spec 포함; docker 가용)
 - [ ] `/ai-review` + Critical/Warning fix + `--impl-done` BLOCK:NO
 - [ ] **수동 감사 노트**: `spec/data-flow/9-observability.md` 는 `spec-impl-evidence` 가드 적용 범위
       (`spec/conventions/spec-impl-evidence.md §1`) 밖이라 frontmatter `code:` 자동 커버리지가 없다 →
