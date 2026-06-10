@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
+import { In } from 'typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import {
@@ -3645,6 +3646,104 @@ describe('ExecutionEngineService', () => {
       expect(ctx.variables['counter']).toBe(5);
       // 시스템 변수도 공존해야 함 (충돌 없음).
       expect(ctx.variables['__workspaceId']).toBe('ws-rehydrate-w2');
+    });
+
+    // perf #1 — rehydration 의 per-node findOne N+1 을 단일 In() 배치 조회로
+    // 교체한 회귀 가드. 의미론 고정: (a) findOne 미사용 + find 1회, (b) 같은
+    // nodeId 다중 row(loop iteration)에서 startedAt 최신 COMPLETED 1건 채택
+    // (DESC 첫 등장 — _resumeCheckpoint 등 보존 필드를 가진 최신 row 와 선택
+    // row 가 일치해야 한다는 conventions 불변식 포함), (c) COMPLETED 부재
+    // 노드는 executedNodes 에 미포함.
+    it('perf #1 — rehydration 은 nodeExecution 을 단일 배치 조회하고 nodeId 당 최신 COMPLETED 를 채택한다', async () => {
+      const rehydrateExecId = 'exec-perf1-batch';
+      type RehydrateSubject = {
+        rehydrateContext: (
+          execution: unknown,
+          waitingNodeExec: unknown,
+        ) => Promise<{ _executedNodes: Set<string> }>;
+        contextService: {
+          deleteContext: (id: string) => void;
+          setNodeOutput: (
+            key: unknown,
+            nodeId: string,
+            output: unknown,
+          ) => void;
+        };
+      };
+      const subject = service as unknown as RehydrateSubject;
+      subject.contextService.deleteContext(rehydrateExecId);
+      const setNodeOutputSpy = jest.spyOn(
+        subject.contextService,
+        'setNodeOutput',
+      );
+
+      mockWorkflowRepo.findOne.mockResolvedValueOnce({
+        ...mockWorkflow,
+        workspaceId: 'ws-perf1',
+        workspace: { id: 'ws-perf1', name: 'P1', settings: {} },
+      });
+      // 로그 타임라인: n1 이 loop iteration 으로 2회 등장 + n2 + COMPLETED
+      // row 가 없는 n3.
+      mockExecutionNodeLogRepo.find.mockResolvedValueOnce([
+        { id: 1, nodeId: 'n1' },
+        { id: 2, nodeId: 'n2' },
+        { id: 3, nodeId: 'n1' },
+        { id: 4, nodeId: 'n3' },
+      ]);
+      // 배치 조회 응답 (startedAt DESC): n1 의 최신은 iter-2 출력.
+      mockNodeExecutionRepo.find = jest.fn().mockResolvedValueOnce([
+        {
+          nodeId: 'n1',
+          startedAt: new Date('2026-06-10T00:00:03Z'),
+          outputData: { output: { iter: 2 } },
+        },
+        {
+          nodeId: 'n2',
+          startedAt: new Date('2026-06-10T00:00:02Z'),
+          outputData: { output: { n2: true } },
+        },
+        {
+          nodeId: 'n1',
+          startedAt: new Date('2026-06-10T00:00:01Z'),
+          outputData: { output: { iter: 1 } },
+        },
+      ]);
+      const findOneCallsBefore = mockNodeExecutionRepo.findOne.mock.calls
+        .length;
+
+      const ctx = await subject.rehydrateContext(
+        {
+          id: rehydrateExecId,
+          workflowId,
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+          recursionDepth: 0,
+          dryRun: false,
+          conversationThread: null,
+          userVariables: {},
+        },
+        { id: 'ne-wait', nodeId: 'n-wait', outputData: null },
+      );
+
+      // (a) 배치 1회 — findOne 미사용.
+      expect(mockNodeExecutionRepo.find).toHaveBeenCalledTimes(1);
+      expect(
+        (mockNodeExecutionRepo.find as jest.Mock).mock.calls[0][0].where
+          .nodeId,
+      ).toEqual(In(['n1', 'n2', 'n3']));
+      expect(mockNodeExecutionRepo.findOne.mock.calls.length).toBe(
+        findOneCallsBefore,
+      );
+      // (b) nodeId 당 최신 1건 — n1 은 iter-2 가 복원돼야 한다 (옛 값 회귀 차단).
+      const n1Call = setNodeOutputSpy.mock.calls.find((c) => c[1] === 'n1');
+      expect(n1Call?.[2]).toEqual({ output: { iter: 2 } });
+      const n2Call = setNodeOutputSpy.mock.calls.find((c) => c[1] === 'n2');
+      expect(n2Call?.[2]).toEqual({ output: { n2: true } });
+      // (c) COMPLETED 부재 노드(n3)는 복원/완료 처리되지 않는다.
+      expect(ctx._executedNodes.has('n1')).toBe(true);
+      expect(ctx._executedNodes.has('n2')).toBe(true);
+      expect(ctx._executedNodes.has('n3')).toBe(false);
+
+      setNodeOutputSpy.mockRestore();
     });
   });
 

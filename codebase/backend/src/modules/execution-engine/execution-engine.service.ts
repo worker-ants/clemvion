@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import {
   Execution,
   ExecutionStatus,
@@ -859,6 +859,30 @@ export class ExecutionEngineService
     private readonly shutdownState: ShutdownStateService,
   ) {}
 
+  /**
+   * perf #14 — 실행 경로마다 재조회되던 정적 env 2종의 read-once 캐시.
+   * spec §1.6/§11 의 자매 env 들("모듈 로드 시 1회 읽음 — 변경은 인스턴스
+   * 재시작 시 반영") 과 동일 규약. lifecycle hook 대신 lazy 초기화라 직접
+   * 생성되는 단위 테스트에서도 안전하다 (`resolveExecutionRunWorkerConcurrency`
+   * 의 read-once 정신과 정렬 — naming W2).
+   */
+  private maxNodeIterationsOnce: number | null = null;
+  private parallelEngineFlagOnce: string | null = null;
+
+  private resolveMaxNodeIterations(): number {
+    return (this.maxNodeIterationsOnce ??= this.configService.get<number>(
+      'MAX_NODE_ITERATIONS',
+      100,
+    ));
+  }
+
+  private resolveParallelEngineFlag(): string {
+    return (this.parallelEngineFlagOnce ??= this.configService.get<string>(
+      'PARALLEL_ENGINE',
+      'v1',
+    ));
+  }
+
   onModuleInit(): void {
     this.registerHandlers();
     // Phase 2 (workflow-resumable-execution): 옛 ContinuationBusService.on(...)
@@ -1306,27 +1330,45 @@ export class ExecutionEngineService
     });
 
     // 같은 nodeId 가 loop iteration 으로 여러 row 일 수 있음 — 1회만 처리.
-    const seenNodeIds = new Set<string>();
+    // perf #1 — nodeId 당 findOne(N+1) 직렬 왕복을 단일 In() 배치 조회로.
+    // startedAt DESC 전역 정렬에서 nodeId 별 첫 등장 row = 그 노드의 최신
+    // COMPLETED (기존 per-node findOne(order DESC) 와 동일 의미론 — V034
+    // (execution_id, node_id, started_at DESC) 인덱스가 정확히 커버).
+    const seenNodeIds: string[] = [];
+    const seenNodeIdSet = new Set<string>();
     for (const log of logs) {
-      if (seenNodeIds.has(log.nodeId)) continue;
-      seenNodeIds.add(log.nodeId);
-      const ne = await this.nodeExecutionRepository.findOne({
+      if (seenNodeIdSet.has(log.nodeId)) continue;
+      seenNodeIdSet.add(log.nodeId);
+      seenNodeIds.push(log.nodeId);
+    }
+    const latestCompletedByNodeId = new Map<string, NodeExecution>();
+    if (seenNodeIds.length > 0) {
+      const completedRows = await this.nodeExecutionRepository.find({
         where: {
           executionId: execution.id,
-          nodeId: log.nodeId,
+          nodeId: In(seenNodeIds),
           status: NodeExecutionStatus.COMPLETED,
         },
         order: { startedAt: 'DESC' },
       });
+      for (const row of completedRows) {
+        if (!latestCompletedByNodeId.has(row.nodeId)) {
+          latestCompletedByNodeId.set(row.nodeId, row);
+        }
+      }
+    }
+    // log 순서(id ASC 의 distinct 순) 순회는 보존 — 복원 순서 의미 불변.
+    for (const nodeId of seenNodeIds) {
+      const ne = latestCompletedByNodeId.get(nodeId);
       if (!ne) continue;
       if (ne.outputData) {
         this.contextService.setNodeOutput(
           this.contextKeyOf(context),
-          log.nodeId,
+          nodeId,
           ne.outputData,
         );
       }
-      executedNodes.add(log.nodeId);
+      executedNodes.add(nodeId);
     }
 
     // Waiting node 의 outputData 복원 — runExecution 의 executeNode 가 normally
@@ -1384,10 +1426,7 @@ export class ExecutionEngineService
         sortedIndexMap,
       );
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-    const maxNodeIterations = this.configService.get<number>(
-      'MAX_NODE_ITERATIONS',
-      100,
-    );
+    const maxNodeIterations = this.resolveMaxNodeIterations();
     return {
       nodes,
       edges,
@@ -1546,7 +1585,7 @@ export class ExecutionEngineService
           // PR #364 (default ON) 정책 정합 — runExecution / resumeFromCheckpoint
           // 가 모두 'v1' default. helper 도 동일 default 사용해 retry 경로의
           // 우연한 'off' default (PR #365 잔재) 도 동시 통일.
-          this.configService.get<string>('PARALLEL_ENGINE', 'v1') === 'v1'
+          this.resolveParallelEngineFlag() === 'v1'
         ) {
           // WARNING #14: `gatherNodeInput` 의 두 번째 호출을 제거 — 이미 위에서
           // 동일 인자로 호출한 결과 `nodeInput` 을 재사용.
@@ -3022,10 +3061,7 @@ export class ExecutionEngineService
       });
     }
 
-    const maxNodeIterations = this.configService.get<number>(
-      'MAX_NODE_ITERATIONS',
-      100,
-    );
+    const maxNodeIterations = this.resolveMaxNodeIterations();
     const nodeExecutionCount = new Map<string, number>();
     // Seed reachability (CRIT #2 — runExecution 과 동일한 helper). Background
     // processor 는 explicit entry ids (targets of `background`-port edges) 를
@@ -3662,7 +3698,7 @@ export class ExecutionEngineService
         // existing semantics as a rollback card.
         if (
           dispatchKind === 'parallel' &&
-          this.configService.get<string>('PARALLEL_ENGINE', 'v1') === 'v1'
+          this.resolveParallelEngineFlag() === 'v1'
         ) {
           const nodeInput = this.gatherNodeInput(
             nodeId,
@@ -7866,10 +7902,15 @@ export class ExecutionEngineService
    * sure no container is its own (transitive) ancestor. Throws when a cycle
    * is found so the engine surfaces a stable, named error instead of looping.
    */
-  private assertNoContainerCycle(containerNode: Node, allNodes: Node[]): void {
-    const byId = new Map(allNodes.map((n) => [n.id, n]));
-    for (const node of allNodes) {
-      if (node.containerId !== containerNode.id) continue;
+  private assertNoContainerCycle(
+    containerNode: Node,
+    children: Node[],
+    byId: Map<string, Node>,
+  ): void {
+    // perf #5 — 호출자(planContainerBody)가 이미 빌드한 nodeMap/children 을
+    // 재사용한다 (Map 이중 생성 + allNodes 전수 스캔 제거). 검사 의미는
+    // 동일: 직접 자식 각각에서 containerId 조상 체인을 따라 사이클 검출.
+    for (const node of children) {
       const visited = new Set<string>();
       let cursor: Node | undefined = node;
       while (cursor?.containerId) {
@@ -7889,13 +7930,14 @@ export class ExecutionEngineService
     allNodes: Node[],
     allEdges: Edge[],
   ): ContainerBodyPlan {
-    // Detect a containerId cycle (e.g. A.containerId=B && B.containerId=A)
-    // before doing any work so the user gets a clear error instead of an
-    // infinite loop or stack overflow.
-    this.assertNoContainerCycle(containerNode, allNodes);
-
     const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
     const children = allNodes.filter((n) => n.containerId === containerNode.id);
+    // Detect a containerId cycle (e.g. A.containerId=B && B.containerId=A)
+    // before doing any further work so the user gets a clear error instead of
+    // an infinite loop or stack overflow. (perf #5 — nodeMap/children 빌드만
+    // 검사 앞으로 이동: 순수 lookup 자료구조 생성이라 에러 우선순위 불변.)
+    this.assertNoContainerCycle(containerNode, children, nodeMap);
+
     const childIds = new Set(children.map((c) => c.id));
 
     // Trigger nodes can never live inside a container body — their semantics
@@ -8224,10 +8266,12 @@ export class ExecutionEngineService
     // within the DAG (back-edges are excluded so we never loop).
     const reachPerBranch: Set<string>[] = branchEntries.map(() => new Set());
     for (let i = 0; i < branchCount; i++) {
+      // perf #6 — `queue.shift()`(O(N) 앞당김)를 인덱스 포인터로 교체.
+      // 순회 순서는 동일 (FIFO BFS).
       const queue = [...branchEntries[i]];
-      while (queue.length > 0) {
-        const nodeId = queue.shift();
-        if (nodeId === undefined) break;
+      let head = 0;
+      while (head < queue.length) {
+        const nodeId = queue[head++];
         if (reachPerBranch[i].has(nodeId)) continue;
         reachPerBranch[i].add(nodeId);
         for (const edge of forwardAdj.get(nodeId) ?? []) {
