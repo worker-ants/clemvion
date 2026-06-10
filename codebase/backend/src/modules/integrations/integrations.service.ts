@@ -57,6 +57,7 @@ import {
   ServerInfo,
 } from '../mcp/mcp-client.service';
 import { listAllCafe24Operations } from '../../nodes/integration/cafe24/metadata';
+import { listAllMakeshopOperations } from '../../nodes/integration/makeshop/metadata';
 import { OperationCatalogDto } from './dto/responses/integration-response.dto';
 import {
   STORE_IDENTIFIER_UNIQUE_CONSTRAINT,
@@ -1153,13 +1154,14 @@ export class IntegrationsService {
    * `GET /api/integrations/services/:type/catalog` 의 백엔드 로직. 통합
    * 활동 로그의 `api_label` (catalog key) 을 frontend 가 사람 친화
    * 라벨로 변환할 때 참조하는 메타데이터. SoT: `spec/conventions/cafe24-api-metadata.md
-   * §7.5` + 통합 spec §9.3.
+   * §7.5` · `spec/conventions/makeshop-api-metadata.md §2` + 통합 spec §9.3.
    *
-   * 초기엔 cafe24 만 backend 메타데이터로 채워 반환한다. 그 외 미지원
-   * 서비스 타입 (http, database, email, mcp, google, github 등) 은 빈
-   * 배열 — 활동 로그의 `apiLabel` 이 NULL 이라 lookup 자체가 발생하지 않는다.
-   * 완전 미지원 type 도 빈 배열을 반환해 frontend 의 1회 fetch + caching
-   * 흐름이 분기 없이 일관 동작.
+   * `cafe24` · `makeshop` 은 backend 메타데이터에서 `operations[]` 를 채워
+   * 반환한다 (spec §9.3 초기 응답 정책). 그 외 미지원 서비스 타입
+   * (http, database, email, mcp, google, github 등) 은 빈 배열 — 활동
+   * 로그의 `apiLabel` 이 NULL 이라 lookup 자체가 발생하지 않는다. 완전
+   * 미지원 type 도 빈 배열을 반환해 frontend 의 1회 fetch + caching 흐름이
+   * 분기 없이 일관 동작.
    */
   getServiceCatalog(serviceType: string): OperationCatalogDto {
     if (serviceType === 'cafe24') {
@@ -1170,6 +1172,18 @@ export class IntegrationsService {
           path: operation.path,
           labelKey: `cafe24.${resource}.${operation.id}`,
           descriptionKey: `cafe24.${resource}.${operation.id}.description`,
+        }),
+      );
+      return { operations };
+    }
+    if (serviceType === 'makeshop') {
+      const operations = listAllMakeshopOperations().map(
+        ({ resource, operation }) => ({
+          key: `makeshop.${resource}.${operation.id}`,
+          method: operation.method,
+          path: operation.path,
+          labelKey: `makeshop.${resource}.${operation.id}`,
+          descriptionKey: `makeshop.${resource}.${operation.id}.description`,
         }),
       );
       return { operations };

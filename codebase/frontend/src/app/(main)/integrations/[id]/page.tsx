@@ -785,8 +785,8 @@ function renderApiCell(args: {
       : apiPath ?? "";
 
   // catalog endpoint 가 응답한 labelKey 가 dict 안에 있으면 i18n 라벨 사용.
-  // 본 PR 에서는 dict 가 빈 상태라 사실상 모든 cafe24 호출도 endpoint-only
-  // fallback 으로 흐른다 (follow-up plan cafe24-catalog-i18n.md 에서 채움).
+  // makeshop 은 dict(161 op) 가 채워져 라벨이 렌더되고, cafe24 dict 는 아직
+  // 빈 상태라 endpoint-only fallback 으로 흐른다 (cafe24-catalog-i18n.md 에서 채움).
   const catalogEntry = apiLabel ? catalog.get(apiLabel) : undefined;
   const labelKey = catalogEntry?.labelKey ?? apiLabel ?? null;
   const humanLabel = labelKey ? tryTranslateLabel(labelKey, t) : null;
@@ -818,14 +818,23 @@ function renderApiCell(args: {
 }
 
 /**
- * `cafe24.<resource>.<operation>` catalog key 가 cafe24Catalog dict 에 매핑돼
- * 있으면 사람 친화 라벨 반환, 없으면 null 반환 (endpoint-only fallback 으로
- * 위임). 현재 dict 는 빈 상태이므로 항상 null. SoT: dict/{ko,en}/cafe24Catalog.ts.
+ * `<provider>.<resource>.<operation>` catalog key 를 사람 친화 라벨로 변환한다.
+ * provider prefix 로 i18n dict namespace 를 선택한다:
+ *  - `cafe24.*` → `cafe24Catalog.*` (현재 dict 빈 상태 — cafe24-catalog-i18n.md follow-up)
+ *  - `makeshop.*` → `makeshopCatalog.*` (dict 161 op 채워짐)
+ * 매핑이 있으면 라벨, 없으면 null (endpoint-only fallback 으로 위임).
+ * SoT: dict/{ko,en}/{cafe24,makeshop}Catalog.ts.
  *
- * @see plan/in-progress/cafe24-catalog-i18n.md — dict 채우기 follow-up
+ * @see plan/in-progress/cafe24-catalog-i18n.md — cafe24 dict 채우기 follow-up
  */
 function tryTranslateLabel(catalogKey: string, t: TFunction): string | null {
-  const fullKey = `cafe24Catalog.${catalogKey}` as TranslationKey;
+  const namespace = catalogKey.startsWith("makeshop.")
+    ? "makeshopCatalog"
+    : catalogKey.startsWith("cafe24.")
+    ? "cafe24Catalog"
+    : null;
+  if (!namespace) return null;
+  const fullKey = `${namespace}.${catalogKey}` as TranslationKey;
   const translated = t(fullKey);
   // i18n framework 가 key 누락 시 key 문자열을 그대로 반환 — 그 케이스는 lookup
   // miss 로 취급해 endpoint subtext fallback 으로 흘려보낸다.

@@ -1880,7 +1880,19 @@ describe('IntegrationsService', () => {
       expect(typeof sample.path).toBe('string');
     });
 
-    it('returns empty operations[] for non-cafe24 service types', () => {
+    it('returns makeshop operations as `makeshop.<resource>.<operation>` keys', () => {
+      const result = service.getServiceCatalog('makeshop');
+      expect(result.operations.length).toBeGreaterThan(0);
+      const sample = result.operations[0];
+      // makeshop catalog key/labelKey = `makeshop.<resource>.<operation.id>`
+      // (= frontend makeshopCatalog dict lookup 키). spec §9.3 초기 응답 정책.
+      expect(sample.key).toMatch(/^makeshop\.[a-z0-9_]+\.[a-z0-9_-]+$/i);
+      expect(sample.labelKey).toBe(sample.key);
+      expect(['GET', 'POST']).toContain(sample.method);
+      expect(typeof sample.path).toBe('string');
+    });
+
+    it('returns empty operations[] for unsupported service types', () => {
       for (const type of [
         'http',
         'database',

@@ -27,7 +27,8 @@ owner: claude
 - [ ] SUMMARY §1 위반 19건의 코드 수정 vs spec 하향 결정 (developer/project-planner) — 특히 severe 3: audit-logs Admin+ 가드 부재(V-03, 보안), makeshop expired 오격하(V-01), AI 노드 override UI 필드 누락(V-02)
   - [x] **V-03** (audit-logs Admin+ 가드) — PR #523 머지 완료
   - [x] **V-01** (makeshop expired 오격하) + **V-07** (§11.2 알림 정책) + **V-15** (큐 레지스트리) + V-19(rag 신호화, #511) — `integration-expiry-fixes` 브랜치(본 PR)에서 해소
-  - [ ] 잔여: V-02(AI override UI), V-04~V-06·V-08~V-14·V-18 (major/minor — 결정 대기)
+  - [x] **V-06** (makeshop `services/makeshop/catalog` operations 미충전) + **V-08** (Activity 탭 라벨 namespace cafe24 고정) — `makeshop-catalog-labels` 브랜치(본 PR)에서 코드 수정 해소 (getServiceCatalog makeshop 분기 + tryTranslateLabel provider-prefix 일반화)
+  - [ ] 잔여: V-02(AI override UI), V-04·V-05·V-09~V-14·V-18 (major/minor — 결정 대기)
 - [ ] SUMMARY §2 audit 도메인 코드 갭 — audit 기록 커버리지(workflow.*/trigger.* 등 미기록)·action 표기 비일관(`re_run_initiated`) 정리
 - [x] Trigger→Schedule 역방향 is_active 동기화 — PR #519 머지 완료 (1-data-model §2.9.1)
 - [x] integration-expiry-scanner 코드 주석 stale (`기본 10일` → 실제 7일) — 본 PR 에서 정정. 잔여 Swagger 문자열 정정은 별도 developer 백로그
