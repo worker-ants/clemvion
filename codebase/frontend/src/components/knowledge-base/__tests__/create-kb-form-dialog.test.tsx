@@ -127,7 +127,9 @@ describe("CreateKbFormDialog — embedding ModelConfig select", () => {
     });
   });
 
-  it("propagates embeddingModelConfigId + embeddingModel(defaultModel) into the create payload", async () => {
+  // Backend now derives embeddingModel from config.defaultModel server-side (WARNING #1/#2 fix).
+  // Frontend only sends embeddingModelConfigId; embeddingModel is NOT included in the payload.
+  it("propagates embeddingModelConfigId into the create payload (backend derives embeddingModel server-side)", async () => {
     modelListMock.mockResolvedValue([
       embConfig({ id: "emb-a", name: "OpenAI Emb", defaultModel: "m-a" }),
     ]);
@@ -153,7 +155,8 @@ describe("CreateKbFormDialog — embedding ModelConfig select", () => {
     await waitFor(() => expect(createMock).toHaveBeenCalled());
     const payload = createMock.mock.calls[0][0];
     expect(payload.embeddingModelConfigId).toBe("emb-a");
-    expect(payload.embeddingModel).toBe("m-a");
+    // embeddingModel is omitted from payload: backend resolves it server-side from config.defaultModel
+    expect(payload.embeddingModel).toBeUndefined();
   });
 
   it("probes with the selected embeddingModelConfigId when the test button is clicked", async () => {

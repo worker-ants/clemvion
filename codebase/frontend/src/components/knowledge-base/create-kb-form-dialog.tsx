@@ -9,7 +9,8 @@ import {
   type RerankMode,
 } from "@/lib/api/knowledge-bases";
 import { llmConfigsApi } from "@/lib/api/llm-configs";
-import { modelConfigsApi } from "@/lib/api/model-configs";
+import { modelConfigsApi, MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY } from "@/lib/api/model-configs";
+import { buildEmbeddingConfigPayload } from "@/lib/kb/embedding-payload";
 import { rerankConfigsApi } from "@/lib/api/rerank-configs";
 import { useDefaultEmbeddingModelConfigId } from "@/components/llm-config/use-default-embedding-model-config-id";
 import { Button } from "@/components/ui/button";
@@ -82,9 +83,9 @@ export function CreateKbFormDialog({
   });
 
   // 임베딩 1급 select 용 kind=embedding ModelConfig 목록. dialog 가 열려 있는 동안 fetch.
-  // useDefaultEmbeddingModelConfigId 와 동일 query key 를 공유해 1회만 fetch.
+  // useDefaultEmbeddingModelConfigId 와 동일 query key(MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY) 를 공유해 1회만 fetch.
   const { data: embeddingModelConfigs = [] } = useQuery({
-    queryKey: ["model-configs", "embedding", "list"],
+    queryKey: MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY,
     queryFn: () => modelConfigsApi.list("embedding"),
     staleTime: 30_000,
     enabled: open,
@@ -111,25 +112,13 @@ export function CreateKbFormDialog({
 
   const createMutation = useMutation({
     mutationFn: () => {
-      // 1급 경로: config 선택 시 그 config 의 defaultModel 을 embeddingModel 로 함께
-      // 보내 KB-card 표시값을 일치시킨다. 미선택("") 시 임베딩 필드를 모두 생략해
-      // 백엔드 ws-default 폴백에 맡긴다.
-      const selectedEmbeddingConfig = effectiveEmbeddingModelConfigId
-        ? embeddingModelConfigs.find(
-            (c) => c.id === effectiveEmbeddingModelConfigId,
-          )
-        : undefined;
+      // 1급 경로: backend now derives embeddingModel from config server-side (WARNING #1/#2 fix).
+      // We only send embeddingModelConfigId via buildEmbeddingConfigPayload; backend resolves
+      // embeddingModel authoritative. Missing configId → ws-default fallback (empty payload).
       return knowledgeBasesApi.create({
         name: formName,
         description: formDescription || undefined,
-        ...(effectiveEmbeddingModelConfigId
-          ? {
-              embeddingModelConfigId: effectiveEmbeddingModelConfigId,
-              ...(selectedEmbeddingConfig
-                ? { embeddingModel: selectedEmbeddingConfig.defaultModel }
-                : {}),
-            }
-          : {}),
+        ...buildEmbeddingConfigPayload(effectiveEmbeddingModelConfigId, embeddingModelConfigs),
         chunkSize: parseInt(formChunkSize) || 1000,
         chunkOverlap: parseInt(formChunkOverlap) || 200,
         ragMode: formRagMode,

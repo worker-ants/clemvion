@@ -10,6 +10,13 @@ export type ModelConfigKind = "chat" | "embedding" | "rerank";
 
 export const MODEL_CONFIGS_QUERY_KEY = ["model-configs"] as const;
 
+/** Shared query key for the kind=embedding ModelConfig list used across KB create/edit + default hook. */
+export const MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY = [
+  "model-configs",
+  "embedding",
+  "list",
+] as const;
+
 export interface ModelConfigData {
   id: string;
   kind: ModelConfigKind;

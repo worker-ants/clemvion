@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { modelConfigsApi } from "@/lib/api/model-configs";
+import { modelConfigsApi, MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY } from "@/lib/api/model-configs";
 
 /**
  * Resolves the embedding ModelConfig id to use when a caller has not pinned an
@@ -12,10 +12,15 @@ import { modelConfigsApi } from "@/lib/api/model-configs";
  * fall back to the empty (workspace-default) option.
  *
  * Mirrors `use-default-llm-config-id.ts`, but queries `modelConfigsApi.list("embedding")`.
+ *
+ * NOTE (WARNING #6): This hook is grouped with config-loader hooks and currently lives in
+ * `llm-config/` for historical proximity to `use-default-llm-config-id.ts`. It will move
+ * to `components/model-config/` when the `llm-config/` directory is removed in PR4.
+ * Do not create a new directory now to avoid churn.
  */
 export function useDefaultEmbeddingModelConfigId(): string | undefined {
   const { data: configs = [] } = useQuery({
-    queryKey: ["model-configs", "embedding", "list"],
+    queryKey: MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY,
     queryFn: () => modelConfigsApi.list("embedding"),
     staleTime: 30_000,
   });

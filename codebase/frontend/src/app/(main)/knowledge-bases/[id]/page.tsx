@@ -41,7 +41,8 @@ import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
 import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
 import { llmConfigsApi } from "@/lib/api/llm-configs";
-import { modelConfigsApi } from "@/lib/api/model-configs";
+import { modelConfigsApi, MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY } from "@/lib/api/model-configs";
+import { buildEmbeddingConfigPayload, embeddingConfigChanged } from "@/lib/kb/embedding-payload";
 import { rerankConfigsApi } from "@/lib/api/rerank-configs";
 import { useKbEvents } from "@/lib/websocket/use-kb-events";
 import { RoleGate } from "@/components/auth/role-gate";
@@ -189,8 +190,9 @@ export default function KnowledgeBaseDetailPage({
   });
 
   // settings 다이얼로그가 열렸을 때만 kind=embedding ModelConfig 목록을 fetch (임베딩 1급 select 용).
+  // MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY 공유로 create-dialog / default-hook 과 캐시 일치 보장.
   const { data: embeddingModelConfigs = [] } = useQuery({
-    queryKey: ["model-configs", "embedding", "list"],
+    queryKey: MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY,
     queryFn: () => modelConfigsApi.list("embedding"),
     staleTime: 30_000,
     enabled: showSettings,
@@ -409,19 +411,13 @@ export default function KnowledgeBaseDetailPage({
     if ((formDescription ?? "") !== (kb.description ?? "")) {
       payload.description = formDescription;
     }
-    // 임베딩 1급 경로: 선택한 kind=embedding config 가 KB 의 현재값과 다르면 갱신.
-    // config 비울 시 null(=ws-default 폴백). 선택 시 그 config 의 defaultModel 을
-    // embeddingModel 로 함께 보내 KB-card 표시값을 일치시킨다.
-    if (formEmbeddingModelConfigId !== (kb.embeddingModelConfigId ?? "")) {
-      payload.embeddingModelConfigId = formEmbeddingModelConfigId || null;
-      if (formEmbeddingModelConfigId) {
-        const selectedEmbeddingConfig = embeddingModelConfigs.find(
-          (c) => c.id === formEmbeddingModelConfigId,
-        );
-        if (selectedEmbeddingConfig) {
-          payload.embeddingModel = selectedEmbeddingConfig.defaultModel;
-        }
-      }
+    // 임베딩 1급 경로: backend is now authoritative for embeddingModel (WARNING #2 fix).
+    // We only send embeddingModelConfigId; backend derives embeddingModel server-side.
+    // embeddingConfigChanged() centralises the comparison (WARNING #10 fix).
+    if (embeddingConfigChanged(formEmbeddingModelConfigId, kb.embeddingModelConfigId)) {
+      // buildEmbeddingConfigPayload returns {} when configId is empty (ws-default → send null explicitly).
+      const embPayload = buildEmbeddingConfigPayload(formEmbeddingModelConfigId, embeddingModelConfigs);
+      payload.embeddingModelConfigId = embPayload.embeddingModelConfigId ?? null;
     }
     if (cs !== kb.chunkSize) payload.chunkSize = cs;
     if (co !== kb.chunkOverlap) payload.chunkOverlap = co;

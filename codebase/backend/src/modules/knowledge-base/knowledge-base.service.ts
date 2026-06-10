@@ -110,11 +110,25 @@ export class KnowledgeBaseService {
     workspaceId: string,
     dto: CreateKnowledgeBaseDto,
   ): Promise<KnowledgeBase> {
+    // WARNING #1: backend is authoritative for embeddingModel when embeddingModelConfigId is set.
+    // Load the config server-side so KB.embeddingModel always matches config.defaultModel —
+    // the client cannot supply a stale/missing embeddingModel (race at create time, WARNING #3).
+    let resolvedEmbeddingModel: string =
+      dto.embeddingModel || 'text-embedding-3-small';
+    if (dto.embeddingModelConfigId) {
+      const embCfg = await this.modelConfigService.findEntity(
+        dto.embeddingModelConfigId,
+        workspaceId,
+        'embedding',
+      );
+      resolvedEmbeddingModel = embCfg.defaultModel;
+    }
+
     const kb = this.kbRepository.create({
       workspaceId,
       name: dto.name,
       description: dto.description || undefined,
-      embeddingModel: dto.embeddingModel || 'text-embedding-3-small',
+      embeddingModel: resolvedEmbeddingModel,
       embeddingModelConfigId: dto.embeddingModelConfigId ?? null,
       embeddingLlmConfigId: dto.embeddingLlmConfigId ?? null,
       chunkSize: dto.chunkSize || 1000,
@@ -164,14 +178,24 @@ export class KnowledgeBaseService {
     if (dto.embeddingLlmConfigId !== undefined) {
       kb.embeddingLlmConfigId = dto.embeddingLlmConfigId;
     }
-    // 1급 embedding config(kind=embedding) 변경 — config 가 바뀌면 모델·차원이 달라질 수
-    // 있어 dimension 을 NULL 로 초기화해 첫 임베딩에서 재결정한다(embeddingModel 변경과 동형).
+    // WARNING #2: backend is authoritative for embeddingModel when embeddingModelConfigId changes.
+    // Load config server-side so KB.embeddingModel stays in sync with config.defaultModel —
+    // client may not send embeddingModel on update. Also reset dimension (embeddingModel change
+    // or new config → first embed will re-detect dimension).
     if (
       dto.embeddingModelConfigId !== undefined &&
       dto.embeddingModelConfigId !== kb.embeddingModelConfigId
     ) {
       kb.embeddingModelConfigId = dto.embeddingModelConfigId;
       kb.embeddingDimension = null;
+      if (dto.embeddingModelConfigId) {
+        const embCfg = await this.modelConfigService.findEntity(
+          dto.embeddingModelConfigId,
+          workspaceId,
+          'embedding',
+        );
+        kb.embeddingModel = embCfg.defaultModel;
+      }
     }
     if (dto.maxHops !== undefined) kb.maxHops = dto.maxHops;
     if (dto.vectorSeedTopK !== undefined)
