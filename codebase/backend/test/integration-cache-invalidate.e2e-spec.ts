@@ -1,4 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterAll,
+} from '@jest/globals';
 import { Client } from 'pg';
 import request from 'supertest';
 import Redis from 'ioredis';
@@ -17,6 +24,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
+// SoT: INTEGRATION_CACHE_INVALIDATE_CHANNEL (src/common/redis/integration-cache-bus.service.ts).
+// e2e 는 src 모듈 그래프를 끌어오지 않으려 문자열 리터럴로 둔다 — 채널명 변경 시 양쪽 갱신.
 const CHANNEL = 'integration:cache:invalidate';
 
 describe('Integration cache invalidate pub/sub (e2e, 04 m-4)', () => {
@@ -47,12 +56,19 @@ describe('Integration cache invalidate pub/sub (e2e, 04 m-4)', () => {
     await sub.subscribe(CHANNEL);
   }, 60_000);
 
+  beforeEach(() => {
+    received.length = 0;
+  });
+
   afterAll(async () => {
     if (sub) await sub.quit().catch(() => undefined);
     await db.end();
   });
 
-  async function createHttpApiKey(name: string, apiKey: string): Promise<string> {
+  async function createHttpApiKey(
+    name: string,
+    apiKey: string,
+  ): Promise<string> {
     const res = await request(BASE_URL)
       .post('/api/integrations')
       .set('Authorization', `Bearer ${token}`)
@@ -77,13 +93,11 @@ describe('Integration cache invalidate pub/sub (e2e, 04 m-4)', () => {
     integrationId: string,
     timeoutMs = 5_000,
   ): Promise<boolean> {
-    const start = Date.now();
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (received.includes(integrationId)) return true;
-      if (Date.now() - start > timeoutMs) return false;
+    const deadline = Date.now() + timeoutMs;
+    while (!received.includes(integrationId) && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 50));
     }
+    return received.includes(integrationId);
   }
 
   it('A. rotate 가 integrationId 를 채널에 broadcast', async () => {
@@ -98,7 +112,9 @@ describe('Integration cache invalidate pub/sub (e2e, 04 m-4)', () => {
     // 회전 성공 후 broadcast 이므로 성공 코드(200/201)만 확인한다.
     expect([200, 201]).toContain(rot.status);
 
-    expect(await waitForBroadcast(id)).toBe(true);
+    await waitForBroadcast(id);
+    // toContain 은 실패 시 수신된 배열과 기대 id 를 함께 출력해 디버깅을 돕는다.
+    expect(received).toContain(id);
   }, 30_000);
 
   it('B. remove 가 integrationId 를 채널에 broadcast', async () => {
@@ -110,6 +126,7 @@ describe('Integration cache invalidate pub/sub (e2e, 04 m-4)', () => {
       .set('X-Workspace-Id', workspaceId);
     expect(del.status).toBe(204);
 
-    expect(await waitForBroadcast(id)).toBe(true);
+    await waitForBroadcast(id);
+    expect(received).toContain(id);
   }, 30_000);
 });

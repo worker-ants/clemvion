@@ -77,6 +77,12 @@ export class IntegrationCacheBus implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * 부팅 시 전용 subscriber 연결(공유 command 연결의 duplicate)을 만들고 채널을
+   * 구독한다. Redis 미가용 시 구독 없이 degrade (로컬 credsHash evict 가 보호).
+   * subscribe 완료 전 도달한 publish 는 유실될 수 있으나(best-effort), 그 경우에도
+   * credsHash evict 가 다음 실행에서 stale 자원을 교체하므로 정합성은 유지된다.
+   */
   onModuleInit(): void {
     const base = this.redis.getClientOrNull();
     if (!base) {
@@ -85,6 +91,10 @@ export class IntegrationCacheBus implements OnModuleInit, OnModuleDestroy {
       );
       return;
     }
+    // duplicate() 는 base 연결의 옵션(lazyConnect: true 포함)을 그대로 상속한다 —
+    // 따라서 아래 subscribe() 호출 전까지 실제 TCP 연결은 일어나지 않고, subscribe 가
+    // connect 를 트리거한다. 'error' 핸들러를 subscribe 전에 등록해 연결 단계 오류가
+    // unhandled 로 프로세스를 죽이지 않게 한다.
     const sub = base.duplicate();
     sub.on('error', (err: Error) => {
       this.logger.error(
@@ -133,9 +143,9 @@ export class IntegrationCacheBus implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    const s = this.subscriber;
+    const sub = this.subscriber;
     this.subscriber = null;
-    if (s) await s.quit().catch(() => undefined);
+    if (sub) await sub.quit().catch(() => undefined);
   }
 }
 

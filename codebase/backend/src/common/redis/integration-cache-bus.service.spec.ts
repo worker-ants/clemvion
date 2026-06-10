@@ -25,6 +25,7 @@ interface FakeRedis {
   quit: jest.Mock;
   on: jest.Mock;
   emitMessage: (channel: string, message: string) => void;
+  emitError: (err: Error) => void;
 }
 
 function makeFakeRedis(): FakeRedis {
@@ -39,26 +40,22 @@ function makeFakeRedis(): FakeRedis {
     duplicate: jest.fn(),
     emitMessage: (channel: string, message: string) =>
       handlers['message']?.(channel, message),
+    emitError: (err: Error) => handlers['error']?.(err),
   };
   return sub;
 }
 
-function makeProvider(client: FakeRedis | null): {
-  provider: RedisConnectionProvider;
-  base: FakeRedis | null;
-} {
-  const base = client;
-  const provider = {
-    getClientOrNull: jest.fn().mockReturnValue(base),
+function makeProvider(client: FakeRedis | null): RedisConnectionProvider {
+  return {
+    getClientOrNull: jest.fn().mockReturnValue(client),
   } as unknown as RedisConnectionProvider;
-  return { provider, base };
 }
 
 describe('IntegrationCacheBus', () => {
   describe('publish', () => {
     it('publishes the integrationId on the invalidate channel', async () => {
       const client = makeFakeRedis();
-      const { provider } = makeProvider(client);
+      const provider = makeProvider(client);
       const bus = new IntegrationCacheBus(provider);
 
       await bus.publish('int-1');
@@ -71,7 +68,7 @@ describe('IntegrationCacheBus', () => {
 
     it('is a no-op for an empty integrationId', async () => {
       const client = makeFakeRedis();
-      const { provider } = makeProvider(client);
+      const provider = makeProvider(client);
       const bus = new IntegrationCacheBus(provider);
 
       await bus.publish('');
@@ -80,7 +77,7 @@ describe('IntegrationCacheBus', () => {
     });
 
     it('degrades silently when Redis is unavailable', async () => {
-      const { provider } = makeProvider(null);
+      const provider = makeProvider(null);
       const bus = new IntegrationCacheBus(provider);
 
       await expect(bus.publish('int-1')).resolves.toBeUndefined();
@@ -89,7 +86,7 @@ describe('IntegrationCacheBus', () => {
     it('swallows publish rejection (fail-safe)', async () => {
       const client = makeFakeRedis();
       client.publish.mockRejectedValueOnce(new Error('redis down'));
-      const { provider } = makeProvider(client);
+      const provider = makeProvider(client);
       const bus = new IntegrationCacheBus(provider);
 
       await expect(bus.publish('int-1')).resolves.toBeUndefined();
@@ -101,7 +98,7 @@ describe('IntegrationCacheBus', () => {
       const sub = makeFakeRedis();
       const base = makeFakeRedis();
       base.duplicate.mockReturnValue(sub);
-      const { provider } = makeProvider(base);
+      const provider = makeProvider(base);
       const bus = new IntegrationCacheBus(provider);
 
       const a = jest.fn();
@@ -124,7 +121,7 @@ describe('IntegrationCacheBus', () => {
       const sub = makeFakeRedis();
       const base = makeFakeRedis();
       base.duplicate.mockReturnValue(sub);
-      const { provider } = makeProvider(base);
+      const provider = makeProvider(base);
       const bus = new IntegrationCacheBus(provider);
 
       const fn = jest.fn();
@@ -140,7 +137,7 @@ describe('IntegrationCacheBus', () => {
       const sub = makeFakeRedis();
       const base = makeFakeRedis();
       base.duplicate.mockReturnValue(sub);
-      const { provider } = makeProvider(base);
+      const provider = makeProvider(base);
       const bus = new IntegrationCacheBus(provider);
 
       const boom = jest.fn(() => {
@@ -161,7 +158,7 @@ describe('IntegrationCacheBus', () => {
       const sub = makeFakeRedis();
       const base = makeFakeRedis();
       base.duplicate.mockReturnValue(sub);
-      const { provider } = makeProvider(base);
+      const provider = makeProvider(base);
       const bus = new IntegrationCacheBus(provider);
 
       const rejecting = jest.fn().mockRejectedValue(new Error('async evict'));
@@ -177,10 +174,68 @@ describe('IntegrationCacheBus', () => {
     });
 
     it('does not subscribe when Redis is unavailable (degrade)', () => {
-      const { provider } = makeProvider(null);
+      const provider = makeProvider(null);
       const bus = new IntegrationCacheBus(provider);
 
       expect(() => bus.onModuleInit()).not.toThrow();
+    });
+
+    it('runs the same invalidator only once (Set idempotency)', () => {
+      const sub = makeFakeRedis();
+      const base = makeFakeRedis();
+      base.duplicate.mockReturnValue(sub);
+      const provider = makeProvider(base);
+      const bus = new IntegrationCacheBus(provider);
+
+      const fn = jest.fn();
+      bus.register(fn);
+      bus.register(fn); // same reference — must not double-register
+      bus.onModuleInit();
+
+      sub.emitMessage(INTEGRATION_CACHE_INVALIDATE_CHANNEL, 'int-1');
+
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores an empty integrationId message', () => {
+      const sub = makeFakeRedis();
+      const base = makeFakeRedis();
+      base.duplicate.mockReturnValue(sub);
+      const provider = makeProvider(base);
+      const bus = new IntegrationCacheBus(provider);
+
+      const fn = jest.fn();
+      bus.register(fn);
+      bus.onModuleInit();
+
+      sub.emitMessage(INTEGRATION_CACHE_INVALIDATE_CHANNEL, '');
+
+      expect(fn).not.toHaveBeenCalled();
+    });
+
+    it('does not crash on a subscriber error event', () => {
+      const sub = makeFakeRedis();
+      const base = makeFakeRedis();
+      base.duplicate.mockReturnValue(sub);
+      const provider = makeProvider(base);
+      const bus = new IntegrationCacheBus(provider);
+
+      bus.onModuleInit();
+
+      // 'error' 핸들러가 등록돼 있어 unhandled 로 프로세스를 죽이지 않는다.
+      expect(() => sub.emitError(new Error('connection reset'))).not.toThrow();
+    });
+
+    it('swallows a subscribe rejection (fail-safe)', async () => {
+      const sub = makeFakeRedis();
+      sub.subscribe.mockRejectedValueOnce(new Error('subscribe failed'));
+      const base = makeFakeRedis();
+      base.duplicate.mockReturnValue(sub);
+      const provider = makeProvider(base);
+      const bus = new IntegrationCacheBus(provider);
+
+      expect(() => bus.onModuleInit()).not.toThrow();
+      await Promise.resolve();
     });
   });
 
@@ -189,7 +244,7 @@ describe('IntegrationCacheBus', () => {
       const sub = makeFakeRedis();
       const base = makeFakeRedis();
       base.duplicate.mockReturnValue(sub);
-      const { provider } = makeProvider(base);
+      const provider = makeProvider(base);
       const bus = new IntegrationCacheBus(provider);
 
       bus.onModuleInit();
@@ -199,7 +254,7 @@ describe('IntegrationCacheBus', () => {
     });
 
     it('is safe when no subscriber was created', async () => {
-      const { provider } = makeProvider(null);
+      const provider = makeProvider(null);
       const bus = new IntegrationCacheBus(provider);
 
       await expect(bus.onModuleDestroy()).resolves.toBeUndefined();
