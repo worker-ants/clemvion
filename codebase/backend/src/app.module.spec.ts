@@ -35,8 +35,7 @@ import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
 import { AuthOAuthState } from './modules/auth/entities/auth-oauth-state.entity';
 import { LoginHistory } from './modules/auth/entities/login-history.entity';
 import { WebAuthnCredential } from './modules/auth/webauthn/entities/webauthn-credential.entity';
-import { LlmConfig } from './modules/llm-config/entities/llm-config.entity';
-import { RerankConfig } from './modules/rerank-config/entities/rerank-config.entity';
+import { ModelConfig } from './modules/model-config/entities/model-config.entity';
 import { LlmUsageLog } from './modules/llm/entities/llm-usage-log.entity';
 import { KnowledgeBase } from './modules/knowledge-base/entities/knowledge-base.entity';
 import { Document } from './modules/knowledge-base/entities/document.entity';
@@ -78,8 +77,7 @@ const REQUIRED_ENTITIES = [
   AuthOAuthState,
   LoginHistory,
   WebAuthnCredential,
-  LlmConfig,
-  RerankConfig,
+  ModelConfig,
   LlmUsageLog,
   KnowledgeBase,
   Document,

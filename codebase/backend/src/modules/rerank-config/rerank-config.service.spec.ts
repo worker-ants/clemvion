@@ -1,244 +1,79 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { ConfigService } from '@nestjs/config';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { RerankConfigService } from './rerank-config.service';
-import { RerankConfig } from './entities/rerank-config.entity';
-import { encrypt, decrypt } from '../../common/utils/crypto.util';
-import { randomBytes } from 'crypto';
+import { ModelConfigService } from '../model-config/model-config.service';
 
-const ENCRYPTION_KEY = randomBytes(32).toString('hex');
-
-describe('RerankConfigService', () => {
+// RerankConfigService 는 DEPRECATED thin alias — 모든 호출을 kind='rerank' 로
+// ModelConfigService 에 위임한다. CRUD·SSRF 로직은 model-config.service.spec 에서 검증.
+describe('RerankConfigService (rerank alias)', () => {
   let service: RerankConfigService;
-  let mockRepo: Record<string, any>;
+  let mc: jest.Mocked<
+    Pick<
+      ModelConfigService,
+      | 'findAll'
+      | 'findById'
+      | 'findEntity'
+      | 'findDefault'
+      | 'resolveConfig'
+      | 'create'
+      | 'update'
+      | 'setDefault'
+      | 'remove'
+      | 'getDecryptedApiKey'
+    >
+  >;
 
   beforeEach(async () => {
-    mockRepo = {
-      createQueryBuilder: jest.fn(() => ({
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        addOrderBy: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getCount: jest.fn().mockResolvedValue(0),
-        getMany: jest.fn().mockResolvedValue([]),
-      })),
-      findOne: jest.fn(),
-      create: jest.fn((data) => ({ ...data, id: 'test-id' })),
-      save: jest.fn((entity) => Promise.resolve(entity)),
-      update: jest.fn().mockResolvedValue(undefined),
+    mc = {
+      findAll: jest.fn().mockResolvedValue({ data: [], pagination: {} }),
+      findById: jest.fn().mockResolvedValue({}),
+      findEntity: jest.fn().mockResolvedValue({}),
+      findDefault: jest.fn().mockResolvedValue(null),
+      resolveConfig: jest.fn().mockResolvedValue({}),
+      create: jest.fn().mockResolvedValue({}),
+      update: jest.fn().mockResolvedValue({}),
+      setDefault: jest.fn().mockResolvedValue(undefined),
       remove: jest.fn().mockResolvedValue(undefined),
-      manager: {
-        transaction: jest.fn(
-          async (cb: (manager: { update: jest.Mock }) => Promise<void>) => {
-            const txManager = {
-              update: jest.fn().mockResolvedValue(undefined),
-            };
-            return cb(txManager);
-          },
-        ),
-      },
-    };
+      getDecryptedApiKey: jest.fn().mockReturnValue(null),
+    } as any;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RerankConfigService,
-        {
-          provide: getRepositoryToken(RerankConfig),
-          useValue: mockRepo,
-        },
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn((key: string) => {
-              if (key === 'llm.encryptionKey') return ENCRYPTION_KEY;
-              return undefined;
-            }),
-          },
-        },
+        { provide: ModelConfigService, useValue: mc },
       ],
     }).compile();
-
-    service = module.get<RerankConfigService>(RerankConfigService);
+    service = module.get(RerankConfigService);
   });
 
-  describe('create', () => {
-    it('should encrypt the API key when provided (cohere)', async () => {
-      const dto = {
-        provider: 'cohere' as const,
-        name: 'Cohere Rerank',
-        apiKey: 'co-test123456789abcdef',
-        defaultModel: 'rerank-3.5',
-      };
-
-      const result = await service.create('workspace-1', dto);
-
-      const savedEntity = mockRepo.save.mock.calls[0][0];
-      expect(savedEntity.apiKey).not.toBe(dto.apiKey);
-      expect(decrypt(savedEntity.apiKey, ENCRYPTION_KEY)).toBe(dto.apiKey);
-      expect(result.apiKey).toMatch(/^\*{4}/);
-    });
-
-    it('should store null apiKey when omitted (tei)', async () => {
-      const dto = {
-        provider: 'tei' as const,
-        name: 'TEI Rerank',
-        baseUrl: 'http://tei:8080',
-        defaultModel: 'bge-reranker-v2-m3',
-      };
-
-      const result = await service.create('workspace-1', dto);
-
-      const savedEntity = mockRepo.save.mock.calls[0][0];
-      expect(savedEntity.apiKey).toBeNull();
-      expect(result.apiKey).toBeNull();
-    });
-
-    it('R5: rejects cohere baseUrl pointing to a private/loopback host (SSRF)', async () => {
-      const dto = {
-        provider: 'cohere' as const,
-        name: 'Evil Cohere',
-        apiKey: 'co-test123456789abcdef',
-        baseUrl: 'http://169.254.169.254/latest/meta-data',
-        defaultModel: 'rerank-3.5',
-      };
-
-      await expect(service.create('workspace-1', dto)).rejects.toMatchObject({
-        response: { code: 'RERANK_CONFIG_INVALID' },
-      });
-      expect(mockRepo.save).not.toHaveBeenCalled();
-    });
-
-    it('R5: allows tei baseUrl to target a private host (self-hosted exemption)', async () => {
-      const dto = {
-        provider: 'tei' as const,
-        name: 'TEI on private net',
-        baseUrl: 'http://10.0.0.5:8080',
-        defaultModel: 'bge-reranker-v2-m3',
-      };
-
-      await expect(service.create('workspace-1', dto)).resolves.toBeDefined();
-      expect(mockRepo.save).toHaveBeenCalled();
+  it("findAll delegates with kind='rerank'", async () => {
+    await service.findAll('ws-1', { page: 1, limit: 20 });
+    expect(mc.findAll).toHaveBeenCalledWith('ws-1', 'rerank', {
+      page: 1,
+      limit: 20,
     });
   });
 
-  describe('update (SSRF guard, R5)', () => {
-    it('rejects switching to cohere with an existing private baseUrl', async () => {
-      // 기존 tei + 사설 baseUrl 을 cohere 로 바꾸는 경로도 차단돼야 한다.
-      mockRepo.findOne.mockResolvedValueOnce({
-        id: 'r1',
-        workspaceId: 'ws1',
-        provider: 'tei',
-        baseUrl: 'http://127.0.0.1:8080',
-        apiKey: null,
-      });
-
-      await expect(
-        service.update('r1', 'ws1', { provider: 'cohere' }),
-      ).rejects.toMatchObject({
-        response: { code: 'RERANK_CONFIG_INVALID' },
-      });
-      expect(mockRepo.save).not.toHaveBeenCalled();
-    });
-
-    it('rejects updating cohere baseUrl to a loopback address', async () => {
-      mockRepo.findOne.mockResolvedValueOnce({
-        id: 'r1',
-        workspaceId: 'ws1',
-        provider: 'cohere',
-        baseUrl: 'https://api.cohere.com',
-        apiKey: null,
-      });
-
-      await expect(
-        service.update('r1', 'ws1', { baseUrl: 'http://localhost:9000' }),
-      ).rejects.toMatchObject({
-        response: { code: 'RERANK_CONFIG_INVALID' },
-      });
-    });
+  it("resolveConfig delegates with kind='rerank'", async () => {
+    await service.resolveConfig('r1', 'ws-1');
+    expect(mc.resolveConfig).toHaveBeenCalledWith('r1', 'ws-1', 'rerank');
   });
 
-  describe('resolveConfig', () => {
-    it('should resolve by id via findEntity', async () => {
-      const entity = { id: 'r1', workspaceId: 'ws1', provider: 'tei' };
-      mockRepo.findOne.mockResolvedValueOnce(entity);
-
-      const result = await service.resolveConfig('r1', 'ws1');
-
-      expect(mockRepo.findOne).toHaveBeenCalledWith({
-        where: { id: 'r1', workspaceId: 'ws1' },
-      });
-      expect(result).toBe(entity);
-    });
-
-    it('should resolve workspace default when no id provided', async () => {
-      const def = { id: 'def', workspaceId: 'ws1', isDefault: true };
-      mockRepo.findOne.mockResolvedValueOnce(def);
-
-      const result = await service.resolveConfig(undefined, 'ws1');
-
-      expect(mockRepo.findOne).toHaveBeenCalledWith({
-        where: { workspaceId: 'ws1', isDefault: true },
-      });
-      expect(result).toBe(def);
-    });
-
-    it('should throw BadRequest RERANK_CONFIG_NOT_FOUND when no default exists', async () => {
-      mockRepo.findOne.mockResolvedValueOnce(null);
-
-      await expect(service.resolveConfig(undefined, 'ws1')).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should throw NotFound when id not found', async () => {
-      mockRepo.findOne.mockResolvedValueOnce(null);
-
-      await expect(service.resolveConfig('missing', 'ws1')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
+  it("create injects kind='rerank'", async () => {
+    const dto = {
+      provider: 'cohere' as const,
+      name: 'Cohere',
+      apiKey: 'co-x',
+      defaultModel: 'rerank-3.5',
+    };
+    await service.create('ws-1', dto);
+    expect(mc.create).toHaveBeenCalledWith(
+      'ws-1',
+      'rerank',
+      expect.objectContaining({ kind: 'rerank', provider: 'cohere' }),
+    );
   });
 
-  describe('getDecryptedApiKey', () => {
-    it('returns decrypted key when present', () => {
-      const encrypted = encrypt('secret-key', ENCRYPTION_KEY);
-      const config = { apiKey: encrypted } as RerankConfig;
-      expect(service.getDecryptedApiKey(config)).toBe('secret-key');
-    });
-
-    it('returns null when apiKey is null', () => {
-      const config = { apiKey: null } as unknown as RerankConfig;
-      expect(service.getDecryptedApiKey(config)).toBeNull();
-    });
-  });
-
-  describe('maskApiKey (via findById)', () => {
-    it('masks the apiKey with last 4 chars', async () => {
-      const encrypted = encrypt('co-abcd1234WXYZ', ENCRYPTION_KEY);
-      mockRepo.findOne.mockResolvedValueOnce({
-        id: 'r1',
-        workspaceId: 'ws1',
-        apiKey: encrypted,
-        provider: 'cohere',
-      });
-
-      const result = await service.findById('r1', 'ws1');
-      expect(result.apiKey).toBe('****WXYZ');
-    });
-
-    it('exposes null apiKey gracefully', async () => {
-      mockRepo.findOne.mockResolvedValueOnce({
-        id: 'r1',
-        workspaceId: 'ws1',
-        apiKey: null,
-        provider: 'tei',
-      });
-
-      const result = await service.findById('r1', 'ws1');
-      expect(result.apiKey).toBeNull();
-    });
+  it('getDecryptedApiKey passes through null (self-hosted)', () => {
+    expect(service.getDecryptedApiKey({ apiKey: null } as any)).toBeNull();
   });
 });

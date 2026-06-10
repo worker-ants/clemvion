@@ -1,211 +1,68 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
-import { LlmConfig } from './entities/llm-config.entity';
+import { Injectable } from '@nestjs/common';
+import { ModelConfigService } from '../model-config/model-config.service';
+import { ModelConfig } from '../model-config/entities/model-config.entity';
 import { CreateLlmConfigDto } from './dto/create-llm-config.dto';
 import { UpdateLlmConfigDto } from './dto/update-llm-config.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
-import { encrypt, decrypt } from '../../common/utils/crypto.util';
 
+/**
+ * DEPRECATED — chat 모델 설정은 통합 ModelConfig(kind='chat') 로 흡수됐다.
+ * 본 서비스는 기존 소비자(llm.service·candidate-lookup·workflows·구 /llm-configs
+ * 컨트롤러)의 무변경을 위한 thin alias 로, 모든 호출을 kind='chat' 로 ModelConfigService
+ * 에 위임한다. PR4 에서 제거 예정. (spec/2-navigation/6-config.md Part B)
+ */
 @Injectable()
 export class LlmConfigService {
-  private readonly encryptionKey: string;
+  constructor(private readonly modelConfigService: ModelConfigService) {}
 
-  constructor(
-    @InjectRepository(LlmConfig)
-    private readonly llmConfigRepository: Repository<LlmConfig>,
-    private readonly configService: ConfigService,
-  ) {
-    this.encryptionKey =
-      this.configService.get<string>('llm.encryptionKey') || '';
-  }
-
-  async findAll(
+  findAll(
     workspaceId: string,
     query: PaginationQueryDto,
   ): Promise<PaginatedResponseDto<Record<string, unknown>>> {
-    const { page = 1, limit = 20, search } = query;
-    const qb = this.llmConfigRepository
-      .createQueryBuilder('lc')
-      .where('lc.workspace_id = :workspaceId', { workspaceId });
-
-    if (search) {
-      qb.andWhere('lc.name ILIKE :search', { search: `%${search}%` });
-    }
-    qb.orderBy('lc.is_default', 'DESC').addOrderBy('lc.created_at', 'DESC');
-
-    const totalItems = await qb.getCount();
-    const data = await qb
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getMany();
-
-    const masked = data.map((item) => this.maskApiKey(item));
-    return PaginatedResponseDto.create(masked, totalItems, page, limit);
+    return this.modelConfigService.findAll(workspaceId, 'chat', query);
   }
 
-  async findById(
-    id: string,
-    workspaceId: string,
-  ): Promise<Record<string, unknown>> {
-    const config = await this.findEntity(id, workspaceId);
-    return this.maskApiKey(config);
+  findById(id: string, workspaceId: string): Promise<Record<string, unknown>> {
+    return this.modelConfigService.findById(id, workspaceId);
   }
 
-  async findEntity(id: string, workspaceId: string): Promise<LlmConfig> {
-    const config = await this.llmConfigRepository.findOne({
-      where: { id, workspaceId },
-    });
-    if (!config) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'LLM config not found',
-      });
-    }
-    return config;
+  findEntity(id: string, workspaceId: string): Promise<ModelConfig> {
+    return this.modelConfigService.findEntity(id, workspaceId);
   }
 
-  async findDefault(workspaceId: string): Promise<LlmConfig | null> {
-    return this.llmConfigRepository.findOne({
-      where: { workspaceId, isDefault: true },
-    });
+  findDefault(workspaceId: string): Promise<ModelConfig | null> {
+    return this.modelConfigService.findDefault(workspaceId, 'chat');
   }
 
-  async create(
+  create(
     workspaceId: string,
     dto: CreateLlmConfigDto,
   ): Promise<Record<string, unknown>> {
-    if (!this.encryptionKey) {
-      throw new BadRequestException({
-        code: 'ENCRYPTION_KEY_MISSING',
-        message: 'ENCRYPTION_KEY environment variable is not configured',
-      });
-    }
-
-    const encryptedKey = encrypt(dto.apiKey, this.encryptionKey);
-    const entityFields = {
-      workspaceId,
-      provider: dto.provider,
-      name: dto.name,
-      apiKey: encryptedKey,
-      baseUrl: dto.baseUrl || undefined,
-      defaultModel: dto.defaultModel,
-      defaultParams: dto.defaultParams || {},
-      isDefault: dto.isDefault || false,
-    };
-
-    const saved = dto.isDefault
-      ? await this.saveWithDefaultSwap(workspaceId, (manager) =>
-          manager.save(LlmConfig, manager.create(LlmConfig, entityFields)),
-        )
-      : await this.llmConfigRepository.save(
-          this.llmConfigRepository.create(entityFields),
-        );
-    return this.maskApiKey(saved);
+    return this.modelConfigService.create(workspaceId, 'chat', {
+      ...dto,
+      kind: 'chat',
+    });
   }
 
-  async update(
+  update(
     id: string,
     workspaceId: string,
     dto: UpdateLlmConfigDto,
   ): Promise<Record<string, unknown>> {
-    const config = await this.findEntity(id, workspaceId);
-
-    if (dto.apiKey) {
-      if (!this.encryptionKey) {
-        throw new BadRequestException({
-          code: 'ENCRYPTION_KEY_MISSING',
-          message: 'ENCRYPTION_KEY environment variable is not configured',
-        });
-      }
-      config.apiKey = encrypt(dto.apiKey, this.encryptionKey);
-    }
-    if (dto.provider !== undefined) config.provider = dto.provider;
-    if (dto.name !== undefined) config.name = dto.name;
-    if (dto.baseUrl !== undefined) config.baseUrl = dto.baseUrl || '';
-    if (dto.defaultModel !== undefined) config.defaultModel = dto.defaultModel;
-    if (dto.defaultParams !== undefined)
-      config.defaultParams = dto.defaultParams;
-
-    if (dto.isDefault === false) {
-      config.isDefault = false;
-    }
-
-    let saved: LlmConfig;
-    if (dto.isDefault === true) {
-      config.isDefault = true;
-      saved = await this.saveWithDefaultSwap(workspaceId, (manager) =>
-        manager.save(LlmConfig, config),
-      );
-    } else {
-      saved = await this.llmConfigRepository.save(config);
-    }
-    return this.maskApiKey(saved);
+    return this.modelConfigService.update(id, workspaceId, dto);
   }
 
-  /**
-   * `isDefault=true` 저장 시 기존 default 레코드 해제와 새 저장을 하나의 트랜잭션으로
-   * 묶어 동시 요청에 의한 중복 default 를 차단한다. `create()`·`update()` 가 공유.
-   */
-  private async saveWithDefaultSwap(
-    workspaceId: string,
-    write: (manager: EntityManager) => Promise<LlmConfig>,
-  ): Promise<LlmConfig> {
-    return this.llmConfigRepository.manager.transaction(async (manager) => {
-      await manager.update(
-        LlmConfig,
-        { workspaceId, isDefault: true },
-        { isDefault: false },
-      );
-      return write(manager);
-    });
+  setDefault(id: string, workspaceId: string): Promise<void> {
+    return this.modelConfigService.setDefault(id, workspaceId);
   }
 
-  async setDefault(id: string, workspaceId: string): Promise<void> {
-    await this.findEntity(id, workspaceId);
-    await this.llmConfigRepository.manager.transaction(async (manager) => {
-      await manager.update(
-        LlmConfig,
-        { workspaceId, isDefault: true },
-        { isDefault: false },
-      );
-      await manager.update(LlmConfig, { id, workspaceId }, { isDefault: true });
-    });
+  remove(id: string, workspaceId: string): Promise<void> {
+    return this.modelConfigService.remove(id, workspaceId);
   }
 
-  async remove(id: string, workspaceId: string): Promise<void> {
-    const config = await this.findEntity(id, workspaceId);
-    await this.llmConfigRepository.remove(config);
-  }
-
-  getDecryptedApiKey(config: LlmConfig): string {
-    return decrypt(config.apiKey, this.encryptionKey);
-  }
-
-  private async clearDefault(workspaceId: string): Promise<void> {
-    await this.llmConfigRepository.update(
-      { workspaceId, isDefault: true },
-      { isDefault: false },
-    );
-  }
-
-  private maskApiKey(config: LlmConfig): Record<string, unknown> {
-    const { apiKey, ...rest } = config;
-    let masked = '****';
-    try {
-      const decrypted = decrypt(apiKey, this.encryptionKey);
-      if (decrypted.length > 4) {
-        masked = `****${decrypted.substring(decrypted.length - 4)}`;
-      }
-    } catch {
-      // If decryption fails, just show masked
-    }
-    return { ...rest, apiKey: masked };
+  /** chat config 는 항상 api_key 를 가지므로 평문 문자열 반환(없으면 빈 문자열). */
+  getDecryptedApiKey(config: ModelConfig): string {
+    return this.modelConfigService.getDecryptedApiKey(config) ?? '';
   }
 }

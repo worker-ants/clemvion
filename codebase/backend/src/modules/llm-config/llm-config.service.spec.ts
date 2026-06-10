@@ -1,174 +1,79 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { ConfigService } from '@nestjs/config';
 import { LlmConfigService } from './llm-config.service';
-import { LlmConfig } from './entities/llm-config.entity';
-import { encrypt, decrypt } from '../../common/utils/crypto.util';
-import { randomBytes } from 'crypto';
+import { ModelConfigService } from '../model-config/model-config.service';
+import { ModelConfig } from '../model-config/entities/model-config.entity';
 
-const ENCRYPTION_KEY = randomBytes(32).toString('hex');
-
-describe('LlmConfigService', () => {
+// LlmConfigService 는 DEPRECATED thin alias — 모든 호출을 kind='chat' 로
+// ModelConfigService 에 위임한다. (실제 CRUD 로직은 model-config.service.spec 에서 검증)
+describe('LlmConfigService (chat alias)', () => {
   let service: LlmConfigService;
-
-  let mockRepo: Record<string, any>;
+  let mc: jest.Mocked<
+    Pick<
+      ModelConfigService,
+      | 'findAll'
+      | 'findById'
+      | 'findEntity'
+      | 'findDefault'
+      | 'create'
+      | 'update'
+      | 'setDefault'
+      | 'remove'
+      | 'getDecryptedApiKey'
+    >
+  >;
 
   beforeEach(async () => {
-    mockRepo = {
-      createQueryBuilder: jest.fn(() => ({
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        addOrderBy: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getCount: jest.fn().mockResolvedValue(0),
-        getMany: jest.fn().mockResolvedValue([]),
-      })),
-      findOne: jest.fn(),
-      create: jest.fn((data) => ({ ...data, id: 'test-id' })),
-      save: jest.fn((entity) => Promise.resolve(entity)),
-      update: jest.fn().mockResolvedValue(undefined),
+    mc = {
+      findAll: jest.fn().mockResolvedValue({ data: [], pagination: {} }),
+      findById: jest.fn().mockResolvedValue({}),
+      findEntity: jest.fn().mockResolvedValue({}),
+      findDefault: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({}),
+      update: jest.fn().mockResolvedValue({}),
+      setDefault: jest.fn().mockResolvedValue(undefined),
       remove: jest.fn().mockResolvedValue(undefined),
-      manager: {
-        transaction: jest.fn(
-          async (cb: (manager: { update: jest.Mock }) => Promise<void>) => {
-            const txManager = {
-              update: jest.fn().mockResolvedValue(undefined),
-            };
-            await cb(txManager);
-          },
-        ),
-      },
-    };
+      getDecryptedApiKey: jest.fn(),
+    } as any;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LlmConfigService,
-        {
-          provide: getRepositoryToken(LlmConfig),
-          useValue: mockRepo,
-        },
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn((key: string) => {
-              if (key === 'llm.encryptionKey') return ENCRYPTION_KEY;
-              return undefined;
-            }),
-          },
-        },
+        { provide: ModelConfigService, useValue: mc },
       ],
     }).compile();
-
-    service = module.get<LlmConfigService>(LlmConfigService);
+    service = module.get(LlmConfigService);
   });
 
-  describe('create', () => {
-    it('should encrypt the API key on creation', async () => {
-      const dto = {
-        provider: 'openai' as const,
-        name: 'Test OpenAI',
-        apiKey: 'sk-test123456789abcdef',
-        defaultModel: 'gpt-4o',
-      };
-
-      const result = await service.create('workspace-1', dto);
-
-      // The saved entity should have encrypted API key
-      const savedEntity = mockRepo.save.mock.calls[0][0];
-      expect(savedEntity.apiKey).not.toBe(dto.apiKey);
-
-      // Verify it can be decrypted
-      const decrypted = decrypt(savedEntity.apiKey, ENCRYPTION_KEY);
-      expect(decrypted).toBe(dto.apiKey);
-
-      // Result should have masked API key
-      expect(result.apiKey).toMatch(/^\*{4}/);
+  it("findAll delegates with kind='chat'", async () => {
+    await service.findAll('ws-1', { page: 1, limit: 20 });
+    expect(mc.findAll).toHaveBeenCalledWith('ws-1', 'chat', {
+      page: 1,
+      limit: 20,
     });
   });
 
-  describe('findById', () => {
-    it('should return masked API key', async () => {
-      const encrypted = encrypt('sk-test123456789abcdef', ENCRYPTION_KEY);
-      mockRepo.findOne.mockResolvedValue({
-        id: 'test-id',
-        workspaceId: 'ws-1',
-        provider: 'openai',
-        name: 'Test',
-        apiKey: encrypted,
-        defaultModel: 'gpt-4o',
-      });
-
-      const result = await service.findById('test-id', 'ws-1');
-      expect(result.apiKey).toMatch(/^\*{4}/);
-      expect(result.apiKey).not.toBe('sk-test123456789abcdef');
-    });
-
-    it('should throw NotFoundException if not found', async () => {
-      mockRepo.findOne.mockResolvedValue(null);
-      await expect(service.findById('not-found', 'ws-1')).rejects.toThrow();
-    });
+  it("findDefault delegates with kind='chat'", async () => {
+    await service.findDefault('ws-1');
+    expect(mc.findDefault).toHaveBeenCalledWith('ws-1', 'chat');
   });
 
-  describe('getDecryptedApiKey', () => {
-    it('should return the decrypted API key', () => {
-      const originalKey = 'sk-test123456789abcdef';
-      const encrypted = encrypt(originalKey, ENCRYPTION_KEY);
-      const config = { apiKey: encrypted } as LlmConfig;
-
-      const decrypted = service.getDecryptedApiKey(config);
-      expect(decrypted).toBe(originalKey);
-    });
+  it("create injects kind='chat'", async () => {
+    const dto = {
+      provider: 'openai' as const,
+      name: 'x',
+      apiKey: 'sk-x',
+      defaultModel: 'gpt-4o',
+    };
+    await service.create('ws-1', dto);
+    expect(mc.create).toHaveBeenCalledWith(
+      'ws-1',
+      'chat',
+      expect.objectContaining({ kind: 'chat', provider: 'openai' }),
+    );
   });
 
-  describe('findAll', () => {
-    it('should mask API keys in paginated results', async () => {
-      const encrypted = encrypt('sk-test123456789abcdef', ENCRYPTION_KEY);
-      const qbMock = {
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        addOrderBy: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getCount: jest.fn().mockResolvedValue(1),
-        getMany: jest.fn().mockResolvedValue([
-          {
-            id: 'config-1',
-            workspaceId: 'ws-1',
-            provider: 'openai',
-            name: 'Test',
-            apiKey: encrypted,
-            defaultModel: 'gpt-4o',
-          },
-        ]),
-      };
-      mockRepo.createQueryBuilder.mockReturnValue(qbMock);
-
-      const result = await service.findAll('ws-1', { page: 1, limit: 20 });
-      expect(result.data).toHaveLength(1);
-      const item = result.data[0];
-      expect(item.apiKey).toMatch(/^\*{4}/);
-      expect(item.apiKey).not.toBe('sk-test123456789abcdef');
-      expect(result.pagination.totalItems).toBe(1);
-    });
-  });
-
-  describe('setDefault', () => {
-    it('should clear previous default and set new one', async () => {
-      mockRepo.findOne.mockResolvedValue({
-        id: 'test-id',
-        workspaceId: 'ws-1',
-      });
-
-      await service.setDefault('test-id', 'ws-1');
-
-      // Should have called transaction
-      expect(mockRepo.manager.transaction).toHaveBeenCalled();
-      // The manager.update inside the transaction should have been called
-      const transactionManager = mockRepo.manager.transaction.mock.calls[0];
-      expect(transactionManager).toBeDefined();
-    });
+  it('getDecryptedApiKey coerces null to empty string for chat', () => {
+    mc.getDecryptedApiKey.mockReturnValue(null);
+    expect(service.getDecryptedApiKey({} as ModelConfig)).toBe('');
   });
 });

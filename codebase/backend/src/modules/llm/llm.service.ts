@@ -95,7 +95,8 @@ export class LlmService {
       provider: config.provider,
       apiKey,
       defaultModel: config.defaultModel,
-      baseUrl: config.baseUrl,
+      // ModelConfig.baseUrl 는 nullable(string|null) — 팩토리는 string|undefined 기대.
+      baseUrl: config.baseUrl ?? undefined,
     });
 
     this.clientCache.set(config.id, client);

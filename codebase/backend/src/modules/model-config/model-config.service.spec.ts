@@ -1,0 +1,263 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
+import { ModelConfigService } from './model-config.service';
+import { ModelConfig } from './entities/model-config.entity';
+import { encrypt, decrypt } from '../../common/utils/crypto.util';
+import { randomBytes } from 'crypto';
+
+const ENCRYPTION_KEY = randomBytes(32).toString('hex');
+
+describe('ModelConfigService', () => {
+  let service: ModelConfigService;
+  let mockRepo: Record<string, any>;
+
+  beforeEach(async () => {
+    mockRepo = {
+      createQueryBuilder: jest.fn(() => ({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(0),
+        getMany: jest.fn().mockResolvedValue([]),
+      })),
+      findOne: jest.fn(),
+      create: jest.fn((data) => ({ ...data, id: 'test-id' })),
+      save: jest.fn((entity) => Promise.resolve(entity)),
+      update: jest.fn().mockResolvedValue(undefined),
+      remove: jest.fn().mockResolvedValue(undefined),
+      manager: {
+        transaction: jest.fn(
+          async (cb: (manager: { update: jest.Mock }) => Promise<void>) => {
+            const txManager = {
+              update: jest.fn().mockResolvedValue(undefined),
+            };
+            await cb(txManager);
+          },
+        ),
+      },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ModelConfigService,
+        { provide: getRepositoryToken(ModelConfig), useValue: mockRepo },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) =>
+              key === 'llm.encryptionKey' ? ENCRYPTION_KEY : undefined,
+            ),
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get<ModelConfigService>(ModelConfigService);
+  });
+
+  describe('create', () => {
+    it('encrypts the API key and stamps the given kind (chat)', async () => {
+      const dto = {
+        kind: 'chat' as const,
+        provider: 'openai' as const,
+        name: 'Test OpenAI',
+        apiKey: 'sk-test123456789abcdef',
+        defaultModel: 'gpt-4o',
+      };
+      const result = await service.create('workspace-1', 'chat', dto);
+
+      const saved = mockRepo.save.mock.calls[0][0];
+      expect(saved.kind).toBe('chat');
+      expect(saved.apiKey).not.toBe(dto.apiKey);
+      expect(decrypt(saved.apiKey, ENCRYPTION_KEY)).toBe(dto.apiKey);
+      expect(result.apiKey).toMatch(/^\*{4}/);
+    });
+
+    it('persists dimension for embedding kind', async () => {
+      const dto = {
+        kind: 'embedding' as const,
+        provider: 'openai' as const,
+        name: 'Embed',
+        apiKey: 'sk-embed-key-123456789',
+        defaultModel: 'text-embedding-3-small',
+        dimension: 1536,
+      };
+      await service.create('ws-1', 'embedding', dto);
+      const saved = mockRepo.save.mock.calls[0][0];
+      expect(saved.kind).toBe('embedding');
+      expect(saved.dimension).toBe(1536);
+      expect(saved.defaultParams).toEqual({});
+    });
+
+    it('allows a null API key for self-hosted tei (rerank)', async () => {
+      const dto = {
+        kind: 'rerank' as const,
+        provider: 'tei' as const,
+        name: 'Self-hosted reranker',
+        defaultModel: 'bge-reranker-v2-m3',
+        baseUrl: 'http://tei:8080',
+      };
+      const result = await service.create('ws-1', 'rerank', dto);
+      const saved = mockRepo.save.mock.calls[0][0];
+      expect(saved.apiKey).toBeNull();
+      expect(result.apiKey).toBeNull();
+    });
+
+    it('rejects a missing API key for an external provider', async () => {
+      const dto = {
+        kind: 'rerank' as const,
+        provider: 'cohere' as const,
+        name: 'Cohere',
+        defaultModel: 'rerank-3.5',
+      };
+      await expect(service.create('ws-1', 'rerank', dto)).rejects.toThrow();
+    });
+  });
+
+  describe('findById', () => {
+    it('returns a masked API key', async () => {
+      const encrypted = encrypt('sk-test123456789abcdef', ENCRYPTION_KEY);
+      mockRepo.findOne.mockResolvedValue({
+        id: 'test-id',
+        workspaceId: 'ws-1',
+        kind: 'chat',
+        provider: 'openai',
+        name: 'Test',
+        apiKey: encrypted,
+        defaultModel: 'gpt-4o',
+      });
+      const result = await service.findById('test-id', 'ws-1');
+      expect(result.apiKey).toMatch(/^\*{4}/);
+      expect(result.apiKey).not.toBe('sk-test123456789abcdef');
+    });
+
+    it('throws NotFoundException when missing', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(service.findById('nope', 'ws-1')).rejects.toThrow();
+    });
+  });
+
+  describe('getDecryptedApiKey', () => {
+    it('decrypts a present key', () => {
+      const original = 'sk-test123456789abcdef';
+      const config = {
+        apiKey: encrypt(original, ENCRYPTION_KEY),
+      } as ModelConfig;
+      expect(service.getDecryptedApiKey(config)).toBe(original);
+    });
+
+    it('returns null for a self-hosted config without a key', () => {
+      expect(
+        service.getDecryptedApiKey({ apiKey: null } as ModelConfig),
+      ).toBeNull();
+    });
+  });
+
+  describe('findAll', () => {
+    it('filters by kind and masks keys', async () => {
+      const encrypted = encrypt('sk-test123456789abcdef', ENCRYPTION_KEY);
+      const qbMock = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(1),
+        getMany: jest.fn().mockResolvedValue([
+          {
+            id: 'config-1',
+            workspaceId: 'ws-1',
+            kind: 'chat',
+            provider: 'openai',
+            name: 'Test',
+            apiKey: encrypted,
+            defaultModel: 'gpt-4o',
+          },
+        ]),
+      };
+      mockRepo.createQueryBuilder.mockReturnValue(qbMock);
+
+      const result = await service.findAll('ws-1', 'chat', {
+        page: 1,
+        limit: 20,
+      });
+      expect(qbMock.andWhere).toHaveBeenCalledWith('mc.kind = :kind', {
+        kind: 'chat',
+      });
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].apiKey).toMatch(/^\*{4}/);
+    });
+  });
+
+  describe('setDefault', () => {
+    it('swaps default within the entity kind scope', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'test-id',
+        workspaceId: 'ws-1',
+        kind: 'embedding',
+      });
+      await service.setDefault('test-id', 'ws-1');
+      expect(mockRepo.manager.transaction).toHaveBeenCalled();
+    });
+  });
+
+  describe('resolveConfig', () => {
+    it('throws when no id and no default for the kind', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.resolveConfig(undefined, 'ws-1', 'rerank'),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('SSRF guard', () => {
+    it('rejects an external (cohere) baseUrl pointing to a loopback/link-local host', async () => {
+      const dto = {
+        kind: 'rerank' as const,
+        provider: 'cohere' as const,
+        name: 'Evil',
+        apiKey: 'co-test123456789abcdef',
+        baseUrl: 'http://169.254.169.254/latest/meta-data',
+        defaultModel: 'rerank-3.5',
+      };
+      await expect(service.create('ws-1', 'rerank', dto)).rejects.toMatchObject(
+        { response: { code: 'MODEL_CONFIG_INVALID' } },
+      );
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('allows a self-hosted (tei) baseUrl to target a private host', async () => {
+      const dto = {
+        kind: 'rerank' as const,
+        provider: 'tei' as const,
+        name: 'TEI private',
+        baseUrl: 'http://10.0.0.5:8080',
+        defaultModel: 'bge-reranker-v2-m3',
+      };
+      await expect(
+        service.create('ws-1', 'rerank', dto),
+      ).resolves.toBeDefined();
+      expect(mockRepo.save).toHaveBeenCalled();
+    });
+
+    it('rejects switching provider to cohere while keeping a private baseUrl', async () => {
+      mockRepo.findOne.mockResolvedValueOnce({
+        id: 'r1',
+        workspaceId: 'ws-1',
+        kind: 'rerank',
+        provider: 'tei',
+        baseUrl: 'http://127.0.0.1:8080',
+        apiKey: null,
+      });
+      await expect(
+        service.update('r1', 'ws-1', { provider: 'cohere' }),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_INVALID' } });
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+  });
+});

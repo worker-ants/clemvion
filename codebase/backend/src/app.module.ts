@@ -45,6 +45,7 @@ import { FoldersModule } from './modules/folders/folders.module';
 import { ExecutionEngineModule } from './modules/execution-engine/execution-engine.module';
 import { WebsocketModule } from './modules/websocket/websocket.module';
 import { MailModule } from './modules/mail/mail.module';
+import { ModelConfigModule } from './modules/model-config/model-config.module';
 import { LlmConfigModule } from './modules/llm-config/llm-config.module';
 import { RerankConfigModule } from './modules/rerank-config/rerank-config.module';
 import { LlmModule } from './modules/llm/llm.module';
@@ -154,6 +155,7 @@ export { ROOT_ENTITIES } from './database/root-entities';
     ExecutionEngineModule,
     WebsocketModule,
     MailModule,
+    ModelConfigModule,
     LlmConfigModule,
     RerankConfigModule,
     LlmModule,
