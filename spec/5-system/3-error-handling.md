@@ -377,4 +377,14 @@ GET /api/health
 
 > **계획(Planned)**: `vectorDb` 체크 항목과 `degraded`(비필수 checks 일부 실패) 3-state 어휘는 아직 미구현이다. 현재는 database·redis(필수)만 점검하는 binary 판정이다.
 
-> **참고**: `/api/health` 는 liveness probe 용 binary 판정(`unhealthy`)을 쓴다. 큐 적체 상태를 보여주는 시스템 상태 API(`/api/system-status/overview`)는 "처리 중이나 적체(degraded)" 와 "처리 정지(down)" 를 구분할 가치가 있어 별도 어휘 `healthy/degraded/down` 을 사용한다 — 근거는 [16-system-status-api.md Rationale R-4](./16-system-status-api.md#r-4-health-어휘를-healthydegradeddown-으로-둔-이유).
+> **참고 — probe 역할 분리 (구 "liveness probe 용" 결정 번복)**: 초기에는 `/api/health` 하나를
+> liveness probe 용으로 썼으나, 현재는 **readiness probe 전용**으로 재정의한다. 의존성 점검 결과를 HTTP
+> status code 로도 신호하며 — 전체 `status === 'healthy'` → **200**, 그 외(`unhealthy`/redis `unconfigured`)
+> → **503** — 503 일 때도 위 응답 body(`{ status, version, uptime, checks }`)는 그대로 유지된다(body 의
+> `status` 어휘는 여전히 binary `healthy|unhealthy`). liveness probe 는 의존성을 점검하지 않고 프로세스
+> 생존만 확인하는 신규 엔드포인트 **`/api/health/live`**(항상 200)를 쓴다. HTTP status code·probe 역할 분리의
+> 단일 진실(SoT)은 [`data-flow/9-observability.md §1.1`](../data-flow/9-observability.md#11-health-check) 다.
+>
+> 큐 적체 상태를 보여주는 시스템 상태 API(`/api/system-status/overview`)는 "처리 중이나 적체(degraded)" 와
+> "처리 정지(down)" 를 구분할 가치가 있어 별도 어휘 `healthy/degraded/down` 을 사용한다 — 근거는
+> [16-system-status-api.md Rationale R-4](./16-system-status-api.md#r-4-health-어휘를-healthydegradeddown-으로-둔-이유).
