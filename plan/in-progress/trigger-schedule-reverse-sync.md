@@ -22,10 +22,10 @@ owner: developer
 
 ## 체크리스트
 
-- [ ] /consistency-check --impl-prep (spec/2-navigation/)
-- [ ] 단위 테스트 선작성 (triggers.service.spec.ts)
-- [ ] 구현 (triggers.service/module, schedules.module export)
-- [ ] e2e (schedule-trigger.e2e-spec.ts 확장: PATCH trigger→schedule 동기 + DELETE→removeJob)
-- [ ] TEST WORKFLOW (lint→unit→build→e2e)
+- [x] /consistency-check --impl-prep (spec/2-navigation/) — BLOCK YES(3-schedule §3.1 모순) 해소 커밋 8beb1742 후 진행
+- [x] 단위 테스트 선작성 (triggers.service.spec.ts — 신규 describe 7케이스)
+- [x] 구현 (triggers.service/module, schedules.module export) — 커밋 59231fd7
+- [x] e2e (schedule-trigger.e2e-spec.ts G/H/I 추가)
+- [x] TEST WORKFLOW (lint→unit→build→e2e 전부 PASS — e2e 29 suites/179 tests, 2026-06-10 17:08)
 - [ ] /ai-review + resolution
 - [ ] spec 갭 표기 해소 (project-planner 역할: 1-data-model §2.9.1, data-flow/10-triggers.md §1.4) + /consistency-check --impl-done
