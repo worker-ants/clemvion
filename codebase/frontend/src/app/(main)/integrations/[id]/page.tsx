@@ -43,8 +43,7 @@ import {
   type TranslationKey,
   type Locale,
 } from "@/lib/i18n";
-import { resolveCafe24OperationLabel } from "@/lib/node-definitions/cafe24-extras";
-import { resolveMakeshopOperationLabel } from "@/lib/node-definitions/makeshop-extras";
+import { tryTranslateLabel } from "./activity-label";
 import { ScopeTab } from "./scope-tab";
 import { Cafe24AppUrlCard } from "./cafe24-app-url-card";
 import { openOAuthPopup } from "./open-oauth-popup";
@@ -795,9 +794,9 @@ function renderApiCell(args: {
       ? apiMethod
       : apiPath ?? "";
 
-  // catalog endpoint 가 응답한 labelKey 가 dict 안에 있으면 i18n 라벨 사용.
-  // makeshop 은 dict(161 op) 가 채워져 라벨이 렌더되고, cafe24 dict 는 아직
-  // 빈 상태라 endpoint-only fallback 으로 흐른다 (cafe24-catalog-i18n.md 에서 채움).
+  // catalog endpoint 가 응답한 labelKey 가 dict 안에 있으면 사람 친화 라벨 사용.
+  // cafe24(494 op)·makeshop(161 op) dict 모두 채워져 있어 라벨이 렌더되고,
+  // dict miss 면 endpoint subtext fallback 으로 흐른다.
   const catalogEntry = apiLabel ? catalog.get(apiLabel) : undefined;
   const labelKey = catalogEntry?.labelKey ?? apiLabel ?? null;
   const humanLabel = labelKey ? tryTranslateLabel(labelKey, locale) : null;
@@ -826,32 +825,6 @@ function renderApiCell(args: {
       {t("integrations.activityApiUnknown")}
     </span>
   );
-}
-
-/**
- * `<provider>.<resource>.<operation>` catalog key 를 사람 친화 라벨로 변환한다.
- * provider prefix 로 flat catalog dict 를 직접 lookup 한다:
- *  - `makeshop.*` → makeshopCatalog dict (161 op 채워짐 — 라벨 렌더)
- *  - `cafe24.*`  → cafe24Catalog dict (현재 빈 상태 — endpoint fallback)
- * 매핑이 있으면 라벨, miss 면 null (endpoint-only fallback 으로 위임).
- *
- * 주의: catalog dict 키는 `"makeshop.shop.get-authority"` 같은 flat dotted-key 라
- * i18n `t()` (점 분리 nested 순회) 로는 조회되지 않는다 — provider 전용 flat
- * lookup 헬퍼(`resolve{Cafe24,Makeshop}OperationLabel`)를 써야 한다.
- * SoT: dict/{ko,en}/{cafe24,makeshop}Catalog.ts.
- *
- * @see plan/in-progress/cafe24-catalog-i18n.md — cafe24 dict 채우기 follow-up
- */
-function tryTranslateLabel(catalogKey: string, locale: Locale): string | null {
-  if (catalogKey.startsWith("makeshop.")) {
-    const label = resolveMakeshopOperationLabel(locale, catalogKey);
-    return label === catalogKey ? null : label;
-  }
-  if (catalogKey.startsWith("cafe24.")) {
-    const label = resolveCafe24OperationLabel(locale, catalogKey);
-    return label === catalogKey ? null : label;
-  }
-  return null;
 }
 
 // ---------------- Danger zone ----------------

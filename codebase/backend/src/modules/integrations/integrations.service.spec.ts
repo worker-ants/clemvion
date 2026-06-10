@@ -1894,15 +1894,18 @@ describe('IntegrationsService', () => {
       expect(typeof sample.path).toBe('string');
     });
 
-    it('returns empty operations[] for unsupported service types', () => {
+    it('returns empty operations[] for known non-catalog service types', () => {
+      // spec §9.3: http/database/email/webhook/mcp/google/github 은 빈 배열
+      // (apiLabel 이 NULL 이라 catalog 매핑 무의미). 완전 미등록 `:type` 의
+      // 404 반환(§9.3 마지막 문장)은 별도 미구현 — pre-existing 백로그.
       for (const type of [
         'http',
         'database',
         'email',
+        'webhook',
         'mcp',
         'google',
         'github',
-        'unknown',
       ]) {
         const result = service.getServiceCatalog(type);
         expect(result).toEqual({ operations: [] });
