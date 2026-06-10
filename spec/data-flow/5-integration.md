@@ -65,6 +65,13 @@ sequenceDiagram
 > `POST /api/integrations/:id/rotate` 는 OAuth 흐름이 아니다 — `auth_type='api_key'` 류 한정
 > (`oauth2` 는 `INTEGRATION_ROTATE_UNSUPPORTED`). 연결 테스트 통과 시 credentials merge +
 > `last_rotated_at` 갱신 + `connected` 복귀. 엔드포인트 계약: [navigation §9.2](../2-navigation/4-integration.md#92-인증--회전--scope).
+>
+> **멀티 인스턴스 캐시 무효화**: `rotate`(자격증명 회전) 와 `remove`(삭제) 직후
+> `IntegrationsService` 는 `IntegrationCacheBus.publish(integrationId)` 로 Redis pub/sub 채널
+> `integration:cache:invalidate` 에 broadcast 한다 — 전 인스턴스의 인스턴스-로컬 자격증명
+> 캐시(예: database-query 연결 풀)가 즉시 evict 돼 회전된(stale) 자격증명의 잔존 연결이 차단된다
+> (침해 대응 MTTR). fail-safe — pub/sub 미수신 시 핸들러의 credsHash 비교 evict 로 degrade.
+> 상세: [DB Query §4·§Rationale](../4-nodes/4-integration/2-database-query.md#4-실행-로직).
 
 ```mermaid
 sequenceDiagram

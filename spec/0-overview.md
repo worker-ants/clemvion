@@ -241,7 +241,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 
 ### 2.6 Data Layer
 - **PostgreSQL**: 주 데이터베이스 (워크플로우, 사용자, 설정 등)
-- **Redis**: 캐시, BullMQ 큐 백엔드 (`execution-run` intake / `execution-continuation` / `background-execution`), 운영 lock (`exec:recover:lock`), KB 채널 등, 세션 관리
+- **Redis**: 캐시, BullMQ 큐 백엔드 (`execution-run` intake / `execution-continuation` / `background-execution`), 운영 lock (`exec:recover:lock`), pub/sub 채널 (`integration:cache:invalidate` — integration 자격증명 회전의 멀티 인스턴스 캐시 무효화, [DB Query §4](./4-nodes/4-integration/2-database-query.md#4-실행-로직)), KB 채널 등, 세션 관리
 - **Vector DB**: Knowledge Base 임베딩 저장/검색
 - **Object Storage**: S3 호환 스토리지 (AWS S3 / MinIO). 파일 업로드, Knowledge Base 원본 문서 등 저장
 
