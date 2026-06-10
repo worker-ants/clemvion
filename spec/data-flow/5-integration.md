@@ -248,12 +248,10 @@ sequenceDiagram
 
 | Job name | Scheduler id | 역할 |
 | --- | --- | --- |
-| `connected-expiry` | `connected-expiry-daily` | `status NOT IN (expired, error, pending_install) AND token_expires_at ≤ now+7d` 행 처리. 임계 (7d/3d/0d) 별로 `integration_expiry_dispatch` 에 claim (INSERT ON CONFLICT DO NOTHING — §2.1) 성공한 행만 진행 (중복 발사 방지). `remain ≤ 7d`/`≤ 3d` 는 알림만 (status 변경 없음). `remain ≤ 0d` 분기: `isCafe24RefreshCapable` (= `service_type='cafe24'` AND `credentials.refresh_token` 존재) 행은 `cafe24-token-refresh` 큐 enqueue (jobId dedup) + 알림 — scanner 가 직접 status 변경하지 않고 worker (`Cafe24TokenRefreshProcessor`) 가 refresh 성공 시 `connected` 유지, `invalid_grant` 시 `error(auth_failed)`, transport 3회 실패 시 `error(network)` 로 전이. **그 외 모든 행 (refresh_token 없는 provider 포함 비-cafe24 전부)** 은 `status='expired', status_reason=NULL` 로 격하 + 알림. |
+| `connected-expiry` | `connected-expiry-daily` | `status NOT IN (expired, error, pending_install) AND token_expires_at ≤ now+7d` 행 처리. **refresh-capable provider** (`isRefreshCapable` = `service_type ∈ {cafe24, makeshop}` AND `credentials.refresh_token` 존재) 는 `expired` 격하·passive `integration_expired` 알림 대상에서 제외 ([navigation §11.2](../2-navigation/4-integration.md#112-알림-생성)) — `remain ≤ 0d` 인 cafe24 는 `cafe24-token-refresh` 큐 enqueue (jobId dedup, safety-net), makeshop 은 in-call proactive / reactive_401 자가 회복에 위임 (enqueue 없음). refresh 실패는 worker (`Cafe24TokenRefreshProcessor`) / in-call 경로가 `error(auth_failed)`·`error(network)` 로 전이 (그 시점 active `integration_action_required` 알림). **refresh_token 없는 provider** 는 임계 (7d/3d/0d) 별로 `integration_expiry_dispatch` 에 claim (INSERT ON CONFLICT DO NOTHING — §2.1) 성공한 행만 알림 발사 (중복 방지); `remain ≤ 0d` 시 `status='expired', status_reason='token_expired'` 로 격하. |
 | `pending-install-ttl` | `pending-install-ttl-daily` | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h` 행을 `expired(install_timeout) + install_token=NULL` 로 전이 — **service_type 필터 없음** (cafe24·makeshop pending 행 공통). TTL 기준은 V044 의 `install_token_issued_at` — 재사용 시 토큰 재발급 시점에 갱신되어 조기 만료 회귀를 막고, NULL 인 V044 이전 행은 `created_at` fallback. |
 | `usage-log-prune` | `usage-log-prune-daily` | `integration_usage_log` 90일 보존 외 행 삭제 |
 | `cafe24-background-refresh` | `cafe24-background-refresh-daily` (ID historical, 실제 주기 6h) | `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-7d OR last_rotated_at IS NULL)` 행을 `cafe24-token-refresh` 큐 (jobId=integrationId dedup) 로 enqueue. enqueuer 역할만 — 실제 refresh 는 큐의 worker (`Cafe24TokenRefreshProcessor`) 수행. 14일 idle cafe24 통합의 refresh_token 자동 갱신. 임계 근거: refresh_token 14일의 50% 마진 (cron 6h 와 짝). scheduler ID 는 BullMQ idempotent upsert 활용을 위해 historical 보존 (옛 daily 시절 명명). |
-
-> **⚠ 알려진 구현 갭 — MakeShop 행의 0d 격하 (2026-06 audit)**: 설계 의도 ([navigation §11.1](../2-navigation/4-integration.md#111-스캐너-잡), [MakeShop 노드 §4 step 6](../4-nodes/4-integration/5-makeshop.md#4-실행-로직)) 는 makeshop 도 refresh-capable provider (refresh_token TTL 30~90일, proactive + reactive_401 자가 회복) 로서 `expired` 격하 대상이 아니다. 그러나 **현재 스캐너 코드의 refresh-capable 판별은 cafe24 한정** (`isCafe24RefreshCapable` 이 `serviceType !== 'cafe24'` 면 무조건 false — `integration-expiry-scanner.service.ts`) 이라, access_token TTL 이 ~1h 인 makeshop 통합이 하루 이상 idle 이면 다음 daily 스캔의 0d 분기에서 `expired` 로 잘못 격하된다. 코드 측 수정 (makeshop `makeshop-token-refresh` enqueue 분기 추가 또는 refresh_token 보유 행 격하 제외) 이 결정될 때까지 본 문서는 **실제 코드 동작**을 기준으로 기술한다. 격하된 makeshop 행은 AI Agent MCP bridge 의 expired 자가 회복 (refresh_token 보유 시 큐 refresh 후 `connected` 복귀 — §2.2 producer) 또는 수동 재인증으로 회복 가능.
 
 ```mermaid
 sequenceDiagram
@@ -274,19 +272,23 @@ sequenceDiagram
     Q-->>Scan: connected-expiry job
     Scan->>PG: SELECT integration WHERE token_expires_at <= now+7d AND status NOT IN (expired, error, pending_install)
     loop each row (임계 7d/3d/0d 매칭 시)
-      Scan->>PG: INSERT integration_expiry_dispatch (integration_id, threshold, token_expires_at) ON CONFLICT DO NOTHING
-      Note over Scan,PG: claim 실패 (이미 발사) → 해당 행 skip (알림·0d 처리 모두)
-      alt remain ≤ 0d
-        alt cafe24 AND refresh_token 존재
-          Scan->>CQ: enqueue refresh-cafe24-token { integrationId, source: 'background' } (jobId=integrationId dedup)
-          Note over Scan,CQ: status 변경은 worker 가 결과에 따라 수행<br/>(refresh 성공 → connected 유지 / invalid_grant → error)
-        else 그 외 전부
-          Scan->>PG: UPDATE integration SET status='expired', status_reason=NULL
+      alt isRefreshCapable (cafe24·makeshop + refresh_token)
+        Note over Scan,PG: §11.2 — 격하·passive 알림·claim 모두 없음 (refresh 자동 갱신)
+        opt remain ≤ 0d AND cafe24
+          Scan->>CQ: enqueue refresh-cafe24-token { integrationId, source: 'background' } (jobId dedup, safety-net)
+          Note over Scan,CQ: status 변경은 worker 가 결과에 따라 수행<br/>(refresh 성공 → connected 유지 / invalid_grant → error + active 알림)
         end
-      else remain > 0d
-        Note over Scan: 알림만 (status 보존)
+      else refresh_token 없는 provider
+        Scan->>PG: INSERT integration_expiry_dispatch (integration_id, threshold, token_expires_at) ON CONFLICT DO NOTHING
+        Note over Scan,PG: claim 실패 (이미 발사) → 해당 행 skip (알림·0d 처리 모두)
+        alt remain ≤ 0d
+          Scan->>PG: UPDATE integration SET status='expired', status_reason='token_expired'
+        else remain > 0d
+          Note over Scan: status 보존
+        end
+        Scan->>Noti: notify integration_expired (수신자: personal→소유자 / organization→Admin, email 은 preferences 따라 both)
+        Note over Scan,Noti: passive 알림은 refresh_token 없는 provider 만 (§11.2)
       end
-      Scan->>Noti: notify integration_expired (수신자: personal→소유자 / organization→Admin, email 은 preferences 따라 both)
     end
   and
     PT->>Q: enqueue { name: 'pending-install-ttl', triggeredAt }
@@ -336,7 +338,7 @@ sequenceDiagram
 | 큐 | producer | consumer | payload | dedup |
 | --- | --- | --- | --- | --- |
 | `integration-expiry-scanner` | `IntegrationExpiryScanner` 의 4개 스케줄러 — daily 3개 (`connected-expiry-daily` / `pending-install-ttl-daily` / `usage-log-prune-daily`) + 6h 1개 (`cafe24-background-refresh-daily` — ID historical, 실제 주기 6h) | 동일 module 내 processor — `job.name` 으로 분기 | `{ triggeredAt: ISO }` (per-job 단일 data shape) | — |
-| `makeshop-token-refresh` | ① `MakeshopApiClient` proactive (API 호출 직전 `ensureFreshToken`, source=`proactive`) ② `MakeshopApiClient` 401 reactive 자가 회복 (source=`reactive_401`) ③ AI Agent MCP bridge `MakeshopMcpToolProvider` 의 expired 자가 회복 — `refreshTokenViaQueue(integration, 'background')` (source=`background`). **배경 cron 없음** — cafe24 와 달리 `*-background-refresh` enqueuer 가 없다 (makeshop refresh_token TTL 30~90일이라 배경 갱신 불필요. 단 §1.4 의 알려진 구현 갭 참조 — 스캐너 0d 격하 제외 분기도 아직 없음) | `MakeshopTokenRefreshProcessor` worker (`MakeshopModule` 소속) | `{ integrationId: UUID, source: 'proactive' \| 'background' \| 'reactive_401' }` | dedup 전략은 `cafe24-token-refresh` 와 동형 — `proactive`/`background` 는 `jobId = integrationId`, `reactive_401` 은 unique jobId + PostgreSQL row-level lock 폴백. cafe24 와 큐를 공유하지 않는다 (service 별 token endpoint·rotation 정책 상이). |
+| `makeshop-token-refresh` | ① `MakeshopApiClient` proactive (API 호출 직전 `ensureFreshToken`, source=`proactive`) ② `MakeshopApiClient` 401 reactive 자가 회복 (source=`reactive_401`) ③ AI Agent MCP bridge `MakeshopMcpToolProvider` 의 expired 자가 회복 — `refreshTokenViaQueue(integration, 'background')` (source=`background`). **배경 cron 없음** — cafe24 와 달리 `*-background-refresh` enqueuer 가 없다 (makeshop refresh_token TTL 30~90일이라 배경 갱신 불필요). 스캐너 0d 격하/passive 알림 제외는 `isRefreshCapable` 일반화로 cafe24 와 동일 적용됨 (§1.4) | `MakeshopTokenRefreshProcessor` worker (`MakeshopModule` 소속) | `{ integrationId: UUID, source: 'proactive' \| 'background' \| 'reactive_401' }` | dedup 전략은 `cafe24-token-refresh` 와 동형 — `proactive`/`background` 는 `jobId = integrationId`, `reactive_401` 은 unique jobId + PostgreSQL row-level lock 폴백. cafe24 와 큐를 공유하지 않는다 (service 별 token endpoint·rotation 정책 상이). |
 | `cafe24-token-refresh` | ① `Cafe24ApiClient` proactive (API 호출 직전, source=`proactive`) ② `cafe24-background-refresh` 잡 (6h idle 스캐너, source=`background`) ③ `connected-expiry` 0d 분기 (refresh-capable cafe24 행, source=`background`) ④ `Cafe24ApiClient.performAuthRefresh` 401 reactive 자가 회복 (source=`reactive_401`) ⑤ AI Agent MCP bridge `Cafe24McpToolProvider` 의 expired 자가 회복 — `refreshTokenViaQueue(integration, 'background')` | `Cafe24TokenRefreshProcessor` worker (`Cafe24Module` 소속) | `{ integrationId: UUID, source: 'background' \| 'proactive' \| 'reactive_401' }` (`reactive_401` 은 `executeWithRateLimit` 의 401 자가 회복 경로가 사용, [Rationale](../2-navigation/4-integration.md#cafe24-token-만료-sot--jwt-exp-격상) 참고) | **source 별 dedup 전략 분리**: `proactive` / `background` 는 `jobId = integrationId` 로 클러스터 전체에서 같은 통합의 refresh 가 단일 worker 실행으로 모임. `reactive_401` 은 `jobId = ${integrationId}#reactive-${Date.now()}-${rand6}` 형태의 unique jobId 로 BullMQ dedup 자체를 우회 — cross-pod 직렬화는 `refreshAccessToken` 의 PostgreSQL row-level `pessimistic_write` lock 으로 폴백 보호. `payload.integrationId` 는 모든 source 에서 원본 UUID 그대로이며 worker 는 본 필드로 통합을 lookup (jobId 에서 파싱하지 않음). 보존: `removeOnComplete: { age: 60 }`, `removeOnFail: { age: 300 }` (전 source 통일). `attempts: 1` (refresh 실패는 거의 terminal — invalid_grant). `reactive_401` 은 worker 의 short-circuit guard 도 skip (empirical 401 = 어떤 expiry 정보든 신뢰 불가 신호). 자세한 근거는 [Rationale "reactive_401 jobId unique 화 — dedup 완전 우회"](../2-navigation/4-integration.md#reactive_401-jobid-unique-화--dedup-완전-우회). |
 
 이외 Redis 사용: cafe24/makeshop install 의 **nonce replay 캐시** (`Cafe24InstallNonceCache` — (식별자, timestamp, hmac) 튜플, 양 provider 공유) 와 install **rate-limit L2 실패 카운터** (`Cafe24InstallRateLimitService`). 둘 다 Redis 미설정 시 graceful no-op.
@@ -362,7 +364,7 @@ stateDiagram-v2
   pending_install --> pending_install: callback 실패 (status 보존, last_error/status_reason 갱신)
   [*] --> connected: 생성 (API Key / previewToken 소비) / OAuth 재인증 성공
   connected --> error: API 호출 401/403 (markAuthFailed) OR refresh 실패 (invalid_grant) OR transport 3회 연속 실패
-  connected --> expired: 만료 스캐너 0d (refresh-capable cafe24 가 아닌 모든 행, status_reason=NULL)
+  connected --> expired: 만료 스캐너 0d (refresh_token 없는 provider, status_reason=token_expired)
   error --> connected: 사용자 재인증 / credentials 수정
   expired --> connected: 수동 재인증 (또는 MCP bridge 의 refresh_token 자가 회복)
   connected --> [*]: 삭제
@@ -370,7 +372,7 @@ stateDiagram-v2
   expired --> [*]: manual delete
 ```
 
-> refresh 실패는 `connected --> error` 로 전이하며 status_reason 은 `auth_failed` (invalid_grant) 또는 `network` (transport 3회 연속). `expired` 는 (a) 만료 스캐너 0d 격하 (refresh-capable cafe24 제외 — §1.4) 또는 (b) `pending_install` 24h TTL 의 두 경로만 유발. **`expired --> connected` 에 자동 refresh 경로는 없다** — refresh worker 는 `status !== 'connected'` 행을 skip 하므로 (jobId dedup race 방지를 위해 source 무관 적용, `cafe24-token-refresh.processor.ts`) 스캐너가 한 번 `expired` 로 격하한 행은 수동 재인증 (또는 AI Agent MCP bridge 의 expired 자가 회복 — refresh_token 보유 행 한정) 으로만 복귀한다.
+> refresh 실패는 `connected --> error` 로 전이하며 status_reason 은 `auth_failed` (invalid_grant) 또는 `network` (transport 3회 연속). `expired` 는 (a) 만료 스캐너 0d 격하 (refresh-capable provider 제외 — cafe24·makeshop, §1.4) 또는 (b) `pending_install` 24h TTL 의 두 경로만 유발. **`expired --> connected` 에 자동 refresh 경로는 없다** — refresh worker 는 `status !== 'connected'` 행을 skip 하므로 (jobId dedup race 방지를 위해 source 무관 적용, `cafe24-token-refresh.processor.ts`) 스캐너가 한 번 `expired` 로 격하한 행은 수동 재인증 (또는 AI Agent MCP bridge 의 expired 자가 회복 — refresh_token 보유 행 한정) 으로만 복귀한다.
 
 ### 3.2 `status_reason` 매핑
 
@@ -379,7 +381,7 @@ stateDiagram-v2
 | status | status_reason 후보 |
 | --- | --- |
 | `error` | `auth_failed` (401/403 또는 refresh `invalid_grant`), `insufficient_scope` (403 + scope 시그널), `network` (transport 3회 연속 실패 — V049 `consecutive_network_failures` 카운터), `unknown_error` (미분류 fallback — 운영 알람 신호) |
-| `expired` | `install_timeout` (pending_install 24h TTL — cafe24·makeshop 공통), **NULL** (connected-expiry 0d 격하 — scanner 가 reason 을 채우지 않음. §1.4 / Rationale 참조) |
+| `expired` | `install_timeout` (pending_install 24h TTL — cafe24·makeshop 공통), `token_expired` (refresh_token 없는 provider 의 connected-expiry 0d 격하 — refresh-capable provider 는 격하 제외, §1.4 / V-07) |
 | `pending_install` | callback 실패 분기 (status 보존, 진단 단서로 채워짐): `oauth_token_exchange_failed`, `oauth_state_invalid`, `oauth_state_mismatch`, `oauth_state_expired`, `oauth_provider_error`, `oauth_invalid_scope` (cafe24 scope 거부 — `last_error.details.requiresCafe24Approval` 동반, [cafe24-restricted-scopes §4.3](../conventions/cafe24-restricted-scopes.md)), `oauth_preview_invalid`, `oauth_preview_expired` (union 예약값 — preview 소비 실패의 API 에러 코드와 동일 어휘). 모두 snake_case DB 표기 — 동일 의미의 API 에러 코드는 [navigation §10.4](../2-navigation/4-integration.md#104-에러-매핑) 의 `OAUTH_*` UPPER_SNAKE_CASE. `resource_not_found` 는 row 자체가 사라진 케이스라 DB 갱신 불가 → 후보값에서 제외 |
 | `connected` | NULL |
 
@@ -429,17 +431,7 @@ mode=`new` callback 시점엔 통합의 최종 이름·scope (personal/organizat
 
 ### 2026-06 재작성에서 폐기된 옛 서술
 
-- **"connected-expiry 0d 분기는 makeshop 을 refresh-capable provider 로 취급해 격하하지 않는다"
-  (2026-05, #456 도입) — 폐기.** 해당 note 는 spec 에만 추가됐고 스캐너 코드에는 구현되지 않았다
-  (스캐너의 refresh-capable 판별은 `isCafe24RefreshCapable` 로 cafe24 한정, 'makeshop' 분기 부재).
-  코드가 의도와 다른 동작 (idle makeshop 행의 expired 격하) 을 하는 상태이므로, 본 문서는 실제 동작을
-  기술하고 §1.4 에 "알려진 구현 갭" 으로 명시했다. 코드 수정 (makeshop enqueue 분기 추가) 이 반영되면
-  §1.4 표·callout 을 그에 맞춰 갱신한다.
-- **"refresh_token 없는 provider 는 `status_reason='token_expired'` 로 격하" — 폐기.** `token_expired`
-  문자열은 백엔드 어디에도 없고 `INTEGRATION_STATUS_REASONS` union 에도 없다. 실제 0d 격하 분기는
-  `statusReason = null` 을 설정한다 — expired 행은 `install_timeout` 외엔 reason 이 비어 진단 단서가
-  없다. union 에 격하 사유를 추가해 채우는 것은 코드 측 개선 후보로 남긴다 (타 spec 의 `token_expired`
-  표기 정리 포함).
+- **(2026-06-10 V-01·V-07 fix 로 해소)** 한때 본 문서는 "스캐너의 refresh-capable 판별이 `isCafe24RefreshCapable` 로 cafe24 한정이라 idle makeshop 행이 0d 에 잘못 격하된다 (구현 갭)" 와 "`token_expired` status_reason 미구현 (격하 시 `statusReason=null`)" 을 기술했다. 두 갭은 모두 해소됐다 — 술어가 `isRefreshCapable` (cafe24·makeshop) 로 일반화돼 refresh_token 보유 makeshop 은 격하·passive 알림 대상에서 제외되고, refresh_token 없는 provider 의 0d 격하는 `status_reason='token_expired'` 를 기록한다 (`INTEGRATION_STATUS_REASONS` union 추가). §1.4 표가 현행 구현이다.
 - **"OAuth callback 이 곧바로 integration 을 INSERT/UPDATE" — 폐기.** mode=`new` 는 preview 임시 저장
   + previewToken 반환으로 대체됐고 (위 Rationale 항), row 생성은 `POST /api/integrations` 의 소비
   시점이다. callback 의 직접 UPDATE 는 reauthorize/request_scopes/install 후속 callback 에만 남는다.

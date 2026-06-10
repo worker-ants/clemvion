@@ -1,0 +1,44 @@
+---
+worktree: integration-expiry-fixes-1d7c7d
+started: 2026-06-10
+owner: developer
+spec_impact:
+  - spec/2-navigation/4-integration.md
+  - spec/1-data-model.md
+  - spec/data-flow/5-integration.md
+  - spec/5-system/16-system-status-api.md
+---
+
+# 만료 스캐너 정합 fix 묶음 (V-01 severe + V-07 + V-15)
+
+출처: 전수 감사 보고 [`review/spec-coverage/2026/06/10/12_32_46/SUMMARY.md`](../../review/spec-coverage/2026/06/10/12_32_46/SUMMARY.md). 사용자 결정(2026-06-10): **V-07 = §11.2 채택** (refresh-capable provider 는 passive `integration_expired` 알림 제외).
+
+## V-01 (severe) — makeshop expired 오격하
+
+`integration-expiry-scanner.service.ts` 의 0d 분기가 `isCafe24RefreshCapable` (cafe24 하드코딩) 으로 makeshop 을 제외해, refresh_token 보유 makeshop 통합이 access_token(1h) 만료 시 다음 스캔에서 `expired` 로 잘못 격하됨. spec §11.1 MakeShop note 는 makeshop 을 cafe24 와 동일한 refresh-capable 로 취급해 격하 면제하라고 명시.
+
+- **fix**: `isCafe24RefreshCapable` → `isRefreshCapable` 일반화 (cafe24·makeshop + `credentials.refresh_token` 보유). makeshop 은 큐 enqueue 없이 격하만 면제 (proactive `ensureFreshToken` / reactive_401 이 갱신 담당).
+
+## V-07 (major) — §11.2 채택 (사용자 결정)
+
+§11.1 표/의사코드(refresh-capable 도 알림) vs §11.2(refresh_token 없는 provider 만 발사) 모순을 **§11.2 방향으로 정합**.
+
+- **코드**: (1) `INTEGRATION_STATUS_REASONS` union 에 `token_expired` 추가. (2) refresh_token-less 0d 격하 시 `statusReason = 'token_expired'` (was null). (3) passive `integration_expired` 알림(7d/3d/0d 전부)을 refresh-capable provider 에서 제외 — refresh-capable 은 claim/격하/알림 모두 skip (cafe24 만 safety-net enqueue). 이로써 보고서가 지적한 dedup 키 churn(단수명 토큰 재발사) 도 자연 해소.
+- **spec**: §11.1 표 "cafe24 0d → enqueue + 알림" 의 "+ 알림" 제거 + 의사코드 동기. §11.2 유지. data-flow/5-integration.md 동기.
+
+## V-15 (minor) — 큐 레지스트리 동기
+
+`MONITORED_QUEUES` (system-status.constants.ts) 에 `MAKESHOP_REFRESH_QUEUE` 누락 → spec §1 표·data-flow §4 카탈로그와 불일치.
+
+- **fix**: import + `{ name: MAKESHOP_REFRESH_QUEUE, group: 'integration', concurrency: 1 }` 추가. 회귀 테스트로 MONITORED_QUEUES ↔ 카탈로그 동기 보강.
+
+## 체크리스트
+
+- [x] /consistency-check --impl-prep spec/2-navigation/ — BLOCK YES: Critical 은 §11.1↔§11.2 모순(본 작업 대상). spec 정합 선행으로 해소. 범위 밖 WARNING(14-execution-history·0-dashboard·16-agent-memory)은 후속 backlog
+- [x] 단위 테스트 선작성/수정 (scanner: cafe24 알림 테스트 §11.2 갱신 + makeshop 2케이스 신규 / system-status.constants.spec 신설)
+- [x] 구현 — 커밋 1286b3e5
+- [x] spec 정합 (§11.1·data-flow/5·1-data-model) — 커밋 78af3d00. 16-system-status 표는 이미 makeshop 행 보유(코드만 누락이었음)
+- [x] e2e (system-status.e2e 13→14 큐 갱신 — 큐 추가에 따른 정당 갱신)
+- [x] TEST WORKFLOW (lint·unit·build·e2e 전부 PASS — e2e 30 suites/184 tests, 2026-06-11)
+- [x] /ai-review + resolution — LOW (Critical 0, Warning 5). resolution-applier 4/5 처리(테스트 케이스·헬퍼·주석·e2e 갱신 의무), W-1(spec §1.4 mermaid) main 직접 정정. 후속 --impl-done 가 동일 status_reason/알림 도메인 잔존 모순 2회 추가 검출 → 모두 정합
+- [x] /consistency-check --impl-done spec/2-navigation/ — BLOCK: NO (review/consistency/2026/06/11/01_02_54). 8-notifications §1.1·5-integration §3.2 등 status_reason/알림 도메인 잔존 모순 전수 정합 후 통과. 잔여 WARNING(14-execution-history·16-agent-memory)은 범위 밖 기존 drift — backlog

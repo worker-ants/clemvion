@@ -81,8 +81,21 @@ Start with read-only scopes and add write scopes as needed.
 - **Order processing**: `order.read` · `order.write`
 - **Member/benefit management**: `member.read` · `benefit.read` (+ write if needed)
 
+## Token refresh and expiry
+
+MakeShop is a **refresh-capable** integration that supports `refresh_token`. This means its expiry handling differs from standard OAuth integrations.
+
+| Situation | Behaviour |
+|---|---|
+| Has `refresh_token` + `access_token` expired | The system automatically renews the `access_token`. **No expiry notification is sent.** |
+| Automatic renewal fails (e.g. refresh_token invalidated) | The integration status transitions to `error` and an `integration_action_required` alert is sent. Reauthorize from [Integrations](/integrations) or reinstall the app. |
+| `access_token` expires without a `refresh_token` | The integration status transitions to `expired` and an `integration_expired` alert is sent. |
+
+<Callout type="note">A MakeShop integration that holds a refresh_token will not show a sidebar badge or send a notification when the access_token expires — the system is renewing it automatically in the background. A notification and reauthorization prompt appear only if automatic renewal fails.</Callout>
+
 ## FAQ
 
 - **Where do I enter shop_uid?** — You don't. It arrives automatically when the app is installed.
 - **It won't connect** — Verify the App URL / Redirect URI are registered exactly in Partner Center, including the trailing install token. A single mismatched character fails HMAC verification and the call is rejected.
 - **How do I reauthorize?** — MakeShop integrations cannot be reauthorized from this screen. Reinstall the app from ShopStore to restart the OAuth flow.
+- **I didn't receive an expiry notification — why was my connection disrupted?** — No notification is sent while automatic renewal is succeeding. An `integration_action_required` alert is sent only when automatic renewal fails. See the reauthorization entry above.
