@@ -7,18 +7,25 @@ A Knowledge Base is organized by **collection**. Each collection pins an embeddi
 <FieldTable rows={[
   { name: "Name", type: "string", required: "Required", description: "Collection name shown on the list card." },
   { name: "Description", type: "string", required: "Optional", description: "Short purpose. Helpful for team collaboration." },
-  { name: "Embedding model", type: "LLM Config reference", required: "Required", description: "Pinned at creation. Changing it requires re-embedding everything." },
+  { name: "Embedding configuration", type: "Embedding config selector", required: "Required", description: "Choose an embedding configuration for this collection, or leave empty to use the workspace default. The selected config's model and dimension are applied automatically. Pinned at creation — changing it requires re-embedding all documents." },
   { name: "RAG mode", type: "`vector` / `graph`", required: "Optional", description: "Defaults to `vector`. `graph` mode extracts entities and relations from documents with an LLM, builds a knowledge graph inside the KB, and combines vector seed + graph expansion at query time. Mode is fixed at creation time." },
   { name: "Chunk size", type: "integer (tokens)", required: "Optional", description: "Default 1000. Max tokens per chunk." },
   { name: "Chunk overlap", type: "integer (tokens)", required: "Optional", description: "Default 200. Overlap between adjacent chunks." }
 ]} />
 
-<Callout type="note">Only providers that support embeddings can be selected as the embedding model. Register a provider first — see [LLM configuration](/docs/06-integrations-and-config/llm-config).</Callout>
+<ImplAnchor
+  kind="component"
+  file="codebase/frontend/src/components/knowledge-base/kb-form-body.tsx"
+  symbol="formEmbeddingModelConfigId"
+  describes="KB form embedding config selector — single select for choosing an embedding ModelConfig"
+/>
+
+<Callout type="note">Embedding configurations are created and managed in [Models → Embedding tab](/models?tab=embedding). If no configurations appear in the list, add one there first.</Callout>
 
 ## Creating a collection and uploading documents
 
 <Steps>
-<Step>At [Knowledge Bases](/knowledge-bases), click `[+ New Collection]` and fill in name, description, embedding model, and chunk parameters.</Step>
+<Step>At [Knowledge Bases](/knowledge-bases), click `[+ New Collection]` and fill in name, description, embedding configuration, and chunk parameters.</Step>
 <Step>Click the new collection to open its detail view. Use `[Upload Documents]` or drag-and-drop files.</Step>
 <Step>Supported formats: `.txt`, `.md`, `.pdf`, `.csv`. Multiple files at once are fine — embedding starts immediately.</Step>
 <Step>When each document's status flips from `🔄 Processing` to `✅ Ready`, it's searchable. Status streams in real time via WebSocket.</Step>
@@ -119,8 +126,8 @@ To add a second-pass precision step after vector search, open the **Reranking** 
 
 ## Tips & notes
 
-- When multiple collections are selected, KBs sharing the same embedding model share a single query; others are queried independently and the results merged.
+- When multiple collections are selected, KBs sharing the same embedding configuration share a single query; others are queried independently and the results merged.
 - Injected context is auto-truncated to fit within 50% of the model's context window, dropping the lowest-scoring chunks first — top results are always kept.
 - Document preview shows every generated chunk. If a chunk looks off, edit the source and hit `Re-embed`.
-- To switch embedding model, create a new collection and move documents over. Swapping the model on an existing collection triggers a full re-embed of every chunk.
+- To switch embedding configuration, create a new collection and move documents over. Swapping the embedding configuration on an existing collection triggers a full re-embed of every chunk.
 - Expressions and node-result basics: [Variables and context](/docs/04-expression-language/variables-and-context).

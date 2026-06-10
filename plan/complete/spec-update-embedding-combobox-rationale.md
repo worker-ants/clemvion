@@ -1,8 +1,17 @@
 ---
+name: spec-update-embedding-combobox-rationale
 worktree: unified-model-mgmt-5af7ee
+status: complete
 started: 2026-06-11
-owner: resolution-applier
+completed: 2026-06-11
+owner: developer
+spec_impact:
+  - spec/5-system/8-embedding-pipeline.md
 ---
+
+> **반영 완료 (2026-06-11)** — `/consistency-check --spec`(review/consistency/2026/06/11/08_35_06) BLOCK:NO.
+> checker 지적 반영: `EmbeddingModelCombobox` 는 실재하나 KB 폼에서 미사용임을 명확히 + R-1 cross-ref +
+> 변경 경위 1줄 보존. spec/5-system/8-embedding-pipeline.md Rationale line 379 bullet 교체 완료.
 # Spec Update Draft — embedding-combobox-rationale
 
 ## 분류

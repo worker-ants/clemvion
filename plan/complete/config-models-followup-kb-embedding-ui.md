@@ -1,14 +1,23 @@
 ---
-worktree: (unstarted)
+name: config-models-followup-kb-embedding-ui
+worktree: unified-model-mgmt-5af7ee
+status: complete
 started: 2026-06-11
+completed: 2026-06-11
 owner: developer
-related_spec:
-  - spec/2-navigation/6-config.md
+spec_impact:
   - spec/2-navigation/5-knowledge-base.md
+  - spec/data-flow/6-knowledge-base.md
   - spec/5-system/8-embedding-pipeline.md
 related_plan:
   - plan/in-progress/unified-model-management.md
 ---
+
+> **완료 (2026-06-11, PR-A)** — 본 followup 의 모든 작업 항목을 `feat(kb) 8f63417c` + 리뷰 후속
+> (`b48d0b5c` backend-authoritative embeddingModel·helper 추출, `546e855f`·spec §379 정합) 으로 구현 완료.
+> KB 폼은 단일 `kind=embedding` ModelConfig select(`embeddingModelConfigId`) 로 전환됐고,
+> EmbeddingTestButton 은 1급 config 로 probe(embedding-probe backend 가 kind=embedding 지원),
+> 차원 변경 경고·i18n·테스트 포함. legacy 컬럼 제거는 PR4. 리뷰: review/code/2026/06/11/08_08_32.
 
 # Followup — KB 임베딩 select 의 kind=embedding 1급 config 선택 UX
 
