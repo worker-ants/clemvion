@@ -1,6 +1,6 @@
 # Refactor 백로그 — 성능 (2026-06-10 전수 감사)
 
-> 인덱스: [README.md](./README.md). Critical 3 / Major 8 / Minor 4 — **유효 13건 / 철회 1건(#9) / 종결 1건(#13)**.
+> 인덱스: [README.md](./README.md). Critical 3 / Major 8 / Minor 4 — **전 항목 처리 완료 (2026-06-10)**: 구현 10건(#1-#8,#10,#14) / 종결 4건(#11,#12,#13,#15) / 철회 1건(#9).
 > **spec 대조 판정 분포**: A 0 / B 6 / C 0 / D 8 / E 1.
 > (A=의도된 설계, B=spec 무언급, C=spec 괴리, D=부분 언급—본 쟁점 미커버, E=철회)
 > **중복 참조**: #1 은 [05-database.md](./05-database.md) M-4(동일 근원)와 같은 항목이며 본 파일이 본문 소유.
@@ -11,7 +11,7 @@
 
 ### #1 [Critical] resume rehydration N+1 쿼리
 
-- [ ] 미착수 — `backend/src/modules/execution-engine/execution-engine.service.ts:1303-1330`
+- [x] 완료 — A안 구현 (commit 8724d53f: In() 배치 + DESC 첫 등장 dedup, 회귀 가드 테스트 포함. e2e 176 통과)
 
 `resumeFromCheckpoint` 계열이 이전 실행 노드의 각 nodeId 마다 `nodeExecutionRepository.findOne` 을 루프 내 직렬 `await`. ForEach/Loop 워크플로 재개 지연의 직접 원인.
 
@@ -38,7 +38,7 @@
 
 ### #2 [Critical] KB 삭제 시 S3 직렬 삭제 루프
 
-- [ ] 진행 확정 — ✅ 2026-06-10 사용자 결정: **B안** (전제조건 실검증 통과) — `backend/src/modules/knowledge-base/knowledge-base.service.ts:678-684`
+- [x] 완료 — B안 구현 (commit d9499db9 이전의 deleteMany 커밋: `S3Service.deleteMany` 1000키 청크 + KB remove 배치 전환. spec 동기화 = plan/complete/spec-update-perf-backlog-01.md)
 
 문서 N건의 S3 객체를 `for...of await` 직렬 삭제 (100건 × ~100ms ≈ 10초 블로킹).
 
@@ -75,7 +75,7 @@
 
 ### #3 [Critical] `sortByStartedAt` — WS 이벤트마다 전체 재정렬 O(N² log N)
 
-- [ ] 미착수 — `frontend/src/lib/stores/execution-store.ts:328-335,482-485`
+- [x] 완료 — B안 구현 (#8 과 단일 commit 30d99887: 도착순 store + WeakMap memoized `selectSortedNodeResults` accessor + epoch 캐시)
 
 `addNodeResult` 마다 전체 정렬 + comparator 내 `new Date()` 반복 생성. 대형 실행에서 메인 스레드 블로킹.
 
@@ -105,7 +105,7 @@
 
 ### #4 [Major] Dashboard `getSummary` 동일 범위 4+ 회 왕복
 
-- [ ] 미착수 — `backend/src/modules/dashboard/dashboard.service.ts:58-135` (실측 6쿼리 5왕복)
+- [x] 완료 — A안 구현 (집계 2쿼리 + getSummary 테스트 신설. 경계 fixture 보강 = review W3 커밋 c71de465)
 
 **spec 대조**: B — `2-navigation/0-dashboard.md` Rationale 은 의미론(분모 정의 등)만 기록, 쿼리 전략 무언급.
 
@@ -131,7 +131,7 @@
 
 ### #5 [Major] `assertNoContainerCycle` 전체 선형 순회 + Map 중복 생성
 
-- [ ] 미착수 — `execution-engine.service.ts:7869-7884` (`planContainerBody` 의 `nodeMap`:7897 과 이중)
+- [x] 완료 — A안 구현 (commit 8724d53f: nodeMap/children 재사용. 직접 가드 테스트 = c71de465)
 
 **spec 대조**: D — 런타임 사이클 검사(`CONTAINER_CYCLE` 거부)는 `1-data-model.md`·`0-canvas.md` 의 spec 의무, 알고리즘/비용은 무언급.
 
@@ -157,7 +157,7 @@
 
 ### #6 [Major] `planParallelBody` BFS `queue.shift()` O(N²)
 
-- [ ] 미착수 — `execution-engine.service.ts:8226-8239`
+- [x] 완료 — A안 구현 (commit 8724d53f: 인덱스 포인터. 엔진 내 다른 BFS `.shift()` grep 결과 본 지점 외 핫패스 없음 — 후속 불요 기록)
 
 **spec 대조**: B — `10-parallel.md` 는 분기 의미론만 규정, 도달성 계산 알고리즘 무언급. 분기 그래프는 통상 수십 노드라 실효 낮음 — 저비용 정리.
 
@@ -182,7 +182,7 @@
 
 ### #7 [Major] `buildSystemPrompt` 매 턴 노드 카탈로그 재직렬화
 
-- [ ] 미착수 — `workflow-assistant/prompts/system-prompt.ts:52-83`
+- [x] 완료 — A안 구현 (WeakMap defs-키 캐시 + 자매 reset 헬퍼. impl-prep W2 명명 정렬 반영)
 
 **spec 대조**: D — `4-ai-assistant.md §5` 가 "정적 콘텐츠 앞 배치로 prefix cache hit 향상" 을 설계 의도로 명시 + expression reference 캐시를 spec 에 기록 — node catalog 캐시는 **spec 이 채택한 동일 패턴의 미적용 잔여**.
 
@@ -208,7 +208,7 @@
 
 ### #8 [Major] `nodeResults` Array 선형 탐색 — 이벤트마다 O(N)
 
-- [ ] 미착수 — `use-execution-events.ts:763,853,918,963` + `execution-store.ts:441-450`
+- [x] 완료 — B안 구현 (#3 과 단일 commit 30d99887: 인덱스 Map 3종 + `findNodeResult` — 술어 보존. 후속: 인덱스 동기화 헬퍼 캡슐화 = review W1 보류, RESOLUTION 참조)
 
 **spec 대조**: B — WS 이벤트 계약·표시 요건만 spec 규정, store 자료구조 무언급.
 
@@ -242,7 +242,7 @@
 
 ### #10 [Major] 워크플로 임포트 — 트랜잭션 내 개별 save 루프 N+P+M 왕복
 
-- [ ] 미착수 — `workflows.service.ts:270-337`
+- [x] 완료 — A안 구현 (commit d9499db9 + 타입 정합 407e1003: UUID 사전 생성 + 배치 insert 2회. hook 부재 메타데이터 가드 테스트 = c71de465)
 
 **spec 대조**: B — import 는 spec 에 엔드포인트 한 줄(`1-workflow-list.md:126`)만, 삽입 전략 무언급.
 
@@ -350,7 +350,7 @@
 
 ### #14 [Minor] `MAX_NODE_ITERATIONS`/`PARALLEL_ENGINE` 매 실행 configService 조회
 
-- [ ] 미착수 — `execution-engine.service.ts:1387,3025,1549,3665`
+- [x] 완료 — A안 구현 (commit 8724d53f: lazy read-once + call-count spy 테스트 c71de465. spec read-once 문구 = §2.1 + 10-parallel.md, plan/complete/spec-update-perf-backlog-01.md — draft 의 §1.6 표기는 오참조였음)
 
 **spec 대조**: D — §1.6 은 읽기 시점 무규정이나 §11 의 자매 env 들이 "모듈 로드 시 1회 읽음" 패턴으로 기성 규약 — read-once 전환이 spec 패턴과 정합.
 
@@ -371,7 +371,7 @@
 
 - **검증**: MAX_NODE_ITERATIONS=1 가드·PARALLEL_ENGINE=off rollback 테스트.
 - **회귀 위험**: 테스트 env 주입 방식.
-- **spec 갱신**: 적용 시 §1.6 에 read-once 문구 추가가 일관적 (planner).
+- **spec 갱신**: ~~§1.6~~ → **§2.1 표 + 10-parallel.md rollback card 에 반영 완료** (`plan/complete/spec-update-perf-backlog-01.md`).
 
 ### ~~#15 [Minor] 대화 메시지 단건 갱신에 전체 `.map()` 재순회~~ — 종결
 
