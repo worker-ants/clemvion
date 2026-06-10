@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import { useEditorStore } from "@/lib/stores/editor-store";
-import { useExecutionStore } from "@/lib/stores/execution-store";
+import {
+  useExecutionStore,
+  selectSortedNodeResults,
+} from "@/lib/stores/execution-store";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 import { getAllFunctionNames, buildDisambiguatedKeys } from "@workflow/expression-engine";
@@ -112,7 +115,10 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
     // (predecessor, table dataSource ref, selected node).
     const resultMap = new Map<string, Record<string, unknown>>();
     const rawResultMap = new Map<string, unknown>();
-    for (const r of nodeResults) {
+    // Iterate in chronological order so the last write per nodeId wins = the
+    // newest result (the store no longer pre-sorts; selectSortedNodeResults is
+    // WeakMap-memoized so this is amortized to one sort per array reference).
+    for (const r of selectSortedNodeResults(nodeResults)) {
       const unwrapped = unwrapStructuredOutput(r.outputData);
       resultMap.set(r.nodeId, toRecord(unwrapped));
       rawResultMap.set(r.nodeId, unwrapped);
