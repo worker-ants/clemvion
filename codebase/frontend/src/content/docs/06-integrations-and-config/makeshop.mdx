@@ -81,8 +81,21 @@ AI Agent 노드의 **MCP 서버** 선택에서 MakeShop 통합을 추가하면, 
 - **주문 처리 자동화**: `order.read` · `order.write`
 - **회원/혜택 관리**: `member.read` · `benefit.read` (+ 필요 시 write)
 
+## 토큰 갱신 및 만료
+
+MakeShop 은 `refresh_token` 을 지원하는 **자동 갱신 가능(refresh-capable) 통합**이에요. 이 방식은 일반 OAuth 통합과 만료 처리가 다릅니다.
+
+| 상황 | 동작 |
+|---|---|
+| `refresh_token` 보유 + `access_token` 만료 | 시스템이 자동으로 `access_token` 을 갱신해요. **만료 알림이 발송되지 않아요.** |
+| 자동 갱신 실패 (refresh_token 무효 등) | 통합 상태가 `error` 로 전환되고 `integration_action_required` 알림이 발송돼요. [통합 관리](/integrations) 에서 재인증하거나 앱을 재설치해야 해요. |
+| `refresh_token` 없이 `access_token` 만료 | 통합 상태가 `expired` 로 전환되고 `integration_expired` 알림이 발송돼요. |
+
+<Callout type="note">refresh_token 을 보유한 MakeShop 통합은 access_token 이 만료되어도 사이드바 배지나 알림이 뜨지 않아요. 시스템이 백그라운드에서 자동 갱신하고 있는 거예요. 자동 갱신에 실패한 경우에만 알림과 함께 재인증이 필요하다는 안내가 표시돼요.</Callout>
+
 ## 자주 묻는 질문
 
 - **shop_uid 를 어디서 입력하나요?** — 입력하지 않아요. 앱을 설치할 때 자동으로 전달돼요.
 - **연결이 안 돼요** — App URL / Redirect URI 가 파트너센터에 정확히 등록됐는지, 끝의 설치 토큰까지 빠짐없이 복사됐는지 확인하세요. URL 이 한 글자라도 다르면 HMAC 검증이 실패해 호출이 거부돼요.
 - **재인증은 어떻게 하나요?** — MakeShop 통합은 이 화면에서 재인증할 수 없어요. ShopStore 에서 앱을 다시 설치하면 OAuth 흐름이 다시 시작돼요.
+- **만료 알림이 안 왔는데 왜 연결이 끊겼나요?** — 자동 갱신이 성공하는 동안에는 알림이 오지 않아요. 자동 갱신 실패 시에는 `integration_action_required` 알림이 발송돼요. 재인증 방법은 위 항목을 참고해요.

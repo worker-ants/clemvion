@@ -8,6 +8,7 @@ import { DOCUMENT_EMBEDDING_QUEUE } from '../knowledge-base/queues/document-embe
 import { GRAPH_EXTRACTION_QUEUE } from '../knowledge-base/queues/graph-extraction.queue';
 import { NOTIFICATION_WEBHOOK_QUEUE } from '../external-interaction/notification-dispatcher.types';
 import { CAFE24_REFRESH_QUEUE } from '../integrations/cafe24-token-refresh.constants';
+import { MAKESHOP_REFRESH_QUEUE } from '../integrations/makeshop-token-refresh.constants';
 import { INTEGRATION_EXPIRY_QUEUE } from '../integrations/integration-expiry-scanner.service';
 import { SCHEDULE_QUEUE } from '../schedules/schedule-runner.service';
 import { LOGIN_HISTORY_PRUNER_QUEUE } from '../auth/jobs/login-history-pruner.service';
@@ -47,6 +48,7 @@ const executionRunConcurrency = resolveExecutionRunWorkerConcurrency();
 /**
  * 모니터링 대상 큐 레지스트리.
  * 큐 추가/삭제 시 data-flow/0-overview.md §4 카탈로그를 먼저 갱신하고 본 표를 동기화한다.
+ * 또한 `test/system-status.e2e-spec.ts` 의 `EXPECTED_QUEUE_NAMES` 목록도 함께 갱신할 것.
  */
 export const MONITORED_QUEUES: readonly MonitoredQueue[] = [
   {
@@ -64,6 +66,7 @@ export const MONITORED_QUEUES: readonly MonitoredQueue[] = [
   { name: GRAPH_EXTRACTION_QUEUE, group: 'knowledge-base', concurrency: 2 },
   { name: NOTIFICATION_WEBHOOK_QUEUE, group: 'integration', concurrency: 1 },
   { name: CAFE24_REFRESH_QUEUE, group: 'integration', concurrency: 1 },
+  { name: MAKESHOP_REFRESH_QUEUE, group: 'integration', concurrency: 1 },
   { name: SCHEDULE_QUEUE, group: 'system', concurrency: 1 },
   { name: LOGIN_HISTORY_PRUNER_QUEUE, group: 'system', concurrency: 1 },
   { name: NOTIFICATION_SECRET_ROTATOR_QUEUE, group: 'system', concurrency: 1 },
