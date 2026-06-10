@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-10T20:30:25.671957",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/5-system/4-execution-engine.md spec/data-flow/4-file-storage.md spec/4-nodes/1-logic/10-parallel.md spec/3-workflow-editor/3-execution.md (perf 백로그 01 구현: rehydration 배치/KB deleteMany/dashboard 집계/import 배치/env read-once/frontend execution-store B안), diff-base=origin/main)",
+  "target_path": "spec/5-system/4-execution-engine.md spec/data-flow/4-file-storage.md spec/4-nodes/1-logic/10-parallel.md spec/3-workflow-editor/3-execution.md (perf 백로그 01 구현: rehydration 배치/KB deleteMany/dashboard 집계/import 배치/env read-once/frontend execution-store B안)",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

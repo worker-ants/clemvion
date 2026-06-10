@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-10T19:06:27.558288",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=plan/in-progress/refactor/01-performance.md 유효 항목 구현 (execution-engine rehydration 배치 조회, KB S3 배치 삭제, dashboard 쿼리 통합, workflow import 배치 insert, assistant 프롬프트 캐시, RAG CTE 통합, frontend execution-store 자료구조 전환))",
+  "target_path": "plan/in-progress/refactor/01-performance.md 유효 항목 구현 (execution-engine rehydration 배치 조회, KB S3 배치 삭제, dashboard 쿼리 통합, workflow import 배치 insert, assistant 프롬프트 캐시, RAG CTE 통합, frontend execution-store 자료구조 전환)",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
