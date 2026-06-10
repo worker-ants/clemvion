@@ -1,10 +1,11 @@
 # Refactor 백로그 — 성능 (2026-06-10 전수 감사)
 
-> 인덱스: [README.md](./README.md). Critical 3 / Major 8 / Minor 4 — **spec 대조(2026-06-10) 후 유효 14건 / 철회 1건(#9)**.
+> 인덱스: [README.md](./README.md). Critical 3 / Major 8 / Minor 4 — **유효 13건 / 철회 1건(#9) / 종결 1건(#13)**.
 > **spec 대조 판정 분포**: A 0 / B 6 / C 0 / D 8 / E 1.
 > (A=의도된 설계, B=spec 무언급, C=spec 괴리, D=부분 언급—본 쟁점 미커버, E=철회)
 > **중복 참조**: #1 은 [05-database.md](./05-database.md) M-4(동일 근원)와 같은 항목이며 본 파일이 본문 소유.
 > 옵션 비교·권장안 보강 (2026-06-10)
+> **사용자 결정 (2026-06-10)**: 본 파일은 기본적으로 권장안대로 진행. 단 **#2 = B안 진행 확정**(전제조건 실검증 통과 — 항목 본문 참조), **#13 = C(현상 유지) 종결**.
 
 ## Critical
 
@@ -37,17 +38,26 @@
 
 ### #2 [Critical] KB 삭제 시 S3 직렬 삭제 루프
 
-- [ ] 미착수 — `backend/src/modules/knowledge-base/knowledge-base.service.ts:678-684`
+- [ ] 진행 확정 — ✅ 2026-06-10 사용자 결정: **B안** (전제조건 실검증 통과) — `backend/src/modules/knowledge-base/knowledge-base.service.ts:678-684`
 
 문서 N건의 S3 객체를 `for...of await` 직렬 삭제 (100건 × ~100ms ≈ 10초 블로킹).
 
 **spec 대조**: D — `data-flow/4-file-storage.md` 흐름표가 "for 루프로 호출" 을 code-sync 로 기록하나, Rationale 이 정당화하는 것은 **best-effort/warn 정책이지 직렬 실행이 아님**. 병렬화는 best-effort 의미론과 완전 호환.
 
-**개선 방안**:
+**B안 전제조건 검토 결과 (2026-06-10 실검증)** — 4건 모두 충족, 진행 가능:
 
-1. 20건 청크 `Promise.allSettled(chunk.map(d => s3Service.delete(d.fileUrl)))` 로 교체, rejected 는 fileUrl 목록 일괄 warn.
-2. (선택) `s3.service.ts` 에 `deleteMany(keys[])` — AWS `DeleteObjectsCommand`(1000키/요청)로 왕복 1회. MinIO 호환 확인 필요.
-3. `removeDocument` 단건 경로는 무변경.
+1. **키 매핑 직선적**: `Document.fileUrl` 에는 URL 이 아니라 **S3 key 그대로** 저장됨 (`kb/<kbId>/<docId>/<filename>` — `knowledge-base.service.ts:751-761` 업로드 경로 확인). 단일 bucket(`s3.bucket`) 구성이라 `Delete.Objects: [{Key}]` 변환에 파싱 불요.
+2. **MinIO × SDK 호환 실검증 통과**: 로컬 MinIO 에 `@aws-sdk/client-s3@3.1045.0`(lock 실설치본 — v3.729+ 기본 CRC32 무결성 checksum 포함) + `forcePathStyle: true`(s3.service.ts 동일 구성)로 PutObject 3건 → `DeleteObjectsCommand` 4키(실존 3 + 비실존 1) 실행: 전부 `Deleted` 반환, `Errors: []`, prefix 잔존 0, Quiet 모드 정상. SDK 기본 checksum 의 S3-호환 스토리지 비호환 우려가 본 조합에서는 무근거임을 실거동으로 확인.
+3. **best-effort 의미론 보존 단순**: 비실존 키도 `Errors` 가 아닌 `Deleted` 로 반환(S3 표준 멱등) — `Errors` 배열은 권한/내부 오류에만 등장하므로 "Errors 항목 → key 목록 일괄 warn" 매핑이 기존 단건 catch-warn 과 의미 동등.
+4. **영향 면 한정**: `s3Service.delete` 호출처는 KB remove 루프(:680)와 `removeDocument` 단건(:784) 뿐 — 후자는 무변경 유지.
+
+잔여 주의: (a) `DeleteObjects` 요청당 **1000키 상한** — 청크 분할 필수. (b) 실검증은 로컬 가동 인스턴스(minio/minio:latest) 기준 — docker-compose 고정 태그(RELEASE.2025-04-22)는 dockerized e2e 게이트에서 동일 확인(아래 검증 단계 포함). (c) 프로덕션 AWS S3 는 표준 API 라 무문제.
+
+**개선 방안** (B안 확정 기준):
+
+1. `s3.service.ts` 에 `deleteMany(keys: string[]): Promise<{ errored: string[] }>` 신설 — 1000키 청크로 `DeleteObjectsCommand` 발행, 응답 `Errors[].Key` 수집해 반환.
+2. KB `remove()` 루프를 `const { errored } = await s3Service.deleteMany(docs.map(d => d.fileUrl))` + errored 일괄 `logger.warn` 으로 교체 — 명령 단위 try/catch(네트워크 실패 시 전체 best-effort warn) 유지.
+3. `removeDocument` 단건 경로는 무변경 (기존 `delete(key)` 유지).
 
 **옵션 비교**:
 
@@ -57,11 +67,11 @@
 | B. `deleteMany(keys[])` — `DeleteObjectsCommand`(1000키/요청) | 왕복 1회로 최소 — 100건 ≈ 10초 → 1 RTT | `s3.service.ts` 신규 표면 추가 + MinIO 호환 확인 선행 필요. 부분 실패가 응답 body `Errors` 배열로 와서 best-effort warn 파싱 로직 별도 구현 |
 | C. 보류(현상 유지) | 변경 비용 0 | 100건 × ~100ms ≈ 10초 직렬 블로킹 지속 |
 
-**권장**: A — best-effort 의미론을 무손상 유지하면서 지연을 청크 폭만큼 줄이고, 기존 단건 delete mock 을 재사용해 검증 면이 좁다. B 는 MinIO 호환 검증이라는 외부 의존이 있어 후속 최적화로 분리한다. 어느 쪽이든 `data-flow/4-file-storage.md` "for 루프" code-sync 문구 갱신(planner) 동반은 동일.
+**권장 → 결정**: ~~A~~ → **B (✅ 2026-06-10 사용자 결정)** — 당초 A 권장의 유일한 근거가 "B 의 MinIO 호환 검증이라는 외부 의존" 이었는데, 위 실검증으로 해소됐다. B 는 왕복 1회(청크당)로 A(동시화만, 왕복 N)보다 구조적으로 우수하고, `Errors` 멱등 의미론 확인으로 best-effort warn 파싱도 단순함이 입증됐다. `data-flow/4-file-storage.md` "for 루프" code-sync 문구 갱신(planner) 동반은 동일.
 
-- **검증**: S3 mock 부분 실패 시 KB row 삭제 진행 + warn 확인, 100건 삭제 소요시간 측정.
-- **회귀 위험**: 병렬화 rate-limit — 청크 상한으로 완화.
-- **spec 갱신**: **필요** — `data-flow/4-file-storage.md` 의 "for 루프" code-sync 문구 갱신 (project-planner).
+- **검증**: `deleteMany` unit(청크 경계 0/1/1000/1001, Errors 부분 실패 → errored 반환) + S3 mock 부분 실패 시 KB row 삭제 진행 + warn 확인 + dockerized e2e(고정 태그 MinIO 에서 KB 삭제 경로) + 100건 삭제 소요시간 측정.
+- **회귀 위험**: 청크 분할 누락 시 1000키 초과 KB 에서 API 거부. Quiet 모드 사용 시 Deleted 목록 미반환 — errored 계산에 영향 없게 Errors 만 사용.
+- **spec 갱신**: **필요** — `data-flow/4-file-storage.md` 의 "for 루프" code-sync 문구를 배치 삭제로 갱신 (project-planner).
 
 ### #3 [Critical] `sortByStartedAt` — WS 이벤트마다 전체 재정렬 O(N² log N)
 
@@ -308,9 +318,11 @@
 - **회귀 위험**: 카운트 의미 변경 시 KB-GR-SR-06 표면 수치 변경(UI 영향).
 - **spec 갱신**: 의미 변경 시에만 §4.3 (planner).
 
-### #13 [Minor] Undo 스택 — 변경마다 전체 nodes/edges shallow copy (측정 선행 — wontfix 가능)
+### ~~#13 [Minor] Undo 스택 — 변경마다 전체 nodes/edges shallow copy~~ — 종결
 
-- [ ] 미착수 — `editor-store.ts:531-532`
+- [x] 종결 — ✅ 2026-06-10 사용자 결정: **C (현상 유지 종결)** — `editor-store.ts:531-532`
+
+> 결정 메모: shallow copy(참조 배열 복사) + `MAX_UNDO=50` cap 구조상 실효가 낮다는 평가를 근거로, 측정(A안) 없이 종결을 택했다. C 안의 트레이드오프("프레임 침범 여부 미확인인 채 종결")는 인지된 상태의 결정 — 향후 대형 캔버스에서 입력 지연이 실관측되면 본 항목을 재오픈해 A(측정)부터 재개한다.
 
 **spec 대조**: D — Undo 기능은 `0-canvas.md §6` spec 약속, 저장 방식(스냅샷 vs diff)은 무언급. shallow copy + MAX_UNDO=50 cap 으로 실효 낮음.
 
