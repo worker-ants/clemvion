@@ -141,9 +141,18 @@ describe('AuthService', () => {
               .fn()
               .mockImplementation((cb: (manager: unknown) => Promise<void>) => {
                 const mockManager = {
-                  getRepository: jest.fn().mockReturnValue({
-                    update: jest.fn().mockResolvedValue(undefined),
-                  }),
+                  // 05 C-1 — refresh 회전이 트랜잭션 안에서 RefreshToken repo 로
+                  // revoke(update) + INSERT(create/save) 한다. RefreshToken 은
+                  // 외부 단언과 동일한 mock 으로 라우팅하고, 그 외(User 등)는 generic.
+                  getRepository: jest
+                    .fn()
+                    .mockImplementation((entity: unknown) =>
+                      entity === RefreshToken
+                        ? mockRefreshTokenRepo
+                        : {
+                            update: jest.fn().mockResolvedValue(undefined),
+                          },
+                    ),
                 };
                 return cb(mockManager);
               }),
@@ -529,6 +538,47 @@ describe('AuthService', () => {
       const result = await service.refresh('valid-refresh-token');
       expect(result.accessToken).toBe('mock-access-token');
       expect(refreshTokenRepo.update).toHaveBeenCalled();
+    });
+
+    it('rotates revoke + issue inside a single transaction (05 C-1 atomicity)', async () => {
+      refreshTokenRepo.findOne.mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        familyId: 'family-1',
+        isRevoked: false,
+        expiresAt: new Date(Date.now() + 86400000),
+        user: mockUser,
+      });
+
+      await service.refresh('valid-refresh-token');
+
+      // revoke(UPDATE) 와 신규 토큰 INSERT 는 dataSource.transaction 안에서 일어난다.
+      expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(refreshTokenRepo.update).toHaveBeenCalledWith('rt-1', {
+        isRevoked: true,
+        lastUsedAt: expect.any(Date),
+        lastUsedIp: null,
+      });
+      expect(refreshTokenRepo.save).toHaveBeenCalled();
+    });
+
+    it('propagates failure (transaction rolls back) when issuing the new token fails', async () => {
+      refreshTokenRepo.findOne.mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        familyId: 'family-1',
+        isRevoked: false,
+        expiresAt: new Date(Date.now() + 86400000),
+        user: mockUser,
+      });
+      // INSERT(신규 토큰 save) 실패 주입 — 트랜잭션이 reject 되어(실 DB 에선 revoke 롤백)
+      // 구 토큰 is_revoked=false 가 유지된다. 단위에서는 에러 전파로 검증.
+      refreshTokenRepo.save.mockRejectedValueOnce(new Error('insert failed'));
+
+      await expect(service.refresh('valid-refresh-token')).rejects.toThrow(
+        'insert failed',
+      );
+      expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
     });
 
     it('should revoke family on reuse detection', async () => {
