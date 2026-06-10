@@ -104,10 +104,7 @@ describe('S3Service.deleteMany', () => {
       .mockResolvedValueOnce({
         Errors: [{ Key: 'bad-2', Code: 'InternalError' }, { Code: 'NoKey' }],
       });
-    const keys = [
-      ...Array.from({ length: 1000 }, (_, i) => `k${i}`),
-      'tail-1',
-    ];
+    const keys = [...Array.from({ length: 1000 }, (_, i) => `k${i}`), 'tail-1'];
 
     const result = await service.deleteMany(keys);
 
