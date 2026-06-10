@@ -69,8 +69,17 @@ export class HealthController {
     description:
       '의존성을 점검하지 않고 프로세스 생존만 확인합니다. 항상 200 을 반환합니다. 인증이 필요하지 않습니다.',
   })
-  @ApiOkResponse({ description: '프로세스 생존 ({ status: "ok" })' })
-  live() {
+  @ApiOkResponse({
+    description: '프로세스 생존',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', example: 'ok' },
+      },
+      required: ['status'],
+    },
+  })
+  live(): { status: 'ok' } {
     return { status: 'ok' };
   }
 }
