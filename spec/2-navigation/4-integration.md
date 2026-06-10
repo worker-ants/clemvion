@@ -941,7 +941,7 @@ window.close();
 
 > `service_type='mcp'` Integration 은 OAuth refresh token 흐름이 아니므로 `token_expires_at` 가 항상 NULL → 본 §11 의 임계치 알림 흐름은 적용되지 않는다. MCP 인증 실패는 노드 실행 시점에 401/403 으로 감지되어 `error(auth_failed)` 로 격하되며, 사용자는 `Rotate credentials` 로 토큰을 교체한다 (상세 [Spec MCP Client §8](../5-system/11-mcp-client.md#8-에러-처리)).
 
-> `service_type='cafe24'` Integration 은 OAuth refresh token 을 보유하므로 본 §11 의 임계치 알림 흐름이 정상 적용된다. `token_expires_at` 가 만료 7일/3일/당일 임계에 도달하면 `integration_expired` 알림이 발사된다. Refresh 실패 시 §10.5 의 원자 갱신 정책이 partial write 를 방지하며, 갱신 실패한 토큰 셋은 그대로 expire 처리되어 사용자에게 reauthorize 권장.
+> `service_type='cafe24'` Integration 은 OAuth refresh token 을 보유하므로 **refresh-capable provider** 다 (`isRefreshCapable`). 따라서 `token_expires_at` 임계 도달 시 passive `integration_expired` 알림은 발사되지 않는다 (§11.2 — refresh_token 없는 provider 한정). 대신 `connected-expiry` 0d 분기가 `cafe24-token-refresh` 큐로 갱신을 시도하고, refresh 실패 시 §10.5 원자 갱신 정책이 partial write 를 방지하며 worker 가 `error(auth_failed)` 로 전이시켜 그때 active `integration_action_required` 알림이 발사된다.
 
 ### 11.1 스캐너 잡
 
@@ -952,7 +952,7 @@ window.close();
 
 | Job name | 대상 | 동작 |
 |----------|------|------|
-| `connected-expiry` | `status NOT IN (expired, error, pending_install) AND token_expires_at IS NOT NULL` | `remain ≤ 0d`: `service_type='cafe24'` AND `credentials.refresh_token` 존재 행은 `cafe24-token-refresh` 큐 enqueue (jobId dedup — `cafe24-background-refresh` 와 동일 경로) + 알림. refresh 실패는 worker (`Cafe24TokenRefreshProcessor`) 가 `error(auth_failed)` 로 전이시키므로 본 잡은 status 변경 안 함. 그 외 (refresh_token 없는 provider) 는 종전대로 `status=expired` + 알림. `remain ≤ 3d` / `≤ 7d` → 알림만 (중복 방지 키, status 변경 없음). |
+| `connected-expiry` | `status NOT IN (expired, error, pending_install) AND token_expires_at IS NOT NULL` | `remain ≤ 0d`: **refresh-capable provider** (`isRefreshCapable` = `service_type ∈ {cafe24, makeshop}` AND `credentials.refresh_token` 존재) 는 `expired` 격하·passive 알림 대상에서 제외 (§11.2) — `cafe24` 는 `cafe24-token-refresh` 큐 enqueue (jobId dedup — `cafe24-background-refresh` 와 동일 경로, safety-net), `makeshop` 은 in-call proactive / reactive_401 자가 회복에 위임 (enqueue 없음). refresh 실패는 worker (`Cafe24TokenRefreshProcessor`) 또는 in-call 경로가 `error(auth_failed)` 로 전이시키며 그 시점에 active `integration_action_required` 알림이 발사된다 — 본 잡은 status 변경 안 함. **그 외 (refresh_token 없는 provider)** 는 `status=expired, status_reason=token_expired` 격하 + passive `integration_expired` 알림. `remain ≤ 3d` / `≤ 7d` → refresh_token 없는 provider 만 알림 (중복 방지 키, status 변경 없음). |
 | `pending-install-ttl` | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h` (service-agnostic — Cafe24 Private 및 MakeShop ShopStore install-first 통합 모두 sweep. `pending_install` 상태인 어떤 service_type 도 TTL 경과 시 처리) | `status='expired', status_reason='install_timeout', install_token=NULL` 으로 bulk UPDATE. **격리 수준**: PostgreSQL default READ COMMITTED + UPDATE … WHERE 의 row-level write lock 으로 충분. WHERE 절이 단일 행 단위로 매칭되고, `pending_install → expired` 전이는 idempotent (이미 expired 인 행은 WHERE 의 status 조건에서 자동 제외) 이라 동시 실행 (예: cron + 수동 호출) 시 한 cycle 의 일부 행을 두 잡이 나눠 처리하더라도 최종 상태는 동일. SERIALIZABLE / advisory lock 불필요. **알림 미발사** — 사용자가 외부 install 흐름 진행 중인 명시적 상태로 UI 배지 + 통합 상세 페이지로 통지 충분 (§11.2 + Rationale "install_timeout 알림 미발사" 참고). |
 | `usage-log-prune` | `integration_usage_log.at < now-90d` | 행 삭제 (보존 정책) |
 | `cafe24-background-refresh` | `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-7d OR last_rotated_at IS NULL)` | `cafe24-token-refresh` 큐로 enqueue (`jobId = integrationId` dedup). 실제 refresh 는 `Cafe24TokenRefreshProcessor` worker 가 수행. 7일 임계 + 6h cron = refresh_token 14일의 50% 마진 (cron 누락 1회 흡수). scheduler ID `cafe24-background-refresh-daily` 는 historical 보존 — BullMQ idempotent upsert 활용 (ID 변경 시 옛 Redis entry 가 orphan 으로 잔존해 daily/6h 가 동시 fire 되는 회귀 위험). 자세한 근거는 [Rationale](#rationale) 참조. |
@@ -962,18 +962,22 @@ window.close();
 ```
 for each integration:
   remain = token_expires_at - now()
+  refresh_capable = isRefreshCapable(integration)   # service_type ∈ {cafe24, makeshop} AND credentials.refresh_token
+  if refresh_capable:
+    # §11.2 — refresh-capable provider 는 passive 알림·격하 대상 아님
+    if remain <= 0d AND service_type='cafe24':
+      → cafe24-token-refresh 큐 enqueue (jobId=integrationId, safety-net)
+    # makeshop: in-call proactive / reactive_401 이 갱신 — enqueue 없음
+    continue   # 격하·passive 알림 없음 (refresh 실패 시 active 알림은 §11.2)
+  # refresh_token 없는 provider:
   if remain <= 0d:
-    if service_type='cafe24' AND credentials.refresh_token 존재:
-      → cafe24-token-refresh 큐 enqueue (jobId=integrationId)
-      → 알림 (status 변경 없음 — worker 가 결과에 따라 connected 유지/error 전이)
-    else:
-      → status=expired, 알림 (임계치: 당일)
+    → status=expired, status_reason=token_expired, 알림 (임계치: 당일)
   elif remain <= 3d → 알림 (임계치: 3일, 중복 방지 키 있음)
   elif remain <= 7d → 알림 (임계치: 7일, 중복 방지)
   else              → skip
 ```
 
-> **MakeShop**: makeshop 은 `cafe24-background-refresh` 동형의 배경 갱신 잡을 두지 않는다 — refresh_token TTL 이 30~90일로 충분히 길어 **proactive (호출 직전 `ensureFreshToken`) + reactive_401 자가 회복**으로 커버된다 ([MakeShop 노드 §4 step 6](../4-nodes/4-integration/5-makeshop.md#4-실행-로직), §9.1). 따라서 `connected-expiry` 의 `remain ≤ 0d` 분기는 makeshop 을 cafe24 와 동일한 **refresh-capable provider** 로 취급한다 — `credentials.refresh_token` 이 유효한 makeshop 행은 `expired` 로 격하하지 않고, in-call proactive / reactive_401 경로가 이미 access_token 을 갱신했음을 전제한다 (위 의사코드의 `service_type='cafe24'` 분기는 cafe24 전용 배경-큐 enqueue 경로를 가리키며, makeshop 은 그 enqueue 없이 동일하게 `expired` 격하 대상에서 제외된다). 즉 refresh_token 을 보유한 통합(cafe24·makeshop)은 access_token 만 만료된 상태에서 `expired` 로 잘못 격하되지 않는다.
+> **MakeShop**: makeshop 은 `cafe24-background-refresh` 동형의 배경 갱신 잡을 두지 않는다 — refresh_token TTL 이 30~90일로 충분히 길어 **proactive (호출 직전 `ensureFreshToken`) + reactive_401 자가 회복**으로 커버된다 ([MakeShop 노드 §4 step 6](../4-nodes/4-integration/5-makeshop.md#4-실행-로직), §9.1). 따라서 `isRefreshCapable` 은 makeshop 을 cafe24 와 동일한 **refresh-capable provider** 로 취급한다 — `credentials.refresh_token` 이 유효한 makeshop 행은 위 의사코드의 `refresh_capable` 분기로 들어가 `expired` 격하·passive 알림 대상에서 제외된다 (cafe24 전용 배경-큐 enqueue 경로는 타지 않음; in-call proactive / reactive_401 경로가 access_token 을 갱신함을 전제). 즉 refresh_token 을 보유한 통합(cafe24·makeshop)은 access_token 만 만료된 상태에서 `expired` 로 잘못 격하되지 않으며 불필요한 만료 알림도 받지 않는다.
 
 ### 11.2 알림 생성
 
