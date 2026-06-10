@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
+import { In } from 'typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import {
@@ -3645,6 +3646,103 @@ describe('ExecutionEngineService', () => {
       expect(ctx.variables['counter']).toBe(5);
       // 시스템 변수도 공존해야 함 (충돌 없음).
       expect(ctx.variables['__workspaceId']).toBe('ws-rehydrate-w2');
+    });
+
+    // perf #1 — rehydration 의 per-node findOne N+1 을 단일 In() 배치 조회로
+    // 교체한 회귀 가드. 의미론 고정: (a) findOne 미사용 + find 1회, (b) 같은
+    // nodeId 다중 row(loop iteration)에서 startedAt 최신 COMPLETED 1건 채택
+    // (DESC 첫 등장 — _resumeCheckpoint 등 보존 필드를 가진 최신 row 와 선택
+    // row 가 일치해야 한다는 conventions 불변식 포함), (c) COMPLETED 부재
+    // 노드는 executedNodes 에 미포함.
+    it('perf #1 — rehydration 은 nodeExecution 을 단일 배치 조회하고 nodeId 당 최신 COMPLETED 를 채택한다', async () => {
+      const rehydrateExecId = 'exec-perf1-batch';
+      type RehydrateSubject = {
+        rehydrateContext: (
+          execution: unknown,
+          waitingNodeExec: unknown,
+        ) => Promise<{ _executedNodes: Set<string> }>;
+        contextService: {
+          deleteContext: (id: string) => void;
+          setNodeOutput: (
+            key: unknown,
+            nodeId: string,
+            output: unknown,
+          ) => void;
+        };
+      };
+      const subject = service as unknown as RehydrateSubject;
+      subject.contextService.deleteContext(rehydrateExecId);
+      const setNodeOutputSpy = jest.spyOn(
+        subject.contextService,
+        'setNodeOutput',
+      );
+
+      mockWorkflowRepo.findOne.mockResolvedValueOnce({
+        ...mockWorkflow,
+        workspaceId: 'ws-perf1',
+        workspace: { id: 'ws-perf1', name: 'P1', settings: {} },
+      });
+      // 로그 타임라인: n1 이 loop iteration 으로 2회 등장 + n2 + COMPLETED
+      // row 가 없는 n3.
+      mockExecutionNodeLogRepo.find.mockResolvedValueOnce([
+        { id: 1, nodeId: 'n1' },
+        { id: 2, nodeId: 'n2' },
+        { id: 3, nodeId: 'n1' },
+        { id: 4, nodeId: 'n3' },
+      ]);
+      // 배치 조회 응답 (startedAt DESC): n1 의 최신은 iter-2 출력.
+      mockNodeExecutionRepo.find = jest.fn().mockResolvedValueOnce([
+        {
+          nodeId: 'n1',
+          startedAt: new Date('2026-06-10T00:00:03Z'),
+          outputData: { output: { iter: 2 } },
+        },
+        {
+          nodeId: 'n2',
+          startedAt: new Date('2026-06-10T00:00:02Z'),
+          outputData: { output: { n2: true } },
+        },
+        {
+          nodeId: 'n1',
+          startedAt: new Date('2026-06-10T00:00:01Z'),
+          outputData: { output: { iter: 1 } },
+        },
+      ]);
+      const findOneCallsBefore =
+        mockNodeExecutionRepo.findOne.mock.calls.length;
+
+      const ctx = await subject.rehydrateContext(
+        {
+          id: rehydrateExecId,
+          workflowId,
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+          recursionDepth: 0,
+          dryRun: false,
+          conversationThread: null,
+          userVariables: {},
+        },
+        { id: 'ne-wait', nodeId: 'n-wait', outputData: null },
+      );
+
+      // (a) 배치 1회 — findOne 미사용.
+      expect(mockNodeExecutionRepo.find).toHaveBeenCalledTimes(1);
+      expect(mockNodeExecutionRepo.find.mock.calls[0][0].where.nodeId).toEqual(
+        In(['n1', 'n2', 'n3']),
+      );
+      expect(mockNodeExecutionRepo.findOne.mock.calls.length).toBe(
+        findOneCallsBefore,
+      );
+      // (b) nodeId 당 최신 1건 — n1 은 iter-2 가 복원돼야 한다 (옛 값 회귀 차단).
+      const n1Call = setNodeOutputSpy.mock.calls.find((c) => c[1] === 'n1');
+      expect(n1Call?.[2]).toEqual({ output: { iter: 2 } });
+      const n2Call = setNodeOutputSpy.mock.calls.find((c) => c[1] === 'n2');
+      expect(n2Call?.[2]).toEqual({ output: { n2: true } });
+      // (c) COMPLETED 부재 노드(n3)는 복원/완료 처리되지 않는다.
+      expect(ctx._executedNodes.has('n1')).toBe(true);
+      expect(ctx._executedNodes.has('n2')).toBe(true);
+      expect(ctx._executedNodes.has('n3')).toBe(false);
+
+      setNodeOutputSpy.mockRestore();
     });
   });
 
@@ -13604,6 +13702,139 @@ describe('ExecutionEngineService', () => {
       expect(build(undefined)).toBeUndefined();
       expect(build(null)).toBeUndefined();
       expect(build('x' as unknown)).toBeUndefined();
+    });
+  });
+
+  // W2 (SUMMARY) — env read-once 캐시 회귀 가드: resolveMaxNodeIterations /
+  // resolveParallelEngineFlag 가 configService.get 을 최초 1회만 호출하는지
+  // spy call-count 로 직접 단언한다 (캐시가 깨져 매 실행마다 재읽기해도
+  // 값 자체는 동일해 침묵하는 회귀 방어).
+  describe('env read-once cache (perf #14) — W2', () => {
+    it('resolveMaxNodeIterations: configService.get 이 MAX_NODE_ITERATIONS 키로 첫 execute 에서 1회만 호출된다', async () => {
+      // 단순 워크플로우를 실행해 loadAndBuildGraph → resolveMaxNodeIterations 흐름을 타게 한다.
+      mockConfigService.get.mockClear();
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      const maxIterCalls = mockConfigService.get.mock.calls.filter(
+        (c: unknown[]) => c[0] === 'MAX_NODE_ITERATIONS',
+      );
+      expect(maxIterCalls).toHaveLength(1);
+    });
+
+    it('resolveMaxNodeIterations: 두 번째 execute 에서 configService.get 재호출 없음 (인스턴스 캐시 유지)', async () => {
+      // 첫 번째 실행으로 maxNodeIterationsOnce 캐시를 warm-up 한 뒤
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      mockConfigService.get.mockClear();
+
+      // 두 번째 실행 — 캐시가 있으므로 MAX_NODE_ITERATIONS get 재호출 없어야 함
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      const maxIterCalls = mockConfigService.get.mock.calls.filter(
+        (c: unknown[]) => c[0] === 'MAX_NODE_ITERATIONS',
+      );
+      expect(maxIterCalls).toHaveLength(0);
+    });
+
+    // 재리뷰(20_45_51) W1 — PARALLEL_ENGINE 경로도 동일 패턴으로 가드.
+    it('resolveParallelEngineFlag: configService.get 이 PARALLEL_ENGINE 키로 1회만 호출된다 (read-once)', async () => {
+      // 인스턴스 캐시를 직접 비워 cold 상태에서 시작 (다른 테스트의 warm-up 영향 제거).
+      (
+        service as unknown as { parallelEngineFlagOnce: string | null }
+      ).parallelEngineFlagOnce = null;
+      mockConfigService.get.mockClear();
+
+      type FlagSubject = { resolveParallelEngineFlag: () => string };
+      const svc = service as unknown as FlagSubject;
+      expect(svc.resolveParallelEngineFlag()).toBe('v1');
+      expect(svc.resolveParallelEngineFlag()).toBe('v1');
+
+      const flagCalls = mockConfigService.get.mock.calls.filter(
+        (c: unknown[]) => c[0] === 'PARALLEL_ENGINE',
+      );
+      expect(flagCalls).toHaveLength(1);
+    });
+
+    it('resolveParallelEngineFlag: warm 캐시 상태에서는 configService.get 재호출이 없다', async () => {
+      type FlagSubject = { resolveParallelEngineFlag: () => string };
+      const svc = service as unknown as FlagSubject;
+      svc.resolveParallelEngineFlag(); // warm-up
+
+      mockConfigService.get.mockClear();
+      svc.resolveParallelEngineFlag();
+
+      const flagCalls = mockConfigService.get.mock.calls.filter(
+        (c: unknown[]) => c[0] === 'PARALLEL_ENGINE',
+      );
+      expect(flagCalls).toHaveLength(0);
+    });
+  });
+
+  // W3b (SUMMARY) — assertNoContainerCycle(perf #5) 회귀 가드.
+  // private 메서드를 직접 호출해 CONTAINER_CYCLE 에러 발생과 에러 메시지를 단언한다.
+  // perf #5 리팩터(byId Map + children 재사용) 후 의미론은 동일함을 고정.
+  describe('assertNoContainerCycle — named-error 회귀 가드 (W3b)', () => {
+    type CycleSubject = {
+      assertNoContainerCycle: (
+        containerNode: Partial<Node>,
+        children: Partial<Node>[],
+        byId: Map<string, Partial<Node>>,
+      ) => void;
+    };
+
+    it('A.containerId=B, B.containerId=A 직접 사이클 → CONTAINER_CYCLE 에러 throws', () => {
+      // chain: child-a → container-x → child-a (containerId 순환)
+      // child-a.containerId = container-x (직접 부모), container-x.containerId = child-a
+      // assertNoContainerCycle 은 child-a 의 containerId 체인을 따라 순환을 검출한다.
+      const containerX: Partial<Node> = {
+        id: 'container-x',
+        label: 'ContainerX',
+        type: 'foreach',
+        containerId: 'child-a', // 순환 링크: container-x → child-a
+      };
+      const childA: Partial<Node> = {
+        id: 'child-a',
+        label: 'ChildA',
+        type: 'test_node',
+        containerId: 'container-x', // 직접 부모
+      };
+      const byId = new Map<string, Partial<Node>>([
+        ['container-x', containerX],
+        ['child-a', childA],
+      ]);
+
+      const svc = service as unknown as CycleSubject;
+      expect(() =>
+        svc.assertNoContainerCycle(containerX, [childA], byId),
+      ).toThrow(/CONTAINER_CYCLE/);
+    });
+
+    it('사이클 없는 정상 체인 → 예외 없음', () => {
+      const containerX: Partial<Node> = {
+        id: 'container-x',
+        label: 'ContainerX',
+        type: 'foreach',
+        containerId: null, // 최상위 컨테이너
+      };
+      const childA: Partial<Node> = {
+        id: 'child-a',
+        label: 'ChildA',
+        type: 'test_node',
+        containerId: 'container-x',
+      };
+      const byId = new Map<string, Partial<Node>>([
+        ['container-x', containerX],
+        ['child-a', childA],
+      ]);
+
+      const svc = service as unknown as CycleSubject;
+      expect(() =>
+        svc.assertNoContainerCycle(containerX, [childA], byId),
+      ).not.toThrow();
     });
   });
 });

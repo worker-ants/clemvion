@@ -48,6 +48,14 @@ export interface NodeResult {
   /** ISO timestamp when this node started executing (for chronological sorting) */
   startedAt?: string;
   /**
+   * Internal cache of `Date.parse(startedAt)` computed once on ingest — **not
+   * for display** (display must go through `@/lib/utils/date`, see AGENTS.md);
+   * used only as the numeric comparison key by `selectSortedNodeResults` so
+   * the timeline sort never re-parses the ISO string per comparison.
+   * `undefined` when `startedAt` is absent.
+   */
+  startedAtEpoch?: number;
+  /**
    * When present, this node ran inside an inline Sub-Workflow invocation and
    * the value is the `nodeExecutionId` of the invoking Sub-Workflow (`workflow`
    * node) row. Used by the run-results timeline to group children under a
@@ -205,7 +213,31 @@ interface ExecutionState {
   executionId: string | null;
   status: ExecutionStatus;
   nodeStatuses: Map<string, NodeStatusInfo>;
+  /**
+   * Arrival-ordered (NOT sorted). The chronological timeline order is derived
+   * on read via `selectSortedNodeResults`. Keeping arrival order stable means
+   * array indices never shift, so the derived index Maps below stay valid
+   * without rebuilds on every event.
+   */
   nodeResults: NodeResult[];
+  /**
+   * Derived lookup indices kept in sync with `nodeResults` on every mutation
+   * (append/update/clear). They live on state to mirror the existing
+   * `nodeStatuses` Map pattern but are not meant to be React-subscribed —
+   * consumers read them through `findNodeResult`. SoT for the predicate
+   * semantics: use-execution-events.ts 4 `.find()` sites + addNodeResult
+   * fallback.
+   */
+  /** nodeExecutionId → index into `nodeResults`. */
+  nodeResultIndexByExecId: Map<string, number>;
+  /** nodeId → index of the most recently appended row for that nodeId
+   *  (replaces addNodeResult's reverse "most recent row" scan). */
+  lastIndexByNodeId: Map<string, number>;
+  /** nodeId → index of the FIRST row appended WITHOUT a nodeExecutionId
+   *  (preserves the `.find()` first-match semantics of the 4 event sites'
+   *  `!r.nodeExecutionId && r.nodeId === nodeId` predicate). A row dropped
+   *  from here once it acquires a nodeExecutionId via update. */
+  firstNoExecIdIndexByNodeId: Map<string, number>;
   startedAt: string | null;
 
   /** Form node waiting state */
@@ -230,6 +262,17 @@ interface ExecutionState {
   startExecution: (executionId: string) => void;
   updateNodeStatus: (nodeId: string, info: NodeStatusInfo) => void;
   addNodeResult: (result: NodeResult) => void;
+  /**
+   * O(1) replacement for the 4 `useExecutionStore.getState().nodeResults.find(...)`
+   * sites in use-execution-events.ts. Predicate is identical: when
+   * `nodeExecutionId` is present, match the row with that exec id; otherwise
+   * return the FIRST row appended without a nodeExecutionId for `nodeId`
+   * (matching the old `.find(r => !r.nodeExecutionId && r.nodeId === nodeId)`).
+   */
+  findNodeResult: (
+    nodeExecutionId: string | undefined,
+    nodeId: string,
+  ) => NodeResult | undefined;
   completeExecution: () => void;
   failExecution: (error?: string) => void;
   pauseForForm: (nodeId: string, formConfig: unknown) => void;
@@ -325,13 +368,49 @@ function latestResultIdForNode(
   return latest.nodeExecutionId ?? nodeId;
 }
 
-function sortByStartedAt(results: NodeResult[]): NodeResult[] {
-  return [...results].sort((a, b) => {
-    if (!a.startedAt && !b.startedAt) return 0;
-    if (!a.startedAt) return 1;
-    if (!b.startedAt) return -1;
-    return new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime();
-  });
+/**
+ * Numeric sort key for a result: the cached `startedAtEpoch` when present,
+ * else a one-off `Date.parse(startedAt)` (defends rows produced outside
+ * `addNodeResult`, e.g. a raw `setState` in tests). Returns `NaN` when there
+ * is no `startedAt` at all — callers treat `NaN` as "sinks to the end".
+ */
+function resultEpoch(r: NodeResult): number {
+  if (typeof r.startedAtEpoch === "number") return r.startedAtEpoch;
+  return r.startedAt ? Date.parse(r.startedAt) : Number.NaN;
+}
+
+/**
+ * Memoized chronological projection of an arrival-ordered `nodeResults` array.
+ * Same `results` reference → same sorted array reference (WeakMap), so the
+ * several components that read the timeline share one sort per frame instead
+ * of re-sorting per render or per WS event.
+ *
+ * Ordering semantics preserved from the old `sortByStartedAt`:
+ *  - ascending by `startedAt` epoch,
+ *  - rows without a `startedAt` sink to the end (defensive),
+ *  - ties keep arrival order (Array.prototype.sort is stable).
+ */
+const sortedCache = new WeakMap<readonly NodeResult[], NodeResult[]>();
+export function selectSortedNodeResults(results: NodeResult[]): NodeResult[] {
+  const cached = sortedCache.get(results);
+  if (cached) return cached;
+  // Decorate with arrival index so the comparator can keep ties stable even on
+  // engines where sort stability might be in doubt, and so the NaN (no
+  // startedAt) bucket preserves arrival order at the tail.
+  const sorted = results
+    .map((r, i) => ({ r, i, e: resultEpoch(r) }))
+    .sort((a, b) => {
+      const aNaN = Number.isNaN(a.e);
+      const bNaN = Number.isNaN(b.e);
+      if (aNaN && bNaN) return a.i - b.i;
+      if (aNaN) return 1;
+      if (bNaN) return -1;
+      if (a.e !== b.e) return a.e - b.e;
+      return a.i - b.i;
+    })
+    .map((x) => x.r);
+  sortedCache.set(results, sorted);
+  return sorted;
 }
 
 /**
@@ -389,11 +468,14 @@ const CLEAR_CONVERSATION_SNAPSHOT = {
   conversationMessages: [] as ConversationItem[],
 };
 
-export const useExecutionStore = create<ExecutionState>((set) => ({
+export const useExecutionStore = create<ExecutionState>((set, get) => ({
   executionId: null,
   status: "idle",
   nodeStatuses: new Map(),
   nodeResults: [],
+  nodeResultIndexByExecId: new Map(),
+  lastIndexByNodeId: new Map(),
+  firstNoExecIdIndexByNodeId: new Map(),
   startedAt: null,
   waitingNodeId: null,
   waitingFormConfig: null,
@@ -411,6 +493,9 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       status: "running",
       nodeStatuses: new Map(),
       nodeResults: [],
+      nodeResultIndexByExecId: new Map(),
+      lastIndexByNodeId: new Map(),
+      firstNoExecIdIndexByNodeId: new Map(),
       startedAt: new Date().toISOString(),
       selectedResultNodeId: null,
       // §9.7.1 — startExecution 만 두 묶음 모두 클리어
@@ -436,19 +521,36 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       // don't strand the existing iteration entry and create a phantom
       // duplicate. The old strict "only rows without nodeExecutionId" match
       // caused the Carousel-after-button-click ghost row.
+      //
+      // Lookups are O(1) via the derived index Maps instead of a findIndex /
+      // reverse scan over the whole array. `lastIndexByNodeId` reproduces the
+      // old "most recent row for that nodeId" reverse scan exactly.
+      // Resolve via the derived indices, but validate the candidate row still
+      // matches: a raw `setState({ nodeResults })` (test seeding, or any path
+      // that bypasses addNodeResult) can leave the indices stale. A mismatch
+      // is treated as a miss, falling back to append — never crashing or
+      // clobbering an unrelated row.
       let targetIndex = -1;
       if (result.nodeExecutionId) {
-        targetIndex = state.nodeResults.findIndex(
-          (r) => r.nodeExecutionId === result.nodeExecutionId,
-        );
+        const idx = state.nodeResultIndexByExecId.get(result.nodeExecutionId);
+        if (
+          idx !== undefined &&
+          state.nodeResults[idx]?.nodeExecutionId === result.nodeExecutionId
+        ) {
+          targetIndex = idx;
+        }
       } else {
-        for (let i = state.nodeResults.length - 1; i >= 0; i--) {
-          if (state.nodeResults[i].nodeId === result.nodeId) {
-            targetIndex = i;
-            break;
-          }
+        const idx = state.lastIndexByNodeId.get(result.nodeId);
+        if (idx !== undefined && state.nodeResults[idx]?.nodeId === result.nodeId) {
+          targetIndex = idx;
         }
       }
+
+      // Clone the derived indices so the produced state is a fresh object graph
+      // (Zustand/React reference-equality) — only touched entries mutate.
+      const execIdIndex = new Map(state.nodeResultIndexByExecId);
+      const lastIndex = new Map(state.lastIndexByNodeId);
+      const firstNoExecIdIndex = new Map(state.firstNoExecIdIndexByNodeId);
 
       if (targetIndex >= 0) {
         const prev = state.nodeResults[targetIndex];
@@ -460,30 +562,98 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
         const mergedLabel = incomingLabelIsPlaceholder
           ? prev.nodeLabel
           : result.nodeLabel;
-        const updated = state.nodeResults.map((r, idx) =>
-          idx === targetIndex
-            ? {
-                ...r,
-                ...result,
-                nodeLabel: mergedLabel,
-                // Preserve the original per-execution id once known so later
-                // events without it don't erase it.
-                nodeExecutionId: result.nodeExecutionId ?? r.nodeExecutionId,
-                // Same for parentNodeExecutionId — some mid-flight events
-                // (waiting_for_input) don't carry it, and losing it would
-                // collapse the Sub-Workflow card back to a flat row.
-                parentNodeExecutionId:
-                  result.parentNodeExecutionId ?? r.parentNodeExecutionId,
-                startedAt: result.startedAt ?? prev.startedAt,
-                inputData: result.inputData ?? prev.inputData,
-              }
-            : r,
-        );
-        return { nodeResults: sortByStartedAt(updated) };
+        // Preserve the original per-execution id once known so later events
+        // without it don't erase it.
+        const mergedExecId = result.nodeExecutionId ?? prev.nodeExecutionId;
+        const mergedStartedAt = result.startedAt ?? prev.startedAt;
+        const merged: NodeResult = {
+          ...prev,
+          ...result,
+          nodeLabel: mergedLabel,
+          nodeExecutionId: mergedExecId,
+          // Same for parentNodeExecutionId — some mid-flight events
+          // (waiting_for_input) don't carry it, and losing it would
+          // collapse the Sub-Workflow card back to a flat row.
+          parentNodeExecutionId:
+            result.parentNodeExecutionId ?? prev.parentNodeExecutionId,
+          startedAt: mergedStartedAt,
+          inputData: result.inputData ?? prev.inputData,
+          // Recompute the cached epoch from the merged startedAt (once).
+          startedAtEpoch: mergedStartedAt
+            ? Date.parse(mergedStartedAt)
+            : undefined,
+        };
+        const updated = state.nodeResults.slice();
+        updated[targetIndex] = merged;
+
+        // ── Index maintenance ────────────────────────────────────────────
+        // If the row just acquired a nodeExecutionId (was appended without
+        // one), migrate it out of firstNoExecIdIndexByNodeId into the exec-id
+        // index so subsequent exec-id lookups resolve and no-exec-id fallback
+        // no longer matches a now-identified row.
+        if (mergedExecId) {
+          execIdIndex.set(mergedExecId, targetIndex);
+          if (
+            !prev.nodeExecutionId &&
+            firstNoExecIdIndex.get(prev.nodeId) === targetIndex
+          ) {
+            firstNoExecIdIndex.delete(prev.nodeId);
+          }
+        }
+        // lastIndexByNodeId is unaffected: an update keeps the row at its
+        // existing index, and the nodeId is unchanged.
+        return {
+          nodeResults: updated,
+          nodeResultIndexByExecId: execIdIndex,
+          lastIndexByNodeId: lastIndex,
+          firstNoExecIdIndexByNodeId: firstNoExecIdIndex,
+        };
       }
-      const appended = [...state.nodeResults, result];
-      return { nodeResults: sortByStartedAt(appended) };
+
+      // Append a brand-new row in arrival order.
+      const appendedRow: NodeResult = {
+        ...result,
+        startedAtEpoch: result.startedAt
+          ? Date.parse(result.startedAt)
+          : undefined,
+      };
+      const updated = state.nodeResults.slice();
+      const newIndex = updated.length;
+      updated.push(appendedRow);
+
+      lastIndex.set(appendedRow.nodeId, newIndex);
+      if (appendedRow.nodeExecutionId) {
+        execIdIndex.set(appendedRow.nodeExecutionId, newIndex);
+      } else if (!firstNoExecIdIndex.has(appendedRow.nodeId)) {
+        // First no-exec-id row for this nodeId — preserves `.find()` first
+        // match semantics used by the 4 event sites.
+        firstNoExecIdIndex.set(appendedRow.nodeId, newIndex);
+      }
+      return {
+        nodeResults: updated,
+        nodeResultIndexByExecId: execIdIndex,
+        lastIndexByNodeId: lastIndex,
+        firstNoExecIdIndexByNodeId: firstNoExecIdIndex,
+      };
     }),
+
+  findNodeResult: (nodeExecutionId, nodeId) => {
+    const state = get();
+    // Truthiness (not `!== undefined`) to match the 4 event sites' original
+    // predicate `payload.nodeExecutionId ? ... : !r.nodeExecutionId && ...` —
+    // an empty-string id falls through to the no-exec-id branch.
+    if (nodeExecutionId) {
+      const idx = state.nodeResultIndexByExecId.get(nodeExecutionId);
+      const row = idx !== undefined ? state.nodeResults[idx] : undefined;
+      // Validate against stale indices (raw setState seeding) before returning.
+      return row?.nodeExecutionId === nodeExecutionId ? row : undefined;
+    }
+    const idx = state.firstNoExecIdIndexByNodeId.get(nodeId);
+    const row = idx !== undefined ? state.nodeResults[idx] : undefined;
+    return row && !row.nodeExecutionId && row.nodeId === nodeId
+      ? row
+      : undefined;
+  },
 
   // §9.7.1 — completeExecution 은 입력 affordance 만 클리어, conversation 은 보존
   completeExecution: () =>
@@ -744,6 +914,9 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       status: "idle",
       nodeStatuses: new Map(),
       nodeResults: [],
+      nodeResultIndexByExecId: new Map(),
+      lastIndexByNodeId: new Map(),
+      firstNoExecIdIndexByNodeId: new Map(),
       startedAt: null,
       selectedResultNodeId: null,
       // reset 은 idle 복귀 — 두 묶음 모두 클리어 (startExecution 과 동일 정책)

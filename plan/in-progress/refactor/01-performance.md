@@ -1,6 +1,6 @@
 # Refactor 백로그 — 성능 (2026-06-10 전수 감사)
 
-> 인덱스: [README.md](./README.md). Critical 3 / Major 8 / Minor 4 — **유효 13건 / 철회 1건(#9) / 종결 1건(#13)**.
+> 인덱스: [README.md](./README.md). Critical 3 / Major 8 / Minor 4 — **전 항목 처리 완료 (2026-06-10)**: 구현 10건(#1-#8,#10,#14) / 종결 4건(#11,#12,#13,#15) / 철회 1건(#9).
 > **spec 대조 판정 분포**: A 0 / B 6 / C 0 / D 8 / E 1.
 > (A=의도된 설계, B=spec 무언급, C=spec 괴리, D=부분 언급—본 쟁점 미커버, E=철회)
 > **중복 참조**: #1 은 [05-database.md](./05-database.md) M-4(동일 근원)와 같은 항목이며 본 파일이 본문 소유.
@@ -11,7 +11,7 @@
 
 ### #1 [Critical] resume rehydration N+1 쿼리
 
-- [ ] 미착수 — `backend/src/modules/execution-engine/execution-engine.service.ts:1303-1330`
+- [x] 완료 — A안 구현 (commit 8724d53f: In() 배치 + DESC 첫 등장 dedup, 회귀 가드 테스트 포함. e2e 176 통과)
 
 `resumeFromCheckpoint` 계열이 이전 실행 노드의 각 nodeId 마다 `nodeExecutionRepository.findOne` 을 루프 내 직렬 `await`. ForEach/Loop 워크플로 재개 지연의 직접 원인.
 
@@ -38,7 +38,7 @@
 
 ### #2 [Critical] KB 삭제 시 S3 직렬 삭제 루프
 
-- [ ] 진행 확정 — ✅ 2026-06-10 사용자 결정: **B안** (전제조건 실검증 통과) — `backend/src/modules/knowledge-base/knowledge-base.service.ts:678-684`
+- [x] 완료 — B안 구현 (commit d9499db9 이전의 deleteMany 커밋: `S3Service.deleteMany` 1000키 청크 + KB remove 배치 전환. spec 동기화 = plan/complete/spec-update-perf-backlog-01.md)
 
 문서 N건의 S3 객체를 `for...of await` 직렬 삭제 (100건 × ~100ms ≈ 10초 블로킹).
 
@@ -75,7 +75,7 @@
 
 ### #3 [Critical] `sortByStartedAt` — WS 이벤트마다 전체 재정렬 O(N² log N)
 
-- [ ] 미착수 — `frontend/src/lib/stores/execution-store.ts:328-335,482-485`
+- [x] 완료 — B안 구현 (#8 과 단일 commit 30d99887: 도착순 store + WeakMap memoized `selectSortedNodeResults` accessor + epoch 캐시)
 
 `addNodeResult` 마다 전체 정렬 + comparator 내 `new Date()` 반복 생성. 대형 실행에서 메인 스레드 블로킹.
 
@@ -105,7 +105,7 @@
 
 ### #4 [Major] Dashboard `getSummary` 동일 범위 4+ 회 왕복
 
-- [ ] 미착수 — `backend/src/modules/dashboard/dashboard.service.ts:58-135` (실측 6쿼리 5왕복)
+- [x] 완료 — A안 구현 (집계 2쿼리 + getSummary 테스트 신설. 경계 fixture 보강 = review W3 커밋 c71de465)
 
 **spec 대조**: B — `2-navigation/0-dashboard.md` Rationale 은 의미론(분모 정의 등)만 기록, 쿼리 전략 무언급.
 
@@ -131,7 +131,7 @@
 
 ### #5 [Major] `assertNoContainerCycle` 전체 선형 순회 + Map 중복 생성
 
-- [ ] 미착수 — `execution-engine.service.ts:7869-7884` (`planContainerBody` 의 `nodeMap`:7897 과 이중)
+- [x] 완료 — A안 구현 (commit 8724d53f: nodeMap/children 재사용. 직접 가드 테스트 = c71de465)
 
 **spec 대조**: D — 런타임 사이클 검사(`CONTAINER_CYCLE` 거부)는 `1-data-model.md`·`0-canvas.md` 의 spec 의무, 알고리즘/비용은 무언급.
 
@@ -157,7 +157,7 @@
 
 ### #6 [Major] `planParallelBody` BFS `queue.shift()` O(N²)
 
-- [ ] 미착수 — `execution-engine.service.ts:8226-8239`
+- [x] 완료 — A안 구현 (commit 8724d53f: 인덱스 포인터. 엔진 내 다른 BFS `.shift()` grep 결과 본 지점 외 핫패스 없음 — 후속 불요 기록)
 
 **spec 대조**: B — `10-parallel.md` 는 분기 의미론만 규정, 도달성 계산 알고리즘 무언급. 분기 그래프는 통상 수십 노드라 실효 낮음 — 저비용 정리.
 
@@ -182,7 +182,7 @@
 
 ### #7 [Major] `buildSystemPrompt` 매 턴 노드 카탈로그 재직렬화
 
-- [ ] 미착수 — `workflow-assistant/prompts/system-prompt.ts:52-83`
+- [x] 완료 — A안 구현 (WeakMap defs-키 캐시 + 자매 reset 헬퍼. impl-prep W2 명명 정렬 반영)
 
 **spec 대조**: D — `4-ai-assistant.md §5` 가 "정적 콘텐츠 앞 배치로 prefix cache hit 향상" 을 설계 의도로 명시 + expression reference 캐시를 spec 에 기록 — node catalog 캐시는 **spec 이 채택한 동일 패턴의 미적용 잔여**.
 
@@ -208,7 +208,7 @@
 
 ### #8 [Major] `nodeResults` Array 선형 탐색 — 이벤트마다 O(N)
 
-- [ ] 미착수 — `use-execution-events.ts:763,853,918,963` + `execution-store.ts:441-450`
+- [x] 완료 — B안 구현 (#3 과 단일 commit 30d99887: 인덱스 Map 3종 + `findNodeResult` — 술어 보존. 후속: 인덱스 동기화 헬퍼 캡슐화 = review W1 보류, RESOLUTION 참조)
 
 **spec 대조**: B — WS 이벤트 계약·표시 요건만 spec 규정, store 자료구조 무언급.
 
@@ -242,7 +242,7 @@
 
 ### #10 [Major] 워크플로 임포트 — 트랜잭션 내 개별 save 루프 N+P+M 왕복
 
-- [ ] 미착수 — `workflows.service.ts:270-337`
+- [x] 완료 — A안 구현 (commit d9499db9 + 타입 정합 407e1003: UUID 사전 생성 + 배치 insert 2회. hook 부재 메타데이터 가드 테스트 = c71de465)
 
 **spec 대조**: B — import 는 spec 에 엔드포인트 한 줄(`1-workflow-list.md:126`)만, 삽입 전략 무언급.
 
@@ -267,9 +267,9 @@
 - **회귀 위험**: UUID 사전 생성·hook 우회.
 - **spec 갱신**: 불요.
 
-### #11 [M→m 강등] `clearLlmDefaultConfigCache` — 전체 키 선형 스캔
+### ~~#11 [M→m 강등] `clearLlmDefaultConfigCache` — 전체 키 선형 스캔~~ — 종결
 
-- [ ] 미착수 — `execution-engine.service.ts:7449-7456`
+- [x] 종결 — 권장 C(wontfix) 확정 (2026-06-10, 사용자 방침 "권장안대로 진행") — `execution-engine.service.ts:7449-7456`. 키 수 상한이 "동시 실행 수 × workspace(실질 1)" 로 구조 확정 — 스캔 비용 무시 가능, 측정 불요.
 
 **spec 대조**: B — ai-review INFO 산물(코드 주석 명시), spec 표면 아님. **실효 낮음**: 키 수 상한이 "동시 실행 수 × workspace(실질 1)" 라 스캔 비용 무시 가능 — 우선순위 최하/wontfix 후보로 강등.
 
@@ -293,9 +293,11 @@
 
 ## Minor
 
-### #12 [Minor] RAG graph-traversal — 동일 재귀 CTE 2회 실행 (조건부 — seed 동등성 검증 선행)
+### ~~#12 [Minor] RAG graph-traversal — 동일 재귀 CTE 2회 실행~~ — 종결 (선행 조건 불충족)
 
-- [ ] 미착수 — `rag-search.service.ts:630-656`
+- [x] 종결 — 권장 A 의 선행 조건(seed 동등성) 검증 결과 **비동등** 판정 (2026-06-10) → plan 분기대로 C(현 2회 왕복 유지) 종결.
+
+> **검증 기록**: 메인 쿼리의 외부 `ORDER BY score DESC LIMIT (seedTopK+expandLimit)` 는 expanded 행 수가 expandLimit 를 초과하고 점수가 높을 때 **seed 행을 evict 할 수 있다** (expanded score = cosine × centrality 가중이 약한 seed 의 raw cosine 을 상회 가능 + expanded_chunks CTE 내부 무 LIMIT). 따라서 2차 카운트 쿼리의 seed 모집합(외부 LIMIT 후 반환된 `seedRows`)과 메인 CTE 의 seed 모집합이 동등 보장되지 않음 — 통합 시 `traversedEntityCount` 의 의미(KB-GR-SR-06 표면 수치)가 바뀐다. 현 2회 왕복이 "사용자에게 실제 반환된 seed 기준 순회 요약" 이라는 정확한 의미론. (PR #511 포함 최신 main 기준 코드 `:671-699` 재특정 — consistency W1 조치 완료.)
 
 **spec 대조**: D — `traversedEntityCount` 메타데이터는 `10-graph-rag.md` KB-GR-SR-06 의 spec 약속, 2회 왕복 전략은 무언급. 코드 주석의 "LIMIT 후라 부정확" 우려는 절반만 타당 — PG 재귀 CTE 는 항상 materialize 되므로 통합 가능.
 
@@ -348,7 +350,7 @@
 
 ### #14 [Minor] `MAX_NODE_ITERATIONS`/`PARALLEL_ENGINE` 매 실행 configService 조회
 
-- [ ] 미착수 — `execution-engine.service.ts:1387,3025,1549,3665`
+- [x] 완료 — A안 구현 (commit 8724d53f: lazy read-once + call-count spy 테스트 c71de465. spec read-once 문구 = §2.1 + 10-parallel.md, plan/complete/spec-update-perf-backlog-01.md — draft 의 §1.6 표기는 오참조였음)
 
 **spec 대조**: D — §1.6 은 읽기 시점 무규정이나 §11 의 자매 env 들이 "모듈 로드 시 1회 읽음" 패턴으로 기성 규약 — read-once 전환이 spec 패턴과 정합.
 
@@ -369,11 +371,11 @@
 
 - **검증**: MAX_NODE_ITERATIONS=1 가드·PARALLEL_ENGINE=off rollback 테스트.
 - **회귀 위험**: 테스트 env 주입 방식.
-- **spec 갱신**: 적용 시 §1.6 에 read-once 문구 추가가 일관적 (planner).
+- **spec 갱신**: ~~§1.6~~ → **§2.1 표 + 10-parallel.md rollback card 에 반영 완료** (`plan/complete/spec-update-perf-backlog-01.md`).
 
-### #15 [Minor] 대화 메시지 단건 갱신에 전체 `.map()` 재순회 (측정 선행 — wontfix 후보)
+### ~~#15 [Minor] 대화 메시지 단건 갱신에 전체 `.map()` 재순회~~ — 종결
 
-- [ ] 미착수 — `execution-store.ts:646,694,708`
+- [x] 종결 — 권장 C(wontfix) 확정 (2026-06-10, 사용자 방침 "권장안대로 진행") — `execution-store.ts:646,694,708`. 지배 비용(toolCallId O(N) 검색)이 불변이라 점근 개선 없음 — 이득이 shallow `.map()` 할당 1회뿐임이 코드 구조상 확정.
 
 **spec 대조**: B — 대화 항목 의미론만 spec 규정. **실효 최저**: `.map()` 은 shallow 순회이고 toolCallId 검색은 어차피 O(N) — 이득이 할당 1회 절감뿐.
 
@@ -395,3 +397,14 @@
 - **검증**: optimistic reconcile/tool dedup unit 무변화.
 - **회귀 위험**: 사실상 없음.
 - **spec 갱신**: 불요.
+
+---
+
+## 구현 진행 메모 (worktree: plan-complete-turn-timing-aa533b, branch: perf-backlog-01)
+
+- 2026-06-10: consistency-check --impl-prep `19_06_27` **BLOCK: NO** (Critical 0 / W2 — conventions checker 는 payload 결함으로 fallback Agent 재실행해 PASS 통합). W1(#12 베이스 재특정)·W2(#7 헬퍼 명명) 구현에 반영.
+- 2026-06-10: 구현 완료 — #1·#5·#6·#14(엔진), #2(s3 deleteMany+KB), #4(dashboard 2쿼리), #7(카탈로그 캐시), #10(import 배치), #3+#8(frontend B안, sub-agent). #11·#12·#15 종결. 단위 테스트 항목별 green. TEST WORKFLOW(lint/unit/build/e2e) → /ai-review 진행 중. spec 문구 2건은 `spec-update-perf-backlog-01.md` draft → planner 트랙.
+- 사전 분석 확정 사항:
+  - #12 seed 동등성 분석 결과 **비동등**: 메인 쿼리 외부 `LIMIT (seedTopK+expandLimit)` 가 expanded 행 수·점수에 따라 seed 행을 evict 할 수 있어, 2차 카운트 쿼리의 seed(반환된 seedRows)와 메인 CTE seed 의 모집합이 다를 수 있음 → plan 분기대로 **C(현 2회 왕복 유지) 종결 예정**.
+  - #3/#8(frontend): 정렬 순서에 의미 의존하는 소비처 2곳 추가 식별 — `use-expression-context.ts:115`(last-write=최신), `transform/preview.tsx:29`(역순 스캔). B안 적용 시 정렬 accessor 전환 대상.
+  - #10: import 테스트가 2차 update 루프를 단언(:694,:733) — 배치 insert 전환 시 테스트 갱신 동반.

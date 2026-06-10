@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-10T20:14:50.142122",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-update-perf-backlog-01.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

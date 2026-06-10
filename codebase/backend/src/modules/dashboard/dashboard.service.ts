@@ -56,38 +56,64 @@ export class DashboardService {
   ) {}
 
   async getSummary(workspaceId: string): Promise<DashboardSummary> {
-    const totalWorkflows = await this.workflowRepository.count({
-      where: { workspaceId },
-    });
-
-    const activeWorkflows = await this.workflowRepository.count({
-      where: { workspaceId, isActive: true },
-    });
-
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     const fourteenDaysAgo = new Date(sevenDaysAgo);
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 7);
 
-    // total7dExecutions: status 무관 최근 7일 전체 실행 건수(running·pending·
-    // cancelled·completed·failed 포함). Success Rate 의 분모로 쓰인다
-    // (spec/2-navigation/0-dashboard.md §3·§7).
-    const [total7dExecutions, runs7dPrevious] = await Promise.all([
-      this.executionRepository
-        .createQueryBuilder('e')
-        .innerJoin('e.workflow', 'w')
-        .where('w.workspace_id = :workspaceId', { workspaceId })
-        .andWhere('e.started_at >= :sevenDaysAgo', { sevenDaysAgo })
-        .getCount(),
-      this.executionRepository
-        .createQueryBuilder('e')
-        .innerJoin('e.workflow', 'w')
-        .where('w.workspace_id = :workspaceId', { workspaceId })
-        .andWhere('e.started_at >= :fourteenDaysAgo', { fourteenDaysAgo })
-        .andWhere('e.started_at < :sevenDaysAgo', { sevenDaysAgo })
-        .getCount(),
-    ]);
+    // perf #4 — 동일 workspace/시간 범위를 6쿼리 5왕복으로 나눠 묻던 것을
+    // 집계 2쿼리(workflow 1 + execution 1)로 통합. COUNT(*) FILTER 로 분모/
+    // 분자 의미론을 SQL 안에 명시한다. 파생 계산(반올림·changePercent)은
+    // 기존 로직 그대로 — dashboard.service.spec 이 의미론을 고정.
+    const wfCounts = await this.workflowRepository
+      .createQueryBuilder('w')
+      .select('COUNT(*)', 'total')
+      .addSelect('COUNT(*) FILTER (WHERE w.is_active)', 'active')
+      .where('w.workspace_id = :workspaceId', { workspaceId })
+      .getRawOne<{ total: string | number; active: string | number }>();
+
+    // total7d: status 무관 최근 7일 전체 실행 건수(running·pending·cancelled·
+    // completed·failed 포함). Success Rate 의 분모로 쓰인다
+    // (spec/2-navigation/0-dashboard.md §3·§7). prev7d 는 WHERE 의 14일 하한과
+    // FILTER(< 7d) 조합으로 [14d, 7d) 구간.
+    const execAgg = await this.executionRepository
+      .createQueryBuilder('e')
+      .innerJoin('e.workflow', 'w')
+      .select(
+        'COUNT(*) FILTER (WHERE e.started_at >= :sevenDaysAgo)',
+        'total7d',
+      )
+      .addSelect(
+        'COUNT(*) FILTER (WHERE e.started_at < :sevenDaysAgo)',
+        'prev7d',
+      )
+      .addSelect(
+        'COUNT(*) FILTER (WHERE e.started_at >= :sevenDaysAgo AND e.status = :completedStatus)',
+        'success7d',
+      )
+      .addSelect(
+        'AVG(e.duration_ms) FILTER (WHERE e.started_at >= :sevenDaysAgo AND e.duration_ms IS NOT NULL)',
+        'avg7d',
+      )
+      .where('w.workspace_id = :workspaceId', { workspaceId })
+      .andWhere('e.started_at >= :fourteenDaysAgo', { fourteenDaysAgo })
+      .setParameters({
+        sevenDaysAgo,
+        completedStatus: ExecutionStatus.COMPLETED,
+      })
+      .getRawOne<{
+        total7d: string | number | null;
+        prev7d: string | number | null;
+        success7d: string | number | null;
+        avg7d: string | number | null;
+      }>();
+
+    const totalWorkflows = Number(wfCounts?.total ?? 0);
+    const activeWorkflows = Number(wfCounts?.active ?? 0);
+    const total7dExecutions = Number(execAgg?.total7d ?? 0);
+    const runs7dPrevious = Number(execAgg?.prev7d ?? 0);
+    const successCount = Number(execAgg?.success7d ?? 0);
 
     const runs7dChangePercent =
       runs7dPrevious > 0
@@ -96,31 +122,14 @@ export class DashboardService {
           ) / 100
         : null;
 
-    const successCount = await this.executionRepository
-      .createQueryBuilder('e')
-      .innerJoin('e.workflow', 'w')
-      .where('w.workspace_id = :workspaceId', { workspaceId })
-      .andWhere('e.started_at >= :sevenDaysAgo', { sevenDaysAgo })
-      .andWhere('e.status = :status', { status: ExecutionStatus.COMPLETED })
-      .getCount();
-
     // 분모는 모든 status 의 7일 실행 건수(total7dExecutions), 분자는 COMPLETED 만.
     const successRate =
       total7dExecutions > 0
         ? Math.round((successCount / total7dExecutions) * 10000) / 100
         : 0;
 
-    const avgResult = await this.executionRepository
-      .createQueryBuilder('e')
-      .innerJoin('e.workflow', 'w')
-      .select('AVG(e.duration_ms)', 'avg')
-      .where('w.workspace_id = :workspaceId', { workspaceId })
-      .andWhere('e.started_at >= :sevenDaysAgo', { sevenDaysAgo })
-      .andWhere('e.duration_ms IS NOT NULL')
-      .getRawOne<{ avg: string | number | null }>();
-
-    const avgExecutionTime = avgResult?.avg
-      ? Math.round(Number(avgResult.avg))
+    const avgExecutionTime = execAgg?.avg7d
+      ? Math.round(Number(execAgg.avg7d))
       : 0;
 
     return {

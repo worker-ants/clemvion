@@ -1,7 +1,11 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useExecutionStore, selectPendingFormToolCallId } from "@/lib/stores/execution-store";
+import {
+  useExecutionStore,
+  selectPendingFormToolCallId,
+  selectSortedNodeResults,
+} from "@/lib/stores/execution-store";
 import {
   ChevronDown,
   ChevronUp,
@@ -237,9 +241,14 @@ export function RunResultsDrawer() {
     };
   }, []);
 
-  // Filter out skipped nodes from results timeline
+  // Timeline order is derived on read (the store now keeps arrival order).
+  // selectSortedNodeResults is WeakMap-memoized per array reference, so the
+  // useMemo here only re-filters when `nodeResults` actually changes.
   const visibleResults = useMemo(
-    () => nodeResults.filter((r) => r.status !== "skipped"),
+    () =>
+      selectSortedNodeResults(nodeResults).filter(
+        (r) => r.status !== "skipped",
+      ),
     [nodeResults],
   );
 

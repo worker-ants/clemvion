@@ -11,10 +11,18 @@ vi.mock("@/lib/stores/editor-store", () => ({
     selector(editorState),
 }));
 
-vi.mock("@/lib/stores/execution-store", () => ({
-  useExecutionStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    selector(executionState),
-}));
+vi.mock("@/lib/stores/execution-store", async (importOriginal) => {
+  // Keep the real selectSortedNodeResults (chronological projection accessor)
+  // — fixtures here omit startedAt, so it falls back to arrival order, which
+  // matches the previous store-sorted behavior these tests assert.
+  const actual =
+    await importOriginal<typeof import("@/lib/stores/execution-store")>();
+  return {
+    selectSortedNodeResults: actual.selectSortedNodeResults,
+    useExecutionStore: (selector: (s: Record<string, unknown>) => unknown) =>
+      selector(executionState),
+  };
+});
 
 vi.mock("@/lib/stores/node-definitions-store", () => ({
   useNodeDefinitionsStore: (selector: (s: Record<string, unknown>) => unknown) =>

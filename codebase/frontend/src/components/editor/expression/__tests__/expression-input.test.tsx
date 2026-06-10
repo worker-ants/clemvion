@@ -34,21 +34,26 @@ vi.mock("@/lib/stores/editor-store", () => ({
     }),
 }));
 
-vi.mock("@/lib/stores/execution-store", () => ({
-  useExecutionStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    selector({
-      nodeResults: [
-        {
-          nodeId: "n1",
-          nodeLabel: "HTTP Request",
-          outputData: {
-            statusCode: 200,
-            body: { data: { message: "test", code: 0 }, headers: {} },
+vi.mock("@/lib/stores/execution-store", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/stores/execution-store")>();
+  return {
+    selectSortedNodeResults: actual.selectSortedNodeResults,
+    useExecutionStore: (selector: (s: Record<string, unknown>) => unknown) =>
+      selector({
+        nodeResults: [
+          {
+            nodeId: "n1",
+            nodeLabel: "HTTP Request",
+            outputData: {
+              statusCode: 200,
+              body: { data: { message: "test", code: 0 }, headers: {} },
+            },
           },
-        },
-      ],
-    }),
-}));
+        ],
+      }),
+  };
+});
 
 describe("ExpressionInput", () => {
   let onChange: ReturnType<typeof vi.fn<(value: string) => void>>;
