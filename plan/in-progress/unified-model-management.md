@@ -164,5 +164,32 @@ related_plan:
 ## 6. 진행 상태
 
 - [x] (a) 조사 — UUID 보존/embedding provider/마이그레이션 도구 확정.
-- [ ] (b) PR0 spec draft + `/consistency-check --spec`.
-- [ ] (c) PR 범위 상세 — 본 §4에 반영 완료, spec 확정 후 developer 위임.
+- [x] (b) PR0 spec 개정 완료 (88eec577).
+- [x] (c) PR 범위 상세 — 본 §4에 반영 완료, spec 확정 후 developer 위임.
+- [x] PR1 backend 구현 (acf2eaa8) + /ai-review 후속 수정 (577c9a6c, b1c37ac1).
+
+## 7. PR1 /ai-review 후속 — 보류·후속 항목 (PR3/PR4 트리거)
+
+### PR3 (frontend) 에서 처리
+
+- **#22 User Guide MDX**: `llm-config.mdx`, `rerank-config.mdx` frontmatter `code:` stale 경로 갱신 +
+  `/api/model-configs` 신규 API 및 `kind=embedding` 독립 등록 UX 문서화.
+
+### PR4 (cleanup) 에서 처리
+
+- **#13 Rolling deploy rename safety**: V088 `ALTER TABLE llm_config RENAME TO model_config` —
+  단일 컷오버 배포 운영 또는 `CREATE VIEW llm_config AS SELECT * FROM model_config` 추가로 구 인스턴스 보호.
+  배포 가이드에 "롤링 배포 비허용 — 컷오버 필수" 명시.
+- **#21 구 에러 코드 호환성**: `RERANK_CONFIG_*`/`LLM_CONFIG_*` → `MODEL_CONFIG_*` 변경.
+  PR4 alias 제거 전 클라이언트 마이그레이션 가이드 또는 alias 서비스에서 catch + 구 코드 재매핑.
+
+### 중기 아키텍처 백로그 (별도 plan)
+
+- **#3/#4 OCP/provider-set 리팩토링**: `ModelConfig` 단일 엔티티 nullable 필드 혼재 →
+  kind별 partial check constraint 추가 또는 서브타입 분리 중기 검토.
+- **#11 V089 lock window**: 배포 가이드에 "무중단 배포 시 migration 윈도우를 트래픽 저점에 적용" 명시.
+
+### 이미 처리됨 (577c9a6c)
+
+- 모든 Critical(C1/C2/C3) + Warning(W9/W14/W15/W16/W17/W18/W19/W20/W23/W25) 코드 수정 완료.
+- forwardRef 순환 의존 해소 (b1c37ac1).
