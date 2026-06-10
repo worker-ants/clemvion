@@ -40,5 +40,5 @@ spec_impact:
 - [x] spec 정합 (§11.1·data-flow/5·1-data-model) — 커밋 78af3d00. 16-system-status 표는 이미 makeshop 행 보유(코드만 누락이었음)
 - [x] e2e (system-status.e2e 13→14 큐 갱신 — 큐 추가에 따른 정당 갱신)
 - [x] TEST WORKFLOW (lint·unit·build·e2e 전부 PASS — e2e 30 suites/184 tests, 2026-06-11)
-- [ ] /ai-review + resolution
-- [ ] /consistency-check --impl-done spec/2-navigation/
+- [x] /ai-review + resolution — LOW (Critical 0, Warning 5). resolution-applier 4/5 처리(테스트 케이스·헬퍼·주석·e2e 갱신 의무), W-1(spec §1.4 mermaid) main 직접 정정. 후속 --impl-done 가 동일 status_reason/알림 도메인 잔존 모순 2회 추가 검출 → 모두 정합
+- [x] /consistency-check --impl-done spec/2-navigation/ — BLOCK: NO (review/consistency/2026/06/11/01_02_54). 8-notifications §1.1·5-integration §3.2 등 status_reason/알림 도메인 잔존 모순 전수 정합 후 통과. 잔여 WARNING(14-execution-history·16-agent-memory)은 범위 밖 기존 drift — backlog
