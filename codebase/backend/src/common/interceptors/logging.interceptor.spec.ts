@@ -11,7 +11,11 @@ import { LoggingInterceptor } from './logging.interceptor';
  */
 describe('LoggingInterceptor', () => {
   const buildConfig = (value?: string): ConfigService =>
-    ({ get: jest.fn().mockReturnValue(value) }) as unknown as ConfigService;
+    ({
+      get: jest.fn((key: string) =>
+        key === 'HEALTH_CHECK_LOG' ? value : undefined,
+      ),
+    }) as unknown as ConfigService;
 
   const buildContext = (url: string, statusCode: number) =>
     ({
@@ -123,6 +127,15 @@ describe('LoggingInterceptor', () => {
       expect(warnSpy).toHaveBeenCalledTimes(1);
       expect(logSpy).not.toHaveBeenCalled();
     });
+
+    it.each(['True', 'TRUE', '  true  '])(
+      '대소문자/공백 무관하게 %p 도 활성으로 해석한다',
+      async (raw) => {
+        const interceptor = new LoggingInterceptor(buildConfig(raw));
+        await run(interceptor, '/api/health', 200);
+        expect(logSpy).toHaveBeenCalledTimes(1);
+      },
+    );
   });
 
   describe('그 외 경로 (게이팅 미적용)', () => {

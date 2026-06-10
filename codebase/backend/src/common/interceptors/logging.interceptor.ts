@@ -33,7 +33,9 @@ export class LoggingInterceptor implements NestInterceptor {
   private readonly healthCheckLog: boolean;
 
   constructor(config: ConfigService) {
-    this.healthCheckLog = config.get<string>('HEALTH_CHECK_LOG') === 'true';
+    // 대소문자/공백 무관 — 'true'/'True'/'TRUE'/' true ' 모두 허용.
+    this.healthCheckLog =
+      config.get<string>('HEALTH_CHECK_LOG')?.trim().toLowerCase() === 'true';
   }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
