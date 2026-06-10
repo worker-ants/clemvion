@@ -272,17 +272,20 @@ sequenceDiagram
     Q-->>Scan: connected-expiry job
     Scan->>PG: SELECT integration WHERE token_expires_at <= now+7d AND status NOT IN (expired, error, pending_install)
     loop each row (임계 7d/3d/0d 매칭 시)
-      Scan->>PG: INSERT integration_expiry_dispatch (integration_id, threshold, token_expires_at) ON CONFLICT DO NOTHING
-      Note over Scan,PG: claim 실패 (이미 발사) → 해당 행 skip (알림·0d 처리 모두)
-      alt remain ≤ 0d
-        alt cafe24 AND refresh_token 존재
-          Scan->>CQ: enqueue refresh-cafe24-token { integrationId, source: 'background' } (jobId=integrationId dedup)
-          Note over Scan,CQ: status 변경은 worker 가 결과에 따라 수행<br/>(refresh 성공 → connected 유지 / invalid_grant → error)
-        else 그 외 전부
-          Scan->>PG: UPDATE integration SET status='expired', status_reason=NULL
+      alt isRefreshCapable (cafe24·makeshop + refresh_token)
+        Note over Scan,PG: §11.2 — 격하·passive 알림·claim 모두 없음 (refresh 자동 갱신)
+        opt remain ≤ 0d AND cafe24
+          Scan->>CQ: enqueue refresh-cafe24-token { integrationId, source: 'background' } (jobId dedup, safety-net)
+          Note over Scan,CQ: status 변경은 worker 가 결과에 따라 수행<br/>(refresh 성공 → connected 유지 / invalid_grant → error + active 알림)
         end
-      else remain > 0d
-        Note over Scan: 알림만 (status 보존)
+      else refresh_token 없는 provider
+        Scan->>PG: INSERT integration_expiry_dispatch (integration_id, threshold, token_expires_at) ON CONFLICT DO NOTHING
+        Note over Scan,PG: claim 실패 (이미 발사) → 해당 행 skip (알림·0d 처리 모두)
+        alt remain ≤ 0d
+          Scan->>PG: UPDATE integration SET status='expired', status_reason='token_expired'
+        else remain > 0d
+          Note over Scan: 알림만 (status 보존)
+        end
       end
       Scan->>Noti: notify integration_expired (수신자: personal→소유자 / organization→Admin, email 은 preferences 따라 both)
     end
@@ -360,7 +363,7 @@ stateDiagram-v2
   pending_install --> pending_install: callback 실패 (status 보존, last_error/status_reason 갱신)
   [*] --> connected: 생성 (API Key / previewToken 소비) / OAuth 재인증 성공
   connected --> error: API 호출 401/403 (markAuthFailed) OR refresh 실패 (invalid_grant) OR transport 3회 연속 실패
-  connected --> expired: 만료 스캐너 0d (refresh-capable cafe24 가 아닌 모든 행, status_reason=NULL)
+  connected --> expired: 만료 스캐너 0d (refresh_token 없는 provider, status_reason=token_expired)
   error --> connected: 사용자 재인증 / credentials 수정
   expired --> connected: 수동 재인증 (또는 MCP bridge 의 refresh_token 자가 회복)
   connected --> [*]: 삭제
