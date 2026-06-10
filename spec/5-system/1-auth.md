@@ -330,6 +330,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 5. 권한 없음 → 403 Forbidden
 ```
 
+> **Model Config Editor CRUD 근거**: Model Config(`/api/model-configs`)는 AI 모델 설정(provider/모델/파라미터)이라 워크플로우 구축의 일부로 Editor 가 직접 관리한다 (코드 `@Roles('editor')` 와 일치). 반면 Auth Config 는 외부 인증 자격증명이라 Editor=R 로 좁힌다 — 두 리소스의 민감도 차이를 반영한 의도적 권한 분리다.
+>
 > **Auth Config Reveal 권한 분리 근거**: Auth Config 의 `R` (Editor/Viewer) 은 **마스킹된 응답 조회** (`***<last4>`, [Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책)) 를 포함한다. 자격증명의 존재·식별에는 마스킹으로 충분하며 평문 유출 위험이 없다. 평문을 보는 **Reveal** (`POST /api/auth-configs/:id/reveal`) 은 별도 액션으로 분리해 Admin+ 로 제한한다 — 평문 reveal 은 현재 로그인 비밀번호 재확인 + audit 기록이 필요한 민감 동작이므로 권한을 좁힌다.
 
 ---

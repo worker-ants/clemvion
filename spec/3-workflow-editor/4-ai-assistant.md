@@ -364,7 +364,7 @@ interface CandidateEntry {
 |--------|------|------|
 | `integration-selector` | `Integration` | `workspace_id` 일치 + `status='connected'`. 노드 스키마 meta 에 `integrationServiceType` 힌트가 있으면 해당 `service_type` 만 (string 단일값 또는 `string[]` 배열 — 배열이면 `service_type IN (...)` 쿼리), 없으면 전체 connected integration. |
 | `mcp-server-selector` | `Integration` | `workspace_id` 일치 + `status='connected'` + `service_type IN` MCP-capable 전체 (`MCP_CAPABLE_SERVICE_TYPES` 상수, backend `integrations/services/mcp-capable-service-types.ts`). AI Agent `mcpServers` 필드 전용. hint 화이트리스트는 `['mcp', 'cafe24', 'makeshop']` ([Spec 통합 §14.2](../2-navigation/4-integration.md#142-워크플로우-에디터) — `serviceTypes` prop 화이트리스트의 single source of truth, Internal Bridge ([Spec MCP Client §2.3](../5-system/11-mcp-client.md#23-internal-bridge-in-process)) 적용 service_type 이 추가되면 동시 갱신). **multi-select** — picker 가 한 번의 Confirm 으로 여러 MCP 서버를 선택할 수 있다. |
-| `llm-config-selector` | `LlmConfig` | `workspace_id` 일치. 최근 업데이트 순. |
+| `llm-config-selector` | `ModelConfig (kind=chat)` | `workspace_id` 일치. 최근 업데이트 순. |
 | `kb-selector` | `KnowledgeBase` | `workspace_id` 일치. 이름 오름차순. **multi-select**. |
 | `workflow-selector` | `Workflow` | 같은 `workspace_id` **&&** `id != session.workflow_id` (현재 편집 중 워크플로 제외). 최근 업데이트 순. |
 

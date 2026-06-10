@@ -14,6 +14,7 @@ code:
   - codebase/backend/src/modules/auth-configs/**
   - codebase/backend/src/modules/llm-config/**
   - codebase/backend/src/modules/rerank-config/**
+  - codebase/backend/src/modules/model-config/**
   - codebase/backend/src/modules/llm/llm-preview.service.ts
 ---
 
