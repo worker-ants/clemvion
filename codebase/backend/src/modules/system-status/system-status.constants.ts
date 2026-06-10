@@ -8,6 +8,7 @@ import { DOCUMENT_EMBEDDING_QUEUE } from '../knowledge-base/queues/document-embe
 import { GRAPH_EXTRACTION_QUEUE } from '../knowledge-base/queues/graph-extraction.queue';
 import { NOTIFICATION_WEBHOOK_QUEUE } from '../external-interaction/notification-dispatcher.types';
 import { CAFE24_REFRESH_QUEUE } from '../integrations/cafe24-token-refresh.constants';
+import { MAKESHOP_REFRESH_QUEUE } from '../integrations/makeshop-token-refresh.constants';
 import { INTEGRATION_EXPIRY_QUEUE } from '../integrations/integration-expiry-scanner.service';
 import { SCHEDULE_QUEUE } from '../schedules/schedule-runner.service';
 import { LOGIN_HISTORY_PRUNER_QUEUE } from '../auth/jobs/login-history-pruner.service';
@@ -64,6 +65,7 @@ export const MONITORED_QUEUES: readonly MonitoredQueue[] = [
   { name: GRAPH_EXTRACTION_QUEUE, group: 'knowledge-base', concurrency: 2 },
   { name: NOTIFICATION_WEBHOOK_QUEUE, group: 'integration', concurrency: 1 },
   { name: CAFE24_REFRESH_QUEUE, group: 'integration', concurrency: 1 },
+  { name: MAKESHOP_REFRESH_QUEUE, group: 'integration', concurrency: 1 },
   { name: SCHEDULE_QUEUE, group: 'system', concurrency: 1 },
   { name: LOGIN_HISTORY_PRUNER_QUEUE, group: 'system', concurrency: 1 },
   { name: NOTIFICATION_SECRET_ROTATOR_QUEUE, group: 'system', concurrency: 1 },

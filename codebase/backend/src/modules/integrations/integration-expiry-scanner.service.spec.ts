@@ -167,8 +167,14 @@ describe('IntegrationExpiryScannerService.run', () => {
     ]);
 
     await scanner.run(now);
+    // §11.2: refresh_token 없는 provider 의 0d 격하는 status_reason='token_expired' 기록.
     expect(integrationRepo.save).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ status: 'expired' })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: 'expired',
+          statusReason: 'token_expired',
+        }),
+      ]),
     );
     // cafe24 분기 아닌 행은 큐 enqueue 호출 없음.
     expect(cafe24RefreshQueue.add).not.toHaveBeenCalled();
@@ -177,7 +183,7 @@ describe('IntegrationExpiryScannerService.run', () => {
   // spec/2-navigation/4-integration.md §11.1 (2026-05-18 갱신) + spec/4-nodes/4-integration/4-cafe24.md §8.6
   // cafe24 + refresh_token 보유 행의 0d 분기: `expired` 격하 대신 cafe24-token-refresh
   // 큐 enqueue. status 변경은 worker (Cafe24TokenRefreshProcessor) 가 결과에 따라 수행.
-  it('enqueues cafe24-token-refresh at 0d for cafe24 + refresh_token (no expired flip)', async () => {
+  it('enqueues cafe24-token-refresh at 0d for cafe24 + refresh_token (no expired flip, no passive alert §11.2)', async () => {
     const now = new Date('2026-05-18T00:00:00Z');
     integrationRepo.find.mockResolvedValue([
       {
@@ -229,15 +235,18 @@ describe('IntegrationExpiryScannerService.run', () => {
     );
     expect(savedExpired).toBe(false);
 
-    // 알림은 그대로 발사 (사용자 가시성 유지).
-    expect(notificationsService.createMany).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: 'integration_expired',
-          resourceId: 'cafe24-int-1',
-        }),
-      ]),
-    );
+    // §11.2: refresh-capable provider (cafe24) 는 passive integration_expired 알림 제외.
+    const notifs = (
+      notificationsService.createMany.mock.calls.flat() as unknown[]
+    ).flat();
+    expect(
+      notifs.some(
+        (n) =>
+          typeof n === 'object' &&
+          n !== null &&
+          (n as { resourceId?: string }).resourceId === 'cafe24-int-1',
+      ),
+    ).toBe(false);
   });
 
   it('falls back to expired flip for cafe24 row missing refresh_token at 0d', async () => {
@@ -261,21 +270,22 @@ describe('IntegrationExpiryScannerService.run', () => {
 
     await scanner.run(now);
 
-    // refresh_token 누락 → 큐 enqueue 안 함, 종전대로 expired 격하.
+    // refresh_token 누락 → refresh_token-less 경로: 큐 enqueue 안 함, expired 격하 + token_expired.
     expect(cafe24RefreshQueue.add).not.toHaveBeenCalled();
     expect(integrationRepo.save).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
           id: 'cafe24-int-2',
           status: 'expired',
+          statusReason: 'token_expired',
         }),
       ]),
     );
   });
 
   // enqueue 실패 (Redis 장애 등) 는 본 패스를 죽이지 않고 다음 일일 패스에서
-  // 재시도되도록 warn 만 남긴다 (관측). 알림은 그대로 발사 — 사용자 가시성 유지.
-  it('does not crash scan when cafe24 refresh enqueue throws (graceful, notification still fires)', async () => {
+  // 재시도되도록 warn 만 남긴다 (관측). refresh-capable 이므로 격하·passive 알림 없음 (§11.2).
+  it('does not crash scan when cafe24 refresh enqueue throws (graceful, no demotion, no alert §11.2)', async () => {
     const now = new Date('2026-05-18T00:00:00Z');
     integrationRepo.find.mockResolvedValue([
       {
@@ -313,16 +323,18 @@ describe('IntegrationExpiryScannerService.run', () => {
         : false,
     );
     expect(savedExpired).toBe(false);
-    // 알림 발사 검증 — 사용자 가시성 유지 (enqueue 실패해도 cron 다음 사이클까지
-    // 사용자 모르게 묻히지 않도록).
-    expect(notificationsService.createMany).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: 'integration_expired',
-          resourceId: 'cafe24-int-3',
-        }),
-      ]),
-    );
+    // §11.2: refresh-capable provider 는 enqueue 성공/실패 무관하게 passive 알림 미발사.
+    const notifs3 = (
+      notificationsService.createMany.mock.calls.flat() as unknown[]
+    ).flat();
+    expect(
+      notifs3.some(
+        (n) =>
+          typeof n === 'object' &&
+          n !== null &&
+          (n as { resourceId?: string }).resourceId === 'cafe24-int-3',
+      ),
+    ).toBe(false);
   });
 
   // 빈 문자열 refresh_token 은 refresh-capable 분기에 들어가지 않아야 한다 —
@@ -357,9 +369,110 @@ describe('IntegrationExpiryScannerService.run', () => {
         expect.objectContaining({
           id: 'cafe24-int-empty-rt',
           status: 'expired',
+          statusReason: 'token_expired',
         }),
       ]),
     );
+  });
+
+  // V-01: makeshop + refresh_token 은 refresh-capable provider — 0d 에 expired 격하·passive 알림
+  // 모두 제외 (cafe24 와 달리 큐 enqueue 도 없음 — in-call proactive / reactive_401 이 갱신 담당).
+  it('exempts makeshop + refresh_token from expired demotion and passive alert at 0d (no enqueue)', async () => {
+    const now = new Date('2026-06-10T00:00:00Z');
+    integrationRepo.find.mockResolvedValue([
+      {
+        id: 'makeshop-int-1',
+        workspaceId: 'ws-1',
+        name: 'My MakeShop',
+        scope: 'personal',
+        status: 'connected',
+        serviceType: 'makeshop',
+        credentials: {
+          access_token: 'a',
+          refresh_token: 'mk-refresh',
+          mall_id: 'myshop',
+        },
+        createdBy: 'user-1',
+        tokenExpiresAt: new Date('2026-06-09T23:00:00Z'),
+      },
+    ]);
+    userRepo.find.mockResolvedValue([
+      { id: 'user-1', notificationPreferences: {} },
+    ]);
+
+    await scanner.run(now);
+
+    // makeshop 은 cafe24 전용 큐 enqueue 대상 아님.
+    expect(cafe24RefreshQueue.add).not.toHaveBeenCalled();
+    // expired 격하 없음.
+    const savedArgs = integrationRepo.save.mock.calls.flat();
+    const savedExpired = savedArgs.some((arr: unknown) =>
+      Array.isArray(arr)
+        ? arr.some(
+            (i: unknown) =>
+              typeof i === 'object' &&
+              i !== null &&
+              (i as { status?: string }).status === 'expired',
+          )
+        : false,
+    );
+    expect(savedExpired).toBe(false);
+    // passive 알림 없음.
+    const mkNotifs = (
+      notificationsService.createMany.mock.calls.flat() as unknown[]
+    ).flat();
+    expect(
+      mkNotifs.some(
+        (n) =>
+          typeof n === 'object' &&
+          n !== null &&
+          (n as { resourceId?: string }).resourceId === 'makeshop-int-1',
+      ),
+    ).toBe(false);
+  });
+
+  // makeshop 이지만 refresh_token 부재 → refresh_token-less 경로: expired + token_expired + 알림.
+  it('demotes makeshop missing refresh_token at 0d (token_expired + passive alert)', async () => {
+    const now = new Date('2026-06-10T00:00:00Z');
+    integrationRepo.find.mockResolvedValue([
+      {
+        id: 'makeshop-int-2',
+        workspaceId: 'ws-1',
+        name: 'Broken MakeShop',
+        scope: 'personal',
+        status: 'connected',
+        serviceType: 'makeshop',
+        credentials: { access_token: 'a', mall_id: 'myshop' }, // no refresh_token
+        createdBy: 'user-1',
+        tokenExpiresAt: new Date('2026-06-09T23:00:00Z'),
+      },
+    ]);
+    userRepo.find.mockResolvedValue([
+      { id: 'user-1', notificationPreferences: {} },
+    ]);
+
+    await scanner.run(now);
+    expect(cafe24RefreshQueue.add).not.toHaveBeenCalled();
+    expect(integrationRepo.save).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'makeshop-int-2',
+          status: 'expired',
+          statusReason: 'token_expired',
+        }),
+      ]),
+    );
+    const mk2Notifs = (
+      notificationsService.createMany.mock.calls.flat() as unknown[]
+    ).flat();
+    expect(
+      mk2Notifs.some(
+        (n) =>
+          typeof n === 'object' &&
+          n !== null &&
+          (n as { resourceId?: string }).resourceId === 'makeshop-int-2',
+      ),
+    ).toBe(true);
   });
 
   it('skips thresholds already dispatched (unique violation)', async () => {
