@@ -360,7 +360,7 @@ pending_plans:
 | Chart | `⚠ Chart type not selected` / `⚠ Axis fields not set` | chartType 또는 axis 누락 |
 | Form | `⚠ No fields defined` | fields 미설정 |
 | Template | `⚠ Template not set` | template 미설정 |
-| AI Agent | `⚠ Model not selected` / `⚠ Default provider not configured` | model 및 llmConfigId 미설정 시 "Model not selected". "Default provider" 선택(`llmConfigId=""`) 시 LLM Config에서 실제 default 존재 여부를 확인하여 없으면 "Default provider not configured" 표시 |
+| AI Agent | `⚠ Model not selected` / `⚠ Default provider not configured` | model 및 llmConfigId 미설정 시 "Model not selected". "Default provider" 선택(`llmConfigId=""`) 시 Models (Chat 탭)에서 실제 default 존재 여부를 확인하여 없으면 "Default provider not configured" 표시 |
 | Text Classifier | `⚠ Model not selected` / `⚠ Default provider not configured` / `⚠ Categories not defined` | AI Agent와 동일한 LLM provider 규칙 적용 + categories 누락 시 별도 경고 |
 | Info Extractor | `⚠ Model not selected` / `⚠ Default provider not configured` / `⚠ Output schema not defined` | AI Agent와 동일한 LLM provider 규칙 적용 + outputSchema 누락 시 별도 경고 |
 

@@ -399,7 +399,7 @@ KB.rag_mode 별로 `RagSearchService.search()` 가 분기한다. `vector` 모드
 ### 4.1 graph 모드 단계
 
 ```
-[1] query 임베딩 (KB.embedding_model)
+[1] query 임베딩 (KB.embedding_model_config_id → ModelConfig.defaultModel)
     ↓
 [2] vector seed: vectorSeedTopK 만큼 chunk 회수 (기존 vector 검색 동일)
     ↓

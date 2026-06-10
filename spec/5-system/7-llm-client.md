@@ -17,7 +17,7 @@ code:
 
 # Spec: LLM 클라이언트 추상화 계층
 
-> 관련 문서: [PRD AI & 지식 저장소](../4-nodes/3-ai/_product-overview.md) · [Spec LLM Config UI](../2-navigation/6-config.md) · [데이터 모델 - ModelConfig](../1-data-model.md#216-modelconfig) · [Spec AI 노드](../4-nodes/3-ai/0-common.md)
+> 관련 문서: [PRD AI & 지식 저장소](../4-nodes/3-ai/_product-overview.md) · [Spec Config > Models 화면](../2-navigation/6-config.md) · [데이터 모델 - ModelConfig](../1-data-model.md#216-modelconfig) · [Spec AI 노드](../4-nodes/3-ai/0-common.md)
 
 ---
 
@@ -306,7 +306,7 @@ class RerankClientFactory {
 
 ### 5.5 모델 목록 Preview (폼 자격증명 기반)
 
-LLM Config UI의 **기본 모델 선택** 지원을 위해, 아직 저장되지 않은 자격증명으로 `listModels`를 실행하는 preview 경로를 제공한다.
+Config > Models 화면의 **기본 모델 선택** 지원을 위해, 아직 저장되지 않은 자격증명으로 `listModels`를 실행하는 preview 경로를 제공한다.
 
 - **경로**: `POST /api/model-configs/preview-models`
 - **Body**: `{ provider, apiKey, baseUrl? }`

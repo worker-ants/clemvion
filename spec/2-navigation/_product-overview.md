@@ -2,7 +2,7 @@
 
 > 관련 문서: [제품 개요](../0-overview.md) · [통합/연동](../4-nodes/4-integration/_product-overview.md) · [Spec 레이아웃](./_layout.md)
 >
-> **내비게이션 화면 spec 맵**: [워크플로우 목록](./1-workflow-list.md) · [트리거 목록](./2-trigger-list.md) · [스케줄 관리](./3-schedule.md) · [통합 관리](./4-integration.md) · [지식 저장소](./5-knowledge-base.md) · [설정(인증·LLM)](./6-config.md) · [통계](./7-statistics.md) · [마켓플레이스](./8-marketplace.md) · [사용자 프로필](./9-user-profile.md) · [인증 UI 플로우](./10-auth-flow.md) · [에러/빈 상태 UI](./11-error-empty-states.md) · [User Guide](./13-user-guide.md) · [실행 내역](./14-execution-history.md) · [시스템 상태](./15-system-status.md) · [Agent Memory](./16-agent-memory.md)
+> **내비게이션 화면 spec 맵**: [워크플로우 목록](./1-workflow-list.md) · [트리거 목록](./2-trigger-list.md) · [스케줄 관리](./3-schedule.md) · [통합 관리](./4-integration.md) · [지식 저장소](./5-knowledge-base.md) · [설정 (인증, Models)](./6-config.md) · [통계](./7-statistics.md) · [마켓플레이스](./8-marketplace.md) · [사용자 프로필](./9-user-profile.md) · [인증 UI 플로우](./10-auth-flow.md) · [에러/빈 상태 UI](./11-error-empty-states.md) · [User Guide](./13-user-guide.md) · [실행 내역](./14-execution-history.md) · [시스템 상태](./15-system-status.md) · [Agent Memory](./16-agent-memory.md)
 
 ---
 
@@ -22,7 +22,7 @@
 ├── Schedule              # Cron Job 스케줄 관리              — ✅
 ├── Integration           # Third-party 연동 관리             — ✅
 ├── Knowledge Base        # RAG 지식 저장소 관리              — ✅
-├── LLM Config            # AI Agent용 LLM 설정               — ✅
+├── Models                # 통합 모델 설정 (Chat/Embedding/Rerank)  — ✅
 ├── Authentication        # 외부 인증 방식 설정 (최상위 메뉴) — ✅
 ├── Statistics            # 실행 통계                         — ✅
 ├── System Status         # 전체 시스템(큐) 상태              — ✅
