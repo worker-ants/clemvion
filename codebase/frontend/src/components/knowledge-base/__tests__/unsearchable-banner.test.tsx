@@ -76,4 +76,41 @@ describe("UnsearchableBanner", () => {
     // Only the re-embed CTA button exists; no close/dismiss button.
     expect(screen.getAllByRole("button")).toHaveLength(1);
   });
+
+  it("idle + editor + pending: CTA is disabled while a re-embed is in flight", () => {
+    setRole("editor");
+    render(
+      <UnsearchableBanner reembedStatus="idle" onReembed={vi.fn()} pending />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Re-embed now" }),
+    ).toBeDisabled();
+  });
+
+  it("admin (≥ editor) also sees the CTA — role hierarchy regression guard", () => {
+    setRole("admin");
+    render(
+      <UnsearchableBanner reembedStatus="idle" onReembed={vi.fn()} />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Re-embed now" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the per-state description paragraph", () => {
+    setRole("editor");
+    const { rerender } = render(
+      <UnsearchableBanner reembedStatus="idle" onReembed={vi.fn()} />,
+    );
+    expect(
+      screen.getByText(/excluded from search because re-embedding has not run/),
+    ).toBeInTheDocument();
+
+    rerender(
+      <UnsearchableBanner reembedStatus="in_progress" onReembed={vi.fn()} />,
+    );
+    expect(
+      screen.getByText(/Re-embedding is in progress\. Search will be restored/),
+    ).toBeInTheDocument();
+  });
 });
