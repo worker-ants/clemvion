@@ -11,7 +11,7 @@ code:
 
 입력을 동일하게 받는 N개의 분기를 동시에(병렬로) 실행하는 **컨테이너 노드** (`executionMetadata.kind = 'parallel'`). 핸들러는 `branch_0` ~ `branch_{N-1}` 동적 출력 포트를 fan-out 활성화하고, 모든 분기가 종료된 후 엔진이 `done` 포트로 `{ branches: [...] }` 결과를 내보낸다. `branches[i]` 는 `Promise.allSettled` 모델을 따른다 — `{ status: 'fulfilled', value }` 또는 `{ status: 'rejected', error: { code, message } }` (CONVENTIONS Principle 9, [공통 §9.1](./0-common.md#91-컨테이너-노드-핸들러--엔진-오버라이트-컨트랙트)).
 
-> **P1 구현 상태**: `ParallelExecutor` 가 `p-limit` + `Promise.allSettled` 로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값). `PARALLEL_ENGINE=off` 로 명시 설정 시 엔진이 토폴로지 순서로 순차 진행 (rollback card). 분기 간 `variables` 는 `structuredClone` 으로 deep clone, `nodeOutputCache` 는 shallow copy 로 격리된다.
+> **P1 구현 상태**: `ParallelExecutor` 가 `p-limit` + `Promise.allSettled` 로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값). `PARALLEL_ENGINE=off` 로 명시 설정 시 엔진이 토폴로지 순서로 순차 진행 (rollback card — 본 env 는 모듈 로드 시 1회 읽음, 변경은 인스턴스 재시작 시 반영). 분기 간 `variables` 는 `structuredClone` 으로 deep clone, `nodeOutputCache` 는 shallow copy 로 격리된다.
 
 ---
 
