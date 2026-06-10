@@ -627,4 +627,3 @@ export function toChatChannelEvent(
       return null;
   }
 }
-
