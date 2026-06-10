@@ -7,6 +7,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { Workflow } from './entities/workflow.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
@@ -299,7 +300,11 @@ export class WorkflowsService {
             ? nodeIdMap[nodeDto.toolOwnerIndex]
             : undefined;
 
-        return manager.create(Node, {
+        // plain literal — manager.insert 는 entity 인스턴스가 아닌 partial 을
+        // 받는다 (relation 프로퍼티 타입 충돌 회피. hook/cascade 미사용 전제와
+        // 도 일관 — 위 perf #10 주석 참조). JSONB(Record) 컬럼은 TypeORM 의
+        // QueryDeepPartialEntity 인덱스-시그니처 quirk 로 단언이 필요하다.
+        return {
           id: nodeIdMap[i],
           workflowId: savedWorkflow.id,
           type: nodeDto.type,
@@ -312,10 +317,13 @@ export class WorkflowsService {
           description: nodeDto.description,
           containerId,
           toolOwnerId,
-        });
+        };
       });
       if (nodeEntities.length > 0) {
-        await manager.insert(Node, nodeEntities);
+        await manager.insert(
+          Node,
+          nodeEntities as QueryDeepPartialEntity<Node>[],
+        );
       }
 
       // Create edges using index-to-ID mapping
@@ -324,7 +332,7 @@ export class WorkflowsService {
         const targetId = nodeIdMap[edgeDto.targetNodeIndex];
         if (!sourceId || !targetId) return [];
         return [
-          manager.create(Edge, {
+          {
             workflowId: savedWorkflow.id,
             sourceNodeId: sourceId,
             sourcePort: edgeDto.sourcePort ?? 'out',
@@ -332,11 +340,14 @@ export class WorkflowsService {
             targetPort: edgeDto.targetPort ?? 'in',
             type: (edgeDto.type as EdgeType) ?? EdgeType.DATA,
             condition: edgeDto.condition,
-          }),
+          },
         ];
       });
       if (edgeEntities.length > 0) {
-        await manager.insert(Edge, edgeEntities);
+        await manager.insert(
+          Edge,
+          edgeEntities as QueryDeepPartialEntity<Edge>[],
+        );
       }
 
       return savedWorkflow;
