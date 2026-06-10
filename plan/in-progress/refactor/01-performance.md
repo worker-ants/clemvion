@@ -267,9 +267,9 @@
 - **회귀 위험**: UUID 사전 생성·hook 우회.
 - **spec 갱신**: 불요.
 
-### #11 [M→m 강등] `clearLlmDefaultConfigCache` — 전체 키 선형 스캔
+### ~~#11 [M→m 강등] `clearLlmDefaultConfigCache` — 전체 키 선형 스캔~~ — 종결
 
-- [ ] 미착수 — `execution-engine.service.ts:7449-7456`
+- [x] 종결 — 권장 C(wontfix) 확정 (2026-06-10, 사용자 방침 "권장안대로 진행") — `execution-engine.service.ts:7449-7456`. 키 수 상한이 "동시 실행 수 × workspace(실질 1)" 로 구조 확정 — 스캔 비용 무시 가능, 측정 불요.
 
 **spec 대조**: B — ai-review INFO 산물(코드 주석 명시), spec 표면 아님. **실효 낮음**: 키 수 상한이 "동시 실행 수 × workspace(실질 1)" 라 스캔 비용 무시 가능 — 우선순위 최하/wontfix 후보로 강등.
 
@@ -293,9 +293,11 @@
 
 ## Minor
 
-### #12 [Minor] RAG graph-traversal — 동일 재귀 CTE 2회 실행 (조건부 — seed 동등성 검증 선행)
+### ~~#12 [Minor] RAG graph-traversal — 동일 재귀 CTE 2회 실행~~ — 종결 (선행 조건 불충족)
 
-- [ ] 미착수 — `rag-search.service.ts:630-656`
+- [x] 종결 — 권장 A 의 선행 조건(seed 동등성) 검증 결과 **비동등** 판정 (2026-06-10) → plan 분기대로 C(현 2회 왕복 유지) 종결.
+
+> **검증 기록**: 메인 쿼리의 외부 `ORDER BY score DESC LIMIT (seedTopK+expandLimit)` 는 expanded 행 수가 expandLimit 를 초과하고 점수가 높을 때 **seed 행을 evict 할 수 있다** (expanded score = cosine × centrality 가중이 약한 seed 의 raw cosine 을 상회 가능 + expanded_chunks CTE 내부 무 LIMIT). 따라서 2차 카운트 쿼리의 seed 모집합(외부 LIMIT 후 반환된 `seedRows`)과 메인 CTE 의 seed 모집합이 동등 보장되지 않음 — 통합 시 `traversedEntityCount` 의 의미(KB-GR-SR-06 표면 수치)가 바뀐다. 현 2회 왕복이 "사용자에게 실제 반환된 seed 기준 순회 요약" 이라는 정확한 의미론. (PR #511 포함 최신 main 기준 코드 `:671-699` 재특정 — consistency W1 조치 완료.)
 
 **spec 대조**: D — `traversedEntityCount` 메타데이터는 `10-graph-rag.md` KB-GR-SR-06 의 spec 약속, 2회 왕복 전략은 무언급. 코드 주석의 "LIMIT 후라 부정확" 우려는 절반만 타당 — PG 재귀 CTE 는 항상 materialize 되므로 통합 가능.
 
@@ -371,9 +373,9 @@
 - **회귀 위험**: 테스트 env 주입 방식.
 - **spec 갱신**: 적용 시 §1.6 에 read-once 문구 추가가 일관적 (planner).
 
-### #15 [Minor] 대화 메시지 단건 갱신에 전체 `.map()` 재순회 (측정 선행 — wontfix 후보)
+### ~~#15 [Minor] 대화 메시지 단건 갱신에 전체 `.map()` 재순회~~ — 종결
 
-- [ ] 미착수 — `execution-store.ts:646,694,708`
+- [x] 종결 — 권장 C(wontfix) 확정 (2026-06-10, 사용자 방침 "권장안대로 진행") — `execution-store.ts:646,694,708`. 지배 비용(toolCallId O(N) 검색)이 불변이라 점근 개선 없음 — 이득이 shallow `.map()` 할당 1회뿐임이 코드 구조상 확정.
 
 **spec 대조**: B — 대화 항목 의미론만 spec 규정. **실효 최저**: `.map()` 은 shallow 순회이고 toolCallId 검색은 어차피 O(N) — 이득이 할당 1회 절감뿐.
 
@@ -400,7 +402,8 @@
 
 ## 구현 진행 메모 (worktree: plan-complete-turn-timing-aa533b, branch: perf-backlog-01)
 
-- 2026-06-10: 구현 착수 준비 — consistency-check --impl-prep 세션 `review/consistency/2026/06/10/19_06_27` 실행 중 (BLOCK 대기).
+- 2026-06-10: consistency-check --impl-prep `19_06_27` **BLOCK: NO** (Critical 0 / W2 — conventions checker 는 payload 결함으로 fallback Agent 재실행해 PASS 통합). W1(#12 베이스 재특정)·W2(#7 헬퍼 명명) 구현에 반영.
+- 2026-06-10: 구현 완료 — #1·#5·#6·#14(엔진), #2(s3 deleteMany+KB), #4(dashboard 2쿼리), #7(카탈로그 캐시), #10(import 배치), #3+#8(frontend B안, sub-agent). #11·#12·#15 종결. 단위 테스트 항목별 green. TEST WORKFLOW(lint/unit/build/e2e) → /ai-review 진행 중. spec 문구 2건은 `spec-update-perf-backlog-01.md` draft → planner 트랙.
 - 사전 분석 확정 사항:
   - #12 seed 동등성 분석 결과 **비동등**: 메인 쿼리 외부 `LIMIT (seedTopK+expandLimit)` 가 expanded 행 수·점수에 따라 seed 행을 evict 할 수 있어, 2차 카운트 쿼리의 seed(반환된 seedRows)와 메인 CTE seed 의 모집합이 다를 수 있음 → plan 분기대로 **C(현 2회 왕복 유지) 종결 예정**.
   - #3/#8(frontend): 정렬 순서에 의미 의존하는 소비처 2곳 추가 식별 — `use-expression-context.ts:115`(last-write=최신), `transform/preview.tsx:29`(역순 스캔). B안 적용 시 정렬 accessor 전환 대상.
