@@ -172,7 +172,10 @@ related_plan:
   - [x] TEST WORKFLOW lint·unit·build·e2e(179/179) 통과.
   - [x] `/ai-review`(review/code/2026/06/11/00_30_05) — Critical 0, WARNING 12 → 11 fix(a1191baf) + 1 SPEC-DRIFT(maxTokens 4096) spec 반영(085a7d08, `--spec` BLOCK:NO).
   - [x] `/consistency-check --impl-done`(01_04_49) BLOCK:NO. 비차단 WARNING 일부 fix(55e14ad1), 나머지 followup 이관.
-  - [ ] **이월(별 followup)**: KB 폼 embedding select 1급화(`config-models-followup-kb-embedding-ui.md`) · ModelConfigManager SRP 분리(`model-config-manager-refactor-followup.md`) · LLM→Models 명칭 전파+user-guide 통합(`models-rename-docs-unify-followup.md`).
+  - 이월 followup 3건 (PR3 후속, 순차 진행 중):
+    - [x] **PR-A** KB 폼 embedding select 1급화 — `config-models-followup-kb-embedding-ui.md` → complete. feat(8f63417c)+리뷰후속(b48d0b5c·8eb8bc3e). embedding-probe 도 kind=embedding 지원. review 08_08_32 Critical0/W10→fix, `--impl-done`(08_43_26) BLOCK:NO.
+    - [ ] **PR-B** LLM→Models 명칭 전파 + user-guide 통합 — `models-rename-docs-unify-followup.md` (진행 예정).
+    - [ ] **PR-C** ModelConfigManager SRP 분리 — `model-config-manager-refactor-followup.md` (진행 예정).
 
 ## 7. PR1 /ai-review 후속 — 보류·후속 항목 (PR3/PR4 트리거)
 
