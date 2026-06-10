@@ -127,6 +127,7 @@ export class ModelConfigService {
    *   (1) `embeddingModelConfigId` 지정 → 1급 kind=embedding config + `config.defaultModel`
    *   (2) 미지정 → 워크스페이스 default kind=embedding config + 그 `defaultModel`
    *   (3) 둘 다 없음(legacy) → 구 `embeddingLlmConfigId`(없으면 ws default chat) + `legacyModel` 문자열
+   * @throws {NotFoundException} MODEL_CONFIG_NOT_FOUND — 모든 폴백 경로에서 config 가 없을 때
    */
   async resolveEmbedding(opts: {
     embeddingModelConfigId?: string | null;
@@ -163,11 +164,7 @@ export class ModelConfigService {
       ? await this.findEntity(embeddingLlmConfigId, workspaceId)
       : await this.findDefault(workspaceId, 'chat');
     if (!legacy) {
-      throw new BadRequestException({
-        code: 'MODEL_CONFIG_NOT_FOUND',
-        message:
-          'No embedding model config resolved for workspace (no embedding/chat config)',
-      });
+      throw this.notFound();
     }
     return { config: legacy, model: legacyModel };
   }

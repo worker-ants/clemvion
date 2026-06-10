@@ -526,11 +526,49 @@ describe('ModelConfigService', () => {
       expect(model).toBe('text-embedding-3-small');
     });
 
-    it('(3) legacy 둘 다 없으면 NOT_FOUND', async () => {
+    it('(3) legacy 둘 다 없으면 NOT_FOUND (NotFoundException 404)', async () => {
       mockRepo.findOne.mockResolvedValue(null);
       await expect(
         service.resolveEmbedding({ legacyModel: 'm', workspaceId: 'ws-1' }),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
+    });
+
+    it('(1) embeddingModelConfigId 명시 → 반환 model == config.defaultModel (legacyModel 아님)', async () => {
+      mockRepo.findOne.mockResolvedValueOnce({
+        id: 'emb-cfg',
+        workspaceId: 'ws-1',
+        kind: 'embedding',
+        defaultModel: 'cfg-model',
+      } as ModelConfig);
+      const { model } = await service.resolveEmbedding({
+        embeddingModelConfigId: 'emb-cfg',
+        legacyModel: 'legacy-should-not-appear',
+        workspaceId: 'ws-1',
+      });
+      expect(model).toBe('cfg-model');
+      expect(model).not.toBe('legacy-should-not-appear');
+    });
+
+    it('embeddingModelConfigId: null 명시 전달 → (2)/(3) 폴백으로 진행', async () => {
+      // null 명시 전달 시 (1) 경로 skip → (2) embedding default 조회
+      mockRepo.findOne.mockImplementation(
+        (opts: { where: Record<string, unknown> }) =>
+          opts.where.kind === 'embedding' && opts.where.isDefault
+            ? Promise.resolve({
+                id: 'fallback-emb',
+                workspaceId: 'ws-1',
+                kind: 'embedding',
+                defaultModel: 'fallback-model',
+              } as ModelConfig)
+            : Promise.resolve(null),
+      );
+      const { config, model } = await service.resolveEmbedding({
+        embeddingModelConfigId: null,
+        legacyModel: 'legacy-x',
+        workspaceId: 'ws-1',
+      });
+      expect(config.id).toBe('fallback-emb');
+      expect(model).toBe('fallback-model');
     });
   });
 

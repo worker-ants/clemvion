@@ -406,6 +406,43 @@ describe('KnowledgeBaseService', () => {
 
       expect(result.embeddingLlmConfigId).toBeNull();
     });
+
+    it('should reset embeddingDimension to null when embeddingModelConfigId changes (W14)', async () => {
+      const existing = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        embeddingModelConfigId: 'emb-cfg-old',
+        embeddingDimension: 1536,
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      const result = await service.update('kb-1', 'ws-1', {
+        embeddingModelConfigId: 'emb-cfg-new',
+      });
+
+      expect(result.embeddingModelConfigId).toBe('emb-cfg-new');
+      // 새 config 첫 임베딩이 차원을 다시 결정할 때까지 NULL 로 초기화
+      expect(result.embeddingDimension).toBeNull();
+    });
+
+    it('should NOT reset embeddingDimension when embeddingModelConfigId is the same (W14)', async () => {
+      const existing = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        embeddingModelConfigId: 'emb-cfg-same',
+        embeddingDimension: 1536,
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      const result = await service.update('kb-1', 'ws-1', {
+        embeddingModelConfigId: 'emb-cfg-same',
+      });
+
+      // 동일 config 전송 → dimension 리셋 없음
+      expect(result.embeddingDimension).toBe(1536);
+    });
   });
 
   describe('probeEmbedding', () => {

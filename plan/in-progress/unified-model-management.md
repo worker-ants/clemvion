@@ -100,7 +100,7 @@ related_plan:
 | **V088** | `llm_config` → `model_config` rename. `kind` 컬럼 추가(NOT NULL default `'chat'`), `dimension` int NULL 추가 | rename은 메타데이터 연산. 기존 FK는 테이블 rename에 자동 추종 |
 | **V089** | `is_default` partial unique index를 `(workspace_id)` → `(workspace_id, kind)` WHERE is_default 로 재정의 | DROP + CREATE INDEX (CONCURRENTLY + `.conf`) |
 | **V090** | `rerank_config` 행을 `model_config`에 `kind='rerank'` UUID 보존 INSERT…SELECT. KB `rerank_config_id` FK 타깃을 `model_config(id)`로 전환 | 행수 일치 검증 쿼리 주석. `rerank_config` 테이블은 V092까지 유지(롤백 여지) |
-| **V091** | KB에 `embedding_model_config_id` UUID 컬럼 추가(FK→model_config, ON DELETE SET NULL). distinct embedding 사용 조합에서 `kind='embedding'` 행 INSERT, KB repoint. `dimension`은 KB의 `embedding_dimension`에서 채움 | NOT VALID 2-step. 파생 매핑 검증 쿼리. 구 `embedding_llm_config_id`/`embedding_model`은 V092까지 유지 |
+| **V091** | KB에 `embedding_model_config_id` UUID 컬럼 추가(FK→model_config, ON DELETE SET NULL). **PR2 실제 구현 범위: 컬럼+FK 추가만. 기존 KB 의 `embedding_model_config_id` 는 NULL 로 남긴다(즉시 repoint 없음).** 런타임 폴백 체인(embeddingModelConfigId → ws default kind=embedding → legacy)이 기존 KB 무중단을 보장하므로 점진적 전환 전략을 채택. 명시적 repoint(`kind='embedding'` 행 파생 + KB 일괄 업데이트)는 PR4 또는 별도 데이터 마이그레이션 단계에서 수행. 구 `embedding_llm_config_id`/`embedding_model`은 V092까지 유지 | NOT VALID 2-step. 컬럼 추가 후 FK VALIDATE. 구 컬럼 유지 |
 | **V092** (cleanup, PR4) | `rerank_config` DROP, KB 구 컬럼(`embedding_llm_config_id`, 필요 시 `embedding_model`) 정리 | 데이터 일치 검증 PASS 후에만 |
 
 > **차원 가드**: KB가 이미 벡터를 가진 상태에서 embedding config 교체를 막는 로직은 기존
