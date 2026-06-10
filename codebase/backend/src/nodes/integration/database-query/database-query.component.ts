@@ -12,5 +12,9 @@ export const databaseQueryNodeComponent: NodeComponent = {
   ports: databaseQueryNodePorts,
   configSchema: databaseQueryNodeConfigSchema,
   outputSchema: databaseQueryNodeOutputSchema,
-  createHandler: (deps) => new DatabaseQueryHandler(deps.integrationsService),
+  createHandler: (deps) =>
+    new DatabaseQueryHandler(
+      deps.integrationsService,
+      deps.integrationCacheBus,
+    ),
 };

@@ -87,6 +87,7 @@ describe('IntegrationsService', () => {
   };
   let auditLogsService: { record: Mock };
   let mcpTestConnection: { test: Mock };
+  let integrationCacheBus: { publish: Mock };
   let integration: Integration;
 
   beforeEach(() => {
@@ -137,6 +138,7 @@ describe('IntegrationsService', () => {
         .fn()
         .mockResolvedValue({ success: true, message: 'Connection successful' }),
     };
+    integrationCacheBus = { publish: jest.fn().mockResolvedValue(undefined) };
 
     service = new IntegrationsService(
       integrationRepo as never,
@@ -146,6 +148,7 @@ describe('IntegrationsService', () => {
       oauthServiceMock as never,
       auditLogsService as never,
       mcpTestConnection as never,
+      integrationCacheBus as never,
     );
   });
 
@@ -918,6 +921,32 @@ describe('IntegrationsService', () => {
       );
     });
 
+    it('broadcasts cache invalidation with the integration id (04 m-4)', async () => {
+      await service.remove('int-1', 'ws-1', 'user-1');
+      expect(integrationCacheBus.publish).toHaveBeenCalledWith('int-1');
+    });
+
+    it('does not broadcast when removal is blocked by usages', async () => {
+      nodeRepo.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({
+          raw: [
+            {
+              node_id: 'n1',
+              node_label: 'Send HTTP',
+              node_type: 'http-request',
+              workflow_id: 'w1',
+              workflow_name: 'Workflow A',
+              is_active: true,
+            },
+          ],
+        }),
+      );
+      await expect(service.remove('int-1', 'ws-1', 'user-1')).rejects.toThrow(
+        ConflictException,
+      );
+      expect(integrationCacheBus.publish).not.toHaveBeenCalled();
+    });
+
     it('throws ConflictException when usages exist', async () => {
       nodeRepo.createQueryBuilder.mockReturnValue(
         makeQueryBuilder({
@@ -1024,6 +1053,13 @@ describe('IntegrationsService', () => {
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'integration.rotated' }),
       );
+    });
+
+    it('broadcasts cache invalidation after a successful rotation (04 m-4)', async () => {
+      const result = await service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+        credentials: { value: 'new-secret' },
+      });
+      expect(integrationCacheBus.publish).toHaveBeenCalledWith(result.id);
     });
 
     it('rejects org-scope rotation for non-admin', async () => {

@@ -21,6 +21,7 @@ import {
   toLogError,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import { IntegrationCacheBus } from '../../../common/redis/integration-cache-bus.service.js';
 import { assertSafeOutboundHostResolved } from '../http-request/http-safety.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';
@@ -80,8 +81,17 @@ export class DatabaseQueryHandler
     | { driver: 'mysql'; pool: MysqlPool; credsHash: string }
   >();
 
-  constructor(integrationsService?: IntegrationsService) {
+  constructor(
+    integrationsService?: IntegrationsService,
+    integrationCacheBus?: IntegrationCacheBus,
+  ) {
     super(integrationsService);
+    // refactor 04 m-4 — credential 회전이 타 인스턴스에서 발생하면 pub/sub 으로
+    // 통지받아 해당 integrationId 풀을 즉시 evict 한다. bus 미주입(레거시 fixture)
+    // 시엔 §resolvePgPool/resolveMysqlPool 의 credsHash 비교 evict 로 degrade.
+    integrationCacheBus?.register((integrationId) =>
+      this.invalidatePool(integrationId),
+    );
   }
 
   metadata = databaseQueryNodeMetadata;

@@ -11,6 +11,7 @@ import { MakeshopApiClient } from '../../../nodes/integration/makeshop/makeshop-
 import { ExecutionEventEmitter } from '../events/execution-event-emitter.service';
 import { ConversationThreadService } from '../conversation-thread/conversation-thread.service';
 import { AgentMemoryService } from '../../agent-memory/agent-memory.service';
+import { IntegrationCacheBus } from '../../../common/redis/integration-cache-bus.service';
 
 /**
  * 노드 핸들러 (`NodeComponentRegistry.bootstrap`) 에 전달되는 런타임 의존성을
@@ -42,6 +43,8 @@ export class NodeHandlerDependenciesProvider {
     private readonly conversationThreadService?: ConversationThreadService,
     @Optional()
     private readonly agentMemoryService?: AgentMemoryService,
+    @Optional()
+    private readonly integrationCacheBus?: IntegrationCacheBus,
   ) {}
 
   /**
@@ -61,6 +64,7 @@ export class NodeHandlerDependenciesProvider {
       makeshopApiClient: this.makeshopApiClient,
       conversationThreadService: this.conversationThreadService,
       agentMemoryService: this.agentMemoryService,
+      integrationCacheBus: this.integrationCacheBus,
     };
   }
 }

@@ -329,6 +329,12 @@ export interface HandlerDependencies {
    *  (spec/5-system/17-agent-memory.md §4). 다른 핸들러는 무시. Optional —
    *  미주입 시 persistent 회수는 빈 결과로 graceful degrade. */
   agentMemoryService?: import('../../modules/agent-memory/agent-memory.service').AgentMemoryService;
+  /** Integration 자격증명 회전의 멀티 인스턴스 캐시 무효화 bus
+   *  (refactor 04 m-4, spec/4-nodes/4-integration/2-database-query.md §4.2).
+   *  자격증명 캐시(예: database-query 연결 풀)를 가진 핸들러가 부팅 시
+   *  `register((id) => this.invalidatePool(id))` 로 등록한다. 다른 핸들러는 무시.
+   *  Optional — 미주입(레거시 테스트 fixture) 시 로컬 credsHash evict 로 degrade. */
+  integrationCacheBus?: import('../../common/redis/integration-cache-bus.service').IntegrationCacheBus;
 }
 
 /**
