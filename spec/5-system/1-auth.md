@@ -184,7 +184,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 동일 이메일 중복 초대 | 새 발송이 들어오면 기존 대기 중 토큰 invalidate 후 신규 발급 | 다중 토큰이 동시에 살아있지 않도록 |
 | **이메일 일치 강제** | accept·가입 시 `토큰.email == 로그인/가입 사용자 이메일` 강제. 불일치 시 400 | 토큰 누출 시 임의 사용자가 임의 워크스페이스에 진입하는 위협 차단 |
 | 발송 채널 | 시스템 SMTP (`codebase/backend/src/modules/mail/`) 만 사용. 워크스페이스 SMTP Integration 은 **사용하지 않음** | 운영 단순화. 자세한 근거는 [Rationale §1.5.B](#rationale) |
-| Rate Limit | 워크스페이스·invited_by 단위 분당 N회 (구현 시 결정) | 이메일 폭격 방지 |
+| Rate Limit | 분당 10건 (`INVITATION_THROTTLE`, `workspaces.controller.ts` — invite·resend 엔드포인트 공통) | 이메일 폭격 방지. [data-flow §1.2](../data-flow/12-workspace.md) 와 동일 값 |
 
 #### 1.5.2 흐름 (미가입자 가입 경로)
 
@@ -534,3 +534,13 @@ LoginHistoryService 는 AuthModule 과 WebAuthnModule 양쪽에 provider 로 둔
 ### 2.3.A — Refresh 쿠키 Domain 자동 유도 (명시 env 없음)
 
 Refresh 쿠키의 `Domain` 속성은 운영자 env 가 아니라 `FRONTEND_URL`/`APP_URL` 의 hostname 에서 공통 상위 도메인을 자동 유도한다 (§2.3 표, `common/config/app.config.ts` `computeCookieDomain`). 서브도메인 분리 배포(`api.x.com` / `app.x.com`)에서 별도 설정 없이 인증이 동작하고, 잘못된 명시 Domain 설정으로 쿠키가 전달되지 않는 운영 사고를 줄이기 위함이다. localhost·IP·공통 상위 도메인 부재 시에는 Domain 을 지정하지 않아 backend origin 한정으로 좁힌다 — 전혀 다른 도메인 간에는 쿠키 공유 자체가 불가능하므로 클라이언트의 `withCredentials` cross-origin 요청에 의존한다.
+
+### 1.5.D — 워크스페이스 초대 토큰을 raw 로 저장하는 이유 (vs 이메일·재설정 토큰의 SHA-256 해시)
+
+§1.1 의 이메일 인증·비밀번호 재설정 토큰은 **사용자 계정 자체를 탈취**할 수 있는 자격증명이라 DB 유출 시 피해가 직접적이므로 SHA-256 해시로만 저장한다. 반면 초대 토큰(`WorkspaceInvitation.token`, raw 저장)은:
+
+- 토큰 단독으로는 권한 획득이 불가능하다 — 수락 시 서버가 **로그인 사용자의 이메일과 토큰 이메일 일치를 강제**(`invitation_email_mismatch`, §1.5.3)하므로, 유출 토큰은 해당 이메일 계정의 인증 없이는 무용하다.
+- 단일 사용(수락 시 소멸) + 7일 만료로 노출 창이 한정된다.
+- 초대 관리 화면(§1.5.1)이 pending 초대의 재발송·취소를 위해 토큰 lookup 을 수행한다.
+
+따라서 해시 전환의 보안 이득이 위협 모델 대비 작아 raw 저장을 유지한다. DB 유출을 전제로 하는 방어는 이메일 일치 강제(1차)와 만료(2차)가 담당한다.

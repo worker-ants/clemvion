@@ -55,10 +55,20 @@ User ──┬── Workspace (1:N)
 |------|------|------|
 | id | UUID | PK |
 | email | String | 고유, 로그인 식별자 |
-| password_hash | String | 비밀번호 해시 (bcrypt) |
+| password_hash | String? | 비밀번호 해시 (bcrypt). **OAuth 단독 가입 사용자는 NULL** ([Auth §1.1](./5-system/1-auth.md#11-이메일비밀번호-인증)) |
 | name | String | 표시 이름 |
 | avatar_url | String? | 프로필 이미지 URL |
 | locale | String | 언어 설정 (기본: "ko") |
+| email_verified | Boolean | 이메일 인증 완료 여부 (기본 false — 인증 전 로그인 제한, [Auth §1.1](./5-system/1-auth.md#11-이메일비밀번호-인증)) |
+| email_verify_token | String? | 이메일 인증 토큰 **SHA-256 해시** (24h 유효). 인증 완료 시 NULL |
+| email_verify_expires_at | Timestamp? | 이메일 인증 토큰 만료 시각 |
+| password_reset_token | String? | 비밀번호 재설정 토큰 **SHA-256 해시** (30분 유효). 사용/만료 시 NULL |
+| password_reset_expires_at | Timestamp? | 재설정 토큰 만료 시각 |
+| login_attempts | Integer | 연속 로그인 실패 횟수 (기본 0 — 5회 실패 시 잠금, [data-flow §3.2](./data-flow/2-auth.md)) |
+| locked_until | Timestamp? | 로그인 잠금 해제 시각 (10분 잠금) |
+| oauth_provider | String? | OAuth 가입/연동 provider (예: google). 미연동 NULL |
+| oauth_provider_id | String? | provider 측 사용자 식별자 |
+| notification_preferences | JSONB | 사용자 알림 환경설정 (기본 `{}`) |
 | theme | Enum | light / dark |
 | two_factor_enabled | Boolean | TOTP 2FA 활성 여부 (WebAuthn credential 등록 여부와는 독립 — WebAuthn 만 등록한 사용자는 이 값이 false) |
 | two_factor_secret | String? | TOTP secret (otplib base32). 활성화 verify 전까지는 채워져 있어도 `two_factor_enabled = false`. 비활성 시 NULL |

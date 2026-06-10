@@ -104,12 +104,12 @@ sequenceDiagram
 `audit-logs.controller.ts` → `AuditLogsService.findAll`:
 
 - 스코프: `@WorkspaceId()` (요청의 워크스페이스 컨텍스트) — 워크스페이스 단위로만 조회.
-- 필터: `action`(완전 일치), `resourceType`, `startDate`/`endDate` (created_at 범위).
+- 필터: `action`(완전 일치), `resourceType`, `userId`(행위자), `startDate`/`endDate` (created_at 범위).
 - 페이지네이션: **offset 방식** (`page` 기본 1, `limit` 기본 20). 정렬은 whitelist
   (`created_at`/`action`/`resource_type`, 기본 `created_at DESC`). 응답에 actor `user` join 포함.
-- 권한: 전역 `JwtAuthGuard` 인증만. controller 에 `@Roles` 데코레이터가 없어
-  [인증 spec §4.2](../5-system/1-auth.md) 의 "관리자(Admin+)만 조회" 는 코드에 강제되어 있지 않다
-  (멤버 누구나 조회 가능 — spec 대비 구현 갭).
+- 권한: `@Roles('admin')` — 전역 `RolesGuard` 가 워크스페이스 멤버십과 역할을 함께 검증해
+  [인증 spec §4.2](../5-system/1-auth.md) 의 "관리자(Admin+)만 조회" 를 강제한다
+  (비멤버의 `X-Workspace-Id` 위조 열람도 차단).
 
 ### 2.2 `GET /users/me/login-history` — 본인 단독 조회
 
