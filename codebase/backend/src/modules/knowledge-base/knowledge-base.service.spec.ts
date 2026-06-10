@@ -67,6 +67,7 @@ describe('KnowledgeBaseService', () => {
     mockS3Service = {
       upload: jest.fn().mockResolvedValue('s3-key'),
       delete: jest.fn().mockResolvedValue(undefined),
+      deleteMany: jest.fn().mockResolvedValue({ errored: [] }),
     };
 
     // reExtractAll 이 트랜잭션 안에서 atomic 으로 잠금/삭제/조회를 수행하므로 mock 에
@@ -676,8 +677,90 @@ describe('KnowledgeBaseService', () => {
           workspaceId: 'ws-1',
         },
       );
-      expect(mockS3Service.delete).toHaveBeenCalledWith('kb/kb-1/d1/a.txt');
-      expect(mockS3Service.delete).toHaveBeenCalledWith('kb/kb-1/d2/b.txt');
+      // 01-performance #2 B안 — 단건 delete 루프 대신 deleteMany 배치 1회.
+      expect(mockS3Service.deleteMany).toHaveBeenCalledTimes(1);
+      expect(mockS3Service.deleteMany).toHaveBeenCalledWith([
+        'kb/kb-1/d1/a.txt',
+        'kb/kb-1/d2/b.txt',
+      ]);
+      expect(mockS3Service.delete).not.toHaveBeenCalled();
+      expect(mockKbRepo.remove).toHaveBeenCalledWith(kb);
+    });
+
+    it('deleteMany 부분 실패(errored)는 warn 로깅만 하고 KB 삭제는 진행한다 (best-effort 보존)', async () => {
+      const kb = { id: 'kb-1', workspaceId: 'ws-1' };
+      mockKbRepo.findOne.mockResolvedValue(kb);
+      const qb = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'd1', fileUrl: 'kb/kb-1/d1/a.txt' }]),
+      };
+      mockDocRepo.createQueryBuilder.mockReturnValueOnce(qb);
+      mockS3Service.deleteMany.mockResolvedValueOnce({
+        errored: ['kb/kb-1/d1/a.txt'],
+      });
+      const warnSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { warn: (m: string) => void } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+
+      await service.remove('kb-1', 'ws-1');
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('kb/kb-1/d1/a.txt'),
+      );
+      expect(mockKbRepo.remove).toHaveBeenCalledWith(kb);
+      warnSpy.mockRestore();
+    });
+
+    it('deleteMany 명령 자체가 실패해도 warn 후 KB 삭제는 진행한다 (네트워크 best-effort)', async () => {
+      const kb = { id: 'kb-1', workspaceId: 'ws-1' };
+      mockKbRepo.findOne.mockResolvedValue(kb);
+      const qb = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'd1', fileUrl: 'kb/kb-1/d1/a.txt' }]),
+      };
+      mockDocRepo.createQueryBuilder.mockReturnValueOnce(qb);
+      mockS3Service.deleteMany.mockRejectedValueOnce(new Error('econnrefused'));
+      const warnSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { warn: (m: string) => void } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+
+      await service.remove('kb-1', 'ws-1');
+
+      expect(warnSpy).toHaveBeenCalled();
+      expect(mockKbRepo.remove).toHaveBeenCalledWith(kb);
+      warnSpy.mockRestore();
+    });
+
+    it('문서 0건이면 deleteMany 를 호출하지 않는다', async () => {
+      const kb = { id: 'kb-1', workspaceId: 'ws-1' };
+      mockKbRepo.findOne.mockResolvedValue(kb);
+      const qb = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      mockDocRepo.createQueryBuilder.mockReturnValueOnce(qb);
+
+      await service.remove('kb-1', 'ws-1');
+
+      expect(mockS3Service.deleteMany).not.toHaveBeenCalled();
       expect(mockKbRepo.remove).toHaveBeenCalledWith(kb);
     });
   });

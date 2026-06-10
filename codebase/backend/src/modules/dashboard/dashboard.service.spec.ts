@@ -30,6 +30,119 @@ const baseFake = (overrides: Partial<FakeExec>): FakeExec => ({
   ...overrides,
 });
 
+describe('DashboardService.getSummary', () => {
+  // perf #4 — 동일 범위 6쿼리 5왕복을 집계 2쿼리(workflow 1 + execution 1)로
+  // 통합. 파생 계산(반올림·changePercent·분모 의미론)은 기존 로직 그대로다.
+  let service: DashboardService;
+  let executionRepo: { createQueryBuilder: jest.Mock; count?: jest.Mock };
+  let workflowRepo: { createQueryBuilder: jest.Mock; count: jest.Mock };
+  let wfQB: Record<string, jest.Mock>;
+  let execQB: Record<string, jest.Mock>;
+
+  const buildAggQB = (raw: Record<string, unknown>) => {
+    const qb: Record<string, jest.Mock> = {};
+    qb.select = jest.fn().mockReturnValue(qb);
+    qb.addSelect = jest.fn().mockReturnValue(qb);
+    qb.innerJoin = jest.fn().mockReturnValue(qb);
+    qb.where = jest.fn().mockReturnValue(qb);
+    qb.andWhere = jest.fn().mockReturnValue(qb);
+    qb.setParameters = jest.fn().mockReturnValue(qb);
+    qb.getRawOne = jest.fn().mockResolvedValue(raw);
+    return qb;
+  };
+
+  const setup = (
+    wfRaw: Record<string, unknown>,
+    execRaw: Record<string, unknown>,
+  ) => {
+    wfQB = buildAggQB(wfRaw);
+    execQB = buildAggQB(execRaw);
+    workflowRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(wfQB),
+      count: jest.fn(),
+    };
+    executionRepo = { createQueryBuilder: jest.fn().mockReturnValue(execQB) };
+    service = new DashboardService(
+      workflowRepo as never,
+      executionRepo as never,
+    );
+  };
+
+  it('workflow 1 + execution 1 — 총 2회 왕복으로 모든 summary 필드를 산출한다', async () => {
+    setup(
+      { total: '5', active: '2' },
+      { total7d: '10', prev7d: '4', success7d: '7', avg7d: '123.6' },
+    );
+
+    const summary = await service.getSummary('ws-1');
+
+    expect(summary).toEqual({
+      totalWorkflows: 5,
+      activeWorkflows: 2,
+      runs7d: 10,
+      runs7dPrevious: 4,
+      runs7dChangePercent: 150,
+      successRate: 70,
+      avgExecutionTime: 124,
+    });
+    // 왕복 수 게이트: repo 별 QB 1회씩, count() 미사용.
+    expect(workflowRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+    expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+    expect(workflowRepo.count).not.toHaveBeenCalled();
+  });
+
+  it('분모 의미론 보존 — successRate 분모는 status 무관 7일 전체(total7d) FILTER 로 계산된다', async () => {
+    setup(
+      { total: '1', active: '1' },
+      { total7d: '4', prev7d: '0', success7d: '1', avg7d: null },
+    );
+
+    const summary = await service.getSummary('ws-1');
+
+    // 4건 중 1건 completed → 25% (분모가 completed 한정이면 100% 로 어긋남).
+    expect(summary.successRate).toBe(25);
+    // FILTER 절이 분모(전체)와 분자(completed 한정)를 분리해 표현하는지 확인.
+    const selects = [
+      ...execQB.select.mock.calls.map((c: unknown[]) => String(c[0])),
+      ...execQB.addSelect.mock.calls.map((c: unknown[]) => String(c[0])),
+    ].join('\n');
+    expect(selects).toContain('FILTER');
+    expect(selects).toMatch(/status/);
+  });
+
+  it('경계값: prev7d=0 → changePercent null, total7d=0 → successRate 0, avg null → 0', async () => {
+    setup(
+      { total: '0', active: '0' },
+      { total7d: '0', prev7d: '0', success7d: '0', avg7d: null },
+    );
+
+    const summary = await service.getSummary('ws-1');
+
+    expect(summary.runs7dChangePercent).toBeNull();
+    expect(summary.successRate).toBe(0);
+    expect(summary.avgExecutionTime).toBe(0);
+  });
+
+  it('getRawOne 이 undefined(이론상 빈 결과)여도 0 기본값으로 안전 처리한다', async () => {
+    setup(
+      undefined as unknown as Record<string, unknown>,
+      undefined as unknown as Record<string, unknown>,
+    );
+
+    const summary = await service.getSummary('ws-1');
+
+    expect(summary).toEqual({
+      totalWorkflows: 0,
+      activeWorkflows: 0,
+      runs7d: 0,
+      runs7dPrevious: 0,
+      runs7dChangePercent: null,
+      successRate: 0,
+      avgExecutionTime: 0,
+    });
+  });
+});
+
 describe('DashboardService.getRecentExecutions', () => {
   let service: DashboardService;
   let executionRepo: { createQueryBuilder: jest.Mock };
@@ -198,5 +311,109 @@ describe('DashboardService.getRecentExecutions', () => {
     const result = await service.getRecentExecutions('ws-1');
     expect(result[0].triggerSource).toBe('unknown');
     expect(result[0].triggerLabel).toBeNull();
+  });
+});
+
+// W3a (SUMMARY) — dashboard prev7d [14d,7d) 구간 경계값 단언.
+// mock QB 로는 SQL FILTER off-by-one 자체는 검증 불가하므로, WHERE 파라미터
+// (fourteenDaysAgo/sevenDaysAgo) 와 andWhere 절이 올바르게 전달됨을 보장한다.
+// 6d/8d/13d/15d 는 integration 레벨에서 실 DB 로 검증하는 것이 정석이나,
+// 여기서는 날짜 수학과 파라미터 전달 계약을 단위로 고정한다.
+describe('DashboardService.getSummary — prev7d 경계 날짜 파라미터 계약 (W3a)', () => {
+  let service: DashboardService;
+  let workflowRepo: { createQueryBuilder: jest.Mock; count: jest.Mock };
+  let execRepo: { createQueryBuilder: jest.Mock };
+  let execQB: Record<string, jest.Mock>;
+
+  const buildAggQB = (raw: Record<string, unknown>) => {
+    const qb: Record<string, jest.Mock> = {};
+    qb.select = jest.fn().mockReturnValue(qb);
+    qb.addSelect = jest.fn().mockReturnValue(qb);
+    qb.innerJoin = jest.fn().mockReturnValue(qb);
+    qb.where = jest.fn().mockReturnValue(qb);
+    qb.andWhere = jest.fn().mockReturnValue(qb);
+    qb.setParameters = jest.fn().mockReturnValue(qb);
+    qb.getRawOne = jest.fn().mockResolvedValue(raw);
+    return qb;
+  };
+
+  beforeEach(() => {
+    const wfQB = buildAggQB({ total: '1', active: '1' });
+    execQB = buildAggQB({
+      total7d: '3',
+      prev7d: '2',
+      success7d: '2',
+      avg7d: '100',
+    });
+    workflowRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(wfQB),
+      count: jest.fn(),
+    };
+    execRepo = { createQueryBuilder: jest.fn().mockReturnValue(execQB) };
+    service = new DashboardService(workflowRepo as never, execRepo as never);
+  });
+
+  it('andWhere 절에 fourteenDaysAgo 파라미터가 사용돼 [14d, 7d) 하한이 설정된다', async () => {
+    const before = Date.now();
+    await service.getSummary('ws-1');
+    const after = Date.now();
+
+    // andWhere 호출 확인: fourteenDaysAgo binding
+    expect(execQB.andWhere).toHaveBeenCalledWith(
+      'e.started_at >= :fourteenDaysAgo',
+      expect.objectContaining({
+        fourteenDaysAgo: expect.any(Date),
+      }),
+    );
+
+    // fourteenDaysAgo 는 sevenDaysAgo 에서 7일 더 뺀 값이므로 약 14일 전이다.
+    const callArgs = execQB.andWhere.mock.calls[0] as [
+      string,
+      { fourteenDaysAgo: Date },
+    ];
+    const fourteenDaysAgo = callArgs[1].fourteenDaysAgo.getTime();
+    const expected14dAgo = before - 14 * 24 * 60 * 60 * 1000;
+    const expected14dAgoMax = after - 14 * 24 * 60 * 60 * 1000;
+    expect(fourteenDaysAgo).toBeGreaterThanOrEqual(expected14dAgo - 5000);
+    expect(fourteenDaysAgo).toBeLessThanOrEqual(expected14dAgoMax + 5000);
+  });
+
+  it('setParameters 에 sevenDaysAgo 가 포함돼 FILTER(>= 7d) 상한이 분리된다', async () => {
+    const before = Date.now();
+    await service.getSummary('ws-1');
+    const after = Date.now();
+
+    expect(execQB.setParameters).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sevenDaysAgo: expect.any(Date),
+      }),
+    );
+
+    const sevenDaysAgoVal = (
+      execQB.setParameters.mock.calls[0][0] as { sevenDaysAgo: Date }
+    ).sevenDaysAgo.getTime();
+    const expected7dAgo = before - 7 * 24 * 60 * 60 * 1000;
+    const expected7dAgoMax = after - 7 * 24 * 60 * 60 * 1000;
+    expect(sevenDaysAgoVal).toBeGreaterThanOrEqual(expected7dAgo - 5000);
+    expect(sevenDaysAgoVal).toBeLessThanOrEqual(expected7dAgoMax + 5000);
+  });
+
+  it('fourteenDaysAgo 는 sevenDaysAgo 보다 정확히 7일 앞서야 한다 (경계 분리 불변식)', async () => {
+    await service.getSummary('ws-1');
+
+    const andWhereArgs = execQB.andWhere.mock.calls[0] as [
+      string,
+      { fourteenDaysAgo: Date },
+    ];
+    const setParamsArgs = execQB.setParameters.mock.calls[0][0] as {
+      sevenDaysAgo: Date;
+    };
+
+    const diff =
+      setParamsArgs.sevenDaysAgo.getTime() -
+      andWhereArgs[1].fourteenDaysAgo.getTime();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    // 날짜 계산은 ms 단위이므로 setDate 특성상 정확히 7 * 24 * 3600 * 1000
+    expect(diff).toBe(sevenDaysMs);
   });
 });

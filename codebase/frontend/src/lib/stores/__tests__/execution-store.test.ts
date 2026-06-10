@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   useExecutionStore,
   findReconcilableOptimisticIdx,
+  selectSortedNodeResults,
 } from "../execution-store";
 import type {
   ConversationItem,
@@ -26,6 +27,9 @@ const initialState = {
   status: "idle" as const,
   nodeStatuses: new Map(),
   nodeResults: [],
+  nodeResultIndexByExecId: new Map(),
+  lastIndexByNodeId: new Map(),
+  firstNoExecIdIndexByNodeId: new Map(),
   startedAt: null,
   waitingNodeId: null,
   waitingFormConfig: null,
@@ -242,27 +246,141 @@ describe("useExecutionStore", () => {
           startedAt: "2026-05-08T15:28:55.615Z",
         }),
       );
-      const ids = useExecutionStore
-        .getState()
-        .nodeResults.map((r) => r.nodeId);
+      // 정렬은 store 가 아니라 selectSortedNodeResults accessor 가 담당한다
+      // (store 의 nodeResults 는 도착순 유지). 단언 의미는 보존: 시간순.
+      const ids = selectSortedNodeResults(
+        useExecutionStore.getState().nodeResults,
+      ).map((r) => r.nodeId);
       expect(ids).toEqual(["n1", "n2", "n3"]);
     });
 
     it("waiting-only result without startedAt sinks to the timeline end (defensive sort)", () => {
       // backend startedAt 동봉 누락 시나리오 (구버전 호환). undefined startedAt
-      // 은 sortByStartedAt 정의상 마지막으로. 본 PR fix 가 적용된 backend 는
+      // 은 selectSortedNodeResults 정의상 마지막으로. 본 PR fix 가 적용된 backend 는
       // 항상 startedAt 을 동봉하므로 production 에서는 발생하지 않으나
-      // store 정렬의 defensive 동작을 보장.
+      // accessor 정렬의 defensive 동작을 보장.
       useExecutionStore.getState().addNodeResult(
         makeResult({ nodeId: "n1", status: "waiting_for_input" }),
       );
       useExecutionStore.getState().addNodeResult(
         makeResult({ nodeId: "n2", startedAt: "2026-05-08T15:28:54.000Z" }),
       );
-      const ids = useExecutionStore
-        .getState()
-        .nodeResults.map((r) => r.nodeId);
+      const ids = selectSortedNodeResults(
+        useExecutionStore.getState().nodeResults,
+      ).map((r) => r.nodeId);
       expect(ids).toEqual(["n2", "n1"]);
+    });
+
+    // #8 ghost-row fallback — a no-exec-id event (legacy / mid-flight waiting)
+    // updates the existing row for that nodeId in place rather than spawning a
+    // phantom duplicate (Carousel-after-button-click ghost row regression).
+    it("ghost-row fallback: no-exec-id event updates the most recent row for that nodeId", () => {
+      useExecutionStore.getState().addNodeResult(
+        makeResult({
+          nodeExecutionId: "ne-1",
+          nodeId: "carousel-1",
+          status: "completed",
+          outputData: { v: 1 },
+        }),
+      );
+      // Subsequent waiting event for the same nodeId carries NO nodeExecutionId.
+      useExecutionStore.getState().addNodeResult(
+        makeResult({
+          nodeId: "carousel-1",
+          status: "waiting_for_input",
+        }),
+      );
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results).toHaveLength(1);
+      expect(results[0].status).toBe("waiting_for_input");
+      // The original per-execution id is preserved through the merge.
+      expect(results[0].nodeExecutionId).toBe("ne-1");
+    });
+
+    // #8 index Map coherence — a repeated event for the same nodeExecutionId
+    // must update the same row (exec-id index stays valid after an update).
+    it("re-event with the same nodeExecutionId updates the same row (index Map coherent)", () => {
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeExecutionId: "ne-1", nodeId: "n1", outputData: { v: 1 } }),
+      );
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeExecutionId: "ne-2", nodeId: "n2", outputData: { v: 2 } }),
+      );
+      // Re-event for ne-1 (e.g. running → completed) — must not duplicate.
+      useExecutionStore.getState().addNodeResult(
+        makeResult({
+          nodeExecutionId: "ne-1",
+          nodeId: "n1",
+          status: "completed",
+          outputData: { v: 3 },
+        }),
+      );
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results).toHaveLength(2);
+      const row = results.find((r) => r.nodeExecutionId === "ne-1");
+      expect(row?.outputData).toEqual({ v: 3 });
+      expect(row?.status).toBe("completed");
+    });
+
+    // #3/#8 findNodeResult predicate parity — mirrors the 4 use-execution-events
+    // `.find()` sites exactly: exec-id present → match by exec id; absent →
+    // FIRST row appended without an exec id for that nodeId. A new exec-id
+    // event for an already-present nodeId appends a distinct iteration row
+    // (it does NOT merge with the no-exec-id row — preserving old semantics).
+    it("findNodeResult resolves exec-id rows and the first no-exec-id row independently", () => {
+      // First: a no-exec-id row (NODE_STARTED race miss for n1).
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeId: "n1", status: "running" }),
+      );
+      // Then: an exec-id event for the same nodeId — appends a distinct row
+      // (exec-id lookup misses the no-exec-id row, matching old findIndex).
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeExecutionId: "ne-1", nodeId: "n1", status: "completed" }),
+      );
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results).toHaveLength(2);
+
+      // No-exec-id lookup still resolves the FIRST (no-exec-id) row.
+      const noExec = useExecutionStore
+        .getState()
+        .findNodeResult(undefined, "n1");
+      expect(noExec?.nodeExecutionId).toBeUndefined();
+      expect(noExec?.status).toBe("running");
+      // Exec-id lookup resolves the exec-id row.
+      expect(
+        useExecutionStore.getState().findNodeResult("ne-1", "n1")?.nodeExecutionId,
+      ).toBe("ne-1");
+    });
+
+    // #3 accessor memo — same state array reference → same sorted array
+    // reference (WeakMap), so multiple consumers share one sort.
+    it("selectSortedNodeResults returns the same reference for the same array (memo)", () => {
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeId: "n1", startedAt: "2026-05-08T15:28:53.000Z" }),
+      );
+      const arr = useExecutionStore.getState().nodeResults;
+      const a = selectSortedNodeResults(arr);
+      const b = selectSortedNodeResults(arr);
+      expect(a).toBe(b);
+    });
+
+    // #3 — equal startedAt keeps arrival order (Array.prototype.sort stable +
+    // arrival-index tiebreak in the comparator).
+    it("ties on startedAt preserve arrival order", () => {
+      const ts = "2026-05-08T15:28:53.000Z";
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeExecutionId: "a", nodeId: "n1", startedAt: ts }),
+      );
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeExecutionId: "b", nodeId: "n2", startedAt: ts }),
+      );
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeExecutionId: "c", nodeId: "n3", startedAt: ts }),
+      );
+      const ids = selectSortedNodeResults(
+        useExecutionStore.getState().nodeResults,
+      ).map((r) => r.nodeExecutionId);
+      expect(ids).toEqual(["a", "b", "c"]);
     });
   });
 

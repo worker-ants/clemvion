@@ -17,7 +17,7 @@
 
 | 문서 | 원 건수 | 유효 | 철회(E) | ⚠️ A-잔존문제 | 핵심 주제 |
 | --- | --- | --- | --- | --- | --- |
-| [01-performance.md](./01-performance.md) | 15 | 13 | 2 (#9 철회, #13 종결) | 0 | N+1, 직렬 I/O, 프론트 O(N²) — ✅ 결정(2026-06-10): 전반 권장안 진행, #2=B안 확정(실검증), #13=C 종결 |
+| [01-performance.md](./01-performance.md) | 15 | **0 (전 항목 처리 완료)** | 2 (#9 철회, #13 종결) | 0 | ✅ 2026-06-10 완료: 구현 10건(perf-backlog-01 브랜치) + 종결 4건. spec 동기화 = `plan/complete/spec-update-perf-backlog-01.md` |
 | [02-architecture.md](./02-architecture.md) | 15 | 15 | 0 | 2 (C-2 일부, M-5) | god-class 분할, forwardRef(엔진↔WS 는 spec 의도), 레이어 침범 |
 | [03-maintainability.md](./03-maintainability.md) | 15 | 14 | 1 (M-3) | 4 (C-3, M-4, M-6, m-2) | 거대 메서드, cafe24/makeshop 미러(DRY-deferral 문서화됨) |
 | [04-security.md](./04-security.md) | 14 | 14 | 0 | 4 (C-2, M-2, M-3, m-4) | vm 탈출(spec 인지 트레이드오프), SSRF spec 내부 모순, WS 채널 spec 갭 |
@@ -48,11 +48,11 @@
 
 ### P1 — 핵심 경로 성능·신뢰성
 
-6. **resume rehydration N+1** (+ `(execution_id,status)` partial 인덱스 — 신규 제안, data-model §3 표 동기화 동반) → [01](./01-performance.md) #1, [05](./05-database.md) C-3
+6. ~~**resume rehydration N+1**~~ ✅ 완료(2026-06-10, 01 #1·05 M-4) — `(execution_id,status)` partial 인덱스(05 C-3)는 별도 잔존 → [05](./05-database.md) C-3
 7. **cancel fire-and-forget + nextSeq random fallback** — 함께 적용(동일 surface) → [06](./06-concurrency.md) C-1·M-7
 8. **rehydrate optimistic claim** — spec 불변식("이중 실행 0")의 보장 수단 보강 + §7.5 문구 갱신 → [06](./06-concurrency.md) C-2 ⚠️
 9. **shutdown 중 시작 노드 추적 포기** — §11.4 약속 위반 드리프트 → [06](./06-concurrency.md) M-2
-10. **프론트 execution-store O(N² log N) + 선형 탐색** — 한 PR 권장 → [01](./01-performance.md) #3·#8
+10. ~~**프론트 execution-store O(N² log N) + 선형 탐색**~~ ✅ 완료(2026-06-10, 01 #3·#8 단일 커밋)
 11. **WS `workflow:`/`notifications:` authorizer** — spec 갭 선제 차단(spec §3.3 갱신 동반) → [04](./04-security.md) M-6
 12. **frontend API_BASE_URL 3001 fallback 수정** (정답 3011) → [03](./03-maintainability.md) M-2
 
@@ -108,7 +108,7 @@
 - `13-replay-rerun.md` §9.1 walk→CTE 1줄 (05 C-2), `data-flow/2-auth.md` §1.4 트랜잭션 박스 (05 C-1)
 - `1-data-model.md` §3 인덱스 표 stale 일괄 동기화 (05 C-3 부수 발견)
 - transform/filter/if-else/switch 의 "길이 200 = ReDoS 방지" 정정 (04 M-3)
-- `data-flow/4-file-storage.md` "for 루프" 문구 (01 #2), `interaction-type-registry.md` §1.2 park-entry 레이어 (02 M-4)
+- ~~`data-flow/4-file-storage.md` "for 루프" 문구 (01 #2)~~ — ✅ 반영 완료 (`plan/complete/spec-update-perf-backlog-01.md`, 2026-06-10). `interaction-type-registry.md` §1.2 park-entry 레이어 (02 M-4)
 - `1-auth.md` §2.1 SameSite/CSRF 정책 공백 (04 M-5), secret-store.md placeholder 정책 (04 M-4)
 
 ## 운영 규칙

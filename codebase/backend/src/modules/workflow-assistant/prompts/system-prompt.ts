@@ -37,6 +37,32 @@ export function resetExpressionCacheForTesting(): void {
 }
 
 /**
+ * 노드 카탈로그 캐시 — `expressionReferenceCache` 와 동일 규율 (perf #7).
+ * `nodeDefs` 는 부팅 시 registry 등록 후 프로세스 수명 동안 불변이므로 배열
+ * reference 를 키로 1회만 문자열화한다 (spec 4-ai-assistant §5 의 "정적
+ * 블록 prefix cache" 설계 의도와 동일 패턴). WeakMap 키라 테스트가 다른
+ * defs 배열을 주입하면 자연히 분리 캐시되고, 같은 배열을 mutate 하는
+ * 테스트는 아래 reset 헬퍼로 캐시를 비운다.
+ */
+let nodeCatalogCache = new WeakMap<NodeDefinitionView[], string>();
+
+/**
+ * 테스트 전용 진입점 — `resetExpressionCacheForTesting` 과 동일 규율.
+ * 프로덕션 코드는 호출하지 말 것.
+ */
+export function resetNodeCatalogCacheForTesting(): void {
+  nodeCatalogCache = new WeakMap();
+}
+
+function renderNodeCatalogCached(nodeDefs: NodeDefinitionView[]): string {
+  const hit = nodeCatalogCache.get(nodeDefs);
+  if (hit !== undefined) return hit;
+  const rendered = renderNodeCatalog(nodeDefs);
+  nodeCatalogCache.set(nodeDefs, rendered);
+  return rendered;
+}
+
+/**
  * Assistant 시스템 프롬프트를 5블록 구조로 조립한다.
  *
  * LLM provider 의 prefix cache 가 유지되려면 **정적 내용이 앞, 턴마다 바뀌는
@@ -54,7 +80,7 @@ export function buildSystemPrompt(
   snapshot: ShadowSnapshot,
   activePlanContext: ActivePlanContext | null = null,
 ): string {
-  const catalog = renderNodeCatalog(nodeDefs);
+  const catalog = renderNodeCatalogCached(nodeDefs);
   const snapshotJson = JSON.stringify(toWorkflowView(snapshot));
   const activePlanSection = renderActivePlanSection(activePlanContext);
   const expressionSection = getExpressionReferenceSection();
