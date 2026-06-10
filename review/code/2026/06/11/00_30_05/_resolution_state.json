@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "started_at": "2026-06-11T00:00:00Z",
+  "summary_items_total": 12,
+  "items_resolved_ids": [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12],
+  "items_pending_ids": [5],
+  "items_escalated_ids": {"INFO10": "spec"},
+  "commits_made": [
+    {"sha": "a1191baf", "summary_id": "W1-W4-W6-W7-W8-W9-W10-W11-W12", "scope": "models"},
+    {"sha": "a2d9d753", "summary_id": "INFO10-spec-drift", "scope": "spec-draft"}
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-update-model-config-defaults.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260611-005324.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec-drift: INFO#10 max_tokens default — code correctly uses 4096, spec §B.4 says 2048; spec-update draft created",
+  "last_reset_hint_sec": null
+}
