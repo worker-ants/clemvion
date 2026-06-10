@@ -121,7 +121,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 │                                          │
 │  ── Parameters ──                        │
 │  Temperature: [0.7___]                   │
-│  Max Tokens:  [2048__]                   │
+│  Max Tokens:  [4096__]                   │
 │  Response:    ● Text  ○ JSON             │
 │                                          │
 │  ── Knowledge Base ──                    │
@@ -662,7 +662,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
     "llmConfigId": "cfg-1",
     "model": "gpt-4o",
     "temperature": 0.7,
-    "maxTokens": 2048,
+    "maxTokens": 4096,
     "knowledgeBases": ["kb-1"],
     "ragThreshold": 0.7,
     "maxToolCalls": 10,
