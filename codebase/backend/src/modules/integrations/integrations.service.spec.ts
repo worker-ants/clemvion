@@ -1912,19 +1912,36 @@ describe('IntegrationsService', () => {
       const sample = result.operations[0];
       expect(sample.key).toMatch(/^cafe24\.[a-z0-9_]+\.[a-z0-9_]+$/i);
       expect(sample.labelKey).toBe(sample.key);
+      expect(sample.descriptionKey).toBe(`${sample.key}.description`);
       expect(typeof sample.method).toBe('string');
       expect(typeof sample.path).toBe('string');
     });
 
-    it('returns empty operations[] for non-cafe24 service types', () => {
+    it('returns makeshop operations as `makeshop.<resource>.<operation>` keys', () => {
+      const result = service.getServiceCatalog('makeshop');
+      expect(result.operations.length).toBeGreaterThan(0);
+      const sample = result.operations[0];
+      // makeshop catalog key/labelKey = `makeshop.<resource>.<operation.id>`
+      // (= frontend makeshopCatalog dict lookup 키). spec §9.3 초기 응답 정책.
+      expect(sample.key).toMatch(/^makeshop\.[a-z0-9_]+\.[a-z0-9_-]+$/i);
+      expect(sample.labelKey).toBe(sample.key);
+      expect(sample.descriptionKey).toBe(`${sample.key}.description`);
+      expect(['GET', 'POST']).toContain(sample.method);
+      expect(typeof sample.path).toBe('string');
+    });
+
+    it('returns empty operations[] for known non-catalog service types', () => {
+      // spec §9.3: http/database/email/webhook/mcp/google/github 은 빈 배열
+      // (apiLabel 이 NULL 이라 catalog 매핑 무의미). 완전 미등록 `:type` 의
+      // 404 반환(§9.3 마지막 문장)은 별도 미구현 — pre-existing 백로그.
       for (const type of [
         'http',
         'database',
         'email',
+        'webhook',
         'mcp',
         'google',
         'github',
-        'unknown',
       ]) {
         const result = service.getServiceCatalog(type);
         expect(result).toEqual({ operations: [] });

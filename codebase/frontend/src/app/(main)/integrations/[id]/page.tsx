@@ -36,7 +36,14 @@ import {
 } from "@/components/ui/tooltip";
 import { isReauthorizeDisabled } from "@/lib/integrations/reauthorize";
 import { CredentialsForm } from "../_shared/credentials-form";
-import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
+import {
+  useT,
+  useLocale,
+  type TFunction,
+  type TranslationKey,
+  type Locale,
+} from "@/lib/i18n";
+import { tryTranslateLabel } from "./activity-label";
 import { ScopeTab } from "./scope-tab";
 import { Cafe24AppUrlCard } from "./cafe24-app-url-card";
 import { openOAuthPopup } from "./open-oauth-popup";
@@ -660,6 +667,7 @@ function ActivityTab({
   serviceType: string;
   t: TFunction;
 }) {
+  const locale = useLocale();
   const { data, isLoading } = useQuery({
     queryKey: ["integrations", integrationId, "activity"],
     queryFn: () =>
@@ -668,8 +676,8 @@ function ActivityTab({
 
   // Catalog 는 service-type 별로 한 번만 fetch (TanStack staleTime 1h). 통합별
   // operation 메타데이터는 거의 안 바뀌고, 여러 통합 상세 페이지를 오갈 때
-  // 같은 service-type 끼리 캐시 공유한다. cafe24 가 아닌 service 는 빈 배열을
-  // 받기 때문에 lookup miss → endpoint subtext fallback 으로 자연 처리.
+  // 같은 service-type 끼리 캐시 공유한다. cafe24·makeshop 외 service 는 빈
+  // 배열을 받기 때문에 lookup miss → endpoint subtext fallback 으로 자연 처리.
   const { data: catalog } = useQuery({
     queryKey: ["integrations", "catalog", serviceType],
     queryFn: () => integrationsApi.catalog(serviceType),
@@ -723,6 +731,7 @@ function ActivityTab({
                 apiMethod: row.apiMethod ?? null,
                 apiPath: row.apiPath ?? null,
                 catalog: catalogByKey,
+                locale,
                 t,
               });
               return (
@@ -774,9 +783,10 @@ function renderApiCell(args: {
   apiMethod: string | null;
   apiPath: string | null;
   catalog: Map<string, { labelKey: string; descriptionKey?: string }>;
+  locale: Locale;
   t: TFunction;
 }) {
-  const { apiLabel, apiMethod, apiPath, catalog, t } = args;
+  const { apiLabel, apiMethod, apiPath, catalog, locale, t } = args;
   const endpoint =
     apiMethod && apiPath
       ? `${apiMethod} ${apiPath}`
@@ -784,12 +794,12 @@ function renderApiCell(args: {
       ? apiMethod
       : apiPath ?? "";
 
-  // catalog endpoint 가 응답한 labelKey 가 dict 안에 있으면 i18n 라벨 사용.
-  // 본 PR 에서는 dict 가 빈 상태라 사실상 모든 cafe24 호출도 endpoint-only
-  // fallback 으로 흐른다 (follow-up plan cafe24-catalog-i18n.md 에서 채움).
+  // catalog endpoint 가 응답한 labelKey 가 dict 안에 있으면 사람 친화 라벨 사용.
+  // cafe24(494 op)·makeshop(161 op) dict 모두 채워져 있어 라벨이 렌더되고,
+  // dict miss 면 endpoint subtext fallback 으로 흐른다.
   const catalogEntry = apiLabel ? catalog.get(apiLabel) : undefined;
   const labelKey = catalogEntry?.labelKey ?? apiLabel ?? null;
-  const humanLabel = labelKey ? tryTranslateLabel(labelKey, t) : null;
+  const humanLabel = labelKey ? tryTranslateLabel(labelKey, locale) : null;
 
   if (humanLabel) {
     return (
@@ -815,22 +825,6 @@ function renderApiCell(args: {
       {t("integrations.activityApiUnknown")}
     </span>
   );
-}
-
-/**
- * `cafe24.<resource>.<operation>` catalog key 가 cafe24Catalog dict 에 매핑돼
- * 있으면 사람 친화 라벨 반환, 없으면 null 반환 (endpoint-only fallback 으로
- * 위임). 현재 dict 는 빈 상태이므로 항상 null. SoT: dict/{ko,en}/cafe24Catalog.ts.
- *
- * @see plan/in-progress/cafe24-catalog-i18n.md — dict 채우기 follow-up
- */
-function tryTranslateLabel(catalogKey: string, t: TFunction): string | null {
-  const fullKey = `cafe24Catalog.${catalogKey}` as TranslationKey;
-  const translated = t(fullKey);
-  // i18n framework 가 key 누락 시 key 문자열을 그대로 반환 — 그 케이스는 lookup
-  // miss 로 취급해 endpoint subtext fallback 으로 흘려보낸다.
-  if (translated === fullKey) return null;
-  return translated;
 }
 
 // ---------------- Danger zone ----------------

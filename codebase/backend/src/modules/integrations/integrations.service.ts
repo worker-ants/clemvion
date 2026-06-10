@@ -58,6 +58,7 @@ import {
   ServerInfo,
 } from '../mcp/mcp-client.service';
 import { listAllCafe24Operations } from '../../nodes/integration/cafe24/metadata';
+import { listAllMakeshopOperations } from '../../nodes/integration/makeshop/metadata';
 import { OperationCatalogDto } from './dto/responses/integration-response.dto';
 import {
   STORE_IDENTIFIER_UNIQUE_CONSTRAINT,
@@ -136,6 +137,32 @@ function clampApiField(
   if (raw.length <= max) return raw;
   if (max <= 1) return raw.slice(0, max);
   return raw.slice(0, max - 1) + '…';
+}
+
+/**
+ * provider operation 메타데이터 리스트를 `OperationCatalogDto` 로 투영한다.
+ * cafe24·makeshop 의 catalog key 조립이 동일해 (`<provider>.<resource>.<id>`)
+ * 단일 헬퍼로 묶는다 — `key`/`labelKey` 동일성과 `descriptionKey` suffix
+ * 규칙을 한곳에서 보장. 새 provider 추가 시 분기 한 줄만 늘리면 된다.
+ */
+function buildOperationCatalog(
+  provider: 'cafe24' | 'makeshop',
+  ops: ReadonlyArray<{
+    resource: string;
+    operation: { id: string; method: string; path: string };
+  }>,
+): OperationCatalogDto {
+  const operations = ops.map(({ resource, operation }) => {
+    const key = `${provider}.${resource}.${operation.id}`;
+    return {
+      key,
+      method: operation.method,
+      path: operation.path,
+      labelKey: key,
+      descriptionKey: `${key}.description`,
+    };
+  });
+  return { operations };
 }
 
 export const API_LABEL_MAX = 128;
@@ -1176,26 +1203,21 @@ export class IntegrationsService {
    * `GET /api/integrations/services/:type/catalog` 의 백엔드 로직. 통합
    * 활동 로그의 `api_label` (catalog key) 을 frontend 가 사람 친화
    * 라벨로 변환할 때 참조하는 메타데이터. SoT: `spec/conventions/cafe24-api-metadata.md
-   * §7.5` + 통합 spec §9.3.
+   * §7.5` · `spec/conventions/makeshop-api-metadata.md §2` + 통합 spec §9.3.
    *
-   * 초기엔 cafe24 만 backend 메타데이터로 채워 반환한다. 그 외 미지원
-   * 서비스 타입 (http, database, email, mcp, google, github 등) 은 빈
-   * 배열 — 활동 로그의 `apiLabel` 이 NULL 이라 lookup 자체가 발생하지 않는다.
-   * 완전 미지원 type 도 빈 배열을 반환해 frontend 의 1회 fetch + caching
-   * 흐름이 분기 없이 일관 동작.
+   * `cafe24` · `makeshop` 은 backend 메타데이터에서 `operations[]` 를 채워
+   * 반환한다 (spec §9.3 초기 응답 정책). 그 외 미지원 서비스 타입
+   * (http, database, email, mcp, google, github 등) 은 빈 배열 — 활동
+   * 로그의 `apiLabel` 이 NULL 이라 lookup 자체가 발생하지 않는다. 완전
+   * 미지원 type 도 빈 배열을 반환해 frontend 의 1회 fetch + caching 흐름이
+   * 분기 없이 일관 동작.
    */
   getServiceCatalog(serviceType: string): OperationCatalogDto {
     if (serviceType === 'cafe24') {
-      const operations = listAllCafe24Operations().map(
-        ({ resource, operation }) => ({
-          key: `cafe24.${resource}.${operation.id}`,
-          method: operation.method,
-          path: operation.path,
-          labelKey: `cafe24.${resource}.${operation.id}`,
-          descriptionKey: `cafe24.${resource}.${operation.id}.description`,
-        }),
-      );
-      return { operations };
+      return buildOperationCatalog('cafe24', listAllCafe24Operations());
+    }
+    if (serviceType === 'makeshop') {
+      return buildOperationCatalog('makeshop', listAllMakeshopOperations());
     }
     return { operations: [] };
   }

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-11T07:49:18.454291",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=V-06/V-08 makeshop catalog 구현 완료. backend getServiceCatalog makeshop 분기(buildOperationCatalog) + controller Swagger, frontend tryTranslateLabel flat-dict lookup. spec §9.3/§4.6/5-makeshop §4 는 makeshop 지원 명시(spec-ahead). 4-integration.md Rationale L1147 stale 가능성., diff-base=origin/main)",
+  "target_path": "V-06/V-08 makeshop catalog 구현 완료. backend getServiceCatalog makeshop 분기(buildOperationCatalog) + controller Swagger, frontend tryTranslateLabel flat-dict lookup. spec §9.3/§4.6/5-makeshop §4 는 makeshop 지원 명시(spec-ahead). 4-integration.md Rationale L1147 stale 가능성.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
