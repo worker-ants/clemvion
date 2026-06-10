@@ -119,7 +119,20 @@ k8s manifest(`k8s/base/backend-deployment.yaml`)는 readinessProbe·livenessProb
 - [x] e2e: `health.e2e-spec.ts` — `/api/health` 200·`/api/health/live` 200 (작성)
 - [x] TEST WORKFLOW: lint PASS, unit PASS (health/interceptor 15 tests green; frontend schedules-page 는 pre-existing order-flake, 재실행 통과)
 - [x] TEST WORKFLOW: build PASS, e2e PASS (181 tests, health.e2e-spec 포함; docker 가용)
-- [ ] `/ai-review` + Critical/Warning fix + `--impl-done` BLOCK:NO
+- [x] `/ai-review` 1차: CRITICAL=0, WARNING=4 → resolution-applier 4/4 fix (경계값·body·Swagger DTO·JSDoc), e2e pass
+- [x] `/ai-review` 2차: CRITICAL=0, WARNING=3 → resolution-applier 3/3 fix (breaking-change CHANGELOG·/live Swagger·HEALTH_CHECK_LOG configmap+README), e2e pass
+- [x] `/ai-review` 3차(최종): CRITICAL=0. WARNING 은 SPEC-DRIFT 2건(stale-baseline 오탐 — 내 spec 실제 갱신됨)·운영공지 2건(CHANGELOG/configmap 완화 완료)·DI 2건(grep 검증 안전). 코드 수정 불요.
+- [x] `--impl-done` (3-error-handling.md `code:` glob 매칭): 1차 BLOCK:NO. 최종회차 BLOCK:YES 는 **stale baseline 오탐** — 아래 NOTE.
+
+## ⚠️ NOTE: stale origin/main baseline (게이트 BLOCK 의 유일 원인)
+
+- 본 워크트리 base = #521(e3f8b719). 작업 중 origin/main 이 #524(c07b2768)로 **3 PR 전진**(#522~524 머지).
+- `--impl-done`/`/ai-review` 의 diff-base=origin/main 이라, #522~524(타인 머지분: 1-auth·audit-logs·dead-code·parallel-executor 등)를 "내가 삭제/변경"한 것으로 오인 → false Critical(cross-worktree 충돌)·false SPEC-DRIFT.
+- **내 실제 변경(`ef367de1^..HEAD`)은 health-probe 35파일로 깨끗**하고 모든 테스트 통과·리뷰 CRITICAL=0.
+- 게이트를 clean 하게 통과하려면 **origin/main(#524) 위로 rebase 후 재실행** 필요 (overlapping spec 파일 충돌 해소 동반). → 사용자 결정 대기.
+
+### 잔여 선택적 INFO (코드 수정 불요, 후속 가능)
+- `HEALTH_CHECK_LOG` 대소문자 정규화(`.toLowerCase()`), readinessProbe 주석 대칭, e2e BASE_URL 상수화, ConfigService mock key 분기.
 - [ ] **수동 감사 노트**: `spec/data-flow/9-observability.md` 는 `spec-impl-evidence` 가드 적용 범위
       (`spec/conventions/spec-impl-evidence.md §1`) 밖이라 frontmatter `code:` 자동 커버리지가 없다 →
       이 변경의 spec↔구현 정합은 수동 확인 (consistency-check INFO #6/WARNING #6).
