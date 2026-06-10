@@ -1,6 +1,7 @@
 import {
   buildSystemPrompt,
   resetExpressionCacheForTesting,
+  resetNodeCatalogCacheForTesting,
 } from './system-prompt';
 
 /**
@@ -601,6 +602,58 @@ describe('buildSystemPrompt', () => {
       // 리셋 전후 동일 engine 으로 빌드한 결과는 동일해야 한다 (캐시 누수 방지).
       // 리셋이 실제로 lazy-init 경로를 재실행하는지 간접 확인.
       expect(prompt1).toBe(prompt2);
+    });
+  });
+
+  // perf #7 — 노드 카탈로그 캐시 (expressionReferenceCache 와 동일 규율).
+  // nodeDefs 는 부팅 후 불변이므로 배열 reference 키로 1회만 문자열화한다.
+  describe('node catalog cache (perf #7)', () => {
+    const makeDefs = () => [
+      {
+        metadata: {
+          type: 'manual_trigger',
+          category: 'trigger',
+          description: 'Manual trigger',
+        },
+        ports: { inputs: [], outputs: [{ id: 'out' }] },
+      },
+    ];
+
+    beforeEach(() => {
+      resetNodeCatalogCacheForTesting();
+    });
+
+    it('같은 defs 배열 reference 는 재직렬화하지 않는다 (mutate 가 반영되지 않음 = 캐시 hit 증거)', () => {
+      const localDefs = makeDefs();
+      const first = buildSystemPrompt(localDefs as never, emptySnapshot);
+      expect(first).toContain('Manual trigger');
+
+      localDefs[0].metadata.description = 'MUTATED-DESCRIPTION';
+      const second = buildSystemPrompt(localDefs as never, emptySnapshot);
+      // 프로덕션에서 defs 는 불변이므로 stale 캐시는 발생하지 않는다 —
+      // 여기서는 mutate 미반영이 곧 "재직렬화 안 함" 의 관측 가능한 증거.
+      expect(second).toContain('Manual trigger');
+      expect(second).not.toContain('MUTATED-DESCRIPTION');
+    });
+
+    it('다른 defs 배열 reference 는 새로 직렬화한다 (테스트 주입 호환)', () => {
+      const a = makeDefs();
+      buildSystemPrompt(a as never, emptySnapshot);
+
+      const b = makeDefs();
+      b[0].metadata.description = 'SECOND-ARRAY';
+      const prompt = buildSystemPrompt(b as never, emptySnapshot);
+      expect(prompt).toContain('SECOND-ARRAY');
+    });
+
+    it('resetNodeCatalogCacheForTesting 이 캐시를 비워 재직렬화한다', () => {
+      const localDefs = makeDefs();
+      buildSystemPrompt(localDefs as never, emptySnapshot);
+
+      localDefs[0].metadata.description = 'AFTER-RESET';
+      resetNodeCatalogCacheForTesting();
+      const prompt = buildSystemPrompt(localDefs as never, emptySnapshot);
+      expect(prompt).toContain('AFTER-RESET');
     });
   });
 
