@@ -115,6 +115,8 @@ BullMQ 큐는 워크스페이스 경계 없는 전역 인프라이고 job payloa
 ### R-4. health 어휘를 `healthy/degraded/down` 으로 둔 이유
 기존 `/health` 엔드포인트는 binary `healthy | unhealthy` 다 ([`health.service.ts`](../../codebase/backend/src/modules/health/health.service.ts)). 큐 상태는 "적체는 있으나 처리 중(degraded)" 과 "처리 자체가 멈춤(down)" 을 구분할 가치가 있어 `unhealthy` 를 심각도 2단계로 분리했다. 정상 상태는 기존 어휘 `healthy` 를 그대로 유지해 일관성을 지켰다.
 
+> 여기서 "binary" 는 `/api/health` 응답 **body 의 `status` 어휘** 기준이다(여전히 `healthy|unhealthy`). 별개로 `/api/health` 의 **HTTP status code** 는 200(healthy)/503(unhealthy)으로 readiness 신호를 추가 전달하며, liveness 는 별도 엔드포인트 `/api/health/live` 로 분리됐다 — probe 역할·status code 분리의 SoT 는 [`data-flow/9-observability.md §1.1`](../data-flow/9-observability.md#11-health-check).
+
 ### R-5. 왜 실패 지표를 "최근 윈도우 + 누적(보관 중)" 으로 분화하는가
 - **문제**: 스냅샷 지표(waiting/active/delayed/paused/utilization)는 이미 "현재 상태"지만 `failed` 만 보관 정책에 따라 누적되어 "전 기간 누적"처럼 읽혔다. "지금 정상인가" 라는 본 API 의 목적과 어긋났다.
 - **누적이 진짜 lifetime 이 아닌 이유**: `getJobCounts('failed')` 는 BullMQ `removeOnFail` 보관 집합의 크기이고, 큐마다 보관정책이 달라(무한~5분) lifetime 합계가 아니다. 그래서 주 지표를 최근 윈도우 `recentFailed` 로 두고, 누적은 "보관 중" 임을 명확히 라벨해 참고치로만 병기한다.
