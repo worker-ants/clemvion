@@ -231,8 +231,8 @@ KB 상세 화면에 그래프 통계/탐색 영역을 추가한다.
 KB 생성·설정 폼의 임베딩 모델 입력은 §2.2 표에 명시한 대로 select-only 로 강제한다. 근거는 [설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정) 과 동일하므로 본 문서에서는 추가 기술 없이 cross-reference 한다. 임베딩 모델은 모델별 차원(`dimension`) 이 달라 잘못된 ID 가 저장되면 KB 임베딩이 통째로 손상되므로, select 강제의 보호 효과가 chat 모델보다 더 크다.
 
 운영상 고려:
-- **Local (Ollama) 프로바이더 다운 시**: 모델 조회가 실패해도 사용자가 ID 를 직접 입력해 우회하는 경로는 제공하지 않는다. Ollama 가 잠시 내려간 상황에서는 일시적으로 KB 생성·설정 변경이 불가하다 — 그러나 임베딩 자체가 Ollama 호출이라 ID 를 적어 저장해도 후속 임베딩이 동일 사유로 실패할 뿐이라 사용자 입장에서 손해가 없다. Ollama 복구 후 정상 조회/저장이 가능하다.
-- **자동 vs 버튼 트리거**: ModelConfig (kind=embedding) 변경 시 select 의 현재 값은 초기화되며, 사용자가 명시적으로 "모델 불러오기" 버튼을 누른 시점에만 목록을 조회한다 (Config > Models 화면과 동일 정책). 자동 prefetch 는 KB 폼이 ModelConfig select 와 동일 화면에 있어 변경 의도를 충분히 표현할 수 있다는 가정 아래 채택하지 않는다.
+- **단일 select — 모델 문자열 sub-select 없음**: 임베딩 입력은 워크스페이스의 `kind=embedding` ModelConfig 목록에서 config 하나를 고르는 **단일 select** 다. config 가 모델·provider·차원을 소유하므로([임베딩 파이프라인 §5.5 1급 경로](../5-system/8-embedding-pipeline.md) — `config.defaultModel` 사용) 별도의 모델 문자열 입력이나 "모델 불러오기" 2단계가 없다. config 목록은 폼 로드 시 우리 DB 에서 오며(provider 호출 아님) 항상 select 가능하다. "워크스페이스 기본값" 옵션 선택 시 default `kind=embedding` config(없으면 legacy)로 폴백한다.
+- **Local (Ollama) 프로바이더 다운 시**: config 선택 자체는 provider 호출이 아니라 영향받지 않는다. 다만 "임베딩 테스트"(probe) 와 실제 임베딩은 provider 호출이라 provider 가 내려가 있으면 실패한다 — 이때도 모델 ID 를 자유 입력해 우회하는 경로는 제공하지 않는다(잘못된 config/model 저장 방지). 새 임베딩 모델이 필요하면 [Config > Models > Embedding 탭](./6-config.md#b5-embedding-탭--임베딩-모델-추가수정)에서 `kind=embedding` config 를 먼저 추가한다.
 
 ### R-2. 목록 카드에 검색 불가 경고를 둔 이유
 

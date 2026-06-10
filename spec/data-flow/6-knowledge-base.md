@@ -228,8 +228,8 @@ sequenceDiagram
   participant Svc as KnowledgeBaseService
   participant LLM as LLM (embed)
 
-  C->>Svc: POST /api/knowledge-bases/embedding-probe { llmConfigId?, embeddingModel }
-  Svc->>LLM: embed(['probe'], model) — 지정 ModelConfig (kind=embedding) 또는 ws default
+  C->>Svc: POST /api/knowledge-bases/embedding-probe { embeddingModelConfigId?, llmConfigId?, embeddingModel }
+  Svc->>LLM: embed(['probe'], model) — embeddingModelConfigId 지정 시 그 kind=embedding config, 아니면 llmConfigId(legacy)/ws default
   LLM-->>Svc: vector
   Svc-->>C: 200 { dimension: 실측 차원, provider }
 ```
