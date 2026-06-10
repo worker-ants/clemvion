@@ -14,6 +14,7 @@ import {
 } from './notification-secret-rotator.service';
 import { ChatChannelModule } from '../chat-channel/chat-channel.module';
 import { SecretStoreModule } from '../secret-store/secret-store.module';
+import { SchedulesModule } from '../schedules/schedules.module';
 
 @Module({
   imports: [
@@ -23,6 +24,8 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
     // ChatChannelController 가 TriggersService.rotateBotToken 을 호출하므로 양방향 의존.
     forwardRef(() => ChatChannelModule),
     SecretStoreModule,
+    // [data-flow 10-triggers §1.4] 역방향(Trigger→Schedule) 동기화 — ScheduleRunnerService 주입.
+    SchedulesModule,
   ],
   controllers: [TriggersController],
   providers: [TriggersService, NotificationSecretRotatorService],

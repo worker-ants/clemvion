@@ -181,4 +181,95 @@ describe('Schedule trigger (e2e)', () => {
     ]);
     expect(afterSched.rows.length).toBe(0);
   });
+
+  // [data-flow 10-triggers §1.4] 역방향(Trigger→Schedule) 동기화 — PATCH /api/triggers/:id 경유.
+  it('G. trigger PATCH isActive:false → schedule.is_active 동기 비활성', async () => {
+    const create = await request(BASE_URL)
+      .post('/api/schedules')
+      .set(authHeaders())
+      .send({
+        workflowId,
+        name: uniqueName('sched-g'),
+        cronExpression: '0 6 * * *',
+        timezone: 'UTC',
+      });
+    const scheduleId = create.body.data.id as string;
+    const trig = await db.query(
+      'SELECT trigger_id FROM schedule WHERE id = $1',
+      [scheduleId],
+    );
+    const triggerId = trig.rows[0].trigger_id as string;
+
+    const patch = await request(BASE_URL)
+      .patch(`/api/triggers/${triggerId}`)
+      .set(authHeaders())
+      .send({ isActive: false });
+    expect(patch.status).toBe(200);
+    expect(patch.body.data.isActive).toBe(false);
+
+    const after = await db.query(
+      'SELECT is_active FROM schedule WHERE id = $1',
+      [scheduleId],
+    );
+    expect(after.rows[0].is_active).toBe(false);
+  });
+
+  it('H. trigger PATCH isActive:true → schedule.is_active 동기 재활성', async () => {
+    const create = await request(BASE_URL)
+      .post('/api/schedules')
+      .set(authHeaders())
+      .send({
+        workflowId,
+        name: uniqueName('sched-h'),
+        cronExpression: '0 7 * * *',
+        timezone: 'UTC',
+        isActive: false,
+      });
+    const scheduleId = create.body.data.id as string;
+    const trig = await db.query(
+      'SELECT trigger_id FROM schedule WHERE id = $1',
+      [scheduleId],
+    );
+    const triggerId = trig.rows[0].trigger_id as string;
+
+    const patch = await request(BASE_URL)
+      .patch(`/api/triggers/${triggerId}`)
+      .set(authHeaders())
+      .send({ isActive: true });
+    expect(patch.status).toBe(200);
+
+    const after = await db.query(
+      'SELECT is_active FROM schedule WHERE id = $1',
+      [scheduleId],
+    );
+    expect(after.rows[0].is_active).toBe(true);
+  });
+
+  it('I. trigger DELETE (schedule 타입) → schedule row FK cascade 삭제 + 200 경로 정상 (removeJob 포함)', async () => {
+    const create = await request(BASE_URL)
+      .post('/api/schedules')
+      .set(authHeaders())
+      .send({
+        workflowId,
+        name: uniqueName('sched-i'),
+        cronExpression: '0 8 * * *',
+        timezone: 'UTC',
+      });
+    const scheduleId = create.body.data.id as string;
+    const trig = await db.query(
+      'SELECT trigger_id FROM schedule WHERE id = $1',
+      [scheduleId],
+    );
+    const triggerId = trig.rows[0].trigger_id as string;
+
+    const del = await request(BASE_URL)
+      .delete(`/api/triggers/${triggerId}`)
+      .set(authHeaders());
+    expect([200, 204]).toContain(del.status);
+
+    const after = await db.query('SELECT id FROM schedule WHERE id = $1', [
+      scheduleId,
+    ]);
+    expect(after.rows.length).toBe(0);
+  });
 });

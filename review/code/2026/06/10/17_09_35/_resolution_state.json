@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "started_at": "2026-06-10T17:09:35Z",
+  "summary_items_total": 13,
+  "items_resolved_ids": ["C1", "C2", "W3", "W5"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "C3": "sensitive-fix",
+    "W1": "sensitive-fix",
+    "W2": "already-tracked-plan",
+    "W4": "sensitive-fix",
+    "W6": "spec-drift",
+    "W7": "user-decision",
+    "W8": "spec-drift",
+    "W9": "spec-drift",
+    "W10": "spec-drift"
+  },
+  "commits_made": [
+    {"sha": "639be831", "summary_id": "W5", "scope": "llm-attribution"}
+  ],
+  "spec_drafts_pending": [
+    "plan/in-progress/spec-update-trigger-schedule-sync.md",
+    "plan/in-progress/spec-update-sse-single-instance-rationale.md",
+    "plan/in-progress/spec-update-gap-callout-plan-links.md",
+    "plan/in-progress/spec-update-doc-style.md"
+  ],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260610-173327.log"],
+  "auto_fix_iterations": {"W5": 1},
+  "escalation_reason": "sensitive-fix (C3: secret rotation auth flow; W1: API contract endpoint_path; W4: DB migration). spec drafts for SPEC-DRIFT items (C1/C2/W3 gap markers, W6/W8/W9/W10 doc improvements).",
+  "last_reset_hint_sec": null
+}

@@ -74,7 +74,7 @@ pending_plans:
 | 태그 | 태그 멀티 선택 | **미구현 (Planned)**: 서버는 `?tag=` 단일 필터를 지원하지만(§3), 클라이언트에 태그 필터 UI 가 없다 (테이블에 태그 뱃지를 표시만 함). |
 | 폴더 | 폴더 선택 (있을 경우) | **미구현 (Planned)**: 서버는 `?folderId=` 필터를 지원하지만(§3), 클라이언트에 폴더 필터 UI 가 없다. |
 
-> ⚠️ **상태 필터 파라미터 불일치 (코드 버그)**: 서버 계약(`query-workflow.dto.ts`)은 `?status=active|inactive` 를 받지만, 클라이언트(`page.tsx:112-113`)는 `?isActive=true|false` 를 보낸다. 서버는 `isActive` 를 무시하므로 상태 필터가 end-to-end 로 동작하지 않는다. 본 spec 의 계약(`status`)이 정본이며, 클라이언트 수정이 필요하다 (plan 스텁 참조).
+> 상태 필터는 서버 계약(`query-workflow.dto.ts`)·클라이언트(`page.tsx`) 모두 `?status=active|inactive` 로 정렬되어 end-to-end 동작한다 (과거 클라이언트가 `?isActive=` 를 보내던 불일치는 수정 완료).
 
 > 팀 뱃지(§2.1 공유 표시)는 워크스페이스 단위의 "공유" 정의를 따르고, 소유 필터는 그 안에서 내 것/남의 것을 다시 구분하는 보조 도구다. 두 정의가 어긋나지 않는 이유는 [Rationale §1](#rationale) 참고.
 

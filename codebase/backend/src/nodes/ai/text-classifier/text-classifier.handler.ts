@@ -200,7 +200,13 @@ export class TextClassifierHandler implements NodeHandler {
       result = await this.llmService.chat(
         llmConfig,
         requestPayload,
-        undefined,
+        // [Spec 7-llm-usage §1.3] LlmCallContext — workflowId/executionId/nodeExecutionId 전달로
+        // llm_usage_log 의 해당 컬럼이 NULL 이 되는 attribution 갭 해소 (WARNING#5).
+        {
+          workflowId: context.workflowId,
+          executionId: context.executionId,
+          nodeExecutionId: context.nodeExecutionId,
+        },
         {
           signal: context.abortSignal,
         },
