@@ -198,9 +198,9 @@ sequenceDiagram
 | 상태 | 의미 |
 | --- | --- |
 | true | Webhook 라우팅 활성, Schedule 의 BullMQ repeatable job 등록 |
-| false | 일반 Webhook 호출 시 `410 Gone` (TRIGGER_INACTIVE) — 미존재 trigger 의 `404` 와 구분. `chatChannel` 트리거는 410 아님 — inbound 서명 검증 후 `202 + { executionId: 'ignored' }` (§1.2·§1.5). Schedule 은 Schedules API 경유 토글 시 `removeJob` 으로 BullMQ job 해제 |
+| false | 일반 Webhook 호출 시 `410 Gone` (TRIGGER_INACTIVE) — 미존재 trigger 의 `404` 와 구분. `chatChannel` 트리거는 410 아님 — inbound 서명 검증 후 `202 + { executionId: 'ignored' }` (§1.2·§1.5). Schedule 은 Schedules API 또는 Trigger API 경유 토글 시 `removeJob` 으로 BullMQ job 해제 (§1.4 양방향 동기화) |
 
-Schedule 과의 동기화는 **Schedule→Trigger 정방향만** 구현되어 있다 — Schedule 쪽 변경 시 trigger.is_active 가 함께 갱신되고 §1.4 대로 BullMQ job 도 register/remove 되지만, Trigger API 쪽 `PATCH { isActive }` 는 schedule.is_active 와 BullMQ job 을 갱신하지 않는다 ([Spec 데이터 모델 §2.9.1](../1-data-model.md) 의 양방향 계약 대비 구현 갭 — §1.4 참조).
+Schedule 과의 동기화는 **양방향 모두** 구현되어 있다 — Schedule 쪽 변경 시 trigger.is_active 가 함께 갱신되고, Trigger API 쪽 `PATCH { isActive }` 도 `syncScheduleActivation()` 을 통해 schedule.is_active 와 BullMQ job 을 함께 갱신한다 ([Spec 데이터 모델 §2.9.1](../1-data-model.md) 의 양방향 계약 충족 — §1.4 구현 현황 참조).
 
 ### 3.2 `schedule.next_run_at` 계산
 
