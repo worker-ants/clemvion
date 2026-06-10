@@ -5,6 +5,11 @@ code:
   - codebase/frontend/src/app/(main)/triggers/page.tsx
   - codebase/frontend/src/components/triggers/*.tsx
   - codebase/frontend/src/lib/utils/webhook-url.ts
+  - codebase/backend/src/modules/triggers/triggers.controller.ts
+  - codebase/backend/src/modules/triggers/triggers.service.ts
+  - codebase/backend/src/modules/triggers/triggers.module.ts
+  - codebase/backend/src/modules/triggers/dto/**
+  - codebase/packages/chat-channel-validation/src/index.ts
 ---
 
 # Spec: 트리거 목록 화면
@@ -143,7 +148,7 @@ code:
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | POST | /api/triggers | 트리거 생성 (`editor`+). `webhook` / `manual` 타입만 — `schedule` 은 Schedules API 가 자동 생성하므로 미지원. 목록 화면 "Add Webhook" 다이얼로그가 본 endpoint 로 webhook 트리거를 생성한다 ([§2.5 트리거 생성](#25-트리거-생성)) |
-| GET | /api/triggers | 목록 조회 (쿼리: type, status, search, page, limit, sort, order). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
+| GET | /api/triggers | 목록 조회 (쿼리: type, status, search, page, limit, sort, order). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수. ⚠️ `PaginationQueryDto` 가 `sort`/`order` 를 받긴 하나 `findAll` 은 이를 무시하고 `created_at DESC` 로 고정 정렬한다 (triggers.service.ts:99). sort/order 반영은 미구현/Planned |
 | GET | /api/triggers/:id | 트리거 상세 조회 |
 | PATCH | /api/triggers/:id | 트리거 수정 (활성/비활성 토글 포함 — body `{ isActive: boolean }`). 별도 `/toggle` 서브경로는 없다 |
 | GET | /api/triggers/:id/history | 호출 이력 조회 |
@@ -202,7 +207,7 @@ API 게이트는 [Spec 인증 §3](../5-system/1-auth.md#3-인가-authorization)
 
 - 성공: `204 No Content` (응답 본문 없음, 표준 패턴). 클라이언트는 목록·상세 query 를 invalidate.
 - 동시 삭제: 두 클라이언트가 동시에 같은 트리거를 삭제하면 두 번째는 `404 RESOURCE_NOT_FOUND` — 클라이언트는 무시 가능 (사용자에게 토스트 1회).
-- Schedule 타입을 schedule 화면이 아닌 trigger 화면에서 삭제: 본 §4.3 에 따라 schedule cascade 와 함께 삭제. (Schedule 화면에서 삭제하는 경로도 동일 결과 — [data-flow §1.4](../data-flow/10-triggers.md#14-schedule--trigger-동기화) 가 양방향 동기화 정의.)
+- Schedule 타입을 schedule 화면이 아닌 trigger 화면에서 삭제: 본 §4.3 에 따라 schedule cascade 와 함께 삭제되며, 삭제 전 `removeJob` 으로 BullMQ job scheduler 엔트리도 해제한다. (Schedule 화면에서 삭제하는 경로도 동일 결과 — [data-flow §1.4](../data-flow/10-triggers.md#14-schedule--trigger-동기화) 가 양방향 동기화 SoT.)
 
 ---
 

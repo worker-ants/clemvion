@@ -17,7 +17,7 @@ owner: planner
 - [ ] 빈 상태 마켓플레이스 템플릿 추천 링크 부재 (§2.7).
 
 ## 코드 버그 (구현 수정 필요)
-- [ ] 상태 필터 파라미터 불일치 (§2.3): 클라이언트(page.tsx:112-113)가 `?isActive=true|false` 를 보내지만 서버 계약(query-workflow.dto.ts)은 `?status=active|inactive` 만 받는다. 상태 필터가 end-to-end 비동작. spec 의 `status` 계약이 정본 — 클라이언트를 `status` 로 수정.
+- [x] 상태 필터 파라미터 불일치 (§2.3): — 수정 완료 확인 (page.tsx 가 `?status=active|inactive` 송신, 2026-06-10 impl-prep 검토에서 검증). spec §2.3 경고 문구도 동일 시점 현행화.
 
 ## 비고
 - 각 항목의 근거(claim→코드부재/불일치)는 audit findings 참조.

@@ -99,7 +99,8 @@ positive(`shouldRetrieve:true` 이면서 `goldChunkIds` 1개 이상) entry 의 o
 | --- | --- | --- |
 | ① 자동 합성 | `npm run eval:golden:generate -- --workspace-id .. --kb-id .. [--sample N]` | 제품 `LlmService` 사용. silver 산출 |
 | ③ SME 스팟검수 | golden.json 직접 편집 | 통과분 `reviewed:true` 승격. 20~30% 표본 |
-| 지표 실행 | `npm run eval:retrieval -- --golden eval/golden.json [--ks ..] [--threshold 0] [--fail-metric .. --fail-k .. --fail-under ..]` | `--threshold 0`: 검색 점수 하한(기본 0). KB `rerank_mode=off` 시 cosine 임계, `cross_encoder` 시 rerank 점수 임계로 해석. `--fail-under` 로 CI 게이트 |
+| 지표 실행 | `npm run eval:retrieval -- --golden eval/golden.json [--ks ..] [--top-k N] [--threshold 0] [--fail-metric .. --fail-k .. --fail-under ..]` | `--threshold 0`: 검색 점수 하한(기본 0). KB `rerank_mode=off` 시 cosine 임계, `cross_encoder` 시 rerank 점수 컷으로 해석 — 단 rerank 점수 컷은 `kb.rerankScoreThreshold ?? threshold` 로 **KB 의 `rerank_score_threshold` 설정이 우선**하며 CLI 값은 NULL fallback. `--fail-under` 로 CI 게이트 |
+| | `--top-k N` (기본: `--ks` 최댓값) | `searchWithMeta` 의 **inject-cap ceiling** 으로 전달 — 고정 LIMIT 이 아니다. 측정 대상은 '순수 top-k' 가 아니라 **동적 점수 컷([9-rag-search §3.4](../5-system/9-rag-search.md#34-동적-점수-컷-생성-주입-모든-모드-공통): token-budget 8000 + inject-cap) 적용 후 생성 주입 집합** — off 경로는 wide 회수(`RAG_RECALL_K`) 후 동적 컷, rerank 경로도 injectCap+tokenBudget 전달. 컷은 순수 함수라 결정성(D-E4)은 유지 |
 
 **부트스트랩 격리**: 두 스크립트는 `EvalCliModule`(전용 경량 DI)로 부팅한다 —
 `KnowledgeBaseModule` 은 BullMQ 큐·프로세서를 동반하므로 `AppModule` 부팅 시 운영
@@ -127,6 +128,9 @@ positive(`shouldRetrieve:true` 이면서 `goldChunkIds` 1개 이상) entry 의 o
   LLM-judge 자체를 포함하지 않는다.
 - 허용: 같은 골든셋으로 `rerank_mode` off ↔ cross_encoder 를 번갈아 돌려 회귀를 본다.
 - 허용: KO/EN 격차는 언어별 macro 로 관찰한다.
+- 주의: 높은 k 의 recall/hit 는 token-budget 동적 컷(§3 `--top-k` 행)의 영향으로 k 개
+  미만 회수에 대해 측정될 수 있다 (청크가 길수록 영향 큼). 동일 청킹 설정 간 상대
+  비교로만 사용한다.
 
 ---
 

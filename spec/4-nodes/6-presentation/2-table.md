@@ -2,6 +2,7 @@
 id: table
 status: implemented
 code:
+  - codebase/backend/src/nodes/presentation/table/table.component.ts
   - codebase/backend/src/nodes/presentation/table/table.handler.ts
   - codebase/backend/src/nodes/presentation/table/table.schema.ts
   - codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx

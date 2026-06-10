@@ -26,7 +26,7 @@
 ├── Authentication        # 외부 인증 방식 설정 (최상위 메뉴) — ✅
 ├── Statistics            # 실행 통계                         — ✅
 ├── System Status         # 전체 시스템(큐) 상태              — ✅
-├── Agent Memory         # AI Agent persistent 메모리 관리   — ✅
+├── Agent Memory          # AI Agent persistent 메모리 관리   — ✅
 ├── User Guide            # 사용자 매뉴얼 (/docs)              — ✅
 └── Marketplace           # 마켓플레이스                       — ❌ (미구현)
 

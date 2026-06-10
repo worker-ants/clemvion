@@ -4,6 +4,8 @@
 > `codebase/**` 프로덕션 코드 전수를 분석한 리팩토링 백로그. diff 리뷰가 아닌 **현재 상태 전수 감사**다.
 > **2026-06-10 spec 전수 대조 완료**: 전 항목을 `spec/**`(Rationale 포함)·관련 plan·코드 사실관계와 대조해
 > 의도된 설계 여부를 판정하고, 항목별 개선 방안(단계·검증·회귀 위험·spec 갱신 필요)을 보강했다.
+> **2026-06-10 옵션 비교·권장안 보강**: 유효 91건 전부에 옵션별 장단점·트레이드오프 표 + 권장안·사유를 추가.
+> 본문 권장이 본 README 의 초기 권고와 달라진 항목은 **본문이 우선** (아래 표는 동기화됨).
 
 ## 산출 경위
 
@@ -15,7 +17,7 @@
 
 | 문서 | 원 건수 | 유효 | 철회(E) | ⚠️ A-잔존문제 | 핵심 주제 |
 | --- | --- | --- | --- | --- | --- |
-| [01-performance.md](./01-performance.md) | 15 | 14 | 1 (#9) | 0 | N+1, 직렬 I/O, 프론트 O(N²) — #11/#13/#15 는 측정 선행 강등 |
+| [01-performance.md](./01-performance.md) | 15 | 13 | 2 (#9 철회, #13 종결) | 0 | N+1, 직렬 I/O, 프론트 O(N²) — ✅ 결정(2026-06-10): 전반 권장안 진행, #2=B안 확정(실검증), #13=C 종결 |
 | [02-architecture.md](./02-architecture.md) | 15 | 15 | 0 | 2 (C-2 일부, M-5) | god-class 분할, forwardRef(엔진↔WS 는 spec 의도), 레이어 침범 |
 | [03-maintainability.md](./03-maintainability.md) | 15 | 14 | 1 (M-3) | 4 (C-3, M-4, M-6, m-2) | 거대 메서드, cafe24/makeshop 미러(DRY-deferral 문서화됨) |
 | [04-security.md](./04-security.md) | 14 | 14 | 0 | 4 (C-2, M-2, M-3, m-4) | vm 탈출(spec 인지 트레이드오프), SSRF spec 내부 모순, WS 채널 spec 갭 |
@@ -71,12 +73,12 @@
 | --- | --- | --- | --- |
 | 04 C-2 vm 탈출 | `2-code.md §7.1` "escape 방어 불가 … isolated-vm 재검토" | Editor 권한 = 호스트 장악, 위협 모델 경계 미명시 | isolated-vm 전환 (로드맵 기지정) |
 | 04 M-2 Promise 노출 | §4.1 async 지원 명시 약속 | C-2 의 탈출 보조 경로 | 단독 제거 불가 — C-2 에 흡수 |
-| 04 M-3 ReDoS 길이 제한 | 4개 spec "길이 200 = ReDoS 방지" | 길이 제한은 지수 패턴 못 막음 — spec 주장 부정확 | re2/timeout + spec 정정 |
+| 04 M-3 ReDoS 길이 제한 | 4개 spec "길이 200 = ReDoS 방지" | 길이 제한은 지수 패턴 못 막음 — spec 주장 부정확 | safe-regex 사전 검출 + spec 정정 (re2 는 필요 입증 시 승급 — 네이티브 의존·기존 패턴 파손 회피) |
 | 04 m-4 DB Pool 캐시 | `2-database-query.md:77` evict 명시 | 멀티 인스턴스 무효화 미조율(MTTR) | pub/sub 전파 — **✅ 승인(2026-06-10)** |
 | 04 m-2/m-3 | stack 노출·trust proxy — spec/주석 명시 | 낮음 | 운영 가이드/인프라 절차로 충분 |
 | 02 C-2 엔진↔WS forwardRef | §4.4 "추상화 도입 금지, 안티패턴 아님" | 테스트 격리·초기화 순서 고충 | 유지(spec 준수). 다중 sink 가시화 시 spec 개정 발의 |
 | 02 M-5 정적 노드 배열 | `4-nodes/0-overview.md §1.0` 명시 | merge-conflict hotspot | 카테고리 spread 경량안(spec 무변), DI 전환은 마켓플레이스 plan 묶음 |
-| 03 C-3/M-4 cafe24·makeshop 미러 | "cafe24 미러" + DRY-deferral("3번째 provider 시") 문서화 | 1,600줄은 deferral 명시 목록의 사각, 3중 복제 예약 | deferral 앞당김 여부 결정 후 Base 추상화 |
+| 03 C-3/M-4 cafe24·makeshop 미러 | "cafe24 미러" + DRY-deferral("3번째 provider 시") 문서화 | 1,600줄은 deferral 명시 목록의 사각, 3중 복제 예약 | **본문 권장 = 보류**: 3번째 provider 까지 deferral 준수 + "결정의 사각" 을 plan 에 기록 (앞당김은 사용자 결정) |
 | 03 M-6/m-2 dead code | 제거가 예약된 잔류물 | 잔존 중 | 즉시 제거 (단일 cleanup PR) — **✅ 승인(2026-06-10)** |
 | 05 C-2 re_run_of walk | `13-replay-rerun.md §9.1` 함수명까지 명시 | 직렬 SELECT ≤64회 | 재귀 CTE 교체(앱-레벨 enforce 의도 내) + spec 1줄 |
 | 05 m-5 schedule 부팅 전수 등록 | `data-flow/10-triggers.md §1.3` 명시 | 무페이징 적재만 잔존 문제 | 배치 페이징(1안 repeatable jobs 는 기구현 — 철회) |

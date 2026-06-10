@@ -11,6 +11,7 @@ import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
 
 describe('TriggersService.findOneDetail', () => {
   let service: TriggersService;
@@ -55,6 +56,10 @@ describe('TriggersService.findOneDetail', () => {
         {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: ScheduleRunnerService,
+          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
         },
         {
           provide: SecretResolverService,
@@ -191,7 +196,15 @@ describe('TriggersService — notification/interaction config 병합 (External I
           },
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
-        { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: getRepositoryToken(Schedule),
+          // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
+          // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
+        },
         {
           provide: getRepositoryToken(AuthConfig),
           useValue: { findOne: jest.fn() },
@@ -214,6 +227,10 @@ describe('TriggersService — notification/interaction config 병합 (External I
         {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: ScheduleRunnerService,
+          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
         },
         {
           provide: SecretResolverService,
@@ -510,7 +527,15 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
           },
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
-        { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: getRepositoryToken(Schedule),
+          // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
+          // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
+        },
         {
           provide: getRepositoryToken(AuthConfig),
           useValue: { findOne: jest.fn() },
@@ -533,6 +558,10 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
         {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: ScheduleRunnerService,
+          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
         },
         {
           provide: SecretResolverService,
@@ -722,7 +751,15 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
           },
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
-        { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: getRepositoryToken(Schedule),
+          // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
+          // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
+        },
         {
           provide: getRepositoryToken(AuthConfig),
           useValue: { findOne: jest.fn() },
@@ -745,6 +782,10 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
         {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: ScheduleRunnerService,
+          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
         },
         {
           provide: SecretResolverService,
@@ -1067,7 +1108,15 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
           },
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
-        { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: getRepositoryToken(Schedule),
+          // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
+          // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
+        },
         {
           provide: getRepositoryToken(AuthConfig),
           useValue: { findOne: jest.fn() },
@@ -1091,6 +1140,10 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
           },
         },
         { provide: ConfigService, useValue: { get: configGet } },
+        {
+          provide: ScheduleRunnerService,
+          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
+        },
         {
           provide: SecretResolverService,
           useValue: {
@@ -1192,7 +1245,15 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
           },
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
-        { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: getRepositoryToken(Schedule),
+          // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
+          // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
+        },
         {
           provide: getRepositoryToken(AuthConfig),
           useValue: { findOne: jest.fn() },
@@ -1215,6 +1276,10 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
         {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: ScheduleRunnerService,
+          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
         },
         {
           provide: SecretResolverService,
@@ -1294,7 +1359,15 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
           },
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
-        { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: getRepositoryToken(Schedule),
+          // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
+          // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
+        },
         {
           provide: getRepositoryToken(AuthConfig),
           useValue: { findOne: jest.fn() },
@@ -1320,6 +1393,10 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
         {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: ScheduleRunnerService,
+          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
         },
         {
           provide: SecretResolverService,
@@ -1439,5 +1516,197 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
     ).rejects.toMatchObject({
       response: { code: 'CHAT_CHANNEL_ENDPOINT_REQUIRED' },
     });
+  });
+});
+
+describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-triggers §1.4)', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let scheduleRepo: jest.Mocked<Repository<Schedule>>;
+  let runner: { registerJob: jest.Mock; removeJob: jest.Mock };
+
+  const scheduleTrigger = () =>
+    ({
+      id: 'trig-1',
+      workspaceId: 'ws-1',
+      type: 'schedule',
+      name: 'daily',
+      isActive: true,
+      config: {},
+    }) as unknown as Trigger;
+
+  const scheduleRow = () =>
+    ({
+      id: 'sched-1',
+      triggerId: 'trig-1',
+      workspaceId: 'ws-1',
+      cronExpression: '0 9 * * *',
+      timezone: 'Asia/Seoul',
+      isActive: true,
+    }) as unknown as Schedule;
+
+  beforeEach(async () => {
+    runner = { registerJob: jest.fn(), removeJob: jest.fn() };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TriggersService,
+        {
+          provide: getRepositoryToken(Trigger),
+          useValue: {
+            findOne: jest.fn(),
+            save: jest.fn(async (t: Trigger) => t),
+            remove: jest.fn(),
+          },
+        },
+        { provide: getRepositoryToken(Execution), useValue: {} },
+        {
+          provide: getRepositoryToken(Schedule),
+          useValue: {
+            findOne: jest.fn(),
+            save: jest.fn(async (s: Schedule) => s),
+          },
+        },
+        {
+          provide: getRepositoryToken(AuthConfig),
+          useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: { has: jest.fn(() => false), get: jest.fn() },
+        },
+        {
+          provide: ChannelListenerRegistry,
+          useValue: {
+            register: jest.fn(),
+            unregister: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(),
+            size: jest.fn(() => 0),
+            bulkRegister: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: ScheduleRunnerService,
+          useValue: runner,
+        },
+        {
+          provide: SecretResolverService,
+          useValue: {
+            resolve: jest.fn(),
+            store: jest.fn(),
+            rotate: jest.fn(),
+            delete: jest.fn(),
+            deleteByPrefix: jest.fn().mockResolvedValue(0),
+            exists: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    scheduleRepo = moduleRef.get(getRepositoryToken(Schedule));
+  });
+
+  it('PATCH isActive:false (schedule 타입) → schedule.is_active 동기 저장 + removeJob 호출', async () => {
+    triggerRepo.findOne.mockResolvedValue(scheduleTrigger());
+    scheduleRepo.findOne.mockResolvedValue(scheduleRow());
+
+    await service.update('trig-1', 'ws-1', { isActive: false });
+
+    expect(scheduleRepo.findOne).toHaveBeenCalledWith({
+      where: { triggerId: 'trig-1' },
+    });
+    expect(scheduleRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'sched-1', isActive: false }),
+    );
+    expect(runner.removeJob).toHaveBeenCalledWith('sched-1');
+    expect(runner.registerJob).not.toHaveBeenCalled();
+  });
+
+  it('PATCH isActive:true (schedule 타입) → schedule.is_active 동기 저장 + registerJob 호출', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      ...scheduleTrigger(),
+      isActive: false,
+    } as Trigger);
+    scheduleRepo.findOne.mockResolvedValue({
+      ...scheduleRow(),
+      isActive: false,
+    } as Schedule);
+
+    await service.update('trig-1', 'ws-1', { isActive: true });
+
+    expect(scheduleRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'sched-1', isActive: true }),
+    );
+    expect(runner.registerJob).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'sched-1', cronExpression: '0 9 * * *' }),
+    );
+    expect(runner.removeJob).not.toHaveBeenCalled();
+  });
+
+  it('schedule row 부재(고아 trigger) → graceful skip (throw 없음, runner 미호출)', async () => {
+    triggerRepo.findOne.mockResolvedValue(scheduleTrigger());
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.update('trig-1', 'ws-1', { isActive: false }),
+    ).resolves.toBeDefined();
+    expect(scheduleRepo.save).not.toHaveBeenCalled();
+    expect(runner.removeJob).not.toHaveBeenCalled();
+    expect(runner.registerJob).not.toHaveBeenCalled();
+  });
+
+  it('isActive 미포함 PATCH (schedule 타입, name 만) → schedule 동기 경로 미진입', async () => {
+    triggerRepo.findOne.mockResolvedValue(scheduleTrigger());
+
+    await service.update('trig-1', 'ws-1', { name: 'renamed' });
+
+    expect(scheduleRepo.findOne).not.toHaveBeenCalled();
+    expect(runner.registerJob).not.toHaveBeenCalled();
+    expect(runner.removeJob).not.toHaveBeenCalled();
+  });
+
+  it('webhook 타입 PATCH isActive → schedule 동기 경로 미진입', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      ...scheduleTrigger(),
+      type: 'webhook',
+    } as Trigger);
+
+    await service.update('trig-1', 'ws-1', { isActive: false });
+
+    expect(scheduleRepo.findOne).not.toHaveBeenCalled();
+    expect(runner.removeJob).not.toHaveBeenCalled();
+  });
+
+  it('DELETE (schedule 타입) → trigger 삭제 전 removeJob 으로 BullMQ 엔트리 정리', async () => {
+    triggerRepo.findOne.mockResolvedValue(scheduleTrigger());
+    scheduleRepo.findOne.mockResolvedValue(scheduleRow());
+
+    await service.remove('trig-1', 'ws-1');
+
+    expect(runner.removeJob).toHaveBeenCalledWith('sched-1');
+    expect(triggerRepo.remove).toHaveBeenCalled();
+    // removeJob 이 row 삭제보다 먼저 — 호출 순서 검증
+    const removeJobOrder = runner.removeJob.mock.invocationCallOrder[0];
+    const removeTriggerOrder = (triggerRepo.remove as jest.Mock).mock
+      .invocationCallOrder[0];
+    expect(removeJobOrder).toBeLessThan(removeTriggerOrder);
+  });
+
+  it('DELETE (webhook 타입) → removeJob 미호출', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      ...scheduleTrigger(),
+      type: 'webhook',
+    } as Trigger);
+
+    await service.remove('trig-1', 'ws-1');
+
+    expect(runner.removeJob).not.toHaveBeenCalled();
+    expect(triggerRepo.remove).toHaveBeenCalled();
   });
 });

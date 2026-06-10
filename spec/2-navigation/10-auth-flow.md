@@ -4,6 +4,13 @@ status: implemented
 code:
   - codebase/frontend/src/app/(auth)/**
   - codebase/frontend/src/components/auth/**
+  - codebase/frontend/src/proxy.ts
+  - codebase/frontend/src/lib/utils/password.ts
+  - codebase/frontend/src/lib/api/auth.ts
+  - codebase/frontend/src/lib/api/auth-providers.ts
+  - codebase/frontend/src/lib/api/client.ts
+  - codebase/frontend/src/lib/api/invitations.ts
+  - codebase/frontend/src/lib/stores/auth-store.ts
   - codebase/backend/src/modules/auth/**
 ---
 
@@ -415,7 +422,16 @@ code:
 |--------|-----------|-----------|
 | `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password` 등 `(auth)` 그룹 | X | — |
 | `/callback` (OAuth 콜백) | X | — |
-| 그 외 모든 라우트 | O | `/login`으로 리다이렉트 (원래 URL을 `redirect` 파라미터에 보존; `codebase/frontend/src/components/auth/auth-provider.tsx`) |
+| 그 외 모든 라우트 | O | `/login`으로 리다이렉트 (원래 URL을 `redirect` 파라미터에 보존; 아래 2계층 가드) |
+
+미인증 redirect 는 **2계층**으로 동작한다:
+
+| 계층 | 구현 | 동작 |
+|------|------|------|
+| 1. 서버 proxy | `codebase/frontend/src/proxy.ts` (Next 서버 미들웨어) | `has_session` 힌트 쿠키 부재 시 JS 로드 전 서버 단계에서 `/login?redirect=<path>` 로 redirect. public 경로(`/login` · `/register` · `/forgot-password` · `/reset-password` · `/verify-email` · `/callback`)와 `/_next` · `/api` · 정적 자산은 제외 |
+| 2. 클라이언트 AuthProvider | `codebase/frontend/src/components/auth/auth-provider.tsx` | 실제 토큰 검증 기준 최종 가드. 미인증 시 `/login` 으로 리다이렉트 (원래 URL 을 `redirect` 파라미터에 보존) |
+
+`has_session` 은 **인증 수단이 아닌 UX 용 힌트 쿠키**다 — API 가 cross-domain 이라 Next 서버 미들웨어가 백엔드 세션을 직접 알 수 없으므로, 로그인 성공 시 프론트엔드 JS 가 non-httpOnly 쿠키 `has_session=1` (path=/, max-age 30일, SameSite=Lax) 을 set 하고 로그아웃 시 삭제한다 (`codebase/frontend/src/lib/stores/auth-store.ts`). 실제 인가 판정은 항상 토큰(계층 2 + API 401)이 담당한다.
 
 ### 7.2 로그인 후 리다이렉트
 
@@ -425,7 +441,7 @@ code:
 ### 7.3 로그아웃
 
 1. `POST /api/auth/logout` 호출 (Refresh Token 무효화)
-2. 클라이언트: Access Token 메모리에서 제거, Cookie 삭제
+2. 클라이언트: Access Token 메모리에서 제거, Cookie 삭제 (`has_session` 힌트 쿠키 포함 — §7.1)
 3. `/login`으로 리다이렉트
 
 ---

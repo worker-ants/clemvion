@@ -2,6 +2,7 @@
 id: chart
 status: implemented
 code:
+  - codebase/backend/src/nodes/presentation/chart/chart.component.ts
   - codebase/backend/src/nodes/presentation/chart/chart.handler.ts
   - codebase/backend/src/nodes/presentation/chart/chart.schema.ts
   - codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx

@@ -3,6 +3,7 @@ id: nav-agent-memory
 status: implemented
 code:
   - codebase/frontend/src/app/(main)/agent-memory/page.tsx
+  - codebase/frontend/src/lib/api/agent-memories.ts
 ---
 
 # Spec: Agent Memory 관리 화면

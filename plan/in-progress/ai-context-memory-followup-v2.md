@@ -68,7 +68,7 @@ related_plan: plan/complete/ai-context-memory-auto.md
 - [ ] §6.2 d.5 본문에 auto-memory multi-turn 실행 경로 부연(SPEC-DRIFT I-2).
 
 ## persistent 고도화 코드 리뷰 도출 백로그
-- [ ] SPEC-DRIFT: `17-agent-memory.md §3 AGM-04` "scheduleBackgroundBody snapshot" 표현 → 전용 BullMQ 큐(`agent-memory-extraction`, concurrency=2) 로 갱신(I1).
+- [x] SPEC-DRIFT: `17-agent-memory.md §3 AGM-04` "scheduleBackgroundBody snapshot" 표현 → 전용 BullMQ 큐(`agent-memory-extraction`, concurrency=2) 로 갱신(I1). — 2026-06-10 spec 전수 감사에서 §3 확정 구현 서술로 갱신 완료 (branch claude/spec-sync-audit-998544).
 - [ ] V080 `expires_at` 인덱스 무중단 배포 시 `CREATE INDEX CONCURRENTLY` 분리(V080a/b, executeInTransaction=false)(I9).
 - [ ] TTL 파싱(resolveMemoryTtlDays) 핸들러→AgentMemoryService/유틸 이전(I2).
 - [ ] saveMemories 포지셔널 5파라미터 → 옵션 객체(I3). cosine SQL WHERE 빌더 추출(I5).

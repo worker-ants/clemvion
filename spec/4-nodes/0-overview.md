@@ -1,3 +1,15 @@
+---
+id: nodes-overview
+status: partial
+code:
+  - codebase/backend/src/nodes/core/**
+  - codebase/backend/src/nodes/index.ts
+  - codebase/frontend/src/lib/api/node-definitions.ts
+  - codebase/frontend/src/lib/stores/node-definitions-store.ts
+pending_plans:
+  - plan/in-progress/marketplace-and-plugin-sdk.md
+---
+
 # Spec: 노드 시스템 설계 개요
 
 > 관련 문서: [PRD 노드 시스템](./_product-overview.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Trigger 노드](./7-trigger/0-common.md) · [Logic 노드](./1-logic/0-common.md) · [Flow 노드](./2-flow/0-common.md) · [AI 노드](./3-ai/0-common.md) · [Integration 노드](./4-integration/0-common.md) · [Data 노드](./5-data/0-common.md) · [Presentation 노드](./6-presentation/0-common.md)
@@ -20,6 +32,7 @@ codebase/backend/src/nodes/
 │   ├── workflow-executor.interface.ts # sub-workflow 실행을 위한 engine <-> 노드 계약
 │   ├── nested-value.util.ts          # 다수 노드에서 공유되는 경로 기반 getter/setter
 │   ├── zod-validator.ts              # Zod 스키마를 ValidationResult로 어댑팅
+│   ├── ...                           # 주요 파일 발췌 — 전체 목록은 아래 비고 참조
 │   └── index.ts                      # core 공개 API re-export
 ├── <category>/
 │   ├── _shared/ or _base/            # (선택) 카테고리 내 공유 유틸/베이스 클래스
@@ -32,6 +45,7 @@ codebase/backend/src/nodes/
 └── index.ts                          # ALL_NODE_COMPONENTS 배열
 ```
 
+- 위 `core/` 트리는 **주요 파일 발췌**다. 그 외에 `categories.ts`(카테고리 메타데이터 단일 소스 — §3) · `port-id.util.ts`(동적 포트 slug 검증·해석 — §1.3) · `button-slug.util.ts` · `node-type-metadata.ts` · `node-types.constants.ts` · `metadata-validation.ts` · `truncate-output.util.ts` · `condition-evaluator.util.ts` · `dry-run.util.ts` · `error-codes.ts` · `graph-warning-rule.ts` 가 `core/` 에 함께 위치한다.
 - **`<type>.schema.ts`** — 노드의 구조(input/output/config)를 Zod로 선언한다. `NodeComponentMetadata`, `NodePorts`, `defaultConfig`도 동일 파일에서 export 한다. Zod 스키마는 런타임 검증과 JSON Schema 직렬화의 단일 소스로 사용된다.
 - **`<type>.component.ts`** — schema/metadata와 handler 팩토리를 묶은 `NodeComponent` 객체를 export 한다. `createHandler(deps)`는 LLM/RAG/Integration/WorkflowExecutor 등 의존성을 주입받아 `NodeHandler` 인스턴스를 생성한다.
 - **`<type>.handler.ts`** — 노드 실행 로직(`NodeHandler.execute`)을 담는다. 한 노드의 스키마·컴포넌트·핸들러·테스트가 동일 디렉터리에 co-locate 된다.
@@ -42,7 +56,7 @@ codebase/backend/src/nodes/
 
 #### 메타데이터 API
 
-- `GET /api/nodes/definitions` — `{ definitions, categories }` 객체를 반환한다. `definitions`는 등록된 모든 노드의 `{ metadata, ports, configSchema, defaultConfig, inputSchema?, outputSchema? }` 배열이며, 스키마는 Zod v4의 `z.toJSONSchema()`로 직렬화된 JSON Schema 포맷이다. `categories`는 `{ id, label, icon, color, order }[]` 형태의 카테고리 메타데이터 배열로, 프론트엔드 팔레트의 섹션 헤더(레이블·bullet 색상·아이콘)를 렌더링하는 단일 소스다. 프론트엔드는 본 엔드포인트로 노드 팔레트, 설정 폼, 포트 카탈로그를 구성한다.
+- `GET /api/nodes/definitions` — `{ definitions, categories }` 객체를 반환한다. `definitions`는 등록된 모든 노드의 `{ metadata, ports, configSchema, defaultConfig, inputSchema?, outputSchema?, extras? }` 배열이며, 스키마는 Zod v4의 `z.toJSONSchema()`로 직렬화된 JSON Schema 포맷이다. `extras?` 는 컴포넌트별 부가 데이터로, 현재 cafe24 노드만 operations-by-resource 카탈로그 전달에 사용한다 ([cafe24 API 메타데이터 규약](../conventions/cafe24-api-metadata.md) 참조). `metadata` 직렬화 시 backend 전용 `validateConfig` 함수는 strip 되며, 프론트엔드는 캔버스 배지용 선언적 `warningRules` 만 받는다. `categories`는 `{ id, label, icon, color, order }[]` 형태의 카테고리 메타데이터 배열로, 프론트엔드 팔레트의 섹션 헤더(레이블·bullet 색상·아이콘)를 렌더링하는 단일 소스다. 프론트엔드는 본 엔드포인트로 노드 팔레트, 설정 폼, 포트 카탈로그를 구성한다.
 
 ### 1.1 노드 추상 구조
 
@@ -124,17 +138,18 @@ codebase/backend/src/nodes/
 
 #### 1.4.1 템플릿 문법 (filter DSL)
 
-`summaryTemplate` 은 `{{ config.path }}` 보간과 파이프 필터를 지원한다. 문법: `{{ path | filter:arg | filter2 }}`. 해석 단일 출처는 `codebase/packages/node-summary/src/evaluator.ts` (`renderSummaryTemplate`).
+`summaryTemplate` 은 config 경로 보간과 파이프 필터를 지원한다. 문법: `{{ path | filter:arg | filter2 }}`. **경로는 config-relative** 다 — `config` 자체가 해석 루트이므로 `{{ mode }}` 로 쓰며 `{{ config.mode }}` 로 쓰지 않는다 (후자는 undefined → 빈 문자열 렌더). 해석 단일 출처는 `codebase/packages/node-summary/src/evaluator.ts` (`renderSummaryTemplate`).
 
 | filter | 효과 | 예시 |
 |--------|------|------|
-| `upper` | 대문자 변환 | `{{ config.method &#124; upper }}` |
-| `lower` | 소문자 변환 | `{{ config.method &#124; lower }}` |
-| `default:LIT` | 값이 비어 있으면 리터럴 문자열 출력 | `{{ config.mode &#124; default:sync }}` |
-| `fallback:path` | 값이 비어 있으면 다른 config 경로의 값으로 대체 | `{{ config.workflowName &#124; fallback:workflowId }}` |
-| `length` | 문자열 또는 배열의 길이(문자 수 / 항목 수) 반환 — 줄 수는 계산하지 않음 | `{{ config.label &#124; length }}` |
+| `upper` | 대문자 변환 | `{{ method &#124; upper }}` |
+| `lower` | 소문자 변환 | `{{ method &#124; lower }}` |
+| `default:LIT` | 값이 비어 있으면 리터럴 문자열 출력 | `{{ mode &#124; default:sync }}` |
+| `fallback:path` | 값이 비어 있으면 다른 config 경로의 값으로 대체 | `{{ workflowName &#124; fallback:workflowId }}` |
 
 표 셀 예시의 `&#124;` 는 Markdown 표 구분자 충돌 방지를 위한 파이프 HTML entity 이다. `default:` 는 리터럴 문자열을, `fallback:` 은 다른 config 경로를 인수로 받는다. 필터는 좌→우로 연쇄 적용된다.
+
+길이(문자 수 / 항목 수)는 파이프 필터가 아니라 **경로 세그먼트 `.length`** 로 표현한다 — 배열·문자열 위에서 `{{ to.length }}` 처럼 쓰면 길이 숫자를 반환한다 (예: `{{ to.length }} recipients · {{ subject }}`). 표기는 [캔버스 §5.3](../3-workflow-editor/0-canvas.md#53-노드-설정-요약-configuration-summary) 의 노드별 요약 포맷 표와 정렬된다.
 
 ---
 

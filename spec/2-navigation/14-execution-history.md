@@ -5,7 +5,8 @@ code:
   - codebase/frontend/src/app/(main)/workflows/[id]/executions/**
   - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/backend/src/modules/executions/dto/responses/execution-response.dto.ts
-  - codebase/backend/src/modules/executions/utils/execution-trigger.ts
+  - codebase/backend/src/modules/executions/dto/query-execution.dto.ts
+  - codebase/backend/src/modules/executions/utils/*.ts
 ---
 
 # Spec: 워크플로우 실행 내역

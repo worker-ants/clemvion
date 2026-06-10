@@ -11,12 +11,13 @@
 - **출처**: 메이크샵 개발자센터 (Docusaurus v3.9.2 + `docusaurus-theme-openapi-docs`).
 - **추출일**: 2026-06-03.
 - **방식**: 공개 `openapi.json` 엔드포인트는 없으나, 각 페이지의 완전한 OpenAPI 3 operation 객체가 페이지별 JS chunk 안에 `base64(zlib(JSON))` 로 임베드돼 있다. `main.js`(라우트 레지스트리)+`runtime.js`(webpack chunk 맵)으로 라우트→chunk URL 을 100% 해석 후 디코드. 인증 불필요, 브라우저 렌더링 불필요.
-- **재현**: `/docs/sitemap.xml` 으로 페이지 목록 확보 → 위 2개 번들로 chunk URL 산출 → 각 chunk 의 `"api":"eJ…"` 블롭을 base64 decode + zlib inflate → JSON.
+- **재현**: 동일 디렉토리의 [`_generator.py`](./_generator.py) 로 자동화됨 — `python3 _generator.py [--check] [--no-md]` (`--check` 는 파일을 쓰지 않고 현재 산출물과 diff 검증, `--no-md` 는 `<section>.md` 표 재생성 생략). 수동 절차(`/docs/sitemap.xml` 으로 페이지 목록 확보 → 위 2개 번들로 chunk URL 산출 → 각 chunk 의 `"api":"eJ…"` 블롭을 base64 decode + zlib inflate → JSON)는 스크립트에 코드로 고정돼 있다.
 
 ## 2. 디렉토리 구조
 ```
 spec/conventions/makeshop-api-catalog/
   _overview.md
+  _generator.py                    # 카탈로그 재생성 스크립트 (§1 추출 파이프라인을 코드로 고정)
   openapi/<section>.openapi.json   # 섹션별 OpenAPI 3 문서 (요청/응답 필드 풀 스키마 = SoT)
   <section>.md                     # 사람 가독 카탈로그 표 (cafe24 스타일)
 ```

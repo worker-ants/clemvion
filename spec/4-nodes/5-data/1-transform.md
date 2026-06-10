@@ -4,6 +4,8 @@ status: implemented
 code:
   - codebase/backend/src/nodes/data/transform/transform.handler.ts
   - codebase/backend/src/nodes/data/transform/transform.schema.ts
+  - codebase/frontend/src/lib/transform/apply-operation.ts
+  - codebase/frontend/src/types/transform.ts
 ---
 
 # Spec: Transform
@@ -63,7 +65,7 @@ code:
 | subtract | `amount` (Number), `unit` |
 | diff | `compareField` (String), `unit` |
 
-**array_filter.condition** 의 지원 연산자: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `not_contains`, `starts_with`, `ends_with`, `is_empty`, `is_not_empty`, `regex`, `is_null`. ReDoS 방지를 위해 `regex` 패턴 길이는 200자 이내.
+**array_filter.condition** 의 지원 연산자: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `not_contains`, `starts_with`, `ends_with`, `is_empty`, `is_not_empty`, `regex`, `is_null`, `is_type`. ReDoS 방지를 위해 `regex` 패턴 길이는 200자 이내. `is_type` 은 If/Else / Switch (expression mode) / Filter 와 동일하게 동작한다 ([If/Else §6 각주](../1-logic/1-if-else.md#6-에러-코드)).
 
 `field` / `from` / `to` 파라미터는 dot/bracket 중첩 경로(`user.profile.name`, `items[0].id`)를 지원한다.
 
@@ -101,7 +103,7 @@ code:
 - 각 연산을 카드 형태로 표시
 - 드래그(`[↕]`)로 순서 변경 / 삭제(`[✕]`)
 - `+ Add Operation` 으로 연산 추가
-- 하단 Preview: 마지막 실행 데이터 기준 단계별 결과 미리보기
+- 하단 Preview: **마지막 실행 입력 우선**, 실행 데이터가 없으면 **편집 가능한 샘플 JSON 입력**(textarea, 기본 예시 제공)으로 fallback 하여 단계별 결과 미리보기. 실행 데이터 존재 시 "마지막 실행 입력 사용" 안내 표시 — 미실행 워크플로에서도 preview 가 동작한다. 단계별 계산은 backend 핸들러 의미론을 미러링한 FE 구현(`apply-operation.ts`)이 수행한다 (§4 의 no-op·차단 규칙 동일 적용)
 
 ## 3. 포트
 

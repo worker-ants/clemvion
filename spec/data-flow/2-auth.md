@@ -19,6 +19,8 @@
 - `codebase/backend/src/modules/auth/auth-oauth.service.ts` — OAuth state 발급·콜백
 - `codebase/backend/src/modules/auth/sessions.service.ts` — 활성 세션 목록·revoke
 - `codebase/backend/src/modules/auth/login-history.service.ts` — 이벤트 적재
+- `codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts` — WebAuthn 2FA 등록·인증·복구 코드
+- `codebase/backend/src/modules/auth/jobs/login-history-pruner.service.ts` — login_history 보존 배치 (§2.2)
 
 ---
 
@@ -101,6 +103,11 @@ sequenceDiagram
 
 응답 필드: 성공 응답 body 는 `{ accessToken }` 뿐이다 — refresh token 은 httpOnly 쿠키로만 내려가고 `user` 객체는 포함되지 않는다 (`auth.controller.ts` `login`). 2FA 활성 계정의 challenge 단계 응답은 `{ requires2fa, methods, challengeToken }` 이며, 클라이언트는 `requires2fa=true` 이면 challenge 단계로 보고 `methods[0]` 으로 WebAuthn / TOTP 화면을 분기. 상세 분기 규칙은 [auth spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지).
 
+> WebAuthn 인증기를 쓸 수 없는 사용자는 `POST /api/auth/2fa/webauthn/recovery` 로 등록 시 발급된
+> 복구 코드를 제출해 2FA 를 통과한다 (`webauthn/webauthn.controller.ts`). verify 단계에서 authenticator
+> counter 역행(clone 징후)이 감지되면 해당 credential row 를 즉시 삭제하고 `login_history.event=webauthn_failed`
+> 를 기록한다 (`webauthn/webauthn.service.ts` `verifyAuthentication`).
+
 ### 1.3 OAuth 소셜 로그인
 
 ```mermaid
@@ -112,18 +119,19 @@ sequenceDiagram
   participant Prov as OAuth Provider
 
   C->>Svc: GET /api/auth/oauth/:provider?mode&rememberMe
+  Svc->>PG: DELETE auth_oauth_state WHERE expires_at < now (기회적 purge, fire-and-forget)
   Svc->>PG: INSERT auth_oauth_state (state, provider, mode, rememberMe, expires_at = now+10m)
   Svc-->>C: 302 → provider authorize URL with state
   Prov-->>C: 302 → /api/auth/oauth/:provider/callback?code&state
   C->>Svc: callback
-  Svc->>PG: SELECT auth_oauth_state WHERE state = ? AND expires_at > now
-  Svc->>PG: DELETE auth_oauth_state (one-shot)
+  Svc->>PG: DELETE FROM auth_oauth_state WHERE state=? AND expires_at > now RETURNING * (원자적 one-shot)
+  Note over Svc: row 없으면(미존재·만료·이미 소비) 400 OAUTH_STATE_MISMATCH.<br/>row.provider ≠ :provider 도 거부
   Svc->>Prov: token exchange (code → access_token)
   Svc->>Prov: GET /userinfo
   alt user exists by oauth_provider+oauth_provider_id
     Svc->>PG: SELECT user
   else user exists by email
-    Svc->>PG: UPDATE user.oauth_provider, oauth_provider_id (link)
+    Svc->>PG: UPDATE user SET oauth_provider, oauth_provider_id, email_verified=true WHERE id=? AND oauth_provider IS NULL (조건부 link)
   else new user
     Svc->>PG: INSERT user (oauth_provider, oauth_provider_id, password_hash=NULL)
     Svc->>PG: INSERT workspace + workspace_member (personal)
@@ -133,6 +141,8 @@ sequenceDiagram
 ```
 
 > OAuth 콜백은 access token 을 URL 에 싣지 않는다 (history/Referer/프록시 로그 노출 방지, decision A 2026-05-31). refresh token 만 httpOnly 쿠키로 설정하고 프론트 `/callback` 페이지가 `POST /api/auth/refresh` 로 access token 을 발급받는다. 실패 시 `{frontendUrl}/callback?error={code}` 로 리다이렉트.
+>
+> email 매칭 link 는 `oauth_provider IS NULL` 조건부 UPDATE 라 이미 다른 provider 에 바인딩된 계정을 덮어쓰지 않으며, link 시 `email_verified=true` 와 avatarUrl 도 함께 세팅한다 (`auth-oauth.service.ts` `resolveUser`). 신규 user 경로는 동시 첫 callback 이 unique index 에 충돌(23505)하면 승자가 만든 row 를 재조회해 복구한다. (참고, infra-trivial) `OAUTH_STUB_MODE` — dev/test 한정으로 provider token/userinfo 호출을 스텁으로 대체한다.
 
 ### 1.4 Refresh token 회전
 
@@ -144,18 +154,24 @@ sequenceDiagram
   participant PG as Postgres
   participant Hist as LoginHistoryService
 
-  C->>Svc: POST /api/auth/refresh { refreshToken }
+  C->>Svc: POST /api/auth/refresh (refreshToken 은 httpOnly 쿠키, body 없음)
+  Note over Svc: 쿠키 부재 시 401
   Svc->>Svc: sha256(refreshToken) = hash
   Svc->>PG: SELECT refresh_token WHERE token_hash = hash
-  alt row.is_revoked OR expires_at < now
+  alt row.is_revoked (reuse 탐지)
     Svc->>PG: UPDATE all refresh_token WHERE family_id = row.family_id SET is_revoked = true
     Svc->>Hist: event=token_reuse_detected, family_id
-    Svc-->>C: 401
+    Svc-->>C: 401 TOKEN_INVALID
+  else expires_at < now (단순 만료)
+    Svc-->>C: 401 TOKEN_EXPIRED (family revoke·이력 기록 없음)
   end
   Svc->>PG: UPDATE refresh_token SET is_revoked=true, last_used_at=now WHERE id = row.id
   Svc->>PG: INSERT refresh_token (family_id=row.family_id, new token_hash, expires_at)
-  Svc-->>C: { accessToken, refreshToken }
+  Svc-->>C: { accessToken } + Set-Cookie (새 refreshToken httpOnly)
 ```
+
+> reuse 탐지(family 전체 revoke + `token_reuse_detected` 기록)는 `is_revoked=true` 토큰의 재사용 시에만
+> 발동한다. 단순 만료는 부작용 없이 401 `TOKEN_EXPIRED` 만 반환 (`auth.service.ts` `refresh`).
 
 ### 1.5 세션 revoke (사용자 본인)
 
@@ -171,6 +187,37 @@ sequenceDiagram
 ```
 
 > revoke 는 `SessionsController` (`@Controller('users/me')`) 의 `POST sessions/:familyId/revoke` 다 — DELETE 대신 POST 를 쓰는 이유는 일부 CDN/프록시가 DELETE 바디(재인증 자격)를 제거하기 때문 (`sessions.controller.ts`). 응답은 204 가 아니라 200 + 갱신된 세션 목록. 같은 컨트롤러에 `POST sessions/revoke-others` (다른 세션 일괄 종료) 도 있다.
+>
+> 세부 규칙 (`sessions.service.ts`): 현재 요청의 refreshToken 쿠키와 매칭되는 family 는 self-revoke 차단
+> (400 `CANNOT_REVOKE_CURRENT_SESSION` — 로그아웃 사용 유도). 재인증 수단이 전혀 없는 사용자
+> (OAuth-only: password_hash 없음 + 2FA 미설정) 는 403 `REAUTH_NOT_AVAILABLE`. 타인/미존재 family 는
+> 동일하게 404 (정보 누출 방지).
+>
+> 읽기 경로: 같은 컨트롤러의 `GET /api/users/me/sessions` 가 활성 세션을 family 단위로 반환하며 요청
+> 쿠키와 매칭되는 family 에 `isCurrent=true` 를 표시한다. `GET /api/users/me/login-history` 는 본인의
+> 인증 이벤트를 시간 역순으로 커서 페이징(`timestamp|id`) 반환한다 (보존 180일, §2.2 pruner 참조).
+
+### 1.6 로그아웃
+
+`POST /api/auth/logout` (`auth.controller.ts` `logout` → `auth.service.ts` `logout`):
+
+1. 요청의 refreshToken 쿠키를 sha256 으로 조회. 쿠키가 없어도 200 (idempotent).
+2. row 가 있으면 단일 토큰이 아니라 **family 전체** 를 `is_revoked=true` 로 revoke.
+3. `login_history.event=logout` (family_id 포함) 기록.
+4. 응답에서 refreshToken 쿠키 제거 (`clearRefreshTokenCookie`).
+
+### 1.7 비밀번호 재설정 · 이메일 보조 엔드포인트
+
+`auth.controller.ts` / `auth.service.ts` (`forgotPassword` / `resetPassword` / `resendVerification` / `checkEmail`):
+
+1. `POST /api/auth/forgot-password` (IP 당 5 req/min) — user 가 존재하면 reset 토큰(30분 유효) 을 발급해
+   `password_reset_token` (sha256 해시) 으로 저장하고 SMTP 로 발송. **DB/메일 오류 포함 모든 실패를
+   swallow** 하고 존재 여부와 무관하게 동일 응답을 반환한다 (enumeration 방지).
+2. `POST /api/auth/reset-password` — 토큰 검증 + 비밀번호 강도 검증 후 `password_hash` 갱신, reset 토큰
+   필드 무효화, **해당 사용자의 refresh_token 전체 revoke** (모든 세션 강제 로그아웃).
+3. `POST /api/auth/resend-verification` (5 req/min) — 미인증 계정에 24h 유효 인증 토큰을 재발급·재발송.
+   forgot-password 와 동일한 enumeration 방지 정책 (항상 동일 응답).
+4. `POST /api/auth/check-email` (5 req/min) — 가입 전 이메일 사용 가능 여부 `{ available }` 반환.
 
 ---
 
@@ -193,14 +240,32 @@ sequenceDiagram
 | `refresh_token` | refresh 회전 | UPDATE `is_revoked=true, last_used_at, last_used_ip` (old row) + INSERT new row | — |
 | `refresh_token` | reuse 탐지 | UPDATE `is_revoked=true` for entire `family_id` | — |
 | `auth_oauth_state` | OAuth start | INSERT `state, provider, mode, remember_me, expires_at = now+10m` | `state UNIQUE` (V013) |
-| `auth_oauth_state` | OAuth callback | DELETE WHERE `state=?` (one-shot) | — |
+| `auth_oauth_state` | OAuth callback | DELETE WHERE `state=? AND expires_at > now` RETURNING (원자적 one-shot) | — |
 | `login_history` | 모든 이벤트 | INSERT `user_id, email, event, ip_address, user_agent, device_label, family_id, failure_reason, created_at` | `(user_id, created_at DESC)`, `(email, created_at DESC)` (V040) |
 | `workspace` | 회원가입 (이메일 검증 단계) | INSERT `name, type='personal', owner_id, slug` | `slug UNIQUE` (V001) |
 | `workspace_member` | 회원가입 | INSERT `workspace_id, user_id, role='owner', joined_at` | `(workspace_id, user_id) UNIQUE` |
 
 ### 2.2 Redis
 
-Auth 도메인은 BullMQ 큐를 사용하지 않는다. 단, Login rate limit 은 (구현 시) Redis 카운터를 사용할 후보다.
+Auth 도메인은 BullMQ repeatable scheduler 큐 **`login-history-pruner`** 1개를 등록·구동한다
+(`auth.module.ts` `BullModule.registerQueue`, `jobs/login-history-pruner.service.ts`):
+
+- 매일 03:00 Asia/Seoul (`upsertJobScheduler` pattern `0 3 * * *`, 명시적 tz) 에 180일을 넘긴
+  `login_history` 행을 배치 루프로 삭제 (`login-history.service.ts` `pruneOlderThanRetention`, `RETENTION_DAYS=180`).
+- 옛 `@Cron` 인메모리 타이머는 replica 마다 독립 발화해 중복 실행됐기에 BullMQ Redis 중앙 스케줄로
+  이관 — 멀티 인스턴스에서도 전역 1회만 실행된다.
+
+Login rate limit 은 Redis 가 아니라 `@nestjs/throttler` **in-memory** 카운터로 이미 구현돼 있다:
+
+| 범위 | 한도 | 위치 |
+| --- | --- | --- |
+| 전역 (모든 API) | IP 당 100 req/min (`NODE_ENV=test` 만 skip) | `app.module.ts` `ThrottlerModule.forRoot` |
+| `register` · `login` | IP 당 10 req/min (W-47) | `auth.controller.ts` `@Throttle` |
+| `forgot-password` · `resend-verification` · `check-email` | IP 당 5 req/min | `auth.controller.ts` |
+| `sessions/:familyId/revoke` / `sessions/revoke-others` | IP 당 10 / 5 req/min | `sessions.controller.ts` |
+
+IP 단위 throttle 은 계정 잠금(5회 실패 → 10분, §3.2)과 별개의 이중 방어다 — 한 IP 가 여러 계정을
+순회하는 credential stuffing 은 throttle 이 먼저 막고, 분산 IP 의 단일 계정 공격은 계정 잠금이 막는다.
 
 ### 2.3 외부
 
@@ -238,9 +303,9 @@ stateDiagram-v2
 
 | 단계 | 동작 |
 | --- | --- |
-| `/start` | INSERT `expires_at = now + 10m`. one-shot. |
-| `/callback` | SELECT + DELETE 한 트랜잭션. `expires_at < now` 면 거부. |
-| TTL 경과 (배치) | (정리 배치 도입 시) 만료 row 정기 정리 — 현재는 next callback 시점에 자연 거부. |
+| `/start` | INSERT `expires_at = now + 10m`. one-shot. 매 호출마다 만료 row 를 fire-and-forget `purgeExpired()` 로 기회적 삭제. |
+| `/callback` | 단일 원자 쿼리 `DELETE ... WHERE state=? AND expires_at > now RETURNING *` — 만료·이미 소비된 state 는 같은 쿼리에서 거부되고, 동시 callback 은 한쪽만 row 를 얻는다. |
+| TTL 경과 | 별도 정기 배치 없음 — next `/start` 의 기회적 purge 또는 callback 시점 거부로 정리. |
 
 ---
 
@@ -270,6 +335,7 @@ stateDiagram-v2
 
 ### OAuth state 의 one-shot DELETE
 
-CSRF 와 replay 방지를 위해 `auth_oauth_state` 는 callback 한 번에 DELETE 된다. 별도 TTL 배치를 두지
-않고 `expires_at < now` 만으로 거부하는 이유는 row 수가 매우 적고 (10분 TTL × 동시 OAuth 시도 수)
-세션 종료 후엔 즉시 의미가 없기 때문이다.
+CSRF 와 replay 방지를 위해 `auth_oauth_state` 는 callback 한 번에 소비된다 — 두 쿼리 트랜잭션이 아닌
+단일 원자 쿼리(`DELETE ... RETURNING`)를 쓰는 이유는 동시 callback 경합에서도 정확히 한 요청만 state 를
+얻게 하기 위해서다. 별도 정기 TTL 배치를 두지 않는 이유는 row 수가 매우 적고 (10분 TTL × 동시 OAuth
+시도 수) 매 `/start` 의 기회적 purge 만으로 충분하기 때문이다.

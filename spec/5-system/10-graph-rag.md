@@ -207,7 +207,7 @@ code:
 
 Graph RAG 는 KB 의 검색 모드(`rag_mode`) 가 `graph` 일 때 활성화되는 검색 흐름이다. vector seed → graph expansion → **centrality-weighted score blending** 의 Hybrid 형태로 동작하며, 기존 `vector` 모드 KB 와 동일 인프라(PostgreSQL + pgvector + BullMQ) 위에서 추가 의존성 없이 작동한다.
 
-> **용어 disambiguation**: 본 문서에서 그래프 4단계의 "rerank"·"score 재정렬" 은 **centrality-weighted score blending**(cosine × centrality 가중) 을 뜻하는 graph 내부 1차 정렬이다. 별도의 선택적 cross-encoder 후처리 reranking([RAG 검색 §3.3](./9-rag-search.md#33-검색-후처리--리랭킹-선택적), Planned)과 혼동하지 않는다 — 후자는 `rerank_mode ≠ off` 일 때 vector/graph 어느 회수 결과에도 적용되는 2차 단계다.
+> **용어 disambiguation**: 본 문서에서 그래프 4단계의 "rerank"·"score 재정렬" 은 **centrality-weighted score blending**(cosine × centrality 가중) 을 뜻하는 graph 내부 1차 정렬이다. 별도의 선택적 cross-encoder 후처리 reranking([RAG 검색 §3.3](./9-rag-search.md#33-검색-후처리--리랭킹-선택적), 구현됨)과 혼동하지 않는다 — 후자는 `rerank_mode ≠ off` 일 때 vector/graph 어느 회수 결과에도 적용되는 2차 단계다.
 
 ```
 문서 업로드

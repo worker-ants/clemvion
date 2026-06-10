@@ -4,6 +4,7 @@ status: partial
 pending_plans:
   - plan/in-progress/spec-sync-carousel-gaps.md
 code:
+  - codebase/backend/src/nodes/presentation/carousel/carousel.component.ts
   - codebase/backend/src/nodes/presentation/carousel/carousel.handler.ts
   - codebase/backend/src/nodes/presentation/carousel/carousel.schema.ts
   - codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx

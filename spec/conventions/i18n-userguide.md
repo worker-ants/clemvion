@@ -9,6 +9,9 @@ code:
   - codebase/frontend/src/lib/i18n/__tests__/ui-label-parity.test.ts
   - codebase/frontend/src/lib/i18n/__tests__/hardcoded-korean-ratchet.test.ts
   - codebase/frontend/src/lib/docs/locale.ts
+  - codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/nodes-coverage.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/locale.test.ts
 ---
 
 <!-- status: implemented — Principle 1·2·3·3-B·4·5·6·7 및 Principle 3-C

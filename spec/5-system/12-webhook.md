@@ -4,6 +4,7 @@ status: partial
 code:
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
+  - codebase/backend/src/modules/hooks/dto/responses/webhook-response.dto.ts
   - codebase/backend/src/modules/hooks/public-webhook-throttle.guard.ts
   - codebase/backend/src/modules/hooks/public-webhook-quota.service.ts
   - codebase/backend/src/modules/auth-configs/auth-configs.service.ts
