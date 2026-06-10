@@ -3,6 +3,7 @@ id: cross-node-warning-rules
 status: implemented
 code:
   - codebase/packages/graph-warning-rules/**
+  - codebase/packages/node-summary/**
   - codebase/backend/src/nodes/core/graph-warning-rule.ts
   - codebase/backend/src/nodes/core/node-component.interface.ts
   - codebase/backend/src/nodes/logic/parallel/parallel.schema.ts
@@ -95,6 +96,8 @@ export interface GraphWarningRuleResult {
 1. **workflow save endpoint** — `WorkflowsService.saveCanvas` 가 syncNodes/syncEdges 와 동일 트랜잭션에서 `evaluateGraphWarnings` 호출. severity `error` 시 `BadRequestException(GRAPH_VALIDATION_FAILED)` → rollback. ✅ 구현됨.
 2. **frontend canvas** — graph 변경 시점마다 `evaluateGraphWarningsLocal` 로 로컬 평가, per-node 배지 + 저장 버튼 제어. ✅ 구현됨.
 3. **runtime** — 노드 핸들러 / 엔진의 graph 검증 단계에서 자기 노드 중심 평가. 본 컨벤션과 별개로, runtime 의 hand-coded 검증 (예: `PARALLEL_NESTED_DEPTH_EXCEEDED` throw) 과 메시지 의미 일관성을 보장.
+
+> **보조 surface — `GET /workflows/:id/graph-warnings`** (REST, `viewer` 이상): `WorkflowsService.getGraphWarnings` 가 저장된 nodes/edges 를 로드해 `evaluateGraphWarningRulesForGraph` 를 서버 권위로 평가하고 `{ results, hasError, hasWarning }` 를 반환한다 (`workflows.controller.ts` / `workflows.service.ts`). 이 endpoint 는 3중 가드의 구성 요소가 아닌 **조회 전용 보조 API** (디버그·외부 클라이언트용) 다 — frontend canvas 는 이를 호출하지 않고 가드 ② 의 로컬 평가(`evaluateGraphWarningsLocal`)만 사용하며, frontend api client 의 `graphWarnings` 메서드는 현재 호출자가 없다.
 
 ## 6. SSOT 보장 (backend ↔ frontend) — shared package 채택 (옵션 A)
 
