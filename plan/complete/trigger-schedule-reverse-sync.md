@@ -34,4 +34,4 @@ spec_impact:
 - [x] TEST WORKFLOW (lint→unit→build→e2e 전부 PASS — e2e 29 suites/179 tests, 2026-06-10 17:08)
 - [x] /ai-review + resolution — HIGH(C3/W10) 중 C1·C2·W3 은 본 구현으로 기해소 확증, W5(LLM attribution) applier fix 커밋 639be831, C3/W1/W4/W7 은 사용자 결정으로 [trigger-review-deferred-fixes](./trigger-review-deferred-fixes.md) 이관, RESOLUTION.md 작성
 - [x] spec 갭 표기 해소 (1-data-model §2.9.1·data-flow 10-triggers §1.4·3-schedule §3.1·2-trigger-list §4.3 → 구현됨 플립 + Rationale 1항) — --spec 검증 BLOCK 의 PR#518 충돌 Critical 은 gh 파일목록으로 false positive 반증 (plan/ 만 변경)
-- [ ] /consistency-check --impl-done spec/2-navigation/ (BLOCK: NO 필요)
+- [x] /consistency-check --impl-done spec/2-navigation/ — 1차 BLOCK YES(§3.1 잔존 모순) 정정 후 재검 BLOCK: NO (review/consistency/2026/06/10/18_27_53)
