@@ -11,6 +11,7 @@ import { randomBytes } from 'crypto';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
+import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
 import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
@@ -71,6 +72,7 @@ export class TriggersService {
     private readonly channelListenerRegistry: ChannelListenerRegistry,
     private readonly configService: ConfigService,
     private readonly secrets: SecretResolverService,
+    private readonly scheduleRunner: ScheduleRunnerService,
   ) {}
 
   async findAll(
@@ -236,6 +238,13 @@ export class TriggersService {
     );
     Object.assign(trigger, rest, { config: mergedConfig });
     const saved = await this.triggerRepository.save(trigger);
+    // [Spec 1-data-model §2.9.1 / data-flow 10-triggers §1.4] 역방향(Trigger→Schedule) is_active
+    // 동기화. ScheduleProcessor 는 schedule.is_active 만 보므로, schedule row + BullMQ job
+    // scheduler 에 반영하지 않으면 트리거 쪽 비활성화로는 발사가 멈추지 않는다
+    // (정방향 SchedulesService.update 와 대칭).
+    if (trigger.type === 'schedule' && rest.isActive !== undefined) {
+      await this.syncScheduleActivation(saved, rest.isActive);
+    }
     await this.normalizeNotificationSecretRef(saved);
     if (chatChannel) {
       // chatChannel 갱신 — 새 webhook URL 등록 (idempotent).
@@ -706,8 +715,46 @@ export class TriggersService {
     }
   }
 
+  /**
+   * [Spec 1-data-model §2.9.1 / data-flow 10-triggers §1.4] Trigger 측 토글의 schedule 동기.
+   * schedule row 의 is_active 를 맞추고 BullMQ job scheduler 를 등록/해제한다.
+   * 고아 trigger (생성 2-step 중간 실패로 schedule row 부재) 는 graceful skip — 동기 대상이 없다.
+   */
+  private async syncScheduleActivation(
+    trigger: Trigger,
+    isActive: boolean,
+  ): Promise<void> {
+    const schedule = await this.scheduleRepository.findOne({
+      where: { triggerId: trigger.id },
+    });
+    if (!schedule) {
+      this.logger.warn(
+        `schedule row not found for schedule-type trigger ${trigger.id} — is_active sync skipped`,
+      );
+      return;
+    }
+    schedule.isActive = isActive;
+    await this.scheduleRepository.save(schedule);
+    if (isActive) {
+      await this.scheduleRunner.registerJob(schedule);
+    } else {
+      await this.scheduleRunner.removeJob(schedule.id);
+    }
+  }
+
   async remove(id: string, workspaceId: string): Promise<void> {
     const trigger = await this.findById(id, workspaceId);
+    // [data-flow 10-triggers §1.4] schedule 타입은 trigger 삭제(FK CASCADE 로 schedule row 동반
+    // 삭제) 전에 BullMQ job scheduler 엔트리를 해제한다 — 미해제 시 Redis 에 잔존해 cron tick
+    // 마다 "Schedule not found" skip 이 반복된다 (정방향 SchedulesService.remove 와 대칭).
+    if (trigger.type === 'schedule') {
+      const schedule = await this.scheduleRepository.findOne({
+        where: { triggerId: trigger.id },
+      });
+      if (schedule) {
+        await this.scheduleRunner.removeJob(schedule.id);
+      }
+    }
     await this.teardownChatChannel(trigger);
     // [Spec R8 v1 적용 (2026-05-24)] listener registry unregister — trigger 삭제 후 race
     // event 가 dispatcher 에 도달했을 때 안전 가드. unregister 는 graceful (미등록 noop).
