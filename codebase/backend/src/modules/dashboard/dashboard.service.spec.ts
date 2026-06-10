@@ -30,6 +30,119 @@ const baseFake = (overrides: Partial<FakeExec>): FakeExec => ({
   ...overrides,
 });
 
+describe('DashboardService.getSummary', () => {
+  // perf #4 — 동일 범위 6쿼리 5왕복을 집계 2쿼리(workflow 1 + execution 1)로
+  // 통합. 파생 계산(반올림·changePercent·분모 의미론)은 기존 로직 그대로다.
+  let service: DashboardService;
+  let executionRepo: { createQueryBuilder: jest.Mock; count?: jest.Mock };
+  let workflowRepo: { createQueryBuilder: jest.Mock; count: jest.Mock };
+  let wfQB: Record<string, jest.Mock>;
+  let execQB: Record<string, jest.Mock>;
+
+  const buildAggQB = (raw: Record<string, unknown>) => {
+    const qb: Record<string, jest.Mock> = {};
+    qb.select = jest.fn().mockReturnValue(qb);
+    qb.addSelect = jest.fn().mockReturnValue(qb);
+    qb.innerJoin = jest.fn().mockReturnValue(qb);
+    qb.where = jest.fn().mockReturnValue(qb);
+    qb.andWhere = jest.fn().mockReturnValue(qb);
+    qb.setParameters = jest.fn().mockReturnValue(qb);
+    qb.getRawOne = jest.fn().mockResolvedValue(raw);
+    return qb;
+  };
+
+  const setup = (
+    wfRaw: Record<string, unknown>,
+    execRaw: Record<string, unknown>,
+  ) => {
+    wfQB = buildAggQB(wfRaw);
+    execQB = buildAggQB(execRaw);
+    workflowRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(wfQB),
+      count: jest.fn(),
+    };
+    executionRepo = { createQueryBuilder: jest.fn().mockReturnValue(execQB) };
+    service = new DashboardService(
+      workflowRepo as never,
+      executionRepo as never,
+    );
+  };
+
+  it('workflow 1 + execution 1 — 총 2회 왕복으로 모든 summary 필드를 산출한다', async () => {
+    setup(
+      { total: '5', active: '2' },
+      { total7d: '10', prev7d: '4', success7d: '7', avg7d: '123.6' },
+    );
+
+    const summary = await service.getSummary('ws-1');
+
+    expect(summary).toEqual({
+      totalWorkflows: 5,
+      activeWorkflows: 2,
+      runs7d: 10,
+      runs7dPrevious: 4,
+      runs7dChangePercent: 150,
+      successRate: 70,
+      avgExecutionTime: 124,
+    });
+    // 왕복 수 게이트: repo 별 QB 1회씩, count() 미사용.
+    expect(workflowRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+    expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+    expect(workflowRepo.count).not.toHaveBeenCalled();
+  });
+
+  it('분모 의미론 보존 — successRate 분모는 status 무관 7일 전체(total7d) FILTER 로 계산된다', async () => {
+    setup(
+      { total: '1', active: '1' },
+      { total7d: '4', prev7d: '0', success7d: '1', avg7d: null },
+    );
+
+    const summary = await service.getSummary('ws-1');
+
+    // 4건 중 1건 completed → 25% (분모가 completed 한정이면 100% 로 어긋남).
+    expect(summary.successRate).toBe(25);
+    // FILTER 절이 분모(전체)와 분자(completed 한정)를 분리해 표현하는지 확인.
+    const selects = [
+      ...execQB.select.mock.calls.map((c: unknown[]) => String(c[0])),
+      ...execQB.addSelect.mock.calls.map((c: unknown[]) => String(c[0])),
+    ].join('\n');
+    expect(selects).toContain('FILTER');
+    expect(selects).toMatch(/status/);
+  });
+
+  it('경계값: prev7d=0 → changePercent null, total7d=0 → successRate 0, avg null → 0', async () => {
+    setup(
+      { total: '0', active: '0' },
+      { total7d: '0', prev7d: '0', success7d: '0', avg7d: null },
+    );
+
+    const summary = await service.getSummary('ws-1');
+
+    expect(summary.runs7dChangePercent).toBeNull();
+    expect(summary.successRate).toBe(0);
+    expect(summary.avgExecutionTime).toBe(0);
+  });
+
+  it('getRawOne 이 undefined(이론상 빈 결과)여도 0 기본값으로 안전 처리한다', async () => {
+    setup(
+      undefined as unknown as Record<string, unknown>,
+      undefined as unknown as Record<string, unknown>,
+    );
+
+    const summary = await service.getSummary('ws-1');
+
+    expect(summary).toEqual({
+      totalWorkflows: 0,
+      activeWorkflows: 0,
+      runs7d: 0,
+      runs7dPrevious: 0,
+      runs7dChangePercent: null,
+      successRate: 0,
+      avgExecutionTime: 0,
+    });
+  });
+});
+
 describe('DashboardService.getRecentExecutions', () => {
   let service: DashboardService;
   let executionRepo: { createQueryBuilder: jest.Mock };
