@@ -386,3 +386,9 @@ evict 한다. 회전 즉시 전 인스턴스에서 stale 연결이 제거돼 MTT
 - **pub/sub 인프라**: 기존 공유 Redis 연결은 command-only(SUBSCRIBE 미사용)라 단일 연결
   multiplexing 안전성을 위해 그대로 두고, 구독은 전용 duplicate 연결로 분리한다. PUBLISH 는 일반
   command 라 공유 연결로 보낸다.
+- **`execution:continuation` 채널 폐기와의 구분**: 실행 엔진은 옛 Redis pub/sub
+  `execution:continuation`(at-most-once)을 BullMQ 영속 큐로 교체했다([실행 엔진 §Rationale "Durable
+  Continuation"](../../5-system/4-execution-engine.md#rationale)). 본 채널은 그 결정과 상충하지
+  않는다 — continuation 은 **유실 시 실행이 멈추는 내구성 필요** 사용처라 큐가 맞고, 본 캐시 무효화는
+  **유실돼도 credsHash evict 로 정합성이 보장되는 best-effort** 라 경량 pub/sub 가 적합하다. 목적과
+  허용 의미론(at-most-once vs at-least-once)이 다르다.
