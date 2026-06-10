@@ -4,6 +4,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { ApiOkPaginatedResponse } from '../../common/swagger';
 import { AuditLogsService } from './audit-logs.service';
@@ -31,6 +32,7 @@ export class AuditLogsController {
     description: '감사 로그 목록 (페이지네이션, 사용자 정보 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '권한 부족 (Admin 미만) 또는 비멤버' })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryAuditLogDto,

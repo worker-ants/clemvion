@@ -1035,7 +1035,18 @@ export class TriggersService {
       if (!secretV2) continue;
       const notificationCfg = (trigger.config as { notification?: unknown })
         .notification;
-      if (!notificationCfg || typeof notificationCfg !== 'object') continue;
+      if (!notificationCfg || typeof notificationCfg !== 'object') {
+        // [SUMMARY W-2] notification config 부재 trigger 에 v2 컬럼이 채워진 비정상 데이터.
+        // 매 cron 주기 skip 으로 notification_secret_v2 평문이 DB 에 영구 잔류하지 않도록
+        // v2/rotatedAt 를 클리어하고 경고 로그를 남긴다.
+        this.logger.warn(
+          `trigger ${trigger.id} has notificationSecretV2 but no notification config — clearing stale v2 columns`,
+        );
+        trigger.notificationSecretV2 = null;
+        trigger.notificationRotatedAt = null;
+        await this.triggerRepository.save(trigger);
+        continue;
+      }
       const signing = (notificationCfg as { signing?: unknown }).signing;
 
       const ref = buildSecretRef({

@@ -5,6 +5,8 @@ owner: developer
 spec_impact:
   - spec/data-flow/1-audit.md
   - spec/data-flow/15-external-interaction.md
+  - spec/1-data-model.md
+  - spec/5-system/1-auth.md
 ---
 
 # 보안 fix 2건 — audit-logs Admin+ 가드(V-03) + notification secret rotation 무효(C3)

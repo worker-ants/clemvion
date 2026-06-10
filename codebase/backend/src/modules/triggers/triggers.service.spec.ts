@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Provider } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { TriggersService } from './triggers.service';
 import { Trigger } from './entities/trigger.entity';
@@ -12,6 +13,71 @@ import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
+
+/**
+ * [SUMMARY W-3] createBaseProviders — Secret rotation / itk revoke / setupChatChannel
+ * describe 블록들이 공유하는 프로바이더 설정 헬퍼.
+ * triggerRepo mock 은 suite마다 메서드가 달라 개별 override 후 spread 한다.
+ */
+function createBaseProviders(
+  triggerRepoMock: Record<string, unknown>,
+): Provider[] {
+  return [
+    TriggersService,
+    {
+      provide: getRepositoryToken(Trigger),
+      useValue: triggerRepoMock,
+    },
+    { provide: getRepositoryToken(Execution), useValue: {} },
+    {
+      provide: getRepositoryToken(Schedule),
+      // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
+      // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
+      useValue: {
+        findOne: jest.fn().mockResolvedValue(null),
+        save: jest.fn(),
+      },
+    },
+    {
+      provide: getRepositoryToken(AuthConfig),
+      useValue: { findOne: jest.fn() },
+    },
+    {
+      provide: ChannelAdapterRegistry,
+      useValue: { has: jest.fn(() => false), get: jest.fn() },
+    },
+    {
+      provide: ChannelListenerRegistry,
+      useValue: {
+        register: jest.fn(),
+        unregister: jest.fn(),
+        has: jest.fn(() => false),
+        get: jest.fn(),
+        size: jest.fn(() => 0),
+        bulkRegister: jest.fn(),
+      },
+    },
+    {
+      provide: ConfigService,
+      useValue: { get: jest.fn(() => 'http://localhost:3000') },
+    },
+    {
+      provide: ScheduleRunnerService,
+      useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
+    },
+    {
+      provide: SecretResolverService,
+      useValue: {
+        resolve: jest.fn(),
+        store: jest.fn(),
+        rotate: jest.fn(),
+        delete: jest.fn(),
+        deleteByPrefix: jest.fn().mockResolvedValue(0),
+        exists: jest.fn(),
+      },
+    },
+  ];
+}
 
 describe('TriggersService.findOneDetail', () => {
   let service: TriggersService;
@@ -516,65 +582,11 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        TriggersService,
-        {
-          provide: getRepositoryToken(Trigger),
-          useValue: {
-            findOne: jest.fn(),
-            save: jest.fn((t: Trigger) => Promise.resolve(t)),
-            createQueryBuilder: jest.fn(),
-          },
-        },
-        { provide: getRepositoryToken(Execution), useValue: {} },
-        {
-          provide: getRepositoryToken(Schedule),
-          // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
-          // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
-          useValue: {
-            findOne: jest.fn().mockResolvedValue(null),
-            save: jest.fn(),
-          },
-        },
-        {
-          provide: getRepositoryToken(AuthConfig),
-          useValue: { findOne: jest.fn() },
-        },
-        {
-          provide: ChannelAdapterRegistry,
-          useValue: { has: jest.fn(() => false), get: jest.fn() },
-        },
-        {
-          provide: ChannelListenerRegistry,
-          useValue: {
-            register: jest.fn(),
-            unregister: jest.fn(),
-            has: jest.fn(() => false),
-            get: jest.fn(),
-            size: jest.fn(() => 0),
-            bulkRegister: jest.fn(),
-          },
-        },
-        {
-          provide: ConfigService,
-          useValue: { get: jest.fn(() => 'http://localhost:3000') },
-        },
-        {
-          provide: ScheduleRunnerService,
-          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
-        },
-        {
-          provide: SecretResolverService,
-          useValue: {
-            resolve: jest.fn(),
-            store: jest.fn(),
-            rotate: jest.fn(),
-            delete: jest.fn(),
-            deleteByPrefix: jest.fn().mockResolvedValue(0),
-            exists: jest.fn(),
-          },
-        },
-      ],
+      providers: createBaseProviders({
+        findOne: jest.fn(),
+        save: jest.fn((t: Trigger) => Promise.resolve(t)),
+        createQueryBuilder: jest.fn(),
+      }),
     }).compile();
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
@@ -715,6 +727,59 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       expect(result.promoted).toBe(0);
       expect(triggerRepo.save).not.toHaveBeenCalled();
     });
+
+    it('notification config 부재 trigger → v2/rotatedAt 클리어 + save (W-2 fix)', async () => {
+      // [SUMMARY W-2] notification config 없이 v2 컬럼이 채워진 비정상 데이터.
+      // 매 cron skip 으로 평문이 영구 잔류하지 않도록 v2/rotatedAt 를 클리어해야 한다.
+      const stale = makeTrigger({});
+      stale.notificationSecretV2 = 'wsk_newsecret';
+      stale.notificationRotatedAt = new Date(Date.now() - 25 * 60 * 60 * 1000);
+      mockQueryBuilder([stale]);
+
+      const result = await service.promoteRotatedNotificationSecrets();
+      expect(result.promoted).toBe(0);
+      // 클리어 후 save 가 한 번 호출 (평문 영구 잔류 방지)
+      expect(triggerRepo.save).toHaveBeenCalledTimes(1);
+      expect(triggerRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notificationSecretV2: null,
+          notificationRotatedAt: null,
+        }),
+      );
+      // [testing-W-3] skip 경로에서 원래 config 는 변경 없어야 한다
+      const savedTrigger = (triggerRepo.save as jest.Mock).mock
+        .calls[0][0] as Trigger;
+      expect(savedTrigger.config).toEqual({});
+    });
+
+    it('secrets.rotate 실패 시 예외가 전파된다 (testing-W-2)', async () => {
+      // [testing-W-2] secrets.rotate 실패 시 에러 계약 — rethrow 로 BullMQ job retry 유도.
+      const old = makeTrigger({
+        notification: {
+          url: 'https://x.com/cb',
+          events: ['execution.completed'],
+          signing: { algorithm: 'hmac-sha256', secret: 'wsk_old' },
+        },
+      });
+      old.notificationSecretV2 = 'wsk_new';
+      old.notificationRotatedAt = new Date(Date.now() - 25 * 60 * 60 * 1000);
+      mockQueryBuilder([old]);
+
+      // secrets 는 모듈에서 꺼내야 한다 — Secret rotation describe 의 beforeEach 가
+      // createBaseProviders 의 기본 rotate mock(jest.fn()) 을 사용한다.
+      const secretsService = (
+        service as unknown as {
+          secrets: { rotate: jest.Mock };
+        }
+      ).secrets;
+      secretsService.rotate.mockRejectedValueOnce(new Error('store error'));
+
+      await expect(service.promoteRotatedNotificationSecrets()).rejects.toThrow(
+        'store error',
+      );
+      // 실패 전까지 save 는 호출되지 않았어야 한다 (partial save 없음)
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+    });
   });
 });
 
@@ -747,67 +812,36 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       get: jest.fn().mockReturnValue(mockAdapter),
     } as unknown as jest.Mocked<ChannelAdapterRegistry>;
 
+    // [SUMMARY W-3] createBaseProviders 재사용 — ChannelAdapterRegistry 와
+    // SecretResolverService 는 이 suite 특화 mock 으로 override.
+    const baseProviders = createBaseProviders({
+      findOne: jest.fn().mockResolvedValue(baseTrigger),
+      update: jest.fn().mockResolvedValue(undefined),
+      save: jest.fn((t: Trigger) => Promise.resolve(t)),
+      createQueryBuilder: jest.fn(),
+    });
+    const overrideIdx = (token: unknown) =>
+      baseProviders.findIndex(
+        (p) => 'provide' in p && (p as { provide: unknown }).provide === token,
+      );
+    baseProviders[overrideIdx(ChannelAdapterRegistry)] = {
+      provide: ChannelAdapterRegistry,
+      useValue: adapterRegistry,
+    };
+    baseProviders[overrideIdx(SecretResolverService)] = {
+      provide: SecretResolverService,
+      useValue: {
+        resolve: jest.fn(),
+        store: jest.fn(),
+        rotate: jest.fn().mockResolvedValue(undefined),
+        delete: jest.fn(),
+        deleteByPrefix: jest.fn().mockResolvedValue(0),
+        exists: jest.fn(),
+      },
+    };
+
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        TriggersService,
-        {
-          provide: getRepositoryToken(Trigger),
-          useValue: {
-            findOne: jest.fn().mockResolvedValue(baseTrigger),
-            update: jest.fn().mockResolvedValue(undefined),
-            save: jest.fn((t: Trigger) => Promise.resolve(t)),
-            createQueryBuilder: jest.fn(),
-          },
-        },
-        { provide: getRepositoryToken(Execution), useValue: {} },
-        {
-          provide: getRepositoryToken(Schedule),
-          // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
-          // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
-          useValue: {
-            findOne: jest.fn().mockResolvedValue(null),
-            save: jest.fn(),
-          },
-        },
-        {
-          provide: getRepositoryToken(AuthConfig),
-          useValue: { findOne: jest.fn() },
-        },
-        {
-          provide: ChannelAdapterRegistry,
-          useValue: adapterRegistry,
-        },
-        {
-          provide: ChannelListenerRegistry,
-          useValue: {
-            register: jest.fn(),
-            unregister: jest.fn(),
-            has: jest.fn(() => false),
-            get: jest.fn(),
-            size: jest.fn(() => 0),
-            bulkRegister: jest.fn(),
-          },
-        },
-        {
-          provide: ConfigService,
-          useValue: { get: jest.fn(() => 'http://localhost:3000') },
-        },
-        {
-          provide: ScheduleRunnerService,
-          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
-        },
-        {
-          provide: SecretResolverService,
-          useValue: {
-            resolve: jest.fn(),
-            store: jest.fn(),
-            rotate: jest.fn().mockResolvedValue(undefined),
-            delete: jest.fn(),
-            deleteByPrefix: jest.fn().mockResolvedValue(0),
-            exists: jest.fn(),
-          },
-        },
-      ],
+      providers: baseProviders,
     }).compile();
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
@@ -1755,7 +1789,10 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
           provide: getRepositoryToken(Schedule),
-          useValue: { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() },
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
         },
         { provide: getRepositoryToken(AuthConfig), useValue: {} },
         {
@@ -1798,7 +1835,10 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
   }
 
   it('secretRef 보유 trigger → canonical ref 로 secrets.rotate + 평문 미기록 + v2 클리어', async () => {
-    const trigger = baseTrigger({ algorithm: 'sha256', secretRef: CANONICAL_REF });
+    const trigger = baseTrigger({
+      algorithm: 'sha256',
+      secretRef: CANONICAL_REF,
+    });
     await build([trigger]);
 
     const result = await service.promoteRotatedNotificationSecrets(
@@ -1812,8 +1852,9 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
       'wsk_newsecret',
     );
     const saved = triggerRepo.save.mock.calls[0][0] as Trigger;
-    const signing = (saved.config as { notification: { signing: Record<string, unknown> } })
-      .notification.signing;
+    const signing = (
+      saved.config as { notification: { signing: Record<string, unknown> } }
+    ).notification.signing;
     expect(signing.secretRef).toBe(CANONICAL_REF);
     expect(signing.secret).toBeUndefined(); // 평문을 config 에 남기지 않는다
     expect(saved.notificationSecretV2).toBeNull();
@@ -1834,13 +1875,16 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
       'wsk_newsecret',
     );
     const saved = triggerRepo.save.mock.calls[0][0] as Trigger;
-    const signing = (saved.config as { notification: { signing: Record<string, unknown> } })
-      .notification.signing;
+    const signing = (
+      saved.config as { notification: { signing: Record<string, unknown> } }
+    ).notification.signing;
     expect(signing.secretRef).toBe(CANONICAL_REF);
     expect(signing.secret).toBeUndefined();
   });
 
-  it('notification config 부재 trigger → skip (rotate 미호출, v2 유지)', async () => {
+  it('notification config 부재 trigger → v2/rotatedAt 클리어 + save (W-2 fix)', async () => {
+    // [SUMMARY W-2] 비정상 데이터(config 부재 + v2 컬럼 존재) — 매 cron skip 으로
+    // 평문이 영구 잔류하지 않도록 v2/rotatedAt 를 클리어하고 경고 로그를 남긴다.
     const trigger = baseTrigger(undefined);
     await build([trigger]);
 
@@ -1850,6 +1894,13 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
 
     expect(result.promoted).toBe(0);
     expect(secrets.rotate).not.toHaveBeenCalled();
-    expect(triggerRepo.save).not.toHaveBeenCalled();
+    // [testing-W-3] save 가 호출되어 v2/rotatedAt 가 null 로 클리어됐는지 확인
+    expect(triggerRepo.save).toHaveBeenCalledTimes(1);
+    expect(triggerRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notificationSecretV2: null,
+        notificationRotatedAt: null,
+      }),
+    );
   });
 });

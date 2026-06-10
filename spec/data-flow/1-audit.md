@@ -109,7 +109,7 @@ sequenceDiagram
   (`created_at`/`action`/`resource_type`, 기본 `created_at DESC`). 응답에 actor `user` join 포함.
 - 권한: `@Roles('admin')` — 전역 `RolesGuard` 가 워크스페이스 멤버십과 역할을 함께 검증해
   [인증 spec §4.2](../5-system/1-auth.md) 의 "관리자(Admin+)만 조회" 를 강제한다
-  (비멤버의 `X-Workspace-Id` 위조 열람도 차단. 2026-06-10 V-03 갭 해소).
+  (비멤버의 `X-Workspace-Id` 위조 열람도 차단).
 
 ### 2.2 `GET /users/me/login-history` — 본인 단독 조회
 
