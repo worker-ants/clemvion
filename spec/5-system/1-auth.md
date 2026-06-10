@@ -312,7 +312,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | Knowledge Base | CRUD | CRUD | CRUD | R |
 | Auth Config | CRUD | CRUD | R | R |
 | Auth Config Reveal (평문 노출) | ✅ | ✅ | — | — |
-| Model Config | CRUD | CRUD | R | R |
+| Model Config | CRUD | CRUD | CRUD | R |
 | Statistics | R | R | R | R |
 | System Status ※ | R | R | R | R |
 | Marketplace 설치 | ✅ | ✅ | ✅ | — |

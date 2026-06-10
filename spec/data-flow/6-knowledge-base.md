@@ -229,12 +229,12 @@ sequenceDiagram
   participant LLM as LLM (embed)
 
   C->>Svc: POST /api/knowledge-bases/embedding-probe { llmConfigId?, embeddingModel }
-  Svc->>LLM: embed(['probe'], model) — 지정 LLMConfig 또는 ws default
+  Svc->>LLM: embed(['probe'], model) — 지정 ModelConfig (kind=embedding) 또는 ws default
   LLM-->>Svc: vector
   Svc-->>C: 200 { dimension: 실측 차원, provider }
 ```
 
-KB 저장 **전에** 모델/LLMConfig 조합의 실제 vector 차원을 라이브 측정해 반환한다 —
+KB 저장 **전에** 모델/ModelConfig (kind=embedding) 조합의 실제 vector 차원을 라이브 측정해 반환한다 —
 자기호스팅/Azure 처럼 모델명이 같아도 차원이 다른 endpoint 를 저장 전에 시각적으로 알리기 위함.
 버튼 클릭으로만 트리거 (자동 호출 아님, throttle 30/min). 실패는
 400 `EMBEDDING_PROBE_FAILED` + sanitize 된 메시지 (내부 URL/API key 누출 방지).

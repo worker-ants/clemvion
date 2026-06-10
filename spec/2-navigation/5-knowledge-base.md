@@ -199,7 +199,7 @@ KB 상세 화면에 그래프 통계/탐색 영역을 추가한다.
 |--------|------|------|
 | GET | /api/knowledge-bases | 컬렉션 목록 조회 (쿼리: page, limit, sort, order, search). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | POST | /api/knowledge-bases | 컬렉션 생성 |
-| POST | /api/knowledge-bases/embedding-probe | 임베딩 라이브 probe — LLMConfig + 모델 조합으로 1회 `embed('probe')` 호출, 실측 차원·provider 반환 (§2.2 "임베딩 테스트" 버튼). editor, Throttle 30회/분. 실패 시 400 `EMBEDDING_PROBE_FAILED` (sanitize 메시지) |
+| POST | /api/knowledge-bases/embedding-probe | 임베딩 라이브 probe — ModelConfig (kind=embedding) + 모델 조합으로 1회 `embed('probe')` 호출, 실측 차원·provider 반환 (§2.2 "임베딩 테스트" 버튼). editor, Throttle 30회/분. 실패 시 400 `EMBEDDING_PROBE_FAILED` (sanitize 메시지) |
 | GET | /api/knowledge-bases/:id | 컬렉션 상세 조회 |
 | PATCH | /api/knowledge-bases/:id | 컬렉션 설정 수정 |
 | DELETE | /api/knowledge-bases/:id | 컬렉션 삭제 |
