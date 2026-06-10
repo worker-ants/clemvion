@@ -9,7 +9,7 @@
 
 ### C-1 [Critical→Major] `jsonwebtoken` devDependencies 분류 오류 — 단 현재 런타임 오류는 미발현
 
-- [ ] 미착수 — `backend/package.json:110` vs `interaction-token.service.ts:8-13`
+- [x] ✅ 완료 (2026-06-11, 옵션 A) — `jsonwebtoken 9.0.3` devDeps→dependencies 이동, lock 재생성. e2e(docker prod-prune) 로 직접 dep 생존 검증. plan: `plan/complete/deps-security-hygiene.md`. — `backend/package.json`
 
 **spec 대조**: B — EIA spec(§3.3/§7.3/§8.3)은 토큰 설계(HS256, sub/aud/exp/jti)만 규정 — 라이브러리 무관. **심각도 정정**: lock 실측 결과 `@nestjs/jwt@11.0.2`(prod dep)가 `jsonwebtoken: 9.0.3` 을 전이 설치 → `Dockerfile:43` 의 `npm prune --omit=dev` 후에도 유지 — **현재 프로덕션 오류 없음** (전이 의존에 우연히 기대는 fragile 상태). Critical → Major.
 
@@ -33,7 +33,7 @@
 
 ### C-2 [Critical] hono override 버전이 CVE fix 미달 — 실노출면 낮음(클라이언트 전용)
 
-- [ ] 미착수 — `backend/package.json` overrides
+- [x] ✅ 완료 (2026-06-11, 옵션 A) — `overrides.hono ^4.12.18→^4.12.21`, resolve=4.12.25, `npm audit --omit=dev` 0. backend src 는 hono 미import(MCP client 전이 의존)이라 CVE 4건 공격면 밖 — 결정적 floor 확보 목적. 사유 본 PR `plan/complete/deps-security-hygiene.md` 기록. — `backend/package.json` overrides
 
 **spec 대조**: B — hono 는 `@modelcontextprotocol/sdk`(spec `11-mcp-client.md:525` 가 채택 명시)의 **전이 의존**. override `^4.12.18` 핀 결정의 근거 기록은 spec/plan/git 어디에도 없음. `npm audit` 실측으로 CVE 4건 재확인(모두 patched `>=4.12.21`). **단 backend 는 MCP client 로만 SDK 사용 — hono 서버를 띄우지 않아 4건(IP restriction/Set-Cookie/JWT middleware/path routing) 모두 서버 기능 취약점이라 실공격면 거의 없음** — audit-clean 목적의 저비용 정리.
 
@@ -207,7 +207,7 @@
 
 ### m-6 [Minor] 버전 핀 정책 비일관 — "패키지 내부까지 비일관" 으로 보정
 
-- [ ] 미착수
+- [ ] 미착수 (참고: `hono` override 핀 사유는 C-2 완료 시 `plan/complete/deps-security-hygiene.md` 에 기록됨 — 전체 override 핀 정책 문서화는 본 항목 잔여)
 
 **spec 대조**: B — 핀 정책 문서 0건. **보정**: channel-web-chat 도 전부 exact 아님(dompurify/marked/react 만 exact, next 는 caret) + frontend 에 `three ~0.184.0` tilde — 패키지 *내부*까지 비일관.
 

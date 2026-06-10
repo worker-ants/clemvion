@@ -2,6 +2,7 @@
 worktree: deps-security-hygiene
 started: 2026-06-11
 owner: developer
+spec_impact: none
 ---
 
 # P0 deps 보안 정리 — refactor 07 C-1 · C-2
@@ -28,7 +29,7 @@ owner: developer
 - [x] hono 4.12.25 resolve / jsonwebtoken 직접 dep 확인 / `npm audit --omit=dev` 0.
 - [x] build ✅ · unit ✅ (334 suites/6505) · interaction-token·mcp 213 · jwt sign/verify smoke.
 - [x] e2e ✅ (docker prod-prune 빌드 성공, 188 tests — jsonwebtoken 직접 dep 생존 검증).
-- [ ] `/ai-review` (dependency reviewer 중심) + fix.
+- [x] `/ai-review` — LOW / Critical 0 / Warning 1(검증으로 해소: backend hono 미import·jwt HS256 pin). RESOLUTION: `review/code/2026/06/11/08_28_23/RESOLUTION.md`.
 
 ## 비고
 - override 핀 사유 기록(07 m-6 "사유 미기록" 비판)은 본 PR 의 hono 한정 — 전체 override 핀 정책
