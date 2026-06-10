@@ -4004,7 +4004,7 @@ export class ExecutionEngineService
         nodeExecutionId: nodeExec?.id,
         // 프론트엔드 store 가 NODE_STARTED 를 ws subscribe 완료 전에 놓친
         // 시나리오에서도 row 의 startedAt 을 채울 수 있도록 항상 동봉한다 —
-        // 누락 시 sortByStartedAt 이 해당 row 를 timeline 마지막으로 보냄.
+        // 누락 시 selectSortedNodeResults 이 해당 row 를 timeline 마지막으로 보냄.
         startedAt: nodeExec?.startedAt?.toISOString?.(),
         // 3 waiting emit (Buttons / Form / AI) 모두 top-level interactionType
         // 을 명시 — frontend 의 handleWaitingForInput 가 첫 fallback (즉
@@ -4177,7 +4177,7 @@ export class ExecutionEngineService
           input: nodeExec.inputData,
           // ws 의 NODE_STARTED race miss 시에도 store row 의 startedAt 이
           // 누락되지 않도록 모든 NODE_* 이벤트에 startedAt 동봉 (timeline
-          // sortByStartedAt 정합성).
+          // selectSortedNodeResults 정합성).
           startedAt: nodeExec.startedAt?.toISOString?.(),
           finishedAt: nodeExec.finishedAt?.toISOString?.(),
         },
@@ -5581,7 +5581,7 @@ export class ExecutionEngineService
         waitingNodeLabel: node.label ?? node.type,
         nodeExecutionId: nodeExec?.id,
         // 프론트엔드 store 가 NODE_STARTED 를 놓친 경우에도 row 의 startedAt
-        // 을 채울 수 있도록 동봉 (sortByStartedAt 정렬 정합성 보장).
+        // 을 채울 수 있도록 동봉 (selectSortedNodeResults 정렬 정합성 보장).
         startedAt: nodeExec?.startedAt?.toISOString?.(),
         // 3 waiting emit (Buttons / Form / AI) 모두 top-level interactionType
         // 명시 — frontend 의 handleWaitingForInput 가 첫 fallback 만으로 정확히
@@ -5907,7 +5907,7 @@ export class ExecutionEngineService
           waitingNodeType: node.type,
           waitingNodeLabel: node.label ?? node.type,
           nodeExecutionId: nodeExec?.id,
-          // sortByStartedAt 정합성 — store 가 prior NODE_STARTED 를
+          // selectSortedNodeResults 정합성 — store 가 prior NODE_STARTED 를
           // 놓친 시나리오 대비 항상 동봉.
           startedAt: nodeExec?.startedAt?.toISOString?.(),
           // top-level interactionType — emitAiWaitingForInput 와 동일 shape
@@ -6572,7 +6572,7 @@ export class ExecutionEngineService
         nodeExecutionId: nodeExec?.id,
         // 워크플로 첫 노드는 사용자 "Run" 직후 도달해 ws subscribe 완료 전
         // NODE_STARTED 를 놓칠 race window 가 있다. 그 경우에도 store row 의
-        // startedAt 이 채워지도록 항상 동봉 — sortByStartedAt 이 startedAt
+        // startedAt 이 채워지도록 항상 동봉 — selectSortedNodeResults 이 startedAt
         // 미정 row 를 timeline 마지막으로 보내는 것을 방지.
         startedAt: nodeExec?.startedAt?.toISOString?.(),
         interactionType: 'buttons',

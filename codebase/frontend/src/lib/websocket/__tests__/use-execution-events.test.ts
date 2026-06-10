@@ -291,7 +291,7 @@ describe("useExecutionEvents", () => {
 
   // Loop body 의 같은 nodeId 가 N번 실행될 때 후속 iter 의 NODE_STARTED 가
   // out-of-order guard 에 막혀 store add 가 차단되면 row 의 startedAt 이
-  // 누락되어 sortByStartedAt 이 timeline 끝으로 sink 시키는 회귀 가드 (PR-B
+  // 누락되어 selectSortedNodeResults 이 timeline 끝으로 sink 시키는 회귀 가드 (PR-B
   // hotfix #4 — Loop iter timeline 순서 회귀).
   it("preserves startedAt for every iteration of the same nodeId (Loop body)", async () => {
     useExecutionStore.getState().startExecution("exec-1");
@@ -400,7 +400,7 @@ describe("useExecutionEvents", () => {
   // PR-B hotfix #6 — backend 가 NODE_COMPLETED/FAILED/SKIPPED payload 에
   // startedAt 을 동봉하도록 일관성 강화. NODE_STARTED race miss / 재연결
   // 등으로 store 에 prior row 가 없는 시나리오에서도 row 의 startedAt 이
-  // 누락되지 않아 sortByStartedAt 정렬이 정상 동작.
+  // 누락되지 않아 selectSortedNodeResults 정렬이 정상 동작.
   it("uses payload.startedAt when NODE_COMPLETED arrives without a prior NODE_STARTED row", () => {
     useExecutionStore.getState().startExecution("exec-1");
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));

@@ -13739,6 +13739,39 @@ describe('ExecutionEngineService', () => {
       );
       expect(maxIterCalls).toHaveLength(0);
     });
+
+    // 재리뷰(20_45_51) W1 — PARALLEL_ENGINE 경로도 동일 패턴으로 가드.
+    it('resolveParallelEngineFlag: configService.get 이 PARALLEL_ENGINE 키로 1회만 호출된다 (read-once)', async () => {
+      // 인스턴스 캐시를 직접 비워 cold 상태에서 시작 (다른 테스트의 warm-up 영향 제거).
+      (
+        service as unknown as { parallelEngineFlagOnce: string | null }
+      ).parallelEngineFlagOnce = null;
+      mockConfigService.get.mockClear();
+
+      type FlagSubject = { resolveParallelEngineFlag: () => string };
+      const svc = service as unknown as FlagSubject;
+      expect(svc.resolveParallelEngineFlag()).toBe('v1');
+      expect(svc.resolveParallelEngineFlag()).toBe('v1');
+
+      const flagCalls = mockConfigService.get.mock.calls.filter(
+        (c: unknown[]) => c[0] === 'PARALLEL_ENGINE',
+      );
+      expect(flagCalls).toHaveLength(1);
+    });
+
+    it('resolveParallelEngineFlag: warm 캐시 상태에서는 configService.get 재호출이 없다', async () => {
+      type FlagSubject = { resolveParallelEngineFlag: () => string };
+      const svc = service as unknown as FlagSubject;
+      svc.resolveParallelEngineFlag(); // warm-up
+
+      mockConfigService.get.mockClear();
+      svc.resolveParallelEngineFlag();
+
+      const flagCalls = mockConfigService.get.mock.calls.filter(
+        (c: unknown[]) => c[0] === 'PARALLEL_ENGINE',
+      );
+      expect(flagCalls).toHaveLength(0);
+    });
   });
 
   // W3b (SUMMARY) — assertNoContainerCycle(perf #5) 회귀 가드.
