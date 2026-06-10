@@ -16,6 +16,16 @@ import { tap } from 'rxjs/operators';
  */
 const HEALTH_PROBE_PATHS = new Set(['/api/health', '/api/health/live']);
 
+/**
+ * HTTP 요청·응답을 로깅하는 인터셉터 (spec/data-flow/9-observability.md §1.1).
+ *
+ * health probe 경로(`/api/health`, `/api/health/live`)는 k8s 가 고빈도로 호출하므로
+ * 성공 로그를 기본 억제한다 (게이팅 규칙):
+ *   - 실패(status >= 400): `HEALTH_CHECK_LOG` 설정에 무관하게 항상 WARN 레벨 로그.
+ *   - 성공(status < 400): `HEALTH_CHECK_LOG=true` 일 때만 INFO 레벨 로그.
+ *
+ * 그 외 경로는 결과와 무관하게 항상 INFO 레벨로 로그한다.
+ */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('HTTP');

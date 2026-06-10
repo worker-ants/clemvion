@@ -97,10 +97,12 @@ describe('HealthController (HTTP wire — status code)', () => {
     await app.init();
   };
 
-  it('healthy → 실제 HTTP 200', async () => {
+  it('healthy → 실제 HTTP 200 + body 구조 검증', async () => {
     check.mockResolvedValue(HEALTHY);
     await boot();
-    await request(app.getHttpServer()).get('/health').expect(200);
+    const res = await request(app.getHttpServer()).get('/health').expect(200);
+    expect(res.body.status).toBe('healthy');
+    expect(res.body.checks).toBeDefined();
   });
 
   it('unhealthy → 실제 HTTP 503 + body 유지', async () => {

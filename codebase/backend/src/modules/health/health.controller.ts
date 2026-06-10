@@ -41,6 +41,7 @@ export class HealthController {
     description: '전체 서비스 상태 (healthy)',
   })
   @ApiServiceUnavailableResponse({
+    type: HealthCheckDto,
     description:
       '의존 서비스 중 하나 이상이 비정상 상태 (unhealthy) — body 구조는 200 과 동일',
   })

@@ -62,6 +62,46 @@ describe('LoggingInterceptor', () => {
       expect(logSpy).not.toHaveBeenCalled();
     });
 
+    // 경계값 커버리지: >=400 조건의 경계값과 인접값 검증
+    it('실패(400) — 경계값: WARN 로그한다', async () => {
+      const interceptor = new LoggingInterceptor(buildConfig(undefined));
+      await run(interceptor, '/api/health', 400);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('GET /api/health 400');
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+
+    it('성공(399) — 경계값 바로 아래: WARN 하지 않는다', async () => {
+      const interceptor = new LoggingInterceptor(buildConfig(undefined));
+      await run(interceptor, '/api/health', 399);
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+
+    it('실패(401) — 인증 오류: WARN 로그한다', async () => {
+      const interceptor = new LoggingInterceptor(buildConfig(undefined));
+      await run(interceptor, '/api/health', 401);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('GET /api/health 401');
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+
+    it('실패(404) — 미발견: WARN 로그한다', async () => {
+      const interceptor = new LoggingInterceptor(buildConfig(undefined));
+      await run(interceptor, '/api/health', 404);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('GET /api/health 404');
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+
+    it('실패(500) — 서버 오류: WARN 로그한다', async () => {
+      const interceptor = new LoggingInterceptor(buildConfig(undefined));
+      await run(interceptor, '/api/health', 500);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('GET /api/health 500');
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+
     it('쿼리스트링이 붙어도 health 경로로 인식한다', async () => {
       const interceptor = new LoggingInterceptor(buildConfig(undefined));
       await run(interceptor, '/api/health?foo=1', 200);
