@@ -40,7 +40,7 @@ const PROVIDERS_BY_KIND: Record<
     { value: "local", label: "Local (Ollama/vLLM/TEI)" },
   ],
   rerank: [
-    { value: "tei", label: "TEI (자가호스팅)" },
+    { value: "tei", label: "TEI (self-hosted)" },
     { value: "cohere", label: "Cohere" },
   ],
 };
