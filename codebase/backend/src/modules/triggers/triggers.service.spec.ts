@@ -687,17 +687,26 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       mockQueryBuilder([old]);
       const result = await service.promoteRotatedNotificationSecrets();
       expect(result.promoted).toBe(1);
+      // [리뷰 C3 fix] 승격은 평문 기록이 아니라 secret store canonical ref 회전 + secretRef 연결.
       expect(triggerRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({
           notificationSecretV2: null,
           notificationRotatedAt: null,
           config: expect.objectContaining({
             notification: expect.objectContaining({
-              signing: expect.objectContaining({ secret: 'wsk_new' }),
+              signing: expect.objectContaining({
+                secretRef: `secret://triggers/${old.id}/notification-signing`,
+              }),
             }),
           }),
         }),
       );
+      const savedSigning = (
+        (triggerRepo.save as jest.Mock).mock.calls[0][0] as Trigger
+      ).config as {
+        notification: { signing: Record<string, unknown> };
+      };
+      expect(savedSigning.notification.signing.secret).toBeUndefined();
     });
 
     it('대상 0건 → no-op', async () => {
@@ -1708,5 +1717,139 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
 
     expect(runner.removeJob).not.toHaveBeenCalled();
     expect(triggerRepo.remove).toHaveBeenCalled();
+  });
+});
+
+describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경유 승격 (리뷰 C3)', () => {
+  let service: TriggersService;
+  let triggerRepo: { createQueryBuilder: jest.Mock; save: jest.Mock };
+  let secrets: { rotate: jest.Mock };
+
+  const CANONICAL_REF = 'secret://triggers/trig-1/notification-signing';
+  const baseTrigger = (signing: Record<string, unknown> | undefined) =>
+    ({
+      id: 'trig-1',
+      workspaceId: 'ws-1',
+      type: 'webhook',
+      notificationSecretV2: 'wsk_newsecret',
+      notificationRotatedAt: new Date('2026-06-01T00:00:00Z'),
+      config: signing
+        ? { notification: { url: 'https://example.com/hook', signing } }
+        : {},
+    }) as unknown as Trigger;
+
+  async function build(candidates: Trigger[]) {
+    triggerRepo = {
+      createQueryBuilder: jest.fn(() => ({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(candidates),
+      })),
+      save: jest.fn(async (t: Trigger) => t),
+    };
+    secrets = { rotate: jest.fn() };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TriggersService,
+        { provide: getRepositoryToken(Trigger), useValue: triggerRepo },
+        { provide: getRepositoryToken(Execution), useValue: {} },
+        {
+          provide: getRepositoryToken(Schedule),
+          useValue: { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() },
+        },
+        { provide: getRepositoryToken(AuthConfig), useValue: {} },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: { has: jest.fn(() => false), get: jest.fn() },
+        },
+        {
+          provide: ChannelListenerRegistry,
+          useValue: {
+            register: jest.fn(),
+            unregister: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(),
+            size: jest.fn(() => 0),
+            bulkRegister: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: ScheduleRunnerService,
+          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
+        },
+        {
+          provide: SecretResolverService,
+          useValue: {
+            resolve: jest.fn(),
+            store: jest.fn(),
+            rotate: secrets.rotate,
+            delete: jest.fn(),
+            deleteByPrefix: jest.fn().mockResolvedValue(0),
+            exists: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+    service = moduleRef.get(TriggersService);
+  }
+
+  it('secretRef 보유 trigger → canonical ref 로 secrets.rotate + 평문 미기록 + v2 클리어', async () => {
+    const trigger = baseTrigger({ algorithm: 'sha256', secretRef: CANONICAL_REF });
+    await build([trigger]);
+
+    const result = await service.promoteRotatedNotificationSecrets(
+      new Date('2026-06-10T00:00:00Z').getTime(),
+    );
+
+    expect(result.promoted).toBe(1);
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      CANONICAL_REF,
+      'ws-1',
+      'wsk_newsecret',
+    );
+    const saved = triggerRepo.save.mock.calls[0][0] as Trigger;
+    const signing = (saved.config as { notification: { signing: Record<string, unknown> } })
+      .notification.signing;
+    expect(signing.secretRef).toBe(CANONICAL_REF);
+    expect(signing.secret).toBeUndefined(); // 평문을 config 에 남기지 않는다
+    expect(saved.notificationSecretV2).toBeNull();
+    expect(saved.notificationRotatedAt).toBeNull();
+  });
+
+  it('legacy 평문 secret 만 보유 trigger → canonical ref 신설 + 평문 키 제거', async () => {
+    const trigger = baseTrigger({ algorithm: 'sha256', secret: 'old-plain' });
+    await build([trigger]);
+
+    await service.promoteRotatedNotificationSecrets(
+      new Date('2026-06-10T00:00:00Z').getTime(),
+    );
+
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      CANONICAL_REF,
+      'ws-1',
+      'wsk_newsecret',
+    );
+    const saved = triggerRepo.save.mock.calls[0][0] as Trigger;
+    const signing = (saved.config as { notification: { signing: Record<string, unknown> } })
+      .notification.signing;
+    expect(signing.secretRef).toBe(CANONICAL_REF);
+    expect(signing.secret).toBeUndefined();
+  });
+
+  it('notification config 부재 trigger → skip (rotate 미호출, v2 유지)', async () => {
+    const trigger = baseTrigger(undefined);
+    await build([trigger]);
+
+    const result = await service.promoteRotatedNotificationSecrets(
+      new Date('2026-06-10T00:00:00Z').getTime(),
+    );
+
+    expect(result.promoted).toBe(0);
+    expect(secrets.rotate).not.toHaveBeenCalled();
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 });

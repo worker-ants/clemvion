@@ -23,6 +23,7 @@ export class AuditLogsService {
       order = 'desc',
       action,
       resourceType,
+      userId,
       startDate,
       endDate,
     } = query;
@@ -37,6 +38,10 @@ export class AuditLogsService {
     }
     if (resourceType) {
       qb.andWhere('al.resource_type = :resourceType', { resourceType });
+    }
+    if (userId) {
+      // [Spec Auth §4.2] 사용자(행위자) 필터
+      qb.andWhere('al.user_id = :userId', { userId });
     }
     if (startDate) {
       qb.andWhere('al.created_at >= :startDate', { startDate });

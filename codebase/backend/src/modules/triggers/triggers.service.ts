@@ -1009,9 +1009,14 @@ export class TriggersService {
   }
 
   /**
-   * 24h grace 가 경과한 trigger 의 notification_secret_v2 → config.notification.signing.secretRef
-   * 승격. 별도 scheduled job (NotificationSecretRotatorService) 이 매시간 호출.
+   * 24h grace 가 경과한 trigger 의 notification_secret_v2 → primary 승격.
+   * 별도 scheduled job (NotificationSecretRotatorService) 이 매시간 호출.
    * trigger 단위 idempotent — v2 가 null 이면 no-op.
+   *
+   * [리뷰 C3 fix] 승격은 평문을 config 에 쓰지 않고 **secret store 의 canonical ref
+   * 내용을 회전**한다 (`normalizeNotificationSecretRef` 와 동일 ref 규약). 과거 구현은
+   * `signing.secret` 평문을 썼는데, 발송측 `resolveSigningSecret` 이 `secretRef` 우선이라
+   * ref 보유 trigger 는 승격 후에도 구 secret 으로 서명을 지속했다 (rotation 무효).
    */
   async promoteRotatedNotificationSecrets(
     nowMs: number = Date.now(),
@@ -1032,12 +1037,23 @@ export class TriggersService {
         .notification;
       if (!notificationCfg || typeof notificationCfg !== 'object') continue;
       const signing = (notificationCfg as { signing?: unknown }).signing;
-      const updatedSigning = {
+
+      const ref = buildSecretRef({
+        scope: 'triggers',
+        resourceId: trigger.id,
+        name: 'notification-signing',
+      });
+      // ref 기존재 시 내용 회전, 부재 시 신규 생성 — rotate 가 upsert 시맨틱.
+      await this.secrets.rotate(ref, trigger.workspaceId, secretV2);
+
+      const updatedSigning: Record<string, unknown> = {
         ...(typeof signing === 'object' && signing !== null
           ? (signing as Record<string, unknown>)
           : {}),
-        secret: secretV2,
+        secretRef: ref,
       };
+      // legacy 평문 키는 제거 — 평문은 DB config 에 남기지 않는다.
+      delete updatedSigning.secret;
       const updatedNotification = {
         ...(notificationCfg as Record<string, unknown>),
         signing: updatedSigning,
