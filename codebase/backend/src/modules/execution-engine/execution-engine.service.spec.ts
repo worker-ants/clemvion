@@ -517,14 +517,6 @@ describe('ExecutionEngineService', () => {
     mockExecutionRunQueue = module.get(getQueueToken(EXECUTION_RUN_QUEUE));
     mockConfigService = module.get(ConfigService);
 
-    // Test module 은 onModuleInit 을 자동 호출하지 않으므로, continuation
-    // 핸들러 등록은 명시적으로 트리거한다 (PR-B). 이로써 form / AI 재개
-    // 시나리오의 publish → dispatch round-trip 이 단일 인스턴스 mock bus
-    // 안에서 정상 동작한다.
-    (
-      service as unknown as { registerContinuationHandlers: () => void }
-    ).registerContinuationHandlers();
-
     // Register mock handler (clear previous calls)
     (mockHandler.execute as jest.Mock).mockClear();
     handlerRegistry.register('test_node', mockHandler);
@@ -14441,9 +14433,6 @@ describe('ExecutionEngineService — registerInFlight / unregisterInFlight pairi
 
     svc = mod.get(ExecutionEngineService);
     reg = mod.get(NodeHandlerRegistry);
-    (
-      svc as unknown as { registerContinuationHandlers(): void }
-    ).registerContinuationHandlers();
   });
 
   it('성공 경로: registerInFlight 1회 + unregisterInFlight 1회 (짝 보장)', async () => {

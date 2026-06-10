@@ -1,5 +1,5 @@
 import {
-  toEiaEvent,
+  toChatChannelEvent,
   isEmptyTextBody,
   ChatChannelDispatcher,
 } from './chat-channel.dispatcher';
@@ -7,17 +7,17 @@ import type { ExecutionChannelEvent } from '../websocket/websocket.service';
 import type { ChannelMessage } from './types';
 
 /**
- * toEiaEvent — WS protocol §4.4 flat emit shape ↔ EIA spec §6.2 nested
+ * toChatChannelEvent — WS protocol §4.4 flat emit shape ↔ EIA spec §6.2 nested
  * webhook shape 변환 검증.
  *
  * 회귀 배경 — plan/in-progress/chat-channel-outbound-still-broken.md
  * Follow-up #4: dispatcher 가 emit (flat) 을 받아 renderer 가 기대하는
  * EiaWaitingForInputEvent (nested) 로 변환하지 못해 모든
- * `execution.waiting_for_input` event 가 toEiaEvent null 로 silent skip 된
+ * `execution.waiting_for_input` event 가 toChatChannelEvent null 로 silent skip 된
  * 회귀. 본 spec 은 buttons / form / ai_conversation 3 emit 케이스를 모두
  * 검증해 회귀 재발을 차단한다.
  */
-describe('toEiaEvent — execution.waiting_for_input emit→EIA shape', () => {
+describe('toChatChannelEvent — execution.waiting_for_input emit→EIA shape', () => {
   const baseEnvelope = {
     executionId: 'exec-1',
     eventType: 'execution.waiting_for_input',
@@ -46,7 +46,7 @@ describe('toEiaEvent — execution.waiting_for_input emit→EIA shape', () => {
         },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     expect(eia?.type).toBe('execution.waiting_for_input');
     if (eia?.type !== 'execution.waiting_for_input') throw new Error();
@@ -77,7 +77,7 @@ describe('toEiaEvent — execution.waiting_for_input emit→EIA shape', () => {
         },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.waiting_for_input') throw new Error();
     expect(eia.node.interactionType).toBe('form');
@@ -103,7 +103,7 @@ describe('toEiaEvent — execution.waiting_for_input emit→EIA shape', () => {
         },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.waiting_for_input') throw new Error();
     expect(eia.node.interactionType).toBe('ai_conversation');
@@ -128,7 +128,7 @@ describe('toEiaEvent — execution.waiting_for_input emit→EIA shape', () => {
         },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.waiting_for_input') throw new Error();
     expect(eia.node.id).toBe('node-x');
@@ -146,7 +146,7 @@ describe('toEiaEvent — execution.waiting_for_input emit→EIA shape', () => {
         interactionType: 'form',
       },
     };
-    expect(toEiaEvent(event)).toBeNull();
+    expect(toChatChannelEvent(event)).toBeNull();
   });
 
   it('unknown interactionType → null', () => {
@@ -159,7 +159,7 @@ describe('toEiaEvent — execution.waiting_for_input emit→EIA shape', () => {
         interactionType: 'unknown',
       },
     };
-    expect(toEiaEvent(event)).toBeNull();
+    expect(toChatChannelEvent(event)).toBeNull();
   });
 
   // interaction-type-registry §1: WaitingInteractionType 4종 (ai_form_render 2026-05-23 추가).
@@ -182,7 +182,7 @@ describe('toEiaEvent — execution.waiting_for_input emit→EIA shape', () => {
         },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.waiting_for_input') throw new Error();
     expect(eia.node).toEqual({
@@ -207,7 +207,7 @@ describe('toEiaEvent — execution.waiting_for_input emit→EIA shape', () => {
         interactionType: 'form',
       },
     };
-    expect(toEiaEvent(event)).toBeNull();
+    expect(toChatChannelEvent(event)).toBeNull();
   });
 });
 
@@ -264,7 +264,7 @@ describe('isEmptyTextBody — sendMessage 호출 직전 빈 text guard', () => {
 });
 
 /**
- * toEiaEvent — execution.failed back-compat (string error wrap).
+ * toChatChannelEvent — execution.failed back-compat (string error wrap).
  *
  * 회귀 보호: execution-engine 이 emit 하는 payload.error 가 EIA §6.4 의 object shape 가
  * 아닌 string (errMessage) 인 경우 (execution-engine.service.ts line 1339-1346 / 2526-2533) —
@@ -272,7 +272,7 @@ describe('isEmptyTextBody — sendMessage 호출 직전 빈 text guard', () => {
  * dispatcher 차원 back-compat: string 도 generic object 로 wrap (classifier unknown
  * fallback → executionFailedInternal 안내 발송).
  */
-describe('toEiaEvent — execution.failed back-compat (string error wrap, 2026-05-25)', () => {
+describe('toChatChannelEvent — execution.failed back-compat (string error wrap, 2026-05-25)', () => {
   const baseEnvelope: Pick<
     ExecutionChannelEvent,
     'executionId' | 'eventType' | 'seq'
@@ -300,7 +300,7 @@ describe('toEiaEvent — execution.failed back-compat (string error wrap, 2026-0
         },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.failed') throw new Error();
     expect(eia.error.code).toBe('HTTP_4XX');
@@ -316,7 +316,7 @@ describe('toEiaEvent — execution.failed back-compat (string error wrap, 2026-0
         error: 'Error: {"error":{"code":429,"message":"You exceeded quota"}}',
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.failed') throw new Error();
     expect(eia.error.code).toBe('INTERNAL_ERROR');
@@ -332,7 +332,7 @@ describe('toEiaEvent — execution.failed back-compat (string error wrap, 2026-0
         // error 미존재
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.failed') throw new Error();
     expect(eia.error.code).toBe('INTERNAL_ERROR');
@@ -348,7 +348,7 @@ describe('toEiaEvent — execution.failed back-compat (string error wrap, 2026-0
         error: 42,
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.failed') throw new Error();
     expect(eia.error.code).toBe('INTERNAL_ERROR');
@@ -358,7 +358,7 @@ describe('toEiaEvent — execution.failed back-compat (string error wrap, 2026-0
 // §7.5 / 방안 D — execution.cancelled 의 payload.error (RESUME_*) 전파.
 // 채널 어댑터가 graceful 세션 만료 안내로 분기하려면 error.code 가 EIA 이벤트로
 // 전달돼야 한다. 일반 cancel (사용자 /cancel 등) 에는 error 미포함.
-describe('toEiaEvent — execution.cancelled error 전파 (방안 D)', () => {
+describe('toChatChannelEvent — execution.cancelled error 전파 (방안 D)', () => {
   const baseEnvelope: Pick<
     ExecutionChannelEvent,
     'executionId' | 'eventType' | 'seq'
@@ -383,7 +383,7 @@ describe('toEiaEvent — execution.cancelled error 전파 (방안 D)', () => {
         error: { code: 'RESUME_INCOMPATIBLE_STATE', message: 'expired' },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.cancelled') throw new Error();
     expect(eia.error?.code).toBe('RESUME_INCOMPATIBLE_STATE');
@@ -398,7 +398,7 @@ describe('toEiaEvent — execution.cancelled error 전파 (방안 D)', () => {
         result: { cancelledBy: 'user' },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.cancelled') throw new Error();
     expect(eia.error).toBeUndefined();
@@ -414,7 +414,7 @@ describe('toEiaEvent — execution.cancelled error 전파 (방안 D)', () => {
         error: 'some string',
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.cancelled') throw new Error();
     expect(eia.error).toBeUndefined();
@@ -422,13 +422,13 @@ describe('toEiaEvent — execution.cancelled error 전파 (방안 D)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2026-05-25 — toEiaEvent 의 `execution.ai_message` 분기가 payload 의
+// 2026-05-25 — toChatChannelEvent 의 `execution.ai_message` 분기가 payload 의
 // `presentations?: PresentationPayload[]` 필드를 추출하는지 회귀 차단.
 // 추출 누락 시 chat-channel renderer 가 event.presentations === undefined 로
 // 보아 회귀 ② (AI render_* sequential 발송) 가 실패. SoT: spec §6.5 line 536 +
 // chat-channel-adapter.md §1.2 line 89.
 // ---------------------------------------------------------------------------
-describe('toEiaEvent — execution.ai_message presentations[] 추출 (CCH-MP-01 보강)', () => {
+describe('toChatChannelEvent — execution.ai_message presentations[] 추출 (CCH-MP-01 보강)', () => {
   const baseRouting = {
     triggerId: 'trig-1',
     workflowId: 'wf-1',
@@ -455,7 +455,7 @@ describe('toEiaEvent — execution.ai_message presentations[] 추출 (CCH-MP-01 
         presentations,
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.ai_message') throw new Error();
     expect(eia.presentations).toEqual(presentations);
@@ -472,7 +472,7 @@ describe('toEiaEvent — execution.ai_message presentations[] 추출 (CCH-MP-01 
         turnCount: 2,
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.ai_message') throw new Error();
     expect(eia.presentations).toBeUndefined();
@@ -490,7 +490,7 @@ describe('toEiaEvent — execution.ai_message presentations[] 추출 (CCH-MP-01 
         presentations: 'not-an-array',
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.ai_message') throw new Error();
     expect(eia.presentations).toBeUndefined();
@@ -537,7 +537,7 @@ describe('toChatChannelEvent — execution.ai_message llmCalls 미포함 회귀 
         ],
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.ai_message') throw new Error();
     // EiaAiMessageEvent 에 llmCalls 가 없어야 한다
@@ -559,7 +559,7 @@ describe('toChatChannelEvent — execution.ai_message llmCalls 미포함 회귀 
         metadata: { model: 'claude-3' },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.ai_message') throw new Error();
     expect(eia).not.toHaveProperty('llmCalls');
@@ -577,7 +577,7 @@ describe('toChatChannelEvent — execution.ai_message llmCalls 미포함 회귀 
 // SoT: spec/conventions/chat-channel-adapter.md §1.3 / §3 / §R-CCA-7,
 //      spec/5-system/15-chat-channel.md §3.1 CCH-AD-07 / §3.3 CCH-MP-06.
 // ---------------------------------------------------------------------------
-describe('toEiaEvent — execution.node.completed (chat-channel-internal, CCH-AD-07)', () => {
+describe('toChatChannelEvent — execution.node.completed (chat-channel-internal, CCH-AD-07)', () => {
   const baseRouting = {
     triggerId: 'trig-1',
     workflowId: 'wf-1',
@@ -598,7 +598,7 @@ describe('toEiaEvent — execution.node.completed (chat-channel-internal, CCH-AD
         output: { rendered: '카페24와 날씨에 대한 문의가 가능해요.' },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.node.completed') throw new Error();
     expect(eia.node).toEqual({
@@ -628,7 +628,7 @@ describe('toEiaEvent — execution.node.completed (chat-channel-internal, CCH-AD
           output: { payload: { items: [{ title: 'a' }] } },
         },
       };
-      const eia = toEiaEvent(event);
+      const eia = toChatChannelEvent(event);
       expect(eia).not.toBeNull();
       if (eia?.type !== 'execution.node.completed') throw new Error();
       expect(eia.node.type).toBe(nodeType);
@@ -649,7 +649,7 @@ describe('toEiaEvent — execution.node.completed (chat-channel-internal, CCH-AD
           output: { result: 'ok' },
         },
       };
-      const eia = toEiaEvent(event);
+      const eia = toChatChannelEvent(event);
       expect(eia).toBeNull();
     }
   });
@@ -671,7 +671,7 @@ describe('toEiaEvent — execution.node.completed (chat-channel-internal, CCH-AD
         },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).toBeNull();
   });
 
@@ -689,7 +689,7 @@ describe('toEiaEvent — execution.node.completed (chat-channel-internal, CCH-AD
         output: { rendered: 'x' },
       },
     };
-    const eia = toEiaEvent(event);
+    const eia = toChatChannelEvent(event);
     expect(eia).toBeNull();
   });
 });

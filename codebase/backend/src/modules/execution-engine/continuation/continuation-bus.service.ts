@@ -146,23 +146,6 @@ export class ContinuationBusService {
   }
 
   /**
-   * 옛 `on(type, handler)` API 호환 호출 — Phase 2 부터는 BullMQ Worker
-   * (continuation-execution.processor.ts) 가 처리하므로 본 메서드는 **no-op**.
-   * 옛 ExecutionEngineService.registerContinuationHandlers() 가 호출하던
-   * 5개 type 등록은 processor 의 단일 dispatcher 로 이전.
-   *
-   * @deprecated Phase 2 부터는 worker 가 처리. 호출 코드 제거 예정.
-   */
-  on(
-    _type: ContinuationType,
-    _handler: (msg: ContinuationMessage) => void,
-  ): void {
-    this.logger.debug(
-      'ContinuationBusService.on() 호출은 Phase 2 부터 no-op — worker (continuation-execution.processor.ts) 가 dispatch 담당',
-    );
-  }
-
-  /**
    * monotonic 증가 seq per executionId. Redis INCR — 동시 호출에서도 단조
    * 증가 보장. 같은 executionId 의 두 publish 가 같은 seq 를 받으면 jobId
    * 가 같아져 BullMQ 가 두 번째를 중복으로 거부한다 (idempotency 1단 가드).

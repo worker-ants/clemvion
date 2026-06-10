@@ -886,22 +886,10 @@ export class ExecutionEngineService
   onModuleInit(): void {
     this.registerHandlers();
     // Phase 2 (workflow-resumable-execution): 옛 ContinuationBusService.on(...)
-    // 등록 경로는 폐기. 처리는 BullMQ Worker (continuation-execution.processor.ts)
-    // 가 담당하며 본 서비스의 applyContinuation / applyCancellation /
-    // isNodeExecutionWaiting public 메서드를 호출한다.
-    this.registerContinuationHandlers();
-  }
-
-  /**
-   * Phase 2 (workflow-resumable-execution) — **no-op stub**. 옛 Phase 1 까지의
-   * Redis pub/sub 기반 listener 등록은 BullMQ Worker (continuation-execution.
-   * processor.ts) 가 대체. 본 메서드는 기존 spec 테스트의 직접 호출 + 외부
-   * subclass 호환을 위해 method 이름만 유지한다.
-   *
-   * @deprecated 후속 정리 시 제거 예정 (관련 spec 테스트 hook 정리 동반).
-   */
-  private registerContinuationHandlers(): void {
-    // intentionally empty — Phase 2 부터 worker 가 dispatch 담당.
+    // 기반 in-memory listener 등록은 완전 폐기됨 (full B3). continuation 처리는
+    // BullMQ Worker (continuation-execution.processor.ts) 가 담당하며 본 서비스의
+    // applyContinuation / applyCancellation / isNodeExecutionWaiting public
+    // 메서드를 호출한다.
   }
 
   /**
@@ -4194,9 +4182,8 @@ export class ExecutionEngineService
    * Resume a paused execution by submitting form data.
    *
    * 다중 인스턴스 환경에서 호출자가 어느 인스턴스로 라우팅됐는지 모르므로,
-   * 항상 ContinuationBusService 를 통해 모든 인스턴스에 publish 한다. 실제
-   * resolve 는 `pendingContinuations` Map 에 키가 있는 단일 호스팅 인스턴스
-   * 에서만 일어난다 (registerContinuationHandlers).
+   * 항상 ContinuationBusService 를 통해 publish 한다. 실제 resume 처리는
+   * BullMQ Worker (continuation-execution.processor.ts) 가 담당한다.
    *
    * "No pending continuation" 즉시 에러는 단일 인스턴스 어디에서도 정확히
    * 판단할 수 없으므로 폐기됐다. WAITING_FOR_INPUT 상태 검증은 publisher

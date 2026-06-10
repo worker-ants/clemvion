@@ -628,9 +628,3 @@ export function toChatChannelEvent(
   }
 }
 
-/**
- * @deprecated 2026-05-25 — `toEiaEvent` 는 chat-channel-internal variant 도
- * 반환하게 되어 함수명-반환 의미 불일치 (W3). 신규 caller 는 `toChatChannelEvent`
- * 사용. 본 alias 는 hot-path back-compat 만 유지 — 후속 PR 에서 제거 예정.
- */
-export const toEiaEvent = toChatChannelEvent;
