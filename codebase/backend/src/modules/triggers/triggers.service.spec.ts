@@ -200,7 +200,10 @@ describe('TriggersService — notification/interaction config 병합 (External I
           provide: getRepositoryToken(Schedule),
           // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
           // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
-          useValue: { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() },
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(AuthConfig),
@@ -528,7 +531,10 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
           provide: getRepositoryToken(Schedule),
           // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
           // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
-          useValue: { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() },
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(AuthConfig),
@@ -749,7 +755,10 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
           provide: getRepositoryToken(Schedule),
           // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
           // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
-          useValue: { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() },
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(AuthConfig),
@@ -1103,7 +1112,10 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
           provide: getRepositoryToken(Schedule),
           // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
           // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
-          useValue: { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() },
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(AuthConfig),
@@ -1237,7 +1249,10 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
           provide: getRepositoryToken(Schedule),
           // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
           // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
-          useValue: { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() },
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(AuthConfig),
@@ -1348,7 +1363,10 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
           provide: getRepositoryToken(Schedule),
           // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
           // 본 suite 들은 schedule row 부재(graceful skip) 경로로 통과시킨다.
-          useValue: { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() },
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(AuthConfig),
@@ -1543,9 +1561,15 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
           provide: getRepositoryToken(Schedule),
-          useValue: { findOne: jest.fn(), save: jest.fn(async (s: Schedule) => s) },
+          useValue: {
+            findOne: jest.fn(),
+            save: jest.fn(async (s: Schedule) => s),
+          },
         },
-        { provide: getRepositoryToken(AuthConfig), useValue: { findOne: jest.fn() } },
+        {
+          provide: getRepositoryToken(AuthConfig),
+          useValue: { findOne: jest.fn() },
+        },
         {
           provide: ChannelAdapterRegistry,
           useValue: { has: jest.fn(() => false), get: jest.fn() },
