@@ -55,11 +55,11 @@ User ──┬── Workspace (1:N)
 |------|------|------|
 | id | UUID | PK |
 | email | String | 고유, 로그인 식별자 |
-| password_hash | String? | 비밀번호 해시 (bcrypt). **OAuth 단독 가입 사용자는 NULL** ([Auth §1.1](./5-system/1-auth.md#1-인증-방식)) |
+| password_hash | String? | 비밀번호 해시 (bcrypt). **OAuth 단독 가입 사용자는 NULL** ([Auth §1.1](./5-system/1-auth.md#11-이메일비밀번호-인증)) |
 | name | String | 표시 이름 |
 | avatar_url | String? | 프로필 이미지 URL |
 | locale | String | 언어 설정 (기본: "ko") |
-| email_verified | Boolean | 이메일 인증 완료 여부 (기본 false — 인증 전 로그인 제한, [Auth §1.1](./5-system/1-auth.md#1-인증-방식)) |
+| email_verified | Boolean | 이메일 인증 완료 여부 (기본 false — 인증 전 로그인 제한, [Auth §1.1](./5-system/1-auth.md#11-이메일비밀번호-인증)) |
 | email_verify_token | String? | 이메일 인증 토큰 **SHA-256 해시** (24h 유효). 인증 완료 시 NULL |
 | email_verify_expires_at | Timestamp? | 이메일 인증 토큰 만료 시각 |
 | password_reset_token | String? | 비밀번호 재설정 토큰 **SHA-256 해시** (30분 유효). 사용/만료 시 NULL |

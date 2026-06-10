@@ -208,18 +208,18 @@ POST /api/triggers/:id/notification/rotate-secret 류 API (TriggersService.rotat
   → 24h grace: NotificationWebhookProcessor 가 primary + v2 두 서명 동봉 (§1.4)
   → BullMQ `notification-secret-rotator` 큐 (매시 0분 repeatable scheduler)
       → TriggersService.promoteRotatedNotificationSecrets:
-        rotated_at ≤ now-24h 인 trigger 의 v2 를 config.notification.signing.secret 으로 승격
+        rotated_at ≤ now-24h 인 trigger 의 v2 를 secret store canonical ref
+        (secret://triggers/<id>/notification-signing) 내용으로 회전(rotate) + signing.secretRef 연결
         + notification_secret_v2 / notification_rotated_at NULL 클리어
 ```
 
-> **구현 갭 주의** — 승격(`promoteRotatedNotificationSecrets`, `triggers.service.ts`)은 v2 평문을
-> `config.notification.signing.secret` 키에 쓰면서 기존 `signing.secretRef` 를 제거하지 않는다.
-> 그런데 발송 측 `resolveSigningSecret` (`notification-webhook.processor.ts`) 은 `secretRef` 가
-> 존재하면 그것을 **우선** resolve 하므로, secret store ref 를 이미 가진 trigger 는 승격 후에도
-> 구 secret 으로 서명을 계속한다 (승격된 평문은 다음 trigger update API 호출 시
-> `normalizeNotificationSecretRef` 가 store 로 마이그레이션하기 전까지 미사용). rotate 메서드의
-> 주석("v2 → config.signing.secretRef 로 승격")과 실제 코드가 불일치하는 지점으로, 정합 수정은
-> 별도 plan 범위다.
+> **승격 경로** (2026-06-10 C3 갭 해소) — 승격은 평문을 `config` 에 쓰지 않는다.
+> `secrets.rotate(canonical ref, v2)` 로 secret store 내용을 교체하고 `signing.secretRef` 를
+> canonical ref 로 정렬하며, legacy `signing.secret` 평문 키는 제거한다
+> (`normalizeNotificationSecretRef` 와 동일 ref 규약). 발송 측 `resolveSigningSecret`
+> (`notification-webhook.processor.ts`) 의 `secretRef` 우선 정책과 정합 — 승격 즉시 새 secret 으로
+> primary 서명이 전환된다. notification config 자체가 없는 trigger 는 승격을 skip 한다
+> (서명 대상 부재 — v2 는 다음 rotate 호출 시 덮어써짐).
 
 ---
 

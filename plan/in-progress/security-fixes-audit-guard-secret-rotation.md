@@ -24,9 +24,10 @@ spec_impact:
 ## 체크리스트
 
 - [x] /consistency-check --impl-prep spec/5-system/ — BLOCK YES: Critical 4건(본 작업 무관 기존 drift — 1-data-model §2.1 User 필드 누락 3건·초대 토큰 정책 병치 1건) 즉시 해소 (User 표 동기화 + 1-auth §1.5.D Rationale + rate limit 확정값). 잔여 WARNING (invitation_already_accepted 에러코드 미등재·register body email 명시·§5 응답 래퍼 주석·plan 중복 추적 2건) 은 본 작업 범위 밖 — 후속 planner 백로그로 기록
-- [ ] 단위 테스트 선작성 (audit-logs guard/userId 필터 + promote rotate 경로)
-- [ ] 구현
-- [ ] e2e (audit-logs 권한 경계 신규 spec + 기존 notification rotation e2e 확인)
-- [ ] TEST WORKFLOW (lint→unit→build→e2e)
+- [x] 단위 테스트 선작성 (audit-logs.spec.ts 신설 3케이스 + triggers promote 3케이스, 구계약 기대 기존 1건 신계약 갱신)
+- [x] 구현 — 커밋 98b0b618
+- [x] e2e (audit-logs.e2e-spec.ts 신설 5케이스: admin 200/viewer·editor 403/비멤버 위조 403/userId 필터)
+- [x] TEST WORKFLOW (lint·unit·build·e2e 184 전부 PASS, 2026-06-10 22:07)
+- [x] spec 갭 기술 플립 (data-flow/1-audit.md §2.1 권한·필터 / 15-external-interaction.md §1.5 승격 경로)
 - [ ] /ai-review + resolution
-- [ ] spec 갭 기술 플립 (data-flow/1-audit.md·15-external-interaction.md §1.5) + /consistency-check --impl-done
+- [ ] /consistency-check --impl-done spec/5-system/
