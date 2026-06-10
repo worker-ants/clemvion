@@ -110,12 +110,16 @@ k8s manifest(`k8s/base/backend-deployment.yaml`)는 readinessProbe·livenessProb
 
 구현 착수 시 체크리스트:
 
-- [ ] backend: `health.controller.ts` — unhealthy 시 503(`@Res({passthrough:true})`로 body 보존) + `/live` 추가
-- [ ] backend: `logging.interceptor.ts` — `HEALTH_CHECK_LOG`(ConfigService) + health 경로 분기
-- [ ] k8s: `k8s/base/backend-deployment.yaml` livenessProbe path → `/api/health/live`
-- [ ] `.env.example`: `HEALTH_CHECK_LOG=false` + 주석
-- [ ] 테스트: unhealthy 503 e2e/통합, interceptor 단위, `/live` 200
-- [ ] spec 이식 완료 확인: `9-observability.md §1.1`+Rationale, `3-error-handling.md §7.2`, `16 R-4`
+- [x] spec 이식 완료: `9-observability.md §1.1`+Rationale, `3-error-handling.md §7.2`, `16 R-4` (commit ef367de1)
+- [x] 테스트 선작성(TDD): health.controller 단위+HTTP wire(200/503/live), logging.interceptor 단위(3분기+env)
+- [x] backend: `health.controller.ts` — unhealthy 시 503(`@Res({passthrough:true})`로 body 보존) + `/live` 추가
+- [x] backend: `logging.interceptor.ts` — `HEALTH_CHECK_LOG`(ConfigService) + health 경로 분기
+- [x] k8s: `k8s/base/backend-deployment.yaml` livenessProbe path → `/api/health/live`
+- [x] `.env.example`: `HEALTH_CHECK_LOG=false` + 주석
+- [x] e2e: `health.e2e-spec.ts` — `/api/health` 200·`/api/health/live` 200 (작성)
+- [x] TEST WORKFLOW: lint PASS, unit PASS (health/interceptor 15 tests green; frontend schedules-page 는 pre-existing order-flake, 재실행 통과)
+- [ ] TEST WORKFLOW: build·e2e (docker)
+- [ ] `/ai-review` + Critical/Warning fix + `--impl-done` BLOCK:NO
 - [ ] **수동 감사 노트**: `spec/data-flow/9-observability.md` 는 `spec-impl-evidence` 가드 적용 범위
       (`spec/conventions/spec-impl-evidence.md §1`) 밖이라 frontmatter `code:` 자동 커버리지가 없다 →
       이 변경의 spec↔구현 정합은 수동 확인 (consistency-check INFO #6/WARNING #6).

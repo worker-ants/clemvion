@@ -49,8 +49,11 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
           livenessProbe:
+            # liveness 는 프로세스 생존만 확인 (의존성 미점검) — DB/Redis 장애가
+            # Pod 재시작 크래시루프로 번지지 않도록 readiness(/api/health)와 분리.
+            # (spec/data-flow/9-observability.md §1.1)
             httpGet:
-              path: /api/health
+              path: /api/health/live
               port: http
             initialDelaySeconds: 30
             periodSeconds: 30
