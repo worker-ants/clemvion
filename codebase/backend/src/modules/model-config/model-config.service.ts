@@ -50,11 +50,10 @@ export class ModelConfigService {
     }
     qb.orderBy('mc.is_default', 'DESC').addOrderBy('mc.created_at', 'DESC');
 
-    const totalItems = await qb.getCount();
-    const data = await qb
+    const [data, totalItems] = await qb
       .skip((page - 1) * limit)
       .take(limit)
-      .getMany();
+      .getManyAndCount();
 
     const masked = data.map((item) => this.maskApiKey(item));
     return PaginatedResponseDto.create(masked, totalItems, page, limit);
@@ -76,20 +75,21 @@ export class ModelConfigService {
   ): Promise<ModelConfig> {
     const config = await this.repo.findOne({ where: { id, workspaceId } });
     if (!config) {
-      throw new NotFoundException({
-        code: 'MODEL_CONFIG_NOT_FOUND',
-        message: 'Model config not found',
-      });
+      throw this.notFound();
     }
     if (expectedKind && config.kind !== expectedKind) {
       // Cross-kind access via deprecated alias endpoints is a security violation —
       // treat as not-found so as not to leak existence of other-kind configs.
-      throw new NotFoundException({
-        code: 'MODEL_CONFIG_NOT_FOUND',
-        message: 'Model config not found',
-      });
+      throw this.notFound();
     }
     return config;
+  }
+
+  private notFound(): NotFoundException {
+    return new NotFoundException({
+      code: 'MODEL_CONFIG_NOT_FOUND',
+      message: 'Model config not found',
+    });
   }
 
   async findDefault(
@@ -109,7 +109,7 @@ export class ModelConfigService {
     kind: ModelConfigKind,
   ): Promise<ModelConfig> {
     if (id) {
-      return this.findEntity(id, workspaceId);
+      return this.findEntity(id, workspaceId, kind);
     }
     const def = await this.findDefault(workspaceId, kind);
     if (!def) {
@@ -297,6 +297,7 @@ export class ModelConfigService {
   }
 
   private maskApiKey(config: ModelConfig): Record<string, unknown> {
+    const MASKED_SUFFIX_LEN = 4;
     const { apiKey, ...rest } = config;
     if (!apiKey) {
       return { ...rest, apiKey: null };
@@ -304,8 +305,8 @@ export class ModelConfigService {
     let masked = '****';
     try {
       const decrypted = decrypt(apiKey, this.encryptionKey);
-      if (decrypted.length > 4) {
-        masked = `****${decrypted.substring(decrypted.length - 4)}`;
+      if (decrypted.length > MASKED_SUFFIX_LEN) {
+        masked = `****${decrypted.substring(decrypted.length - MASKED_SUFFIX_LEN)}`;
       }
     } catch {
       // If decryption fails, just show masked

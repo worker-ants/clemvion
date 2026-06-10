@@ -22,8 +22,7 @@ describe('ModelConfigService', () => {
         addOrderBy: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
         take: jest.fn().mockReturnThis(),
-        getCount: jest.fn().mockResolvedValue(0),
-        getMany: jest.fn().mockResolvedValue([]),
+        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
       })),
       findOne: jest.fn(),
       create: jest.fn((data) => ({ ...data, id: 'test-id' })),
@@ -168,17 +167,19 @@ describe('ModelConfigService', () => {
         addOrderBy: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
         take: jest.fn().mockReturnThis(),
-        getCount: jest.fn().mockResolvedValue(1),
-        getMany: jest.fn().mockResolvedValue([
-          {
-            id: 'config-1',
-            workspaceId: 'ws-1',
-            kind: 'chat',
-            provider: 'openai',
-            name: 'Test',
-            apiKey: encrypted,
-            defaultModel: 'gpt-4o',
-          },
+        getManyAndCount: jest.fn().mockResolvedValue([
+          [
+            {
+              id: 'config-1',
+              workspaceId: 'ws-1',
+              kind: 'chat',
+              provider: 'openai',
+              name: 'Test',
+              apiKey: encrypted,
+              defaultModel: 'gpt-4o',
+            },
+          ],
+          1,
         ]),
       };
       mockRepo.createQueryBuilder.mockReturnValue(qbMock);
@@ -299,6 +300,15 @@ describe('ModelConfigService', () => {
       expect(saved.isDefault).toBe(false);
       expect(mockRepo.manager.transaction).not.toHaveBeenCalled();
     });
+
+    it('throws NOT_FOUND when expectedKind mismatches entity kind', async () => {
+      // A rerank entity must not be updateable through the chat kind path
+      mockRepo.findOne.mockResolvedValue(baseConfig({ kind: 'rerank' as any }));
+      await expect(
+        service.update('cfg-1', 'ws-1', { name: 'Tampered' }, 'chat'),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
   });
 
   // ── create — ENCRYPTION_KEY_MISSING error path ───────────────────────────
@@ -398,7 +408,7 @@ describe('ModelConfigService', () => {
       ).rejects.toThrow();
     });
 
-    it('returns entity by id when id is provided', async () => {
+    it('returns entity by id when id is provided (happy path)', async () => {
       const entity = {
         id: 'cfg-1',
         workspaceId: 'ws-1',
@@ -411,6 +421,19 @@ describe('ModelConfigService', () => {
       expect(mockRepo.findOne).toHaveBeenCalledWith({
         where: { id: 'cfg-1', workspaceId: 'ws-1' },
       });
+    });
+
+    it('throws MODEL_CONFIG_NOT_FOUND when id is provided but entity.kind != requested kind (cross-kind leak prevention)', async () => {
+      // A rerank config id must not be accessible via the chat kind path
+      mockRepo.findOne.mockResolvedValue({
+        id: 'rerank-cfg',
+        workspaceId: 'ws-1',
+        kind: 'rerank',
+        apiKey: null,
+      } as ModelConfig);
+      await expect(
+        service.resolveConfig('rerank-cfg', 'ws-1', 'chat'),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
     });
 
     it('returns default entity when id is undefined and default exists', async () => {

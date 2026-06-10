@@ -77,6 +77,11 @@ describe('LlmConfigService (chat alias)', () => {
     expect(service.getDecryptedApiKey({} as ModelConfig)).toBe('');
   });
 
+  it('getDecryptedApiKey returns plain key string when non-null', () => {
+    mc.getDecryptedApiKey.mockReturnValue('sk-plain-key');
+    expect(service.getDecryptedApiKey({} as ModelConfig)).toBe('sk-plain-key');
+  });
+
   it("update delegates with expectedKind='chat'", async () => {
     const dto = { name: 'Renamed' };
     await service.update('cfg-1', 'ws-1', dto);
