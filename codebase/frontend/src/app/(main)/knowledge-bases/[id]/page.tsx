@@ -37,6 +37,7 @@ import {
   KbFormBody,
   type KbFormTab,
 } from "@/components/knowledge-base/kb-form-body";
+import { UnsearchableBanner } from "@/components/knowledge-base/unsearchable-banner";
 import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
 import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
@@ -565,6 +566,15 @@ export default function KnowledgeBaseDetailPage({
         <span>{t("knowledgeBases.chunk")}: {kb?.chunkSize} / {t("knowledgeBases.overlap")}: {kb?.chunkOverlap}</span>
         <span>{t("knowledgeBases.documentsCount", { count: kb?.documentCount ?? 0 })}</span>
       </div>
+
+      {/* 검색 불가 배너 — embeddingDimension == null (검색 제외), 진행 박스 위 상단 (spec 2-navigation/5-knowledge-base §2.4.1·R-3) */}
+      {kb && kb.embeddingDimension == null && (
+        <UnsearchableBanner
+          reembedStatus={kb.reembedStatus}
+          onReembed={() => setShowKbReEmbedConfirm(true)}
+          pending={kbReEmbedMutation.isPending}
+        />
+      )}
 
       {embeddingStats && (
         <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-4">
