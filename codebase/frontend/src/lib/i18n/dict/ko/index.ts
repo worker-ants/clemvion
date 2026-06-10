@@ -14,6 +14,7 @@ import { integrations } from "./integrations";
 import { cafe24Catalog } from "./cafe24Catalog";
 import { makeshopCatalog } from "./makeshopCatalog";
 import { knowledgeBases } from "./knowledgeBases";
+import { models } from "./models";
 import { llmConfigs } from "./llmConfigs";
 import { rerankConfigs } from "./rerankConfigs";
 import { authentication } from "./authentication";
@@ -45,6 +46,7 @@ export const ko = {
   cafe24Catalog,
   makeshopCatalog,
   knowledgeBases,
+  models,
   llmConfigs,
   rerankConfigs,
   authentication,

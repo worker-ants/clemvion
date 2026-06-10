@@ -5,6 +5,7 @@ export const sidebar = {
   schedule: "스케줄",
   integration: "통합",
   knowledgeBase: "지식 저장소",
+  models: "모델 설정",
   llmConfig: "LLM 설정",
   reranker: "리랭커",
   authentication: "인증",

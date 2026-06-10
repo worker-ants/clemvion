@@ -6,18 +6,18 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
 }));
 
-import LlmConfigsRedirect from "../page";
+import RerankConfigsRedirect from "../page";
 
-describe("LlmConfigsRedirect (deprecated → /models)", () => {
+describe("RerankConfigsRedirect (deprecated → /models)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     cleanup();
   });
 
-  it("redirects to /models?tab=chat", async () => {
+  it("redirects to /models?tab=rerank", async () => {
     await act(async () => {
-      render(<LlmConfigsRedirect />);
+      render(<RerankConfigsRedirect />);
     });
-    expect(mockReplace).toHaveBeenCalledWith("/models?tab=chat");
+    expect(mockReplace).toHaveBeenCalledWith("/models?tab=rerank");
   });
 });

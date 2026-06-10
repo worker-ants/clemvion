@@ -1,6 +1,7 @@
 "use client";
 
 import { llmConfigsApi } from "@/lib/api/llm-configs";
+import { type ModelLoaderApi } from "./use-model-loader";
 import {
   useBaseModelLoader,
   type UseBaseModelLoaderResult,
@@ -17,6 +18,8 @@ export interface UseEmbeddingModelLoaderArgs {
   fallbackErrorMessage: string;
   /** Localized message per backend error code (see loader-error-messages). */
   errorMessagesByCode?: Record<string, string>;
+  /** 모델 조회 API (default llmConfigsApi — KB·/models 는 modelConfigsApi 주입). */
+  api?: ModelLoaderApi;
 }
 
 export type UseEmbeddingModelLoaderResult = UseBaseModelLoaderResult;
@@ -30,6 +33,7 @@ export function useEmbeddingModelLoader({
   configId,
   fallbackErrorMessage,
   errorMessagesByCode,
+  api = llmConfigsApi,
 }: UseEmbeddingModelLoaderArgs): UseEmbeddingModelLoaderResult {
   return useBaseModelLoader<string | undefined>({
     resetKey: configId ?? "",
@@ -43,7 +47,7 @@ export function useEmbeddingModelLoader({
         // canLoad 가드가 있어 정상 흐름에서는 도달하지 않음. 방어용.
         throw new Error("missing-config-id");
       }
-      return llmConfigsApi.listModels(configId, { type: "embedding" });
+      return api.listModels(configId, { type: "embedding" });
     },
   });
 }
