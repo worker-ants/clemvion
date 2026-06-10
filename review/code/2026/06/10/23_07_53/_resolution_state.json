@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "started_at": "2026-06-10T14:08:00Z",
+  "summary_items_total": 3,
+  "items_resolved_ids": ["W-1", "W-2", "W-3"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "7a6d8ffc", "summary_id": "W-1 W-2 W-3", "scope": "health"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260610-232919.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
