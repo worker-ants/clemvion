@@ -176,7 +176,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### M-4 [Major] rehydration 루프 per-nodeId findOne N+1 — 포인터
 
-- [ ] 미착수 — [01-performance.md](./01-performance.md) #1 에서 추적 (포인터).
+- [x] 완료 — 01-performance #1 구현으로 동반 종결 (commit 8724d53f, 2026-06-10. In() 배치 + DESC dedup — V034 커버 확인)
 
 **spec 대조**: D — §7.5 는 복원 의미만 통제. `DISTINCT ON (node_id) ... ORDER BY node_id, started_at DESC` 가 V034 인덱스와 정확히 일치 — C-3 partial 인덱스 불요(completed 미포함).
 

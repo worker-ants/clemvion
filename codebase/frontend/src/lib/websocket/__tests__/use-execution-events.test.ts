@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useExecutionEvents } from "../use-execution-events";
-import { useExecutionStore } from "../../stores/execution-store";
+import {
+  useExecutionStore,
+  selectSortedNodeResults,
+} from "../../stores/execution-store";
 
 // Mock ws-client
 const mockClient = {
@@ -288,7 +291,7 @@ describe("useExecutionEvents", () => {
 
   // Loop body 의 같은 nodeId 가 N번 실행될 때 후속 iter 의 NODE_STARTED 가
   // out-of-order guard 에 막혀 store add 가 차단되면 row 의 startedAt 이
-  // 누락되어 sortByStartedAt 이 timeline 끝으로 sink 시키는 회귀 가드 (PR-B
+  // 누락되어 selectSortedNodeResults 이 timeline 끝으로 sink 시키는 회귀 가드 (PR-B
   // hotfix #4 — Loop iter timeline 순서 회귀).
   it("preserves startedAt for every iteration of the same nodeId (Loop body)", async () => {
     useExecutionStore.getState().startExecution("exec-1");
@@ -359,13 +362,10 @@ describe("useExecutionEvents", () => {
       expect(r.startedAt).toBeTruthy();
     }
 
-    // sortByStartedAt 결과가 backend 의 ASC 순서를 그대로 따라야 한다.
-    expect(results.map((r) => r.nodeExecutionId)).toEqual([
-      ITER1,
-      ITER2,
-      ITER3,
-      DONE,
-    ]);
+    // selectSortedNodeResults 결과가 backend 의 ASC 순서를 그대로 따라야 한다.
+    expect(
+      selectSortedNodeResults(results).map((r) => r.nodeExecutionId),
+    ).toEqual([ITER1, ITER2, ITER3, DONE]);
 
     // nodeStatuses 의 status 다운그레이드 차단 의도는 보존: 마지막 NODE_COMPLETED
     // 가 통과해서 "completed" 로 남아야 한다.
@@ -400,7 +400,7 @@ describe("useExecutionEvents", () => {
   // PR-B hotfix #6 — backend 가 NODE_COMPLETED/FAILED/SKIPPED payload 에
   // startedAt 을 동봉하도록 일관성 강화. NODE_STARTED race miss / 재연결
   // 등으로 store 에 prior row 가 없는 시나리오에서도 row 의 startedAt 이
-  // 누락되지 않아 sortByStartedAt 정렬이 정상 동작.
+  // 누락되지 않아 selectSortedNodeResults 정렬이 정상 동작.
   it("uses payload.startedAt when NODE_COMPLETED arrives without a prior NODE_STARTED row", () => {
     useExecutionStore.getState().startExecution("exec-1");
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
@@ -498,10 +498,12 @@ describe("useExecutionEvents", () => {
     expect(state.nodeStatuses.get("node-2")?.status).toBe("completed");
 
     expect(state.nodeResults).toHaveLength(2);
-    expect(state.nodeResults[0].nodeType).toBe("http_request");
-    expect(state.nodeResults[0].inputData).toEqual({ url: "https://example.com" });
-    expect(state.nodeResults[1].nodeType).toBe("table");
-    expect(state.nodeResults[1].inputData).toEqual({ rows: [] });
+    // Store now keeps arrival order; chronological order is derived on read.
+    const sorted = selectSortedNodeResults(state.nodeResults);
+    expect(sorted[0].nodeType).toBe("http_request");
+    expect(sorted[0].inputData).toEqual({ url: "https://example.com" });
+    expect(sorted[1].nodeType).toBe("table");
+    expect(sorted[1].inputData).toEqual({ rows: [] });
   });
 
   it("updates store to failed when snapshot reports a failed execution", () => {
@@ -873,13 +875,10 @@ describe("useExecutionEvents", () => {
     // 모든 row 의 startedAt 정상 hydrate.
     for (const r of results) expect(r.startedAt).toBeTruthy();
 
-    // sortByStartedAt 결과가 backend 의 ASC 순서대로.
-    expect(results.map((r) => r.nodeExecutionId)).toEqual([
-      ITER1,
-      ITER2,
-      ITER3,
-      DONE,
-    ]);
+    // selectSortedNodeResults 결과가 backend 의 ASC 순서대로.
+    expect(
+      selectSortedNodeResults(results).map((r) => r.nodeExecutionId),
+    ).toEqual([ITER1, ITER2, ITER3, DONE]);
   });
 
   it("infers ai_conversation interaction from ai_agent nodeType fallback", () => {

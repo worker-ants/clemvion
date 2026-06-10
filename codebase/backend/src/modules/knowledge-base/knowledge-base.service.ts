@@ -675,11 +675,25 @@ export class KnowledgeBaseService {
       .where('d.knowledge_base_id = :id', { id })
       .andWhere('kb.workspace_id = :workspaceId', { workspaceId })
       .getMany();
-    for (const doc of docs) {
+    // 배치 삭제 (refactor 01-performance #2 B안): 문서 N건 직렬 단건 DELETE
+    // 루프를 DeleteObjects 청크(1000키/요청)로 교체 — 왕복 N → ceil(N/1000).
+    // best-effort/warn 의미론(data-flow/4-file-storage.md Rationale)은 보존:
+    // 부분 실패(Errors)는 errored 로 수집해 일괄 warn, 명령 단위 실패(네트워크
+    // 등)도 warn 으로 삼키고 KB row 삭제는 진행한다.
+    if (docs.length > 0) {
       try {
-        await this.s3Service.delete(doc.fileUrl);
+        const { errored } = await this.s3Service.deleteMany(
+          docs.map((d) => d.fileUrl),
+        );
+        if (errored.length > 0) {
+          this.logger.warn(
+            `Failed to delete ${errored.length} S3 object(s) during KB removal: ${errored.join(', ')}`,
+          );
+        }
       } catch (err) {
-        this.logger.warn(`Failed to delete S3 object ${doc.fileUrl}: ${err}`);
+        this.logger.warn(
+          `Failed to batch-delete ${docs.length} S3 object(s) during KB removal: ${err}`,
+        );
       }
     }
     await this.kbRepository.remove(kb);

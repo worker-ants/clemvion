@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useEditorStore } from "@/lib/stores/editor-store";
-import { useExecutionStore } from "@/lib/stores/execution-store";
+import {
+  useExecutionStore,
+  selectSortedNodeResults,
+} from "@/lib/stores/execution-store";
 import { applyOperations } from "@/lib/transform/apply-operation";
 import type { TransformOperation } from "@/types/transform";
 import { SectionTitle } from "../shared";
@@ -26,12 +29,16 @@ export function TransformPreview({
 
   const latestInput = useMemo<unknown>(() => {
     if (!selectedNodeId) return undefined;
-    for (let i = nodeResults.length - 1; i >= 0; i--) {
+    // Reverse scan over the chronological projection so "latest" means newest
+    // by startedAt, not merely last-arrived (the store keeps arrival order
+    // now). selectSortedNodeResults is WeakMap-memoized per array reference.
+    const sorted = selectSortedNodeResults(nodeResults);
+    for (let i = sorted.length - 1; i >= 0; i--) {
       if (
-        nodeResults[i].nodeId === selectedNodeId &&
-        nodeResults[i].inputData !== undefined
+        sorted[i].nodeId === selectedNodeId &&
+        sorted[i].inputData !== undefined
       ) {
-        return nodeResults[i].inputData;
+        return sorted[i].inputData;
       }
     }
     return undefined;

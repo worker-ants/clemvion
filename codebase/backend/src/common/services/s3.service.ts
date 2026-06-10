@@ -5,6 +5,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 
@@ -76,5 +77,34 @@ export class S3Service {
         Key: key,
       }),
     );
+  }
+
+  /** `DeleteObjects` 의 요청당 키 상한 (S3 API 규격). */
+  private static readonly DELETE_OBJECTS_MAX_KEYS = 1000;
+
+  /**
+   * 다수 객체를 `DeleteObjectsCommand` 로 일괄 삭제한다 (1000키/요청 청크).
+   *
+   * 반환의 `errored` 는 응답 `Errors[].Key`(권한/내부 오류) 목록 — TypeORM
+   * `DeleteResult` 와 무관한 자체 형태다. 비실존 키는 S3 표준 멱등 의미론에
+   * 따라 `Deleted` 로 반환되므로 errored 에 포함되지 않는다 (호출자는 errored
+   * 를 best-effort warn 으로 매핑하면 단건 delete 의 catch-warn 과 의미 동등).
+   */
+  async deleteMany(keys: string[]): Promise<{ errored: string[] }> {
+    const errored: string[] = [];
+    const max = S3Service.DELETE_OBJECTS_MAX_KEYS;
+    for (let i = 0; i < keys.length; i += max) {
+      const chunk = keys.slice(i, i + max);
+      const res = await this.client.send(
+        new DeleteObjectsCommand({
+          Bucket: this.bucket,
+          Delete: { Objects: chunk.map((Key) => ({ Key })) },
+        }),
+      );
+      for (const e of res.Errors ?? []) {
+        if (e.Key) errored.push(e.Key);
+      }
+    }
+    return { errored };
   }
 }

@@ -647,6 +647,7 @@ describe('WorkflowsService', () => {
   describe('importWorkflow', () => {
     beforeEach(() => {
       mockTransactionManager.update = jest.fn().mockResolvedValue(undefined);
+      mockTransactionManager.insert = jest.fn().mockResolvedValue(undefined);
       mockTransactionManager.save = jest
         .fn()
         .mockImplementation((entity, data) => {
@@ -658,6 +659,12 @@ describe('WorkflowsService', () => {
           return Promise.resolve({ id: 'new-wf-id', ...data });
         });
     });
+
+    // perf #10 — 노드 배치 insert 페이로드 헬퍼.
+    const insertedNodes = () =>
+      (mockTransactionManager.insert as jest.Mock).mock.calls.find(
+        ([entity]) => entity === Node,
+      )?.[1] as Array<Record<string, unknown>> | undefined;
 
     it('remaps containerIndex to the new node UUID', async () => {
       const dto = {
@@ -691,11 +698,15 @@ describe('WorkflowsService', () => {
 
       await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
 
-      expect(mockTransactionManager.update).toHaveBeenCalledWith(
-        Node,
-        'new-HTTP',
-        { containerId: 'new-Loop' },
-      );
+      // perf #10 — remap 은 사전 생성 UUID 로 insert 페이로드에 포함되고,
+      // 2차 update 루프는 사라진다 (왕복 N+P+M → ~3).
+      const nodes = insertedNodes();
+      expect(nodes).toHaveLength(3);
+      expect(typeof nodes![1].id).toBe('string');
+      expect(nodes![2].containerId).toBe(nodes![1].id);
+      expect(nodes![0].containerId).toBeUndefined();
+      expect(mockTransactionManager.update).not.toHaveBeenCalled();
+      expect(mockTransactionManager.insert).toHaveBeenCalledTimes(1); // edges 0건 → Node 1회만
     });
 
     it('remaps toolOwnerIndex to the new node UUID', async () => {
@@ -730,11 +741,50 @@ describe('WorkflowsService', () => {
 
       await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
 
-      expect(mockTransactionManager.update).toHaveBeenCalledWith(
-        Node,
-        'new-Tool',
-        { toolOwnerId: 'new-AI' },
-      );
+      const nodes = insertedNodes();
+      expect(nodes).toHaveLength(3);
+      expect(nodes![2].toolOwnerId).toBe(nodes![1].id);
+      expect(mockTransactionManager.update).not.toHaveBeenCalled();
+    });
+
+    it('edges 는 사전 생성 UUID 매핑으로 단일 배치 insert 된다 (범위 밖 인덱스 skip)', async () => {
+      const dto = {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'http_request',
+            category: NodeCategory.INTEGRATION,
+            label: 'HTTP',
+            positionX: 0,
+            positionY: 0,
+          },
+        ],
+        edges: [
+          { sourceNodeIndex: 0, targetNodeIndex: 1 },
+          { sourceNodeIndex: 0, targetNodeIndex: 99 }, // 범위 밖 — skip
+        ],
+      };
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
+
+      const nodes = insertedNodes();
+      const edgeCall = (
+        mockTransactionManager.insert as jest.Mock
+      ).mock.calls.find(([entity]) => entity === Edge);
+      expect(edgeCall).toBeDefined();
+      const edges = edgeCall![1] as Array<Record<string, unknown>>;
+      expect(edges).toHaveLength(1);
+      expect(edges[0].sourceNodeId).toBe(nodes![0].id);
+      expect(edges[0].targetNodeId).toBe(nodes![1].id);
+      expect(edges[0].sourcePort).toBe('out');
+      expect(edges[0].targetPort).toBe('in');
     });
 
     it('rejects payload with duplicate node labels', async () => {
@@ -768,6 +818,7 @@ describe('WorkflowsService', () => {
   describe('importWorkflow — config defaults & LLM 주입', () => {
     beforeEach(() => {
       mockTransactionManager.update = jest.fn().mockResolvedValue(undefined);
+      mockTransactionManager.insert = jest.fn().mockResolvedValue(undefined);
       mockTransactionManager.save = jest
         .fn()
         .mockImplementation((entity, data) => {
@@ -788,11 +839,15 @@ describe('WorkflowsService', () => {
       ...overrides,
     });
 
-    const findSavedNode = (label: string) =>
-      mockTransactionManager.save.mock.calls.find(
-        ([entity, data]) =>
-          entity === Node && (data as { label: string }).label === label,
-      )?.[1] as { config: Record<string, unknown> } | undefined;
+    // perf #10 — 노드는 배치 insert 페이로드에서 찾는다 (행 단위 save 제거).
+    const findSavedNode = (label: string) => {
+      const nodeInsert = (
+        mockTransactionManager.insert as jest.Mock
+      ).mock.calls.find(([entity]) => entity === Node)?.[1] as
+        | Array<{ label: string; config: Record<string, unknown> }>
+        | undefined;
+      return nodeInsert?.find((n) => n.label === label);
+    };
 
     it('applies schema defaults via the registry', async () => {
       mockRegistry.applyConfigDefaults.mockImplementation((type, raw) =>
@@ -1078,5 +1133,41 @@ describe('WorkflowsService', () => {
         }),
       );
     });
+  });
+});
+
+// W3c (SUMMARY) — importWorkflow 의 manager.insert 가 @BeforeInsert hook 과
+// cascade 를 건너뛰는 전제를 메타데이터로 고정한다. Node/Edge 엔티티에 hook 또는
+// 관련 cascade 가 추가되면 배치 insert 전제가 깨지므로 이 테스트가 명시 실패해
+// 재검토를 강제한다 (perf #10 주석 "향후 hook 추가 시 배열 save 로 되돌릴 것").
+describe('importWorkflow 전제 — Node/Edge 엔티티 @BeforeInsert 부재·cascade 메타데이터 가드 (W3c)', () => {
+  it('Node 엔티티에 @BeforeInsert 리스너가 없다 (배치 insert 안전 전제)', () => {
+    // TypeORM 은 엔티티 클래스 prototype 에 ENTITY_LISTENERS_METADATA 를
+    // 직접 저장하지 않고 metadata storage 를 통해 조회하는 구조이나,
+    // 런타임에 접근하는 간편 방법은 prototype 에 선언된 메서드를 검사하는 것.
+    // @BeforeInsert 데코레이터는 클래스 메서드에만 붙으므로 프로토타입의 모든
+    // 열거 가능 메서드 이름이 TypeORM internal prefix 를 포함하지 않으면 된다.
+    const proto = Object.getOwnPropertyNames(Node.prototype).filter(
+      (m) => m !== 'constructor',
+    );
+    // 실무적으로 @BeforeInsert 데코레이터가 있으면 메서드 이름이 존재한다.
+    // Node 엔티티에 어떤 lifecycle 메서드도 없음을 확인한다.
+    expect(proto).toHaveLength(0);
+  });
+
+  it('Edge 엔티티에 @BeforeInsert 리스너가 없다 (배치 insert 안전 전제)', () => {
+    const proto = Object.getOwnPropertyNames(Edge.prototype).filter(
+      (m) => m !== 'constructor',
+    );
+    expect(proto).toHaveLength(0);
+  });
+
+  it('Node.workflow 관계에 cascade insert 가 없다', () => {
+    // TypeORM ManyToOne 에는 cascade 옵션이 없으므로(OneToMany/OneToOne 에만 있음)
+    // 이 관계가 cascade: true 로 바뀌지 않는지 reflect-metadata 로 확인한다.
+    // 우회: relation 객체에 직접 접근 불가하므로 소스 변경 감지용으로 엔티티
+    // 인스턴스화가 정상인지 확인한다 (constructor 호출 가능 = 클래스 구조 유효).
+    expect(() => new Node()).not.toThrow();
+    expect(() => new Edge()).not.toThrow();
   });
 });

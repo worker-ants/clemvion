@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-10T21:05:48.132520",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=perf 백로그 01 최종 상태 재검증 (직전 impl-done 20_30_25 이후 delta: spec code-sync 3파일 반영 c1fdbabd + W1 테스트/주석 커밋 cb5c4fe2 — 런타임 동작 무변경), diff-base=origin/main)",
+  "target_path": "perf 백로그 01 최종 상태 재검증 (직전 impl-done 20_30_25 이후 delta: spec code-sync 3파일 반영 c1fdbabd + W1 테스트/주석 커밋 cb5c4fe2 — 런타임 동작 무변경)",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
