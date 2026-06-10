@@ -121,18 +121,30 @@ k8s manifest(`k8s/base/backend-deployment.yaml`)는 readinessProbe·livenessProb
 - [x] TEST WORKFLOW: build PASS, e2e PASS (181 tests, health.e2e-spec 포함; docker 가용)
 - [x] `/ai-review` 1차: CRITICAL=0, WARNING=4 → resolution-applier 4/4 fix (경계값·body·Swagger DTO·JSDoc), e2e pass
 - [x] `/ai-review` 2차: CRITICAL=0, WARNING=3 → resolution-applier 3/3 fix (breaking-change CHANGELOG·/live Swagger·HEALTH_CHECK_LOG configmap+README), e2e pass
-- [x] `/ai-review` 3차(최종): CRITICAL=0. WARNING 은 SPEC-DRIFT 2건(stale-baseline 오탐 — 내 spec 실제 갱신됨)·운영공지 2건(CHANGELOG/configmap 완화 완료)·DI 2건(grep 검증 안전). 코드 수정 불요.
-- [x] `--impl-done` (3-error-handling.md `code:` glob 매칭): 1차 BLOCK:NO. 최종회차 BLOCK:YES 는 **stale baseline 오탐** — 아래 NOTE.
+- [x] `/ai-review` 최종(post-rebase, clean baseline): CRITICAL=0, WARNING=5 (전부 코드 비해당 — RESOLUTION.md 처분).
+- [x] `--impl-done` (post-rebase): **BLOCK: NO** (Critical·Warning 0). SPEC-CONSISTENCY 게이트 충족.
+- [x] origin/main(#524) 위로 rebase — 충돌 0, stale-baseline false-positive 소거.
 
-## ⚠️ NOTE: stale origin/main baseline (게이트 BLOCK 의 유일 원인)
+## ✅ 완료 (rebase 후 clean baseline 게이트 통과)
 
-- 본 워크트리 base = #521(e3f8b719). 작업 중 origin/main 이 #524(c07b2768)로 **3 PR 전진**(#522~524 머지).
-- `--impl-done`/`/ai-review` 의 diff-base=origin/main 이라, #522~524(타인 머지분: 1-auth·audit-logs·dead-code·parallel-executor 등)를 "내가 삭제/변경"한 것으로 오인 → false Critical(cross-worktree 충돌)·false SPEC-DRIFT.
-- **내 실제 변경(`ef367de1^..HEAD`)은 health-probe 35파일로 깨끗**하고 모든 테스트 통과·리뷰 CRITICAL=0.
-- 게이트를 clean 하게 통과하려면 **origin/main(#524) 위로 rebase 후 재실행** 필요 (overlapping spec 파일 충돌 해소 동반). → 사용자 결정 대기.
+- 사용자 결정대로 **선택 INFO 정리 → rebase** 수행:
+  - INFO 반영 commit: `HEALTH_CHECK_LOG` trim().toLowerCase() 정규화+테스트, ConfigService mock key 분기,
+    HTTP wire healthy `checks` 대칭 검증, readinessProbe 주석. (`/live` return type·Swagger 는 2차 fix 에서 이미 반영)
+  - **origin/main(#524, c07b2768) 위로 rebase — 충돌 0건** (내 편집은 #522~524와 다른 섹션). stale-baseline 노이즈 소거.
+- rebase 후 TEST WORKFLOW 전 단계 재통과: lint·unit·build·e2e(186 tests).
+- 최종 게이트 (clean baseline):
+  - `/ai-review`: **Critical 0, Warning 5** — 전부 코드 비해당(W-1/W-2 grep 검증 안전, W-3/W-4/W-5 breaking change·probe 분리의 배포 운영 점검 항목·CHANGELOG/configmap 문서화). RESOLUTION.md 처분 기록.
+  - `--impl-done` (spec/5-system/): **BLOCK: NO** (5 checker Critical·Warning 0).
+- 이전 회차의 false Critical(cross-worktree 충돌)·false SPEC-DRIFT 는 stale baseline 기인 → rebase 로 전부 소거 확인.
 
-### 잔여 선택적 INFO (코드 수정 불요, 후속 가능)
-- `HEALTH_CHECK_LOG` 대소문자 정규화(`.toLowerCase()`), readinessProbe 주석 대칭, e2e BASE_URL 상수화, ConfigService mock key 분기.
+### 배포 시 ops 체크리스트 (코드 미해당, RESOLUTION.md 기록)
+- `/api/health` 200→503: 외부 모니터/LB/업타임체커가 503 수용하는지 확인.
+- livenessProbe 경로 변경: 이미지+manifest 동시 apply (롤링업데이트 과도기 404 방지).
+- `HEALTH_CHECK_LOG=false`: 기존 로그 기반 알림이 `/api/health 200` 패턴 의존하는지 점검.
+
+### 후속 백로그 (선택, 본 PR 범위 밖)
+- I-1 Ingress/NetworkPolicy 외부 차단, I-6 e2e TransformInterceptor 단언 단순화, I-9 BASE_URL 상수화,
+  HEALTH_CHECK_LOG 변경 시 Pod 재시작 필요 운영가이드 명시.
 - [ ] **수동 감사 노트**: `spec/data-flow/9-observability.md` 는 `spec-impl-evidence` 가드 적용 범위
       (`spec/conventions/spec-impl-evidence.md §1`) 밖이라 frontmatter `code:` 자동 커버리지가 없다 →
       이 변경의 spec↔구현 정합은 수동 확인 (consistency-check INFO #6/WARNING #6).
