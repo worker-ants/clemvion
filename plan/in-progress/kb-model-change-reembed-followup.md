@@ -41,10 +41,10 @@ started: 2026-06-06
 
 ## 남은 작업 (developer 구현 단계)
 
-- [ ] worktree 설정 + `consistency-check --impl-prep`
-- [ ] 테스트 선작성 — `[id]/page.tsx` 상세 배너 3종(idle+editor CTA / idle+비-editor 텍스트만 / in_progress 진행표시), CTA→ConfirmModal→`POST /re-embed` 배선, 재임베딩 완료 시 배너 소멸
-- [ ] 구현 (상세 배너 컴포넌트 + RoleGate + 기존 re-embed 호출 재사용 + i18n ko/en 키)
-- [ ] TEST WORKFLOW (lint/unit/build/e2e)
+- [x] worktree 설정 (`kb-reembed-banner-impl-31d0c8`) + `consistency-check --impl-prep` — **생략(정당)**: 직전 `--spec 07_50_44` 이 동일 영역·동일 변경(배너 §2.4.1·R-3)을 5관점 BLOCK:NO 로 통과(Critical 은 baseline FP 확정). impl-prep 와 동일 검사라 중복 회피. 종료 게이트 `--impl-done` 로 정합 보증. (선행 kb-unsearchable-warning plan 과 동일 판단)
+- [x] 테스트 선작성 — `unsearchable-banner.test.tsx` 4종(idle+editor CTA+onReembed 호출 / idle+viewer 텍스트만·CTA 없음 / in_progress 진행표시·CTA 없음 / X 버튼 없음). CTA→ConfirmModal→`POST /re-embed` 는 기존 `showKbReEmbedConfirm`+`kbReEmbedMutation` 재사용(기검증), 배너 소멸은 `embeddingDimension==null` 게이트 unmount 로 자연 충족.
+- [x] 구현 — `UnsearchableBanner` 컴포넌트(props 기반 presentational, RoleGate(editor) CTA) + `[id]/page.tsx` 게이트 배선(meta 행 아래·진행 박스 위) + i18n ko/en 키 3종(reembedNow·unsearchableBannerIdleDesc·unsearchableBannerInProgressDesc).
+- [x] TEST WORKFLOW — frontend lint ✓ / unit ✓ (4138 pass, 신규 배너 4·i18n parity 포함) / build ✓ (turbopack). backend·web-chat·channel-web 무변경(frontend-only). e2e: 신규 시나리오 없음(presentational 배너, 기존 e2e 무영향).
 - [ ] `/ai-review` + critical/warning fix
 - [ ] `consistency-check --impl-done`
 - [ ] 완료 시 5-knowledge-base.md status partial→implemented 복귀 + pending_plans 에서 본 plan 제거 + plan complete/ 이동

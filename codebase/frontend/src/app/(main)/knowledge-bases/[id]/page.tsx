@@ -37,6 +37,7 @@ import {
   KbFormBody,
   type KbFormTab,
 } from "@/components/knowledge-base/kb-form-body";
+import { UnsearchableBanner } from "@/components/knowledge-base/unsearchable-banner";
 import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
 import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
@@ -565,6 +566,14 @@ export default function KnowledgeBaseDetailPage({
         <span>{t("knowledgeBases.chunk")}: {kb?.chunkSize} / {t("knowledgeBases.overlap")}: {kb?.chunkOverlap}</span>
         <span>{t("knowledgeBases.documentsCount", { count: kb?.documentCount ?? 0 })}</span>
       </div>
+
+      {kb && kb.embeddingDimension == null && (
+        <UnsearchableBanner
+          reembedStatus={kb.reembedStatus}
+          onReembed={() => setShowKbReEmbedConfirm(true)}
+          pending={kbReEmbedMutation.isPending}
+        />
+      )}
 
       {embeddingStats && (
         <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-4">

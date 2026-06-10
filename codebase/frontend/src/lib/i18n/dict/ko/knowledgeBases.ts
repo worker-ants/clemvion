@@ -120,6 +120,11 @@ export const knowledgeBases = {
   vectorBadge: "VECTOR",
   reembeddingRequired: "재임베딩 필요 · 검색 불가",
   reembeddingInProgress: "재임베딩 중",
+  reembedNow: "지금 재임베딩",
+  unsearchableBannerIdleDesc:
+    "임베딩 모델 변경 후 재임베딩이 실행되지 않아 이 지식 저장소는 검색에서 제외됩니다. 재임베딩하면 검색이 복구됩니다.",
+  unsearchableBannerInProgressDesc:
+    "재임베딩이 진행 중입니다. 완료되면 검색이 자동으로 복구됩니다.",
   graphBuildStatus: "그래프 추출 상태",
   graphExtractedDocs: "{{count}}개 문서 추출 완료",
   graphFailedDocs: "{{count}}개 실패",
