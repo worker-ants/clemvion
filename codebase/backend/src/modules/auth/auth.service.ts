@@ -7,7 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, MoreThan, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
@@ -569,18 +569,42 @@ export class AuthService {
       });
     }
 
+    const user = stored.user;
+    if (!user) {
+      // 토큰은 유효하나 user 관계가 비어있다 (데이터 손상). 회전 불가 — reuse 분기의
+      // `if (stored.user)` 방어와 동일하게 안전 거부한다.
+      throw new UnauthorizedException({
+        code: 'TOKEN_INVALID',
+        message: 'Invalid refresh token',
+      });
+    }
+
     // 05 C-1 — revoke(구 토큰)+INSERT(신규 토큰)를 단일 트랜잭션으로 원자화한다.
     // 중간 실패 시 구 토큰의 `is_revoked=false` 가 유지돼 세션 소실을 막는다.
     // (옛 구현은 revoke 후 별도 INSERT — 그 사이 크래시 시 구 토큰만 무효화되고
-    // 신규 토큰이 없어 세션이 통째로 사라졌다.) `lastUsedAt`/`lastUsedIp` 스탬프도
-    // 같은 UPDATE 에 포함해 /profile/sessions 의 "last activity" 정확성을 유지한다.
-    const user = stored.user;
+    // 신규 토큰이 없어 세션이 통째로 사라졌다.)
+    //
+    // revoke 는 **조건부 UPDATE** (`is_revoked=false AND expires_at>now`)로 수행해,
+    // 위 findOne→검증→update 사이의 TOCTOU 창(동일 토큰 동시 refresh 로 인한 이중 회전)을
+    // 닫는다 — affected=0 이면 다른 요청이 먼저 회전·무효화한 것이므로 거부한다.
+    // `lastUsedAt`/`lastUsedIp` 스탬프도 같은 UPDATE 에 포함해 /profile/sessions 의
+    // "last activity" 정확성을 유지한다. loginHistory 기록은 회전 원자성과 무관하고
+    // refresh 정상 회전은 보안 이벤트가 아니므로(spec §1.4) 남기지 않는다.
     return this.dataSource.transaction(async (manager) => {
-      await manager.getRepository(RefreshToken).update(stored.id, {
-        isRevoked: true,
-        lastUsedAt: new Date(),
-        lastUsedIp: ctx.ip ?? null,
-      });
+      const result = await manager.getRepository(RefreshToken).update(
+        { id: stored.id, isRevoked: false, expiresAt: MoreThan(new Date()) },
+        {
+          isRevoked: true,
+          lastUsedAt: new Date(),
+          lastUsedIp: ctx.ip ?? null,
+        },
+      );
+      if (!result.affected) {
+        throw new UnauthorizedException({
+          code: 'TOKEN_INVALID',
+          message: 'Invalid refresh token',
+        });
+      }
       // Issue new tokens in same family — INSERT joins this transaction.
       return this.generateTokens(user, false, stored.familyId, ctx, manager);
     });
@@ -710,6 +734,17 @@ export class AuthService {
     return tokens;
   }
 
+  /**
+   * Access JWT + 회전 refresh token 발급. **`private` — 외부 노출 금지.**
+   *
+   * `@param manager` (05 C-1): 전달되면 refresh token INSERT 가 그 `EntityManager` 의
+   * 트랜잭션에 합류한다 (refresh 회전이 revoke+INSERT 를 원자화하는 경로). 미전달 시
+   * (login / OAuth callback / verifyEmail / invitation 가입)엔 기본 repository 로 INSERT —
+   * 호출처 무변경. JWT sign·workspace context 조회는 DB write 가 아니므로 트랜잭션 의미와
+   * 무관하게 선행된다.
+   *
+   * @internal 트랜잭션 컨텍스트 전파 전용 — `public` 승격 금지(trust boundary 확장 방지).
+   */
   private async generateTokens(
     user: User,
     rememberMe = false,

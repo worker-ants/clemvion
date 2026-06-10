@@ -57,7 +57,9 @@ describe('AuthService', () => {
       create: jest.fn().mockImplementation((data) => data),
       save: jest.fn().mockImplementation((data) => Promise.resolve(data)),
       findOne: jest.fn(),
-      update: jest.fn().mockResolvedValue(undefined),
+      // 05 C-1 — refresh 회전의 조건부 UPDATE 가 `result.affected` 를 읽으므로
+      // 기본값을 affected:1(성공) 로 둔다. affected:0(이중 회전) 케이스는 테스트에서 오버라이드.
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       manager: {
         getRepository: jest.fn().mockReturnValue({
           findOne: jest.fn(),
@@ -541,6 +543,7 @@ describe('AuthService', () => {
     });
 
     it('rotates revoke + issue inside a single transaction (05 C-1 atomicity)', async () => {
+      // 05 C-1 회귀 가드: 회전이 단일 트랜잭션 안에서 조건부 revoke + INSERT 로 일어난다.
       refreshTokenRepo.findOne.mockResolvedValue({
         id: 'rt-1',
         userId: mockUser.id,
@@ -552,17 +555,23 @@ describe('AuthService', () => {
 
       await service.refresh('valid-refresh-token');
 
-      // revoke(UPDATE) 와 신규 토큰 INSERT 는 dataSource.transaction 안에서 일어난다.
+      // revoke(조건부 UPDATE) 와 신규 토큰 INSERT 는 dataSource.transaction 안에서 일어난다.
       expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
-      expect(refreshTokenRepo.update).toHaveBeenCalledWith('rt-1', {
-        isRevoked: true,
-        lastUsedAt: expect.any(Date),
-        lastUsedIp: null,
-      });
+      // revoke 는 id + is_revoked=false + expires_at>now 조건부 UPDATE (TOCTOU 차단).
+      expect(refreshTokenRepo.update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'rt-1', isRevoked: false }),
+        expect.objectContaining({
+          isRevoked: true,
+          lastUsedAt: expect.any(Date),
+          lastUsedIp: null,
+        }),
+      );
       expect(refreshTokenRepo.save).toHaveBeenCalled();
     });
 
-    it('propagates failure (transaction rolls back) when issuing the new token fails', async () => {
+    it('rejects without issuing a token when the conditional revoke matches 0 rows (concurrent rotation)', async () => {
+      // 05 C-1 회귀 가드: 동시 refresh 로 이미 회전된 토큰 — affected=0 이면 신규 토큰을
+      // 발급하지 않고 TOKEN_INVALID 로 거부한다 (이중 회전 차단).
       refreshTokenRepo.findOne.mockResolvedValue({
         id: 'rt-1',
         userId: mockUser.id,
@@ -571,8 +580,43 @@ describe('AuthService', () => {
         expiresAt: new Date(Date.now() + 86400000),
         user: mockUser,
       });
-      // INSERT(신규 토큰 save) 실패 주입 — 트랜잭션이 reject 되어(실 DB 에선 revoke 롤백)
-      // 구 토큰 is_revoked=false 가 유지된다. 단위에서는 에러 전파로 검증.
+      refreshTokenRepo.update.mockResolvedValueOnce({ affected: 0 });
+
+      await expect(service.refresh('raced-refresh-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(refreshTokenRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not open a transaction for an expired refresh token', async () => {
+      // 05 C-1 회귀 가드: 단순 만료는 트랜잭션 진입 전에 401 TOKEN_EXPIRED 로 끝난다.
+      refreshTokenRepo.findOne.mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        familyId: 'family-1',
+        isRevoked: false,
+        expiresAt: new Date(Date.now() - 1000),
+        user: mockUser,
+      });
+
+      await expect(service.refresh('expired-refresh-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('propagates failure when issuing the new token fails (real DB rollback verified by e2e)', async () => {
+      // 05 C-1 회귀 가드: INSERT(신규 토큰 save) 실패 시 트랜잭션이 reject 된다.
+      // 단위 mock 은 실제 DB 롤백을 재현하지 못하므로 여기선 에러 전파만 검증하고,
+      // revoke+INSERT 가 한 트랜잭션 안에 있어 롤백된다는 사실은 dockerized e2e 로 보장한다.
+      refreshTokenRepo.findOne.mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        familyId: 'family-1',
+        isRevoked: false,
+        expiresAt: new Date(Date.now() + 86400000),
+        user: mockUser,
+      });
       refreshTokenRepo.save.mockRejectedValueOnce(new Error('insert failed'));
 
       await expect(service.refresh('valid-refresh-token')).rejects.toThrow(

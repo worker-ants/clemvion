@@ -177,12 +177,13 @@ sequenceDiagram
 > 발동한다. 단순 만료는 부작용 없이 401 `TOKEN_EXPIRED` 만 반환 (`auth.service.ts` `refresh`).
 >
 > **회전 원자성 (05 C-1)**: 구 토큰 revoke 와 신규 토큰 INSERT 는 **단일 DB 트랜잭션**으로 묶인다
-> (`auth.service.ts` `refresh` 의 `dataSource.transaction`, `generateTokens` 가 optional `EntityManager`
-> 로 INSERT 를 같은 트랜잭션에 합류). 중간 실패 시 둘 다 롤백돼 구 토큰의 `is_revoked=false` 가 유지되므로
-> 세션 소실이 발생하지 않는다. JWT sign 은 DB 무관이라 트랜잭션 밖에서 선계산한다. WebAuthn 등록(§1.4
-> 본문에서 "단일 트랜잭션" 을 이미 명시)과 동일한 원자성 정책을 회전 경로에도 적용한 것이다. reuse 탐지
-> 분기의 family 전체 revoke 는 단일 UPDATE 라 자체 원자적이고, `loginHistory` 기록은 회전 원자성과
-> 무관해 트랜잭션 밖에 유지한다.
+> (`auth.service.ts` `refresh`). 중간 실패 시 둘 다 롤백돼 구 토큰의 `is_revoked=false` 가 유지되므로
+> 세션 소실이 발생하지 않는다. revoke 는 **조건부 UPDATE** (`is_revoked=false AND expires_at>now`)로
+> 수행해 SELECT→검증→UPDATE 사이의 TOCTOU 창(동일 토큰 동시 refresh 로 인한 이중 회전)을 닫는다 —
+> 매칭 0건이면 다른 요청이 먼저 회전한 것이므로 `TOKEN_INVALID` 로 거부한다. JWT sign 은 DB 무관이라
+> 트랜잭션 밖에서 선계산한다. WebAuthn 등록(§1.4 본문에서 "단일 트랜잭션" 을 이미 명시)과 동일한
+> 원자성 정책을 회전 경로에도 적용한 것이다. reuse 탐지 분기의 family 전체 revoke 는 단일 UPDATE 라
+> 자체 원자적이고, `loginHistory` 기록은 회전 원자성과 무관해 트랜잭션 밖에 유지한다.
 
 ### 1.5 세션 revoke (사용자 본인)
 

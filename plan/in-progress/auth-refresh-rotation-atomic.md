@@ -22,7 +22,7 @@ owner: developer
   §1.4 전례대로 트랜잭션 밖.
 - 스키마 불변 — 마이그레이션 불요.
 
-### Spec (`data-flow/2-auth.md §1.4`)
+### Spec (`spec/data-flow/2-auth.md §1.4`)
 - 회전 시퀀스의 revoke+INSERT 를 `rect`(단일 트랜잭션) 박스로 + 원자성 노트(WebAuthn §1.4 전례 동형).
 
 ## 체크리스트
