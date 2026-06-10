@@ -485,7 +485,7 @@ GitHub는 2개 `auth_type`을 선택 가능.
 | `password` | string | ✓ | 🔒 |
 | `ssl` | enum `disable` \| `require` \| `verify-full` | ✓ | × |
 
-테스트: 연결 후 `SELECT 1` 실행. 실패 시 드라이버별 에러 메시지를 `error.code`에 정규화(`auth_failed`, `network`, `unknown`).
+테스트: 연결 후 `SELECT 1` 실행. 실패 시 드라이버별 에러 메시지를 `error.code`에 정규화(`auth_failed`, `network`, `unknown_error`).
 
 ### 5.5 Email (SMTP)
 

@@ -188,8 +188,8 @@ export class IntegrationExpiryScannerService
    * 사실상 무한 활성 상태를 유지한다.
    *
    * **대상 선정:** `status='connected'` AND `service_type='cafe24'` AND
-   * `lastRotatedAt < now - REFRESH_PROACTIVE_THRESHOLD_DAYS` (기본 10일).
-   * 14일 마감 전 4일의 안전 마진 확보.
+   * `lastRotatedAt < now - REFRESH_PROACTIVE_THRESHOLD_DAYS` (7일).
+   * 14일 마감 전 7일(50%) 의 안전 마진 확보 (6h cron 과 짝 — onModuleInit 주석 참조).
    *
    * **실행 방식:** 각 통합에 대해 `cafe24-token-refresh` 큐로 enqueue 만 하고
    * 본 잡 자체는 즉시 종료. 실제 refresh 는 `Cafe24TokenRefreshProcessor`

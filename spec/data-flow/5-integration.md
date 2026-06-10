@@ -380,7 +380,7 @@ stateDiagram-v2
 | status | status_reason 후보 |
 | --- | --- |
 | `error` | `auth_failed` (401/403 또는 refresh `invalid_grant`), `insufficient_scope` (403 + scope 시그널), `network` (transport 3회 연속 실패 — V049 `consecutive_network_failures` 카운터), `unknown_error` (미분류 fallback — 운영 알람 신호) |
-| `expired` | `install_timeout` (pending_install 24h TTL — cafe24·makeshop 공통), **NULL** (connected-expiry 0d 격하 — scanner 가 reason 을 채우지 않음. §1.4 / Rationale 참조) |
+| `expired` | `install_timeout` (pending_install 24h TTL — cafe24·makeshop 공통), `token_expired` (refresh_token 없는 provider 의 connected-expiry 0d 격하 — refresh-capable provider 는 격하 제외, §1.4 / V-07) |
 | `pending_install` | callback 실패 분기 (status 보존, 진단 단서로 채워짐): `oauth_token_exchange_failed`, `oauth_state_invalid`, `oauth_state_mismatch`, `oauth_state_expired`, `oauth_provider_error`, `oauth_invalid_scope` (cafe24 scope 거부 — `last_error.details.requiresCafe24Approval` 동반, [cafe24-restricted-scopes §4.3](../conventions/cafe24-restricted-scopes.md)), `oauth_preview_invalid`, `oauth_preview_expired` (union 예약값 — preview 소비 실패의 API 에러 코드와 동일 어휘). 모두 snake_case DB 표기 — 동일 의미의 API 에러 코드는 [navigation §10.4](../2-navigation/4-integration.md#104-에러-매핑) 의 `OAUTH_*` UPPER_SNAKE_CASE. `resource_not_found` 는 row 자체가 사라진 케이스라 DB 갱신 불가 → 후보값에서 제외 |
 | `connected` | NULL |
 
