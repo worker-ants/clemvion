@@ -1,7 +1,7 @@
 # Refactor 백로그 — 유지보수성·가독성 (2026-06-10 전수 감사)
 
 > 인덱스: [README.md](./README.md). Critical 4 / Major 7 / Minor 4 — **spec 대조(2026-06-10) 후 유효 14건 / 철회 1건(M-3)**. M-2 는 진단 방향 정정됨.
-> **spec 대조 판정 분포**: A 4 (C-3, M-4, M-6, m-2) / B 2 / C(행위만 규정) 6 / D(drift) 2 / E 1.
+> **spec 대조 판정 분포**: A 4 (C-3, M-4, M-6, m-2) / B 2 / C(행위만 규정) 6 / D(drift) 2 / E 1. — M-6·m-2 는 ✅ 2026-06-10 사용자 승인(즉시 제거 진행 확정), C-3·M-4 는 deferral 결정 대기.
 > **중복 참조**: C-1 분할 설계는 [02-architecture.md](./02-architecture.md) C-1 소유. M-5 는 02 M-3 참조.
 
 ## 정량 지표 (2026-06-10)
@@ -63,7 +63,7 @@
 - [ ] **M-5 `streamMessage` 882줄 제너레이터** — [02-architecture.md](./02-architecture.md) M-3 에서 추적 (포인터).
   - **spec 대조**: C — 행위 spec(`4-ai-assistant.md` SSE·가드)만 존재, 구조 미규정. 02 M-3 완료 시 동반 체크 — SSE 이벤트 순서·`auto_resume` 버블 분리 semantics 보존이 경계 조건.
 
-- [ ] **M-6 dead code — `registerContinuationHandlers` + deprecated `on()`** ⚠️ **(A — "의도" 는 잔존이 아니라 제거)** — `execution-engine.service.ts:877-880`, `continuation-bus.service.ts:154`
+- [ ] **M-6 dead code — `registerContinuationHandlers` + deprecated `on()`** ✅ **승인(2026-06-10) — 권고안대로 진행 확정 (즉시 제거, m-2 와 단일 PR)** — `execution-engine.service.ts:877-880`, `continuation-bus.service.ts:154`
   - **spec 대조**: **A** — 코드 주석("후속 정리 시 제거 예정")·spec 서사(`§7.4` "in-memory 머신 완전 제거(full B3) — §7.5 단일 경로 일원화") 모두 **제거가 예약된 상태**. 호출부: 프로덕션 no-op 1곳 + spec 테스트 직접 호출 2곳(:524,:14214).
   - **개선 방안**: 1. 본체·`:868` 호출·spec 테스트 훅 2곳 일괄 제거. 2. `on()` deprecated 메서드 + 해당 테스트 제거. 3. m-2 와 단일 cleanup PR.
   - 검증: backend unit 전량 + continuation e2e(form/button/AI resume). / 회귀 위험: 낮음 — no-op 제거, 레포 내 subclass 없음 확인됨. / spec 갱신: 불요 (spec 은 이미 worker 단일 경로 기술).
@@ -80,7 +80,7 @@
   - **개선 방안**: 1. 5곳 `Logger` 교체 (scripts/·instrumentation.ts 예외). 2. eslint `no-console` 을 backend src 에 추가(scripts override 제외) — 재발 차단. 3. (별건) ai-agent spec §6.2.c.fallback 의 "console.warn" spec 원문은 planner 정정 위임.
   - 검증: lint green + 해당 모듈 테스트, audit-logs 의 "never throws" 보장 유지. / 회귀 위험: 출력 채널 변경 수준. / spec 갱신: ai-agent.md 한 줄 (planner).
 
-- [ ] **m-2 `@deprecated` 심볼 4건 잔류** ⚠️ **(A — 제거 예약 상태)** — `chat-channel.dispatcher.ts:632-636`(toEiaEvent), `system-status.constants.ts:117-119`(상수 2건), `execution-engine.service.ts:877`(M-6 와 동일 건), `chat-channel/types.ts:102`
+- [ ] **m-2 `@deprecated` 심볼 4건 잔류** ✅ **승인(2026-06-10) — 권고안대로 진행 확정 (M-6 와 단일 cleanup PR)** — `chat-channel.dispatcher.ts:632-636`(toEiaEvent), `system-status.constants.ts:117-119`(상수 2건), `execution-engine.service.ts:877`(M-6 와 동일 건), `chat-channel/types.ts:102`
   - **spec 대조**: **A** — 각 주석이 제거 예약("후속 PR 에서 제거"), 외부 참조 0건 grep 확인. **단 `types.ts:102` 는 성격이 다름** — 제거된 옛 키에 대한 **문서 주석**이고 spec 이 폐기를 명문화(§4.1 breaking change 안내) — "심볼 제거" 아닌 "주석 정리" 가 올바른 액션.
   - **개선 방안**: 1. `toEiaEvent` alias + 상수 2건 삭제(참조 0건 — 기계적). 2. types.ts 는 본문(:86-96)에 마이그레이션 안내가 이미 있으므로 중복 @deprecated 태그만 정리. 3. M-6 와 단일 PR.
   - 검증: tsc + backend unit. / 회귀 위험: 거의 없음. / spec 갱신: 불요.

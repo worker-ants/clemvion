@@ -2,7 +2,7 @@
 
 > 인덱스: [README.md](./README.md). Critical 3 / Major 7 / Minor 5 — **spec 대조(2026-06-10) 후 유효 12건 / 철회 3건(m-1, m-2, m-4)**.
 > **spec 대조 판정 분포**: A 3 (C-2, M-1, M-5) / B 6 / C 3 (M-2, M-7 + C-3 부속 드리프트) / D 1 (C-3) / E 3.
-> **⚠️ A(의도된 설계)인데 여전히 문제 — 사용자 보고 대상**: C-2 (spec 이 선언한 불변식의 보장 수단이 비원자), M-5 (invariant 의 기계 강제 부재).
+> **⚠️ A(의도된 설계)인데 여전히 문제**: C-2 (spec 이 선언한 불변식의 보장 수단이 비원자 — **결정 대기**), M-5·M-1 (✅ 2026-06-10 사용자 승인 — 권고안대로 진행 확정).
 > 전반 평가: BullMQ durable queue(Phase 2), park-release 모델, ShutdownState in-flight 추적 등 핵심 설계 양호. C(드리프트) 2건은 "spec 이 옳고 구현이 따라가야 할" 케이스.
 
 ## Critical
@@ -24,7 +24,7 @@
 
 ## Major
 
-- [ ] **M-1 WS resume ack — spec 내부 문구 모순 정리로 성격 축소** ⚠️ **(A — "ack=enqueue 보장" 은 이미 spec 정의)** — `websocket.gateway.ts:437/511/584/654`
+- [ ] **M-1 WS resume ack — spec 내부 문구 모순 정리로 성격 축소** ✅ **승인(2026-06-10) — 권고안(planner 문구 정리 + 프론트 가드 확인)대로 진행 확정** — `websocket.gateway.ts:437/511/584/654`
   - **spec 대조**: **A** — WS §4.2 가 이미 정의: "`queued` … enqueue 보장 … **관측·디버깅 용도, routing 결정에 사용하지 않는다**" — 원안의 "문서화 필요" 는 소멸. **잔존 모순 2건**: ① §4.2 의 `resumed` = "재개 성공 여부" 정의 ↔ gateway 는 enqueue 성공 시 `resumed: true` 하드코딩 (항상-enqueue 모델에서 동기 ack 는 재개 성공을 알 수 없음). ② 엔진 §7.5 "셋 모두 ack 에 `resumed: false` 노출" ↔ §7.5.1 "RESUME_* 는 후행 이벤트" — spec 내부 충돌.
   - **개선 방안**: 1. (planner) §4.2 `resumed` 를 "재개 시작 수락(enqueue) 여부 — 최종 재개는 `execution.resumed`/`node.*` 이벤트로 확인" 으로 정정 + 엔진 §7.5 문장을 §7.5.1 과 일치. 2. (frontend) `use-execution-events.ts` 가 ack 의 `resumed` 를 상태 전이 근거로 쓰는 곳이 없는지 확인 — 있으면 이벤트 기반으로 교체.
   - 검증: ack `resumed:true` 만으로 waiting UI 를 해제하지 않음 unit + 기존 resume e2e. / 회귀 위험: 없음(문서·프론트 가드 수준). / **spec 갱신: 본 항목의 본체** (planner).
@@ -44,8 +44,8 @@
   - **개선 방안**: 1. (정공) `executeAsync` 를 execution-run 큐 enqueue 로 통일 — §4.2 직렬화·§8 cap·§7.1 stalled 재배달 수혜 동일 적용, recursionDepth 는 job payload 운반. 2. (단기) 큐 통일 전이면 catch 에 `failFirstSegmentSetup` + 2차 실패 격리를 큐 경로와 동일 복제. 3. PR2b admission gate 와의 상호작용(중첩 sub-workflow 의 cap 점유 self-starvation)을 exec-intake plan 의 "Admission 대상 한정" 결정과 함께 검토.
   - 검증: setup throw + fail handler throw 이중 실패 시 FAILED 마킹 unit (현재는 잔류) + 큐 통일 시 sub-workflow 가 execution-run job 으로 관측. / 회귀 위험: **중간** — 큐 경유 시 시작 latency 증가로 타이밍 의존 테스트 흔들림 가능(단기안은 위험 거의 없음). / spec 갱신: 큐 통일 채택 시 §4 에 executeAsync 경로 명시 (planner).
 
-- [ ] **M-5 parallel branch `nodeOutputCache` shallow clone** ⚠️ **(A — spec 명시 설계, invariant 기계 강제만 부재)** — `containers/parallel-executor.ts:166-176`
-  - **spec 대조**: **A** — `10-parallel.md:14` "variables 는 structuredClone, **nodeOutputCache 는 shallow copy 로 격리**" (:69·:149 동일) — deep clone 비용 회피 결정 포함 spec·코드 모두 의도. **단 "값 내부 mutate 금지" invariant 가 JSDoc 합의뿐** — 위반 핸들러 등장 시 last-write-wins 비결정성이 조용히 발생. **사용자 보고 대상.**
+- [ ] **M-5 parallel branch `nodeOutputCache` shallow clone** ✅ **승인(2026-06-10) — 권고안(단기 1안: dev/test deep freeze, spec 불변)대로 진행 확정** — `containers/parallel-executor.ts:166-176`
+  - **spec 대조**: **A** — `10-parallel.md:14` "variables 는 structuredClone, **nodeOutputCache 는 shallow copy 로 격리**" (:69·:149 동일) — deep clone 비용 회피 결정 포함 spec·코드 모두 의도. **단 "값 내부 mutate 금지" invariant 가 JSDoc 합의뿐** — 위반 핸들러 등장 시 last-write-wins 비결정성이 조용히 발생. (structuredClone 전환[3안]은 승인 범위 밖 — spec 개정 선행 조건 유지.)
   - **개선 방안**: 1. (단기, spec 불변) dev/test 한정 branch clone 직후 `nodeOutputCache` 값 deep `Object.freeze` — mutate 시도가 테스트에서 즉시 TypeError (production 미적용). 2. (대안) 엔진 `setNodeOutput` 저장 시점 freeze 일원화 — 적용 범위가 넓어지므로 별도 측정 후. 3. **structuredClone 전환은 spec :14 명시 결정의 번복 — 성능 측정 + planner spec 개정 선행 필수 (단독 구현 금지).**
   - 검증: branch 핸들러가 공유 cache 값 mutate 시 freeze 환경 throw unit + mutate 허용 상태 100회 반복 결과 분산 회귀 게이트. / 회귀 위험: freeze 가 엔진 자신의 합법적 cache 갱신을 막지 않도록 적용 지점을 branch clone 직후로 한정. / spec 갱신: 1·2 불요, 3 채택 시에만.
 

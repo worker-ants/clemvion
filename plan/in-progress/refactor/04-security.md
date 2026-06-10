@@ -2,7 +2,7 @@
 
 > 인덱스: [README.md](./README.md). Critical 3 / Major 7 / Minor 4 — **spec 대조(2026-06-10) 후 전 항목 유효** (철회 0).
 > **spec 대조 판정 분포**: A 6 (C-2, M-2, M-3, m-2, m-3, m-4) / B 2 / C 2 (M-6, M-7 — spec 자체 갭/enforcement 비대칭) / D 4.
-> **⚠️ A(의도된 트레이드오프)인데 여전히 위험 — 사용자 보고 대상**: C-2, M-2, M-3, m-4. spec 이 위험을 인지·기록했으나 방어가 실질 불충분한 항목들로, 제거하지 않고 유지한다.
+> **⚠️ A(의도된 트레이드오프)인데 여전히 위험**: C-2, M-2, M-3 (결정 대기), m-4 (✅ 2026-06-10 사용자 승인 — pub/sub 전파 진행 확정). spec 이 위험을 인지·기록했으나 방어가 실질 불충분한 항목들로, 제거하지 않고 유지한다.
 > 전반 평가: SSRF 이중 레이어, AES-256-GCM(AAD), WS 소유권 검증, DOMPurify, OAuth state 등 핵심 패턴 양호. fail-closed 부팅 가드의 **비대칭**(EIA·STUB 류는 있고 C-1·M-4·M-7 은 없음)이 공통 패턴.
 
 ## Critical
@@ -77,7 +77,7 @@
   - **개선 방안**: 1. (운영) Cloudflare Authenticated Origin Pulls(mTLS) 또는 origin 방화벽 CF IP allowlist 강제. 2. (절차) 분기별 점검 체크리스트(AOP 인증서·WAF·CF IP 대역 갱신) 인프라 문서화.
   - 검증: CF 우회 직접 요청 거부 침투 점검. / 회귀 위험: 없음(인프라). / spec 갱신: 불요 — 배포 가이드 영역.
 
-- [ ] **m-4 database-query 노드 Pool 캐시 — credential rotation 전파 지연** ⚠️ **(A — 단일 인스턴스 evict 는 spec 명시, 멀티 인스턴스는 미언급)** — `database-query.handler.ts:345-376`
-  - **spec 대조**: **A** — `2-database-query.md:77` "credential 회전 시 stale 풀 evict 후 새 풀 생성" — 단일 프로세스 동작은 spec 정합. **멀티 인스턴스 캐시 무효화 조율은 spec 미언급** — 침해 대응(MTTR) 맥락에서 회전된 자격증명의 idle 연결이 타 인스턴스에 잔존. **사용자 보고 대상.**
+- [ ] **m-4 database-query 노드 Pool 캐시 — credential rotation 전파 지연** ✅ **승인(2026-06-10) — 권고안(근본: pub/sub 전파)대로 진행 확정** — `database-query.handler.ts:345-376`
+  - **spec 대조**: **A** — `2-database-query.md:77` "credential 회전 시 stale 풀 evict 후 새 풀 생성" — 단일 프로세스 동작은 spec 정합. **멀티 인스턴스 캐시 무효화 조율은 spec 미언급** — 침해 대응(MTTR) 맥락에서 회전된 자격증명의 idle 연결이 타 인스턴스에 잔존.
   - **개선 방안**: 1. (근본) integration 업데이트 이벤트 pub/sub(Redis) 전파 → 전 인스턴스 해당 integrationId 풀 즉시 evict. 2. (단기) `POOL_IDLE_TIMEOUT_MS`(현 30s) 를 대응 SLA 에 맞게 하향 검토(연결 churn 트레이드오프).
   - 검증: 인스턴스 A 회전 → B 풀 N초 내 무효화 통합 테스트. / 회귀 위험: pub/sub 미수신 시 기존 credsHash evict 로 안전 degrade. / spec 갱신: §2 에 멀티 인스턴스 무효화 + Rationale(MTTR 트레이드오프) 추가 (planner).

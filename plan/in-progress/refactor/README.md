@@ -63,24 +63,26 @@
 17. **park-진입 dispatch 추출** — PR #507 resume registry 와 대칭(`ParkEntryDispatch`) → [02](./02-architecture.md) M-4
 18. **ExecutionContext 스케일아웃** — 독립 작업화 금지, exec-intake PR3 연동 → [06](./06-concurrency.md) C-3
 
-## ⚠️ 의도된 설계지만 문제 — 사용자 결정 대상 (15건)
+## ⚠️ 의도된 설계지만 문제 — 사용자 결정 현황 (15건 중 ✅ 승인 5건 / 결정 대기 10건)
+
+> **2026-06-10 사용자 결정**: 04 m-4, 03 M-6, 03 m-2, 06 M-5, 06 M-1 — **권고안대로 진행 확정** (아래 표 ✅ 표시). 나머지는 결정 대기 — 착수 금지 유지.
 
 | 항목 | spec 근거 | 잔존 문제 | 권고 |
 | --- | --- | --- | --- |
 | 04 C-2 vm 탈출 | `2-code.md §7.1` "escape 방어 불가 … isolated-vm 재검토" | Editor 권한 = 호스트 장악, 위협 모델 경계 미명시 | isolated-vm 전환 (로드맵 기지정) |
 | 04 M-2 Promise 노출 | §4.1 async 지원 명시 약속 | C-2 의 탈출 보조 경로 | 단독 제거 불가 — C-2 에 흡수 |
 | 04 M-3 ReDoS 길이 제한 | 4개 spec "길이 200 = ReDoS 방지" | 길이 제한은 지수 패턴 못 막음 — spec 주장 부정확 | re2/timeout + spec 정정 |
-| 04 m-4 DB Pool 캐시 | `2-database-query.md:77` evict 명시 | 멀티 인스턴스 무효화 미조율(MTTR) | pub/sub 전파 |
+| 04 m-4 DB Pool 캐시 | `2-database-query.md:77` evict 명시 | 멀티 인스턴스 무효화 미조율(MTTR) | pub/sub 전파 — **✅ 승인(2026-06-10)** |
 | 04 m-2/m-3 | stack 노출·trust proxy — spec/주석 명시 | 낮음 | 운영 가이드/인프라 절차로 충분 |
 | 02 C-2 엔진↔WS forwardRef | §4.4 "추상화 도입 금지, 안티패턴 아님" | 테스트 격리·초기화 순서 고충 | 유지(spec 준수). 다중 sink 가시화 시 spec 개정 발의 |
 | 02 M-5 정적 노드 배열 | `4-nodes/0-overview.md §1.0` 명시 | merge-conflict hotspot | 카테고리 spread 경량안(spec 무변), DI 전환은 마켓플레이스 plan 묶음 |
 | 03 C-3/M-4 cafe24·makeshop 미러 | "cafe24 미러" + DRY-deferral("3번째 provider 시") 문서화 | 1,600줄은 deferral 명시 목록의 사각, 3중 복제 예약 | deferral 앞당김 여부 결정 후 Base 추상화 |
-| 03 M-6/m-2 dead code | 제거가 예약된 잔류물 | 잔존 중 | 즉시 제거 (의도 = 제거) |
+| 03 M-6/m-2 dead code | 제거가 예약된 잔류물 | 잔존 중 | 즉시 제거 (단일 cleanup PR) — **✅ 승인(2026-06-10)** |
 | 05 C-2 re_run_of walk | `13-replay-rerun.md §9.1` 함수명까지 명시 | 직렬 SELECT ≤64회 | 재귀 CTE 교체(앱-레벨 enforce 의도 내) + spec 1줄 |
 | 05 m-5 schedule 부팅 전수 등록 | `data-flow/10-triggers.md §1.3` 명시 | 무페이징 적재만 잔존 문제 | 배치 페이징(1안 repeatable jobs 는 기구현 — 철회) |
 | 06 C-2 rehydrate 가드 | §7.5 "race 를 닫는다" 선언 | 보장 수단이 비원자 check-then-act | optimistic claim + spec 문구 갱신 |
-| 06 M-5 shallow clone | `10-parallel.md:14` 명시 | invariant 기계 강제 부재 | dev/test deep freeze (structuredClone 은 spec 개정 선행) |
-| 06 M-1 resumed ack | §4.2 정의 존재 | spec 내부 문구 모순 | planner 문구 정리 + 프론트 가드 확인 |
+| 06 M-5 shallow clone | `10-parallel.md:14` 명시 | invariant 기계 강제 부재 | dev/test deep freeze (structuredClone 은 spec 개정 선행) — **✅ 승인(2026-06-10)** |
+| 06 M-1 resumed ack | §4.2 정의 존재 | spec 내부 문구 모순 | planner 문구 정리 + 프론트 가드 확인 — **✅ 승인(2026-06-10)** |
 | 07 m-9 otplib | `1-data-model.md:66` "otplib base32" 지정 | 사용 버전 4년 stale (라이브러리는 활발) | ^13 업그레이드 (secret 호환성 게이트) |
 
 ## 기존 plan 과의 관계 (중복 방지)
