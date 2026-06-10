@@ -9,6 +9,7 @@ import {
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import {
   LlmService,
+  LlmCallContext,
   extractRetryAfterMs,
 } from '../../../modules/llm/llm.service';
 import {
@@ -511,6 +512,12 @@ export class InformationExtractorHandler implements NodeHandler {
             jsonSchema,
           },
           context.abortSignal,
+          // [Spec 7-llm-usage §1.3] attribution 갭 해소 — WARNING#5.
+          {
+            workflowId: context.workflowId,
+            executionId: context.executionId,
+            nodeExecutionId: context.nodeExecutionId,
+          },
         );
       } catch (error) {
         const errMessage =
@@ -773,6 +780,12 @@ export class InformationExtractorHandler implements NodeHandler {
         startingRetryCount: 0,
         llmCalls,
         abortSignal: context.abortSignal,
+        // [Spec 7-llm-usage §1.3] attribution 갭 해소 — WARNING#5.
+        llmContext: {
+          workflowId: context.workflowId,
+          executionId: context.executionId,
+          nodeExecutionId: context.nodeExecutionId,
+        },
       },
       outputSchema,
     );
@@ -865,6 +878,11 @@ export class InformationExtractorHandler implements NodeHandler {
         llmCalls,
         // resume(continuation) 경로 — cancel-others-on-fail 같은 abort 컨텍스트가
         // 없으므로 signal 미전파 (optional). 초기 실행 경로(executeMultiTurn)만 전파.
+        // [Spec 7-llm-usage §1.3] 재개 경로에서는 state 에 저장된 executionId/nodeId 로
+        // attribution 최대 제공 (workflowId 는 state 에 없어 null, 추후 개선 가능).
+        llmContext: state.executionId
+          ? { executionId: state.executionId, nodeExecutionId: state.nodeId }
+          : undefined,
       },
       state.outputSchema,
     );
@@ -959,6 +977,8 @@ export class InformationExtractorHandler implements NodeHandler {
       startingRetryCount: number;
       llmCalls: LlmCallTrace[];
       abortSignal?: AbortSignal;
+      /** [Spec 7-llm-usage §1.3] attribution — WARNING#5. */
+      llmContext?: LlmCallContext;
     },
     outputSchema: OutputField[],
   ): Promise<
@@ -1001,6 +1021,8 @@ export class InformationExtractorHandler implements NodeHandler {
             toolChoice: 'auto',
           },
           params.abortSignal,
+          // [Spec 7-llm-usage §1.3] attribution 갭 해소 — WARNING#5.
+          params.llmContext,
         );
         result = call.result;
         trace = call.trace;
@@ -1829,14 +1851,19 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
   }
 
   /** Wrap `llmService.chat` with a trace entry so per-call debug data lands
-   * in `_turnDebugHistory` for the frontend's LlmInformationTab. */
+   * in `_turnDebugHistory` for the frontend's LlmInformationTab.
+   *
+   * [Spec 7-llm-usage §1.3] llmContext (workflowId/executionId/nodeExecutionId) 를 선택적으로
+   * 전달해 llm_usage_log 의 attribution 컬럼이 NULL 이 되는 갭을 해소 (WARNING#5).
+   */
   private async traceChat(
     llmConfig: Parameters<LlmService['chat']>[0],
     params: Parameters<LlmService['chat']>[1],
     signal?: AbortSignal,
+    llmContext?: LlmCallContext,
   ): Promise<{ result: ChatResult; trace: LlmCallTrace }> {
     const startedAt = Date.now();
-    const result = await this.llmService.chat(llmConfig, params, undefined, {
+    const result = await this.llmService.chat(llmConfig, params, llmContext, {
       signal,
     });
     return {
