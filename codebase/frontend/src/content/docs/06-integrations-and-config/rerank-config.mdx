@@ -6,10 +6,10 @@ order: 3
 summary: "지식 저장소 검색의 2차 정밀화(리랭킹)에 사용할 리랭커 프로바이더와 모델을 등록하고 관리하는 방법을 설명해요."
 summary_en: "How to register and manage the reranker providers and models used for second-pass retrieval precision in Knowledge Bases."
 spec: ["spec/2-navigation/6-config.md", "spec/5-system/9-rag-search.md"]
-code: ["codebase/backend/src/modules/rerank-config/rerank-config.controller.ts", "codebase/backend/src/modules/rerank-config/rerank-config.service.ts", "codebase/backend/src/modules/rerank-config/entities/rerank-config.entity.ts", "codebase/frontend/src/app/(main)/rerank-configs/page.tsx"]
+code: ["codebase/backend/src/modules/rerank-config/rerank-config.controller.ts", "codebase/backend/src/modules/rerank-config/rerank-config.service.ts", "codebase/backend/src/modules/rerank-config/entities/rerank-config.entity.ts", "codebase/frontend/src/app/(main)/models/page.tsx", "codebase/frontend/src/components/models/model-config-manager.tsx"]
 ---
 
-이 페이지에서는 지식 저장소의 검색 결과를 2차로 정밀화하는 **리랭커(Reranker)** 를 등록하고 관리하는 방법을 설명해요. 리랭커 설정을 마친 뒤에는 [지식 저장소](/docs/06-integrations-and-config/knowledge-base)의 Reranking 탭에서 컬렉션별로 활성화할 수 있어요.
+이 페이지에서는 지식 저장소의 검색 결과를 2차로 정밀화하는 **리랭커(Reranker)** 를 등록하고 관리하는 방법을 설명해요. 리랭커는 [모델 설정](/models?tab=rerank)의 **Rerank** 탭에서 관리해요. 리랭커 설정을 마친 뒤에는 [지식 저장소](/docs/06-integrations-and-config/knowledge-base)의 Reranking 탭에서 컬렉션별로 활성화할 수 있어요.
 
 ## 리랭커란?
 
@@ -30,14 +30,14 @@ code: ["codebase/backend/src/modules/rerank-config/rerank-config.controller.ts",
 
 ## 리랭커 추가하기
 
+**GUI 흐름**: 좌측 메뉴에서 [모델 설정](/models?tab=rerank)을 클릭한 뒤 **Rerank** 탭을 선택해요. 우측 상단의 `[+ Add Provider]` 를 눌러요.
+
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/rerank-configs/page.tsx"
-  symbol="RerankConfigsPage"
-  describes="리랭커 설정 목록 화면 — 리랭커 추가·수정·기본 지정"
+  file="codebase/frontend/src/app/(main)/models/page.tsx"
+  symbol="ModelsPage"
+  describes="통합 모델 설정 화면 — Rerank 탭에서 리랭커 추가·수정·기본 지정"
 />
-
-[리랭커 설정](/rerank-configs) 에서 우측 상단의 `[+ Add Reranker]` 를 눌러요.
 
 <Steps>
 <Step>프로바이더 드롭다운에서 `TEI (self-hosted)` 또는 `Cohere` 를 골라요.</Step>

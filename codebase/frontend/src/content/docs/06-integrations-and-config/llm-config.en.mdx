@@ -1,4 +1,4 @@
-This page explains how to register the LLM providers used by AI Agent, Text Classifier, and Information Extractor, and how to set their default models and parameters. Knowledge Base embedding models also reuse the providers defined here.
+This page explains how to register the LLM providers used by AI Agent, Text Classifier, and Information Extractor, and how to set their default models and parameters. Embedding models and rerankers are managed in separate tabs on the same screen.
 
 ## Supported providers
 
@@ -30,7 +30,14 @@ Token-level streaming in the Workflow AI Assistant and AI Agent works with every
 
 ## Adding a provider
 
-Click `[+ Add Provider]` at the top-right of [LLM configs](/llm-configs). Required fields vary slightly by provider.
+**GUI flow**: Click [Models](/models?tab=chat) in the left sidebar and select the **Chat** tab. Click `[+ Add Provider]` at the top right. Required fields vary slightly by provider.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/models/page.tsx"
+  symbol="ModelsPage"
+  describes="Unified Models screen — Chat tab for adding and managing LLM providers"
+/>
 
 <Steps>
 <Step>Pick a provider type from the dropdown: OpenAI · Anthropic · Google AI · Azure OpenAI · Local.</Step>
@@ -86,8 +93,8 @@ Provider-level defaults are inherited as initial values by every AI node. Each n
 
 ## Tips & notes
 
-- Change the default provider with a single call to `PATCH /api/llm-configs/:id/set-default`. Existing AI nodes aren't affected — only newly created ones.
-- It's fine to leave a provider without embedding support as the default. Knowledge Bases pick the embedding model per collection, so there's no conflict. See [Knowledge Base](/docs/06-integrations-and-config/knowledge-base).
+- Change the default provider using the `⭐ Set as default` button in the list. Existing AI nodes aren't affected — only newly created ones.
+- It's fine to leave a provider without embedding support as the default. Embedding models are managed separately in the **Embedding** tab at [Models](/models?tab=embedding). See also [Knowledge Base](/docs/06-integrations-and-config/knowledge-base).
 - How to tune per-node parameters: [AI nodes](/docs/02-nodes/ai).
 - For saved configs, list models via `GET /api/llm-configs/:id/models`. Before saving (while still in the form), use `POST /api/llm-configs/preview-models` with `{ provider, apiKey, baseUrl? }` — the preview endpoint never persists the API key and only uses it for the current request.
 - For Azure OpenAI, the model ID must be the deployment name. Using the standard model ID returns 404.

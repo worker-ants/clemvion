@@ -1,4 +1,4 @@
-This page explains how to register and manage **reranker** providers used to improve retrieval precision in Knowledge Bases. After setup, you can activate reranking per collection from the [Knowledge Base](/docs/06-integrations-and-config/knowledge-base) Reranking tab.
+This page explains how to register and manage **reranker** providers used to improve retrieval precision in Knowledge Bases. Rerankers are managed in the **Rerank** tab of the [Models](/models?tab=rerank) screen. After setup, you can activate reranking per collection from the [Knowledge Base](/docs/06-integrations-and-config/knowledge-base) Reranking tab.
 
 ## What is a reranker?
 
@@ -19,14 +19,14 @@ Key characteristics:
 
 ## Adding a reranker
 
+**GUI flow**: Click [Models](/models?tab=rerank) in the left sidebar and select the **Rerank** tab. Click `[+ Add Provider]` in the top right.
+
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/rerank-configs/page.tsx"
-  symbol="RerankConfigsPage"
-  describes="Reranker configs list page — add, edit, and set default reranker"
+  file="codebase/frontend/src/app/(main)/models/page.tsx"
+  symbol="ModelsPage"
+  describes="Unified Models screen — Rerank tab for adding and managing reranker providers"
 />
-
-At [Reranker configuration](/rerank-configs), click `[+ Add Reranker]` in the top right.
 
 <Steps>
 <Step>Pick a provider: `TEI (self-hosted)` or `Cohere`.</Step>
