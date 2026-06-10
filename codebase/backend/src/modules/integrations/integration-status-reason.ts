@@ -15,7 +15,9 @@ export const INTEGRATION_STATUS_REASONS = [
   'insufficient_scope', // 403 + scope 시그널 → status=error
   'network', // transport 오류 누적 → status=error
   // 만료 스캐너
-  'token_expired', // refresh_token 없는 provider 의 token_expires_at 만료 → status=expired (connected-expiry 0d). spec/2-navigation/4-integration.md §11.2. DB-only 슬러그 — JWT REST 에러 코드 `TOKEN_EXPIRED`·WS 이벤트 `auth.token_expired` 와 별개 네임스페이스.
+  // NOTE: DB-only 슬러그 — JWT REST 에러 코드 `TOKEN_EXPIRED` · WS 이벤트
+  // `auth.token_expired` 와 별개 네임스페이스. spec/2-navigation/4-integration.md §11.2.
+  'token_expired', // refresh_token 없는 provider 의 token_expires_at 만료 → status=expired
   // Cafe24 install 흐름
   'install_timeout', // pending_install 24h TTL 만료 → status=expired
   // OAuth callback 실패 사유 (pending_install 유지, 사용자 재시도 가능)

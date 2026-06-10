@@ -46,36 +46,31 @@ function repo(): Record<string, Mock> {
 }
 
 /**
- * W-4: 반복되는 알림 검증 패턴을 헬퍼로 추출.
+ * W-3: `notificationsService.createMany` 에 전달된 모든 호출의 알림 배열에서
+ * `resourceId` 목록을 통합해 반환한다. `createMany` 가 아직 호출되지 않은 경우 빈 배열.
  *
- * `getNotifResourceIds` — `notificationsService.createMany` 에 전달된 알림 배열의
- * `resourceId` 목록을 반환한다.  `createMany` 가 아직 호출되지 않은 경우 빈 배열.
- * 기존 이중 `.flat()` 패턴(`mock.calls.flat().flat()`)은 `createMany` 가 미호출이어도
- * 빈 배열이 되어 "알림 없음" assertion 이 항상 통과하는 약점이 있었다.
- * 본 헬퍼는 호출 횟수 검증을 분리하므로 그 약점을 드러낸다.
+ * @returns 모든 createMany 호출에 걸쳐 수집된 resourceId 문자열 배열.
  */
 function getNotifResourceIds(notificationsSvc: {
   createMany: jest.Mock;
 }): string[] {
   if (notificationsSvc.createMany.mock.calls.length === 0) return [];
-  const firstCall = notificationsSvc.createMany.mock.calls[0][0] as Array<{
-    resourceId?: string;
-  }>;
-  return firstCall.map((n) => n.resourceId ?? '');
+  return notificationsSvc.createMany.mock.calls.flatMap((c) =>
+    (c[0] as Array<{ resourceId?: string }>).map((n) => n.resourceId ?? ''),
+  );
 }
 
 /**
- * W-4: `integrationRepo.save` 가 `status='expired'` 인 행을 포함해 호출됐는지 검사.
- * 기존 `mock.calls.flat().arr.some(...)` 중첩 패턴 대체.
+ * W-4: `integrationRepo.save` 가 어느 호출에서든 `status='expired'` 인 행을
+ * 포함해 호출됐는지 전체 호출을 검사한다.
+ *
+ * @returns save() 의 모든 호출 인자를 순회해 expired 행이 하나라도 있으면 true.
  */
 function hasSavedExpired(integrationRepoMock: { save: jest.Mock }): boolean {
-  if (integrationRepoMock.save.mock.calls.length === 0) return false;
-  const firstCallArg = integrationRepoMock.save.mock.calls[0][0] as Array<{
-    status?: string;
-  }>;
-  return Array.isArray(firstCallArg)
-    ? firstCallArg.some((i) => i?.status === 'expired')
-    : false;
+  return integrationRepoMock.save.mock.calls.some((call) => {
+    const arg = call[0] as Array<{ status?: string }> | undefined;
+    return Array.isArray(arg) && arg.some((i) => i?.status === 'expired');
+  });
 }
 
 describe('IntegrationExpiryScannerService.run', () => {
@@ -480,9 +475,9 @@ describe('IntegrationExpiryScannerService.run', () => {
     // dedup claim 도 생성하지 않는다 (§11.2 의도적 설계 — W-3 주석 참조)
     expect(dispatchRepo.__insertBuilder.values).not.toHaveBeenCalled();
     // passive 알림 미발사
-    const args = (notificationsService.createMany.mock.calls[0]?.[0] ??
-      []) as Array<{ resourceId?: string }>;
-    expect(args.some((n) => n.resourceId === 'cafe24-7d-int')).toBe(false);
+    expect(getNotifResourceIds(notificationsService)).not.toContain(
+      'cafe24-7d-int',
+    );
   });
 
   // W-2: makeshop + refresh_token 이 3d 이내(tokenExpiresAt = now+2d) 인 경우에도
@@ -516,9 +511,9 @@ describe('IntegrationExpiryScannerService.run', () => {
 
     expect(count).toBe(0);
     expect(dispatchRepo.__insertBuilder.values).not.toHaveBeenCalled();
-    const args = (notificationsService.createMany.mock.calls[0]?.[0] ??
-      []) as Array<{ resourceId?: string }>;
-    expect(args.some((n) => n.resourceId === 'makeshop-3d-int')).toBe(false);
+    expect(getNotifResourceIds(notificationsService)).not.toContain(
+      'makeshop-3d-int',
+    );
   });
 
   it('skips thresholds already dispatched (unique violation)', async () => {
