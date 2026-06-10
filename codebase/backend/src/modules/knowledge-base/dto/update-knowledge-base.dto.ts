@@ -173,7 +173,7 @@ export class UpdateKnowledgeBaseDto {
 
   @ApiPropertyOptional({
     description:
-      'cross_encoder_llm grading LLMConfig (후속 구현). 미지정 시 ws default chat.',
+      'cross_encoder_llm 모드의 조건부 listwise grading LLMConfig. 미지정 시 ws default chat.',
     format: 'uuid',
   })
   @IsOptional()

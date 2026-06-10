@@ -31,12 +31,12 @@ export class RagSearchDto {
   @IsUUID('4', { each: true })
   knowledgeBaseIds: string[];
 
-  /** 반환할 최대 유사 청크 개수 */
+  /** 반환할 최대 유사 청크 개수 (inject-cap 상한) */
   @ApiPropertyOptional({
-    description: '반환할 최대 유사 청크 개수',
+    description:
+      '반환할 최대 유사 청크 개수(inject-cap 상한). 미지정 시 고정 default 가 아니라 token-budget + inject-cap 동적 점수 컷(§3.4)이 최종 주입 수를 결정한다.',
     minimum: 1,
     maximum: 50,
-    default: 5,
     example: 5,
   })
   @IsOptional()
