@@ -207,6 +207,57 @@ function syntaxCheck(wrappedCode: string): string | undefined {
   }
 }
 
+// Module-level compiled regexes (W8/INFO#9 — avoid per-call GC pressure).
+const RE_TIMED_OUT = /timed out/i;
+const RE_MEMORY_LIMIT = /memory limit/i;
+const RE_ISOLATE_DISPOSED = /Isolate was disposed/i;
+
+// Normalised mapping table for internal (legacy) → public error codes (W8 —
+// single place to add new codes; eliminates the triple-ternary chain in
+// failure()). Frozen at module load so a stray mutation can't reroute public
+// codes; the `ErrorCodeValue` value type pins every entry to a real
+// `ErrorCode` member, and the `string` key keeps arbitrary-code lookup valid.
+const LEGACY_TO_NORMALIZED: Readonly<Record<string, ErrorCodeValue>> =
+  Object.freeze({
+    EXECUTION_TIMEOUT: ErrorCode.CODE_TIMEOUT,
+    EXECUTION_MEMORY_EXCEEDED: ErrorCode.CODE_MEMORY_LIMIT,
+    CODE_RUNTIME_ERROR: ErrorCode.CODE_EXECUTION_FAILED,
+  });
+
+/**
+ * Map a thrown error from the isolate run onto an internal (legacy) error code.
+ *
+ * Classification priority (W2 — spoofing defence):
+ *  1. `err.code === 'EXECUTION_TIMEOUT'` — host-side wall-clock timeout (trusted,
+ *     set by the handler itself, never by user code).
+ *  2. `isolate.isDisposed === true` — the V8 Isolate was hard-killed by
+ *     isolated-vm (memory OOM or equivalent). User code cannot set this flag
+ *     without actually disposing the isolate, so `throw new Error("Isolate was
+ *     disposed")` does NOT trigger this branch — the isolate stays alive.
+ *  3. Message regex patterns — fallback only, lower trust.
+ *
+ * @internal Exported only for unit testing (code.handler.spec.ts). The name is
+ * intentionally Code-node-specific to avoid grep collisions with the unrelated
+ * private `classifyError` methods on the cafe24/makeshop MCP tool providers.
+ */
+export function classifyCodeNodeError(
+  err: CodeExecutionError,
+  isolate?: ivm.Isolate,
+): string {
+  // Priority 1: trusted host-set code (wall-clock timeout).
+  if (err?.code === 'EXECUTION_TIMEOUT') return 'EXECUTION_TIMEOUT';
+  // Priority 2: isolate was hard-disposed by isolated-vm (memory limit breach).
+  // isDisposed is a native flag; user code cannot spoof it.
+  if (isolate?.isDisposed) return 'EXECUTION_MEMORY_EXCEEDED';
+  // Priority 3: message pattern — fallback.
+  const message = typeof err?.message === 'string' ? err.message : '';
+  if (RE_TIMED_OUT.test(message)) return 'EXECUTION_TIMEOUT';
+  if (RE_MEMORY_LIMIT.test(message) || RE_ISOLATE_DISPOSED.test(message)) {
+    return 'EXECUTION_MEMORY_EXCEEDED';
+  }
+  return 'CODE_RUNTIME_ERROR';
+}
+
 export class CodeHandler implements NodeHandler {
   metadata = codeNodeMetadata;
 
@@ -449,55 +500,4 @@ export class CodeHandler implements NodeHandler {
       port: 'error',
     };
   }
-}
-
-// Module-level compiled regexes (W8/INFO#9 — avoid per-call GC pressure).
-const RE_TIMED_OUT = /timed out/i;
-const RE_MEMORY_LIMIT = /memory limit/i;
-const RE_ISOLATE_DISPOSED = /Isolate was disposed/i;
-
-// Normalised mapping table for internal (legacy) → public error codes (W8 —
-// single place to add new codes; eliminates the triple-ternary chain in
-// failure()). Frozen at module load so a stray mutation can't reroute public
-// codes; the `ErrorCodeValue` value type pins every entry to a real
-// `ErrorCode` member, and the `string` key keeps arbitrary-code lookup valid.
-const LEGACY_TO_NORMALIZED: Readonly<Record<string, ErrorCodeValue>> =
-  Object.freeze({
-    EXECUTION_TIMEOUT: ErrorCode.CODE_TIMEOUT,
-    EXECUTION_MEMORY_EXCEEDED: ErrorCode.CODE_MEMORY_LIMIT,
-    CODE_RUNTIME_ERROR: ErrorCode.CODE_EXECUTION_FAILED,
-  });
-
-/**
- * Map a thrown error from the isolate run onto an internal (legacy) error code.
- *
- * Classification priority (W2 — spoofing defence):
- *  1. `err.code === 'EXECUTION_TIMEOUT'` — host-side wall-clock timeout (trusted,
- *     set by the handler itself, never by user code).
- *  2. `isolate.isDisposed === true` — the V8 Isolate was hard-killed by
- *     isolated-vm (memory OOM or equivalent). User code cannot set this flag
- *     without actually disposing the isolate, so `throw new Error("Isolate was
- *     disposed")` does NOT trigger this branch — the isolate stays alive.
- *  3. Message regex patterns — fallback only, lower trust.
- *
- * @internal Exported only for unit testing (code.handler.spec.ts). The name is
- * intentionally Code-node-specific to avoid grep collisions with the unrelated
- * private `classifyError` methods on the cafe24/makeshop MCP tool providers.
- */
-export function classifyCodeNodeError(
-  err: CodeExecutionError,
-  isolate?: ivm.Isolate,
-): string {
-  // Priority 1: trusted host-set code (wall-clock timeout).
-  if (err?.code === 'EXECUTION_TIMEOUT') return 'EXECUTION_TIMEOUT';
-  // Priority 2: isolate was hard-disposed by isolated-vm (memory limit breach).
-  // isDisposed is a native flag; user code cannot spoof it.
-  if (isolate?.isDisposed) return 'EXECUTION_MEMORY_EXCEEDED';
-  // Priority 3: message pattern — fallback.
-  const message = typeof err?.message === 'string' ? err.message : '';
-  if (RE_TIMED_OUT.test(message)) return 'EXECUTION_TIMEOUT';
-  if (RE_MEMORY_LIMIT.test(message) || RE_ISOLATE_DISPOSED.test(message)) {
-    return 'EXECUTION_MEMORY_EXCEEDED';
-  }
-  return 'CODE_RUNTIME_ERROR';
 }
