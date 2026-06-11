@@ -564,17 +564,18 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
   }
 
   it('multi-turn AI 는 매 turn park(durable)·cold-rehydration 재개하며 thread 를 무손실 누적하고 end_conversation 으로 completed 한다', async () => {
-    // 1. LLM config 준비 — 정식 `POST /api/llm-configs` 경로로 생성한다.
+    // 1. Chat ModelConfig 준비 — 통합 `POST /api/model-configs` (kind=chat) 경로로 생성한다.
     //    api_key 는 `crypto.util.encrypt`(AES-256, ENCRYPTION_KEY=64-hex=32B)로
     //    암호화 저장된다(docker-compose.e2e.yml 에서 64-hex 로 세팅 — PR-B2a
     //    follow-up). LLM_STUB_MODE=true 에서는 `LlmService.createClient` 가
     //    복호화 이전에 StubLlmClient 를 반환하므로 apiKey 값 자체는 호출에
     //    쓰이지 않으나, 본 테스트는 생성 API(암호화 경로)까지 e2e 로 커버한다.
     const llmCreateRes = await request(BASE_URL)
-      .post('/api/llm-configs')
+      .post('/api/model-configs')
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send({
+        kind: 'chat',
         provider: 'openai',
         name: uniqueName('aiturnpark-llm'),
         apiKey: 'stub-not-used',
