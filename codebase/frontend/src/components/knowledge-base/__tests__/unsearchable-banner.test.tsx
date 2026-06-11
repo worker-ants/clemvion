@@ -87,15 +87,18 @@ describe("UnsearchableBanner", () => {
     ).toBeDisabled();
   });
 
-  it("admin (≥ editor) also sees the CTA — role hierarchy regression guard", () => {
-    setRole("admin");
-    render(
-      <UnsearchableBanner reembedStatus="idle" onReembed={vi.fn()} />,
-    );
-    expect(
-      screen.getByRole("button", { name: "Re-embed now" }),
-    ).toBeInTheDocument();
-  });
+  it.each(["admin", "owner"] as const)(
+    "%s (≥ editor) also sees the CTA — role hierarchy regression guard",
+    (role) => {
+      setRole(role);
+      render(
+        <UnsearchableBanner reembedStatus="idle" onReembed={vi.fn()} />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Re-embed now" }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("renders the per-state description paragraph", () => {
     setRole("editor");

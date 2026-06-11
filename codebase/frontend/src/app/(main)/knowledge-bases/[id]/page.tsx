@@ -567,7 +567,9 @@ export default function KnowledgeBaseDetailPage({
         <span>{t("knowledgeBases.documentsCount", { count: kb?.documentCount ?? 0 })}</span>
       </div>
 
-      {/* 검색 불가 배너 — embeddingDimension == null (검색 제외), 진행 박스 위 상단 (spec 2-navigation/5-knowledge-base §2.4.1·R-3) */}
+      {/* 검색 불가 배너 — embeddingDimension == null (검색 제외), 진행 박스 위 상단 (spec 2-navigation/5-knowledge-base §2.4.1·R-3).
+          배너는 KB REST 응답(+WS) 의 reembedStatus 를, 아래 진행 박스는 embeddingStats 폴링의 reembedStatus 를 본다 —
+          출처가 의도적으로 다르며(재임베딩 직후 일시적 불일치 가능) 배너는 KB 자체 상태만 반영한다. */}
       {kb && kb.embeddingDimension == null && (
         <UnsearchableBanner
           reembedStatus={kb.reembedStatus}

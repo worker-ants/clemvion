@@ -1,18 +1,58 @@
 "use client";
 
-import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCw, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RoleGate } from "@/components/auth/role-gate";
-import { useT } from "@/lib/i18n";
+import { useT, type TranslationKey } from "@/lib/i18n";
+import { cn } from "@/lib/utils/cn";
+import type { KnowledgeBaseData } from "@/lib/api/knowledge-bases";
 
-interface Props {
+/** 도메인 타입에서 파생 — KB 의 reembed_status 유니온이 늘면 STATE_CONFIG 분기도 컴파일 타임에 강제된다. */
+type ReembedStatus = KnowledgeBaseData["reembedStatus"];
+
+interface UnsearchableBannerProps {
   /** `embeddingDimension == null` KB 의 재임베딩 상태. 호출부가 게이트(null 일 때만 렌더)를 책임진다. */
-  reembedStatus: "idle" | "in_progress";
+  reembedStatus: ReembedStatus;
   /** [지금 재임베딩] CTA 클릭 핸들러 — 호출부가 기존 KB 전체 재임베딩 ConfirmModal 을 연다. */
   onReembed: () => void;
   /** 재임베딩 mutation 진행 여부 (CTA 비활성화). */
   pending?: boolean;
 }
+
+/**
+ * 상태별 표시 설정을 한 곳에 모은다 — `reembedStatus` 분기가 JSX 곳곳에 흩어지지 않게 하고,
+ * 상태값이 늘면 이 테이블 한 곳만 고치면 되도록(산탄총 수술 방지) 한다.
+ */
+const STATE_CONFIG: Record<
+  ReembedStatus,
+  {
+    container: string;
+    icon: LucideIcon;
+    iconSpin: boolean;
+    titleKey: TranslationKey;
+    descKey: TranslationKey;
+    showCta: boolean;
+  }
+> = {
+  idle: {
+    container:
+      "border-[hsl(var(--destructive)/0.3)] bg-[hsl(var(--destructive)/0.08)] text-[hsl(var(--destructive))]",
+    icon: AlertTriangle,
+    iconSpin: false,
+    titleKey: "knowledgeBases.reembeddingRequired",
+    descKey: "knowledgeBases.unsearchableBannerIdleDesc",
+    showCta: true,
+  },
+  in_progress: {
+    container:
+      "border-[hsl(var(--primary)/0.3)] bg-[hsl(var(--primary)/0.08)] text-[hsl(var(--primary))]",
+    icon: Loader2,
+    iconSpin: true,
+    titleKey: "knowledgeBases.reembeddingInProgress",
+    descKey: "knowledgeBases.unsearchableBannerInProgressDesc",
+    showCta: false,
+  },
+};
 
 /**
  * KB 상세 상단 "검색 불가" 배너. `embeddingDimension == null` 인 KB 가 RAG 검색에서
@@ -24,37 +64,32 @@ interface Props {
  *   read 권한자도 알아야 하므로 텍스트는 항상 노출한다.
  * - `in_progress` 에서는 `POST /re-embed` 가 409 로 거부되므로 CTA 를 숨기고 진행 표시만 둔다.
  */
-export function UnsearchableBanner({ reembedStatus, onReembed, pending }: Props) {
+export function UnsearchableBanner({
+  reembedStatus,
+  onReembed,
+  pending,
+}: UnsearchableBannerProps) {
   const t = useT();
-  const inProgress = reembedStatus === "in_progress";
+  const cfg = STATE_CONFIG[reembedStatus];
+  const Icon = cfg.icon;
 
   return (
     <div
       role="alert"
-      className={`flex flex-wrap items-center gap-3 rounded-lg border p-4 text-sm ${
-        inProgress
-          ? "border-[hsl(var(--primary)/0.3)] bg-[hsl(var(--primary)/0.08)] text-[hsl(var(--primary))]"
-          : "border-[hsl(var(--destructive)/0.3)] bg-[hsl(var(--destructive)/0.08)] text-[hsl(var(--destructive))]"
-      }`}
-    >
-      {inProgress ? (
-        <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
-      ) : (
-        <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+      className={cn(
+        "flex flex-wrap items-center gap-3 rounded-lg border p-4 text-sm",
+        cfg.container,
       )}
+    >
+      <Icon
+        className={cn("h-4 w-4 shrink-0", cfg.iconSpin && "animate-spin")}
+        aria-hidden="true"
+      />
       <div className="flex-1">
-        <div className="font-medium">
-          {inProgress
-            ? t("knowledgeBases.reembeddingInProgress")
-            : t("knowledgeBases.reembeddingRequired")}
-        </div>
-        <p className="text-[hsl(var(--muted-foreground))]">
-          {inProgress
-            ? t("knowledgeBases.unsearchableBannerInProgressDesc")
-            : t("knowledgeBases.unsearchableBannerIdleDesc")}
-        </p>
+        <div className="font-medium">{t(cfg.titleKey)}</div>
+        <p className="text-[hsl(var(--muted-foreground))]">{t(cfg.descKey)}</p>
       </div>
-      {!inProgress && (
+      {cfg.showCta && (
         <RoleGate minRole="editor">
           <Button
             size="sm"
