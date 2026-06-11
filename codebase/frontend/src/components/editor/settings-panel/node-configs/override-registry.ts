@@ -14,12 +14,6 @@ import {
 // Flow
 import { WorkflowConfig } from "./flow-configs";
 
-// AI
-import {
-  TextClassifierConfig,
-  InformationExtractorConfig,
-} from "./ai-configs";
-
 // Integration
 import {
   HttpRequestConfig,
@@ -68,9 +62,10 @@ export const OVERRIDE_REGISTRY: Record<string, ComponentType<ConfigProps>> = {
   filter: FilterConfig,
   // Flow
   workflow: WorkflowConfig,
-  // AI — ai_agent migrated to auto-form (schema-driven)
-  text_classifier: TextClassifierConfig,
-  information_extractor: InformationExtractorConfig,
+  // AI — ai_agent · text_classifier · information_extractor migrated to
+  // auto-form (schema-driven). Their zod schemas emit full ui hints
+  // (conversation-context · agent-memory · system-context · field-array
+  // examples/enumValues), so the bespoke forms were redundant (cross-audit V-02).
   // Integration
   http_request: HttpRequestConfig,
   database_query: DatabaseQueryConfig,
