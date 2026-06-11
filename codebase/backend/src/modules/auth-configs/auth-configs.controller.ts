@@ -97,8 +97,10 @@ export class AuthConfigsController {
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() body: CreateAuthConfigDto,
+    @CurrentUser('sub') userId: string,
+    @Req() req: Request,
   ) {
-    return this.authConfigsService.create(workspaceId, body);
+    return this.authConfigsService.create(workspaceId, body, userId, req.ip);
   }
 
   @Patch(':id')
@@ -118,8 +120,16 @@ export class AuthConfigsController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @Body() body: UpdateAuthConfigDto,
+    @CurrentUser('sub') userId: string,
+    @Req() req: Request,
   ) {
-    return this.authConfigsService.update(id, workspaceId, body);
+    return this.authConfigsService.update(
+      id,
+      workspaceId,
+      body,
+      userId,
+      req.ip,
+    );
   }
 
   @Get(':id/usage')
@@ -157,8 +167,10 @@ export class AuthConfigsController {
   async regenerate(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
+    @Req() req: Request,
   ) {
-    return this.authConfigsService.regenerate(id, workspaceId);
+    return this.authConfigsService.regenerate(id, workspaceId, userId, req.ip);
   }
 
   @Post(':id/reveal')
@@ -212,7 +224,9 @@ export class AuthConfigsController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
+    @Req() req: Request,
   ) {
-    await this.authConfigsService.remove(id, workspaceId);
+    await this.authConfigsService.remove(id, workspaceId, userId, req.ip);
   }
 }

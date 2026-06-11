@@ -23,6 +23,10 @@ export const AUDIT_ACTIONS = {
   INTEGRATION_REAUTHORIZED: 'integration.reauthorized',
   WORKSPACE_TRANSFER_OWNERSHIP: 'workspace.transfer_ownership',
   EXECUTION_RE_RUN: 'execution.re_run',
+  AUTH_CONFIG_CREATE: 'auth_config.create',
+  AUTH_CONFIG_UPDATE: 'auth_config.update',
+  AUTH_CONFIG_DELETE: 'auth_config.delete',
+  AUTH_CONFIG_REGENERATE: 'auth_config.regenerate',
   AUTH_CONFIG_REVEAL: 'auth_config.reveal',
 } as const;
 

@@ -44,6 +44,7 @@ function makeAuthConfigRepo() {
 }
 
 const WS = 'ws-1';
+const USER = 'user-1';
 
 describe('AuthConfigsService', () => {
   let service: AuthConfigsService;
@@ -72,43 +73,63 @@ describe('AuthConfigsService', () => {
 
   describe('create — 자동 발급', () => {
     it('api_key: key=wfk_<hex48> 자동 발급', async () => {
-      const ac = await service.create(WS, {
-        type: 'api_key',
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'api_key',
+        } as Partial<AuthConfig>,
+        USER,
+      );
       expect(ac.config.key).toMatch(/^wfk_[0-9a-f]{48}$/);
     });
 
     it('bearer_token: token=wft_<hex64> 자동 발급', async () => {
-      const ac = await service.create(WS, {
-        type: 'bearer_token',
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'bearer_token',
+        } as Partial<AuthConfig>,
+        USER,
+      );
       expect(ac.config.token).toMatch(/^wft_[0-9a-f]{64}$/);
     });
 
     it('hmac: secret=whs_<hex64> 자동 발급 + header/algorithm default', async () => {
-      const ac = await service.create(WS, {
-        type: 'hmac',
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'hmac',
+        } as Partial<AuthConfig>,
+        USER,
+      );
       expect(ac.config.secret).toMatch(/^whs_[0-9a-f]{64}$/);
       expect(ac.config.header).toBe('X-Hub-Signature-256');
       expect(ac.config.algorithm).toBe('sha256');
     });
 
     it('hmac: 사용자가 header/algorithm 지정 시 보존', async () => {
-      const ac = await service.create(WS, {
-        type: 'hmac',
-        config: { header: 'Stripe-Signature', algorithm: 'sha512' },
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'hmac',
+          config: { header: 'Stripe-Signature', algorithm: 'sha512' },
+        } as Partial<AuthConfig>,
+        USER,
+      );
       expect(ac.config.header).toBe('Stripe-Signature');
       expect(ac.config.algorithm).toBe('sha512');
       expect(ac.config.secret).toMatch(/^whs_/);
     });
 
     it('basic_auth: 자동 발급 없음 — username/password 보존', async () => {
-      const ac = await service.create(WS, {
-        type: 'basic_auth',
-        config: { username: 'u', password: 'p' },
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'basic_auth',
+          config: { username: 'u', password: 'p' },
+        } as Partial<AuthConfig>,
+        USER,
+      );
       expect(ac.config.username).toBe('u');
       expect(ac.config.password).toBe('p');
       expect(ac.config.key).toBeUndefined();
@@ -117,12 +138,16 @@ describe('AuthConfigsService', () => {
 
   describe('regenerate', () => {
     it('hmac: secret 만 교체, header/algorithm 보존', async () => {
-      const ac = await service.create(WS, {
-        type: 'hmac',
-        config: { header: 'X-Sig', algorithm: 'sha512' },
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'hmac',
+          config: { header: 'X-Sig', algorithm: 'sha512' },
+        } as Partial<AuthConfig>,
+        USER,
+      );
       const oldSecret = ac.config.secret;
-      const re = await service.regenerate(ac.id, WS);
+      const re = await service.regenerate(ac.id, WS, USER);
       expect(re.config.secret).not.toBe(oldSecret);
       expect(re.config.secret).toMatch(/^whs_/);
       expect(re.config.header).toBe('X-Sig');
@@ -130,40 +155,137 @@ describe('AuthConfigsService', () => {
     });
 
     it('api_key: key 교체', async () => {
-      const ac = await service.create(WS, {
-        type: 'api_key',
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'api_key',
+        } as Partial<AuthConfig>,
+        USER,
+      );
       const old = ac.config.key;
-      const re = await service.regenerate(ac.id, WS);
+      const re = await service.regenerate(ac.id, WS, USER);
       expect(re.config.key).not.toBe(old);
       expect(re.config.key).toMatch(/^wfk_/);
     });
   });
 
+  describe('CRUD audit 기록 (spec/5-system/1-auth.md §4.1)', () => {
+    it('create → auth_config.create 기록 (resourceId·userId·ipAddress)', async () => {
+      const ac = await service.create(
+        WS,
+        { type: 'api_key' } as Partial<AuthConfig>,
+        USER,
+        '1.2.3.4',
+      );
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'auth_config.create',
+          resourceType: 'auth_config',
+          resourceId: ac.id,
+          workspaceId: WS,
+          userId: USER,
+          ipAddress: '1.2.3.4',
+        }),
+      );
+    });
+
+    it('update → auth_config.update 기록', async () => {
+      const ac = await service.create(
+        WS,
+        { type: 'api_key', name: 'a' } as Partial<AuthConfig>,
+        USER,
+      );
+      audit.record.mockClear();
+      await service.update(
+        ac.id,
+        WS,
+        { name: 'b' } as Partial<AuthConfig>,
+        USER,
+      );
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'auth_config.update',
+          resourceType: 'auth_config',
+          resourceId: ac.id,
+          workspaceId: WS,
+          userId: USER,
+        }),
+      );
+    });
+
+    it('regenerate → auth_config.regenerate 기록', async () => {
+      const ac = await service.create(
+        WS,
+        { type: 'api_key' } as Partial<AuthConfig>,
+        USER,
+      );
+      audit.record.mockClear();
+      await service.regenerate(ac.id, WS, USER);
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'auth_config.regenerate',
+          resourceType: 'auth_config',
+          resourceId: ac.id,
+          userId: USER,
+        }),
+      );
+    });
+
+    it('remove → auth_config.delete 기록 (삭제 후에도 resourceId 보존)', async () => {
+      const ac = await service.create(
+        WS,
+        { type: 'api_key' } as Partial<AuthConfig>,
+        USER,
+      );
+      audit.record.mockClear();
+      await service.remove(ac.id, WS, USER);
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'auth_config.delete',
+          resourceType: 'auth_config',
+          resourceId: ac.id,
+          userId: USER,
+        }),
+      );
+    });
+  });
+
   describe('findByIdForResponse — 마스킹', () => {
     it('secret 류 필드만 ***<last4> 마스킹, 메타는 평문', async () => {
-      const ac = await service.create(WS, {
-        type: 'basic_auth',
-        config: { username: 'alice', password: 'supersecret' },
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'basic_auth',
+          config: { username: 'alice', password: 'supersecret' },
+        } as Partial<AuthConfig>,
+        USER,
+      );
       const masked = await service.findByIdForResponse(ac.id, WS);
       expect(masked.config.password).toBe('***cret');
       expect(masked.config.username).toBe('alice'); // 평문 유지
     });
 
     it('짧은 값(<4)은 *** 로만', async () => {
-      const ac = await service.create(WS, {
-        type: 'basic_auth',
-        config: { username: 'u', password: 'ab' },
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'basic_auth',
+          config: { username: 'u', password: 'ab' },
+        } as Partial<AuthConfig>,
+        USER,
+      );
       const masked = await service.findByIdForResponse(ac.id, WS);
       expect(masked.config.password).toBe('***');
     });
 
     it('hmac header/algorithm 은 평문, secret 은 마스킹', async () => {
-      const ac = await service.create(WS, {
-        type: 'hmac',
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'hmac',
+        } as Partial<AuthConfig>,
+        USER,
+      );
       const masked = await service.findByIdForResponse(ac.id, WS);
       expect(masked.config.header).toBe('X-Hub-Signature-256');
       expect(masked.config.algorithm).toBe('sha256');
@@ -177,11 +299,15 @@ describe('AuthConfigsService', () => {
       config: Record<string, unknown>,
       extra: Partial<AuthConfig> = {},
     ) {
-      return service.create(WS, {
-        type,
-        config,
-        ...extra,
-      } as Partial<AuthConfig>);
+      return service.create(
+        WS,
+        {
+          type,
+          config,
+          ...extra,
+        } as Partial<AuthConfig>,
+        USER,
+      );
     }
 
     it('bearer_token: 올바른 토큰 → 통과 + lastUsedAt 갱신', async () => {
@@ -456,9 +582,13 @@ describe('AuthConfigsService', () => {
     const userId = 'user-1';
 
     it('올바른 비밀번호 → 평문 config 반환 + audit 기록', async () => {
-      const ac = await service.create(WS, {
-        type: 'bearer_token',
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'bearer_token',
+        } as Partial<AuthConfig>,
+        USER,
+      );
       const plainToken = ac.config.token as string;
       userRepo.findOne.mockResolvedValue({
         id: userId,
@@ -479,9 +609,16 @@ describe('AuthConfigsService', () => {
     });
 
     it('잘못된 비밀번호 → 401, audit 미기록', async () => {
-      const ac = await service.create(WS, {
-        type: 'bearer_token',
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'bearer_token',
+        } as Partial<AuthConfig>,
+        USER,
+      );
+      // create 단계의 auth_config.create 기록을 제거 — 이 테스트는 reveal 실패가
+      // auth_config.reveal 을 기록하지 않음만 검증한다.
+      audit.record.mockClear();
       userRepo.findOne.mockResolvedValue({
         id: userId,
         passwordHash: await bcrypt.hash('pw', 4),
@@ -493,9 +630,13 @@ describe('AuthConfigsService', () => {
     });
 
     it('passwordHash 없음(OAuth-only) → 401', async () => {
-      const ac = await service.create(WS, {
-        type: 'bearer_token',
-      } as Partial<AuthConfig>);
+      const ac = await service.create(
+        WS,
+        {
+          type: 'bearer_token',
+        } as Partial<AuthConfig>,
+        USER,
+      );
       userRepo.findOne.mockResolvedValue({ id: userId, passwordHash: null });
       await expect(
         service.reveal(ac.id, WS, userId, 'pw', '1.2.3.4'),

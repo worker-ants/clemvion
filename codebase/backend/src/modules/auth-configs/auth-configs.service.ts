@@ -98,6 +98,8 @@ export class AuthConfigsService {
   async create(
     workspaceId: string,
     data: Partial<AuthConfig>,
+    userId: string,
+    ipAddress?: string,
   ): Promise<AuthConfig> {
     const config: Record<string, unknown> =
       (data.config as Record<string, unknown>) || {};
@@ -123,21 +125,45 @@ export class AuthConfigsService {
       config,
       workspaceId,
     });
-    return this.authConfigRepository.save(authConfig);
+    const saved = await this.authConfigRepository.save(authConfig);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
+      resourceType: 'auth_config',
+      resourceId: saved.id,
+      ipAddress,
+    });
+    return saved;
   }
 
   async update(
     id: string,
     workspaceId: string,
     data: Partial<AuthConfig>,
+    userId: string,
+    ipAddress?: string,
   ): Promise<AuthConfig> {
     const config = await this.findById(id, workspaceId);
     Object.assign(config, data);
     const saved = await this.authConfigRepository.save(config);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.AUTH_CONFIG_UPDATE,
+      resourceType: 'auth_config',
+      resourceId: id,
+      ipAddress,
+    });
     return this.toMasked(saved);
   }
 
-  async regenerate(id: string, workspaceId: string): Promise<AuthConfig> {
+  async regenerate(
+    id: string,
+    workspaceId: string,
+    userId: string,
+    ipAddress?: string,
+  ): Promise<AuthConfig> {
     const config = await this.findById(id, workspaceId);
     const configData = config.config || {};
 
@@ -151,12 +177,34 @@ export class AuthConfigsService {
     }
     config.config = configData;
     // 재발급 응답은 신규 값을 1회 평문 노출.
-    return this.authConfigRepository.save(config);
+    const saved = await this.authConfigRepository.save(config);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.AUTH_CONFIG_REGENERATE,
+      resourceType: 'auth_config',
+      resourceId: id,
+      ipAddress,
+    });
+    return saved;
   }
 
-  async remove(id: string, workspaceId: string): Promise<void> {
+  async remove(
+    id: string,
+    workspaceId: string,
+    userId: string,
+    ipAddress?: string,
+  ): Promise<void> {
     const config = await this.findById(id, workspaceId);
     await this.authConfigRepository.remove(config);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.AUTH_CONFIG_DELETE,
+      resourceType: 'auth_config',
+      resourceId: id,
+      ipAddress,
+    });
   }
 
   /**
