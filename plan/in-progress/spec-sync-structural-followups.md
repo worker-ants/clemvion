@@ -111,8 +111,8 @@ C 항목 구현 완료로 대응 spec frontmatter `status: partial → implement
 - **위치**: `codebase/backend/src/modules/executions/executions.service.ts:648-682 (toExecutionDto 메서드)`
 - **증상**: frontend executions/page.tsx (line 252-258)에서 execution.nodeExecutions 필드를 기반으로 완료/전체 노드 수를 집계해 표시하려 하나, 목록 API 응답 ExecutionDto에 nodeExecutions 필드가 전혀 없으므로 항상 undefined → 항상 0 → Nodes 열이 "—" 표시됨. 현재 toExecutionDto는 executionPath만 [] 로 채우고 nodeExecutions는 필드 자체를 응답하지 않음.
 - **기대 동작**: spec/2-navigation/14-execution-history.md §2.4 테이블: Nodes 열에 "완료 수/전체 수" 또는 실패 시 "(N failed)" 추가 표시. 목록 API(GET /api/executions/workflow/:workflowId)의 ExecutionDto 응답에 nodesExecutions 배열을 포함하거나 completedNodeCount/totalNodeCount 같은 집계 컬럼을 추가해야 함.
-- **수정 힌트**: 두 가지 방안: (1) ExecutionDto에 nodeExecutions 배열 직접 포함 (N+1 성능 우려) 또는 (2) completedNodeCount, totalNodeCount, failedNodeCount 같은 집계 컬럼 3개를 toExecutionDto에서 계산해 응답. plan/in-progress/spec-sync-execution-history-gaps.md 에서 N+1 회피 관점 언급했으므로, 방안 (2)가 권장: NodeExecution 관계를 로드하지 않고 execution_node_executions 테이블의 status로 집계하거나, 별도 집계 쿼리. 응답 형식 또는 DTO 확장 후 frontend 집계 로직(현재 page.tsx 252-258)이 자동으로 작동하도록 조정.
-- **근거(spec/plan)**: spec/2-navigation/14-execution-history.md: §2.4 Nodes 열 + 위 경고 문단(line 162-163 주석). plan/in-progress/spec-sync-execution-history-gaps.md 미구현 항목(line 13). 
+- **수정 힌트**: 두 가지 방안: (1) ExecutionDto에 nodeExecutions 배열 직접 포함 (N+1 성능 우려) 또는 (2) completedNodeCount, totalNodeCount, failedNodeCount 같은 집계 컬럼 3개를 toExecutionDto에서 계산해 응답. plan/complete/spec-sync-execution-history-gaps.md 에서 N+1 회피 관점 언급했으므로, 방안 (2)가 권장: NodeExecution 관계를 로드하지 않고 execution_node_executions 테이블의 status로 집계하거나, 별도 집계 쿼리. 응답 형식 또는 DTO 확장 후 frontend 집계 로직(현재 page.tsx 252-258)이 자동으로 작동하도록 조정.
+- **근거(spec/plan)**: spec/2-navigation/14-execution-history.md: §2.4 Nodes 열 + 위 경고 문단(line 162-163 주석). plan/complete/spec-sync-execution-history-gaps.md 미구현 항목(line 13). 
 
 ### C-8. Dashboard Success Rate 분모 및 최근 워크플로우 정렬 컬럼 불일치  — ✅ FIXED (this PR)
 
