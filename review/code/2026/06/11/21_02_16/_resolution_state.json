@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "started_at": "2026-06-11T12:00:00Z",
+  "summary_items_total": 1,
+  "items_resolved_ids": [1],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "8155d6df", "summary_id": 1, "scope": "model-config"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260611-211221.log"],
+  "auto_fix_iterations": {"1": 1},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}

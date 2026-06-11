@@ -1,5 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { ModelConfigController } from './model-config.controller';
+import { CustomValidationPipe } from '../../common/pipes/validation.pipe';
+import { ListModelConfigsQueryDto } from './dto/list-model-configs-query.dto';
 import type { ModelConfigService } from './model-config.service';
 import type { LlmService } from '../llm/llm.service';
 import type { LlmPreviewService } from '../llm/llm-preview.service';
@@ -51,40 +53,125 @@ describe('ModelConfigController', () => {
   describe('findAll / parseKind', () => {
     it('throws BadRequestException when kind is undefined', async () => {
       await expect(
-        controller.findAll('ws-1', undefined as any, { page: 1, limit: 20 }),
+        controller.findAll('ws-1', { page: 1, limit: 20 } as any),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException when kind is an invalid string', async () => {
       await expect(
-        controller.findAll('ws-1', 'unknown' as any, { page: 1, limit: 20 }),
+        controller.findAll('ws-1', {
+          kind: 'unknown',
+          page: 1,
+          limit: 20,
+        } as any),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('delegates to service with valid kind=chat', async () => {
-      await controller.findAll('ws-1', 'chat', { page: 1, limit: 20 });
+      const query = { kind: 'chat', page: 1, limit: 20 };
+      await controller.findAll('ws-1', query as any);
       expect(mockModelConfigService.findAll).toHaveBeenCalledWith(
         'ws-1',
         'chat',
-        { page: 1, limit: 20 },
+        query,
       );
     });
 
     it('delegates to service with valid kind=embedding', async () => {
-      await controller.findAll('ws-1', 'embedding', { page: 1, limit: 20 });
+      const query = { kind: 'embedding', page: 1, limit: 20 };
+      await controller.findAll('ws-1', query as any);
       expect(mockModelConfigService.findAll).toHaveBeenCalledWith(
         'ws-1',
         'embedding',
-        { page: 1, limit: 20 },
+        query,
       );
     });
 
     it('delegates to service with valid kind=rerank', async () => {
-      await controller.findAll('ws-1', 'rerank', { page: 1, limit: 20 });
+      const query = { kind: 'rerank', page: 1, limit: 20 };
+      await controller.findAll('ws-1', query as any);
       expect(mockModelConfigService.findAll).toHaveBeenCalledWith(
         'ws-1',
         'rerank',
-        { page: 1, limit: 20 },
+        query,
+      );
+    });
+  });
+
+  // ── Regression: `kind` must survive the global whitelist ValidationPipe ─────
+  // Previously findAll bound `@Query() query: PaginationQueryDto`, so the
+  // `kind` query param (not a PaginationQueryDto property) was rejected by
+  // `forbidNonWhitelisted` with "property kind should not exist" → HTTP 400 on
+  // the /models page. The dedicated ListModelConfigsQueryDto whitelists `kind`.
+  describe('ListModelConfigsQueryDto whitelist', () => {
+    // WARNING#1 fix: pipe/metadata instantiated per-test in beforeEach for full
+    // isolation — avoids shared state if pipe ever becomes stateful.
+    let pipe: CustomValidationPipe;
+    let metadata: { type: 'query'; metatype: typeof ListModelConfigsQueryDto };
+
+    beforeEach(() => {
+      pipe = new CustomValidationPipe();
+      metadata = {
+        type: 'query' as const,
+        metatype: ListModelConfigsQueryDto,
+      };
+    });
+
+    it('passes the global whitelist pipe with kind + pagination present', async () => {
+      const result = (await pipe.transform(
+        { kind: 'chat', limit: '100' },
+        metadata,
+      )) as ListModelConfigsQueryDto;
+      expect(result.kind).toBe('chat');
+      expect(result.limit).toBe(100);
+    });
+
+    it('still rejects an unknown query property (whitelist intact)', async () => {
+      await expect(
+        pipe.transform({ kind: 'chat', bogus: 'x' }, metadata),
+      ).rejects.toThrow('Input validation failed');
+    });
+
+    // WARNING#2 fix: page default value when omitted
+    it('defaults page to 1 when page is not provided', async () => {
+      const result = (await pipe.transform(
+        { kind: 'chat' },
+        metadata,
+      )) as ListModelConfigsQueryDto;
+      expect(result.page).toBe(1);
+    });
+
+    // WARNING#2 fix: sort/order defaults when omitted
+    it('defaults sort to created_at and order to desc when omitted', async () => {
+      const result = (await pipe.transform(
+        { kind: 'chat' },
+        metadata,
+      )) as ListModelConfigsQueryDto;
+      expect(result.sort).toBe('created_at');
+      expect(result.order).toBe('desc');
+    });
+
+    // WARNING#2 fix: kind as number (not string) must be rejected by @IsString
+    it('rejects kind when provided as a number (type coercion guard)', async () => {
+      await expect(pipe.transform({ kind: 123 }, metadata)).rejects.toThrow(
+        'Input validation failed',
+      );
+    });
+
+    // WARNING#2 + WARNING#3 fix: empty string kind passes @IsString but must be
+    // caught by parseKind's !kind falsy branch → BadRequestException
+    it('throws BadRequestException when kind is empty string', async () => {
+      // The pipe passes '' (satisfies @IsString @IsOptional), but parseKind
+      // rejects it via the `!kind` falsy guard.
+      const result = (await pipe.transform(
+        { kind: '' },
+        metadata,
+      )) as ListModelConfigsQueryDto;
+      // Pipe itself accepts it (IsString passes on '')
+      expect(result.kind).toBe('');
+      // Controller then rejects it
+      await expect(controller.findAll('ws-1', result as any)).rejects.toThrow(
+        BadRequestException,
       );
     });
   });
@@ -174,6 +261,22 @@ describe('ModelConfigController', () => {
       const roles = Reflect.getMetadata(
         'roles',
         ModelConfigController.prototype.remove,
+      );
+      expect(roles).toContain('editor');
+    });
+
+    it("setDefault method has 'editor' role metadata", () => {
+      const roles = Reflect.getMetadata(
+        'roles',
+        ModelConfigController.prototype.setDefault,
+      );
+      expect(roles).toContain('editor');
+    });
+
+    it("previewModels method has 'editor' role metadata", () => {
+      const roles = Reflect.getMetadata(
+        'roles',
+        ModelConfigController.prototype.previewModels,
       );
       expect(roles).toContain('editor');
     });
