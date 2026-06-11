@@ -145,7 +145,7 @@ describe('DatabaseQueryHandler', () => {
         .spyOn(handler, 'invalidatePool')
         .mockResolvedValue(undefined);
 
-      registered?.('int-1');
+      void registered?.('int-1');
 
       expect(invalidateSpy).toHaveBeenCalledWith('int-1');
     });
