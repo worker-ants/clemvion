@@ -154,12 +154,11 @@ export class HttpRequestHandler
       typeof rawConfig.url === 'string'
         ? sanitizeUrlCredentials(rawConfig.url)
         : rawConfig.url;
-    // Spread + URL override — adding a new schema field is automatically
-    // echoed without a maintenance step here (review W-6).
     // CONVENTIONS Principle 7 (D1) — echo by **explicit field enumeration**,
     // never `{ ...rawConfig }`. Spreading would auto-leak any future
-    // credential-shaped config field into the output; enumerating the schema
-    // fields (http-request.schema.ts) keeps the echo a known, audited surface.
+    // credential-shaped config field into the output. NOTE: adding a new
+    // schema field (http-request.schema.ts) requires adding it here too — this
+    // manual sync is intentional; it keeps the echo a known, audited surface.
     // `url` carries the credential-sanitized value.
     const configEcho: Record<string, unknown> = {
       method: rawConfig.method,
@@ -340,9 +339,8 @@ export class HttpRequestHandler
     // http-safety, so no auth-method gating is needed here (refactor 04 C-3).
     //
     // Two-layer 검증: 호스트 리터럴 (IP 직접 지정 차단) → DNS resolve 후 IP
-    // 재검사 (DNS rebinding 차단). 이전엔 hostname literal 검사만 했기 때문에
-    // 공격자가 통제하는 DNS 가 공개 hostname 을 내부 IP 로 reso 시키는 시나리오에
-    // 무방어였다 (W-4).
+    // 재검사 (DNS rebinding 차단). hostname literal 검사만으로는 공격자가 통제하는
+    // DNS 가 공개 hostname 을 내부 IP 로 resolve 하는 DNS rebinding 시나리오에 무방어다.
     try {
       const parsed = assertSafeOutboundUrl(url);
       await assertSafeOutboundHostResolved(parsed.hostname);

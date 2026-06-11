@@ -579,6 +579,10 @@ export const ERROR_KO: Record<string, string> = {
     "해당 모델 설정을 찾을 수 없어요.",
   ENCRYPTION_KEY_MISSING:
     "암호화 키가 설정되어 있지 않아요. 관리자에게 문의해 주세요.",
+  // refactor 04 C-3 — SSRF 가드(전 인증 방식 공통). 내부망·클라우드 메타데이터
+  // 주소 차단. self-host 가 사설망에 정당 접근해야 하면 ALLOW_PRIVATE_HOST_TARGETS.
+  HTTP_BLOCKED:
+    "보안 정책(SSRF 방지)에 의해 해당 주소로의 요청이 차단됐어요. 내부망·loopback·클라우드 메타데이터 주소는 기본 차단되며, 자체 호스팅 환경에서 사설망 접근이 필요하면 관리자가 ALLOW_PRIVATE_HOST_TARGETS 를 설정해야 해요.",
 };
 
 /**
