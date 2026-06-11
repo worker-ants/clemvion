@@ -20,10 +20,10 @@ owner: developer
 - [ ] none/custom × {IMDS, RFC1918, localhost} 교차 조합 `test.each`. custom opt-out. dry-run × none/custom SSRF skip. SSRF 차단(error 경로) configEcho Principle 7 D1 credential 미포함 단언. `backend-labels HTTP_BLOCKED` i18n 매핑 테스트.
 
 ## Spec (planner)
-- [ ] **§4 step8 dry-run 노트**: "dry-run 실행 시 실제 fetch 없으므로 SSRF 가드 생략(`13-replay-rerun §7`)" 1줄(ai-review I6/SPEC-DRIFT).
-- [ ] **node-output.md D4 callout / Principle 7 D1 anchor**: 링크 anchor 정밀화.
-- [ ] **§4.2 Usage 로깅 매트릭스**: SSRF 차단 행에 "integration 한정 기록; none/custom 은 error 포트만" 비고.
-- [ ] **0-overview §6.1·mcp-client §3.2·4-execution-engine §10**: SSRF 전 인증 공통/meta.durationMs 동기화(--impl-done INFO).
+- [x] **§4 step8 dry-run 노트**: "dry-run 실행 시 실제 fetch 없으므로 SSRF 가드 생략(`13-replay-rerun §7`)" 1줄(ai-review I6/SPEC-DRIFT). **(완료, PR spec-errcode-catalog 그룹2a)**
+- [x] **node-output.md D4 callout / Principle 7 D1 anchor**: 링크 anchor 정밀화. **(완료, 그룹2a — D4 callout 의 1-http-request §5.8 링크에 정밀 anchor 추가. Principle 7 D1 은 bold inline 이라 heading anchor 부재 — 구조 변경 보류, 본문 참조로 충분.)**
+- [x] **§4.2 Usage 로깅 매트릭스**: SSRF 차단 행에 "integration 한정 기록; none/custom 은 error 포트만" 비고. **(완료, 그룹2a — 매트릭스 하단 note 추가)**
+- [ ] **0-overview §6.1·mcp-client §3.2·4-execution-engine §10**: SSRF 전 인증 공통/meta.durationMs 동기화(--impl-done INFO). **(보류 — 별도 cross-spec 동기화 항목, 그룹2a 범위 밖.)**
 
 ## 타 plan/worktree 정리
 - [ ] stale worktree 6건(`prod-fail-closed-guards` 등 PR MERGED) `cleanup-worktree-all.sh` 정리.

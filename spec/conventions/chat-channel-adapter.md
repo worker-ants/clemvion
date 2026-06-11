@@ -378,7 +378,7 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 |---|---|---|---|
 | `HTTP_4XX` | `details.statusCode` ∈ [400, 499] (있으면) | `executionFailedThirdParty4xx` | `{ statusCode }` (없으면 omit) |
 | `HTTP_5XX` | `details.statusCode` ∈ [500, 599] (있으면) | `executionFailedThirdParty5xx` | `{ statusCode }` (없으면 omit) |
-| `HTTP_TIMEOUT` | — | `executionFailedTimeout` | `{}` |
+| `HTTP_TIMEOUT`(미발행) | — | `executionFailedTimeout` | `{}` |
 | `HTTP_TRANSPORT_FAILED` | — | `executionFailedThirdParty` | `{}` |
 | `LLM_RATE_LIMIT` | — | `executionFailedRateLimit` | `{}` |
 | `LLM_TIMEOUT` | — | `executionFailedTimeout` | `{}` |
@@ -387,6 +387,8 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 | `EXECUTION_TIMEOUT` (Code 노드 스크립트) · `EXECUTION_TIME_LIMIT_EXCEEDED` (엔진 active-running 누적, §8) · `CODE_TIMEOUT` | — | `executionFailedTimeout` | `{}` |
 | `CODE_EXECUTION_FAILED` · `CODE_MEMORY_LIMIT` · `HTTP_BLOCKED`(SSRF 차단) · `SUB_WORKFLOW_FAILED` · `DB_*` · `RECURSION_DEPTH_EXCEEDED` · `MAX_ITERATIONS_EXCEEDED` · `CYCLE_DETECTED` · `INVALID_EXPRESSION` · `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` · `ERROR_PORT_FALLBACK` | — | `executionFailedInternal` | `{}` |
 | 그 외 모든 code (`error.code === null` 포함) | unknown — fallback | `executionFailedInternal` | `{}` (+ backend `warn` 로그, CCH-ERR-04) |
+
+**`HTTP_TIMEOUT`(미발행)**: HTTP Request 핸들러는 timeout reject 를 `HTTP_TRANSPORT_FAILED` 로 통합 발행하므로 (`spec/5-system/3-error-handling.md §1.4 註`) 실제 EIA payload 에 `error.code === 'HTTP_TIMEOUT'` 이 도달하는 경로는 현재 없다. 본 행은 enum 보존·방어적 매핑 차원에서 유지한다 (도달 시에도 timeout 분류로 안전 처리).
 
 **`statusCode` placeholder omit 규칙**: `details.statusCode` 가 missing 이거나 정수가 아닌 경우 (type-guard 실패), `4xx`/`5xx` 분기 자체는 `error.code` (`HTTP_4XX`/`HTTP_5XX`) 만으로 결정한다 (HTTP 노드 핸들러는 `error.code` 와 `details.statusCode` 를 일관되게 set 한다고 가정 — 노드 핸들러 계약). placeholder 가 omit 되면 어댑터는 template 의 `{statusCode}` 토큰을 `"?"` 로 치환 (또는 `({statusCode})` 괄호 segment 전체 제거 — 어댑터 자유). 사용자 영향 ≈ 0.
 

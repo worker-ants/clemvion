@@ -79,7 +79,7 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 | 유틸리티 | 설명 |
 |----------|------|
 | `$helpers.date(value)` | 날짜 파싱/포매팅 (dayjs 호환) |
-| `$helpers.crypto.hash(algorithm, data)` | 해시 생성 (md5, sha256 등) |
+| `$helpers.crypto.hash(algorithm, data)` | 해시 생성. 허용 알고리즘: `sha256` · `sha384` · `sha512` · `sha1` · `md5`. ⚠ `md5`/`sha1` 은 체크섬·레거시 호환 전용이며 **암호학적 용도(서명·비밀번호·무결성 보증) 금지** — 충돌 공격에 취약 |
 | `$helpers.crypto.uuid()` | UUID v4 생성 |
 | `$helpers.base64.encode(data)` | Base64 인코딩 |
 | `$helpers.base64.decode(data)` | Base64 디코딩 |
@@ -104,12 +104,30 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 ## 4. 실행 로직
 
 1. 핸들러는 입력을 `$input` 에, `context.variables` 의 deep clone 을 `$vars` 에 바인딩한다 (§4.5).
-2. 사용자 `code` 를 `(async () => { "use strict"; <code> })()` 로 래핑하여 isolate `compileScript` 로 컴파일한다.
+2. 사용자 `code` 를 **2단 async 래퍼**로 감싸 isolate `compileScript` 로 컴파일한다. 외곽은 즉시 실행
+   IIFE, 내부는 사용자 코드를 담는 `__user` 화살표 함수이며, 결과 직렬화를 isolate **경계 안에서** 수행한다:
+   ```js
+   (async () => {
+   "use strict";
+   const __user = async () => {
+   <code>
+   };
+   const __result = await __user();
+   return __result === undefined ? undefined : JSON.stringify(__result);
+   })()
+   ```
+   - `JSON.stringify` 를 isolate 안에서 호출하므로 JSON-안전 데이터만 경계를 넘는다 (live 객체 — 예:
+     반환된 dayjs 인스턴스 — 는 `toJSON` 으로 문자열화). `return` 없으면 `undefined` 유지(§5.1).
    - 컴파일 실패 → **pre-flight throw** (`handler.validate` 단계에서 검출, §6 참조).
+   - **런타임 에러 라인 오프셋**: 래퍼가 사용자 코드 앞에 헤더 3줄(`(async () => {` · `"use strict";` ·
+     `const __user = async () => {`)을 덧붙이므로 isolated-vm 이 보고하는 런타임 에러 라인은 사용자
+     원본 기준 **+3** 이다. 표시 계층은 3을 빼 사용자 실제 라인으로 환산한다.
 3. `isolated-vm` isolate(`memoryLimit: 128`) + context 를 만들어 `script.run(..., { promise: true, timeout })` 로 실행. 이중 타임아웃을 적용한다 (§7.2).
 4. 정상 종료 → 사용자 `return` 값을 `output` 에 그대로 담고 `port: 'success'` 를 반환 (§5.1).
 5. 런타임 throw / 타임아웃 → `port: 'error'` + `output.error` 표준 봉투 (§5.3, [CONVENTIONS Principle 3.2](../../conventions/node-output.md#32-outputerror-표준-형태)).
-6. 정상 종료 시 `varsClone` 을 `context.variables` 에 **원자적으로 전체 덮어쓰기** (§4.5). 실행 throw 시 원본 보존(롤백).
+6. 정상 종료 시 **isolate 안의 최종 `$vars` 를 읽어(`copy: true`) `context.variables` 를 원자적으로
+   전체 교체**한다 (§4.5). copy-out 이 실패하면(사용자가 직렬화 불가 값을 `$vars` 에 할당한 경우 등)
+   실행 전 스냅샷 `varsClone` 으로 복원한다 — 읽기 실패 시 변수 미갱신 = 원본 보존. 실행 throw 시에도 원본 보존(롤백).
 
 ### 4.1 코드 작성 규칙
 
@@ -227,6 +245,9 @@ config: `{ "code": "throw new Error('boom');" }`
 }
 ```
 
+> `details.stack` 은 **`NODE_ENV !== 'production'` 일 때만** 포함된다 (프로덕션에서는 내부 파일 경로·
+> isolate 라인 노출 방지로 생략 — §5.3 공통 필드 표). 위 예시는 비프로덕션 기준이다.
+
 #### 5.3.2 타임아웃
 
 config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise(() => {})`)
@@ -279,12 +300,16 @@ config: `{ "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }",
     }
   },
   "meta": {
+    "durationMs": 42,
     "success": false,
     "logs": []
   },
   "port": "error"
 }
 ```
+
+> `meta.durationMs` 는 메모리 초과 케이스에도 엔진이 주입한다 (§5.3 공통 필드 표) — 핸들러는
+> `meta: { success, logs }` 만 반환하고 엔진이 실행 시간을 덧붙인다. 위 `42` 는 예시 값이다.
 
 > isolate 가 `memoryLimit: 128`(MB) 를 초과하면 V8 이 isolate 를 즉시 폐기한다 (§7.2). 핸들러는 이 폐기 에러를 `EXECUTION_MEMORY_EXCEEDED` 로 분류해 `CODE_MEMORY_LIMIT` 로 정규화한다.
 
@@ -297,7 +322,7 @@ config: `{ "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }",
 | `config.timeout` | number? | config echo | 사용자가 설정한 타임아웃 초 |
 | `output.error.code` | string | handler return | 정규화된 에러 코드 — `CODE_TIMEOUT` / `CODE_EXECUTION_FAILED` / `CODE_MEMORY_LIMIT` (CONVENTIONS Principle 3.2 — `UPPER_SNAKE_CASE`) |
 | `output.error.message` | string | handler return | 사람이 읽는 에러 메시지 (로그/디버깅용 원문) |
-| `output.error.details.legacyCode` | string | handler return | 내부 분류용 legacy 코드 (`CODE_RUNTIME_ERROR` / `EXECUTION_TIMEOUT` / `EXECUTION_MEMORY_EXCEEDED`). 후속 노드는 `output.error.code` 사용 |
+| `output.error.details.legacyCode` | string | handler return | 내부 분류용 legacy 코드 (`CODE_RUNTIME_ERROR` / `EXECUTION_TIMEOUT` / `EXECUTION_MEMORY_EXCEEDED`). 후속 노드는 `output.error.code` 사용. **정규화 매핑 SoT**: [`conventions/error-codes.md §4`](../../conventions/error-codes.md#4-내부-전용-분류-코드-정규화-후-발행) |
 | `output.error.details.stack` | string? | handler return | 스택 트레이스. **`NODE_ENV !== 'production'` 일 때만 노출** (프로덕션에서는 내부 파일 경로 노출 방지로 생략) |
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms) — 타임아웃 케이스에서는 timeout 값에 근사 |
 | `meta.success` | `false` | handler return | 실패 표시. CONVENTIONS Principle 2 의 Code 계열 권장 필드 |

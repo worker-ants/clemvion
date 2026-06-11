@@ -61,7 +61,7 @@ code:
 
 | 코드 | 설명 |
 |------|------|
-| `EXECUTION_TIMEOUT` | **Code 노드 스크립트 실행 타임아웃** (`nodes/data/code/code.handler.ts`). 엔진 레벨 누적 실행시간 초과는 `EXECUTION_TIME_LIMIT_EXCEEDED` 를 쓴다 |
+| `EXECUTION_TIMEOUT` | **Code 노드 스크립트 실행 타임아웃** (엔진 레벨 — execution status → `failed`, EIA `execution.failed.error.code`). **노드 출력 레이어**는 동일 타임아웃을 노드의 `output.error.code = CODE_TIMEOUT` 으로 발행한다 (핸들러 내부 분류 문자열 `EXECUTION_TIMEOUT` → `CODE_TIMEOUT` 정규화) — 두 레이어 구분 SoT: [`conventions/error-codes.md §4`](../conventions/error-codes.md#4-내부-전용-분류-코드-정규화-후-발행). 엔진 레벨 누적 실행시간 초과는 `EXECUTION_TIME_LIMIT_EXCEEDED` 를 쓴다 |
 | `EXECUTION_TIME_LIMIT_EXCEEDED` | 엔진 레벨 — 단일 Execution 의 **누적 active-running 시간**(wall-clock 아님, `waiting_for_input` 대기 제외) 초과 → `failed` ([4-execution-engine §8](./4-execution-engine.md#8-동시-실행-제한)) |
 | `WORKER_HEARTBEAT_TIMEOUT` | active 세그먼트 job 이 BullMQ stalled 재배달 attempts 를 모두 소진(terminal worker failure) → `failed` ([4-execution-engine §7.1](./4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target)) |
 | `RECURSION_DEPTH_EXCEEDED` | 서브 워크플로우 재귀 깊이 초과 |
@@ -76,12 +76,14 @@ code:
 
 | 카테고리 | 코드 |
 |----------|------|
-| HTTP | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX` · `HTTP_5XX` · `HTTP_TIMEOUT` · `HTTP_BLOCKED` (SSRF 차단 — 전 인증 방식 공통) |
+| HTTP | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX` · `HTTP_5XX` · `HTTP_TIMEOUT`(미발행 — 아래 註) · `HTTP_BLOCKED` (SSRF 차단 — 전 인증 방식 공통) |
 | Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` |
 | Email | `EMAIL_SEND_FAILED` (+ `details.integrationCode` 로 원본 `INTEGRATION_INCOMPLETE` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` 보존) · `EMAIL_HOST_BLOCKED` (SSRF 가드 차단 — host 가 사설/loopback, 기본 ON·`ALLOW_PRIVATE_HOST_TARGETS` opt-out) |
 | LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT` · `MAX_COLLECTION_RETRIES_EXCEEDED` |
 | Code 노드 | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT` (isolate 128MB 하드 리밋 초과) |
 | Sub-workflow | `SUB_WORKFLOW_FAILED` |
+
+> **`HTTP_TIMEOUT`(미발행)**: enum 에는 정의돼 있으나 현재 HTTP Request 핸들러는 timeout 시 `AbortController.abort()` 로 fetch 를 중단하고, 그 reject 를 다른 전송 오류와 함께 `HTTP_TRANSPORT_FAILED` 로 통합 발행한다 (`http-request.handler.ts`). 따라서 `output.error.code` 로 `HTTP_TIMEOUT` 이 관측되는 경로는 없다. enum·분류 표(§3.1)에는 향후 세분화 여지와 방어적 매핑을 위해 코드를 보존한다.
 
 > 구 에러 코드 `NODE_EXECUTION_FAILED` / `INTEGRATION_ERROR` / `LLM_ERROR` 는 노드 수준 envelope 에 더 이상 사용하지 않는다. 엔진 레벨(노드 실패가 Stop Workflow 로 격상된 경우)에서만 `NodeExecution.error.message` 컨텍스트로 남는다.
 
@@ -219,7 +221,7 @@ code:
 
 | 노드 카테고리 | 코드 |
 |----------------|------|
-| HTTP | `HTTP_TRANSPORT_FAILED`, `HTTP_4XX`, `HTTP_5XX`, `HTTP_TIMEOUT`, `HTTP_BLOCKED` |
+| HTTP | `HTTP_TRANSPORT_FAILED`, `HTTP_4XX`, `HTTP_5XX`, `HTTP_TIMEOUT`(미발행 — §1.4 註), `HTTP_BLOCKED` |
 | Database | `DB_QUERY_FAILED`, `DB_CONNECTION_ERROR`, `DB_CONSTRAINT_VIOLATION`, `DB_PERMISSION_DENIED` |
 | Email | `EMAIL_SEND_FAILED` |
 | LLM | `LLM_CALL_FAILED`, `LLM_RATE_LIMIT`, `LLM_RESPONSE_INVALID`, `LLM_TIMEOUT`, `MAX_COLLECTION_RETRIES_EXCEEDED` |
