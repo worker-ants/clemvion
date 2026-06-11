@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-11T08:30:57.110007",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=V-16/V-17 코드측 문서 문자열 정정. KB rerank DTO Swagger 'cross_encoder_llm 후속 구현' stale → conditional escalate(spec §3.3.2 구현됨), topK default:5 제거. web-chat-sdk README·byo-ui-headless firstMessage 폐기 패턴(spec §R6) → submit_message. spec 변경 불요(코드를 spec 에 맞춤)., diff-base=origin/main)",
+  "target_path": "V-16/V-17 코드측 문서 문자열 정정. KB rerank DTO Swagger 'cross_encoder_llm 후속 구현' stale → conditional escalate(spec §3.3.2 구현됨), topK default:5 제거. web-chat-sdk README·byo-ui-headless firstMessage 폐기 패턴(spec §R6) → submit_message. spec 변경 불요(코드를 spec 에 맞춤).",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
