@@ -3,10 +3,22 @@ worktree: prod-fail-closed-guards
 started: 2026-06-11
 owner: resolution-applier
 ---
-# Spec Fix Draft — production-guards prose (W5, W8, W9, W10)
+# Spec Fix Draft — production-guards prose (W5, W8, W9, W10 + SPEC-DRIFT)
 
 ## 분류
 spec 결함 (spec 자체 수정) — 구현은 맞고 spec 본문이 부정확하거나 가독성 저하
+
+## SPEC-DRIFT (12_05_01 INFO-1, 11_25_15 INFO-7) — `spec/5-system/1-auth.md §"Production fail-closed 가드"`
+
+`assertProductionConfig` 는 `OAUTH_STUB_MODE`·`LLM_STUB_MODE`(옛 main.ts 인라인 가드를
+응집)도 production 에서 throw 하나, `1-auth.md §Rationale "Production fail-closed 가드"`
+대상 목록은 `JWT_SECRET`·`ENCRYPTION_KEY`·`MCP_ALLOW_INSECURE_URL` 3개만 열거하고
+섹션 제목도 두 stub 플래그를 언급하지 않는다. **코드가 올바르므로 revert 아님** — spec 보강.
+
+제안: 대상 목록에 `OAUTH_STUB_MODE`·`LLM_STUB_MODE` 불릿 추가(+ "비보안 stub — 실 검증/실
+LLM 호출 우회" 근거). 섹션 제목은 task ID 패턴 유지(consistency-check NONE 판정 — 프로젝트
+일관 패턴이라 drift 아님). 동기화 의무(`INSECURE_JWT_SECRETS`/`KNOWN_EXAMPLE_ENCRYPTION_KEYS`
+↔ `.env.example`/`jwt.config.ts`)도 §Rationale 에 1줄 명시(11_25_15 INFO-19).
 
 ## 원본 발견사항
 
