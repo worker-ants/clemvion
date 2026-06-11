@@ -1,5 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { ModelConfigController } from './model-config.controller';
+import { CustomValidationPipe } from '../../common/pipes/validation.pipe';
+import { ListModelConfigsQueryDto } from './dto/list-model-configs-query.dto';
 import type { ModelConfigService } from './model-config.service';
 import type { LlmService } from '../llm/llm.service';
 import type { LlmPreviewService } from '../llm/llm-preview.service';
@@ -51,41 +53,76 @@ describe('ModelConfigController', () => {
   describe('findAll / parseKind', () => {
     it('throws BadRequestException when kind is undefined', async () => {
       await expect(
-        controller.findAll('ws-1', undefined as any, { page: 1, limit: 20 }),
+        controller.findAll('ws-1', { page: 1, limit: 20 } as any),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException when kind is an invalid string', async () => {
       await expect(
-        controller.findAll('ws-1', 'unknown' as any, { page: 1, limit: 20 }),
+        controller.findAll('ws-1', {
+          kind: 'unknown',
+          page: 1,
+          limit: 20,
+        } as any),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('delegates to service with valid kind=chat', async () => {
-      await controller.findAll('ws-1', 'chat', { page: 1, limit: 20 });
+      const query = { kind: 'chat', page: 1, limit: 20 };
+      await controller.findAll('ws-1', query as any);
       expect(mockModelConfigService.findAll).toHaveBeenCalledWith(
         'ws-1',
         'chat',
-        { page: 1, limit: 20 },
+        query,
       );
     });
 
     it('delegates to service with valid kind=embedding', async () => {
-      await controller.findAll('ws-1', 'embedding', { page: 1, limit: 20 });
+      const query = { kind: 'embedding', page: 1, limit: 20 };
+      await controller.findAll('ws-1', query as any);
       expect(mockModelConfigService.findAll).toHaveBeenCalledWith(
         'ws-1',
         'embedding',
-        { page: 1, limit: 20 },
+        query,
       );
     });
 
     it('delegates to service with valid kind=rerank', async () => {
-      await controller.findAll('ws-1', 'rerank', { page: 1, limit: 20 });
+      const query = { kind: 'rerank', page: 1, limit: 20 };
+      await controller.findAll('ws-1', query as any);
       expect(mockModelConfigService.findAll).toHaveBeenCalledWith(
         'ws-1',
         'rerank',
-        { page: 1, limit: 20 },
+        query,
       );
+    });
+  });
+
+  // ── Regression: `kind` must survive the global whitelist ValidationPipe ─────
+  // Previously findAll bound `@Query() query: PaginationQueryDto`, so the
+  // `kind` query param (not a PaginationQueryDto property) was rejected by
+  // `forbidNonWhitelisted` with "property kind should not exist" → HTTP 400 on
+  // the /models page. The dedicated ListModelConfigsQueryDto whitelists `kind`.
+  describe('ListModelConfigsQueryDto whitelist', () => {
+    const pipe = new CustomValidationPipe();
+    const metadata = {
+      type: 'query' as const,
+      metatype: ListModelConfigsQueryDto,
+    };
+
+    it('passes the global whitelist pipe with kind + pagination present', async () => {
+      const result = (await pipe.transform(
+        { kind: 'chat', limit: '100' },
+        metadata,
+      )) as ListModelConfigsQueryDto;
+      expect(result.kind).toBe('chat');
+      expect(result.limit).toBe(100);
+    });
+
+    it('still rejects an unknown query property (whitelist intact)', async () => {
+      await expect(
+        pipe.transform({ kind: 'chat', bogus: 'x' }, metadata),
+      ).rejects.toThrow('Input validation failed');
     });
   });
 

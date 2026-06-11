@@ -48,7 +48,7 @@ import {
   type ModelConfigKind,
 } from './entities/model-config.entity';
 import { WorkspaceId } from '../../common/decorators';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { ListModelConfigsQueryDto } from './dto/list-model-configs-query.dto';
 
 function parseKind(kind: string | undefined): ModelConfigKind {
   if (!kind || !MODEL_CONFIG_KINDS.includes(kind as ModelConfigKind)) {
@@ -81,10 +81,13 @@ export class ModelConfigController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findAll(
     @WorkspaceId() workspaceId: string,
-    @Query('kind') kind: string,
-    @Query() query: PaginationQueryDto,
+    @Query() query: ListModelConfigsQueryDto,
   ) {
-    return this.modelConfigService.findAll(workspaceId, parseKind(kind), query);
+    return this.modelConfigService.findAll(
+      workspaceId,
+      parseKind(query.kind),
+      query,
+    );
   }
 
   @Get(':id')

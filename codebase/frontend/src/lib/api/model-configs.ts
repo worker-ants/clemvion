@@ -72,7 +72,10 @@ export const modelConfigsApi = {
    */
   async list(kind: ModelConfigKind): Promise<ModelConfigData[]> {
     const { data: raw } = await apiClient.get("/model-configs", {
-      params: { kind, limit: 9999 },
+      // limit 은 PaginationQueryDto 의 @Max(100) 상한을 넘으면 400(VALIDATION_ERROR)
+      // 이 되므로 상한값을 사용한다. 워크스페이스당 kind 별 모델 설정은 관리자
+      // 큐레이션 항목이라 100 개를 넘지 않는다.
+      params: { kind, limit: 100 },
     });
     const enveloped = (raw as { data?: ModelConfigData[] } | undefined)?.data;
     if (Array.isArray(enveloped)) return enveloped;
