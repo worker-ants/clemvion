@@ -11,6 +11,7 @@ import {
   type PublicIntegration,
 } from './integrations.service';
 import type { Integration } from './entities/integration.entity';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { UNREADABLE_KEY } from './services/credentials-transformer';
 import { createTransport } from 'nodemailer';
 import { isSmtpHostBlocked } from '../../common/utils/smtp-host-guard';
@@ -907,6 +908,69 @@ describe('IntegrationsService', () => {
         expect.objectContaining({ status: 'connected', statusReason: null }),
       );
     });
+
+    it('records integration.reauthorized audit on non-OAuth reset', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'http',
+          authType: 'api_key',
+          status: 'error',
+          statusReason: 'auth_failed',
+        }),
+      );
+      await service.reauthorize('int-1', 'ws-1', 'user-1');
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-1',
+          userId: 'user-1',
+          action: AUDIT_ACTIONS.INTEGRATION_REAUTHORIZED,
+          resourceType: 'integration',
+          resourceId: 'int-1',
+          details: { mode: 'reset' },
+        }),
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // update — name 변경 + audit
+  // -----------------------------------------------------------------
+  describe('update', () => {
+    it('records integration.updated with name diff when the name changes', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({ name: 'My Google' }),
+      );
+      const result = await service.update('int-1', 'ws-1', 'user-1', {
+        name: 'Renamed',
+      });
+      expect(result.name).toBe('Renamed');
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-1',
+          userId: 'user-1',
+          action: AUDIT_ACTIONS.INTEGRATION_UPDATED,
+          resourceType: 'integration',
+          resourceId: 'int-1',
+          details: { name: { from: 'My Google', to: 'Renamed' } },
+        }),
+      );
+    });
+
+    it('does not record audit when nothing changes', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({ name: 'My Google' }),
+      );
+      await service.update('int-1', 'ws-1', 'user-1', {});
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when integration is absent', async () => {
+      integrationRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.update('missing', 'ws-1', 'user-1', { name: 'X' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
   });
 
   // -----------------------------------------------------------------
@@ -917,7 +981,9 @@ describe('IntegrationsService', () => {
       await service.remove('int-1', 'ws-1', 'user-1');
       expect(integrationRepo.remove).toHaveBeenCalled();
       expect(auditLogsService.record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'integration.deleted' }),
+        expect.objectContaining({
+          action: AUDIT_ACTIONS.INTEGRATION_DELETED,
+        }),
       );
     });
 
@@ -1051,7 +1117,7 @@ describe('IntegrationsService', () => {
         }),
       );
       expect(auditLogsService.record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'integration.rotated' }),
+        expect.objectContaining({ action: AUDIT_ACTIONS.INTEGRATION_ROTATED }),
       );
     });
 
@@ -1233,7 +1299,9 @@ describe('IntegrationsService', () => {
       );
       expect(result.scope).toBe('organization');
       expect(auditLogsService.record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'integration.scope_changed' }),
+        expect.objectContaining({
+          action: AUDIT_ACTIONS.INTEGRATION_SCOPE_CHANGED,
+        }),
       );
     });
   });
@@ -1279,7 +1347,7 @@ describe('IntegrationsService', () => {
       expect(result.name).toBe('My API');
       expect(result.credentials.value).toBe('********');
       expect(auditLogsService.record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'integration.created' }),
+        expect.objectContaining({ action: AUDIT_ACTIONS.INTEGRATION_CREATED }),
       );
     });
 
@@ -1434,7 +1502,7 @@ describe('IntegrationsService', () => {
       expect((result as PublicIntegration).name).toBe('My API (audit fail)');
       // audit 시도는 반드시 일어났어야 한다 (best-effort 의무).
       expect(auditLogsService.record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'integration.created' }),
+        expect.objectContaining({ action: AUDIT_ACTIONS.INTEGRATION_CREATED }),
       );
     });
   });
