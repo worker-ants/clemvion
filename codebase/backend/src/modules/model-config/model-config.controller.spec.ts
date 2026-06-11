@@ -264,5 +264,21 @@ describe('ModelConfigController', () => {
       );
       expect(roles).toContain('editor');
     });
+
+    it("setDefault method has 'editor' role metadata", () => {
+      const roles = Reflect.getMetadata(
+        'roles',
+        ModelConfigController.prototype.setDefault,
+      );
+      expect(roles).toContain('editor');
+    });
+
+    it("previewModels method has 'editor' role metadata", () => {
+      const roles = Reflect.getMetadata(
+        'roles',
+        ModelConfigController.prototype.previewModels,
+      );
+      expect(roles).toContain('editor');
+    });
   });
 });
