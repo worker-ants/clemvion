@@ -116,3 +116,19 @@ code:
 | GET | /api/statistics/export | 데이터 내보내기 (쿼리: `format=csv|json`) |
 
 > 쿼리 파라미터는 `QueryStatisticsDto`(`period`/`workflowId`/`startDate`/`endDate`) 를 공유한다. `workflow_id` 가 아닌 `workflowId` camelCase 임에 유의.
+
+---
+
+## Rationale
+
+### R-1. LLM 사용량 API 를 `summary` / `timeseries` 두 endpoint 로 분리한 이유
+
+LLM 토큰 사용량 위젯(§2.5)은 집계 축이 다른 두 뷰를 가진다 — 표는 **프로바이더×모델** 축의 기간 합계(+추정 비용), 추이 차트는 **일자×프로바이더** 축의 시계열. 한 endpoint 로 합치면 (a) 한쪽 뷰만 갱신해도 다른 축의 전체 집계를 항상 다시 계산·전송하고, (b) 클라이언트가 한 응답을 두 축으로 재집계해야 한다. 축이 다른 집계는 endpoint 를 분리해 각 위젯이 독립적으로 fetch/캐시한다. 다른 차트들(`/executions`, `/errors`, `/top-workflows`)이 위젯별 endpoint 인 것과 같은 원칙.
+
+### R-2. 쿼리 파라미터를 `workflowId` (camelCase) 로 둔 이유
+
+쿼리 파라미터가 NestJS `QueryStatisticsDto` 프로퍼티에 이름 그대로 바인딩되므로, DTO·응답 본문과 같은 camelCase 로 통일하면 별도 rename/변환 계층이 필요 없다. snake_case 쿼리(`workflow_id`)를 받으면 응답(camelCase)과 표기가 갈라져 프론트 호출부에서 혼용 실수가 생긴다. 본문 §3 의 유의 문구는 이 통일이 실수로 깨지지 않게 하는 가드 표기다.
+
+### R-3. Error Distribution 을 에러 유형이 아닌 **워크플로우별** 실패 집계로 한 이유
+
+이 화면의 진단 단위는 "어느 워크플로가 자주 실패하는가"다 — 사용자가 취할 행동(해당 워크플로의 실행 내역으로 들어가 원인 확인)이 워크플로 단위이기 때문. 에러 유형/코드 축은 노드·통합마다 형식이 달라 안정된 분류 축이 되지 못하며, 개별 실패의 원인 분석은 [실행 내역 상세](./14-execution-history.md)가 담당한다. 그래서 `GET /api/statistics/errors` 는 `workflowName` 을 분류 키로 집계한다(§2.3).
