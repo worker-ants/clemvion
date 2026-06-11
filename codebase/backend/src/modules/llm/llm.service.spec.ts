@@ -4,7 +4,7 @@ import { StubLlmClient } from './clients/stub.client';
 
 describe('LlmService', () => {
   let service: LlmService;
-  let mockLlmConfigService: Record<string, jest.Mock>;
+  let mockModelConfigService: Record<string, jest.Mock>;
   let mockClientFactory: Record<string, jest.Mock>;
   let mockClient: Record<string, jest.Mock>;
 
@@ -21,7 +21,7 @@ describe('LlmService', () => {
       listModels: jest.fn().mockResolvedValue([]),
     };
 
-    mockLlmConfigService = {
+    mockModelConfigService = {
       getDecryptedApiKey: jest.fn().mockReturnValue('sk-decrypted-key'),
       findEntity: jest.fn().mockResolvedValue({
         id: 'config-1',
@@ -40,7 +40,7 @@ describe('LlmService', () => {
       record: jest.fn().mockResolvedValue(undefined),
     };
     service = new LlmService(
-      mockLlmConfigService as never,
+      mockModelConfigService as never,
       mockClientFactory as never,
       mockUsageLogService as never,
     );
@@ -61,7 +61,7 @@ describe('LlmService', () => {
 
       const result = await service.chat(config, params);
 
-      expect(mockLlmConfigService.getDecryptedApiKey).toHaveBeenCalledWith(
+      expect(mockModelConfigService.getDecryptedApiKey).toHaveBeenCalledWith(
         config,
       );
       expect(mockClientFactory.create).toHaveBeenCalledWith({
@@ -378,9 +378,10 @@ describe('LlmService', () => {
   describe('resolveConfig', () => {
     it('should use provided configId', async () => {
       const result = await service.resolveConfig('config-1', 'ws-1');
-      expect(mockLlmConfigService.findEntity).toHaveBeenCalledWith(
+      expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
         'config-1',
         'ws-1',
+        'chat',
       );
       expect(result.id).toBe('config-1');
     });
@@ -391,15 +392,18 @@ describe('LlmService', () => {
         provider: 'openai',
         isDefault: true,
       };
-      mockLlmConfigService.findDefault.mockResolvedValue(defaultConfig);
+      mockModelConfigService.findDefault.mockResolvedValue(defaultConfig);
 
       const result = await service.resolveConfig(undefined, 'ws-1');
-      expect(mockLlmConfigService.findDefault).toHaveBeenCalledWith('ws-1');
+      expect(mockModelConfigService.findDefault).toHaveBeenCalledWith(
+        'ws-1',
+        'chat',
+      );
       expect(result.id).toBe('default-1');
     });
 
     it('should throw when no config available', async () => {
-      mockLlmConfigService.findDefault.mockResolvedValue(null);
+      mockModelConfigService.findDefault.mockResolvedValue(null);
 
       await expect(service.resolveConfig(undefined, 'ws-1')).rejects.toThrow(
         BadRequestException,
@@ -407,7 +411,7 @@ describe('LlmService', () => {
     });
 
     it('should include workspaceId in error message and payload', async () => {
-      mockLlmConfigService.findDefault.mockResolvedValue(null);
+      mockModelConfigService.findDefault.mockResolvedValue(null);
 
       await expect(
         service.resolveConfig(undefined, 'ws-42'),
@@ -421,7 +425,7 @@ describe('LlmService', () => {
     });
 
     it('should distinguish missing workspaceId case in error message', async () => {
-      mockLlmConfigService.findDefault.mockResolvedValue(null);
+      mockModelConfigService.findDefault.mockResolvedValue(null);
 
       await expect(service.resolveConfig(undefined, '')).rejects.toMatchObject({
         response: {
@@ -435,24 +439,27 @@ describe('LlmService', () => {
 
   describe('hasDefaultLlmConfig', () => {
     it('returns true when workspace has default config', async () => {
-      mockLlmConfigService.findDefault.mockResolvedValue({
+      mockModelConfigService.findDefault.mockResolvedValue({
         id: 'default-1',
         isDefault: true,
       });
 
       await expect(service.hasDefaultLlmConfig('ws-1')).resolves.toBe(true);
-      expect(mockLlmConfigService.findDefault).toHaveBeenCalledWith('ws-1');
+      expect(mockModelConfigService.findDefault).toHaveBeenCalledWith(
+        'ws-1',
+        'chat',
+      );
     });
 
     it('returns false when workspace has no default', async () => {
-      mockLlmConfigService.findDefault.mockResolvedValue(null);
+      mockModelConfigService.findDefault.mockResolvedValue(null);
 
       await expect(service.hasDefaultLlmConfig('ws-1')).resolves.toBe(false);
     });
 
     it('returns false without querying when workspaceId is empty', async () => {
       await expect(service.hasDefaultLlmConfig('')).resolves.toBe(false);
-      expect(mockLlmConfigService.findDefault).not.toHaveBeenCalled();
+      expect(mockModelConfigService.findDefault).not.toHaveBeenCalled();
     });
   });
 
@@ -814,7 +821,7 @@ describe('LlmService', () => {
       const client = service.createClient(config);
       expect(client).toBeInstanceOf(StubLlmClient);
       expect(mockClientFactory.create).not.toHaveBeenCalled();
-      expect(mockLlmConfigService.getDecryptedApiKey).not.toHaveBeenCalled();
+      expect(mockModelConfigService.getDecryptedApiKey).not.toHaveBeenCalled();
     });
 
     it('LLM_STUB_MODE 미설정이면 정상 provider 클라이언트를 반환한다', () => {

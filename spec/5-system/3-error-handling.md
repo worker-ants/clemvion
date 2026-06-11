@@ -45,7 +45,9 @@ code:
 |------|------|------|
 | `VALIDATION_ERROR` | 요청 데이터 유효성 실패 | 400 |
 | `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트 부재 — `X-Workspace-Id` 헤더와 JWT `workspaceId` 둘 다 없음 (`common/decorators/workspace.decorator.ts` 발행) | 400 |
+| `MODEL_CONFIG_INVALID` | ModelConfig 입력 검증 실패 — 알 수 없는 `kind`, 필수 provider 의 apiKey 누락, 사설망/loopback baseUrl(SSRF 가드, tei/local 외) 등 (`model-config.service.ts`·`model-config.controller.ts` 발행) | 400 |
 | `RESOURCE_NOT_FOUND` | 리소스 없음 | 404 |
+| `MODEL_CONFIG_NOT_FOUND` | 지정 id 의 ModelConfig 부재 또는 cross-kind 접근 차단(존재 누설 방지), default 해석 실패 — `RESOURCE_NOT_FOUND` 의 ModelConfig 특화 코드 (`model-config.service.ts` 발행) | 404 |
 | `RESOURCE_CONFLICT` | 리소스 충돌 (이름 중복 등) | 409 |
 | `DUPLICATE_NODE_LABEL` | 노드 라벨 중복 — `RESOURCE_CONFLICT` 의 노드 라벨 특화 코드 (`nodes.service.ts`·캔버스 bulk save 경로의 `workflows.service.ts` 발행) | 409 |
 | `WORKFLOW_VERSION_CONFLICT` | 동시 캔버스 저장 경합 — 동일 워크플로우 버전 번호 unique 위반을 감지해 재시도 권고와 함께 반환 (`workflow-versions.service.ts` 발행) | 409 |
@@ -78,7 +80,7 @@ code:
 | Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` |
 | Email | `EMAIL_SEND_FAILED` (+ `details.integrationCode` 로 원본 `INTEGRATION_INCOMPLETE` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` 보존) · `EMAIL_HOST_BLOCKED` (SSRF 가드 차단 — host 가 사설/loopback, 기본 ON·`ALLOW_PRIVATE_HOST_TARGETS` opt-out) |
 | LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT` · `MAX_COLLECTION_RETRIES_EXCEEDED` |
-| Code 노드 | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` |
+| Code 노드 | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT` (isolate 128MB 하드 리밋 초과) |
 | Sub-workflow | `SUB_WORKFLOW_FAILED` |
 
 > 구 에러 코드 `NODE_EXECUTION_FAILED` / `INTEGRATION_ERROR` / `LLM_ERROR` 는 노드 수준 envelope 에 더 이상 사용하지 않는다. 엔진 레벨(노드 실패가 Stop Workflow 로 격상된 경우)에서만 `NodeExecution.error.message` 컨텍스트로 남는다.
@@ -221,7 +223,7 @@ code:
 | Database | `DB_QUERY_FAILED`, `DB_CONNECTION_ERROR`, `DB_CONSTRAINT_VIOLATION`, `DB_PERMISSION_DENIED` |
 | Email | `EMAIL_SEND_FAILED` |
 | LLM | `LLM_CALL_FAILED`, `LLM_RATE_LIMIT`, `LLM_RESPONSE_INVALID`, `LLM_TIMEOUT`, `MAX_COLLECTION_RETRIES_EXCEEDED` |
-| Code | `CODE_EXECUTION_FAILED`, `CODE_TIMEOUT` |
+| Code | `CODE_EXECUTION_FAILED`, `CODE_TIMEOUT`, `CODE_MEMORY_LIMIT` |
 | Sub-workflow | `SUB_WORKFLOW_FAILED` |
 
 **에러 포트 보유 노드** (기본):

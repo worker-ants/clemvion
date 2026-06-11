@@ -3,10 +3,10 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { ModelCombobox } from "../model-combobox";
-import { llmConfigsApi } from "@/lib/api/llm-configs";
+import { modelConfigsApi } from "@/lib/api/model-configs";
 
-vi.mock("@/lib/api/llm-configs", () => ({
-  llmConfigsApi: {
+vi.mock("@/lib/api/model-configs", () => ({
+  modelConfigsApi: {
     previewModels: vi.fn(),
     listModels: vi.fn(),
   },
@@ -37,7 +37,7 @@ describe("ModelCombobox", () => {
   });
 
   it("renders select with only loaded options after loading (no free-form input)", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.previewModels).mockResolvedValue([
       { id: "gpt-4o", name: "gpt-4o", type: "chat" },
       { id: "gpt-4o-mini", name: "gpt-4o-mini", type: "chat" },
       {
@@ -62,7 +62,7 @@ describe("ModelCombobox", () => {
     fireEvent.click(getLoadButton());
 
     await waitFor(() => {
-      expect(llmConfigsApi.previewModels).toHaveBeenCalledWith({
+      expect(modelConfigsApi.previewModels).toHaveBeenCalledWith({
         provider: "openai",
         apiKey: "sk-xxx",
         baseUrl: undefined,
@@ -84,7 +84,7 @@ describe("ModelCombobox", () => {
 
   it("fires onChange when an option is selected", async () => {
     const onChange = vi.fn();
-    vi.mocked(llmConfigsApi.previewModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.previewModels).mockResolvedValue([
       { id: "gpt-4o", name: "gpt-4o", type: "chat" },
       { id: "gpt-4o-mini", name: "gpt-4o-mini", type: "chat" },
     ]);
@@ -109,7 +109,7 @@ describe("ModelCombobox", () => {
   });
 
   it("preserves a previously saved model id as a placeholder option when not in the loaded list", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", type: "chat" },
     ]);
 
@@ -140,7 +140,7 @@ describe("ModelCombobox", () => {
 
   it("drops the placeholder option once the user picks a real model", async () => {
     const onChange = vi.fn();
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", type: "chat" },
     ]);
 
@@ -249,7 +249,7 @@ describe("ModelCombobox", () => {
   });
 
   it("calls listModels (saved-config path) when configId is set and apiKey is empty", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", type: "chat" },
     ]);
 
@@ -266,13 +266,13 @@ describe("ModelCombobox", () => {
     fireEvent.click(getLoadButton());
 
     await waitFor(() => {
-      expect(llmConfigsApi.listModels).toHaveBeenCalledWith("existing-uuid");
+      expect(modelConfigsApi.listModels).toHaveBeenCalledWith("existing-uuid");
     });
-    expect(llmConfigsApi.previewModels).not.toHaveBeenCalled();
+    expect(modelConfigsApi.previewModels).not.toHaveBeenCalled();
   });
 
   it("uses preview endpoint when both configId and re-entered apiKey are present", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockResolvedValue([]);
+    vi.mocked(modelConfigsApi.previewModels).mockResolvedValue([]);
 
     wrap(
       <ModelCombobox
@@ -287,17 +287,17 @@ describe("ModelCombobox", () => {
     fireEvent.click(getLoadButton());
 
     await waitFor(() => {
-      expect(llmConfigsApi.previewModels).toHaveBeenCalledWith({
+      expect(modelConfigsApi.previewModels).toHaveBeenCalledWith({
         provider: "openai",
         apiKey: "sk-new-key",
         baseUrl: undefined,
       });
     });
-    expect(llmConfigsApi.listModels).not.toHaveBeenCalled();
+    expect(modelConfigsApi.listModels).not.toHaveBeenCalled();
   });
 
   it("shows a localized code-mapped message and keeps select disabled on failure", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockRejectedValue(
+    vi.mocked(modelConfigsApi.previewModels).mockRejectedValue(
       Object.assign(new Error("Request failed"), {
         isAxiosError: true,
         response: {
@@ -333,7 +333,7 @@ describe("ModelCombobox", () => {
   });
 
   it("shows the empty-list hint after a successful empty response", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockResolvedValue([]);
+    vi.mocked(modelConfigsApi.previewModels).mockResolvedValue([]);
     wrap(
       <ModelCombobox
         value=""
@@ -350,7 +350,7 @@ describe("ModelCombobox", () => {
   });
 
   it("clears loaded models and resets select on provider change", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.previewModels).mockResolvedValue([
       { id: "gpt-4o", name: "gpt-4o", type: "chat" },
     ]);
 
@@ -390,7 +390,7 @@ describe("ModelCombobox", () => {
   });
 
   // SUMMARY#W10 (api injection): custom api mock 주입 시 해당 mock 이 호출됨
-  it("uses injected api prop when provided, not the default llmConfigsApi", async () => {
+  it("uses injected api prop when provided, not the default modelConfigsApi", async () => {
     const customApi = {
       listModels: vi.fn().mockResolvedValue([
         { id: "custom-model", name: "Custom Model", type: "chat" as const },
@@ -414,7 +414,7 @@ describe("ModelCombobox", () => {
     await waitFor(() => {
       expect(customApi.listModels).toHaveBeenCalledWith("cfg-custom");
     });
-    expect(llmConfigsApi.listModels).not.toHaveBeenCalled();
+    expect(modelConfigsApi.listModels).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(optionValues()).toContain("custom-model");
     });
@@ -436,8 +436,8 @@ describe("ModelCombobox", () => {
 
   // SUMMARY#2(testing): 인플라이트 요청 중 로드 버튼이 비활성
   it("disables the load button while the request is pending", async () => {
-    let resolveLoad!: (v: Awaited<ReturnType<typeof llmConfigsApi.previewModels>>) => void;
-    vi.mocked(llmConfigsApi.previewModels).mockReturnValue(
+    let resolveLoad!: (v: Awaited<ReturnType<typeof modelConfigsApi.previewModels>>) => void;
+    vi.mocked(modelConfigsApi.previewModels).mockReturnValue(
       new Promise((res) => { resolveLoad = res; }),
     );
 

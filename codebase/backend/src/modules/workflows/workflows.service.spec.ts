@@ -12,7 +12,7 @@ import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
-import { LlmConfigService } from '../llm-config/llm-config.service';
+import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 
 describe('WorkflowsService', () => {
@@ -96,7 +96,7 @@ describe('WorkflowsService', () => {
     getComponent: jest.fn().mockReturnValue(undefined),
   };
 
-  const mockLlmConfigService = {
+  const mockModelConfigService = {
     findDefault: jest.fn().mockResolvedValue(null),
   };
 
@@ -117,7 +117,7 @@ describe('WorkflowsService', () => {
           useValue: mockWorkflowVersionsService,
         },
         { provide: NodeComponentRegistry, useValue: mockRegistry },
-        { provide: LlmConfigService, useValue: mockLlmConfigService },
+        { provide: ModelConfigService, useValue: mockModelConfigService },
         { provide: WorkspacesService, useValue: mockWorkspacesService },
       ],
     }).compile();
@@ -127,7 +127,7 @@ describe('WorkflowsService', () => {
     mockRegistry.applyConfigDefaults.mockImplementation(
       (_type: string, raw: Record<string, unknown>) => raw,
     );
-    mockLlmConfigService.findDefault.mockResolvedValue(null);
+    mockModelConfigService.findDefault.mockResolvedValue(null);
   });
 
   it('should be defined', () => {
@@ -908,7 +908,7 @@ describe('WorkflowsService', () => {
     });
 
     it('injects workspace default llmConfigId for AI nodes when missing', async () => {
-      mockLlmConfigService.findDefault.mockResolvedValue({
+      mockModelConfigService.findDefault.mockResolvedValue({
         id: 'llm-default-1',
       });
 
@@ -933,7 +933,7 @@ describe('WorkflowsService', () => {
     });
 
     it('does not overwrite an explicit llmConfigId', async () => {
-      mockLlmConfigService.findDefault.mockResolvedValue({
+      mockModelConfigService.findDefault.mockResolvedValue({
         id: 'llm-default-1',
       });
 
@@ -958,7 +958,7 @@ describe('WorkflowsService', () => {
     });
 
     it('leaves llmConfigId undefined when no workspace default', async () => {
-      mockLlmConfigService.findDefault.mockResolvedValue(null);
+      mockModelConfigService.findDefault.mockResolvedValue(null);
 
       await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
         name: 'Imported',
@@ -979,7 +979,7 @@ describe('WorkflowsService', () => {
     });
 
     it('does not inject llmConfigId for non-AI nodes', async () => {
-      mockLlmConfigService.findDefault.mockResolvedValue({
+      mockModelConfigService.findDefault.mockResolvedValue({
         id: 'llm-default-1',
       });
 
@@ -1031,7 +1031,7 @@ describe('WorkflowsService', () => {
     });
 
     it('looks up workspace default LLM only once per import (hoisting guard)', async () => {
-      mockLlmConfigService.findDefault.mockResolvedValue({
+      mockModelConfigService.findDefault.mockResolvedValue({
         id: 'llm-default-1',
       });
 
@@ -1054,7 +1054,7 @@ describe('WorkflowsService', () => {
         edges: [],
       });
 
-      expect(mockLlmConfigService.findDefault).toHaveBeenCalledTimes(1);
+      expect(mockModelConfigService.findDefault).toHaveBeenCalledTimes(1);
     });
   });
 

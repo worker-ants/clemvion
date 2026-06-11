@@ -3,7 +3,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useBaseModelLoader } from "../use-base-model-loader";
-import type { ModelInfo } from "@/lib/api/llm-configs";
+import type { ModelInfo } from "@/lib/api/model-configs";
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

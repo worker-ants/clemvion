@@ -1,6 +1,6 @@
 "use client";
 
-import { llmConfigsApi } from "@/lib/api/llm-configs";
+import { modelConfigsApi } from "@/lib/api/model-configs";
 import { type ModelLoaderApi } from "./use-model-loader";
 import {
   useBaseModelLoader,
@@ -18,7 +18,7 @@ export interface UseEmbeddingModelLoaderArgs {
   fallbackErrorMessage: string;
   /** Localized message per backend error code (see loader-error-messages). */
   errorMessagesByCode?: Record<string, string>;
-  /** 모델 조회 API (default llmConfigsApi — KB·/models 는 modelConfigsApi 주입). */
+  /** 모델 조회 API (default modelConfigsApi). */
   api?: ModelLoaderApi;
 }
 
@@ -26,14 +26,14 @@ export type UseEmbeddingModelLoaderResult = UseBaseModelLoaderResult;
 
 /**
  * `useModelLoader` 의 임베딩 변형. preview 경로가 없고
- * `GET /llm-configs/:id/models?type=embedding` 하나만 호출한다. 공통 상태 관리는
+ * `GET /model-configs/:id/models?type=embedding` 하나만 호출한다. 공통 상태 관리는
  * `useBaseModelLoader` 가 담당한다.
  */
 export function useEmbeddingModelLoader({
   configId,
   fallbackErrorMessage,
   errorMessagesByCode,
-  api = llmConfigsApi,
+  api = modelConfigsApi,
 }: UseEmbeddingModelLoaderArgs): UseEmbeddingModelLoaderResult {
   return useBaseModelLoader<string | undefined>({
     resetKey: configId ?? "",

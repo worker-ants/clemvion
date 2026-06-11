@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { llmConfigsApi, type ModelInfo } from "@/lib/api/llm-configs";
+import { modelConfigsApi, type ModelInfo } from "@/lib/api/model-configs";
 import {
   LOCAL_PROVIDER,
   PROVIDERS_REQUIRING_BASE_URL,
@@ -12,9 +12,8 @@ import {
 } from "./use-base-model-loader";
 
 /**
- * preview/listModels 만 추상화한 모델-로더 API 계약. llmConfigsApi(구 /llm-configs alias)
- * 와 modelConfigsApi(/model-configs) 가 모두 만족한다 — /models 통합 페이지·KB 임베딩
- * select 는 modelConfigsApi 를, 기존 호출부는 default llmConfigsApi 를 쓴다.
+ * preview/listModels 만 추상화한 모델-로더 API 계약. modelConfigsApi(/model-configs)
+ * 가 이를 만족한다 — 모든 호출부가 통합 modelConfigsApi 를 쓴다.
  */
 export interface ModelLoaderApi {
   listModels(id: string, opts?: { type?: "chat" | "embedding" }): Promise<ModelInfo[]>;
@@ -48,7 +47,7 @@ export interface UseModelLoaderArgs {
   fallbackErrorMessage: string;
   /** Localized message per backend error code (see loader-error-messages). */
   errorMessagesByCode?: Record<string, string>;
-  /** 모델 조회에 쓸 API (default llmConfigsApi — /models 페이지는 modelConfigsApi 주입). */
+  /** 모델 조회에 쓸 API (default modelConfigsApi). */
   api?: ModelLoaderApi;
 }
 
@@ -66,7 +65,7 @@ export function useModelLoader({
   configId,
   fallbackErrorMessage,
   errorMessagesByCode,
-  api = llmConfigsApi,
+  api = modelConfigsApi,
 }: UseModelLoaderArgs): UseModelLoaderResult {
   const canLoad = useMemo(() => {
     if (!provider) return false;

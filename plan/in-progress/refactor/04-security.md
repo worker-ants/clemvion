@@ -38,7 +38,7 @@
 
 ### C-2 [Critical] code 노드 `vm.Script` 는 sandbox 가 아님 — host 탈출 가능 ⚠️
 
-- [ ] 결정 대기 (사용자) — `nodes/data/code/code.handler.ts:212-233`
+- [x] ✅ 사용자 결정 완료 (2026-06-11, **옵션 A — isolated-vm 전환 확정**) → 구현 worktree `code-node-isolated-vm` (`plan/in-progress/code-node-isolated-vm.md`). `code.handler.ts` 를 `isolated-vm`(V8 Isolate, `memoryLimit: 128`) 으로 전면 재작성 — host realm 부재로 prototype-chain 탈출 구조적 차단(escape PoC 회귀 `no-process` flip). spec(`2-code.md §7.1/§7.2/Rationale`, `0-overview §5`) 반영. M-2 흡수. — `nodes/data/code/code.handler.ts`
 
 ⚠️ A — spec 이 위험을 명시 기록한 트레이드오프, 그러나 여전히 위험.
 
@@ -122,7 +122,7 @@ spec 내부 모순 발견.
 
 ### M-2 [Major] vm sandbox 에 `Promise` 생성자 직접 노출 ⚠️
 
-- [ ] 결정 대기 (사용자) — `code.handler.ts:129`
+- [x] ✅ C-2 isolated-vm 전환에 **흡수 완료** (2026-06-11, worktree `code-node-isolated-vm`). Promise(async/await)는 §4.1 기능 약속이라 유지하되, isolate 격리가 노출 표면을 무력화 — host realm 부재로 Promise 경유 탈출 불가. 단독 제거(spec 모순) 회피.
 
 ⚠️ A — spec 이 명시 약속한 기능: 단독 제거 불가.
 

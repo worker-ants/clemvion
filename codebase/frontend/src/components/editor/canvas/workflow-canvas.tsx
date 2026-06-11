@@ -18,9 +18,9 @@ import { getNodeDefinition, useNodeDefinitionsStore } from "@/lib/node-definitio
 import { generateUniqueLabel } from "@/lib/utils/generate-unique-label";
 import { buildNodeInitialConfig } from "@/lib/utils/build-node-initial-config";
 import {
-  llmConfigsApi,
-  LLM_CONFIGS_QUERY_KEY,
-} from "@/lib/api/llm-configs";
+  modelConfigsApi,
+  MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
+} from "@/lib/api/model-configs";
 import { Button } from "@/components/ui/button";
 import {
   ZoomIn,
@@ -110,11 +110,11 @@ export function WorkflowCanvas() {
   // 때, 워크스페이스의 isDefault=true LLM Config 가 있으면 그 ID 를 노드의
   // llmConfigId 에 미리 채운다 — 이렇게 해야 셀렉터가 "기본 제공자(공백)" 가
   // 아니라 실제 LLM 이름으로 표시되어 사용자 인지와 실행 결과가 일치한다.
-  // 다른 컴포넌트(custom-node, llm-config-selector)도 LLM_CONFIGS_QUERY_KEY 로
+  // 다른 컴포넌트(custom-node, llm-config-selector)도 MODEL_CONFIGS_CHAT_LIST_QUERY_KEY 로
   // 같은 쿼리 캐시를 공유한다.
   const { data: llmConfigs = [] } = useQuery({
-    queryKey: LLM_CONFIGS_QUERY_KEY,
-    queryFn: () => llmConfigsApi.list(),
+    queryKey: MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
+    queryFn: () => modelConfigsApi.list("chat"),
     staleTime: 30_000,
   });
   const defaultLlmConfigId = useMemo<string | null>(

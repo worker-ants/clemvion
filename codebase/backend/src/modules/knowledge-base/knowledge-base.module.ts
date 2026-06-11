@@ -14,7 +14,6 @@ import { EmbeddingService } from './embedding/embedding.service';
 import { RagSearchService } from './search/rag-search.service';
 import { RerankService } from './search/rerank.service';
 import { RerankClientFactory } from '../llm/rerank/rerank-client.factory';
-import { RerankConfigModule } from '../rerank-config/rerank-config.module';
 import { ModelConfigModule } from '../model-config/model-config.module';
 import { GraphExtractionService } from './graph/graph-extraction.service';
 import { GraphQueryService } from './graph/graph-query.service';
@@ -39,7 +38,6 @@ import { StuckDocumentRecoveryService } from './queues/stuck-document-recovery.s
       GraphChunkEntity,
     ]),
     LlmModule,
-    RerankConfigModule,
     ModelConfigModule,
     forwardRef(() => WebsocketModule),
     // attempts=1 명시 — service 내부 retryWithBackoff 가 일시 오류를 책임지므로

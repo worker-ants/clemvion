@@ -41,10 +41,13 @@ import { UnsearchableBanner } from "@/components/knowledge-base/unsearchable-ban
 import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
 import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
-import { llmConfigsApi } from "@/lib/api/llm-configs";
-import { modelConfigsApi, MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY } from "@/lib/api/model-configs";
+import {
+  modelConfigsApi,
+  MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY,
+  MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
+  MODEL_CONFIGS_RERANK_LIST_QUERY_KEY,
+} from "@/lib/api/model-configs";
 import { buildEmbeddingConfigPayload, embeddingConfigChanged } from "@/lib/kb/embedding-payload";
-import { rerankConfigsApi } from "@/lib/api/rerank-configs";
 import { useKbEvents } from "@/lib/websocket/use-kb-events";
 import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
@@ -175,17 +178,17 @@ export default function KnowledgeBaseDetailPage({
   );
 
   // settings 다이얼로그가 열렸을 때만 LLMConfig 목록을 fetch (임베딩/추출 select 둘 다 사용).
-  const { data: llmConfigs = [] } = useQuery({
-    queryKey: ["llm-configs"],
-    queryFn: () => llmConfigsApi.list(),
+  const { data: chatModelConfigs = [] } = useQuery({
+    queryKey: MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
+    queryFn: () => modelConfigsApi.list("chat"),
     staleTime: 30_000,
     enabled: showSettings,
   });
 
-  // settings 다이얼로그가 열렸을 때만 RerankConfig 목록을 fetch (리랭킹 select 용).
+  // settings 다이얼로그가 열렸을 때만 rerank ModelConfig 목록을 fetch (리랭킹 select 용).
   const { data: rerankConfigs = [] } = useQuery({
-    queryKey: ["rerank-configs"],
-    queryFn: () => rerankConfigsApi.list(),
+    queryKey: MODEL_CONFIGS_RERANK_LIST_QUERY_KEY,
+    queryFn: () => modelConfigsApi.list("rerank"),
     staleTime: 30_000,
     enabled: showSettings,
   });
@@ -733,7 +736,7 @@ export default function KnowledgeBaseDetailPage({
               formRerankLlmConfigId={formRerankLlmConfigId}
               setFormRerankLlmConfigId={setFormRerankLlmConfigId}
               rerankConfigs={rerankConfigs}
-              llmConfigs={llmConfigs}
+              chatModelConfigs={chatModelConfigs}
               embeddingModelChanged={
                 formEmbeddingModelConfigId !== (kb.embeddingModelConfigId ?? "")
               }

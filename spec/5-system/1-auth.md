@@ -346,7 +346,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 ### 4.1 기록 대상 액션
 
-**Action naming 규약**: `<resource>.<verb>` — resource dot-prefix 가 필수다 (필터·그룹의 기준). verb 는 도메인 관례를 따른다: audit 는 "일어난 일" 의 기록이므로 integration 은 과거분사(`created`/`updated`/`deleted`)를, execution 은 `re_run` 을 쓴다. 구현 action 의 단일 SoT 는 [`audit-action.const.ts`](codebase/backend/src/modules/audit-logs/audit-action.const.ts) 의 `AUDIT_ACTIONS` union 이며, `AuditLogsService.record({ action })` 가 타입으로 강제한다 (인라인 문자열 금지).
+**Action naming 규약**: `<resource>.<verb>` — resource dot-prefix 가 필수다 (필터·그룹의 기준). verb 는 도메인 관례를 따른다: audit 는 "일어난 일" 의 기록이므로 integration 은 과거분사(`created`/`updated`/`deleted`)를, execution 은 `re_run` 을 쓴다. auth_config 은 `reveal`·`regenerate` 처럼 과거분사가 부자연스러운 동사가 섞여 CRUD 동사 현재형(`create`/`update`/`delete`/`regenerate`/`reveal`)으로 통일한다. 구현 action 의 단일 SoT 는 [`audit-action.const.ts`](../../codebase/backend/src/modules/audit-logs/audit-action.const.ts) 의 `AUDIT_ACTIONS` union 이며, `AuditLogsService.record({ action })` 가 타입으로 강제한다 (인라인 문자열 금지).
 
 **현재 구현된 액션**:
 
@@ -355,7 +355,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | Integration | `integration.created`, `integration.updated`, `integration.deleted`, `integration.rotated`, `integration.scope_changed`, `integration.reauthorized` |
 | 워크스페이스 | `workspace.transfer_ownership` |
 | 실행 (재실행) | `execution.re_run` |
-| 설정 | `auth_config.reveal` |
+| 설정 | `auth_config.create`, `auth_config.update`, `auth_config.delete`, `auth_config.regenerate`, `auth_config.reveal` |
 
 **Planned (미구현 — 목표 커버리지)**: 아래 액션은 spec 이 기록 의도를 선언했으나 아직 코드가 `AuditLogsService.record` 를 호출하지 않는다. 현황은 [data-flow 감사 로그 §1.1](../data-flow/1-audit.md) 이 추적한다. 구현 시 `AUDIT_ACTIONS` 에 추가한다.
 
@@ -367,7 +367,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 워크플로우 | workflow.create, workflow.update, workflow.delete, workflow.execute |
 | 트리거 | trigger.create, trigger.update, trigger.delete |
 | 스케줄 | schedule.create, schedule.update, schedule.delete |
-| 설정 | auth_config.create, auth_config.update, auth_config.delete, auth_config.regenerate, model_config.* (create/update/delete/set-default; reveal 미제공 — ModelConfig 는 평문 reveal 엔드포인트 없음) |
+| 설정 | model_config.* (create/update/delete/set-default; reveal 미제공 — ModelConfig 는 평문 reveal 엔드포인트 없음) |
 
 > **감사 액션 통합 (model_config)** — *목표 설계*. 설정 CRUD 감사 로깅 자체는 현재 미구현이다 (`model_config.service.ts` 는 `AuditLogsService` 를 호출하지 않는다 — [data-flow §1.1 커버리지 갭](../data-flow/1-audit.md) 이 ground truth). 구현 시 신규 이벤트는 `model_config.*` (create/update/delete/set-default) 로 기록한다. 통합 이전 `llm_config.*`/`rerank_config.*` 로 적재된 row 가 있다면 append-only 로 보존되며 재작성하지 않으므로, 감사 조회는 두 액션 집합(`model_config.*` OR `llm_config.*`/`rerank_config.*`)을 OR 로 결합해 질의한다.
 

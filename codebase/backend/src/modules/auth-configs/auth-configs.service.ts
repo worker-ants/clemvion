@@ -25,6 +25,9 @@ const HMAC_ALLOWED_ALGORITHMS = new Set(['sha256', 'sha512']);
 // 응답에서 마스킹할 config 키 (spec/1-data-model.md §2.17.2).
 const SECRET_CONFIG_KEYS = new Set(['key', 'token', 'secret', 'password']);
 
+// 감사 로그 resourceType — 본 도메인의 모든 record() 호출이 공유.
+const AUTH_CONFIG_RESOURCE_TYPE = 'auth_config';
+
 export interface WebhookAuthContext {
   /** 소문자 키의 요청 헤더 맵 */
   headers: Record<string, string>;
@@ -95,9 +98,19 @@ export class AuthConfigsService {
     return this.toMasked(await this.findById(id, workspaceId));
   }
 
+  /**
+   * AuthConfig 생성. 주 동작(저장) 성공 후 `auth_config.create` 감사 로그를 남긴다.
+   * @param userId 작업 주체 — controller 가 `@CurrentUser('sub')` 로 전파.
+   * @param ipAddress 요청 IP(`req.ip`) — 감사 로그에 기록 (auth_config 계열 공통).
+   * @remarks 감사 기록은 best-effort 다 — `AuditLogsService.record` 가 실패를 내부에서
+   *   swallow 하므로(해당 swallow 는 audit-logs.service.spec 에서 검증) audit DB 장애가
+   *   본 CRUD 를 실패시키지 않는다(롤백 없음). reveal 및 update/regenerate/remove 동일 패턴.
+   */
   async create(
     workspaceId: string,
     data: Partial<AuthConfig>,
+    userId: string,
+    ipAddress?: string,
   ): Promise<AuthConfig> {
     const config: Record<string, unknown> =
       (data.config as Record<string, unknown>) || {};
@@ -123,21 +136,47 @@ export class AuthConfigsService {
       config,
       workspaceId,
     });
-    return this.authConfigRepository.save(authConfig);
+    const saved = await this.authConfigRepository.save(authConfig);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
+      resourceId: saved.id,
+      ipAddress,
+    });
+    return saved;
   }
 
+  /** 수정 후 `auth_config.update` 감사 기록. userId/ipAddress·best-effort 계약은 {@link create} 참조. */
   async update(
     id: string,
     workspaceId: string,
     data: Partial<AuthConfig>,
+    userId: string,
+    ipAddress?: string,
   ): Promise<AuthConfig> {
     const config = await this.findById(id, workspaceId);
     Object.assign(config, data);
     const saved = await this.authConfigRepository.save(config);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.AUTH_CONFIG_UPDATE,
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
+      resourceId: id,
+      ipAddress,
+    });
     return this.toMasked(saved);
   }
 
-  async regenerate(id: string, workspaceId: string): Promise<AuthConfig> {
+  /** 키/토큰 재발급 후 `auth_config.regenerate` 감사 기록. 계약은 {@link create} 참조. */
+  async regenerate(
+    id: string,
+    workspaceId: string,
+    userId: string,
+    ipAddress?: string,
+  ): Promise<AuthConfig> {
     const config = await this.findById(id, workspaceId);
     const configData = config.config || {};
 
@@ -151,12 +190,35 @@ export class AuthConfigsService {
     }
     config.config = configData;
     // 재발급 응답은 신규 값을 1회 평문 노출.
-    return this.authConfigRepository.save(config);
+    const saved = await this.authConfigRepository.save(config);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.AUTH_CONFIG_REGENERATE,
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
+      resourceId: id,
+      ipAddress,
+    });
+    return saved;
   }
 
-  async remove(id: string, workspaceId: string): Promise<void> {
+  /** 삭제 후 `auth_config.delete` 감사 기록 (resourceId 는 삭제 전 id 보존). 계약은 {@link create} 참조. */
+  async remove(
+    id: string,
+    workspaceId: string,
+    userId: string,
+    ipAddress?: string,
+  ): Promise<void> {
     const config = await this.findById(id, workspaceId);
     await this.authConfigRepository.remove(config);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.AUTH_CONFIG_DELETE,
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
+      resourceId: id,
+      ipAddress,
+    });
   }
 
   /**
@@ -190,7 +252,7 @@ export class AuthConfigsService {
       workspaceId,
       userId,
       action: AUDIT_ACTIONS.AUTH_CONFIG_REVEAL,
-      resourceType: 'auth_config',
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: id,
       ipAddress,
     });

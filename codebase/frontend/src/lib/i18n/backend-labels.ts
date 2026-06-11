@@ -583,6 +583,13 @@ export const ERROR_KO: Record<string, string> = {
   // 주소 차단. self-host 가 사설망에 정당 접근해야 하면 ALLOW_PRIVATE_HOST_TARGETS.
   HTTP_BLOCKED:
     "보안 정책(SSRF 방지)에 의해 해당 주소로의 요청이 차단됐어요. 내부망·loopback·클라우드 메타데이터 주소는 기본 차단되며, 자체 호스팅 환경에서 사설망 접근이 필요하면 관리자가 ALLOW_PRIVATE_HOST_TARGETS 를 설정해야 해요.",
+  // code 노드 실행 에러 코드 (SUMMARY#1 — isolated-vm 전환으로 신규/변경).
+  CODE_TIMEOUT:
+    "설정된 타임아웃을 초과했어요. 코드 실행 시간을 줄이거나 타임아웃 값을 늘려보세요.",
+  CODE_EXECUTION_FAILED:
+    "코드 실행 중 오류가 발생했어요. 에러 메시지와 스택을 확인해 주세요.",
+  CODE_MEMORY_LIMIT:
+    "코드 실행 중 메모리 한도(128MB)를 초과했어요.",
 };
 
 /**

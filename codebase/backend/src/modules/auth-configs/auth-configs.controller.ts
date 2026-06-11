@@ -93,12 +93,16 @@ export class AuthConfigsController {
   @ApiCreatedWrappedResponse(AuthConfigDto, { description: '생성된 인증 설정' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
+  @ApiForbiddenResponse({ description: 'Admin 미만 권한' })
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() body: CreateAuthConfigDto,
+    @CurrentUser('sub') userId: string,
+    @Req() req: Request,
   ) {
-    return this.authConfigsService.create(workspaceId, body);
+    // userId(@CurrentUser sub) + req.ip — CRUD 감사 로그(auth_config.*)의 주체·IP 기록용.
+    // 4개 변경 핸들러(create/update/regenerate/remove) 공통 패턴.
+    return this.authConfigsService.create(workspaceId, body, userId, req.ip);
   }
 
   @Patch(':id')
@@ -112,14 +116,22 @@ export class AuthConfigsController {
   @ApiOkWrappedResponse(AuthConfigDto, { description: '수정된 인증 설정' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
+  @ApiForbiddenResponse({ description: 'Admin 미만 권한' })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @Body() body: UpdateAuthConfigDto,
+    @CurrentUser('sub') userId: string,
+    @Req() req: Request,
   ) {
-    return this.authConfigsService.update(id, workspaceId, body);
+    return this.authConfigsService.update(
+      id,
+      workspaceId,
+      body,
+      userId,
+      req.ip,
+    );
   }
 
   @Get(':id/usage')
@@ -157,8 +169,10 @@ export class AuthConfigsController {
   async regenerate(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
+    @Req() req: Request,
   ) {
-    return this.authConfigsService.regenerate(id, workspaceId);
+    return this.authConfigsService.regenerate(id, workspaceId, userId, req.ip);
   }
 
   @Post(':id/reveal')
@@ -207,12 +221,14 @@ export class AuthConfigsController {
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
+  @ApiForbiddenResponse({ description: 'Admin 미만 권한' })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
+    @Req() req: Request,
   ) {
-    await this.authConfigsService.remove(id, workspaceId);
+    await this.authConfigsService.remove(id, workspaceId, userId, req.ip);
   }
 }

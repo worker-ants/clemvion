@@ -3,13 +3,13 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { EmbeddingModelCombobox } from "../embedding-model-combobox";
-import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
+import { modelConfigsApi, type ModelConfigData } from "@/lib/api/model-configs";
 
-vi.mock("@/lib/api/llm-configs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/llm-configs")>();
+vi.mock("@/lib/api/model-configs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/model-configs")>();
   return {
     ...actual,
-    llmConfigsApi: {
+    modelConfigsApi: {
       list: vi.fn(),
       listModels: vi.fn(),
     },
@@ -35,9 +35,10 @@ function optionValues(): string[] {
   return Array.from(getSelect().options).map((o) => o.value);
 }
 
-// INFO #14: Use a complete LlmConfigData shape to avoid `as never` type coercion.
-const DEFAULT_CONFIG: LlmConfigData = {
+// INFO #14: Use a complete ModelConfigData shape to avoid `as never` type coercion.
+const DEFAULT_CONFIG: ModelConfigData = {
   id: "default-cfg",
+  kind: "chat",
   provider: "openai",
   name: "Default Config",
   apiKey: "***",
@@ -51,7 +52,7 @@ const DEFAULT_CONFIG: LlmConfigData = {
 describe("EmbeddingModelCombobox", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(llmConfigsApi.list).mockResolvedValue([DEFAULT_CONFIG]);
+    vi.mocked(modelConfigsApi.list).mockResolvedValue([DEFAULT_CONFIG]);
   });
 
   it("renders a disabled select before models are loaded (no free input)", async () => {
@@ -71,7 +72,7 @@ describe("EmbeddingModelCombobox", () => {
   });
 
   it("loads embedding models from the explicit llmConfigId on button click", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       {
         id: "text-embedding-3-small",
         name: "text-embedding-3-small",
@@ -88,14 +89,14 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
     fireEvent.click(getLoadButton());
 
     await waitFor(() => {
-      expect(llmConfigsApi.listModels).toHaveBeenCalledWith("explicit-cfg", {
+      expect(modelConfigsApi.listModels).toHaveBeenCalledWith("explicit-cfg", {
         type: "embedding",
       });
     });
@@ -107,7 +108,7 @@ describe("EmbeddingModelCombobox", () => {
   });
 
   it("falls back to the workspace default LLMConfig when llmConfigId is undefined", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       {
         id: "text-embedding-3-small",
         name: "text-embedding-3-small",
@@ -125,7 +126,7 @@ describe("EmbeddingModelCombobox", () => {
     fireEvent.click(getLoadButton());
 
     await waitFor(() => {
-      expect(llmConfigsApi.listModels).toHaveBeenCalledWith("default-cfg", {
+      expect(modelConfigsApi.listModels).toHaveBeenCalledWith("default-cfg", {
         type: "embedding",
       });
     });
@@ -133,7 +134,7 @@ describe("EmbeddingModelCombobox", () => {
 
   it("fires onChange when an option is picked", async () => {
     const onChange = vi.fn();
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       {
         id: "text-embedding-3-small",
         name: "text-embedding-3-small",
@@ -145,7 +146,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={onChange}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -162,7 +163,7 @@ describe("EmbeddingModelCombobox", () => {
   });
 
   it("preserves a previously saved id as a placeholder when missing from the loaded list", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       {
         id: "text-embedding-3-small",
         name: "text-embedding-3-small",
@@ -174,7 +175,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value="legacy-embedding-id"
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -195,7 +196,7 @@ describe("EmbeddingModelCombobox", () => {
   });
 
   it("shows a localized code-mapped message on load failure and never the raw server text", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockRejectedValue(
+    vi.mocked(modelConfigsApi.listModels).mockRejectedValue(
       Object.assign(new Error("boom"), {
         isAxiosError: true,
         response: {
@@ -213,7 +214,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -228,7 +229,7 @@ describe("EmbeddingModelCombobox", () => {
   });
 
   it("clears loaded models and resets select when llmConfigId changes", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValueOnce([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValueOnce([
       {
         id: "text-embedding-3-small",
         name: "text-embedding-3-small",
@@ -240,7 +241,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="cfg-a"
+        modelConfigId="cfg-a"
       />,
     );
 
@@ -258,7 +259,7 @@ describe("EmbeddingModelCombobox", () => {
         <EmbeddingModelCombobox
           value=""
           onChange={vi.fn()}
-          llmConfigId="cfg-b"
+          modelConfigId="cfg-b"
         />
       </QueryClientProvider>,
     );
@@ -271,7 +272,7 @@ describe("EmbeddingModelCombobox", () => {
 
   // SUMMARY#5: list 결과가 빈 배열 → effectiveConfigId=undefined → 버튼 비활성
   it("disables the load button when list returns no configs (canLoad=false)", async () => {
-    vi.mocked(llmConfigsApi.list).mockResolvedValue([]);
+    vi.mocked(modelConfigsApi.list).mockResolvedValue([]);
 
     wrap(<EmbeddingModelCombobox value="" onChange={vi.fn()} />);
 
@@ -283,7 +284,7 @@ describe("EmbeddingModelCombobox", () => {
 
   // SUMMARY#6: list API 실패 시 버튼 비활성 유지
   it("disables the load button when list API fails", async () => {
-    vi.mocked(llmConfigsApi.list).mockRejectedValue(new Error("network"));
+    vi.mocked(modelConfigsApi.list).mockRejectedValue(new Error("network"));
 
     wrap(<EmbeddingModelCombobox value="" onChange={vi.fn()} />);
 
@@ -294,13 +295,13 @@ describe("EmbeddingModelCombobox", () => {
 
   // SUMMARY#7: isEmpty 상태 — 로드 성공 + 빈 목록 → "모델 없음" 메시지 표시
   it("shows the empty-list message when load succeeds with no embedding models", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([]);
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([]);
 
     wrap(
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -318,13 +319,13 @@ describe("EmbeddingModelCombobox", () => {
 
   // SUMMARY#1 regression guard: llmConfigId 변경 직후 isEmpty 메시지가 나타나지 않아야 함
   it("does not show empty-list message immediately after llmConfigId change (stale isSuccess guard)", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValueOnce([]);
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValueOnce([]);
 
     const { rerender } = wrap(
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="cfg-a"
+        modelConfigId="cfg-a"
       />,
     );
 
@@ -347,7 +348,7 @@ describe("EmbeddingModelCombobox", () => {
         <EmbeddingModelCombobox
           value=""
           onChange={vi.fn()}
-          llmConfigId="cfg-b"
+          modelConfigId="cfg-b"
         />
       </QueryClientProvider>,
     );
@@ -363,7 +364,7 @@ describe("EmbeddingModelCombobox", () => {
 
   // INFO: type:"chat" 모델이 listModels 응답에 섞여도 select option 에 나타나지 않아야 함
   it("filters out non-embedding models from the select options", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       { id: "gpt-4o", name: "gpt-4o", type: "chat" },
       {
         id: "text-embedding-3-small",
@@ -376,7 +377,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -393,7 +394,7 @@ describe("EmbeddingModelCombobox", () => {
   // (순수 분기 로직은 embedding-model-recommendation.test 의 formatEmbeddingOptionLabel
   // 에서 단위 검증하고, 여기서는 combobox 가 그 라벨을 실제 option 텍스트로 렌더하는지 확인.)
   it("appends the Korean-recommended badge only to recommended option labels", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       {
         id: "multilingual-e5-large",
         name: "multilingual-e5-large",
@@ -410,7 +411,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
