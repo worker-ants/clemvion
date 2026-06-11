@@ -142,3 +142,13 @@ code: []
 | GET | /api/marketplace/my-publications | 내 게시물 목록 |
 | PATCH | /api/marketplace/my-publications/:id | 게시물 수정 |
 | GET | /api/marketplace/my-publications/:id/stats | 게시물 통계 |
+
+---
+
+## Rationale
+
+### R-1. 왜 `status: backlog` 인가 (미구현 유보)
+
+마켓플레이스는 외부 게시자 생태계를 전제로 하는 기능이라, 단일 워크스페이스 안에서 완결되는 다른 화면과 달리 **게시물 검증 파이프라인·버전 배포·평점/리뷰 모더레이션** 같은 부대 인프라가 함께 필요하다. 코어 플랫폼(워크플로 엔진·통합·지식 저장소)의 안정화가 선행돼야 "공유할 가치가 있는 자산"이 쌓이므로 우선순위를 뒤로 둔다 ([PRD 통합/연동 §4 — 미구현 Planned](../4-nodes/4-integration/_product-overview.md#4-marketplace-마켓플레이스--미구현-planned) 와 동일 결정).
+
+본 문서는 그 시점까지 방향성을 보존하는 선행 설계다 — 화면 구조·설치 플로우·API 표는 구현 약속이 아니라 설계 스케치이며, frontmatter `code: []` 가 이를 표현한다. 착수 시점에는 본 설계를 그대로 구현하는 게 아니라 그 시점의 노드/통합 체계에 맞춰 재검토한다.
