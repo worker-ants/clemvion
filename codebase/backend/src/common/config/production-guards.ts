@@ -12,25 +12,37 @@
  *
  * `main.ts` bootstrap 첫 단계에서 `assertProductionConfig(process.env)` 1회 호출한다.
  * 순수 함수로 분리해 전 분기를 단위 테스트로 검증한다.
+ *
+ * **경계 — 본 모듈은 throw 정책(fail-closed) 전용**이다. 절대 금지 secret/flag 는 여기서
+ * throw 하고, 정당 용도가 있는 플래그(예: `ALLOW_PRIVATE_HOST_TARGETS`)의 warn 정책은
+ * 호출자(`main.ts`)가 담당한다 — 신규 플래그 추가 시 "throw 면 여기, warn 이면 main.ts" 가 기준.
  */
 
-/** production 에서 거부되는 JWT_SECRET 값 — 코드 기본 sentinel + `.env.example` placeholder. */
+/**
+ * production 에서 거부되는 JWT_SECRET 값 — 코드 기본 sentinel(`jwt.config.ts`) + `.env.example`
+ * placeholder. **동기화 의무**: `jwt.config.ts` 의 dev fallback 이나 `.env.example` 의 JWT_SECRET
+ * placeholder 를 바꾸면 그 값을 여기에 추가해야 한다(예측 가능 키가 production 부팅을 통과하지 않도록).
+ */
 export const INSECURE_JWT_SECRETS: ReadonlySet<string> = new Set([
-  'dev-jwt-secret',
-  'change-me-to-a-long-random-jwt-secret',
+  'dev-jwt-secret', // jwt.config.ts dev fallback
+  'change-me-to-a-long-random-jwt-secret', // .env.example placeholder
 ]);
 
 /**
- * production 에서 거부되는 ENCRYPTION_KEY 값 — 공개 저장소의 `.env.example` 에 실렸던
+ * production 에서 거부되는 ENCRYPTION_KEY 값 — 공개 저장소의 `.env.example` 에 실렸던/실리는
  * 복붙 가능 예시 키. 이 값을 그대로 운영에 쓰면 secret store 전체가 사실상 평문이 된다.
+ * **동기화 의무**: `.env.example` 의 ENCRYPTION_KEY placeholder 를 바꾸면 *옛 값을 이 Set 에서
+ * 제거하지 말고* 새 placeholder 를 추가한다 — 옛 예시 키로 운영 중인 배포도 계속 차단해야 한다.
  */
 export const KNOWN_EXAMPLE_ENCRYPTION_KEYS: ReadonlySet<string> = new Set([
-  // 현 `.env.example` placeholder (all-zero).
+  // 현 `.env.example` placeholder (all-zero). since 2026-06.
   '0000000000000000000000000000000000000000000000000000000000000000',
-  // 옛 `.env.example` 에 실렸던 복붙 가능 예시 키 — 그 값으로 운영 중인 배포도 차단.
+  // 옛 `.env.example` 예시 키 (~2026-06) — 그 값으로 운영 중인 배포도 차단.
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
 ]);
 
+// 정확히 문자열 'true' 또는 '1' 만 ON 으로 본다 — 'yes'/'on'/'TRUE'/'' 등은 모두 OFF.
+// (.env 의 boolean 토글 관례. 대소문자·동의어를 받지 않아 오설정의 우연한 활성화를 줄인다.)
 function isFlagOn(value: string | undefined): boolean {
   return value === 'true' || value === '1';
 }
@@ -45,6 +57,8 @@ export function assertProductionConfig(
 ): void {
   if (env.NODE_ENV !== 'production') return;
 
+  // 첫 위반에서 즉시 throw (fail-fast) — 부팅을 멈추는 게 목적이라 모든 위반을 모을
+  // 필요가 없다. 운영자는 한 건씩 고치며 재부팅한다.
   const fail = (message: string): never => {
     throw new Error(`production fail-closed 가드: ${message}`);
   };

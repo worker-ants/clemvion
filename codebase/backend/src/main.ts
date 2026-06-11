@@ -7,6 +7,7 @@ import './instrumentation';
 import './bootstrap/undici-dispatcher';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 
 // DeprecationWarning 의 발생 위치를 추적하려면 stack 이 필요한데, 기본
 // process warning emitter 는 stack 을 한 줄로만 출력한다. 노드 옵션
@@ -36,10 +37,10 @@ import {
   type CorsRequestLike,
 } from './common/cors/web-chat-cors';
 import { WebChatCorsOriginResolver } from './modules/web-chat-cors/web-chat-cors-origin.resolver';
-import { Logger } from '@nestjs/common';
 import { assertProductionConfig } from './common/config/production-guards';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   // Fail-closed (refactor 04 C-1·M-4·M-7 + 기존 OAUTH/LLM stub): NODE_ENV=production
   // 에서 비보안 stub·미설정/예시 secret·위험 플래그가 켜진 채 기동하면 즉시 throw 한다.
   // 전 분기는 production-guards.ts 단위 테스트로 검증. (비-production 은 no-op.)
@@ -52,7 +53,7 @@ async function bootstrap() {
     process.env.NODE_ENV === 'production' &&
     process.env.ALLOW_PRIVATE_HOST_TARGETS === 'true'
   ) {
-    new Logger('Bootstrap').warn(
+    logger.warn(
       'ALLOW_PRIVATE_HOST_TARGETS=true (production) — 사설/loopback 호스트 대상 ' +
         'outbound 가 허용됩니다. self-host 의도가 아니면 SSRF 위험이니 비활성화하세요.',
     );

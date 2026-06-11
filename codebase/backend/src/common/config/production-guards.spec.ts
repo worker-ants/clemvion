@@ -59,6 +59,11 @@ describe('assertProductionConfig', () => {
         assertProductionConfig(prodEnv({ JWT_SECRET: undefined })),
       ).toThrow(/JWT_SECRET/);
     });
+    it('throws when empty string', () => {
+      expect(() => assertProductionConfig(prodEnv({ JWT_SECRET: '' }))).toThrow(
+        /JWT_SECRET/,
+      );
+    });
     it('throws for each known insecure/example value', () => {
       for (const bad of INSECURE_JWT_SECRETS) {
         expect(() =>
@@ -72,6 +77,11 @@ describe('assertProductionConfig', () => {
     it('throws when unset', () => {
       expect(() =>
         assertProductionConfig(prodEnv({ ENCRYPTION_KEY: undefined })),
+      ).toThrow(/ENCRYPTION_KEY/);
+    });
+    it('throws when empty string', () => {
+      expect(() =>
+        assertProductionConfig(prodEnv({ ENCRYPTION_KEY: '' })),
       ).toThrow(/ENCRYPTION_KEY/);
     });
     it('throws for each known public example key', () => {
@@ -94,6 +104,15 @@ describe('assertProductionConfig', () => {
         assertProductionConfig(prodEnv({ MCP_ALLOW_INSECURE_URL: 'false' })),
       ).not.toThrow();
     });
+    // isFlagOn 은 정확히 'true'/'1' 만 ON — 비표준 truthy 값은 모두 OFF 로 본다.
+    it.each(['TRUE', 'yes', 'on', '0', ''])(
+      'does NOT throw for non-standard flag value %p (treated as off)',
+      (v) => {
+        expect(() =>
+          assertProductionConfig(prodEnv({ MCP_ALLOW_INSECURE_URL: v })),
+        ).not.toThrow();
+      },
+    );
   });
 
   it('does NOT throw for ALLOW_PRIVATE_HOST_TARGETS=true (warn-only policy, handled in main.ts)', () => {
