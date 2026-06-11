@@ -104,11 +104,18 @@ describe('ModelConfigController', () => {
   // `forbidNonWhitelisted` with "property kind should not exist" → HTTP 400 on
   // the /models page. The dedicated ListModelConfigsQueryDto whitelists `kind`.
   describe('ListModelConfigsQueryDto whitelist', () => {
-    const pipe = new CustomValidationPipe();
-    const metadata = {
-      type: 'query' as const,
-      metatype: ListModelConfigsQueryDto,
-    };
+    // WARNING#1 fix: pipe/metadata instantiated per-test in beforeEach for full
+    // isolation — avoids shared state if pipe ever becomes stateful.
+    let pipe: CustomValidationPipe;
+    let metadata: { type: 'query'; metatype: typeof ListModelConfigsQueryDto };
+
+    beforeEach(() => {
+      pipe = new CustomValidationPipe();
+      metadata = {
+        type: 'query' as const,
+        metatype: ListModelConfigsQueryDto,
+      };
+    });
 
     it('passes the global whitelist pipe with kind + pagination present', async () => {
       const result = (await pipe.transform(
@@ -123,6 +130,49 @@ describe('ModelConfigController', () => {
       await expect(
         pipe.transform({ kind: 'chat', bogus: 'x' }, metadata),
       ).rejects.toThrow('Input validation failed');
+    });
+
+    // WARNING#2 fix: page default value when omitted
+    it('defaults page to 1 when page is not provided', async () => {
+      const result = (await pipe.transform(
+        { kind: 'chat' },
+        metadata,
+      )) as ListModelConfigsQueryDto;
+      expect(result.page).toBe(1);
+    });
+
+    // WARNING#2 fix: sort/order defaults when omitted
+    it('defaults sort to created_at and order to desc when omitted', async () => {
+      const result = (await pipe.transform(
+        { kind: 'chat' },
+        metadata,
+      )) as ListModelConfigsQueryDto;
+      expect(result.sort).toBe('created_at');
+      expect(result.order).toBe('desc');
+    });
+
+    // WARNING#2 fix: kind as number (not string) must be rejected by @IsString
+    it('rejects kind when provided as a number (type coercion guard)', async () => {
+      await expect(pipe.transform({ kind: 123 }, metadata)).rejects.toThrow(
+        'Input validation failed',
+      );
+    });
+
+    // WARNING#2 + WARNING#3 fix: empty string kind passes @IsString but must be
+    // caught by parseKind's !kind falsy branch → BadRequestException
+    it('throws BadRequestException when kind is empty string', async () => {
+      // The pipe passes '' (satisfies @IsString @IsOptional), but parseKind
+      // rejects it via the `!kind` falsy guard.
+      const result = (await pipe.transform(
+        { kind: '' },
+        metadata,
+      )) as ListModelConfigsQueryDto;
+      // Pipe itself accepts it (IsString passes on '')
+      expect(result.kind).toBe('');
+      // Controller then rejects it
+      await expect(controller.findAll('ws-1', result as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
