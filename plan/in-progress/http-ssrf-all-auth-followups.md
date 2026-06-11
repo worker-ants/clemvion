@@ -12,7 +12,7 @@ owner: developer
 
 ## 코드
 - [ ] **SSRF 에러 메시지 클라이언트 일반화**: `http-safety.ts` 의 `SSRF_BLOCKED: hostname "..."` 메시지가 차단 host/IP 를 `output.error.message` 로 노출(정찰 면). 클라이언트엔 일반화("Request blocked by SSRF policy"), 상세는 서버 로그 — 단 http-safety 는 HTTP/DB/Email 공용이라 3노드 영향 audit 동반.
-- [ ] **`HTTP_BLOCKED` enum 참조화**: `http-request.handler.ts` 의 `new IntegrationError('HTTP_BLOCKED', ...)` → `ErrorCode.HTTP_BLOCKED`. `error-codes.ts` 주석에 opt-out/`http-safety.ts` SoT 참조 추가(EMAIL_HOST_BLOCKED 주석 대칭).
+- [x] **`HTTP_BLOCKED` enum 참조화**: `http-request.handler.ts` 의 `new IntegrationError('HTTP_BLOCKED', ...)` → `ErrorCode.HTTP_BLOCKED`. `error-codes.ts` 주석에 opt-out/`http-safety.ts` SoT 참조 추가(EMAIL_HOST_BLOCKED 주석 대칭). **(완료, PR errcode-wiring)**: `IntegrationError` + usage 로그 `error.code` 양쪽 literal → `ErrorCode.HTTP_BLOCKED`. `error-codes.ts` 주석에 http-safety SoT·opt-out env 추가.
 - [ ] **(선택) env-read-once**: `ALLOW_PRIVATE_HOST_TARGETS` 시작시 1회 상수화 — 단 런타임 토글성 상실 트레이드오프 평가 후.
 - [ ] **(기획 결정) `DB_HOST_BLOCKED` 신설**: Database Query SSRF 차단이 generic `INTEGRATION_CALL_FAILED` 로 surface — HTTP(`HTTP_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)과 비대칭. 신설 시 `2-database-query §4/§6.2`+`3-error-handling §1.4` 동기.
 

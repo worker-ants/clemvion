@@ -8,6 +8,7 @@ import {
   ValidationResult,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { ErrorCode, type ErrorCodeValue } from '../../core/error-codes.js';
 import { codeNodeMetadata, DEFAULT_TIMEOUT_SEC } from './code.schema.js';
 
 const MAX_CONSOLE_LINES = 100;
@@ -379,7 +380,7 @@ export class CodeHandler implements NodeHandler {
       ) {
         throw err;
       }
-      const errorCode = classifyError(err, isolate);
+      const errorCode = classifyCodeNodeError(err, isolate);
       return this.failure(
         rawConfigForEcho,
         err,
@@ -417,7 +418,12 @@ export class CodeHandler implements NodeHandler {
     // read `output.error.{code, message, details.stack}` exclusively now.
     // W8: LEGACY_TO_NORMALIZED table replaces the triple-ternary chain —
     // one place to add new code mappings.
-    const normalizedCode = LEGACY_TO_NORMALIZED[errorCode] ?? errorCode;
+    // Default to CODE_EXECUTION_FAILED (not the raw `errorCode`) so an
+    // unmapped internal code can never leak through to the public `output.error
+    // .code`. In practice classifyCodeNodeError only ever returns one of the
+    // three mapped keys; this default is defence-in-depth for future codes.
+    const normalizedCode =
+      LEGACY_TO_NORMALIZED[errorCode] ?? ErrorCode.CODE_EXECUTION_FAILED;
     const outputDetails: Record<string, unknown> = { legacyCode: errorCode };
     if (exposeStack && stack) outputDetails.stack = stack;
     // CONVENTIONS Principle 7 — error path echoes raw config (including
@@ -450,13 +456,17 @@ const RE_TIMED_OUT = /timed out/i;
 const RE_MEMORY_LIMIT = /memory limit/i;
 const RE_ISOLATE_DISPOSED = /Isolate was disposed/i;
 
-// Normalised mapping table for internal → public error codes (W8 — single place
-// to add new codes; eliminates the triple-ternary chain in failure()).
-const LEGACY_TO_NORMALIZED: Record<string, string> = {
-  EXECUTION_TIMEOUT: 'CODE_TIMEOUT',
-  EXECUTION_MEMORY_EXCEEDED: 'CODE_MEMORY_LIMIT',
-  CODE_RUNTIME_ERROR: 'CODE_EXECUTION_FAILED',
-};
+// Normalised mapping table for internal (legacy) → public error codes (W8 —
+// single place to add new codes; eliminates the triple-ternary chain in
+// failure()). Frozen at module load so a stray mutation can't reroute public
+// codes; the `ErrorCodeValue` value type pins every entry to a real
+// `ErrorCode` member, and the `string` key keeps arbitrary-code lookup valid.
+const LEGACY_TO_NORMALIZED: Readonly<Record<string, ErrorCodeValue>> =
+  Object.freeze({
+    EXECUTION_TIMEOUT: ErrorCode.CODE_TIMEOUT,
+    EXECUTION_MEMORY_EXCEEDED: ErrorCode.CODE_MEMORY_LIMIT,
+    CODE_RUNTIME_ERROR: ErrorCode.CODE_EXECUTION_FAILED,
+  });
 
 /**
  * Map a thrown error from the isolate run onto an internal (legacy) error code.
@@ -469,8 +479,12 @@ const LEGACY_TO_NORMALIZED: Record<string, string> = {
  *     without actually disposing the isolate, so `throw new Error("Isolate was
  *     disposed")` does NOT trigger this branch — the isolate stays alive.
  *  3. Message regex patterns — fallback only, lower trust.
+ *
+ * @internal Exported only for unit testing (code.handler.spec.ts). The name is
+ * intentionally Code-node-specific to avoid grep collisions with the unrelated
+ * private `classifyError` methods on the cafe24/makeshop MCP tool providers.
  */
-export function classifyError(
+export function classifyCodeNodeError(
   err: CodeExecutionError,
   isolate?: ivm.Isolate,
 ): string {

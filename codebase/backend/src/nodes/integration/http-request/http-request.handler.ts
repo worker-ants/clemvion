@@ -10,6 +10,7 @@ import {
   IntegrationHandlerBase,
   toLogError,
 } from '../_base/integration-handler-base.js';
+import { ErrorCode } from '../../core/error-codes.js';
 import { truncateBodyForOutput } from '../../core/truncate-output.util.js';
 import { isDryRun, buildDryRunMock } from '../../core/dry-run.util.js';
 import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util.js';
@@ -353,7 +354,7 @@ export class HttpRequestHandler
           status: 'failed',
           durationMs: Date.now() - start,
           error: {
-            code: 'HTTP_BLOCKED',
+            code: ErrorCode.HTTP_BLOCKED,
             message: err instanceof Error ? err.message : String(err),
           },
           api: { method, path: extractApiPath(url) },
@@ -362,7 +363,7 @@ export class HttpRequestHandler
       // D4 (2026-05-17) — SSRF 차단 throw → port:'error' (HTTP_BLOCKED).
       return buildPreflightErrorOutput(
         new IntegrationError(
-          'HTTP_BLOCKED',
+          ErrorCode.HTTP_BLOCKED,
           err instanceof Error ? err.message : String(err),
         ),
         configEcho,

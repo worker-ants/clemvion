@@ -13,6 +13,8 @@ export const ErrorCode = {
   HTTP_TIMEOUT: 'HTTP_TIMEOUT',
   // SSRF block (private/loopback/link-local/CGNAT target or redirect-hop /
   // non-http(s) scheme). Applies to ALL auth methods (refactor 04 C-3).
+  // 가드 정책의 SoT 는 `http-request/http-safety.ts` (HTTP/DB/Email 공용); 기본 ON,
+  // `ALLOW_PRIVATE_HOST_TARGETS=true` 로 opt-out (EMAIL_HOST_BLOCKED 와 대칭).
   HTTP_BLOCKED: 'HTTP_BLOCKED',
   // Database
   // `DB_QUERY_FAILED` is the fallback / generic SQL execution failure.
