@@ -10,7 +10,7 @@
 
 ### C-1 [Critical] JWT secret 기본값 fallback
 
-- [ ] 미착수 — 기존 plan security-jwt-secret-fallback.md 에서 추적 — `backend/src/common/config/jwt.config.ts:4`
+- [x] ✅ 완료 (2026-06-11, worktree `prod-fail-closed-guards`) — `main.ts` 의 `assertProductionConfig` 가 production 에서 `JWT_SECRET` 미설정/sentinel(`dev-jwt-secret`)/예시값을 throw. **옵션 A 대비 정제**: `jwt.config.ts` 의 `|| 'dev-jwt-secret'` 라인은 **제거하지 않고 유지**한다 — 가드가 production 에서 그 sentinel 을 거부하므로 보안 목표(기본 secret 토큰 위조 차단)는 동등하고, dev/test 부팅 편의(JWT_SECRET 미주입 환경) 회귀를 피한다. C-1/M-4/M-7 단일 `assertProductionConfig` 블록으로 응집. 기존 `security-jwt-secret-fallback.md` 의 JWT_SECRET 부팅 정책을 본 PR 이 대체. — `backend/src/common/config/jwt.config.ts`, `production-guards.ts`
 
 **추적**: 기존 plan [`../security-jwt-secret-fallback.md`](../security-jwt-secret-fallback.md) (미착수, P0). 본 백로그는 우선순위 상향만 표시.
 
@@ -177,7 +177,7 @@ spec 내부 모순 발견.
 
 ### M-4 [Major] `.env.example` 의 ENCRYPTION_KEY 가 실사용 가능한 구체값
 
-- [ ] 미착수 — `.env.example:139-140`
+- [x] ✅ 완료 (2026-06-11, worktree `prod-fail-closed-guards`) — `.env.example` 의 `ENCRYPTION_KEY` 를 실 64-hex 예시 → all-zero placeholder + "MUST regenerate(openssl rand -hex 32)" 주석. `assertProductionConfig` 가 production 에서 미설정/공개 예시 키(all-zero·옛 `0123…`) 부팅 거부. secret-store.md 정책 갱신. — `.env.example`, `production-guards.ts`
 
 **spec 대조**: D — `secret-store.md:151` 은 "정확 64-char hex (.env.example 의 표준)" 으로 **형식**만 표준화 — 복붙 가능한 구체값이어야 한다는 의도는 없음. 같은 파일의 `INTEGRATION_ENCRYPTION_KEY=change-me-...` placeholder 와 비대칭.
 
@@ -257,7 +257,7 @@ spec 자체가 갭.
 
 ### M-7 [Major] `MCP_ALLOW_INSECURE_URL=true` 프로덕션 fail-fast 가드 없음
 
-- [ ] 미착수 — `mcp-client.service.ts:16-27`
+- [x] ✅ 완료 (2026-06-11, worktree `prod-fail-closed-guards`) — `assertProductionConfig` 가 production 에서 `MCP_ALLOW_INSECURE_URL=true` 부팅 거부(11-mcp-client spec "절대 금지" 를 enforcement 로 일치). `ALLOW_PRIVATE_HOST_TARGETS` 는 정당 self-host 용도라 throw 가 아닌 **warn**(main.ts)으로 분리. — `production-guards.ts`, `main.ts`
 
 enforcement 비대칭.
 

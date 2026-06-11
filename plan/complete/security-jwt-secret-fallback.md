@@ -2,10 +2,19 @@
 worktree: (unstarted)
 owner: developer
 title: "JWT 서명 secret 하드코딩 fallback 제거 — 프로덕션 부팅 시 JWT_SECRET 강제"
-status: backlog
+status: superseded
 started: 2026-06-02
+spec_impact:
+  - spec/5-system/1-auth.md
 origin: ai-review (review/code/2026/06/02/23_09_02 WARNING-1) — refactor-cron-to-bullmq PR 에서 분리
 ---
+
+> **✅ SUPERSEDED (2026-06-11)**: 본 항목(production 에서 `JWT_SECRET` 강제 부팅)은
+> `prod-fail-closed-guards` PR(refactor 04 C-1)의 `assertProductionConfig` 가 구현했다 —
+> production 에서 `JWT_SECRET` 미설정/sentinel/예시값 부팅 거부 + `ENCRYPTION_KEY`(M-4)·
+> `MCP_ALLOW_INSECURE_URL`(M-7) 단일 가드 블록. `jwt.config.ts` 의 dev fallback 은 가드가
+> production 에서 sentinel 을 거부하므로 보안 동등성을 유지하며 제거하지 않았다(정제 결정).
+> 아래 본문은 당시 조사 기록으로 보존.
 
 ## 배경
 
