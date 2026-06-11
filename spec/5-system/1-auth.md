@@ -346,7 +346,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 ### 4.1 기록 대상 액션
 
-**Action naming 규약**: `<resource>.<verb>` — resource dot-prefix 가 필수다 (필터·그룹의 기준). verb 는 도메인 관례를 따른다: audit 는 "일어난 일" 의 기록이므로 integration 은 과거분사(`created`/`updated`/`deleted`)를, execution 은 `re_run` 을 쓴다. 구현 action 의 단일 SoT 는 [`audit-action.const.ts`](../../codebase/backend/src/modules/audit-logs/audit-action.const.ts) 의 `AUDIT_ACTIONS` union 이며, `AuditLogsService.record({ action })` 가 타입으로 강제한다 (인라인 문자열 금지).
+**Action naming 규약**: `<resource>.<verb>` — resource dot-prefix 가 필수다 (필터·그룹의 기준). verb 는 도메인 관례를 따른다: audit 는 "일어난 일" 의 기록이므로 integration 은 과거분사(`created`/`updated`/`deleted`)를, execution 은 `re_run` 을 쓴다. auth_config 은 `reveal`·`regenerate` 처럼 과거분사가 부자연스러운 동사가 섞여 CRUD 동사 현재형(`create`/`update`/`delete`/`regenerate`/`reveal`)으로 통일한다. 구현 action 의 단일 SoT 는 [`audit-action.const.ts`](../../codebase/backend/src/modules/audit-logs/audit-action.const.ts) 의 `AUDIT_ACTIONS` union 이며, `AuditLogsService.record({ action })` 가 타입으로 강제한다 (인라인 문자열 금지).
 
 **현재 구현된 액션**:
 

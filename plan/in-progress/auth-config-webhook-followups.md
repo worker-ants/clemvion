@@ -16,9 +16,11 @@ status: in-progress
 > - [x] service spec audit mock 검증 테스트 (CRUD 4 케이스 + reveal 음성 mockClear)
 > - [x] spec §4.1 4종 Planned→구현됨 이동 + data-flow §1.1 writer 표 동기화
 > - [x] consistency-check --impl-prep (21_17_54, BLOCK: NO)
-> - [ ] TEST WORKFLOW (lint·unit·build ✓ / e2e 진행)
-> - [ ] /ai-review + RESOLUTION
-> - [ ] consistency-check --impl-done
+> - [x] TEST WORKFLOW (lint·unit 47·build·e2e 188 통과)
+> - [x] /ai-review (21_50_33, RISK LOW·Critical 0·Warning 3 fix) + RESOLUTION
+> - [x] consistency-check --impl-done (22_00_31, BLOCK: NO; W-6 fix, 나머지 백로그)
+>
+> **§1 완료** (2026-06-11). 잔여 §2~4 미착수. base: origin/main #544 rebase, stale-base 21_35_35 무효 폐기.
 
 본 PR (`plan/complete/auth-config-webhook-wiring.md`) 의 `/ai-review` (`review/code/2026/05/28/21_50_50/SUMMARY.md`) 에서 발견됐으나 본 PR scope 밖이거나 spec 개정이 선행돼야 하는 항목.
 
