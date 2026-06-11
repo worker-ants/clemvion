@@ -6,6 +6,7 @@ import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
 import { User } from '../users/entities/user.entity';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 
 describe('WorkspacesService', () => {
   let service: WorkspacesService;
@@ -716,7 +717,7 @@ describe('WorkspacesService', () => {
         expect.objectContaining({
           workspaceId: 'ws-uuid-1',
           userId: requesterId,
-          action: 'workspace.transfer_ownership',
+          action: AUDIT_ACTIONS.WORKSPACE_TRANSFER_OWNERSHIP,
           resourceType: 'workspace',
           resourceId: 'ws-uuid-1',
           details: { newOwnerMemberId },

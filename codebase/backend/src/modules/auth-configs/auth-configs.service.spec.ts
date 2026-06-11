@@ -9,6 +9,7 @@ import { Execution } from '../executions/entities/execution.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { User } from '../users/entities/user.entity';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 
 /** in-memory AuthConfig repo mock — save 가 들어온 객체를 그대로 반환. */
 function makeAuthConfigRepo() {
@@ -179,7 +180,7 @@ describe('AuthConfigsService', () => {
       );
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'auth_config.create',
+          action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
           resourceType: 'auth_config',
           resourceId: ac.id,
           workspaceId: WS,
@@ -197,7 +198,7 @@ describe('AuthConfigsService', () => {
       );
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'auth_config.create',
+          action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
           resourceType: 'auth_config',
           resourceId: ac.id,
           userId: USER,
@@ -222,7 +223,7 @@ describe('AuthConfigsService', () => {
       );
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'auth_config.update',
+          action: AUDIT_ACTIONS.AUTH_CONFIG_UPDATE,
           resourceType: 'auth_config',
           resourceId: ac.id,
           workspaceId: WS,
@@ -242,7 +243,7 @@ describe('AuthConfigsService', () => {
       await service.regenerate(ac.id, WS, USER, '1.2.3.4');
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'auth_config.regenerate',
+          action: AUDIT_ACTIONS.AUTH_CONFIG_REGENERATE,
           resourceType: 'auth_config',
           resourceId: ac.id,
           workspaceId: WS,
@@ -262,9 +263,10 @@ describe('AuthConfigsService', () => {
       await service.remove(ac.id, WS, USER, '1.2.3.4');
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'auth_config.delete',
+          action: AUDIT_ACTIONS.AUTH_CONFIG_DELETE,
           resourceType: 'auth_config',
           resourceId: ac.id,
+          workspaceId: WS,
           userId: USER,
           ipAddress: '1.2.3.4',
         }),
@@ -601,8 +603,6 @@ describe('AuthConfigsService', () => {
   });
 
   describe('reveal', () => {
-    const userId = 'user-1';
-
     it('올바른 비밀번호 → 평문 config 반환 + audit 기록', async () => {
       const ac = await service.create(
         WS,
@@ -613,19 +613,19 @@ describe('AuthConfigsService', () => {
       );
       const plainToken = ac.config.token as string;
       userRepo.findOne.mockResolvedValue({
-        id: userId,
+        id: USER,
         passwordHash: await bcrypt.hash('pw', 4),
       });
 
-      const result = await service.reveal(ac.id, WS, userId, 'pw', '1.2.3.4');
+      const result = await service.reveal(ac.id, WS, USER, 'pw', '1.2.3.4');
       expect(result.config.token).toBe(plainToken); // 마스킹 없음
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'auth_config.reveal',
+          action: AUDIT_ACTIONS.AUTH_CONFIG_REVEAL,
           resourceType: 'auth_config',
           resourceId: ac.id,
           workspaceId: WS,
-          userId,
+          userId: USER,
           ipAddress: '1.2.3.4',
         }),
       );
@@ -643,11 +643,11 @@ describe('AuthConfigsService', () => {
       // auth_config.reveal 을 기록하지 않음만 검증한다.
       audit.record.mockClear();
       userRepo.findOne.mockResolvedValue({
-        id: userId,
+        id: USER,
         passwordHash: await bcrypt.hash('pw', 4),
       });
       await expect(
-        service.reveal(ac.id, WS, userId, 'wrong', '1.2.3.4'),
+        service.reveal(ac.id, WS, USER, 'wrong', '1.2.3.4'),
       ).rejects.toThrow(UnauthorizedException);
       expect(audit.record).not.toHaveBeenCalled();
     });
@@ -662,9 +662,9 @@ describe('AuthConfigsService', () => {
       );
       // create 단계 기록을 제거 — reveal 실패가 auth_config.reveal 을 기록하지 않음 검증.
       audit.record.mockClear();
-      userRepo.findOne.mockResolvedValue({ id: userId, passwordHash: null });
+      userRepo.findOne.mockResolvedValue({ id: USER, passwordHash: null });
       await expect(
-        service.reveal(ac.id, WS, userId, 'pw', '1.2.3.4'),
+        service.reveal(ac.id, WS, USER, 'pw', '1.2.3.4'),
       ).rejects.toThrow(UnauthorizedException);
       expect(audit.record).not.toHaveBeenCalled();
     });

@@ -14,7 +14,7 @@ import { Execution } from '../executions/entities/execution.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { User } from '../users/entities/user.entity';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
-import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import { AUDIT_ACTIONS, AuditAction } from '../audit-logs/audit-action.const';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -27,6 +27,9 @@ const SECRET_CONFIG_KEYS = new Set(['key', 'token', 'secret', 'password']);
 
 // 감사 로그 resourceType — 본 도메인의 모든 record() 호출이 공유.
 const AUTH_CONFIG_RESOURCE_TYPE = 'auth_config';
+
+// getUsage 가 반환하는 최근 호출 표시 건수 (목록 API 기본 페이지 크기와 동일).
+const USAGE_RECENT_CALLS_LIMIT = 20;
 
 export interface WebhookAuthContext {
   /** 소문자 키의 요청 헤더 맵 */
@@ -50,6 +53,30 @@ export class AuthConfigsService {
     private readonly userRepository: Repository<User>,
     private readonly auditLogsService: AuditLogsService,
   ) {}
+
+  /**
+   * auth_config 계열 감사 기록의 단일 래퍼 — resourceType 을 고정하고 best-effort
+   * 계약(실패 swallow)은 {@link AuditLogsService.record} 에 위임한다. CRUD 5개
+   * 경로(create/update/regenerate/remove/reveal)가 공유한다.
+   */
+  private recordAudit(params: {
+    action: AuditAction;
+    workspaceId: string;
+    userId: string;
+    resourceId: string;
+    ipAddress?: string;
+  }): Promise<void> {
+    // named 필드 — positional 시그니처였다면 동일 타입(string) 인자 순서 스왑을
+    // 컴파일러가 잡지 못해 감사 주체·대상이 조용히 뒤바뀔 수 있다 (code review W-1).
+    return this.auditLogsService.record({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      action: params.action,
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
+      resourceId: params.resourceId,
+      ipAddress: params.ipAddress,
+    });
+  }
 
   async findAll(
     workspaceId: string,
@@ -103,7 +130,7 @@ export class AuthConfigsService {
    * @param userId 작업 주체 — controller 가 `@CurrentUser('sub')` 로 전파.
    * @param ipAddress 요청 IP(`req.ip`) — 감사 로그에 기록 (auth_config 계열 공통).
    * @remarks 감사 기록은 best-effort 다 — `AuditLogsService.record` 가 실패를 내부에서
-   *   swallow 하므로(해당 swallow 는 audit-logs.service.spec 에서 검증) audit DB 장애가
+   *   swallow 하므로(해당 swallow 는 audit-logs.spec 에서 검증) audit DB 장애가
    *   본 CRUD 를 실패시키지 않는다(롤백 없음). reveal 및 update/regenerate/remove 동일 패턴.
    */
   async create(
@@ -137,11 +164,10 @@ export class AuthConfigsService {
       workspaceId,
     });
     const saved = await this.authConfigRepository.save(authConfig);
-    await this.auditLogsService.record({
+    await this.recordAudit({
+      action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
       workspaceId,
       userId,
-      action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
-      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: saved.id,
       ipAddress,
     });
@@ -159,11 +185,10 @@ export class AuthConfigsService {
     const config = await this.findById(id, workspaceId);
     Object.assign(config, data);
     const saved = await this.authConfigRepository.save(config);
-    await this.auditLogsService.record({
+    await this.recordAudit({
+      action: AUDIT_ACTIONS.AUTH_CONFIG_UPDATE,
       workspaceId,
       userId,
-      action: AUDIT_ACTIONS.AUTH_CONFIG_UPDATE,
-      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: id,
       ipAddress,
     });
@@ -191,11 +216,10 @@ export class AuthConfigsService {
     config.config = configData;
     // 재발급 응답은 신규 값을 1회 평문 노출.
     const saved = await this.authConfigRepository.save(config);
-    await this.auditLogsService.record({
+    await this.recordAudit({
+      action: AUDIT_ACTIONS.AUTH_CONFIG_REGENERATE,
       workspaceId,
       userId,
-      action: AUDIT_ACTIONS.AUTH_CONFIG_REGENERATE,
-      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: id,
       ipAddress,
     });
@@ -211,11 +235,10 @@ export class AuthConfigsService {
   ): Promise<void> {
     const config = await this.findById(id, workspaceId);
     await this.authConfigRepository.remove(config);
-    await this.auditLogsService.record({
+    await this.recordAudit({
+      action: AUDIT_ACTIONS.AUTH_CONFIG_DELETE,
       workspaceId,
       userId,
-      action: AUDIT_ACTIONS.AUTH_CONFIG_DELETE,
-      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: id,
       ipAddress,
     });
@@ -248,11 +271,10 @@ export class AuthConfigsService {
       });
     }
     const config = await this.findById(id, workspaceId);
-    await this.auditLogsService.record({
+    await this.recordAudit({
+      action: AUDIT_ACTIONS.AUTH_CONFIG_REVEAL,
       workspaceId,
       userId,
-      action: AUDIT_ACTIONS.AUTH_CONFIG_REVEAL,
-      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: id,
       ipAddress,
     });
@@ -497,7 +519,7 @@ export class AuthConfigsService {
       .innerJoinAndSelect('e.trigger', 't')
       .where('e.trigger_id IN (:...triggerIds)', { triggerIds })
       .orderBy('e.started_at', 'DESC')
-      .limit(20)
+      .limit(USAGE_RECENT_CALLS_LIMIT)
       .getMany();
 
     return {

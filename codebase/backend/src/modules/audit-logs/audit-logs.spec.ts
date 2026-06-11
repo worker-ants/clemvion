@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { AuditLogsController } from './audit-logs.controller';
 import { AuditLogsService } from './audit-logs.service';
 import { AuditLog } from './entities/audit-log.entity';
+import { AUDIT_ACTIONS } from './audit-action.const';
 import { ROLES_KEY } from '../../common/guards/roles.guard';
 
 /**
@@ -73,5 +74,54 @@ describe('AuditLogsService.findAll — 필터 (Spec Auth §4.2)', () => {
     await service.findAll('ws-1', {} as never);
     const clauses = qb.andWhere.mock.calls.map((c: unknown[]) => c[0]);
     expect(clauses).not.toContain('al.user_id = :userId');
+  });
+});
+
+/**
+ * record() 의 best-effort(swallow) 계약 — 감사 기록 실패가 주 동작(CRUD)을
+ * 실패시키지 않아야 한다. 모든 audit producer(integrations/auth-configs/workspaces
+ * 등)의 docstring 이 "swallow 는 여기서 검증" 이라 참조하므로, 그 계약의 단일
+ * 회귀 방지 지점이다.
+ */
+describe('AuditLogsService.record — best-effort (swallow)', () => {
+  function makeService(repo: {
+    create: jest.Mock;
+    save: jest.Mock;
+  }): AuditLogsService {
+    return new AuditLogsService(repo as unknown as Repository<AuditLog>);
+  }
+
+  const entry = {
+    workspaceId: 'ws-1',
+    userId: 'user-1',
+    action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
+    resourceType: 'auth_config',
+    resourceId: 'ac-1',
+  };
+
+  it('save 가 reject 해도 예외를 삼키고 resolve 한다 (주 동작 비실패)', async () => {
+    const repo = {
+      create: jest.fn((d: unknown) => d),
+      save: jest.fn().mockRejectedValue(new Error('audit DB unreachable')),
+    };
+    const service = makeService(repo);
+    await expect(service.record(entry)).resolves.toBeUndefined();
+    expect(repo.save).toHaveBeenCalled();
+  });
+
+  it('정상 경로에서는 save 된 로그를 기록한다', async () => {
+    const repo = {
+      create: jest.fn((d: unknown) => d),
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = makeService(repo);
+    await expect(service.record(entry)).resolves.toBeUndefined();
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
+        resourceId: 'ac-1',
+      }),
+    );
   });
 });
