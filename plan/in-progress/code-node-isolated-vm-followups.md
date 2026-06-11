@@ -26,11 +26,11 @@ owner: developer
 - [ ] 메모리 초과 통합 테스트 CI flakiness 완화(`jest.retryTimes` 또는 `@slow` 분리).
 
 ## Spec (planner)
-- [ ] **§4 step2/step6 정확화**: step2 래핑을 실제 2-단(outer async IIFE + inner `__user`, isolate 경계 JSON 직렬화) 으로, step6 `$vars` 동기화를 "격리 환경 최종 `$vars` 읽어 전체 교체, copy-out 실패 시 varsClone fallback" 으로. (`--impl-done` I4/I5, ai-review INFO#6/#7)
-- [ ] **런타임 에러 라인 오프셋**: §4 또는 §2 에 "런타임 에러 라인 = 래퍼 헤더 3줄 오프셋" 명시.
-- [ ] **§5.3.1/§5.3.2/§5.3.3 예시 정합**: §5.3.1 stack 예시에 "비프로덕션 한정" 보조노트, §5.3.3 `meta.durationMs` 추가(또는 "즉시 폐기 시 0" 명시 + 핸들러 확인), §5.3.2 stack 플레이스홀더 구체화.
-- [ ] **md5/sha1 비암호학 명시**: §2.2 에 "md5/sha1 은 체크섬·레거시 호환 전용, 암호학적 용도 금지" 1줄.
-- [ ] **§3-error-handling §1.4 EXECUTION_TIMEOUT 계층**: 엔진 수준 표의 `EXECUTION_TIMEOUT` 을 "내부 legacyCode — public `CODE_TIMEOUT`(node-level `error` 포트)" 로 보강. `14-external-interaction-api §547` 동반.
+- [x] **§4 step2/step6 정확화**: step2 래핑을 실제 2-단(outer async IIFE + inner `__user`, isolate 경계 JSON 직렬화) 으로, step6 `$vars` 동기화를 "격리 환경 최종 `$vars` 읽어 전체 교체, copy-out 실패 시 varsClone fallback" 으로. **(완료, PR spec-errcode-catalog 그룹2a)**
+- [x] **런타임 에러 라인 오프셋**: §4 또는 §2 에 "런타임 에러 라인 = 래퍼 헤더 3줄 오프셋" 명시. **(완료, 그룹2a — +3 명시)**. ⚠ **code 후속(별도 code PR)**: `code.handler.ts` `wrapUserCode` 의 W14 주석이 "4-line header / offset +4 / subtract 4" 로 적혀 있으나 실제 헤더는 3줄 → 오프셋 **+3** 이 맞음. 주석 off-by-one 버그 — 그룹3(code/test) 또는 별도 code PR 에서 +3 으로 수정.
+- [x] **§5.3.1/§5.3.2/§5.3.3 예시 정합**: §5.3.1 stack 예시에 "비프로덕션 한정" 보조노트, §5.3.3 `meta.durationMs` 추가. **(완료, 그룹2a)**. (§5.3.2 stack 플레이스홀더 `"..."` 는 cosmetic 으로 보류.)
+- [x] **md5/sha1 비암호학 명시**: §2.2 에 "md5/sha1 은 체크섬·레거시 호환 전용, 암호학적 용도 금지" 1줄. **(완료, 그룹2a — 허용 알고리즘 목록 + ⚠ 경고)**
+- [ ] **§3-error-handling §1.4 EXECUTION_TIMEOUT 계층**: 엔진 수준 표의 `EXECUTION_TIMEOUT` 을 "내부 legacyCode — public `CODE_TIMEOUT`(node-level `error` 포트)" 로 보강. `14-external-interaction-api §547` 동반. **(보류 — 엔진레벨 EXECUTION_TIMEOUT/EXECUTION_TIME_LIMIT_EXCEEDED 계층화는 별개 영역. 그룹2a 는 internal-legacy 매핑을 error-codes.md §3.1 에 등재하는 것으로 부분 충족.)**
 
 ## 타 plan/worktree 정리 (머지 후)
 - [ ] `plan/in-progress/node-output-redesign/code.md` 의 `CODE_MEMORY_LIMIT` "로드맵 미구현" 서술 → "구현 완료(isolated-vm PR)".
