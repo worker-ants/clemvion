@@ -2,6 +2,9 @@
 worktree: auth-refresh-rotation-atomic
 started: 2026-06-11
 owner: developer
+spec_impact:
+  - spec/data-flow/2-auth.md
+  - spec/5-system/3-error-handling.md
 ---
 
 # P0 — refresh 토큰 rotation 원자화 (refactor 05 C-1)
@@ -26,11 +29,11 @@ owner: developer
 - 회전 시퀀스의 revoke+INSERT 를 `rect`(단일 트랜잭션) 박스로 + 원자성 노트(WebAuthn §1.4 전례 동형).
 
 ## 체크리스트
-- [ ] `/consistency-check --spec` BLOCK: NO.
-- [ ] 단위: 트랜잭션 중간 실패 주입 시 구 토큰 `is_revoked=false` 유지 + 기존 refresh/reuse green.
-- [ ] TEST WORKFLOW (lint·unit·build·e2e).
-- [ ] `/ai-review` + fix.
-- [ ] `/consistency-check --impl-done spec/data-flow/` BLOCK: NO.
+- [x] `/consistency-check --spec` BLOCK: NO (`review/consistency/2026/06/11/08_38_12/`).
+- [x] 단위: 회전 단일 트랜잭션 + 조건부 revoke(affected=0 거부) + 만료경로 트랜잭션 미진입 + 롤백 에러전파.
+- [x] TEST WORKFLOW — lint ✅ · unit ✅ (backend 6509) · build ✅ · e2e ✅ (188).
+- [x] `/ai-review` — LOW / Critical 0 / Warning 6 → W2(TOCTOU 조건부 revoke)·W1·W3·W6 등 반영 또는 근거 수용. RESOLUTION: `review/code/2026/06/11/08_45_18/RESOLUTION.md`.
+- [x] `/consistency-check --impl-done spec/data-flow/` BLOCK: NO (`review/consistency/2026/06/11/08_57_01/`). W3(자기참조)·W4/I4(라벨)·I6(TOKEN_INVALID SoT) 반영; W1·W2(email_verify/세션정책)는 본 변경 무관 기존 spec 갭 → scope 밖.
 
 ## Rationale
 옵션 A — 세션 소실(현상유지)과 동시 유효 토큰 창(순서 역전안 B)을 모두 제거하는 유일안. spec §1.4 가

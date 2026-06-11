@@ -33,7 +33,7 @@ code:
 |------|------|------|------|
 | `AUTH_REQUIRED` | 인증 필요 | 토큰 없음 | 401 |
 | `TOKEN_EXPIRED` | 토큰 만료 | Access Token 만료 | 401 |
-| `TOKEN_INVALID` | 토큰 무효 | 변조/형식 오류 | 401 |
+| `TOKEN_INVALID` | 토큰 무효 | 변조/형식 오류, refresh 토큰 미존재/소유자 부재, 또는 refresh 회전 시 조건부 revoke 매칭 0건(동일 토큰 동시 회전 경합 — [data-flow §1.4](../data-flow/2-auth.md#14-refresh-token-회전)) | 401 |
 | `FORBIDDEN` | 권한 없음 | 역할 권한 부족(generic) | 403 |
 | `ADMIN_REQUIRED` | Admin 권한 필요 | 워크스페이스 Owner/Admin 역할 필요 시 발행되는 `FORBIDDEN` 의 컨텍스트 특화 코드(`WorkspacesService.assertAdmin()` 발행) | 403 |
 | `LOGIN_FAILED` | 로그인 실패 | 잘못된 자격 증명 | 401 |

@@ -10,7 +10,7 @@
 
 ### C-1 [Critical] refresh 토큰 rotation 비원자성 — 세션 소실 가능
 
-- [ ] 미착수 — `auth.service.ts:574,582` + `generateTokens():746`
+- [x] ✅ 완료 (2026-06-11, 옵션 A) — refresh 회전 revoke+INSERT 를 `dataSource.transaction` 으로 원자화 + revoke 를 조건부 UPDATE(`is_revoked=false AND expires_at>now`)로 TOCTOU 이중회전 차단. `generateTokens` optional `EntityManager`(호출처 무변경). spec `data-flow/2-auth.md §1.4` 트랜잭션 박스. plan: `plan/complete/auth-refresh-rotation-atomic.md`. — `auth.service.ts`
 
 **spec 대조**: D — `1-auth.md §2.4` 는 회전 의미만 정의(트랜잭션 경계 무언급). **대비**: 같은 문서 §1.4 WebAuthn 은 "단일 트랜잭션 안에서 처리" 를 명시 — spec 은 원자성이 의도일 때 명시하는 문서이므로, 본 건은 미결정 영역이고 원자화가 spec 비저촉.
 
