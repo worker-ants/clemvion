@@ -144,7 +144,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     // 감사 로그 기록 (spec §11).
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 're_run_initiated',
+        action: 'execution.re_run',
         resourceType: 'execution',
         resourceId: 'new-exec-id',
         details: expect.objectContaining({

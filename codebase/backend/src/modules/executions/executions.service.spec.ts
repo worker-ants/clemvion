@@ -143,7 +143,7 @@ describe('ExecutionsService', () => {
       { find: jest.fn() } as never, // nodeRepository (re-run inputOverride 검증용)
       engine as never,
       { getComponent: jest.fn() } as never, // nodeComponentRegistry (dry-run gate)
-      { record: jest.fn() } as never, // auditLogsService (re_run_initiated)
+      { record: jest.fn() } as never, // auditLogsService (execution.re_run)
       { getMemberRole: jest.fn() } as never, // workspacesService (RR-PL-06)
     );
   });

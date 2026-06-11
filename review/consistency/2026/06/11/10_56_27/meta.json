@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-11T10:56:27.712773",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=G-01/G-02 audit 도메인 — re_run_initiated→execution.re_run 개명 + AUDIT_ACTIONS union 상수 강제(9 call site 전환) + spec §4.1 구현됨/Planned 구분. spec 하향+코드 위생. data-flow/1-audit·13-replay-rerun 동반 갱신., diff-base=origin/main)",
+  "target_path": "G-01/G-02 audit 도메인 — re_run_initiated→execution.re_run 개명 + AUDIT_ACTIONS union 상수 강제(9 call site 전환) + spec §4.1 구현됨/Planned 구분. spec 하향+코드 위생. data-flow/1-audit·13-replay-rerun 동반 갱신.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

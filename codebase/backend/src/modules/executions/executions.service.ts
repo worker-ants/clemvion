@@ -18,6 +18,7 @@ import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
@@ -418,7 +419,7 @@ export class ExecutionsService {
     await this.auditLogsService.record({
       workspaceId,
       userId: user.sub,
-      action: 're_run_initiated',
+      action: AUDIT_ACTIONS.EXECUTION_RE_RUN,
       resourceType: 'execution',
       resourceId: newExecutionId,
       details: {

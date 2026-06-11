@@ -49,15 +49,17 @@ sequenceDiagram
 | 〃 | `integration.scope_changed` | integration | OAuth scope 변경 |
 | 〃 | `integration.reauthorized` | integration | 재인가 |
 | `workspaces/workspaces.service.ts` | `workspace.transfer_ownership` | workspace | 소유권 이전 |
-| `executions/executions.service.ts` | `re_run_initiated` | execution | 재실행. details 에 `originalExecutionId`·`chainId`·`dryRun`·`inputModified` |
+| `executions/executions.service.ts` | `execution.re_run` | execution | 재실행. details 에 `originalExecutionId`·`chainId`·`dryRun`·`inputModified` |
 | `auth-configs/auth-configs.service.ts` | `auth_config.reveal` | auth_config | 유일하게 `ipAddress` 를 함께 전달 |
 
 표기 규약과 커버리지에 대한 코드 사실 두 가지:
 
-- **표기 비일관이 실제 존재한다.** `<resource>.<verb>` 꼴이 다수지만 통일돼 있지 않다 — integration
-  계열은 과거분사형(`integration.created`)이고, `re_run_initiated` 는 dot-prefix 없이 규약 자체를
-  이탈한다. `record` 시그니처가 `action: string` 자유 문자열이고 application 단에 action union/enum
-  타입이 없어 (grep `AuditAction` 0건) 이를 막는 장치가 없다 (→ [Rationale](#rationale)).
+- **표기 규약은 dot-prefix 기준으로 통일됐다.** action 은 `<resource>.<verb>` 꼴로, resource
+  dot-prefix 가 필수다. verb 시제는 도메인 관례를 따른다 — integration 계열은 발생 사건을 기록하므로
+  과거분사형(`integration.created`), execution 은 `execution.re_run`. 과거 `re_run_initiated` 가
+  dot-prefix 를 이탈했으나 `execution.re_run` 으로 정정됐다(cross-audit G-02). `record` 의 `action`
+  은 이제 `AuditAction` union (`audit-logs/audit-action.const.ts` 의 `AUDIT_ACTIONS`) 으로 타입
+  강제돼 인라인 임의 문자열을 막는다 (cross-audit G-01, → [Rationale](#rationale)).
 - **커버리지 갭**: [인증 spec §4.1](../5-system/1-auth.md) 이 기록 대상으로 약속한
   `workflow.*` / `trigger.*` / `member.*` / `schedule.*` / `workspace.create·update·delete` /
   `model_config.*`(create/update/delete/set-default — 구 `llm_config.*`/`rerank_config.*` 통합) / 인증(password_change 등) 액션은 **모두 미구현**이다 —
@@ -181,17 +183,21 @@ login_history 정리 배치 (`auth/jobs/login-history-pruner.service.ts`):
 `spec/1-data-model.md §2.18` 의 노트로 inline 되어 있다. 조회 권한도 비대칭 — audit_log 는 워크스페이스
 스코프 offset 페이지네이션, login_history 는 본인 단독 cursor 페이지네이션 (§2).
 
-### Action 은 자유 문자열, event 는 DB CHECK 로 고정
+### Action 은 application union 으로 강제(DB 는 자유 문자열), event 는 DB CHECK 로 고정
 
-`audit_log.action` 은 자유 문자열이다 (DB CHECK 없음 — `VARCHAR(100) NOT NULL`, V001). 새 액션
-type 추가 시 마이그레이션이 필요 없다는 trade-off 의 반대편은 비일관 표기가 DB 에 들어갈 수 있다는
-위험인데, 이 위험은 **실제로 현실화되어 있다** — application 단에도 action 을 제약하는 union/enum
-타입이 없어 (`record` 시그니처가 `action: string`), 과거분사형(`integration.created`) 과 dot-prefix
-이탈(`re_run_initiated`) 이 이미 혼재 적재되고 있다 (§1.1).
+`audit_log.action` 은 **DB 레벨에서는** 자유 문자열이다 (DB CHECK 없음 — `VARCHAR(100) NOT NULL`,
+V001). 새 액션 type 추가 시 마이그레이션이 필요 없다는 trade-off 의 반대편은 비일관 표기가 DB 에
+들어갈 위험인데, 이는 **application 단 타입으로 막는다** — `AuditLogsService.record({ action })` 의
+`action` 이 `AuditAction` union (`audit-logs/audit-action.const.ts` 의 `AUDIT_ACTIONS`) 으로 강제돼,
+새 action 은 const 에 추가하지 않으면 호출 자체가 컴파일되지 않는다 (cross-audit G-01). DB CHECK 대신
+application union 을 택한 이유는 액션 추가가 잦고(도메인 확장마다) DB 마이그레이션 비용을 피하기 위함이다
+— DB CHECK 로 고정하는 `login_history.event`(아래)와 대조된다.
 
-> 과거 본 문서는 "application 단의 type 정의가 typo 를 일정 수준 막아준다" 고 서술했으나, 그런 type
-> 정의는 존재하지 않아 폐기했다. 표기 통일(코드를 `<resource>.<verb>` 로 정정하거나 규약 진술을
-> 완화)은 미해결 과제로 남아 있다.
+> 과거 `re_run_initiated` 가 dot-prefix 를 이탈해 과거분사형 integration 액션과 혼재 적재됐으나,
+> cross-audit G-02 에서 `execution.re_run` 으로 정정됐다 (신규 row 부터 적용; 기존 레거시 row 는
+> audit 불변 원칙상 그대로 둔다). integration 계열 과거분사형(`integration.created`)은 audit 가 발생
+> 사건을 기록한다는 의미상 의도된 표기로 유지하며, naming 규약은 "resource dot-prefix 필수 + verb 는
+> 도메인 관례" 로 [인증 spec §4.1](../5-system/1-auth.md) 에 명문화했다.
 
 반면 `login_history.event` 는 DB CHECK 제약(`chk_login_history_event`, V040 도입)으로 enum 값을 고정한다.
 따라서 event 종류 추가 시 마이그레이션이 필요하다 — 예: `webauthn_failed` 추가는 V058 에서 CHECK 제약을
