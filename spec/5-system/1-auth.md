@@ -351,7 +351,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | Integration | integration.create, integration.update, integration.delete |
 | 설정 | auth_config.create, auth_config.update, auth_config.delete, auth_config.regenerate, auth_config.reveal, model_config.* (create/update/delete/set-default; reveal 미제공 — ModelConfig 는 평문 reveal 엔드포인트 없음) |
 
-> **감사 액션 통합 (model_config)**: 신규 이벤트는 `model_config.*` (create/update/delete/set-default) 로 기록한다. 통합 이전에 적재된 `llm_config.*`/`rerank_config.*` row 는 append-only 로 보존되며 재작성하지 않는다. 따라서 감사 조회는 전환 중·후 모두 두 액션 집합(`model_config.*` OR `llm_config.*`/`rerank_config.*`)을 OR 로 결합해 질의해야 한다.
+> **감사 액션 통합 (model_config)** — *목표 설계*. 설정 CRUD 감사 로깅 자체는 현재 미구현이다 (`model_config.service.ts` 는 `AuditLogsService` 를 호출하지 않는다 — [data-flow §1.1 커버리지 갭](../data-flow/1-audit.md) 이 ground truth). 구현 시 신규 이벤트는 `model_config.*` (create/update/delete/set-default) 로 기록한다. 통합 이전 `llm_config.*`/`rerank_config.*` 로 적재된 row 가 있다면 append-only 로 보존되며 재작성하지 않으므로, 감사 조회는 두 액션 집합(`model_config.*` OR `llm_config.*`/`rerank_config.*`)을 OR 로 결합해 질의한다.
 
 > 워크스페이스 컨텍스트가 없는 인증 이벤트(login, logout, login_failed 등)는 AuditLog 가 아닌 §4.3 **LoginHistory** 에 기록된다.
 
