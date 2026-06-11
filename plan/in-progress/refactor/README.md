@@ -109,7 +109,7 @@
 - `1-data-model.md` §3 인덱스 표 stale 일괄 동기화 (05 C-3 부수 발견)
 - transform/filter/if-else/switch 의 "길이 200 = ReDoS 방지" 정정 (04 M-3)
 - ~~`data-flow/4-file-storage.md` "for 루프" 문구 (01 #2)~~ — ✅ 반영 완료 (`plan/complete/spec-update-perf-backlog-01.md`, 2026-06-10). `interaction-type-registry.md` §1.2 park-entry 레이어 (02 M-4)
-- `1-auth.md` §2.1 SameSite/CSRF 정책 공백 (04 M-5), secret-store.md placeholder 정책 (04 M-4)
+- `1-auth.md` §2.1 SameSite/CSRF 정책 공백 (04 M-5), ~~secret-store.md placeholder 정책 (04 M-4)~~ ✅ + ~~`1-auth.md §2.1` JWT_SECRET fail-closed (04 C-1)~~ ✅ + ~~`11-mcp-client.md` MCP insecure flag (04 M-7)~~ ✅ — worktree `prod-fail-closed-guards`
 
 ## 운영 규칙
 

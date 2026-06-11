@@ -7,6 +7,7 @@ import './instrumentation';
 import './bootstrap/undici-dispatcher';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 
 // DeprecationWarning 의 발생 위치를 추적하려면 stack 이 필요한데, 기본
 // process warning emitter 는 stack 을 한 줄로만 출력한다. 노드 옵션
@@ -36,27 +37,29 @@ import {
   type CorsRequestLike,
 } from './common/cors/web-chat-cors';
 import { WebChatCorsOriginResolver } from './modules/web-chat-cors/web-chat-cors-origin.resolver';
+import {
+  assertProductionConfig,
+  isFlagOn,
+} from './common/config/production-guards';
 
 async function bootstrap() {
-  // Fail-closed: OAUTH_STUB_MODE bypasses real provider verification, so
-  // running it in production would let anyone forge an account.
+  const logger = new Logger('Bootstrap');
+  // Fail-closed (refactor 04 C-1·M-4·M-7 + 기존 OAUTH/LLM stub): NODE_ENV=production
+  // 에서 비보안 stub·미설정/예시 secret·위험 플래그가 켜진 채 기동하면 즉시 throw 한다.
+  // 전 분기는 production-guards.ts 단위 테스트로 검증. (비-production 은 no-op.)
+  assertProductionConfig(process.env);
+
+  // 04 M-7 — ALLOW_PRIVATE_HOST_TARGETS 는 정당한 self-host 용도(VPC 내부 DB/SMTP 등,
+  // spec http-request §4)가 있어 throw 가 아닌 warn 으로 분리한다 — 운영자가 의도적으로
+  // 켰을 수 있으나 SSRF 표면을 넓히므로 가시화한다.
   if (
     process.env.NODE_ENV === 'production' &&
-    process.env.OAUTH_STUB_MODE === 'true'
+    isFlagOn(process.env.ALLOW_PRIVATE_HOST_TARGETS)
   ) {
-    throw new Error(
-      'OAUTH_STUB_MODE=true is not allowed when NODE_ENV=production',
-    );
-  }
-  // Fail-closed: LLM_STUB_MODE replaces every LLM provider call with a
-  // deterministic stub (e2e only). In production it would silently substitute
-  // all AI responses — refuse to boot. (OAUTH_STUB_MODE 와 동일 패턴.)
-  if (
-    process.env.NODE_ENV === 'production' &&
-    process.env.LLM_STUB_MODE === 'true'
-  ) {
-    throw new Error(
-      'LLM_STUB_MODE=true is not allowed when NODE_ENV=production',
+    logger.warn(
+      '[SECURITY] ALLOW_PRIVATE_HOST_TARGETS 활성 (production) — 사설/loopback 호스트 ' +
+        '대상 outbound 가 허용됩니다. self-host 의도가 아니면 SSRF 위험이니 비활성화하고, ' +
+        '의도적이라면 egress 방화벽/IP allowlist 를 반드시 병행하세요.',
     );
   }
 
