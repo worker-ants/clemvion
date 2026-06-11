@@ -103,9 +103,11 @@ pending_plans:
 
 | 종류 | 처리 방식 |
 | --- | --- |
-| **Pre-flight 에러** (config 오류, credential 누락, SSRF 차단 등) | `throw` → 엔진이 실행 실패로 마킹 |
-| **Runtime 에러** (외부 API 실패, 쿼리 실패 등) | `port: 'error'` + `output.error` |
+| **Pre-flight 에러** (config 오류, 스키마 검증 실패 등) | `throw` → 엔진이 실행 실패로 마킹 |
+| **Runtime 에러** (외부 API 실패, 쿼리 실패, SSRF 차단, Integration credential resolve 실패 등) | `port: 'error'` + `output.error` |
 | **예상 가능한 비즈니스 실패** (매칭 없음, 빈 결과 등) | 정상 `port` 유지, 결과가 비어있음을 명시 |
+
+> **D4 (2026-05-17)**: Integration 계열 노드(HTTP Request·Database Query·Send Email)의 **SSRF 차단**(`HTTP_BLOCKED`)·**credential resolve 실패**(`INTEGRATION_INCOMPLETE` 등)는 Pre-flight throw 가 아니라 **Runtime 에러 포트**(`port: 'error'` + `output.error`)로 라우팅한다 — 사용자가 `error` 포트로 분기·복구할 수 있게 하기 위함. config 형식 자체 오류(`handler.validate` 실패)만 throw 로 남는다 ([1-http-request.md §5.8](../4-nodes/4-integration/1-http-request.md)).
 
 ### 3.2. `output.error` 표준 형태
 

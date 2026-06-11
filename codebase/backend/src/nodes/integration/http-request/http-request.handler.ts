@@ -154,9 +154,26 @@ export class HttpRequestHandler
       typeof rawConfig.url === 'string'
         ? sanitizeUrlCredentials(rawConfig.url)
         : rawConfig.url;
-    // Spread + URL override — adding a new schema field is automatically
-    // echoed without a maintenance step here (review W-6).
-    const configEcho: Record<string, unknown> = { ...rawConfig, url: rawUrl };
+    // CONVENTIONS Principle 7 (D1) — echo by **explicit field enumeration**,
+    // never `{ ...rawConfig }`. Spreading would auto-leak any future
+    // credential-shaped config field into the output. NOTE: adding a new
+    // schema field (http-request.schema.ts) requires adding it here too — this
+    // manual sync is intentional; it keeps the echo a known, audited surface.
+    // `url` carries the credential-sanitized value.
+    const configEcho: Record<string, unknown> = {
+      method: rawConfig.method,
+      url: rawUrl,
+      authentication: rawConfig.authentication,
+      integrationId: rawConfig.integrationId,
+      headers: rawConfig.headers,
+      queryParams: rawConfig.queryParams,
+      body: rawConfig.body,
+      bodyType: rawConfig.bodyType,
+      responseType: rawConfig.responseType,
+      timeout: rawConfig.timeout,
+      followRedirects: rawConfig.followRedirects,
+      verifySsl: rawConfig.verifySsl,
+    };
 
     // The evaluated body reflects what was actually sent (after expression
     // substitution). For `form-data` we record the multipart parts as a
@@ -314,45 +331,47 @@ export class HttpRequestHandler
       };
     }
 
-    // SSRF guard for Integration-backed calls only. Un-authenticated HTTP
-    // requests (authentication=none / custom) may legitimately target
-    // internal services in some deployments, so we don't block those here.
+    // SSRF guard — applies to ALL authentication methods (none / integration /
+    // custom). Private / loopback / link-local / CGNAT (incl. cloud IMDS
+    // 169.254.169.254) targets are blocked by default (secure-by-default,
+    // spec §4 step 8). Legitimate internal access is opt-in via
+    // ALLOW_PRIVATE_HOST_TARGETS=true (spec §105) — already wired inside
+    // http-safety, so no auth-method gating is needed here (refactor 04 C-3).
     //
     // Two-layer 검증: 호스트 리터럴 (IP 직접 지정 차단) → DNS resolve 후 IP
-    // 재검사 (DNS rebinding 차단). 이전엔 hostname literal 검사만 했기 때문에
-    // 공격자가 통제하는 DNS 가 공개 hostname 을 내부 IP 로 reso 시키는 시나리오에
-    // 무방어였다 (W-4).
-    if (authentication === 'integration') {
-      try {
-        const parsed = assertSafeOutboundUrl(url);
-        await assertSafeOutboundHostResolved(parsed.hostname);
-      } catch (err) {
-        if (integrationId) {
-          await this.logUsage(context, {
-            integrationId,
-            status: 'failed',
-            durationMs: Date.now() - start,
-            error: {
-              code: 'HTTP_BLOCKED',
-              message: err instanceof Error ? err.message : String(err),
-            },
-            api: { method, path: extractApiPath(url) },
-          }).catch(() => {});
-        }
-        // D4 (2026-05-17) — SSRF 차단 throw → port:'error' (HTTP_BLOCKED).
-        return buildPreflightErrorOutput(
-          new IntegrationError(
-            'HTTP_BLOCKED',
-            err instanceof Error ? err.message : String(err),
-          ),
-          configEcho,
-          cappedRequestBody,
-          bodyType,
-          method,
-          url,
-          Date.now() - start,
-        );
+    // 재검사 (DNS rebinding 차단). hostname literal 검사만으로는 공격자가 통제하는
+    // DNS 가 공개 hostname 을 내부 IP 로 resolve 하는 DNS rebinding 시나리오에 무방어다.
+    try {
+      const parsed = assertSafeOutboundUrl(url);
+      await assertSafeOutboundHostResolved(parsed.hostname);
+    } catch (err) {
+      // Usage 로그는 integration 인증에 한정 (none/custom 은 활동 로그 미생성,
+      // spec §4.2). SSRF 차단의 error 포트 라우팅(HTTP_BLOCKED)은 전 인증 공통.
+      if (authentication === 'integration' && integrationId) {
+        await this.logUsage(context, {
+          integrationId,
+          status: 'failed',
+          durationMs: Date.now() - start,
+          error: {
+            code: 'HTTP_BLOCKED',
+            message: err instanceof Error ? err.message : String(err),
+          },
+          api: { method, path: extractApiPath(url) },
+        }).catch(() => {});
       }
+      // D4 (2026-05-17) — SSRF 차단 throw → port:'error' (HTTP_BLOCKED).
+      return buildPreflightErrorOutput(
+        new IntegrationError(
+          'HTTP_BLOCKED',
+          err instanceof Error ? err.message : String(err),
+        ),
+        configEcho,
+        cappedRequestBody,
+        bodyType,
+        method,
+        url,
+        Date.now() - start,
+      );
     }
 
     const controller = new AbortController();

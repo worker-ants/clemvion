@@ -82,7 +82,7 @@ code:
 [Integration 공통 §4 Handler 실행 세멘틱](./0-common.md#4-handler-실행-세멘틱) 의 6단계 계약을 따른다. 노드 고유 흐름:
 
 1. **Config 정규화**: `method` 대문자 변환, `bodyType` / `responseType` 기본값 적용
-2. **Config echo 빌드** (Principle 7): `context.rawConfig` 를 그대로 spread + `url` 만 `sanitizeUrlCredentials` 결과로 교체
+2. **Config echo 빌드** (Principle 7 D1 — **명시 열거**, spread 금지): `context.rawConfig` 에서 스키마 정의 필드(`method` / `url` / `authentication` / `integrationId` / `headers` / `queryParams` / `body` / `bodyType` / `responseType` / `timeout` / `followRedirects` / `verifySsl`)를 각각 직접 참조해 echo 하고, `url` 만 `sanitizeUrlCredentials` 결과로 교체. `{ ...rawConfig }` spread 는 향후 추가될 credential-shape 필드를 자동 누출시키므로 사용하지 않는다 ([node-output.md Principle 7 D1](../../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig)).
    - URL 내 `user:pass@host` → userinfo 제거
    - 쿼리 파라미터 키가 `api_key` / `token` / `secret` / `signature` / `x-amz-signature` 등 자격증명 후보 → 값을 `[REDACTED]` 로 교체
    - 파싱 실패 시 정규식으로 userinfo 만 제거 (best-effort)
@@ -93,7 +93,7 @@ code:
 5. **Query Params 병합**: 노드 `queryParams` → URL 에 append → `auth_type='api_key' & location='query'` credential append
 6. **Headers 병합** (뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 **integration 자격증명 헤더가 사용자 입력을 덮어쓴다** (사용자가 `Authorization` 을 위조해 자격증명을 무력화하는 경로 차단)
 7. **Body 직렬화**: `GET` / `HEAD` 외 method 일 때 `bodyType` 에 따라 직렬화. `form-data` 는 multipart boundary 자동 부여 (Content-Type 미지정)
-8. **SSRF 가드** (`authentication='integration'` 일 때만): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단(호스트 리터럴 검사) → 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS resolve 후 IP 재검사(DNS rebinding 방어). 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅 + Usage 로그 `failed` 기록 (D4)
+8. **SSRF 가드** (**전 인증 방식 공통** — `none` / `integration` / `custom` 모두): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단(호스트 리터럴 검사) → 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS resolve 후 IP 재검사(DNS rebinding 방어). 기본은 차단(secure-by-default)이며 사설망 대상은 `ALLOW_PRIVATE_HOST_TARGETS=true` (§4 SSRF opt-out callout) 로만 허용된다. 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅. Usage 로그 `failed` 기록은 `integration` 인증에 한정(§4.2 — `none`/`custom` 은 활동 로그 미생성, D4)
 9. **fetch 호출**: `AbortController` 로 `timeout` 적용, `redirect: 'manual'` (무조건). `integration` 인증인 경우 3xx 응답을 받으면 최대 5홉까지 수동 follow + 매 홉 SSRF 재검증. `none`/`custom` 인증은 3xx 를 follow 하지 않고 그대로 §5.3 으로 반환. `config.followRedirects` / `config.verifySsl` 은 **현재 런타임에 반영되지 않는다 (Planned, §1 참조)**
 10. **응답 파싱**: `responseType='json'` → `res.json()` (실패 시 `null`), 그 외(`text` 및 `binary`) → `res.text()`. **`binary` 전용 디코딩은 미구현 (Planned)** — 현재 `binary` 도 `text` 와 동일하게 처리된다
 11. **Usage 로깅** (§4.2): `integration` 인증일 때만 `success` / `failed` 기록
@@ -102,7 +102,7 @@ code:
     - 3xx/4xx/5xx → §5.3 (`port:'error'`, `output.error.code = 'HTTP_4XX' | 'HTTP_5XX'` — 3xx 도 manual redirect 한도 도달 시 도달 가능)
     - fetch reject (네트워크 / 타임아웃 / abort) → §5.3 (`output.error.code = 'HTTP_TRANSPORT_FAILED'`, `meta.statusCode = 0`)
 
-> **`ALLOW_PRIVATE_HOST_TARGETS` (SSRF opt-out)** — 위 step 8 의 SSRF 가드는 환경변수 `ALLOW_PRIVATE_HOST_TARGETS=true` 로 비활성화할 수 있다. 기본은 차단(secure-by-default)이며, self-host 가 내부 DB·on-prem API·내부 SMTP relay 등 사설망 대상에 정당하게 접근해야 할 때만 켠다 (외부 egress 방화벽 전제). **이 플래그는 통합 노드 전반의 SSRF 가드를 공통 제어한다** — HTTP Request·Database Query·Send Email(SMTP, [§3-send-email §4 step 6](./3-send-email.md#4-실행-로직)) 가 동일 플래그를 공유한다. AI Agent 의 MCP 서버는 별개 정책(`MCP_ALLOW_INSECURE_URL`, [Spec MCP Client §3.2](../../5-system/11-mcp-client.md))을 사용한다.
+> **`ALLOW_PRIVATE_HOST_TARGETS` (SSRF opt-out)** — 위 step 8 의 SSRF 가드(**전 인증 방식 공통**)는 환경변수 `ALLOW_PRIVATE_HOST_TARGETS=true` 로 비활성화할 수 있다. 기본은 차단(secure-by-default)이며, self-host 가 내부 DB·on-prem API·내부 SMTP relay 등 사설망 대상에 정당하게 접근해야 할 때만 켠다 (외부 egress 방화벽 전제). **이 플래그는 통합 노드 전반의 SSRF 가드를 공통 제어한다** — HTTP Request(`none`/`integration`/`custom` 전부)·Database Query·Send Email(SMTP, [§3-send-email §4 step 6](./3-send-email.md#4-실행-로직)) 가 동일 플래그를 공유한다. AI Agent 의 MCP 서버는 별개 정책(`MCP_ALLOW_INSECURE_URL`, [Spec MCP Client §3.2](../../5-system/11-mcp-client.md))을 사용한다.
 
 ### 4.1 `auth_type` 별 credential 적용
 
@@ -316,7 +316,7 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 
 - **`handler.validate()` 실패** (config 형식 자체가 잘못된 경우): 여전히 사전 검증 단계에서 노드 실행 자체가 시작되지 않는다. warningRule + `evaluateMetadataBlockingErrors` 가 throw 하며 엔진이 워크플로우를 실패 처리. 예: `URL 을 입력해야 합니다.`, `method must be one of: ...`, `timeout must be a positive number`, `CRLF characters are not allowed in key/value`, `integrationId is required when authentication is "integration"`.
 - **`execute()` 안의 모든 IntegrationError / SSRF / auth 실패**: §5.3 (`port: 'error'` + `output.error.*`) 으로 라우팅된다. 다음 코드들이 해당:
-  - `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` ([공통 §4.2](./0-common.md#42-공통-에러-코드))
+  - `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` ([공통 §4.2](./0-common.md#42-공통-에러-코드)). integrationId 부재/타 워크스페이스 소속은 `requireEntity` 가 `IntegrationError` 가 아닌 `RESOURCE_NOT_FOUND` 를 throw 하므로 `INTEGRATION_CALL_FAILED` 로 surface 된다 (별도 `INTEGRATION_NOT_FOUND` 코드는 http-request 경로에 없음 — 공통 §4.2)
   - `INTEGRATION_AUTH_UNSUPPORTED` — 지원하지 않는 auth_type
   - `HTTP_BLOCKED` — SSRF 차단 (사설/loopback/link-local/CGNAT/IPv6 ULA / redirect 5홉 초과 / 비-http(s) 프로토콜). Usage 로그에도 `HTTP_BLOCKED` 코드로 기록.
   - `Integration-based authentication is not available in this environment` — 내부 환경 오류는 `INTEGRATION_SERVICE_UNAVAILABLE` 코드로
@@ -334,7 +334,7 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 | `HTTP_5XX` | `500 ≤ statusCode < 600` | 서버 body 보존 | 응답 헤더 (sanitize) | 응답 status |
 | `HTTP_TRANSPORT_FAILED` | `fetch` reject (DNS / 연결 거부 / 소켓 / `AbortController` timeout) | `{ error: <message> }` (legacy 잔재) | — (response 없음) | `0` |
 | `HTTP_BLOCKED` (D4) | SSRF 차단 (호스트 검증·DNS rebinding·redirect 한도·비-http(s) 프로토콜). 종전 throw 였으나 D4 이후 본 경로 | — | — | `0` |
-| `INTEGRATION_*` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) (D4) | Integration resolve / 자격증명 실패. `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_AUTH_UNSUPPORTED` 모두 본 경로로 surface | — | — | `0` |
+| `INTEGRATION_*` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) (D4) | Integration resolve / 자격증명 실패. `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_AUTH_UNSUPPORTED` / `INTEGRATION_CALL_FAILED`(integrationId 부재 — `requireEntity` `RESOURCE_NOT_FOUND` fallback) 모두 본 경로로 surface | — | — | `0` |
 | `INTEGRATION_SERVICE_UNAVAILABLE` (D4) | IntegrationsService 미주입 또는 workspace context 누락 (deployment 오류). 종전 throw 였으나 D4 이후 본 경로 | — | — | `0` |
 
 ## 7. 캔버스 요약
@@ -346,3 +346,13 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 ### 8.1 `Location` 응답 헤더 redaction — `sanitizeUrlCredentials` 와 대칭
 
 `Location` 은 자격증명-shape 이름은 아니지만 redaction exact blacklist 에 포함한다 (`_base/sanitize-response-headers.util.ts`). 3xx redirect 대상 URL 을 `output.responseHeaders` 로 노출하면 `output.error.details.url` 에서 `sanitizeUrlCredentials` 가 막는 URL 내 자격증명(`user:pass@`, 자격증명 쿼리 파라미터) 누출이 응답 헤더 경로로 재도입되기 때문 — 두 sanitize 경로의 대칭 유지가 목적이다 (결정 배경은 해당 유틸 파일 헤더 주석에 기록).
+
+### 8.2 SSRF 가드 전 인증 방식 적용 — `none`/`custom` 무가드 폐지 (2026-06-11)
+
+**문제**: step 8 의 SSRF 가드가 본래 `authentication='integration'` 일 때만 적용돼, `none`/`custom` 인증 HTTP Request 는 `169.254.169.254`(클라우드 IMDS)·RFC1918 내부망을 무가드로 직접 타게팅할 수 있었다. 코드 주석은 "none 은 내부 서비스를 정당하게 호출할 수 있다" 고 정당화했으나 이는 **어느 spec 에도 근거가 없었고**(키워드 검색 0건), §4 SSRF opt-out callout 의 "기본은 차단(secure-by-default) … 이 플래그는 통합 노드 전반의 SSRF 가드를 공통 제어한다" 와 정면 모순이었다 (spec 내부 모순).
+
+**결정**: 사용자 결정(2026-06-11)으로 SSRF 가드를 **전 인증 방식 공통**으로 적용한다. 내부 서비스 접근이라는 정당 용도는 이미 `ALLOW_PRIVATE_HOST_TARGETS=true` opt-out 으로 충족되므로 `none` 전용 무가드를 둘 이유가 없다. 이로써 DB Query·Send Email 의 일관된 secure-by-default posture·`NF-SC-05`(OWASP) 와도 정합한다. Usage 로깅은 종전대로 `integration` 인증에 한정한다 (`none`/`custom` 은 활동 로그를 생성하지 않으므로) — SSRF 차단의 `error` 포트(`HTTP_BLOCKED`) 라우팅만 전 인증 공통이다.
+
+**기각된 대안**: (B) `none` 전용 별도 host allowlist env — 플래그 이원화 + 어느 spec 에도 근거 없는 신규 표면이고 DB/Email 과 posture 분기 지속. (C) 현상 유지 + "none 은 의도적 무가드" 명문화 — IMDS·내부망 SSRF 면이 그대로 열려 §4 SSRF opt-out callout 와의 모순을 봉합에 그치며, 그 용도가 이미 opt-out 으로 충족되므로 예외 정당성 없음.
+
+**⚠️ 운영 영향 (breaking)**: 본 변경 후 `none`/`custom` 인증으로 사설/loopback/link-local/CGNAT 대상을 호출하던 기존 self-host 워크플로는 `ALLOW_PRIVATE_HOST_TARGETS=true`(외부 egress 방화벽 전제) 를 설정하기 전까지 `HTTP_BLOCKED` 로 실패한다. 마이그레이션은 기존 환경변수 1개 설정으로 끝나며, 본 정책은 §4 SSRF opt-out callout 가 이미 명문화한 secure-by-default 의 enforcement 일치다.
