@@ -10,7 +10,7 @@ function state(overrides: Partial<ModelConfigFormState> = {}): ModelConfigFormSt
   return {
     provider: "openai",
     name: "My Config",
-    apiKey: "sk-test",
+    apiKey: "test-key-1234",
     baseUrl: "",
     model: "gpt-4o",
     isEdit: false,
@@ -90,5 +90,64 @@ describe("validateModelConfigForm", () => {
         "chat",
       ),
     ).toBe("models.baseUrlRequired");
+  });
+
+  it("returns baseUrlRequired for local provider when baseUrl is missing (create)", () => {
+    expect(
+      validateModelConfigForm(
+        state({ provider: "local", apiKey: "", baseUrl: "" }),
+        "chat",
+      ),
+    ).toBe("models.baseUrlRequired");
+  });
+
+  it("returns null for local provider when baseUrl is provided (create)", () => {
+    expect(
+      validateModelConfigForm(
+        state({ provider: "local", apiKey: "", baseUrl: "http://localhost:11434" }),
+        "chat",
+      ),
+    ).toBeNull();
+  });
+
+  it("returns baseUrlRequired for tei provider when baseUrl is missing (create)", () => {
+    expect(
+      validateModelConfigForm(
+        state({ provider: "tei", apiKey: "", baseUrl: "" }),
+        "rerank",
+      ),
+    ).toBe("models.baseUrlRequired");
+  });
+
+  it("returns null for tei provider when baseUrl is provided (create)", () => {
+    expect(
+      validateModelConfigForm(
+        state({ provider: "tei", apiKey: "", baseUrl: "http://localhost:8080" }),
+        "rerank",
+      ),
+    ).toBeNull();
+  });
+
+  it("returns baseUrlRequired in edit mode when provider needs baseUrl but missing", () => {
+    expect(
+      validateModelConfigForm(
+        state({ provider: "local", apiKey: "", baseUrl: "", isEdit: true }),
+        "chat",
+      ),
+    ).toBe("models.baseUrlRequired");
+  });
+
+  it("returns null for local provider in edit mode when baseUrl is provided", () => {
+    expect(
+      validateModelConfigForm(
+        state({
+          provider: "local",
+          apiKey: "",
+          baseUrl: "http://localhost:11434",
+          isEdit: true,
+        }),
+        "chat",
+      ),
+    ).toBeNull();
   });
 });

@@ -18,32 +18,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ModelCombobox } from "@/components/llm-config/model-combobox";
+import { NativeSelect } from "@/components/ui/native-select";
 import { useT } from "@/lib/i18n";
 import { useModelConfigForm } from "./use-model-config-form";
 import { needsBaseUrl } from "./validate-model-config-form";
-
-const PROVIDERS_BY_KIND: Record<
-  ModelConfigKind,
-  { value: string; label: string }[]
-> = {
-  chat: [
-    { value: "openai", label: "OpenAI" },
-    { value: "anthropic", label: "Anthropic" },
-    { value: "google", label: "Google AI" },
-    { value: "azure", label: "Azure OpenAI" },
-    { value: "local", label: "Local (Ollama/vLLM)" },
-  ],
-  embedding: [
-    { value: "openai", label: "OpenAI" },
-    { value: "azure", label: "Azure OpenAI" },
-    { value: "google", label: "Google AI" },
-    { value: "local", label: "Local (Ollama/vLLM/TEI)" },
-  ],
-  rerank: [
-    { value: "tei", label: "TEI (self-hosted)" },
-    { value: "cohere", label: "Cohere" },
-  ],
-};
+import { PROVIDERS_BY_KIND } from "./provider-registry";
 
 interface ModelConfigFormDialogProps {
   kind: ModelConfigKind;
@@ -95,8 +74,7 @@ export function ModelConfigFormDialog({
         <div className="space-y-4">
           <div>
             <Label>{t("models.provider")}</Label>
-            <select
-              className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+            <NativeSelect
               value={form.provider}
               onChange={(e) => form.setProvider(e.target.value)}
             >
@@ -106,7 +84,7 @@ export function ModelConfigFormDialog({
                   {p.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
           <div>
             <Label>{t("common.name")}</Label>
@@ -204,7 +182,10 @@ export function ModelConfigFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button onClick={form.handleSave} disabled={form.isPending}>
+          <Button
+            onClick={form.handleSave}
+            disabled={form.isPending || !form.model.trim()}
+          >
             {form.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {form.editId ? t("models.updateBtn") : t("common.create")}
           </Button>

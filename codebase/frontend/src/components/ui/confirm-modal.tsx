@@ -43,6 +43,7 @@ export function ConfirmModal({
             variant={destructive ? "destructive" : "default"}
             disabled={pending}
             onClick={onConfirm}
+            data-testid="confirm-modal-confirm-btn"
           >
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {confirmLabel}

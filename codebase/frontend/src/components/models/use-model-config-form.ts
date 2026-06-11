@@ -14,6 +14,61 @@ import { validateModelConfigForm } from "./validate-model-config-form";
 export const DEFAULT_TEMPERATURE = 0.7;
 export const DEFAULT_MAX_TOKENS = 4096;
 
+/** Payload shape for model config update mutations. */
+export interface ModelConfigUpdatePayload {
+  provider: string;
+  name: string;
+  defaultModel: string;
+  baseUrl?: string;
+  apiKey?: string;
+  defaultParams?: { temperature: number; max_tokens: number };
+  dimension?: number;
+}
+
+/** Public return type of useModelConfigForm. */
+export interface UseModelConfigFormReturn {
+  /** id of the config being edited, or null for create mode. */
+  editId: string | null;
+  // field values
+  provider: string;
+  name: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  temperature: string;
+  maxTokens: string;
+  dimension: string;
+  // setters
+  /** Set the provider value. */
+  setProvider: (v: string) => void;
+  /** Set the config name. */
+  setName: (v: string) => void;
+  /** Set the API key (empty string on edit = keep existing). */
+  setApiKey: (v: string) => void;
+  /** Set the base URL. */
+  setBaseUrl: (v: string) => void;
+  /** Set the default model identifier. */
+  setModel: (v: string) => void;
+  /** Set temperature as a string (parseFloat on save). */
+  setTemperature: (v: string) => void;
+  /** Set max_tokens as a string (parseInt on save). */
+  setMaxTokens: (v: string) => void;
+  /** Set embedding dimension as a string (parseInt on save). */
+  setDimension: (v: string) => void;
+  // derived flags
+  /** True when kind === "chat". */
+  showParams: boolean;
+  /** True when kind === "embedding". */
+  showDimension: boolean;
+  // actions
+  /** Seed the form from an existing config, or reset to defaults when null. */
+  openFor: (config: import("@/lib/api/model-configs").ModelConfigData | null) => void;
+  /** Validate and submit (create or update). */
+  handleSave: () => void;
+  /** True while a mutation is in-flight. */
+  isPending: boolean;
+}
+
 interface UseModelConfigFormArgs {
   kind: ModelConfigKind;
   /** 편집 대상 config (null = 신규 생성). */
@@ -30,7 +85,7 @@ export function useModelConfigForm({
   kind,
   editConfig,
   onClose,
-}: UseModelConfigFormArgs) {
+}: UseModelConfigFormArgs): UseModelConfigFormReturn {
   const t = useT();
   const queryClient = useQueryClient();
 
@@ -52,6 +107,17 @@ export function useModelConfigForm({
     queryClient.invalidateQueries({ queryKey: ["model-configs", kind] });
   }
 
+  /** Shared helper: parse temperature + maxTokens strings into a defaultParams object. */
+  function buildParams(
+    temp: string,
+    tokens: string,
+  ): { temperature: number; max_tokens: number } {
+    return {
+      temperature: parseFloat(temp) || DEFAULT_TEMPERATURE,
+      max_tokens: parseInt(tokens) || DEFAULT_MAX_TOKENS,
+    };
+  }
+
   const createMutation = useMutation({
     mutationFn: () =>
       modelConfigsApi.create({
@@ -61,12 +127,7 @@ export function useModelConfigForm({
         apiKey: apiKey || undefined,
         baseUrl: baseUrl || undefined,
         defaultModel: model,
-        defaultParams: showParams
-          ? {
-              temperature: parseFloat(temperature) || DEFAULT_TEMPERATURE,
-              max_tokens: parseInt(maxTokens) || DEFAULT_MAX_TOKENS,
-            }
-          : undefined,
+        defaultParams: showParams ? buildParams(temperature, maxTokens) : undefined,
         dimension:
           showDimension && dimension.trim()
             ? parseInt(dimension) || undefined
@@ -81,7 +142,7 @@ export function useModelConfigForm({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (payload: { id: string; data: Record<string, unknown> }) =>
+    mutationFn: (payload: { id: string; data: ModelConfigUpdatePayload }) =>
       modelConfigsApi.update(payload.id, payload.data),
     onSuccess: () => {
       invalidate();
@@ -93,33 +154,18 @@ export function useModelConfigForm({
 
   /** config 로 폼을 채운다 (null = 신규 빈 폼). */
   function openFor(config: ModelConfigData | null) {
-    if (config) {
-      setProvider(config.provider);
-      setName(config.name);
-      setApiKey("");
-      setBaseUrl(config.baseUrl || "");
-      setModel(config.defaultModel);
-      setTemperature(
-        String(
-          (config.defaultParams?.temperature as number) ?? DEFAULT_TEMPERATURE,
-        ),
-      );
-      setMaxTokens(
-        String(
-          (config.defaultParams?.max_tokens as number) ?? DEFAULT_MAX_TOKENS,
-        ),
-      );
-      setDimension(config.dimension != null ? String(config.dimension) : "");
-    } else {
-      setProvider("");
-      setName("");
-      setApiKey("");
-      setBaseUrl("");
-      setModel("");
-      setTemperature(String(DEFAULT_TEMPERATURE));
-      setMaxTokens(String(DEFAULT_MAX_TOKENS));
-      setDimension("");
-    }
+    setProvider(config?.provider ?? "");
+    setName(config?.name ?? "");
+    setApiKey("");
+    setBaseUrl(config?.baseUrl ?? "");
+    setModel(config?.defaultModel ?? "");
+    setTemperature(
+      String((config?.defaultParams?.temperature as number | undefined) ?? DEFAULT_TEMPERATURE),
+    );
+    setMaxTokens(
+      String((config?.defaultParams?.max_tokens as number | undefined) ?? DEFAULT_MAX_TOKENS),
+    );
+    setDimension(config?.dimension != null ? String(config.dimension) : "");
   }
 
   function handleSave() {
@@ -133,17 +179,14 @@ export function useModelConfigForm({
     }
 
     if (editId) {
-      const payload: Record<string, unknown> = {
+      const payload: ModelConfigUpdatePayload = {
         provider,
         name,
         defaultModel: model,
         baseUrl: baseUrl || undefined,
       };
       if (showParams) {
-        payload.defaultParams = {
-          temperature: parseFloat(temperature) || DEFAULT_TEMPERATURE,
-          max_tokens: parseInt(maxTokens) || DEFAULT_MAX_TOKENS,
-        };
+        payload.defaultParams = buildParams(temperature, maxTokens);
       }
       if (showDimension && dimension.trim()) {
         payload.dimension = parseInt(dimension) || undefined;

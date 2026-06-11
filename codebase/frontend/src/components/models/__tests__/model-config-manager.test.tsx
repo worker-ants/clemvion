@@ -6,6 +6,26 @@ import { ModelConfigManager } from "../model-config-manager";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 
+// Mock ModelCombobox so tests can inject a model value without the real combobox logic.
+vi.mock("@/components/llm-config/model-combobox", () => ({
+  ModelCombobox: ({
+    value,
+    onChange,
+    placeholder,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+  }) => (
+    <input
+      data-testid="model-combobox"
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ),
+}));
+
 // --- Navigation mock (for usePageParam) ---
 const mockSetPage = vi.fn();
 let currentSearchParams = new URLSearchParams();
@@ -102,9 +122,8 @@ describe("ModelConfigManager — handleSave validation", () => {
     cleanup();
   });
 
-  it("shows required-fields error when name is empty", async () => {
+  it("Save button is disabled when model is not set (spec §B.2)", async () => {
     getAllMock.mockResolvedValue(EMPTY_PAGE);
-    const { toast } = await import("sonner");
 
     await act(async () => {
       render(<ModelConfigManager kind="chat" />, { wrapper: createWrapper() });
@@ -114,7 +133,30 @@ describe("ModelConfigManager — handleSave validation", () => {
     fireEvent.click(screen.getByText("Add Model"));
     expect(screen.getByText("Add Model", { selector: "h2" })).toBeInTheDocument();
 
-    // Attempt save without filling in fields
+    // Save button should be disabled when model is empty
+    const createBtn = screen.getByText("Create");
+    expect(createBtn).toBeDisabled();
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it("shows required-fields error when model is set but name is empty", async () => {
+    getAllMock.mockResolvedValue(EMPTY_PAGE);
+    const { toast } = await import("sonner");
+
+    await act(async () => {
+      render(<ModelConfigManager kind="chat" />, { wrapper: createWrapper() });
+    });
+
+    fireEvent.click(screen.getByText("Add Model"));
+
+    // Set model so button is enabled, but leave name empty
+    const modelInput = screen.getByTestId("model-combobox");
+    fireEvent.change(modelInput, { target: { value: "gpt-4o" } });
+
+    // Save button should now be enabled
+    await waitFor(() => expect(screen.getByText("Create")).not.toBeDisabled());
+
+    // Attempt save with model but no name/provider
     fireEvent.click(screen.getByText("Create"));
 
     await waitFor(() => {
@@ -140,12 +182,15 @@ describe("ModelConfigManager — handleSave validation", () => {
     const nameInput = screen.getByPlaceholderText("e.g. GPT-4o Production");
     fireEvent.change(nameInput, { target: { value: "My Config" } });
 
-    // model combobox renders a select; simulate direct value set via hidden input bypass
+    // Set model so the Save button is enabled
+    const modelInput = screen.getByTestId("model-combobox");
+    fireEvent.change(modelInput, { target: { value: "gpt-4o" } });
+
+    await waitFor(() => expect(screen.getByText("Create")).not.toBeDisabled());
     fireEvent.click(screen.getByText("Create"));
 
     await waitFor(() => {
-      // Either requiredFields (model empty) or apiKeyRequired is fine —
-      // the point is createMock is NOT called
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("API Key"));
     });
     expect(createMock).not.toHaveBeenCalled();
   });
@@ -330,13 +375,8 @@ describe("ModelConfigManager — delete flow", () => {
 
     expect(screen.getByText("Delete Model Config")).toBeInTheDocument();
 
-    // Confirm deletion — destructive button (bg-destructive class) inside the modal
-    const allDeleteBtns = screen.getAllByRole("button", { name: /delete/i });
-    // The modal confirm button is the destructive-styled one (not the icon button)
-    const confirmBtn = allDeleteBtns.find(
-      (btn) => btn.classList.contains("bg-[hsl(var(--destructive))]") ||
-               btn.textContent?.trim() === "Delete",
-    ) ?? allDeleteBtns[allDeleteBtns.length - 1];
+    // Confirm deletion — use stable testid on the confirm button
+    const confirmBtn = screen.getByTestId("confirm-modal-confirm-btn");
     fireEvent.click(confirmBtn);
 
     await waitFor(() => {
@@ -371,15 +411,24 @@ describe("ModelConfigManager — embedding dimension payload", () => {
     fireEvent.change(nameInput, { target: { value: "My Embedding" } });
 
     const apiKeyInput = screen.getByPlaceholderText(/Enter API Key/);
-    fireEvent.change(apiKeyInput, { target: { value: "sk-test" } });
+    fireEvent.change(apiKeyInput, { target: { value: "test-key-1234" } });
+
+    // Set model via the mocked ModelCombobox
+    const modelInput = screen.getByTestId("model-combobox");
+    fireEvent.change(modelInput, { target: { value: "text-embedding-3-small" } });
 
     const dimensionInput = screen.getByPlaceholderText("e.g. 1536 or 3072");
     fireEvent.change(dimensionInput, { target: { value: "1536" } });
 
-    // model combobox renders a select — directly simulate the Create click
-    // without a valid model the requiredFields guard fires.
-    // We verify dimension field presence and payload shape via partial check.
-    expect(dimensionInput).toBeInTheDocument();
-    expect((dimensionInput as HTMLInputElement).value).toBe("1536");
+    // Save button is enabled once model is set
+    const saveBtn = screen.getByText("Create");
+    await waitFor(() => expect(saveBtn).not.toBeDisabled());
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({ dimension: 1536 }),
+      );
+    });
   });
 });

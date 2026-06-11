@@ -1,14 +1,18 @@
 import type { ModelConfigKind } from "@/lib/api/model-configs";
 import type { TranslationKey } from "@/lib/i18n";
+import {
+  BASE_URL_REQUIRED_PROVIDERS,
+  SELF_HOSTED_PROVIDERS,
+} from "./provider-registry";
 
 /** baseUrl 입력이 필요한 provider — azure/local/tei. */
 export function needsBaseUrl(provider: string): boolean {
-  return ["azure", "local", "tei"].includes(provider);
+  return BASE_URL_REQUIRED_PROVIDERS.has(provider);
 }
 
 /** apiKey 가 생성 시 필수인가 — 자가호스팅(local/tei)만 선택. */
 export function apiKeyRequiredOnCreate(provider: string): boolean {
-  return provider !== "" && !["local", "tei"].includes(provider);
+  return provider !== "" && !SELF_HOSTED_PROVIDERS.has(provider);
 }
 
 export interface ModelConfigFormState {

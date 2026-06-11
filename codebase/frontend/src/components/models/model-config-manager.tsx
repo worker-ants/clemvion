@@ -18,18 +18,9 @@ import { Plus, Loader2, Inbox, Trash2, Star, Plug, Pencil } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { ModelConfigFormDialog } from "./model-config-form-dialog";
 import { ModelConfigDeleteDialog } from "./model-config-delete-dialog";
+import { PROVIDER_LABELS } from "./provider-registry";
 
 const PAGE_SIZE = 20;
-
-const PROVIDER_LABELS: Record<string, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  google: "Google AI",
-  azure: "Azure OpenAI",
-  local: "Local",
-  tei: "TEI",
-  cohere: "Cohere",
-};
 
 /**
  * kind(chat/embedding/rerank) 별 ModelConfig CRUD 매니저. /models 페이지의 각 탭이
