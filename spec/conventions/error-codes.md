@@ -59,6 +59,31 @@ OAuth 등에서 인라인 문자열 리터럴로 발행되는 코드(`CAFE24_*`,
 | `invitation_not_found` · `invitation_expired` · `invitation_already_used` · `invitation_email_mismatch` · `forbidden` · `rate_limited` | 404/410/400/403/429 | `lower_snake_case` — §1 `UPPER_SNAKE_CASE` 위반. 워크스페이스 초대 흐름 v1 출하 시 이 형태로 정착, 프론트(`invitations.ts` `INVITATION_ERROR_CODES`)·백엔드(`workspace-invitations.service.ts` / `auth.service.ts`)가 `code` 값으로 분기 → rename = breaking(§2) | 초대 토큰 부재/만료/사용됨/이메일 불일치/권한 부족/rate-limit. **초대 API 한정** — 본 `forbidden`/`rate_limited` (lowercase) 는 초대 흐름 전용 historical artifact 로, 다른 영역의 `UPPER_SNAKE_CASE` 범용 코드와 별개다 | [`1-auth.md §1.5.4`](../5-system/1-auth.md#154-에러-응답) |
 | `invalid_state` · `token_exchange_failed` · `email_required` · `server_error` (OAuth callback `?error=`) | — (302 redirect) | `lower_snake_case` — 단 이것은 **응답 봉투의 `error.code` 가 아니라 redirect URL 의 query param 값**이다. 로그인 OAuth callback 이 `{frontend_url}/callback?error=<값>` 으로 프론트에 신호하는 URL-level signal 로 v1 정착, 콜백 페이지가 이 값으로 분기 → rename = breaking(§2) | 소셜 로그인 콜백 실패 사유(state 불일치/코드 교환 실패/이메일 미제공/서버 오류). **로그인 OAuth callback URL 한정** — envelope 코드 체계(§1)와 레이어가 다르며, 통합(Integration) OAuth 의 `OAUTH_*` envelope 코드와도 별개다 | [`10-auth-flow.md §5.4`](../2-navigation/10-auth-flow.md#54-oauth-에러-처리) |
 
+## 4. 내부 전용 분류 코드 (정규화 후 발행)
+
+§3 와 달리 본 절의 코드는 **§1 적용 범위 밖**이다 — 클라이언트에 노출되지 않는 구현 내부 명칭이므로
+"명명 위반 artifact" 가 아니다.
+
+다음은 Code 노드 핸들러 내부의 **분류 단계 문자열**이다. `classifyCodeNodeError` 가 산출하지만
+**노드의 `output.error.code` 로는 직접 발행되지 않는다** — `LEGACY_TO_NORMALIZED` 표가 발행 직전
+public 코드로 정규화한다 (`codebase/backend/src/nodes/data/code/code.handler.ts`). 따라서 노드 출력
+계약(§2)에 영향을 주지 않으며, 디버깅 용도로만 `output.error.details.legacyCode` 에 보존된다. 정식
+public 코드는 우측 열이다 — 명명 정확성 향상을 위한 internal rename 은 안전(클라이언트 미노출).
+
+| 내부 분류 코드 (legacy) | 정규화 → public 코드 (노드 `output.error.code`) | 의미 | 근거 |
+|---|---|---|---|
+| `EXECUTION_TIMEOUT` | `CODE_TIMEOUT` | Code 노드 스크립트 wall-clock timeout | [`2-code.md §5.3`](../4-nodes/5-data/2-code.md) |
+| `EXECUTION_MEMORY_EXCEEDED` | `CODE_MEMORY_LIMIT` | isolate 128MB 하드 리밋 초과 (isolated-vm hard-kill) | [`2-code.md §5.3.3`](../4-nodes/5-data/2-code.md) |
+| `CODE_RUNTIME_ERROR` | `CODE_EXECUTION_FAILED` | 그 외 사용자 코드 런타임 throw (fallback) | [`2-code.md §5.3.1`](../4-nodes/5-data/2-code.md) |
+
+> **레이어 주의 — `EXECUTION_TIMEOUT` 동명 코드**: 본 표의 `EXECUTION_TIMEOUT` 은 **Code 노드 핸들러
+> 내부 분류 레이어** 한정이며 노드 출력으로는 `CODE_TIMEOUT` 으로 정규화된다. 이와 **별개로** 엔진 레벨
+> EIA `execution.failed.error.code` 에는 동명 `EXECUTION_TIMEOUT` 이 등장한다
+> ([`3-error-handling.md §1.4`](../5-system/3-error-handling.md#14-워크플로우-실행-에러) ·
+> [`14-external-interaction-api.md §6.4`](../5-system/14-external-interaction-api.md)). 그 엔진 레벨 코드는
+> `LEGACY_TO_NORMALIZED`(노드 출력 정규화) 의 관할이 **아니며** 본 절의 내부 분류 문자열과 레이어가 다르다.
+> (엔진 레벨 누적 타임아웃은 또 다른 코드 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 구분된다.)
+
 ## Rationale
 
 - **왜 의미 기반인가**: 에러 코드는 클라이언트와의 장기 계약이다. 구현/역사를 이름에 박으면 리팩토링마다

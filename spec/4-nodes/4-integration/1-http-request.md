@@ -93,7 +93,7 @@ code:
 5. **Query Params 병합**: 노드 `queryParams` → URL 에 append → `auth_type='api_key' & location='query'` credential append
 6. **Headers 병합** (뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 **integration 자격증명 헤더가 사용자 입력을 덮어쓴다** (사용자가 `Authorization` 을 위조해 자격증명을 무력화하는 경로 차단)
 7. **Body 직렬화**: `GET` / `HEAD` 외 method 일 때 `bodyType` 에 따라 직렬화. `form-data` 는 multipart boundary 자동 부여 (Content-Type 미지정)
-8. **SSRF 가드** (**전 인증 방식 공통** — `none` / `integration` / `custom` 모두): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단(호스트 리터럴 검사) → 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS resolve 후 IP 재검사(DNS rebinding 방어). 기본은 차단(secure-by-default)이며 사설망 대상은 `ALLOW_PRIVATE_HOST_TARGETS=true` (§4 SSRF opt-out callout) 로만 허용된다. 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅. Usage 로그 `failed` 기록은 `integration` 인증에 한정(§4.2 — `none`/`custom` 은 활동 로그 미생성, D4)
+8. **SSRF 가드** (**전 인증 방식 공통** — `none` / `integration` / `custom` 모두): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단(호스트 리터럴 검사) → 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS resolve 후 IP 재검사(DNS rebinding 방어). 기본은 차단(secure-by-default)이며 사설망 대상은 `ALLOW_PRIVATE_HOST_TARGETS=true` (§4 SSRF opt-out callout) 로만 허용된다. 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅. Usage 로그 `failed` 기록은 `integration` 인증에 한정(§4.2 — `none`/`custom` 은 활동 로그 미생성, D4). **dry-run 실행([`13-replay-rerun §7`](../../5-system/13-replay-rerun.md))은 실제 fetch 가 없으므로 본 SSRF 가드 이전에 mock 을 반환하고 가드를 생략한다 — 보호 대상(아웃바운드 요청)이 발생하지 않기 때문**
 9. **fetch 호출**: `AbortController` 로 `timeout` 적용, `redirect: 'manual'` (무조건). `integration` 인증인 경우 3xx 응답을 받으면 최대 5홉까지 수동 follow + 매 홉 SSRF 재검증. `none`/`custom` 인증은 3xx 를 follow 하지 않고 그대로 §5.3 으로 반환. `config.followRedirects` / `config.verifySsl` 은 **현재 런타임에 반영되지 않는다 (Planned, §1 참조)**
 10. **응답 파싱**: `responseType='json'` → `res.json()` (실패 시 `null`), 그 외(`text` 및 `binary`) → `res.text()`. **`binary` 전용 디코딩은 미구현 (Planned)** — 현재 `binary` 도 `text` 와 동일하게 처리된다
 11. **Usage 로깅** (§4.2): `integration` 인증일 때만 `success` / `failed` 기록
@@ -122,6 +122,8 @@ code:
 | 3xx · 4xx · 5xx | `failed` | `HTTP_{status}` |
 | fetch reject (네트워크 / 타임아웃) | `failed` | `HTTP_TRANSPORT_FAILED` |
 | SSRF 차단 / redirect 한도 초과 | `failed` | `HTTP_BLOCKED` |
+
+> 본 매트릭스는 `authentication='integration'` 에만 적용된다. `none`/`custom` 인증은 활동 로그를 생성하지 않으므로(§4.3) SSRF 차단·전송 실패 등 모든 실패는 **`error` 포트 라우팅만** 일어나고 Usage 행은 기록되지 않는다.
 
 ### 4.3 활동 로그 API 식별 정보 ([`_product-overview.md INT-US-05`](./_product-overview.md#24-사용처-추적-및-라이프사이클))
 
@@ -294,7 +296,7 @@ CONVENTIONS Principle 3.2 의 표준 envelope `output.error.{code, message, deta
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `output.response.error` | string | handler return | transport 실패 메시지 (legacy 호환 잔재 — 신규 코드는 `output.error` 를 사용) |
+| `output.response.error` | string | handler return | transport 실패 메시지. **Deprecated (legacy 호환 잔재)** — 신규 코드는 `output.error.{code,message}` 를 SoT 로 사용하고 본 필드에 의존하지 말 것 |
 | `output.error.code` | `'HTTP_TRANSPORT_FAILED'` | handler return | 네트워크 / 타임아웃 / abort 통합 코드 |
 | `output.error.message` | string | handler return | underlying error message (`Error.message` 또는 String 변환) |
 | `output.error.details.url` / `output.error.details.method` | string | handler return | 시도한 요청 정보 (URL sanitize 적용) |
