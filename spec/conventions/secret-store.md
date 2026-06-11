@@ -149,9 +149,10 @@ const plaintext = Buffer.concat([decipher.update(ct), decipher.final()]).toStrin
 ### 3.3 마스터키
 
 - 환경변수 **`ENCRYPTION_KEY`** (재사용 — [LLM API key 암호화](../../codebase/backend/src/common/utils/crypto.util.ts) 와 동일 키). 입력 형식:
-  - 정확 64-char hex → `Buffer.from(rawHex, 'hex')` 그대로 사용 (`.env.example` 의 표준).
+  - 정확 64-char hex → `Buffer.from(rawHex, 'hex')` 그대로 사용 (`.env.example` 의 표준 형식).
   - 그 외 임의 길이 문자열 → SHA-256 derive (`INTEGRATION_ENCRYPTION_KEY` / `credentials-transformer.ts` 와 동일 패턴) — e2e / 짧은 키 호환.
   - 부팅 시 미설정 / 빈 문자열이면 fail-fast (`SecretResolver` 모듈 init 단계에서 throw).
+  - **`.env.example` 의 값은 형식 예시(all-zero placeholder)일 뿐 실 키가 아니다** — 운영자는 `openssl rand -hex 32` 로 새로 생성해야 한다 (refactor 04 M-4). `NODE_ENV=production` 에서 미설정이거나 **공개 `.env.example` 예시 키**(현 all-zero 및 옛 `0123…` 예시)가 그대로 설정돼 있으면 부팅을 거부한다 (`main.ts` 의 `assertProductionConfig` — "secret store 가 사실상 평문" 인 운영 사고 차단). dev/test/e2e(`NODE_ENV≠production`)는 영향 없다.
 - 마스터키는 **application 메모리 안에서만 존재** — DB query / SQL parameter / 로그 / metric 에 일절 노출되지 않는다. PostgreSQL 은 ciphertext 만 본다.
 - 자체 호스팅 사용자는 운영 자체적으로 키 보관 (예: docker-compose `env_file`, kubernetes secret, AWS Parameter Store 등).
 - 키 생성 예: `openssl rand -hex 32`.
@@ -313,3 +314,14 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 ### R4. Trigger FK 미설정
 
 `secret_store.workspace_id` 는 workspace FK 를 가질 수 있으나 본 spec 은 application-level cascade 만 정의 — 향후 다른 scope (예: workspace 외부의 system-wide secret) 도 같은 테이블에 두려면 FK 가 제약. trigger 삭제 시의 명시적 cleanup 책임은 `TriggersService.delete()` 가 진다. `ON DELETE CASCADE` 는 채택하지 않는다 — implicit DB 동작과 explicit application 동작이 섞이면 추적이 어려워지기 때문.
+
+### R5. `.env.example` 예시 키 placeholder + production 차단 (refactor 04 M-4)
+
+`.env.example` 의 `ENCRYPTION_KEY` 는 실 키가 아니라 형식만 보이는 all-zero placeholder 다. 옛 버전은
+복붙 가능한 구체 64-hex 값을 실어, 그 값을 그대로 운영에 옮긴 배포는 **공개 저장소의 알려진 키로
+secret store 전체를 암호화**해 사실상 평문 상태였다. 두 겹으로 막는다: (1) 눈에 띄는 all-zero
+placeholder + "MUST regenerate(`openssl rand -hex 32`)" 주석, (2) `NODE_ENV=production` 부팅 가드
+(`main.ts` 의 `assertProductionConfig`)가 미설정이거나 공개 예시 키(현 all-zero·옛 `0123…`)면 기동을
+거부. 빈 값만 막는 §3.3 의 `SecretResolver` fail-fast 를 보완해 "예시 키 복붙" 운영 사고까지 차단하며,
+`JWT_SECRET`/`MCP_ALLOW_INSECURE_URL` 과 단일 fail-closed 가드 블록으로 응집한다([auth §Rationale
+"Production fail-closed 가드"](../5-system/1-auth.md#rationale)). dev/test/e2e 는 영향 없다.

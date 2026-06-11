@@ -135,6 +135,8 @@ MCP 서버는 **신규 노드가 아니라** 기존 Integration 엔티티의 새
 > - 위 SSRF 호스트 블록리스트 전체 우회 (loopback / RFC 1918 / cloud metadata 모두 등록 가능)
 >
 > 본 토글은 운영 환경에서 절대 활성화해서는 안 된다 — 워크스페이스 admin 이 등록한 URL 을 그대로 신뢰하게 되어 SSRF 방어 표면이 다시 열린다. 기본값 `false`. `codebase/backend/.env.example` 에 경고와 함께 명시.
+>
+> **Production fail-closed 강제 (refactor 04 M-7)**: 위 "절대 금지" 를 enforcement 로 일치시킨다 — `NODE_ENV=production` 에서 `MCP_ALLOW_INSECURE_URL=true` 면 부팅을 거부한다 (`main.ts` 의 `assertProductionConfig`, `OAUTH_STUB_MODE`/`LLM_STUB_MODE` 와 동형). 정당한 self-host 용도(VPC 내부 호스트 등)가 있는 `ALLOW_PRIVATE_HOST_TARGETS`(http-request §4)는 정책이 달라 **throw 가 아닌 warn** 으로 분리한다 — production 에서 켜져 있으면 부팅은 하되 경고 로그를 남긴다. 즉 "절대 금지" 플래그는 throw, "정당 용도 있는" 플래그는 warn 이 분류 기준이다.
 
 ### 3.3 capabilities 캐시 (선택 · 미구현 Planned)
 
