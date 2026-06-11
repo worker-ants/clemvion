@@ -50,7 +50,11 @@ sequenceDiagram
 | 〃 | `integration.reauthorized` | integration | 재인가 |
 | `workspaces/workspaces.service.ts` | `workspace.transfer_ownership` | workspace | 소유권 이전 |
 | `executions/executions.service.ts` | `execution.re_run` | execution | 재실행. details 에 `originalExecutionId`·`chainId`·`dryRun`·`inputModified` |
-| `auth-configs/auth-configs.service.ts` | `auth_config.reveal` | auth_config | 유일하게 `ipAddress` 를 함께 전달 |
+| `auth-configs/auth-configs.service.ts` | `auth_config.create` | auth_config | 생성 |
+| 〃 | `auth_config.update` | auth_config | 수정 |
+| 〃 | `auth_config.delete` | auth_config | 삭제 |
+| 〃 | `auth_config.regenerate` | auth_config | 키/토큰 재발급 |
+| 〃 | `auth_config.reveal` | auth_config | 평문 노출 (비밀번호 재확인). auth_config 계열은 모두 `ipAddress` 를 함께 전달 |
 
 표기 규약과 커버리지에 대한 코드 사실 두 가지:
 
