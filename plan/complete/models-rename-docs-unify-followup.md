@@ -1,17 +1,28 @@
 ---
 name: models-rename-docs-unify-followup
-worktree: (unstarted)
-status: pending
+worktree: unified-model-mgmt-5af7ee
+status: complete
 started: 2026-06-11
+completed: 2026-06-11
 owner: developer
-related_spec:
-  - spec/2-navigation/6-config.md
+spec_impact:
   - spec/2-navigation/_product-overview.md
-  - spec/2-navigation/13-user-guide.md
   - spec/4-nodes/3-ai/0-common.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/4-nodes/3-ai/2-text-classifier.md
+  - spec/4-nodes/3-ai/3-information-extractor.md
+  - spec/4-nodes/3-ai/_product-overview.md
+  - spec/4-nodes/4-integration/_product-overview.md
 related_plan:
   - plan/in-progress/unified-model-management.md
 ---
+
+> **완료 (2026-06-11, PR-B)** — `6f828225`(명칭 전파 + user-guide 통합) + `7e3becdc`(리뷰 후속:
+> 잔존 명칭 정리 + 구 문서 URL redirect). spec §3.7 heading·앵커·링크텍스트 전파(W-2/3/9/10·I-1),
+> user-guide `llm-config`+`rerank-config` → 단일 `models.mdx`/`.en.mdx`(Chat/Embedding/Rerank,
+> Embedding 탭 신규), 구 doc slug redirect(`resolveLegacyDocSlug`). review 09_07_47 Critical0/W4→fix,
+> `--impl-done`(09_26_55) BLOCK:NO. (13-user-guide IA 정합 = W-5 해소.)
+
 # Followup — LLM→Models 명칭 전파 + user-guide 페이지 통합
 
 > 분리 사유: Unified Model Management 의 R-3(통합 `/models` 화면) 결정은 spec·코드에 반영됐으나,

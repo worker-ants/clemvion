@@ -316,7 +316,7 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 
 ### R-4. cohere Base URL — UI 미노출 + API optional override
 
-§C.2 의 종전 서술("`cohere` 는 Base URL 을 받지 않는다 — 공식 endpoint 고정")은 UI 폼 기준으로만 맞고 API 계약과 불일치했다. 실제 생성/수정 API 는 `baseUrl` 을 provider 무관 optional 로 받으며(미지정 시 공식 endpoint), cohere-호환 게이트웨이/프록시 경유 같은 운영 시나리오를 허용한다. 단 외부 provider 의 `baseUrl` 로는 복호화된 Bearer 키가 전송되므로 사설망/loopback 주소는 SSRF 가드로 차단한다 (400 `RERANK_CONFIG_INVALID`; `tei`/local 만 예외 — [LLM Client §5.5](../5-system/7-llm-client.md) 가드 재사용). UI 폼은 일반 사용자의 혼란을 줄이기 위해 `cohere` 선택 시 Base URL 입력을 노출하지 않는다. 같은 맥락에서 `tei` 의 "Base URL 필수" 도 생성 API 의 DTO 검증이 아니라 frontend 폼 검증 + rerank client 사용 시점에 강제된다 — API 단독 호출로 Base URL 없는 tei config 를 만들 수 있으나 사용 시점에 실패한다.
+§B.6.2(구 §C.2) 의 종전 서술("`cohere` 는 Base URL 을 받지 않는다 — 공식 endpoint 고정")은 UI 폼 기준으로만 맞고 API 계약과 불일치했다. 실제 생성/수정 API 는 `baseUrl` 을 provider 무관 optional 로 받으며(미지정 시 공식 endpoint), cohere-호환 게이트웨이/프록시 경유 같은 운영 시나리오를 허용한다. 단 외부 provider 의 `baseUrl` 로는 복호화된 Bearer 키가 전송되므로 사설망/loopback 주소는 SSRF 가드로 차단한다 (400 `RERANK_CONFIG_INVALID`; `tei`/local 만 예외 — [LLM Client §5.5](../5-system/7-llm-client.md) 가드 재사용). UI 폼은 일반 사용자의 혼란을 줄이기 위해 `cohere` 선택 시 Base URL 입력을 노출하지 않는다. 같은 맥락에서 `tei` 의 "Base URL 필수" 도 생성 API 의 DTO 검증이 아니라 frontend 폼 검증 + rerank client 사용 시점에 강제된다 — API 단독 호출로 Base URL 없는 tei config 를 만들 수 있으나 사용 시점에 실패한다.
 
 ### R-5. max_tokens 기본값 4096 (구 spec 의 2048 정정)
 

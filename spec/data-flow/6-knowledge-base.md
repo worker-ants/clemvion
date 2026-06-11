@@ -26,7 +26,7 @@ chained dispatch 로 entity/relation 추출까지 이어진다.
 - `codebase/backend/src/modules/knowledge-base/search/rag-search.service.ts` — vector / graph RAG 검색 + 리랭크 분기
 - `codebase/backend/src/modules/knowledge-base/search/rerank.service.ts` — cross-encoder 재점수화 + listwise LLM grading
 - `codebase/backend/src/modules/knowledge-base/search/dynamic-cut.util.ts` — 동적 컷 상수/함수 (`RAG_RECALL_K`, `applyDynamicCut`, `hnswEfSearchFor`)
-- `codebase/backend/src/modules/rerank-config/` — 리랭커 provider 설정 (`rerank_config`) CRUD
+- `codebase/backend/src/modules/model-config/` — 리랭커(kind=rerank) 등 ModelConfig provider 설정 CRUD (구 `rerank-config/` 는 deprecated alias, PR4 제거)
 - `codebase/backend/src/modules/knowledge-base/queues/*.ts` — BullMQ 큐 (document-embedding, graph-extraction) + 부팅 시 stuck 회수
 
 ---
