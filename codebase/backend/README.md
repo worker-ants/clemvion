@@ -33,6 +33,8 @@ npm run start:dev
 - `APP_*` - 앱 포트, URL 설정
 - `ENCRYPTION_KEY` - 크레덴셜 암호화 키
 
+> **배포 주의**: `NODE_ENV=production` 에서 `JWT_SECRET`·`ENCRYPTION_KEY` 가 미설정이거나 `.env.example` 기본값이면, 또는 `MCP_ALLOW_INSECURE_URL=true` 이면 `assertProductionConfig` 가 부팅을 즉시 거부합니다. 운영용 무작위 secret 을 반드시 설정하세요 (`openssl rand -hex 32` 등).
+
 ## Docker
 
 프로덕션 이미지는 `codebase/backend/Dockerfile`(멀티스테이지, non-root `node` 유저)로 빌드합니다. 빌드 컨텍스트는 **repo 루트** — `file:../codebase/packages/*` 의존성을 함께 가져오기 위함입니다.

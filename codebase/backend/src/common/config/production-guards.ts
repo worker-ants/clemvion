@@ -51,6 +51,9 @@ export const KNOWN_EXAMPLE_ENCRYPTION_KEYS: ReadonlySet<string> = new Set([
  * .env boolean 토글이 ON 인지 — 정확히 문자열 `'true'` 또는 `'1'` 만 ON 으로 본다.
  * `'yes'`/`'on'`/`'TRUE'`/`''` 등은 모두 OFF (대소문자·동의어 미허용으로 오설정의 우연한
  * 활성화를 줄인다). warn 정책 가드(main.ts)도 같은 규칙을 쓰도록 export 한다.
+ *
+ * @param value 검사할 환경변수 값 (미설정이면 `undefined`).
+ * @returns `true` 이면 플래그 활성 (`'true'` 또는 `'1'`), 그 외 모두 `false`.
  */
 export function isFlagOn(value: string | undefined): boolean {
   return value === 'true' || value === '1';
@@ -63,6 +66,8 @@ export const MIN_JWT_SECRET_LENGTH = 32;
  * production 부팅 가드. 위반 시 `Error` throw (fail-closed). 비-production 은 no-op.
  *
  * @param env 검사할 환경변수 맵 (기본 `process.env`). 테스트에서 주입.
+ * @throws {Error} NODE_ENV=production 에서 비보안 stub·미설정/예시 secret·위험 플래그
+ *   위반 발견 시 "production fail-closed 가드: <사유>" 메시지와 함께 throw 해 기동을 거부한다.
  */
 export function assertProductionConfig(
   env: NodeJS.ProcessEnv = process.env,

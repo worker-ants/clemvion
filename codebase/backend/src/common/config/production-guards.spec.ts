@@ -2,8 +2,12 @@
  * production fail-closed 가드 단위 테스트 (refactor 04 C-1·M-4·M-7).
  * 순수 함수라 env 맵을 주입해 전 분기를 검증한다 — 실제 부팅 불필요.
  */
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { jwtConfig } from './jwt.config';
 import {
   assertProductionConfig,
+  isFlagOn,
   INSECURE_JWT_SECRETS,
   KNOWN_EXAMPLE_ENCRYPTION_KEYS,
 } from './production-guards';
@@ -103,6 +107,12 @@ describe('assertProductionConfig', () => {
         ).toThrow(/ENCRYPTION_KEY/);
       }
     });
+    // INFO-12: 유효한 non-example 키는 통과해야 함 (JWT_SECRET 의 긍정 케이스와 대칭).
+    it('passes for a valid non-example key', () => {
+      expect(() =>
+        assertProductionConfig(prodEnv({ ENCRYPTION_KEY: VALID_ENC })),
+      ).not.toThrow();
+    });
   });
 
   describe('MCP_ALLOW_INSECURE_URL (04 M-7)', () => {
@@ -147,5 +157,69 @@ describe('assertProductionConfig', () => {
     expect(() =>
       assertProductionConfig(prodEnv({ MCP_ALLOW_INSECURE_URL: undefined })),
     ).not.toThrow();
+  });
+});
+
+// INFO-13: isFlagOn 독립 단위 테스트 — main.ts + assertProductionConfig 양쪽에서
+// 재사용되는 계약을 고정한다. 비표준 truthy 값이 OFF 로 처리됨을 명시적으로 검증.
+describe('isFlagOn', () => {
+  it.each(['true', '1'])('returns true for ON value: %p', (v) => {
+    expect(isFlagOn(v)).toBe(true);
+  });
+
+  it.each([undefined, '', 'TRUE', 'True', 'yes', 'on', '0', 'false', 'off'])(
+    'returns false for non-ON value: %p',
+    (v) => {
+      expect(isFlagOn(v)).toBe(false);
+    },
+  );
+});
+
+// W3 / INFO-14: INSECURE_JWT_SECRETS · KNOWN_EXAMPLE_ENCRYPTION_KEYS 동기화 의무를
+// CI 회귀 방어선으로 고정한다. .env.example 또는 jwt.config.ts dev fallback 변경 시
+// 누락이 자동으로 탐지된다.
+describe('blacklist Set sync — .env.example & jwt.config.ts', () => {
+  // .env.example 에서 JWT_SECRET placeholder 값을 파싱한다.
+  // 행 형식: `JWT_SECRET=<value>` (주석 아님, 미주석 행만)
+  function parseEnvExampleValue(
+    content: string,
+    key: string,
+  ): string | undefined {
+    const match = content.match(new RegExp(`^${key}=(.+)$`, 'm'));
+    return match?.[1]?.trim();
+  }
+
+  const envExamplePath = path.resolve(__dirname, '../../../.env.example');
+  const envExampleContent = fs.readFileSync(envExamplePath, 'utf-8');
+
+  it('INSECURE_JWT_SECRETS contains the .env.example JWT_SECRET placeholder', () => {
+    const placeholder = parseEnvExampleValue(envExampleContent, 'JWT_SECRET');
+    expect(placeholder).toBeDefined();
+    expect(INSECURE_JWT_SECRETS.has(placeholder!)).toBe(true);
+  });
+
+  it('INSECURE_JWT_SECRETS contains the jwt.config.ts dev fallback', () => {
+    // jwtConfig() 를 직접 호출하면 registerAs 래퍼가 개입하므로,
+    // 실제 dev fallback 값을 소스 추적으로 검증한다 — process.env.JWT_SECRET
+    // 미설정 시 'dev-jwt-secret' 가 반환된다.
+    const originalSecret = process.env.JWT_SECRET;
+    delete process.env.JWT_SECRET;
+    try {
+      const cfg = jwtConfig();
+      expect(INSECURE_JWT_SECRETS.has(cfg.secret)).toBe(true);
+    } finally {
+      if (originalSecret !== undefined) {
+        process.env.JWT_SECRET = originalSecret;
+      }
+    }
+  });
+
+  it('KNOWN_EXAMPLE_ENCRYPTION_KEYS contains the .env.example ENCRYPTION_KEY placeholder', () => {
+    const placeholder = parseEnvExampleValue(
+      envExampleContent,
+      'ENCRYPTION_KEY',
+    );
+    expect(placeholder).toBeDefined();
+    expect(KNOWN_EXAMPLE_ENCRYPTION_KEYS.has(placeholder!)).toBe(true);
   });
 });
