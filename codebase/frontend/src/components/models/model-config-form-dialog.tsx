@@ -58,6 +58,12 @@ export function ModelConfigFormDialog({
 
   const showParams = kind === "chat";
   const showDimension = kind === "embedding";
+  // 차원은 연결 테스트(probe embed)로 자동 감지·저장된다. 저장된 설정에 차원이
+  // 이미 있으면(=감지 완료) read-only 로 표시하고, 아직 감지 전(신규 생성이거나
+  // 차원 미저장)일 때만 수동 입력 폴백을 허용한다. live form 값이 아니라 저장된
+  // editConfig 기준으로 판정해야 생성 모드에서 첫 입력에 필드가 잠기지 않는다.
+  const dimensionAutoDetected =
+    showDimension && editConfig?.dimension != null;
   // rerank: API Key 는 cohere 만 필수. tei(self-hosted) 는 불필요.
   const showApiKey = kind !== "rerank" || form.provider === "cohere";
   const freeInputModel = kind === "rerank";
@@ -150,7 +156,19 @@ export function ModelConfigFormDialog({
                 value={form.dimension}
                 onChange={(e) => form.setDimension(e.target.value)}
                 placeholder={t("models.dimensionPlaceholder")}
+                readOnly={dimensionAutoDetected}
+                aria-readonly={dimensionAutoDetected}
+                className={
+                  dimensionAutoDetected
+                    ? "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                    : undefined
+                }
               />
+              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                {dimensionAutoDetected
+                  ? t("models.dimensionAutoHint")
+                  : t("models.dimensionManualHint")}
+              </p>
             </div>
           )}
           {showParams && (

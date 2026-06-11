@@ -432,3 +432,120 @@ describe("ModelConfigManager — embedding dimension payload", () => {
     });
   });
 });
+
+describe("ModelConfigManager — embedding connection test dimension auto-detect", () => {
+  const EMBEDDING_CONFIG_NO_DIM = {
+    data: [
+      {
+        id: "emb-1",
+        kind: "embedding" as const,
+        provider: "openai",
+        name: "My Embedding",
+        apiKey: "sk-****abcd",
+        baseUrl: null,
+        defaultModel: "text-embedding-3-small",
+        dimension: null,
+        isDefault: false,
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+    ],
+    pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    setupStore();
+    cleanup();
+  });
+
+  it("persists detected dimension and shows it in the toast on successful test", async () => {
+    getAllMock.mockResolvedValue(EMBEDDING_CONFIG_NO_DIM);
+    testConnectionMock.mockResolvedValue({ success: true, dimension: 1536 });
+    updateMock.mockResolvedValue({ id: "emb-1" });
+    const { toast } = await import("sonner");
+
+    await act(async () => {
+      render(<ModelConfigManager kind="embedding" />, {
+        wrapper: createWrapper(),
+      });
+    });
+
+    fireEvent.click(await screen.findByText("Test"));
+
+    await waitFor(() => {
+      // detected dimension is persisted back to the config
+      expect(updateMock).toHaveBeenCalledWith("emb-1", { dimension: 1536 });
+    });
+    expect(toast.success).toHaveBeenCalledWith(
+      expect.stringContaining("1536"),
+    );
+  });
+
+  it("does not persist when detected dimension equals stored dimension", async () => {
+    getAllMock.mockResolvedValue({
+      ...EMBEDDING_CONFIG_NO_DIM,
+      data: [{ ...EMBEDDING_CONFIG_NO_DIM.data[0], dimension: 1536 }],
+    });
+    testConnectionMock.mockResolvedValue({ success: true, dimension: 1536 });
+    const { toast } = await import("sonner");
+
+    await act(async () => {
+      render(<ModelConfigManager kind="embedding" />, {
+        wrapper: createWrapper(),
+      });
+    });
+
+    fireEvent.click(await screen.findByText("Test"));
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        expect.stringContaining("1536"),
+      );
+    });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("still reports success when dimension auto-persist fails (e.g. permission)", async () => {
+    getAllMock.mockResolvedValue(EMBEDDING_CONFIG_NO_DIM);
+    testConnectionMock.mockResolvedValue({ success: true, dimension: 3072 });
+    updateMock.mockRejectedValue(new Error("403 Forbidden"));
+    const { toast } = await import("sonner");
+
+    await act(async () => {
+      render(<ModelConfigManager kind="embedding" />, {
+        wrapper: createWrapper(),
+      });
+    });
+
+    fireEvent.click(await screen.findByText("Test"));
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        expect.stringContaining("3072"),
+      );
+    });
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("renders the dimension field read-only when editing a config that already has a dimension", async () => {
+    getAllMock.mockResolvedValue({
+      ...EMBEDDING_CONFIG_NO_DIM,
+      data: [{ ...EMBEDDING_CONFIG_NO_DIM.data[0], dimension: 1536 }],
+    });
+
+    await act(async () => {
+      render(<ModelConfigManager kind="embedding" />, {
+        wrapper: createWrapper(),
+      });
+    });
+
+    fireEvent.click(await screen.findByLabelText("Edit"));
+
+    const dimensionInput = screen.getByPlaceholderText("e.g. 1536 or 3072");
+    expect(dimensionInput).toHaveValue(1536);
+    expect(dimensionInput).toHaveAttribute("readonly");
+  });
+});

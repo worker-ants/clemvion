@@ -19,6 +19,8 @@ export const models = {
   rerankModelPlaceholder: "e.g. dragonkue/bge-reranker-v2-m3-ko",
   dimension: "Dimension",
   dimensionPlaceholder: "e.g. 1536 or 3072",
+  dimensionAutoHint: "Auto-detected during connection test.",
+  dimensionManualHint: "Auto-detect via connection test, or enter manually.",
   temperature: "Temperature",
   maxTokens: "Max Tokens",
   updateBtn: "Update",
@@ -39,6 +41,7 @@ export const models = {
   providerDefaultUpdated: "Default model updated.",
   setDefaultFailed: "Failed to update default model.",
   connectionSucceeded: "Connection succeeded.",
+  connectionSucceededDim: "Connected · detected dimension {{dimension}}.",
   connectionFailed: "Connection failed: {{error}}",
   testFailedShort: "Connection test failed.",
 

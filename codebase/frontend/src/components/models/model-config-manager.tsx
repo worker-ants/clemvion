@@ -75,13 +75,31 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
   });
 
   const testMutation = useMutation({
-    mutationFn: (id: string) => modelConfigsApi.testConnection(id),
-    onSuccess: (result) => {
-      if (result.success) toast.success(t("models.connectionSucceeded"));
-      else
+    mutationFn: (config: ModelConfigData) =>
+      modelConfigsApi.testConnection(config.id),
+    onSuccess: async (result, config) => {
+      if (!result.success) {
         toast.error(
           t("models.connectionFailed", { error: result.message ?? "" }),
         );
+        return;
+      }
+      const dim = result.dimension;
+      // embedding: probe 로 감지한 차원을 자동 저장(변경 시)하고 토스트에 표시한다.
+      // 저장 실패(권한 등)는 무시 — 감지값 안내는 유지한다.
+      if (config.kind === "embedding" && dim) {
+        if (dim !== config.dimension) {
+          try {
+            await modelConfigsApi.update(config.id, { dimension: dim });
+            invalidate();
+          } catch {
+            /* dimension 자동 저장 실패는 연결 성공 안내를 막지 않는다. */
+          }
+        }
+        toast.success(t("models.connectionSucceededDim", { dimension: dim }));
+        return;
+      }
+      toast.success(t("models.connectionSucceeded"));
     },
     onError: () => toast.error(t("models.testFailedShort")),
   });
@@ -195,7 +213,7 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
                             size="sm"
                             className="h-7 text-xs"
                             disabled={testMutation.isPending}
-                            onClick={() => testMutation.mutate(config.id)}
+                            onClick={() => testMutation.mutate(config)}
                           >
                             <Plug className="mr-1 h-3 w-3" />
                             {t("models.testBtn")}

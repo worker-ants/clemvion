@@ -21,10 +21,13 @@ describe('LlmService', () => {
       listModels: jest.fn().mockResolvedValue([]),
     };
 
+    // testConnection/listModels 는 kind 무관 조회를 위해 findEntity 를 쓴다.
+    // 기본 mock 은 chat 설정(kind 포함)으로, embedding 테스트가 개별 override 한다.
     mockModelConfigService = {
       getDecryptedApiKey: jest.fn().mockReturnValue('sk-decrypted-key'),
       findEntity: jest.fn().mockResolvedValue({
         id: 'config-1',
+        kind: 'chat',
         provider: 'openai',
         defaultModel: 'gpt-4o',
         apiKey: 'encrypted',
@@ -371,6 +374,64 @@ describe('LlmService', () => {
       expect(result).toEqual({
         success: false,
         error: 'Connection test failed. Please check your configuration.',
+      });
+    });
+
+    it('resolves config kind-agnostically via ModelConfigService (embedding regression)', async () => {
+      // 회귀 방지: embedding 설정도 조회돼야 한다. 구 경로는 kind=chat 고정이라
+      // MODEL_CONFIG_NOT_FOUND 로 거부됐다.
+      mockModelConfigService.findEntity.mockResolvedValue({
+        id: 'emb-1',
+        kind: 'embedding',
+        provider: 'openai',
+        defaultModel: 'text-embedding-3-small',
+        apiKey: 'encrypted',
+      });
+      mockClient.embed.mockResolvedValue([new Array(1536).fill(0)]);
+
+      const result = await service.testConnection('emb-1', 'ws-1');
+
+      expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
+        'emb-1',
+        'ws-1',
+      );
+      // embedding 은 testConnection() 대신 probe embed 로 검증한다.
+      expect(mockClient.testConnection).not.toHaveBeenCalled();
+      expect(mockClient.embed).toHaveBeenCalledWith(
+        ['connection test'],
+        'text-embedding-3-small',
+      );
+      expect(result).toEqual({ success: true, dimension: 1536 });
+    });
+
+    it('returns success without dimension when probe embed yields empty vector', async () => {
+      mockModelConfigService.findEntity.mockResolvedValue({
+        id: 'emb-1',
+        kind: 'embedding',
+        provider: 'openai',
+        defaultModel: 'text-embedding-3-small',
+        apiKey: 'encrypted',
+      });
+      mockClient.embed.mockResolvedValue([]);
+
+      const result = await service.testConnection('emb-1', 'ws-1');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('returns sanitized failure when embedding probe embed throws', async () => {
+      mockModelConfigService.findEntity.mockResolvedValue({
+        id: 'emb-1',
+        kind: 'embedding',
+        provider: 'openai',
+        defaultModel: 'text-embedding-3-small',
+        apiKey: 'encrypted',
+      });
+      mockClient.embed.mockRejectedValue(new Error('401 Unauthorized'));
+
+      const result = await service.testConnection('emb-1', 'ws-1');
+      expect(result).toEqual({
+        success: false,
+        error: 'Authentication failed. Please check your API key.',
       });
     });
   });
