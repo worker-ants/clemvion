@@ -212,17 +212,26 @@ const RE_TIMED_OUT = /timed out/i;
 const RE_MEMORY_LIMIT = /memory limit/i;
 const RE_ISOLATE_DISPOSED = /Isolate was disposed/i;
 
+// Internal (legacy) error codes produced by classifyCodeNodeError. Kept as a
+// narrow union so LEGACY_TO_NORMALIZED below is an *exhaustive* Record over it —
+// adding a new internal code without a public mapping becomes a compile error.
+type CodeNodeInternalErrorCode =
+  | 'EXECUTION_TIMEOUT'
+  | 'EXECUTION_MEMORY_EXCEEDED'
+  | 'CODE_RUNTIME_ERROR';
+
 // Normalised mapping table for internal (legacy) → public error codes (W8 —
 // single place to add new codes; eliminates the triple-ternary chain in
 // failure()). Frozen at module load so a stray mutation can't reroute public
-// codes; the `ErrorCodeValue` value type pins every entry to a real
-// `ErrorCode` member, and the `string` key keeps arbitrary-code lookup valid.
-const LEGACY_TO_NORMALIZED: Readonly<Record<string, ErrorCodeValue>> =
-  Object.freeze({
-    EXECUTION_TIMEOUT: ErrorCode.CODE_TIMEOUT,
-    EXECUTION_MEMORY_EXCEEDED: ErrorCode.CODE_MEMORY_LIMIT,
-    CODE_RUNTIME_ERROR: ErrorCode.CODE_EXECUTION_FAILED,
-  });
+// codes; the exhaustive `Record<CodeNodeInternalErrorCode, ErrorCodeValue>`
+// forces every internal code to map to a real `ErrorCode` member at compile time.
+const LEGACY_TO_NORMALIZED: Readonly<
+  Record<CodeNodeInternalErrorCode, ErrorCodeValue>
+> = Object.freeze({
+  EXECUTION_TIMEOUT: ErrorCode.CODE_TIMEOUT,
+  EXECUTION_MEMORY_EXCEEDED: ErrorCode.CODE_MEMORY_LIMIT,
+  CODE_RUNTIME_ERROR: ErrorCode.CODE_EXECUTION_FAILED,
+});
 
 /**
  * Map a thrown error from the isolate run onto an internal (legacy) error code.
@@ -243,7 +252,7 @@ const LEGACY_TO_NORMALIZED: Readonly<Record<string, ErrorCodeValue>> =
 export function classifyCodeNodeError(
   err: CodeExecutionError,
   isolate?: ivm.Isolate,
-): string {
+): CodeNodeInternalErrorCode {
   // Priority 1: trusted host-set code (wall-clock timeout).
   if (err?.code === 'EXECUTION_TIMEOUT') return 'EXECUTION_TIMEOUT';
   // Priority 2: isolate was hard-disposed by isolated-vm (memory limit breach).
@@ -450,7 +459,7 @@ export class CodeHandler implements NodeHandler {
   private failure(
     config: Readonly<Record<string, unknown>>,
     error: unknown,
-    errorCode: string,
+    errorCode: CodeNodeInternalErrorCode,
     logs: string[],
     overrideMessage?: string,
   ): NodeHandlerOutput {
@@ -469,10 +478,10 @@ export class CodeHandler implements NodeHandler {
     // read `output.error.{code, message, details.stack}` exclusively now.
     // W8: LEGACY_TO_NORMALIZED table replaces the triple-ternary chain —
     // one place to add new code mappings.
-    // Default to CODE_EXECUTION_FAILED (not the raw `errorCode`) so an
-    // unmapped internal code can never leak through to the public `output.error
-    // .code`. In practice classifyCodeNodeError only ever returns one of the
-    // three mapped keys; this default is defence-in-depth for future codes.
+    // The exhaustive Record makes this lookup total at compile time; the
+    // `?? CODE_EXECUTION_FAILED` is runtime belt-and-suspenders so an unmapped
+    // internal code can never leak through to the public `output.error.code`
+    // even if the union is bypassed (e.g. an `as any` cast upstream).
     const normalizedCode =
       LEGACY_TO_NORMALIZED[errorCode] ?? ErrorCode.CODE_EXECUTION_FAILED;
     const outputDetails: Record<string, unknown> = { legacyCode: errorCode };
