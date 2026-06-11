@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — AI 노드 설정 폼 auto-form 전환 (text_classifier · information_extractor)
+
+- **`text_classifier` · `information_extractor` 설정 폼을 schema-driven auto-form 으로 전환** (cross-audit V-02). 기존 bespoke override 폼이 누락하던 필드 — Conversation Context 5필드, System Context 2필드, few-shot `examples`, `outputSchema[].enumValues`, `maxCollectionRetries`, (information_extractor) memory 전략 7필드 — 가 설정 패널에 정상 노출된다. 이전에는 Code 탭 JSON 으로만 설정 가능했다.
+
+  **참고**: `text_classifier` 의 `includeConfidence` 신규 노드 기본값은 zod 스키마 정의(`false`, spec §1)를 따른다 — 구 bespoke 폼이 `true` 로 표시하던 것은 spec 과 어긋난 동작이었고 본 전환으로 교정됐다. 기존 저장된 설정값에는 영향이 없다.
+
 ## Unreleased — Health Probe Liveness/Readiness 분리
 
 ### Breaking changes

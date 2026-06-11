@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-11T09:36:07.682990",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=V-02 최종 — 13-user-guide 예시 YAML 의 삭제된 ai-configs.tsx 경로를 schema-form.tsx 로 정리(consistency W-1 해소). 이전 BLOCK:NO 유지 확인용., diff-base=origin/main)",
+  "target_path": "V-02 최종 — 13-user-guide 예시 YAML 의 삭제된 ai-configs.tsx 경로를 schema-form.tsx 로 정리(consistency W-1 해소). 이전 BLOCK:NO 유지 확인용.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
