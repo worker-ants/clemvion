@@ -37,7 +37,7 @@ sequenceDiagram
   ALS->>PG: INSERT audit_log (...)
 ```
 
-`AuditLogsService.record` 의 실제 호출자는 **4개 모듈 9개 call site 전수**다. 이 표가 현재 코드에서
+`AuditLogsService.record` 의 실제 호출자는 **4개 모듈 13개 call site 전수**다. 이 표가 현재 코드에서
 실제로 기록되는 action 의 SoT 다:
 
 | Writer module | action | resource_type | 비고 |
@@ -50,7 +50,11 @@ sequenceDiagram
 | 〃 | `integration.reauthorized` | integration | 재인가 |
 | `workspaces/workspaces.service.ts` | `workspace.transfer_ownership` | workspace | 소유권 이전 |
 | `executions/executions.service.ts` | `execution.re_run` | execution | 재실행. details 에 `originalExecutionId`·`chainId`·`dryRun`·`inputModified` |
-| `auth-configs/auth-configs.service.ts` | `auth_config.reveal` | auth_config | 유일하게 `ipAddress` 를 함께 전달 |
+| `auth-configs/auth-configs.service.ts` | `auth_config.create` | auth_config | 생성 |
+| 〃 | `auth_config.update` | auth_config | 수정 |
+| 〃 | `auth_config.delete` | auth_config | 삭제 |
+| 〃 | `auth_config.regenerate` | auth_config | 키/토큰 재발급 |
+| 〃 | `auth_config.reveal` | auth_config | 평문 노출 (비밀번호 재확인). auth_config 계열은 모두 `ipAddress` 를 함께 전달 |
 
 표기 규약과 커버리지에 대한 코드 사실 두 가지:
 
@@ -212,6 +216,6 @@ DROP + ADD 로 갱신했다. entity 의 `LoginHistoryEvent` union type 과 DB CH
 ### "모든 도메인 service 가 호출하는 cross-cutting concern" 서술 폐기
 
 과거 본 문서는 audit_log 의 호출자를 "각 도메인의 service (Workflows / Triggers / ... 등) 전체" 로
-서술했으나, 실제 writer 는 4개 모듈 9개 call site 뿐이라 폐기했다 (§1.1). 인증 spec §4.1 의 액션
+서술했으나, 실제 writer 는 4개 모듈 13개 call site 뿐이라 폐기했다 (§1.1). 인증 spec §4.1 의 액션
 카탈로그는 목표 상태이고, 본 문서의 §1.1 표가 구현 현황의 SoT 다 — 커버리지 확장 시 §1.1 표를 함께
 갱신해야 한다.

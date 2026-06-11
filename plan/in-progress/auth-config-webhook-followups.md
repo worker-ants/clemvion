@@ -1,11 +1,26 @@
 ---
-worktree: (unstarted)
+worktree: .claude/worktrees/audit-coverage-naming (branch claude/auth-config-audit)
 started: 2026-05-28
-owner: TBD
-status: backlog
+owner: developer
+status: in-progress
 ---
 
 # auth-config-webhook-wiring 후속 작업
+
+> **진행 중 (2026-06-11)**: §1 AuthConfig CRUD audit 기록 착수 (branch `claude/auth-config-audit`). §2~4 는 미착수 잔여.
+>
+> §1 체크리스트:
+> - [x] AUDIT_ACTIONS 에 `AUTH_CONFIG_CREATE/UPDATE/DELETE/REGENERATE` 4종 추가
+> - [x] service create/update/regenerate/remove 에 `userId`(+ipAddress) + `record()` 추가
+> - [x] controller `@CurrentUser('sub')`·`@Req()` 전파
+> - [x] service spec audit mock 검증 테스트 (CRUD 4 케이스 + reveal 음성 mockClear)
+> - [x] spec §4.1 4종 Planned→구현됨 이동 + data-flow §1.1 writer 표 동기화
+> - [x] consistency-check --impl-prep (21_17_54, BLOCK: NO)
+> - [x] TEST WORKFLOW (lint·unit 47·build·e2e 188 통과)
+> - [x] /ai-review (21_50_33, RISK LOW·Critical 0·Warning 3 fix) + RESOLUTION
+> - [x] consistency-check --impl-done (22_00_31, BLOCK: NO; W-6 fix, 나머지 백로그)
+>
+> **§1 완료** (2026-06-11). 잔여 §2~4 미착수. base: origin/main #544 rebase, stale-base 21_35_35 무효 폐기.
 
 본 PR (`plan/complete/auth-config-webhook-wiring.md`) 의 `/ai-review` (`review/code/2026/05/28/21_50_50/SUMMARY.md`) 에서 발견됐으나 본 PR scope 밖이거나 spec 개정이 선행돼야 하는 항목.
 
