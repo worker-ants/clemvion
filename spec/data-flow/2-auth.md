@@ -167,7 +167,8 @@ sequenceDiagram
   end
   rect rgb(235, 245, 235)
     Note over Svc,PG: 단일 트랜잭션 (revoke + INSERT 원자성)
-    Svc->>PG: UPDATE refresh_token SET is_revoked=true, last_used_at=now WHERE id = row.id
+    Svc->>PG: UPDATE refresh_token SET is_revoked=true, last_used_at=now WHERE id = row.id AND is_revoked = false AND expires_at > now
+    Note over Svc: affected = 0 이면 (동시 회전 경합) 401 TOKEN_INVALID
     Svc->>PG: INSERT refresh_token (family_id=row.family_id, new token_hash, expires_at)
   end
   Svc-->>C: { accessToken } + Set-Cookie (새 refreshToken httpOnly)

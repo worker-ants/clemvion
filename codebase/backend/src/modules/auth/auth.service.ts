@@ -520,6 +520,14 @@ export class AuthService {
   }
 
   // ========== REFRESH ==========
+  /**
+   * Refresh token 회전. 세 분기로 갈린다:
+   *  1. **reuse 탐지** (`stored.isRevoked`) — 이미 revoke 된 토큰 재사용 → family 전체
+   *     revoke + `loginHistory` 보안 이벤트 기록 후 401.
+   *  2. **만료** (`expiresAt < now`) — 부작용 없이 401 `TOKEN_EXPIRED` (트랜잭션 미진입).
+   *  3. **정상 회전** — 구 토큰 revoke + 신규 토큰 INSERT 를 **단일 트랜잭션**으로 원자화
+   *     (05 C-1). revoke 는 조건부 UPDATE 라 동시 회전(TOCTOU)을 `affected=0` 으로 차단한다.
+   */
   async refresh(
     refreshToken: string,
     ctx: AuthContext = {},
@@ -591,14 +599,17 @@ export class AuthService {
     // "last activity" 정확성을 유지한다. loginHistory 기록은 회전 원자성과 무관하고
     // refresh 정상 회전은 보안 이벤트가 아니므로(spec §1.4) 남기지 않는다.
     return this.dataSource.transaction(async (manager) => {
+      const now = new Date();
       const result = await manager.getRepository(RefreshToken).update(
-        { id: stored.id, isRevoked: false, expiresAt: MoreThan(new Date()) },
+        { id: stored.id, isRevoked: false, expiresAt: MoreThan(now) },
         {
           isRevoked: true,
-          lastUsedAt: new Date(),
+          lastUsedAt: now,
           lastUsedIp: ctx.ip ?? null,
         },
       );
+      // affected 가 0/undefined/null 이면(드라이버별) 매칭 행 없음 — 다른 요청이
+      // 먼저 회전했거나 만료 경계에 걸린 것이므로 신규 토큰을 발급하지 않는다.
       if (!result.affected) {
         throw new UnauthorizedException({
           code: 'TOKEN_INVALID',
@@ -765,10 +776,10 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(accessPayload, {
-      expiresIn: 900, // 15 minutes
+      expiresIn: 900, // 15분
     });
 
-    // Create refresh token
+    // refresh token 생성
     const rawRefreshToken = uuidv4();
     const tokenHash = this.hashToken(rawRefreshToken);
     const refreshExpDays = rememberMe ? 30 : 7;

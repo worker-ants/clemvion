@@ -137,6 +137,8 @@ describe('AuthService', () => {
           },
         },
         {
+          // 주의: 아래 DataSource.transaction mock 은 위 `mockRefreshTokenRepo` 를
+          // 클로저로 캡처한다 — 반드시 그 const 선언보다 나중에 와야 한다(선언 순서 결합).
           provide: DataSource,
           useValue: {
             transaction: jest
@@ -623,6 +625,12 @@ describe('AuthService', () => {
         'insert failed',
       );
       expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+      // revoke 는 시도됐으나(조건부 UPDATE) INSERT 실패로 트랜잭션 전체가 reject —
+      // 실 DB 에선 이 revoke 도 롤백된다(단위 mock 은 롤백 미재현).
+      expect(refreshTokenRepo.update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'rt-1', isRevoked: false }),
+        expect.objectContaining({ isRevoked: true }),
+      );
     });
 
     it('should revoke family on reuse detection', async () => {
