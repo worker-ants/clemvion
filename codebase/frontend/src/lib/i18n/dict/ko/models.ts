@@ -19,6 +19,8 @@ export const models = {
   rerankModelPlaceholder: "예: dragonkue/bge-reranker-v2-m3-ko",
   dimension: "차원(Dimension)",
   dimensionPlaceholder: "예: 1536 또는 3072",
+  dimensionAutoHint: "연결 테스트 시 자동 감지된 차원입니다.",
+  dimensionManualHint: "연결 테스트로 자동 감지하거나 직접 입력하세요.",
   temperature: "Temperature",
   maxTokens: "Max Tokens",
   updateBtn: "수정",
@@ -39,6 +41,7 @@ export const models = {
   providerDefaultUpdated: "기본 모델을 변경했습니다.",
   setDefaultFailed: "기본 모델 변경에 실패했습니다.",
   connectionSucceeded: "연결에 성공했습니다.",
+  connectionSucceededDim: "연결 성공 · 차원 {{dimension}} 감지됨.",
   connectionFailed: "연결 실패: {{error}}",
   testFailedShort: "연결 테스트에 실패했습니다.",
 

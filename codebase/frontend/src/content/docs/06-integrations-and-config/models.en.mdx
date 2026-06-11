@@ -100,11 +100,11 @@ Embedding configs share the same provider structure as Chat configs (OpenAI · G
 <Step>Pick a provider that supports embeddings (OpenAI · Google AI · Azure · Local).</Step>
 <Step>Enter an alias and the API Key (if required). For Local (Ollama/vLLM), also enter a Base URL.</Step>
 <Step>Click `Load models` to fetch the provider's model list, then select the default model from the list.</Step>
-<Step>Enter the Dimension that matches the model (e.g. 1536 for OpenAI text-embedding-3-small).</Step>
+<Step>Click `Test Connection`. When the connection succeeds, the dimension is auto-detected via a probe embed call and saved automatically. The Dimension field becomes read-only once a value is saved. If auto-detection is unavailable (network issue or unsupported model), you can enter the dimension manually before saving.</Step>
 <Step>Save. Mark the most-used config as `⭐ Default` so it is pre-selected when creating a Knowledge Base.</Step>
 </Steps>
 
-<Callout type="note">The Dimension value cannot be changed after the Knowledge Base is created. Enter the correct dimension from the start.</Callout>
+<Callout type="note">Once an embedding dimension is saved (either auto-detected or manually entered), the field is locked to read-only to prevent accidental changes. The dimension cannot be changed after a Knowledge Base is created using this config — re-embedding would be required.</Callout>
 
 ### Embedding config field reference
 
@@ -114,7 +114,7 @@ Embedding configs share the same provider structure as Chat configs (OpenAI · G
   { name: "API Key", type: "string (masked)", required: "Varies by provider", description: "For self-hosted Local providers running without auth, leave this empty." },
   { name: "Base URL", type: "string (URL)", required: "Required for Local", description: "Endpoint of your self-hosted server. Example: http://localhost:11434/v1." },
   { name: "Default Model", type: "string", required: "Required", description: "Model ID used for embedding." },
-  { name: "Dimension", type: "integer", required: "Required", description: "Embedding vector dimension. Varies by model; cannot be changed after the Knowledge Base is created." }
+  { name: "Dimension", type: "integer", required: "Required", description: "Embedding vector dimension. Auto-detected and saved when Test Connection succeeds (probe embed). Displayed as read-only once saved. Falls back to manual entry if auto-detection fails." }
 ]} />
 
 ---
@@ -197,7 +197,7 @@ Model configs are managed via the `/api/model-configs` endpoint. All types (Chat
   { name: "POST /api/model-configs", type: "Create", required: "editor+", description: "Register a new model config. Include the kind field in the request body." },
   { name: "PATCH /api/model-configs/:id", type: "Update", required: "editor+", description: "Update a saved model config." },
   { name: "PATCH /api/model-configs/:id/set-default", type: "Set default", required: "editor+", description: "Designate as the workspace default for the same kind." },
-  { name: "POST /api/model-configs/:id/test", type: "Test connection", required: "-", description: "Test the Chat or Embedding provider connection." },
+  { name: "POST /api/model-configs/:id/test", type: "Test connection", required: "-", description: "Test the Chat or Embedding provider connection. For Embedding configs, the response includes a `dimension` field with the auto-detected vector length from a probe embed call." },
   { name: "GET /api/model-configs/:id/models", type: "List models", required: "-", description: "Fetch the model list from the provider using the saved credentials." },
   { name: "POST /api/model-configs/preview-models", type: "Preview models", required: "editor+", description: "Fetch the model list using form credentials before saving. The API Key is not persisted." }
 ]} />
