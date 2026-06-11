@@ -33,7 +33,12 @@ npm run start:dev
 - `APP_*` - 앱 포트, URL 설정
 - `ENCRYPTION_KEY` - 크레덴셜 암호화 키
 
-> **배포 주의**: `NODE_ENV=production` 에서 `JWT_SECRET`·`ENCRYPTION_KEY` 가 미설정이거나 `.env.example` 기본값이면, 또는 `MCP_ALLOW_INSECURE_URL=true` 이면 `assertProductionConfig` 가 부팅을 즉시 거부합니다. 운영용 무작위 secret 을 반드시 설정하세요 (`openssl rand -hex 32` 등).
+> **배포 주의**: `NODE_ENV=production` 에서 다음 중 하나라도 해당하면 `assertProductionConfig` 가 부팅을 즉시 거부합니다. 운영용 무작위 secret 을 반드시 설정하세요 (`openssl rand -hex 32` 등).
+>
+> - `JWT_SECRET` 가 미설정·예시/기본값이거나 32자 미만 (CWE-521)
+> - `ENCRYPTION_KEY` 가 미설정이거나 공개 `.env.example` 예시 키
+> - `OAUTH_STUB_MODE=true` 또는 `LLM_STUB_MODE=true` (비보안 stub)
+> - `MCP_ALLOW_INSECURE_URL=true` (SSRF 방어 우회)
 
 ## Docker
 

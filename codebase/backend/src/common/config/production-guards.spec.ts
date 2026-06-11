@@ -189,8 +189,14 @@ describe('blacklist Set sync — .env.example & jwt.config.ts', () => {
     return match?.[1]?.trim();
   }
 
-  const envExamplePath = path.resolve(__dirname, '../../../.env.example');
-  const envExampleContent = fs.readFileSync(envExamplePath, 'utf-8');
+  // `.env.example` 읽기를 describe 최상위가 아닌 beforeAll 로 미룬다 — 최상위에서
+  // 동기 read 하면 파일 부재/경로 불일치 시 Jest 수집 단계에서 throw 돼 *파일 전체*
+  // 스위트가 로드 불가가 된다. beforeAll 안이면 이 블록만 실패한다.
+  let envExampleContent: string;
+  beforeAll(() => {
+    const envExamplePath = path.resolve(__dirname, '../../../.env.example');
+    envExampleContent = fs.readFileSync(envExamplePath, 'utf-8');
+  });
 
   it('INSECURE_JWT_SECRETS contains the .env.example JWT_SECRET placeholder', () => {
     const placeholder = parseEnvExampleValue(envExampleContent, 'JWT_SECRET');
@@ -199,9 +205,9 @@ describe('blacklist Set sync — .env.example & jwt.config.ts', () => {
   });
 
   it('INSECURE_JWT_SECRETS contains the jwt.config.ts dev fallback', () => {
-    // jwtConfig() 를 직접 호출하면 registerAs 래퍼가 개입하므로,
-    // 실제 dev fallback 값을 소스 추적으로 검증한다 — process.env.JWT_SECRET
-    // 미설정 시 'dev-jwt-secret' 가 반환된다.
+    // jwtConfig 는 registerAs 가 반환한 팩토리 함수 자체이므로, 직접 호출하면
+    // 설정 객체를 반환한다 — process.env.JWT_SECRET 미설정 시 dev fallback
+    // 'dev-jwt-secret' 가 cfg.secret 으로 반환된다.
     const originalSecret = process.env.JWT_SECRET;
     delete process.env.JWT_SECRET;
     try {
