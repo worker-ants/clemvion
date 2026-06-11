@@ -1,6 +1,6 @@
 # PRD: AI & 지식 저장소
 
-> 관련 문서: [제품 개요](../../0-overview.md) · [워크플로우 에디터 §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-) · [노드 시스템](../_product-overview.md#6-ai-노드-3종) · [통합/연동](../4-integration/_product-overview.md#3-knowledge-base-지식-저장소) · [내비게이션](../../2-navigation/_product-overview.md#37-config--llm-llm-설정) · [Spec AI 노드](./0-common.md) · [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [Spec AI Assistant](../../3-workflow-editor/4-ai-assistant.md)
+> 관련 문서: [제품 개요](../../0-overview.md) · [워크플로우 에디터 §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-) · [노드 시스템](../_product-overview.md#6-ai-노드-3종) · [통합/연동](../4-integration/_product-overview.md#3-knowledge-base-지식-저장소) · [내비게이션](../../2-navigation/_product-overview.md#37-config--models-모델-설정) · [Spec AI 노드](./0-common.md) · [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md) · [Spec Config > Models](../../2-navigation/6-config.md) · [Spec AI Assistant](../../3-workflow-editor/4-ai-assistant.md)
 
 > **구현 상태**: 3.1~3.6의 AI 기능은 모두 **구현 완료(✅)** 다. 상세 요구사항은 [PRD 2 §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-)에 정의되어 있다.
 
@@ -24,7 +24,7 @@
 
 | 영역 | 상태 | 기능 |
 |------|------|------|
-| **LLM 설정** | ✅ | 다중 프로바이더 관리 (OpenAI, Anthropic, Google, Azure, Local) |
+| **Models 설정 (Chat/Embedding/Rerank)** | ✅ | 다중 프로바이더 관리 (OpenAI, Anthropic, Google, Azure, Local) |
 | **AI 노드 3종** | ✅ | AI Agent, Text Classifier, Information Extractor |
 | **지식 저장소** | ✅ | 컬렉션 관리, 문서 업로드, 벡터 임베딩, RAG 검색 |
 | **AI Agent 고급** | ✅ | Tool Area (도구 호출), Knowledge Base 연동 |
@@ -60,7 +60,7 @@
 |----|----------|----------|
 | ND-AG-01 | LLM 기반 AI Agent 실행 | 필수 |
 | ND-AG-02 | System Prompt 설정 (마크다운, 표현식 지원) | 필수 |
-| ND-AG-03 | LLM 모델 선택 (Config > LLM 연동) | 필수 |
+| ND-AG-03 | LLM 모델 선택 (Config > Models > Chat 연동) | 필수 |
 | ND-AG-04 | 모델 파라미터 오버라이드 (temperature, max_tokens) | 필수 |
 | ND-AG-05 | Knowledge Base 연결 (RAG) | 필수 |
 | ND-AG-06 | Tool/Function Calling 지원 _(제거됨 — 재작성 예정)_ | 필수 |

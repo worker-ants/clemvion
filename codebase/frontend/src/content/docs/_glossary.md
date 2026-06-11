@@ -38,7 +38,7 @@
 | Vector RAG | Vector RAG | KB의 기본 검색 모드. "벡터 모드"로 풀어 쓸 수 있어요 |
 | Graph RAG | Graph RAG | KB가 entity·relation까지 추출해 그래프와 벡터를 함께 검색하는 모드. "그래프 모드"로 풀어 쓸 수 있어요 |
 | LLM | LLM | 한글화하지 않고 그대로 사용 |
-| LLM Config | LLM 설정 | 메뉴명과 동일. AI 노드가 호출할 프로바이더·기본 모델·파라미터를 보관 |
+| Model settings | 모델 설정 | 메뉴명과 동일. AI 노드가 호출할 Chat·임베딩·리랭커 프로바이더와 기본 모델·파라미터를 Chat / Embedding / Rerank 탭으로 통합 관리 |
 | Prompt | 프롬프트 | |
 | Tool | 도구 | AI Agent의 tool 개념 |
 | MCP | MCP | Model Context Protocol. 한글화하지 않고 그대로 사용 |

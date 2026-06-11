@@ -11,6 +11,8 @@ function makeKbRow(overrides: Partial<KbRowFixture>): KbRowFixture {
     vectorSeedTopK: 5,
     expandedChunkLimit: 15,
     reembedStatus: 'idle',
+    embeddingLlmConfigId: null,
+    embeddingModelConfigId: null,
     rerankMode: 'off',
     rerankConfigId: null,
     rerankCandidateK: 50,
@@ -29,6 +31,8 @@ interface KbRowFixture {
   vectorSeedTopK: number;
   expandedChunkLimit: number;
   reembedStatus: 'idle' | 'in_progress';
+  embeddingLlmConfigId: string | null;
+  embeddingModelConfigId: string | null;
   rerankMode: 'off' | 'cross_encoder' | 'cross_encoder_llm';
   rerankConfigId: string | null;
   rerankCandidateK: number;
@@ -41,6 +45,7 @@ describe('RagSearchService', () => {
   let mockDataSource: Record<string, jest.Mock>;
   let mockEm: { query: jest.Mock };
   let mockLlmService: Record<string, jest.Mock>;
+  let mockModelConfigService: Record<string, jest.Mock>;
   let mockRerankService: Record<string, jest.Mock>;
 
   beforeEach(() => {
@@ -75,9 +80,23 @@ describe('RagSearchService', () => {
       rerankCandidates: jest.fn(),
     };
 
+    // PR2: rag-search 는 modelConfigService.resolveEmbedding 으로 (config, model) 해석.
+    // legacy 폴백 동형: legacyModel 을 그대로 echo 해 기존 모델-전달 테스트를 보존한다.
+    mockModelConfigService = {
+      resolveEmbedding: jest
+        .fn()
+        .mockImplementation((opts: { legacyModel: string }) =>
+          Promise.resolve({
+            config: { id: 'config-1', provider: 'openai', workspaceId: 'ws-1' },
+            model: opts.legacyModel,
+          }),
+        ),
+    };
+
     service = new RagSearchService(
       mockDataSource as never,
       mockLlmService as never,
+      mockModelConfigService as never,
       mockRerankService as never,
     );
   });
@@ -97,7 +116,7 @@ describe('RagSearchService', () => {
 
     it('should gracefully degrade on error and return empty array', async () => {
       mockDataSource.query.mockResolvedValueOnce([makeKbRow({ id: 'kb-1' })]);
-      mockLlmService.resolveConfig.mockRejectedValue(
+      mockModelConfigService.resolveEmbedding.mockRejectedValue(
         new Error('Config not found'),
       );
 
@@ -479,6 +498,80 @@ describe('RagSearchService', () => {
         'SET LOCAL hnsw.ef_search = 100',
       );
       expect(mockEm.query.mock.calls[1][0]).toContain('FROM document_chunk');
+    });
+  });
+
+  describe('1급 embeddingModelConfigId 그룹 키 분리/병합 (W13, W15)', () => {
+    it('동일 embeddingModelConfigId + 다른 embeddingModel 문자열 → 1 그룹 (단일 embed 호출)', async () => {
+      // PR2 핵심: 1급 경로에서 stale legacyModel 문자열이 달라도 같은 config 면 동일 그룹
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({
+            id: 'kb-1',
+            embeddingModelConfigId: 'emb-cfg',
+            embeddingModel: 'model-v1',
+            embeddingDimension: 1536,
+          }),
+          makeKbRow({
+            id: 'kb-2',
+            embeddingModelConfigId: 'emb-cfg',
+            embeddingModel: 'model-v2-stale',
+            embeddingDimension: 1536,
+          }),
+        ])
+        .mockResolvedValueOnce([]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      await service.search('query', ['kb-1', 'kb-2'], 'ws-1');
+
+      // 두 KB 가 같은 embeddingModelConfigId 를 공유하므로 embed 는 딱 1번만 호출돼야 한다
+      expect(mockLlmService.embed).toHaveBeenCalledTimes(1);
+    });
+
+    it('서로 다른 embeddingModelConfigId → 별도 그룹 (두 번 embed 호출)', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({
+            id: 'kb-1',
+            embeddingModelConfigId: 'emb-cfg-A',
+            embeddingDimension: 1536,
+          }),
+          makeKbRow({
+            id: 'kb-2',
+            embeddingModelConfigId: 'emb-cfg-B',
+            embeddingDimension: 1536,
+          }),
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      await service.search('query', ['kb-1', 'kb-2'], 'ws-1');
+
+      expect(mockLlmService.embed).toHaveBeenCalledTimes(2);
+    });
+
+    it('embeddingModelConfigId 있는 KB 에서 resolveEmbedding 이 올바른 인자로 호출된다 (W15)', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({
+            id: 'kb-1',
+            embeddingModelConfigId: 'emb-1',
+            embeddingModel: 'legacy-m',
+            embeddingDimension: 1536,
+          }),
+        ])
+        .mockResolvedValueOnce([]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      await service.search('query', ['kb-1'], 'ws-1');
+
+      expect(mockModelConfigService.resolveEmbedding).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeddingModelConfigId: 'emb-1',
+          workspaceId: 'ws-1',
+        }),
+      );
     });
   });
 

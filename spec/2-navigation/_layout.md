@@ -35,8 +35,7 @@ code:
 │ │  Schedule  │                                              │ │
 │ │  Integ.    │                                              │ │
 │ │  KB        │                                              │ │
-│ │  LLM Cfg   │                                              │ │
-│ │  Rerank    │                                              │ │
+│ │  Models    │                                              │ │
 │ │  Auth      │                                              │ │
 │ │  Stats     │                                              │ │
 │ │  SysStatus │                                              │ │
@@ -74,15 +73,14 @@ code:
 | 4 | Schedule | 달력 아이콘 (Calendar) | /schedules | |
 | 5 | Integration | 퍼즐 아이콘 (Puzzle) | /integrations | HTTP·DB·Email·MCP 서버 등 외부 통합 |
 | 6 | Knowledge Base | 책 아이콘 (BookOpen) | /knowledge-bases | RAG용 컬렉션. Vector·Graph 모드 지원. 상세는 [Knowledge Base](./5-knowledge-base.md) |
-| 7 | LLM Config | 두뇌 아이콘 (Brain) | /llm-configs | AI 노드가 호출할 LLM 프로바이더·기본 모델·파라미터. 상세는 [Config](./6-config.md) Part B |
-| 8 | Reranking | 필터 아이콘 (ListFilter) | /rerank-configs | RAG 검색 결과 리랭커 설정. 상세는 [Config](./6-config.md) Part C |
-| 9 | Authentication | 자물쇠 아이콘 (Lock) | /authentication | 외부 호출자용 API Key·Bearer·Basic 인증. 상세는 [Config](./6-config.md) Part A |
-| 10 | Statistics | 차트 아이콘 (BarChart3) | /statistics | |
-| 11 | System Status | 활동 아이콘 (Activity) | /system-status | 전체 시스템(큐) 상태 지표. 워크스페이스/유저 무관. 상세는 [System Status](./15-system-status.md) 참조 |
-| 12 | Agent Memory | 두뇌 회로 아이콘 (BrainCircuit) | /agent-memory | 에이전트 장기 메모리 조회·관리. 상세는 [Agent Memory](./16-agent-memory.md) 참조 |
-| 13 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
+| 7 | Models | 두뇌 아이콘 (Brain) | /models | AI 노드가 호출할 LLM 프로바이더·기본 모델·파라미터. 상세는 [Config](./6-config.md) Part B |
+| 8 | Authentication | 자물쇠 아이콘 (Lock) | /authentication | 외부 호출자용 API Key·Bearer·Basic 인증. 상세는 [Config](./6-config.md) Part A |
+| 9 | Statistics | 차트 아이콘 (BarChart3) | /statistics | |
+| 10 | System Status | 활동 아이콘 (Activity) | /system-status | 전체 시스템(큐) 상태 지표. 워크스페이스/유저 무관. 상세는 [System Status](./15-system-status.md) 참조 |
+| 11 | Agent Memory | 두뇌 회로 아이콘 (BrainCircuit) | /agent-memory | 에이전트 장기 메모리 조회·관리. 상세는 [Agent Memory](./16-agent-memory.md) 참조 |
+| 12 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
 
-<!-- 로드맵 — Marketplace는 아직 미구현이며, 구현 시 System Status(11) 이후에 배치한다. -->
+<!-- 로드맵 — Marketplace는 아직 미구현이며, 구현 시 System Status(10) 이후에 배치한다. -->
 
 ### 2.3 사이드바 동작
 

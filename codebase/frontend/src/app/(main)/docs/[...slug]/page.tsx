@@ -11,7 +11,7 @@ import {
   localizedTitle,
 } from "@/lib/docs/locale";
 import { isSafeDocsSlug } from "@/lib/docs/links";
-import { parseDocsRoute } from "@/lib/docs/route";
+import { parseDocsRoute, resolveLegacyDocSlug } from "@/lib/docs/route";
 import { DocHeader } from "@/components/docs/doc-header";
 import { DocBodyNotice } from "@/components/docs/doc-body-notice";
 import { DEFAULT_LOCALE, isLocale, LOCALES } from "@/lib/i18n/types";
@@ -82,6 +82,13 @@ export default async function DocPage({
 
   // 슬러그 정규식 검증: 디렉터리 탐색/비인덱스 경로 차단
   if (!isSafeDocsSlug(docSlug)) notFound();
+
+  // 통합/이름변경으로 사라진 구 문서 slug(예: llm-config·rerank-config → models)는
+  // 404 대신 현행 페이지로 redirect — 외부 북마크 보존.
+  const legacyTarget = resolveLegacyDocSlug(docSlug);
+  if (legacyTarget) {
+    redirect(localizedDocsHref(legacyTarget, locale));
+  }
 
   const index = getDocsIndex();
   const doc = getDocBySlug(index, docSlug);

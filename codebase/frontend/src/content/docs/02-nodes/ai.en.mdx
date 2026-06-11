@@ -12,7 +12,7 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
 
 <FieldTable rows={[
   {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "Single call vs. blocking conversation mode.", default: "single_turn"},
-  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration to use. Managed from the LLM config in the sidebar.", default: "-"},
+  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration to use. Managed from Model settings in the sidebar.", default: "-"},
   {name: "model", required: false, type: "string", description: "Overrides the provider's default model.", default: "-"},
   {name: "systemPrompt", required: false, type: "string (markdown · expression)", description: "System prompt.", default: "-"},
   {name: "userPrompt", required: false, type: "expression", description: "User prompt. Hidden in Multi Turn mode.", default: "-"},
@@ -312,7 +312,7 @@ In Multi Turn mode, leaving `inputField` empty skips the initial LLM call and wa
 
 - This page covers the **AI Agent node that runs inside a workflow**. The in-editor [AI Assistant](/docs/03-workflow-editor/overview) is a separate feature — a chat companion that builds workflows for you. Workflows the Assistant generates may contain AI Agent nodes.
 - Registering a tool is as simple as dropping the node into the canvas **Tool Area**. The AI Agent picks it up as a callable tool, and condition tools are auto-separated so their names don't clash with regular ones.
-- LLM provider connections are managed under [LLM config](/docs/06-integrations-and-config/llm-config); Knowledge Base setup lives in [Knowledge Base](/docs/06-integrations-and-config/knowledge-base); MCP server registration and tool-exposure policy is in [MCP server integration](/docs/06-integrations-and-config/mcp-servers).
+- LLM provider connections are managed under [Model settings](/docs/06-integrations-and-config/models); Knowledge Base setup lives in [Knowledge Base](/docs/06-integrations-and-config/knowledge-base); MCP server registration and tool-exposure policy is in [MCP server integration](/docs/06-integrations-and-config/mcp-servers).
 - Multi Turn execution history is inspectable per turn (request/response/token usage) via the Conversation Inspector. Details: [Run results](/docs/05-run-and-debug/run-results).
 - Power-user tip: when `responseFormat=json`, the LLM returns a structure matching your schema. If you add, remove, or rename fields, also check downstream `{{ $node["AI Agent"].output.result.response.field }}` references.
 - Downstream reference paths (Principle 1.1/8):

@@ -78,7 +78,7 @@ The Assistant keeps **one chat session per workflow**. Sessions are stored on th
 
 ## Model selection
 
-The **Model** dropdown at the top of the panel lets you change the LLM provider mid-session. The default is the highest-priority LLM config registered in your workspace. The new selection takes effect on your next message. Configure providers under [LLM configuration](/docs/06-integrations-and-config/llm-config).
+The **Model** dropdown at the top of the panel lets you change the LLM provider mid-session. The default is the highest-priority LLM config registered in your workspace. The new selection takes effect on your next message. Configure providers under [Model settings](/docs/06-integrations-and-config/models).
 
 ## Diagnosing runs and applying fixes
 
@@ -108,7 +108,7 @@ The items below are currently out of scope for the Assistant.
 
 | Situation | What you see | What to do |
 | --- | --- | --- |
-| No LLM config registered | "Please register an LLM configuration first." with a link to settings | Click through to [LLM configuration](/docs/06-integrations-and-config/llm-config) and register an OpenAI/Anthropic/etc. provider |
+| No LLM config registered | "Please register an LLM configuration first." with a link to settings | Click through to [Model settings](/docs/06-integrations-and-config/models) and register an OpenAI/Anthropic/etc. provider |
 | Selected LLM config deleted | "We can't find the selected LLM config — please pick another." | Pick another from the model dropdown, or fall back to the workspace default |
 | Provider rate-limited | Red error bubble — "Try again in a moment." | Wait briefly, then resend or click "Continue" to resume the same flow |
 | Slow / timed-out response | "The response is taking longer than expected. Retry?" | Click retry or send a new message |

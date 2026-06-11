@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
-import { useModelLoader } from "./use-model-loader";
+import { useModelLoader, type ModelLoaderApi } from "./use-model-loader";
 import { buildLoaderErrorMessages } from "./loader-error-messages";
 import { ModelSelectField } from "./model-select-field";
 
@@ -27,6 +27,10 @@ interface ModelComboboxProps {
    */
   placeholder?: string;
   disabled?: boolean;
+  /** 모델 조회 API (default llmConfigsApi). /models 통합 페이지는 modelConfigsApi 주입. */
+  api?: ModelLoaderApi;
+  /** 필터할 모델 타입. chat(default) / embedding. /models 임베딩 탭은 "embedding" 전달. */
+  modelType?: "chat" | "embedding";
 }
 
 export function ModelCombobox({
@@ -38,6 +42,8 @@ export function ModelCombobox({
   configId,
   placeholder,
   disabled,
+  api,
+  modelType = "chat",
 }: ModelComboboxProps) {
   const t = useT();
 
@@ -57,18 +63,19 @@ export function ModelCombobox({
     configId,
     fallbackErrorMessage: t("llmConfigs.loadModelsFailed"),
     errorMessagesByCode,
+    api,
   });
 
-  const chatModels = useMemo(
-    () => models.filter((m) => m.type === "chat"),
-    [models],
+  const filteredModels = useMemo(
+    () => models.filter((m) => m.type === modelType),
+    [models, modelType],
   );
 
   return (
     <ModelSelectField
       value={value}
       onChange={onChange}
-      models={chatModels}
+      models={filteredModels}
       errorMessage={errorMessage}
       isPending={isPending}
       canLoad={canLoad}

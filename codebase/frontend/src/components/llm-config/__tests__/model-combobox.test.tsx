@@ -389,6 +389,37 @@ describe("ModelCombobox", () => {
     expect(getSelect()).toBeDisabled();
   });
 
+  // SUMMARY#W10 (api injection): custom api mock 주입 시 해당 mock 이 호출됨
+  it("uses injected api prop when provided, not the default llmConfigsApi", async () => {
+    const customApi = {
+      listModels: vi.fn().mockResolvedValue([
+        { id: "custom-model", name: "Custom Model", type: "chat" as const },
+      ]),
+      previewModels: vi.fn().mockResolvedValue([]),
+    };
+
+    wrap(
+      <ModelCombobox
+        value=""
+        onChange={vi.fn()}
+        provider="anthropic"
+        apiKey=""
+        configId="cfg-custom"
+        api={customApi}
+      />,
+    );
+
+    fireEvent.click(getLoadButton());
+
+    await waitFor(() => {
+      expect(customApi.listModels).toHaveBeenCalledWith("cfg-custom");
+    });
+    expect(llmConfigsApi.listModels).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(optionValues()).toContain("custom-model");
+    });
+  });
+
   it("propagates disabled prop to both select and load button", () => {
     wrap(
       <ModelCombobox

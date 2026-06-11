@@ -2,6 +2,7 @@
 
 import { type RagMode, type RerankMode } from "@/lib/api/knowledge-bases";
 import { type LlmConfigData } from "@/lib/api/llm-configs";
+import { type ModelConfigData } from "@/lib/api/model-configs";
 import { type RerankConfigData } from "@/lib/api/rerank-configs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
+import { isKoreanRecommendedEmbeddingModel } from "@/components/knowledge-base/embedding-model-recommendation";
 import { EmbeddingTestButton } from "@/components/knowledge-base/embedding-test-button";
 import { useT } from "@/lib/i18n";
 
@@ -31,10 +32,12 @@ export interface KbFormBodyProps {
   formDescription: string;
   setFormDescription: (v: string) => void;
 
-  formEmbeddingLlmConfigId: string;
-  setFormEmbeddingLlmConfigId: (v: string) => void;
-  formEmbeddingModel: string;
-  setFormEmbeddingModel: (v: string) => void;
+  formEmbeddingModelConfigId: string;
+  setFormEmbeddingModelConfigId: (v: string) => void;
+  embeddingModelConfigs: ModelConfigData[];
+  // 기존 KB 의 임베딩 차원 (settings 모드). create 모드에서는 undefined.
+  // 임베딩 테스트 버튼의 차원 mismatch 비교에 사용된다.
+  currentEmbeddingDimension?: number | null;
   formChunkSize: string;
   setFormChunkSize: (v: string) => void;
   formChunkOverlap: string;
@@ -63,9 +66,7 @@ export interface KbFormBodyProps {
   rerankConfigs: RerankConfigData[];
 
   llmConfigs: LlmConfigData[];
-  // settings 모드: 기존 KB 의 임베딩 차원. 임베딩 테스트 버튼이 비교 표시할 때 사용.
-  currentEmbeddingDimension?: number | null;
-  // settings 모드: 임베딩 모델이 기존과 달라졌을 때 경고 노출.
+  // settings 모드: 선택한 임베딩 config 가 기존과 달라졌을 때 재임베딩 경고 노출.
   embeddingModelChanged?: boolean;
 }
 
@@ -80,10 +81,10 @@ export function KbFormBody({
   setFormName,
   formDescription,
   setFormDescription,
-  formEmbeddingLlmConfigId,
-  setFormEmbeddingLlmConfigId,
-  formEmbeddingModel,
-  setFormEmbeddingModel,
+  formEmbeddingModelConfigId,
+  setFormEmbeddingModelConfigId,
+  embeddingModelConfigs,
+  currentEmbeddingDimension,
   formChunkSize,
   setFormChunkSize,
   formChunkOverlap,
@@ -108,12 +109,14 @@ export function KbFormBody({
   setFormRerankLlmConfigId,
   rerankConfigs,
   llmConfigs,
-  currentEmbeddingDimension,
   embeddingModelChanged,
 }: KbFormBodyProps) {
   const t = useT();
   const isGraph = ragMode === "graph";
   const rerankEnabled = formRerankMode !== "off";
+  const selectedEmbeddingConfig = embeddingModelConfigs.find(
+    (c) => c.id === formEmbeddingModelConfigId,
+  );
 
   return (
     <Tabs
@@ -190,45 +193,42 @@ export function KbFormBody({
 
       <TabsContent value="embedding" className={PANEL_CLS}>
         <div>
-          <Label>{t("knowledgeBases.embeddingLlm")}</Label>
+          <Label>{t("knowledgeBases.embeddingModelConfig")}</Label>
           <NativeSelect
-            value={formEmbeddingLlmConfigId}
-            onChange={(e) => setFormEmbeddingLlmConfigId(e.target.value)}
+            value={formEmbeddingModelConfigId}
+            onChange={(e) => setFormEmbeddingModelConfigId(e.target.value)}
           >
             <option value="">
-              {t("nodeConfigs.llmConfigSelector.defaultOption")}
+              {t("knowledgeBases.embeddingModelConfigDefaultOption")}
             </option>
-            {llmConfigs.map((c) => (
+            {embeddingModelConfigs.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name} ({c.defaultModel})
+                {c.name} · {c.defaultModel}
+                {c.dimension ? ` (${c.dimension}d)` : ""}
+                {isKoreanRecommendedEmbeddingModel(c.defaultModel) ? "  ★" : ""}
                 {c.isDefault ? " *" : ""}
               </option>
             ))}
           </NativeSelect>
           <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-            {t("knowledgeBases.embeddingLlmHint")}
+            {t("knowledgeBases.embeddingModelConfigHint")}
           </p>
-        </div>
-        <div>
-          <Label>{t("knowledgeBases.embeddingModel")}</Label>
-          <EmbeddingModelCombobox
-            value={formEmbeddingModel}
-            onChange={setFormEmbeddingModel}
-            placeholder="text-embedding-3-small"
-            llmConfigId={formEmbeddingLlmConfigId || undefined}
-          />
           {embeddingModelChanged && (
             <p className="mt-1 text-xs text-[hsl(var(--warning,38_92%_50%))]">
               {t("knowledgeBases.modelChangedNeedsReembed")}
             </p>
           )}
-          <div className="mt-2">
-            <EmbeddingTestButton
-              llmConfigId={formEmbeddingLlmConfigId || undefined}
-              embeddingModel={formEmbeddingModel}
-              currentDimension={currentEmbeddingDimension}
-            />
-          </div>
+          {/* 1급 임베딩 config 가 선택된 경우에만 라이브 probe 가능.
+              미선택("") 시에는 probe 대상(config·model)이 없으므로 버튼을 숨긴다. */}
+          {formEmbeddingModelConfigId !== "" && (
+            <div className="mt-2">
+              <EmbeddingTestButton
+                embeddingModelConfigId={formEmbeddingModelConfigId || undefined}
+                embeddingModel={selectedEmbeddingConfig?.defaultModel ?? ""}
+                currentDimension={currentEmbeddingDimension}
+              />
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

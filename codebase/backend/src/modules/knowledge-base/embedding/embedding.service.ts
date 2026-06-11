@@ -6,6 +6,7 @@ import { DocumentChunk } from '../entities/document-chunk.entity';
 import { KnowledgeBase } from '../entities/knowledge-base.entity';
 import { S3Service } from '../../../common/services/s3.service';
 import { LlmService } from '../../llm/llm.service';
+import { ModelConfigService } from '../../model-config/model-config.service';
 import { sanitizeLlmErrorMessage } from '../../llm/utils/sanitize-error.util';
 import { WebsocketService } from '../../websocket/websocket.service';
 import {
@@ -47,6 +48,7 @@ export class EmbeddingService {
     private readonly kbRepository: Repository<KnowledgeBase>,
     private readonly s3Service: S3Service,
     private readonly llmService: LlmService,
+    private readonly modelConfigService: ModelConfigService,
     @Inject(forwardRef(() => WebsocketService))
     private readonly websocketService: WebsocketService,
     private readonly dataSource: DataSource,
@@ -207,11 +209,16 @@ export class EmbeddingService {
       return;
     }
 
-    // 4. Resolve embedding LLM config (KB 가 지정한 config 우선, 없으면 ws default)
-    const llmConfig = await this.llmService.resolveConfig(
-      kb.embeddingLlmConfigId ?? undefined,
-      kb.workspaceId,
-    );
+    // 4. Resolve embedding model config + model (PR2 1급화 폴백 체인):
+    //    embedding_model_config_id → ws default kind=embedding → legacy(chat piggyback).
+    //    1급 경로에서는 모델 ID 가 config.defaultModel 에서 오고, legacy 에서는 kb.embeddingModel.
+    const { config: llmConfig, model: embeddingModel } =
+      await this.modelConfigService.resolveEmbedding({
+        embeddingModelConfigId: kb.embeddingModelConfigId,
+        embeddingLlmConfigId: kb.embeddingLlmConfigId,
+        legacyModel: kb.embeddingModel,
+        workspaceId: kb.workspaceId,
+      });
 
     // 5. Batch embed + INSERT 인터리빙 (스트리밍 처리)
     // 같은 KB 의 모든 청크는 동일 차원이어야 한다 (spec/5-system/8-embedding-pipeline.md §5.3).
@@ -231,7 +238,7 @@ export class EmbeddingService {
       const embeddings = await this.llmService.embed(
         llmConfig,
         texts,
-        kb.embeddingModel,
+        embeddingModel,
         // disableInnerRetry: 외부 retryWithBackoff 가 재시도를 통제하므로 LlmService 내부의
         // rate-limit-only withRetry 와 겹쳐 호출이 비선형 증폭되는 것을 막는다.
         { timeoutMs: EMBED_TIMEOUT_MS, disableInnerRetry: true },
@@ -247,7 +254,7 @@ export class EmbeddingService {
           expectedDim = v.length;
         } else if (v.length !== expectedDim) {
           throw new Error(
-            `Embedding dimension mismatch for KB ${kb.id} (model=${kb.embeddingModel}): expected ${expectedDim}, got ${v.length}. KB-wide re-embedding is required.`,
+            `Embedding dimension mismatch for KB ${kb.id} (model=${embeddingModel}): expected ${expectedDim}, got ${v.length}. KB-wide re-embedding is required.`,
           );
         }
       }

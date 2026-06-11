@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "started_at": "2026-06-10T20:13:31Z",
+  "summary_items_total": 10,
+  "items_resolved_ids": ["W1", "I5", "I8", "I9", "I14", "I15"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "W2": "deferred-PR4",
+    "W3": "deferred-PR4",
+    "W4": "deferred-PR4",
+    "W5": "deferred-PR4",
+    "W8": "deferred-PR3",
+    "W9": "false-positive",
+    "W10": "deferred-perf-backlog",
+    "I6": "dismissed-for-spec",
+    "I18": "deferred-PR4"
+  },
+  "commits_made": [
+    {"sha": "063c2a9e", "summary_ids": ["W1", "I5", "I8", "I9", "I14", "I15"], "scope": "model-config"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["/Volumes/project/private/clemvion/_test_logs/e2e-20260610-202937.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}

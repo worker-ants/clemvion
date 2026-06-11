@@ -60,7 +60,7 @@ sequenceDiagram
   타입이 없어 (grep `AuditAction` 0건) 이를 막는 장치가 없다 (→ [Rationale](#rationale)).
 - **커버리지 갭**: [인증 spec §4.1](../5-system/1-auth.md) 이 기록 대상으로 약속한
   `workflow.*` / `trigger.*` / `member.*` / `schedule.*` / `workspace.create·update·delete` /
-  `llm_config.*` / `rerank_config.*` / 인증(password_change 등) 액션은 **모두 미구현**이다 —
+  `model_config.*`(create/update/delete/set-default — 구 `llm_config.*`/`rerank_config.*` 통합) / 인증(password_change 등) 액션은 **모두 미구현**이다 —
   workflows / triggers / alerts / schedules 모듈에는 `AuditLogsService` import 가 전혀 없다.
   spec §4.1 표는 목표 커버리지, 위 9종 표가 현재 구현이다.
 

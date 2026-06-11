@@ -7,6 +7,7 @@ export const sidebar: Dict["sidebar"] = {
   schedule: "Schedule",
   integration: "Integration",
   knowledgeBase: "Knowledge Base",
+  models: "Model Settings",
   llmConfig: "LLM Config",
   reranker: "Reranking",
   authentication: "Authentication",

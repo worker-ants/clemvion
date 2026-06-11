@@ -11,6 +11,7 @@ export interface KnowledgeBaseData {
   description?: string;
   embeddingModel: string;
   embeddingDimension?: number | null;
+  embeddingModelConfigId?: string | null;
   chunkSize: number;
   chunkOverlap: number;
   documentCount: number;
@@ -161,6 +162,8 @@ export const knowledgeBasesApi = {
     description?: string;
     embeddingModel?: string;
     embeddingLlmConfigId?: string;
+    /** 1급 임베딩 config. 지정 시 backend 가 config.defaultModel 로 embeddingModel 자동 결정. null=ws-default 폴백. */
+    embeddingModelConfigId?: string | null;
     chunkSize?: number;
     chunkOverlap?: number;
     ragMode?: RagMode;
@@ -185,6 +188,8 @@ export const knowledgeBasesApi = {
       description: string;
       embeddingModel: string;
       embeddingLlmConfigId: string | null;
+      /** 1급 임베딩 config. 지정 시 backend 가 config.defaultModel 로 embeddingModel 자동 결정. null=ws-default 폴백. */
+      embeddingModelConfigId: string | null;
       chunkSize: number;
       chunkOverlap: number;
       extractionLlmConfigId: string;
@@ -199,6 +204,7 @@ export const knowledgeBasesApi = {
 
   async probeEmbedding(payload: {
     llmConfigId?: string;
+    embeddingModelConfigId?: string;
     embeddingModel: string;
   }): Promise<{ dimension: number; provider: string }> {
     const response = await apiClient.post(

@@ -14,7 +14,7 @@ pending_plans:
 
 # Spec: AI 노드 공통 규약
 
-> 관련 문서: [PRD 노드 시스템](../_product-overview.md#6-ai-노드-3종) · [PRD Graph RAG](../../5-system/10-graph-rag.md) · [Spec 노드 개요](../0-overview.md) · [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md) · [Spec RAG 검색](../../5-system/9-rag-search.md) · [Spec Graph RAG](../../5-system/10-graph-rag.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [Spec MCP Client](../../5-system/11-mcp-client.md)
+> 관련 문서: [PRD 노드 시스템](../_product-overview.md#6-ai-노드-3종) · [PRD Graph RAG](../../5-system/10-graph-rag.md) · [Spec 노드 개요](../0-overview.md) · [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md) · [Spec RAG 검색](../../5-system/9-rag-search.md) · [Spec Graph RAG](../../5-system/10-graph-rag.md) · [Spec Config > Models](../../2-navigation/6-config.md) · [Spec MCP Client](../../5-system/11-mcp-client.md)
 
 본 문서는 AI 카테고리 노드 전체에 공통되는 규약을 정의한다. 노드별 동작·설정은 각 노드 문서를 참조한다.
 
@@ -30,7 +30,7 @@ pending_plans:
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| llmConfigId | UUID | 사용할 LLM 프로바이더 설정 ([Spec LLM Config](../../2-navigation/6-config.md)) |
+| llmConfigId | UUID | 사용할 LLM 프로바이더 설정 ([Spec Config > Models](../../2-navigation/6-config.md)) |
 | model | String | 모델 ID (프로바이더별) |
 
 설정 UI 는 LLM Provider 드롭다운 → Model 드롭다운 (provider 선택에 따라 동적 갱신) 패턴을 공유한다.

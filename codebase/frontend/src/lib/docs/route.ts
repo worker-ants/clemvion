@@ -21,3 +21,30 @@ export function parseDocsRoute(
   if (!isLocale(maybeLocale)) return null;
   return { locale: maybeLocale, docSlug: rest };
 }
+
+/**
+ * 통합/이름변경으로 사라진 구 문서 slug → 현행 slug 매핑. 외부 북마크·이메일·알림이
+ * 가리키던 구 URL이 404가 되지 않도록 page.tsx가 현행 페이지로 redirect 처리한다.
+ * 키는 `docSlug.join("/")` (locale 제외). Unified Model Management:
+ * `llm-config`·`rerank-config` 가이드가 단일 `models` 페이지로 통합됨.
+ */
+const LEGACY_DOC_SLUG_REDIRECTS: Record<string, string[]> = {
+  "06-integrations-and-config/llm-config": [
+    "06-integrations-and-config",
+    "models",
+  ],
+  "06-integrations-and-config/rerank-config": [
+    "06-integrations-and-config",
+    "models",
+  ],
+};
+
+/**
+ * 구 문서 slug면 현행 slug(locale 제외 세그먼트 배열)를 반환, 아니면 `null`.
+ * 호출부(page.tsx)가 `localizedDocsHref(target, locale)`로 redirect 한다.
+ */
+export function resolveLegacyDocSlug(
+  docSlug: readonly string[],
+): string[] | null {
+  return LEGACY_DOC_SLUG_REDIRECTS[docSlug.join("/")] ?? null;
+}

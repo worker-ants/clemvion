@@ -223,6 +223,38 @@ describe("useEmbeddingModelLoader", () => {
     });
   });
 
+  // SUMMARY#W10 (api injection): custom api mock 주입 시 해당 mock 이 호출됨
+  it("uses injected api instead of default llmConfigsApi when api prop is provided", async () => {
+    const customApi = {
+      listModels: vi.fn().mockResolvedValue([
+        { id: "custom-emb", name: "Custom Emb", type: "embedding" as const },
+      ]),
+      previewModels: vi.fn().mockResolvedValue([]),
+    };
+
+    const { result } = renderHook(
+      () =>
+        useEmbeddingModelLoader({
+          configId: "cfg-custom",
+          fallbackErrorMessage: "failed",
+          api: customApi,
+        }),
+      { wrapper },
+    );
+
+    act(() => result.current.load());
+    await waitFor(() => {
+      expect(customApi.listModels).toHaveBeenCalledWith("cfg-custom", {
+        type: "embedding",
+      });
+    });
+    expect(llmConfigsApi.listModels).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.models).toHaveLength(1);
+      expect(result.current.models[0].id).toBe("custom-emb");
+    });
+  });
+
   it("maps a known error code and falls back otherwise", async () => {
     vi.mocked(llmConfigsApi.listModels).mockRejectedValueOnce(
       Object.assign(new Error("boom"), {

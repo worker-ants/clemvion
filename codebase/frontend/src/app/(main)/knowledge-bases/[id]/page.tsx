@@ -42,6 +42,8 @@ import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
 import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
 import { llmConfigsApi } from "@/lib/api/llm-configs";
+import { modelConfigsApi, MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY } from "@/lib/api/model-configs";
+import { buildEmbeddingConfigPayload, embeddingConfigChanged } from "@/lib/kb/embedding-payload";
 import { rerankConfigsApi } from "@/lib/api/rerank-configs";
 import { useKbEvents } from "@/lib/websocket/use-kb-events";
 import { RoleGate } from "@/components/auth/role-gate";
@@ -122,8 +124,8 @@ export default function KnowledgeBaseDetailPage({
   const [settingsTab, setSettingsTab] = useState<KbFormTab>("basic");
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
-  const [formEmbeddingModel, setFormEmbeddingModel] = useState("");
-  const [formEmbeddingLlmConfigId, setFormEmbeddingLlmConfigId] = useState("");
+  const [formEmbeddingModelConfigId, setFormEmbeddingModelConfigId] =
+    useState("");
   const [formChunkSize, setFormChunkSize] = useState("1000");
   const [formChunkOverlap, setFormChunkOverlap] = useState("200");
   const [formExtractionLlmConfigId, setFormExtractionLlmConfigId] =
@@ -184,6 +186,15 @@ export default function KnowledgeBaseDetailPage({
   const { data: rerankConfigs = [] } = useQuery({
     queryKey: ["rerank-configs"],
     queryFn: () => rerankConfigsApi.list(),
+    staleTime: 30_000,
+    enabled: showSettings,
+  });
+
+  // settings 다이얼로그가 열렸을 때만 kind=embedding ModelConfig 목록을 fetch (임베딩 1급 select 용).
+  // MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY 공유로 create-dialog / default-hook 과 캐시 일치 보장.
+  const { data: embeddingModelConfigs = [] } = useQuery({
+    queryKey: MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY,
+    queryFn: () => modelConfigsApi.list("embedding"),
     staleTime: 30_000,
     enabled: showSettings,
   });
@@ -257,6 +268,7 @@ export default function KnowledgeBaseDetailPage({
     description?: string;
     embeddingModel?: string;
     embeddingLlmConfigId?: string | null;
+    embeddingModelConfigId?: string | null;
     chunkSize?: number;
     chunkOverlap?: number;
     extractionLlmConfigId?: string;
@@ -335,8 +347,7 @@ export default function KnowledgeBaseDetailPage({
     setSettingsTab("basic");
     setFormName(kb.name);
     setFormDescription(kb.description ?? "");
-    setFormEmbeddingModel(kb.embeddingModel);
-    setFormEmbeddingLlmConfigId(kb.embeddingLlmConfigId ?? "");
+    setFormEmbeddingModelConfigId(kb.embeddingModelConfigId ?? "");
     setFormChunkSize(String(kb.chunkSize));
     setFormChunkOverlap(String(kb.chunkOverlap));
     setFormExtractionLlmConfigId(kb.extractionLlmConfigId ?? "");
@@ -401,12 +412,13 @@ export default function KnowledgeBaseDetailPage({
     if ((formDescription ?? "") !== (kb.description ?? "")) {
       payload.description = formDescription;
     }
-    if (formEmbeddingModel !== kb.embeddingModel) {
-      payload.embeddingModel = formEmbeddingModel;
-    }
-    const newEmbCfg = formEmbeddingLlmConfigId || null;
-    if (newEmbCfg !== (kb.embeddingLlmConfigId ?? null)) {
-      payload.embeddingLlmConfigId = newEmbCfg;
+    // 임베딩 1급 경로: backend is now authoritative for embeddingModel (WARNING #2 fix).
+    // We only send embeddingModelConfigId; backend derives embeddingModel server-side.
+    // embeddingConfigChanged() centralises the comparison (WARNING #10 fix).
+    if (embeddingConfigChanged(formEmbeddingModelConfigId, kb.embeddingModelConfigId)) {
+      // buildEmbeddingConfigPayload returns {} when configId is empty (ws-default → send null explicitly).
+      const embPayload = buildEmbeddingConfigPayload(formEmbeddingModelConfigId, embeddingModelConfigs);
+      payload.embeddingModelConfigId = embPayload.embeddingModelConfigId ?? null;
     }
     if (cs !== kb.chunkSize) payload.chunkSize = cs;
     if (co !== kb.chunkOverlap) payload.chunkOverlap = co;
@@ -694,10 +706,10 @@ export default function KnowledgeBaseDetailPage({
               setFormName={setFormName}
               formDescription={formDescription}
               setFormDescription={setFormDescription}
-              formEmbeddingLlmConfigId={formEmbeddingLlmConfigId}
-              setFormEmbeddingLlmConfigId={setFormEmbeddingLlmConfigId}
-              formEmbeddingModel={formEmbeddingModel}
-              setFormEmbeddingModel={setFormEmbeddingModel}
+              formEmbeddingModelConfigId={formEmbeddingModelConfigId}
+              setFormEmbeddingModelConfigId={setFormEmbeddingModelConfigId}
+              embeddingModelConfigs={embeddingModelConfigs}
+              currentEmbeddingDimension={kb.embeddingDimension}
               formChunkSize={formChunkSize}
               setFormChunkSize={setFormChunkSize}
               formChunkOverlap={formChunkOverlap}
@@ -722,8 +734,9 @@ export default function KnowledgeBaseDetailPage({
               setFormRerankLlmConfigId={setFormRerankLlmConfigId}
               rerankConfigs={rerankConfigs}
               llmConfigs={llmConfigs}
-              currentEmbeddingDimension={kb.embeddingDimension}
-              embeddingModelChanged={formEmbeddingModel !== kb.embeddingModel}
+              embeddingModelChanged={
+                formEmbeddingModelConfigId !== (kb.embeddingModelConfigId ?? "")
+              }
             />
             <DialogFooter>
               <Button

@@ -11,6 +11,7 @@ import { S3Service } from '../../common/services/s3.service';
 import { DOCUMENT_EMBEDDING_QUEUE } from './queues/document-embedding.queue';
 import { GRAPH_EXTRACTION_QUEUE } from './queues/graph-extraction.queue';
 import { LlmService } from '../llm/llm.service';
+import { ModelConfigService } from '../model-config/model-config.service';
 
 describe('KnowledgeBaseService', () => {
   let service: KnowledgeBaseService;
@@ -21,6 +22,7 @@ describe('KnowledgeBaseService', () => {
   let mockEmbeddingQueue: Record<string, jest.Mock>;
   let mockGraphQueue: Record<string, jest.Mock>;
   let mockLlmService: Record<string, jest.Mock>;
+  let mockModelConfigService: Record<string, jest.Mock>;
 
   beforeEach(async () => {
     const qbMock = {
@@ -95,6 +97,9 @@ describe('KnowledgeBaseService', () => {
       resolveConfig: jest.fn(),
       embed: jest.fn(),
     };
+    mockModelConfigService = {
+      findEntity: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -112,6 +117,7 @@ describe('KnowledgeBaseService', () => {
           useValue: mockGraphQueue,
         },
         { provide: LlmService, useValue: mockLlmService },
+        { provide: ModelConfigService, useValue: mockModelConfigService },
       ],
     }).compile();
 
@@ -158,6 +164,7 @@ describe('KnowledgeBaseService', () => {
         name: 'New KB',
         description: undefined,
         embeddingModel: 'text-embedding-3-small',
+        embeddingModelConfigId: null,
         embeddingLlmConfigId: null,
         chunkSize: 1000,
         chunkOverlap: 200,
@@ -174,6 +181,62 @@ describe('KnowledgeBaseService', () => {
       });
       expect(mockKbRepo.save).toHaveBeenCalled();
       expect(result).toBeDefined();
+    });
+
+    // WARNING #1: backend derives embeddingModel from config.defaultModel server-side —
+    // client-supplied embeddingModel is ignored when embeddingModelConfigId is set.
+    it('should resolve embeddingModel from config.defaultModel when embeddingModelConfigId is set (W1)', async () => {
+      const embCfg = {
+        id: 'emb-cfg-1',
+        defaultModel: 'bge-m3',
+        kind: 'embedding',
+        workspaceId: 'ws-1',
+      };
+      mockModelConfigService.findEntity.mockResolvedValue(embCfg);
+
+      await service.create('ws-1', {
+        name: 'Embed KB',
+        embeddingModelConfigId: 'emb-cfg-1',
+        // Client sends stale/wrong model — backend must override with config.defaultModel
+        embeddingModel: 'text-embedding-3-small',
+      });
+
+      expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
+        'emb-cfg-1',
+        'ws-1',
+        'embedding',
+      );
+      expect(mockKbRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeddingModel: 'bge-m3', // resolved from config, not client value
+          embeddingModelConfigId: 'emb-cfg-1',
+        }),
+      );
+    });
+
+    // WARNING #3: when client sends embeddingModelConfigId but no embeddingModel
+    // (e.g. race condition: list not loaded yet), backend still resolves correctly.
+    it('should resolve embeddingModel even when client omits it (W3)', async () => {
+      const embCfg = {
+        id: 'emb-cfg-1',
+        defaultModel: 'text-embedding-3-large',
+        kind: 'embedding',
+        workspaceId: 'ws-1',
+      };
+      mockModelConfigService.findEntity.mockResolvedValue(embCfg);
+
+      await service.create('ws-1', {
+        name: 'Race KB',
+        embeddingModelConfigId: 'emb-cfg-1',
+        // No embeddingModel in payload
+      });
+
+      expect(mockKbRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeddingModel: 'text-embedding-3-large',
+          embeddingModelConfigId: 'emb-cfg-1',
+        }),
+      );
     });
 
     it('should propagate graph mode parameters', async () => {
@@ -405,6 +468,84 @@ describe('KnowledgeBaseService', () => {
 
       expect(result.embeddingLlmConfigId).toBeNull();
     });
+
+    // WARNING #2: backend derives embeddingModel from config.defaultModel on update.
+    it('should resolve embeddingModel from config.defaultModel when embeddingModelConfigId changes (W2)', async () => {
+      const existing = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        embeddingModelConfigId: 'emb-cfg-old',
+        embeddingModel: 'old-model',
+        embeddingDimension: 1536,
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
+      mockModelConfigService.findEntity.mockResolvedValue({
+        id: 'emb-cfg-new',
+        defaultModel: 'bge-m3',
+        kind: 'embedding',
+        workspaceId: 'ws-1',
+      });
+
+      const result = await service.update('kb-1', 'ws-1', {
+        embeddingModelConfigId: 'emb-cfg-new',
+      });
+
+      expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
+        'emb-cfg-new',
+        'ws-1',
+        'embedding',
+      );
+      expect(result.embeddingModelConfigId).toBe('emb-cfg-new');
+      expect(result.embeddingModel).toBe('bge-m3'); // synced from config.defaultModel
+      expect(result.embeddingDimension).toBeNull(); // reset for new config (W14)
+    });
+
+    it('should reset embeddingDimension to null when embeddingModelConfigId changes (W14)', async () => {
+      const existing = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        embeddingModelConfigId: 'emb-cfg-old',
+        embeddingModel: 'old-model',
+        embeddingDimension: 1536,
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
+      mockModelConfigService.findEntity.mockResolvedValue({
+        id: 'emb-cfg-new',
+        defaultModel: 'text-embedding-3-large',
+        kind: 'embedding',
+        workspaceId: 'ws-1',
+      });
+
+      const result = await service.update('kb-1', 'ws-1', {
+        embeddingModelConfigId: 'emb-cfg-new',
+      });
+
+      expect(result.embeddingModelConfigId).toBe('emb-cfg-new');
+      // 새 config 첫 임베딩이 차원을 다시 결정할 때까지 NULL 로 초기화
+      expect(result.embeddingDimension).toBeNull();
+    });
+
+    it('should NOT reset embeddingDimension when embeddingModelConfigId is the same (W14)', async () => {
+      const existing = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        embeddingModelConfigId: 'emb-cfg-same',
+        embeddingModel: 'bge-m3',
+        embeddingDimension: 1536,
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      const result = await service.update('kb-1', 'ws-1', {
+        embeddingModelConfigId: 'emb-cfg-same',
+      });
+
+      // 동일 config 전송 → findEntity 호출 없음, dimension 리셋 없음
+      expect(mockModelConfigService.findEntity).not.toHaveBeenCalled();
+      expect(result.embeddingDimension).toBe(1536);
+    });
   });
 
   describe('probeEmbedding', () => {
@@ -425,6 +566,33 @@ describe('KnowledgeBaseService', () => {
         expect.objectContaining({ provider: 'openai' }),
         ['probe'],
         'text-embedding-3-small',
+        undefined,
+        'document',
+      );
+    });
+
+    it('resolves a kind=embedding ModelConfig when embeddingModelConfigId is given', async () => {
+      const embCfg = { id: 'emb-cfg-1', provider: 'tei', kind: 'embedding' };
+      mockModelConfigService.findEntity.mockResolvedValue(embCfg);
+      mockLlmService.embed.mockResolvedValue([new Array(1024).fill(0.02)]);
+
+      const result = await service.probeEmbedding('ws-1', {
+        embeddingModelConfigId: 'emb-cfg-1',
+        embeddingModel: 'bge-m3',
+      });
+
+      expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
+        'emb-cfg-1',
+        'ws-1',
+        'embedding',
+      );
+      // legacy chat resolveConfig must NOT be consulted on the 1급 path.
+      expect(mockLlmService.resolveConfig).not.toHaveBeenCalled();
+      expect(result).toEqual({ dimension: 1024, provider: 'tei' });
+      expect(mockLlmService.embed).toHaveBeenCalledWith(
+        embCfg,
+        ['probe'],
+        'bge-m3',
         undefined,
         'document',
       );

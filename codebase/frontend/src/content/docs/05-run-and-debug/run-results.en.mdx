@@ -91,7 +91,7 @@ When a multi-turn AI Agent node ends due to an LLM error (rate limit, server err
 Whether a retry is available depends on the error type.
 
 - **Retryable**: Rate Limit (429), server errors (5xx), network/timeout — the conversation is preserved and the [Retry] button appears.
-- **Not retryable**: Authentication errors (401/403) and similar — these indicate a configuration problem that retrying won't fix, so no button appears. Check your credentials in [LLM config](/docs/06-integrations-and-config/llm-config).
+- **Not retryable**: Authentication errors (401/403) and similar — these indicate a configuration problem that retrying won't fix, so no button appears. Check your credentials in [Model settings](/docs/06-integrations-and-config/models).
 
 Retry is available **once within 60 minutes**. After the window expires or a retry has already been used, you need to run the workflow again from the start.
 
