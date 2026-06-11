@@ -119,7 +119,7 @@ To add a second-pass precision step after vector search, open the **Reranking** 
   { name: "Reranker", type: "RerankConfig selector", required: "Optional when not Off", description: "Choose a reranker config. Leave empty to use the workspace default reranker. To register one first, see the Rerank tab in [Model settings](/docs/06-integrations-and-config/models)." },
   { name: "Candidate pool", type: "integer", required: "Required when not Off", description: "Default 50. Number of candidate chunks to retrieve (without a cosine cutoff) before the cross-encoder rescores them." },
   { name: "Score cutoff", type: "number (0.0–1.0)", required: "Optional", description: "Leave empty to return only the top-K results without any score threshold. Set a value to drop chunks below that reranker score." },
-  { name: "Grading LLM", type: "LLM Config selector", required: "Optional for Cross-encoder + LLM", description: "LLM to use for the second-pass judgment in Cross-encoder + LLM mode. Leave empty to use the workspace default LLM." }
+  { name: "Grading LLM", type: "Chat model config selector", required: "Optional for Cross-encoder + LLM", description: "LLM to use for the second-pass judgment in Cross-encoder + LLM mode. Leave empty to use the workspace default LLM." }
 ]} />
 
 <Callout type="note">Reranking is applied at query time only — changing the mode never requires re-embedding. If the reranker encounters an error, results fall back to cosine-score order automatically.</Callout>

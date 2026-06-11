@@ -44,7 +44,7 @@ Token-level streaming in the Workflow AI Assistant and AI Agent works with every
 <Steps>
 <Step>Pick a provider type from the dropdown: OpenAI · Anthropic · Google AI · Azure OpenAI · Local.</Step>
 <Step>Enter an alias and the API Key. For Azure / Local (custom endpoints), also enter a Base URL.</Step>
-<Step>Click `Load models` to fetch the provider's model list and pick from the dropdown, or type a default model ID directly (e.g. `gpt-4o`, `claude-sonnet-4-6`, `llama3`). The form can fetch the list before saving using the credentials you entered.</Step>
+<Step>Click `Load models` to fetch the provider's model list, then select the default model from the list. The form can fetch the list before saving using the credentials you entered.</Step>
 <Step>Click `Test Connection` to verify a lightweight call (e.g. list-models) succeeds.</Step>
 <Step>Save. Mark your most-used provider as `⭐ Default` so newly-created AI nodes auto-select it.</Step>
 </Steps>
@@ -99,7 +99,7 @@ Embedding configs share the same provider structure as Chat configs (OpenAI · G
 <Steps>
 <Step>Pick a provider that supports embeddings (OpenAI · Google AI · Azure · Local).</Step>
 <Step>Enter an alias and the API Key (if required). For Local (Ollama/vLLM), also enter a Base URL.</Step>
-<Step>Click `Load models` to pick the model, or type a model ID directly (e.g. `text-embedding-3-small`, `text-embedding-004`).</Step>
+<Step>Click `Load models` to fetch the provider's model list, then select the default model from the list.</Step>
 <Step>Enter the Dimension that matches the model (e.g. 1536 for OpenAI text-embedding-3-small).</Step>
 <Step>Save. Mark the most-used config as `⭐ Default` so it is pre-selected when creating a Knowledge Base.</Step>
 </Steps>

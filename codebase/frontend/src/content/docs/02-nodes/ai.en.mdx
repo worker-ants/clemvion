@@ -12,7 +12,7 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
 
 <FieldTable rows={[
   {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "Single call vs. blocking conversation mode.", default: "single_turn"},
-  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration to use. Managed from the LLM config in the sidebar.", default: "-"},
+  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration to use. Managed from Model settings in the sidebar.", default: "-"},
   {name: "model", required: false, type: "string", description: "Overrides the provider's default model.", default: "-"},
   {name: "systemPrompt", required: false, type: "string (markdown · expression)", description: "System prompt.", default: "-"},
   {name: "userPrompt", required: false, type: "expression", description: "User prompt. Hidden in Multi Turn mode.", default: "-"},

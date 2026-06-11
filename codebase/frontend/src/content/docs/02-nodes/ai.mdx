@@ -23,7 +23,7 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
 
 <FieldTable rows={[
   {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "단일 호출 또는 블로킹 대화형 모드를 선택해요.", default: "single_turn"},
-  {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요. 사이드바의 LLM 설정에서 관리해요.", default: "-"},
+  {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요. 사이드바의 모델 설정에서 관리해요.", default: "-"},
   {name: "model", required: false, type: "string", description: "프로바이더 기본 모델을 재정의하고 싶을 때 사용해요.", default: "-"},
   {name: "systemPrompt", required: false, type: "string(markdown·표현식)", description: "시스템 프롬프트예요.", default: "-"},
   {name: "userPrompt", required: false, type: "expression", description: "사용자 프롬프트예요. Multi Turn 모드에서는 숨겨져요.", default: "-"},
