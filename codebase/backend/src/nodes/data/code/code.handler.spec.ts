@@ -1,4 +1,4 @@
-import { CodeHandler, classifyError } from './code.handler.js';
+import { CodeHandler, classifyCodeNodeError } from './code.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -586,15 +586,15 @@ describe('CodeHandler', () => {
     }, 30_000); // Jest timeout 30_000 ms = 30s
   });
 
-  // W9 — classifyError unit tests: verify the three classification branches
+  // W9 — classifyCodeNodeError unit tests: verify the three classification branches
   // directly so isolated-vm version upgrades with changed error messages
   // do not silently fallback to the wrong code.
-  describe('classifyError (unit)', () => {
+  describe('classifyCodeNodeError (unit)', () => {
     it('should classify host-set EXECUTION_TIMEOUT code (trusted, priority 1)', () => {
       const err = Object.assign(new Error('whatever'), {
         code: 'EXECUTION_TIMEOUT',
       });
-      expect(classifyError(err)).toBe('EXECUTION_TIMEOUT');
+      expect(classifyCodeNodeError(err)).toBe('EXECUTION_TIMEOUT');
     });
 
     it('should NOT classify user-thrown "Isolate was disposed" as memory when isolate is alive (spoofing prevention — W2)', () => {
@@ -605,7 +605,7 @@ describe('CodeHandler', () => {
       // Falls through to message regex — still classifies as MEMORY because
       // the regex catches the message, but the isDisposed priority is NOT taken.
       // The key assertion: priority-2 (isDisposed flag) is NOT triggered.
-      const result = classifyError(err, fakeIsolate);
+      const result = classifyCodeNodeError(err, fakeIsolate);
       // Regex fallback still maps this (message pattern match), but the
       // important thing is that without an *actual* disposed isolate, no
       // structural spoofing of priority-2 is possible.
@@ -617,12 +617,14 @@ describe('CodeHandler', () => {
       // isolate was hard-killed (isDisposed = true). This confirms flag priority.
       const err = new Error('some other error from native layer');
       const fakeIsolate = { isDisposed: true } as never;
-      expect(classifyError(err, fakeIsolate)).toBe('EXECUTION_MEMORY_EXCEEDED');
+      expect(classifyCodeNodeError(err, fakeIsolate)).toBe(
+        'EXECUTION_MEMORY_EXCEEDED',
+      );
     });
 
     it('should classify "timed out" message as EXECUTION_TIMEOUT (priority 3 fallback)', () => {
       const err = new Error('Script execution timed out after 1000ms');
-      expect(classifyError(err)).toBe('EXECUTION_TIMEOUT');
+      expect(classifyCodeNodeError(err)).toBe('EXECUTION_TIMEOUT');
     });
 
     it('should classify "memory limit" message as EXECUTION_MEMORY_EXCEEDED (priority 3 fallback)', () => {
@@ -630,16 +632,16 @@ describe('CodeHandler', () => {
         'Isolate was disposed during execution due to memory limit',
       );
       // No isolate arg — falls through to regex
-      expect(classifyError(err)).toBe('EXECUTION_MEMORY_EXCEEDED');
+      expect(classifyCodeNodeError(err)).toBe('EXECUTION_MEMORY_EXCEEDED');
     });
 
     it('should classify unknown errors as CODE_RUNTIME_ERROR', () => {
       const err = new Error('undefined is not a function');
-      expect(classifyError(err)).toBe('CODE_RUNTIME_ERROR');
+      expect(classifyCodeNodeError(err)).toBe('CODE_RUNTIME_ERROR');
     });
 
     it('should handle null/undefined-like error gracefully', () => {
-      expect(classifyError({} as any)).toBe('CODE_RUNTIME_ERROR');
+      expect(classifyCodeNodeError({} as any)).toBe('CODE_RUNTIME_ERROR');
     });
   });
 });
