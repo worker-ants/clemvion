@@ -2,20 +2,26 @@
   "version": 1,
   "started_at": "2026-06-12T07:34:38Z",
   "summary_items_total": 17,
-  "items_resolved_ids": [],
-  "items_pending_ids": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17],
+  "items_pending_ids": [],
   "items_escalated_ids": {
     "C1": "spec",
     "W8": "spec",
     "W9": "spec",
     "W10": "spec"
   },
-  "commits_made": [],
-  "spec_drafts_pending": [],
+  "commits_made": [
+    {
+      "sha": "7e1efac5",
+      "summary_ids": [1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17],
+      "scope": "kb-embedding"
+    }
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-update-pr4b-embedding-retire.md"],
   "spec_drafts_applied": [],
-  "e2e_attempts": 0,
-  "e2e_last_status": null,
-  "e2e_log_paths": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260612-075522.log"],
   "auto_fix_iterations": {},
   "escalation_reason": "spec",
   "last_reset_hint_sec": null
