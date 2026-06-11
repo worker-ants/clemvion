@@ -71,6 +71,18 @@ describe('assertProductionConfig', () => {
         ).toThrow(/JWT_SECRET/);
       }
     });
+    it('throws when shorter than the minimum length (CWE-521)', () => {
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({ JWT_SECRET: 'short-but-not-blocklisted' }),
+        ),
+      ).toThrow(/JWT_SECRET/);
+    });
+    it('passes for a sufficiently long random secret', () => {
+      expect(() =>
+        assertProductionConfig(prodEnv({ JWT_SECRET: 'x'.repeat(48) })),
+      ).not.toThrow();
+    });
   });
 
   describe('ENCRYPTION_KEY (04 M-4)', () => {
@@ -118,6 +130,22 @@ describe('assertProductionConfig', () => {
   it('does NOT throw for ALLOW_PRIVATE_HOST_TARGETS=true (warn-only policy, handled in main.ts)', () => {
     expect(() =>
       assertProductionConfig(prodEnv({ ALLOW_PRIVATE_HOST_TARGETS: 'true' })),
+    ).not.toThrow();
+  });
+
+  it('fail-fast: throws the first violation only (stub before secrets)', () => {
+    // 검사 순서 계약 고정 — OAUTH_STUB 가 JWT_SECRET 보다 먼저 평가되므로 둘 다
+    // 위반해도 OAUTH_STUB 메시지로 throw 된다 (순서 변경 시 본 테스트가 탐지).
+    expect(() =>
+      assertProductionConfig(
+        prodEnv({ OAUTH_STUB_MODE: 'true', JWT_SECRET: '' }),
+      ),
+    ).toThrow(/OAUTH_STUB_MODE/);
+  });
+
+  it('passes when MCP_ALLOW_INSECURE_URL is undefined (unset)', () => {
+    expect(() =>
+      assertProductionConfig(prodEnv({ MCP_ALLOW_INSECURE_URL: undefined })),
     ).not.toThrow();
   });
 });

@@ -32,7 +32,10 @@ import { MailModule } from '../mail/mail.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService): JwtModuleOptions => ({
-        secret: configService.get<string>('jwt.secret') ?? 'fallback',
+        // `jwt.secret`(jwt.config.ts)는 `JWT_SECRET || 'dev-jwt-secret'` 라 항상 값이 있고,
+        // production 은 main.ts 의 assertProductionConfig 가 미설정/sentinel 부팅을 거부한다
+        // (refactor 04 C-1) — 따라서 옛 `?? 'fallback'` 죽은 분기를 제거한다.
+        secret: configService.getOrThrow<string>('jwt.secret'),
         signOptions: {
           expiresIn: 900, // 15 minutes in seconds
         },

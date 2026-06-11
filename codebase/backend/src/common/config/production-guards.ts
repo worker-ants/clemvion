@@ -16,6 +16,11 @@
  * **경계 — 본 모듈은 throw 정책(fail-closed) 전용**이다. 절대 금지 secret/flag 는 여기서
  * throw 하고, 정당 용도가 있는 플래그(예: `ALLOW_PRIVATE_HOST_TARGETS`)의 warn 정책은
  * 호출자(`main.ts`)가 담당한다 — 신규 플래그 추가 시 "throw 면 여기, warn 이면 main.ts" 가 기준.
+ *
+ * **의도적 비통합**: `INTERACTION_JWT_SECRET`(EIA) 의 fail-closed 는 `InteractionTokenService`
+ * 생성자 throw 로, CORS·`WEBAUTHN_*` 등은 각 모듈에서 유지한다 — 모듈 로컬 컨텍스트(DI·요청
+ * 시점)가 필요하거나 정당 용도(WebAuthn 미사용 셀프호스팅 boot 허용)가 달라서다. 본 모듈에는
+ * **env 만으로 부팅 직전 판정 가능한 절대-금지 항목**만 넣는다.
  */
 
 /**
@@ -41,11 +46,17 @@ export const KNOWN_EXAMPLE_ENCRYPTION_KEYS: ReadonlySet<string> = new Set([
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
 ]);
 
-// 정확히 문자열 'true' 또는 '1' 만 ON 으로 본다 — 'yes'/'on'/'TRUE'/'' 등은 모두 OFF.
-// (.env 의 boolean 토글 관례. 대소문자·동의어를 받지 않아 오설정의 우연한 활성화를 줄인다.)
-function isFlagOn(value: string | undefined): boolean {
+/**
+ * .env boolean 토글이 ON 인지 — 정확히 문자열 `'true'` 또는 `'1'` 만 ON 으로 본다.
+ * `'yes'`/`'on'`/`'TRUE'`/`''` 등은 모두 OFF (대소문자·동의어 미허용으로 오설정의 우연한
+ * 활성화를 줄인다). warn 정책 가드(main.ts)도 같은 규칙을 쓰도록 export 한다.
+ */
+export function isFlagOn(value: string | undefined): boolean {
   return value === 'true' || value === '1';
 }
+
+/** production JWT_SECRET 최소 길이(바이트) — 약한 secret 무차별 대입 방어(CWE-521). */
+export const MIN_JWT_SECRET_LENGTH = 32;
 
 /**
  * production 부팅 가드. 위반 시 `Error` throw (fail-closed). 비-production 은 no-op.
@@ -78,6 +89,12 @@ export function assertProductionConfig(
     fail(
       'JWT_SECRET 가 미설정이거나 예시/기본값입니다 — 운영용 무작위 secret 을 설정하세요 ' +
         '(기본값 서명은 인증 우회 위험).',
+    );
+  } else if (jwtSecret.length < MIN_JWT_SECRET_LENGTH) {
+    fail(
+      `JWT_SECRET 가 너무 짧습니다(${jwtSecret.length} < ${MIN_JWT_SECRET_LENGTH}) — ` +
+        '약한 secret 은 무차별 대입에 취약합니다. `openssl rand -hex 32` 등으로 충분히 긴 ' +
+        '무작위 값을 설정하세요(CWE-521).',
     );
   }
 
