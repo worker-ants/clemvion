@@ -7,14 +7,14 @@ import { WorkflowsController } from './workflows.controller';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { WorkflowVersionsModule } from '../workflow-versions/workflow-versions.module';
-import { LlmConfigModule } from '../llm-config/llm-config.module';
+import { ModelConfigModule } from '../model-config/model-config.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Workflow, Node, Edge]),
     ExecutionEngineModule,
     WorkflowVersionsModule,
-    LlmConfigModule,
+    ModelConfigModule,
   ],
   controllers: [WorkflowsController],
   providers: [WorkflowsService],

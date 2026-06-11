@@ -4,7 +4,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useT } from "@/lib/i18n";
-import type { ModelInfo } from "@/lib/api/llm-configs";
+import type { ModelInfo } from "@/lib/api/model-configs";
 
 interface ModelSelectFieldProps {
   value: string;

@@ -3,10 +3,10 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useModelLoader } from "../use-model-loader";
-import { llmConfigsApi } from "@/lib/api/llm-configs";
+import { modelConfigsApi } from "@/lib/api/model-configs";
 
-vi.mock("@/lib/api/llm-configs", () => ({
-  llmConfigsApi: {
+vi.mock("@/lib/api/model-configs", () => ({
+  modelConfigsApi: {
     previewModels: vi.fn(),
     listModels: vi.fn(),
   },
@@ -27,7 +27,7 @@ describe("useModelLoader", () => {
   });
 
   it("routes to previewModels when apiKey is supplied", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.previewModels).mockResolvedValue([
       { id: "gpt-4o", name: "gpt-4o", type: "chat" },
     ]);
 
@@ -44,7 +44,7 @@ describe("useModelLoader", () => {
 
     act(() => result.current.load());
     await waitFor(() => {
-      expect(llmConfigsApi.previewModels).toHaveBeenCalledWith({
+      expect(modelConfigsApi.previewModels).toHaveBeenCalledWith({
         provider: "openai",
         apiKey: "sk-xxx",
         baseUrl: "https://proxy.example.com/v1",
@@ -57,7 +57,7 @@ describe("useModelLoader", () => {
   });
 
   it("routes to listModels when apiKey is empty and configId is set", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", type: "chat" },
     ]);
 
@@ -74,13 +74,13 @@ describe("useModelLoader", () => {
 
     act(() => result.current.load());
     await waitFor(() => {
-      expect(llmConfigsApi.listModels).toHaveBeenCalledWith("existing-uuid");
+      expect(modelConfigsApi.listModels).toHaveBeenCalledWith("existing-uuid");
     });
-    expect(llmConfigsApi.previewModels).not.toHaveBeenCalled();
+    expect(modelConfigsApi.previewModels).not.toHaveBeenCalled();
   });
 
   it("resets models and error message when provider changes", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.previewModels).mockResolvedValue([
       { id: "gpt-4o", name: "gpt-4o", type: "chat" },
     ]);
 
@@ -129,7 +129,7 @@ describe("useModelLoader", () => {
   });
 
   it("maps a known error code to its localized message", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockRejectedValue(
+    vi.mocked(modelConfigsApi.previewModels).mockRejectedValue(
       Object.assign(new Error("boom"), {
         isAxiosError: true,
         response: {
@@ -156,7 +156,7 @@ describe("useModelLoader", () => {
   });
 
   it("falls back (never shows raw message) for an unmapped error code", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockRejectedValue(
+    vi.mocked(modelConfigsApi.previewModels).mockRejectedValue(
       Object.assign(new Error("boom"), {
         isAxiosError: true,
         response: {
@@ -183,7 +183,7 @@ describe("useModelLoader", () => {
   });
 
   it("falls back to the provided message for non-axios errors", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockRejectedValue(
+    vi.mocked(modelConfigsApi.previewModels).mockRejectedValue(
       new Error("plain"),
     );
 
@@ -205,7 +205,7 @@ describe("useModelLoader", () => {
 
   // SUMMARY#2: 실패 후 재로드 시 errorMessage 가 null 로 초기화된다 (onMutate 에러 클리어)
   it("clears the error message when a retry starts (onMutate)", async () => {
-    vi.mocked(llmConfigsApi.previewModels)
+    vi.mocked(modelConfigsApi.previewModels)
       .mockRejectedValueOnce(
         Object.assign(new Error("first fail"), {
           isAxiosError: true,
@@ -247,7 +247,7 @@ describe("useModelLoader", () => {
   // 인플라이트 stale 가드는 use-model-loader 의 snapshot 비교로 보호되며,
   // 컴포넌트 수준(model-combobox.test.tsx)에서 검증한다.
   it("clears models immediately when provider changes (stale-guard reset behavior)", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.previewModels).mockResolvedValue([
       { id: "gpt-4o", name: "gpt-4o", type: "chat" },
     ]);
 
@@ -271,7 +271,7 @@ describe("useModelLoader", () => {
 
   // SUMMARY#3: 첫 로드 성공 → 두 번째 로드 실패 → 기존 모델 목록 유지
   it("keeps previously loaded models when a retry fails", async () => {
-    vi.mocked(llmConfigsApi.previewModels)
+    vi.mocked(modelConfigsApi.previewModels)
       .mockResolvedValueOnce([
         { id: "gpt-4o", name: "gpt-4o", type: "chat" },
       ])
@@ -311,7 +311,7 @@ describe("useModelLoader", () => {
   });
 
   // SUMMARY#W10 (api injection): custom api mock 주입 시 해당 mock 이 호출됨
-  it("uses injected api instead of default llmConfigsApi when api prop is provided", async () => {
+  it("uses injected api instead of default modelConfigsApi when api prop is provided", async () => {
     const customApi = {
       listModels: vi.fn().mockResolvedValue([
         { id: "custom-model", name: "Custom Model", type: "chat" as const },
@@ -335,8 +335,8 @@ describe("useModelLoader", () => {
     await waitFor(() => {
       expect(customApi.listModels).toHaveBeenCalledWith("cfg-custom");
     });
-    // Default llmConfigsApi must NOT be called
-    expect(llmConfigsApi.listModels).not.toHaveBeenCalled();
+    // Default modelConfigsApi must NOT be called
+    expect(modelConfigsApi.listModels).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(result.current.models).toHaveLength(1);
       expect(result.current.models[0].id).toBe("custom-model");
@@ -345,7 +345,7 @@ describe("useModelLoader", () => {
 
   // SUMMARY#2(INFO): apiKey / baseUrl 이 trim 되어 API 에 전달됨
   it("trims apiKey and baseUrl before calling previewModels", async () => {
-    vi.mocked(llmConfigsApi.previewModels).mockResolvedValue([]);
+    vi.mocked(modelConfigsApi.previewModels).mockResolvedValue([]);
 
     const { result } = renderHook(
       () =>
@@ -360,7 +360,7 @@ describe("useModelLoader", () => {
 
     act(() => result.current.load());
     await waitFor(() => {
-      expect(llmConfigsApi.previewModels).toHaveBeenCalledWith({
+      expect(modelConfigsApi.previewModels).toHaveBeenCalledWith({
         provider: "openai",
         apiKey: "sk-with-spaces",
         baseUrl: "https://proxy.example.com/v1",

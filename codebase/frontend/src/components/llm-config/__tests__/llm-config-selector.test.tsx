@@ -3,15 +3,15 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { LlmConfigSelector } from "../llm-config-selector";
-import { llmConfigsApi } from "@/lib/api/llm-configs";
+import { modelConfigsApi } from "@/lib/api/model-configs";
 
-vi.mock("@/lib/api/llm-configs", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api/llm-configs")>(
-    "@/lib/api/llm-configs",
+vi.mock("@/lib/api/model-configs", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/model-configs")>(
+    "@/lib/api/model-configs",
   );
   return {
     ...actual,
-    llmConfigsApi: {
+    modelConfigsApi: {
       // selector 는 `list()` 만 호출한다. `list()` 는 내부 구현 세부사항(apiClient.get
       // 직접 호출)을 캡슐화하므로 테스트에서는 `list` 만 mock 하면 충분하다.
       list: vi.fn(),
@@ -48,10 +48,12 @@ function wrap(ui: ReactNode) {
 }
 
 const baseConfig = {
+  kind: "chat" as const,
   provider: "openai",
   apiKey: "***",
   defaultModel: "gpt-4o",
   defaultParams: {},
+  isDefault: false,
   createdAt: "2026-05-01T00:00:00Z",
   updatedAt: "2026-05-01T00:00:00Z",
 };
@@ -62,7 +64,7 @@ describe("LlmConfigSelector", () => {
   });
 
   it("shows the resolved default LLM name on the empty option when a default exists", async () => {
-    (llmConfigsApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([
+    (modelConfigsApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([
       { ...baseConfig, id: "c1", name: "Prod OpenAI", isDefault: true },
       { ...baseConfig, id: "c2", name: "Backup", isDefault: false },
     ]);
@@ -81,7 +83,7 @@ describe("LlmConfigSelector", () => {
   });
 
   it("falls back to the bare default label and shows the no-default hint when no default exists", async () => {
-    (llmConfigsApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([
+    (modelConfigsApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([
       { ...baseConfig, id: "c1", name: "Custom", isDefault: false },
     ]);
 
@@ -97,7 +99,7 @@ describe("LlmConfigSelector", () => {
   });
 
   it("does not show the no-default hint when a specific config is selected", async () => {
-    (llmConfigsApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([
+    (modelConfigsApi.list as ReturnType<typeof vi.fn>).mockResolvedValue([
       { ...baseConfig, id: "c1", name: "Custom", isDefault: false },
     ]);
 
@@ -115,7 +117,7 @@ describe("LlmConfigSelector", () => {
   it("does not flash the no-default hint while the query is still loading", async () => {
     // 쿼리가 영원히 pending 상태인 상황 — isLoading=true 동안 hint 가
     // 깜빡이지 않아야 한다.
-    (llmConfigsApi.list as ReturnType<typeof vi.fn>).mockReturnValue(
+    (modelConfigsApi.list as ReturnType<typeof vi.fn>).mockReturnValue(
       new Promise(() => {
         /* never resolves */
       }),

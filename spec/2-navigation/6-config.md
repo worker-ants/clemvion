@@ -9,14 +9,7 @@ code:
   - codebase/frontend/src/app/(main)/models/page.tsx
   - codebase/frontend/src/components/models/model-config-manager.tsx
   - codebase/frontend/src/lib/api/model-configs.ts
-  - codebase/frontend/src/app/(main)/llm-configs/page.tsx
-  - codebase/frontend/src/app/(main)/rerank-configs/page.tsx
-  - codebase/frontend/src/components/llm-config/**
-  - codebase/frontend/src/lib/api/rerank-configs.ts
-  - codebase/frontend/src/lib/api/llm-configs.ts
   - codebase/backend/src/modules/auth-configs/**
-  - codebase/backend/src/modules/llm-config/**
-  - codebase/backend/src/modules/rerank-config/**
   - codebase/backend/src/modules/model-config/**
   - codebase/backend/src/modules/llm/llm-preview.service.ts
 ---
@@ -285,7 +278,7 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 | GET | /api/model-configs/:id/models | 사용 가능한 모델 목록 조회 (chat/embedding) |
 | DELETE | /api/model-configs/:id | 삭제 |
 
-> **Deprecation**: 구 `/api/llm-configs`·`/api/rerank-configs` (및 서브경로 `:id/test`·`preview-models`·`:id/models`·`:id/set-default`) 는 한시적 alias 로 유지되며, [`unified-model-management`](../../plan/in-progress/unified-model-management.md) **PR4 에서 제거**한다. 프론트 라우트 `/llm-configs`·`/rerank-configs` 는 `/models` 로 redirect (북마크 보존).
+> **구 alias 제거 완료 (PR4)**: 종전 `/api/llm-configs`·`/api/rerank-configs` (및 서브경로 `:id/test`·`preview-models`·`:id/models`·`:id/set-default`) 한시 alias 와 프론트 redirect 라우트 `/llm-configs`·`/rerank-configs` 는 [`unified-model-management`](../../plan/in-progress/unified-model-management.md) **PR4 에서 제거**됐다. 모든 chat/embedding/rerank 설정은 위 `/api/model-configs` 단일 표면으로만 접근한다.
 
 ---
 

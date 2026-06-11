@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { RerankConfigService } from '../../rerank-config/rerank-config.service';
-import { RerankConfig } from '../../rerank-config/entities/rerank-config.entity';
+import { ModelConfigService } from '../../model-config/model-config.service';
+import { ModelConfig } from '../../model-config/entities/model-config.entity';
 import { RerankClientFactory } from '../../llm/rerank/rerank-client.factory';
 import { LlmService } from '../../llm/llm.service';
 import { applyDynamicCut } from './dynamic-cut.util';
@@ -84,7 +84,7 @@ export class RerankService {
   private readonly logger = new Logger(RerankService.name);
 
   constructor(
-    private readonly rerankConfigService: RerankConfigService,
+    private readonly modelConfigService: ModelConfigService,
     private readonly rerankClientFactory: RerankClientFactory,
     private readonly llmService: LlmService,
   ) {}
@@ -93,11 +93,12 @@ export class RerankService {
     const { query, candidates, workspaceId, rerankConfigId } = params;
 
     // 설정 해석 — 실패 시 RERANK_CONFIG_INVALID 로 cosine 강등.
-    let config: RerankConfig;
+    let config: ModelConfig;
     try {
-      config = await this.rerankConfigService.resolveConfig(
+      config = await this.modelConfigService.resolveConfig(
         rerankConfigId ?? undefined,
         workspaceId,
+        'rerank',
       );
     } catch (err) {
       this.logger.warn(
@@ -109,7 +110,7 @@ export class RerankService {
     // 클라이언트 생성 + 리랭크 호출 — 실패 시 RERANK_ENDPOINT_FAILED 로 강등.
     try {
       const apiKey =
-        this.rerankConfigService.getDecryptedApiKey(config) ?? undefined;
+        this.modelConfigService.getDecryptedApiKey(config) ?? undefined;
       const client = this.rerankClientFactory.create({
         provider: config.provider,
         apiKey,

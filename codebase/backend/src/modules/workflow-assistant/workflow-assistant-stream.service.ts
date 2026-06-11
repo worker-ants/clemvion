@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { LlmService } from '../llm/llm.service';
 import { ChatMessage } from '../llm/interfaces/llm-client.interface';
-import { LlmConfig } from '../llm-config/entities/llm-config.entity';
+import { ModelConfig } from '../model-config/entities/model-config.entity';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { WorkflowAssistantSessionService } from './workflow-assistant-session.service';
@@ -345,7 +345,7 @@ export class WorkflowAssistantStreamService {
 
     const configIdOverride =
       dto.llmConfigId ?? session.llmConfigId ?? undefined;
-    let llmConfig: LlmConfig;
+    let llmConfig: ModelConfig;
     try {
       llmConfig = await this.llmService.resolveConfig(
         configIdOverride,

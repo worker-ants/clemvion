@@ -717,7 +717,7 @@ export class AiAgentHandler implements NodeHandler {
     config: Record<string, unknown>;
     messages: ChatMessage[];
     finalSystemPrompt: string;
-    llmConfig: import('../../../modules/llm-config/entities/llm-config.entity').LlmConfig;
+    llmConfig: import('../../../modules/model-config/entities/model-config.entity').ModelConfig;
     model: string;
     /**
      * 요약 LLM 콜 전용 모델 (config `summaryModel` 평가값). 미설정이면 노드

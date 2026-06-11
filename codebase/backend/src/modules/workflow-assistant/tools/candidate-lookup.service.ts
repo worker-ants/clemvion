@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { ListIntegrationsQueryDto } from '../../integrations/dto/integration.dto';
 import { MCP_CAPABLE_SERVICE_TYPES } from '../../integrations/services/mcp-capable-service-types';
-import { LlmConfigService } from '../../llm-config/llm-config.service';
+import { ModelConfigService } from '../../model-config/model-config.service';
 import { KnowledgeBaseService } from '../../knowledge-base/knowledge-base.service';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { ExploreToolsService } from './explore-tools.service';
@@ -37,7 +37,7 @@ export class CandidateLookupService {
 
   constructor(
     private readonly integrations: IntegrationsService,
-    private readonly llmConfigs: LlmConfigService,
+    private readonly modelConfigs: ModelConfigService,
     private readonly knowledgeBases: KnowledgeBaseService,
     private readonly exploreTools: ExploreToolsService,
   ) {}
@@ -126,9 +126,9 @@ export class CandidateLookupService {
       page: 1,
       limit: MAX_CANDIDATES,
     };
-    const result = await this.llmConfigs.findAll(workspaceId, query);
+    const result = await this.modelConfigs.findAll(workspaceId, 'chat', query);
     return result.data.slice(0, MAX_CANDIDATES).map((cfg) => {
-      // LlmConfigService.findAll 의 row 타입이 `Record<string, unknown>` 로
+      // ModelConfigService.findAll 의 row 타입이 `Record<string, unknown>` 로
       // 선언되어 있어 필드를 안전하게 해석한다.
       const id = typeof cfg.id === 'string' ? cfg.id : '';
       const label =

@@ -37,7 +37,7 @@ import { LlmService } from '../llm/llm.service';
 import { LlmPreviewService } from '../llm/llm-preview.service';
 import { CreateModelConfigDto } from './dto/create-model-config.dto';
 import { UpdateModelConfigDto } from './dto/update-model-config.dto';
-import { PreviewLlmModelsDto } from '../llm-config/dto/preview-llm-models.dto';
+import { PreviewModelListDto } from './dto/preview-model-list.dto';
 import {
   ModelConfigDto,
   ModelListDto,
@@ -168,13 +168,13 @@ export class ModelConfigController {
     description:
       '저장되지 않은 폼 자격증명으로 Provider 모델 목록을 실시간 조회합니다. apiKey 는 저장되지 않습니다.',
   })
-  @ApiBody({ type: PreviewLlmModelsDto })
+  @ApiBody({ type: PreviewModelListDto })
   @ApiOkWrappedResponse(ModelListDto, { description: '사용 가능한 모델 목록' })
   @ApiBadRequestResponse({
     description: '자격증명 검증 실패 또는 Provider 호출 실패',
   })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
-  async previewModels(@Body() dto: PreviewLlmModelsDto) {
+  async previewModels(@Body() dto: PreviewModelListDto) {
     return this.llmPreviewService.previewModels(dto);
   }
 

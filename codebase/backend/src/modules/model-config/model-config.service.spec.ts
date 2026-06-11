@@ -300,15 +300,6 @@ describe('ModelConfigService', () => {
       expect(saved.isDefault).toBe(false);
       expect(mockRepo.manager.transaction).not.toHaveBeenCalled();
     });
-
-    it('throws NOT_FOUND when expectedKind mismatches entity kind', async () => {
-      // A rerank entity must not be updateable through the chat kind path
-      mockRepo.findOne.mockResolvedValue(baseConfig({ kind: 'rerank' as any }));
-      await expect(
-        service.update('cfg-1', 'ws-1', { name: 'Tampered' }, 'chat'),
-      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
-      expect(mockRepo.save).not.toHaveBeenCalled();
-    });
   });
 
   // ── create — ENCRYPTION_KEY_MISSING error path ───────────────────────────
@@ -384,17 +375,6 @@ describe('ModelConfigService', () => {
         kind: 'embedding',
         isDefault: true,
       });
-    });
-
-    it('throws NotFoundException when kind mismatch via expectedKind guard', async () => {
-      mockRepo.findOne.mockResolvedValue({
-        id: 'rerank-id',
-        workspaceId: 'ws-1',
-        kind: 'rerank',
-      });
-      await expect(
-        service.setDefault('rerank-id', 'ws-1', 'chat'),
-      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
     });
   });
 

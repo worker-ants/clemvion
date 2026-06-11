@@ -30,7 +30,7 @@ import { sanitizeAssistantText } from "./harmony-filter";
  */
 const SETTINGS_HREF: Record<UserActionWidget, string> = {
   "integration-selector": "/integrations",
-  "llm-config-selector": "/llm-configs",
+  "llm-config-selector": "/models?tab=chat",
   "kb-selector": "/knowledge-bases",
   "workflow-selector": "/workflows",
   // MCP 서버는 워크스페이스 service_type='mcp' Integration 으로 등록되므로

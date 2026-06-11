@@ -20,7 +20,7 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { evaluateGraphWarningRulesForGraph } from '../../nodes/core/graph-warning-rule';
-import { LlmConfigService } from '../llm-config/llm-config.service';
+import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 
 const MANUAL_TRIGGER_TYPE = 'manual_trigger';
@@ -48,7 +48,7 @@ export class WorkflowsService {
     private readonly dataSource: DataSource,
     private readonly workflowVersionsService: WorkflowVersionsService,
     private readonly registry: NodeComponentRegistry,
-    private readonly llmConfigService: LlmConfigService,
+    private readonly modelConfigService: ModelConfigService,
     private readonly workspacesService: WorkspacesService,
   ) {}
 
@@ -253,7 +253,10 @@ export class WorkflowsService {
 
     // 워크스페이스 기본 LLM provider 는 모든 AI 노드가 공유하므로 트랜잭션
     // 외부에서 1회만 조회한다 (loop 내 호출 방지 + write 트랜잭션에 read 미포함).
-    const defaultLlm = await this.llmConfigService.findDefault(workspaceId);
+    const defaultLlm = await this.modelConfigService.findDefault(
+      workspaceId,
+      'chat',
+    );
     const defaultLlmId = defaultLlm?.id ?? null;
 
     return this.dataSource.transaction(async (manager) => {

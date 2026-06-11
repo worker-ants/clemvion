@@ -3,10 +3,10 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useEmbeddingModelLoader } from "../use-embedding-model-loader";
-import { llmConfigsApi } from "@/lib/api/llm-configs";
+import { modelConfigsApi } from "@/lib/api/model-configs";
 
-vi.mock("@/lib/api/llm-configs", () => ({
-  llmConfigsApi: {
+vi.mock("@/lib/api/model-configs", () => ({
+  modelConfigsApi: {
     listModels: vi.fn(),
   },
 }));
@@ -26,7 +26,7 @@ describe("useEmbeddingModelLoader", () => {
   });
 
   it("loads embedding models for the given configId", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       { id: "text-embedding-3-small", name: "text-embedding-3-small", type: "embedding" },
     ]);
 
@@ -42,7 +42,7 @@ describe("useEmbeddingModelLoader", () => {
     act(() => result.current.load());
 
     await waitFor(() => {
-      expect(llmConfigsApi.listModels).toHaveBeenCalledWith("cfg-abc", {
+      expect(modelConfigsApi.listModels).toHaveBeenCalledWith("cfg-abc", {
         type: "embedding",
       });
     });
@@ -81,7 +81,7 @@ describe("useEmbeddingModelLoader", () => {
 
   // SUMMARY#W2: retry clears errorMessage (onMutate error clear)
   it("clears the error message when a retry starts (onMutate)", async () => {
-    vi.mocked(llmConfigsApi.listModels)
+    vi.mocked(modelConfigsApi.listModels)
       .mockRejectedValueOnce(
         Object.assign(new Error("first fail"), {
           isAxiosError: true,
@@ -118,7 +118,7 @@ describe("useEmbeddingModelLoader", () => {
 
   // SUMMARY#W2: first load success → second load failure → models are preserved
   it("keeps previously loaded models when a retry fails", async () => {
-    vi.mocked(llmConfigsApi.listModels)
+    vi.mocked(modelConfigsApi.listModels)
       .mockResolvedValueOnce([
         { id: "text-embedding-3-small", name: "text-embedding-3-small", type: "embedding" },
       ])
@@ -155,12 +155,12 @@ describe("useEmbeddingModelLoader", () => {
 
   // SUMMARY#W2: stale closure guard — response arriving after configId change is discarded
   it("discards a stale response when configId changes during an in-flight request", async () => {
-    let resolveFirst!: (value: typeof import("@/lib/api/llm-configs").ModelInfo[]) => void;
-    const firstPromise = new Promise<typeof import("@/lib/api/llm-configs").ModelInfo[]>(
+    let resolveFirst!: (value: typeof import("@/lib/api/model-configs").ModelInfo[]) => void;
+    const firstPromise = new Promise<typeof import("@/lib/api/model-configs").ModelInfo[]>(
       (res) => { resolveFirst = res; },
     );
 
-    vi.mocked(llmConfigsApi.listModels)
+    vi.mocked(modelConfigsApi.listModels)
       .mockReturnValueOnce(firstPromise)
       .mockResolvedValue([
         { id: "new-model", name: "new-model", type: "embedding" },
@@ -198,7 +198,7 @@ describe("useEmbeddingModelLoader", () => {
 
   // SUMMARY#W2: configId reset clears models, error and hasAttemptedLoad
   it("resets models, error and hasAttemptedLoad when configId changes", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+    vi.mocked(modelConfigsApi.listModels).mockResolvedValue([
       { id: "text-embedding-3-small", name: "text-embedding-3-small", type: "embedding" },
     ]);
 
@@ -224,7 +224,7 @@ describe("useEmbeddingModelLoader", () => {
   });
 
   // SUMMARY#W10 (api injection): custom api mock 주입 시 해당 mock 이 호출됨
-  it("uses injected api instead of default llmConfigsApi when api prop is provided", async () => {
+  it("uses injected api instead of default modelConfigsApi when api prop is provided", async () => {
     const customApi = {
       listModels: vi.fn().mockResolvedValue([
         { id: "custom-emb", name: "Custom Emb", type: "embedding" as const },
@@ -248,7 +248,7 @@ describe("useEmbeddingModelLoader", () => {
         type: "embedding",
       });
     });
-    expect(llmConfigsApi.listModels).not.toHaveBeenCalled();
+    expect(modelConfigsApi.listModels).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(result.current.models).toHaveLength(1);
       expect(result.current.models[0].id).toBe("custom-emb");
@@ -256,7 +256,7 @@ describe("useEmbeddingModelLoader", () => {
   });
 
   it("maps a known error code and falls back otherwise", async () => {
-    vi.mocked(llmConfigsApi.listModels).mockRejectedValueOnce(
+    vi.mocked(modelConfigsApi.listModels).mockRejectedValueOnce(
       Object.assign(new Error("boom"), {
         isAxiosError: true,
         response: { data: { error: { code: "LLM_CONFIG_INVALID" } } },
