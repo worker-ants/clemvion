@@ -25,6 +25,9 @@ const HMAC_ALLOWED_ALGORITHMS = new Set(['sha256', 'sha512']);
 // 응답에서 마스킹할 config 키 (spec/1-data-model.md §2.17.2).
 const SECRET_CONFIG_KEYS = new Set(['key', 'token', 'secret', 'password']);
 
+// 감사 로그 resourceType — 본 도메인의 모든 record() 호출이 공유.
+const AUTH_CONFIG_RESOURCE_TYPE = 'auth_config';
+
 export interface WebhookAuthContext {
   /** 소문자 키의 요청 헤더 맵 */
   headers: Record<string, string>;
@@ -138,7 +141,7 @@ export class AuthConfigsService {
       workspaceId,
       userId,
       action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
-      resourceType: 'auth_config',
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: saved.id,
       ipAddress,
     });
@@ -160,7 +163,7 @@ export class AuthConfigsService {
       workspaceId,
       userId,
       action: AUDIT_ACTIONS.AUTH_CONFIG_UPDATE,
-      resourceType: 'auth_config',
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: id,
       ipAddress,
     });
@@ -192,7 +195,7 @@ export class AuthConfigsService {
       workspaceId,
       userId,
       action: AUDIT_ACTIONS.AUTH_CONFIG_REGENERATE,
-      resourceType: 'auth_config',
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: id,
       ipAddress,
     });
@@ -212,7 +215,7 @@ export class AuthConfigsService {
       workspaceId,
       userId,
       action: AUDIT_ACTIONS.AUTH_CONFIG_DELETE,
-      resourceType: 'auth_config',
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: id,
       ipAddress,
     });
@@ -249,7 +252,7 @@ export class AuthConfigsService {
       workspaceId,
       userId,
       action: AUDIT_ACTIONS.AUTH_CONFIG_REVEAL,
-      resourceType: 'auth_config',
+      resourceType: AUTH_CONFIG_RESOURCE_TYPE,
       resourceId: id,
       ipAddress,
     });

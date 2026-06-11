@@ -37,7 +37,7 @@ sequenceDiagram
   ALS->>PG: INSERT audit_log (...)
 ```
 
-`AuditLogsService.record` 의 실제 호출자는 **4개 모듈 9개 call site 전수**다. 이 표가 현재 코드에서
+`AuditLogsService.record` 의 실제 호출자는 **4개 모듈 13개 call site 전수**다. 이 표가 현재 코드에서
 실제로 기록되는 action 의 SoT 다:
 
 | Writer module | action | resource_type | 비고 |
@@ -216,6 +216,6 @@ DROP + ADD 로 갱신했다. entity 의 `LoginHistoryEvent` union type 과 DB CH
 ### "모든 도메인 service 가 호출하는 cross-cutting concern" 서술 폐기
 
 과거 본 문서는 audit_log 의 호출자를 "각 도메인의 service (Workflows / Triggers / ... 등) 전체" 로
-서술했으나, 실제 writer 는 4개 모듈 9개 call site 뿐이라 폐기했다 (§1.1). 인증 spec §4.1 의 액션
+서술했으나, 실제 writer 는 4개 모듈 13개 call site 뿐이라 폐기했다 (§1.1). 인증 spec §4.1 의 액션
 카탈로그는 목표 상태이고, 본 문서의 §1.1 표가 구현 현황의 SoT 다 — 커버리지 확장 시 §1.1 표를 함께
 갱신해야 한다.

@@ -189,6 +189,23 @@ describe('AuthConfigsService', () => {
       );
     });
 
+    it('create → ipAddress 미지정(trust proxy 미설정 시 req.ip=undefined) 시에도 기록', async () => {
+      const ac = await service.create(
+        WS,
+        { type: 'api_key' } as Partial<AuthConfig>,
+        USER,
+      );
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'auth_config.create',
+          resourceType: 'auth_config',
+          resourceId: ac.id,
+          userId: USER,
+          ipAddress: undefined,
+        }),
+      );
+    });
+
     it('update → auth_config.update 기록', async () => {
       const ac = await service.create(
         WS,
@@ -228,6 +245,7 @@ describe('AuthConfigsService', () => {
           action: 'auth_config.regenerate',
           resourceType: 'auth_config',
           resourceId: ac.id,
+          workspaceId: WS,
           userId: USER,
           ipAddress: '1.2.3.4',
         }),
@@ -608,6 +626,7 @@ describe('AuthConfigsService', () => {
           resourceId: ac.id,
           workspaceId: WS,
           userId,
+          ipAddress: '1.2.3.4',
         }),
       );
     });
@@ -641,10 +660,13 @@ describe('AuthConfigsService', () => {
         } as Partial<AuthConfig>,
         USER,
       );
+      // create 단계 기록을 제거 — reveal 실패가 auth_config.reveal 을 기록하지 않음 검증.
+      audit.record.mockClear();
       userRepo.findOne.mockResolvedValue({ id: userId, passwordHash: null });
       await expect(
         service.reveal(ac.id, WS, userId, 'pw', '1.2.3.4'),
       ).rejects.toThrow(UnauthorizedException);
+      expect(audit.record).not.toHaveBeenCalled();
     });
   });
 });
