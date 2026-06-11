@@ -15,7 +15,7 @@
 import type { ConversationTurn } from '../../../shared/conversation-thread/conversation-thread.types';
 import { renderThreadAsSystemText } from '../../../shared/conversation-thread/thread-renderer';
 import { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
-import type { LlmConfig } from '../../../modules/llm-config/entities/llm-config.entity';
+import type { ModelConfig } from '../../../modules/model-config/entities/model-config.entity';
 import type { LlmService } from '../../../modules/llm/llm.service';
 import type { RecalledMemory } from '../../../modules/agent-memory/agent-memory.service';
 import type { ExtractionTurnSnapshot } from '../../../modules/agent-memory/queues/agent-memory-extraction.queue';
@@ -273,7 +273,7 @@ export interface BuildSummaryBufferArgs {
   /** working-memory 토큰 추정에 함께 포함할 systemPrompt (현재 안정 프리픽스 제외). */
   systemPromptText: string;
   /** 요약 LLM 콜에 쓸 config/model. */
-  llmConfig: LlmConfig;
+  llmConfig: ModelConfig;
   model: string;
   llmService: LlmService;
 }

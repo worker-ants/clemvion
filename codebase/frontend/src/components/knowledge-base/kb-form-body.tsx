@@ -1,9 +1,7 @@
 "use client";
 
 import { type RagMode, type RerankMode } from "@/lib/api/knowledge-bases";
-import { type LlmConfigData } from "@/lib/api/llm-configs";
 import { type ModelConfigData } from "@/lib/api/model-configs";
-import { type RerankConfigData } from "@/lib/api/rerank-configs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -63,9 +61,9 @@ export interface KbFormBodyProps {
   setFormRerankScoreThreshold: (v: string) => void;
   formRerankLlmConfigId: string;
   setFormRerankLlmConfigId: (v: string) => void;
-  rerankConfigs: RerankConfigData[];
+  rerankConfigs: ModelConfigData[];
 
-  llmConfigs: LlmConfigData[];
+  chatModelConfigs: ModelConfigData[];
   // settings 모드: 선택한 임베딩 config 가 기존과 달라졌을 때 재임베딩 경고 노출.
   embeddingModelChanged?: boolean;
 }
@@ -108,7 +106,7 @@ export function KbFormBody({
   formRerankLlmConfigId,
   setFormRerankLlmConfigId,
   rerankConfigs,
-  llmConfigs,
+  chatModelConfigs,
   embeddingModelChanged,
 }: KbFormBodyProps) {
   const t = useT();
@@ -265,7 +263,7 @@ export function KbFormBody({
               <option value="">
                 {t("nodeConfigs.llmConfigSelector.defaultOption")}
               </option>
-              {llmConfigs.map((c) => (
+              {chatModelConfigs.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.defaultModel})
                   {c.isDefault ? " *" : ""}
@@ -407,7 +405,7 @@ export function KbFormBody({
                   <option value="">
                     {t("nodeConfigs.llmConfigSelector.defaultOption")}
                   </option>
-                  {llmConfigs.map((c) => (
+                  {chatModelConfigs.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({c.defaultModel})
                       {c.isDefault ? " *" : ""}

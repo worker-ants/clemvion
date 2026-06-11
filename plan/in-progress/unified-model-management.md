@@ -101,7 +101,7 @@ related_plan:
 | **V089** | `is_default` partial unique index를 `(workspace_id)` → `(workspace_id, kind)` WHERE is_default 로 재정의 | DROP + CREATE INDEX (CONCURRENTLY + `.conf`) |
 | **V090** | `rerank_config` 행을 `model_config`에 `kind='rerank'` UUID 보존 INSERT…SELECT. KB `rerank_config_id` FK 타깃을 `model_config(id)`로 전환 | 행수 일치 검증 쿼리 주석. `rerank_config` 테이블은 V092까지 유지(롤백 여지) |
 | **V091** | KB에 `embedding_model_config_id` UUID 컬럼 추가(FK→model_config, ON DELETE SET NULL). **PR2 실제 구현 범위: 컬럼+FK 추가만. 기존 KB 의 `embedding_model_config_id` 는 NULL 로 남긴다(즉시 repoint 없음).** 런타임 폴백 체인(embeddingModelConfigId → ws default kind=embedding → legacy)이 기존 KB 무중단을 보장하므로 점진적 전환 전략을 채택. 명시적 repoint(`kind='embedding'` 행 파생 + KB 일괄 업데이트)는 PR4 또는 별도 데이터 마이그레이션 단계에서 수행. 구 `embedding_llm_config_id`/`embedding_model`은 V092까지 유지 | NOT VALID 2-step. 컬럼 추가 후 FK VALIDATE. 구 컬럼 유지 |
-| **V092** (cleanup, PR4) | `rerank_config` DROP, KB 구 컬럼(`embedding_llm_config_id`, 필요 시 `embedding_model`) 정리 | 데이터 일치 검증 PASS 후에만 |
+| **V092** (cleanup, PR4a — 완료) | `rerank_config` DROP (orphaned — V090에서 model_config로 복사 완료). KB 구 컬럼 정리는 **PR4b(별 마이그레이션)로 분리** — repoint 데이터 마이그레이션 선행 필수라 V092에 미포함 | orphaned 확인 후 DROP. KB 구 컬럼은 보존 |
 
 > **차원 가드**: KB가 이미 벡터를 가진 상태에서 embedding config 교체를 막는 로직은 기존
 > `kb-model-change-reembed-followup.md` / `kb-unsearchable-warning.md`와 정합 — 본 작업은 차원 SoT를
@@ -151,8 +151,11 @@ related_plan:
 
 ### PR4 — cleanup (developer)
 
-- 마이그레이션 V092(`rerank_config` drop, KB 구 컬럼 정리).
-- deprecation alias 엔드포인트·구 프론트 라우트 제거. 데이터 일치 검증 PASS 후에만.
+**위험도 기준 2단계 분리** (비가역 데이터 마이그레이션 격리):
+
+- **PR4a (완료)** — 비가역 데이터 위험 없는 cleanup. deprecation alias 모듈(llm-config/rerank-config) + 구 프론트 라우트 + frontend API 클라이언트 제거, 소비처 `modelConfigsApi` 마이그레이션, **V092 `DROP TABLE rerank_config`**(V090에서 model_config로 복사 완료된 orphaned 테이블), `expectedKind` 정리, error-handling 카탈로그 `MODEL_CONFIG_*` 등재.
+- **PR4b (미착수, 별도 PR)** — KB legacy 임베딩 컬럼(`embedding_llm_config_id`·`embedding_model`) 은퇴. **선행 필수**: `embedding_model_config_id IS NULL`인 KB를 원래 모델 보존하며 `kind='embedding'` ModelConfig로 repoint하는 데이터 마이그레이션 → 검증 → 컬럼 DROP + `resolveEmbedding` 3단계 폴백 제거. 비가역·운영 데이터 위험이라 설계 검토 후 진행. (별 plan `unified-model-management-pr4b-kb-embedding-retire.md` 신설 예정.)
+  - 곁들임 이월: `LLM_CONFIG_*` 에러코드 → `MODEL_CONFIG_*` 통일(외부 계약 breaking, Sunset 헤더 유예).
 
 ## 5. 열린 결정 (PR0 spec 확정 시 함께 결론)
 
@@ -176,6 +179,9 @@ related_plan:
     - [x] **PR-A** KB 폼 embedding select 1급화 — `config-models-followup-kb-embedding-ui.md` → complete. feat(8f63417c)+리뷰후속(b48d0b5c·8eb8bc3e). embedding-probe 도 kind=embedding 지원. review 08_08_32 Critical0/W10→fix, `--impl-done`(08_43_26) BLOCK:NO.
     - [x] **PR-B** LLM→Models 명칭 전파 + user-guide 통합 — `models-rename-docs-unify-followup.md` → complete. `6f828225`+`7e3becdc`. spec 8파일 명칭 전파 + models.mdx 통합 + 구 doc URL redirect. review 09_07_47 Critical0/W4→fix, `--impl-done`(09_26_55) BLOCK:NO.
     - [x] **PR-C** ModelConfigManager SRP 분리 + 모달 focus-trap — `model-config-manager-refactor-followup.md` → complete. `refactor e9d27bbc`(564→258 LOC, Dialog/ConfirmModal/hook/validator 분리) + `87bb8dbe`(리뷰 9/9 fix). review 09_49_17 Critical0/W9→fix, `--impl-done`(10_07_47) BLOCK:NO.
+- [x] origin/main 통합(merge 783d1095) + semantic 검토 — textual conflict 0, 의미문제 3건 fix(dead link·floating promise·audit tense). e2e 188.
+- [x] **PR4a** cleanup (별 브랜치 `claude/unified-model-mgmt-pr4`, #541 위 stack) — alias 제거 + frontend 마이그레이션 + V092 `DROP rerank_config`. review 21_05_46 Critical0/W9→fix(761667c6), `--impl-done`(21_29_31) BLOCK:NO. lint·unit·build·e2e(188) 통과.
+- [ ] **PR4b** KB legacy 임베딩 은퇴 (repoint 데이터 마이그레이션 + 컬럼 DROP) — 별 PR, 미착수.
 
 ## 7. PR1 /ai-review 후속 — 보류·후속 항목 (PR3/PR4 트리거)
 

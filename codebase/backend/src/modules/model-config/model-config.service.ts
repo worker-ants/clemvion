@@ -62,12 +62,16 @@ export class ModelConfigService {
   async findById(
     id: string,
     workspaceId: string,
-    expectedKind?: ModelConfigKind,
   ): Promise<Record<string, unknown>> {
-    const config = await this.findEntity(id, workspaceId, expectedKind);
+    const config = await this.findEntity(id, workspaceId);
     return this.maskApiKey(config);
   }
 
+  /**
+   * id+workspace 로 단건 엔티티 조회. `expectedKind` 가 주어지면 kind 가 다른
+   * 엔티티는 not-found 로 취급한다 (cross-kind 노출 방지). resolveConfig·
+   * resolveEmbedding 등 kind 가 명확한 내부 해석 경로에서 사용한다.
+   */
   async findEntity(
     id: string,
     workspaceId: string,
@@ -203,9 +207,8 @@ export class ModelConfigService {
     id: string,
     workspaceId: string,
     dto: UpdateModelConfigDto,
-    expectedKind?: ModelConfigKind,
   ): Promise<Record<string, unknown>> {
-    const config = await this.findEntity(id, workspaceId, expectedKind);
+    const config = await this.findEntity(id, workspaceId);
 
     const effectiveProvider = dto.provider ?? config.provider;
     const effectiveBaseUrl =
@@ -261,12 +264,8 @@ export class ModelConfigService {
     });
   }
 
-  async setDefault(
-    id: string,
-    workspaceId: string,
-    expectedKind?: ModelConfigKind,
-  ): Promise<void> {
-    const config = await this.findEntity(id, workspaceId, expectedKind);
+  async setDefault(id: string, workspaceId: string): Promise<void> {
+    const config = await this.findEntity(id, workspaceId);
     await this.repo.manager.transaction(async (manager) => {
       await manager.update(
         ModelConfig,
@@ -281,12 +280,8 @@ export class ModelConfigService {
     });
   }
 
-  async remove(
-    id: string,
-    workspaceId: string,
-    expectedKind?: ModelConfigKind,
-  ): Promise<void> {
-    const config = await this.findEntity(id, workspaceId, expectedKind);
+  async remove(id: string, workspaceId: string): Promise<void> {
+    const config = await this.findEntity(id, workspaceId);
     await this.repo.remove(config);
   }
 

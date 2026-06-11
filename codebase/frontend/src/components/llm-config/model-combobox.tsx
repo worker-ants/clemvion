@@ -27,7 +27,7 @@ interface ModelComboboxProps {
    */
   placeholder?: string;
   disabled?: boolean;
-  /** 모델 조회 API (default llmConfigsApi). /models 통합 페이지는 modelConfigsApi 주입. */
+  /** 모델 조회 API (default modelConfigsApi). */
   api?: ModelLoaderApi;
   /** 필터할 모델 타입. chat(default) / embedding. /models 임베딩 탭은 "embedding" 전달. */
   modelType?: "chat" | "embedding";

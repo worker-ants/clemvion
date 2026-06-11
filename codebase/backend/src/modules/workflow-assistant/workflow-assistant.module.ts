@@ -10,7 +10,7 @@ import { KnowledgeBase } from '../knowledge-base/entities/knowledge-base.entity'
 import { Execution } from '../executions/entities/execution.entity';
 import { NodeExecution } from '../node-executions/entities/node-execution.entity';
 import { LlmModule } from '../llm/llm.module';
-import { LlmConfigModule } from '../llm-config/llm-config.module';
+import { ModelConfigModule } from '../model-config/model-config.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
@@ -34,9 +34,9 @@ import { CandidateLookupService } from './tools/candidate-lookup.service';
       NodeExecution,
     ]),
     LlmModule,
-    LlmConfigModule,
+    ModelConfigModule,
     // ED-AI-39 candidate picker: 워크스페이스의 Integration / KnowledgeBase
-    // 후보를 실어주기 위해 주입. LlmConfigModule 은 이미 위에 있음.
+    // 후보를 실어주기 위해 주입. ModelConfigModule 은 이미 위에 있음.
     IntegrationsModule,
     KnowledgeBaseModule,
     // ExecutionEngineModule exports NodeComponentRegistry, which we need for

@@ -46,8 +46,6 @@ import { ExecutionEngineModule } from './modules/execution-engine/execution-engi
 import { WebsocketModule } from './modules/websocket/websocket.module';
 import { MailModule } from './modules/mail/mail.module';
 import { ModelConfigModule } from './modules/model-config/model-config.module';
-import { LlmConfigModule } from './modules/llm-config/llm-config.module';
-import { RerankConfigModule } from './modules/rerank-config/rerank-config.module';
 import { LlmModule } from './modules/llm/llm.module';
 import { WorkflowAssistantModule } from './modules/workflow-assistant/workflow-assistant.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
@@ -156,8 +154,6 @@ export { ROOT_ENTITIES } from './database/root-entities';
     WebsocketModule,
     MailModule,
     ModelConfigModule,
-    LlmConfigModule,
-    RerankConfigModule,
     LlmModule,
     KnowledgeBaseModule,
     AgentMemoryModule,

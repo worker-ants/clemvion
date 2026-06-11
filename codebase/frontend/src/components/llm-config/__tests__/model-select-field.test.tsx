@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ModelSelectField } from "../model-select-field";
-import type { ModelInfo } from "@/lib/api/llm-configs";
+import type { ModelInfo } from "@/lib/api/model-configs";
 
 vi.mock("@/lib/i18n", () => ({
   useT: () => (key: string) => key,
