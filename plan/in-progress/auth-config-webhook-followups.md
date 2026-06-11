@@ -15,6 +15,7 @@ status: backlog
 
 - 작업: `AuthConfigsService.create/update/remove/regenerate` 에 `AuditLogsService.record` 추가.
 - 선결: 이 메서드들이 `userId` 를 받지 않으므로 (controller 가 `@WorkspaceId` 만 전달), service 시그니처에 `userId` 추가 + controller 가 `@CurrentUser('sub')` 전파 필요.
+- 선결(audit 표기): `spec/5-system/1-auth.md §4.1` 은 `audit-coverage-naming` PR(2026-06-11, cross-audit G-01)에서 "구현됨 / Planned" 구조로 개편됐고 `auth_config.create/update/delete/regenerate` 는 **Planned** 에 있다. `AuditLogsService.record({ action })` 가 `AuditAction` union(`audit-logs/audit-action.const.ts`)으로 타입 강제되므로, 구현 시 `AUDIT_ACTIONS` 에 `AUTH_CONFIG_CREATE` 등 상수를 먼저 추가해야 한다 (인라인 문자열은 컴파일 차단).
 - 테스트: 각 메서드 audit mock 검증.
 - spec frontmatter: 본 PR 에서 `12-webhook.md`·`6-config.md` 를 `implemented` 격상 시 본 갭이 `partial` 사유가 될 수 있음 — 등재 필요.
 
