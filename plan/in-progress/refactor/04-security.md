@@ -67,7 +67,7 @@
 
 ### C-3 [Critical] `authentication=none` HTTP Request 노드 SSRF 가드 미적용
 
-- [ ] 미착수 — `nodes/integration/http-request/http-request.handler.ts:316-356`
+- [x] ✅ 사용자 결정 완료 (2026-06-11, **옵션 A — SSRF 가드 전 인증 방식 적용**) → 구현 worktree `http-ssrf-all-auth` (`plan/in-progress/http-ssrf-all-auth.md`). `http-request.handler.ts` 의 `authentication === 'integration'` 게이트 제거 → 가드가 `none`/`custom` 포함 전 outbound 에 적용. 내부 접근은 기존 `ALLOW_PRIVATE_HOST_TARGETS` opt-out(이미 가드 배선). spec §4 step8↔SSRF opt-out callout 모순 해소 + §8.2 Rationale. **breaking**: none/custom→사설망 호출은 플래그 설정 전까지 HTTP_BLOCKED. 부수: config-echo spread→명시 열거(Principle 7 D1) 동반.
 
 spec 내부 모순 발견.
 

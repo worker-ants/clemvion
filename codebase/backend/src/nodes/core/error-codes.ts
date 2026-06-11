@@ -11,6 +11,9 @@ export const ErrorCode = {
   HTTP_4XX: 'HTTP_4XX',
   HTTP_5XX: 'HTTP_5XX',
   HTTP_TIMEOUT: 'HTTP_TIMEOUT',
+  // SSRF block (private/loopback/link-local/CGNAT target or redirect-hop /
+  // non-http(s) scheme). Applies to ALL auth methods (refactor 04 C-3).
+  HTTP_BLOCKED: 'HTTP_BLOCKED',
   // Database
   // `DB_QUERY_FAILED` is the fallback / generic SQL execution failure.
   // The other three are mapped from driver-specific error codes

@@ -129,6 +129,36 @@ describe('HttpRequestHandler', () => {
       expect(result.config.url).toContain('api.example.com');
     });
 
+    // CONVENTIONS Principle 7 D1 — config echo enumerates schema fields only;
+    // a non-schema (credential-shaped) field injected into rawConfig must NOT
+    // leak into output.config (spread `{ ...rawConfig }` would have leaked it).
+    it('does not echo non-schema credential-shaped config fields (Principle 7 D1)', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: jest.fn().mockResolvedValue('ok'),
+        json: jest.fn().mockResolvedValue({}),
+        headers: { get: jest.fn().mockReturnValue(null) },
+      });
+      const ctx = makeContext({
+        method: 'GET',
+        url: 'https://api.example.com/data',
+        apiKey: 'SUPER_SECRET_KEY',
+        authToken: 'LEAKED_TOKEN',
+      });
+      const result = (await handler.execute(
+        null,
+        { method: 'GET', url: 'https://api.example.com/data' },
+        ctx,
+      )) as unknown as { config: Record<string, unknown> };
+      expect(result.config).not.toHaveProperty('apiKey');
+      expect(result.config).not.toHaveProperty('authToken');
+      expect(JSON.stringify(result.config)).not.toContain('SUPER_SECRET_KEY');
+      // legit schema fields are still echoed
+      expect(result.config.method).toBe('GET');
+      expect(result.config.url).toContain('api.example.com');
+    });
+
     it('should return success port on 2xx response', async () => {
       const mockResponse = {
         ok: true,
@@ -923,6 +953,79 @@ describe('HttpRequestHandler', () => {
       };
       expect(output.error.code).toBe('HTTP_BLOCKED');
       expect(output.error.message).toMatch(/SSRF_BLOCKED/);
+    });
+
+    // refactor 04 C-3 — SSRF guard now applies to ALL authentication methods,
+    // not just `integration`. `none`/`custom` requests can no longer reach
+    // cloud IMDS / private networks unless ALLOW_PRIVATE_HOST_TARGETS=true.
+    it('blocks authentication=none requests to cloud IMDS (04 C-3)', async () => {
+      const { service, logUsage } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'http://169.254.169.254/latest/meta-data/',
+          authentication: 'none',
+        },
+        contextWithWorkspace,
+      )) as unknown as Record<string, unknown>;
+      expect(result.port).toBe('error');
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
+      expect(output.error.code).toBe('HTTP_BLOCKED');
+      expect(output.error.message).toMatch(/SSRF_BLOCKED/);
+      // `none` auth generates no Usage log (spec §4.2).
+      expect(logUsage).not.toHaveBeenCalled();
+    });
+
+    it('blocks authentication=custom requests to private RFC1918 (04 C-3)', async () => {
+      const { service } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'http://10.0.0.5/internal-admin',
+          authentication: 'custom',
+        },
+        contextWithWorkspace,
+      )) as unknown as Record<string, unknown>;
+      expect(result.port).toBe('error');
+      expect((result.output as { error: { code: string } }).error.code).toBe(
+        'HTTP_BLOCKED',
+      );
+    });
+
+    it('allows none-auth private targets when ALLOW_PRIVATE_HOST_TARGETS=true (opt-out)', async () => {
+      const prev = process.env.ALLOW_PRIVATE_HOST_TARGETS;
+      process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
+      try {
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          text: jest.fn().mockResolvedValue('ok'),
+          json: jest.fn().mockResolvedValue({ ok: true }),
+          headers: { get: jest.fn().mockReturnValue(null) },
+        });
+        const { service } = makeService('bearer_token', { token: 't' });
+        const handler = new HttpRequestHandler(service as never);
+        const result = (await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'http://10.0.0.5/internal-admin',
+            authentication: 'none',
+          },
+          contextWithWorkspace,
+        )) as unknown as Record<string, unknown>;
+        expect(result.port).toBe('success');
+        expect(global.fetch).toHaveBeenCalled();
+      } finally {
+        if (prev === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+        else process.env.ALLOW_PRIVATE_HOST_TARGETS = prev;
+      }
     });
 
     it('logs HTTP transport failure with HTTP_TRANSPORT_FAILED', async () => {
