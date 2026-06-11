@@ -363,6 +363,26 @@ config 형식 자체가 잘못된 경우 (e.g. `integrationId is required` / `qu
 
 ## Rationale
 
+### `DB_HOST_BLOCKED` 전용 SSRF 차단 코드 신설 (2026-06-12, refactor 04 C-3 후속)
+
+종전에는 DB host SSRF 차단이 공용 가드의 plain `Error` 로 throw 돼 `mapDbError` fallback 인
+generic `INTEGRATION_CALL_FAILED` 로 surface 됐다. 이는 HTTP(`HTTP_BLOCKED`)·Email
+(`EMAIL_HOST_BLOCKED`)이 각자 전용 코드를 갖는 것과 **비대칭**이라, 워크플로우 저자가 "SSRF
+차단" 을 다른 통합 실패와 구분해 분기할 수 없었다. 세 integration 노드의 SSRF posture 를 일관되게
+노출하기 위해 전용 코드 `DB_HOST_BLOCKED` 를 신설한다 (`EMAIL_HOST_BLOCKED` 패턴 대칭 —
+핸들러가 공용 가드의 plain Error 를 잡아 `IntegrationError('DB_HOST_BLOCKED')` 로 승격).
+
+- **메시지 일반화**: 클라이언트 노출 메시지는 차단된 host/IP 를 포함하지 않는다 (정찰면 축소).
+  차단 상세(원본 host)는 `logUsage` 서버 활동 로그에만 남긴다. 동일 원칙을 HTTP/Email SSRF
+  메시지 일반화 follow-up 과 공유한다.
+- **opt-out 플래그 재사용**: 별도 플래그 신설 대신 HTTP/Email 과 동일한 `ALLOW_PRIVATE_HOST_TARGETS`
+  를 재사용 — integration 전반의 SSRF posture(기본 차단·self-host 만 opt-in)를 일관 유지한다.
+- **chat-channel 분류**: `DB_HOST_BLOCKED` 는 `chat-channel-adapter §3.1` 의 `DB_*` 매핑에
+  포함돼 `executionFailedInternal` 로 분류된다 (차단은 우리 측 정책 결정이므로 internal).
+- **호환성 주의**: 차단 케이스의 `output.error.code` 가 `INTEGRATION_CALL_FAILED` → `DB_HOST_BLOCKED`
+  로 바뀌므로, 해당 케이스를 generic 코드로 분기하던 저장 워크플로우엔 breaking 이다(영향면은
+  "DB SSRF 차단" 이라는 드문 경로에 한정).
+
 ### 풀 캐시 멀티 인스턴스 무효화 — Redis pub/sub broadcast (2026-06-11, refactor 04 m-4)
 
 연결 풀은 인스턴스-로컬 in-memory 캐시(integrationId 키 + credsHash 비교)다. 단일 프로세스에서는
