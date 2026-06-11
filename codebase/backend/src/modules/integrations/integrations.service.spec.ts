@@ -891,6 +891,9 @@ describe('IntegrationsService', () => {
           integrationId: 'int-1',
         }),
       );
+      // OAuth 경로는 begin() 으로 위임만 하고 audit 를 남기지 않는다 — 실제 재인증
+      // 완료(콜백)에서 기록되며, integration.reauthorized 는 non-OAuth reset 전용.
+      expect(auditLogsService.record).not.toHaveBeenCalled();
     });
 
     it('resets status for non-OAuth integrations', async () => {
@@ -944,6 +947,9 @@ describe('IntegrationsService', () => {
         name: 'Renamed',
       });
       expect(result.name).toBe('Renamed');
+      expect(integrationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Renamed' }),
+      );
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({
           workspaceId: 'ws-1',

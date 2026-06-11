@@ -59,20 +59,22 @@ export class AuthConfigsService {
    * 계약(실패 swallow)은 {@link AuditLogsService.record} 에 위임한다. CRUD 5개
    * 경로(create/update/regenerate/remove/reveal)가 공유한다.
    */
-  private recordAudit(
-    action: AuditAction,
-    workspaceId: string,
-    userId: string,
-    resourceId: string,
-    ipAddress?: string,
-  ): Promise<void> {
+  private recordAudit(params: {
+    action: AuditAction;
+    workspaceId: string;
+    userId: string;
+    resourceId: string;
+    ipAddress?: string;
+  }): Promise<void> {
+    // named 필드 — positional 시그니처였다면 동일 타입(string) 인자 순서 스왑을
+    // 컴파일러가 잡지 못해 감사 주체·대상이 조용히 뒤바뀔 수 있다 (code review W-1).
     return this.auditLogsService.record({
-      workspaceId,
-      userId,
-      action,
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      action: params.action,
       resourceType: AUTH_CONFIG_RESOURCE_TYPE,
-      resourceId,
-      ipAddress,
+      resourceId: params.resourceId,
+      ipAddress: params.ipAddress,
     });
   }
 
@@ -128,7 +130,7 @@ export class AuthConfigsService {
    * @param userId 작업 주체 — controller 가 `@CurrentUser('sub')` 로 전파.
    * @param ipAddress 요청 IP(`req.ip`) — 감사 로그에 기록 (auth_config 계열 공통).
    * @remarks 감사 기록은 best-effort 다 — `AuditLogsService.record` 가 실패를 내부에서
-   *   swallow 하므로(해당 swallow 는 audit-logs.service.spec 에서 검증) audit DB 장애가
+   *   swallow 하므로(해당 swallow 는 audit-logs.spec 에서 검증) audit DB 장애가
    *   본 CRUD 를 실패시키지 않는다(롤백 없음). reveal 및 update/regenerate/remove 동일 패턴.
    */
   async create(
@@ -162,13 +164,13 @@ export class AuthConfigsService {
       workspaceId,
     });
     const saved = await this.authConfigRepository.save(authConfig);
-    await this.recordAudit(
-      AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
+    await this.recordAudit({
+      action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
       workspaceId,
       userId,
-      saved.id,
+      resourceId: saved.id,
       ipAddress,
-    );
+    });
     return saved;
   }
 
@@ -183,13 +185,13 @@ export class AuthConfigsService {
     const config = await this.findById(id, workspaceId);
     Object.assign(config, data);
     const saved = await this.authConfigRepository.save(config);
-    await this.recordAudit(
-      AUDIT_ACTIONS.AUTH_CONFIG_UPDATE,
+    await this.recordAudit({
+      action: AUDIT_ACTIONS.AUTH_CONFIG_UPDATE,
       workspaceId,
       userId,
-      id,
+      resourceId: id,
       ipAddress,
-    );
+    });
     return this.toMasked(saved);
   }
 
@@ -214,13 +216,13 @@ export class AuthConfigsService {
     config.config = configData;
     // 재발급 응답은 신규 값을 1회 평문 노출.
     const saved = await this.authConfigRepository.save(config);
-    await this.recordAudit(
-      AUDIT_ACTIONS.AUTH_CONFIG_REGENERATE,
+    await this.recordAudit({
+      action: AUDIT_ACTIONS.AUTH_CONFIG_REGENERATE,
       workspaceId,
       userId,
-      id,
+      resourceId: id,
       ipAddress,
-    );
+    });
     return saved;
   }
 
@@ -233,13 +235,13 @@ export class AuthConfigsService {
   ): Promise<void> {
     const config = await this.findById(id, workspaceId);
     await this.authConfigRepository.remove(config);
-    await this.recordAudit(
-      AUDIT_ACTIONS.AUTH_CONFIG_DELETE,
+    await this.recordAudit({
+      action: AUDIT_ACTIONS.AUTH_CONFIG_DELETE,
       workspaceId,
       userId,
-      id,
+      resourceId: id,
       ipAddress,
-    );
+    });
   }
 
   /**
@@ -269,13 +271,13 @@ export class AuthConfigsService {
       });
     }
     const config = await this.findById(id, workspaceId);
-    await this.recordAudit(
-      AUDIT_ACTIONS.AUTH_CONFIG_REVEAL,
+    await this.recordAudit({
+      action: AUDIT_ACTIONS.AUTH_CONFIG_REVEAL,
       workspaceId,
       userId,
-      id,
+      resourceId: id,
       ipAddress,
-    );
+    });
     return { config: config.config };
   }
 

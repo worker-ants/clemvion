@@ -50,6 +50,9 @@ describe('AuthConfigsController — @Roles metadata', () => {
 
 // CRUD 핸들러가 @CurrentUser('sub') 와 req.ip 를 service 로 그대로 전파하는지 — 감사
 // 로그(auth_config.*)의 주체·IP 가 핸들러 인자 위치에서 누락·스왑되지 않음을 보장한다.
+// 읽기 핸들러(findAll/findOne/getUsage)는 audit 기록 대상이 아니므로(쓰기/노출
+// 작업만 auth_config.* 를 남긴다) 본 describe 범위에서 제외한다 — 이들 핸들러는
+// userId/req.ip 도 받지 않아 전파 계약 자체가 성립하지 않는다.
 describe('AuthConfigsController — userId/req.ip 전파', () => {
   const WS = 'ws-1';
   const USER = 'user-1';
