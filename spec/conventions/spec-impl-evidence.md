@@ -71,7 +71,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 
 | 필드 | 타입 | 의무 | 의미 |
 |---|---|---|---|
-| `id` | string (kebab-case) | ✓ | spec 식별자. 파일 basename(확장자 제외) 기반 권장 |
+| `id` | string (kebab-case) | ✓ | spec 식별자. 파일 basename(확장자 제외) 기반 권장. **같은 basename 이 영역을 달리해 중복될 때는 후발 문서가 영역 prefix 로 충돌을 회피한다** (예: `spec/5-system/17-agent-memory.md` 가 `agent-memory` 를 점유 → `spec/2-navigation/16-agent-memory.md` 는 `nav-agent-memory`) — basename 불일치처럼 보여도 의도된 패턴 |
 | `status` | enum (5 값) | ✓ | §3 라이프사이클 참조 |
 | `code` | string[] (glob 허용) | status 별 다름 — §3 | 본 spec 이 약속한 surface 의 구현 경로. 레포 루트 기준 상대경로 |
 | `pending_plans` | string[] (path) | `status: partial` 시 ✓ | 미구현 surface 를 책임지는 plan 경로. `plan/in-progress/` 또는 `plan/complete/`(in-progress 경로를 complete 로 치환) 에 실존 의무 — §4 가드 참조 |

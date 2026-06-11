@@ -26,7 +26,7 @@ code:
 `ExecutionContext` 는 **모든 노드가 공통으로 필요로 하는 최소 필드만** 유지한다.
 
 - **식별**: `workflowId`, `executionId`, `nodeExecutionId`
-- **실행 표준**: `variables`, `nodeOutputCache`, `rawConfig`, `recursionDepth`
+- **실행 표준**: `variables`, `nodeOutputCache`, `structuredOutputCache`, `rawConfig`, `recursionDepth` (`nodeOutputCache` / `structuredOutputCache` 는 Parallel 분기 진입 시 shallow copy 로 격리 — [10-parallel.md §Rationale "branch cache 격리"](../4-nodes/1-logic/10-parallel.md) 참조)
 - **cross-cutting cancellation**: `abortSignal?: AbortSignal` — optional, best-effort 컨벤션 (전 노드 필수 아님). **동작 계약 SoT 는 [`node-cancellation.md`](./node-cancellation.md) §2 에 위임**하고, 본 문서는 필드가 Stable core 에 속한다는 **분류 SoT** 만 보유.
 
 > 위 목록은 본 규약이 직접 거론하는 발췌다. 전체 필드 정의는 `node-handler.interface.ts` 가 SoT (`conversationThread`, `itemContext`, `loopContext`, `expressionContext` 등 포함).

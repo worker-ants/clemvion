@@ -11,7 +11,7 @@ code:
 
 입력을 동일하게 받는 N개의 분기를 동시에(병렬로) 실행하는 **컨테이너 노드** (`executionMetadata.kind = 'parallel'`). 핸들러는 `branch_0` ~ `branch_{N-1}` 동적 출력 포트를 fan-out 활성화하고, 모든 분기가 종료된 후 엔진이 `done` 포트로 `{ branches: [...] }` 결과를 내보낸다. `branches[i]` 는 `Promise.allSettled` 모델을 따른다 — `{ status: 'fulfilled', value }` 또는 `{ status: 'rejected', error: { code, message } }` (CONVENTIONS Principle 9, [공통 §9.1](./0-common.md#91-컨테이너-노드-핸들러--엔진-오버라이트-컨트랙트)).
 
-> **P1 구현 상태**: `ParallelExecutor` 가 `p-limit` + `Promise.allSettled` 로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값). `PARALLEL_ENGINE=off` 로 명시 설정 시 엔진이 토폴로지 순서로 순차 진행 (rollback card — 본 env 는 모듈 로드 시 1회 읽음, 변경은 인스턴스 재시작 시 반영). 분기 간 `variables` 는 `structuredClone` 으로 deep clone, `nodeOutputCache` 는 shallow copy 로 격리된다.
+> **P1 구현 상태**: `ParallelExecutor` 가 `p-limit` + `Promise.allSettled` 로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값). `PARALLEL_ENGINE=off` 로 명시 설정 시 엔진이 토폴로지 순서로 순차 진행 (rollback card — 본 env 는 모듈 로드 시 1회 읽음, 변경은 인스턴스 재시작 시 반영). 분기 간 `variables` 는 `structuredClone` 으로 deep clone, `nodeOutputCache` / `structuredOutputCache` 는 shallow copy 로 격리된다 (top-level 키 추가만 분기-로컬, 값 객체는 공유 — § Rationale "branch cache 격리" 참조).
 
 ---
 
@@ -175,6 +175,12 @@ Parallel 은 **runtime 에러 포트를 갖지 않는다**. config 검증 실패
 [공통 §8](./0-common.md#8-캔버스-요약) — `Parallel` 행 인용. (`{N} branches`, 예: `3 branches`)
 
 ## Rationale
+
+### branch cache 격리 — shallow copy + dev/test freeze invariant (2026-06-10)
+
+분기는 `ExecutionContext` 의 shallow clone 을 받으며, `variables` 만 `structuredClone` 으로 deep clone 한다. `nodeOutputCache` / `structuredOutputCache` 는 **shallow copy** 로 격리된다 — 분기가 자기 결과를 `cache[nodeId] = ...` 로 추가하는 것(top-level 키)은 분기-로컬이지만, **값 객체는 부모와 공유**된다 (deep clone 비용 회피). 현재 spec 상 parallel 의 각 분기는 배타적 노드 집합(서로 다른 nodeId)을 가지므로(§4 + `CONTAINER_INVALID_CHILD` 검증) 같은 키 충돌은 발생하지 않는다.
+
+이 설계의 invariant 는 **"분기는 공유 cache 값 객체의 내부를 mutate 하지 않는다"** 이다. shallow copy 결정을 대체하지 않는 **보조 강제 메커니즘**으로, dev/test 환경(`NODE_ENV ∈ {development, test}`)에서 branch clone 직후 공유 값 객체를 deep `Object.freeze` 해 invariant 위반(값 내부 mutate)을 즉시 `TypeError` 로 검출한다. production 은 미적용(freeze 비용 회피 + 동작 불변) — 따라서 production 행위는 shallow copy 격리 그대로다.
 
 ### `done` 출력의 `count` 필드 — 컨테이너 공통 규약 정합 (2026-06-03 spec-drift 결정 B)
 

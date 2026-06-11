@@ -41,6 +41,9 @@ spec:
             - secretRef:
                 name: backend-secret
           readinessProbe:
+            # readiness 는 의존성(DB/Redis)을 점검 — 비정상 시 HTTP 503 →
+            # Pod 가 Service endpoint 에서 제외되고, 복구 시 200 으로 자동 재투입.
+            # (spec/data-flow/9-observability.md §1.1)
             httpGet:
               path: /api/health
               port: http
@@ -49,8 +52,11 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
           livenessProbe:
+            # liveness 는 프로세스 생존만 확인 (의존성 미점검) — DB/Redis 장애가
+            # Pod 재시작 크래시루프로 번지지 않도록 readiness(/api/health)와 분리.
+            # (spec/data-flow/9-observability.md §1.1)
             httpGet:
-              path: /api/health
+              path: /api/health/live
               port: http
             initialDelaySeconds: 30
             periodSeconds: 30

@@ -220,7 +220,7 @@
 
 ### M-6 [Major] dead code — `registerContinuationHandlers` + deprecated `on()`
 
-- [ ] 진행 확정 — ✅ 2026-06-10 사용자 승인 (권고안: 즉시 제거, m-2 와 단일 PR) — `execution-engine.service.ts:877-880`, `continuation-bus.service.ts:154`
+- [x] 완료 — ✅ 2026-06-10 (refactor-approved-batch): registerContinuationHandlers no-op+호출+`on()` 제거, spec 테스트 훅 3곳 동반. `execution-engine.service.ts`, `continuation-bus.service.ts`
 
 **spec 대조**: **A** — 코드 주석("후속 정리 시 제거 예정")·spec 서사(`§7.4` "in-memory 머신 완전 제거(full B3) — §7.5 단일 경로 일원화") 모두 **제거가 예약된 상태**. 호출부: 프로덕션 no-op 1곳 + spec 테스트 직접 호출 2곳(:524,:14214).
 

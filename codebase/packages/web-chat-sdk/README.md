@@ -61,7 +61,10 @@ Hosted iframe 위젯 대신 **자체 UI 를 직접 구성**하려면 별도 web-
 import { ClemvionClient } from "@workflow/sdk";
 
 const client = new ClemvionClient({ baseUrl: apiBase });
-const { executionId, interaction } = await client.triggerWebhook(endpointPath, { firstMessage });
+// webhook payload 는 `profile` 만 — `firstMessage` 는 폐기됐다(1-widget-app §R6):
+// multi_turn 은 webhook 입력을 첫 턴으로 소비하지 않아 증발한다. 첫 사용자
+// 텍스트도 아래 `submit_message` 로 보낸다.
+const { executionId, interaction } = await client.triggerWebhook(endpointPath, { profile });
 const token = interaction!.token!;
 
 const sub = client.subscribeToExecution(executionId, token, {
@@ -69,6 +72,7 @@ const sub = client.subscribeToExecution(executionId, token, {
     if (e.event === "execution.ai_message") renderAssistant(e.data.message); // 자체 UI
   },
 });
+// 첫 사용자 텍스트를 포함한 모든 입력은 submit_message 로 전송.
 await client.interact(executionId, token, { command: "submit_message", message: "..." });
 ```
 

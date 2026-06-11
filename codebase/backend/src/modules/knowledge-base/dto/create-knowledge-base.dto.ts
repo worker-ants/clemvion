@@ -161,7 +161,7 @@ export class CreateKnowledgeBaseDto {
   /** 리랭킹 모드 */
   @ApiPropertyOptional({
     description:
-      '검색 후처리(리랭킹) 모드. `off`(기본) 면 현행 cosine 검색, `cross_encoder` 는 wide 회수 후 cross-encoder 재점수화+동적 컷, `cross_encoder_llm` 은 추가 LLM grading(후속 구현). 검색 시점 적용이라 사후 변경 가능.',
+      '검색 후처리(리랭킹) 모드. `off`(기본) 면 현행 cosine 검색, `cross_encoder` 는 wide 회수 후 cross-encoder 재점수화+동적 컷, `cross_encoder_llm` 은 cross-encoder 후 조건부(conditional escalate) listwise LLM grading. 검색 시점 적용이라 사후 변경 가능.',
     enum: ['off', 'cross_encoder', 'cross_encoder_llm'],
     example: 'off',
   })
@@ -203,10 +203,10 @@ export class CreateKnowledgeBaseDto {
   @IsNumber()
   rerankScoreThreshold?: number;
 
-  /** cross_encoder_llm grading LLMConfig (후속) */
+  /** cross_encoder_llm grading LLMConfig */
   @ApiPropertyOptional({
     description:
-      'cross_encoder_llm 모드의 listwise grading LLMConfig. 미지정 시 워크스페이스 default chat. (cross_encoder_llm 은 후속 구현)',
+      'cross_encoder_llm 모드의 조건부 listwise grading LLMConfig. 미지정 시 워크스페이스 default chat.',
     format: 'uuid',
   })
   @IsOptional()

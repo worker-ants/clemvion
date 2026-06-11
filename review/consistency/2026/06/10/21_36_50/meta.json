@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-10T21:36:50.692766",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=승인 백로그 묶음 구현: 03 M-6·m-2(dead code 제거 — registerContinuationHandlers/on()/toEiaEvent/system-status 상수), 06 M-5(parallel branch nodeOutputCache dev/test deep freeze), 04 m-4(integration credential 회전 pub/sub Pool 무효화), 06 M-1(WS resumed ack spec 문구 정리 — planner), review_guard _porcelain_path off-by-one fix)",
+  "target_path": "승인 백로그 묶음 구현: 03 M-6·m-2(dead code 제거 — registerContinuationHandlers/on()/toEiaEvent/system-status 상수), 06 M-5(parallel branch nodeOutputCache dev/test deep freeze), 04 m-4(integration credential 회전 pub/sub Pool 무효화), 06 M-1(WS resumed ack spec 문구 정리 — planner), review_guard _porcelain_path off-by-one fix",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

@@ -231,6 +231,10 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 
 `queued: boolean` 은 선택 필드 — `true` 면 continuation-queue ([Spec 실행 엔진 §7.4](./4-execution-engine.md#74-분산-실행-multi-instance)) 로 정상 enqueue 됨 (Phase 2 의 "모든 진입점 항상 BullMQ enqueue" 라우팅 원칙 상 정상 publish 는 항상 `true`). `false` 면 publish 단계 실패 (Redis 장애 등) — 재시도 권장. 본 필드는 관측·디버깅 용도이며 클라이언트 routing 결정에 사용하지 않는다.
 
+> **ack `resumed`/`queued` 의 의미 (always-enqueue 모델)**: 4종 continuation ack 의 `resumed`/`queued` 는 모두 **enqueue 수락 신호**다 — 동기 ack 시점엔 worker 의 재개 처리가 아직 일어나지 않았다. 따라서 클라이언트는 ack `resumed: true` 만으로 waiting UI 를 해제하지 않으며, 최종 재개는 후행 `execution.resumed`/`execution.node.*` 이벤트로 확인한다. rehydration 실패(엔진 §7.5 의 `RESUME_CHECKPOINT_MISSING`/`RESUME_FAILED`/`RESUME_INCOMPATIBLE_STATE`)는 worker 측 **비동기** 실패라 ack 가 아닌 후행 `execution.cancelled` 이벤트(`error.code = RESUME_*`)로 통지된다 ([엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 의 동기/비동기 직교 분류). 동기 ack 가 실패를 담는 경우는 publisher 측 사전 검증(`INVALID_EXECUTION_STATE`)뿐이다.
+>
+> **`retry_last_turn` 은 예외**: `execution.retry_last_turn` ack 의 `resumed: false` 분기(아래 참조)는 위 4종과 달리 publisher 측 **동기** 검증 실패(`failed` 상태 기대 불충족 등)를 반영하는 필드다 — `RESUME_*` 비동기 경로와 무관하며 retry 는 §7.5 rehydration 경로 자체를 타지 않는다(§4.2 RESUME_* 적용 대상 표 참조). 또한 본 ack 필드 `resumed` (boolean) 는 NodeExecution 의 재개 status enum `"resumed"` 와 이름만 같고 별개다.
+
 **공통 ack success payload shape:**
 
 4개 명령 (`click_button` / `submit_form` / `submit_message` / `end_conversation`) 의 ack success payload 는 명령별 식별자만 다르고 `resumed` / `queued` 필드는 동일하다.
@@ -238,7 +242,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `executionId` | uuid | 실행 ID (공통) |
-| `resumed` | boolean | 재개 성공 여부 |
+| `resumed` | boolean | **재개 시작 수락(enqueue) 여부** — 정상 enqueue 시 항상 `true`, 실패는 `queued: false` 로 표면화한다. always-enqueue 모델(§7.4)에서 동기 ack 시점엔 재개 성공을 알 수 없으므로 "재개 성공" 이 아니다. 최종 재개 성공은 후행 `execution.resumed`/`execution.node.*` 이벤트로, rehydration 실패(엔진 §7.5 `RESUME_*`)는 후행 `execution.cancelled` 이벤트로 확인한다 (§Rationale "`resumed` 의미 재정의"). **이 ack boolean `resumed` 는 이름이 같은 `execution.resumed` 이벤트(§4.1)·NodeExecution status enum `"resumed"` 와 별개다** |
 | `queued` | boolean | continuation-queue 정상 enqueue 여부 (`true` = 정상, `false` = Redis 장애 등 publish 실패) |
 | 명령별 식별자 | — | `buttonId` (click_button) / `formData` 없음 (submit_form) / `message` 없음 (submit_message) / — (end_conversation) |
 
@@ -1012,3 +1016,10 @@ retry 는 "노드 단위 재시도" 라는 표현 때문에 일부 독자가 "do
 
 - **정정 내용**: (1) `execution.submit_form` payload 를 `{ executionId, formData }` 로, `execution.click_button` 을 `{ executionId, buttonId }` 로 정정 — 양단 구현(frontend `use-execution-interaction-commands.ts`, backend `websocket.gateway.ts` handler 시그니처) 모두 `nodeId` 를 보내지도 받지도 않는다. 대기 노드 식별은 publisher 측 server lookup (§7.5.1 경로) 이 수행하므로 클라이언트 전달이 불필요하다. (2) 옛 표기의 `toolCallId?` 클라이언트 필드도 제거 — `render_form` 도구 응답 매칭은 클라이언트 전달값이 아니라 서버 보관 `pendingFormToolCall` resume state 로 처리된다. (3) 공통 ack payload 표에서 `nodeId` 행 제거 — 4개 continuation 명령의 ack data 어디에도 `nodeId` 가 없다.
 - **폼 제출 ack 이벤트명 `execution.form_submitted`**: `<명령>.ack` 패턴(`execution.click_button.ack` 등)과 달리 폼 제출만 `execution.form_submitted` 를 ack 이벤트명으로 쓴다. 이는 도입 초기 명명이 그대로 양단(backend 반환·frontend listen)에 굳은 **historical artifact** 다. 외부 wire 양단이 이미 합의된 동작 계약이라 rename 은 호환성 파손 대비 이득이 없어, spec 이 구현 현실을 채택해 기록한다 (향후 v2 프로토콜 정리 시 일괄 재검토 대상).
+
+### `resumed` 의미 재정의 — "재개 성공" → "enqueue 수락" (2026-06-10 spec-sync, refactor 06 M-1)
+
+- **옛 정의**: §4.2 공통 ack 표는 `resumed` 를 "재개 성공 여부" 로 기술했다.
+- **번복 사유**: `spec/0-overview.md §Rationale "실행 엔진: Redis 큐 + 분산 워커 풀"` 의 **always-enqueue 모델**(§7.4 "모든 진입점 항상 BullMQ enqueue") 채택 이후, continuation 4종 핸들러(`websocket.gateway.ts`)는 enqueue 성공 시 `resumed: true` 를 동기 반환한다 — 이 시점엔 임의 worker 의 rehydration 이 아직 일어나지 않아 동기 ack 로 "재개 성공" 을 판정하는 것은 구조적으로 불가능하다. 따라서 충족 불가능한 옛 정의를 충족 가능한 정의("재개 시작 수락 = enqueue")로 정정하고, 최종 재개 확인을 후행 이벤트(`execution.resumed`/`execution.node.*`)로 일원화한다.
+- **대안 B 기각**: gateway 가 worker 처리를 동기 대기해 실제 resumed 판정을 반환하는 안은 ack latency 를 worker 처리에 종속시켜 큐 도입 취지·§7.5.1 후행 이벤트 설계와 정면 충돌하므로 기각.
+- **코드 무변경**: 본 정정은 spec 을 코드 실제 동작에 맞춘 것으로 구현 변경이 없다. frontend ack 핸들러(`use-execution-interaction-commands.ts` `emitWithAck`)는 `success === false` 만 소비하며 `resumed` 를 상태 전이 근거로 쓰지 않음을 확인했다.

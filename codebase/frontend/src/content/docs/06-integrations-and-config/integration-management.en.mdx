@@ -57,7 +57,7 @@ The detail page tabs cover almost every operational task.
   { name: "Danger zone", type: "Tab", required: "Admin", description: "Delete, or switch Personal ↔ Organization scope. Deletion is blocked when it's still in use." }
 ]} />
 
-<Callout type="tip">When an integration flips to `expired` or `error`, the sidebar shows an attention badge and the list displays a `Need attention` banner. Clicking it jumps to the matching status filter.</Callout>
+<Callout type="tip">When an integration flips to `expired` or `error`, the sidebar shows an attention badge and the list displays a `Need attention` banner. Clicking it jumps to the matching status filter. **Note: integrations that support refresh_token auto-renewal (such as Cafe24 and MakeShop) do not send a passive `integration_expired` notification when the access_token expires** — the system renews it automatically in the background. An `integration_action_required` active alert is sent only when automatic renewal fails.</Callout>
 
 ## Choosing an integration from a node
 

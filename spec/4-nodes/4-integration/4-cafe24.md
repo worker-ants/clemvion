@@ -433,7 +433,7 @@ MCP 측 호출도 동일한 `IntegrationUsageLog` 에 기록된다 ([Spec MCP Cl
 | `error(*)` | skip + `skipReason='error'` (외부 명시 reauth 가 정식 회복 — [§6.1 공통 격하](#61-인증-실패-자동-status-전환) 및 [Spec MCP Client §8.4](../../5-system/11-mcp-client.md#84-인증-실패-자동-status-전환) 와 동일 정책) |
 | `connected` | 정상 catalog 구성 |
 
-**근거**: §11.1 `connected-expiry` scanner 의 cafe24 분기 (refresh enqueue) 가 정상 동작하면 cafe24 가 `expired` 로 격하되는 경로는 사실상 `install_timeout` 한 가지만 남는다. 그러나 (a) scanner 가 아직 도달하지 못한 race window, (b) 마이그레이션 직후의 잔여 expired row, (c) 향후 다른 expired 경로 추가에 대비해 본 buildTools 단계의 1회 자가 회복을 두 번째 방어선으로 둔다. 정상 케이스에선 추가 latency 없음 (status='connected' 우회), expired 케이스에서만 최대 1회의 refresh round-trip (큐 dedup 으로 cross-pod 단일 실행).
+**근거**: §11.1 `connected-expiry` scanner 의 `isRefreshCapable` 분기 (cafe24 는 refresh enqueue + refresh_token 보유 행 격하 제외) 가 정상 동작하면 cafe24 가 `expired` 로 격하되는 경로는 사실상 `install_timeout` 한 가지만 남는다. 그러나 (a) scanner 가 아직 도달하지 못한 race window, (b) 마이그레이션 직후의 잔여 expired row, (c) 향후 다른 expired 경로 추가에 대비해 본 buildTools 단계의 1회 자가 회복을 두 번째 방어선으로 둔다. 정상 케이스에선 추가 latency 없음 (status='connected' 우회), expired 케이스에서만 최대 1회의 refresh round-trip (큐 dedup 으로 cross-pod 단일 실행).
 
 **진단 노출**: skip 여부와 사유는 모두 AI Agent 노드의 `meta.mcpDiagnostics.serverSummaries[]` 에 노출되어 사용자가 "통합이 보이지 않는다" 원인을 즉시 식별할 수 있다 ([Spec MCP Client §6.2](../../5-system/11-mcp-client.md#62-진단-누적-mcpdiagnostics)).
 

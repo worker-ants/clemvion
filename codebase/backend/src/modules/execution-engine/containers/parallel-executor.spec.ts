@@ -1,4 +1,4 @@
-import { ParallelExecutor } from './parallel-executor';
+import { ParallelExecutor, FREEZE_BRANCH_CACHE } from './parallel-executor';
 import {
   ExecutionContext,
   ParallelBranchContext,
@@ -71,6 +71,69 @@ describe('ParallelExecutor', () => {
     // Original context not mutated
     expect(baseContext.itemContext).toBeDefined();
     expect(baseContext.loopContext).toBeDefined();
+  });
+
+  // refactor 06-concurrency M-5 — dev/test 환경에서 branch 의 공유 nodeOutputCache
+  // 값 객체를 freeze 해 "값 내부 mutate 금지" invariant 위반을 즉시 검출.
+  describe('M-5 — 공유 cache 값 freeze (dev/test invariant 가드)', () => {
+    // ai-review W2 — 본 describe 의 가드는 freeze 가 켜진 환경(test)을 전제한다.
+    // Jest 가 NODE_ENV=production 으로 돌면 freeze 가 꺼져 아래 가드가 무의미
+    // (false positive)하므로 전제를 명시 단언한다.
+    it('전제: 본 테스트 환경에서 FREEZE_BRANCH_CACHE 가 활성이다', () => {
+      expect(FREEZE_BRANCH_CACHE).toBe(true);
+    });
+
+    it('branch 가 공유 nodeOutputCache 값 객체 내부를 mutate 하면 TypeError 로 검출된다', async () => {
+      const ctxWithCache: ExecutionContext = {
+        ...baseContext,
+        nodeOutputCache: { nodeA: { output: { count: 1 } } },
+      };
+
+      // ai-review W3 — `try/catch` 대신 collected mutator 를 `toThrow` 로 단언해
+      // non-strict 환경에서 silent-pass(mutationError===null) 가능성을 제거한다.
+      let mutator: (() => void) | null = null;
+      await executor.execute(
+        { branchCount: 1, maxConcurrency: 0, waitAll: true },
+        ctxWithCache,
+        async (_branchIndex, branchCtx: ParallelBranchContext) => {
+          mutator = () => {
+            (
+              branchCtx.nodeOutputCache.nodeA as { output: { count: number } }
+            ).output.count = 999;
+          };
+        },
+        undefined,
+      );
+
+      expect(mutator).not.toBeNull();
+      // frozen 값 내부 mutate 는 (strict mode 모듈에서) TypeError.
+      expect(mutator!).toThrow(TypeError);
+      // 원본 공유 값도 변경되지 않아야 한다 (freeze 가 막았으므로).
+      expect(
+        (ctxWithCache.nodeOutputCache.nodeA as { output: { count: number } })
+          .output.count,
+      ).toBe(1);
+    });
+
+    it('top-level 키 추가는 branch 간 격리되어 정상 동작한다 (freeze 는 값 객체만)', async () => {
+      const ctxWithCache: ExecutionContext = {
+        ...baseContext,
+        nodeOutputCache: { nodeA: { output: { count: 1 } } },
+      };
+
+      await executor.execute(
+        { branchCount: 1, maxConcurrency: 0, waitAll: true },
+        ctxWithCache,
+        async (_branchIndex, branchCtx: ParallelBranchContext) => {
+          // top-level 키 추가는 shallow copy 덕에 격리 — freeze 대상 아님.
+          branchCtx.nodeOutputCache.nodeB = { output: { v: 2 } };
+        },
+        undefined,
+      );
+
+      // 원본에는 nodeB 가 누출되지 않아야 한다.
+      expect(ctxWithCache.nodeOutputCache.nodeB).toBeUndefined();
+    });
   });
 
   it('should respect maxConcurrency limit', async () => {

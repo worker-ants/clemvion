@@ -188,8 +188,8 @@ export class IntegrationExpiryScannerService
    * 사실상 무한 활성 상태를 유지한다.
    *
    * **대상 선정:** `status='connected'` AND `service_type='cafe24'` AND
-   * `lastRotatedAt < now - REFRESH_PROACTIVE_THRESHOLD_DAYS` (기본 10일).
-   * 14일 마감 전 4일의 안전 마진 확보.
+   * `lastRotatedAt < now - REFRESH_PROACTIVE_THRESHOLD_DAYS` (7일).
+   * 14일 마감 전 7일(50%) 의 안전 마진 확보 (6h cron 과 짝 — onModuleInit 주석 참조).
    *
    * **실행 방식:** 각 통합에 대해 `cafe24-token-refresh` 큐로 enqueue 만 하고
    * 본 잡 자체는 즉시 종료. 실제 refresh 는 `Cafe24TokenRefreshProcessor`
@@ -361,21 +361,15 @@ export class IntegrationExpiryScannerService
       const threshold = classifyThreshold(remainMs);
       if (!threshold) continue;
 
-      const claimed = await this.claimThreshold(
-        integration.id,
-        threshold,
-        integration.tokenExpiresAt,
-      );
-      if (!claimed) continue;
-
-      if (threshold === '0d' && integration.status !== 'expired') {
-        // spec/data-flow/5-integration.md §1.4 / spec/2-navigation/4-integration.md §11.1
-        // (2026-05-18 갱신): refresh_token 보유 provider 는 `expired` 격하 대신
-        // 큐 enqueue 로 refresh 시도. 실패 시 worker (Cafe24TokenRefreshProcessor)
-        // 가 `error(auth_failed)` 또는 `error(network)` 로 전이. 현재 큐 인프라가
-        // cafe24 전용이라 cafe24 한정으로 분기하며, 그 외 (mcp / refresh_token
-        // 없는 provider) 는 종전대로 expired 격하.
-        if (isCafe24RefreshCapable(integration)) {
+      // spec/2-navigation/4-integration.md §11.2 / data-flow/5-integration.md §1.4:
+      // refresh-capable provider (cafe24·makeshop + refresh_token) 는 `expired`
+      // 격하·passive `integration_expired` 알림 대상에서 제외된다 — access_token
+      // 만료는 자동 갱신으로 흡수되므로 '재인증하세요' passive notice 는 노이즈다.
+      // refresh 실패 시 worker / in-call 경로가 error(auth_failed) 전이 + active 알림.
+      if (isRefreshCapable(integration)) {
+        if (threshold === '0d' && integration.serviceType === 'cafe24') {
+          // cafe24 만 safety-net 으로 background refresh 큐 enqueue. makeshop 은
+          // 배경 큐 없이 in-call proactive / reactive_401 자가 회복에 위임.
           try {
             await this.cafe24RefreshQueue.add(
               CAFE24_REFRESH_JOB,
@@ -391,18 +385,35 @@ export class IntegrationExpiryScannerService
             );
           } catch (err) {
             // enqueue 실패는 다음 일일 패스에서 재시도되므로 본 패스 전체를
-            // 죽이지 않는다. 알림은 그대로 발사하여 사용자에게 가시성 유지.
+            // 죽이지 않는다 (jobId dedup 이라 재발행 안전).
             this.logger.warn(
               `connected-expiry 0d cafe24 refresh enqueue failed for ${integration.id}: ${
                 err instanceof Error ? err.message : String(err)
               }`,
             );
           }
-        } else {
-          integration.status = 'expired';
-          integration.statusReason = null;
-          integrationsToUpdate.push(integration);
         }
+        // §11.2 의도적 설계: refresh-capable provider 는 dedup claim(integration_expiry_dispatch)
+        // 을 생성하지 않으며 passive 'integration_expired' 알림도 발사하지 않는다.
+        // access_token 만료는 자동 갱신(cafe24: background 큐, makeshop: in-call)으로
+        // 흡수되므로 '재인증하세요' notice 는 노이즈다. 향후 passive 알림을 재활성화
+        // 하려면 이 continue 를 제거하고 claim → notify 경로로 진입시킬 것 — 단,
+        // 반드시 spec/2-navigation/4-integration.md §11.2 와 함께 검토해야 한다.
+        continue;
+      }
+
+      // refresh_token 없는 provider: 임계별 claim (dedup) → 격하(0d) → passive 알림.
+      const claimed = await this.claimThreshold(
+        integration.id,
+        threshold,
+        integration.tokenExpiresAt,
+      );
+      if (!claimed) continue;
+
+      if (threshold === '0d' && integration.status !== 'expired') {
+        integration.status = 'expired';
+        integration.statusReason = 'token_expired';
+        integrationsToUpdate.push(integration);
       }
 
       const recipients = recipientsByIntegration.get(integration.id) ?? [];
@@ -504,16 +515,26 @@ function messageFor(
 }
 
 /**
- * `connected-expiry` scanner 의 0d 분기에서 `expired` 격하 대신 큐 enqueue
- * 로 refresh 시도가 가능한 통합인지 판별.
+ * `connected-expiry` scanner 에서 **refresh-capable provider** 인지 판별.
+ * refresh_token 을 보유한 cafe24·makeshop 통합 — access_token 만 만료된 상태에서
+ * `expired` 로 격하하지 않고, passive `integration_expired` 알림 대상에서도 제외한다
+ * (spec/2-navigation/4-integration.md §11.2 — passive 알림은 refresh_token 없는
+ * provider 한정).
  *
- * spec/2-navigation/4-integration.md §11.1 (2026-05-18 갱신) — 현재
- * `cafe24-token-refresh` 큐 인프라가 cafe24 전용이라 cafe24 + refresh_token
- * 보유 행만 대상. 향후 다른 first-party Integration (Shopify, Naver
- * Smartstore 등) 이 같은 패턴을 사용하면 service_type 별로 분기 확장.
+ * - cafe24: 0d 시 `cafe24-token-refresh` 큐로 갱신 (safety-net). 실패 시 worker 가
+ *   `error(auth_failed)` 로 전이 + active 알림.
+ * - makeshop: 배경 큐 없이 in-call proactive (`ensureFreshToken`) + reactive_401
+ *   자가 회복에 위임 (refresh_token TTL 30~90일).
+ *
+ * 향후 다른 first-party Integration (Shopify 등) 이 같은 패턴을 쓰면 여기에 추가.
  */
-function isCafe24RefreshCapable(integration: Integration): boolean {
-  if (integration.serviceType !== 'cafe24') return false;
+function isRefreshCapable(integration: Integration): boolean {
+  if (
+    integration.serviceType !== 'cafe24' &&
+    integration.serviceType !== 'makeshop'
+  ) {
+    return false;
+  }
   const creds = integration.credentials as
     | Record<string, unknown>
     | null

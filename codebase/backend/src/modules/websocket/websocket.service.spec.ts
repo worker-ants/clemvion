@@ -370,7 +370,7 @@ describe('WebsocketService', () => {
       const fanout = await eventP;
       const payload = fanout.payload;
       expect(payload.triggerId).toBe('trg-A');
-      // workflowId 도 첨부 — ChatChannelDispatcher.toEiaEvent 가 EiaEvent.base
+      // workflowId 도 첨부 — ChatChannelDispatcher.toChatChannelEvent 가 EiaEvent.base
       // 의 필수 필드로 요구. 누락 시 silent skip 회귀 (PR #318 fix).
       expect(payload.workflowId).toBe('wf-A');
       expect(payload.chatChannel).toEqual({

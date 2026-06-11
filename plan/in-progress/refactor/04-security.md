@@ -362,7 +362,7 @@ enforcement 비대칭.
 
 ### m-4 [Minor] database-query 노드 Pool 캐시 — credential rotation 전파 지연 ✅
 
-- [ ] 진행 확정 — ✅ 2026-06-10 사용자 승인 (pub/sub 전파) — `database-query.handler.ts:345-376`
+- [x] ✅ 완료 (2026-06-11) — `IntegrationCacheBus`(Redis pub/sub `integration:cache:invalidate`) 신설, rotate/remove → 전 인스턴스 풀 evict. fail-safe(credsHash evict degrade). spec(`2-database-query §4`+Rationale+채널 registry) 반영. plan: `plan/complete/db-pool-creds-pubsub.md`. — `database-query.handler.ts`, `common/redis/integration-cache-bus.service.ts`
 
 ✅ 승인(2026-06-10) — 권고안(근본: pub/sub 전파)대로 진행 확정.
 

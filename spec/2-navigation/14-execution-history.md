@@ -54,7 +54,7 @@ code:
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
 | EH-LIST-01 | 해당 워크플로우의 전체 실행 이력을 테이블 형태로 표시 | 필수 | ✅ |
-| EH-LIST-02 | 각 행에 상태, 시작 시간, 소요 시간, 트리거 유형 표시 | 필수 | ✅ |
+| EH-LIST-02 | 각 행에 상태, 시작 시간, 소요 시간, 트리거 출처(`triggerSource` 5종 — §2.4 Trigger 열) 표시 | 필수 | ✅ |
 | EH-LIST-03 | 상태별 필터링 (All, Completed, Failed, Running, Cancelled, Waiting for Input) | 필수 | ✅ |
 | EH-LIST-04 | 정렬 지원 (시작 시간, 소요 시간, 상태) | 필수 | ✅ |
 | EH-LIST-05 | 페이지네이션 (페이지당 20건) | 필수 | ✅ |
@@ -450,7 +450,10 @@ i18n 키와 에러 매핑은 [Spec Re-run §10.4 i18n 키](../5-system/13-replay
       "executionPath": [],
       "reRunOf": null,
       "chainId": null,
-      "dryRun": false
+      "dryRun": false,
+      "totalNodeCount": 5,
+      "completedNodeCount": 5,
+      "failedNodeCount": 0
     }
   ],
   "pagination": {
@@ -505,3 +508,27 @@ codebase/frontend/src/app/(main)/workflows/[id]/executions/
 └── [executionId]/
     └── page.tsx                # 실행 상세 페이지
 ```
+
+---
+
+## Rationale
+
+### R-1. 목록 API 에서 `nodeExecutions` 를 제외하고 배치 집계 3카운트만 응답하는 이유
+
+목록 페이지의 Nodes 열(§2.4)은 `완료 수/전체 수 (N failed)` 만 필요한데, 이를 위해 목록 응답에 노드 실행 본문을 포함하면 페이지당 20행 × 행당 수십 노드의 I/O 데이터가 실려 페이로드가 폭증하고, 행마다 노드 실행을 조회하면 N+1 쿼리가 된다. 그래서 `ExecutionDto` 는 배치 집계 컬럼 `totalNodeCount`/`completedNodeCount`/`failedNodeCount` 만 응답하고(`executions.service.ts` 의 단일 배치 `nodeCountMap` 조회), 노드 실행 본문은 상세 API(`GET /api/executions/:id`)에서만 내려준다. 목록의 표시 요구와 상세의 진단 요구를 endpoint 레벨에서 분리한 것. 같은 이유로 `executionPath` 도 **목록 응답에서는 항상 빈 배열** — 행마다 `execution_node_log` 를 조회하면 동일한 N+1 이라, 단건 조회(`findById`)만 별도 경로로 채운다 (§5 샘플의 `"executionPath": []` 는 이 고정 동작).
+
+### R-2. Trigger 출처를 5종 enum 으로 정규화하고 판정 우선순위를 명시한 이유
+
+실행 한 건에는 출처 신호가 동시에 여러 개 존재할 수 있다 — 예: 스케줄 트리거로 시작된 부모 워크플로가 서브 워크플로를 호출하면 자식 실행은 `parent_execution_id` 와 (전파된) 컨텍스트를 함께 가진다. 클라이언트마다 다른 순서로 해석하면 같은 실행이 화면마다 다른 출처로 표시되므로, §2.4 의 표 순서(`subworkflow` → `manual` → `schedule` → `webhook` → `unknown`)를 백엔드 정규화 규칙으로 고정하고 결과만 `triggerSource`/`triggerLabel` 로 노출한다. `subworkflow` 를 최우선으로 둔 것은 "직접 원인"(부모 실행)이 "근원"(스케줄 등)보다 이 화면의 진단 단위에 맞기 때문이고, `unknown` 은 분류 컬럼 도입 전 구 데이터의 fallback 이다.
+
+응답 DTO 의 `triggerSource`(5종)는 엔진 내부 마커 `__triggerSource`(3종 — [Spec 트리거 공통](../4-nodes/7-trigger/0-common.md)·[data-flow triggers](../data-flow/10-triggers.md))와 **별개의 식별자**다 — 내부 마커는 트리거 노드 입력 페이로드의 출처 표시이고, 본 DTO 필드는 `parent_execution_id` 판정까지 포함한 화면용 5종 정규화 결과라 값 집합·레이어가 다르다.
+
+### R-3. LLM 탭을 단일 `LLM Information` 탭에서 최상위 평탄화로 바꾼 이유
+
+이전 구조(단일 `LLM Information` 탭 → 하위 `Response`/`Request`/`Usage`)는 멀티턴 타임라인에서 assistant 메시지를 고른 뒤 원문 요청을 보려면 탭 두 번 진입이 필요했다. 메시지 레벨 검사(특정 턴의 request/response 페이로드 확인)는 실패 진단에서 가장 빈번한 동선이라, §3.4.2 처럼 `Response`/`Request`/`LLM Usage` 를 최상위 탭으로 평탄화해 클릭 수를 줄였다. 노드 레벨(메시지 미선택)에서는 집계 성격의 `LLM Usage` 하나만 의미가 있어 그것만 노출한다.
+
+### R-4. Skipped 노드를 상세 목록에서 제외하는 이유 (EH-DETAIL-05)
+
+분기(If/Switch)로 실행되지 않은 노드는 I/O·에러·소요 시간이 전부 없어 진단 가치가 없고, 큰 워크플로에서는 목록의 대부분을 차지해 실패 노드 탐색을 방해한다. "이 실행에서 실제로 무슨 일이 있었나"를 보는 화면이므로 실행된 노드만 남긴다. 어떤 노드가 왜 skip 됐는지는 에디터의 실행 결과 뷰(분기 시각화) 소관.
+
+> Re-run 버튼·chain 추적(§3.7)의 설계 결정은 [Spec Re-run/Replay `## Rationale`](../5-system/13-replay-rerun.md#rationale) 이 SoT — 본 문서는 화면 배치만 정의한다.

@@ -148,6 +148,7 @@ export class UpdateKnowledgeBaseDto {
   expandedChunkLimit?: number;
 
   // ──────── 검색 후처리(리랭킹) — Spec RAG 검색 §3.3. 검색 시점 적용이라 사후 변경 가능 ────────
+  /** 변경할 리랭킹 모드 */
   @ApiPropertyOptional({
     description: '리랭킹 모드 (off / cross_encoder / cross_encoder_llm).',
     enum: ['off', 'cross_encoder', 'cross_encoder_llm'],
@@ -157,6 +158,7 @@ export class UpdateKnowledgeBaseDto {
   @IsIn(['off', 'cross_encoder', 'cross_encoder_llm'])
   rerankMode?: 'off' | 'cross_encoder' | 'cross_encoder_llm';
 
+  /** 변경할 RerankConfig */
   @ApiPropertyOptional({
     description: '사용할 RerankConfig (미지정 시 워크스페이스 default).',
     format: 'uuid',
@@ -165,6 +167,7 @@ export class UpdateKnowledgeBaseDto {
   @IsUUID()
   rerankConfigId?: string;
 
+  /** 변경할 리랭크 후보 수(wide pool) */
   @ApiPropertyOptional({
     description: '리랭크에 투입할 1차 회수 후보 수 (1~200).',
     minimum: 1,
@@ -176,6 +179,7 @@ export class UpdateKnowledgeBaseDto {
   @Max(200)
   rerankCandidateK?: number;
 
+  /** 변경할 리랭크 점수 동적 컷 임계 */
   @ApiPropertyOptional({
     description: '리랭크 점수 동적 컷 임계 (미지정 시 컷 없음).',
   })
@@ -183,9 +187,10 @@ export class UpdateKnowledgeBaseDto {
   @IsNumber()
   rerankScoreThreshold?: number;
 
+  /** 변경할 cross_encoder_llm grading LLMConfig */
   @ApiPropertyOptional({
     description:
-      'cross_encoder_llm grading LLMConfig (후속 구현). 미지정 시 ws default chat.',
+      'cross_encoder_llm 모드의 조건부 listwise grading LLMConfig. 미지정 시 워크스페이스 default chat.',
     format: 'uuid',
   })
   @IsOptional()

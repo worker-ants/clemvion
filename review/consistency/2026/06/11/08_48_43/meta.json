@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-11T08:48:43.325783",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=V-16/V-17 + ai-review fix(topK @IsInt, Update DTO JSDoc, Swagger §3.4 제거, ws→워크스페이스). 모두 spec 정합 방향 코드측 문서/검증 정정. spec 변경 불요., diff-base=origin/main)",
+  "target_path": "V-16/V-17 + ai-review fix(topK @IsInt, Update DTO JSDoc, Swagger §3.4 제거, ws→워크스페이스). 모두 spec 정합 방향 코드측 문서/검증 정정. spec 변경 불요.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

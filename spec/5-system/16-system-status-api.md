@@ -87,11 +87,11 @@ QueueStatusDto {
 
 1. `isPaused === true` → **down**
 2. `waiting > 0 && active === 0` → **down** (워커 미가동 추정 — 단일 스냅샷 휴리스틱이라 idle 한 concurrency=1 큐에서 일시 오탐 가능. UI 는 "점검 필요(추정)" 뉘앙스로 표기하고 단정하지 않는다. Rationale R-3)
-3. `recentFailed >= FAILED_DEGRADED_THRESHOLD` 또는 `delayed >= DELAYED_DEGRADED_THRESHOLD` → **degraded**
+3. `recentFailed >= getFailedDegradedThreshold()` 또는 `delayed >= getDelayedDegradedThreshold()` → **degraded**
 4. 그 외 → **healthy**
 
 - 규칙 1·2 는 변경 없다. 규칙 2 의 워커 미가동 판정(R-3)은 `recentFailed` 와 **독립 동작**한다.
-- 코드상수 ↔ env 매핑: `FAILED_DEGRADED_THRESHOLD` ← `SYSTEM_STATUS_FAILED_THRESHOLD`(기본 1), `DELAYED_DEGRADED_THRESHOLD` ← `SYSTEM_STATUS_DELAYED_THRESHOLD`(기본 50). 기본값은 운영 경험으로 재조정 가능.
+- getter ↔ env 매핑: `getFailedDegradedThreshold()` ← `SYSTEM_STATUS_FAILED_THRESHOLD`(기본 1), `getDelayedDegradedThreshold()` ← `SYSTEM_STATUS_DELAYED_THRESHOLD`(기본 50). 기본값은 운영 경험으로 재조정 가능. (모듈 로드 순서·테스트 격리 영향을 받지 않도록 모듈 스코프 상수 대신 getter 로 평가 — 2026-06-10 dead code 제거에서 deprecated 상수 export `FAILED_DEGRADED_THRESHOLD`/`DELAYED_DEGRADED_THRESHOLD` 폐기. 의미·env 키 불변.)
 - 본 API 의 관련 env 일람: `SYSTEM_STATUS_FAILED_THRESHOLD`(기본 1), `SYSTEM_STATUS_DELAYED_THRESHOLD`(기본 50), `SYSTEM_STATUS_FAILED_WINDOW_MINUTES`(기본 60, `recentFailed` 윈도우), `SYSTEM_STATUS_FAILED_SCAN_CAP`(기본 1000, 큐당 getFailed 스캔 상한). 모두 음수·0 입력 시 안전값으로 폴백(§2).
 - **의미 변경 주의**: `SYSTEM_STATUS_FAILED_THRESHOLD` 의 비교 대상이 기존 "보관 중 누적 `failed`" 에서 **"최근 윈도우 `recentFailed`"** 로 바뀐다. 기존 설정값을 유지해 배포하면 degraded 판정 동작이 달라질 수 있으므로 운영자는 설정값을 재검토한다 (R-5).
 - `overall` 은 큐 health 의 최악값 (down > degraded > healthy).
@@ -114,6 +114,8 @@ BullMQ 큐는 워크스페이스 경계 없는 전역 인프라이고 job payloa
 
 ### R-4. health 어휘를 `healthy/degraded/down` 으로 둔 이유
 기존 `/health` 엔드포인트는 binary `healthy | unhealthy` 다 ([`health.service.ts`](../../codebase/backend/src/modules/health/health.service.ts)). 큐 상태는 "적체는 있으나 처리 중(degraded)" 과 "처리 자체가 멈춤(down)" 을 구분할 가치가 있어 `unhealthy` 를 심각도 2단계로 분리했다. 정상 상태는 기존 어휘 `healthy` 를 그대로 유지해 일관성을 지켰다.
+
+> 여기서 "binary" 는 `/api/health` 응답 **body 의 `status` 어휘** 기준이다(여전히 `healthy|unhealthy`). 별개로 `/api/health` 의 **HTTP status code** 는 200(healthy)/503(unhealthy)으로 readiness 신호를 추가 전달하며, liveness 는 별도 엔드포인트 `/api/health/live` 로 분리됐다 — probe 역할·status code 분리의 SoT 는 [`data-flow/9-observability.md §1.1`](../data-flow/9-observability.md#11-health-check).
 
 ### R-5. 왜 실패 지표를 "최근 윈도우 + 누적(보관 중)" 으로 분화하는가
 - **문제**: 스냅샷 지표(waiting/active/delayed/paused/utilization)는 이미 "현재 상태"지만 `failed` 만 보관 정책에 따라 누적되어 "전 기간 누적"처럼 읽혔다. "지금 정상인가" 라는 본 API 의 목적과 어긋났다.

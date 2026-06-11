@@ -49,6 +49,11 @@ data:
   # OpenTelemetry (옵셔널)
   OTEL_ENABLED: "false"
   OTEL_SERVICE_NAME: "clemvion-backend"
+
+  # Health probe 로그 게이팅.
+  # false(기본): 프로브 성공 로그 억제 (노이즈 감소).
+  # true 로 설정하면 /api/health, /api/health/live 성공 요청도 로그에 남김.
+  HEALTH_CHECK_LOG: "false"
 ---
 apiVersion: v1
 kind: ConfigMap

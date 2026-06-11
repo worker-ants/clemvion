@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "started_at": "2026-06-10T22:30:00Z",
+  "summary_items_total": 5,
+  "items_resolved_ids": ["W-2", "W-3", "testing-W-2", "testing-W-3", "W-1-backlog"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {
+      "sha": "4977d961",
+      "summary_ids": ["W-2", "W-3", "testing-W-2", "testing-W-3", "W-1-backlog", "INFO-3", "INFO-6", "INFO-11", "INFO-12"],
+      "scope": "security+test"
+    }
+  ],
+  "spec_drafts_pending": [
+    "plan/in-progress/spec-update-external-interaction-c3-drift.md"
+  ],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260610-222638.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec — SPEC-DRIFT 2건 (15-external-interaction.md §3.3 + §Rationale) draft 작성 완료",
+  "last_reset_hint_sec": null
+}

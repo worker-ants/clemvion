@@ -68,7 +68,7 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
   { name: "Danger zone", type: "탭", required: "Admin", description: "삭제 · Personal ↔ Organization 범위 전환. 사용처가 있으면 삭제는 차단돼요." }
 ]} />
 
-<Callout type="tip">연동이 `expired` 또는 `error` 상태로 바뀌면 사이드바에 주의 필요 배지가 뜨고, 목록 상단에 `Need attention` 배너가 나타나요. 배너를 누르면 해당 상태 필터로 바로 이동해요.</Callout>
+<Callout type="tip">연동이 `expired` 또는 `error` 상태로 바뀌면 사이드바에 주의 필요 배지가 뜨고, 목록 상단에 `Need attention` 배너가 나타나요. 배너를 누르면 해당 상태 필터로 바로 이동해요. **단, refresh_token 자동 갱신을 지원하는 통합(Cafe24·MakeShop 등)은 access_token 이 만료되어도 passive `integration_expired` 알림이 발송되지 않아요** — 시스템이 백그라운드에서 자동 갱신하기 때문이에요. 자동 갱신 실패 시에만 `integration_action_required` active 알림이 발송돼요.</Callout>
 
 ## 노드에서 연동 선택하기
 

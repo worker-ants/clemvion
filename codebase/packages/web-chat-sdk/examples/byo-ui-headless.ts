@@ -27,21 +27,31 @@ export interface HeadlessChat {
 /**
  * 개발자 자체 UI 용 headless 웹챗 세션 — start → SSE 구독 → submit.
  * 렌더링은 호출자(onAssistantMessage)가 담당한다(BYO-UI).
+ *
+ * 첫 사용자 텍스트는 webhook 에 싣지 않는다 — 세션을 연 뒤 `send(firstText)` 로
+ * 보낸다(아래 §R6 주석 참조).
  */
 export async function startHeadlessChat(
   apiBase: string,
   endpointPath: string,
-  firstMessage: string,
   handlers: {
     onAssistantMessage: (text: string) => void;
     onEnded?: (reason: string) => void;
     onError?: (err: Error) => void;
   },
+  profile?: Record<string, unknown>,
 ): Promise<HeadlessChat> {
   const client = new ClemvionClient({ baseUrl: apiBase });
 
   // 1) 대화 시작(공개 webhook, auth 없음) → per_execution 토큰 발급.
-  const result = await client.triggerWebhook(endpointPath, { firstMessage });
+  //    webhook payload 는 `profile` 만 싣는다 — `firstMessage` 메커니즘은 폐기됐다
+  //    (spec 1-widget-app §R6): AI Agent multi_turn 은 webhook 입력을 첫 턴으로
+  //    소비하지 않아 webhook 에 실린 첫 메시지는 어느 노드에도 닿지 못하고 증발한다.
+  //    첫 사용자 텍스트도 아래 `send()` 의 일반 `submit_message` 로 전송한다.
+  const result = await client.triggerWebhook(
+    endpointPath,
+    profile ? { profile } : {},
+  );
   const token = result.interaction?.token;
   if (!token) {
     throw new Error("이 트리거는 interactive 세션을 시작하지 않습니다(토큰 미발급).");

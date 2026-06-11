@@ -123,6 +123,11 @@ export const knowledgeBases: Dict["knowledgeBases"] = {
   vectorBadge: "VECTOR",
   reembeddingRequired: "Re-embedding required · not searchable",
   reembeddingInProgress: "Re-embedding…",
+  reembedNow: "Re-embed now",
+  unsearchableBannerIdleDesc:
+    "This knowledge base is excluded from search because re-embedding has not run since the embedding model changed. Re-embed to restore search.",
+  unsearchableBannerInProgressDesc:
+    "Re-embedding is in progress. Search will be restored automatically once it completes.",
   graphBuildStatus: "Graph build status",
   graphExtractedDocs: "{{count}} document(s) extracted",
   graphFailedDocs: "{{count}} failed",

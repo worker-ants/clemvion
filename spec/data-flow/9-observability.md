@@ -10,7 +10,7 @@
 
 운영 모니터링과 사용자 향 통계를 한곳에서 다룬다:
 
-- **Health check** — 인프라 의존성 상태 확인 (`/api/health`)
+- **Health check** — 인프라 의존성 상태 확인. **readiness probe** 는 `/api/health`(의존성 점검, 정상 200 / 비정상 503), **liveness probe** 는 `/api/health/live`(프로세스 생존만, 항상 200) 로 분리한다 (§1.1)
 - **Dashboard** — 워크스페이스 진입 화면의 KPI (워크플로우 수·활성 워크플로우 수·최근 7일 실행 수와 전주 대비 변화율·성공률·평균 실행 시간 — `DashboardSummary`, `dashboard.service.ts`). LLM 비용은 Dashboard summary 가 아닌 Statistics 영역
 - **Statistics** — 기간·워크플로우 필터 기반 집계 API surface: `summary` / `executions`(일자별 추이) / `errors`(워크플로우별 오류) / `top-workflows` / `node-stats` / `llm-usage/summary`·`llm-usage/timeseries` / `export`(JSON·CSV) (`statistics.controller.ts`). 화면 spec 은 [통계 화면](../2-navigation/7-statistics.md)
 - **Alerts evaluator** — `alert_rule` 기반 임계치 알람을 cron 으로 평가
@@ -34,20 +34,43 @@
 
 ```mermaid
 sequenceDiagram
-  participant K as 외부 (k8s liveness / 사용자)
+  participant RP as k8s readiness probe / 사용자
+  participant LP as k8s liveness probe
   participant H as HealthController
   participant PG as Postgres
   participant R as Redis
-  K->>H: GET /api/health
+  RP->>H: GET /api/health
   H->>PG: SELECT 1
   H->>R: PING
-  H-->>K: { status, version, uptime, checks: { database, redis } }
+  H-->>RP: 200 (healthy) | 503 (unhealthy) + { status, version, uptime, checks: { database, redis } }
+  LP->>H: GET /api/health/live
+  H-->>LP: 200 { status: "ok" }  (의존성 미점검)
 ```
 
-DB 적재 없음 — 매 호출이 stateless. 현재 구현(`health.service.ts:53-88`)은 `database`(SELECT 1)·
+DB 적재 없음 — 매 호출이 stateless.
+
+**`/api/health` (readiness probe 용)** — 현재 구현(`health.service.ts:53-88`)은 `database`(SELECT 1)·
 `redis`(ping) 두 의존만 점검한다. 응답 객체는 `{ status, version, uptime, checks }` 이고
 `checks` 키는 `database` / `redis` 다. Redis config 누락 시 `redis.status='unconfigured'` 로 degrade 하며
 이 경우 전체 `status` 는 `unhealthy`. **S3 ping 은 미구현 (Planned)** — 아래 Rationale 참고.
+
+- **HTTP status code**: 전체 `status === 'healthy'` → **200 OK**, 그 외(`unhealthy` / redis `unconfigured` 포함)
+  → **503 Service Unavailable**. readiness probe(httpGet)는 2xx 만 성공으로 보므로, 의존성 장애 시 503 →
+  Pod 가 Service endpoint 에서 제외되고 의존성 복구 시 200 으로 자동 재투입된다.
+- **503 응답 body 는 정상과 동일한 `{ status, version, uptime, checks }` 구조를 유지한다** — status code 만
+  추가 신호를 줄 뿐, `GlobalExceptionFilter` 의 `{ error: { code, message, requestId } }` shape 로 변형되지
+  않는다 (구현은 throw 가 아니라 응답 status 설정으로 body 보존). body 의 `status` 어휘는 binary(`healthy|unhealthy`) 유지.
+
+**`/api/health/live` (liveness probe 용)** — 의존성(DB/Redis)을 점검하지 않고 프로세스 생존만 확인해
+**항상 200** (`{ status: 'ok' }`) 을 반환한다. liveness 가 외부 의존성을 검사하면 안 되는 이유는 Rationale 참고.
+
+**로그 게이팅 (`HEALTH_CHECK_LOG`)** — probe 는 고빈도(readiness 10s·liveness 30s)로 호출돼 성공 로그가
+대량 발생한다. `LoggingInterceptor` 는 health probe 경로(`/api/health`, `/api/health/live`)에 한해:
+- 성공(HTTP < 400): 환경변수 `HEALTH_CHECK_LOG === true` 일 때만 로그(INFO).
+- 실패(HTTP ≥ 400, readiness 503): **항상** 로그(WARN).
+- 그 외 모든 경로: 기존 동작(항상 INFO) 유지.
+
+`HEALTH_CHECK_LOG` 기본값은 `false` — 기본은 실패만 노출(노이즈 제거), 설정 시 성공·실패 모두 표시한다.
 
 ### 1.2 Dashboard / Statistics
 
@@ -176,11 +199,33 @@ flowchart LR
 
 ## Rationale
 
+### liveness / readiness probe 분리 (기존 "/api/health = liveness" 결정 번복)
+
+**구 결정 (폐기)**: 초기에는 `/api/health` 하나를 liveness probe 용으로 쓰고, k8s manifest 의
+readinessProbe·livenessProbe 가 모두 이 경로를 찔렀다 (`3-error-handling.md §7.2` 의 구 Note 가 이를
+"liveness probe 용 binary 판정" 으로 기술했다).
+
+**문제**: `/api/health` 는 의존성 장애 시에도 HTTP 200 을 반환(body `status` 로만 unhealthy 표기)해
+**readiness probe 가 무력화**됐고(Pod 가 Service 에서 빠지지 않음), 동시에 동일 경로가 liveness 에도
+쓰여 — 만약 의존성 장애 시 503 을 반환하도록 바꾸면 — DB 장애 한 번에 **전 replica 의 liveness 가
+동시 실패→kubelet 이 전 Pod 동시 재시작(크래시루프)** 하는 위험이 있었다.
+
+**신 결정**:
+- `/api/health` = **readiness probe 전용**. 의존성 점검 결과를 HTTP status code 로 신호한다(healthy 200 /
+  unhealthy·unconfigured 503). 503 은 "이 Pod 는 지금 트래픽을 받을 준비가 안 됨" 을 의미하며 의존성 복구
+  시 자동 200 복귀.
+- `/api/health/live` = **liveness probe 전용**. 의존성을 점검하지 않고 프로세스 생존만 본다(항상 200).
+  liveness 는 "프로세스가 살아 응답하는가" 만 답해야 한다 — 외부 의존성(DB/Redis)을 검사하면 외부 장애가
+  Pod 재시작으로 번져 상황을 악화시키므로(재시작이 외부 DB 를 복구하지 못함) 이를 구조적으로 배제한다.
+- body shape 은 throw 가 아닌 응답 status 설정으로 보존(§1.1). body 의 `status` 어휘는 binary 유지.
+- scope = backend 만. frontend health 는 외부 의존성을 점검하지 않으므로 분리 불필요.
+
 ### Health check 의 S3 ping 은 미구현 (Planned)
 
-S3 ping 은 외부 네트워크 의존이 강해 health check 가 느려질 수 있다. liveness probe 는 빠르게 끝나야
-하므로 S3 는 readiness 단계 또는 별도 endpoint 로 분리하는 것을 권장한다. **현재 구현(`health.service.ts`)은
-`database`·`redis` 만 점검하고 S3 점검은 포함하지 않는다 (미구현).**
+S3 ping 은 외부 네트워크 의존이 강해 health check 가 느려질 수 있다. 위 분리에 따라 S3 점검을 추가한다면
+**readiness probe(`/api/health`)** 단계가 적합하다(liveness `/api/health/live` 는 의존성을 점검하지 않는다).
+추가 시 짧은 timeout 을 권장한다. **현재 구현(`health.service.ts`)은 여전히 `database`·`redis` 만 점검하고
+S3 점검은 포함하지 않는다 — S3 ping 은 미구현(Planned) 상태 그대로다.**
 
 ### `window_iso` 를 ISO 8601 duration 으로 둔 이유
 

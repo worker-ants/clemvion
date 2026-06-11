@@ -17,6 +17,7 @@ import { Node } from '../nodes/entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { IntegrationCacheBus } from '../../common/redis/integration-cache-bus.service';
 import {
   IntegrationOAuthService,
   type BeginResult,
@@ -57,6 +58,7 @@ import {
   ServerInfo,
 } from '../mcp/mcp-client.service';
 import { listAllCafe24Operations } from '../../nodes/integration/cafe24/metadata';
+import { listAllMakeshopOperations } from '../../nodes/integration/makeshop/metadata';
 import { OperationCatalogDto } from './dto/responses/integration-response.dto';
 import {
   STORE_IDENTIFIER_UNIQUE_CONSTRAINT,
@@ -135,6 +137,32 @@ function clampApiField(
   if (raw.length <= max) return raw;
   if (max <= 1) return raw.slice(0, max);
   return raw.slice(0, max - 1) + '…';
+}
+
+/**
+ * provider operation 메타데이터 리스트를 `OperationCatalogDto` 로 투영한다.
+ * cafe24·makeshop 의 catalog key 조립이 동일해 (`<provider>.<resource>.<id>`)
+ * 단일 헬퍼로 묶는다 — `key`/`labelKey` 동일성과 `descriptionKey` suffix
+ * 규칙을 한곳에서 보장. 새 provider 추가 시 분기 한 줄만 늘리면 된다.
+ */
+function buildOperationCatalog(
+  provider: 'cafe24' | 'makeshop',
+  ops: ReadonlyArray<{
+    resource: string;
+    operation: { id: string; method: string; path: string };
+  }>,
+): OperationCatalogDto {
+  const operations = ops.map(({ resource, operation }) => {
+    const key = `${provider}.${resource}.${operation.id}`;
+    return {
+      key,
+      method: operation.method,
+      path: operation.path,
+      labelKey: key,
+      descriptionKey: `${key}.description`,
+    };
+  });
+  return { operations };
 }
 
 export const API_LABEL_MAX = 128;
@@ -381,11 +409,28 @@ export class IntegrationsService {
     private readonly oauthService: IntegrationOAuthService,
     private readonly auditLogsService: AuditLogsService,
     private readonly mcpTestConnection: McpTestConnectionService,
+    private readonly integrationCacheBus: IntegrationCacheBus,
   ) {
     this.transportTesters = new Map<string, TransportTester>([
       ['mcp', this.testMcpTransport.bind(this)],
       ['email', this.testEmailTransport.bind(this)],
     ]);
+  }
+
+  /**
+   * refactor 04 m-4 — 자격증명이 바뀌거나 integration 이 삭제될 때, 전 인스턴스의
+   * 인스턴스-로컬 자격증명 캐시(예: database-query 연결 풀)를 Redis pub/sub 으로
+   * 즉시 evict 시킨다. fail-safe: bus 가 미가용이어도 각 핸들러의 credsHash 비교
+   * evict 가 다음 실행에서 stale 자원을 교체하므로 best-effort 다 (await 하되 throw 안 함).
+   *
+   * 적용 지점은 **동기 자격증명 변경**인 `rotate`(회전) 와 `remove`(삭제) 다. `update`
+   * 는 name 만 바꾸고, OAuth 토큰 갱신은 DB/email 같은 풀-캐시 소비자가 OAuth 자격증명을
+   * 쓰지 않아(구독자 부재) broadcast 대상이 아니다.
+   */
+  private async broadcastCredentialChange(
+    integrationId: string,
+  ): Promise<void> {
+    await this.integrationCacheBus.publish(integrationId);
   }
 
   /**
@@ -672,6 +717,9 @@ export class IntegrationsService {
         name: entity.name,
       },
     });
+    // 삭제된 integration 의 잔존 연결을 전 인스턴스에서 정리 (TypeORM remove 후
+    // entity.id 는 unset 될 수 있어 param `id` 를 쓴다).
+    await this.broadcastCredentialChange(id);
   }
 
   // ---------------------------------------------------------------
@@ -985,6 +1033,8 @@ export class IntegrationsService {
       resourceId: saved.id,
       details: { authType: saved.authType },
     });
+    // 회전된 자격증명의 stale 연결을 전 인스턴스에서 즉시 차단 (MTTR).
+    await this.broadcastCredentialChange(saved.id);
     return this.toPublic(saved);
   }
 
@@ -1153,26 +1203,21 @@ export class IntegrationsService {
    * `GET /api/integrations/services/:type/catalog` 의 백엔드 로직. 통합
    * 활동 로그의 `api_label` (catalog key) 을 frontend 가 사람 친화
    * 라벨로 변환할 때 참조하는 메타데이터. SoT: `spec/conventions/cafe24-api-metadata.md
-   * §7.5` + 통합 spec §9.3.
+   * §7.5` · `spec/conventions/makeshop-api-metadata.md §2` + 통합 spec §9.3.
    *
-   * 초기엔 cafe24 만 backend 메타데이터로 채워 반환한다. 그 외 미지원
-   * 서비스 타입 (http, database, email, mcp, google, github 등) 은 빈
-   * 배열 — 활동 로그의 `apiLabel` 이 NULL 이라 lookup 자체가 발생하지 않는다.
-   * 완전 미지원 type 도 빈 배열을 반환해 frontend 의 1회 fetch + caching
-   * 흐름이 분기 없이 일관 동작.
+   * `cafe24` · `makeshop` 은 backend 메타데이터에서 `operations[]` 를 채워
+   * 반환한다 (spec §9.3 초기 응답 정책). 그 외 미지원 서비스 타입
+   * (http, database, email, mcp, google, github 등) 은 빈 배열 — 활동
+   * 로그의 `apiLabel` 이 NULL 이라 lookup 자체가 발생하지 않는다. 완전
+   * 미지원 type 도 빈 배열을 반환해 frontend 의 1회 fetch + caching 흐름이
+   * 분기 없이 일관 동작.
    */
   getServiceCatalog(serviceType: string): OperationCatalogDto {
     if (serviceType === 'cafe24') {
-      const operations = listAllCafe24Operations().map(
-        ({ resource, operation }) => ({
-          key: `cafe24.${resource}.${operation.id}`,
-          method: operation.method,
-          path: operation.path,
-          labelKey: `cafe24.${resource}.${operation.id}`,
-          descriptionKey: `cafe24.${resource}.${operation.id}.description`,
-        }),
-      );
-      return { operations };
+      return buildOperationCatalog('cafe24', listAllCafe24Operations());
+    }
+    if (serviceType === 'makeshop') {
+      return buildOperationCatalog('makeshop', listAllMakeshopOperations());
     }
     return { operations: [] };
   }

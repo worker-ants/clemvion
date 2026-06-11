@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-11T09:27:19.491429",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=V-02 IE/TC auto-form 이행 + spec §2.6.3 트랙 배정 갱신(두 노드 auto-form 완료 이동) + R-3 Rationale + override-registry 회귀 테스트 + CHANGELOG. 이전 BLOCK:YES Critical(§2.6.3 stale) 해소 확인용 재실행., diff-base=origin/main)",
+  "target_path": "V-02 IE/TC auto-form 이행 + spec §2.6.3 트랙 배정 갱신(두 노드 auto-form 완료 이동) + R-3 Rationale + override-registry 회귀 테스트 + CHANGELOG. 이전 BLOCK:YES Critical(§2.6.3 stale) 해소 확인용 재실행.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

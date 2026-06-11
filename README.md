@@ -206,6 +206,9 @@ INTEGRATION_ENCRYPTION_KEY=<32-byte-hex>
 # 초과 시 Execution 이 EXECUTION_TIME_LIMIT_EXCEEDED 코드로 실패 처리됨.
 # 기본값 1800000 (30분). 0 이면 무제한. 상세: codebase/backend/.env.example
 EXECUTION_MAX_ACTIVE_RUNNING_MS=1800000
+
+# Health probe 로그 게이팅 (기본 false — 성공 로그 억제, 노이즈 감소)
+HEALTH_CHECK_LOG=false
 ```
 
 ### Google OAuth (SSO) 연동 — 선택
@@ -270,7 +273,7 @@ docker build -f codebase/backend/migrations/Dockerfile -t clemvion/migrate .
 
 ### 런타임 환경변수 (k8s ConfigMap/Secret)
 
-**Backend** — `DB_*`, `REDIS_*`, `JWT_*`, `S3_*`, `APP_PORT`(기본 3011), `APP_URL`, `FRONTEND_URL`, `ENCRYPTION_KEY`, `INTEGRATION_ENCRYPTION_KEY`. 자세한 항목은 `codebase/backend/.env`의 키를 참고. `OAUTH_STUB_MODE=true`는 `NODE_ENV=production`과 함께 쓰면 부트스트랩이 거부합니다 (보안 가드).
+**Backend** — `DB_*`, `REDIS_*`, `JWT_*`, `S3_*`, `APP_PORT`(기본 3011), `APP_URL`, `FRONTEND_URL`, `ENCRYPTION_KEY`, `INTEGRATION_ENCRYPTION_KEY`, `HEALTH_CHECK_LOG`(기본 `false` — 프로브 성공 로그 억제; `true` 로 설정하면 `/api/health`, `/api/health/live` 성공 요청도 로그에 남김). 자세한 항목은 `codebase/backend/.env`의 키를 참고. `OAUTH_STUB_MODE=true`는 `NODE_ENV=production`과 함께 쓰면 부트스트랩이 거부합니다 (보안 가드).
 
 **Frontend** — `INTERNAL_API_URL` (예: `http://backend.<ns>.svc:3011/api`) 을 Server Component fetch 경로로 권장. `PORT`/`HOSTNAME`은 Dockerfile 기본값 사용.
 

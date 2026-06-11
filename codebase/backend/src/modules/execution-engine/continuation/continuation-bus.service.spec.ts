@@ -228,12 +228,6 @@ describe('ContinuationBusService (Phase 2 BullMQ-based)', () => {
     });
   });
 
-  describe('on() — Phase 2 부터 no-op', () => {
-    it('on() 호출은 어떤 부수효과도 없이 즉시 return', () => {
-      expect(() => bus.on('continue', jest.fn())).not.toThrow();
-    });
-  });
-
   describe('분산 lock (acquireLock / releaseLock)', () => {
     it('acquireLock — NX 가 통과하면 true 반환', async () => {
       const acquired = await bus.acquireLock(RECOVERY_LOCK_KEY, 60);

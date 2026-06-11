@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditLog } from './entities/audit-log.entity';
@@ -7,6 +7,8 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 
 @Injectable()
 export class AuditLogsService {
+  private readonly logger = new Logger(AuditLogsService.name);
+
   constructor(
     @InjectRepository(AuditLog)
     private readonly auditLogRepository: Repository<AuditLog>,
@@ -23,6 +25,7 @@ export class AuditLogsService {
       order = 'desc',
       action,
       resourceType,
+      userId,
       startDate,
       endDate,
     } = query;
@@ -37,6 +40,10 @@ export class AuditLogsService {
     }
     if (resourceType) {
       qb.andWhere('al.resource_type = :resourceType', { resourceType });
+    }
+    if (userId) {
+      // [Spec Auth §4.2] 사용자(행위자) 필터
+      qb.andWhere('al.user_id = :userId', { userId });
     }
     if (startDate) {
       qb.andWhere('al.created_at >= :startDate', { startDate });
@@ -82,7 +89,7 @@ export class AuditLogsService {
       if (entry.ipAddress) log.ipAddress = entry.ipAddress;
       await this.auditLogRepository.save(log);
     } catch (err) {
-      console.warn(
+      this.logger.warn(
         `Failed to write audit log: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
