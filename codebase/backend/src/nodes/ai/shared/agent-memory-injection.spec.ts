@@ -22,7 +22,7 @@ import { estimateTokens as kbEstimateTokens } from '../../../modules/knowledge-b
 import type { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
 import type { ConversationTurn } from '../../../shared/conversation-thread/conversation-thread.types';
 import type { LlmService } from '../../../modules/llm/llm.service';
-import type { LlmConfig } from '../../../modules/llm-config/entities/llm-config.entity';
+import type { ModelConfig } from '../../../modules/model-config/entities/model-config.entity';
 
 function turn(seq: number, text: string): ConversationTurn {
   return {
@@ -36,7 +36,10 @@ function turn(seq: number, text: string): ConversationTurn {
   };
 }
 
-const llmConfig = { id: 'cfg', defaultModel: 'gpt-4o' } as unknown as LlmConfig;
+const llmConfig = {
+  id: 'cfg',
+  defaultModel: 'gpt-4o',
+} as unknown as ModelConfig;
 
 function makeLlmServiceMock(content = 'COMPRESSED SUMMARY') {
   const chat = jest.fn().mockResolvedValue({

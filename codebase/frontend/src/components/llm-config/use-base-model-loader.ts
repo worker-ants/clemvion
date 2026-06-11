@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { type ModelInfo } from "@/lib/api/llm-configs";
+import { type ModelInfo } from "@/lib/api/model-configs";
 import { sanitizeLoaderError } from "./sanitize-loader-error";
 
 export interface UseBaseModelLoaderArgs<TSnapshot> {

@@ -26,7 +26,7 @@ interface EmbeddingModelComboboxProps {
    * 보여주기 위함.
    */
   llmConfigId?: string;
-  /** 모델 조회 API (default llmConfigsApi). KB 임베딩 1급 전환 시 modelConfigsApi 주입. */
+  /** 모델 조회 API (default modelConfigsApi). */
   api?: ModelLoaderApi;
 }
 

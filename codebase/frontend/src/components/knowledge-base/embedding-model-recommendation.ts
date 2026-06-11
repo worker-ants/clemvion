@@ -1,4 +1,4 @@
-import type { ModelInfo } from "@/lib/api/llm-configs";
+import type { ModelInfo } from "@/lib/api/model-configs";
 
 // 한국어 임베딩 추천 모델 패턴.
 //

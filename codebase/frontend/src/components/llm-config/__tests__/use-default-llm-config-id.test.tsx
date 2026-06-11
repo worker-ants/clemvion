@@ -3,13 +3,14 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useDefaultLlmConfigId } from "../use-default-llm-config-id";
-import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
+import { modelConfigsApi, type ModelConfigData } from "@/lib/api/model-configs";
 
-vi.mock("@/lib/api/llm-configs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/llm-configs")>();
+vi.mock("@/lib/api/model-configs", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/api/model-configs")>();
   return {
     ...actual,
-    llmConfigsApi: { list: vi.fn() },
+    modelConfigsApi: { list: vi.fn() },
   };
 });
 
@@ -18,9 +19,10 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 }
 
-function config(over: Partial<LlmConfigData>): LlmConfigData {
+function config(over: Partial<ModelConfigData>): ModelConfigData {
   return {
     id: "id",
+    kind: "chat",
     provider: "openai",
     name: "Cfg",
     apiKey: "***",
@@ -37,7 +39,7 @@ describe("useDefaultLlmConfigId", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns the isDefault config id when present", async () => {
-    vi.mocked(llmConfigsApi.list).mockResolvedValue([
+    vi.mocked(modelConfigsApi.list).mockResolvedValue([
       config({ id: "a", isDefault: false }),
       config({ id: "b", isDefault: true }),
     ]);
@@ -48,7 +50,7 @@ describe("useDefaultLlmConfigId", () => {
   });
 
   it("falls back to the first config when none is default", async () => {
-    vi.mocked(llmConfigsApi.list).mockResolvedValue([
+    vi.mocked(modelConfigsApi.list).mockResolvedValue([
       config({ id: "first" }),
       config({ id: "second" }),
     ]);
@@ -59,11 +61,11 @@ describe("useDefaultLlmConfigId", () => {
   });
 
   it("returns undefined when the list is empty", async () => {
-    vi.mocked(llmConfigsApi.list).mockResolvedValue([]);
+    vi.mocked(modelConfigsApi.list).mockResolvedValue([]);
 
     const { result } = renderHook(() => useDefaultLlmConfigId(), { wrapper });
 
-    await waitFor(() => expect(llmConfigsApi.list).toHaveBeenCalled());
+    await waitFor(() => expect(modelConfigsApi.list).toHaveBeenCalledWith("chat"));
     expect(result.current).toBeUndefined();
   });
 });

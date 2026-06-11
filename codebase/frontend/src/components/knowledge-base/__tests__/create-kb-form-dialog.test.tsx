@@ -25,26 +25,13 @@ vi.mock("@/lib/api/knowledge-bases", async (importOriginal) => {
   };
 });
 
-const llmListMock = vi.fn();
-vi.mock("@/lib/api/llm-configs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/llm-configs")>();
-  return {
-    ...actual,
-    llmConfigsApi: { list: (...args: unknown[]) => llmListMock(...args) },
-  };
-});
-
-const rerankListMock = vi.fn();
-vi.mock("@/lib/api/rerank-configs", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/lib/api/rerank-configs")>();
-  return {
-    ...actual,
-    rerankConfigsApi: { list: (...args: unknown[]) => rerankListMock(...args) },
-  };
-});
-
-const modelListMock = vi.fn();
+// chat / rerank / embedding ModelConfig 목록 모두 modelConfigsApi.list(kind) 로
+// 일원화됨(PR4). embedding kind 만 테스트 대상 데이터를 반환하고, 그 외 kind 는
+// 빈 목록으로 둔다.
+const embeddingListMock = vi.fn();
+const modelListMock = vi.fn((kind: string) =>
+  kind === "embedding" ? embeddingListMock() : Promise.resolve([]),
+);
 vi.mock("@/lib/api/model-configs", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/lib/api/model-configs")>();
@@ -102,14 +89,13 @@ describe("CreateKbFormDialog — embedding ModelConfig select", () => {
     vi.clearAllMocks();
     cleanup();
     useLocaleStore.setState({ locale: "en" });
-    llmListMock.mockResolvedValue([]);
-    rerankListMock.mockResolvedValue([]);
+    embeddingListMock.mockResolvedValue([]);
     createMock.mockResolvedValue({ id: "new-kb" });
     probeMock.mockResolvedValue({ dimension: 1536, provider: "openai" });
   });
 
   it("renders the loaded embedding configs as options", async () => {
-    modelListMock.mockResolvedValue([
+    embeddingListMock.mockResolvedValue([
       embConfig({ id: "emb-a", name: "OpenAI Emb", defaultModel: "m-a" }),
       embConfig({ id: "emb-b", name: "KURE", defaultModel: "kure-v1" }),
     ]);
@@ -130,7 +116,7 @@ describe("CreateKbFormDialog — embedding ModelConfig select", () => {
   // Backend now derives embeddingModel from config.defaultModel server-side (WARNING #1/#2 fix).
   // Frontend only sends embeddingModelConfigId; embeddingModel is NOT included in the payload.
   it("propagates embeddingModelConfigId into the create payload (backend derives embeddingModel server-side)", async () => {
-    modelListMock.mockResolvedValue([
+    embeddingListMock.mockResolvedValue([
       embConfig({ id: "emb-a", name: "OpenAI Emb", defaultModel: "m-a" }),
     ]);
 
@@ -160,7 +146,7 @@ describe("CreateKbFormDialog — embedding ModelConfig select", () => {
   });
 
   it("probes with the selected embeddingModelConfigId when the test button is clicked", async () => {
-    modelListMock.mockResolvedValue([
+    embeddingListMock.mockResolvedValue([
       embConfig({ id: "emb-a", name: "OpenAI Emb", defaultModel: "m-a" }),
     ]);
 
@@ -190,7 +176,7 @@ describe("CreateKbFormDialog — embedding ModelConfig select", () => {
   });
 
   it("hides the embedding test button when the workspace-default option is selected", async () => {
-    modelListMock.mockResolvedValue([
+    embeddingListMock.mockResolvedValue([
       embConfig({ id: "emb-a", name: "OpenAI Emb", defaultModel: "m-a" }),
     ]);
 
@@ -215,7 +201,7 @@ describe("CreateKbFormDialog — embedding ModelConfig select", () => {
   });
 
   it("omits embedding fields when the workspace-default option is selected", async () => {
-    modelListMock.mockResolvedValue([
+    embeddingListMock.mockResolvedValue([
       embConfig({ id: "emb-a", name: "OpenAI Emb", defaultModel: "m-a" }),
     ]);
 

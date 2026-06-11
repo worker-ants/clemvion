@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { isPrivateHost, resolvesToPrivate } from '../../common/utils/ssrf.util';
-import { type LlmProvider } from '../llm-config/dto/create-llm-config.dto';
+import { type PreviewModelProvider } from '../model-config/dto/preview-model-list.dto';
 import { LLMClientFactory } from './llm-client.factory';
 import {
   type LLMClient,
@@ -23,7 +23,7 @@ export class LlmPreviewService {
   constructor(private readonly clientFactory: LLMClientFactory) {}
 
   async previewModels(params: {
-    provider: LlmProvider;
+    provider: PreviewModelProvider;
     apiKey: string;
     baseUrl?: string;
   }): Promise<ModelInfo[]> {

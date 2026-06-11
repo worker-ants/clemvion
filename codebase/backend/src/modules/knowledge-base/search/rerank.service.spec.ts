@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { RerankService, RerankCandidate, RerankParams } from './rerank.service';
-import { RerankConfigService } from '../../rerank-config/rerank-config.service';
+import { ModelConfigService } from '../../model-config/model-config.service';
 import { RerankClientFactory } from '../../llm/rerank/rerank-client.factory';
 import { LlmService } from '../../llm/llm.service';
 
@@ -61,7 +61,7 @@ describe('RerankService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RerankService,
-        { provide: RerankConfigService, useValue: configService },
+        { provide: ModelConfigService, useValue: configService },
         { provide: RerankClientFactory, useValue: factory },
         { provide: LlmService, useValue: llmService },
       ],

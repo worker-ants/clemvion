@@ -1,6 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { LlmConfigModule } from '../llm-config/llm-config.module';
+import { ModelConfigModule } from '../model-config/model-config.module';
 import { LLMClientFactory } from './llm-client.factory';
 import { LlmService } from './llm.service';
 import { LlmPreviewService } from './llm-preview.service';
@@ -9,7 +9,7 @@ import { LlmUsageLogService } from './llm-usage-log.service';
 
 @Module({
   imports: [
-    forwardRef(() => LlmConfigModule),
+    forwardRef(() => ModelConfigModule),
     TypeOrmModule.forFeature([LlmUsageLog]),
   ],
   providers: [

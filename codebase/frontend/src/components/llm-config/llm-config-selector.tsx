@@ -3,9 +3,9 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  llmConfigsApi,
-  LLM_CONFIGS_QUERY_KEY,
-} from "@/lib/api/llm-configs";
+  modelConfigsApi,
+  MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
+} from "@/lib/api/model-configs";
 import { useT } from "@/lib/i18n";
 
 interface LlmConfigSelectorProps {
@@ -21,8 +21,8 @@ export function LlmConfigSelector({
 }: LlmConfigSelectorProps) {
   const t = useT();
   const { data: configs = [], isLoading, isPending } = useQuery({
-    queryKey: LLM_CONFIGS_QUERY_KEY,
-    queryFn: () => llmConfigsApi.list(),
+    queryKey: MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
+    queryFn: () => modelConfigsApi.list("chat"),
     staleTime: 30_000,
   });
   const defaultConfig = useMemo(

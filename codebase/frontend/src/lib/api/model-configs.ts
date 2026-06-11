@@ -17,6 +17,29 @@ export const MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY = [
   "list",
 ] as const;
 
+/**
+ * Shared query key for the kind=chat ModelConfig list. Used by the canvas
+ * pre-fill, the llm-config selector dropdown, and the default-config hook so
+ * a single fetch is reused via the query cache. (구 `LLM_CONFIGS_QUERY_KEY`
+ * 대체 — PR4 에서 `/llm-configs` alias 제거.)
+ */
+export const MODEL_CONFIGS_CHAT_LIST_QUERY_KEY = [
+  "model-configs",
+  "chat",
+  "list",
+] as const;
+
+/**
+ * Shared query key for the kind=rerank ModelConfig list used by the KB rerank
+ * selector across create/edit. (구 `RERANK_CONFIGS_QUERY_KEY` 대체 — PR4 에서
+ * `/rerank-configs` alias 제거.)
+ */
+export const MODEL_CONFIGS_RERANK_LIST_QUERY_KEY = [
+  "model-configs",
+  "rerank",
+  "list",
+] as const;
+
 export interface ModelConfigData {
   id: string;
   kind: ModelConfigKind;

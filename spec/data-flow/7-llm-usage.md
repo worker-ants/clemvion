@@ -45,9 +45,9 @@ sequenceDiagram
   end
 ```
 
-- 암호화는 TypeORM transformer 가 아니라 **서비스 레벨** 이다: 생성/수정 시 `encrypt(dto.apiKey, encryptionKey)` (`llm-config.service.ts` `create`/`update`), 복호화는 `LlmService.createClient` 가 client 생성 직전 `getDecryptedApiKey` 로 수행한다. 조회 응답의 api_key 는 `****` + 마지막 4자로 마스킹.
+- 암호화는 TypeORM transformer 가 아니라 **서비스 레벨** 이다: 생성/수정 시 `encrypt(dto.apiKey, encryptionKey)` (`model-config.service.ts` `create`/`update`), 복호화는 `LlmService.createClient` 가 client 생성 직전 `getDecryptedApiKey` 로 수행한다. 조회 응답의 api_key 는 `****` + 마지막 4자로 마스킹.
 - default 지정 경로는 `create`/`update` 의 `saveWithDefaultSwap` 과 `PATCH :id/set-default` 모두 단일 트랜잭션으로 기존 default 를 unset 한다.
-- 부속 엔드포인트 (`llm-config.controller.ts`; PR4 까지 `/api/llm-configs` alias 유지):
+- 부속 엔드포인트 (`model-config.controller.ts`; 구 `/api/llm-configs` alias 는 PR4 에서 제거됨 — [설정 §3](../2-navigation/6-config.md#3-api) SoT):
   - `POST /api/model-configs/preview-models` — `LlmPreviewService.previewModels` (미저장 자격증명, SSRF 가드, 30s 타임아웃, 캐시 없음)
   - `POST /api/model-configs/:id/test` — `LlmService.testConnection`
   - `GET /api/model-configs/:id/models` — `LlmService.listModels`. config 별 5분 캐시 (key `${workspaceId}|${configId}`), 30s 타임아웃, `?type=chat|embedding` 필터

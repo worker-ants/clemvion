@@ -12,7 +12,7 @@ import {
 import { Workspace } from '../../workspaces/entities/workspace.entity';
 import { Workflow } from '../../workflows/entities/workflow.entity';
 import { User } from '../../users/entities/user.entity';
-import { LlmConfig } from '../../llm-config/entities/llm-config.entity';
+import { ModelConfig } from '../../model-config/entities/model-config.entity';
 import { WorkflowAssistantMessage } from './workflow-assistant-message.entity';
 
 export type AssistantSessionStatus = 'active' | 'archived';
@@ -51,9 +51,9 @@ export class WorkflowAssistantSession {
   @Column({ name: 'llm_config_id', nullable: true, type: 'uuid' })
   llmConfigId: string | null;
 
-  @ManyToOne(() => LlmConfig, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => ModelConfig, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'llm_config_id' })
-  llmConfig: LlmConfig | null;
+  llmConfig: ModelConfig | null;
 
   @Column({ length: 20, default: 'active' })
   status: AssistantSessionStatus;

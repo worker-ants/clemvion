@@ -8,10 +8,13 @@ import {
   type RagMode,
   type RerankMode,
 } from "@/lib/api/knowledge-bases";
-import { llmConfigsApi } from "@/lib/api/llm-configs";
-import { modelConfigsApi, MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY } from "@/lib/api/model-configs";
+import {
+  modelConfigsApi,
+  MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY,
+  MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
+  MODEL_CONFIGS_RERANK_LIST_QUERY_KEY,
+} from "@/lib/api/model-configs";
 import { buildEmbeddingConfigPayload } from "@/lib/kb/embedding-payload";
-import { rerankConfigsApi } from "@/lib/api/rerank-configs";
 import { useDefaultEmbeddingModelConfigId } from "@/components/llm-config/use-default-embedding-model-config-id";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,16 +71,16 @@ export function CreateKbFormDialog({
   // 임베딩 LLMConfig select 가 vector 모드에서도 보여야 하므로 dialog 가 열려 있는 동안
   // 항상 fetch. graph 모드의 extraction LLM select 도 같은 데이터를 공유한다.
   const { data: llmConfigs = [] } = useQuery({
-    queryKey: ["llm-configs"],
-    queryFn: () => llmConfigsApi.list(),
+    queryKey: MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
+    queryFn: () => modelConfigsApi.list("chat"),
     staleTime: 30_000,
     enabled: open,
   });
 
   // 리랭킹 섹션의 리랭커 select 용. dialog 가 열려 있는 동안 fetch.
   const { data: rerankConfigs = [] } = useQuery({
-    queryKey: ["rerank-configs"],
-    queryFn: () => rerankConfigsApi.list(),
+    queryKey: MODEL_CONFIGS_RERANK_LIST_QUERY_KEY,
+    queryFn: () => modelConfigsApi.list("rerank"),
     staleTime: 30_000,
     enabled: open,
   });

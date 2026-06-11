@@ -26,7 +26,7 @@ chained dispatch 로 entity/relation 추출까지 이어진다.
 - `codebase/backend/src/modules/knowledge-base/search/rag-search.service.ts` — vector / graph RAG 검색 + 리랭크 분기
 - `codebase/backend/src/modules/knowledge-base/search/rerank.service.ts` — cross-encoder 재점수화 + listwise LLM grading
 - `codebase/backend/src/modules/knowledge-base/search/dynamic-cut.util.ts` — 동적 컷 상수/함수 (`RAG_RECALL_K`, `applyDynamicCut`, `hnswEfSearchFor`)
-- `codebase/backend/src/modules/model-config/` — 리랭커(kind=rerank) 등 ModelConfig provider 설정 CRUD (구 `rerank-config/` 는 deprecated alias, PR4 제거)
+- `codebase/backend/src/modules/model-config/` — 리랭커(kind=rerank) 등 ModelConfig provider 설정 CRUD (구 `rerank-config/` alias 는 PR4 에서 제거됨 — rerank.service 는 `ModelConfigService.resolveConfig(id, ws, 'rerank')` 직접 호출)
 - `codebase/backend/src/modules/knowledge-base/queues/*.ts` — BullMQ 큐 (document-embedding, graph-extraction) + 부팅 시 stuck 회수
 
 ---
@@ -249,7 +249,7 @@ KB 저장 **전에** 모델/ModelConfig (kind=embedding) 조합의 실제 vector
 | --- | --- | --- | --- |
 | `knowledge_base` | 생성 | `workspace_id, name, embedding_model, embedding_dimension?, chunk_size, chunk_overlap, document_count, reembed_status, rag_mode, extraction_llm_config_id?, embedding_model_config_id? (V091), max_hops, vector_seed_top_k, expanded_chunk_limit, entity_count, relation_count, reextract_status` + rerank 5컬럼 (V082): `rerank_mode IN (off/cross_encoder/cross_encoder_llm), rerank_config_id? (FK model_config kind=rerank SET NULL), rerank_candidate_k (1~200 CHECK), rerank_score_threshold?, rerank_llm_config_id? (FK model_config kind=chat SET NULL)` | FK CASCADE on `workspace_id` |
 | `knowledge_base` | 임베딩 완료 시 | UPDATE `embedding_dimension` (첫 batch 직후 race-free 조건부 UPDATE), `document_count` | NULL reset 경로 **2개**: ① KB 전체 재임베딩 CAS 진입 시 (V021) ② `PATCH /:id` 로 `embedding_model` 실제 변경 시. NULL 인 동안 해당 KB 는 검색 제외 (§1.3) |
-| `model_config` (kind=rerank) | 리랭커 설정 (V081 → V090 흡수) | `workspace_id, kind='rerank', provider, name, api_key? (셀프호스팅 tei 는 불요), base_url?, default_model, is_default` | `(workspace_id, kind)` 당 `is_default=TRUE` 최대 1개 (partial unique index). CRUD 는 `/api/model-configs?kind=rerank` (PR4 까지 `/api/rerank-configs` alias) |
+| `model_config` (kind=rerank) | 리랭커 설정 (V081 → V090 흡수, 구 `rerank_config` 테이블은 V092 DROP) | `workspace_id, kind='rerank', provider, name, api_key? (셀프호스팅 tei 는 불요), base_url?, default_model, is_default` | `(workspace_id, kind)` 당 `is_default=TRUE` 최대 1개 (partial unique index). CRUD 는 `/api/model-configs?kind=rerank` (구 `/api/rerank-configs` alias 는 PR4 제거) |
 | `document` | 업로드 | INSERT `knowledge_base_id, name, file_type IN (txt/md/pdf/csv), file_url, file_size, embedding_status='pending', tags='{}', metadata={}` | FK CASCADE on `knowledge_base_id` |
 | `document` | 임베딩 라이프사이클 | UPDATE `embedding_status, embedding_retry_count, embedding_last_attempted_at, embedding_error_message, chunk_count` | V037 `embedding_status` CHECK 갱신, V039 legacy CHECK drop |
 | `document` | 그래프 라이프사이클 | UPDATE `graph_extraction_status, graph_retry_count, graph_last_attempted_at, graph_error_message` | V025/V026 |

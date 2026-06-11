@@ -7,9 +7,23 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { LLM_PROVIDERS, type LlmProvider } from './create-llm-config.dto';
 
-const PROVIDERS_REQUIRING_BASE_URL: ReadonlyArray<LlmProvider> = [
+/**
+ * Preview(저장 전 모델 목록 조회) 가 지원하는 provider 집합 — chat/embedding 의
+ * 직접 호출 가능한 provider. rerank(tei/cohere) 는 preview 경로를 노출하지 않으므로
+ * 여기 포함하지 않는다. (PR4 이전 `llm-config/dto/create-llm-config.ts` 의 LLM_PROVIDERS
+ * 를 model-config 로 흡수.)
+ */
+export const PREVIEW_MODEL_PROVIDERS = [
+  'openai',
+  'anthropic',
+  'google',
+  'azure',
+  'local',
+] as const;
+export type PreviewModelProvider = (typeof PREVIEW_MODEL_PROVIDERS)[number];
+
+const PROVIDERS_REQUIRING_BASE_URL: ReadonlyArray<PreviewModelProvider> = [
   'azure',
   'local',
 ];
@@ -24,15 +38,15 @@ const PROVIDERS_REQUIRING_BASE_URL: ReadonlyArray<LlmProvider> = [
  *     적용해 `apiKey`·`password`·`token` 을 자동 마스킹.
  *   - 키를 헤더 기반으로 완전히 분리하는 설계 변경은 별도 PR 로 이관.
  */
-export class PreviewLlmModelsDto {
+export class PreviewModelListDto {
   @ApiProperty({
     description:
-      'LLM Provider 식별자. openai/anthropic/google/azure/local 중 선택.',
-    enum: LLM_PROVIDERS,
+      'Provider 식별자. openai/anthropic/google/azure/local 중 선택.',
+    enum: PREVIEW_MODEL_PROVIDERS,
     example: 'openai',
   })
-  @IsIn(LLM_PROVIDERS)
-  provider: LlmProvider;
+  @IsIn(PREVIEW_MODEL_PROVIDERS)
+  provider: PreviewModelProvider;
 
   @ApiProperty({
     description:
@@ -54,7 +68,7 @@ export class PreviewLlmModelsDto {
   // 돌려주면 하위 validator 가 모두 skip 되므로 "전달되지 않은 선택값" 과
   // "필수 누락" 케이스를 한 필드 선언으로 처리할 수 있다.
   @ValidateIf(
-    (dto: PreviewLlmModelsDto) =>
+    (dto: PreviewModelListDto) =>
       PROVIDERS_REQUIRING_BASE_URL.includes(dto.provider) ||
       dto.baseUrl !== undefined,
   )

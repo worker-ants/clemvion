@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { LlmConfigService } from '../llm-config/llm-config.service';
-import { LlmConfig } from '../llm-config/entities/llm-config.entity';
+import { ModelConfigService } from '../model-config/model-config.service';
+import { ModelConfig } from '../model-config/entities/model-config.entity';
 import { LLMClientFactory } from './llm-client.factory';
 import {
   LLMClient,
@@ -64,12 +64,12 @@ export class LlmService {
   private readonly listModelsCache = new Map<string, ListModelsCacheEntry>();
 
   constructor(
-    private readonly llmConfigService: LlmConfigService,
+    private readonly modelConfigService: ModelConfigService,
     private readonly clientFactory: LLMClientFactory,
     private readonly usageLogService: LlmUsageLogService,
   ) {}
 
-  createClient(config: LlmConfig): LLMClient {
+  createClient(config: ModelConfig): LLMClient {
     // 테스트 전용(`OAUTH_STUB_MODE` 선례) — dockerized e2e 가 실제 LLM 키/호출 없이
     // 멀티턴 AI park→재개(§4.x turn-park, §7.5 rehydration)를 결정적으로 검증하도록,
     // env-gated 시 결정적 stub 클라이언트를 반환한다. 프로덕션(env 미설정 + main.ts
@@ -90,7 +90,8 @@ export class LlmService {
       return cached;
     }
 
-    const apiKey = this.llmConfigService.getDecryptedApiKey(config);
+    // chat config 는 항상 키가 있으므로 평문 문자열. local provider 만 null → '' 폴백.
+    const apiKey = this.modelConfigService.getDecryptedApiKey(config) ?? '';
     const client = this.clientFactory.create({
       provider: config.provider,
       apiKey,
@@ -113,7 +114,7 @@ export class LlmService {
   }
 
   async chat(
-    config: LlmConfig,
+    config: ModelConfig,
     params: ChatParams,
     context?: LlmCallContext,
     opts?: LlmCallOptions,
@@ -158,7 +159,7 @@ export class LlmService {
   }
 
   async *chatStream(
-    config: LlmConfig,
+    config: ModelConfig,
     params: ChatParams,
     context?: LlmCallContext,
     signal?: AbortSignal,
@@ -218,7 +219,7 @@ export class LlmService {
    * @param inputType - 비대칭 모델 힌트. 기본값 `'document'`(적재 경로). 검색 query 경로만 `'query'`.
    */
   async embed(
-    config: LlmConfig,
+    config: ModelConfig,
     texts: string[],
     model?: string,
     opts?: Pick<LlmCallOptions, 'timeoutMs' | 'disableInnerRetry'>,
@@ -251,9 +252,10 @@ export class LlmService {
     workspaceId: string,
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const config = await this.llmConfigService.findEntity(
+      const config = await this.modelConfigService.findEntity(
         configId,
         workspaceId,
+        'chat',
       );
       const client = this.createClient(config);
       await client.testConnection();
@@ -276,9 +278,10 @@ export class LlmService {
     if (cached && Date.now() - cached.fetchedAt < LIST_MODELS_CACHE_TTL_MS) {
       models = cached.models;
     } else {
-      const config = await this.llmConfigService.findEntity(
+      const config = await this.modelConfigService.findEntity(
         configId,
         workspaceId,
+        'chat',
       );
       const client = this.createClient(config);
       try {
@@ -307,11 +310,18 @@ export class LlmService {
   async resolveConfig(
     llmConfigId: string | undefined,
     workspaceId: string,
-  ): Promise<LlmConfig> {
+  ): Promise<ModelConfig> {
     if (llmConfigId && llmConfigId.trim()) {
-      return this.llmConfigService.findEntity(llmConfigId, workspaceId);
+      return this.modelConfigService.findEntity(
+        llmConfigId,
+        workspaceId,
+        'chat',
+      );
     }
-    const defaultConfig = await this.llmConfigService.findDefault(workspaceId);
+    const defaultConfig = await this.modelConfigService.findDefault(
+      workspaceId,
+      'chat',
+    );
     if (!defaultConfig) {
       throw new BadRequestException({
         code: 'LLM_CONFIG_NOT_FOUND',
@@ -335,7 +345,10 @@ export class LlmService {
    */
   async hasDefaultLlmConfig(workspaceId: string): Promise<boolean> {
     if (!workspaceId) return false;
-    const config = await this.llmConfigService.findDefault(workspaceId);
+    const config = await this.modelConfigService.findDefault(
+      workspaceId,
+      'chat',
+    );
     return config !== null;
   }
 

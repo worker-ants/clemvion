@@ -1,24 +1,24 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { PreviewLlmModelsDto } from './preview-llm-models.dto';
+import { PreviewModelListDto } from './preview-model-list.dto';
 
 async function expectValidationError(
   payload: Record<string, unknown>,
   field: string,
 ) {
-  const dto = plainToInstance(PreviewLlmModelsDto, payload);
+  const dto = plainToInstance(PreviewModelListDto, payload);
   const errors = await validate(dto);
   const match = errors.find((e) => e.property === field);
   expect(match).toBeDefined();
 }
 
 async function expectNoErrors(payload: Record<string, unknown>) {
-  const dto = plainToInstance(PreviewLlmModelsDto, payload);
+  const dto = plainToInstance(PreviewModelListDto, payload);
   const errors = await validate(dto);
   expect(errors).toHaveLength(0);
 }
 
-describe('PreviewLlmModelsDto', () => {
+describe('PreviewModelListDto', () => {
   it('accepts minimal openai payload', async () => {
     await expectNoErrors({ provider: 'openai', apiKey: 'sk-xxx' });
   });
