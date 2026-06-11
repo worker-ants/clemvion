@@ -149,9 +149,10 @@ const plaintext = Buffer.concat([decipher.update(ct), decipher.final()]).toStrin
 ### 3.3 마스터키
 
 - 환경변수 **`ENCRYPTION_KEY`** (재사용 — [LLM API key 암호화](../../codebase/backend/src/common/utils/crypto.util.ts) 와 동일 키). 입력 형식:
-  - 정확 64-char hex → `Buffer.from(rawHex, 'hex')` 그대로 사용 (`.env.example` 의 표준).
+  - 정확 64-char hex → `Buffer.from(rawHex, 'hex')` 그대로 사용 (`.env.example` 의 표준 형식).
   - 그 외 임의 길이 문자열 → SHA-256 derive (`INTEGRATION_ENCRYPTION_KEY` / `credentials-transformer.ts` 와 동일 패턴) — e2e / 짧은 키 호환.
   - 부팅 시 미설정 / 빈 문자열이면 fail-fast (`SecretResolver` 모듈 init 단계에서 throw).
+  - **`.env.example` 의 값은 형식 예시(all-zero placeholder)일 뿐 실 키가 아니다** — 운영자는 `openssl rand -hex 32` 로 새로 생성해야 한다 (refactor 04 M-4). `NODE_ENV=production` 에서 미설정이거나 **공개 `.env.example` 예시 키**(현 all-zero 및 옛 `0123…` 예시)가 그대로 설정돼 있으면 부팅을 거부한다 (`main.ts` 의 `assertProductionConfig` — "secret store 가 사실상 평문" 인 운영 사고 차단). dev/test/e2e(`NODE_ENV≠production`)는 영향 없다.
 - 마스터키는 **application 메모리 안에서만 존재** — DB query / SQL parameter / 로그 / metric 에 일절 노출되지 않는다. PostgreSQL 은 ciphertext 만 본다.
 - 자체 호스팅 사용자는 운영 자체적으로 키 보관 (예: docker-compose `env_file`, kubernetes secret, AWS Parameter Store 등).
 - 키 생성 예: `openssl rand -hex 32`.

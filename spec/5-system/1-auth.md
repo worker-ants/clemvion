@@ -244,6 +244,13 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | Access Token | 메모리 (JS 변수) | 15분 | API 요청 인증 |
 | Refresh Token | HttpOnly Cookie | 7일 | Access Token 갱신 |
 
+> **`JWT_SECRET` production fail-closed (refactor 04 C-1)**: Access Token 은 `JWT_SECRET` 으로
+> 서명된다. `NODE_ENV=production` 에서 `JWT_SECRET` 가 미설정이거나 코드 기본 sentinel
+> (`dev-jwt-secret`)·`.env.example` placeholder 면 부팅을 거부한다 (`main.ts` 의
+> `assertProductionConfig`). 기본/예시 secret 으로 서명하면 누구나 토큰을 위조해 인증을 우회할 수
+> 있기 때문이다 — `INTERACTION_JWT_SECRET` 의 fail-closed 및 `OAUTH_STUB_MODE`/`LLM_STUB_MODE`
+> 가드와 동형이다. dev/test/e2e(`NODE_ENV≠production`)는 dev fallback 을 허용해 영향 없다.
+
 ### 2.2 Access Token Payload
 
 ```json
