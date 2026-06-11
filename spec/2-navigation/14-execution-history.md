@@ -115,7 +115,7 @@ code:
 
 | 요소 | 설명 |
 |------|------|
-| Back 링크 | 이전 페이지로 돌아가기 (`router.back()`) |
+| Back 링크 | 이전 페이지로 돌아가기 (`router.back()`) — 진입점이 다양(대시보드/목록/에디터)해 고정 경로 대신 browser history 기반 복귀가 의도. 상세 페이지의 "← Executions" 가 고정 링크인 것과 비대칭이 맞다(상세의 자연스러운 상위는 항상 목록) |
 | 워크플로우 이름 | 해당 워크플로우의 이름 표시 |
 | "Open in Editor" 링크 | `/workflows/:id` (에디터)로 이동 |
 
@@ -378,7 +378,7 @@ i18n 키와 에러 매핑은 [Spec Re-run §10.4 i18n 키](../5-system/13-replay
 
 | 변경 사항 | 설명 |
 |-----------|------|
-| 실행 내역 링크 | 각 워크플로우 행의 컨텍스트 메뉴(⋯)에 "Execution History" 항목 추가 |
+| 실행 내역 링크 | 각 워크플로우 행의 컨텍스트 메뉴(⋯)에 "실행 내역(Execution History)" 항목 추가 — i18n `workflows.executionHistory` (ko/en), [워크플로우 목록 §2.6](./1-workflow-list.md) 과 동일 라벨 |
 | 클릭 동작 | `/workflows/:id/executions`로 이동 |
 
 ### 4.3 Workflow Editor
@@ -407,7 +407,7 @@ i18n 키와 에러 매핑은 [Spec Re-run §10.4 i18n 키](../5-system/13-replay
 |----------|------|--------|------|
 | `page` | number | 1 | 페이지 번호 |
 | `limit` | number | 20 | 페이지당 건수 (max: 100) |
-| `sort` | string | `started_at` | 정렬 기준 (`started_at`, `finished_at`, `status`, `duration_ms`) |
+| `sort` | string | `started_at` | 정렬 기준 (`started_at`, `finished_at`, `status`, `duration_ms`). 기본값이 규약 예시(`created_at` — [API 규약 §4.1](../5-system/2-api-convention.md#41-목록-조회-쿼리-파라미터))와 다른 것은 의도된 도메인 오버라이드 — 실행 이력의 자연 정렬 축은 생성이 아니라 시작 시각 |
 | `order` | string | `desc` | 정렬 순서 (`asc`, `desc`) |
 | `status` | string | — | 상태 필터 |
 

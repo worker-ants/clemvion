@@ -385,6 +385,8 @@ code:
 - `success=true` → `refreshAccessToken()`(`POST /api/auth/refresh`)로 access token 발급 → 메모리 적재 → 대시보드(`/dashboard`)로 리다이렉트. refresh 실패 시 에러 표시.
 - `error=*` → 에러 메시지 표시 + "다시 시도" 버튼 + 로그인 화면 링크
 
+> `error=` 값(`invalid_state` 등)은 응답 봉투의 `error.code` 가 아닌 **redirect URL query param** 이라 `lower_snake_case` 다 — [에러 코드 규약 §3 historical-artifact 레지스트리](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리) 등재.
+
 ---
 
 ## 6. 첫 워크스페이스 자동 생성
