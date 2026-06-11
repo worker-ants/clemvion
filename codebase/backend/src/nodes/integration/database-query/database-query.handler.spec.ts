@@ -919,6 +919,23 @@ describe('DatabaseQueryHandler', () => {
         };
       }
 
+      function mysqlIntegrationWithHost(host: string) {
+        return {
+          id: 'int-1',
+          name: 'Primary MySQL',
+          serviceType: 'database',
+          status: 'connected',
+          credentials: {
+            driver: 'mysql',
+            host,
+            port: 3306,
+            database: 'app',
+            username: 'u',
+            password: 'p',
+          },
+        };
+      }
+
       it.each([
         ['IPv4 loopback', '127.0.0.1'],
         ['IPv4 RFC1918', '10.0.0.5'],
@@ -953,6 +970,32 @@ describe('DatabaseQueryHandler', () => {
           );
         },
       );
+
+      it('blocks MySQL driver host too (가드는 driver 분기 전 실행)', async () => {
+        const { service, logUsage } = makeService({
+          integration: mysqlIntegrationWithHost('127.0.0.1'),
+        });
+        const handler = new DatabaseQueryHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        )) as unknown as ErrorPortOutput;
+
+        expect(out.port).toBe('error');
+        expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
+        expect(out.output.error.message).not.toContain('127.0.0.1');
+        // MySQL 풀도 절대 생성되지 않는다 (driver 분기 전에 차단).
+        expect(
+          jest.requireMock('mysql2/promise').createPool,
+        ).not.toHaveBeenCalled();
+        expect(logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'DB_HOST_BLOCKED' }),
+          }),
+        );
+      });
 
       it('ALLOW_PRIVATE_HOST_TARGETS=true opt-out → guard 통과 (차단 안 함)', async () => {
         const prev = process.env.ALLOW_PRIVATE_HOST_TARGETS;
