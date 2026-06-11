@@ -295,9 +295,9 @@ config: `{ "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }",
 | `config.language` | `'javascript'` | config echo (Principle 7) | 사용자가 선택한 언어 (default `javascript`) |
 | `config.code` | string | config echo | 사용자 코드 본문 raw — 정상 케이스와 동일하게 echo (CONVENTIONS Principle 7) |
 | `config.timeout` | number? | config echo | 사용자가 설정한 타임아웃 초 |
-| `output.error.code` | string | handler return | 정규화된 에러 코드 — `CODE_TIMEOUT` / `CODE_EXECUTION_FAILED` (CONVENTIONS Principle 3.2 — `UPPER_SNAKE_CASE`) |
+| `output.error.code` | string | handler return | 정규화된 에러 코드 — `CODE_TIMEOUT` / `CODE_EXECUTION_FAILED` / `CODE_MEMORY_LIMIT` (CONVENTIONS Principle 3.2 — `UPPER_SNAKE_CASE`) |
 | `output.error.message` | string | handler return | 사람이 읽는 에러 메시지 (로그/디버깅용 원문) |
-| `output.error.details.legacyCode` | string | handler return | 내부 분류용 legacy 코드 (`CODE_RUNTIME_ERROR` / `EXECUTION_TIMEOUT`). 후속 노드는 `output.error.code` 사용 |
+| `output.error.details.legacyCode` | string | handler return | 내부 분류용 legacy 코드 (`CODE_RUNTIME_ERROR` / `EXECUTION_TIMEOUT` / `EXECUTION_MEMORY_EXCEEDED`). 후속 노드는 `output.error.code` 사용 |
 | `output.error.details.stack` | string? | handler return | 스택 트레이스. **`NODE_ENV !== 'production'` 일 때만 노출** (프로덕션에서는 내부 파일 경로 노출 방지로 생략) |
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms) — 타임아웃 케이스에서는 timeout 값에 근사 |
 | `meta.success` | `false` | handler return | 실패 표시. CONVENTIONS Principle 2 의 Code 계열 권장 필드 |
@@ -374,7 +374,7 @@ config: `{ "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }",
 
 **차단**: isolated-vm isolate 에서 두 가지 차단 방식이 있다 (`code.handler.ts` 부트스트랩).
 1. **부재 (host realm 미존재 → 참조 시 `ReferenceError`)**: `require`/`import`/`fetch`/`fs`/`process`/`Buffer`/`global` 등 Node host 전역·모듈은 isolate 안에 **애초에 존재하지 않는다** (host realm 객체라 isolate 에 주입하지 않는 한 도달 불가 — escape 차단의 핵심).
-2. **부트스트랩 삭제 (`delete`)**: V8 Isolate 가 기본 제공하는 ECMAScript 내장 중 비결정성·메타프로그래밍·동적 실행 위험이 있는 것들(`eval`/`Function`/`Reflect`/`Proxy`/`Symbol`/`WeakMap`/`WeakSet`/`WeakRef`/`FinalizationRegistry`/`Atomics`/`SharedArrayBuffer`/`Intl`/`setTimeout`/`setInterval`/`setImmediate`)은 코드 실행 전 부트스트랩 스크립트가 globalThis 에서 제거한다.
+2. **부트스트랩 삭제 (`delete`)**: V8 Isolate 가 기본 제공하는 ECMAScript 내장 중 비결정성·메타프로그래밍·동적 실행 위험이 있는 것들(`eval`/`Function`/`Reflect`/`Proxy`/`Symbol`/`WeakMap`/`WeakSet`/`WeakRef`/`FinalizationRegistry`/`Atomics`/`SharedArrayBuffer`/`Intl`/`setTimeout`/`setInterval`/`setImmediate`/`queueMicrotask`)은 코드 실행 전 부트스트랩 스크립트가 globalThis 에서 제거한다.
 
 | API | 차단 방식 | 차단 이유 |
 |-----|-----------|-----------|
@@ -386,7 +386,7 @@ config: `{ "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }",
 | `globalThis`, `Symbol` | 부트스트랩 삭제 | 런타임 환경 접근 / 메타프로그래밍 방지 |
 | `Reflect`, `Proxy` | 부트스트랩 삭제 | 메타프로그래밍 방지 |
 | `WeakMap`, `WeakSet`, `WeakRef`, `FinalizationRegistry`, `Atomics`, `SharedArrayBuffer`, `Intl` | 부트스트랩 삭제 | 비결정적 / cross-realm leak 방지 |
-| `setTimeout`, `setInterval`, `setImmediate` | 부트스트랩 삭제 | 비결정적 스케줄링 차단 (Promise.race 타임아웃 흐름 단순화) |
+| `setTimeout`, `setInterval`, `setImmediate`, `queueMicrotask` | 부트스트랩 삭제 | 비결정적 스케줄링 차단 (Promise.race 타임아웃 흐름 단순화) |
 
 ## 8. 캔버스 요약
 
