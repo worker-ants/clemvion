@@ -507,49 +507,77 @@ describe('CodeHandler', () => {
       expect(result.output).toBe('string');
     });
 
-    // WARNING 12 — $helpers host-realm isolation: document actual security
-    // boundary of dayjs objects returned into the sandbox.
+    // SECURITY (spec §7.1 / §Rationale) — isolated-vm host-realm isolation.
     //
-    // Known limitation (spec §7.1 roadmap): node:vm's createContext does NOT
-    // fully prevent host-realm prototype access when closures return host
-    // objects. The dayjs return value is a host-realm object; sandbox code can
-    // reach d.constructor.constructor (the host Function). This is mitigated
-    // by codeGeneration:strings=false blocking eval/new Function string
-    // creation, but direct property reads and calls on the host object remain
-    // accessible. The spec §7.1 note documents that full isolation requires
-    // isolated-vm or a container sandbox.
+    // The `$helpers.date()` return value is a dayjs object that lives *inside*
+    // the isolate (dayjs runs in-isolate). Even when sandbox code walks the
+    // prototype chain to the reachable %Function% intrinsic and constructs a
+    // dynamic function, that function executes in the isolate realm — where
+    // `process`/`require` do not exist. The structural V8 Isolate boundary
+    // makes host takeover impossible, regardless of constructor-chain access.
     //
-    // This test documents the current behaviour so regressions are detected:
-    // — $helpers.date() returns an object with correct dayjs API surface.
-    // — Access to dangerous host globals (process, require) is still blocked
-    //   because those are not properties of the dayjs object or its chain.
-    it('should not expose process/require through $helpers.date return value', async () => {
+    // This is the red→green regression for refactor 04 C-2: under the old
+    // node:vm sandbox the same probe reached the host realm ('has-process');
+    // under isolated-vm it is confined ('no-process').
+    it('should isolate the host realm from $helpers.date return value (no process access)', async () => {
       const result = (await handler.execute(
         null,
         {
           code: `
             const d = $helpers.date("2020-01-01");
-            // Verify dayjs API surface works correctly
+            // dayjs API surface still works correctly in-isolate
             const validDate = d.isValid() && d.format("YYYY") === "2020";
-            // Verify that process is NOT accessible via the dayjs chain
-            // (process is not a property on dayjs objects)
-            const noProcess = typeof d.constructor.constructor("return typeof process === 'undefined' ? 'no-process' : 'has-process'")() === 'string';
-            return { validDate, noProcess };
+            // Walk the prototype chain to the reachable Function intrinsic and
+            // try to read host \`process\`. In-isolate there is no host realm.
+            const procProbe = d.constructor.constructor(
+              "return typeof process === 'undefined' ? 'no-process' : 'has-process'",
+            )();
+            return { validDate, procProbe };
           `,
         },
         context,
       )) as unknown as {
-        output: { validDate: boolean; noProcess: boolean };
+        output: { validDate: boolean; procProbe: string };
         meta: { success: boolean };
       };
-      // dayjs API must work correctly
       expect(result.meta.success).toBe(true);
       expect(result.output.validDate).toBe(true);
-      // process IS accessible from host realm — this is the known limitation
-      // documented in spec §7.1. The test captures current behaviour.
-      // When isolated-vm is adopted (§7.1 roadmap), this assertion should
-      // change to 'no-process'.
-      expect(result.output.noProcess).toBe(true);
+      // isolated-vm confines execution to the isolate realm — host `process`
+      // is unreachable by ANY path (spec §Rationale "isolated-vm 전환").
+      expect(result.output.procProbe).toBe('no-process');
     });
+
+    it('should not expose host process to a direct sandbox reference', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          code: `return typeof process === 'undefined' ? 'no-process' : 'has-process';`,
+        },
+        context,
+      )) as unknown as { output: string; meta: { success: boolean } };
+      expect(result.meta.success).toBe(true);
+      expect(result.output).toBe('no-process');
+    });
+  });
+
+  describe('execute — memory limit (spec §7.2)', () => {
+    it('should route an isolate memory-limit breach to CODE_MEMORY_LIMIT', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          // Allocate without bound until the 128MB isolate limit is exceeded.
+          code: 'const a = []; while (true) { a.push(new Array(1e6).fill(0)); }',
+          timeout: 30,
+        },
+        context,
+      )) as unknown as {
+        output: { error: { code: string } };
+        meta: { success: boolean };
+        port?: string;
+      };
+      expect(result.port).toBe('error');
+      expect(result.meta.success).toBe(false);
+      expect(result.output.error.code).toBe('CODE_MEMORY_LIMIT');
+    }, 30_000);
   });
 });

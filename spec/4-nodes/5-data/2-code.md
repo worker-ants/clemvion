@@ -104,9 +104,9 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 ## 4. 실행 로직
 
 1. 핸들러는 입력을 `$input` 에, `context.variables` 의 deep clone 을 `$vars` 에 바인딩한다 (§4.5).
-2. 사용자 `code` 를 `(async () => { "use strict"; <code> })()` 로 래핑하여 `vm.Script` 로 컴파일한다.
+2. 사용자 `code` 를 `(async () => { "use strict"; <code> })()` 로 래핑하여 isolate `compileScript` 로 컴파일한다.
    - 컴파일 실패 → **pre-flight throw** (`handler.validate` 단계에서 검출, §6 참조).
-3. `vm.createContext` 로 격리 context 를 만들어 `runInContext` 로 실행. 이중 타임아웃을 적용한다 (§7.2).
+3. `isolated-vm` isolate(`memoryLimit: 128`) + context 를 만들어 `script.run(..., { promise: true, timeout })` 로 실행. 이중 타임아웃을 적용한다 (§7.2).
 4. 정상 종료 → 사용자 `return` 값을 `output` 에 그대로 담고 `port: 'success'` 를 반환 (§5.1).
 5. 런타임 throw / 타임아웃 → `port: 'error'` + `output.error` 표준 봉투 (§5.3, [CONVENTIONS Principle 3.2](../../conventions/node-output.md#32-outputerror-표준-형태)).
 6. 정상 종료 시 `varsClone` 을 `context.variables` 에 **원자적으로 전체 덮어쓰기** (§4.5). 실행 throw 시 원본 보존(롤백).
@@ -133,7 +133,7 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 
 > CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지.
 >
-> Code 노드는 정상(§5.1) / 런타임 에러(§5.3) 두 케이스로 구성된다. 사용자 코드 본문의 throw / 타임아웃은 정상 시나리오의 일부로 간주하여 `error` 포트로 분기 (Data 공통 §4.1). **컴파일 실패** (vm.Script 구문 오류) 는 사용자 코드를 한 번도 실행하지 못한 상태이므로 §6 의 **pre-flight throw** 로 처리된다.
+> Code 노드는 정상(§5.1) / 런타임 에러(§5.3) 두 케이스로 구성된다. 사용자 코드 본문의 throw / 타임아웃은 정상 시나리오의 일부로 간주하여 `error` 포트로 분기 (Data 공통 §4.1). **컴파일 실패** (isolate `compileScript` 구문 오류) 는 사용자 코드를 한 번도 실행하지 못한 상태이므로 §6 의 **pre-flight throw** 로 처리된다.
 
 ### 5.1 Case: 정상 종료 (port `success`)
 
@@ -257,6 +257,37 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 }
 ```
 
+#### 5.3.3 메모리 초과 (isolate 128MB 하드 리밋)
+
+config: `{ "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }", "timeout": 30 }`
+
+```json
+{
+  "config": {
+    "language": "javascript",
+    "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }",
+    "timeout": 30
+  },
+  "output": {
+    "error": {
+      "code": "CODE_MEMORY_LIMIT",
+      "message": "Isolate was disposed during execution due to memory limit",
+      "details": {
+        "legacyCode": "EXECUTION_MEMORY_EXCEEDED",
+        "stack": "..."
+      }
+    }
+  },
+  "meta": {
+    "success": false,
+    "logs": []
+  },
+  "port": "error"
+}
+```
+
+> isolate 가 `memoryLimit: 128`(MB) 를 초과하면 V8 이 isolate 를 즉시 폐기한다 (§7.2). 핸들러는 이 폐기 에러를 `EXECUTION_MEMORY_EXCEEDED` 로 분류해 `CODE_MEMORY_LIMIT` 로 정규화한다.
+
 #### 5.3 공통 필드 표
 
 | 필드 | 타입 | 출처 | 설명 |
@@ -285,7 +316,7 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 > |--------------------------|-----------------------------------|
 > | `EXECUTION_TIMEOUT` | `CODE_TIMEOUT` |
 > | `CODE_RUNTIME_ERROR` | `CODE_EXECUTION_FAILED` |
-> | `EXECUTION_MEMORY_EXCEEDED` (로드맵) | `CODE_MEMORY_LIMIT` |
+> | `EXECUTION_MEMORY_EXCEEDED` | `CODE_MEMORY_LIMIT` |
 
 ## 6. 에러 코드 (Pre-flight throw)
 
@@ -297,7 +328,7 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 | `code` 가 string 타입이 아님 | `code is required and must be a string` | handler.validate (zod default `''` 우회한 raw fixture 가드) |
 | `timeout` 이 `[1, 120]` 밖 | `timeout must be a number between 1 and 120 seconds` | handler.validate (`validateCodeConfig`) |
 | `language` 가 `javascript` 외 | (zod enum) `Invalid enum value. Expected 'javascript', received '...'` | schema parse 시점 |
-| **`code` 컴파일 실패** (`vm.Script` 구문 오류) | `code has a syntax error: <V8 SyntaxError 메시지>` | handler.validate (사용자 코드를 한 번도 실행하지 못한 상태) |
+| **`code` 컴파일 실패** (isolate `compileScript` 구문 오류) | `code has a syntax error: <V8 SyntaxError 메시지>` | handler.validate (사용자 코드를 한 번도 실행하지 못한 상태) |
 
 > Pre-flight throw 는 사용자 코드를 단 한 번도 실행하지 못한 상태이므로 `error` 포트가 아닌 throw 로 처리한다 (Data 공통 §4.1). 캔버스 배지 / 실행 시작 직전 검증으로 즉시 노출된다.
 
@@ -309,17 +340,17 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 
 | 방식 | 설명 |
 |------|------|
-| **현재 구현: `node:vm` context** | `vm.createContext({ ... }, { codeGeneration: { strings: false, wasm: false } })` 로 허용된 전역만 주입한 별도 context 에서 코드 실행. `require`/`process`/`global`/`Buffer`/`fetch` 등 미주입. `eval`/`new Function` 은 `codeGeneration.strings: false` 로 차단. 동적 `import(...)` 는 모듈 로더(`importModuleDynamically`) 미설정으로 차단 |
-| 로드맵 (선택): `isolated-vm` 또는 컨테이너 | 메모리 하드 리밋(128MB) 또는 프로세스 레벨 격리가 필요해지면 `isolated-vm`(V8 Isolate) 또는 Docker 격리로 전환 |
+| **현재 구현: `isolated-vm` (V8 Isolate)** | `new ivm.Isolate({ memoryLimit: 128 })` 로 host 와 분리된 별도 V8 Isolate 에서 코드 실행. host 객체·전역(`process`/`require`/`global`/`Buffer`/`fetch`)이 isolate 안에 **존재하지 않으므로** prototype-chain 탈출(`this.constructor.constructor('return process')()` 류)이 구조적으로 차단된다. 데이터(`$input`/`$vars`/`$execution`/`$node`)는 `ExternalCopy` 로 복사 주입, 내장 유틸(`$helpers`)·`console` 은 host 클로저를 `Reference`/`ivm.Callback` 으로 브리지(host realm 실행). 표준 내장(JSON/Math/Array 등)은 isolate 가 기본 제공. `eval`/`new Function` 은 부트스트랩에서 차단, 동적 `import`·모듈 로더 미제공으로 모듈 로드 불가 |
+| 로드맵 (선택): 컨테이너 / gVisor | 다중 테넌트 확장으로 V8 자체 버그에 의한 isolate 탈출 가능성까지 차단해야 하면 Docker/gVisor 프로세스·커널 레벨 격리로 추가 강화 |
 
-> **선택 근거**: `node:vm` 은 네이티브 빌드(node-gyp) 의존성이 없어 배포·개발 환경 구성이 단순하고, 전역 미주입 + `codeGeneration` 차단으로 모듈 로드/네트워크/파일 시스템 차단 요구를 달성한다. 단, 메모리 하드 리밋과 완벽한 sandbox escape 방어는 불가하므로 추후 `isolated-vm` 등으로 재검토한다.
+> **선택 근거**: `isolated-vm` 은 V8 Isolate 로 host 메모리 공간과 분리돼 prototype-chain sandbox escape 를 **구조적으로** 차단하고, isolate 단위 메모리 하드 리밋(128MB)·CPU 타임아웃을 강제할 수 있다. 네이티브 빌드(node-gyp) 의존성이 추가되나 CI 이미지 빌드 시 1회 컴파일로 흡수되어 배포 시점 복잡도는 없다. 상세 위협 모델·이력은 §Rationale 참조.
 
 ### 7.2 리소스 제한
 
 | 항목 | 제한 | 설명 |
 |------|------|------|
-| 타임아웃 | 기본 30초 (1~120초) | `vm.Script#runInContext` 의 `timeout` (동기 무한루프 보호) + 외부 `Promise.race` (비동기 무한 대기 보호) **이중 적용** |
-| 메모리 | 강제 불가 | `node:vm` 한계. `isolated-vm` 전환 시 128MB 적용 예정 (`CODE_MEMORY_LIMIT`) |
+| 타임아웃 | 기본 30초 (1~120초) | isolate `script.run(..., { timeout })` (CPU 동기 무한루프 보호) + 외부 `Promise.race` (비동기 무한 대기 보호) **이중 적용** |
+| 메모리 | **128MB 하드 리밋** | `isolated-vm` isolate `memoryLimit: 128`. 초과 시 isolate 가 실행을 중단하고 `CODE_MEMORY_LIMIT` 로 `error` 포트 분기 |
 | 네트워크 | 완전 차단 | `fetch`, `XMLHttpRequest`, `WebSocket` 미주입 |
 | 파일시스템 | 접근 불가 | `fs`, `path`, `child_process` 등 미주입 |
 | 모듈 | require/import 불가 | 모듈 로더 미제공. 내장 유틸리티만 전역 주입 |
@@ -341,25 +372,25 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 | `Promise`, `async/await` | 비동기 처리 |
 | `Error`, `TypeError`, `RangeError`, `SyntaxError` | 예외 클래스 |
 
-**차단**: 두 가지 차단 방식이 있다 (`buildSandbox`, `code.handler.ts`).
-1. **미주입 (sandbox 키 부재 → 참조 시 `ReferenceError`)**: `require`/`import`/`fetch`/`fs`/`process`/`Buffer`/`eval`/`Function` 등. vm context 에 키 자체가 없다 (`eval`/`new Function` 은 추가로 `codeGeneration.strings: false` 로도 차단).
-2. **명시 `undefined` 셰도잉 (sandbox 에 `undefined` 로 키 등록)**: `Reflect`/`Proxy`/`globalThis`/`Symbol`/`WeakMap`/`WeakSet`/`WeakRef`/`FinalizationRegistry`/`Atomics`/`SharedArrayBuffer`/`Intl`/`setTimeout`/`setInterval`/`setImmediate`. (vm context 가 이미 생략하지만 계약을 명시적으로 드러내기 위함.)
+**차단**: isolated-vm isolate 에서 두 가지 차단 방식이 있다 (`code.handler.ts` 부트스트랩).
+1. **부재 (host realm 미존재 → 참조 시 `ReferenceError`)**: `require`/`import`/`fetch`/`fs`/`process`/`Buffer`/`global` 등 Node host 전역·모듈은 isolate 안에 **애초에 존재하지 않는다** (host realm 객체라 isolate 에 주입하지 않는 한 도달 불가 — escape 차단의 핵심).
+2. **부트스트랩 삭제 (`delete`)**: V8 Isolate 가 기본 제공하는 ECMAScript 내장 중 비결정성·메타프로그래밍·동적 실행 위험이 있는 것들(`eval`/`Function`/`Reflect`/`Proxy`/`Symbol`/`WeakMap`/`WeakSet`/`WeakRef`/`FinalizationRegistry`/`Atomics`/`SharedArrayBuffer`/`Intl`/`setTimeout`/`setInterval`/`setImmediate`)은 코드 실행 전 부트스트랩 스크립트가 globalThis 에서 제거한다.
 
 | API | 차단 방식 | 차단 이유 |
 |-----|-----------|-----------|
-| `require`, `import` | 미주입 | 외부 모듈 로드 방지 |
-| `fetch`, `XMLHttpRequest`, `WebSocket` | 미주입 | 네트워크 접근 차단 |
-| `fs`, `path`, `os`, `child_process` 등 Node.js 모듈 | 미주입 | 시스템 접근 차단 |
-| `eval`, `Function` 생성자 | 미주입 + `codeGeneration.strings: false` | 동적 코드 실행 추가 방지 |
-| `process`, `global`, `Buffer` | 미주입 | 런타임 환경 접근 차단 |
-| `globalThis`, `Symbol` | `undefined` 셰도잉 | 런타임 환경 접근 / 메타프로그래밍 방지 |
-| `Reflect`, `Proxy` | `undefined` 셰도잉 | 샌드박스 탈출 / 메타프로그래밍 방지 |
-| `WeakMap`, `WeakSet`, `WeakRef`, `FinalizationRegistry`, `Atomics`, `SharedArrayBuffer`, `Intl` | `undefined` 셰도잉 | 비결정적 / cross-realm leak 방지 |
-| `setTimeout`, `setInterval`, `setImmediate` | `undefined` 셰도잉 | 비결정적 스케줄링 차단 (Promise.race 타임아웃 흐름 단순화) |
+| `require`, `import` | 부재 (host realm) | 외부 모듈 로드 방지 |
+| `fetch`, `XMLHttpRequest`, `WebSocket` | 부재 (host realm) | 네트워크 접근 차단 |
+| `fs`, `path`, `os`, `child_process` 등 Node.js 모듈 | 부재 (host realm) | 시스템 접근 차단 |
+| `process`, `global`, `Buffer` | 부재 (host realm) | 런타임 환경 접근 차단 (isolate 밖이라 prototype-chain 으로도 도달 불가) |
+| `eval`, `Function` 생성자 | 부트스트랩 삭제 | 동적 코드 실행 방지 |
+| `globalThis`, `Symbol` | 부트스트랩 삭제 | 런타임 환경 접근 / 메타프로그래밍 방지 |
+| `Reflect`, `Proxy` | 부트스트랩 삭제 | 메타프로그래밍 방지 |
+| `WeakMap`, `WeakSet`, `WeakRef`, `FinalizationRegistry`, `Atomics`, `SharedArrayBuffer`, `Intl` | 부트스트랩 삭제 | 비결정적 / cross-realm leak 방지 |
+| `setTimeout`, `setInterval`, `setImmediate` | 부트스트랩 삭제 | 비결정적 스케줄링 차단 (Promise.race 타임아웃 흐름 단순화) |
 
 ## 8. 캔버스 요약
 
-[Data 공통 §3](./0-common.md#3-캔버스-요약) — `Code` 행 인용 (`{language} · {N} lines`).
+[Data 공통 §3](./0-common.md#3-캔버스-요약) — `Code` 행 인용 (`{language}`, 대문자 — `summaryTemplate: {{language|upper}}`. 코드 줄 수는 summaryTemplate DSL 미지원으로 미포함).
 
 ## Rationale
 
@@ -377,3 +408,18 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 Code 노드의 `output` 은 사용자 `return` 값을 **root 에 그대로** 담는다 (§5.1) — `output.result` 래핑을 적용하지 않는다. `output.result` 래핑은 [CONVENTIONS Principle 8.2](../../conventions/node-output.md) 의 **LLM 계열 노드 (ai_agent / text_classifier / information_extractor) 한정** 규칙이다. Code(및 Transform)는 사용자 코드/연산이 출력 shape 을 결정하므로 인위적 `result` 래핑은 다운스트림 expression 만 장황하게 만든다 (`$node["X"].output.result.foo` vs `$node["X"].output.foo`). 한때 Principle 8.2 표의 "코드 실행 결과 → `output.result`" 행이 이 결정과 모순됐으나, 정합화로 해당 행을 "root 직접 배치 (Code/Transform 예외)" 로 정정했다.
 
 **기각된 대안**: Code 출력을 `output.result` 로 래핑 — LLM 계열과의 표면적 일관성은 얻지만, 사용자가 `return { result: ... }` 를 직접 쓰면 `output.result.result` 이중 중첩이 발생하고, primitive return(`return 42`)이 `output.result: 42` 로 어색해진다. 사용자 코드의 자유로운 shape 가 핵심 가치이므로 root 직접 배치를 유지.
+
+### 격리 방식 `isolated-vm` 전환 — 위협 모델과 결정 (2026-06-11)
+
+**위협 모델**: code 노드 작성 권한은 **Editor 이상**이다. 플랫폼은 code 노드의 사용자 코드를 **신뢰할 수 없는 코드(untrusted)** 로 취급한다 (다중 워크스페이스 안전 posture — self-host 단일 테넌트 가정에 기대지 않는다). 따라서 사용자 코드가 호스트(백엔드 프로세스)를 장악하는 경로를 **구조적으로** 차단해야 한다. 호스트 프로세스 메모리에는 DB 자격증명·`ENCRYPTION_KEY`·배포 환경의 서비스 토큰·내부망 접근권이 존재하므로, host realm 도달은 곧 인증 우회·secret 탈취·SSRF 로 직결된다.
+
+**기존 `node:vm` 의 한계**: `node:vm` 은 전역 미주입(`process`/`require`/`Buffer` 등)으로 모듈 로드·네트워크·파일시스템은 차단했으나, sandbox 와 host 가 **동일 V8 realm** 을 공유해 `this.constructor.constructor('return process')()` 류의 prototype-chain 으로 host 의 `Function` 생성자에 도달, host realm 객체(`process` 등)를 획득하는 escape 가 가능했다. (이전 spec §7.1 "선택 근거" 가 "완벽한 sandbox escape 방어는 불가 … 추후 `isolated-vm` 등으로 재검토" 로 이미 인지·기록한 트레이드오프.)
+
+**결정**: 사용자 결정(2026-06-11)으로 spec 로드맵이 지정했던 `isolated-vm`(V8 Isolate) 으로 전환한다 — 이로써 구 §7.1 "선택 근거" 가 "추후 재검토" 로 남겨둔 로드맵 항목을 본 결정으로 **종결**한다. Isolate 는 host 와 **별도의 V8 힙·realm** 을 가져 host 객체가 isolate 안에 존재하지 않으므로 prototype-chain escape 가 성립하지 않는다. 부수적으로 isolate 단위 메모리 하드 리밋(128MB, `CODE_MEMORY_LIMIT`)·CPU 타임아웃 강제가 가능해진다. 동시에 vm sandbox 에 `Promise` 생성자가 노출돼 있던 별도 위험(refactor 04 M-2)도 흡수된다 — Promise(async/await)는 §4.1 의 기능 약속이라 **유지**하되, 격리 계층이 그로 인한 탈출면을 무력화한다.
+
+**기각된 대안**:
+- **`worker_threads` 권한 박탈** — worker 는 host 와 동일 프로세스 주소공간을 공유하는 보안 경계가 아니라 격리 강도를 본질적으로 개선하지 못한다.
+- **컨테이너/gVisor 즉시 전환** — 격리 강도는 최강이나 노드 실행마다 컨테이너 기동·런타임 의존(self-host 부담)이라 운영 복잡도 대비 과도. V8 자체 버그에 의한 isolate 탈출까지 막아야 할 다중 테넌트 확장 시점의 **후속 강화**로 §7.1 로드맵에 남긴다.
+- **현상 유지 + frozen-prototype 단기완화** — 우회 경로가 다수라 근본 차단이 아니며 다중 워크스페이스에서 수용 불가.
+
+**트레이드오프**: 네이티브 빌드(node-gyp) 의존성이 추가된다. CI 이미지 빌드 시 1회 컴파일로 흡수되어 배포 시점 복잡도는 0 이나, 빌드 환경(alpine/musl 포함)에 C++ 툴체인이 필요하다. `$helpers`·`console` 은 host 클로저를 `Reference`/`ivm.Callback` 으로 브리지하므로 host realm 에서 실행되어 기존 사용자 코드(dayjs·crypto·base64) 호환성은 보존된다. isolated-vm 버전은 `node>=22` 를 지원하는 `6.x` 라인을 사용한다 (`7.x` 는 `node>=26` 요구 — Node 26 승급 시 재검토).

@@ -295,8 +295,8 @@ execute(input: JSON, config: JSON, context: ExecutionContext) → JSON
 
 | 항목 | 설명 | 구현 상태 |
 |------|------|-----------|
-| 실행 격리 | `code` 노드는 `node:vm` 컨텍스트에서 격리 실행하며 제한된 글로벌(`JSON`/`Math`/`Date` 등)만 노출하고 `Reflect`/`Proxy`/`globalThis`/`SharedArrayBuffer`/`Atomics` 등은 차단한다 (`nodes/data/code/code.handler.ts` `buildSandbox`) | 구현됨 (code 노드) |
+| 실행 격리 | `code` 노드는 `isolated-vm`(V8 Isolate, `memoryLimit: 128`) 에서 host 와 분리된 별도 realm 으로 실행한다. host 전역(`process`/`require`/`Buffer` 등)이 isolate 안에 부재해 prototype-chain 탈출이 구조적으로 차단되며, `Reflect`/`Proxy`/`globalThis`/`SharedArrayBuffer`/`Atomics`/`eval`/`Function` 등 위험 내장은 부트스트랩에서 제거한다 (`nodes/data/code/code.handler.ts`) | 구현됨 (code 노드) |
 | 타임아웃 | `code` 노드 실행 시간 제한 (기본 30초, config 로 설정 가능). sub-workflow 호출은 별도로 기본 300초 타임아웃 (`execution-engine.service.ts`) | 구현됨 (code 노드 / sub-workflow) |
 | 네트워크 접근 | `code` 노드 sandbox 에는 `fetch`/`http` 등 네트워크 API 를 노출하지 않는다. 외부 호출은 Integration 노드를 통해서만 가능 | 구현됨 (code 노드) |
-| 메모리 제한 | 노드별 메모리 사용량 제한 | **미구현 (Planned)** |
+| 메모리 제한 | `code` 노드는 isolate `memoryLimit: 128`(MB) 하드 리밋. 초과 시 isolate 가 실행을 중단하고 `CODE_MEMORY_LIMIT` 로 `error` 포트 분기. 그 외 노드는 노드별 메모리 제한 미적용 | 구현됨 (code 노드) |
 | 파일 시스템 | 읽기 전용 (임시 디렉토리만 쓰기 가능) — `code` sandbox 는 `fs`/`require` 미노출이나 명시적 FS 정책은 없음 | **미구현 (Planned)** |
