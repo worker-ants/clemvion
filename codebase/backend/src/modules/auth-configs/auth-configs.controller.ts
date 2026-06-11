@@ -100,6 +100,8 @@ export class AuthConfigsController {
     @CurrentUser('sub') userId: string,
     @Req() req: Request,
   ) {
+    // userId(@CurrentUser sub) + req.ip — CRUD 감사 로그(auth_config.*)의 주체·IP 기록용.
+    // 4개 변경 핸들러(create/update/regenerate/remove) 공통 패턴.
     return this.authConfigsService.create(workspaceId, body, userId, req.ip);
   }
 

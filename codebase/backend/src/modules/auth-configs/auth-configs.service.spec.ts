@@ -201,6 +201,7 @@ describe('AuthConfigsService', () => {
         WS,
         { name: 'b' } as Partial<AuthConfig>,
         USER,
+        '1.2.3.4',
       );
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -209,6 +210,7 @@ describe('AuthConfigsService', () => {
           resourceId: ac.id,
           workspaceId: WS,
           userId: USER,
+          ipAddress: '1.2.3.4',
         }),
       );
     });
@@ -220,13 +222,14 @@ describe('AuthConfigsService', () => {
         USER,
       );
       audit.record.mockClear();
-      await service.regenerate(ac.id, WS, USER);
+      await service.regenerate(ac.id, WS, USER, '1.2.3.4');
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'auth_config.regenerate',
           resourceType: 'auth_config',
           resourceId: ac.id,
           userId: USER,
+          ipAddress: '1.2.3.4',
         }),
       );
     });
@@ -238,13 +241,14 @@ describe('AuthConfigsService', () => {
         USER,
       );
       audit.record.mockClear();
-      await service.remove(ac.id, WS, USER);
+      await service.remove(ac.id, WS, USER, '1.2.3.4');
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'auth_config.delete',
           resourceType: 'auth_config',
           resourceId: ac.id,
           userId: USER,
+          ipAddress: '1.2.3.4',
         }),
       );
     });

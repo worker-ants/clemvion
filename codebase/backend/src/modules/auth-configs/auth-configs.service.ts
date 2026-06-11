@@ -95,6 +95,14 @@ export class AuthConfigsService {
     return this.toMasked(await this.findById(id, workspaceId));
   }
 
+  /**
+   * AuthConfig 생성. 주 동작(저장) 성공 후 `auth_config.create` 감사 로그를 남긴다.
+   * @param userId 작업 주체 — controller 가 `@CurrentUser('sub')` 로 전파.
+   * @param ipAddress 요청 IP(`req.ip`) — 감사 로그에 기록 (auth_config 계열 공통).
+   * @remarks 감사 기록은 best-effort 다 — `AuditLogsService.record` 가 실패를 내부에서
+   *   swallow 하므로(해당 swallow 는 audit-logs.service.spec 에서 검증) audit DB 장애가
+   *   본 CRUD 를 실패시키지 않는다(롤백 없음). reveal 및 update/regenerate/remove 동일 패턴.
+   */
   async create(
     workspaceId: string,
     data: Partial<AuthConfig>,
@@ -137,6 +145,7 @@ export class AuthConfigsService {
     return saved;
   }
 
+  /** 수정 후 `auth_config.update` 감사 기록. userId/ipAddress·best-effort 계약은 {@link create} 참조. */
   async update(
     id: string,
     workspaceId: string,
@@ -158,6 +167,7 @@ export class AuthConfigsService {
     return this.toMasked(saved);
   }
 
+  /** 키/토큰 재발급 후 `auth_config.regenerate` 감사 기록. 계약은 {@link create} 참조. */
   async regenerate(
     id: string,
     workspaceId: string,
@@ -189,6 +199,7 @@ export class AuthConfigsService {
     return saved;
   }
 
+  /** 삭제 후 `auth_config.delete` 감사 기록 (resourceId 는 삭제 전 id 보존). 계약은 {@link create} 참조. */
   async remove(
     id: string,
     workspaceId: string,
