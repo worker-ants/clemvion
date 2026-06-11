@@ -270,8 +270,8 @@ widget id → 컴포넌트 매핑의 SoT 는 frontend `auto-form/widget-registry
 
 #### 2.6.3 트랙 배정 현황
 
-- **auto-form 이행 완료**: `split` · `map` · `foreach` · `merge` · `carousel` · `ai_agent`
-- **override 잔존** (`OVERRIDE_REGISTRY` 기준): `manual_trigger`, `if_else`, `switch`, `loop`, `variable_declaration`, `variable_modification`, `parallel`, `filter`, `workflow`, `text_classifier`, `information_extractor`, `http_request`, `database_query`, `send_email`, `cafe24`, `makeshop`, `transform`, `code`, `table`, `chart`, `form`, `template` — cross-field side effect (예: table 의 column/row 동기화) 등 auto-form 표현력 밖의 요구가 남은 노드들
+- **auto-form 이행 완료**: `split` · `map` · `foreach` · `merge` · `carousel` · `ai_agent` · `text_classifier` · `information_extractor`
+- **override 잔존** (`OVERRIDE_REGISTRY` 기준): `manual_trigger`, `if_else`, `switch`, `loop`, `variable_declaration`, `variable_modification`, `parallel`, `filter`, `workflow`, `http_request`, `database_query`, `send_email`, `cafe24`, `makeshop`, `transform`, `code`, `table`, `chart`, `form`, `template` — cross-field side effect (예: table 의 column/row 동기화) 등 auto-form 표현력 밖의 요구가 남은 노드들
 
 ---
 
@@ -355,3 +355,7 @@ widget id → 컴포넌트 매핑의 SoT 는 frontend `auto-form/widget-registry
 ### R-2. 노드 설정 폼의 2-트랙 전략 (override → auto-form) 을 SoT 로 명문화 (§2.6) (2026-06-10)
 
 설정 패널의 schema-driven auto-form 시스템(SchemaForm · UiHint DSL · widget registry · override registry)은 구현이 선행됐고 여러 spec 이 단편적으로만 참조해 왔다 (Switch 의 `requiredWhen`, AI Agent 의 `visibleWhen`, AI Assistant 의 selector widget 등). 본 문서 §2.6 을 시스템 전체의 SoT 섹션으로 신설해 2-트랙 렌더 전략, UiHint 어휘, widget 19종, 트랙 배정 현황을 한 곳에서 관리한다. 개별 노드 spec 의 frontend 설정 UI 매핑도 노드별 분산 대신 본 문서 frontmatter (`node-configs/**` · `auto-form/**`) 1곳에 매핑한다 — 유지보수 부담 최소화 목적 (2026-06 spec-sync audit).
+
+### R-3. `text_classifier` · `information_extractor` auto-form 이행 (§2.6.3) (2026-06-11)
+
+두 AI 노드의 bespoke override 폼(`ai-configs.tsx`)은 zod schema 가 노출 명시한 필드 (conversation-context 5 · agent-memory 7 · system-context 2 · few-shot `examples` · `enumValues` · `maxCollectionRetries`) 를 렌더하지 못해 사용자가 Code 탭 JSON 으로만 설정할 수 있었다 (cross-audit V-02, severe). 두 노드의 schema 는 이미 해당 필드 전부를 auto-form widget(`field-array` · `llm-config-selector` · `multiselect` · `expression` · `visibleWhen` 게이트 등) 으로 충분히 표현 가능한 ui 힌트를 방출하고 있었으므로, `ai_agent` 와 동일하게 `OVERRIDE_REGISTRY` 에서 제거해 auto-form 으로 이행하고 bespoke 컴포넌트를 폐기했다. backend schema 변경 0건 — 누락은 frontend override 가 schema 힌트를 무시한 데서 비롯됐다.
