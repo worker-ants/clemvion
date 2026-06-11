@@ -11,7 +11,11 @@ import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.j
 import { codeNodeMetadata, DEFAULT_TIMEOUT_SEC } from './code.schema.js';
 
 const MAX_CONSOLE_LINES = 100;
-/** isolate 메모리 하드 리밋 (spec §7.2) — 초과 시 CODE_MEMORY_LIMIT. */
+/**
+ * Isolate memory hard limit (spec §7.2) — exceeded triggers CODE_MEMORY_LIMIT.
+ * W15: Currently hardcoded. Can be extracted to `CODE_NODE_MEMORY_LIMIT_MB`
+ * env var if runtime tuning is needed.
+ */
 const ISOLATE_MEMORY_LIMIT_MB = 128;
 
 // Allowlist for $helpers.crypto.hash — guards against OpenSSL internal error
@@ -74,6 +78,11 @@ function hostHash(algorithm: unknown, data: unknown): string {
  * the global object by removing dynamic-eval / metaprogramming / non-deterministic
  * intrinsics (spec §7.3). The isolate has no host realm, so this is
  * defense-in-depth on top of the structural V8 Isolate boundary.
+ *
+ * W13 (IMPORTANT — execution order): The `$helpers`/`console` closures MUST
+ * capture their references (step 1) BEFORE the `delete globalThis.*` block
+ * (step 2) runs. Reordering these two steps will break the closures and
+ * may re-expose dangerous globals. Do not change the order without careful review.
  */
 const BOOTSTRAP_SOURCE = `(() => {
   "use strict";
@@ -154,6 +163,12 @@ const BOOTSTRAP_SOURCE = `(() => {
  *   - only JSON-safe data crosses the boundary (`copy: true` never sees a live
  *     object such as a returned dayjs instance — it gets `toJSON`'d to a string);
  *   - `undefined` (no `return`) stays `undefined` (spec §5.1).
+ *
+ * W14: The wrapper prepends a 4-line header (async IIFE open + "use strict" +
+ * inner async arrow open + the user code). Runtime error line numbers are
+ * therefore offset by +4 relative to the user's source. Error messages from
+ * isolated-vm include the raw line; callers/UIs should subtract 4 to show the
+ * user their actual line number.
  */
 function wrapUserCode(code: string): string {
   return `(async () => {
@@ -170,8 +185,16 @@ return __result === undefined ? undefined : JSON.stringify(__result);
 // validate(). Compilation never executes user code, so a shared long-lived
 // isolate is safe; JS is single-threaded so concurrent compiles serialize.
 let syntaxIsolate: ivm.Isolate | undefined;
+/**
+ * Check user code for syntax errors by compiling it in a disposable
+ * syntax-check isolate.
+ *
+ * @returns `undefined` when there are no errors; an error message string
+ *   when the code has a syntax error.
+ */
 function syntaxCheck(wrappedCode: string): string | undefined {
-  if (!syntaxIsolate) {
+  // W4/INFO#3 — re-create if disposed (e.g. after an OOM in a prior check).
+  if (!syntaxIsolate || syntaxIsolate.isDisposed) {
     syntaxIsolate = new ivm.Isolate({ memoryLimit: 8 });
   }
   try {
@@ -323,9 +346,12 @@ export class CodeHandler implements NodeHandler {
             unknown
           >) ?? {};
       } catch {
-        // $vars became non-cloneable (e.g. holds a function). Keep the mutated
-        // clone — the contract is JSON-safe variables; an unsync is safer than
-        // crashing a successful run.
+        // $vars copy-out failed (e.g. user assigned a non-serialisable value).
+        // INFO#14/INFO#15: Restore the pre-execution snapshot (varsClone). This
+        // is NOT a "mutated clone" — it is the original variables from before
+        // execution started. Per spec §4.5 "원본 보존": keeping varsClone here
+        // is equivalent to original preservation (read-back failed; variables
+        // not updated).
         context.variables = varsClone;
       }
 
@@ -353,7 +379,7 @@ export class CodeHandler implements NodeHandler {
       ) {
         throw err;
       }
-      const errorCode = classifyError(err);
+      const errorCode = classifyError(err, isolate);
       return this.failure(
         rawConfigForEcho,
         err,
@@ -389,14 +415,9 @@ export class CodeHandler implements NodeHandler {
     // standardized envelope. Legacy `meta.error` / `meta.errorCode` /
     // `meta.stack` aliases were removed in Phase 1 (D); downstream consumers
     // read `output.error.{code, message, details.stack}` exclusively now.
-    const normalizedCode =
-      errorCode === 'EXECUTION_TIMEOUT'
-        ? 'CODE_TIMEOUT'
-        : errorCode === 'EXECUTION_MEMORY_EXCEEDED'
-          ? 'CODE_MEMORY_LIMIT'
-          : errorCode === 'CODE_RUNTIME_ERROR'
-            ? 'CODE_EXECUTION_FAILED'
-            : errorCode;
+    // W8: LEGACY_TO_NORMALIZED table replaces the triple-ternary chain —
+    // one place to add new code mappings.
+    const normalizedCode = LEGACY_TO_NORMALIZED[errorCode] ?? errorCode;
     const outputDetails: Record<string, unknown> = { legacyCode: errorCode };
     if (exposeStack && stack) outputDetails.stack = stack;
     // CONVENTIONS Principle 7 — error path echoes raw config (including
@@ -424,15 +445,44 @@ export class CodeHandler implements NodeHandler {
   }
 }
 
+// Module-level compiled regexes (W8/INFO#9 — avoid per-call GC pressure).
+const RE_TIMED_OUT = /timed out/i;
+const RE_MEMORY_LIMIT = /memory limit/i;
+const RE_ISOLATE_DISPOSED = /Isolate was disposed/i;
+
+// Normalised mapping table for internal → public error codes (W8 — single place
+// to add new codes; eliminates the triple-ternary chain in failure()).
+const LEGACY_TO_NORMALIZED: Record<string, string> = {
+  EXECUTION_TIMEOUT: 'CODE_TIMEOUT',
+  EXECUTION_MEMORY_EXCEEDED: 'CODE_MEMORY_LIMIT',
+  CODE_RUNTIME_ERROR: 'CODE_EXECUTION_FAILED',
+};
+
 /**
  * Map a thrown error from the isolate run onto an internal (legacy) error code.
- * `isolated-vm` surfaces timeout / memory conditions through the error message.
+ *
+ * Classification priority (W2 — spoofing defence):
+ *  1. `err.code === 'EXECUTION_TIMEOUT'` — host-side wall-clock timeout (trusted,
+ *     set by the handler itself, never by user code).
+ *  2. `isolate.isDisposed === true` — the V8 Isolate was hard-killed by
+ *     isolated-vm (memory OOM or equivalent). User code cannot set this flag
+ *     without actually disposing the isolate, so `throw new Error("Isolate was
+ *     disposed")` does NOT trigger this branch — the isolate stays alive.
+ *  3. Message regex patterns — fallback only, lower trust.
  */
-function classifyError(err: CodeExecutionError): string {
+export function classifyError(
+  err: CodeExecutionError,
+  isolate?: ivm.Isolate,
+): string {
+  // Priority 1: trusted host-set code (wall-clock timeout).
   if (err?.code === 'EXECUTION_TIMEOUT') return 'EXECUTION_TIMEOUT';
+  // Priority 2: isolate was hard-disposed by isolated-vm (memory limit breach).
+  // isDisposed is a native flag; user code cannot spoof it.
+  if (isolate?.isDisposed) return 'EXECUTION_MEMORY_EXCEEDED';
+  // Priority 3: message pattern — fallback.
   const message = typeof err?.message === 'string' ? err.message : '';
-  if (/timed out/i.test(message)) return 'EXECUTION_TIMEOUT';
-  if (/memory limit/i.test(message) || /Isolate was disposed/i.test(message)) {
+  if (RE_TIMED_OUT.test(message)) return 'EXECUTION_TIMEOUT';
+  if (RE_MEMORY_LIMIT.test(message) || RE_ISOLATE_DISPOSED.test(message)) {
     return 'EXECUTION_MEMORY_EXCEEDED';
   }
   return 'CODE_RUNTIME_ERROR';
