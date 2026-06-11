@@ -434,6 +434,25 @@ describe('LlmService', () => {
         error: 'Authentication failed. Please check your API key.',
       });
     });
+
+    // SUMMARY#3 — kind='rerank' must NOT enter the embedding probe branch;
+    // it must call client.testConnection() directly.
+    it('calls client.testConnection() for kind=rerank (not embed probe)', async () => {
+      mockModelConfigService.findEntity.mockResolvedValue({
+        id: 'rerank-1',
+        kind: 'rerank',
+        provider: 'cohere',
+        defaultModel: 'rerank-english-v3.0',
+        apiKey: 'encrypted',
+      });
+
+      const result = await service.testConnection('rerank-1', 'ws-1');
+
+      expect(mockClient.testConnection).toHaveBeenCalled();
+      // embed probe must NOT be called for rerank
+      expect(mockClient.embed).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: true });
+    });
   });
 
   describe('resolveConfig', () => {
