@@ -133,7 +133,7 @@ sequenceDiagram
   단계의 instruction-style 필터(§1.1)는 보조 방어다.
 - **임베딩 출처 일치**: 회수(query)와 저장(document)이 같은 노드 config
   `(llmConfigId, embeddingModel)` 을 쓰므로 차원·endpoint 가 일치한다. 미지정 시
-  워크스페이스 기본 LLMConfig → 최후 하드코딩 기본(`text-embedding-3-small`) 폴백.
+  워크스페이스 기본 embedding ModelConfig → 최후 하드코딩 기본(`text-embedding-3-small`) 폴백.
   비대칭 임베딩 모델은 `inputType` 으로 query/document 를 구분한다 —
   [Knowledge Base data-flow](./6-knowledge-base.md) 와 동일 `LlmService.embed` 경로.
 - recall 실패는 모든 레이어에서 graceful (빈 배열) — 회수 실패가 응답 경로를 깨지 않는다.

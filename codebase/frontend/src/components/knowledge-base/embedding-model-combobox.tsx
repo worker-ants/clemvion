@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { useEmbeddingModelLoader } from "@/components/llm-config/use-embedding-model-loader";
+import { type ModelLoaderApi } from "@/components/llm-config/use-model-loader";
 import { useDefaultLlmConfigId } from "@/components/llm-config/use-default-llm-config-id";
 import { buildLoaderErrorMessages } from "@/components/llm-config/loader-error-messages";
 import { ModelSelectField } from "@/components/llm-config/model-select-field";
@@ -25,6 +26,8 @@ interface EmbeddingModelComboboxProps {
    * 보여주기 위함.
    */
   llmConfigId?: string;
+  /** 모델 조회 API (default llmConfigsApi). KB 임베딩 1급 전환 시 modelConfigsApi 주입. */
+  api?: ModelLoaderApi;
 }
 
 // 지정된 LLMConfig (또는 워크스페이스 default) 의 임베딩 모델을 "모델 불러오기" 버튼 클릭
@@ -36,6 +39,7 @@ export function EmbeddingModelCombobox({
   placeholder,
   disabled,
   llmConfigId,
+  api,
 }: EmbeddingModelComboboxProps) {
   const t = useT();
 
@@ -55,6 +59,7 @@ export function EmbeddingModelCombobox({
     configId: effectiveConfigId,
     fallbackErrorMessage: t("knowledgeBases.embeddingModelLoadFailed"),
     errorMessagesByCode,
+    api,
   });
 
   const embeddingModels = useMemo(

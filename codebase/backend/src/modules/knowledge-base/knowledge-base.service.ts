@@ -15,6 +15,7 @@ import { CreateKnowledgeBaseDto } from './dto/create-knowledge-base.dto';
 import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
 import { EmbeddingProbeDto } from './dto/embedding-probe.dto';
 import { LlmService } from '../llm/llm.service';
+import { ModelConfigService } from '../model-config/model-config.service';
 import { sanitizeLlmErrorMessage } from '../llm/utils/sanitize-error.util';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -64,6 +65,7 @@ export class KnowledgeBaseService {
     @InjectQueue(GRAPH_EXTRACTION_QUEUE)
     private readonly graphQueue: Queue<GraphExtractionJob>,
     private readonly llmService: LlmService,
+    private readonly modelConfigService: ModelConfigService,
   ) {}
 
   // ── Knowledge Base CRUD ──
@@ -108,11 +110,26 @@ export class KnowledgeBaseService {
     workspaceId: string,
     dto: CreateKnowledgeBaseDto,
   ): Promise<KnowledgeBase> {
+    // WARNING #1: backend is authoritative for embeddingModel when embeddingModelConfigId is set.
+    // Load the config server-side so KB.embeddingModel always matches config.defaultModel —
+    // the client cannot supply a stale/missing embeddingModel (race at create time, WARNING #3).
+    let resolvedEmbeddingModel: string =
+      dto.embeddingModel || 'text-embedding-3-small';
+    if (dto.embeddingModelConfigId) {
+      const embCfg = await this.modelConfigService.findEntity(
+        dto.embeddingModelConfigId,
+        workspaceId,
+        'embedding',
+      );
+      resolvedEmbeddingModel = embCfg.defaultModel;
+    }
+
     const kb = this.kbRepository.create({
       workspaceId,
       name: dto.name,
       description: dto.description || undefined,
-      embeddingModel: dto.embeddingModel || 'text-embedding-3-small',
+      embeddingModel: resolvedEmbeddingModel,
+      embeddingModelConfigId: dto.embeddingModelConfigId ?? null,
       embeddingLlmConfigId: dto.embeddingLlmConfigId ?? null,
       chunkSize: dto.chunkSize || 1000,
       chunkOverlap: dto.chunkOverlap || 200,
@@ -161,6 +178,25 @@ export class KnowledgeBaseService {
     if (dto.embeddingLlmConfigId !== undefined) {
       kb.embeddingLlmConfigId = dto.embeddingLlmConfigId;
     }
+    // WARNING #2: backend is authoritative for embeddingModel when embeddingModelConfigId changes.
+    // Load config server-side so KB.embeddingModel stays in sync with config.defaultModel —
+    // client may not send embeddingModel on update. Also reset dimension (embeddingModel change
+    // or new config → first embed will re-detect dimension).
+    if (
+      dto.embeddingModelConfigId !== undefined &&
+      dto.embeddingModelConfigId !== kb.embeddingModelConfigId
+    ) {
+      kb.embeddingModelConfigId = dto.embeddingModelConfigId;
+      kb.embeddingDimension = null;
+      if (dto.embeddingModelConfigId) {
+        const embCfg = await this.modelConfigService.findEntity(
+          dto.embeddingModelConfigId,
+          workspaceId,
+          'embedding',
+        );
+        kb.embeddingModel = embCfg.defaultModel;
+      }
+    }
     if (dto.maxHops !== undefined) kb.maxHops = dto.maxHops;
     if (dto.vectorSeedTopK !== undefined)
       kb.vectorSeedTopK = dto.vectorSeedTopK;
@@ -195,10 +231,13 @@ export class KnowledgeBaseService {
     workspaceId: string,
     dto: EmbeddingProbeDto,
   ): Promise<{ dimension: number; provider: string }> {
-    const cfg = await this.llmService.resolveConfig(
-      dto.llmConfigId,
-      workspaceId,
-    );
+    const cfg = dto.embeddingModelConfigId
+      ? await this.modelConfigService.findEntity(
+          dto.embeddingModelConfigId,
+          workspaceId,
+          'embedding',
+        )
+      : await this.llmService.resolveConfig(dto.llmConfigId, workspaceId);
     let vectors: number[][];
     try {
       // 차원 감지용 probe — inputType 은 차원에 무관하나 명시적으로 document.

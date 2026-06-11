@@ -13,6 +13,11 @@ interface EmbeddingTestButtonProps {
    * 폴백한다.
    */
   llmConfigId?: string;
+  /**
+   * 폼 state 의 1급 ModelConfig(kind=embedding) id. 지정 시 이 config 로 probe 한다
+   * (legacy llmConfigId 보다 우선). 빈 값이면 미전송.
+   */
+  embeddingModelConfigId?: string;
   /** 폼 state 의 임베딩 모델 식별자. 비어 있으면 버튼 비활성. */
   embeddingModel: string;
   /**
@@ -42,6 +47,7 @@ function extractMessage(err: unknown): string {
 
 export function EmbeddingTestButton({
   llmConfigId,
+  embeddingModelConfigId,
   embeddingModel,
   currentDimension,
 }: EmbeddingTestButtonProps) {
@@ -51,16 +57,17 @@ export function EmbeddingTestButton({
     mutationFn: () =>
       knowledgeBasesApi.probeEmbedding({
         llmConfigId: llmConfigId || undefined,
+        embeddingModelConfigId: embeddingModelConfigId || undefined,
         embeddingModel,
       }),
   });
 
-  // llmConfigId / 모델이 바뀌면 이전 결과는 더 이상 유효하지 않으므로 reset.
+  // config / 모델이 바뀌면 이전 결과는 더 이상 유효하지 않으므로 reset.
   useEffect(() => {
     mutation.reset();
     // mutation 인스턴스는 안정적이지만 ESLint 경고 회피를 위해 reset 만 의도적으로 deps 에서 제외.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [llmConfigId, embeddingModel]);
+  }, [llmConfigId, embeddingModelConfigId, embeddingModel]);
 
   const disabled = !embeddingModel || mutation.isPending;
 

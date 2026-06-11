@@ -59,8 +59,7 @@ code:
 │   └── version-history    # 버전 히스토리
 ├── 06-integrations-and-config/
 │   ├── integration-management  # 통합 관리
-│   ├── llm-config             # LLM 설정
-│   ├── rerank-config          # 리랭커 설정
+│   ├── models                 # 모델 설정 (Chat/Embedding/Rerank 통합)
 │   ├── knowledge-base         # 지식 저장소
 │   ├── mcp-servers            # MCP 서버 통합 (AI Agent 도구 호출용)
 │   ├── cafe24                 # Cafe24 채널 연동

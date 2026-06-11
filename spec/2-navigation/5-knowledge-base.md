@@ -60,17 +60,17 @@ code:
 | 이름 | 컬렉션 이름 (필수) |
 | 설명 | 컬렉션 설명 (선택) |
 | 검색 모드 | `vector` (기본) / `graph` 중 선택. **생성 시에만 결정, 사후 변경 불가** |
-| 임베딩 모델 | 지정된 LLMConfig (미지정 시 워크스페이스 default) 의 임베딩 모델 목록을 "모델 불러오기" 버튼으로 조회한 뒤 select 로 선택. 자유 텍스트 입력은 허용하지 않는다. 미로드 / 조회 실패 시 select 비활성, 에러 메시지만 표시 ([설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정) 의 결정을 그대로 적용). **한국어 추천 모델**(KURE / arctic-embed / bge-m3 / multilingual-e5 패턴)은 option 라벨에 "한국어 추천" 텍스트 배지를 덧붙여 표시 — **비강제**(선택을 제한하지 않으며, select-only 원칙 유지: 배지는 기존 option 라벨 위 표시용 메타데이터일 뿐 자유 입력 경로를 추가하지 않는다). `text-embedding-3` (OpenAI 대칭) 은 한국어 검색 벤치마크 하위라 배지 대상에서 제외한다 — 사용은 가능하되 "추천" 으로 오인되지 않게 한다. 패턴은 `embedding-model-recommendation.ts` |
-| 임베딩 테스트 | (버튼) 선택한 LLMConfig(미지정 시 워크스페이스 default) + 임베딩 모델 조합으로 1회 `embed('probe')` 를 수행해 **실측 차원·provider** 를 인라인 표시 (`POST /embedding-probe`, [§3 API](#3-api)). 자가호스팅/Azure 처럼 모델명이 같아도 차원이 다른 endpoint 를 KB 저장 전에 확인하는 용도. 실패 시 sanitize 된 에러 메시지만 표시. probe 는 read-only 검증 — 측정한 차원을 `embedding_dimension` 에 미리 저장하지 않는다 ([RAG 검색 §5](../5-system/9-rag-search.md#5-임베딩-모델-일관성)·[Rationale](../5-system/9-rag-search.md#rationale)) |
-| 추출 LLM | `graph` 모드 일 때만 표시. 그래프 추출에 사용할 LLMConfig 의 chat 모델. 미지정 시 워크스페이스 default |
+| 임베딩 모델 | 통합 Models 화면의 `kind=embedding` ModelConfig 목록에서 select 로 선택 (미지정 시 워크스페이스 default). 자유 텍스트 입력은 허용하지 않는다. 미로드 / 조회 실패 시 select 비활성, 에러 메시지만 표시 ([설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정) 의 결정을 그대로 적용). **한국어 추천 모델**(KURE / arctic-embed / bge-m3 / multilingual-e5 패턴)은 option 라벨에 "한국어 추천" 텍스트 배지를 덧붙여 표시 — **비강제**(선택을 제한하지 않으며, select-only 원칙 유지: 배지는 기존 option 라벨 위 표시용 메타데이터일 뿐 자유 입력 경로를 추가하지 않는다). `text-embedding-3` (OpenAI 대칭) 은 한국어 검색 벤치마크 하위라 배지 대상에서 제외한다 — 사용은 가능하되 "추천" 으로 오인되지 않게 한다. 패턴은 `embedding-model-recommendation.ts` |
+| 임베딩 테스트 | (버튼) 선택한 `kind=embedding` ModelConfig(미지정 시 워크스페이스 default) + 임베딩 모델 조합으로 1회 `embed('probe')` 를 수행해 **실측 차원·provider** 를 인라인 표시 (`POST /embedding-probe`, [§3 API](#3-api)). 자가호스팅/Azure 처럼 모델명이 같아도 차원이 다른 endpoint 를 KB 저장 전에 확인하는 용도. 실패 시 sanitize 된 에러 메시지만 표시. probe 는 read-only 검증 — 측정한 차원을 `embedding_dimension` 에 미리 저장하지 않는다 ([RAG 검색 §5](../5-system/9-rag-search.md#5-임베딩-모델-일관성)·[Rationale](../5-system/9-rag-search.md#rationale)) |
+| 추출 LLM | `graph` 모드 일 때만 표시. 그래프 추출에 사용할 `ModelConfig (kind=chat)` 의 chat 모델. 미지정 시 워크스페이스 default |
 | 청크 크기 | 문서 분할 청크 크기 (기본: 1000 토큰) |
 | 청크 오버랩 | 청크 간 오버랩 (기본: 200 토큰) |
 | 그래프 검색 파라미터 | `graph` 모드 일 때만 표시. `maxHops` (1/2, 기본 1), `vectorSeedTopK` (기본 5), `expandedChunkLimit` (기본 15) |
-| 리랭킹 (Reranking) | (선택) 검색 후처리 정밀화. `Off` (기본) / `Cross-encoder` / `Cross-encoder + LLM`. `cross_encoder` · `cross_encoder_llm` 모두 구현됨 (provider `tei`/`cohere`); `Off` 가 기본이라 미설정 시 하위호환 동작 그대로. **사후 변경 가능** (검색 시점 적용, 재임베딩 불요). `Off` 아닐 때만 하위 필드 노출 — Reranker(RerankConfig 선택), Candidate pool (기본 50), Score cutoff (비우면 컷 없음), Grading LLM (`Cross-encoder + LLM` 시). RerankConfig 자체는 워크스페이스 설정 화면에서 관리한다 ([설정 화면 Part C](./6-config.md#part-c-rerank-리랭커-설정)). 상세: [Spec RAG 검색 §3.3](../5-system/9-rag-search.md#33-검색-후처리--리랭킹-선택적) |
+| 리랭킹 (Reranking) | (선택) 검색 후처리 정밀화. `Off` (기본) / `Cross-encoder` / `Cross-encoder + LLM`. `cross_encoder` · `cross_encoder_llm` 모두 구현됨 (provider `tei`/`cohere`); `Off` 가 기본이라 미설정 시 하위호환 동작 그대로. **사후 변경 가능** (검색 시점 적용, 재임베딩 불요). `Off` 아닐 때만 하위 필드 노출 — Reranker(`kind=rerank` ModelConfig 선택), Candidate pool (기본 50), Score cutoff (비우면 컷 없음), Grading LLM (`Cross-encoder + LLM` 시). ModelConfig (kind=rerank) 자체는 워크스페이스 설정 화면에서 관리한다 ([Config > Models > Rerank 탭](./6-config.md#b6-rerank-탭--리랭커-추가수정)). 상세: [Spec RAG 검색 §3.3](../5-system/9-rag-search.md#33-검색-후처리--리랭킹-선택적) |
 
 > 모드별 도움말은 폼에 인라인 안내로 표시: vector 는 "유사도 기반 단순 검색", graph 는 "entity·relation 추출 후 그래프 탐색을 결합 — 추출 LLM 호출이 추가 비용으로 발생". 리랭킹은 "Off(기본)면 동작 변화 없음 — 리랭커 설정 시에만 검색 정밀화. 셀프호스팅(TEI) 또는 외부 API(Cohere/Jina 등) 사용".
 
-> **리랭커 provider 설정(RerankConfig)** 은 워크스페이스 설정 화면에서 LLMConfig 와 동일 패턴으로 관리한다 (provider·endpoint·모델·API Key). KB 폼의 "Reranker" select 는 워크스페이스 RerankConfig 목록에서 선택한다. 엔티티: [Spec 데이터 모델 §2.16.1](../1-data-model.md#2161-rerankconfig).
+> **리랭커 provider 설정(ModelConfig (kind=rerank))** 은 [Config > Models](./6-config.md#part-b-models-모델-설정) 화면에서 chat/embedding 과 동일 패턴으로 관리한다 (provider·endpoint·모델·API Key). KB 폼의 "Reranker" select 는 워크스페이스 `kind=rerank` ModelConfig 목록에서 선택한다. 엔티티: [Spec 데이터 모델 §2.16](../1-data-model.md#216-modelconfig).
 
 > **임베딩 모델 변경 경고**: KB 설정에서 임베딩 모델을 기존과 다른 값으로 바꾸면 "검색 정확도를 위해 KB 재임베딩이 필요" 하다는 인라인 경고를 표시한다(저장된 청크는 구 모델 차원/공간이라 신규 query 와 호환되지 않음). 재임베딩은 자동 트리거하지 않고 [KB 전체 재임베딩](#241-진행-박스-kb-상세-상단)(확인 모달 → `POST /re-embed`, vector/graph 비용 안내 분리) 으로 사용자가 명시 실행한다 — 비용 통제. 비대칭 입력(e5/Gemini) 모델로 전환·배선 변경 시에도 동일 재임베딩이 권장된다 ([Spec 임베딩 파이프라인 §5.4](../5-system/8-embedding-pipeline.md)).
 
@@ -204,7 +204,7 @@ KB 상세 화면에 그래프 통계/탐색 영역을 추가한다.
 |--------|------|------|
 | GET | /api/knowledge-bases | 컬렉션 목록 조회 (쿼리: page, limit, sort, order, search). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | POST | /api/knowledge-bases | 컬렉션 생성 |
-| POST | /api/knowledge-bases/embedding-probe | 임베딩 라이브 probe — LLMConfig + 모델 조합으로 1회 `embed('probe')` 호출, 실측 차원·provider 반환 (§2.2 "임베딩 테스트" 버튼). editor, Throttle 30회/분. 실패 시 400 `EMBEDDING_PROBE_FAILED` (sanitize 메시지) |
+| POST | /api/knowledge-bases/embedding-probe | 임베딩 라이브 probe — ModelConfig (kind=embedding) + 모델 조합으로 1회 `embed('probe')` 호출, 실측 차원·provider 반환 (§2.2 "임베딩 테스트" 버튼). editor, Throttle 30회/분. 실패 시 400 `EMBEDDING_PROBE_FAILED` (sanitize 메시지) |
 | GET | /api/knowledge-bases/:id | 컬렉션 상세 조회 |
 | PATCH | /api/knowledge-bases/:id | 컬렉션 설정 수정 |
 | DELETE | /api/knowledge-bases/:id | 컬렉션 삭제 |
@@ -236,8 +236,8 @@ KB 상세 화면에 그래프 통계/탐색 영역을 추가한다.
 KB 생성·설정 폼의 임베딩 모델 입력은 §2.2 표에 명시한 대로 select-only 로 강제한다. 근거는 [설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정) 과 동일하므로 본 문서에서는 추가 기술 없이 cross-reference 한다. 임베딩 모델은 모델별 차원(`dimension`) 이 달라 잘못된 ID 가 저장되면 KB 임베딩이 통째로 손상되므로, select 강제의 보호 효과가 chat 모델보다 더 크다.
 
 운영상 고려:
-- **Local (Ollama) 프로바이더 다운 시**: 모델 조회가 실패해도 사용자가 ID 를 직접 입력해 우회하는 경로는 제공하지 않는다. Ollama 가 잠시 내려간 상황에서는 일시적으로 KB 생성·설정 변경이 불가하다 — 그러나 임베딩 자체가 Ollama 호출이라 ID 를 적어 저장해도 후속 임베딩이 동일 사유로 실패할 뿐이라 사용자 입장에서 손해가 없다. Ollama 복구 후 정상 조회/저장이 가능하다.
-- **자동 vs 버튼 트리거**: LLMConfig 변경 시 select 의 현재 값은 초기화되며, 사용자가 명시적으로 "모델 불러오기" 버튼을 누른 시점에만 목록을 조회한다 (LLMConfig 화면과 동일 정책). 자동 prefetch 는 KB 폼이 LLMConfig select 와 동일 화면에 있어 변경 의도를 충분히 표현할 수 있다는 가정 아래 채택하지 않는다.
+- **단일 select — 모델 문자열 sub-select 없음**: 임베딩 입력은 워크스페이스의 `kind=embedding` ModelConfig 목록에서 config 하나를 고르는 **단일 select** 다. config 가 모델·provider·차원을 소유하므로([임베딩 파이프라인 §5.5 1급 경로](../5-system/8-embedding-pipeline.md) — `config.defaultModel` 사용) 별도의 모델 문자열 입력이나 "모델 불러오기" 2단계가 없다. config 목록은 폼 로드 시 우리 DB 에서 오며(provider 호출 아님) 항상 select 가능하다. "워크스페이스 기본값" 옵션 선택 시 default `kind=embedding` config(없으면 legacy)로 폴백한다. (구 LLMConfig piggyback 의 2단계 "모델 불러오기" UX 를 ModelConfig 1급 통합으로 대체한 결과다 — [Config R-3 번복](./6-config.md#r-3-번복--modelconfig-단일-화면-통합).)
+- **Local (Ollama) 프로바이더 다운 시**: config 선택 자체는 provider 호출이 아니라 영향받지 않는다. 다만 "임베딩 테스트"(probe) 와 실제 임베딩은 provider 호출이라 provider 가 내려가 있으면 실패한다 — 이때도 모델 ID 를 자유 입력해 우회하는 경로는 제공하지 않는다(잘못된 config/model 저장 방지). 새 임베딩 모델이 필요하면 [Config > Models > Embedding 탭](./6-config.md#b5-embedding-탭--임베딩-모델-추가수정)에서 `kind=embedding` config 를 먼저 추가한다.
 
 ### R-2. 목록 카드에 검색 불가 경고를 둔 이유
 

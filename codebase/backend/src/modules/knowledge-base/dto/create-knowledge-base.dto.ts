@@ -98,10 +98,20 @@ export class CreateKnowledgeBaseDto {
   @IsUUID()
   extractionLlmConfigId?: string;
 
-  /** 임베딩에 사용할 LLMConfig */
+  /** 임베딩에 사용할 ModelConfig(kind=embedding) — 1급 임베딩 설정 (PR2) */
   @ApiPropertyOptional({
     description:
-      '임베딩에 사용할 LLMConfig. 미지정 시 워크스페이스 default LLMConfig 가 사용됩니다.',
+      '임베딩에 사용할 ModelConfig(kind=embedding). 미지정 시 워크스페이스 default kind=embedding → (없으면) 기존 LLMConfig 폴백.',
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID()
+  embeddingModelConfigId?: string;
+
+  /** [LEGACY] 임베딩에 사용할 LLMConfig(폴백). 신규는 embeddingModelConfigId 권장. */
+  @ApiPropertyOptional({
+    description:
+      '[LEGACY] 임베딩 폴백용 LLMConfig. embeddingModelConfigId·default kind=embedding 가 모두 없을 때만 사용.',
     format: 'uuid',
   })
   @IsOptional()

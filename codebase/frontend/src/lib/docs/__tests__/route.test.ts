@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDocsRoute } from "../route";
+import { parseDocsRoute, resolveLegacyDocSlug } from "../route";
 
 describe("parseDocsRoute", () => {
   it("parses a valid /docs/<locale>/<section>/<slug> path", () => {
@@ -34,5 +34,24 @@ describe("parseDocsRoute", () => {
       locale: "ko",
       docSlug: ["a", "b", "c"],
     });
+  });
+});
+
+describe("resolveLegacyDocSlug", () => {
+  it("maps the unified-out llm-config / rerank-config guides to models", () => {
+    expect(
+      resolveLegacyDocSlug(["06-integrations-and-config", "llm-config"]),
+    ).toEqual(["06-integrations-and-config", "models"]);
+    expect(
+      resolveLegacyDocSlug(["06-integrations-and-config", "rerank-config"]),
+    ).toEqual(["06-integrations-and-config", "models"]);
+  });
+
+  it("returns null for a current (non-legacy) slug", () => {
+    expect(
+      resolveLegacyDocSlug(["06-integrations-and-config", "models"]),
+    ).toBeNull();
+    expect(resolveLegacyDocSlug(["02-nodes", "ai"])).toBeNull();
+    expect(resolveLegacyDocSlug([])).toBeNull();
   });
 });
