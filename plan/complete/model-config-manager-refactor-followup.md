@@ -1,12 +1,21 @@
 ---
 name: model-config-manager-refactor-followup
-worktree: (unstarted)
-status: pending
+worktree: unified-model-mgmt-5af7ee
+status: complete
 started: 2026-06-11
+completed: 2026-06-11
 owner: developer
+spec_impact: none
 related_plan:
   - plan/in-progress/unified-model-management.md
 ---
+
+> **완료 (2026-06-11, PR-C)** — `refactor e9d27bbc` + 리뷰 후속 `87bb8dbe`(9/9 WARNING). 순수 구조
+> 리팩토링(동작·UI·payload 불변): model-config-manager.tsx 564→258 LOC, ModelConfigFormDialog
+> (shadcn Dialog focus-trap)·ModelConfigDeleteDialog(ConfirmModal)·useModelConfigForm hook·
+> validateModelConfigForm 순수 함수·provider-registry 중앙화 분리. 인라인 fixed-inset 모달 +
+> 수동 ESC useEffect 제거. review 09_49_17 Critical0/W9→fix, `--impl-done`(10_07_47) BLOCK:NO.
+
 # Followup — ModelConfigManager SRP 분리 + 모달 접근성
 
 > 분리 사유: Unified Model Management PR3 리뷰(`review/code/2026/06/11/00_30_05`)에서

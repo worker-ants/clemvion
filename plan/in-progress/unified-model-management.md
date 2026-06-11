@@ -175,7 +175,7 @@ related_plan:
   - 이월 followup 3건 (PR3 후속, 순차 진행 중):
     - [x] **PR-A** KB 폼 embedding select 1급화 — `config-models-followup-kb-embedding-ui.md` → complete. feat(8f63417c)+리뷰후속(b48d0b5c·8eb8bc3e). embedding-probe 도 kind=embedding 지원. review 08_08_32 Critical0/W10→fix, `--impl-done`(08_43_26) BLOCK:NO.
     - [x] **PR-B** LLM→Models 명칭 전파 + user-guide 통합 — `models-rename-docs-unify-followup.md` → complete. `6f828225`+`7e3becdc`. spec 8파일 명칭 전파 + models.mdx 통합 + 구 doc URL redirect. review 09_07_47 Critical0/W4→fix, `--impl-done`(09_26_55) BLOCK:NO.
-    - [ ] **PR-C** ModelConfigManager SRP 분리 + 모달 focus-trap — `model-config-manager-refactor-followup.md` (진행 중).
+    - [x] **PR-C** ModelConfigManager SRP 분리 + 모달 focus-trap — `model-config-manager-refactor-followup.md` → complete. `refactor e9d27bbc`(564→258 LOC, Dialog/ConfirmModal/hook/validator 분리) + `87bb8dbe`(리뷰 9/9 fix). review 09_49_17 Critical0/W9→fix, `--impl-done`(10_07_47) BLOCK:NO.
 
 ## 7. PR1 /ai-review 후속 — 보류·후속 항목 (PR3/PR4 트리거)
 
