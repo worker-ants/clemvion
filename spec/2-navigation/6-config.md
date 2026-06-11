@@ -27,6 +27,12 @@ code:
 
 ---
 
+## Overview (제품 정의)
+
+워크스페이스 단위의 공용 연결 설정을 관리하는 화면 묶음이다 — 외부 시스템이 본 제품을 호출할 때의 인증 방식(Part A: AuthConfig)과, 워크플로·KB 가 사용할 AI 모델 연결(Part B: Models — Chat/Embedding/Rerank 를 `kind` 로 구분하는 단일 ModelConfig). 워크플로 편집 중 매번 자격증명을 입력하는 대신 여기서 한 번 등록한 config 를 노드·KB 가 참조한다.
+
+---
+
 ## Part A: Authentication (인증 설정)
 
 외부 시스템이 본 제품의 트리거/API를 호출할 때 사용하는 인증 방식을 관리한다.

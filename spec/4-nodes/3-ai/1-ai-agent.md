@@ -1013,7 +1013,7 @@ type PresentationPayload = {
 
 ## 8. 디버그 데이터 (`meta.turnDebug`)
 
-실행 결과의 `meta.turnDebug` 배열에 포함되는 턴별 디버그 데이터. 프론트엔드 Conversation Inspector / LLM Information Tab 에서 각 LLM 호출의 요청/응답/토큰 사용량을 표시하는 데 사용.
+실행 결과의 `meta.turnDebug` 배열에 포함되는 턴별 디버그 데이터. 프론트엔드 Conversation Inspector / 실행 상세의 **Response · Request · LLM Usage 탭**(구 "LLM Information" 단일 탭 — 평탄화됨, [실행 내역 §3.4.2](../../2-navigation/14-execution-history.md#342-llm-usage--response--request-탭)·R-3)에서 각 LLM 호출의 요청/응답/토큰 사용량을 표시하는 데 사용.
 
 ```json
 "meta": {

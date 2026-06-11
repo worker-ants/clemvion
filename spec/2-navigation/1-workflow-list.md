@@ -56,7 +56,7 @@ pending_plans:
 | Name (이름) | 워크플로우 이름. 클릭 시 에디터로 진입. 팀 워크스페이스에서는 이름 옆에 팀 뱃지(👥 Team) 표시 — 개인 워크스페이스에서는 표시하지 않는다. ([Rationale §1](#rationale)) |
 | Tags (태그) | 워크플로우 태그 뱃지 나열 |
 | Last Updated (마지막 수정) | 마지막 수정 시각 (`updatedAt`, 상대 시간 표시) |
-| Actions (더보기 메뉴 ⋮) | 편집, 실행 기록, 복제, 내보내기, 활성/비활성 토글, 삭제 |
+| Actions (더보기 메뉴 ⋮) | 편집, 실행 내역, 복제, 내보내기, 활성/비활성 토글, 삭제 |
 
 > **미구현 (Planned)**: 별도 "트리거 요약" 컬럼, "노드 수" 컬럼, 그리고 "마지막 *실행*" 시각 컬럼은 아직 없다. 현재 시각 컬럼은 마지막 *수정*(`updatedAt`) 기준이다.
 
@@ -102,7 +102,7 @@ pending_plans:
 | 액션 | 동작 |
 |------|------|
 | 편집 | 에디터로 진입 |
-| 실행 기록 | `/workflows/:id/executions` 로 이동 |
+| 실행 내역 | `/workflows/:id/executions` 로 이동. 라벨은 i18n `workflows.executionHistory` (ko "실행 내역" / en "Execution History") |
 | 복제 | 워크플로우 복사본 생성 (이름에 "(Copy)" 추가) |
 | 내보내기 | JSON 파일로 다운로드 |
 | 활성/비활성 | 상태 토글. 비활성 시 트리거/스케줄 중지 |
