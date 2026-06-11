@@ -203,7 +203,7 @@ KB 임베딩에 사용할 임베딩 모델(`kind=embedding`)을 관리한다. KB
 | 차원(dimension) | 선택 모델의 벡터 차원 (예: 1536/3072). **ModelConfig.dimension = SoT** — KB 가 이 모델로 임베딩하면 `KnowledgeBase.embedding_dimension`(파생 캐시)에 고정된다 |
 | 기본 임베딩 설정 | ⭐ 표시. KB `embedding_model_config_id` 미지정 시 기본 선택 |
 
-- **차원 변경 가드**: 이미 벡터가 적재된 KB 가 참조하는 embedding 모델의 차원은 사후 변경 불가(pgvector 컬럼 차원 결합). 재임베딩 정책은 [`kb-model-change-reembed-followup`](../../plan/in-progress/kb-model-change-reembed-followup.md) 을 따른다.
+- **차원 변경 가드**: 이미 벡터가 적재된 KB 가 참조하는 embedding 모델의 차원은 사후 변경 불가(pgvector 컬럼 차원 결합). 임베딩 설정 변경 시 `embedding_dimension` 이 NULL 로 초기화되고, 상세 화면의 검색 불가 배너 + "지금 재임베딩" CTA([지식 저장소 §2.4.1·R-3](./5-knowledge-base.md#r-3-상세-상단에-검색-불가-배너--지금-재임베딩-cta-를-둔-이유))로 재임베딩을 유도한다(근본원인 후속 [`kb-model-change-reembed-followup`](../../plan/complete/kb-model-change-reembed-followup.md) 의 옵션 ③ 채택).
 - **모델 선택 UX**: Chat 탭과 동일한 select-only 정책(자유 입력 fallback 없음, [Rationale R-1](#r-1-기본-모델-선택을-select-only-로-한정)).
 
 ### B.6 Rerank 탭 — 리랭커 추가/수정
