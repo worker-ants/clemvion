@@ -14,6 +14,7 @@ import { Execution } from '../executions/entities/execution.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { User } from '../users/entities/user.entity';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -188,7 +189,7 @@ export class AuthConfigsService {
     await this.auditLogsService.record({
       workspaceId,
       userId,
-      action: 'auth_config.reveal',
+      action: AUDIT_ACTIONS.AUTH_CONFIG_REVEAL,
       resourceType: 'auth_config',
       resourceId: id,
       ipAddress,

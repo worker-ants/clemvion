@@ -391,13 +391,13 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 
 ## 11. 감사 로그
 
-`audit_log` 테이블에 신규 이벤트 `re_run_initiated` 를 기록한다. `audit_log.action` 은 enum 제약 없는 `varchar(100)` 이므로 별도 마이그레이션 없이 새 action 문자열만 추가하면 된다.
+`audit_log` 테이블에 재실행 이벤트 `execution.re_run` 을 기록한다. `audit_log.action` 은 enum 제약 없는 `varchar(100)` 이라 DB 마이그레이션 없이 새 action 문자열을 추가할 수 있으나, application 단에서는 `AuditAction` union (`audit-logs/audit-action.const.ts` 의 `AUDIT_ACTIONS`) 에 추가해야 한다 — naming 규약 `<resource>.<verb>` (resource dot-prefix 필수) 은 [인증 spec §4.1](./1-auth.md#41-기록-대상-액션) 참조.
 
 아래는 **논리 필드 → 실제 `audit_log` 컬럼** 매핑이다 (entity: `AuditLogsService.record`).
 
 | 논리 필드 | 실제 컬럼 | 값 |
 | --- | --- | --- |
-| `event_type` | `action` | `re_run_initiated` |
+| `event_type` | `action` | `execution.re_run` |
 | `actor_user_id` | `user_id` | 호출자 사용자 ID |
 | `target_type` | `resource_type` | `execution` |
 | `target_id` | `resource_id` | **새로 생성된** Execution ID |
@@ -476,7 +476,7 @@ Re-run 은 **트리거를 다시 발화하지 않는다** — 원본 실행이 w
 | 항목 | 정책 |
 | --- | --- |
 | 권한 | RR-PL-06 — 원본 시작자 + 워크스페이스 Editor+ |
-| 감사 로그 | §11 — `re_run_initiated` 이벤트 |
+| 감사 로그 | §11 — `execution.re_run` 이벤트 |
 | Rate limit | §12 — 사용자당 분당 10회 |
 | 관측성 | NodeExecution 의 dry-run 표기 (§7.4) + chain badge 로 Re-run 트래픽을 일반 manual 실행과 구분 가능 |
 | 회귀 잠금 | 단위·통합·e2e 테스트가 다음을 회귀 가드:<br>- 입력 동일/수정/dry-run 케이스<br>- 권한 거부 (`RERUN_PERMISSION_DENIED`)<br>- 삭제된 워크플로 (`RERUN_WORKFLOW_DELETED`)<br>- chain 깊이 32 초과 (`RERUN_CHAIN_DEPTH_EXCEEDED`)<br>- multi-turn 노드 새 세션 (RR-PL-04)<br>- AI Assistant 비트리거 (RR-PL-07) |

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { AuditLog } from './entities/audit-log.entity';
 import { QueryAuditLogDto } from './dto/query-audit-log.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { AuditAction } from './audit-action.const';
 
 @Injectable()
 export class AuditLogsService {
@@ -71,7 +72,7 @@ export class AuditLogsService {
   async record(entry: {
     workspaceId: string;
     userId: string;
-    action: string;
+    action: AuditAction;
     resourceType: string;
     resourceId: string;
     details?: Record<string, unknown>;

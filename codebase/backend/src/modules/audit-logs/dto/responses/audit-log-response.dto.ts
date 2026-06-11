@@ -25,10 +25,10 @@ export class AuditLogDto {
   @ApiPropertyOptional({ type: () => AuditLogUserDto, nullable: true })
   user?: AuditLogUserDto | null;
 
-  @ApiProperty({ example: 'workflow.update' })
+  @ApiProperty({ example: 'integration.updated' })
   action: string;
 
-  @ApiProperty({ example: 'workflow' })
+  @ApiProperty({ example: 'integration' })
   resourceType: string;
 
   @ApiProperty({ format: 'uuid' })
