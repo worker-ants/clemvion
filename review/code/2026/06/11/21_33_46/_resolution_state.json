@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "started_at": "2026-06-11T13:00:00Z",
+  "summary_items_total": 18,
+  "items_resolved_ids": [1, 2, 4, 8, 9, 10, 13, 14, 15],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "INFO1": "spec",
+    "INFO2": "spec"
+  },
+  "commits_made": [
+    {"sha": "74d312cf", "summary_id": "1,2,4,8,9,10,13,14,15", "scope": "code-node"}
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-update-code-isolated-vm.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260611-215544.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec SPEC-DRIFT INFO#1 CODE_MEMORY_LIMIT in §5.3 / INFO#2 queueMicrotask in §7.3",
+  "last_reset_hint_sec": null
+}

@@ -68,8 +68,8 @@ code 노드 작성 권한 = **Editor+**. 플랫폼은 code 실행을 **신뢰할
 - [x] spec 반영 — `2-code.md §4/§5.3/§6/§7.1/§7.2/§7.3/Rationale`, `0-overview §5`, `3-error-handling §1.4/§3.2`, `chat-channel-adapter §3.2`, `error-codes.ts` CODE_MEMORY_LIMIT, user-docs `data.mdx`/`data.en.mdx`.
 - [x] isolated-vm@6.1.2 의존성 + 핸들러 전면 재작성 + 테스트(+2 신규: escape flip·메모리). dayjs in-isolate, `$helpers`/console host Callback 브리지, ExternalCopy 데이터, JSON copy-out.
 - [x] TEST WORKFLOW — lint ✅ · unit ✅ (backend 6610) · build ✅ · **e2e ✅ (alpine/musl isolated-vm 컴파일·부팅 실증 — `backend:latest` 빌드+Healthy)**
-- [ ] `/ai-review` + fix
-- [ ] `/consistency-check --impl-done` BLOCK 없음
+- [x] `/ai-review` + fix — 2세션: `21_33_46`(전체 branch, HIGH/C2 → C#1 i18n·C#2 user-docs(기반영) + W 9건 resolution-applier fix `74d312cf`) → `22_03_15`(증분, **MEDIUM/0 Critical/4 W** → RESOLUTION: W1 후속·W2/W3/W4 수용). 후속 분리 = `code-node-isolated-vm-followups.md`.
+- [x] `/consistency-check --impl-done` **BLOCK: NO** (`review/consistency/2026/06/11/22_04_01/`). WARNING 은 classifier noise-log(W1, 후속)·spec 표현·plan stale·main-baseline FP(C-2 체크박스·0-overview §5 — git 반증). Critical 0.
 
 > **운영 영향 (사용자 검토 포인트)**: (1) 네이티브 의존성 추가 — CI 이미지 빌드 시 1회 컴파일(배포시점
 > 0). **alpine/musl 소스컴파일 실증 통과 — Dockerfile 베이스(`node:24-alpine`) 변경 불요**(기존
