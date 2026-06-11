@@ -43,7 +43,7 @@ spec_impact:
 - [ ] plan complete 이동 — 비차단 backlog 잔여로 in-progress 유지
 
 ## 비차단 backlog (impl-done/ai-review — followup)
-- **M2 SDK firstMessage 잔재(impl-done W1)**: `codebase/packages/web-chat-sdk/README.md`·`examples/byo-ui-headless.ts` 가 폐기된 `firstMessage` 참조 — M2 BYO-UI 예제. 별도 패키지/경로라 본 M1 PR 범위 밖. submit_message 패턴 예제로 교체 후속.
+- ~~**M2 SDK firstMessage 잔재(impl-done W1)**: `codebase/packages/web-chat-sdk/README.md`·`examples/byo-ui-headless.ts` 가 폐기된 `firstMessage` 참조 — M2 BYO-UI 예제. submit_message 패턴 예제로 교체 후속.~~ → **해소**: `rag-webchat-doc-strings` PR(cross-audit V-17) 에서 webhook(profile만) → submit_message 패턴으로 교체.
 - **보안 하드닝**: `start()` 에러 메시지 UI 일반화(W1, 기존 동작), localStorage→sessionStorage 토큰.
 - **아키텍처/리팩터**: useWidget God hook 분리(useTokenRefresh/usePendingMessageQueue), `isTextInputSurface()` 헬퍼(텍스트표면 판정 3중 중복), teardownSession 헬퍼, start() check-then-set, composer allowlist 전환, SSE 이벤트명 배열 파생.
 - **테스트**: `ended` Composer 미렌더, fake timer 전환, C1 buttons/form 폐기·ended 재open 케이스, ERROR→ended reducer 케이스.
