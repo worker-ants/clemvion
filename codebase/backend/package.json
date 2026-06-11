@@ -62,6 +62,7 @@
     "csv-parse": "^6.2.1",
     "dayjs": "^1.11.20",
     "ioredis": "^5.10.1",
+    "isolated-vm": "^6.1.2",
     "jsonwebtoken": "9.0.3",
     "mysql2": "^3.22.0",
     "nodemailer": "^8.0.4",
