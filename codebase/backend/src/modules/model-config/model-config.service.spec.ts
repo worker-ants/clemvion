@@ -25,6 +25,7 @@ describe('ModelConfigService', () => {
         getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
       })),
       findOne: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
       create: jest.fn((data) => ({ ...data, id: 'test-id' })),
       save: jest.fn((entity) => Promise.resolve(entity)),
       update: jest.fn().mockResolvedValue(undefined),
@@ -429,9 +430,19 @@ describe('ModelConfigService', () => {
       const result = await service.resolveConfig(undefined, 'ws-1', 'chat');
       expect(result).toBe(defaultEntity);
     });
+
+    it('throws MODEL_CONFIG_DEFAULT_MISSING (400) when no id and no default exists', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.resolveConfig(undefined, 'ws-1', 'chat'),
+      ).rejects.toMatchObject({
+        response: { code: 'MODEL_CONFIG_DEFAULT_MISSING' },
+        status: 400,
+      });
+    });
   });
 
-  describe('resolveEmbedding (PR2 폴백 체인)', () => {
+  describe('resolveEmbedding (1급 폴백 체인 — PR4b: legacy step-3 제거)', () => {
     it('(1) embeddingModelConfigId 지정 → kind=embedding config + config.defaultModel', async () => {
       mockRepo.findOne.mockResolvedValueOnce({
         id: 'emb-1',
@@ -442,7 +453,6 @@ describe('ModelConfigService', () => {
       } as ModelConfig);
       const { config, model } = await service.resolveEmbedding({
         embeddingModelConfigId: 'emb-1',
-        legacyModel: 'legacy-x',
         workspaceId: 'ws-1',
       });
       expect(config.id).toBe('emb-1');
@@ -458,7 +468,6 @@ describe('ModelConfigService', () => {
       await expect(
         service.resolveEmbedding({
           embeddingModelConfigId: 'x',
-          legacyModel: 'm',
           workspaceId: 'ws-1',
         }),
       ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
@@ -477,43 +486,20 @@ describe('ModelConfigService', () => {
             : Promise.resolve(null),
       );
       const { config, model } = await service.resolveEmbedding({
-        legacyModel: 'legacy-x',
         workspaceId: 'ws-1',
       });
       expect(config.id).toBe('emb-def');
       expect(model).toBe('emb-model');
     });
 
-    it('(3) embedding 없음 → legacy(embeddingLlmConfigId + legacyModel)', async () => {
-      mockRepo.findOne.mockImplementation(
-        (opts: { where: Record<string, unknown> }) => {
-          if (opts.where.kind === 'embedding') return Promise.resolve(null);
-          if (opts.where.id === 'chat-1')
-            return Promise.resolve({
-              id: 'chat-1',
-              workspaceId: 'ws-1',
-              kind: 'chat',
-            } as ModelConfig);
-          return Promise.resolve(null);
-        },
-      );
-      const { config, model } = await service.resolveEmbedding({
-        embeddingLlmConfigId: 'chat-1',
-        legacyModel: 'text-embedding-3-small',
-        workspaceId: 'ws-1',
-      });
-      expect(config.id).toBe('chat-1');
-      expect(model).toBe('text-embedding-3-small');
-    });
-
-    it('(3) legacy 둘 다 없으면 NOT_FOUND (NotFoundException 404)', async () => {
+    it('(2) ws default kind=embedding 없으면 NOT_FOUND (NotFoundException 404) — legacy 폴백 없음', async () => {
       mockRepo.findOne.mockResolvedValue(null);
       await expect(
-        service.resolveEmbedding({ legacyModel: 'm', workspaceId: 'ws-1' }),
+        service.resolveEmbedding({ workspaceId: 'ws-1' }),
       ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
     });
 
-    it('(1) embeddingModelConfigId 명시 → 반환 model == config.defaultModel (legacyModel 아님)', async () => {
+    it('(1) embeddingModelConfigId 명시 → 반환 model == config.defaultModel', async () => {
       mockRepo.findOne.mockResolvedValueOnce({
         id: 'emb-cfg',
         workspaceId: 'ws-1',
@@ -522,14 +508,12 @@ describe('ModelConfigService', () => {
       } as ModelConfig);
       const { model } = await service.resolveEmbedding({
         embeddingModelConfigId: 'emb-cfg',
-        legacyModel: 'legacy-should-not-appear',
         workspaceId: 'ws-1',
       });
       expect(model).toBe('cfg-model');
-      expect(model).not.toBe('legacy-should-not-appear');
     });
 
-    it('embeddingModelConfigId: null 명시 전달 → (2)/(3) 폴백으로 진행', async () => {
+    it('embeddingModelConfigId: null 명시 전달 → (2) ws default 폴백으로 진행', async () => {
       // null 명시 전달 시 (1) 경로 skip → (2) embedding default 조회
       mockRepo.findOne.mockImplementation(
         (opts: { where: Record<string, unknown> }) =>
@@ -544,7 +528,6 @@ describe('ModelConfigService', () => {
       );
       const { config, model } = await service.resolveEmbedding({
         embeddingModelConfigId: null,
-        legacyModel: 'legacy-x',
         workspaceId: 'ws-1',
       });
       expect(config.id).toBe('fallback-emb');
@@ -637,6 +620,112 @@ describe('ModelConfigService', () => {
       await expect(service.create('ws-1', 'chat', dto)).resolves.toBeDefined();
       expect(spy).toHaveBeenCalled();
       spy.mockRestore();
+    });
+  });
+
+  // ── MODEL_CONFIG_NOT_FOUND — 404 전용 보강 ───────────────────────────────
+
+  describe('MODEL_CONFIG_NOT_FOUND 404 전용 검증', () => {
+    it('findEntity: 미존재 id → 404 NotFoundException', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.findEntity('no-such-id', 'ws-1'),
+      ).rejects.toMatchObject({
+        response: { code: 'MODEL_CONFIG_NOT_FOUND' },
+        status: 404,
+      });
+    });
+
+    it('findEntity: cross-kind (chat id 로 embedding 접근) → 404 NotFoundException', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'chat-cfg',
+        workspaceId: 'ws-1',
+        kind: 'chat',
+      });
+      await expect(
+        service.findEntity('chat-cfg', 'ws-1', 'embedding'),
+      ).rejects.toMatchObject({
+        response: { code: 'MODEL_CONFIG_NOT_FOUND' },
+        status: 404,
+      });
+    });
+
+    it('resolveEmbedding: id 명시 + 미존재 → 404 NotFoundException', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.resolveEmbedding({
+          embeddingModelConfigId: 'no-such-id',
+          workspaceId: 'ws-1',
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'MODEL_CONFIG_NOT_FOUND' },
+        status: 404,
+      });
+    });
+
+    it('resolveEmbedding: ws default 없음 → 404 NotFoundException (400 아님)', async () => {
+      // MODEL_CONFIG_NOT_FOUND 는 id 부재 전용 — 400 과 혼동 금지
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.resolveEmbedding({ workspaceId: 'ws-1' }),
+      ).rejects.toMatchObject({
+        response: { code: 'MODEL_CONFIG_NOT_FOUND' },
+        status: 404,
+      });
+    });
+  });
+
+  // ── findManyByIds ─────────────────────────────────────────────────────────
+
+  describe('findManyByIds', () => {
+    it('(a) ids=[] → [] を返し DB を呼ばない', async () => {
+      const result = await service.findManyByIds([], 'ws-1');
+      expect(result).toEqual([]);
+      expect(mockRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('(b) 일부 존재하는 id 조회 — In() 조건으로 배치 단건 조회', async () => {
+      const configs = [
+        { id: 'cfg-1', workspaceId: 'ws-1', kind: 'embedding' },
+        { id: 'cfg-2', workspaceId: 'ws-1', kind: 'embedding' },
+      ] as ModelConfig[];
+      mockRepo.find = jest.fn().mockResolvedValue(configs);
+
+      const result = await service.findManyByIds(
+        ['cfg-1', 'cfg-2', 'cfg-missing'],
+        'ws-1',
+      );
+
+      expect(mockRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ workspaceId: 'ws-1' }),
+        }),
+      );
+      // 존재하는 2건만 반환 (cfg-missing 은 DB 에 없으므로 결과에서 빠짐)
+      expect(result).toHaveLength(2);
+      expect(result.map((c) => c.id)).toEqual(['cfg-1', 'cfg-2']);
+    });
+
+    it('(c) 타 workspaceId config 는 결과에 포함되지 않는다 (격리 검증)', async () => {
+      // DB mock 은 workspaceId 필터를 적용 — ws-2 config 는 반환되지 않는다
+      const wsOneConfig = [
+        { id: 'cfg-ws1', workspaceId: 'ws-1', kind: 'embedding' },
+      ] as ModelConfig[];
+      mockRepo.find = jest.fn().mockResolvedValue(wsOneConfig);
+
+      const result = await service.findManyByIds(
+        ['cfg-ws1', 'cfg-ws2'],
+        'ws-1',
+      );
+
+      // find 에 workspaceId: 'ws-1' 조건이 전달됐는지 확인
+      expect(mockRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ workspaceId: 'ws-1' }),
+        }),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('cfg-ws1');
     });
   });
 

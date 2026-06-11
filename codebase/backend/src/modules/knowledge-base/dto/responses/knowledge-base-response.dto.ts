@@ -14,7 +14,11 @@ export class KnowledgeBaseDto {
   @ApiPropertyOptional({ nullable: true })
   description?: string | null;
 
-  @ApiProperty({ example: 'text-embedding-3-small' })
+  @ApiProperty({
+    example: 'text-embedding-3-small',
+    description:
+      '유효 임베딩 모델 식별자(read-only, derived). 참조하는 ModelConfig(kind=embedding)의 defaultModel — embeddingModelConfigId 가 가리키는 config, 없으면 워크스페이스 default kind=embedding. 빈 문자열인 경우 워크스페이스에 embedding ModelConfig 가 없는 상태(임베딩 기능 사용 전 ModelConfig 설정 필요). 변경은 embeddingModelConfigId 로만 수행한다.',
+  })
   embeddingModel: string;
 
   @ApiPropertyOptional({
@@ -47,13 +51,6 @@ export class KnowledgeBaseDto {
       'graph 모드 KB 의 추출 LLMConfig (NULL 이면 워크스페이스 default).',
   })
   extractionLlmConfigId?: string | null;
-
-  @ApiPropertyOptional({
-    nullable: true,
-    format: 'uuid',
-    description: '임베딩 LLMConfig (NULL 이면 워크스페이스 default).',
-  })
-  embeddingLlmConfigId?: string | null;
 
   @ApiProperty({ example: 1, description: 'graph 검색 확장 깊이 (1 또는 2)' })
   maxHops: number;

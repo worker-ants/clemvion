@@ -56,8 +56,7 @@ export interface EmbedConfigSource {
 }
 
 // 최후 폴백 임베딩 모델 — 노드 config `embeddingModel` 도, 워크스페이스 기본
-// LLMConfig 임베딩 모델도 모두 미지정일 때만 쓰는 하드코딩 기본 (KB
-// knowledge_base.embedding_model DEFAULT 와 동기화).
+// LLMConfig 임베딩 모델도 모두 미지정일 때만 쓰는 하드코딩 기본 (agent-memory 자체 경로 전용).
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
 
 /**

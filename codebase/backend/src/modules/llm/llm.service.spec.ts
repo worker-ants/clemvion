@@ -505,7 +505,7 @@ describe('LlmService', () => {
         service.resolveConfig(undefined, 'ws-42'),
       ).rejects.toMatchObject({
         response: {
-          code: 'LLM_CONFIG_NOT_FOUND',
+          code: 'MODEL_CONFIG_DEFAULT_MISSING',
           workspaceId: 'ws-42',
           message: expect.stringContaining('ws-42'),
         },
@@ -517,7 +517,7 @@ describe('LlmService', () => {
 
       await expect(service.resolveConfig(undefined, '')).rejects.toMatchObject({
         response: {
-          code: 'LLM_CONFIG_NOT_FOUND',
+          code: 'MODEL_CONFIG_DEFAULT_MISSING',
           workspaceId: '',
           message: expect.stringContaining('워크스페이스 정보가 없어'),
         },

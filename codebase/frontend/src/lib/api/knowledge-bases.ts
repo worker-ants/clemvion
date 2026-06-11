@@ -5,10 +5,14 @@ export type RagMode = "vector" | "graph";
 
 export type RerankMode = "off" | "cross_encoder" | "cross_encoder_llm";
 
+// PR4b: embeddingLlmConfigId removed (V094 DROP); embeddingModel is read-only, derived server-side.
+// embeddingModelConfigId 로만 임베딩 모델을 변경한다. embeddingLlmConfigId 전송 시 서버에서 무시됨.
 export interface KnowledgeBaseData {
   id: string;
   name: string;
   description?: string;
+  /** 유효 임베딩 모델(read-only, derived). 서버가 참조 ModelConfig(kind=embedding)의 defaultModel 로 채운다.
+   * 빈 문자열 = 워크스페이스에 embedding ModelConfig 없음(임베딩 설정 필요). */
   embeddingModel: string;
   embeddingDimension?: number | null;
   embeddingModelConfigId?: string | null;
@@ -17,7 +21,6 @@ export interface KnowledgeBaseData {
   documentCount: number;
   ragMode: RagMode;
   extractionLlmConfigId?: string | null;
-  embeddingLlmConfigId?: string | null;
   maxHops: number;
   vectorSeedTopK: number;
   expandedChunkLimit: number;
@@ -160,9 +163,7 @@ export const knowledgeBasesApi = {
   async create(payload: {
     name: string;
     description?: string;
-    embeddingModel?: string;
-    embeddingLlmConfigId?: string;
-    /** 1급 임베딩 config. 지정 시 backend 가 config.defaultModel 로 embeddingModel 자동 결정. null=ws-default 폴백. */
+    /** 1급 임베딩 config(kind=embedding). 미지정 시 워크스페이스 default kind=embedding 으로 resolve. */
     embeddingModelConfigId?: string | null;
     chunkSize?: number;
     chunkOverlap?: number;
@@ -186,9 +187,7 @@ export const knowledgeBasesApi = {
     payload: Partial<{
       name: string;
       description: string;
-      embeddingModel: string;
-      embeddingLlmConfigId: string | null;
-      /** 1급 임베딩 config. 지정 시 backend 가 config.defaultModel 로 embeddingModel 자동 결정. null=ws-default 폴백. */
+      /** 1급 임베딩 config(kind=embedding). null 로 보내면 워크스페이스 default kind=embedding 으로 되돌림. */
       embeddingModelConfigId: string | null;
       chunkSize: number;
       chunkOverlap: number;

@@ -8,10 +8,8 @@ import {
   Min,
   Max,
   MaxLength,
-  Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { EMBEDDING_MODEL_PATTERN } from '../embedding/embedding-dimensions.const';
 
 export class CreateKnowledgeBaseDto {
   /** 지식 베이스 표시 이름 */
@@ -32,22 +30,6 @@ export class CreateKnowledgeBaseDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  /** 사용할 임베딩 모델 식별자 */
-  @ApiPropertyOptional({
-    description:
-      '사용할 임베딩 모델 식별자. 미지정 시 워크스페이스 기본 모델이 사용됩니다.',
-    example: 'text-embedding-3-small',
-    maxLength: 100,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  @Matches(EMBEDDING_MODEL_PATTERN, {
-    message:
-      'embeddingModel must contain only letters, digits, ".", "_", ":", "/" or "-" (max 100 chars)',
-  })
-  embeddingModel?: string;
 
   /** 청크 크기 (토큰 기준, 100~8000) */
   @ApiPropertyOptional({
@@ -98,25 +80,15 @@ export class CreateKnowledgeBaseDto {
   @IsUUID()
   extractionLlmConfigId?: string;
 
-  /** 임베딩에 사용할 ModelConfig(kind=embedding) — 1급 임베딩 설정 (PR2) */
+  /** 임베딩에 사용할 ModelConfig(kind=embedding) — 1급 임베딩 설정 */
   @ApiPropertyOptional({
     description:
-      '임베딩에 사용할 ModelConfig(kind=embedding). 미지정 시 워크스페이스 default kind=embedding → (없으면) 기존 LLMConfig 폴백.',
+      '임베딩에 사용할 ModelConfig(kind=embedding). 미지정 시 워크스페이스 default kind=embedding 으로 resolve.',
     format: 'uuid',
   })
   @IsOptional()
   @IsUUID()
   embeddingModelConfigId?: string;
-
-  /** [LEGACY] 임베딩에 사용할 LLMConfig(폴백). 신규는 embeddingModelConfigId 권장. */
-  @ApiPropertyOptional({
-    description:
-      '[LEGACY] 임베딩 폴백용 LLMConfig. embeddingModelConfigId·default kind=embedding 가 모두 없을 때만 사용.',
-    format: 'uuid',
-  })
-  @IsOptional()
-  @IsUUID()
-  embeddingLlmConfigId?: string;
 
   /** graph 모드 검색 시 그래프 확장 깊이 (1 또는 2) */
   @ApiPropertyOptional({
