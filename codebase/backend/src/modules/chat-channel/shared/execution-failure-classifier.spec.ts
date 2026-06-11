@@ -105,6 +105,8 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
 
     it.each([
       'CODE_EXECUTION_FAILED',
+      'CODE_MEMORY_LIMIT',
+      'HTTP_BLOCKED',
       'SUB_WORKFLOW_FAILED',
       'DB_QUERY_FAILED',
       'DB_CONNECTION_ERROR',
@@ -121,6 +123,24 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       const result = classifyExecutionFailure(makeEvent(code));
       expect(result.key).toBe('executionFailedInternal');
     });
+
+    // W1 — CODE_MEMORY_LIMIT / HTTP_BLOCKED are now registered in
+    // INTERNAL_CODES, so they classify as internal *without* tripping the
+    // unknown-fallback warn log (CCH-ERR-04 noise removal). UX is unchanged
+    // (both already fell through to executionFailedInternal); the only
+    // difference is the absence of the diagnostic warn.
+    it.each(['CODE_MEMORY_LIMIT', 'HTTP_BLOCKED'])(
+      '%s → executionFailedInternal with no CCH-ERR-04 warn log',
+      (code) => {
+        const warnSpy = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        const result = classifyExecutionFailure(makeEvent(code));
+        expect(result.key).toBe('executionFailedInternal');
+        expect(warnSpy).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
+      },
+    );
   });
 
   describe('Unknown fallback (CCH-ERR-04)', () => {
