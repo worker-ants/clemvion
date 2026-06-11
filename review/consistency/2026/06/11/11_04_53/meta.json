@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-11T11:04:53.358425",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=G-01/G-02 audit (rebase 후 재검). re_run_initiated to execution.re_run + AUDIT_ACTIONS union 강제 + spec 4.1 구현됨/Planned. 13-replay·data-flow 동반 갱신 완료. 직전 BLOCK 은 rebase 전 옛 베이스 FP., diff-base=origin/main)",
+  "target_path": "G-01/G-02 audit (rebase 후 재검). re_run_initiated to execution.re_run + AUDIT_ACTIONS union 강제 + spec 4.1 구현됨/Planned. 13-replay·data-flow 동반 갱신 완료. 직전 BLOCK 은 rebase 전 옛 베이스 FP.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

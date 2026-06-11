@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WorkspaceRole } from './dto/add-member.dto';
 import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 
 const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
 
@@ -532,7 +533,7 @@ export class WorkspacesService {
     await this.auditLogsService.record({
       workspaceId,
       userId: requesterId,
-      action: 'workspace.transfer_ownership',
+      action: AUDIT_ACTIONS.WORKSPACE_TRANSFER_OWNERSHIP,
       resourceType: 'workspace',
       resourceId: workspaceId,
       details: { newOwnerMemberId },

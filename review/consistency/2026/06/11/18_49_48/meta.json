@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-11T18:49:48.928191",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=G-01/G-02 audit (rebase onto #542 후 재검). execution.re_run + AUDIT_ACTIONS union + spec §4.1 구현됨/Planned(model_config 통합 반영). diff 가 베이스 정상화로 audit 변경만 포함., diff-base=origin/main)",
+  "target_path": "G-01/G-02 audit (rebase onto #542 후 재검). execution.re_run + AUDIT_ACTIONS union + spec §4.1 구현됨/Planned(model_config 통합 반영). diff 가 베이스 정상화로 audit 변경만 포함.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

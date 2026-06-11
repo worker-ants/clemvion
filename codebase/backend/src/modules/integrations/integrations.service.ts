@@ -17,6 +17,7 @@ import { Node } from '../nodes/entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { IntegrationCacheBus } from '../../common/redis/integration-cache-bus.service';
 import {
   IntegrationOAuthService,
@@ -627,7 +628,7 @@ export class IntegrationsService {
       await this.auditLogsService.record({
         workspaceId,
         userId,
-        action: 'integration.created',
+        action: AUDIT_ACTIONS.INTEGRATION_CREATED,
         resourceType: 'integration',
         resourceId: saved.id,
         details: {
@@ -672,7 +673,7 @@ export class IntegrationsService {
         await this.auditLogsService.record({
           workspaceId,
           userId,
-          action: 'integration.updated',
+          action: AUDIT_ACTIONS.INTEGRATION_UPDATED,
           resourceType: 'integration',
           resourceId: saved.id,
           details: changes,
@@ -709,7 +710,7 @@ export class IntegrationsService {
     await this.auditLogsService.record({
       workspaceId,
       userId,
-      action: 'integration.deleted',
+      action: AUDIT_ACTIONS.INTEGRATION_DELETED,
       resourceType: 'integration',
       resourceId: id,
       details: {
@@ -1028,7 +1029,7 @@ export class IntegrationsService {
     await this.auditLogsService.record({
       workspaceId,
       userId,
-      action: 'integration.rotated',
+      action: AUDIT_ACTIONS.INTEGRATION_ROTATED,
       resourceType: 'integration',
       resourceId: saved.id,
       details: { authType: saved.authType },
@@ -1143,7 +1144,7 @@ export class IntegrationsService {
       await this.auditLogsService.record({
         workspaceId,
         userId,
-        action: 'integration.scope_changed',
+        action: AUDIT_ACTIONS.INTEGRATION_SCOPE_CHANGED,
         resourceType: 'integration',
         resourceId: saved.id,
         details: { from, to: body.scope },
@@ -1172,7 +1173,7 @@ export class IntegrationsService {
       await this.auditLogsService.record({
         workspaceId,
         userId,
-        action: 'integration.reauthorized',
+        action: AUDIT_ACTIONS.INTEGRATION_REAUTHORIZED,
         resourceType: 'integration',
         resourceId: entity.id,
         details: { mode: 'reset' },
