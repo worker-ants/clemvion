@@ -57,7 +57,9 @@ describe('AuthService', () => {
       create: jest.fn().mockImplementation((data) => data),
       save: jest.fn().mockImplementation((data) => Promise.resolve(data)),
       findOne: jest.fn(),
-      update: jest.fn().mockResolvedValue(undefined),
+      // 05 C-1 — refresh 회전의 조건부 UPDATE 가 `result.affected` 를 읽으므로
+      // 기본값을 affected:1(성공) 로 둔다. affected:0(이중 회전) 케이스는 테스트에서 오버라이드.
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       manager: {
         getRepository: jest.fn().mockReturnValue({
           findOne: jest.fn(),
@@ -135,15 +137,26 @@ describe('AuthService', () => {
           },
         },
         {
+          // 주의: 아래 DataSource.transaction mock 은 위 `mockRefreshTokenRepo` 를
+          // 클로저로 캡처한다 — 반드시 그 const 선언보다 나중에 와야 한다(선언 순서 결합).
           provide: DataSource,
           useValue: {
             transaction: jest
               .fn()
               .mockImplementation((cb: (manager: unknown) => Promise<void>) => {
                 const mockManager = {
-                  getRepository: jest.fn().mockReturnValue({
-                    update: jest.fn().mockResolvedValue(undefined),
-                  }),
+                  // 05 C-1 — refresh 회전이 트랜잭션 안에서 RefreshToken repo 로
+                  // revoke(update) + INSERT(create/save) 한다. RefreshToken 은
+                  // 외부 단언과 동일한 mock 으로 라우팅하고, 그 외(User 등)는 generic.
+                  getRepository: jest
+                    .fn()
+                    .mockImplementation((entity: unknown) =>
+                      entity === RefreshToken
+                        ? mockRefreshTokenRepo
+                        : {
+                            update: jest.fn().mockResolvedValue(undefined),
+                          },
+                    ),
                 };
                 return cb(mockManager);
               }),
@@ -529,6 +542,95 @@ describe('AuthService', () => {
       const result = await service.refresh('valid-refresh-token');
       expect(result.accessToken).toBe('mock-access-token');
       expect(refreshTokenRepo.update).toHaveBeenCalled();
+    });
+
+    it('rotates revoke + issue inside a single transaction (05 C-1 atomicity)', async () => {
+      // 05 C-1 회귀 가드: 회전이 단일 트랜잭션 안에서 조건부 revoke + INSERT 로 일어난다.
+      refreshTokenRepo.findOne.mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        familyId: 'family-1',
+        isRevoked: false,
+        expiresAt: new Date(Date.now() + 86400000),
+        user: mockUser,
+      });
+
+      await service.refresh('valid-refresh-token');
+
+      // revoke(조건부 UPDATE) 와 신규 토큰 INSERT 는 dataSource.transaction 안에서 일어난다.
+      expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+      // revoke 는 id + is_revoked=false + expires_at>now 조건부 UPDATE (TOCTOU 차단).
+      expect(refreshTokenRepo.update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'rt-1', isRevoked: false }),
+        expect.objectContaining({
+          isRevoked: true,
+          lastUsedAt: expect.any(Date),
+          lastUsedIp: null,
+        }),
+      );
+      expect(refreshTokenRepo.save).toHaveBeenCalled();
+    });
+
+    it('rejects without issuing a token when the conditional revoke matches 0 rows (concurrent rotation)', async () => {
+      // 05 C-1 회귀 가드: 동시 refresh 로 이미 회전된 토큰 — affected=0 이면 신규 토큰을
+      // 발급하지 않고 TOKEN_INVALID 로 거부한다 (이중 회전 차단).
+      refreshTokenRepo.findOne.mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        familyId: 'family-1',
+        isRevoked: false,
+        expiresAt: new Date(Date.now() + 86400000),
+        user: mockUser,
+      });
+      refreshTokenRepo.update.mockResolvedValueOnce({ affected: 0 });
+
+      await expect(service.refresh('raced-refresh-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(refreshTokenRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not open a transaction for an expired refresh token', async () => {
+      // 05 C-1 회귀 가드: 단순 만료는 트랜잭션 진입 전에 401 TOKEN_EXPIRED 로 끝난다.
+      refreshTokenRepo.findOne.mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        familyId: 'family-1',
+        isRevoked: false,
+        expiresAt: new Date(Date.now() - 1000),
+        user: mockUser,
+      });
+
+      await expect(service.refresh('expired-refresh-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('propagates failure when issuing the new token fails (real DB rollback verified by e2e)', async () => {
+      // 05 C-1 회귀 가드: INSERT(신규 토큰 save) 실패 시 트랜잭션이 reject 된다.
+      // 단위 mock 은 실제 DB 롤백을 재현하지 못하므로 여기선 에러 전파만 검증하고,
+      // revoke+INSERT 가 한 트랜잭션 안에 있어 롤백된다는 사실은 dockerized e2e 로 보장한다.
+      refreshTokenRepo.findOne.mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        familyId: 'family-1',
+        isRevoked: false,
+        expiresAt: new Date(Date.now() + 86400000),
+        user: mockUser,
+      });
+      refreshTokenRepo.save.mockRejectedValueOnce(new Error('insert failed'));
+
+      await expect(service.refresh('valid-refresh-token')).rejects.toThrow(
+        'insert failed',
+      );
+      expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+      // revoke 는 시도됐으나(조건부 UPDATE) INSERT 실패로 트랜잭션 전체가 reject —
+      // 실 DB 에선 이 revoke 도 롤백된다(단위 mock 은 롤백 미재현).
+      expect(refreshTokenRepo.update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'rt-1', isRevoked: false }),
+        expect.objectContaining({ isRevoked: true }),
+      );
     });
 
     it('should revoke family on reuse detection', async () => {

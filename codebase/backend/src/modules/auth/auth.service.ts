@@ -7,7 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, MoreThan, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
@@ -520,6 +520,14 @@ export class AuthService {
   }
 
   // ========== REFRESH ==========
+  /**
+   * Refresh token 회전. 세 분기로 갈린다:
+   *  1. **reuse 탐지** (`stored.isRevoked`) — 이미 revoke 된 토큰 재사용 → family 전체
+   *     revoke + `loginHistory` 보안 이벤트 기록 후 401.
+   *  2. **만료** (`expiresAt < now`) — 부작용 없이 401 `TOKEN_EXPIRED` (트랜잭션 미진입).
+   *  3. **정상 회전** — 구 토큰 revoke + 신규 토큰 INSERT 를 **단일 트랜잭션**으로 원자화
+   *     (05 C-1). revoke 는 조건부 UPDATE 라 동시 회전(TOCTOU)을 `affected=0` 으로 차단한다.
+   */
   async refresh(
     refreshToken: string,
     ctx: AuthContext = {},
@@ -569,17 +577,48 @@ export class AuthService {
       });
     }
 
-    // Mark the rotated token as revoked AND stamp its last_used metadata so the
-    // user sees an accurate "last activity" in /profile/sessions.
-    await this.refreshTokenRepository.update(stored.id, {
-      isRevoked: true,
-      lastUsedAt: new Date(),
-      lastUsedIp: ctx.ip ?? null,
-    });
-
-    // Issue new tokens in same family
     const user = stored.user;
-    return this.generateTokens(user, false, stored.familyId, ctx);
+    if (!user) {
+      // 토큰은 유효하나 user 관계가 비어있다 (데이터 손상). 회전 불가 — reuse 분기의
+      // `if (stored.user)` 방어와 동일하게 안전 거부한다.
+      throw new UnauthorizedException({
+        code: 'TOKEN_INVALID',
+        message: 'Invalid refresh token',
+      });
+    }
+
+    // 05 C-1 — revoke(구 토큰)+INSERT(신규 토큰)를 단일 트랜잭션으로 원자화한다.
+    // 중간 실패 시 구 토큰의 `is_revoked=false` 가 유지돼 세션 소실을 막는다.
+    // (옛 구현은 revoke 후 별도 INSERT — 그 사이 크래시 시 구 토큰만 무효화되고
+    // 신규 토큰이 없어 세션이 통째로 사라졌다.)
+    //
+    // revoke 는 **조건부 UPDATE** (`is_revoked=false AND expires_at>now`)로 수행해,
+    // 위 findOne→검증→update 사이의 TOCTOU 창(동일 토큰 동시 refresh 로 인한 이중 회전)을
+    // 닫는다 — affected=0 이면 다른 요청이 먼저 회전·무효화한 것이므로 거부한다.
+    // `lastUsedAt`/`lastUsedIp` 스탬프도 같은 UPDATE 에 포함해 /profile/sessions 의
+    // "last activity" 정확성을 유지한다. loginHistory 기록은 회전 원자성과 무관하고
+    // refresh 정상 회전은 보안 이벤트가 아니므로(spec §1.4) 남기지 않는다.
+    return this.dataSource.transaction(async (manager) => {
+      const now = new Date();
+      const result = await manager.getRepository(RefreshToken).update(
+        { id: stored.id, isRevoked: false, expiresAt: MoreThan(now) },
+        {
+          isRevoked: true,
+          lastUsedAt: now,
+          lastUsedIp: ctx.ip ?? null,
+        },
+      );
+      // affected 가 0/undefined/null 이면(드라이버별) 매칭 행 없음 — 다른 요청이
+      // 먼저 회전했거나 만료 경계에 걸린 것이므로 신규 토큰을 발급하지 않는다.
+      if (!result.affected) {
+        throw new UnauthorizedException({
+          code: 'TOKEN_INVALID',
+          message: 'Invalid refresh token',
+        });
+      }
+      // Issue new tokens in same family — INSERT joins this transaction.
+      return this.generateTokens(user, false, stored.familyId, ctx, manager);
+    });
   }
 
   // ========== FORGOT PASSWORD ==========
@@ -706,11 +745,26 @@ export class AuthService {
     return tokens;
   }
 
+  /**
+   * Access JWT + 회전 refresh token 발급. **`private` — 외부 노출 금지.**
+   *
+   * `@param manager` (05 C-1): 전달되면 refresh token INSERT 가 그 `EntityManager` 의
+   * 트랜잭션에 합류한다 (refresh 회전이 revoke+INSERT 를 원자화하는 경로). 미전달 시
+   * (login / OAuth callback / verifyEmail / invitation 가입)엔 기본 repository 로 INSERT —
+   * 호출처 무변경. JWT sign·workspace context 조회는 DB write 가 아니므로 트랜잭션 의미와
+   * 무관하게 선행된다.
+   *
+   * @internal 트랜잭션 컨텍스트 전파 전용 — `public` 승격 금지(trust boundary 확장 방지).
+   */
   private async generateTokens(
     user: User,
     rememberMe = false,
     familyId?: string,
     ctx: AuthContext = {},
+    // 05 C-1 — refresh 회전 시 revoke(구 토큰)+INSERT(신규 토큰)를 단일 트랜잭션에
+    // 묶기 위한 optional manager. 미전달 시(login/OAuth 경로) 기존 repository 사용 —
+    // 호출처 무변경. JWT sign 은 DB 무관이라 트랜잭션 밖에서 선계산된다.
+    manager?: EntityManager,
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const context = await this.resolveTokenWorkspaceContext(user);
 
@@ -722,10 +776,10 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(accessPayload, {
-      expiresIn: 900, // 15 minutes
+      expiresIn: 900, // 15분
     });
 
-    // Create refresh token
+    // refresh token 생성
     const rawRefreshToken = uuidv4();
     const tokenHash = this.hashToken(rawRefreshToken);
     const refreshExpDays = rememberMe ? 30 : 7;
@@ -734,7 +788,10 @@ export class AuthService {
     );
 
     const userAgent = ctx.userAgent ?? null;
-    const refreshTokenEntity = this.refreshTokenRepository.create({
+    const refreshRepo = manager
+      ? manager.getRepository(RefreshToken)
+      : this.refreshTokenRepository;
+    const refreshTokenEntity = refreshRepo.create({
       userId: user.id,
       tokenHash,
       familyId: familyId ?? uuidv4(),
@@ -743,7 +800,7 @@ export class AuthService {
       userAgent,
       deviceLabel: userAgent ? deriveDeviceLabel(userAgent) : null,
     });
-    await this.refreshTokenRepository.save(refreshTokenEntity);
+    await refreshRepo.save(refreshTokenEntity);
 
     return { accessToken, refreshToken: rawRefreshToken };
   }

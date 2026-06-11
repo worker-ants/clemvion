@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-11T08:38:12.803533",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/auth-refresh-rotation-atomic.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

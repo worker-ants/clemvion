@@ -105,7 +105,7 @@
 - `1-http-request.md` §4 step8 ↔ §104 모순 해소 (04 C-3 — **구현 선행 조건**)
 - `6-websocket-protocol.md` §3.3 검증 채널 목록 + `resumed` ack 의미 (04 M-6, 06 M-1)
 - `4-execution-engine.md` §7.5 claim 문구·§6.2/§9.2 Redis context 드리프트 banner (06 C-2·C-3)
-- `13-replay-rerun.md` §9.1 walk→CTE 1줄 (05 C-2), `data-flow/2-auth.md` §1.4 트랜잭션 박스 (05 C-1)
+- `13-replay-rerun.md` §9.1 walk→CTE 1줄 (05 C-2), ~~`data-flow/2-auth.md` §1.4 트랜잭션 박스 (05 C-1)~~ ✅ 완료 (developer 동행, worktree `auth-refresh-rotation-atomic`)
 - `1-data-model.md` §3 인덱스 표 stale 일괄 동기화 (05 C-3 부수 발견)
 - transform/filter/if-else/switch 의 "길이 200 = ReDoS 방지" 정정 (04 M-3)
 - ~~`data-flow/4-file-storage.md` "for 루프" 문구 (01 #2)~~ — ✅ 반영 완료 (`plan/complete/spec-update-perf-backlog-01.md`, 2026-06-10). `interaction-type-registry.md` §1.2 park-entry 레이어 (02 M-4)
