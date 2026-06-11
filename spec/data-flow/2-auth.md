@@ -165,13 +165,23 @@ sequenceDiagram
   else expires_at < now (단순 만료)
     Svc-->>C: 401 TOKEN_EXPIRED (family revoke·이력 기록 없음)
   end
-  Svc->>PG: UPDATE refresh_token SET is_revoked=true, last_used_at=now WHERE id = row.id
-  Svc->>PG: INSERT refresh_token (family_id=row.family_id, new token_hash, expires_at)
+  rect rgb(235, 245, 235)
+    Note over Svc,PG: 단일 트랜잭션 (revoke + INSERT 원자성)
+    Svc->>PG: UPDATE refresh_token SET is_revoked=true, last_used_at=now WHERE id = row.id AND is_revoked = false AND expires_at > now
+    Note over Svc: affected = 0 이면 (동시 회전 경합) 401 TOKEN_INVALID
+    Svc->>PG: INSERT refresh_token (family_id=row.family_id, new token_hash, expires_at)
+  end
   Svc-->>C: { accessToken } + Set-Cookie (새 refreshToken httpOnly)
 ```
 
 > reuse 탐지(family 전체 revoke + `token_reuse_detected` 기록)는 `is_revoked=true` 토큰의 재사용 시에만
 > 발동한다. 단순 만료는 부작용 없이 401 `TOKEN_EXPIRED` 만 반환 (`auth.service.ts` `refresh`).
+>
+> **회전 원자성**: 정상 회전의 revoke 와 신규 토큰 INSERT 는 **단일 트랜잭션**으로 묶이고, revoke 는
+> **조건부 UPDATE**(`is_revoked=false AND expires_at>now`)라 매칭 0건이면 동시 회전 경합으로 보고
+> `TOKEN_INVALID`([에러 코드 SoT](../5-system/3-error-handling.md))로 거부한다. 세션 소실 방지·TOCTOU
+> 차단·JWT sign 분리의 설계 근거는 §Rationale "Refresh token 회전 원자성" 참조. reuse 탐지 분기의
+> family 전체 revoke 는 단일 UPDATE 라 자체 원자적이고, `loginHistory` 기록은 트랜잭션 밖에 유지한다.
 
 ### 1.5 세션 revoke (사용자 본인)
 
@@ -327,6 +337,24 @@ stateDiagram-v2
 `refresh_token.family_id` 는 회전 시에도 유지되어 "디바이스 세션" 을 식별한다. 사용자에게 노출되는
 활성 세션 목록은 family 단위로 가장 최신 row 의 메타데이터를 보인다. 회전 중 reuse 가 감지되면 family
 전체를 revoke 해 도난 토큰의 영향 범위를 family 로 한정한다.
+
+### Refresh token 회전 원자성 (트랜잭션 + 조건부 UPDATE)
+
+`refactor/05-database.md` C-1. 회전(§1.4 정상 분기)은 구 토큰 revoke 와 신규 토큰 INSERT 를 **단일 DB
+트랜잭션**으로 묶는다. 옛 구현은 revoke 후 별도 INSERT 라, 그 사이 크래시 시 구 토큰만 무효화되고 신규
+토큰이 없어 **세션이 통째로 소실**됐다 — 트랜잭션으로 둘을 원자화해 중간 실패 시 둘 다 롤백(구 토큰
+`is_revoked=false` 유지)되게 한다. 같은 문서 §1.1 의 `verifyEmail` 가입 트랜잭션(user + personal
+workspace + 토큰 발급을 한 트랜잭션에서 처리)과 동일한 원자성 정책이다.
+
+revoke 는 단순 `WHERE id` UPDATE 가 아니라 **조건부 UPDATE**(`is_revoked=false AND expires_at>now`)로
+수행한다. `findOne → 검증 → UPDATE` 의 check-then-act 사이에는 TOCTOU 창이 있어, 동일 토큰으로 동시
+도달한 두 refresh 요청이 모두 회전을 시도할 수 있다. 조건부 UPDATE 의 `affected=0`(매칭 행 없음)이면
+다른 요청이 먼저 회전·무효화한 것이므로 신규 토큰을 발급하지 않고 `TOKEN_INVALID` 로 거부해 이중 회전을
+닫는다 — DB 의 단일 UPDATE 원자성에 경합 판정을 위임하는 것이다.
+
+JWT 서명은 DB I/O 가 없는 순수 연산이라 트랜잭션의 commit/rollback 의미에 참여하지 않는다 — 트랜잭션
+범위를 revoke+INSERT 로 좁게 유지하기 위한 개념적 분리다. `loginHistory` 기록도 회전 원자성과 무관해
+트랜잭션 밖에 둔다(refresh 정상 회전은 보안 이벤트가 아니므로 reuse 분기와 달리 기록하지 않는다).
 
 ### `login_history` 와 `audit_log` 분리
 
