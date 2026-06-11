@@ -23,7 +23,7 @@ code:
 
 # Spec: 설정 (인증, Models) 화면
 
-> 관련 문서: [PRD 내비게이션](./_product-overview.md#36-authentication-인증-설정) · [PRD 내비게이션](./_product-overview.md#37-config--llm-llm-설정) · [Spec 레이아웃](./_layout.md) · [데이터 모델 - AuthConfig](../1-data-model.md#217-authconfig) · [데이터 모델 - ModelConfig](../1-data-model.md#216-modelconfig)
+> 관련 문서: [PRD 내비게이션](./_product-overview.md#36-authentication-인증-설정) · [PRD 내비게이션](./_product-overview.md#37-config--models-모델-설정) · [Spec 레이아웃](./_layout.md) · [데이터 모델 - AuthConfig](../1-data-model.md#217-authconfig) · [데이터 모델 - ModelConfig](../1-data-model.md#216-modelconfig)
 
 ---
 

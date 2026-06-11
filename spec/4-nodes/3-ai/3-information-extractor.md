@@ -10,7 +10,7 @@ code:
 
 # Spec: Information Extractor
 
-> 관련 문서: [AI 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
+> 관련 문서: [AI 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec Config > Models](../../2-navigation/6-config.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 LLM 을 사용해 비정형 텍스트에서 `outputSchema` 에 정의된 구조화 필드를 추출한다. **Single Turn**(1 회 LLM 호출 + JSON 응답) 과 **Multi Turn**(블로킹 대화로 부족한 필드 보강 — `finalize_extraction` tool 호출 종결) 모드를 제공한다. AI 카테고리 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wrapper 컨트랙트를 공유한다 ([공통 §5](./0-common.md#5-응답-형식-규약-principle-11)).
 

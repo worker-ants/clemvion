@@ -1,0 +1,218 @@
+This page explains how to register and manage model configurations in the three tabs of the [Model Settings](/models) screen — **Chat**, **Embedding**, and **Rerank**. Each tab maintains its own independent list, and AI nodes and Knowledge Bases reference the configurations in each tab.
+
+## Chat tab — LLM provider setup
+
+The **Chat** tab manages the LLM providers used by AI Agent, Text Classifier, Information Extractor, and other AI nodes.
+
+### Supported providers
+
+The LLM client abstraction layer normalizes provider differences, so AI nodes call them uniformly once the config is correct.
+
+<FieldTable rows={[
+  { name: "OpenAI", type: "Chat · Embedding", required: "API Key", description: "GPT-4o family chat, text-embedding-3-small/large embeddings." },
+  { name: "Anthropic", type: "Chat", required: "API Key", description: "Claude 4.x Messages API. No embeddings — register a separate provider for them." },
+  { name: "Google AI", type: "Chat · Embedding", required: "API Key", description: "Gemini models." },
+  { name: "Azure OpenAI", type: "Chat · Embedding", required: "API Key + Endpoint", description: "OpenAI-compatible. Enter the custom deployment name as the model ID." },
+  { name: "Local (Ollama/vLLM)", type: "Chat · Embedding", required: "Optional", description: "OpenAI-compatible API. Only Base URL is required." }
+]} />
+
+<Callout type="note">Anthropic doesn't offer embeddings. If you plan to use a Knowledge Base, also register an OpenAI / Google AI / Azure / Local provider.</Callout>
+
+### Streaming support
+
+Token-level streaming in the Workflow AI Assistant and AI Agent works with every Chat provider.
+
+<FieldTable rows={[
+  { name: "OpenAI", type: "✅", required: "-", description: "Built on chat.completions streaming." },
+  { name: "Anthropic", type: "✅", required: "-", description: "Built on messages.stream() — accumulates content_block_delta." },
+  { name: "Google AI", type: "✅", required: "-", description: "Uses ChatSession.sendMessageStream or generateContentStream." },
+  { name: "Azure OpenAI", type: "✅", required: "-", description: "Reuses the OpenAI SDK streaming SSE format." },
+  { name: "Local (Ollama/vLLM)", type: "✅", required: "-", description: "Automatic when the endpoint is OpenAI-compatible." }
+]} />
+
+### Adding a Chat model config
+
+**GUI flow**: Click [Model Settings](/models?tab=chat) in the left sidebar and select the **Chat** tab. Click `[+ Add Model]` at the top right.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/models/page.tsx"
+  symbol="ModelsPage"
+  describes="Unified Models screen — Chat tab for adding and managing LLM providers"
+/>
+
+<Steps>
+<Step>Pick a provider type from the dropdown: OpenAI · Anthropic · Google AI · Azure OpenAI · Local.</Step>
+<Step>Enter an alias and the API Key. For Azure / Local (custom endpoints), also enter a Base URL.</Step>
+<Step>Click `Load models` to fetch the provider's model list and pick from the dropdown, or type a default model ID directly (e.g. `gpt-4o`, `claude-sonnet-4-6`, `llama3`). The form can fetch the list before saving using the credentials you entered.</Step>
+<Step>Click `Test Connection` to verify a lightweight call (e.g. list-models) succeeds.</Step>
+<Step>Save. Mark your most-used provider as `⭐ Default` so newly-created AI nodes auto-select it.</Step>
+</Steps>
+
+<Callout type="warn">API Keys are encrypted with AES-256-GCM. API responses return only masked previews like `sk-...xxxx`, so keep the original key elsewhere (usually the provider console).</Callout>
+
+### Default model parameters
+
+Provider-level defaults are inherited as initial values by every AI node. Each node can override them independently.
+
+<FieldTable rows={[
+  { name: "temperature", type: "number (0.0–2.0)", required: "Optional", description: "Response creativity. Default 0.7." },
+  { name: "max_tokens", type: "integer", required: "Required for Anthropic", description: "Max output tokens. Default 4096." },
+  { name: "top_p", type: "number (0.0–1.0)", required: "Optional", description: "Cumulative-probability sampling. Default 1.0." },
+  { name: "frequency_penalty", type: "number", required: "Optional", description: "Suppress repeated tokens. Default 0.0." },
+  { name: "presence_penalty", type: "number", required: "Optional", description: "Encourage new tokens. Default 0.0." }
+]} />
+
+### Connection test and error codes
+
+`Test Connection` either lists models or sends a minimal request. Failure codes are normalized by the LLM client.
+
+<FieldTable rows={[
+  { name: "LLM_AUTH_ERROR", type: "401", required: "-", description: "API key is invalid or expired." },
+  { name: "LLM_RATE_LIMIT", type: "429", required: "-", description: "Rate-limited. The client retries with exponential backoff up to 3 times." },
+  { name: "LLM_MODEL_NOT_FOUND", type: "404", required: "-", description: "The default model ID doesn't exist on the provider." },
+  { name: "LLM_CONNECTION_ERROR", type: "-", required: "-", description: "Check Base URL and firewall." },
+  { name: "LLM_TIMEOUT", type: "-", required: "-", description: "Exceeded 120 seconds." }
+]} />
+
+---
+
+## Embedding tab — Embedding model setup
+
+The **Embedding** tab manages the embedding models used by Knowledge Bases to convert documents into vectors. You select an embedding config from the embedding model dropdown when creating or editing a Knowledge Base.
+
+### Supported providers
+
+Embedding configs share the same provider structure as Chat configs (OpenAI · Google AI · Azure · Local). Anthropic does not support embeddings.
+
+### Adding an Embedding model config
+
+**GUI flow**: Click [Model Settings](/models?tab=embedding) in the left sidebar and select the **Embedding** tab. Click `[+ Add Model]` at the top right.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/models/page.tsx"
+  symbol="ModelsPage"
+  describes="Unified Models screen — Embedding tab for adding and managing embedding model configs"
+/>
+
+<Steps>
+<Step>Pick a provider that supports embeddings (OpenAI · Google AI · Azure · Local).</Step>
+<Step>Enter an alias and the API Key (if required). For Local (Ollama/vLLM), also enter a Base URL.</Step>
+<Step>Click `Load models` to pick the model, or type a model ID directly (e.g. `text-embedding-3-small`, `text-embedding-004`).</Step>
+<Step>Enter the Dimension that matches the model (e.g. 1536 for OpenAI text-embedding-3-small).</Step>
+<Step>Save. Mark the most-used config as `⭐ Default` so it is pre-selected when creating a Knowledge Base.</Step>
+</Steps>
+
+<Callout type="note">The Dimension value cannot be changed after the Knowledge Base is created. Enter the correct dimension from the start.</Callout>
+
+### Embedding config field reference
+
+<FieldTable rows={[
+  { name: "Provider type", type: "string", required: "Required", description: "Select a provider that supports embeddings. Cannot be changed after saving." },
+  { name: "Name", type: "string", required: "Required", description: "Alias shown in the Knowledge Base embedding model dropdown." },
+  { name: "API Key", type: "string (masked)", required: "Varies by provider", description: "For self-hosted Local providers running without auth, leave this empty." },
+  { name: "Base URL", type: "string (URL)", required: "Required for Local", description: "Endpoint of your self-hosted server. Example: http://localhost:11434/v1." },
+  { name: "Default Model", type: "string", required: "Required", description: "Model ID used for embedding." },
+  { name: "Dimension", type: "integer", required: "Required", description: "Embedding vector dimension. Varies by model; cannot be changed after the Knowledge Base is created." }
+]} />
+
+---
+
+## Rerank tab — Reranker setup
+
+The **Rerank** tab manages reranker providers used to improve retrieval precision in Knowledge Bases. After setup, you can activate reranking per collection from the [Knowledge Base](/docs/06-integrations-and-config/knowledge-base) Reranking tab.
+
+### What is a reranker?
+
+Vector similarity search is fast, but it can return chunks that are semantically similar in a mixed order. A **reranker (cross-encoder model)** rescores each `(query, chunk)` pair directly in a post-retrieval step, selecting the most relevant top results in a more accurate order.
+
+Key characteristics:
+
+- Applied only at query time — no re-embedding of existing documents is required.
+- Falls back gracefully to the original cosine order when the reranker encounters an error.
+- Can be enabled or disabled per Knowledge Base.
+
+### Supported providers
+
+<FieldTable rows={[
+  { name: "TEI (self-hosted)", type: "Self-hosted", required: "Base URL required", description: "Hugging Face Text-Embeddings-Inference server. Run on your own infrastructure. Example model for Korean: dragonkue/bge-reranker-v2-m3-ko." },
+  { name: "Cohere", type: "External API", required: "API Key required", description: "Cohere's reranker API. Example model: rerank-3.5. Requires internet access." }
+]} />
+
+### Adding a reranker
+
+**GUI flow**: Click [Model Settings](/models?tab=rerank) in the left sidebar and select the **Rerank** tab. Click `[+ Add Model]` at the top right.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/models/page.tsx"
+  symbol="ModelsPage"
+  describes="Unified Models screen — Rerank tab for adding and managing reranker providers"
+/>
+
+<Steps>
+<Step>Pick a provider: `TEI (self-hosted)` or `Cohere`.</Step>
+<Step>Enter a name (alias).</Step>
+<Step>
+  Required fields depend on the provider.
+
+  - **TEI**: `Base URL` is required (e.g. `http://tei:8080`). API Key is optional.
+  - **Cohere**: `API Key` is required. Leave Base URL empty.
+</Step>
+<Step>Type the default model ID directly. For TEI: `dragonkue/bge-reranker-v2-m3-ko` or `bge-reranker-v2-m3`. For Cohere: `rerank-3.5`.</Step>
+<Step>Save. Mark the most-used config as `⭐ Default` so Knowledge Bases that don't specify a reranker pick it automatically.</Step>
+</Steps>
+
+<Callout type="warn">API Keys are masked in all API responses after saving. Keep the original key in your provider console.</Callout>
+
+### Reranker field reference
+
+<FieldTable rows={[
+  { name: "Provider type", type: "tei / cohere", required: "Required", description: "Provider selection. Cannot be changed after saving." },
+  { name: "Name", type: "string", required: "Required", description: "Alias shown in the Knowledge Base Reranking dropdown." },
+  { name: "API Key", type: "string (masked)", required: "Required for Cohere / Optional for TEI", description: "Cohere rejects calls without an API Key. For TEI running without authentication, leave this empty." },
+  { name: "Base URL", type: "string (URL)", required: "Required for TEI", description: "Endpoint of your self-hosted TEI server. Example: http://tei:8080. Not used for Cohere (official endpoint is fixed)." },
+  { name: "Default model", type: "string", required: "Required", description: "Model ID used for reranking. For TEI, use the model ID deployed on your server; for Cohere, use an official model ID such as rerank-3.5." }
+]} />
+
+### Setting a default reranker
+
+Click `⭐ Default` in the list to designate the workspace-level default reranker. Knowledge Bases that have reranking enabled but no explicit reranker selected will use this default. If no default exists, reranking is safely bypassed for those collections.
+
+<Callout type="note">Changing the default takes effect on the next search. It does not affect Knowledge Bases that already have a reranker explicitly selected.</Callout>
+
+### Where the reranker is used
+
+Registered rerankers appear in the [Knowledge Base](/docs/06-integrations-and-config/knowledge-base) Reranking tab. Activating reranking on a collection means every AI Agent search against that collection automatically goes through the second-pass precision step.
+
+---
+
+## API integration reference
+
+Model configs are managed via the `/api/model-configs` endpoint. All types (Chat · Embedding · Rerank) share a single endpoint, differentiated by the `kind` query parameter.
+
+<FieldTable rows={[
+  { name: "GET /api/model-configs?kind=chat", type: "List", required: "-", description: "Paginated list of Chat model configs. Use kind=embedding or kind=rerank for other tabs." },
+  { name: "POST /api/model-configs", type: "Create", required: "editor+", description: "Register a new model config. Include the kind field in the request body." },
+  { name: "PATCH /api/model-configs/:id", type: "Update", required: "editor+", description: "Update a saved model config." },
+  { name: "PATCH /api/model-configs/:id/set-default", type: "Set default", required: "editor+", description: "Designate as the workspace default for the same kind." },
+  { name: "POST /api/model-configs/:id/test", type: "Test connection", required: "-", description: "Test the Chat or Embedding provider connection." },
+  { name: "GET /api/model-configs/:id/models", type: "List models", required: "-", description: "Fetch the model list from the provider using the saved credentials." },
+  { name: "POST /api/model-configs/preview-models", type: "Preview models", required: "editor+", description: "Fetch the model list using form credentials before saving. The API Key is not persisted." }
+]} />
+
+<Callout type="note">The legacy paths (`/api/llm-configs`, `/api/rerank-configs`) continue to work as aliases for backward compatibility. Use `/api/model-configs?kind=` for new integrations.</Callout>
+
+---
+
+## Tips & notes
+
+- Change the Chat default provider using the `⭐ Default` button in the list. Existing AI nodes aren't affected — only newly created ones.
+- Anthropic doesn't support embeddings. Even if Anthropic is your Chat default, register a separate Embedding config in the Embedding tab for Knowledge Base use.
+- If you run a TEI server with a GPU, `dragonkue/bge-reranker-v2-m3-ko` significantly improves Korean retrieval quality.
+- Cohere is a cloud API — quick to get started without hosting infrastructure.
+- Deleting a reranker that is currently used by a Knowledge Base causes that KB to fall back to the cosine-only path.
+- For details on per-KB reranking options (candidate pool size, score cutoff), see [Knowledge Base](/docs/06-integrations-and-config/knowledge-base).
+- How to tune per-node parameters: [AI nodes](/docs/02-nodes/ai).
+- For Azure OpenAI, the model ID must be the deployment name. Using the standard model ID returns 404.

@@ -41,7 +41,7 @@ export const DOCS = {
   integrationsAndConfig: {
     integrationManagement:
       "/docs/06-integrations-and-config/integration-management",
-    llmConfig: "/docs/06-integrations-and-config/llm-config",
+    models: "/docs/06-integrations-and-config/models",
     knowledgeBase: "/docs/06-integrations-and-config/knowledge-base",
     mcpServers: "/docs/06-integrations-and-config/mcp-servers",
   },

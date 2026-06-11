@@ -1,6 +1,6 @@
 # PRD: AI & 지식 저장소
 
-> 관련 문서: [제품 개요](../../0-overview.md) · [워크플로우 에디터 §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-) · [노드 시스템](../_product-overview.md#6-ai-노드-3종) · [통합/연동](../4-integration/_product-overview.md#3-knowledge-base-지식-저장소) · [내비게이션](../../2-navigation/_product-overview.md#37-config--llm-llm-설정) · [Spec AI 노드](./0-common.md) · [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [Spec AI Assistant](../../3-workflow-editor/4-ai-assistant.md)
+> 관련 문서: [제품 개요](../../0-overview.md) · [워크플로우 에디터 §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-) · [노드 시스템](../_product-overview.md#6-ai-노드-3종) · [통합/연동](../4-integration/_product-overview.md#3-knowledge-base-지식-저장소) · [내비게이션](../../2-navigation/_product-overview.md#37-config--models-모델-설정) · [Spec AI 노드](./0-common.md) · [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md) · [Spec Config > Models](../../2-navigation/6-config.md) · [Spec AI Assistant](../../3-workflow-editor/4-ai-assistant.md)
 
 > **구현 상태**: 3.1~3.6의 AI 기능은 모두 **구현 완료(✅)** 다. 상세 요구사항은 [PRD 2 §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-)에 정의되어 있다.
 
@@ -24,7 +24,7 @@
 
 | 영역 | 상태 | 기능 |
 |------|------|------|
-| **LLM 설정** | ✅ | 다중 프로바이더 관리 (OpenAI, Anthropic, Google, Azure, Local) |
+| **Models 설정 (Chat/Embedding/Rerank)** | ✅ | 다중 프로바이더 관리 (OpenAI, Anthropic, Google, Azure, Local) |
 | **AI 노드 3종** | ✅ | AI Agent, Text Classifier, Information Extractor |
 | **지식 저장소** | ✅ | 컬렉션 관리, 문서 업로드, 벡터 임베딩, RAG 검색 |
 | **AI Agent 고급** | ✅ | Tool Area (도구 호출), Knowledge Base 연동 |
