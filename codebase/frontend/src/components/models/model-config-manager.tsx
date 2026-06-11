@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   modelConfigsApi,
@@ -8,44 +8,18 @@ import {
   type ModelConfigKind,
 } from "@/lib/api/model-configs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ModelCombobox } from "@/components/llm-config/model-combobox";
 import { Pagination } from "@/components/ui/pagination";
 import { RoleGate } from "@/components/auth/role-gate";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { toast } from "sonner";
-import { Plus, Loader2, Inbox, Trash2, X, Star, Plug, Pencil } from "lucide-react";
+import { Plus, Loader2, Inbox, Trash2, Star, Plug, Pencil } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { ModelConfigFormDialog } from "./model-config-form-dialog";
+import { ModelConfigDeleteDialog } from "./model-config-delete-dialog";
 
 const PAGE_SIZE = 20;
-const DEFAULT_TEMPERATURE = 0.7;
-const DEFAULT_MAX_TOKENS = 4096;
-
-const PROVIDERS_BY_KIND: Record<
-  ModelConfigKind,
-  { value: string; label: string }[]
-> = {
-  chat: [
-    { value: "openai", label: "OpenAI" },
-    { value: "anthropic", label: "Anthropic" },
-    { value: "google", label: "Google AI" },
-    { value: "azure", label: "Azure OpenAI" },
-    { value: "local", label: "Local (Ollama/vLLM)" },
-  ],
-  embedding: [
-    { value: "openai", label: "OpenAI" },
-    { value: "azure", label: "Azure OpenAI" },
-    { value: "google", label: "Google AI" },
-    { value: "local", label: "Local (Ollama/vLLM/TEI)" },
-  ],
-  rerank: [
-    { value: "tei", label: "TEI (self-hosted)" },
-    { value: "cohere", label: "Cohere" },
-  ],
-};
 
 const PROVIDER_LABELS: Record<string, string> = {
   openai: "OpenAI",
@@ -57,44 +31,21 @@ const PROVIDER_LABELS: Record<string, string> = {
   cohere: "Cohere",
 };
 
-/** baseUrl 입력이 필요한 (kind, provider) — azure/local/tei. */
-function needsBaseUrl(provider: string): boolean {
-  return ["azure", "local", "tei"].includes(provider);
-}
-
-/** apiKey 가 생성 시 필수인가 — 자가호스팅(local/tei)만 선택. */
-function apiKeyRequiredOnCreate(provider: string): boolean {
-  return provider !== "" && !["local", "tei"].includes(provider);
-}
-
 /**
  * kind(chat/embedding/rerank) 별 ModelConfig CRUD 매니저. /models 페이지의 각 탭이
  * 동일 컴포넌트를 kind 만 달리해 렌더한다. chat/embedding 은 모델 select + 연결 테스트,
  * chat 은 추가로 파라미터(temperature/maxTokens), rerank 는 자유 입력 모델·테스트 미제공.
+ * 생성/편집 폼은 ModelConfigFormDialog, 삭제 확인은 ModelConfigDeleteDialog 가 담당한다.
  */
 export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
   const t = useT();
   const queryClient = useQueryClient();
-  const [showDialog, setShowDialog] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editConfig, setEditConfig] = useState<ModelConfigData | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  const [formProvider, setFormProvider] = useState("");
-  const [formName, setFormName] = useState("");
-  const [formApiKey, setFormApiKey] = useState("");
-  const [formBaseUrl, setFormBaseUrl] = useState("");
-  const [formModel, setFormModel] = useState("");
-  const [formTemperature, setFormTemperature] = useState(String(DEFAULT_TEMPERATURE));
-  const [formMaxTokens, setFormMaxTokens] = useState(String(DEFAULT_MAX_TOKENS));
-  const [formDimension, setFormDimension] = useState("");
-
-  const showParams = kind === "chat";
-  const showDimension = kind === "embedding";
-  // rerank: API Key 는 cohere 만 필수. tei(self-hosted) 는 불필요.
-  const showApiKey = kind !== "rerank" || formProvider === "cohere";
+  // rerank 는 연결 테스트 미제공.
   const showTest = kind !== "rerank";
-  const freeInputModel = kind === "rerank";
-  const providers = PROVIDERS_BY_KIND[kind];
 
   const { page, setPage } = usePageParam();
   const { data, isLoading, isError } = useQuery({
@@ -111,44 +62,6 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ["model-configs", kind] });
   }
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      modelConfigsApi.create({
-        kind,
-        provider: formProvider,
-        name: formName,
-        apiKey: formApiKey || undefined,
-        baseUrl: formBaseUrl || undefined,
-        defaultModel: formModel,
-        defaultParams: showParams
-          ? {
-              temperature: parseFloat(formTemperature) || DEFAULT_TEMPERATURE,
-              max_tokens: parseInt(formMaxTokens) || DEFAULT_MAX_TOKENS,
-            }
-          : undefined,
-        dimension: showDimension && formDimension.trim()
-          ? parseInt(formDimension) || undefined
-          : undefined,
-      }),
-    onSuccess: () => {
-      invalidate();
-      toast.success(t("models.providerAdded"));
-      resetForm();
-    },
-    onError: () => toast.error(t("models.providerAddFailed")),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (payload: { id: string; data: Record<string, unknown> }) =>
-      modelConfigsApi.update(payload.id, payload.data),
-    onSuccess: () => {
-      invalidate();
-      toast.success(t("models.providerUpdated"));
-      resetForm();
-    },
-    onError: () => toast.error(t("models.providerUpdateFailed")),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => modelConfigsApi.remove(id),
@@ -182,261 +95,42 @@ export function ModelConfigManager({ kind }: { kind: ModelConfigKind }) {
     onError: () => toast.error(t("models.testFailedShort")),
   });
 
-  function resetForm() {
-    setShowDialog(false);
-    setEditId(null);
-    setFormProvider("");
-    setFormName("");
-    setFormApiKey("");
-    setFormBaseUrl("");
-    setFormModel("");
-    setFormTemperature(String(DEFAULT_TEMPERATURE));
-    setFormMaxTokens(String(DEFAULT_MAX_TOKENS));
-    setFormDimension("");
+  function openCreate() {
+    setEditConfig(null);
+    setDialogOpen(true);
   }
 
   function openEdit(config: ModelConfigData) {
-    setEditId(config.id);
-    setFormProvider(config.provider);
-    setFormName(config.name);
-    setFormApiKey("");
-    setFormBaseUrl(config.baseUrl || "");
-    setFormModel(config.defaultModel);
-    setFormTemperature(
-      String((config.defaultParams?.temperature as number) ?? DEFAULT_TEMPERATURE),
-    );
-    setFormMaxTokens(
-      String((config.defaultParams?.max_tokens as number) ?? DEFAULT_MAX_TOKENS),
-    );
-    setFormDimension(config.dimension != null ? String(config.dimension) : "");
-    setShowDialog(true);
+    setEditConfig(config);
+    setDialogOpen(true);
   }
-
-  function handleSave() {
-    if (!formName.trim() || !formProvider || !formModel.trim()) {
-      toast.error(t("models.requiredFields"));
-      return;
-    }
-    if (!editId && apiKeyRequiredOnCreate(formProvider) && !formApiKey.trim()) {
-      toast.error(t("models.apiKeyRequired"));
-      return;
-    }
-    if (needsBaseUrl(formProvider) && !formBaseUrl.trim()) {
-      toast.error(t("models.baseUrlRequired"));
-      return;
-    }
-
-    if (editId) {
-      const payload: Record<string, unknown> = {
-        provider: formProvider,
-        name: formName,
-        defaultModel: formModel,
-        baseUrl: formBaseUrl || undefined,
-      };
-      if (showParams) {
-        payload.defaultParams = {
-          temperature: parseFloat(formTemperature) || DEFAULT_TEMPERATURE,
-          max_tokens: parseInt(formMaxTokens) || DEFAULT_MAX_TOKENS,
-        };
-      }
-      if (showDimension && formDimension.trim()) {
-        payload.dimension = parseInt(formDimension) || undefined;
-      }
-      if (formApiKey.trim()) payload.apiKey = formApiKey;
-      updateMutation.mutate({ id: editId, data: payload });
-    } else {
-      createMutation.mutate();
-    }
-  }
-
-  const isPending = createMutation.isPending || updateMutation.isPending;
-
-  // ESC key closes modals (accessibility — focus-trap migration to shadcn Dialog deferred to followup)
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Escape") return;
-      if (showDialog) resetForm();
-      if (deleteTarget) setDeleteTarget(null);
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [showDialog, deleteTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end">
         <RoleGate minRole="editor">
-          <Button onClick={() => setShowDialog(true)}>
+          <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             {t("models.addModel")}
           </Button>
         </RoleGate>
       </div>
 
-      {showDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
-                {editId ? t("models.editModel") : t("models.addModel")}
-              </h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={resetForm}
-                aria-label={t("common.close")}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <Label>{t("models.provider")}</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
-                  value={formProvider}
-                  onChange={(e) => setFormProvider(e.target.value)}
-                >
-                  <option value="">{t("models.selectProvider")}</option>
-                  {providers.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label>{t("common.name")}</Label>
-                <Input
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder={t("models.namePlaceholder")}
-                />
-              </div>
-              {showApiKey && (
-                <div>
-                  <Label>{t("models.apiKey")}</Label>
-                  <Input
-                    type="password"
-                    value={formApiKey}
-                    onChange={(e) => setFormApiKey(e.target.value)}
-                    placeholder={
-                      editId
-                        ? t("models.apiKeyPlaceholderEdit")
-                        : t("models.apiKeyPlaceholderNew")
-                    }
-                  />
-                </div>
-              )}
-              {needsBaseUrl(formProvider) && (
-                <div>
-                  <Label>{t("models.baseUrl")}</Label>
-                  <Input
-                    value={formBaseUrl}
-                    onChange={(e) => setFormBaseUrl(e.target.value)}
-                    placeholder={t("models.baseUrlPlaceholder")}
-                  />
-                </div>
-              )}
-              <div>
-                <Label>{t("models.defaultModel")}</Label>
-                {freeInputModel ? (
-                  <Input
-                    value={formModel}
-                    onChange={(e) => setFormModel(e.target.value)}
-                    placeholder={t("models.rerankModelPlaceholder")}
-                  />
-                ) : (
-                  <ModelCombobox
-                    value={formModel}
-                    onChange={setFormModel}
-                    provider={formProvider}
-                    apiKey={formApiKey}
-                    baseUrl={formBaseUrl}
-                    configId={editId ?? undefined}
-                    api={modelConfigsApi}
-                    modelType={kind === "embedding" ? "embedding" : "chat"}
-                    placeholder={t("models.modelPlaceholder")}
-                  />
-                )}
-              </div>
-              {showDimension && (
-                <div>
-                  <Label>{t("models.dimension")}</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={formDimension}
-                    onChange={(e) => setFormDimension(e.target.value)}
-                    placeholder={t("models.dimensionPlaceholder")}
-                  />
-                </div>
-              )}
-              {showParams && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>{t("models.temperature")}</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="2"
-                      value={formTemperature}
-                      onChange={(e) => setFormTemperature(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label>{t("models.maxTokens")}</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={formMaxTokens}
-                      onChange={(e) => setFormMaxTokens(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={resetForm}>
-                  {t("common.cancel")}
-                </Button>
-                <Button onClick={handleSave} disabled={isPending}>
-                  {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editId ? t("models.updateBtn") : t("common.create")}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ModelConfigFormDialog
+        kind={kind}
+        editConfig={editConfig}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
 
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">
-              {t("models.deleteTitle")}
-            </h2>
-            <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              {t("models.deleteMessage")}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-                {t("common.cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate(deleteTarget)}
-              >
-                {deleteMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {t("common.delete")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ModelConfigDeleteDialog
+        open={deleteTarget !== null}
+        pending={deleteMutation.isPending}
+        onConfirm={() => {
+          if (deleteTarget) deleteMutation.mutate(deleteTarget);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {isLoading && (
         <div className="flex items-center justify-center py-12">
