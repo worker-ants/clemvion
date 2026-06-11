@@ -3,9 +3,10 @@
  *
  * `NODE_ENV=production` 에서 **비보안 stub / 미설정·예시 secret / 위험 플래그**가 켜진 채
  * 부팅하려 하면 즉시 throw 해 기동을 거부한다. 기존 `OAUTH_STUB_MODE`/`LLM_STUB_MODE`
- * 인라인 가드(옛 main.ts)를 같은 블록으로 응집하고, 동형 secret 들(`INTERACTION_JWT_SECRET`
- * 의 fail-closed — [EIA §R](../../modules/external-interaction/interaction-token.service.ts))과
- * 대칭을 맞춘다.
+ * 인라인 가드(옛 main.ts)를 같은 블록으로 응집하고, 동형 secret(`INTERACTION_JWT_SECRET` 의
+ * fail-closed — `InteractionTokenService` 생성자 throw)과 대칭을 맞춘다.
+ * SoT: spec/5-system/1-auth.md §Rationale "Production fail-closed 가드",
+ * spec/5-system/14-external-interaction-api.md §8.3.
  *
  * **dev/test/e2e 영향 없음**: 전부 `NODE_ENV !== 'production'` 에서 early-return.
  * (e2e 는 `NODE_ENV=test` — docker-compose.e2e.yml.)
