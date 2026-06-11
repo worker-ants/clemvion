@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useDefaultLlmConfigId } from "../use-default-llm-config-id";
+import { useDefaultChatModelConfigId as useDefaultLlmConfigId } from "../use-default-chat-model-config-id";
 import { modelConfigsApi, type ModelConfigData } from "@/lib/api/model-configs";
 
 vi.mock("@/lib/api/model-configs", async (importOriginal) => {
@@ -47,6 +47,7 @@ describe("useDefaultLlmConfigId", () => {
     const { result } = renderHook(() => useDefaultLlmConfigId(), { wrapper });
 
     await waitFor(() => expect(result.current).toBe("b"));
+    expect(modelConfigsApi.list).toHaveBeenCalledWith("chat");
   });
 
   it("falls back to the first config when none is default", async () => {
@@ -58,6 +59,7 @@ describe("useDefaultLlmConfigId", () => {
     const { result } = renderHook(() => useDefaultLlmConfigId(), { wrapper });
 
     await waitFor(() => expect(result.current).toBe("first"));
+    expect(modelConfigsApi.list).toHaveBeenCalledWith("chat");
   });
 
   it("returns undefined when the list is empty", async () => {

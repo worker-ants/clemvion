@@ -4,7 +4,7 @@ import { useCallback, useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { useEmbeddingModelLoader } from "@/components/llm-config/use-embedding-model-loader";
 import { type ModelLoaderApi } from "@/components/llm-config/use-model-loader";
-import { useDefaultLlmConfigId } from "@/components/llm-config/use-default-llm-config-id";
+import { useDefaultChatModelConfigId } from "@/components/llm-config/use-default-chat-model-config-id";
 import { buildLoaderErrorMessages } from "@/components/llm-config/loader-error-messages";
 import { ModelSelectField } from "@/components/llm-config/model-select-field";
 import {
@@ -21,11 +21,11 @@ interface EmbeddingModelComboboxProps {
   placeholder?: string;
   disabled?: boolean;
   /**
-   * 모델 목록을 가져올 LLMConfig 의 id. 미지정 시 워크스페이스 default LLMConfig 로 폴백.
-   * KB 가 default 와 다른 LLMConfig 를 임베딩에 쓰고 있을 때 그 config 의 임베딩 모델 후보를
+   * 모델 목록을 가져올 ModelConfig 의 id. 미지정 시 워크스페이스 default chat ModelConfig 로 폴백.
+   * KB 가 default 와 다른 ModelConfig 를 임베딩에 쓰고 있을 때 그 config 의 임베딩 모델 후보를
    * 보여주기 위함.
    */
-  llmConfigId?: string;
+  modelConfigId?: string;
   /** 모델 조회 API (default modelConfigsApi). */
   api?: ModelLoaderApi;
 }
@@ -38,13 +38,13 @@ export function EmbeddingModelCombobox({
   onChange,
   placeholder,
   disabled,
-  llmConfigId,
+  modelConfigId,
   api,
 }: EmbeddingModelComboboxProps) {
   const t = useT();
 
-  const defaultConfigId = useDefaultLlmConfigId();
-  const effectiveConfigId = llmConfigId ?? defaultConfigId;
+  const defaultConfigId = useDefaultChatModelConfigId();
+  const effectiveConfigId = modelConfigId ?? defaultConfigId;
 
   const errorMessagesByCode = useMemo(() => buildLoaderErrorMessages(t), [t]);
 

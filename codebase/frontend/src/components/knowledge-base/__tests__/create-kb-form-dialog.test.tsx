@@ -94,6 +94,19 @@ describe("CreateKbFormDialog — embedding ModelConfig select", () => {
     probeMock.mockResolvedValue({ dimension: 1536, provider: "openai" });
   });
 
+  it("calls modelConfigsApi.list with 'chat' and 'rerank' on open", async () => {
+    embeddingListMock.mockResolvedValue([]);
+
+    wrap(<CreateKbFormDialog open onOpenChange={vi.fn()} />);
+
+    // Both chat and rerank lists are fetched while the dialog is open
+    // (they power graph-mode extraction LLM select and rerank config select).
+    await waitFor(() => {
+      expect(modelListMock).toHaveBeenCalledWith("chat");
+      expect(modelListMock).toHaveBeenCalledWith("rerank");
+    });
+  });
+
   it("renders the loaded embedding configs as options", async () => {
     embeddingListMock.mockResolvedValue([
       embConfig({ id: "emb-a", name: "OpenAI Emb", defaultModel: "m-a" }),

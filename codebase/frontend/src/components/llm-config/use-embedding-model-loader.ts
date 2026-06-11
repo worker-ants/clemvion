@@ -26,7 +26,7 @@ export type UseEmbeddingModelLoaderResult = UseBaseModelLoaderResult;
 
 /**
  * `useModelLoader` 의 임베딩 변형. preview 경로가 없고
- * `GET /llm-configs/:id/models?type=embedding` 하나만 호출한다. 공통 상태 관리는
+ * `GET /model-configs/:id/models?type=embedding` 하나만 호출한다. 공통 상태 관리는
  * `useBaseModelLoader` 가 담당한다.
  */
 export function useEmbeddingModelLoader({

@@ -10,6 +10,15 @@ export type ModelConfigKind = "chat" | "embedding" | "rerank";
 
 export const MODEL_CONFIGS_QUERY_KEY = ["model-configs"] as const;
 
+/**
+ * Factory for the kind-scoped list query key.
+ * Callers that need to `invalidateQueries` a specific kind can use this instead
+ * of the individual `MODEL_CONFIGS_*_LIST_QUERY_KEY` constants.
+ * e.g. `queryClient.invalidateQueries({ queryKey: makeModelConfigsListKey("chat") })`
+ */
+export const makeModelConfigsListKey = (kind: ModelConfigKind) =>
+  ["model-configs", kind, "list"] as const;
+
 /** Shared query key for the kind=embedding ModelConfig list used across KB create/edit + default hook. */
 export const MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY = [
   "model-configs",

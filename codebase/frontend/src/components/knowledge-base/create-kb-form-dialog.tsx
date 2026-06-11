@@ -70,7 +70,7 @@ export function CreateKbFormDialog({
 
   // 임베딩 LLMConfig select 가 vector 모드에서도 보여야 하므로 dialog 가 열려 있는 동안
   // 항상 fetch. graph 모드의 extraction LLM select 도 같은 데이터를 공유한다.
-  const { data: llmConfigs = [] } = useQuery({
+  const { data: chatModelConfigs = [] } = useQuery({
     queryKey: MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
     queryFn: () => modelConfigsApi.list("chat"),
     staleTime: 30_000,
@@ -227,7 +227,7 @@ export function CreateKbFormDialog({
           formRerankLlmConfigId={formRerankLlmConfigId}
           setFormRerankLlmConfigId={setFormRerankLlmConfigId}
           rerankConfigs={rerankConfigs}
-          llmConfigs={llmConfigs}
+          chatModelConfigs={chatModelConfigs}
         />
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)}>

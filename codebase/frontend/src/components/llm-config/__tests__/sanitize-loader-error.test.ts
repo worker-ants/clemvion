@@ -69,10 +69,11 @@ describe("buildLoaderErrorMessages", () => {
   it("maps the known user-actionable backend codes", () => {
     const t = ((key: string) => key) as Parameters<typeof buildLoaderErrorMessages>[0];
     const map = buildLoaderErrorMessages(t);
-    expect(Object.keys(map).sort()).toEqual(
-      ["LLM_CONFIG_INVALID", "LLM_CREDENTIALS_REQUIRED"].sort(),
-    );
+    // Legacy LLM execution path codes (llm.service.ts — intentionally NOT renamed in PR4).
     expect(map.LLM_CREDENTIALS_REQUIRED).toBe("llmConfigs.errorCredentialsRequired");
     expect(map.LLM_CONFIG_INVALID).toBe("llmConfigs.errorConfigInvalid");
+    // Unified model-config service codes (model-config.service.ts, added PR4 resolution W8).
+    expect(map.MODEL_CONFIG_INVALID).toBe("llmConfigs.errorConfigInvalid");
+    expect(map.MODEL_CONFIG_NOT_FOUND).toBe("llmConfigs.errorConfigInvalid");
   });
 });

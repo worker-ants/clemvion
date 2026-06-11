@@ -63,7 +63,7 @@ export interface KbFormBodyProps {
   setFormRerankLlmConfigId: (v: string) => void;
   rerankConfigs: ModelConfigData[];
 
-  llmConfigs: ModelConfigData[];
+  chatModelConfigs: ModelConfigData[];
   // settings 모드: 선택한 임베딩 config 가 기존과 달라졌을 때 재임베딩 경고 노출.
   embeddingModelChanged?: boolean;
 }
@@ -106,7 +106,7 @@ export function KbFormBody({
   formRerankLlmConfigId,
   setFormRerankLlmConfigId,
   rerankConfigs,
-  llmConfigs,
+  chatModelConfigs,
   embeddingModelChanged,
 }: KbFormBodyProps) {
   const t = useT();
@@ -263,7 +263,7 @@ export function KbFormBody({
               <option value="">
                 {t("nodeConfigs.llmConfigSelector.defaultOption")}
               </option>
-              {llmConfigs.map((c) => (
+              {chatModelConfigs.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.defaultModel})
                   {c.isDefault ? " *" : ""}
@@ -405,7 +405,7 @@ export function KbFormBody({
                   <option value="">
                     {t("nodeConfigs.llmConfigSelector.defaultOption")}
                   </option>
-                  {llmConfigs.map((c) => (
+                  {chatModelConfigs.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({c.defaultModel})
                       {c.isDefault ? " *" : ""}

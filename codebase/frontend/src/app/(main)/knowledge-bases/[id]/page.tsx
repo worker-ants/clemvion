@@ -178,7 +178,7 @@ export default function KnowledgeBaseDetailPage({
   );
 
   // settings 다이얼로그가 열렸을 때만 LLMConfig 목록을 fetch (임베딩/추출 select 둘 다 사용).
-  const { data: llmConfigs = [] } = useQuery({
+  const { data: chatModelConfigs = [] } = useQuery({
     queryKey: MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
     queryFn: () => modelConfigsApi.list("chat"),
     staleTime: 30_000,
@@ -736,7 +736,7 @@ export default function KnowledgeBaseDetailPage({
               formRerankLlmConfigId={formRerankLlmConfigId}
               setFormRerankLlmConfigId={setFormRerankLlmConfigId}
               rerankConfigs={rerankConfigs}
-              llmConfigs={llmConfigs}
+              chatModelConfigs={chatModelConfigs}
               embeddingModelChanged={
                 formEmbeddingModelConfigId !== (kb.embeddingModelConfigId ?? "")
               }

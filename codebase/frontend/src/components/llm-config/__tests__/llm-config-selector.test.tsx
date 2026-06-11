@@ -48,10 +48,12 @@ function wrap(ui: ReactNode) {
 }
 
 const baseConfig = {
+  kind: "chat" as const,
   provider: "openai",
   apiKey: "***",
   defaultModel: "gpt-4o",
   defaultParams: {},
+  isDefault: false,
   createdAt: "2026-05-01T00:00:00Z",
   updatedAt: "2026-05-01T00:00:00Z",
 };

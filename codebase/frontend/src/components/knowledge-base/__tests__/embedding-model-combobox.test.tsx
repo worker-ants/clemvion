@@ -89,7 +89,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -146,7 +146,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={onChange}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -175,7 +175,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value="legacy-embedding-id"
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -214,7 +214,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -241,7 +241,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="cfg-a"
+        modelConfigId="cfg-a"
       />,
     );
 
@@ -259,7 +259,7 @@ describe("EmbeddingModelCombobox", () => {
         <EmbeddingModelCombobox
           value=""
           onChange={vi.fn()}
-          llmConfigId="cfg-b"
+          modelConfigId="cfg-b"
         />
       </QueryClientProvider>,
     );
@@ -301,7 +301,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -325,7 +325,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="cfg-a"
+        modelConfigId="cfg-a"
       />,
     );
 
@@ -348,7 +348,7 @@ describe("EmbeddingModelCombobox", () => {
         <EmbeddingModelCombobox
           value=""
           onChange={vi.fn()}
-          llmConfigId="cfg-b"
+          modelConfigId="cfg-b"
         />
       </QueryClientProvider>,
     );
@@ -377,7 +377,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
@@ -411,7 +411,7 @@ describe("EmbeddingModelCombobox", () => {
       <EmbeddingModelCombobox
         value=""
         onChange={vi.fn()}
-        llmConfigId="explicit-cfg"
+        modelConfigId="explicit-cfg"
       />,
     );
 
