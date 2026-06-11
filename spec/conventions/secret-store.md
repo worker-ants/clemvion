@@ -314,3 +314,14 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 ### R4. Trigger FK 미설정
 
 `secret_store.workspace_id` 는 workspace FK 를 가질 수 있으나 본 spec 은 application-level cascade 만 정의 — 향후 다른 scope (예: workspace 외부의 system-wide secret) 도 같은 테이블에 두려면 FK 가 제약. trigger 삭제 시의 명시적 cleanup 책임은 `TriggersService.delete()` 가 진다. `ON DELETE CASCADE` 는 채택하지 않는다 — implicit DB 동작과 explicit application 동작이 섞이면 추적이 어려워지기 때문.
+
+### R5. `.env.example` 예시 키 placeholder + production 차단 (refactor 04 M-4)
+
+`.env.example` 의 `ENCRYPTION_KEY` 는 실 키가 아니라 형식만 보이는 all-zero placeholder 다. 옛 버전은
+복붙 가능한 구체 64-hex 값을 실어, 그 값을 그대로 운영에 옮긴 배포는 **공개 저장소의 알려진 키로
+secret store 전체를 암호화**해 사실상 평문 상태였다. 두 겹으로 막는다: (1) 눈에 띄는 all-zero
+placeholder + "MUST regenerate(`openssl rand -hex 32`)" 주석, (2) `NODE_ENV=production` 부팅 가드
+(`main.ts` 의 `assertProductionConfig`)가 미설정이거나 공개 예시 키(현 all-zero·옛 `0123…`)면 기동을
+거부. 빈 값만 막는 §3.3 의 `SecretResolver` fail-fast 를 보완해 "예시 키 복붙" 운영 사고까지 차단하며,
+`JWT_SECRET`/`MCP_ALLOW_INSECURE_URL` 과 단일 fail-closed 가드 블록으로 응집한다([auth §Rationale
+"Production fail-closed 가드"](../5-system/1-auth.md#rationale)). dev/test/e2e 는 영향 없다.

@@ -245,12 +245,9 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | Refresh Token | HttpOnly Cookie | 7일 | Access Token 갱신 |
 
 > **`JWT_SECRET` production fail-closed (refactor 04 C-1)**: Access Token 은 `JWT_SECRET` 으로
-> 서명된다. `NODE_ENV=production` 에서 `JWT_SECRET` 가 미설정이거나 코드 기본 sentinel
-> (`dev-jwt-secret`)·`.env.example` placeholder 면 부팅을 거부한다 (`main.ts` 의
-> `assertProductionConfig`). 기본/예시 secret 으로 서명하면 누구나 토큰을 위조해 인증을 우회할 수
-> 있기 때문이다 — [`INTERACTION_JWT_SECRET` 의 fail-closed](./14-external-interaction-api.md#83-token-일반-규약) 및
-> `OAUTH_STUB_MODE`/`LLM_STUB_MODE` 가드와 동형이다(전부 `common/config/production-guards.ts` 의
-> `assertProductionConfig` 로 응집, 단 `INTERACTION_JWT_SECRET` 은 별도 서비스 생성자 throw 로 유지).
+> 서명된다. `NODE_ENV=production` 에서 `JWT_SECRET` 가 미설정/기본 sentinel/예시값/32자 미만이면
+> 부팅을 거부한다 (`main.ts` 의 `assertProductionConfig`; `ENCRYPTION_KEY`·`MCP_ALLOW_INSECURE_URL`
+> 과 단일 가드 블록). 설계 근거·응집 이유는 §Rationale "Production fail-closed 가드" 참조.
 > dev/test/e2e(`NODE_ENV≠production`)는 dev fallback 을 허용해 영향 없다.
 
 ### 2.2 Access Token Payload
@@ -553,3 +550,25 @@ Refresh 쿠키의 `Domain` 속성은 운영자 env 가 아니라 `FRONTEND_URL`/
 - 초대 관리 화면(§1.5.1)이 pending 초대의 재발송·취소를 위해 토큰 lookup 을 수행한다.
 
 따라서 해시 전환의 보안 이득이 위협 모델 대비 작아 raw 저장을 유지한다. DB 유출을 전제로 하는 방어는 이메일 일치 강제(1차)와 만료(2차)가 담당한다.
+
+### Production fail-closed 가드 — JWT_SECRET·ENCRYPTION_KEY·MCP (refactor 04 C-1·M-4·M-7)
+
+`NODE_ENV=production` 에서 핵심 secret/플래그가 비보안 상태로 켜진 채 부팅하려 하면 즉시 throw 해
+기동을 거부한다 (`common/config/production-guards.ts` 의 `assertProductionConfig`, `main.ts` 가
+bootstrap 첫 단계에서 호출). 대상:
+
+- **`JWT_SECRET`** — 미설정/기본 sentinel(`dev-jwt-secret`)/`.env.example` placeholder, 또는 32자
+  미만(CWE-521 약한 secret). 기본·예측 가능 secret 으로 서명하면 누구나 access token 을 위조해
+  인증을 전면 우회할 수 있다.
+- **`ENCRYPTION_KEY`** — 미설정/공개 `.env.example` 예시 키. 예시 키로 운영하면 secret store 가
+  사실상 평문이 된다 ([secret-store §Rationale](../conventions/secret-store.md#rationale)).
+- **`MCP_ALLOW_INSECURE_URL`** — true 면 throw ([11-mcp-client](./11-mcp-client.md) 의 "운영 절대
+  금지" 를 enforcement 로 일치).
+
+**단일 블록 응집 이유**: spec 이 이미 동형 secret/stub(`INTERACTION_JWT_SECRET`,
+`OAUTH_STUB_MODE`/`LLM_STUB_MODE`)에 production throw 표준을 명문화했고, 같은 위치(`main.ts` boot)·
+같은 패턴이라 한 함수로 모으면 이후 secret 추가 시 누락을 구조적으로 막는다. env 만으로 부팅 직전
+판정 가능한 절대-금지 항목만 포함하며, DI·요청 컨텍스트가 필요하거나(예: `INTERACTION_JWT_SECRET`
+생성자 throw) 정당 용도가 있는 항목(예: `ALLOW_PRIVATE_HOST_TARGETS` 는 throw 가 아닌 warn)은
+의도적으로 분리한다. 운영 영향(미설정 시 기동 거부)은 insecure 부팅보다 안전한 fail-closed 의도다.
+dev/test/e2e(`NODE_ENV≠production`)는 영향이 없다.
