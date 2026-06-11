@@ -57,7 +57,7 @@ export class ModelTestConnectionResultDto {
 
   @ApiPropertyOptional({
     description:
-      'kind=embedding 연결 테스트 시 probe embed 로 감지한 임베딩 차원. 감지 실패 시 생략.',
+      'Detected embedding dimension via probe embed when kind=embedding. Omitted if detection fails.',
     example: 1536,
   })
   dimension?: number;

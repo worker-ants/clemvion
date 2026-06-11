@@ -2,6 +2,19 @@ import { BadRequestException } from '@nestjs/common';
 import { LlmService, extractRetryAfterMs } from './llm.service';
 import { StubLlmClient } from './clients/stub.client';
 
+// ─── Shared test fixtures ────────────────────────────────────────────────────
+
+/** OpenAI text-embedding-3-small: 1536 dimensions */
+const OPENAI_SMALL_DIM = 1536; // text-embedding-3-small
+
+const EMBEDDING_CONFIG_FIXTURE = {
+  id: 'emb-1',
+  kind: 'embedding',
+  provider: 'openai',
+  defaultModel: 'text-embedding-3-small',
+  apiKey: 'encrypted',
+} as const;
+
 describe('LlmService', () => {
   let service: LlmService;
   let mockModelConfigService: Record<string, jest.Mock>;
@@ -328,6 +341,13 @@ describe('LlmService', () => {
       expect(mockClient.testConnection).toHaveBeenCalled();
     });
 
+    it('does not include dimension in response for chat kind', async () => {
+      // INFO #14: chat 경로에서 dimension 필드가 반환되지 않음을 명시적으로 검증.
+      const result = await service.testConnection('config-1', 'ws-1');
+      expect(result).toEqual({ success: true }); // dimension 키 없어야 함
+      expect('dimension' in result).toBe(false);
+    });
+
     it('should return failure with sanitized error on connection refused', async () => {
       mockClient.testConnection.mockRejectedValue(
         new Error('Connection refused'),
@@ -380,14 +400,10 @@ describe('LlmService', () => {
     it('resolves config kind-agnostically via ModelConfigService (embedding regression)', async () => {
       // 회귀 방지: embedding 설정도 조회돼야 한다. 구 경로는 kind=chat 고정이라
       // MODEL_CONFIG_NOT_FOUND 로 거부됐다.
-      mockModelConfigService.findEntity.mockResolvedValue({
-        id: 'emb-1',
-        kind: 'embedding',
-        provider: 'openai',
-        defaultModel: 'text-embedding-3-small',
-        apiKey: 'encrypted',
-      });
-      mockClient.embed.mockResolvedValue([new Array(1536).fill(0)]);
+      mockModelConfigService.findEntity.mockResolvedValue(
+        EMBEDDING_CONFIG_FIXTURE,
+      );
+      mockClient.embed.mockResolvedValue([new Array(OPENAI_SMALL_DIM).fill(0)]);
 
       const result = await service.testConnection('emb-1', 'ws-1');
 
@@ -401,17 +417,13 @@ describe('LlmService', () => {
         ['connection test'],
         'text-embedding-3-small',
       );
-      expect(result).toEqual({ success: true, dimension: 1536 });
+      expect(result).toEqual({ success: true, dimension: OPENAI_SMALL_DIM });
     });
 
     it('returns success without dimension when probe embed yields empty vector', async () => {
-      mockModelConfigService.findEntity.mockResolvedValue({
-        id: 'emb-1',
-        kind: 'embedding',
-        provider: 'openai',
-        defaultModel: 'text-embedding-3-small',
-        apiKey: 'encrypted',
-      });
+      mockModelConfigService.findEntity.mockResolvedValue(
+        EMBEDDING_CONFIG_FIXTURE,
+      );
       mockClient.embed.mockResolvedValue([]);
 
       const result = await service.testConnection('emb-1', 'ws-1');
@@ -419,13 +431,9 @@ describe('LlmService', () => {
     });
 
     it('returns sanitized failure when embedding probe embed throws', async () => {
-      mockModelConfigService.findEntity.mockResolvedValue({
-        id: 'emb-1',
-        kind: 'embedding',
-        provider: 'openai',
-        defaultModel: 'text-embedding-3-small',
-        apiKey: 'encrypted',
-      });
+      mockModelConfigService.findEntity.mockResolvedValue(
+        EMBEDDING_CONFIG_FIXTURE,
+      );
       mockClient.embed.mockRejectedValue(new Error('401 Unauthorized'));
 
       const result = await service.testConnection('emb-1', 'ws-1');
@@ -610,6 +618,17 @@ describe('LlmService', () => {
       await service.listModels('config-1', 'ws-1');
       await service.listModels('config-1', 'ws-2');
       expect(mockClient.listModels).toHaveBeenCalledTimes(2);
+    });
+
+    it('resolves config kind-agnostically — findEntity called without kind argument (INFO #11)', async () => {
+      // kind-agnostic 변경 검증: listModels 는 findEntity 를 kind 인수 없이 호출해야 한다.
+      // 구 경로(kind='chat' 고정)는 embedding 편집 시 모델 목록 로드를 깨뜨렸다.
+      mockClient.listModels.mockResolvedValue([]);
+      await service.listModels('config-1', 'ws-1');
+      expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
+        'config-1',
+        'ws-1',
+      );
     });
   });
 

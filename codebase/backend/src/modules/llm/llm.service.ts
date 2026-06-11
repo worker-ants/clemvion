@@ -247,6 +247,19 @@ export class LlmService {
     return allEmbeddings;
   }
 
+  /**
+   * 모델 설정 연결을 테스트한다.
+   *
+   * - kind=chat / kind=rerank: `client.testConnection()` 직접 호출.
+   *   rerank UI 는 테스트 버튼을 표시하지 않지만(showTest=kind!=='rerank'),
+   *   POST :id/test 직접 호출 시에도 chat 과 동일 경로(testConnection)를 사용한다.
+   *   rerank provider 는 LLM clientFactory 에 등록되지 않으므로 graceful 실패한다.
+   * - kind=embedding: `client.embed(['connection test'], model)` probe 로 검증.
+   *   probe 반환 벡터 길이를 감지 차원(`dimension`)으로 응답에 포함한다.
+   *   차원 0 또는 빈 배열이면 `dimension` 필드를 생략한다.
+   *
+   * @returns `{ success, dimension? }` — dimension 은 kind=embedding 이고 probe 성공 시만 포함.
+   */
   async testConnection(
     configId: string,
     workspaceId: string,
@@ -269,6 +282,10 @@ export class LlmService {
         const dimension = vectors[0]?.length;
         return dimension ? { success: true, dimension } : { success: true };
       }
+      // chat · rerank 공통 경로: client.testConnection() 직접 호출.
+      // UI 가드(showTest=kind!=='rerank')로 rerank 는 버튼이 숨겨지지만,
+      // API 직접 호출 시에도 이 경로를 통한다. rerank provider 는
+      // clientFactory 에 없어 graceful 실패(catch → { success: false }).
       await client.testConnection();
       return { success: true };
     } catch (error) {
