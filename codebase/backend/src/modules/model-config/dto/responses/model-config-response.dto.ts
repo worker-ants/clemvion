@@ -54,6 +54,13 @@ export class ModelTestConnectionResultDto {
 
   @ApiPropertyOptional({ nullable: true })
   message?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Detected embedding dimension via probe embed when kind=embedding. Omitted if detection fails.',
+    example: 1536,
+  })
+  dimension?: number;
 }
 
 /** 모델 목록 항목 */

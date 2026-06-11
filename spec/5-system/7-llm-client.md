@@ -409,7 +409,7 @@ type ChatStreamEvent =
 
 ```typescript
 class LlmService {
-  // 기존 chat / testConnection / resolveConfig 유지
+  // 기존 chat / embed / resolveConfig 유지. testConnection 은 kind별 probe 분기(아래 표).
 
   /** 배치 임베딩 — 20개 단위 chunking + 내부 재시도. §3.3 의 LLMClient.embed 래퍼.
    *  opts(timeoutMs/disableInnerRetry)는 서비스 래퍼 전용이라 §3.3 LLMClient
@@ -438,6 +438,17 @@ class LlmService {
 - 사용량 로깅(`llm_usage_log`)은 `done` 이벤트에서만 수행하며, 비동기 비차단.
 - 재시도(rate limit)는 스트리밍 중에는 적용하지 않는다. 시작 전 네트워크 초기화 단계에서만 기존 exponential backoff 규칙을 적용.
 
+#### LlmService.testConnection — kind별 probe 전략
+
+`LlmService.testConnection(configId, workspaceId)` 는 저장된 설정으로 연결을 검증한다. 설정 조회는 `ModelConfigService.findEntity(configId, workspaceId)`(**kind 무관**)로 한다 — 구 `LlmConfigService.findEntity`(chat 고정)는 embedding/rerank 설정을 `MODEL_CONFIG_NOT_FOUND` 로 거부해 통합 Models 관리 UI 의 연결 테스트·모델 로드를 깨뜨렸다(회귀 해소). 모듈 의존은 `LlmModule → ModelConfigModule`(상호 forwardRef; 순환 정리는 백로그 `unified-model-management §7 W4`).
+
+| kind | probe | 반환 |
+|------|-------|------|
+| chat | `client.testConnection()` (모델 목록 조회 등 경량 호출) | `{ success: true }` |
+| embedding | `client.embed(['connection test'], defaultModel)` — 실제 embed 로 연결·모델 유효성 동시 검증 | `{ success: true, dimension? }` — 반환 배열 첫 요소 길이(`vectors[0].length`)를 `dimension` 으로 포함(0 이면 omit) |
+
+`LLMClient.testConnection(): Promise<boolean>` **인터페이스(§3.1)는 변경하지 않는다** — dimension 추출은 서비스 레이어 전용이며 `EmbedResponse`(§3.3 Planned, `dimensions` 복수) 트랙과 독립이다. 감지된 `dimension` 의 자동 저장(`ModelConfig.dimension`)·read-only UX 는 [설정 화면 §B.3](../2-navigation/6-config.md#b3-프로바이더-연결-테스트) SoT. `rerank` 는 표준 test API 부재로 연결 테스트 미제공(§2.1).
+
 ### 8.4 에러 매핑
 
 | 케이스 | 이벤트 | 비고 |
@@ -461,3 +472,5 @@ class LlmService {
 - **왜 SSRF 가드·secret-store 는 재사용하는가**: 자가호스팅 `tei`/`local` 리랭커는 사설망 endpoint 를 받아 LLM 과 동일한 SSRF 공격 면이 있다. §5.5 의 `local`/`tei` 사설망 예외 규칙을 그대로 적용해 인프라를 중복 구현하지 않는다.
 - **[설정 테이블 통합 이후 팩토리 분리 유지 근거] 왜 LLMClientFactory 에 통합하지 않았나**: ModelConfig 단일 테이블로 설정은 통합됐으나, rerank 호출은 입력 `(query, docs[])`·출력 score 배열·스트리밍 부재로 chat/embedding 과 API shape 가 다르다. 따라서 `RerankClientFactory` 는 분리 유지하고, `ModelConfig.kind` 로 팩토리를 선택한다.
 - **왜 리랭크 provider 확장(jina/voyage/local/builtin)을 drop 했나 (§2.1)**: 2026-06-05 사용자 결정 (plan `rag-rerank-followup` A.3) — 1차 `tei`(자가호스팅) + `cohere`(외부 API) 2종이 self-host / 외부 API 두 사용 경로를 이미 커버하고, 추가 provider 는 수요가 확인되지 않은 채 유지보수 표면(인증·에러 매핑·SSRF 예외 규칙)만 늘린다. 기존 'Planned' 표기는 미래 약속으로 읽혀 spec 이 광고하는 surface 와 결정이 어긋나므로 'Dropped' 로 현행화했다. 수요가 생기면 동일 `/rerank` HTTP 래퍼(builtin 은 인프로세스) 패턴이라 재개 비용은 낮다 — drop 은 구조 변경이 아니라 범위 종결이다.
+- **왜 testConnection 의 dimension 추출이 `EmbedResponse`(Planned)와 독립인가 (§8.3)**: §3.3 의 `EmbedResponse`(usage/`dimensions` 메타데이터 반환)는 여전히 Planned 다. 그러나 embedding 연결 테스트의 `dimension` 은 서비스 레이어(`LlmService.testConnection`)가 평범한 `embed()` 반환 벡터의 길이(`vectors[0].length`)에서 추출하므로 `LLMClient.embed`/`testConnection` 인터페이스를 바꾸지 않는다 — 두 트랙은 독립이다. 단수 `dimension`(설정 1건의 출력 차원)과 복수 `dimensions`(Planned EmbedResponse 메타데이터)의 명명 차이는 의도적이다.
+- **왜 testConnection·listModels 가 kind-agnostic 조회를 쓰나**: 통합 Models 관리 UI 는 chat/embedding/rerank 어떤 설정이든 테스트·모델 로드한다. 구 `LlmConfigService.findEntity`(chat 고정)를 경유하면 embedding/rerank 설정이 `MODEL_CONFIG_NOT_FOUND` 로 거부돼 연결 테스트·모델 로드가 깨졌다(회귀). 따라서 두 메서드는 `ModelConfigService.findEntity`(kind 무관)를 직접 사용한다. 이로 인해 `LlmModule → ModelConfigModule` 상호 forwardRef 순환이 생겼고, 그 정리는 백로그 `unified-model-management §7 W4` 로 추적한다(런타임 위험 없음).

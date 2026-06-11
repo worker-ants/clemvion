@@ -2,6 +2,19 @@ import { BadRequestException } from '@nestjs/common';
 import { LlmService, extractRetryAfterMs } from './llm.service';
 import { StubLlmClient } from './clients/stub.client';
 
+// ─── Shared test fixtures ────────────────────────────────────────────────────
+
+/** OpenAI text-embedding-3-small: 1536 dimensions */
+const OPENAI_SMALL_DIM = 1536; // text-embedding-3-small
+
+const EMBEDDING_CONFIG_FIXTURE = {
+  id: 'emb-1',
+  kind: 'embedding',
+  provider: 'openai',
+  defaultModel: 'text-embedding-3-small',
+  apiKey: 'encrypted',
+} as const;
+
 describe('LlmService', () => {
   let service: LlmService;
   let mockModelConfigService: Record<string, jest.Mock>;
@@ -21,10 +34,13 @@ describe('LlmService', () => {
       listModels: jest.fn().mockResolvedValue([]),
     };
 
+    // testConnection/listModels 는 kind 무관 조회를 위해 findEntity 를 쓴다.
+    // 기본 mock 은 chat 설정(kind 포함)으로, embedding 테스트가 개별 override 한다.
     mockModelConfigService = {
       getDecryptedApiKey: jest.fn().mockReturnValue('sk-decrypted-key'),
       findEntity: jest.fn().mockResolvedValue({
         id: 'config-1',
+        kind: 'chat',
         provider: 'openai',
         defaultModel: 'gpt-4o',
         apiKey: 'encrypted',
@@ -325,6 +341,13 @@ describe('LlmService', () => {
       expect(mockClient.testConnection).toHaveBeenCalled();
     });
 
+    it('does not include dimension in response for chat kind', async () => {
+      // INFO #14: chat 경로에서 dimension 필드가 반환되지 않음을 명시적으로 검증.
+      const result = await service.testConnection('config-1', 'ws-1');
+      expect(result).toEqual({ success: true }); // dimension 키 없어야 함
+      expect('dimension' in result).toBe(false);
+    });
+
     it('should return failure with sanitized error on connection refused', async () => {
       mockClient.testConnection.mockRejectedValue(
         new Error('Connection refused'),
@@ -372,6 +395,71 @@ describe('LlmService', () => {
         success: false,
         error: 'Connection test failed. Please check your configuration.',
       });
+    });
+
+    it('resolves config kind-agnostically via ModelConfigService (embedding regression)', async () => {
+      // 회귀 방지: embedding 설정도 조회돼야 한다. 구 경로는 kind=chat 고정이라
+      // MODEL_CONFIG_NOT_FOUND 로 거부됐다.
+      mockModelConfigService.findEntity.mockResolvedValue(
+        EMBEDDING_CONFIG_FIXTURE,
+      );
+      mockClient.embed.mockResolvedValue([new Array(OPENAI_SMALL_DIM).fill(0)]);
+
+      const result = await service.testConnection('emb-1', 'ws-1');
+
+      expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
+        'emb-1',
+        'ws-1',
+      );
+      // embedding 은 testConnection() 대신 probe embed 로 검증한다.
+      expect(mockClient.testConnection).not.toHaveBeenCalled();
+      expect(mockClient.embed).toHaveBeenCalledWith(
+        ['connection test'],
+        'text-embedding-3-small',
+      );
+      expect(result).toEqual({ success: true, dimension: OPENAI_SMALL_DIM });
+    });
+
+    it('returns success without dimension when probe embed yields empty vector', async () => {
+      mockModelConfigService.findEntity.mockResolvedValue(
+        EMBEDDING_CONFIG_FIXTURE,
+      );
+      mockClient.embed.mockResolvedValue([]);
+
+      const result = await service.testConnection('emb-1', 'ws-1');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('returns sanitized failure when embedding probe embed throws', async () => {
+      mockModelConfigService.findEntity.mockResolvedValue(
+        EMBEDDING_CONFIG_FIXTURE,
+      );
+      mockClient.embed.mockRejectedValue(new Error('401 Unauthorized'));
+
+      const result = await service.testConnection('emb-1', 'ws-1');
+      expect(result).toEqual({
+        success: false,
+        error: 'Authentication failed. Please check your API key.',
+      });
+    });
+
+    // SUMMARY#3 — kind='rerank' must NOT enter the embedding probe branch;
+    // it must call client.testConnection() directly.
+    it('calls client.testConnection() for kind=rerank (not embed probe)', async () => {
+      mockModelConfigService.findEntity.mockResolvedValue({
+        id: 'rerank-1',
+        kind: 'rerank',
+        provider: 'cohere',
+        defaultModel: 'rerank-english-v3.0',
+        apiKey: 'encrypted',
+      });
+
+      const result = await service.testConnection('rerank-1', 'ws-1');
+
+      expect(mockClient.testConnection).toHaveBeenCalled();
+      // embed probe must NOT be called for rerank
+      expect(mockClient.embed).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: true });
     });
   });
 
@@ -530,6 +618,17 @@ describe('LlmService', () => {
       await service.listModels('config-1', 'ws-1');
       await service.listModels('config-1', 'ws-2');
       expect(mockClient.listModels).toHaveBeenCalledTimes(2);
+    });
+
+    it('resolves config kind-agnostically — findEntity called without kind argument (INFO #11)', async () => {
+      // kind-agnostic 변경 검증: listModels 는 findEntity 를 kind 인수 없이 호출해야 한다.
+      // 구 경로(kind='chat' 고정)는 embedding 편집 시 모델 목록 로드를 깨뜨렸다.
+      mockClient.listModels.mockResolvedValue([]);
+      await service.listModels('config-1', 'ws-1');
+      expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
+        'config-1',
+        'ws-1',
+      );
     });
   });
 

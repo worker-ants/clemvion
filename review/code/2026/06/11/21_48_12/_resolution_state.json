@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "started_at": "2026-06-11T21:55:00Z",
+  "completed_at": "2026-06-11T22:10:25Z",
+  "summary_items_total": 3,
+  "items_resolved_ids": [3],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "1": "backlog-w4 (per caller: plan/in-progress/unified-model-management.md §7 W4)",
+    "2": "backlog-w4 (per caller: plan/in-progress/unified-model-management.md §7 W4)"
+  },
+  "commits_made": [
+    {"sha": "e6f9dac5", "summary_id": 3, "scope": "llm"}
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-update-embedding-testconnection.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["/Volumes/project/private/clemvion/_test_logs/e2e-20260611-220425.log"],
+  "auto_fix_iterations": {"3": 1},
+  "escalation_reason": "spec",
+  "last_reset_hint_sec": null
+}
