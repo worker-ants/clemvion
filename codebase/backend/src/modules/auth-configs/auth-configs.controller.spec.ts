@@ -1,5 +1,7 @@
 import { Reflector } from '@nestjs/core';
+import type { Request } from 'express';
 import { AuthConfigsController } from './auth-configs.controller';
+import { AuthConfigsService } from './auth-configs.service';
 import { ROLES_KEY } from '../../common/guards/roles.guard';
 
 describe('AuthConfigsController — @Roles metadata', () => {
@@ -43,5 +45,75 @@ describe('AuthConfigsController — @Roles metadata', () => {
         AuthConfigsController.prototype.getUsage,
       ),
     ).toBeUndefined();
+  });
+});
+
+// CRUD 핸들러가 @CurrentUser('sub') 와 req.ip 를 service 로 그대로 전파하는지 — 감사
+// 로그(auth_config.*)의 주체·IP 가 핸들러 인자 위치에서 누락·스왑되지 않음을 보장한다.
+// 읽기 핸들러(findAll/findOne/getUsage)는 audit 기록 대상이 아니므로(쓰기/노출
+// 작업만 auth_config.* 를 남긴다) 본 describe 범위에서 제외한다 — 이들 핸들러는
+// userId/req.ip 도 받지 않아 전파 계약 자체가 성립하지 않는다.
+describe('AuthConfigsController — userId/req.ip 전파', () => {
+  const WS = 'ws-1';
+  const USER = 'user-1';
+  const IP = '1.2.3.4';
+  const req = { ip: IP } as Request;
+
+  let service: jest.Mocked<
+    Pick<
+      AuthConfigsService,
+      'create' | 'update' | 'regenerate' | 'remove' | 'reveal'
+    >
+  >;
+  let controller: AuthConfigsController;
+
+  beforeEach(() => {
+    service = {
+      create: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue(undefined),
+      regenerate: jest.fn().mockResolvedValue(undefined),
+      remove: jest.fn().mockResolvedValue(undefined),
+      reveal: jest.fn().mockResolvedValue({ config: {} }),
+    } as never;
+    controller = new AuthConfigsController(service as never);
+  });
+
+  it('create → service.create(workspaceId, body, userId, req.ip)', async () => {
+    const body = { type: 'api_key' } as never;
+    await controller.create(WS, body, USER, req);
+    expect(service.create).toHaveBeenCalledWith(WS, body, USER, IP);
+  });
+
+  it('update → service.update(id, workspaceId, body, userId, req.ip)', async () => {
+    const body = { name: 'x' } as never;
+    await controller.update('ac-1', WS, body, USER, req);
+    expect(service.update).toHaveBeenCalledWith('ac-1', WS, body, USER, IP);
+  });
+
+  it('regenerate → service.regenerate(id, workspaceId, userId, req.ip)', async () => {
+    await controller.regenerate('ac-1', WS, USER, req);
+    expect(service.regenerate).toHaveBeenCalledWith('ac-1', WS, USER, IP);
+  });
+
+  it('remove → service.remove(id, workspaceId, userId, req.ip)', async () => {
+    await controller.remove('ac-1', WS, USER, req);
+    expect(service.remove).toHaveBeenCalledWith('ac-1', WS, USER, IP);
+  });
+
+  it('reveal → service.reveal(id, workspaceId, userId, password, req.ip)', async () => {
+    await controller.reveal('ac-1', WS, USER, { password: 'pw' } as never, req);
+    expect(service.reveal).toHaveBeenCalledWith('ac-1', WS, USER, 'pw', IP);
+  });
+
+  it('req.ip 미설정(trust proxy off) 시 undefined 를 그대로 전파', async () => {
+    await controller.create(WS, { type: 'api_key' } as never, USER, {
+      ip: undefined,
+    } as Request);
+    expect(service.create).toHaveBeenCalledWith(
+      WS,
+      expect.anything(),
+      USER,
+      undefined,
+    );
   });
 });

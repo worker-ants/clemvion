@@ -25,7 +25,17 @@ export class AuditLogDto {
   @ApiPropertyOptional({ type: () => AuditLogUserDto, nullable: true })
   user?: AuditLogUserDto | null;
 
-  @ApiProperty({ example: 'integration.updated' })
+  @ApiProperty({
+    description:
+      '감사 액션 식별자 (`<resource>.<verb>`). 현재 구현된 값군은 ' +
+      '`integration.*` (created·updated·deleted·rotated·scope_changed·reauthorized), ' +
+      '`auth_config.*` (create·update·delete·regenerate·reveal), ' +
+      '`workspace.transfer_ownership`, `execution.re_run` 이다 ' +
+      '(SoT: `AUDIT_ACTIONS` const / spec/5-system/1-auth.md §4.1). ' +
+      'DB 는 자유 문자열 컬럼이므로 위 union 밖의 레거시 값(예: `re_run_initiated`)이 ' +
+      '과거 row 에 존재할 수 있다 — 클라이언트는 enum 으로 단정하지 말 것.',
+    example: 'integration.updated',
+  })
   action: string;
 
   @ApiProperty({ example: 'integration' })
