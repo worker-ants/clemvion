@@ -2,6 +2,16 @@
 worktree: pr4b-kb-embedding-retire
 started: 2026-06-12
 owner: resolution-applier
+status: applied
+spec_impact:
+  - spec/1-data-model.md
+  - spec/2-navigation/5-knowledge-base.md
+  - spec/5-system/3-error-handling.md
+  - spec/5-system/7-llm-client.md
+  - spec/5-system/8-embedding-pipeline.md
+  - spec/conventions/error-codes.md
+  - spec/data-flow/6-knowledge-base.md
+  - spec/data-flow/7-llm-usage.md
 ---
 # Spec Update Draft — PR4b KB 임베딩 legacy 컬럼 은퇴 + 에러코드 통일
 
