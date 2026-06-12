@@ -107,3 +107,10 @@ public 코드는 우측 열이다 — 명명 정확성 향상을 위한 internal
 - **왜 SoT 를 분리하는가**: 카탈로그(`3-error-handling.md`)·envelope(`api-convention §5.3`)·HTTP status
   (`api-convention §6`)·표기(`node-output §3.2`)를 각 축으로 분리해 독립 진화시키고, 본 문서는 명명 규율만
   소유해 책임 중복을 피한다.
+- **§5 진입 기준이 "client 코드 분기 미존재" 인 이유**: §5(Retired codes)의 판단 기준은 "외부 노출
+  여부" 가 아니라 **"외부 client 코드에 그 구 코드로 분기하는 지점이 있었는가"** 다. 코드가 user-docs
+  목록 등 문서에만 등장했다면 client 가 그 문자열로 동작 분기를 만들지 않으므로 교체의 breaking impact
+  는 0 이고, 문서는 신규 코드로 동기화하면 족하다. 반대로 client 코드에 하드코딩 분기가 있었다면 §2 의
+  breaking 정책이 적용돼 §5 흡수가 아니라 신설(§3·§4) 또는 정식 마이그레이션을 거친다. 즉 §5 는
+  "노출 0" 이 아니라 "client 분기 0" 을 흡수 조건으로 삼는다 (`WORKSPACE_REQUIRED` 등재가 이 기준의
+  첫 적용 — user-docs 노출은 있었으나 client 분기는 없었다).

@@ -2,6 +2,12 @@
 worktree: chat-channel-followups-batch-de949d
 started: 2026-06-12
 owner: developer
+completed: 2026-06-12
+spec_impact:
+  - spec/5-system/15-chat-channel.md
+  - spec/conventions/error-codes.md
+  - spec/5-system/11-mcp-client.md
+  - spec/5-system/1-auth.md
 ---
 
 # chat-channel / WORKSPACE 후속 일괄 (그룹 1+2+3)
@@ -27,7 +33,7 @@ owner: developer
 ## 검증
 - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전부 PASS (unit 40·e2e 188). spec-link-integrity 가드가 R-CC-18 의 §1.3 앵커 오기(`인증-인가`→`유효성-검증`) 1건 잡아 수정 후 green.
 - [x] `/ai-review` + Critical/Warning fix — RISK LOW·Critical 0·Warning 1. W1(decorator spec 이중 호출) 헬퍼 추출로 fix(+INFO #1/#2 동시 해소). `review/code/2026/06/12/16_50_11` (SUMMARY+RESOLUTION). fix 후 TEST 재통과(e2e 188).
-- [ ] `/consistency-check --impl-done` BLOCK:NO (backend-labels.ts 가 i18n-userguide.md `code:` glob 매칭 — SPEC-CONSISTENCY 게이트)
+- [x] `/consistency-check --impl-done` BLOCK:NO — `review/consistency/2026/06/12/17_01_45`. WARNING 2건 처리: **W-1 false positive**(§5.4 표는 #566 머지본에서 이미 `400 WORKSPACE_ID_REQUIRED` — checker 가 R-CC-18 의 역사적 언급 "옛 401" 을 §5.4 stale 로 오독), **W-2 fix**(error-codes §Rationale 에 "§5 진입 기준 = client 분기 0" 근거 항 신설). 나머지 INFO 는 무관·선재(cafe24 카탈로그·plan 위생).
 
 ## 그룹 4 (제외 — 별 작업)
 - forwardRef 순환 의존 / isolated-vm Isolate pool perf / 10-graph-rag Overview 구조.
