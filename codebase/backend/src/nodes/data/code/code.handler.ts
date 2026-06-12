@@ -39,6 +39,53 @@ const DAYJS_SOURCE = readFileSync(
   'utf-8',
 );
 
+// Script that loads the dayjs UMD onto the isolate global. In a bare isolate
+// global there is no `module`/`exports`/`define`, so the UMD falls through to
+// the global branch; the trailing assignment pins it on `globalThis.dayjs`.
+// Used both as the snapshot bootstrap script (input to DAYJS_SNAPSHOT below)
+// and as the per-exec legacy compile fallback when createSnapshot is unavailable.
+const DAYJS_LOAD_SCRIPT = `${DAYJS_SOURCE}\n;globalThis.dayjs = dayjs;`;
+
+// Heap snapshot containing the compiled + executed dayjs UMD on the isolate
+// global, built once at module load. Each per-exec isolate is then created
+// *from* this snapshot (`new ivm.Isolate({ snapshot })`), so dayjs is restored
+// from the serialized heap instead of being re-parsed/re-compiled every run —
+// the dominant fixed cost under concurrent execution (perf follow-up).
+//
+// Only pure JS goes in the snapshot: `createSnapshot` runs the scripts in a
+// bare isolate with NO host bindings, so the host callbacks (`__host_*`, which
+// capture per-exec state such as the `logs` array) and the §7.3 dangerous-global
+// hardening CANNOT live here — they stay in the per-exec BOOTSTRAP_SOURCE,
+// preserving the W13 capture-then-delete ordering exactly. Each exec still gets
+// a fresh isolate (memory-isolation + disposal invariant) and a fresh context
+// whose global is re-initialized from the immutable snapshot, so no execution
+// state is ever captured across runs.
+//
+// If `createSnapshot` is unavailable/fails on a platform, this stays `undefined`
+// and execute() transparently falls back to compiling DAYJS_LOAD_SCRIPT per-run.
+//
+// COST: This IIFE runs synchronously at module import — `createSnapshot` compiles
+// + executes dayjs in a throwaway isolate and serializes the heap (~4 ms one-time,
+// measured locally). It is a single fixed cost paid on first import (server cold
+// start / Jest suite load), traded for removing the per-exec dayjs recompile; it
+// does not affect steady-state request latency.
+//
+// NOTE: The snapshot ArrayBuffer lives for the lifetime of the Node.js process;
+// it is not GC'd between requests (process-scoped memory cost, ~few hundred KB).
+const DAYJS_SNAPSHOT: ivm.ExternalCopy<ArrayBuffer> | undefined = (() => {
+  try {
+    return ivm.Isolate.createSnapshot([
+      { code: DAYJS_LOAD_SCRIPT, filename: 'dayjs.js' },
+    ]);
+  } catch (err) {
+    console.warn(
+      '[CodeHandler] dayjs snapshot 생성 실패 — per-exec 컴파일 fallback 사용:',
+      err,
+    );
+    return undefined;
+  }
+})();
+
 interface CodeExecutionError extends Error {
   code?: string;
 }
@@ -308,7 +355,13 @@ export class CodeHandler implements NodeHandler {
     const varsClone = deepClone(context.variables) ?? {};
     const rawConfigForEcho = context.rawConfig ?? config;
 
-    const isolate = new ivm.Isolate({ memoryLimit: ISOLATE_MEMORY_LIMIT_MB });
+    // Create from the prebuilt dayjs snapshot when available (skips the per-exec
+    // dayjs compile below); otherwise a bare isolate + the legacy compile path.
+    const isolateOptions: ConstructorParameters<typeof ivm.Isolate>[0] = {
+      memoryLimit: ISOLATE_MEMORY_LIMIT_MB,
+    };
+    if (DAYJS_SNAPSHOT) isolateOptions.snapshot = DAYJS_SNAPSHOT;
+    const isolate = new ivm.Isolate(isolateOptions);
     let runPromise: Promise<unknown> | undefined;
     let timeoutHandle: NodeJS.Timeout | undefined;
     try {
@@ -363,11 +416,16 @@ export class CodeHandler implements NodeHandler {
       );
 
       // --- load dayjs into the isolate, then assemble + harden the surface ---
-      await (
-        await isolate.compileScript(
-          `${DAYJS_SOURCE}\n;globalThis.dayjs = dayjs;`,
-        )
-      ).run(ctx);
+      // With a snapshot, dayjs is already on the global (restored from the
+      // serialized heap) — only the legacy/fallback path compiles it per-run.
+      if (!DAYJS_SNAPSHOT) {
+        await (await isolate.compileScript(DAYJS_LOAD_SCRIPT)).run(ctx);
+      }
+      // BOOTSTRAP_SOURCE is re-compiled per exec — ivm.Script is bound to the
+      // isolate it was compiled in and cannot be shared cross-isolate; since each
+      // exec uses a fresh isolate (memory-isolation invariant), module-level
+      // pre-compilation is not possible. BOOTSTRAP_SOURCE is ~70 LoC; re-compile
+      // cost is negligible compared to the dayjs UMD (now eliminated via snapshot).
       await (await isolate.compileScript(BOOTSTRAP_SOURCE)).run(ctx);
 
       // --- compile user code (syntax error here = pre-flight invariant) ------

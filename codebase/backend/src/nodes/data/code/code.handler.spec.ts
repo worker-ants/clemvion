@@ -629,6 +629,190 @@ describe('CodeHandler', () => {
     });
   });
 
+  // dayjs is baked into a heap snapshot built once at module load; each exec
+  // creates a fresh isolate FROM that snapshot rather than recompiling the dayjs
+  // UMD per run (perf follow-up). These tests pin the correctness contract of
+  // that decomposition: dayjs behaves identically, and — critically — the
+  // snapshot captures NO execution state, so nothing leaks between runs. The
+  // §7.3 hardening + host-callback wiring still run in the per-exec bootstrap
+  // (the broader security/console/$vars suites above already exercise the
+  // snapshot path end-to-end since every execute() now goes through it).
+  describe('execute — dayjs snapshot path (perf follow-up)', () => {
+    it('runs dayjs correctly via the snapshot-restored global (parity)', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          code: 'const d = $helpers.date("2021-06-15"); return { y: d.year(), m: d.month(), f: d.add(1, "day").format("YYYY-MM-DD") };',
+        },
+        context,
+      )) as unknown as {
+        output: { y: number; m: number; f: string };
+        meta: { success: boolean };
+      };
+      expect(result.meta.success).toBe(true);
+      expect(result.output.y).toBe(2021);
+      expect(result.output.m).toBe(5); // dayjs month() is 0-indexed
+      expect(result.output.f).toBe('2021-06-16');
+    });
+
+    it('stays consistent across many sequential executions (snapshot reuse)', async () => {
+      // INFO#4: verify output values at representative indices (i=0, 12, 24) in
+      // addition to the success flag, to catch cross-run state leakage earlier.
+      const checkIndices = new Set([0, 12, 24]);
+      for (let i = 0; i < 25; i++) {
+        const result = (await handler.execute(
+          null,
+          {
+            code: `return $helpers.date("2020-01-01").add(${i}, "day").format("YYYY-MM-DD");`,
+          },
+          context,
+        )) as unknown as { output: string; meta: { success: boolean } };
+        expect(result.meta.success).toBe(true);
+        if (checkIndices.has(i)) {
+          const expected = new Date(Date.UTC(2020, 0, 1 + i))
+            .toISOString()
+            .slice(0, 10);
+          expect(result.output).toBe(expected);
+        }
+      }
+      const last = (await handler.execute(
+        null,
+        {
+          code: 'return $helpers.date("2020-01-01").add(24, "day").format("YYYY-MM-DD");',
+        },
+        context,
+      )) as unknown as { output: string };
+      expect(last.output).toBe('2020-01-25');
+    });
+
+    it('does NOT capture in-isolate dayjs mutations across executions (fresh snapshot per run)', async () => {
+      // Exec A pollutes the dayjs prototype reachable from $helpers.date().
+      const a = (await handler.execute(
+        null,
+        {
+          code: `
+            const proto = Object.getPrototypeOf($helpers.date("2020-01-01"));
+            proto.__polluted = () => 'leaked';
+            return typeof proto.__polluted;
+          `,
+        },
+        context,
+      )) as unknown as { output: string; meta: { success: boolean } };
+      expect(a.meta.success).toBe(true);
+      expect(a.output).toBe('function'); // mutation visible *within* exec A
+
+      // Exec B gets a fresh isolate restored from the immutable snapshot — the
+      // pollution from A must be gone. If the snapshot/isolate were reused
+      // statefully, __polluted would still be present here.
+      const b = (await handler.execute(
+        null,
+        {
+          code: `return typeof Object.getPrototypeOf($helpers.date("2020-01-01")).__polluted;`,
+        },
+        context,
+      )) as unknown as { output: string; meta: { success: boolean } };
+      expect(b.meta.success).toBe(true);
+      expect(b.output).toBe('undefined');
+    });
+
+    it('keeps logs / $input per-execution (no cross-run accumulation)', async () => {
+      const a = (await handler.execute(
+        { id: 'A' },
+        { code: 'console.log("from", $input.id); return $input.id;' },
+        context,
+      )) as unknown as { output: string; meta: { logs: string[] } };
+      expect(a.output).toBe('A');
+      expect(a.meta.logs).toEqual(['[log] from A']);
+
+      const b = (await handler.execute(
+        { id: 'B' },
+        { code: 'return $input.id;' },
+        context,
+      )) as unknown as { output: string; meta: { logs: string[] } };
+      expect(b.output).toBe('B');
+      // B logged nothing — A's `logs` array is a per-exec local captured by the
+      // per-exec __host_log callback, never part of the snapshot.
+      expect(b.meta.logs).toEqual([]);
+    });
+
+    it('still applies §7.3 hardening through the snapshot path', async () => {
+      // The dangerous-global deletion lives in the per-exec bootstrap, NOT the
+      // snapshot. Confirm it is still in force on a snapshot-created isolate.
+      const result = (await handler.execute(
+        null,
+        {
+          code: 'return [typeof Function, typeof eval, typeof globalThis, typeof Reflect].join(",");',
+        },
+        context,
+      )) as unknown as { output: string; meta: { success: boolean } };
+      expect(result.meta.success).toBe(true);
+      expect(result.output).toBe('undefined,undefined,undefined,undefined');
+    });
+  });
+
+  // W-D: DAYJS_SNAPSHOT=undefined fallback path coverage.
+  //
+  // The DAYJS_SNAPSHOT constant is set at module load time via an IIFE. To force
+  // the fallback (per-exec DAYJS_LOAD_SCRIPT compile) path we must mock
+  // ivm.Isolate.createSnapshot to throw BEFORE the module is first require()'d.
+  // jest.isolateModules() provides a fresh module registry for this purpose.
+  //
+  // Note: In this test environment ivm.Isolate.createSnapshot always succeeds, so
+  // the normal test suite exercises only the snapshot path. This describe block
+  // covers the `if (!DAYJS_SNAPSHOT)` branch that would activate on platforms
+  // where createSnapshot is unsupported.
+  describe('execute — DAYJS_SNAPSHOT=undefined fallback path (W-D)', () => {
+    it('$helpers.date() works correctly when createSnapshot throws (per-exec compile fallback)', async () => {
+      // jest.isolateModules() is synchronous — the async work (execute()) must
+      // be done after the module is loaded synchronously inside the callback.
+      type CodeHandlerType =
+        | InstanceType<typeof import('./code.handler.js').CodeHandler>
+        | undefined;
+      let fallbackHandler: CodeHandlerType;
+
+      jest.isolateModules(() => {
+        // Spy on createSnapshot before the module loads so the IIFE catches the
+        // error and sets DAYJS_SNAPSHOT = undefined.
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const ivmMod = require('isolated-vm') as typeof import('isolated-vm');
+        jest
+          .spyOn(ivmMod.Isolate, 'createSnapshot')
+          .mockImplementationOnce(() => {
+            throw new Error('snapshot unsupported (mocked for fallback test)');
+          });
+
+        const { CodeHandler: FallbackCodeHandler } =
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          require('./code.handler.js') as typeof import('./code.handler.js');
+        fallbackHandler = new FallbackCodeHandler();
+      });
+
+      if (!fallbackHandler) throw new Error('fallbackHandler not created');
+
+      const ctx = {
+        executionId: 'exec-fallback',
+        workflowId: 'wf-fallback',
+        variables: {},
+        nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
+        recursionDepth: 0,
+      };
+
+      const result = (await fallbackHandler.execute(
+        null,
+        {
+          code: 'return $helpers.date("2020-03-15").format("YYYY-MM-DD");',
+        },
+        ctx,
+      )) as unknown as { output: string; meta: { success: boolean } };
+
+      expect(result.meta.success).toBe(true);
+      expect(result.output).toBe('2020-03-15');
+    });
+  });
+
   describe('execute — memory limit (spec §7.2)', () => {
     it('should route an isolate memory-limit breach to CODE_MEMORY_LIMIT', async () => {
       const result = (await handler.execute(
