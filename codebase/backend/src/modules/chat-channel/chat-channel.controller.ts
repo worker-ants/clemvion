@@ -47,7 +47,7 @@ export class ChatChannelController {
     @Body() body: { newBotToken?: string },
     @WorkspaceId() workspaceId: string,
   ): Promise<{ rotatedAt: string }> {
-    if (!body?.newBotToken || typeof body.newBotToken !== 'string') {
+    if (!body?.newBotToken || typeof body?.newBotToken !== 'string') {
       throw new BadRequestException({
         code: 'INVALID_BOT_TOKEN',
         message: 'newBotToken is required',
