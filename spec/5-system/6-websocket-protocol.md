@@ -1033,3 +1033,10 @@ retry 는 "노드 단위 재시도" 라는 표현 때문에 일부 독자가 "do
 - **번복 사유**: `spec/0-overview.md §Rationale "실행 엔진: Redis 큐 + 분산 워커 풀"` 의 **always-enqueue 모델**(§7.4 "모든 진입점 항상 BullMQ enqueue") 채택 이후, continuation 4종 핸들러(`websocket.gateway.ts`)는 enqueue 성공 시 `resumed: true` 를 동기 반환한다 — 이 시점엔 임의 worker 의 rehydration 이 아직 일어나지 않아 동기 ack 로 "재개 성공" 을 판정하는 것은 구조적으로 불가능하다. 따라서 충족 불가능한 옛 정의를 충족 가능한 정의("재개 시작 수락 = enqueue")로 정정하고, 최종 재개 확인을 후행 이벤트(`execution.resumed`/`execution.node.*`)로 일원화한다.
 - **대안 B 기각**: gateway 가 worker 처리를 동기 대기해 실제 resumed 판정을 반환하는 안은 ack latency 를 worker 처리에 종속시켜 큐 도입 취지·§7.5.1 후행 이벤트 설계와 정면 충돌하므로 기각.
 - **코드 무변경**: 본 정정은 spec 을 코드 실제 동작에 맞춘 것으로 구현 변경이 없다. frontend ack 핸들러(`use-execution-interaction-commands.ts` `emitWithAck`)는 `success === false` 만 소비하며 `resumed` 를 상태 전이 근거로 쓰지 않음을 확인했다.
+
+### §3.3 채널 인가 — `workflow:`·`notifications:` authorizer 추가 (refactor 04 M-6)
+
+§3.3 의 소유검증 채널 목록에 `workflow:{workflowId}`(workspace 소유 검증, `execution:` 동형)와 `notifications:{userId}`(JWT `sub` 일치 검증)를 추가했다. `channelAuthorizers` 는 OCP 구조라 배열 항목 추가만으로 격리적으로 확장된다.
+
+- **`workflow:` — 실존 IDOR 차단**: 에디터 실행 알림 emit(`workflow:{workflowId}`)이 실존하므로, 타 workspace 의 `workflowId` 를 추측한 사용자가 이벤트를 수신할 수 있었다. `WorkflowsService.findById(workflowId, workspaceId)`(미소유/부재 시 NotFound throw — ID enumeration 차단)로 join 전 동기 차단한다.
+- **`notifications:` — emit 미구현인데도 authorizer 선제 배치 (fail-closed)**: `notifications:` 는 현재 `notification.new` emit 경로가 없어 실피해는 0 이다(§4.4 Planned). 그럼에도 authorizer 를 **먼저** 배치한 이유는, emit 이 후행 phase 에서 도입될 때 인가 누락이 그대로 사용자간 알림 누출로 현실화되는 패턴(enforcement 비대칭)을 구조적으로 차단하기 위함이다 — "emit 없을 때 authorizer 먼저" 가 fail-closed 원칙에 부합하고, JWT `sub` 비교라 구현 비용도 수 줄에 불과하다. (기각된 대안: emit 구현 시점에 authorizer 동반 추가 — emit plan 이 인가 추가를 기억해야 하는 프로세스 의존이라 누락 재발 위험이 커 기각.)
