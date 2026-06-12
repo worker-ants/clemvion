@@ -23,6 +23,8 @@ const MAX_MEMORY_LIMIT_MB = 512;
  * Resolve the isolate memory limit (MB) from `CODE_NODE_MEMORY_LIMIT_MB`
  * (spec §7.2). Falls back to {@link DEFAULT_MEMORY_LIMIT_MB} when unset or
  * invalid (non-numeric / ≤ 0), and clamps to {@link MAX_MEMORY_LIMIT_MB}.
+ * Integer values only — decimal inputs are truncated (e.g. `"256.9"` → 256).
+ * A console.warn is emitted when the env var is set but invalid or clamped.
  *
  * @internal Exported only for unit testing (code.handler.spec.ts).
  */
@@ -30,8 +32,19 @@ export function resolveMemoryLimitMb(): number {
   const raw = process.env.CODE_NODE_MEMORY_LIMIT_MB;
   if (raw === undefined || raw.trim() === '') return DEFAULT_MEMORY_LIMIT_MB;
   const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MEMORY_LIMIT_MB;
-  return Math.min(parsed, MAX_MEMORY_LIMIT_MB);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    console.warn(
+      `[CodeHandler] CODE_NODE_MEMORY_LIMIT_MB="${raw}" is invalid (non-numeric or ≤ 0) — falling back to ${DEFAULT_MEMORY_LIMIT_MB} MB`,
+    );
+    return DEFAULT_MEMORY_LIMIT_MB;
+  }
+  if (parsed > MAX_MEMORY_LIMIT_MB) {
+    console.warn(
+      `[CodeHandler] CODE_NODE_MEMORY_LIMIT_MB=${parsed} exceeds the ${MAX_MEMORY_LIMIT_MB} MB safety ceiling — clamped to ${MAX_MEMORY_LIMIT_MB} MB`,
+    );
+    return MAX_MEMORY_LIMIT_MB;
+  }
+  return parsed;
 }
 
 // Resolved once at module load (matches isolate-lifetime semantics; env is read
@@ -498,8 +511,9 @@ export class CodeHandler implements NodeHandler {
    * snapshot, or compile per-run on the fallback path), then run BOOTSTRAP_SOURCE
    * which assembles $helpers/console and applies the §7.3 global hardening.
    *
-   * W13 ordering is preserved: host callbacks are injected here BEFORE
-   * BOOTSTRAP_SOURCE captures them lexically and deletes the globals.
+   * W13 (IMPORTANT — execution order): host callbacks MUST be injected here BEFORE
+   * BOOTSTRAP_SOURCE runs — the IIFE lexically captures them and then deletes the
+   * globals. Reordering breaks the closures and may re-expose dangerous globals.
    */
   private async _buildIsolateContext(
     isolate: ivm.Isolate,

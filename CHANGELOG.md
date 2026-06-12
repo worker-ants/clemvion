@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — Code 노드 isolated-vm 전환 후속 (base64 TypeError + 메모리 한도 env)
+
+### Breaking changes
+
+1. **`$helpers.base64.encode/decode` — 비문자열 입력이 이제 `error` 포트로 분기**
+
+   이전 동작: 비문자열(예: 숫자, 객체)을 전달하면 `String(data)` 로 암묵적 변환 후 정상 처리.
+   신규 동작: 비문자열 입력 시 `TypeError`(`$helpers.base64.encode: data must be a string, got <type>`)
+   를 throw → 코드 노드 `error` 포트로 분기.
+
+   **영향받는 워크플로우**: `$helpers.base64.encode(42)` 처럼 비문자열을 명시 전달하던 코드.
+   **조치**: 입력값을 `String(...)` 으로 명시 변환 후 전달하거나 `error` 포트 처리 추가.
+
+   배경: `$helpers.crypto.hash` 와의 타입 계약 일관화. 자세한 Rationale 은
+   `spec/4-nodes/5-data/2-code.md §Rationale "$helpers 입력 타입 계약"` 참조.
+
 ## Unreleased — KB 임베딩 legacy 컬럼 은퇴 + ModelConfig 에러코드 통일 (PR4b)
 
 > **자사 클라이언트 무영향**: 아래 변경의 소비자는 자사 프론트엔드뿐이며, 프론트가 이미 신 에러코드를 처리하고 KB 요청에 `embeddingModelConfigId` 를 전송하도록 대응 완료된 상태에서 적용됐다. 외부 API 소비자가 없으므로 deprecation 윈도우·구코드 이중발행 없이 교체했다.
