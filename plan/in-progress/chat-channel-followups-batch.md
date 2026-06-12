@@ -26,7 +26,7 @@ owner: developer
 
 ## 검증
 - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전부 PASS (unit 40·e2e 188). spec-link-integrity 가드가 R-CC-18 의 §1.3 앵커 오기(`인증-인가`→`유효성-검증`) 1건 잡아 수정 후 green.
-- [ ] `/ai-review` + Critical/Warning fix (code 변경: backend-labels·decorator spec)
+- [x] `/ai-review` + Critical/Warning fix — RISK LOW·Critical 0·Warning 1. W1(decorator spec 이중 호출) 헬퍼 추출로 fix(+INFO #1/#2 동시 해소). `review/code/2026/06/12/16_50_11` (SUMMARY+RESOLUTION). fix 후 TEST 재통과(e2e 188).
 - [ ] `/consistency-check --impl-done` BLOCK:NO (backend-labels.ts 가 i18n-userguide.md `code:` glob 매칭 — SPEC-CONSISTENCY 게이트)
 
 ## 그룹 4 (제외 — 별 작업)
