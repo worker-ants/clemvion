@@ -390,6 +390,8 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 
 **`HTTP_TIMEOUT`(미발행)**: HTTP Request 핸들러는 timeout reject 를 `HTTP_TRANSPORT_FAILED` 로 통합 발행하므로 (`spec/5-system/3-error-handling.md §1.4 註`) 실제 EIA payload 에 `error.code === 'HTTP_TIMEOUT'` 이 도달하는 경로는 현재 없다. 본 행은 enum 보존·방어적 매핑 차원에서 유지한다 (도달 시에도 timeout 분류로 안전 처리).
 
+**timeout 행의 레이어 구분**: 본 분류기의 입력은 **엔진 레벨** EIA `execution.failed.error.code` (§1.2) 다. Code 노드 스크립트 타임아웃 시 엔진은 `EXECUTION_TIMEOUT` 을 발행하며(노드 출력 레이어의 `output.error.code` 는 동일 타임아웃을 `CODE_TIMEOUT` 으로 정규화 — 두 레이어 구분 SoT [`3-error-handling.md §1.4`](../5-system/3-error-handling.md#14-워크플로우-실행-에러) · [`error-codes.md §4`](./error-codes.md#4-내부-전용-분류-코드-정규화-후-발행)), `CODE_TIMEOUT` 토큰은 노드 출력 코드가 EIA payload 로 전달되는 경로까지 enum 보존·방어적으로 함께 매핑한다. `EXECUTION_TIME_LIMIT_EXCEEDED` 는 엔진 누적 실행시간 초과(§8)로 동명이 아닌 별개 코드다. 세 코드 모두 `executionFailedTimeout` 으로 안전 수렴하므로 사용자 영향은 동일.
+
 **`statusCode` placeholder omit 규칙**: `details.statusCode` 가 missing 이거나 정수가 아닌 경우 (type-guard 실패), `4xx`/`5xx` 분기 자체는 `error.code` (`HTTP_4XX`/`HTTP_5XX`) 만으로 결정한다 (HTTP 노드 핸들러는 `error.code` 와 `details.statusCode` 를 일관되게 set 한다고 가정 — 노드 핸들러 계약). placeholder 가 omit 되면 어댑터는 template 의 `{statusCode}` 토큰을 `"?"` 로 치환 (또는 `({statusCode})` 괄호 segment 전체 제거 — 어댑터 자유). 사용자 영향 ≈ 0.
 
 **위치**: 본 helper 는 `codebase/backend/src/modules/chat-channel/shared/execution-failure-classifier.ts` 한 파일로 구현. 어댑터별 호출만 (provider-specific 분기 없음).
