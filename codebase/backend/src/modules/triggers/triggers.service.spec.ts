@@ -1493,6 +1493,41 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
     expect(result).toHaveProperty('rotatedAt');
   });
 
+  it('§5.4 — 성공 응답에 triggerId / chatChannelHealth / botIdentity 3필드 동봉', async () => {
+    mockAdapter.setupChannel.mockResolvedValueOnce({
+      registeredAt: new Date().toISOString(),
+      configUpdates: { botIdentity: { botId: 999, username: 'rotatedbot' } },
+      issuedInboundSigning: ISSUED_SECRET,
+    });
+    const result = await service.rotateBotToken(
+      TRIGGER_ID,
+      WORKSPACE_ID,
+      NEW_TOKEN,
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        triggerId: TRIGGER_ID,
+        chatChannelHealth: 'healthy',
+        botIdentity: { botId: 999, username: 'rotatedbot' },
+      }),
+    );
+    expect(typeof result.rotatedAt).toBe('string');
+  });
+
+  it('§5.4 — setupChannel 이 botIdentity 미반환 시 botIdentity=null', async () => {
+    mockAdapter.setupChannel.mockResolvedValueOnce({
+      registeredAt: new Date().toISOString(),
+      configUpdates: {},
+      issuedInboundSigning: ISSUED_SECRET,
+    });
+    const result = await service.rotateBotToken(
+      TRIGGER_ID,
+      WORKSPACE_ID,
+      NEW_TOKEN,
+    );
+    expect(result.botIdentity).toBeNull();
+  });
+
   it('첫 rotation — old token resolve 실패 시 v2 백업 skip + chatChannelTokenV2=null', async () => {
     secrets.resolve.mockRejectedValueOnce(new Error('not found'));
     await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN);

@@ -46,7 +46,7 @@ export class ChatChannelController {
     @Param('id') triggerId: string,
     @Body() body: { newBotToken?: string },
     @WorkspaceId() workspaceId: string,
-  ): Promise<{ rotatedAt: string }> {
+  ): Promise<Awaited<ReturnType<TriggersService['rotateBotToken']>>> {
     if (!body?.newBotToken || typeof body?.newBotToken !== 'string') {
       throw new BadRequestException({
         code: 'INVALID_BOT_TOKEN',

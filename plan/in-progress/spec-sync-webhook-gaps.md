@@ -10,7 +10,7 @@ owner: planner
 > 관련 spec: spec/5-system/12-webhook.md
 
 ## 미구현 항목
-- [ ] **비활성 chatChannel 트리거의 202+{ignored:true} 분기 (WH-EP-07 / §3.1 / §7 step 5)** — `HooksService.handleWebhook` 의 `isActive=false → 410 GoneException` 체크가 `config.chatChannel` 분기보다 앞서 실행되어, chatChannel 트리거도 비활성 시 410 Gone 을 반환한다. Spec 및 [Spec Chat Channel §5.5 / R-CC-12](../../spec/5-system/15-chat-channel.md) 의 목표 동작(202+{ignored:true}, silent skip — non-2xx 시 provider webhook 자동 비활성화·retry 폭주 회피)이 미구현. handleWebhook 의 chatChannel 분기를 isActive 체크보다 앞으로 이동(인증은 그대로 수행, parseUpdate 전에 isActive 미통과 인지 후 silent skip) + chat-channel e2e 의 비활성 트리거 202 케이스 추가.
+- [x] **비활성 chatChannel 트리거의 202+{ignored:true} 분기 (WH-EP-07 / §3.1 / §7 step 5)** — **이미 구현 확인됨** (2026-06-12, `spec-sync-chat-channel-gaps.md §5.5` 에서 동시 해소). `HooksService.handle` 의 `config.chatChannel` 분기가 `!trigger.isActive` 410 검사보다 먼저 실행되고, `handleChatChannelWebhook` 이 `verify()` 후 `!isActive` 시 `{ executionId: 'ignored' }` (202) 로 단락. spec §5.5 표 + R-CC-12 (d) 가 구현 일치로 기술. (plan 기재 "현재 410 Gone" 이 stale 이었음.)
 - [ ] **1MB 본문 크기 통일 임계 (WH-NF-02 / §8)** — spec 은 "요청 본문 최대 1MB 초과 시 413" 을 약속하나, 현행 구현은 공개 webhook(`auth_config_id IS NULL`)에만 `PublicWebhookThrottleGuard` 의 32KB(`DEFAULT_MAX_BODY_BYTES`) 게이트가 있고 인증 webhook 에는 전역 body-parser limit 이 설정돼 있지 않다(express 기본값 적용). 1MB 통일 임계를 도입하려면 main.ts 전역 body-parser limit 설정 또는 spec 을 32KB 현행에 맞춰 재정의할지 결정 필요.
 
 ## 비고
