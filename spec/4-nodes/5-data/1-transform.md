@@ -65,7 +65,7 @@ code:
 | subtract | `amount` (Number), `unit` |
 | diff | `compareField` (String), `unit` |
 
-**array_filter.condition** 의 지원 연산자: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `not_contains`, `starts_with`, `ends_with`, `is_empty`, `is_not_empty`, `regex`, `is_null`, `is_type`. ReDoS 방지를 위해 `regex` 패턴 길이는 200자 이내. `is_type` 은 If/Else / Switch (expression mode) / Filter 와 동일하게 동작한다 ([If/Else §6 각주](../1-logic/1-if-else.md#6-에러-코드)).
+**array_filter.condition** 의 지원 연산자: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `not_contains`, `starts_with`, `ends_with`, `is_empty`, `is_not_empty`, `regex`, `is_null`, `is_type`. ReDoS 방지를 위해 `regex` 패턴은 단일 헬퍼 `compileUserRegex` 로 컴파일하며 **길이 ≤ 200자 + `safe-regex` 위험 패턴(지수 백트래킹) 거부**다 (길이 단독으로는 ReDoS 방지 불충분 — `safe-regex` 가 1차, 길이가 2차 방어; refactor 04 M-3). `is_type` 은 If/Else / Switch (expression mode) / Filter 와 동일하게 동작한다 ([If/Else §6 각주](../1-logic/1-if-else.md#6-에러-코드)).
 
 `field` / `from` / `to` 파라미터는 dot/bracket 중첩 경로(`user.profile.name`, `items[0].id`)를 지원한다.
 
@@ -131,7 +131,7 @@ code:
    - `date_op` 는 `dayjs(value).isValid() === false` 이면 no-op.
    - `type_convert` 의 `array` / `object` 변환은 문자열을 `JSON.parse` 시도하고 실패 시 no-op.
    - `array_filter` / `array_sort` 는 대상이 배열이 아니면 no-op.
-   - `string_op.replace` 의 `regex: true` 패턴이 200자를 넘으면 no-op (ReDoS 방지).
+   - `string_op.replace` 의 `regex: true` 패턴은 `compileUserRegex`(길이 ≤ 200 + `safe-regex` 위험 패턴 거부)를 통과하지 못하면 no-op (ReDoS 방지 — refactor 04 M-3).
    - `object_omit` 은 `__proto__` / `constructor` / `prototype` 키 제거를 차단 (해당 키는 omit 대상에서 제외). `object_pick` 은 차단하지 않고 지정된 `keys` 를 그대로 복사한다.
 4. 모든 연산 적용 후 결과를 `output` 으로, raw `operations` 를 `config.operations` 로 echo 하여 반환 (Principle 7).
 5. 단일 출력 포트 `out` 만 활성화 — `port` 는 `undefined` (Principle 5).

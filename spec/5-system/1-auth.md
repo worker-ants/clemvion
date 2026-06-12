@@ -242,7 +242,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 토큰 | 저장 위치 | 유효 기간 | 용도 |
 |------|-----------|-----------|------|
 | Access Token | 메모리 (JS 변수) | 15분 | API 요청 인증 |
-| Refresh Token | HttpOnly Cookie | 7일 | Access Token 갱신 |
+| Refresh Token | HttpOnly · Secure Cookie (`SameSite` 는 §2.3, Path `/api/auth`) | 7일 | Access Token 갱신 |
 
 > **`JWT_SECRET` production fail-closed (refactor 04 C-1)**: Access Token 은 `JWT_SECRET` 으로
 > 서명된다. `NODE_ENV=production` 에서 `JWT_SECRET` 가 미설정/기본 sentinel/예시값/32자 미만이면
@@ -275,8 +275,11 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 강제 종료 재인증 | 비밀번호 재확인 필수. OAuth-only 사용자는 등록된 2FA (TOTP 또는 WebAuthn) 또는 이메일 OTP 로 대체. 두 방식 모두 등록한 사용자는 §1.4.2 의 우선순위(WebAuthn 우선) 를 따른다 |
 | 현재 세션 식별 | 서버가 요청의 refresh-token 쿠키 해시를 조회해 `isCurrent` 플래그로 응답 — raw token은 JS로 노출하지 않음 |
 | 메타데이터 | 발급 시점의 IP·User-Agent·디바이스 라벨 및 마지막 사용 시각을 RefreshToken 에 기록 |
-| 클라이언트 IP | Cloudflare 무료 플랜 호환: `CF-Connecting-IP` 헤더를 1순위, `X-Forwarded-For` 첫 IP, `req.ip` 순으로 추출 |
+| 클라이언트 IP | `CF-Connecting-IP` 는 **`TRUST_CF_CONNECTING_IP=true` 일 때만 1순위** (기본 off — 위변조 가능 헤더). off 면 `X-Forwarded-For` 첫 IP → `req.ip`(trust proxy) → `req.socket.remoteAddress` 순. Cloudflare(Tunnel 포함) 뒤 배포만 활성화 — Rationale 2.3.B |
 | Refresh 쿠키 Domain | `FRONTEND_URL`·`APP_URL` hostname 에서 자동 유도 (`common/config/app.config.ts` `computeCookieDomain`): 같은 host·localhost·IP → Domain 미지정 (backend origin 한정) · 공통 상위 도메인 보유 (예: `api.x.com`/`app.x.com`) → `.x.com` · 공통 도메인 없음 → 미지정 (cross-origin 은 `withCredentials` 의존). 별도 env 없음 — Rationale 2.3.A |
+| Refresh 쿠키 SameSite | `COOKIE_SAMESITE` env — 기본 `none` (프론트와 API 가 사이트 경계(eTLD+1)를 달리하는 cross-site 배포 지원; `lax`/`strict` 면 쿠키 미첨부 → 세션 끊김). 동일 사이트 배포는 `lax`(또는 `strict`)로 하드닝. 미인식 값은 `none` fallback — Rationale 2.3.B |
+| Refresh 쿠키 Path | `/api/auth` 로 한정 (refresh·login·logout 등 auth 엔드포인트 외에는 쿠키 미첨부 — 표면 축소). `set`/`clear` 가 동일 Path 사용 필수 |
+| `/auth/refresh` CSRF | `SameSite=none` 모드에서 cross-site 강제 refresh 를 막기 위해 요청 `Origin` 을 CORS allowlist(`isOriginAllowed`)와 대조 — allowlist 외·불투명(`'null'`) Origin 은 `403`. Origin 부재(same-origin·non-browser)는 통과. 다른 엔드포인트는 Bearer access token 기반이라 쿠키 CSRF 면역 — Rationale 2.3.B |
 
 ### 2.4 토큰 갱신 플로우
 
@@ -563,6 +566,14 @@ LoginHistoryService 는 AuthModule 과 WebAuthnModule 양쪽에 provider 로 둔
 ### 2.3.A — Refresh 쿠키 Domain 자동 유도 (명시 env 없음)
 
 Refresh 쿠키의 `Domain` 속성은 운영자 env 가 아니라 `FRONTEND_URL`/`APP_URL` 의 hostname 에서 공통 상위 도메인을 자동 유도한다 (§2.3 표, `common/config/app.config.ts` `computeCookieDomain`). 서브도메인 분리 배포(`api.x.com` / `app.x.com`)에서 별도 설정 없이 인증이 동작하고, 잘못된 명시 Domain 설정으로 쿠키가 전달되지 않는 운영 사고를 줄이기 위함이다. localhost·IP·공통 상위 도메인 부재 시에는 Domain 을 지정하지 않아 backend origin 한정으로 좁힌다 — 전혀 다른 도메인 간에는 쿠키 공유 자체가 불가능하므로 클라이언트의 `withCredentials` cross-origin 요청에 의존한다.
+
+### 2.3.B — Refresh 쿠키 SameSite·CSRF 와 클라이언트 IP 신뢰 (refactor 04 M-5·m-3)
+
+**SameSite (M-5).** Refresh 쿠키의 `SameSite` 는 `COOKIE_SAMESITE` env 로 분리하며 기본 `none` 이다. 본 제품은 프론트와 API 가 사이트 경계(eTLD+1)를 달리하는 cross-site 배포를 지원하는데, 이 토폴로지에서는 `lax`/`strict` 면 refresh 쿠키가 cross-site 요청에 첨부되지 않아 세션이 끊긴다. 따라서 무중단 기본값은 `none` 이고, 동일 사이트 배포만 `lax`(또는 `strict`)로 하드닝한다. (web-chat 위젯 등 임베드는 Bearer EIA 토큰을 쓰고 refresh 쿠키에 의존하지 않으므로 None 요구의 주체가 아니다.)
+
+**`none` 모드의 CSRF 보완 (M-5).** `SameSite=none` 은 cross-site 요청에 쿠키를 자동 첨부하므로 `/auth/refresh` 에 강제 refresh CSRF 가 성립할 수 있다. 다만 (a) refresh 쿠키는 `/auth/refresh` 한 곳에서만 쓰이고 다른 엔드포인트는 모두 Bearer access token 기반이라 쿠키 CSRF 면역이며, (b) credentials CORS allowlist 가 cross-site 출처의 **응답 읽기**를 이미 차단한다. 따라서 CSRF 토큰 인프라(double-submit 등)를 신설하는 대신, `/auth/refresh` 가 요청 `Origin` 을 기존 CORS allowlist(`isOriginAllowed`)와 대조해 allowlist 외·불투명(`'null'`, sandbox iframe 등) Origin 을 `403` 으로 선차단하는 defense-in-depth 를 둔다. Origin 부재(same-origin·non-browser 도구)는 통과한다 — 프론트 변경·토큰 발급 인프라가 불필요하다. cookie `Path` 를 `/api/auth` 로 한정해 쿠키 첨부 표면도 축소한다(`set`/`clear` 동일 Path 필수).
+
+**클라이언트 IP 신뢰 (m-3).** `CF-Connecting-IP` 는 클라이언트가 임의로 보낼 수 있는 헤더라, Cloudflare 뒤가 아닌 배포에서 무조건 신뢰하면 rate-limit 우회·`ip_whitelist` 우회·감사로그 IP 오염이 가능하다. 따라서 `TRUST_CF_CONNECTING_IP=true`(정확히 `true`/`1`)로 명시한 배포에서만 1순위로 사용하고, 기본(off)에서는 무시하고 `X-Forwarded-For`/`req.ip` 로 폴백한다(fail-safe). Cloudflare(Tunnel 포함) 뒤에서는 `X-Forwarded-For` 첫 IP 도 동일한 실제 클라이언트 IP 이므로 off 폴백이 안전하다. 본 신뢰 플래그는 IP 를 읽는 세 경로(세션·감사 IP `auth/utils/client-ip`, 공개 webhook rate-limit, `ip_whitelist` 검증)에 일관 적용한다. origin 직접 접근 차단(인프라/터널) 전제는 유지하되, 강제 IP allowlist 는 터널 배포에 불필요해 권고에서 제외한다.
 
 ### 1.5.D — 워크스페이스 초대 토큰을 raw 로 저장하는 이유 (vs 이메일·재설정 토큰의 SHA-256 해시)
 

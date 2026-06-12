@@ -16,7 +16,7 @@ import {
 import {
   Condition,
   EXPRESSION_PATTERN,
-  MAX_REGEX_LENGTH,
+  compileUserRegex,
   evaluateResolvedCondition,
 } from '../_shared/condition-eval.util.js';
 import { filterNodeMetadata } from './filter.schema.js';
@@ -93,29 +93,26 @@ export class FilterHandler implements NodeHandler {
     // resolved string. `null` marks invalid/oversized patterns so we don't
     // retry compilation each iteration.
     const regexCache = new Map<string, RegExp | null>();
-    // Insertion-ordered set of pattern strings that failed to compile or
-    // exceeded MAX_REGEX_LENGTH — surfaced via `meta.invalidRegexPatterns`
-    // so users can detect silent-`false` regex behaviour.
+    // Insertion-ordered set of pattern strings that failed to compile,
+    // exceeded MAX_REGEX_LENGTH, or were rejected as ReDoS-unsafe (04 M-3) —
+    // surfaced via `meta.invalidRegexPatterns` so users can detect
+    // silent-`false` regex behaviour.
     const invalidRegexPatterns = new Set<string>();
     const getRegex = (pattern: unknown): RegExp | undefined => {
       if (typeof pattern !== 'string') return undefined;
-      if (pattern.length > MAX_REGEX_LENGTH) {
-        invalidRegexPatterns.add(pattern);
-        return undefined;
-      }
       if (regexCache.has(pattern)) {
-        // `null` marks a previously-failed compile so we don't retry it.
+        // `null` marks a previously-rejected pattern so we don't retry it.
         return regexCache.get(pattern) ?? undefined;
       }
-      try {
-        const r = new RegExp(pattern);
-        regexCache.set(pattern, r);
-        return r;
-      } catch {
-        regexCache.set(pattern, null);
+      // 04 M-3 — 길이/ReDoS-안전성/문법을 단일 chokepoint(compileUserRegex)에서
+      // 검사. too-long·unsafe·invalid 모두 silent-false + meta 가시화로 통일.
+      const { regex } = compileUserRegex(pattern);
+      regexCache.set(pattern, regex);
+      if (!regex) {
         invalidRegexPatterns.add(pattern);
         return undefined;
       }
+      return regex;
     };
 
     const match: unknown[] = [];

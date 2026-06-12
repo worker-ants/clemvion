@@ -200,6 +200,15 @@ ENCRYPTION_KEY=<32-byte-hex>
 # Integration 자격증명(OAuth refresh token / API key / DB password 등)을 AES-256-GCM 으로
 # 암호화. 누락 시 평문 저장 + 부팅 경고. 운영에서는 반드시 설정 (분실 시 기존 행 복호화 불가).
 INTEGRATION_ENCRYPTION_KEY=<32-byte-hex>
+# Swagger UI(/docs)는 non-production 에서만 노출. production 디버깅용 강제 노출(opt-in,
+# 무인증 노출 위험 복귀)은 ENABLE_SWAGGER_IN_PROD=true.
+ENABLE_SWAGGER_IN_PROD=false
+# refresh 쿠키 SameSite. 기본 none(프론트↔API 가 사이트 경계를 달리하는 cross-site 배포).
+# 동일 사이트 배포는 lax(또는 strict)로 하드닝. none 의 CSRF 는 /auth/refresh Origin 검증으로 보완.
+COOKIE_SAMESITE=none
+# CF-Connecting-IP 헤더 신뢰 여부(기본 off=무시). 위변조 가능 헤더라 Cloudflare(Tunnel 포함)
+# 뒤 배포에서만 true 로 켠다. off 면 X-Forwarded-For/req.ip 사용 (비-CF 배포 IP 스푸핑 방어).
+TRUST_CF_CONNECTING_IP=false
 
 # Execution Engine
 # 단일 Execution 의 최대 active-running 누적 시간(ms). waiting_for_input park 시간 제외.

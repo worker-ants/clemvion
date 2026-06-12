@@ -2,6 +2,7 @@ import {
   CONDITION_OPERATORS,
   MAX_REGEX_LENGTH,
   compileRegexCache,
+  compileUserRegex,
   evaluateCondition,
   evaluateResolvedCondition,
 } from './condition-evaluator.util.js';
@@ -315,6 +316,53 @@ describe('evaluateCondition', () => {
       expect(cache.get(1)).toBeUndefined();
       expect(cache.get(2)).toBeUndefined();
       expect(cache.get(3)).toBeUndefined();
+    });
+  });
+
+  // 04 M-3 — ReDoS 안전성. 길이 200 이내라도 지수 백트래킹 패턴은 거부한다.
+  describe('compileUserRegex (ReDoS guard)', () => {
+    it('compiles a safe pattern', () => {
+      const r = compileUserRegex('^foo\\d+$');
+      expect(r.regex).toBeInstanceOf(RegExp);
+      expect(r.reason).toBeUndefined();
+    });
+
+    it('passes flags through', () => {
+      const r = compileUserRegex('abc', 'gi');
+      expect(r.regex?.flags).toBe('gi');
+    });
+
+    it('rejects an oversized pattern as too-long', () => {
+      const r = compileUserRegex('a'.repeat(MAX_REGEX_LENGTH + 1));
+      expect(r.regex).toBeNull();
+      expect(r.reason).toBe('too-long');
+    });
+
+    it('rejects a syntactically invalid pattern', () => {
+      const r = compileUserRegex('[unterminated');
+      expect(r.regex).toBeNull();
+      expect(r.reason).toBe('invalid');
+    });
+
+    // safe-regex 가 검출하는 nested-quantifier 계열(star height > 1). alternation-overlap
+    // `(a|a)*` 같은 패턴은 휴리스틱 한계로 통과하므로 여기 넣지 않는다(길이 상한이 2차 방어).
+    it.each(['(a+)+$', '(a*)*$', '(.*a){10}'])(
+      'rejects ReDoS-unsafe pattern %p even within length limit',
+      (pattern) => {
+        expect(pattern.length).toBeLessThanOrEqual(MAX_REGEX_LENGTH);
+        const r = compileUserRegex(pattern);
+        expect(r.regex).toBeNull();
+        expect(r.reason).toBe('unsafe');
+      },
+    );
+
+    it('compileRegexCache skips ReDoS-unsafe patterns (silent no-match)', () => {
+      const cache = compileRegexCache([
+        { field: 'x', operator: 'regex', value: '^safe$' },
+        { field: 'x', operator: 'regex', value: '(a+)+$' },
+      ]);
+      expect(cache.get(0)).toBeInstanceOf(RegExp);
+      expect(cache.get(1)).toBeUndefined();
     });
   });
 });

@@ -443,6 +443,28 @@ describe('TransformHandler', () => {
       )) as unknown as { output: Record<string, unknown> };
       expect(result.output.text).toBe('abc#xyz');
     });
+
+    // 04 M-3 — ReDoS-unsafe regex 는 컴파일 거부되어 replace 가 적용되지 않는다
+    // (원본 유지). 거부되지 않았다면 이 긴 입력에서 지수 백트래킹 → jest 타임아웃으로
+    // 회귀가 드러난다(타이밍 어서션 불요).
+    it('should skip replace when regex is ReDoS-unsafe (value unchanged)', async () => {
+      const input = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!';
+      const result = (await handler.execute(
+        { text: input },
+        {
+          operations: [
+            {
+              type: 'string_op',
+              field: 'text',
+              operation: 'replace',
+              args: { search: '(a+)+$', replacement: '#', regex: true },
+            },
+          ],
+        },
+        context,
+      )) as unknown as { output: Record<string, unknown> };
+      expect(result.output.text).toBe(input);
+    });
   });
 
   describe('execute - math_op extensions', () => {

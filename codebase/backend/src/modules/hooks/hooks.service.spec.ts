@@ -258,33 +258,44 @@ describe('HooksService', () => {
       expect(authConfigs.verifyWebhookRequest).not.toHaveBeenCalled();
     });
 
-    it('authConfigId 존재 시 verifyWebhookRequest(authConfigId, workspaceId, ctx) 위임 — clientIp 는 CF-Connecting-IP 에서 추출', async () => {
-      triggerRepo.findOne.mockResolvedValue(authTrigger);
-      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      engine.execute.mockResolvedValue('exec-auth');
-      authConfigs.verifyWebhookRequest.mockResolvedValue(undefined);
-      const rawBody = Buffer.from(JSON.stringify(input.body));
-      const headers = {
-        authorization: 'Bearer xyz',
-        'cf-connecting-ip': '203.0.113.7',
-      };
+    it('authConfigId 존재 시 verifyWebhookRequest(authConfigId, workspaceId, ctx) 위임 — clientIp 는 CF-Connecting-IP 에서 추출 (TRUST_CF_CONNECTING_IP=true)', async () => {
+      // 04 m-3 — CF-Connecting-IP 신뢰는 기본 off 라, CF 추출을 검증하려면 명시 활성화.
+      const prevTrustCf = process.env.TRUST_CF_CONNECTING_IP;
+      process.env.TRUST_CF_CONNECTING_IP = 'true';
+      try {
+        triggerRepo.findOne.mockResolvedValue(authTrigger);
+        triggerRepo.save.mockImplementation((t) =>
+          Promise.resolve(t as Trigger),
+        );
+        nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
+        engine.execute.mockResolvedValue('exec-auth');
+        authConfigs.verifyWebhookRequest.mockResolvedValue(undefined);
+        const rawBody = Buffer.from(JSON.stringify(input.body));
+        const headers = {
+          authorization: 'Bearer xyz',
+          'cf-connecting-ip': '203.0.113.7',
+        };
 
-      const res = await service.handleWebhook(
-        'abc',
-        { ...input, headers },
-        rawBody,
-      );
-      expect(res).toEqual({ executionId: 'exec-auth' });
-      expect(authConfigs.verifyWebhookRequest).toHaveBeenCalledWith(
-        authConfigId,
-        'ws',
-        expect.objectContaining({
-          headers,
+        const res = await service.handleWebhook(
+          'abc',
+          { ...input, headers },
           rawBody,
-          clientIp: '203.0.113.7',
-        }),
-      );
+        );
+        expect(res).toEqual({ executionId: 'exec-auth' });
+        expect(authConfigs.verifyWebhookRequest).toHaveBeenCalledWith(
+          authConfigId,
+          'ws',
+          expect.objectContaining({
+            headers,
+            rawBody,
+            clientIp: '203.0.113.7',
+          }),
+        );
+      } finally {
+        if (prevTrustCf === undefined)
+          delete process.env.TRUST_CF_CONNECTING_IP;
+        else process.env.TRUST_CF_CONNECTING_IP = prevTrustCf;
+      }
     });
 
     it('verifyWebhookRequest 가 401 throw 시 handleWebhook 도 전파 + execute 미호출', async () => {
