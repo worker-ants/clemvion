@@ -391,6 +391,26 @@ describe('WebsocketGateway', () => {
       expect(join).not.toHaveBeenCalled();
     });
 
+    // 04 후속 — userId 미설정 소켓이 notifications 채널을 구독 시도하면 거부(fail-closed).
+    // (인증 미들웨어 회귀로 userId 가 비더라도 알림 누출이 없어야 한다.)
+    it('should reject notifications channel when the socket has no userId', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      const enriched = socket as Socket & {
+        workspaceId?: string;
+        userId?: string;
+      };
+      enriched.workspaceId = 'ws-1'; // workspace 가드는 통과, userId 만 부재
+      getSubscriptions().set('client-1', new Set());
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'notifications:user-1' },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for these notifications');
+      expect(join).not.toHaveBeenCalled();
+    });
+
     it('should emit execution.snapshot to the subscribing client when execution exists', async () => {
       const { socket, emit } = createMockSocket({ id: 'client-1' });
       (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';

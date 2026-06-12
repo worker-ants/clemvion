@@ -29,7 +29,7 @@ import {
 import { validateFormSubmission } from '../chat-channel/shared/form-mode';
 import { randomUUID } from 'crypto';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
-import { shouldTrustCfConnectingIp } from '../auth/utils/client-ip';
+import { extractClientIpFromHeaders } from '../auth/utils/client-ip';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
 
 export interface WebhookInput {
@@ -892,21 +892,16 @@ export class HooksService {
 }
 
 /**
- * 클라이언트 IP 추출 — CF-Connecting-IP(신뢰 시) 우선, X-Forwarded-For 첫 IP, 없으면 undefined.
- * (spec/5-system/1-auth.md §2.3 의 IP 추출 우선순위와 정합. ip_whitelist 검증용.)
+ * 클라이언트 IP 추출 — 공유 코어 `extractClientIpFromHeaders`(CF-Connecting-IP(신뢰 시)
+ * 우선, X-Forwarded-For 첫 IP) 에 위임. `ip_whitelist` 검증용 (spec/5-system/1-auth.md §2.3).
  *
- * 04 m-3 — `CF-Connecting-IP` 는 `TRUST_CF_CONNECTING_IP` 가 켜진 경우에만 신뢰한다.
- * ip_whitelist 검증에 쓰이므로, 비-CF 배포에서 위변조된 CF 헤더로 whitelist 를 우회하는
- * 것을 막는다(기본 off). CF 뒤 배포는 XFF 첫 IP 도 동일한 실제 클라이언트 IP.
+ * 04 m-3 — `CF-Connecting-IP` 는 `TRUST_CF_CONNECTING_IP` 가 켜진 경우에만 신뢰한다(기본 off).
+ * 04 후속 — 게이트/XFF 파싱을 `auth/utils/client-ip` 단일 구현으로 통합(사본 drift 방지).
+ * (req.ip(trust-proxy) 폴백을 whitelist 경로에도 적용하려면 handleWebhook 에 req 를 전달해야
+ * 하므로 별도 후속으로 남긴다 — 현재는 헤더 기반 동작 유지.)
  */
 function extractClientIp(headers: Record<string, string>): string | undefined {
-  if (shouldTrustCfConnectingIp()) {
-    const cf = headers['cf-connecting-ip'];
-    if (cf) return cf.trim();
-  }
-  const xff = headers['x-forwarded-for'];
-  if (xff) return xff.split(',')[0]?.trim();
-  return undefined;
+  return extractClientIpFromHeaders(headers) ?? undefined;
 }
 
 /** Trigger.config.chatChannel 추출 (HooksService 내부 헬퍼 — dispatcher 와 중복 정의 OK). */
