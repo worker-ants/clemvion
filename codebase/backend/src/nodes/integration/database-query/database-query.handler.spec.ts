@@ -897,6 +897,130 @@ describe('DatabaseQueryHandler', () => {
       });
     });
 
+    // DB_HOST_BLOCKED — SSRF 가드가 사설/loopback host 를 전용 코드로 surface
+    // (HTTP_BLOCKED·EMAIL_HOST_BLOCKED 와 대칭). 가드는 literal IP/localhost
+    // fast-path 라 실제 DNS 없이 결정적으로 차단된다.
+    describe('SSRF host guard (DB_HOST_BLOCKED)', () => {
+      function pgIntegrationWithHost(host: string) {
+        return {
+          id: 'int-1',
+          name: 'Primary PG',
+          serviceType: 'database',
+          status: 'connected',
+          credentials: {
+            driver: 'postgres',
+            host,
+            port: 5432,
+            database: 'app',
+            username: 'u',
+            password: 'p',
+            ssl: 'require',
+          },
+        };
+      }
+
+      function mysqlIntegrationWithHost(host: string) {
+        return {
+          id: 'int-1',
+          name: 'Primary MySQL',
+          serviceType: 'database',
+          status: 'connected',
+          credentials: {
+            driver: 'mysql',
+            host,
+            port: 3306,
+            database: 'app',
+            username: 'u',
+            password: 'p',
+          },
+        };
+      }
+
+      it.each([
+        ['IPv4 loopback', '127.0.0.1'],
+        ['IPv4 RFC1918', '10.0.0.5'],
+        ['cloud IMDS', '169.254.169.254'],
+        ['localhost by name', 'localhost'],
+      ])(
+        'blocks %s host → port:error + DB_HOST_BLOCKED',
+        async (_label, host) => {
+          const { service, logUsage } = makeService({
+            integration: pgIntegrationWithHost(host),
+          });
+          const handler = new DatabaseQueryHandler(service as never);
+          const out = (await handler.execute(
+            null,
+            { integrationId: 'int-1', query: 'SELECT 1' },
+            ctx(),
+          )) as unknown as ErrorPortOutput;
+
+          expect(out.port).toBe('error');
+          expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
+          // 메시지는 차단 host/IP 를 노출하지 않는 일반화 문구 (정찰 면 축소).
+          expect(out.output.error.message).not.toContain(host);
+          expect(out.output.error.message).toMatch(/SSRF policy/i);
+          // 연결을 절대 열지 않는다 (가드가 풀 연결 전에 차단).
+          expect(connectMock).not.toHaveBeenCalled();
+          // 활동 로그에는 failed + DB_HOST_BLOCKED 가 기록된다.
+          expect(logUsage).toHaveBeenCalledWith(
+            expect.objectContaining({
+              status: 'failed',
+              error: expect.objectContaining({ code: 'DB_HOST_BLOCKED' }),
+            }),
+          );
+        },
+      );
+
+      it('blocks MySQL driver host too (가드는 driver 분기 전 실행)', async () => {
+        const { service, logUsage } = makeService({
+          integration: mysqlIntegrationWithHost('127.0.0.1'),
+        });
+        const handler = new DatabaseQueryHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        )) as unknown as ErrorPortOutput;
+
+        expect(out.port).toBe('error');
+        expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
+        expect(out.output.error.message).not.toContain('127.0.0.1');
+        // MySQL 풀도 절대 생성되지 않는다 (driver 분기 전에 차단).
+        expect(
+          jest.requireMock('mysql2/promise').createPool,
+        ).not.toHaveBeenCalled();
+        expect(logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'DB_HOST_BLOCKED' }),
+          }),
+        );
+      });
+
+      it('ALLOW_PRIVATE_HOST_TARGETS=true opt-out → guard 통과 (차단 안 함)', async () => {
+        const prev = process.env.ALLOW_PRIVATE_HOST_TARGETS;
+        process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
+        try {
+          const { service } = makeService({
+            integration: pgIntegrationWithHost('127.0.0.1'),
+          });
+          queryMock.mockResolvedValue({ rows: [], rowCount: 0 });
+          const handler = new DatabaseQueryHandler(service as never);
+          const out = (await handler.execute(
+            null,
+            { integrationId: 'int-1', query: 'SELECT 1' },
+            ctx(),
+          )) as unknown as { port: string };
+          // 차단되지 않고 실제 실행 경로로 진행 (opt-in self-host).
+          expect(out.port).toBe('success');
+          expect(connectMock).toHaveBeenCalled();
+        } finally {
+          if (prev === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+          else process.env.ALLOW_PRIVATE_HOST_TARGETS = prev;
+        }
+      });
+    });
+
     // SUMMARY#14 — abortSignal 사전 체크 경로 단위 테스트
     it('throws AbortError when context.abortSignal is already aborted', async () => {
       const { service } = makeService();

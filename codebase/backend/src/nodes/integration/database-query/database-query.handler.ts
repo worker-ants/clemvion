@@ -216,8 +216,19 @@ export class DatabaseQueryHandler
       // SSRF/DNS-rebinding guard: 사용자 제공 DB host 가 loopback/private IP 로
       // 해석되면 차단. 정상 사용 사례 (private VPC 안 RDS) 는 환경변수
       // ALLOW_PRIVATE_HOST_TARGETS=true 로 의식적 opt-in (W-5).
+      // 차단 시 공용 guard 의 plain Error 를 전용 `DB_HOST_BLOCKED` 로 승격해
+      // HTTP(`HTTP_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)과 대칭으로 surface 한다.
+      // 메시지는 차단된 host/IP 를 노출하지 않는 일반화 문구 — 정찰 면 축소
+      // (원본 상세는 logUsage 의 toLogError 로 서버 로그에만 남는다).
       if (creds.host) {
-        await assertSafeOutboundHostResolved(creds.host);
+        try {
+          await assertSafeOutboundHostResolved(creds.host);
+        } catch {
+          throw new IntegrationError(
+            'DB_HOST_BLOCKED',
+            'Database host resolves to a private/loopback address blocked by SSRF policy.',
+          );
+        }
       }
 
       driver = creds.driver ?? 'postgres';
@@ -258,9 +269,10 @@ export class DatabaseQueryHandler
         api: { method: apiMethod, path: driver },
       }).catch(() => {});
       // D4 — IntegrationError (resolve / missingDbFields / parseParameters /
-      // SSRF guard 등) 는 그대로 code 를 surface, 그 외 (SQL throw 등) 는
-      // driver-specific mapper 로 분류. SSRF guard 의 plain Error 는
-      // mapDbError 의 fallback (`INTEGRATION_CALL_FAILED`) 로 흐른다.
+      // SSRF 차단 → `DB_HOST_BLOCKED` 등) 는 그대로 code 를 surface, 그 외 (SQL
+      // throw 등) 는 driver-specific mapper 로 분류. SSRF guard 의 plain Error 는
+      // 위에서 `DB_HOST_BLOCKED` IntegrationError 로 승격되므로 더 이상 mapDbError
+      // fallback (`INTEGRATION_CALL_FAILED`) 로 흐르지 않는다.
       const errorEnvelope =
         err instanceof IntegrationError
           ? {

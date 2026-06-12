@@ -112,6 +112,7 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       'DB_CONNECTION_ERROR',
       'DB_CONSTRAINT_VIOLATION',
       'DB_PERMISSION_DENIED',
+      'DB_HOST_BLOCKED',
       'RECURSION_DEPTH_EXCEEDED',
       'MAX_ITERATIONS_EXCEEDED',
       'CYCLE_DETECTED',
@@ -124,12 +125,13 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       expect(result.key).toBe('executionFailedInternal');
     });
 
-    // W1 — CODE_MEMORY_LIMIT / HTTP_BLOCKED are now registered in
-    // INTERNAL_CODES, so they classify as internal *without* tripping the
+    // W1 — CODE_MEMORY_LIMIT / HTTP_BLOCKED / DB_HOST_BLOCKED are now registered
+    // in INTERNAL_CODES, so they classify as internal *without* tripping the
     // unknown-fallback warn log (CCH-ERR-04 noise removal). UX is unchanged
-    // (both already fell through to executionFailedInternal); the only
-    // difference is the absence of the diagnostic warn.
-    it.each(['CODE_MEMORY_LIMIT', 'HTTP_BLOCKED'])(
+    // (all already fell through to executionFailedInternal); the only
+    // difference is the absence of the diagnostic warn. (DB_HOST_BLOCKED 는
+    // spec §3.1 `DB_*` 매핑과 일치 — 그룹2b.)
+    it.each(['CODE_MEMORY_LIMIT', 'HTTP_BLOCKED', 'DB_HOST_BLOCKED'])(
       '%s → executionFailedInternal with no CCH-ERR-04 warn log',
       (code) => {
         const warnSpy = jest

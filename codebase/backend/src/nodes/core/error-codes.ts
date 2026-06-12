@@ -26,6 +26,10 @@ export const ErrorCode = {
   DB_CONNECTION_ERROR: 'DB_CONNECTION_ERROR',
   DB_CONSTRAINT_VIOLATION: 'DB_CONSTRAINT_VIOLATION',
   DB_PERMISSION_DENIED: 'DB_PERMISSION_DENIED',
+  // DB host 가 사설/loopback/link-local/CGNAT 대역으로 해석돼 SSRF 가드에 차단된 경우
+  // (기본 ON, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 opt-out). 가드 SoT 는 공용
+  // `http-request/http-safety.ts`. HTTP(`HTTP_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)과 대칭.
+  DB_HOST_BLOCKED: 'DB_HOST_BLOCKED',
   // Email
   EMAIL_SEND_FAILED: 'EMAIL_SEND_FAILED',
   // SMTP host 가 사설/loopback 대역이라 SSRF 가드에 차단된 경우 (기본 ON,
