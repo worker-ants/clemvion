@@ -8,6 +8,7 @@ import { jwtConfig } from './jwt.config';
 import {
   assertProductionConfig,
   isFlagOn,
+  isSwaggerEnabled,
   INSECURE_JWT_SECRETS,
   KNOWN_EXAMPLE_ENCRYPTION_KEYS,
 } from './production-guards';
@@ -171,6 +172,49 @@ describe('isFlagOn', () => {
     'returns false for non-ON value: %p',
     (v) => {
       expect(isFlagOn(v)).toBe(false);
+    },
+  );
+});
+
+// 04 M-1: Swagger 노출 게이팅. non-production 은 항상 노출, production 은 기본
+// 미노출 + ENABLE_SWAGGER_IN_PROD opt-in 만 노출. main.ts 부팅 게이팅 계약을 고정한다.
+describe('isSwaggerEnabled (04 M-1)', () => {
+  it.each(['development', 'test', undefined])(
+    'is enabled in non-production (NODE_ENV=%p) regardless of opt-in flag',
+    (nodeEnv) => {
+      expect(isSwaggerEnabled({ NODE_ENV: nodeEnv })).toBe(true);
+      // opt-in 플래그는 non-production 노출에 영향 없음.
+      expect(
+        isSwaggerEnabled({ NODE_ENV: nodeEnv, ENABLE_SWAGGER_IN_PROD: 'false' }),
+      ).toBe(true);
+    },
+  );
+
+  it('is disabled in production by default', () => {
+    expect(isSwaggerEnabled({ NODE_ENV: 'production' })).toBe(false);
+  });
+
+  it.each(['true', '1'])(
+    'is enabled in production only via ENABLE_SWAGGER_IN_PROD opt-in (%p)',
+    (flag) => {
+      expect(
+        isSwaggerEnabled({
+          NODE_ENV: 'production',
+          ENABLE_SWAGGER_IN_PROD: flag,
+        }),
+      ).toBe(true);
+    },
+  );
+
+  it.each(['', 'TRUE', 'yes', 'on', '0', 'false'])(
+    'stays disabled in production for non-ON opt-in value (%p)',
+    (flag) => {
+      expect(
+        isSwaggerEnabled({
+          NODE_ENV: 'production',
+          ENABLE_SWAGGER_IN_PROD: flag,
+        }),
+      ).toBe(false);
     },
   );
 });

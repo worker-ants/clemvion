@@ -55,11 +55,16 @@ export function getAllowedOrigins(): string[] {
 /**
  * `origin` 헤더 값이 allowlist 에 속하는지 판정.
  * - `origin` 미지정 (same-origin / non-browser 도구) → 통과
+ * - `'null'` 불투명 origin (sandbox iframe / `data:` / `file:` 등) → **거부**
+ *   (04 M-5 — wildcard 모드에서도 null-origin CSRF 를 차단)
  * - wildcard 모드 → 통과
  * - 정확히 매칭 (후행 슬래시 정규화) → 통과
  */
 export function isOriginAllowed(origin: string | undefined): boolean {
   if (!origin) return true;
+  // 불투명 origin('null')은 sandbox iframe·data:/file: 등에서 오며 신뢰 불가 —
+  // wildcard 모드여도 명시적으로 거부한다(null-origin CSRF 방어).
+  if (origin === 'null') return false;
   const list = getAllowedOrigins();
   if (list.includes(WILDCARD)) return true;
   const normalized = origin.replace(/\/$/, '');

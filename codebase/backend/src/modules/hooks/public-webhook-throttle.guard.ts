@@ -13,6 +13,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { PublicWebhookQuotaService } from './public-webhook-quota.service';
+import { shouldTrustCfConnectingIp } from '../auth/utils/client-ip';
 
 /**
  * 공개(인증 없음) webhook 남용 방어 Guard — `POST /api/hooks/:endpointPath` 전용.
@@ -153,17 +154,22 @@ export interface PublicWebhookReqExtension {
 }
 
 /**
- * 클라이언트 IP 추출 — `cf-connecting-ip` → `x-forwarded-for` 첫 항목 순.
+ * 클라이언트 IP 추출 — `cf-connecting-ip`(신뢰 시) → `x-forwarded-for` 첫 항목 순.
  * (hooks.service.ts 의 동명 헬퍼와 동일 정책. 추후 공용 util 추출 후보.)
  *
+ * 04 m-3 — `CF-Connecting-IP` 는 `TRUST_CF_CONNECTING_IP` 가 켜진 경우에만 신뢰한다
+ * (위변조 가능 헤더 — 비-CF 배포 rate-limit 우회 방어). CF 뒤 배포는 XFF 첫 IP 도
+ * 실제 클라이언트 IP 라 플래그 off 여도 결과가 동일하다.
  * XFF 신뢰 관련(W1): 헤더 조작 방어는 인프라 레이어(`trust proxy` / Cloudflare 고정 IP 검증)
  * 의 책임. rate-limit 은 best-effort defense-in-depth 이므로 애플리케이션 레이어에서 강제하지 않음.
  */
 export function extractClientIp(
   headers: Record<string, unknown>,
 ): string | undefined {
-  const cf = headers['cf-connecting-ip'];
-  if (typeof cf === 'string' && cf.trim()) return cf.trim();
+  if (shouldTrustCfConnectingIp()) {
+    const cf = headers['cf-connecting-ip'];
+    if (typeof cf === 'string' && cf.trim()) return cf.trim();
+  }
   const xff = headers['x-forwarded-for'];
   if (typeof xff === 'string') {
     const first = xff.split(',')[0]?.trim();

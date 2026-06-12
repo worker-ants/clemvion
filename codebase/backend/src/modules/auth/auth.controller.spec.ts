@@ -95,8 +95,55 @@ describe('AuthController', () => {
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'refreshToken',
         'new-refresh',
-        expect.objectContaining({ httpOnly: true, path: '/' }),
+        // 04 M-5 — path 를 /api/auth 로 축소(표면 한정). sameSite 는 COOKIE_SAMESITE
+        // 기본 none.
+        expect.objectContaining({
+          httpOnly: true,
+          path: '/api/auth',
+          sameSite: 'none',
+        }),
       );
+    });
+
+    // 04 M-5 — CSRF: allowlist 외 Origin 의 강제 refresh 는 403 으로 선차단.
+    it('rejects refresh from a disallowed Origin (CSRF defense)', async () => {
+      const prev = process.env.CORS_ORIGINS;
+      process.env.CORS_ORIGINS = 'https://app.example.com';
+      try {
+        const req = {
+          cookies: { refreshToken: 'valid-token' },
+          headers: { origin: 'https://evil.example' },
+        } as never;
+        await expect(
+          controller.refresh(req, mockRes as never),
+        ).rejects.toThrow(/Origin not allowed/);
+        // 인증 로직 진입 전에 차단되어야 한다.
+        expect(authService.refresh).not.toHaveBeenCalled();
+      } finally {
+        if (prev === undefined) delete process.env.CORS_ORIGINS;
+        else process.env.CORS_ORIGINS = prev;
+      }
+    });
+
+    // 04 M-5 — allowlist 내 Origin 은 정상 통과.
+    it('allows refresh from an allowlisted Origin', async () => {
+      const prev = process.env.CORS_ORIGINS;
+      process.env.CORS_ORIGINS = 'https://app.example.com';
+      try {
+        authService.refresh.mockResolvedValue({
+          accessToken: 'a',
+          refreshToken: 'r',
+        });
+        const req = {
+          cookies: { refreshToken: 'valid-token' },
+          headers: { origin: 'https://app.example.com' },
+        } as never;
+        const result = await controller.refresh(req, mockRes as never);
+        expect(result).toEqual({ data: { accessToken: 'a' } });
+      } finally {
+        if (prev === undefined) delete process.env.CORS_ORIGINS;
+        else process.env.CORS_ORIGINS = prev;
+      }
     });
   });
 
@@ -129,7 +176,7 @@ describe('AuthController', () => {
       await controller.logout(req, mockRes as never);
 
       expect(mockRes.clearCookie).toHaveBeenCalledWith('refreshToken', {
-        path: '/',
+        path: '/api/auth',
       });
     });
   });
