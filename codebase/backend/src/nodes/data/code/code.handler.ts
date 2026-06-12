@@ -64,6 +64,12 @@ const DAYJS_LOAD_SCRIPT = `${DAYJS_SOURCE}\n;globalThis.dayjs = dayjs;`;
 // If `createSnapshot` is unavailable/fails on a platform, this stays `undefined`
 // and execute() transparently falls back to compiling DAYJS_LOAD_SCRIPT per-run.
 //
+// COST: This IIFE runs synchronously at module import — `createSnapshot` compiles
+// + executes dayjs in a throwaway isolate and serializes the heap (~4 ms one-time,
+// measured locally). It is a single fixed cost paid on first import (server cold
+// start / Jest suite load), traded for removing the per-exec dayjs recompile; it
+// does not affect steady-state request latency.
+//
 // NOTE: The snapshot ArrayBuffer lives for the lifetime of the Node.js process;
 // it is not GC'd between requests (process-scoped memory cost, ~few hundred KB).
 const DAYJS_SNAPSHOT: ivm.ExternalCopy<ArrayBuffer> | undefined = (() => {
