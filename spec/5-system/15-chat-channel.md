@@ -203,7 +203,8 @@ pending_plans:
     "inboundSigningRef": "secret://triggers/{triggerId}/inbound-signing",  // 응답·DB JSONB 보관 ref. provider 공통 단일 슬롯 — 검증 알고리즘은 backend 의 provider 분기 책임. Telegram: server-issued shared secret (setupChannel 의 randomBytes 발급) / Slack: HMAC-SHA256 signing secret (사용자 inboundSigningPlaintext 입력) / Discord: ed25519 public key (사용자 inboundSigningPlaintext 입력). SoT: conventions/chat-channel-adapter.md §2.3
     "botIdentity": {                            // setupChannel 결과 캐시 (read-only after creation)
       "botId": 123456789,
-      "username": "myworkflow_bot"
+      "username": "myworkflow_bot",
+      "teamId": "T012ABCDE"                     // optional — workspace/team 개념 있는 provider(Slack 등) 한정. SoT conventions/chat-channel-adapter.md §2.3
     },
     "uiMapping": {                              // optional — 노드 → 채널 UI 매핑 옵션
       "formMode": "auto",                       // "multi_step" | "native_modal" | "auto" (default "auto"). auto = supportsNativeForm provider + 전 필드 modal 수용 타입 + fields ≤ 5 면 native modal, 아니면 다단계. multi_step = 강제 다단계 opt-out. SoT conventions/chat-channel-adapter.md §2.3 / §4.1 / R-CCA-8
@@ -651,7 +652,7 @@ chat-channel 어댑터는 (①) 비-blocking presentation 노드 (`carousel`/`ta
 
 1. (① 대응) `CCH-AD-07` + `CCH-MP-06` 신설. 어댑터가 `execution.node.completed` (in-process WS fan-out 채널 이벤트) 의 presentation 노드 비-blocking 완료를 chat-channel-internal listener 로 attach. EIA §6.1 outbound HTTP webhook 화이트리스트는 변경 없음 — 외부 SDK 영향 없음.
 
-2. (② 대응) `CCH-MP-01` 보강 + Convention §1.2 `EiaAiMessageEvent` 의 `presentations?: PresentationPayload[]` 필드. payload 가 비어있지 않으면 4종 display-only presentation 을 CCH-MP-04 v1 fallback 으로 sequential 발송.
+2. (② 대응) `CCH-MP-01` 보강 + Convention §1.2 `EiaEvent` 의 `execution.ai_message` variant 가 갖는 `presentations?: PresentationPayload[]` 필드. payload 가 비어있지 않으면 4종 display-only presentation 을 CCH-MP-04 v1 fallback 으로 sequential 발송.
 
 EIA §6.1 outbound HTTP webhook 화이트리스트를 6종 (`node.completed` 추가) 으로 확장하는 안은 외부 SDK breaking change 라 chat-channel 전용 UX 갭에는 과하다. 비-blocking presentation 에 dummy `buttons: [continue]` 추가 의무화는 명시적 인터랙션 없이 본문만 보여주는 UX 를 차단한다. AI Agent `render_*` 를 별도 outbound 이벤트 (`tool_call_completed` 등) 로 발사하는 안은 동일 turn 의 text + presentations 가 서로 다른 event 로 분리돼 도착 순서 race 위험이 있어, `presentations` 를 ai_message 와 같은 payload 에 담아 atomicity 를 보장한다.
 
