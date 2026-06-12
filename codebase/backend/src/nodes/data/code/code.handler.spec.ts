@@ -519,7 +519,11 @@ describe('CodeHandler', () => {
     ])(
       'should route non-string $helpers.base64.%s input to the error port (TypeError)',
       async (_op, code) => {
-        const result = (await handler.execute(null, { code }, context)) as unknown as {
+        const result = (await handler.execute(
+          null,
+          { code },
+          context,
+        )) as unknown as {
           output: { error: { code: string; message: string } };
           meta: { success: boolean };
           port?: string;
