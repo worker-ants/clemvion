@@ -3,7 +3,6 @@ id: config
 status: partial
 pending_plans:
   - plan/in-progress/spec-sync-config-gaps.md
-  - plan/in-progress/unified-model-management.md
 code:
   - codebase/frontend/src/app/(main)/authentication/page.tsx
   - codebase/frontend/src/app/(main)/models/page.tsx
@@ -281,7 +280,7 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 | GET | /api/model-configs/:id/models | 사용 가능한 모델 목록 조회 (chat/embedding) |
 | DELETE | /api/model-configs/:id | 삭제 |
 
-> **구 alias 제거 완료 (PR4)**: 종전 `/api/llm-configs`·`/api/rerank-configs` (및 서브경로 `:id/test`·`preview-models`·`:id/models`·`:id/set-default`) 한시 alias 와 프론트 redirect 라우트 `/llm-configs`·`/rerank-configs` 는 [`unified-model-management`](../../plan/in-progress/unified-model-management.md) **PR4 에서 제거**됐다. 모든 chat/embedding/rerank 설정은 위 `/api/model-configs` 단일 표면으로만 접근한다.
+> **구 alias 제거 완료 (PR4)**: 종전 `/api/llm-configs`·`/api/rerank-configs` (및 서브경로 `:id/test`·`preview-models`·`:id/models`·`:id/set-default`) 한시 alias 와 프론트 redirect 라우트 `/llm-configs`·`/rerank-configs` 는 [`unified-model-management`](../../plan/complete/unified-model-management.md) **PR4 에서 제거**됐다. 모든 chat/embedding/rerank 설정은 위 `/api/model-configs` 단일 표면으로만 접근한다.
 
 ---
 
