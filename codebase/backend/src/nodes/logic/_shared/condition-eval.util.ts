@@ -5,6 +5,7 @@ import {
   EXPRESSION_PATTERN as CORE_EXPRESSION_PATTERN,
   MAX_REGEX_LENGTH as CORE_MAX_REGEX_LENGTH,
   compileRegexCache as coreCompileRegexCache,
+  compileUserRegex as coreCompileUserRegex,
 } from '../../core/condition-evaluator.util.js';
 import { getNestedValue } from '../../core/nested-value.util.js';
 
@@ -25,6 +26,7 @@ export const EXPRESSION_PATTERN = CORE_EXPRESSION_PATTERN;
 export type Condition = CoreCondition;
 
 export const compileRegexCache = coreCompileRegexCache;
+export const compileUserRegex = coreCompileUserRegex;
 
 const VALID_TYPES = new Set([
   'string',

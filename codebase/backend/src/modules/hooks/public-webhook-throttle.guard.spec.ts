@@ -160,17 +160,52 @@ describe('PublicWebhookThrottleGuard', () => {
     expect(quota.consumeStart).not.toHaveBeenCalled();
   });
 
-  it('cf-connecting-ip 우선 추출', async () => {
-    const { guard, quota } = makeGuard({
-      trigger: { authConfigId: null } as Partial<Trigger>,
-    });
-    const req: ReqShape = {
-      params: { endpointPath: 'abc123' },
-      headers: { 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': '2.2.2.2' },
-      body: {},
-    };
-    await guard.canActivate(makeContext(req));
-    expect(quota.consumeStart).toHaveBeenCalledWith('1.1.1.1');
+  it('cf-connecting-ip 우선 추출 (TRUST_CF_CONNECTING_IP=true)', async () => {
+    // 04 m-3 — CF 신뢰는 기본 off 라 CF 우선을 검증하려면 명시 활성화.
+    const prev = process.env.TRUST_CF_CONNECTING_IP;
+    process.env.TRUST_CF_CONNECTING_IP = 'true';
+    try {
+      const { guard, quota } = makeGuard({
+        trigger: { authConfigId: null } as Partial<Trigger>,
+      });
+      const req: ReqShape = {
+        params: { endpointPath: 'abc123' },
+        headers: {
+          'cf-connecting-ip': '1.1.1.1',
+          'x-forwarded-for': '2.2.2.2',
+        },
+        body: {},
+      };
+      await guard.canActivate(makeContext(req));
+      expect(quota.consumeStart).toHaveBeenCalledWith('1.1.1.1');
+    } finally {
+      if (prev === undefined) delete process.env.TRUST_CF_CONNECTING_IP;
+      else process.env.TRUST_CF_CONNECTING_IP = prev;
+    }
+  });
+
+  // 04 m-3 — 기본(플래그 off)에서는 위변조 가능한 CF 헤더 무시 → XFF 로 rate-limit.
+  it('기본(TRUST_CF_CONNECTING_IP off)에서는 cf-connecting-ip 를 무시하고 XFF 사용', async () => {
+    const prev = process.env.TRUST_CF_CONNECTING_IP;
+    delete process.env.TRUST_CF_CONNECTING_IP;
+    try {
+      const { guard, quota } = makeGuard({
+        trigger: { authConfigId: null } as Partial<Trigger>,
+      });
+      const req: ReqShape = {
+        params: { endpointPath: 'abc123' },
+        headers: {
+          'cf-connecting-ip': '1.1.1.1',
+          'x-forwarded-for': '2.2.2.2',
+        },
+        body: {},
+      };
+      await guard.canActivate(makeContext(req));
+      expect(quota.consumeStart).toHaveBeenCalledWith('2.2.2.2');
+    } finally {
+      if (prev === undefined) delete process.env.TRUST_CF_CONNECTING_IP;
+      else process.env.TRUST_CF_CONNECTING_IP = prev;
+    }
   });
 
   it('trigger 조회 실패 → fail-open(통과)', async () => {

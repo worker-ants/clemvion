@@ -7,7 +7,7 @@ import './instrumentation';
 import './bootstrap/undici-dispatcher';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import { Logger } from '@nestjs/common';
+import { Logger, type INestApplication } from '@nestjs/common';
 
 // DeprecationWarning 의 발생 위치를 추적하려면 stack 이 필요한데, 기본
 // process warning emitter 는 stack 을 한 줄로만 출력한다. 노드 옵션
@@ -40,53 +40,14 @@ import { WebChatCorsOriginResolver } from './modules/web-chat-cors/web-chat-cors
 import {
   assertProductionConfig,
   isFlagOn,
+  isSwaggerEnabled,
 } from './common/config/production-guards';
 
-async function bootstrap() {
-  const logger = new Logger('Bootstrap');
-  // Fail-closed (refactor 04 C-1·M-4·M-7 + 기존 OAUTH/LLM stub): NODE_ENV=production
-  // 에서 비보안 stub·미설정/예시 secret·위험 플래그가 켜진 채 기동하면 즉시 throw 한다.
-  // 전 분기는 production-guards.ts 단위 테스트로 검증. (비-production 은 no-op.)
-  assertProductionConfig(process.env);
-
-  // 04 M-7 — ALLOW_PRIVATE_HOST_TARGETS 는 정당한 self-host 용도(VPC 내부 DB/SMTP 등,
-  // spec http-request §4)가 있어 throw 가 아닌 warn 으로 분리한다 — 운영자가 의도적으로
-  // 켰을 수 있으나 SSRF 표면을 넓히므로 가시화한다.
-  if (
-    process.env.NODE_ENV === 'production' &&
-    isFlagOn(process.env.ALLOW_PRIVATE_HOST_TARGETS)
-  ) {
-    logger.warn(
-      '[SECURITY] ALLOW_PRIVATE_HOST_TARGETS 활성 (production) — 사설/loopback 호스트 ' +
-        '대상 outbound 가 허용됩니다. self-host 의도가 아니면 SSRF 위험이니 비활성화하고, ' +
-        '의도적이라면 egress 방화벽/IP allowlist 를 반드시 병행하세요.',
-    );
-  }
-
-  // rawBody: true 는 HMAC 웹훅(`AuthConfigsService.verifyWebhookRequest`) 의 서명 검증에 필수다.
-  // 미설정 시 `req.rawBody` 가 undefined 가 되어 HMAC 분기가 항상 401 을 반환한다.
-  const app = await NestFactory.create(AppModule, { rawBody: true });
-  const configService = app.get(ConfigService);
-
-  // Cloudflare(또는 단일 reverse proxy) 한 단계 뒤에서 동작하므로 hop 1 만
-  // 신뢰한다. `true` 로 두면 임의의 X-Forwarded-For 헤더가 그대로 받아들여져
-  // ThrottlerGuard 등 req.ip 기반 로직이 우회된다. CF-Connecting-IP 는 별도
-  // 헬퍼(auth/utils/client-ip) 에서 1순위로 추출하며, origin 단에서
-  // Cloudflare IP 대역 외 직접 접근을 차단하는 게 본 설정의 전제 조건이다.
-  const expressInstance = app.getHttpAdapter().getInstance() as {
-    disable: (header: string) => void;
-    set: (key: string, value: unknown) => void;
-  };
-  expressInstance.set('trust proxy', 1);
-  expressInstance.disable('x-powered-by');
-
-  // Cookie parser
-  app.use(cookieParser());
-
-  // Global prefix
-  app.setGlobalPrefix('api');
-
-  // Swagger
+/**
+ * Swagger UI(`/docs`) 문서를 앱에 마운트한다 (04 M-1). 호출 자체가 게이팅 대상 —
+ * production 에서는 `isSwaggerEnabled` 가 false 이면 호출되지 않는다.
+ */
+function setupSwagger(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Clemvion API')
     .setDescription(
@@ -155,6 +116,61 @@ async function bootstrap() {
       docExpansion: 'none',
     },
   });
+}
+
+async function bootstrap() {
+  const logger = new Logger('Bootstrap');
+  // 04 M-1 — 게이팅 판정을 부팅당 1회만 평가해 마운트·로그 두 곳이 동일 결정을 공유한다.
+  const swaggerEnabled = isSwaggerEnabled(process.env);
+  // Fail-closed (refactor 04 C-1·M-4·M-7 + 기존 OAUTH/LLM stub): NODE_ENV=production
+  // 에서 비보안 stub·미설정/예시 secret·위험 플래그가 켜진 채 기동하면 즉시 throw 한다.
+  // 전 분기는 production-guards.ts 단위 테스트로 검증. (비-production 은 no-op.)
+  assertProductionConfig(process.env);
+
+  // 04 M-7 — ALLOW_PRIVATE_HOST_TARGETS 는 정당한 self-host 용도(VPC 내부 DB/SMTP 등,
+  // spec http-request §4)가 있어 throw 가 아닌 warn 으로 분리한다 — 운영자가 의도적으로
+  // 켰을 수 있으나 SSRF 표면을 넓히므로 가시화한다.
+  if (
+    process.env.NODE_ENV === 'production' &&
+    isFlagOn(process.env.ALLOW_PRIVATE_HOST_TARGETS)
+  ) {
+    logger.warn(
+      '[SECURITY] ALLOW_PRIVATE_HOST_TARGETS 활성 (production) — 사설/loopback 호스트 ' +
+        '대상 outbound 가 허용됩니다. self-host 의도가 아니면 SSRF 위험이니 비활성화하고, ' +
+        '의도적이라면 egress 방화벽/IP allowlist 를 반드시 병행하세요.',
+    );
+  }
+
+  // rawBody: true 는 HMAC 웹훅(`AuthConfigsService.verifyWebhookRequest`) 의 서명 검증에 필수다.
+  // 미설정 시 `req.rawBody` 가 undefined 가 되어 HMAC 분기가 항상 401 을 반환한다.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const configService = app.get(ConfigService);
+
+  // Cloudflare(또는 단일 reverse proxy) 한 단계 뒤에서 동작하므로 hop 1 만
+  // 신뢰한다. `true` 로 두면 임의의 X-Forwarded-For 헤더가 그대로 받아들여져
+  // ThrottlerGuard 등 req.ip 기반 로직이 우회된다. CF-Connecting-IP 는 별도
+  // 헬퍼(auth/utils/client-ip) 에서 1순위로 추출하며, origin 단에서
+  // Cloudflare IP 대역 외 직접 접근을 차단하는 게 본 설정의 전제 조건이다.
+  const expressInstance = app.getHttpAdapter().getInstance() as {
+    disable: (header: string) => void;
+    set: (key: string, value: unknown) => void;
+  };
+  expressInstance.set('trust proxy', 1);
+  expressInstance.disable('x-powered-by');
+
+  // Cookie parser
+  app.use(cookieParser());
+
+  // Global prefix
+  app.setGlobalPrefix('api');
+
+  // Swagger (04 M-1) — non-production 전용. production 에서는 무인증 API 표면
+  // 정찰(엔드포인트·DTO 구조 노출)을 막기 위해 기본 미노출하며,
+  // ENABLE_SWAGGER_IN_PROD=true opt-in 으로만 켠다. 게이팅 판정(isSwaggerEnabled)은
+  // production-guards 단위 테스트로 검증한다.
+  if (swaggerEnabled) {
+    setupSwagger(app);
+  }
 
   // CORS (W-1: 다중 도메인 allowlist + production fail-closed).
   // 우선순위: CORS_ORIGINS (콤마 구분) → FRONTEND_URL → wildcard (dev/test 만).
@@ -186,6 +202,8 @@ async function bootstrap() {
   const port = configService.get<number>('app.port') || 3011;
   await app.listen(port);
   console.log(`Application running on port ${port}`);
-  console.log(`Swagger docs available at http://localhost:${port}/docs`);
+  if (swaggerEnabled) {
+    console.log(`Swagger docs available at http://localhost:${port}/docs`);
+  }
 }
 void bootstrap();

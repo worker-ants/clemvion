@@ -1,23 +1,43 @@
 import { Request } from 'express';
 
 /**
- * 운영 환경은 Cloudflare 무료 플랜 뒤에 있다.
+ * 04 m-3 — `CF-Connecting-IP` 헤더를 신뢰할지 여부 (`TRUST_CF_CONNECTING_IP` env).
+ *
+ * **기본 off (fail-safe)**: `CF-Connecting-IP` 는 클라이언트가 임의로 보낼 수 있는
+ * 헤더라, Cloudflare 뒤가 아닌 배포에서 무조건 신뢰하면 rate-limit 우회·감사로그/로그인
+ * 이력 IP 오염이 가능하다. 따라서 **명시적으로 켠 배포에서만** 1순위로 사용한다.
+ * Cloudflare(Tunnel 포함) 뒤 배포는 `TRUST_CF_CONNECTING_IP=true` 로 활성화한다.
+ * 정확히 `'true'`/`'1'` 만 ON (`isFlagOn` 규칙과 동일).
+ *
+ * @param env 검사할 환경변수 맵(기본 `process.env`).
+ */
+export function shouldTrustCfConnectingIp(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const v = env.TRUST_CF_CONNECTING_IP;
+  return v === 'true' || v === '1';
+}
+
+/**
  * 클라이언트 IP 추출 우선순위:
- *   1) CF-Connecting-IP   — Cloudflare 가 항상 채우는 원본 클라이언트 IP
- *   2) X-Forwarded-For    — 첫 번째 IP (Cloudflare 또는 추가 프록시가 채움)
+ *   1) CF-Connecting-IP   — `TRUST_CF_CONNECTING_IP` 가 켜진 경우에만 (CF 가 채우는 원본 IP)
+ *   2) X-Forwarded-For    — 첫 번째 IP (trust proxy 가 신뢰하는 프록시가 채움)
  *   3) req.ip             — Express 가 trust proxy 활성 시 파싱한 값
  *   4) req.socket.remoteAddress
  *
  * IPv6-mapped IPv4 (::ffff:1.2.3.4) 는 IPv4 표기로 정규화한다.
  *
- * SECURITY: 본 헬퍼는 신뢰 가능한 origin (CF 뒤) 가정에 의존. origin 단에서
- * Cloudflare IP 대역 외부 트래픽을 차단하지 않으면 CF-Connecting-IP 위변조가 가능하다.
+ * SECURITY (04 m-3): CF-Connecting-IP 는 위변조 가능한 헤더이므로 기본적으로 무시하고,
+ * `TRUST_CF_CONNECTING_IP=true` 로 명시한 CF-뒤 배포에서만 1순위로 사용한다. origin 단에서
+ * CF 외 직접 접근이 차단된다는 전제(CF Tunnel 등)가 활성화의 근거다.
  */
 export function extractClientIp(req: Request): string | null {
   const headers = req.headers ?? {};
 
-  const cf = pickFirst(headers['cf-connecting-ip']);
-  if (cf) return normalize(cf);
+  if (shouldTrustCfConnectingIp()) {
+    const cf = pickFirst(headers['cf-connecting-ip']);
+    if (cf) return normalize(cf);
+  }
 
   const xff = pickFirst(headers['x-forwarded-for']);
   if (xff) {
