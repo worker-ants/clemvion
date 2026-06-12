@@ -1,16 +1,15 @@
 import {
   Body,
   Controller,
-  Headers,
   HttpCode,
   Param,
   Post,
   BadRequestException,
   Inject,
   forwardRef,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { WorkspaceId } from '../../common/decorators';
 import { TriggersService } from '../triggers/triggers.service';
 
 /**
@@ -21,7 +20,8 @@ import { TriggersService } from '../triggers/triggers.service';
  * `POST /api/triggers/:id/chat-channel/rotate-bot-token`
  *   - body: { newBotToken: string }
  *   - 위임: `TriggersService.rotateBotToken()` 가 secret store + adapter 오케스트레이션 6단계 담당.
- *     본 controller 는 input validation + workspaceId 헤더만 처리.
+ *     본 controller 는 input validation 만 처리. workspaceId 는 공용 `@WorkspaceId()` 데코레이터가
+ *     `X-Workspace-Id` 헤더 / JWT `workspaceId` 우선순위로 해석·검증 (부재 시 `WORKSPACE_ID_REQUIRED` 400).
  *
  * 동사 `rotate-bot-token` — EIA `/notification/rotate-secret` (HMAC secret) 와 다른 자원이므로 별도 동사
  * (api-convention §2.2 의 RPC-style sub-channel action 예외 조항 적용).
@@ -45,18 +45,12 @@ export class ChatChannelController {
   async rotateBotToken(
     @Param('id') triggerId: string,
     @Body() body: { newBotToken?: string },
-    @Headers('x-workspace-id') workspaceId: string,
+    @WorkspaceId() workspaceId: string,
   ): Promise<{ rotatedAt: string }> {
-    if (!body?.newBotToken || typeof body.newBotToken !== 'string') {
+    if (!body?.newBotToken || typeof body?.newBotToken !== 'string') {
       throw new BadRequestException({
         code: 'INVALID_BOT_TOKEN',
         message: 'newBotToken is required',
-      });
-    }
-    if (!workspaceId) {
-      throw new UnauthorizedException({
-        code: 'WORKSPACE_REQUIRED',
-        message: 'X-Workspace-Id header is required',
       });
     }
     return this.triggersService.rotateBotToken(
