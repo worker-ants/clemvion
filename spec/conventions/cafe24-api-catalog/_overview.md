@@ -139,7 +139,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 ### 7.1 파일 1개 = entity 1개
 
 - 경로: `spec/conventions/cafe24-api-catalog/<resource>/<entity_id>.md` (예: `store/activitylogs.md`, `product/products.md`).
-- `<entity_id>` 는 Cafe24 docs 의 sub-resource 식별자 (snake_case). 한 resource 내 unique.
+- `<entity_id>` 는 Cafe24 docs 의 sub-resource 식별자 (kebab-case — docs anchor 식별자와 동일 형식, 예: `appstore-orders`). 한 resource 내 unique.
 - frontmatter: `resource`, `entity`, `cafe24_docs` (공식 docs anchor URL), `source` (추출 출처·일자).
 - **spec frontmatter 가드 제외**: 본 field-level 파일은 생성기 산출물(레퍼런스)이라 [`spec-impl-evidence.md §1`](../spec-impl-evidence.md) 의 lifecycle frontmatter(`id`/`status`) 의무에서 **제외**된다 (`<name>-api-catalog/<resource>/**/*.md` — 카탈로그 디렉토리 뒤 세그먼트 1개 이상인 모든 `.md`, 근거 §Rationale R-7). 카탈로그 최상위 `<resource>.md` 인덱스는 정식 spec 으로 계속 검증된다.
 
@@ -158,7 +158,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
   - **응답 body 샘플 (Response)**: HTML 의 request/response 예시는 JS 가 런타임에 별도 JSON 에서 주입하므로 정적 저장본엔 빈 `<pre>` 로만 남는다. 실제 샘플은 code 엔드포인트 `https://developers.cafe24.com/docs/code/api/admin/shell/<data-resource>.json` 에 operation 별 `{"<METHOD>_<Title>":{"<Title>":{"REQUEST","RESPONSE"}}}` 형태로 존재하며, 생성기가 entity 별로 fetch 해 `RESPONSE` 를 옮긴다. URL 의 `shell` 은 코드샘플 언어(shell/java/python/node/php/go) 중 하나일 뿐 — RESPONSE 는 언어무관이라 shell 하나만 받는다. `<data-resource>` 는 entity id 의 hyphen 을 underscore 로 치환한 값.
 - docs 가 type 컬럼을 별도 제공하지 않으므로(설명문 내 산문 형태) 본 카탈로그도 `제약`(형식·길이·최대값·날짜 등 `<em>` 노트)과 `설명`을 그대로 옮긴다. 정식 type 추론은 backend 메타데이터 작업(`cafe24-api-metadata.md`) 의 몫.
 - docs 개정 시 **동일 추출 파이프라인으로 재생성**한다 — 생성기는 [`_generator.py`](./_generator.py) (`python3 _generator.py <docs-full-page.html>` — 응답 fetch 포함, 캐시는 `.resp-cache/` gitignore. `--no-responses` 로 HTML 만 생성 가능). 결정적·멱등이므로 재실행해도 손댄 적 없는 파일은 그대로다. 손으로 행을 추가할 때도 반드시 공식 docs 를 출처로 한다.
-- **응답 래퍼 ↔ 요청 파라미터 이름 충돌 회귀 검증(수동)**: 응답 body 의 래퍼 객체/배열 이름이 동일 entity 의 요청 파라미터명과 충돌하는 경우(`order`/`category` 등), `resp_param_rows` 의 cross-map fallback 은 스칼라 필드에만 적용되고 컨테이너(obj/arr)는 `(응답 객체)`/`(목록)` 라벨로 유지돼야 한다. 재생성 후 해당 entity(예: `application/appstore-orders.md`, `order/orders.md`)의 응답 표에서 래퍼 행이 정렬 파라미터 설명("정렬 순서 asc…") 등 스칼라 설명을 가져오지 않았는지 확인한다.
+- **응답 래퍼 ↔ 요청 파라미터 이름 충돌 회귀 검증(수동)**: 응답 body 의 래퍼 객체/배열 이름이 동일 entity 의 요청 파라미터명과 충돌하는 경우(`order`/`category` 등), `resp_param_rows` 의 cross-map fallback 은 스칼라 필드에만 적용되고 컨테이너(obj/arr)는 `(응답 객체)`/`(목록)` 라벨로 유지돼야 한다. 재생성 후 해당 entity(예: `application/appstore-orders.md`, `order/orders.md`, `store/orders-setting.md`, `store/users.md`)의 응답 표에서 래퍼 행이 정렬 파라미터 설명("정렬 순서 asc…") 등 스칼라 설명을 가져오지 않았는지 확인한다.
 
 ### 7.4 sync 테스트와의 관계
 
