@@ -78,6 +78,25 @@ describe('CodeHandler', () => {
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.includes('syntax error'))).toBe(false);
     });
+
+    it('reuses the lazy syntax-check isolate across many calls (valid↔invalid interleaved)', () => {
+      // syntaxCheck() shares a lazily-created module-level isolate and recreates
+      // it if disposed (`!syntaxIsolate || syntaxIsolate.isDisposed`). The
+      // disposed branch is defensive (the isolate is module-private and not
+      // deterministically disposable from a unit test); here we at least prove
+      // the shared isolate stays usable across interleaved valid/invalid checks
+      // — a regression where a failed compile poisoned the shared isolate would
+      // surface as the second valid check failing.
+      for (let i = 0; i < 5; i++) {
+        expect(handler.validate({ code: 'return 1;' }).valid).toBe(true);
+        expect(handler.validate({ code: 'this is ( not valid js' }).valid).toBe(
+          false,
+        );
+      }
+      expect(handler.validate({ code: 'const x = 1; return x;' }).valid).toBe(
+        true,
+      );
+    });
   });
 
   describe('execute — basic', () => {
@@ -304,6 +323,31 @@ describe('CodeHandler', () => {
       expect(result.meta.logs).toEqual(['[log] hello 1']);
     });
 
+    it('should capture console.warn / console.error with level prefixes', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          code: 'console.warn("careful", 2); console.error("boom", { x: 1 }); return 1;',
+        },
+        context,
+      )) as unknown as { meta: { logs: string[] } };
+      expect(result.meta.logs).toEqual([
+        '[warn] careful 2',
+        '[error] boom {"x":1}',
+      ]);
+    });
+
+    it('should preserve interleaved log/warn/error ordering', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          code: 'console.log("a"); console.error("b"); console.warn("c"); return 1;',
+        },
+        context,
+      )) as unknown as { meta: { logs: string[] } };
+      expect(result.meta.logs).toEqual(['[log] a', '[error] b', '[warn] c']);
+    });
+
     it('should cap console logs at 100 lines', async () => {
       const result = (await handler.execute(
         null,
@@ -373,6 +417,31 @@ describe('CodeHandler', () => {
         { code: '$vars.counter = 999; throw new Error("fail");' },
         context,
       );
+      expect(context.variables).toEqual({ counter: 1 });
+    });
+
+    it('falls back to the pre-exec snapshot when $vars copy-out fails (non-cloneable value)', async () => {
+      // A function is not structured-cloneable, so reading $vars back across the
+      // isolate boundary (jail.get('$vars',{copy:true})) throws. The handler
+      // catches that and restores varsClone (the pre-execution snapshot) — so
+      // the otherwise-successful run leaves variables untouched ("원본 보존").
+      //
+      // 검증 방식 (W6): catch 분기 실행 여부는 핸들러 구조상 spy 주입이 불가하므로
+      // **행동(behavioral)** 으로 검증한다 — copy-out 이 성공했다면 `counter=42` 가
+      // 반영됐을 것이므로, 변수가 snapshot 그대로면 fallback 경로가 탔다는 증거다.
+      // (copy-out 거부는 isolated-vm 의 함수 비직렬화 동작에 의존 — 버전업 시
+      // 동작이 바뀌면 본 테스트가 먼저 깨져 회귀를 드러낸다.)
+      context.variables = { counter: 1 };
+      const result = (await handler.execute(
+        null,
+        {
+          code: '$vars.counter = 42; $vars.notClonable = () => 1; return "ok";',
+        },
+        context,
+      )) as unknown as { meta: { success: boolean }; port: string };
+      // Execution itself succeeded (port success), but the copy-out fallback
+      // discards the in-isolate mutation entirely → snapshot restored.
+      expect(result.port).toBe('success');
       expect(context.variables).toEqual({ counter: 1 });
     });
   });
@@ -642,6 +711,23 @@ describe('CodeHandler', () => {
 
     it('should handle null/undefined-like error gracefully', () => {
       expect(classifyCodeNodeError({} as any)).toBe('CODE_RUNTIME_ERROR');
+    });
+
+    it('should classify explicit null / undefined as CODE_RUNTIME_ERROR', () => {
+      // `err?.code` / `err?.message` optional-chain short-circuits to undefined,
+      // so the message-regex path falls through to the default code.
+      expect(classifyCodeNodeError(null as any)).toBe('CODE_RUNTIME_ERROR');
+      expect(classifyCodeNodeError(undefined as any)).toBe(
+        'CODE_RUNTIME_ERROR',
+      );
+    });
+
+    it('does not spoof EXECUTION_MEMORY_EXCEEDED from a non-disposed isolate on null err', () => {
+      // isolate arg omitted → isDisposed branch skipped; null err must not
+      // accidentally satisfy any earlier branch.
+      expect(classifyCodeNodeError(null as any, undefined)).toBe(
+        'CODE_RUNTIME_ERROR',
+      );
     });
   });
 });
