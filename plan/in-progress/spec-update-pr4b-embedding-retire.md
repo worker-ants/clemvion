@@ -91,12 +91,13 @@ legacy 임베딩 서술(embeddingLlmConfigId, embedding_model, 3-step 폴백 언
 
 ### 7. 외부 API 소비자 / CHANGELOG (Critical #1, Warning #10)
 
-**판단 필요 (사용자 결정)**:
-- 자사 클라이언트(프론트엔드)만 소비하는 경우: CHANGELOG 에 breaking change 기록으로 충분.
-  - `embeddingModel`, `embeddingLlmConfigId` DTO 필드 제거 (PUT/POST KB body 에서 무시됨 → silent breaking)
-  - 에러코드 rename (`LLM_CONFIG_*` → `MODEL_CONFIG_*`)
-- 외부 소비자가 있는 경우: deprecation 정책, sunset 날짜, migration guide 필요.
-- **결론**: 외부 소비자 범위 확인 필요. 자사 전용이면 CHANGELOG 기록으로 해소 가능.
+**사용자 결정 (2026-06-12): 자사 전용 — 문서화로 충분.**
+- 외부 API 소비자 없음 전제. Sunset 헤더·deprecation 윈도우·구코드 이중발행 **불요**.
+- 해소: (a) `spec/conventions/error-codes.md §3 historical-artifact` 에 구 코드 등재(§3 본 draft),
+  (b) CHANGELOG 에 breaking change 기록:
+  - `embeddingModel`, `embeddingLlmConfigId` DTO 필드 제거 (KB create/update body 에서 무시됨 → silent breaking)
+  - 에러코드 rename (`LLM_CONFIG_NOT_FOUND`→`MODEL_CONFIG_DEFAULT_MISSING`, `LLM_CONFIG_INVALID`→`MODEL_CONFIG_INVALID`)
+  - 프론트엔드는 이미 신코드 처리 + embeddingModelConfigId 전송 → 자사 무중단.
 
 ## 적용 위치 요약
 

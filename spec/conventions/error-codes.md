@@ -59,6 +59,8 @@ OAuth 등에서 인라인 문자열 리터럴로 발행되는 코드(`CAFE24_*`,
 | `invitation_not_found` · `invitation_expired` · `invitation_already_used` · `invitation_email_mismatch` · `forbidden` · `rate_limited` | 404/410/400/403/429 | `lower_snake_case` — §1 `UPPER_SNAKE_CASE` 위반. 워크스페이스 초대 흐름 v1 출하 시 이 형태로 정착, 프론트(`invitations.ts` `INVITATION_ERROR_CODES`)·백엔드(`workspace-invitations.service.ts` / `auth.service.ts`)가 `code` 값으로 분기 → rename = breaking(§2) | 초대 토큰 부재/만료/사용됨/이메일 불일치/권한 부족/rate-limit. **초대 API 한정** — 본 `forbidden`/`rate_limited` (lowercase) 는 초대 흐름 전용 historical artifact 로, 다른 영역의 `UPPER_SNAKE_CASE` 범용 코드와 별개다 | [`1-auth.md §1.5.4`](../5-system/1-auth.md#154-에러-응답) |
 | `invalid_state` · `token_exchange_failed` · `email_required` · `server_error` (OAuth callback `?error=`) | — (302 redirect) | `lower_snake_case` — 단 이것은 **응답 봉투의 `error.code` 가 아니라 redirect URL 의 query param 값**이다. 로그인 OAuth callback 이 `{frontend_url}/callback?error=<값>` 으로 프론트에 신호하는 URL-level signal 로 v1 정착, 콜백 페이지가 이 값으로 분기 → rename = breaking(§2) | 소셜 로그인 콜백 실패 사유(state 불일치/코드 교환 실패/이메일 미제공/서버 오류). **로그인 OAuth callback URL 한정** — envelope 코드 체계(§1)와 레이어가 다르며, 통합(Integration) OAuth 의 `OAUTH_*` envelope 코드와도 별개다 | [`10-auth-flow.md §5.4`](../2-navigation/10-auth-flow.md#54-oauth-에러-처리) |
 
+> §3 은 **부정확한 이름이나 *유지*되는 active 코드**의 예외 등록부다. *교체·은퇴된* 구 코드의 rename 이력은 §5 에 둔다 (목적 레이어가 다르다).
+
 ## 4. 내부 전용 분류 코드 (정규화 후 발행)
 
 §3 와 달리 본 절의 코드는 **§1 적용 범위 밖**이다 — 클라이언트에 노출되지 않는 구현 내부 명칭이므로
@@ -83,6 +85,15 @@ public 코드는 우측 열이다 — 명명 정확성 향상을 위한 internal
 > [`14-external-interaction-api.md §6.4`](../5-system/14-external-interaction-api.md)). 그 엔진 레벨 코드는
 > `LEGACY_TO_NORMALIZED`(노드 출력 정규화) 의 관할이 **아니며** 본 절의 내부 분류 문자열과 레이어가 다르다.
 > (엔진 레벨 누적 타임아웃은 또 다른 코드 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 구분된다.)
+
+## 5. Rename 이력 (Retired codes)
+
+§2 의 안정성 정책은 rename 을 breaking change 로 규정한다. 그럼에도 아래 코드는 **소비자가 자사 클라이언트뿐**(프론트엔드가 구·신 코드를 양쪽 매핑)이라 breaking 영향이 없음을 확인한 뒤 교체했다. 구 코드는 더 이상 발행되지 않으며(코드베이스에서 완전 제거), 외부에 노출된 적이 없다. rename 배경 추적용 이력으로만 남긴다.
+
+| 구 코드 | 대체 코드 | HTTP | PR | 비고 |
+|---|---|---|---|---|
+| `LLM_CONFIG_NOT_FOUND` | `MODEL_CONFIG_DEFAULT_MISSING` | 400 | PR4b | id 미지정 시 워크스페이스 default config 부재 경로. id 부재(404)는 `MODEL_CONFIG_NOT_FOUND` 로 별도 분리 ([3-error-handling.md §1.3 Rationale](../5-system/3-error-handling.md#rationale)) |
+| `LLM_CONFIG_INVALID` | `MODEL_CONFIG_INVALID` | 400 | PR4b | 접두어를 `MODEL_CONFIG_*` 로 통일 (LLMConfig→ModelConfig 1급 통합). 의미·status 변경 없음 |
 
 ## Rationale
 

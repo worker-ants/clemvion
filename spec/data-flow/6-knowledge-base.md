@@ -41,7 +41,7 @@ sequenceDiagram
   participant Svc as KnowledgeBaseService
   participant PG as Postgres
 
-  C->>Svc: POST /api/knowledge-bases { name, embedding_model, chunk_size, chunk_overlap, rag_mode IN (vector/graph), extraction_llm_config_id?, embedding_model_config_id?, rerank_mode?, rerank_config_id?, rerank_candidate_k?, rerank_score_threshold?, rerank_llm_config_id? }
+  C->>Svc: POST /api/knowledge-bases { name, chunk_size, chunk_overlap, rag_mode IN (vector/graph), extraction_llm_config_id?, embedding_model_config_id?, rerank_mode?, rerank_config_id?, rerank_candidate_k?, rerank_score_threshold?, rerank_llm_config_id? }
   Svc->>PG: INSERT knowledge_base (workspace_id, ..., reembed_status='idle', rag_mode, reextract_status='idle', rerank_mode='off' 기본)
   Svc-->>C: 201 { kb }
 ```
@@ -127,9 +127,9 @@ sequenceDiagram
   제외** (`groupVectorKbs` 의 skip / `isGraphKbSearchable` false). NULL 은 "모델 변경 후
   미재임베딩 / KB 전체 재임베딩 진행 중" 상태로, 호출부(KB tool)는 이를 `not_searchable`
   신호로 LLM 에 노출한다 — SoT [RAG 검색 §2.2/§6](../5-system/9-rag-search.md).
-- vector KB 는 `(embedding_model, embedding_dimension, embedding_model_config_id)` 그룹 단위로
-  묶어 그룹별 1회 query 임베딩 + 병렬 검색한다. 같은 모델명이라도 ModelConfig endpoint 가 다르면
-  임베딩이 호환되지 않을 수 있어 그룹을 분리한다.
+- vector KB 는 `(embedding_model_config_id, embedding_dimension)` 그룹 단위로
+  묶어 그룹별 1회 query 임베딩 + 병렬 검색한다. 1급 config id 가 같으면 같은 모델·provider·차원이라
+  query 임베딩을 공유할 수 있고, 다르면 endpoint 호환성을 보장할 수 없어 그룹을 분리한다.
 - graph KB 는 `max_hops`/`vector_seed_top_k` 가 KB 마다 달라 KB 단위로 병렬 처리한다.
 
 ```mermaid
@@ -247,8 +247,8 @@ KB 저장 **전에** 모델/ModelConfig (kind=embedding) 조합의 실제 vector
 
 | Sink (table) | 흐름 | 핵심 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
-| `knowledge_base` | 생성 | `workspace_id, name, embedding_model, embedding_dimension?, chunk_size, chunk_overlap, document_count, reembed_status, rag_mode, extraction_llm_config_id?, embedding_model_config_id? (V091), max_hops, vector_seed_top_k, expanded_chunk_limit, entity_count, relation_count, reextract_status` + rerank 5컬럼 (V082): `rerank_mode IN (off/cross_encoder/cross_encoder_llm), rerank_config_id? (FK model_config kind=rerank SET NULL), rerank_candidate_k (1~200 CHECK), rerank_score_threshold?, rerank_llm_config_id? (FK model_config kind=chat SET NULL)` | FK CASCADE on `workspace_id` |
-| `knowledge_base` | 임베딩 완료 시 | UPDATE `embedding_dimension` (첫 batch 직후 race-free 조건부 UPDATE), `document_count` | NULL reset 경로 **2개**: ① KB 전체 재임베딩 CAS 진입 시 (V021) ② `PATCH /:id` 로 `embedding_model` 실제 변경 시. NULL 인 동안 해당 KB 는 검색 제외 (§1.3) |
+| `knowledge_base` | 생성 | `workspace_id, name, embedding_dimension?, chunk_size, chunk_overlap, document_count, reembed_status, rag_mode, extraction_llm_config_id?, embedding_model_config_id? (V091), max_hops, vector_seed_top_k, expanded_chunk_limit, entity_count, relation_count, reextract_status` + rerank 5컬럼 (V082): `rerank_mode IN (off/cross_encoder/cross_encoder_llm), rerank_config_id? (FK model_config kind=rerank SET NULL), rerank_candidate_k (1~200 CHECK), rerank_score_threshold?, rerank_llm_config_id? (FK model_config kind=chat SET NULL)` | FK CASCADE on `workspace_id` |
+| `knowledge_base` | 임베딩 완료 시 | UPDATE `embedding_dimension` (첫 batch 직후 race-free 조건부 UPDATE), `document_count` | NULL reset 경로 **2개**: ① KB 전체 재임베딩 CAS 진입 시 (V021) ② `PATCH /:id` 로 `embedding_model_config_id` 실제 변경 시(모델/차원이 달라질 수 있어 재탐지). NULL 인 동안 해당 KB 는 검색 제외 (§1.3) |
 | `model_config` (kind=rerank) | 리랭커 설정 (V081 → V090 흡수, 구 `rerank_config` 테이블은 V092 DROP) | `workspace_id, kind='rerank', provider, name, api_key? (셀프호스팅 tei 는 불요), base_url?, default_model, is_default` | `(workspace_id, kind)` 당 `is_default=TRUE` 최대 1개 (partial unique index). CRUD 는 `/api/model-configs?kind=rerank` (구 `/api/rerank-configs` alias 는 PR4 제거) |
 | `document` | 업로드 | INSERT `knowledge_base_id, name, file_type IN (txt/md/pdf/csv), file_url, file_size, embedding_status='pending', tags='{}', metadata={}` | FK CASCADE on `knowledge_base_id` |
 | `document` | 임베딩 라이프사이클 | UPDATE `embedding_status, embedding_retry_count, embedding_last_attempted_at, embedding_error_message, chunk_count` | V037 `embedding_status` CHECK 갱신, V039 legacy CHECK drop |
