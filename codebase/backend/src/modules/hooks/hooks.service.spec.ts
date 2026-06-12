@@ -618,6 +618,143 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
+    it('parseUpdate 성공 + execution 이 running (waiting_for_input 미도달) → executionStillRunning 안내 발송 + forwarding/새 execution 안 함 (CCH-CV-03 (b), R9)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'while running' },
+        idempotencyKey: '1003',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-running',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'running' });
+
+      const result = await service.handleWebhook('abc', chatInput);
+
+      // (b) — 인터랙션 forwarding 도, 새 execution 시작도 하지 않는다.
+      expect(interactionService.interact).not.toHaveBeenCalled();
+      expect(engine.execute).not.toHaveBeenCalled();
+      // executionStillRunning 안내를 채널로 발송.
+      expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationKey: 'chat-123',
+          body: expect.objectContaining({ kind: 'text' }),
+        }),
+        expect.anything(),
+      );
+      expect(result).toEqual({ executionId: 'ignored' });
+    });
+
+    it('CCH-CV-03 (b) — execution 이 pending 일 때도 running 과 동일 (안내 발송 + ignored)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'while pending' },
+        idempotencyKey: '1004',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-pending',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'pending' });
+
+      const result = await service.handleWebhook('abc', chatInput);
+
+      expect(interactionService.interact).not.toHaveBeenCalled();
+      expect(engine.execute).not.toHaveBeenCalled();
+      expect(mockAdapter.sendMessage).toHaveBeenCalled();
+      expect(result).toEqual({ executionId: 'ignored' });
+    });
+
+    it('getActiveExecutionStatus — execution status 조회 실패(DB 예외) 시 비활성 처리 → 새 execution 시작', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'after db error' },
+        idempotencyKey: '1005',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-stale',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockRejectedValueOnce(new Error('db error'));
+
+      await service.handleWebhook('abc', chatInput);
+
+      // 조회 실패 → null (비활성) → forwarding/안내 없이 새 execution 시작.
+      expect(interactionService.interact).not.toHaveBeenCalled();
+      expect(engine.execute).toHaveBeenCalled();
+    });
+
+    it('sendExecutionStillRunningNotice — sendMessage 실패해도 throw 없이 ignored 반환', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'notice fails' },
+        idempotencyKey: '1006',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-running',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'running' });
+      mockAdapter.sendMessage.mockRejectedValueOnce(new Error('network'));
+
+      const result = await service.handleWebhook('abc', chatInput);
+      expect(result).toEqual({ executionId: 'ignored' });
+    });
+
     it('§4.1 open_form_modal → adapter.openFormModal 호출 + interactionHttpResponse 반환 (discord-style)', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       const channelUpdate = {
