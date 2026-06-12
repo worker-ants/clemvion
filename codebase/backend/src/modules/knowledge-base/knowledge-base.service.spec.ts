@@ -99,6 +99,9 @@ describe('KnowledgeBaseService', () => {
     };
     mockModelConfigService = {
       findEntity: jest.fn(),
+      // attachEffectiveEmbeddingModel (응답 derive) 가 호출 — 기본은 빈 결과.
+      findManyByIds: jest.fn().mockResolvedValue([]),
+      findDefault: jest.fn().mockResolvedValue(null),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -132,6 +135,76 @@ describe('KnowledgeBaseService', () => {
       expect(result.pagination.page).toBe(1);
       expect(mockKbRepo.createQueryBuilder).toHaveBeenCalledWith('kb');
     });
+
+    // W6: findAll 배치 derive — embeddingModelConfigId 있음/null 혼합 KB 검증
+    it('W6: embeddingModelConfigId 있는 KB + null KB 혼합 시 각 embeddingModel 올바르게 derive', async () => {
+      const embCfg = {
+        id: 'cfg-1',
+        defaultModel: 'bge-m3',
+        workspaceId: 'ws-1',
+      };
+      const wsDefaultCfg = {
+        id: 'ws-default',
+        defaultModel: 'text-embedding-3-small',
+        workspaceId: 'ws-1',
+      };
+      const kbWithConfig = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        embeddingModelConfigId: 'cfg-1',
+      };
+      const kbWithoutConfig = {
+        id: 'kb-2',
+        workspaceId: 'ws-1',
+        embeddingModelConfigId: null,
+      };
+
+      const qbMock = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(2),
+        getMany: jest.fn().mockResolvedValue([kbWithConfig, kbWithoutConfig]),
+      };
+      mockKbRepo.createQueryBuilder.mockReturnValueOnce(qbMock);
+      mockModelConfigService.findManyByIds.mockResolvedValue([embCfg]);
+      mockModelConfigService.findDefault.mockResolvedValue(wsDefaultCfg);
+
+      const result = await service.findAll('ws-1', { page: 1, limit: 20 });
+
+      expect(result.data).toHaveLength(2);
+      // cfg 있는 KB → cfg.defaultModel
+      expect(result.data[0].embeddingModel).toBe('bge-m3');
+      // cfg 없는 KB → ws default kind=embedding
+      expect(result.data[1].embeddingModel).toBe('text-embedding-3-small');
+      // findManyByIds 는 configIds=[cfg-1] 로 호출
+      expect(mockModelConfigService.findManyByIds).toHaveBeenCalledWith(
+        ['cfg-1'],
+        'ws-1',
+      );
+    });
+
+    // W6: 빈 목록 시 findManyByIds · findDefault 미호출
+    it('W6: 빈 KB 목록 시 findManyByIds/findDefault 미호출', async () => {
+      const qbMock = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(0),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      mockKbRepo.createQueryBuilder.mockReturnValueOnce(qbMock);
+
+      const result = await service.findAll('ws-1', { page: 1, limit: 20 });
+
+      expect(result.data).toHaveLength(0);
+      expect(mockModelConfigService.findManyByIds).not.toHaveBeenCalled();
+      expect(mockModelConfigService.findDefault).not.toHaveBeenCalled();
+    });
   });
 
   describe('findById', () => {
@@ -163,9 +236,7 @@ describe('KnowledgeBaseService', () => {
         workspaceId: 'ws-1',
         name: 'New KB',
         description: undefined,
-        embeddingModel: 'text-embedding-3-small',
         embeddingModelConfigId: null,
-        embeddingLlmConfigId: null,
         chunkSize: 1000,
         chunkOverlap: 200,
         ragMode: 'vector',
@@ -183,9 +254,9 @@ describe('KnowledgeBaseService', () => {
       expect(result).toBeDefined();
     });
 
-    // WARNING #1: backend derives embeddingModel from config.defaultModel server-side —
-    // client-supplied embeddingModel is ignored when embeddingModelConfigId is set.
-    it('should resolve embeddingModel from config.defaultModel when embeddingModelConfigId is set (W1)', async () => {
+    // PR4b: embeddingModel 컬럼은 은퇴됐다. create 는 embeddingModelConfigId 만 저장하고,
+    // 지정 시 config 존재·kind 를 검증한다. embeddingModel 은 응답 직렬화 시 derive 된다.
+    it('validates the embedding config (findEntity) and stores only embeddingModelConfigId', async () => {
       const embCfg = {
         id: 'emb-cfg-1',
         defaultModel: 'bge-m3',
@@ -197,8 +268,6 @@ describe('KnowledgeBaseService', () => {
       await service.create('ws-1', {
         name: 'Embed KB',
         embeddingModelConfigId: 'emb-cfg-1',
-        // Client sends stale/wrong model — backend must override with config.defaultModel
-        embeddingModel: 'text-embedding-3-small',
       });
 
       expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
@@ -206,17 +275,14 @@ describe('KnowledgeBaseService', () => {
         'ws-1',
         'embedding',
       );
-      expect(mockKbRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          embeddingModel: 'bge-m3', // resolved from config, not client value
-          embeddingModelConfigId: 'emb-cfg-1',
-        }),
-      );
+      const createArg = mockKbRepo.create.mock.calls[0][0];
+      expect(createArg.embeddingModelConfigId).toBe('emb-cfg-1');
+      expect(createArg).not.toHaveProperty('embeddingModel');
     });
 
-    // WARNING #3: when client sends embeddingModelConfigId but no embeddingModel
-    // (e.g. race condition: list not loaded yet), backend still resolves correctly.
-    it('should resolve embeddingModel even when client omits it (W3)', async () => {
+    // PR4b: 응답 직렬화 시 derive 된 embeddingModel == config.defaultModel.
+    // W3: create 단건 경로 — findEntity 로 이미 로드한 config 를 재사용하므로 findManyByIds 미호출.
+    it('derives embeddingModel from config.defaultModel on the returned KB (W3: no findManyByIds re-query)', async () => {
       const embCfg = {
         id: 'emb-cfg-1',
         defaultModel: 'text-embedding-3-large',
@@ -224,19 +290,20 @@ describe('KnowledgeBaseService', () => {
         workspaceId: 'ws-1',
       };
       mockModelConfigService.findEntity.mockResolvedValue(embCfg);
+      mockKbRepo.save.mockImplementation((k: Record<string, unknown>) => ({
+        ...k,
+        id: 'kb-1',
+        embeddingModelConfigId: 'emb-cfg-1',
+      }));
 
-      await service.create('ws-1', {
+      const result = await service.create('ws-1', {
         name: 'Race KB',
         embeddingModelConfigId: 'emb-cfg-1',
-        // No embeddingModel in payload
       });
 
-      expect(mockKbRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          embeddingModel: 'text-embedding-3-large',
-          embeddingModelConfigId: 'emb-cfg-1',
-        }),
-      );
+      // W3: create 단건 경로는 findEntity 결과를 재사용해 findManyByIds 재조회를 피한다.
+      expect(mockModelConfigService.findManyByIds).not.toHaveBeenCalled();
+      expect(result.embeddingModel).toBe('text-embedding-3-large');
     });
 
     it('should propagate graph mode parameters', async () => {
@@ -257,20 +324,6 @@ describe('KnowledgeBaseService', () => {
           maxHops: 2,
           vectorSeedTopK: 7,
           expandedChunkLimit: 20,
-        }),
-      );
-    });
-
-    it('should propagate embeddingLlmConfigId when provided', async () => {
-      const dto = {
-        name: 'Custom Embed KB',
-        embeddingLlmConfigId: 'llm-cfg-emb',
-      };
-      await service.create('ws-1', dto);
-
-      expect(mockKbRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          embeddingLlmConfigId: 'llm-cfg-emb',
         }),
       );
     });
@@ -393,99 +446,25 @@ describe('KnowledgeBaseService', () => {
   });
 
   describe('update', () => {
-    it('should reset embeddingDimension when embeddingModel changes', async () => {
-      const existing = {
-        id: 'kb-1',
-        workspaceId: 'ws-1',
-        name: 'KB',
-        description: null,
-        embeddingModel: 'text-embedding-3-small',
-        embeddingDimension: 1536,
-        chunkSize: 1000,
-        chunkOverlap: 200,
-      };
-      mockKbRepo.findOne.mockResolvedValue(existing);
-      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
-
-      const result = await service.update('kb-1', 'ws-1', {
-        embeddingModel: 'text-embedding-3-large',
-      });
-
-      expect(result.embeddingModel).toBe('text-embedding-3-large');
-      // 새 모델 첫 임베딩이 차원을 다시 채울 때까지 NULL 로 둔다
-      expect(result.embeddingDimension).toBeNull();
-    });
-
-    it('should keep embeddingDimension intact when embeddingModel is unchanged', async () => {
-      const existing = {
-        id: 'kb-1',
-        workspaceId: 'ws-1',
-        name: 'KB',
-        description: null,
-        embeddingModel: 'text-embedding-3-small',
-        embeddingDimension: 1536,
-        chunkSize: 1000,
-        chunkOverlap: 200,
-      };
-      mockKbRepo.findOne.mockResolvedValue(existing);
-      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
-
-      const result = await service.update('kb-1', 'ws-1', {
-        embeddingModel: 'text-embedding-3-small',
-      });
-
-      expect(result.embeddingDimension).toBe(1536);
-    });
-
-    it('should set embeddingLlmConfigId when provided', async () => {
-      const existing = {
-        id: 'kb-1',
-        workspaceId: 'ws-1',
-        embeddingLlmConfigId: null,
-      };
-      mockKbRepo.findOne.mockResolvedValue(existing);
-      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
-
-      const result = await service.update('kb-1', 'ws-1', {
-        embeddingLlmConfigId: 'llm-cfg-emb',
-      });
-
-      expect(result.embeddingLlmConfigId).toBe('llm-cfg-emb');
-    });
-
-    it('should reset embeddingLlmConfigId to null (back to ws default)', async () => {
-      const existing = {
-        id: 'kb-1',
-        workspaceId: 'ws-1',
-        embeddingLlmConfigId: 'llm-cfg-emb',
-      };
-      mockKbRepo.findOne.mockResolvedValue(existing);
-      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
-
-      const result = await service.update('kb-1', 'ws-1', {
-        embeddingLlmConfigId: null,
-      });
-
-      expect(result.embeddingLlmConfigId).toBeNull();
-    });
-
-    // WARNING #2: backend derives embeddingModel from config.defaultModel on update.
-    it('should resolve embeddingModel from config.defaultModel when embeddingModelConfigId changes (W2)', async () => {
+    // PR4b: embeddingModel·embeddingLlmConfigId 컬럼은 은퇴됐다. 임베딩 변경은
+    // embeddingModelConfigId 로만 하며, config 검증 + dimension 리셋 + 응답 derive 가 일어난다.
+    it('validates config, resets dimension, derives embeddingModel when embeddingModelConfigId changes', async () => {
       const existing = {
         id: 'kb-1',
         workspaceId: 'ws-1',
         embeddingModelConfigId: 'emb-cfg-old',
-        embeddingModel: 'old-model',
         embeddingDimension: 1536,
       };
-      mockKbRepo.findOne.mockResolvedValue(existing);
-      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
-      mockModelConfigService.findEntity.mockResolvedValue({
+      const newCfg = {
         id: 'emb-cfg-new',
         defaultModel: 'bge-m3',
         kind: 'embedding',
         workspaceId: 'ws-1',
-      });
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
+      mockModelConfigService.findEntity.mockResolvedValue(newCfg);
+      mockModelConfigService.findManyByIds.mockResolvedValue([newCfg]);
 
       const result = await service.update('kb-1', 'ws-1', {
         embeddingModelConfigId: 'emb-cfg-new',
@@ -497,7 +476,8 @@ describe('KnowledgeBaseService', () => {
         'embedding',
       );
       expect(result.embeddingModelConfigId).toBe('emb-cfg-new');
-      expect(result.embeddingModel).toBe('bge-m3'); // synced from config.defaultModel
+      // 응답 derive: embeddingModel == 새 config.defaultModel
+      expect(result.embeddingModel).toBe('bge-m3');
       expect(result.embeddingDimension).toBeNull(); // reset for new config (W14)
     });
 
@@ -525,6 +505,42 @@ describe('KnowledgeBaseService', () => {
       expect(result.embeddingModelConfigId).toBe('emb-cfg-new');
       // 새 config 첫 임베딩이 차원을 다시 결정할 때까지 NULL 로 초기화
       expect(result.embeddingDimension).toBeNull();
+    });
+
+    // W7: embeddingModelConfigId: null 전달 → dimension 리셋 + ws default embedding derive
+    it('W7: embeddingModelConfigId: null 전달 → dimension 리셋 + ws default embedding derive + findEntity 미호출', async () => {
+      const existing = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        embeddingModelConfigId: 'emb-cfg-old',
+        embeddingDimension: 1536,
+      };
+      const wsDefaultCfg = {
+        id: 'ws-default-emb',
+        defaultModel: 'text-embedding-3-small',
+        kind: 'embedding',
+        workspaceId: 'ws-1',
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e: Record<string, unknown>) =>
+        Promise.resolve(e),
+      );
+      // null 전달 시 findEntity 호출 없음 — ws default 를 통해 derive
+      mockModelConfigService.findManyByIds.mockResolvedValue([]);
+      mockModelConfigService.findDefault.mockResolvedValue(wsDefaultCfg);
+
+      const result = await service.update('kb-1', 'ws-1', {
+        embeddingModelConfigId: null,
+      });
+
+      // null 전달 → findEntity 검증 없음 (id 없으므로)
+      expect(mockModelConfigService.findEntity).not.toHaveBeenCalled();
+      // dimension 리셋 — 새 config(ws default) 첫 임베딩 시 차원 재결정
+      expect(result.embeddingDimension).toBeNull();
+      // embeddingModelConfigId → null
+      expect(result.embeddingModelConfigId).toBeNull();
+      // ws default kind=embedding 으로 embeddingModel derive
+      expect(result.embeddingModel).toBe('text-embedding-3-small');
     });
 
     it('should NOT reset embeddingDimension when embeddingModelConfigId is the same (W14)', async () => {

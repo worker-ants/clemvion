@@ -90,6 +90,7 @@ export class KnowledgeBaseService {
       .take(limit)
       .getMany();
 
+    await this.attachEffectiveEmbeddingModel(data, workspaceId);
     return PaginatedResponseDto.create(data, totalItems, page, limit);
   }
 
@@ -103,34 +104,68 @@ export class KnowledgeBaseService {
         message: 'Knowledge base not found',
       });
     }
+    await this.attachEffectiveEmbeddingModel([kb], workspaceId);
     return kb;
+  }
+
+  /**
+   * 응답 직렬화용 transient `embeddingModel`(유효 임베딩 모델 문자열)을 채운다 (N+1 회피 배치).
+   * embeddingModelConfigId → config.defaultModel, 미지정 KB 는 워크스페이스 default kind=embedding,
+   * 둘 다 없으면 빈 문자열.
+   *
+   * @param kbs - embeddingModel 을 채울 KnowledgeBase 인스턴스 배열 (인라인 뮤테이션).
+   * @param workspaceId - 조회 범위를 격리할 워크스페이스 ID.
+   * @throws 절대 throw 하지 않는다 (soft resolve). config 미존재 시 빈 문자열로 대체.
+   */
+  private async attachEffectiveEmbeddingModel(
+    kbs: KnowledgeBase[],
+    workspaceId: string,
+  ): Promise<void> {
+    if (kbs.length === 0) return;
+    const configIds = [
+      ...new Set(
+        kbs
+          .map((k) => k.embeddingModelConfigId)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    const configs = await this.modelConfigService.findManyByIds(
+      configIds,
+      workspaceId,
+    );
+    const modelByConfigId = new Map(configs.map((c) => [c.id, c.defaultModel]));
+    const needsWsDefault = kbs.some((k) => !k.embeddingModelConfigId);
+    const wsDefaultEmbedding = needsWsDefault
+      ? await this.modelConfigService.findDefault(workspaceId, 'embedding')
+      : null;
+    for (const kb of kbs) {
+      kb.embeddingModel = kb.embeddingModelConfigId
+        ? (modelByConfigId.get(kb.embeddingModelConfigId) ?? '')
+        : (wsDefaultEmbedding?.defaultModel ?? '');
+    }
   }
 
   async create(
     workspaceId: string,
     dto: CreateKnowledgeBaseDto,
   ): Promise<KnowledgeBase> {
-    // WARNING #1: backend is authoritative for embeddingModel when embeddingModelConfigId is set.
-    // Load the config server-side so KB.embeddingModel always matches config.defaultModel —
-    // the client cannot supply a stale/missing embeddingModel (race at create time, WARNING #3).
-    let resolvedEmbeddingModel: string =
-      dto.embeddingModel || 'text-embedding-3-small';
+    // 임베딩 모델·provider·차원은 참조된 1급 ModelConfig(kind=embedding) 가 소유한다.
+    // 지정 시 존재·kind 를 서버에서 검증해 잘못된 id 를 조기에 거른다(embed 시점이 아닌 생성 시점).
+    // W3: 이미 로드한 config 를 저장해 save 이후 재조회를 피한다.
+    let embeddingConfig: { defaultModel: string } | null = null;
     if (dto.embeddingModelConfigId) {
-      const embCfg = await this.modelConfigService.findEntity(
+      embeddingConfig = await this.modelConfigService.findEntity(
         dto.embeddingModelConfigId,
         workspaceId,
         'embedding',
       );
-      resolvedEmbeddingModel = embCfg.defaultModel;
     }
 
     const kb = this.kbRepository.create({
       workspaceId,
       name: dto.name,
       description: dto.description || undefined,
-      embeddingModel: resolvedEmbeddingModel,
       embeddingModelConfigId: dto.embeddingModelConfigId ?? null,
-      embeddingLlmConfigId: dto.embeddingLlmConfigId ?? null,
       chunkSize: dto.chunkSize || 1000,
       chunkOverlap: dto.chunkOverlap || 200,
       ragMode: dto.ragMode || 'vector',
@@ -145,7 +180,16 @@ export class KnowledgeBaseService {
       rerankScoreThreshold: dto.rerankScoreThreshold ?? null,
       rerankLlmConfigId: dto.rerankLlmConfigId ?? null,
     });
-    return this.kbRepository.save(kb);
+    const saved = await this.kbRepository.save(kb);
+    // W3: create 단건 경로 — findEntity 로 이미 config 를 로드했으면 재조회 불요.
+    // embeddingModelConfigId 가 있으면 위에서 검증한 config 의 defaultModel 을 직접 세팅,
+    // 없으면 ws default kind=embedding 을 한 번만 조회한다.
+    if (dto.embeddingModelConfigId && embeddingConfig) {
+      saved.embeddingModel = embeddingConfig.defaultModel;
+    } else {
+      await this.attachEffectiveEmbeddingModel([saved], workspaceId);
+    }
+    return saved;
   }
 
   async update(
@@ -158,44 +202,28 @@ export class KnowledgeBaseService {
     if (dto.description !== undefined) kb.description = dto.description;
     if (dto.chunkSize !== undefined) kb.chunkSize = dto.chunkSize;
     if (dto.chunkOverlap !== undefined) kb.chunkOverlap = dto.chunkOverlap;
-    if (
-      dto.embeddingModel !== undefined &&
-      dto.embeddingModel !== kb.embeddingModel
-    ) {
-      // 모델이 실제로 바뀌면 차원도 새 모델 첫 임베딩으로 다시 결정해야 한다.
-      // dimension 을 미리 NULL 로 초기화해 두면, 재임베딩 전 신규 문서 업로드가
-      // 들어와도 EmbeddingService 가 새 모델 차원으로 자연스럽게 채울 수 있다.
-      kb.embeddingModel = dto.embeddingModel;
-      kb.embeddingDimension = null;
-    }
     // graph 검색 파라미터 / 추출 LLMConfig 는 검색 시점에 적용되므로 갱신만 한다.
     if (dto.extractionLlmConfigId !== undefined) {
       kb.extractionLlmConfigId = dto.extractionLlmConfigId;
     }
-    // 임베딩 LLMConfig 는 다음 임베딩부터 적용. 차원이 달라지면 첫 임베딩에서
-    // dimension mismatch 가 throw 되므로 사용자가 KB 재임베딩을 트리거하면 된다.
-    // (사전 안내는 frontend EmbeddingTestButton 의 인라인 경고가 담당.)
-    if (dto.embeddingLlmConfigId !== undefined) {
-      kb.embeddingLlmConfigId = dto.embeddingLlmConfigId;
-    }
-    // WARNING #2: backend is authoritative for embeddingModel when embeddingModelConfigId changes.
-    // Load config server-side so KB.embeddingModel stays in sync with config.defaultModel —
-    // client may not send embeddingModel on update. Also reset dimension (embeddingModel change
-    // or new config → first embed will re-detect dimension).
+    // 임베딩 1급 config 변경 — 다음 임베딩부터 적용. 모델/차원이 달라지면 첫 임베딩에서
+    // dimension mismatch 가 throw 되므로 dimension 을 미리 NULL 로 초기화해 재탐지하게 한다.
+    // (사전 안내는 frontend EmbeddingTestButton 의 인라인 경고가 담당.) 지정 시 config 존재·kind 검증.
+    // W3: update 단건 경로 — findEntity 로 이미 config 를 로드했으면 재조회 불요.
+    let updatedEmbeddingConfig: { defaultModel: string } | null = null;
     if (
       dto.embeddingModelConfigId !== undefined &&
       dto.embeddingModelConfigId !== kb.embeddingModelConfigId
     ) {
-      kb.embeddingModelConfigId = dto.embeddingModelConfigId;
-      kb.embeddingDimension = null;
       if (dto.embeddingModelConfigId) {
-        const embCfg = await this.modelConfigService.findEntity(
+        updatedEmbeddingConfig = await this.modelConfigService.findEntity(
           dto.embeddingModelConfigId,
           workspaceId,
           'embedding',
         );
-        kb.embeddingModel = embCfg.defaultModel;
       }
+      kb.embeddingModelConfigId = dto.embeddingModelConfigId;
+      kb.embeddingDimension = null;
     }
     if (dto.maxHops !== undefined) kb.maxHops = dto.maxHops;
     if (dto.vectorSeedTopK !== undefined)
@@ -213,7 +241,19 @@ export class KnowledgeBaseService {
       kb.rerankScoreThreshold = dto.rerankScoreThreshold;
     if (dto.rerankLlmConfigId !== undefined)
       kb.rerankLlmConfigId = dto.rerankLlmConfigId;
-    return this.kbRepository.save(kb);
+    const saved = await this.kbRepository.save(kb);
+    // W3: update 단건 경로 — embeddingModelConfigId 가 변경됐으면 이미 로드한 config 로 직접 세팅.
+    // 변경되지 않은 경우(null→null, 또는 undefined 전달) 에도 기존 embeddingModelConfigId 를 기반으로 derive.
+    if (
+      dto.embeddingModelConfigId !== undefined &&
+      dto.embeddingModelConfigId !== null &&
+      updatedEmbeddingConfig
+    ) {
+      saved.embeddingModel = updatedEmbeddingConfig.defaultModel;
+    } else {
+      await this.attachEffectiveEmbeddingModel([saved], workspaceId);
+    }
+    return saved;
   }
 
   // ── Embedding probe ──

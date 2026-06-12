@@ -158,7 +158,7 @@ describe('LlmPreviewService', () => {
         }),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
-          code: 'LLM_CONFIG_INVALID',
+          code: 'MODEL_CONFIG_INVALID',
           message: expect.stringContaining('resolves to a private'),
         }),
       });
@@ -405,7 +405,7 @@ describe('LlmPreviewService', () => {
         service.previewModels({ provider: 'azure', apiKey: 'k' }),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
-          code: 'LLM_CONFIG_INVALID',
+          code: 'MODEL_CONFIG_INVALID',
           message: 'Azure OpenAI requires a base URL (deployment endpoint)',
         }),
       });

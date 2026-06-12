@@ -47,7 +47,8 @@ code:
 | `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트 부재 — `X-Workspace-Id` 헤더와 JWT `workspaceId` 둘 다 없음 (`common/decorators/workspace.decorator.ts` 발행) | 400 |
 | `MODEL_CONFIG_INVALID` | ModelConfig 입력 검증 실패 — 알 수 없는 `kind`, 필수 provider 의 apiKey 누락, 사설망/loopback baseUrl(SSRF 가드, tei/local 외) 등 (`model-config.service.ts`·`model-config.controller.ts` 발행) | 400 |
 | `RESOURCE_NOT_FOUND` | 리소스 없음 | 404 |
-| `MODEL_CONFIG_NOT_FOUND` | 지정 id 의 ModelConfig 부재 또는 cross-kind 접근 차단(존재 누설 방지), default 해석 실패 — `RESOURCE_NOT_FOUND` 의 ModelConfig 특화 코드 (`model-config.service.ts` 발행) | 404 |
+| `MODEL_CONFIG_NOT_FOUND` | 지정 id 의 ModelConfig 부재 또는 cross-kind 접근 차단(존재 누설 방지) — id 지정 경로 + `resolveEmbedding` 의 ws-default 부재(KB 임베딩 config 부재 = 리소스 부재). `RESOURCE_NOT_FOUND` 의 ModelConfig 특화 코드 (`model-config.service.ts` 발행) | 404 |
+| `MODEL_CONFIG_DEFAULT_MISSING` | id 미지정 시 워크스페이스 default config 없음(setup 안내용) — `resolveConfig` 의 ws default(chat/LLM) 경로 전용. `resolveEmbedding` 의 ws-default 부재는 `MODEL_CONFIG_NOT_FOUND`(404) 를 사용한다(임베딩 config 부재 = 리소스 부재, setup 안내와 구분; 사용자 결정 2026-06-12) (`model-config.service.ts` 발행) | 400 |
 | `RESOURCE_CONFLICT` | 리소스 충돌 (이름 중복 등) | 409 |
 | `DUPLICATE_NODE_LABEL` | 노드 라벨 중복 — `RESOURCE_CONFLICT` 의 노드 라벨 특화 코드 (`nodes.service.ts`·캔버스 bulk save 경로의 `workflows.service.ts` 발행) | 409 |
 | `WORKFLOW_VERSION_CONFLICT` | 동시 캔버스 저장 경합 — 동일 워크플로우 버전 번호 unique 위반을 감지해 재시도 권고와 함께 반환 (`workflow-versions.service.ts` 발행) | 409 |
@@ -392,3 +393,15 @@ GET /api/health
 > 큐 적체 상태를 보여주는 시스템 상태 API(`/api/system-status/overview`)는 "처리 중이나 적체(degraded)" 와
 > "처리 정지(down)" 를 구분할 가치가 있어 별도 어휘 `healthy/degraded/down` 을 사용한다 — 근거는
 > [16-system-status-api.md Rationale R-4](./16-system-status-api.md#r-4-health-어휘를-healthydegradeddown-으로-둔-이유).
+
+## Rationale
+
+- **`MODEL_CONFIG_NOT_FOUND`(404) 와 `MODEL_CONFIG_DEFAULT_MISSING`(400) 분리 (PR4b)**: 구 단일 코드는
+  id 지정 경로의 "지정 config 부재"(404)와 id 미지정 경로의 "워크스페이스 default 미설정"(400)을 한
+  코드로 묶어 동일 코드가 404/400 두 status 를 갖는 모호성이 있었다. id 경로는 `MODEL_CONFIG_NOT_FOUND`(404,
+  존재 누설 방지 — cross-kind 접근도 동일 코드)로 한정하고, default 미설정은 setup 을 안내하는 별도
+  `MODEL_CONFIG_DEFAULT_MISSING`(400)로 분리해 status 일관성과 클라이언트 분기 명확성을 확보했다.
+  `resolveEmbedding` 의 ws-default 부재는 `MODEL_CONFIG_DEFAULT_MISSING`(400) 이 아닌 `MODEL_CONFIG_NOT_FOUND`(404)
+  를 유지한다. KB 임베딩 해석 실패는 "setup 미완료 안내"가 아니라 "이 자원을 현재 resolve 할 수 없음" 으로
+  취급하는 것이 의미적으로 더 정확하기 때문이다. setup 안내(400, `MODEL_CONFIG_DEFAULT_MISSING`)는 chat/LLM
+  default 경로(`resolveConfig`)에서만 발행한다 (사용자 결정 2026-06-12).

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-12T00:23:39.840445",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=PR4b — KB 임베딩 legacy 컬럼 은퇴 + 에러코드 통일. 검토 대상: (1) V093 repoint 마이그레이션(embedding_model_config_id IS NULL 인 모든 KB를 creds 출처 우선순위 embedding_llm_config_id→ws default chat→ws default embedding 로 찾아 kind=embedding ModelConfig find-or-create 후 pin, fail-loud RAISE), (2) V094 DROP embedding_llm_config_id+embedding_model 컬럼(비가역), (3) resolveEmbedding step-3 legacy 폴백 제거 + KB 엔티티/DTO legacy 필드 제거, (4) 에러코드 LLM_CONFIG_NOT_FOUND→MODEL_CONFIG_NOT_FOUND(HTTP 400 유지)·LLM_CONFIG_INVALID→MODEL_CONFIG_INVALID. 관련 spec: spec/1-data-model.md, spec/2-navigation/5-knowledge-base.md, spec/2-navigation/6-config.md, spec/5-system/8-embedding-pipeline.md, spec/5-system/3-error-handling.md. plan: plan/in-progress/unified-model-management-pr4b-kb-embedding-retire.md. 특히 마이그레이션 버전 충돌(V093/V094 append-only), Rationale 연속성(V091 점진적 전환→repoint 완결), 비가역 DROP 안전성, 에러코드 컨벤션 준수를 봐달라.)",
+  "target_path": "PR4b — KB 임베딩 legacy 컬럼 은퇴 + 에러코드 통일. 검토 대상: (1) V093 repoint 마이그레이션(embedding_model_config_id IS NULL 인 모든 KB를 creds 출처 우선순위 embedding_llm_config_id→ws default chat→ws default embedding 로 찾아 kind=embedding ModelConfig find-or-create 후 pin, fail-loud RAISE), (2) V094 DROP embedding_llm_config_id+embedding_model 컬럼(비가역), (3) resolveEmbedding step-3 legacy 폴백 제거 + KB 엔티티/DTO legacy 필드 제거, (4) 에러코드 LLM_CONFIG_NOT_FOUND→MODEL_CONFIG_NOT_FOUND(HTTP 400 유지)·LLM_CONFIG_INVALID→MODEL_CONFIG_INVALID. 관련 spec: spec/1-data-model.md, spec/2-navigation/5-knowledge-base.md, spec/2-navigation/6-config.md, spec/5-system/8-embedding-pipeline.md, spec/5-system/3-error-handling.md. plan: plan/in-progress/unified-model-management-pr4b-kb-embedding-retire.md. 특히 마이그레이션 버전 충돌(V093/V094 append-only), Rationale 연속성(V091 점진적 전환→repoint 완결), 비가역 DROP 안전성, 에러코드 컨벤션 준수를 봐달라.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

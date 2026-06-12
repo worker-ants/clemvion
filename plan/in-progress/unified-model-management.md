@@ -181,7 +181,7 @@ related_plan:
     - [x] **PR-C** ModelConfigManager SRP 분리 + 모달 focus-trap — `model-config-manager-refactor-followup.md` → complete. `refactor e9d27bbc`(564→258 LOC, Dialog/ConfirmModal/hook/validator 분리) + `87bb8dbe`(리뷰 9/9 fix). review 09_49_17 Critical0/W9→fix, `--impl-done`(10_07_47) BLOCK:NO.
 - [x] origin/main 통합(merge 783d1095) + semantic 검토 — textual conflict 0, 의미문제 3건 fix(dead link·floating promise·audit tense). e2e 188.
 - [x] **PR4a** cleanup (별 브랜치 `claude/unified-model-mgmt-pr4`, #541 위 stack) — alias 제거 + frontend 마이그레이션 + V092 `DROP rerank_config`. review 21_05_46 Critical0/W9→fix(761667c6), `--impl-done`(21_29_31) BLOCK:NO. lint·unit·build·e2e(188) 통과.
-- [ ] **PR4b** KB legacy 임베딩 은퇴 (repoint 데이터 마이그레이션 + 컬럼 DROP) — 별 PR, 미착수.
+- [x] **PR4b** KB legacy 임베딩 은퇴 (repoint 데이터 마이그레이션 + 컬럼 DROP + 에러코드 통일) — 별 PR `claude/pr4b-kb-embedding-retire`. V093 repoint(fail-loud RAISE) + V094 DROP(비가역, lock_timeout 3s) + resolveEmbedding 2-step + LLM_CONFIG_*→MODEL_CONFIG_* 통일. review 10_11_22 Critical0(전부 false positive 검증)/W-10·11·12 fix, consistency 10_37_05 BLOCK:NO. lint·unit 전체 PASS, e2e(188, 이전 full run). `--impl-done`.
 
 ## 7. PR1 /ai-review 후속 — 보류·후속 항목 (PR3/PR4 트리거)
 

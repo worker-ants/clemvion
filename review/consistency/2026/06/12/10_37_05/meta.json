@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-12T10:37:05.789225",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "/Volumes/project/private/clemvion/.claude/worktrees/pr4b-kb-embedding-retire/plan/in-progress/spec-fix-error-code-routing.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

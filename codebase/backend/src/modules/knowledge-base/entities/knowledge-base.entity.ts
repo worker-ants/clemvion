@@ -29,13 +29,6 @@ export class KnowledgeBase {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({
-    name: 'embedding_model',
-    length: 100,
-    default: 'text-embedding-3-small',
-  })
-  embeddingModel: string;
-
   @Column({ name: 'embedding_dimension', type: 'int', nullable: true })
   embeddingDimension: number | null;
 
@@ -61,17 +54,21 @@ export class KnowledgeBase {
   @Column({ name: 'extraction_llm_config_id', type: 'uuid', nullable: true })
   extractionLlmConfigId: string | null;
 
-  // 임베딩에 사용할 1급 ModelConfig(kind=embedding) `(V091)`. NULL 이면 워크스페이스
-  // default kind=embedding → (그것도 없으면) 아래 legacy 폴백 순으로 resolve.
-  // 모델 식별자·provider·차원은 참조된 ModelConfig 가 소유 (embed 시 config.defaultModel 사용).
+  // 임베딩에 사용할 1급 ModelConfig(kind=embedding). NULL 이면 워크스페이스 default
+  // kind=embedding 으로 resolve (resolveEmbedding step-2). 모델 식별자·provider·차원은
+  // 참조된 ModelConfig 가 소유 (embed 시 config.defaultModel 사용). 기존 KB 는 V093 repoint 로 고정.
   @Column({ name: 'embedding_model_config_id', type: 'uuid', nullable: true })
   embeddingModelConfigId: string | null;
 
-  // [LEGACY — PR4(V092)에서 제거 예정] 구 piggyback 경로. embedding_model_config_id 와
-  // 워크스페이스 default kind=embedding 가 모두 없을 때만 폴백으로 쓰인다
-  // (embedding_llm_config_id 가 가리키는 config + embedding_model 문자열로 embed).
-  @Column({ name: 'embedding_llm_config_id', type: 'uuid', nullable: true })
-  embeddingLlmConfigId: string | null;
+  /**
+   * @Transient — DB 컬럼 없음(@Column 미선언). TypeORM save() 시 이 필드는 영속되지 않는다.
+   * V094(PR4b)에서 영속 컬럼 embedding_model 을 DROP 했으므로 저장 불가·불요.
+   *
+   * 값 보장: `attachEffectiveEmbeddingModel` 통과 후에만 채워진다.
+   * `kbRepository.findOne` 등 직접 조회 결과를 외부로 노출하면 undefined 일 수 있다.
+   * 항상 `findById` / `findAll` / `create` / `update` 경로(service 메서드)를 통해 접근할 것.
+   */
+  embeddingModel?: string;
 
   // graph 검색 시 그래프 확장 깊이 (1 또는 2). vector 모드에서는 무시.
   @Column({ name: 'max_hops', type: 'int', default: 1 })

@@ -36,7 +36,7 @@ export class LlmPreviewService {
     if (params.baseUrl && params.provider !== 'local') {
       if (isPrivateHost(params.baseUrl)) {
         throw new BadRequestException({
-          code: 'LLM_CONFIG_INVALID',
+          code: 'MODEL_CONFIG_INVALID',
           message:
             'Private/loopback addresses are only allowed for the local provider.',
         });
@@ -45,7 +45,7 @@ export class LlmPreviewService {
       // 2차 (connect 시점 TTL 재해석) 는 egress 방화벽 필요 (spec §5.5).
       if (await resolvesToPrivate(params.baseUrl)) {
         throw new BadRequestException({
-          code: 'LLM_CONFIG_INVALID',
+          code: 'MODEL_CONFIG_INVALID',
           message:
             'Hostname resolves to a private/loopback address; only the local provider may target such hosts.',
         });
@@ -66,7 +66,7 @@ export class LlmPreviewService {
       const raw = error instanceof Error ? error.message : String(error);
       this.logger.warn(`LLM preview client init failed: ${raw}`);
       throw new BadRequestException({
-        code: 'LLM_CONFIG_INVALID',
+        code: 'MODEL_CONFIG_INVALID',
         message: raw,
       });
     }

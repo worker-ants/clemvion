@@ -353,7 +353,7 @@ export class LlmService {
     );
     if (!defaultConfig) {
       throw new BadRequestException({
-        code: 'LLM_CONFIG_NOT_FOUND',
+        code: 'MODEL_CONFIG_DEFAULT_MISSING',
         // workspace 어긋남 / 기본값 미설정 / context 누락 을 사용자가 직접
         // 식별할 수 있도록 workspaceId 를 메시지·payload 에 포함한다.
         message: workspaceId

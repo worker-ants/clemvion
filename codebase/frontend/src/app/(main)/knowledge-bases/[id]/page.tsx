@@ -269,8 +269,6 @@ export default function KnowledgeBaseDetailPage({
   type KbUpdatePayload = {
     name?: string;
     description?: string;
-    embeddingModel?: string;
-    embeddingLlmConfigId?: string | null;
     embeddingModelConfigId?: string | null;
     chunkSize?: number;
     chunkOverlap?: number;
