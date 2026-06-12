@@ -2,6 +2,12 @@
 worktree: code-node-isolated-vm
 started: 2026-06-11
 owner: developer
+completed: 2026-06-12
+spec_impact:
+  - spec/4-nodes/5-data/2-code.md
+  - spec/4-nodes/0-overview.md
+  - spec/5-system/3-error-handling.md
+  - spec/conventions/chat-channel-adapter.md
 ---
 
 # P0 — code 노드 `isolated-vm` 전환 (refactor 04 C-2, M-2 흡수)
