@@ -569,7 +569,7 @@ Refresh 쿠키의 `Domain` 속성은 운영자 env 가 아니라 `FRONTEND_URL`/
 
 ### 2.3.B — Refresh 쿠키 SameSite·CSRF 와 클라이언트 IP 신뢰 (refactor 04 M-5·m-3)
 
-**SameSite (M-5).** Refresh 쿠키의 `SameSite` 는 `COOKIE_SAMESITE` env 로 분리하며 기본 `none` 이다. 본 제품은 프론트와 API 가 사이트 경계(eTLD+1)를 달리하는 cross-site 배포를 지원하는데, 이 토폴로지에서는 `lax`/`strict` 면 refresh 쿠키가 cross-site 요청에 첨부되지 않아 세션이 끊긴다. 따라서 무중단 기본값은 `none` 이고, 동일 사이트 배포만 `lax`(또는 `strict`)로 하드닝한다. (web-chat 위젯 등 임베드는 Bearer EIA 토큰을 쓰고 refresh 쿠키에 의존하지 않으므로 None 요구의 주체가 아니다.)
+**SameSite (M-5).** Refresh 쿠키의 `SameSite` 는 `COOKIE_SAMESITE` env 로 분리하며 기본 `none` 이다. 본 제품은 프론트와 API 가 사이트 경계(eTLD+1)를 달리하는 cross-site 배포를 지원하는데, 이 토폴로지에서는 `lax`/`strict` 면 refresh 쿠키가 cross-site 요청에 첨부되지 않아 세션이 끊긴다. 따라서 무중단 기본값은 `none` 이고, 동일 사이트 배포만 `lax`(또는 `strict`)로 하드닝한다. (web-chat 위젯 등 임베드는 Bearer EIA 토큰을 쓰고 refresh 쿠키에 의존하지 않으므로 None 요구의 주체가 아니다.) **기각된 대안**: "기본 `Lax` + cross-site 배포만 `none` opt-in" 원안 — cross-site(eTLD+1 분리) 배포가 실사용 중임이 확인되어, `Lax` 기본은 그 배포에서 첫 refresh 부터 세션이 끊긴다. 무중단을 우선해 `none` 기본을 채택하고 CSRF 는 Origin 검증으로 보완했다.
 
 **`none` 모드의 CSRF 보완 (M-5).** `SameSite=none` 은 cross-site 요청에 쿠키를 자동 첨부하므로 `/auth/refresh` 에 강제 refresh CSRF 가 성립할 수 있다. 다만 (a) refresh 쿠키는 `/auth/refresh` 한 곳에서만 쓰이고 다른 엔드포인트는 모두 Bearer access token 기반이라 쿠키 CSRF 면역이며, (b) credentials CORS allowlist 가 cross-site 출처의 **응답 읽기**를 이미 차단한다. 따라서 CSRF 토큰 인프라(double-submit 등)를 신설하는 대신, `/auth/refresh` 가 요청 `Origin` 을 기존 CORS allowlist(`isOriginAllowed`)와 대조해 allowlist 외·불투명(`'null'`, sandbox iframe 등) Origin 을 `403` 으로 선차단하는 defense-in-depth 를 둔다. Origin 부재(same-origin·non-browser 도구)는 통과한다 — 프론트 변경·토큰 발급 인프라가 불필요하다. cookie `Path` 를 `/api/auth` 로 한정해 쿠키 첨부 표면도 축소한다(`set`/`clear` 동일 Path 필수).
 
