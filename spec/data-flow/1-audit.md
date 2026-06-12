@@ -47,7 +47,7 @@ sequenceDiagram
 | 〃 | `integration.deleted` | integration | 삭제 |
 | 〃 | `integration.rotated` | integration | credential 회전 |
 | 〃 | `integration.scope_changed` | integration | OAuth scope 변경 |
-| 〃 | `integration.reauthorized` | integration | 재인가 |
+| 〃 | `integration.reauthorized` | integration | 재인가 — **OAuth provider 없는 통합의 reset 경로 전용** (`details.mode='reset'`). OAuth 통합 재인증은 `oauth/begin` 위임이라 begin·callback 어디서도 미기록 (커버리지 갭, [4-integration §14.3](../2-navigation/4-integration.md)) |
 | `workspaces/workspaces.service.ts` | `workspace.transfer_ownership` | workspace | 소유권 이전 |
 | `executions/executions.service.ts` | `execution.re_run` | execution | 재실행. details 에 `originalExecutionId`·`chainId`·`dryRun`·`inputModified` |
 | `auth-configs/auth-configs.service.ts` | `auth_config.create` | auth_config | 생성 |
@@ -66,7 +66,7 @@ sequenceDiagram
   강제돼 인라인 임의 문자열을 막는다 (cross-audit G-01, → [Rationale](#rationale)).
 - **커버리지 갭**: [인증 spec §4.1](../5-system/1-auth.md) 이 기록 대상으로 약속한
   `workflow.*` / `trigger.*` / `member.*` / `schedule.*` / `workspace.create·update·delete` /
-  `model_config.*`(create/update/delete/set-default — 구 `llm_config.*`/`rerank_config.*` 통합) / 인증(password_change 등) 액션은 **모두 미구현**이다 —
+  `model_config.*`(create/update/delete/set-default — 구 `llm_config.*`/`rerank_config.*` 통합) / 인증(`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled`) 액션은 **모두 미구현**이다 —
   workflows / triggers / alerts / schedules 모듈에는 `AuditLogsService` import 가 전혀 없다.
   spec §4.1 표는 목표 커버리지, 위 9종 표가 현재 구현이다.
 
