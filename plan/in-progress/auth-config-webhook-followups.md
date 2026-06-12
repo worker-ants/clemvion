@@ -34,7 +34,9 @@ status: in-progress
 - 테스트: 각 메서드 audit mock 검증.
 - spec frontmatter: 본 PR 에서 `12-webhook.md`·`6-config.md` 를 `implemented` 격상 시 본 갭이 `partial` 사유가 될 수 있음 — 등재 필요.
 
-## 2. chatChannel 트리거 + isActive=false 처리 순서 (review C2)
+## 2. chatChannel 트리거 + isActive=false 처리 순서 (review C2) — ✅ 해소됨 (2026-06-12)
+
+> **해소 확인 (2026-06-12, chat-channel-gaps PR)**: 현재 코드는 `config.chatChannel` 분기가 `!isActive` 410 검사보다 먼저 실행되고, `handleChatChannelWebhook` 이 `verify()` 후 `!isActive` 시 202 `{ executionId: 'ignored' }` 로 단락한다 — 본 항목이 우려한 동작이 이미 구현·spec(§5.5 / R-CC-12 (d)) 일치. 별도 작업 불요. (`spec-sync-chat-channel-gaps.md §5.5` 에서 동시 종결.)
 
 `hooks.service.handleWebhook` 의 `isActive=false → 410` 체크가 chatChannel 분기보다 먼저 실행돼, `config.chatChannel` 비활성 트리거가 `spec/5-system/12-webhook.md §7 step 5` 의 "202 + { ignored: true }" 대신 410 을 반환한다.
 

@@ -189,7 +189,9 @@ export class HooksService {
    * 1. provider 별 adapter 조회
    * 2. (Telegram) X-Telegram-Bot-Api-Secret-Token 헤더 검증
    * 3. adapter.parseUpdate(rawBody) — null 이면 202 ignored 즉시 반환
-   * 4. ChannelConversation 조회 — 활성 execution + waiting_for_input 이면 interact() in-process 호출
+   * 4. ChannelConversation 조회 — execution 상태별 분기 (CCH-CV-03): (a) waiting_for_input →
+   *    interact() in-process 호출, (b) running/pending → executionStillRunning 안내 + ignored
+   *    (대기 큐 미적재, R9), (c) terminal/없음 → 새 execution 시작
    *    그 외에는 새 execution 시작 (또는 /cancel 명령 처리)
    * 5. ackInteraction (button_callback 등)
    *
@@ -291,8 +293,16 @@ export class HooksService {
       trigger.id,
       update.conversationKey,
     );
+    // 비-terminal execution 의 status (없거나 terminal 이면 null). CCH-CV-03 은
+    // waiting_for_input (인터랙션 forwarding) 과 running/pending (안내+무시) 을 구분한다.
+    const activeStatus = state?.executionId
+      ? await this.getActiveExecutionStatus(state.executionId)
+      : null;
+    // `state?.executionId != null` 를 첫 operand 로 둬 aliased-condition narrowing 을
+    // 유지한다 (truthy 시 TS 가 후속 분기에서 state 를 non-null 로 좁힘). activeStatus 는
+    // executionId 존재 시에만 non-null 이라 둘째 operand 는 논리적으로 충분.
     const hasActiveExecution =
-      state?.executionId && (await this.isActiveExecution(state.executionId));
+      state?.executionId != null && activeStatus !== null;
 
     // /cancel 명령 — 활성 execution 이 있으면 취소, 없으면 noop.
     if (update.command.kind === 'cancel') {
@@ -501,6 +511,14 @@ export class HooksService {
         update.command.kind === 'contact_share' ||
         update.command.kind === 'file_upload')
     ) {
+      // CCH-CV-03 (b) — execution 이 running/pending (waiting_for_input 미도달) 이면
+      // Rationale R9 결정에 따라 대기 큐에 적재하지 않고 `executionStillRunning` 안내를
+      // 발송한 뒤 update 를 무시한다 (202 ack). 인터랙션 forwarding (a) 는
+      // waiting_for_input 에 도달한 경우에만 수행한다 (input-sequence 충돌 방지).
+      if (activeStatus !== ExecutionStatus.WAITING_FOR_INPUT) {
+        await this.sendExecutionStillRunningNotice(update, config, adapter);
+        return { executionId: 'ignored' };
+      }
       // Form 다단계 시퀀스 진행 중이면 dispatcher 의 form handler 로 라우팅.
       if (
         state?.formState &&
@@ -781,20 +799,55 @@ export class HooksService {
     );
   }
 
-  /** Active execution 여부 확인 — terminal 상태가 아니면 active. */
-  private async isActiveExecution(executionId: string): Promise<boolean> {
-    const execution = await this.executionsService['executionRepository']
+  /**
+   * 비-terminal execution 의 status 를 반환 (terminal 이거나 미존재면 null).
+   * CCH-CV-03 의 (a) waiting_for_input ↔ (b) running/pending 분기에 사용한다.
+   * (이전 `isActiveExecution` boolean 을 status-aware 로 확장 — R9 결정 실현.)
+   */
+  private async getActiveExecutionStatus(
+    executionId: string,
+  ): Promise<ExecutionStatus | null> {
+    const execution = (await this.executionsService['executionRepository']
       ?.findOne?.({
         where: { id: executionId },
         select: ['id', 'status'],
       })
-      .catch(() => null);
-    if (!execution) return false;
-    return (
-      execution.status !== ExecutionStatus.COMPLETED &&
-      execution.status !== ExecutionStatus.FAILED &&
-      execution.status !== ExecutionStatus.CANCELLED
-    );
+      .catch(() => null)) as { status: ExecutionStatus } | null | undefined;
+    if (!execution) return null;
+    const isTerminal =
+      execution.status === ExecutionStatus.COMPLETED ||
+      execution.status === ExecutionStatus.FAILED ||
+      execution.status === ExecutionStatus.CANCELLED;
+    return isTerminal ? null : execution.status;
+  }
+
+  /**
+   * CCH-CV-03 (b) — execution 이 running/pending (waiting_for_input 미도달) 일 때
+   * 채널에 `executionStillRunning` 안내를 발송한다 (update 는 호출자가 무시).
+   * `maybeNotifyIgnored` 와 동일한 kind:'text' 경로 — 텔레그램 MarkdownV2 는 어댑터가
+   * escape 하지 않으므로 default 문구는 pre-escaped (`.` → `\.`).
+   */
+  private async sendExecutionStillRunningNotice(
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<void> {
+    const text =
+      config.languageHints?.executionStillRunning ??
+      '워크플로우가 처리 중입니다\\. 잠시만 기다려 주세요\\.';
+    try {
+      await adapter.sendMessage(
+        {
+          conversationKey: update.conversationKey,
+          body: { kind: 'text', text },
+        },
+        config,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `executionStillRunning sendMessage 실패 (conversationKey=${update.conversationKey}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   private async buildInteractionResponse(

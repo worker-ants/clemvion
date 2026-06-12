@@ -19,12 +19,17 @@ describe('ChatChannelController.rotateBotToken', () => {
   const TRIGGER_ID = 'trig-1';
   const NEW_BOT_TOKEN = '222222222:NewToken';
   const ROTATED_AT_ISO = new Date('2026-05-22T00:00:00.000Z').toISOString();
+  // [Spec §5.4] 성공 응답 = rotatedAt + 3 추가 필드 (triggerId / chatChannelHealth / botIdentity).
+  const ROTATE_RESULT = {
+    rotatedAt: ROTATED_AT_ISO,
+    triggerId: TRIGGER_ID,
+    chatChannelHealth: 'healthy' as const,
+    botIdentity: { botId: 111, username: 'bot' },
+  };
 
   beforeEach(() => {
     triggersService = {
-      rotateBotToken: jest
-        .fn()
-        .mockResolvedValue({ rotatedAt: ROTATED_AT_ISO }),
+      rotateBotToken: jest.fn().mockResolvedValue(ROTATE_RESULT),
     } as jest.Mocked<Pick<TriggersService, 'rotateBotToken'>>;
     controller = new ChatChannelController(
       triggersService as unknown as TriggersService,
@@ -42,7 +47,7 @@ describe('ChatChannelController.rotateBotToken', () => {
       WORKSPACE_ID,
       NEW_BOT_TOKEN,
     );
-    expect(result).toEqual({ rotatedAt: ROTATED_AT_ISO });
+    expect(result).toEqual(ROTATE_RESULT);
   });
 
   it('실패 — newBotToken 미전달 시 BadRequestException', async () => {

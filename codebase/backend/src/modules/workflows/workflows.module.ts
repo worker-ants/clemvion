@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Workflow } from './entities/workflow.entity';
 import { Node } from '../nodes/entities/node.entity';
@@ -12,7 +12,10 @@ import { ModelConfigModule } from '../model-config/model-config.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Workflow, Node, Edge]),
-    ExecutionEngineModule,
+    // #570(M-6 WS IDOR)이 WebsocketModule → WorkflowsModule 엣지를 추가하면서
+    // WorkflowsModule → ExecutionEngineModule → WebsocketModule → WorkflowsModule
+    // 순환이 닫혔다. plain import 는 부팅 시 undefined 로 평가되므로 forwardRef 로 감싼다.
+    forwardRef(() => ExecutionEngineModule),
     WorkflowVersionsModule,
     ModelConfigModule,
   ],

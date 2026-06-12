@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
-import { Trigger } from './entities/trigger.entity';
+import { Trigger, TriggerChatChannelHealth } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
@@ -863,7 +863,12 @@ export class TriggersService {
     id: string,
     workspaceId: string,
     newBotToken: string,
-  ): Promise<{ rotatedAt: string }> {
+  ): Promise<{
+    rotatedAt: string;
+    triggerId: string;
+    chatChannelHealth: TriggerChatChannelHealth;
+    botIdentity: { botId: number; username: string; teamId?: string } | null;
+  }> {
     const trigger = await this.findById(id, workspaceId);
     const chatChannelCfg = (
       trigger.config as { chatChannel?: ChatChannelConfig }
@@ -965,7 +970,14 @@ export class TriggersService {
         chatChannelLastError: null,
       },
     );
-    return { rotatedAt: rotatedAt.toISOString() };
+    // [Spec Chat Channel §5.4] 성공 응답 3필드 동봉 — triggerId / chatChannelHealth
+    // (setupChannel 재호출 결과) / botIdentity (getMe 캐시 갱신 결과, configUpdates 경유).
+    return {
+      rotatedAt: rotatedAt.toISOString(),
+      triggerId: trigger.id,
+      chatChannelHealth: 'healthy',
+      botIdentity: mergedChannel.botIdentity ?? null,
+    };
   }
 
   /**
