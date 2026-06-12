@@ -65,7 +65,7 @@ sequenceDiagram
   은 이제 `AuditAction` union (`audit-logs/audit-action.const.ts` 의 `AUDIT_ACTIONS`) 으로 타입
   강제돼 인라인 임의 문자열을 막는다 (cross-audit G-01, → [Rationale](#rationale)).
 - **커버리지 갭**: [인증 spec §4.1](../5-system/1-auth.md) 이 기록 대상으로 약속한
-  `workflow.*` / `trigger.*` / `member.*` / `schedule.*` / `workspace.create·update·delete` /
+  `workflow.*` / `trigger.*` / `member.*` / `schedule.*` / `workspace.created·updated·deleted` /
   `model_config.*`(create/update/delete/set-default — 구 `llm_config.*`/`rerank_config.*` 통합) / 인증(`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled`) 액션은 **모두 미구현**이다 —
   workflows / triggers / alerts / schedules 모듈에는 `AuditLogsService` import 가 전혀 없다.
   spec §4.1 표는 목표 커버리지, 위 9종 표가 현재 구현이다.
