@@ -853,7 +853,7 @@ describe('CodeHandler', () => {
     beforeAll(() => jest.retryTimes(2));
     afterAll(() => jest.retryTimes(0));
 
-    it('should route an isolate memory-limit breach to CODE_MEMORY_LIMIT', async () => {
+    it('should route an isolate memory-limit breach to CODE_MEMORY_LIMIT with spec-pinned message (spec §5.3.3)', async () => {
       const result = (await handler.execute(
         null,
         {
@@ -867,13 +867,18 @@ describe('CodeHandler', () => {
         },
         context,
       )) as unknown as {
-        output: { error: { code: string } };
+        output: { error: { code: string; message: string } };
         meta: { success: boolean };
         port?: string;
       };
       expect(result.port).toBe('error');
       expect(result.meta.success).toBe(false);
       expect(result.output.error.code).toBe('CODE_MEMORY_LIMIT');
+      // Spec §5.3.3 — message must be the pinned string, not the raw
+      // isolated-vm message (guards against upstream version drift).
+      expect(result.output.error.message).toBe(
+        'Isolate was disposed during execution due to memory limit',
+      );
     }, 30_000); // Jest timeout 30_000 ms = 30s
   });
 
@@ -911,7 +916,7 @@ describe('CodeHandler', () => {
       expect(resolveMemoryLimitMb()).toBe(512);
     });
 
-    it.each(['abc', '0', '-5', '', '   '])(
+    it.each(['abc', '0', '-5', '', '   ', '64abc', '256.9'])(
       'falls back to 128 for invalid input %p',
       (raw) => {
         process.env[ENV_KEY] = raw;

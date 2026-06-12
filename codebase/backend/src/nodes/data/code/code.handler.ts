@@ -22,8 +22,12 @@ const MAX_MEMORY_LIMIT_MB = 512;
 /**
  * Resolve the isolate memory limit (MB) from `CODE_NODE_MEMORY_LIMIT_MB`
  * (spec §7.2). Falls back to {@link DEFAULT_MEMORY_LIMIT_MB} when unset or
- * invalid (non-numeric / ≤ 0), and clamps to {@link MAX_MEMORY_LIMIT_MB}.
- * Integer values only — decimal inputs are truncated (e.g. `"256.9"` → 256).
+ * invalid, and clamps to {@link MAX_MEMORY_LIMIT_MB}.
+ *
+ * Only pure integer strings are accepted — a string that would be partially
+ * parsed by `parseInt` (e.g. `"64abc"`, `"256.9"`) is treated as invalid and
+ * falls back to the default with a console.warn. This prevents silent
+ * operator-typo acceptance (spec §7.2 "non-numeric fallback" intent).
  * A console.warn is emitted when the env var is set but invalid or clamped.
  *
  * @internal Exported only for unit testing (code.handler.spec.ts).
@@ -31,10 +35,14 @@ const MAX_MEMORY_LIMIT_MB = 512;
 export function resolveMemoryLimitMb(): number {
   const raw = process.env.CODE_NODE_MEMORY_LIMIT_MB;
   if (raw === undefined || raw.trim() === '') return DEFAULT_MEMORY_LIMIT_MB;
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  // Reject any value that is not a pure integer string (no decimals, no
+  // trailing/leading non-numeric chars). Number() parses the whole string so
+  // "64abc" → NaN and "256.9" → 256.9 (non-integer), both caught here.
+  const asNumber = Number(raw.trim());
+  const parsed = Math.trunc(asNumber);
+  if (!Number.isInteger(asNumber) || !Number.isFinite(parsed) || parsed <= 0) {
     console.warn(
-      `[CodeHandler] CODE_NODE_MEMORY_LIMIT_MB="${raw}" is invalid (non-numeric or ≤ 0) — falling back to ${DEFAULT_MEMORY_LIMIT_MB} MB`,
+      `[CodeHandler] CODE_NODE_MEMORY_LIMIT_MB="${raw}" is invalid (non-integer or ≤ 0) — falling back to ${DEFAULT_MEMORY_LIMIT_MB} MB`,
     );
     return DEFAULT_MEMORY_LIMIT_MB;
   }
@@ -490,15 +498,17 @@ export class CodeHandler implements NodeHandler {
         throw err;
       }
       const errorCode = classifyCodeNodeError(err, isolate);
-      return this.failure(
-        rawConfigForEcho,
-        err,
-        errorCode,
-        logs,
-        errorCode === 'EXECUTION_TIMEOUT'
-          ? 'Code execution timed out'
-          : undefined,
-      );
+      // Spec §5.3.3 — pin the user-visible message for the two isolate-level
+      // termination codes so isolated-vm internal message changes (version
+      // upgrades) can never silently drift from the spec-prescribed text.
+      let overrideMsg: string | undefined;
+      if (errorCode === 'EXECUTION_TIMEOUT') {
+        overrideMsg = 'Code execution timed out';
+      } else if (errorCode === 'EXECUTION_MEMORY_EXCEEDED') {
+        overrideMsg =
+          'Isolate was disposed during execution due to memory limit';
+      }
+      return this.failure(rawConfigForEcho, err, errorCode, logs, overrideMsg);
     } finally {
       if (!isolate.isDisposed) isolate.dispose();
     }
