@@ -1,5 +1,5 @@
 ---
-worktree: spec-sync-audit
+worktree: (unstarted)
 started: 2026-06-03
 owner: planner
 ---

@@ -164,3 +164,11 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 > i18n ko/en 동기 (해당 op 들은 정정 전 비동작이라 호환 영향 미미). salesreport id 는 resource 와
 > 일치하므로 유지(path namespace 가 financials/reports 로 분산된 것은 docs 측 분류). 검증:
 > catalog-sync 16/16·drift·frontend i18n parity 12 통과.
+
+### G-4 — 응답 래퍼 ↔ 요청 파라미터 이름 충돌 설명 오염 (generator 재생성 대상)
+
+> 출처: 2026-06-12 `_generator.py` `resp_param_rows` cross-map fallback 버그 수정 (`_overview.md §7.3`).
+> 컨테이너(obj/arr) 래퍼가 동일명 스칼라 요청 파라미터의 설명을 잘못 차용하던 버그를 generator 로직에서 수정.
+
+- [x] generator 로직 fix + unambiguous `order` 정렬-충돌 래퍼 hand-fix: `application/appstore-orders.md`·`order/orders.md`·`store/orders-setting.md`·`store/users.md` (`(응답 객체)` 정정).
+- [ ] **잔여 (재생성 시 자동 정정)**: `links` 등 다른 충돌명을 공유하는 field-level 파일들. 다수가 정당한 property-list 설명(예: `coupons → 쿠폰 리소스`)이라 일괄 hand-edit 은 false-positive 위험 — 수정된 generator 로 전체 재생성(공식 HTML + 응답 fetch 네트워크 필요) 시 일괄 정정한다. 재생성 후 변경 파일 전부 커밋 포함 확인 (`_overview.md §7.3` 회귀 검증 레시피).

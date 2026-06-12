@@ -71,7 +71,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
+| `order` |  | (응답 객체) |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `claim_request` |  | 구매자 취소/교환/반품 신청 사용설정 T : 사용함 · F : 사용안함 |
 | ↳ `claim_request_type` |  | 구매자 취소/교환/반품 신청 시 표시항목 설정 claim_request 항목이 T일 때만 확인이 가능하다. S : 기본신청 항목 표시 · D : 상세신청 항목 표시 |
@@ -214,7 +214,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
+| `order` |  | (응답 객체) |
 | ↳ `shop_no` | 최소값: [1] | 멀티쇼핑몰 번호 |
 | ↳ `refund_benefit_setting` |  | 취소/교환/반품 접수 시 할인/적립 금액 설정 |
 | ↳ `use_product_prepare_status` |  | 상품준비중 주문상태 사용여부 T : 사용함 · F : 사용안함 |
