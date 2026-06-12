@@ -576,6 +576,8 @@ Fan-out facade 는 코드 구조상 이미 분리되어 있고, 본 결정은 **
 
 ### R9. CCH-CV-03 `running` 케이스의 큐잉 vs 즉시 안내
 
+> 본 R9 논거는 **lifecycle 케이스**(`execution running 중 사용자 메시지`) 전용이다. **rate-limit 케이스**(`분당 한도 초과`)의 큐 vs skip 결정은 [R-CC-19](#r-cc-19-cch-nf-03-rate-limit--replay-큐-대신-skip--degraded) 가 별도 다룬다 (직교 사안).
+
 즉시 안내 + update 무시 (큐 미적재) 채택: `running` / `pending` 구간이 일반적으로 짧고 (수 초 ~ 수십 초), 사용자가 다음 입력 시점은 대개 `waiting_for_input` 도달 후이다. 사용자 메시지를 큐에 적재했다가 `waiting_for_input` 도달 시 재발사하면 (a) execution 의 input 시퀀스 가정과 충돌 가능 (워크플로우 노드가 그 입력을 기대하지 않은 시점에 입력 사건 발생), (b) 사용자가 같은 메시지를 두 번 보낸 경우 dedup 책임 모호 — 게다가 큐 TTL / 폐기 정책 / 순서 정렬 등 추가 메커니즘이 필요해 v1 의 단순성과 어긋난다. `waiting_for_input` 도달까지 HTTP 연결을 보류하는 안은 WH-NF-01 의 200ms 응답 시한과 정면 충돌하고 텔레그램이 webhook 응답 지연 시 retry 폭주한다.
 
 근거: v1 단순성 + 사용자 mental model ("처리 중에 보낸 메시지는 다시 보내야 함" 이 봇 UX 의 일반적 기대). [CCH-NF-03](#36-비기능-요구사항) 의 rate-limit 정책은 **다른 트리거 조건** (`분당 한도 초과`) 으로, 본 케이스 (`execution running 중 사용자 메시지 도착`) 와 정책 방향이 다른 것은 정당하다 (전자는 외부 사용자 폭주 방어, 후자는 execution life-cycle 정합). 두 케이스 모두 v1 은 큐 적재·재발사 없이 처리하나 이는 각자 독립 근거에 따른 결정이다 — rate-limit 케이스의 skip vs 큐 선택 상세는 [R-CC-19](#r-cc-19-cch-nf-03-rate-limit--replay-큐-대신-skip--degraded) 참조.
