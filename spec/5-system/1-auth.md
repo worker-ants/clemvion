@@ -32,7 +32,7 @@ pending_plans:
 | 비밀번호 분실 | 이메일로 재설정 링크 발송 (유효기간 30분). 모든 이메일 보유 사용자에게 발급 (§1.1.A 참고) |
 | 로그인 실패 | 5회 실패 시 10분 잠금, 이메일 알림 |
 | 토큰 at-rest 저장 | 이메일 인증 토큰(`emailVerifyToken`)·비밀번호 재설정 토큰(`passwordResetToken`)은 **SHA-256 해시**로만 저장한다 (raw 토큰은 메일 링크로만 전달, DB 미저장). 검증 시 입력 토큰을 동일 해시로 변환해 비교 |
-| 인증 메일 재발송 | `POST /auth/resend-verification` — throttle 5/min, 이메일 enumeration-safe 응답 (존재 여부 무관 동일 응답) |
+| 인증 메일 재발송 | `POST /api/auth/resend-verification` — throttle 5/min, 이메일 enumeration-safe 응답 (존재 여부 무관 동일 응답) |
 
 #### 1.1.A 비밀번호 재설정 흐름과 가입 경로 (OAuth-only · WebAuthn 보유 사용자 포함)
 
@@ -231,7 +231,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 권한 부족 (발송·재발송·취소) | 403 | `forbidden` |
 | Rate limit 초과 | 429 | `rate_limited` |
 
-> **명명 — historical-artifact 예외**: 위 코드들은 [`node-output.md` Principle 3.2](../conventions/node-output.md#32-outputerror-표준-형태)·[`error-codes.md §1`](../conventions/error-codes.md#1-의미-기반-명명-핵심-원칙)의 `UPPER_SNAKE_CASE` 규약과 달리 `lower_snake_case` 다. v1 출하 시 이 형태로 정착했고 프론트엔드([`invitations.ts`](../../codebase/frontend/src/lib/api/invitations.ts) `INVITATION_ERROR_CODES`)가 `code` 값으로 직접 분기하므로, rename 은 API breaking change 가 된다([`error-codes.md §2`](../conventions/error-codes.md#2-안정성--rename-정책) "이름 정확성 향상만을 위한 rename 은 하지 않는다"). 따라서 [`error-codes.md §3` historical-artifact 레지스트리](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리)에 등재해 유지한다 — 신규 코드는 본 예외를 선례로 삼지 않고 처음부터 `UPPER_SNAKE_CASE` 를 쓴다.
+> **명명 — historical-artifact 예외**: 위 코드들은 [`node-output.md` Principle 3.2](../conventions/node-output.md#32-outputerror-표준-형태)·[`error-codes.md §1`](../conventions/error-codes.md#1-의미-기반-명명-핵심-원칙)의 `UPPER_SNAKE_CASE` 규약과 달리 `lower_snake_case` 다. v1 출하 시 이 형태로 정착했고 프론트엔드([`invitations.ts`](../../codebase/frontend/src/lib/api/invitations.ts) `INVITATION_ERROR_CODES`)가 `code` 값으로 직접 분기하므로, rename 은 API breaking change 가 된다([`error-codes.md §2`](../conventions/error-codes.md#2-안정성--rename-정책) "이름 정확성 향상만을 위한 rename 은 하지 않는다"). 따라서 [`error-codes.md §3` historical-artifact 레지스트리](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리)에 등재해 유지한다 — 신규 코드는 본 예외를 선례로 삼지 않고 처음부터 `UPPER_SNAKE_CASE` 를 쓴다. 특히 `forbidden`·`rate_limited` 는 일반 명칭이라 다른 도메인에서는 `FORBIDDEN`·`RATE_LIMITED`(UPPER) 를 쓰며, 본 lowercase 표기는 **초대 흐름 전용** 한정 예외다(`error-codes.md §3` 의 "초대 API 한정" 명시와 일치).
 
 ---
 
@@ -364,12 +364,12 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 카테고리 | Planned action |
 |----------|------|
 | 인증 (워크스페이스 컨텍스트) | `user.password_changed`, `user.2fa_enabled`, `user.2fa_disabled` |
-| 워크스페이스 | workspace.create, workspace.update, workspace.delete |
-| 멤버 | member.invite, member.role_change, member.remove |
-| 워크플로우 | workflow.create, workflow.update, workflow.delete, workflow.execute |
-| 트리거 | trigger.create, trigger.update, trigger.delete |
-| 스케줄 | schedule.create, schedule.update, schedule.delete |
-| 설정 | model_config.* (create/update/delete/set-default; reveal 미제공 — ModelConfig 는 평문 reveal 엔드포인트 없음) |
+| 워크스페이스 | `workspace.created`, `workspace.updated`, `workspace.deleted` |
+| 멤버 | `member.invited`, `member.role_changed`, `member.removed` |
+| 워크플로우 | `workflow.created`, `workflow.updated`, `workflow.deleted`, `workflow.executed` |
+| 트리거 | `trigger.created`, `trigger.updated`, `trigger.deleted` |
+| 스케줄 | `schedule.created`, `schedule.updated`, `schedule.deleted` |
+| 설정 | `model_config.*` (create/update/delete/set-default — **현재형 유지**: `set-default` 가 과거분사로 부자연스러워 auth_config 처럼 resource 단위 현재형으로 통일. reveal 미제공 — ModelConfig 는 평문 reveal 엔드포인트 없음) |
 
 > **감사 액션 통합 (model_config)** — *목표 설계*. 설정 CRUD 감사 로깅 자체는 현재 미구현이다 (`model_config.service.ts` 는 `AuditLogsService` 를 호출하지 않는다 — [data-flow §1.1 커버리지 갭](../data-flow/1-audit.md) 이 ground truth). 구현 시 신규 이벤트는 `model_config.*` (create/update/delete/set-default) 로 기록한다. 통합 이전 `llm_config.*`/`rerank_config.*` 로 적재된 row 가 있다면 append-only 로 보존되며 재작성하지 않으므로, 감사 조회는 두 액션 집합(`model_config.*` OR `llm_config.*`/`rerank_config.*`)을 OR 로 결합해 질의한다.
 
@@ -403,7 +403,10 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | /api/auth/register | 회원가입 |
+| POST | /api/auth/register | 회원가입. **인증 불요** (`@Public`) — 토큰·메일 발급 후 `verify-email` 로 활성화 ([§1.5.2 흐름](#152-흐름-미가입자-가입-경로)) |
+| POST | /api/auth/verify-email | 이메일 인증 토큰 검증 → 개인 워크스페이스 생성 + access/refresh 즉시 발급. **인증 불요** (`@Public`). 토큰 무효·만료 시 400 |
+| POST | /api/auth/resend-verification | 인증 메일 재발송 (24h 유효). **인증 불요** (`@Public`), throttle 5/min. 이메일 enumeration-safe (존재·인증 여부 무관 동일 응답) |
+| POST | /api/auth/check-email | 회원가입 전 이메일 사용 가능 여부 확인. **인증 불요** (`@Public`), throttle 5/min |
 | POST | /api/auth/login | 로그인 (비밀번호 검증 — 2FA 활성 사용자는 `{ requires2fa, methods, challengeToken }` 응답) |
 | POST | /api/auth/login/totp | 로그인 2FA TOTP 검증 (`challengeToken` + 6자리 code 또는 복구 코드). 성공 시 access/refresh 발급 |
 | POST | /api/auth/2fa/setup | TOTP 설정 시작 (인증 필수) — secret 발급 + QR data URL 반환 |
@@ -423,6 +426,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | POST | /api/auth/refresh | 토큰 갱신 |
 | POST | /api/auth/forgot-password | 비밀번호 재설정 요청 |
 | POST | /api/auth/reset-password | 비밀번호 재설정 |
+| GET | /api/auth/oauth/providers | 백엔드에 자격증명이 설정된 활성 OAuth provider 목록. **인증 불요** (`@Public`), `Cache-Control: private, max-age=300`. 비어 있으면 클라이언트가 SSO UI 미노출 |
 | GET | /api/auth/oauth/:provider | OAuth 시작 |
 | GET | /api/auth/oauth/:provider/callback | OAuth 콜백 |
 | GET | /api/audit-logs | 감사 로그 조회 (Admin+) |
@@ -431,6 +435,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 사용자 본인 세션·이력 관리 엔드포인트는 [사용자 프로필 spec §6.1](../2-navigation/9-user-profile.md#61-사용자워크스페이스-api) 에 정의 (`/api/users/me/sessions`, `/api/users/me/login-history`).
 
 초대 발송·재발송·취소·수락 엔드포인트는 [사용자 프로필 spec §6.1](../2-navigation/9-user-profile.md#61-사용자워크스페이스-api) 에 정의 (`/api/workspaces/:id/invitations`, `/api/workspaces/invitations/accept`).
+
+인증 설정(AuthConfig) CRUD 엔드포인트(`/api/auth-configs/*` — 평문 노출 `POST /api/auth-configs/:id/reveal` 포함)는 [설정 spec §A.4](../2-navigation/6-config.md) 의 표가 단일 SoT 다. 본 문서는 그 권한·감사만 다룬다 — RBAC 매트릭스 §3.2, 감사 액션 §4.1(`auth_config.*`), reveal 권한 분리 근거는 §3.2 하단 주석 참조.
 
 `POST /api/auth/register` 는 본문에 `invitationToken?` 을 받아 [§1.5.2 흐름](#152-흐름-미가입자-가입-경로) 의 트랜잭션을 수행한다.
 
@@ -581,6 +587,10 @@ bootstrap 첫 단계에서 호출). 대상:
   사실상 평문이 된다 ([secret-store §Rationale](../conventions/secret-store.md#rationale)).
 - **`MCP_ALLOW_INSECURE_URL`** — true 면 throw ([11-mcp-client](./11-mcp-client.md) 의 "운영 절대
   금지" 를 enforcement 로 일치).
+- **`OAUTH_STUB_MODE`** — true 면 throw. 실제 OAuth provider 검증을 우회하는 비보안 stub 으로,
+  운영에서 켜지면 SSO 인증을 무력화한다 (옛 `main.ts` 인라인 가드를 본 함수로 응집).
+- **`LLM_STUB_MODE`** — true 면 throw. 실제 LLM 호출을 가짜 응답으로 대체하는 비보안 stub 으로,
+  운영에서 켜지면 AI 기능이 검증 없는 stub 출력을 반환한다 (동일 응집).
 
 **단일 블록 응집 이유**: spec 이 이미 동형 secret/stub(`INTERACTION_JWT_SECRET`,
 `OAUTH_STUB_MODE`/`LLM_STUB_MODE`)에 production throw 표준을 명문화했고, 같은 위치(`main.ts` boot)·
@@ -604,3 +614,11 @@ dev/test/e2e(`NODE_ENV≠production`)는 영향이 없다.
   향후 user-profile 계열 감사(예: `user.email_changed`)와 동일 네임스페이스로 묶인다.
 - **verb 시제는 과거분사** — integration 계열(`integration.created`)과 같이 "일어난 일" 을 기록하는
   도메인 관례를 따른다(`changed`/`enabled`/`disabled`). 구현 시 `AUDIT_ACTIONS` 에 추가한다.
+
+같은 근거로 **나머지 Planned 액션의 시제도 정규화**한다 — `workspace`·`member`·`workflow`·
+`trigger`·`schedule` 은 동사가 모두 과거분사로 자연스러우므로 기본 규약(과거분사)을 따라
+`created`/`updated`/`deleted`/`invited`/`role_changed`/`removed`/`executed` 로 적는다(현재형
+`create`·`invite` 이탈 정정). 단 `model_config.*` 는 `set-default` 가 과거분사로 부자연스러워
+`auth_config` 와 동일하게 **resource 단위 현재형 예외**를 유지한다 — 규약의 "과거분사가
+부자연스러운 동사가 섞이면 CRUD 현재형으로 통일" 조항 적용. 모두 미구현이라 코드 의존이 없어
+지금 표기를 확정하는 비용이 가장 낮고, 구현 시 `AUDIT_ACTIONS` 에 그대로 추가한다.
