@@ -30,6 +30,7 @@ owner: developer
 - [x] **런타임 에러 라인 오프셋**: §4 또는 §2 에 "런타임 에러 라인 = 래퍼 헤더 3줄 오프셋" 명시. **(완료, 그룹2a — +3 명시)**. ⚠ **code 후속(별도 code PR)**: `code.handler.ts` `wrapUserCode` 의 W14 주석이 "4-line header / offset +4 / subtract 4" 로 적혀 있으나 실제 헤더는 3줄 → 오프셋 **+3** 이 맞음. 주석 off-by-one 버그 — 그룹3(code/test) 또는 별도 code PR 에서 +3 으로 수정. **(완료, 그룹3)**: W14 주석을 "3-line header / offset +3 / subtract 3" 로 수정 + spec §4 step2 참조. 오프셋은 문서용(코드에 라인 보정 로직 없음).
 - [x] **§5.3.1/§5.3.2/§5.3.3 예시 정합**: §5.3.1 stack 예시에 "비프로덕션 한정" 보조노트, §5.3.3 `meta.durationMs` 추가. **(완료, 그룹2a)**. (§5.3.2 stack 플레이스홀더 `"..."` 는 cosmetic 으로 보류.)
 - [x] **md5/sha1 비암호학 명시**: §2.2 에 "md5/sha1 은 체크섬·레거시 호환 전용, 암호학적 용도 금지" 1줄. **(완료, 그룹2a — 허용 알고리즘 목록 + ⚠ 경고)**
+- [ ] **§4 step3 / §7.1 snapshot 경로 기술 (그룹4 ai-review SPEC-DRIFT INFO #1·#2)**: code.handler 가 `DAYJS_SNAPSHOT` 유무에 따라 (a) snapshot 복원 (b) per-exec dayjs 컴파일 두 경로로 동작하나 spec 은 bare isolate 경로만 기술. §4 step3 에 "dayjs 는 모듈 로드 시 `createSnapshot` 1회 베이크 후 per-exec isolate 가 스냅샷에서 복원(미지원 시 per-exec 컴파일 fallback)", §7.1 에 "스냅샷 사용 시에도 per-exec isolate 생성·메모리 격리·dispose 불변 동일" 1줄 보강. **planner 위임 — code-only PR(code-snapshot-perf) 범위 밖, 비차단 INFO**. 근거: `review/code/2026/06/12/10_52_44/RESOLUTION.md`.
 - [ ] **§3-error-handling §1.4 EXECUTION_TIMEOUT 계층**: 엔진 수준 표의 `EXECUTION_TIMEOUT` 을 "내부 legacyCode — public `CODE_TIMEOUT`(node-level `error` 포트)" 로 보강. `14-external-interaction-api §547` 동반. **(보류 — 엔진레벨 EXECUTION_TIMEOUT/EXECUTION_TIME_LIMIT_EXCEEDED 계층화는 별개 영역. 그룹2a 는 internal-legacy 매핑을 error-codes.md §3.1 에 등재하는 것으로 부분 충족.)**
 
 ## 타 plan/worktree 정리 (머지 후)
