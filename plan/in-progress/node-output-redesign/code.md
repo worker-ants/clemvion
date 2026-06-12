@@ -79,7 +79,7 @@ Code 는 사용자 정의 JS 실행 노드 (단계 1개). 정상 / 런타임 thr
   "config": {...},
   "output": {
     "error": {
-      "code": "CODE_EXECUTION_FAILED" | "CODE_TIMEOUT" | "CODE_MEMORY_LIMIT" /* 로드맵 */,
+      "code": "CODE_EXECUTION_FAILED" | "CODE_TIMEOUT" | "CODE_MEMORY_LIMIT" /* 구현 완료: #546 isolated-vm */,
       "message": <string>,
       "details": {
         "legacyCode": <string>,
@@ -129,7 +129,7 @@ Code 는 사용자 정의 JS 실행 노드 (단계 1개). 정상 / 런타임 thr
 4. **에러 컨트랙트 (Principle 3)**:
    - Pre-flight throw 5종 (`code.handler.spec.ts:23-81` + spec §6): `code` 빈/누락, 비-string, `timeout` 범위 밖, `language` enum 미일치 (zod), syntax error. 모두 throw 로 처리.
    - Runtime `port:'error'` 2종 (spec §5.3): 사용자 코드 throw, timeout (sync `vm.runInContext timeout` + async `Promise.race`). `code.handler.ts:161-179` 의 sync timeout 캐치 + `:181-193` 의 async race 가 이중 적용 (spec §7.2 "이중 적용" 부합).
-   - 메모리 초과는 spec §5.3 footnote 에 `CODE_MEMORY_LIMIT` 로드맵 — 현재 `node:vm` 한계로 미구현. handler 코드에 `EXECUTION_MEMORY_EXCEEDED` 케이스 분기 없음. 일관.
+   - 메모리 초과: **구현 완료(#546 — isolated-vm 전환)**. ~~spec §5.3 footnote 에 `CODE_MEMORY_LIMIT` 로드맵 — 현재 `node:vm` 한계로 미구현~~ → isolated-vm 128MB 하드 리밋 초과 시 isolate hard-kill → `EXECUTION_MEMORY_EXCEEDED` 내부 분류 → `CODE_MEMORY_LIMIT` 정규화 발행. (본 항 이하 §4·§5 분석은 #546 이전 `node:vm` 기준 스냅샷.)
 
 5. **conventions Principle 0–11 위반 패턴**:
    - Principle 1.1: `config` (raw echo) ↔ `output` (사용자 return 값 / error envelope) 직교. 부합.
@@ -160,7 +160,7 @@ Code 는 사용자 정의 JS 실행 노드 (단계 1개). 정상 / 런타임 thr
    - **`$vars` 보호**: `deepClone(context.variables)` (`:135`) 로 격리. 정상 종료 시 `context.variables = varsClone` (`:194`) — 전체 교체 (spec §4.5 부합). throw 시 `context.variables` 미변경 (롤백).
    - **codeGeneration 차단**: `vm.createContext(sandbox, { codeGeneration: { strings: false, wasm: false } })` (`:143-145`) — `eval` / `new Function` / WASM 차단. spec §7.1 표와 일치.
    - **dynamic import / require / fetch**: `vm.createContext` 가 모듈 로더를 제공하지 않으므로 dynamic `import(...)` 는 SyntaxError, `require` / `fetch` 는 `ReferenceError`. 테스트 검증 완료.
-   - **로드맵 (`isolated-vm` 또는 컨테이너)**: spec §7.1 표가 명시 — 메모리 하드 리밋(128MB) 필요 시 전환. 현재 미구현은 의도된 트레이드오프 (배포 단순성).
+   - **isolated-vm 전환: 구현 완료(#546)** — ~~로드맵 (`isolated-vm` 또는 컨테이너): 현재 미구현~~. host 탈출 차단 + 128MB 메모리 하드 리밋이 isolated-vm 으로 도입됨 (P0 보안, refactor 04 C-2/M-2). 위 `node:vm`(`vm.createContext`/`codeGeneration`) 기준 서술은 #546 이전 스냅샷.
 
 ## 종합 개선안 (2026-05-16)
 

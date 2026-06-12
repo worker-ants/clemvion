@@ -33,6 +33,6 @@ owner: developer
 - [ ] **§3-error-handling §1.4 EXECUTION_TIMEOUT 계층**: 엔진 수준 표의 `EXECUTION_TIMEOUT` 을 "내부 legacyCode — public `CODE_TIMEOUT`(node-level `error` 포트)" 로 보강. `14-external-interaction-api §547` 동반. **(보류 — 엔진레벨 EXECUTION_TIMEOUT/EXECUTION_TIME_LIMIT_EXCEEDED 계층화는 별개 영역. 그룹2a 는 internal-legacy 매핑을 error-codes.md §3.1 에 등재하는 것으로 부분 충족.)**
 
 ## 타 plan/worktree 정리 (머지 후)
-- [ ] `plan/in-progress/node-output-redesign/code.md` 의 `CODE_MEMORY_LIMIT` "로드맵 미구현" 서술 → "구현 완료(isolated-vm PR)".
-- [ ] `plan/in-progress/marketplace-and-plugin-sdk.md` 샌드박싱 항목 → "code 노드 isolated-vm 기도입, 재사용 검토".
-- [ ] user-docs 충돌 주의: 타 worktree(`fix-model-configs-kind-400-*` 등)에 구버전 `data.mdx` 에러코드 잔존 — 머지 시 신규 코드로 동기화.
+- [x] `plan/in-progress/node-output-redesign/code.md` 의 `CODE_MEMORY_LIMIT` "로드맵 미구현" 서술 → "구현 완료(isolated-vm PR)". **(완료, PR plan-cleanup 그룹5)**: L82/L132/L163 모두 #546 구현 완료로 갱신(node:vm 기준 서술은 #546 이전 스냅샷임을 명시). http-request.md 도 SSRF=throw → #549 port:error 갱신 노트 추가.
+- [x] `plan/in-progress/marketplace-and-plugin-sdk.md` 샌드박싱 항목 → "code 노드 isolated-vm 기도입, 재사용 검토". **(완료, 그룹5)**.
+- [ ] user-docs 충돌 주의: 타 worktree(`fix-model-configs-kind-400-*` 등)에 구버전 `data.mdx` 에러코드 잔존 — 머지 시 신규 코드로 동기화. **(보류 — 타 worktree 소유 작업, 본 작업 범위 밖.)**
