@@ -21,6 +21,10 @@ import { ExecutionStatus } from '../executions/entities/execution.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 import {
+  ChatChannelRateLimiterService,
+  CHAT_RATE_LIMIT_DEFAULT_PER_MIN,
+} from '../chat-channel/chat-channel-rate-limiter.service';
+import {
   ChannelUpdate,
   ChatChannelAdapter,
   ChatChannelConfig,
@@ -52,6 +56,7 @@ export class HooksService {
     private readonly tokenService: InteractionTokenService,
     private readonly channelAdapterRegistry: ChannelAdapterRegistry,
     private readonly channelConversationService: ChannelConversationService,
+    private readonly chatChannelRateLimiter: ChatChannelRateLimiterService,
     private readonly interactionService: InteractionService,
     private readonly executionsService: ExecutionsService,
     private readonly chatChannelInboundAuthenticator: ChatChannelInboundAuthenticator,
@@ -267,6 +272,26 @@ export class HooksService {
     const update = adapter.enrichInbound
       ? await adapter.enrichInbound(parsed, config)
       : parsed;
+
+    // CCH-NF-03 — per-chat 분당 inbound rate-limit. 한도(config.rateLimitPerMinute,
+    // 기본 60) 초과분은 버퍼링/재발사 없이 처리 생략(skip) + chat_channel_health=degraded
+    // (R-CC-19). 파싱 성공 update 한정 — group/bot/unsupported skip 과 동일 계층, 핸드셰이크
+    // (url_verification/PING)·비활성·미파싱은 이미 위에서 단락돼 카운트되지 않는다.
+    const rateLimitPerMinute =
+      config.rateLimitPerMinute ?? CHAT_RATE_LIMIT_DEFAULT_PER_MIN;
+    const withinRateLimit = await this.chatChannelRateLimiter.consume(
+      trigger.id,
+      update.conversationKey,
+      rateLimitPerMinute,
+    );
+    if (!withinRateLimit) {
+      await this.markChatChannelRateLimited(
+        trigger,
+        rateLimitPerMinute,
+        update.conversationKey,
+      );
+      return { executionId: 'ignored' };
+    }
 
     // /help 명령 — v1 정적 안내 (Spec providers/telegram §7).
     if (
@@ -819,6 +844,36 @@ export class HooksService {
       execution.status === ExecutionStatus.FAILED ||
       execution.status === ExecutionStatus.CANCELLED;
     return isTerminal ? null : execution.status;
+  }
+
+  /**
+   * CCH-NF-03 — per-chat 분당 rate-limit 초과 시 trigger 의 `chat_channel_health` 를
+   * `degraded` 로 갱신 (CCH-SE-01 과 동일 DB 동작, 자동 비활성화 금지 — R-CC-19).
+   * 이미 `degraded` 면 skip (폭주 중 중복 write 방지). best-effort — 실패는 swallow.
+   */
+  private async markChatChannelRateLimited(
+    trigger: Trigger,
+    limitPerMinute: number,
+    conversationKey: string,
+  ): Promise<void> {
+    if (trigger.chatChannelHealth === 'degraded') return;
+    try {
+      await this.triggerRepository.update(
+        { id: trigger.id },
+        {
+          chatChannelHealth: 'degraded',
+          chatChannelLastError:
+            `Inbound rate limit exceeded (${limitPerMinute}/min, chat=${conversationKey})`.slice(
+              0,
+              1024,
+            ),
+        },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `chat-channel rate-limit degraded 갱신 실패 (triggerId=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /**
