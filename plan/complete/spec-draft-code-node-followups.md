@@ -2,6 +2,8 @@
 worktree: code-followups-spec-4f035f
 started: 2026-06-12
 owner: project-planner
+spec_impact:
+  - spec/4-nodes/5-data/2-code.md
 ---
 
 # Spec draft — code 노드 followups (snapshot 문서화 + base64 일관성 + 메모리 env)
