@@ -127,7 +127,7 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
    - **런타임 에러 라인 오프셋**: 래퍼가 사용자 코드 앞에 헤더 3줄(`(async () => {` · `"use strict";` ·
      `const __user = async () => {`)을 덧붙이므로 isolated-vm 이 보고하는 런타임 에러 라인은 사용자
      원본 기준 **+3** 이다. 표시 계층은 3을 빼 사용자 실제 라인으로 환산한다.
-3. `isolated-vm` isolate(`memoryLimit: 128`) + context 를 만든다. dayjs(`$helpers.date`)는 매 실행
+3. `isolated-vm` isolate(`memoryLimit` 기본 128MB, `CODE_NODE_MEMORY_LIMIT_MB` env 로 조정 — §7.2) + context 를 만든다. dayjs(`$helpers.date`)는 매 실행
    재컴파일하지 않고 **모듈 로드 시 1회 생성한 힙 스냅샷(`createSnapshot`)에서 복원**되며, 스냅샷이
    없는 플랫폼에서는 per-exec 로 dayjs 소스를 컴파일하는 fallback 으로 동작한다 (§7.1). 이후
    `script.run(..., { promise: true, timeout })` 로 실행하며 이중 타임아웃을 적용한다 (§7.2).
@@ -373,7 +373,7 @@ config: `{ "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }",
 
 | 방식 | 설명 |
 |------|------|
-| **현재 구현: `isolated-vm` (V8 Isolate)** | `new ivm.Isolate({ memoryLimit: 128 })` 로 host 와 분리된 별도 V8 Isolate 에서 코드 실행. host 객체·전역(`process`/`require`/`global`/`Buffer`/`fetch`)이 isolate 안에 **존재하지 않으므로** prototype-chain 탈출(`this.constructor.constructor('return process')()` 류)이 구조적으로 차단된다. 데이터(`$input`/`$vars`/`$execution`/`$node`)는 `ExternalCopy` 로 복사 주입, 내장 유틸(`$helpers`)·`console` 은 host 클로저를 `Reference`/`ivm.Callback` 으로 브리지(host realm 실행). 표준 내장(JSON/Math/Array 등)은 isolate 가 기본 제공. `eval`/`new Function` 은 부트스트랩에서 차단, 동적 `import`·모듈 로더 미제공으로 모듈 로드 불가 |
+| **현재 구현: `isolated-vm` (V8 Isolate)** | `new ivm.Isolate({ memoryLimit: ISOLATE_MEMORY_LIMIT_MB })`(`resolveMemoryLimitMb()` — 기본 128MB, `CODE_NODE_MEMORY_LIMIT_MB` env 로 조정·상한 512 — §7.2) 로 host 와 분리된 별도 V8 Isolate 에서 코드 실행. host 객체·전역(`process`/`require`/`global`/`Buffer`/`fetch`)이 isolate 안에 **존재하지 않으므로** prototype-chain 탈출(`this.constructor.constructor('return process')()` 류)이 구조적으로 차단된다. 데이터(`$input`/`$vars`/`$execution`/`$node`)는 `ExternalCopy` 로 복사 주입, 내장 유틸(`$helpers`)·`console` 은 host 클로저를 `Reference`/`ivm.Callback` 으로 브리지(host realm 실행). 표준 내장(JSON/Math/Array 등)은 isolate 가 기본 제공. `eval`/`new Function` 은 부트스트랩에서 차단, 동적 `import`·모듈 로더 미제공으로 모듈 로드 불가 |
 | 로드맵 (선택): 컨테이너 / gVisor | 다중 테넌트 확장으로 V8 자체 버그에 의한 isolate 탈출 가능성까지 차단해야 하면 Docker/gVisor 프로세스·커널 레벨 격리로 추가 강화 |
 
 > **선택 근거**: `isolated-vm` 은 V8 Isolate 로 host 메모리 공간과 분리돼 prototype-chain sandbox escape 를 **구조적으로** 차단하고, isolate 단위 메모리 하드 리밋(128MB)·CPU 타임아웃을 강제할 수 있다. 네이티브 빌드(node-gyp) 의존성이 추가되나 CI 이미지 빌드 시 1회 컴파일로 흡수되어 배포 시점 복잡도는 없다. 상세 위협 모델·이력은 §Rationale 참조.
