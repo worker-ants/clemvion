@@ -165,11 +165,12 @@ const BOOTSTRAP_SOURCE = `(() => {
  *     object such as a returned dayjs instance — it gets `toJSON`'d to a string);
  *   - `undefined` (no `return`) stays `undefined` (spec §5.1).
  *
- * W14: The wrapper prepends a 4-line header (async IIFE open + "use strict" +
- * inner async arrow open + the user code). Runtime error line numbers are
- * therefore offset by +4 relative to the user's source. Error messages from
- * isolated-vm include the raw line; callers/UIs should subtract 4 to show the
- * user their actual line number.
+ * W14: The wrapper prepends a 3-line header (async IIFE open + "use strict" +
+ * inner async arrow open) before the user code, which starts on line 4. Runtime
+ * error line numbers are therefore offset by +3 relative to the user's source.
+ * Error messages from isolated-vm include the raw line; callers/UIs should
+ * subtract 3 to show the user their actual line number. (Matches
+ * spec/4-nodes/5-data/2-code.md §4 step2 "런타임 에러 라인 오프셋 +3".)
  */
 function wrapUserCode(code: string): string {
   return `(async () => {

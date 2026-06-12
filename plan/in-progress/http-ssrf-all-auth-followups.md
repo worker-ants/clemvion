@@ -17,7 +17,7 @@ owner: developer
 - [x] **(기획 결정) `DB_HOST_BLOCKED` 신설**: Database Query SSRF 차단이 generic `INTEGRATION_CALL_FAILED` 로 surface — HTTP(`HTTP_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)과 비대칭. 신설 시 `2-database-query §4/§6.2`+`3-error-handling §1.4` 동기. **(사용자 결정=신설, PR db-host-blocked 그룹2b)**: ErrorCode 추가 + database-query.handler 가 SSRF 차단을 `DB_HOST_BLOCKED` IntegrationError 로 승격(EMAIL 패턴 대칭, 메시지 일반화로 host/IP 미노출). classifier INTERNAL_CODES 등재(spec §3.1 `DB_*` 일치, group1 INTERNAL_CODES 편집과 trivial 중복). spec `2-database-query §4/§5.3/§6.2`·`3-error-handling §1.4/§3.2` 동기. DB SSRF 교차조합 + opt-out + no-warn 테스트 추가.
 
 ## 테스트
-- [ ] none/custom × {IMDS, RFC1918, localhost} 교차 조합 `test.each`. custom opt-out. dry-run × none/custom SSRF skip. SSRF 차단(error 경로) configEcho Principle 7 D1 credential 미포함 단언. `backend-labels HTTP_BLOCKED` i18n 매핑 테스트.
+- [x] none/custom × {IMDS, RFC1918, localhost} 교차 조합 `test.each`. custom opt-out. dry-run × none/custom SSRF skip. SSRF 차단(error 경로) configEcho Principle 7 D1 credential 미포함 단언. `backend-labels HTTP_BLOCKED` i18n 매핑 테스트. **(완료, PR test-code-http-hardening 그룹3)**: http 6-combo test.each + custom opt-out + dry-run skip test.each + configEcho userinfo strip(error 경로) + frontend backend-labels.test 에 HTTP_BLOCKED·DB_HOST_BLOCKED LOCALIZED_ERROR_CODES 등재 + translateBackendError 단위테스트.
 
 ## Spec (planner)
 - [x] **§4 step8 dry-run 노트**: "dry-run 실행 시 실제 fetch 없으므로 SSRF 가드 생략(`13-replay-rerun §7`)" 1줄(ai-review I6/SPEC-DRIFT). **(완료, PR spec-errcode-catalog 그룹2a)**

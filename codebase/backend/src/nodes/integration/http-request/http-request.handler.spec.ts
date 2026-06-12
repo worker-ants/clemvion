@@ -1028,6 +1028,115 @@ describe('HttpRequestHandler', () => {
       }
     });
 
+    // 04 C-3 — SSRF 가드는 none/custom 포함 전 인증 방식 공통. IMDS·RFC1918·
+    // localhost 교차조합을 매트릭스로 단언 (literal IP/localhost fast-path 라 DNS
+    // 없이 결정적 차단).
+    it.each([
+      ['none', 'http://169.254.169.254/latest/meta-data/', 'IMDS'],
+      ['none', 'http://10.0.0.5/internal', 'RFC1918'],
+      ['none', 'http://localhost:9000/admin', 'localhost'],
+      ['custom', 'http://169.254.169.254/latest/meta-data/', 'IMDS'],
+      ['custom', 'http://192.168.1.10/internal', 'RFC1918'],
+      ['custom', 'http://localhost:5432/db', 'localhost'],
+    ])(
+      'blocks authentication=%s → %s (%s) with HTTP_BLOCKED',
+      async (authentication, url) => {
+        const { service } = makeService('bearer_token', { token: 't' });
+        const handler = new HttpRequestHandler(service as never);
+        const result = (await handler.execute(
+          null,
+          { method: 'GET', url, authentication },
+          contextWithWorkspace,
+        )) as unknown as Record<string, unknown>;
+        expect(result.port).toBe('error');
+        const output = result.output as {
+          error: { code: string; message: string };
+        };
+        expect(output.error.code).toBe('HTTP_BLOCKED');
+        expect(output.error.message).toMatch(/SSRF_BLOCKED/);
+      },
+    );
+
+    it('allows custom-auth private targets when ALLOW_PRIVATE_HOST_TARGETS=true (opt-out)', async () => {
+      const prev = process.env.ALLOW_PRIVATE_HOST_TARGETS;
+      process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
+      try {
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          text: jest.fn().mockResolvedValue('ok'),
+          json: jest.fn().mockResolvedValue({ ok: true }),
+          headers: { get: jest.fn().mockReturnValue(null) },
+        });
+        const { service } = makeService('bearer_token', { token: 't' });
+        const handler = new HttpRequestHandler(service as never);
+        const result = (await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'http://192.168.1.10/internal',
+            authentication: 'custom',
+          },
+          contextWithWorkspace,
+        )) as unknown as Record<string, unknown>;
+        expect(result.port).toBe('success');
+        expect(global.fetch).toHaveBeenCalled();
+      } finally {
+        if (prev === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+        else process.env.ALLOW_PRIVATE_HOST_TARGETS = prev;
+      }
+    });
+
+    // dry-run 은 SSRF 가드 이전에 mock 을 반환하므로(실제 fetch 없음) none/custom
+    // 사설 대상도 차단되지 않고 success mock 으로 흐른다 (spec §4 step8, 13-replay-rerun §7).
+    it.each(['none', 'custom'])(
+      'dry-run skips SSRF guard for authentication=%s (no real fetch)',
+      async (authentication) => {
+        const dryRunContext = {
+          ...contextWithWorkspace,
+          variables: { __dryRun: true, __workspaceId: 'ws-1' },
+        };
+        const fetchSpy = jest.fn();
+        global.fetch = fetchSpy;
+        const { service } = makeService('bearer_token', { token: 't' });
+        const handler = new HttpRequestHandler(service as never);
+        const result = (await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'http://169.254.169.254/latest/meta-data/',
+            authentication,
+          },
+          dryRunContext,
+        )) as unknown as Record<string, unknown>;
+        // mock success, 실제 fetch·차단 없음.
+        expect(result.port).toBe('success');
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(result.output).not.toBeUndefined();
+      },
+    );
+
+    it('SSRF error path config echo strips URL credentials (Principle 7 D1)', async () => {
+      const { service } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'http://alice:s3cr3t@10.0.0.5/internal',
+          authentication: 'none',
+        },
+        contextWithWorkspace,
+      )) as unknown as {
+        config: { url?: string };
+        output: { error: { code: string } };
+      };
+      expect(result.output.error.code).toBe('HTTP_BLOCKED');
+      // config echo (Principle 7) 는 차단 경로에서도 URL userinfo 자격증명을 노출하지 않는다.
+      expect(result.config.url ?? '').not.toContain('s3cr3t');
+      expect(result.config.url ?? '').not.toContain('alice');
+    });
+
     it('logs HTTP transport failure with HTTP_TRANSPORT_FAILED', async () => {
       const { service, logUsage } = makeService('bearer_token', { token: 't' });
       global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
