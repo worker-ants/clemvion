@@ -598,6 +598,24 @@ export const ERROR_KO: Record<string, string> = {
     "코드 실행 중 오류가 발생했어요. 에러 메시지와 스택을 확인해 주세요.",
   CODE_MEMORY_LIMIT:
     "코드 실행 중 메모리 한도를 초과했어요.",
+  // chat-channel API 에러 코드 (spec/5-system/15-chat-channel.md §5.4 실패 응답).
+  // 사용자가 채팅 채널 트리거 설정·봇 토큰 회전 시 노출. 영문 SoT 는 각 throw-site.
+  INVALID_BOT_TOKEN:
+    "봇 토큰이 올바르지 않아요. 새 봇 토큰을 입력해 주세요.",
+  TRIGGER_NOT_FOUND:
+    "해당 웹훅 엔드포인트를 찾을 수 없어요.",
+  CHAT_CHANNEL_NOT_CONFIGURED:
+    "이 트리거에는 채팅 채널이 설정되어 있지 않아요.",
+  CHAT_CHANNEL_PROVIDER_UNKNOWN:
+    "알 수 없는 채팅 채널 제공자예요. 지원되는 제공자를 선택해 주세요.",
+  CHAT_CHANNEL_ENDPOINT_REQUIRED:
+    "채팅 채널 트리거에는 콜백 URL(엔드포인트 경로)이 필요해요.",
+  // setupChannel(봇 토큰 회전 등) 실패 — provider 인증 401/403 (spec §5.4).
+  BOT_TOKEN_INVALID:
+    "봇 토큰이 유효하지 않아요 (제공자 인증 401/403). 토큰을 확인해 주세요.",
+  // setupChannel 의 기타 실패(5xx·네트워크 등) → 502 (spec §5.4).
+  CHAT_CHANNEL_SETUP_FAILED:
+    "채팅 채널 설정에 실패했어요. 잠시 후 다시 시도하거나 토큰·설정을 확인해 주세요.",
 };
 
 /**

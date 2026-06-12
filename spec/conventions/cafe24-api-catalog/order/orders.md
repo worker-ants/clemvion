@@ -836,7 +836,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
+| `order` |  | (응답 객체) |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | ↳ `currency` |  | 화폐단위 해당 멀티쇼핑몰의 화폐단위 |
 | ↳ `order_id` |  | 주문번호 |
@@ -1397,7 +1397,7 @@ source: Cafe24 REST API Documentation (admin) — fields from full-page HTML; op
 
 | Parameter | 제약 | 설명 |
 |---|---|---|
-| `order` |  | 정렬 순서 asc : 순차정렬 · desc : 역순 정렬 |
+| `order` |  | (응답 객체) |
 | ↳ `shop_no` |  | 멀티쇼핑몰 번호 멀티쇼핑몰 구분을 위해 사용하는 멀티쇼핑몰 번호. |
 | ↳ `process_status` |  | 주문상태 prepare : 배송준비중 · prepareproduct : 상품준비중 · hold : 배송보류 · unhold : 배송보류해제 |
 | ↳ `order_item_code` |  | 품주코드 |

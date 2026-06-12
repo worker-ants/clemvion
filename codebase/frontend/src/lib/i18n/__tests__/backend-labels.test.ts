@@ -317,6 +317,19 @@ describe("i18n Principle 3-C — 코드/동적 메시지 매핑 parity", () => {
       // 한국어로 안내. HTTP/DB 가 대칭으로 ERROR_KO 에 매핑돼 있어야 한다.
       "HTTP_BLOCKED",
       "DB_HOST_BLOCKED",
+      // 공용 @WorkspaceId() 데코레이터 코드 — chat-channel 전용 아니나 다수
+      // user-facing 엔드포인트에서 노출되고 triggers 안내에도 등재 (spec §1.3 canonical).
+      "WORKSPACE_ID_REQUIRED",
+      // chat-channel API 에러 코드 (spec/5-system/15-chat-channel.md §5.4).
+      // 채팅 채널 트리거 설정·봇 토큰 회전 흐름에서 사용자에게 노출.
+      "INVALID_BOT_TOKEN",
+      "TRIGGER_NOT_FOUND",
+      "CHAT_CHANNEL_NOT_CONFIGURED",
+      "CHAT_CHANNEL_PROVIDER_UNKNOWN",
+      "CHAT_CHANNEL_ENDPOINT_REQUIRED",
+      // setupChannel(봇 토큰 회전) 실패 코드 (spec §5.4).
+      "BOT_TOKEN_INVALID",
+      "CHAT_CHANNEL_SETUP_FAILED",
     ];
     const koKeys = new Set(Object.keys(ERROR_KO));
     const missing = LOCALIZED_ERROR_CODES.filter((c) => !koKeys.has(c));
@@ -445,6 +458,43 @@ describe("translateBackendError — 직접 단위 테스트", () => {
     const fallback = "Database host blocked by SSRF policy.";
     const translated = translateBackendError("DB_HOST_BLOCKED", undefined, "ko", fallback);
     expect(translated).toBe(ERROR_KO["DB_HOST_BLOCKED"]);
+    expect(translated).not.toBe(fallback);
+  });
+
+  // chat-channel 관련 에러 코드 7종 (대부분 spec/5-system/15-chat-channel.md §5.4;
+  // TRIGGER_NOT_FOUND 은 hooks webhook inbound 경로 spec/data-flow/10-triggers.md) —
+  // ko 로케일에서 한국어 안내 반환, en 로케일에서 영문 fallback 반환을 검증.
+  const CHAT_CHANNEL_CODES = [
+    "INVALID_BOT_TOKEN",
+    "TRIGGER_NOT_FOUND",
+    "CHAT_CHANNEL_NOT_CONFIGURED",
+    "CHAT_CHANNEL_PROVIDER_UNKNOWN",
+    "CHAT_CHANNEL_ENDPOINT_REQUIRED",
+    "BOT_TOKEN_INVALID",
+    "CHAT_CHANNEL_SETUP_FAILED",
+  ];
+
+  it("(7) ko + chat-channel 에러 코드 7종 → 각 ERROR_KO 한국어 메시지 반환 (영문 fallback 아님)", () => {
+    for (const code of CHAT_CHANNEL_CODES) {
+      const fallback = `english fallback for ${code}`;
+      const translated = translateBackendError(code, undefined, "ko", fallback);
+      expect(translated, code).toBe(ERROR_KO[code]);
+      expect(translated, code).not.toBe(fallback);
+    }
+  });
+
+  it("(8) en + chat-channel 에러 코드 → 영문 fallback 반환 (code 무관)", () => {
+    for (const code of CHAT_CHANNEL_CODES) {
+      const fallback = `english fallback for ${code}`;
+      const translated = translateBackendError(code, undefined, "en", fallback);
+      expect(translated, code).toBe(fallback);
+    }
+  });
+
+  it("(9) ko + WORKSPACE_ID_REQUIRED (공용 데코레이터 코드) → 한국어 안내 반환", () => {
+    const fallback = "Workspace context is required.";
+    const translated = translateBackendError("WORKSPACE_ID_REQUIRED", undefined, "ko", fallback);
+    expect(translated).toBe(ERROR_KO["WORKSPACE_ID_REQUIRED"]);
     expect(translated).not.toBe(fallback);
   });
 });
