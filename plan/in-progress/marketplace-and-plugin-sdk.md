@@ -77,7 +77,7 @@ ND-EX-01~03 / NF-EX-04 와 결합.
 
 - [ ] **SDK 패키지** — `@clemvion/node-sdk` npm 패키지. NodeComponent 인터페이스 (`codebase/backend/src/nodes/core/`) 를 외부 개발자가 사용할 수 있도록 export
 - [ ] **manifest.json** 스펙 확정 (spec `4-nodes/0-overview.md` §4 초안 기반 + 권한·의존성·아이콘 필드 추가)
-- [ ] **샌드박싱** — 외부 노드 실행 시 isolated-vm / Docker 격리 (spec `5-data/2-code.md` §로드맵에 isolated-vm 언급)
+- [ ] **샌드박싱** — 외부 노드 실행 시 isolated-vm / Docker 격리. **code 노드가 isolated-vm 을 이미 도입(#546, host 탈출 차단 + 128MB 하드 리밋)** — 동일 격리 메커니즘을 커스텀 노드 런타임에 재사용 검토(별도 격리 정책·리소스 한도 설계 필요). ~~spec `5-data/2-code.md` §로드맵 언급~~ → 2-code 는 isolated-vm 구현 완료 상태.
 - [ ] **서명 및 검증** — manifest 에 서명 (Ed25519 등), 설치 시 검증
 - [ ] **버전 충돌 / 의존성** — npm 스타일 semver. lockfile
 - [ ] **런타임 등록** — 워크스페이스에 설치된 커스텀 노드를 NodeComponentRegistry 에 동적 등록

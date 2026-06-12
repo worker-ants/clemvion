@@ -144,7 +144,8 @@ HTTP Request 는 외부 호출 노드 (단계 1개). 정상 / HTTP 에러 / tran
 3. **validate 일관성**: `handler.validate()` (`http-request.handler.ts:84-122`) 는 SSOT (`evaluateMetadataBlockingErrors` + `validateConfig` 의 timeout guard) + method enum / url-string / integrationId-string 의 type 가드만 추가. spec §5.8 의 throw 매트릭스와 1:1 정합.
 
 4. **에러 컨트랙트 (Principle 3)** — **핵심**:
-   - **Pre-flight throw** — `assertSafeOutboundUrl` SSRF 차단 (`:265-282`), `Integration-based authentication is not available` (`:170-173`), `INTEGRATION_INCOMPLETE` (`buildHttpCredentials :534-589`), redirect 5홉 (`:301-303`). 모두 spec §5.8 일치.
+   > **갱신(#549, refactor 04 C-3 / D4)**: 본 항의 "SSRF=Pre-flight throw" 서술은 **이전 스냅샷**이다. 현재는 SSRF 차단이 **전 인증 방식(none/integration/custom) 공통**으로 적용되며, throw 가 아니라 **`port:'error'` + `output.error.code='HTTP_BLOCKED'`** 로 라우팅된다 (`spec/4-nodes/4-integration/1-http-request.md §4 step8`·`node-output.md §3.1 D4`). Pre-flight throw 로 남는 건 `handler.validate` config 형식 오류뿐.
+   - **Pre-flight throw** — `assertSafeOutboundUrl` SSRF 차단 (`:265-282`), `Integration-based authentication is not available` (`:170-173`), `INTEGRATION_INCOMPLETE` (`buildHttpCredentials :534-589`), redirect 5홉 (`:301-303`). 모두 spec §5.8 일치. *(SSRF 부분은 #549 로 `HTTP_BLOCKED` port:error 전환됨 — 위 갱신 노트 참조.)*
    - **Runtime `port:'error'`** — 비-2xx (`:356-374`) + transport 실패 (`:391-404`). 두 경로 모두 `output.error.{code, message, details}` 표준 envelope. **부합**.
    - **`output.response: { error }` 잔재** (`:394`) — Principle 3.2 의 `output.error` 만으로 충분하고 spec footnote 가 deprecation 의도 명시 — 본 plan §"분리 제안" 항목과 일치. handler 코드는 spec 과 같은 형태로 잔재가 코드에 남아있다.
    - SSRF 차단을 throw 로 유지하는 spec 명시 정책 (`spec §5.8` 끝 footnote) 과 일치 — `Cafe24` 노드와 비교했을 때, Cafe24 는 호스트가 정해져 있어 별도 `Cafe24_TRANSPORT_FAILED` 로 처리하는 점에서 미세 차이.
