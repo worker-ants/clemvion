@@ -255,6 +255,11 @@ config: `{ "code": "throw new Error('boom');" }`
 
 > `details.stack` 은 **`NODE_ENV !== 'production'` 일 때만** 포함된다 (프로덕션에서는 내부 파일 경로·
 > isolate 라인 노출 방지로 생략 — §5.3 공통 필드 표). 위 예시는 비프로덕션 기준이다.
+>
+> **운영 가이드 (refactor 04 m-2)**: stack 노출은 `NODE_ENV` 의 prod/non-prod 이분법을 따른다.
+> 외부 노출되는 **staging 환경은 `NODE_ENV=production` 으로 운영**해 stack 이 응답에 실리지 않게 한다
+> (운영과 동일 동작이 되어 환경 차이 버그도 줄인다). staging 에서 stack 가시성이 실무 요구로
+> 확인되면 환경명과 디커플된 별도 플래그 도입을 재검토한다.
 
 #### 5.3.2 타임아웃
 

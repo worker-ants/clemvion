@@ -140,7 +140,17 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 
 > 본 ack 는 `{ type, id, payload }` 가 아니라 Socket.IO ack callback 의 `{ event, data }` shape 다 (`handleSubscribe` 반환). `id` 기반 요청-응답 매칭 대신 Socket.IO ack callback 으로 응답이 짝지어진다.
 
-**권한 검증:** 서버는 구독 시 해당 리소스에 대한 접근 권한을 확인한다 (`execution:` / `kb:` / `background:run:` 채널은 workspace 소유 검증 — IDOR 차단). 권한 없으면 **별도 `error` 메시지가 아니라 동일한 `subscribed` ack 에 `success: false` 와 평문 `error` 문자열** 로 응답한다 (전용 에러 코드 필드 없음):
+**권한 검증:** 서버는 구독 시 해당 리소스에 대한 접근 권한을 확인한다 (IDOR 차단). 채널별 인가 전략(`channelAuthorizers`, OCP 구조)은 다음과 같다 (refactor 04 M-6):
+
+| 채널 | 검증 |
+|------|------|
+| `execution:{executionId}` | workspace 소유 검증 (비-UUID 선차단) |
+| `workflow:{workflowId}` | workspace 소유 검증 (`WorkflowsService.findById(workflowId, workspaceId)`, 비-UUID 선차단) |
+| `kb:{documentId}` | workspace 문서 소유 검증 |
+| `background:run:{id}` | workspace 소유 검증 (비-UUID 선차단) |
+| `notifications:{userId}` | **user 단위** — JWT `sub` 와 채널의 `userId` 일치 검증. emit 은 미구현(Planned)이나 누락 재발 방지를 위해 authorizer 를 선제 배치 (fail-closed) |
+
+권한 없으면 **별도 `error` 메시지가 아니라 동일한 `subscribed` ack 에 `success: false` 와 평문 `error` 문자열** 로 응답한다 (전용 에러 코드 필드 없음):
 
 ```json
 { "event": "subscribed", "data": { "success": false, "error": "Not authorized for this execution" } }

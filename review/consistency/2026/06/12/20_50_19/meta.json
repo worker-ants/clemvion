@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-12T20:50:19.419071",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-refactor-04-security-drift.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
