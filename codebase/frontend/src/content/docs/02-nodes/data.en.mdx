@@ -97,7 +97,7 @@ return { items: result };
 
 <FieldTable rows={[
   {name: "Timeout", required: false, type: "1–120s", description: "Defaults to 30 seconds. Both synchronous infinite loops and async hangs are stopped.", default: "30s"},
-  {name: "Memory", required: false, type: "128MB", description: "Code runs in an isolated environment; exceeding 128MB stops execution and routes to an error.", default: "-"},
+  {name: "Memory", required: false, type: "128MB default", description: "Code runs in an isolated environment; exceeding the memory limit (128MB by default, tunable via the `CODE_NODE_MEMORY_LIMIT_MB` server setting) stops execution and routes to an error.", default: "-"},
   {name: "Network", required: false, type: "Blocked", description: "`fetch`, `XMLHttpRequest`, `WebSocket`, etc. are not injected. For external calls, use the HTTP Request node.", default: "-"},
   {name: "File system", required: false, type: "Blocked", description: "Node.js modules like `fs`, `path`, and `child_process` are unavailable.", default: "-"},
   {name: "Module loading", required: false, type: "Blocked", description: "`require`, `import`, `eval`, and `new Function` are all blocked. Only utilities from `$helpers` are available.", default: "-"},
@@ -113,7 +113,7 @@ You can mutate `$vars` freely during code execution, but the real workflow varia
 <FieldTable rows={[
   {name: "CODE_TIMEOUT", required: false, type: "code", description: "The configured timeout was exceeded.", default: "-"},
   {name: "CODE_EXECUTION_FAILED", required: false, type: "code", description: "A runtime exception. The error details include the stack trace (non-production only).", default: "-"},
-  {name: "CODE_MEMORY_LIMIT", required: false, type: "code", description: "The 128MB memory limit was exceeded during execution.", default: "-"}
+  {name: "CODE_MEMORY_LIMIT", required: false, type: "code", description: "The memory limit was exceeded during execution.", default: "-"}
 ]} />
 
 ## Canvas summary

@@ -593,7 +593,7 @@ export const ERROR_KO: Record<string, string> = {
   CODE_EXECUTION_FAILED:
     "코드 실행 중 오류가 발생했어요. 에러 메시지와 스택을 확인해 주세요.",
   CODE_MEMORY_LIMIT:
-    "코드 실행 중 메모리 한도(128MB)를 초과했어요.",
+    "코드 실행 중 메모리 한도를 초과했어요.",
 };
 
 /**
