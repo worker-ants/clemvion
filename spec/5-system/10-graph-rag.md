@@ -481,18 +481,18 @@ LIMIT $5;        -- 회수 폭(recall): vectorSeedTopK + expandedChunkLimit. 최
 {
   "ragSources": [
     {
-      "chunkId": "uuid",
       "documentId": "uuid",
       "documentName": "Customer FAQ",
-      "chunk": "관련 텍스트 (앞 200자)...",
+      "chunkId": "uuid",
+      "content": "관련 텍스트 (앞 200자)...",
       "score": 0.92,
       "origin": "seed"
     },
     {
-      "chunkId": "uuid",
       "documentId": "uuid",
       "documentName": "Product Manual",
-      "chunk": "그래프 확장으로 회수된 텍스트...",
+      "chunkId": "uuid",
+      "content": "그래프 확장으로 회수된 텍스트...",
       "score": 0.78,
       "origin": "expanded"
     }
@@ -508,6 +508,8 @@ LIMIT $5;        -- 회수 폭(recall): vectorSeedTopK + expandedChunkLimit. 최
 ```
 
 `graphTraversal` 객체는 `mode === 'vector'` 일 때 생략된다.
+
+> `ragSources[]` 항목 스키마(`chunkId`·`documentId`·`documentName`·`content`·`score`·`origin`)의 단일 SoT 는 [RAG 검색 §4.1](./9-rag-search.md#41-ragsources-run-results-ui-에서-인용-청크-표시) 이다 — graph 모드도 동일 구조에 `origin` 을 `seed`/`expanded` 로 채워 같은 `meta.ragSources` 누적·References UI 소비 경로를 공유한다. 텍스트 미리보기 필드는 vector·graph 공통으로 **`content`** 다(코드 `output-shape.ts` 와 일치). graph 전용 메타는 `ragSources` 밖의 `graphTraversal` 로 분리한다.
 
 ---
 
