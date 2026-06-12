@@ -1137,8 +1137,10 @@ describe('HttpRequestHandler', () => {
       };
       expect(result.output.error.code).toBe('HTTP_BLOCKED');
       // config echo (Principle 7) 는 차단 경로에서도 URL userinfo 자격증명을 노출하지 않는다.
-      expect(result.config.url ?? '').not.toContain('s3cr3t');
-      expect(result.config.url ?? '').not.toContain('alice');
+      // url 이 실제로 echo 됨을 먼저 단언해야 strip 검증이 무의미해지지 않는다 (I5).
+      expect(result.config.url).toBeDefined();
+      expect(result.config.url).not.toContain('s3cr3t');
+      expect(result.config.url).not.toContain('alice');
     });
 
     it('logs HTTP transport failure with HTTP_TRANSPORT_FAILED', async () => {

@@ -425,6 +425,12 @@ describe('CodeHandler', () => {
       // isolate boundary (jail.get('$vars',{copy:true})) throws. The handler
       // catches that and restores varsClone (the pre-execution snapshot) — so
       // the otherwise-successful run leaves variables untouched ("원본 보존").
+      //
+      // 검증 방식 (W6): catch 분기 실행 여부는 핸들러 구조상 spy 주입이 불가하므로
+      // **행동(behavioral)** 으로 검증한다 — copy-out 이 성공했다면 `counter=42` 가
+      // 반영됐을 것이므로, 변수가 snapshot 그대로면 fallback 경로가 탔다는 증거다.
+      // (copy-out 거부는 isolated-vm 의 함수 비직렬화 동작에 의존 — 버전업 시
+      // 동작이 바뀌면 본 테스트가 먼저 깨져 회귀를 드러낸다.)
       context.variables = { counter: 1 };
       const result = (await handler.execute(
         null,
