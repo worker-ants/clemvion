@@ -1,5 +1,5 @@
 ---
-worktree: prod-fail-closed-guards
+worktree: (stale — prod-fail-closed-guards 제거됨; 본 W5/W8/W9/W10+SPEC-DRIFT 미착수)
 started: 2026-06-11
 owner: resolution-applier
 ---

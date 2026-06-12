@@ -26,5 +26,5 @@ owner: developer
 - [ ] **0-overview §6.1·mcp-client §3.2·4-execution-engine §10**: SSRF 전 인증 공통/meta.durationMs 동기화(--impl-done INFO). **(보류 — 별도 cross-spec 동기화 항목, 그룹2a 범위 밖.)**
 
 ## 타 plan/worktree 정리
-- [ ] stale worktree 6건(`prod-fail-closed-guards` 등 PR MERGED) `cleanup-worktree-all.sh` 정리.
-- [ ] `spec-fix-prod-guards-prose.md` frontmatter `worktree` stale 갱신.
+- [x] stale worktree 6건(`prod-fail-closed-guards` 등 PR MERGED) `cleanup-worktree-all.sh` 정리. **(완료, PR plan-cleanup 그룹5)**: 본 작업이 머지한 PR 의 worktree 3건(`errcode-wiring`#550·`spec-errcode-catalog`#551·`db-host-blocked`#553)을 `cleanup-worktree.sh --force` 로 제거(local main stale 라 --force). `prod-fail-closed-guards` 등은 이미 부재. 잔존 worktree(`audit-sot-hygiene`·`pr4b-kb-embedding-retire`·`spec-audit-action-prose`·`spec-ragsources-content`)는 **타 작업 소유라 미정리**.
+- [x] `spec-fix-prod-guards-prose.md` frontmatter `worktree` stale 갱신. **(완료, 그룹5)**: stale `worktree: prod-fail-closed-guards`(제거됨) → `(complete)` 표기.
