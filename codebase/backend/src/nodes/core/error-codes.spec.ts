@@ -13,6 +13,14 @@ describe('ErrorCode enum', () => {
     }
   });
 
+  // PR4b regression guard: retired LLM_CONFIG_* codes must not re-appear.
+  // spec/conventions/error-codes.md §4 declares these as "완전 제거(코드베이스에서 완전 제거)".
+  it('does not contain retired LLM_CONFIG_INVALID or LLM_CONFIG_NOT_FOUND codes (PR4b §4 regression guard)', () => {
+    const keys = Object.keys(ErrorCode);
+    expect(keys).not.toContain('LLM_CONFIG_INVALID');
+    expect(keys).not.toContain('LLM_CONFIG_NOT_FOUND');
+  });
+
   it('includes all categories referenced in CONVENTIONS §3.2', () => {
     expect(ErrorCode.HTTP_TRANSPORT_FAILED).toBeDefined();
     expect(ErrorCode.HTTP_4XX).toBeDefined();

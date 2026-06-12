@@ -111,4 +111,5 @@ legacy 임베딩 서술(embeddingLlmConfigId, embedding_model, 3-step 폴백 언
 | `spec/data-flow/6-knowledge-base.md §2` | embedding_model, embedding_llm_config_id 컬럼 제거 |
 | `spec/2-navigation/5-knowledge-base.md` | legacy 임베딩 서술 제거 |
 | `spec/2-navigation/6-config.md` | legacy 임베딩 서술 제거 |
+| `spec/data-flow/7-llm-usage.md` | `embeddingLlmConfigId` 참조 제거 (PR4b V094 DROP 반영) |
 | CHANGELOG (또는 릴리즈 노트) | breaking change 기록 (외부 소비자 여부에 따라 수준 결정) |

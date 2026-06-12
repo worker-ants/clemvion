@@ -12,7 +12,7 @@
 
 2. **KB create/update DTO 에서 `embeddingModel`·`embeddingLlmConfigId` 필드 제거** — `POST`/`PATCH /api/knowledge-bases` 요청 body 에 이 두 필드를 보내도 **무시된다**(silent breaking). 임베딩 모델 선택은 `embeddingModelConfigId`(1급 `kind=embedding` ModelConfig 참조)로만 수행한다.
 
-3. **KB 응답에서 `embeddingLlmConfigId` 제거, `embeddingModel` 은 read-only(derived) 로 변경** — `embeddingModel` 은 더 이상 저장 컬럼이 아니라 참조 ModelConfig 의 `defaultModel` 에서 파생되는 읽기 전용 값이다(워크스페이스에 embedding ModelConfig 가 없으면 빈 문자열). 변경은 `embeddingModelConfigId` 로만 가능하다.
+3. **KB 응답에서 `embeddingLlmConfigId` 제거, `embeddingModel` 은 read-only(derived) 로 변경** — `GET /api/knowledge-bases`, `GET /api/knowledge-bases/:id` 응답 shape 에서 `embeddingLlmConfigId` 필드가 제거됐다. `embeddingModel` 은 더 이상 저장 컬럼이 아니라 참조 ModelConfig 의 `defaultModel` 에서 파생되는 읽기 전용 값이다(워크스페이스에 embedding ModelConfig 가 없으면 빈 문자열). 변경은 `embeddingModelConfigId` 로만 가능하다.
 
 ### Migrations
 
