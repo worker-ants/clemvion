@@ -355,7 +355,16 @@ def resp_param_rows(resp_str, props, req_map=None, global_map=None, variant_map=
 
     설명 우선순위: (1) 같은 entity 응답 속성(property list) → (2) 같은 entity 요청 파라미터 →
     (3) 문서 전체 유일 설명 → (4) variant-base(변형들의 공통 base 설명). 어느 것에도 없는
-    컨테이너는 (응답 객체)/(목록), 스칼라는 빈칸."""
+    컨테이너는 (응답 객체)/(목록), 스칼라는 빈칸.
+
+    단, (2)~(4) 의 cross-map fallback(req/global/variant)은 **스칼라 필드에만** 적용한다.
+    컨테이너(obj/arr) 는 스칼라 파라미터 설명을 빌려오면 의미가 어긋나므로(예: 응답
+    래퍼 `order` 가 정렬 쿼리 파라미터 `order` 의 "정렬 순서 asc…" 를 가져옴) 제외하고
+    (응답 객체)/(목록) 라벨로 떨어진다.
+
+    회귀 검증 레시피(수동) — `_overview.md §7.3` 참조: 응답 래퍼명이 요청 파라미터명과
+    충돌하는 entity(`order`/`category` 등) 재생성 시 컨테이너 행이 (응답 객체)/(목록) 로
+    유지되는지 확인."""
     try:
         data = json.loads(resp_str)
     except Exception:
@@ -372,7 +381,12 @@ def resp_param_rows(resp_str, props, req_map=None, global_map=None, variant_map=
     for name, depth, kind in seq:
         src = by_name.get(name)
         if not (src and src.get('desc')):  # property list 에 없거나 설명 비어있으면 HTML 다른 곳 대조
-            src = req_map.get(name) or global_map.get(name) or variant_map.get(name) or src
+            # 컨테이너(obj/arr)는 req/global/variant 의 스칼라 파라미터 설명을 빌려오면
+            # 의미가 어긋난다 (예: 응답 래퍼 `order` 가 정렬 쿼리 파라미터 `order` 의
+            # "정렬 순서 asc…" 설명을 가져옴). 스칼라 필드만 cross-map fallback 을
+            # 적용하고, 컨테이너는 아래 (응답 객체)/(목록) 라벨로 떨어지게 둔다.
+            if kind not in ('obj', 'arr'):
+                src = req_map.get(name) or global_map.get(name) or variant_map.get(name) or src
         if src:
             cons = cons_cell(src.get('constraints', []), src.get('note'))
             desc = mdcell(src.get('desc') or '')

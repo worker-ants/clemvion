@@ -2,6 +2,9 @@
 worktree: fix-spec-frontmatter-catalog
 started: 2026-06-03
 owner: developer
+spec_impact:
+  - spec/conventions/spec-impl-evidence.md
+  - spec/conventions/cafe24-api-catalog/_overview.md
 ---
 
 # spec-frontmatter guard — cafe24 필드 카탈로그 제외
