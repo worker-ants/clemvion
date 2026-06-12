@@ -311,7 +311,13 @@ describe("i18n Principle 3-C — 코드/동적 메시지 매핑 parity", () => {
   it("P3-C-2: user-facing 등록 error 코드가 ERROR_KO 에 매핑돼요", () => {
     // "user-facing localized" 로 등록한 코드 집합. ErrorCode enum 전체가 아니라
     // 사용자 노출이 확정된 코드만 — 점진 확장 (Principle 3-C 범위).
-    const LOCALIZED_ERROR_CODES = ["GRAPH_VALIDATION_FAILED"];
+    const LOCALIZED_ERROR_CODES = [
+      "GRAPH_VALIDATION_FAILED",
+      // SSRF 차단 코드군 (refactor 04 C-3 / 후속) — 사용자에게 차단 사유를
+      // 한국어로 안내. HTTP/DB 가 대칭으로 ERROR_KO 에 매핑돼 있어야 한다.
+      "HTTP_BLOCKED",
+      "DB_HOST_BLOCKED",
+    ];
     const koKeys = new Set(Object.keys(ERROR_KO));
     const missing = LOCALIZED_ERROR_CODES.filter((c) => !koKeys.has(c));
     expect(
@@ -425,5 +431,20 @@ describe("translateBackendError — 직접 단위 테스트", () => {
     const translated = translateBackendError(KNOWN_CODE, undefined, "ko", FALLBACK);
     expect(typeof translated).toBe("string");
     expect(translated.length).toBeGreaterThan(0);
+  });
+
+  it("(5) ko + HTTP_BLOCKED (SSRF) → 한국어 안내 반환 (영문 fallback 아님)", () => {
+    const fallback = "Request blocked by SSRF policy.";
+    const translated = translateBackendError("HTTP_BLOCKED", undefined, "ko", fallback);
+    expect(translated).toBe(ERROR_KO["HTTP_BLOCKED"]);
+    expect(translated).not.toBe(fallback);
+    expect(translated).toContain("SSRF");
+  });
+
+  it("(6) ko + DB_HOST_BLOCKED (SSRF) → 한국어 안내 반환 (HTTP 와 대칭)", () => {
+    const fallback = "Database host blocked by SSRF policy.";
+    const translated = translateBackendError("DB_HOST_BLOCKED", undefined, "ko", fallback);
+    expect(translated).toBe(ERROR_KO["DB_HOST_BLOCKED"]);
+    expect(translated).not.toBe(fallback);
   });
 });
