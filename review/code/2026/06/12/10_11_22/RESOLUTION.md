@@ -8,7 +8,7 @@
 | C-2 | verified-non-issue | — | — | `llm-preview.service.ts:39/48/69` 이미 `MODEL_CONFIG_INVALID`(구 `LLM_CONFIG_INVALID` 0건). |
 | C-3 | verified-non-issue | — | — | `MODEL_CONFIG_DEFAULT_MISSING` 은 `llm.service.ts:356` 에서 발행 중. `error-codes.ts` 는 노드 핸들러 런타임용 canonical enum 으로, NestJS API 레이어 도메인 코드와 다른 레이어. 미등재 정상. |
 | C-4 | verified-non-issue | — | — | `MODEL_CONFIG_DEFAULT_MISSING`(400) 이미 `llm.service.ts:356` 발행 중. "spec 만 등재, 미구현" 주장 틀림. |
-| W-1 | spec | draft 위임 | — | `plan/in-progress/spec-fix-error-code-routing.md` — resolveEmbedding(404) vs resolveConfig(400) 의도적 차이 Rationale 명시 필요. `ESCALATE=spec`. |
+| W-1 | spec | applied | (후속 spec 커밋) | consistency-check 10_37_05 BLOCK:NO 통과 후 `3-error-handling.md §1.3`+Rationale 에 resolveEmbedding(404) vs resolveConfig(400) 분리 명시 반영. `error-codes.md §4` 비고도 동기화. |
 | W-2 | verified-non-issue | — | — | `MODEL_CONFIG_NOT_FOUND`(404) 전환 이미 구현 완료. spec 기술 정확. |
 | W-3 | verified-non-issue | — | — | step-3 이미 제거됨(146-147행 주석 + Rationale). V094 SQL 에 배포 순서 의존 및 lock_timeout 주의 이미 명시. |
 | W-4 | verified-non-issue | — | — | `create-knowledge-base.dto.ts` 에 `embedding_model` 필드 없음. `embeddingModelConfigId` 만 존재. |
@@ -21,7 +21,7 @@
 | W-11 | 코드 | fixed | 2ba5d0d2 | plan 적용 위치 표에 `spec/data-flow/7-llm-usage.md | embeddingLlmConfigId 참조 제거` 행 소급 추가. |
 | W-12 | 코드 | fixed | 2ba5d0d2 | CHANGELOG breaking change #3 에 `GET /api/knowledge-bases`, `GET /api/knowledge-bases/:id` 엔드포인트 명시 보완. |
 | W-13 | verified-non-issue | — | — | `resolveEmbedding` step-3 이미 제거됨 (C-1 동일). kind 파라미터 생략 경로 자체가 없음. |
-| I-4 | spec | draft 위임 | — | `plan/in-progress/spec-fix-error-code-routing.md` 에 포함 — KB nav spec 에 resolveEmbedding(404) vs resolveConfig(400) 구분 주석 추가 제안. `ESCALATE=spec`. |
+| I-4 | spec | applied | (후속 spec 커밋) | `2-navigation/5-knowledge-base.md` 라인 239 에 resolveEmbedding(404) vs resolveConfig(400) 구분 주석 + `3-error-handling.md §1.3` cross-ref 반영. |
 
 ## TEST 결과
 

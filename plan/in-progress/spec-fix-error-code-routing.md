@@ -2,6 +2,8 @@
 worktree: pr4b-kb-embedding-retire
 started: 2026-06-12
 owner: resolution-applier
+spec_impact: [spec/5-system/3-error-handling.md, spec/2-navigation/5-knowledge-base.md, spec/conventions/error-codes.md]
+status: applied
 ---
 # Spec Fix Draft — resolveEmbedding vs resolveConfig 에러코드 라우팅 명시
 

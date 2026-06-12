@@ -92,7 +92,7 @@ public 코드는 우측 열이다 — 명명 정확성 향상을 위한 internal
 
 | 구 코드 | 대체 코드 | HTTP | PR | 비고 |
 |---|---|---|---|---|
-| `LLM_CONFIG_NOT_FOUND` | `MODEL_CONFIG_DEFAULT_MISSING` | 400 | PR4b | id 미지정 시 워크스페이스 default config 부재 경로. id 부재(404)는 `MODEL_CONFIG_NOT_FOUND` 로 별도 분리 ([3-error-handling.md §1.3 Rationale](../5-system/3-error-handling.md#rationale)) |
+| `LLM_CONFIG_NOT_FOUND` | `MODEL_CONFIG_DEFAULT_MISSING` | 400 | PR4b | id 미지정 시 워크스페이스 default config 부재 경로 — `resolveConfig`(chat/LLM) 전용. id 부재(404)는 `MODEL_CONFIG_NOT_FOUND` 로 별도 분리. `resolveEmbedding` ws-default 부재도 `MODEL_CONFIG_NOT_FOUND`(404) 유지(리소스 부재, 사용자 결정 2026-06-12) ([3-error-handling.md §1.3 Rationale](../5-system/3-error-handling.md#rationale)) |
 | `LLM_CONFIG_INVALID` | `MODEL_CONFIG_INVALID` | 400 | PR4b | 접두어를 `MODEL_CONFIG_*` 로 통일 (LLMConfig→ModelConfig 1급 통합). 의미·status 변경 없음 |
 
 ## Rationale
