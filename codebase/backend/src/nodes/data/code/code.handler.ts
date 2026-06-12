@@ -12,12 +12,52 @@ import { ErrorCode, type ErrorCodeValue } from '../../core/error-codes.js';
 import { codeNodeMetadata, DEFAULT_TIMEOUT_SEC } from './code.schema.js';
 
 const MAX_CONSOLE_LINES = 100;
+
+// Isolate memory hard limit (spec §7.2). Default 128MB, operator-tunable via the
+// `CODE_NODE_MEMORY_LIMIT_MB` env var, clamped to a 512MB safety ceiling so a
+// single execution cannot monopolise host memory.
+const DEFAULT_MEMORY_LIMIT_MB = 128;
+const MAX_MEMORY_LIMIT_MB = 512;
+
 /**
- * Isolate memory hard limit (spec §7.2) — exceeded triggers CODE_MEMORY_LIMIT.
- * W15: Currently hardcoded. Can be extracted to `CODE_NODE_MEMORY_LIMIT_MB`
- * env var if runtime tuning is needed.
+ * Resolve the isolate memory limit (MB) from `CODE_NODE_MEMORY_LIMIT_MB`
+ * (spec §7.2). Falls back to {@link DEFAULT_MEMORY_LIMIT_MB} when unset or
+ * invalid, and clamps to {@link MAX_MEMORY_LIMIT_MB}.
+ *
+ * Only pure integer strings are accepted — a string that would be partially
+ * parsed by `parseInt` (e.g. `"64abc"`, `"256.9"`) is treated as invalid and
+ * falls back to the default with a console.warn. This prevents silent
+ * operator-typo acceptance (spec §7.2 "non-numeric fallback" intent).
+ * A console.warn is emitted when the env var is set but invalid or clamped.
+ *
+ * @internal Exported only for unit testing (code.handler.spec.ts).
  */
-const ISOLATE_MEMORY_LIMIT_MB = 128;
+export function resolveMemoryLimitMb(): number {
+  const raw = process.env.CODE_NODE_MEMORY_LIMIT_MB;
+  if (raw === undefined || raw.trim() === '') return DEFAULT_MEMORY_LIMIT_MB;
+  // Reject any value that is not a pure integer string (no decimals, no
+  // trailing/leading non-numeric chars). Number() parses the whole string so
+  // "64abc" → NaN and "256.9" → 256.9 (non-integer), both caught here.
+  const asNumber = Number(raw.trim());
+  const parsed = Math.trunc(asNumber);
+  if (!Number.isInteger(asNumber) || !Number.isFinite(parsed) || parsed <= 0) {
+    console.warn(
+      `[CodeHandler] CODE_NODE_MEMORY_LIMIT_MB="${raw}" is invalid (non-integer or ≤ 0) — falling back to ${DEFAULT_MEMORY_LIMIT_MB} MB`,
+    );
+    return DEFAULT_MEMORY_LIMIT_MB;
+  }
+  if (parsed > MAX_MEMORY_LIMIT_MB) {
+    console.warn(
+      `[CodeHandler] CODE_NODE_MEMORY_LIMIT_MB=${parsed} exceeds the ${MAX_MEMORY_LIMIT_MB} MB safety ceiling — clamped to ${MAX_MEMORY_LIMIT_MB} MB`,
+    );
+    return MAX_MEMORY_LIMIT_MB;
+  }
+  return parsed;
+}
+
+// Resolved once at module load (matches isolate-lifetime semantics; env is read
+// at process start). Tests exercise resolveMemoryLimitMb() directly.
+const ISOLATE_MEMORY_LIMIT_MB = resolveMemoryLimitMb();
 
 // Allowlist for $helpers.crypto.hash — guards against OpenSSL internal error
 // messages leaking through on unsupported algorithm strings (spec §2.2).
@@ -116,6 +156,37 @@ function hostHash(algorithm: unknown, data: unknown): string {
     );
   }
   return createHash(algorithm).update(data).digest('hex');
+}
+
+/**
+ * Host-realm `$helpers.base64.encode`. Like {@link hostHash}, the type guard
+ * throws here and the message propagates to the user code's `error` port
+ * (spec §2.2 — `$helpers` 입력 타입 계약). Aligns base64 with hash: a non-string
+ * argument is a `TypeError`, not a silent `String(data)` coercion that would
+ * hide a type bug.
+ */
+function hostB64Encode(data: unknown): string {
+  if (typeof data !== 'string') {
+    throw new TypeError(
+      `$helpers.base64.encode: data must be a string, got ${typeof data}`,
+    );
+  }
+  return Buffer.from(data, 'utf-8').toString('base64');
+}
+
+/**
+ * Host-realm `$helpers.base64.decode`. Non-string input throws a `TypeError`
+ * (spec §2.2). Note: an *invalid base64 string* (the argument IS a string) is
+ * NOT a type error — `Buffer.from` decodes best-effort and returns a string
+ * without throwing, per spec §2.2.
+ */
+function hostB64Decode(data: unknown): string {
+  if (typeof data !== 'string') {
+    throw new TypeError(
+      `$helpers.base64.decode: data must be a string, got ${typeof data}`,
+    );
+  }
+  return Buffer.from(data, 'base64').toString('utf-8');
 }
 
 /**
@@ -356,77 +427,22 @@ export class CodeHandler implements NodeHandler {
     const rawConfigForEcho = context.rawConfig ?? config;
 
     // Create from the prebuilt dayjs snapshot when available (skips the per-exec
-    // dayjs compile below); otherwise a bare isolate + the legacy compile path.
+    // dayjs compile inside _buildIsolateContext); otherwise a bare isolate.
     const isolateOptions: ConstructorParameters<typeof ivm.Isolate>[0] = {
       memoryLimit: ISOLATE_MEMORY_LIMIT_MB,
     };
     if (DAYJS_SNAPSHOT) isolateOptions.snapshot = DAYJS_SNAPSHOT;
     const isolate = new ivm.Isolate(isolateOptions);
-    let runPromise: Promise<unknown> | undefined;
-    let timeoutHandle: NodeJS.Timeout | undefined;
     try {
-      const ctx = await isolate.createContext();
-      const jail = ctx.global;
-
-      // --- inject execution-context data (copied into the isolate heap) ------
-      await jail.set('$input', new ivm.ExternalCopy(input).copyInto());
-      await jail.set('$vars', new ivm.ExternalCopy(varsClone).copyInto());
-      await jail.set(
-        '$execution',
-        new ivm.ExternalCopy({
-          executionId: context.executionId,
-          workflowId: context.workflowId,
-        }).copyInto(),
+      // Build the isolate context: inject execution-context data + host
+      // callbacks, restore/compile dayjs, then run the §7.3 hardening bootstrap.
+      const ctx = await this._buildIsolateContext(
+        isolate,
+        input,
+        varsClone,
+        context,
+        logs,
       );
-      await jail.set(
-        '$node',
-        new ivm.ExternalCopy({
-          id: context.nodeId ?? '',
-          label: context.nodeLabel ?? '',
-        }).copyInto(),
-      );
-
-      // --- inject host-realm callbacks ($helpers internals + console) --------
-      await jail.set(
-        '__host_hash',
-        new ivm.Callback((algorithm: unknown, data: unknown) =>
-          hostHash(algorithm, data),
-        ),
-      );
-      await jail.set('__host_uuid', new ivm.Callback(() => randomUUID()));
-      await jail.set(
-        '__host_b64encode',
-        new ivm.Callback((data: unknown) =>
-          Buffer.from(String(data), 'utf-8').toString('base64'),
-        ),
-      );
-      await jail.set(
-        '__host_b64decode',
-        new ivm.Callback((data: unknown) =>
-          Buffer.from(String(data), 'base64').toString('utf-8'),
-        ),
-      );
-      await jail.set(
-        '__host_log',
-        new ivm.Callback((level: unknown, payload: unknown) => {
-          if (logs.length < MAX_CONSOLE_LINES) {
-            logs.push(`[${String(level)}] ${String(payload)}`);
-          }
-        }),
-      );
-
-      // --- load dayjs into the isolate, then assemble + harden the surface ---
-      // With a snapshot, dayjs is already on the global (restored from the
-      // serialized heap) — only the legacy/fallback path compiles it per-run.
-      if (!DAYJS_SNAPSHOT) {
-        await (await isolate.compileScript(DAYJS_LOAD_SCRIPT)).run(ctx);
-      }
-      // BOOTSTRAP_SOURCE is re-compiled per exec — ivm.Script is bound to the
-      // isolate it was compiled in and cannot be shared cross-isolate; since each
-      // exec uses a fresh isolate (memory-isolation invariant), module-level
-      // pre-compilation is not possible. BOOTSTRAP_SOURCE is ~70 LoC; re-compile
-      // cost is negligible compared to the dayjs UMD (now eliminated via snapshot).
-      await (await isolate.compileScript(BOOTSTRAP_SOURCE)).run(ctx);
 
       // --- compile user code (syntax error here = pre-flight invariant) ------
       let script: ivm.Script;
@@ -438,30 +454,12 @@ export class CodeHandler implements NodeHandler {
       }
 
       // --- run with dual timeout: isolate CPU timeout + host wall-clock race -
-      runPromise = script.run(ctx, {
-        promise: true,
-        timeout: timeoutMs,
-        copy: true,
-      }) as Promise<unknown>;
-      // Swallow a late rejection if the host race wins and we dispose the
-      // isolate while the run is still pending (avoids unhandled rejection).
-      runPromise.catch(() => undefined);
-
-      const result = await Promise.race([
-        runPromise,
-        new Promise((_resolve, reject) => {
-          timeoutHandle = setTimeout(() => {
-            const e: CodeExecutionError = new Error('Code execution timed out');
-            e.code = 'EXECUTION_TIMEOUT';
-            reject(e);
-          }, timeoutMs + 1000);
-        }),
-      ]);
+      const result = await this._runWithTimeout(script, ctx, timeoutMs);
 
       // --- success: sync $vars back (atomic full replace, spec §4.5) ---------
       try {
         context.variables =
-          ((await jail.get('$vars', { copy: true })) as Record<
+          ((await ctx.global.get('$vars', { copy: true })) as Record<
             string,
             unknown
           >) ?? {};
@@ -500,18 +498,135 @@ export class CodeHandler implements NodeHandler {
         throw err;
       }
       const errorCode = classifyCodeNodeError(err, isolate);
-      return this.failure(
-        rawConfigForEcho,
-        err,
-        errorCode,
-        logs,
-        errorCode === 'EXECUTION_TIMEOUT'
-          ? 'Code execution timed out'
-          : undefined,
-      );
+      // Spec §5.3.3 — pin the user-visible message for the two isolate-level
+      // termination codes so isolated-vm internal message changes (version
+      // upgrades) can never silently drift from the spec-prescribed text.
+      let overrideMsg: string | undefined;
+      if (errorCode === 'EXECUTION_TIMEOUT') {
+        overrideMsg = 'Code execution timed out';
+      } else if (errorCode === 'EXECUTION_MEMORY_EXCEEDED') {
+        overrideMsg =
+          'Isolate was disposed during execution due to memory limit';
+      }
+      return this.failure(rawConfigForEcho, err, errorCode, logs, overrideMsg);
+    } finally {
+      if (!isolate.isDisposed) isolate.dispose();
+    }
+  }
+
+  /**
+   * Build a fresh isolate context for one execution: inject the execution-context
+   * data ($input/$vars/$execution/$node, copied into the isolate heap) + the
+   * host-realm callbacks ($helpers internals + console), restore dayjs (from the
+   * snapshot, or compile per-run on the fallback path), then run BOOTSTRAP_SOURCE
+   * which assembles $helpers/console and applies the §7.3 global hardening.
+   *
+   * W13 (IMPORTANT — execution order): host callbacks MUST be injected here BEFORE
+   * BOOTSTRAP_SOURCE runs — the IIFE lexically captures them and then deletes the
+   * globals. Reordering breaks the closures and may re-expose dangerous globals.
+   */
+  private async _buildIsolateContext(
+    isolate: ivm.Isolate,
+    input: unknown,
+    varsClone: Record<string, unknown>,
+    context: ExecutionContext,
+    logs: string[],
+  ): Promise<ivm.Context> {
+    const ctx = await isolate.createContext();
+    const jail = ctx.global;
+
+    // --- inject execution-context data (copied into the isolate heap) ------
+    await jail.set('$input', new ivm.ExternalCopy(input).copyInto());
+    await jail.set('$vars', new ivm.ExternalCopy(varsClone).copyInto());
+    await jail.set(
+      '$execution',
+      new ivm.ExternalCopy({
+        executionId: context.executionId,
+        workflowId: context.workflowId,
+      }).copyInto(),
+    );
+    await jail.set(
+      '$node',
+      new ivm.ExternalCopy({
+        id: context.nodeId ?? '',
+        label: context.nodeLabel ?? '',
+      }).copyInto(),
+    );
+
+    // --- inject host-realm callbacks ($helpers internals + console) --------
+    await jail.set(
+      '__host_hash',
+      new ivm.Callback((algorithm: unknown, data: unknown) =>
+        hostHash(algorithm, data),
+      ),
+    );
+    await jail.set('__host_uuid', new ivm.Callback(() => randomUUID()));
+    await jail.set(
+      '__host_b64encode',
+      new ivm.Callback((data: unknown) => hostB64Encode(data)),
+    );
+    await jail.set(
+      '__host_b64decode',
+      new ivm.Callback((data: unknown) => hostB64Decode(data)),
+    );
+    await jail.set(
+      '__host_log',
+      new ivm.Callback((level: unknown, payload: unknown) => {
+        if (logs.length < MAX_CONSOLE_LINES) {
+          logs.push(`[${String(level)}] ${String(payload)}`);
+        }
+      }),
+    );
+
+    // --- load dayjs into the isolate, then assemble + harden the surface ---
+    // With a snapshot, dayjs is already on the global (restored from the
+    // serialized heap) — only the legacy/fallback path compiles it per-run.
+    if (!DAYJS_SNAPSHOT) {
+      await (await isolate.compileScript(DAYJS_LOAD_SCRIPT)).run(ctx);
+    }
+    // BOOTSTRAP_SOURCE is re-compiled per exec — ivm.Script is bound to the
+    // isolate it was compiled in and cannot be shared cross-isolate; since each
+    // exec uses a fresh isolate (memory-isolation invariant), module-level
+    // pre-compilation is not possible. BOOTSTRAP_SOURCE is ~70 LoC; re-compile
+    // cost is negligible compared to the dayjs UMD (now eliminated via snapshot).
+    await (await isolate.compileScript(BOOTSTRAP_SOURCE)).run(ctx);
+
+    return ctx;
+  }
+
+  /**
+   * Run the compiled user script with the dual timeout (spec §7.2): the isolate
+   * CPU timeout option + a host wall-clock `Promise.race` guarding async hangs.
+   * The wall-clock timer is always cleared before returning/throwing.
+   */
+  private async _runWithTimeout(
+    script: ivm.Script,
+    ctx: ivm.Context,
+    timeoutMs: number,
+  ): Promise<unknown> {
+    const runPromise = script.run(ctx, {
+      promise: true,
+      timeout: timeoutMs,
+      copy: true,
+    }) as Promise<unknown>;
+    // Swallow a late rejection if the host race wins and the isolate is disposed
+    // while the run is still pending (avoids an unhandled rejection).
+    runPromise.catch(() => undefined);
+
+    let timeoutHandle: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        runPromise,
+        new Promise((_resolve, reject) => {
+          timeoutHandle = setTimeout(() => {
+            const e: CodeExecutionError = new Error('Code execution timed out');
+            e.code = 'EXECUTION_TIMEOUT';
+            reject(e);
+          }, timeoutMs + 1000);
+        }),
+      ]);
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle);
-      if (!isolate.isDisposed) isolate.dispose();
     }
   }
 

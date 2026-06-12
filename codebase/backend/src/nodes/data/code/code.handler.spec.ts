@@ -1,4 +1,8 @@
-import { CodeHandler, classifyCodeNodeError } from './code.handler.js';
+import {
+  CodeHandler,
+  classifyCodeNodeError,
+  resolveMemoryLimitMb,
+} from './code.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -505,6 +509,32 @@ describe('CodeHandler', () => {
       expect(result.output.d).toBe('hello');
     });
 
+    // spec §2.2 — $helpers 입력 타입 계약: base64.encode/decode 비문자열 → TypeError
+    // (hostHash 와 동형). silent String() 강제변환을 제거해 타입 버그를 드러낸다.
+    it.each([
+      ['encode', 'return $helpers.base64.encode(42);'],
+      ['decode', 'return $helpers.base64.decode(42);'],
+      ['encode', 'return $helpers.base64.encode({ a: 1 });'],
+      ['decode', 'return $helpers.base64.decode(null);'],
+    ])(
+      'should route non-string $helpers.base64.%s input to the error port (TypeError)',
+      async (_op, code) => {
+        const result = (await handler.execute(
+          null,
+          { code },
+          context,
+        )) as unknown as {
+          output: { error: { code: string; message: string } };
+          meta: { success: boolean };
+          port?: string;
+        };
+        expect(result.port).toBe('error');
+        expect(result.meta.success).toBe(false);
+        expect(result.output.error.code).toBe('CODE_EXECUTION_FAILED');
+        expect(result.output.error.message).toMatch(/must be a string/i);
+      },
+    );
+
     it('should expose $helpers.date(value) as a dayjs-compatible object', async () => {
       const result = (await handler.execute(
         null,
@@ -563,7 +593,9 @@ describe('CodeHandler', () => {
       expect(result.output.error.code).toBe('CODE_EXECUTION_FAILED');
     });
 
-    // INFO 10 — base64.decode with invalid Base64 input: silent-failure (no throw, returns string)
+    // spec §2.2 — an *invalid base64 STRING* (the argument IS a string) is a
+    // value error, not a type error: Buffer decodes best-effort and returns a
+    // string without throwing. Distinct from the non-string TypeError above.
     it('should silently return a string for $helpers.base64.decode on invalid Base64 input', async () => {
       const result = (await handler.execute(
         null,
@@ -814,29 +846,83 @@ describe('CodeHandler', () => {
   });
 
   describe('execute — memory limit (spec §7.2)', () => {
-    it('should route an isolate memory-limit breach to CODE_MEMORY_LIMIT', async () => {
+    // CI flakiness mitigation (W10): the memory-limit breach races the CPU
+    // timeout, so on constrained CI runners CODE_TIMEOUT can occasionally fire
+    // first. Retry this describe's tests (jest-circus) so a transient race does
+    // not fail the suite; reset after so other suites are unaffected.
+    beforeAll(() => jest.retryTimes(2));
+    afterAll(() => jest.retryTimes(0));
+
+    it('should route an isolate memory-limit breach to CODE_MEMORY_LIMIT with spec-pinned message (spec §5.3.3)', async () => {
       const result = (await handler.execute(
         null,
         {
-          // Allocate without bound until the 128MB isolate limit is exceeded.
-          // W10: CI flakiness note — allocation races the CPU timeout (30s).
-          // If CODE_TIMEOUT fires instead of CODE_MEMORY_LIMIT in constrained
-          // CI, increase the timeout value or use a larger fill step. The
-          // current 1e6-element arrays are tracked by V8 heap and reliably
-          // trigger the memory limit before the CPU timeout on typical hardware.
+          // Allocate without bound until the default 128MB isolate limit is
+          // exceeded. The allocation races the CPU timeout (30s); 1e6-element
+          // arrays are tracked by the V8 heap and reliably trigger the memory
+          // limit before the CPU timeout on typical hardware (retry covers the
+          // rare CI race — see beforeAll above).
           code: 'const a = []; while (true) { a.push(new Array(1e6).fill(0)); }',
           timeout: 30, // seconds — isolate CPU timeout (not ms)
         },
         context,
       )) as unknown as {
-        output: { error: { code: string } };
+        output: { error: { code: string; message: string } };
         meta: { success: boolean };
         port?: string;
       };
       expect(result.port).toBe('error');
       expect(result.meta.success).toBe(false);
       expect(result.output.error.code).toBe('CODE_MEMORY_LIMIT');
+      // Spec §5.3.3 — message must be the pinned string, not the raw
+      // isolated-vm message (guards against upstream version drift).
+      expect(result.output.error.message).toBe(
+        'Isolate was disposed during execution due to memory limit',
+      );
     }, 30_000); // Jest timeout 30_000 ms = 30s
+  });
+
+  // spec §7.2 — memory limit is operator-tunable via CODE_NODE_MEMORY_LIMIT_MB
+  // (default 128, clamped to a 512 safety ceiling). resolveMemoryLimitMb() is
+  // unit-tested directly since the module-level constant is read once at load.
+  describe('resolveMemoryLimitMb (spec §7.2)', () => {
+    const ENV_KEY = 'CODE_NODE_MEMORY_LIMIT_MB';
+    let saved: string | undefined;
+    beforeEach(() => {
+      saved = process.env[ENV_KEY];
+    });
+    afterEach(() => {
+      if (saved === undefined) delete process.env[ENV_KEY];
+      else process.env[ENV_KEY] = saved;
+    });
+
+    it('defaults to 128 when the env var is unset', () => {
+      delete process.env[ENV_KEY];
+      expect(resolveMemoryLimitMb()).toBe(128);
+    });
+
+    it('uses a valid in-range value', () => {
+      process.env[ENV_KEY] = '256';
+      expect(resolveMemoryLimitMb()).toBe(256);
+    });
+
+    it('clamps values above the 512 safety ceiling', () => {
+      process.env[ENV_KEY] = '1024';
+      expect(resolveMemoryLimitMb()).toBe(512);
+    });
+
+    it('returns exactly the 512 ceiling when set to 512', () => {
+      process.env[ENV_KEY] = '512';
+      expect(resolveMemoryLimitMb()).toBe(512);
+    });
+
+    it.each(['abc', '0', '-5', '', '   ', '64abc', '256.9'])(
+      'falls back to 128 for invalid input %p',
+      (raw) => {
+        process.env[ENV_KEY] = raw;
+        expect(resolveMemoryLimitMb()).toBe(128);
+      },
+    );
   });
 
   // W9 — classifyCodeNodeError unit tests: verify the three classification branches

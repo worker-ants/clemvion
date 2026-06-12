@@ -53,8 +53,9 @@ const THIRD_PARTY_CODES = new Set([
 
 const INTERNAL_CODES = new Set([
   'CODE_EXECUTION_FAILED',
-  // Code 노드 isolate 128MB 한도 초과 (isolated-vm hard-kill). 사용자 대면
-  // 분류는 internal (spec/conventions/chat-channel-adapter.md §3.1 매핑 표).
+  // Code 노드 isolate 메모리 한도 초과 (기본 128MB, CODE_NODE_MEMORY_LIMIT_MB
+  // env 조정 가능 — isolated-vm hard-kill). 사용자 대면 분류는 internal
+  // (spec/conventions/chat-channel-adapter.md §3.1 매핑 표).
   'CODE_MEMORY_LIMIT',
   // HTTP Request SSRF 가드 차단 (전 인증 공통, refactor 04 C-3). 차단은 우리
   // 측 정책 결정이므로 third-party 가 아닌 internal 로 분류 (§3.1 매핑 표).
