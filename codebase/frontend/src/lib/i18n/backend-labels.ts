@@ -568,6 +568,10 @@ export const NODE_DESCRIPTION_KO: Record<string, string> = {
 export const ERROR_KO: Record<string, string> = {
   GRAPH_VALIDATION_FAILED:
     "워크플로우 그래프 검증에 실패했어요. 캔버스의 오류 배지를 확인해 주세요.",
+  // 공용 @WorkspaceId() 데코레이터 — X-Workspace-Id 헤더·JWT workspaceId 둘 다 없을 때
+  // (canonical, spec/5-system/3-error-handling.md §1.3). 다수 엔드포인트 공통.
+  WORKSPACE_ID_REQUIRED:
+    "요청에 워크스페이스 정보가 없어요. 다시 로그인하거나 워크스페이스를 선택해 주세요.",
   // PR2a — §8 active-running 누적 타임아웃 에러코드 (spec/5-system/4-execution-engine.md §8).
   // wall-clock 이 아닌 active 세그먼트 누적 시간(waiting_for_input 제외) 기준.
   EXECUTION_TIME_LIMIT_EXCEEDED:

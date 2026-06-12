@@ -31,6 +31,26 @@ describe('WorkspaceId decorator', () => {
     };
   }
 
+  // 워크스페이스 컨텍스트 부재 시: 예외 타입 + canonical code 를 단일 factory
+  // 호출로 함께 단언한다. (이중 호출 패턴은 첫 toThrow 가 실패하면 code 단언을
+  // 건너뛰므로, error 를 캡처해 재던지는 방식으로 두 단언을 모두 보장한다.)
+  function expectWorkspaceIdRequired(
+    ctx: ReturnType<typeof createMockContext>,
+  ) {
+    let caught: unknown;
+    expect(() => {
+      try {
+        factory(undefined, ctx);
+      } catch (e) {
+        caught = e;
+        throw e;
+      }
+    }).toThrow(BadRequestException);
+    expect((caught as BadRequestException).getResponse()).toEqual(
+      expect.objectContaining({ code: 'WORKSPACE_ID_REQUIRED' }),
+    );
+  }
+
   it('should return workspace ID from X-Workspace-Id header', () => {
     const ctx = createMockContext(
       { 'x-workspace-id': 'header-workspace-uuid' },
@@ -58,21 +78,19 @@ describe('WorkspaceId decorator', () => {
     expect(result).toBe('jwt-workspace-uuid');
   });
 
-  it('should throw BadRequestException when no workspace ID is available', () => {
-    const ctx = createMockContext({}, {});
-
-    expect(() => factory(undefined, ctx)).toThrow(BadRequestException);
+  it('should throw WORKSPACE_ID_REQUIRED when no workspace ID is available', () => {
+    expectWorkspaceIdRequired(createMockContext({}, {}));
   });
 
-  it('should throw BadRequestException when user is undefined', () => {
-    const ctx = createMockContext({});
-
-    expect(() => factory(undefined, ctx)).toThrow(BadRequestException);
+  it('should throw WORKSPACE_ID_REQUIRED when X-Workspace-Id header is an empty string (falsy)', () => {
+    expectWorkspaceIdRequired(createMockContext({ 'x-workspace-id': '' }, {}));
   });
 
-  it('should throw BadRequestException when user is null', () => {
-    const ctx = createMockContext({}, null);
+  it('should throw WORKSPACE_ID_REQUIRED when user is undefined', () => {
+    expectWorkspaceIdRequired(createMockContext({}));
+  });
 
-    expect(() => factory(undefined, ctx)).toThrow(BadRequestException);
+  it('should throw WORKSPACE_ID_REQUIRED when user is null', () => {
+    expectWorkspaceIdRequired(createMockContext({}, null));
   });
 });

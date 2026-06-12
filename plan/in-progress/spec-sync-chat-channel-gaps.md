@@ -18,3 +18,4 @@ owner: planner
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__15-chat-channel.md 참조.
 - `{ ignored: true }` ↔ `{ executionId: 'ignored' }` body shape 불일치, §5.4 error code 불일치(RESOURCE_NOT_FOUND/INVALID_BOT_TOKEN 등), §7 트리 stale 은 spec 본문을 코드 현실로 정정 완료 (별도 구현 불필요).
+- **§7 동시 갱신 의무**: 위 미구현 항목(특히 §5.4 rotate-bot-token 성공 응답 3필드 동봉) 구현 시 응답 계약이 바뀌므로, [`conventions/chat-channel-adapter.md §7 변경 관리`](../../spec/conventions/chat-channel-adapter.md) 의 "두 spec 동시 갱신" 규약에 따라 `15-chat-channel.md` 와 `chat-channel-adapter.md` 를 함께 갱신한다.
