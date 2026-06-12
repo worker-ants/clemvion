@@ -36,7 +36,11 @@ export type ConditionOperator = (typeof CONDITION_OPERATORS)[number];
 
 /**
  * Cap on user-authored regex pattern length to mitigate ReDoS exposure.
- * Mirrored by {@link compileRegexCache}.
+ * Mirrored by {@link compileRegexCache} / {@link compileUserRegex}.
+ *
+ * 200자 기준은 기존 노드(transform/filter/switch/if-else) 규약을 계승한다. 길이 상한
+ * 단독으로는 ReDoS 를 막지 못하므로(200자 이내 `(a+)+$` 가능) `safe-regex` 가 1차 방어이고,
+ * 길이 상한은 AST 분석 비용·잔여 위험을 줄이는 2차 방어다 (04 M-3).
  */
 export const MAX_REGEX_LENGTH = 200;
 

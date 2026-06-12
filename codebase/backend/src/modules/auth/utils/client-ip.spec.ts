@@ -1,5 +1,45 @@
 import { Request } from 'express';
-import { extractClientIp, shouldTrustCfConnectingIp } from './client-ip';
+import {
+  extractClientIp,
+  extractClientIpFromHeaders,
+  shouldTrustCfConnectingIp,
+} from './client-ip';
+
+// 04 후속 — 헤더 전용 공유 코어. hooks rate-limit/ip_whitelist 가 위임하는 단일 구현.
+describe('extractClientIpFromHeaders (shared core)', () => {
+  const orig = process.env.TRUST_CF_CONNECTING_IP;
+  afterEach(() => {
+    if (orig === undefined) delete process.env.TRUST_CF_CONNECTING_IP;
+    else process.env.TRUST_CF_CONNECTING_IP = orig;
+  });
+
+  it('CF off (default) → ignores CF header, uses XFF first IP', () => {
+    delete process.env.TRUST_CF_CONNECTING_IP;
+    expect(
+      extractClientIpFromHeaders({
+        'cf-connecting-ip': '203.0.113.7',
+        'x-forwarded-for': '198.51.100.2, 10.0.0.1',
+      }),
+    ).toBe('198.51.100.2');
+  });
+
+  it('CF on → CF header first', () => {
+    process.env.TRUST_CF_CONNECTING_IP = 'true';
+    expect(
+      extractClientIpFromHeaders({
+        'cf-connecting-ip': '203.0.113.7',
+        'x-forwarded-for': '198.51.100.2',
+      }),
+    ).toBe('203.0.113.7');
+  });
+
+  it('normalizes IPv6-mapped IPv4 + returns null when absent', () => {
+    expect(
+      extractClientIpFromHeaders({ 'x-forwarded-for': '::ffff:1.2.3.4' }),
+    ).toBe('1.2.3.4');
+    expect(extractClientIpFromHeaders({})).toBeNull();
+  });
+});
 
 // 04 m-3 — env-injection 직접 단위 테스트 (isFlagOn/isSwaggerEnabled 등과 일관).
 describe('shouldTrustCfConnectingIp (04 m-3)', () => {

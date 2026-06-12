@@ -12,8 +12,9 @@
  * — `AuditLogsService.record({ action })` 가 `AuditAction` union 으로 강제한다.
  *
  * spec §4.1 의 Planned 액션(workflow.* · trigger.* · schedule.* · member.* ·
- * llm_config.* · rerank_config.* · password_change · 2fa_*)은 미구현이라 본
- * const 에 없다 — 구현 시 추가한다 (data-flow/1-audit.md §1.1 목표 커버리지).
+ * model_config.* · user.password_changed · user.2fa_enabled · user.2fa_disabled)은
+ * 미구현이라 본 const 에 없다 — 구현 시 추가한다 (data-flow/1-audit.md §1.1 목표
+ * 커버리지; 명칭은 1-auth §4.1 + §Rationale 4.1.A 확정 표기).
  */
 export const AUDIT_ACTIONS = {
   INTEGRATION_CREATED: 'integration.created',
