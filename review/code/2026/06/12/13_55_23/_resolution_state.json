@@ -1,18 +1,24 @@
 {
   "version": 1,
-  "started_at": "2026-06-12T00:00:00Z",
-  "summary_items_total": 3,
-  "items_resolved_ids": [1, 2, 3],
+  "started_at": "2026-06-12T14:30:00Z",
+  "summary_items_total": 9,
+  "items_resolved_ids": ["C1_FP", "W1", "W2"],
   "items_pending_ids": [],
   "items_escalated_ids": {},
   "commits_made": [
-    {"sha": "59715d83", "summary_id": "W1/W2/W3", "scope": "code-node"}
+    {
+      "sha": "0c6413e7",
+      "summary_id": "W1/W2",
+      "scope": "code-node"
+    }
   ],
   "spec_drafts_pending": [],
   "spec_drafts_applied": [],
   "e2e_attempts": 1,
   "e2e_last_status": "pass",
-  "e2e_log_paths": ["_test_logs/e2e-20260612-134922.log"],
+  "e2e_log_paths": [
+    "_test_logs/e2e-20260612-140917.log"
+  ],
   "auto_fix_iterations": {},
   "escalation_reason": null,
   "last_reset_hint_sec": null
