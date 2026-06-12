@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-12T10:01:46.824328",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/5-system/1-auth.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

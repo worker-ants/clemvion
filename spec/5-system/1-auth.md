@@ -357,11 +357,13 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 실행 (재실행) | `execution.re_run` |
 | 설정 | `auth_config.create`, `auth_config.update`, `auth_config.delete`, `auth_config.regenerate`, `auth_config.reveal` |
 
+> **읽기측 계약 — `action` 은 닫힌 enum 이 아니다.** 쓰기측은 위 `AUDIT_ACTIONS` union 으로 타입 강제되지만, `AuditLog.action` 자체는 **DB 자유 문자열 컬럼**이다 (application 레벨 union 으로만 좁히고 DB CHECK 는 두지 않는다 — 액션 추가가 잦아 마이그레이션 비용을 피하기 위함, [data-flow §1.1](../data-flow/1-audit.md)). audit 불변 원칙상 과거 row 에는 현재 union 밖의 **레거시 값이 존재할 수 있다** (예: cross-audit G-02 이전 `execution.re_run` 의 구 표기 `re_run_initiated` — 신규 row 부터 정정됐고 기존 row 는 그대로 보존). 따라서 조회 API 응답(`AuditLogDto.action`)의 소비자는 `action` 을 닫힌 enum 으로 단정하지 말고 union 밖 값을 graceful 하게 처리한다 (`AuditLogDto.action` 의 OpenAPI 설명도 동일 계약을 명시).
+
 **Planned (미구현 — 목표 커버리지)**: 아래 액션은 spec 이 기록 의도를 선언했으나 아직 코드가 `AuditLogsService.record` 를 호출하지 않는다. 현황은 [data-flow 감사 로그 §1.1](../data-flow/1-audit.md) 이 추적한다. 구현 시 `AUDIT_ACTIONS` 에 추가한다.
 
 | 카테고리 | Planned action |
 |----------|------|
-| 인증 (워크스페이스 컨텍스트) | password_change, 2fa_enable/disable |
+| 인증 (워크스페이스 컨텍스트) | `user.password_changed`, `user.2fa_enabled`, `user.2fa_disabled` |
 | 워크스페이스 | workspace.create, workspace.update, workspace.delete |
 | 멤버 | member.invite, member.role_change, member.remove |
 | 워크플로우 | workflow.create, workflow.update, workflow.delete, workflow.execute |
@@ -587,3 +589,18 @@ bootstrap 첫 단계에서 호출). 대상:
 생성자 throw) 정당 용도가 있는 항목(예: `ALLOW_PRIVATE_HOST_TARGETS` 는 throw 가 아닌 warn)은
 의도적으로 분리한다. 운영 영향(미설정 시 기동 거부)은 insecure 부팅보다 안전한 fail-closed 의도다.
 dev/test/e2e(`NODE_ENV≠production`)는 영향이 없다.
+
+### 4.1.A — Planned 감사 액션의 `user.*` dot-prefix 통일
+
+§4.1 의 Planned 인증 감사 액션을 `password_change`·`2fa_enable/disable`(dot-prefix 없음)에서
+`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled`로 확정한다. 근거:
+
+- **dot-prefix 는 §4.1 규약상 필수다** — `<resource>.<verb>`. prefix 없는 표기는 과거
+  `re_run_initiated`(→ `execution.re_run`, cross-audit G-02)와 동일한 규약 이탈이며, 그 선례가
+  이미 정정된 이상 Planned 표가 같은 위반을 답습하면 안 된다. Planned 는 미구현이라 코드 의존이
+  없어 지금 표기를 바로잡는 비용이 가장 낮다.
+- **resource 토큰은 `user`** — 비밀번호 변경·2FA 토글은 행위 주체 사용자의 **계정 보안 속성**
+  변경이라 `auth_config`(웹훅 인증 설정 — 별개 리소스)나 `auth`(추상적)보다 `user` 가 자연스럽다.
+  향후 user-profile 계열 감사(예: `user.email_changed`)와 동일 네임스페이스로 묶인다.
+- **verb 시제는 과거분사** — integration 계열(`integration.created`)과 같이 "일어난 일" 을 기록하는
+  도메인 관례를 따른다(`changed`/`enabled`/`disabled`). 구현 시 `AUDIT_ACTIONS` 에 추가한다.
