@@ -267,31 +267,29 @@ export class HooksService {
       await this.maybeNotifyIgnored(input.body, config, adapter);
       return { executionId: 'ignored' };
     }
+
+    // CCH-NF-03 — per-chat 분당 inbound rate-limit. parseUpdate 직후(conversationKey
+    // 확정) + enrichInbound(Slack files.info 등 외부 API) **이전** 에 검사해, 한도 초과분에는
+    // 불필요한 외부 호출을 하지 않는다. 한도(config.rateLimitPerMinute, 기본 60) 초과분은
+    // 버퍼링/재발사 없이 처리 생략(skip) + chat_channel_health=degraded (R-CC-19). 파싱 성공
+    // update 한정 — 핸드셰이크(url_verification/PING)·비활성·미파싱은 위에서 이미 단락돼 카운트 안 됨.
+    const rateLimitPerMinute =
+      config.rateLimitPerMinute ?? CHAT_RATE_LIMIT_DEFAULT_PER_MIN;
+    const withinRateLimit = await this.chatChannelRateLimiter.consume(
+      trigger.id,
+      parsed.conversationKey,
+      rateLimitPerMinute,
+    );
+    if (!withinRateLimit) {
+      await this.markChatChannelRateLimited(trigger, rateLimitPerMinute);
+      return { executionId: 'ignored' };
+    }
+
     // parseUpdate 직후 provider 별 비동기 보강 (Slack file_upload → files.info 로
     // mimeType/filename/urlPrivate 채움). 미구현 provider 는 update 그대로 반환 (R-S-7).
     const update = adapter.enrichInbound
       ? await adapter.enrichInbound(parsed, config)
       : parsed;
-
-    // CCH-NF-03 — per-chat 분당 inbound rate-limit. 한도(config.rateLimitPerMinute,
-    // 기본 60) 초과분은 버퍼링/재발사 없이 처리 생략(skip) + chat_channel_health=degraded
-    // (R-CC-19). 파싱 성공 update 한정 — group/bot/unsupported skip 과 동일 계층, 핸드셰이크
-    // (url_verification/PING)·비활성·미파싱은 이미 위에서 단락돼 카운트되지 않는다.
-    const rateLimitPerMinute =
-      config.rateLimitPerMinute ?? CHAT_RATE_LIMIT_DEFAULT_PER_MIN;
-    const withinRateLimit = await this.chatChannelRateLimiter.consume(
-      trigger.id,
-      update.conversationKey,
-      rateLimitPerMinute,
-    );
-    if (!withinRateLimit) {
-      await this.markChatChannelRateLimited(
-        trigger,
-        rateLimitPerMinute,
-        update.conversationKey,
-      );
-      return { executionId: 'ignored' };
-    }
 
     // /help 명령 — v1 정적 안내 (Spec providers/telegram §7).
     if (
@@ -854,7 +852,6 @@ export class HooksService {
   private async markChatChannelRateLimited(
     trigger: Trigger,
     limitPerMinute: number,
-    conversationKey: string,
   ): Promise<void> {
     if (trigger.chatChannelHealth === 'degraded') return;
     try {
@@ -862,11 +859,9 @@ export class HooksService {
         { id: trigger.id },
         {
           chatChannelHealth: 'degraded',
-          chatChannelLastError:
-            `Inbound rate limit exceeded (${limitPerMinute}/min, chat=${conversationKey})`.slice(
-              0,
-              1024,
-            ),
+          // 외부 입력(conversationKey)을 lastError 에 넣지 않는다 (관리자 UI stored-XSS
+          // 표면 축소). 한도만 기록 — 어느 chat 인지는 운영 로그/메트릭 영역.
+          chatChannelLastError: `Inbound rate limit exceeded (${limitPerMinute}/min)`,
         },
       );
     } catch (err) {

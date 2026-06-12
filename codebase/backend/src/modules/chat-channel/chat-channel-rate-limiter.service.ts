@@ -53,19 +53,21 @@ export class ChatChannelRateLimiterService {
     limitPerMinute: number,
   ): Promise<boolean> {
     if (!this.redis) return true; // fail-open
+    // DTO 가 1–600 으로 검증하나, config 우회/레거시 값 방어를 위해 clamp.
+    const limit = Math.max(1, Math.min(600, Math.floor(limitPerMinute) || 60));
     const key = makeChatRateLimitKey(triggerId, conversationKey);
     try {
+      // INCR + EXPIRE(NX) 를 단일 pipeline 으로 — 두 호출 사이 크래시로 TTL 미설정
+      // 키가 영구 잔류(이후 영구 차단)하는 race 를 차단. NX 라 첫 생성 시에만 TTL 설정,
+      // 이후 증가는 기존 TTL 보존 (fixed-window 유지). Redis 7+ EXPIRE NX.
       const pipeline = this.redis.pipeline();
       pipeline.incr(key);
+      pipeline.expire(key, CHAT_RATE_LIMIT_WINDOW_SEC, 'NX');
       const results = await pipeline.exec();
       if (!results || results.length === 0) return true; // fail-open
       const [incrErr, count] = results[0] as [Error | null, number];
       if (incrErr) throw incrErr;
-      // 키가 방금 생성된 첫 증가(=1)일 때만 TTL 설정 (fixed-window 시작).
-      if (count === 1) {
-        await this.redis.expire(key, CHAT_RATE_LIMIT_WINDOW_SEC);
-      }
-      return count <= limitPerMinute;
+      return count <= limit;
     } catch (err) {
       this.logger.warn(
         `chat-channel rate-limit consume 실패 (fail-open): ${err instanceof Error ? err.message : String(err)}`,

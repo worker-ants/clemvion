@@ -647,11 +647,54 @@ describe('HooksService', () => {
       // forwarding·새 execution 모두 안 함.
       expect(engine.execute).not.toHaveBeenCalled();
       expect(interactionService.interact).not.toHaveBeenCalled();
-      // chat_channel_health=degraded 갱신.
+      // chat_channel_health=degraded 갱신 + lastError 에 한도 명시(외부 입력 미포함).
       expect(triggerRepo.update).toHaveBeenCalledWith(
         { id: chatChannelTrigger.id },
-        expect.objectContaining({ chatChannelHealth: 'degraded' }),
+        expect.objectContaining({
+          chatChannelHealth: 'degraded',
+          chatChannelLastError: expect.stringContaining('60/min'),
+        }),
       );
+      expect(result).toEqual({ executionId: 'ignored' });
+    });
+
+    it('CCH-NF-03 — 이미 degraded 인 trigger 는 rate-limit 초과해도 update 미호출(중복 write 방지)', async () => {
+      triggerRepo.findOne.mockResolvedValue({
+        ...chatChannelTrigger,
+        chatChannelHealth: 'degraded',
+      } as unknown as Trigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'flood' },
+        idempotencyKey: '2003',
+        receivedAt: new Date().toISOString(),
+      });
+      (
+        moduleRef.get(ChatChannelRateLimiterService) as { consume: jest.Mock }
+      ).consume.mockResolvedValueOnce(false);
+
+      const result = await service.handleWebhook('abc', chatInput);
+
+      expect(triggerRepo.update).not.toHaveBeenCalled();
+      expect(result).toEqual({ executionId: 'ignored' });
+    });
+
+    it('CCH-NF-03 — rate-limit 초과 + degraded 갱신 DB 실패해도 throw 없이 ignored 반환', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      triggerRepo.update.mockRejectedValueOnce(new Error('db down'));
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'flood' },
+        idempotencyKey: '2004',
+        receivedAt: new Date().toISOString(),
+      });
+      (
+        moduleRef.get(ChatChannelRateLimiterService) as { consume: jest.Mock }
+      ).consume.mockResolvedValueOnce(false);
+
+      const result = await service.handleWebhook('abc', chatInput);
       expect(result).toEqual({ executionId: 'ignored' });
     });
 

@@ -14,7 +14,7 @@ owner: planner
 채널(chat)당 분당 inbound 한도를 **per-chat Redis fixed-window 카운터**로 enforcement한다.
 
 - **한도**: 기본 60건/분, `config.chatChannel.rateLimitPerMinute` (1–600) override.
-- **저장**: Redis fixed-window (key = `trigger.id` + `conversationKey` + 분 버킷). 기존 `PublicWebhookQuotaService.incrWithWindow` 패턴 재사용 (INCR + EXPIRE pipeline). Redis 미가용 시 **fail-open**(rate-limit 미적용, 정상 처리) — 가용성 우선, 기존 throttle 동형.
+- **저장**: Redis fixed-window. key = `cc:rl:{triggerId}:{conversationKey}` (분 버킷 미포함 — minute-aligned 가 아니라 **first-request-anchored** 윈도우: 첫 요청에 `EXPIRE 60s NX`, 60s 후 키 만료로 리셋). 기존 `PublicWebhookQuotaService` 와 동일 `INCR`+`EXPIRE` 를 **단일 pipeline**(NX)으로 — 두 호출 사이 크래시로 TTL 미설정 키가 영구 잔류하는 race 차단. Redis 미가용 시 **fail-open**(rate-limit 미적용, 정상 처리) — 가용성 우선, 기존 throttle 동형.
 - **초과 시 동작**: 해당 update 를 **버퍼링/재발사하지 않고 처리 생략** → `202 Accepted` + `{ executionId: 'ignored' }` (telegram-safe 2xx, non-2xx 시 provider webhook 자동 비활성화·retry 폭주 회피 — R-CC-12) + `chat_channel_health=degraded` 갱신 (`ChatChannelDispatcher.markDegraded` 동형 경로).
 - **enforcement 위치**: `HooksService.handleChatChannelWebhook` 의 `parseUpdate` 직후(conversationKey 확정 후) — execution 시작/forwarding 분기 이전. group/bot/unsupported skip 과 동일 계층.
 - **degraded 의미 정합**: CCH-SE-01 의 "어댑터 외부 API 호출 실패 → degraded" 와 별개의 degraded 트리거(외부 사용자 폭주 방어 신호)이나, 두 경우 모두 "채널 동작이 정상 범위를 벗어남"을 운영자에게 알리는 동일 health 자원. 자동 비활성화 금지(CCH-SE-01 정책 그대로).
