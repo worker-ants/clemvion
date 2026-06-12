@@ -1,7 +1,14 @@
 ---
-worktree: (unstarted)
+worktree: code-node-followups-close-a30e7c
 started: 2026-06-11
 owner: developer
+completed: 2026-06-12
+spec_impact:
+  - spec/4-nodes/5-data/2-code.md
+  - spec/4-nodes/0-overview.md
+  - spec/conventions/error-codes.md
+  - spec/conventions/chat-channel-adapter.md
+  - spec/5-system/3-error-handling.md
 ---
 
 # Follow-ups — code 노드 isolated-vm 전환 후속
@@ -31,10 +38,10 @@ owner: developer
 - [x] **§5.3.1/§5.3.2/§5.3.3 예시 정합**: §5.3.1 stack 예시에 "비프로덕션 한정" 보조노트, §5.3.3 `meta.durationMs` 추가. **(완료, 그룹2a)**. (§5.3.2 stack 플레이스홀더 `"..."` 는 cosmetic 으로 보류.)
 - [x] **md5/sha1 비암호학 명시**: §2.2 에 "md5/sha1 은 체크섬·레거시 호환 전용, 암호학적 용도 금지" 1줄. **(완료, 그룹2a — 허용 알고리즘 목록 + ⚠ 경고)**
 - [x] **§4 step3 / §7.1 snapshot 경로 기술 (그룹4 ai-review SPEC-DRIFT INFO #1·#2)**: **(완료, spec PR code-followups-spec)**: §4 step3 에 "dayjs 는 모듈 로드 시 `createSnapshot` 1회 베이크 후 per-exec isolate 가 스냅샷에서 복원(미지원 시 per-exec 컴파일 fallback)" 보강, §7.1 표 아래 "dayjs 스냅샷 최적화" NOTE(순수 JS 만 베이크·host wiring/§7.3 per-exec 유지·per-exec isolate dispose 불변 동일·fallback) 추가, Rationale 에 "dayjs per-exec 재컴파일 → 힙 스냅샷" 절(기각: isolate 풀 재사용·부트스트랩 스냅샷). 코드 무변경(구현은 #559 완료, spec 이 따라잡음).
-- [ ] **§3-error-handling §1.4 EXECUTION_TIMEOUT 계층**: 엔진 수준 표의 `EXECUTION_TIMEOUT` 을 "내부 legacyCode — public `CODE_TIMEOUT`(node-level `error` 포트)" 로 보강. `14-external-interaction-api §547` 동반. **(보류 — 엔진레벨 EXECUTION_TIMEOUT/EXECUTION_TIME_LIMIT_EXCEEDED 계층화는 별개 영역. 그룹2a 는 internal-legacy 매핑을 error-codes.md §3.1 에 등재하는 것으로 부분 충족.)**
+- [x] **§3-error-handling §1.4 EXECUTION_TIMEOUT 계층**: 엔진 수준 표의 `EXECUTION_TIMEOUT` 을 "내부 legacyCode — public `CODE_TIMEOUT`(node-level `error` 포트)" 로 보강. `14-external-interaction-api §547` 동반. **(보류 — 엔진레벨 EXECUTION_TIMEOUT/EXECUTION_TIME_LIMIT_EXCEEDED 계층화는 별개 영역. 그룹2a 는 internal-legacy 매핑을 error-codes.md §3.1 에 등재하는 것으로 부분 충족.)** **(종결, PR code-node-followups-close — 조사 결과 actionable 부분 이미 충족)**: 문서화 요청(엔진 `EXECUTION_TIMEOUT` 을 내부 legacy→public `CODE_TIMEOUT` 으로 보강)은 main 에 **이미 반영됨** — `3-error-handling.md §1.4`(line 65: 엔진 레벨 EIA 코드 vs 노드 출력 `CODE_TIMEOUT` 정규화 + `EXECUTION_TIME_LIMIT_EXCEEDED` 구분 명시) + `error-codes.md §4 레이어 주의` 블록이 두 레이어 구분 SoT 로 완비. 본 PR 은 잔여 1건 — `chat-channel-adapter.md §3.1` timeout 행에 레이어 구분 註 추가(엔진 EIA `EXECUTION_TIMEOUT` ↔ 노드 출력 `CODE_TIMEOUT` 병기 사유 명시; consistency INFO #1 의 "EXECUTION_TIMEOUT 제거" 권고는 분류기 입력이 엔진 레벨 EIA 코드라 **부정확** — 제거 대신 註로 혼동 여지 해소). 엔진레벨 누적 타임아웃 **계층화 아키텍처**(EXECUTION_TIMEOUT vs EXECUTION_TIME_LIMIT_EXCEEDED 재설계)는 code 노드 followups 범위 밖의 별개 영역 — 본 plan 의 완료 게이트에 포함하지 않음(필요 시 별 backlog).
 - [x] **memoryLimit:128 예시값 잔재 정합화 (code-followups-impl ai-review I1 / impl-done I1 SPEC-DRIFT)**: 메모리 env 화(#561·code PR) 후 `2-code.md §4 step3`·`§7.1 표`·`4-nodes/0-overview.md §5 라인 298(실행 격리 행)` 의 `memoryLimit: 128` 예시값이 "기본 128, env 조정 가능" 정책 서술(§7.2·§5.3.3·overview 메모리 제한 행)과 표기 불일치(고정값처럼 읽힘). 모순/기능 영향 없는 cosmetic — 예시값을 `memoryLimit: ISOLATE_MEMORY_LIMIT_MB(기본 128)` 또는 `memoryLimit: <기본 128, env 조정>` 으로 정합화. **planner 위임 — spec-only 후속, 비차단 INFO** (code 무변경, code PR 범위 밖). **(완료, PR code-node-followups-finalize)**: 세 곳 모두 정합화 — §4 step3 `memoryLimit` 기본 128MB·`CODE_NODE_MEMORY_LIMIT_MB` env 조정(§7.2 참조), §7.1 표 `new ivm.Isolate({ memoryLimit: ISOLATE_MEMORY_LIMIT_MB })`(`resolveMemoryLimitMb()` 기본 128·상한 512), overview §5 실행 격리 행 동일 보강. 동 PR 에서 spec-draft-code-node-followups → complete/ 이동(#561 머지로 역할 종료).
 
 ## 타 plan/worktree 정리 (머지 후)
 - [x] `plan/in-progress/node-output-redesign/code.md` 의 `CODE_MEMORY_LIMIT` "로드맵 미구현" 서술 → "구현 완료(isolated-vm PR)". **(완료, PR plan-cleanup 그룹5)**: L82/L132/L163 모두 #546 구현 완료로 갱신(node:vm 기준 서술은 #546 이전 스냅샷임을 명시). http-request.md 도 SSRF=throw → #549 port:error 갱신 노트 추가.
 - [x] `plan/in-progress/marketplace-and-plugin-sdk.md` 샌드박싱 항목 → "code 노드 isolated-vm 기도입, 재사용 검토". **(완료, 그룹5)**.
-- [ ] user-docs 충돌 주의: 타 worktree(`fix-model-configs-kind-400-*` 등)에 구버전 `data.mdx` 에러코드 잔존 — 머지 시 신규 코드로 동기화. **(보류 — 타 worktree 소유 작업, 본 작업 범위 밖.)**
+- [x] user-docs 충돌 주의: 타 worktree(`fix-model-configs-kind-400-*` 등)에 구버전 `data.mdx` 에러코드 잔존 — 머지 시 신규 코드로 동기화. **(보류 — 타 worktree 소유 작업, 본 작업 범위 밖.)** **(종결, PR code-node-followups-close — 조사 결과 drift 없음)**: origin/main `codebase/frontend/src/content/docs/02-nodes/data.mdx` 가 이미 정합 — 메모리 한도 행이 `CODE_NODE_MEMORY_LIMIT_MB` env 반영(기본 128MB), 에러코드가 정식 public 3종(`CODE_TIMEOUT`·`CODE_EXECUTION_FAILED`·`CODE_MEMORY_LIMIT`)과 일치(`error-codes.md §3.1`). #563 frontend 동기화 머지로 해소됨. 구버전 잔존 worktree 의 머지 충돌은 그 worktree 머지 시점의 책임 — 본 plan 의 standing 항목 아님.

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-12T14:41:09.879850",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/conventions/chat-channel-adapter.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
