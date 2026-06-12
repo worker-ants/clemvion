@@ -58,8 +58,23 @@ describe('WorkspaceId decorator', () => {
     expect(result).toBe('jwt-workspace-uuid');
   });
 
-  it('should throw BadRequestException when no workspace ID is available', () => {
+  it('should throw BadRequestException with WORKSPACE_ID_REQUIRED code when no workspace ID is available', () => {
     const ctx = createMockContext({}, {});
+
+    expect(() => factory(undefined, ctx)).toThrow(BadRequestException);
+    try {
+      factory(undefined, ctx);
+      throw new Error('expected factory to throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(BadRequestException);
+      expect((e as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ code: 'WORKSPACE_ID_REQUIRED' }),
+      );
+    }
+  });
+
+  it('should throw BadRequestException when X-Workspace-Id header is an empty string (falsy)', () => {
+    const ctx = createMockContext({ 'x-workspace-id': '' }, {});
 
     expect(() => factory(undefined, ctx)).toThrow(BadRequestException);
   });
