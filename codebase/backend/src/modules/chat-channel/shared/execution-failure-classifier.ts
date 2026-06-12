@@ -64,6 +64,9 @@ const INTERNAL_CODES = new Set([
   'DB_CONNECTION_ERROR',
   'DB_CONSTRAINT_VIOLATION',
   'DB_PERMISSION_DENIED',
+  // DB SSRF 차단 — 차단은 우리 측 정책 결정이므로 internal 분류
+  // (spec/conventions/chat-channel-adapter.md §3.1 의 `DB_*` 매핑과 일치).
+  'DB_HOST_BLOCKED',
   'RECURSION_DEPTH_EXCEEDED',
   'MAX_ITERATIONS_EXCEEDED',
   'CYCLE_DETECTED',
