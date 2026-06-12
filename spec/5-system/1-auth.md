@@ -378,6 +378,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 > 워크스페이스 컨텍스트가 없는 인증 이벤트(login, logout, login_failed 등)는 AuditLog 가 아닌 §4.3 **LoginHistory** 에 기록된다.
 
+> **`user.*` 액션의 workspace 귀속 (refactor 04 후속)**: `user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled` 의 "워크스페이스 컨텍스트" 는 **액터의 현재 세션 `workspaceId`**(인증 요청 JWT 의 workspace) 다. 이 세 액션은 모두 **인증된 세션**에서만 발생하므로(`POST /users/me/change-password`, TOTP `verifyAndEnable`/`disable`, WebAuthn 등록/삭제) 항상 세션 workspace 가 있어 `audit_log.workspaceId`(non-nullable)를 그대로 충족한다 — schema 변경 불요. `resourceType: 'user'`, `resourceId: <userId>`. **무인증 password-reset**(`POST /auth/reset-password`, 토큰 기반·세션 없음)은 workspace 컨텍스트가 없어 `user.password_changed` 감사 대상이 **아니다**(위 LoginHistory 분류 원칙 적용) — reset 완료를 별도로 남길지는 `login_history` event enum(§4.3 / [데이터 모델 §2.18.2](../1-data-model.md)) 신설을 동반하는 **별개 결정**으로, 본 결정 범위 밖이다. 설계 근거·기각 대안은 §Rationale 4.1.B.
+
 ### 4.2 조회
 
 - 관리자(Admin+)만 조회 가능
@@ -573,7 +575,7 @@ Refresh 쿠키의 `Domain` 속성은 운영자 env 가 아니라 `FRONTEND_URL`/
 
 **`none` 모드의 CSRF 보완 (M-5).** `SameSite=none` 은 cross-site 요청에 쿠키를 자동 첨부하므로 `/auth/refresh` 에 강제 refresh CSRF 가 성립할 수 있다. 다만 (a) refresh 쿠키는 `/auth/refresh` 한 곳에서만 쓰이고 다른 엔드포인트는 모두 Bearer access token 기반이라 쿠키 CSRF 면역이며, (b) credentials CORS allowlist 가 cross-site 출처의 **응답 읽기**를 이미 차단한다. 따라서 CSRF 토큰 인프라(double-submit 등)를 신설하는 대신, `/auth/refresh` 가 요청 `Origin` 을 기존 CORS allowlist(`isOriginAllowed`)와 대조해 allowlist 외·불투명(`'null'`, sandbox iframe 등) Origin 을 `403` 으로 선차단하는 defense-in-depth 를 둔다. Origin 부재(same-origin·non-browser 도구)는 통과한다 — 프론트 변경·토큰 발급 인프라가 불필요하다. cookie `Path` 를 `/api/auth` 로 한정해 쿠키 첨부 표면도 축소한다(`set`/`clear` 동일 Path 필수).
 
-**클라이언트 IP 신뢰 (m-3).** `CF-Connecting-IP` 는 클라이언트가 임의로 보낼 수 있는 헤더라, Cloudflare 뒤가 아닌 배포에서 무조건 신뢰하면 rate-limit 우회·`ip_whitelist` 우회·감사로그 IP 오염이 가능하다. 따라서 `TRUST_CF_CONNECTING_IP=true`(정확히 `true`/`1`)로 명시한 배포에서만 1순위로 사용하고, 기본(off)에서는 무시하고 `X-Forwarded-For`/`req.ip` 로 폴백한다(fail-safe). Cloudflare(Tunnel 포함) 뒤에서는 `X-Forwarded-For` 첫 IP 도 동일한 실제 클라이언트 IP 이므로 off 폴백이 안전하다. 본 신뢰 플래그는 IP 를 읽는 세 경로(세션·감사 IP `auth/utils/client-ip`, 공개 webhook rate-limit, `ip_whitelist` 검증)에 일관 적용한다. origin 직접 접근 차단(인프라/터널) 전제는 유지하되, 강제 IP allowlist 는 터널 배포에 불필요해 권고에서 제외한다.
+**클라이언트 IP 신뢰 (m-3).** `CF-Connecting-IP` 는 클라이언트가 임의로 보낼 수 있는 헤더라, Cloudflare 뒤가 아닌 배포에서 무조건 신뢰하면 rate-limit 우회·`ip_whitelist` 우회·감사로그 IP 오염이 가능하다. 따라서 `TRUST_CF_CONNECTING_IP=true`(정확히 `true`/`1`)로 명시한 배포에서만 1순위로 사용하고, 기본(off)에서는 무시하고 `X-Forwarded-For`/`req.ip` 로 폴백한다(fail-safe). Cloudflare(Tunnel 포함) 뒤에서는 `X-Forwarded-For` 첫 IP 도 동일한 실제 클라이언트 IP 이므로 off 폴백이 안전하다. 본 신뢰 플래그는 IP 를 읽는 세 경로(세션·감사 IP `auth/utils/client-ip`, 공개 webhook rate-limit, `ip_whitelist` 검증)에 일관 적용한다. origin 직접 접근 차단(인프라/터널) 전제는 유지하되, 강제 IP allowlist 는 터널 배포에 불필요해 권고에서 제외한다. **`ip_whitelist`/rate-limit 의 IP 추출이 헤더 기반(CF-gated → XFF 첫 IP)인 것은 의도된 결정**이다 — `req.ip`(Express `trust proxy 1`) 를 우선/대체로 쓰자는 안은 **기각**한다: CF Tunnel 배포에서는 `req.ip` 가 cloudflared/CF edge 주소라 실제 클라이언트가 아니어서 `ip_whitelist` 를 오히려 깨뜨린다. XFF 헤더 위변조 방어는 위 원칙대로 인프라/`trust proxy` 경계의 책임이며, 코드 리뷰가 "`req.ip` 폴백 부재" 를 지적하더라도 본 항이 정한 의도된 설계다.
 
 ### 1.5.D — 워크스페이스 초대 토큰을 raw 로 저장하는 이유 (vs 이메일·재설정 토큰의 SHA-256 해시)
 
@@ -633,3 +635,15 @@ dev/test/e2e(`NODE_ENV≠production`)는 영향이 없다.
 `auth_config` 와 동일하게 **resource 단위 현재형 예외**를 유지한다 — 규약의 "과거분사가
 부자연스러운 동사가 섞이면 CRUD 현재형으로 통일" 조항 적용. 모두 미구현이라 코드 의존이 없어
 지금 표기를 확정하는 비용이 가장 낮고, 구현 시 `AUDIT_ACTIONS` 에 그대로 추가한다.
+
+### 4.1.B — `user.*` 감사 이벤트의 workspace 귀속 (refactor 04 후속)
+
+`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled` 를 `audit_log`(workspaceId **non-nullable**)에 어떻게 귀속할지 확정한다 — **액터의 현재 세션 `workspaceId`**(인증 요청 JWT 의 workspace).
+
+근거: 이 세 액션은 모두 **인증된 세션에서만** 발생한다(`POST /users/me/change-password`·TOTP·WebAuthn 모두 JwtAuthGuard 뒤). 인증 요청은 항상 workspace 컨텍스트를 JWT 로 운반하므로, 그 세션 workspace 에 귀속하면 `workspaceId` non-nullable 제약을 schema 변경 없이 충족한다. 이는 §4.1 의 "인증 (워크스페이스 컨텍스트)" 분류를 **구체화**하는 것이지 번복이 아니다 — login/logout/login_failed(무 workspace) → LoginHistory(L379) 규칙은 불변.
+
+**무인증 password-reset 제외**: `POST /auth/reset-password`(토큰 기반)는 세션·workspace 가 없어 `user.password_changed` audit 대상이 아니다(L379 분류 원칙). reset 완료를 별도 기록할지는 `login_history` event enum(§4.3, [데이터 모델 §2.18.2](../1-data-model.md)) 신설 + `chk_login_history_event` CHECK 마이그레이션을 동반하는 별개 결정으로 본 범위 밖이다.
+
+**기각된 대안**:
+- **(b) `audit_log.workspaceId` nullable 허용** (user-level 이벤트 null): schema 마이그레이션 + 모든 workspace-필터 쿼리·인덱스·조회 권한(§4.2 `@WorkspaceId()` 스코프) 이 null 을 특수 처리해야 해 blast radius 가 크다. 인증 이벤트가 항상 세션 workspace 를 가지므로 nullable 이 불필요.
+- **(c) 별도 user/personal audit scope 신설**: `audit_log` 는 본질적으로 workspace-scoped 팀 기능이고 user-단위 인증 이벤트는 이미 `login_history`(§4.3)가 담당 — 저장소 이중화는 불필요.
