@@ -81,8 +81,13 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 | `$helpers.date(value)` | 날짜 파싱/포매팅 (dayjs 호환) |
 | `$helpers.crypto.hash(algorithm, data)` | 해시 생성. 허용 알고리즘: `sha256` · `sha384` · `sha512` · `sha1` · `md5`. ⚠ `md5`/`sha1` 은 체크섬·레거시 호환 전용이며 **암호학적 용도(서명·비밀번호·무결성 보증) 금지** — 충돌 공격에 취약 |
 | `$helpers.crypto.uuid()` | UUID v4 생성 |
-| `$helpers.base64.encode(data)` | Base64 인코딩 |
-| `$helpers.base64.decode(data)` | Base64 디코딩 |
+| `$helpers.base64.encode(data)` | Base64 인코딩. `data` 는 문자열이어야 하며, **비문자열 입력은 `TypeError`** (런타임 에러 → `error` 포트) |
+| `$helpers.base64.decode(data)` | Base64 디코딩. `data` 는 문자열이어야 하며, **비문자열 입력은 `TypeError`**. 단 *유효하지 않은 base64 문자열* 은 best-effort 디코딩 결과를 반환한다(throw 없음 — Buffer 관대 디코딩) |
+
+> **`$helpers` 입력 타입 계약**: `$helpers.crypto.hash` · `$helpers.base64.encode/decode` 는 비문자열
+> 인자에 `TypeError` 를 던진다(`error` 포트, `CODE_EXECUTION_FAILED`). silent 강제변환이 숨기는 타입
+> 버그를 사용자에게 드러내기 위함이다. `base64.decode` 의 *유효하지 않은 base64 문자열*(타입은 문자열)
+> 은 타입 오류가 아니므로 예외 없이 best-effort 결과를 반환한다.
 
 ## 3. 포트
 
@@ -122,7 +127,10 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
    - **런타임 에러 라인 오프셋**: 래퍼가 사용자 코드 앞에 헤더 3줄(`(async () => {` · `"use strict";` ·
      `const __user = async () => {`)을 덧붙이므로 isolated-vm 이 보고하는 런타임 에러 라인은 사용자
      원본 기준 **+3** 이다. 표시 계층은 3을 빼 사용자 실제 라인으로 환산한다.
-3. `isolated-vm` isolate(`memoryLimit: 128`) + context 를 만들어 `script.run(..., { promise: true, timeout })` 로 실행. 이중 타임아웃을 적용한다 (§7.2).
+3. `isolated-vm` isolate(`memoryLimit: 128`) + context 를 만든다. dayjs(`$helpers.date`)는 매 실행
+   재컴파일하지 않고 **모듈 로드 시 1회 생성한 힙 스냅샷(`createSnapshot`)에서 복원**되며, 스냅샷이
+   없는 플랫폼에서는 per-exec 로 dayjs 소스를 컴파일하는 fallback 으로 동작한다 (§7.1). 이후
+   `script.run(..., { promise: true, timeout })` 로 실행하며 이중 타임아웃을 적용한다 (§7.2).
 4. 정상 종료 → 사용자 `return` 값을 `output` 에 그대로 담고 `port: 'success'` 를 반환 (§5.1).
 5. 런타임 throw / 타임아웃 → `port: 'error'` + `output.error` 표준 봉투 (§5.3, [CONVENTIONS Principle 3.2](../../conventions/node-output.md#32-outputerror-표준-형태)).
 6. 정상 종료 시 **isolate 안의 최종 `$vars` 를 읽어(`copy: true`) `context.variables` 를 원자적으로
@@ -278,7 +286,7 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 }
 ```
 
-#### 5.3.3 메모리 초과 (isolate 128MB 하드 리밋)
+#### 5.3.3 메모리 초과 (isolate 기본 128MB 하드 리밋)
 
 config: `{ "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }", "timeout": 30 }`
 
@@ -311,7 +319,7 @@ config: `{ "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }",
 > `meta.durationMs` 는 메모리 초과 케이스에도 엔진이 주입한다 (§5.3 공통 필드 표) — 핸들러는
 > `meta: { success, logs }` 만 반환하고 엔진이 실행 시간을 덧붙인다. 위 `42` 는 예시 값이다.
 
-> isolate 가 `memoryLimit: 128`(MB) 를 초과하면 V8 이 isolate 를 즉시 폐기한다 (§7.2). 핸들러는 이 폐기 에러를 `EXECUTION_MEMORY_EXCEEDED` 로 분류해 `CODE_MEMORY_LIMIT` 로 정규화한다.
+> isolate 가 `memoryLimit`(기본 128MB, `CODE_NODE_MEMORY_LIMIT_MB` env 로 조정 가능 — §7.2) 를 초과하면 V8 이 isolate 를 즉시 폐기한다. 핸들러는 이 폐기 에러를 `EXECUTION_MEMORY_EXCEEDED` 로 분류해 `CODE_MEMORY_LIMIT` 로 정규화한다.
 
 #### 5.3 공통 필드 표
 
@@ -370,12 +378,19 @@ config: `{ "code": "const a=[]; while(true){ a.push(new Array(1e6).fill(0)); }",
 
 > **선택 근거**: `isolated-vm` 은 V8 Isolate 로 host 메모리 공간과 분리돼 prototype-chain sandbox escape 를 **구조적으로** 차단하고, isolate 단위 메모리 하드 리밋(128MB)·CPU 타임아웃을 강제할 수 있다. 네이티브 빌드(node-gyp) 의존성이 추가되나 CI 이미지 빌드 시 1회 컴파일로 흡수되어 배포 시점 복잡도는 없다. 상세 위협 모델·이력은 §Rationale 참조.
 
+> **dayjs 스냅샷 최적화**: `$helpers.date` 가 의존하는 dayjs 런타임은 매 실행 재컴파일하지 않고, 모듈
+> 로드 시 `ivm.Isolate.createSnapshot()` 으로 **1회 힙 스냅샷**해 per-exec isolate 를 그 스냅샷에서
+> 생성한다. 스냅샷에는 **순수 JS(dayjs)만** 포함되며, host 콜백(`$helpers` crypto/base64·`console`)
+> 브리지와 §7.3 전역 하드닝은 per-exec 부트스트랩에서 그대로 수행된다(스냅샷은 host 바인딩을 캡처하지
+> 않는다). **per-exec isolate 생성·메모리 하드 리밋·dispose·실행 간 상태 비공유 불변은 동일하다.**
+> `createSnapshot` 미지원/실패 플랫폼에서는 per-exec dayjs 컴파일로 투명하게 fallback 한다.
+
 ### 7.2 리소스 제한
 
 | 항목 | 제한 | 설명 |
 |------|------|------|
 | 타임아웃 | 기본 30초 (1~120초) | isolate `script.run(..., { timeout })` (CPU 동기 무한루프 보호) + 외부 `Promise.race` (비동기 무한 대기 보호) **이중 적용** |
-| 메모리 | **128MB 하드 리밋** | `isolated-vm` isolate `memoryLimit: 128`. 초과 시 isolate 가 실행을 중단하고 `CODE_MEMORY_LIMIT` 로 `error` 포트 분기 |
+| 메모리 | **기본 128MB 하드 리밋 (env 조정 가능)** | `isolated-vm` isolate `memoryLimit`. 운영자는 `CODE_NODE_MEMORY_LIMIT_MB` 환경변수로 조정 가능(기본 `128`, **안전 상한 `512`** — 초과 설정은 512 로 clamp). 초과 시 isolate 가 실행을 중단하고 `CODE_MEMORY_LIMIT` 로 `error` 포트 분기 |
 | 네트워크 | 완전 차단 | `fetch`, `XMLHttpRequest`, `WebSocket` 미주입 |
 | 파일시스템 | 접근 불가 | `fs`, `path`, `child_process` 등 미주입 |
 | 모듈 | require/import 불가 | 모듈 로더 미제공. 내장 유틸리티만 전역 주입 |
@@ -448,3 +463,41 @@ Code 노드의 `output` 은 사용자 `return` 값을 **root 에 그대로** 담
 - **현상 유지 + frozen-prototype 단기완화** — 우회 경로가 다수라 근본 차단이 아니며 다중 워크스페이스에서 수용 불가.
 
 **트레이드오프**: 네이티브 빌드(node-gyp) 의존성이 추가된다. CI 이미지 빌드 시 1회 컴파일로 흡수되어 배포 시점 복잡도는 0 이나, 빌드 환경(alpine/musl 포함)에 C++ 툴체인이 필요하다. `$helpers`·`console` 은 host 클로저를 `Reference`/`ivm.Callback` 으로 브리지하므로 host realm 에서 실행되어 기존 사용자 코드(dayjs·crypto·base64) 호환성은 보존된다. isolated-vm 버전은 `node>=22` 를 지원하는 `6.x` 라인을 사용한다 (`7.x` 는 `node>=26` 요구 — Node 26 승급 시 재검토).
+
+### dayjs per-exec 재컴파일 → 힙 스냅샷 (2026-06-12)
+
+동시 실행이 다수일 때 매 실행마다 dayjs UMD 를 isolate 안에서 재컴파일하는 것이 고정 비용이었다.
+`ivm.Isolate.createSnapshot()` 으로 **정적 dayjs 만** 모듈 로드 시 1회 힙 스냅샷해 per-exec isolate 를
+그 스냅샷에서 생성, 재컴파일을 제거했다 (모듈 로드 1회 ~4ms, steady-state 요청 레이턴시 무영향).
+스냅샷에는 host ref·per-exec 상태를 넣지 않아 격리·보안·출력 계약은 불변이며, `§격리 방식 isolated-vm
+전환` 이 확립한 **per-exec isolate dispose(메모리 격리) 불변**도 그대로 유지된다(스냅샷은 dayjs 셋업
+비용만 줄일 뿐 isolate 수명 모델을 바꾸지 않는다).
+
+**기각된 대안**:
+- **isolate 풀 재사용** — per-exec dispose(실행 간 메모리·상태 격리) 불변을 위반한다. 스냅샷은 fresh
+  isolate 를 유지하면서 셋업 비용만 줄이므로 격리 강도 손실이 없다.
+- **부트스트랩(`$helpers`/`console` wiring + §7.3 전역 삭제)까지 스냅샷** — host 콜백은 per-exec 상태
+  (예: `console` 의 로그 버퍼)와 host realm 함수에 바인딩되고, §7.3 삭제는 per-exec 부트스트랩 시점에
+  수행돼야 W13(캡처-후-삭제 순서)이 성립한다. `createSnapshot` 은 host 바인딩 없는 bare isolate 에서
+  실행되므로 이 둘은 스냅샷에 담을 수 없다.
+
+### `$helpers` 입력 타입 계약 — base64 비문자열 TypeError 정렬 (2026-06-12)
+
+`$helpers` 표면의 입력 계약을 일관화한다. `$helpers.crypto.hash` 는 이미 비문자열 `data` 에 `TypeError`
+를 던지나(allowlist + 타입 가드), `$helpers.base64.encode/decode` 만 비문자열을 `String(data)` 로 silent
+강제변환해 `base64.encode(42)` 가 조용히 `"42"` 를 인코딩 → 타입 버그를 은폐했다. base64 도 비문자열에
+`TypeError` 를 던지도록 정렬해 명시적 계약으로 만든다.
+
+**하위호환 영향**: 비문자열을 base64 에 넘기던 기존 사용자 코드는 이제 `error` 포트로 분기한다(이전엔
+silent 처리). 대부분 입력은 문자열이라 영향 범위가 작고, 숨은 타입 버그의 조기 노출 이득이 크다고
+판단했다. *유효하지 않은 base64 문자열* decode(타입은 문자열)는 타입 오류와 구분해 기존 best-effort
+반환을 유지한다. **기각**: 현행 silent 유지 — hash 와의 비대칭을 영구화하고 타입 버그를 숨긴다.
+
+### 메모리 한도 환경변수화 (2026-06-12)
+
+배포 환경별 메모리 여력이 달라 운영 튜닝 여지가 필요하다(코드 W15 주석이 예고). 기본 128MB 는 불변,
+`CODE_NODE_MEMORY_LIMIT_MB` env 로 조정한다. `§격리 방식 isolated-vm 전환` 이 확립한 128MB 결정의
+**의도는 단일 실행의 메모리 상한 설정**이었으므로, clamp(≤512MB)를 둔 env 조정은 그 결정의 **번복이
+아니라 운영 확장**이다. 안전 상한 512MB clamp 로 단일 실행이 호스트 메모리를 과점하지 못하게 한다.
+backend-labels 의 `128MB` 메시지는 code PR 에서 동기화한다. **기각**: 무제한 env — 단일 노드가 호스트
+OOM 을 유발할 수 있다.
