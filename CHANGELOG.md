@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased — KB 임베딩 legacy 컬럼 은퇴 + ModelConfig 에러코드 통일 (PR4b)
+
+> **자사 클라이언트 무영향**: 아래 변경의 소비자는 자사 프론트엔드뿐이며, 프론트가 이미 신 에러코드를 처리하고 KB 요청에 `embeddingModelConfigId` 를 전송하도록 대응 완료된 상태에서 적용됐다. 외부 API 소비자가 없으므로 deprecation 윈도우·구코드 이중발행 없이 교체했다.
+
+### Breaking changes
+
+1. **에러코드 rename (ModelConfig 경로)** — 응답 `error.code` 슬롯:
+   - `LLM_CONFIG_INVALID` → `MODEL_CONFIG_INVALID` (400). 접두어를 `MODEL_CONFIG_*` 로 통일. 의미·status 변경 없음.
+   - `LLM_CONFIG_NOT_FOUND` → `MODEL_CONFIG_DEFAULT_MISSING` (400). id 미지정 시 워크스페이스 default config 부재 경로. id 부재(404)는 `MODEL_CONFIG_NOT_FOUND` 로 별도 분리(동일 코드의 404/400 이중 status 모호성 제거). rename 이력은 `spec/conventions/error-codes.md §4`.
+
+2. **KB create/update DTO 에서 `embeddingModel`·`embeddingLlmConfigId` 필드 제거** — `POST`/`PATCH /api/knowledge-bases` 요청 body 에 이 두 필드를 보내도 **무시된다**(silent breaking). 임베딩 모델 선택은 `embeddingModelConfigId`(1급 `kind=embedding` ModelConfig 참조)로만 수행한다.
+
+3. **KB 응답에서 `embeddingLlmConfigId` 제거, `embeddingModel` 은 read-only(derived) 로 변경** — `GET /api/knowledge-bases`, `GET /api/knowledge-bases/:id` 응답 shape 에서 `embeddingLlmConfigId` 필드가 제거됐다. `embeddingModel` 은 더 이상 저장 컬럼이 아니라 참조 ModelConfig 의 `defaultModel` 에서 파생되는 읽기 전용 값이다(워크스페이스에 embedding ModelConfig 가 없으면 빈 문자열). 변경은 `embeddingModelConfigId` 로만 가능하다.
+
+### Migrations
+
+- **V093** (`knowledge_base` 임베딩 repoint): `embedding_model_config_id IS NULL` 인 모든 KB 를 1급 `kind=embedding` ModelConfig 로 repoint(원래 provider·model·dimension 보존). repoint 불가 KB 가 1건이라도 있으면 fail-loud RAISE 로 전체 롤백(V094 미실행).
+- **V094** (legacy 컬럼 DROP, **비가역**): `knowledge_base.embedding_llm_config_id`·`embedding_model` 컬럼과 FK 제약 DROP. `AccessExclusiveLock` 획득하므로 low-traffic 윈도우 배포 권장(`lock_timeout=3s`).
+
 ## Unreleased — AI 노드 설정 폼 auto-form 전환 (text_classifier · information_extractor)
 
 - **`text_classifier` · `information_extractor` 설정 폼을 schema-driven auto-form 으로 전환** (cross-audit V-02). 기존 bespoke override 폼이 누락하던 필드 — Conversation Context 5필드, System Context 2필드, few-shot `examples`, `outputSchema[].enumValues`, `maxCollectionRetries`, (information_extractor) memory 전략 7필드 — 가 설정 패널에 정상 노출된다. 이전에는 Code 탭 JSON 으로만 설정 가능했다.

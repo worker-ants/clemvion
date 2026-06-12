@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { ModelConfig, ModelConfigKind } from './entities/model-config.entity';
 import { CreateModelConfigDto } from './dto/create-model-config.dto';
@@ -104,8 +104,20 @@ export class ModelConfigService {
   }
 
   /**
+   * 워크스페이스 범위에서 id 들을 일괄 조회한다 (N+1 회피). 존재하지 않는 id 는 결과에서 빠진다.
+   * 표시용 derive (예: KB.embeddingModel = config.defaultModel) 처럼 throw 없이 부분 조회가 필요한 곳에 쓴다.
+   */
+  async findManyByIds(
+    ids: string[],
+    workspaceId: string,
+  ): Promise<ModelConfig[]> {
+    if (ids.length === 0) return [];
+    return this.repo.find({ where: { id: In(ids), workspaceId } });
+  }
+
+  /**
    * 호출 시점에 사용할 ModelConfig 를 해석한다. id 가 있으면 해당 설정(없으면 throw),
-   * 없으면 workspace×kind default. 둘 다 없으면 `MODEL_CONFIG_NOT_FOUND` BadRequest.
+   * 없으면 workspace×kind default. 둘 다 없으면 `MODEL_CONFIG_DEFAULT_MISSING` (400) BadRequest.
    */
   async resolveConfig(
     id: string | undefined,
@@ -118,7 +130,7 @@ export class ModelConfigService {
     const def = await this.findDefault(workspaceId, kind);
     if (!def) {
       throw new BadRequestException({
-        code: 'MODEL_CONFIG_NOT_FOUND',
+        code: 'MODEL_CONFIG_DEFAULT_MISSING',
         message: `No ${kind} model config resolved for workspace`,
       });
     }
@@ -126,25 +138,24 @@ export class ModelConfigService {
   }
 
   /**
-   * KB 임베딩에 사용할 `(config, model)` 을 점진적·하위호환 폴백 체인으로 해석한다 (PR2,
-   * spec/5-system/8-embedding-pipeline.md). 임베딩 1급화는 KB 무중단을 위해 단계적으로 전환한다:
+   * KB 임베딩에 사용할 `(config, model)` 을 1급 폴백 체인으로 해석한다
+   * (spec/5-system/8-embedding-pipeline.md §5.2):
    *   (1) `embeddingModelConfigId` 지정 → 1급 kind=embedding config + `config.defaultModel`
    *   (2) 미지정 → 워크스페이스 default kind=embedding config + 그 `defaultModel`
-   *   (3) 둘 다 없음(legacy) → 구 `embeddingLlmConfigId`(없으면 ws default chat) + `legacyModel` 문자열
-   * @throws {NotFoundException} MODEL_CONFIG_NOT_FOUND — 모든 폴백 경로에서 config 가 없을 때
+   *
+   * PR4b(V094): 구 chat piggyback 폴백(legacy step-3, `embeddingLlmConfigId`+`embedding_model`)은
+   * legacy 컬럼 DROP 과 함께 제거됐다. 모든 기존 KB 는 V093 repoint 로 1급 config 에 고정된다.
+   *
+   * @param opts.embeddingModelConfigId - null 또는 undefined 전달 시 (1) 경로를 skip 하고
+   *   (2) 워크스페이스 default kind=embedding config 로 폴백한다. 명시 id 전달 시 (1) 경로.
+   * @param opts.workspaceId - 조회 범위를 격리할 워크스페이스 ID.
+   * @throws {NotFoundException} MODEL_CONFIG_NOT_FOUND — 두 경로 모두에서 config 가 없을 때
    */
   async resolveEmbedding(opts: {
     embeddingModelConfigId?: string | null;
-    embeddingLlmConfigId?: string | null;
-    legacyModel: string;
     workspaceId: string;
   }): Promise<{ config: ModelConfig; model: string }> {
-    const {
-      embeddingModelConfigId,
-      embeddingLlmConfigId,
-      legacyModel,
-      workspaceId,
-    } = opts;
+    const { embeddingModelConfigId, workspaceId } = opts;
 
     // (1) 명시 지정된 1급 embedding config
     if (embeddingModelConfigId) {
@@ -162,15 +173,7 @@ export class ModelConfigService {
       return { config: embDefault, model: embDefault.defaultModel };
     }
 
-    // (3) legacy 폴백 — 구 embedding_llm_config_id(없으면 ws default chat) + embedding_model 문자열.
-    // legacy config 는 구 piggyback 이라 kind 무관(보통 chat)으로 조회한다.
-    const legacy = embeddingLlmConfigId
-      ? await this.findEntity(embeddingLlmConfigId, workspaceId)
-      : await this.findDefault(workspaceId, 'chat');
-    if (!legacy) {
-      throw this.notFound();
-    }
-    return { config: legacy, model: legacyModel };
+    throw this.notFound();
   }
 
   async create(

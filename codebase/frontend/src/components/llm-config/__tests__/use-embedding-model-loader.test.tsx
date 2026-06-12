@@ -259,7 +259,7 @@ describe("useEmbeddingModelLoader", () => {
     vi.mocked(modelConfigsApi.listModels).mockRejectedValueOnce(
       Object.assign(new Error("boom"), {
         isAxiosError: true,
-        response: { data: { error: { code: "LLM_CONFIG_INVALID" } } },
+        response: { data: { error: { code: "MODEL_CONFIG_INVALID" } } },
       }),
     );
 
@@ -268,7 +268,7 @@ describe("useEmbeddingModelLoader", () => {
         useEmbeddingModelLoader({
           configId: "cfg-abc",
           fallbackErrorMessage: "generic fallback",
-          errorMessagesByCode: { LLM_CONFIG_INVALID: "Invalid config" },
+          errorMessagesByCode: { MODEL_CONFIG_INVALID: "Invalid config" },
         }),
       { wrapper },
     );

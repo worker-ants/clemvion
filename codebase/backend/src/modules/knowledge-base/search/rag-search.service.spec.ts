@@ -1,17 +1,29 @@
 import { RagSearchService } from './rag-search.service';
 
+// PR4b: KB 의 legacy embeddingModel / embeddingLlmConfigId 컬럼이 은퇴됨.
+// query 임베딩 모델은 이제 resolveEmbedding 이 (embeddingModelConfigId 기준으로)
+// 돌려주는 model 에서만 온다. KbRow(SQL SELECT)는 embeddingModelConfigId·embeddingDimension
+// 만 임베딩 관련 필드로 보유한다.
+//
+// embeddingModelConfigId → model 매핑. mockModelConfigService.resolveEmbedding 이
+// 이 맵으로 model 을 돌려준다. embeddingModelConfigId 가 null 이거나 미등록이면
+// ws default embedding 모델(DEFAULT_EMBEDDING_MODEL).
+const MODEL_BY_CONFIG: Record<string, string> = {
+  'emb-large': 'text-embedding-3-large',
+  'emb-cfg-A': 'text-embedding-3-large',
+};
+const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
+
 // 테스트의 KB row mock 을 만들 때 새 컬럼 default 를 자동 채워주는 helper.
 // vector 모드 KB 가 기본. graph 모드 KB 는 ragMode='graph' 를 명시적으로 override.
 function makeKbRow(overrides: Partial<KbRowFixture>): KbRowFixture {
   return {
-    embeddingModel: 'text-embedding-3-small',
     embeddingDimension: 1536,
     ragMode: 'vector',
     maxHops: 1,
     vectorSeedTopK: 5,
     expandedChunkLimit: 15,
     reembedStatus: 'idle',
-    embeddingLlmConfigId: null,
     embeddingModelConfigId: null,
     rerankMode: 'off',
     rerankConfigId: null,
@@ -24,14 +36,12 @@ function makeKbRow(overrides: Partial<KbRowFixture>): KbRowFixture {
 
 interface KbRowFixture {
   id: string;
-  embeddingModel: string;
   embeddingDimension: number | null;
   ragMode: 'vector' | 'graph';
   maxHops: number;
   vectorSeedTopK: number;
   expandedChunkLimit: number;
   reembedStatus: 'idle' | 'in_progress';
-  embeddingLlmConfigId: string | null;
   embeddingModelConfigId: string | null;
   rerankMode: 'off' | 'cross_encoder' | 'cross_encoder_llm';
   rerankConfigId: string | null;
@@ -80,16 +90,25 @@ describe('RagSearchService', () => {
       rerankCandidates: jest.fn(),
     };
 
-    // PR2: rag-search 는 modelConfigService.resolveEmbedding 으로 (config, model) 해석.
-    // legacy 폴백 동형: legacyModel 을 그대로 echo 해 기존 모델-전달 테스트를 보존한다.
+    // PR4b: rag-search 는 modelConfigService.resolveEmbedding 으로 (config, model) 해석.
+    // legacy embeddingModel 컬럼이 은퇴됐으므로 model 은 embeddingModelConfigId 기준으로
+    // 돌려준다(MODEL_BY_CONFIG). config id 없거나 미등록이면 ws default embedding 모델 —
+    // 같은 (embeddingModelConfigId, dim) 그룹이 같은 query 임베딩(=단일 embed 호출)을 공유.
     mockModelConfigService = {
       resolveEmbedding: jest
         .fn()
-        .mockImplementation((opts: { legacyModel: string }) =>
-          Promise.resolve({
-            config: { id: 'config-1', provider: 'openai', workspaceId: 'ws-1' },
-            model: opts.legacyModel,
-          }),
+        .mockImplementation(
+          (opts: { embeddingModelConfigId?: string | null }) =>
+            Promise.resolve({
+              config: {
+                id: 'config-1',
+                provider: 'openai',
+                workspaceId: 'ws-1',
+              },
+              model:
+                MODEL_BY_CONFIG[opts.embeddingModelConfigId ?? ''] ??
+                DEFAULT_EMBEDDING_MODEL,
+            }),
         ),
     };
 
@@ -124,12 +143,13 @@ describe('RagSearchService', () => {
       expect(result).toEqual([]);
     });
 
-    it("should pass each KB's embeddingModel to llmService.embed", async () => {
+    it("should pass each group's resolved embedding model to llmService.embed", async () => {
+      // embeddingModelConfigId='emb-large' → resolveEmbedding 이 'text-embedding-3-large' 반환.
       mockDataSource.query
         .mockResolvedValueOnce([
           makeKbRow({
             id: 'kb-1',
-            embeddingModel: 'text-embedding-3-large',
+            embeddingModelConfigId: 'emb-large',
             embeddingDimension: 3072,
           }),
         ])
@@ -147,13 +167,13 @@ describe('RagSearchService', () => {
       );
     });
 
-    it('should split KBs by (model, dimension) and embed each group separately', async () => {
+    it('should split KBs by (embeddingModelConfigId, dimension) and embed each group separately', async () => {
       mockDataSource.query
         .mockResolvedValueOnce([
           makeKbRow({ id: 'kb-1' }),
           makeKbRow({
             id: 'kb-2',
-            embeddingModel: 'text-embedding-3-large',
+            embeddingModelConfigId: 'emb-large',
             embeddingDimension: 3072,
           }),
         ])
@@ -275,7 +295,6 @@ describe('RagSearchService', () => {
         .mockResolvedValueOnce([
           makeKbRow({
             id: 'kb-1',
-            embeddingModel: 'text-embedding-3-large',
             embeddingDimension: 3072,
           }),
         ])
@@ -309,7 +328,6 @@ describe('RagSearchService', () => {
       mockDataSource.query.mockResolvedValueOnce([
         makeKbRow({
           id: 'kb-1',
-          embeddingModel: 'custom-model',
           embeddingDimension: 999,
         }),
       ]);
@@ -344,7 +362,7 @@ describe('RagSearchService', () => {
           makeKbRow({ id: 'kb-1', embeddingDimension: 1536 }),
           makeKbRow({
             id: 'kb-2',
-            embeddingModel: 'text-embedding-3-large',
+            embeddingModelConfigId: 'emb-large',
             embeddingDimension: 3072,
           }),
         ])
@@ -385,7 +403,7 @@ describe('RagSearchService', () => {
           makeKbRow({ id: 'kb-1' }),
           makeKbRow({
             id: 'kb-2',
-            embeddingModel: 'text-embedding-3-large',
+            embeddingModelConfigId: 'emb-large',
             embeddingDimension: 3072,
           }),
         ])
@@ -502,20 +520,19 @@ describe('RagSearchService', () => {
   });
 
   describe('1급 embeddingModelConfigId 그룹 키 분리/병합 (W13, W15)', () => {
-    it('동일 embeddingModelConfigId + 다른 embeddingModel 문자열 → 1 그룹 (단일 embed 호출)', async () => {
-      // PR2 핵심: 1급 경로에서 stale legacyModel 문자열이 달라도 같은 config 면 동일 그룹
+    it('동일 embeddingModelConfigId + 동일 dim → 1 그룹 (단일 embed 호출)', async () => {
+      // PR4b 핵심: 그룹 키는 (embeddingModelConfigId, dim). 같은 config·차원이면
+      // query 임베딩을 공유하므로 한 그룹으로 묶여 embed 가 단 1번만 호출된다.
       mockDataSource.query
         .mockResolvedValueOnce([
           makeKbRow({
             id: 'kb-1',
             embeddingModelConfigId: 'emb-cfg',
-            embeddingModel: 'model-v1',
             embeddingDimension: 1536,
           }),
           makeKbRow({
             id: 'kb-2',
             embeddingModelConfigId: 'emb-cfg',
-            embeddingModel: 'model-v2-stale',
             embeddingDimension: 1536,
           }),
         ])
@@ -524,7 +541,7 @@ describe('RagSearchService', () => {
 
       await service.search('query', ['kb-1', 'kb-2'], 'ws-1');
 
-      // 두 KB 가 같은 embeddingModelConfigId 를 공유하므로 embed 는 딱 1번만 호출돼야 한다
+      // 두 KB 가 같은 embeddingModelConfigId·dim 을 공유하므로 embed 는 딱 1번만 호출돼야 한다
       expect(mockLlmService.embed).toHaveBeenCalledTimes(1);
     });
 
@@ -557,7 +574,6 @@ describe('RagSearchService', () => {
           makeKbRow({
             id: 'kb-1',
             embeddingModelConfigId: 'emb-1',
-            embeddingModel: 'legacy-m',
             embeddingDimension: 1536,
           }),
         ])
@@ -638,7 +654,8 @@ describe('RagSearchService', () => {
 
       // graph 모드 query 임베딩(searchGraphKb 경로)도 vector 경로와 동일하게
       // inputType='query' 로 호출돼야 한다 — 비대칭 모델에서 query/passage 공간이
-      // 어긋나지 않게 하는 핵심 계약. KB 의 embeddingModel 을 그대로 전달.
+      // 어긋나지 않게 하는 핵심 계약. resolveEmbedding 이 돌려준 model(여기선 ws
+      // default embedding = text-embedding-3-small)을 그대로 전달.
       expect(mockLlmService.embed).toHaveBeenCalledWith(
         expect.anything(),
         ['query'],

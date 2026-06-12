@@ -8,11 +8,9 @@ import {
   Min,
   Max,
   MaxLength,
-  Matches,
   ValidateIf,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { EMBEDDING_MODEL_PATTERN } from '../embedding/embedding-dimensions.const';
 
 export class UpdateKnowledgeBaseDto {
   /** 변경할 지식 베이스 이름 */
@@ -33,22 +31,6 @@ export class UpdateKnowledgeBaseDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  /** 변경할 임베딩 모델 식별자 */
-  @ApiPropertyOptional({
-    description:
-      '변경할 임베딩 모델 식별자. 차원이 달라지면 기존 청크와 호환되지 않으므로 KB 재임베딩이 필요합니다.',
-    example: 'text-embedding-3-large',
-    maxLength: 100,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  @Matches(EMBEDDING_MODEL_PATTERN, {
-    message:
-      'embeddingModel must contain only letters, digits, ".", "_", ":", "/" or "-" (max 100 chars)',
-  })
-  embeddingModel?: string;
 
   /** 변경할 청크 크기 (토큰 기준, 100~8000) */
   @ApiPropertyOptional({
@@ -90,10 +72,10 @@ export class UpdateKnowledgeBaseDto {
   @IsUUID()
   extractionLlmConfigId?: string | null;
 
-  /** 임베딩 ModelConfig(kind=embedding) 변경 (PR2). null 로 보내면 default/legacy 폴백으로 되돌림. */
+  /** 임베딩 ModelConfig(kind=embedding) 변경. null 로 보내면 워크스페이스 default kind=embedding 으로 되돌림. */
   @ApiPropertyOptional({
     description:
-      '임베딩에 사용할 ModelConfig(kind=embedding) 변경. null 로 보내면 default/legacy 폴백으로 되돌립니다. 적용은 다음 임베딩부터. 모델/차원이 달라지면 재임베딩이 필요합니다.',
+      '임베딩에 사용할 ModelConfig(kind=embedding) 변경. null 로 보내면 워크스페이스 default kind=embedding 으로 되돌립니다. 적용은 다음 임베딩부터. 모델/차원이 달라지면 재임베딩이 필요합니다.',
     format: 'uuid',
     nullable: true,
   })
@@ -101,18 +83,6 @@ export class UpdateKnowledgeBaseDto {
   @ValidateIf((_, value) => value !== null)
   @IsUUID()
   embeddingModelConfigId?: string | null;
-
-  /** [LEGACY] 임베딩 LLMConfig 변경(폴백). null 로 보내면 워크스페이스 default 로 되돌림. */
-  @ApiPropertyOptional({
-    description:
-      '임베딩에 사용할 LLMConfig 변경. null 로 보내면 워크스페이스 default LLMConfig 로 되돌립니다. 적용은 다음 임베딩부터. 차원이 달라지면 KB 재임베딩이 필요합니다.',
-    format: 'uuid',
-    nullable: true,
-  })
-  @IsOptional()
-  @ValidateIf((_, value) => value !== null)
-  @IsUUID()
-  embeddingLlmConfigId?: string | null;
 
   @ApiPropertyOptional({
     description: 'graph 모드 검색 시 그래프 확장 깊이 (1 또는 2).',

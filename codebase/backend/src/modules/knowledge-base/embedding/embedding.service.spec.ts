@@ -27,6 +27,14 @@ jest.mock('../chunking/text-chunker', () => ({
 
 const chunkTextMock = chunkText as jest.MockedFunction<typeof chunkText>;
 
+// PR4b: KB 의 legacy embeddingModel 컬럼이 은퇴됨. embed 모델은 이제
+// resolveEmbedding 이 (embeddingModelConfigId 기준으로) 돌려주는 model 에서만 온다.
+// embeddingModelConfigId → model 매핑. 미등록/undefined 면 기본 모델로 resolve.
+const MODEL_BY_CONFIG: Record<string, string> = {
+  'emb-cfg-1': 'cfg-model',
+};
+const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
+
 describe('EmbeddingService - dimension consistency', () => {
   let service: EmbeddingService;
   let mockDocRepo: Record<string, jest.Mock>;
@@ -71,16 +79,26 @@ describe('EmbeddingService - dimension consistency', () => {
       }),
       embed: jest.fn(),
     };
-    // PR2: embedding.service 는 modelConfigService.resolveEmbedding 으로 (config, model) 해석.
-    // legacy 폴백 동형 — legacyModel 을 echo 해 기존 모델-전달 테스트를 보존.
+    // PR4b: embedding.service 는 modelConfigService.resolveEmbedding 으로 (config, model) 해석.
+    // legacy embeddingModel 컬럼이 은퇴됐으므로 model 은 embeddingModelConfigId 기준으로
+    // 돌려준다(MODEL_BY_CONFIG). config id 없거나 미등록이면 ws default embedding 모델.
     mockModelConfig = {
       resolveEmbedding: jest
         .fn()
-        .mockImplementation((opts: { legacyModel: string }) =>
-          Promise.resolve({
-            config: { id: 'cfg', provider: 'openai', workspaceId: 'ws-1' },
-            model: opts.legacyModel,
-          }),
+        .mockImplementation(
+          (opts: { embeddingModelConfigId?: string | null }) =>
+            Promise.resolve({
+              // resolved config id 는 요청한 embeddingModelConfigId(있으면)를 반영 —
+              // 1급 config 경로에서 그 config 가 그대로 embed 에 흐르는지 검증 가능.
+              config: {
+                id: opts.embeddingModelConfigId ?? 'cfg',
+                provider: 'openai',
+                workspaceId: 'ws-1',
+              },
+              model:
+                MODEL_BY_CONFIG[opts.embeddingModelConfigId ?? ''] ??
+                DEFAULT_EMBEDDING_MODEL,
+            }),
         ),
     };
     mockWs = {
@@ -133,7 +151,6 @@ describe('EmbeddingService - dimension consistency', () => {
     mockKbRepo.findOne.mockResolvedValue({
       id: 'kb-1',
       workspaceId: 'ws-1',
-      embeddingModel: 'text-embedding-3-small',
       embeddingDimension: null,
       chunkSize: 1000,
       chunkOverlap: 200,
@@ -173,7 +190,6 @@ describe('EmbeddingService - dimension consistency', () => {
     mockKbRepo.findOne.mockResolvedValue({
       id: 'kb-1',
       workspaceId: 'ws-1',
-      embeddingModel: 'text-embedding-3-small',
       embeddingDimension: 3,
       chunkSize: 1000,
       chunkOverlap: 200,
@@ -208,7 +224,6 @@ describe('EmbeddingService - dimension consistency', () => {
     mockKbRepo.findOne.mockResolvedValue({
       id: 'kb-1',
       workspaceId: 'ws-1',
-      embeddingModel: 'text-embedding-3-small',
       embeddingDimension: 3,
       chunkSize: 1000,
       chunkOverlap: 200,
@@ -233,7 +248,6 @@ describe('EmbeddingService - dimension consistency', () => {
     mockKbRepo.findOne.mockResolvedValue({
       id: 'kb-1',
       workspaceId: 'ws-1',
-      embeddingModel: 'text-embedding-3-large',
       embeddingDimension: 3072,
       chunkSize: 1000,
       chunkOverlap: 200,
@@ -266,7 +280,6 @@ describe('EmbeddingService - dimension consistency', () => {
     mockKbRepo.findOne.mockResolvedValue({
       id: 'kb-1',
       workspaceId: 'ws-1',
-      embeddingModel: 'text-embedding-3-small',
       embeddingDimension: null,
       chunkSize: 1000,
       chunkOverlap: 200,
@@ -302,7 +315,6 @@ describe('EmbeddingService - dimension consistency', () => {
     mockKbRepo.findOne.mockResolvedValue({
       id: 'kb-1',
       workspaceId: 'ws-1',
-      embeddingModel: 'text-embedding-3-small',
       embeddingDimension: null,
       chunkSize: 1000,
       chunkOverlap: 200,
@@ -345,7 +357,6 @@ describe('EmbeddingService - dimension consistency', () => {
       mockKbRepo.findOne.mockResolvedValue({
         id: 'kb-1',
         workspaceId: 'ws-1',
-        embeddingModel: 'text-embedding-3-small',
         embeddingDimension: null,
         chunkSize: 1000,
         chunkOverlap: 200,
@@ -423,8 +434,8 @@ describe('EmbeddingService - dimension consistency', () => {
   });
 
   describe('1급 embedding config 경로 (W12)', () => {
-    it('KB 에 embeddingModelConfigId 가 있으면 resolveEmbedding 이 반환한 model 로 llm.embed 를 호출한다 (legacyModel 아님)', async () => {
-      // KB fixture: embeddingModelConfigId 설정, legacyModel 은 'legacy-model'
+    it('KB 에 embeddingModelConfigId 가 있으면 resolveEmbedding 이 반환한 config 의 model 로 llm.embed 를 호출한다', async () => {
+      // KB fixture: embeddingModelConfigId='emb-cfg-1' 만 설정 (legacy embeddingModel 컬럼 은퇴).
       mockDocRepo.findOne.mockResolvedValue({
         id: 'd1',
         knowledgeBaseId: 'kb-emb',
@@ -434,17 +445,13 @@ describe('EmbeddingService - dimension consistency', () => {
       mockKbRepo.findOne.mockResolvedValue({
         id: 'kb-emb',
         workspaceId: 'ws-1',
-        embeddingModel: 'legacy-model',
         embeddingModelConfigId: 'emb-cfg-1',
         embeddingDimension: 3,
         chunkSize: 1000,
         chunkOverlap: 200,
       });
-      // resolveEmbedding 은 1급 config 의 defaultModel 인 'cfg-model' 을 반환
-      mockModelConfig.resolveEmbedding.mockResolvedValueOnce({
-        config: { id: 'emb-cfg-1', provider: 'openai', workspaceId: 'ws-1' },
-        model: 'cfg-model',
-      });
+      // resolveEmbedding 은 1급 config('emb-cfg-1') 의 defaultModel 인 'cfg-model' 을 반환
+      // (MODEL_BY_CONFIG 매핑 — embeddingModelConfigId 가 model 출처임을 검증).
       mockLlm.embed.mockResolvedValue([
         [0.1, 0.2, 0.3],
         [0.4, 0.5, 0.6],
@@ -452,7 +459,14 @@ describe('EmbeddingService - dimension consistency', () => {
 
       await service.processDocument('d1');
 
-      // llm.embed 는 config 의 defaultModel('cfg-model') 로 호출돼야 한다 — legacyModel 아님
+      // resolveEmbedding 은 KB 의 embeddingModelConfigId 로 호출돼야 한다.
+      expect(mockModelConfig.resolveEmbedding).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeddingModelConfigId: 'emb-cfg-1',
+          workspaceId: 'ws-1',
+        }),
+      );
+      // llm.embed 는 config 의 defaultModel('cfg-model') 로 호출돼야 한다.
       expect(mockLlm.embed).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'emb-cfg-1' }),
         expect.any(Array),

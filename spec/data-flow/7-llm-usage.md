@@ -116,7 +116,7 @@ usage 적재 정책:
 
 | Caller | inputType | config 선택 |
 | --- | --- | --- |
-| `EmbeddingService` (KB 청크 적재, `knowledge-base/embedding/embedding.service.ts`) | `document` | `kb.embeddingLlmConfigId` (V029) 우선, NULL 이면 ws default 폴백 |
+| `EmbeddingService` (KB 청크 적재, `knowledge-base/embedding/embedding.service.ts`) | `document` | `resolveEmbedding(kb.embeddingModelConfigId)` — 1급 `kind=embedding` config, NULL 이면 ws default kind=embedding 폴백 |
 | KB 차원 probe (`knowledge-base.service.ts` `probeEmbedding`) | `document` | dto 지정 또는 ws default |
 | RAG 검색 query 임베딩 (`knowledge-base/search/rag-search.service.ts`, 2곳) | `query` | 해당 KB(그룹) 가 청크 임베딩에 쓴 config — mismatch 방지 |
 | AgentMemory 저장 / 회수 (`agent-memory/agent-memory.service.ts`) | 저장 `document` / recall `query` | 노드 `llmConfigId` 또는 ws default |

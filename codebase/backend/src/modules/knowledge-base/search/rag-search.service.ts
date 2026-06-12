@@ -61,9 +61,7 @@ export type SearchWithMetaResult = {
 
 interface KbRow {
   id: string;
-  embeddingModel: string;
   embeddingDimension: number | null;
-  embeddingLlmConfigId: string | null;
   embeddingModelConfigId: string | null;
   ragMode: 'vector' | 'graph';
   maxHops: number;
@@ -90,15 +88,10 @@ type RawSearchRow = {
 };
 
 interface VectorGroup {
-  // legacy 폴백 경로(embeddingModelConfigId == null)에서만 실제로 사용되는 임베딩 모델 문자열.
-  // 1급 경로(embeddingModelConfigId != null)에서는 config.defaultModel 이 사용되므로 이 값은 무시된다.
-  legacyModel: string;
   dim: number;
-  // KB 가 지정한 embeddingLlmConfigId. NULL 이면 워크스페이스 default 로 폴백.
-  // (legacyModel, dim, embeddingLlmConfigId) 조합이 같아야 같은 그룹 — 같은 모델 이름이라도
-  // LLMConfig endpoint 가 다르면 임베딩이 호환되지 않을 수 있으므로 분리한다.
-  embeddingLlmConfigId: string | null;
-  // PR2: 1급 embedding config(kind=embedding). null 이면 legacy 폴백(embeddingLlmConfigId+legacyModel).
+  // 임베딩 해석 키. 1급 embedding config(kind=embedding) id. null 이면 워크스페이스 default
+  // kind=embedding 으로 resolve (resolveEmbedding step-2). 같은 (embeddingModelConfigId, dim)
+  // 이어야 같은 query 임베딩을 공유할 수 있어 한 그룹으로 묶는다.
   embeddingModelConfigId: string | null;
   kbIds: string[];
 }
@@ -158,9 +151,7 @@ export class RagSearchService {
     try {
       const kbs = await this.dataSource.query<KbRow[]>(
         `SELECT id,
-                embedding_model AS "embeddingModel",
                 embedding_dimension AS "embeddingDimension",
-                embedding_llm_config_id AS "embeddingLlmConfigId",
                 embedding_model_config_id AS "embeddingModelConfigId",
                 rag_mode AS "ragMode",
                 max_hops AS "maxHops",
@@ -221,9 +212,9 @@ export class RagSearchService {
         );
       }
 
-      // KB 를 ragMode 로 분리: vector 는 (model, dim, llmConfig) 그룹화, graph 는 KB 단위 처리.
-      // 각 그룹 / 각 graph KB 가 자체 embeddingLlmConfigId 를 resolveConfig 로 풀어 query 임베딩
-      // 호출에 사용한다. 청크가 비-default LLMConfig 로 임베딩됐다면 query 도 같은 endpoint 로
+      // KB 를 ragMode 로 분리: vector 는 (embeddingModelConfigId, dim) 그룹화, graph 는 KB 단위 처리.
+      // 각 그룹 / 각 graph KB 가 자체 embeddingModelConfigId 를 resolveEmbedding 으로 풀어 query 임베딩
+      // 호출에 사용한다. 청크가 특정 embedding config 로 임베딩됐다면 query 도 같은 config 로
       // 임베딩해야 유사도가 맞기 때문.
       const vectorKbs = searchableKbs.filter((kb) => kb.ragMode === 'vector');
       const graphKbs = searchableKbs.filter((kb) => kb.ragMode === 'graph');
@@ -328,9 +319,7 @@ export class RagSearchService {
       SUPPORTED_EMBEDDING_DIMS.has(kb.embeddingDimension)
     ) {
       const group: VectorGroup = {
-        legacyModel: kb.embeddingModel,
         dim: kb.embeddingDimension,
-        embeddingLlmConfigId: kb.embeddingLlmConfigId,
         embeddingModelConfigId: kb.embeddingModelConfigId,
         kbIds: [kb.id],
       };
@@ -413,25 +402,17 @@ export class RagSearchService {
         );
         continue;
       }
-      // 1급 경로(embeddingModelConfigId != null): config ID + dim だけでグループを決定する.
-      // legacyModel 문자열은 같은 config 를 공유하는 KB 사이에서 달라질 수 있는 stale 값이므로
-      // 키에 포함하면 동일 config KB 가 불필요하게 분리된다 — 제외.
-      // legacy 경로(embeddingModelConfigId == null): (model, dim, llmConfigId) 조합 유지.
-      let key: string;
-      if (kb.embeddingModelConfigId != null) {
-        key = `${kb.embeddingModelConfigId}::${kb.embeddingDimension}`;
-      } else {
-        const cfgKey = kb.embeddingLlmConfigId ?? NULL_KEY;
-        key = `${NULL_KEY}::${kb.embeddingModel}::${kb.embeddingDimension}::${cfgKey}`;
-      }
+      // (embeddingModelConfigId, dim) 조합으로 그룹 결정. 1급 config id 가 같으면 같은 모델·차원이라
+      // query 임베딩을 공유할 수 있다. embeddingModelConfigId == null 인 KB 는 워크스페이스 default
+      // kind=embedding 으로 동일하게 resolve 되므로 dim 만으로 묶는다.
+      const cfgKey = kb.embeddingModelConfigId ?? NULL_KEY;
+      const key = `${cfgKey}::${kb.embeddingDimension}`;
       const existing = groups.get(key);
       if (existing) {
         existing.kbIds.push(kb.id);
       } else {
         groups.set(key, {
-          legacyModel: kb.embeddingModel,
           dim: kb.embeddingDimension,
-          embeddingLlmConfigId: kb.embeddingLlmConfigId,
           embeddingModelConfigId: kb.embeddingModelConfigId,
           kbIds: [kb.id],
         });
@@ -458,19 +439,11 @@ export class RagSearchService {
     topK: number,
     workspaceId: string,
   ): Promise<SearchResult[]> {
-    const {
-      legacyModel,
-      dim,
-      kbIds,
-      embeddingLlmConfigId,
-      embeddingModelConfigId,
-    } = group;
-    // 그룹 KB 들이 청크 임베딩에 쓴 것과 동일한 (config, model) 로 query 임베딩 (PR2 폴백 체인).
+    const { dim, kbIds, embeddingModelConfigId } = group;
+    // 그룹 KB 들이 청크 임베딩에 쓴 것과 동일한 (config, model) 로 query 임베딩.
     const { config: llmConfig, model } =
       await this.modelConfigService.resolveEmbedding({
         embeddingModelConfigId,
-        embeddingLlmConfigId,
-        legacyModel,
         workspaceId,
       });
     const embeddings = await this.llmService.embed(
@@ -554,12 +527,10 @@ export class RagSearchService {
       };
     }
     const dim = kb.embeddingDimension;
-    // KB 가 청크 임베딩에 쓴 것과 동일한 (config, model) 로 query 임베딩 (PR2 폴백 체인, mismatch 방지).
+    // KB 가 청크 임베딩에 쓴 것과 동일한 (config, model) 로 query 임베딩 (mismatch 방지).
     const { config: llmConfig, model: graphEmbeddingModel } =
       await this.modelConfigService.resolveEmbedding({
         embeddingModelConfigId: kb.embeddingModelConfigId,
-        embeddingLlmConfigId: kb.embeddingLlmConfigId,
-        legacyModel: kb.embeddingModel,
         workspaceId,
       });
     const embeddings = await this.llmService.embed(

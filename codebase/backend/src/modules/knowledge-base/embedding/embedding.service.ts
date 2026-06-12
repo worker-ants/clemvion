@@ -209,14 +209,11 @@ export class EmbeddingService {
       return;
     }
 
-    // 4. Resolve embedding model config + model (PR2 1급화 폴백 체인):
-    //    embedding_model_config_id → ws default kind=embedding → legacy(chat piggyback).
-    //    1급 경로에서는 모델 ID 가 config.defaultModel 에서 오고, legacy 에서는 kb.embeddingModel.
+    // 4. Resolve embedding model config + model (1급화 폴백 체인):
+    //    embedding_model_config_id → ws default kind=embedding. 모델 ID 는 config.defaultModel.
     const { config: llmConfig, model: embeddingModel } =
       await this.modelConfigService.resolveEmbedding({
         embeddingModelConfigId: kb.embeddingModelConfigId,
-        embeddingLlmConfigId: kb.embeddingLlmConfigId,
-        legacyModel: kb.embeddingModel,
         workspaceId: kb.workspaceId,
       });
 
