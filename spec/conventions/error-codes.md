@@ -88,12 +88,13 @@ public 코드는 우측 열이다 — 명명 정확성 향상을 위한 internal
 
 ## 5. Rename 이력 (Retired codes)
 
-§2 의 안정성 정책은 rename 을 breaking change 로 규정한다. 그럼에도 아래 코드는 **소비자가 자사 클라이언트뿐**(프론트엔드가 구·신 코드를 양쪽 매핑)이라 breaking 영향이 없음을 확인한 뒤 교체했다. 구 코드는 더 이상 발행되지 않으며(코드베이스에서 완전 제거), 외부에 노출된 적이 없다. rename 배경 추적용 이력으로만 남긴다.
+§2 의 안정성 정책은 rename 을 breaking change 로 규정한다. 그럼에도 아래 코드는 **소비자가 자사 클라이언트뿐**(프론트엔드가 구·신 코드를 양쪽 매핑)이라 breaking 영향이 없음을 확인한 뒤 교체했다. 구 코드는 더 이상 발행되지 않으며(코드베이스에서 완전 제거), **외부 client 코드에 분기로 노출된 적이 없다**(문서 목록에만 노출됐던 코드는 신규 코드로 동기화). rename 배경 추적용 이력으로만 남긴다.
 
 | 구 코드 | 대체 코드 | HTTP | PR | 비고 |
 |---|---|---|---|---|
 | `LLM_CONFIG_NOT_FOUND` | `MODEL_CONFIG_DEFAULT_MISSING` | 400 | PR4b | id 미지정 시 워크스페이스 default config 부재 경로 — `resolveConfig`(chat/LLM) 전용. id 부재(404)는 `MODEL_CONFIG_NOT_FOUND` 로 별도 분리. `resolveEmbedding` ws-default 부재도 `MODEL_CONFIG_NOT_FOUND`(404) 유지(리소스 부재, 사용자 결정 2026-06-12) ([3-error-handling.md §1.3 Rationale](../5-system/3-error-handling.md#rationale)) |
 | `LLM_CONFIG_INVALID` | `MODEL_CONFIG_INVALID` | 400 | PR4b | 접두어를 `MODEL_CONFIG_*` 로 통일 (LLMConfig→ModelConfig 1급 통합). 의미·status 변경 없음 |
+| `WORKSPACE_REQUIRED` | `WORKSPACE_ID_REQUIRED` | 400 | #566 | chat-channel `rotate-bot-token` controller 인라인 코드(`401`)를 공용 `@WorkspaceId()` 데코레이터 canonical(`400`)로 통일 (HTTP status 도 401→400 정정). user-docs 목록에만 노출됐고 client 하드코딩 분기 없음 — breaking 영향 0. 경위 [15-chat-channel.md §R-CC-18](../5-system/15-chat-channel.md#r-cc-18-rotate-bot-token-workspace-검증--공용-workspaceid-데코레이터-통일) |
 
 ## Rationale
 

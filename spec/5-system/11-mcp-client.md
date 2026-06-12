@@ -105,6 +105,7 @@ MCP 서버는 **신규 노드가 아니라** 기존 Integration 엔티티의 새
 | service_type | Bridge 구현 | spec |
 |---|---|---|
 | `cafe24` | `Cafe24McpToolProvider` | [Spec Cafe24 §8 AI Agent 노출](../4-nodes/4-integration/4-cafe24.md#8-ai-agent-노출-internal-mcp-bridge) |
+| `makeshop` | `MakeshopMcpToolProvider` | [Spec MakeShop §8 AI Agent 노출](../4-nodes/4-integration/5-makeshop.md#8-ai-agent-노출-internal-mcp-bridge) |
 
 ### 3.2 credentials JSONB 스키마
 
