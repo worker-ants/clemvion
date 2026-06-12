@@ -656,6 +656,9 @@ describe('CodeHandler', () => {
     });
 
     it('stays consistent across many sequential executions (snapshot reuse)', async () => {
+      // INFO#4: verify output values at representative indices (i=0, 12, 24) in
+      // addition to the success flag, to catch cross-run state leakage earlier.
+      const checkIndices = new Set([0, 12, 24]);
       for (let i = 0; i < 25; i++) {
         const result = (await handler.execute(
           null,
@@ -665,6 +668,12 @@ describe('CodeHandler', () => {
           context,
         )) as unknown as { output: string; meta: { success: boolean } };
         expect(result.meta.success).toBe(true);
+        if (checkIndices.has(i)) {
+          const expected = new Date(Date.UTC(2020, 0, 1 + i))
+            .toISOString()
+            .slice(0, 10);
+          expect(result.output).toBe(expected);
+        }
       }
       const last = (await handler.execute(
         null,
@@ -738,6 +747,69 @@ describe('CodeHandler', () => {
       )) as unknown as { output: string; meta: { success: boolean } };
       expect(result.meta.success).toBe(true);
       expect(result.output).toBe('undefined,undefined,undefined,undefined');
+    });
+  });
+
+  // W-D: DAYJS_SNAPSHOT=undefined fallback path coverage.
+  //
+  // The DAYJS_SNAPSHOT constant is set at module load time via an IIFE. To force
+  // the fallback (per-exec DAYJS_LOAD_SCRIPT compile) path we must mock
+  // ivm.Isolate.createSnapshot to throw BEFORE the module is first require()'d.
+  // jest.isolateModules() provides a fresh module registry for this purpose.
+  //
+  // Note: In this test environment ivm.Isolate.createSnapshot always succeeds, so
+  // the normal test suite exercises only the snapshot path. This describe block
+  // covers the `if (!DAYJS_SNAPSHOT)` branch that would activate on platforms
+  // where createSnapshot is unsupported.
+  describe('execute — DAYJS_SNAPSHOT=undefined fallback path (W-D)', () => {
+    it('$helpers.date() works correctly when createSnapshot throws (per-exec compile fallback)', async () => {
+      // jest.isolateModules() is synchronous — the async work (execute()) must
+      // be done after the module is loaded synchronously inside the callback.
+      type CodeHandlerType =
+        | InstanceType<typeof import('./code.handler.js').CodeHandler>
+        | undefined;
+      let fallbackHandler: CodeHandlerType;
+
+      jest.isolateModules(() => {
+        // Spy on createSnapshot before the module loads so the IIFE catches the
+        // error and sets DAYJS_SNAPSHOT = undefined.
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const ivmMod = require('isolated-vm') as typeof import('isolated-vm');
+        jest
+          .spyOn(ivmMod.Isolate, 'createSnapshot')
+          .mockImplementationOnce(() => {
+            throw new Error('snapshot unsupported (mocked for fallback test)');
+          });
+
+        const { CodeHandler: FallbackCodeHandler } =
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          require('./code.handler.js') as typeof import('./code.handler.js');
+        fallbackHandler = new FallbackCodeHandler();
+      });
+
+      if (!fallbackHandler) throw new Error('fallbackHandler not created');
+
+      const ctx = {
+        executionId: 'exec-fallback',
+        workflowId: 'wf-fallback',
+        variables: {},
+        nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
+        recursionDepth: 0,
+      };
+
+      const result = (await fallbackHandler.execute(
+        null,
+        {
+          code: 'return $helpers.date("2020-03-15").format("YYYY-MM-DD");',
+        },
+        ctx,
+      )) as unknown as { output: string; meta: { success: boolean } };
+
+      expect(result.meta.success).toBe(true);
+      expect(result.output).toBe('2020-03-15');
     });
   });
 
