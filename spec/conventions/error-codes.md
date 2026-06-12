@@ -75,7 +75,7 @@ public 코드는 우측 열이다 — 명명 정확성 향상을 위한 internal
 | 내부 분류 코드 (legacy) | 정규화 → public 코드 (노드 `output.error.code`) | 의미 | 근거 |
 |---|---|---|---|
 | `EXECUTION_TIMEOUT` | `CODE_TIMEOUT` | Code 노드 스크립트 wall-clock timeout | [`2-code.md §5.3`](../4-nodes/5-data/2-code.md) |
-| `EXECUTION_MEMORY_EXCEEDED` | `CODE_MEMORY_LIMIT` | isolate 128MB 하드 리밋 초과 (isolated-vm hard-kill) | [`2-code.md §5.3.3`](../4-nodes/5-data/2-code.md) |
+| `EXECUTION_MEMORY_EXCEEDED` | `CODE_MEMORY_LIMIT` | isolate 메모리 하드 리밋 초과 (기본 128MB, `CODE_NODE_MEMORY_LIMIT_MB` env 조정 가능 — isolated-vm hard-kill) | [`2-code.md §5.3.3`](../4-nodes/5-data/2-code.md) |
 | `CODE_RUNTIME_ERROR` | `CODE_EXECUTION_FAILED` | 그 외 사용자 코드 런타임 throw (fallback) | [`2-code.md §5.3.1`](../4-nodes/5-data/2-code.md) |
 
 > **레이어 주의 — `EXECUTION_TIMEOUT` 동명 코드**: 본 표의 `EXECUTION_TIMEOUT` 은 **Code 노드 핸들러
