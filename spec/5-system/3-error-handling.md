@@ -80,7 +80,7 @@ code:
 | Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` · `DB_HOST_BLOCKED` (SSRF 차단 — host 가 사설/loopback, 기본 ON·`ALLOW_PRIVATE_HOST_TARGETS` opt-out) |
 | Email | `EMAIL_SEND_FAILED` (+ `details.integrationCode` 로 원본 `INTEGRATION_INCOMPLETE` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` 보존) · `EMAIL_HOST_BLOCKED` (SSRF 가드 차단 — host 가 사설/loopback, 기본 ON·`ALLOW_PRIVATE_HOST_TARGETS` opt-out) |
 | LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT` · `MAX_COLLECTION_RETRIES_EXCEEDED` |
-| Code 노드 | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT` (isolate 128MB 하드 리밋 초과) |
+| Code 노드 | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT` (isolate 메모리 하드 리밋 초과 — 기본 128MB, `CODE_NODE_MEMORY_LIMIT_MB` env 조정 가능) |
 | Sub-workflow | `SUB_WORKFLOW_FAILED` |
 
 > **`HTTP_TIMEOUT`(미발행)**: enum 에는 정의돼 있으나 현재 HTTP Request 핸들러는 timeout 시 `AbortController.abort()` 로 fetch 를 중단하고, 그 reject 를 다른 전송 오류와 함께 `HTTP_TRANSPORT_FAILED` 로 통합 발행한다 (`http-request.handler.ts`). 따라서 `output.error.code` 로 `HTTP_TIMEOUT` 이 관측되는 경로는 없다. enum·분류 표(§3.1)에는 향후 세분화 여지와 방어적 매핑을 위해 코드를 보존한다.
