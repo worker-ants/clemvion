@@ -100,7 +100,7 @@ code:
 4. 각 조건의 `field` / `value` 를 [`condition-eval.util`](../../../codebase/backend/src/nodes/logic/_shared/condition-eval.util.ts) 의 `evaluateResolvedCondition` 으로 평가:
    - `field` 가 빈/`$item` 이면 item 자체, 표현식이면 평가, 그 외 dot-path lookup.
    - `value` 가 표현식이면 평가, 그 외 리터럴.
-   - `regex` 연산자는 패턴 길이 ≤ 200 인 경우만 컴파일하며, 컴파일 실패 / 길이 초과는 silent `false` 처리 후 패턴별로 캐싱한다.
+   - `regex` 연산자는 사용자 패턴을 단일 헬퍼 `compileUserRegex` 로 컴파일한다 (refactor 04 M-3): **길이 ≤ 200** + **`safe-regex` 위험 패턴(지수 백트래킹, 예 `(a+)+$`) 거부** + 문법 검사. 길이 초과·위험·컴파일 실패는 모두 silent `false` 처리 후 패턴별 캐싱하고, 거부된 패턴은 `meta.invalidRegexPatterns` 로 가시화한다. (길이 200 단독으로는 ReDoS 를 막지 못하므로 `safe-regex` 가 1차 방어, 길이는 2차.)
 5. `combineMode === 'or'` 이면 `some`, `'and'` (기본) 이면 `every` 로 결합.
 6. 매칭 항목은 `match`, 비매칭 항목은 `unmatched` 배열에 push (입력 순서 보존).
 7. 빈 입력 배열 (`[]`) 은 `match: [], unmatched: []` 로 정상 출력.

@@ -4,6 +4,8 @@ status: implemented
 code:
   - codebase/backend/src/common/swagger/**
   - codebase/backend/nest-cli.json
+  - codebase/backend/src/common/config/production-guards.ts
+  - codebase/backend/src/main.ts
 ---
 
 # Swagger 문서화 일관된 패턴 가이드
@@ -15,6 +17,14 @@ code:
 - JSDoc `/** ... */` 주석 → `description` 필드로 전환 (`introspectComments: true`)
 
 따라서 **DTO에서는 JSDoc 주석을 추가**하고, 설명만으로 부족한 경우에만 `@ApiProperty({ ... })`로 예시(example), enum, format 등을 보강합니다.
+
+---
+
+## 0) Swagger UI 노출 정책 (non-production 전용 — refactor 04 M-1)
+
+Swagger UI(`/docs`)는 **non-production 에서만 노출**한다. `NODE_ENV=production` 에서는 무인증 API 표면 정찰(엔드포인트·DTO 구조 노출, OWASP 정보 노출)을 막기 위해 **기본 미노출**이며, 게이팅 판정은 `production-guards.ts` 의 `isSwaggerEnabled(env)` 단일 함수가 담당한다 (OAUTH/LLM stub 가드와 동형 패턴).
+
+production 에서 일시적 디버깅이 필요하면 `ENABLE_SWAGGER_IN_PROD=true`(정확히 `true`/`1`) opt-in escape hatch 로 켠다 — 켜는 순간 무인증 노출 위험이 복귀하므로 일시적 용도로만 쓴다. (opt-in 시에도 IP 제한·Basic Auth 등 추가 보호는 없으므로 운영자가 별도로 전치한다.)
 
 ---
 
@@ -293,3 +303,12 @@ async create(...) { ... }
 ## 6) 레거시 패턴 제거
 - `@ApiOkResponse({ schema: { type: 'object', properties: { data: { type: 'object' } } } })` 같은 "빈 껍데기" 는 반드시 DTO 기반 래퍼로 교체하세요.
 - `{ data: { items, totalItems, page, limit } }` 처럼 서비스 실제 반환 형태(`{ data, pagination }`) 와 다른 스키마는 버그입니다 — `ApiOkPaginatedResponse` 로 교체.
+
+---
+
+## Rationale
+
+### §0 Swagger UI production 비노출 + opt-in (refactor 04 M-1)
+Swagger UI 의 production 기본 미노출은 무인증 API 표면 정찰(엔드포인트·DTO 구조 노출)을 차단하기 위함이다. 게이팅을 `isSwaggerEnabled(env)` 단일 함수로 분리한 이유는 OAUTH/LLM stub 가드와 **동형 패턴**(`NODE_ENV` 기반 분기 + opt-in env)으로 통일해 운영자 멘탈 모델을 단일화하고 단위 테스트로 분기를 고정하기 위함이다.
+
+`ENABLE_SWAGGER_IN_PROD` opt-in 을 둔 이유: prod 디버깅 요구를 흡수하되 기본값은 안전하게 둔다. opt-in 시 IP 제한·Basic Auth 등 추가 인증 계층을 **기본 제공하지 않는 이유**는, prod 노출 자체가 spec 어디에도 상시 요구로 기록되지 않은 예외적 디버깅 용도이기 때문이다 — 인증 계층 구현은 그 요구가 상시화될 때 검토한다(현 시점 과투자 회피). 켜는 순간 무인증 노출 위험이 복귀하므로 일시적 용도로 한정하고, 필요 시 운영자가 reverse proxy 단에서 보호를 전치한다.
