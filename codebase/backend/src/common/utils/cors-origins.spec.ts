@@ -89,6 +89,18 @@ describe('cors-origins (W-1)', () => {
       process.env.CORS_ORIGINS = 'https://app.example.com';
       expect(isOriginAllowed('https://app.example.com/')).toBe(true);
     });
+
+    // 04 M-5 — 불투명 'null' origin 은 wildcard 모드여도 거부(null-origin CSRF 방어).
+    it("'null' origin → false (allowlist 설정 시)", () => {
+      process.env.CORS_ORIGINS = 'https://app.example.com';
+      expect(isOriginAllowed('null')).toBe(false);
+    });
+
+    it("'null' origin → false (wildcard 모드에서도)", () => {
+      delete process.env.CORS_ORIGINS;
+      delete process.env.FRONTEND_URL;
+      expect(isOriginAllowed('null')).toBe(false);
+    });
   });
 
   describe('corsOriginCallback', () => {

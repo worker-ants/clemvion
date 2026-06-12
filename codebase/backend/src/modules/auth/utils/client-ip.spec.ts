@@ -1,5 +1,21 @@
 import { Request } from 'express';
-import { extractClientIp } from './client-ip';
+import { extractClientIp, shouldTrustCfConnectingIp } from './client-ip';
+
+// 04 m-3 — env-injection 직접 단위 테스트 (isFlagOn/isSwaggerEnabled 등과 일관).
+describe('shouldTrustCfConnectingIp (04 m-3)', () => {
+  it.each(['true', '1'])('returns true for ON value %p', (v) => {
+    expect(shouldTrustCfConnectingIp({ TRUST_CF_CONNECTING_IP: v })).toBe(true);
+  });
+
+  it.each([undefined, '', 'TRUE', 'yes', 'on', '0', 'false'])(
+    'returns false for non-ON value %p (fail-safe default)',
+    (v) => {
+      expect(shouldTrustCfConnectingIp({ TRUST_CF_CONNECTING_IP: v })).toBe(
+        false,
+      );
+    },
+  );
+});
 
 function makeReq(
   overrides: Partial<{
@@ -16,7 +32,16 @@ function makeReq(
 }
 
 describe('extractClientIp', () => {
-  it('CF-Connecting-IP 가 있으면 가장 우선한다', () => {
+  // 04 m-3 — CF-Connecting-IP 신뢰는 기본 off. CF 헤더를 우선해야 하는 테스트는
+  // 명시적으로 TRUST_CF_CONNECTING_IP 를 켜고, 매 테스트 후 원복한다.
+  const origTrustCf = process.env.TRUST_CF_CONNECTING_IP;
+  afterEach(() => {
+    if (origTrustCf === undefined) delete process.env.TRUST_CF_CONNECTING_IP;
+    else process.env.TRUST_CF_CONNECTING_IP = origTrustCf;
+  });
+
+  it('CF-Connecting-IP 가 있으면 가장 우선한다 (TRUST_CF_CONNECTING_IP=true)', () => {
+    process.env.TRUST_CF_CONNECTING_IP = 'true';
     const req = makeReq({
       headers: {
         'cf-connecting-ip': '203.0.113.7',
@@ -26,6 +51,34 @@ describe('extractClientIp', () => {
     });
     expect(extractClientIp(req)).toBe('203.0.113.7');
   });
+
+  // 04 m-3 — 기본(플래그 off)에서는 위변조 가능한 CF 헤더를 무시하고 XFF 로 폴백.
+  it('기본(TRUST_CF_CONNECTING_IP 미설정)에서는 CF-Connecting-IP 를 무시한다', () => {
+    delete process.env.TRUST_CF_CONNECTING_IP;
+    const req = makeReq({
+      headers: {
+        'cf-connecting-ip': '203.0.113.7',
+        'x-forwarded-for': '198.51.100.2, 10.0.0.1',
+      },
+      ip: '172.16.0.1',
+    });
+    // CF 헤더 무시 → XFF 첫 IP.
+    expect(extractClientIp(req)).toBe('198.51.100.2');
+  });
+
+  it.each(['', 'TRUE', 'yes', '0', 'false'])(
+    'CF 신뢰는 정확히 true/1 일 때만 — 비표준 값 %p 는 무시(XFF 폴백)',
+    (flag) => {
+      process.env.TRUST_CF_CONNECTING_IP = flag;
+      const req = makeReq({
+        headers: {
+          'cf-connecting-ip': '203.0.113.7',
+          'x-forwarded-for': '198.51.100.2',
+        },
+      });
+      expect(extractClientIp(req)).toBe('198.51.100.2');
+    },
+  );
 
   it('CF-Connecting-IP 가 없으면 X-Forwarded-For 첫 번째 IP 를 사용한다', () => {
     const req = makeReq({
@@ -53,13 +106,14 @@ describe('extractClientIp', () => {
   });
 
   it('IPv6-mapped IPv4 (::ffff:1.2.3.4) 는 IPv4 부분만 추출한다', () => {
-    const req = makeReq({ headers: { 'cf-connecting-ip': '::ffff:1.2.3.4' } });
+    // normalize 는 소스 무관 — XFF 경로로 검증(기본 플래그 off 에서도 동작).
+    const req = makeReq({ headers: { 'x-forwarded-for': '::ffff:1.2.3.4' } });
     expect(extractClientIp(req)).toBe('1.2.3.4');
   });
 
   it('빈 헤더 값은 무시하고 다음 우선순위로 넘어간다', () => {
     const req = makeReq({
-      headers: { 'cf-connecting-ip': '', 'x-forwarded-for': '   ' },
+      headers: { 'x-forwarded-for': '   ' },
       ip: '172.16.0.1',
     });
     expect(extractClientIp(req)).toBe('172.16.0.1');

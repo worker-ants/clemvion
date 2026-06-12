@@ -19,6 +19,7 @@ import {
 import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
+import { WorkflowsService } from '../workflows/workflows.service';
 import { ExecutionEventType } from './websocket.service';
 import { corsOriginCallback } from '../../common/utils/cors-origins';
 import { WsErrorCode } from './ws-error-codes';
@@ -77,12 +78,16 @@ export class WebsocketGateway
    * subscribe 로직 자체는 건드리지 않는다 (W-13: OCP 개선).
    *
    * `null` 반환 = 인가 통과. 그 외는 `{ error }` 로 거부 메시지 명시.
+   * `authorize` 반환은 항상 Promise — 동기 판별(예: notifications 의 userId 비교)도
+   * `Promise.resolve(...)` 로 감싸 시그니처를 통일한다(호출부의 `await` 단일화).
+   * `ctx.workspaceId`(workspace-scoped 채널 소유 검증)·`ctx.userId`(user-scoped 채널,
+   * JWT sub) 중 채널 성격에 맞는 값을 사용한다.
    */
   private channelAuthorizers: Array<{
     matches: (channel: string) => boolean;
     authorize: (
       channel: string,
-      workspaceId: string,
+      ctx: { workspaceId: string; userId: string },
     ) => Promise<{ error: string } | null>;
   }>;
 
@@ -96,6 +101,8 @@ export class WebsocketGateway
     private readonly backgroundRunsService: BackgroundRunsService,
     @Inject(forwardRef(() => KnowledgeBaseService))
     private readonly knowledgeBaseService: KnowledgeBaseService,
+    @Inject(forwardRef(() => WorkflowsService))
+    private readonly workflowsService: WorkflowsService,
   ) {
     this.channelAuthorizers = [
       {
@@ -105,7 +112,7 @@ export class WebsocketGateway
         // 이벤트(node.started/completed, ai_message 등)를 수신할 수 있었다.
         // authorizer 로 승격해 join(아래 handleSubscribe) 이전에 동기 차단한다.
         matches: (channel) => channel.startsWith('execution:'),
-        authorize: async (channel, workspaceId) => {
+        authorize: async (channel, { workspaceId }) => {
           const executionId = channel.slice('execution:'.length);
           // UUID 형식 검증 — 비-UUID 입력은 DB 조회 전 차단 (background:run 과 동일 정책).
           if (!isValidUuid(executionId)) {
@@ -122,8 +129,42 @@ export class WebsocketGateway
         },
       },
       {
+        // 04 M-6 (IDOR) — `workflow:` 구독은 workflowId→workspace 소유 검증.
+        // 에디터 실행 알림 emit(`workflow:<workflowId>`) 이 실존하므로, 타 workspace
+        // workflowId 를 추측한 사용자가 이벤트를 수신하는 IDOR 를 join 전 차단한다
+        // (`execution:` authorizer 와 동형). `findById` 는 미소유/부재 시 NotFound
+        // throw (ID enumeration 차단) — boolean 으로 평탄화.
+        matches: (channel) => channel.startsWith('workflow:'),
+        authorize: async (channel, { workspaceId }) => {
+          const workflowId = channel.slice('workflow:'.length);
+          if (!isValidUuid(workflowId)) {
+            return { error: 'Not authorized for this workflow' };
+          }
+          const allowed = await this.workflowsService
+            .findById(workflowId, workspaceId)
+            .then(() => true)
+            .catch(() => false);
+          return allowed ? null : { error: 'Not authorized for this workflow' };
+        },
+      },
+      {
+        // 04 M-6 (IDOR, 선제) — `notifications:<userId>` 는 user 단위 채널이므로
+        // JWT sub(userId) 와 채널의 userId 가 일치할 때만 구독 허용. emit 은 아직
+        // 미구현(spec §4.4 Planned)이라 현재 실피해 0 이나, emit 도입 시 사용자간
+        // 알림 누출이 즉시 현실화되므로 fail-closed 로 먼저 막는다.
+        matches: (channel) => channel.startsWith('notifications:'),
+        authorize: (channel, { userId }) => {
+          const targetUserId = channel.slice('notifications:'.length);
+          // userId 는 workspace 와 달리 JWT sub 에서 옴 — 빈 값/불일치 모두 거부.
+          const allowed = !!userId && targetUserId === userId;
+          return Promise.resolve(
+            allowed ? null : { error: 'Not authorized for these notifications' },
+          );
+        },
+      },
+      {
         matches: (channel) => channel.startsWith('kb:'),
-        authorize: async (channel, workspaceId) => {
+        authorize: async (channel, { workspaceId }) => {
           const documentId = channel.slice('kb:'.length);
           const allowed = await this.knowledgeBaseService
             .verifyDocumentOwnership(documentId, workspaceId)
@@ -133,7 +174,7 @@ export class WebsocketGateway
       },
       {
         matches: (channel) => channel.startsWith('background:run:'),
-        authorize: async (channel, workspaceId) => {
+        authorize: async (channel, { workspaceId }) => {
           const backgroundRunId = channel.slice('background:run:'.length);
           // W-6: UUID 형식 검증 — 비-UUID 입력 차단 (DB 쿼리 진입 전).
           if (!isValidUuid(backgroundRunId)) {
@@ -231,20 +272,29 @@ export class WebsocketGateway
 
     // W-13: 채널별 인가는 strategy 맵을 lookup — 새 채널 추가 시 본 함수
     // 본문을 건드리지 않고 channelAuthorizers 만 확장하면 된다 (OCP).
-    const enriched = client as Socket & { workspaceId?: string };
+    const enriched = client as Socket & {
+      workspaceId?: string;
+      userId?: string;
+    };
     const workspaceId = enriched.workspaceId ?? '';
+    const userId = enriched.userId ?? '';
     const authorizer = this.channelAuthorizers.find((a) => a.matches(channel));
     if (authorizer) {
       // workspace 가 가입되지 않은 소켓이 인가 대상 채널을 구독하려 시도하면
       // 즉시 거부 — handleConnection 이 인증 실패 시 disconnect 하므로 정상
       // 경로에서 도달 불가하지만 의도를 코드로 명시 (side-effect W#2 보강).
+      // (notifications: 는 user 단위지만, 인증된 소켓은 JWT 에 workspaceId 를
+      // 함께 담으므로 본 가드는 정상 경로를 막지 않는다. userId 검증은 authorizer.)
       if (!workspaceId) {
         return {
           event: 'subscribed',
           data: { success: false, error: 'Not authenticated' },
         };
       }
-      const rejection = await authorizer.authorize(channel, workspaceId);
+      const rejection = await authorizer.authorize(channel, {
+        workspaceId,
+        userId,
+      });
       if (rejection) {
         return {
           event: 'subscribed',

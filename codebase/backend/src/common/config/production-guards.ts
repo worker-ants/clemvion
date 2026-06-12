@@ -63,6 +63,23 @@ export function isFlagOn(value: string | undefined): boolean {
 export const MIN_JWT_SECRET_LENGTH = 32;
 
 /**
+ * Swagger UI(`/docs`) 노출 여부 — 04 M-1.
+ *
+ * non-production 에서는 항상 노출(개발 편의)하고, production 에서는 기본 미노출
+ * 한다(무인증 API 표면 정찰 차단 — OWASP 정보 노출). prod 디버깅이 정말 필요한
+ * 배포는 `ENABLE_SWAGGER_IN_PROD=true` opt-in escape hatch 로 의도적으로 켠다
+ * (OAUTH/LLM stub 가드와 동형 패턴). 켜는 순간 무인증 노출 위험이 복귀하므로
+ * 일시적 디버깅 용도로만 사용한다.
+ *
+ * @param env 검사할 환경변수 맵 (기본 `process.env`).
+ * @returns Swagger 를 노출하면 `true`.
+ */
+export function isSwaggerEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.NODE_ENV !== 'production') return true;
+  return isFlagOn(env.ENABLE_SWAGGER_IN_PROD);
+}
+
+/**
  * production 부팅 가드. 위반 시 `Error` throw (fail-closed). 비-production 은 no-op.
  *
  * @param env 검사할 환경변수 맵 (기본 `process.env`). 테스트에서 주입.

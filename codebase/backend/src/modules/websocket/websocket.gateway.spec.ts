@@ -10,6 +10,7 @@ import {
 import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
+import { WorkflowsService } from '../workflows/workflows.service';
 
 function createMockSocket(overrides: Record<string, unknown> = {}): {
   socket: Socket;
@@ -100,6 +101,14 @@ describe('WebsocketGateway', () => {
           useValue: {
             // 기본 통과 — 거부 케이스는 별도 테스트에서 override
             verifyBackgroundRunOwnership: jest.fn().mockResolvedValue(true),
+          },
+        },
+        {
+          provide: WorkflowsService,
+          useValue: {
+            // 04 M-6 — workflow: authorizer. 기본 통과(엔티티 반환),
+            // 거부 케이스는 별도 테스트에서 mockRejectedValueOnce 로 override.
+            findById: jest.fn().mockResolvedValue({ id: 'wf' }),
           },
         },
       ],
@@ -287,6 +296,98 @@ describe('WebsocketGateway', () => {
       // catch 가 `.catch(() => false)` 로 fail-safe — 권한 부재로 처리.
       expect(result.data.success).toBe(false);
       expect(result.data.error).toBe('Not authorized for this background run');
+      expect(join).not.toHaveBeenCalled();
+    });
+
+    // 04 M-6 — workflow: 채널 authorizer (workflowId→workspace 소유 IDOR 차단).
+    const WF_UUID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+    it('should accept workflow channel when ownership verified', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      getSubscriptions().set('client-1', new Set());
+
+      const result = await gateway.handleSubscribe(
+        { channel: `workflow:${WF_UUID}` },
+        socket,
+      );
+      expect(result.data.success).toBe(true);
+      expect(join).toHaveBeenCalledWith(`workflow:${WF_UUID}`);
+      const wfService = module.get(WorkflowsService);
+      expect(wfService.findById).toHaveBeenCalledWith(WF_UUID, 'ws-1');
+    });
+
+    it('should reject workflow channel when ownership check fails (cross-workspace IDOR)', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-attacker';
+      getSubscriptions().set('client-1', new Set());
+      const wfService = module.get(WorkflowsService);
+      (wfService.findById as jest.Mock).mockRejectedValueOnce(
+        new Error('Workflow not found'),
+      );
+
+      const result = await gateway.handleSubscribe(
+        { channel: `workflow:${WF_UUID}` },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for this workflow');
+      expect(join).not.toHaveBeenCalled();
+    });
+
+    it('should reject workflow channel when the id is not a UUID (defense in depth)', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      getSubscriptions().set('client-1', new Set());
+      const wfService = module.get(WorkflowsService);
+      const findSpy = wfService.findById as jest.Mock;
+      findSpy.mockClear();
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'workflow:not-a-uuid' },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for this workflow');
+      // 비-UUID 는 DB 조회 전 차단.
+      expect(findSpy).not.toHaveBeenCalled();
+      expect(join).not.toHaveBeenCalled();
+    });
+
+    // 04 M-6 — notifications:<userId> 채널 authorizer (JWT sub 일치, 선제 차단).
+    it('should accept notifications channel for the matching user', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      const enriched = socket as Socket & {
+        workspaceId?: string;
+        userId?: string;
+      };
+      enriched.workspaceId = 'ws-1';
+      enriched.userId = 'user-1';
+      getSubscriptions().set('client-1', new Set());
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'notifications:user-1' },
+        socket,
+      );
+      expect(result.data.success).toBe(true);
+      expect(join).toHaveBeenCalledWith('notifications:user-1');
+    });
+
+    it('should reject notifications channel for a different user (IDOR)', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      const enriched = socket as Socket & {
+        workspaceId?: string;
+        userId?: string;
+      };
+      enriched.workspaceId = 'ws-1';
+      enriched.userId = 'user-1';
+      getSubscriptions().set('client-1', new Set());
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'notifications:user-2' },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for these notifications');
       expect(join).not.toHaveBeenCalled();
     });
 

@@ -1,3 +1,4 @@
+import safeRegex from 'safe-regex';
 import { getNestedValue } from './nested-value.util.js';
 
 /**
@@ -38,6 +39,63 @@ export type ConditionOperator = (typeof CONDITION_OPERATORS)[number];
  * Mirrored by {@link compileRegexCache}.
  */
 export const MAX_REGEX_LENGTH = 200;
+
+/**
+ * 04 M-3 — 사용자 regex 컴파일 거부 사유.
+ * - `too-long`: {@link MAX_REGEX_LENGTH} 초과.
+ * - `unsafe`: ReDoS 취약 패턴(`safe-regex` 검출 — 예 `(a+)+$`). 길이가 200 이내여도
+ *   지수 백트래킹으로 worker 를 무기한 점유할 수 있어 컴파일/실행을 거부한다.
+ * - `invalid`: 문법 오류로 `new RegExp` 가 throw.
+ */
+export type RegexRejectReason = 'too-long' | 'unsafe' | 'invalid';
+
+/** {@link compileUserRegex} 결과 — 성공 시 `regex`, 거부 시 `reason`. */
+export type RegexCompileResult =
+  | { regex: RegExp; reason?: undefined }
+  | { regex: null; reason: RegexRejectReason };
+
+/**
+ * 04 M-3 — 사용자 입력 regex 를 **안전하게** 컴파일한다. 길이 상한만으로는 ReDoS 를
+ * 막지 못하므로(200자 이내 `(a+)+$` 가 지수 시간), `safe-regex` 휴리스틱으로 위험
+ * 패턴을 컴파일 전에 거부한다. 세 평가 사이트(condition-evaluator/filter/transform)의
+ * 단일 chokepoint — 새 regex 사용처는 본 함수를 거쳐야 한다.
+ *
+ * @param source 사용자 regex 패턴 문자열.
+ * @param flags `new RegExp` 플래그(기본 `''`).
+ * @returns 성공 시 `{ regex }`, 거부 시 `{ regex: null, reason }`.
+ */
+export function compileUserRegex(
+  source: string,
+  flags = '',
+): RegexCompileResult {
+  if (source.length > MAX_REGEX_LENGTH) {
+    return { regex: null, reason: 'too-long' };
+  }
+  // 문법 검사를 safe-regex 보다 먼저 — 컴파일은 실행이 아니라 비용/위험이 없고,
+  // 이래야 문법 오류는 'invalid', 문법은 맞지만 위험한 패턴만 'unsafe' 로 정확히
+  // 분류된다(safe-regex 는 파싱 불가 입력에 false 를 주므로 순서가 바뀌면 'invalid'
+  // 가 'unsafe' 로 오분류된다).
+  let regex: RegExp;
+  try {
+    regex = new RegExp(source, flags);
+  } catch {
+    return { regex: null, reason: 'invalid' };
+  }
+  // safe-regex 는 안전하면 true 반환 — 위험(지수 백트래킹 가능) 패턴은 거부한다.
+  // 휴리스틱(주로 star height)이라 alternation-overlap(`(a|a)*`) 같은 일부 ReDoS 는
+  // 통과할 수 있음(티켓 M-3 옵션 B 의 알려진 한계 — 길이 상한이 2차 방어).
+  // safe-regex 내부(regexp-tree) 가 던질 경우 보수적으로 unsafe 처리(fail-closed).
+  let safe: boolean;
+  try {
+    safe = safeRegex(source);
+  } catch {
+    return { regex: null, reason: 'unsafe' };
+  }
+  if (!safe) {
+    return { regex: null, reason: 'unsafe' };
+  }
+  return { regex };
+}
 
 /**
  * Detector for inline `{{ ... }}` expressions in authored strings. Filter
@@ -193,10 +251,11 @@ export function evaluateCondition(
  * Compile per-condition regex patterns into a position-indexed cache.
  *
  * Filter / Transform use this to avoid re-compiling the same pattern per
- * array item. Invalid patterns and patterns exceeding
- * {@link MAX_REGEX_LENGTH} are silently skipped — callers may detect them
- * by the missing cache entry (Filter surfaces them via
- * `meta.invalidRegexPatterns`).
+ * array item. Invalid, oversized, **and ReDoS-unsafe** (04 M-3) patterns are
+ * silently skipped — callers may detect them by the missing cache entry
+ * (Filter surfaces them via `meta.invalidRegexPatterns`). Skipping a
+ * dangerous pattern means its condition evaluates to no-match, which is the
+ * same observable behaviour as a syntactically invalid pattern.
  */
 export function compileRegexCache(
   conditions: Condition[],
@@ -205,12 +264,9 @@ export function compileRegexCache(
   for (let i = 0; i < conditions.length; i++) {
     const cond = conditions[i];
     if (cond.operator === 'regex' && typeof cond.value === 'string') {
-      if (cond.value.length > MAX_REGEX_LENGTH) continue;
-      try {
-        cache.set(i, new RegExp(cond.value));
-      } catch {
-        // Invalid regex — evaluation returns false.
-      }
+      // 04 M-3 — 길이/ReDoS-안전성/문법을 단일 chokepoint 에서 검사. 거부 시 skip.
+      const { regex } = compileUserRegex(cond.value);
+      if (regex) cache.set(i, regex);
     }
   }
   return cache;

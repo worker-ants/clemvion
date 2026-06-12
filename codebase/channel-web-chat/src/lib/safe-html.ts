@@ -9,6 +9,31 @@ import { marked } from "marked";
 
 export type TemplateFormat = "html" | "markdown" | "text";
 
+// 04 m-1 — deny-by-default 화이트리스트. 임베드 위젯은 XSS 성공 시 피해가 호스트
+// 사이트로 전파되므로, 블랙리스트(FORBID)로 알려진 위험만 거르는 대신 채팅 렌더에
+// 실제 필요한 태그/속성만 허용한다. 미지·신규 벡터(svg/math 기반 mXSS 등)는 기본 차단.
+// 목록은 `marked`(GFM) 가 산출하는 태그를 audit 해 확정 — 새 렌더 요소가 필요하면
+// 여기에 추가한다. (task-list 의 <input> 체크박스는 의도적으로 제외 — 기존 FORBID 정책 유지.)
+const ALLOWED_TAGS = [
+  "a", "p", "br", "hr", "span",
+  "h1", "h2", "h3", "h4", "h5", "h6",
+  "strong", "b", "em", "i", "u", "del", "s", "ins", "mark", "sub", "sup", "small",
+  "ul", "ol", "li", "dl", "dt", "dd",
+  "blockquote", "code", "pre", "kbd", "samp", "var",
+  "table", "thead", "tbody", "tfoot", "tr", "th", "td",
+  "img",
+];
+
+// href/src 등 URL 속성 + 링크 훅이 설치하는 target/rel + 테이블 정렬/병합 속성만 허용.
+const ALLOWED_ATTR = [
+  "href", "src", "alt", "title", "target", "rel", "align", "colspan", "rowspan",
+];
+
+// 04 m-1 — href/src scheme 을 http(s)/mailto 와 relative/anchor 로 한정 (javascript:·
+// data: 등 이중 방어). DOMPurify 기본 정규식에서 tel/sms/ftp 등을 제거한 형태.
+const ALLOWED_URI_REGEXP =
+  /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i;
+
 // hookInstalled: 모듈 레벨 1회 설치 플래그. 테스트 격리용으로 _resetHookForTest() 제공.
 // DOMPurify.addHook 은 전역 상태에 누적되므로 재호출 없이 Boolean 으로 가드한다.
 let hookInstalled = false;
@@ -62,10 +87,11 @@ export function renderTemplateHtml(rendered: string, format: TemplateFormat): st
     rawHtml = rendered;
   }
   return DOMPurify.sanitize(rawHtml, {
-    // USE_PROFILES.html:true 使用DOMPurify 기본 안전 정책 (script/style/iframe/object 등은 제외).
-    // 미래 하드닝 옵션: ALLOWED_TAGS 화이트리스트로 전환 가능.
-    USE_PROFILES: { html: true },
-    FORBID_TAGS: ["style", "form", "input", "button", "textarea", "select"],
-    FORBID_ATTR: ["style"],
+    // 04 m-1 — deny-by-default 화이트리스트. ALLOWED_TAGS/ALLOWED_ATTR 에 없는 태그·
+    // 속성(script/style/iframe/object/svg/math/이벤트 핸들러 등)은 모두 제거되고,
+    // ALLOWED_URI_REGEXP 가 href/src scheme 을 http(s)/mailto/relative 로 제한한다.
+    ALLOWED_TAGS,
+    ALLOWED_ATTR,
+    ALLOWED_URI_REGEXP,
   });
 }

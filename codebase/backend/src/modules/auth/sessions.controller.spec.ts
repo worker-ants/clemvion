@@ -77,34 +77,44 @@ describe('SessionsController', () => {
 
   describe('revokeSession', () => {
     it('passes familyId and ctx to service, then returns refreshed list', async () => {
-      sessionsService.revokeFamily.mockResolvedValue();
-      sessionsService.listActiveSessions.mockResolvedValue([sample]);
-      const req = {
-        cookies: { refreshToken: 'cookie-val' },
-        headers: {
-          'user-agent': 'curl/8.4.0',
-          'cf-connecting-ip': '198.51.100.9',
-        },
-      };
+      // 04 m-3 — CF-Connecting-IP 신뢰는 기본 off 라, CF 헤더에서 IP 추출을 검증하려면
+      // 명시 활성화한다. (테스트 후 원복)
+      const prevTrustCf = process.env.TRUST_CF_CONNECTING_IP;
+      process.env.TRUST_CF_CONNECTING_IP = 'true';
+      try {
+        sessionsService.revokeFamily.mockResolvedValue();
+        sessionsService.listActiveSessions.mockResolvedValue([sample]);
+        const req = {
+          cookies: { refreshToken: 'cookie-val' },
+          headers: {
+            'user-agent': 'curl/8.4.0',
+            'cf-connecting-ip': '198.51.100.9',
+          },
+        };
 
-      const result = await controller.revokeSession(
-        { sub: 'u' } as never,
-        'fam-1',
-        { password: 'pw' },
-        req as never,
-      );
+        const result = await controller.revokeSession(
+          { sub: 'u' } as never,
+          'fam-1',
+          { password: 'pw' },
+          req as never,
+        );
 
-      expect(sessionsService.revokeFamily).toHaveBeenCalledWith(
-        'u',
-        'fam-1',
-        { password: 'pw' },
-        expect.objectContaining({
-          ip: '198.51.100.9',
-          userAgent: 'curl/8.4.0',
-        }),
-        'cookie-val',
-      );
-      expect(result).toEqual({ data: { items: [sample] } });
+        expect(sessionsService.revokeFamily).toHaveBeenCalledWith(
+          'u',
+          'fam-1',
+          { password: 'pw' },
+          expect.objectContaining({
+            ip: '198.51.100.9',
+            userAgent: 'curl/8.4.0',
+          }),
+          'cookie-val',
+        );
+        expect(result).toEqual({ data: { items: [sample] } });
+      } finally {
+        if (prevTrustCf === undefined)
+          delete process.env.TRUST_CF_CONNECTING_IP;
+        else process.env.TRUST_CF_CONNECTING_IP = prevTrustCf;
+      }
     });
   });
 

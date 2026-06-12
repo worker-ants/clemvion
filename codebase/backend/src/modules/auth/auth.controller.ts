@@ -12,6 +12,7 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -65,6 +66,7 @@ import {
   clearRefreshTokenCookie,
   setRefreshTokenCookie,
 } from './utils/refresh-cookie';
+import { isOriginAllowed } from '../../common/utils/cors-origins';
 
 // Express types used directly to avoid isolatedModules + emitDecoratorMetadata issue
 import Express from 'express';
@@ -386,6 +388,15 @@ export class AuthController {
     @Req() req: Express.Request,
     @Res({ passthrough: true }) res: Express.Response,
   ) {
+    // 04 M-5 — CSRF 차단: refresh 쿠키가 SameSite=None(cross-site 배포 기본)이면
+    // 타 사이트가 쿠키를 자동 첨부해 강제 refresh 를 유발할 수 있다. 요청 Origin 을
+    // CORS allowlist 와 대조해 거부한다(Origin 부재 = same-origin/non-browser 는 통과;
+    // allowlist 외 출처는 403). CORS 가 응답 읽기를 막더라도 토큰 rotation 부작용을
+    // 서버 단에서 선차단하는 defense-in-depth.
+    const origin = (req.headers as Record<string, string | undefined>)?.origin;
+    if (!isOriginAllowed(origin)) {
+      throw new ForbiddenException('Origin not allowed');
+    }
     const token = (req as unknown as { cookies: Record<string, string> })
       .cookies?.refreshToken;
     if (!token) {
