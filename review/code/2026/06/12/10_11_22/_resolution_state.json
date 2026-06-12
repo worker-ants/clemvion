@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "started_at": "2026-06-12T01:29:00Z",
+  "summary_items_total": 17,
+  "items_resolved_ids": ["C-1", "C-2", "C-3", "C-4", "W-2", "W-3", "W-4", "W-5", "W-6", "W-7", "W-8", "W-9", "W-10", "W-11", "W-12", "W-13"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "W-1": "spec",
+    "I-4": "spec"
+  },
+  "commits_made": [
+    {
+      "sha": "2ba5d0d2",
+      "summary_ids": ["W-10", "W-11", "W-12"],
+      "scope": "review"
+    }
+  ],
+  "spec_drafts_pending": [
+    "plan/in-progress/spec-fix-error-code-routing.md"
+  ],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/e2e-20260612-103107.log"
+  ],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec — W-1/I-4: resolveEmbedding(404) vs resolveConfig(400) 의도적 설계 차이가 spec 에 미명시. spec-fix-error-code-routing.md draft 작성. project-planner 적용 필요.",
+  "last_reset_hint_sec": null
+}
