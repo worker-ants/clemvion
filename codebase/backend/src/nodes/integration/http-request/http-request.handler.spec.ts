@@ -1108,11 +1108,15 @@ describe('HttpRequestHandler', () => {
             authentication,
           },
           dryRunContext,
-        )) as unknown as Record<string, unknown>;
-        // mock success, 실제 fetch·차단 없음.
+        )) as unknown as {
+          port: string;
+          output: { _dryRun: boolean; wouldHaveCalled: { kind: string } };
+        };
+        // mock success, 실제 fetch·차단 없음 + dry-run 계약 단언.
         expect(result.port).toBe('success');
         expect(fetchSpy).not.toHaveBeenCalled();
-        expect(result.output).not.toBeUndefined();
+        expect(result.output._dryRun).toBe(true);
+        expect(result.output.wouldHaveCalled.kind).toBe('http_request');
       },
     );
 
