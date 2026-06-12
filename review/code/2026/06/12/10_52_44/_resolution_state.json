@@ -2,14 +2,20 @@
   "version": 1,
   "started_at": "2026-06-12T10:52:44Z",
   "summary_items_total": 3,
-  "items_resolved_ids": [],
-  "items_pending_ids": [1, 2, 3],
+  "items_resolved_ids": [1, 2, 3],
+  "items_pending_ids": [],
   "items_escalated_ids": {},
-  "commits_made": [],
+  "commits_made": [
+    {
+      "sha": "8cfa397a",
+      "summary_id": "1,2,3",
+      "scope": "code-handler"
+    }
+  ],
   "spec_drafts_pending": [],
   "spec_drafts_applied": [],
   "e2e_attempts": 0,
-  "e2e_last_status": null,
+  "e2e_last_status": "skipped",
   "e2e_log_paths": [],
   "auto_fix_iterations": {},
   "escalation_reason": null,
