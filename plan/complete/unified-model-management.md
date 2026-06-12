@@ -14,6 +14,16 @@ related_plan:
   - plan/in-progress/kb-model-change-reembed-followup.md
   - plan/in-progress/knowledge-base-quality-improvements.md
   - plan/in-progress/migration-tooling-evaluation.md
+spec_impact:
+  - spec/1-data-model.md
+  - spec/2-navigation/6-config.md
+  - spec/5-system/7-llm-client.md
+  - spec/5-system/8-embedding-pipeline.md
+  - spec/5-system/9-rag-search.md
+  - spec/2-navigation/5-knowledge-base.md
+  - spec/5-system/3-error-handling.md
+  - spec/conventions/error-codes.md
+status: complete
 ---
 
 # Unified Model Management — 통합 모델 관리
