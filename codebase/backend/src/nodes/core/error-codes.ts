@@ -44,8 +44,9 @@ export const ErrorCode = {
   // Code execution
   CODE_EXECUTION_FAILED: 'CODE_EXECUTION_FAILED',
   CODE_TIMEOUT: 'CODE_TIMEOUT',
-  // Code node isolate (isolated-vm) exceeded its 128MB memory hard limit —
-  // distinct from CODE_TIMEOUT so authors can branch on resource cause.
+  // Code node isolate (isolated-vm) exceeded its memory hard limit (default
+  // 128MB, CODE_NODE_MEMORY_LIMIT_MB env-tunable) — distinct from CODE_TIMEOUT
+  // so authors can branch on resource cause.
   CODE_MEMORY_LIMIT: 'CODE_MEMORY_LIMIT',
   // Workflow / sub-workflow
   // SUB_WORKFLOW_FAILED is the generic fallback. The other three express
