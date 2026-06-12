@@ -106,6 +106,24 @@ describe("renderTemplateHtml — html 포맷", () => {
     expect(result).toContain("https://example.com");
     expect(result).toContain("mailto:x@y.test");
   });
+
+  // 04 m-1 후속 — relative URL/anchor 는 허용, blob: 등 비허용 scheme 은 제거(경계 고정).
+  it("relative href·anchor 유지", () => {
+    const result = renderTemplateHtml(
+      '<a href="/path?q=1">p</a><a href="#sec">s</a>',
+      "html",
+    );
+    expect(result).toContain('href="/path?q=1"');
+    expect(result).toContain('href="#sec"');
+  });
+
+  it("blob: scheme href 제거", () => {
+    const result = renderTemplateHtml(
+      '<a href="blob:https://x/abc">b</a>',
+      "html",
+    );
+    expect((result ?? "").includes("blob:")).toBe(false);
+  });
 });
 
 describe("renderTemplateHtml — 화이트리스트 태그 보존 (04 m-1)", () => {

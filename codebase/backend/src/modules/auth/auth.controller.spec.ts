@@ -125,6 +125,29 @@ describe('AuthController', () => {
       }
     });
 
+    // 04 후속 — 불투명 'null' Origin(sandbox iframe 등)은 wildcard 모드에서도 거부.
+    it('rejects refresh from a null origin (sandbox iframe CSRF)', async () => {
+      const prev = process.env.CORS_ORIGINS;
+      delete process.env.CORS_ORIGINS; // wildcard 모드라도 'null' 은 거부돼야 함
+      const prevFe = process.env.FRONTEND_URL;
+      delete process.env.FRONTEND_URL;
+      try {
+        const req = {
+          cookies: { refreshToken: 'valid-token' },
+          headers: { origin: 'null' },
+        } as never;
+        await expect(
+          controller.refresh(req, mockRes as never),
+        ).rejects.toThrow(/Origin not allowed/);
+        expect(authService.refresh).not.toHaveBeenCalled();
+      } finally {
+        if (prev === undefined) delete process.env.CORS_ORIGINS;
+        else process.env.CORS_ORIGINS = prev;
+        if (prevFe === undefined) delete process.env.FRONTEND_URL;
+        else process.env.FRONTEND_URL = prevFe;
+      }
+    });
+
     // 04 M-5 — allowlist 내 Origin 은 정상 통과.
     it('allows refresh from an allowlisted Origin', async () => {
       const prev = process.env.CORS_ORIGINS;

@@ -109,4 +109,15 @@ describe('clearRefreshTokenCookie (04 M-5)', () => {
       path: '/api/auth',
     });
   });
+
+  it('includes domain when provided (set/clear domain parity)', () => {
+    const res = { clearCookie: jest.fn() };
+    clearRefreshTokenCookie(res as unknown as Express.Response, {
+      cookieDomain: '.example.com',
+    });
+    expect(res.clearCookie).toHaveBeenCalledWith('refreshToken', {
+      path: '/api/auth',
+      domain: '.example.com',
+    });
+  });
 });

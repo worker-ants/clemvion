@@ -15,7 +15,10 @@ import { WorkflowsModule } from '../workflows/workflows.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService): JwtModuleOptions => ({
-        secret: configService.get<string>('jwt.secret') ?? 'fallback',
+        // jwt.config 의 dev fallback 과 동일 sentinel 로 통일 — production 부팅 가드
+        // (assertProductionConfig 의 INSECURE_JWT_SECRETS) 가 차단하는 값이라, DI 초기화
+        // 경합 등으로 이 fallback 이 쓰여도 운영에서 예측가능 secret 서명을 막는다.
+        secret: configService.get<string>('jwt.secret') ?? 'dev-jwt-secret',
         signOptions: {
           expiresIn: 900,
         },

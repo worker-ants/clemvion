@@ -30,10 +30,38 @@ export function shouldTrustCfConnectingIp(
  * SECURITY (04 m-3): CF-Connecting-IP 는 위변조 가능한 헤더이므로 기본적으로 무시하고,
  * `TRUST_CF_CONNECTING_IP=true` 로 명시한 CF-뒤 배포에서만 1순위로 사용한다. origin 단에서
  * CF 외 직접 접근이 차단된다는 전제(CF Tunnel 등)가 활성화의 근거다.
+ *
+ * @remarks CF 신뢰 판정은 `process.env.TRUST_CF_CONNECTING_IP` 에 암묵 의존한다
+ *   (`shouldTrustCfConnectingIp()` 인자 없이 호출) — 테스트는 해당 env 를 직접 주입·복원한다.
  */
 export function extractClientIp(req: Request): string | null {
-  const headers = req.headers ?? {};
+  const fromHeaders = extractClientIpFromHeaders(req.headers ?? {});
+  if (fromHeaders) return fromHeaders;
 
+  if (typeof req.ip === 'string' && req.ip.trim()) {
+    return normalize(req.ip.trim());
+  }
+
+  const remote = req.socket?.remoteAddress;
+  if (typeof remote === 'string' && remote.trim()) {
+    return normalize(remote.trim());
+  }
+
+  return null;
+}
+
+/**
+ * 헤더만으로 클라이언트 IP 를 추출하는 공유 코어 — `CF-Connecting-IP`(신뢰 시) →
+ * `X-Forwarded-For` 첫 IP 순. `req` 가 없는 호출부(공개 webhook rate-limit guard,
+ * `ip_whitelist` 검증)가 사용한다. `extractClientIp(req)` 도 이 함수를 1차로 쓰고
+ * `req.ip`/`socket` 폴백을 덧붙인다 — CF-신뢰 게이트(`shouldTrustCfConnectingIp`)·
+ * XFF 파싱 로직을 **한 곳에 단일화**해 사본 간 drift 를 막는다(04 후속).
+ *
+ * @returns 추출된 IP 또는 `null`(헤더에서 식별 불가). 호출부가 `?? undefined` 등으로 변환.
+ */
+export function extractClientIpFromHeaders(
+  headers: Record<string, string | string[] | undefined>,
+): string | null {
   if (shouldTrustCfConnectingIp()) {
     const cf = pickFirst(headers['cf-connecting-ip']);
     if (cf) return normalize(cf);
@@ -43,15 +71,6 @@ export function extractClientIp(req: Request): string | null {
   if (xff) {
     const first = xff.split(',')[0]?.trim();
     if (first) return normalize(first);
-  }
-
-  if (typeof req.ip === 'string' && req.ip.trim()) {
-    return normalize(req.ip.trim());
-  }
-
-  const remote = req.socket?.remoteAddress;
-  if (typeof remote === 'string' && remote.trim()) {
-    return normalize(remote.trim());
   }
 
   return null;
