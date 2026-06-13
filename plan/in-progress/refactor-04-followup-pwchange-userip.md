@@ -42,4 +42,9 @@ spec: dcd225b8 (auth §2.3·Rationale 2.3.C, user-profile §2.x·API, data-flow 
 - [x] backend unit (6785 pass) · frontend unit (4318 pass, dist 준비 후) · backend build · backend·frontend lint (0 error)
 - [x] e2e 190 pass (docker, 신규 change-password e2e 2건 포함). web-chat-sdk/packages/sdk lint·unit·build 는 worktree npm ci env 이슈 — 본 변경 무관 독립 패키지
 - [x] /ai-review (22_57_48, RISK LOW · Critical 0 · Warning 4) + Warning 4건 fix(W1 순서불변식·W2 env격리·W3 e2e독립·W4 확인) + RESOLUTION.md
-- [ ] /consistency-check --impl-done (강제 게이트)
+- [x] /consistency-check --impl-done (23_09_52, BLOCK: NO; Warning 1 + INFO 11 = 전부 기존 spec 문서 nit, 본 변경 무관 — planner follow-up)
+
+## 후속(범위 밖 — planner)
+- impl-done WARNING: `workspace.transfer_ownership` 시제 규약 카테고리 미분류(기존 액션). `spec/conventions/audit-actions.md` 신설 또는 §4.1 예외 명시.
+- impl-done INFO: data-model §2.18 `ip_address`→`String?`, Rationale 4.1.B WebAuthn 추가 credential·OAuth-only TOTP 비활성 보강.
+- A-2 typed-error (`execution-engine-typed-errors.md`), 비밀번호변경 user-guide 안내(security-2fa 외 신규 페이지 판단), BCRYPT_ROUNDS 공용화.
