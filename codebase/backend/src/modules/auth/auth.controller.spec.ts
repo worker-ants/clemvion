@@ -1,10 +1,14 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcrypt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
 import { TotpService } from './totp.service';
 import { UsersService } from '../users/users.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import type { JwtPayload } from '../../common/decorators';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -12,6 +16,7 @@ describe('AuthController', () => {
   let oauthService: jest.Mocked<AuthOauthService>;
   let totpService: jest.Mocked<TotpService>;
   let usersService: jest.Mocked<UsersService>;
+  let auditLogsService: jest.Mocked<AuditLogsService>;
 
   const mockRes = {
     cookie: jest.fn(),
@@ -52,12 +57,17 @@ describe('AuthController', () => {
       findById: jest.fn(),
     } as unknown as jest.Mocked<UsersService>;
 
+    auditLogsService = {
+      record: jest.fn(),
+    } as unknown as jest.Mocked<AuditLogsService>;
+
     controller = new AuthController(
       authService,
       mockConfigService,
       oauthService,
       totpService,
       usersService,
+      auditLogsService,
     );
   });
 
@@ -114,9 +124,9 @@ describe('AuthController', () => {
           cookies: { refreshToken: 'valid-token' },
           headers: { origin: 'https://evil.example' },
         } as never;
-        await expect(
-          controller.refresh(req, mockRes as never),
-        ).rejects.toThrow(/Origin not allowed/);
+        await expect(controller.refresh(req, mockRes as never)).rejects.toThrow(
+          /Origin not allowed/,
+        );
         // 인증 로직 진입 전에 차단되어야 한다.
         expect(authService.refresh).not.toHaveBeenCalled();
       } finally {
@@ -136,9 +146,9 @@ describe('AuthController', () => {
           cookies: { refreshToken: 'valid-token' },
           headers: { origin: 'null' },
         } as never;
-        await expect(
-          controller.refresh(req, mockRes as never),
-        ).rejects.toThrow(/Origin not allowed/);
+        await expect(controller.refresh(req, mockRes as never)).rejects.toThrow(
+          /Origin not allowed/,
+        );
         expect(authService.refresh).not.toHaveBeenCalled();
       } finally {
         if (prev === undefined) delete process.env.CORS_ORIGINS;
@@ -359,6 +369,82 @@ describe('AuthController', () => {
       expect(mockRes.redirect).toHaveBeenCalledWith(
         'http://frontend.test/callback?error=server_error',
       );
+    });
+  });
+
+  // [Spec Auth §4.1 / Rationale 4.1.B] 2FA enable/disable 감사 — 액터의 현재
+  // 세션 workspaceId 에 귀속.
+  describe('2FA audit logging', () => {
+    const payload: JwtPayload = {
+      sub: 'user-uuid',
+      email: 'u@example.com',
+      workspaceId: 'ws-uuid',
+      role: 'owner',
+    };
+
+    it('records user.2fa_enabled on verify2fa', async () => {
+      totpService.verifyAndEnable.mockResolvedValue({
+        recoveryCodes: ['a', 'b'],
+      });
+
+      await controller.verify2fa(payload, { code: '123456' });
+
+      expect(totpService.verifyAndEnable).toHaveBeenCalledWith(
+        'user-uuid',
+        '123456',
+      );
+      expect(auditLogsService.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-uuid',
+        userId: 'user-uuid',
+        action: AUDIT_ACTIONS.USER_2FA_ENABLED,
+        resourceType: 'user',
+        resourceId: 'user-uuid',
+        details: { method: 'totp' },
+      });
+    });
+
+    it('does not record an audit log when verify2fa code is invalid', async () => {
+      totpService.verifyAndEnable.mockRejectedValue(
+        new UnauthorizedException('TOTP_INVALID'),
+      );
+
+      await expect(
+        controller.verify2fa(payload, { code: '000000' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('records user.2fa_disabled on disable2fa after password reconfirm', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-uuid',
+        passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
+      } as never);
+      totpService.disable.mockResolvedValue(undefined);
+
+      await controller.disable2fa(payload, { password: 'OldP@ssw0rd1' });
+
+      expect(totpService.disable).toHaveBeenCalledWith('user-uuid');
+      expect(auditLogsService.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-uuid',
+        userId: 'user-uuid',
+        action: AUDIT_ACTIONS.USER_2FA_DISABLED,
+        resourceType: 'user',
+        resourceId: 'user-uuid',
+        details: { method: 'totp' },
+      });
+    });
+
+    it('does not record an audit log when disable2fa password is wrong', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-uuid',
+        passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
+      } as never);
+
+      await expect(
+        controller.disable2fa(payload, { password: 'WrongPass!' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(totpService.disable).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
     });
   });
 });

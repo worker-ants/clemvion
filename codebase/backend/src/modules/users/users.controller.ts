@@ -31,6 +31,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { validatePasswordStrength } from '../../common/utils/password.util';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -39,7 +41,10 @@ const BCRYPT_ROUNDS = 12;
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly auditLogsService: AuditLogsService,
+  ) {}
 
   @Get('me')
   @ApiOperation({
@@ -150,6 +155,17 @@ export class UsersController {
 
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
     await this.usersService.update(payload.sub, { passwordHash });
+
+    // [Spec Auth §4.1 / Rationale 4.1.B] 인증 세션에서 발생하므로 액터의 현재
+    // 세션 workspaceId 에 귀속한다 (audit_log.workspaceId non-nullable). record 는
+    // 내부적으로 실패를 삼켜 주 동작을 깨지 않는다.
+    await this.auditLogsService.record({
+      workspaceId: payload.workspaceId,
+      userId: payload.sub,
+      action: AUDIT_ACTIONS.USER_PASSWORD_CHANGED,
+      resourceType: 'user',
+      resourceId: payload.sub,
+    });
 
     return { data: { success: true } };
   }

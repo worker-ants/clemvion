@@ -35,6 +35,8 @@ import { AuthService } from '../auth.service';
 import { AccessTokenDto } from '../dto/responses/auth-response.dto';
 import { extractClientIp } from '../utils/client-ip';
 import { setRefreshTokenCookie } from '../utils/refresh-cookie';
+import { AuditLogsService } from '../../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../../audit-logs/audit-action.const';
 
 import { WebAuthnService } from './webauthn.service';
 import {
@@ -75,6 +77,7 @@ export class WebAuthnController {
     private readonly webauthnService: WebAuthnService,
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
+    private readonly auditLogsService: AuditLogsService,
   ) {
     this.cookieDomain =
       this.configService.get<string>('app.cookieDomain') || '';
@@ -141,6 +144,21 @@ export class WebAuthnController {
       dto.response as never,
       dto.deviceName,
     );
+    // [Spec Auth §4.1 / Rationale 4.1.B] WebAuthn credential 등록 = 2FA enabled.
+    // 액터의 현재 세션 workspaceId 에 귀속. 첫 등록 여부는 복구 코드 발급
+    // 여부(첫 등록에만 반환)로 판별한다.
+    await this.auditLogsService.record({
+      workspaceId: user.workspaceId,
+      userId: user.sub,
+      action: AUDIT_ACTIONS.USER_2FA_ENABLED,
+      resourceType: 'user',
+      resourceId: user.sub,
+      details: {
+        method: 'webauthn',
+        credentialId: result.credentialUuid,
+        firstCredential: result.webauthnRecoveryCodes.length > 0,
+      },
+    });
     return { data: result };
   }
 
@@ -317,7 +335,24 @@ export class WebAuthnController {
     @CurrentUser() user: JwtPayload,
     @Param('id', new ParseUUIDPipe()) credentialUuid: string,
   ) {
-    await this.webauthnService.deleteCredential(user.sub, credentialUuid);
+    const { remaining } = await this.webauthnService.deleteCredential(
+      user.sub,
+      credentialUuid,
+    );
+    // [Spec Auth §4.1 / Rationale 4.1.B] WebAuthn credential 삭제 = 2FA disabled.
+    // 액터의 현재 세션 workspaceId 에 귀속. remaining 으로 2FA 완전 해제 여부 표기.
+    await this.auditLogsService.record({
+      workspaceId: user.workspaceId,
+      userId: user.sub,
+      action: AUDIT_ACTIONS.USER_2FA_DISABLED,
+      resourceType: 'user',
+      resourceId: user.sub,
+      details: {
+        method: 'webauthn',
+        credentialId: credentialUuid,
+        remainingCredentials: remaining,
+      },
+    });
   }
 
   @Post('recovery-codes/regenerate')
