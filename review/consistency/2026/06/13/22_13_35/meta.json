@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-13T22:13:35.664500",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-pwchange-revoke-user-ip.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

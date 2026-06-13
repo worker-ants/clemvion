@@ -57,11 +57,11 @@ workspaceId 가 살아있는 controller 경계가 기록한다(§Rationale 4.1.B
 | 〃 | `auth_config.delete` | auth_config | 삭제 |
 | 〃 | `auth_config.regenerate` | auth_config | 키/토큰 재발급 |
 | 〃 | `auth_config.reveal` | auth_config | 평문 노출 (비밀번호 재확인). auth_config 계열은 모두 `ipAddress` 를 함께 전달 |
-| `users/users.controller.ts` | `user.password_changed` | user | 인증 세션 비밀번호 변경 (`POST /users/me/change-password`). 액터 세션 workspaceId 귀속 |
-| `auth/auth.controller.ts` | `user.2fa_enabled` | user | TOTP 활성 (`POST /auth/2fa/verify`). `details.method='totp'` |
-| 〃 | `user.2fa_disabled` | user | TOTP 비활성 (`POST /auth/2fa/disable`). `details.method='totp'` |
-| `auth/webauthn/webauthn.controller.ts` | `user.2fa_enabled` | user | WebAuthn credential 등록 (`POST …/webauthn/register/verify`). `details.method='webauthn'`·`credentialId`·`firstCredential` |
-| 〃 | `user.2fa_disabled` | user | WebAuthn credential 삭제 (`DELETE …/webauthn/credentials/:id`). `details.method='webauthn'`·`credentialId`·`remainingCredentials` |
+| `users/users.controller.ts` | `user.password_changed` | user | 인증 세션 비밀번호 변경 (`POST /users/me/change-password`). 액터 세션 workspaceId 귀속 · `ipAddress` 동반(포렌식) |
+| `auth/auth.controller.ts` | `user.2fa_enabled` | user | TOTP 활성 (`POST /auth/2fa/verify`). `details.method='totp'` · `ipAddress` 동반(포렌식) |
+| 〃 | `user.2fa_disabled` | user | TOTP 비활성 (`POST /auth/2fa/disable`). `details.method='totp'` · `ipAddress` 동반(포렌식) |
+| `auth/webauthn/webauthn.controller.ts` | `user.2fa_enabled` | user | WebAuthn credential 등록 (`POST …/webauthn/register/verify`). `details.method='webauthn'`·`credentialId`·`firstCredential` · `ipAddress` 동반(포렌식) |
+| 〃 | `user.2fa_disabled` | user | WebAuthn credential 삭제 (`DELETE …/webauthn/credentials/:id`). `details.method='webauthn'`·`credentialId`·`remainingCredentials` · `ipAddress` 동반(포렌식) |
 
 표기 규약과 커버리지에 대한 코드 사실 두 가지:
 
@@ -80,6 +80,12 @@ workspaceId 가 살아있는 controller 경계가 기록한다(§Rationale 4.1.B
   **액터의 현재 세션 `workspaceId`** 에 귀속해(모두 인증 세션 발생, schema 변경 없음) controller 경계
   (`users`·`auth`·`webauthn`)에서 기록한다. 무인증 password-reset 은 workspace 없음으로
   `user.password_changed` 대상 제외 ([인증 spec §4.1 / Rationale 4.1.B](../5-system/1-auth.md)).
+  이 5개 행은 모두 `ipAddress` 를 함께 전달한다 — auth_config 계열과 동일한 **포렌식·사후 감사**
+  목적이며, 추출 경로도 동일하게 `extractClientIp`(`auth/utils/client-ip.ts`, `TRUST_CF_CONNECTING_IP`
+  신뢰 정책 — [인증 spec Rationale 2.3.B](../5-system/1-auth.md))를 쓴다(추출 불가 시 `undefined` 생략).
+  또한 `user.password_changed` 는 비밀번호 변경 시 **전 세션 revoke + 현재 디바이스 재발급**(인증 spec
+  Rationale 2.3.C)을 동반하므로, `login_history` 에 `session_revoked`(bulk, `familyId=null`) 1건이 함께
+  적재된다(§1.2).
 
 ### 1.2 인증 이벤트 → `login_history`
 
@@ -97,7 +103,7 @@ sequenceDiagram
 | Caller | 기록 event |
 | --- | --- |
 | `auth/auth.service.ts` | `login_success`, `login_failed`, `totp_failed`, `logout`, `token_reuse_detected` |
-| `auth/sessions.service.ts` | `session_revoked` |
+| `auth/sessions.service.ts` | `session_revoked` (개별 family 강제 종료, `revoke-others` 일괄 종료, **비밀번호 변경 시 전체 family revoke** — 모두 SessionsService 경유) |
 | `auth/webauthn/webauthn.service.ts` | `webauthn_failed` (`failure_reason` = `WEBAUTHN_INVALID` / `WEBAUTHN_COUNTER_REGRESSION`) |
 
 `event` 종류 (7종): `login_success`, `login_failed`, `totp_failed`, `webauthn_failed`, `logout`,
