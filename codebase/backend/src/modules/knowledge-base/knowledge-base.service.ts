@@ -53,6 +53,9 @@ function decodeMulterFilename(originalname: string): string {
 export class KnowledgeBaseService {
   private readonly logger = new Logger(KnowledgeBaseService.name);
 
+  /** embedding 큐 addBulk 분할 크기 — Redis/BullMQ 순간 부하 완화 (M-1). */
+  private static readonly EMBED_CHUNK_SIZE = 100;
+
   constructor(
     @InjectRepository(KnowledgeBase)
     private readonly kbRepository: Repository<KnowledgeBase>,
@@ -528,36 +531,21 @@ export class KnowledgeBaseService {
           RETURNING id`,
         [id],
       );
-      embeddingRequeued = rows.length;
-      for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-        const slice = rows.slice(i, i + CHUNK_SIZE);
-        try {
-          await this.embeddingQueue.addBulk(
-            slice.map((r) => ({
-              name: 'embed',
-              data: {
-                documentId: r.id,
-                knowledgeBaseId: id,
-                ragMode: kb.ragMode,
-                reEmbed: true,
-              },
-            })),
-          );
-        } catch (err) {
-          // 큐 add 실패 시 해당 chunk 의 문서들을 'failed' 로 되돌려 다음 사용자 재시도 가능 상태로 유지.
-          const ids = slice.map((r) => r.id);
-          await this.dataSource.query(
-            `UPDATE document SET embedding_status = 'failed' WHERE id = ANY($1::uuid[])`,
-            [ids],
-          );
-          embeddingRequeued -= slice.length;
-          const msg = err instanceof Error ? err.message : String(err);
-          this.logger.error(
-            `Retry embedding addBulk failed for ${ids.length} docs, rolled back to 'failed': ${msg}`,
-          );
-          throw err;
-        }
-      }
+      const { enqueued, failed, firstError } = await this.enqueueEmbedChunked(
+        rows.map((r) => r.id),
+        (documentId) => ({
+          documentId,
+          knowledgeBaseId: id,
+          ragMode: kb.ragMode,
+          reEmbed: true,
+        }),
+      );
+      embeddingRequeued = enqueued;
+      // 큐 적재 실패분은 helper 가 'failed' 로 롤백한다. 부분 재시도는 사용자
+      // 트리거 동기 호출이므로 실패가 있으면 원본 오류를 전파해 표면화한다
+      // (기존 계약 유지). 분할 전 패턴과 달리 실패 chunk 이후 chunk 도 모두
+      // 시도된 뒤 throw 하므로 적재 안 된 'pending' stuck 문서가 남지 않는다.
+      if (failed > 0) throw firstError;
     }
 
     if (scope === 'graph' || scope === 'all') {
@@ -630,6 +618,74 @@ export class KnowledgeBaseService {
     return rows.length > 0;
   }
 
+  /**
+   * 문서 id 들을 EMBED_CHUNK_SIZE 단위로 embedding 큐에 addBulk 한다. 단일
+   * addBulk 페이로드/Redis 왕복이 문서 수에 비례해 폭증하는 것을 상수 크기로
+   * 분할한다. chunk add 실패 시 그 chunk 문서를 embedding_status='failed' 로
+   * 되돌려(UPDATE/큐 add 비원자성 보완) 다음 재시도 가능 상태로 둔다. 큐 오류로
+   * 즉시 throw 하지 않고 전 chunk 를 시도한 뒤 집계를 반환한다 — 호출자가
+   * 후처리(재시도 경로: 에러 전파 / KB batch: 잠금 해제)를 분기한다.
+   * (M-1 — reEmbedAll·retryFailedDocuments 의 chunk 적재 통일)
+   */
+  private async enqueueEmbedChunked(
+    documentIds: string[],
+    buildData: (documentId: string) => DocumentEmbeddingJob,
+  ): Promise<{ enqueued: number; failed: number; firstError?: unknown }> {
+    const CHUNK = KnowledgeBaseService.EMBED_CHUNK_SIZE;
+    let enqueued = 0;
+    let failed = 0;
+    let firstError: unknown;
+    for (let i = 0; i < documentIds.length; i += CHUNK) {
+      const slice = documentIds.slice(i, i + CHUNK);
+      try {
+        await this.embeddingQueue.addBulk(
+          slice.map((documentId) => ({
+            name: 'embed',
+            data: buildData(documentId),
+          })),
+        );
+        enqueued += slice.length;
+      } catch (err) {
+        await this.dataSource.query(
+          `UPDATE document SET embedding_status = 'failed' WHERE id = ANY($1::uuid[])`,
+          [slice],
+        );
+        failed += slice.length;
+        if (firstError === undefined) firstError = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `Embedding addBulk failed for ${slice.length} docs, rolled back to 'failed': ${msg}`,
+        );
+      }
+    }
+    return { enqueued, failed, firstError };
+  }
+
+  /**
+   * `document-embedding.processor.maybeFinalizeKbBatch` 와 동일한 atomic CAS —
+   * pending/processing 문서가 0 일 때만 reembed_status 를 idle 로 내린다. reEmbedAll
+   * 에서 chunk 적재 실패가 있을 때, 정상 child 의 finalize 가 이미 지나가 잠금이
+   * in_progress 로 남거나(부분 실패), 발사된 child job 이 아예 없는(전 chunk 실패)
+   * 상황에서 잠금을 해제하는 보상 경로. 진행 중 child 가 있으면 NOT EXISTS 가
+   * false 라 no-op — 그 child 완료 시 processor 가 finalize 한다.
+   */
+  private async finalizeReembedIfDrained(
+    knowledgeBaseId: string,
+  ): Promise<void> {
+    await this.dataSource.query(
+      `UPDATE knowledge_base
+          SET reembed_status = 'idle'
+        WHERE id = $1
+          AND reembed_status = 'in_progress'
+          AND NOT EXISTS (
+            SELECT 1 FROM document
+             WHERE knowledge_base_id = $1
+               AND embedding_status IN ('pending', 'processing')
+          )`,
+      [knowledgeBaseId],
+    );
+  }
+
   // 모델 변경 등으로 KB 전체 재임베딩이 필요할 때 호출.
   // - reembed_status 를 atomic compare-and-swap (idle → in_progress) 으로 잠금
   //   (race-free; 다른 요청이 in_progress 면 0행 RETURNING 으로 409 ConflictException)
@@ -658,21 +714,18 @@ export class KnowledgeBaseService {
     }
 
     // 모든 문서의 retry / error 메타데이터 리셋 (재시도 카운트 0 부터 다시 시작).
-    await this.dataSource.query(
+    // RETURNING id 로 별도 SELECT 1회 제거 — reset 대상 = 재임베딩 대상 (M-1).
+    const reset = await this.dataSource.query<{ id: string }[]>(
       `UPDATE document
           SET embedding_status = 'pending',
               embedding_retry_count = 0,
               embedding_error_message = NULL
-        WHERE knowledge_base_id = $1`,
+        WHERE knowledge_base_id = $1
+        RETURNING id`,
       [id],
     );
 
-    const docs = await this.documentRepository.find({
-      where: { knowledgeBaseId: id },
-      select: ['id'],
-    });
-
-    if (docs.length === 0) {
+    if (reset.length === 0) {
       // 빈 KB 는 child job 이 없어 finalize 가 트리거되지 않는다 → 즉시 idle 로 되돌림.
       await this.dataSource.query(
         `UPDATE knowledge_base SET reembed_status = 'idle' WHERE id = $1`,
@@ -684,22 +737,32 @@ export class KnowledgeBaseService {
       };
     }
 
-    await this.embeddingQueue.addBulk(
-      docs.map((doc) => ({
-        name: 'embed',
-        data: {
-          documentId: doc.id,
-          reEmbed: true,
-          isKbBatch: true,
-          knowledgeBaseId: id,
-          // 이미 KB 를 fetch 했으니 ragMode 도 같이 주입 — worker DB JOIN 회피.
-          ragMode: kb.ragMode,
-        },
-      })),
+    // 단일 addBulk(문서 수 비례 페이로드 폭발) → CHUNK_SIZE 분할 적재 + 실패 보상.
+    // ragMode 는 이미 fetch 한 kb 에서 주입 — worker DB JOIN 회피.
+    const { enqueued } = await this.enqueueEmbedChunked(
+      reset.map((r) => r.id),
+      (documentId) => ({
+        documentId,
+        reEmbed: true,
+        isKbBatch: true,
+        knowledgeBaseId: id,
+        ragMode: kb.ragMode,
+      }),
     );
 
+    if (enqueued < reset.length) {
+      // 일부/전부 chunk 적재 실패 — 실패분은 helper 가 'failed' 로 롤백했다. 정상
+      // child 의 finalize 가 이미 지나가 reembed_status 가 in_progress 로 잠긴 채
+      // 남거나(부분 실패), 발사된 child 가 없어(전 chunk 실패) finalize 자체가
+      // 트리거되지 않는 상황을 보상해 잠금을 해제한다. CAS 라 진행 중 child 가
+      // 있으면 no-op (그 child 완료 시 processor 가 finalize). 보상 없이 단순
+      // 분할만 하면 'pending'인데 큐에 없는 문서가 §9.3 stuck 회수에서도 빠져
+      // 영구 stuck 이 되므로, 분할과 보상은 분리 불가한 한 묶음이다.
+      await this.finalizeReembedIfDrained(id);
+    }
+
     return {
-      documentCount: docs.length,
+      documentCount: enqueued,
       chainedGraphExtraction: kb.ragMode === 'graph',
     };
   }

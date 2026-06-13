@@ -657,16 +657,26 @@ describe('KnowledgeBaseService', () => {
       });
     });
 
-    it('should atomically acquire reembed_status and enqueue all docs', async () => {
-      mockDataSource.query.mockResolvedValueOnce([{ id: 'kb-1' }]);
-      mockDocRepo.find.mockResolvedValue([{ id: 'd1' }, { id: 'd2' }]);
+    it('should atomically acquire reembed_status and enqueue all docs (single chunk)', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([{ id: 'kb-1' }]) // acquire
+        .mockResolvedValueOnce([{ id: 'd1' }, { id: 'd2' }]); // reset RETURNING id
 
       const result = await service.reEmbedAll('kb-1', 'ws-1');
 
-      expect(mockDataSource.query).toHaveBeenCalledWith(
+      expect(mockDataSource.query).toHaveBeenNthCalledWith(
+        1,
         expect.stringMatching(/SET reembed_status = 'in_progress'/),
         ['kb-1', 'ws-1'],
       );
+      // reset UPDATE 가 RETURNING id 로 대상 문서를 가져온다 — 별도 SELECT 없음 (M-1).
+      expect(mockDataSource.query).toHaveBeenNthCalledWith(
+        2,
+        expect.stringMatching(/UPDATE document[\s\S]*RETURNING id/),
+        ['kb-1'],
+      );
+      expect(mockDocRepo.find).not.toHaveBeenCalled();
+      expect(mockEmbeddingQueue.addBulk).toHaveBeenCalledTimes(1);
       expect(mockEmbeddingQueue.addBulk).toHaveBeenCalledWith([
         {
           name: 'embed',
@@ -693,11 +703,68 @@ describe('KnowledgeBaseService', () => {
       });
     });
 
+    it('should split enqueue into EMBED_CHUNK_SIZE (100) batches', async () => {
+      const docs = Array.from({ length: 250 }, (_, i) => ({ id: `d${i}` }));
+      mockDataSource.query
+        .mockResolvedValueOnce([{ id: 'kb-1' }]) // acquire
+        .mockResolvedValueOnce(docs); // reset RETURNING id
+
+      const result = await service.reEmbedAll('kb-1', 'ws-1');
+
+      // 250 docs → 100 + 100 + 50 = 3 addBulk 호출 (단일 페이로드 폭발 방지).
+      expect(mockEmbeddingQueue.addBulk).toHaveBeenCalledTimes(3);
+      expect(mockEmbeddingQueue.addBulk.mock.calls[0][0]).toHaveLength(100);
+      expect(mockEmbeddingQueue.addBulk.mock.calls[1][0]).toHaveLength(100);
+      expect(mockEmbeddingQueue.addBulk.mock.calls[2][0]).toHaveLength(50);
+      expect(result.documentCount).toBe(250);
+    });
+
+    it('should roll back a failed chunk to "failed" and release the lock via drain-finalize', async () => {
+      const docs = Array.from({ length: 150 }, (_, i) => ({ id: `d${i}` }));
+      mockDataSource.query
+        .mockResolvedValueOnce([{ id: 'kb-1' }]) // acquire
+        .mockResolvedValueOnce(docs); // reset RETURNING id
+      // 1st chunk ok, 2nd chunk add 실패.
+      mockEmbeddingQueue.addBulk
+        .mockResolvedValueOnce([])
+        .mockRejectedValueOnce(new Error('redis down'));
+
+      const result = await service.reEmbedAll('kb-1', 'ws-1');
+
+      // 실패 chunk(2번째 50건)를 embedding_status='failed' 로 롤백.
+      expect(mockDataSource.query).toHaveBeenCalledWith(
+        expect.stringMatching(/SET embedding_status = 'failed'/),
+        [docs.slice(100, 150).map((d) => d.id)],
+      );
+      // enqueued(100) < total(150) → drain-finalize CAS 로 잠금 해제 시도.
+      expect(mockDataSource.query).toHaveBeenLastCalledWith(
+        expect.stringMatching(/SET reembed_status = 'idle'[\s\S]*NOT EXISTS/),
+        ['kb-1'],
+      );
+      expect(result.documentCount).toBe(100);
+    });
+
+    it('should release the lock when ALL chunks fail (no child job to finalize)', async () => {
+      const docs = Array.from({ length: 50 }, (_, i) => ({ id: `d${i}` }));
+      mockDataSource.query
+        .mockResolvedValueOnce([{ id: 'kb-1' }]) // acquire
+        .mockResolvedValueOnce(docs); // reset RETURNING id
+      mockEmbeddingQueue.addBulk.mockRejectedValueOnce(new Error('redis down'));
+
+      const result = await service.reEmbedAll('kb-1', 'ws-1');
+
+      expect(result.documentCount).toBe(0);
+      expect(mockDataSource.query).toHaveBeenLastCalledWith(
+        expect.stringMatching(/SET reembed_status = 'idle'[\s\S]*NOT EXISTS/),
+        ['kb-1'],
+      );
+    });
+
     it('should immediately reset to idle for empty KB (no child job to finalize)', async () => {
       mockDataSource.query
         .mockResolvedValueOnce([{ id: 'kb-1' }]) // acquire
-        .mockResolvedValueOnce([]); // reset to idle
-      mockDocRepo.find.mockResolvedValue([]);
+        .mockResolvedValueOnce([]) // reset RETURNING id → 0 docs
+        .mockResolvedValueOnce([]); // idle reset
 
       const result = await service.reEmbedAll('kb-1', 'ws-1');
 
@@ -721,6 +788,43 @@ describe('KnowledgeBaseService', () => {
       );
       expect(mockEmbeddingQueue.addBulk).not.toHaveBeenCalled();
       expect(mockDocRepo.find).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('retryFailedDocuments (embedding, shared chunk helper)', () => {
+    beforeEach(() => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'vector',
+      });
+    });
+
+    it('re-enqueues failed docs and reports the requeued count', async () => {
+      mockDataSource.query.mockResolvedValueOnce([{ id: 'd1' }, { id: 'd2' }]); // UPDATE ... failed RETURNING id
+      const res = await service.retryFailedDocuments(
+        'kb-1',
+        'ws-1',
+        'embedding',
+      );
+      expect(mockEmbeddingQueue.addBulk).toHaveBeenCalledTimes(1);
+      expect(res.embeddingRequeued).toBe(2);
+    });
+
+    it('rolls back the failed chunk and rethrows the original error', async () => {
+      mockDataSource.query.mockResolvedValueOnce([{ id: 'd1' }]); // RETURNING id
+      const boom = new Error('redis down');
+      mockEmbeddingQueue.addBulk.mockRejectedValueOnce(boom);
+
+      await expect(
+        service.retryFailedDocuments('kb-1', 'ws-1', 'embedding'),
+      ).rejects.toBe(boom);
+
+      // 적재 안 된 'pending' stuck 방지 — 실패 chunk 를 'failed' 로 롤백.
+      expect(mockDataSource.query).toHaveBeenCalledWith(
+        expect.stringMatching(/SET embedding_status = 'failed'/),
+        [['d1']],
+      );
     });
   });
 
