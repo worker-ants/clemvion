@@ -2,16 +2,39 @@
   "version": 1,
   "started_at": "2026-06-13T23:40:00Z",
   "summary_items_total": 12,
-  "items_resolved_ids": [],
-  "items_pending_ids": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-  "items_escalated_ids": {},
-  "commits_made": [],
-  "spec_drafts_pending": [],
+  "items_resolved_ids": [4, 5, 6, 7, 8, 9, 11, 12],
+  "items_pending_ids": [1, 2, 3, 10],
+  "items_escalated_ids": {
+    "1": "deferred-architecture",
+    "2": "deferred-architecture",
+    "3": "deferred-architecture",
+    "10": "spec"
+  },
+  "commits_made": [
+    {
+      "sha": "d890e304",
+      "summary_ids": [4, 5, 6, 7, 8, 9, 11, 12],
+      "scope": "refactor-05-db"
+    },
+    {
+      "sha": "3af5b1bf",
+      "summary_ids": [4],
+      "scope": "workflow-versions"
+    }
+  ],
+  "spec_drafts_pending": [
+    "plan/in-progress/spec-update-workflow-version-list-response.md"
+  ],
   "spec_drafts_applied": [],
-  "e2e_attempts": 0,
-  "e2e_last_status": null,
-  "e2e_log_paths": [],
-  "auto_fix_iterations": {},
-  "escalation_reason": null,
+  "e2e_attempts": 2,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/e2e-20260613-235638.log",
+    "_test_logs/e2e-20260613-235833.log"
+  ],
+  "auto_fix_iterations": {
+    "4": 2
+  },
+  "escalation_reason": "spec",
   "last_reset_hint_sec": null
 }
