@@ -94,6 +94,18 @@ export { ROOT_ENTITIES } from './database/root-entities';
         entities: [...ROOT_ENTITIES],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
+        // M-5: node-postgres pool 튜닝을 env 로 노출 (database.config). 기본값은
+        // 현 동작(pg 기본 max=10)과 동일 — 배포 무변경. 운영이 pg_stat_activity
+        // 피크 측정 후 env 만으로 상향 가능 (max_connections 역산 필수).
+        extra: {
+          max: configService.get<number>('database.poolMax'),
+          idleTimeoutMillis: configService.get<number>(
+            'database.poolIdleTimeoutMs',
+          ),
+          connectionTimeoutMillis: configService.get<number>(
+            'database.poolConnectionTimeoutMs',
+          ),
+        },
       }),
     }),
 
