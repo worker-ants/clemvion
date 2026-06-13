@@ -10,13 +10,19 @@ owner: planner
 > 관련 spec: spec/4-nodes/7-trigger/providers/telegram.md
 
 ## 미구현 항목
-- [ ] §5.1 AI Multi Turn: LLM 응답 직전 `sendChatAction(typing)` 1회 발송. 어댑터 `sendMessage` 는 `kind:'typing'` 지원하나 renderer 가 typing ChannelMessage 를 생성하지 않음 (producer 0건).
-- [ ] §5.2 (3) button_callback 처리 후 `editMessageReplyMarkup` 으로 키보드 제거(중복 클릭 차단). adapter `ackInteraction` 은 `answerCallbackQuery` 만 호출, editMessage 메서드 부재.
-- [ ] §3 / §5.4 `image` body → `sendPhoto` 발송. v1 어댑터는 `image` body 를 caption/fallbackText text 로 fallback (sendPhoto 미호출).
-- [ ] §5.4 carousel `auto` v1: 카드별 imageUrl 있으면 `sendPhoto` 분기. 현재는 항상 `sendMessage` 로 imageUrl 을 `🖼 {url}` 텍스트 라인으로만 표시.
-- [ ] §7 `/help` 정적 도움말 도달. `HooksService` 에 정적 안내 분기가 있으나 `parseTelegramUpdate` 가 `/help` 를 null 로 반환해 도달 불가(dead). parser 가 `/help` 를 통과시키는 command kind 가 필요.
-- [ ] §8 per-chat rate-limit 큐 + delay (30 msg/sec across users, 1 msg/sec per chat). client 는 실패 시 지수 백오프만 있고 chat 단위 throttle 없음.
-- [ ] §8 update_id 기반 30초 dedup. parser 가 `idempotencyKey` 를 채우나 이를 소비하는 consumer 0건.
+
+> **구현 진척 (2026-06-14, impl-telegram-gaps PR)**: 아래 1·2·5 구현 완료(단위 테스트 포함). 3·6 은 인프라
+> 의존으로 spec 이 명시적으로 v1 deferred 처리한 항목이라 보류, 4 는 공유 타입 확장 리스크로 별도 분리, 7 은 별도
+> Redis dedup 설계 필요로 보류. **spec doc-sync 후속**: `telegram.md §5.1`·`§5.2(3)` 의 "미구현 (Planned)"
+> 한정어를 "구현됨" 으로 갱신하는 것은 planner 도메인(developer 는 spec read-only) → spec-sync 후속 plan 으로 처리.
+
+- [x] §5.1 AI Multi Turn: LLM 응답 직전 `sendChatAction(typing)` 1회 발송. — **완료**: `telegram-message.renderer.ts` `renderAiMessage` 가 text 발화 전 `{ kind: 'typing' }` ChannelMessage 를 prepend (빈 응답이면 생략). 어댑터 `case 'typing'` 가 `sendChatAction` 발송. 테스트: renderer.spec ai_message → typing+text.
+- [x] §5.2 (3) button_callback 처리 후 `editMessageReplyMarkup` 으로 키보드 제거(중복 클릭 차단). — **완료**: `telegram-client.ts` `editMessageReplyMarkup` 메서드 추가, parser 가 `callback_query.message.message_id` 를 `command.messageId` 로 동봉(ChannelCommand 타입에 옵션 필드 추가, 타 provider 무영향), adapter `ackInteraction` 이 ack 후 best-effort 로 빈 inline_keyboard 편집(실패는 삼킴). 테스트: parser messageId 동봉 + adapter 3건.
+- [x] §7 `/help` 정적 도움말 도달. — **이미 구현됨(확인)**: `parseTelegramUpdate.readCommand` 가 `/help` 를 `text_message` 로 통과시키고(parser L117-122) `HooksService` 가 `/help` 분기에서 `languageHints.help`/기본 문구 발송. plan 의 "null 반환 dead" 서술은 stale. 테스트(parser.spec `/help`)도 기존재.
+- [ ] §3 / §5.4 `image` body → `sendPhoto` 발송. — **보류 (인프라 의존, spec v1 deferred)**: `ChannelMessage.body.image` 는 `bytes: Buffer` 인데 이를 multipart 로 업로드하려면 client.call 에 multipart 지원 + 애초에 PNG bytes 를 만드는 SSR producer 가 필요(v1 미도입). spec §3 이 "v1 = text fallback (multipart/SSR PNG 인프라 미도입)" 로 명시 — 진성 v2 항목.
+- [ ] §5.4 carousel `auto` v1: 카드별 imageUrl 있으면 `sendPhoto` 분기. — **별도 분리**: Telegram `sendPhoto` 는 photo=URL 직접 수용이라 구현 가능하나, `ChannelMessage.body.image` 가 `bytes` 만 받으므로 URL variant 추가 = 공유 타입 변경(slack/discord image 경로 cross-impact). 리스크 격리 위해 별도 PR 로 분리.
+- [ ] §8 per-chat outbound rate-limit 큐 + delay (30 msg/sec across users, 1 msg/sec per chat). — **보류 (인프라)**: 분산 outbound throttle/큐 설계 필요(inbound CCH-NF-03 rate-limiter 와 별개). spec §8 "Planned".
+- [ ] §8 update_id 기반 30초 dedup. — **보류 (별도 설계)**: Redis dedup(예: `cc:dedup:{triggerId}:{update_id}` TTL) 을 `HooksService.handleChatChannelWebhook` 진입점에 추가 필요. inbound rate-limiter Redis 패턴 재사용 가능. Telegram provider-level 보장이 있어 우선순위 낮음 — 별도 PR.
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__7-trigger__providers__telegram.md 참조.

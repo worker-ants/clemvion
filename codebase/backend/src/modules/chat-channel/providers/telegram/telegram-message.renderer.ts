@@ -95,7 +95,13 @@ function renderAiMessage(
   event: Extract<EiaEvent, { type: 'execution.ai_message' }>,
   config: ChatChannelConfig,
 ): ChannelMessage[] {
-  const out: ChannelMessage[] = [...renderText(event.message)];
+  // §5.1 — AI 응답 발화 직전 sendChatAction(typing) 1회 (UX). dispatcher 가 순서대로 발송하며
+  // typing 은 5초 자동 만료라 후속 text 발송에 영향 없음. 빈 응답이면 typing 도 생략.
+  const textMessages = renderText(event.message);
+  const out: ChannelMessage[] =
+    textMessages.length > 0
+      ? [{ conversationKey: '', body: { kind: 'typing' } }, ...textMessages]
+      : [];
   const presentations = event.presentations;
   if (Array.isArray(presentations) && presentations.length > 0) {
     for (const p of presentations) {

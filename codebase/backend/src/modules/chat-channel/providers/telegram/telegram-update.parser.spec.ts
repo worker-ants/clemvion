@@ -108,6 +108,24 @@ describe('parseTelegramUpdate', () => {
     });
   });
 
+  it('callback_query 에 message.message_id 있으면 messageId 동봉 (§5.2(3) 키보드 제거용)', () => {
+    const r = parseTelegramUpdate({
+      update_id: 1051,
+      callback_query: {
+        id: 'cbq-2',
+        from: { id: 999 },
+        message: { message_id: 4242, chat: { id: 555, type: 'private' } },
+        data: 'btn-uuid-xyz',
+      },
+    });
+    expect(r?.command).toEqual({
+      kind: 'button_callback',
+      callbackData: 'btn-uuid-xyz',
+      callbackQueryId: 'cbq-2',
+      messageId: '4242',
+    });
+  });
+
   it('group chat → null (CCH-CV-05)', () => {
     expect(
       parseTelegramUpdate({

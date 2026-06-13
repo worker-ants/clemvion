@@ -24,6 +24,7 @@ const makeMockClient = (): jest.Mocked<TelegramClient> =>
     sendPhoto: jest.fn(),
     sendChatAction: jest.fn(),
     answerCallbackQuery: jest.fn(),
+    editMessageReplyMarkup: jest.fn(),
   }) as unknown as jest.Mocked<TelegramClient>;
 
 const BOT_TOKEN_PLAIN = 'test-bot-token-123';
@@ -311,6 +312,73 @@ describe('TelegramAdapter', () => {
       };
       await adapter.ackInteraction(update, baseConfig);
       expect(client.answerCallbackQuery).not.toHaveBeenCalled();
+    });
+
+    it('messageId 있으면 ack 후 editMessageReplyMarkup 으로 키보드 제거 (§5.2(3))', async () => {
+      client.answerCallbackQuery.mockResolvedValue(okResult(true));
+      client.editMessageReplyMarkup.mockResolvedValue(
+        okResult({ message_id: 4242, date: 0, chat: { id: 9999 } }),
+      );
+      const update: ChannelUpdate = {
+        conversationKey: '9999',
+        channelUserKey: '888',
+        command: {
+          kind: 'button_callback',
+          callbackData: 'btn-id-1',
+          callbackQueryId: 'cq-abc',
+          messageId: '4242',
+        },
+        idempotencyKey: '102',
+        receivedAt: new Date().toISOString(),
+      };
+      await adapter.ackInteraction(update, baseConfig);
+      expect(client.editMessageReplyMarkup).toHaveBeenCalledWith(
+        BOT_TOKEN_PLAIN,
+        expect.objectContaining({
+          chat_id: '9999',
+          message_id: 4242,
+          reply_markup: { inline_keyboard: [] },
+        }),
+      );
+    });
+
+    it('messageId 없으면 editMessageReplyMarkup 미호출 (기존 동작 보존)', async () => {
+      client.answerCallbackQuery.mockResolvedValue(okResult(true));
+      const update: ChannelUpdate = {
+        conversationKey: '9999',
+        channelUserKey: '888',
+        command: {
+          kind: 'button_callback',
+          callbackData: 'btn-id-1',
+          callbackQueryId: 'cq-abc',
+        },
+        idempotencyKey: '103',
+        receivedAt: new Date().toISOString(),
+      };
+      await adapter.ackInteraction(update, baseConfig);
+      expect(client.editMessageReplyMarkup).not.toHaveBeenCalled();
+    });
+
+    it('editMessageReplyMarkup 실패는 삼켜져 ack 흐름을 막지 않는다 (best-effort)', async () => {
+      client.answerCallbackQuery.mockResolvedValue(okResult(true));
+      client.editMessageReplyMarkup.mockRejectedValue(
+        new Error('message too old'),
+      );
+      const update: ChannelUpdate = {
+        conversationKey: '9999',
+        channelUserKey: '888',
+        command: {
+          kind: 'button_callback',
+          callbackData: 'btn-id-1',
+          callbackQueryId: 'cq-abc',
+          messageId: '4242',
+        },
+        idempotencyKey: '104',
+        receivedAt: new Date().toISOString(),
+      };
+      await expect(
+        adapter.ackInteraction(update, baseConfig),
+      ).resolves.toBeUndefined();
     });
   });
 
