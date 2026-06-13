@@ -5498,6 +5498,105 @@ describe('ExecutionEngineService', () => {
       expect((out.meta as { interactionType?: string }).interactionType).toBe(
         'form',
       );
+      // I11 — DB nodeExec.durationMs 도 동일하게 갱신됐는지.
+      const savedNe = mockNodeExecutionRepo.save.mock.calls
+        .map((c) => c[0] as { id?: string; durationMs?: number })
+        .find((e) => e?.id === 'ne-dur');
+      expect(savedNe?.durationMs).toBeGreaterThanOrEqual(4000);
+    });
+
+    // §5.5 엣지 케이스 헬퍼 — node/nodeExec/prevMeta 조합별 resumedMeta 검증.
+    const runFormResume = async (opts: {
+      nodeExec: Record<string, unknown> | null;
+      prevMeta: Record<string, unknown> | undefined | 'absent';
+      execId: string;
+      nodeId: string;
+    }) => {
+      const svc = service as unknown as {
+        processFormResumeTurn: (
+          s: unknown,
+          e: string,
+          n: unknown,
+          c: unknown,
+          p: unknown,
+        ) => Promise<void>;
+        contextService: {
+          createContext: (e: string, w: string) => Record<string, unknown>;
+          setStructuredOutput: jest.Mock;
+        };
+        conversationThreadService: {
+          appendPresentationInteraction: (...a: unknown[]) => void;
+        };
+      };
+      const ctSvc = svc.contextService;
+      mockNodeExecutionRepo.findOne.mockResolvedValueOnce(opts.nodeExec);
+      mockNodeExecutionRepo.save.mockResolvedValueOnce(undefined);
+      const context = ctSvc.createContext(opts.execId, workflowId);
+      const cache: Record<string, unknown> = {};
+      cache[opts.nodeId] = {
+        config: {},
+        output: {},
+        status: 'waiting_for_input',
+        ...(opts.prevMeta === 'absent' ? {} : { meta: opts.prevMeta }),
+      };
+      (
+        context as { structuredOutputCache: Record<string, unknown> }
+      ).structuredOutputCache = cache;
+      jest
+        .spyOn(svc.conversationThreadService, 'appendPresentationInteraction')
+        .mockImplementation(() => undefined);
+      const setSpy = jest.spyOn(ctSvc, 'setStructuredOutput');
+      await svc.processFormResumeTurn(
+        { id: opts.execId, status: ExecutionStatus.RUNNING },
+        opts.execId,
+        { id: opts.nodeId, type: 'form', config: { fields: [{ name: 'x' }] } },
+        context,
+        { type: 'form_submitted', formData: { x: '1' } },
+      );
+      const call = setSpy.mock.calls.find((c) => c[1] === opts.nodeId);
+      return call?.[2] as { meta?: Record<string, unknown> };
+    };
+
+    it('§5.5 nodeExec.startedAt 부재 → durationMs 미설정, 기존 meta 보존', async () => {
+      const out = await runFormResume({
+        nodeExec: { id: 'ne-ns', nodeId: 'f-ns' },
+        prevMeta: { interactionType: 'form', custom: 1 },
+        execId: 'exec-ns',
+        nodeId: 'f-ns',
+      });
+      expect(out.meta?.durationMs).toBeUndefined();
+      expect(out.meta?.interactionType).toBe('form');
+      expect(out.meta?.custom).toBe(1);
+    });
+
+    it('§5.5 시계 역행(미래 startedAt) → durationMs 0 클램핑', async () => {
+      const out = await runFormResume({
+        nodeExec: {
+          id: 'ne-fut',
+          nodeId: 'f-fut',
+          startedAt: new Date(Date.now() + 5000),
+        },
+        prevMeta: { interactionType: 'form' },
+        execId: 'exec-fut',
+        nodeId: 'f-fut',
+      });
+      expect(out.meta?.durationMs).toBe(0);
+    });
+
+    it('§5.5 prevMeta 부재(재수화) → form fallback interactionType + durationMs', async () => {
+      const out = await runFormResume({
+        nodeExec: {
+          id: 'ne-rh',
+          nodeId: 'f-rh',
+          startedAt: new Date(Date.now() - 3000),
+        },
+        prevMeta: 'absent',
+        execId: 'exec-rh',
+        nodeId: 'f-rh',
+      });
+      // 재수화 경로에서도 interactionType 보존(W1) + durationMs 계산.
+      expect(out.meta?.interactionType).toBe('form');
+      expect(out.meta?.durationMs as number).toBeGreaterThanOrEqual(2000);
     });
   });
 
