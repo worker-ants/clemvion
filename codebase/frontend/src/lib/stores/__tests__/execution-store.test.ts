@@ -878,3 +878,33 @@ describe("findReconcilableOptimisticIdx", () => {
     expect(findReconcilableOptimisticIdx(msgs, "같은 말")).toBe(0);
   });
 });
+
+describe("drawerExpanded (§10.12 Run Results 드로어 토글)", () => {
+  beforeEach(() => {
+    useExecutionStore.setState({ drawerExpanded: true });
+  });
+
+  it("defaults to expanded", () => {
+    expect(useExecutionStore.getState().drawerExpanded).toBe(true);
+  });
+
+  it("toggleDrawerExpanded flips the flag", () => {
+    useExecutionStore.getState().toggleDrawerExpanded();
+    expect(useExecutionStore.getState().drawerExpanded).toBe(false);
+    useExecutionStore.getState().toggleDrawerExpanded();
+    expect(useExecutionStore.getState().drawerExpanded).toBe(true);
+  });
+
+  it("setDrawerExpanded sets the flag explicitly", () => {
+    useExecutionStore.getState().setDrawerExpanded(false);
+    expect(useExecutionStore.getState().drawerExpanded).toBe(false);
+  });
+
+  it("is preserved across startExecution and reset (UI preference, not lifecycle state)", () => {
+    useExecutionStore.getState().setDrawerExpanded(false);
+    useExecutionStore.getState().startExecution("exec-1");
+    expect(useExecutionStore.getState().drawerExpanded).toBe(false);
+    useExecutionStore.getState().reset();
+    expect(useExecutionStore.getState().drawerExpanded).toBe(false);
+  });
+});

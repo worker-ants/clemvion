@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useAssistantStore } from "@/lib/stores/assistant-store";
@@ -32,6 +32,7 @@ import { useT, useLocale } from "@/lib/i18n";
 import { translateGraphWarning } from "@/lib/i18n/backend-labels";
 import { useHasRole } from "@/components/auth/role-gate";
 import { executionsApi } from "@/lib/api/executions";
+import { timeAgo } from "@/lib/utils/date";
 
 export function EditorToolbar() {
   const t = useT();
@@ -72,7 +73,49 @@ export function EditorToolbar() {
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
   const [runWithInputOpen, setRunWithInputOpen] = useState(false);
   const [jsonInput, setJsonInput] = useState("{}");
+  const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  // §2.2 검증 — 제출 시점뿐 아니라 입력 중 실시간으로 JSON 유효성을 평가한다.
+  // 유효하면 null, 아니면 파서 에러 메시지. 빈 입력은 "필요" 로 간주(유효치 않음).
+  const jsonError = useMemo<string | null>(() => {
+    const trimmed = jsonInput.trim();
+    if (trimmed === "") return t("editor.runWithInputEmpty");
+    try {
+      JSON.parse(trimmed);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : t("editor.invalidJsonInput");
+    }
+  }, [jsonInput, t]);
+
+  // §2.2 히스토리 로드 — 다이얼로그에서 "히스토리에서 불러오기" 를 펼쳤을 때만
+  // 워크플로의 최근 실행을 조회한다 (기존 GET /executions/workflow/:id 재사용).
+  const historyQuery = useQuery({
+    queryKey: ["editor-run-history", workflowId],
+    queryFn: () =>
+      executionsApi.getByWorkflow(workflowId as string, {
+        limit: 10,
+        sort: "started_at",
+        order: "desc",
+      }),
+    enabled: !!workflowId && runWithInputOpen && historyPickerOpen,
+  });
+
+  // 선택한 과거 실행의 입력 데이터를 textarea 로 적재한다 (상세 조회로 inputData 확보).
+  const handleLoadFromHistory = useCallback(
+    async (id: string) => {
+      try {
+        const detail = await executionsApi.getById(id);
+        setJsonInput(JSON.stringify(detail.inputData ?? {}, null, 2));
+        setHistoryPickerOpen(false);
+      } catch (error) {
+        console.error("Load from history failed:", error);
+        toast.error(t("editor.historyLoadFailed"));
+      }
+    },
+    [t],
+  );
 
   const runDropdownRef = useRef<HTMLDivElement>(null);
   const moreDropdownRef = useRef<HTMLDivElement>(null);
@@ -147,6 +190,7 @@ export function EditorToolbar() {
       const { executionId } = (response.data as { data: { executionId: string } }).data;
       startExecution(executionId);
       setRunWithInputOpen(false);
+      setHistoryPickerOpen(false);
       setJsonInput("{}");
     } catch (error) {
       if (error instanceof SyntaxError) {
@@ -379,6 +423,7 @@ export function EditorToolbar() {
                 size="sm"
                 className="h-8 w-6 rounded-l-none border-l border-l-[hsl(var(--primary-foreground)/0.2)] px-0"
                 disabled={isRunning || !workflowId}
+                aria-label={t("editor.runOptions")}
                 onClick={() => setRunDropdownOpen((prev) => !prev)}
               >
                 <ChevronDown size={12} />
@@ -478,21 +523,81 @@ export function EditorToolbar() {
       {runWithInputOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h3 className="mb-4 text-sm font-semibold text-[hsl(var(--card-foreground))]">
-              {t("editor.runWithInputTitle")}
-            </h3>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[hsl(var(--card-foreground))]">
+                {t("editor.runWithInputTitle")}
+              </h3>
+              {/* §2.2 히스토리 로드 — 이전 실행의 입력 데이터 불러오기 */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={() => setHistoryPickerOpen((prev) => !prev)}
+              >
+                <History size={13} />
+                {t("editor.loadFromHistory")}
+              </Button>
+            </div>
+
+            {historyPickerOpen && (
+              <div className="mb-3 max-h-44 overflow-y-auto rounded-md border border-[hsl(var(--border))]">
+                {historyQuery.isLoading ? (
+                  <div className="flex items-center justify-center gap-2 p-3 text-xs text-[hsl(var(--muted-foreground))]">
+                    <Loader2 size={13} className="animate-spin" />
+                    {t("common.loading")}
+                  </div>
+                ) : historyQuery.data && historyQuery.data.data.length > 0 ? (
+                  historyQuery.data.data.map((ex) => (
+                    <button
+                      key={ex.id}
+                      className="flex w-full items-center justify-between gap-2 border-b border-[hsl(var(--border))] px-3 py-2 text-left text-xs last:border-b-0 hover:bg-[hsl(var(--accent))]"
+                      onClick={() => void handleLoadFromHistory(ex.id)}
+                    >
+                      <span className="text-[hsl(var(--foreground))]">
+                        {t(`executions.triggerSource.${ex.triggerSource}`)}
+                      </span>
+                      <span className="text-[hsl(var(--muted-foreground))]">
+                        {timeAgo(ex.startedAt, locale)}
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="p-3 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                    {t("editor.runHistoryEmpty")}
+                  </div>
+                )}
+              </div>
+            )}
+
             <textarea
-              className="mb-4 h-40 w-full resize-none rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--background))] p-3 font-mono text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+              aria-invalid={jsonError != null}
+              className={`mb-1 h-40 w-full resize-none rounded-md border bg-[hsl(var(--background))] p-3 font-mono text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 ${
+                jsonError != null
+                  ? "border-red-500 focus:ring-red-500"
+                  : "border-[hsl(var(--input))] focus:ring-[hsl(var(--ring))]"
+              }`}
               placeholder={t("editor.runWithInputPlaceholder")}
               value={jsonInput}
               onChange={(e) => setJsonInput(e.target.value)}
             />
+            {/* §2.2 검증 — 실시간 JSON 유효성 피드백 */}
+            <p
+              role={jsonError != null ? "alert" : undefined}
+              className={`mb-4 min-h-[1rem] text-xs ${
+                jsonError != null
+                  ? "text-red-500"
+                  : "text-[hsl(var(--muted-foreground))]"
+              }`}
+            >
+              {jsonError != null ? jsonError : t("editor.jsonValid")}
+            </p>
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   setRunWithInputOpen(false);
+                  setHistoryPickerOpen(false);
                   setJsonInput("{}");
                 }}
               >
@@ -500,7 +605,8 @@ export function EditorToolbar() {
               </Button>
               <Button
                 size="sm"
-                disabled={isRunning}
+                data-testid="run-with-input-submit"
+                disabled={isRunning || jsonError != null}
                 onClick={() => void handleRunWithInput()}
               >
                 <Play size={14} className="mr-1.5" />

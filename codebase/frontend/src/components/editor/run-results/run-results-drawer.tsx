@@ -75,7 +75,10 @@ export function RunResultsDrawer() {
   const t = useT();
   const params = useParams();
   const workflowId = params?.id as string | undefined;
-  const [expanded, setExpanded] = useState(true);
+  // 펼침 상태는 store 로 승격 — §10.12 Ctrl+Shift+R 단축키와 헤더 셰브론이
+  // 동일 상태를 토글한다 (옛 로컬 useState 는 키보드 핸들러에서 접근 불가).
+  const expanded = useExecutionStore((s) => s.drawerExpanded);
+  const setExpanded = useExecutionStore((s) => s.setDrawerExpanded);
   const [panelHeight, setPanelHeight] = useState(getStoredHeight);
   const [timelineWidth, setTimelineWidth] = useState(getStoredTimelineWidth);
   const isDragging = useRef(false);
@@ -331,7 +334,10 @@ export function RunResultsDrawer() {
     (waitingInteractionType === "ai_conversation" ||
       waitingInteractionType === "ai_form_render");
   return (
-    <div className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))]">
+    <div
+      data-run-results-drawer
+      className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))]"
+    >
       {/* Resize handle */}
       {expanded && (
         <div
