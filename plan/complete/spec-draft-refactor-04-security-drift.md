@@ -2,7 +2,18 @@
 worktree: refactor-04-security-286de9
 started: 2026-06-12
 owner: project-planner
+completed: 2026-06-13
+spec_impact:
+  - spec/5-system/1-auth.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/4-nodes/1-logic/8-filter.md
+  - spec/4-nodes/5-data/1-transform.md
+  - spec/4-nodes/1-logic/1-if-else.md
+  - spec/conventions/swagger.md
+  - spec/4-nodes/5-data/2-code.md
 ---
+
+> **완료 (2026-06-13)**: 본 draft 의 6건 SPEC-DRIFT 정정은 PR #571 로 spec 본문에 모두 반영·머지됨. stale in-progress 정리 차원에서 complete/ 이동 (audit 액션 구현 PR 에 동봉).
 
 # Spec draft — refactor-04-security SPEC-DRIFT 정정
 

@@ -7,12 +7,15 @@ import {
 import * as bcrypt from 'bcrypt';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import type { JwtPayload } from '../../common/decorators';
 import type { User } from './entities/user.entity';
 
 describe('UsersController', () => {
   let controller: UsersController;
   let service: UsersService;
+  let auditLogsService: AuditLogsService;
 
   const mockUser: Partial<User> = {
     id: 'user-uuid',
@@ -43,11 +46,16 @@ describe('UsersController', () => {
             update: jest.fn(),
           },
         },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn() },
+        },
       ],
     }).compile();
 
     controller = module.get<UsersController>(UsersController);
     service = module.get<UsersService>(UsersService);
+    auditLogsService = module.get<AuditLogsService>(AuditLogsService);
   });
 
   it('should be defined', () => {
@@ -201,6 +209,32 @@ describe('UsersController', () => {
         bcrypt.compare(strongNewPassword, patch.passwordHash as string),
       ).resolves.toBe(true);
       expect(result).toEqual({ data: { success: true } });
+
+      // [Spec Auth §4.1 / Rationale 4.1.B] user.password_changed 를 액터의 현재
+      // 세션 workspaceId 에 귀속해 기록한다.
+      expect(auditLogsService.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-uuid',
+        userId: 'user-uuid',
+        action: AUDIT_ACTIONS.USER_PASSWORD_CHANGED,
+        resourceType: 'user',
+        resourceId: 'user-uuid',
+      });
+    });
+
+    it('should not record an audit log when password change fails', async () => {
+      const userWithHash = {
+        ...mockUser,
+        passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
+      } as User;
+      jest.spyOn(service, 'findById').mockResolvedValue(userWithHash);
+
+      await expect(
+        controller.changePassword(payload, {
+          currentPassword: 'WrongPass1!',
+          newPassword: strongNewPassword,
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(auditLogsService.record).not.toHaveBeenCalled();
     });
 
     it('should reject when current password does not match', async () => {

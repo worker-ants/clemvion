@@ -480,17 +480,20 @@ describe('WebAuthnService', () => {
     it('nulls webauthn_recovery_codes when last credential removed', async () => {
       credentialRepo.findOne.mockResolvedValue({ id: 'cred-1', userId });
       credentialRepo.count.mockResolvedValue(0); // after delete
-      await service.deleteCredential(userId, 'cred-1');
+      const result = await service.deleteCredential(userId, 'cred-1');
       expect(usersService.update).toHaveBeenCalledWith(userId, {
         webauthnRecoveryCodes: null,
       });
+      // 호출자(controller)가 2fa_disabled 감사 details 에 쓰는 remaining count.
+      expect(result).toEqual({ remaining: 0 });
     });
 
     it('keeps recovery codes when other credentials remain', async () => {
       credentialRepo.findOne.mockResolvedValue({ id: 'cred-1', userId });
       credentialRepo.count.mockResolvedValue(1); // after delete
-      await service.deleteCredential(userId, 'cred-1');
+      const result = await service.deleteCredential(userId, 'cred-1');
       expect(usersService.update).not.toHaveBeenCalled();
+      expect(result).toEqual({ remaining: 1 });
     });
 
     it('throws NotFound for other user credential (enumeration block)', async () => {

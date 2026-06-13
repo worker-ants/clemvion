@@ -359,6 +359,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 워크스페이스 | `workspace.transfer_ownership` |
 | 실행 (재실행) | `execution.re_run` |
 | 설정 | `auth_config.create`, `auth_config.update`, `auth_config.delete`, `auth_config.regenerate`, `auth_config.reveal` |
+| 인증 (워크스페이스 컨텍스트) | `user.password_changed`, `user.2fa_enabled`, `user.2fa_disabled` — 액터의 현재 세션 `workspaceId` 에 귀속, controller 경계 기록 (`users.controller`·`auth.controller`·`webauthn.controller`). 상세 [data-flow §1.1](../data-flow/1-audit.md) + §Rationale 4.1.B |
 
 > **읽기측 계약 — `action` 은 닫힌 enum 이 아니다.** 쓰기측은 위 `AUDIT_ACTIONS` union 으로 타입 강제되지만, `AuditLog.action` 자체는 **DB 자유 문자열 컬럼**이다 (application 레벨 union 으로만 좁히고 DB CHECK 는 두지 않는다 — 액션 추가가 잦아 마이그레이션 비용을 피하기 위함, [data-flow §1.1](../data-flow/1-audit.md)). audit 불변 원칙상 과거 row 에는 현재 union 밖의 **레거시 값이 존재할 수 있다** (예: cross-audit G-02 이전 `execution.re_run` 의 구 표기 `re_run_initiated` — 신규 row 부터 정정됐고 기존 row 는 그대로 보존). 따라서 조회 API 응답(`AuditLogDto.action`)의 소비자는 `action` 을 닫힌 enum 으로 단정하지 말고 union 밖 값을 graceful 하게 처리한다 (`AuditLogDto.action` 의 OpenAPI 설명도 동일 계약을 명시).
 
@@ -366,7 +367,6 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 | 카테고리 | Planned action |
 |----------|------|
-| 인증 (워크스페이스 컨텍스트) | `user.password_changed`, `user.2fa_enabled`, `user.2fa_disabled` |
 | 워크스페이스 | `workspace.created`, `workspace.updated`, `workspace.deleted` |
 | 멤버 | `member.invited`, `member.role_changed`, `member.removed` |
 | 워크플로우 | `workflow.created`, `workflow.updated`, `workflow.deleted`, `workflow.executed` |
