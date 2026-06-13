@@ -255,4 +255,57 @@ describe('SessionsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('revokeAllFamilies (refactor 04 A-1 — 비밀번호 변경 후)', () => {
+    it('revokes all active families and records a bulk session_revoked', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'a@b.c',
+      } as never);
+      repo.update.mockResolvedValue({ affected: 4 });
+
+      const result = await service.revokeAllFamilies('user-1', {
+        ip: '9.9.9.9',
+        userAgent: 'agent-x',
+      });
+
+      expect(result.revoked).toBe(4);
+      // 현재 family 제외 없이 전부 revoke — userId + isRevoked:false 조건
+      const [criteria, patch] = repo.update.mock.calls[0];
+      expect((criteria as { userId: string }).userId).toBe('user-1');
+      expect((criteria as { isRevoked: boolean }).isRevoked).toBe(false);
+      expect((patch as { isRevoked: boolean }).isRevoked).toBe(true);
+      // bulk → familyId=null 로 session_revoked 기록
+      expect(loginHistory.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          event: 'session_revoked',
+          familyId: null,
+          ip: '9.9.9.9',
+          userAgent: 'agent-x',
+        }),
+      );
+    });
+
+    it('does not record session_revoked when nothing was revoked', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'a@b.c',
+      } as never);
+      repo.update.mockResolvedValue({ affected: 0 });
+
+      const result = await service.revokeAllFamilies('user-1', {});
+
+      expect(result.revoked).toBe(0);
+      expect(loginHistory.record).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException when user is missing', async () => {
+      usersService.findById.mockResolvedValue(null as never);
+      await expect(service.revokeAllFamilies('ghost', {})).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+  });
 });

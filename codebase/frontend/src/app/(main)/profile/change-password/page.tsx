@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, setAccessToken } from "@/lib/api/client";
 import { axiosMessage } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,10 +69,16 @@ function ChangePasswordPageInner() {
   async function onSubmit(data: FormValues) {
     setIsPending(true);
     try {
-      await apiClient.post("/users/me/change-password", {
-        currentPassword: data.currentPassword,
-        newPassword: data.newPassword,
-      });
+      // 변경 성공 시 서버가 전 세션 revoke + 현재 디바이스 재발급 — 새 access token 으로
+      // in-memory token 을 교체한다(refresh 쿠키는 Set-Cookie 로 자동 회전). 인증 Rationale 2.3.C.
+      const res = await apiClient.post<{ data: { accessToken: string } }>(
+        "/users/me/change-password",
+        {
+          currentPassword: data.currentPassword,
+          newPassword: data.newPassword,
+        },
+      );
+      setAccessToken(res.data.data.accessToken);
       setIsPending(false);
       toast.success(t("profile.changePasswordSuccess"));
       router.push("/profile");

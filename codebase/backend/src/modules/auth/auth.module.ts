@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -44,7 +44,9 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     }),
     TypeOrmModule.forFeature([RefreshToken, AuthOAuthState, LoginHistory]),
     BullModule.registerQueue({ name: LOGIN_HISTORY_PRUNER_QUEUE }),
-    UsersModule,
+    // forwardRef: UsersController(UsersModule)가 비밀번호 변경 시 세션 회전을 위해
+    // AuthService 를 주입한다(refactor 04 A-1) — AuthModule↔UsersModule 순환을 forwardRef 로 해소.
+    forwardRef(() => UsersModule),
     WorkspacesModule,
     MailModule,
     // user.* 인증 감사 이벤트(2fa enable/disable·WebAuthn 등록/삭제)를

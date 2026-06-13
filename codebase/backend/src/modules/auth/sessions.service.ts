@@ -172,6 +172,46 @@ export class SessionsService {
   }
 
   /**
+   * 사용자의 **모든** 활성 family 를 revoke 한다 (refactor 04 A-1 — 비밀번호 변경 후 호출).
+   *
+   * 비밀번호 변경(`POST /users/me/change-password`)은 변경 직전 `currentPassword` 로 본인
+   * 확인이 끝났으므로 별도 재인증(`verifyReauth`)을 요구하지 않는다 — 현재 family 제외 없이
+   * 전부 revoke 하고, 호출자(controller)가 현재 디바이스에 새 세션을 재발급한다(Rationale 2.3.C).
+   * revoke 가 1건 이상이면 `login_history` 에 `session_revoked`(bulk, `familyId=null`) 를 기록해
+   * data-flow §1.2(session_revoked emitter = SessionsService) 일관성을 유지한다.
+   *
+   * @returns `{ revoked }` — revoke 된 row 수.
+   */
+  async revokeAllFamilies(
+    userId: string,
+    ctx: AuthContext,
+  ): Promise<{ revoked: number }> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException({ code: 'UNAUTHENTICATED' });
+    }
+
+    const result = await this.refreshTokenRepository.update(
+      { userId, isRevoked: false },
+      { isRevoked: true },
+    );
+
+    const revoked = result.affected ?? 0;
+    if (revoked > 0) {
+      // bulk revoke 는 단일 familyId 가 없으므로 familyId=null 로 기록(revokeOtherFamilies 와 동일).
+      await this.loginHistory.record({
+        userId,
+        email: user.email,
+        event: 'session_revoked',
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        familyId: null,
+      });
+    }
+    return { revoked };
+  }
+
+  /**
    * 사용자 유형별 본인 재인증.
    *
    * 우선순위 (위에서부터 매치):

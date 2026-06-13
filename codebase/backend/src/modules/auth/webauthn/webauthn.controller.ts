@@ -34,6 +34,7 @@ import { UsersService } from '../../users/users.service';
 import { AuthService } from '../auth.service';
 import { AccessTokenDto } from '../dto/responses/auth-response.dto';
 import { extractClientIp } from '../utils/client-ip';
+import { authContextFromRequest } from '../utils/auth-context';
 import { setRefreshTokenCookie } from '../utils/refresh-cookie';
 import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../../audit-logs/audit-action.const';
@@ -57,14 +58,6 @@ import {
 } from './dto/responses/webauthn-response.dto';
 
 import Express from 'express';
-
-function authContextFromRequest(req: Express.Request) {
-  const headers = req.headers ?? {};
-  return {
-    ip: extractClientIp(req),
-    userAgent: headers['user-agent'] ?? null,
-  };
-}
 
 @ApiTags('Auth')
 @ApiBearerAuth('access-token')
@@ -137,6 +130,7 @@ export class WebAuthnController {
   async webauthnRegisterVerify(
     @CurrentUser() user: JwtPayload,
     @Body() dto: WebAuthnRegisterVerifyDto,
+    @Req() req: Express.Request,
   ) {
     const result = await this.webauthnService.verifyRegistration(
       user.sub,
@@ -146,7 +140,7 @@ export class WebAuthnController {
     );
     // [Spec Auth §4.1 / Rationale 4.1.B] WebAuthn credential 등록 = 2FA enabled.
     // 액터의 현재 세션 workspaceId 에 귀속. 첫 등록 여부는 복구 코드 발급
-    // 여부(첫 등록에만 반환)로 판별한다.
+    // 여부(첫 등록에만 반환)로 판별한다. ipAddress 동반(포렌식, data-flow §1.1).
     await this.auditLogsService.record({
       workspaceId: user.workspaceId,
       userId: user.sub,
@@ -158,6 +152,7 @@ export class WebAuthnController {
         credentialId: result.credentialUuid,
         firstCredential: result.webauthnRecoveryCodes.length > 0,
       },
+      ipAddress: extractClientIp(req) ?? undefined,
     });
     return { data: result };
   }
@@ -334,6 +329,7 @@ export class WebAuthnController {
   async webauthnDelete(
     @CurrentUser() user: JwtPayload,
     @Param('id', new ParseUUIDPipe()) credentialUuid: string,
+    @Req() req: Express.Request,
   ) {
     const { remaining } = await this.webauthnService.deleteCredential(
       user.sub,
@@ -341,6 +337,7 @@ export class WebAuthnController {
     );
     // [Spec Auth §4.1 / Rationale 4.1.B] WebAuthn credential 삭제 = 2FA disabled.
     // 액터의 현재 세션 workspaceId 에 귀속. remaining 으로 2FA 완전 해제 여부 표기.
+    // ipAddress 동반(포렌식, data-flow §1.1).
     await this.auditLogsService.record({
       workspaceId: user.workspaceId,
       userId: user.sub,
@@ -352,6 +349,7 @@ export class WebAuthnController {
         credentialId: credentialUuid,
         remainingCredentials: remaining,
       },
+      ipAddress: extractClientIp(req) ?? undefined,
     });
   }
 

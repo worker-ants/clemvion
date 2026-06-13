@@ -22,6 +22,9 @@ describe('WebAuthnController (audit)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // 테스트 격리: CF 신뢰 env leak 시 extractClientIp 가 cf-connecting-ip 를 우선해
+    // ipAddress 단언이 깨질 수 있으므로 off(부재) 상태로 고정한다.
+    delete process.env.TRUST_CF_CONNECTING_IP;
 
     webauthnService = {
       verifyRegistration: jest.fn(),
@@ -45,20 +48,31 @@ describe('WebAuthnController (audit)', () => {
     );
   });
 
+  // extractClientIp: CF-신뢰 off 기본 → X-Forwarded-For 첫 IP.
+  const mockReq = {
+    headers: { 'x-forwarded-for': '7.7.7.7' },
+    ip: '7.7.7.7',
+    socket: {},
+  } as never;
+
   describe('webauthnRegisterVerify', () => {
     // [Spec Auth §4.1 / Rationale 4.1.B] credential 등록 = user.2fa_enabled.
-    it('records user.2fa_enabled with firstCredential=true on first registration', async () => {
+    it('records user.2fa_enabled with firstCredential=true (and ipAddress) on first registration', async () => {
       webauthnService.verifyRegistration.mockResolvedValue({
         verified: true,
         credentialUuid: 'cred-uuid',
         webauthnRecoveryCodes: ['a', 'b', 'c'],
       });
 
-      await controller.webauthnRegisterVerify(payload, {
-        optionsToken: 'tok',
-        response: {} as never,
-        deviceName: 'Yubikey',
-      } as never);
+      await controller.webauthnRegisterVerify(
+        payload,
+        {
+          optionsToken: 'tok',
+          response: {} as never,
+          deviceName: 'Yubikey',
+        } as never,
+        mockReq,
+      );
 
       expect(auditLogsService.record).toHaveBeenCalledWith({
         workspaceId: 'ws-uuid',
@@ -71,6 +85,7 @@ describe('WebAuthnController (audit)', () => {
           credentialId: 'cred-uuid',
           firstCredential: true,
         },
+        ipAddress: '7.7.7.7',
       });
     });
 
@@ -81,10 +96,14 @@ describe('WebAuthnController (audit)', () => {
         webauthnRecoveryCodes: [],
       });
 
-      await controller.webauthnRegisterVerify(payload, {
-        optionsToken: 'tok',
-        response: {} as never,
-      } as never);
+      await controller.webauthnRegisterVerify(
+        payload,
+        {
+          optionsToken: 'tok',
+          response: {} as never,
+        } as never,
+        mockReq,
+      );
 
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -100,10 +119,14 @@ describe('WebAuthnController (audit)', () => {
       );
 
       await expect(
-        controller.webauthnRegisterVerify(payload, {
-          optionsToken: 'tok',
-          response: {} as never,
-        } as never),
+        controller.webauthnRegisterVerify(
+          payload,
+          {
+            optionsToken: 'tok',
+            response: {} as never,
+          } as never,
+          mockReq,
+        ),
       ).rejects.toThrow(BadRequestException);
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });
@@ -114,7 +137,7 @@ describe('WebAuthnController (audit)', () => {
     it('records user.2fa_disabled with remaining count', async () => {
       webauthnService.deleteCredential.mockResolvedValue({ remaining: 0 });
 
-      await controller.webauthnDelete(payload, 'cred-uuid');
+      await controller.webauthnDelete(payload, 'cred-uuid', mockReq);
 
       expect(webauthnService.deleteCredential).toHaveBeenCalledWith(
         'user-uuid',
@@ -131,13 +154,14 @@ describe('WebAuthnController (audit)', () => {
           credentialId: 'cred-uuid',
           remainingCredentials: 0,
         },
+        ipAddress: '7.7.7.7',
       });
     });
 
     it('reports remaining authenticators when others persist', async () => {
       webauthnService.deleteCredential.mockResolvedValue({ remaining: 2 });
 
-      await controller.webauthnDelete(payload, 'cred-uuid');
+      await controller.webauthnDelete(payload, 'cred-uuid', mockReq);
 
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -153,7 +177,7 @@ describe('WebAuthnController (audit)', () => {
       );
 
       await expect(
-        controller.webauthnDelete(payload, 'cred-uuid'),
+        controller.webauthnDelete(payload, 'cred-uuid', mockReq),
       ).rejects.toThrow(NotFoundException);
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });

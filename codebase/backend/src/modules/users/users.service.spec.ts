@@ -1,14 +1,28 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import {
+  BadRequestException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
 
 describe('UsersService', () => {
   let service: UsersService;
-  let repo: { findOne: jest.Mock };
+  let repo: {
+    findOne: jest.Mock;
+    update: jest.Mock;
+    findOneOrFail: jest.Mock;
+  };
 
   beforeEach(async () => {
-    repo = { findOne: jest.fn() };
+    repo = {
+      findOne: jest.fn(),
+      update: jest.fn(),
+      findOneOrFail: jest.fn(),
+    };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
@@ -33,6 +47,75 @@ describe('UsersService', () => {
       repo.findOne.mockResolvedValue(null);
       const result = await service.findByOauth('github', 'gh-1');
       expect(result).toBeNull();
+    });
+  });
+
+  describe('changePassword (refactor 04 B-2 — SRP)', () => {
+    const strongNewPassword = 'N3wP@ssw0rd!';
+
+    async function userWithHash(): Promise<User> {
+      return {
+        id: 'user-uuid',
+        email: 'test@example.com',
+        passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
+      } as User;
+    }
+
+    it('verifies current password, hashes new password and persists it', async () => {
+      const user = await userWithHash();
+      repo.findOne.mockResolvedValue(user);
+      repo.findOneOrFail.mockResolvedValue(user);
+
+      await service.changePassword(
+        'user-uuid',
+        'OldP@ssw0rd1',
+        strongNewPassword,
+      );
+
+      expect(repo.update).toHaveBeenCalledTimes(1);
+      const [userId, patch] = repo.update.mock.calls[0];
+      expect(userId).toBe('user-uuid');
+      expect(patch.passwordHash).toBeDefined();
+      expect(patch.passwordHash).not.toBe(user.passwordHash);
+      await expect(
+        bcrypt.compare(strongNewPassword, patch.passwordHash as string),
+      ).resolves.toBe(true);
+    });
+
+    it('throws NotFoundException when user missing', async () => {
+      repo.findOne.mockResolvedValue(null);
+      await expect(
+        service.changePassword('user-uuid', 'whatever', strongNewPassword),
+      ).rejects.toThrow(NotFoundException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException for OAuth-only account (no passwordHash)', async () => {
+      repo.findOne.mockResolvedValue({
+        id: 'user-uuid',
+        email: 'oauth@example.com',
+        passwordHash: null,
+      } as User);
+      await expect(
+        service.changePassword('user-uuid', 'anything', strongNewPassword),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException when current password does not match', async () => {
+      repo.findOne.mockResolvedValue(await userWithHash());
+      await expect(
+        service.changePassword('user-uuid', 'WrongPass1!', strongNewPassword),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when new password violates strength policy', async () => {
+      repo.findOne.mockResolvedValue(await userWithHash());
+      await expect(
+        service.changePassword('user-uuid', 'OldP@ssw0rd1', 'alllowercase'),
+      ).rejects.toThrow(BadRequestException);
+      expect(repo.update).not.toHaveBeenCalled();
     });
   });
 });

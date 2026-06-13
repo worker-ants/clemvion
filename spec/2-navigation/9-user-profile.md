@@ -106,7 +106,7 @@ pending_plans:
 └──────────────────────────────────────────────────────────────┘
 ```
 
-비밀번호 변경 페이지는 diff 미리보기 모달을 생략한다(마스킹된 값이라 무의미). currentPassword 가 1차 인증 역할을 한다. 성공 시 `/profile` 로 리다이렉트 + 성공 토스트.
+비밀번호 변경 페이지는 diff 미리보기 모달을 생략한다(마스킹된 값이라 무의미). currentPassword 가 1차 인증 역할을 한다. 변경 성공 시 서버가 사용자의 **전 세션을 revoke 하고 현재 디바이스에 새 세션을 재발급**하며([인증 §2.3 / Rationale 2.3.C](../5-system/1-auth.md#23-세션-정책)) 응답 `{ accessToken }` 으로 새 access token 을 내려준다 — 클라이언트는 이 토큰으로 in-memory access token(`auth-store`)을 교체하고(refresh 쿠키는 `Set-Cookie` 로 자동 회전) `/profile` 로 리다이렉트 + 성공 토스트를 표시한다. 재로그인 화면으로 보내지 않는다(현재 디바이스는 로그인 유지).
 
 ### 2.1 프로필 필드
 
@@ -300,7 +300,7 @@ pending_plans:
 | GET | /api/users/me | 내 프로필 조회 |
 | PATCH | /api/users/me | 프로필 수정 |
 | ~~POST~~ | ~~/api/users/me/avatar~~ | 아바타 **이미지 파일** 업로드 — **미구현 (Planned)**. 현재는 `PATCH /api/users/me` 의 `avatarUrl` 로 URL 설정/제거만 가능 |
-| POST | /api/users/me/change-password | 비밀번호 변경 |
+| POST | /api/users/me/change-password | 비밀번호 변경. 성공 시 전 세션 revoke + 현재 디바이스 새 세션 재발급 — `{ accessToken }` 반환 + refresh 쿠키 회전 ([인증 §2.3 / Rationale 2.3.C](../5-system/1-auth.md#23-세션-정책)) |
 | POST | /api/users/me/enable-2fa | 2FA TOTP 활성화 시작 (canonical: `POST /api/auth/2fa/setup` — [인증 spec §5](../5-system/1-auth.md#5-api-엔드포인트)) |
 | POST | /api/users/me/confirm-2fa | 2FA TOTP 활성화 verify (canonical: `POST /api/auth/2fa/verify`) |
 | — | /api/auth/2fa/webauthn/* | Passkey · 보안 키 등록·인증·관리. canonical 정의는 [인증 spec §5](../5-system/1-auth.md#5-api-엔드포인트) |
