@@ -7,7 +7,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, QueryFailedError, Repository } from 'typeorm';
 import { WorkflowVersion } from './entities/workflow-version.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
-import { WorkflowVersionListItemDto } from './dto/responses/workflow-version-response.dto';
+
+/**
+ * 목록 조회 반환 타입 — `snapshot` 필드를 제외해 호출부에서 컴파일 타임에 접근 차단.
+ * 엔티티 필드 타입(Date 등)을 그대로 유지해 TypeORM 반환값과 호환 유지.
+ * (#4 — SUMMARY warning: 타입-런타임 불일치 수정)
+ */
+export type WorkflowVersionListItem = Omit<WorkflowVersion, 'snapshot'>;
 
 @Injectable()
 export class WorkflowVersionsService {
@@ -39,11 +45,9 @@ export class WorkflowVersionsService {
   // vs §7.2(상세 "+ snapshot 포함") 의 대비 구조가 '목록 비포함' 의도를 명시하며,
   // 목록 UI(version-history-panel)도 메타만 소비한다. snapshot 은 §7.2 상세
   // (findOne) / §6 복원에서만 필요. (m-3 — 목록 호출당 전체 snapshot over-fetch 제거)
-  // 반환 타입을 WorkflowVersionListItemDto[] 로 좁혀 `snapshot` 접근을 컴파일 타임에 차단
-  // (#4 — SUMMARY warning: 타입-런타임 불일치 수정).
-  async findByWorkflow(
-    workflowId: string,
-  ): Promise<WorkflowVersionListItemDto[]> {
+  // 반환 타입을 WorkflowVersionListItem(Omit<WorkflowVersion,'snapshot'>) 로 좁혀
+  // `snapshot` 접근을 컴파일 타임에 차단 (#4 — SUMMARY warning: 타입-런타임 불일치 수정).
+  async findByWorkflow(workflowId: string): Promise<WorkflowVersionListItem[]> {
     return this.workflowVersionRepository.find({
       where: { workflowId },
       order: { version: 'DESC' },
