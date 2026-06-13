@@ -19,6 +19,7 @@ import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
 import { LoginHistoryService } from './login-history.service';
+import { SessionsService } from './sessions.service';
 
 function sha256(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -41,6 +42,7 @@ describe('AuthService', () => {
   };
   let mockDataSource: { transaction: jest.Mock };
   let loginHistoryService: { record: jest.Mock; findForUser: jest.Mock };
+  let sessionsService: { revokeAllFamilies: jest.Mock };
 
   const mockUser: Partial<User> = {
     id: 'user-uuid-1',
@@ -173,6 +175,13 @@ describe('AuthService', () => {
             pruneOlderThanRetention: jest.fn().mockResolvedValue(0),
           },
         },
+        {
+          // refactor 04 A-1 — AuthService.rotateSessionAfterPasswordChange 가 위임.
+          provide: SessionsService,
+          useValue: {
+            revokeAllFamilies: jest.fn().mockResolvedValue({ revoked: 0 }),
+          },
+        },
       ],
     }).compile();
 
@@ -185,6 +194,7 @@ describe('AuthService', () => {
     refreshTokenRepo = module.get(getRepositoryToken(RefreshToken));
     mockDataSource = module.get(DataSource);
     loginHistoryService = module.get(LoginHistoryService);
+    sessionsService = module.get(SessionsService);
   });
 
   it('should be defined', () => {
@@ -954,6 +964,35 @@ describe('AuthService', () => {
       await expect(service.verifyEmail('expired-token')).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('rotateSessionAfterPasswordChange (refactor 04 A-1 — 옵션 B)', () => {
+    it('revokes all families then issues a fresh session for the current device', async () => {
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        id: 'user-uuid-1',
+      } as User);
+      const ctx = { ip: '9.9.9.9', userAgent: 'agent-x' };
+
+      const tokens = await service.rotateSessionAfterPasswordChange(
+        'user-uuid-1',
+        ctx,
+      );
+
+      expect(sessionsService.revokeAllFamilies).toHaveBeenCalledWith(
+        'user-uuid-1',
+        ctx,
+      );
+      expect(tokens.accessToken).toBe('mock-access-token');
+      expect(tokens.refreshToken).toBeDefined();
+    });
+
+    it('throws UnauthorizedException when the user is missing', async () => {
+      usersService.findById.mockResolvedValue(null);
+      await expect(
+        service.rotateSessionAfterPasswordChange('ghost', {}),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });

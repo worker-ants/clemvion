@@ -23,8 +23,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
-    post: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi
+      .fn()
+      .mockResolvedValue({ data: { data: { accessToken: "new-access-token" } } }),
   },
+  setAccessToken: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -35,7 +38,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-import { apiClient } from "@/lib/api/client";
+import { apiClient, setAccessToken } from "@/lib/api/client";
 import { toast } from "sonner";
 import ChangePasswordPage from "../page";
 
@@ -110,6 +113,8 @@ describe("ChangePasswordPage", () => {
         "/users/me/change-password",
         { currentPassword: "old-pass", newPassword: "new-password-123" },
       );
+      // 응답의 새 access token 으로 in-memory token 교체 (세션 재발급, Rationale 2.3.C)
+      expect(setAccessToken).toHaveBeenCalledWith("new-access-token");
       expect(pushMock).toHaveBeenCalledWith("/profile");
       expect(toast.success).toHaveBeenCalled();
     });

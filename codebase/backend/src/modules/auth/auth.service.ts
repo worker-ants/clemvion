@@ -22,6 +22,7 @@ import { validatePasswordStrength } from '../../common/utils/password.util';
 import { LoginHistoryService } from './login-history.service';
 import { deriveDeviceLabel } from './utils/device-label';
 import type { AuthContext } from './types/auth-context';
+import { SessionsService } from './sessions.service';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -41,6 +42,7 @@ export class AuthService {
     private readonly webauthnService: WebAuthnService,
     private readonly dataSource: DataSource,
     private readonly loginHistory: LoginHistoryService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   // ========== REGISTER ==========
@@ -725,6 +727,31 @@ export class AuthService {
   }
 
   // ========== HELPERS ==========
+
+  /**
+   * 비밀번호 변경 후 세션 회전 (refactor 04 A-1 — 옵션 B). 인증 spec §2.3 / Rationale 2.3.C.
+   *
+   * 변경을 수행한 본인은 이미 `currentPassword` 로 재인증됐다는 전제에서:
+   *   1) 사용자의 **모든** 활성 family 를 revoke (탈취 가능한 구 refresh token 전부 무효화) +
+   *      `session_revoked`(bulk) 기록 — `SessionsService` 경유(data-flow §1.2 emitter 일관성).
+   *   2) 현재 디바이스에 새 세션(access + refresh) 재발급 — 표준 7일(`rememberMe=false`).
+   *      현재 family 를 식별할 수단이 없어(refresh 쿠키 Path `/api/auth` 한정) remember-me 미승계.
+   *
+   * @returns 재발급된 `{ accessToken, refreshToken }`. 호출자(UsersController)가 refresh 쿠키를
+   *   설정하고 accessToken 을 응답 본문으로 반환한다.
+   * @throws UnauthorizedException `UNAUTHENTICATED` — 사용자 없음.
+   */
+  async rotateSessionAfterPasswordChange(
+    userId: string,
+    ctx: AuthContext = {},
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    await this.sessionsService.revokeAllFamilies(userId, ctx);
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException({ code: 'UNAUTHENTICATED' });
+    }
+    return this.generateTokens(user, false, undefined, ctx);
+  }
 
   // Public entry point for OAuth sign-in — wraps the private token issuance
   // so other auth paths (email/password login, refresh) remain the only callers

@@ -4,11 +4,14 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   NotFoundException,
   Patch,
   Post,
-  UnauthorizedException,
+  Req,
+  Res,
   UseGuards,
+  forwardRef,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,33 +21,44 @@ import {
   ApiNotFoundResponse,
   ApiBadRequestResponse,
 } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { ApiOkWrappedResponse } from '../../common/swagger';
 import {
   PasswordChangeResultDto,
   UserProfileDto,
 } from './dto/responses/user-response.dto';
-import * as bcrypt from 'bcrypt';
 import { UsersService } from './users.service';
 import { CurrentUser } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { validatePasswordStrength } from '../../common/utils/password.util';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
-
-const BCRYPT_ROUNDS = 12;
+import { AuthService } from '../auth/auth.service';
+import { authContextFromRequest } from '../auth/utils/auth-context';
+import { setRefreshTokenCookie } from '../auth/utils/refresh-cookie';
+import Express from 'express';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
+  private readonly cookieDomain: string;
+
   constructor(
     private readonly usersService: UsersService,
     private readonly auditLogsService: AuditLogsService,
-  ) {}
+    // forwardRef: AuthModule↔UsersModule 순환 (refactor 04 A-1). 비밀번호 변경 후
+    // 전 세션 revoke + 현재 디바이스 세션 재발급을 위임한다.
+    @Inject(forwardRef(() => AuthService))
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {
+    this.cookieDomain =
+      this.configService.get<string>('app.cookieDomain') || '';
+  }
 
   @Get('me')
   @ApiOperation({
@@ -111,10 +125,10 @@ export class UsersController {
   @ApiOperation({
     summary: '현재 사용자 비밀번호 변경',
     description:
-      '현재 비밀번호가 일치해야 하며, 새 비밀번호는 기존 가입/재설정과 동일한 강도 정책을 따릅니다.',
+      '현재 비밀번호가 일치해야 하며, 새 비밀번호는 기존 가입/재설정과 동일한 강도 정책을 따릅니다. 변경 성공 시 전 세션을 revoke 하고 현재 디바이스에 새 세션을 재발급합니다 (새 access token 반환 + refresh 쿠키 회전, 인증 §2.3 / Rationale 2.3.C).',
   })
   @ApiOkWrappedResponse(PasswordChangeResultDto, {
-    description: '비밀번호 변경 성공',
+    description: '비밀번호 변경 성공 — 새 access token 반환',
   })
   @ApiBadRequestResponse({ description: '새 비밀번호 정책 위반' })
   @ApiUnauthorizedResponse({
@@ -124,49 +138,40 @@ export class UsersController {
   async changePassword(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: ChangePasswordDto,
+    @Req() req: Express.Request,
+    @Res({ passthrough: true }) res: Express.Response,
   ) {
-    const user = await this.usersService.findById(payload.sub);
-    if (!user) {
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'User not found',
-      });
-    }
-
-    if (!user.passwordHash) {
-      throw new UnauthorizedException({
-        code: 'INVALID_PASSWORD',
-        message: 'Current password is incorrect',
-      });
-    }
-
-    const matches = await bcrypt.compare(
+    // 도메인 로직(현재 비밀번호 검증·강도·해시·저장)은 service 로 이전 (refactor 04 B-2).
+    await this.usersService.changePassword(
+      payload.sub,
       dto.currentPassword,
-      user.passwordHash,
+      dto.newPassword,
     );
-    if (!matches) {
-      throw new UnauthorizedException({
-        code: 'INVALID_PASSWORD',
-        message: 'Current password is incorrect',
-      });
-    }
 
-    validatePasswordStrength(dto.newPassword);
+    // [Spec 인증 §2.3 / Rationale 2.3.C] 옵션 B — 전 세션 revoke + 현재 디바이스 재발급.
+    // 세션 회전·refresh 쿠키는 액터 컨텍스트(refresh 쿠키·workspaceId)가 controller 에만
+    // 있어 controller 책임으로 둔다.
+    const ctx = authContextFromRequest(req);
+    const tokens = await this.authService.rotateSessionAfterPasswordChange(
+      payload.sub,
+      ctx,
+    );
+    setRefreshTokenCookie(res, tokens.refreshToken, {
+      cookieDomain: this.cookieDomain,
+    });
 
-    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
-    await this.usersService.update(payload.sub, { passwordHash });
-
-    // [Spec Auth §4.1 / Rationale 4.1.B] 인증 세션에서 발생하므로 액터의 현재
-    // 세션 workspaceId 에 귀속한다 (audit_log.workspaceId non-nullable). record 는
-    // 내부적으로 실패를 삼켜 주 동작을 깨지 않는다.
+    // [Spec Auth §4.1 / Rationale 4.1.B] 액터의 현재 세션 workspaceId 에 귀속
+    // (audit_log.workspaceId non-nullable). ipAddress 동반(포렌식, data-flow §1.1).
+    // record 는 내부적으로 실패를 삼켜 주 동작을 깨지 않는다.
     await this.auditLogsService.record({
       workspaceId: payload.workspaceId,
       userId: payload.sub,
       action: AUDIT_ACTIONS.USER_PASSWORD_CHANGED,
       resourceType: 'user',
       resourceId: payload.sub,
+      ipAddress: ctx.ip ?? undefined,
     });
 
-    return { data: { success: true } };
+    return { data: { accessToken: tokens.accessToken } };
   }
 }

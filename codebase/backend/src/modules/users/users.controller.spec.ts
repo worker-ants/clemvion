@@ -1,14 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BadRequestException,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import { AuthService } from '../auth/auth.service';
 import type { JwtPayload } from '../../common/decorators';
 import type { User } from './entities/user.entity';
 
@@ -16,6 +13,7 @@ describe('UsersController', () => {
   let controller: UsersController;
   let service: UsersService;
   let auditLogsService: AuditLogsService;
+  let authService: AuthService;
 
   const mockUser: Partial<User> = {
     id: 'user-uuid',
@@ -44,11 +42,20 @@ describe('UsersController', () => {
           useValue: {
             findById: jest.fn(),
             update: jest.fn(),
+            changePassword: jest.fn(),
           },
         },
         {
           provide: AuditLogsService,
           useValue: { record: jest.fn() },
+        },
+        {
+          provide: AuthService,
+          useValue: { rotateSessionAfterPasswordChange: jest.fn() },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('') },
         },
       ],
     }).compile();
@@ -56,6 +63,7 @@ describe('UsersController', () => {
     controller = module.get<UsersController>(UsersController);
     service = module.get<UsersService>(UsersService);
     auditLogsService = module.get<AuditLogsService>(AuditLogsService);
+    authService = module.get<AuthService>(AuthService);
   });
 
   it('should be defined', () => {
@@ -184,116 +192,87 @@ describe('UsersController', () => {
 
   describe('changePassword', () => {
     const strongNewPassword = 'N3wP@ssw0rd!';
+    // extractClientIp: CF-신뢰 off 기본이라 X-Forwarded-For 첫 IP 를 읽는다.
+    const mockReq = {
+      headers: { 'user-agent': 'jest-agent', 'x-forwarded-for': '9.9.9.9' },
+      ip: '9.9.9.9',
+      socket: {},
+    } as never;
+    const mockRes = { cookie: jest.fn() } as never;
 
-    it('should hash and persist a new password when current password matches', async () => {
-      const userWithHash = {
-        ...mockUser,
-        passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
-      } as User;
-      jest.spyOn(service, 'findById').mockResolvedValue(userWithHash);
-      const updateSpy = jest
-        .spyOn(service, 'update')
-        .mockResolvedValue(userWithHash);
+    beforeEach(() => {
+      (mockRes as unknown as { cookie: jest.Mock }).cookie.mockClear();
+    });
 
-      const result = await controller.changePassword(payload, {
-        currentPassword: 'OldP@ssw0rd1',
-        newPassword: strongNewPassword,
+    it('delegates to UsersService, rotates session, sets cookie, audits with ipAddress, returns accessToken', async () => {
+      const changeSpy = jest
+        .spyOn(service, 'changePassword')
+        .mockResolvedValue(undefined);
+      const rotateSpy = jest
+        .spyOn(authService, 'rotateSessionAfterPasswordChange')
+        .mockResolvedValue({ accessToken: 'new-at', refreshToken: 'new-rt' });
+
+      const result = await controller.changePassword(
+        payload,
+        { currentPassword: 'OldP@ssw0rd1', newPassword: strongNewPassword },
+        mockReq,
+        mockRes,
+      );
+
+      // 도메인 로직은 service 위임 (refactor 04 B-2)
+      expect(changeSpy).toHaveBeenCalledWith(
+        'user-uuid',
+        'OldP@ssw0rd1',
+        strongNewPassword,
+      );
+      // 세션 회전 위임 (옵션 B, Rationale 2.3.C) — ctx 에 ip·userAgent 전달
+      expect(rotateSpy).toHaveBeenCalledWith('user-uuid', {
+        ip: '9.9.9.9',
+        userAgent: 'jest-agent',
       });
+      // refresh 쿠키 회전
+      expect(
+        (mockRes as unknown as { cookie: jest.Mock }).cookie,
+      ).toHaveBeenCalledTimes(1);
+      // 새 access token 반환
+      expect(result).toEqual({ data: { accessToken: 'new-at' } });
 
-      expect(updateSpy).toHaveBeenCalledTimes(1);
-      const [userId, patch] = updateSpy.mock.calls[0];
-      expect(userId).toBe('user-uuid');
-      expect(patch.passwordHash).toBeDefined();
-      expect(patch.passwordHash).not.toBe(userWithHash.passwordHash);
-      await expect(
-        bcrypt.compare(strongNewPassword, patch.passwordHash as string),
-      ).resolves.toBe(true);
-      expect(result).toEqual({ data: { success: true } });
-
-      // [Spec Auth §4.1 / Rationale 4.1.B] user.password_changed 를 액터의 현재
-      // 세션 workspaceId 에 귀속해 기록한다.
+      // [Spec Auth §4.1 / Rationale 4.1.B] 액터 세션 workspaceId 귀속 + ipAddress 동반(B-1)
       expect(auditLogsService.record).toHaveBeenCalledWith({
         workspaceId: 'ws-uuid',
         userId: 'user-uuid',
         action: AUDIT_ACTIONS.USER_PASSWORD_CHANGED,
         resourceType: 'user',
         resourceId: 'user-uuid',
+        ipAddress: '9.9.9.9',
       });
     });
 
-    it('should not record an audit log when password change fails', async () => {
-      const userWithHash = {
-        ...mockUser,
-        passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
-      } as User;
-      jest.spyOn(service, 'findById').mockResolvedValue(userWithHash);
+    it('does not rotate session or record audit when password change fails', async () => {
+      jest
+        .spyOn(service, 'changePassword')
+        .mockRejectedValue(
+          new UnauthorizedException({ code: 'INVALID_PASSWORD' }),
+        );
+      const rotateSpy = jest.spyOn(
+        authService,
+        'rotateSessionAfterPasswordChange',
+      );
 
       await expect(
-        controller.changePassword(payload, {
-          currentPassword: 'WrongPass1!',
-          newPassword: strongNewPassword,
-        }),
+        controller.changePassword(
+          payload,
+          { currentPassword: 'WrongPass1!', newPassword: strongNewPassword },
+          mockReq,
+          mockRes,
+        ),
       ).rejects.toThrow(UnauthorizedException);
+
+      expect(rotateSpy).not.toHaveBeenCalled();
       expect(auditLogsService.record).not.toHaveBeenCalled();
-    });
-
-    it('should reject when current password does not match', async () => {
-      const userWithHash = {
-        ...mockUser,
-        passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
-      } as User;
-      jest.spyOn(service, 'findById').mockResolvedValue(userWithHash);
-
-      await expect(
-        controller.changePassword(payload, {
-          currentPassword: 'WrongPass1!',
-          newPassword: strongNewPassword,
-        }),
-      ).rejects.toThrow(UnauthorizedException);
-      expect(service.update).not.toHaveBeenCalled();
-    });
-
-    it('should reject new password that violates strength policy', async () => {
-      const userWithHash = {
-        ...mockUser,
-        passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
-      } as User;
-      jest.spyOn(service, 'findById').mockResolvedValue(userWithHash);
-
-      await expect(
-        controller.changePassword(payload, {
-          currentPassword: 'OldP@ssw0rd1',
-          newPassword: 'alllowercase',
-        }),
-      ).rejects.toThrow(BadRequestException);
-      expect(service.update).not.toHaveBeenCalled();
-    });
-
-    it('should throw NotFoundException when user missing', async () => {
-      jest.spyOn(service, 'findById').mockResolvedValue(null);
-
-      await expect(
-        controller.changePassword(payload, {
-          currentPassword: 'whatever',
-          newPassword: strongNewPassword,
-        }),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should reject when user has no password hash (OAuth-only account)', async () => {
-      const userWithoutHash = {
-        ...mockUser,
-        passwordHash: null as unknown as string,
-      } as User;
-      jest.spyOn(service, 'findById').mockResolvedValue(userWithoutHash);
-
-      await expect(
-        controller.changePassword(payload, {
-          currentPassword: 'anything',
-          newPassword: strongNewPassword,
-        }),
-      ).rejects.toThrow(UnauthorizedException);
-      expect(service.update).not.toHaveBeenCalled();
+      expect(
+        (mockRes as unknown as { cookie: jest.Mock }).cookie,
+      ).not.toHaveBeenCalled();
     });
   });
 });
