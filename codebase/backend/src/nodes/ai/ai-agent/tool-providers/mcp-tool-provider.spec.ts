@@ -186,6 +186,46 @@ describe('McpToolProvider', () => {
       expect(tools[0].description).toContain('Demo MCP');
     });
 
+    it('§6.2 connect+list 성공 → connected serverSummary push (toolCount)', async () => {
+      const mcpDiagnostics: Array<Record<string, unknown>> = [];
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-diag-ok',
+        mcpDiagnostics,
+      } as unknown as Parameters<typeof provider.buildTools>[0]);
+      expect(mcpDiagnostics).toEqual([
+        {
+          integrationId: integration.id,
+          serviceType: 'mcp',
+          status: 'connected',
+          toolCount: 2,
+        },
+      ]);
+    });
+
+    it('§6.2 connect 실패 → skipped serverSummary push (skipReason=error)', async () => {
+      mcpClient.connect.mockRejectedValueOnce(new Error('connection refused'));
+      const mcpDiagnostics: Array<Record<string, unknown>> = [];
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-diag-fail',
+        mcpDiagnostics,
+      } as unknown as Parameters<typeof provider.buildTools>[0]);
+      // 한 서버 실패는 빈 ToolDef[] 로 격리되고, 진단에 skipped 로 노출.
+      expect(tools).toEqual([]);
+      expect(mcpDiagnostics).toEqual([
+        {
+          integrationId: integration.id,
+          serviceType: 'mcp',
+          status: 'skipped',
+          skipReason: 'error',
+          toolCount: 0,
+        },
+      ]);
+    });
+
     it('skips a tool not in enabledTools allowlist', async () => {
       const tools = await provider.buildTools({
         config: {
