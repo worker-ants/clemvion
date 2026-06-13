@@ -9,6 +9,7 @@ import { WebsocketModule } from '../websocket/websocket.module';
 import { ChannelAdapterRegistry } from './channel-adapter.registry';
 import { ChannelListenerRegistry } from './channel-listener.registry';
 import { ChannelConversationService } from './channel-conversation.service';
+import { ChatChannelRateLimiterService } from './chat-channel-rate-limiter.service';
 import { ChatChannelDispatcher } from './chat-channel.dispatcher';
 import { ChatChannelController } from './chat-channel.controller';
 import {
@@ -50,6 +51,7 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
     ChannelAdapterRegistry,
     ChannelListenerRegistry,
     ChannelConversationService,
+    ChatChannelRateLimiterService,
     ChatChannelDispatcher,
     ChatChannelInboundAuthenticator,
     TelegramClient,
@@ -64,6 +66,7 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
     ChannelAdapterRegistry,
     ChannelListenerRegistry,
     ChannelConversationService,
+    ChatChannelRateLimiterService,
     ChatChannelInboundAuthenticator,
   ],
 })

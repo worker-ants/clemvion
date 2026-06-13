@@ -21,6 +21,10 @@ import { ExecutionStatus } from '../executions/entities/execution.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 import {
+  ChatChannelRateLimiterService,
+  CHAT_RATE_LIMIT_DEFAULT_PER_MIN,
+} from '../chat-channel/chat-channel-rate-limiter.service';
+import {
   ChannelUpdate,
   ChatChannelAdapter,
   ChatChannelConfig,
@@ -52,6 +56,7 @@ export class HooksService {
     private readonly tokenService: InteractionTokenService,
     private readonly channelAdapterRegistry: ChannelAdapterRegistry,
     private readonly channelConversationService: ChannelConversationService,
+    private readonly chatChannelRateLimiter: ChatChannelRateLimiterService,
     private readonly interactionService: InteractionService,
     private readonly executionsService: ExecutionsService,
     private readonly chatChannelInboundAuthenticator: ChatChannelInboundAuthenticator,
@@ -262,6 +267,24 @@ export class HooksService {
       await this.maybeNotifyIgnored(input.body, config, adapter);
       return { executionId: 'ignored' };
     }
+
+    // CCH-NF-03 — per-chat 분당 inbound rate-limit. parseUpdate 직후(conversationKey
+    // 확정) + enrichInbound(Slack files.info 등 외부 API) **이전** 에 검사해, 한도 초과분에는
+    // 불필요한 외부 호출을 하지 않는다. 한도(config.rateLimitPerMinute, 기본 60) 초과분은
+    // 버퍼링/재발사 없이 처리 생략(skip) + chat_channel_health=degraded (R-CC-19). 파싱 성공
+    // update 한정 — 핸드셰이크(url_verification/PING)·비활성·미파싱은 위에서 이미 단락돼 카운트 안 됨.
+    const rateLimitPerMinute =
+      config.rateLimitPerMinute ?? CHAT_RATE_LIMIT_DEFAULT_PER_MIN;
+    const withinRateLimit = await this.chatChannelRateLimiter.consume(
+      trigger.id,
+      parsed.conversationKey,
+      rateLimitPerMinute,
+    );
+    if (!withinRateLimit) {
+      await this.markChatChannelRateLimited(trigger, rateLimitPerMinute);
+      return { executionId: 'ignored' };
+    }
+
     // parseUpdate 직후 provider 별 비동기 보강 (Slack file_upload → files.info 로
     // mimeType/filename/urlPrivate 채움). 미구현 provider 는 update 그대로 반환 (R-S-7).
     const update = adapter.enrichInbound
@@ -819,6 +842,33 @@ export class HooksService {
       execution.status === ExecutionStatus.FAILED ||
       execution.status === ExecutionStatus.CANCELLED;
     return isTerminal ? null : execution.status;
+  }
+
+  /**
+   * CCH-NF-03 — per-chat 분당 rate-limit 초과 시 trigger 의 `chat_channel_health` 를
+   * `degraded` 로 갱신 (CCH-SE-01 과 동일 DB 동작, 자동 비활성화 금지 — R-CC-19).
+   * 이미 `degraded` 면 skip (폭주 중 중복 write 방지). best-effort — 실패는 swallow.
+   */
+  private async markChatChannelRateLimited(
+    trigger: Trigger,
+    limitPerMinute: number,
+  ): Promise<void> {
+    if (trigger.chatChannelHealth === 'degraded') return;
+    try {
+      await this.triggerRepository.update(
+        { id: trigger.id },
+        {
+          chatChannelHealth: 'degraded',
+          // 외부 입력(conversationKey)을 lastError 에 넣지 않는다 (관리자 UI stored-XSS
+          // 표면 축소). 한도만 기록 — 어느 chat 인지는 운영 로그/메트릭 영역.
+          chatChannelLastError: `Inbound rate limit exceeded (${limitPerMinute}/min)`,
+        },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `chat-channel rate-limit degraded 갱신 실패 (triggerId=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /**
