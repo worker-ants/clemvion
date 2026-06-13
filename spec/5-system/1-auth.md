@@ -350,7 +350,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 ### 4.1 기록 대상 액션
 
-**Action naming 규약**: `<resource>.<verb>` — resource dot-prefix 가 필수다 (필터·그룹의 기준). verb 는 도메인 관례를 따른다: audit 는 "일어난 일" 의 기록이므로 integration 은 과거분사(`created`/`updated`/`deleted`)를, execution 은 `re_run` 을 쓴다. auth_config 은 `reveal`·`regenerate` 처럼 과거분사가 부자연스러운 동사가 섞여 CRUD 동사 현재형(`create`/`update`/`delete`/`regenerate`/`reveal`)으로 통일한다. 구현 action 의 단일 SoT 는 [`audit-action.const.ts`](../../codebase/backend/src/modules/audit-logs/audit-action.const.ts) 의 `AUDIT_ACTIONS` union 이며, `AuditLogsService.record({ action })` 가 타입으로 강제한다 (인라인 문자열 금지).
+**Action naming·시제 규약**: `<resource>.<verb>` 구조(resource dot-prefix 필수)와 verb 시제 3분류(과거분사 기본 / CRUD 현재형 예외 / 도메인 고유 동사)는 [`conventions/audit-actions.md`](../conventions/audit-actions.md) 가 SoT 다 — 본 §4.1 은 그 규약을 따르는 **액션 카탈로그**(구현됨/Planned 목록)·workspace 귀속·읽기측 계약을 소유한다. 구현 action 의 단일 SoT 는 [`audit-action.const.ts`](../../codebase/backend/src/modules/audit-logs/audit-action.const.ts) 의 `AUDIT_ACTIONS` union 이며, `AuditLogsService.record({ action })` 가 타입으로 강제한다 (인라인 문자열 금지).
 
 **현재 구현된 액션**:
 
@@ -373,9 +373,9 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 워크플로우 | `workflow.created`, `workflow.updated`, `workflow.deleted`, `workflow.executed` |
 | 트리거 | `trigger.created`, `trigger.updated`, `trigger.deleted` |
 | 스케줄 | `schedule.created`, `schedule.updated`, `schedule.deleted` |
-| 설정 | `model_config.*` (create/update/delete/set-default — **현재형 유지**: `set-default` 가 과거분사로 부자연스러워 auth_config 처럼 resource 단위 현재형으로 통일. reveal 미제공 — ModelConfig 는 평문 reveal 엔드포인트 없음) |
+| 설정 | `model_config.*` (create/update/delete/set_default — **현재형 유지**: `set_default` 가 과거분사로 부자연스러워 auth_config 처럼 resource 단위 현재형으로 통일. reveal 미제공 — ModelConfig 는 평문 reveal 엔드포인트 없음) |
 
-> **감사 액션 통합 (model_config)** — *목표 설계*. 설정 CRUD 감사 로깅 자체는 현재 미구현이다 (`model_config.service.ts` 는 `AuditLogsService` 를 호출하지 않는다 — [data-flow §1.1 커버리지 갭](../data-flow/1-audit.md) 이 ground truth). 구현 시 신규 이벤트는 `model_config.*` (create/update/delete/set-default) 로 기록한다. 통합 이전 `llm_config.*`/`rerank_config.*` 로 적재된 row 가 있다면 append-only 로 보존되며 재작성하지 않으므로, 감사 조회는 두 액션 집합(`model_config.*` OR `llm_config.*`/`rerank_config.*`)을 OR 로 결합해 질의한다.
+> **감사 액션 통합 (model_config)** — *목표 설계*. 설정 CRUD 감사 로깅 자체는 현재 미구현이다 (`model_config.service.ts` 는 `AuditLogsService` 를 호출하지 않는다 — [data-flow §1.1 커버리지 갭](../data-flow/1-audit.md) 이 ground truth). 구현 시 신규 이벤트는 `model_config.*` (create/update/delete/set_default) 로 기록한다. 통합 이전 `llm_config.*`/`rerank_config.*` 로 적재된 row 가 있다면 append-only 로 보존되며 재작성하지 않으므로, 감사 조회는 두 액션 집합(`model_config.*` OR `llm_config.*`/`rerank_config.*`)을 OR 로 결합해 질의한다.
 
 > 워크스페이스 컨텍스트가 없는 인증 이벤트(login, logout, login_failed 등)는 AuditLog 가 아닌 §4.3 **LoginHistory** 에 기록된다.
 
@@ -651,10 +651,19 @@ dev/test/e2e(`NODE_ENV≠production`)는 영향이 없다.
 같은 근거로 **나머지 Planned 액션의 시제도 정규화**한다 — `workspace`·`member`·`workflow`·
 `trigger`·`schedule` 은 동사가 모두 과거분사로 자연스러우므로 기본 규약(과거분사)을 따라
 `created`/`updated`/`deleted`/`invited`/`role_changed`/`removed`/`executed` 로 적는다(현재형
-`create`·`invite` 이탈 정정). 단 `model_config.*` 는 `set-default` 가 과거분사로 부자연스러워
+`create`·`invite` 이탈 정정). 단 `model_config.*` 는 `set_default` 가 과거분사로 부자연스러워
 `auth_config` 와 동일하게 **resource 단위 현재형 예외**를 유지한다 — 규약의 "과거분사가
 부자연스러운 동사가 섞이면 CRUD 현재형으로 통일" 조항 적용. 모두 미구현이라 코드 의존이 없어
 지금 표기를 확정하는 비용이 가장 낮고, 구현 시 `AUDIT_ACTIONS` 에 그대로 추가한다.
+
+**`workspace.transfer_ownership` 분류 (refactor 04 후속 A-2)**: 기존 구현된
+`workspace.transfer_ownership` 은 과거분사 기본형·CRUD 현재형 예외 어디에도 깔끔히 들어맞지
+않는다 — 소유권 이전은 생애주기 CRUD 가 아니라 단일 트랜잭션 행위이고, 과거분사화
+(`ownership_transferred`)는 이미 적재된 row 와 `AUDIT_ACTIONS` 표기를 깨뜨리면서 얻는 게 없다
+(append-only 원칙). 따라서 `execution.re_run` 과 같은 **도메인 고유 동사**로 분류한다.
+이 시제 3분류(과거분사 기본 / CRUD 현재형 예외 / 도메인 고유 동사)와 도메인별 레지스트리는
+[`conventions/audit-actions.md`](../conventions/audit-actions.md) 가 규약 SoT 로 정착했으며,
+본 4.1.A 는 그 결정의 근거·역사로 남는다.
 
 ### 4.1.B — `user.*` 감사 이벤트의 workspace 귀속 (refactor 04 후속)
 
@@ -663,6 +672,10 @@ dev/test/e2e(`NODE_ENV≠production`)는 영향이 없다.
 근거: 이 세 액션은 모두 **인증된 세션에서만** 발생한다(`POST /users/me/change-password`·TOTP·WebAuthn 모두 JwtAuthGuard 뒤). 인증 요청은 항상 workspace 컨텍스트를 JWT 로 운반하므로, 그 세션 workspace 에 귀속하면 `workspaceId` non-nullable 제약을 schema 변경 없이 충족한다. 이는 §4.1 의 "인증 (워크스페이스 컨텍스트)" 분류를 **구체화**하는 것이지 번복이 아니다 — login/logout/login_failed(무 workspace) → LoginHistory(L379) 규칙은 불변.
 
 **무인증 password-reset 제외**: `POST /auth/reset-password`(토큰 기반)는 세션·workspace 가 없어 `user.password_changed` audit 대상이 아니다(L379 분류 원칙). reset 완료를 별도 기록할지는 `login_history` event enum(§4.3, [데이터 모델 §2.18.2](../1-data-model.md)) 신설 + `chk_login_history_event` CHECK 마이그레이션을 동반하는 별개 결정으로 본 범위 밖이다.
+
+**WebAuthn 추가 credential 등록도 `user.2fa_enabled`**: 두 번째 이후 authenticator 등록(이미 2FA 활성)도 동일하게 `user.2fa_enabled` 로 기록하되 `details.firstCredential=false` 로 최초 활성화와 구분한다 — "2FA 활성화" 사건은 아니지만 계정 보안 속성(인증 수단) 추가라 추적 대상이고, 액션을 새로 만들기보다 details 플래그로 구분하는 편이 조회·집계에 단순하다 (`webauthn.controller` 가 `firstCredential = (recoveryCodes 발급 여부)` 로 판정).
+
+**OAuth-only 사용자의 마지막 2FA 비활성화는 별개 결정**: 비밀번호 없는 OAuth-only 계정이 유일한 2FA 수단을 비활성화할 때 대안 인증 경로(계정 잠금 위험)를 어떻게 보장할지는 본 감사 귀속과 무관하며, 강제 2FA 정책·계정 복구 흐름과 함께 다룰 별개 결정 사안이다(현재 별도 차단 로직 없음).
 
 **기각된 대안**:
 - **(b) `audit_log.workspaceId` nullable 허용** (user-level 이벤트 null): schema 마이그레이션 + 모든 workspace-필터 쿼리·인덱스·조회 권한(§4.2 `@WorkspaceId()` 스코프) 이 null 을 특수 처리해야 해 blast radius 가 크다. 인증 이벤트가 항상 세션 workspace 를 가지므로 nullable 이 불필요.
