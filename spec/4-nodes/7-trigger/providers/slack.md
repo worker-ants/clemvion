@@ -61,7 +61,7 @@ code:
 | `sendMessage` (buttons) | `chat.postMessage` + `blocks: [{type: "actions", elements: [{type: "button", ...}]}]` |
 | `sendMessage` (form_prompt) | `chat.postMessage` + 옵션 `blocks: [{type: "input", ...}]` 으로 single-field 안내 (§4.2 다단계 텍스트 시퀀스) |
 | `sendMessage` (form_modal) | `chat.postMessage` + `blocks: [{type: "actions", elements: [{type: "button", action_id: "__open_form__", ...}]}]` — "양식 작성하기" 버튼 발송 (§4.1 native modal 게이팅). 클릭 시 `HooksService` 가 `openFormModal` 에서 [`POST /api/views.open`](https://api.slack.com/methods/views.open) 으로 modal open (§3.3) |
-| `sendMessage` (image) | **미구현 (Planned)** — [`POST /api/files.uploadV2`](https://api.slack.com/methods/files.uploadV2) (channel, file, initial_comment) 는 `slack-client.ts` 에서 Phase 3 스텁(호출 시 reject)이다. 현재 `image` kind 는 caption/fallbackText 를 `chat.postMessage` text 로 발송 (v1 = text fallback) |
+| `sendMessage` (image) | [`POST /api/files.uploadV2`](https://api.slack.com/methods/files.uploadV2) (channel_id, file=bytes, filename, initial_comment=caption) 로 실 PNG 업로드 — 구현됨(`slack.adapter.ts` image case → `client.filesUploadV2`). 업로드 실패 시 caption/fallbackText 를 `chat.postMessage` text 로 fallback |
 | `sendMessage` (typing) | **no-op** — Slack Web API 에 server-initiated typing indicator 가 없다 (Rationale R-S-5) |
 | `ackInteraction` (button_callback / view_submission) | Interactivity 응답: 3초 안에 HTTP `200 OK` 반환 (빈 body 또는 `response_action`) — 비동기 갱신은 [`response_url`](https://api.slack.com/interactivity/handling#message_responses) 사용 |
 
@@ -127,7 +127,7 @@ Slack 의 inbound 진입은 3종 envelope (Events API · Interactivity · Slash 
 |---|---|
 | `event.type === "message"` & `event.channel_type === "im"` & no `bot_id` & `subtype === undefined` | `{ kind: "text_message", text: event.text }` |
 | `event.type === "app_mention"` (모든 채널) | DM 외 채널 → `null` (R-S-4). DM 안의 mention 은 `text_message` 로 흡수 |
-| `event.type === "file_shared"` & DM | `parseUpdate` 는 `{ kind: "file_upload", fileId: event.file_id, mimeType: "application/octet-stream" }` 를 동기 반환 (Convention §1.1 pure 계약 유지) — **구현됨**. 실제 mimeType / filename / url_private 보강 (호출자 `HooksService` 의 `files.info` 후속 호출 → `submit_form`) 은 **미구현 (Planned)**: `HooksService` 의 file_upload 경로는 Phase 4 스텁(no-op)이고 `SlackClient` 에 `filesInfo` 메서드가 없다. 목표 흐름은 Rationale R-S-7 |
+| `event.type === "file_shared"` & DM | `parseUpdate` 는 `{ kind: "file_upload", fileId: event.file_id, mimeType: "application/octet-stream" }` 를 동기 반환 (Convention §1.1 pure 계약 유지) — **구현됨**. mimeType/filename/url_private 보강(`HooksService.enrichInbound` 가 `SlackClient.filesInfo` 후속 호출)도 구현됨. 활성 폼 시퀀스에서는 `handleFormStep` 이 file_upload 를 form 필드 값으로 누적→`submit_form` 호출(`hooks.service.ts`). **잔여(Planned)**: form `file` 필드의 MIME 검증은 다단계 폼이 field 제약을 state 에 저장하지 않는 `formState` v1 한계(PR-E)에 종속. 목표 흐름은 Rationale R-S-7 |
 | `event.type === "message"` & `event.channel_type ∈ ('channel', 'group', 'mpim')` | `null` — 호출자가 `groupChatRefusal` 안내 |
 | `event.type === "message"` & `bot_id` 존재 또는 `subtype === "bot_message"` | `null` — 봇/자기 메시지 무시 |
 | 그 외 event (`reaction_added`, `team_join` 등) | `null` — v1 미처리 |
@@ -143,7 +143,7 @@ Slack 의 inbound 진입은 3종 envelope (Events API · Interactivity · Slash 
 | `"view_submission"` & `view.callback_id === "clemvion_form"` (modal submit) | **`{ kind: "form_submission", fields }`** — `payload.view.state.values` 를 `{ <field.name>: rawValue }` 로 평탄화 (block_id=field.name, element value 추출). native form modal 채택 ([R-S-6](#r-s-6-form--5-fields-native-modal-6-또는-multi_step-opt-out-시-다단계)) |
 | `"shortcut"` / `"message_action"` / `"view_closed"` | v1 `null` (view_closed 시 execution 은 waiting 유지 — 버튼 메시지 잔존, 사용자 재클릭 가능. Convention §4) |
 
-**3초 ack 의무**: Slack Interactivity 는 endpoint 가 3초 안에 `200 OK` 를 반환해야 한다. `ackInteraction` 이 즉시 빈 body 200 응답 (구현됨) — 비동기 후속 갱신을 위한 `response_url` (1시간 유효, 5회 한도) POST 는 **미구현 (Planned)** (§5.2 step 3 참조).
+**3초 ack 의무**: Slack Interactivity 는 endpoint 가 3초 안에 `200 OK` 를 반환해야 한다. `ackInteraction` 이 즉시 빈 body 200 응답 (구현됨) — 비동기 후속 갱신을 위한 `response_url` (1시간 유효, 5회 한도) `replace_original` POST 도 구현됨 (button_callback 후 "선택 완료" 갱신, §5.2 step 3 참조).
 
 ### 4.3 Slash Commands (`Content-Type: application/x-www-form-urlencoded`, body `{ command, text, ... }`)
 
@@ -186,7 +186,7 @@ Slack slash command 는 **workspace 단위 1개 prefix** 만 등록 가능하므
 - `block_actions` payload 도착 시:
   1. 즉시 `200 OK` (3초 ack 의무) — 빈 body
   2. EIA `click_button` 호출
-  3. (옵션, **미구현 Planned**) `response_url` 로 `replace_original: true, text: "선택 완료: <라벨>"` POST — 키보드 제거 + 선택 시각화. 현재 `response_url` 은 payload 타입(`slack.types.ts`)에만 존재하고 이를 사용한 비동기 POST 경로는 없다 (`sendMessage` 도 `chat.postMessage` 만 호출)
+  3. `response_url` 로 `replace_original: true, text: "선택 완료: …"` POST — 키보드 제거 + 선택 시각화. `ackInteraction`(`slack.adapter.ts`)이 button_callback 후 이 비동기 갱신 POST 를 수행한다 (구현됨)
 
 ### 5.3 Form (CCH-MP-03)
 
