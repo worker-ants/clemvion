@@ -42,8 +42,9 @@ owner: <역할/이름>                 # planner / developer / 사용자 본인 
 `complete/` 로 옮긴 후에도 frontmatter 유지 (history 보존).
 
 용도:
-- 동시 작업 추적
-- worktree 충돌 검출 (`consistency-checker` 의 `plan_coherence` checker) — sentinel `(unstarted)` 는 "충돌 대상 worktree 없음" 으로 처리
+- 동시 작업 추적 (plan ↔ worktree 귀속. `plan-stale-audit.sh` 가 plan 의 worktree 존재 여부 확인에 사용)
+
+> 참고: 과거 `plan_coherence` checker 가 이 필드로 "다른 worktree 와의 동시 작업 충돌" 을 검출했으나, 병렬 작업이 다른 머신/세션에 있으면 로컬 미반영이라 신뢰할 수 없고 토큰만 소모해 제거됨. 동시 작업 직렬화는 사용자/`/merge-coordinate` 의 책임.
 
 ## 5. 이동 commit 자가 점검
 
