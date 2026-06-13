@@ -110,7 +110,7 @@ usage 적재 정책:
 | `RerankService` listwise LLM grading (`cross_encoder_llm` escalate 시, `knowledge-base/search/rerank.service.ts`) | chat | context 미전달, 전부 NULL |
 | AgentMemory 추출 processor (BullMQ, `agent-memory/queues/agent-memory-extraction.processor.ts`) | chat | context 미전달, 전부 NULL |
 
-> **attribution 갭**: 현재 `workflow_id` 를 채우는 caller 는 Workflow Assistant 뿐이다. AI 노드 3종이 `ExecutionContext` 의 ID 들을 `LlmCallContext` 로 전달하지 않으므로, `WHERE workflow_id = ?` 기반의 워크플로우별 비용 집계 (Statistics `workflowId` 필터, Alerts `llm_cost` 의 workflow 스코프) 에서 **노드 발 호출이 전부 누락**된다. 워크스페이스 단위 집계는 `workspace_id` 자동 채움으로 정상이다. (코드 수정 결정 전까지 현행 사실대로 기재 — §Rationale)
+> **attribution 갭**: 노드 발 LLM 호출은 `workflow_id` 가 NULL 이라 `WHERE workflow_id = ?` 기반 워크플로우별 비용 집계(Statistics `workflowId` 필터·Alerts `llm_cost` workflow 스코프)에서 **전부 누락**된다 (워크스페이스 단위 집계는 `workspace_id` 자동 채움으로 정상). 원인·증상·결정 상태 상세는 [§Rationale](#rationale) 의 "`llm_usage_log` 의 nullable context 컬럼들" 항에 일원화 — 단일 진실.
 
 **embed 계열 (usage_log 미적재):**
 

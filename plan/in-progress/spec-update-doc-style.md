@@ -1,9 +1,16 @@
 ---
-worktree: trigger-schedule-sync-f88604
+worktree: spec-sync-s-batch-b85f17
 started: 2026-06-10
 owner: resolution-applier
+spec_impact:
+  - spec/data-flow/7-llm-usage.md
+  - spec/data-flow/13-agent-memory.md
 ---
 # Spec Update Draft — spec 문서 스타일 개선 (Warning #9/#10)
+
+> **완료 (2026-06-13, spec-sync-s-batch)**: W10 적용(§1.3 note 를 Rationale 참조로 압축, 인과 상세는
+> Rationale "`llm_usage_log` nullable context" 항에 일원화). W9 는 점검 결과 13-agent-memory.md Overview
+> 코드 진입점 목록이 이미 `경로 — 1줄 요약` 패턴을 준수(2줄 초과 bullet·인라인 혼용 없음) → 별도 변경 불요(no-op).
 
 ## 분류
 SPEC-DRIFT (spec 문서 가독성/중복 제거)
@@ -30,9 +37,12 @@ SPEC-DRIFT (spec 문서 가독성/중복 제거)
 - §1.3 note 를 "Rationale 참조" 1-2줄로 압축
 - 인과 상세는 Rationale 에 일원화 (단일 진실 원칙)
 
-예시:
+예시 (정정 — 2026-06-13: 아래 원본 예시는 attribution 갭을 "해소됨"으로 가정했으나, 현행 spec 은
+여전히 "코드 수정 vs 집계 의미 재정의 결정 대기" 상태다. 실제 적용은 **결정 대기 상태를 보존**한 채
+§1.3↔Rationale 중복만 제거하는 아래 형태로 했다):
 ```markdown
-<!-- §1.3 note -->
-> **[WARNING#5 수정 완료]** attribution 갭은 2026-06-10 커밋(639be831)으로 해소됨.
-> 인과 흐름 및 이전 갭 상세: [Rationale §attribution-gap](#rationale) 참조.
+<!-- §1.3 note (실제 적용본) -->
+> **attribution 갭**: 노드 발 LLM 호출은 `workflow_id` 가 NULL 이라 워크플로우별 비용 집계에서 누락된다
+> (워크스페이스 집계는 정상). 원인·증상·결정 상태 상세는 [§Rationale](#rationale) 의
+> "`llm_usage_log` 의 nullable context 컬럼들" 항에 일원화 — 단일 진실.
 ```
