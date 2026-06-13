@@ -884,8 +884,10 @@ describe("drawerExpanded (§10.12 Run Results 드로어 토글)", () => {
     useExecutionStore.setState({ drawerExpanded: true });
   });
 
-  it("defaults to expanded", () => {
-    expect(useExecutionStore.getState().drawerExpanded).toBe(true);
+  it("defaults to expanded (actual store initial value, not the beforeEach seed)", () => {
+    // getInitialState() reflects the value baked into create(), so this catches a
+    // regression in the initializer even though beforeEach also seeds it to true.
+    expect(useExecutionStore.getInitialState().drawerExpanded).toBe(true);
   });
 
   it("toggleDrawerExpanded flips the flag", () => {
@@ -895,9 +897,14 @@ describe("drawerExpanded (§10.12 Run Results 드로어 토글)", () => {
     expect(useExecutionStore.getState().drawerExpanded).toBe(true);
   });
 
-  it("setDrawerExpanded sets the flag explicitly", () => {
+  it("setDrawerExpanded sets the flag explicitly (idempotent when unchanged)", () => {
     useExecutionStore.getState().setDrawerExpanded(false);
     expect(useExecutionStore.getState().drawerExpanded).toBe(false);
+    useExecutionStore.getState().setDrawerExpanded(true);
+    expect(useExecutionStore.getState().drawerExpanded).toBe(true);
+    // Re-setting the same value keeps it stable.
+    useExecutionStore.getState().setDrawerExpanded(true);
+    expect(useExecutionStore.getState().drawerExpanded).toBe(true);
   });
 
   it("is preserved across startExecution and reset (UI preference, not lifecycle state)", () => {

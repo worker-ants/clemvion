@@ -1,0 +1,92 @@
+{
+  "timestamp": "2026-06-14T03:31:25.987951",
+  "files": [
+    {
+      "file_path": "codebase/frontend/src/components/editor/__tests__/workflow-editor-shortcuts.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/editor/run-results/run-results-drawer.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/editor/toolbar/__tests__/editor-toolbar-rbac.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/editor/toolbar/__tests__/editor-toolbar-run-input.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/editor/workflow-editor.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/i18n/dict/en/editor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/i18n/dict/ko/editor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/stores/__tests__/execution-store.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/stores/execution-store.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/spec-sync-execution-gaps.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/3-workflow-editor/3-execution.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

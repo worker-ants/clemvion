@@ -107,6 +107,8 @@ export function EditorToolbar() {
     async (id: string) => {
       try {
         const detail = await executionsApi.getById(id);
+        // 입력 없이 트리거된 실행(스케줄/웹훅 등)은 inputData 가 null 일 수 있다 —
+        // 이 경우 빈 객체로 적재해 사용자가 그 위에서 편집을 시작하게 한다.
         setJsonInput(JSON.stringify(detail.inputData ?? {}, null, 2));
         setHistoryPickerOpen(false);
       } catch (error) {
@@ -193,6 +195,8 @@ export function EditorToolbar() {
       setHistoryPickerOpen(false);
       setJsonInput("{}");
     } catch (error) {
+      // 실시간 검증(jsonError)이 무효 입력 시 Run 을 비활성화하므로 여기 도달하는
+      // SyntaxError 는 정상 경로에선 없다. 그래도 방어적으로 남겨 둔다(검증 우회 시).
       if (error instanceof SyntaxError) {
         alert(t("editor.invalidJsonInput"));
         return;

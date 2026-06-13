@@ -57,11 +57,11 @@ pending_plans:
 
 ### 2.1 설정 화면
 
-"Run with Input" 선택 시 표시되는 다이얼로그 (현재 구현 — 단일 JSON textarea + Cancel/Run):
+"Run with Input" 선택 시 표시되는 다이얼로그 (현재 구현 — JSON textarea + 실시간 검증 + "Load from History" + Cancel/Run):
 
 ```
 ┌──────────────────────────────────────┐
-│  Test Input Data                     │
+│  Test Input Data    [⟳ Load History] │
 │  ──────────────────────────────────  │
 │  {                                   │
 │    "userId": 123,                    │
@@ -70,10 +70,14 @@ pending_plans:
 │      "email": "test@example.com"     │
 │    }                                 │
 │  }                                   │
+│  ✓ Valid JSON  (무효 시 빨간 오류)    │
 │  ──────────────────────────────────  │
 │              [Cancel]     [Run ▶]    │
 └──────────────────────────────────────┘
 ```
+
+- **Load from History**: 클릭 시 이전 실행 목록을 펼치고, 선택한 실행의 입력 데이터를 textarea 로 적재한다 (§2.2).
+- **실시간 검증**: 입력 중 JSON 유효성을 평가해 무효 시 인라인 오류를 표시하고 `Run` 을 비활성화한다 (§2.2).
 
 ### 2.2 기능
 

@@ -24,6 +24,12 @@ describe("isEditableTarget (§10.12 Escape 가드)", () => {
     expect(isEditableTarget(el("div", true))).toBe(true);
   });
 
+  it('treats contenteditable="" (empty string, HTML-valid true) as editable', () => {
+    const node = document.createElement("div");
+    node.setAttribute("contenteditable", "");
+    expect(isEditableTarget(node)).toBe(true);
+  });
+
   it("treats non-editable elements (button, div, timeline item) as non-editable (캔버스 복귀)", () => {
     expect(isEditableTarget(el("button"))).toBe(false);
     expect(isEditableTarget(el("div"))).toBe(false);

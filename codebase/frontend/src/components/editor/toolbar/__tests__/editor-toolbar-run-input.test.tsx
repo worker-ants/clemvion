@@ -1,3 +1,8 @@
+/**
+ * EditorToolbar "Run with Input" 다이얼로그(spec/3-workflow-editor/3-execution.md §2.2)
+ * 커버리지: 실시간 JSON 검증(유효/무효/빈 입력), Load-from-History(성공 적재·실패 토스트·
+ * 빈 목록), 실행 중 진입 차단. mock 으로 stores/executions API 를 격리한다.
+ */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   render,
@@ -79,8 +84,9 @@ vi.mock("@/lib/api/executions", () => ({
   },
 }));
 
+const toastError = vi.fn();
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: (m: string) => toastError(m) },
 }));
 
 import { EditorToolbar } from "../editor-toolbar";
@@ -192,5 +198,58 @@ describe("EditorToolbar — Run with Input (§2.2)", () => {
         JSON.stringify({ foo: "bar" }, null, 2),
       ),
     );
+  });
+
+  it("Load from History: getById failure shows an error toast and keeps the picker open", async () => {
+    getByWorkflowMock.mockResolvedValue({
+      data: [
+        {
+          id: "ex-1",
+          workflowId: "wf-1",
+          status: "completed",
+          startedAt: "2026-06-13T10:00:00.000Z",
+          triggerSource: "manual",
+          inputData: {},
+        },
+      ],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    getByIdMock.mockRejectedValue(new Error("boom"));
+
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Load from History/i }));
+
+    const item = await screen.findByRole("button", { name: /Manual/i });
+    fireEvent.click(item);
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    // The picker stays open (not closed) so the user can retry another entry.
+    expect(
+      screen.getByRole("button", { name: /Manual/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("Load from History: empty history renders the empty-state message", async () => {
+    getByWorkflowMock.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Load from History/i }));
+
+    expect(await screen.findByText(/No past executions/i)).toBeInTheDocument();
+  });
+
+  it("blocks Run with Input entry while an execution is running (dropdown toggle disabled)", () => {
+    executionState.status = "running";
+    renderToolbar();
+    // The run-options dropdown is the only entry to the dialog; it must be
+    // disabled while running so a second run can't be launched mid-execution.
+    expect(
+      screen.getByRole("button", { name: /Run options/i }),
+    ).toBeDisabled();
   });
 });
