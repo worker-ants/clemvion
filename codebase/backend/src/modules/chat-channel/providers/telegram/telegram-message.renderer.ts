@@ -31,7 +31,7 @@ export function escapeMarkdownV2(text: string): string {
  * EiaEvent → ChannelMessage[] 변환 (pure, side-effect free).
  *
  * Spec [providers/telegram §5] / [conventions chat-channel-adapter §3]:
- *   - ai_message → text (chunked if >4096)
+ *   - ai_message → typing + text (chunked if >4096, §5.1 typing indicator 선행)
  *   - completed → text (languageHints.executionCompleted)
  *   - failed → text (사용자 안전 안내)
  *   - cancelled → text (languageHints.executionCancelled 또는 default)
@@ -96,12 +96,17 @@ function renderAiMessage(
   config: ChatChannelConfig,
 ): ChannelMessage[] {
   // §5.1 — AI 응답 발화 직전 sendChatAction(typing) 1회 (UX). dispatcher 가 순서대로 발송하며
-  // typing 은 5초 자동 만료라 후속 text 발송에 영향 없음. 빈 응답이면 typing 도 생략.
-  const textMessages = renderText(event.message);
-  const out: ChannelMessage[] =
-    textMessages.length > 0
-      ? [{ conversationKey: '', body: { kind: 'typing' } }, ...textMessages]
-      : [];
+  // typing 은 5초 자동 만료라 후속 text 발송에 영향 없음. 본문이 비어있으면(빈/공백) typing·text 모두 생략
+  // (빈 text 는 Telegram sendMessage 가 거부).
+  const hasTextContent =
+    typeof event.message === 'string' && event.message.trim().length > 0;
+  const out: ChannelMessage[] = hasTextContent
+    ? [
+        // conversationKey 는 dispatcher 가 보정 (renderText 와 동일 컨벤션).
+        { conversationKey: '', body: { kind: 'typing' } },
+        ...renderText(event.message),
+      ]
+    : [];
   const presentations = event.presentations;
   if (Array.isArray(presentations) && presentations.length > 0) {
     for (const p of presentations) {

@@ -48,6 +48,17 @@ describe('renderTelegramMessages', () => {
     });
   });
 
+  it('빈 ai_message → typing 도 생략 (빈 발화에 typing 안 보냄)', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.ai_message',
+      message: '',
+      turnCount: 1,
+    };
+    const messages = renderTelegramMessages(event, BASE_CONFIG);
+    expect(messages).toHaveLength(0);
+  });
+
   it('ai_message 4096자 초과 → typing + chunked text', async () => {
     const long = 'a'.repeat(5000);
     const event: EiaEvent = {

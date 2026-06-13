@@ -13,8 +13,9 @@ owner: planner
 
 > **구현 진척 (2026-06-14, impl-telegram-gaps PR)**: 아래 1·2·5 구현 완료(단위 테스트 포함). 3·6 은 인프라
 > 의존으로 spec 이 명시적으로 v1 deferred 처리한 항목이라 보류, 4 는 공유 타입 확장 리스크로 별도 분리, 7 은 별도
-> Redis dedup 설계 필요로 보류. **spec doc-sync 후속**: `telegram.md §5.1`·`§5.2(3)` 의 "미구현 (Planned)"
-> 한정어를 "구현됨" 으로 갱신하는 것은 planner 도메인(developer 는 spec read-only) → spec-sync 후속 plan 으로 처리.
+> Redis dedup 설계 필요로 보류. **spec doc-sync 동반 완료**: ai-review SPEC-DRIFT(W1/W2) 지적에 따라 본 PR 에서
+> `telegram.md` §5.1·§5.2(3)·§4·§7 의 "미구현 (Planned)" 한정어를 구현 반영으로 갱신 + `chat-channel-adapter.md`
+> button_callback union 에 `messageId?: string` 등재 (코드+spec 자기정합 PR).
 
 - [x] §5.1 AI Multi Turn: LLM 응답 직전 `sendChatAction(typing)` 1회 발송. — **완료**: `telegram-message.renderer.ts` `renderAiMessage` 가 text 발화 전 `{ kind: 'typing' }` ChannelMessage 를 prepend (빈 응답이면 생략). 어댑터 `case 'typing'` 가 `sendChatAction` 발송. 테스트: renderer.spec ai_message → typing+text.
 - [x] §5.2 (3) button_callback 처리 후 `editMessageReplyMarkup` 으로 키보드 제거(중복 클릭 차단). — **완료**: `telegram-client.ts` `editMessageReplyMarkup` 메서드 추가, parser 가 `callback_query.message.message_id` 를 `command.messageId` 로 동봉(ChannelCommand 타입에 옵션 필드 추가, 타 provider 무영향), adapter `ackInteraction` 이 ack 후 best-effort 로 빈 inline_keyboard 편집(실패는 삼킴). 테스트: parser messageId 동봉 + adapter 3건.

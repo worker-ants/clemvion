@@ -278,6 +278,21 @@ describe('TelegramAdapter', () => {
         /sendMessage failed/i,
       );
     });
+
+    it('typing 메시지 → sendChatAction(typing) 호출 + externalMsgId=typing (§5.1)', async () => {
+      client.sendChatAction.mockResolvedValue(okResult(true));
+      const msg: ChannelMessage = {
+        conversationKey: '9999',
+        body: { kind: 'typing' },
+      };
+      const result = await adapter.sendMessage(msg, baseConfig);
+      expect(client.sendChatAction).toHaveBeenCalledWith(
+        BOT_TOKEN_PLAIN,
+        expect.objectContaining({ chat_id: '9999', action: 'typing' }),
+      );
+      expect(client.sendMessage).not.toHaveBeenCalled();
+      expect(result.externalMsgId).toBe('typing');
+    });
   });
 
   describe('ackInteraction()', () => {
@@ -357,6 +372,27 @@ describe('TelegramAdapter', () => {
       };
       await adapter.ackInteraction(update, baseConfig);
       expect(client.editMessageReplyMarkup).not.toHaveBeenCalled();
+    });
+
+    it('messageId 가 비-숫자/0/음수면 editMessageReplyMarkup 미호출 (무효 id 보호)', async () => {
+      client.answerCallbackQuery.mockResolvedValue(okResult(true));
+      for (const bad of ['abc', '0', '-5', 'NaN']) {
+        client.editMessageReplyMarkup.mockClear();
+        const update: ChannelUpdate = {
+          conversationKey: '9999',
+          channelUserKey: '888',
+          command: {
+            kind: 'button_callback',
+            callbackData: 'btn-id-1',
+            callbackQueryId: 'cq-abc',
+            messageId: bad,
+          },
+          idempotencyKey: `bad-${bad}`,
+          receivedAt: new Date().toISOString(),
+        };
+        await adapter.ackInteraction(update, baseConfig);
+        expect(client.editMessageReplyMarkup).not.toHaveBeenCalled();
+      }
     });
 
     it('editMessageReplyMarkup 실패는 삼켜져 ack 흐름을 막지 않는다 (best-effort)', async () => {

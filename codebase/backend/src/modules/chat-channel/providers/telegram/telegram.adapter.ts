@@ -256,7 +256,8 @@ export class TelegramAdapter implements ChatChannelAdapter {
     const messageId = update.command.messageId;
     if (messageId !== undefined) {
       const numericId = Number(messageId);
-      if (Number.isInteger(numericId)) {
+      // Telegram message_id 는 양의 정수. NaN/음수/0 은 무효 → editMessage skip.
+      if (Number.isInteger(numericId) && numericId > 0) {
         try {
           await this.client.editMessageReplyMarkup(botToken, {
             chat_id: update.conversationKey,
