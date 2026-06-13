@@ -382,12 +382,24 @@ describe('AuthController', () => {
       role: 'owner',
     };
 
-    it('records user.2fa_enabled on verify2fa', async () => {
+    // extractClientIp: CF-신뢰 off 기본 → X-Forwarded-For 첫 IP.
+    const mock2faReq = {
+      headers: { 'x-forwarded-for': '5.5.5.5' },
+      ip: '5.5.5.5',
+      socket: {},
+    } as never;
+
+    beforeEach(() => {
+      // 테스트 격리: CF 신뢰 env leak 시 IP 단언이 깨질 수 있어 off(부재)로 고정.
+      delete process.env.TRUST_CF_CONNECTING_IP;
+    });
+
+    it('records user.2fa_enabled (with ipAddress) on verify2fa', async () => {
       totpService.verifyAndEnable.mockResolvedValue({
         recoveryCodes: ['a', 'b'],
       });
 
-      await controller.verify2fa(payload, { code: '123456' });
+      await controller.verify2fa(payload, { code: '123456' }, mock2faReq);
 
       expect(totpService.verifyAndEnable).toHaveBeenCalledWith(
         'user-uuid',
@@ -400,6 +412,7 @@ describe('AuthController', () => {
         resourceType: 'user',
         resourceId: 'user-uuid',
         details: { method: 'totp' },
+        ipAddress: '5.5.5.5',
       });
     });
 
@@ -409,19 +422,23 @@ describe('AuthController', () => {
       );
 
       await expect(
-        controller.verify2fa(payload, { code: '000000' }),
+        controller.verify2fa(payload, { code: '000000' }, mock2faReq),
       ).rejects.toThrow(UnauthorizedException);
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });
 
-    it('records user.2fa_disabled on disable2fa after password reconfirm', async () => {
+    it('records user.2fa_disabled (with ipAddress) on disable2fa after password reconfirm', async () => {
       usersService.findById.mockResolvedValue({
         id: 'user-uuid',
         passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
       } as never);
       totpService.disable.mockResolvedValue(undefined);
 
-      await controller.disable2fa(payload, { password: 'OldP@ssw0rd1' });
+      await controller.disable2fa(
+        payload,
+        { password: 'OldP@ssw0rd1' },
+        mock2faReq,
+      );
 
       expect(totpService.disable).toHaveBeenCalledWith('user-uuid');
       expect(auditLogsService.record).toHaveBeenCalledWith({
@@ -431,6 +448,7 @@ describe('AuthController', () => {
         resourceType: 'user',
         resourceId: 'user-uuid',
         details: { method: 'totp' },
+        ipAddress: '5.5.5.5',
       });
     });
 
@@ -441,7 +459,7 @@ describe('AuthController', () => {
       } as never);
 
       await expect(
-        controller.disable2fa(payload, { password: 'WrongPass!' }),
+        controller.disable2fa(payload, { password: 'WrongPass!' }, mock2faReq),
       ).rejects.toThrow(UnauthorizedException);
       expect(totpService.disable).not.toHaveBeenCalled();
       expect(auditLogsService.record).not.toHaveBeenCalled();

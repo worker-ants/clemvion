@@ -64,6 +64,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
 import { extractClientIp } from './utils/client-ip';
+import { authContextFromRequest } from './utils/auth-context';
 import {
   clearRefreshTokenCookie,
   setRefreshTokenCookie,
@@ -72,14 +73,6 @@ import { isOriginAllowed } from '../../common/utils/cors-origins';
 
 // Express types used directly to avoid isolatedModules + emitDecoratorMetadata issue
 import Express from 'express';
-
-function authContextFromRequest(req: Express.Request) {
-  const headers = req.headers ?? {};
-  return {
-    ip: extractClientIp(req),
-    userAgent: headers['user-agent'] ?? null,
-  };
-}
 
 const OAUTH_PROVIDER_ENUM = AUTH_OAUTH_PROVIDERS.reduce<Record<string, string>>(
   (acc, p) => {
@@ -306,9 +299,14 @@ export class AuthController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 코드 불일치' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  async verify2fa(@CurrentUser() user: JwtPayload, @Body() dto: Verify2faDto) {
+  async verify2fa(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: Verify2faDto,
+    @Req() req: Express.Request,
+  ) {
     const result = await this.totpService.verifyAndEnable(user.sub, dto.code);
     // [Spec Auth §4.1 / Rationale 4.1.B] 액터의 현재 세션 workspaceId 에 귀속.
+    // ipAddress 동반(포렌식, data-flow §1.1) — extractClientIp = CF-신뢰 게이트 적용.
     await this.auditLogsService.record({
       workspaceId: user.workspaceId,
       userId: user.sub,
@@ -316,6 +314,7 @@ export class AuthController {
       resourceType: 'user',
       resourceId: user.sub,
       details: { method: 'totp' },
+      ipAddress: extractClientIp(req) ?? undefined,
     });
     return { data: { recoveryCodes: result.recoveryCodes } };
   }
@@ -338,6 +337,7 @@ export class AuthController {
   async disable2fa(
     @CurrentUser() user: JwtPayload,
     @Body() dto: Disable2faDto,
+    @Req() req: Express.Request,
   ) {
     const userEntity = await this.usersService.findById(user.sub);
     if (!userEntity || !userEntity.passwordHash) {
@@ -355,6 +355,7 @@ export class AuthController {
     }
     await this.totpService.disable(user.sub);
     // [Spec Auth §4.1 / Rationale 4.1.B] 액터의 현재 세션 workspaceId 에 귀속.
+    // ipAddress 동반(포렌식, data-flow §1.1).
     await this.auditLogsService.record({
       workspaceId: user.workspaceId,
       userId: user.sub,
@@ -362,6 +363,7 @@ export class AuthController {
       resourceType: 'user',
       resourceId: user.sub,
       details: { method: 'totp' },
+      ipAddress: extractClientIp(req) ?? undefined,
     });
     return { data: { ok: true } };
   }

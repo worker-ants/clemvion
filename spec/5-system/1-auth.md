@@ -273,6 +273,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 비활동 만료 | 30일간 미사용 시 Refresh Token 무효화 |
 | 강제 종료 | 사용자가 활성 세션 목록에서 개별 종료 가능 (family 전체 revoke) |
 | 강제 종료 재인증 | 비밀번호 재확인 필수. OAuth-only 사용자는 등록된 2FA (TOTP 또는 WebAuthn) 또는 이메일 OTP 로 대체. 두 방식 모두 등록한 사용자는 §1.4.2 의 우선순위(WebAuthn 우선) 를 따른다 |
+| 비밀번호 변경 시 처리 | 비밀번호 변경(`POST /users/me/change-password`) 성공 시 사용자의 **모든 활성 family 를 revoke** 하고 변경을 수행한 **현재 디바이스에 새 세션(access token + refresh 쿠키 회전)을 즉시 재발급**한다 — 탈취 가능한 모든 refresh token(현재 family 포함)을 변경 시점에 무효화하면서 변경한 본인은 재로그인 없이 계속 사용한다. `login_history` 에 `session_revoked`(bulk, `familyId=null`) 1건 기록. 재발급 세션은 표준 7일(`rememberMe=false`) — 현재 family 미식별으로 직전 세션의 remember-me 상태는 승계하지 않는다 — Rationale 2.3.C |
 | 현재 세션 식별 | 서버가 요청의 refresh-token 쿠키 해시를 조회해 `isCurrent` 플래그로 응답 — raw token은 JS로 노출하지 않음 |
 | 메타데이터 | 발급 시점의 IP·User-Agent·디바이스 라벨 및 마지막 사용 시각을 RefreshToken 에 기록 |
 | 클라이언트 IP | `CF-Connecting-IP` 는 **`TRUST_CF_CONNECTING_IP=true` 일 때만 1순위** (기본 off — 위변조 가능 헤더). off 면 `X-Forwarded-For` 첫 IP → `req.ip`(trust proxy) → `req.socket.remoteAddress` 순. Cloudflare(Tunnel 포함) 뒤 배포만 활성화 — Rationale 2.3.B |
@@ -397,7 +398,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | totp_failed | 2FA TOTP 코드 검증 실패 |
 | webauthn_failed | 2FA WebAuthn 검증 실패. `failure_reason` 으로 `WEBAUTHN_INVALID`·`WEBAUTHN_COUNTER_REGRESSION` 등 세부 구분 |
 | logout | 사용자가 `/auth/logout` 호출 → 호출 디바이스 family 전체 revoke |
-| session_revoked | 사용자가 활성 세션 목록에서 다른 family 강제 종료 |
+| session_revoked | 사용자가 활성 세션 목록에서 다른 family 강제 종료, 또는 **비밀번호 변경 성공 시 전체 family revoke**(bulk, `familyId=null`). enum 값(`session_revoked`)은 기존 그대로 재사용 — DB CHECK 제약·마이그레이션 불요 |
 | token_reuse_detected | revoke된 refresh token 재사용 감지 → family 전체 revoke |
 
 보존: **180일** 경과 row 는 일일 배치(BullMQ repeatable scheduler, `0 3 * * *` Asia/Seoul)로 자동 삭제. 조회는 사용자 본인만 가능하며 워크스페이스 관리자에게는 노출되지 않는다.
@@ -576,6 +577,25 @@ Refresh 쿠키의 `Domain` 속성은 운영자 env 가 아니라 `FRONTEND_URL`/
 **`none` 모드의 CSRF 보완 (M-5).** `SameSite=none` 은 cross-site 요청에 쿠키를 자동 첨부하므로 `/auth/refresh` 에 강제 refresh CSRF 가 성립할 수 있다. 다만 (a) refresh 쿠키는 `/auth/refresh` 한 곳에서만 쓰이고 다른 엔드포인트는 모두 Bearer access token 기반이라 쿠키 CSRF 면역이며, (b) credentials CORS allowlist 가 cross-site 출처의 **응답 읽기**를 이미 차단한다. 따라서 CSRF 토큰 인프라(double-submit 등)를 신설하는 대신, `/auth/refresh` 가 요청 `Origin` 을 기존 CORS allowlist(`isOriginAllowed`)와 대조해 allowlist 외·불투명(`'null'`, sandbox iframe 등) Origin 을 `403` 으로 선차단하는 defense-in-depth 를 둔다. Origin 부재(same-origin·non-browser 도구)는 통과한다 — 프론트 변경·토큰 발급 인프라가 불필요하다. cookie `Path` 를 `/api/auth` 로 한정해 쿠키 첨부 표면도 축소한다(`set`/`clear` 동일 Path 필수).
 
 **클라이언트 IP 신뢰 (m-3).** `CF-Connecting-IP` 는 클라이언트가 임의로 보낼 수 있는 헤더라, Cloudflare 뒤가 아닌 배포에서 무조건 신뢰하면 rate-limit 우회·`ip_whitelist` 우회·감사로그 IP 오염이 가능하다. 따라서 `TRUST_CF_CONNECTING_IP=true`(정확히 `true`/`1`)로 명시한 배포에서만 1순위로 사용하고, 기본(off)에서는 무시하고 `X-Forwarded-For`/`req.ip` 로 폴백한다(fail-safe). Cloudflare(Tunnel 포함) 뒤에서는 `X-Forwarded-For` 첫 IP 도 동일한 실제 클라이언트 IP 이므로 off 폴백이 안전하다. 본 신뢰 플래그는 IP 를 읽는 세 경로(세션·감사 IP `auth/utils/client-ip`, 공개 webhook rate-limit, `ip_whitelist` 검증)에 일관 적용한다. origin 직접 접근 차단(인프라/터널) 전제는 유지하되, 강제 IP allowlist 는 터널 배포에 불필요해 권고에서 제외한다. **`ip_whitelist`/rate-limit 의 IP 추출이 헤더 기반(CF-gated → XFF 첫 IP)인 것은 의도된 결정**이다 — `req.ip`(Express `trust proxy 1`) 를 우선/대체로 쓰자는 안은 **기각**한다: CF Tunnel 배포에서는 `req.ip` 가 cloudflared/CF edge 주소라 실제 클라이언트가 아니어서 `ip_whitelist` 를 오히려 깨뜨린다. XFF 헤더 위변조 방어는 위 원칙대로 인프라/`trust proxy` 경계의 책임이며, 코드 리뷰가 "`req.ip` 폴백 부재" 를 지적하더라도 본 항이 정한 의도된 설계다.
+
+### 2.3.C — 비밀번호 변경 시 세션 revoke 범위 (refactor 04 후속)
+
+비밀번호 변경(`POST /users/me/change-password`) 성공 시 **사용자의 모든 활성 family 를 revoke 하고 현재 디바이스에 새 세션을 재발급**한다(옵션 B). 변경 직전 `currentPassword` bcrypt 검증으로 본인 확인이 끝나므로 별도 재인증은 요구하지 않는다. 응답으로 새 access token 을 반환하고 refresh 쿠키를 회전시켜, 변경한 본인은 로그아웃 없이 그대로 사용한다.
+
+근거: 비밀번호 변경의 보안 목적은 **유출된 비밀번호로 이미 발급된(=탈취 가능한) 세션의 무효화**다. 이상적으로는 "현재 세션만 남기고 나머지 revoke"이나, refresh 쿠키 `Path` 가 `/api/auth` 로 한정돼(§2.3 · Rationale 2.3.B M-5) `/api/users/me/change-password` 요청에는 쿠키가 첨부되지 않아 **현재 family 를 식별할 수단이 없다**. 따라서 전체 revoke + 재발급으로 동일 UX(현재 디바이스 유지)를 달성하되 현재 family 의 구 refresh token 까지 회전시켜 **더 강한 무효화**를 얻는다. OWASP Session Management 권고(비밀번호 변경 시 세션 무효화)와 일치한다.
+
+reissue 세션은 표준 7일(`rememberMe=false`)로 발급한다 — 현재 family 를 식별할 수 없어 직전 세션의 remember-me(30일) 여부를 승계할 수 없기 때문이다. 변경 직후 본인이 명시적으로 수행한 동작이라 재발급 세션 수명 하향은 수용 가능한 트레이드오프다.
+
+**무인증 reset-password(§1.1.A)와의 위협 모델 대조**: `POST /auth/reset-password`(토큰 기반·세션 없음)는 "비밀번호를 분실해 계정 통제권을 잃었을 수 있는" 시나리오라 전 세션을 revoke 하되 재발급하지 않고 로그인 화면으로 보낸다(기존 흐름 유지). 반면 change-password 는 "현재 비밀번호를 아는 본인이 능동적으로 교체" 하는 시나리오라 현재 세션 신뢰가 유지돼 재발급한다. 둘 다 "전 세션 revoke" 원칙은 공유하되 재발급 여부가 갈린다.
+
+`session_revoked` enum 값은 기존 그대로 재사용한다(§4.3) — 새 event 종류 신설이 아니므로 `login_history` event 스키마·DB CHECK 제약·마이그레이션이 불요하다.
+
+**기각된 대안 (a) 전 세션 revoke + 재발급 없음**: 현재 디바이스 포함 전체 종료 후 재로그인 강제. 변경한 본인은 방금 비밀번호로 재인증한 신뢰 세션이라 끊을 보안 이득이 없고 재로그인 비용만 발생.
+**기각된 대안 (b') 현재 family 제외 revoke**: 위 쿠키 `Path` 제약으로 changePassword 컨트롤러에서 현재 family 식별 불가 — 구현 불가능.
+
+**OAuth-only 사용자**: `passwordHash` 가 없으면 `POST /users/me/change-password` 자체가 `INVALID_PASSWORD` 로 차단되므로(현행) 본 정책은 비밀번호 보유 사용자에만 적용된다.
+
+revoke/재발급 실패가 비밀번호 변경 주 동작(이미 커밋됨)을 깨지 않도록 best-effort 로 처리하되, 실패는 서버 로그로 관측 가능해야 한다.
 
 ### 1.5.D — 워크스페이스 초대 토큰을 raw 로 저장하는 이유 (vs 이메일·재설정 토큰의 SHA-256 해시)
 
