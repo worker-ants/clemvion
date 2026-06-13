@@ -16,6 +16,7 @@ import { ExecutionEngineService } from '../execution-engine/execution-engine.ser
 import { ExecutionsService } from '../executions/executions.service';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
+import { ChatChannelRateLimiterService } from '../chat-channel/chat-channel-rate-limiter.service';
 import { ChatChannelAdapter } from '../chat-channel/types';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
@@ -35,7 +36,11 @@ describe('HooksService', () => {
         HooksService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: { findOne: jest.fn(), save: jest.fn() },
+          useValue: {
+            findOne: jest.fn(),
+            save: jest.fn(),
+            update: jest.fn().mockResolvedValue({ affected: 1 }),
+          },
         },
         {
           provide: getRepositoryToken(Node),
@@ -70,6 +75,11 @@ describe('HooksService', () => {
             acquireLock: jest.fn().mockResolvedValue(true),
             releaseLock: jest.fn().mockResolvedValue(undefined),
           },
+        },
+        {
+          provide: ChatChannelRateLimiterService,
+          // default: 한도 이내(true) — rate-limit 케이스 테스트에서 override.
+          useValue: { consume: jest.fn().mockResolvedValue(true) },
         },
         {
           provide: InteractionService,
@@ -616,6 +626,101 @@ describe('HooksService', () => {
         }),
       );
       expect(engine.execute).not.toHaveBeenCalled();
+    });
+
+    it('CCH-NF-03 — per-chat 분당 rate-limit 초과 시 처리 생략(202 ignored) + chat_channel_health=degraded, execution 미시작 (R-CC-19)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'flood' },
+        idempotencyKey: '2001',
+        receivedAt: new Date().toISOString(),
+      });
+      const rateLimiter = moduleRef.get(ChatChannelRateLimiterService) as {
+        consume: jest.Mock;
+      };
+      rateLimiter.consume.mockResolvedValueOnce(false); // 한도 초과
+
+      const result = await service.handleWebhook('abc', chatInput);
+
+      // forwarding·새 execution 모두 안 함.
+      expect(engine.execute).not.toHaveBeenCalled();
+      expect(interactionService.interact).not.toHaveBeenCalled();
+      // chat_channel_health=degraded 갱신 + lastError 에 한도 명시(외부 입력 미포함).
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: chatChannelTrigger.id },
+        expect.objectContaining({
+          chatChannelHealth: 'degraded',
+          chatChannelLastError: expect.stringContaining('60/min'),
+        }),
+      );
+      expect(result).toEqual({ executionId: 'ignored' });
+    });
+
+    it('CCH-NF-03 — 이미 degraded 인 trigger 는 rate-limit 초과해도 update 미호출(중복 write 방지)', async () => {
+      triggerRepo.findOne.mockResolvedValue({
+        ...chatChannelTrigger,
+        chatChannelHealth: 'degraded',
+      } as unknown as Trigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'flood' },
+        idempotencyKey: '2003',
+        receivedAt: new Date().toISOString(),
+      });
+      (
+        moduleRef.get(ChatChannelRateLimiterService) as { consume: jest.Mock }
+      ).consume.mockResolvedValueOnce(false);
+
+      const result = await service.handleWebhook('abc', chatInput);
+
+      expect(triggerRepo.update).not.toHaveBeenCalled();
+      expect(result).toEqual({ executionId: 'ignored' });
+    });
+
+    it('CCH-NF-03 — rate-limit 초과 + degraded 갱신 DB 실패해도 throw 없이 ignored 반환', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      triggerRepo.update.mockRejectedValueOnce(new Error('db down'));
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'flood' },
+        idempotencyKey: '2004',
+        receivedAt: new Date().toISOString(),
+      });
+      (
+        moduleRef.get(ChatChannelRateLimiterService) as { consume: jest.Mock }
+      ).consume.mockResolvedValueOnce(false);
+
+      const result = await service.handleWebhook('abc', chatInput);
+      expect(result).toEqual({ executionId: 'ignored' });
+    });
+
+    it('CCH-NF-03 — rate-limit 이내면 정상 처리 + consume(triggerId, conversationKey, 기본 60) 호출', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      engine.execute.mockResolvedValue('exec-new');
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-789',
+        channelUserKey: 'user-1',
+        command: { kind: 'text_message', text: 'hi' },
+        idempotencyKey: '2002',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue(null); // 새 execution 경로
+      const rateLimiter = moduleRef.get(ChatChannelRateLimiterService) as {
+        consume: jest.Mock;
+      };
+
+      await service.handleWebhook('abc', chatInput);
+
+      expect(rateLimiter.consume).toHaveBeenCalledWith(
+        chatChannelTrigger.id,
+        'chat-789',
+        60,
+      );
+      expect(engine.execute).toHaveBeenCalled();
     });
 
     it('parseUpdate 성공 + execution 이 running (waiting_for_input 미도달) → executionStillRunning 안내 발송 + forwarding/새 execution 안 함 (CCH-CV-03 (b), R9)', async () => {

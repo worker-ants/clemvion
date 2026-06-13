@@ -85,11 +85,13 @@ sequenceDiagram
 | `form_submission` | per-conversation Redis lock (`SET NX EX 30`) 획득 → 필드 allowlist 필터 + client-side 검증 → `interact(submit_form)` → 성공 시 `pendingFormModal` clear. 실패 시 "양식 작성하기" 버튼 재노출 (pendingFormModal 유지) |
 | 신규 대화 (위 외) | `execute()` + ConversationState upsert (위 다이어그램) |
 
-> **구현 갭 — inbound rate limit**: `config.chatChannel.rateLimitPerMinute` (CCH-NF-03, default 60) 는
-> DTO·타입 필드로만 존재하며 (`chat-channel/types.ts`, `triggers/dto/chat-channel-config.dto.ts`),
-> inbound hot path 에 이를 적용하는 코드는 없다. 공개 webhook IP rate-limit
-> (`PublicWebhookThrottleGuard`) 과도 별개다 — chatChannel 트리거는 inbound 서명 인증을 쓰므로
-> 해당 가드의 공개(auth 없음) 조건에 의존할 수 없다.
+> **inbound rate limit (구현 완료, 2026-06-12)**: `config.chatChannel.rateLimitPerMinute`
+> (CCH-NF-03, default 60) 는 [Spec Chat Channel CCH-NF-03 / R-CC-19](../5-system/15-chat-channel.md#36-비기능-요구사항)
+> 의 per-chat Redis fixed-window 로 구현됨 — `ChatChannelRateLimiterService.consume`
+> (`INCR`+`EXPIRE NX` 단일 pipeline, key `cc:rl:{triggerId}:{conversationKey}`) + `HooksService`
+> 가 parseUpdate 직후 한도 초과분을 skip(202 ignored) + `chat_channel_health=degraded`. Redis 미가용 시
+> fail-open. 공개 webhook IP rate-limit (`PublicWebhookThrottleGuard`) 과는 별개의 per-chat 카운터 —
+> chatChannel 트리거는 inbound 서명 인증을 쓰므로 해당 가드의 공개(auth 없음) 조건에 의존할 수 없다.
 
 ### 1.2 Outbound — 실행 이벤트 → adapter 렌더링 → provider API 발송
 

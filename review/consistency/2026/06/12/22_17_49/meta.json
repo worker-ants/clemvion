@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-12T22:17:49.149279",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-cch-nf-03-rate-limit.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
