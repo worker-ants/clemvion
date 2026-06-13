@@ -2102,11 +2102,10 @@ export class ExecutionEngineService
         return;
       }
 
-      // COMPLETED 처리.
-      await this.updateExecutionStatus(
-        savedExecution,
-        ExecutionStatus.COMPLETED,
-      );
+      // COMPLETED 처리. outputData/finishedAt/durationMs 를 먼저 세팅한 뒤
+      // guarded updateExecutionStatus 가 status 와 함께 원자적으로 영속한다 (M-3 —
+      // 옛 2-save 를 1 guarded UPDATE 로). affected=0(동시 cancel/park 선점)이면
+      // emit skip.
       const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
       if (lastNodeId) {
         savedExecution.outputData =
@@ -2117,13 +2116,18 @@ export class ExecutionEngineService
         savedExecution.durationMs =
           savedExecution.finishedAt.getTime() -
           savedExecution.startedAt.getTime();
-        await this.executionRepository.save(savedExecution);
       }
-      await this.eventEmitter.emitExecution(
-        executionId,
-        ExecutionEventType.EXECUTION_COMPLETED,
-        { status: ExecutionStatus.COMPLETED },
+      const completed = await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.COMPLETED,
       );
+      if (completed) {
+        await this.eventEmitter.emitExecution(
+          executionId,
+          ExecutionEventType.EXECUTION_COMPLETED,
+          { status: ExecutionStatus.COMPLETED },
+        );
+      }
     } catch (error: unknown) {
       // 본 메서드는 detached — 에러를 worker 로 전파할 수 없으므로 모두 in-band
       // 단말 처리한다 (BullMQ retry 대상 아님).
@@ -2261,11 +2265,8 @@ export class ExecutionEngineService
       });
       if (topResult.parked) return;
 
-      // COMPLETED 마감 (runExecution / driveResumeAwaited 와 동일 형식).
-      await this.updateExecutionStatus(
-        savedExecution,
-        ExecutionStatus.COMPLETED,
-      );
+      // COMPLETED 마감 (runExecution / driveResumeAwaited 와 동일 형식). 마감 필드를
+      // 먼저 세팅한 뒤 guarded updateExecutionStatus 가 원자적으로 영속한다 (M-3).
       savedExecution.outputData =
         (topResult.output as Record<string, unknown> | undefined) ?? {};
       savedExecution.finishedAt = new Date();
@@ -2274,14 +2275,20 @@ export class ExecutionEngineService
         savedExecution.startedAt.getTime();
       // terminal 도달 — 중첩 호출 체인은 더 이상 재개 대상이 아니므로
       // resume_call_stack 을 비운다(park 시점 stale 값이 COMPLETED 행에 잔류하지
-      // 않도록). 다음 park 가 있었다면 위 forward 가 새 stack 으로 재영속했을 것.
+      // 않도록). guarded UPDATE 가 resume_call_stack 컬럼도 함께 쓴다. 다음 park 가
+      // 있었다면 위 forward 가 새 stack 으로 재영속했을 것.
       savedExecution.resumeCallStack = null;
-      await this.executionRepository.save(savedExecution);
-      await this.eventEmitter.emitExecution(
-        executionId,
-        ExecutionEventType.EXECUTION_COMPLETED,
-        { status: ExecutionStatus.COMPLETED },
+      const completed = await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.COMPLETED,
       );
+      if (completed) {
+        await this.eventEmitter.emitExecution(
+          executionId,
+          ExecutionEventType.EXECUTION_COMPLETED,
+          { status: ExecutionStatus.COMPLETED },
+        );
+      }
     } catch (error: unknown) {
       // detach 호출 — 에러를 worker 로 전파할 수 없어 in-band 단말 처리.
       if (error instanceof ParkReleaseSignal) {
@@ -3796,13 +3803,10 @@ export class ExecutionEngineService
         pointer++;
       }
 
-      // 11. Mark execution as completed
-      await this.updateExecutionStatus(
-        savedExecution,
-        ExecutionStatus.COMPLETED,
-      );
-
-      // Set output data from the last executed node
+      // 11. Mark execution as completed. outputData/finishedAt/durationMs 를 먼저
+      // 세팅한 뒤 guarded updateExecutionStatus 가 status 와 함께 원자적으로 영속
+      // (M-3 — 옛 2-save 를 1 guarded UPDATE 로). affected=0(동시 cancel/park 선점)
+      // 이면 emit skip.
       const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
       if (lastNodeId) {
         savedExecution.outputData =
@@ -3812,15 +3816,20 @@ export class ExecutionEngineService
         savedExecution.durationMs =
           savedExecution.finishedAt.getTime() -
           savedExecution.startedAt.getTime();
-        await this.executionRepository.save(savedExecution);
       }
-
-      // Emit after all DB writes are complete
-      await this.eventEmitter.emitExecution(
-        executionId,
-        ExecutionEventType.EXECUTION_COMPLETED,
-        { status: ExecutionStatus.COMPLETED },
+      const completed = await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.COMPLETED,
       );
+
+      // Emit after all DB writes are complete (terminal 선점 시 skip).
+      if (completed) {
+        await this.eventEmitter.emitExecution(
+          executionId,
+          ExecutionEventType.EXECUTION_COMPLETED,
+          { status: ExecutionStatus.COMPLETED },
+        );
+      }
     } catch (error: unknown) {
       // exec-park D6 — 중첩 sub-workflow blocking 노드가 durable release park 했다.
       // `waitForX('release')` 가 이미 Execution 을 WAITING_FOR_INPUT + thread/variables
@@ -5049,8 +5058,9 @@ export class ExecutionEngineService
     }
 
     // 6. 자연 종결 — Execution COMPLETED 마감 (resumeFromCheckpoint COMPLETED
-    // finalize block 패턴 동일).
-    await this.updateExecutionStatus(savedExecution, ExecutionStatus.COMPLETED);
+    // finalize block 패턴 동일). 마감 필드를 먼저 세팅한 뒤 guarded
+    // updateExecutionStatus 가 status 와 함께 원자적으로 영속 (M-3). affected=0
+    // (동시 cancel/park 선점)이면 emit skip.
     const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
     if (lastNodeId) {
       savedExecution.outputData =
@@ -5061,13 +5071,18 @@ export class ExecutionEngineService
       savedExecution.durationMs =
         savedExecution.finishedAt.getTime() -
         savedExecution.startedAt.getTime();
-      await this.executionRepository.save(savedExecution);
     }
-    await this.eventEmitter.emitExecution(
-      executionId,
-      ExecutionEventType.EXECUTION_COMPLETED,
-      { status: ExecutionStatus.COMPLETED },
+    const completed = await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.COMPLETED,
     );
+    if (completed) {
+      await this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.EXECUTION_COMPLETED,
+        { status: ExecutionStatus.COMPLETED },
+      );
+    }
   }
 
   /**
@@ -9180,12 +9195,21 @@ export class ExecutionEngineService
     return this.filterUserVariables(raw as Record<string, unknown>);
   }
 
+  /**
+   * Execution 상태 전이의 단일 choke point.
+   *
+   * @returns `true` 면 전이가 DB 에 반영됨. `false` 는 **else 분기(linkedNodeExec
+   *   없음)에서만** 발생 — 동시 cancel/park 가 DB 를 이미 terminal 로 옮겨
+   *   guarded UPDATE 가 0행 매칭(no-op)된 경우다. 호출부는 이때 terminal emit 을
+   *   skip 해 이벤트 이중 발행/terminal status 전복을 막아야 한다 (M-3).
+   *   linkedNodeExec 분기(spec §1.2 짝 전이)는 항상 `true`.
+   */
   private async updateExecutionStatus(
     execution: Execution,
     newStatus: ExecutionStatus,
     linkedNodeExec?: NodeExecution,
     opts?: { allowRetryReentry?: boolean },
-  ): Promise<void> {
+  ): Promise<boolean> {
     assertTransition(execution.status, newStatus, opts);
     // PR2a — §8 active-running 누적 시간 추적. 모든 상태 전이의 단일 choke point.
     // RUNNING 진입(어느 세그먼트 entry point 든) → 세그먼트 시작 시각 기록.
@@ -9212,10 +9236,45 @@ export class ExecutionEngineService
         await manager.save(Execution, execution);
         await manager.save(NodeExecution, linkedNodeExec);
       });
-    } else {
-      execution.status = newStatus;
-      await this.executionRepository.save(execution);
+      return true;
     }
+
+    // M-3 — else 분기: 옛 full-entity save 는 stale 엔티티의 모든 컬럼을 덮어써,
+    // 동시 cancel/park 전이를 잃어버리는 lost-update 위험이 있었다. 이를 lifecycle
+    // 컬럼만 쓰는 guarded UPDATE 로 교체한다. `status IN (비-terminal)` 가드로 DB 가
+    // 이미 terminal 이면 0행 매칭 → no-op + false 반환(호출부 emit skip). 쓰는 컬럼은
+    // 옛 full-save 가 쓰던 컬럼의 부분집합(이 엔티티는 full-save 되던 것이므로 안전)
+    // 이라, 동시 park 가 기록하는 conversation_thread/user_variables 는 건드리지
+    // 않는다. jsonb 는 raw 파라미터에 명시 JSON.stringify(codebase raw-query 관용).
+    // else 분기 호출은 RUNNING / COMPLETED 전이뿐이며 FAILED/CANCELLED 직접 마감과
+    // linkedNodeExec 짝 전이는 범위 밖.
+    execution.status = newStatus;
+    const updated: Array<{ id: string }> = await this.executionRepository.query(
+      `UPDATE execution
+          SET status = $2,
+              active_running_ms = $3,
+              finished_at = $4,
+              duration_ms = $5,
+              output_data = $6::jsonb,
+              resume_call_stack = $7::jsonb
+        WHERE id = $1
+          AND status IN ('pending', 'running', 'waiting_for_input')
+        RETURNING id`,
+      [
+        execution.id,
+        newStatus,
+        execution.activeRunningMs ?? 0,
+        execution.finishedAt ?? null,
+        execution.durationMs ?? null,
+        execution.outputData == null
+          ? null
+          : JSON.stringify(execution.outputData),
+        execution.resumeCallStack == null
+          ? null
+          : JSON.stringify(execution.resumeCallStack),
+      ],
+    );
+    return updated.length > 0;
   }
 
   private async createNodeExecution(
