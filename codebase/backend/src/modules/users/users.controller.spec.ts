@@ -202,6 +202,9 @@ describe('UsersController', () => {
 
     beforeEach(() => {
       (mockRes as unknown as { cookie: jest.Mock }).cookie.mockClear();
+      // 테스트 격리: CF 신뢰 env leak 시 extractClientIp 가 cf-connecting-ip 를
+      // 우선해 IP 단언이 깨질 수 있으므로 명시적으로 off(부재) 상태로 고정한다.
+      delete process.env.TRUST_CF_CONNECTING_IP;
     });
 
     it('delegates to UsersService, rotates session, sets cookie, audits with ipAddress, returns accessToken', async () => {

@@ -986,6 +986,14 @@ describe('AuthService', () => {
       );
       expect(tokens.accessToken).toBe('mock-access-token');
       expect(tokens.refreshToken).toBeDefined();
+
+      // 순서 불변식(옵션 B 보안 핵심): 전 family revoke 가 새 토큰 발급보다 **먼저** 일어나야
+      // 한다. 순서가 뒤집히면 방금 발급한 새 family 까지 revoke 돼 현재 디바이스가 끊긴다.
+      const revokeOrder = (sessionsService.revokeAllFamilies as jest.Mock).mock
+        .invocationCallOrder[0];
+      const signOrder = (jwtService.sign as jest.Mock).mock
+        .invocationCallOrder[0];
+      expect(revokeOrder).toBeLessThan(signOrder);
     });
 
     it('throws UnauthorizedException when the user is missing', async () => {

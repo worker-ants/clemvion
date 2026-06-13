@@ -22,6 +22,9 @@ describe('WebAuthnController (audit)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // 테스트 격리: CF 신뢰 env leak 시 extractClientIp 가 cf-connecting-ip 를 우선해
+    // ipAddress 단언이 깨질 수 있으므로 off(부재) 상태로 고정한다.
+    delete process.env.TRUST_CF_CONNECTING_IP;
 
     webauthnService = {
       verifyRegistration: jest.fn(),

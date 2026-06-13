@@ -389,6 +389,11 @@ describe('AuthController', () => {
       socket: {},
     } as never;
 
+    beforeEach(() => {
+      // 테스트 격리: CF 신뢰 env leak 시 IP 단언이 깨질 수 있어 off(부재)로 고정.
+      delete process.env.TRUST_CF_CONNECTING_IP;
+    });
+
     it('records user.2fa_enabled (with ipAddress) on verify2fa', async () => {
       totpService.verifyAndEnable.mockResolvedValue({
         recoveryCodes: ['a', 'b'],

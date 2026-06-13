@@ -39,7 +39,7 @@ spec: dcd225b8 (auth §2.3·Rationale 2.3.C, user-profile §2.x·API, data-flow 
 - [ ] user-guide: 비밀번호 변경/활성 세션 흐름을 다루는 **기존 가이드 페이지 없음** (security-2fa 는 2FA 전용). 신규 페이지 생성은 추측성이라 보류 — /ai-review user-guide-sync-reviewer 판단에 위임.
 
 ## TEST + REVIEW WORKFLOW
-- [x] backend unit (6785 pass) · frontend change-password (6 pass) · backend build · backend·frontend lint (0 error)
-- [ ] 전체 run-test.sh lint·unit·build (web-chat-sdk/packages/sdk npm ci 환경 이슈 — 내 변경 무관 backend+frontend 는 통과) · e2e (docker)
-- [ ] /ai-review + Critical/Warning fix + RESOLUTION
+- [x] backend unit (6785 pass) · frontend unit (4318 pass, dist 준비 후) · backend build · backend·frontend lint (0 error)
+- [x] e2e 190 pass (docker, 신규 change-password e2e 2건 포함). web-chat-sdk/packages/sdk lint·unit·build 는 worktree npm ci env 이슈 — 본 변경 무관 독립 패키지
+- [x] /ai-review (22_57_48, RISK LOW · Critical 0 · Warning 4) + Warning 4건 fix(W1 순서불변식·W2 env격리·W3 e2e독립·W4 확인) + RESOLUTION.md
 - [ ] /consistency-check --impl-done (강제 게이트)

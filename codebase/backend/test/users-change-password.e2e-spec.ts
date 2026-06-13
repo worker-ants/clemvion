@@ -83,13 +83,23 @@ describe('Change password — 세션 회전 + 감사 (e2e)', () => {
     expect(active.length).toBe(1);
   }, 60_000);
 
-  it('rejects wrong current password → 401, no extra audit row', async () => {
+  it('rejects wrong current password → 401 INVALID_PASSWORD, no session rotation', async () => {
+    // 독립 사용자 — 첫 테스트의 부수효과(세션 revoke·비밀번호 변경)에 종속되지 않게 분리.
+    const other = await registerAndLogin(BASE_URL, uniqueEmail('pwchg-x'), db);
     const res = await request(BASE_URL)
       .post('/api/users/me/change-password')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Authorization', `Bearer ${other.accessToken}`)
       .send({ currentPassword: 'WrongPass!9', newPassword: 'An0therP@ss!7' });
-    // Bearer access token 은 15분간 유효(refresh 만 revoke)하므로 인증은 통과하고,
-    // 현재 비밀번호 불일치로 INVALID_PASSWORD 401 이 떨어진다.
+
+    // 인증(Bearer)은 통과하고 현재 비밀번호 불일치로 INVALID_PASSWORD 401 — 인증 실패 401 과 구분.
     expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('INVALID_PASSWORD');
+
+    // 실패 시 세션 회전·감사 없음 — 활성 refresh family 는 로그인 시 발급된 그대로 유지.
+    const audit = await db.query(
+      `SELECT 1 FROM audit_log WHERE user_id = $1 AND action = 'user.password_changed'`,
+      [other.userId],
+    );
+    expect(audit.rows.length).toBe(0);
   }, 60_000);
 });
