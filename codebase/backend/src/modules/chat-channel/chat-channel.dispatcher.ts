@@ -22,7 +22,7 @@ import {
   EiaAiMessageEvent,
   EiaEvent,
 } from './types';
-import { extractFormFields } from './shared/form-mode';
+import { extractFormFields, extractFormTitle } from './shared/form-mode';
 
 const SUBSCRIBED_EVENTS = new Set<string>([
   'execution.waiting_for_input',
@@ -238,11 +238,16 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       if (state) {
         const modalMsg = messages.find((m) => m.body.kind === 'form_modal');
         if (modalMsg) {
+          const modalFormConfig = (modalMsg.body as { formConfig: unknown })
+            .formConfig;
           state.pendingFormModal = {
             nodeId: channelEvent.node.id,
-            fields: extractFormFields(
-              (modalMsg.body as { formConfig: unknown }).formConfig,
-            ),
+            fields: extractFormFields(modalFormConfig),
+            // §3.3 — formConfig.title (또는 nodeOutput config.title) → modal 제목.
+            ...(() => {
+              const title = extractFormTitle(modalFormConfig);
+              return title ? { title } : {};
+            })(),
           };
           state.formState = undefined;
         } else {

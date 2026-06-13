@@ -133,6 +133,11 @@ export class DiscordAdapter implements NativeFormAdapter {
         botIdentity: {
           botId: hashStringToInt(application.id),
           username: application.name,
+          // §3.1 — verify_key(ed25519 public key) 캐시. inbound 서명 검증의 SoT 는 여전히
+          // inboundSigningRef(secret store) 지만, identity 표시·재검증 편의로 비민감 public key 를 보관.
+          ...(application.verify_key
+            ? { publicKey: application.verify_key }
+            : {}),
         },
       },
     };
@@ -302,11 +307,15 @@ export class DiscordAdapter implements NativeFormAdapter {
       };
       return Promise.resolve({ httpResponse: replyModal });
     }
+    // §3.3 — modal title 은 formConfig.title 우선, 없으면 languageHints, 최종 '양식'.
+    // Discord modal title 은 1–45자 → 초과 시 truncate.
+    const rawTitle =
+      params.title ?? params.config.languageHints?.formModalTitle ?? '양식';
     const modal = {
       type: 9,
       data: {
         custom_id: 'clemvion_form',
-        title: '양식',
+        title: rawTitle.slice(0, 45),
         components: params.fields
           .slice(0, NATIVE_MODAL_MAX_FIELDS)
           .map((f) => ({
@@ -318,6 +327,13 @@ export class DiscordAdapter implements NativeFormAdapter {
                 label: f.label,
                 style: f.type === 'textarea' ? 2 : 1,
                 required: f.required === true,
+                // §3.3 — TEXT_INPUT 길이 제약 (Discord: 0–4000). max 는 1 이상일 때만.
+                ...(typeof f.minLength === 'number' && f.minLength >= 0
+                  ? { min_length: Math.min(f.minLength, 4000) }
+                  : {}),
+                ...(typeof f.maxLength === 'number' && f.maxLength >= 1
+                  ? { max_length: Math.min(f.maxLength, 4000) }
+                  : {}),
                 ...(f.description
                   ? { placeholder: f.description.slice(0, 100) }
                   : {}),

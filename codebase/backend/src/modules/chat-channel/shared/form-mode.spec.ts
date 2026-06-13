@@ -1,6 +1,7 @@
 import {
   decideFormMode,
   extractFormFields,
+  extractFormTitle,
   validateFormSubmission,
 } from './form-mode';
 import { isNativeFormAdapter } from '../types';
@@ -158,6 +159,45 @@ describe('extractFormFields', () => {
     ).toEqual([]);
     expect(extractFormFields(null)).toEqual([]);
     expect(extractFormFields({})).toEqual([]);
+  });
+
+  it('§3.3 field.validation.{minLength,maxLength} 정규화', () => {
+    const fields = extractFormFields({
+      fields: [
+        {
+          name: 'pw',
+          label: 'PW',
+          type: 'text',
+          validation: { minLength: 8, maxLength: 32 },
+        },
+        // 무효 값(음수 max·비숫자)은 미반영.
+        {
+          name: 'bad',
+          label: 'Bad',
+          type: 'text',
+          validation: { minLength: -1, maxLength: 0, foo: 'x' },
+        },
+        { name: 'plain', label: 'Plain', type: 'text' },
+      ],
+    });
+    expect(fields[0].minLength).toBe(8);
+    expect(fields[0].maxLength).toBe(32);
+    expect(fields[1].minLength).toBeUndefined();
+    expect(fields[1].maxLength).toBeUndefined();
+    expect(fields[2].minLength).toBeUndefined();
+  });
+});
+
+describe('extractFormTitle', () => {
+  it('직접 shape ({ title }) + nodeOutput wrapping ({ config: { title } })', () => {
+    expect(extractFormTitle({ title: 'Approval' })).toBe('Approval');
+    expect(extractFormTitle({ config: { title: 'Nested' } })).toBe('Nested');
+  });
+  it('빈/비문자열/부재 → undefined', () => {
+    expect(extractFormTitle({ title: '  ' })).toBeUndefined();
+    expect(extractFormTitle({ title: 123 })).toBeUndefined();
+    expect(extractFormTitle({})).toBeUndefined();
+    expect(extractFormTitle(null)).toBeUndefined();
   });
 });
 

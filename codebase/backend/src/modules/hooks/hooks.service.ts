@@ -385,6 +385,9 @@ export class HooksService {
           fields: state.pendingFormModal.fields,
           conversationKey: update.conversationKey,
           nodeId: state.pendingFormModal.nodeId,
+          ...(state.pendingFormModal.title
+            ? { title: state.pendingFormModal.title }
+            : {}),
         });
         if (result.httpResponse !== undefined) {
           return {

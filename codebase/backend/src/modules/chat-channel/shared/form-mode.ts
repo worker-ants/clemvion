@@ -83,9 +83,44 @@ export function extractFormFields(formConfig: unknown): FormModalField[] {
     }
     const opts = normalizeOptions(f.options);
     if (opts) field.options = opts;
+    // §3.3 — field.validation.{minLength,maxLength} (form.schema validationRuleSchema) 정규화.
+    const validation =
+      f.validation && typeof f.validation === 'object'
+        ? (f.validation as Record<string, unknown>)
+        : undefined;
+    if (validation) {
+      if (
+        typeof validation.minLength === 'number' &&
+        validation.minLength >= 0
+      ) {
+        field.minLength = validation.minLength;
+      }
+      if (
+        typeof validation.maxLength === 'number' &&
+        validation.maxLength > 0
+      ) {
+        field.maxLength = validation.maxLength;
+      }
+    }
     out.push(field);
   }
   return out;
+}
+
+/**
+ * §3.3 — formConfig 에서 폼 제목(`title`)을 추출. extractFormFields 와 동일하게 두 shape 수용
+ * (`{ title }` 직접 / `{ config: { title } }` nodeOutput wrapping). 비문자열/빈 문자열은 undefined.
+ */
+export function extractFormTitle(formConfig: unknown): string | undefined {
+  if (!formConfig || typeof formConfig !== 'object') return undefined;
+  const root = formConfig as Record<string, unknown>;
+  const direct = typeof root.title === 'string' ? root.title : undefined;
+  const nested =
+    root.config && typeof root.config === 'object'
+      ? (root.config as Record<string, unknown>).title
+      : undefined;
+  const title = direct ?? (typeof nested === 'string' ? nested : undefined);
+  return title && title.trim().length > 0 ? title : undefined;
 }
 
 /** §4.1 step 4 client-side 검증 정규식 — 기본 email shape. */

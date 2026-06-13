@@ -52,7 +52,13 @@ export interface ChatChannelConfig {
    * `teamId` 는 workspace/team 개념을 가진 provider (Slack workspace, Discord guild) 만 채움.
    * Telegram 등 단일 namespace provider 는 비움.
    */
-  botIdentity?: { botId: number; username: string; teamId?: string };
+  botIdentity?: {
+    botId: number;
+    username: string;
+    teamId?: string;
+    /** (Discord) §3.1 — `GET /applications/@me` 의 `verify_key`. ed25519 public key (비민감). */
+    publicKey?: string;
+  };
 
   uiMapping?: {
     /**
@@ -214,6 +220,9 @@ export interface FormModalField {
   description?: string;
   /** select / radio 의 선택지. */
   options?: Array<{ label: string; value: string }>;
+  /** §3.3 — text/textarea 길이 제약 (formConfig field.validation.minLength/maxLength). modal TEXT_INPUT 부여. */
+  minLength?: number;
+  maxLength?: number;
 }
 
 /**
@@ -227,6 +236,8 @@ export interface OpenFormModalParams {
   fields: FormModalField[];
   conversationKey: string;
   nodeId: string;
+  /** §3.3 — form modal 제목 (formConfig.title). 미설정 시 어댑터가 languageHints/기본 문구로 fallback. */
+  title?: string;
   /**
    * 'form' (기본) — pendingFormModal 의 fields 로 form modal.
    * 'reply' — §5.1(b) AI Multi Turn reply modal (단일 TEXT_INPUT, fields 무시).
@@ -560,5 +571,7 @@ export interface ChannelConversationState {
   pendingFormModal?: {
     nodeId: string;
     fields: FormModalField[];
+    /** §3.3 — formConfig.title (modal 제목). 미설정 시 어댑터 fallback. */
+    title?: string;
   };
 }
