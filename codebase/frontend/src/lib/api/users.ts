@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 
-export type ServerTheme = "light" | "dark";
+export type ServerTheme = "light" | "dark" | "system";
 
 export interface UserProfile {
   id: string;

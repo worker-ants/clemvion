@@ -12,10 +12,13 @@ describe('UpdateMeDto — theme (§2.0/§2.1 System 옵션)', () => {
     return validate(dto);
   };
 
-  it.each(['light', 'dark', 'system'])('theme=%s 는 검증 통과', async (t) => {
-    const errors = await validateTheme(t);
-    expect(errors).toHaveLength(0);
-  });
+  it.each(['light', 'dark', 'system'])(
+    'theme=%s 는 검증 통과',
+    async (theme) => {
+      const errors = await validateTheme(theme);
+      expect(errors).toHaveLength(0);
+    },
+  );
 
   it('theme=invalid 는 IsIn 위반', async () => {
     const errors = await validateTheme('solarized');
@@ -25,6 +28,11 @@ describe('UpdateMeDto — theme (§2.0/§2.1 System 옵션)', () => {
 
   it('theme 미지정(optional)은 통과', async () => {
     const errors = await validateTheme(undefined);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('theme=null 은 optional 통과 (IsOptional)', async () => {
+    const errors = await validateTheme(null);
     expect(errors).toHaveLength(0);
   });
 });

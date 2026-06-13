@@ -20,6 +20,7 @@ export const profile = {
   theme: "테마",
   themeLight: "라이트",
   themeDark: "다크",
+  themeSystem: "시스템",
   language: "언어",
   languageKorean: "한국어",
   languageEnglish: "영어",
