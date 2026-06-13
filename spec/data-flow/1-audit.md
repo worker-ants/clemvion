@@ -68,7 +68,9 @@ sequenceDiagram
   `workflow.*` / `trigger.*` / `member.*` / `schedule.*` / `workspace.created·updated·deleted` /
   `model_config.*`(create/update/delete/set-default — 구 `llm_config.*`/`rerank_config.*` 통합) / 인증(`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled`) 액션은 **모두 미구현**이다 —
   workflows / triggers / alerts / schedules 모듈에는 `AuditLogsService` import 가 전혀 없다.
-  spec §4.1 표는 목표 커버리지, 위 9종 표가 현재 구현이다.
+  spec §4.1 표는 목표 커버리지, 위 9종 표가 현재 구현이다. 구현 시 인증(`user.*`) 액션은
+  **액터의 현재 세션 `workspaceId`** 에 귀속한다(모두 인증 세션 발생 — schema 변경 불요);
+  무인증 password-reset 은 workspace 없음으로 `user.password_changed` 대상 제외 ([인증 spec §4.1 / Rationale 4.1.B](../5-system/1-auth.md)).
 
 ### 1.2 인증 이벤트 → `login_history`
 
