@@ -11,7 +11,9 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 export const USER_LOCALES = ['ko', 'en'] as const;
 export type UserLocale = (typeof USER_LOCALES)[number];
 
-export const USER_THEMES = ['light', 'dark'] as const;
+// §2.0/§2.1 — 'system' = OS 색상 모드 자동 추종(frontend 가 prefers-color-scheme 로 적용).
+// backend 는 저장·반환만; light/dark/system 세 값을 수용한다.
+export const USER_THEMES = ['light', 'dark', 'system'] as const;
 export type UserTheme = (typeof USER_THEMES)[number];
 
 export class UpdateMeDto {
