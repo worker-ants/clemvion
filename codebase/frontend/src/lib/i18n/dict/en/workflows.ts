@@ -14,6 +14,13 @@ export const workflows: Dict["workflows"] = {
     inactive: "Inactive",
     draft: "Draft",
   },
+  sort: {
+    aria: "Sort by",
+    createdDesc: "Newest first",
+    updatedDesc: "Recently updated",
+    nameAsc: "Name (A–Z)",
+    lastRunDesc: "Last run",
+  },
   ownership: {
     aria: "Ownership filter",
     all: "All",

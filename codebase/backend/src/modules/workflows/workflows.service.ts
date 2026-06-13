@@ -101,8 +101,21 @@ export class WorkflowsService {
       }
     }
 
-    const sortColumn = this.getSortColumn(sort);
-    qb.orderBy(`w.${sortColumn}`, order.toUpperCase() as 'ASC' | 'DESC');
+    const orderDir: 'ASC' | 'DESC' =
+      order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    if (sort === 'last_run') {
+      // §2.4 "마지막 실행순" — workflows 에 last_run 컬럼이 없어 execution 테이블에서 워크플로별
+      // 최근 실행 시각을 correlated subquery 로 도출해 정렬한다. 한 번도 실행 안 된 워크플로(NULL)는
+      // 항상 마지막. 서브쿼리 문자열은 고정(사용자 입력 미반영) — injection 안전.
+      qb.orderBy(
+        '(SELECT MAX(e.started_at) FROM execution e WHERE e.workflow_id = w.id)',
+        orderDir,
+        'NULLS LAST',
+      );
+    } else {
+      const sortColumn = this.getSortColumn(sort);
+      qb.orderBy(`w.${sortColumn}`, orderDir);
+    }
 
     const totalItems = await qb.getCount();
     const data = await qb

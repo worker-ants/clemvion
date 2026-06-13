@@ -225,6 +225,44 @@ describe('WorkflowsService', () => {
         ),
       ).rejects.toThrow('ws-lookup-failed');
     });
+
+    it('기본 sort 는 w.created_at DESC', async () => {
+      mockQueryBuilder.orderBy.mockClear();
+      await service.findAll('ws-uuid-1', { page: 1, limit: 20 }, 'user-uuid-1');
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
+        'w.created_at',
+        'DESC',
+      );
+    });
+
+    it("§2.4 sort='last_run' → execution 최근 실행 subquery orderBy (NULLS LAST)", async () => {
+      mockQueryBuilder.orderBy.mockClear();
+      await service.findAll(
+        'ws-uuid-1',
+        { page: 1, limit: 20, sort: 'last_run', order: 'asc' },
+        'user-uuid-1',
+      );
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'SELECT MAX(e.started_at) FROM execution e WHERE e.workflow_id = w.id',
+        ),
+        'ASC',
+        'NULLS LAST',
+      );
+    });
+
+    it('미허용 sort 는 created_at 폴백 (injection 차단)', async () => {
+      mockQueryBuilder.orderBy.mockClear();
+      await service.findAll(
+        'ws-uuid-1',
+        { page: 1, limit: 20, sort: 'name; DROP TABLE workflow;--' },
+        'user-uuid-1',
+      );
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
+        'w.created_at',
+        'DESC',
+      );
+    });
   });
 
   describe('findById', () => {

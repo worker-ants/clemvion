@@ -10,11 +10,16 @@ owner: planner
 > 관련 spec: spec/2-navigation/1-workflow-list.md
 
 ## 미구현 항목
-- [ ] 정렬 UI 부재 (§2.4): 클라이언트에 정렬 드롭다운/컨트롤이 없다. 클라이언트가 `sort`/`order` 를 보내지 않아 항상 서버 기본(생성일 내림차순)으로 고정된다.
-- [ ] "마지막 실행순" 정렬 미지원 (§2.4): 서버 `getSortColumn` (workflows.service.ts:646-653) 에 `last_run` 매핑이 없다. created_at/updated_at/name 만 허용.
-- [ ] 태그 필터 UI 부재 (§2.3): 서버는 `?tag=` 를 지원하나 클라이언트에 태그 필터 UI 가 없다 (테이블 뱃지 표시만).
-- [ ] 폴더 필터 UI 부재 (§2.3): 서버는 `?folderId=` 를 지원하나 클라이언트에 폴더 필터 UI 가 없다.
-- [ ] 빈 상태 마켓플레이스 템플릿 추천 링크 부재 (§2.7).
+
+> **구현 진척 (2026-06-14, impl-workflow-list-gaps PR)**: 정렬(§2.4) 풀스택 — backend last_run subquery +
+> frontend 정렬 드롭다운. 태그·폴더 필터 UI(§2.3)·빈 상태 마켓플레이스 링크(§2.7)는 추가 frontend(서버는
+> ?tag=/?folderId= 이미 지원)로 별도 PR.
+
+- [x] 정렬 UI (§2.4): frontend 정렬 드롭다운(`NativeSelect`, page.tsx) — 최신 생성순(기본)/최근 수정순/이름순/마지막 실행순. 기본 외 옵션에 `sort`/`order` 송신, page 리셋·resetFilters 연동, i18n(ko/en `workflows.sort.*`).
+- [x] "마지막 실행순" 정렬 (§2.4): backend `findAll` 이 `last_run` 시 `execution` 테이블의 워크플로별 `MAX(started_at)` correlated subquery 로 정렬(미실행 `NULLS LAST`, 고정 문자열 — injection 안전). 테스트(last_run/기본/injection 폴백) 추가.
+- [ ] 태그 필터 UI 부재 (§2.3): 서버 `?tag=` 지원, **frontend 잔여**(태그 멀티 선택 UI). 별도 PR.
+- [ ] 폴더 필터 UI 부재 (§2.3): 서버 `?folderId=` 지원, **frontend 잔여**(폴더 선택 UI). 별도 PR.
+- [ ] 빈 상태 마켓플레이스 템플릿 추천 링크 (§2.7) — **frontend 잔여**. 별도 PR.
 
 ## 코드 버그 (구현 수정 필요)
 - [x] 상태 필터 파라미터 불일치 (§2.3): — 수정 완료 확인 (page.tsx 가 `?status=active|inactive` 송신, 2026-06-10 impl-prep 검토에서 검증). spec §2.3 경고 문구도 동일 시점 현행화.

@@ -14,6 +14,13 @@ export const workflows = {
     inactive: "비활성",
     draft: "초안",
   },
+  sort: {
+    aria: "정렬 기준",
+    createdDesc: "최신 생성순",
+    updatedDesc: "최근 수정순",
+    nameAsc: "이름순",
+    lastRunDesc: "마지막 실행순",
+  },
   ownership: {
     aria: "소유 필터",
     all: "전체",
