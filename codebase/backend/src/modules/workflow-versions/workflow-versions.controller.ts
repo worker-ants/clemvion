@@ -13,7 +13,10 @@ import {
 } from '../../common/swagger';
 import { WorkflowVersionsService } from './workflow-versions.service';
 import { WorkspaceId } from '../../common/decorators';
-import { WorkflowVersionDto } from './dto/responses/workflow-version-response.dto';
+import {
+  WorkflowVersionDto,
+  WorkflowVersionListItemDto,
+} from './dto/responses/workflow-version-response.dto';
 
 @ApiTags('Workflow Versions')
 @ApiBearerAuth('access-token')
@@ -27,11 +30,11 @@ export class WorkflowVersionsController {
   @ApiOperation({
     summary: '워크플로우 버전 이력 조회',
     description:
-      '지정한 워크플로우의 버전 이력을 최신순(version DESC)으로 반환합니다. 각 버전에는 스냅샷과 변경 작성자 정보가 포함됩니다.',
+      '지정한 워크플로우의 버전 이력을 최신순(version DESC)으로 반환합니다. 목록에는 메타데이터와 작성자만 포함되며, 스냅샷(노드/엣지)은 상세 조회(GET :versionId)에서만 반환됩니다.',
   })
   @ApiParam({ name: 'wfId', description: '워크플로우 UUID', format: 'uuid' })
-  @ApiOkWrappedArrayResponse(WorkflowVersionDto, {
-    description: '버전 이력 목록 (최신순)',
+  @ApiOkWrappedArrayResponse(WorkflowVersionListItemDto, {
+    description: '버전 이력 목록 (최신순, snapshot 비포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({

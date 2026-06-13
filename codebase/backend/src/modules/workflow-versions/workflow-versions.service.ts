@@ -33,11 +33,25 @@ export class WorkflowVersionsService {
     }
   }
 
+  // 목록은 메타데이터 + 작성자만 — `snapshot`(워크플로 전체 노드/엣지 JSONB)은
+  // 의도적으로 비적재한다. spec/3-workflow-editor/5-version-history.md §7.1(목록)
+  // vs §7.2(상세 "+ snapshot 포함") 의 대비 구조가 '목록 비포함' 의도를 명시하며,
+  // 목록 UI(version-history-panel)도 메타만 소비한다. snapshot 은 §7.2 상세
+  // (findOne) / §6 복원에서만 필요. (m-3 — 목록 호출당 전체 snapshot over-fetch 제거)
   async findByWorkflow(workflowId: string): Promise<WorkflowVersion[]> {
     return this.workflowVersionRepository.find({
       where: { workflowId },
       order: { version: 'DESC' },
-      relations: ['creator'],
+      relations: { creator: true },
+      select: {
+        id: true,
+        workflowId: true,
+        version: true,
+        changeSummary: true,
+        createdBy: true,
+        createdAt: true,
+        creator: { id: true, name: true, email: true },
+      },
     });
   }
 
