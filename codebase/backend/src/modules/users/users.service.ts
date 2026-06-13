@@ -5,9 +5,9 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import {
+  comparePassword,
   hashPassword,
   validatePasswordStrength,
 } from '../../common/utils/password.util';
@@ -78,7 +78,7 @@ export class UsersService {
       });
     }
 
-    const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+    const matches = await comparePassword(currentPassword, user.passwordHash);
     if (!matches) {
       throw new UnauthorizedException({
         code: 'INVALID_PASSWORD',

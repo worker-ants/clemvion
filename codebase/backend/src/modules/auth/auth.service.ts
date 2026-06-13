@@ -8,7 +8,6 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, MoreThan, Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
 import { User } from '../users/entities/user.entity';
@@ -19,6 +18,7 @@ import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations.service';
 import { MailService } from '../mail/mail.service';
 import {
+  comparePassword,
   hashPassword,
   validatePasswordStrength,
 } from '../../common/utils/password.util';
@@ -297,7 +297,7 @@ export class AuthService {
       });
     }
 
-    const isValid = await bcrypt.compare(dto.password, user.passwordHash);
+    const isValid = await comparePassword(dto.password, user.passwordHash);
     if (!isValid) {
       await this.usersService.incrementLoginAttempts(user.id);
       await this.loginHistory.record({

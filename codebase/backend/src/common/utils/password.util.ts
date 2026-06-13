@@ -16,6 +16,14 @@ export function hashPassword(plain: string): Promise<string> {
 }
 
 /**
+ * 평문 비밀번호가 주어진 bcrypt 해시와 일치하는지 검증한다. `hashPassword` 와
+ * 짝을 이루는 단일 진입점으로, 해시 알고리즘 교체 시 변경 범위를 본 모듈로 한정한다.
+ */
+export function comparePassword(plain: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(plain, hash);
+}
+
+/**
  * 비밀번호 정책: 최소 8자, 영문 대/소문자·숫자·특수문자 중 3종 이상 포함.
  * 정책에 위배되면 `BadRequestException`(VALIDATION_ERROR)을 던진다.
  */
