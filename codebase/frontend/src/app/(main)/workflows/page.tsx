@@ -329,9 +329,13 @@ export default function WorkflowsPage() {
     { labelKey: "workflows.ownership.shared", value: "shared" },
   ];
 
+  // 비기본 정렬도 "활성 필터"로 취급한다. 그래야 정렬만 바꿔 결과가 0건일 때
+  // EmptyState 가 "Create Workflow" 가 아니라 "Reset Filters" CTA 를 노출하고,
+  // handleResetFilters() 의 setSortKey("created") 복귀 경로와 일관된다.
   const hasActiveFilters =
     !!debouncedSearch ||
     filter !== "all" ||
+    sortKey !== "created" ||
     (isTeamWorkspace && ownership !== "all");
 
   function handleResetFilters() {

@@ -673,6 +673,13 @@ export class WorkflowsService {
     return manager.save(Edge, newEdges);
   }
 
+  /**
+   * 정렬 컬럼 화이트리스트 — `orderBy(`w.${col}`)` 에 보간되므로 SQL injection 방어의
+   * 핵심 경로다. 미허용 값은 `created_at` 으로 폴백한다. 요청 경로에서는 이미
+   * `PaginationQueryDto` 의 `@Matches(/^[a-zA-Z][a-zA-Z0-9_]*$/)` 가 1차 차단하지만,
+   * 서비스 단독 호출(다른 internal caller)에 대한 다층 방어로 여기서도 검증한다.
+   * (`last_run` 은 findAll 에서 별도 분기 처리되어 여기 도달하지 않는다.)
+   */
   private getSortColumn(sort: string): string {
     const allowed: Record<string, string> = {
       created_at: 'created_at',
