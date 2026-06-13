@@ -9,6 +9,9 @@ spec_impact:
 ---
 # Spec Update Draft — embedding testConnection dimension + kind-agnostic design + frontend UX
 
+> **완료 (확인 2026-06-14, m-cleanup)**: 6개 spec 파일별 추가/교체 문구가 main 에 반영됐고 consistency Critical/Warning
+> 해소 확인. 잔여 [ ] 0건. spec_impact 선언됨.
+
 ## 분류
 SPEC-DRIFT (코드 개선을 spec 에 반영) — PR #541 후속 회귀 수정(브랜치 `claude/fix-embedding-test-dimension`)이 3가지 영역에서 spec 을 앞서나가 있다. 코드가 SoT 이고 spec 이 따라온다.
 

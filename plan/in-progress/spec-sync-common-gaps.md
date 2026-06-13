@@ -13,6 +13,7 @@ owner: planner
 - [x] §4 캔버스 요약: workflow 노드 `summaryTemplate` 정의 (`{workflowName 또는 workflowId} · {mode}`). — 완료: `workflow.schema.ts` `workflowNodeMetadata.summaryTemplate` (`{{workflowName|fallback:workflowId}} · {{mode|default:sync}}`) 구현 (커밋 ae149dc6, #448).
 - [x] §4 워크플로우 삭제 시 `⚠ Missing workflow` 캔버스 텍스트. — 완료: `summaryTemplate.warnWhen: 'workflowId && !workflowName'` + `warnMessage: 'Missing workflow'` 구현 (커밋 ae149dc6, #448).
 - [ ] §2 `meta` 확장: Sync 모드 `meta` 에 `recursionDepth` / `subExecutionId` / `mode` 노출, Async 모드 `meta` 반환. 현재 sync 는 `meta.{durationMs}` 1필드만, async 는 meta 미반환 (`workflow.handler.ts:158-169,115-123`).
+      > **재확인 (2026-06-14, m-cleanup)**: 잔여 1건. spec 이 이 항목을 `(Planned)` 로 명시하며, async output 구조 개편은 별도 in-progress plan `node-output-redesign/workflow.md`(async `output.workflow.*` 구조)에 종속 — 본 plan 단독 구현보다 그 plan 과 함께 처리 권장. 따라서 in-progress 유지.
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__2-flow__0-common.md 참조.
