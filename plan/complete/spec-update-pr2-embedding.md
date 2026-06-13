@@ -40,6 +40,11 @@ SUMMARY#INFO-3: `spec/5-system/8-embedding-pipeline.md` frontmatter `code:` 에 
 
 ## 제안 변경
 
+> ⚠️ **미적용 (superseded by PR4b / V088~V094)**: 아래 Before/After 제안 — 특히 INFO-1 의 legacy 컬럼
+> `[LEGACY — V092 제거 예정]` 태깅과 INFO-2 의 **3-step 폴백 체인** — 은 **현행 spec 지침이 아니다**.
+> legacy 컬럼은 V093 repoint + V094 DROP 으로 이미 제거됐고 폴백 체인은 2-step 으로 단순화됐다 (상단 완료 블록 참조).
+> 본 섹션은 plan 작성 시점(2026-06-10)의 원안 기록일 뿐 — 그대로 적용하면 **퇴행**이므로 적용 금지.
+
 ### 1. `spec/1-data-model.md §2.11` KnowledgeBase 필드 표
 
 **Before (발췌):**
