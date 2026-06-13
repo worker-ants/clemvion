@@ -283,21 +283,34 @@ export class ExecutionsService {
     return role === 'owner' || role === 'admin';
   }
 
-  /** chain 깊이 = 본 실행에서 re_run_of 를 따라 root 까지의 조상 수(+자기 1). */
+  /**
+   * chain 깊이 = 본 실행에서 re_run_of 를 따라 root 까지의 조상 수(+자기 1).
+   *
+   * C-2 — 직렬 SELECT walk(조상마다 1 DB 왕복) → 재귀 CTE 단일 쿼리. `depth <
+   * RERUN_CHAIN_WALK_MAX` 가드로 사이클 시 무한 재귀를 차단하며 옛 walk 상한(64)과
+   * 동일 의미를 보존한다. spec/5-system/13-replay-rerun.md §9.1 의 "애플리케이션
+   * 레벨 enforce"(=앱이 거부) 본질은 그대로 — 깊이 비교는 호출부(:reRun)가 수행.
+   * Rationale 이 기각한 것은 chain **전체 조회**용 CTE 이지 깊이 검증 쿼리가
+   * 아니다. PK · V067(re_run_of) 인덱스로 커버 — 마이그레이션 불요.
+   */
   private async computeChainDepth(executionId: string): Promise<number> {
-    let depth = 1;
-    let cursor: string | null = executionId;
-    for (let i = 0; i < RERUN_CHAIN_WALK_MAX && cursor; i++) {
-      const row: { reRunOf: string | null } | undefined =
-        await this.executionRepository
-          .createQueryBuilder('e')
-          .select('e.reRunOf', 'reRunOf')
-          .where('e.id = :id', { id: cursor })
-          .getRawOne<{ reRunOf: string | null }>();
-      cursor = row?.reRunOf ?? null;
-      if (cursor) depth += 1;
-    }
-    return depth;
+    const rows: Array<{ depth: number | null }> =
+      await this.executionRepository.query(
+        `WITH RECURSIVE chain AS (
+           SELECT id, re_run_of, 1 AS depth
+             FROM execution
+            WHERE id = $1
+           UNION ALL
+           SELECT e.id, e.re_run_of, c.depth + 1
+             FROM execution e
+             JOIN chain c ON e.id = c.re_run_of
+            WHERE c.depth < $2
+         )
+         SELECT max(depth) AS depth FROM chain`,
+        [executionId, RERUN_CHAIN_WALK_MAX],
+      );
+    // 조상 미존재(=base 1행)면 depth 1. id 부재 시 base 0행 → max NULL → 1 로 방어.
+    return Number(rows[0]?.depth ?? 1);
   }
 
   /**
