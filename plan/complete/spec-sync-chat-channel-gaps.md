@@ -2,6 +2,9 @@
 worktree: chat-channel-gaps
 started: 2026-06-03
 owner: planner
+spec_impact:
+  - spec/5-system/15-chat-channel.md
+  - spec/conventions/chat-channel-adapter.md
 ---
 
 # chat-channel — spec 약속 대비 미구현 surface
