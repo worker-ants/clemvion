@@ -16,3 +16,62 @@ owner: planner
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__12-webhook.md 참조.
 - 항목 1 은 기존 `plan/in-progress/auth-config-webhook-followups.md §2` 에서도 동일 갭이 식별됨 (chat-channel 도메인 재검토 항목). 구현 시 통합 처리 가능.
+
+## 결정 옵션 (2026-06-13)
+
+> 대상: 미해결 항목 **WH-NF-02 / §8 — 1MB 본문 크기 통일 임계**. 본 섹션은 결정 보조용 분석이며, 위 `[ ]` 체크박스 상태는 변경하지 않는다.
+
+### 맥락
+
+- **spec 약속**: `spec/5-system/12-webhook.md` §3.1 표("요청 본문 최대 크기 | 1MB", 182행), WH-NF-02(106행), §8 보안 고려사항(370행)이 모두 "요청 본문 최대 1MB 초과 시 413" 통일 임계를 의도한다 (다만 WH-NF-02·§8 본문은 이미 현행을 "Planned" 로 솔직하게 기술 중 — §3.1 표만 순수 "1MB" 약속으로 남아 stale).
+- **코드 현실**: 본문 크기 게이트는 공개 webhook(`auth_config_id IS NULL`)에만 존재한다 — `PublicWebhookThrottleGuard` 의 `DEFAULT_MAX_BODY_BYTES = 32 * 1024`(32KB, `public-webhook-throttle.guard.ts:38`)가 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE`(같은 파일 92–98행). 인증 webhook(`authConfigId !== null`)은 같은 Guard 의 88행에서 **무제한 통과**한다.
+- **전역 한계 부재**: `main.ts` 는 `NestFactory.create(AppModule, { rawBody: true })`(146행) + `cookieParser()`(162행)만 등록할 뿐 body-parser limit 을 명시하지 않는다 → express 기본값(json/urlencoded **100KB**)이 인증·비-webhook 모든 라우트에 적용된다. 즉 어떤 경로로도 1MB 413 은 실현되지 않으며, 인증 webhook 은 100KB 초과 시 413 이 아니라 express 가 던지는 `PayloadTooLargeError`(표준화되지 않은 에러)로 끊긴다.
+
+### 옵션 A — 전역 body-parser limit 1MB 도입 + authed/public 일관 413 (spec 유지)
+
+`main.ts` 에 body-parser limit 을 1MB 로 명시하고, 인증 webhook 경로에도 동일 413 게이트를 둬 spec §3.1 의 "1MB" 약속을 그대로 구현한다.
+
+- **장점**
+  - spec 본문(§3.1 표) 을 손대지 않고 약속을 충족 — 문서-구현 정합.
+  - 모든 webhook 진입점에서 413 표준 에러 형식(`{ error: { code, message } }`)이 일관 — 클라이언트가 본문 크기 초과를 공개/인증 무관 동일하게 핸들링.
+  - 32KB → 1MB 로 공개 webhook 페이로드 한도도 완화 (큰 GitHub/Stripe 이벤트 수용).
+- **단점**
+  - 전역 `app.use(json({ limit }))` 는 **non-webhook 라우트 전체에 영향** — 현재 express 기본 100KB 가 의도된 방어선인 다른 API 에 1MB 를 열어주는 부작용. 라우트별(`/api/hooks/*` 한정) limit 분리가 필요해져 구현 복잡도 상승.
+  - 공개 webhook 32KB → 1MB 상향은 DoS 표면 32배 확대 (아래 위협모델 참조). 공개 한도를 1MB 로 올리는 것이 본 결정의 의도가 아니라면 옵션 C 가 더 정합.
+  - Guard 의 413 과 express body-parser 의 413 이 **두 레이어로 공존** — 어느 쪽이 먼저 끊는지(파싱 전 raw vs 파싱) 순서 정의·테스트 필요.
+
+### 옵션 B — spec 을 현행 32KB(public) + express 기본(authed)에 맞춰 재정의
+
+§3.1 표의 "1MB" 를 삭제/수정해, 공개 webhook 32KB + 인증 webhook express 기본(100KB) 의 현행 동작을 정본으로 확정한다 (WH-NF-02·§8 은 이미 이 방향으로 서술됨 — §3.1 표만 정합화).
+
+- **장점**
+  - 코드 변경 0 — `project-planner` spec write 한 번으로 종결, 회귀 위험 없음.
+  - 공개 webhook 의 보수적 32KB 한도(DoS 방어선)를 그대로 유지.
+  - 이미 WH-NF-02·§8 본문이 현행을 "Planned" 로 솔직 기술 중이므로, §3.1 표만 맞추면 문서 전체가 단일 진실로 수렴.
+- **단점**
+  - 인증 webhook 의 "100KB express 기본" 은 **명시적 설계 결정이 아니라 우연한 프레임워크 기본값** — spec 이 이를 정본화하면 "의도된 한도"로 굳어지나 표준 413 형식이 아닌 raw express 에러로 끊기는 비일관이 남는다.
+  - chat/webhook 페이로드 현실성: 첨부·임베드·대화 히스토리를 담은 inbound 가 32KB(공개) 또는 100KB(인증)를 넘길 수 있어, 정당한 트래픽이 거부될 여지를 "현행 유지" 로 박제.
+
+### 옵션 C — 분리 임계: public 32KB 유지 + authed 1MB 명시 (실제 위협모델 반영)
+
+공개 webhook 은 32KB(Guard 현행 유지), 인증 webhook 은 `/api/hooks/*` 스코프 한정 1MB body-parser limit + 413 게이트를 명시한다. spec §3.1 표를 "공개 32KB / 인증 1MB" 분리 임계로 재정의.
+
+- **장점**
+  - **위협모델 정합** — 미인증 공개 진입점은 brute-force·DoS 표면이므로 보수적 32KB 유지, 신원이 검증된 인증 webhook 은 큰 정당 페이로드(대형 PR/결제 이벤트)를 1MB 까지 허용. 한도를 위험도에 비례시킴.
+  - 전역이 아닌 `/api/hooks/*` 라우트 스코프 limit 이라 **non-webhook 라우트 100KB 방어선은 보존** (옵션 A 의 부작용 회피).
+  - 413 표준 형식을 인증 webhook 에도 적용해 일관성 확보 가능.
+- **단점**
+  - "본문 최대 크기"가 단일 값이 아닌 인증 여부 분기로 바뀌어 spec·문서·클라이언트 안내가 복잡해짐 (413 메시지에 한도 값 노출 시 공개/인증 차이 드러남).
+  - 라우트 스코프 body-parser 분리 + Guard 32KB 게이트가 **두 경로로 공존** — 인증 webhook 1MB 게이트와 공개 32KB Guard 의 책임 경계·테스트 매트릭스가 늘어남.
+  - 구현 비용은 옵션 A 와 유사(라우트별 limit + 413 표준화)하면서 spec 변경도 동반 — 세 옵션 중 변경 면적 최대.
+
+### 권장안
+
+**옵션 C**. 미인증 공개 진입점(DoS·abuse 표면)은 32KB 보수 한도를 유지하면서, 신원 검증된 인증 webhook 에만 1MB 를 열어 위협도에 비례한 한도를 두는 것이 현실적 페이로드 수용과 DoS 방어를 동시에 만족한다. spec 의 단일 "1MB" 의도(옵션 A)는 공개 표면까지 32배 확대해 방어선을 약화하고, 현행 박제(옵션 B)는 인증 webhook 의 정당한 대형 페이로드를 우연한 100KB 기본값으로 막는다.
+
+### 트레이드오프
+
+- **비용**: 옵션 B 는 spec write 1회(`project-planner` + `consistency-check --spec`)로 최저. 옵션 A·C 는 코드 경로 — `developer` 가 `/api/hooks/*` **라우트 스코프** body-parser limit 을 설정해야 한다(전역 `app.use(json({ limit }))` 는 non-webhook 라우트 100KB 방어선을 무너뜨리므로 금지 → per-route 또는 path-scoped middleware 필요).
+- **Downstream (spec)**: §3.1 표(182행)·WH-NF-02(106행)·§8(370행)·§6 Guard 설명(314·320행)이 한 값으로 정합돼야 하며, `PublicWebhookQuotaService` 주석(`public-webhook-quota.service.ts:26`)의 32KB 기술도 동기화 대상. consistency-check 로 cross-spec(14-EIA·15-chat-channel 의 inbound 크기 가정) 충돌 확인.
+- **Downstream (code, 옵션 A·C)**: 인증 webhook 413 게이트와 공개 Guard 32KB(`public-webhook-throttle.guard.ts:92`) 의 **레이어 순서**(raw 파싱 전 vs 후) 정의 필요. 413 응답이 Guard 의 표준 `{ error: { code, message } }` 형식과 일치하도록 인증 경로 게이트도 동일 형식으로 던질 것.
+- **e2e**: 인증 webhook 1MB 경계(< 1MB 통과 / > 1MB 413), 공개 webhook 32KB 경계(옵션 C 유지), non-webhook 라우트가 1MB 영향 받지 않음(100KB 유지) — 3종 경계 회귀 테스트 추가. 413 응답 body 형식 단정 포함.
