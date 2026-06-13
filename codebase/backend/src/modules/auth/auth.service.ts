@@ -18,13 +18,14 @@ import { WebAuthnService } from './webauthn/webauthn.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations.service';
 import { MailService } from '../mail/mail.service';
-import { validatePasswordStrength } from '../../common/utils/password.util';
+import {
+  hashPassword,
+  validatePasswordStrength,
+} from '../../common/utils/password.util';
 import { LoginHistoryService } from './login-history.service';
 import { deriveDeviceLabel } from './utils/device-label';
 import type { AuthContext } from './types/auth-context';
 import { SessionsService } from './sessions.service';
-
-const BCRYPT_ROUNDS = 12;
 
 export type { AuthContext };
 
@@ -72,7 +73,7 @@ export class AuthService {
       return this.registerWithInvitation(dto, dto.invitationToken, ctx);
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const passwordHash = await hashPassword(dto.password);
     const emailVerifyToken = uuidv4();
     const emailVerifyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
@@ -121,7 +122,7 @@ export class AuthService {
       });
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const passwordHash = await hashPassword(dto.password);
 
     const savedUser = await this.dataSource.transaction(async (manager) => {
       const userRepo = manager.getRepository(User);
@@ -706,7 +707,7 @@ export class AuthService {
       });
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    const passwordHash = await hashPassword(newPassword);
     await this.usersService.update(user.id, {
       passwordHash,
       passwordResetToken: null as unknown as string,

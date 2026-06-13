@@ -7,9 +7,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
-import { validatePasswordStrength } from '../../common/utils/password.util';
-
-const BCRYPT_ROUNDS = 12;
+import {
+  hashPassword,
+  validatePasswordStrength,
+} from '../../common/utils/password.util';
 
 @Injectable()
 export class UsersService {
@@ -87,7 +88,7 @@ export class UsersService {
 
     validatePasswordStrength(newPassword);
 
-    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    const passwordHash = await hashPassword(newPassword);
     await this.update(userId, { passwordHash });
   }
 

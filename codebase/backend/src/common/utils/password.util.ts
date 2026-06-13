@@ -1,4 +1,19 @@
 import { BadRequestException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+
+/**
+ * bcrypt cost factor. 비밀번호 해시의 단일 SoT — auth.service·users.service 등
+ * 모든 해시 경로가 `hashPassword` 를 통해 동일 rounds 를 쓴다 (refactor 04 후속 B-3).
+ */
+export const BCRYPT_ROUNDS = 12;
+
+/**
+ * 평문 비밀번호를 `BCRYPT_ROUNDS` cost 로 해시한다. bcrypt rounds 의 중복 정의를
+ * 막기 위한 단일 진입점.
+ */
+export function hashPassword(plain: string): Promise<string> {
+  return bcrypt.hash(plain, BCRYPT_ROUNDS);
+}
 
 /**
  * 비밀번호 정책: 최소 8자, 영문 대/소문자·숫자·특수문자 중 3종 이상 포함.
