@@ -395,6 +395,56 @@ describe('WorkspacesService', () => {
       });
     });
 
+    it('§2.2 timezone 제공 시 IANA 검증 후 settings 에 병합', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+        settings: {},
+      });
+      const result = await service.updateWorkspaceSettings(
+        'ws-uuid-1',
+        { interactionAllowedOrigins: [], timezone: 'Europe/London' },
+        'user-uuid-1',
+      );
+      expect(result.settings).toEqual({
+        interactionAllowedOrigins: [],
+        timezone: 'Europe/London',
+      });
+    });
+
+    it('§2.2 무효 timezone → INVALID_TIMEZONE BadRequest', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+        settings: {},
+      });
+      await expect(
+        service.updateWorkspaceSettings(
+          'ws-uuid-1',
+          { interactionAllowedOrigins: [], timezone: 'Not/AZone' },
+          'user-uuid-1',
+        ),
+      ).rejects.toMatchObject({ response: { code: 'INVALID_TIMEZONE' } });
+      expect(workspaceRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('§2.2 빈 timezone 문자열 → 설정 해제(키 제거)', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+        settings: { timezone: 'Asia/Seoul' },
+      });
+      const result = await service.updateWorkspaceSettings(
+        'ws-uuid-1',
+        { interactionAllowedOrigins: [], timezone: '' },
+        'user-uuid-1',
+      );
+      expect(result.settings).toEqual({ interactionAllowedOrigins: [] });
+    });
+
     it('throws ADMIN_REQUIRED when requester is editor', async () => {
       memberRepo.findOne.mockResolvedValue({ role: 'editor' });
 
@@ -463,7 +513,7 @@ describe('WorkspacesService', () => {
       });
     });
 
-    it('returns empty array when key absent', async () => {
+    it('returns empty array when origins key absent (timezone 설정은 함께 반환)', async () => {
       memberRepo.findOne.mockResolvedValue({ role: 'editor' });
       workspaceRepo.findOne.mockResolvedValue({
         ...mockWorkspace,
@@ -475,7 +525,10 @@ describe('WorkspacesService', () => {
         'user-uuid-1',
       );
 
-      expect(result).toEqual({ interactionAllowedOrigins: [] });
+      expect(result).toEqual({
+        interactionAllowedOrigins: [],
+        timezone: 'Asia/Seoul',
+      });
     });
 
     it('throws FORBIDDEN when requester is not a member', async () => {

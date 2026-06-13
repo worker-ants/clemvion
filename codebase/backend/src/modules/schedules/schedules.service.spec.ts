@@ -4,12 +4,15 @@ import { Repository } from 'typeorm';
 import { SchedulesService } from './schedules.service';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
+import { Workspace } from '../workspaces/entities/workspace.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ScheduleRunnerService } from './schedule-runner.service';
 
 describe('SchedulesService.runNow', () => {
   let service: SchedulesService;
   let scheduleRepo: jest.Mocked<Repository<Schedule>>;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let workspaceRepo: jest.Mocked<Repository<Workspace>>;
   let engine: jest.Mocked<ExecutionEngineService>;
   let runner: jest.Mocked<
     Pick<ScheduleRunnerService, 'resolveScheduleParameters'>
@@ -34,6 +37,10 @@ describe('SchedulesService.runNow', () => {
           useValue: { create: jest.fn(), save: jest.fn(), delete: jest.fn() },
         },
         {
+          provide: getRepositoryToken(Workspace),
+          useValue: { findOne: jest.fn() },
+        },
+        {
           provide: ExecutionEngineService,
           useValue: { execute: jest.fn() },
         },
@@ -50,6 +57,8 @@ describe('SchedulesService.runNow', () => {
 
     service = moduleRef.get(SchedulesService);
     scheduleRepo = moduleRef.get(getRepositoryToken(Schedule));
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    workspaceRepo = moduleRef.get(getRepositoryToken(Workspace));
     engine = moduleRef.get(ExecutionEngineService);
     runner = moduleRef.get(ScheduleRunnerService);
   });
@@ -132,6 +141,49 @@ describe('SchedulesService.runNow', () => {
         order: 'desc',
       });
       expect(orderBy).toHaveBeenCalledWith('s.created_at', 'DESC');
+    });
+  });
+
+  describe('create — timezone fallback (§2.2)', () => {
+    const baseDto = {
+      workflowId: 'wf-1',
+      name: 'S',
+      cronExpression: '0 9 * * *',
+    };
+    beforeEach(() => {
+      triggerRepo.create.mockReturnValue({} as unknown as Trigger);
+      triggerRepo.save.mockResolvedValue({
+        id: 'trig-1',
+      } as unknown as Trigger);
+      scheduleRepo.create.mockImplementation((x) => x as unknown as Schedule);
+      scheduleRepo.save.mockImplementation(
+        async (x) => x as unknown as Schedule,
+      );
+    });
+
+    it('dto.timezone 명시 시 우선 (workspace 미조회)', async () => {
+      const s = await service.create('ws-1', {
+        ...baseDto,
+        timezone: 'America/New_York',
+      } as never);
+      expect(s.timezone).toBe('America/New_York');
+      expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('dto.timezone 없으면 workspace.settings.timezone fallback', async () => {
+      workspaceRepo.findOne.mockResolvedValue({
+        settings: { timezone: 'Europe/London' },
+      } as unknown as Workspace);
+      const s = await service.create('ws-1', { ...baseDto } as never);
+      expect(s.timezone).toBe('Europe/London');
+    });
+
+    it('dto·workspace 둘 다 없으면 Asia/Seoul', async () => {
+      workspaceRepo.findOne.mockResolvedValue({
+        settings: {},
+      } as unknown as Workspace);
+      const s = await service.create('ws-1', { ...baseDto } as never);
+      expect(s.timezone).toBe('Asia/Seoul');
     });
   });
 });

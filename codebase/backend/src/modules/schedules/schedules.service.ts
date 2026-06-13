@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
+import { Workspace } from '../workspaces/entities/workspace.entity';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -22,9 +23,27 @@ export class SchedulesService {
     private readonly scheduleRepository: Repository<Schedule>,
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
+    @InjectRepository(Workspace)
+    private readonly workspaceRepository: Repository<Workspace>,
     private readonly executionEngineService: ExecutionEngineService,
     private readonly scheduleRunnerService: ScheduleRunnerService,
   ) {}
+
+  /**
+   * §2.2 — 스케줄 타임존 결정: 명시값 > 워크스페이스 설정(`settings.timezone`) > `'Asia/Seoul'`.
+   * 워크스페이스 설정에 타임존이 없거나 무효 문자열이면 최종 하드코딩 기본값으로 폴백한다.
+   */
+  private async resolveTimezone(
+    workspaceId: string,
+    explicit: string | undefined,
+  ): Promise<string> {
+    if (explicit) return explicit;
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+    const wsTz = workspace?.settings?.timezone;
+    return typeof wsTz === 'string' && wsTz.length > 0 ? wsTz : 'Asia/Seoul';
+  }
 
   async findAll(
     workspaceId: string,
@@ -104,7 +123,7 @@ export class SchedulesService {
     });
     const savedTrigger = await this.triggerRepository.save(trigger);
 
-    const timezone = dto.timezone ?? 'Asia/Seoul';
+    const timezone = await this.resolveTimezone(workspaceId, dto.timezone);
     const isActive = dto.isActive ?? true;
     const [nextRun] = this.computeNextRuns(dto.cronExpression, timezone, 1);
 

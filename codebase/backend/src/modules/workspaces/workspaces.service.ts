@@ -19,6 +19,16 @@ import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 
 const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
 
+/** IANA 타임존 유효성 — `Intl.DateTimeFormat` 가 throw 하지 않으면 유효. */
+export function isValidIanaTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 @Injectable()
 export class WorkspacesService {
   constructor(
@@ -304,10 +314,27 @@ export class WorkspacesService {
     const normalized = (dto.interactionAllowedOrigins ?? []).map((o) =>
       o.replace(/\/$/, ''),
     );
-    workspace.settings = {
+    // 타임존: 제공 시 IANA 유효성 검증 후 병합. 빈 문자열은 설정 해제(undefined)로 처리.
+    let nextSettings: Record<string, unknown> = {
       ...(workspace.settings ?? {}),
       interactionAllowedOrigins: normalized,
     };
+    if (dto.timezone !== undefined) {
+      const tz = dto.timezone.trim();
+      if (tz.length === 0) {
+        const { timezone: _drop, ...rest } = nextSettings;
+        nextSettings = rest;
+      } else {
+        if (!isValidIanaTimezone(tz)) {
+          throw new BadRequestException({
+            code: 'INVALID_TIMEZONE',
+            message: `유효하지 않은 타임존입니다: ${tz}`,
+          });
+        }
+        nextSettings = { ...nextSettings, timezone: tz };
+      }
+    }
+    workspace.settings = nextSettings;
     return this.workspaceRepository.save(workspace);
   }
 
@@ -318,7 +345,7 @@ export class WorkspacesService {
   async getWorkspaceSettings(
     workspaceId: string,
     userId: string,
-  ): Promise<{ interactionAllowedOrigins: string[] }> {
+  ): Promise<{ interactionAllowedOrigins: string[]; timezone?: string }> {
     const role = await this.getMemberRole(workspaceId, userId);
     if (!role) {
       throw new ForbiddenException({
@@ -336,10 +363,12 @@ export class WorkspacesService {
       });
     }
     const origins = workspace.settings?.interactionAllowedOrigins;
+    const tz = workspace.settings?.timezone;
     return {
       interactionAllowedOrigins: Array.isArray(origins)
         ? origins.filter((o): o is string => typeof o === 'string')
         : [],
+      ...(typeof tz === 'string' && tz.length > 0 ? { timezone: tz } : {}),
     };
   }
 
