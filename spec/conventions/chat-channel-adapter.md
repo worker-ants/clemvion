@@ -258,7 +258,7 @@ interface ChatChannelConfig {
    * `botId` / `username` 은 모든 provider 공통. `teamId` 는 workspace/team 개념을 가진 provider
    * (Slack workspace, Discord guild 등) 만 채움 — Telegram 등 단일 namespace provider 는 비움.
    */
-  botIdentity?: { botId: number; username: string; teamId?: string };
+  botIdentity?: { botId: number; username: string; teamId?: string; publicKey?: string };  // publicKey (옵션) = (Discord) §3.1 GET /applications/@me 의 verify_key 캐시 (ed25519 public key, 비민감)
   uiMapping?: {
     /**
      * Form 입력 표면 선택. default "auto".

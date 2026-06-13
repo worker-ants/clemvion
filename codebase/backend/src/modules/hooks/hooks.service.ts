@@ -385,7 +385,8 @@ export class HooksService {
           fields: state.pendingFormModal.fields,
           conversationKey: update.conversationKey,
           nodeId: state.pendingFormModal.nodeId,
-          ...(state.pendingFormModal.title
+          ...(state.pendingFormModal.title &&
+          state.pendingFormModal.title.trim().length > 0
             ? { title: state.pendingFormModal.title }
             : {}),
         });

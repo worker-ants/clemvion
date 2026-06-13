@@ -100,6 +100,7 @@ Form nodes use **native modal** by default — clicking "Fill out form" opens a 
 
 - **Maximum 5 fields** — Discord modals support up to 5 TEXT_INPUT components. Forms with 6 or more fields automatically fall back to `multi_step`.
 - **TEXT_INPUT-family only** — Only `text`, `email`, `textarea`, `number`, `phone` fields can be shown in the modal. `select`, `radio`, `checkbox`, `date`, or `file` fields cause automatic `multi_step` fallback.
+- **Field length constraints** — When a form field has `minLength` / `maxLength` validation rules, they are passed to the Discord modal TEXT_INPUT as `min_length` / `max_length` and enforced at the input stage. The server also re-validates on submission to prevent bypasses.
 - **Validation failure retry** — Discord does not allow re-sending a modal after an interaction response. Instead, an error message and a fresh "Fill out form" button are sent so the user can retry.
 
 ### 5.4 AI Agent render tools / Template
@@ -134,7 +135,21 @@ You can override the bot's built-in notification messages via `config.chatChanne
 2. Built-in default for the chosen `languageLocale`
 3. `"ko"` fallback when `languageLocale` is also omitted
 
-### 7.2 Execution failure keys (CCH-ERR-*)
+### 7.2 `formModalTitle` — Form modal title
+
+Use the `formModalTitle` key to override the **title text** shown in the Discord native modal.
+
+| Priority | Source | Description |
+|---|---|---|
+| 1 | Form node `title` value (`formConfig.title`) | Always used first when the node has a title set |
+| 2 | `languageHints.formModalTitle` | Used when the node has no title |
+| 3 | Default `Form` (EN) / `양식` (KO) | Applied when both of the above are absent |
+
+<Callout type="note">
+Discord modal titles are limited to 45 characters. Values longer than 45 characters are automatically truncated.
+</Callout>
+
+### 7.3 Execution failure keys
 
 When a workflow execution fails, the bot sends the user a failure-specific message. You can override any of the 6 keys below.
 

@@ -190,7 +190,7 @@ Discord Interactions Webhook 의 단일 envelope (`type` 필드 분기) — `Con
 
 Discord v1 은 [Interactions Webhook only](#r-d-3-v1--interactions-webhook-only-gateway-는-v2) 이므로 일반 DM `MESSAGE_CREATE` event 를 수신할 수 없다. 사용자 reply 의 입력 경로는 다음 둘로 제한된다 (시스템 spec 의 [R-CC-13](../../../5-system/15-chat-channel.md#r-cc-13-discord-v1-의-cch-mp-01-부분-유예--interactions-webhook-only-의-결과) 가 본 부분 유예의 단일 진실):
 
-- **(a) `/<prefix> reply <message>` slash command** (현재 v1 유일 경로) — text option 으로 자유 입력. AI Multi Turn 진행 중에만 활성. parseUpdate 가 `{ kind: "text_message", text: <message> }` 로 반환 → EIA `submit_message`.
+- **(a) `/<prefix> reply <message>` slash command** (power user 보조 옵션) — text option 으로 자유 입력. AI Multi Turn 진행 중에만 활성. parseUpdate 가 `{ kind: "text_message", text: <message> }` 로 반환 → EIA `submit_message`. (b) Reply 버튼→modal 이 v1 default UX 이며 (a)·(b) 가 병존한다.
 - **(b) Button "Reply" → Modal TEXT_INPUT** (v1 default UX). 어댑터(`renderAiMessage`)가 AI 응답 마지막 텍스트 청크를 buttons 메시지로 승격해 "Reply" 버튼 (`id: "__reply__"`, style none/SECONDARY) 을 첨부하고, 클릭 시 parseUpdate 가 `{ kind: "open_form_modal", openContext.modal: "reply" }` 로 반환 → `HooksService` 가 `openFormModal(modalKind='reply')` 로 `{ type: 9 }` MODAL (`custom_id: "clemvion_reply"`, 단일 TEXT_INPUT `custom_id: "message"`) 을 연다. 사용자 submit 후 MODAL_SUBMIT (`clemvion_reply`) 의 TEXT_INPUT 값을 parseUpdate 가 `{ kind: "text_message", text: <값> }` 으로 normalize → EIA `submit_message`. **custom_id 분기 (§4)**: form native modal 은 `clemvion_form`, AI reply modal 은 `clemvion_reply` — MODAL_SUBMIT 두 경로를 명확히 구분.
 
 계획상 v1 default UX = (b) modal (Discord 사용자에게 자연스러운 입력 흐름 + slash command 입력 부담 회피)이나, 현재는 (a) `/<prefix> reply` slash 만 동작한다. (b) 도입 시 (a) 는 power user 보조 옵션으로 병존.

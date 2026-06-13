@@ -109,6 +109,12 @@ export interface ChatChannelConfig {
    *   6 키 체계로 마이그레이션 필요. runtime 에서 deprecation 경고 로그 발생.
    * @see spec/5-system/15-chat-channel.md §4.1 / §4.1.1
    */
+  /**
+   * 채널별 안내 문구 override. 알려진 키(일부): `executionStarted`·`executionCompleted`·
+   * `executionCancelled`·`sessionExpired`·`groupChatRefusal`·`help`·`slashPrefix`·
+   * `replyButtonLabel`·`replyModalTitle`·`replyModalLabel`·`formModalTitle`(§3.3 form modal 제목,
+   * default `'양식'`). 미설정 키는 provider default(§4.1.1) fallback.
+   */
   languageHints?: Record<string, string>;
 }
 

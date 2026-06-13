@@ -186,12 +186,30 @@ describe('extractFormFields', () => {
     expect(fields[1].maxLength).toBeUndefined();
     expect(fields[2].minLength).toBeUndefined();
   });
+
+  it('§3.3 minLength=0 은 허용(>=0), maxLength=0 은 거부(>0)', () => {
+    const fields = extractFormFields({
+      fields: [
+        {
+          name: 'z',
+          label: 'Z',
+          type: 'text',
+          validation: { minLength: 0, maxLength: 0 },
+        },
+      ],
+    });
+    expect(fields[0].minLength).toBe(0);
+    expect(fields[0].maxLength).toBeUndefined();
+  });
 });
 
 describe('extractFormTitle', () => {
   it('직접 shape ({ title }) + nodeOutput wrapping ({ config: { title } })', () => {
     expect(extractFormTitle({ title: 'Approval' })).toBe('Approval');
     expect(extractFormTitle({ config: { title: 'Nested' } })).toBe('Nested');
+  });
+  it('title 과 config.title 동시 존재 → 직접 title 우선', () => {
+    expect(extractFormTitle({ title: 'A', config: { title: 'B' } })).toBe('A');
   });
   it('빈/비문자열/부재 → undefined', () => {
     expect(extractFormTitle({ title: '  ' })).toBeUndefined();
@@ -289,6 +307,21 @@ describe('validateFormSubmission', () => {
     expect(
       validateFormSubmission({ email: 'bad', age: 'alsobad' }, defs),
     ).toEqual({ field: 'email', message: '올바른 이메일 형식이 아닙니다.' });
+  });
+
+  it('§3.3 minLength/maxLength — 서버측 길이 검증', () => {
+    const defs = [
+      field({ name: 'pw', type: 'text', minLength: 8, maxLength: 12 }),
+    ];
+    expect(validateFormSubmission({ pw: 'short' }, defs)).toEqual({
+      field: 'pw',
+      message: '최소 8자 이상 입력해 주세요.',
+    });
+    expect(validateFormSubmission({ pw: 'waaaytoolongvalue' }, defs)).toEqual({
+      field: 'pw',
+      message: '최대 12자까지 입력할 수 있습니다.',
+    });
+    expect(validateFormSubmission({ pw: 'goodpass' }, defs)).toBeNull();
   });
 });
 

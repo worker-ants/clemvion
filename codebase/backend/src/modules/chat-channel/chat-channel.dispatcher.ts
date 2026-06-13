@@ -240,14 +240,12 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
         if (modalMsg) {
           const modalFormConfig = (modalMsg.body as { formConfig: unknown })
             .formConfig;
+          // §3.3 — formConfig.title (또는 nodeOutput config.title) → modal 제목.
+          const modalTitle = extractFormTitle(modalFormConfig);
           state.pendingFormModal = {
             nodeId: channelEvent.node.id,
             fields: extractFormFields(modalFormConfig),
-            // §3.3 — formConfig.title (또는 nodeOutput config.title) → modal 제목.
-            ...(() => {
-              const title = extractFormTitle(modalFormConfig);
-              return title ? { title } : {};
-            })(),
+            ...(modalTitle ? { title: modalTitle } : {}),
           };
           state.formState = undefined;
         } else {

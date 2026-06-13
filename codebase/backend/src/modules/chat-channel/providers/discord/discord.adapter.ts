@@ -94,6 +94,15 @@ export class DiscordAdapter implements NativeFormAdapter {
           'BOT_TOKEN_INVALID: Discord verify_key 가 등록된 public key 와 불일치',
         );
       }
+      // inboundSigningRef 가 있는데 resolve 결과 또는 verify_key 가 비어 cross-verify 를 못 한 경우
+      // 경고 — 잘못된 앱/키 등록이 silent 통과하지 않도록 운영자 인지. (서명 검증 SoT 는 §6 inbound 경로.)
+      if (!expectedPublicKey || !application.verify_key) {
+        this.logger.warn(
+          `Discord setupChannel: verify_key cross-verify skip (expectedPublicKey ${
+            expectedPublicKey ? 'present' : 'empty'
+          }, verify_key ${application.verify_key ? 'present' : 'empty'}) — inbound 서명 검증(§6)은 계속 유효.`,
+        );
+      }
     }
     // slash command bulk overwrite — default prefix '/workflow'.
     const slashPrefix = config.languageHints?.slashPrefix ?? 'workflow';
@@ -287,7 +296,10 @@ export class DiscordAdapter implements NativeFormAdapter {
         type: 9,
         data: {
           custom_id: 'clemvion_reply',
-          title: params.config.languageHints?.replyModalTitle ?? '답변',
+          title: (params.config.languageHints?.replyModalTitle ?? '답변').slice(
+            0,
+            45,
+          ),
           components: [
             {
               type: 1,

@@ -91,6 +91,22 @@ describe('DiscordAdapter', () => {
       expect(cmdSpy).not.toHaveBeenCalled();
     });
 
+    it('§3.1 verify_key 부재 → botIdentity.publicKey undefined', async () => {
+      const client = new DiscordClient();
+      jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+        id: 'A123',
+        name: 'workflow-bot',
+        // verify_key 없음
+      });
+      jest.spyOn(client, 'putApplicationCommands').mockResolvedValue([]);
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const result = await adapter.setupChannel(
+        DISCORD_CONFIG,
+        'https://x/hook',
+      );
+      expect(result.configUpdates?.botIdentity?.publicKey).toBeUndefined();
+    });
+
     it('getApplicationMe ok=false → throw', async () => {
       const client = new DiscordClient();
       jest
@@ -280,6 +296,56 @@ describe('DiscordAdapter', () => {
       });
       const modal = result.httpResponse as { data: { title: string } };
       expect(modal.data.title).toBe('양식');
+    });
+
+    it('§3.3 title 미지정 + languageHints.formModalTitle → hint 사용', async () => {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const result = await adapter.openFormModal({
+        config: {
+          ...DISCORD_CONFIG,
+          languageHints: { formModalTitle: 'Form!' },
+        },
+        openContext: { interactionId: 'I1', interactionToken: 'tok' },
+        fields: [{ name: 'name', label: 'Name', type: 'text' }],
+        conversationKey: 'C1',
+        nodeId: 'n1',
+      });
+      const modal = result.httpResponse as { data: { title: string } };
+      expect(modal.data.title).toBe('Form!');
+    });
+
+    it('§3.3 min/max 4000 초과 → 4000 clamp', async () => {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const result = await adapter.openFormModal({
+        config: DISCORD_CONFIG,
+        openContext: { interactionId: 'I1', interactionToken: 'tok' },
+        fields: [
+          {
+            name: 'big',
+            label: 'Big',
+            type: 'textarea',
+            minLength: 5000,
+            maxLength: 6000,
+          },
+        ],
+        conversationKey: 'C1',
+        nodeId: 'n1',
+      });
+      const modal = result.httpResponse as {
+        data: {
+          components: Array<{
+            components: Array<{ min_length?: number; max_length?: number }>;
+          }>;
+        };
+      };
+      expect(modal.data.components[0].components[0].min_length).toBe(4000);
+      expect(modal.data.components[0].components[0].max_length).toBe(4000);
     });
 
     it('§3.3 title 지정 → modal title 반영 + 45자 truncate', async () => {
