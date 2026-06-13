@@ -285,6 +285,23 @@ describe('McpToolProvider', () => {
       expect(mcpClient.connect).toHaveBeenCalledTimes(1);
     });
 
+    it('§6.2 같은 execution 재build(세션 재사용) 시 connected summary 는 integrationId 기준 dedup', async () => {
+      const mcpDiagnostics: Array<Record<string, unknown>> = [];
+      // 같은 executionId 로 동일 mcpDiagnostics 배열을 2회 전달 → 재사용 경로에서도 1행만.
+      const ctx = {
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-dedup',
+        mcpDiagnostics,
+      } as unknown as Parameters<typeof provider.buildTools>[0];
+      await provider.buildTools(ctx);
+      await provider.buildTools(ctx); // 세션 재사용 (connect 1회) — summary 중복 push 안 함.
+      expect(mcpClient.connect).toHaveBeenCalledTimes(1);
+      expect(
+        mcpDiagnostics.filter((s) => s.status === 'connected'),
+      ).toHaveLength(1);
+    });
+
     it('different executionId opens a fresh session', async () => {
       await provider.buildTools({
         config: { mcpServers: [{ integrationId: integration.id }] },

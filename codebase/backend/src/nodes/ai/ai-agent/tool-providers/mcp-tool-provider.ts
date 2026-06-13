@@ -565,11 +565,22 @@ export class McpToolProvider implements AgentToolProvider {
     return this.buildToolDefsForEntry(ref, entry);
   }
 
-  /** §6.2 — 외부 MCP connected serverSummary push (toolCount = catalog 도구 수). */
+  /**
+   * §6.2 — 외부 MCP connected serverSummary push (toolCount = catalog 도구 수).
+   *
+   * 동일 `buildTools` 호출에서 같은 integrationId 가 (config 중복 등록·세션 재사용 경로로)
+   * 두 번 도달해도 진단 배열에 중복 행이 쌓이지 않도록 integrationId 기준 dedup 한다.
+   * `ctx.mcpDiagnostics` 미전달 시 no-op.
+   */
   private pushConnectedSummary(
     ctx: ProviderBuildCtx,
     entry: ServerEntry,
   ): void {
+    if (
+      ctx.mcpDiagnostics?.some((s) => s.integrationId === entry.integrationId)
+    ) {
+      return;
+    }
     pushMcpServerSummary(ctx.mcpDiagnostics, {
       integrationId: entry.integrationId,
       serviceType: 'mcp',
@@ -586,8 +597,10 @@ export class McpToolProvider implements AgentToolProvider {
    * - `null` — `serviceType !== 'mcp'` 인 not_capable 케이스 (silent skip,
    *   다른 provider 가 처리). spec/5-system/11-mcp-client.md §6.2 의
    *   `not_capable` skipReason vocabulary 와 정합
-   * - `throw` — connect/list/status 실패 등 진단 정보가 의미 있는 실패.
-   *   `Promise.allSettled` 가 잡아 `meta.mcpDiagnostics.errors[]` 에 누적
+   * - `throw` — connect/list/status 실패 등 진단 정보가 의미 있는 실패. throw **이전에**
+   *   `skipped(skipReason='error')` serverSummary 를 `ctx.mcpDiagnostics` 에 먼저 push 한 뒤
+   *   re-throw 한다(§6.2). caller(`Promise.allSettled`)는 빈 ToolDef[] 로 격리. (코드 granularity
+   *   `errors[]` 누적은 `mcpDiagnostics` 타입 확장 후속 — 현재는 serverSummaries[] 단일 표면)
    */
   private async openServer(
     ref: McpServerRefConfig,

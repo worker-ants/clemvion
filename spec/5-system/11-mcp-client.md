@@ -380,7 +380,7 @@ KB 의 `ragDiagnostics` 와 동일한 패턴으로, AI Agent 의 `meta.mcpDiagno
 | `serverSummaries[]` | `mcpServers` config 에 등록된 각 Integration 의 build 결과. 사용자가 "통합이 보이지 않는다" 원인을 즉시 식별하기 위함. 필드: `integrationId`, `serviceType` (`mcp` / `cafe24` / …), `status` (`connected` / `skipped`), `skipReason` (skip 일 때만), `toolCount` (catalog 에 등록된 도구 수). |
 | `errors` | 서버별 부분 실패 기록 (전체 실패가 아닌 격리된 실패) |
 
-**`skipReason` vocabulary**. 본 vocabulary 는 **Internal Bridge (cafe24) 경로의 buildTools 단계 skip** 을 위주로 정의된다. 외부 MCP 의 connect/initialize/tools-list 실패는 종전대로 `errors[]` 에 누적되므로 별도 skipReason 값을 도입하지 않는다 (정보 중복 회피).
+**`skipReason` vocabulary**. 본 vocabulary 는 **Internal Bridge (cafe24) 경로의 buildTools 단계 skip** 을 위주로 정의된다. 외부 MCP 의 status/connect/initialize/tools-list 실패는 현재 `serverSummaries[]` 의 `skipped(skipReason='error')` 로 표면화된다(2026-06-14 — `errors[]` 필드 도입 전까지 `serverSummaries[]` 가 단일 진단 표면). 코드 granularity(`MCP_TIMEOUT`/`MCP_CONNECT_FAILED`/`MCP_LIST_FAILED`)는 `errors[]` 필드 도입과 함께 추가 예정.
 
 > **명명 규칙 분리**: `skipReason` 값은 모두 `lower_snake_case` 다. 본 필드는 에러 코드가 아닌 운영 진단용 enum 이라 [`node-output.md` Principle 3.2](../conventions/node-output.md) 의 `code` UPPER_SNAKE_CASE 규약 (예: `MCP_AUTH_FAILED`, `MCP_TIMEOUT`) 과 구분된다. `Integration.status_reason` (예: `auth_failed`, `install_timeout`) 과는 의도적으로 표기 일치 — `skipReason` 의 일부 값 (`expired_install_timeout`, `expired_refresh_failed`) 이 `status_reason` 의 의미를 그대로 캐리하기 때문.
 
