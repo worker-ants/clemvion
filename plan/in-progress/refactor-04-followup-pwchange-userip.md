@@ -44,7 +44,18 @@ spec: dcd225b8 (auth §2.3·Rationale 2.3.C, user-profile §2.x·API, data-flow 
 - [x] /ai-review (22_57_48, RISK LOW · Critical 0 · Warning 4) + Warning 4건 fix(W1 순서불변식·W2 env격리·W3 e2e독립·W4 확인) + RESOLUTION.md
 - [x] /consistency-check --impl-done (23_09_52, BLOCK: NO; Warning 1 + INFO 11 = 전부 기존 spec 문서 nit, 본 변경 무관 — planner follow-up)
 
-## 후속(범위 밖 — planner)
-- impl-done WARNING: `workspace.transfer_ownership` 시제 규약 카테고리 미분류(기존 액션). `spec/conventions/audit-actions.md` 신설 또는 §4.1 예외 명시.
-- impl-done INFO: data-model §2.18 `ip_address`→`String?`, Rationale 4.1.B WebAuthn 추가 credential·OAuth-only TOTP 비활성 보강.
-- A-2 typed-error (`execution-engine-typed-errors.md`), 비밀번호변경 user-guide 안내(security-2fa 외 신규 페이지 판단), BCRYPT_ROUNDS 공용화.
+## 후속
+
+### 완료 (dev PR — branch claude/refactor-04-bcrypt-userguide-20c7ca)
+- [x] **B-3** BCRYPT_ROUNDS 공용화 — `common/utils/password.util` 에 `hashPassword`/`comparePassword`/`BCRYPT_ROUNDS` SoT. auth.service·users.service 의 bcrypt 직접 의존 제거. (ai-review W1 comparePassword 추출 동반)
+- [x] **B-2** 비밀번호 변경 user-guide 신설 — `07-workspace-and-team/password-and-sessions.{mdx,en.mdx}` (security-2fa 외 신규 페이지, KO/EN). 비번 변경 시 타 기기 세션 종료 UX.
+- [x] TEST: backend build · unit 56 · e2e 190 PASS · 변경파일 lint clean.
+- [x] /ai-review (23_39_46, RISK LOW · Critical 0 · Warning 4) → W1·W3 fix, W4 dismiss(false positive), W2 planner defer. RESOLUTION.md.
+
+### 남은 planner 트랙 (spec PR)
+- **B-1** data-model §2.18 `ip_address`→`String?` (AuditLog), Rationale 4.1.B WebAuthn 추가 credential·OAuth-only TOTP 비활성 보강.
+- **A-2 결정 대기** — `workspace.transfer_ownership` 시제 규약 미분류: `spec/conventions/audit-actions.md` 신설 vs §4.1 예외 명시. (사용자 결정 필요)
+- **W2 SPEC-DRIFT** (ai-review 23_39_46): `spec/2-navigation/13-user-guide.md` §2 IA 트리에 `password-and-sessions` 행 추가.
+
+### 별도 작업
+- **A-1 결정 대기** execution-engine typed-error 체계 (`execution-engine-typed-errors.md`, 대형). (사용자 결정 필요)
