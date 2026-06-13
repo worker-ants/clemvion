@@ -47,6 +47,8 @@ import {
 import { AuthService } from './auth.service';
 import { AuthOauthService, AUTH_OAUTH_PROVIDERS } from './auth-oauth.service';
 import { TotpService } from './totp.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { Public, CurrentUser } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -101,6 +103,7 @@ export class AuthController {
     private readonly authOauthService: AuthOauthService,
     private readonly totpService: TotpService,
     private readonly usersService: UsersService,
+    private readonly auditLogsService: AuditLogsService,
   ) {
     this.cookieDomain =
       this.configService.get<string>('app.cookieDomain') || '';
@@ -305,6 +308,15 @@ export class AuthController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async verify2fa(@CurrentUser() user: JwtPayload, @Body() dto: Verify2faDto) {
     const result = await this.totpService.verifyAndEnable(user.sub, dto.code);
+    // [Spec Auth §4.1 / Rationale 4.1.B] 액터의 현재 세션 workspaceId 에 귀속.
+    await this.auditLogsService.record({
+      workspaceId: user.workspaceId,
+      userId: user.sub,
+      action: AUDIT_ACTIONS.USER_2FA_ENABLED,
+      resourceType: 'user',
+      resourceId: user.sub,
+      details: { method: 'totp' },
+    });
     return { data: { recoveryCodes: result.recoveryCodes } };
   }
 
@@ -342,6 +354,15 @@ export class AuthController {
       });
     }
     await this.totpService.disable(user.sub);
+    // [Spec Auth §4.1 / Rationale 4.1.B] 액터의 현재 세션 workspaceId 에 귀속.
+    await this.auditLogsService.record({
+      workspaceId: user.workspaceId,
+      userId: user.sub,
+      action: AUDIT_ACTIONS.USER_2FA_DISABLED,
+      resourceType: 'user',
+      resourceId: user.sub,
+      details: { method: 'totp' },
+    });
     return { data: { ok: true } };
   }
 

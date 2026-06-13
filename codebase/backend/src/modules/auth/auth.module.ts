@@ -24,6 +24,7 @@ import {
 import { UsersModule } from '../users/users.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { MailModule } from '../mail/mail.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -46,6 +47,9 @@ import { MailModule } from '../mail/mail.module';
     UsersModule,
     WorkspacesModule,
     MailModule,
+    // user.* 인증 감사 이벤트(2fa enable/disable·WebAuthn 등록/삭제)를
+    // AuthController·WebAuthnController 가 기록 — 둘 다 AuthModule host (§Rationale 4.1.B).
+    AuditLogsModule,
     // WebAuthn 도메인은 별도 서브모듈 — AuthService 가 login 분기 등에서
     // WebAuthnService.countCredentials() 등으로 호출 (단방향). spec §1.4.H.
     WebAuthnModule,

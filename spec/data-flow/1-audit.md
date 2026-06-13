@@ -30,14 +30,16 @@
 
 ```mermaid
 sequenceDiagram
-  participant Caller as Writer Service<br/>(integrations·workspaces·executions·auth-configs)
+  participant Caller as Writer<br/>(service: integrations·workspaces·executions·auth-configs /<br/>controller: users·auth·webauthn — user.* 인증 이벤트)
   participant ALS as AuditLogsService
   participant PG as Postgres
   Caller->>ALS: record({workspaceId, userId, action, resourceType, resourceId, details?, ipAddress?})
   ALS->>PG: INSERT audit_log (...)
 ```
 
-`AuditLogsService.record` 의 실제 호출자는 **4개 모듈 13개 call site 전수**다. 이 표가 현재 코드에서
+`AuditLogsService.record` 의 실제 호출자는 **7개 위치(4개 service 모듈 + 3개 auth/user controller) 18개
+call site 전수**다. 워크스페이스 도메인 CRUD 는 해당 service 가, `user.*` 인증 이벤트는 세션
+workspaceId 가 살아있는 controller 경계가 기록한다(§Rationale 4.1.B). 이 표가 현재 코드에서
 실제로 기록되는 action 의 SoT 다:
 
 | Writer module | action | resource_type | 비고 |
@@ -55,6 +57,11 @@ sequenceDiagram
 | 〃 | `auth_config.delete` | auth_config | 삭제 |
 | 〃 | `auth_config.regenerate` | auth_config | 키/토큰 재발급 |
 | 〃 | `auth_config.reveal` | auth_config | 평문 노출 (비밀번호 재확인). auth_config 계열은 모두 `ipAddress` 를 함께 전달 |
+| `users/users.controller.ts` | `user.password_changed` | user | 인증 세션 비밀번호 변경 (`POST /users/me/change-password`). 액터 세션 workspaceId 귀속 |
+| `auth/auth.controller.ts` | `user.2fa_enabled` | user | TOTP 활성 (`POST /auth/2fa/verify`). `details.method='totp'` |
+| 〃 | `user.2fa_disabled` | user | TOTP 비활성 (`POST /auth/2fa/disable`). `details.method='totp'` |
+| `auth/webauthn/webauthn.controller.ts` | `user.2fa_enabled` | user | WebAuthn credential 등록 (`POST …/webauthn/register/verify`). `details.method='webauthn'`·`credentialId`·`firstCredential` |
+| 〃 | `user.2fa_disabled` | user | WebAuthn credential 삭제 (`DELETE …/webauthn/credentials/:id`). `details.method='webauthn'`·`credentialId`·`remainingCredentials` |
 
 표기 규약과 커버리지에 대한 코드 사실 두 가지:
 
@@ -66,11 +73,13 @@ sequenceDiagram
   강제돼 인라인 임의 문자열을 막는다 (cross-audit G-01, → [Rationale](#rationale)).
 - **커버리지 갭**: [인증 spec §4.1](../5-system/1-auth.md) 이 기록 대상으로 약속한
   `workflow.*` / `trigger.*` / `member.*` / `schedule.*` / `workspace.created·updated·deleted` /
-  `model_config.*`(create/update/delete/set-default — 구 `llm_config.*`/`rerank_config.*` 통합) / 인증(`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled`) 액션은 **모두 미구현**이다 —
-  workflows / triggers / alerts / schedules 모듈에는 `AuditLogsService` import 가 전혀 없다.
-  spec §4.1 표는 목표 커버리지, 위 9종 표가 현재 구현이다. 구현 시 인증(`user.*`) 액션은
-  **액터의 현재 세션 `workspaceId`** 에 귀속한다(모두 인증 세션 발생 — schema 변경 불요);
-  무인증 password-reset 은 workspace 없음으로 `user.password_changed` 대상 제외 ([인증 spec §4.1 / Rationale 4.1.B](../5-system/1-auth.md)).
+  `model_config.*`(create/update/delete/set-default — 구 `llm_config.*`/`rerank_config.*` 통합) 액션은
+  **여전히 미구현**이다 — workflows / triggers / alerts / schedules 모듈에는 `AuditLogsService` import 가
+  전혀 없다. spec §4.1 표는 목표 커버리지, 위 표가 현재 구현이다.
+  인증(`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled`) 액션은 **구현됐다** —
+  **액터의 현재 세션 `workspaceId`** 에 귀속해(모두 인증 세션 발생, schema 변경 없음) controller 경계
+  (`users`·`auth`·`webauthn`)에서 기록한다. 무인증 password-reset 은 workspace 없음으로
+  `user.password_changed` 대상 제외 ([인증 spec §4.1 / Rationale 4.1.B](../5-system/1-auth.md)).
 
 ### 1.2 인증 이벤트 → `login_history`
 
@@ -218,6 +227,6 @@ DROP + ADD 로 갱신했다. entity 의 `LoginHistoryEvent` union type 과 DB CH
 ### "모든 도메인 service 가 호출하는 cross-cutting concern" 서술 폐기
 
 과거 본 문서는 audit_log 의 호출자를 "각 도메인의 service (Workflows / Triggers / ... 등) 전체" 로
-서술했으나, 실제 writer 는 4개 모듈 13개 call site 뿐이라 폐기했다 (§1.1). 인증 spec §4.1 의 액션
-카탈로그는 목표 상태이고, 본 문서의 §1.1 표가 구현 현황의 SoT 다 — 커버리지 확장 시 §1.1 표를 함께
-갱신해야 한다.
+서술했으나, 실제 writer 는 한정된 위치(워크스페이스 도메인 service + `user.*` 인증 controller)뿐이라
+폐기했다 — 정확한 호출자·call site 전수는 §1.1 표가 SoT 다. 인증 spec §4.1 의 액션 카탈로그는
+목표 상태이고, 본 문서의 §1.1 표가 구현 현황의 SoT 다 — 커버리지 확장 시 §1.1 표를 함께 갱신해야 한다.

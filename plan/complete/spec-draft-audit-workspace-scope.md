@@ -2,7 +2,13 @@
 worktree: refactor-04-followups2-1de843
 started: 2026-06-12
 owner: project-planner
+completed: 2026-06-13
+spec_impact:
+  - spec/5-system/1-auth.md
+  - spec/data-flow/1-audit.md
 ---
+
+> **완료 (2026-06-13)**: 결정 1(`user.*` 감사 이벤트 workspace 귀속)·결정 2(ip_whitelist/rate-limit IP by-design)는 PR #574 로 spec 반영·머지됨. 결정 1 의 audit 액션은 본 PR(audit-user-actions)에서 `user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled` 로 controller 경계에 실제 구현 — 두 결정 모두 closed.
 
 # Spec draft — user-auth 감사 이벤트 workspace 귀속 + 1b IP 신뢰 by-design
 

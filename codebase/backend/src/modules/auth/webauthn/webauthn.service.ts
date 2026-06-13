@@ -509,11 +509,16 @@ export class WebAuthnService {
     return this.credentialRepo.save(credential);
   }
 
-  /** 개별 삭제. 마지막 credential 이면 user.webauthn_recovery_codes 도 NULL 화. */
+  /**
+   * 개별 credential 삭제. 마지막 credential 이면 `user.webauthn_recovery_codes` 도
+   * NULL 화한다. 삭제 후 남은 credential 수(`remaining`)를 반환 — 호출자
+   * (WebAuthnController)가 `remaining === 0` 일 때 2FA 가 완전히 해제됐음을
+   * `user.2fa_disabled` 감사 로그 details 에 표기하는 데 사용한다 (§Rationale 4.1.B).
+   */
   async deleteCredential(
     userId: string,
     credentialUuid: string,
-  ): Promise<void> {
+  ): Promise<{ remaining: number }> {
     this.assertEnabled();
     const credential = await this.credentialRepo.findOne({
       where: { id: credentialUuid },
@@ -530,6 +535,7 @@ export class WebAuthnService {
       // 애플리케이션 레이어 책임 — DB 트리거 아님 (spec/1-data-model.md §2.1)
       await this.usersService.update(userId, { webauthnRecoveryCodes: null });
     }
+    return { remaining };
   }
 
   /** 복구 코드 재발급 (호출 전 비밀번호 재확인은 컨트롤러에서). */
