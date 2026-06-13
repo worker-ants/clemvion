@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
@@ -118,6 +118,31 @@ export class WorkspacesService {
       ],
     });
     return admins.map((m) => m.userId);
+  }
+
+  /**
+   * Batch variant of {@link findAdminUserIds} — owner/admin user IDs for many
+   * workspaces in a single query, grouped by workspaceId. Eliminates the
+   * per-workspace N+1 in callers that resolve admins for a set of workspaces
+   * (M-2). Workspaces with no admin members are simply absent from the map.
+   */
+  async findAdminUserIdsByWorkspaces(
+    workspaceIds: string[],
+  ): Promise<Map<string, string[]>> {
+    const byWorkspace = new Map<string, string[]>();
+    if (workspaceIds.length === 0) return byWorkspace;
+    const admins = await this.memberRepository.find({
+      where: {
+        workspaceId: In(workspaceIds),
+        role: In([...ADMIN_ROLES]),
+      },
+    });
+    for (const m of admins) {
+      const arr = byWorkspace.get(m.workspaceId);
+      if (arr) arr.push(m.userId);
+      else byWorkspace.set(m.workspaceId, [m.userId]);
+    }
+    return byWorkspace;
   }
 
   /** 사용자가 속한 모든 워크스페이스 목록(역할 포함). */

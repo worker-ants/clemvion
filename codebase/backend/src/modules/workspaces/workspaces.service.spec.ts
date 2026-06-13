@@ -298,6 +298,34 @@ describe('WorkspacesService', () => {
     });
   });
 
+  describe('findAdminUserIdsByWorkspaces (M-2 batch)', () => {
+    it('returns empty map for empty input without querying', async () => {
+      const result = await service.findAdminUserIdsByWorkspaces([]);
+      expect(result.size).toBe(0);
+      expect(memberRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('groups owner/admin user ids by workspace in a single query', async () => {
+      memberRepo.find.mockResolvedValue([
+        { workspaceId: 'ws-1', userId: 'u-owner', role: 'owner' },
+        { workspaceId: 'ws-1', userId: 'u-admin', role: 'admin' },
+        { workspaceId: 'ws-2', userId: 'u-x', role: 'owner' },
+      ]);
+
+      const result = await service.findAdminUserIdsByWorkspaces([
+        'ws-1',
+        'ws-2',
+        'ws-3',
+      ]);
+
+      expect(memberRepo.find).toHaveBeenCalledTimes(1);
+      expect(result.get('ws-1')).toEqual(['u-owner', 'u-admin']);
+      expect(result.get('ws-2')).toEqual(['u-x']);
+      // 멤버 없는 워크스페이스는 map 에 부재.
+      expect(result.has('ws-3')).toBe(false);
+    });
+  });
+
   describe('renameWorkspace', () => {
     it('renames when requester is admin and name is valid', async () => {
       memberRepo.findOne.mockResolvedValue({ role: 'admin' });
