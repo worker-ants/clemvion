@@ -5438,6 +5438,67 @@ describe('ExecutionEngineService', () => {
 
       warnSpy.mockRestore();
     });
+
+    it('§5.5 resume 시 meta.durationMs 를 nodeExec.startedAt 경과로 갱신', async () => {
+      const svc = service as unknown as {
+        processFormResumeTurn: (
+          savedExecution: unknown,
+          executionId: string,
+          node: unknown,
+          context: unknown,
+          payload: unknown,
+        ) => Promise<void>;
+        contextService: {
+          createContext: (e: string, w: string) => Record<string, unknown>;
+          setStructuredOutput: jest.Mock;
+        };
+        conversationThreadService: {
+          appendPresentationInteraction: (...a: unknown[]) => void;
+        };
+      };
+      const ctSvc = svc.contextService;
+      // 대기 진입 5초 전 startedAt — durationMs 가 0 이 아니라 ~5000 이어야 한다.
+      const startedAt = new Date(Date.now() - 5000);
+      mockNodeExecutionRepo.findOne.mockResolvedValueOnce({
+        id: 'ne-dur',
+        nodeId: 'f-dur',
+        startedAt,
+      });
+      mockNodeExecutionRepo.save.mockResolvedValueOnce(undefined);
+      const context = ctSvc.createContext('exec-dur', workflowId);
+      // waiting tick 에 저장된 meta.durationMs=0 을 시뮬레이션.
+      (
+        context as { structuredOutputCache: Record<string, unknown> }
+      ).structuredOutputCache = {
+        'f-dur': {
+          config: {},
+          output: {},
+          status: 'waiting_for_input',
+          meta: { durationMs: 0, interactionType: 'form' },
+        },
+      };
+      jest
+        .spyOn(svc.conversationThreadService, 'appendPresentationInteraction')
+        .mockImplementation(() => undefined);
+      const setSpy = jest.spyOn(ctSvc, 'setStructuredOutput');
+
+      await svc.processFormResumeTurn(
+        { id: 'exec-dur', status: ExecutionStatus.RUNNING },
+        'exec-dur',
+        { id: 'f-dur', type: 'form', config: { fields: [{ name: 'name' }] } },
+        context,
+        { type: 'form_submitted', formData: { name: 'A' } },
+      );
+
+      const call = setSpy.mock.calls.find((c) => c[1] === 'f-dur');
+      expect(call).toBeDefined();
+      const out = call?.[2] as { meta?: { durationMs?: number } };
+      expect(out.meta?.durationMs).toBeGreaterThanOrEqual(4000);
+      // 기존 meta 필드는 보존.
+      expect((out.meta as { interactionType?: string }).interactionType).toBe(
+        'form',
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------
