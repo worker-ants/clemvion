@@ -290,8 +290,9 @@ export class ExecutionsService {
    * RERUN_CHAIN_WALK_MAX` 가드로 사이클 시 무한 재귀를 차단하며 옛 walk 상한(64)과
    * 동일 의미를 보존한다. spec/5-system/13-replay-rerun.md §9.1 의 "애플리케이션
    * 레벨 enforce"(=앱이 거부) 본질은 그대로 — 깊이 비교는 호출부(:reRun)가 수행.
-   * Rationale 이 기각한 것은 chain **전체 조회**용 CTE 이지 깊이 검증 쿼리가
-   * 아니다. PK · V067(re_run_of) 인덱스로 커버 — 마이그레이션 불요.
+   * PK · V067(re_run_of) 인덱스로 커버 — 마이그레이션 불요.
+   * (#12 — spec Rationale 과의 분기 계약은 spec/5-system/13-replay-rerun.md §9.1
+   * Rationale 에서 명시 예정)
    */
   private async computeChainDepth(executionId: string): Promise<number> {
     const rows: Array<{ depth: number | null }> =

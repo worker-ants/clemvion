@@ -516,7 +516,9 @@ export class KnowledgeBaseService {
     scope: 'embedding' | 'graph' | 'all',
   ): Promise<{ embeddingRequeued: number; graphRequeued: number }> {
     const kb = await this.findById(id, workspaceId);
-    const CHUNK_SIZE = 100;
+    // #9 — 중복 선언 제거: 클래스 상수 EMBED_CHUNK_SIZE(line 57) 와 동일 값이므로 재선언 삭제.
+    // graph 경로의 분할 크기도 동일 상수를 참조해 불일치 위험을 제거한다.
+    const CHUNK_SIZE = KnowledgeBaseService.EMBED_CHUNK_SIZE;
 
     let embeddingRequeued = 0;
     let graphRequeued = 0;

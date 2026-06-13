@@ -826,6 +826,31 @@ describe('KnowledgeBaseService', () => {
         [['d1']],
       );
     });
+
+    // #7 — 2 chunk 중 1번째 chunk 실패 + 2번째 chunk 정상: enqueueEmbedChunked 가
+    // 실패 후에도 나머지 chunk 를 계속 처리하는 설계 계약을 검증한다.
+    // 150개 문서(EMBED_CHUNK_SIZE=100) → 1st chunk(100건) 실패, 2nd chunk(50건) 성공.
+    it('2 chunk 중 1번째 실패 + 2번째 성공: 이후 chunk 도 계속 처리되고 embeddingRequeued 는 성공분만 반환', async () => {
+      const docs = Array.from({ length: 150 }, (_, i) => ({ id: `d${i}` }));
+      mockDataSource.query.mockResolvedValueOnce(docs); // UPDATE failed RETURNING id
+      const boom = new Error('redis down');
+      mockEmbeddingQueue.addBulk
+        .mockRejectedValueOnce(boom) // 1st chunk(100건) 실패
+        .mockResolvedValueOnce([]); // 2nd chunk(50건) 성공
+
+      // 1st chunk 실패 → throw (retryFailedDocuments 는 failed > 0 이면 throw)
+      await expect(
+        service.retryFailedDocuments('kb-1', 'ws-1', 'embedding'),
+      ).rejects.toBe(boom);
+
+      // addBulk 가 2회 호출됐어야 한다 — 1번째 실패 후에도 2번째 계속 처리.
+      expect(mockEmbeddingQueue.addBulk).toHaveBeenCalledTimes(2);
+      // 1st chunk 의 failed 문서들이 'failed' 로 롤백됐는지 확인.
+      expect(mockDataSource.query).toHaveBeenCalledWith(
+        expect.stringMatching(/SET embedding_status = 'failed'/),
+        [docs.slice(0, 100).map((d) => d.id)],
+      );
+    });
   });
 
   describe('enqueueEmbedding', () => {

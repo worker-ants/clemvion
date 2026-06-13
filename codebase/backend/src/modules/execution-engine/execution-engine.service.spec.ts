@@ -2320,6 +2320,41 @@ describe('ExecutionEngineService', () => {
         );
         expect(applied).toBe(false);
       });
+
+      // #6 — PENDING → RUNNING 동시 선점 케이스: 다른 워커가 먼저 상태를 바꿨을 때
+      // guarded UPDATE 가 0행 반환 → false (선점 감지).
+      it('else 분기: PENDING → RUNNING 전이가 0행(다른 워커 선점)이면 false 반환', async () => {
+        mockExecutionRepo.query.mockResolvedValueOnce([]); // 0행 = 선점됨
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.PENDING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        const applied = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.RUNNING,
+        );
+        expect(applied).toBe(false);
+        // status IN 가드가 쿼리에 포함돼야 선점을 탐지할 수 있다.
+        expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+          expect.stringMatching(/status IN/),
+          expect.anything(),
+        );
+      });
+
+      // #6 — query() 자체 reject 케이스: DB 연결 실패 등 인프라 오류는 호출부로 throw.
+      it('else 분기: query() reject 시 오류가 상위로 전파된다', async () => {
+        const dbError = new Error('connection refused');
+        mockExecutionRepo.query.mockRejectedValueOnce(dbError);
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        await expect(
+          priv().updateExecutionStatus(exec, ExecutionStatus.COMPLETED),
+        ).rejects.toBe(dbError);
+      });
     });
   });
 
@@ -2634,6 +2669,11 @@ describe('ExecutionEngineService', () => {
         expect.stringMatching(/UPDATE execution/),
         expect.arrayContaining([ExecutionStatus.COMPLETED]),
       );
+      // #5 — lost-update 가드 문자열 검증: status IN 절이 쿼리에 포함돼야 가드가 동작한다.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
+      );
     });
 
     it('classifies a handler-thrown AbortError as CANCELLED (not FAILED) and emits NODE_CANCELLED (node-cancellation §5.1)', async () => {
@@ -2910,6 +2950,11 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.query).toHaveBeenCalledWith(
         expect.stringMatching(/UPDATE execution/),
         expect.arrayContaining([ExecutionStatus.COMPLETED]),
+      );
+      // #5 — lost-update 가드 문자열 검증.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
       );
     });
 
@@ -6267,6 +6312,11 @@ describe('ExecutionEngineService', () => {
         expect.stringMatching(/UPDATE execution/),
         expect.arrayContaining([ExecutionStatus.COMPLETED]),
       );
+      // #5 — lost-update 가드 문자열 검증.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
+      );
     });
 
     it('should throw when a node exceeds MAX_NODE_ITERATIONS', async () => {
@@ -6472,6 +6522,11 @@ describe('ExecutionEngineService', () => {
         expect.stringMatching(/UPDATE execution/),
         expect.arrayContaining([ExecutionStatus.COMPLETED]),
       );
+      // #5 — lost-update 가드 문자열 검증.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
+      );
     });
 
     it('should pass workflowInput to back-edge target start node on first execution', async () => {
@@ -6607,6 +6662,11 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.query).toHaveBeenCalledWith(
         expect.stringMatching(/UPDATE execution/),
         expect.arrayContaining([ExecutionStatus.COMPLETED]),
+      );
+      // #5 — lost-update 가드 문자열 검증.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
       );
     });
   });
@@ -8935,6 +8995,11 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.query).toHaveBeenCalledWith(
         expect.stringMatching(/UPDATE execution/),
         expect.arrayContaining([ExecutionStatus.COMPLETED]),
+      );
+      // #5 — lost-update 가드 문자열 검증.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
       );
     });
 

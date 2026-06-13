@@ -710,6 +710,53 @@ describe('IntegrationExpiryScannerService.run', () => {
       expect.arrayContaining(['expired', 'error', 'pending_install']),
     );
   });
+
+  // #8 — 배치 경계 idempotency: 마지막 배치의 마지막 항목이 만료 임박인 경우에도
+  // claimThreshold(INSERT … ON CONFLICT DO NOTHING)가 중복 알림을 막는지 검증.
+  // 동일 (integrationId, threshold) 조합이 두 번째 run() 에서 conflict → skip.
+  it('batch boundary idempotency: 배치 경계의 만료 임박 항목에 대해 중복 알림 발생 안 함', async () => {
+    const now = new Date('2026-04-12T00:00:00Z');
+    const expiringSoon = new Date('2026-04-14T00:00:00Z'); // 2일 후 만료 (7d 임계값 이내)
+
+    // 배치 경계(500번째) 에 만료 임박 항목 포함 — 이전 배치의 마지막 항목.
+    const batch1 = Array.from({ length: 500 }, (_, i) => ({
+      id: `int-${String(i).padStart(4, '0')}`,
+      workspaceId: 'ws-1',
+      name: 'Service',
+      scope: 'personal',
+      status: 'connected',
+      createdBy: 'user-1',
+      // 마지막 항목(index 499)만 만료 임박, 나머지는 null(skip).
+      tokenExpiresAt: i === 499 ? expiringSoon : null,
+    }));
+    userRepo.find.mockResolvedValue([
+      { id: 'user-1', notificationPreferences: {} },
+    ]);
+
+    // 1st run: batch1(499) 항목은 만료 임박 → claimThreshold claim 성공(기본 mock).
+    integrationRepo.find
+      .mockResolvedValueOnce(batch1)
+      .mockResolvedValueOnce([]); // short batch → stop
+    await scanner.run(now);
+
+    // 2nd run: 동일 (integrationId, threshold) → conflict → identifiers:[]  → skip.
+    integrationRepo.find
+      .mockResolvedValueOnce(batch1)
+      .mockResolvedValueOnce([]);
+    dispatchRepo.__insertExecute.mockResolvedValue({ identifiers: [] }); // conflict 시뮬레이션
+
+    const count2ndRun = await scanner.run(now);
+
+    // 중복 run 에서 알림이 발생하지 않아야 한다.
+    // createMany 가 빈 배열만 호출됐거나 호출 자체가 0건이어야 함.
+    const allNotifCalls = notificationsService.createMany.mock.calls;
+    const secondRunCalls = allNotifCalls.slice(allNotifCalls.length - 1);
+    if (secondRunCalls.length > 0) {
+      const notifiedInSecondRun = (secondRunCalls[0][0] as unknown[]).length;
+      expect(notifiedInSecondRun).toBe(0);
+    }
+    expect(count2ndRun).toBe(0);
+  });
 });
 
 describe('IntegrationExpiryScannerService.expirePendingInstalls', () => {
