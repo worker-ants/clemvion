@@ -4,7 +4,6 @@ import { BullModule } from '@nestjs/bullmq';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node } from '../nodes/entities/node.entity';
-import { Workspace } from '../workspaces/entities/workspace.entity';
 import { SchedulesController } from './schedules.controller';
 import { SchedulesService } from './schedules.service';
 import {
@@ -15,7 +14,7 @@ import { ExecutionEngineModule } from '../execution-engine/execution-engine.modu
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Schedule, Trigger, Node, Workspace]),
+    TypeOrmModule.forFeature([Schedule, Trigger, Node]),
     BullModule.registerQueue({ name: SCHEDULE_QUEUE }),
     ExecutionEngineModule,
   ],

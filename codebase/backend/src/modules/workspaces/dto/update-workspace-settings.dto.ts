@@ -33,7 +33,7 @@ export class UpdateWorkspaceSettingsDto {
     type: String,
     example: 'Asia/Seoul',
     description:
-      'IANA 타임존 식별자. 스케줄 타임존 미지정 시 기본값으로 사용 (미설정 시 Asia/Seoul).',
+      'IANA 타임존 식별자. 스케줄 타임존 미지정 시 기본값으로 사용 (미설정 시 Asia/Seoul). 빈 문자열("")을 전송하면 타임존 설정이 해제된다.',
   })
   @IsOptional()
   @IsString()

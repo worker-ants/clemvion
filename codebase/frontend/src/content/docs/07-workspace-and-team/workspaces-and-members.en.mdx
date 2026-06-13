@@ -70,6 +70,18 @@ When you switch to a team workspace, every workflow in the list gets a `👥 Tea
 
 In team workspaces, an additional `All / Mine / Shared` button group appears next to the search box. It lets you slice the list by author within the same team. The group is hidden in personal workspaces.
 
+## Workspace settings
+
+You can adjust default behavior from the **Settings** tab in workspace management.
+
+### Default timezone
+
+When you create a schedule without specifying a timezone, the workspace's **default timezone** is used. The value must be a valid IANA identifier (e.g. `Asia/Seoul`, `America/New_York`). If not set, `Asia/Seoul` is the default.
+
+<Callout type="note">
+The default timezone can currently only be set via the `timezone` field of the `PATCH /api/workspaces/:id/settings` API. There is no input UI on the settings screen yet.
+</Callout>
+
 ## Leaving · deleting
 
 - **Leave** (Danger zone tab) — Removes only your own membership. Blocked if you're the sole Owner — use [Transfer ownership] or [Delete workspace] first.

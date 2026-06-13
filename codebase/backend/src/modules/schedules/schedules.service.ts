@@ -7,7 +7,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
-import { Workspace } from '../workspaces/entities/workspace.entity';
+import { WorkspacesService } from '../workspaces/workspaces.service';
+import { isValidIanaTimezone } from '../../common/utils/timezone';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -23,26 +24,35 @@ export class SchedulesService {
     private readonly scheduleRepository: Repository<Schedule>,
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
-    @InjectRepository(Workspace)
-    private readonly workspaceRepository: Repository<Workspace>,
+    private readonly workspacesService: WorkspacesService,
     private readonly executionEngineService: ExecutionEngineService,
     private readonly scheduleRunnerService: ScheduleRunnerService,
   ) {}
 
   /**
    * §2.2 — 스케줄 타임존 결정: 명시값 > 워크스페이스 설정(`settings.timezone`) > `'Asia/Seoul'`.
-   * 워크스페이스 설정에 타임존이 없거나 무효 문자열이면 최종 하드코딩 기본값으로 폴백한다.
+   *
+   * `'Asia/Seoul'` 은 Schedule 도메인 전용 제품 기본값이다 (서버 `process.env.TZ`/UTC 가 아니라 — 본
+   * 제품의 1차 타겟 사용자 기준). 명시값과 워크스페이스 값 모두 IANA 유효성을 검증해 무효면 다음 단계로
+   * 폴백한다 (DTO/저장 검증을 우회한 레거시·직접 호출 방어). 모듈 경계상 Workspace 엔티티를 직접
+   * 읽지 않고 `WorkspacesService.getWorkspaceTimezone` 위임 호출을 쓴다.
    */
   private async resolveTimezone(
     workspaceId: string,
-    explicit: string | undefined,
+    requestedTimezone: string | undefined,
   ): Promise<string> {
-    if (explicit) return explicit;
-    const workspace = await this.workspaceRepository.findOne({
-      where: { id: workspaceId },
-    });
-    const wsTz = workspace?.settings?.timezone;
-    return typeof wsTz === 'string' && wsTz.length > 0 ? wsTz : 'Asia/Seoul';
+    // 명시값이 있으면 IANA 검증 — 무효면 silent fallback 대신 즉시 거부(사용자 입력 오류 명확화).
+    if (requestedTimezone) {
+      if (!isValidIanaTimezone(requestedTimezone)) {
+        throw new BadRequestException({
+          code: 'INVALID_TIMEZONE',
+          message: `유효하지 않은 타임존입니다: ${requestedTimezone}`,
+        });
+      }
+      return requestedTimezone;
+    }
+    const wsTz = await this.workspacesService.getWorkspaceTimezone(workspaceId);
+    return wsTz ?? 'Asia/Seoul';
   }
 
   async findAll(

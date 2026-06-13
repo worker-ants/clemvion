@@ -4,7 +4,8 @@ import { Repository } from 'typeorm';
 import { SchedulesService } from './schedules.service';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
-import { Workspace } from '../workspaces/entities/workspace.entity';
+import { WorkspacesService } from '../workspaces/workspaces.service';
+import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ScheduleRunnerService } from './schedule-runner.service';
 
@@ -12,7 +13,9 @@ describe('SchedulesService.runNow', () => {
   let service: SchedulesService;
   let scheduleRepo: jest.Mocked<Repository<Schedule>>;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
-  let workspaceRepo: jest.Mocked<Repository<Workspace>>;
+  let workspacesService: jest.Mocked<
+    Pick<WorkspacesService, 'getWorkspaceTimezone'>
+  >;
   let engine: jest.Mocked<ExecutionEngineService>;
   let runner: jest.Mocked<
     Pick<ScheduleRunnerService, 'resolveScheduleParameters'>
@@ -37,8 +40,8 @@ describe('SchedulesService.runNow', () => {
           useValue: { create: jest.fn(), save: jest.fn(), delete: jest.fn() },
         },
         {
-          provide: getRepositoryToken(Workspace),
-          useValue: { findOne: jest.fn() },
+          provide: WorkspacesService,
+          useValue: { getWorkspaceTimezone: jest.fn() },
         },
         {
           provide: ExecutionEngineService,
@@ -58,7 +61,7 @@ describe('SchedulesService.runNow', () => {
     service = moduleRef.get(SchedulesService);
     scheduleRepo = moduleRef.get(getRepositoryToken(Schedule));
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
-    workspaceRepo = moduleRef.get(getRepositoryToken(Workspace));
+    workspacesService = moduleRef.get(WorkspacesService);
     engine = moduleRef.get(ExecutionEngineService);
     runner = moduleRef.get(ScheduleRunnerService);
   });
@@ -161,28 +164,37 @@ describe('SchedulesService.runNow', () => {
       );
     });
 
-    it('dto.timezone 명시 시 우선 (workspace 미조회)', async () => {
+    it('dto.timezone 명시(유효) 시 우선 (workspace 미조회)', async () => {
       const s = await service.create('ws-1', {
         ...baseDto,
         timezone: 'America/New_York',
-      } as never);
+      } as unknown as CreateScheduleDto);
       expect(s.timezone).toBe('America/New_York');
-      expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      expect(workspacesService.getWorkspaceTimezone).not.toHaveBeenCalled();
     });
 
-    it('dto.timezone 없으면 workspace.settings.timezone fallback', async () => {
-      workspaceRepo.findOne.mockResolvedValue({
-        settings: { timezone: 'Europe/London' },
-      } as unknown as Workspace);
-      const s = await service.create('ws-1', { ...baseDto } as never);
+    it('dto.timezone 무효 → INVALID_TIMEZONE BadRequest', async () => {
+      await expect(
+        service.create('ws-1', {
+          ...baseDto,
+          timezone: 'Not/AZone',
+        } as unknown as CreateScheduleDto),
+      ).rejects.toMatchObject({ response: { code: 'INVALID_TIMEZONE' } });
+    });
+
+    it('dto.timezone 없으면 workspace 설정 timezone fallback', async () => {
+      workspacesService.getWorkspaceTimezone.mockResolvedValue('Europe/London');
+      const s = await service.create('ws-1', {
+        ...baseDto,
+      } as unknown as CreateScheduleDto);
       expect(s.timezone).toBe('Europe/London');
     });
 
-    it('dto·workspace 둘 다 없으면 Asia/Seoul', async () => {
-      workspaceRepo.findOne.mockResolvedValue({
-        settings: {},
-      } as unknown as Workspace);
-      const s = await service.create('ws-1', { ...baseDto } as never);
+    it('dto·workspace 둘 다 없으면(undefined) Asia/Seoul', async () => {
+      workspacesService.getWorkspaceTimezone.mockResolvedValue(undefined);
+      const s = await service.create('ws-1', {
+        ...baseDto,
+      } as unknown as CreateScheduleDto);
       expect(s.timezone).toBe('Asia/Seoul');
     });
   });

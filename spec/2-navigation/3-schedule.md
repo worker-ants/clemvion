@@ -10,6 +10,9 @@ code:
   - codebase/backend/src/modules/schedules/schedules.service.ts
   - codebase/backend/src/modules/schedules/schedule-runner.service.ts
   - codebase/backend/src/modules/schedules/schedules.module.ts
+  - codebase/backend/src/modules/workspaces/workspaces.service.ts
+  - codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts
+  - codebase/backend/src/common/utils/timezone.ts
   - codebase/backend/src/modules/schedules/dto/**
 ---
 
