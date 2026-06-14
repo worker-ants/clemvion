@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { withTimeout } from '../../../../common/utils/with-timeout';
+import { pushMcpServerSummary } from './mcp-diagnostics.js';
 import {
   ToolCall,
   ToolDef,
@@ -541,7 +542,11 @@ export class McpToolProvider implements AgentToolProvider {
     sid: string,
   ): Promise<ToolDef[]> {
     const existing = sessions.get(ref.integrationId);
-    if (existing) return this.buildToolDefsForEntry(ref, existing);
+    if (existing) {
+      // §6.2 — 재사용 세션도 본 buildTools 진단에 connected summary 로 노출.
+      this.pushConnectedSummary(ctx, existing);
+      return this.buildToolDefsForEntry(ref, existing);
+    }
 
     const inflightKey = `${execId}:${ref.integrationId}`;
     let pending = this.inflight.get(inflightKey);
@@ -554,7 +559,34 @@ export class McpToolProvider implements AgentToolProvider {
     const entry = await pending;
     if (!entry) return []; // not_capable — silent skip, sessions 미등록
     sessions.set(ref.integrationId, entry);
+    // §6.2 — 외부 MCP connect+list 성공 시 connected summary push (Cafe24 Internal
+    // Bridge 와 대칭 — 그간 외부 MCP 는 성공·실패 모두 진단에 미노출이었다).
+    this.pushConnectedSummary(ctx, entry);
     return this.buildToolDefsForEntry(ref, entry);
+  }
+
+  /**
+   * §6.2 — 외부 MCP connected serverSummary push (toolCount = catalog 도구 수).
+   *
+   * 동일 `buildTools` 호출에서 같은 integrationId 가 (config 중복 등록·세션 재사용 경로로)
+   * 두 번 도달해도 진단 배열에 중복 행이 쌓이지 않도록 integrationId 기준 dedup 한다.
+   * `ctx.mcpDiagnostics` 미전달 시 no-op.
+   */
+  private pushConnectedSummary(
+    ctx: ProviderBuildCtx,
+    entry: ServerEntry,
+  ): void {
+    if (
+      ctx.mcpDiagnostics?.some((s) => s.integrationId === entry.integrationId)
+    ) {
+      return;
+    }
+    pushMcpServerSummary(ctx.mcpDiagnostics, {
+      integrationId: entry.integrationId,
+      serviceType: 'mcp',
+      status: 'connected',
+      toolCount: entry.toolDefs.size,
+    });
   }
 
   /**
@@ -565,8 +597,10 @@ export class McpToolProvider implements AgentToolProvider {
    * - `null` — `serviceType !== 'mcp'` 인 not_capable 케이스 (silent skip,
    *   다른 provider 가 처리). spec/5-system/11-mcp-client.md §6.2 의
    *   `not_capable` skipReason vocabulary 와 정합
-   * - `throw` — connect/list/status 실패 등 진단 정보가 의미 있는 실패.
-   *   `Promise.allSettled` 가 잡아 `meta.mcpDiagnostics.errors[]` 에 누적
+   * - `throw` — connect/list/status 실패 등 진단 정보가 의미 있는 실패. throw **이전에**
+   *   `skipped(skipReason='error')` serverSummary 를 `ctx.mcpDiagnostics` 에 먼저 push 한 뒤
+   *   re-throw 한다(§6.2). caller(`Promise.allSettled`)는 빈 ToolDef[] 로 격리. (코드 granularity
+   *   `errors[]` 누적은 `mcpDiagnostics` 타입 확장 후속 — 현재는 serverSummaries[] 단일 표면)
    */
   private async openServer(
     ref: McpServerRefConfig,
@@ -588,75 +622,90 @@ export class McpToolProvider implements AgentToolProvider {
       // sessions 에 안 넣고 빈 ToolDef[] 반환.
       return null;
     }
-    if (integration.status !== 'connected') {
-      throw new Error(
-        `Integration ${ref.integrationId} is not connected (status=${integration.status})`,
-      );
-    }
-
-    const params = this.toConnectParams(integration);
-    const session = await withTimeout(
-      this.mcpClient.connect(params),
-      CONNECT_TIMEOUT_MS,
-      `connect ${integration.name}`,
-    );
-
-    // Once connected, *anything* that throws between here and the return must
-    // close the session — otherwise the listTools timeout (review WARNING #6)
-    // leaks an open SSE stream forever.
+    // §6.2 — serviceType==='mcp' 확정 이후의 모든 실패(status/connect/list)는 외부 MCP 진단으로
+    // 의미가 있으므로 skipped serverSummary 를 push 한 뒤 re-throw 한다. (serviceType 판정 전
+    // getForExecution lookup 실패는 본 provider 가 아니라 호출자/타 provider 책임 — 여기서 push 안 함.)
     try {
-      const list = await withTimeout(
-        session.listTools(),
-        LIST_TIMEOUT_MS,
-        `tools/list ${integration.name}`,
-      );
-
-      const allowlist = ref.enabledTools;
-      const allowAll = !allowlist || allowlist.includes('*');
-      const allowSet = new Set(allowlist ?? []);
-      const toolNameMap = new Map<string, string>();
-      const toolDefs = new Map<
-        string,
-        { name: string; description?: string; inputSchema: unknown }
-      >();
-      for (const t of list.tools) {
-        if (!allowAll && !allowSet.has(t.name)) continue;
-        const sanitized = sanitizeToolName(t.name);
-        if (toolNameMap.has(sanitized)) {
-          // Two distinct upstream names sanitize to the same string — surface
-          // a warning and keep the first occurrence (review WARNING #18).
-          // The collision is improbable for typical MCP servers but worth
-          // flagging for operators.
-          McpToolProvider.logger.warn(
-            `MCP server "${integration.name}": tool name collision after sanitize ` +
-              `("${toolNameMap.get(sanitized)}" vs "${t.name}") — ignoring "${t.name}"`,
-          );
-          continue;
-        }
-        toolNameMap.set(sanitized, t.name);
-        toolDefs.set(t.name, {
-          name: t.name,
-          description: t.description,
-          inputSchema: t.inputSchema,
-        });
+      if (integration.status !== 'connected') {
+        throw new Error(
+          `Integration ${ref.integrationId} is not connected (status=${integration.status})`,
+        );
       }
 
-      return {
-        integrationId: integration.id,
-        integrationName: integration.name,
-        sid,
-        toolNameMap,
-        toolDefs,
-        session,
-        capabilities: {
-          resources: session.capabilities.resources !== undefined,
-          prompts: session.capabilities.prompts !== undefined,
-        },
-      };
+      const params = this.toConnectParams(integration);
+      const session = await withTimeout(
+        this.mcpClient.connect(params),
+        CONNECT_TIMEOUT_MS,
+        `connect ${integration.name}`,
+      );
+
+      // Once connected, *anything* that throws between here and the return must
+      // close the session — otherwise the listTools timeout (review WARNING #6)
+      // leaks an open SSE stream forever.
+      try {
+        const list = await withTimeout(
+          session.listTools(),
+          LIST_TIMEOUT_MS,
+          `tools/list ${integration.name}`,
+        );
+
+        const allowlist = ref.enabledTools;
+        const allowAll = !allowlist || allowlist.includes('*');
+        const allowSet = new Set(allowlist ?? []);
+        const toolNameMap = new Map<string, string>();
+        const toolDefs = new Map<
+          string,
+          { name: string; description?: string; inputSchema: unknown }
+        >();
+        for (const t of list.tools) {
+          if (!allowAll && !allowSet.has(t.name)) continue;
+          const sanitized = sanitizeToolName(t.name);
+          if (toolNameMap.has(sanitized)) {
+            // Two distinct upstream names sanitize to the same string — surface
+            // a warning and keep the first occurrence (review WARNING #18).
+            // The collision is improbable for typical MCP servers but worth
+            // flagging for operators.
+            McpToolProvider.logger.warn(
+              `MCP server "${integration.name}": tool name collision after sanitize ` +
+                `("${toolNameMap.get(sanitized)}" vs "${t.name}") — ignoring "${t.name}"`,
+            );
+            continue;
+          }
+          toolNameMap.set(sanitized, t.name);
+          toolDefs.set(t.name, {
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+          });
+        }
+
+        return {
+          integrationId: integration.id,
+          integrationName: integration.name,
+          sid,
+          toolNameMap,
+          toolDefs,
+          session,
+          capabilities: {
+            resources: session.capabilities.resources !== undefined,
+            prompts: session.capabilities.prompts !== undefined,
+          },
+        };
+      } catch (err) {
+        // Best-effort — if close itself throws we still want the original error
+        // to bubble up.
+        session.close().catch(() => undefined);
+        throw err;
+      }
     } catch (err) {
-      // Best-effort — if close itself throws we still want the original error
-      // to bubble up.
-      session.close().catch(() => undefined);
+      // §6.2 — 외부 MCP(status/connect/list) 실패를 skipped 진단으로 노출 후 re-throw.
+      pushMcpServerSummary(ctx.mcpDiagnostics, {
+        integrationId: integration.id,
+        serviceType: 'mcp',
+        status: 'skipped',
+        skipReason: 'error',
+        toolCount: 0,
+      });
       throw err;
     }
   }
