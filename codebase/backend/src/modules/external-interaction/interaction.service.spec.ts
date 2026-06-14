@@ -180,8 +180,9 @@ describe('InteractionService.interact', () => {
     }
     // 400 BadRequestException + MESSAGE_TOO_LONG, 고정 client-safe message.
     expect((caught as { status?: number }).status).toBe(400);
-    const body = (caught as { response: { error: { code: string; message: string } } })
-      .response.error;
+    const body = (
+      caught as { response: { error: { code: string; message: string } } }
+    ).response.error;
     expect(body.code).toBe('MESSAGE_TOO_LONG');
     expect(body.message).toBe('Message exceeds the maximum allowed length.');
     // 누출 차단: 내부 길이 수치는 응답에 포함되지 않는다 (serverDetail 전용).
