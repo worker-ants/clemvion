@@ -1,7 +1,10 @@
 ---
-worktree: (unstarted)
+worktree: spec-sync-s-batch-b85f17
 started: 2026-06-06
 owner: planner
+spec_impact:
+  - spec/conventions/interaction-type-registry.md
+  - spec/5-system/4-execution-engine.md
 ---
 
 # Spec Sync — resume dispatch registry 레이어 spec 반영 (exec-park B-1 후속)
@@ -22,15 +25,16 @@ owner: planner
       서술(L922 영역)에 "form/buttons/ai 분기는 `dispatchResumeTurn`(ordered `resumeTurnRegistry`,
       `resume-turn-dispatch.ts`) 단일 진입점으로 라우팅; AI 는 `handleAiResumeTurn` 경유" 한 줄 반영.
       기존 "form→processFormResumeTurn ..." 매핑 서술은 그대로 정합(처리기 불변) — indirection 레이어만 추가 기술.
-- [ ] **W2** `spec/conventions/interaction-type-registry.md` §1.1 Backend 행 + §1.2 매트릭스에
-      `resume-turn-dispatch.ts`(또는 glob `execution-engine/**`) dispatch 위치 등재. enum 값 신규
-      추가 아님 → 매트릭스 완전성 보강.
-- [ ] **I3(선택)** `resume-turn-dispatch.ts` JSDoc 의 `§6.2(중첩 재개)` 레이블 → `§7.5 중첩
-      sub-workflow 재개` 로 교정(§6.2 는 영속화 정책). *코드 주석이라 developer 도메인 — spec PR
-      과 별도로 처리 가능하나, 본 plan 에 함께 추적.*
-- [ ] **I4(선택)** `spec/5-system/4-execution-engine.md §Rationale` "park 즉시 해제" 항에
-      "B-1 후속 — park return-signal sentinel(`PARK_RELEASED`/`ProcessTurnResult`)을
-      `shared/execution-resume/process-turn-result.ts` 로 이관" 한 문장 추가.
+- [x] **W2** (2026-06-13, spec-sync-s-batch) `spec/conventions/interaction-type-registry.md` §1.2 매트릭스
+      하단에 재개 turn 라우팅 진입점 노트(`dispatchResumeTurn`/ordered `resumeTurnRegistry`/`resume-turn-dispatch.ts`)
+      추가 + frontmatter `code:` 에 `resume-turn-dispatch.ts` 등재. enum 값 신규 추가 아님 → 매트릭스 완전성 보강.
+      §1.1 "단일 진실 위치"는 **enum 타입 정의 위치 전용**(WaitingInteractionType 선언처)이라 dispatch 파일은 등재 부적합
+      → 의도적으로 §1.2 노트 + frontmatter 로만 처리(원안 "§1.1 Backend 행" 문구는 위치 부정확으로 비채택).
+- [x] **I3** (2026-06-13) `resume-turn-dispatch.ts` JSDoc 의 `§6.2(중첩 재개)` 레이블 → `§7.5(rehydration ·
+      중첩 sub-workflow 재개)` 로 교정, §6.2 는 영속화 정책임을 괄호 명시.
+- [x] **I4** (이미 반영 — `spec/5-system/4-execution-engine.md §Rationale` "park 즉시 해제 + slow-path 일원화"
+      항 "resume turn dispatch registry 추출 (#507)" 단락이 `PARK_RELEASED`/`ParkSignal`/`ProcessTurnResult` 의
+      `shared/execution-resume/process-turn-result.ts` 이관을 이미 서술). 추가 작업 불요.
 
 ## 워크플로
 - planner: `/consistency-check --spec` (해당 draft) → BLOCK:NO 시 spec 반영. spec frontmatter

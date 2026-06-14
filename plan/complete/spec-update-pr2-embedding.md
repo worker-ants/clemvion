@@ -1,9 +1,23 @@
 ---
-worktree: unified-model-mgmt-5af7ee
+worktree: spec-sync-s-batch-b85f17
 started: 2026-06-10
 owner: resolution-applier
+spec_impact:
+  - spec/1-data-model.md
+  - spec/5-system/8-embedding-pipeline.md
 ---
 # Spec Update Draft — PR2 Embedding 1급화 SPEC-DRIFT
+
+> **완료 (2026-06-13, spec-sync-s-batch) — 후속 머지(PR4b / Unified Model Management, V088~V094)에 흡수됨**:
+> - **INFO-1**: `spec/1-data-model.md §2.11` 에 `embedding_model_config_id`(V091)가 이미 1급 필드로 등재됨.
+>   본 plan 이 제안한 legacy 컬럼 `[LEGACY — V092 제거 예정]` 태깅은 **부적용** — 해당 두 컬럼(`embedding_llm_config_id`·
+>   `embedding_model`)은 PR4b 의 V093 repoint + V094 DROP 으로 **이미 비가역 제거**됐다(§2.11·§537 note 반영). plan 의 stale 한
+>   3-step 폴백 텍스트를 적용했으면 퇴행이었을 것 → 적용 안 함.
+> - **INFO-2**: `spec/5-system/8-embedding-pipeline.md §5.5 "임베딩 설정 해석 폴백 체인 (resolveEmbedding)"` 이 이미 존재
+>   (PR4b 이후 2-step 체인으로 — plan 의 3-step 보다 발전된 현행). 추가 작업 불요.
+> - **INFO-3**: 동 문서 frontmatter `code:` 에 `model-config.service.ts`·`rag-search.service.ts` 이미 등재됨.
+>
+> 결론: 본 plan 의 모든 항목이 후속 작업에서 충족(또는 의도적으로 supersede)됨. spec 추가 편집 없이 종결.
 
 ## 분류
 
@@ -25,6 +39,11 @@ SUMMARY#INFO-3: `spec/5-system/8-embedding-pipeline.md` frontmatter `code:` 에 
 ---
 
 ## 제안 변경
+
+> ⚠️ **미적용 (superseded by PR4b / V088~V094)**: 아래 Before/After 제안 — 특히 INFO-1 의 legacy 컬럼
+> `[LEGACY — V092 제거 예정]` 태깅과 INFO-2 의 **3-step 폴백 체인** — 은 **현행 spec 지침이 아니다**.
+> legacy 컬럼은 V093 repoint + V094 DROP 으로 이미 제거됐고 폴백 체인은 2-step 으로 단순화됐다 (상단 완료 블록 참조).
+> 본 섹션은 plan 작성 시점(2026-06-10)의 원안 기록일 뿐 — 그대로 적용하면 **퇴행**이므로 적용 금지.
 
 ### 1. `spec/1-data-model.md §2.11` KnowledgeBase 필드 표
 
