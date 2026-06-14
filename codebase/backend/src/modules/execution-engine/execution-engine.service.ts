@@ -4314,10 +4314,10 @@ export class ExecutionEngineService
 
   /**
    * [spec form §4·§6.2 / EIA §5.1] form 제출 데이터를 노드 field 정의에 대해 검증한다.
-   * 적용 규칙: 필수·`type`(email/number)·`validation.minLength`/`maxLength`·select/radio 선택지.
-   * **미적용 (Planned)**: `validation.min`/`max`(숫자 범위)·`pattern`(정규식)·`type:'file'` MIME/size/count
-   * (`plan/in-progress/spec-sync-form-gaps.md` 추적). 실패 시 FIRST 오류로 {@link FormValidationError}
-   * throw (chat-channel `validateFormSubmission` 재사용).
+   * 적용 규칙: 필수·`type`(email/number)·`validation.minLength`/`maxLength`·`min`/`max`(숫자 범위)·
+   * `pattern`(regex)·select/radio 선택지.
+   * **미적용 (Planned)**: `type:'file'` MIME/size/count (`plan/in-progress/spec-sync-form-gaps.md` 추적).
+   * 실패 시 FIRST 오류로 {@link FormValidationError} throw (chat-channel `validateFormSubmission` 재사용).
    *
    * 검증 불가(노드/field 정의 부재) 시 통과(기존 whitelist-only 동작 유지) — 방어적.
    */

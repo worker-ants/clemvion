@@ -201,6 +201,78 @@ describe('extractFormFields', () => {
     expect(fields[0].minLength).toBe(0);
     expect(fields[0].maxLength).toBeUndefined();
   });
+
+  it('§6.2 field.validation.{min,max,pattern} 정규화', () => {
+    const fields = extractFormFields({
+      fields: [
+        {
+          name: 'age',
+          label: 'Age',
+          type: 'number',
+          validation: { min: 0, max: 120 },
+        },
+        {
+          name: 'code',
+          label: 'Code',
+          type: 'text',
+          validation: { pattern: '^[A-Z]{3}$' },
+        },
+        // 무효 값(비숫자 min·NaN max·빈 pattern)은 미반영.
+        {
+          name: 'bad',
+          label: 'Bad',
+          type: 'number',
+          validation: { min: 'x', max: NaN, pattern: '' },
+        },
+      ],
+    });
+    expect(fields[0].min).toBe(0);
+    expect(fields[0].max).toBe(120);
+    expect(fields[0].pattern).toBeUndefined();
+    expect(fields[1].pattern).toBe('^[A-Z]{3}$');
+    expect(fields[2].min).toBeUndefined();
+    expect(fields[2].max).toBeUndefined();
+    expect(fields[2].pattern).toBeUndefined();
+  });
+
+  it('§6.2 min/max — Infinity/-Infinity 는 비유한수라 거부', () => {
+    const fields = extractFormFields({
+      fields: [
+        {
+          name: 'n',
+          label: 'N',
+          type: 'number',
+          validation: { min: -Infinity, max: Infinity },
+        },
+      ],
+    });
+    expect(fields[0].min).toBeUndefined();
+    expect(fields[0].max).toBeUndefined();
+  });
+
+  it('§6.2 min/max — 논리 역전(min>max)은 두 경계 모두 무시', () => {
+    const fields = extractFormFields({
+      fields: [
+        {
+          name: 'n',
+          label: 'N',
+          type: 'number',
+          validation: { min: 100, max: 10 },
+        },
+        // min==max 는 유효(단일 값 허용) → 유지.
+        {
+          name: 'eq',
+          label: 'Eq',
+          type: 'number',
+          validation: { min: 5, max: 5 },
+        },
+      ],
+    });
+    expect(fields[0].min).toBeUndefined();
+    expect(fields[0].max).toBeUndefined();
+    expect(fields[1].min).toBe(5);
+    expect(fields[1].max).toBe(5);
+  });
 });
 
 describe('extractFormTitle', () => {
@@ -322,6 +394,105 @@ describe('validateFormSubmission', () => {
       message: '최대 12자까지 입력할 수 있습니다.',
     });
     expect(validateFormSubmission({ pw: 'goodpass' }, defs)).toBeNull();
+  });
+
+  it('§6.2 min/max — number 범위 서버측 검증', () => {
+    const defs = [field({ name: 'age', type: 'number', min: 18, max: 65 })];
+    expect(validateFormSubmission({ age: '10' }, defs)).toEqual({
+      field: 'age',
+      message: '최솟값은 18 이상이어야 합니다.',
+    });
+    expect(validateFormSubmission({ age: '70' }, defs)).toEqual({
+      field: 'age',
+      message: '최댓값은 65 이하여야 합니다.',
+    });
+    expect(validateFormSubmission({ age: '18' }, defs)).toBeNull();
+    expect(validateFormSubmission({ age: '65' }, defs)).toBeNull();
+  });
+
+  it('§6.2 min/max — 음수·소수 경계', () => {
+    const defs = [field({ name: 'temp', type: 'number', min: -10, max: 0 })];
+    expect(validateFormSubmission({ temp: '-10' }, defs)).toBeNull();
+    expect(validateFormSubmission({ temp: '0.5' }, defs)).toEqual({
+      field: 'temp',
+      message: '최댓값은 0 이하여야 합니다.',
+    });
+  });
+
+  it('§6.2 min/max — 숫자 형식 오류가 범위보다 우선 (FIRST)', () => {
+    const defs = [field({ name: 'age', type: 'number', min: 18 })];
+    expect(validateFormSubmission({ age: 'abc' }, defs)).toEqual({
+      field: 'age',
+      message: '숫자만 입력해 주세요.',
+    });
+  });
+
+  it('§6.2 min/max — max 단독(min 없음) 독립 동작', () => {
+    const defs = [field({ name: 'score', type: 'number', max: 100 })];
+    expect(validateFormSubmission({ score: '101' }, defs)).toEqual({
+      field: 'score',
+      message: '최댓값은 100 이하여야 합니다.',
+    });
+    expect(validateFormSubmission({ score: '100' }, defs)).toBeNull();
+    expect(validateFormSubmission({ score: '-5' }, defs)).toBeNull();
+  });
+
+  it('§6.2 min/max — min:0 하한(falsy 경계) 정상 적용', () => {
+    const defs = [field({ name: 'qty', type: 'number', min: 0 })];
+    expect(validateFormSubmission({ qty: '-1' }, defs)).toEqual({
+      field: 'qty',
+      message: '최솟값은 0 이상이어야 합니다.',
+    });
+    expect(validateFormSubmission({ qty: '0' }, defs)).toBeNull();
+  });
+
+  it('§6.2 pattern — regex 미일치 → 오류 / 일치 → null', () => {
+    const defs = [field({ name: 'code', type: 'text', pattern: '^[A-Z]{3}$' })];
+    expect(validateFormSubmission({ code: 'abc' }, defs)).toEqual({
+      field: 'code',
+      message: '형식이 올바르지 않습니다.',
+    });
+    expect(validateFormSubmission({ code: 'ABC' }, defs)).toBeNull();
+  });
+
+  it('§6.2 pattern — 빈 optional 값은 skip', () => {
+    const defs = [field({ name: 'code', type: 'text', pattern: '^[A-Z]{3}$' })];
+    expect(validateFormSubmission({ code: '' }, defs)).toBeNull();
+  });
+
+  it('§6.2 pattern — 잘못된 regex 는 방어적으로 통과', () => {
+    // '[' 는 미완성 character class → new RegExp throw → 컴파일 실패 시 방어적 통과.
+    const defs = [field({ name: 'code', type: 'text', pattern: '[' })];
+    expect(validateFormSubmission({ code: 'anything' }, defs)).toBeNull();
+  });
+
+  it('§6.2 pattern — 과길이 패턴(>512자)은 컴파일 skip(방어적 통과)', () => {
+    const defs = [
+      field({ name: 'code', type: 'text', pattern: 'a'.repeat(513) }),
+    ];
+    // 513자 'aaa...' 패턴은 'b' 와 미일치하지만, 길이 cap 으로 컴파일 자체를 skip → 통과.
+    expect(validateFormSubmission({ code: 'b' }, defs)).toBeNull();
+  });
+
+  it('§6.2 minLength 가 min/max·pattern 보다 우선 (FIRST 순서)', () => {
+    const defs = [
+      field({ name: 'pw', type: 'text', minLength: 8, pattern: '^[A-Z]+$' }),
+    ];
+    expect(validateFormSubmission({ pw: 'abc' }, defs)).toEqual({
+      field: 'pw',
+      message: '최소 8자 이상 입력해 주세요.',
+    });
+  });
+
+  it('§6.2 maxLength 가 pattern 보다 우선 (FIRST 순서)', () => {
+    const defs = [
+      field({ name: 'pw', type: 'text', maxLength: 5, pattern: '^[A-Z]+$' }),
+    ];
+    // 6자 입력: maxLength 위반이 pattern(대문자) 위반보다 먼저 표면.
+    expect(validateFormSubmission({ pw: 'abcdef' }, defs)).toEqual({
+      field: 'pw',
+      message: '최대 5자까지 입력할 수 있습니다.',
+    });
   });
 });
 
