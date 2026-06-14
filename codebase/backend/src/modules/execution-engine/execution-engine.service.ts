@@ -4077,6 +4077,33 @@ export class ExecutionEngineService
         interactionData[key] = value;
       }
     }
+    // §5.5 — resume 시 실제 대기 경과시간으로 meta.durationMs 를 갱신한다. waiting tick 에 저장된
+    // prevStructured.meta 의 durationMs 는 0(대기 진입 직후 계산)이라, 재개 시점에 nodeExec.startedAt
+    // (대기 진입 시각) 으로부터의 경과로 대체한다. nodeExec 부재 시(테스트 등) prevStructured.meta 보존.
+    const resumeFinishedAt = new Date();
+    const resumeDurationMs = nodeExec?.startedAt
+      ? Math.max(0, resumeFinishedAt.getTime() - nodeExec.startedAt.getTime())
+      : undefined;
+    const prevMeta =
+      typeof prevStructured?.meta === 'object' && prevStructured.meta !== null
+        ? prevStructured.meta
+        : undefined;
+    // 재수화(서버 재시작) 경로에서는 structuredOutputCache 가 비어 prevMeta 가 undefined 일 수 있다.
+    // 이 경우에도 form 노드의 meta.interactionType 은 보존돼야 하므로(spec §5.5) fallback 으로 보강한다.
+    const fallbackMeta: Record<string, unknown> =
+      node.type === 'form' ? { interactionType: 'form' } : {};
+    const resumedMeta =
+      prevMeta !== undefined ||
+      resumeDurationMs !== undefined ||
+      Object.keys(fallbackMeta).length > 0
+        ? {
+            ...fallbackMeta,
+            ...(prevMeta ?? {}),
+            ...(resumeDurationMs !== undefined
+              ? { durationMs: resumeDurationMs }
+              : {}),
+          }
+        : undefined;
     const updatedStructured = {
       config: prevStructured?.config ?? node.config ?? {},
       output: {
@@ -4088,9 +4115,7 @@ export class ExecutionEngineService
       },
       status: 'resumed',
       port: 'out',
-      ...(prevStructured?.meta !== undefined
-        ? { meta: prevStructured.meta }
-        : {}),
+      ...(resumedMeta !== undefined ? { meta: resumedMeta } : {}),
     };
     this.contextService.setStructuredOutput(
       this.contextKeyOf(context),
@@ -4127,9 +4152,17 @@ export class ExecutionEngineService
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.COMPLETED;
       nodeExec.outputData = updatedOutput;
-      nodeExec.finishedAt = new Date();
+      // §5.5 — meta.durationMs 와 동일 시각·계산을 공유 (structured meta ↔ DB durationMs 일관성).
+      // startedAt 부재 시 NaN 회피, 시계 역행 시 Math.max(0) (resumeDurationMs 계산과 동일 가드).
+      nodeExec.finishedAt = resumeFinishedAt;
       nodeExec.durationMs =
-        nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
+        resumeDurationMs ??
+        (nodeExec.startedAt
+          ? Math.max(
+              0,
+              resumeFinishedAt.getTime() - nodeExec.startedAt.getTime(),
+            )
+          : 0);
     }
 
     // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
