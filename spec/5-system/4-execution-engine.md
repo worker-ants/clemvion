@@ -11,8 +11,6 @@ pending_plans:
   - plan/in-progress/spec-sync-execution-engine-gaps.md
   - plan/in-progress/exec-intake-queue-impl.md
   - plan/in-progress/exec-park-durable-resume.md
-  - plan/in-progress/spec-sync-resume-dispatch-registry.md
-  - plan/in-progress/spec-update-execution-context-options-bag.md
 ---
 
 # Spec: 실행 엔진 상세

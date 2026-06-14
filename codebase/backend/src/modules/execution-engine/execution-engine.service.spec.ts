@@ -21,6 +21,7 @@ import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result
 import {
   InvalidExecutionStateError,
   ExecutionTimeLimitError,
+  MessageTooLongError,
 } from './workflow-errors';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
@@ -1068,11 +1069,15 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    it('continueAiConversation 은 10000자 초과 시 throw 하고 publish 하지 않는다', async () => {
+    it('continueAiConversation 은 10000자 초과 시 typed MessageTooLongError throw 하고 publish 하지 않는다', async () => {
       const tooLong = 'x'.repeat(10_001);
       await expect(
         service.continueAiConversation('exec-5', tooLong),
-      ).rejects.toThrow(/Message exceeds maximum length/);
+      ).rejects.toBeInstanceOf(MessageTooLongError);
+      // client-safe 고정 message — 실제 길이 수치는 message 에 노출되지 않는다 (§7.5.2)
+      await expect(
+        service.continueAiConversation('exec-5', tooLong),
+      ).rejects.toThrow('Message exceeds the maximum allowed length.');
       expect(mockBus.publish).not.toHaveBeenCalled();
     });
 
@@ -3486,7 +3491,7 @@ describe('ExecutionEngineService', () => {
       const oversizedMessage = 'x'.repeat(10_001);
       await expect(
         service.continueAiConversation(executionId, oversizedMessage),
-      ).rejects.toThrow('Message exceeds maximum length');
+      ).rejects.toBeInstanceOf(MessageTooLongError);
     });
 
     it('should silently skip continueAiConversation without local pending continuation (multi-instance safe)', async () => {

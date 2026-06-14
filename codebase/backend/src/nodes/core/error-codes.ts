@@ -65,6 +65,16 @@ export const ErrorCode = {
   // spec/5-system/3-error-handling.md §1.4. The two MUST be branched explicitly
   // (e.g. chat-channel/shared/execution-failure-classifier.ts).
   EXECUTION_TIME_LIMIT_EXCEEDED: 'EXECUTION_TIME_LIMIT_EXCEEDED',
+  // Continuation ack — client-safe boundary codes (spec/5-system/4-execution-engine.md
+  // §7.5.2). These surface in the WS continuation ack's flat `errorCode` field.
+  //  - EXECUTION_INTERNAL_ERROR: generic fallback for any NON-typed error reaching the
+  //    continuation ack builder. The internal `error.message`/stack is logged server-side
+  //    only and NEVER sent to the client (leak-block security gate) — the ack carries a
+  //    fixed generic string instead.
+  //  - EXECUTION_MESSAGE_TOO_LONG: `submit_message` exceeded the max message length
+  //    (publisher-side sync validation, typed `MessageTooLongError`).
+  EXECUTION_INTERNAL_ERROR: 'EXECUTION_INTERNAL_ERROR',
+  EXECUTION_MESSAGE_TOO_LONG: 'EXECUTION_MESSAGE_TOO_LONG',
   // Interaction / blocking — user-cancellation & timeout on presentation
   // or AI-conversation waits. Presentation node engine paths raise these
   // when a `waitFor*` promise is rejected externally.

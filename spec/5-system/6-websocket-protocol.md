@@ -879,7 +879,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 | `UNAUTHENTICATED` | ✅ | socket 에 userId 없음 |
 | `FORBIDDEN` | ✅ (정의) | 권한 없음 (일반). IDOR 차단 핸들러는 존재 추론 방지로 의도적으로 `NOT_FOUND` 사용 |
 | `NOT_FOUND` | ✅ | 리소스 부재 또는 소유 검증 실패 (verifyOwnership 통일) |
-| `INTERNAL_ERROR` | ✅ | 서버/transport 내부 실패 (enqueue 실패 등) |
+| `INTERNAL_ERROR` | ✅ | 서버/transport 내부 실패 (enqueue 실패 등) — `WsErrorCode` 의 transport 레벨 코드(`retry_last_turn` 의 nested `error.code` 등). continuation 평면 ack 의 `EXECUTION_INTERNAL_ERROR`(`ErrorCode` enum, §4.2/§7.5.2)와 **별개 scope** |
 | `INVALID_EXECUTION_STATE` | ✅ | continuation 명령의 평면 `errorCode` (§4.2). publisher 사전 검증 실패 |
 | `RETRY_*` / `RESUME_*` | ✅ | retry/continuation 도메인 코드 (§4.2). `nodes/core/error-codes.ts` 의 `ErrorCode` enum |
 | `INVALID_MESSAGE` _(계획·미구현)_ | 🚧 | JSON 파싱 실패/필수 필드 누락 시 전용 코드 응답 — 미구현 |
