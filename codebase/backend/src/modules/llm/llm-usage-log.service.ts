@@ -34,7 +34,16 @@ export class LlmUsageLogService {
   async record(params: RecordLlmUsageParams): Promise<void> {
     // NF-OB-07 `clemvion.llm.tokens` — DB insert 성패와 무관하게 실 사용량을 계측한다
     // (모든 LlmService.chat/chatStream 이 거치는 단일 지점). OTEL 비활성 시 no-op.
-    this.businessMetrics.recordLlmTokens(params.model, params.usage);
+    // 별도 try/catch 로 OTel 오류가 DB insert 를 막지 않도록 격리한다.
+    try {
+      this.businessMetrics.recordLlmTokens(params.model, params.usage);
+    } catch (metricError) {
+      const msg =
+        metricError instanceof Error
+          ? metricError.message
+          : String(metricError);
+      this.logger.warn(`LLM metrics 기록 실패: ${msg}`);
+    }
     try {
       const cost = calculateCostUsd(
         params.provider,

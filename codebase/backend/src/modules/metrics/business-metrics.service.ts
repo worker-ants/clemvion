@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   metrics,
   type Counter,
@@ -41,6 +41,8 @@ interface LlmTokenUsage {
  */
 @Injectable()
 export class BusinessMetricsService {
+  private readonly logger = new Logger(BusinessMetricsService.name);
+
   private readonly executionTotal: Counter;
   private readonly executionErrors: Counter;
   private readonly llmTokens: Counter;
@@ -71,6 +73,8 @@ export class BusinessMetricsService {
       description: 'BullMQ 큐 깊이 (state 라벨별)',
       unit: '{job}',
     });
+    // async observable callback 은 의도적 — OTel JS SDK 는 async ObservableCallback 의
+    // 반환 Promise 를 수집 시 await 한다 (정식 지원 패턴). SUMMARY W-1 false-positive.
     this.queueDepth.addCallback((result) => this.observeQueues(result));
   }
 
@@ -79,9 +83,13 @@ export class BusinessMetricsService {
     this.executionTotal.add(1, { status });
   }
 
-  /** 실패 종료를 에러 코드별로 분해 집계. */
+  /** 실패 종료를 에러 코드별로 분해 집계.
+   * 외부 유래 `errorCode` 는 최대 64자로 클램핑해 Prometheus 라벨 cardinality 폭발을 방지.
+   */
   recordExecutionError(errorCode: string): void {
-    this.executionErrors.add(1, { error_code: errorCode });
+    this.executionErrors.add(1, {
+      error_code: errorCode.substring(0, 64),
+    });
   }
 
   /** LLM 호출의 토큰 사용량을 type 별로 누적 (model 라벨). 0 은 건너뛴다. */
@@ -117,17 +125,25 @@ export class BusinessMetricsService {
     this.queueProviders.push(provider);
   }
 
-  /** observable gauge 콜백 — 등록된 provider 를 폴링해 state 라벨별로 관측한다. */
+  /**
+   * observable gauge 콜백 — 등록된 provider 를 병렬 폴링해 state 라벨별로 관측한다.
+   * `Promise.allSettled` 로 provider 를 병렬 호출해 Redis I/O 직렬 지연 방지 (SUMMARY I-4).
+   * 스냅샷 이터레이션으로 await 양보 중 새 provider push 격리 (SUMMARY W-2).
+   */
   private async observeQueues(result: ObservableResult): Promise<void> {
-    for (const provider of this.queueProviders) {
-      let snapshots: QueueDepthSnapshot[];
-      try {
-        snapshots = await provider();
-      } catch {
-        // provider 실패(예: Redis 일시 장애)는 해당 주기 관측만 건너뛴다.
+    const providers = [...this.queueProviders];
+    const results = await Promise.allSettled(providers.map((p) => p()));
+    for (const settled of results) {
+      if (settled.status === 'rejected') {
+        // provider 실패(예: Redis 일시 장애) — 이번 주기 관측만 건너뜀, 최소 로깅 (SUMMARY I-2).
+        const msg =
+          settled.reason instanceof Error
+            ? settled.reason.message
+            : String(settled.reason);
+        this.logger.warn(`큐 깊이 provider 폴링 실패: ${msg}`);
         continue;
       }
-      for (const s of snapshots) {
+      for (const s of settled.value) {
         result.observe(s.waiting, { queue: s.queue, state: 'waiting' });
         result.observe(s.active, { queue: s.queue, state: 'active' });
         result.observe(s.delayed, { queue: s.queue, state: 'delayed' });

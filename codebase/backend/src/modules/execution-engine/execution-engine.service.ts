@@ -697,6 +697,13 @@ export function isAbortError(err: unknown): err is Error {
 export class ExecutionEngineService
   implements OnModuleInit, OnApplicationBootstrap, WorkflowExecutor
 {
+  /** terminal 상태 집합 — 매 호출마다 재생성 방지 (SUMMARY I-5). */
+  private static readonly TERMINAL_STATUSES = new Set<ExecutionStatus>([
+    ExecutionStatus.COMPLETED,
+    ExecutionStatus.FAILED,
+    ExecutionStatus.CANCELLED,
+  ]);
+
   private readonly logger = new Logger(ExecutionEngineService.name);
 
   /**
@@ -9355,12 +9362,7 @@ export class ExecutionEngineService
     persisted: boolean,
   ): void {
     if (!persisted) return;
-    const terminal: ExecutionStatus[] = [
-      ExecutionStatus.COMPLETED,
-      ExecutionStatus.FAILED,
-      ExecutionStatus.CANCELLED,
-    ];
-    if (!terminal.includes(newStatus)) return;
+    if (!ExecutionEngineService.TERMINAL_STATUSES.has(newStatus)) return;
     this.businessMetrics.recordExecutionTerminal(newStatus);
     if (newStatus === ExecutionStatus.FAILED) {
       const code =
@@ -9376,20 +9378,28 @@ export class ExecutionEngineService
    * 실행의 종료된 node_execution 들의 `duration_ms` 를 node_type·status 라벨로
    * histogram 에 기록한다. terminal 전이 시 1회 호출되는 단일 지점이라 노드별
    * 산발 계측 없이 모든 노드 지연을 모은다.
+   *
+   * QueryBuilder 로 `ne.id / ne.duration_ms / ne.status / n.type` 4컬럼만 SELECT —
+   * 전체 엔티티+JOIN 전량 조회 대신 필요한 최소 컬럼만 projection (SUMMARY W-9).
+   * `durationMs == null` 는 미완료·레거시 row (finishedAt 이 기록되지 않은 경우) —
+   * histogram 에 의미 없는 값이므로 건너뛴다.
    */
   private async recordNodeLatencyMetrics(executionId: string): Promise<void> {
     try {
-      const rows = await this.nodeExecutionRepository.find({
-        where: {
-          executionId,
-          status: In([
+      const rows = await this.nodeExecutionRepository
+        .createQueryBuilder('ne')
+        .select(['ne.id', 'ne.duration_ms', 'ne.status'])
+        .leftJoin('ne.node', 'n')
+        .addSelect('n.type')
+        .where('ne.execution_id = :executionId', { executionId })
+        .andWhere('ne.status IN (:...statuses)', {
+          statuses: [
             NodeExecutionStatus.COMPLETED,
             NodeExecutionStatus.FAILED,
             NodeExecutionStatus.CANCELLED,
-          ]),
-        },
-        relations: ['node'],
-      });
+          ],
+        })
+        .getMany();
       for (const row of rows) {
         if (row.durationMs == null) continue;
         this.businessMetrics.recordNodeDuration(
