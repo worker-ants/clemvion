@@ -20,9 +20,17 @@ owner: planner
 - [x] 비즈니스 커스텀 메트릭 (2026-06-14, impl-business-metrics PR) — 사용자 결정 "표준 3종 + 노드 지연·에러율". spec `NF-OB-07` 신설(메트릭 카탈로그·라벨·이원화 정책). `BusinessMetricsService`(@Global `MetricsModule`)가 `metrics.getMeter('clemvion.business')` 로 5개 instrument 계측: `clemvion.execution.total{status}`·`clemvion.execution.errors{error_code}`(execution-engine `updateExecutionStatus` 단일 chokepoint)·`clemvion.queue.depth{queue,state}`(observable gauge, execution-engine+continuation 큐 provider 등록)·`clemvion.llm.tokens{model,type}`(`LlmUsageLogService.record` 단일 지점)·`clemvion.node.duration{node_type,status}`(실행 종료 시 node_execution duration). OTEL 비활성 시 no-op meter 로 안전. 테스트: `business-metrics.service.spec.ts`·`llm-usage-log.service.spec.ts`.
   - [x] `continuation-dlq-monitor.service.ts` "OTel traces-only" 주석 현행화 + 큐 depth gauge provider 등록 (C-12).
   - [x] spec W-2: `4-execution-engine.md` §Rationale "DLQ 모니터링" stale 전제 현행화.
-  - [ ] TEST WORKFLOW (lint·unit·build·e2e)
-  - [ ] /ai-review
+  - [x] TEST WORKFLOW (lint·unit·build·e2e)
+  - [x] /ai-review (2026-06-14 12:32:02 — SUMMARY: Critical 0 / WARNING 12 / INFO 13)
   - [ ] /consistency-check --impl-done
+
+## 후속 (아키텍처 개선 — 이번 PR 조치 안 함)
+- W-10: `registerQueueDepthProvider` push-등록 패턴을 `QUEUE_DEPTH_PROVIDER` 다중 주입 DI 토큰 패턴으로 전환 (암묵적 등록 계약 해소)
+- W-12: `ExecutionEngineService` 내 `emitTerminalExecutionMetrics` / `recordNodeLatencyMetrics` 를 `ExecutionMetricsCollector` 별도 서비스로 SRP 분리
+- I-11: `.env.example` 에 `OTEL_PROMETHEUS_HOST=127.0.0.1` 항목 추가 확인
+- I-3: observeQueues provider 실행 타임아웃 (Promise.race 패턴)
+- I-12: 다중 Pod cooldown 분산 잠금 (`acquireLock` 패턴)
+- I-13: node_executions `(execution_id, status)` 복합 인덱스 존재 확인
 
 ## 비고
 - 근거(claim→코드부재)는 audit findings/5-system/5-system___product-overview.md 참조.
