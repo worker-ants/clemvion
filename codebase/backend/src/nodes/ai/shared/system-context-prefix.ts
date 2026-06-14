@@ -11,6 +11,7 @@
  */
 
 import type { ExecutionContext } from '../../core/node-handler.interface.js';
+import { isValidIanaTimezone as checkIanaTimezone } from '../../../common/utils/timezone.js';
 
 export type SystemContextSection = 'time' | 'timezone' | 'workspace' | 'node';
 
@@ -77,17 +78,13 @@ const validTimezoneCache = new Map<string, boolean>();
 const partsFormatterByTz = new Map<string, Intl.DateTimeFormat>();
 const offsetFormatterByTz = new Map<string, Intl.DateTimeFormat>();
 
+/** 공용 {@link checkIanaTimezone} 에 per-turn 캐시를 씌운 래퍼 (system prompt 는 매 turn 평가). */
 function isValidIanaTimezone(name: string): boolean {
   const cached = validTimezoneCache.get(name);
   if (cached !== undefined) return cached;
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: name });
-    validTimezoneCache.set(name, true);
-    return true;
-  } catch {
-    validTimezoneCache.set(name, false);
-    return false;
-  }
+  const ok = checkIanaTimezone(name);
+  validTimezoneCache.set(name, ok);
+  return ok;
 }
 
 /**

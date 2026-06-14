@@ -10,6 +10,9 @@ code:
   - codebase/backend/src/modules/schedules/schedules.service.ts
   - codebase/backend/src/modules/schedules/schedule-runner.service.ts
   - codebase/backend/src/modules/schedules/schedules.module.ts
+  - codebase/backend/src/modules/workspaces/workspaces.service.ts
+  - codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts
+  - codebase/backend/src/common/utils/timezone.ts
   - codebase/backend/src/modules/schedules/dto/**
 ---
 
@@ -70,7 +73,7 @@ code:
 | 안내 메시지 | "스케줄을 생성하면 트리거 목록에 자동 등록됩니다" 인포 텍스트 |
 | 사람이 읽을 수 있는 미리보기 | Cron 변환 결과 실시간 표시 |
 | 다음 5회 실행 시각 | 설정된 Cron에 따른 예정 실행 시각 미리보기 |
-| 타임존 | IANA 타임존 선택. 미지정 시 서버가 `'Asia/Seoul'` 로 하드코딩 fallback (`SchedulesService.create`, schedules.service.ts:82). 워크스페이스 설정 기반 기본값은 미구현/Planned (워크스페이스에 timezone 설정 자체가 아직 없음) |
+| 타임존 | IANA 타임존 선택. 미지정 시 서버가 **워크스페이스 설정(`settings.timezone`) → `'Asia/Seoul'`** 순으로 fallback 한다 (`SchedulesService.resolveTimezone`: 명시값 > workspace settings.timezone > 'Asia/Seoul'). 워크스페이스 타임존은 `PATCH /api/workspaces/:id/settings` 의 `timezone`(IANA 검증) 으로 설정. **frontend 잔여(Planned)**: workspace 설정 화면의 timezone 입력 UI 는 미구현 |
 
 #### 2.2.1 표현식 ↔ 시각 편집 자동 변환
 

@@ -311,8 +311,8 @@ pending_plans:
 | GET | /api/workspaces | 내 워크스페이스 목록 |
 | POST | /api/workspaces | 팀 워크스페이스 생성 (요청자가 owner) |
 | PATCH | /api/workspaces/:id | 워크스페이스 이름 변경 (Admin+). body `{ name: string }`(min2/max100) — **rename 전용** |
-| GET | /api/workspaces/:id/settings | 워크스페이스 설정 조회 (**멤버 read** — viewer 포함, 설정 화면 표시용). 응답 `{ interactionAllowedOrigins: string[] }`. 비-멤버 403 |
-| PATCH | /api/workspaces/:id/settings | 워크스페이스 설정 변경 (Admin+). body `{ interactionAllowedOrigins: string[] }` — `settings` JSONB 부분 머지(타 키 보존). 각 origin `http(s)://host[:port]`(path/query 불가). 빈 배열=추가 origin 없음(built-in 위젯 origin 만 `/api/external/*` CORS, [7-channel-web-chat 보안 §2](../7-channel-web-chat/4-security.md)). 키 정의: [1-data-model §2.2](../1-data-model.md#22-workspace) |
+| GET | /api/workspaces/:id/settings | 워크스페이스 설정 조회 (**멤버 read** — viewer 포함, 설정 화면 표시용). 응답 `{ interactionAllowedOrigins: string[]; timezone?: string }`. 비-멤버 403 |
+| PATCH | /api/workspaces/:id/settings | 워크스페이스 설정 변경 (Admin+). body `{ interactionAllowedOrigins: string[]; timezone?: string }` — `settings` JSONB 부분 머지(타 키 보존). 각 origin `http(s)://host[:port]`(path/query 불가). 빈 배열=추가 origin 없음(built-in 위젯 origin 만 `/api/external/*` CORS, [7-channel-web-chat 보안 §2](../7-channel-web-chat/4-security.md)). `timezone`(옵션)=IANA 식별자(서비스 계층 검증, 빈 문자열은 설정 해제 — 스케줄 타임존 fallback, [3-schedule §2.2](./3-schedule.md)). 키 정의: [1-data-model §2.2](../1-data-model.md#22-workspace) |
 | DELETE | /api/workspaces/:id | 워크스페이스 삭제 (Owner, team 전용, 트랜잭션) |
 | POST | /api/workspaces/:id/leave | 자가 탈퇴 (본인, 유일한 owner는 차단) |
 | POST | /api/workspaces/:id/transfer-ownership | Owner 이양 (현재 owner 만, 대상은 비-owner 멤버, 트랜잭션 내 role swap + ownerId 동기화) |
