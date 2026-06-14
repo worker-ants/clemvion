@@ -12,7 +12,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { InteractionRequestContext } from './interaction.guard';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  MessageTooLongError,
+} from '../execution-engine/workflow-errors';
 
 type Mock = jest.Mock;
 
@@ -156,6 +159,31 @@ describe('InteractionService.interact', () => {
       }),
     ).rejects.toMatchObject({
       response: { error: { code: 'STATE_MISMATCH' } },
+    });
+  });
+
+  it('I-5 — submit_message: engine MessageTooLongError → 400 MESSAGE_TOO_LONG (내부 길이 수치 미노출)', async () => {
+    const { service, repo, engine } = makeMocks();
+    repo.findOne.mockResolvedValueOnce(makeExecution());
+    engine.continueAiConversation.mockRejectedValueOnce(
+      new MessageTooLongError(10_000, 123_456),
+    );
+    // 400 BadRequestException + MESSAGE_TOO_LONG, 고정 client-safe message.
+    // 누출 차단: 내부 길이 수치(10000/123456)는 응답 message 에 포함되지 않는다 (serverDetail 전용).
+    await expect(
+      service.interact(IEXT_CTX, {
+        command: 'submit_message',
+        nodeId: '550e8400-e29b-41d4-a716-446655440000',
+        message: 'x',
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      response: {
+        error: {
+          code: 'MESSAGE_TOO_LONG',
+          message: 'Message exceeds the maximum allowed length.',
+        },
+      },
     });
   });
 

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import request from 'supertest';
 import { createHmac, randomUUID } from 'crypto';
+import { sign } from 'jsonwebtoken';
 
 import { createDbClient } from './helpers/db';
 
@@ -107,6 +108,21 @@ async function createTriggerWithInteraction(
   return { triggerId, endpointPath, workspaceId, workflowId };
 }
 
+// backend-e2e 의 JWT_SECRET (docker-compose.e2e.yml) — interaction-token 을
+// backend 와 동일 키로 mint 하기 위함. runner env 에 미주입이면 compose 값으로 fallback.
+const JWT_SECRET =
+  process.env.JWT_SECRET ?? 'clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7';
+
+/** InteractionTokenService.issuePerExecution 과 동형의 iext_* 토큰을 직접 mint. */
+function mintInteractionToken(executionId: string): string {
+  const jwt = sign(
+    { sub: executionId, aud: 'interaction', jti: randomUUID() },
+    JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: 3600 },
+  );
+  return `iext_${jwt}`;
+}
+
 describe('External Interaction API (e2e)', () => {
   let db: Client;
 
@@ -201,5 +217,35 @@ describe('External Interaction API (e2e)', () => {
       .digest('hex');
     expect(expected).toMatch(/^[a-f0-9]{64}$/);
     // 실제 cross-stack 호출은 환경 의존이라 unit + SDK 가 이미 verify 함수를 커버.
+  });
+
+  it('F. submit_message 10001자 초과 → 400 MESSAGE_TOO_LONG (I-5 e2e, spec §5.1)', async () => {
+    // 길이 초과 검증은 continueAiConversation 의 첫 번째 단계에서 발생하므로
+    // 실제 AI 노드 실행 없이 waiting_for_input 상태의 execution 만 있으면 충분.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const executionId = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at)
+       VALUES ($1, $2, 'waiting_for_input', NOW())
+       ON CONFLICT (id) DO NOTHING`,
+      [executionId, workflowId],
+    );
+    const iextToken = mintInteractionToken(executionId);
+    const longMessage = 'x'.repeat(10_001);
+    const res = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .send({
+        command: 'submit_message',
+        nodeId: randomUUID(),
+        message: longMessage,
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('MESSAGE_TOO_LONG');
+    // 내부 길이 수치(10000/10001)가 클라이언트 응답에 노출되지 않는다 (serverDetail 전용).
+    expect(JSON.stringify(res.body)).not.toContain('10000');
+    expect(JSON.stringify(res.body)).not.toContain('10001');
   });
 });
