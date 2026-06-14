@@ -18,6 +18,7 @@ import {
   MessageTooLongError,
   FormValidationError,
 } from '../execution-engine/workflow-errors';
+import type { ValidationDetail } from '../execution-engine/workflow-errors';
 import { ErrorCode } from '../../nodes/core/error-codes';
 import { ExecutionsService } from '../executions/executions.service';
 import { InteractionTokenService } from './interaction-token.service';
@@ -325,13 +326,6 @@ export class InteractionService {
       });
     }
   }
-}
-
-/** Structured detail item for field-level validation errors. */
-interface ValidationDetail {
-  field: string;
-  message: string;
-  code: string;
 }
 
 function badRequest(

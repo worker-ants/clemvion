@@ -1,5 +1,6 @@
 import {
   ExecutionError,
+  FormValidationError,
   InvalidExecutionStateError,
   MessageTooLongError,
   RetryLastTurnError,
@@ -91,6 +92,27 @@ describe('ExecutionError typed error 계약 (§7.5.2)', () => {
     it('actualLength 미지정 시 serverDetail 은 max 만 담는다', () => {
       const err = new MessageTooLongError(10_000);
       expect(err.serverDetail).toBe('max=10000');
+    });
+  });
+
+  describe('FormValidationError', () => {
+    it('VALIDATION_ERROR code + field + 고정 name 을 가진다', () => {
+      const err = new FormValidationError(
+        'email',
+        '올바른 이메일을 입력하세요.',
+      );
+      expect(err).toBeInstanceOf(ExecutionError);
+      expect(err.code).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(err.field).toBe('email');
+      expect(err.name).toBe('FormValidationError');
+      expect(err.message).toBe('올바른 이메일을 입력하세요.');
+    });
+
+    it('toHttpDetails() 는 FIRST 오류만 담은 길이 1 배열을 반환한다 (응답 매핑 SoT)', () => {
+      const err = new FormValidationError('age', '숫자를 입력하세요.');
+      expect(err.toHttpDetails()).toEqual([
+        { field: 'age', message: '숫자를 입력하세요.', code: 'INVALID_FIELD' },
+      ]);
     });
   });
 });
