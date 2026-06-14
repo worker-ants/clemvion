@@ -106,6 +106,22 @@ code:
 
 > `INVALID_EXECUTION_STATE` 와 동일 의미의 REST 코드는 §1.3 의 `INVALID_STATE` (422) — 두 layer 의 routing 분기 가시성을 위해 의도적으로 분리. 상세: [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state).
 
+### 1.6 EIA REST 외부 표면 에러 코드 (도메인 spec 참조)
+
+다음 에러 코드는 **External Interaction API**(`/api/external/*`) 전용이며, 외부 호출자 표면이라 API 규약 기본값(§1.3 / [API 컨벤션 §5.3](./2-api-convention.md#53-에러-응답))을 **의도적으로 override** 한다. 정의·status·트리거 조건의 SoT 는 [EIA §5.1 에러 표](./14-external-interaction-api.md)이고, 본 §1.6 은 공용 카탈로그 가시성을 위한 등재다.
+
+| 코드 | status | 설명 | 비고 |
+|------|--------|------|------|
+| `INVALID_COMMAND` | 400 | 지원하지 않는 command 또는 필수 필드 누락 | API 규약 400 기본 `VALIDATION_ERROR` 대신 명령 분기 전용 |
+| `MESSAGE_TOO_LONG` | 400 | `submit_message` 메시지 최대 길이 초과. WS 평면 ack `EXECUTION_MESSAGE_TOO_LONG`(§1.5)과 동일 의미를 REST layer 코드로 표기 ([EIA §R13](./14-external-interaction-api.md)) | 내부 길이 수치 미노출 |
+| `STATE_MISMATCH` | 409 | continuation 명령이 현재 노드/실행 상태와 불일치. WS `INVALID_EXECUTION_STATE`·REST core `INVALID_STATE`(422)와 동형(§1.3·§1.5) | publisher 측 사전 검증 |
+| `IDEMPOTENCY_KEY_CONFLICT` | 409 | 같은 `Idempotency-Key` + 다른 body | |
+| `EXECUTION_TERMINATED` | 410 | execution 이 이미 completed/failed/cancelled | |
+| `TOKEN_REVOKED` / `TOKEN_SCOPE_MISMATCH` / `TOKEN_AUDIENCE_MISMATCH` | 401 | interaction token(`iext_*`/`itk_*`) 실패. 모든 토큰류 실패는 **단일 401**(§8.2 정보 노출 최소화, [EIA §R14](./14-external-interaction-api.md)). §1.2 의 워크스페이스 JWT 계층 `TOKEN_INVALID`/`TOKEN_EXPIRED` 와 같은 문자열이나 진입점(`/api/external/*`)·토큰 family 로 레이어 구분 | revoke = terminal 시 즉시 무효화(at-least-once, EIA §3.4 EIA-RL-06) |
+| `TOO_MANY_CONNECTIONS` | 429 | execution 당 SSE 동시연결 상한 초과 (§8.4). API 규약 429 기본 `RATE_LIMITED` 와 별개의 EIA-SSE 전용 코드 | |
+
+> `VALIDATION_ERROR`(submit_form field 검증)·`EXECUTION_NOT_FOUND`(404)·`TOKEN_INVALID`/`TOKEN_EXPIRED`(401)는 API 규약/§1.2~§1.3 표준 코드를 그대로 재사용한다(EIA 전용 아님).
+
 ---
 
 ## 2. 에러 응답 형식

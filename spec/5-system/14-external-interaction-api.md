@@ -700,7 +700,7 @@ ALTER TABLE trigger
 8. TX commit 후:
    a. WebsocketService.emitToExecution(execution.waiting_for_input, payload)
       → 내부 WS 채널 구독자에게 전파
-      → SSE 어댑터가 Redis pub/sub 으로 받아 외부 SSE 스트림에 데이터 라인 push
+      → SSE 어댑터가 `executionEvents$` in-process 구독으로 받아 외부 SSE 스트림에 데이터 라인 push (다중 인스턴스 분산 fan-out 용 Redis pub/sub 은 Planned — §R10)
    b. notification.events 에 "execution.waiting_for_input" 포함되어 있으면
       NotificationDispatcher.enqueue(triggerId, executionId, payload)
       → 발송 직전 execution 상태 재조회 (stale 차단)
@@ -951,7 +951,7 @@ Long-polling 은 라이브 chat·multi-turn 에서 latency 가 커 사용자 경
 구체적 구조:
 - 실행 엔진은 여전히 `WebsocketService.emitToExecution` 한 곳만 호출 (= 단일 sink)
 - NotificationDispatcher 는 별도 outbox/after-commit hook 으로 트리거 (§9.3 참조). 엔진 내부 코드가 직접 호출하지 않음
-- SSE 어댑터는 Redis pub/sub 으로 WebsocketService 가 발행한 이벤트를 구독해 외부 SSE 스트림으로 변환. 엔진과 직접 결합 없음
+- SSE 어댑터는 단일 sink `WebsocketService.executionEvents$` 를 **in-process 직접 구독**해 외부 SSE 스트림으로 변환 (다중 인스턴스 분산 fan-out 용 Redis pub/sub 은 Planned — 아래 R10 상세). 엔진과 직접 결합 없음
 
 **근거**:
 - 엔진 코드가 외부 sink 종류를 알 필요 없음 → 실행 엔진 §4.4 의 책임 분리 원칙 유지
