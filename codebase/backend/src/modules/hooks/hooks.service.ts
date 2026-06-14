@@ -238,6 +238,10 @@ export class HooksService {
      */
     interactionHttpResponse?: unknown;
   }> {
+    // §A.3 소스 IP — handleWebhook 의 `const clientIp` 패턴과 통일 (W-9).
+    // extractClientIp 를 재사용 없이 인라인 재호출하면 향후 부수효과 추가 시 회귀 위험.
+    const clientIp = extractClientIp(input.headers);
+
     let adapter: ChatChannelAdapter;
     try {
       adapter = this.channelAdapterRegistry.get(config.provider);
@@ -602,7 +606,7 @@ export class HooksService {
       {
         triggerId: trigger.id,
         // §A.3 호출 이력 — chat-channel inbound 도 webhook POST(202)로 응답한다.
-        sourceIp: extractClientIp(input.headers) ?? undefined,
+        sourceIp: clientIp ?? undefined,
         responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
       },
     );

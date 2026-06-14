@@ -754,13 +754,18 @@ describe('AuthConfigsService', () => {
   describe('getUsage — 기간별 호출 수 + 소스 IP/응답 코드 (§A.3)', () => {
     const CFG_ID = 'cfg-usage';
 
-    /** getCount / getRawOne / getMany 를 한 객체로 지원하는 체이너블 QB 목. */
+    /**
+     * W-11: getCount / getRawOne / getMany 를 **독립 QB 객체**로 분리.
+     * Promise.all 병렬화(W-4) 이후 createQueryBuilder 호출 순서가 보장되지 않으므로
+     * 각 QB 가 자신의 terminal 만 응답해야 쿼리별 파라미터 혼용을 테스트가 검출할 수 있다.
+     */
     function makeExecutionRepo(opts: {
       totalCalls: number;
       period: { last24h: string; last7d: string; last30d: string } | null;
       recent: Array<Partial<Execution> & { trigger?: { name: string } }>;
     }) {
-      const qb = {
+      /** 체이너블 메서드 공통 — 각 QB 가 독립 체인을 갖도록 별도 생성. */
+      const makeQbBase = () => ({
         where: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         addSelect: jest.fn().mockReturnThis(),
@@ -768,11 +773,29 @@ describe('AuthConfigsService', () => {
         orderBy: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         setParameters: jest.fn().mockReturnThis(),
+      });
+
+      const countQb = {
+        ...makeQbBase(),
         getCount: jest.fn().mockResolvedValue(opts.totalCalls),
+      };
+      const periodQb = {
+        ...makeQbBase(),
         getRawOne: jest.fn().mockResolvedValue(opts.period),
+      };
+      const recentQb = {
+        ...makeQbBase(),
         getMany: jest.fn().mockResolvedValue(opts.recent),
       };
-      return { qb, createQueryBuilder: jest.fn(() => qb) };
+
+      // 순서 비의존 — 각 QB 가 자신의 terminal 만 제공하므로 호출 순서가 달라도 안전.
+      const createQueryBuilder = jest
+        .fn()
+        .mockReturnValueOnce(countQb)
+        .mockReturnValueOnce(periodQb)
+        .mockReturnValueOnce(recentQb);
+
+      return { countQb, periodQb, recentQb, createQueryBuilder };
     }
 
     async function buildService(
@@ -864,6 +887,13 @@ describe('AuthConfigsService', () => {
       // 비-HTTP 트리거: responseCode NULL → status enum 으로 폴백, sourceIp null.
       expect(scheduleCall.sourceIp).toBeNull();
       expect(scheduleCall.responseCode).toBe('failed');
+
+      // W-11: 3개 QB 가 독립 객체 — 각 terminal 이 정확히 1회 호출됨.
+      expect(execRepo.countQb.getCount).toHaveBeenCalledTimes(1);
+      expect(execRepo.periodQb.getRawOne).toHaveBeenCalledTimes(1);
+      expect(execRepo.recentQb.getMany).toHaveBeenCalledTimes(1);
+      // I-11: recentQb 에 limit(USAGE_RECENT_CALLS_LIMIT=20) 이 적용됐는지 단언.
+      expect(execRepo.recentQb.limit).toHaveBeenCalledWith(20);
     });
 
     it('getRawOne 가 null 을 반환해도 periodCounts 가 0 으로 안전하게 떨어진다', async () => {
@@ -879,6 +909,33 @@ describe('AuthConfigsService', () => {
 
       const res = await svc.getUsage(CFG_ID, WS);
       expect(res.periodCounts).toEqual({ last24h: 0, last7d: 0, last30d: 0 });
+    });
+
+    // I-10: trigger 관계 null(orphan execution) 시 triggerName 이 'Unknown' 으로 폴백.
+    it('trigger 관계가 null 인 orphan execution 은 triggerName 이 Unknown 으로 폴백된다', async () => {
+      const execRepo = makeExecutionRepo({
+        totalCalls: 1,
+        period: { last24h: '1', last7d: '1', last30d: '1' },
+        recent: [
+          {
+            id: 'e-orphan',
+            status: 'completed',
+            startedAt: new Date('2026-06-14T10:00:00.000Z'),
+            sourceIp: null,
+            responseCode: '202',
+            trigger: undefined, // orphan — trigger 관계 없음
+          },
+        ],
+      });
+      const svc = await buildService(
+        execRepo,
+        jest.fn().mockResolvedValue([{ id: 't1' }]),
+      );
+
+      const res = await svc.getUsage(CFG_ID, WS);
+
+      expect(res.recentCalls).toHaveLength(1);
+      expect(res.recentCalls[0].triggerName).toBe('Unknown');
     });
   });
 });

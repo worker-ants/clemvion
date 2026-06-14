@@ -30,6 +30,13 @@ COMMENT ON COLUMN execution.source_ip IS
 COMMENT ON COLUMN execution.response_code IS
   'Actual HTTP response code returned to the webhook caller (success path = ''202''). NULL for non-HTTP triggers / pre-deploy rows; getUsage falls back to status enum (WH-MG-05).';
 
+-- §A.3 getUsage 쿼리 성능 — trigger_id IN (...) + started_at 범위 스캔 지원 (W-5).
+-- trigger_id IS NOT NULL 조건: schedule/manual(trigger_id=NULL) 행을 제외해 인덱스 크기 최소화.
+CREATE INDEX IF NOT EXISTS idx_execution_trigger_started
+  ON execution (trigger_id, started_at DESC)
+  WHERE trigger_id IS NOT NULL;
+
 -- DOWN:
+-- DROP INDEX IF EXISTS idx_execution_trigger_started;
 -- ALTER TABLE execution DROP COLUMN IF EXISTS response_code;
 -- ALTER TABLE execution DROP COLUMN IF EXISTS source_ip;
