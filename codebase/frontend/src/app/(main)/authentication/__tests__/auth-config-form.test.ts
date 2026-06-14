@@ -4,6 +4,8 @@ import {
   isValidIpOrCidr,
   isValidHeaderName,
   buildAuthConfigPayload,
+  buildAuthConfigUpdatePayload,
+  formStateFromAuthConfig,
   validateAuthConfigForm,
   AUTH_CONFIG_DEFAULTS,
   type AuthConfigFormState,
@@ -112,6 +114,107 @@ describe("buildAuthConfigPayload", () => {
     expect(
       buildAuthConfigPayload(state({ type: "basic_auth", username: " u ", password: "p" })).config,
     ).toEqual({ username: "u", password: "p" });
+  });
+});
+
+describe("buildAuthConfigUpdatePayload", () => {
+  it("api_key: always sends config.headerName (default when blank), never a secret", () => {
+    expect(
+      buildAuthConfigUpdatePayload(state({ apiKeyHeader: "X-Edit" })),
+    ).toEqual({ name: "Cfg", config: { headerName: "X-Edit" }, ipWhitelist: [] });
+    // blank → backend default (edit always sends an explicit value, unlike create).
+    expect(
+      buildAuthConfigUpdatePayload(state({ apiKeyHeader: "  " })).config,
+    ).toEqual({ headerName: AUTH_CONFIG_DEFAULTS.apiKeyHeader });
+  });
+
+  it("always sends ipWhitelist (empty array clears it — edit intent differs from create)", () => {
+    expect(buildAuthConfigUpdatePayload(state()).ipWhitelist).toEqual([]);
+    expect(
+      buildAuthConfigUpdatePayload(
+        state({ ipWhitelistRaw: "10.0.0.0/8\n203.0.113.42" }),
+      ).ipWhitelist,
+    ).toEqual(["10.0.0.0/8", "203.0.113.42"]);
+  });
+
+  it("never includes type or secrets in the payload", () => {
+    const p = buildAuthConfigUpdatePayload(
+      state({ type: "basic_auth", username: " u ", password: "should-be-dropped" }),
+    );
+    expect(p).not.toHaveProperty("type");
+    expect(p.config).toEqual({ username: "u" }); // password absent
+  });
+
+  it("hmac sends header/algorithm only (secret preserved by backend)", () => {
+    expect(
+      buildAuthConfigUpdatePayload(
+        state({ type: "hmac", hmacHeader: "", hmacAlgorithm: "sha512" }),
+      ).config,
+    ).toEqual({ header: AUTH_CONFIG_DEFAULTS.hmacHeader, algorithm: "sha512" });
+  });
+
+  it("bearer_token has empty config (no editable non-secret fields)", () => {
+    expect(
+      buildAuthConfigUpdatePayload(state({ type: "bearer_token" })).config,
+    ).toEqual({});
+  });
+});
+
+describe("formStateFromAuthConfig", () => {
+  it("hydrates api_key headerName + ipWhitelist from a masked config", () => {
+    const s = formStateFromAuthConfig({
+      name: "Prod",
+      type: "api_key",
+      config: { headerName: "X-Tenant", key: "wfk_***1234" },
+      ipWhitelist: ["10.0.0.0/8", "203.0.113.42"],
+    });
+    expect(s.name).toBe("Prod");
+    expect(s.type).toBe("api_key");
+    expect(s.apiKeyHeader).toBe("X-Tenant");
+    expect(s.ipWhitelistRaw).toBe("10.0.0.0/8\n203.0.113.42");
+    expect(s.password).toBe(""); // secrets never hydrated into the form
+  });
+
+  it("falls back to defaults when config/ipWhitelist are absent", () => {
+    const s = formStateFromAuthConfig({ name: "Min", type: "api_key" });
+    expect(s.apiKeyHeader).toBe(AUTH_CONFIG_DEFAULTS.apiKeyHeader);
+    expect(s.ipWhitelistRaw).toBe("");
+  });
+
+  it("hydrates hmac header/algorithm and basic_auth username", () => {
+    const hmac = formStateFromAuthConfig({
+      name: "H",
+      type: "hmac",
+      config: { header: "Stripe-Signature", algorithm: "sha512", secret: "whs_***ef01" },
+    });
+    expect(hmac.hmacHeader).toBe("Stripe-Signature");
+    expect(hmac.hmacAlgorithm).toBe("sha512");
+    const basic = formStateFromAuthConfig({
+      name: "B",
+      type: "basic_auth",
+      config: { username: "svc", password: "***" },
+    });
+    expect(basic.username).toBe("svc");
+    expect(basic.password).toBe("");
+  });
+
+  it("bearer_token: secrets never hydrated, defaults applied for unrelated fields", () => {
+    const s = formStateFromAuthConfig({
+      name: "B",
+      type: "bearer_token",
+      config: { token: "wft_***ef01" },
+      ipWhitelist: ["10.0.0.0/8"],
+    });
+    expect(s.name).toBe("B");
+    expect(s.type).toBe("bearer_token");
+    // token is a secret — must never appear in form state
+    expect(s.password).toBe("");
+    expect(s.username).toBe("");
+    // non-secret fields fall back to defaults for irrelevant type
+    expect(s.apiKeyHeader).toBe(AUTH_CONFIG_DEFAULTS.apiKeyHeader);
+    expect(s.hmacHeader).toBe(AUTH_CONFIG_DEFAULTS.hmacHeader);
+    expect(s.hmacAlgorithm).toBe(AUTH_CONFIG_DEFAULTS.hmacAlgorithm);
+    expect(s.ipWhitelistRaw).toBe("10.0.0.0/8");
   });
 });
 

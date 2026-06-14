@@ -174,7 +174,14 @@ export class AuthConfigsService {
     return saved;
   }
 
-  /** 수정 후 `auth_config.update` 감사 기록. userId/ipAddress·best-effort 계약은 {@link create} 참조. */
+  /**
+   * 수정 후 `auth_config.update` 감사 기록. userId/ipAddress·best-effort 계약은 {@link create} 참조.
+   *
+   * config 는 shallow-merge — 비밀값(key/token/secret/password)은 변경 불가.
+   * `SECRET_CONFIG_KEYS` 에 해당하는 키는 configPatch 에 포함돼도 무시한다.
+   * `id`·`workspaceId`·`type` 은 편집 폼의 불변 계약이므로 서비스 레이어에서도
+   * 명시적으로 제외해 직접 호출 경로에서의 변경 의도 강제를 차단한다.
+   */
   async update(
     id: string,
     workspaceId: string,
@@ -183,7 +190,27 @@ export class AuthConfigsService {
     ipAddress?: string,
   ): Promise<AuthConfig> {
     const config = await this.findById(id, workspaceId);
-    Object.assign(config, data);
+    // id·workspaceId·type 을 명시적으로 구조분해 제외 — DTO 레이어가 HTTP 경로를
+    // 막지만 서비스 직접 호출 시에도 type 변경 의도를 강제 차단한다.
+    // config 은 통째 대체가 아니라 shallow-merge — headerName 등 비-비밀 필드만
+    // 보내는 편집 폼이 암호화 비밀값(key/token/secret)을 날리지 않게 한다.
+    // 마스킹된 값(`***1234`)이 역류해도 무시해 실 비밀이 파손되지 않게 한다.
+    const {
+      config: configPatch,
+      id: _id,
+      workspaceId: _ws,
+      type: _type,
+      ...rest
+    } = data;
+    Object.assign(config, rest);
+    if (configPatch && typeof configPatch === 'object') {
+      const merged: Record<string, unknown> = { ...config.config };
+      for (const [k, v] of Object.entries(configPatch)) {
+        if (SECRET_CONFIG_KEYS.has(k)) continue;
+        merged[k] = v;
+      }
+      config.config = merged;
+    }
     const saved = await this.authConfigRepository.save(config);
     await this.recordAudit({
       action: AUDIT_ACTIONS.AUTH_CONFIG_UPDATE,
