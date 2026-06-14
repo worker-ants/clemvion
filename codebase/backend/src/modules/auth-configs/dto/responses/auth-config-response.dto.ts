@@ -46,7 +46,7 @@ export class AuthConfigUsagePeriodCountsDto {
   @ApiProperty({
     type: Number,
     example: 5,
-    description: '최근 24시간 롤링 윈도 호출 건수.',
+    description: '최근 24시간 롤링 윈도 호출 건수 (캘린더 일 경계 아님).',
   })
   last24h: number;
 
@@ -93,6 +93,7 @@ export class AuthConfigUsageCallDto {
    * 항상 non-null — HTTP 트리거는 실제 코드, 비-HTTP 트리거는 status enum 폴백.
    */
   @ApiProperty({
+    type: String,
     example: '202',
     description:
       "webhook 실제 HTTP 응답 코드 (성공 경로 = '202'). 비-HTTP 트리거(schedule 등)는 HTTP 코드가 없어 워크플로 status enum 으로 폴백 표시 (예: 'completed', 'failed'). non-null.",
