@@ -36,7 +36,9 @@ required → type(email/number) → minLength/maxLength → **min/max** → **pa
 - [x] TEST WORKFLOW (lint ✓ / unit ✓ 42→ 전 suite / build ✓ / e2e ✓ 192) — link-integrity 깨진 앵커 3건(pre-existing) 동반 수정
 - [x] /ai-review + SUMMARY (22_49_26 RISK LOW W3 fix → fresh 23_05_30 RISK LOW, W1 false-positive·INFO accept/defer, RESOLUTION 기록)
 - [x] /consistency-check --impl-done (23_05_43 BLOCK: NO — 인접 spec 동기화 INFO 는 follow-up)
-- [ ] PR
+- [x] PR — #610
+
+> 비차단 INFO follow-up(인접 spec 열거 동기화·통합 throw 테스트)은 standing plan `spec-sync-form-gaps.md` 에 등록됨. A-1 자체는 완결.
 
 ## impl-prep WARNING/INFO 반영
 
