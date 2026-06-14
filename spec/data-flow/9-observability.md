@@ -195,6 +195,13 @@ flowchart LR
 | Workspaces | read | 알람 수신자(admin) 조회 |
 | Notifications | downstream | 알람 발사 시 (`createMany`) |
 
+> **인프라 메트릭 (NF-OB-02, Prometheus)** — 위 데이터플로(앱 레벨 health/dashboard/alerts)와
+> 별개로, OTel 메트릭 파이프라인이 `OTEL_ENABLED=true` 시 Prometheus scrape 엔드포인트
+> (`OTEL_PROMETHEUS_HOST`:`OTEL_PROMETHEUS_PORT`/`metrics`, 기본 `127.0.0.1:9464`)를 노출한다.
+> 기본 메트릭은 auto-instrumentation 의 HTTP 서버 + `instrumentation-runtime-node`(event loop·GC·heap)
+> 한정이며, 워크플로 실행 수·큐 깊이·LLM 사용량 같은 custom 비즈니스 메트릭은 후속이다.
+> 구현: `codebase/backend/src/instrumentation.ts`. SoT: [`spec/5-system/_product-overview.md`](../5-system/_product-overview.md) NF-OB-02.
+
 ---
 
 ## Rationale
