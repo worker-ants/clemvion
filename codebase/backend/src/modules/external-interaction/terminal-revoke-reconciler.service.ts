@@ -2,8 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { InteractionTokenService } from './interaction-token.service';
+import { TERMINAL_REVOKE_RECONCILE_QUEUE } from './terminal-revoke-reconciler.types';
 
-export const TERMINAL_REVOKE_RECONCILE_QUEUE = 'terminal-revoke-reconcile';
 const RECONCILE_JOB = 'reconcile-terminal-revocations';
 /** repeatable job 보존 — 완료 24h / 실패 7d. */
 const REMOVE_ON_COMPLETE_AGE_SEC = 24 * 60 * 60;
