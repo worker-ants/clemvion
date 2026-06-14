@@ -31,6 +31,13 @@ const AUTH_CONFIG_RESOURCE_TYPE = 'auth_config';
 // getUsage 가 반환하는 최근 호출 표시 건수 (목록 API 기본 페이지 크기와 동일).
 const USAGE_RECENT_CALLS_LIMIT = 20;
 
+// §A.3 기간별 호출 수 — 롤링 윈도 길이(ms). 24h / 7d / 30d (캘린더 버킷 아님).
+const USAGE_PERIOD_WINDOWS_MS = {
+  last24h: 24 * 60 * 60 * 1000,
+  last7d: 7 * 24 * 60 * 60 * 1000,
+  last30d: 30 * 24 * 60 * 60 * 1000,
+} as const;
+
 export interface WebhookAuthContext {
   /** 소문자 키의 요청 헤더 맵 */
   headers: Record<string, string>;
@@ -514,11 +521,17 @@ export class AuthConfigsService {
   ): Promise<{
     totalCalls: number;
     lastUsedAt: Date | null;
+    // §A.3 기간별 호출 수 — 롤링 윈도(24h/7d/30d) 호출 건수.
+    periodCounts: { last24h: number; last7d: number; last30d: number };
     recentCalls: Array<{
       id: string;
       triggerName: string;
       status: string;
       startedAt: Date;
+      // §A.3 호출 이력 컬럼. sourceIp: 캡처된 webhook 소스 IP(없으면 null).
+      // responseCode: webhook 실제 HTTP 코드, NULL 이면 status enum 으로 폴백.
+      sourceIp: string | null;
+      responseCode: string;
     }>;
   }> {
     const config = await this.findById(id, workspaceId);
@@ -532,6 +545,7 @@ export class AuthConfigsService {
       return {
         totalCalls: 0,
         lastUsedAt: config.lastUsedAt,
+        periodCounts: { last24h: 0, last7d: 0, last30d: 0 },
         recentCalls: [],
       };
     }
@@ -540,6 +554,27 @@ export class AuthConfigsService {
       .createQueryBuilder('e')
       .where('e.trigger_id IN (:...triggerIds)', { triggerIds })
       .getCount();
+
+    // 기간별 호출 수 — 단일 쿼리에서 롤링 윈도 3종을 조건부 집계(COUNT FILTER).
+    const now = Date.now();
+    const periodRaw = await this.executionRepository
+      .createQueryBuilder('e')
+      .select('COUNT(*) FILTER (WHERE e.started_at >= :since24h)', 'last24h')
+      .addSelect('COUNT(*) FILTER (WHERE e.started_at >= :since7d)', 'last7d')
+      .addSelect('COUNT(*) FILTER (WHERE e.started_at >= :since30d)', 'last30d')
+      .where('e.trigger_id IN (:...triggerIds)', { triggerIds })
+      .setParameters({
+        since24h: new Date(now - USAGE_PERIOD_WINDOWS_MS.last24h),
+        since7d: new Date(now - USAGE_PERIOD_WINDOWS_MS.last7d),
+        since30d: new Date(now - USAGE_PERIOD_WINDOWS_MS.last30d),
+      })
+      .getRawOne<{ last24h: string; last7d: string; last30d: string }>();
+
+    const periodCounts = {
+      last24h: Number(periodRaw?.last24h ?? 0),
+      last7d: Number(periodRaw?.last7d ?? 0),
+      last30d: Number(periodRaw?.last30d ?? 0),
+    };
 
     const recentExecutions = await this.executionRepository
       .createQueryBuilder('e')
@@ -552,11 +587,15 @@ export class AuthConfigsService {
     return {
       totalCalls,
       lastUsedAt: config.lastUsedAt,
+      periodCounts,
       recentCalls: recentExecutions.map((e) => ({
         id: e.id,
         triggerName: e.trigger?.name ?? 'Unknown',
         status: e.status,
         startedAt: e.startedAt,
+        sourceIp: e.sourceIp ?? null,
+        // 비-HTTP 트리거(schedule 등)는 response_code NULL → status enum 으로 폴백 표시.
+        responseCode: e.responseCode ?? e.status,
       })),
     };
   }

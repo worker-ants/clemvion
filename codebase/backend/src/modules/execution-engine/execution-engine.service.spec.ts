@@ -1907,6 +1907,35 @@ describe('ExecutionEngineService', () => {
         }),
       );
     });
+
+    // §A.3 호출 이력 — webhook 발화 시 소스 IP·응답 코드를 Execution 행에 영속.
+    it('persists sourceIp/responseCode when provided on the triggerId variant (webhook)', async () => {
+      await service.execute(
+        workflowId,
+        { parameters: {} },
+        { triggerId: 'trg-wh', sourceIp: '203.0.113.7', responseCode: '202' },
+      );
+      expect(mockExecutionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId,
+          triggerId: 'trg-wh',
+          sourceIp: '203.0.113.7',
+          responseCode: '202',
+        }),
+      );
+    });
+
+    // schedule 등 비-HTTP 트리거·수동 실행은 두 컬럼이 NULL (회귀 없음).
+    it('persists null sourceIp/responseCode when not provided (schedule/manual)', async () => {
+      await service.execute(workflowId, {}, { triggerId: 'trg-sched' });
+      expect(mockExecutionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          triggerId: 'trg-sched',
+          sourceIp: null,
+          responseCode: null,
+        }),
+      );
+    });
   });
 
   describe('execute() — execution-run intake 큐 발행 (PR1)', () => {

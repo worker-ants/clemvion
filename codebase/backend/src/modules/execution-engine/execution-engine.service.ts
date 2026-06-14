@@ -558,7 +558,16 @@ export type ExecuteOptions =
       // dry-run re-run (RR-PL-01) — 외부 부수효과 노드가 mock 출력을 반환한다.
       dryRun?: boolean;
     }
-  | { executedBy?: never; triggerId: string }
+  | {
+      executedBy?: never;
+      triggerId: string;
+      // webhook/chat-channel 발화 시 호출 메타데이터 (§A.3 호출 이력, WH-MG-05).
+      // sourceIp: hooks.service 의 extractClientIp 결과. responseCode: webhook 호출이
+      // 받는 실제 HTTP 응답 코드(성공 = '202'). 둘 다 optional → schedule 등 비-HTTP
+      // 트리거는 미전달(NULL 영속). DI/생성자 불변(추가 인자 아님).
+      sourceIp?: string;
+      responseCode?: string;
+    }
   | { executedBy?: never; triggerId?: never };
 
 /**
@@ -2825,6 +2834,14 @@ export class ExecutionEngineService
       options && 'chainId' in options ? (options.chainId ?? null) : null;
     const dryRun =
       options && 'dryRun' in options ? (options.dryRun ?? false) : false;
+    // webhook/chat-channel 트리거 호출 메타데이터 (§A.3). triggerId variant 전용 —
+    // `in` 내로잉으로 unsafe cast 회피. 미전달(schedule/manual)은 NULL 영속.
+    const sourceIp =
+      options && 'sourceIp' in options ? (options.sourceIp ?? null) : null;
+    const responseCode =
+      options && 'responseCode' in options
+        ? (options.responseCode ?? null)
+        : null;
     const execution = this.executionRepository.create({
       workflowId,
       status: ExecutionStatus.PENDING,
@@ -2834,6 +2851,8 @@ export class ExecutionEngineService
       reRunOf,
       chainId: chainIdOpt,
       dryRun,
+      sourceIp,
+      responseCode,
     });
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;

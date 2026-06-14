@@ -191,7 +191,32 @@ describe('HooksService', () => {
         query: input.query,
         method: 'POST',
       },
-      { triggerId: 't1' },
+      // §A.3 호출 이력 — sourceIp(헤더에 IP 없음 → undefined), responseCode 202(성공).
+      { triggerId: 't1', sourceIp: undefined, responseCode: '202' },
+    );
+  });
+
+  it('§A.3 호출 이력 — X-Forwarded-For 소스 IP + 응답코드 202 를 execute options 로 전달', async () => {
+    triggerRepo.findOne.mockResolvedValue(activeTrigger);
+    triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'n',
+      workflowId: 'wf1',
+      type: 'manual_trigger',
+      category: NodeCategory.TRIGGER,
+      config: { parameters: [] },
+    } as unknown as Node);
+    engine.execute.mockResolvedValue('exec-ip');
+
+    await service.handleWebhook('abc', {
+      ...input,
+      headers: { 'x-forwarded-for': '198.51.100.9, 10.0.0.1' },
+    });
+
+    expect(engine.execute).toHaveBeenCalledWith(
+      'wf1',
+      expect.objectContaining({ __triggerSource: 'webhook' }),
+      { triggerId: 't1', sourceIp: '198.51.100.9', responseCode: '202' },
     );
   });
 
@@ -342,7 +367,7 @@ describe('HooksService', () => {
     expect(executeMock).toHaveBeenCalledWith(
       'wf1',
       expect.objectContaining({ parameters: {} }),
-      { triggerId: 't1' },
+      { triggerId: 't1', sourceIp: undefined, responseCode: '202' },
     );
   });
 
@@ -576,7 +601,12 @@ describe('HooksService', () => {
             conversationKey: 'chat-123',
           }),
         }),
-        { triggerId: chatChannelTrigger.id },
+        // §A.3 — chat-channel inbound 도 호출 이력에 응답코드 202 영속 (헤더에 IP 없음 → undefined).
+        {
+          triggerId: chatChannelTrigger.id,
+          sourceIp: undefined,
+          responseCode: '202',
+        },
       );
       expect(conversationService.upsert).toHaveBeenCalledWith(
         chatChannelTrigger.id,
