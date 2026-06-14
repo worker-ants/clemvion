@@ -21,7 +21,13 @@ status: in-progress
 - [x] **fe** `execution-error-codes.ts`(code→i18n key) + `use-execution-interaction-commands.ts` errorCode 매핑(4종 continuation) + KO/EN dict
 - [x] **test** be unit(gateway 누출 차단·MessageTooLong·ExecutionError 계약) + fe unit(map·hook localize). e2e 는 기존 suite 회귀(190 PASS) — 누출 차단 계약은 gateway 핸들러+ack 빌더 단위로 직접 검증(WS submit e2e 인프라 부재; EIA 경로는 generic 500 유지·INFO I2 follow-up).
 - [x] **TEST**: be lint·unit(6872)·build ✓ / fe lint·unit(4377)·build ✓ / e2e 190 ✓. (sdk·web-chat-sdk lint/build 는 worktree lockfile 부재 env 이슈 — 본 변경 무관 독립 패키지.)
-- [ ] **REVIEW**: /ai-review + resolution-applier fix + consistency-check --impl-done
+- [x] **REVIEW**: /ai-review 2-pass (둘 다 RISK LOW · Critical 0) →
+  - pass1 (11_30_25, Warning 3) → resolution-applier(W-2 ERROR_KO·W-3 JSDoc·I-3·I-8·I-10·I-11·I-12 fix; W-1 dismiss[merge 자동해소]) + RESOLUTION.md.
+  - pass2 (11_51_52, Warning 6, fix 후속 검증) → resolution-applier(W-4 JSDoc 라벨·W-6 user-guide error-handling KO/EN·W-2 invariant 주석 + I-10/I-11/I-13 테스트 fix; W-3 already-done·W-5 dismiss[channel-web-chat 는 WS continuation ack 미소비, 검증됨]) + RESOLUTION.md.
+- [x] consistency-check --impl-done (11_50_20, **BLOCK: NO**) — 본 변경 직접 유발 Critical/Warning 없음. W-2 선행조건 충족(spec diff 포함)·W-4 scope 주석 반영됨. 나머지 WARNING/INFO 는 선존 spec/plan nit(auth·security·graph-rag) — planner follow-up.
+
+### 후속 (별도 작업)
+- **I-5 / consistency I2** EIA(REST) 진입점 `MessageTooLongError` → HTTP 422/400 exception filter 매핑. 현재 EIA 는 rethrow → NestJS generic 500 (누출 없음·회귀 없음)이라 필수 아님. spec `§14 External Interaction API` 에러 표 + filter 추가는 별도 결정/범위.
 
 # execution-engine client-safe typed error 체계 (refactor 04 후속 A-2)
 
