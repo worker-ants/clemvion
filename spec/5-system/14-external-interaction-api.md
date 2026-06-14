@@ -248,7 +248,7 @@ POST /api/triggers
 
 ## 5. API 명세 — Inbound
 
-> **전송 봉투 (전 REST 엔드포인트 공통)**: 아래 §5.1~§5.5 의 성공 응답 JSON 블록은 **논리 payload** (= `data` 객체의 내용물) 다. 실제 wire format 은 전역 `TransformInterceptor` 가 `{ "data": { ... } }` 로 래핑한다 ([Webhook §3.1](./12-webhook.md#31-webhook-수신-엔드포인트) / [API 규약 §5](./2-api-convention.md#5-응답-형식)). 예: §5.3 단발 상태 조회의 실제 응답은 `{ "data": { "id", "status", ... } }`, §5.5 토큰 갱신은 `{ "data": { "token", "expiresAt" } }`. 클라이언트는 `res.data` 를 언랩해 읽어야 한다. **예외 1**: §5.2 SSE 스트림 프레임(`data: <payload>`)은 인터셉터를 거치지 않아 봉투가 없다. **예외 2**: §5.1(`interact`)는 성공 시 `202 Accepted` + body 없음(no-content path) — 클라이언트는 body 를 소비하지 않으므로 봉투 언랩 해당 없음.
+> **전송 봉투 (전 REST 엔드포인트 공통)**: 아래 §5.1~§5.5 의 성공 응답 JSON 블록은 **논리 payload** (= `data` 객체의 내용물) 다. 실제 wire format 은 전역 `TransformInterceptor` 가 `{ "data": { ... } }` 로 래핑한다 ([Webhook §3.1](./12-webhook.md#31-webhook-수신-엔드포인트) / [API 규약 §5](./2-api-convention.md#5-응답-형식)). 예: §5.3 단발 상태 조회의 실제 응답은 `{ "data": { "id", "status", ... } }`, §5.5 토큰 갱신은 `{ "data": { "token", "expiresAt" } }`. 클라이언트는 `res.data` 를 언랩해 읽어야 한다. **예외**: §5.2 SSE 스트림 프레임(`data: <payload>`)은 인터셉터를 거치지 않아 봉투가 없다. (§5.1 `interact`·§5.4 `cancel` 는 비동기라 `202 Accepted` 로 응답하지만 **no-content 가 아니다** — 각 §5.x 블록에 명시된 ack body(§5.1 `InteractAckDto` `{ executionId, accepted, currentStatus }`, §5.4 `{ executionId, status }`)를 반환하며 다른 엔드포인트와 동일하게 `{ "data": { ... } }` 로 래핑된다.)
 
 ### 5.1 인터랙션 명령 제출 — `POST /api/external/executions/:executionId/interact`
 
@@ -778,6 +778,8 @@ codebase/backend/src/modules/
 
 Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@ApiSecurity({})` 패턴 유지.
 
+응답 DTO·공용 래퍼·에러 응답 문서화는 [Swagger 규약 §5 (응답 DTO 규약)](../conventions/swagger.md#5-응답-dto-규약) 를 따른다 — `InteractAckDto`(§5.1) 등 본 모듈 ack DTO 도 §5-2 공용 래퍼 헬퍼·§5-4 새 엔드포인트 체크리스트·§5-5 에러 응답 참조 규약 적용 대상이다.
+
 ---
 
 ## 11. WebSocket 명령 ↔ 외부 명령 매핑
@@ -971,3 +973,16 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 양쪽을 모두 `sha256` 으로 통일하는 안은 outbound 표기에서 "HMAC 서명" 임이 명시적이지 않아 향후 다른 서명 방식 (예: Ed25519) 추가 시 식별자 ambiguity 가 생기고, 양쪽을 모두 `hmac-sha256` 으로 통일하는 안은 inbound 가 외부 발신자가 정한 헤더 형식 (`sha256=<hex>`) 과 정합해야 하므로 12-webhook 의 기존 표기를 바꾸면 backward incompat 이 되어 모두 채택하지 않는다.
 
 각 경로에서 algorithm 화이트리스트는 `sha256`/`sha512` 만 (둘 다). 본 spec §3.1 EIA-NX-03 에 두 표기의 관계를 명시.
+
+### R13. WS 평면 ack 에러 코드 ↔ EIA REST 에러 코드 매핑 원칙
+
+**원칙**: 동일한 실행 엔진 publisher 사전 검증을 두 진입점(WebSocket continuation ack / EIA REST `/interact`)이 공유하되, **에러 코드 식별자는 각 표면(layer)의 컨벤션을 따른다** — 같은 의미를 표면별로 다른 코드명으로 표기하고, 그 동치 관계를 §5.1 표와 [실행 엔진 §7.5.1/§7.5.2](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) cross-ref 로 고정한다.
+
+| 실행 엔진 typed error | WS 평면 ack `errorCode` | EIA REST (status + code) |
+|---|---|---|
+| `InvalidExecutionStateError` | `INVALID_EXECUTION_STATE` | `409 STATE_MISMATCH` |
+| `MessageTooLongError` | `EXECUTION_MESSAGE_TOO_LONG` | `400 MESSAGE_TOO_LONG` |
+
+**근거**: WS 채널은 실행 엔진 내부 코드 네임스페이스(`EXECUTION_*`·시스템 레벨 `INVALID_EXECUTION_STATE`, [error-codes.md](../conventions/error-codes.md) 규약)를 직접 노출하는 반면, EIA REST 는 공개 외부 API 표면이라 HTTP status 와 함께 표면 자체의 간결한 코드(`STATE_MISMATCH`·`MESSAGE_TOO_LONG`)를 쓴다. 두 표면을 같은 코드명으로 강제 통일하면 (a) WS 가 REST 식 코드를 쓰면 내부 enum 과 어긋나고, (b) REST 가 `EXECUTION_*` prefix 를 그대로 노출하면 외부 API 가 내부 구현 식별자에 결합된다 — 따라서 **표면별 코드명 + cross-ref 동치 고정**을 채택한다.
+
+> **범위**: 본 매핑은 EIA REST **외부 표면**의 실행-상태/메시지 에러 코드 표기에 한정된다 — 동형 의미의 내부 REST core 코드는 [error-handling §1.3](./3-error-handling.md#13-유효성-검증-에러)의 `INVALID_STATE`(422) 어휘를 쓴다. EIA **토큰 인증** 실패 코드(`TOKEN_*` 계열·HTTP status·`SCOPE_MISMATCH` 정합)는 본 절 범위 밖이며 별도 진행 중인 token-error-codes 정합 작업이 소유한다.

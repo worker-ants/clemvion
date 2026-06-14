@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-14T14:51:58.818593",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/5-system/14-external-interaction-api.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
