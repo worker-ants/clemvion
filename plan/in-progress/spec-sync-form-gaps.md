@@ -16,9 +16,11 @@ owner: planner
 > form.md L63 이 "Planned" 명시 — 제외.
 > **구현 진척 (2026-06-14, eia-form-validation PR)**: §4 step5 / §6.2 서버측 **field-level** 검증(필수/type/minLength·maxLength/select)
 > 구현 — `validation.min`/`max`/`pattern` 과 file 검증은 잔존.
+> **구현 진척 (2026-06-14, form-validation-minmax-pattern PR / A-1)**: §6.2 서버측 **`validation.min`/`max`(숫자 범위)·`pattern`(정규식)**
+> 구현 — `validateFormSubmission`(chat-channel) 확장. file 검증 cluster 만 잔존.
 
 - [x] §4 step5 / §6.2 서버측 폼 **field-level** 검증 (필수/type(email·number)/`validation.minLength`·`maxLength`/select·radio 선택지) — `continueExecution` publisher chokepoint 에서 노드 config 의 field 정의로 `validateFormSubmission` 수행 → 실패 시 `FormValidationError` throw (EIA `400 VALIDATION_ERROR` + `details[]` / WS `VALIDATION_ERROR` ack), publish 전 throw 라 execution `waiting_for_input` 유지(재제출 가능). EIA/WS/UI 3 경로 공통. (eia-form-validation PR — `workflow-errors.ts` `FormValidationError`·`execution-engine.service.ts` `assertFormSubmissionValid`; 테스트 `workflow-errors.spec`/`execution-engine.service.spec`/`executions.controller.spec`/`external-interaction.e2e` G)
-- [ ] §6.2 서버측 **`validation.min`/`max`(숫자 범위)·`pattern`(정규식) 검증** — `validateFormSubmission`(chat-channel) 이 minLength/maxLength 만 적용, min/max/pattern 미적용. 공유 validator 확장 필요 (3 경로 공통 적용).
+- [x] §6.2 서버측 **`validation.min`/`max`(숫자 범위)·`pattern`(정규식) 검증** — `validateFormSubmission`(chat-channel) 확장: `type:'number'` 범위 비교(min/max) + custom regex(pattern, 잘못된 regex 방어적 통과). `FormModalField` 에 `min?`/`max?`/`pattern?` + `extractFormFields` 추출. publisher chokepoint `assertFormSubmissionValid` 재사용으로 EIA/WS/UI 3 경로 공통. (form-validation-minmax-pattern PR — `form-mode.ts`·`types.ts`; 테스트 `form-mode.spec` +7 케이스)
 - [ ] §6.2 서버측 **file 검증** (MIME/크기/개수) — 위 field-level 외 `type: 'file'` 전용 검증은 미구현. **파일검증 cluster**(chat-channel `validateFormSubmission` 는 file 미지원 + 재-waiting 흐름 신규).
 - [ ] §1.5 file 입력 클라이언트 검증 — `DynamicFormUI`(frontend) FileList MIME/size/count reject 없음. **파일검증 cluster**(frontend).
 - [ ] §1 ValidationPreset(phone) — **보류 (spec Planned, form.md L63)**: preset 필드·카탈로그·서버 regex·UI hint 부재.

@@ -28,11 +28,11 @@ required → type(email/number) → minLength/maxLength → **min/max** → **pa
 
 ## 체크리스트
 
-- [ ] consistency-check --impl-prep (BLOCK: NO — 22_22_50)
-- [ ] 테스트 선작성 (form-mode.spec.ts)
-- [ ] 구현 (types.ts / form-mode.ts)
-- [ ] spec 동반 갱신 (form §6.2·§Rationale / EIA §5.1 / assert docstring)
-- [ ] plan 체크박스 (spec-sync-form-gaps.md)
+- [x] consistency-check --impl-prep (BLOCK: NO — 22_22_50)
+- [x] 테스트 선작성 (form-mode.spec.ts) — +7 케이스, 36 passed
+- [x] 구현 (types.ts / form-mode.ts / execution-engine docstring)
+- [x] spec 동반 갱신 (form §6.2·§Rationale / EIA §5.1 / assert docstring)
+- [x] plan 체크박스 (spec-sync-form-gaps.md)
 - [ ] TEST WORKFLOW (lint·unit·build·e2e)
 - [ ] /ai-review + SUMMARY
 - [ ] /consistency-check --impl-done
