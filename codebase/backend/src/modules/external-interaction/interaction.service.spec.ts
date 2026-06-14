@@ -12,7 +12,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { InteractionRequestContext } from './interaction.guard';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  MessageTooLongError,
+} from '../execution-engine/workflow-errors';
 
 type Mock = jest.Mock;
 
@@ -157,6 +160,33 @@ describe('InteractionService.interact', () => {
     ).rejects.toMatchObject({
       response: { error: { code: 'STATE_MISMATCH' } },
     });
+  });
+
+  it('I-5 — submit_message: engine MessageTooLongError → 400 MESSAGE_TOO_LONG (내부 길이 수치 미노출)', async () => {
+    const { service, repo, engine } = makeMocks();
+    repo.findOne.mockResolvedValueOnce(makeExecution());
+    engine.continueAiConversation.mockRejectedValueOnce(
+      new MessageTooLongError(10_000, 123_456),
+    );
+    let caught: unknown;
+    try {
+      await service.interact(IEXT_CTX, {
+        command: 'submit_message',
+        nodeId: '550e8400-e29b-41d4-a716-446655440000',
+        message: 'x',
+      });
+    } catch (e) {
+      caught = e;
+    }
+    // 400 BadRequestException + MESSAGE_TOO_LONG, 고정 client-safe message.
+    expect((caught as { status?: number }).status).toBe(400);
+    const body = (caught as { response: { error: { code: string; message: string } } })
+      .response.error;
+    expect(body.code).toBe('MESSAGE_TOO_LONG');
+    expect(body.message).toBe('Message exceeds the maximum allowed length.');
+    // 누출 차단: 내부 길이 수치는 응답에 포함되지 않는다 (serverDetail 전용).
+    expect(body.message).not.toContain('123456');
+    expect(body.message).not.toContain('10000');
   });
 
   it('변경 2.3 — end_conversation: engine InvalidExecutionStateError → STATE_MISMATCH(409) (W-2)', async () => {

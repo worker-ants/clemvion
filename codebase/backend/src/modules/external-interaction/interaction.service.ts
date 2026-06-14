@@ -13,7 +13,10 @@ import {
   ExecutionStatus,
 } from '../executions/entities/execution.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  MessageTooLongError,
+} from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { InteractionTokenService } from './interaction-token.service';
 import { InteractDto } from './dto/interact.dto';
@@ -278,6 +281,13 @@ export class InteractionService {
         throw new ConflictException({
           error: { code: 'STATE_MISMATCH', message: error.message },
         });
+      }
+      // I-5 (refactor 04 A-1 후속) — submit_message 길이 초과 typed error 를
+      // generic 500 대신 400 으로 매핑한다 (spec §14 §5.1 / 실행 엔진 §7.5.2).
+      // `error.message` 는 고정 client-safe 문자열 — 내부 길이 수치는 serverDetail
+      // 전용이라 응답에 노출되지 않는다.
+      if (error instanceof MessageTooLongError) {
+        throw badRequest('MESSAGE_TOO_LONG', error.message);
       }
       throw error;
     }
