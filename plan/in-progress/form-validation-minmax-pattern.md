@@ -33,7 +33,7 @@ required → type(email/number) → minLength/maxLength → **min/max** → **pa
 - [x] 구현 (types.ts / form-mode.ts / execution-engine docstring)
 - [x] spec 동반 갱신 (form §6.2·§Rationale / EIA §5.1 / assert docstring)
 - [x] plan 체크박스 (spec-sync-form-gaps.md)
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
+- [x] TEST WORKFLOW (lint ✓ / unit ✓ 4397 / build ✓ / e2e ✓ 192) — link-integrity 깨진 앵커 3건(pre-existing) 동반 수정
 - [ ] /ai-review + SUMMARY
 - [ ] /consistency-check --impl-done
 - [ ] PR
