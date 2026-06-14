@@ -202,8 +202,8 @@ flowchart LR
 > 자동 수집에 더해, **도메인/비즈니스 커스텀 메트릭(NF-OB-07)** — 워크플로 실행 수(`clemvion.execution.total`)·
 > 에러(`clemvion.execution.errors`)·큐 깊이(`clemvion.queue.depth`)·LLM 토큰(`clemvion.llm.tokens`)·
 > 노드 지연(`clemvion.node.duration`) — 을 `BusinessMetricsService` 가 함께 노출한다.
-> 구현: `codebase/backend/src/instrumentation.ts`, `modules/metrics/business-metrics.service.ts`.
-> SoT: [`spec/5-system/_product-overview.md`](../5-system/_product-overview.md) NF-OB-02 / NF-OB-07.
+> 구현: `codebase/backend/src/instrumentation.ts`, `codebase/backend/src/modules/metrics/business-metrics.service.ts`.
+> SoT: [`spec/5-system/_product-overview.md` NF-OB-02](../5-system/_product-overview.md) / [NF-OB-07](../5-system/_product-overview.md#nf-ob-07-메트릭-카탈로그).
 
 ---
 
