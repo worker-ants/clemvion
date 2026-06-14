@@ -62,6 +62,8 @@ export const authentication: Dict["authentication"] = {
   apiKeyHeaderLabel: "Header name",
   ipWhitelistLabel: "IP whitelist (optional)",
   ipWhitelistHint: "One IP or CIDR per line (e.g. 10.0.0.0/8).",
+  invalidHeaderName: "Invalid header name. Use letters, digits, and !#$%&'*+-.^_`|~ only.",
+  invalidIpWhitelist: "Invalid IP/CIDR: {{entries}}",
   usernameLabel: "Username",
   passwordLabel: "Password",
   revealButton: "Reveal",

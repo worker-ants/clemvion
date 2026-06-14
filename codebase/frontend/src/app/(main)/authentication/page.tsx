@@ -14,8 +14,12 @@ import { toast } from "sonner";
 import { Plus, Loader2, Inbox, Trash2, X, RefreshCw, Copy, Eye } from "lucide-react";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
-
-type AuthConfigType = "api_key" | "bearer_token" | "basic_auth" | "hmac";
+import {
+  type AuthConfigType,
+  AUTH_CONFIG_DEFAULTS,
+  buildAuthConfigPayload,
+  validateAuthConfigForm,
+} from "./auth-config-form";
 
 interface AuthConfig {
   id: string;
@@ -81,15 +85,19 @@ export default function AuthenticationPage() {
   const [formName, setFormName] = useState("");
   const [formType, setFormType] = useState<AuthConfigType | "">("");
   // type 별 추가 입력 (hmac: header/algorithm, basic_auth: username/password).
-  const [formHmacHeader, setFormHmacHeader] = useState("X-Hub-Signature-256");
+  const [formHmacHeader, setFormHmacHeader] = useState<string>(
+    AUTH_CONFIG_DEFAULTS.hmacHeader,
+  );
   const [formHmacAlgorithm, setFormHmacAlgorithm] = useState<"sha256" | "sha512">(
-    "sha256",
+    AUTH_CONFIG_DEFAULTS.hmacAlgorithm,
   );
   const [formUsername, setFormUsername] = useState("");
   const [formPassword, setFormPassword] = useState("");
   // api_key 전용 헤더 이름 (default X-API-Key) + 모든 type 공통 IP 화이트리스트
   // (한 줄에 IP/CIDR 하나). 백엔드 DTO 는 config.headerName / top-level ipWhitelist 지원.
-  const [formApiKeyHeader, setFormApiKeyHeader] = useState("X-API-Key");
+  const [formApiKeyHeader, setFormApiKeyHeader] = useState<string>(
+    AUTH_CONFIG_DEFAULTS.apiKeyHeader,
+  );
   const [formIpWhitelist, setFormIpWhitelist] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -125,31 +133,18 @@ export default function AuthenticationPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const config: Record<string, unknown> = {};
-      if (formType === "hmac") {
-        config.header = formHmacHeader.trim() || "X-Hub-Signature-256";
-        config.algorithm = formHmacAlgorithm;
-      }
-      if (formType === "api_key") {
-        // 비우면 백엔드 기본값 X-API-Key 가 적용된다.
-        const header = formApiKeyHeader.trim();
-        if (header) config.headerName = header;
-      }
-      if (formType === "basic_auth") {
-        config.username = formUsername.trim();
-        config.password = formPassword;
-      }
-      // 한 줄에 IP/CIDR 하나 → 배열. 빈 줄·공백 제거. 비어 있으면 미송신.
-      const ipWhitelist = formIpWhitelist
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-      const res = await apiClient.post("/auth-configs", {
+      // 페이로드 조립은 순수 함수로 위임 (auth-config-form.ts) — 단위 테스트 대상.
+      const payload = buildAuthConfigPayload({
         name: formName,
-        type: formType,
-        config,
-        ...(ipWhitelist.length > 0 ? { ipWhitelist } : {}),
+        type: formType as AuthConfigType,
+        apiKeyHeader: formApiKeyHeader,
+        hmacHeader: formHmacHeader,
+        hmacAlgorithm: formHmacAlgorithm,
+        username: formUsername,
+        password: formPassword,
+        ipWhitelistRaw: formIpWhitelist,
       });
+      const res = await apiClient.post("/auth-configs", payload);
       return (res.data.data ?? res.data) as AuthConfig;
     },
     onSuccess: (data) => {
@@ -235,9 +230,9 @@ export default function AuthenticationPage() {
   function resetForm() {
     setFormName("");
     setFormType("");
-    setFormHmacHeader("X-Hub-Signature-256");
-    setFormHmacAlgorithm("sha256");
-    setFormApiKeyHeader("X-API-Key");
+    setFormHmacHeader(AUTH_CONFIG_DEFAULTS.hmacHeader);
+    setFormHmacAlgorithm(AUTH_CONFIG_DEFAULTS.hmacAlgorithm);
+    setFormApiKeyHeader(AUTH_CONFIG_DEFAULTS.apiKeyHeader);
     setFormIpWhitelist("");
     setFormUsername("");
     setFormPassword("");
@@ -252,6 +247,29 @@ export default function AuthenticationPage() {
     }
     if (formType === "basic_auth" && (!formUsername.trim() || !formPassword)) {
       toast.error(t("authentication.fillRequired"));
+      return;
+    }
+    // §A.2 입력 형식 검증 — 잘못된 헤더명/IP·CIDR 는 제출 차단(백엔드 도달 전).
+    const validationError = validateAuthConfigForm({
+      name: formName,
+      type: formType,
+      apiKeyHeader: formApiKeyHeader,
+      hmacHeader: formHmacHeader,
+      hmacAlgorithm: formHmacAlgorithm,
+      username: formUsername,
+      password: formPassword,
+      ipWhitelistRaw: formIpWhitelist,
+    });
+    if (validationError) {
+      if (validationError.key === "invalidIpWhitelist") {
+        toast.error(
+          t("authentication.invalidIpWhitelist", {
+            entries: validationError.invalid.join(", "),
+          }),
+        );
+      } else {
+        toast.error(t("authentication.invalidHeaderName"));
+      }
       return;
     }
     createMutation.mutate();

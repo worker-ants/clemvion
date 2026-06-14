@@ -60,6 +60,8 @@ export const authentication = {
   apiKeyHeaderLabel: "헤더 이름",
   ipWhitelistLabel: "IP 화이트리스트 (선택)",
   ipWhitelistHint: "한 줄에 IP 또는 CIDR 하나 (예: 10.0.0.0/8).",
+  invalidHeaderName: "헤더 이름이 올바르지 않아요. 영문/숫자와 !#$%&'*+-.^_`|~ 만 사용할 수 있어요.",
+  invalidIpWhitelist: "올바르지 않은 IP/CIDR: {{entries}}",
   usernameLabel: "사용자 이름",
   passwordLabel: "비밀번호",
   revealButton: "평문 보기",
