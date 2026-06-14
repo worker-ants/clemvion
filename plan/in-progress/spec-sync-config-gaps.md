@@ -22,7 +22,10 @@ owner: planner
 - [ ] §A.3 **소스 IP** 컬럼 — **결정 필요**. webhook 호출의 소스 IP 가 `execution` 등 어디에도 저장되지 않는다(`hooks.service.ts` 가 `extractClientIp` 로 추출만 하고 미저장). 스키마(컬럼/별도 call-log) + 캡처 경로 결정 선행.
 - [ ] §A.3 **응답 코드** 컬럼 — **결정 필요**. 현재 `execution.status`(워크플로 상태 enum)만 존재하고 HTTP 응답 코드 미저장. "응답 코드" 의미(HTTP code vs status enum) + 스키마 결정 선행.
 - [ ] §A.3 **기간별 호출 수 (일/주/월)** — **표시형식 결정 필요**. `started_at` 데이터는 존재(버킷팅만 필요)하나, 롤링 윈도(24h/7d/30d) vs 캘린더 버킷·숫자 vs 차트 표시 결정 선행.
-- [ ] §A.2 **편집 폼** IP Whitelist / api_key Header 이름 입력 — 현재 생성 폼만 지원(편집 폼 자체가 없음, UI 는 생성·토글·재생성·삭제만). 편집 흐름 신설은 별도 범위.
+- [x] §A.2 **편집 폼** (2026-06-14, impl-config-auth-edit-form PR) — 행별 편집 버튼 → `PATCH /auth-configs/:id` 로 name·IP Whitelist·비-비밀 config(api_key `headerName`, hmac `header`/`algorithm`, basic_auth `username`) 수정. type·비밀값 불변(비밀 변경은 regenerate). 생성 다이얼로그를 `dialogMode` 로 재사용. **백엔드 안전성 fix**: `update` 가 config 를 wholesale-replace(`Object.assign`)해 암호화 비밀값을 파손하던 잠재 버그를 shallow-merge + SECRET_CONFIG_KEYS 무시로 수정. spec §A.2 callout·R-2·`update-auth-config.dto.ts` 설명 동기화. 테스트: `auth-config-form.test.ts`(순수)·`authentication-form.test.tsx`(편집 PATCH)·`auth-configs.service.spec.ts`(merge/비밀 보존).
+  - [ ] TEST WORKFLOW (lint·unit·build·e2e)
+  - [ ] /ai-review
+  - [ ] /consistency-check --impl-done
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 및 `auth-configs.service.ts:399-450`, `authentication/page.tsx:81-89` 참조.

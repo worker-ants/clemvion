@@ -183,7 +183,20 @@ export class AuthConfigsService {
     ipAddress?: string,
   ): Promise<AuthConfig> {
     const config = await this.findById(id, workspaceId);
-    Object.assign(config, data);
+    // config 은 통째 대체가 아니라 shallow-merge — headerName 등 비-비밀 필드만
+    // 보내는 편집 폼이 암호화 비밀값(key/token/secret)을 날리지 않게 한다.
+    // 비밀값은 update 로 변경 불가(생성/재발급만 발급) — 마스킹된 값(`***1234`)이
+    // 역류해도 무시해 실 비밀이 파손되지 않게 한다.
+    const { config: configPatch, ...rest } = data;
+    Object.assign(config, rest);
+    if (configPatch && typeof configPatch === 'object') {
+      const merged: Record<string, unknown> = { ...config.config };
+      for (const [k, v] of Object.entries(configPatch)) {
+        if (SECRET_CONFIG_KEYS.has(k)) continue;
+        merged[k] = v;
+      }
+      config.config = merged;
+    }
     const saved = await this.authConfigRepository.save(config);
     await this.recordAudit({
       action: AUDIT_ACTIONS.AUTH_CONFIG_UPDATE,

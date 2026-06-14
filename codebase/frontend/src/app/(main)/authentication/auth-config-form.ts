@@ -103,6 +103,68 @@ export function buildAuthConfigPayload(
   };
 }
 
+/** PATCH /auth-configs/:id 페이로드 (편집). type·비밀값은 불변 — 미포함.
+ *  config 는 non-secret 키만 담고, 백엔드가 기존 config 에 shallow-merge 하며
+ *  비밀값(key/token/secret/password)은 보존한다. ipWhitelist 는 빈 배열도 전송해
+ *  전체 삭제를 허용한다(생성 폼과 달리 미포함 시 "변경 없음" 이 아니라 비움 의도). */
+export interface AuthConfigUpdatePayload {
+  name: string;
+  config: Record<string, unknown>;
+  ipWhitelist: string[];
+}
+
+/** 편집 폼 상태 → PATCH 페이로드 (순수). secret·type 은 싣지 않는다. */
+export function buildAuthConfigUpdatePayload(
+  state: AuthConfigFormState,
+): AuthConfigUpdatePayload {
+  const config: Record<string, unknown> = {};
+  if (state.type === "hmac") {
+    config.header = state.hmacHeader.trim() || AUTH_CONFIG_DEFAULTS.hmacHeader;
+    config.algorithm = state.hmacAlgorithm;
+  }
+  if (state.type === "api_key") {
+    config.headerName =
+      state.apiKeyHeader.trim() || AUTH_CONFIG_DEFAULTS.apiKeyHeader;
+  }
+  if (state.type === "basic_auth") {
+    // username 은 평문(비밀 아님) — 편집 허용. password 는 편집 불가(재발급 경로).
+    config.username = state.username.trim();
+  }
+  return {
+    name: state.name,
+    config,
+    ipWhitelist: parseIpWhitelist(state.ipWhitelistRaw),
+  };
+}
+
+/** 마스킹된 목록/상세 응답 → 편집 폼 초기 상태 (순수). 비밀값은 싣지 않는다. */
+export function formStateFromAuthConfig(c: {
+  name: string;
+  type: AuthConfigType;
+  config?: Record<string, unknown> | null;
+  ipWhitelist?: string[] | null;
+}): AuthConfigFormState {
+  const cfg = c.config ?? {};
+  const algorithm =
+    cfg.algorithm === "sha512" ? "sha512" : AUTH_CONFIG_DEFAULTS.hmacAlgorithm;
+  return {
+    name: c.name,
+    type: c.type,
+    apiKeyHeader:
+      typeof cfg.headerName === "string" && cfg.headerName
+        ? cfg.headerName
+        : AUTH_CONFIG_DEFAULTS.apiKeyHeader,
+    hmacHeader:
+      typeof cfg.header === "string" && cfg.header
+        ? cfg.header
+        : AUTH_CONFIG_DEFAULTS.hmacHeader,
+    hmacAlgorithm: algorithm,
+    username: typeof cfg.username === "string" ? cfg.username : "",
+    password: "",
+    ipWhitelistRaw: (c.ipWhitelist ?? []).join("\n"),
+  };
+}
+
 export type AuthConfigFormError =
   | { key: "invalidHeaderName" }
   | { key: "invalidIpWhitelist"; invalid: string[] };

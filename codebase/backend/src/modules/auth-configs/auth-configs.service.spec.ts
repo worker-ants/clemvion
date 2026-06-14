@@ -233,6 +233,84 @@ describe('AuthConfigsService', () => {
       );
     });
 
+    it('update config: 비-비밀 키만 shallow-merge — 기존 비밀값(key) 보존', async () => {
+      const ac = await service.create(
+        WS,
+        { type: 'api_key', name: 'a' } as Partial<AuthConfig>,
+        USER,
+      );
+      const originalKey = ac.config.key;
+      await service.update(
+        ac.id,
+        WS,
+        { config: { headerName: 'X-Tenant' } } as Partial<AuthConfig>,
+        USER,
+      );
+      const stored = repo.store.get(ac.id)!;
+      expect(stored.config.headerName).toBe('X-Tenant');
+      expect(stored.config.key).toBe(originalKey); // 비밀값 미파손
+    });
+
+    it('update config: 역류한 마스킹 비밀값은 무시 (실 비밀 보존)', async () => {
+      const ac = await service.create(
+        WS,
+        { type: 'api_key', name: 'a' } as Partial<AuthConfig>,
+        USER,
+      );
+      const originalKey = ac.config.key as string;
+      await service.update(
+        ac.id,
+        WS,
+        {
+          config: {
+            headerName: 'X-Edit',
+            key: `wfk_***${originalKey.slice(-4)}`,
+          },
+        } as Partial<AuthConfig>,
+        USER,
+      );
+      const stored = repo.store.get(ac.id)!;
+      expect(stored.config.key).toBe(originalKey); // 마스킹값으로 덮어쓰지 않음
+      expect(stored.config.headerName).toBe('X-Edit');
+    });
+
+    it('update: config 미전달 시 기존 config 불변, top-level 필드만 갱신', async () => {
+      const ac = await service.create(
+        WS,
+        { type: 'api_key', name: 'a' } as Partial<AuthConfig>,
+        USER,
+      );
+      const originalConfig = { ...ac.config };
+      await service.update(
+        ac.id,
+        WS,
+        { ipWhitelist: ['10.0.0.0/8'] } as Partial<AuthConfig>,
+        USER,
+      );
+      const stored = repo.store.get(ac.id)!;
+      expect(stored.config).toEqual(originalConfig);
+      expect(stored.ipWhitelist).toEqual(['10.0.0.0/8']);
+    });
+
+    it('update: ipWhitelist=[] 은 전체 비움으로 적용', async () => {
+      const ac = await service.create(
+        WS,
+        {
+          type: 'api_key',
+          name: 'a',
+          ipWhitelist: ['10.0.0.0/8'],
+        } as Partial<AuthConfig>,
+        USER,
+      );
+      await service.update(
+        ac.id,
+        WS,
+        { ipWhitelist: [] } as Partial<AuthConfig>,
+        USER,
+      );
+      expect(repo.store.get(ac.id)!.ipWhitelist).toEqual([]);
+    });
+
     it('regenerate → auth_config.regenerate 기록', async () => {
       const ac = await service.create(
         WS,

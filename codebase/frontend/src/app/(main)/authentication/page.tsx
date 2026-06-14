@@ -11,7 +11,17 @@ import { SlideDrawer } from "@/components/ui/slide-drawer";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/date";
 import { toast } from "sonner";
-import { Plus, Loader2, Inbox, Trash2, X, RefreshCw, Copy, Eye } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  Inbox,
+  Trash2,
+  X,
+  RefreshCw,
+  Copy,
+  Eye,
+  Pencil,
+} from "lucide-react";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
 import {
@@ -19,6 +29,8 @@ import {
   type AuthConfigFormState,
   AUTH_CONFIG_DEFAULTS,
   buildAuthConfigPayload,
+  buildAuthConfigUpdatePayload,
+  formStateFromAuthConfig,
   validateAuthConfigForm,
 } from "./auth-config-form";
 
@@ -30,6 +42,8 @@ interface AuthConfig {
   lastUsedAt?: string;
   /** 마스킹된 config (목록/상세 응답). 평문은 create/regenerate/reveal 만. */
   config?: Record<string, unknown>;
+  /** top-level IP 화이트리스트 (선택). 편집 폼 초기값에 사용. */
+  ipWhitelist?: string[];
 }
 
 interface UsageRecentCall {
@@ -83,6 +97,9 @@ export default function AuthenticationPage() {
   const queryClient = useQueryClient();
   const canReveal = useHasRole("admin");
   const [showDialog, setShowDialog] = useState(false);
+  // create: 신규 발급 / edit: 기존 config 의 non-secret 필드(name·headerName·IP 등) 수정.
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formType, setFormType] = useState<AuthConfigType | "">("");
   // type 별 추가 입력 (hmac: header/algorithm, basic_auth: username/password).
@@ -151,6 +168,23 @@ export default function AuthenticationPage() {
     },
     onError: () => {
       toast.error(t("authentication.configCreateFailed"));
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      // type·비밀값은 불변 — non-secret config(headerName 등) + IP 만 PATCH.
+      // 백엔드가 config 를 shallow-merge 하므로 암호화 비밀값은 보존된다.
+      const payload = buildAuthConfigUpdatePayload(collectFormState());
+      await apiClient.patch(`/auth-configs/${editTargetId}`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["auth-configs"] });
+      toast.success(t("authentication.configUpdated"));
+      resetForm();
+    },
+    onError: () => {
+      toast.error(t("authentication.configUpdateFailed"));
     },
   });
 
@@ -229,7 +263,52 @@ export default function AuthenticationPage() {
     setFormUsername("");
     setFormPassword("");
     setGeneratedKey(null);
+    setDialogMode("create");
+    setEditTargetId(null);
     setShowDialog(false);
+  }
+
+  /** 기존 config 의 non-secret 값으로 폼을 채워 편집 모드로 연다. */
+  function handleEditClick(config: AuthConfig) {
+    const s = formStateFromAuthConfig(config);
+    setFormName(s.name);
+    setFormType(s.type);
+    setFormApiKeyHeader(s.apiKeyHeader);
+    setFormHmacHeader(s.hmacHeader);
+    setFormHmacAlgorithm(s.hmacAlgorithm);
+    setFormUsername(s.username);
+    setFormPassword("");
+    setFormIpWhitelist(s.ipWhitelistRaw);
+    setGeneratedKey(null);
+    setEditTargetId(config.id);
+    setDialogMode("edit");
+    setShowDialog(true);
+  }
+
+  function handleUpdate() {
+    if (!formName.trim()) {
+      toast.error(t("authentication.fillRequired"));
+      return;
+    }
+    // basic_auth username 은 평문이라 편집 가능 — 비우면 인증이 깨지므로 필수.
+    if (formType === "basic_auth" && !formUsername.trim()) {
+      toast.error(t("authentication.fillRequired"));
+      return;
+    }
+    const validationError = validateAuthConfigForm(collectFormState());
+    if (validationError) {
+      if (validationError.key === "invalidIpWhitelist") {
+        toast.error(
+          t("authentication.invalidIpWhitelist", {
+            entries: validationError.invalid.join(", "),
+          }),
+        );
+      } else {
+        toast.error(t("authentication.invalidHeaderName"));
+      }
+      return;
+    }
+    updateMutation.mutate();
   }
 
   // 폼 상태 단일 수집 지점 — handleCreate(검증)·createMutation(페이로드 조립)이
@@ -289,19 +368,26 @@ export default function AuthenticationPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{t("authentication.title")}</h1>
-        <Button onClick={() => setShowDialog(true)}>
+        <Button
+          onClick={() => {
+            setDialogMode("create");
+            setShowDialog(true);
+          }}
+        >
           <Plus className="mr-2 h-4 w-4" />
           {t("authentication.addConfig")}
         </Button>
       </div>
 
-      {/* Create Dialog */}
+      {/* Create / Edit Dialog — 동일 폼 본문을 dialogMode 로 분기 (편집은 type·비밀값 불변). */}
       {showDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">
-                {t("authentication.addConfigDialogTitle")}
+                {dialogMode === "edit"
+                  ? t("authentication.editConfigDialogTitle")
+                  : t("authentication.addConfigDialogTitle")}
               </h2>
               <Button
                 variant="ghost"
@@ -347,8 +433,11 @@ export default function AuthenticationPage() {
                   <Label htmlFor="auth-type">{t("common.type")}</Label>
                   <select
                     id="auth-type"
-                    className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+                    className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                     value={formType}
+                    // 편집 시 type 변경 불가 — 타입 전환은 비밀값 재발급을 수반하므로
+                    // 삭제 후 재생성 경로로 일원화한다.
+                    disabled={dialogMode === "edit"}
                     onChange={(e) =>
                       setFormType(e.target.value as AuthConfigType | "")
                     }
@@ -360,6 +449,11 @@ export default function AuthenticationPage() {
                       </option>
                     ))}
                   </select>
+                  {dialogMode === "edit" && (
+                    <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                      {t("authentication.editTypeLocked")}
+                    </p>
+                  )}
                 </div>
                 {formType === "hmac" && (
                   <>
@@ -420,18 +514,21 @@ export default function AuthenticationPage() {
                         autoComplete="off"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="auth-password">
-                        {t("authentication.passwordLabel")}
-                      </Label>
-                      <Input
-                        id="auth-password"
-                        type="password"
-                        value={formPassword}
-                        onChange={(e) => setFormPassword(e.target.value)}
-                        autoComplete="new-password"
-                      />
-                    </div>
+                    {/* 비밀번호는 비밀값이라 편집 폼에서 변경 불가 — 생성 시에만 입력. */}
+                    {dialogMode === "create" && (
+                      <div>
+                        <Label htmlFor="auth-password">
+                          {t("authentication.passwordLabel")}
+                        </Label>
+                        <Input
+                          id="auth-password"
+                          type="password"
+                          value={formPassword}
+                          onChange={(e) => setFormPassword(e.target.value)}
+                          autoComplete="new-password"
+                        />
+                      </div>
+                    )}
                   </>
                 )}
                 {/* IP Whitelist — 모든 type 공통(선택). 한 줄에 IP/CIDR 하나. */}
@@ -456,15 +553,27 @@ export default function AuthenticationPage() {
                   <Button variant="outline" onClick={resetForm}>
                     {t("common.cancel")}
                   </Button>
-                  <Button
-                    onClick={handleCreate}
-                    disabled={createMutation.isPending}
-                  >
-                    {createMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    {t("common.create")}
-                  </Button>
+                  {dialogMode === "edit" ? (
+                    <Button
+                      onClick={handleUpdate}
+                      disabled={updateMutation.isPending}
+                    >
+                      {updateMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      {t("common.save")}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleCreate}
+                      disabled={createMutation.isPending}
+                    >
+                      {createMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      {t("common.create")}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -715,6 +824,15 @@ export default function AuthenticationPage() {
                           <Eye className="h-4 w-4" />
                         </Button>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label={t("authentication.editButton")}
+                        onClick={() => handleEditClick(config)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
