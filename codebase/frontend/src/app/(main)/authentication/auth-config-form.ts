@@ -1,5 +1,5 @@
 /**
- * 인증 설정(AuthConfig) 생성 폼의 순수 로직 — 페이로드 조립·검증·기본값.
+ * 인증 설정(AuthConfig) 생성/편집 폼의 순수 로직 — 페이로드 조립·검증·기본값·폼 초기화.
  * 프레젠테이션(page.tsx)에서 분리해 단위 테스트 가능하게 한다 (spec/2-navigation/6-config.md §A.2).
  */
 
@@ -76,24 +76,49 @@ export interface AuthConfigPayload {
   ipWhitelist?: string[];
 }
 
-/** 폼 상태 → POST /auth-configs 페이로드 (순수). 빈 ipWhitelist 는 미포함. */
-export function buildAuthConfigPayload(
+/**
+ * 타입별 config 객체를 조립하는 내부 헬퍼 — `buildAuthConfigPayload`(create) 와
+ * `buildAuthConfigUpdatePayload`(edit) 에서 공유한다.
+ *
+ * `mode='create'`: api_key headerName 은 공백이면 미포함(백엔드 기본값 X-API-Key 적용).
+ * `mode='edit'`:   api_key headerName 은 항상 명시 전송(공백이면 기본값으로 대체).
+ *
+ * basic_auth password 는 edit 모드에서 싣지 않는다 — 비밀값이므로 재발급 경로 전용.
+ */
+function buildTypeConfig(
   state: AuthConfigFormState,
-): AuthConfigPayload {
+  mode: "create" | "edit",
+): Record<string, unknown> {
   const config: Record<string, unknown> = {};
   if (state.type === "hmac") {
     config.header = state.hmacHeader.trim() || AUTH_CONFIG_DEFAULTS.hmacHeader;
     config.algorithm = state.hmacAlgorithm;
   }
   if (state.type === "api_key") {
-    // 비우면 백엔드 기본값(X-API-Key)이 적용되도록 미포함.
     const header = state.apiKeyHeader.trim();
-    if (header) config.headerName = header;
+    if (mode === "edit") {
+      // 편집은 항상 명시 전송 — 공백이면 기본값 적용.
+      config.headerName = header || AUTH_CONFIG_DEFAULTS.apiKeyHeader;
+    } else {
+      // 생성은 공백이면 미포함(백엔드 기본값 X-API-Key 로 처리).
+      if (header) config.headerName = header;
+    }
   }
   if (state.type === "basic_auth") {
     config.username = state.username.trim();
-    config.password = state.password;
+    if (mode === "create") {
+      // password 는 비밀값 — 생성 시에만 포함, 편집 폼에서는 재발급 경로로만 변경.
+      config.password = state.password;
+    }
   }
+  return config;
+}
+
+/** 폼 상태 → POST /auth-configs 페이로드 (순수). 빈 ipWhitelist 는 미포함. */
+export function buildAuthConfigPayload(
+  state: AuthConfigFormState,
+): AuthConfigPayload {
+  const config = buildTypeConfig(state, "create");
   const ipWhitelist = parseIpWhitelist(state.ipWhitelistRaw);
   return {
     name: state.name,
@@ -117,19 +142,7 @@ export interface AuthConfigUpdatePayload {
 export function buildAuthConfigUpdatePayload(
   state: AuthConfigFormState,
 ): AuthConfigUpdatePayload {
-  const config: Record<string, unknown> = {};
-  if (state.type === "hmac") {
-    config.header = state.hmacHeader.trim() || AUTH_CONFIG_DEFAULTS.hmacHeader;
-    config.algorithm = state.hmacAlgorithm;
-  }
-  if (state.type === "api_key") {
-    config.headerName =
-      state.apiKeyHeader.trim() || AUTH_CONFIG_DEFAULTS.apiKeyHeader;
-  }
-  if (state.type === "basic_auth") {
-    // username 은 평문(비밀 아님) — 편집 허용. password 는 편집 불가(재발급 경로).
-    config.username = state.username.trim();
-  }
+  const config = buildTypeConfig(state, "edit");
   return {
     name: state.name,
     config,

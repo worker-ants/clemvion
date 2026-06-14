@@ -27,6 +27,12 @@ owner: planner
   - [ ] /ai-review
   - [ ] /consistency-check --impl-done
 
+## 후속 — God Component 분리 (ai-review 2026-06-14 WARNING 1·4 재확인)
+- [ ] `authentication/page.tsx` God Component 분리 — `AuthConfigCreateForm` + `AuthConfigEditDialog` 컴포넌트·커스텀 훅(`useAuthConfigEditDialog`)으로 edit 흐름 추출. (ai-review 2026-06-14 WARNING 1·4 재확인 — edit 폼 `useState` 11개 통합 포함)
+  - 우선순위: 저(현재 기능 동작 OK, 회귀 위험 대비 scope 분리가 적절)
+  - 목적: `dialogMode === "edit"` 분기 4곳 분산 제거, `useState` 개수 축소, create+edit 통합 리팩토링을 별도 PR 에서 진행
+  - 선행 조건: 현 PR 병합 후
+
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 및 `auth-configs.service.ts:399-450`, `authentication/page.tsx:81-89` 참조.
 - §3 API 표 및 마스킹/Reveal/select-only(B.2/Rationale)는 코드와 1:1 정합 — 강등 대상 아님.

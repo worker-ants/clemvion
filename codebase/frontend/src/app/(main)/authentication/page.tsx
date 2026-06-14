@@ -285,32 +285,6 @@ export default function AuthenticationPage() {
     setShowDialog(true);
   }
 
-  function handleUpdate() {
-    if (!formName.trim()) {
-      toast.error(t("authentication.fillRequired"));
-      return;
-    }
-    // basic_auth username 은 평문이라 편집 가능 — 비우면 인증이 깨지므로 필수.
-    if (formType === "basic_auth" && !formUsername.trim()) {
-      toast.error(t("authentication.fillRequired"));
-      return;
-    }
-    const validationError = validateAuthConfigForm(collectFormState());
-    if (validationError) {
-      if (validationError.key === "invalidIpWhitelist") {
-        toast.error(
-          t("authentication.invalidIpWhitelist", {
-            entries: validationError.invalid.join(", "),
-          }),
-        );
-      } else {
-        toast.error(t("authentication.invalidHeaderName"));
-      }
-      return;
-    }
-    updateMutation.mutate();
-  }
-
   // 폼 상태 단일 수집 지점 — handleCreate(검증)·createMutation(페이로드 조립)이
   // 동일 객체를 공유해 필드 추가 시 한 곳만 수정하면 된다. `type` 은 호출 전
   // 비어있지 않음이 보장된다(handleCreate 가드).
@@ -327,14 +301,29 @@ export default function AuthenticationPage() {
     };
   }
 
-  function handleCreate() {
-    if (!formName.trim() || !formType) {
+  /**
+   * formName 공백·basic_auth username·validateAuthConfigForm·toast 처리를 공유.
+   * 검증 통과 시 `onValid()` 를 호출한다.
+   * `requirePassword` — create 모드에서만 true (edit 에서는 password 입력란 없음).
+   */
+  function validateAndProceed(
+    onValid: () => void,
+    options: { requireType?: boolean; requirePassword?: boolean } = {},
+  ) {
+    const { requireType = false, requirePassword = false } = options;
+    if (!formName.trim() || (requireType && !formType)) {
       toast.error(t("authentication.fillRequired"));
       return;
     }
-    if (formType === "basic_auth" && (!formUsername.trim() || !formPassword)) {
-      toast.error(t("authentication.fillRequired"));
-      return;
+    if (formType === "basic_auth") {
+      if (!formUsername.trim()) {
+        toast.error(t("authentication.fillRequired"));
+        return;
+      }
+      if (requirePassword && !formPassword) {
+        toast.error(t("authentication.fillRequired"));
+        return;
+      }
     }
     // §A.2 입력 형식 검증 — 잘못된 헤더명/IP·CIDR 는 제출 차단(백엔드 도달 전).
     const validationError = validateAuthConfigForm(collectFormState());
@@ -350,7 +339,18 @@ export default function AuthenticationPage() {
       }
       return;
     }
-    createMutation.mutate();
+    onValid();
+  }
+
+  function handleUpdate() {
+    validateAndProceed(() => updateMutation.mutate());
+  }
+
+  function handleCreate() {
+    validateAndProceed(() => createMutation.mutate(), {
+      requireType: true,
+      requirePassword: true,
+    });
   }
 
   function copyToClipboard(text: string) {

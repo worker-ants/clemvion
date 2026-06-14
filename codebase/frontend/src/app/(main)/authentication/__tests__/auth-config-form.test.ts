@@ -197,6 +197,25 @@ describe("formStateFromAuthConfig", () => {
     expect(basic.username).toBe("svc");
     expect(basic.password).toBe("");
   });
+
+  it("bearer_token: secrets never hydrated, defaults applied for unrelated fields", () => {
+    const s = formStateFromAuthConfig({
+      name: "B",
+      type: "bearer_token",
+      config: { token: "wft_***ef01" },
+      ipWhitelist: ["10.0.0.0/8"],
+    });
+    expect(s.name).toBe("B");
+    expect(s.type).toBe("bearer_token");
+    // token is a secret — must never appear in form state
+    expect(s.password).toBe("");
+    expect(s.username).toBe("");
+    // non-secret fields fall back to defaults for irrelevant type
+    expect(s.apiKeyHeader).toBe(AUTH_CONFIG_DEFAULTS.apiKeyHeader);
+    expect(s.hmacHeader).toBe(AUTH_CONFIG_DEFAULTS.hmacHeader);
+    expect(s.hmacAlgorithm).toBe(AUTH_CONFIG_DEFAULTS.hmacAlgorithm);
+    expect(s.ipWhitelistRaw).toBe("10.0.0.0/8");
+  });
 });
 
 describe("validateAuthConfigForm", () => {
