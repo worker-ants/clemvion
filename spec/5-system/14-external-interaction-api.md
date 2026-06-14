@@ -655,7 +655,7 @@ ALTER TABLE trigger
 
 - **secret 출처는 토큰 family 별로 다르다**:
   - `itk_*` (`per_trigger`) — trigger 가 발급하는 per-trigger opaque 토큰. trigger 별로 분리되어 서로 다른 trigger 의 토큰을 cross-validate 할 수 없다.
-  - `iext_*` (`per_execution`) — HS256 으로 서명하되 **단일 글로벌 secret** `INTERACTION_JWT_SECRET`(미설정 시 configService `jwt.secret` → `JWT_SECRET` 순으로 fallback; 셋 다 미설정이면 dev 는 비보안 placeholder 로 떨어지지만 **`NODE_ENV=production` 에서는 `InteractionTokenService` 생성자가 throw 해 서버 부팅을 차단한다**(fail-closed — `OAUTH_STUB_MODE`/`LLM_STUB_MODE` 및 `JWT_SECRET`/`ENCRYPTION_KEY` 부팅 가드와 동형. 후자들은 `common/config/production-guards.ts` 의 `assertProductionConfig` 에 응집돼 있으나, 본 `INTERACTION_JWT_SECRET` 만은 `InteractionTokenService` 생성자 throw 로 별도 유지 — 비보안 fallback 서명 원천 차단). 따라서 프로덕션은 `INTERACTION_JWT_SECRET` 또는 `JWT_SECRET` 중 하나를 반드시 설정해야 한다) 을 쓴다. trigger 별 분리가 아니라 execution scope 로 한정되는데, payload `{ sub: executionId, aud: 'interaction', jti }` 가 단일 execution 에 묶이고 jti 가 Redis blacklist 로 revoke 되기 때문이다 (아래).
+  - `iext_*` (`per_execution`) — HS256 으로 서명하되 **단일 글로벌 secret** `INTERACTION_JWT_SECRET`(미설정 시 configService `jwt.secret` → `JWT_SECRET` 순으로 fallback; 셋 다 미설정이면 dev 는 **프로세스 시작 시 1회 생성하는 ephemeral random 키**(`randomBytes(32)` — 버전 이력에 예측 가능한 고정 secret 을 남기지 않고, 재시작마다 변경돼 dev 토큰이 무효화됨)로 떨어지지만 **`NODE_ENV=production` 에서는 `InteractionTokenService` 생성자가 throw 해 서버 부팅을 차단한다**(fail-closed — `OAUTH_STUB_MODE`/`LLM_STUB_MODE` 및 `JWT_SECRET`/`ENCRYPTION_KEY` 부팅 가드와 동형. 후자들은 `common/config/production-guards.ts` 의 `assertProductionConfig` 에 응집돼 있으나, 본 `INTERACTION_JWT_SECRET` 만은 `InteractionTokenService` 생성자 throw 로 별도 유지 — 비보안 fallback 서명 원천 차단). 따라서 프로덕션은 `INTERACTION_JWT_SECRET` 또는 `JWT_SECRET` 중 하나를 반드시 설정해야 한다) 을 쓴다. trigger 별 분리가 아니라 execution scope 로 한정되는데, payload `{ sub: executionId, aud: 'interaction', jti }` 가 단일 execution 에 묶이고 jti 가 Redis blacklist 로 revoke 되기 때문이다 (아래).
 - `iext_*` 의 jti 는 Redis blacklist 가능 — execution 종료 시 즉시 blacklist 등록
 - HTTPS 강제 (개발 env 예외)
 - 토큰을 query parameter 로 받는 것은 SSE 한정 (`?token=` ; EventSource 가 헤더 미지원). 그 외는 모두 `Authorization: Bearer`
@@ -700,7 +700,7 @@ ALTER TABLE trigger
 8. TX commit 후:
    a. WebsocketService.emitToExecution(execution.waiting_for_input, payload)
       → 내부 WS 채널 구독자에게 전파
-      → SSE 어댑터가 Redis pub/sub 으로 받아 외부 SSE 스트림에 데이터 라인 push
+      → SSE 어댑터가 `executionEvents$` in-process 구독으로 받아 외부 SSE 스트림에 데이터 라인 push (다중 인스턴스 분산 fan-out 용 Redis pub/sub 은 Planned — §R10)
    b. notification.events 에 "execution.waiting_for_input" 포함되어 있으면
       NotificationDispatcher.enqueue(triggerId, executionId, payload)
       → 발송 직전 execution 상태 재조회 (stale 차단)
@@ -760,6 +760,7 @@ codebase/backend/src/modules/
     interaction.guard.ts               # HTTP 진입점 InteractionGuard — iext_*/itk_* 검증 + ctx 합성 (scope set 금지, §3.3.1)
     interaction-token.service.ts       # iext_*, itk_* 발급/검증/blacklist + reconcileTerminalRevocations (EIA-RL-06 sweep)
     terminal-revoke-reconciler.service.ts # BullMQ repeatable scheduler (분 단위) — terminal revoke at-least-once 보강 (EIA-RL-06, §9.3 R15)
+    terminal-revoke-reconciler.types.ts   # BullMQ 큐 이름 상수 (notification-dispatcher.types 패턴 — system-status 레지스트리가 service 구현파일 대신 참조)
     notification-fanout.service.ts     # 단일 sink executionEvents$ 구독 listener → NotificationDispatcher.enqueue 위임 (§R10)
     notification-dispatcher.service.ts # outbound webhook enqueue facade (BullMQ)
     notification-webhook.processor.ts  # BullMQ processor — 실제 HTTP POST + 재시도/HMAC 서명/degraded 처리
@@ -951,7 +952,7 @@ Long-polling 은 라이브 chat·multi-turn 에서 latency 가 커 사용자 경
 구체적 구조:
 - 실행 엔진은 여전히 `WebsocketService.emitToExecution` 한 곳만 호출 (= 단일 sink)
 - NotificationDispatcher 는 별도 outbox/after-commit hook 으로 트리거 (§9.3 참조). 엔진 내부 코드가 직접 호출하지 않음
-- SSE 어댑터는 Redis pub/sub 으로 WebsocketService 가 발행한 이벤트를 구독해 외부 SSE 스트림으로 변환. 엔진과 직접 결합 없음
+- SSE 어댑터는 단일 sink `WebsocketService.executionEvents$` 를 **in-process 직접 구독**해 외부 SSE 스트림으로 변환 (다중 인스턴스 분산 fan-out 용 Redis pub/sub 은 Planned — 아래 R10 상세). 엔진과 직접 결합 없음
 
 **근거**:
 - 엔진 코드가 외부 sink 종류를 알 필요 없음 → 실행 엔진 §4.4 의 책임 분리 원칙 유지
