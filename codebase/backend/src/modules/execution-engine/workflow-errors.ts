@@ -226,6 +226,18 @@ export class MessageTooLongError extends ExecutionError {
 }
 
 /**
+ * field-level 검증 에러 응답 body 의 detail item (`details[]`). 두 진입점
+ * (executions.controller / interaction.service) 과 `FormValidationError.toHttpDetails()`
+ * 가 공유하는 **단일 SoT** — 한쪽만 변경 시 타입 불일치 위험을 제거한다 (W-3).
+ * `code` 는 현재 단계 `'INVALID_FIELD'` 단일 값 (`ErrorCode.INVALID_FIELD`).
+ */
+export interface ValidationDetail {
+  field: string;
+  message: string;
+  code: string;
+}
+
+/**
  * `execution.submit_form` 의 제출 데이터가 폼 노드 field 검증(필수 / type / length / 선택지)을
  * 통과하지 못함 (publisher 측 동기 검증 — spec/4-nodes/6-presentation/4-form.md §4·§6.2,
  * spec/5-system/14-external-interaction-api.md §5.1). chat-channel `validateFormSubmission` 와
@@ -235,17 +247,6 @@ export class MessageTooLongError extends ExecutionError {
  *
  * 보안: `message` 는 검증 규칙 기반 client-safe 문자열(필드 값 자체는 미포함).
  */
-/**
- * field-level 검증 에러 응답 body 의 detail item (`details[]`). 두 진입점
- * (executions.controller / interaction.service) 과 `FormValidationError.toHttpDetails()`
- * 가 공유하는 **단일 SoT** — 한쪽만 변경 시 타입 불일치 위험을 제거한다 (W-3).
- */
-export interface ValidationDetail {
-  field: string;
-  message: string;
-  code: string;
-}
-
 export class FormValidationError extends ExecutionError {
   readonly code = ErrorCode.VALIDATION_ERROR;
   /** 오류가 발생한 field 명 — EIA `details[].field`. */
@@ -267,7 +268,11 @@ export class FormValidationError extends ExecutionError {
    */
   toHttpDetails(): ReadonlyArray<ValidationDetail> {
     return [
-      { field: this.field, message: this.message, code: 'INVALID_FIELD' },
+      {
+        field: this.field,
+        message: this.message,
+        code: ErrorCode.INVALID_FIELD,
+      },
     ];
   }
 }

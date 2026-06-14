@@ -4361,7 +4361,7 @@ export class ExecutionEngineService
   /**
    * 단일 form 값 → string (no-base-to-string 회피: 객체는 JSON 으로 명시 직렬화).
    *
-   * 변환 규칙 (I-12):
+   * 변환 규칙:
    *   - `null` / `undefined` → `''` (required 판정: 빈 문자열 = 미입력)
    *   - `string` → 원본 유지
    *   - `number` / `boolean` → `String()` 변환

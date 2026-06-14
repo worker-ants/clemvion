@@ -24,7 +24,7 @@ const MAX_KEY_LENGTH = 200;
 interface IdempotencyEntry {
   /** SHA-256 hex of request body. 같은 키 + 다른 body → 409. */
   bodyHash: string;
-  /** 캐시된 정상 응답 JSON 문자열 (2xx). 4xx 중 VALIDATION_FAILED 는 캐시 제외 (Spec EIA §R8). */
+  /** 캐시된 정상 응답 JSON 문자열 (2xx). 4xx 중 VALIDATION_ERROR 는 캐시 제외 (Spec EIA §R8). */
   responseJson: string;
   /** 캐시된 응답의 HTTP 상태 코드. */
   statusCode: number;
@@ -36,7 +36,7 @@ interface IdempotencyEntry {
  * - 클라이언트가 `Idempotency-Key` 헤더를 보내면 첫 응답을 Redis 에 24h 캐시.
  * - 같은 키로 재요청 시 같은 응답을 그대로 재현 (멱등).
  * - 같은 키 + 다른 body 는 `409 Conflict`.
- * - `400 VALIDATION_FAILED` 응답은 캐시 제외 — 사용자가 form 수정 후 동일 키로 재제출 가능
+ * - `400 VALIDATION_ERROR` 응답은 캐시 제외 — 사용자가 form 수정 후 동일 키로 재제출 가능
  *   ([Spec EIA §R8] / 실행 엔진 §1.3 의 "waiting_for_input 유지" 컨벤션).
  * - 키 미설정 시 캐시 적용 안 함 (옵션).
  *
@@ -127,7 +127,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
             ),
           );
       },
-      // error 분기는 catch 안 함 — 4xx/5xx 모두 캐시 제외 (특히 400 VALIDATION_FAILED 는 R8 으로 명시 제외).
+      // error 분기는 catch 안 함 — 4xx/5xx 모두 캐시 제외 (특히 400 VALIDATION_ERROR 는 R8 으로 명시 제외).
     });
   }
 }
