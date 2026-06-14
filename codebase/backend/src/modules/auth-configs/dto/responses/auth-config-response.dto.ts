@@ -42,21 +42,27 @@ export class AuthConfigDto {
 
 /** §A.3 기간별 호출 수 — 롤링 윈도(24h/7d/30d) 호출 건수 (캘린더 버킷 아님) */
 export class AuthConfigUsagePeriodCountsDto {
+  /** 최근 24시간 롤링 윈도 호출 건수 (캘린더 일 경계 아님). */
   @ApiProperty({
+    type: Number,
     example: 5,
-    description: 'Rolling 24-hour window count (not calendar day).',
+    description: '최근 24시간 롤링 윈도 호출 건수 (캘린더 일 경계 아님).',
   })
   last24h: number;
 
+  /** 최근 7일 롤링 윈도 호출 건수. */
   @ApiProperty({
+    type: Number,
     example: 23,
-    description: 'Rolling 7-day window count.',
+    description: '최근 7일 롤링 윈도 호출 건수.',
   })
   last7d: number;
 
+  /** 최근 30일 롤링 윈도 호출 건수. */
   @ApiProperty({
+    type: Number,
     example: 78,
-    description: 'Rolling 30-day window count.',
+    description: '최근 30일 롤링 윈도 호출 건수.',
   })
   last30d: number;
 }
@@ -78,7 +84,7 @@ export class AuthConfigUsageCallDto {
   /**
    * webhook 호출의 소스 IP (§A.3). 캡처되지 않은 호출(비-HTTP 트리거·배포 이전 row)은 null.
    */
-  @ApiProperty({ nullable: true, example: '203.0.113.7' })
+  @ApiProperty({ type: String, nullable: true, example: '203.0.113.7' })
   sourceIp: string | null;
 
   /**
@@ -87,6 +93,7 @@ export class AuthConfigUsageCallDto {
    * 항상 non-null — HTTP 트리거는 실제 코드, 비-HTTP 트리거는 status enum 폴백.
    */
   @ApiProperty({
+    type: String,
     example: '202',
     description:
       "webhook 실제 HTTP 응답 코드 (성공 경로 = '202'). 비-HTTP 트리거(schedule 등)는 HTTP 코드가 없어 워크플로 status enum 으로 폴백 표시 (예: 'completed', 'failed'). non-null.",
