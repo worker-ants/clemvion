@@ -1,9 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
-import {
-  TerminalRevokeReconcilerService,
-  TERMINAL_REVOKE_RECONCILE_QUEUE,
-} from './terminal-revoke-reconciler.service';
+import { TerminalRevokeReconcilerService } from './terminal-revoke-reconciler.service';
+import { TERMINAL_REVOKE_RECONCILE_QUEUE } from './terminal-revoke-reconciler.types';
 import { InteractionTokenService } from './interaction-token.service';
 
 describe('TerminalRevokeReconcilerService [Spec EIA §3.4 EIA-RL-06 / R15]', () => {
@@ -40,7 +38,13 @@ describe('TerminalRevokeReconcilerService [Spec EIA §3.4 EIA-RL-06 / R15]', () 
     expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
       `${TERMINAL_REVOKE_RECONCILE_QUEUE}-every-minute`,
       expect.objectContaining({ pattern: '* * * * *' }),
-      expect.objectContaining({ name: expect.any(String) }),
+      expect.objectContaining({
+        name: expect.any(String),
+        opts: expect.objectContaining({
+          removeOnComplete: { age: 24 * 60 * 60 },
+          removeOnFail: { age: 7 * 24 * 60 * 60 },
+        }),
+      }),
     );
   });
 

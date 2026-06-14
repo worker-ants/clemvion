@@ -38,6 +38,15 @@ const IEXT_REFRESH_WINDOW_SEC = 30 * 60; // 30min
 const ITK_BYTES = 32;
 const BLACKLIST_KEY_PREFIX = 'iext:blacklist:';
 
+/**
+ * dev/test 전용 fallback 서명 키 — env(`INTERACTION_JWT_SECRET`/`JWT_SECRET`) 미설정 시에만 쓰인다.
+ * 모듈 로드 시 1회 생성하는 **ephemeral random** 이라 버전 이력에 예측 가능한 고정 secret 을 남기지
+ * 않는다(예: 옛 하드코딩 `'interaction-fallback'` 제거). 같은 프로세스 안에서는 일관돼 mint↔verify
+ * 라운드트립이 가능하나, 재시작마다 값이 바뀌어 dev 토큰은 재시작 후 무효가 된다. **prod 는 env
+ * secret 필수(아래 fail-closed) — 본 키는 절대 쓰이지 않는다.**
+ */
+const DEV_EPHEMERAL_SECRET = randomBytes(32).toString('hex');
+
 /** terminal revoke reconciliation sweep 의 단일 배치 기본 상한 ([Spec EIA §9.3 R15]). */
 const RECONCILE_BATCH_LIMIT = 500;
 /** batchLimit 인자 clamp 상한 — 과대 입력으로 인한 DB/Redis 과부하 방어. */
@@ -120,11 +129,12 @@ export class InteractionTokenService {
         );
       }
       this.logger.warn(
-        'InteractionTokenService: JWT secret 미설정 — dev 전용 비보안 fallback 사용. ' +
-          '프로덕션에서는 반드시 INTERACTION_JWT_SECRET (또는 JWT_SECRET) 환경변수를 설정해야 함.',
+        'InteractionTokenService: JWT secret 미설정 — dev 전용 ephemeral random fallback 사용 ' +
+          '(재시작마다 변경, dev 토큰 무효화). 프로덕션에서는 반드시 INTERACTION_JWT_SECRET ' +
+          '(또는 JWT_SECRET) 환경변수를 설정해야 함.',
       );
     }
-    this.secret = envSecret ?? 'interaction-fallback';
+    this.secret = envSecret ?? DEV_EPHEMERAL_SECRET;
   }
 
   // 공유 connection 은 RedisConnectionProvider 가 소유·종료 (INFO-12) — 본 서비스는 quit 안 함.
