@@ -1095,7 +1095,7 @@ frontend 는 backend 의 안정 code 를 `code → i18n key` 맵으로 표시하
 
 `execution-continuation` 큐는 `removeOnFail: false` 로 운영되어 attempts (`RESUME_BULLMQ_ATTEMPTS`) 소진 job 이 `failed`(dead-letter) 상태로 누적된다. rehydration 이 구조적으로 실패하는 회귀(배포 후 `_resumeCheckpoint` schema drift — `buildRetryReentryState` 재구성 실패, 체크포인트 손상 등)는 dead-letter depth 급증으로 나타나므로 다음을 둔다:
 
-- `ContinuationDlqMonitorService` — dead-letter(`failed`) depth 와 retry backlog(`delayed`)를 주기 polling, 임계 초과 시 structured `logger.error` 알람을 cooldown 1회로 발생. 메트릭 SDK 대신 로그 기반을 택한 근거는 [§Rationale "DLQ 모니터링 — 로그 기반 알람 선택"](#rationale) 참조.
+- `ContinuationDlqMonitorService` — dead-letter(`failed`) depth 와 retry backlog(`delayed`)를 주기 polling, 임계 초과 시 structured `logger.error` 알람을 cooldown 1회로 발생. **임계 초과 알람**은 log 기반을 유지(근거: [§Rationale "DLQ 모니터링 — 로그 기반 알람 선택"](#rationale) 참조). **큐 깊이(waiting/active/delayed/failed)**는 `registerQueueDepthProvider` 를 통해 `clemvion.queue.depth` ObservableGauge 로 NF-OB-07 에도 노출 — 관측(gauge)과 능동 통지(알람)를 분리한다.
 - worker `onFailed` (`@OnWorkerEvent('failed')`) — 실패 1건마다 `RETRY`(attempts 잔여) / `DEAD-LETTER`(attempts 소진) 태그 + 시도 횟수 로깅.
 
 | 환경변수                               | 기본값   | 설명                                   |
