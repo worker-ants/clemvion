@@ -118,6 +118,10 @@ describe("AuthenticationPage — create form §A.2 fields", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Create$/ }));
 
     await waitFor(() => expect(toastError).toHaveBeenCalled());
+    // The error names the offending entry (regression guard for the i18n message).
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining("not-an-ip"),
+    );
     // Validation runs before the request — nothing is sent to the backend.
     expect(postMock).not.toHaveBeenCalled();
   });

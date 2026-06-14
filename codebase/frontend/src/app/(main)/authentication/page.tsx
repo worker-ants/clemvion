@@ -16,6 +16,7 @@ import { useT, type TranslationKey } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
 import {
   type AuthConfigType,
+  type AuthConfigFormState,
   AUTH_CONFIG_DEFAULTS,
   buildAuthConfigPayload,
   validateAuthConfigForm,
@@ -134,16 +135,7 @@ export default function AuthenticationPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       // 페이로드 조립은 순수 함수로 위임 (auth-config-form.ts) — 단위 테스트 대상.
-      const payload = buildAuthConfigPayload({
-        name: formName,
-        type: formType as AuthConfigType,
-        apiKeyHeader: formApiKeyHeader,
-        hmacHeader: formHmacHeader,
-        hmacAlgorithm: formHmacAlgorithm,
-        username: formUsername,
-        password: formPassword,
-        ipWhitelistRaw: formIpWhitelist,
-      });
+      const payload = buildAuthConfigPayload(collectFormState());
       const res = await apiClient.post("/auth-configs", payload);
       return (res.data.data ?? res.data) as AuthConfig;
     },
@@ -240,6 +232,22 @@ export default function AuthenticationPage() {
     setShowDialog(false);
   }
 
+  // 폼 상태 단일 수집 지점 — handleCreate(검증)·createMutation(페이로드 조립)이
+  // 동일 객체를 공유해 필드 추가 시 한 곳만 수정하면 된다. `type` 은 호출 전
+  // 비어있지 않음이 보장된다(handleCreate 가드).
+  function collectFormState(): AuthConfigFormState {
+    return {
+      name: formName,
+      type: formType as AuthConfigType,
+      apiKeyHeader: formApiKeyHeader,
+      hmacHeader: formHmacHeader,
+      hmacAlgorithm: formHmacAlgorithm,
+      username: formUsername,
+      password: formPassword,
+      ipWhitelistRaw: formIpWhitelist,
+    };
+  }
+
   function handleCreate() {
     if (!formName.trim() || !formType) {
       toast.error(t("authentication.fillRequired"));
@@ -250,16 +258,7 @@ export default function AuthenticationPage() {
       return;
     }
     // §A.2 입력 형식 검증 — 잘못된 헤더명/IP·CIDR 는 제출 차단(백엔드 도달 전).
-    const validationError = validateAuthConfigForm({
-      name: formName,
-      type: formType,
-      apiKeyHeader: formApiKeyHeader,
-      hmacHeader: formHmacHeader,
-      hmacAlgorithm: formHmacAlgorithm,
-      username: formUsername,
-      password: formPassword,
-      ipWhitelistRaw: formIpWhitelist,
-    });
+    const validationError = validateAuthConfigForm(collectFormState());
     if (validationError) {
       if (validationError.key === "invalidIpWhitelist") {
         toast.error(

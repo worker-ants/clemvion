@@ -35,6 +35,12 @@ describe("parseIpWhitelist", () => {
   it("returns an empty array for blank input", () => {
     expect(parseIpWhitelist("   \n\n")).toEqual([]);
   });
+  it("handles Windows CRLF line endings (no trailing \\r)", () => {
+    expect(parseIpWhitelist("10.0.0.0/8\r\n203.0.113.42\r\n")).toEqual([
+      "10.0.0.0/8",
+      "203.0.113.42",
+    ]);
+  });
 });
 
 describe("isValidIpOrCidr", () => {
@@ -53,6 +59,13 @@ describe("isValidIpOrCidr", () => {
     expect(isValidIpOrCidr("javascript:alert(1)")).toBe(false);
     expect(isValidIpOrCidr("; rm -rf /")).toBe(false);
     expect(isValidIpOrCidr("not-an-ip")).toBe(false);
+  });
+  it("rejects malformed IPv6 (triple colons, double ::, bad prefix, oversized group)", () => {
+    expect(isValidIpOrCidr(":::")).toBe(false);
+    expect(isValidIpOrCidr("ffff::::")).toBe(false);
+    expect(isValidIpOrCidr("2001::db8::1")).toBe(false); // 두 번의 '::'
+    expect(isValidIpOrCidr("2001:db8::/129")).toBe(false); // prefix > 128
+    expect(isValidIpOrCidr("12345::1")).toBe(false); // 그룹 4 hex 초과
   });
 });
 
@@ -112,6 +125,21 @@ describe("validateAuthConfigForm", () => {
     expect(validateAuthConfigForm(state({ apiKeyHeader: "Bad Header" }))).toEqual({
       key: "invalidHeaderName",
     });
+  });
+  it("skips header validation when the api_key header is blank (backend default applies)", () => {
+    expect(
+      validateAuthConfigForm(state({ apiKeyHeader: "   " })),
+    ).toBeNull();
+  });
+  it("also validates the hmac signature header name", () => {
+    expect(
+      validateAuthConfigForm(state({ type: "hmac", hmacHeader: "Bad:Header" })),
+    ).toEqual({ key: "invalidHeaderName" });
+    expect(
+      validateAuthConfigForm(
+        state({ type: "hmac", hmacHeader: "X-Hub-Signature-256" }),
+      ),
+    ).toBeNull();
   });
   it("flags invalid IP/CIDR entries (any type) and lists them", () => {
     expect(
