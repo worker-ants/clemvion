@@ -33,9 +33,9 @@ required → type(email/number) → minLength/maxLength → **min/max** → **pa
 - [x] 구현 (types.ts / form-mode.ts / execution-engine docstring)
 - [x] spec 동반 갱신 (form §6.2·§Rationale / EIA §5.1 / assert docstring)
 - [x] plan 체크박스 (spec-sync-form-gaps.md)
-- [x] TEST WORKFLOW (lint ✓ / unit ✓ 4397 / build ✓ / e2e ✓ 192) — link-integrity 깨진 앵커 3건(pre-existing) 동반 수정
-- [ ] /ai-review + SUMMARY
-- [ ] /consistency-check --impl-done
+- [x] TEST WORKFLOW (lint ✓ / unit ✓ 42→ 전 suite / build ✓ / e2e ✓ 192) — link-integrity 깨진 앵커 3건(pre-existing) 동반 수정
+- [x] /ai-review + SUMMARY (22_49_26 RISK LOW W3 fix → fresh 23_05_30 RISK LOW, W1 false-positive·INFO accept/defer, RESOLUTION 기록)
+- [x] /consistency-check --impl-done (23_05_43 BLOCK: NO — 인접 spec 동기화 INFO 는 follow-up)
 - [ ] PR
 
 ## impl-prep WARNING/INFO 반영
