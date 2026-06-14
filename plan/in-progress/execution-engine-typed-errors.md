@@ -1,9 +1,25 @@
 ---
-worktree: refactor-04-a1-typed-errors-draft-b02e2b (branch claude/refactor-04-a1-typed-errors-draft-b02e2b) — 설계 초안 단계
+worktree: refactor-04-a1-typed-errors-156e87 (branch claude/refactor-04-a1-typed-errors-156e87) — 본구현 단계
 started: 2026-06-13
 owner: developer
 status: in-progress
 ---
+
+> **결정 확정 (2026-06-14)**: 아래 "결정 옵션" 4점 전부 **옵션 A 로 사용자 확정** (AskUserQuestion). 본구현 착수.
+> 진행: planner spec(§7.5.2 신설 + 6-websocket-protocol ack 표 + Rationale) → consistency-check --spec → developer 구현 → TEST + REVIEW.
+
+## 본구현 체크리스트 (2026-06-14)
+
+- [ ] **spec** `4-execution-engine.md §7.5.2`(ExecutionError 계약 + 누출 차단 ack 정책) + Rationale 추가
+- [ ] **spec** `6-websocket-protocol.md §4.2` ack 에러 코드 표에 `EXECUTION_INTERNAL_ERROR`·`EXECUTION_MESSAGE_TOO_LONG` + 누출 차단 note
+- [ ] consistency-check --spec (BLOCK 게이트)
+- [ ] **be** `ErrorCode` enum 확장: `EXECUTION_INTERNAL_ERROR`·`EXECUTION_MESSAGE_TOO_LONG`
+- [ ] **be** `workflow-errors.ts` `ExecutionError` 추상 기반(`{ code, message, serverDetail? }`) + `InvalidExecutionStateError` 흡수
+- [ ] **be** `continueAiConversation` L4285 plain Error → typed `MessageTooLongError`(EXECUTION_MESSAGE_TOO_LONG)
+- [ ] **be** `buildContinuationErrorAck` 재작성 — typed→code+safe msg / plain→generic fallback + EXECUTION_INTERNAL_ERROR + logger.warn(원본), 내부 message 미전달
+- [ ] **fe** `execution-error-codes.ts`(code→i18n key) + `use-execution-interaction-commands.ts` errorCode 매핑 + KO/EN dict
+- [ ] **test** be unit(ack 분기·ExecutionError·MessageTooLong) + fe unit(map·매핑) + e2e(누출 차단·message-too-long)
+- [ ] TEST + REVIEW WORKFLOW
 
 # execution-engine client-safe typed error 체계 (refactor 04 후속 A-2)
 
