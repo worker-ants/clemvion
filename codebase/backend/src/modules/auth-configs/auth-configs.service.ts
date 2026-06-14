@@ -31,6 +31,22 @@ const AUTH_CONFIG_RESOURCE_TYPE = 'auth_config';
 // getUsage 가 반환하는 최근 호출 표시 건수 (목록 API 기본 페이지 크기와 동일).
 const USAGE_RECENT_CALLS_LIMIT = 20;
 
+// §A.3 기간별 호출 수 — 롤링 윈도 길이(ms). 24h / 7d / 30d (캘린더 버킷 아님).
+const USAGE_PERIOD_WINDOWS_MS = {
+  last24h: 24 * 60 * 60 * 1000,
+  last7d: 7 * 24 * 60 * 60 * 1000,
+  last30d: 30 * 24 * 60 * 60 * 1000,
+} as const;
+
+/**
+ * periodCounts 의 raw COUNT 문자열을 안전한 음이 아닌 정수로 변환 — DB 드라이버
+ * 비정상 반환(NaN/음수/null)을 0 으로 폴백한다 (§A.3 getUsage).
+ */
+function safeUsageCount(raw: string | undefined | null): number {
+  const n = Number(raw ?? 0);
+  return isNaN(n) || n < 0 ? 0 : n;
+}
+
 export interface WebhookAuthContext {
   /** 소문자 키의 요청 헤더 맵 */
   headers: Record<string, string>;
@@ -508,17 +524,38 @@ export class AuthConfigsService {
     return out;
   }
 
+  /**
+   * §A.3 인증 설정 사용 내역 조회.
+   *
+   * 반환 shape:
+   * - totalCalls: 해당 인증 설정에 연결된 모든 트리거의 누적 실행 수.
+   * - lastUsedAt: AuthConfig.last_used_at (webhook 인증 성공 시 갱신).
+   * - periodCounts: 롤링 윈도(24h/7d/30d) 기준 호출 건수. 각 윈도는 현재 시각 기준
+   *   rolling — 캘린더 버킷(일/주/월 경계) 아님. DB NULL 반환 시 0 폴백.
+   * - recentCalls: 최근 20건 실행 목록 (started_at DESC). sourceIp 는 webhook/
+   *   chat-channel 발화 시에만 캡처, 비-HTTP 트리거는 null. responseCode 는 webhook 실제
+   *   HTTP 코드(성공 경로 = '202'); 저장된 코드가 없으면(비-HTTP 트리거) status enum 으로 폴백.
+   *
+   * 쿼리 3개(getCount/getRawOne/getMany)는 서로 독립적이므로 Promise.all 로 병렬 실행한다
+   * (단, 트리거가 없으면 early return 으로 DB 왕복 자체를 생략).
+   *
+   * @see spec/2-navigation/6-config.md §A.3
+   * @see spec/1-data-model.md §2.13 — AuthConfig 호출 집계 경로 SoT
+   */
   async getUsage(
     id: string,
     workspaceId: string,
   ): Promise<{
     totalCalls: number;
     lastUsedAt: Date | null;
+    periodCounts: { last24h: number; last7d: number; last30d: number };
     recentCalls: Array<{
       id: string;
       triggerName: string;
       status: string;
       startedAt: Date;
+      sourceIp: string | null;
+      responseCode: string;
     }>;
   }> {
     const config = await this.findById(id, workspaceId);
@@ -532,31 +569,63 @@ export class AuthConfigsService {
       return {
         totalCalls: 0,
         lastUsedAt: config.lastUsedAt,
+        periodCounts: { last24h: 0, last7d: 0, last30d: 0 },
         recentCalls: [],
       };
     }
 
-    const totalCalls = await this.executionRepository
-      .createQueryBuilder('e')
-      .where('e.trigger_id IN (:...triggerIds)', { triggerIds })
-      .getCount();
+    // 3개 쿼리는 서로 독립 — Promise.all 로 병렬 실행해 레이턴시 절감 (W-4).
+    const now = Date.now();
+    const [totalCalls, periodRaw, recentExecutions] = await Promise.all([
+      this.executionRepository
+        .createQueryBuilder('e')
+        .where('e.trigger_id IN (:...triggerIds)', { triggerIds })
+        .getCount(),
 
-    const recentExecutions = await this.executionRepository
-      .createQueryBuilder('e')
-      .innerJoinAndSelect('e.trigger', 't')
-      .where('e.trigger_id IN (:...triggerIds)', { triggerIds })
-      .orderBy('e.started_at', 'DESC')
-      .limit(USAGE_RECENT_CALLS_LIMIT)
-      .getMany();
+      // 기간별 호출 수 — 단일 쿼리에서 롤링 윈도 3종을 조건부 집계(COUNT FILTER).
+      this.executionRepository
+        .createQueryBuilder('e')
+        .select('COUNT(*) FILTER (WHERE e.started_at >= :since24h)', 'last24h')
+        .addSelect('COUNT(*) FILTER (WHERE e.started_at >= :since7d)', 'last7d')
+        .addSelect(
+          'COUNT(*) FILTER (WHERE e.started_at >= :since30d)',
+          'last30d',
+        )
+        .where('e.trigger_id IN (:...triggerIds)', { triggerIds })
+        .setParameters({
+          since24h: new Date(now - USAGE_PERIOD_WINDOWS_MS.last24h),
+          since7d: new Date(now - USAGE_PERIOD_WINDOWS_MS.last7d),
+          since30d: new Date(now - USAGE_PERIOD_WINDOWS_MS.last30d),
+        })
+        .getRawOne<{ last24h: string; last7d: string; last30d: string }>(),
+
+      this.executionRepository
+        .createQueryBuilder('e')
+        .innerJoinAndSelect('e.trigger', 't')
+        .where('e.trigger_id IN (:...triggerIds)', { triggerIds })
+        .orderBy('e.started_at', 'DESC')
+        .limit(USAGE_RECENT_CALLS_LIMIT)
+        .getMany(),
+    ]);
+
+    const periodCounts = {
+      last24h: safeUsageCount(periodRaw?.last24h),
+      last7d: safeUsageCount(periodRaw?.last7d),
+      last30d: safeUsageCount(periodRaw?.last30d),
+    };
 
     return {
       totalCalls,
       lastUsedAt: config.lastUsedAt,
+      periodCounts,
       recentCalls: recentExecutions.map((e) => ({
         id: e.id,
         triggerName: e.trigger?.name ?? 'Unknown',
         status: e.status,
         startedAt: e.startedAt,
+        sourceIp: e.sourceIp ?? null,
+        // 비-HTTP 트리거(schedule 등)는 response_code NULL → status enum 으로 폴백 표시.
+        responseCode: e.responseCode ?? e.status,
       })),
     };
   }

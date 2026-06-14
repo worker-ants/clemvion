@@ -749,4 +749,193 @@ describe('AuthConfigsService', () => {
       expect(audit.record).not.toHaveBeenCalled();
     });
   });
+
+  // §A.3 인증 사용량/이력 — 기간별 호출 수(롤링 윈도) + 호출 이력 소스 IP·응답 코드.
+  describe('getUsage — 기간별 호출 수 + 소스 IP/응답 코드 (§A.3)', () => {
+    const CFG_ID = 'cfg-usage';
+
+    /**
+     * W-11: getCount / getRawOne / getMany 를 **독립 QB 객체**로 분리.
+     * Promise.all 병렬화(W-4) 이후 createQueryBuilder 호출 순서가 보장되지 않으므로
+     * 각 QB 가 자신의 terminal 만 응답해야 쿼리별 파라미터 혼용을 테스트가 검출할 수 있다.
+     */
+    function makeExecutionRepo(opts: {
+      totalCalls: number;
+      period: { last24h: string; last7d: string; last30d: string } | null;
+      recent: Array<Partial<Execution> & { trigger?: { name: string } }>;
+    }) {
+      /** 체이너블 메서드 공통 — 각 QB 가 독립 체인을 갖도록 별도 생성. */
+      const makeQbBase = () => ({
+        where: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        setParameters: jest.fn().mockReturnThis(),
+      });
+
+      const countQb = {
+        ...makeQbBase(),
+        getCount: jest.fn().mockResolvedValue(opts.totalCalls),
+      };
+      const periodQb = {
+        ...makeQbBase(),
+        getRawOne: jest.fn().mockResolvedValue(opts.period),
+      };
+      const recentQb = {
+        ...makeQbBase(),
+        getMany: jest.fn().mockResolvedValue(opts.recent),
+      };
+
+      // 순서 비의존 — 각 QB 가 자신의 terminal 만 제공하므로 호출 순서가 달라도 안전.
+      const createQueryBuilder = jest
+        .fn()
+        .mockReturnValueOnce(countQb)
+        .mockReturnValueOnce(periodQb)
+        .mockReturnValueOnce(recentQb);
+
+      return { countQb, periodQb, recentQb, createQueryBuilder };
+    }
+
+    async function buildService(
+      execRepo: ReturnType<typeof makeExecutionRepo>,
+      triggerFind: jest.Mock,
+    ) {
+      const acRepo = makeAuthConfigRepo();
+      await acRepo.save({
+        id: CFG_ID,
+        workspaceId: WS,
+        name: 'webhook auth',
+        type: 'hmac',
+        lastUsedAt: new Date('2026-06-01T00:00:00.000Z'),
+      } as AuthConfig);
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthConfigsService,
+          { provide: getRepositoryToken(AuthConfig), useValue: acRepo },
+          { provide: getRepositoryToken(Execution), useValue: execRepo },
+          {
+            provide: getRepositoryToken(Trigger),
+            useValue: { find: triggerFind },
+          },
+          {
+            provide: getRepositoryToken(User),
+            useValue: { findOne: jest.fn() },
+          },
+          { provide: AuditLogsService, useValue: { record: jest.fn() } },
+        ],
+      }).compile();
+      return module.get(AuthConfigsService);
+    }
+
+    it('연결된 트리거가 없으면 totalCalls 0 + periodCounts 전부 0 + 빈 이력', async () => {
+      const execRepo = makeExecutionRepo({
+        totalCalls: 0,
+        period: null,
+        recent: [],
+      });
+      const svc = await buildService(execRepo, jest.fn().mockResolvedValue([]));
+
+      const res = await svc.getUsage(CFG_ID, WS);
+
+      expect(res.totalCalls).toBe(0);
+      expect(res.periodCounts).toEqual({ last24h: 0, last7d: 0, last30d: 0 });
+      expect(res.recentCalls).toEqual([]);
+      // 트리거가 없으면 execution 쿼리 자체를 돌리지 않는다.
+      expect(execRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('기간별 호출 수를 숫자로 파싱하고, 이력에 소스 IP·응답 코드를 채운다', async () => {
+      const execRepo = makeExecutionRepo({
+        totalCalls: 7,
+        period: { last24h: '2', last7d: '5', last30d: '7' },
+        recent: [
+          {
+            id: 'e-webhook',
+            status: 'completed',
+            startedAt: new Date('2026-06-14T10:00:00.000Z'),
+            sourceIp: '203.0.113.7',
+            responseCode: '202',
+            trigger: { name: 'Order Webhook' },
+          },
+          {
+            id: 'e-schedule',
+            status: 'failed',
+            startedAt: new Date('2026-06-13T10:00:00.000Z'),
+            sourceIp: null,
+            responseCode: null,
+            trigger: { name: 'Nightly' },
+          },
+        ],
+      });
+      const svc = await buildService(
+        execRepo,
+        jest.fn().mockResolvedValue([{ id: 't1' }, { id: 't2' }]),
+      );
+
+      const res = await svc.getUsage(CFG_ID, WS);
+
+      expect(res.totalCalls).toBe(7);
+      // getRawOne 의 문자열 카운트가 number 로 변환돼야 한다.
+      expect(res.periodCounts).toEqual({ last24h: 2, last7d: 5, last30d: 7 });
+
+      const [webhookCall, scheduleCall] = res.recentCalls;
+      expect(webhookCall.sourceIp).toBe('203.0.113.7');
+      expect(webhookCall.responseCode).toBe('202');
+      // 비-HTTP 트리거: responseCode NULL → status enum 으로 폴백, sourceIp null.
+      expect(scheduleCall.sourceIp).toBeNull();
+      expect(scheduleCall.responseCode).toBe('failed');
+
+      // W-11: 3개 QB 가 독립 객체 — 각 terminal 이 정확히 1회 호출됨.
+      expect(execRepo.countQb.getCount).toHaveBeenCalledTimes(1);
+      expect(execRepo.periodQb.getRawOne).toHaveBeenCalledTimes(1);
+      expect(execRepo.recentQb.getMany).toHaveBeenCalledTimes(1);
+      // I-11: recentQb 에 limit(USAGE_RECENT_CALLS_LIMIT=20) 이 적용됐는지 단언.
+      expect(execRepo.recentQb.limit).toHaveBeenCalledWith(20);
+    });
+
+    it('getRawOne 가 null 을 반환해도 periodCounts 가 0 으로 안전하게 떨어진다', async () => {
+      const execRepo = makeExecutionRepo({
+        totalCalls: 1,
+        period: null,
+        recent: [],
+      });
+      const svc = await buildService(
+        execRepo,
+        jest.fn().mockResolvedValue([{ id: 't1' }]),
+      );
+
+      const res = await svc.getUsage(CFG_ID, WS);
+      expect(res.periodCounts).toEqual({ last24h: 0, last7d: 0, last30d: 0 });
+    });
+
+    // I-10: trigger 관계 null(orphan execution) 시 triggerName 이 'Unknown' 으로 폴백.
+    it('trigger 관계가 null 인 orphan execution 은 triggerName 이 Unknown 으로 폴백된다', async () => {
+      const execRepo = makeExecutionRepo({
+        totalCalls: 1,
+        period: { last24h: '1', last7d: '1', last30d: '1' },
+        recent: [
+          {
+            id: 'e-orphan',
+            status: 'completed',
+            startedAt: new Date('2026-06-14T10:00:00.000Z'),
+            sourceIp: null,
+            responseCode: '202',
+            trigger: undefined, // orphan — trigger 관계 없음
+          },
+        ],
+      });
+      const svc = await buildService(
+        execRepo,
+        jest.fn().mockResolvedValue([{ id: 't1' }]),
+      );
+
+      const res = await svc.getUsage(CFG_ID, WS);
+
+      expect(res.recentCalls).toHaveLength(1);
+      expect(res.recentCalls[0].triggerName).toBe('Unknown');
+    });
+  });
 });

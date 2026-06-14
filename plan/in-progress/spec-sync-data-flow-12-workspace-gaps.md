@@ -85,7 +85,7 @@ owner: planner
 **맥락**
 - ⚠️ **플랜 전제 정정**: 플랜 본문(`:15`)은 "TypeORM `@Unique` 데코레이터만 존재" 라고 적었으나, 실제로는 **이미 제거됨**. `workspace.entity.ts:14-20` 은 broad `@Unique(['ownerId','type'])` 를 제거하고 `@Index(['ownerId','type'])`(비유니크)만 남긴 상태이며, 그 사유를 주석으로 명시. 따라서 현재 personal 유일성은 **앱 레이어 전용**(`WorkspacesService.findOrCreatePersonalWorkspace` — find-or-create + catch-refind 폴백)으로만 강제된다. DB 레벨 강제는 0.
 - spec Rationale §`personal 워크스페이스 유일성`(`12-workspace.md:268-281`)이 이미 방향을 제시: broad UNIQUE 가 아니라 **부분 유니크 인덱스** `CREATE UNIQUE INDEX ... ON workspace (owner_id) WHERE type = 'personal'`. team 다중 소유는 유지. 단 "기존 데이터 dedup 선행 + TOCTOU race 방어는 별도 hardening 마이그레이션" 으로 분리 권고.
-- 마이그레이션 규약(`spec/conventions/migrations.md`): append-only, 단조 증가 V번호(현 max **V094**), `NOT VALID` 패턴 가용. 신규는 `V095__<descriptor>.sql`.
+- 마이그레이션 규약(`spec/conventions/migrations.md`): append-only, 단조 증가 V번호(현 max **V096** — V095 partial 인덱스·V096 execution source_ip/response_code 가 선행 머지됨), `NOT VALID` 패턴 가용. 신규는 `V097__<descriptor>.sql`.
 
 **옵션 A — 앱 레이어 전용 유지 (DB 제약 미도입)**
 - 설명: 현 상태 유지. spec 의 부분 인덱스 권고는 "필요 시" 로 남겨둠.
@@ -93,7 +93,7 @@ owner: planner
 - 단점: 동시 콜드스타트 요청 TOCTOU 시 중복 personal 가능(catch-refind 가 대부분 흡수하나 DB invariant 부재). defense-in-depth 없음.
 
 **옵션 B — 부분 유니크 인덱스 마이그레이션 추가 (dedup 선행)**
-- 설명: `V095` 로 (1) 기존 owner 당 중복 personal dedup → (2) `CREATE UNIQUE INDEX ... ON workspace (owner_id) WHERE type='personal'`. 큰 테이블이면 `CONCURRENTLY`(`.conf` `executeInTransaction=false`) 고려.
+- 설명: `V097`(현 max V096 이후 신규 번호)로 (1) 기존 owner 당 중복 personal dedup → (2) `CREATE UNIQUE INDEX ... ON workspace (owner_id) WHERE type='personal'`. 큰 테이블이면 `CONCURRENTLY`(`.conf` `executeInTransaction=false`) 고려.
 - 장점: DB 레벨 invariant 로 TOCTOU race 까지 차단(defense-in-depth). spec Rationale 권고와 정확히 일치. team 다중 소유 영향 없음.
 - 단점: dedup 단계가 데이터에 따라 위험(어느 personal 을 남길지·FK 재지정 정책 필요). 운영 데이터에서 중복이 실재하면 마이그레이션 복잡도 상승.
 

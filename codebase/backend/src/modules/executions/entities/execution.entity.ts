@@ -86,6 +86,25 @@ export class Execution {
   @Column({ name: 'recursion_depth', default: 0 })
   recursionDepth: number;
 
+  // source_ip / response_code: webhook(또는 chat-channel) 트리거 발화 시점의 호출
+  //   메타데이터 (V096). 인증 설정 사용 내역(GET /api/auth-configs/:id/usage)의 호출
+  //   이력 테이블이 "소스 IP"·"응답 코드" 컬럼을 노출하는 데 쓰인다 (§A.3, WH-MG-05).
+  //   - source_ip: hooks.service 의 extractClientIp 결과. IPv4/IPv6(최대 45자).
+  //   - response_code: webhook 호출이 받은 실제 HTTP 응답 코드 문자열(성공 = '202').
+  //   비-HTTP 트리거(schedule)·수동 실행·배포 이전 row 는 둘 다 NULL —
+  //   getUsage 는 response_code 가 NULL 이면 status enum 으로 폴백 표시한다.
+  //   spec: 2-navigation/6-config.md §A.3, 1-data-model.md §2.13.
+  @Column({ name: 'source_ip', type: 'varchar', length: 45, nullable: true })
+  sourceIp: string | null;
+
+  @Column({
+    name: 'response_code',
+    type: 'varchar',
+    length: 10,
+    nullable: true,
+  })
+  responseCode: string | null;
+
   // Replay/Re-run (decision F2, spec/5-system/13-replay-rerun.md §9.1).
   // re_run_of: 직계 부모 Execution (NULL = chain 의 원본/시작).
   // chain_id: chain root Execution id (re-run 으로 생성된 행에만 세팅 — 일반

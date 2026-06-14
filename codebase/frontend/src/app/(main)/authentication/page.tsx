@@ -22,6 +22,15 @@ import {
   Eye,
   Pencil,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
 import {
@@ -51,11 +60,23 @@ interface UsageRecentCall {
   triggerName: string;
   status: string;
   startedAt: string;
+  /** webhook 소스 IP. 캡처되지 않은 호출(비-HTTP 트리거)은 null. */
+  sourceIp: string | null;
+  /** 응답 코드 — webhook 은 HTTP 코드('202'), 비-HTTP 는 status enum 폴백. */
+  responseCode: string;
+}
+
+interface UsagePeriodCounts {
+  last24h: number;
+  last7d: number;
+  last30d: number;
 }
 
 interface AuthConfigUsage {
   totalCalls: number;
   lastUsedAt: string | null;
+  /** §A.3 기간별 호출 수 — 롤링 윈도(24h/7d/30d). */
+  periodCounts: UsagePeriodCounts;
   recentCalls: UsageRecentCall[];
 }
 
@@ -912,6 +933,72 @@ export default function AuthenticationPage() {
 
             <div>
               <h3 className="mb-3 text-sm font-semibold">
+                {t("authentication.periodCounts")}
+              </h3>
+              <div className="h-48 rounded-lg border border-[hsl(var(--border))] p-3">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      {
+                        label: t("authentication.period24h"),
+                        count: usageData.periodCounts.last24h,
+                      },
+                      {
+                        label: t("authentication.period7d"),
+                        count: usageData.periodCounts.last7d,
+                      },
+                      {
+                        label: t("authentication.period30d"),
+                        count: usageData.periodCounts.last30d,
+                      },
+                    ]}
+                    margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="hsl(var(--border))"
+                    />
+                    <XAxis
+                      dataKey="label"
+                      tick={{
+                        fontSize: 12,
+                        fill: "hsl(var(--muted-foreground))",
+                      }}
+                      tickLine={false}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tick={{
+                        fontSize: 12,
+                        fill: "hsl(var(--muted-foreground))",
+                      }}
+                      tickLine={false}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "hsl(var(--accent))", opacity: 0.5 }}
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "0.375rem",
+                        fontSize: 12,
+                      }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
+                    />
+                    <Bar
+                      dataKey="count"
+                      name={t("authentication.callCount")}
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="mb-3 text-sm font-semibold">
                 {t("authentication.recentCalls")}
               </h3>
               {usageData.recentCalls.length === 0 ? (
@@ -928,6 +1015,12 @@ export default function AuthenticationPage() {
                         </th>
                         <th className="px-3 py-2 text-left font-medium">
                           {t("common.status")}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t("authentication.sourceIp")}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t("authentication.responseCode")}
                         </th>
                         <th className="px-3 py-2 text-left font-medium">
                           {t("authentication.startedAt")}
@@ -948,6 +1041,12 @@ export default function AuthenticationPage() {
                             >
                               {call.status}
                             </Badge>
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-[hsl(var(--muted-foreground))]">
+                            {call.sourceIp ?? "—"}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-[hsl(var(--muted-foreground))]">
+                            {call.responseCode}
                           </td>
                           <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">
                             {formatDate(call.startedAt, "datetime")}
