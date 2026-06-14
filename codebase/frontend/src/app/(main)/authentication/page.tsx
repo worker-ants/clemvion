@@ -95,7 +95,10 @@ function pickPlaintextSecret(
 export default function AuthenticationPage() {
   const t = useT();
   const queryClient = useQueryClient();
-  const canReveal = useHasRole("admin");
+  // AuthConfig mutation/reveal 은 Admin+ 만 (spec/5-system/1-auth.md §3.2 RBAC:
+  // Editor/Viewer = R). 백엔드가 @Roles('admin') 로 강제하나, UI 에서도 가려
+  // 비-admin 의 403 혼란을 막는다. Reveal·Edit 진입 버튼에 동일 적용.
+  const isAdmin = useHasRole("admin");
   const [showDialog, setShowDialog] = useState(false);
   // create: 신규 발급 / edit: 기존 config 의 non-secret 필드(name·headerName·IP 등) 수정.
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
@@ -813,7 +816,7 @@ export default function AuthenticationPage() {
                           ? t("workflows.actions.deactivate")
                           : t("workflows.actions.activate")}
                       </Button>
-                      {canReveal && (
+                      {isAdmin && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -824,15 +827,17 @@ export default function AuthenticationPage() {
                           <Eye className="h-4 w-4" />
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        aria-label={t("authentication.editButton")}
-                        onClick={() => handleEditClick(config)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label={t("authentication.editButton")}
+                          onClick={() => handleEditClick(config)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"

@@ -26,8 +26,10 @@ vi.mock("@/lib/api/client", () => ({
   },
 }));
 
+// 기본 admin=true. 일부 테스트가 비-admin 가드를 검증하려고 토글한다.
+const roleState = vi.hoisted(() => ({ isAdmin: true }));
 vi.mock("@/components/auth/role-gate", () => ({
-  useHasRole: () => true,
+  useHasRole: () => roleState.isAdmin,
 }));
 
 const toastError = vi.fn();
@@ -150,6 +152,17 @@ describe("AuthenticationPage — edit form §A.2", () => {
   afterEach(() => {
     cleanup();
     useLocaleStore.setState({ locale: "en" });
+    roleState.isAdmin = true;
+  });
+
+  it("hides the Edit button for non-admins (backend @Roles('admin') parity)", async () => {
+    roleState.isAdmin = false;
+    renderPage();
+    // Row renders, but admin-only actions (Edit/Reveal) are gated out.
+    await waitFor(() => expect(screen.getByText("Prod Key")).toBeInTheDocument());
+    expect(
+      screen.queryByRole("button", { name: /^Edit$/ }),
+    ).not.toBeInTheDocument();
   });
 
   async function openEditDialog() {
