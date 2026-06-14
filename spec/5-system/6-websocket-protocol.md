@@ -764,14 +764,14 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 **Client → Server 명령 매핑:**
 
-| 내부 WS 명령 (Client → Server) | 외부 REST 명령 (`POST /api/executions/:id/interact` 의 `body.command`) | 비고 |
+| 내부 WS 명령 (Client → Server) | 외부 REST 명령 (`POST /api/external/executions/:id/interact` 의 `body.command`) | 비고 |
 |---|---|---|
 | `execution.submit_form` | `submit_form` | body 의 `formData` 가 외부에선 `data` |
 | `execution.click_button` | `click_button` | 동일 페이로드 |
 | `execution.submit_message` | `submit_message` | 동일 페이로드 |
 | `execution.end_conversation` | `end_conversation` | 동일 페이로드 |
 | `execution.retry_last_turn` | (외부 미노출 — 향후 노출 예정) | 내부 UI 한정. 외부 노출 시 토큰 권한·Notification 정합·retry 횟수 제한 별도 결정 필요 (상세: §4.2 참조). |
-| `execution.stop` | `cancel` (또는 `POST /api/executions/:id/cancel` alias) | force 옵션은 외부에서 미지원 |
+| `execution.stop` | `cancel` (또는 `POST /api/external/executions/:id/cancel` alias) | force 옵션은 외부에서 미지원 |
 | `execution.start` | (외부 미지원) | 외부는 webhook 트리거로 실행 시작 |
 | `execution.continue` / `execution.step` | (외부 미지원) | 디버깅 전용, UI/내부 한정 |
 | `auth.refresh` | (해당 없음) | 외부는 단명 `iext_*` 갱신 전용 엔드포인트 (`/refresh-token`) 사용 |
@@ -779,7 +779,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 **Server → Client 이벤트 매핑:**
 
-| 내부 WS 이벤트 (Server → Client) | SSE event 이름 (`/api/executions/:id/stream`) | Outbound Notification `type` |
+| 내부 WS 이벤트 (Server → Client) | SSE event 이름 (`/api/external/executions/:id/stream`) | Outbound Notification `type` |
 |---|---|---|
 | `execution.started` | `execution.started` | — (외부 구독 불가, 노이즈) |
 | `execution.node.started` | `execution.node.started` | — |

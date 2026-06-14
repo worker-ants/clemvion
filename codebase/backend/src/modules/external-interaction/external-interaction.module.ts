@@ -18,6 +18,10 @@ import { InteractionService } from './interaction.service';
 import { InteractionController } from './interaction.controller';
 import { InteractionStreamController } from './interaction-stream.controller';
 import { NOTIFICATION_WEBHOOK_QUEUE } from './notification-dispatcher.types';
+import {
+  TerminalRevokeReconcilerService,
+  TERMINAL_REVOKE_RECONCILE_QUEUE,
+} from './terminal-revoke-reconciler.service';
 import { SecretStoreModule } from '../secret-store/secret-store.module';
 
 /**
@@ -30,6 +34,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
  *  - InteractionTokenService (iext_/itk_ family)
  *  - NotificationDispatcher + Processor + Fanout (R10 — facade, ExecutionEngine 외부)
  *  - SseAdapter (executionEvents$ 구독)
+ *  - TerminalRevokeReconcilerService (EIA-RL-06 — terminal revoke at-least-once sweep, BullMQ repeatable)
  *
  * 의존성: WebsocketModule (executionEvents$), TypeOrmModule.forFeature([Trigger, Execution]),
  * ExecutionEngineModule + ExecutionsModule (interact dispatch), BullModule
@@ -39,6 +44,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
   imports: [
     TypeOrmModule.forFeature([Trigger, Execution, ExecutionToken]),
     BullModule.registerQueue({ name: NOTIFICATION_WEBHOOK_QUEUE }),
+    BullModule.registerQueue({ name: TERMINAL_REVOKE_RECONCILE_QUEUE }),
     WebsocketModule,
     forwardRef(() => ExecutionsModule),
     forwardRef(() => ExecutionEngineModule),
@@ -54,6 +60,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
     InteractionGuard,
     IdempotencyInterceptor,
     InteractionService,
+    TerminalRevokeReconcilerService,
   ],
   exports: [
     InteractionTokenService,

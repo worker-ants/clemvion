@@ -12,6 +12,7 @@ import {
   verify,
 } from 'jsonwebtoken';
 import { ExecutionToken } from './entities/execution-token.entity';
+import { ExecutionStatus } from '../executions/entities/execution.entity';
 
 /**
  * [Spec EIA §3.3 / §R4] — 인터랙션 토큰 두 family.
@@ -36,6 +37,23 @@ const IEXT_DEFAULT_TTL_SEC = 60 * 60; // 1h
 const IEXT_REFRESH_WINDOW_SEC = 30 * 60; // 30min
 const ITK_BYTES = 32;
 const BLACKLIST_KEY_PREFIX = 'iext:blacklist:';
+
+/** terminal revoke reconciliation sweep 의 단일 배치 기본 상한 ([Spec EIA §9.3 R15]). */
+const RECONCILE_BATCH_LIMIT = 500;
+/** batchLimit 인자 clamp 상한 — 과대 입력으로 인한 DB/Redis 과부하 방어. */
+const RECONCILE_BATCH_MAX = 1000;
+/** sweep 의 execution 단위 병렬 처리 동시성 (N+1 직렬 왕복 완화). */
+const RECONCILE_CONCURRENCY = 20;
+/**
+ * reconciliation sweep 의 terminal execution 상태 — 잔존 토큰 회수 대상. enum 확장 시 동기화.
+ * (SQL `IN` 절용 배열. `interaction.service.ts` 의 동명 `ReadonlySet`(`.has()` 용)과 용도·타입이
+ * 달라 파일별 private 로 분리 — 이름 충돌 회피 위해 `RECONCILE_` prefix.)
+ */
+const RECONCILE_TERMINAL_STATUSES: readonly ExecutionStatus[] = [
+  ExecutionStatus.COMPLETED,
+  ExecutionStatus.FAILED,
+  ExecutionStatus.CANCELLED,
+];
 
 export interface IssuePerExecutionResult {
   /** `iext_<jwt>` 형식의 전체 토큰. */
@@ -322,6 +340,70 @@ export class InteractionTokenService {
       );
     }
     return { revoked };
+  }
+
+  /**
+   * [Spec EIA §3.4 EIA-RL-06 / §9.3 / §Rationale R15] terminal revoke 의 at-least-once 보강 —
+   * reconciliation sweep. 이미 terminal(completed/failed/cancelled) 인데 `execution_token` row 가
+   * 잔존하는 execution 을 찾아 `revokeAllForExecution` 을 재호출한다.
+   *
+   * live fast-path(`NotificationFanout`)가 process 재시작/크래시(버퍼 없는 RxJS Subject 소실)나
+   * Redis 일시 장애(fail-open)로 누락한 revoke 를 회수하는 durable 경로다. `execution_token` 자체가
+   * outbox 역할을 하므로 별도 outbox 테이블이 없고, `revokeAllForExecution` 이 idempotent(blacklist
+   * SET·row DELETE 재실행 무해)라 live 경로와 중복 sweep 돼도 안전하다.
+   *
+   * 호출자: `TerminalRevokeReconcilerService` (BullMQ repeatable scheduler — 멀티 인스턴스 전역 1회).
+   * Repository 미주입 시 no-op.
+   *
+   * @param batchLimit 단일 sweep 당 처리 execution 수 상한 (기본 `RECONCILE_BATCH_LIMIT`=500).
+   *   `[1, RECONCILE_BATCH_MAX]` 로 clamp 된다. 잔존이 상한을 넘으면 다음 tick 에서 이어 처리.
+   */
+  async reconcileTerminalRevocations(
+    batchLimit = RECONCILE_BATCH_LIMIT,
+  ): Promise<{ swept: number; revoked: number }> {
+    if (!this.executionTokenRepository) {
+      return { swept: 0, revoked: 0 };
+    }
+    const safeLimit = Math.min(
+      Math.max(1, Math.floor(batchLimit)),
+      RECONCILE_BATCH_MAX,
+    );
+    const rows = await this.executionTokenRepository
+      .createQueryBuilder('et')
+      .innerJoin('et.execution', 'e')
+      .where('e.status IN (:...terminal)', {
+        terminal: RECONCILE_TERMINAL_STATUSES,
+      })
+      .select('et.executionId', 'executionId')
+      .distinct(true)
+      .limit(safeLimit)
+      .getRawMany<{ executionId: string }>();
+
+    // execution 단위 bounded-concurrency 병렬 — 직렬 N+1 왕복(최악 배치 수백건)을 완화한다.
+    // per-execution revoke 는 idempotent·fail-open 이라 병렬·중복 안전. (revokeAllForExecution
+    // 내부의 per-jti SET 은 보통 1~2건이라 추가 병렬화 불요.)
+    let revoked = 0;
+    for (let i = 0; i < rows.length; i += RECONCILE_CONCURRENCY) {
+      const chunk = rows.slice(i, i + RECONCILE_CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map(({ executionId }) => this.revokeAllForExecution(executionId)),
+      );
+      results.forEach((r, idx) => {
+        if (r.status === 'fulfilled') {
+          revoked += r.value.revoked;
+        } else {
+          this.logger.warn(
+            `InteractionTokenService: reconcile revoke 실패 (executionId=${chunk[idx].executionId}) — fail-open: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
+          );
+        }
+      });
+    }
+    if (rows.length > 0) {
+      this.logger.log(
+        `terminal-revoke reconciliation: ${rows.length} execution(s) swept, ${revoked} jti revoked`,
+      );
+    }
+    return { swept: rows.length, revoked };
   }
 
   // ===========================================================
