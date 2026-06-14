@@ -1,8 +1,15 @@
 ---
-worktree: refactor-04-a1-typed-errors-156e87 (branch claude/refactor-04-a1-typed-errors-156e87) — 본구현 단계
+worktree: refactor-04-a1-typed-errors-156e87 (branch claude/refactor-04-a1-typed-errors-156e87) — 완료
 started: 2026-06-13
+completed: 2026-06-14
 owner: developer
-status: in-progress
+status: complete
+pr: 598, 599
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/5-system/3-error-handling.md
+  - spec/5-system/14-external-interaction-api.md
 ---
 
 > **결정 확정 (2026-06-14)**: 아래 "결정 옵션" 4점 전부 **옵션 A 로 사용자 확정** (AskUserQuestion). 본구현 착수.
@@ -26,8 +33,11 @@ status: in-progress
   - pass2 (11_51_52, Warning 6, fix 후속 검증) → resolution-applier(W-4 JSDoc 라벨·W-6 user-guide error-handling KO/EN·W-2 invariant 주석 + I-10/I-11/I-13 테스트 fix; W-3 already-done·W-5 dismiss[channel-web-chat 는 WS continuation ack 미소비, 검증됨]) + RESOLUTION.md.
 - [x] consistency-check --impl-done (11_50_20, **BLOCK: NO**) — 본 변경 직접 유발 Critical/Warning 없음. W-2 선행조건 충족(spec diff 포함)·W-4 scope 주석 반영됨. 나머지 WARNING/INFO 는 선존 spec/plan nit(auth·security·graph-rag) — planner follow-up.
 
-### 후속 (별도 작업)
-- **I-5 / consistency I2** EIA(REST) 진입점 `MessageTooLongError` → HTTP 422/400 exception filter 매핑. 현재 EIA 는 rethrow → NestJS generic 500 (누출 없음·회귀 없음)이라 필수 아님. spec `§14 External Interaction API` 에러 표 + filter 추가는 별도 결정/범위.
+### 후속 (별도 작업) — ✅ 전부 해소
+
+- [x] **I-5 / consistency I2** EIA(REST) 진입점 `MessageTooLongError` → HTTP **400 `MESSAGE_TOO_LONG`** 매핑 (PR #599, 2026-06-14). 사용자 결정: 422 기각·400 채택(기존 EIA 입력 검증 400 관행 일관). `interaction.service.dispatchContinuation` catch → `badRequest('MESSAGE_TOO_LONG')` (고정 client-safe 문자열·내부 길이 수치 미노출). spec `14-external-interaction-api.md §5.1` 에러 표 행 + `4-execution-engine.md §7.5.2` cross-ref 추가. unit + e2e(191 PASS) 검증.
+
+**플랜 종료**: A-1(PR #598) 본구현 + I-5(PR #599) 후속 전부 완료. 미해결 follow-up 0건 → `plan/complete/` 이동.
 
 # execution-engine client-safe typed error 체계 (refactor 04 후속 A-2)
 
