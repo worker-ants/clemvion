@@ -155,7 +155,7 @@ code:
 | DELETE | /api/triggers/:id | 트리거 삭제 — 자세한 권한·cascade·확인 UX 는 [§4 삭제 정책](#4-삭제-정책) |
 | POST | /api/triggers/:id/chat-channel/rotate-bot-token | Chat Channel bot token rotation (24h grace). 본 endpoint 는 [Spec Chat Channel §5.4](../5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약) 가 single-path SoT — PATCH body 의 `config.chatChannel.botTokenRef` 직접 변경은 차단됨 ([R-CC-10](../5-system/15-chat-channel.md#r-cc-10-bot-token-변경-single-path-rotate-api-only)) |
 | POST | /api/triggers/:id/notification/rotate-secret | Outbound notification HMAC secret 회전. 응답 `{ secret, rotatedAt }`. SoT 는 [Spec EIA §7.1 (Trigger 엔티티 확장)](../5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) |
-| POST | /api/triggers/:id/interaction/revoke-token | per_trigger inbound interaction 토큰 (itk_*) revoke. SoT 는 [Spec EIA §7.3 (InteractionToken)](../5-system/14-external-interaction-api.md#73-interactiontoken-in-memory--redis) |
+| POST | /api/triggers/:id/interaction/revoke-token | per_trigger inbound interaction 토큰 (itk_*) revoke. SoT 는 [Spec EIA §7.3 (InteractionToken)](../5-system/14-external-interaction-api.md#73-interactiontoken-jwt--redis-blacklist--execution_token-jti-추적) |
 
 > Webhook 인증 자격증명의 회전은 트리거가 아니라 AuthConfig 책임 — `POST /api/auth-configs/:id/regenerate` ([Spec 설정 §3](./6-config.md#3-api)) 로 일원화한다. 과거 v1.1 예약 행 `POST /api/triggers/:id/auth/rotate-secret` 은 신설되지 않은 채 본 PR 에서 폐기됐다 (Rationale R-14).
 
