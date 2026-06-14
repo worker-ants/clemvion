@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-14T13:30:31.351062",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/5-system/_product-overview.md, diff-base=origin/main)",
+  "target_path": "spec/5-system/_product-overview.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

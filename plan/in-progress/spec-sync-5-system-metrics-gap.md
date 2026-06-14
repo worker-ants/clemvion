@@ -22,7 +22,8 @@ owner: planner
   - [x] spec W-2: `4-execution-engine.md` §Rationale "DLQ 모니터링" stale 전제 현행화.
   - [x] TEST WORKFLOW (lint·unit·build·e2e)
   - [x] /ai-review (2026-06-14 12:32:02 — SUMMARY: Critical 0 / WARNING 12 / INFO 13. 10/12 fix, W-10·W-12 후속 분리)
-  - [x] /consistency-check --impl-done (2026-06-14 12:55:52 — BLOCK: NO)
+  - [x] /consistency-check --impl-done (2026-06-14 12:55:52 BLOCK: NO — 유효 게이트, push 통과). rebase 후 재실행 13_30_31 은 BLOCK: YES = **검증된 tooling 오탐** (orchestrator 가 impl-done 시 target spec `_product-overview.md §5` 본문을 체커 프롬프트에 못 실어 NF-OB-07 행을 못 봄; spec HEAD 엔 정상 존재). 분석 `review/consistency/2026/06/14/13_30_31/BYPASS-JUSTIFICATION.md`. BYPASS 미사용 — 정상 push 통과.
+  - [x] /ai-review 재실행 (rebase 후 13_21_33 — RISK LOW, Critical 0, WARNING 2[W-10/W-12 기존 후속], RESOLUTION 기록)
 
 ## 후속 (아키텍처 개선 — 이번 PR 조치 안 함)
 - W-10: `registerQueueDepthProvider` push-등록 패턴을 `QUEUE_DEPTH_PROVIDER` 다중 주입 DI 토큰 패턴으로 전환 (암묵적 등록 계약 해소)
@@ -33,6 +34,7 @@ owner: planner
 - I-13: node_executions `(execution_id, status)` 복합 인덱스 존재 확인
 - impl-done W-1: `TERMINAL_STATUSES` 공유 상수 통합 (`ExecutionEngineService` static + `external-interaction/interaction.service.ts` 모듈 const 중복 → `execution-status.enum.ts` 또는 공유 util `TERMINAL_EXECUTION_STATUSES`)
 - impl-done INFO-6: `business-metrics.service.ts` 의 private `LlmTokenUsage` 를 `llm-client.interface.ts` 의 `TokenUsage`(또는 `Partial<TokenUsage>`) 재활용으로 통합
+- (재리뷰 13_21_33 INFO 하드닝 — 후속 PR 일괄): 음수 토큰 `> 0` 명시 검증 + 음수 테스트(INFO-2/7/15) · label cardinality 클램핑(model/node_type, INFO-1) · provider 타임아웃 Promise.race(INFO-3) · 테스트 보강(합산 관측·구체 큐이름 단언·onModuleInit provider 호출, INFO-11~14) · JSDoc/spec bucket 정책/`.env.example` 도메인 메트릭 주석(INFO-18~22)
 
 ## 비고
 - 근거(claim→코드부재)는 audit findings/5-system/5-system___product-overview.md 참조.
