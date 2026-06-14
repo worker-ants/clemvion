@@ -314,7 +314,7 @@ POST /api/external/executions/550e8400-.../interact
 | `400 Bad Request` | `INVALID_COMMAND` | 지원하지 않는 command, 필수 필드 누락 |
 | `400 Bad Request` | `MESSAGE_TOO_LONG` | `submit_message` 의 `message` 가 최대 길이(10000자) 초과. publisher 측 동기 검증 (typed `MessageTooLongError`, [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단))의 EIA 진입점 매핑 — WS 의 평면 ack `EXECUTION_MESSAGE_TOO_LONG` 와 동일 의미. 내부 길이 수치는 응답에 노출하지 않고 고정 메시지만 반환 |
 | `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | 토큰 검증 실패 (응답 헤더 `X-Refresh-Token-Url` 동봉) |
-| `403 Forbidden` | `TOKEN_SCOPE_MISMATCH` | 토큰 scope 가 해당 execution 에 일치하지 않음 ([data-flow §15](../data-flow/15-external-interaction.md) 의 `scope_mismatch→TOKEN_SCOPE_MISMATCH` 매핑·`interaction.guard.ts` 와 동일 코드명. `TOKEN_*` 접두는 §5.1 의 `TOKEN_INVALID`/`TOKEN_EXPIRED` 와 일관) |
+| `403 Forbidden` | `SCOPE_MISMATCH` | 토큰 scope 가 해당 execution 에 일치하지 않음 |
 | `404 Not Found` | `EXECUTION_NOT_FOUND` | executionId 없음 |
 | `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 (예: completed 상태에서 submit_message, 또는 다른 nodeId). publisher 측 사전 검증([실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state))의 EIA 진입점 매핑 — WS 의 `INVALID_EXECUTION_STATE` 와 동일 의미를 EIA 는 `STATE_MISMATCH` 로 표기 |
 | `409 Conflict` | `IDEMPOTENCY_KEY_CONFLICT` | 같은 키 + 다른 body |
@@ -983,4 +983,6 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 | `InvalidExecutionStateError` | `INVALID_EXECUTION_STATE` | `409 STATE_MISMATCH` |
 | `MessageTooLongError` | `EXECUTION_MESSAGE_TOO_LONG` | `400 MESSAGE_TOO_LONG` |
 
-**근거**: WS 채널은 실행 엔진 내부 코드 네임스페이스(`EXECUTION_*`·시스템 레벨 `INVALID_EXECUTION_STATE`, [error-codes.md](../conventions/error-codes.md) 규약)를 직접 노출하는 반면, EIA REST 는 공개 외부 API 표면이라 HTTP status 와 함께 표면 자체의 간결한 코드(`STATE_MISMATCH`·`MESSAGE_TOO_LONG`)를 쓴다. 두 표면을 같은 코드명으로 강제 통일하면 (a) WS 가 REST 식 코드를 쓰면 내부 enum 과 어긋나고, (b) REST 가 `EXECUTION_*` prefix 를 그대로 노출하면 외부 API 가 내부 구현 식별자에 결합된다 — 따라서 **표면별 코드명 + cross-ref 동치 고정**을 채택한다. 단, 같은 표면 안에서는 일관 — EIA REST 의 토큰 에러는 모두 `TOKEN_*` prefix(`TOKEN_INVALID`/`TOKEN_EXPIRED`/`TOKEN_SCOPE_MISMATCH`, [data-flow §15](../data-flow/15-external-interaction.md))로 통일한다.
+**근거**: WS 채널은 실행 엔진 내부 코드 네임스페이스(`EXECUTION_*`·시스템 레벨 `INVALID_EXECUTION_STATE`, [error-codes.md](../conventions/error-codes.md) 규약)를 직접 노출하는 반면, EIA REST 는 공개 외부 API 표면이라 HTTP status 와 함께 표면 자체의 간결한 코드(`STATE_MISMATCH`·`MESSAGE_TOO_LONG`)를 쓴다. 두 표면을 같은 코드명으로 강제 통일하면 (a) WS 가 REST 식 코드를 쓰면 내부 enum 과 어긋나고, (b) REST 가 `EXECUTION_*` prefix 를 그대로 노출하면 외부 API 가 내부 구현 식별자에 결합된다 — 따라서 **표면별 코드명 + cross-ref 동치 고정**을 채택한다.
+
+> **범위**: 본 매핑은 EIA REST **외부 표면**의 실행-상태/메시지 에러 코드 표기에 한정된다 — 동형 의미의 내부 REST core 코드는 [error-handling §1.3](./3-error-handling.md#13-유효성-검증-에러)의 `INVALID_STATE`(422) 어휘를 쓴다. EIA **토큰 인증** 실패 코드(`TOKEN_*` 계열·HTTP status·`SCOPE_MISMATCH` 정합)는 본 절 범위 밖이며 별도 진행 중인 token-error-codes 정합 작업이 소유한다.
