@@ -1020,6 +1020,8 @@ scope/audience 불일치를 HTTP 시맨틱대로 `403 Forbidden`(인증됐으나
 
 **잔여 위험**: sweep 도 Redis(BullMQ) 장애 시 다음 tick 까지 지연되고, live·sweep 양 경로 모두 Redis blacklist SET 에 의존하므로 Redis 전면 장애 중에는 revoke 가 fail-open 으로 지연된다(blacklist 조회도 fail-open 이므로 동일 창에서 토큰이 통과할 수 있음). 단명·execution-scoped 토큰이라 위험도가 낮다는 전제 하에 수용하며, worst-case latency 를 TTL(1h)→sweep 간격(≤1분)으로 축소한 것이 본 결정의 실질 개선이다.
 
+**부팅 정책**: scheduler 등록(`TerminalRevokeReconcilerService.onModuleInit` 의 `upsertJobScheduler`) 실패는 **fail-fast** — 서버 부팅을 차단한다. 매 tick 의 reconcile 실패가 fail-open(swallow·다음 tick 재시도)인 것과 비대칭이나, 등록 실패는 Redis 미연결 등 **운영 설정 오류**라 부팅 시점에 조기 노출하는 편이 안전하다(login-history-pruner 와 동일 정책). 본 큐는 `system-status` 모니터링 레지스트리(`MONITORED_QUEUES`, group `system`)에 등재되어 운영 가시성을 확보한다.
+
 ### R16. `interact`/`cancel` 의 `202 Accepted` + ack body (no-content 아님)
 
 **채택**: §5.1 `interact`·§5.4 `cancel` 는 비동기 처리라 `202 Accepted` 로 응답하되 **빈 body(no-content)가 아니라 ack body** 를 반환한다 (§5.1 `InteractAckDto` `{ executionId, accepted, currentStatus }`, §5.4 `{ executionId, status }`). 구현(`@HttpCode(ACCEPTED)` + DTO 반환)과 전역 `TransformInterceptor`(`{ data: ... }` 래핑)의 실제 동작을 반영한 것이다.

@@ -44,8 +44,12 @@ const RECONCILE_BATCH_LIMIT = 500;
 const RECONCILE_BATCH_MAX = 1000;
 /** sweep 의 execution 단위 병렬 처리 동시성 (N+1 직렬 왕복 완화). */
 const RECONCILE_CONCURRENCY = 20;
-/** terminal execution 상태 — 잔존 토큰 회수 대상. enum 확장 시 본 배열 동기화. */
-const TERMINAL_STATUSES: readonly ExecutionStatus[] = [
+/**
+ * reconciliation sweep 의 terminal execution 상태 — 잔존 토큰 회수 대상. enum 확장 시 동기화.
+ * (SQL `IN` 절용 배열. `interaction.service.ts` 의 동명 `ReadonlySet`(`.has()` 용)과 용도·타입이
+ * 달라 파일별 private 로 분리 — 이름 충돌 회피 위해 `RECONCILE_` prefix.)
+ */
+const RECONCILE_TERMINAL_STATUSES: readonly ExecutionStatus[] = [
   ExecutionStatus.COMPLETED,
   ExecutionStatus.FAILED,
   ExecutionStatus.CANCELLED,
@@ -367,7 +371,9 @@ export class InteractionTokenService {
     const rows = await this.executionTokenRepository
       .createQueryBuilder('et')
       .innerJoin('et.execution', 'e')
-      .where('e.status IN (:...terminal)', { terminal: TERMINAL_STATUSES })
+      .where('e.status IN (:...terminal)', {
+        terminal: RECONCILE_TERMINAL_STATUSES,
+      })
       .select('et.executionId', 'executionId')
       .distinct(true)
       .limit(safeLimit)
