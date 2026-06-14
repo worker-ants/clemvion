@@ -30,7 +30,7 @@ code:
 | schedule-execution | system | 1 (기본) | 스케줄 트리거 실행 |
 | login-history-pruner | system | 1 (기본) | repeatable cron |
 | notification-secret-rotator | system | 1 (기본) | repeatable cron |
-| terminal-revoke-reconcile | system | 1 | repeatable cron (1분) — terminal execution 의 잔존 interaction token sweep revoke ([EIA §3.4 EIA-RL-06 / §9.3 R15](./14-external-interaction-api.md)) |
+| terminal-revoke-reconcile | system | 1 (기본) | repeatable cron (1분) — terminal execution 의 잔존 interaction token sweep revoke ([EIA §3.4 EIA-RL-06 / §9.3 R15](./14-external-interaction-api.md)). reconciliation cron 성격이라 `system` group (외부 연동 호출이 아닌 내부 정합 보강) |
 | chat-channel-token-rotator | system | 1 (기본) | repeatable cron |
 | integration-expiry-scanner | system | 1 (기본) | repeatable cron (6h) |
 | alerts-evaluator | system | 1 (기본) | repeatable cron (5분) |
@@ -38,7 +38,7 @@ code:
 
 > concurrency 가 코드 worker 옵션에 명시되지 않은 큐는 BullMQ 기본값 1 로 본다.
 >
-> ⚠ **구현 갭**: 코드의 `MONITORED_QUEUES` (`system-status.constants.ts`) 에는 `makeshop-token-refresh` 와 `agent-memory-extraction` 이 아직 미등재 — 본 표(모니터링 대상 선언)와 코드 레지스트리의 동기화가 필요하다 (2026-06-10 감사 보고 V-15 추적).
+> ⚠ **구현 갭**: 코드의 `MONITORED_QUEUES` (`system-status.constants.ts`) 에 `agent-memory-extraction` 이 아직 미등재 — 본 표(모니터링 대상 선언)와 코드 레지스트리의 동기화가 필요하다 (2026-06-10 감사 보고 V-15 추적). `makeshop-token-refresh`·`terminal-revoke-reconcile` 은 등재 완료.
 
 ## 2. API
 
