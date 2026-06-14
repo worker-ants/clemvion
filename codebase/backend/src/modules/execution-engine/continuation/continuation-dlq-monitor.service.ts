@@ -12,6 +12,7 @@ import {
   CONTINUATION_DLQ_MONITOR_CONFIG,
   type ContinuationDlqMonitorConfig,
 } from './continuation-dlq-monitor.config';
+import { BusinessMetricsService } from '../../metrics/business-metrics.service';
 
 /**
  * Phase 3.1 (workflow-resumable-execution) — Continuation 큐 dead-letter 모니터.
@@ -26,10 +27,12 @@ import {
  * 1회/cooldown 으로 발생시켜 로그 기반 알람 파이프라인이 픽업하게 한다.
  *
  * 추가로 `delayed`(backoff 대기 = 재시도 backlog) count 를 함께 관측해 retry 율
- * 추세를 같은 로그 라인에서 확인할 수 있게 한다. 본 모니터는 별도 메트릭 SDK
- * 의존 없이 로그만 사용한다 (backend 는 OTel traces + Prometheus 메트릭 파이프라인
- * (`instrumentation.ts`)을 갖추나 그 기본 메트릭은 HTTP/runtime 한정이며, DLQ depth
- * 같은 custom 비즈니스 메트릭 계측은 후속 — NF-OB-02 plan 참조).
+ * 추세를 같은 로그 라인에서 확인할 수 있게 한다.
+ *
+ * **임계 초과 알람(능동 통지)은 log 기반을 유지**하되, 큐 깊이 자체는 NF-OB-07
+ * `clemvion.queue.depth` ObservableGauge 로도 노출한다 — 본 서비스가 continuation
+ * 큐의 depth provider 를 `BusinessMetricsService` 에 등록한다 (gauge=관측, log=cooldown
+ * 통지로 역할 분리. 근거: spec/5-system/4-execution-engine.md §Rationale "DLQ 모니터링").
  *
  * 설정은 `CONTINUATION_DLQ_MONITOR_CONFIG` 로 주입된다 (review W-9 — env 직접
  * 읽기 대신 useFactory 주입). 환경변수·기본값은 `continuation-dlq-monitor.config.ts`.
@@ -49,9 +52,30 @@ export class ContinuationDlqMonitorService
     @InjectQueue(CONTINUATION_EXECUTION_QUEUE) private readonly queue: Queue,
     @Inject(CONTINUATION_DLQ_MONITOR_CONFIG)
     private readonly config: ContinuationDlqMonitorConfig,
+    private readonly businessMetrics: BusinessMetricsService,
   ) {}
 
   onModuleInit(): void {
+    // NF-OB-07 `clemvion.queue.depth` — continuation 큐 깊이를 gauge 에 등록한다.
+    // 알람(아래)이 비활성이어도 깊이 관측은 유효하므로 enabled 체크 이전에 등록한다.
+    this.businessMetrics.registerQueueDepthProvider(async () => {
+      const c = await this.queue.getJobCounts(
+        'waiting',
+        'active',
+        'delayed',
+        'failed',
+      );
+      return [
+        {
+          queue: CONTINUATION_EXECUTION_QUEUE,
+          waiting: c.waiting ?? 0,
+          active: c.active ?? 0,
+          delayed: c.delayed ?? 0,
+          failed: c.failed ?? 0,
+        },
+      ];
+    });
+
     if (!this.config.enabled) {
       this.logger.log(
         'Continuation DLQ monitor disabled (CONTINUATION_DLQ_MONITOR_ENABLED).',

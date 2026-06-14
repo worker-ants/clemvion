@@ -67,11 +67,26 @@
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
 | NF-OB-01 | 구조화된 로깅 (JSON 형식) | 필수 | ✅ |
-| NF-OB-02 | 메트릭 수집 및 모니터링 (Prometheus 호환) | 필수 | ✅ (`OTEL_ENABLED=true`로 활성) — OTel MeterProvider + `@opentelemetry/exporter-prometheus`(`instrumentation.ts`)가 Prometheus scrape 서버(`OTEL_PROMETHEUS_PORT`, 기본 :9464)의 `/metrics` 로 노출. auto-instrumentation 의 HTTP 서버 메트릭 + `instrumentation-runtime-node` 의 런타임(event loop·GC·heap) 메트릭 자동 수집. 비즈니스 커스텀 메트릭(실행 수·큐 깊이·LLM 사용량)은 본 파이프라인 위 후속 |
+| NF-OB-02 | 메트릭 수집 및 모니터링 (Prometheus 호환) | 필수 | ✅ (`OTEL_ENABLED=true`로 활성) — OTel MeterProvider + `@opentelemetry/exporter-prometheus`(`instrumentation.ts`)가 Prometheus scrape 서버(`OTEL_PROMETHEUS_HOST`·`OTEL_PROMETHEUS_PORT`, 기본 `127.0.0.1:9464`)의 `/metrics` 로 노출. auto-instrumentation 의 HTTP 서버 메트릭 + `instrumentation-runtime-node` 의 런타임(event loop·GC·heap) 메트릭 자동 수집. 도메인/비즈니스 커스텀 메트릭은 NF-OB-07 참조 |
 | NF-OB-03 | 분산 트레이싱 (OpenTelemetry 호환) | 권장 | ✅ (`OTEL_ENABLED=true`로 활성, OTLP HTTP exporter 기본 endpoint `/v1/traces`) |
 | NF-OB-04 | 워크플로우 실행 추적 — 각 노드별 실행 시간, 입출력 크기 기록 | 필수 | ✅ |
 | NF-OB-05 | 알림(Alert) 설정 — 실패율, 지연 임계값 초과 시 | 권장 | ✅ (룰 CRUD API + `/profile/alerts` UI + `AlertsEvaluatorService` 가 BullMQ repeatable scheduler `*/5 * * * *` (UTC) 로 5분마다 평가 + rule window 단위 cooldown 으로 노티 스팸 방지) |
 | NF-OB-06 | 시스템 상태 가시화 — 큐 적체/실패/포화도를 집계 UI 로 노출 (개별 job 미노출). 실패는 최근 윈도우 기준 주 지표 + 누적 보관 부 지표로 병기 | 권장 | ✅ (구현 완료 — `GET /api/system-status/overview` + `/system-status` 페이지. 상세 [16-system-status-api](./16-system-status-api.md), [2-navigation/15-system-status](../2-navigation/15-system-status.md)) |
+| NF-OB-07 | 도메인/비즈니스 커스텀 메트릭 (OTel) — 워크플로 실행·큐·LLM·노드 지연을 OTel MeterProvider(NF-OB-02) 위에 노출 | 권장 | ✅ (`OTEL_ENABLED=true` 시. `BusinessMetricsService` 가 `metrics.getMeter('clemvion.business')` 로 계측 — 아래 카탈로그) |
+
+### NF-OB-07 메트릭 카탈로그
+
+OTel instrument 이름은 dot 표기(`clemvion.*`), Prometheus exporter 가 `clemvion_*` 로 sanitize 한다. 모든 라벨은 bounded cardinality (enum·등록 모델 수·노드 타입·표준 에러 코드).
+
+| 메트릭 | 종류 | 라벨 | 의미 |
+|--------|------|------|------|
+| `clemvion.execution.total` | Counter | `status` (completed/failed/cancelled) | 워크플로 실행의 종료(terminal) 전이 수. 에러율 = `rate(...{status="failed"}) / rate(...)` |
+| `clemvion.execution.errors` | Counter | `error_code` | 실패 종료를 에러 코드별로 분해 (status 라벨만으로 안 되는 원인 breakdown) |
+| `clemvion.queue.depth` | ObservableGauge | `queue`, `state` (waiting/active/delayed/failed) | BullMQ 큐 깊이. 주기적 observable callback 이 `getJobCounts` 로 관측 |
+| `clemvion.llm.tokens` | Counter | `model`, `type` (input/output/thinking) | LLM 토큰 사용량. 모든 `LlmService.chat`/`chatStream` 이 거치는 `LlmUsageLogService.record` 단일 지점에서 계측 |
+| `clemvion.node.duration` | Histogram (ms) | `node_type`, `status` | 노드 실행 지연. 실행 종료 시 해당 실행의 node_execution `duration_ms` 로 기록 |
+
+**관측 대상의 이원화 정책 (vs Statistics API)**: 실행 수·LLM 사용량은 DB 집계 기반 [Statistics REST API](../2-navigation/7-statistics.md)에서도 서빙된다. 둘은 **상보적·역할 분리**다 — OTel/Prometheus 는 **실시간 운영 모니터링·알람**(Grafana·alert rule)용 rate/gauge 지표이고, Statistics API 는 **제품 분석·과거 추세**의 SoT(워크스페이스 단위 정확 집계·기간 필터·차트)다. OTel 메트릭은 운영 관측을 위한 보조 노출이며 제품 데이터의 단일 진실이 아니다.
 
 ---
 

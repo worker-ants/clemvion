@@ -36,6 +36,7 @@ import {
 import type { ContinuationPayload } from './queues/continuation-execution.queue';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ShutdownStateService } from './shutdown/shutdown-state.service';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import {
   createEmptyConversationThread,
   rehydrateConversationThread,
@@ -696,6 +697,13 @@ export function isAbortError(err: unknown): err is Error {
 export class ExecutionEngineService
   implements OnModuleInit, OnApplicationBootstrap, WorkflowExecutor
 {
+  /** terminal 상태 집합 — 매 호출마다 재생성 방지 (SUMMARY I-5). */
+  private static readonly TERMINAL_STATUSES = new Set<ExecutionStatus>([
+    ExecutionStatus.COMPLETED,
+    ExecutionStatus.FAILED,
+    ExecutionStatus.CANCELLED,
+  ]);
+
   private readonly logger = new Logger(ExecutionEngineService.name);
 
   /**
@@ -858,6 +866,7 @@ export class ExecutionEngineService
     private readonly continuationBus: ContinuationBusService,
     private readonly conversationThreadService: ConversationThreadService,
     private readonly shutdownState: ShutdownStateService,
+    private readonly businessMetrics: BusinessMetricsService,
   ) {}
 
   /**
@@ -886,6 +895,31 @@ export class ExecutionEngineService
 
   onModuleInit(): void {
     this.registerHandlers();
+    // NF-OB-07 `clemvion.queue.depth` — 본 서비스가 소유한 두 큐의 깊이를 gauge 에
+    // 등록한다 (continuation 큐는 ContinuationDlqMonitorService 가 별도 등록).
+    this.businessMetrics.registerQueueDepthProvider(async () => {
+      const queues: Array<{ name: string; queue: Queue }> = [
+        { name: EXECUTION_RUN_QUEUE, queue: this.executionRunQueue },
+        { name: BACKGROUND_EXECUTION_QUEUE, queue: this.backgroundQueue },
+      ];
+      return Promise.all(
+        queues.map(async ({ name, queue }) => {
+          const c = await queue.getJobCounts(
+            'waiting',
+            'active',
+            'delayed',
+            'failed',
+          );
+          return {
+            queue: name,
+            waiting: c.waiting ?? 0,
+            active: c.active ?? 0,
+            delayed: c.delayed ?? 0,
+            failed: c.failed ?? 0,
+          };
+        }),
+      );
+    });
     // Phase 2 (workflow-resumable-execution): 옛 ContinuationBusService.on(...)
     // 기반 in-memory listener 등록은 완전 폐기됨 (full B3). continuation 처리는
     // BullMQ Worker (continuation-execution.processor.ts) 가 담당하며 본 서비스의
@@ -9271,6 +9305,7 @@ export class ExecutionEngineService
         await manager.save(Execution, execution);
         await manager.save(NodeExecution, linkedNodeExec);
       });
+      this.emitTerminalExecutionMetrics(execution, newStatus, true);
       return true;
     }
 
@@ -9309,7 +9344,73 @@ export class ExecutionEngineService
           : JSON.stringify(execution.resumeCallStack),
       ],
     );
-    return updated.length > 0;
+    const persisted = updated.length > 0;
+    this.emitTerminalExecutionMetrics(execution, newStatus, persisted);
+    return persisted;
+  }
+
+  /**
+   * NF-OB-07 — 실행이 terminal 로 전이했고 그 전이가 실제 영속됐을 때만 메트릭을
+   * 발생시킨다 (guarded UPDATE 가 0행이면 이미 terminal 인 중복 전이라 skip).
+   * `clemvion.execution.total{status}` + 실패 시 `clemvion.execution.errors{error_code}`,
+   * 그리고 노드 지연 histogram(fire-and-forget)을 기록한다. 메트릭 실패가 실행
+   * 경로에 영향을 주지 않도록 전부 무동작-안전하다.
+   */
+  private emitTerminalExecutionMetrics(
+    execution: Execution,
+    newStatus: ExecutionStatus,
+    persisted: boolean,
+  ): void {
+    if (!persisted) return;
+    if (!ExecutionEngineService.TERMINAL_STATUSES.has(newStatus)) return;
+    this.businessMetrics.recordExecutionTerminal(newStatus);
+    if (newStatus === ExecutionStatus.FAILED) {
+      const code =
+        (execution.error?.code as string | undefined)?.trim() || 'unknown';
+      this.businessMetrics.recordExecutionError(code);
+    }
+    // 노드 지연 histogram — 종료된 실행의 node_execution duration 을 비동기로 기록.
+    // 실행 마감 경로를 막지 않도록 fire-and-forget (오류 swallow).
+    void this.recordNodeLatencyMetrics(execution.id);
+  }
+
+  /**
+   * 실행의 종료된 node_execution 들의 `duration_ms` 를 node_type·status 라벨로
+   * histogram 에 기록한다. terminal 전이 시 1회 호출되는 단일 지점이라 노드별
+   * 산발 계측 없이 모든 노드 지연을 모은다.
+   *
+   * QueryBuilder 로 `ne.id / ne.duration_ms / ne.status / n.type` 4컬럼만 SELECT —
+   * 전체 엔티티+JOIN 전량 조회 대신 필요한 최소 컬럼만 projection (SUMMARY W-9).
+   * `durationMs == null` 는 미완료·레거시 row (finishedAt 이 기록되지 않은 경우) —
+   * histogram 에 의미 없는 값이므로 건너뛴다.
+   */
+  private async recordNodeLatencyMetrics(executionId: string): Promise<void> {
+    try {
+      const rows = await this.nodeExecutionRepository
+        .createQueryBuilder('ne')
+        .select(['ne.id', 'ne.duration_ms', 'ne.status'])
+        .leftJoin('ne.node', 'n')
+        .addSelect('n.type')
+        .where('ne.execution_id = :executionId', { executionId })
+        .andWhere('ne.status IN (:...statuses)', {
+          statuses: [
+            NodeExecutionStatus.COMPLETED,
+            NodeExecutionStatus.FAILED,
+            NodeExecutionStatus.CANCELLED,
+          ],
+        })
+        .getMany();
+      for (const row of rows) {
+        if (row.durationMs == null) continue;
+        this.businessMetrics.recordNodeDuration(
+          row.node?.type ?? 'unknown',
+          row.status,
+          row.durationMs,
+        );
+      }
+    } catch {
+      // 메트릭 수집 실패는 무시 — 실행 결과·후속 처리에 영향 없음.
+    }
   }
 
   private async createNodeExecution(
