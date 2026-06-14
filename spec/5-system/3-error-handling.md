@@ -54,7 +54,7 @@ code:
 | `WORKFLOW_VERSION_CONFLICT` | 동시 캔버스 저장 경합 — 동일 워크플로우 버전 번호 unique 위반을 감지해 재시도 권고와 함께 반환 (`workflow-versions.service.ts` 발행) | 409 |
 | `INVALID_STATE` | 상태 전이 불가 (이미 실행 중인 워크플로우 삭제 등) | 422 |
 
-> WS commands 에서는 동일 의미를 `INVALID_EXECUTION_STATE` 코드로 표기 ([WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state)). REST 와 WS 의 routing 분기 가시성을 위해 의도적 분리.
+> WS commands 에서는 동일 의미를 `INVALID_EXECUTION_STATE` 코드로 표기 ([WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state)). EIA REST `/interact` 진입점에서는 continuation 명령이 현재 노드/실행 상태와 불일치할 때 같은 의미를 `STATE_MISMATCH`(409) 로 표기한다 (External Interaction API §5.1 에러 표 + §R13 표면별 코드명 매핑 원칙, [14-external-interaction-api.md](./14-external-interaction-api.md)). REST core(`INVALID_STATE`/422) · WS(`INVALID_EXECUTION_STATE`) · EIA REST(`STATE_MISMATCH`/409) 의 표면별 코드 분리는 routing 분기 가시성을 위한 의도적 결정.
 
 ### 1.4 워크플로우 실행 에러
 

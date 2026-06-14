@@ -19,6 +19,20 @@ pending_plans:
 
 ---
 
+## Overview
+
+플랫폼의 인증·인가·감사 기반을 정의한다. 본 문서는 사용자 신원(로그인·2FA·세션)과 권한(RBAC)의 단일 진실이다.
+
+- **인증 (§1)** — 이메일/비밀번호, 2FA(TOTP · WebAuthn/Passkey), OAuth 소셜 로그인, 가입·이메일 인증 흐름.
+- **세션 관리 (§2)** — access/refresh 토큰 family, 디바이스별 revoke, IP 추출 정책.
+- **인가 (§3)** — 워크스페이스 스코프 RBAC 매트릭스(역할별 권한, AuthConfig reveal 권한 분리 포함).
+- **감사 로그 (§4)** — `user.*` · `auth_config.*` 감사 액션과 workspace 귀속 규칙.
+- **API 엔드포인트 (§5)** — 인증 관련 REST 표면. 사용자 세션/프로필·초대·AuthConfig CRUD 등 인접 엔드포인트는 각 SoT 문서를 포인터로 참조한다(중복 정의 금지).
+
+> 인증 설정(AuthConfig, 통합 자격증명 vault) 엔드포인트의 SoT 는 [설정 spec §A.4](../2-navigation/6-config.md) 이며, 본 문서는 그 권한(RBAC §3.2)·감사(§4.1)만 다룬다.
+
+---
+
 ## 1. 인증 (Authentication)
 
 ### 1.1 이메일/비밀번호 인증
@@ -129,7 +143,7 @@ WebAuthn 은 **셀프 호스팅 도메인이 SaaS 와 다르다** 는 전제 때
 | 활성 (enabled=true) | 두 환경변수 모두 설정 **또는** `WEBAUTHN_ALLOW_FALLBACK=1` | 모든 WebAuthn 엔드포인트 정상 동작. `/auth/login` 응답이 §1.4.2 표에 따라 `methods=['webauthn']` 분기 가능 |
 | 비활성 (enabled=false) | 환경변수 미설정 + 폴백 미허용 | 부팅은 정상 (warn 로그). WebAuthn 엔드포인트는 모두 `503 WEBAUTHN_DISABLED` 반환. `/auth/login` 은 credential 보유와 무관하게 `webauthnCount=0` 으로 취급 → `methods=['totp']` 또는 즉시 로그인. 프론트엔드는 `GET /auth/2fa/webauthn/availability` 응답에 따라 Passkey UI 를 숨긴다 |
 
-**`/auth/2fa/webauthn/availability`** — Public GET. 응답 `{ data: { enabled: boolean } }`. 인증 불요. 프론트엔드가 보안 페이지 진입 시 호출해 Passkey 카드 노출 여부를 결정한다.
+**`/auth/2fa/webauthn/availability`** — Public GET. 응답(논리 payload) `{ enabled: boolean }` — 전역 `TransformInterceptor` 가 wire 에서 `{ "data": { "enabled": … } }` 로 래핑하므로 클라이언트는 `res.data.enabled` 로 읽는다 ([API 규약 §5](./2-api-convention.md#5-응답-형식)). §5 엔드포인트 표(`{ enabled: boolean }`)와 동일 — 본 문서는 논리 payload 표기로 통일한다. 인증 불요. 프론트엔드가 보안 페이지 진입 시 호출해 Passkey 카드 노출 여부를 결정한다.
 
 운영자가 미설정 상태에서 사용자가 이미 WebAuthn credential 을 보유 중인 경우: DB row 는 보존되며 운영자가 env 를 다시 설정하면 그대로 재사용 가능하다. 비활성 동안 사용자는 TOTP 또는 일반 로그인으로 진입하므로 락아웃되지 않는다 (Rationale 1.4.F).
 
