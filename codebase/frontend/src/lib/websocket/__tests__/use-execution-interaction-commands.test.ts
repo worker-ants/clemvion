@@ -429,6 +429,50 @@ describe("useExecutionInteractionCommands", () => {
     });
   });
 
+  // I-12 — clickButton / endConversation localization path (§7.5.2)
+  describe("clickButton errorCode localization (§7.5.2, I-12)", () => {
+    function failClickButton(ack: Record<string, unknown>) {
+      const { result } = renderHook(() =>
+        useExecutionInteractionCommands("exec-1"),
+      );
+      act(() => {
+        result.current.clickButton("btn-x");
+      });
+      const onceCall = onceMock.mock.calls.find(
+        ([event]) => event === "execution.click_button.ack",
+      );
+      const ackHandler = onceCall![1] as (resp: unknown) => void;
+      act(() => {
+        ackHandler({ success: false, ...ack });
+      });
+    }
+
+    it("clickButton: INVALID_EXECUTION_STATE → invalidState i18n 키", () => {
+      failClickButton({
+        error: "Execution is not waiting for input.",
+        errorCode: "INVALID_EXECUTION_STATE",
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.invalidState",
+      );
+    });
+
+    it("clickButton: EXECUTION_INTERNAL_ERROR → internalError i18n 키", () => {
+      failClickButton({
+        error: "Button click failed",
+        errorCode: "EXECUTION_INTERNAL_ERROR",
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.internalError",
+      );
+    });
+
+    it("clickButton: 매핑 없는 errorCode 는 backend 영문 error 로 fallback", () => {
+      failClickButton({ error: "some error", errorCode: "UNMAPPED_CODE" });
+      expect(toastErrorMock).toHaveBeenCalledWith("some error");
+    });
+  });
+
   // CT-S11 — SUMMARY#6: retryLastTurn WS command tests
   describe("retryLastTurn", () => {
     it("emits execution.retry_last_turn with executionId and nodeExecutionId", () => {

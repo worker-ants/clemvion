@@ -918,6 +918,58 @@ describe('WebsocketGateway', () => {
     });
   });
 
+  describe('handleSubmitMessage (§7.5.2 leak-block, I-11)', () => {
+    function authedMessageSocket(): Socket {
+      const { socket } = createMockSocket({ id: 'client-msg' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+      return socket;
+    }
+
+    it('plain Error 를 throw 하면 내부 message 미전달 + EXECUTION_INTERNAL_ERROR fallback (§7.5.2)', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.continueAiConversation as jest.Mock).mockRejectedValueOnce(
+        new Error('SELECT * FROM secrets WHERE id=999 — internal PG error'),
+      );
+
+      const result = await gateway.handleSubmitMessage(
+        { executionId: 'exec-1', nodeId: 'node-1', message: 'hi' },
+        authedMessageSocket(),
+      );
+      expect(result.data.success).toBe(false);
+      // 보안 게이트: 내부 message/stack 은 client ack 에 미포함.
+      expect(result.data.errorCode).toBe('EXECUTION_INTERNAL_ERROR');
+      expect(result.data.error).toBe('Message submission failed');
+      expect(result.data.error).not.toContain('secrets');
+      expect(result.data.error).not.toContain('PG error');
+    });
+
+    it('typed MessageTooLongError 는 고정 message + EXECUTION_MESSAGE_TOO_LONG (수치 미노출)', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.continueAiConversation as jest.Mock).mockRejectedValueOnce(
+        new MessageTooLongError(10_000, 200_001),
+      );
+
+      const result = await gateway.handleSubmitMessage(
+        {
+          executionId: 'exec-1',
+          nodeId: 'node-1',
+          message: 'x'.repeat(200_001),
+        },
+        authedMessageSocket(),
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.errorCode).toBe('EXECUTION_MESSAGE_TOO_LONG');
+      expect(result.data.error).toBe(
+        'Message exceeds the maximum allowed length.',
+      );
+      // 서버 로그 전용 수치가 client ack 에 노출되지 않는다.
+      expect(result.data.error).not.toContain('200001');
+      expect(result.data.error).not.toContain('10000');
+    });
+  });
+
   describe('broadcastToChannel', () => {
     it('should emit to the correct channel', () => {
       const emitFn = jest.fn();

@@ -94,7 +94,7 @@ export class InvalidExecutionStateError extends ExecutionError {
     this.name = 'InvalidExecutionStateError';
   }
 
-  /** @deprecated 서버 로그 전용 상세 — {@link serverDetail} 의 별칭 (spec §7.5.1). */
+  /** @deprecated since refactor-04-a1 — use {@link serverDetail}; remove after callers migrated (spec §7.5.1). */
   get detail(): string | undefined {
     return this.serverDetail;
   }
@@ -129,7 +129,7 @@ export class RetryLastTurnError extends ExecutionError {
     this.name = 'RetryLastTurnError';
   }
 
-  /** @deprecated 서버 로그 전용 상세 — {@link serverDetail} 의 별칭. */
+  /** @deprecated since refactor-04-a1 — use {@link serverDetail}; remove after callers migrated. */
   get detail(): string | undefined {
     return this.serverDetail;
   }
@@ -174,6 +174,15 @@ export class RetryLastTurnError extends ExecutionError {
  * W3(ai-review SECURITY) — `.message` 는 고정 문자열만. 누적 ms / 한도 ms 수치는
  * REST API 응답·WS 이벤트에 노출되므로 `activeRunningMs` / `limitMs` 프로퍼티로 분리해
  * 서버 로그 전용으로 기록한다 (`assertActiveTimeWithinLimit` 호출 지점에서 logger.warn).
+ */
+/**
+ * **설계 경계 (I-3, ai-review)**: `ExecutionTimeLimitError` 는 `ExecutionError` 계층
+ * 밖(`extends Error`)에 의도적으로 남겨져 있다 — dispatch loop 가 execution 레벨에서
+ * throw 하는 sentinel 로, continuation ack (submit_form / submit_message 등) 의 동기
+ * 경로에 도달하지 않는다. 해당 경로에 도달하면 `buildContinuationErrorAck` 가 비-typed
+ * generic fallback + `EXECUTION_INTERNAL_ERROR` 로 축약하는 보안 게이트를 거친다
+ * (누출 없음). `ExecutionError` 로 승격하면 code/message 가 continuation ack 에 직접
+ * surface 되므로 현재 구조를 의도적으로 유지한다 (spec §7.5.2).
  */
 export class ExecutionTimeLimitError extends Error {
   readonly code = ErrorCode.EXECUTION_TIME_LIMIT_EXCEEDED;

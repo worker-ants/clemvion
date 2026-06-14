@@ -42,6 +42,35 @@ describe('ExecutionError typed error 계약 (§7.5.2)', () => {
       expect(err.serverDetail).toBe('state row gone');
       expect(err.detail).toBe('state row gone');
     });
+
+    it('notRetryable factory — NODE_NOT_RETRYABLE code + 고정 client-safe message (I-10)', () => {
+      const err = RetryLastTurnError.notRetryable('retryable=false on ne-abc');
+      expect(err).toBeInstanceOf(ExecutionError);
+      expect(err.code).toBe(ErrorCode.NODE_NOT_RETRYABLE);
+      expect(err.message).toBe('This node cannot be retried.');
+      // serverDetail 은 서버 로그 전용 — client message 에 미포함.
+      expect(err.serverDetail).toBe('retryable=false on ne-abc');
+      expect(err.message).not.toContain('ne-abc');
+      // 하위 호환 별칭
+      expect(err.detail).toBe('retryable=false on ne-abc');
+    });
+
+    it('tooEarly factory — RETRY_TOO_EARLY code + 고정 client-safe message (I-10)', () => {
+      const err = RetryLastTurnError.tooEarly('retryAfterSec=30 elapsed=5');
+      expect(err).toBeInstanceOf(ExecutionError);
+      expect(err.code).toBe(ErrorCode.RETRY_TOO_EARLY);
+      expect(err.message).toBe(
+        'Retry requested before the retry-after window elapsed.',
+      );
+      expect(err.serverDetail).toBe('retryAfterSec=30 elapsed=5');
+      expect(err.message).not.toContain('retryAfterSec');
+      expect(err.detail).toBe('retryAfterSec=30 elapsed=5');
+    });
+
+    it('notRetryable/tooEarly factory 에 detail 미지정 시 serverDetail 은 undefined (I-10)', () => {
+      expect(RetryLastTurnError.notRetryable().serverDetail).toBeUndefined();
+      expect(RetryLastTurnError.tooEarly().serverDetail).toBeUndefined();
+    });
   });
 
   describe('MessageTooLongError', () => {

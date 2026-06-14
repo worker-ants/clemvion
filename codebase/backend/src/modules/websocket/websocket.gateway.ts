@@ -160,7 +160,9 @@ export class WebsocketGateway
           // userId 는 workspace 와 달리 JWT sub 에서 옴 — 빈 값/불일치 모두 거부.
           const allowed = !!userId && targetUserId === userId;
           return Promise.resolve(
-            allowed ? null : { error: 'Not authorized for these notifications' },
+            allowed
+              ? null
+              : { error: 'Not authorized for these notifications' },
           );
         },
       },
@@ -881,6 +883,12 @@ export class WebsocketGateway
    *   원본 message/stack 은 서버 로그에만 기록한다 (누출 차단 보안 게이트).
    *
    * worker 측 `RESUME_*`(§7.5.1)는 본 동기 ack 경로 밖 — 후행 `execution.cancelled` 통지.
+   *
+   * @param event WS ack 이벤트 이름 (예: `execution.form_submitted`).
+   * @param error catch 블록에서 받은 throw 값.
+   * @param fallbackMessage plain(non-typed) Error 에만 사용되는 client-side 고정 메시지.
+   *   typed `ExecutionError` 가 아닌 경우에만 이 값이 `error` 필드로 노출되며, 내부
+   *   `error.message` 는 절대 client 에 전달하지 않는다 (누출 차단).
    */
   private buildContinuationErrorAck(
     event: string,

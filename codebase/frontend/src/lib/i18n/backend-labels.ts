@@ -616,6 +616,14 @@ export const ERROR_KO: Record<string, string> = {
   // setupChannel 의 기타 실패(5xx·네트워크 등) → 502 (spec §5.4).
   CHAT_CHANNEL_SETUP_FAILED:
     "채팅 채널 설정에 실패했어요. 잠시 후 다시 시도하거나 토큰·설정을 확인해 주세요.",
+  // A-1 typed-error — continuation ack generic fallback (§7.5.2 spec). defense-in-depth:
+  // frontend localizes via execution-error-codes.ts map, but ERROR_KO provides a fallback
+  // path for any consumer that routes errorCode through translateBackendError.
+  EXECUTION_INTERNAL_ERROR:
+    "요청을 처리하는 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
+  // A-1 typed-error — submit_message 길이 초과 (MessageTooLongError §7.5.2).
+  EXECUTION_MESSAGE_TOO_LONG:
+    "메시지가 너무 길어요. 더 짧게 작성해 주세요.",
 };
 
 /**
