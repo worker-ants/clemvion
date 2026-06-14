@@ -312,6 +312,7 @@ POST /api/external/executions/550e8400-.../interact
 |------|------|------|
 | `400 Bad Request` | `VALIDATION_FAILED` | submit_form 의 field 검증 실패. body 의 `error.details.fieldErrors[]` 참조. execution 상태 유지(재제출 가능) |
 | `400 Bad Request` | `INVALID_COMMAND` | 지원하지 않는 command, 필수 필드 누락 |
+| `400 Bad Request` | `MESSAGE_TOO_LONG` | `submit_message` 의 `message` 가 최대 길이(10000자) 초과. publisher 측 동기 검증 (typed `MessageTooLongError`, [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단))의 EIA 진입점 매핑 — WS 의 평면 ack `EXECUTION_MESSAGE_TOO_LONG` 와 동일 의미. 내부 길이 수치는 응답에 노출하지 않고 고정 메시지만 반환 |
 | `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | 토큰 검증 실패 (응답 헤더 `X-Refresh-Token-Url` 동봉) |
 | `403 Forbidden` | `SCOPE_MISMATCH` | 토큰 scope 가 해당 execution 에 일치하지 않음 |
 | `404 Not Found` | `EXECUTION_NOT_FOUND` | executionId 없음 |

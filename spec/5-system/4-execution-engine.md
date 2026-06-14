@@ -1010,6 +1010,8 @@ park 한 노드가 중첩 sub-workflow(`executeInline`) 안에 있으면 (`Execu
 
 frontend 는 backend 의 안정 code 를 `code → i18n key` 맵으로 표시하며(`integration-error-codes` 선례), 미매핑 code 는 generic fallback 으로 graceful 처리한다 — backend 는 i18n 레이어를 두지 않는다. 본 정책의 WS ack 표면은 [§6-websocket-protocol §4.2 continuation 에러 코드 표](./6-websocket-protocol.md#42-실행-제어-명령-client--server)와 정합한다.
 
+> **EIA(REST) 진입점 매핑**: 동일 `MessageTooLongError` 가 EIA `submit_message`(`interaction.service`)에서 발생하면 `400 Bad Request` + `MESSAGE_TOO_LONG` 으로 매핑한다 (publisher 측 동기 검증, [§14 EIA §5.1 에러 표](./14-external-interaction-api.md#51-인터랙션-명령-제출--post-apiexternalexecutionsexecutionidinteract)). `InvalidExecutionStateError`→`STATE_MISMATCH`(409, §7.5.1)와 동형의 EIA 진입점 매핑이며, WS 평면 ack `EXECUTION_MESSAGE_TOO_LONG` 와 같은 의미를 REST layer 코드로 표기한다. 내부 길이 수치는 응답 미노출(고정 메시지만) — 누출 차단 원칙 동일.
+
 > worker 측 비동기 실패(`RESUME_*`, §7.5.1)는 본 동기 ack 변환 경로 밖이다 — 후행 `execution.cancelled` 이벤트로 통지되며, 동일 누출 차단 원칙(내부 message 미노출, code 만)은 그 이벤트 빌더에도 적용된다(별도 경로라 본 변경 범위 밖, 후속 점검 항목).
 
 ---

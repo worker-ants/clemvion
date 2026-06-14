@@ -13,7 +13,10 @@ import {
   ExecutionStatus,
 } from '../executions/entities/execution.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  MessageTooLongError,
+} from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { InteractionTokenService } from './interaction-token.service';
 import { InteractDto } from './dto/interact.dto';
@@ -268,7 +271,12 @@ export class InteractionService {
    * spec §7.5.1 — continuation publish 의 publisher 측 사전 검증 (resolveWaiting
    * NodeExecutionId) 이 throw 하는 `INVALID_EXECUTION_STATE` 를 EIA 외부 진입점의
    * 409 `STATE_MISMATCH` 로 매핑한다 (assertWaiting 과 동일 의미 — assertWaiting
-   * 통과 후의 race window 보강). 그 외 에러는 그대로 전파.
+   * 통과 후의 race window 보강).
+   *
+   * I-5 (spec EIA §5.1 / 실행 엔진 §7.5.2): `MessageTooLongError` →
+   * 400 `MESSAGE_TOO_LONG`. 내부 길이 수치는 `serverDetail` 전용 — 응답에 미노출.
+   *
+   * 그 외 에러는 그대로 전파.
    */
   private async dispatchContinuation(promise: Promise<unknown>): Promise<void> {
     try {
@@ -278,6 +286,13 @@ export class InteractionService {
         throw new ConflictException({
           error: { code: 'STATE_MISMATCH', message: error.message },
         });
+      }
+      // I-5 (refactor 04 A-1 후속) — submit_message 길이 초과 typed error 를
+      // generic 500 대신 400 으로 매핑한다 (spec §14 §5.1 / 실행 엔진 §7.5.2).
+      // `error.message` 는 고정 client-safe 문자열 — 내부 길이 수치는 serverDetail
+      // 전용이라 응답에 노출되지 않는다.
+      if (error instanceof MessageTooLongError) {
+        throw badRequest('MESSAGE_TOO_LONG', error.message);
       }
       throw error;
     }
