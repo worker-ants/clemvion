@@ -319,3 +319,162 @@ describe("WorkflowsPage — search/filter no-results reset CTA", () => {
     ).toBeNull();
   });
 });
+
+describe("WorkflowsPage — sort (NAV §2.4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
+    cleanup();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("omits sort/order params on the default (created) sort", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    const firstCallParams = listSpy.mock.calls[0]?.[0] as
+      | Record<string, string>
+      | undefined;
+    // Default sort delegates to the server default — no explicit params sent.
+    expect(firstCallParams?.sort).toBeUndefined();
+    expect(firstCallParams?.order).toBeUndefined();
+  });
+
+  it("sends sort=last_run&order=desc when 'Last run' is selected", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    listSpy.mockClear();
+
+    await userEvent.selectOptions(
+      screen.getByTestId("workflow-sort"),
+      "lastRun",
+    );
+
+    await vi.waitFor(() => expect(listSpy).toHaveBeenCalled());
+    const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+      | Record<string, string>
+      | undefined;
+    expect(lastParams?.sort).toBe("last_run");
+    expect(lastParams?.order).toBe("desc");
+  });
+
+  it("sends sort=updated_at&order=desc when 'Recently updated' is selected", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    listSpy.mockClear();
+
+    await userEvent.selectOptions(
+      screen.getByTestId("workflow-sort"),
+      "updated",
+    );
+
+    await vi.waitFor(() => expect(listSpy).toHaveBeenCalled());
+    const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+      | Record<string, string>
+      | undefined;
+    expect(lastParams?.sort).toBe("updated_at");
+    expect(lastParams?.order).toBe("desc");
+  });
+
+  it("resets page to 1 when the sort changes (carries page=1, not the prior page)", async () => {
+    // 3 pages so the pagination nav renders and page 2 is reachable.
+    setListResponse({
+      data: Array.from({ length: 10 }, (_, i) => ({
+        id: `wf-${i}`,
+        name: `Workflow ${i}`,
+        isActive: true,
+        tags: [],
+      })),
+      pagination: { page: 1, limit: 10, totalItems: 25, totalPages: 3 },
+    });
+    await renderPage();
+    await screen.findByText("Workflow 0");
+
+    // Go to page 2 first.
+    await userEvent.click(screen.getByRole("button", { name: "2" }));
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    listSpy.mockClear();
+
+    // Changing the sort must reset to page 1.
+    await userEvent.selectOptions(
+      screen.getByTestId("workflow-sort"),
+      "name",
+    );
+
+    await vi.waitFor(() => expect(listSpy).toHaveBeenCalled());
+    const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+      | Record<string, string | number>
+      | undefined;
+    // page is serialized as a string in the list params.
+    expect(String(lastParams?.page)).toBe("1");
+    expect(lastParams?.sort).toBe("name");
+  });
+
+  it("treats a non-default sort as an active filter: empty results show the Reset CTA, and reset restores the default sort", async () => {
+    setListResponse({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    // Default sort + no other filters → create CTA.
+    expect(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    ).toBeInTheDocument();
+
+    // Switching to a non-default sort makes hasActiveFilters true even though
+    // no search/status/ownership filter is set.
+    await userEvent.selectOptions(
+      screen.getByTestId("workflow-sort"),
+      "lastRun",
+    );
+
+    const resetBtn = await screen.findByRole("button", {
+      name: /Reset Filters/i,
+    });
+    expect(resetBtn).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Create Workflow/i }),
+    ).toBeNull();
+
+    // Reset restores default sort → create CTA returns, select goes back to created.
+    await userEvent.click(resetBtn);
+    expect(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    ).toBeInTheDocument();
+    expect(
+      (screen.getByTestId("workflow-sort") as HTMLSelectElement).value,
+    ).toBe("created");
+  });
+});

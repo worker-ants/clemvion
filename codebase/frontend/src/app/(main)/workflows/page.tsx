@@ -22,6 +22,7 @@ import { workflowsApi, type WorkflowData } from "@/lib/api/workflows";
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -35,6 +36,40 @@ import { useT, type TranslationKey } from "@/lib/i18n";
 type FilterStatus = "all" | "active" | "inactive";
 type Ownership = "all" | "mine" | "shared";
 
+// spec §2.4 — 정렬 옵션 → backend sort/order 매핑. "created" 는 서버 기본값과 동일.
+type SortKey = "created" | "updated" | "name" | "lastRun";
+const SORT_OPTIONS: {
+  key: SortKey;
+  sort: string;
+  order: "asc" | "desc";
+  labelKey: TranslationKey;
+}[] = [
+  {
+    key: "created",
+    sort: "created_at",
+    order: "desc",
+    labelKey: "workflows.sort.createdDesc",
+  },
+  {
+    key: "updated",
+    sort: "updated_at",
+    order: "desc",
+    labelKey: "workflows.sort.updatedDesc",
+  },
+  {
+    key: "name",
+    sort: "name",
+    order: "asc",
+    labelKey: "workflows.sort.nameAsc",
+  },
+  {
+    key: "lastRun",
+    sort: "last_run",
+    order: "desc",
+    labelKey: "workflows.sort.lastRunDesc",
+  },
+];
+
 const PAGE_SIZE = 10;
 
 export default function WorkflowsPage() {
@@ -45,6 +80,8 @@ export default function WorkflowsPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<FilterStatus>("all");
+  // spec §2.4 — 정렬 옵션. backend 가 sort/order(created_at·updated_at·name·last_run) 를 지원한다.
+  const [sortKey, setSortKey] = useState<SortKey>("created");
   // spec/2-navigation/1-workflow-list.md §2.3 — 팀 워크스페이스에서만 의미가 있는
   // 소유 필터. `mine` / `shared` / `all` 3 옵션을 그대로 `?ownership=` 으로 매핑.
   const [ownership, setOwnership] = useState<Ownership>("all");
@@ -102,7 +139,7 @@ export default function WorkflowsPage() {
     items: WorkflowData[];
     total: number;
   }>({
-    queryKey: ["workflows", debouncedSearch, filter, ownership, page],
+    queryKey: ["workflows", debouncedSearch, filter, ownership, sortKey, page],
     queryFn: async () => {
       const params: Record<string, string> = {
         page: String(page),
@@ -111,6 +148,15 @@ export default function WorkflowsPage() {
       if (debouncedSearch) params.search = debouncedSearch;
       if (filter === "active") params.status = "active";
       if (filter === "inactive") params.status = "inactive";
+      // §2.4 정렬 — 기본(created) 외에는 sort/order 송신. last_run 은 backend 가
+      // execution 최근 실행 시각 subquery 로 정렬한다.
+      if (sortKey !== "created") {
+        const opt = SORT_OPTIONS.find((o) => o.key === sortKey);
+        if (opt) {
+          params.sort = opt.sort;
+          params.order = opt.order;
+        }
+      }
       // 개인 워크스페이스에서는 ownership 자체가 UI 비노출이라 `all` 로 묶인다.
       // 명시적으로 `all` 인 경우 파라미터를 보내지 않아 backend 가 기본값(전체)로 처리.
       if (isTeamWorkspace && ownership !== "all") {
@@ -283,15 +329,20 @@ export default function WorkflowsPage() {
     { labelKey: "workflows.ownership.shared", value: "shared" },
   ];
 
+  // 비기본 정렬도 "활성 필터"로 취급한다. 그래야 정렬만 바꿔 결과가 0건일 때
+  // EmptyState 가 "Create Workflow" 가 아니라 "Reset Filters" CTA 를 노출하고,
+  // handleResetFilters() 의 setSortKey("created") 복귀 경로와 일관된다.
   const hasActiveFilters =
     !!debouncedSearch ||
     filter !== "all" ||
+    sortKey !== "created" ||
     (isTeamWorkspace && ownership !== "all");
 
   function handleResetFilters() {
     setSearch("");
     setFilter("all");
     setOwnership("all");
+    setSortKey("created");
     setPage(1);
   }
 
@@ -353,6 +404,23 @@ export default function WorkflowsPage() {
               {t(fb.labelKey)}
             </Button>
           ))}
+        </div>
+        <div className="w-44">
+          <NativeSelect
+            aria-label={t("workflows.sort.aria")}
+            value={sortKey}
+            onChange={(e) => {
+              setSortKey(e.target.value as SortKey);
+              setPage(1);
+            }}
+            data-testid="workflow-sort"
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>
+                {t(o.labelKey)}
+              </option>
+            ))}
+          </NativeSelect>
         </div>
         {isTeamWorkspace && (
           <div
