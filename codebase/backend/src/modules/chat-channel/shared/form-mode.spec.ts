@@ -389,9 +389,7 @@ describe('validateFormSubmission', () => {
   });
 
   it('§6.2 pattern — regex 미일치 → 오류 / 일치 → null', () => {
-    const defs = [
-      field({ name: 'code', type: 'text', pattern: '^[A-Z]{3}$' }),
-    ];
+    const defs = [field({ name: 'code', type: 'text', pattern: '^[A-Z]{3}$' })];
     expect(validateFormSubmission({ code: 'abc' }, defs)).toEqual({
       field: 'code',
       message: '형식이 올바르지 않습니다.',
@@ -400,9 +398,7 @@ describe('validateFormSubmission', () => {
   });
 
   it('§6.2 pattern — 빈 optional 값은 skip', () => {
-    const defs = [
-      field({ name: 'code', type: 'text', pattern: '^[A-Z]{3}$' }),
-    ];
+    const defs = [field({ name: 'code', type: 'text', pattern: '^[A-Z]{3}$' })];
     expect(validateFormSubmission({ code: '' }, defs)).toBeNull();
   });
 
