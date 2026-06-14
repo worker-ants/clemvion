@@ -68,12 +68,13 @@ workspaceId 가 살아있는 controller 경계가 기록한다(§Rationale 4.1.B
 - **표기 규약은 dot-prefix 기준으로 통일됐다.** action 은 `<resource>.<verb>` 꼴로, resource
   dot-prefix 가 필수다. verb 시제는 도메인 관례를 따른다 — integration 계열은 발생 사건을 기록하므로
   과거분사형(`integration.created`), execution 은 `execution.re_run`. 과거 `re_run_initiated` 가
-  dot-prefix 를 이탈했으나 `execution.re_run` 으로 정정됐다(cross-audit G-02). `record` 의 `action`
+  dot-prefix 를 이탈했으나 `execution.re_run` 으로 정정됐다(cross-audit G-02). 명명·시제 3분류 규약의
+  SoT 는 [`conventions/audit-actions.md`](../conventions/audit-actions.md). `record` 의 `action`
   은 이제 `AuditAction` union (`audit-logs/audit-action.const.ts` 의 `AUDIT_ACTIONS`) 으로 타입
   강제돼 인라인 임의 문자열을 막는다 (cross-audit G-01, → [Rationale](#rationale)).
 - **커버리지 갭**: [인증 spec §4.1](../5-system/1-auth.md) 이 기록 대상으로 약속한
   `workflow.*` / `trigger.*` / `member.*` / `schedule.*` / `workspace.created·updated·deleted` /
-  `model_config.*`(create/update/delete/set-default — 구 `llm_config.*`/`rerank_config.*` 통합) 액션은
+  `model_config.*`(create/update/delete/set_default — 구 `llm_config.*`/`rerank_config.*` 통합) 액션은
   **여전히 미구현**이다 — workflows / triggers / alerts / schedules 모듈에는 `AuditLogsService` import 가
   전혀 없다. spec §4.1 표는 목표 커버리지, 위 표가 현재 구현이다.
   인증(`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled`) 액션은 **구현됐다** —
