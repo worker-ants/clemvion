@@ -27,8 +27,9 @@ import {
  *
  * 추가로 `delayed`(backoff 대기 = 재시도 backlog) count 를 함께 관측해 retry 율
  * 추세를 같은 로그 라인에서 확인할 수 있게 한다. 본 모니터는 별도 메트릭 SDK
- * 의존 없이 로그만 사용한다 (현 backend 는 OTel traces-only, custom metric
- * 파이프라인 미구축 — Phase 3.1 범위 밖).
+ * 의존 없이 로그만 사용한다 (backend 는 OTel traces + Prometheus 메트릭 파이프라인
+ * (`instrumentation.ts`)을 갖추나 그 기본 메트릭은 HTTP/runtime 한정이며, DLQ depth
+ * 같은 custom 비즈니스 메트릭 계측은 후속 — NF-OB-02 plan 참조).
  *
  * 설정은 `CONTINUATION_DLQ_MONITOR_CONFIG` 로 주입된다 (review W-9 — env 직접
  * 읽기 대신 useFactory 주입). 환경변수·기본값은 `continuation-dlq-monitor.config.ts`.
