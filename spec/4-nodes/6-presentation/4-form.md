@@ -350,7 +350,7 @@ Form 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 
 ### 검증 지점 = publisher 측 `continueExecution` chokepoint (3 경로 공통)
 
-필수·`type`(email/number)·`validation.minLength`/`maxLength`·select/radio 선택지 검증을 EIA REST·외부 WS·workspace WS 진입점에서 **각각 구현하지 않고** `continueExecution` 한 곳에서 수행한다 (§6.2 "검증 지점" 주석). 같은 검증 규칙을 3 경로가 중복 구현하면 drift 위험이 있어, publisher chokepoint 단일 지점에서 공유 validator 를 재사용하고 typed `FormValidationError` 를 한 번 throw 한 뒤 각 표면(EIA `400` / WS `VALIDATION_ERROR` ack)으로 매핑한다.
+필수·`type`(email/number)·`validation.minLength`/`maxLength`·`min`/`max`(숫자 범위)·`pattern`(정규식)·select/radio 선택지 검증을 EIA REST·외부 WS·workspace WS 진입점에서 **각각 구현하지 않고** `continueExecution` 한 곳에서 수행한다 (§6.2 "검증 지점" 주석). 같은 검증 규칙을 3 경로가 중복 구현하면 drift 위험이 있어, publisher chokepoint 단일 지점에서 공유 validator 를 재사용하고 typed `FormValidationError` 를 한 번 throw 한 뒤 각 표면(EIA `400` / WS `VALIDATION_ERROR` ack)으로 매핑한다.
 
 publish **전** throw 라는 점이 핵심이다 — 검증 실패 시 execution 은 `waiting_for_input` 을 유지하며(재제출 가능) 새 NodeExecution 출력을 만들지 않는다 (§6.2 / [node-output Principle 3.1](../../conventions/node-output.md)).
 
