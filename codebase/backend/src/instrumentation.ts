@@ -2,22 +2,53 @@
  * OpenTelemetry 부트스트랩.
  * `main.ts`보다 먼저 import해야 자동 계측이 정확히 적용된다.
  *
+ * NF-OB-02 (메트릭, Prometheus 호환) + NF-OB-03 (분산 트레이싱) 을 함께 부트스트랩한다.
+ * 메트릭은 `PrometheusExporter` 가 별도 HTTP 서버(기본 :9464)의 `/metrics` 로 노출하며,
+ * NodeSDK 의 MeterProvider 에 연결되면 auto-instrumentation 의 HTTP 서버 메트릭과
+ * `instrumentation-runtime-node` 의 런타임(event loop·GC·heap) 메트릭이 자동 수집된다.
+ * 비즈니스 커스텀 메트릭(실행 수·큐 깊이·LLM 사용량 등)은 본 파이프라인 위에서 후속 추가.
+ *
  * 환경 변수:
- *   - `OTEL_ENABLED=true` 일 때만 활성 (기본 비활성)
+ *   - `OTEL_ENABLED=true` 일 때만 활성 (기본 비활성) — traces + metrics 동시 토글
  *   - `OTEL_EXPORTER_OTLP_ENDPOINT` (기본: http://localhost:4318/v1/traces)
  *   - `OTEL_SERVICE_NAME` (기본: clemvion-backend)
+ *   - `OTEL_PROMETHEUS_PORT` (기본: 9464) — Prometheus scrape 서버 포트, `/metrics`
  *
- * Collector 운영 예시: Jaeger / Tempo / Grafana Agent.
+ * Collector 운영 예시: Jaeger / Tempo / Grafana Agent (traces) + Prometheus (metrics scrape).
  */
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+
+/** PrometheusExporter 의 기본 등록 포트 (Prometheus default-port-allocations). */
+export const DEFAULT_PROMETHEUS_PORT = 9464;
+
+/**
+ * `OTEL_PROMETHEUS_PORT` 를 파싱한다. 미설정·비숫자·범위 밖(1–65535) 이면
+ * {@link DEFAULT_PROMETHEUS_PORT} 로 폴백한다. 부트스트랩 코드라 던지지 않고
+ * 안전한 기본값으로 수렴시킨다.
+ */
+export function resolvePrometheusPort(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === '') return DEFAULT_PROMETHEUS_PORT;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+    return DEFAULT_PROMETHEUS_PORT;
+  }
+  return parsed;
+}
 
 const enabled = process.env.OTEL_ENABLED === 'true';
 
 if (enabled) {
+  const prometheusPort = resolvePrometheusPort(
+    process.env.OTEL_PROMETHEUS_PORT,
+  );
+  // PrometheusExporter 는 생성 시 별도 HTTP 서버를 띄워 `/metrics` 를 노출한다.
+  const prometheusExporter = new PrometheusExporter({ port: prometheusPort });
+
   const sdk = new NodeSDK({
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? 'clemvion-backend',
@@ -27,6 +58,9 @@ if (enabled) {
         process.env.OTEL_EXPORTER_OTLP_ENDPOINT ??
         'http://localhost:4318/v1/traces',
     }),
+    // MeterProvider 에 Prometheus reader 를 연결 — HTTP 서버 메트릭 +
+    // runtime-node 메트릭이 이 reader 로 수집·노출된다.
+    metricReaders: [prometheusExporter],
     instrumentations: [
       getNodeAutoInstrumentations({
         // fs 계측은 노이즈가 너무 많아 끔
@@ -37,9 +71,11 @@ if (enabled) {
   try {
     sdk.start();
 
-    console.log('[otel] tracing enabled');
+    console.log(
+      `[otel] tracing + metrics enabled (Prometheus :${prometheusPort}/metrics)`,
+    );
   } catch (err) {
-    console.warn('[otel] failed to start tracing:', err);
+    console.warn('[otel] failed to start tracing/metrics:', err);
   }
   process.on('SIGTERM', () => {
     sdk.shutdown().catch(() => undefined);
