@@ -52,7 +52,7 @@ code:
 
 type 별 `config` 스키마·자동 발급 규칙의 단일 진실은 [Spec 데이터 모델 §2.17.1](../1-data-model.md#2171-config-의-jsonb-스키마). IP Whitelist 는 모든 type 공통 (선택) 필드다.
 
-> **구현 현황**: 백엔드 DTO (`auth-configs/dto/create-auth-config.dto.ts`, `update-auth-config.dto.ts`) 는 `ipWhitelist` 와 api_key `headerName` 을 지원하나, 프런트 폼 (`authentication/page.tsx`) 에는 **IP Whitelist 입력 UI** 와 **API Key Header 이름 입력 필드**가 아직 없다 (미구현 / Planned). 현재 생성 폼은 hmac (header/algorithm) · basic_auth (username/password) 추가 입력만 노출한다.
+> **구현 현황**: 백엔드 DTO (`auth-configs/dto/create-auth-config.dto.ts`, `update-auth-config.dto.ts`) 는 `ipWhitelist` 와 api_key `headerName` 을 지원하며, 생성 폼 (`authentication/page.tsx`) 도 **IP Whitelist 입력 UI**(모든 type 공통, 한 줄에 IP/CIDR 하나)와 **API Key Header 이름 입력 필드**(api_key, default `X-API-Key`)를 노출한다 (✅ 구현). hmac (header/algorithm) · basic_auth (username/password) 추가 입력도 함께 노출한다. (생성 후 편집 폼은 별도 — 현 UI 는 생성·토글·재생성·삭제만 제공.)
 
 #### API Key
 
