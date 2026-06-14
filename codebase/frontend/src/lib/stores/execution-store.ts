@@ -259,6 +259,19 @@ interface ExecutionState {
   /** Selected conversation item index (within the conversation) */
   selectedConversationItemIndex: number | null;
 
+  /**
+   * Run Results 드로어 본문의 펼침/접힘 상태 (spec/3-workflow-editor/3-execution.md
+   * §10.12 — Ctrl+Shift+R 토글 대상). 드로어 자체는 `status !== 'idle'` 일 때만
+   * 렌더되며, 이 플래그는 그 안에서 본문(타임라인/상세)을 보이거나 헤더 바만 남길지
+   * 제어한다. 실행 라이프사이클과 무관한 UI 상태라 `reset`/`startExecution` 의 CLEAR
+   * 묶음 대상이 아니다 — 워크플로를 이동/재실행해도 직전 펼침 상태를 유지한다(의도).
+   *
+   * 단, `panelHeight`/`timelineWidth`(드로어 컴포넌트의 로컬 state + localStorage 지속)
+   * 와 달리 **세션 한정 메모리 상태**다 — 새로고침 시 기본값 `true` 로 돌아간다. 토글은
+   * 한 편집 세션 안의 일시적 선호이므로 persist 비대상으로 둔다(영속 필요 시 별도 결정).
+   */
+  drawerExpanded: boolean;
+
   startExecution: (executionId: string) => void;
   updateNodeStatus: (nodeId: string, info: NodeStatusInfo) => void;
   addNodeResult: (result: NodeResult) => void;
@@ -344,6 +357,9 @@ interface ExecutionState {
   setWaitingAiResponse: (value: boolean) => void;
   selectResultNode: (nodeId: string | null) => void;
   selectConversationItem: (index: number | null) => void;
+  /** §10.12 — 드로어 본문 펼침 상태 설정/토글 (Ctrl+Shift+R + 헤더 셰브론 공유). */
+  setDrawerExpanded: (value: boolean) => void;
+  toggleDrawerExpanded: () => void;
   reset: () => void;
 }
 
@@ -486,6 +502,8 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   isWaitingAiResponse: false,
   selectedResultNodeId: null,
   selectedConversationItemIndex: null,
+  // UI 선호값 — 드로어는 기본 펼친 상태로 시작 (옛 RunResultsDrawer 로컬 useState(true) 와 동일).
+  drawerExpanded: true,
 
   startExecution: (executionId: string) =>
     set({
@@ -907,6 +925,10 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
 
   selectConversationItem: (index: number | null) =>
     set({ selectedConversationItemIndex: index }),
+
+  setDrawerExpanded: (value: boolean) => set({ drawerExpanded: value }),
+  toggleDrawerExpanded: () =>
+    set((state) => ({ drawerExpanded: !state.drawerExpanded })),
 
   reset: () =>
     set({

@@ -90,8 +90,11 @@ describe("EditorToolbar — RBAC", () => {
     renderToolbar();
     expect(screen.queryByRole("button", { name: /save/i })).toBeNull();
     expect(screen.queryByDisplayValue("My WF")).toBeNull();
-    // Viewer 도 실행 가능 — Run 버튼은 남아 있어야 함
-    expect(screen.getByRole("button", { name: /run/i })).toBeInTheDocument();
+    // Viewer 도 실행 가능 — Run 버튼은 남아 있어야 함 (정확 일치: "Run options"
+    // aria-label 과 충돌 방지)
+    expect(
+      screen.getByRole("button", { name: /^run$/i }),
+    ).toBeInTheDocument();
   });
 
   it("Viewer: 워크플로우 이름은 비편집 텍스트로 노출", () => {
