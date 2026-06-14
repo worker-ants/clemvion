@@ -224,3 +224,25 @@ export class MessageTooLongError extends ExecutionError {
     this.name = 'MessageTooLongError';
   }
 }
+
+/**
+ * `execution.submit_form` 의 제출 데이터가 폼 노드 field 검증(필수 / type / length / 선택지)을
+ * 통과하지 못함 (publisher 측 동기 검증 — spec/4-nodes/6-presentation/4-form.md §4·§6.2,
+ * spec/5-system/14-external-interaction-api.md §5.1). chat-channel `validateFormSubmission` 와
+ * 동일하게 **FIRST 오류**만 surface 한다. EIA REST 는 `400 VALIDATION_ERROR` + `details[{field,
+ * message, code:'INVALID_FIELD'}]`, WS ack 는 평면 `errorCode='VALIDATION_ERROR'` 로 매핑.
+ * publish 전에 throw 되므로 execution 은 `waiting_for_input` 유지(재제출 가능).
+ *
+ * 보안: `message` 는 검증 규칙 기반 client-safe 문자열(필드 값 자체는 미포함).
+ */
+export class FormValidationError extends ExecutionError {
+  readonly code = 'VALIDATION_ERROR' as const;
+  /** 오류가 발생한 field 명 — EIA `details[].field`. */
+  readonly field: string;
+
+  constructor(field: string, message: string) {
+    super(message);
+    this.field = field;
+    this.name = 'FormValidationError';
+  }
+}

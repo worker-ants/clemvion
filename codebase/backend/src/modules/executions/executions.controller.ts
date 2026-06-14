@@ -9,6 +9,7 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   UnprocessableEntityException,
+  BadRequestException,
 } from '@nestjs/common';
 import { WorkspaceId } from '../../common/decorators/workspace.decorator';
 import { CurrentUser } from '../../common/decorators';
@@ -36,7 +37,10 @@ import { Throttle } from '@nestjs/throttler';
 import { ReRunRequestDto } from './dto/re-run.dto';
 import { ExecutionsService } from './executions.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  FormValidationError,
+} from '../execution-engine/workflow-errors';
 import { QueryExecutionDto } from './dto/query-execution.dto';
 import {
   ExecutionContinueResultDto,
@@ -166,6 +170,23 @@ export class ExecutionsController {
       if (error instanceof InvalidExecutionStateError) {
         throw new UnprocessableEntityException({
           error: { code: 'INVALID_STATE', message: error.message },
+        });
+      }
+      // form §4·§6.2 — field 검증 실패는 400 VALIDATION_ERROR + details[] (재제출 가능,
+      // waiting 유지). publisher 가 publish 전 throw.
+      if (error instanceof FormValidationError) {
+        throw new BadRequestException({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: error.message,
+            details: [
+              {
+                field: error.field,
+                message: error.message,
+                code: 'INVALID_FIELD',
+              },
+            ],
+          },
         });
       }
       throw error;

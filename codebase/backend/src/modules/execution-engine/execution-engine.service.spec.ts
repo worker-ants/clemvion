@@ -257,6 +257,10 @@ describe('ExecutionEngineService', () => {
 
     mockNodeRepo = {
       findBy: jest.fn().mockResolvedValue(mockNodes),
+      // assertFormSubmissionValid (continueExecution publisher 검증) 의 Node 정의 lookup.
+      // 기본값 null → form field 검증 skip (form 검증 무관 테스트의 기존 동작 유지).
+      // 폼 검증 테스트는 form 노드 config 를 mockResolvedValueOnce 로 override.
+      findOneBy: jest.fn().mockResolvedValue(null),
     };
 
     mockEdgeRepo = {

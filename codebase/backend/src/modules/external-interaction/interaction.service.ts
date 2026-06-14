@@ -16,6 +16,7 @@ import { ExecutionEngineService } from '../execution-engine/execution-engine.ser
 import {
   InvalidExecutionStateError,
   MessageTooLongError,
+  FormValidationError,
 } from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { InteractionTokenService } from './interaction-token.service';
@@ -294,6 +295,14 @@ export class InteractionService {
       if (error instanceof MessageTooLongError) {
         throw badRequest('MESSAGE_TOO_LONG', error.message);
       }
+      // [spec §5.1 / form §4·§6.2] submit_form field 검증 실패 → 400 VALIDATION_ERROR
+      // + details[{field, message, code:'INVALID_FIELD'}]. execution 은 waiting 유지
+      // (publisher 가 publish 전 throw — 재제출 가능).
+      if (error instanceof FormValidationError) {
+        throw badRequest('VALIDATION_ERROR', error.message, [
+          { field: error.field, message: error.message, code: 'INVALID_FIELD' },
+        ]);
+      }
       throw error;
     }
   }
@@ -310,6 +319,12 @@ export class InteractionService {
   }
 }
 
-function badRequest(code: string, message: string): BadRequestException {
-  return new BadRequestException({ error: { code, message } });
+function badRequest(
+  code: string,
+  message: string,
+  details?: unknown,
+): BadRequestException {
+  return new BadRequestException({
+    error: { code, message, ...(details ? { details } : {}) },
+  });
 }
