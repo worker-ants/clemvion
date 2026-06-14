@@ -84,9 +84,26 @@ vi.mock("@/lib/api/executions", () => ({
   },
 }));
 
+const dsListMock = vi.fn();
+const dsCreateMock = vi.fn();
+const dsCloneMock = vi.fn();
+const dsRemoveMock = vi.fn();
+vi.mock("@/lib/api/workflow-test-datasets", () => ({
+  workflowTestDatasetsApi: {
+    list: (...a: unknown[]) => dsListMock(...a),
+    create: (...a: unknown[]) => dsCreateMock(...a),
+    clone: (...a: unknown[]) => dsCloneMock(...a),
+    remove: (...a: unknown[]) => dsRemoveMock(...a),
+  },
+}));
+
+const toastSuccess = vi.fn();
 const toastError = vi.fn();
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: (m: string) => toastError(m) },
+  toast: {
+    success: (m: string) => toastSuccess(m),
+    error: (m: string) => toastError(m),
+  },
 }));
 
 import { EditorToolbar } from "../editor-toolbar";
@@ -251,5 +268,43 @@ describe("EditorToolbar — Run with Input (§2.2)", () => {
     expect(
       screen.getByRole("button", { name: /Run options/i }),
     ).toBeDisabled();
+  });
+
+  // §2.2 데이터셋 저장
+  it("Datasets: 목록을 펼치면 저장본을 보여주고, 클릭 시 입력에 적재한다", async () => {
+    dsListMock.mockResolvedValue([
+      { id: "d1", name: "Login OK", input: { u: 1 }, isOwner: true },
+    ]);
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Datasets/i }));
+
+    const item = await screen.findByText("Login OK");
+    await waitFor(() => expect(dsListMock).toHaveBeenCalledWith("wf-1"));
+    fireEvent.click(item);
+    expect(screen.getByPlaceholderText('{"key": "value"}')).toHaveValue(
+      JSON.stringify({ u: 1 }, null, 2),
+    );
+  });
+
+  it("Datasets: 'Save as Dataset' → 이름 입력 후 저장하면 create 를 호출한다", async () => {
+    dsCreateMock.mockResolvedValue({ id: "new", name: "case", isOwner: true });
+    dsListMock.mockResolvedValue([]);
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Save as Dataset/i }));
+    fireEvent.change(
+      screen.getByPlaceholderText(/Dataset name/i),
+      { target: { value: "case" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Save dataset/i }));
+
+    await waitFor(() =>
+      expect(dsCreateMock).toHaveBeenCalledWith("wf-1", {
+        name: "case",
+        input: {},
+        visibility: "private",
+      }),
+    );
   });
 });

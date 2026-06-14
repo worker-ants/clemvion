@@ -42,6 +42,7 @@ import { TriggersModule } from './modules/triggers/triggers.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { AuthConfigsModule } from './modules/auth-configs/auth-configs.module';
+import { WorkflowTestDatasetsModule } from './modules/workflow-test-datasets/workflow-test-datasets.module';
 import { FoldersModule } from './modules/folders/folders.module';
 import { ExecutionEngineModule } from './modules/execution-engine/execution-engine.module';
 import { WebsocketModule } from './modules/websocket/websocket.module';
@@ -165,6 +166,7 @@ export { ROOT_ENTITIES } from './database/root-entities';
     SchedulesModule,
     IntegrationsModule,
     AuthConfigsModule,
+    WorkflowTestDatasetsModule,
     FoldersModule,
     ExecutionEngineModule,
     WebsocketModule,
