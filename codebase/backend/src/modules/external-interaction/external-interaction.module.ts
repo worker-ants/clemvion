@@ -34,6 +34,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
  *  - InteractionTokenService (iext_/itk_ family)
  *  - NotificationDispatcher + Processor + Fanout (R10 — facade, ExecutionEngine 외부)
  *  - SseAdapter (executionEvents$ 구독)
+ *  - TerminalRevokeReconcilerService (EIA-RL-06 — terminal revoke at-least-once sweep, BullMQ repeatable)
  *
  * 의존성: WebsocketModule (executionEvents$), TypeOrmModule.forFeature([Trigger, Execution]),
  * ExecutionEngineModule + ExecutionsModule (interact dispatch), BullModule

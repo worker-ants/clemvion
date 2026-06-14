@@ -352,6 +352,39 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
       expect(repo.find).toHaveBeenCalledTimes(2);
       expect(repo.delete).toHaveBeenCalledWith({ executionId: 'exec-1' });
       expect(repo.delete).toHaveBeenCalledWith({ executionId: 'exec-2' });
+      // distinct executionId 만 + 기본 batchLimit(500) clamp
+      expect(qb.select).toHaveBeenCalledWith('et.executionId', 'executionId');
+      expect(qb.distinct).toHaveBeenCalledWith(true);
+      expect(qb.limit).toHaveBeenCalledWith(500);
+    });
+
+    it('batchLimit 은 [1, 1000] 으로 clamp — 과대 입력 방어', async () => {
+      const qb = makeQB([]);
+      const repo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qb),
+        find: jest.fn(),
+        delete: jest.fn(),
+      };
+      await makeService(repo).reconcileTerminalRevocations(999_999);
+      expect(qb.limit).toHaveBeenCalledWith(1000);
+    });
+
+    it('이미 만료된 jti(ttl<=0)는 revoked 에 미집계 — revokeAll 위임 결과 반영', async () => {
+      redis.set.mockResolvedValue('OK');
+      const qb = makeQB([{ executionId: 'exec-1' }]);
+      const repo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qb),
+        find: jest
+          .fn()
+          .mockResolvedValue([
+            { jti: 'expired', expAt: new Date(Date.now() - 1000) },
+          ]),
+        delete: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      const result = await makeService(repo).reconcileTerminalRevocations();
+      expect(result.swept).toBe(1);
+      expect(result.revoked).toBe(0); // 만료된 jti 는 blacklist SET skip
+      expect(redis.set).not.toHaveBeenCalled();
     });
 
     it('잔존 토큰 없음 → swept:0, revokeAll 미호출', async () => {

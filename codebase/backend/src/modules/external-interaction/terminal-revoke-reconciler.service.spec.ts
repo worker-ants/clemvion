@@ -67,4 +67,22 @@ describe('TerminalRevokeReconcilerService [Spec EIA §3.4 EIA-RL-06 / R15]', () 
 
     await expect(service.process({} as never)).resolves.toBeUndefined();
   });
+
+  it('reconcile() 직접 호출 — 성공 시 token service 위임', async () => {
+    tokenService.reconcileTerminalRevocations.mockResolvedValue({
+      swept: 3,
+      revoked: 5,
+    });
+
+    await expect(service.reconcile()).resolves.toBeUndefined();
+    expect(tokenService.reconcileTerminalRevocations).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconcile() 직접 호출 — throw 도 swallow (fail-open)', async () => {
+    tokenService.reconcileTerminalRevocations.mockRejectedValue(
+      new Error('boom'),
+    );
+
+    await expect(service.reconcile()).resolves.toBeUndefined();
+  });
 });

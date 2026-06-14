@@ -758,7 +758,8 @@ codebase/backend/src/modules/
     # 모듈 prefix: @Controller('external/executions') — global prefix(`api`) 와 합쳐 실 경로 `/api/external/executions/...`. 기존 `/api/executions/*` 컨트롤러와 분리
     interaction.service.ts             # 토큰 검증 + 명령 dispatch (내부 WS 명령 경로로 forwarding)
     interaction.guard.ts               # HTTP 진입점 InteractionGuard — iext_*/itk_* 검증 + ctx 합성 (scope set 금지, §3.3.1)
-    interaction-token.service.ts       # iext_*, itk_* 발급/검증/blacklist
+    interaction-token.service.ts       # iext_*, itk_* 발급/검증/blacklist + reconcileTerminalRevocations (EIA-RL-06 sweep)
+    terminal-revoke-reconciler.service.ts # BullMQ repeatable scheduler (분 단위) — terminal revoke at-least-once 보강 (EIA-RL-06, §9.3 R15)
     notification-fanout.service.ts     # 단일 sink executionEvents$ 구독 listener → NotificationDispatcher.enqueue 위임 (§R10)
     notification-dispatcher.service.ts # outbound webhook enqueue facade (BullMQ)
     notification-webhook.processor.ts  # BullMQ processor — 실제 HTTP POST + 재시도/HMAC 서명/degraded 처리
@@ -1018,3 +1019,9 @@ scope/audience 불일치를 HTTP 시맨틱대로 `403 Forbidden`(인증됐으나
 **기각**: (a) live 경로만 유지(현행) — process 재시작 시 in-flight 이벤트 소실로 토큰이 TTL(1h)까지 잔존하는 누락 위험. (b) 전용 outbox 테이블 — 위 dual-write 사유로 기각. (c) TTL 단축 — 정상 클라이언트 refresh 빈도↑(UX·요청량 부작용)이며 근본 해소 아님.
 
 **잔여 위험**: sweep 도 Redis(BullMQ) 장애 시 다음 tick 까지 지연되고, live·sweep 양 경로 모두 Redis blacklist SET 에 의존하므로 Redis 전면 장애 중에는 revoke 가 fail-open 으로 지연된다(blacklist 조회도 fail-open 이므로 동일 창에서 토큰이 통과할 수 있음). 단명·execution-scoped 토큰이라 위험도가 낮다는 전제 하에 수용하며, worst-case latency 를 TTL(1h)→sweep 간격(≤1분)으로 축소한 것이 본 결정의 실질 개선이다.
+
+### R16. `interact`/`cancel` 의 `202 Accepted` + ack body (no-content 아님)
+
+**채택**: §5.1 `interact`·§5.4 `cancel` 는 비동기 처리라 `202 Accepted` 로 응답하되 **빈 body(no-content)가 아니라 ack body** 를 반환한다 (§5.1 `InteractAckDto` `{ executionId, accepted, currentStatus }`, §5.4 `{ executionId, status }`). 구현(`@HttpCode(ACCEPTED)` + DTO 반환)과 전역 `TransformInterceptor`(`{ data: ... }` 래핑)의 실제 동작을 반영한 것이다.
+
+과거 spec 은 §5 서두에서 "예외 2: §5.1(`interact`)는 성공 시 `202 Accepted` + body 없음(no-content path)" 으로 기술했으나 이는 구현과 어긋난 표기였다. ack body 를 반환하는 쪽을 채택한 이유: (1) 클라이언트가 명령 수신 직후 관측된 `currentStatus`(즉시 또 `waiting_for_input` 진입 가능)를 SSE 구독 전에 1회성으로 확인할 수 있어 UX 가 매끄럽다. (2) `accepted: true` 가 큐 적재 성공의 명시 신호다. (3) 다른 §5.x 엔드포인트와 동일하게 `{ data: ... }` 봉투로 일관 처리된다 — `interact` 만 no-content 예외로 두면 클라이언트 언랩 로직이 분기된다. body 가 비동기 진행의 **확정** 상태가 아님(202)은 유지되며, 확정 상태는 SSE/단발 조회로 받는다.

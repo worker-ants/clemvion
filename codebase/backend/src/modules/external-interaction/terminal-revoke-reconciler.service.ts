@@ -5,6 +5,9 @@ import { InteractionTokenService } from './interaction-token.service';
 
 export const TERMINAL_REVOKE_RECONCILE_QUEUE = 'terminal-revoke-reconcile';
 const RECONCILE_JOB = 'reconcile-terminal-revocations';
+/** repeatable job 보존 — 완료 24h / 실패 7d. */
+const REMOVE_ON_COMPLETE_AGE_SEC = 24 * 60 * 60;
+const REMOVE_ON_FAIL_AGE_SEC = 7 * 24 * 60 * 60;
 
 /**
  * [Spec EIA §3.4 EIA-RL-06 / §9.3 / §Rationale R15] terminal token revoke 의 at-least-once 보강.
@@ -21,7 +24,9 @@ const RECONCILE_JOB = 'reconcile-terminal-revocations';
  * - 본 service 는 scheduler/worker 어댑터만 — 실 로직은 `InteractionTokenService`.
  */
 @Injectable()
-@Processor(TERMINAL_REVOKE_RECONCILE_QUEUE)
+// concurrency: 1 — sweep 는 멱등하나 동일 인스턴스 내 중복 실행 불요. 멀티 인스턴스 전역 1회는
+// repeatable scheduler 의 Redis 단일 entry 가 보장한다.
+@Processor(TERMINAL_REVOKE_RECONCILE_QUEUE, { concurrency: 1 })
 export class TerminalRevokeReconcilerService
   extends WorkerHost
   implements OnModuleInit
@@ -46,8 +51,8 @@ export class TerminalRevokeReconcilerService
       {
         name: RECONCILE_JOB,
         opts: {
-          removeOnComplete: { age: 24 * 60 * 60 },
-          removeOnFail: { age: 7 * 24 * 60 * 60 },
+          removeOnComplete: { age: REMOVE_ON_COMPLETE_AGE_SEC },
+          removeOnFail: { age: REMOVE_ON_FAIL_AGE_SEC },
         },
       },
     );
@@ -57,15 +62,15 @@ export class TerminalRevokeReconcilerService
     await this.reconcile();
   }
 
+  /**
+   * 한 sweep tick 을 실행한다 — `InteractionTokenService.reconcileTerminalRevocations` 로 위임.
+   * 에러는 swallow(fail-open) 하여 다음 tick 에서 재시도하며 워커를 죽이지 않는다. (sweep 결과
+   * 로그는 token service 가 단일 책임으로 남긴다 — 중복 로그 회피.) public 인 것은 단위 테스트가
+   * 직접 호출해 fail-open 동작을 검증하기 위함이다.
+   */
   async reconcile(): Promise<void> {
     try {
-      const { swept, revoked } =
-        await this.tokenService.reconcileTerminalRevocations();
-      if (swept > 0) {
-        this.logger.log(
-          `terminal-revoke reconciliation swept ${swept} execution(s), revoked ${revoked} jti`,
-        );
-      }
+      await this.tokenService.reconcileTerminalRevocations();
     } catch (err) {
       // fail-open — 다음 tick 에서 재시도. 부팅을 막지 않는다.
       this.logger.error(

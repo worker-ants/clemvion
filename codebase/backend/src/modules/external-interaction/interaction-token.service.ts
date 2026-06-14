@@ -38,6 +38,19 @@ const IEXT_REFRESH_WINDOW_SEC = 30 * 60; // 30min
 const ITK_BYTES = 32;
 const BLACKLIST_KEY_PREFIX = 'iext:blacklist:';
 
+/** terminal revoke reconciliation sweep 의 단일 배치 기본 상한 ([Spec EIA §9.3 R15]). */
+const RECONCILE_BATCH_LIMIT = 500;
+/** batchLimit 인자 clamp 상한 — 과대 입력으로 인한 DB/Redis 과부하 방어. */
+const RECONCILE_BATCH_MAX = 1000;
+/** sweep 의 execution 단위 병렬 처리 동시성 (N+1 직렬 왕복 완화). */
+const RECONCILE_CONCURRENCY = 20;
+/** terminal execution 상태 — 잔존 토큰 회수 대상. enum 확장 시 본 배열 동기화. */
+const TERMINAL_STATUSES: readonly ExecutionStatus[] = [
+  ExecutionStatus.COMPLETED,
+  ExecutionStatus.FAILED,
+  ExecutionStatus.CANCELLED,
+];
+
 export interface IssuePerExecutionResult {
   /** `iext_<jwt>` 형식의 전체 토큰. */
   token: string;
@@ -337,38 +350,47 @@ export class InteractionTokenService {
    *
    * 호출자: `TerminalRevokeReconcilerService` (BullMQ repeatable scheduler — 멀티 인스턴스 전역 1회).
    * Repository 미주입 시 no-op.
+   *
+   * @param batchLimit 단일 sweep 당 처리 execution 수 상한 (기본 `RECONCILE_BATCH_LIMIT`=500).
+   *   `[1, RECONCILE_BATCH_MAX]` 로 clamp 된다. 잔존이 상한을 넘으면 다음 tick 에서 이어 처리.
    */
   async reconcileTerminalRevocations(
-    batchLimit = 500,
+    batchLimit = RECONCILE_BATCH_LIMIT,
   ): Promise<{ swept: number; revoked: number }> {
     if (!this.executionTokenRepository) {
       return { swept: 0, revoked: 0 };
     }
+    const safeLimit = Math.min(
+      Math.max(1, Math.floor(batchLimit)),
+      RECONCILE_BATCH_MAX,
+    );
     const rows = await this.executionTokenRepository
       .createQueryBuilder('et')
       .innerJoin('et.execution', 'e')
-      .where('e.status IN (:...terminal)', {
-        terminal: [
-          ExecutionStatus.COMPLETED,
-          ExecutionStatus.FAILED,
-          ExecutionStatus.CANCELLED,
-        ],
-      })
+      .where('e.status IN (:...terminal)', { terminal: TERMINAL_STATUSES })
       .select('et.executionId', 'executionId')
       .distinct(true)
-      .limit(batchLimit)
+      .limit(safeLimit)
       .getRawMany<{ executionId: string }>();
 
+    // execution 단위 bounded-concurrency 병렬 — 직렬 N+1 왕복(최악 배치 수백건)을 완화한다.
+    // per-execution revoke 는 idempotent·fail-open 이라 병렬·중복 안전. (revokeAllForExecution
+    // 내부의 per-jti SET 은 보통 1~2건이라 추가 병렬화 불요.)
     let revoked = 0;
-    for (const { executionId } of rows) {
-      try {
-        const res = await this.revokeAllForExecution(executionId);
-        revoked += res.revoked;
-      } catch (err) {
-        this.logger.warn(
-          `InteractionTokenService: reconcile revoke 실패 (executionId=${executionId}) — fail-open: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+    for (let i = 0; i < rows.length; i += RECONCILE_CONCURRENCY) {
+      const chunk = rows.slice(i, i + RECONCILE_CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map(({ executionId }) => this.revokeAllForExecution(executionId)),
+      );
+      results.forEach((r, idx) => {
+        if (r.status === 'fulfilled') {
+          revoked += r.value.revoked;
+        } else {
+          this.logger.warn(
+            `InteractionTokenService: reconcile revoke 실패 (executionId=${chunk[idx].executionId}) — fail-open: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
+          );
+        }
+      });
     }
     if (rows.length > 0) {
       this.logger.log(
