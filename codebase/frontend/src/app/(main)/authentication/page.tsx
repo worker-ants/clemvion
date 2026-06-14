@@ -14,8 +14,13 @@ import { toast } from "sonner";
 import { Plus, Loader2, Inbox, Trash2, X, RefreshCw, Copy, Eye } from "lucide-react";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
-
-type AuthConfigType = "api_key" | "bearer_token" | "basic_auth" | "hmac";
+import {
+  type AuthConfigType,
+  type AuthConfigFormState,
+  AUTH_CONFIG_DEFAULTS,
+  buildAuthConfigPayload,
+  validateAuthConfigForm,
+} from "./auth-config-form";
 
 interface AuthConfig {
   id: string;
@@ -81,12 +86,20 @@ export default function AuthenticationPage() {
   const [formName, setFormName] = useState("");
   const [formType, setFormType] = useState<AuthConfigType | "">("");
   // type 별 추가 입력 (hmac: header/algorithm, basic_auth: username/password).
-  const [formHmacHeader, setFormHmacHeader] = useState("X-Hub-Signature-256");
+  const [formHmacHeader, setFormHmacHeader] = useState<string>(
+    AUTH_CONFIG_DEFAULTS.hmacHeader,
+  );
   const [formHmacAlgorithm, setFormHmacAlgorithm] = useState<"sha256" | "sha512">(
-    "sha256",
+    AUTH_CONFIG_DEFAULTS.hmacAlgorithm,
   );
   const [formUsername, setFormUsername] = useState("");
   const [formPassword, setFormPassword] = useState("");
+  // api_key 전용 헤더 이름 (default X-API-Key) + 모든 type 공통 IP 화이트리스트
+  // (한 줄에 IP/CIDR 하나). 백엔드 DTO 는 config.headerName / top-level ipWhitelist 지원.
+  const [formApiKeyHeader, setFormApiKeyHeader] = useState<string>(
+    AUTH_CONFIG_DEFAULTS.apiKeyHeader,
+  );
+  const [formIpWhitelist, setFormIpWhitelist] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [regenerateTarget, setRegenerateTarget] = useState<string | null>(null);
@@ -121,20 +134,9 @@ export default function AuthenticationPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const config: Record<string, unknown> = {};
-      if (formType === "hmac") {
-        config.header = formHmacHeader.trim() || "X-Hub-Signature-256";
-        config.algorithm = formHmacAlgorithm;
-      }
-      if (formType === "basic_auth") {
-        config.username = formUsername.trim();
-        config.password = formPassword;
-      }
-      const res = await apiClient.post("/auth-configs", {
-        name: formName,
-        type: formType,
-        config,
-      });
+      // 페이로드 조립은 순수 함수로 위임 (auth-config-form.ts) — 단위 테스트 대상.
+      const payload = buildAuthConfigPayload(collectFormState());
+      const res = await apiClient.post("/auth-configs", payload);
       return (res.data.data ?? res.data) as AuthConfig;
     },
     onSuccess: (data) => {
@@ -220,12 +222,30 @@ export default function AuthenticationPage() {
   function resetForm() {
     setFormName("");
     setFormType("");
-    setFormHmacHeader("X-Hub-Signature-256");
-    setFormHmacAlgorithm("sha256");
+    setFormHmacHeader(AUTH_CONFIG_DEFAULTS.hmacHeader);
+    setFormHmacAlgorithm(AUTH_CONFIG_DEFAULTS.hmacAlgorithm);
+    setFormApiKeyHeader(AUTH_CONFIG_DEFAULTS.apiKeyHeader);
+    setFormIpWhitelist("");
     setFormUsername("");
     setFormPassword("");
     setGeneratedKey(null);
     setShowDialog(false);
+  }
+
+  // 폼 상태 단일 수집 지점 — handleCreate(검증)·createMutation(페이로드 조립)이
+  // 동일 객체를 공유해 필드 추가 시 한 곳만 수정하면 된다. `type` 은 호출 전
+  // 비어있지 않음이 보장된다(handleCreate 가드).
+  function collectFormState(): AuthConfigFormState {
+    return {
+      name: formName,
+      type: formType as AuthConfigType,
+      apiKeyHeader: formApiKeyHeader,
+      hmacHeader: formHmacHeader,
+      hmacAlgorithm: formHmacAlgorithm,
+      username: formUsername,
+      password: formPassword,
+      ipWhitelistRaw: formIpWhitelist,
+    };
   }
 
   function handleCreate() {
@@ -235,6 +255,20 @@ export default function AuthenticationPage() {
     }
     if (formType === "basic_auth" && (!formUsername.trim() || !formPassword)) {
       toast.error(t("authentication.fillRequired"));
+      return;
+    }
+    // §A.2 입력 형식 검증 — 잘못된 헤더명/IP·CIDR 는 제출 차단(백엔드 도달 전).
+    const validationError = validateAuthConfigForm(collectFormState());
+    if (validationError) {
+      if (validationError.key === "invalidIpWhitelist") {
+        toast.error(
+          t("authentication.invalidIpWhitelist", {
+            entries: validationError.invalid.join(", "),
+          }),
+        );
+      } else {
+        toast.error(t("authentication.invalidHeaderName"));
+      }
       return;
     }
     createMutation.mutate();
@@ -360,6 +394,19 @@ export default function AuthenticationPage() {
                     </div>
                   </>
                 )}
+                {formType === "api_key" && (
+                  <div>
+                    <Label htmlFor="auth-api-key-header">
+                      {t("authentication.apiKeyHeaderLabel")}
+                    </Label>
+                    <Input
+                      id="auth-api-key-header"
+                      value={formApiKeyHeader}
+                      onChange={(e) => setFormApiKeyHeader(e.target.value)}
+                      placeholder="X-API-Key"
+                    />
+                  </div>
+                )}
                 {formType === "basic_auth" && (
                   <>
                     <div>
@@ -386,6 +433,24 @@ export default function AuthenticationPage() {
                       />
                     </div>
                   </>
+                )}
+                {/* IP Whitelist — 모든 type 공통(선택). 한 줄에 IP/CIDR 하나. */}
+                {formType !== "" && (
+                  <div>
+                    <Label htmlFor="auth-ip-whitelist">
+                      {t("authentication.ipWhitelistLabel")}
+                    </Label>
+                    <textarea
+                      id="auth-ip-whitelist"
+                      className="flex min-h-[72px] w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                      value={formIpWhitelist}
+                      onChange={(e) => setFormIpWhitelist(e.target.value)}
+                      placeholder={"10.0.0.0/8\n203.0.113.42"}
+                    />
+                    <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                      {t("authentication.ipWhitelistHint")}
+                    </p>
+                  </div>
                 )}
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={resetForm}>
