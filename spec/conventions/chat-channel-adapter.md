@@ -175,7 +175,7 @@ interface ChannelUpdate {
     | { kind: "start" }                                          // /start
     | { kind: "cancel" }                                         // /cancel
     | { kind: "text_message"; text: string }                    // 일반 텍스트
-    | { kind: "button_callback"; callbackData: string; callbackQueryId: string }  // inline_keyboard tap. callbackQueryId = §1.1 ackInteraction (answerCallbackQuery) 대상 (텔레그램). ack 의무 없는 provider (Slack/Discord) 는 빈 문자열
+    | { kind: "button_callback"; callbackData: string; callbackQueryId: string; messageId?: string }  // inline_keyboard tap. callbackQueryId = §1.1 ackInteraction (answerCallbackQuery) 대상 (텔레그램). ack 의무 없는 provider (Slack/Discord) 는 빈 문자열. messageId (옵션) = 버튼 달린 원본 메시지 external id — ack 후 키보드 제거(중복 클릭 차단)용 (Telegram = callback_query.message.message_id). 미지원/부재 provider 는 미설정
     | { kind: "file_upload"; fileId: string; mimeType: string } // 파일 첨부
     | { kind: "contact_share"; phone: string }                   // share_contact
     | { kind: "open_form_modal"; openContext: Record<string, string> } // §4.1 native modal 게이팅 — "양식 작성하기" 버튼 클릭. openContext = 이 시점에만 가용한 trigger_id (Slack) / interaction token (Discord). HooksService 가 openFormModal (§1.1) 로 modal open

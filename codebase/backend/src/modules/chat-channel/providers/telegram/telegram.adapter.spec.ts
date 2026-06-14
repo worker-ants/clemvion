@@ -24,6 +24,7 @@ const makeMockClient = (): jest.Mocked<TelegramClient> =>
     sendPhoto: jest.fn(),
     sendChatAction: jest.fn(),
     answerCallbackQuery: jest.fn(),
+    editMessageReplyMarkup: jest.fn(),
   }) as unknown as jest.Mocked<TelegramClient>;
 
 const BOT_TOKEN_PLAIN = 'test-bot-token-123';
@@ -277,6 +278,21 @@ describe('TelegramAdapter', () => {
         /sendMessage failed/i,
       );
     });
+
+    it('typing 메시지 → sendChatAction(typing) 호출 + externalMsgId=typing (§5.1)', async () => {
+      client.sendChatAction.mockResolvedValue(okResult(true));
+      const msg: ChannelMessage = {
+        conversationKey: '9999',
+        body: { kind: 'typing' },
+      };
+      const result = await adapter.sendMessage(msg, baseConfig);
+      expect(client.sendChatAction).toHaveBeenCalledWith(
+        BOT_TOKEN_PLAIN,
+        expect.objectContaining({ chat_id: '9999', action: 'typing' }),
+      );
+      expect(client.sendMessage).not.toHaveBeenCalled();
+      expect(result.externalMsgId).toBe('typing');
+    });
   });
 
   describe('ackInteraction()', () => {
@@ -311,6 +327,94 @@ describe('TelegramAdapter', () => {
       };
       await adapter.ackInteraction(update, baseConfig);
       expect(client.answerCallbackQuery).not.toHaveBeenCalled();
+    });
+
+    it('messageId 있으면 ack 후 editMessageReplyMarkup 으로 키보드 제거 (§5.2(3))', async () => {
+      client.answerCallbackQuery.mockResolvedValue(okResult(true));
+      client.editMessageReplyMarkup.mockResolvedValue(
+        okResult({ message_id: 4242, date: 0, chat: { id: 9999 } }),
+      );
+      const update: ChannelUpdate = {
+        conversationKey: '9999',
+        channelUserKey: '888',
+        command: {
+          kind: 'button_callback',
+          callbackData: 'btn-id-1',
+          callbackQueryId: 'cq-abc',
+          messageId: '4242',
+        },
+        idempotencyKey: '102',
+        receivedAt: new Date().toISOString(),
+      };
+      await adapter.ackInteraction(update, baseConfig);
+      expect(client.editMessageReplyMarkup).toHaveBeenCalledWith(
+        BOT_TOKEN_PLAIN,
+        expect.objectContaining({
+          chat_id: '9999',
+          message_id: 4242,
+          reply_markup: { inline_keyboard: [] },
+        }),
+      );
+    });
+
+    it('messageId 없으면 editMessageReplyMarkup 미호출 (기존 동작 보존)', async () => {
+      client.answerCallbackQuery.mockResolvedValue(okResult(true));
+      const update: ChannelUpdate = {
+        conversationKey: '9999',
+        channelUserKey: '888',
+        command: {
+          kind: 'button_callback',
+          callbackData: 'btn-id-1',
+          callbackQueryId: 'cq-abc',
+        },
+        idempotencyKey: '103',
+        receivedAt: new Date().toISOString(),
+      };
+      await adapter.ackInteraction(update, baseConfig);
+      expect(client.editMessageReplyMarkup).not.toHaveBeenCalled();
+    });
+
+    it('messageId 가 비-숫자/0/음수면 editMessageReplyMarkup 미호출 (무효 id 보호)', async () => {
+      client.answerCallbackQuery.mockResolvedValue(okResult(true));
+      for (const bad of ['abc', '0', '-5', 'NaN']) {
+        client.editMessageReplyMarkup.mockClear();
+        const update: ChannelUpdate = {
+          conversationKey: '9999',
+          channelUserKey: '888',
+          command: {
+            kind: 'button_callback',
+            callbackData: 'btn-id-1',
+            callbackQueryId: 'cq-abc',
+            messageId: bad,
+          },
+          idempotencyKey: `bad-${bad}`,
+          receivedAt: new Date().toISOString(),
+        };
+        await adapter.ackInteraction(update, baseConfig);
+        expect(client.editMessageReplyMarkup).not.toHaveBeenCalled();
+      }
+    });
+
+    it('editMessageReplyMarkup 실패는 삼켜져 ack 흐름을 막지 않는다 (best-effort)', async () => {
+      client.answerCallbackQuery.mockResolvedValue(okResult(true));
+      client.editMessageReplyMarkup.mockRejectedValue(
+        new Error('message too old'),
+      );
+      const update: ChannelUpdate = {
+        conversationKey: '9999',
+        channelUserKey: '888',
+        command: {
+          kind: 'button_callback',
+          callbackData: 'btn-id-1',
+          callbackQueryId: 'cq-abc',
+          messageId: '4242',
+        },
+        idempotencyKey: '104',
+        receivedAt: new Date().toISOString(),
+      };
+      await expect(
+        adapter.ackInteraction(update, baseConfig),
+      ).resolves.toBeUndefined();
     });
   });
 

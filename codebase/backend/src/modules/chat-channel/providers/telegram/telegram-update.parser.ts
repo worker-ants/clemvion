@@ -25,7 +25,10 @@ export function parseTelegramUpdate(raw: unknown): ChannelUpdate | null {
     | {
         id?: string;
         from?: { id?: number; is_bot?: boolean };
-        message?: { chat?: { id?: number; type?: string } };
+        message?: {
+          message_id?: number;
+          chat?: { id?: number; type?: string };
+        };
         data?: string;
       }
     | undefined;
@@ -49,6 +52,8 @@ export function parseTelegramUpdate(raw: unknown): ChannelUpdate | null {
     ) {
       return null;
     }
+    // §5.2(3) — 버튼 메시지 id 를 담아 ack 후 editMessageReplyMarkup 으로 키보드 제거(중복 클릭 차단).
+    const messageId = callbackQuery.message?.message_id;
     return {
       conversationKey: String(chatId),
       channelUserKey: String(fromId),
@@ -56,6 +61,9 @@ export function parseTelegramUpdate(raw: unknown): ChannelUpdate | null {
         kind: 'button_callback',
         callbackData,
         callbackQueryId,
+        ...(typeof messageId === 'number'
+          ? { messageId: String(messageId) }
+          : {}),
       },
       idempotencyKey,
       receivedAt,
