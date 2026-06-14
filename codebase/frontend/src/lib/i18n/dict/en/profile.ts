@@ -22,6 +22,7 @@ export const profile: Dict["profile"] = {
   theme: "Theme",
   themeLight: "Light",
   themeDark: "Dark",
+  themeSystem: "System",
   language: "Language",
   languageKorean: "Korean",
   languageEnglish: "English",

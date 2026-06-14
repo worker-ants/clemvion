@@ -108,7 +108,11 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
 
   const diff: DiffEntry[] = useMemo(() => {
     const themeLabel = (val: ServerTheme): string =>
-      val === "dark" ? t("profile.themeDark") : t("profile.themeLight");
+      val === "dark"
+        ? t("profile.themeDark")
+        : val === "system"
+          ? t("profile.themeSystem")
+          : t("profile.themeLight");
     const localeLabel = (val: Locale): string =>
       val === "ko" ? t("profile.languageKorean") : t("profile.languageEnglish");
 
@@ -131,7 +135,11 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
   }, [tempTheme, tempLocale, user.theme, user.locale, t]);
 
   const themeReadonlyLabel =
-    user.theme === "dark" ? t("profile.themeDark") : t("profile.themeLight");
+    user.theme === "dark"
+      ? t("profile.themeDark")
+      : user.theme === "system"
+        ? t("profile.themeSystem")
+        : t("profile.themeLight");
   const localeReadonlyLabel =
     user.locale === "ko"
       ? t("profile.languageKorean")
@@ -201,6 +209,14 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
                   data-testid="pref-theme-dark"
                 >
                   {t("profile.themeDark")}
+                </Button>
+                <Button
+                  variant={tempTheme === "system" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleThemePreview("system")}
+                  data-testid="pref-theme-system"
+                >
+                  {t("profile.themeSystem")}
                 </Button>
               </div>
             )}

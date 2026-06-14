@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { USER_THEMES } from '../update-me.dto';
 
 /** 사용자 프로필 응답 DTO */
 export class UserProfileDto {
@@ -17,7 +18,7 @@ export class UserProfileDto {
   @ApiProperty({ example: 'ko' })
   locale: string;
 
-  @ApiProperty({ enum: ['light', 'dark'], example: 'light' })
+  @ApiProperty({ enum: USER_THEMES, example: 'light' })
   theme: string;
 }
 

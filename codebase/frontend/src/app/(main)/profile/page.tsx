@@ -50,7 +50,12 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!user) return;
     if (isLocale(user.locale)) setLocaleStore(user.locale);
-    if (user.theme === "light" || user.theme === "dark") setTheme(user.theme);
+    if (
+      user.theme === "light" ||
+      user.theme === "dark" ||
+      user.theme === "system"
+    )
+      setTheme(user.theme);
   }, [user, setTheme, setLocaleStore]);
 
   if (isLoading) {
