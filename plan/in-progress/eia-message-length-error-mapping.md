@@ -24,8 +24,8 @@ A-1 에서 `continueAiConversation` 의 메시지 길이 초과를 typed `Messag
 - [x] consistency-check --spec (BLOCK 게이트) — 12_27_28, BLOCK: NO
 - [x] **be** `interaction.service.ts dispatchContinuation` 에 `MessageTooLongError` catch → `badRequest('MESSAGE_TOO_LONG', <고정 message>)` (400). 내부 serverDetail 미노출.
 - [x] **be test** interaction.service.spec: submit_message 길이 초과 → 400 MESSAGE_TOO_LONG (message 에 수치 미포함).
-- [ ] **e2e** external-interaction.e2e: submit_message 10000자 초과 → 400 + code MESSAGE_TOO_LONG.
-- [ ] TEST + REVIEW WORKFLOW.
+- [x] **e2e** external-interaction.e2e: submit_message 10000자 초과 → 400 + code MESSAGE_TOO_LONG.
+- [x] TEST + REVIEW WORKFLOW.
 
 ## 연계
 
