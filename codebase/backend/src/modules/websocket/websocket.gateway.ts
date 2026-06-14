@@ -13,9 +13,11 @@ import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import {
+  ExecutionError,
   InvalidExecutionStateError,
   RetryLastTurnError,
 } from '../execution-engine/workflow-errors';
+import { ErrorCode } from '../../nodes/core/error-codes';
 import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
@@ -158,7 +160,9 @@ export class WebsocketGateway
           // userId 는 workspace 와 달리 JWT sub 에서 옴 — 빈 값/불일치 모두 거부.
           const allowed = !!userId && targetUserId === userId;
           return Promise.resolve(
-            allowed ? null : { error: 'Not authorized for these notifications' },
+            allowed
+              ? null
+              : { error: 'Not authorized for these notifications' },
           );
         },
       },
@@ -869,10 +873,29 @@ export class WebsocketGateway
   }
 
   /**
-   * 변경 2.3 (review W-8) — continuation 핸들러 4종의 catch 블록 공통화.
-   * spec §7.5.1 — publisher 측 사전 검증 실패(`InvalidExecutionStateError`)는
-   * 동기 ack 에 `errorCode='INVALID_EXECUTION_STATE'` 로 surface (worker 측
-   * `RESUME_*` 와 직교). 그 외 에러는 메시지만 전달.
+   * A-1 typed-error (§7.5.2) — continuation 핸들러 4종 catch 공통화 + 누출 차단.
+   * (원래 변경 2.3/review W-8 에서 도입)
+   *
+   * client-safe 표면과 내부 진단을 분리한다:
+   *
+   * - typed `ExecutionError`(`InvalidExecutionStateError` 등)면 그 클래스의 **고정
+   *   client-safe `message`** + `code` 를 surface 하고, `serverDetail` 은 서버 로그에만.
+   * - 그 외 임의(plain) `Error` / unknown 은 **내부 `error.message` 를 client 에
+   *   전달하지 않는다** — 고정 generic fallback + `EXECUTION_INTERNAL_ERROR` 로 축약하고
+   *   원본 message/stack 은 서버 로그에만 기록한다 (누출 차단 보안 게이트).
+   *
+   * 아키텍처 불변식: 4종 continuation 핸들러(submitForm·clickButton·submitMessage·endConversation)
+   * 의 catch 블록은 모두 이 메서드를 거친다 — frontend `localizeAckError` 가 "모든 continuation
+   * ack 의 error 필드는 client-safe" 임을 가정하므로, 신규 continuation 핸들러 추가 시
+   * 반드시 이 메서드를 사용해야 한다 (§7.5.2).
+   *
+   * worker 측 `RESUME_*`(§7.5.1)는 본 동기 ack 경로 밖 — 후행 `execution.cancelled` 통지.
+   *
+   * @param event WS ack 이벤트 이름 (예: `execution.form_submitted`).
+   * @param error catch 블록에서 받은 throw 값.
+   * @param fallbackMessage plain(non-typed) Error 에만 사용되는 client-side 고정 메시지.
+   *   typed `ExecutionError` 가 아닌 경우에만 이 값이 `error` 필드로 노출되며, 내부
+   *   `error.message` 는 절대 client 에 전달하지 않는다 (누출 차단).
    */
   private buildContinuationErrorAck(
     event: string,
@@ -882,10 +905,29 @@ export class WebsocketGateway
     event: string;
     data: { success: false; error: string; errorCode?: string };
   } {
-    const message = error instanceof Error ? error.message : fallbackMessage;
-    const errorCode =
-      error instanceof InvalidExecutionStateError ? error.code : undefined;
-    return { event, data: { success: false, error: message, errorCode } };
+    if (error instanceof ExecutionError) {
+      if (error.serverDetail) {
+        this.logger.warn(`[${event}] ${error.code}: ${error.serverDetail}`);
+      }
+      return {
+        event,
+        data: { success: false, error: error.message, errorCode: error.code },
+      };
+    }
+    // 비-typed / unknown — 내부 message 는 절대 client 에 전달하지 않는다.
+    this.logger.warn(
+      `[${event}] continuation failed (internal): ${
+        error instanceof Error ? (error.stack ?? error.message) : String(error)
+      }`,
+    );
+    return {
+      event,
+      data: {
+        success: false,
+        error: fallbackMessage,
+        errorCode: ErrorCode.EXECUTION_INTERNAL_ERROR,
+      },
+    };
   }
 
   broadcastToChannel(channel: string, event: string, payload: unknown): void {

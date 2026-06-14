@@ -16,6 +16,33 @@
  */
 
 /**
+ * Client-safe typed error 기반 — execution-engine 의 client 경계(continuation ack /
+ * publisher 동기 응답)에 도달하는 에러의 공통 계약 (spec/5-system/4-execution-engine.md
+ * §7.5.2).
+ *
+ * 계약: `code` 는 안정 client-safe 코드(중앙 `ErrorCode` enum 값 또는 prefix 없는 시스템
+ * 레벨 코드), `message`(표준 `Error.message`)는 **고정 client-safe 문자열**(내부 식별자
+ * 미포함), `serverDetail` 은 **서버 로그 전용** 진단 상세로 **client 에 절대 노출하지
+ * 않는다**.
+ *
+ * continuation ack 빌더(`websocket.gateway.ts#buildContinuationErrorAck`)는
+ * `ExecutionError` 를 `{ error: message, errorCode: code }` 로 surface 하고, 그 외 임의
+ * (non-`ExecutionError`) throw 는 고정 generic fallback + `EXECUTION_INTERNAL_ERROR` 로
+ * 축약하면서 내부 message 는 서버 로그에만 기록한다 (누출 차단 보안 게이트).
+ */
+export abstract class ExecutionError extends Error {
+  /** 안정 client-safe 코드. */
+  abstract readonly code: string;
+  /** 서버 로그 전용 진단 상세 — client 응답에 절대 포함하지 않는다. */
+  readonly serverDetail?: string;
+
+  protected constructor(message: string, serverDetail?: string) {
+    super(message);
+    this.serverDetail = serverDetail;
+  }
+}
+
+/**
  * 대상 워크플로우 정의가 존재하지 않음. `executeInline` / `executeAsync` /
  * `executeSync` / `execute` 의 진입 검증에서 발생.
  */
@@ -59,15 +86,17 @@ export class SubWorkflowTimeoutError extends Error {
  * (executionId, row 수) 를 담지 않는 고정 문자열이다. 진단용 상세는 `detail`
  * 필드에 담아 throw 측에서 서버 로그로만 기록한다.
  */
-export class InvalidExecutionStateError extends Error {
+export class InvalidExecutionStateError extends ExecutionError {
   readonly code = 'INVALID_EXECUTION_STATE' as const;
-  /** 서버 로그 전용 진단 상세 — client 응답에 포함하지 않는다. */
-  readonly detail?: string;
 
   constructor(detail?: string) {
-    super('Execution is not waiting for input.');
+    super('Execution is not waiting for input.', detail);
     this.name = 'InvalidExecutionStateError';
-    this.detail = detail;
+  }
+
+  /** @deprecated since refactor-04-a1 — use {@link serverDetail}; remove after callers migrated (spec §7.5.1). */
+  get detail(): string | undefined {
+    return this.serverDetail;
   }
 }
 
@@ -91,16 +120,18 @@ export type RetryLastTurnErrorCode =
   | typeof ErrorCode.NODE_NOT_RETRYABLE
   | typeof ErrorCode.RETRY_TOO_EARLY;
 
-export class RetryLastTurnError extends Error {
+export class RetryLastTurnError extends ExecutionError {
   readonly code: RetryLastTurnErrorCode;
-  /** 서버 로그 전용 진단 상세 — client 응답에 포함하지 않는다. */
-  readonly detail?: string;
 
   constructor(code: RetryLastTurnErrorCode, message: string, detail?: string) {
-    super(message);
+    super(message, detail);
     this.code = code;
     this.name = 'RetryLastTurnError';
-    this.detail = detail;
+  }
+
+  /** @deprecated since refactor-04-a1 — use {@link serverDetail}; remove after callers migrated. */
+  get detail(): string | undefined {
+    return this.serverDetail;
   }
 
   /** `_retryState` 부재 / 만료 / 이미 소비됨. */
@@ -144,6 +175,15 @@ export class RetryLastTurnError extends Error {
  * REST API 응답·WS 이벤트에 노출되므로 `activeRunningMs` / `limitMs` 프로퍼티로 분리해
  * 서버 로그 전용으로 기록한다 (`assertActiveTimeWithinLimit` 호출 지점에서 logger.warn).
  */
+/**
+ * **설계 경계 (I-3, ai-review)**: `ExecutionTimeLimitError` 는 `ExecutionError` 계층
+ * 밖(`extends Error`)에 의도적으로 남겨져 있다 — dispatch loop 가 execution 레벨에서
+ * throw 하는 sentinel 로, continuation ack (submit_form / submit_message 등) 의 동기
+ * 경로에 도달하지 않는다. 해당 경로에 도달하면 `buildContinuationErrorAck` 가 비-typed
+ * generic fallback + `EXECUTION_INTERNAL_ERROR` 로 축약하는 보안 게이트를 거친다
+ * (누출 없음). `ExecutionError` 로 승격하면 code/message 가 continuation ack 에 직접
+ * surface 되므로 현재 구조를 의도적으로 유지한다 (spec §7.5.2).
+ */
 export class ExecutionTimeLimitError extends Error {
   readonly code = ErrorCode.EXECUTION_TIME_LIMIT_EXCEEDED;
   /** 서버 로그 전용. REST/WS 에 노출하지 않는다. */
@@ -160,5 +200,27 @@ export class ExecutionTimeLimitError extends Error {
     this.name = 'ExecutionTimeLimitError';
     this.activeRunningMs = activeRunningMs;
     this.limitMs = limitMs;
+  }
+}
+
+/**
+ * `execution.submit_message` 의 사용자 메시지가 최대 길이를 초과 (publisher 측 동기
+ * 검증, spec/5-system/4-execution-engine.md §7.5.2). continuation ack 에
+ * `errorCode='EXECUTION_MESSAGE_TOO_LONG'` 로 surface 된다.
+ *
+ * 보안: `message` 는 고정 client-safe 문자열 — 한도/실제 길이 수치는 `serverDetail`(서버
+ * 로그 전용)에만 담는다 (`ExecutionTimeLimitError` 의 수치 분리 정책과 동일).
+ */
+export class MessageTooLongError extends ExecutionError {
+  readonly code = ErrorCode.EXECUTION_MESSAGE_TOO_LONG;
+
+  constructor(maxLength: number, actualLength?: number) {
+    super(
+      'Message exceeds the maximum allowed length.',
+      actualLength !== undefined
+        ? `length=${actualLength} max=${maxLength}`
+        : `max=${maxLength}`,
+    );
+    this.name = 'MessageTooLongError';
   }
 }

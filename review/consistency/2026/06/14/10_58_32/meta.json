@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-14T10:58:32.978977",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/5-system/4-execution-engine.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { getWsClient } from "./ws-client";
 import type { WsClient } from "./ws-client";
 import { useExecutionStore } from "../stores/execution-store";
+import { useT, type TFunction } from "@/lib/i18n";
+import { getExecutionInteractionErrorI18nKey } from "./execution-error-codes";
 
 /**
  * Sentinel buttonId recognised by the engine's button-interaction handler as
@@ -33,6 +35,26 @@ function isUserInitiatedTurn(
 interface InteractionAck {
   success: boolean;
   error?: string;
+  /**
+   * 평면 client-safe 에러 코드 (4종 continuation 명령, spec §7.5.2). frontend 가
+   * `execution-error-codes` 맵으로 localize 한다. retry 의 nested `error:{code}` 와 별개.
+   */
+  errorCode?: string;
+}
+
+/**
+ * continuation ack 의 (error, errorCode) 를 localized 메시지로 변환한다 (spec §7.5.2).
+ * 매핑된 code 면 localized i18n 메시지, 아니면 backend 의 영문 `error` 문자열로 fallback.
+ * backend 는 typed error → 고정 client-safe message, plain error → generic fallback 만
+ * 보내므로 `error` 문자열 자체에 내부 정보 누출은 없다.
+ */
+function localizeAckError(
+  t: TFunction,
+  error: string,
+  errorCode: string | undefined,
+): string {
+  const key = getExecutionInteractionErrorI18nKey(errorCode);
+  return key ? t(key) : error;
 }
 
 /**
@@ -50,12 +72,12 @@ function emitWithAck(
   event: string,
   data: unknown,
   ackEvent: string,
-  onFailure: (error: string) => void,
+  onFailure: (error: string, errorCode?: string) => void,
 ): void {
   ws.once(ackEvent, (...args: unknown[]) => {
     const response = args[0] as InteractionAck | undefined;
     if (response && response.success === false) {
-      onFailure(response.error ?? "Unknown error");
+      onFailure(response.error ?? "Unknown error", response.errorCode);
     }
   });
   ws.emit(event, data);
@@ -111,6 +133,7 @@ export function useExecutionInteractionCommands(
     (s) => s.addConversationMessage,
   );
   const setWaitingAiResponse = useExecutionStore((s) => s.setWaitingAiResponse);
+  const t = useT();
 
   const submitForm = useCallback(
     (formData: Record<string, unknown>) => {
@@ -160,16 +183,16 @@ export function useExecutionInteractionCommands(
         "execution.submit_form",
         { executionId, formData },
         "execution.form_submitted",
-        (error) => {
+        (error, errorCode) => {
           // Server rejected. `sendMessage` 와 평행으로 spinner 만 해제 +
           // toast. optimistic presentation_user 는 유지 (사용자가 제출한
           // 내용 가시화 — 재시도 안내 차원). spec §Rationale.
           setWaitingAiResponse(false);
-          toast.error(error);
+          toast.error(localizeAckError(t, error, errorCode));
         },
       );
     },
-    [executionId, addConversationMessage, setWaitingAiResponse],
+    [executionId, addConversationMessage, setWaitingAiResponse, t],
   );
 
   const clickButton = useCallback(
@@ -180,10 +203,10 @@ export function useExecutionInteractionCommands(
         "execution.click_button",
         { executionId, buttonId },
         "execution.click_button.ack",
-        (error) => toast.error(error),
+        (error, errorCode) => toast.error(localizeAckError(t, error, errorCode)),
       );
     },
-    [executionId],
+    [executionId, t],
   );
 
   const clickContinue = useCallback(() => {
@@ -193,9 +216,9 @@ export function useExecutionInteractionCommands(
       "execution.click_button",
       { executionId, buttonId: CONTINUE_BUTTON_ID },
       "execution.click_button.ack",
-      (error) => toast.error(error),
+      (error, errorCode) => toast.error(localizeAckError(t, error, errorCode)),
     );
-  }, [executionId]);
+  }, [executionId, t]);
 
   const sendMessage = useCallback(
     (nodeId: string, message: string) => {
@@ -221,16 +244,16 @@ export function useExecutionInteractionCommands(
         "execution.submit_message",
         { executionId, nodeId, message },
         "execution.submit_message.ack",
-        (error) => {
+        (error, errorCode) => {
           // Server rejected the message (oversize / no pending continuation /
           // not authorised). Release the "AI is responding" indicator so the
           // user can retry instead of staring at a frozen spinner.
           setWaitingAiResponse(false);
-          toast.error(error);
+          toast.error(localizeAckError(t, error, errorCode));
         },
       );
     },
-    [executionId, addConversationMessage, setWaitingAiResponse],
+    [executionId, addConversationMessage, setWaitingAiResponse, t],
   );
 
   const endConversation = useCallback(
@@ -241,10 +264,10 @@ export function useExecutionInteractionCommands(
         "execution.end_conversation",
         { executionId, nodeId },
         "execution.end_conversation.ack",
-        (error) => toast.error(error),
+        (error, errorCode) => toast.error(localizeAckError(t, error, errorCode)),
       );
     },
-    [executionId],
+    [executionId, t],
   );
 
   const retryLastTurn = useCallback(

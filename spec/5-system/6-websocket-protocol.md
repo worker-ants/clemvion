@@ -309,6 +309,8 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID |
 | `INVALID_EXECUTION_STATE` | 실행이 기대 상태가 아님 (`submit_form` / `click_button` / `submit_message` / `end_conversation` 의 `waiting_for_input` 기대 또는 `retry_last_turn` 의 `failed` 기대). WS 전용 코드 — REST 진입점은 422 `INVALID_STATE` ([Spec 에러 처리 §3-error-handling.md](./3-error-handling.md)) 로 표기 (의도적 분리, [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 참조) |
 | `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 |
+| `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 의 메시지가 최대 길이(10000자)를 초과 (publisher 측 동기 검증, typed `ExecutionError`) |
+| `EXECUTION_INTERNAL_ERROR` | continuation 처리 중 typed `ExecutionError` 가 아닌 내부 에러(DB·서드파티·예기치 못한 throw). ack `error` 는 **고정 generic 문자열**이며 내부 `error.message` 는 client 에 전달되지 않는다(서버 로그 전용) — [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단) 누출 차단 정책 |
 | `RESUME_CHECKPOINT_MISSING` | (공통) rehydration 시 `NodeExecution.outputData` 가 부재 또는 손상. Execution 은 `cancelled` 로 종결 ([§7.5](./4-execution-engine.md#75-resume-after-restart-rehydration)) |
 | `RESUME_FAILED` | (공통) continuation-queue `RESUME_BULLMQ_ATTEMPTS` 소진. Execution 은 `cancelled` 로 종결 |
 | `RESUME_INCOMPATIBLE_STATE` | (공통) Multi-turn AI 의 `_resumeCheckpoint` 가 부재(기능 배포 이전 waiting row)·손상(schema drift 로 재구성 실패)·미래 버전(`schemaVersion` 이 현재 코드 지원 버전 초과 — 롤링 배포 중 구 인스턴스가 신 포맷 pickup, [실행 엔진 §1.3/§7.5](./4-execution-engine.md#75-resume-after-restart-rehydration)). Execution 은 `cancelled` 로 종결 — 채널은 graceful "세션 만료" 안내. 정상 경로(checkpoint 존재 + 버전 호환)는 재구성 재개되어 미발생 |
@@ -316,6 +318,8 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 > 위 표의 마지막 3개 코드 (`RESUME_*`) 는 `execution.submit_form` / `execution.click_button` / `execution.submit_message` / `execution.end_conversation` 의 ack 에 공통 적용된다. **`execution.retry_last_turn` 은 적용 대상 아님** — retry_last_turn 은 동일 nodeId 의 새 NodeExecution row spawn 경로이며 rehydration 경로를 타지 않는다 (전용 코드는 `RETRY_STATE_NOT_FOUND` / `NODE_NOT_RETRYABLE` / `RETRY_TOO_EARLY` 참조).
 
 > **실패 ack 형태**: `execution.submit_form` / `click_button` / `submit_message` / `end_conversation` 의 실패 ack payload 는 `{ success: false, error: string, errorCode?: string }` 다. `errorCode` 는 위 표의 코드(`INVALID_EXECUTION_STATE` 등)를 담는 **평면 필드** — 기존 `error`(사람용 메시지 문자열)와 하위 호환되도록 형제 필드로 추가됐다. `execution.retry_last_turn` 의 nested `error: { code, message }` 와 계층이 다른 것은 의도된 분리다: 4개 continuation 명령은 도입 시점부터 평면 `{ success, error }` 를 써 왔고 `errorCode` 는 그 위의 additive 확장이다 (publisher 측 동기 검증 — [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state)).
+>
+> **누출 차단 (typed/plain 분기)**: ack 의 `error` 문자열은 에러 타입에 따라 다르게 채워진다 — typed `ExecutionError`(`InvalidExecutionStateError` 등)면 그 클래스의 **고정 client-safe `message`** 를, 그 외 임의(plain) `Error` 면 **호출부 지정 고정 generic 문자열**을 담고 `errorCode='EXECUTION_INTERNAL_ERROR'` 로 표면한다. 후자의 경우 내부 `error.message`(스택 힌트·DB/3rd-party 원문·내부 식별자)는 **client 에 전달하지 않고 서버 로그에만 기록**한다. 계약·근거: [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단).
 
 **`execution.retry_last_turn` ack:**
 
@@ -875,7 +879,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 | `UNAUTHENTICATED` | ✅ | socket 에 userId 없음 |
 | `FORBIDDEN` | ✅ (정의) | 권한 없음 (일반). IDOR 차단 핸들러는 존재 추론 방지로 의도적으로 `NOT_FOUND` 사용 |
 | `NOT_FOUND` | ✅ | 리소스 부재 또는 소유 검증 실패 (verifyOwnership 통일) |
-| `INTERNAL_ERROR` | ✅ | 서버/transport 내부 실패 (enqueue 실패 등) |
+| `INTERNAL_ERROR` | ✅ | 서버/transport 내부 실패 (enqueue 실패 등) — `WsErrorCode` 의 transport 레벨 코드(`retry_last_turn` 의 nested `error.code` 등). continuation 평면 ack 의 `EXECUTION_INTERNAL_ERROR`(`ErrorCode` enum, §4.2/§7.5.2)와 **별개 scope** |
 | `INVALID_EXECUTION_STATE` | ✅ | continuation 명령의 평면 `errorCode` (§4.2). publisher 사전 검증 실패 |
 | `RETRY_*` / `RESUME_*` | ✅ | retry/continuation 도메인 코드 (§4.2). `nodes/core/error-codes.ts` 의 `ErrorCode` enum |
 | `INVALID_MESSAGE` _(계획·미구현)_ | 🚧 | JSON 파싱 실패/필수 필드 누락 시 전용 코드 응답 — 미구현 |
