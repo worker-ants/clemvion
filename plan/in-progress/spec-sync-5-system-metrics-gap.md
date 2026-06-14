@@ -21,8 +21,8 @@ owner: planner
   - [x] `continuation-dlq-monitor.service.ts` "OTel traces-only" 주석 현행화 + 큐 depth gauge provider 등록 (C-12).
   - [x] spec W-2: `4-execution-engine.md` §Rationale "DLQ 모니터링" stale 전제 현행화.
   - [x] TEST WORKFLOW (lint·unit·build·e2e)
-  - [x] /ai-review (2026-06-14 12:32:02 — SUMMARY: Critical 0 / WARNING 12 / INFO 13)
-  - [ ] /consistency-check --impl-done
+  - [x] /ai-review (2026-06-14 12:32:02 — SUMMARY: Critical 0 / WARNING 12 / INFO 13. 10/12 fix, W-10·W-12 후속 분리)
+  - [x] /consistency-check --impl-done (2026-06-14 12:55:52 — BLOCK: NO)
 
 ## 후속 (아키텍처 개선 — 이번 PR 조치 안 함)
 - W-10: `registerQueueDepthProvider` push-등록 패턴을 `QUEUE_DEPTH_PROVIDER` 다중 주입 DI 토큰 패턴으로 전환 (암묵적 등록 계약 해소)
@@ -31,6 +31,8 @@ owner: planner
 - I-3: observeQueues provider 실행 타임아웃 (Promise.race 패턴)
 - I-12: 다중 Pod cooldown 분산 잠금 (`acquireLock` 패턴)
 - I-13: node_executions `(execution_id, status)` 복합 인덱스 존재 확인
+- impl-done W-1: `TERMINAL_STATUSES` 공유 상수 통합 (`ExecutionEngineService` static + `external-interaction/interaction.service.ts` 모듈 const 중복 → `execution-status.enum.ts` 또는 공유 util `TERMINAL_EXECUTION_STATUSES`)
+- impl-done INFO-6: `business-metrics.service.ts` 의 private `LlmTokenUsage` 를 `llm-client.interface.ts` 의 `TokenUsage`(또는 `Partial<TokenUsage>`) 재활용으로 통합
 
 ## 비고
 - 근거(claim→코드부재)는 audit findings/5-system/5-system___product-overview.md 참조.
