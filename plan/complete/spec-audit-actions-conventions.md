@@ -2,8 +2,13 @@
 worktree: refactor-04-spec-audit-conventions-a3f58f (branch claude/refactor-04-spec-audit-conventions-a3f58f)
 started: 2026-06-14
 owner: project-planner
-status: in-progress
-spec_impact: spec/conventions/audit-actions.md, spec/5-system/1-auth.md, spec/1-data-model.md, spec/2-navigation/13-user-guide.md, spec/data-flow/1-audit.md
+status: complete
+spec_impact:
+  - spec/conventions/audit-actions.md
+  - spec/5-system/1-auth.md
+  - spec/1-data-model.md
+  - spec/2-navigation/13-user-guide.md
+  - spec/data-flow/1-audit.md
 ---
 
 # refactor 04 후속 — 감사 액션 명명 규약 통합 (A-2) + spec 정합 보정 (B-1) + user-guide IA (W2)
