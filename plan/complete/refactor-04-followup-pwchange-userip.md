@@ -2,7 +2,11 @@
 worktree: audit-user-actions-5a037b (branch claude/audit-user-actions)
 started: 2026-06-13
 owner: developer
-status: in-progress
+status: complete
+spec_impact:
+  - spec/2-navigation/9-user-profile.md
+  - spec/5-system/1-auth.md
+  - spec/data-flow/1-audit.md
 ---
 
 # refactor 04 후속 구현 — A-1 비번변경 세션 + B-1 ipAddress + B-2 SRP + C DRY/e2e
@@ -36,7 +40,7 @@ spec: dcd225b8 (auth §2.3·Rationale 2.3.C, user-profile §2.x·API, data-flow 
 
 ## DOCUMENTATION (step 4)
 - [x] swagger jsdoc: ApiOperation(change-password 세션 회전) + PasswordChangeResultDto(accessToken) 갱신
-- [ ] user-guide: 비밀번호 변경/활성 세션 흐름을 다루는 **기존 가이드 페이지 없음** (security-2fa 는 2FA 전용). 신규 페이지 생성은 추측성이라 보류 — /ai-review user-guide-sync-reviewer 판단에 위임.
+- [x] user-guide: 당시 페이지 부재로 보류했으나 **후속 B-2(PR #579)에서 `07-workspace-and-team/password-and-sessions.{mdx,en.mdx}` (KO/EN) 신설로 해소** (아래 "후속 > 완료" 참조).
 
 ## TEST + REVIEW WORKFLOW
 - [x] backend unit (6785 pass) · frontend unit (4318 pass, dist 준비 후) · backend build · backend·frontend lint (0 error)
@@ -52,10 +56,11 @@ spec: dcd225b8 (auth §2.3·Rationale 2.3.C, user-profile §2.x·API, data-flow 
 - [x] TEST: backend build · unit 56 · e2e 190 PASS · 변경파일 lint clean.
 - [x] /ai-review (23_39_46, RISK LOW · Critical 0 · Warning 4) → W1·W3 fix, W4 dismiss(false positive), W2 planner defer. RESOLUTION.md.
 
-### 남은 planner 트랙 (spec PR)
-- **B-1** data-model §2.18 `ip_address`→`String?` (AuditLog), Rationale 4.1.B WebAuthn 추가 credential·OAuth-only TOTP 비활성 보강.
-- **A-2 결정 대기** — `workspace.transfer_ownership` 시제 규약 미분류: `spec/conventions/audit-actions.md` 신설 vs §4.1 예외 명시. (사용자 결정 필요)
-- **W2 SPEC-DRIFT** (ai-review 23_39_46): `spec/2-navigation/13-user-guide.md` §2 IA 트리에 `password-and-sessions` 행 추가.
+### 완료된 planner 트랙 (spec PR — branch claude/refactor-04-spec-audit-conventions-a3f58f, **PR #582 머지**)
+- [x] **B-1** data-model §2.18 `ip_address`→`String?` (AuditLog), Rationale 4.1.B WebAuthn 추가 credential·OAuth-only TOTP 비활성 보강.
+- [x] **A-2** — `workspace.transfer_ownership` 시제 규약: `spec/conventions/audit-actions.md` 신설로 해소 (§4.1 예외 명시 대안 기각). 사용자 결정 2026-06-14.
+- [x] **W2 SPEC-DRIFT** (ai-review 23_39_46): `spec/2-navigation/13-user-guide.md` §2 IA 트리에 `password-and-sessions` 행 추가.
+  - 추적 plan `spec-audit-actions-conventions.md` → `plan/complete/` 이동 완료.
 
-### 별도 작업
-- **A-1 결정 대기** execution-engine typed-error 체계 (`execution-engine-typed-errors.md`, 대형). (사용자 결정 필요)
+### 별도 작업 (독립 plan 으로 추적 — 본 umbrella 의 open item 아님)
+- **A-1** execution-engine typed-error 체계 — **설계 초안 완료(PR #583)**, 본구현 대기. 독립 plan `execution-engine-typed-errors.md` (in-progress) 에서 추적·진행.
