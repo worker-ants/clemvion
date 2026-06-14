@@ -4,6 +4,7 @@ import {
   NotFoundException,
   GoneException,
   BadRequestException,
+  HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -42,6 +43,15 @@ export interface WebhookInput {
   query: Record<string, string>;
   method: string;
 }
+
+/**
+ * webhook 호출이 받는 실제 HTTP 응답 코드 — execution 시작에 성공한 경로는 항상
+ * 202 Accepted 다 (HooksController `@HttpCode(HttpStatus.ACCEPTED)`). 인증 실패(401)·
+ * 검증 실패(400)·비활성(410) 은 execute() 호출 전에 throw 되어 Execution row 자체가
+ * 생성되지 않으므로, 호출 이력에 남는 webhook 행의 response_code 는 이 값이다.
+ * execution.response_code 컬럼(§A.3 호출 이력, WH-MG-05)에 영속된다.
+ */
+const WEBHOOK_ACCEPTED_RESPONSE_CODE = String(HttpStatus.ACCEPTED);
 
 @Injectable()
 export class HooksService {
@@ -123,6 +133,9 @@ export class HooksService {
       });
     }
 
+    // 소스 IP 추출 — 인증 IP whitelist 검증과 호출 이력(§A.3) 영속에 공용. 한 번만 추출.
+    const clientIp = extractClientIp(input.headers);
+
     // 3. Authenticate — trigger.authConfigId 가 가리키는 AuthConfig 로 위임
     //    (spec/5-system/12-webhook.md §7 step 6). authConfigId 가 null 이면 인증 없음(none).
     if (trigger.authConfigId) {
@@ -132,7 +145,7 @@ export class HooksService {
         {
           headers: input.headers,
           rawBody,
-          clientIp: extractClientIp(input.headers),
+          clientIp,
         },
       );
     }
@@ -164,7 +177,12 @@ export class HooksService {
     const executionId = await this.executionEngineService.execute(
       trigger.workflowId,
       { __triggerSource: 'webhook', parameters, ...input },
-      { triggerId: trigger.id },
+      {
+        triggerId: trigger.id,
+        // §A.3 호출 이력 — 소스 IP·응답 코드 영속 (WH-MG-05). 성공 경로는 202.
+        sourceIp: clientIp ?? undefined,
+        responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
+      },
     );
 
     this.logger.log(
@@ -220,6 +238,10 @@ export class HooksService {
      */
     interactionHttpResponse?: unknown;
   }> {
+    // §A.3 소스 IP — handleWebhook 의 `const clientIp` 패턴과 통일 (W-9).
+    // extractClientIp 를 재사용 없이 인라인 재호출하면 향후 부수효과 추가 시 회귀 위험.
+    const clientIp = extractClientIp(input.headers);
+
     let adapter: ChatChannelAdapter;
     try {
       adapter = this.channelAdapterRegistry.get(config.provider);
@@ -581,7 +603,12 @@ export class HooksService {
           channelUserKey: update.channelUserKey,
         },
       },
-      { triggerId: trigger.id },
+      {
+        triggerId: trigger.id,
+        // §A.3 호출 이력 — chat-channel inbound 도 webhook POST(202)로 응답한다.
+        sourceIp: clientIp ?? undefined,
+        responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
+      },
     );
 
     await this.channelConversationService.upsert(
