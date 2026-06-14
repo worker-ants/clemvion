@@ -336,3 +336,21 @@ Form 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 ## 7. 캔버스 요약
 
 [공통 §5](./0-common.md#5-캔버스-요약) — `Form` 행 인용. 포맷: `{N} fields · "{title}"` (예: `3 fields · "Approval"`).
+
+## Rationale
+
+### field 검증은 FIRST 오류만 반환 (전수 수집 아님)
+
+폼 입력 field-level 검증(§6.2)은 필드 정의 순서대로 검사해 **첫 번째 위반에서 즉시 실패를 표면**하며, 모든 필드의 위반을 한 번에 수집하지 않는다. 이는 publisher `continueExecution` chokepoint 이 빠른 거부 게이트이기 때문이다 — `waiting_for_input` 재제출 루프 안에서 사용자는 오류를 순차로 해소하면 되고, 첫 위반에서 throw 하는 편이 검증 비용·코드 단순성에서 유리하다.
+
+이 때문에 EIA `400 VALIDATION_ERROR` 의 `error.details[]` 는 **계약상 다중 배열** 이지만 **현 구현은 항상 길이 1** 이다 ([EIA §5.1](../../5-system/14-external-interaction-api.md#51-인터랙션-명령-제출--post-apiexternalexecutionsexecutionidinteract)). 두 레이어는 구분된다: 계약은 복수 entry 를 허용하므로, 향후 전수 수집으로 바뀌어도 `details[]` 응답 형태 자체는 변경이 불필요하다. 단건→복수 수집 전환 여부는 현재 **미결정** 이며 필요 발생 시 별도 논의한다.
+
+### 검증 지점 = publisher 측 `continueExecution` chokepoint (3 경로 공통)
+
+필수·`type`(email/number)·`validation.minLength`/`maxLength`·select/radio 선택지 검증을 EIA REST·외부 WS·workspace WS 진입점에서 **각각 구현하지 않고** `continueExecution` 한 곳에서 수행한다 (§6.2 "검증 지점" 주석). 같은 검증 규칙을 3 경로가 중복 구현하면 drift 위험이 있어, publisher chokepoint 단일 지점에서 공유 validator 를 재사용하고 typed `FormValidationError` 를 한 번 throw 한 뒤 각 표면(EIA `400` / WS `VALIDATION_ERROR` ack)으로 매핑한다.
+
+publish **전** throw 라는 점이 핵심이다 — 검증 실패 시 execution 은 `waiting_for_input` 을 유지하며(재제출 가능) 새 NodeExecution 출력을 만들지 않는다 (§6.2 / [node-output Principle 3.1](../../conventions/node-output.md)).
+
+### file 검증(MIME/크기/개수)·`validation.min`/`max`·`pattern` 분리 defer
+
+§6.2 표의 file 검증 행과 숫자 범위/정규식 행은 **Planned** 로 분리돼 있다 (`plan/in-progress/spec-sync-form-gaps.md` 추적). file 검증은 단일 함수 추가가 아니라 **cluster** 이기 때문이다 — 공유 default 상수(13종 MIME / 10MB·50MB / count 5, §1) + 서버측 enforcement + frontend reject(§1.5) + 재-waiting 흐름이 함께 와야 의미가 있다. 또한 file 은 metadata-only 전달(binary 미전달, §1.5 / [공통 §Rationale file 타입 metadata-only](./0-common.md#file-타입-metadata-only))이라 검증 대상이 metadata 필드(`size`/`type`)에 한정되는 등 별도 설계 표면이 있어 분리 추적이 적절하다. `validation.min`/`max`·`pattern` 은 공유 validator 확장만으로 3 경로 공통 적용되므로 file cluster 와 독립적으로 진행한다.
