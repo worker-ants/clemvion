@@ -309,7 +309,8 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID |
 | `INVALID_EXECUTION_STATE` | 실행이 기대 상태가 아님 (`submit_form` / `click_button` / `submit_message` / `end_conversation` 의 `waiting_for_input` 기대 또는 `retry_last_turn` 의 `failed` 기대). WS 전용 코드 — REST 진입점은 422 `INVALID_STATE` ([Spec 에러 처리 §3-error-handling.md](./3-error-handling.md)) 로 표기 (의도적 분리, [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 참조) |
 | `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 |
-| `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 의 메시지가 최대 길이(10000자)를 초과 (publisher 측 동기 검증, typed `ExecutionError`) |
+| `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 의 메시지가 최대 길이(10000자)를 초과 (publisher 측 동기 검증, typed `MessageTooLongError`) |
+| `VALIDATION_ERROR` | `submit_form` 의 field 검증 실패 (필수/type/minLength 등). publisher 측 `continueExecution` chokepoint 가 노드 config 의 field 정의로 동기 검증 (typed `FormValidationError`) — EIA REST 의 `400 VALIDATION_ERROR` + `details[]` 와 동일 의미·동일 검증 지점. execution 상태 유지(재제출 가능) |
 | `EXECUTION_INTERNAL_ERROR` | continuation 처리 중 typed `ExecutionError` 가 아닌 내부 에러(DB·서드파티·예기치 못한 throw). ack `error` 는 **고정 generic 문자열**이며 내부 `error.message` 는 client 에 전달되지 않는다(서버 로그 전용) — [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단) 누출 차단 정책 |
 | `RESUME_CHECKPOINT_MISSING` | (공통) rehydration 시 `NodeExecution.outputData` 가 부재 또는 손상. Execution 은 `cancelled` 로 종결 ([§7.5](./4-execution-engine.md#75-resume-after-restart-rehydration)) |
 | `RESUME_FAILED` | (공통) continuation-queue `RESUME_BULLMQ_ATTEMPTS` 소진. Execution 은 `cancelled` 로 종결 |

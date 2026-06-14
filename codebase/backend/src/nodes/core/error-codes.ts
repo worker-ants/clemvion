@@ -91,6 +91,13 @@ export const ErrorCode = {
   RETRY_STATE_NOT_FOUND: 'RETRY_STATE_NOT_FOUND',
   NODE_NOT_RETRYABLE: 'NODE_NOT_RETRYABLE',
   RETRY_TOO_EARLY: 'RETRY_TOO_EARLY',
+  // VALIDATION_ERROR: API 공통 400 검증 실패 코드 (prefix 없는 시스템 전역 공용 —
+  // spec/conventions/error-codes.md). submit_form field 검증(publisher 측 동기 검증,
+  // spec/4-nodes/6-presentation/4-form.md §4·§6.2 / EIA §5.1)도 이 코드를 재사용하며
+  // `FormValidationError.code` 값과 일치해야 한다.
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  // INVALID_FIELD: VALIDATION_ERROR 응답 `details[].code` — 개별 field 검증 실패 사유.
+  INVALID_FIELD: 'INVALID_FIELD',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

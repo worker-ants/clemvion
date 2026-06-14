@@ -15,6 +15,7 @@ import type { InteractionRequestContext } from './interaction.guard';
 import {
   InvalidExecutionStateError,
   MessageTooLongError,
+  FormValidationError,
 } from '../execution-engine/workflow-errors';
 
 type Mock = jest.Mock;
@@ -182,6 +183,36 @@ describe('InteractionService.interact', () => {
         error: {
           code: 'MESSAGE_TOO_LONG',
           message: 'Message exceeds the maximum allowed length.',
+        },
+      },
+    });
+  });
+
+  it('submit_form: engine FormValidationError → 400 VALIDATION_ERROR + details[{field,message,code}]', async () => {
+    const { service, repo, engine } = makeMocks();
+    repo.findOne.mockResolvedValueOnce(makeExecution());
+    engine.continueExecution.mockRejectedValueOnce(
+      new FormValidationError('email', '올바른 이메일 형식이 아닙니다.'),
+    );
+    await expect(
+      service.interact(IEXT_CTX, {
+        command: 'submit_form',
+        nodeId: '550e8400-e29b-41d4-a716-446655440000',
+        data: { email: 'bad' },
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      response: {
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: '올바른 이메일 형식이 아닙니다.',
+          details: [
+            {
+              field: 'email',
+              message: '올바른 이메일 형식이 아닙니다.',
+              code: 'INVALID_FIELD',
+            },
+          ],
         },
       },
     });

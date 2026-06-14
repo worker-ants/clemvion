@@ -113,7 +113,7 @@ Authorization: Bearer {botToken}
 - **trigger_id 3초 제약**: `block_actions` 수신 직후 동기적으로 `views.open` 을 호출해야 한다 (지연 시 `trigger_expired`). EIA 등 다른 I/O 를 사이에 끼우지 않음.
 - **필드 type → element 매핑**은 §5.3 표.
 - **view_submission**: 사용자 제출 → `payload.view.state.values` 를 `parseUpdate` 가 `{ kind: "form_submission", fields }` 로 normalize (§4.2 의 다단계와 달리 전 필드 1회 수집).
-- **검증 실패 재표시**: server-side 검증 실패 (EIA 400 VALIDATION_FAILED) 시 view_submission 응답으로 `{ "response_action": "errors", "errors": { "<field.name>": "<message>" } }` 반환 — modal 이 닫히지 않고 해당 필드에 에러 표시 (Convention §4.1 step 5).
+- **검증 실패 재표시**: server-side 검증 실패 (EIA 400 `VALIDATION_ERROR` + `error.details[{field,message,code}]`) 시 view_submission 응답으로 `{ "response_action": "errors", "errors": { "<details[0].field>": "<details[0].message>" } }` 반환 — modal 이 닫히지 않고 해당 필드에 에러 표시 (Convention §4.1 step 5).
 
 ---
 

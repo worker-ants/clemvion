@@ -69,7 +69,7 @@ export class InteractionController {
   @ApiAcceptedWrappedResponse(InteractAckDto)
   @ApiBadRequestResponse({
     description:
-      'VALIDATION_FAILED (form field) / INVALID_COMMAND (필수 필드 누락).',
+      'VALIDATION_ERROR (form field — details[]) / INVALID_COMMAND (필수 필드 누락).',
   })
   @ApiUnauthorizedResponse({
     description: 'TOKEN_* (만료 / 위조 / scope mismatch).',

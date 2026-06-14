@@ -323,9 +323,13 @@ Form 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 | 발생 조건 | 처리 |
 |-----------|------|
 | 필수 필드 미입력 | 클라이언트 에러 응답 → 폼 재표시 (`status` 유지) |
-| `type` 별 형식 불일치 (예: `email` 형식 위반) | 동상 |
-| `validation.minLength`/`maxLength`/`min`/`max`/`pattern` 위반 | 동상 (`validation.message` 가 있으면 그것을, 없으면 기본 메시지) |
-| `type: 'file'` MIME / 크기 / 개수 초과 | 동상 |
+| `type` 별 형식 불일치 (`email` 형식 / `number` 형식) | 동상 |
+| `validation.minLength`/`maxLength` 위반 | 동상 (`validation.message` 가 있으면 그것을, 없으면 기본 메시지) |
+| `select`/`radio` 정의 외 선택지 | 동상 |
+| `validation.min`/`max`(숫자 범위)·`pattern`(정규식) 위반 | 동상 — **미구현 (Planned)**, `plan/in-progress/spec-sync-form-gaps.md` 추적 |
+| `type: 'file'` MIME / 크기 / 개수 초과 | 동상 — **미구현 (Planned)**, `plan/in-progress/spec-sync-form-gaps.md` 추적 |
+
+> **검증 지점 (구현)**: 위 field-level 검증 중 **필수·`type`(email/number)·`validation.minLength`/`maxLength`·select/radio 선택지**는 실행 엔진 publisher 측 `continueExecution` chokepoint 에서 노드 config 의 field 정의로 일괄 수행된다 (`validateFormSubmission` 재사용) — UI(workspace WS)·외부 WS·EIA REST `submit_form` 3 경로가 같은 검증을 공유한다. 검증 실패는 typed `FormValidationError` 로 표면하며, EIA 는 `400 VALIDATION_ERROR` + `details[]` ([EIA §5.1](../../5-system/14-external-interaction-api.md#51-에러-코드)), WS 는 `VALIDATION_ERROR` ack ([WS §4.2](../../5-system/6-websocket-protocol.md#42-실행-제어-명령-client--server)) 로 매핑한다. `validation.min`/`max`(숫자 범위)·`pattern`(정규식) 과 `type: 'file'` 의 MIME/크기/개수 검증은 아직 **Planned** (§1.5, `plan/in-progress/spec-sync-form-gaps.md` 추적).
 
 > Form 입력 검증은 `output.error` 를 생성하지 않는다 — 사용자가 같은 폼을 재제출하면 §5.5 의 정상 출력만 발생한다 (Principle 3.1 의 "예상 가능한 비즈니스 실패" 와 별도, 재제출 루프이므로 새 NodeExecution 결과가 만들어지지 않음).
 

@@ -27,7 +27,12 @@ import {
   RetryLastTurnError,
   ExecutionTimeLimitError,
   MessageTooLongError,
+  FormValidationError,
 } from './workflow-errors';
+import {
+  extractFormFields,
+  validateFormSubmission,
+} from '../chat-channel/shared/form-mode';
 import { resolveMaxActiveRunningMs } from './execution-limits';
 import {
   ContinuationBusService,
@@ -4294,6 +4299,10 @@ export class ExecutionEngineService
     // formData }` 로 wrap 한 뒤 publish.
     const nodeExecutionId =
       await this.resolveWaitingNodeExecutionId(executionId);
+    // publisher 측 동기 field 검증 — 실패 시 publish 전에 throw 해 execution 을
+    // waiting 유지(재제출 가능). EIA 는 400 VALIDATION_ERROR, WS ack 는 errorCode
+    // 매핑 (FormValidationError extends ExecutionError). spec form §4·§6.2 / EIA §5.1.
+    await this.assertFormSubmissionValid(nodeExecutionId, formData);
     const jobId = await this.continuationBus.publish({
       type: 'continue',
       executionId,
@@ -4301,6 +4310,81 @@ export class ExecutionEngineService
       payload: { type: 'form_submitted', formData },
     });
     return ExecutionEngineService.buildPublishResult(jobId);
+  }
+
+  /**
+   * [spec form §4·§6.2 / EIA §5.1] form 제출 데이터를 노드 field 정의에 대해 검증한다.
+   * 적용 규칙: 필수·`type`(email/number)·`validation.minLength`/`maxLength`·select/radio 선택지.
+   * **미적용 (Planned)**: `validation.min`/`max`(숫자 범위)·`pattern`(정규식)·`type:'file'` MIME/size/count
+   * (`plan/in-progress/spec-sync-form-gaps.md` 추적). 실패 시 FIRST 오류로 {@link FormValidationError}
+   * throw (chat-channel `validateFormSubmission` 재사용).
+   *
+   * 검증 불가(노드/field 정의 부재) 시 통과(기존 whitelist-only 동작 유지) — 방어적.
+   */
+  private async assertFormSubmissionValid(
+    nodeExecutionId: string,
+    formData: unknown,
+  ): Promise<void> {
+    const nodeExec = await this.nodeExecutionRepository.findOne({
+      where: { id: nodeExecutionId },
+      select: { id: true, nodeId: true },
+    });
+    if (!nodeExec) return;
+    const node = await this.nodeRepository.findOneBy({ id: nodeExec.nodeId });
+    if (!node) return;
+    const fields = extractFormFields(node.config);
+    if (fields.length === 0) return;
+    const err = validateFormSubmission(
+      ExecutionEngineService.coerceFormSubmission(formData),
+      fields,
+    );
+    if (err) {
+      throw new FormValidationError(err.field, err.message);
+    }
+  }
+
+  /**
+   * EIA/WS 의 typed form 데이터를 `validateFormSubmission` 이 기대하는 `Record<string,string>`
+   * 으로 정규화. number/boolean → String, 배열(multi-select·file 메타) → 콤마 join,
+   * null/undefined → '' (required 판정용). 객체는 String 표현(비어있지 않음 — required 통과,
+   * type 규칙 미해당).
+   */
+  private static coerceFormSubmission(
+    formData: unknown,
+  ): Record<string, string> {
+    if (!formData || typeof formData !== 'object') return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(formData as Record<string, unknown>)) {
+      out[k] = ExecutionEngineService.coerceFormValue(v);
+    }
+    return out;
+  }
+
+  /**
+   * 단일 form 값 → string (no-base-to-string 회피: 객체는 JSON 으로 명시 직렬화).
+   *
+   * 변환 규칙:
+   *   - `null` / `undefined` → `''` (required 판정: 빈 문자열 = 미입력)
+   *   - `string` → 원본 유지
+   *   - `number` / `boolean` → `String()` 변환
+   *   - `Array` — 빈 배열 → `''`; 비어있지 않은 배열 → 각 요소를 문자열화(비문자열은
+   *     `JSON.stringify`)한 뒤 콤마 join. multi-select·file 메타 배열 대응.
+   *   - 그 외 객체 → `JSON.stringify`. required 통과(`''` 아님), type 규칙 미해당.
+   */
+  private static coerceFormValue(v: unknown): string {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    if (Array.isArray(v)) {
+      // multi-value(multi-select·file 메타) — 비어있으면 '', 아니면 요소를 string 화해 join.
+      return v.length === 0
+        ? ''
+        : v
+            .map((x) => (typeof x === 'string' ? x : JSON.stringify(x)))
+            .join(',');
+    }
+    // 객체(단일 file 메타 등) — 비어있지 않은 것으로 간주(required 통과), 형식 규칙 미해당.
+    return JSON.stringify(v);
   }
 
   /**
