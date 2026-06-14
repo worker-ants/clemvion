@@ -325,11 +325,12 @@ Form 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 | 필수 필드 미입력 | 클라이언트 에러 응답 → 폼 재표시 (`status` 유지) |
 | `type` 별 형식 불일치 (`email` 형식 / `number` 형식) | 동상 |
 | `validation.minLength`/`maxLength` 위반 | 동상 (`validation.message` 가 있으면 그것을, 없으면 기본 메시지) |
+| `validation.min`/`max`(숫자 범위) 위반 | 동상 — `type: 'number'` 한정, 형식 검증 통과 후 범위 비교 |
+| `validation.pattern`(정규식) 위반 | 동상 — custom regex 미일치 (잘못된 regex 는 방어적으로 통과) |
 | `select`/`radio` 정의 외 선택지 | 동상 |
-| `validation.min`/`max`(숫자 범위)·`pattern`(정규식) 위반 | 동상 — **미구현 (Planned)**, `plan/in-progress/spec-sync-form-gaps.md` 추적 |
 | `type: 'file'` MIME / 크기 / 개수 초과 | 동상 — **미구현 (Planned)**, `plan/in-progress/spec-sync-form-gaps.md` 추적 |
 
-> **검증 지점 (구현)**: 위 field-level 검증 중 **필수·`type`(email/number)·`validation.minLength`/`maxLength`·select/radio 선택지**는 실행 엔진 publisher 측 `continueExecution` chokepoint 에서 노드 config 의 field 정의로 일괄 수행된다 (`validateFormSubmission` 재사용) — UI(workspace WS)·외부 WS·EIA REST `submit_form` 3 경로가 같은 검증을 공유한다. 검증 실패는 typed `FormValidationError` 로 표면하며, EIA 는 `400 VALIDATION_ERROR` + `details[]` ([EIA §5.1](../../5-system/14-external-interaction-api.md#51-에러-코드)), WS 는 `VALIDATION_ERROR` ack ([WS §4.2](../../5-system/6-websocket-protocol.md#42-실행-제어-명령-client--server)) 로 매핑한다. `validation.min`/`max`(숫자 범위)·`pattern`(정규식) 과 `type: 'file'` 의 MIME/크기/개수 검증은 아직 **Planned** (§1.5, `plan/in-progress/spec-sync-form-gaps.md` 추적).
+> **검증 지점 (구현)**: 위 field-level 검증 중 **필수·`type`(email/number)·`validation.minLength`/`maxLength`·`min`/`max`(숫자 범위)·`pattern`(정규식)·select/radio 선택지**는 실행 엔진 publisher 측 `continueExecution` chokepoint 에서 노드 config 의 field 정의로 일괄 수행된다 (`validateFormSubmission` 재사용) — UI(workspace WS)·외부 WS·EIA REST `submit_form` 3 경로가 같은 검증을 공유한다. 검증 실패는 typed `FormValidationError` 로 표면하며, EIA 는 `400 VALIDATION_ERROR` + `details[]` ([EIA §5.1](../../5-system/14-external-interaction-api.md#51-인터랙션-명령-제출--post-apiexternalexecutionsexecutionidinteract)), WS 는 `VALIDATION_ERROR` ack ([WS §4.2](../../5-system/6-websocket-protocol.md#42-실행-제어-명령-client--server)) 로 매핑한다. `type: 'file'` 의 MIME/크기/개수 검증만 아직 **Planned** (§1.5, `plan/in-progress/spec-sync-form-gaps.md` 추적).
 
 > Form 입력 검증은 `output.error` 를 생성하지 않는다 — 사용자가 같은 폼을 재제출하면 §5.5 의 정상 출력만 발생한다 (Principle 3.1 의 "예상 가능한 비즈니스 실패" 와 별도, 재제출 루프이므로 새 NodeExecution 결과가 만들어지지 않음).
 
@@ -343,14 +344,18 @@ Form 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 
 폼 입력 field-level 검증(§6.2)은 필드 정의 순서대로 검사해 **첫 번째 위반에서 즉시 실패를 표면**하며, 모든 필드의 위반을 한 번에 수집하지 않는다. 이는 publisher `continueExecution` chokepoint 이 빠른 거부 게이트이기 때문이다 — `waiting_for_input` 재제출 루프 안에서 사용자는 오류를 순차로 해소하면 되고, 첫 위반에서 throw 하는 편이 검증 비용·코드 단순성에서 유리하다.
 
+한 필드 안의 규칙 적용 순서도 고정이다: **required → `type`(email/number) → `minLength`/`maxLength` → `min`/`max`(number 범위) → `pattern`(regex) → select/radio 선택지**. 첫 위반에서 throw 하므로, 예컨대 숫자 형식 오류가 범위(min/max) 오류보다, 길이 오류가 pattern 오류보다 먼저 표면된다.
+
 이 때문에 EIA `400 VALIDATION_ERROR` 의 `error.details[]` 는 **계약상 다중 배열** 이지만 **현 구현은 항상 길이 1** 이다 ([EIA §5.1](../../5-system/14-external-interaction-api.md#51-인터랙션-명령-제출--post-apiexternalexecutionsexecutionidinteract)). 두 레이어는 구분된다: 계약은 복수 entry 를 허용하므로, 향후 전수 수집으로 바뀌어도 `details[]` 응답 형태 자체는 변경이 불필요하다. 단건→복수 수집 전환 여부는 현재 **미결정** 이며 필요 발생 시 별도 논의한다.
 
 ### 검증 지점 = publisher 측 `continueExecution` chokepoint (3 경로 공통)
 
-필수·`type`(email/number)·`validation.minLength`/`maxLength`·select/radio 선택지 검증을 EIA REST·외부 WS·workspace WS 진입점에서 **각각 구현하지 않고** `continueExecution` 한 곳에서 수행한다 (§6.2 "검증 지점" 주석). 같은 검증 규칙을 3 경로가 중복 구현하면 drift 위험이 있어, publisher chokepoint 단일 지점에서 공유 validator 를 재사용하고 typed `FormValidationError` 를 한 번 throw 한 뒤 각 표면(EIA `400` / WS `VALIDATION_ERROR` ack)으로 매핑한다.
+필수·`type`(email/number)·`validation.minLength`/`maxLength`·`min`/`max`(숫자 범위)·`pattern`(정규식)·select/radio 선택지 검증을 EIA REST·외부 WS·workspace WS 진입점에서 **각각 구현하지 않고** `continueExecution` 한 곳에서 수행한다 (§6.2 "검증 지점" 주석). 같은 검증 규칙을 3 경로가 중복 구현하면 drift 위험이 있어, publisher chokepoint 단일 지점에서 공유 validator 를 재사용하고 typed `FormValidationError` 를 한 번 throw 한 뒤 각 표면(EIA `400` / WS `VALIDATION_ERROR` ack)으로 매핑한다.
 
 publish **전** throw 라는 점이 핵심이다 — 검증 실패 시 execution 은 `waiting_for_input` 을 유지하며(재제출 가능) 새 NodeExecution 출력을 만들지 않는다 (§6.2 / [node-output Principle 3.1](../../conventions/node-output.md)).
 
-### file 검증(MIME/크기/개수)·`validation.min`/`max`·`pattern` 분리 defer
+### `validation.min`/`max`·`pattern` 은 공유 validator 확장으로, file 검증은 cluster 로 분리
 
-§6.2 표의 file 검증 행과 숫자 범위/정규식 행은 **Planned** 로 분리돼 있다 (`plan/in-progress/spec-sync-form-gaps.md` 추적). file 검증은 단일 함수 추가가 아니라 **cluster** 이기 때문이다 — 공유 default 상수(13종 MIME / 10MB·50MB / count 5, §1) + 서버측 enforcement + frontend reject(§1.5) + 재-waiting 흐름이 함께 와야 의미가 있다. 또한 file 은 metadata-only 전달(binary 미전달, §1.5 / [공통 §Rationale file 타입 metadata-only](./0-common.md#file-타입-metadata-only))이라 검증 대상이 metadata 필드(`size`/`type`)에 한정되는 등 별도 설계 표면이 있어 분리 추적이 적절하다. `validation.min`/`max`·`pattern` 은 공유 validator 확장만으로 3 경로 공통 적용되므로 file cluster 와 독립적으로 진행한다.
+`validation.min`/`max`(숫자 범위)·`pattern`(정규식)은 공유 `validateFormSubmission`(`src/modules/chat-channel/shared/form-mode.ts`) 확장만으로 EIA/WS/UI 3 경로에 자동 공통 적용되므로, file 검증 cluster 와 독립적으로 먼저 구현됐다 — 새 흐름·상수·UI 표면이 필요 없고 기존 chokepoint 의 validator 한 곳만 늘리면 되기 때문이다.
+
+반면 §6.2 표의 `type: 'file'` 검증 행은 여전히 **Planned** 로 분리돼 있다 (`plan/in-progress/spec-sync-form-gaps.md` 추적). file 검증은 단일 함수 추가가 아니라 **cluster** 이기 때문이다 — 공유 default 상수(13종 MIME / 10MB·50MB / count 5, §1) + 서버측 enforcement + frontend reject(§1.5) + 재-waiting 흐름이 함께 와야 의미가 있다. 또한 file 은 metadata-only 전달(binary 미전달, §1.5 / [공통 §Rationale file 타입 metadata-only](./0-common.md#file-타입-metadata-only))이라 검증 대상이 metadata 필드(`size`/`type`)에 한정되는 등 별도 설계 표면이 있어 분리 추적이 적절하다.

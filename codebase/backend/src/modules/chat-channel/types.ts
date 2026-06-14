@@ -239,6 +239,17 @@ export interface FormModalField {
   /** §3.3 — text/textarea 길이 제약 (formConfig field.validation.minLength/maxLength). modal TEXT_INPUT 부여. */
   minLength?: number;
   maxLength?: number;
+  /**
+   * §6.2 — number 범위 제약 (formConfig field.validation.min/max). **서버측 검증 전용**.
+   * chat-channel modal UI hint 에는 미사용 (Discord/Slack modal 은 number range 미지원).
+   */
+  min?: number;
+  max?: number;
+  /**
+   * §6.2 — custom **regex pattern** (formConfig field.validation.pattern). **서버측 검증 전용**.
+   * 정규식 문자열로, transform 노드의 날짜 포맷 `args.pattern` 과는 무관하다. modal UI hint 미사용.
+   */
+  pattern?: string;
 }
 
 /**

@@ -54,6 +54,8 @@ export function decideFormMode(
  *   - `{ config: { fields: [...] } }` (nodeOutput wrapping — dispatcher toChatChannelEvent 정합)
  * 잘못된 shape / 빈 필드는 빈 배열. §3.3 — 각 필드의 `validation.{minLength,maxLength}` 도
  * `minLength`(≥0)·`maxLength`(>0) 로 정규화한다 (modal TEXT_INPUT 길이 제약 + 서버측 재검증용).
+ * §6.2 — `validation.{min,max}`(유한수, `min > max` 논리 역전은 두 경계 모두 무시)·`pattern`
+ * (비어있지 않은 regex 문자열)도 서버측 검증용으로 정규화한다.
  */
 export function extractFormFields(formConfig: unknown): FormModalField[] {
   if (!formConfig || typeof formConfig !== 'object') return [];
@@ -102,6 +104,22 @@ export function extractFormFields(formConfig: unknown): FormModalField[] {
       ) {
         field.maxLength = validation.maxLength;
       }
+      // §6.2 — number 범위(min/max)·custom regex pattern. 서버측 검증 전용.
+      // min/max 는 0·음수도 유효한 경계이므로 유한수 전부 수용(minLength 의 ≥0 제약과 다름).
+      const minV = Number.isFinite(validation.min)
+        ? (validation.min as number)
+        : undefined;
+      const maxV = Number.isFinite(validation.max)
+        ? (validation.max as number)
+        : undefined;
+      // 논리 역전(min > max)은 항상-실패 config 오류 → 두 경계 모두 무시(방어적).
+      if (minV === undefined || maxV === undefined || minV <= maxV) {
+        if (minV !== undefined) field.min = minV;
+        if (maxV !== undefined) field.max = maxV;
+      }
+      if (typeof validation.pattern === 'string' && validation.pattern) {
+        field.pattern = validation.pattern;
+      }
     }
     out.push(field);
   }
@@ -128,19 +146,30 @@ export function extractFormTitle(formConfig: unknown): string | undefined {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** §4.1 step 4 client-side 검증 정규식 — 정수/소수 (음수 허용). */
 const NUMBER_RE = /^-?\d+(\.\d+)?$/;
+/**
+ * §6.2 `validation.pattern` 최대 길이. pattern 은 노드 관리자가 작성한 워크플로 config
+ * 에서만 오므로(신뢰 경계 — 폼 제출자/외부 입력이 아님) ReDoS 표면은 작지만, defense-in-depth
+ * 로 과도하게 긴 패턴은 컴파일하지 않고 skip 한다.
+ */
+const MAX_PATTERN_LENGTH = 512;
 
 /**
  * §4.1 step 4 — submit_form 전 client-side 값 검증 (pure). 서버측 EIA 검증 + catch 경로를
  * 보완하는 1차 게이트. defs 순서대로 검사해 FIRST 오류를 반환, 모두 통과면 null.
  *
- * 규칙 (def 별):
+ * 규칙 (def 별, FIRST 오류 순서):
  *   - required: 값 누락/공백 → 필수 입력 오류.
  *   - type=email: 비어있지 않은 값이 EMAIL_RE 미충족 → 이메일 형식 오류.
  *   - type=number: 비어있지 않은 값이 NUMBER_RE 미충족 → 숫자 형식 오류.
+ *   - minLength/maxLength: 길이 제약 위반 → 길이 오류.
+ *   - type=number + min/max: 숫자 범위(min 미만/max 초과) 위반 → 범위 오류 (§6.2).
+ *   - pattern: 비어있지 않은 값이 custom regex pattern 미일치 → 형식 오류 (§6.2).
+ *     pattern 은 노드 관리자 config(신뢰 경계) 전용 — 폼 제출자 입력이 아니다.
+ *     (잘못된 regex·과길이 패턴은 방어적으로 통과 — validator 가 throw 하지 않는다.)
  *   - type=select|radio (+ options): 비어있지 않은 값이 options.value 집합 밖 → 선택지 오류.
  * 빈 optional 필드는 skip.
  *
- * SoT: spec/conventions/chat-channel-adapter.md §4.1 step 4.
+ * SoT: spec/conventions/chat-channel-adapter.md §4.1 step 4 + spec/4-nodes/6-presentation/4-form.md §6.2.
  */
 export function validateFormSubmission(
   fields: Record<string, string>,
@@ -175,6 +204,40 @@ export function validateFormSubmission(
         field: def.name,
         message: `최대 ${def.maxLength}자까지 입력할 수 있습니다.`,
       };
+    }
+    // §6.2 — number 범위 검증 (형식 검증 통과 후, value 는 유한수).
+    if (def.type === 'number') {
+      const num = Number(value);
+      if (typeof def.min === 'number' && num < def.min) {
+        return {
+          field: def.name,
+          message: `최솟값은 ${def.min} 이상이어야 합니다.`,
+        };
+      }
+      if (typeof def.max === 'number' && num > def.max) {
+        return {
+          field: def.name,
+          message: `최댓값은 ${def.max} 이하여야 합니다.`,
+        };
+      }
+    }
+    // §6.2 — custom regex pattern 검증. pattern 은 노드 관리자 config(신뢰 경계) 전용 —
+    // 폼 제출자 입력이 아니다. 잘못된 regex·과길이 패턴(MAX_PATTERN_LENGTH 초과)은 방어적으로
+    // 통과(throw·ReDoS 회피).
+    if (
+      typeof def.pattern === 'string' &&
+      def.pattern &&
+      def.pattern.length <= MAX_PATTERN_LENGTH
+    ) {
+      let re: RegExp | null = null;
+      try {
+        re = new RegExp(def.pattern);
+      } catch {
+        re = null;
+      }
+      if (re && !re.test(value)) {
+        return { field: def.name, message: '형식이 올바르지 않습니다.' };
+      }
     }
     if (
       (def.type === 'select' || def.type === 'radio') &&
