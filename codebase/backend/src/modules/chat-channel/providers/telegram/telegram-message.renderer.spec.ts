@@ -29,7 +29,7 @@ describe('escapeMarkdownV2', () => {
 });
 
 describe('renderTelegramMessages', () => {
-  it('ai_message → text 1건', async () => {
+  it('ai_message → typing + text (§5.1 typing indicator 선행)', async () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
       type: 'execution.ai_message',
@@ -39,15 +39,27 @@ describe('renderTelegramMessages', () => {
     const messages = await Promise.resolve(
       renderTelegramMessages(event, BASE_CONFIG),
     );
-    expect(messages).toHaveLength(1);
-    expect(messages[0].body).toEqual({
+    expect(messages).toHaveLength(2);
+    expect(messages[0].body).toEqual({ kind: 'typing' });
+    expect(messages[1].body).toEqual({
       kind: 'text',
       text: 'hi\\.',
       chunked: false,
     });
   });
 
-  it('ai_message 4096자 초과 → chunked text', async () => {
+  it('빈 ai_message → typing 도 생략 (빈 발화에 typing 안 보냄)', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.ai_message',
+      message: '',
+      turnCount: 1,
+    };
+    const messages = renderTelegramMessages(event, BASE_CONFIG);
+    expect(messages).toHaveLength(0);
+  });
+
+  it('ai_message 4096자 초과 → typing + chunked text', async () => {
     const long = 'a'.repeat(5000);
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
@@ -56,15 +68,22 @@ describe('renderTelegramMessages', () => {
       turnCount: 1,
     };
     const messages = renderTelegramMessages(event, BASE_CONFIG);
-    expect(messages.length).toBeGreaterThan(1);
-    messages.forEach((m) => {
+    // 선행 typing 1건 + chunked text 다건.
+    expect(messages[0].body).toEqual({ kind: 'typing' });
+    const textChunks = messages.filter((m) => m.body.kind === 'text');
+    expect(textChunks.length).toBeGreaterThan(1);
+    textChunks.forEach((m) => {
       if (m.body.kind === 'text') {
         expect(m.body.text.length).toBeLessThanOrEqual(4096);
         expect(m.body.chunked).toBe(true);
-      } else {
-        fail('expected text body');
       }
     });
+    // typing 외의 비-text body 는 없어야 한다.
+    expect(
+      messages.filter(
+        (m) => m.body.kind !== 'text' && m.body.kind !== 'typing',
+      ),
+    ).toHaveLength(0);
   });
 
   it('completed → languageHints.executionCompleted', () => {
@@ -751,14 +770,15 @@ describe('execution.ai_message — presentations[] sequential 발송 (CCH-MP-01 
       ],
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
-    // 첫 메시지는 AI text. 그 뒤에 presentations 의 메시지들 sequential.
+    // §5.1 선행 typing → AI text → presentations 의 메시지들 sequential.
     expect(m.length).toBeGreaterThan(4);
-    expect(m[0].body.kind).toBe('text');
-    if (m[0].body.kind === 'text') {
-      expect(m[0].body.text).toContain('AI 응답 본문');
+    expect(m[0].body.kind).toBe('typing');
+    expect(m[1].body.kind).toBe('text');
+    if (m[1].body.kind === 'text') {
+      expect(m[1].body.text).toContain('AI 응답 본문');
     }
     // 후속 메시지들에 카드/표/템플릿/차트 흔적이 모두 보여야 한다.
-    const after = m.slice(1);
+    const after = m.slice(2);
     const allTexts = after
       .map((msg) => (msg.body.kind === 'text' ? msg.body.text : ''))
       .join('\n');
@@ -766,7 +786,7 @@ describe('execution.ai_message — presentations[] sequential 발송 (CCH-MP-01 
     expect(allTexts).toContain('템플릿 결과');
   });
 
-  it('presentations 가 비어있으면 text 1건만 (기존 동작 회귀 차단)', () => {
+  it('presentations 가 비어있으면 typing + text 만 (기존 동작 회귀 차단)', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
       type: 'execution.ai_message',
@@ -775,8 +795,9 @@ describe('execution.ai_message — presentations[] sequential 발송 (CCH-MP-01 
       presentations: [],
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
-    expect(m).toHaveLength(1);
-    expect(m[0].body.kind).toBe('text');
+    expect(m).toHaveLength(2);
+    expect(m[0].body.kind).toBe('typing');
+    expect(m[1].body.kind).toBe('text');
   });
 
   it('render_form (presentations[*].type === "form") → v1 임시 fallback text 발화 (사용자 보고 2026-05-25 회귀 ④ 해소)', () => {

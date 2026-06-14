@@ -251,6 +251,28 @@ export class TelegramAdapter implements ChatChannelAdapter {
     await this.client.answerCallbackQuery(botToken, {
       callback_query_id: update.command.callbackQueryId,
     });
+    // §5.2(3) — ack 후 원본 메시지의 inline_keyboard 제거(중복 클릭 차단). best-effort:
+    // 메시지가 오래됐거나(48h) 이미 편집됐으면 실패할 수 있으나, 이는 ack 흐름을 막지 않는다.
+    const messageId = update.command.messageId;
+    if (messageId !== undefined) {
+      const numericId = Number(messageId);
+      // Telegram message_id 는 양의 정수. NaN/음수/0 은 무효 → editMessage skip.
+      if (Number.isInteger(numericId) && numericId > 0) {
+        try {
+          await this.client.editMessageReplyMarkup(botToken, {
+            chat_id: update.conversationKey,
+            message_id: numericId,
+            reply_markup: { inline_keyboard: [] },
+          });
+        } catch (err) {
+          this.logger.warn(
+            `Telegram editMessageReplyMarkup 실패(무시): ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      }
+    }
   }
 }
 

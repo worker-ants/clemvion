@@ -51,6 +51,13 @@ export interface TelegramAnswerCallbackQueryParams {
   show_alert?: boolean;
 }
 
+export interface TelegramEditMessageReplyMarkupParams {
+  chat_id: string | number;
+  message_id: number;
+  /** 미지정/빈 inline_keyboard → 키보드 제거. */
+  reply_markup?: { inline_keyboard: unknown[][] };
+}
+
 export interface TelegramGetMeResult {
   id: number;
   is_bot: boolean;
@@ -168,6 +175,21 @@ export class TelegramClient {
     params: TelegramAnswerCallbackQueryParams,
   ): Promise<TelegramApiResponse<true>> {
     return this.call<true>(token, 'answerCallbackQuery', toRecord(params));
+  }
+
+  /**
+   * §5.2(3) — button_callback ack 후 원본 메시지의 inline_keyboard 를 제거(또는 교체)해
+   * 중복 클릭을 차단한다. reply_markup 미지정 시 키보드 완전 제거.
+   */
+  async editMessageReplyMarkup(
+    token: string,
+    params: TelegramEditMessageReplyMarkupParams,
+  ): Promise<TelegramApiResponse<TelegramMessage>> {
+    return this.call<TelegramMessage>(
+      token,
+      'editMessageReplyMarkup',
+      toRecord(params),
+    );
   }
 
   /**

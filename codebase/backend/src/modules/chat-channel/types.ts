@@ -129,7 +129,17 @@ export type ChannelCommand =
   | { kind: 'start' }
   | { kind: 'cancel' }
   | { kind: 'text_message'; text: string }
-  | { kind: 'button_callback'; callbackData: string; callbackQueryId: string }
+  | {
+      kind: 'button_callback';
+      callbackData: string;
+      callbackQueryId: string;
+      /**
+       * (옵션) 버튼이 달린 원본 메시지의 external id — provider 가 ack 후 키보드를
+       * 제거(중복 클릭 차단)할 때 사용. Telegram = `callback_query.message.message_id`.
+       * 미지원/부재 provider 는 미설정 (기존 동작 보존).
+       */
+      messageId?: string;
+    }
   | {
       kind: 'file_upload';
       fileId: string;
