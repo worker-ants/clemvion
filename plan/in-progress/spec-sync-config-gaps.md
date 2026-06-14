@@ -29,9 +29,9 @@ owner: planner
   - spec 동기화: `6-config.md` §A.3 표 ✅ + §3 API `/usage` 응답 shape + Rationale R-6; `1-data-model.md` §2.13 `source_ip`/`response_code` + AuthConfig 호출 집계 경로 SoT (consistency W-1·W-2·I-1 해소).
   - 테스트: `execution-engine.service.spec`(sourceIp/responseCode 영속 + NULL) · `hooks.service.spec`(XFF 소스IP + 202 전달, chat-channel 포함) · `auth-configs.service.spec`(periodCounts 파싱 + responseCode status 폴백) · frontend `usage-drawer.test.tsx`(컬럼·값·기간 차트).
   - I-11 메모: 본 PR 은 `authentication/page.tsx` 의 usage drawer 만 수정(create/edit 폼 영역 무변경) — 후속 God Component 분리 스코프와 충돌 없음.
-  - [ ] TEST WORKFLOW (lint·unit·build·e2e)
-  - [ ] /ai-review (--branch main)
-  - [ ] /consistency-check --impl-done
+  - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전 단계 PASS (e2e 191/191)
+  - [x] /ai-review (--range origin/main..HEAD) — 3회 fresh review 모두 Critical 0. round1(15_02_15)·round2(15_22_11) 실질 발견 fix(cb51723e·18c87e06; setParameters cross-workspace 누출 W-1 은 TypeORM per-key merge 라 오탐 규명, lastUsedAt @ApiPropertyOptional 스코프 회귀 복원). round3(15_38_40) 잔여 18경고는 systemic/deferred/cosmetic → RESOLUTION.md 에 accept 기록.
+  - [x] /consistency-check --impl-done (15_51_03) — BLOCK: NO. W-1·W-2(§2.13·§A.3 미반영 주장)는 checker 가 cross-ref spec 을 origin/main base 로 읽어 발생한 오탐(commit HEAD 에 이미 반영). W-3(workspace-gaps 마이그레이션 번호 스탈) fix.
 - [x] §A.2 **편집 폼** (2026-06-14, impl-config-auth-edit-form PR) — 행별 편집 버튼 → `PATCH /auth-configs/:id` 로 name·IP Whitelist·비-비밀 config(api_key `headerName`, hmac `header`/`algorithm`, basic_auth `username`) 수정. type·비밀값 불변(비밀 변경은 regenerate). 생성 다이얼로그를 `dialogMode` 로 재사용. **백엔드 안전성 fix**: `update` 가 config 를 wholesale-replace(`Object.assign`)해 암호화 비밀값을 파손하던 잠재 버그를 shallow-merge + SECRET_CONFIG_KEYS 무시로 수정. spec §A.2 callout·R-2·`update-auth-config.dto.ts` 설명 동기화. 테스트: `auth-config-form.test.ts`(순수)·`authentication-form.test.tsx`(편집 PATCH)·`auth-configs.service.spec.ts`(merge/비밀 보존).
   - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전 단계 PASS (e2e 190/190)
   - [x] /ai-review — RISK MEDIUM, Critical 0 / Warning 7. WARNING 2·3·5·6·7 fix(commit 29a24c5d), WARNING 1·4(God Component) → 후속 분리. RESOLUTION.md 기록.

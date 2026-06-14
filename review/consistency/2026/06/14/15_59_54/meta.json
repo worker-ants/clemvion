@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-14T15:59:54.740322",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/2-navigation/6-config.md, diff-base=origin/main)",
+  "target_path": "spec/2-navigation/6-config.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
