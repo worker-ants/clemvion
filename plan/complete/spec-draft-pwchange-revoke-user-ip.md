@@ -2,10 +2,19 @@
 worktree: audit-user-actions-5a037b
 started: 2026-06-13
 owner: planner
-status: in-progress
+status: implemented
+spec_impact:
+  - spec/5-system/1-auth.md
+  - spec/2-navigation/9-user-profile.md
+  - spec/data-flow/1-audit.md
 ---
 
 # Spec draft — 비밀번호 변경 시 세션 revoke (A-1) + user.* 감사 ipAddress (B-1)
+
+> **완료 (확인 2026-06-14, m-cleanup)**: A-1(변경 1~3 auth spec·변경 4 user-profile)·B-1(변경 5~6 audit)
+> 모든 spec 변경 + 구현(UsersController.changePassword → rotateSessionAfterPasswordChange → revokeAllFamilies,
+> PasswordChangeResultDto accessToken 재발급, user.* 감사 ipAddress 동반)이 PR #578(commit 386c812a, 2026-06-13)에서
+> 반영 완료. 잔여 [ ] 0건.
 
 ## 배경
 

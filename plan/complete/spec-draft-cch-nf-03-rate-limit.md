@@ -2,9 +2,15 @@
 worktree: chat-channel-rate-limit-baa15a
 started: 2026-06-12
 owner: planner
+spec_impact:
+  - spec/5-system/15-chat-channel.md
 ---
 
 # spec-draft: CCH-NF-03 rate-limit 메커니즘 명확화
+
+> **완료 (확인 2026-06-14, m-cleanup)**: 4개 spec 변경(§3.6 CCH-NF-03·§5.5 inbound 계약·§4.1 config·Rationale R-CC-19)과
+> 구현(ChatChannelRateLimiterService per-chat Redis fixed-window·HooksService rate-limit 검사·markChatChannelRateLimited)이
+> 모두 PR #572(commit 801e4d05, 2026-06-13)에서 spec 확정+구현 동시 반영 완료. 잔여 [ ] 0건.
 
 > 대상 spec: `spec/5-system/15-chat-channel.md` (§3.6 CCH-NF-03, §5.5 inbound 계약, §4.1 config, Rationale)
 > 배경: 현 CCH-NF-03 문구 "초과분은 어댑터의 chat 단위 큐에 적재, 폭주 시 가장 오래된 update 부터 폐기하지 않고 degraded" 가 (a) WH-NF-01 200ms 응답 시한, (b) Rationale R9(lifecycle 큐 기각: input-sequence 충돌·dedup·TTL·순서)와 충돌해 **구현 불가/모순**. v1 구현 가능 정책으로 refine.

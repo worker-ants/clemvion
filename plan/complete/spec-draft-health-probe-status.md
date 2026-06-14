@@ -1,6 +1,6 @@
 ---
 name: spec-draft-health-probe-status
-status: in-progress
+status: implemented
 worktree: health-probe-status-d9a184
 started: 2026-06-10
 owner: project-planner
@@ -9,6 +9,10 @@ target_specs:
   - spec/data-flow/9-observability.md        # SoT (substantive 변경)
   - spec/5-system/3-error-handling.md        # §7 헬스 체크 — "liveness probe 용" 진술 정정 (Critical #2)
   - spec/5-system/16-system-status-api.md    # R-4 대조 진술 — cross-ref 1줄만
+spec_impact:
+  - spec/data-flow/9-observability.md
+  - spec/5-system/3-error-handling.md
+  - spec/5-system/16-system-status-api.md
 ---
 
 # Spec draft: Health probe status code + liveness/readiness 분리
@@ -145,6 +149,7 @@ k8s manifest(`k8s/base/backend-deployment.yaml`)는 readinessProbe·livenessProb
 ### 후속 백로그 (선택, 본 PR 범위 밖)
 - I-1 Ingress/NetworkPolicy 외부 차단, I-6 e2e TransformInterceptor 단언 단순화, I-9 BASE_URL 상수화,
   HEALTH_CHECK_LOG 변경 시 Pod 재시작 필요 운영가이드 명시.
-- [ ] **수동 감사 노트**: `spec/data-flow/9-observability.md` 는 `spec-impl-evidence` 가드 적용 범위
-      (`spec/conventions/spec-impl-evidence.md §1`) 밖이라 frontmatter `code:` 자동 커버리지가 없다 →
-      이 변경의 spec↔구현 정합은 수동 확인 (consistency-check INFO #6/WARNING #6).
+- [x] **수동 감사 노트** (확인 2026-06-14, m-cleanup): `spec/data-flow/9-observability.md` 는 `spec-impl-evidence`
+      가드 적용 범위(`spec/conventions/spec-impl-evidence.md §1`) 밖이라 frontmatter `code:` 자동 커버리지가 없다 →
+      이 변경의 spec↔구현 정합은 수동 확인 완료. readiness 200/503·/api/health/live·HEALTH_CHECK_LOG 게이팅이
+      commit c6a9aa64 의 `health.controller.ts`·`logging.interceptor.ts`·k8s manifest·테스트에 모두 반영됨을 재확인.

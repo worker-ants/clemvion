@@ -10,9 +10,12 @@ owner: planner
 > 관련 spec: spec/4-nodes/7-trigger/providers/slack.md
 
 ## 미구현 항목
-- [ ] **`file_shared` → `files.info` 보강 → `submit_form`** (R-S-7 / §4.1 / §5.3): `parseUpdate` 의 `file_upload` 반환은 구현됐으나, `HooksService` 의 file_upload 처리가 Phase 4 스텁(no-op)이고 `SlackClient` 에 `filesInfo` 메서드가 없다. mimeType/filename/url_private 보강 + form `file` 필드 검증 + EIA `submit_form` 합성 전부 미구현.
-- [ ] **`files.uploadV2` (image / 시각형 v2 PNG)** (§3 sendMessage(image) / §5.4): `SlackClient.filesUploadV2` 가 Phase 3 스텁으로 호출 시 reject. 현재 image kind 는 text fallback. v1 = text 라 동작엔 문제 없으나 spec 이 약속한 uploadV2 경로 자체는 부재.
-- [ ] **`response_url` 비동기 후속 POST** (§5.2 step 3 / §4.2): `response_url` 은 payload 타입에만 존재하고 이를 사용한 비동기 갱신 POST 경로(`replace_original` 등)가 없다.
+
+> **진행 현황 재확인 (2026-06-14, m-cleanup 감사)**: structural-followups C-12 이후 일부 진척 있음 — `SlackClient.filesInfo`·`filesUploadV2` 메서드 실재(`slack-client.ts:76,87`), `response_url` `replace_original` 비동기 POST 구현됨(`slack.adapter.ts:243`, ackInteraction), HooksService enrichInbound 가 file_upload→files.info 보강 호출(`hooks.service.ts:288`). **그러나 `file_upload → submit_form` 합성은 여전히 미구현** — `forwardToInteractionService`(`hooks.service.ts:640~672`)가 text_message·button_callback 만 라우팅하고 file_upload/contact_share 는 "Phase 4 에서 처리" 주석만 남은 no-op. 따라서 본 plan 은 **in-progress 유지**, 잔여는 아래 ①의 submit_form 합성부 + ②의 sendMessage image→uploadV2 배선 검증.
+
+- [ ] **`file_shared` → `files.info` 보강 → `submit_form`** (R-S-7 / §4.1 / §5.3): files.info 보강은 구현됨(위 재확인). **잔여**: form `file` 필드 검증 + EIA `submit_form` 합성(`forwardToInteractionService` file_upload 분기) 미구현.
+- [ ] **`files.uploadV2` (image / 시각형 v2 PNG)** (§3 sendMessage(image) / §5.4): `filesUploadV2` 메서드는 실재. **잔여**: adapter `sendMessage` 의 image kind 가 실제 `filesUploadV2` 를 호출하는지 배선 검증 필요(현재 text fallback 가능성).
+- [x] **`response_url` 비동기 후속 POST** (§5.2 step 3 / §4.2): `slack.adapter.ts` ackInteraction 이 `response_url` 로 `replace_original: true` POST 구현 완료 (2026-06-14 확인).
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__7-trigger__providers__slack.md 참조.
