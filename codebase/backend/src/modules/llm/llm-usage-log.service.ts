@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { LlmUsageLog } from './entities/llm-usage-log.entity';
 import { TokenUsage } from './interfaces/llm-client.interface';
 import { calculateCostUsd } from './pricing';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 export interface RecordLlmUsageParams {
   workspaceId: string;
@@ -23,6 +24,7 @@ export class LlmUsageLogService {
   constructor(
     @InjectRepository(LlmUsageLog)
     private readonly repository: Repository<LlmUsageLog>,
+    private readonly businessMetrics: BusinessMetricsService,
   ) {}
 
   /**
@@ -30,6 +32,9 @@ export class LlmUsageLogService {
    * 기록 실패는 LLM 호출 결과에 영향을 주지 않으며 경고만 남긴다.
    */
   async record(params: RecordLlmUsageParams): Promise<void> {
+    // NF-OB-07 `clemvion.llm.tokens` — DB insert 성패와 무관하게 실 사용량을 계측한다
+    // (모든 LlmService.chat/chatStream 이 거치는 단일 지점). OTEL 비활성 시 no-op.
+    this.businessMetrics.recordLlmTokens(params.model, params.usage);
     try {
       const cost = calculateCostUsd(
         params.provider,

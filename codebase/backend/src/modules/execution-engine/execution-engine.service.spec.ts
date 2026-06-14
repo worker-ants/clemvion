@@ -61,6 +61,7 @@ import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ShutdownStateService } from './shutdown/shutdown-state.service';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import {
   ExecutionContext,
   NodeHandler,
@@ -281,6 +282,7 @@ describe('ExecutionEngineService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        BusinessMetricsService,
         ExecutionEventEmitter,
         GraphTraversalService,
         NodeHandlerDependenciesProvider,
@@ -14585,6 +14587,7 @@ describe('ExecutionEngineService — registerInFlight / unregisterInFlight pairi
     const mod = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        BusinessMetricsService,
         NodeHandlerRegistry,
         NodeComponentRegistry,
         ExecutionContextService,
@@ -14879,6 +14882,7 @@ describe('processFormResumeTurn — 4 branches (SUMMARY W1)', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        BusinessMetricsService,
         ExecutionEventEmitter,
         GraphTraversalService,
         NodeHandlerDependenciesProvider,
@@ -15291,6 +15295,8 @@ describe('SUMMARY W3 / W5 / W6 / W7 보완 단위 테스트', () => {
       const module3 = await Test.createTestingModule({
         providers: [
           ExecutionEngineService,
+          BusinessMetricsService,
+          BusinessMetricsService,
           ExecutionEventEmitter,
           GraphTraversalService,
           NodeHandlerDependenciesProvider,

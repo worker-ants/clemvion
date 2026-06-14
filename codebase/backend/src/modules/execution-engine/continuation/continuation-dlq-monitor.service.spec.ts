@@ -17,13 +17,16 @@ const DEFAULT_CFG: ContinuationDlqMonitorConfig = {
 function makeService(cfg: Partial<ContinuationDlqMonitorConfig> = {}): {
   service: ContinuationDlqMonitorService;
   queue: MockQueue;
+  registerQueueDepthProvider: jest.Mock;
 } {
   const queue: MockQueue = { getJobCounts: jest.fn() };
-  const service = new ContinuationDlqMonitorService(queue as unknown as Queue, {
-    ...DEFAULT_CFG,
-    ...cfg,
-  });
-  return { service, queue };
+  const registerQueueDepthProvider = jest.fn();
+  const service = new ContinuationDlqMonitorService(
+    queue as unknown as Queue,
+    { ...DEFAULT_CFG, ...cfg },
+    { registerQueueDepthProvider } as never,
+  );
+  return { service, queue, registerQueueDepthProvider };
 }
 
 describe('loadContinuationDlqMonitorConfig (env 파싱)', () => {

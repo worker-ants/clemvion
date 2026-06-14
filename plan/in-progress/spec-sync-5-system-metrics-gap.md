@@ -16,9 +16,13 @@ owner: planner
 ## 구현 완료
 - [x] NF-OB-02 메트릭 수집 및 모니터링 (Prometheus 호환): `instrumentation.ts` 에 `PrometheusExporter` 를 NodeSDK `metricReaders` 로 연결. Prometheus scrape 서버(`OTEL_PROMETHEUS_PORT`, 기본 :9464)의 `/metrics` 로 노출. `OTEL_ENABLED=true` 게이트(traces 와 동시 토글). 의존성 `@opentelemetry/exporter-prometheus@^0.218.0`(기존 OTel 0.218 스택과 동일 라인) 1건 추가 — `sdk-metrics`·`instrumentation-runtime-node` 는 sdk-node/auto-instrumentations transitive 로 기존재. 테스트: `instrumentation.spec.ts`(포트 해석 폴백).
 
-## 후속 (별도 PR — 본 PR 범위 밖)
-- [ ] 비즈니스 커스텀 메트릭: 워크플로 실행 수·큐 깊이·LLM 토큰 사용량 등 도메인 메트릭 정의·계측 (메트릭 이름/라벨 셋 합의 필요).
-- [ ] `continuation-dlq-monitor.service.ts` 의 "OTel traces-only" 주석 현행화(메트릭 포함).
+## 후속 (별도 PR)
+- [x] 비즈니스 커스텀 메트릭 (2026-06-14, impl-business-metrics PR) — 사용자 결정 "표준 3종 + 노드 지연·에러율". spec `NF-OB-07` 신설(메트릭 카탈로그·라벨·이원화 정책). `BusinessMetricsService`(@Global `MetricsModule`)가 `metrics.getMeter('clemvion.business')` 로 5개 instrument 계측: `clemvion.execution.total{status}`·`clemvion.execution.errors{error_code}`(execution-engine `updateExecutionStatus` 단일 chokepoint)·`clemvion.queue.depth{queue,state}`(observable gauge, execution-engine+continuation 큐 provider 등록)·`clemvion.llm.tokens{model,type}`(`LlmUsageLogService.record` 단일 지점)·`clemvion.node.duration{node_type,status}`(실행 종료 시 node_execution duration). OTEL 비활성 시 no-op meter 로 안전. 테스트: `business-metrics.service.spec.ts`·`llm-usage-log.service.spec.ts`.
+  - [x] `continuation-dlq-monitor.service.ts` "OTel traces-only" 주석 현행화 + 큐 depth gauge provider 등록 (C-12).
+  - [x] spec W-2: `4-execution-engine.md` §Rationale "DLQ 모니터링" stale 전제 현행화.
+  - [ ] TEST WORKFLOW (lint·unit·build·e2e)
+  - [ ] /ai-review
+  - [ ] /consistency-check --impl-done
 
 ## 비고
 - 근거(claim→코드부재)는 audit findings/5-system/5-system___product-overview.md 참조.
