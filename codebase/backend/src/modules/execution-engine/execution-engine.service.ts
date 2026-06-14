@@ -26,6 +26,7 @@ import {
   InvalidExecutionStateError,
   RetryLastTurnError,
   ExecutionTimeLimitError,
+  MessageTooLongError,
 } from './workflow-errors';
 import { resolveMaxActiveRunningMs } from './execution-limits';
 import {
@@ -4282,8 +4283,9 @@ export class ExecutionEngineService
     message: string,
   ): Promise<ContinuationPublishResult> {
     if (message.length > ExecutionEngineService.MAX_MESSAGE_LENGTH) {
-      throw new Error(
-        `Message exceeds maximum length of ${ExecutionEngineService.MAX_MESSAGE_LENGTH} characters`,
+      throw new MessageTooLongError(
+        ExecutionEngineService.MAX_MESSAGE_LENGTH,
+        message.length,
       );
     }
     const nodeExecutionId =

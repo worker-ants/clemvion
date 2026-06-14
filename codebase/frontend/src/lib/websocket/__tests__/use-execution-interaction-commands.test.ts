@@ -20,6 +20,12 @@ vi.mock("sonner", () => ({
   },
 }));
 
+// useT 를 결정적으로 (key) => key 로 mock — localize 결과가 곧 i18n 키라
+// locale 의존 없이 매핑 동작을 검증한다 (errorCode 없는 기존 테스트는 t 미호출이라 무영향).
+vi.mock("@/lib/i18n", () => ({
+  useT: () => (key: string) => key,
+}));
+
 import { useExecutionInteractionCommands } from "../use-execution-interaction-commands";
 import { useExecutionStore } from "../../stores/execution-store";
 
@@ -355,6 +361,160 @@ describe("useExecutionInteractionCommands", () => {
       result.current.endConversation("n");
     });
     expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  // A-1 §7.5.2 — continuation ack 의 평면 errorCode → localized 메시지 매핑
+  describe("continuation ack errorCode localization (§7.5.2)", () => {
+    function failSubmitForm(ack: Record<string, unknown>) {
+      const { result } = renderHook(() =>
+        useExecutionInteractionCommands("exec-1"),
+      );
+      act(() => {
+        result.current.submitForm({ name: "x" });
+      });
+      const onceCall = onceMock.mock.calls.find(
+        ([event]) => event === "execution.form_submitted",
+      );
+      const ackHandler = onceCall![1] as (resp: unknown) => void;
+      act(() => {
+        ackHandler({ success: false, ...ack });
+      });
+    }
+
+    it("매핑된 errorCode 는 localized i18n 키로 toast (backend 영문 message 대신)", () => {
+      failSubmitForm({
+        error: "Form submission failed",
+        errorCode: "EXECUTION_INTERNAL_ERROR",
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.internalError",
+      );
+    });
+
+    it("INVALID_EXECUTION_STATE → invalidState 키", () => {
+      failSubmitForm({
+        error: "Execution is not waiting for input.",
+        errorCode: "INVALID_EXECUTION_STATE",
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.invalidState",
+      );
+    });
+
+    it("매핑 없는 errorCode 는 backend 의 영문 error 문자열로 fallback", () => {
+      failSubmitForm({ error: "some backend message", errorCode: "UNMAPPED" });
+      expect(toastErrorMock).toHaveBeenCalledWith("some backend message");
+    });
+
+    it("sendMessage 의 EXECUTION_MESSAGE_TOO_LONG → messageTooLong 키", () => {
+      const { result } = renderHook(() =>
+        useExecutionInteractionCommands("exec-1"),
+      );
+      act(() => {
+        result.current.sendMessage("node-1", "x".repeat(20));
+      });
+      const ackHandler = onceMock.mock.calls[0][1] as (
+        ...args: unknown[]
+      ) => void;
+      act(() => {
+        ackHandler({
+          success: false,
+          error: "Message exceeds the maximum allowed length.",
+          errorCode: "EXECUTION_MESSAGE_TOO_LONG",
+        });
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.messageTooLong",
+      );
+    });
+  });
+
+  // I-12 — clickButton / endConversation localization path (§7.5.2)
+  describe("clickButton errorCode localization (§7.5.2, I-12)", () => {
+    function failClickButton(ack: Record<string, unknown>) {
+      const { result } = renderHook(() =>
+        useExecutionInteractionCommands("exec-1"),
+      );
+      act(() => {
+        result.current.clickButton("btn-x");
+      });
+      const onceCall = onceMock.mock.calls.find(
+        ([event]) => event === "execution.click_button.ack",
+      );
+      const ackHandler = onceCall![1] as (resp: unknown) => void;
+      act(() => {
+        ackHandler({ success: false, ...ack });
+      });
+    }
+
+    it("clickButton: INVALID_EXECUTION_STATE → invalidState i18n 키", () => {
+      failClickButton({
+        error: "Execution is not waiting for input.",
+        errorCode: "INVALID_EXECUTION_STATE",
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.invalidState",
+      );
+    });
+
+    it("clickButton: EXECUTION_INTERNAL_ERROR → internalError i18n 키", () => {
+      failClickButton({
+        error: "Button click failed",
+        errorCode: "EXECUTION_INTERNAL_ERROR",
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.internalError",
+      );
+    });
+
+    it("clickButton: 매핑 없는 errorCode 는 backend 영문 error 로 fallback", () => {
+      failClickButton({ error: "some error", errorCode: "UNMAPPED_CODE" });
+      expect(toastErrorMock).toHaveBeenCalledWith("some error");
+    });
+  });
+
+  // I-11/I-13 — endConversation localization path (§7.5.2)
+  describe("endConversation errorCode localization (§7.5.2, I-11/I-13)", () => {
+    function failEndConversation(ack: Record<string, unknown>) {
+      const { result } = renderHook(() =>
+        useExecutionInteractionCommands("exec-1"),
+      );
+      act(() => {
+        result.current.endConversation("node-1");
+      });
+      const onceCall = onceMock.mock.calls.find(
+        ([event]) => event === "execution.end_conversation.ack",
+      );
+      const ackHandler = onceCall![1] as (resp: unknown) => void;
+      act(() => {
+        ackHandler({ success: false, ...ack });
+      });
+    }
+
+    it("endConversation: EXECUTION_INTERNAL_ERROR → internalError i18n 키", () => {
+      failEndConversation({
+        error: "End conversation failed",
+        errorCode: "EXECUTION_INTERNAL_ERROR",
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.internalError",
+      );
+    });
+
+    it("endConversation: INVALID_EXECUTION_STATE → invalidState i18n 키", () => {
+      failEndConversation({
+        error: "Execution is not waiting for input.",
+        errorCode: "INVALID_EXECUTION_STATE",
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.invalidState",
+      );
+    });
+
+    it("endConversation: 매핑 없는 errorCode 는 backend 영문 error 로 fallback", () => {
+      failEndConversation({ error: "some error", errorCode: "UNMAPPED_CODE" });
+      expect(toastErrorMock).toHaveBeenCalledWith("some error");
+    });
   });
 
   // CT-S11 — SUMMARY#6: retryLastTurn WS command tests

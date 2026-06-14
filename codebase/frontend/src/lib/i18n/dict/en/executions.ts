@@ -87,4 +87,12 @@ export const executions: Dict["executions"] = {
     statusPending: "Pending",
   },
   realtimeFallback: "Realtime updates are delayed. Falling back to polling.",
+  // continuation ack errorCode → localized message (spec §7.5.2, execution-error-codes.ts).
+  interactionError: {
+    invalidState:
+      "This execution is no longer waiting for input. Please refresh the page.",
+    messageTooLong: "Your message is too long. Please make it shorter.",
+    internalError:
+      "Something went wrong while processing your request. Please try again.",
+  },
 };

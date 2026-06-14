@@ -5,6 +5,7 @@ import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import {
   InvalidExecutionStateError,
+  MessageTooLongError,
   RetryLastTurnError,
 } from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
@@ -627,7 +628,7 @@ describe('WebsocketGateway', () => {
       expect(result.data.success).toBe(true);
     });
 
-    it('should return error when continueExecution throws', async () => {
+    it('continueExecution 이 plain Error 를 throw 하면 내부 message 미전달 + generic fallback (§7.5.2)', async () => {
       const { socket } = createMockSocket({ id: 'client-1' });
       (socket as Socket & { userId?: string; workspaceId?: string }).userId =
         'user-1';
@@ -643,9 +644,10 @@ describe('WebsocketGateway', () => {
         socket,
       );
       expect(result.data.success).toBe(false);
-      // Surface the underlying engine error so the client can render a
-      // diagnostic toast instead of a generic placeholder.
-      expect(result.data.error).toBe('No pending continuation');
+      // A-1 §7.5.2 — 비-typed Error 의 내부 message 는 client 에 전달하지 않고
+      // 고정 generic fallback + EXECUTION_INTERNAL_ERROR 로 축약 (누출 차단).
+      expect(result.data.error).toBe('Form submission failed');
+      expect(result.data.errorCode).toBe('EXECUTION_INTERNAL_ERROR');
     });
 
     it('should reject when ownership verification fails (IDOR guard)', async () => {
@@ -687,15 +689,18 @@ describe('WebsocketGateway', () => {
       expect(result.data.errorCode).toBe('INVALID_EXECUTION_STATE');
     });
 
-    it('변경 2.3 — 일반 에러는 errorCode 미동봉 (INVALID_EXECUTION_STATE 전용)', async () => {
+    it('A-1 §7.5.2 — 비-typed 에러는 내부 message 미전달 + errorCode=EXECUTION_INTERNAL_ERROR (누출 차단)', async () => {
       const { socket } = createMockSocket({ id: 'client-1' });
       (socket as Socket & { userId?: string; workspaceId?: string }).userId =
         'user-1';
       (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
 
       const mockEngine = module.get(ExecutionEngineService);
+      // 내부 식별자·SQL 원문을 담은 plain Error (누출 위험 시뮬레이션)
       (mockEngine.continueExecution as jest.Mock).mockRejectedValueOnce(
-        new Error('boom'),
+        new Error(
+          'QueryFailedError: SELECT * FROM secret_internal_table WHERE id=42 — connection refused at 10.0.0.5:5432',
+        ),
       );
 
       const result = await gateway.handleSubmitForm(
@@ -703,7 +708,38 @@ describe('WebsocketGateway', () => {
         socket,
       );
       expect(result.data.success).toBe(false);
-      expect(result.data.errorCode).toBeUndefined();
+      expect(result.data.errorCode).toBe('EXECUTION_INTERNAL_ERROR');
+      // 보안 게이트: 내부 message(스택 힌트·SQL 원문·내부 IP/식별자)는 client ack 에 미포함
+      expect(result.data.error).not.toContain('secret_internal_table');
+      expect(result.data.error).not.toContain('10.0.0.5');
+      expect(result.data.error).not.toContain('QueryFailedError');
+      // 고정 generic fallback 만 노출
+      expect(result.data.error).toBe('Form submission failed');
+    });
+
+    it('A-1 §7.5.2 — typed MessageTooLongError 는 고정 client-safe message + EXECUTION_MESSAGE_TOO_LONG (수치 미노출)', async () => {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.continueAiConversation as jest.Mock).mockRejectedValueOnce(
+        new MessageTooLongError(10_000, 123_456),
+      );
+
+      const result = await gateway.handleSubmitMessage(
+        { executionId: 'exec-1', message: 'x' },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.errorCode).toBe('EXECUTION_MESSAGE_TOO_LONG');
+      expect(result.data.error).toBe(
+        'Message exceeds the maximum allowed length.',
+      );
+      // serverDetail 의 실제 길이 수치는 client ack 에 노출되지 않는다
+      expect(result.data.error).not.toContain('123456');
+      expect(result.data.error).not.toContain('123,456');
     });
 
     it('Phase 2.5 — success ack 에 resumed + queued + executionId 동봉 (spec §4.2)', async () => {
@@ -879,6 +915,86 @@ describe('WebsocketGateway', () => {
       expect(result.data.success).toBe(false);
       expect(result.data.resumed).toBe(false);
       expect(result.data.error?.code).toBe('INTERNAL_ERROR');
+    });
+  });
+
+  describe('handleSubmitMessage (§7.5.2 leak-block, I-11)', () => {
+    function authedMessageSocket(): Socket {
+      const { socket } = createMockSocket({ id: 'client-msg' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+      return socket;
+    }
+
+    it('plain Error 를 throw 하면 내부 message 미전달 + EXECUTION_INTERNAL_ERROR fallback (§7.5.2)', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.continueAiConversation as jest.Mock).mockRejectedValueOnce(
+        new Error('SELECT * FROM secrets WHERE id=999 — internal PG error'),
+      );
+
+      const result = await gateway.handleSubmitMessage(
+        { executionId: 'exec-1', nodeId: 'node-1', message: 'hi' },
+        authedMessageSocket(),
+      );
+      expect(result.data.success).toBe(false);
+      // 보안 게이트: 내부 message/stack 은 client ack 에 미포함.
+      expect(result.data.errorCode).toBe('EXECUTION_INTERNAL_ERROR');
+      expect(result.data.error).toBe('Message submission failed');
+      expect(result.data.error).not.toContain('secrets');
+      expect(result.data.error).not.toContain('PG error');
+    });
+
+    it('typed MessageTooLongError 는 고정 message + EXECUTION_MESSAGE_TOO_LONG (수치 미노출)', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.continueAiConversation as jest.Mock).mockRejectedValueOnce(
+        new MessageTooLongError(10_000, 200_001),
+      );
+
+      const result = await gateway.handleSubmitMessage(
+        {
+          executionId: 'exec-1',
+          nodeId: 'node-1',
+          message: 'x'.repeat(200_001),
+        },
+        authedMessageSocket(),
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.errorCode).toBe('EXECUTION_MESSAGE_TOO_LONG');
+      expect(result.data.error).toBe(
+        'Message exceeds the maximum allowed length.',
+      );
+      // 서버 로그 전용 수치가 client ack 에 노출되지 않는다.
+      expect(result.data.error).not.toContain('200001');
+      expect(result.data.error).not.toContain('10000');
+    });
+  });
+
+  describe('handleEndConversation (§7.5.2 leak-block, I-10)', () => {
+    function authedEndConvSocket(): Socket {
+      const { socket } = createMockSocket({ id: 'client-end' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+      return socket;
+    }
+
+    it('plain Error 를 throw 하면 내부 message 미전달 + EXECUTION_INTERNAL_ERROR fallback (§7.5.2)', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.endAiConversation as jest.Mock).mockRejectedValueOnce(
+        new Error('DB constraint violation — internal PG error detail'),
+      );
+
+      const result = await gateway.handleEndConversation(
+        { executionId: 'exec-1', nodeId: 'node-1' },
+        authedEndConvSocket(),
+      );
+      expect(result.data.success).toBe(false);
+      // 보안 게이트: 내부 message/stack 은 client ack 에 미포함.
+      expect(result.data.errorCode).toBe('EXECUTION_INTERNAL_ERROR');
+      expect(result.data.error).toBe('End conversation failed');
+      expect(result.data.error).not.toContain('DB constraint');
+      expect(result.data.error).not.toContain('PG error');
     });
   });
 

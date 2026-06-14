@@ -153,6 +153,18 @@ When a node is stopped by an **external abort** — a parallel branch failure wi
 
 <Callout type="tip">Retry and Route to Error Port can't be used together. If you need an alternative path when retries fail, pick the error-port flow instead of retries.</Callout>
 
+## Interaction errors during execution (AI conversation · form · button response failures)
+
+When an error occurs while interacting with a node waiting for user input (AI Agent conversation, Form node, Button node), a toast notification appears in the bottom-right of the screen. One of the messages below will be shown depending on the error type.
+
+<FieldTable rows={[
+  { name: "INVALID_EXECUTION_STATE", type: "Error code", description: "The execution is not currently waiting for input — it may have already progressed or been cancelled." },
+  { name: "EXECUTION_MESSAGE_TOO_LONG", type: "Error code", description: "The message exceeds the maximum allowed length. Shorten your input and try again." },
+  { name: "EXECUTION_INTERNAL_ERROR", type: "Error code", description: "An internal error occurred. Try again in a moment or contact your workspace admin." }
+]} />
+
+<Callout type="info">For security, internal server error details are never exposed to the user. Admins can check the server logs for the root cause.</Callout>
+
 ## Tips & notes
 
 - Workflow-wide auto retry (trigger/schedule driven) is configured separately in workflow settings — up to 5 retries.

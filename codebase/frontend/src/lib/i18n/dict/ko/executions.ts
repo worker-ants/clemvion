@@ -85,4 +85,12 @@ export const executions = {
     statusPending: "대기",
   },
   realtimeFallback: "실시간 업데이트 연결이 지연되고 있어요. 폴링으로 진행됩니다.",
+  // continuation ack 의 errorCode → localized 메시지 (spec §7.5.2, execution-error-codes.ts).
+  interactionError: {
+    invalidState:
+      "이 실행은 더 이상 입력을 기다리고 있지 않아요. 화면을 새로고침해 주세요.",
+    messageTooLong: "메시지가 너무 길어요. 더 짧게 작성해 주세요.",
+    internalError:
+      "요청을 처리하는 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
+  },
 } as const;
