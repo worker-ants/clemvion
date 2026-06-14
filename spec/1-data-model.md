@@ -796,6 +796,7 @@ AI Agent 노드의 `memoryStrategy: 'persistent'` 전략에서 세션 간 추출
 | Execution | (status) | 상태별 실행 조회 |
 | Execution | (re_run_of) | Re-run 직계 부모 조회 (chain badge 의 부모 표시) |
 | Execution | (chain_id, started_at) | Re-run chain 전체 조회 (`GET /api/executions/:id/chain` — [Spec Re-run §8.2](./5-system/13-replay-rerun.md#82-get-apiexecutionsexecutionidchain)) |
+| Execution | (trigger_id, started_at DESC) WHERE trigger_id IS NOT NULL | 인증 설정 사용 내역(`GET /api/auth-configs/:id/usage`, [config §A.3](./2-navigation/6-config.md)) 의 `trigger_id IN (...)` + `started_at` 집계(totalCalls·periodCounts·recentCalls) 가속 — `idx_execution_trigger_started`. partial 로 schedule/manual(trigger_id=NULL) 행 제외해 인덱스 경량. V096 |
 | NodeExecution | (execution_id) | 실행별 노드 실행 조회 |
 | NodeExecution | (execution_id, status) WHERE status IN ('waiting_for_input','running') | 활성(미종결) 노드 실행 조회·전이 — rehydration `resolveWaitingNodeExecutionId` + running 조회/UPDATE 핫 경로. completed 계열은 `(execution_id, node_id, started_at DESC)` 가 커버하므로 partial 로 활성 행만 인덱싱 (크기·write amplification 최소). CONCURRENTLY, V095 |
 | NodeExecution | (execution_id, node_id, started_at DESC) | execution+node 별 최신 NodeExecution 조회 (rehydration `DISTINCT ON` / `findOne ... ORDER BY started_at DESC`). CONCURRENTLY, V034 |
