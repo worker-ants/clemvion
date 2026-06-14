@@ -280,7 +280,7 @@ Idempotency-Key: <client-uuid>   // 권장
 지원하는 `command` 5종이에요.
 
 <FieldTable rows={[
-  { name: "submit_form", required: false, type: "Form 노드", description: "`nodeId` 와 `data: { [field]: value }` 동봉. 검증 실패는 `400 VALIDATION_FAILED` + `details.fieldErrors` 로 돌아오며 실행 상태는 그대로 유지돼서 재제출이 가능해요.", default: "-" },
+  { name: "submit_form", required: false, type: "Form 노드", description: "`nodeId` 와 `data: { [field]: value }` 동봉. 검증 실패는 `400 VALIDATION_ERROR` + `error.details[{ field, message, code }]` 로 돌아오며 실행 상태는 그대로 유지돼서 재제출이 가능해요.", default: "-" },
   { name: "click_button", required: false, type: "Carousel / Table / Chart / Template (버튼)", description: "`nodeId`, `buttonId` 동봉. 특정 버튼이 눌린 효과를 줘요.", default: "-" },
   { name: "submit_message", required: false, type: "AI Agent · Information Extractor (Multi Turn)", description: "`nodeId`, `message` 동봉. 사용자 메시지를 보내고 다음 어시스턴트 응답을 기다려요.", default: "-" },
   { name: "end_conversation", required: false, type: "AI Agent · Information Extractor (Multi Turn)", description: "`nodeId`, `reason?` 동봉. 대화 세션을 명시 종료해 워크플로우를 다음 단계로 진행시켜요.", default: "-" },
@@ -295,7 +295,7 @@ Idempotency-Key: <client-uuid>   // 권장
 
 | 상태 | 코드 | 의미 |
 |------|------|------|
-| `400 Bad Request` | `VALIDATION_FAILED` | Form 필드 검증 실패. 실행 상태 유지 → 재제출 가능 |
+| `400 Bad Request` | `VALIDATION_ERROR` | Form 필드 검증 실패 (`error.details[{ field, message, code }]`). 실행 상태 유지 → 재제출 가능 |
 | `400 Bad Request` | `INVALID_COMMAND` | 미지원 command 또는 필수 필드 누락 |
 | `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | 응답 헤더 `X-Refresh-Token-Url` 로 갱신 경로 안내 |
 | `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 |

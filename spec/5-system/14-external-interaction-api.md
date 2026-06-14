@@ -999,6 +999,7 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 |---|---|---|
 | `InvalidExecutionStateError` | `INVALID_EXECUTION_STATE` | `409 STATE_MISMATCH` |
 | `MessageTooLongError` | `EXECUTION_MESSAGE_TOO_LONG` | `400 MESSAGE_TOO_LONG` |
+| `FormValidationError` | `VALIDATION_ERROR` | `400 VALIDATION_ERROR` (+ `details[]`) |
 
 **근거**: WS 채널은 실행 엔진 내부 코드 네임스페이스(`EXECUTION_*`·시스템 레벨 `INVALID_EXECUTION_STATE`, [error-codes.md](../conventions/error-codes.md) 규약)를 직접 노출하는 반면, EIA REST 는 공개 외부 API 표면이라 HTTP status 와 함께 표면 자체의 간결한 코드(`STATE_MISMATCH`·`MESSAGE_TOO_LONG`)를 쓴다. 두 표면을 같은 코드명으로 강제 통일하면 (a) WS 가 REST 식 코드를 쓰면 내부 enum 과 어긋나고, (b) REST 가 `EXECUTION_*` prefix 를 그대로 노출하면 외부 API 가 내부 구현 식별자에 결합된다 — 따라서 **표면별 코드명 + cross-ref 동치 고정**을 채택한다.
 

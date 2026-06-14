@@ -234,7 +234,8 @@ export class MessageTooLongError extends ExecutionError {
 export interface ValidationDetail {
   field: string;
   message: string;
-  code: string;
+  /** 현재 단계 단일 값 `'INVALID_FIELD'` (`ErrorCode.INVALID_FIELD`) — 타입 레벨 계약 고정. */
+  code: 'INVALID_FIELD';
 }
 
 /**
