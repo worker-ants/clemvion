@@ -628,7 +628,7 @@ describe('WebsocketGateway', () => {
       expect(result.data.success).toBe(true);
     });
 
-    it('should return error when continueExecution throws', async () => {
+    it('continueExecution 이 plain Error 를 throw 하면 내부 message 미전달 + generic fallback (§7.5.2)', async () => {
       const { socket } = createMockSocket({ id: 'client-1' });
       (socket as Socket & { userId?: string; workspaceId?: string }).userId =
         'user-1';
@@ -644,9 +644,10 @@ describe('WebsocketGateway', () => {
         socket,
       );
       expect(result.data.success).toBe(false);
-      // Surface the underlying engine error so the client can render a
-      // diagnostic toast instead of a generic placeholder.
-      expect(result.data.error).toBe('No pending continuation');
+      // A-1 §7.5.2 — 비-typed Error 의 내부 message 는 client 에 전달하지 않고
+      // 고정 generic fallback + EXECUTION_INTERNAL_ERROR 로 축약 (누출 차단).
+      expect(result.data.error).toBe('Form submission failed');
+      expect(result.data.errorCode).toBe('EXECUTION_INTERNAL_ERROR');
     });
 
     it('should reject when ownership verification fails (IDOR guard)', async () => {
@@ -733,7 +734,9 @@ describe('WebsocketGateway', () => {
       );
       expect(result.data.success).toBe(false);
       expect(result.data.errorCode).toBe('EXECUTION_MESSAGE_TOO_LONG');
-      expect(result.data.error).toBe('Message exceeds the maximum allowed length.');
+      expect(result.data.error).toBe(
+        'Message exceeds the maximum allowed length.',
+      );
       // serverDetail 의 실제 길이 수치는 client ack 에 노출되지 않는다
       expect(result.data.error).not.toContain('123456');
       expect(result.data.error).not.toContain('123,456');

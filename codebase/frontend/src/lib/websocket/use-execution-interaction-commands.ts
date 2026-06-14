@@ -216,7 +216,7 @@ export function useExecutionInteractionCommands(
       "execution.click_button",
       { executionId, buttonId: CONTINUE_BUTTON_ID },
       "execution.click_button.ack",
-      (error) => toast.error(error),
+      (error, errorCode) => toast.error(localizeAckError(t, error, errorCode)),
     );
   }, [executionId, t]);
 
