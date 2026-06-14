@@ -4,6 +4,7 @@ import {
   loadContinuationDlqMonitorConfig,
   type ContinuationDlqMonitorConfig,
 } from './continuation-dlq-monitor.config';
+import { BusinessMetricsService } from '../../metrics/business-metrics.service';
 
 type MockQueue = { getJobCounts: jest.Mock };
 
@@ -17,13 +18,16 @@ const DEFAULT_CFG: ContinuationDlqMonitorConfig = {
 function makeService(cfg: Partial<ContinuationDlqMonitorConfig> = {}): {
   service: ContinuationDlqMonitorService;
   queue: MockQueue;
+  registerQueueDepthProvider: jest.Mock;
 } {
   const queue: MockQueue = { getJobCounts: jest.fn() };
-  const service = new ContinuationDlqMonitorService(queue as unknown as Queue, {
-    ...DEFAULT_CFG,
-    ...cfg,
-  });
-  return { service, queue };
+  const registerQueueDepthProvider = jest.fn();
+  const service = new ContinuationDlqMonitorService(
+    queue as unknown as Queue,
+    { ...DEFAULT_CFG, ...cfg },
+    { registerQueueDepthProvider } as unknown as BusinessMetricsService,
+  );
+  return { service, queue, registerQueueDepthProvider };
 }
 
 describe('loadContinuationDlqMonitorConfig (env 파싱)', () => {
@@ -186,6 +190,67 @@ describe('ContinuationDlqMonitorService', () => {
       const setIntervalSpy = jest.spyOn(global, 'setInterval');
       service.onModuleInit();
       expect(setIntervalSpy).not.toHaveBeenCalled();
+    });
+
+    // W-4 (SUMMARY #4) — registerQueueDepthProvider 등록 검증
+    it('onModuleInit 시 registerQueueDepthProvider 를 1회 호출한다 (enabled=true)', () => {
+      const { service, registerQueueDepthProvider } = makeService({
+        intervalMs: 1000,
+      });
+      jest
+        .spyOn(global, 'setInterval')
+        .mockReturnValue({ unref: jest.fn() } as unknown as NodeJS.Timeout);
+
+      service.onModuleInit();
+
+      expect(registerQueueDepthProvider).toHaveBeenCalledTimes(1);
+      expect(registerQueueDepthProvider).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
+    });
+
+    it('onModuleInit 시 registerQueueDepthProvider 를 1회 호출한다 (enabled=false 에도)', () => {
+      // 큐 깊이 관측은 알람 활성 여부와 무관하게 항상 등록한다.
+      const { service, registerQueueDepthProvider } = makeService({
+        enabled: false,
+      });
+
+      service.onModuleInit();
+
+      expect(registerQueueDepthProvider).toHaveBeenCalledTimes(1);
+      expect(registerQueueDepthProvider).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
+    });
+
+    it('provider 콜백은 continuation 큐의 getJobCounts 스냅샷을 반환한다', async () => {
+      const { service, queue, registerQueueDepthProvider } = makeService({
+        intervalMs: 1000,
+      });
+      jest
+        .spyOn(global, 'setInterval')
+        .mockReturnValue({ unref: jest.fn() } as unknown as NodeJS.Timeout);
+      queue.getJobCounts.mockResolvedValue({
+        waiting: 1,
+        active: 2,
+        delayed: 3,
+        failed: 4,
+      });
+
+      service.onModuleInit();
+
+      const provider: () => Promise<unknown[]> =
+        registerQueueDepthProvider.mock.calls[0][0];
+      const snapshots = await provider();
+
+      expect(snapshots).toHaveLength(1);
+      expect(snapshots[0]).toMatchObject({
+        queue: expect.any(String),
+        waiting: 1,
+        active: 2,
+        delayed: 3,
+        failed: 4,
+      });
     });
   });
 });

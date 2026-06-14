@@ -19,6 +19,7 @@ import {
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RedisModule } from './common/redis/redis.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
 import { RolesGuard } from './common/guards/roles.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -141,6 +142,9 @@ export { ROOT_ENTITIES } from './database/root-entities';
 
     // 공유 인프라 — command Redis 단일 연결 (ai-review INFO-12). @Global.
     RedisModule,
+
+    // NF-OB-07 도메인 메트릭 — @Global, 계측 지점(execution-engine·llm·continuation)에 주입.
+    MetricsModule,
 
     // Feature Modules
     HealthModule,
