@@ -873,14 +873,21 @@ export class WebsocketGateway
   }
 
   /**
-   * 변경 2.3 (review W-8) — continuation 핸들러 4종의 catch 블록 공통화.
-   * A-1 typed-error (spec §7.5.2) — client-safe 표면과 내부 진단을 분리한다:
+   * A-1 typed-error (§7.5.2) — continuation 핸들러 4종 catch 공통화 + 누출 차단.
+   * (원래 변경 2.3/review W-8 에서 도입)
+   *
+   * client-safe 표면과 내부 진단을 분리한다:
    *
    * - typed `ExecutionError`(`InvalidExecutionStateError` 등)면 그 클래스의 **고정
    *   client-safe `message`** + `code` 를 surface 하고, `serverDetail` 은 서버 로그에만.
    * - 그 외 임의(plain) `Error` / unknown 은 **내부 `error.message` 를 client 에
    *   전달하지 않는다** — 고정 generic fallback + `EXECUTION_INTERNAL_ERROR` 로 축약하고
    *   원본 message/stack 은 서버 로그에만 기록한다 (누출 차단 보안 게이트).
+   *
+   * 아키텍처 불변식: 4종 continuation 핸들러(submitForm·clickButton·submitMessage·endConversation)
+   * 의 catch 블록은 모두 이 메서드를 거친다 — frontend `localizeAckError` 가 "모든 continuation
+   * ack 의 error 필드는 client-safe" 임을 가정하므로, 신규 continuation 핸들러 추가 시
+   * 반드시 이 메서드를 사용해야 한다 (§7.5.2).
    *
    * worker 측 `RESUME_*`(§7.5.1)는 본 동기 ack 경로 밖 — 후행 `execution.cancelled` 통지.
    *

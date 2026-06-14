@@ -473,6 +473,50 @@ describe("useExecutionInteractionCommands", () => {
     });
   });
 
+  // I-11/I-13 — endConversation localization path (§7.5.2)
+  describe("endConversation errorCode localization (§7.5.2, I-11/I-13)", () => {
+    function failEndConversation(ack: Record<string, unknown>) {
+      const { result } = renderHook(() =>
+        useExecutionInteractionCommands("exec-1"),
+      );
+      act(() => {
+        result.current.endConversation("node-1");
+      });
+      const onceCall = onceMock.mock.calls.find(
+        ([event]) => event === "execution.end_conversation.ack",
+      );
+      const ackHandler = onceCall![1] as (resp: unknown) => void;
+      act(() => {
+        ackHandler({ success: false, ...ack });
+      });
+    }
+
+    it("endConversation: EXECUTION_INTERNAL_ERROR → internalError i18n 키", () => {
+      failEndConversation({
+        error: "End conversation failed",
+        errorCode: "EXECUTION_INTERNAL_ERROR",
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.internalError",
+      );
+    });
+
+    it("endConversation: INVALID_EXECUTION_STATE → invalidState i18n 키", () => {
+      failEndConversation({
+        error: "Execution is not waiting for input.",
+        errorCode: "INVALID_EXECUTION_STATE",
+      });
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.invalidState",
+      );
+    });
+
+    it("endConversation: 매핑 없는 errorCode 는 backend 영문 error 로 fallback", () => {
+      failEndConversation({ error: "some error", errorCode: "UNMAPPED_CODE" });
+      expect(toastErrorMock).toHaveBeenCalledWith("some error");
+    });
+  });
+
   // CT-S11 — SUMMARY#6: retryLastTurn WS command tests
   describe("retryLastTurn", () => {
     it("emits execution.retry_last_turn with executionId and nodeExecutionId", () => {

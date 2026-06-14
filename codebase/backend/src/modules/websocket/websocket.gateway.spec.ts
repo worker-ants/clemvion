@@ -970,6 +970,34 @@ describe('WebsocketGateway', () => {
     });
   });
 
+  describe('handleEndConversation (§7.5.2 leak-block, I-10)', () => {
+    function authedEndConvSocket(): Socket {
+      const { socket } = createMockSocket({ id: 'client-end' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+      return socket;
+    }
+
+    it('plain Error 를 throw 하면 내부 message 미전달 + EXECUTION_INTERNAL_ERROR fallback (§7.5.2)', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.endAiConversation as jest.Mock).mockRejectedValueOnce(
+        new Error('DB constraint violation — internal PG error detail'),
+      );
+
+      const result = await gateway.handleEndConversation(
+        { executionId: 'exec-1', nodeId: 'node-1' },
+        authedEndConvSocket(),
+      );
+      expect(result.data.success).toBe(false);
+      // 보안 게이트: 내부 message/stack 은 client ack 에 미포함.
+      expect(result.data.errorCode).toBe('EXECUTION_INTERNAL_ERROR');
+      expect(result.data.error).toBe('End conversation failed');
+      expect(result.data.error).not.toContain('DB constraint');
+      expect(result.data.error).not.toContain('PG error');
+    });
+  });
+
   describe('broadcastToChannel', () => {
     it('should emit to the correct channel', () => {
       const emitFn = jest.fn();
