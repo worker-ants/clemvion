@@ -18,9 +18,10 @@ status: in-progress
 - [x] **be** `workflow-errors.ts` `ExecutionError` 추상 기반(`{ code, message, serverDetail? }`) + `InvalidExecutionStateError`·`RetryLastTurnError` 흡수
 - [x] **be** `continueAiConversation` L4285 plain Error → typed `MessageTooLongError`(EXECUTION_MESSAGE_TOO_LONG)
 - [x] **be** `buildContinuationErrorAck` 재작성 — typed→code+safe msg / plain→generic fallback + EXECUTION_INTERNAL_ERROR + logger.warn(원본), 내부 message 미전달
-- [ ] **fe** `execution-error-codes.ts`(code→i18n key) + `use-execution-interaction-commands.ts` errorCode 매핑 + KO/EN dict
-- [ ] **test** be unit(ack 분기·ExecutionError·MessageTooLong) + fe unit(map·매핑) + e2e(누출 차단·message-too-long)
-- [ ] TEST + REVIEW WORKFLOW
+- [x] **fe** `execution-error-codes.ts`(code→i18n key) + `use-execution-interaction-commands.ts` errorCode 매핑(4종 continuation) + KO/EN dict
+- [x] **test** be unit(gateway 누출 차단·MessageTooLong·ExecutionError 계약) + fe unit(map·hook localize). e2e 는 기존 suite 회귀(190 PASS) — 누출 차단 계약은 gateway 핸들러+ack 빌더 단위로 직접 검증(WS submit e2e 인프라 부재; EIA 경로는 generic 500 유지·INFO I2 follow-up).
+- [x] **TEST**: be lint·unit(6872)·build ✓ / fe lint·unit(4377)·build ✓ / e2e 190 ✓. (sdk·web-chat-sdk lint/build 는 worktree lockfile 부재 env 이슈 — 본 변경 무관 독립 패키지.)
+- [ ] **REVIEW**: /ai-review + resolution-applier fix + consistency-check --impl-done
 
 # execution-engine client-safe typed error 체계 (refactor 04 후속 A-2)
 
