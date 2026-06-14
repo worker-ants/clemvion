@@ -116,7 +116,7 @@ pending_plans:
 | 이름 | O | 인라인 토글 | 표시 이름 |
 | 이메일 | X (별도 변경) | 별도 프로세스 | 이메일 변경 시 확인 메일 발송 플로우 |
 | 언어 | O | 인라인 토글 | UI 언어 (ko, en) |
-| 테마 | O | 인라인 토글 (라이브 프리뷰는 임시 state 로 격리) | Light / Dark (현재 구현. `System` 자동 추종은 **미구현 (Planned)** — `UpdateMeDto` 의 `USER_THEMES` 는 `['light','dark']`) |
+| 테마 | O | 인라인 토글 (라이브 프리뷰는 임시 state 로 격리) | Light / Dark / **System** — backend `UpdateMeDto.USER_THEMES` 가 `['light','dark','system']` 수용(저장·반환). `system` = OS 색상 모드 자동 추종으로 **frontend 가 `prefers-color-scheme` 로 적용**(frontend UI 토글 노출은 Planned) |
 | 비밀번호 | O | 전용 페이지 `/profile/change-password` | 현재 비밀번호 확인 → 새 비밀번호 입력 |
 
 ### 2.2 보안 설정

@@ -11,7 +11,9 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 export const USER_LOCALES = ['ko', 'en'] as const;
 export type UserLocale = (typeof USER_LOCALES)[number];
 
-export const USER_THEMES = ['light', 'dark'] as const;
+// §2.0/§2.1 — 'system' = OS 색상 모드 자동 추종(frontend 가 prefers-color-scheme 로 적용).
+// backend 는 저장·반환만; light/dark/system 세 값을 수용한다.
+export const USER_THEMES = ['light', 'dark', 'system'] as const;
 export type UserTheme = (typeof USER_THEMES)[number];
 
 export class UpdateMeDto {
@@ -51,6 +53,9 @@ export class UpdateMeDto {
     maxLength: 500,
   })
   @IsOptional()
+  // require_tld:false 는 내부 호스트 URL 도 허용하지만, 서버는 이 URL 을 fetch 하지 않고
+  // 클라이언트가 직접 <img src> 로 로드하므로 SSRF 진입점이 아니다. 향후 서버측 fetch(예: 썸네일
+  // 생성) 추가 시 require_tld:true + 내부 IP 차단 가드를 병행해야 한다.
   @IsUrl({ require_tld: false })
   @MaxLength(500)
   avatarUrl?: string;
