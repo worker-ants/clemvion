@@ -70,7 +70,10 @@ code:
 │   ├── makeshop               # MakeShop 채널 연동
 │   └── agent-memory           # 에이전트 메모리
 ├── 07-workspace-and-team/
-│   └── workspaces-and-members  # 개인·팀 워크스페이스, 멤버 초대, 공유 표시
+│   ├── workspaces-and-members  # 개인·팀 워크스페이스, 멤버 초대, 공유 표시
+│   ├── security-2fa            # 2단계 인증 (TOTP · Passkey)
+│   ├── system-status           # 시스템 상태 페이지
+│   └── password-and-sessions   # 비밀번호 변경 및 세션 관리
 └── 99-faq/                     # 항상 사이드바 맨 아래 (§5 규칙)
     └── faq
 ```

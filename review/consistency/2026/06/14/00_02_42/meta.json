@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-14T00:02:42.181546",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/conventions/audit-actions.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
