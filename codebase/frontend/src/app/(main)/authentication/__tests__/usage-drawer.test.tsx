@@ -120,6 +120,10 @@ describe("Authentication 사용 내역 드로어 (§A.3 호출 이력)", () => {
 
     // 비-HTTP 트리거: 소스 IP 없음 → "—" 플레이스홀더.
     expect(screen.getByText("—")).toBeInTheDocument();
+
+    // 비-HTTP 트리거: responseCode 가 status enum 으로 폴백('failed') — §A.3 핵심 동작.
+    // 'failed' 는 status 배지 + responseCode 셀 두 곳에 렌더된다.
+    expect(screen.getAllByText("failed").length).toBeGreaterThanOrEqual(2);
   });
 
   it("기간별 호출 수 섹션이 렌더된다", async () => {

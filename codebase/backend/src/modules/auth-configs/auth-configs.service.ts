@@ -38,6 +38,15 @@ const USAGE_PERIOD_WINDOWS_MS = {
   last30d: 30 * 24 * 60 * 60 * 1000,
 } as const;
 
+/**
+ * periodCounts 의 raw COUNT 문자열을 안전한 음이 아닌 정수로 변환 — DB 드라이버
+ * 비정상 반환(NaN/음수/null)을 0 으로 폴백한다 (§A.3 getUsage).
+ */
+function safeUsageCount(raw: string | undefined | null): number {
+  const n = Number(raw ?? 0);
+  return isNaN(n) || n < 0 ? 0 : n;
+}
+
 export interface WebhookAuthContext {
   /** 소문자 키의 요청 헤더 맵 */
   headers: Record<string, string>;
@@ -599,16 +608,10 @@ export class AuthConfigsService {
         .getMany(),
     ]);
 
-    /** NaN/음수 방어: DB 드라이버 비정상 반환 시 0 으로 안전 폴백 (I-2). */
-    const safeCount = (raw: string | undefined | null): number => {
-      const n = Number(raw ?? 0);
-      return isNaN(n) || n < 0 ? 0 : n;
-    };
-
     const periodCounts = {
-      last24h: safeCount(periodRaw?.last24h),
-      last7d: safeCount(periodRaw?.last7d),
-      last30d: safeCount(periodRaw?.last30d),
+      last24h: safeUsageCount(periodRaw?.last24h),
+      last7d: safeUsageCount(periodRaw?.last7d),
+      last30d: safeUsageCount(periodRaw?.last30d),
     };
 
     return {

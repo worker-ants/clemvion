@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** 커스텀 인증 설정 응답 DTO */
 export class AuthConfigDto {
@@ -30,7 +30,7 @@ export class AuthConfigDto {
   @ApiProperty()
   isActive: boolean;
 
-  @ApiProperty({ format: 'date-time', nullable: true })
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
   lastUsedAt?: string | null;
 
   @ApiProperty({ format: 'date-time' })
@@ -40,15 +40,24 @@ export class AuthConfigDto {
   updatedAt: string;
 }
 
-/** §A.3 기간별 호출 수 — 롤링 윈도(24h/7d/30d) 호출 건수 */
+/** §A.3 기간별 호출 수 — 롤링 윈도(24h/7d/30d) 호출 건수 (캘린더 버킷 아님) */
 export class AuthConfigUsagePeriodCountsDto {
-  @ApiProperty({ example: 5 })
+  @ApiProperty({
+    example: 5,
+    description: 'Rolling 24-hour window count (not calendar day).',
+  })
   last24h: number;
 
-  @ApiProperty({ example: 23 })
+  @ApiProperty({
+    example: 23,
+    description: 'Rolling 7-day window count.',
+  })
   last7d: number;
 
-  @ApiProperty({ example: 78 })
+  @ApiProperty({
+    example: 78,
+    description: 'Rolling 30-day window count.',
+  })
   last30d: number;
 }
 
@@ -90,12 +99,16 @@ export class AuthConfigUsageDto {
   @ApiProperty({ example: 42 })
   totalCalls: number;
 
-  @ApiProperty({ format: 'date-time', nullable: true })
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
   lastUsedAt?: string | null;
 
   @ApiProperty({ type: AuthConfigUsagePeriodCountsDto })
   periodCounts: AuthConfigUsagePeriodCountsDto;
 
-  @ApiProperty({ type: [AuthConfigUsageCallDto] })
+  @ApiProperty({
+    type: [AuthConfigUsageCallDto],
+    description:
+      'Up to 20 most recent executions, ordered by startedAt DESC (§A.3).',
+  })
   recentCalls: AuthConfigUsageCallDto[];
 }
