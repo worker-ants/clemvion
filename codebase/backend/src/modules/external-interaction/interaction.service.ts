@@ -18,6 +18,7 @@ import {
   MessageTooLongError,
   FormValidationError,
 } from '../execution-engine/workflow-errors';
+import { ErrorCode } from '../../nodes/core/error-codes';
 import { ExecutionsService } from '../executions/executions.service';
 import { InteractionTokenService } from './interaction-token.service';
 import { InteractDto } from './dto/interact.dto';
@@ -277,6 +278,11 @@ export class InteractionService {
    * I-5 (spec EIA §5.1 / 실행 엔진 §7.5.2): `MessageTooLongError` →
    * 400 `MESSAGE_TOO_LONG`. 내부 길이 수치는 `serverDetail` 전용 — 응답에 미노출.
    *
+   * `FormValidationError` (spec form §4·§6.2 / EIA §5.1): `submit_form` field 검증 실패 →
+   * 400 `VALIDATION_ERROR` + `details[{field, message, code:'INVALID_FIELD'}]`.
+   * execution 은 `waiting_for_input` 유지(재제출 가능) — publisher 가 publish 전 throw.
+   * 현재 단계 FIRST 오류만 surface. `details` 배열 길이 항상 1.
+   *
    * 그 외 에러는 그대로 전파.
    */
   private async dispatchContinuation(promise: Promise<unknown>): Promise<void> {
@@ -299,9 +305,11 @@ export class InteractionService {
       // + details[{field, message, code:'INVALID_FIELD'}]. execution 은 waiting 유지
       // (publisher 가 publish 전 throw — 재제출 가능).
       if (error instanceof FormValidationError) {
-        throw badRequest('VALIDATION_ERROR', error.message, [
-          { field: error.field, message: error.message, code: 'INVALID_FIELD' },
-        ]);
+        throw badRequest(
+          ErrorCode.VALIDATION_ERROR,
+          error.message,
+          error.toHttpDetails(),
+        );
       }
       throw error;
     }
@@ -319,10 +327,17 @@ export class InteractionService {
   }
 }
 
+/** Structured detail item for field-level validation errors. */
+interface ValidationDetail {
+  field: string;
+  message: string;
+  code: string;
+}
+
 function badRequest(
   code: string,
   message: string,
-  details?: unknown,
+  details?: ReadonlyArray<ValidationDetail>,
 ): BadRequestException {
   return new BadRequestException({
     error: { code, message, ...(details ? { details } : {}) },

@@ -14,6 +14,8 @@ import { createDbClient } from './helpers/db';
  * 2. iext token 으로 InteractionGuard 통과 + interact 가 비동기 202 반환
  * 3. 다른 execution 의 iext 로는 401 (scope_mismatch / token rejected)
  * 4. itk 토큰 verifyNotificationSignature — HMAC SHA256 검증 (sender 측의 헬퍼)
+ * G. submit_form field 검증 실패 → 400 VALIDATION_ERROR + details[{field,code:INVALID_FIELD}]
+ *    (spec form §4·§6.2 / EIA §5.1 — waiting_for_input 유지, 재제출 가능)
  *
  * 본 e2e 는 BullMQ Redis / Webhook 발송 자체는 검증하지 않음 — outbound dispatcher 는 unit 에서
  * 이미 15 cases 커버. 본 e2e 는 인증 / endpoint / 응답 shape 의 cross-stack 정합성에 집중.
@@ -284,6 +286,8 @@ describe('External Interaction API (e2e)', () => {
     const res = await request(BASE_URL)
       .post(`/api/external/executions/${executionId}/interact`)
       .set('Authorization', `Bearer ${iextToken}`)
+      // I-16: nodeId body は assertNodeId 유무 검사만 수행 — 실제 field lookup 은
+      // node_execution row 의 nodeId 가 결정한다 (formNodeId 가 lookup key 가 아님).
       .send({ command: 'submit_form', nodeId: formNodeId, data: {} });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');

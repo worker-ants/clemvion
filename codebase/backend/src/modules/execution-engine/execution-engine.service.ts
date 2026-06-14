@@ -4358,7 +4358,17 @@ export class ExecutionEngineService
     return out;
   }
 
-  /** 단일 form 값 → string (no-base-to-string 회피: 객체는 JSON 으로 명시 직렬화). */
+  /**
+   * 단일 form 값 → string (no-base-to-string 회피: 객체는 JSON 으로 명시 직렬화).
+   *
+   * 변환 규칙 (I-12):
+   *   - `null` / `undefined` → `''` (required 판정: 빈 문자열 = 미입력)
+   *   - `string` → 원본 유지
+   *   - `number` / `boolean` → `String()` 변환
+   *   - `Array` — 빈 배열 → `''`; 비어있지 않은 배열 → 각 요소를 문자열화(비문자열은
+   *     `JSON.stringify`)한 뒤 콤마 join. multi-select·file 메타 배열 대응.
+   *   - 그 외 객체 → `JSON.stringify`. required 통과(`''` 아님), type 규칙 미해당.
+   */
   private static coerceFormValue(v: unknown): string {
     if (v === null || v === undefined) return '';
     if (typeof v === 'string') return v;

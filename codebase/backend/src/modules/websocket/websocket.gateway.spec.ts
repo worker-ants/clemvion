@@ -7,6 +7,7 @@ import {
   InvalidExecutionStateError,
   MessageTooLongError,
   RetryLastTurnError,
+  FormValidationError,
 } from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
@@ -740,6 +741,31 @@ describe('WebsocketGateway', () => {
       // serverDetail 의 실제 길이 수치는 client ack 에 노출되지 않는다
       expect(result.data.error).not.toContain('123456');
       expect(result.data.error).not.toContain('123,456');
+    });
+
+    it('W-12 — FormValidationError → ack { errorCode: VALIDATION_ERROR } (spec form §4·§6.2)', async () => {
+      // FormValidationError extends ExecutionError — buildContinuationErrorAck 가
+      // typed ExecutionError 계층으로 code + message 를 surface 해야 한다.
+      // 이 회귀 가드는 buildContinuationErrorAck 리팩터 시 VALIDATION_ERROR 가
+      // EXECUTION_INTERNAL_ERROR 로 fallback 되는 silent regression 을 방지한다.
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.continueExecution as jest.Mock).mockRejectedValueOnce(
+        new FormValidationError('email', '올바른 이메일 형식이 아닙니다.'),
+      );
+
+      const result = await gateway.handleSubmitForm(
+        { executionId: 'exec-1', formData: { email: 'bad' } },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.errorCode).toBe('VALIDATION_ERROR');
+      // client-safe 고정 검증 메시지 — field 값 미포함
+      expect(result.data.error).toBe('올바른 이메일 형식이 아닙니다.');
     });
 
     it('Phase 2.5 — success ack 에 resumed + queued + executionId 동봉 (spec §4.2)', async () => {

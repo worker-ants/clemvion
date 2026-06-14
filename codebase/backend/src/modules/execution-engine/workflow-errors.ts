@@ -236,7 +236,7 @@ export class MessageTooLongError extends ExecutionError {
  * 보안: `message` 는 검증 규칙 기반 client-safe 문자열(필드 값 자체는 미포함).
  */
 export class FormValidationError extends ExecutionError {
-  readonly code = 'VALIDATION_ERROR' as const;
+  readonly code = ErrorCode.VALIDATION_ERROR as const;
   /** 오류가 발생한 field 명 — EIA `details[].field`. */
   readonly field: string;
 
@@ -244,5 +244,23 @@ export class FormValidationError extends ExecutionError {
     super(message);
     this.field = field;
     this.name = 'FormValidationError';
+  }
+
+  /**
+   * HTTP 응답 body 형태의 details 배열을 반환 (W-6). 두 진입점(executions.controller /
+   * interaction.service) 의 `FormValidationError → BadRequestException` 변환 로직을
+   * 단일 SoT 로 일원화해 하나 수정 시 다른 쪽 누락 위험을 제거한다.
+   *
+   * 반환 타입은 `ReadonlyArray<{ field: string; message: string; code: string }>` —
+   * 현재 단계 FIRST 오류만 포함 (details 배열 길이 항상 1).
+   */
+  toHttpDetails(): ReadonlyArray<{
+    field: string;
+    message: string;
+    code: string;
+  }> {
+    return [
+      { field: this.field, message: this.message, code: 'INVALID_FIELD' },
+    ];
   }
 }

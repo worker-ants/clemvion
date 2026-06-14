@@ -91,6 +91,10 @@ export const ErrorCode = {
   RETRY_STATE_NOT_FOUND: 'RETRY_STATE_NOT_FOUND',
   NODE_NOT_RETRYABLE: 'NODE_NOT_RETRYABLE',
   RETRY_TOO_EARLY: 'RETRY_TOO_EARLY',
+  // Form validation — submit_form field 검증 실패 (publisher 측 동기 검증,
+  // spec/4-nodes/6-presentation/4-form.md §4·§6.2 / EIA §5.1).
+  // `FormValidationError` 의 `code` 필드 값과 일치해야 한다.
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

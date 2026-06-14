@@ -22,6 +22,7 @@ import {
   InvalidExecutionStateError,
   ExecutionTimeLimitError,
   MessageTooLongError,
+  FormValidationError,
 } from './workflow-errors';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
@@ -1234,6 +1235,150 @@ describe('ExecutionEngineService', () => {
         executionId: 'exec-empty',
         nodeExecutionId: 'ne-waiting',
         payload: { type: 'form_submitted', formData: undefined },
+      });
+    });
+    // W-1 — assertFormSubmissionValid / coerceFormValue 핵심 검증 로직 단위 테스트
+    // (기본 mockNodeRepo.findOneBy → null 이므로 기존 테스트는 폼 검증을 우회함.
+    // 아래 테스트는 findOneBy + findOne 을 override 해 실제 검증 경로를 커버한다.)
+    describe('assertFormSubmissionValid / coerceFormValue (W-1)', () => {
+      /** form 노드 config 픽스처 — required email + optional number 필드. */
+      const formConfig = {
+        fields: [
+          { name: 'email', label: '이메일', type: 'email', required: true },
+          { name: 'age', label: '나이', type: 'number' },
+        ],
+      };
+
+      function setupFormNodeMocks(config: unknown = formConfig): void {
+        // assertFormSubmissionValid: nodeExecutionRepository.findOne → nodeExec row
+        mockNodeExecutionRepo.findOne = jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'ne-waiting', nodeId: 'n-form' });
+        // assertFormSubmissionValid: nodeRepository.findOneBy → node with form config
+        mockNodeRepo.findOneBy = jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'n-form', config });
+      }
+
+      it('required 필드 누락 → FormValidationError throw + bus.publish 미호출', async () => {
+        setupFormNodeMocks();
+        await expect(
+          service.continueExecution('exec-fv', {}),
+        ).rejects.toBeInstanceOf(FormValidationError);
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('required 필드 누락 — FormValidationError.field 와 메시지 검증', async () => {
+        setupFormNodeMocks();
+        await expect(
+          service.continueExecution('exec-fv2', {}),
+        ).rejects.toMatchObject({
+          field: 'email',
+          message: '필수 입력 항목입니다.',
+          code: 'VALIDATION_ERROR',
+        });
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('email 형식 오류 → FormValidationError throw + publish 미호출', async () => {
+        setupFormNodeMocks();
+        await expect(
+          service.continueExecution('exec-fv3', { email: 'not-an-email' }),
+        ).rejects.toBeInstanceOf(FormValidationError);
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('email 형식 오류 — field 와 메시지 검증', async () => {
+        setupFormNodeMocks();
+        await expect(
+          service.continueExecution('exec-fv4', { email: 'not-an-email' }),
+        ).rejects.toMatchObject({
+          field: 'email',
+          message: '올바른 이메일 형식이 아닙니다.',
+        });
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('유효한 이메일 + number 필드 → FormValidationError 없이 publish 호출', async () => {
+        setupFormNodeMocks();
+        await service.continueExecution('exec-fv-ok', {
+          email: 'user@example.com',
+          age: 30,
+        });
+        expect(mockBus.publish).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'continue',
+            executionId: 'exec-fv-ok',
+          }),
+        );
+      });
+
+      it('nodeExec null(findOne → null) → 검증 skip, publish 호출', async () => {
+        // nodeExecutionRepository.findOne 을 null 반환으로 override
+        mockNodeExecutionRepo.findOne = jest.fn().mockResolvedValueOnce(null);
+        // mockNodeRepo.findOneBy 기본값은 null (검증 불가 pass-through)
+        await service.continueExecution('exec-no-ne', {});
+        expect(mockBus.publish).toHaveBeenCalled();
+      });
+
+      it('node null(findOneBy → null) → 검증 skip, publish 호출', async () => {
+        mockNodeExecutionRepo.findOne = jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'ne-x', nodeId: 'n-missing' });
+        mockNodeRepo.findOneBy = jest.fn().mockResolvedValueOnce(null);
+        await service.continueExecution('exec-no-node', {});
+        expect(mockBus.publish).toHaveBeenCalled();
+      });
+
+      it('fields 빈 배열 → 검증 skip, publish 호출', async () => {
+        setupFormNodeMocks({ fields: [] });
+        await service.continueExecution('exec-empty-fields', { email: 'x' });
+        expect(mockBus.publish).toHaveBeenCalled();
+      });
+
+      // coerceFormValue 각 타입 분기 (private 접근 패턴)
+      describe('coerceFormValue 타입 분기', () => {
+        // ExecutionEngineService 의 private static 메서드를 cast 로 접근
+        // (NestJS unit test 표준 패턴 — private API 안정성은 기존 테스트가 보장)
+        type SvcClass = { coerceFormValue: (v: unknown) => string };
+        const cfv = (v: unknown) =>
+          (ExecutionEngineService as unknown as SvcClass).coerceFormValue(v);
+
+        it('null → ""', () => {
+          expect(cfv(null)).toBe('');
+        });
+
+        it('undefined → ""', () => {
+          expect(cfv(undefined)).toBe('');
+        });
+
+        it('string 그대로 반환', () => {
+          expect(cfv('hello')).toBe('hello');
+        });
+
+        it('number → String()', () => {
+          expect(cfv(42)).toBe('42');
+        });
+
+        it('boolean → String()', () => {
+          expect(cfv(true)).toBe('true');
+        });
+
+        it('빈 배열 → ""', () => {
+          expect(cfv([])).toBe('');
+        });
+
+        it('string 배열 → 콤마 join', () => {
+          expect(cfv(['a', 'b', 'c'])).toBe('a,b,c');
+        });
+
+        it('mixed 배열 → 비문자열 요소는 JSON.stringify 후 join', () => {
+          expect(cfv([{ x: 1 }, 'y'])).toBe('{"x":1},y');
+        });
+
+        it('객체 → JSON.stringify', () => {
+          expect(cfv({ a: 1 })).toBe('{"a":1}');
+        });
       });
     });
 
