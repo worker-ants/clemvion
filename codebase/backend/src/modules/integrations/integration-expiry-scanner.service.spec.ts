@@ -79,7 +79,10 @@ describe('IntegrationExpiryScannerService.run', () => {
   let dispatchRepo: Record<string, Mock>;
   let usageLogRepo: Record<string, Mock>;
   let userRepo: Record<string, Mock>;
-  let workspacesService: { findAdminUserIds: Mock };
+  let workspacesService: {
+    findAdminUserIds: Mock;
+    findAdminUserIdsByWorkspaces: Mock;
+  };
   let notificationsService: { createMany: Mock; hasRecentByResource: Mock };
   let queue: Record<string, Mock>;
   let cafe24RefreshQueue: { add: Mock };
@@ -90,7 +93,12 @@ describe('IntegrationExpiryScannerService.run', () => {
     usageLogRepo = repo();
     userRepo = repo();
     userRepo.find.mockResolvedValue([]);
-    workspacesService = { findAdminUserIds: jest.fn().mockResolvedValue([]) };
+    workspacesService = {
+      findAdminUserIds: jest.fn().mockResolvedValue([]),
+      findAdminUserIdsByWorkspaces: jest
+        .fn()
+        .mockResolvedValue(new Map<string, string[]>()),
+    };
     notificationsService = {
       createMany: jest.fn().mockResolvedValue(undefined),
       // W-75 — NotificationsService 의 신규 hasRecentByResource 메서드.
@@ -548,10 +556,10 @@ describe('IntegrationExpiryScannerService.run', () => {
         tokenExpiresAt: new Date('2026-04-14T00:00:00Z'),
       },
     ]);
-    workspacesService.findAdminUserIds.mockResolvedValue([
-      'u-owner',
-      'u-admin',
-    ]);
+    // M-2: 워크스페이스 admin 은 배치당 단일 findAdminUserIdsByWorkspaces 로 조회.
+    workspacesService.findAdminUserIdsByWorkspaces.mockResolvedValue(
+      new Map<string, string[]>([['ws-1', ['u-owner', 'u-admin']]]),
+    );
     userRepo.find.mockResolvedValue([
       { id: 'u-owner', notificationPreferences: {} },
       { id: 'u-admin', notificationPreferences: {} },
@@ -559,6 +567,11 @@ describe('IntegrationExpiryScannerService.run', () => {
 
     const count = await scanner.run(new Date('2026-04-12T00:00:00Z'));
     expect(count).toBe(2);
+    // per-integration N+1 이 아니라 배치 1회 호출.
+    expect(
+      workspacesService.findAdminUserIdsByWorkspaces,
+    ).toHaveBeenCalledTimes(1);
+    expect(workspacesService.findAdminUserIds).not.toHaveBeenCalled();
     const entries = notificationsService.createMany.mock.calls[0][0] as Array<{
       userId: string;
     }>;
@@ -593,9 +606,87 @@ describe('IntegrationExpiryScannerService.run', () => {
         tokenExpiresAt: new Date('2026-04-14T00:00:00Z'),
       },
     ]);
-    workspacesService.findAdminUserIds.mockResolvedValue([]);
+    // 빈 Map = 해당 워크스페이스에 owner/admin 없음 → 수신자 0.
+    workspacesService.findAdminUserIdsByWorkspaces.mockResolvedValue(
+      new Map<string, string[]>(),
+    );
     const count = await scanner.run(new Date('2026-04-12T00:00:00Z'));
     expect(count).toBe(0);
+  });
+
+  it('resolves admins for multiple workspaces in a single batched query (M-2)', async () => {
+    integrationRepo.find.mockResolvedValue([
+      {
+        id: 'int-a',
+        workspaceId: 'ws-1',
+        name: 'A',
+        scope: 'organization',
+        status: 'connected',
+        createdBy: 'c',
+        tokenExpiresAt: new Date('2026-04-14T00:00:00Z'),
+      },
+      {
+        id: 'int-b',
+        workspaceId: 'ws-2',
+        name: 'B',
+        scope: 'organization',
+        status: 'connected',
+        createdBy: 'c',
+        tokenExpiresAt: new Date('2026-04-14T00:00:00Z'),
+      },
+    ]);
+    workspacesService.findAdminUserIdsByWorkspaces.mockResolvedValue(
+      new Map<string, string[]>([
+        ['ws-1', ['u1']],
+        ['ws-2', ['u2']],
+      ]),
+    );
+    userRepo.find.mockResolvedValue([
+      { id: 'u1', notificationPreferences: {} },
+      { id: 'u2', notificationPreferences: {} },
+    ]);
+
+    await scanner.run(new Date('2026-04-12T00:00:00Z'));
+
+    // 두 워크스페이스에 대해 admin 조회는 배치당 1회 (per-integration N+1 아님).
+    expect(
+      workspacesService.findAdminUserIdsByWorkspaces,
+    ).toHaveBeenCalledTimes(1);
+    const arg = workspacesService.findAdminUserIdsByWorkspaces.mock
+      .calls[0][0] as string[];
+    expect([...arg].sort()).toEqual(['ws-1', 'ws-2']);
+  });
+
+  it('paginates candidates by id keyset until a short batch (m-1)', async () => {
+    const batch1 = Array.from({ length: 500 }, (_, i) => ({
+      id: `int-${String(i).padStart(4, '0')}`,
+      workspaceId: 'ws-1',
+      name: 'x',
+      scope: 'personal',
+      status: 'connected',
+      createdBy: 'u',
+      tokenExpiresAt: null, // 루프에서 skip — 페이징 동작만 검증
+    }));
+    integrationRepo.find
+      .mockResolvedValueOnce(batch1) // 정확히 SCAN_BATCH_SIZE → 다음 배치 조회
+      .mockResolvedValueOnce([]); // short(0) → 중단
+
+    await scanner.run(new Date('2026-04-12T00:00:00Z'));
+
+    expect(integrationRepo.find).toHaveBeenCalledTimes(2);
+    const firstArgs = integrationRepo.find.mock.calls[0][0] as {
+      take: number;
+      order: Record<string, string>;
+    };
+    expect(firstArgs.take).toBe(500);
+    expect(firstArgs.order).toEqual({ id: 'ASC' });
+    // 2번째 배치 cursor = 1번째 배치 마지막 id (keyset 전진).
+    const secondWhere = (
+      integrationRepo.find.mock.calls[1][0] as {
+        where: { id: { value: string } };
+      }
+    ).where;
+    expect(secondWhere.id.value).toBe('int-0499');
   });
 
   // REQ-C1 — spec §11.1 + §2.4: pending_install 은 만료 알림 대상에서 명시
@@ -618,6 +709,53 @@ describe('IntegrationExpiryScannerService.run', () => {
     expect(statusOp.value).toEqual(
       expect.arrayContaining(['expired', 'error', 'pending_install']),
     );
+  });
+
+  // #8 — 배치 경계 idempotency: 마지막 배치의 마지막 항목이 만료 임박인 경우에도
+  // claimThreshold(INSERT … ON CONFLICT DO NOTHING)가 중복 알림을 막는지 검증.
+  // 동일 (integrationId, threshold) 조합이 두 번째 run() 에서 conflict → skip.
+  it('batch boundary idempotency: 배치 경계의 만료 임박 항목에 대해 중복 알림 발생 안 함', async () => {
+    const now = new Date('2026-04-12T00:00:00Z');
+    const expiringSoon = new Date('2026-04-14T00:00:00Z'); // 2일 후 만료 (7d 임계값 이내)
+
+    // 배치 경계(500번째) 에 만료 임박 항목 포함 — 이전 배치의 마지막 항목.
+    const batch1 = Array.from({ length: 500 }, (_, i) => ({
+      id: `int-${String(i).padStart(4, '0')}`,
+      workspaceId: 'ws-1',
+      name: 'Service',
+      scope: 'personal',
+      status: 'connected',
+      createdBy: 'user-1',
+      // 마지막 항목(index 499)만 만료 임박, 나머지는 null(skip).
+      tokenExpiresAt: i === 499 ? expiringSoon : null,
+    }));
+    userRepo.find.mockResolvedValue([
+      { id: 'user-1', notificationPreferences: {} },
+    ]);
+
+    // 1st run: batch1(499) 항목은 만료 임박 → claimThreshold claim 성공(기본 mock).
+    integrationRepo.find
+      .mockResolvedValueOnce(batch1)
+      .mockResolvedValueOnce([]); // short batch → stop
+    await scanner.run(now);
+
+    // 2nd run: 동일 (integrationId, threshold) → conflict → identifiers:[]  → skip.
+    integrationRepo.find
+      .mockResolvedValueOnce(batch1)
+      .mockResolvedValueOnce([]);
+    dispatchRepo.__insertExecute.mockResolvedValue({ identifiers: [] }); // conflict 시뮬레이션
+
+    const count2ndRun = await scanner.run(now);
+
+    // 중복 run 에서 알림이 발생하지 않아야 한다.
+    // createMany 가 빈 배열만 호출됐거나 호출 자체가 0건이어야 함.
+    const allNotifCalls = notificationsService.createMany.mock.calls;
+    const secondRunCalls = allNotifCalls.slice(allNotifCalls.length - 1);
+    if (secondRunCalls.length > 0) {
+      const notifiedInSecondRun = (secondRunCalls[0][0] as unknown[]).length;
+      expect(notifiedInSecondRun).toBe(0);
+    }
+    expect(count2ndRun).toBe(0);
   });
 });
 

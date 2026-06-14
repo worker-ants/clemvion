@@ -92,7 +92,14 @@ code:
 
 `GET /workflows/:wfId/versions`
 
-응답: `WorkflowVersion[]` (version DESC). `creator` relation 포함.
+응답: `WorkflowVersionListItemDto[]` (version DESC). 메타데이터 + 작성자만 포함하며,
+`snapshot` 필드는 응답에서 의도적으로 제외된다(목록 over-fetch 방지, m-3). `creator`
+relation 포함. 상세(§7.2)와의 대비:
+
+| 필드 | 목록(§7.1) | 상세(§7.2) |
+|------|-----------|-----------|
+| id · workflowId · version · changeSummary · createdBy · createdAt · creator | 포함 | 포함 |
+| snapshot | **제외** | 포함 |
 
 ### 7.2 버전 상세
 

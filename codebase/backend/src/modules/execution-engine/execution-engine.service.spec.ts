@@ -215,6 +215,10 @@ describe('ExecutionEngineService', () => {
         .fn()
         .mockImplementation(() => Promise.resolve({ ...lastSaved })),
       find: jest.fn().mockResolvedValue([]),
+      // M-3 — updateExecutionStatus else 분기(RUNNING/COMPLETED)가 full-save 대신
+      // guarded raw UPDATE(... RETURNING id)를 쓴다. 기본은 1행 매칭(=적용됨, applied
+      // true). affected=0(동시 cancel/park 선점) 케이스는 [] 로 override.
+      query: jest.fn().mockResolvedValue([{ id: executionId }]),
     };
 
     mockNodeExecutionRepo = {
@@ -2280,6 +2284,77 @@ describe('ExecutionEngineService', () => {
         // park: segmentStart 없음 → assertActiveTimeWithinLimit 는 누적분만 사용
         expect(priv().segmentStartMs.has(executionId)).toBe(false);
       });
+
+      // M-3 — else 분기 guarded UPDATE 반환 계약.
+      it('else 분기: guarded UPDATE 가 1행 매칭이면 true (적용됨)', async () => {
+        mockExecutionRepo.query.mockResolvedValueOnce([{ id: executionId }]);
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        const applied = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.COMPLETED,
+        );
+        expect(applied).toBe(true);
+        // status IN (비-terminal) 가드가 쿼리에 포함.
+        expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+          expect.stringMatching(
+            /status IN \('pending', 'running', 'waiting_for_input'\)/,
+          ),
+          expect.arrayContaining([executionId, ExecutionStatus.COMPLETED]),
+        );
+      });
+
+      it('else 분기: guarded UPDATE 가 0행이면 false (동시 cancel/park 선점 → emit skip)', async () => {
+        mockExecutionRepo.query.mockResolvedValueOnce([]); // affected 0
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        const applied = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.COMPLETED,
+        );
+        expect(applied).toBe(false);
+      });
+
+      // #6 — PENDING → RUNNING 동시 선점 케이스: 다른 워커가 먼저 상태를 바꿨을 때
+      // guarded UPDATE 가 0행 반환 → false (선점 감지).
+      it('else 분기: PENDING → RUNNING 전이가 0행(다른 워커 선점)이면 false 반환', async () => {
+        mockExecutionRepo.query.mockResolvedValueOnce([]); // 0행 = 선점됨
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.PENDING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        const applied = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.RUNNING,
+        );
+        expect(applied).toBe(false);
+        // status IN 가드가 쿼리에 포함돼야 선점을 탐지할 수 있다.
+        expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+          expect.stringMatching(/status IN/),
+          expect.anything(),
+        );
+      });
+
+      // #6 — query() 자체 reject 케이스: DB 연결 실패 등 인프라 오류는 호출부로 throw.
+      it('else 분기: query() reject 시 오류가 상위로 전파된다', async () => {
+        const dbError = new Error('connection refused');
+        mockExecutionRepo.query.mockRejectedValueOnce(dbError);
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        await expect(
+          priv().updateExecutionStatus(exec, ExecutionStatus.COMPLETED),
+        ).rejects.toBe(dbError);
+      });
     });
   });
 
@@ -2588,8 +2663,16 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({ status: 'failed' }),
       );
       // error 포트가 연결돼 있으므로 다운스트림이 실행되고 Execution 은 계속 → COMPLETED.
-      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      // M-3 — COMPLETED 마감은 full-save 대신 guarded raw UPDATE(query)로 영속한다
+      // (status IN 비-terminal 가드). status 'completed' 가 쿼리 파라미터에 포함.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE execution/),
+        expect.arrayContaining([ExecutionStatus.COMPLETED]),
+      );
+      // #5 — lost-update 가드 문자열 검증: status IN 절이 쿼리에 포함돼야 가드가 동작한다.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
       );
     });
 
@@ -2862,8 +2945,16 @@ describe('ExecutionEngineService', () => {
 
       const okNe = lastNodeExecSave('n-ok');
       expect(okNe?.status).toBe(NodeExecutionStatus.COMPLETED);
-      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      // M-3 — COMPLETED 마감은 full-save 대신 guarded raw UPDATE(query)로 영속한다
+      // (status IN 비-terminal 가드). status 'completed' 가 쿼리 파라미터에 포함.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE execution/),
+        expect.arrayContaining([ExecutionStatus.COMPLETED]),
+      );
+      // #5 — lost-update 가드 문자열 검증.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
       );
     });
 
@@ -6375,8 +6466,16 @@ describe('ExecutionEngineService', () => {
       expect(switchCallCount).toBe(2);
 
       // Execution should complete (not fail)
-      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      // M-3 — COMPLETED 마감은 full-save 대신 guarded raw UPDATE(query)로 영속한다
+      // (status IN 비-terminal 가드). status 'completed' 가 쿼리 파라미터에 포함.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE execution/),
+        expect.arrayContaining([ExecutionStatus.COMPLETED]),
+      );
+      // #5 — lost-update 가드 문자열 검증.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
       );
     });
 
@@ -6577,8 +6676,16 @@ describe('ExecutionEngineService', () => {
       expect(bCallCount).toBe(5);
 
       // Execution should complete successfully
-      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      // M-3 — COMPLETED 마감은 full-save 대신 guarded raw UPDATE(query)로 영속한다
+      // (status IN 비-terminal 가드). status 'completed' 가 쿼리 파라미터에 포함.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE execution/),
+        expect.arrayContaining([ExecutionStatus.COMPLETED]),
+      );
+      // #5 — lost-update 가드 문자열 검증.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
       );
     });
 
@@ -6710,8 +6817,16 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       expect(mockHandler.execute).toHaveBeenCalledTimes(3);
-      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      // M-3 — COMPLETED 마감은 full-save 대신 guarded raw UPDATE(query)로 영속한다
+      // (status IN 비-terminal 가드). status 'completed' 가 쿼리 파라미터에 포함.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE execution/),
+        expect.arrayContaining([ExecutionStatus.COMPLETED]),
+      );
+      // #5 — lost-update 가드 문자열 검증.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
       );
     });
   });
@@ -9035,8 +9150,16 @@ describe('ExecutionEngineService', () => {
       // Execution order: trigger → parallel → branches → merge
       expect(executionOrder).toEqual(['branch', 'branch', 'merge']);
       // Execution completed (not failed)
-      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      // M-3 — COMPLETED 마감은 full-save 대신 guarded raw UPDATE(query)로 영속한다
+      // (status IN 비-terminal 가드). status 'completed' 가 쿼리 파라미터에 포함.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE execution/),
+        expect.arrayContaining([ExecutionStatus.COMPLETED]),
+      );
+      // #5 — lost-update 가드 문자열 검증.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/status IN/),
+        expect.anything(),
       );
     });
 
