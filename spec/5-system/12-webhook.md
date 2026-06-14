@@ -344,13 +344,14 @@ codebase/backend/src/modules/hooks/
    c. update === null 이면 (group chat / 무시 대상) → 202 Accepted + { executionId: 'ignored' } 즉시 반환 (Execution 미생성)
    d. ChannelConversationService.lookup(triggerId, update.conversationKey) → ChannelConversation 조회
    e. 활성 execution 이 있으면 InteractionService.interact() in-process 호출 (token bypass — [EIA §3.3 EIA-AU-08](./14-external-interaction-api.md#33-인증))
-      없으면 ExecutionEngineService.execute() 시작 (입력 = parseUpdate 결과 변환)
+      없으면 `ExecutionEngineService.execute(workflowId, input, { triggerId: trigger.id, sourceIp, responseCode: '202' })` 시작 (입력 = parseUpdate 결과 변환). `sourceIp`(extractClientIp)·`responseCode`(202) 는 §A.3 호출 이력에 영속된다 ([config §A.3](../2-navigation/6-config.md), [R-6](../2-navigation/6-config.md#rationale)). schedule/manual 트리거는 두 인자를 생략 → 컬럼 NULL (ExecuteOptions 의 triggerId variant 에서 `sourceIp?`/`responseCode?` 는 optional).
    f. 202 Accepted 즉시 반환 ([WH-NF-01](#4-비기능-요구사항) 200ms 이내, 후속 처리는 백그라운드). 단 일부 provider handshake/interactivity ack (Slack url_verification·Interactivity, Discord PING·Interactivity, native modal) 은 `200 OK` + 비-래핑 JSON 으로 직접 응답한다 (TransformInterceptor 우회) — 상세 [Spec Chat Channel §5.5·§5.5.1](./15-chat-channel.md#55-inbound-http-contract).
 8. config.chatChannel 가 없으면 (기존 경로):
    a. resolveTriggerParameters(workflow, body) 호출
       - required 누락 / coerce 실패 → 400 Bad Request (Execution 생성하지 않음)
-   b. ExecutionEngineService.execute(trigger.workflowId, { parameters, body, headers, query, method }, { triggerId: trigger.id })
+   b. ExecutionEngineService.execute(trigger.workflowId, { parameters, body, headers, query, method }, { triggerId: trigger.id, sourceIp, responseCode: '202' })
       - 3번째 인자로 `triggerId`를 전달해야 생성되는 Execution 행의 `trigger_id` 컬럼이 채워지고, 결과적으로 "최근 실행" 화면에서 출처가 `webhook` 으로 분류된다.
+      - `sourceIp`(extractClientIp 결과 — 인증 IP whitelist 검증과 공용)·`responseCode`(성공 경로의 실제 HTTP 코드 `202`)도 함께 전달되어 Execution 행의 `source_ip`/`response_code` 컬럼에 영속되고, 인증 설정 사용 내역(§A.3 호출 이력)의 소스 IP·응답 코드 컬럼을 채운다 ([config §A.3](../2-navigation/6-config.md), [R-6](../2-navigation/6-config.md#rationale); [WH-MG-05](#3-요구사항)). schedule/manual 트리거는 두 인자를 생략하므로 컬럼 NULL — `ExecuteOptions` 의 triggerId variant 에서 `sourceIp?`/`responseCode?` 는 optional 이라 기존 호출자 호환.
 9. Trigger.lastTriggeredAt = now → DB 업데이트
 10. 202 Accepted + { data: { executionId, message } } 반환 (전역 TransformInterceptor 가 `{ data }` 래핑)
 
