@@ -11,14 +11,18 @@ owner: planner
 
 ## 미구현 항목
 
-- [ ] **§3.1 setupChannel public key cross-verify + botIdentity.publicKey 저장** — `GET /applications/@me` 응답 `verify_key` 와 사용자 입력 public key 의 일치 검증, 불일치 시 `BOT_TOKEN_INVALID` error 분기, `botIdentity.publicKey` 저장이 없다. 현재는 `id`/`name` 만 저장 (`botId` = `hashStringToInt(id)`). inbound 서명 검증 자체는 §6 (`assertInboundSigningPlaintextByProvider` 정규식 + `verifyDiscordSignature` ed25519) 으로 동작하므로, 본 항목은 setup 시점의 추가 안전장치.
-- [ ] **§5.1(b) AI Multi Turn reply — "Reply" 버튼 → Modal TEXT_INPUT 경로** — `renderAiMessage` 가 응답 메시지에 "Reply" 버튼(`custom_id: "__reply__"`)을 첨부하지 않고, parseUpdate 에 `__reply__` 분기가 없어 `clemvion_reply` modal 을 여는 진입점이 없다 (도달 불가). MODAL_SUBMIT 의 `clemvion_form` 이외 TEXT_INPUT → `text_message` normalize 일반 경로는 이미 존재하나 진입점 부재. 현재 reply 는 (a) `/<prefix> reply <message>` slash 만 동작. spec 이 (b) 를 v1 default UX 로 약속.
+> **구현 진척 (2026-06-14, impl-discord-gaps PR)**: §3.1·§3.3·§5.1(b) 구현/확인 완료. §3·§5.4(이미지/embeds)는
+> 공유 `ChannelMessage.body.image` 타입 확장 + Discord embeds/multipart 인프라 의존으로 보류(spec 이 v1=text fallback 명시).
+> spec doc-sync(§3.1·§3.3·§5.1(b) "미구현"→구현)는 본 PR 에서 동반 갱신.
 
-## 부수 narration 미스매치 (본 audit 에서 spec 본문에 "미구현 Planned" 로 인라인 표기 완료 — 코드 변경 추적용)
+- [x] **§3.1 setupChannel public key cross-verify + botIdentity.publicKey 저장** — cross-verify(verify_key↔inboundSigningRef)·`BOT_TOKEN_INVALID` throw 는 **이미 구현**(C-11). 본 PR 에서 `botIdentity.publicKey = application.verify_key` 캐시 저장 추가(비민감). 테스트: setupChannel publicKey 검증.
+- [x] **§5.1(b) AI Multi Turn reply — "Reply" 버튼 → Modal** — **이미 구현됨 확인**: renderAiMessage 가 마지막 텍스트 청크를 buttons(`__reply__`)로 승격, parseUpdate `__reply__`→`open_form_modal(modal=reply)`, openFormModal→`clemvion_reply` modal, MODAL_SUBMIT→text_message normalize 전부 존재. plan 의 "도달 불가" 서술 stale. 테스트(renderer reply 버튼) 추가.
 
-- [ ] **§3 sendMessage(image) 실제 이미지 첨부** — 현재 caption/fallbackText 만 content 로 POST. multipart attachments / `embeds.image.url` 미구현.
-- [ ] **§5.4 carousel `auto` embed + imageUrl** — 현재 모든 시각형이 markdown 텍스트 fallback. carousel 카드별 `embeds: [{image:{url}}]` 분기(imageUrl) 미구현 (embeds 호출처 없음).
-- [ ] **§3.3 modal title / TEXT_INPUT 길이 제약** — modal title 하드코딩 `'양식'` (form 제목 미반영), TEXT_INPUT `min_length`/`max_length` 미부여 (placeholder 만 부여, 길이 검증은 submit 후 어댑터).
+## 보류 (인프라/공유타입 의존 — 별도 PR)
+
+- [ ] **§3 sendMessage(image) 실제 이미지 첨부** — caption/fallbackText text fallback 유지. multipart attachments / `embeds.image.url` 미구현. `ChannelMessage.body.image` 가 `bytes: Buffer` 라 URL-embed 경로는 공유 타입 확장 필요. spec v1 = text fallback 명시.
+- [ ] **§5.4 carousel `auto` embed + imageUrl** — markdown 텍스트 fallback 유지. carousel 카드별 `embeds: [{image:{url}}]` 분기는 공유 타입(imageUrl) + embeds 발송 경로 필요 — telegram §5.4 와 동일 cross-provider 작업으로 묶어 별도 PR.
+- [x] **§3.3 modal title 동적화 + TEXT_INPUT 길이 제약** — modal title 을 `formConfig.title`(extractFormTitle)→pendingFormModal.title→OpenFormModalParams.title 로 전달, Discord openFormModal 이 사용(45자 truncate, languageHints/`양식` fallback). TEXT_INPUT 에 `min_length`/`max_length`(FormModalField + extractFormFields 가 field.validation 에서 추출) 부여(Discord 0–4000 cap). 테스트: extractFormFields/Title + openFormModal title·min/max.
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__7-trigger__providers__discord.md 참조.
