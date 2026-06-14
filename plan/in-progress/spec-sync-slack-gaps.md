@@ -11,11 +11,17 @@ owner: planner
 
 ## 미구현 항목
 
-> **진행 현황 재확인 (2026-06-14, m-cleanup 감사)**: structural-followups C-12 이후 일부 진척 있음 — `SlackClient.filesInfo`·`filesUploadV2` 메서드 실재(`slack-client.ts:76,87`), `response_url` `replace_original` 비동기 POST 구현됨(`slack.adapter.ts:243`, ackInteraction), HooksService enrichInbound 가 file_upload→files.info 보강 호출(`hooks.service.ts:288`). **그러나 `file_upload → submit_form` 합성은 여전히 미구현** — `forwardToInteractionService`(`hooks.service.ts:640~672`)가 text_message·button_callback 만 라우팅하고 file_upload/contact_share 는 "Phase 4 에서 처리" 주석만 남은 no-op. 따라서 본 plan 은 **in-progress 유지**, 잔여는 아래 ①의 submit_form 합성부 + ②의 sendMessage image→uploadV2 배선 검증.
+> **코드 직접 재검증 (2026-06-14, impl-slack-gaps)**: audit 시점(2026-06-03) 이후 코드가 진척돼 plan 의 "전부 미구현"
+> 서술 다수가 **stale**임을 확인. items 2·3 은 완전 구현, item 1 은 핵심 경로(file_upload→form 값→submit_form) 구현됨 —
+> 잔여는 form `file` 필드의 MIME 검증뿐이며 이는 slack 고유가 아니라 **`state.formState` 의 fieldsCatalog v1 한계**(다단계
+> 폼이 field name/제약을 state 에 저장 안 해 `field_<idx>` heuristic 사용)에 종속 — `hooks.service.ts:735-740` 가 PR-E
+> 보강 항목으로 명시. 따라서 slack-gaps 단독의 clean 구현 갭은 없음.
+> (m-cleanup 감사 노트의 "file_upload→submit_form 미구현" 서술은 `forwardToInteractionService` no-op 만 보고 폼 시퀀스
+> 핸들러 `handleFormStep`(L730) 경로를 놓친 것 — 아래 ① 에서 정정.)
 
-- [ ] **`file_shared` → `files.info` 보강 → `submit_form`** (R-S-7 / §4.1 / §5.3): files.info 보강은 구현됨(위 재확인). **잔여**: form `file` 필드 검증 + EIA `submit_form` 합성(`forwardToInteractionService` file_upload 분기) 미구현.
-- [ ] **`files.uploadV2` (image / 시각형 v2 PNG)** (§3 sendMessage(image) / §5.4): `filesUploadV2` 메서드는 실재. **잔여**: adapter `sendMessage` 의 image kind 가 실제 `filesUploadV2` 를 호출하는지 배선 검증 필요(현재 text fallback 가능성).
-- [x] **`response_url` 비동기 후속 POST** (§5.2 step 3 / §4.2): `slack.adapter.ts` ackInteraction 이 `response_url` 로 `replace_original: true` POST 구현 완료 (2026-06-14 확인).
+- [ ] **`file_shared` → `files.info` 보강 → `submit_form`** (R-S-7 / §4.1 / §5.3): **대부분 구현됨** — `SlackClient.filesInfo` 존재(`slack-client.ts:76`), `HooksService.enrichInbound` 가 file_upload→files.info 보강(`hooks.service.ts:288`), **폼 시퀀스 핸들러 `handleFormStep`(L730)가 file_upload 를 form 필드 값(fileId/mimeType/filename/urlPrivate)으로 누적→submit_form 호출**(L747-778). `forwardToInteractionService` 의 file_upload no-op(L672)은 **폼 시퀀스 밖** 경로라 by-design(활성 폼 없으면 제출 대상 없음). **잔여(slack 외 종속)**: form `file` 필드 MIME 검증 — `formState.fieldsCatalog` v1 한계(PR-E)에 블록됨.
+- [x] **`files.uploadV2` (image PNG)** (§3 / §5.4): **구현됨** — `slack.adapter.ts:202` 가 image body 를 `client.filesUploadV2`(channel_id/filename/file=bytes/initial_comment)로 실 업로드, 실패 시 chat.postMessage text fallback.
+- [x] **`response_url` 비동기 후속 POST** (§5.2 / §4.2): **구현됨** — `slack.adapter.ts` `ackInteraction` 이 `response_url` 로 `replace_original` POST(button_callback 후 "선택 완료" 갱신).
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__7-trigger__providers__slack.md 참조.
