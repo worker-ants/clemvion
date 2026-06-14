@@ -236,7 +236,7 @@ export class MessageTooLongError extends ExecutionError {
  * 보안: `message` 는 검증 규칙 기반 client-safe 문자열(필드 값 자체는 미포함).
  */
 export class FormValidationError extends ExecutionError {
-  readonly code = ErrorCode.VALIDATION_ERROR as const;
+  readonly code = ErrorCode.VALIDATION_ERROR;
   /** 오류가 발생한 field 명 — EIA `details[].field`. */
   readonly field: string;
 
