@@ -30,6 +30,7 @@ code:
 | schedule-execution | system | 1 (기본) | 스케줄 트리거 실행 |
 | login-history-pruner | system | 1 (기본) | repeatable cron |
 | notification-secret-rotator | system | 1 (기본) | repeatable cron |
+| terminal-revoke-reconcile | system | 1 | repeatable cron (1분) — terminal execution 의 잔존 interaction token sweep revoke ([EIA §3.4 EIA-RL-06 / §9.3 R15](./14-external-interaction-api.md)) |
 | chat-channel-token-rotator | system | 1 (기본) | repeatable cron |
 | integration-expiry-scanner | system | 1 (기본) | repeatable cron (6h) |
 | alerts-evaluator | system | 1 (기본) | repeatable cron (5분) |
