@@ -10,10 +10,16 @@ owner: planner
 > 관련 spec: spec/2-navigation/3-schedule.md
 
 ## 미구현 항목
-- [ ] 스케줄 목록 항목의 더보기(⋮) 오버플로 메뉴 + "실행 이력" 항목 (§2.1). 현재 UI 는 인라인 버튼(Run/Toggle/Edit/Delete)만 제공.
-- [ ] 더보기 메뉴의 "트리거에서 보기" (→ Trigger 목록에서 해당 트리거로 이동) (§2.1).
-- [ ] 연결된 워크플로우 이름 클릭 시 에디터로 이동하는 링크 (§2.1). 현재는 단순 텍스트.
-- [ ] 타임존 미지정 시 워크스페이스 설정 기반 기본값 (§2.2). 현재 서버는 `'Asia/Seoul'` 하드코딩 fallback 이며, 워크스페이스에 timezone 설정 자체가 없음.
+
+> **구현 진척 (2026-06-14, impl-schedule-gaps PR)**: §2.2 타임존 워크스페이스 fallback **backend** 구현
+> (workspace settings.timezone + schedules.service resolveTimezone). §2.1 의 더보기 메뉴·트리거 링크·워크플로
+> editor 링크는 **frontend UI cluster**(schedules/page.tsx) 로 묶여 별도 PR. §2.2 의 timezone **설정 UI**
+> (workspace settings 폼)도 frontend cluster 와 함께.
+
+- [ ] 스케줄 목록 항목의 더보기(⋮) 오버플로 메뉴 + "실행 이력" 항목 (§2.1). **frontend cluster** (schedules/page.tsx).
+- [ ] 더보기 메뉴의 "트리거에서 보기" (§2.1). **frontend cluster**.
+- [ ] 연결된 워크플로우 이름 클릭 시 에디터 링크 (§2.1). **frontend cluster**.
+- [x] 타임존 미지정 시 워크스페이스 설정 기반 기본값 (§2.2) — **backend 완료**: `UpdateWorkspaceSettingsDto.timezone`(IANA 검증) + `workspaces.service` settings.timezone 병합/조회 + `schedules.service.resolveTimezone`(명시값 > workspace settings.timezone > 'Asia/Seoul'). 테스트 6건. **frontend 잔여**: workspace 설정 폼의 timezone 입력 UI (frontend cluster).
 - [x] GET /api/schedules 의 `sort`/`order` 쿼리 반영 (§4). — 구현 완료 확인 (schedules.service.ts:37-52 whitelist 기반 orderBy, 2026-06-10 impl-prep 검토에서 검증). spec §4 경고 문구도 동일 시점 제거.
 
 ## 비고

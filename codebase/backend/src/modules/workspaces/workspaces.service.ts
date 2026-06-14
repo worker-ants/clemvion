@@ -11,6 +11,7 @@ import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
 import { User } from '../users/entities/user.entity';
+import { isValidIanaTimezone } from '../../common/utils/timezone';
 import { v4 as uuidv4 } from 'uuid';
 import { WorkspaceRole } from './dto/add-member.dto';
 import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto';
@@ -278,7 +279,7 @@ export class WorkspacesService {
   }
 
   /**
-   * 워크스페이스 설정 변경 (Admin+). 현재는 `interactionAllowedOrigins` 만 갱신한다.
+   * 워크스페이스 설정 변경 (Admin+). 현재는 `interactionAllowedOrigins` 와 `timezone` 을 갱신한다.
    * 형식 검증(scheme 필수·path/query 불가)은 DTO가 선행 수행한다. 여기서는 각 origin 의
    * 단일 trailing slash 만 제거해 정규화하고, 기존 settings 의 다른 키(timezone 등)는 보존한다.
    */
@@ -304,21 +305,38 @@ export class WorkspacesService {
     const normalized = (dto.interactionAllowedOrigins ?? []).map((o) =>
       o.replace(/\/$/, ''),
     );
-    workspace.settings = {
+    // 타임존: 제공 시 IANA 유효성 검증 후 병합. 빈 문자열은 설정 해제(undefined)로 처리.
+    let nextSettings: Record<string, unknown> = {
       ...(workspace.settings ?? {}),
       interactionAllowedOrigins: normalized,
     };
+    if (dto.timezone !== undefined) {
+      const tz = dto.timezone.trim();
+      if (tz.length === 0) {
+        const { timezone: _drop, ...rest } = nextSettings;
+        nextSettings = rest;
+      } else {
+        if (!isValidIanaTimezone(tz)) {
+          throw new BadRequestException({
+            code: 'INVALID_TIMEZONE',
+            message: `유효하지 않은 타임존입니다: ${tz}`,
+          });
+        }
+        nextSettings = { ...nextSettings, timezone: tz };
+      }
+    }
+    workspace.settings = nextSettings;
     return this.workspaceRepository.save(workspace);
   }
 
   /**
-   * 워크스페이스 설정 조회 — `interactionAllowedOrigins` 만 반환.
+   * 워크스페이스 설정 조회 — `interactionAllowedOrigins` 와 `timezone`(설정된 경우)을 반환.
    * **멤버 read**(viewer 포함): 설정 화면에서 현재 값을 표시(편집은 Admin+, 조회는 모든 멤버).
    */
   async getWorkspaceSettings(
     workspaceId: string,
     userId: string,
-  ): Promise<{ interactionAllowedOrigins: string[] }> {
+  ): Promise<{ interactionAllowedOrigins: string[]; timezone?: string }> {
     const role = await this.getMemberRole(workspaceId, userId);
     if (!role) {
       throw new ForbiddenException({
@@ -336,11 +354,27 @@ export class WorkspacesService {
       });
     }
     const origins = workspace.settings?.interactionAllowedOrigins;
+    const tz = workspace.settings?.timezone;
     return {
       interactionAllowedOrigins: Array.isArray(origins)
         ? origins.filter((o): o is string => typeof o === 'string')
         : [],
+      ...(typeof tz === 'string' && tz.length > 0 ? { timezone: tz } : {}),
     };
+  }
+
+  /**
+   * §2.2 — 워크스페이스 기본 타임존(`settings.timezone`)을 RBAC 없이 조회하는 **내부용** 헬퍼.
+   * 다른 모듈(예: SchedulesService)이 타임존 fallback 에 사용한다. 값이 없거나 무효한 IANA 식별자면
+   * `undefined` 를 반환(저장 시 검증하지만 레거시 row 방어). 모듈 경계를 위해 Workspace 엔티티를
+   * 직접 노출하지 않고 본 메서드만 제공한다.
+   */
+  async getWorkspaceTimezone(workspaceId: string): Promise<string | undefined> {
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+    const tz = workspace?.settings?.timezone;
+    return typeof tz === 'string' && isValidIanaTimezone(tz) ? tz : undefined;
   }
 
   /**

@@ -139,18 +139,18 @@ sequenceDiagram
   participant C as Client (owner/admin)
   participant Svc as WorkspacesService
   participant PG as Postgres
-  C->>Svc: PATCH /api/workspaces/:id/settings { interactionAllowedOrigins }
+  C->>Svc: PATCH /api/workspaces/:id/settings { interactionAllowedOrigins, timezone? }
   Svc->>PG: SELECT workspace_member WHERE workspace_id=:id AND user_id=me (assertAdmin)
   alt role ∉ {owner, admin}
     Svc-->>C: 403 ADMIN_REQUIRED
   end
   Svc->>PG: SELECT workspace WHERE id=:id
-  Svc->>Svc: settings = { ...settings, interactionAllowedOrigins }  (부분 머지 — 타 키 보존)
+  Svc->>Svc: settings = { ...settings, interactionAllowedOrigins, timezone? }  (부분 머지 — 타 키 보존)
   Svc->>PG: UPDATE workspace SET settings=…, updated_at=now WHERE id=:id
   Svc-->>C: 200 { data: workspace }
 ```
 
-- 현 단계 `settings` 부분 키는 `interactionAllowedOrigins` 만(`timezone` 등은 본 엔드포인트 비대상). 각 origin
+- 현 단계 `settings` 부분 키는 `interactionAllowedOrigins` 와 `timezone`(옵션, IANA — 서비스 계층 `Intl.DateTimeFormat` 검증, 빈 문자열은 설정 해제). 각 origin
   `http(s)://host[:port]`(path/query 불가) 검증 + 후행 슬래시 정규화. **빈 배열 = 추가 origin 없음**(secure-by-default
   유지 — [7-channel-web-chat 보안 §2](../7-channel-web-chat/4-security.md), EIA §8.5). RBAC: [9-user-profile §4.3](../2-navigation/9-user-profile.md).
 - **Schema 매핑(§2.1)**: `workspace.settings`(JSONB) — 설정 변경은 `UPDATE workspace SET settings = settings || :patch`(부분 머지) 형태.
