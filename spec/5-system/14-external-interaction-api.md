@@ -78,7 +78,7 @@ code:
 | EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 (버퍼 내 재전송은 구현됨; 만료 시 `execution.replay_unavailable` 신호 emit 은 계획·미구현 — §5.2) | 필수 |
 | EIA-IN-08 | SSE 는 15초마다 `: heartbeat` comment 라인 전송 — proxy idle timeout 회피 | 필수 |
 | EIA-IN-09 | execution 당 동시 SSE 연결 수 제한: 기본 3 (multi-tab 허용, 무제한 fan-out 차단) | 권장 |
-| EIA-IN-10 | `submit_form` 검증 실패는 execution 상태를 바꾸지 않고 `400` + `details.fieldErrors` 반환 (waiting_for_input 유지, 재제출 가능) | 필수 |
+| EIA-IN-10 | `submit_form` 검증 실패는 execution 상태를 바꾸지 않고 `400 VALIDATION_ERROR` + `details[]`(`{field,message,code}` 배열, §5.1) 반환 (waiting_for_input 유지, 재제출 가능) | 필수 |
 | EIA-IN-11 | `Idempotency-Key` 헤더 지원 — 동일 키 24h 캐시, 같은 키 + 다른 body 는 `409 Conflict` | 필수 |
 | EIA-IN-12 | 종료된 execution 에 대한 명령은 `410 Gone` 반환 | 필수 |
 | EIA-IN-13 | 현재 노드 상태와 명령이 맞지 않으면 (예: `completed` 상태에서 `submit_message`) `409 Conflict` 반환 | 필수 |
@@ -298,21 +298,19 @@ POST /api/external/executions/550e8400-.../interact
 // 예시: form validation 실패
 {
   "error": {
-    "code":    "VALIDATION_FAILED",
+    "code":    "VALIDATION_ERROR",
     "message": "Form validation failed",
     "requestId": "3f2a…",
-    "details": {
-      "fieldErrors": [
-        { "field": "amount", "reason": "min_violated", "expected": 100, "actual": 50 }
-      ]
-    }
+    "details": [
+      { "field": "amount", "message": "must be >= 100 (got 50)", "code": "INVALID_FIELD" }
+    ]
   }
 }
 ```
 
 | 상태 | 코드 | 조건 |
 |------|------|------|
-| `400 Bad Request` | `VALIDATION_FAILED` | submit_form 의 field 검증 실패. body 의 `error.details.fieldErrors[]` 참조. execution 상태 유지(재제출 가능) |
+| `400 Bad Request` | `VALIDATION_ERROR` | submit_form 의 field 검증 실패. body 의 `error.details[]` (`{ field, message, code: "INVALID_FIELD" }` 배열 — [API 규약 §5.3](./2-api-convention.md#53-에러-응답)) 참조. execution 상태 유지(재제출 가능). (현재 form field-level 검증 자체는 일부 **Planned** — `interaction.service` 는 `data` 객체 형식만 확인) |
 | `400 Bad Request` | `INVALID_COMMAND` | 지원하지 않는 command, 필수 필드 누락 |
 | `400 Bad Request` | `MESSAGE_TOO_LONG` | `submit_message` 의 `message` 가 최대 길이(10000자) 초과. publisher 측 동기 검증 (typed `MessageTooLongError`, [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단))의 EIA 진입점 매핑 — WS 의 평면 ack `EXECUTION_MESSAGE_TOO_LONG` 와 동일 의미. 내부 길이 수치는 응답에 노출하지 않고 고정 메시지만 반환 |
 | `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | 토큰 위조·형식 오류·만료 등 검증 실패 |
@@ -327,6 +325,7 @@ POST /api/external/executions/550e8400-.../interact
 
 > **`X-Refresh-Token-Url` 헤더 (모든 401 토큰 실패 공통)**: 위 `401 TOKEN_*` 응답에는 `InteractionGuard.deny()` 가 `X-Refresh-Token-Url` 헤더를 무조건 동봉한다 (EIA-AU-06, §3.3). 클라이언트가 토큰 갱신 진입점(§5.5)을 일관되게 발견하도록 하기 위함이며, `TOKEN_REVOKED`(execution 종료)·`TOKEN_SCOPE_MISMATCH`/`TOKEN_AUDIENCE_MISMATCH`(범위/용도 불일치)는 헤더를 따라가도 새 유효 토큰을 받지 못할 수 있다(복구 불가 신호).
 > **토큰 실패 status 통일 근거**: 모든 토큰류 실패(`invalid`/`expired`/`revoked`/`scope`/`audience`)는 단일 `401` status 로 수렴한다 — scope/audience 불일치를 `403`(인가 실패)으로 세분하면 "토큰은 유효하나 권한만 부족" 이라는 정보를 외부에 노출해 §8.2 HMAC 실패 통일(algorithm-leak 차단) 정신과 어긋난다. EIA 토큰은 execution-scoped 이라 scope 불일치는 사실상 "이 리소스에 대한 인증 실패" 에 가깝다 (결정 근거 §Rationale R14).
+> **코드 네임스페이스 주석**: (1) `TOKEN_INVALID`/`TOKEN_EXPIRED` 는 워크스페이스 JWT 계층([3-error-handling §1.2](./3-error-handling.md#12-인증인가-에러))과 **같은 문자열**이나, 본 표는 **interaction 토큰**(`iext_*`/`itk_*`) 검증 실패를 가리킨다 — 진입점(`/api/external/*`)·토큰 family 로 레이어가 구분된다. (2) `EXECUTION_NOT_FOUND`(404)는 **순수 미존재**만 의미한다 — 워크스페이스/scope 경계 위반은 위 `TOKEN_SCOPE_MISMATCH`(401)로 먼저 처리되므로 존재 누설이 없다. (3) `VALIDATION_ERROR`·`details[]` 는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 기본값을 따르고, `INVALID_COMMAND`/`MESSAGE_TOO_LONG`/`TOO_MANY_CONNECTIONS`(SSE 동시연결 초과, §5.2·§8.4)/`STATE_MISMATCH`/`EXECUTION_TERMINATED` 는 EIA 표면 전용 코드로 규약 기본값을 의도적으로 override 한다.
 
 ### 5.2 SSE 이벤트 스트림 — `GET /api/external/executions/:executionId/stream`
 
@@ -715,7 +714,7 @@ ALTER TABLE trigger
     b. Idempotency-Key 캐시 조회
     c. 검증 통과 시 ExecutionEngineService.waitForFormSubmission() 입력 큐에 push
        (= 내부 WS 의 execution.submit_form 명령과 동일 경로)
-    d. 검증 실패 (field validation) → 400 + fieldErrors. execution 상태 유지
+    d. 검증 실패 (field validation) → `400 VALIDATION_ERROR` + `details[]`. execution 상태 유지
 12. 실행 엔진: 사용자 입력 수신 → resumed → 다음 노드로 진행
 13. 종료 시: TX commit 후 notification + SSE 둘 다 발송 → SSE 종료, 토큰 invalidate
 ```
@@ -925,7 +924,7 @@ Long-polling 은 라이브 chat·multi-turn 에서 latency 가 커 사용자 경
 
 ### R8. Idempotency-Key 와 `submit_form` 검증 실패의 관계
 
-**채택**: `submit_form` 의 field validation 실패는 **idempotent 응답 캐시에 적재하지 않는다**. waiting_for_input 상태가 유지되어 사용자가 재제출 가능하기 때문에, 동일 key 로 새 body 를 보내는 것은 normal flow. 즉 4xx 응답 중 `400 VALIDATION_FAILED` 만 idempotency cache 에서 제외하고, 그 외 (성공 2xx / `409 Conflict` / `410 Gone`) 는 캐시한다.
+**채택**: `submit_form` 의 field validation 실패는 **idempotent 응답 캐시에 적재하지 않는다**. waiting_for_input 상태가 유지되어 사용자가 재제출 가능하기 때문에, 동일 key 로 새 body 를 보내는 것은 normal flow. 즉 4xx 응답 중 `400 VALIDATION_ERROR` 만 idempotency cache 에서 제외하고, 그 외 (성공 2xx / `409 Conflict` / `410 Gone`) 는 캐시한다.
 
 **근거**: validation 실패가 캐시되면 사용자가 form 수정 후 재제출 시 같은 key 를 쓰면 stale 에러가 반환된다. 이는 [Spec 실행 엔진 §1.3](./4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status) 의 "검증 실패 → waiting_for_input 유지 → 재제출 가능" 컨벤션과 직접 충돌하며, 사용자 UX (form 수정 → 재제출) 가 깨진다.
 

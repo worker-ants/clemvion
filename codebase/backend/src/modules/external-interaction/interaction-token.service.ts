@@ -12,6 +12,7 @@ import {
   verify,
 } from 'jsonwebtoken';
 import { ExecutionToken } from './entities/execution-token.entity';
+import { ExecutionStatus } from '../executions/entities/execution.entity';
 
 /**
  * [Spec EIA §3.3 / §R4] — 인터랙션 토큰 두 family.
@@ -322,6 +323,59 @@ export class InteractionTokenService {
       );
     }
     return { revoked };
+  }
+
+  /**
+   * [Spec EIA §3.4 EIA-RL-06 / §9.3 / §Rationale R15] terminal revoke 의 at-least-once 보강 —
+   * reconciliation sweep. 이미 terminal(completed/failed/cancelled) 인데 `execution_token` row 가
+   * 잔존하는 execution 을 찾아 `revokeAllForExecution` 을 재호출한다.
+   *
+   * live fast-path(`NotificationFanout`)가 process 재시작/크래시(버퍼 없는 RxJS Subject 소실)나
+   * Redis 일시 장애(fail-open)로 누락한 revoke 를 회수하는 durable 경로다. `execution_token` 자체가
+   * outbox 역할을 하므로 별도 outbox 테이블이 없고, `revokeAllForExecution` 이 idempotent(blacklist
+   * SET·row DELETE 재실행 무해)라 live 경로와 중복 sweep 돼도 안전하다.
+   *
+   * 호출자: `TerminalRevokeReconcilerService` (BullMQ repeatable scheduler — 멀티 인스턴스 전역 1회).
+   * Repository 미주입 시 no-op.
+   */
+  async reconcileTerminalRevocations(
+    batchLimit = 500,
+  ): Promise<{ swept: number; revoked: number }> {
+    if (!this.executionTokenRepository) {
+      return { swept: 0, revoked: 0 };
+    }
+    const rows = await this.executionTokenRepository
+      .createQueryBuilder('et')
+      .innerJoin('et.execution', 'e')
+      .where('e.status IN (:...terminal)', {
+        terminal: [
+          ExecutionStatus.COMPLETED,
+          ExecutionStatus.FAILED,
+          ExecutionStatus.CANCELLED,
+        ],
+      })
+      .select('et.executionId', 'executionId')
+      .distinct(true)
+      .limit(batchLimit)
+      .getRawMany<{ executionId: string }>();
+
+    let revoked = 0;
+    for (const { executionId } of rows) {
+      try {
+        const res = await this.revokeAllForExecution(executionId);
+        revoked += res.revoked;
+      } catch (err) {
+        this.logger.warn(
+          `InteractionTokenService: reconcile revoke 실패 (executionId=${executionId}) — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    if (rows.length > 0) {
+      this.logger.log(
+        `terminal-revoke reconciliation: ${rows.length} execution(s) swept, ${revoked} jti revoked`,
+      );
+    }
+    return { swept: rows.length, revoked };
   }
 
   // ===========================================================
