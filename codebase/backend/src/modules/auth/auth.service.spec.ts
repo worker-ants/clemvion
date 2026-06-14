@@ -10,6 +10,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { BCRYPT_ROUNDS } from '../../common/utils/password.util';
 import { AuthService } from './auth.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { WebAuthnService } from './webauthn/webauthn.service';
@@ -413,7 +414,7 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('should login with valid credentials', async () => {
-      const hash = await bcrypt.hash('Test123!@#', 12);
+      const hash = await bcrypt.hash('Test123!@#', BCRYPT_ROUNDS);
       usersService.findByEmail.mockResolvedValue({
         ...mockUser,
         passwordHash: hash,
@@ -444,7 +445,7 @@ describe('AuthService', () => {
     });
 
     it('should throw for invalid password', async () => {
-      const hash = await bcrypt.hash('correct-password', 12);
+      const hash = await bcrypt.hash('correct-password', BCRYPT_ROUNDS);
       usersService.findByEmail.mockResolvedValue({
         ...mockUser,
         passwordHash: hash,
@@ -490,7 +491,7 @@ describe('AuthService', () => {
     // GET /api/users/me/login-history 가 새 row 를 못 보고 끝난다. 같은 핸들러 내에서
     // sequencing 을 검증해 두면, 미래에 누군가 다시 `void` 로 되돌릴 때 즉시 잡힌다.
     it('await contract: returns only after loginHistory.record resolves', async () => {
-      const hash = await bcrypt.hash('Test123!@#', 12);
+      const hash = await bcrypt.hash('Test123!@#', BCRYPT_ROUNDS);
       usersService.findByEmail.mockResolvedValue({
         ...mockUser,
         passwordHash: hash,
@@ -517,7 +518,7 @@ describe('AuthService', () => {
     // 회귀 가드: 성공 경로에서 login_success 이벤트가 기록되는지 — 미래에 record 호출
     // 자체가 사라지면 audit 가 조용히 깨지는 위험을 차단한다.
     it('records login_success on successful login', async () => {
-      const hash = await bcrypt.hash('Test123!@#', 12);
+      const hash = await bcrypt.hash('Test123!@#', BCRYPT_ROUNDS);
       usersService.findByEmail.mockResolvedValue({
         ...mockUser,
         passwordHash: hash,
@@ -861,7 +862,7 @@ describe('AuthService', () => {
 
   describe('generateTokens (via login)', () => {
     it('should create personal workspace as fallback when user has no memberships', async () => {
-      const hash = await bcrypt.hash('Test123!@#', 12);
+      const hash = await bcrypt.hash('Test123!@#', BCRYPT_ROUNDS);
       usersService.findByEmail.mockResolvedValue({
         ...mockUser,
         passwordHash: hash,
@@ -889,7 +890,7 @@ describe('AuthService', () => {
     });
 
     it('uses existing membership over creating a personal workspace', async () => {
-      const hash = await bcrypt.hash('Test123!@#', 12);
+      const hash = await bcrypt.hash('Test123!@#', BCRYPT_ROUNDS);
       usersService.findByEmail.mockResolvedValue({
         ...mockUser,
         passwordHash: hash,
