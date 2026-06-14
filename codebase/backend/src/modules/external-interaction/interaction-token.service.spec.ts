@@ -369,6 +369,39 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
       expect(qb.limit).toHaveBeenCalledWith(1000);
     });
 
+    it('batchLimit 하한 — 0/음수는 1 로 clamp', async () => {
+      const qb = makeQB([]);
+      const repo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qb),
+        find: jest.fn(),
+        delete: jest.fn(),
+      };
+      await makeService(repo).reconcileTerminalRevocations(0);
+      expect(qb.limit).toHaveBeenCalledWith(1);
+    });
+
+    it('RECONCILE_CONCURRENCY(20) 초과 — 다중 청크 전부 처리·집계 정확', async () => {
+      redis.set.mockResolvedValue('OK');
+      const rows = Array.from({ length: 25 }, (_, i) => ({
+        executionId: `exec-${i}`,
+      }));
+      const qb = makeQB(rows);
+      const repo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qb),
+        find: jest
+          .fn()
+          .mockResolvedValue([
+            { jti: 'j', expAt: new Date(Date.now() + 60_000) },
+          ]),
+        delete: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      const result = await makeService(repo).reconcileTerminalRevocations();
+      // 25건 = 청크(20) + 청크(5) 모두 처리 — 집계가 청크 경계에서 누락되지 않음
+      expect(result.swept).toBe(25);
+      expect(result.revoked).toBe(25);
+      expect(repo.find).toHaveBeenCalledTimes(25);
+    });
+
     it('이미 만료된 jti(ttl<=0)는 revoked 에 미집계 — revokeAll 위임 결과 반영', async () => {
       redis.set.mockResolvedValue('OK');
       const qb = makeQB([{ executionId: 'exec-1' }]);
@@ -385,6 +418,8 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
       expect(result.swept).toBe(1);
       expect(result.revoked).toBe(0); // 만료된 jti 는 blacklist SET skip
       expect(redis.set).not.toHaveBeenCalled();
+      // 만료 토큰이라도 execution_token row 는 정리한다 (sweep 재진입 회피)
+      expect(repo.delete).toHaveBeenCalledWith({ executionId: 'exec-1' });
     });
 
     it('잔존 토큰 없음 → swept:0, revokeAll 미호출', async () => {

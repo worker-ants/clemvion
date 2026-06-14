@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-14T19:41:17.532104",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=/Users/gehrig/.claude/jobs/323b33ee/tmp/cq_scope, diff-base=origin/main)",
+  "target_path": "/Users/gehrig/.claude/jobs/323b33ee/tmp/cq_scope",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

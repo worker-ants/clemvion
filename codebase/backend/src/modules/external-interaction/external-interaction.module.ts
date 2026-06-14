@@ -18,10 +18,8 @@ import { InteractionService } from './interaction.service';
 import { InteractionController } from './interaction.controller';
 import { InteractionStreamController } from './interaction-stream.controller';
 import { NOTIFICATION_WEBHOOK_QUEUE } from './notification-dispatcher.types';
-import {
-  TerminalRevokeReconcilerService,
-  TERMINAL_REVOKE_RECONCILE_QUEUE,
-} from './terminal-revoke-reconciler.service';
+import { TerminalRevokeReconcilerService } from './terminal-revoke-reconciler.service';
+import { TERMINAL_REVOKE_RECONCILE_QUEUE } from './terminal-revoke-reconciler.types';
 import { SecretStoreModule } from '../secret-store/secret-store.module';
 
 /**
