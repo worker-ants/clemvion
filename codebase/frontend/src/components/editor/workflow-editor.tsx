@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEditorStore } from "@/lib/stores/editor-store";
@@ -21,6 +21,20 @@ import { RunResultsDrawer } from "./run-results/run-results-drawer";
 import { VersionHistoryPanel } from "./version-history/version-history-panel";
 import { AssistantPanel } from "./assistant-panel/assistant-panel";
 
+/**
+ * §10.12 Escape 핸들러 보조 — 드로어 내부에 포커스가 있어도 입력 필드면
+ * 그 요소가 Escape 를 처리하도록 양보한다 (필드 클리어/닫기 등). 입력류가
+ * 아닌 곳(타임라인 항목·버튼 등)에 포커스가 있을 때만 캔버스로 복귀시킨다.
+ */
+export function isEditableTarget(el: HTMLElement): boolean {
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (el.isContentEditable) return true;
+  // `isContentEditable` 은 jsdom 에 미구현이라 attribute 로도 한 번 더 확인한다.
+  const attr = el.getAttribute("contenteditable");
+  return attr === "" || attr === "true";
+}
+
 export function WorkflowEditor() {
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
@@ -32,8 +46,13 @@ export function WorkflowEditor() {
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
   const executionId = useExecutionStore((s) => s.executionId);
+  const toggleDrawerExpanded = useExecutionStore((s) => s.toggleDrawerExpanded);
   const toggleAssistant = useAssistantStore((s) => s.toggle);
   const queryClient = useQueryClient();
+
+  // §10.12 Escape — 드로어 포커스에서 복귀할 캔버스 컨테이너 (tabIndex=-1 로
+  // 프로그램적 포커스만 허용, 탭 순서에는 끼지 않는다).
+  const canvasFocusRef = useRef<HTMLDivElement>(null);
 
   // Cmd/Ctrl+S can rename the workflow via saveCanvas (editor-store.ts), so
   // we mirror the toolbar's save path and invalidate the cached workflow
@@ -99,8 +118,30 @@ export function WorkflowEditor() {
         e.preventDefault();
         toggleAssistant();
       }
+
+      // §10.12 — Ctrl/Cmd+Shift+R: Run Results 드로어 펼침/접힘 토글. 브라우저
+      // 하드 리로드(기본 동작)를 막는다 (spec 이 의도적으로 택한 키 조합).
+      if (isMod && e.shiftKey && (e.key === "r" || e.key === "R")) {
+        e.preventDefault();
+        toggleDrawerExpanded();
+        return;
+      }
+
+      // §10.12 — Escape (드로어 포커스 시): 캔버스로 포커스 복귀. 드로어 내부의
+      // 편집 가능한 필드에서는 그 요소가 Escape 를 처리하도록 양보한다.
+      if (e.key === "Escape") {
+        const active = document.activeElement as HTMLElement | null;
+        if (
+          active &&
+          active.closest("[data-run-results-drawer]") &&
+          !isEditableTarget(active)
+        ) {
+          e.preventDefault();
+          canvasFocusRef.current?.focus();
+        }
+      }
     },
-    [undo, redo, saveAndInvalidate, toggleAssistant],
+    [undo, redo, saveAndInvalidate, toggleAssistant, toggleDrawerExpanded],
   );
 
   useEffect(() => {
@@ -121,7 +162,7 @@ export function WorkflowEditor() {
             <NodePalette />
 
             {/* Center canvas */}
-            <div className="flex-1">
+            <div ref={canvasFocusRef} tabIndex={-1} className="flex-1 outline-none">
               <WorkflowCanvas />
             </div>
 

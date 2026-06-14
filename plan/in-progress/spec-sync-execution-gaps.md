@@ -10,11 +10,18 @@ owner: planner
 > 관련 spec: spec/3-workflow-editor/3-execution.md
 > 주의: §6 브레이크포인트/단계 실행은 spec 본문·Rationale 에서 이미 "향후 로드맵(미구현)" 으로 분리돼 있으므로 본 plan 범위 밖 (별도 재도입 plan 대상). 본 plan 은 implemented 로 단정됐으나 실제 부재한 surface 만 추적한다.
 
-## 미구현 항목
-- [ ] §1.3 단일 노드 테스트 — 노드 우클릭 "실행" 진입점 + 단일 노드 실행 엔드포인트 (현 우클릭 메뉴 = Settings/Duplicate/Disable/Delete 뿐, `workflow-canvas.tsx`)
-- [ ] §2.2 Mock Input 다이얼로그 — "Load from History"(이전 실행 입력 로드), 테스트 데이터 세트 저장/이름 지정, 실시간 JSON 검증 UI (현 다이얼로그 = textarea + Cancel/Run 뿐, `editor-toolbar.tsx`)
-- [ ] §7 인-에디터 실행 히스토리 — 더보기(⋮) 메뉴의 "실행 히스토리" 항목, 과거 실행 캔버스 오버레이, 히스토리 항목 "이 입력으로 다시 실행" (현 ⋮ = Version History/Export/Delete 뿐)
-- [ ] §10.12 단축키 — Ctrl+Shift+R 드로어 토글, Escape 캔버스 포커스 복귀 (현 전역 키 핸들러 = Undo/Redo/Save/Assistant 토글뿐, `workflow-editor.tsx`)
+> **구현 진척 (2026-06-14, impl-execution-editor-gaps PR)**: 결정 불필요(decision-free) 항목 처리.
+> §10.12 단축키 풀(frontend) + §2.2 실시간 JSON 검증·히스토리 로드(기존 executions API 재사용) 구현.
+> §1.3·§7·§2.2-저장은 아래대로 로드맵/결정 대기로 재분류(§6 와 동일 처리) — 본 PR 미포함.
+
+## 구현 완료 (decision-free)
+- [x] §2.2 Mock Input — 실시간 JSON 검증(무효 시 인라인 오류 + Run 비활성) + "Load from History"(이전 실행 `inputData` 적재, `GET /executions/workflow/:id` + `GET /executions/:id` 재사용). `editor-toolbar.tsx`. 테스트: `editor-toolbar-run-input.test.tsx`.
+- [x] §10.12 단축키 — Ctrl+Shift+R 드로어 펼침/접힘 토글(브라우저 하드 리로드 preventDefault), Escape(드로어 포커스 시) 캔버스 복귀(편집 필드는 양보). 드로어 펼침 상태를 `execution-store.drawerExpanded` 로 승격. `workflow-editor.tsx`/`run-results-drawer.tsx`. 테스트: `execution-store.test.ts`·`workflow-editor-shortcuts.test.ts`.
+
+## 로드맵 / 결정 대기 (본 plan 활성 범위에서 분리 — §6 와 동일)
+- [ ] §1.3 단일 노드 테스트 — **결정 필요**. spec 본문이 이미 "v1 surface 아님(설계 참고용)" 으로 명시. backend 가 `fromNodeId` 부분 실행 시맨틱(트리거/상류 출력 처리)을 구현하지 않아 전용 엔드포인트 설계가 선행돼야 함. 별도 재도입 plan 대상.
+- [ ] §2.2 테스트 데이터 세트 저장/이름 지정 — **결정 필요**. 저장 전용 엔티티 + 소유/권한 모델(워크플로/워크스페이스/유저 귀속) 결정이 선행. 본 PR 의 검증·히스토리 로드와 분리.
+- [ ] §7 인-에디터 실행 히스토리(패널·캔버스 오버레이) — **로드맵**. spec 본문이 "설계 참고용", 실행 내역은 전용 페이지(`2-navigation/14-execution-history.md`)가 담당하고 에디터 재실행은 Run Results 드로어 Re-run(§10.14)으로 이미 제공. 별도 plan 대상.
 
 ## 비고
 - §1.2 부분 실행 트리거(우클릭 → 툴바 드롭다운 "Run from Selected") 및 §8/§9 WS·API 명칭 불일치는 spec 본문 패치로 정정 완료 (기능 자체는 구현돼 있어 plan 항목 아님).
