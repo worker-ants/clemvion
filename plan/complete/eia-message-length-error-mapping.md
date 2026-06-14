@@ -2,7 +2,10 @@
 worktree: refactor-04-a1-eia-msglen-ba62ae (branch claude/refactor-04-a1-eia-msglen-ba62ae)
 started: 2026-06-14
 owner: developer
-status: in-progress
+status: complete
+spec_impact:
+  - spec/5-system/14-external-interaction-api.md
+  - spec/5-system/4-execution-engine.md
 ---
 
 # EIA(REST) MessageTooLongError → HTTP 400 매핑 (refactor 04 A-1 후속 I-5)
