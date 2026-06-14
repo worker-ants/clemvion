@@ -760,6 +760,7 @@ codebase/backend/src/modules/
     interaction.guard.ts               # HTTP 진입점 InteractionGuard — iext_*/itk_* 검증 + ctx 합성 (scope set 금지, §3.3.1)
     interaction-token.service.ts       # iext_*, itk_* 발급/검증/blacklist + reconcileTerminalRevocations (EIA-RL-06 sweep)
     terminal-revoke-reconciler.service.ts # BullMQ repeatable scheduler (분 단위) — terminal revoke at-least-once 보강 (EIA-RL-06, §9.3 R15)
+    terminal-revoke-reconciler.types.ts   # BullMQ 큐 이름 상수 (notification-dispatcher.types 패턴 — system-status 레지스트리가 service 구현파일 대신 참조)
     notification-fanout.service.ts     # 단일 sink executionEvents$ 구독 listener → NotificationDispatcher.enqueue 위임 (§R10)
     notification-dispatcher.service.ts # outbound webhook enqueue facade (BullMQ)
     notification-webhook.processor.ts  # BullMQ processor — 실제 HTTP POST + 재시도/HMAC 서명/degraded 처리
