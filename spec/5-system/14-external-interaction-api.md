@@ -310,7 +310,7 @@ POST /api/external/executions/550e8400-.../interact
 
 | 상태 | 코드 | 조건 |
 |------|------|------|
-| `400 Bad Request` | `VALIDATION_ERROR` | submit_form 의 field 검증 실패. body 의 `error.details[]` (`{ field, message, code: "INVALID_FIELD" }` 배열 — [API 규약 §5.3](./2-api-convention.md#53-에러-응답)) 참조. execution 상태 유지(재제출 가능). (현재 form field-level 검증 자체는 일부 **Planned** — `interaction.service` 는 `data` 객체 형식만 확인) |
+| `400 Bad Request` | `VALIDATION_ERROR` | submit_form 의 field 검증 실패. body 의 `error.details[]` (`{ field, message, code: "INVALID_FIELD" }` 배열 — [API 규약 §5.3](./2-api-convention.md#53-에러-응답)) 참조. execution 상태 유지(재제출 가능). field-level 검증(필수·type(email/number)·`validation.minLength`/`maxLength`·select/radio 선택지)은 publisher 측 `continueExecution` chokepoint 에서 노드 config 의 field 정의로 수행 (typed `FormValidationError` → EIA 400 매핑) — EIA·WS·UI 3 경로 공통. `validation.min`/`max`·`pattern` 과 `type: 'file'` MIME/크기/개수 검증은 별도 **Planned** ([Form §6.2](../4-nodes/6-presentation/4-form.md#62-form-입력-검증-실패-재제출-가능-새-출력-생성-없음)) |
 | `400 Bad Request` | `INVALID_COMMAND` | 지원하지 않는 command, 필수 필드 누락 |
 | `400 Bad Request` | `MESSAGE_TOO_LONG` | `submit_message` 의 `message` 가 최대 길이(10000자) 초과. publisher 측 동기 검증 (typed `MessageTooLongError`, [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단))의 EIA 진입점 매핑 — WS 의 평면 ack `EXECUTION_MESSAGE_TOO_LONG` 와 동일 의미. 내부 길이 수치는 응답에 노출하지 않고 고정 메시지만 반환 |
 | `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | 토큰 위조·형식 오류·만료 등 검증 실패 |
@@ -1000,6 +1000,7 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 |---|---|---|
 | `InvalidExecutionStateError` | `INVALID_EXECUTION_STATE` | `409 STATE_MISMATCH` |
 | `MessageTooLongError` | `EXECUTION_MESSAGE_TOO_LONG` | `400 MESSAGE_TOO_LONG` |
+| `FormValidationError` | `VALIDATION_ERROR` | `400 VALIDATION_ERROR` (+ `details[]`) |
 
 **근거**: WS 채널은 실행 엔진 내부 코드 네임스페이스(`EXECUTION_*`·시스템 레벨 `INVALID_EXECUTION_STATE`, [error-codes.md](../conventions/error-codes.md) 규약)를 직접 노출하는 반면, EIA REST 는 공개 외부 API 표면이라 HTTP status 와 함께 표면 자체의 간결한 코드(`STATE_MISMATCH`·`MESSAGE_TOO_LONG`)를 쓴다. 두 표면을 같은 코드명으로 강제 통일하면 (a) WS 가 REST 식 코드를 쓰면 내부 enum 과 어긋나고, (b) REST 가 `EXECUTION_*` prefix 를 그대로 노출하면 외부 API 가 내부 구현 식별자에 결합된다 — 따라서 **표면별 코드명 + cross-ref 동치 고정**을 채택한다.
 

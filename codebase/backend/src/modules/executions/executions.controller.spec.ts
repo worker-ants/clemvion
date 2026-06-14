@@ -1,6 +1,12 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import {
+  BadRequestException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { ExecutionsController } from './executions.controller';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  FormValidationError,
+} from '../execution-engine/workflow-errors';
 
 describe('ExecutionsController', () => {
   let controller: ExecutionsController;
@@ -108,6 +114,42 @@ describe('ExecutionsController', () => {
         undefined,
       );
       expect(result).toEqual({ success: true });
+    });
+
+    it('W-2 — FormValidationError → 400 BadRequestException + VALIDATION_ERROR + details[] (spec form §4·§6.2)', async () => {
+      // publisher 측 field 검증 실패 → 400, execution 은 waiting 유지(재제출 가능).
+      mockExecutionEngineService.continueExecution.mockRejectedValueOnce(
+        new FormValidationError('email', '올바른 이메일 형식이 아닙니다.'),
+      );
+
+      await expect(
+        controller.continueExecution('exec-1', 'workspace-1', {
+          formData: { email: 'not-an-email' },
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      mockExecutionEngineService.continueExecution.mockRejectedValueOnce(
+        new FormValidationError('email', '올바른 이메일 형식이 아닙니다.'),
+      );
+      const err = await controller
+        .continueExecution('exec-1', 'workspace-1', {
+          formData: { email: 'not-an-email' },
+        })
+        .catch((e: unknown) => e);
+
+      expect((err as BadRequestException).getResponse()).toEqual({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: '올바른 이메일 형식이 아닙니다.',
+          details: [
+            {
+              field: 'email',
+              message: '올바른 이메일 형식이 아닙니다.',
+              code: 'INVALID_FIELD',
+            },
+          ],
+        },
+      });
     });
   });
 

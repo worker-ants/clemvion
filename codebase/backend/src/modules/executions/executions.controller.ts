@@ -9,6 +9,7 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   UnprocessableEntityException,
+  BadRequestException,
 } from '@nestjs/common';
 import { WorkspaceId } from '../../common/decorators/workspace.decorator';
 import { CurrentUser } from '../../common/decorators';
@@ -36,7 +37,11 @@ import { Throttle } from '@nestjs/throttler';
 import { ReRunRequestDto } from './dto/re-run.dto';
 import { ExecutionsService } from './executions.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  FormValidationError,
+} from '../execution-engine/workflow-errors';
+import { ErrorCode } from '../../nodes/core/error-codes';
 import { QueryExecutionDto } from './dto/query-execution.dto';
 import {
   ExecutionContinueResultDto,
@@ -147,6 +152,10 @@ export class ExecutionsController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
+  @ApiBadRequestResponse({
+    description:
+      'VALIDATION_ERROR (form field 검증 실패 — details[{field,message,code:INVALID_FIELD}], 현재 단계 FIRST 오류만)',
+  })
   @ApiUnprocessableEntityResponse({
     description:
       '실행이 입력 대기(waiting_for_input) 상태가 아님 (INVALID_STATE)',
@@ -166,6 +175,17 @@ export class ExecutionsController {
       if (error instanceof InvalidExecutionStateError) {
         throw new UnprocessableEntityException({
           error: { code: 'INVALID_STATE', message: error.message },
+        });
+      }
+      // form §4·§6.2 — field 검증 실패는 400 VALIDATION_ERROR + details[] (재제출 가능,
+      // waiting 유지). publisher 가 publish 전 throw.
+      if (error instanceof FormValidationError) {
+        throw new BadRequestException({
+          error: {
+            code: ErrorCode.VALIDATION_ERROR,
+            message: error.message,
+            details: error.toHttpDetails(),
+          },
         });
       }
       throw error;

@@ -269,7 +269,7 @@ Idempotency-Key: <client-uuid>   // recommended
 Five supported `command` values:
 
 <FieldTable rows={[
-  { name: "submit_form", required: false, type: "Form node", description: "Body: `nodeId` and `data: { [field]: value }`. Validation failures come back as `400 VALIDATION_FAILED` + `details.fieldErrors`, and the execution stays in `waiting_for_input` so the user can resubmit.", default: "-" },
+  { name: "submit_form", required: false, type: "Form node", description: "Body: `nodeId` and `data: { [field]: value }`. Validation failures come back as `400 VALIDATION_ERROR` + `error.details[{ field, message, code }]`, and the execution stays in `waiting_for_input` so the user can resubmit.", default: "-" },
   { name: "click_button", required: false, type: "Carousel / Table / Chart / Template (button)", description: "Body: `nodeId`, `buttonId`. Acts as if that button was pressed.", default: "-" },
   { name: "submit_message", required: false, type: "AI Agent · Information Extractor (Multi Turn)", description: "Body: `nodeId`, `message`. Sends a user message and waits for the next assistant reply.", default: "-" },
   { name: "end_conversation", required: false, type: "AI Agent · Information Extractor (Multi Turn)", description: "Body: `nodeId`, `reason?`. Explicitly closes the conversation so the workflow can proceed.", default: "-" },
@@ -284,7 +284,7 @@ Key error responses:
 
 | Status | Code | Meaning |
 |--------|------|---------|
-| `400 Bad Request` | `VALIDATION_FAILED` | Form field validation failed. Execution stays `waiting_for_input` → resubmit allowed |
+| `400 Bad Request` | `VALIDATION_ERROR` | Form field validation failed (`error.details[{ field, message, code }]`). Execution stays `waiting_for_input` → resubmit allowed |
 | `400 Bad Request` | `INVALID_COMMAND` | Unsupported command or missing required field |
 | `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | Response header `X-Refresh-Token-Url` points to the refresh endpoint |
 | `409 Conflict` | `STATE_MISMATCH` | Command does not match current node / execution state |

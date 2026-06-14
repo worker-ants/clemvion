@@ -14,6 +14,8 @@ import { createDbClient } from './helpers/db';
  * 2. iext token 으로 InteractionGuard 통과 + interact 가 비동기 202 반환
  * 3. 다른 execution 의 iext 로는 401 (scope_mismatch / token rejected)
  * 4. itk 토큰 verifyNotificationSignature — HMAC SHA256 검증 (sender 측의 헬퍼)
+ * G. submit_form field 검증 실패 → 400 VALIDATION_ERROR + details[{field,code:INVALID_FIELD}]
+ *    (spec form §4·§6.2 / EIA §5.1 — waiting_for_input 유지, 재제출 가능)
  *
  * 본 e2e 는 BullMQ Redis / Webhook 발송 자체는 검증하지 않음 — outbound dispatcher 는 unit 에서
  * 이미 15 cases 커버. 본 e2e 는 인증 / endpoint / 응답 shape 의 cross-stack 정합성에 집중.
@@ -247,5 +249,49 @@ describe('External Interaction API (e2e)', () => {
     // 내부 길이 수치(10000/10001)가 클라이언트 응답에 노출되지 않는다 (serverDetail 전용).
     expect(JSON.stringify(res.body)).not.toContain('10000');
     expect(JSON.stringify(res.body)).not.toContain('10001');
+  });
+
+  it('G. submit_form 필수 field 누락 → 400 VALIDATION_ERROR + details (form §4·§6.2 / §5.1)', async () => {
+    // waiting form 노드 + node_execution 을 직접 구성. publisher 측 동기 검증이
+    // node lookup 후 발생하므로 node_execution(WAITING) row 가 필요하다.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const formNodeId = randomUUID();
+    await db.query(
+      `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
+       VALUES ($1, $2, 'form', 'presentation', 'frm', $3, 0, 0, NOW(), NOW())`,
+      [
+        formNodeId,
+        workflowId,
+        JSON.stringify({
+          fields: [
+            { name: 'email', type: 'email', label: 'Email', required: true },
+          ],
+        }),
+      ],
+    );
+    const executionId = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at)
+       VALUES ($1, $2, 'waiting_for_input', NOW())`,
+      [executionId, workflowId],
+    );
+    await db.query(
+      `INSERT INTO node_execution (id, execution_id, node_id, status, started_at)
+       VALUES ($1, $2, $3, 'waiting_for_input', NOW())`,
+      [randomUUID(), executionId, formNodeId],
+    );
+    const iextToken = mintInteractionToken(executionId);
+    const res = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      // I-16: nodeId body は assertNodeId 유무 검사만 수행 — 실제 field lookup 은
+      // node_execution row 의 nodeId 가 결정한다 (formNodeId 가 lookup key 가 아님).
+      .send({ command: 'submit_form', nodeId: formNodeId, data: {} });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details[0].field).toBe('email');
+    expect(res.body.error.details[0].code).toBe('INVALID_FIELD');
   });
 });

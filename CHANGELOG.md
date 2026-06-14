@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — EIA submit_form 서버 측 field 검증
+
+### 변경 사항
+
+1. **`submit_form` 서버 측 field 검증 추가** — EIA `POST /external/executions/:id/interact` 의
+   `submit_form` 커맨드가 이제 서버 측에서 form node field 정의(필수 여부 / 이메일·숫자 형식 /
+   minLength·maxLength / 선택지)를 검증한다 (spec form §4·§6.2 / EIA §5.1).
+
+   **검증 실패 시 응답 shape** (400 Bad Request):
+   ```json
+   { "error": { "code": "VALIDATION_ERROR", "message": "<검증 메시지>",
+                "details": [{ "field": "<필드명>", "message": "<검증 메시지>", "code": "INVALID_FIELD" }] } }
+   ```
+
+   - 현재 단계 FIRST 오류만 surface (`details` 배열 길이 항상 1).
+   - 검증 실패해도 `execution.status` 는 `waiting_for_input` 유지(재제출 가능).
+   - WS ack 경로는 `errorCode='VALIDATION_ERROR'` 로 매핑됨 (`ExecutionError` 계층 자동 처리).
+
+2. **`VALIDATION_ERROR` 에러코드 — `ErrorCode` enum 에 추가** (`codebase/backend/src/nodes/core/error-codes.ts`).
+   기존 `MessageTooLongError` 등과 동일한 패턴으로 단일 SoT 로 관리.
+
 ## Unreleased — Code 노드 isolated-vm 전환 후속 (base64 TypeError + 메모리 한도 env)
 
 ### Breaking changes

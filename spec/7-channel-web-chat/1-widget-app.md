@@ -41,7 +41,7 @@ pending_plans:
 | 퀵 액션 버튼 | `waiting_for_input.buttonConfig` | 탭 → `click_button` |
 | 추천 질문 | boot `welcome.suggestions`/`launcher.suggestions` (정적) | 탭 → `submit_message` |
 | 메시지 리스트 | **1차 소스 = `waiting_for_input.conversationThread.turns` snapshot**(WS §4.4.5). `ai_message.messages[]` raw 직접 노출 금지 | source 마커(`live`/`injected`)별 렌더. `[user-input]…[/user-input]` strip(§4) |
-| Form (다중 필드) | `waiting_for_input.formConfig` | 필드 렌더·검증 → `submit_form`. 실패 시 `fieldErrors` 표시·재제출 |
+| Form (다중 필드) | `waiting_for_input.formConfig` | 필드 렌더·검증 → `submit_form`. 실패 시 `error.details[{field,message,code}]` 표시·재제출 |
 | presentation(carousel/table/chart/template) inline | `ai_message.presentations[]` / `waiting_for_input` | 전체 타입 inline 렌더(AI Agent §7.10) |
 | 입력창 | — | 엔터/전송 → `submit_message`. **활성 조건**: `awaiting_user_message` + `ai_conversation` 표면일 때만 자유 텍스트 입력 활성 — booting/streaming 중이거나 현재 표면이 `buttons`/`form` 이면 비활성(사용자는 선택/제출로 응답) |
 | 첨부·이모지 | — | v1 비활성/숨김 (Form file upload 연동 시 활성) |
