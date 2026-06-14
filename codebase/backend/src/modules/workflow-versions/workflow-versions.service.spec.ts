@@ -43,14 +43,26 @@ describe('WorkflowVersionsService', () => {
   });
 
   describe('findByWorkflow', () => {
-    it('should return versions sorted by version DESC', async () => {
+    it('should return versions sorted by version DESC, selecting metadata only (no snapshot)', async () => {
       mockRepo.find.mockResolvedValue([{ id: 'a', version: 2 }]);
       const result = await service.findByWorkflow('wf-1');
       expect(mockRepo.find).toHaveBeenCalledWith({
         where: { workflowId: 'wf-1' },
         order: { version: 'DESC' },
-        relations: ['creator'],
+        relations: { creator: true },
+        select: {
+          id: true,
+          workflowId: true,
+          version: true,
+          changeSummary: true,
+          createdBy: true,
+          createdAt: true,
+          creator: { id: true, name: true, email: true },
+        },
       });
+      // m-3 — snapshot 은 목록 select 에서 비적재 (over-fetch 방지).
+      const passedSelect = mockRepo.find.mock.calls[0][0].select;
+      expect(passedSelect).not.toHaveProperty('snapshot');
       expect(result).toHaveLength(1);
     });
   });

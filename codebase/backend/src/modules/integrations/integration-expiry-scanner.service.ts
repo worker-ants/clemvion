@@ -7,6 +7,7 @@ import {
   IsNull,
   LessThan,
   LessThanOrEqual,
+  MoreThan,
   Not,
   Or,
   Repository,
@@ -304,26 +305,68 @@ export class IntegrationExpiryScannerService
     return affected;
   }
 
+  /** uuid 최소값 — keyset cursor 시작점 (PostgreSQL uuid 비교는 바이트 순서). */
+  private static readonly ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+  /** candidates keyset 배치 크기 (m-1). */
+  private static readonly SCAN_BATCH_SIZE = 500;
+
   /**
    * Scan integrations nearing expiry and emit notifications. Returns the
    * number of notifications created.
+   *
+   * m-1: 무제한 SELECT → id keyset cursor 배치(`take SCAN_BATCH_SIZE, id > lastId`).
+   * threshold dedup 이 DB `INSERT ON CONFLICT`(claimThreshold) 라 배치 분할해도
+   * 중복 발사가 없고, run 중 신규 만료 진입 행은 기존과 동일하게 다음 daily run
+   * 에서 처리된다 (의미 불변).
    */
   async run(now: Date): Promise<number> {
     const horizon = new Date(now.getTime() + 7 * DAY_MS);
 
-    const candidates = await this.integrationRepository.find({
-      where: {
-        // spec/2-navigation/4-integration.md §11.1 + §2.4 가 `pending_install`
-        // 을 만료 알림 대상에서 제외하도록 명시. 정상 흐름에서는
-        // pending_install 의 `tokenExpiresAt` 가 NULL 이라 LessThanOrEqual 조건
-        // 에 매칭되지 않지만, 엣지 케이스 (재사용 분기에서 tokenExpiresAt 가
-        // 의도치 않게 보존되는 경우 등) 를 차단하기 위해 status 필터에 명시
-        // 추가 (REQ-C1).
-        status: Not(In(['expired', 'error', 'pending_install'])),
-        tokenExpiresAt: LessThanOrEqual(horizon),
-      },
-    });
+    let lastId = IntegrationExpiryScannerService.ZERO_UUID;
+    let totalNotifications = 0;
 
+    for (;;) {
+      const candidates = await this.integrationRepository.find({
+        where: {
+          // spec/2-navigation/4-integration.md §11.1 + §2.4 가 `pending_install`
+          // 을 만료 알림 대상에서 제외하도록 명시. 정상 흐름에서는
+          // pending_install 의 `tokenExpiresAt` 가 NULL 이라 LessThanOrEqual 조건
+          // 에 매칭되지 않지만, 엣지 케이스 (재사용 분기에서 tokenExpiresAt 가
+          // 의도치 않게 보존되는 경우 등) 를 차단하기 위해 status 필터에 명시
+          // 추가 (REQ-C1).
+          status: Not(In(['expired', 'error', 'pending_install'])),
+          tokenExpiresAt: LessThanOrEqual(horizon),
+          id: MoreThan(lastId),
+        },
+        order: { id: 'ASC' },
+        take: IntegrationExpiryScannerService.SCAN_BATCH_SIZE,
+      });
+      if (candidates.length === 0) break;
+      lastId = candidates[candidates.length - 1].id;
+
+      totalNotifications += await this.processCandidateBatch(candidates, now);
+
+      if (candidates.length < IntegrationExpiryScannerService.SCAN_BATCH_SIZE) {
+        break;
+      }
+    }
+
+    this.logger.log(
+      `Integration expiry scan created ${totalNotifications} notifications`,
+    );
+    return totalNotifications;
+  }
+
+  /**
+   * Process one keyset batch of expiry candidates: resolve recipients (one
+   * admin lookup per workspace set — M-2), classify thresholds, claim dedup,
+   * demote on 0d, and flush notifications + status updates for the batch.
+   * Returns the number of notifications created in this batch.
+   */
+  private async processCandidateBatch(
+    candidates: Integration[],
+    now: Date,
+  ): Promise<number> {
     const notifications: Array<{
       workspaceId: string;
       userId: string;
@@ -336,15 +379,13 @@ export class IntegrationExpiryScannerService
     }> = [];
     const integrationsToUpdate: Integration[] = [];
 
-    // B-4-2: 옛 패턴은 candidates 루프 안에서 매 integration 마다
-    // userRepository.find 를 호출 → N+1. 모든 candidates 의 recipient 를
-    // 먼저 모은 뒤 단 한 번의 user.find(In(...)) 로 일괄 로딩한다.
-    const recipientsByIntegration = new Map<string, string[]>();
+    // M-2: workspace admin 수신자를 배치당 단일 쿼리로 일괄 조회 (per-integration
+    // findAdminUserIds N+1 제거). B-4-2: user 일괄 로딩도 유지.
+    const recipientsByIntegration =
+      await this.resolveRecipientsForBatch(candidates);
     const allRecipientIds = new Set<string>();
-    for (const integration of candidates) {
-      const recipients = await this.resolveRecipients(integration);
-      recipientsByIntegration.set(integration.id, recipients);
-      for (const r of recipients) allRecipientIds.add(r);
+    for (const ids of recipientsByIntegration.values()) {
+      for (const r of ids) allRecipientIds.add(r);
     }
     const allUsers = allRecipientIds.size
       ? await this.userRepository.find({
@@ -439,9 +480,6 @@ export class IntegrationExpiryScannerService
       await this.integrationRepository.save(integrationsToUpdate);
     }
     await this.notificationsService.createMany(notifications);
-    this.logger.log(
-      `Integration expiry scan created ${notifications.length} notifications`,
-    );
     return notifications.length;
   }
 
@@ -481,11 +519,39 @@ export class IntegrationExpiryScannerService
     return (result.identifiers ?? []).length > 0;
   }
 
-  private async resolveRecipients(integration: Integration): Promise<string[]> {
-    if (integration.scope === 'personal') {
-      return [integration.createdBy];
+  /**
+   * Resolve notification recipients for a batch of integrations with a single
+   * admin lookup per workspace set (M-2 — replaces per-integration
+   * `findAdminUserIds` N+1). personal-scope integrations notify their creator;
+   * workspace-scope integrations notify owner/admin members (§11.2 의미 불변).
+   */
+  private async resolveRecipientsForBatch(
+    integrations: Integration[],
+  ): Promise<Map<string, string[]>> {
+    const byIntegration = new Map<string, string[]>();
+    const workspaceIds = new Set<string>();
+    for (const integration of integrations) {
+      if (integration.scope === 'personal') {
+        byIntegration.set(integration.id, [integration.createdBy]);
+      } else {
+        workspaceIds.add(integration.workspaceId);
+      }
     }
-    return this.workspacesService.findAdminUserIds(integration.workspaceId);
+    if (workspaceIds.size > 0) {
+      const adminsByWorkspace =
+        await this.workspacesService.findAdminUserIdsByWorkspaces([
+          ...workspaceIds,
+        ]);
+      for (const integration of integrations) {
+        if (integration.scope !== 'personal') {
+          byIntegration.set(
+            integration.id,
+            adminsByWorkspace.get(integration.workspaceId) ?? [],
+          );
+        }
+      }
+    }
+    return byIntegration;
   }
 }
 

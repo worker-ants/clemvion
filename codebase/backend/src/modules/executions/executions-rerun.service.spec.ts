@@ -15,7 +15,12 @@ describe('ExecutionsService — reRun (decision F2)', () => {
   let service: ExecutionsService;
   let execRepo: {
     createQueryBuilder: jest.Mock;
+    query: jest.Mock;
   };
+  // C-2 — computeChainDepth 가 재귀 CTE 단일 쿼리(executionRepository.query)로
+  // 바뀌어, 옛 getRawOne walk 대신 query 가 [{ depth }] 를 반환한다. 테스트는
+  // chainDepth 를 설정해 깊이를 주입한다.
+  let chainDepth: number;
   let engine: { execute: jest.Mock };
   let nodeRepo: { findOne: jest.Mock; find: jest.Mock };
   let registry: { getComponent: jest.Mock };
@@ -59,7 +64,12 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     getOneQueue = [];
     getRawOneQueue = [];
     getManyQueue = [];
-    execRepo = { createQueryBuilder: jest.fn(() => makeQb()) };
+    chainDepth = 1;
+    execRepo = {
+      createQueryBuilder: jest.fn(() => makeQb()),
+      // computeChainDepth 재귀 CTE — [{ depth }] 반환 (C-2).
+      query: jest.fn(() => Promise.resolve([{ depth: chainDepth }])),
+    };
     engine = { execute: jest.fn().mockResolvedValue('new-exec-id') };
     nodeRepo = {
       findOne: jest.fn().mockResolvedValue(null),
@@ -127,7 +137,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         chainId: null,
       },
     ];
-    getRawOneQueue = [{ reRunOf: null }]; // depth = 1
+    chainDepth = 1; // 조상 없음
     jest
       .spyOn(service, 'findById')
       .mockResolvedValue({ id: 'new-exec-id' } as never);
@@ -189,7 +199,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         chainId: null,
       },
     ];
-    getRawOneQueue = [{ reRunOf: null }];
+    chainDepth = 1;
     nodeRepo.find.mockResolvedValue([
       { id: 'n1', type: 'http_request', category: 'integration' },
     ]);
@@ -224,10 +234,8 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         chainId: 'root',
       },
     ];
-    // computeChainDepth walks re_run_of — feed 31 parents (→ depth 32).
-    getRawOneQueue = Array.from({ length: 31 }, () => ({
-      reRunOf: 'parent' as string | null,
-    })).concat([{ reRunOf: null }]);
+    // computeChainDepth 재귀 CTE 가 depth 32 반환 (한도 32 도달 → 거부).
+    chainDepth = 32;
     await expect(service.reRun('e1', 'ws-1', user, dto)).rejects.toBeInstanceOf(
       ConflictException,
     );
@@ -245,7 +253,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         chainId: 'root-id',
       },
     ];
-    getRawOneQueue = [{ reRunOf: null }];
+    chainDepth = 1;
     jest
       .spyOn(service, 'findById')
       .mockResolvedValue({ id: 'new-exec-id' } as never);
@@ -274,7 +282,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         chainId: null,
       },
     ];
-    getRawOneQueue = [{ reRunOf: null }];
+    chainDepth = 1;
     nodeRepo.findOne.mockResolvedValue(null); // no trigger node → schema undefined → {}
     jest
       .spyOn(service, 'findById')
@@ -301,7 +309,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         chainId: null,
       },
     ];
-    getRawOneQueue = [{ reRunOf: null }];
+    chainDepth = 1;
     // trigger node 에 required 파라미터 → 빈 override 는 missing_required 로 실패.
     nodeRepo.findOne.mockResolvedValue({
       config: {
@@ -328,10 +336,8 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         chainId: 'root',
       },
     ];
-    // 30 parents → depth 31 (< 32, 통과).
-    getRawOneQueue = Array.from({ length: 30 }, () => ({
-      reRunOf: 'parent' as string | null,
-    })).concat([{ reRunOf: null }]);
+    // depth 31 (< 32, 통과).
+    chainDepth = 31;
     jest
       .spyOn(service, 'findById')
       .mockResolvedValue({ id: 'new-exec-id' } as never);
@@ -354,7 +360,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         chainId: null,
       },
     ];
-    getRawOneQueue = [{ reRunOf: null }];
+    chainDepth = 1;
     // trigger schema 가 orderId 를 받아 override 가 resolveTriggerParameters 를
     // 통과 → executionInput.parameters = { orderId: 'new' } (원본과 다름).
     nodeRepo.findOne.mockResolvedValue({
@@ -393,7 +399,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         chainId: null,
       },
     ];
-    getRawOneQueue = [{ reRunOf: null }];
+    chainDepth = 1;
     // 실제 AuditLogsService.record() 의 swallow 계약을 검증한다: 내부
     // repository.save() 가 reject 해도 record() 는 console.warn 후 resolve 하므로
     // `await auditLogsService.record(...)` 는 re-run 을 깨지 않는다. 그래서

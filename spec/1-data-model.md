@@ -793,6 +793,11 @@ AI Agent 노드의 `memoryStrategy: 'persistent'` 전략에서 세션 간 추출
 | Execution | (re_run_of) | Re-run 직계 부모 조회 (chain badge 의 부모 표시) |
 | Execution | (chain_id, started_at) | Re-run chain 전체 조회 (`GET /api/executions/:id/chain` — [Spec Re-run §8.2](./5-system/13-replay-rerun.md#82-get-apiexecutionsexecutionidchain)) |
 | NodeExecution | (execution_id) | 실행별 노드 실행 조회 |
+| NodeExecution | (execution_id, status) WHERE status IN ('waiting_for_input','running') | 활성(미종결) 노드 실행 조회·전이 — rehydration `resolveWaitingNodeExecutionId` + running 조회/UPDATE 핫 경로. completed 계열은 `(execution_id, node_id, started_at DESC)` 가 커버하므로 partial 로 활성 행만 인덱싱 (크기·write amplification 최소). CONCURRENTLY, V095 |
+| NodeExecution | (execution_id, node_id, started_at DESC) | execution+node 별 최신 NodeExecution 조회 (rehydration `DISTINCT ON` / `findOne ... ORDER BY started_at DESC`). CONCURRENTLY, V034 |
+| NodeExecution | (parent_node_execution_id) WHERE parent_node_execution_id IS NOT NULL | 부모 NodeExecution 별 자식 조회 (sub-workflow/loop 등). V012 |
+| NodeExecution | (parent_node_execution_id, started_at, id) WHERE parent_node_execution_id IS NOT NULL | 부모별 자식 시간순 조회 (`ORDER BY started_at ASC, id ASC`). CONCURRENTLY, V048 |
+| NodeExecution | ((output_data #>> '{meta,backgroundRunId}')) WHERE … IS NOT NULL | Background 노드 모니터링 API 의 backgroundRunId 단일 row 조회 (부분 expression 인덱스). CONCURRENTLY, V047 |
 | ExecutionNodeLog | (execution_id, id) | 단일 실행의 노드 진행 순서 조회 |
 | Trigger | (workspace_id, type) | 유형별 트리거 조회 |
 | Trigger | (workspace_id, endpoint_path) UNIQUE | Webhook URL 라우팅 (워크스페이스 단위 유니크) |

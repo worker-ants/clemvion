@@ -278,7 +278,7 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 **불변식**:
 - chain root = `re_run_of = NULL` 인 최상위 원본 실행. chain 전체 조회는 `id = rootId OR chain_id = rootId` (rootId = `exec.chain_id ?? exec.id`).
 - re-run 행의 `chain_id` 는 같은 chain root 를 가리킨다 (cross-chain re-run 불가 — 애플리케이션 레벨).
-- chain 깊이 32 제한은 **애플리케이션 레벨** 에서 enforce (`computeChainDepth`, `re_run_of` walk).
+- chain 깊이 32 제한은 **애플리케이션 레벨** 에서 enforce (`computeChainDepth` — `re_run_of` 를 root 까지 따라 깊이를 세는 재귀 CTE 단일 쿼리, 사이클 방어 walk 상한 포함).
 
 > **v1 설계 — NULLABLE 채택 (2026-05-31, decision F2)**: 초기 spec 은 `chain_id NOT NULL` + 원본 자기참조(`chain_id = id`) 였으나, Execution row 는 sub-workflow / background / retry 등 **복수 경로**에서 INSERT 되어 모든 경로에 `chain_id` 강제 세팅을 요구하면 core 실행 경로 회귀 위험이 크다. 따라서 v1 은 `chain_id` 를 **NULLABLE** 로 두고 re-run 행만 세팅한다(일반 실행 NULL, chain root = 원본 id). 별도 백필 불요. NOT NULL/self-chain 으로의 강화는 모든 생성 경로 정리 후 v2 에서 검토.
 

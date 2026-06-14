@@ -5,6 +5,9 @@
 > **중복 참조**: M-4 본문은 [01-performance.md](./01-performance.md) #1 소유.
 > **부수 발견**: `spec/1-data-model.md §3` 인덱스 표가 기존 V012/V034/V047/V048 도 누락한 **stale 상태** — C-3 진행 시 일괄 동기화 권고 (planner).
 > 옵션 비교·권장안 보강 (2026-06-10)
+>
+> **2026-06-14 진행**: 결정 대기/미착수 중 권장안이 '진행'인 9건(C-2·C-3·M-1·M-2·M-3·M-5·M-7·m-1·m-3) 일괄 구현·커밋(branch `claude/refactor-05-database-721c98`, 단일 PR 예정). TEST(lint·unit·build·e2e 188) 통과, `/ai-review`(0 Critical, 9 warning fix + RESOLUTION) + `/consistency-check --impl-done`(BLOCK:NO). 보류: m-4(보류 확정), m-5(권장 B 보류). 완료: C-1·M-4(기존). 철회: M-6·m-2.
+> **ai-review 후속(별도 refactor 후보)**: 서비스 레이어 raw SQL 격리 — `ExecutionRepository` 커스텀 클래스로 `updateExecutionStatus` guarded UPDATE·`computeChainDepth` CTE 이전, `enqueueEmbedChunked` 큐적재/DB보상 SRP 분리. 상세: `review/code/2026/06/13/23_35_27/RESOLUTION.md` §보류·후속.
 
 ## Critical
 
@@ -36,7 +39,7 @@
 
 ### C-2 [Critical] ⚠️ `computeChainDepth` — 직렬 SELECT 누적 (한도 32, walk 상한 64)
 
-- [ ] 결정 대기 — `executions.service.ts:286-300` (spec 1줄 동행 갱신 필요)
+- [x] ✅ 완료 (2026-06-14, 옵션 A) — 직렬 SELECT walk → 재귀 CTE 단일 쿼리. `RERUN_CHAIN_WALK_MAX` 가드 보존. spec `13-replay-rerun.md §9.1:281` 동행 갱신. unit/e2e green, ai-review·consistency BLOCK:NO. — `executions.service.ts`
 
 ⚠️ **(A — spec 이 함수명까지 명시한 설계, 단 교체는 spec 의도 내)**
 
@@ -67,7 +70,7 @@ WITH RECURSIVE chain AS (... WHERE c.depth < 64) SELECT max(depth)
 
 ### C-3 [Critical] `node_execution (execution_id, status)` 복합 인덱스 — 신규 제안 (spec 약속 아님)
 
-- [ ] 미착수 — `execution-engine.service.ts:5192-5199` 등
+- [x] ✅ 완료 (2026-06-14, 옵션 A) — V095 partial 복합 인덱스 `(execution_id, status) WHERE status IN ('waiting_for_input','running')` + `.conf executeInTransaction=false`. spec `1-data-model.md §3` 행 추가 + stale 누락분(V012/V034/V047/V048) 동기화 + `data-flow/3-execution.md` 갱신. — `migrations/V095__*`
 
 **spec 대조**: B — `1-data-model.md §3` NodeExecution 행은 `(execution_id)` 단 1개 — spec 약속 미구현이 아니라 **spec·코드 모두 없는 신규 성능 제안**. 핫 경로 실재 확인: `resolveWaitingNodeExecutionId` 외에 `(execution_id, status='running')` 조회(:4384)·UPDATE(:4451) 도 동일 패턴 — partial 범위 `IN ('waiting_for_input','running')` 이 실측 쿼리와 부합.
 
@@ -100,7 +103,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### M-1 [Major] `reEmbedAll` — 단일 addBulk 페이로드 폭발 (메모리 전제는 과장 — `select: ['id']`)
 
-- [ ] 미착수 — `knowledge-base.service.ts:591-608`
+- [x] ✅ 완료 (2026-06-14, 옵션 A) — 단일 addBulk → `enqueueEmbedChunked`(CHUNK 100) 분할 + chunk 실패 보상(`embedding_status='failed'` 롤백) + `finalizeReembedIfDrained` 잠금 해제. 선행 UPDATE `RETURNING id` 로 SELECT 제거. `retryFailedDocuments` 와 helper 통일. — `knowledge-base.service.ts`
 
 **spec 대조**: D — `8-embedding-pipeline.md §7.3.2` 는 CAS 잠금(`reembed_status` 전이)·finalize 불변식만 정의, 큐 적재 전략 무언급. (§5.1 의 "배치 20" 은 LLM embed API 배치 — 별개.) **정정**: 코드는 id 만 적재 — 실위험은 단일 `addBulk` 페이로드/Redis 왕복.
 
@@ -125,7 +128,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### M-2 [Major] integration-expiry-scanner — workspace 관리자 N+1 (user 로딩은 기일괄화)
 
-- [ ] 미착수 — `integration-expiry-scanner.service.ts:344-348,473-478`
+- [x] ✅ 완료 (2026-06-14, 옵션 B) — `WorkspacesService.findAdminUserIdsByWorkspaces(In(...))` 일괄 쿼리 신설 + `resolveRecipientsForBatch` 로 배치당 admin 조회 1회. §11.2 수신자 의미 불변. m-1 과 동일 PR. — `integration-expiry-scanner.service.ts`, `workspaces.service.ts`
 
 **spec 대조**: D — §11.2 는 수신자 의미("Org: Admin 전원")만 정의, 조회 전략 무언급. 잔존 N+1 은 `findAdminUserIds(workspaceId)` per-integration 호출.
 
@@ -151,7 +154,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### M-3 [Major] `updateExecutionStatus` — full-entity save 의 lost-update 위험 (emit 순서는 spec 정합)
 
-- [ ] 미착수 — `execution-engine.service.ts:9184-9187`, COMPLETED 마감 `:3785-3793`
+- [x] ✅ 완료 (2026-06-14, 옵션 A) — else 분기 full-save → lifecycle 컬럼만 쓰는 guarded UPDATE(`status IN 비-terminal` 가드, affected=0 시 false 반환). COMPLETED 4개 마감 site 를 '필드 선세팅 → guarded UPDATE → applied 시만 emit' 으로 일괄 전환(terminal 이벤트 이중 발행 방지). linkedNodeExec 짝 전이·FAILED/CANCELLED 직접 마감은 범위 밖. frontend emit-skip 영향 grep 선행 확인. — `execution-engine.service.ts`
 
 **spec 대조**: D — §1.2:67 이 짝 전이(running↔waiting)의 단일 트랜잭션 + emit-after-commit 을 명시 — **"부정합 창" 중 emit 순서 부분은 문제가 아님**. 실문제는 else 분기·COMPLETED 마감의 **full-entity save** 가 stale 엔티티로 동시 cancel/park 전이를 덮어쓰는 lost-update.
 
@@ -182,7 +185,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### M-5 [Major] 커넥션 풀 설정 부재 — pg 기본값(max=10)
 
-- [ ] 미착수 — `app.module.ts:86-99`
+- [x] ✅ 완료 (2026-06-14, 옵션 A) — TypeOrm `extra:{max,idleTimeoutMillis,connectionTimeoutMillis}` 를 `database.config` env 로 노출. 기본값 현 동작 동일(max=10) — 배포 무변경. `.env.example` 문서화. — `app.module.ts`, `database.config.ts`
 
 **spec 대조**: B — spec 의 pool 언급은 외부 DB 노드(`POOL_MAX_CONNECTIONS=5`)·MCP 한정 — 앱 자체 PG 풀은 전 spec 무언급. 순수 인프라 구성.
 
@@ -213,7 +216,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### M-7 [Major] vector 컬럼 `ALTER COLUMN TYPE` 재발 방지 — 명문화 위치 정정
 
-- [ ] 미착수 — V021 (기배포 — 소급 수정 금지)
+- [x] ✅ 완료 (2026-06-14, 옵션 A) — `migrations/README.md §6` 신설: binary-coercible 판별 / shadow column 3-step / CONCURRENTLY 분리 / lock_timeout 선행. 기배포 V021 소급 수정 금지 유지. — `migrations/README.md`
 
 **spec 대조**: D — `conventions/migrations.md` 가 작성 가이드를 `migrations/README.md` 에 위임 명시 — **명문화 정위치는 codebase README** (developer 쓰기 권한 영역이라 진행 용이). README 에 NOT VALID 2-step 은 있으나 ALTER TYPE rewrite·lock_timeout 선행 규칙은 부재(V036 ad-hoc 사용례만).
 
@@ -239,7 +242,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### m-1 [Minor] expiry-scanner candidates SELECT LIMIT 없음
 
-- [ ] 미착수 — `:314-325` (우선순위 낮음 — 만료 7일 윈도우 내 행은 통상 소규모)
+- [x] ✅ 완료 (2026-06-14, 옵션 A) — 무제한 SELECT → id keyset cursor 배치(`take 500, id > lastId`). `run()` → `processCandidateBatch` 루프. `ON CONFLICT` dedup 으로 분할 안전. M-2 와 동일 PR. — `integration-expiry-scanner.service.ts`
 
 **spec 대조**: D — §11.1 은 대상 술어·cadence 만 정의.
 
@@ -269,7 +272,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### m-3 [Minor] `workflow_version.snapshot` JSONB over-fetch — select 제한은 유효, 스토리지 이전은 보류
 
-- [ ] 미착수 — `workflow-versions.service.ts:36-42`
+- [x] ✅ 완료 (2026-06-14, 옵션 A) — `findByWorkflow` select 명시(snapshot 비적재) + `WorkflowVersionListItemDto` 분리 + swagger 갱신. 반환 타입을 `WorkflowVersionListItem`(Omit snapshot)으로 좁힘(ai-review #4). frontend 목록은 `WorkflowVersionSummary`(snapshot 없음) 소비 — 무영향. spec `5-version-history.md §7.1` 동행 갱신(SPEC-DRIFT). — `workflow-versions.service.ts`
 
 **spec 대조**: D — `5-version-history.md §7.1`(목록) vs §7.2(상세 "+ snapshot 포함") 대비 구조가 '목록 비포함' 의도를 시사. 목록 UI 도 메타만 사용. **"오브젝트 스토리지 + URI" 후반부는 spec 근거 전무 — 분리·보류** (planner 기획 선행).
 
@@ -316,7 +319,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### m-5 [Minor] ⚠️ schedule-runner 부팅 적재 — 부분 철회 후 배치 페이징만 잔존
 
-- [ ] 결정 대기 — `schedule-runner.service.ts:108-111`
+- [ ] 보류 (2026-06-14, 권장 B) — 원안 1안은 이미 구현된 설계(철회), 잔존분은 부팅 1회 경로의 방어적 배치화뿐. 상시 부하 아니고 현 스케줄 규모에서 증상 없음 → 활성 스케줄 수가 배치크기(500) 접근 시 A 착수. (본 refactor PR 범위 제외) — `schedule-runner.service.ts:108-111`
 
 ⚠️ **(A — 부팅 전수 재등록은 spec 명시 설계)**
 
