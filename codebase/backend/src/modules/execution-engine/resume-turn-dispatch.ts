@@ -21,7 +21,7 @@ import type { ProcessTurnResult } from '../../shared/execution-resume/process-tu
  * dispatch 도달 *전* `resumeFromCheckpoint` 가드(RESUME_INCOMPATIBLE_STATE)에서
  * 걸러지므로, AI selector 의 `hasResumeCheckpoint` 요구는 동작에 영향이 없다.
  *
- * spec: 5-system/4-execution-engine.md §7.5(rehydration) · §6.2(중첩 재개).
+ * spec: 5-system/4-execution-engine.md §7.5(rehydration · 중첩 sub-workflow 재개). (§6.2 는 영속화 정책)
  */
 export interface ResumeTurnDispatch {
   /** registry 내 식별·로깅용 안정 키 (예: 'form' / 'buttons' / 'ai_conversation'). */

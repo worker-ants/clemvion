@@ -1,9 +1,15 @@
 ---
-worktree: trigger-schedule-sync-f88604
+worktree: spec-sync-s-batch-b85f17
 started: 2026-06-10
 owner: resolution-applier
+spec_impact:
+  - spec/data-flow/15-external-interaction.md
 ---
 # Spec Update Draft — SSE single-instance 제약 Rationale 명시
+
+> **완료 (2026-06-13, spec-sync-s-batch)**: `spec/data-flow/15-external-interaction.md` Rationale 섹션에
+> "SSE 버퍼 single-instance 한정 이유와 이관 방향" 블록 추가(지연/신뢰성 트레이드오프·단일 엔트리포인트 가정·
+> 다중 인스턴스 잔여 위험·Redis Pub/Sub fan-out 이관 방향). §1.3 본문 각주(`sse-adapter.service.ts` follow-up)와 정합.
 
 ## 분류
 SPEC-DRIFT (코드 현행 동작을 spec Rationale 에 명시)

@@ -329,3 +329,21 @@ secret 승격 경로의 `secretRef` 우선순위 충돌(코드 주석·시스템
 의 `secretRef` 우선 로직과 일치한다 (현행 동작은 §1.5 "승격 경로" note 가 SoT). 갭이 존재하던 동안
 본문 callout 으로 가시화했던 이유: 의도와의 불일치가 보안 운영(회전한 secret 이 실제로 쓰이는가)에
 직접 영향하기 때문이다.
+
+### SSE 버퍼 single-instance 한정 이유와 이관 방향
+
+`SseAdapter.buffers`(§1.3 · 위 in-memory 표) 는 v1 에서 단일 프로세스 in-memory ring buffer 다. 이유:
+
+- **지연 vs 신뢰성 트레이드오프**: execution 이벤트는 SSE 스트림의 실시간성이 중요하고,
+  Redis Pub/Sub 경유 시 직렬화·네트워크 홉이 추가된다.
+- **단일 엔트리포인트 가정**: v1 배포는 단일 인스턴스 또는 sticky-session 로드밸런서를 전제로
+  설계되어, 특정 인스턴스에 연결된 SSE 클라이언트는 그 인스턴스가 발사한 이벤트만 수신하면 충분하다.
+
+**다중 인스턴스 환경에서의 잔여 위험**: 로드밸런서가 sticky-session 을 보장하지 않으면
+클라이언트가 연결된 인스턴스와 execution 이벤트를 발사하는 인스턴스가 달라 이벤트 미수신이 발생한다.
+
+**이관 방향**: 수평 확장 시 `SseAdapter` 를 Redis Pub/Sub 기반 fan-out 으로 교체한다 —
+`sse-adapter.service.ts` 주석에 follow-up 으로 기록(§1.3 본문 각주와 동일). 해당 단계에서
+`plan/in-progress/` 에 별도 plan 을 등록한다. 단일 sink(`WebsocketService.executionEvents$`) 구조
+자체의 설계 결정은 위 "단일 sink (R10) 를 그대로 따르는 서술" 항 및 [Spec EIA §R10] 이 SoT —
+본 항은 그 sink 의 SSE 소비자(`SseAdapter`)가 왜 in-memory single-instance 인지에 한정한다.

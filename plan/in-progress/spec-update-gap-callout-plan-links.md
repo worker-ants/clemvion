@@ -30,3 +30,10 @@ SUMMARY Warning #8: 다수 구현 갭 callout(`10-triggers §1.4`, `14-chat-chan
 ```
 
 **우선순위**: spec §1.4 의 trigger-schedule 갭 표기는 별도 spec-update-trigger-schedule-sync.md 로 동시 처리. 나머지 4곳은 본 draft 의 작업 범위.
+
+## 후속 주의사항
+
+> **heads-up (2026-06-13, spec-sync-s-batch)**: `spec/data-flow/7-llm-usage.md §1.3` 의 attribution 갭 note 가
+> spec-sync-s-batch 에서 **Rationale 참조 형태로 압축**됐다 (인과 상세는 Rationale "`llm_usage_log` nullable
+> context 컬럼들" 항에 일원화, 결정 대기 상태는 보존). 본 plan 착수 시 §1.3 행의 plan 링크는 압축된 새 note
+> (`> **attribution 갭**: … [§Rationale](#rationale) … 단일 진실.`) 끝에 추가해야 한다 — 구 텍스트 기준으로 작성 금지.
