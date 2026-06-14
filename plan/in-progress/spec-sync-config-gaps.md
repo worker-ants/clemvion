@@ -22,7 +22,16 @@ owner: planner
 - [ ] §A.3 **소스 IP** 컬럼 — **결정 필요**. webhook 호출의 소스 IP 가 `execution` 등 어디에도 저장되지 않는다(`hooks.service.ts` 가 `extractClientIp` 로 추출만 하고 미저장). 스키마(컬럼/별도 call-log) + 캡처 경로 결정 선행.
 - [ ] §A.3 **응답 코드** 컬럼 — **결정 필요**. 현재 `execution.status`(워크플로 상태 enum)만 존재하고 HTTP 응답 코드 미저장. "응답 코드" 의미(HTTP code vs status enum) + 스키마 결정 선행.
 - [ ] §A.3 **기간별 호출 수 (일/주/월)** — **표시형식 결정 필요**. `started_at` 데이터는 존재(버킷팅만 필요)하나, 롤링 윈도(24h/7d/30d) vs 캘린더 버킷·숫자 vs 차트 표시 결정 선행.
-- [ ] §A.2 **편집 폼** IP Whitelist / api_key Header 이름 입력 — 현재 생성 폼만 지원(편집 폼 자체가 없음, UI 는 생성·토글·재생성·삭제만). 편집 흐름 신설은 별도 범위.
+- [x] §A.2 **편집 폼** (2026-06-14, impl-config-auth-edit-form PR) — 행별 편집 버튼 → `PATCH /auth-configs/:id` 로 name·IP Whitelist·비-비밀 config(api_key `headerName`, hmac `header`/`algorithm`, basic_auth `username`) 수정. type·비밀값 불변(비밀 변경은 regenerate). 생성 다이얼로그를 `dialogMode` 로 재사용. **백엔드 안전성 fix**: `update` 가 config 를 wholesale-replace(`Object.assign`)해 암호화 비밀값을 파손하던 잠재 버그를 shallow-merge + SECRET_CONFIG_KEYS 무시로 수정. spec §A.2 callout·R-2·`update-auth-config.dto.ts` 설명 동기화. 테스트: `auth-config-form.test.ts`(순수)·`authentication-form.test.tsx`(편집 PATCH)·`auth-configs.service.spec.ts`(merge/비밀 보존).
+  - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전 단계 PASS (e2e 190/190)
+  - [x] /ai-review — RISK MEDIUM, Critical 0 / Warning 7. WARNING 2·3·5·6·7 fix(commit 29a24c5d), WARNING 1·4(God Component) → 후속 분리. RESOLUTION.md 기록.
+  - [x] /consistency-check --impl-done — BLOCK: NO. W-1(Edit 버튼 Admin+ 가드 누락) fix(commit a47e3ea5). W-2·W-3 은 base-read 오탐(이미 반영됨).
+
+## 후속 — God Component 분리 (ai-review 2026-06-14 WARNING 1·4 재확인)
+- [ ] `authentication/page.tsx` God Component 분리 — `AuthConfigCreateForm` + `AuthConfigEditDialog` 컴포넌트·커스텀 훅(`useAuthConfigEditDialog`)으로 edit 흐름 추출. (ai-review 2026-06-14 WARNING 1·4 재확인 — edit 폼 `useState` 11개 통합 포함)
+  - 우선순위: 저(현재 기능 동작 OK, 회귀 위험 대비 scope 분리가 적절)
+  - 목적: `dialogMode === "edit"` 분기 4곳 분산 제거, `useState` 개수 축소, create+edit 통합 리팩토링을 별도 PR 에서 진행
+  - 선행 조건: 현 PR 병합 후
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 및 `auth-configs.service.ts:399-450`, `authentication/page.tsx:81-89` 참조.

@@ -16,17 +16,20 @@ import { useLocaleStore } from "@/lib/stores/locale-store";
 
 const getMock = vi.fn();
 const postMock = vi.fn();
+const patchMock = vi.fn();
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     get: (...a: unknown[]) => getMock(...a),
     post: (...a: unknown[]) => postMock(...a),
-    patch: vi.fn(),
+    patch: (...a: unknown[]) => patchMock(...a),
     delete: vi.fn(),
   },
 }));
 
+// 기본 admin=true. 일부 테스트가 비-admin 가드를 검증하려고 토글한다.
+const roleState = vi.hoisted(() => ({ isAdmin: true }));
 vi.mock("@/components/auth/role-gate", () => ({
-  useHasRole: () => true,
+  useHasRole: () => roleState.isAdmin,
 }));
 
 const toastError = vi.fn();
@@ -124,5 +127,96 @@ describe("AuthenticationPage — create form §A.2 fields", () => {
     );
     // Validation runs before the request — nothing is sent to the backend.
     expect(postMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("AuthenticationPage — edit form §A.2", () => {
+  const existing = {
+    id: "c1",
+    name: "Prod Key",
+    type: "api_key",
+    isActive: true,
+    // 마스킹된 목록 응답: headerName 평문, key 는 `***last4`.
+    config: { headerName: "X-Old", key: "wfk_***1234" },
+    ipWhitelist: ["10.0.0.0/8"],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cleanup();
+    useLocaleStore.setState({ locale: "en" });
+    getMock.mockResolvedValue({ data: { data: [existing] } });
+    patchMock.mockResolvedValue({ data: { data: {} } });
+  });
+
+  afterEach(() => {
+    cleanup();
+    useLocaleStore.setState({ locale: "en" });
+    roleState.isAdmin = true;
+  });
+
+  it("hides the Edit button for non-admins (backend @Roles('admin') parity)", async () => {
+    roleState.isAdmin = false;
+    renderPage();
+    // Row renders, but admin-only actions (Edit/Reveal) are gated out.
+    await waitFor(() => expect(screen.getByText("Prod Key")).toBeInTheDocument());
+    expect(
+      screen.queryByRole("button", { name: /^Edit$/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  async function openEditDialog() {
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Edit$/ })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Edit$/ }));
+    await waitFor(() =>
+      expect(screen.getByText("Edit Auth Config")).toBeInTheDocument(),
+    );
+  }
+
+  it("pre-populates the form from the masked config (header + IP whitelist)", async () => {
+    renderPage();
+    await openEditDialog();
+
+    expect(screen.getByLabelText("Header name")).toHaveValue("X-Old");
+    expect(screen.getByLabelText(/IP whitelist/i)).toHaveValue("10.0.0.0/8");
+    // Type is locked in edit mode.
+    expect(screen.getByLabelText("Type")).toBeDisabled();
+  });
+
+  it("PATCHes only name + non-secret config + ipWhitelist (no secret, no type)", async () => {
+    renderPage();
+    await openEditDialog();
+
+    const headerInput = screen.getByLabelText("Header name");
+    await userEvent.clear(headerInput);
+    await userEvent.type(headerInput, "X-New");
+    fireEvent.change(screen.getByLabelText(/IP whitelist/i), {
+      target: { value: "192.168.0.0/16" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalled());
+    expect(patchMock).toHaveBeenCalledWith("/auth-configs/c1", {
+      name: "Prod Key",
+      config: { headerName: "X-New" },
+      ipWhitelist: ["192.168.0.0/16"],
+    });
+  });
+
+  it("sends an empty ipWhitelist array to clear all entries", async () => {
+    renderPage();
+    await openEditDialog();
+
+    fireEvent.change(screen.getByLabelText(/IP whitelist/i), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalled());
+    const body = patchMock.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+    expect(body.ipWhitelist).toEqual([]);
   });
 });

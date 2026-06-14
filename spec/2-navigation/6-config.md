@@ -52,7 +52,7 @@ code:
 
 type 별 `config` 스키마·자동 발급 규칙의 단일 진실은 [Spec 데이터 모델 §2.17.1](../1-data-model.md#2171-config-의-jsonb-스키마). IP Whitelist 는 모든 type 공통 (선택) 필드다.
 
-> **구현 현황**: 백엔드 DTO (`auth-configs/dto/create-auth-config.dto.ts`, `update-auth-config.dto.ts`) 는 `ipWhitelist` 와 api_key `headerName` 을 지원하며, 생성 폼 (`authentication/page.tsx`) 도 **IP Whitelist 입력 UI**(모든 type 공통, 한 줄에 IP/CIDR 하나)와 **API Key Header 이름 입력 필드**(api_key, default `X-API-Key`)를 노출한다 (✅ 구현). hmac (header/algorithm) · basic_auth (username/password) 추가 입력도 함께 노출한다. (생성 후 편집 폼은 별도 — 현 UI 는 생성·토글·재생성·삭제만 제공.)
+> **구현 현황**: 백엔드 DTO (`auth-configs/dto/create-auth-config.dto.ts`, `update-auth-config.dto.ts`) 는 `ipWhitelist` 와 api_key `headerName` 을 지원하며, 생성 폼 (`authentication/page.tsx`) 도 **IP Whitelist 입력 UI**(모든 type 공통, 한 줄에 IP/CIDR 하나)와 **API Key Header 이름 입력 필드**(api_key, default `X-API-Key`)를 노출한다 (✅ 구현). hmac (header/algorithm) · basic_auth (username/password) 추가 입력도 함께 노출한다. **편집 폼**(✅ 구현): 동일 화면에서 행별 편집 버튼 → `PATCH /auth-configs/:id` 로 name · IP Whitelist · 비-비밀 config(api_key `headerName`, hmac `header`/`algorithm`, basic_auth `username`)를 수정한다. type 과 비밀값은 편집 불가 — 비밀 변경은 재생성(§A.4 regenerate) 경로로 일원화하며, 편집 PATCH 는 config 를 shallow-merge 해 암호화 비밀값을 보존한다 (R-2 참조).
 
 #### API Key
 
@@ -303,6 +303,7 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 - **bearer_token 자동 발급 강제**: 사용자 입력 없이 자동 발급(`wft_<hex32>`)만 허용. 외부 호출자 발급 토큰은 제품이 충분한 엔트로피로 생성하는 게 일관적이며, 사용자 입력 토큰의 형식·엔트로피 검증 부담을 없앤다.
 - **Bearer Token 만료 시간 필드 v1 제외**: 토큰 만료·자동 회전을 다루지 않는다 — JSONB 스키마 `{ token }` 와 정합. 만료/회전이 필요해지면 후속 결정으로 재도입.
 - **항상 마스킹 + Reveal 엔드포인트** (§A.4): API 응답에서 secret 류는 항상 `***<last4>`. 평문은 create / regenerate / reveal 3 경로만. Reveal 은 Admin+ · 비밀번호 재확인 · audit 기록.
+- **편집 폼은 자동 발급·마스킹 정책을 동일 적용**: §A.2 편집(`PATCH`)은 name·IP·비-비밀 config 만 변경하고 비밀값 재입력은 받지 않는다 — 비밀 변경은 regenerate 단일 경로로 일원화. 백엔드 `update` 는 `config` 를 통째 대체하지 않고 shallow-merge 하며, 마스킹된 비밀값(`***<last4>`)이 역류해도 무시해 실 비밀이 파손되지 않게 한다. type 변경도 편집 폼에서 차단(타입 전환은 비밀 재발급을 수반 → 삭제 후 재생성).
 
 ### R-3 (번복) — ModelConfig 단일 화면 통합
 
