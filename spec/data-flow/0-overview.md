@@ -105,7 +105,7 @@ flowchart LR
 | 항목 | 사실 |
 | --- | --- |
 | Primary DB | PostgreSQL (`pgvector/pgvector:pg18` — `docker-compose.yml` 기본값; k8s local overlay `k8s/overlays/local/infra-postgres.yaml` 는 아직 `pg16`), TypeORM 매핑. 마이그레이션은 Flyway (`codebase/backend/migrations/V*.sql`). |
-| Queue | Redis 7 + BullMQ. 현재 등록된 큐 (15개): `agent-memory-extraction`, `alerts-evaluator`, `background-execution`, `cafe24-token-refresh`, `makeshop-token-refresh`, `chat-channel-token-rotator`, `document-embedding`, `execution-continuation`, `execution-run`, `graph-extraction`, `integration-expiry-scanner`, `login-history-pruner`, `notification-secret-rotator`, `notification-webhook`, `schedule-execution`. 상세는 [§4 카탈로그](#4-bullmq-큐-카탈로그). |
+| Queue | Redis 7 + BullMQ. 현재 등록된 큐 (16개): `agent-memory-extraction`, `alerts-evaluator`, `background-execution`, `cafe24-token-refresh`, `makeshop-token-refresh`, `chat-channel-token-rotator`, `document-embedding`, `execution-continuation`, `execution-run`, `graph-extraction`, `integration-expiry-scanner`, `login-history-pruner`, `notification-secret-rotator`, `notification-webhook`, `schedule-execution`, `terminal-revoke-reconcile`. 상세는 [§4 카탈로그](#4-bullmq-큐-카탈로그). |
 | Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 — `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts` 의 `s3Key` 구성 (`kb/{kbId}/{docId}/{filename}`). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
 | WebSocket | Socket.io. 실행 상태·노드 이벤트·KB 진행률·background run emit. 단일 sink (`WebsocketService`) — 같은 facade 의 `executionEvents$` RxJS fan-out 을 `SseAdapter`(External Interaction)·`ChatChannelDispatcher`·`NotificationDispatcher` 가 구독한다 (`websocket.service.ts` 헤더 주석, EIA §R10). |
 | SSE | `text/event-stream` 2곳 — ① 워크플로 에디터 AI Assistant 스트리밍 (`workflow-assistant.controller.ts`, 직접 SSE write, WebSocket 미경유 — [workflow data-flow](./11-workflow.md)), ② External Interaction 라이브 이벤트 스트림 (`SseAdapter` — [external-interaction data-flow](./15-external-interaction.md)). |
@@ -200,6 +200,7 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 | `login-history-pruner` | `auth.module.ts` | `LoginHistoryPrunerService` (daily scheduler, `0 3 * * *` Asia/Seoul) | 동일 service (`@Processor`) | login_history 180일 경과 prune |
 | `chat-channel-token-rotator` | `chat-channel.module.ts` | `ChatChannelTokenRotatorService` (hourly scheduler) | 동일 service (`@Processor`) | chat_channel_token_v2 24h grace 정리 |
 | `notification-secret-rotator` | `triggers.module.ts` | `NotificationSecretRotatorService` (hourly scheduler) | 동일 service (`@Processor`) | notification_secret_v2 24h grace 승격 |
+| `terminal-revoke-reconcile` | `external-interaction.module.ts` | `TerminalRevokeReconcilerService` (per-minute repeatable scheduler `* * * * *`) | 동일 service (`@Processor`, concurrency 1) | terminal execution 의 잔존 interaction token sweep revoke — at-least-once 보강 ([EIA §3.4 EIA-RL-06 / §9.3 R15](../5-system/14-external-interaction-api.md)) |
 
 > 큐가 늘어나면 본 표와 해당 도메인 spec 의 `외부 의존` 섹션 모두 갱신한다.
 > 코드 측 큐 모니터링 레지스트리 `codebase/backend/src/modules/system-status/system-status.constants.ts` 의

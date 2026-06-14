@@ -34,6 +34,7 @@ const EXPECTED_QUEUE_NAMES = [
   'schedule-execution',
   'login-history-pruner',
   'notification-secret-rotator',
+  'terminal-revoke-reconcile',
   'chat-channel-token-rotator',
   'integration-expiry-scanner',
   'alerts-evaluator',

@@ -78,7 +78,7 @@ code:
 | EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 (버퍼 내 재전송은 구현됨; 만료 시 `execution.replay_unavailable` 신호 emit 은 계획·미구현 — §5.2) | 필수 |
 | EIA-IN-08 | SSE 는 15초마다 `: heartbeat` comment 라인 전송 — proxy idle timeout 회피 | 필수 |
 | EIA-IN-09 | execution 당 동시 SSE 연결 수 제한: 기본 3 (multi-tab 허용, 무제한 fan-out 차단) | 권장 |
-| EIA-IN-10 | `submit_form` 검증 실패는 execution 상태를 바꾸지 않고 `400` + `details.fieldErrors` 반환 (waiting_for_input 유지, 재제출 가능) | 필수 |
+| EIA-IN-10 | `submit_form` 검증 실패는 execution 상태를 바꾸지 않고 `400 VALIDATION_ERROR` + `details[]`(`{field,message,code}` 배열, §5.1) 반환 (waiting_for_input 유지, 재제출 가능) | 필수 |
 | EIA-IN-11 | `Idempotency-Key` 헤더 지원 — 동일 키 24h 캐시, 같은 키 + 다른 body 는 `409 Conflict` | 필수 |
 | EIA-IN-12 | 종료된 execution 에 대한 명령은 `410 Gone` 반환 | 필수 |
 | EIA-IN-13 | 현재 노드 상태와 명령이 맞지 않으면 (예: `completed` 상태에서 `submit_message`) `409 Conflict` 반환 | 필수 |
@@ -106,9 +106,9 @@ code:
 2. HTTP request body / header / query / params 의 역직렬화 시 `scope` 필드는 반드시 strip — DTO 는 `class-transformer` 의 `@Exclude({ toClassOnly: true })` 또는 `excludeExtraneousValues: true` + `@Expose()` 화이트리스트로 외부 입력 차단.
 3. `scope: 'in_process_trusted'` 는 서버 내부 모듈 (`ChatChannelDispatcher`, `HooksService` 의 chat-channel forwarding 등) 이 ctx 를 직접 생성해 `InteractionService.interact()` 를 호출할 때만 set 가능. 호출 위치는 `grep -r "scope: 'in_process_trusted'" codebase/backend/src/` 결과가 항상 가시화되어야 한다 (audit 가능성).
 
-**타입 분리 권고 (v2 이후)**:
+**타입 분리 (구현됨 — `interaction.guard.ts`)**:
 
-현재 `InteractionRequestContext.scope?: InteractionScope` optional 필드 단일 타입은 위 invariant 를 컴파일러로 강제하지 못한다. v2 에서는 다음 분리를 권고:
+위 invariant 를 컴파일러로 강제하기 위해 `InteractionRequestContext` 를 다음 union 으로 분리한다 (**v1 구현 완료** — `interaction.guard.ts` 의 `ExternalInteractionRequestContext` / `InternalInteractionRequestContext` union + `isInternalCtx()` 타입 가드):
 
 ```typescript
 // HTTP guard 가 생성하는 ctx (scope 필드 없음)
@@ -131,7 +131,7 @@ type InteractionRequestContext =
   | InternalInteractionRequestContext;
 ```
 
-위 union 분리 시 `InteractionGuard` 는 첫 타입만 반환하고, `InteractionService.interact()` 의 token 검증 분기는 type narrowing 으로 `scope === 'in_process_trusted'` 일 때만 skip 한다 — 컴파일러가 invariant 를 강제.
+`InteractionGuard` 는 첫 타입(`ExternalInteractionRequestContext`, `scope` 필드 없음)만 반환하고, `InteractionService.interact()` 의 token 검증 분기는 type narrowing(`isInternalCtx()`)으로 `scope === 'in_process_trusted'` 일 때만 skip 한다 — 컴파일러가 invariant 를 강제한다.
 
 ### 3.4 신뢰성·일관성
 
@@ -142,6 +142,7 @@ type InteractionRequestContext =
 | EIA-RL-03 | `submit_form` 검증 실패는 waiting_for_input 유지 (재제출 가능) — [Spec 실행 엔진 §1.3](./4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status) 의 form 흐름과 동일 | 필수 |
 | EIA-RL-04 | Notification 발송과 SSE emit 은 [Spec 실행 엔진 §1.1](./4-execution-engine.md#11-execution-상태) 의 트랜잭션 commit 이후 시점에서만 수행 | 필수 |
 | EIA-RL-05 | SSE 와 notification 은 동일 `seq` 를 공유 → 한 클라이언트가 두 채널을 동시 구독해도 dedup 가능 | 권장 |
+| EIA-RL-06 | **Terminal revoke 는 at-least-once** — execution 종료(completed/failed/cancelled) 시 해당 execution 의 모든 interaction token 을 즉시 무효화한다. live fast-path(엔진 terminal 이벤트 구독 → `revokeAllForExecution`)는 즉시성용 best-effort 이고, **`execution_token` 기반 reconciliation sweep** (BullMQ repeatable scheduler · 멀티 인스턴스 전역 1회)이 terminal execution 의 잔존 토큰을 주기적으로 회수해 process 재시작·Redis 일시 장애로 누락된 live revoke 를 보장한다 (§7.3 · §9.3 EIA-RL-06) | 필수 |
 
 ### 3.5 비기능 요구사항
 
@@ -297,29 +298,34 @@ POST /api/external/executions/550e8400-.../interact
 // 예시: form validation 실패
 {
   "error": {
-    "code":    "VALIDATION_FAILED",
+    "code":    "VALIDATION_ERROR",
     "message": "Form validation failed",
-    "details": {
-      "fieldErrors": [
-        { "field": "amount", "reason": "min_violated", "expected": 100, "actual": 50 }
-      ]
-    }
+    "requestId": "3f2a…",
+    "details": [
+      { "field": "amount", "message": "must be >= 100 (got 50)", "code": "INVALID_FIELD" }
+    ]
   }
 }
 ```
 
 | 상태 | 코드 | 조건 |
 |------|------|------|
-| `400 Bad Request` | `VALIDATION_FAILED` | submit_form 의 field 검증 실패. body 의 `error.details.fieldErrors[]` 참조. execution 상태 유지(재제출 가능) |
+| `400 Bad Request` | `VALIDATION_ERROR` | submit_form 의 field 검증 실패. body 의 `error.details[]` (`{ field, message, code: "INVALID_FIELD" }` 배열 — [API 규약 §5.3](./2-api-convention.md#53-에러-응답)) 참조. execution 상태 유지(재제출 가능). (현재 form field-level 검증 자체는 일부 **Planned** — `interaction.service` 는 `data` 객체 형식만 확인) |
 | `400 Bad Request` | `INVALID_COMMAND` | 지원하지 않는 command, 필수 필드 누락 |
 | `400 Bad Request` | `MESSAGE_TOO_LONG` | `submit_message` 의 `message` 가 최대 길이(10000자) 초과. publisher 측 동기 검증 (typed `MessageTooLongError`, [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단))의 EIA 진입점 매핑 — WS 의 평면 ack `EXECUTION_MESSAGE_TOO_LONG` 와 동일 의미. 내부 길이 수치는 응답에 노출하지 않고 고정 메시지만 반환 |
-| `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | 토큰 검증 실패 (응답 헤더 `X-Refresh-Token-Url` 동봉) |
-| `403 Forbidden` | `SCOPE_MISMATCH` | 토큰 scope 가 해당 execution 에 일치하지 않음 |
+| `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | 토큰 위조·형식 오류·만료 등 검증 실패 |
+| `401 Unauthorized` | `TOKEN_REVOKED` | execution 종료(terminal) 또는 refresh 로 토큰이 즉시 무효화됨 (jti blacklist, §7.3/§3.4 EIA-RL-06). execution 이 이미 종료되어 refresh 로 복구 불가 |
+| `401 Unauthorized` | `TOKEN_SCOPE_MISMATCH` | 토큰 scope 가 해당 execution 에 일치하지 않음 (다른 execution 의 토큰). 인가 실패이나 §8.2 정보 노출 최소화 정신에 따라 403 이 아닌 **401 토큰 실패 계열로 통일** — [data-flow §15](../data-flow/15-external-interaction.md) 의 `scope_mismatch→TOKEN_SCOPE_MISMATCH`·`interaction.guard.ts` 와 동일 |
+| `401 Unauthorized` | `TOKEN_AUDIENCE_MISMATCH` | 토큰 `aud` 가 `interaction` 이 아님 (다른 용도 토큰). 동일 401 토큰 실패 계열 ([data-flow §15](../data-flow/15-external-interaction.md) `audience_mismatch→TOKEN_AUDIENCE_MISMATCH`) |
 | `404 Not Found` | `EXECUTION_NOT_FOUND` | executionId 없음 |
 | `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 (예: completed 상태에서 submit_message, 또는 다른 nodeId). publisher 측 사전 검증([실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state))의 EIA 진입점 매핑 — WS 의 `INVALID_EXECUTION_STATE` 와 동일 의미를 EIA 는 `STATE_MISMATCH` 로 표기 |
 | `409 Conflict` | `IDEMPOTENCY_KEY_CONFLICT` | 같은 키 + 다른 body |
 | `410 Gone` | `EXECUTION_TERMINATED` | execution 이 이미 completed/failed/cancelled |
 | `429 Too Many Requests` | `RATE_LIMITED` | inbound rate-limit 초과 — **미구현 (Planned)**: 현재 `/interact`·status 조회에 per-execution rate-limit 이 적용되지 않아 본 코드는 발생하지 않는다. 구현된 유일한 429 는 SSE 동시연결 초과(`TOO_MANY_CONNECTIONS`, §5.2). §8.4 참조 |
+
+> **`X-Refresh-Token-Url` 헤더 (모든 401 토큰 실패 공통)**: 위 `401 TOKEN_*` 응답에는 `InteractionGuard.deny()` 가 `X-Refresh-Token-Url` 헤더를 무조건 동봉한다 (EIA-AU-06, §3.3). 클라이언트가 토큰 갱신 진입점(§5.5)을 일관되게 발견하도록 하기 위함이며, `TOKEN_REVOKED`(execution 종료)·`TOKEN_SCOPE_MISMATCH`/`TOKEN_AUDIENCE_MISMATCH`(범위/용도 불일치)는 헤더를 따라가도 새 유효 토큰을 받지 못할 수 있다(복구 불가 신호).
+> **토큰 실패 status 통일 근거**: 모든 토큰류 실패(`invalid`/`expired`/`revoked`/`scope`/`audience`)는 단일 `401` status 로 수렴한다 — scope/audience 불일치를 `403`(인가 실패)으로 세분하면 "토큰은 유효하나 권한만 부족" 이라는 정보를 외부에 노출해 §8.2 HMAC 실패 통일(algorithm-leak 차단) 정신과 어긋난다. EIA 토큰은 execution-scoped 이라 scope 불일치는 사실상 "이 리소스에 대한 인증 실패" 에 가깝다 (결정 근거 §Rationale R14).
+> **코드 네임스페이스 주석**: (1) `TOKEN_INVALID`/`TOKEN_EXPIRED` 는 워크스페이스 JWT 계층([3-error-handling §1.2](./3-error-handling.md#12-인증인가-에러))과 **같은 문자열**이나, 본 표는 **interaction 토큰**(`iext_*`/`itk_*`) 검증 실패를 가리킨다 — 진입점(`/api/external/*`)·토큰 family 로 레이어가 구분된다. (2) `EXECUTION_NOT_FOUND`(404)는 **순수 미존재**만 의미한다 — 워크스페이스/scope 경계 위반은 위 `TOKEN_SCOPE_MISMATCH`(401)로 먼저 처리되므로 존재 누설이 없다. (3) `VALIDATION_ERROR`·`details[]` 는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 기본값을 따르고, `INVALID_COMMAND`/`MESSAGE_TOO_LONG`/`TOO_MANY_CONNECTIONS`(SSE 동시연결 초과, §5.2·§8.4)/`STATE_MISMATCH`/`EXECUTION_TERMINATED` 는 EIA 표면 전용 코드로 규약 기본값을 의도적으로 override 한다.
 
 ### 5.2 SSE 이벤트 스트림 — `GET /api/external/executions/:executionId/stream`
 
@@ -358,7 +364,7 @@ data: { ... §6 payload ... }
 **이벤트 종류:**
 
 §6 의 outbound notification 이벤트 + 디버깅용 추가 이벤트:
-`execution.node.started` / `execution.node.completed` / `execution.node.failed` / `execution.node.skipped` /
+`execution.node.started` / `execution.node.completed` / `execution.node.failed` / `execution.node.cancelled` / `execution.node.skipped` /
 `execution.ai_message` / `execution.user_message` / `execution.tool_call_started` / `execution.tool_call_completed` / `execution.resumed`.
 
 각 이벤트의 페이로드는 [Spec WebSocket 프로토콜 §4.1·§4.4](./6-websocket-protocol.md#41-실행-이벤트-server--client) 와 동일.
@@ -621,9 +627,9 @@ ALTER TABLE trigger
 
 신규 컬럼 없음. `seq` 는 [Spec 실행 엔진 §1.1](./4-execution-engine.md) 의 monotonic counter 를 재사용 (이미 WebSocket 이벤트가 사용 중).
 
-### 7.3 InteractionToken (in-memory + Redis)
+### 7.3 InteractionToken (JWT + Redis blacklist + `execution_token` jti 추적)
 
-`per_execution` 토큰은 별도 테이블을 만들지 않고 JWT 자체에 모든 정보를 담는다 (sub=executionId, aud='interaction', exp, jti). Revoke 는 jti 의 Redis blacklist (TTL = exp 까지) 로 처리.
+`per_execution` 토큰은 인증 정보를 **JWT 자체**에 담아 stateless 검증이 가능하다 (sub=executionId, aud='interaction', exp, jti). 다만 발급된 jti 는 **`execution_token` 테이블**(V060 — `jti` PK · `execution_id` FK→`execution` ON DELETE CASCADE · `issued_at` · `exp_at`, `idx_execution_token_execution_id`)에 영속 추적된다 — execution 종료 시 해당 execution 이 발급한 모든 토큰을 enumerate 해 일괄 revoke 하기 위한 것이다 (`revokeAllForExecution`, §3.4 EIA-RL-06). Revoke = 각 jti 를 **Redis blacklist** 에 등록(TTL = exp 까지) + `execution_token` row 삭제. `InteractionGuard` 는 검증 시 blacklist 를 조회해 revoke 된 토큰을 `TOKEN_REVOKED`(401) 로 거부한다.
 
 `per_trigger` 토큰은 `Trigger.config.interaction.triggerToken` 에 보관되며, revoke 시 새로운 값으로 rotation.
 
@@ -708,7 +714,7 @@ ALTER TABLE trigger
     b. Idempotency-Key 캐시 조회
     c. 검증 통과 시 ExecutionEngineService.waitForFormSubmission() 입력 큐에 push
        (= 내부 WS 의 execution.submit_form 명령과 동일 경로)
-    d. 검증 실패 (field validation) → 400 + fieldErrors. execution 상태 유지
+    d. 검증 실패 (field validation) → `400 VALIDATION_ERROR` + `details[]`. execution 상태 유지
 12. 실행 엔진: 사용자 입력 수신 → resumed → 다음 노드로 진행
 13. 종료 시: TX commit 후 notification + SSE 둘 다 발송 → SSE 종료, 토큰 invalidate
 ```
@@ -730,6 +736,15 @@ ALTER TABLE trigger
 
 [Spec 실행 엔진 §1.1](./4-execution-engine.md#11-execution-상태) 의 원자성을 유지: `Execution` + `NodeExecution` 상태 변경의 단일 트랜잭션 commit 후에만 외부로 이벤트를 emit/dispatch 한다. 트랜잭션 rollback 시 어떠한 외부 발송도 발생하지 않는다. 이를 위해 NotificationDispatcher 는 **after-commit hook** (또는 outbox pattern 의 별도 worker — 구현 선택) 으로 트리거된다.
 
+#### Terminal token revoke 의 at-least-once (EIA-RL-06)
+
+execution 종료 시 토큰 무효화는 **두 경로**로 at-least-once 를 보장한다.
+
+1. **Live fast-path** — 엔진이 terminal 이벤트(`execution.completed`/`failed`/`cancelled`)를 단일 sink `WebsocketService.executionEvents$` 로 emit 하면 `NotificationFanout` 이 즉시 `revokeAllForExecution` 을 호출한다 (best-effort, 수십 ms). 단 이 sink 는 버퍼 없는 RxJS `Subject` 라 **process 재시작/크래시로 in-flight terminal 이벤트가 소실되면 live revoke 가 누락**될 수 있고, revoke 자체도 Redis/DB 장애 시 fail-open(warn 후 진행)이다.
+2. **Reconciliation sweep (durable 보강)** — 별도 BullMQ repeatable scheduler 워커가 주기적으로(분 단위 `* * * * *`) `execution_token`(§7.3)을 terminal `execution` 과 join 해 **이미 종료됐는데 토큰이 잔존하는 execution** 을 찾아 `revokeAllForExecution` 을 재호출한다. `execution_token` 테이블이 사실상 **durable outbox** 역할을 하므로 별도 outbox 테이블이 불필요하고, revoke 는 idempotent(jti blacklist SET·row DELETE 재실행 무해)라 live 경로와 중복돼도 안전하다. BullMQ repeatable 은 Redis 중앙 스케줄에 단일 entry 로 등록돼 멀티 인스턴스(`replicas:N`)에서도 전역 1회만 실행된다 (login-history-pruner 선례와 동일 패턴).
+
+이로써 live 경로 누락 시에도 worst-case revoke latency 가 토큰 TTL(기본 1h)이 아니라 **sweep 간격(≤1분)** 으로 수렴한다. 전용 outbox 테이블 + after-commit 트랜잭션 적재(원형 outbox)도 검토했으나, `execution_token` 이 이미 발급 토큰을 execution 별로 durable 추적하므로 그 자체를 reconciliation source 로 삼아 dual-write·신규 마이그레이션을 피한다 — 채택 근거·잔여 위험은 §Rationale R15.
+
 ---
 
 ## 10. 구현 파일 구조
@@ -743,7 +758,8 @@ codebase/backend/src/modules/
     # 모듈 prefix: @Controller('external/executions') — global prefix(`api`) 와 합쳐 실 경로 `/api/external/executions/...`. 기존 `/api/executions/*` 컨트롤러와 분리
     interaction.service.ts             # 토큰 검증 + 명령 dispatch (내부 WS 명령 경로로 forwarding)
     interaction.guard.ts               # HTTP 진입점 InteractionGuard — iext_*/itk_* 검증 + ctx 합성 (scope set 금지, §3.3.1)
-    interaction-token.service.ts       # iext_*, itk_* 발급/검증/blacklist
+    interaction-token.service.ts       # iext_*, itk_* 발급/검증/blacklist + reconcileTerminalRevocations (EIA-RL-06 sweep)
+    terminal-revoke-reconciler.service.ts # BullMQ repeatable scheduler (분 단위) — terminal revoke at-least-once 보강 (EIA-RL-06, §9.3 R15)
     notification-fanout.service.ts     # 단일 sink executionEvents$ 구독 listener → NotificationDispatcher.enqueue 위임 (§R10)
     notification-dispatcher.service.ts # outbound webhook enqueue facade (BullMQ)
     notification-webhook.processor.ts  # BullMQ processor — 실제 HTTP POST + 재시도/HMAC 서명/degraded 처리
@@ -776,7 +792,7 @@ codebase/backend/src/modules/
 - 컨트롤러 클래스 데코레이터: `@ApiBearerAuth('interaction-token')`
 - Swagger UI 의 토큰 입력란이 access-token 과 분리되어 표시되어야 한다
 
-Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@ApiSecurity({})` 패턴 유지.
+Hooks 진입점 (`/api/hooks/:endpointPath`) 은 `@Public()` 로 JWT 인증을 우회한다 (`hooks.controller.ts`). 별도 `@ApiSecurity({})` 데코레이터는 두지 않는다 — [Swagger 규약 §2-1](../conventions/swagger.md) 에 따라 "보안 없음" 은 데코레이터가 아니라 설명으로 표기하며, HMAC 검증은 핸들러 내부에서 수행한다.
 
 응답 DTO·공용 래퍼·에러 응답 문서화는 [Swagger 규약 §5 (응답 DTO 규약)](../conventions/swagger.md#5-응답-dto-규약) 를 따른다 — `InteractAckDto`(§5.1) 등 본 모듈 ack DTO 도 §5-2 공용 래퍼 헬퍼·§5-4 새 엔드포인트 체크리스트·§5-5 에러 응답 참조 규약 적용 대상이다.
 
@@ -802,6 +818,7 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 | `execution.node.started` | `execution.node.started` | — |
 | `execution.node.completed` | `execution.node.completed` | — |
 | `execution.node.failed` | `execution.node.failed` | — |
+| `execution.node.cancelled` | `execution.node.cancelled` | — (노드 취소 — `abortSignal`/`AbortError`, [실행 엔진 §1.2](./4-execution-engine.md#12-nodeexecution-상태)) |
 | `execution.node.skipped` | `execution.node.skipped` | — |
 | `execution.paused` | `execution.paused` | — (디버깅 전용, 외부 미발송) |
 | `execution.waiting_for_input` | `execution.waiting_for_input` | `execution.waiting_for_input` |
@@ -908,7 +925,7 @@ Long-polling 은 라이브 chat·multi-turn 에서 latency 가 커 사용자 경
 
 ### R8. Idempotency-Key 와 `submit_form` 검증 실패의 관계
 
-**채택**: `submit_form` 의 field validation 실패는 **idempotent 응답 캐시에 적재하지 않는다**. waiting_for_input 상태가 유지되어 사용자가 재제출 가능하기 때문에, 동일 key 로 새 body 를 보내는 것은 normal flow. 즉 4xx 응답 중 `400 VALIDATION_FAILED` 만 idempotency cache 에서 제외하고, 그 외 (성공 2xx / `409 Conflict` / `410 Gone`) 는 캐시한다.
+**채택**: `submit_form` 의 field validation 실패는 **idempotent 응답 캐시에 적재하지 않는다**. waiting_for_input 상태가 유지되어 사용자가 재제출 가능하기 때문에, 동일 key 로 새 body 를 보내는 것은 normal flow. 즉 4xx 응답 중 `400 VALIDATION_ERROR` 만 idempotency cache 에서 제외하고, 그 외 (성공 2xx / `409 Conflict` / `410 Gone`) 는 캐시한다.
 
 **근거**: validation 실패가 캐시되면 사용자가 form 수정 후 재제출 시 같은 key 를 쓰면 stale 에러가 반환된다. 이는 [Spec 실행 엔진 §1.3](./4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status) 의 "검증 실패 → waiting_for_input 유지 → 재제출 가능" 컨벤션과 직접 충돌하며, 사용자 UX (form 수정 → 재제출) 가 깨진다.
 
@@ -985,4 +1002,28 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 
 **근거**: WS 채널은 실행 엔진 내부 코드 네임스페이스(`EXECUTION_*`·시스템 레벨 `INVALID_EXECUTION_STATE`, [error-codes.md](../conventions/error-codes.md) 규약)를 직접 노출하는 반면, EIA REST 는 공개 외부 API 표면이라 HTTP status 와 함께 표면 자체의 간결한 코드(`STATE_MISMATCH`·`MESSAGE_TOO_LONG`)를 쓴다. 두 표면을 같은 코드명으로 강제 통일하면 (a) WS 가 REST 식 코드를 쓰면 내부 enum 과 어긋나고, (b) REST 가 `EXECUTION_*` prefix 를 그대로 노출하면 외부 API 가 내부 구현 식별자에 결합된다 — 따라서 **표면별 코드명 + cross-ref 동치 고정**을 채택한다.
 
-> **범위**: 본 매핑은 EIA REST **외부 표면**의 실행-상태/메시지 에러 코드 표기에 한정된다 — 동형 의미의 내부 REST core 코드는 [error-handling §1.3](./3-error-handling.md#13-유효성-검증-에러)의 `INVALID_STATE`(422) 어휘를 쓴다. EIA **토큰 인증** 실패 코드(`TOKEN_*` 계열·HTTP status·`SCOPE_MISMATCH` 정합)는 본 절 범위 밖이며 별도 진행 중인 token-error-codes 정합 작업이 소유한다.
+> **범위**: 본 매핑은 EIA REST **외부 표면**의 실행-상태/메시지 에러 코드 표기에 한정된다 — 동형 의미의 내부 REST core 코드는 [error-handling §1.3](./3-error-handling.md#13-유효성-검증-에러)의 `INVALID_STATE`(422) 어휘를 쓴다. EIA **토큰 인증** 실패 코드(`TOKEN_*` 계열)의 status·코드명 정합은 §5.1 에러 표 + 아래 R14 가 SoT 다.
+
+### R14. 토큰 실패 status 통일 — 모두 `401` (`403` 미사용)
+
+**채택**: EIA inbound 의 모든 토큰류 실패(`TOKEN_INVALID`/`TOKEN_EXPIRED`/`TOKEN_REVOKED`/`TOKEN_SCOPE_MISMATCH`/`TOKEN_AUDIENCE_MISMATCH`)를 단일 `401 Unauthorized` 로 표기하고, 코드명은 모두 `TOKEN_*` prefix 로 통일한다 (§5.1). 구현(`interaction.guard.ts` `deny()` = `UnauthorizedException`)·e2e 가 이미 401 이므로 spec 을 구현에 맞춘 정합이다.
+
+scope/audience 불일치를 HTTP 시맨틱대로 `403 Forbidden`(인증됐으나 인가 실패) 으로 세분하는 대안은 기각한다: (1) `403` 은 "토큰은 유효하나 권한만 부족" 이라는 정보를 외부에 노출해, HMAC 실패를 누락/형식/window/검증 무관하게 동일 401 로 묶는 §8.2 algorithm-leak 차단 정신과 어긋난다. (2) EIA 토큰은 **execution-scoped** 라 "다른 execution 의 토큰" 은 사실상 해당 리소스에 대한 인증 실패에 가깝다. (3) `deny()` 가 현재 401 전용이라 403 분기 도입은 guard 리팩토링 + e2e 회귀 위험을 부르는데 보안상 이점이 없다. 과거 spec §5.1 의 `403 SCOPE_MISMATCH` 표기는 구현(`401 TOKEN_SCOPE_MISMATCH`)과 어긋난 drift 였으며 본 결정으로 해소했다.
+
+### R15. Terminal token revoke 의 at-least-once — `execution_token` reconciliation (전용 outbox 미신설)
+
+**채택**: execution 종료 시 토큰 무효화를 (1) live fast-path(`NotificationFanout` 의 terminal 이벤트 구독 → `revokeAllForExecution`, best-effort 즉시) + (2) **`execution_token` 기반 reconciliation sweep**(BullMQ repeatable scheduler, 분 단위) 의 이중 경로로 보장한다 (§9.3, EIA-RL-06).
+
+핵심 설계 판단은 **전용 outbox 테이블을 신설하지 않는다**는 것이다. 원형 transactional-outbox(terminal 전이 트랜잭션에 outbox row 적재 + 폴링 worker)도 검토했으나, `execution_token`(§7.3)이 **이미 발급 토큰을 execution 별로 durable 추적**하고 있어 "execution 이 terminal 인데 토큰 row 가 잔존" 자체가 미처리 revoke 신호다 — 즉 `execution_token` 이 곧 outbox 다. 별도 테이블을 두면 같은 사실을 이중 기록(dual-write)하게 되고 신규 마이그레이션·정합 부담만 늘어난다. reconciliation 은 `revokeAllForExecution` 을 재사용하며 idempotent(blacklist SET·row DELETE 재실행 무해)라 live 경로와 중복 안전하다.
+
+**기각**: (a) live 경로만 유지(현행) — process 재시작 시 in-flight 이벤트 소실로 토큰이 TTL(1h)까지 잔존하는 누락 위험. (b) 전용 outbox 테이블 — 위 dual-write 사유로 기각. (c) TTL 단축 — 정상 클라이언트 refresh 빈도↑(UX·요청량 부작용)이며 근본 해소 아님.
+
+**잔여 위험**: sweep 도 Redis(BullMQ) 장애 시 다음 tick 까지 지연되고, live·sweep 양 경로 모두 Redis blacklist SET 에 의존하므로 Redis 전면 장애 중에는 revoke 가 fail-open 으로 지연된다(blacklist 조회도 fail-open 이므로 동일 창에서 토큰이 통과할 수 있음). 단명·execution-scoped 토큰이라 위험도가 낮다는 전제 하에 수용하며, worst-case latency 를 TTL(1h)→sweep 간격(≤1분)으로 축소한 것이 본 결정의 실질 개선이다.
+
+**부팅 정책**: scheduler 등록(`TerminalRevokeReconcilerService.onModuleInit` 의 `upsertJobScheduler`) 실패는 **fail-fast** — 서버 부팅을 차단한다. 매 tick 의 reconcile 실패가 fail-open(swallow·다음 tick 재시도)인 것과 비대칭이나, 등록 실패는 Redis 미연결 등 **운영 설정 오류**라 부팅 시점에 조기 노출하는 편이 안전하다(login-history-pruner 와 동일 정책). 본 큐는 `system-status` 모니터링 레지스트리(`MONITORED_QUEUES`, group `system`)에 등재되어 운영 가시성을 확보한다.
+
+### R16. `interact`/`cancel` 의 `202 Accepted` + ack body (no-content 아님)
+
+**채택**: §5.1 `interact`·§5.4 `cancel` 는 비동기 처리라 `202 Accepted` 로 응답하되 **빈 body(no-content)가 아니라 ack body** 를 반환한다 (§5.1 `InteractAckDto` `{ executionId, accepted, currentStatus }`, §5.4 `{ executionId, status }`). 구현(`@HttpCode(ACCEPTED)` + DTO 반환)과 전역 `TransformInterceptor`(`{ data: ... }` 래핑)의 실제 동작을 반영한 것이다.
+
+과거 spec 은 §5 서두에서 "예외 2: §5.1(`interact`)는 성공 시 `202 Accepted` + body 없음(no-content path)" 으로 기술했으나 이는 구현과 어긋난 표기였다. ack body 를 반환하는 쪽을 채택한 이유: (1) 클라이언트가 명령 수신 직후 관측된 `currentStatus`(즉시 또 `waiting_for_input` 진입 가능)를 SSE 구독 전에 1회성으로 확인할 수 있어 UX 가 매끄럽다. (2) `accepted: true` 가 큐 적재 성공의 명시 신호다. (3) 다른 §5.x 엔드포인트와 동일하게 `{ data: ... }` 봉투로 일관 처리된다 — `interact` 만 no-content 예외로 두면 클라이언트 언랩 로직이 분기된다. body 가 비동기 진행의 **확정** 상태가 아님(202)은 유지되며, 확정 상태는 SSE/단발 조회로 받는다.

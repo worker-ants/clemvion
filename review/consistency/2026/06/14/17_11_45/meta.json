@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-14T17:11:45.923967",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=/Users/gehrig/.claude/jobs/323b33ee/tmp/impldone_scope3, diff-base=3064c9c6)",
+  "target_path": "/Users/gehrig/.claude/jobs/323b33ee/tmp/impldone_scope3",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
