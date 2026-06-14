@@ -87,6 +87,10 @@ export default function AuthenticationPage() {
   );
   const [formUsername, setFormUsername] = useState("");
   const [formPassword, setFormPassword] = useState("");
+  // api_key 전용 헤더 이름 (default X-API-Key) + 모든 type 공통 IP 화이트리스트
+  // (한 줄에 IP/CIDR 하나). 백엔드 DTO 는 config.headerName / top-level ipWhitelist 지원.
+  const [formApiKeyHeader, setFormApiKeyHeader] = useState("X-API-Key");
+  const [formIpWhitelist, setFormIpWhitelist] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [regenerateTarget, setRegenerateTarget] = useState<string | null>(null);
@@ -126,14 +130,25 @@ export default function AuthenticationPage() {
         config.header = formHmacHeader.trim() || "X-Hub-Signature-256";
         config.algorithm = formHmacAlgorithm;
       }
+      if (formType === "api_key") {
+        // 비우면 백엔드 기본값 X-API-Key 가 적용된다.
+        const header = formApiKeyHeader.trim();
+        if (header) config.headerName = header;
+      }
       if (formType === "basic_auth") {
         config.username = formUsername.trim();
         config.password = formPassword;
       }
+      // 한 줄에 IP/CIDR 하나 → 배열. 빈 줄·공백 제거. 비어 있으면 미송신.
+      const ipWhitelist = formIpWhitelist
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
       const res = await apiClient.post("/auth-configs", {
         name: formName,
         type: formType,
         config,
+        ...(ipWhitelist.length > 0 ? { ipWhitelist } : {}),
       });
       return (res.data.data ?? res.data) as AuthConfig;
     },
@@ -222,6 +237,8 @@ export default function AuthenticationPage() {
     setFormType("");
     setFormHmacHeader("X-Hub-Signature-256");
     setFormHmacAlgorithm("sha256");
+    setFormApiKeyHeader("X-API-Key");
+    setFormIpWhitelist("");
     setFormUsername("");
     setFormPassword("");
     setGeneratedKey(null);
@@ -360,6 +377,19 @@ export default function AuthenticationPage() {
                     </div>
                   </>
                 )}
+                {formType === "api_key" && (
+                  <div>
+                    <Label htmlFor="auth-api-key-header">
+                      {t("authentication.apiKeyHeaderLabel")}
+                    </Label>
+                    <Input
+                      id="auth-api-key-header"
+                      value={formApiKeyHeader}
+                      onChange={(e) => setFormApiKeyHeader(e.target.value)}
+                      placeholder="X-API-Key"
+                    />
+                  </div>
+                )}
                 {formType === "basic_auth" && (
                   <>
                     <div>
@@ -386,6 +416,24 @@ export default function AuthenticationPage() {
                       />
                     </div>
                   </>
+                )}
+                {/* IP Whitelist — 모든 type 공통(선택). 한 줄에 IP/CIDR 하나. */}
+                {formType !== "" && (
+                  <div>
+                    <Label htmlFor="auth-ip-whitelist">
+                      {t("authentication.ipWhitelistLabel")}
+                    </Label>
+                    <textarea
+                      id="auth-ip-whitelist"
+                      className="flex min-h-[72px] w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                      value={formIpWhitelist}
+                      onChange={(e) => setFormIpWhitelist(e.target.value)}
+                      placeholder={"10.0.0.0/8\n203.0.113.42"}
+                    />
+                    <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                      {t("authentication.ipWhitelistHint")}
+                    </p>
+                  </div>
                 )}
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={resetForm}>
