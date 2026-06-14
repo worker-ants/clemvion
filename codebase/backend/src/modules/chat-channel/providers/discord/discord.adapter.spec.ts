@@ -67,6 +67,8 @@ describe('DiscordAdapter', () => {
         expect.any(Array),
       );
       expect(result.configUpdates?.botIdentity?.username).toBe('workflow-bot');
+      // §3.1 — verify_key 를 botIdentity.publicKey 로 캐시.
+      expect(result.configUpdates?.botIdentity?.publicKey).toBe('pk');
       expect(result.issuedInboundSigning).toBeUndefined();
     });
 
@@ -87,6 +89,22 @@ describe('DiscordAdapter', () => {
       ).rejects.toThrow(/BOT_TOKEN_INVALID/);
       // 검증 실패 시 slash command 등록까지 가지 않는다.
       expect(cmdSpy).not.toHaveBeenCalled();
+    });
+
+    it('§3.1 verify_key 부재 → botIdentity.publicKey undefined', async () => {
+      const client = new DiscordClient();
+      jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+        id: 'A123',
+        name: 'workflow-bot',
+        // verify_key 없음
+      });
+      jest.spyOn(client, 'putApplicationCommands').mockResolvedValue([]);
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const result = await adapter.setupChannel(
+        DISCORD_CONFIG,
+        'https://x/hook',
+      );
+      expect(result.configUpdates?.botIdentity?.publicKey).toBeUndefined();
     });
 
     it('getApplicationMe ok=false → throw', async () => {
@@ -262,6 +280,127 @@ describe('DiscordAdapter', () => {
       expect(ids).toEqual(['name', 'note']);
       // textarea → style 2 (paragraph).
       expect(modal.data.components[1].components[0].style).toBe(2);
+    });
+
+    it('§3.3 title 미지정 → 기본 "양식"', async () => {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const result = await adapter.openFormModal({
+        config: DISCORD_CONFIG,
+        openContext: { interactionId: 'I1', interactionToken: 'tok' },
+        fields: [{ name: 'name', label: 'Name', type: 'text' }],
+        conversationKey: 'C1',
+        nodeId: 'n1',
+      });
+      const modal = result.httpResponse as { data: { title: string } };
+      expect(modal.data.title).toBe('양식');
+    });
+
+    it('§3.3 title 미지정 + languageHints.formModalTitle → hint 사용', async () => {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const result = await adapter.openFormModal({
+        config: {
+          ...DISCORD_CONFIG,
+          languageHints: { formModalTitle: 'Form!' },
+        },
+        openContext: { interactionId: 'I1', interactionToken: 'tok' },
+        fields: [{ name: 'name', label: 'Name', type: 'text' }],
+        conversationKey: 'C1',
+        nodeId: 'n1',
+      });
+      const modal = result.httpResponse as { data: { title: string } };
+      expect(modal.data.title).toBe('Form!');
+    });
+
+    it('§3.3 min/max 4000 초과 → 4000 clamp', async () => {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const result = await adapter.openFormModal({
+        config: DISCORD_CONFIG,
+        openContext: { interactionId: 'I1', interactionToken: 'tok' },
+        fields: [
+          {
+            name: 'big',
+            label: 'Big',
+            type: 'textarea',
+            minLength: 5000,
+            maxLength: 6000,
+          },
+        ],
+        conversationKey: 'C1',
+        nodeId: 'n1',
+      });
+      const modal = result.httpResponse as {
+        data: {
+          components: Array<{
+            components: Array<{ min_length?: number; max_length?: number }>;
+          }>;
+        };
+      };
+      expect(modal.data.components[0].components[0].min_length).toBe(4000);
+      expect(modal.data.components[0].components[0].max_length).toBe(4000);
+    });
+
+    it('§3.3 title 지정 → modal title 반영 + 45자 truncate', async () => {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const result = await adapter.openFormModal({
+        config: DISCORD_CONFIG,
+        openContext: { interactionId: 'I1', interactionToken: 'tok' },
+        fields: [{ name: 'name', label: 'Name', type: 'text' }],
+        conversationKey: 'C1',
+        nodeId: 'n1',
+        title: 'A'.repeat(60),
+      });
+      const modal = result.httpResponse as { data: { title: string } };
+      expect(modal.data.title).toBe('A'.repeat(45));
+    });
+
+    it('§3.3 TEXT_INPUT 길이 제약 → min_length/max_length 부여', async () => {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const result = await adapter.openFormModal({
+        config: DISCORD_CONFIG,
+        openContext: { interactionId: 'I1', interactionToken: 'tok' },
+        fields: [
+          {
+            name: 'pw',
+            label: 'PW',
+            type: 'text',
+            minLength: 8,
+            maxLength: 32,
+          },
+          { name: 'plain', label: 'Plain', type: 'text' },
+        ],
+        conversationKey: 'C1',
+        nodeId: 'n1',
+      });
+      const modal = result.httpResponse as {
+        data: {
+          components: Array<{
+            components: Array<{
+              min_length?: number;
+              max_length?: number;
+            }>;
+          }>;
+        };
+      };
+      expect(modal.data.components[0].components[0].min_length).toBe(8);
+      expect(modal.data.components[0].components[0].max_length).toBe(32);
+      // 제약 없는 필드는 미부여.
+      expect(modal.data.components[1].components[0].min_length).toBeUndefined();
+      expect(modal.data.components[1].components[0].max_length).toBeUndefined();
     });
 
     // C-11 §5.1(b): modalKind='reply' → clemvion_reply modal, 단일 TEXT_INPUT 'message'.

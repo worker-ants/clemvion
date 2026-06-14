@@ -27,6 +27,27 @@ const BASE: Pick<
   timestamp: '2026-05-25T00:00:00Z',
 };
 
+describe('renderDiscordEvent — execution.ai_message (§5.1(b) reply 버튼)', () => {
+  it('AI 응답 마지막 텍스트 청크를 buttons 로 승격 + __reply__ 버튼 첨부', () => {
+    const msgs = renderDiscordEvent(
+      {
+        ...BASE,
+        type: 'execution.ai_message',
+        message: 'AI 응답입니다',
+        turnCount: 1,
+      } as Extract<EiaEvent, { type: 'execution.ai_message' }>,
+      CONFIG,
+    );
+    const last = msgs[msgs.length - 1];
+    expect(last.body.kind).toBe('buttons');
+    if (last.body.kind === 'buttons') {
+      expect(last.body.text).toBe('AI 응답입니다');
+      expect(last.body.buttons).toHaveLength(1);
+      expect(last.body.buttons[0].id).toBe('__reply__');
+    }
+  });
+});
+
 describe('renderDiscordEvent — execution.failed (CCH-ERR-*)', () => {
   it('CCH-ERR-03 민감정보 strip — error.message / nodeId / executionId 미노출', () => {
     const msgs = renderDiscordEvent(

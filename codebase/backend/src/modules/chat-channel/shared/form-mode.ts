@@ -52,7 +52,8 @@ export function decideFormMode(
  * FormModalField[] 로 정규화. formConfig 의 두 shape 모두 수용:
  *   - `{ fields: [...] }` (formConfig 직접)
  *   - `{ config: { fields: [...] } }` (nodeOutput wrapping — dispatcher toChatChannelEvent 정합)
- * 잘못된 shape / 빈 필드는 빈 배열.
+ * 잘못된 shape / 빈 필드는 빈 배열. §3.3 — 각 필드의 `validation.{minLength,maxLength}` 도
+ * `minLength`(≥0)·`maxLength`(>0) 로 정규화한다 (modal TEXT_INPUT 길이 제약 + 서버측 재검증용).
  */
 export function extractFormFields(formConfig: unknown): FormModalField[] {
   if (!formConfig || typeof formConfig !== 'object') return [];
@@ -83,9 +84,44 @@ export function extractFormFields(formConfig: unknown): FormModalField[] {
     }
     const opts = normalizeOptions(f.options);
     if (opts) field.options = opts;
+    // §3.3 — field.validation.{minLength,maxLength} (form.schema validationRuleSchema) 정규화.
+    const validation =
+      f.validation && typeof f.validation === 'object'
+        ? (f.validation as Record<string, unknown>)
+        : undefined;
+    if (validation) {
+      if (
+        typeof validation.minLength === 'number' &&
+        validation.minLength >= 0
+      ) {
+        field.minLength = validation.minLength;
+      }
+      if (
+        typeof validation.maxLength === 'number' &&
+        validation.maxLength > 0
+      ) {
+        field.maxLength = validation.maxLength;
+      }
+    }
     out.push(field);
   }
   return out;
+}
+
+/**
+ * §3.3 — formConfig 에서 폼 제목(`title`)을 추출. extractFormFields 와 동일하게 두 shape 수용
+ * (`{ title }` 직접 / `{ config: { title } }` nodeOutput wrapping). 비문자열/빈 문자열은 undefined.
+ */
+export function extractFormTitle(formConfig: unknown): string | undefined {
+  if (!formConfig || typeof formConfig !== 'object') return undefined;
+  const root = formConfig as Record<string, unknown>;
+  const direct = typeof root.title === 'string' ? root.title : undefined;
+  const nested =
+    root.config && typeof root.config === 'object'
+      ? (root.config as Record<string, unknown>).title
+      : undefined;
+  const title = direct ?? (typeof nested === 'string' ? nested : undefined);
+  return title && title.trim().length > 0 ? title : undefined;
 }
 
 /** §4.1 step 4 client-side 검증 정규식 — 기본 email shape. */
@@ -126,6 +162,19 @@ export function validateFormSubmission(
     }
     if (def.type === 'number' && !NUMBER_RE.test(value)) {
       return { field: def.name, message: '숫자만 입력해 주세요.' };
+    }
+    // §3.3 — 길이 제약 서버측 검증 (Discord modal min/max 는 UI hint 일 뿐 bypass 가능).
+    if (typeof def.minLength === 'number' && value.length < def.minLength) {
+      return {
+        field: def.name,
+        message: `최소 ${def.minLength}자 이상 입력해 주세요.`,
+      };
+    }
+    if (typeof def.maxLength === 'number' && value.length > def.maxLength) {
+      return {
+        field: def.name,
+        message: `최대 ${def.maxLength}자까지 입력할 수 있습니다.`,
+      };
     }
     if (
       (def.type === 'select' || def.type === 'radio') &&
