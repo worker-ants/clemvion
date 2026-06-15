@@ -25,6 +25,8 @@ import {
   Trash2,
   PlayCircle,
   Square,
+  Database,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -32,6 +34,10 @@ import { useT, useLocale } from "@/lib/i18n";
 import { translateGraphWarning } from "@/lib/i18n/backend-labels";
 import { useHasRole } from "@/components/auth/role-gate";
 import { executionsApi } from "@/lib/api/executions";
+import {
+  workflowTestDatasetsApi,
+  type WorkflowTestDatasetData,
+} from "@/lib/api/workflow-test-datasets";
 import { timeAgo } from "@/lib/utils/date";
 
 export function EditorToolbar() {
@@ -75,6 +81,12 @@ export function EditorToolbar() {
   const [jsonInput, setJsonInput] = useState("{}");
   const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // §2.2 테스트 데이터셋 저장 — 데이터셋 목록 펼침 / 저장 폼 / 입력값.
+  const [datasetPickerOpen, setDatasetPickerOpen] = useState(false);
+  const [saveFormOpen, setSaveFormOpen] = useState(false);
+  const [datasetName, setDatasetName] = useState("");
+  const [shareWorkspace, setShareWorkspace] = useState(false);
+  const [savingDataset, setSavingDataset] = useState(false);
 
   // §2.2 검증 — 제출 시점뿐 아니라 입력 중 실시간으로 JSON 유효성을 평가한다.
   // 유효하면 null, 아니면 파서 에러 메시지. 빈 입력은 "필요" 로 간주(유효치 않음).
@@ -117,6 +129,87 @@ export function EditorToolbar() {
       }
     },
     [t],
+  );
+
+  // §2.2 저장된 테스트 데이터셋 목록 (내 것 + 워크스페이스 공유본) — 펼쳤을 때만 조회.
+  const datasetsQuery = useQuery({
+    queryKey: ["editor-test-datasets", workflowId],
+    queryFn: () => workflowTestDatasetsApi.list(workflowId as string),
+    enabled: !!workflowId && runWithInputOpen && datasetPickerOpen,
+  });
+
+  const refreshDatasets = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: ["editor-test-datasets", workflowId],
+    });
+  }, [queryClient, workflowId]);
+
+  // 저장된 데이터셋의 입력 데이터를 textarea 로 적재.
+  const handleLoadDataset = useCallback((d: WorkflowTestDatasetData) => {
+    setJsonInput(JSON.stringify(d.input ?? {}, null, 2));
+    setDatasetPickerOpen(false);
+  }, []);
+
+  // 현재 textarea 입력을 이름 붙여 저장 (private 기본, 옵션으로 워크스페이스 공유).
+  const handleSaveDataset = useCallback(async () => {
+    if (!workflowId || jsonError != null || datasetName.trim() === "") return;
+    setSavingDataset(true);
+    try {
+      const input = JSON.parse(jsonInput) as Record<string, unknown>;
+      await workflowTestDatasetsApi.create(workflowId, {
+        name: datasetName.trim(),
+        input,
+        visibility: shareWorkspace ? "workspace" : "private",
+      });
+      toast.success(t("editor.datasetSaved"));
+      setSaveFormOpen(false);
+      setDatasetName("");
+      setShareWorkspace(false);
+      refreshDatasets();
+    } catch (error) {
+      console.error("Save dataset failed:", error);
+      toast.error(t("editor.datasetSaveFailed"));
+    } finally {
+      setSavingDataset(false);
+    }
+  }, [
+    workflowId,
+    jsonError,
+    datasetName,
+    jsonInput,
+    shareWorkspace,
+    t,
+    refreshDatasets,
+  ]);
+
+  // 공유본을 자기 소유 사본으로 복제.
+  const handleCloneDataset = useCallback(
+    async (id: string) => {
+      try {
+        await workflowTestDatasetsApi.clone(id);
+        toast.success(t("editor.datasetCloned"));
+        refreshDatasets();
+      } catch (error) {
+        console.error("Clone dataset failed:", error);
+        toast.error(t("editor.datasetCloneFailed"));
+      }
+    },
+    [t, refreshDatasets],
+  );
+
+  // 내 데이터셋 삭제.
+  const handleDeleteDataset = useCallback(
+    async (id: string) => {
+      try {
+        await workflowTestDatasetsApi.remove(id);
+        toast.success(t("editor.datasetDeleted"));
+        refreshDatasets();
+      } catch (error) {
+        console.error("Delete dataset failed:", error);
+        toast.error(t("editor.datasetDeleteFailed"));
+      }
+    },
+    [t, refreshDatasets],
   );
 
   const runDropdownRef = useRef<HTMLDivElement>(null);
@@ -531,17 +624,89 @@ export function EditorToolbar() {
               <h3 className="text-sm font-semibold text-[hsl(var(--card-foreground))]">
                 {t("editor.runWithInputTitle")}
               </h3>
-              {/* §2.2 히스토리 로드 — 이전 실행의 입력 데이터 불러오기 */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 text-xs"
-                onClick={() => setHistoryPickerOpen((prev) => !prev)}
-              >
-                <History size={13} />
-                {t("editor.loadFromHistory")}
-              </Button>
+              <div className="flex items-center gap-1">
+                {/* §2.2 데이터셋 불러오기 — 저장된 테스트 입력 목록 */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => {
+                    setDatasetPickerOpen((prev) => !prev);
+                    setHistoryPickerOpen(false);
+                  }}
+                >
+                  <Database size={13} />
+                  {t("editor.datasets")}
+                </Button>
+                {/* §2.2 히스토리 로드 — 이전 실행의 입력 데이터 불러오기 */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => {
+                    setHistoryPickerOpen((prev) => !prev);
+                    setDatasetPickerOpen(false);
+                  }}
+                >
+                  <History size={13} />
+                  {t("editor.loadFromHistory")}
+                </Button>
+              </div>
             </div>
+
+            {/* §2.2 저장된 데이터셋 목록 — 클릭 시 입력 적재. 공유본은 복제, 내 것은 삭제. */}
+            {datasetPickerOpen && (
+              <div className="mb-3 max-h-44 overflow-y-auto rounded-md border border-[hsl(var(--border))]">
+                {datasetsQuery.isLoading ? (
+                  <div className="flex items-center justify-center gap-2 p-3 text-xs text-[hsl(var(--muted-foreground))]">
+                    <Loader2 size={13} className="animate-spin" />
+                    {t("common.loading")}
+                  </div>
+                ) : datasetsQuery.data && datasetsQuery.data.length > 0 ? (
+                  datasetsQuery.data.map((ds) => (
+                    <div
+                      key={ds.id}
+                      className="flex items-center justify-between gap-2 border-b border-[hsl(var(--border))] px-3 py-2 text-xs last:border-b-0 hover:bg-[hsl(var(--accent))]"
+                    >
+                      <button
+                        className="flex flex-1 items-center gap-2 text-left"
+                        onClick={() => handleLoadDataset(ds)}
+                      >
+                        <span className="truncate text-[hsl(var(--foreground))]">
+                          {ds.name}
+                        </span>
+                        {!ds.isOwner && (
+                          <span className="shrink-0 rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">
+                            {t("editor.datasetShared")}
+                          </span>
+                        )}
+                      </button>
+                      {ds.isOwner ? (
+                        <button
+                          aria-label={t("editor.datasetDelete")}
+                          className="shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--destructive))]"
+                          onClick={() => void handleDeleteDataset(ds.id)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      ) : (
+                        <button
+                          aria-label={t("editor.datasetClone")}
+                          className="shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                          onClick={() => void handleCloneDataset(ds.id)}
+                        >
+                          <Copy size={13} />
+                        </button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-3 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                    {t("editor.datasetListEmpty")}
+                  </div>
+                )}
+              </div>
+            )}
 
             {historyPickerOpen && (
               <div className="mb-3 max-h-44 overflow-y-auto rounded-md border border-[hsl(var(--border))]">
@@ -595,27 +760,81 @@ export function EditorToolbar() {
             >
               {jsonError != null ? jsonError : t("editor.jsonValid")}
             </p>
-            <div className="flex justify-end gap-2">
+            {/* §2.2 데이터셋 저장 폼 — 현재 입력을 이름 붙여 저장 (옵션: 워크스페이스 공유) */}
+            {saveFormOpen && (
+              <div className="mb-3 space-y-2 rounded-md border border-[hsl(var(--border))] p-3">
+                <Input
+                  value={datasetName}
+                  onChange={(e) => setDatasetName(e.target.value)}
+                  placeholder={t("editor.datasetNamePlaceholder")}
+                  className="h-8 text-sm"
+                />
+                <label className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                  <input
+                    type="checkbox"
+                    checked={shareWorkspace}
+                    onChange={(e) => setShareWorkspace(e.target.checked)}
+                  />
+                  {t("editor.datasetShareWorkspace")}
+                </label>
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    disabled={
+                      savingDataset ||
+                      jsonError != null ||
+                      datasetName.trim() === ""
+                    }
+                    onClick={() => void handleSaveDataset()}
+                  >
+                    {savingDataset ? (
+                      <Loader2 size={14} className="mr-1.5 animate-spin" />
+                    ) : (
+                      <Database size={14} className="mr-1.5" />
+                    )}
+                    {t("editor.datasetSave")}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-between gap-2">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setRunWithInputOpen(false);
-                  setHistoryPickerOpen(false);
-                  setJsonInput("{}");
-                }}
+                className="gap-1 text-xs"
+                disabled={jsonError != null}
+                onClick={() => setSaveFormOpen((prev) => !prev)}
               >
-                {t("common.cancel")}
+                <Database size={13} />
+                {t("editor.datasetSaveAs")}
               </Button>
-              <Button
-                size="sm"
-                data-testid="run-with-input-submit"
-                disabled={isRunning || jsonError != null}
-                onClick={() => void handleRunWithInput()}
-              >
-                <Play size={14} className="mr-1.5" />
-                {t("editor.runBtn")}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setRunWithInputOpen(false);
+                    setHistoryPickerOpen(false);
+                    setDatasetPickerOpen(false);
+                    setSaveFormOpen(false);
+                    setDatasetName("");
+                    setShareWorkspace(false);
+                    setJsonInput("{}");
+                  }}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  size="sm"
+                  data-testid="run-with-input-submit"
+                  disabled={isRunning || jsonError != null}
+                  onClick={() => void handleRunWithInput()}
+                >
+                  <Play size={14} className="mr-1.5" />
+                  {t("editor.runBtn")}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

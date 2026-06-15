@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-15T12:18:43.015601",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/3-workflow-editor/3-execution.md, diff-base=f34ae00dcd87dc25b5e5b0b5c96d033015612702)",
+  "target_path": "spec/3-workflow-editor/3-execution.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

@@ -84,9 +84,26 @@ vi.mock("@/lib/api/executions", () => ({
   },
 }));
 
+const dsListMock = vi.fn();
+const dsCreateMock = vi.fn();
+const dsCloneMock = vi.fn();
+const dsRemoveMock = vi.fn();
+vi.mock("@/lib/api/workflow-test-datasets", () => ({
+  workflowTestDatasetsApi: {
+    list: (...a: unknown[]) => dsListMock(...a),
+    create: (...a: unknown[]) => dsCreateMock(...a),
+    clone: (...a: unknown[]) => dsCloneMock(...a),
+    remove: (...a: unknown[]) => dsRemoveMock(...a),
+  },
+}));
+
+const toastSuccess = vi.fn();
 const toastError = vi.fn();
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: (m: string) => toastError(m) },
+  toast: {
+    success: (m: string) => toastSuccess(m),
+    error: (m: string) => toastError(m),
+  },
 }));
 
 import { EditorToolbar } from "../editor-toolbar";
@@ -251,5 +268,98 @@ describe("EditorToolbar — Run with Input (§2.2)", () => {
     expect(
       screen.getByRole("button", { name: /Run options/i }),
     ).toBeDisabled();
+  });
+
+  // §2.2 데이터셋 저장
+  it("Datasets: 목록을 펼치면 저장본을 보여주고, 클릭 시 입력에 적재한다", async () => {
+    dsListMock.mockResolvedValue([
+      { id: "d1", name: "Login OK", input: { u: 1 }, isOwner: true },
+    ]);
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Datasets/i }));
+
+    const item = await screen.findByText("Login OK");
+    await waitFor(() => expect(dsListMock).toHaveBeenCalledWith("wf-1"));
+    fireEvent.click(item);
+    expect(screen.getByPlaceholderText('{"key": "value"}')).toHaveValue(
+      JSON.stringify({ u: 1 }, null, 2),
+    );
+  });
+
+  it("Datasets: 'Save as Dataset' → 이름 입력 후 저장하면 create 를 호출한다", async () => {
+    dsCreateMock.mockResolvedValue({ id: "new", name: "case", isOwner: true });
+    dsListMock.mockResolvedValue([]);
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Save as Dataset/i }));
+    fireEvent.change(
+      screen.getByPlaceholderText(/Dataset name/i),
+      { target: { value: "case" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Save dataset/i }));
+
+    await waitFor(() =>
+      expect(dsCreateMock).toHaveBeenCalledWith("wf-1", {
+        name: "case",
+        input: {},
+        visibility: "private",
+      }),
+    );
+  });
+
+  it("Datasets: 저장된 데이터셋 없음 → empty state 렌더", async () => {
+    dsListMock.mockResolvedValue([]);
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Datasets/i }));
+
+    expect(await screen.findByText(/No saved datasets/i)).toBeInTheDocument();
+  });
+
+  it("Datasets: 공유본(isOwner=false) Clone 버튼 클릭 → dsCloneMock 호출", async () => {
+    dsListMock.mockResolvedValue([
+      {
+        id: "shared-1",
+        name: "Shared Case",
+        input: { s: 1 },
+        isOwner: false,
+      },
+    ]);
+    dsCloneMock.mockResolvedValue({
+      id: "cloned-1",
+      name: "Shared Case (Copy)",
+      input: { s: 1 },
+      isOwner: true,
+    });
+
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Datasets/i }));
+
+    const cloneBtn = await screen.findByRole("button", { name: /Clone/i });
+    fireEvent.click(cloneBtn);
+
+    await waitFor(() =>
+      expect(dsCloneMock).toHaveBeenCalledWith("shared-1"),
+    );
+  });
+
+  it("Datasets: 내 것(isOwner=true) Delete 버튼 클릭 → dsRemoveMock 호출", async () => {
+    dsListMock.mockResolvedValue([
+      { id: "mine-1", name: "My Case", input: { m: 1 }, isOwner: true },
+    ]);
+    dsRemoveMock.mockResolvedValue(undefined);
+
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Datasets/i }));
+
+    const deleteBtn = await screen.findByRole("button", { name: /Delete/i });
+    fireEvent.click(deleteBtn);
+
+    await waitFor(() =>
+      expect(dsRemoveMock).toHaveBeenCalledWith("mine-1"),
+    );
   });
 });
