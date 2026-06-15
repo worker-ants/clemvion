@@ -2,6 +2,9 @@
 worktree: spec-sync-audit
 started: 2026-06-03
 owner: planner
+status: complete
+spec_impact:
+  - spec/3-workflow-editor/3-execution.md
 ---
 
 # execution — spec 약속 대비 미구현 surface
