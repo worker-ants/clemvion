@@ -490,6 +490,8 @@ function CodeTab({
   );
 }
 
+// nodeId 는 §1.3 단일 노드 실행 결과(및 일반 실행 시 해당 노드 결과)를 Info 탭에
+// 표시하기 위해 추가됐다 — execution-store 의 nodeResults 에서 이 노드의 최신 결과를 찾는다.
 function InfoTab({
   nodeType,
   nodeId,

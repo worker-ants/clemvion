@@ -50,11 +50,11 @@ pending_plans:
 | 진입점 | `POST /api/workflows/:id/nodes/:nodeId/execute` (§9) |
 | 범위 | 해당 노드만 실행 — downstream 미진행 (§1.2 Run-from-Selected 와 구분) |
 | 입력 데이터 | 직전 실행(`previousExecutionId`)의 상류(predecessor) 노드 출력을 자동 주입(엔진이 nodeOutputCache 에 pre-seed → 정상 실행과 동일하게 입력 재구성). 미지정 시 body `input` 수동 입력으로 대체 |
-| 출력 | 새 Execution 으로 기록 — 설정 패널 Info 탭에 결과(출력/오류/소요) 표시 + Run Results 드로어에 노드 타임라인. `GET /api/executions/:id` 로도 조회 |
+| 출력 | 새 Execution 으로 기록 — 설정 패널 Info 탭에 결과(출력/오류/소요) 표시 + Run Results 드로어 타임라인(대상 노드만 실행되므로 그 노드만 표시). `GET /api/executions/:id` 로도 조회 |
 
 > **메커니즘**: 엔진(`runExecution`)은 `single_node_id` 가 세팅된 실행에서 대상 노드만 reachable 로 seed 하고 downstream 전파(`propagateReachability`)·컨테이너 body·parallel branch·back-edge 재진입을 수행하지 않는다. `previous_execution_id` 가 있으면 대상 노드의 직속 predecessor 출력을 `nodeOutputCache`/`structuredOutputCache` 에 복원해 `$node['predecessor']` 표현식과 입력 게이트가 정상 실행과 동일하게 동작한다.
 >
-> **범위 한계 (v1)**: 대상은 최상위(top-level) 비-blocking 노드(표준/AI/코드/HTTP 등)다. blocking(form/buttons/AI 멀티턴) 대화형 노드의 park, 컨테이너 내부 노드, 직속 predecessor 외 비인접 `$node[...]`·트리거 컨텍스트는 seed 범위 밖이다 (디버그 도구 v1 — Rationale 참조).
+> **범위 한계 (v1)**: 대상은 최상위(top-level) 비-blocking 노드(표준/AI/코드/HTTP 등)다. blocking(form/buttons/AI 멀티턴) 대화형 노드의 park, 컨테이너 내부 노드, 직속 predecessor 외 비인접 `$node[...]`·트리거 컨텍스트는 seed 범위 밖이다 (디버그 도구 v1 — Rationale 참조). 비활성(disabled) 노드를 대상으로 하면 일반 실행과 동일하게 skip 처리되어 빈 결과로 완료된다.
 
 ---
 

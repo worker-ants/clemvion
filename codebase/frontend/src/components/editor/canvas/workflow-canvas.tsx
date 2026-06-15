@@ -267,11 +267,16 @@ export function WorkflowCanvas() {
   const handleRunThisNode = useCallback(
     async (nodeId: string) => {
       if (!workflowId) return;
+      // `getState()` 로 실행 상태/직전 실행 id 를 클릭 시점에 1회 읽는다(stale
+      // closure 아님 — 항상 live 스냅샷). 자주 바뀌는 execution status 를 캔버스가
+      // 구독하지 않게 해 불필요한 re-render 를 피하려는 의도다.
       const execState = useExecutionStore.getState();
       if (execState.status === "running") return;
       if (isDirty) {
         const saved = await saveWorkflow();
         if (!saved) return;
+        // 저장 await 동안 다른 경로로 실행이 시작됐을 수 있어 status 를 재확인한다(TOCTOU).
+        if (useExecutionStore.getState().status === "running") return;
       }
       try {
         const response = await workflowsApi.executeNode(workflowId, nodeId, {
@@ -282,6 +287,8 @@ export function WorkflowCanvas() {
         ).data;
         startExecution(executionId);
       } catch (error) {
+        // v1 — 실패는 콘솔 로깅만(기존 handleRun 패턴과 동일). 사용자 가시 토스트
+        // 피드백은 후속(run 진입점 전반의 에러 UX 통일 시) 과제.
         console.error("Single-node execution failed:", error);
       }
     },

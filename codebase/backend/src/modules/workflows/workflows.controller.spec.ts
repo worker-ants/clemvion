@@ -280,6 +280,20 @@ describe('WorkflowsController (executeNode endpoint, §1.3)', () => {
     expect(engine.execute).not.toHaveBeenCalled();
   });
 
+  it('propagates workspace 404 (findById throws) without touching node/engine', async () => {
+    workflowsService.findById.mockRejectedValue(
+      new BadRequestException('workflow not in workspace'),
+    );
+
+    const err = await controller
+      .executeNode('wf-foreign', 'n1', 'ws', user, mockResponse(), {})
+      .catch((e: unknown) => e as BadRequestException);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(nodeRepo.findOneBy).not.toHaveBeenCalled();
+    expect(engine.execute).not.toHaveBeenCalled();
+  });
+
   it('returns 400 when previousExecutionId belongs to another workflow', async () => {
     nodeRepo.findOneBy.mockResolvedValue({
       id: 'n1',

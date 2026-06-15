@@ -2767,6 +2767,61 @@ describe('ExecutionEngineService', () => {
           }),
         }),
       );
+      // 완료 outputData = 대상 노드(node-2) 출력 (topological-last node-3 아님).
+      // updateExecutionStatus(COMPLETED) 의 guarded UPDATE param[5] = JSON.stringify(outputData).
+      const completedCall = mockExecutionRepo.query.mock.calls.find(
+        (c: unknown[]) =>
+          typeof c[0] === 'string' &&
+          c[0].includes('output_data') &&
+          (c[1] as unknown[])?.[1] === ExecutionStatus.COMPLETED,
+      );
+      expect(completedCall).toBeDefined();
+      const persistedOutput = JSON.parse(
+        (completedCall![1] as string[])[5],
+      ) as Record<string, unknown>;
+      expect(persistedOutput).toMatchObject({
+        processed: true,
+        input: { seeded: 42 },
+      });
+    });
+
+    it('비-canonical(bare) predecessor outputData 도 wrapBareAsNodeHandlerOutput 로 안전 seed', async () => {
+      passThroughCreate();
+      const seenInputs: unknown[] = [];
+      (mockHandler.execute as jest.Mock).mockImplementation(
+        async (input: unknown) => {
+          seenInputs.push(input);
+          return mockOutput({ processed: true, input });
+        },
+      );
+      // config/output 키가 없는 bare object (legacy/배포 이전 row) — adaptHandlerReturn
+      // strict 가 throw 하지 않도록 lenient wrapper 폴백 경로를 검증.
+      mockNodeExecutionRepo.find.mockResolvedValueOnce([
+        {
+          id: 'ne-prev-node-1',
+          executionId: 'prev-exec',
+          nodeId: 'node-1',
+          status: NodeExecutionStatus.COMPLETED,
+          outputData: { seeded: 99 },
+          finishedAt: new Date(),
+        },
+      ]);
+
+      await service.execute(
+        workflowId,
+        {},
+        {
+          executedBy: 'u1',
+          singleNodeId: 'node-2',
+          previousExecutionId: 'prev-exec',
+        },
+      );
+      await flushPromises();
+      await flushPromises();
+
+      expect(mockHandler.execute).toHaveBeenCalledTimes(1);
+      // bare {seeded:99} → wrap → {config:{}, output:{seeded:99}} → flat {seeded:99}.
+      expect(seenInputs[0]).toEqual({ seeded: 99 });
     });
 
     it('previousExecutionId 미지정 시 수동 입력(input)으로 단일 노드 실행', async () => {

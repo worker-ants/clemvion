@@ -118,6 +118,7 @@ import {
 } from './queues/execution-run.queue';
 import {
   adaptHandlerReturn,
+  isCanonicalHandlerOutput,
   toEngineFlatShape,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
@@ -7823,14 +7824,10 @@ export class ExecutionEngineService
     for (const [predId, storedOutput] of outputs) {
       // NodeExecution.outputData 는 canonical `{config, output, ...}` 형태로
       // 저장되므로(handler raw return / adapted) adaptHandlerReturn 으로 정규화한다.
-      // 혹시 비-canonical(legacy/배포 이전 row)이면 lenient wrapper 로 폴백.
-      const isCanonical =
-        typeof storedOutput === 'object' &&
-        storedOutput !== null &&
-        !Array.isArray(storedOutput) &&
-        'config' in storedOutput &&
-        'output' in storedOutput;
-      const adapted = isCanonical
+      // 혹시 비-canonical(legacy/배포 이전 row, scalar/array 등)이면 lenient
+      // wrapper 로 폴백한다 — wrapBareAsNodeHandlerOutput 은 null/scalar/array/object
+      // 전부 안전 처리하므로 어떤 stored shape 도 throw 없이 복원된다.
+      const adapted = isCanonicalHandlerOutput(storedOutput)
         ? adaptHandlerReturn(storedOutput)
         : wrapBareAsNodeHandlerOutput(storedOutput);
       // 정상 실행의 노드 완료 경로(setStructuredOutput → setNodeOutput(flat))를
@@ -7849,6 +7846,7 @@ export class ExecutionEngineService
    * 주어진 실행(executionId)에서 지정 노드들의 **최신** 완료 출력(output_data)을
    * 조회한다. 컨테이너 반복 등으로 한 노드가 여러 NodeExecution 을 가질 수 있어
    * finishedAt DESC 정렬 후 노드별 첫 행만 취한다. 단일 노드 실행 입력 pre-seed 전용.
+   * 동일 finishedAt 동점 시 순서가 비결정적이지 않도록 id DESC 로 tie-break 한다.
    */
   private async getLatestPredecessorOutputs(
     executionId: string,
@@ -7864,7 +7862,7 @@ export class ExecutionEngineService
         nodeId: In(predecessorNodeIds),
         status: NodeExecutionStatus.COMPLETED,
       },
-      order: { finishedAt: 'DESC' },
+      order: { finishedAt: 'DESC', id: 'DESC' },
     });
     for (const row of rows) {
       if (!result.has(row.nodeId) && row.outputData != null) {

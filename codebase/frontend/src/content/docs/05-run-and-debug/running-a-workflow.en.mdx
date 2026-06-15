@@ -10,7 +10,7 @@ Pick one from the dropdown next to the `▶ Run` button in the editor's top tool
   { name: "Run from Selected", type: "Partial run", description: "Run only from the selected node to the end. Reuse the input that node received last time, or provide one manually." }
 ]} />
 
-There's also a **single-node run** via right-click menu. Handy for verifying one node in isolation.
+You can also run a single node in isolation via right-click → **Run this node**. See the [Run this node](#run-this-node) section below.
 
 ## Run with Input dialog
 
@@ -84,6 +84,24 @@ Great when you want to iterate on a single debug target.
 </Steps>
 
 <Callout type="tip">When a node is expensive to re-run (AI Agent, HTTP Request with paid APIs), partial-run from the **next** node to save time and cost.</Callout>
+
+## Run this node
+
+<ImplAnchor
+  kind="component"
+  file="codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx"
+  symbol="handleRunThisNode"
+  describes="Single-node execution handler in the node right-click context menu"
+/>
+
+Right-click any node on the canvas and choose **Run this node** to execute that node alone. Unlike a full run or Run from Selected, downstream nodes are not executed.
+
+- **Input**: if a previous run exists, the output of the directly upstream (predecessor) node is automatically injected as input. With no prior run the node executes with empty input.
+- **Output**: results (output data, errors, elapsed time) appear in the **Info** tab of the settings panel. The node also shows up in the Run Results drawer timeline.
+
+<Callout type="tip">Run the full workflow once first, then right-click specific nodes to re-run them individually while debugging — a much faster iteration loop.</Callout>
+
+<Callout type="note">Interactive (blocking) nodes such as form, buttons, and AI multi-turn, and nodes inside Loop / ForEach / Map containers, are not supported for single-node execution. Standard, AI, code, and HTTP Request nodes all work.</Callout>
 
 ## Trigger types and how they affect running
 
