@@ -1,6 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { DynamicFormUI } from "../dynamic-form-ui";
+import { useLocaleStore } from "@/lib/stores/locale-store";
+
+// file 검증 에러 등 user-facing 문자열을 한국어로 단언하므로 locale 을 ko 로 고정한다
+// (DEFAULT_LOCALE='ko' 이지만 모듈 store 의 테스트 간 잔류를 방어 — W5).
+beforeEach(() => {
+  useLocaleStore.setState({ locale: "ko" });
+});
 
 /**
  * DynamicFormUI 컴포넌트 통합 테스트.
@@ -270,6 +277,189 @@ describe("DynamicFormUI — file 케이스 (spec 4-form §1.5 metadata-only)", (
     );
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
     expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
+  });
+});
+
+describe("DynamicFormUI — file 클라이언트 검증 (spec §1.5 reject)", () => {
+  const MB = 1024 * 1024;
+
+  function selectFiles(input: HTMLInputElement, files: File[]) {
+    Object.defineProperty(input, "files", { value: files, configurable: true });
+    fireEvent.change(input);
+  }
+
+  it("MIME 미허용(기본 목록) → reject + 에러 표시 + selection 미반영", () => {
+    const onSubmit = vi.fn();
+    render(
+      <DynamicFormUI
+        formConfig={{
+          // allowedMimeTypes 미설정 → 클라이언트가 §1 기본 14종 적용.
+          fields: [{ name: "doc", type: "file", label: "Doc" }],
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const input = screen.getByLabelText("Doc") as HTMLInputElement;
+    const evil = new File(["x"], "evil.exe", {
+      type: "application/x-msdownload",
+    });
+    selectFiles(input, [evil]);
+
+    expect(screen.getByText("허용되지 않은 파일 형식입니다.")).toBeTruthy();
+    // selection 미반영 → submit 시 빈 배열.
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
+  });
+
+  it("per-file 크기 초과(기본 10MB) → reject + 에러 표시", () => {
+    const onSubmit = vi.fn();
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            {
+              name: "doc",
+              type: "file",
+              label: "Doc",
+              allowedMimeTypes: ["image/png"],
+            },
+          ],
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const input = screen.getByLabelText("Doc") as HTMLInputElement;
+    const big = new File(["x"], "big.png", { type: "image/png" });
+    Object.defineProperty(big, "size", { value: 11 * MB });
+    selectFiles(input, [big]);
+
+    expect(screen.getByText("파일 크기는 10MB 이하여야 합니다.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
+  });
+
+  it("합계 크기 초과(maxTotalSize) → reject + 에러 표시", () => {
+    const onSubmit = vi.fn();
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            {
+              name: "doc",
+              type: "file",
+              label: "Doc",
+              allowedMimeTypes: ["image/png"],
+              maxFileSize: 10,
+              maxTotalSize: 10,
+            },
+          ],
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const input = screen.getByLabelText("Doc") as HTMLInputElement;
+    const mk = (n: string, bytes: number) => {
+      const f = new File(["x"], n, { type: "image/png" });
+      Object.defineProperty(f, "size", { value: bytes });
+      return f;
+    };
+    // 개별 6MB(≤10) 이나 합계 12MB(>10) → total 초과.
+    selectFiles(input, [mk("a.png", 6 * MB), mk("b.png", 6 * MB)]);
+
+    expect(
+      screen.getByText("전체 파일 크기는 10MB 이하여야 합니다."),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
+  });
+
+  it("확장자 없는 파일(File.type === '') → MIME 체크 skip → 통과(반영)", () => {
+    const onSubmit = vi.fn();
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            {
+              name: "doc",
+              type: "file",
+              label: "Doc",
+              allowedMimeTypes: ["image/png"],
+            },
+          ],
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const input = screen.getByLabelText("Doc") as HTMLInputElement;
+    // type "" — 브라우저가 MIME 미상. MIME 거부 없이 통과.
+    selectFiles(input, [new File(["x"], "noext", { type: "" })]);
+    expect(
+      screen.queryByText("허용되지 않은 파일 형식입니다."),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    const submitted = onSubmit.mock.calls[0][0] as { doc: Array<{ name: string }> };
+    expect(submitted.doc).toHaveLength(1);
+    expect(submitted.doc[0].name).toBe("noext");
+  });
+
+  it("개수 초과(maxFiles 2) → reject + 에러 표시", () => {
+    const onSubmit = vi.fn();
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            {
+              name: "doc",
+              type: "file",
+              label: "Doc",
+              maxFiles: 2,
+              allowedMimeTypes: ["image/png"],
+            },
+          ],
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const input = screen.getByLabelText("Doc") as HTMLInputElement;
+    const mk = (n: string) => new File(["x"], n, { type: "image/png" });
+    selectFiles(input, [mk("a.png"), mk("b.png"), mk("c.png")]);
+
+    expect(screen.getByText("최대 2개까지 업로드할 수 있습니다.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
+  });
+
+  it("유효 선택 후 재선택이 유효하면 에러 해제 + metadata 반영", () => {
+    const onSubmit = vi.fn();
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            {
+              name: "doc",
+              type: "file",
+              label: "Doc",
+              allowedMimeTypes: ["image/png"],
+            },
+          ],
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const input = screen.getByLabelText("Doc") as HTMLInputElement;
+    // 1차: 미허용 → 에러.
+    selectFiles(input, [new File(["x"], "x.gif", { type: "image/gif" })]);
+    expect(screen.getByText("허용되지 않은 파일 형식입니다.")).toBeTruthy();
+    // 2차: 허용 → 에러 해제 + 반영.
+    selectFiles(input, [new File(["ok"], "ok.png", { type: "image/png" })]);
+    expect(screen.queryByText("허용되지 않은 파일 형식입니다.")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    const submitted = onSubmit.mock.calls[0][0] as {
+      doc: Array<{ name: string }>;
+    };
+    expect(submitted.doc).toHaveLength(1);
+    expect(submitted.doc[0].name).toBe("ok.png");
   });
 });
 

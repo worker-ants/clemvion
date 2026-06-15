@@ -31,7 +31,7 @@ import {
 } from './workflow-errors';
 import {
   extractFormFields,
-  validateFormSubmission,
+  validateAllFields,
 } from '../chat-channel/shared/form-mode';
 import { resolveMaxActiveRunningMs } from './execution-limits';
 import {
@@ -4365,9 +4365,14 @@ export class ExecutionEngineService
   /**
    * [spec form §4·§6.2 / EIA §5.1] form 제출 데이터를 노드 field 정의에 대해 검증한다.
    * 적용 규칙: 필수·`type`(email/number)·`validation.minLength`/`maxLength`·`min`/`max`(숫자 범위)·
-   * `pattern`(regex)·select/radio 선택지.
-   * **미적용 (Planned)**: `type:'file'` MIME/size/count (`plan/in-progress/spec-sync-form-gaps.md` 추적).
-   * 실패 시 FIRST 오류로 {@link FormValidationError} throw (chat-channel `validateFormSubmission` 재사용).
+   * `pattern`(regex)·select/radio 선택지·`type:'file'` MIME/크기/개수.
+   * 실패 시 FIRST 오류로 {@link FormValidationError} throw.
+   *
+   * `validateAllFields` 가 field 정의 순서로 단일 패스(cross-type FIRST 오류 순서 보존) — scalar 는
+   * `coerceFormValue` 정규화 후 validateScalarField, `type:'file'` 은 raw metadata 배열로
+   * validateFileField. file metadata 는 frontend(`DynamicFormUI`)가 `{name,size,type,lastModified}[]`
+   * 로 직렬화한 payload (binary 미전달, §1.5). chat-channel 어댑터(Slack 등)의 다른 file shape 은
+   * size/MIME 미보유라 자연 bypass (form §1.5 divergence).
    *
    * 검증 불가(노드/field 정의 부재) 시 통과(기존 whitelist-only 동작 유지) — 방어적.
    */
@@ -4384,30 +4389,18 @@ export class ExecutionEngineService
     if (!node) return;
     const fields = extractFormFields(node.config);
     if (fields.length === 0) return;
-    const err = validateFormSubmission(
-      ExecutionEngineService.coerceFormSubmission(formData),
+    const rawData =
+      formData && typeof formData === 'object'
+        ? (formData as Record<string, unknown>)
+        : {};
+    const err = validateAllFields(
+      rawData,
       fields,
+      ExecutionEngineService.coerceFormValue,
     );
     if (err) {
       throw new FormValidationError(err.field, err.message);
     }
-  }
-
-  /**
-   * EIA/WS 의 typed form 데이터를 `validateFormSubmission` 이 기대하는 `Record<string,string>`
-   * 으로 정규화. number/boolean → String, 배열(multi-select·file 메타) → 콤마 join,
-   * null/undefined → '' (required 판정용). 객체는 String 표현(비어있지 않음 — required 통과,
-   * type 규칙 미해당).
-   */
-  private static coerceFormSubmission(
-    formData: unknown,
-  ): Record<string, string> {
-    if (!formData || typeof formData !== 'object') return {};
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(formData as Record<string, unknown>)) {
-      out[k] = ExecutionEngineService.coerceFormValue(v);
-    }
-    return out;
   }
 
   /**
@@ -4418,22 +4411,25 @@ export class ExecutionEngineService
    *   - `string` → 원본 유지
    *   - `number` / `boolean` → `String()` 변환
    *   - `Array` — 빈 배열 → `''`; 비어있지 않은 배열 → 각 요소를 문자열화(비문자열은
-   *     `JSON.stringify`)한 뒤 콤마 join. multi-select·file 메타 배열 대응.
+   *     `JSON.stringify`)한 뒤 콤마 join. multi-value(multi-select 등) 배열 대응.
    *   - 그 외 객체 → `JSON.stringify`. required 통과(`''` 아님), type 규칙 미해당.
+   *
+   * scalar 필드 전용 — `type:'file'` 은 raw metadata 배열로 {@link validateFileField} 가 별도 검증.
    */
   private static coerceFormValue(v: unknown): string {
     if (v === null || v === undefined) return '';
     if (typeof v === 'string') return v;
     if (typeof v === 'number' || typeof v === 'boolean') return String(v);
     if (Array.isArray(v)) {
-      // multi-value(multi-select·file 메타) — 비어있으면 '', 아니면 요소를 string 화해 join.
+      // multi-value(multi-select 등) — 비어있으면 '', 아니면 요소를 string 화해 join.
       return v.length === 0
         ? ''
         : v
             .map((x) => (typeof x === 'string' ? x : JSON.stringify(x)))
             .join(',');
     }
-    // 객체(단일 file 메타 등) — 비어있지 않은 것으로 간주(required 통과), 형식 규칙 미해당.
+    // 그 외 객체 — 비어있지 않은 것으로 간주(required 통과), scalar 형식 규칙 미해당.
+    // (scalar 전용 — file metadata 는 본 함수를 거치지 않고 validateFileField 가 raw 로 처리.)
     return JSON.stringify(v);
   }
 

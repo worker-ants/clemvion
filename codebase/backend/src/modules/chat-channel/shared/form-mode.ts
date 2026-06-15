@@ -20,6 +20,43 @@ export type FormMode = 'multi_step' | 'native_modal' | 'auto';
 /** §4.1 진입 조건의 최대 필드 수 (Discord modal hard limit). */
 export const NATIVE_MODAL_MAX_FIELDS = 5;
 
+/**
+ * spec/4-nodes/6-presentation/4-form.md §1 — `type: 'file'` 필드 공유 기본값.
+ * formFieldSchema(`form.schema.ts`)는 4 file 옵션을 zod default 없이 optional() 로만 두므로,
+ * 미설정 시 코드에서 자동 주입되지 않는다 → `extractFormFields` 가 **file 필드에 한해**
+ * 아래 기본값을 주입한다(비-file 필드는 미설정 유지 — config echo 오염 방지, Principle 1.1).
+ */
+/** 문서/이미지만 허용 (실행파일·스크립트·아카이브 제외). */
+export const DEFAULT_FILE_ALLOWED_MIME_TYPES: readonly string[] = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/csv',
+];
+/** 단일 파일 최대 크기 (MB). */
+export const DEFAULT_FILE_MAX_FILE_SIZE_MB = 10;
+/** 필드 전체 파일 합계 최대 크기 (MB). */
+export const DEFAULT_FILE_MAX_TOTAL_SIZE_MB = 50;
+/** 필드당 최대 파일 수. */
+export const DEFAULT_FILE_MAX_FILES = 5;
+/** MB → bytes 변환 (MiB = 1024×1024). file size 비교에 사용. */
+export const MB_IN_BYTES = 1024 * 1024;
+
+/** 유한 양수 판정 — file 숫자 제약 정규화에서 NaN/Infinity/0/음수 거부에 사용. */
+function isPositiveFinite(v: unknown): v is number {
+  return Number.isFinite(v) && (v as number) > 0;
+}
+
 export interface DecideFormModeParams {
   /** config.uiMapping.formMode — 미설정 시 'auto'. */
   formMode: FormMode | undefined;
@@ -56,6 +93,8 @@ export function decideFormMode(
  * `minLength`(≥0)·`maxLength`(>0) 로 정규화한다 (modal TEXT_INPUT 길이 제약 + 서버측 재검증용).
  * §6.2 — `validation.{min,max}`(유한수, `min > max` 논리 역전은 두 경계 모두 무시)·`pattern`
  * (비어있지 않은 regex 문자열)도 서버측 검증용으로 정규화한다.
+ * §1/§6.2 — `type: 'file'` 필드는 4 제약(`allowedMimeTypes`/`maxFileSize`/`maxTotalSize`/`maxFiles`)을
+ * 공유 기본값으로 주입한다(file 타입 한정 — 비-file 필드는 미설정 유지, Principle 1.1).
  */
 export function extractFormFields(formConfig: unknown): FormModalField[] {
   if (!formConfig || typeof formConfig !== 'object') return [];
@@ -121,6 +160,27 @@ export function extractFormFields(formConfig: unknown): FormModalField[] {
         field.pattern = validation.pattern;
       }
     }
+    // §1/§6.2 — file 필드 전용 제약. file 타입에 한해 공유 기본값을 주입한다
+    // (비-file 필드는 미설정 유지 — config echo 오염 방지, Principle 1.1).
+    if (type === 'file') {
+      const mimes = Array.isArray(f.allowedMimeTypes)
+        ? f.allowedMimeTypes.filter((m): m is string => typeof m === 'string')
+        : undefined;
+      field.allowedMimeTypes =
+        mimes && mimes.length > 0
+          ? mimes
+          : [...DEFAULT_FILE_ALLOWED_MIME_TYPES];
+      // 유한 양수만 수용 — NaN/Infinity/0/음수는 기본값 fallback(min/max 정규화와 동일 규칙).
+      field.maxFileSize = isPositiveFinite(f.maxFileSize)
+        ? f.maxFileSize
+        : DEFAULT_FILE_MAX_FILE_SIZE_MB;
+      field.maxTotalSize = isPositiveFinite(f.maxTotalSize)
+        ? f.maxTotalSize
+        : DEFAULT_FILE_MAX_TOTAL_SIZE_MB;
+      field.maxFiles = isPositiveFinite(f.maxFiles)
+        ? f.maxFiles
+        : DEFAULT_FILE_MAX_FILES;
+    }
     out.push(field);
   }
   return out;
@@ -154,10 +214,10 @@ const NUMBER_RE = /^-?\d+(\.\d+)?$/;
 const MAX_PATTERN_LENGTH = 512;
 
 /**
- * §4.1 step 4 — submit_form 전 client-side 값 검증 (pure). 서버측 EIA 검증 + catch 경로를
- * 보완하는 1차 게이트. defs 순서대로 검사해 FIRST 오류를 반환, 모두 통과면 null.
+ * 단일 비-file 필드(scalar)의 값 검증 (pure). FIRST 오류 반환, 통과면 null.
+ * `value` 는 이미 문자열로 정규화된 상태여야 한다(호출자가 coerce).
  *
- * 규칙 (def 별, FIRST 오류 순서):
+ * 규칙 (FIRST 오류 순서):
  *   - required: 값 누락/공백 → 필수 입력 오류.
  *   - type=email: 비어있지 않은 값이 EMAIL_RE 미충족 → 이메일 형식 오류.
  *   - type=number: 비어있지 않은 값이 NUMBER_RE 미충족 → 숫자 형식 오류.
@@ -167,7 +227,97 @@ const MAX_PATTERN_LENGTH = 512;
  *     pattern 은 노드 관리자 config(신뢰 경계) 전용 — 폼 제출자 입력이 아니다.
  *     (잘못된 regex·과길이 패턴은 방어적으로 통과 — validator 가 throw 하지 않는다.)
  *   - type=select|radio (+ options): 비어있지 않은 값이 options.value 집합 밖 → 선택지 오류.
- * 빈 optional 필드는 skip.
+ * 빈 optional 필드는 skip. `type: 'file'` 은 본 함수 대상이 아님({@link validateFileField}).
+ *
+ * SoT: spec/conventions/chat-channel-adapter.md §4.1 step 4 + spec/4-nodes/6-presentation/4-form.md §6.2.
+ */
+export function validateScalarField(
+  value: string,
+  def: FormModalField,
+): { field: string; message: string } | null {
+  const isEmpty = value.trim().length === 0;
+
+  if (def.required === true && isEmpty) {
+    return { field: def.name, message: '필수 입력 항목입니다.' };
+  }
+  // 빈 optional 필드는 형식 검증 skip.
+  if (isEmpty) return null;
+
+  if (def.type === 'email' && !EMAIL_RE.test(value)) {
+    return { field: def.name, message: '올바른 이메일 형식이 아닙니다.' };
+  }
+  if (def.type === 'number' && !NUMBER_RE.test(value)) {
+    return { field: def.name, message: '숫자만 입력해 주세요.' };
+  }
+  // §3.3 — 길이 제약 서버측 검증 (Discord modal min/max 는 UI hint 일 뿐 bypass 가능).
+  if (typeof def.minLength === 'number' && value.length < def.minLength) {
+    return {
+      field: def.name,
+      message: `최소 ${def.minLength}자 이상 입력해 주세요.`,
+    };
+  }
+  if (typeof def.maxLength === 'number' && value.length > def.maxLength) {
+    return {
+      field: def.name,
+      message: `최대 ${def.maxLength}자까지 입력할 수 있습니다.`,
+    };
+  }
+  // §6.2 — number 범위 검증 (형식 검증 통과 후, value 는 유한수).
+  if (def.type === 'number') {
+    const num = Number(value);
+    if (typeof def.min === 'number' && num < def.min) {
+      return {
+        field: def.name,
+        message: `최솟값은 ${def.min} 이상이어야 합니다.`,
+      };
+    }
+    if (typeof def.max === 'number' && num > def.max) {
+      return {
+        field: def.name,
+        message: `최댓값은 ${def.max} 이하여야 합니다.`,
+      };
+    }
+  }
+  // §6.2 — custom regex pattern 검증. pattern 은 노드 관리자 config(신뢰 경계) 전용 —
+  // 폼 제출자 입력이 아니다. 잘못된 regex·과길이 패턴(MAX_PATTERN_LENGTH 초과)은 방어적으로
+  // 통과(throw·ReDoS 회피).
+  if (
+    typeof def.pattern === 'string' &&
+    def.pattern &&
+    def.pattern.length <= MAX_PATTERN_LENGTH
+  ) {
+    let re: RegExp | null = null;
+    try {
+      re = new RegExp(def.pattern);
+    } catch {
+      re = null;
+    }
+    if (re && !re.test(value)) {
+      return { field: def.name, message: '형식이 올바르지 않습니다.' };
+    }
+  }
+  if (
+    (def.type === 'select' || def.type === 'radio') &&
+    def.options &&
+    def.options.length > 0
+  ) {
+    const allowed = def.options.map((o) => o.value);
+    if (!allowed.includes(value)) {
+      return { field: def.name, message: '유효한 선택지가 아닙니다.' };
+    }
+  }
+  return null;
+}
+
+/**
+ * §4.1 step 4 — submit_form 전 client-side 값 검증 (pure). 서버측 EIA 검증 + catch 경로를
+ * 보완하는 1차 게이트. defs 순서대로 scalar 검사해 FIRST 오류를 반환, 모두 통과면 null.
+ *
+ * **scalar 전용 경로**(chat-channel modal — `hooks.service` form_submission). file 필드는 native
+ * modal 미수용(`isFieldModalCompatible` 배제)이라 여기 도달하지 않으므로 file 검증을 하지 않는다.
+ * `type:'file'` MIME/크기/개수 검증은 EIA/WS/UI submit_form chokepoint(execution-engine
+ * `assertFormSubmissionValid`)이 {@link validateScalarField} + {@link validateFileField} 단일 패스로
+ * 수행한다 — 새 scalar 규칙은 {@link validateScalarField}, 새 file 규칙은 {@link validateFileField} 에 추가.
  *
  * SoT: spec/conventions/chat-channel-adapter.md §4.1 step 4 + spec/4-nodes/6-presentation/4-form.md §6.2.
  */
@@ -178,77 +328,118 @@ export function validateFormSubmission(
   for (const def of defs) {
     const raw = fields[def.name];
     const value = typeof raw === 'string' ? raw : '';
-    const isEmpty = value.trim().length === 0;
+    const err = validateScalarField(value, def);
+    if (err) return err;
+  }
+  return null;
+}
 
-    if (def.required === true && isEmpty) {
-      return { field: def.name, message: '필수 입력 항목입니다.' };
-    }
-    // 빈 optional 필드는 형식 검증 skip.
-    if (isEmpty) continue;
+/**
+ * §6.2 / §1.5 — `type: 'file'` 필드의 metadata 배열 서버측 검증 (pure). FIRST 오류 반환, 통과면 null.
+ *
+ * frontend(`DynamicFormUI`)가 FileList → `{name,size,type,lastModified}[]` 로 직렬화한
+ * metadata-only payload 가 대상. binary 본문은 미전달이라 검증 대상은 metadata 필드
+ * (`size`/`type`/개수)에 한정한다.
+ *
+ * 규칙 (FIRST 오류 순서, §1.5 와 동일):
+ *   - required: 파일 없음(빈 배열/누락) → 필수 입력 오류.
+ *   - MIME: 첫 위반 파일의 `type` 이 `allowedMimeTypes` 밖 → 형식 오류.
+ *   - per-file size: 어떤 파일의 `size` > `maxFileSize` MB → 크기 오류.
+ *   - total size: Σ`size` > `maxTotalSize` MB → 합계 오류.
+ *   - count: 파일 수 > `maxFiles` → 개수 오류.
+ *
+ * 방어적: 배열이 아니거나 element 가 객체가 아니면 해당 element skip. metadata 에 `size`(number)/
+ * `type`(string) 이 없으면 그 체크만 skip — chat-channel 어댑터(Slack `{fileId,mimeType,…}`) 처럼
+ * 다른 shape 의 file payload 는 size/MIME 미보유라 자연 bypass (form §1.5 divergence 주석).
+ *
+ * SoT: spec/4-nodes/6-presentation/4-form.md §1.5 / §6.2 / §1.
+ */
+export function validateFileField(
+  value: unknown,
+  def: FormModalField,
+): { field: string; message: string } | null {
+  const metas = (Array.isArray(value) ? value : []).filter(
+    (x): x is Record<string, unknown> => !!x && typeof x === 'object',
+  );
 
-    if (def.type === 'email' && !EMAIL_RE.test(value)) {
-      return { field: def.name, message: '올바른 이메일 형식이 아닙니다.' };
+  if (def.required === true && metas.length === 0) {
+    return { field: def.name, message: '필수 입력 항목입니다.' };
+  }
+  if (metas.length === 0) return null;
+
+  // MIME — 첫 위반 파일. 빈 문자열(`File.type === ''`, 브라우저가 타입 미판별)은
+  // 클라이언트 가드(validateFilesClient)와 동일하게 skip — 신뢰 불가한 metadata 라
+  // 거부 대신 통과시키고, 형식 강제는 content 검사(향후 별 surface)가 담당한다 (§1.5).
+  if (def.allowedMimeTypes && def.allowedMimeTypes.length > 0) {
+    const allowed = def.allowedMimeTypes;
+    for (const m of metas) {
+      if (
+        typeof m.type === 'string' &&
+        m.type !== '' &&
+        !allowed.includes(m.type)
+      ) {
+        return { field: def.name, message: '허용되지 않은 파일 형식입니다.' };
+      }
     }
-    if (def.type === 'number' && !NUMBER_RE.test(value)) {
-      return { field: def.name, message: '숫자만 입력해 주세요.' };
-    }
-    // §3.3 — 길이 제약 서버측 검증 (Discord modal min/max 는 UI hint 일 뿐 bypass 가능).
-    if (typeof def.minLength === 'number' && value.length < def.minLength) {
-      return {
-        field: def.name,
-        message: `최소 ${def.minLength}자 이상 입력해 주세요.`,
-      };
-    }
-    if (typeof def.maxLength === 'number' && value.length > def.maxLength) {
-      return {
-        field: def.name,
-        message: `최대 ${def.maxLength}자까지 입력할 수 있습니다.`,
-      };
-    }
-    // §6.2 — number 범위 검증 (형식 검증 통과 후, value 는 유한수).
-    if (def.type === 'number') {
-      const num = Number(value);
-      if (typeof def.min === 'number' && num < def.min) {
+  }
+  // per-file size (MB → bytes).
+  if (typeof def.maxFileSize === 'number') {
+    const limit = def.maxFileSize * MB_IN_BYTES;
+    for (const m of metas) {
+      if (typeof m.size === 'number' && m.size > limit) {
         return {
           field: def.name,
-          message: `최솟값은 ${def.min} 이상이어야 합니다.`,
-        };
-      }
-      if (typeof def.max === 'number' && num > def.max) {
-        return {
-          field: def.name,
-          message: `최댓값은 ${def.max} 이하여야 합니다.`,
+          message: `파일 크기는 ${def.maxFileSize}MB 이하여야 합니다.`,
         };
       }
     }
-    // §6.2 — custom regex pattern 검증. pattern 은 노드 관리자 config(신뢰 경계) 전용 —
-    // 폼 제출자 입력이 아니다. 잘못된 regex·과길이 패턴(MAX_PATTERN_LENGTH 초과)은 방어적으로
-    // 통과(throw·ReDoS 회피).
-    if (
-      typeof def.pattern === 'string' &&
-      def.pattern &&
-      def.pattern.length <= MAX_PATTERN_LENGTH
-    ) {
-      let re: RegExp | null = null;
-      try {
-        re = new RegExp(def.pattern);
-      } catch {
-        re = null;
-      }
-      if (re && !re.test(value)) {
-        return { field: def.name, message: '형식이 올바르지 않습니다.' };
-      }
+  }
+  // total size (Σ size, MB → bytes).
+  if (typeof def.maxTotalSize === 'number') {
+    const total = metas.reduce(
+      (sum, m) => sum + (typeof m.size === 'number' ? m.size : 0),
+      0,
+    );
+    if (total > def.maxTotalSize * MB_IN_BYTES) {
+      return {
+        field: def.name,
+        message: `전체 파일 크기는 ${def.maxTotalSize}MB 이하여야 합니다.`,
+      };
     }
-    if (
-      (def.type === 'select' || def.type === 'radio') &&
-      def.options &&
-      def.options.length > 0
-    ) {
-      const allowed = def.options.map((o) => o.value);
-      if (!allowed.includes(value)) {
-        return { field: def.name, message: '유효한 선택지가 아닙니다.' };
-      }
-    }
+  }
+  // count.
+  if (typeof def.maxFiles === 'number' && metas.length > def.maxFiles) {
+    return {
+      field: def.name,
+      message: `최대 ${def.maxFiles}개까지 업로드할 수 있습니다.`,
+    };
+  }
+  return null;
+}
+
+/**
+ * submit_form payload 의 **전 필드**를 노드 field 정의 순서로 단일 패스 검증 (pure). FIRST 오류
+ * 반환, 통과면 null. `type:'file'` 은 raw metadata 배열로 {@link validateFileField}, scalar 는
+ * `coerceScalar` 로 string 정규화 후 {@link validateScalarField} — file/scalar 가 섞여 있어도
+ * 필드 정의 순서의 cross-type FIRST 오류 순서를 보존한다.
+ *
+ * `coerceScalar` 는 호출자가 주입한다(EIA/WS 의 typed 값 → string 정규화. execution-engine 은
+ * `coerceFormValue` 주입). 새 scalar 규칙은 {@link validateScalarField}, 새 file 규칙은
+ * {@link validateFileField} 에 추가하면 본 단일 진입점이 자동 반영한다.
+ *
+ * SoT: spec/4-nodes/6-presentation/4-form.md §6.2 "검증 지점".
+ */
+export function validateAllFields(
+  formData: Record<string, unknown>,
+  defs: FormModalField[],
+  coerceScalar: (v: unknown) => string,
+): { field: string; message: string } | null {
+  for (const def of defs) {
+    const err =
+      def.type === 'file'
+        ? validateFileField(formData[def.name], def)
+        : validateScalarField(coerceScalar(formData[def.name]), def);
+    if (err) return err;
   }
   return null;
 }

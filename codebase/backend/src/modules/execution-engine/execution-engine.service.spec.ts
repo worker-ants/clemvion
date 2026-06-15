@@ -24,6 +24,7 @@ import {
   MessageTooLongError,
   FormValidationError,
 } from './workflow-errors';
+import { MB_IN_BYTES } from '../chat-channel/shared/form-mode';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import {
@@ -1334,6 +1335,120 @@ describe('ExecutionEngineService', () => {
         setupFormNodeMocks({ fields: [] });
         await service.continueExecution('exec-empty-fields', { email: 'x' });
         expect(mockBus.publish).toHaveBeenCalled();
+      });
+
+      // D 후속 (spec-sync-form-gaps INFO) — min/max·pattern 이 publisher chokepoint
+      // (assertFormSubmissionValid) 에서도 FormValidationError 로 표면하는지 통합 검증.
+      it('§6.2 number min/max 위반 → FormValidationError throw + publish 미호출', async () => {
+        setupFormNodeMocks({
+          fields: [
+            {
+              name: 'qty',
+              label: '수량',
+              type: 'number',
+              validation: { min: 1, max: 10 },
+            },
+          ],
+        });
+        await expect(
+          service.continueExecution('exec-fv-range', { qty: 100 }),
+        ).rejects.toMatchObject({
+          field: 'qty',
+          message: '최댓값은 10 이하여야 합니다.',
+          code: 'VALIDATION_ERROR',
+        });
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('§6.2 pattern(정규식) 위반 → FormValidationError throw + publish 미호출', async () => {
+        setupFormNodeMocks({
+          fields: [
+            {
+              name: 'code',
+              label: '코드',
+              type: 'text',
+              validation: { pattern: '^[A-Z]+$' },
+            },
+          ],
+        });
+        await expect(
+          service.continueExecution('exec-fv-pattern', { code: 'abc' }),
+        ).rejects.toMatchObject({
+          field: 'code',
+          message: '형식이 올바르지 않습니다.',
+          code: 'VALIDATION_ERROR',
+        });
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      // A-2 — type:'file' MIME/크기/개수 서버측 검증 (기본값 주입 후 raw metadata 배열).
+      const fileMeta = (over: Record<string, unknown> = {}) => ({
+        name: 'f.png',
+        size: 1024,
+        type: 'image/png',
+        lastModified: 0,
+        ...over,
+      });
+
+      it('§6.2 file MIME 미허용 → FormValidationError throw + publish 미호출', async () => {
+        setupFormNodeMocks({
+          fields: [{ name: 'doc', label: '문서', type: 'file' }],
+        });
+        await expect(
+          service.continueExecution('exec-file-mime', {
+            doc: [fileMeta({ type: 'application/x-msdownload' })],
+          }),
+        ).rejects.toMatchObject({
+          field: 'doc',
+          message: '허용되지 않은 파일 형식입니다.',
+          code: 'VALIDATION_ERROR',
+        });
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('§6.2 file per-file 크기 초과(기본 10MB) → FormValidationError throw', async () => {
+        setupFormNodeMocks({
+          fields: [{ name: 'doc', label: '문서', type: 'file' }],
+        });
+        await expect(
+          service.continueExecution('exec-file-size', {
+            doc: [fileMeta({ size: 11 * MB_IN_BYTES })],
+          }),
+        ).rejects.toMatchObject({
+          field: 'doc',
+          message: '파일 크기는 10MB 이하여야 합니다.',
+        });
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('§6.2 file 개수 초과(maxFiles 2) → FormValidationError throw', async () => {
+        setupFormNodeMocks({
+          fields: [{ name: 'doc', label: '문서', type: 'file', maxFiles: 2 }],
+        });
+        await expect(
+          service.continueExecution('exec-file-count', {
+            doc: [fileMeta(), fileMeta(), fileMeta()],
+          }),
+        ).rejects.toMatchObject({
+          field: 'doc',
+          message: '최대 2개까지 업로드할 수 있습니다.',
+        });
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('§6.2 file 허용 MIME · 크기 이내 → 검증 통과 + publish 호출', async () => {
+        setupFormNodeMocks({
+          fields: [{ name: 'doc', label: '문서', type: 'file' }],
+        });
+        await service.continueExecution('exec-file-ok', {
+          doc: [fileMeta({ type: 'application/pdf', size: 2 * MB_IN_BYTES })],
+        });
+        expect(mockBus.publish).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'continue',
+            executionId: 'exec-file-ok',
+          }),
+        );
       });
 
       // coerceFormValue 각 타입 분기 (private 접근 패턴)
