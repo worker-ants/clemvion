@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT, type TFunction } from "@/lib/i18n";
 
 interface FormField {
   name: string;
@@ -11,6 +12,8 @@ interface FormField {
   options?: Array<{ label: string; value: unknown }>;
   defaultValue?: unknown;
   allowedMimeTypes?: string[];
+  maxFileSize?: number;
+  maxTotalSize?: number;
   maxFiles?: number;
 }
 
@@ -26,6 +29,33 @@ interface FilePickMetadata {
   lastModified: number;
 }
 
+/**
+ * spec/4-nodes/6-presentation/4-form.md §1 — `type: 'file'` 공유 기본값.
+ * backend `form-mode.ts` 의 DEFAULT_FILE_* 상수와 값이 일치해야 한다(SoT: spec §1).
+ * 서버는 미설정 시 동일 기본값을 주입하므로, 클라이언트도 미설정 필드에 같은 기본값으로
+ * 즉시 reject 한다(서버 왕복 전 1차 가드).
+ */
+const DEFAULT_FILE_ALLOWED_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv",
+];
+const DEFAULT_FILE_MAX_FILE_SIZE_MB = 10;
+const DEFAULT_FILE_MAX_TOTAL_SIZE_MB = 50;
+const DEFAULT_FILE_MAX_FILES = 5;
+const MB_IN_BYTES = 1024 * 1024;
+
 function toFileMetadata(file: File): FilePickMetadata {
   return {
     name: file.name,
@@ -33,6 +63,45 @@ function toFileMetadata(file: File): FilePickMetadata {
     type: file.type,
     lastModified: file.lastModified,
   };
+}
+
+/**
+ * spec §1.5 — file 선택 시 제출 전 클라이언트 가드. FIRST 오류 메시지를 반환(통과면 null).
+ * 검사 순서는 서버 `validateFileField` 와 동일(MIME → per-file size → total size → count).
+ * 필드에 명시되지 않은 제약은 §1 공유 기본값을 적용한다. 메시지는 i18n(`editor.runResults.formFile*`).
+ */
+function validateFilesClient(
+  files: File[],
+  field: FormField,
+  t: TFunction,
+): string | null {
+  if (files.length === 0) return null;
+  const allowedMime =
+    field.allowedMimeTypes && field.allowedMimeTypes.length > 0
+      ? field.allowedMimeTypes
+      : DEFAULT_FILE_ALLOWED_MIME_TYPES;
+  const maxFileSize = field.maxFileSize ?? DEFAULT_FILE_MAX_FILE_SIZE_MB;
+  const maxTotalSize = field.maxTotalSize ?? DEFAULT_FILE_MAX_TOTAL_SIZE_MB;
+  const maxFiles = field.maxFiles ?? DEFAULT_FILE_MAX_FILES;
+
+  for (const f of files) {
+    if (f.type && !allowedMime.includes(f.type)) {
+      return t("editor.runResults.formFileMimeRejected");
+    }
+  }
+  for (const f of files) {
+    if (f.size > maxFileSize * MB_IN_BYTES) {
+      return t("editor.runResults.formFileSizeExceeded", { max: maxFileSize });
+    }
+  }
+  const total = files.reduce((sum, f) => sum + f.size, 0);
+  if (total > maxTotalSize * MB_IN_BYTES) {
+    return t("editor.runResults.formFileTotalExceeded", { max: maxTotalSize });
+  }
+  if (files.length > maxFiles) {
+    return t("editor.runResults.formFileCountExceeded", { max: maxFiles });
+  }
+  return null;
 }
 
 /**
@@ -59,6 +128,8 @@ function renderField(
   idx: number,
   value: unknown,
   onChange: (v: unknown) => void,
+  onError: (msg: string | null) => void,
+  t: TFunction,
 ) {
   const id = fieldInputId(field, idx);
 
@@ -191,12 +262,24 @@ function renderField(
           multiple={typeof field.maxFiles === "number" && field.maxFiles > 1}
           required={field.required}
           onChange={(e) => {
-            const fileList = (e.target as HTMLInputElement).files;
+            const input = e.target as HTMLInputElement;
+            const fileList = input.files;
             if (!fileList) {
+              onError(null);
               onChange([]);
               return;
             }
-            onChange(Array.from(fileList).map(toFileMetadata));
+            const files = Array.from(fileList);
+            // spec §1.5 — 제출 전 클라이언트 가드. MIME/크기/개수 위반 시 selection 자체를
+            // 거부(fieldState 에 반영하지 않음) + 에러 표시 + input clear (제출 버튼은 유지).
+            const err = validateFilesClient(files, field, t);
+            if (err) {
+              onError(err);
+              input.value = "";
+              return;
+            }
+            onError(null);
+            onChange(files.map(toFileMetadata));
           }}
         />
       );
@@ -228,6 +311,7 @@ export function DynamicFormUI({
   formConfig: Record<string, unknown>;
   onSubmit: (data: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const fields = (formConfig.fields ?? []) as FormField[];
   const title = formConfig.title as string | undefined;
   const description = formConfig.description as string | undefined;
@@ -245,9 +329,23 @@ export function DynamicFormUI({
     }
     return initial;
   });
+  // spec §1.5 — file 선택 클라이언트 검증 실패 메시지 (필드명 → 메시지).
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleChange = (name: string, value: unknown) => {
     setValues((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleError = (name: string, msg: string | null) => {
+    setErrors((prev) => {
+      if (msg === null) {
+        if (prev[name] === undefined) return prev;
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      }
+      return { ...prev, [name]: msg };
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -280,8 +378,16 @@ export function DynamicFormUI({
                 )}
               </Label>
             )}
-            {renderField(field, idx, values[field.name], (v) =>
-              handleChange(field.name, v),
+            {renderField(
+              field,
+              idx,
+              values[field.name],
+              (v) => handleChange(field.name, v),
+              (msg) => handleError(field.name, msg),
+              t,
+            )}
+            {errors[field.name] && (
+              <p className="text-xs text-red-500">{errors[field.name]}</p>
             )}
           </div>
         );

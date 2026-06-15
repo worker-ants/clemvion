@@ -250,6 +250,18 @@ export interface FormModalField {
    * 정규식 문자열로, transform 노드의 날짜 포맷 `args.pattern` 과는 무관하다. modal UI hint 미사용.
    */
   pattern?: string;
+  /**
+   * §6.2 / §1 — `type: 'file'` 전용 제약. `extractFormFields` 가 file 필드에 한해
+   * 공유 기본값(13종 MIME / 10MB / 50MB / 5)을 주입한다(비-file 필드는 미설정 유지 — Principle 1.1).
+   * **서버측 검증 전용**(`validateFileField`). chat-channel modal 은 file 미수용이라 UI hint 미사용.
+   */
+  allowedMimeTypes?: string[];
+  /** §1 — 단일 파일 최대 크기 (MB). */
+  maxFileSize?: number;
+  /** §1 — 필드 내 전체 파일 합계 최대 크기 (MB). */
+  maxTotalSize?: number;
+  /** §1 — 필드당 최대 파일 수. */
+  maxFiles?: number;
 }
 
 /**

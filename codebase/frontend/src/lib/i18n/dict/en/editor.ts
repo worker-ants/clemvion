@@ -272,6 +272,10 @@ export const editor: Dict["editor"] = {
     chunksAcrossTurns: "{{chunks}} chunk(s) across {{turns}} turn(s)",
     configMissing:
       "This node didn't record a config — it may be a handler still on the legacy output shape.",
+    formFileMimeRejected: "This file type is not allowed.",
+    formFileSizeExceeded: "Each file must be {{max}}MB or smaller.",
+    formFileTotalExceeded: "Total file size must be {{max}}MB or smaller.",
+    formFileCountExceeded: "You can upload at most {{max}} file(s).",
   },
   llmInfo: {
     tabResponse: "Response",
