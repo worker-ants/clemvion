@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, History, X } from "lucide-react";
+import { Loader2, Activity, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useT, useLocale } from "@/lib/i18n";
@@ -45,6 +45,9 @@ export function ExecutionHistoryPanel({
     queryKey: ["editor-execution-history", workflowId],
     queryFn: () =>
       executionsApi.getByWorkflow(workflowId, {
+        // 인-컨텍스트 빠른 조회용 최근 20건 — 그 이상은 "전체 실행" 링크의
+        // 전용 페이지(페이지네이션·필터·정렬)로 위임한다 (§7 / §10.10).
+        // (Run dialog 의 "Load from History" picker 는 입력 적재 목적이라 10건.)
         limit: 20,
         sort: "started_at",
         order: "desc",
@@ -84,7 +87,7 @@ export function ExecutionHistoryPanel({
       >
         <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-4 py-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-[hsl(var(--card-foreground))]">
-            <History size={15} />
+            <Activity size={15} />
             {t("editor.executionHistory")}
           </h3>
           <div className="flex items-center gap-1">
@@ -132,7 +135,7 @@ export function ExecutionHistoryPanel({
                   <li key={ex.id}>
                     <button
                       className="flex w-full items-center gap-3 border-b border-[hsl(var(--border))] px-4 py-2.5 text-left text-xs last:border-b-0 hover:bg-[hsl(var(--accent))] disabled:opacity-60"
-                      disabled={loadingId != null}
+                      disabled={loadingId !== null}
                       onClick={() => void handleSelect(ex.id)}
                     >
                       <span

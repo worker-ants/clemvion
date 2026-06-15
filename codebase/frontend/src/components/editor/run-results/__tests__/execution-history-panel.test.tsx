@@ -118,6 +118,45 @@ describe("ExecutionHistoryPanel (§7)", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("목록 조회 실패(isError) → 에러 메시지 렌더", async () => {
+    getByWorkflowMock.mockRejectedValue(new Error("network"));
+    renderPanel();
+    expect(
+      await screen.findByText(/Failed to load execution history/i),
+    ).toBeInTheDocument();
+  });
+
+  it("적재 진행 중(loadingId)에는 항목 버튼이 disabled 된다", async () => {
+    getByWorkflowMock.mockResolvedValue({
+      data: [
+        SAMPLE,
+        { ...SAMPLE, id: "ex-2", triggerSource: "schedule", triggerLabel: null },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 2, totalPages: 1 },
+    });
+    // getById 를 미해소 Promise 로 두어 클릭 후 loadingId 가 유지되게 한다.
+    let resolveDetail: ((v: unknown) => void) | undefined;
+    getByIdMock.mockReturnValue(
+      new Promise((res) => {
+        resolveDetail = res;
+      }),
+    );
+    renderPanel();
+
+    // 목록이 렌더된 뒤 항목 버튼만 추린다(닫기 버튼 제외 — 트리거 라벨 포함 행).
+    await screen.findByText(/Manual/);
+    const itemButtons = screen
+      .getAllByRole("button")
+      .filter((b) => /Manual|Schedule/.test(b.textContent ?? ""));
+    expect(itemButtons.length).toBe(2);
+    fireEvent.click(itemButtons[0]);
+
+    await waitFor(() =>
+      itemButtons.forEach((b) => expect(b).toBeDisabled()),
+    );
+    resolveDetail?.({ ...SAMPLE, nodeExecutions: [] });
+  });
+
   it("빈 목록 → empty state 렌더", async () => {
     getByWorkflowMock.mockResolvedValue({
       data: [],

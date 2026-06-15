@@ -2,8 +2,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   applyExecutionSnapshot,
   isNodeWaitingForInput,
+  loadHistoricalExecution,
 } from "../apply-execution-snapshot";
 import { useExecutionStore } from "../../stores/execution-store";
+import type { ExecutionData } from "../../api/executions";
 
 vi.mock("../../node-definitions", () => ({
   getNodeDefinition: (type: string) => {
@@ -1248,5 +1250,56 @@ describe("applyExecutionSnapshot — ai_conversation REST 스냅샷 hydration", 
     // 어차피 setConversationMessages 가 호출되지 않으므로 selectedIndex 보존.
     expect(state.conversationMessages).toHaveLength(2);
     expect(state.selectedConversationItemIndex).toBe(1);
+  });
+});
+
+// §7 인-에디터 실행 히스토리 — 과거 실행 적재 orchestration
+describe("loadHistoricalExecution (§7 / §10.10)", () => {
+  beforeEach(() => {
+    useExecutionStore.getState().reset();
+  });
+
+  it("startHistoryView → applyExecutionSnapshot 으로 store 를 과거 실행으로 hydrate", () => {
+    const execution = createExec({
+      id: "hist-1",
+      status: "completed",
+      startedAt: "2026-06-15T10:00:00.000Z",
+      finishedAt: "2026-06-15T10:00:03.000Z",
+      durationMs: 3200,
+      nodeExecutions: [
+        {
+          id: "ne-1",
+          executionId: "hist-1",
+          nodeId: "node-a",
+          status: "completed",
+          startedAt: "2026-06-15T10:00:00.500Z",
+          finishedAt: "2026-06-15T10:00:01.000Z",
+          durationMs: 500,
+          inputData: { in: 1 },
+          outputData: { out: 2 },
+          error: null,
+          retryCount: 0,
+          parentNodeExecutionId: null,
+          node: { id: "node-a", type: "ai_agent", label: "Agent A" },
+        },
+      ],
+    }) as unknown as ExecutionData;
+
+    loadHistoricalExecution(execution);
+
+    const state = useExecutionStore.getState();
+    // executionId 세팅 → 드로어 Re-run·상세 조회 동작 가능 (terminal 이라
+    // applyExecutionSnapshot 단독으로는 세팅 안 됨 — startHistoryView 가 채움).
+    expect(state.executionId).toBe("hist-1");
+    // 과거 실행의 실제 시작 시각 보존 (now 아님).
+    expect(state.startedAt).toBe("2026-06-15T10:00:00.000Z");
+    expect(state.status).toBe("completed");
+    expect(state.nodeResults).toHaveLength(1);
+    expect(state.nodeResults[0]).toMatchObject({
+      nodeId: "node-a",
+      nodeExecutionId: "ne-1",
+      outputData: { out: 2 },
+    });
+    expect(state.nodeStatuses.get("node-a")?.status).toBe("completed");
   });
 });

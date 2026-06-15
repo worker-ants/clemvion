@@ -100,23 +100,42 @@ If the retry succeeds, any downstream nodes connected to the AI node (e.g. HTTP 
 
 ## Browsing execution history
 
-You can re-open results after a run has finished.
+After a run finishes you can review its results in two ways: the **in-editor history panel** for a quick look, or the **dedicated executions page** for deeper browsing.
+
+### In-editor history panel (quick review)
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx"
+  symbol="ExecutionHistoryPanel"
+  describes="Editor header ⋮ menu 'Execution history' item — entry point for the in-editor execution history panel"
+/>
 
 <Steps>
-  <Step>In the editor header menu (`⋯`) pick `Execution history`, or click `View All Executions` in the Run Results drawer.</Step>
-  <Step>On `/workflows/:id/executions`, narrow the list by status (All / Completed / Failed / Running / Cancelled / Waiting).</Step>
-  <Step>Clicking a row jumps to `/workflows/:id/executions/:executionId`.</Step>
-  <Step>From the detail page you can read the summary card, per-node results, errors, and navigate adjacent runs with `← Prev / Next →`.</Step>
+  <Step>In the editor header, open the more menu (`⋮`) and click **Execution history**. A modal panel opens showing this workflow's recent runs (up to 20, most recent first). Each row shows a status icon, trigger source, duration, node counts, and relative time.</Step>
+  <Step>Click any row to load that run's per-node results into the Run Results drawer (bottom) and overlay each node's status on the canvas — **without leaving the editor**.</Step>
+  <Step>To re-run the workflow using that execution's original input, click the **Re-run** button in the drawer header.</Step>
+  <Step>For deeper browsing, click the **All executions** link in the panel header or the **View All Executions** link in the drawer to open the dedicated executions page.</Step>
 </Steps>
 
-You can also reach execution history from the Dashboard's Recent Executions widget and the Workflow List's context menu (`⋯ → Execution History`).
+### Dedicated executions page (deep browsing)
+
+<Steps>
+  <Step>Click the **All executions** link in the panel header, or **View All Executions** in the Run Results drawer.</Step>
+  <Step>On the executions page, narrow the list by status (All / Completed / Failed / Running / Cancelled / Waiting), sort, and paginate.</Step>
+  <Step>Click a row to open the execution detail page — summary card, per-node results, errors, and `← Prev / Next →` to navigate adjacent runs.</Step>
+</Steps>
+
+<Callout type="note">
+The Dashboard's Recent Executions widget and the Workflow List's context menu (`⋯ → Execution History`) also navigate directly to the dedicated executions page.
+</Callout>
 
 The **Nodes column** in the execution history list shows node run aggregates as `completed/total`. If any nodes failed, a `(N failed)` annotation appears alongside. For example: `3/5` (3 of 5 completed), `3/5 (1 failed)` (1 node failed).
 
 ## Tips for inspecting per-node I/O
 
 - **Copy buttons**: the Input/Output tabs expose `Copy Input` and `Copy Output` buttons. Paste the JSON straight into Run with Input to reproduce a run.
-- **Re-run with this input**: from the execution detail, start a new run using a specific run's input.
+- **Re-run with this input**: open the in-editor history panel, click the run you want, then click the **Re-run** button in the Run Results drawer to start a new run with that execution's original input.
 - **Presentation node Preview**: Table, Chart, Carousel, and Template show a rendered preview rather than raw JSON. The JSON itself is still on the Output tab.
 
 ## Interpreting error messages

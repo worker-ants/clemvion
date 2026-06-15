@@ -27,6 +27,7 @@ import {
   Square,
   Database,
   Copy,
+  Activity,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -601,7 +602,7 @@ export function EditorToolbar() {
                     setHistoryPanelOpen(true);
                   }}
                 >
-                  <Play size={14} />
+                  <Activity size={14} />
                   {t("editor.executionHistory")}
                 </button>
                 <button
