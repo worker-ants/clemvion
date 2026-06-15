@@ -15,7 +15,6 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiOkResponse,
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
@@ -26,6 +25,7 @@ import {
 import {
   ApiCreatedWrappedResponse,
   ApiOkWrappedResponse,
+  ApiOkWrappedArrayResponse,
 } from '../../common/swagger';
 import { Roles } from '../../common/guards/roles.guard';
 import { WorkspaceId, CurrentUser } from '../../common/decorators';
@@ -53,8 +53,7 @@ export class WorkflowTestDatasetsController {
       '같은 워크플로우의 내 데이터셋 + 워크스페이스 공유본 (최근 갱신순).',
   })
   @ApiParam({ name: 'workflowId', format: 'uuid' })
-  @ApiOkResponse({
-    type: [WorkflowTestDatasetDto],
+  @ApiOkWrappedArrayResponse(WorkflowTestDatasetDto, {
     description: '데이터셋 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
@@ -89,7 +88,7 @@ export class WorkflowTestDatasetsController {
   @Roles('editor')
   @ApiOperation({
     summary: '테스트 데이터셋 수정 (소유자만)',
-    description: 'name·data·visibility 부분 갱신. 소유자가 아니면 403.',
+    description: 'name·input·visibility 부분 갱신. 소유자가 아니면 403.',
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkWrappedResponse(WorkflowTestDatasetDto, { description: '수정됨' })

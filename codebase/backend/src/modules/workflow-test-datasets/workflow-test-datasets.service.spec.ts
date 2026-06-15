@@ -151,6 +151,23 @@ describe('WorkflowTestDatasetsService', () => {
         service.update('ds-1', WS, OTHER, { name: 'x' }),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    it('대상 데이터셋이 없으면 404 NotFoundException', async () => {
+      datasetRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.update('ds-missing', WS, OWNER, { name: 'x' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('중복 이름(UNIQUE 23505) → 409 ConflictException', async () => {
+      datasetRepo.findOne.mockResolvedValue(makeDataset({ ownerId: OWNER }));
+      datasetRepo.save.mockRejectedValueOnce(
+        new QueryFailedError('q', [], { code: '23505' } as unknown as Error),
+      );
+      await expect(
+        service.update('ds-1', WS, OWNER, { name: 'dup' }),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   describe('remove — 소유자만', () => {
@@ -159,6 +176,13 @@ describe('WorkflowTestDatasetsService', () => {
       await expect(service.remove('ds-1', WS, OTHER)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+
+    it('소유자 remove 성공 → datasetRepo.remove 호출', async () => {
+      const ds = makeDataset({ ownerId: OWNER });
+      datasetRepo.findOne.mockResolvedValue(ds);
+      await service.remove('ds-1', WS, OWNER);
+      expect(datasetRepo.remove).toHaveBeenCalledWith(ds);
     });
   });
 
@@ -193,6 +217,26 @@ describe('WorkflowTestDatasetsService', () => {
       await expect(service.clone('ds-1', WS, OTHER)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('소유자 self-clone(private 본인 소유) 성공 — isOwner=true', async () => {
+      datasetRepo.findOne.mockResolvedValue(
+        makeDataset({
+          id: 'own-ds',
+          ownerId: OWNER,
+          name: 'my case',
+          visibility: TestDatasetVisibility.PRIVATE,
+        }),
+      );
+      const res = await service.clone('own-ds', WS, OWNER);
+      expect(datasetRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ownerId: OWNER,
+          visibility: TestDatasetVisibility.PRIVATE,
+          name: 'my case (Copy)',
+        }),
+      );
+      expect(res.isOwner).toBe(true);
     });
   });
 });

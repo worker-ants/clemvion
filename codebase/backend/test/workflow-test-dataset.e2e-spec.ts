@@ -26,6 +26,7 @@ import {
  *   D. 타 유저가 owner 데이터셋 PATCH → 403; private 를 clone → 404(존재 은닉)
  *   E. cross-workspace 접근 → 404 (IDOR)
  *   F. 같은 (workflow, owner, name) 중복 생성 → 409 DUPLICATE_NAME
+ *   G. 소유자 DELETE → 204, 이후 목록에서 제거됨
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -172,5 +173,25 @@ describe('Workflow Test Datasets (e2e)', () => {
     await create(ownerToken, { name: 'dup-name', input: {} });
     const dup = await create(ownerToken, { name: 'dup-name', input: {} });
     expect(dup.status).toBe(409);
+  });
+
+  it('G. 소유자 DELETE → 204, 이후 목록에서 제거됨', async () => {
+    const ds = await create(ownerToken, { name: 'to-delete', input: { d: 1 } });
+    expect(ds.status).toBe(201);
+    const dsId = ds.body.data.id as string;
+
+    const del = await request(BASE_URL)
+      .delete(`/api/test-datasets/${dsId}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(del.status).toBe(204);
+
+    const list = await request(BASE_URL)
+      .get(`/api/workflows/${workflowId}/test-datasets`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(list.status).toBe(200);
+    const ids = (list.body.data as Array<{ id: string }>).map((d) => d.id);
+    expect(ids).not.toContain(dsId);
   });
 });

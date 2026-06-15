@@ -307,4 +307,59 @@ describe("EditorToolbar — Run with Input (§2.2)", () => {
       }),
     );
   });
+
+  it("Datasets: 저장된 데이터셋 없음 → empty state 렌더", async () => {
+    dsListMock.mockResolvedValue([]);
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Datasets/i }));
+
+    expect(await screen.findByText(/No saved datasets/i)).toBeInTheDocument();
+  });
+
+  it("Datasets: 공유본(isOwner=false) Clone 버튼 클릭 → dsCloneMock 호출", async () => {
+    dsListMock.mockResolvedValue([
+      {
+        id: "shared-1",
+        name: "Shared Case",
+        input: { s: 1 },
+        isOwner: false,
+      },
+    ]);
+    dsCloneMock.mockResolvedValue({
+      id: "cloned-1",
+      name: "Shared Case (Copy)",
+      input: { s: 1 },
+      isOwner: true,
+    });
+
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Datasets/i }));
+
+    const cloneBtn = await screen.findByRole("button", { name: /Clone/i });
+    fireEvent.click(cloneBtn);
+
+    await waitFor(() =>
+      expect(dsCloneMock).toHaveBeenCalledWith("shared-1"),
+    );
+  });
+
+  it("Datasets: 내 것(isOwner=true) Delete 버튼 클릭 → dsRemoveMock 호출", async () => {
+    dsListMock.mockResolvedValue([
+      { id: "mine-1", name: "My Case", input: { m: 1 }, isOwner: true },
+    ]);
+    dsRemoveMock.mockResolvedValue(undefined);
+
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.click(screen.getByRole("button", { name: /Datasets/i }));
+
+    const deleteBtn = await screen.findByRole("button", { name: /Delete/i });
+    fireEvent.click(deleteBtn);
+
+    await waitFor(() =>
+      expect(dsRemoveMock).toHaveBeenCalledWith("mine-1"),
+    );
+  });
 });
