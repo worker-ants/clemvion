@@ -69,7 +69,11 @@ export class WorkflowTestDatasetsService {
     };
   }
 
-  /** 같은 워크플로우의 "내 것 + 워크스페이스 공유본" 목록 (최근 갱신순). */
+  /**
+   * 같은 워크플로우의 "내 것 + 워크스페이스 공유본" 목록 (최근 갱신순).
+   * 방어적 상한 200행 — 데이터셋은 워크플로우당 소수로 유지되는 것이 정상이며
+   * 페이지네이션 없이도 운영에 문제없으나 DoS 방지를 위한 소프트 리미트.
+   */
   async list(
     workflowId: string,
     workspaceId: string,
@@ -85,6 +89,7 @@ export class WorkflowTestDatasetsService {
         workspace: TestDatasetVisibility.WORKSPACE,
       })
       .orderBy('d.updated_at', 'DESC')
+      .take(200)
       .getMany();
     return rows.map((r) => this.toDto(r, userId));
   }
@@ -147,6 +152,10 @@ export class WorkflowTestDatasetsService {
     return entity;
   }
 
+  /**
+   * 데이터셋 부분 갱신 (소유자만). name·input·visibility 중 제공된 필드만 반영.
+   * 이름 충돌 시 409 DUPLICATE_NAME 반환.
+   */
   async update(
     id: string,
     workspaceId: string,
@@ -203,7 +212,11 @@ export class WorkflowTestDatasetsService {
     }
   }
 
-  /** "이름" → "이름 (Copy)" / 충돌 시 "이름 (Copy 2)" … (소유자 namespace 내 유일화). */
+  /**
+   * "이름" → "이름 (Copy)" suffix 를 붙인 복제본 이름 생성.
+   * 이름 충돌(동일 소유자 + 동일 workflow 내 중복) 시 saveUnique 가 409 DUPLICATE_NAME 을 반환하며,
+   * 번호 증가("이름 (Copy 2)") 재시도는 클라이언트 책임.
+   */
   private copyName(base: string): string {
     const suffix = ' (Copy)';
     const max = 255 - suffix.length;

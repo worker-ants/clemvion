@@ -116,6 +116,7 @@ describe('WorkflowTestDatasetsService', () => {
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue(rows),
       };
       datasetRepo.createQueryBuilder.mockReturnValue(qb);

@@ -18,7 +18,12 @@ export class UpdateWorkflowTestDatasetDto {
   @MaxLength(255)
   name?: string;
 
-  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
+    description:
+      '워크플로우 Mock Input JSON — 루트 노드에 전달될 테스트 데이터',
+  })
   @IsOptional()
   @IsObject()
   input?: Record<string, unknown>;

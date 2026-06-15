@@ -132,6 +132,9 @@ export class WorkflowTestDatasetsController {
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiCreatedWrappedResponse(WorkflowTestDatasetDto, { description: '복제됨' })
   @ApiNotFoundResponse({ description: '없음 또는 비공유' })
+  @ApiConflictResponse({
+    description: '동일 이름 복제본 이미 존재 (DUPLICATE_NAME)',
+  })
   async clone(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
