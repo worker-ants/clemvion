@@ -44,8 +44,14 @@ tracks: plan/in-progress/spec-sync-form-gaps.md (A-2 / A-3 / file 기본값)
 - [x] form §6.2 file 행 Planned→구현
 - [x] form §6.2 "검증 지점" 주석 file 포함(단일 패스 validateScalarField/validateFileField), "file Planned" 제거
 - [x] form §Rationale file cluster 구현 반영 + execution-engine 전용 근거(INFO4) + coerceFormSubmission 제거 근거(INFO5)
-- [ ] 인접 spec 검증 열거 동기화 필요시(EIA §5.1 / chat-channel-adapter §4.1 / websocket §4.2) — impl-done 이 검출하면 반영
+- [x] 인접 spec 검증 열거 동기화 — impl-done(12_30_46) WARNING 검출 → EIA §5.1·WS §4.2 file 항목 추가(Planned 제거) + form.md frontmatter code: form-mode.ts/types.ts 등재(INFO#3)
 - [ ] spec-sync-form-gaps.md 체크박스 [x] (file 3행) — 10단계에서
+
+### 9 REVIEW WORKFLOW
+- [x] /ai-review --branch main (12_09_39): RISK LOW, Critical 0, Warning 3 → 전부 조치(RESOLUTION.md). fix 062bd3e1
+- [x] /consistency-check --impl-done (12_30_46): BLOCK NO. Cross-Spec WARNING 2(EIA/WS Planned 잔류) → 인접 spec 동기화로 해소
+- [x] fresh /ai-review (12_29_50): RISK MEDIUM, Critical 0, Warning 6 → W1(빈 MIME 기능 결함)·W4(13→14종)·W3/W6(추출)·W5 전부 조치(RESOLUTION.md). fix 2eab022a/744c6509
+- [ ] fresh /ai-review #2 (2eab022a 커버 — 수렴 확인) — 진행 중
 
 ### 5~7 TDD (코드)
 - [x] form-mode.ts: 공유 default 상수 + FormModalField file 필드(types.ts) + extractFormFields file-default 주입
