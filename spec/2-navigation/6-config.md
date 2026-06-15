@@ -305,6 +305,7 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 - **bearer_token 자동 발급 강제**: 사용자 입력 없이 자동 발급(`wft_<hex32>`)만 허용. 외부 호출자 발급 토큰은 제품이 충분한 엔트로피로 생성하는 게 일관적이며, 사용자 입력 토큰의 형식·엔트로피 검증 부담을 없앤다.
 - **Bearer Token 만료 시간 필드 v1 제외**: 토큰 만료·자동 회전을 다루지 않는다 — JSONB 스키마 `{ token }` 와 정합. 만료/회전이 필요해지면 후속 결정으로 재도입.
 - **항상 마스킹 + Reveal 엔드포인트** (§A.4): API 응답에서 secret 류는 항상 `***<last4>`. 평문은 create / regenerate / reveal 3 경로만. Reveal 은 Admin+ · 비밀번호 재확인 · audit 기록.
+- **평문 30초 자동 hide 를 reveal 외 create/regenerate 1회 노출에도 동일 적용** (§A.4): 평문이 노출되는 3 경로(create·regenerate·reveal)는 동일한 보안 자산이므로 노출 시간 제한 정책을 단일화한다 — reveal 만 자동 hide 하고 create/regenerate 표시는 사용자가 닫을 때까지 무기한 남던 비대칭을 제거. 화면 방치 시 어깨너머·세션 탈취로 인한 평문 노출 창을 30초로 제한한다. 클라이언트 타이머는 `useEffect` cleanup 으로 언마운트·재노출 시 정리해 누수·stale clear 를 막는다.
 - **편집 폼은 자동 발급·마스킹 정책을 동일 적용**: §A.2 편집(`PATCH`)은 name·IP·비-비밀 config 만 변경하고 비밀값 재입력은 받지 않는다 — 비밀 변경은 regenerate 단일 경로로 일원화. 백엔드 `update` 는 `config` 를 통째 대체하지 않고 shallow-merge 하며, 마스킹된 비밀값(`***<last4>`)이 역류해도 무시해 실 비밀이 파손되지 않게 한다. type 변경도 편집 폼에서 차단(타입 전환은 비밀 재발급을 수반 → 삭제 후 재생성).
 
 ### R-3 (번복) — ModelConfig 단일 화면 통합

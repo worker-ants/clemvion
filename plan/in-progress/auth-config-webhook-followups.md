@@ -52,7 +52,7 @@ status: in-progress
 - `spec/5-system/12-webhook.md` 에 IP 추출 정책 (CF-Connecting-IP → X-Forwarded-For → req.ip) 명시 또는 `1-auth.md §2.3` cross-reference. ip_whitelist fail-closed (clientIp 불명 시 거부) 동작도 명시 (본 PR 구현 반영).
 - `spec/conventions/secret-store.md §3.3` — `ENCRYPTION_KEY` 다도메인(LLM API key / secret_store / AuthConfig.config) 재사용 위험. 중기 도메인별 키 분리 또는 HKDF 파생 검토 메모.
 - `spec/5-system/12-webhook.md` — `auth_config_id IS NULL` 공개 webhook 의 endpointPath 재발급(regenerate) 수단 또는 운영 위험 경고.
-- IP whitelist CIDR/IPv6 지원 여부 명시 (현재 구현은 exact match).
+- ~~IP whitelist CIDR/IPv6 지원 여부 명시~~ — ✅ 해소됨 (2026-06-16, config C-2). 런타임은 이미 `ip-address` 기반 CIDR/IPv6 subnet 매칭 지원(`AuthConfigsService.parseIp`/`ipInWhitelist`, exact match 아님). `spec/1-data-model.md §2.17` 의 ip_whitelist 행·§2.17.3 Rationale 에 단일 IP/CIDR(IPv4·IPv6) 형식 + 저장 시점 형식 검증(`@IsIpOrCidr`, 무효 → 400)을 명시.
 
 ## 4. reveal 엔드포인트 rate limiting (review INFO)
 
