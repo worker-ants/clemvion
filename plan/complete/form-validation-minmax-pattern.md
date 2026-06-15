@@ -2,6 +2,10 @@
 worktree: form-validation-minmax-pattern-81db34
 started: 2026-06-14
 owner: developer
+spec_impact:
+  - spec/4-nodes/6-presentation/4-form.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/conventions/chat-channel-adapter.md
 ---
 
 # A-1: form validation.min/max(숫자 범위)·pattern(정규식) 서버측 검증
