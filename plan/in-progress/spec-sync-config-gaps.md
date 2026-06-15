@@ -59,10 +59,11 @@ owner: planner
   - 게이트: lint·tsc·unit(frontend 4435 pass, +16 회귀가드 테스트)·build PASS. /ai-review 2회(00_22_46·fresh 00_39_27) 모두 Critical 0, RESOLUTION 처분. authentication 화면 전용 e2e 없음(컴포넌트 테스트가 가드).
 
 ## 후속 — Auth Config 액션 버튼 Admin(RBAC) UI 가드 (ai-review·consistency 2026-06-16 fresh W1·W2)
-- [ ] `authentication/page.tsx` 의 **"Add Auth Method"(헤더)·Regenerate(RefreshCw)·Delete(Trash2) 버튼에 `{isAdmin && …}` 가드 추가** — 현재 Eye(Reveal)·Pencil(Edit) 만 가드되고 add/regenerate/delete 는 모든 인증 사용자에게 노출(merge-base 이전부터의 기존 상태, God-split PR 에서 도입 아님; consistency cross-spec W-1·W-2 동시 지적).
-  - 우선순위: 중(실제 권한상승은 아님 — 백엔드 `auth-configs.controller.ts` 가 두 엔드포인트에 `@Roles('admin')` fail-closed 강제. UI 갭은 비-admin 의 403 혼란 방지·RBAC UI 일관성 문제).
-  - 근거: spec/5-system/1-auth.md §3.2 RBAC(Editor/Viewer = R). prior PR a47e3ea5 가 Edit 버튼만 가드 추가하고 regenerate/delete 는 누락.
-  - 범위: 동작(UI) 변경이라 God-split(순수 리팩토링) PR 과 분리. 별도 작은 PR 로 처리.
+- [x] `authentication/page.tsx` 의 모든 변경 액션 버튼에 `{isAdmin && …}` 가드 추가 (2026-06-16, config-c1b-auth-rbac-guard) — **"Add Config"(헤더) + 행 액션 셀 전체(Toggle Activate/Deactivate·Reveal·Edit·Regenerate·Delete)**. 액션 셀을 단일 `{isAdmin && (...)}` 로 감싸 통합(Reveal/Edit 의 중복 내부 가드 제거). 목록 행 클릭(usage 드로어 = 읽기)은 모든 역할 허용이라 가드하지 않음.
+  - **Toggle(isActive) 포함 근거**: spec §3.2 매트릭스가 Auth Config = Owner/Admin **CRUD**, Editor/Viewer = **R** 로 명시 → isActive 토글도 Update(쓰기)라 Admin+. 백엔드 PATCH `:id` 도 `@Roles('admin')`. (당초 plan 은 Add/Regenerate/Delete 만 열거했으나 spec 상 Toggle 도 동일 권한이라 포함.)
+  - 근거: spec/5-system/1-auth.md §3.2 RBAC(Auth Config: Admin=CRUD, Editor/Viewer=R). 실제 권한상승 아님(백엔드 `@Roles('admin')` fail-closed) — UI 일관성·403 혼란 방지.
+  - 동작 변경(비-admin 에 버튼 숨김)이라 God-split(순수 리팩토링) PR 과 분리한 별도 PR.
+  - 테스트: `authentication-form.test.tsx` — 비-admin 전체 mutation 버튼 숨김 + admin 노출 2건. 게이트: lint·tsc·unit(4440 pass)·build PASS.
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 및 `auth-configs.service.ts:399-450`, `authentication/page.tsx:81-89` 참조.

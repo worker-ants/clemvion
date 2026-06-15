@@ -181,14 +181,34 @@ describe("AuthenticationPage — edit form §A.2", () => {
     roleState.isAdmin = true;
   });
 
-  it("hides the Edit button for non-admins (backend @Roles('admin') parity)", async () => {
+  // spec/5-system/1-auth.md §3.2: Auth Config CRUD = Admin+ (Editor/Viewer = R).
+  // 모든 변경 액션 버튼(Add·Toggle·Reveal·Edit·Regenerate·Delete)은 비-admin 에 숨긴다.
+  const MUTATION_BUTTON_NAMES = [
+    /^Add Config$/,
+    /^Deactivate$/, // isActive=true 행의 토글 라벨
+    /^Reveal$/,
+    /^Edit$/,
+    /^Regenerate$/,
+    /^Delete$/,
+  ];
+
+  it("hides every Auth Config mutation button for non-admins (backend @Roles('admin') parity)", async () => {
     roleState.isAdmin = false;
     renderPage();
-    // Row renders, but admin-only actions (Edit/Reveal) are gated out.
+    // Row still renders — viewing the config/usage is read-only and allowed for all roles.
     await waitFor(() => expect(screen.getByText("Prod Key")).toBeInTheDocument());
-    expect(
-      screen.queryByRole("button", { name: /^Edit$/ }),
-    ).not.toBeInTheDocument();
+    for (const name of MUTATION_BUTTON_NAMES) {
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    }
+  });
+
+  it("shows every Auth Config mutation button for admins", async () => {
+    roleState.isAdmin = true;
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Prod Key")).toBeInTheDocument());
+    for (const name of MUTATION_BUTTON_NAMES) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
   });
 
   async function openEditDialog() {

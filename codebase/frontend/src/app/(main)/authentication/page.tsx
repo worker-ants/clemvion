@@ -260,10 +260,13 @@ export default function AuthenticationPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{t("authentication.title")}</h1>
-        <Button onClick={form.openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          {t("authentication.addConfig")}
-        </Button>
+        {/* Auth Config CRUD 은 Admin+ 만 (spec/5-system/1-auth.md §3.2: Editor/Viewer = R). */}
+        {isAdmin && (
+          <Button onClick={form.openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t("authentication.addConfig")}
+          </Button>
+        )}
       </div>
 
       {/* Create / Edit — 단일-목적 컴포넌트로 분리 (이전 dialogMode 분기 다이얼로그). */}
@@ -496,26 +499,30 @@ export default function AuthenticationPage() {
                       : "-"}
                   </td>
                   <td className="px-4 py-3">
-                    <div
-                      className="flex items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={toggleMutation.isPending}
-                        onClick={() =>
-                          toggleMutation.mutate({
-                            id: config.id,
-                            isActive: !config.isActive,
-                          })
-                        }
+                    {/* Auth Config 변경 액션(활성 토글·reveal·편집·재발급·삭제)은 모두
+                        Admin+ 만 (spec/5-system/1-auth.md §3.2: Editor/Viewer = R).
+                        백엔드가 @Roles('admin') 로 강제하나 UI 에서도 가려 403 혼란을 막는다.
+                        목록 행 클릭(usage 드로어 = 읽기)은 모든 역할 허용이라 가드하지 않는다. */}
+                    {isAdmin && (
+                      <div
+                        className="flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {config.isActive
-                          ? t("workflows.actions.deactivate")
-                          : t("workflows.actions.activate")}
-                      </Button>
-                      {isAdmin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={toggleMutation.isPending}
+                          onClick={() =>
+                            toggleMutation.mutate({
+                              id: config.id,
+                              isActive: !config.isActive,
+                            })
+                          }
+                        >
+                          {config.isActive
+                            ? t("workflows.actions.deactivate")
+                            : t("workflows.actions.activate")}
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -525,8 +532,6 @@ export default function AuthenticationPage() {
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                      )}
-                      {isAdmin && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -536,26 +541,26 @@ export default function AuthenticationPage() {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        aria-label={t("authentication.regenerateButton")}
-                        onClick={() => setRegenerateTarget(config.id)}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-[hsl(var(--destructive))]"
-                        aria-label={t("common.delete")}
-                        onClick={() => setDeleteTarget(config.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label={t("authentication.regenerateButton")}
+                          onClick={() => setRegenerateTarget(config.id)}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-[hsl(var(--destructive))]"
+                          aria-label={t("common.delete")}
+                          onClick={() => setDeleteTarget(config.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
