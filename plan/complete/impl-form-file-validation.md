@@ -2,8 +2,13 @@
 worktree: form-file-validation-8d2360
 started: 2026-06-15
 owner: developer
+status: complete
 spec: spec/4-nodes/6-presentation/4-form.md
 tracks: plan/in-progress/spec-sync-form-gaps.md (A-2 / A-3 / file 기본값)
+spec_impact:
+  - spec/4-nodes/6-presentation/4-form.md
+  - spec/5-system/14-external-interaction-api.md
+  - spec/5-system/6-websocket-protocol.md
 ---
 
 # A-2 파일검증 cluster — type:'file' 서버측 + 클라이언트 검증 + 공유 기본값
@@ -65,8 +70,13 @@ tracks: plan/in-progress/spec-sync-form-gaps.md (A-2 / A-3 / file 기본값)
 - [x] lint(PASS) / unit(PASS) / build(PASS) / e2e(192 PASS) — eslint --fix 무관 3파일 revert, web-chat·packages 환경 준비
 
 ### 9 REVIEW WORKFLOW
-- [ ] /ai-review --branch main (커밋 후) → resolution → fresh review
-- [ ] /consistency-check --impl-done spec/4-nodes/6-presentation/4-form.md (BLOCK NO)
+- [x] /ai-review --branch main (12_09_39): RISK LOW, Critical 0, Warning 3 → 조치(RESOLUTION). fix 062bd3e1
+- [x] /consistency-check --impl-done (12_30_46): BLOCK NO. Cross-Spec WARNING 2(EIA/WS Planned) → 인접 spec 동기화
+- [x] fresh /ai-review (12_29_50): RISK MEDIUM, W1(빈 MIME 기능 결함)·W4(13→14종)·W3/W6(추출)·W5 → 조치. fix 2eab022a/744c6509
+- [x] fresh /ai-review (12_56_24): RISK LOW, W1(validation.message §6.2 모순) 정정·W2 false positive. fix 463ce5bf
+- [x] final /ai-review --route=all (13_11_15): RISK LOW, Warning 1(stale-read false positive). 14 reviewer 전원
+- [x] /consistency-check --impl-done (13_22_10, 최신 커버): BLOCK NO. WARNING 2(조치 불필요 관찰)+INFO. cosmetic INFO(test 14종·§1.5 header·plan checkbox) 반영
 
 ### 10 plan complete
-- [ ] spec-sync-form-gaps.md 잔여(ValidationPreset 보류만) 확인 후 본 plan 처리
+- [x] spec-sync-form-gaps.md file 3행 [x] (ValidationPreset 보류만 잔존 → 해당 plan in-progress 유지)
+- [x] 본 plan → plan/complete/ (status:complete, spec_impact 명시)

@@ -98,7 +98,7 @@ code:
 
 `type: 'file'` 필드의 frontend 렌더와 제출 payload 형식 SoT.
 
-**UI 렌더 (`DynamicFormUI.renderField` 의 file case)**:
+**UI 렌더 (`DynamicFormUI` 의 `renderFileField` / `validateFilesClient`)**:
 
 - 입력 element: `<input type="file" accept={(allowedMimeTypes ?? []).join(",") || undefined} multiple={(maxFiles ?? 1) > 1}>` (`dynamic-form-ui.tsx`)
   - `maxFiles` 가 1 또는 미설정이면 단일 파일 선택, >1 이면 multiple 모드(미설정 시 방어적으로 단일).

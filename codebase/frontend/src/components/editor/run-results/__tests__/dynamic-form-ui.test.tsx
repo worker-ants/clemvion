@@ -293,7 +293,7 @@ describe("DynamicFormUI — file 클라이언트 검증 (spec §1.5 reject)", ()
     render(
       <DynamicFormUI
         formConfig={{
-          // allowedMimeTypes 미설정 → 클라이언트가 §1 기본 13종 적용.
+          // allowedMimeTypes 미설정 → 클라이언트가 §1 기본 14종 적용.
           fields: [{ name: "doc", type: "file", label: "Doc" }],
         }}
         onSubmit={onSubmit}
