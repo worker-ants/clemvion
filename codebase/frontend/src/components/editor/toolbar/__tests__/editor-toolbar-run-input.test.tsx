@@ -2,6 +2,10 @@
  * EditorToolbar "Run with Input" 다이얼로그(spec/3-workflow-editor/3-execution.md §2.2)
  * 커버리지: 실시간 JSON 검증(유효/무효/빈 입력), Load-from-History(성공 적재·실패 토스트·
  * 빈 목록), 실행 중 진입 차단. mock 으로 stores/executions API 를 격리한다.
+ *
+ * §7 인-에디터 실행 히스토리 패널 진입점도 함께 커버: 더보기(⋮) → "실행 히스토리"
+ * 가 패널을 열고 목록을 조회하는지, 항목 클릭 시 적재(loadHistoricalExecution) 후
+ * 패널이 닫히는지(onClose → setHistoryPanelOpen(false)).
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
@@ -95,6 +99,12 @@ vi.mock("@/lib/api/workflow-test-datasets", () => ({
     clone: (...a: unknown[]) => dsCloneMock(...a),
     remove: (...a: unknown[]) => dsRemoveMock(...a),
   },
+}));
+
+const loadHistoricalExecutionMock = vi.fn();
+vi.mock("@/lib/websocket/apply-execution-snapshot", () => ({
+  loadHistoricalExecution: (...a: unknown[]) =>
+    loadHistoricalExecutionMock(...a),
 }));
 
 const toastSuccess = vi.fn();
@@ -361,5 +371,75 @@ describe("EditorToolbar — Run with Input (§2.2)", () => {
     await waitFor(() =>
       expect(dsRemoveMock).toHaveBeenCalledWith("mine-1"),
     );
+  });
+
+  // §7 인-에디터 실행 히스토리 — 더보기(⋮) 메뉴 진입점이 패널을 열고 목록을 조회
+  it("Execution History: ⋮ 메뉴 항목이 히스토리 패널을 열고 목록을 조회한다", async () => {
+    getByWorkflowMock.mockResolvedValue({
+      data: [
+        {
+          id: "ex-9",
+          workflowId: "wf-1",
+          status: "completed",
+          startedAt: "2026-06-15T10:00:00.000Z",
+          durationMs: 1200,
+          triggerSource: "manual",
+          triggerLabel: null,
+          totalNodeCount: 2,
+          completedNodeCount: 2,
+          failedNodeCount: 0,
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+
+    renderToolbar();
+    fireEvent.click(screen.getByTestId("editor-toolbar-more-menu"));
+    fireEvent.click(screen.getByTestId("editor-execution-history-menu"));
+
+    await waitFor(() =>
+      expect(getByWorkflowMock).toHaveBeenCalledWith("wf-1", {
+        limit: 20,
+        sort: "started_at",
+        order: "desc",
+      }),
+    );
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  // §7.3 — 패널 항목 클릭 → 상세 적재 후 패널이 닫힌다 (onClose → setHistoryPanelOpen(false)).
+  it("Execution History: 항목 클릭 시 적재 후 패널이 닫힌다", async () => {
+    getByWorkflowMock.mockResolvedValue({
+      data: [
+        {
+          id: "ex-9",
+          workflowId: "wf-1",
+          status: "completed",
+          startedAt: "2026-06-15T10:00:00.000Z",
+          durationMs: 1200,
+          triggerSource: "manual",
+          triggerLabel: null,
+          totalNodeCount: 2,
+          completedNodeCount: 2,
+          failedNodeCount: 0,
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+    const detail = { id: "ex-9", workflowId: "wf-1", nodeExecutions: [] };
+    getByIdMock.mockResolvedValue(detail);
+
+    renderToolbar();
+    fireEvent.click(screen.getByTestId("editor-toolbar-more-menu"));
+    fireEvent.click(screen.getByTestId("editor-execution-history-menu"));
+
+    const item = await screen.findByText(/Manual/);
+    fireEvent.click(item);
+
+    await waitFor(() =>
+      expect(loadHistoricalExecutionMock).toHaveBeenCalledWith(detail),
+    );
+    // 패널(dialog)이 닫혀야 한다.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });

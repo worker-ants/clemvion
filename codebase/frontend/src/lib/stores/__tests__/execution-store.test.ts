@@ -92,6 +92,32 @@ describe("useExecutionStore", () => {
     });
   });
 
+  // §7 인-에디터 실행 히스토리 — 과거 실행 적재용 reset
+  describe("startHistoryView", () => {
+    it("sets executionId + 과거 startedAt 보존 + per-execution 상태 리셋", () => {
+      useExecutionStore.getState().addNodeResult(makeResult());
+      useExecutionStore.getState().setConversationMessages([
+        { type: "user", content: "stale", turnIndex: 1 },
+      ]);
+
+      useExecutionStore
+        .getState()
+        .startHistoryView("hist-1", "2026-06-15T10:00:00.000Z");
+
+      const state = useExecutionStore.getState();
+      expect(state.executionId).toBe("hist-1");
+      // status 는 applyExecutionSnapshot 이 terminal/waiting 으로 덮어쓰기 전의
+      // transient 'running' (드로어가 idle 이 아니어서 표시되도록).
+      expect(state.status).toBe("running");
+      // startExecution 과 달리 startedAt 은 now 가 아니라 과거 실행 시작 시각.
+      expect(state.startedAt).toBe("2026-06-15T10:00:00.000Z");
+      expect(state.nodeResults).toEqual([]);
+      expect(state.nodeStatuses.size).toBe(0);
+      expect(state.conversationMessages).toEqual([]);
+      expect(state.selectedResultNodeId).toBeNull();
+    });
+  });
+
   describe("updateNodeStatus", () => {
     it("sets status for a node", () => {
       const info: NodeStatusInfo = { status: "running" };

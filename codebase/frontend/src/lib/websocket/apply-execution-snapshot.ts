@@ -287,6 +287,27 @@ export function applyExecutionSnapshot(
 }
 
 /**
+ * §7 인-에디터 실행 히스토리 — 과거 실행 한 건의 상세(`GET /executions/:id`)를
+ * Run Results 드로어 + 캔버스 오버레이로 적재한다 (spec/3-workflow-editor/3-execution.md
+ * §7.3 / §10.10). store 의 per-execution 상태를 비우고 `executionId`/`startedAt` 을
+ * 세팅한 뒤(`startHistoryView`), 라이브 실행과 **동일한** `applyExecutionSnapshot`
+ * 경로로 노드 상태·결과·terminal/waiting 상태를 hydrate 한다. 이로써:
+ *  - 드로어 타임라인이 그 실행의 노드별 결과로 채워지고(§10.10),
+ *  - 캔버스 노드가 그 실행의 상태 ring 오버레이를 표시하며(§7.3),
+ *  - `executionId` 가 세팅돼 드로어의 Re-run(§10.14)이 "이 입력으로 다시 실행"
+ *    (§7.3)을 그대로 제공한다.
+ *
+ * 입력은 반드시 `nodeExecutions` 를 포함한 **상세** 응답이어야 한다(목록 응답은
+ * N+1 회피로 노드 본문을 제외하므로 — 14-execution-history.md §5 R-1).
+ */
+export function loadHistoricalExecution(execution: ExecutionData): void {
+  useExecutionStore
+    .getState()
+    .startHistoryView(execution.id, execution.startedAt ?? null);
+  applyExecutionSnapshot(execution);
+}
+
+/**
  * 같은 waiting 노드 reconcile (early return) 경로에서도 AI 대화 메시지
  * 안전망은 유지한다. store 가 비어있고 영속 outputData 에 messages 가
  * 있으면 시드해, SPA 재진입·WS 재구독 후 store 와 backend 가 어긋난

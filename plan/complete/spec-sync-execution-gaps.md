@@ -2,6 +2,9 @@
 worktree: spec-sync-audit
 started: 2026-06-03
 owner: planner
+status: complete
+spec_impact:
+  - spec/3-workflow-editor/3-execution.md
 ---
 
 # execution — spec 약속 대비 미구현 surface
@@ -27,7 +30,7 @@ owner: planner
   - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전 단계 PASS (e2e 199/199, dataset DELETE invariant G 포함)
   - [x] /ai-review (--range merge-base..HEAD) — 4회 fresh review 모두 Critical 0. 실질 발견 fix1/fix2 조치(IDOR 오탐·copyName·Swagger·유저가이드·DTO 계약). #610 발 main Gate C breakage 는 fix3(spec_impact) 복구. 잔여는 테스트커버리지·문서 nit → RESOLUTION(12_10_03) accept/defer.
   - [x] /consistency-check --impl-done (12_18_43) — BLOCK: NO. 잔여 W-1(ForbiddenException FORBIDDEN 코드 중복)·W-2(DUPLICATE_NAME 전역 카탈로그 미등록)는 에러코드 컨벤션 nit — 프론트가 해당 code 로 분기하지 않아 저위험, 전역 카탈로그 등록은 후속 defer.
-- [ ] §7 인-에디터 실행 히스토리(패널·캔버스 오버레이) — **로드맵**. spec 본문이 "설계 참고용", 실행 내역은 전용 페이지(`2-navigation/14-execution-history.md`)가 담당하고 에디터 재실행은 Run Results 드로어 Re-run(§10.14)으로 이미 제공. 별도 plan 대상.
+- [x] §7 인-에디터 실행 히스토리(패널·캔버스 오버레이) (2026-06-16, exec-history-panel PR) — **frontend-only, 결정: 로드맵 승격 + 기존 API 재사용(`GET /executions/workflow/:id` 목록 + `GET /executions/:id` 상세) + 신규 backend/엔티티 없음**. 더보기(⋮) → "실행 히스토리" 모달 패널(`run-results/execution-history-panel.tsx`): 최근 20건 목록(상태/트리거/소요/노드수/상대시각). 항목 클릭 → `loadHistoricalExecution`(신규 store action `startHistoryView` + 기존 `applyExecutionSnapshot` 재사용)으로 드로어 타임라인 + 캔버스 `nodeStatuses` 오버레이 적재(§10.10). "이 입력으로 다시 실행" 은 드로어 Re-run(§10.14) 재사용. i18n ko/en. spec §7 v1 승격 + R-7, frontmatter `status: implemented` 복귀(추적 surface 전건 해소). 엣지 데이터 미리보기는 라이브에도 미구현이라 v1 제외.
 
 ## 비고
 - §1.2 부분 실행 트리거(우클릭 → 툴바 드롭다운 "Run from Selected") 및 §8/§9 WS·API 명칭 불일치는 spec 본문 패치로 정정 완료 (기능 자체는 구현돼 있어 plan 항목 아님).
