@@ -1,0 +1,88 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-06-15T15:05:56.061402",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 코드 변경 + 전용 엔드포인트 권한 검증(IDOR 방지, workflow scoping)"
+    },
+    {
+      "name": "performance",
+      "selected": true,
+      "reason": "새로운 DB 조회 `getLatestPredecessorOutputs` + nodeExecutionRepository.find 정렬 추가; predecessor 출력 pre-seed 캐싱"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "Execution 엔티티 신규 컬럼 + ExecutionEngineService 내 단일 노드 실행 분기 추가 — 새로운 엔진 모드 진입점"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec 본문 변경 (§1.3 Execution, §1.3 API) + src 코드 변경"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 코드 변경 — 의도된 범위 검증(downstream 미진행 vs §1.2 Run-from-Selected)"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 코드 변경 + Execution 컬럼 추가 + ExecutionEngineService 메인 루프 수정"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 코드 변경 + 新함수 2개(seedSingleNodePredecessorOutputs, getLatestPredecessorOutputs) + 유지보수 복잡도 증가"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 코드 변경 + 신규 테스트 96줄(spec.ts) + e2e 테스트 3건(executeNode endpoint)"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경(spec/*.md, plan/*.md, review/consistency/*.md)"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json 또는 package-lock.json 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": true,
+      "reason": "agents_forced (router_safety): V098__execution_single_node.sql 신규 마이그레이션 — 신규 컬럼 2개(single_node_id, previous_execution_id) 추가"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "ExecutionEngineService 메인 루프 순회 중 nodeOutputCache/structuredOutputCache 상태 관리 추가; async/await 흐름 변경 없으나 context 상태 동기화"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "새로운 REST endpoint `POST /api/workflows/:id/nodes/:nodeId/execute` 추가 + DTO(ExecuteNodeDto) 신설 + Swagger 애노테이션 + 상태 202 Accepted"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": true,
+      "reason": "프론트엔드 i18n ko/en 동반 추가(editor.runThisNode, editor.nodeResultTitle 등) + 캔버스 메뉴 UI 추가 + 설정패널 노드 결과 표시"
+    }
+  ],
+  "selected_count": 13,
+  "skipped_count": 1,
+  "forced": [
+    "database",
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

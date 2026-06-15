@@ -462,7 +462,7 @@ Re-run 은 **트리거를 다시 발화하지 않는다** — 원본 실행이 w
 | 옵션 | 설명 | 차단 사유 |
 | --- | --- | --- |
 | **C2** resume-from-failure | 실패 노드부터 이어 실행 | 표현식 컨텍스트 복원, branch 합류 처리, blocking 노드 재진입 — 엔진 안전성 검증이 별도 plan 분량 |
-| **C3** single-node debug | 단일 노드만 재실행 | 입력 데이터 격리, downstream 미진행, 표현식 컨텍스트 mock — 디버그 도구 plan 으로 분리 |
+| ~~**C3** single-node debug~~ | 단일 노드만 실행 | **구현됨 (2026-06-15)** — Re-run chain 이 아닌 별도 진입점 [단일 노드 테스트 (3-execution §1.3)](../3-workflow-editor/3-execution.md#13-단일-노드-테스트) 로 제공. "입력 데이터 격리" = previousExecutionId 의 직속 predecessor 출력 복원, "downstream 미진행" = reachable seed 한정, "표현식 컨텍스트 mock" = 직속 predecessor 출력 복원으로 한정 충족(전체 mock 아님). 비인접 컨텍스트·blocking 노드·컨테이너 내부는 그 §1.3 범위 한계로 명시 |
 | **B3** 표현식 재평가만 | 외부 호출은 그대로 + 모든 expression 만 재평가 | A2 dry-run 과 의미가 헷갈리므로 UX 별도 검토 |
 | **D2** multi-turn 입력 재사용 | 원본의 사용자 응답을 자동 재사용 | 테스트 자동화 도구 plan (별도) — Re-run 이 "테스트" 가 아닌 "재실행" 인 v1 의도와 결이 다름 |
 | **G2** AI Assistant Re-run 도구 | Assistant 가 Re-run 트리거 가능 | Trust 단계 (사용자 명시적 권한 부여 토글) 도입 선결 |

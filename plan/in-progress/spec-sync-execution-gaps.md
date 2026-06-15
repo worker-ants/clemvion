@@ -19,7 +19,10 @@ owner: planner
 - [x] §10.12 단축키 — Ctrl+Shift+R 드로어 펼침/접힘 토글(브라우저 하드 리로드 preventDefault), Escape(드로어 포커스 시) 캔버스 복귀(편집 필드는 양보). 드로어 펼침 상태를 `execution-store.drawerExpanded` 로 승격. `workflow-editor.tsx`/`run-results-drawer.tsx`. 테스트: `execution-store.test.ts`·`workflow-editor-shortcuts.test.ts`.
 
 ## 로드맵 / 결정 대기 (본 plan 활성 범위에서 분리 — §6 와 동일)
-- [ ] §1.3 단일 노드 테스트 — **결정 필요**. spec 본문이 이미 "v1 surface 아님(설계 참고용)" 으로 명시. backend 가 `fromNodeId` 부분 실행 시맨틱(트리거/상류 출력 처리)을 구현하지 않아 전용 엔드포인트 설계가 선행돼야 함. 별도 재도입 plan 대상.
+- [x] §1.3 단일 노드 테스트 (2026-06-15, exec-single-node PR) — **결정: 입력=직전 실행(previousExecutionId) 상류 노드 출력 자동 주입(미지정 시 수동 입력) + 단일 노드만 실행(downstream 미진행) + 전용 엔드포인트**. `POST /api/workflows/:id/nodes/:nodeId/execute`(body `{ previousExecutionId?, input? }`), Execution `single_node_id`/`previous_execution_id` 컬럼(V098), `runExecution` single-node 분기(대상 노드만 seed·break·predecessor 출력 복원), frontend 우클릭 "이 노드 실행"+InfoTab 결과+i18n. spec §1.3 v1 승격 + §9 + R-1.3, replay-rerun §15 C3 재조정, 1-data-model §2.13, 4-execution-engine §11/§6.1.
+  - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전 단계 PASS (e2e 202, 단일실행 F/노드오류 G/prev오류 H 포함)
+  - [x] /ai-review (15_05_56) Critical 0/Warning 18 → resolution fix(W-6/7/9/13/14 등)+DEFER(W-1/2/3/5/8/10/18 근거) → fresh review(15_29_28) Critical 0·Warning 2(비-defect accept) 수렴
+  - [x] /consistency-check --impl-done (15_36_35) — BLOCK: NO (5 checker 전원 비차단)
 - [x] §2.2 테스트 데이터 세트 저장/이름 지정 (2026-06-14, exec-test-dataset PR) — **결정: 유저 귀속 기본(private) + 유저 선택 시 워크스페이스 read-only 공유 + 타 유저는 clone→자기 소유 수정**. 신규 `WorkflowTestDataset` 엔티티(V097, `(workflow_id,owner_id,name)` UNIQUE) + 모듈(service/controller/DTO) + CRUD·clone 엔드포인트(Editor+, 소유자만 수정/삭제). frontend Mock Input 다이얼로그에 "데이터셋으로 저장"(이름+공유옵션)·"데이터셋" 목록(불러오기·복제·삭제) + i18n ko/en. spec §2.2 ✅ + §9 API + R-2.2 + data-model §2.13.3 동기화.
   - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전 단계 PASS (e2e 199/199, dataset DELETE invariant G 포함)
   - [x] /ai-review (--range merge-base..HEAD) — 4회 fresh review 모두 Critical 0. 실질 발견 fix1/fix2 조치(IDOR 오탐·copyName·Swagger·유저가이드·DTO 계약). #610 발 main Gate C breakage 는 fix3(spec_impact) 복구. 잔여는 테스트커버리지·문서 nit → RESOLUTION(12_10_03) accept/defer.

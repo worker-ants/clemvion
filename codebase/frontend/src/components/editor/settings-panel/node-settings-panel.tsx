@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useEditorStore } from "@/lib/stores/editor-store";
+import { useExecutionStore } from "@/lib/stores/execution-store";
 import { getNodeDefinition } from "@/lib/node-definitions";
 import { NodeConfigRenderer } from "./node-configs";
 import { Button } from "@/components/ui/button";
@@ -101,7 +102,7 @@ export function NodeSettingsPanel() {
             nodeData={nodeData}
           />
         ) : (
-          <InfoTab nodeType={nodeData.type} />
+          <InfoTab nodeType={nodeData.type} nodeId={selectedNodeId} />
         )}
       </div>
     </div>
@@ -489,9 +490,27 @@ function CodeTab({
   );
 }
 
-function InfoTab({ nodeType }: { nodeType: string }) {
+// nodeId 는 §1.3 단일 노드 실행 결과(및 일반 실행 시 해당 노드 결과)를 Info 탭에
+// 표시하기 위해 추가됐다 — execution-store 의 nodeResults 에서 이 노드의 최신 결과를 찾는다.
+function InfoTab({
+  nodeType,
+  nodeId,
+}: {
+  nodeType: string;
+  nodeId: string;
+}) {
   const t = useT();
   const definition = getNodeDefinition(nodeType);
+
+  // 단일 노드 실행(§1.3) 등 최근 실행 결과를 Info 탭에 표시한다. nodeResults 는
+  // 도착 순서 배열이라 같은 nodeId 의 마지막 항목이 최신 결과(루프 반복 포함).
+  const nodeResults = useExecutionStore((s) => s.nodeResults);
+  const latestResult = useMemo(() => {
+    for (let i = nodeResults.length - 1; i >= 0; i--) {
+      if (nodeResults[i].nodeId === nodeId) return nodeResults[i];
+    }
+    return undefined;
+  }, [nodeResults, nodeId]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -546,12 +565,48 @@ function InfoTab({ nodeType }: { nodeType: string }) {
         </span>
       )}
       <div className="border-t border-[hsl(var(--border))] pt-3">
-        <span className="text-sm text-[hsl(var(--muted-foreground))]">
-          {t("editor.noExecutionData")}
-        </span>
-        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-          {t("editor.runToSeeResults")}
-        </p>
+        {latestResult ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-[hsl(var(--foreground))]">
+                {t("editor.nodeResultTitle")}
+              </span>
+              <span className="text-[10px] font-medium uppercase text-[hsl(var(--muted-foreground))]">
+                {latestResult.status}
+                {typeof latestResult.duration === "number"
+                  ? ` · ${latestResult.duration}ms`
+                  : ""}
+              </span>
+            </div>
+            {latestResult.error ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-medium uppercase text-[hsl(var(--muted-foreground))]">
+                  {t("editor.nodeResultError")}
+                </span>
+                <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-[hsl(var(--muted))] p-2 text-xs text-[hsl(var(--destructive))]">
+                  {latestResult.error}
+                </pre>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-medium uppercase text-[hsl(var(--muted-foreground))]">
+                {t("editor.nodeResultOutput")}
+              </span>
+              <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-all rounded bg-[hsl(var(--muted))] p-2 text-xs text-[hsl(var(--foreground))]">
+                {JSON.stringify(latestResult.outputData, null, 2)}
+              </pre>
+            </div>
+          </div>
+        ) : (
+          <>
+            <span className="text-sm text-[hsl(var(--muted-foreground))]">
+              {t("editor.noExecutionData")}
+            </span>
+            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+              {t("editor.runToSeeResults")}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

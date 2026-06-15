@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { randomUUID } from 'crypto';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -229,4 +230,60 @@ describe('Workflow Execution (e2e)', () => {
       ),
     ]);
   }, 45_000);
+
+  // 단일 노드 실행 (§1.3) — POST /api/workflows/:id/nodes/:nodeId/execute.
+  async function triggerNodeIdOf(workflowId: string): Promise<string> {
+    const r = await db.query<{ id: string }>(
+      `SELECT id FROM node WHERE workflow_id = $1 AND type = 'manual_trigger' LIMIT 1`,
+      [workflowId],
+    );
+    expect(r.rows.length).toBe(1);
+    return r.rows[0].id;
+  }
+
+  it('F. 단일 노드 실행 → 202 + executionId, 폴링하면 terminal 도달', async () => {
+    const id = await createWorkflow();
+    const nodeId = await triggerNodeIdOf(id);
+    const exec = await request(BASE_URL)
+      .post(`/api/workflows/${id}/nodes/${nodeId}/execute`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(exec.status).toBe(202);
+    const executionId = (exec.body.data as { executionId: string }).executionId;
+    expect(executionId).toBeDefined();
+
+    const final = await pollExecution(
+      executionId,
+      { Authorization: `Bearer ${ownerToken}` },
+      workspaceId,
+      (s) =>
+        TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
+      15_000,
+    );
+    expect(TERMINAL_STATUSES).toContain(final.status);
+  }, 30_000);
+
+  it('G. 워크플로우에 없는 노드 id 로 단일 실행 → 400', async () => {
+    const id = await createWorkflow();
+    const res = await request(BASE_URL)
+      .post(`/api/workflows/${id}/nodes/${randomUUID()}/execute`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('NODE_NOT_IN_WORKFLOW');
+  });
+
+  it('H. 타 워크플로우(또는 미존재) previousExecutionId → 400', async () => {
+    const id = await createWorkflow();
+    const nodeId = await triggerNodeIdOf(id);
+    const res = await request(BASE_URL)
+      .post(`/api/workflows/${id}/nodes/${nodeId}/execute`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ previousExecutionId: randomUUID() });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('PREVIOUS_EXECUTION_NOT_FOUND');
+  });
 });

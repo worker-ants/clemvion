@@ -192,6 +192,18 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
   return base;
 }
 
+/**
+ * canonical `{ config, output, ... }` NodeHandlerOutput shape 인지 판별하는 타입
+ * 가드. `adaptHandlerReturn`(strict) 적용 가능 여부(=이미 canonical)를 판단하는
+ * 단일 SoT — 동일 도메인 지식이 호출처에 중복 인라인되지 않도록 export 한다
+ * (예: 단일 노드 실행의 predecessor 출력 복원 `seedSingleNodePredecessorOutputs`).
+ */
+export function isCanonicalHandlerOutput(
+  raw: unknown,
+): raw is NodeHandlerOutput {
+  return isNewShape(raw);
+}
+
 function isNewShape(raw: unknown): raw is NodeHandlerOutput {
   return (
     typeof raw === 'object' &&
