@@ -46,10 +46,17 @@ owner: planner
   - [x] /consistency-check --impl-done (00_54_33) — BLOCK: NO (Critical 0/Warning 0). INFO 7건 중 Rationale 보강(§2.17.3·R-2)·plan 추적(auth-config-webhook-followups §3)·SoT 경계는 본 PR 반영, 상수 export 는 loop-avoidance 로 후속 권고.
 
 ## 후속 — God Component 분리 (ai-review 2026-06-14 WARNING 1·4 재확인)
-- [ ] `authentication/page.tsx` God Component 분리 — `AuthConfigCreateForm` + `AuthConfigEditDialog` 컴포넌트·커스텀 훅(`useAuthConfigEditDialog`)으로 edit 흐름 추출. (ai-review 2026-06-14 WARNING 1·4 재확인 — edit 폼 `useState` 11개 통합 포함)
+- [x] `authentication/page.tsx` God Component 분리 (2026-06-16, config-c1-auth-god-split) — create/edit 폼을 단일-목적 컴포넌트 + 커스텀 훅으로 추출. **순수 구조 리팩토링 — 동작·UI·API 호출·i18n 키 불변** (기존 36 컴포넌트 테스트가 회귀 가드, 전부 통과).
   - 우선순위: 저(현재 기능 동작 OK, 회귀 위험 대비 scope 분리가 적절)
   - 목적: `dialogMode === "edit"` 분기 4곳 분산 제거, `useState` 개수 축소, create+edit 통합 리팩토링을 별도 PR 에서 진행
-  - 선행 조건: 현 PR 병합 후
+  - 산출 (신규 5파일 + page 슬림화 1066→621줄):
+    - `use-auth-config-form.ts` — 폼 `useState` 11개 + dialogMode + collectFormState/validateAndProceed 를 단일 훅으로 통합. *(플랜의 `useAuthConfigEditDialog` 가칭 대신 create+edit 공유 상태를 모두 담으므로 `useAuthConfigForm` 로 명명 — 둘이 동일 필드를 공유해 단일 훅이 정확.)*
+    - `auth-config-create-form.tsx` (`AuthConfigCreateForm`) — type 자유·password 입력·발급키 1회 표시.
+    - `auth-config-edit-dialog.tsx` (`AuthConfigEditDialog`) — type 잠금·password 없음·Save.
+    - `auth-config-form-fields.tsx` (`AuthConfigFormFields`) — 두 다이얼로그 공유 입력 필드. `dialogMode === "edit"` 분기를 명시적 capability prop(`typeDisabled`/`showTypeLockedHint`/`showPassword`)으로 대체해 **분산 분기 제거**.
+    - `auth-config-types.ts` — 공유 타입(AuthConfig·UsageRecentCall·…)·상수(AUTH_TYPES·TYPE_LABEL_KEYS·STATUS_BADGE_VARIANT)·`pickPlaintextSecret`.
+  - 범위 결정: 플랜이 한정한 **create/edit 폼**(WARNING 1·4)만 추출. 테이블·확인 모달(regenerate/reveal/delete)·usage 드로어는 별건 cohesive 라 page(오케스트레이터)에 유지 — "회귀 위험 대비 scope 분리" 원칙 준수.
+  - 게이트: lint·tsc·unit(frontend 4419 pass)·build PASS. authentication 화면 전용 e2e 없음(컴포넌트 테스트가 가드).
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 및 `auth-configs.service.ts:399-450`, `authentication/page.tsx:81-89` 참조.

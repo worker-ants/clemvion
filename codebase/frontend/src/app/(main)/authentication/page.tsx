@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { SlideDrawer } from "@/components/ui/slide-drawer";
 import { cn } from "@/lib/utils/cn";
@@ -31,90 +30,25 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useT, type TranslationKey } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
 import {
-  type AuthConfigType,
-  type AuthConfigFormState,
-  AUTH_CONFIG_DEFAULTS,
   buildAuthConfigPayload,
   buildAuthConfigUpdatePayload,
-  formStateFromAuthConfig,
-  validateAuthConfigForm,
 } from "./auth-config-form";
-
-interface AuthConfig {
-  id: string;
-  name: string;
-  type: AuthConfigType;
-  isActive: boolean;
-  lastUsedAt?: string;
-  /** 마스킹된 config (목록/상세 응답). 평문은 create/regenerate/reveal 만. */
-  config?: Record<string, unknown>;
-  /** top-level IP 화이트리스트 (선택). 편집 폼 초기값에 사용. */
-  ipWhitelist?: string[];
-}
-
-interface UsageRecentCall {
-  id: string;
-  triggerName: string;
-  status: string;
-  startedAt: string;
-  /** webhook 소스 IP. 캡처되지 않은 호출(비-HTTP 트리거)은 null. */
-  sourceIp: string | null;
-  /** 응답 코드 — webhook 은 HTTP 코드('202'), 비-HTTP 는 status enum 폴백. */
-  responseCode: string;
-}
-
-interface UsagePeriodCounts {
-  last24h: number;
-  last7d: number;
-  last30d: number;
-}
-
-interface AuthConfigUsage {
-  totalCalls: number;
-  lastUsedAt: string | null;
-  /** §A.3 기간별 호출 수 — 롤링 윈도(24h/7d/30d). */
-  periodCounts: UsagePeriodCounts;
-  recentCalls: UsageRecentCall[];
-}
-
-const AUTH_TYPES: { value: AuthConfigType; labelKey: TranslationKey }[] = [
-  { value: "api_key", labelKey: "authentication.typeApiKey" },
-  { value: "bearer_token", labelKey: "authentication.typeBearerToken" },
-  { value: "basic_auth", labelKey: "authentication.typeBasicAuth" },
-  { value: "hmac", labelKey: "authentication.typeHmac" },
-];
-
-const TYPE_LABEL_KEYS: Record<string, TranslationKey> = {
-  api_key: "authentication.typeApiKey",
-  bearer_token: "authentication.typeBearerToken",
-  basic_auth: "authentication.typeBasicAuth",
-  hmac: "authentication.typeHmac",
-};
-
-const STATUS_BADGE_VARIANT: Record<
-  string,
-  "success" | "warning" | "destructive" | "outline"
-> = {
-  completed: "success",
-  running: "warning",
-  failed: "destructive",
-  pending: "outline",
-};
+import {
+  type AuthConfig,
+  type AuthConfigUsage,
+  TYPE_LABEL_KEYS,
+  STATUS_BADGE_VARIANT,
+  pickPlaintextSecret,
+} from "./auth-config-types";
+import { useAuthConfigForm } from "./use-auth-config-form";
+import { AuthConfigCreateForm } from "./auth-config-create-form";
+import { AuthConfigEditDialog } from "./auth-config-edit-dialog";
 
 /** 1회 노출된 평문 비밀값을 자동으로 비우기까지의 시간(ms). reveal·create/regenerate 공통. */
 const SECRET_AUTOCLEAR_MS = 30_000;
-
-/** create/regenerate/reveal 응답에서 평문 비밀값 1개를 추출 (표시용). */
-function pickPlaintextSecret(
-  config: Record<string, unknown> | undefined,
-): string | null {
-  if (!config) return null;
-  const v = config.key ?? config.token ?? config.secret ?? config.password;
-  return typeof v === "string" ? v : null;
-}
 
 export default function AuthenticationPage() {
   const t = useT();
@@ -123,28 +57,10 @@ export default function AuthenticationPage() {
   // Editor/Viewer = R). 백엔드가 @Roles('admin') 로 강제하나, UI 에서도 가려
   // 비-admin 의 403 혼란을 막는다. Reveal·Edit 진입 버튼에 동일 적용.
   const isAdmin = useHasRole("admin");
-  const [showDialog, setShowDialog] = useState(false);
-  // create: 신규 발급 / edit: 기존 config 의 non-secret 필드(name·headerName·IP 등) 수정.
-  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
-  const [editTargetId, setEditTargetId] = useState<string | null>(null);
-  const [formName, setFormName] = useState("");
-  const [formType, setFormType] = useState<AuthConfigType | "">("");
-  // type 별 추가 입력 (hmac: header/algorithm, basic_auth: username/password).
-  const [formHmacHeader, setFormHmacHeader] = useState<string>(
-    AUTH_CONFIG_DEFAULTS.hmacHeader,
-  );
-  const [formHmacAlgorithm, setFormHmacAlgorithm] = useState<"sha256" | "sha512">(
-    AUTH_CONFIG_DEFAULTS.hmacAlgorithm,
-  );
-  const [formUsername, setFormUsername] = useState("");
-  const [formPassword, setFormPassword] = useState("");
-  // api_key 전용 헤더 이름 (default X-API-Key) + 모든 type 공통 IP 화이트리스트
-  // (한 줄에 IP/CIDR 하나). 백엔드 DTO 는 config.headerName / top-level ipWhitelist 지원.
-  const [formApiKeyHeader, setFormApiKeyHeader] = useState<string>(
-    AUTH_CONFIG_DEFAULTS.apiKeyHeader,
-  );
-  const [formIpWhitelist, setFormIpWhitelist] = useState("");
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  // 생성/편집 폼 상태·검증·다이얼로그 제어는 전용 훅으로 통합 (useState 11개 + dialogMode 분기).
+  const form = useAuthConfigForm();
+  // generatedKey 자동 클리어 effect 가 안정적 deps 를 갖도록 primitive·setter 만 구조분해.
+  const { generatedKey, setGeneratedKey } = form;
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [regenerateTarget, setRegenerateTarget] = useState<string | null>(null);
   const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
@@ -157,6 +73,7 @@ export default function AuthenticationPage() {
   // 30초 후 자동으로 비운다 — 화면 방치 시 평문 노출 시간을 제한 (단일 정책,
   // spec/2-navigation/6-config.md §A.4). 언마운트·값 변경 시 타이머를 정리해
   // 누수·stale clear 를 막는다 (useEffect cleanup).
+  // generatedKey 는 useAuthConfigForm 훅이 보유한다 — 자동 클리어 타이머만 여기서 건다.
   useEffect(() => {
     if (!generatedKey) return;
     const timer = window.setTimeout(
@@ -164,7 +81,7 @@ export default function AuthenticationPage() {
       SECRET_AUTOCLEAR_MS,
     );
     return () => window.clearTimeout(timer);
-  }, [generatedKey]);
+  }, [generatedKey, setGeneratedKey]);
 
   useEffect(() => {
     if (!revealedSecret) return;
@@ -201,7 +118,7 @@ export default function AuthenticationPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       // 페이로드 조립은 순수 함수로 위임 (auth-config-form.ts) — 단위 테스트 대상.
-      const payload = buildAuthConfigPayload(collectFormState());
+      const payload = buildAuthConfigPayload(form.collectFormState());
       const res = await apiClient.post("/auth-configs", payload);
       return (res.data.data ?? res.data) as AuthConfig;
     },
@@ -210,9 +127,9 @@ export default function AuthenticationPage() {
       toast.success(t("authentication.configCreated"));
       // 자동 발급된 평문(api_key/bearer/hmac)을 1회 표시. basic_auth 는 사용자 입력이라 없음.
       const secret = pickPlaintextSecret(data?.config);
-      setGeneratedKey(secret);
+      form.setGeneratedKey(secret);
       if (!secret) {
-        resetForm();
+        form.close();
       }
     },
     onError: () => {
@@ -224,13 +141,13 @@ export default function AuthenticationPage() {
     mutationFn: async () => {
       // type·비밀값은 불변 — non-secret config(headerName 등) + IP 만 PATCH.
       // 백엔드가 config 를 shallow-merge 하므로 암호화 비밀값은 보존된다.
-      const payload = buildAuthConfigUpdatePayload(collectFormState());
-      await apiClient.patch(`/auth-configs/${editTargetId}`, payload);
+      const payload = buildAuthConfigUpdatePayload(form.collectFormState());
+      await apiClient.patch(`/auth-configs/${form.editTargetId}`, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auth-configs"] });
       toast.success(t("authentication.configUpdated"));
-      resetForm();
+      form.close();
     },
     onError: () => {
       toast.error(t("authentication.configUpdateFailed"));
@@ -259,7 +176,7 @@ export default function AuthenticationPage() {
       queryClient.invalidateQueries({ queryKey: ["auth-configs"] });
       toast.success(t("authentication.keyRegenerated"));
       const secret = pickPlaintextSecret(data?.config);
-      if (secret) setGeneratedKey(secret);
+      if (secret) form.setGeneratedKey(secret);
       setRegenerateTarget(null);
     },
     onError: () => {
@@ -301,101 +218,12 @@ export default function AuthenticationPage() {
     },
   });
 
-  function resetForm() {
-    setFormName("");
-    setFormType("");
-    setFormHmacHeader(AUTH_CONFIG_DEFAULTS.hmacHeader);
-    setFormHmacAlgorithm(AUTH_CONFIG_DEFAULTS.hmacAlgorithm);
-    setFormApiKeyHeader(AUTH_CONFIG_DEFAULTS.apiKeyHeader);
-    setFormIpWhitelist("");
-    setFormUsername("");
-    setFormPassword("");
-    setGeneratedKey(null);
-    setDialogMode("create");
-    setEditTargetId(null);
-    setShowDialog(false);
-  }
-
-  /** 기존 config 의 non-secret 값으로 폼을 채워 편집 모드로 연다. */
-  function handleEditClick(config: AuthConfig) {
-    const s = formStateFromAuthConfig(config);
-    setFormName(s.name);
-    setFormType(s.type);
-    setFormApiKeyHeader(s.apiKeyHeader);
-    setFormHmacHeader(s.hmacHeader);
-    setFormHmacAlgorithm(s.hmacAlgorithm);
-    setFormUsername(s.username);
-    setFormPassword("");
-    setFormIpWhitelist(s.ipWhitelistRaw);
-    setGeneratedKey(null);
-    setEditTargetId(config.id);
-    setDialogMode("edit");
-    setShowDialog(true);
-  }
-
-  // 폼 상태 단일 수집 지점 — handleCreate(검증)·createMutation(페이로드 조립)이
-  // 동일 객체를 공유해 필드 추가 시 한 곳만 수정하면 된다. `type` 은 호출 전
-  // 비어있지 않음이 보장된다(handleCreate 가드).
-  function collectFormState(): AuthConfigFormState {
-    return {
-      name: formName,
-      type: formType as AuthConfigType,
-      apiKeyHeader: formApiKeyHeader,
-      hmacHeader: formHmacHeader,
-      hmacAlgorithm: formHmacAlgorithm,
-      username: formUsername,
-      password: formPassword,
-      ipWhitelistRaw: formIpWhitelist,
-    };
-  }
-
-  /**
-   * formName 공백·basic_auth username·validateAuthConfigForm·toast 처리를 공유.
-   * 검증 통과 시 `onValid()` 를 호출한다.
-   * `requirePassword` — create 모드에서만 true (edit 에서는 password 입력란 없음).
-   */
-  function validateAndProceed(
-    onValid: () => void,
-    options: { requireType?: boolean; requirePassword?: boolean } = {},
-  ) {
-    const { requireType = false, requirePassword = false } = options;
-    if (!formName.trim() || (requireType && !formType)) {
-      toast.error(t("authentication.fillRequired"));
-      return;
-    }
-    if (formType === "basic_auth") {
-      if (!formUsername.trim()) {
-        toast.error(t("authentication.fillRequired"));
-        return;
-      }
-      if (requirePassword && !formPassword) {
-        toast.error(t("authentication.fillRequired"));
-        return;
-      }
-    }
-    // §A.2 입력 형식 검증 — 잘못된 헤더명/IP·CIDR 는 제출 차단(백엔드 도달 전).
-    const validationError = validateAuthConfigForm(collectFormState());
-    if (validationError) {
-      if (validationError.key === "invalidIpWhitelist") {
-        toast.error(
-          t("authentication.invalidIpWhitelist", {
-            entries: validationError.invalid.join(", "),
-          }),
-        );
-      } else {
-        toast.error(t("authentication.invalidHeaderName"));
-      }
-      return;
-    }
-    onValid();
-  }
-
   function handleUpdate() {
-    validateAndProceed(() => updateMutation.mutate());
+    form.validateAndProceed(() => updateMutation.mutate());
   }
 
   function handleCreate() {
-    validateAndProceed(() => createMutation.mutate(), {
+    form.validateAndProceed(() => createMutation.mutate(), {
       requireType: true,
       requirePassword: true,
     });
@@ -416,217 +244,27 @@ export default function AuthenticationPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{t("authentication.title")}</h1>
-        <Button
-          onClick={() => {
-            setDialogMode("create");
-            setShowDialog(true);
-          }}
-        >
+        <Button onClick={form.openCreate}>
           <Plus className="mr-2 h-4 w-4" />
           {t("authentication.addConfig")}
         </Button>
       </div>
 
-      {/* Create / Edit Dialog — 동일 폼 본문을 dialogMode 로 분기 (편집은 type·비밀값 불변). */}
-      {showDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
-                {dialogMode === "edit"
-                  ? t("authentication.editConfigDialogTitle")
-                  : t("authentication.addConfigDialogTitle")}
-              </h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={resetForm}
-                aria-label={t("common.close")}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
-            {generatedKey ? (
-              <div className="space-y-4">
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  {t("authentication.saveKeyNotice")}
-                </p>
-                <div className="flex items-center gap-2 rounded-md bg-[hsl(var(--muted))] p-3">
-                  <code className="flex-1 break-all text-sm">{generatedKey}</code>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    onClick={() => copyToClipboard(generatedKey)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="flex justify-end">
-                  <Button onClick={resetForm}>{t("authentication.done")}</Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="auth-name">{t("common.name")}</Label>
-                  <Input
-                    id="auth-name"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder={t("authentication.namePlaceholderConfig")}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="auth-type">{t("common.type")}</Label>
-                  <select
-                    id="auth-type"
-                    className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                    value={formType}
-                    // 편집 시 type 변경 불가 — 타입 전환은 비밀값 재발급을 수반하므로
-                    // 삭제 후 재생성 경로로 일원화한다.
-                    disabled={dialogMode === "edit"}
-                    onChange={(e) =>
-                      setFormType(e.target.value as AuthConfigType | "")
-                    }
-                  >
-                    <option value="">{t("authentication.selectType")}</option>
-                    {AUTH_TYPES.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {t(opt.labelKey)}
-                      </option>
-                    ))}
-                  </select>
-                  {dialogMode === "edit" && (
-                    <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                      {t("authentication.editTypeLocked")}
-                    </p>
-                  )}
-                </div>
-                {formType === "hmac" && (
-                  <>
-                    <div>
-                      <Label htmlFor="auth-hmac-header">
-                        {t("authentication.hmacHeaderLabel")}
-                      </Label>
-                      <Input
-                        id="auth-hmac-header"
-                        value={formHmacHeader}
-                        onChange={(e) => setFormHmacHeader(e.target.value)}
-                        placeholder="X-Hub-Signature-256"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="auth-hmac-algorithm">
-                        {t("authentication.hmacAlgorithmLabel")}
-                      </Label>
-                      <select
-                        id="auth-hmac-algorithm"
-                        className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
-                        value={formHmacAlgorithm}
-                        onChange={(e) =>
-                          setFormHmacAlgorithm(
-                            e.target.value as "sha256" | "sha512",
-                          )
-                        }
-                      >
-                        <option value="sha256">sha256</option>
-                        <option value="sha512">sha512</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-                {formType === "api_key" && (
-                  <div>
-                    <Label htmlFor="auth-api-key-header">
-                      {t("authentication.apiKeyHeaderLabel")}
-                    </Label>
-                    <Input
-                      id="auth-api-key-header"
-                      value={formApiKeyHeader}
-                      onChange={(e) => setFormApiKeyHeader(e.target.value)}
-                      placeholder="X-API-Key"
-                    />
-                  </div>
-                )}
-                {formType === "basic_auth" && (
-                  <>
-                    <div>
-                      <Label htmlFor="auth-username">
-                        {t("authentication.usernameLabel")}
-                      </Label>
-                      <Input
-                        id="auth-username"
-                        value={formUsername}
-                        onChange={(e) => setFormUsername(e.target.value)}
-                        autoComplete="off"
-                      />
-                    </div>
-                    {/* 비밀번호는 비밀값이라 편집 폼에서 변경 불가 — 생성 시에만 입력. */}
-                    {dialogMode === "create" && (
-                      <div>
-                        <Label htmlFor="auth-password">
-                          {t("authentication.passwordLabel")}
-                        </Label>
-                        <Input
-                          id="auth-password"
-                          type="password"
-                          value={formPassword}
-                          onChange={(e) => setFormPassword(e.target.value)}
-                          autoComplete="new-password"
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-                {/* IP Whitelist — 모든 type 공통(선택). 한 줄에 IP/CIDR 하나. */}
-                {formType !== "" && (
-                  <div>
-                    <Label htmlFor="auth-ip-whitelist">
-                      {t("authentication.ipWhitelistLabel")}
-                    </Label>
-                    <textarea
-                      id="auth-ip-whitelist"
-                      className="flex min-h-[72px] w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                      value={formIpWhitelist}
-                      onChange={(e) => setFormIpWhitelist(e.target.value)}
-                      placeholder={"10.0.0.0/8\n203.0.113.42"}
-                    />
-                    <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                      {t("authentication.ipWhitelistHint")}
-                    </p>
-                  </div>
-                )}
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={resetForm}>
-                    {t("common.cancel")}
-                  </Button>
-                  {dialogMode === "edit" ? (
-                    <Button
-                      onClick={handleUpdate}
-                      disabled={updateMutation.isPending}
-                    >
-                      {updateMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : null}
-                      {t("common.save")}
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleCreate}
-                      disabled={createMutation.isPending}
-                    >
-                      {createMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : null}
-                      {t("common.create")}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Create / Edit — 단일-목적 컴포넌트로 분리 (이전 dialogMode 분기 다이얼로그). */}
+      {form.mode === "create" && (
+        <AuthConfigCreateForm
+          form={form}
+          isPending={createMutation.isPending}
+          onCreate={handleCreate}
+          onCopy={copyToClipboard}
+        />
+      )}
+      {form.mode === "edit" && (
+        <AuthConfigEditDialog
+          form={form}
+          isPending={updateMutation.isPending}
+          onUpdate={handleUpdate}
+        />
       )}
 
       {/* Regenerate Confirmation */}
@@ -878,7 +516,7 @@ export default function AuthenticationPage() {
                           size="icon"
                           className="h-8 w-8"
                           aria-label={t("authentication.editButton")}
-                          onClick={() => handleEditClick(config)}
+                          onClick={() => form.openEdit(config)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
