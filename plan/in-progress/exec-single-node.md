@@ -52,9 +52,9 @@ spec_impact: spec/3-workflow-editor/3-execution.md §1.3·§9·R; spec/5-system/
 
 ### 게이트
 - [x] consistency-check --impl-prep (Critical 0)
-- [ ] TEST WORKFLOW — lint✅ unit✅(backend 6983·frontend 206·web-chat 16) build✅ / e2e 진행 중
-- [ ] /ai-review (--range merge-base..HEAD) Critical 0
-- [ ] resolution + fresh review
-- [ ] consistency-check --impl-done (BLOCK NO)
-- [ ] spec-sync-execution-gaps.md §1.3 [x]
+- [x] TEST WORKFLOW — lint✅ unit✅(backend 6983·frontend 206·web-chat 16) build✅ e2e✅(202)
+- [x] /ai-review (15_05_56) Critical 0 / Warning 18
+- [x] resolution(15_05_56 RESOLUTION) + fresh review(15_29_28 Critical 0, Warning 2 비-defect accept 수렴)
+- [x] consistency-check --impl-done (15_36_35 BLOCK NO)
+- [x] spec-sync-execution-gaps.md §1.3 [x]
 - [ ] push + PR

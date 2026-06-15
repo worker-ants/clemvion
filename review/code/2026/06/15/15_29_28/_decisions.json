@@ -1,0 +1,88 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-06-15T15:29:28Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "nullable UUID 컬럼 추가, 반복 I/O 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "새 엔드포인트/DTO/레이어 분리 — 단일 노드 실행 아키텍처"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/lock 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 마이그레이션 V098 신설"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "frontend handleRunThisNode 에서 async/await + TOCTOU 가드"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "POST /api/workflows/:id/nodes/:nodeId/execute 신규 엔드포인트"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": true,
+      "reason": "spec §1.3 승격 + 신규 노드 흐름 변경 — PROJECT.md 매트릭스 trigger"
+    }
+  ],
+  "selected_count": 11,
+  "skipped_count": 3,
+  "forced": [
+    "database",
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
