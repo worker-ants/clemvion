@@ -20,7 +20,10 @@ owner: planner
 
 ## 로드맵 / 결정 대기 (본 plan 활성 범위에서 분리 — §6 와 동일)
 - [ ] §1.3 단일 노드 테스트 — **결정 필요**. spec 본문이 이미 "v1 surface 아님(설계 참고용)" 으로 명시. backend 가 `fromNodeId` 부분 실행 시맨틱(트리거/상류 출력 처리)을 구현하지 않아 전용 엔드포인트 설계가 선행돼야 함. 별도 재도입 plan 대상.
-- [ ] §2.2 테스트 데이터 세트 저장/이름 지정 — **결정 필요**. 저장 전용 엔티티 + 소유/권한 모델(워크플로/워크스페이스/유저 귀속) 결정이 선행. 본 PR 의 검증·히스토리 로드와 분리.
+- [x] §2.2 테스트 데이터 세트 저장/이름 지정 (2026-06-14, exec-test-dataset PR) — **결정: 유저 귀속 기본(private) + 유저 선택 시 워크스페이스 read-only 공유 + 타 유저는 clone→자기 소유 수정**. 신규 `WorkflowTestDataset` 엔티티(V097, `(workflow_id,owner_id,name)` UNIQUE) + 모듈(service/controller/DTO) + CRUD·clone 엔드포인트(Editor+, 소유자만 수정/삭제). frontend Mock Input 다이얼로그에 "데이터셋으로 저장"(이름+공유옵션)·"데이터셋" 목록(불러오기·복제·삭제) + i18n ko/en. spec §2.2 ✅ + §9 API + R-2.2 + data-model §2.13.3 동기화.
+  - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전 단계 PASS (e2e 199/199, dataset DELETE invariant G 포함)
+  - [x] /ai-review (--range merge-base..HEAD) — 4회 fresh review 모두 Critical 0. 실질 발견 fix1/fix2 조치(IDOR 오탐·copyName·Swagger·유저가이드·DTO 계약). #610 발 main Gate C breakage 는 fix3(spec_impact) 복구. 잔여는 테스트커버리지·문서 nit → RESOLUTION(12_10_03) accept/defer.
+  - [x] /consistency-check --impl-done (12_18_43) — BLOCK: NO. 잔여 W-1(ForbiddenException FORBIDDEN 코드 중복)·W-2(DUPLICATE_NAME 전역 카탈로그 미등록)는 에러코드 컨벤션 nit — 프론트가 해당 code 로 분기하지 않아 저위험, 전역 카탈로그 등록은 후속 defer.
 - [ ] §7 인-에디터 실행 히스토리(패널·캔버스 오버레이) — **로드맵**. spec 본문이 "설계 참고용", 실행 내역은 전용 페이지(`2-navigation/14-execution-history.md`)가 담당하고 에디터 재실행은 Run Results 드로어 Re-run(§10.14)으로 이미 제공. 별도 plan 대상.
 
 ## 비고

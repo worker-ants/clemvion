@@ -35,6 +35,43 @@ Choosing `Run with Input` opens the test-input dialog.
 ```
 </Example>
 
+## Test Datasets
+
+Save frequently used test inputs as **datasets** and reload them in one click on every run.
+
+### Save as Dataset
+
+Click the `Save` button in the top-right corner of the `Run with Input` dialog to store the current JSON as a dataset.
+
+<FieldTable rows={[
+  { name: "Name", type: "Required", description: "Identifies the dataset. Must be unique among your datasets for this workflow." },
+  { name: "Share with workspace", type: "Optional (default: OFF)", description: "When on, teammates in the same workspace can load this dataset read-only. To edit a shared dataset they must clone it first." }
+]} />
+
+### Load a Dataset
+
+Select a saved dataset from the `Datasets` dropdown in the dialog — the JSON editor fills in automatically.
+
+- **My datasets**: all datasets you own (including private ones) are listed.
+- **Workspace shared**: datasets shared by teammates appear alongside yours.
+
+### Visibility
+
+<FieldTable rows={[
+  { name: "Private (default)", type: "Private", description: "Only you can see it. This is the default when you save without enabling workspace sharing." },
+  { name: "Workspace", type: "Shared", description: "Every Editor-or-above teammate in your workspace can load it read-only." }
+]} />
+
+### Clone a Shared Dataset
+
+To edit a teammate's shared dataset, click `Clone` to create your own private copy. The original is left untouched.
+
+<Callout type="note">A cloned copy is named `original name (Copy)` automatically. If a dataset with that name already exists you'll get a 409 error — rename and clone again.</Callout>
+
+### Delete a Dataset
+
+The `Delete` button only appears on **datasets you own**. You cannot delete datasets shared by others.
+
 ## Run from Selected
 
 Great when you want to iterate on a single debug target.
