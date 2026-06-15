@@ -104,6 +104,9 @@ const STATUS_BADGE_VARIANT: Record<
   pending: "outline",
 };
 
+/** 1회 노출된 평문 비밀값을 자동으로 비우기까지의 시간(ms). reveal·create/regenerate 공통. */
+const SECRET_AUTOCLEAR_MS = 30_000;
+
 /** create/regenerate/reveal 응답에서 평문 비밀값 1개를 추출 (표시용). */
 function pickPlaintextSecret(
   config: Record<string, unknown> | undefined,
@@ -150,15 +153,27 @@ export default function AuthenticationPage() {
   const [revealPassword, setRevealPassword] = useState("");
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
 
-  // create/regenerate 로 1회 표시되는 평문 키(generatedKey)는 30초 후 자동으로
-  // 비운다 — 화면 방치 시 평문 노출 시간을 제한 (reveal 경로의 30초 자동 hide 와
-  // 동일 정책, spec/2-navigation/6-config.md §A.4). 언마운트·값 변경 시 타이머를
-  // 정리해 누수·stale clear 를 막는다.
+  // 1회 노출되는 평문(create/regenerate 의 generatedKey, reveal 의 revealedSecret)은
+  // 30초 후 자동으로 비운다 — 화면 방치 시 평문 노출 시간을 제한 (단일 정책,
+  // spec/2-navigation/6-config.md §A.4). 언마운트·값 변경 시 타이머를 정리해
+  // 누수·stale clear 를 막는다 (useEffect cleanup).
   useEffect(() => {
     if (!generatedKey) return;
-    const timer = window.setTimeout(() => setGeneratedKey(null), 30_000);
+    const timer = window.setTimeout(
+      () => setGeneratedKey(null),
+      SECRET_AUTOCLEAR_MS,
+    );
     return () => window.clearTimeout(timer);
   }, [generatedKey]);
+
+  useEffect(() => {
+    if (!revealedSecret) return;
+    const timer = window.setTimeout(
+      () => setRevealedSecret(null),
+      SECRET_AUTOCLEAR_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [revealedSecret]);
 
   const { data: configs = [], isLoading, isError } = useQuery<AuthConfig[]>({
     queryKey: ["auth-configs"],
@@ -279,8 +294,7 @@ export default function AuthenticationPage() {
       setRevealedSecret(secret);
       setRevealTarget(null);
       setRevealPassword("");
-      // 30초 후 자동 hide — 화면 방치 시 평문 노출 시간을 제한.
-      window.setTimeout(() => setRevealedSecret(null), 30_000);
+      // 30초 자동 hide 는 revealedSecret useEffect 가 처리 (언마운트 cleanup 포함).
     },
     onError: () => {
       toast.error(t("authentication.revealFailed"));

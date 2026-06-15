@@ -1,8 +1,8 @@
-import { validate } from 'class-validator';
+import { validate, ValidationArguments } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { CreateAuthConfigDto } from './create-auth-config.dto';
 import { UpdateAuthConfigDto } from './update-auth-config.dto';
-import { isIpOrCidr } from './is-ip-or-cidr.validator';
+import { IsIpOrCidrConstraint, isIpOrCidr } from './is-ip-or-cidr.validator';
 
 /**
  * ip_whitelist 저장 시점 형식 검증 (spec/1-data-model.md §2.17,
@@ -18,7 +18,9 @@ describe('isIpOrCidr (저수준 검증 함수)', () => {
     '::1',
     '10.0.0.0/8',
     '192.168.0.0/16',
+    '0.0.0.0/0', // 전체 허용 CIDR (프론트엔드 검증과 동일 수용)
     '2001:db8::/32',
+    '2001:db8::/128', // IPv6 호스트 CIDR 경계
     '::ffff:192.0.2.1', // IPv4-mapped IPv6
   ])('유효: %s → true', (value) => {
     expect(isIpOrCidr(value)).toBe(true);
@@ -27,7 +29,8 @@ describe('isIpOrCidr (저수준 검증 함수)', () => {
   it.each([
     'invalid',
     '999.999.999.999',
-    '192.0.2.0/33', // prefix 범위 초과
+    '192.0.2.0/33', // IPv4 prefix 범위 초과
+    '2001:db8::/129', // IPv6 prefix 범위 초과
     '10.0.0.1 ', // 후행 공백
     ' 10.0.0.1',
     '',
@@ -76,6 +79,23 @@ describe('CreateAuthConfigDto — ipWhitelist @IsIpOrCidr', () => {
   it('빈 배열 → 통과 (each 검증 대상 없음)', async () => {
     const errors = await validateWhitelist([]);
     expect(errors).toHaveLength(0);
+  });
+
+  it('배열 대신 단일 문자열 → @IsArray 위반', async () => {
+    const errors = await validateWhitelist('10.0.0.1');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].property).toBe('ipWhitelist');
+    expect(errors[0].constraints).toHaveProperty('isArray');
+  });
+});
+
+describe('IsIpOrCidrConstraint.defaultMessage', () => {
+  it('위반 항목명을 포함한 메시지를 반환', () => {
+    const c = new IsIpOrCidrConstraint();
+    const msg = c.defaultMessage({
+      property: 'ipWhitelist',
+    } as unknown as ValidationArguments);
+    expect(msg).toContain('ipWhitelist');
   });
 });
 

@@ -26,6 +26,7 @@ export function isIpOrCidr(value: unknown): boolean {
   }
 }
 
+/** `@IsIpOrCidr` 데코레이터의 검증 제약 — 항목이 단일 IP 또는 CIDR 인지 판정. */
 @ValidatorConstraint({ name: 'isIpOrCidr', async: false })
 export class IsIpOrCidrConstraint implements ValidatorConstraintInterface {
   // Stateless — instance field 회피 (class-validator singleton 패턴의 race 회피).

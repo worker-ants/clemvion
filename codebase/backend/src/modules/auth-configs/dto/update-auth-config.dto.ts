@@ -52,6 +52,7 @@ export class UpdateAuthConfigDto {
       '변경할 IP 화이트리스트 (CIDR 또는 단일 IP). ' +
       '빈 배열(`[]`) 전송 시 화이트리스트 전체 삭제.',
     type: [String],
+    example: ['10.0.0.0/8', '203.0.113.42'],
   })
   @IsOptional()
   @IsArray()
