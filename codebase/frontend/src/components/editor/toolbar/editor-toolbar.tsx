@@ -39,6 +39,7 @@ import {
   type WorkflowTestDatasetData,
 } from "@/lib/api/workflow-test-datasets";
 import { timeAgo } from "@/lib/utils/date";
+import { ExecutionHistoryPanel } from "@/components/editor/run-results/execution-history-panel";
 
 export function EditorToolbar() {
   const t = useT();
@@ -81,6 +82,8 @@ export function EditorToolbar() {
   const [jsonInput, setJsonInput] = useState("{}");
   const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // §7 인-에디터 실행 히스토리 패널 (더보기 ⋮ → "실행 히스토리").
+  const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
   // §2.2 테스트 데이터셋 저장 — 데이터셋 목록 펼침 / 저장 폼 / 입력값.
   const [datasetPickerOpen, setDatasetPickerOpen] = useState(false);
   const [saveFormOpen, setSaveFormOpen] = useState(false);
@@ -588,6 +591,19 @@ export function EditorToolbar() {
                   <History size={14} />
                   {t("editor.versionHistoryTitle")}
                 </button>
+                {/* §7 인-에디터 실행 히스토리 진입점 */}
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[hsl(var(--popover-foreground))] hover:bg-[hsl(var(--accent))]"
+                  data-testid="editor-execution-history-menu"
+                  disabled={!workflowId}
+                  onClick={() => {
+                    setMoreDropdownOpen(false);
+                    setHistoryPanelOpen(true);
+                  }}
+                >
+                  <Play size={14} />
+                  {t("editor.executionHistory")}
+                </button>
                 <button
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[hsl(var(--popover-foreground))] hover:bg-[hsl(var(--accent))]"
                   onClick={() => void handleExport()}
@@ -869,6 +885,15 @@ export function EditorToolbar() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* §7 인-에디터 실행 히스토리 패널 */}
+      {workflowId && (
+        <ExecutionHistoryPanel
+          workflowId={workflowId}
+          open={historyPanelOpen}
+          onClose={() => setHistoryPanelOpen(false)}
+        />
       )}
     </>
   );

@@ -362,4 +362,38 @@ describe("EditorToolbar — Run with Input (§2.2)", () => {
       expect(dsRemoveMock).toHaveBeenCalledWith("mine-1"),
     );
   });
+
+  // §7 인-에디터 실행 히스토리 — 더보기(⋮) 메뉴 진입점이 패널을 열고 목록을 조회
+  it("Execution History: ⋮ 메뉴 항목이 히스토리 패널을 열고 목록을 조회한다", async () => {
+    getByWorkflowMock.mockResolvedValue({
+      data: [
+        {
+          id: "ex-9",
+          workflowId: "wf-1",
+          status: "completed",
+          startedAt: "2026-06-15T10:00:00.000Z",
+          durationMs: 1200,
+          triggerSource: "manual",
+          triggerLabel: null,
+          totalNodeCount: 2,
+          completedNodeCount: 2,
+          failedNodeCount: 0,
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+
+    renderToolbar();
+    fireEvent.click(screen.getByTestId("editor-toolbar-more-menu"));
+    fireEvent.click(screen.getByTestId("editor-execution-history-menu"));
+
+    await waitFor(() =>
+      expect(getByWorkflowMock).toHaveBeenCalledWith("wf-1", {
+        limit: 20,
+        sort: "started_at",
+        order: "desc",
+      }),
+    );
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
 });

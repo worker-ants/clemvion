@@ -273,6 +273,16 @@ interface ExecutionState {
   drawerExpanded: boolean;
 
   startExecution: (executionId: string) => void;
+  /**
+   * §7 인-에디터 실행 히스토리 — 과거 실행을 캔버스 오버레이 + Run Results
+   * 드로어로 적재하기 위한 reset. `startExecution` 과 동일하게 per-execution
+   * 상태(노드 결과/상태 맵·대화 스냅샷·입력 affordance)를 비우되, ① `status`
+   * 는 호출자가 `applyExecutionSnapshot` 으로 실제 terminal/waiting 상태를
+   * 채울 때까지의 transient 값(`'running'`)이고, ② `startedAt` 은 (지금이
+   * 아니라) 과거 실행의 실제 시작 시각을 보존한다. `executionId` 를 세팅하므로
+   * 드로어의 Re-run(§10.14 = §7.3 "이 입력으로 다시 실행")·상세 조회가 동작한다.
+   */
+  startHistoryView: (executionId: string, startedAt: string | null) => void;
   updateNodeStatus: (nodeId: string, info: NodeStatusInfo) => void;
   addNodeResult: (result: NodeResult) => void;
   /**
@@ -517,6 +527,24 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       startedAt: new Date().toISOString(),
       selectedResultNodeId: null,
       // §9.7.1 — startExecution 만 두 묶음 모두 클리어
+      ...CLEAR_INPUT_AFFORDANCE,
+      ...CLEAR_CONVERSATION_SNAPSHOT,
+    }),
+
+  // §7 — 과거 실행 적재용 reset. startExecution 과 동일한 per-execution 클리어를
+  // 수행하되 startedAt 은 과거 실행의 실제 시작 시각을 보존하고, status 는
+  // applyExecutionSnapshot 이 실제 terminal/waiting 으로 덮어쓰기 전의 transient.
+  startHistoryView: (executionId: string, startedAt: string | null) =>
+    set({
+      executionId,
+      status: "running",
+      nodeStatuses: new Map(),
+      nodeResults: [],
+      nodeResultIndexByExecId: new Map(),
+      lastIndexByNodeId: new Map(),
+      firstNoExecIdIndexByNodeId: new Map(),
+      startedAt,
+      selectedResultNodeId: null,
       ...CLEAR_INPUT_AFFORDANCE,
       ...CLEAR_CONVERSATION_SNAPSHOT,
     }),
