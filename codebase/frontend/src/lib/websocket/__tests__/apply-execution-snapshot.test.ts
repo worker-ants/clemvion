@@ -1294,6 +1294,10 @@ describe("loadHistoricalExecution (§7 / §10.10)", () => {
     // 과거 실행의 실제 시작 시각 보존 (now 아님).
     expect(state.startedAt).toBe("2026-06-15T10:00:00.000Z");
     expect(state.status).toBe("completed");
+    // 호출 순서 검증: startHistoryView 가 nodeResults 를 비우므로, 만약
+    // applyExecutionSnapshot 이 startHistoryView 보다 먼저 실행됐다면 결과가
+    // 지워져 length 0 이 된다. length 1 = startHistoryView → applyExecutionSnapshot
+    // 순서가 지켜졌다는 증거 (순서 역전 시 이 단언이 실패).
     expect(state.nodeResults).toHaveLength(1);
     expect(state.nodeResults[0]).toMatchObject({
       nodeId: "node-a",

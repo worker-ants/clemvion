@@ -592,11 +592,15 @@ export function EditorToolbar() {
                   <History size={14} />
                   {t("editor.versionHistoryTitle")}
                 </button>
-                {/* §7 인-에디터 실행 히스토리 진입점 */}
+                {/* §7 인-에디터 실행 히스토리 진입점. 진행 중(running/waiting)
+                    에는 비활성 — 과거 실행 적재가 execution-store 를 리셋해 라이브
+                    실행의 드로어/캔버스 상태를 덮어쓰는 것을 막는다 (Run 버튼이
+                    실행 중 비활성인 것과 동일 취지). */}
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[hsl(var(--popover-foreground))] hover:bg-[hsl(var(--accent))]"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[hsl(var(--popover-foreground))] hover:bg-[hsl(var(--accent))] disabled:opacity-50"
                   data-testid="editor-execution-history-menu"
-                  disabled={!workflowId}
+                  disabled={!workflowId || isCancellable}
+                  title={isCancellable ? t("editor.historyDisabledRunning") : undefined}
                   onClick={() => {
                     setMoreDropdownOpen(false);
                     setHistoryPanelOpen(true);

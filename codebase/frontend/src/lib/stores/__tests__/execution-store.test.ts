@@ -106,6 +106,9 @@ describe("useExecutionStore", () => {
 
       const state = useExecutionStore.getState();
       expect(state.executionId).toBe("hist-1");
+      // status 는 applyExecutionSnapshot 이 terminal/waiting 으로 덮어쓰기 전의
+      // transient 'running' (드로어가 idle 이 아니어서 표시되도록).
+      expect(state.status).toBe("running");
       // startExecution 과 달리 startedAt 은 now 가 아니라 과거 실행 시작 시각.
       expect(state.startedAt).toBe("2026-06-15T10:00:00.000Z");
       expect(state.nodeResults).toEqual([]);

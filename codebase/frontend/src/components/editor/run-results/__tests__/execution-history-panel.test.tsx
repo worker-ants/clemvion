@@ -79,6 +79,40 @@ describe("ExecutionHistoryPanel (§7)", () => {
     expect(getByWorkflowMock).not.toHaveBeenCalled();
   });
 
+  it("조회 중에는 로딩 UI 를 렌더한다", async () => {
+    getByWorkflowMock.mockReturnValue(new Promise(() => {})); // 미해소 → 로딩 유지
+    renderPanel();
+    expect(await screen.findByText(/Loading/i)).toBeInTheDocument();
+  });
+
+  it("\"전체 실행\" 링크가 전용 페이지 href 를 가진다", async () => {
+    getByWorkflowMock.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
+    renderPanel();
+    const link = await screen.findByRole("link", { name: /all executions/i });
+    expect(link).toHaveAttribute("href", "/workflows/wf-1/executions");
+  });
+
+  it("failedNodeCount > 0 이면 (N failed) 보조 표기를 렌더한다", async () => {
+    getByWorkflowMock.mockResolvedValue({
+      data: [
+        {
+          ...SAMPLE,
+          status: "failed",
+          completedNodeCount: 2,
+          totalNodeCount: 5,
+          failedNodeCount: 1,
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+    renderPanel();
+    expect(await screen.findByText(/2\/5/)).toBeInTheDocument();
+    expect(screen.getByText(/1 failed/)).toBeInTheDocument();
+  });
+
   it("목록(§7.2)을 조회해 트리거·소요시간·노드수와 함께 렌더한다", async () => {
     getByWorkflowMock.mockResolvedValue({
       data: [SAMPLE],

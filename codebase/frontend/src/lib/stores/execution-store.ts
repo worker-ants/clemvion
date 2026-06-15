@@ -534,6 +534,8 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   // §7 — 과거 실행 적재용 reset. startExecution 과 동일한 per-execution 클리어를
   // 수행하되 startedAt 은 과거 실행의 실제 시작 시각을 보존하고, status 는
   // applyExecutionSnapshot 이 실제 terminal/waiting 으로 덮어쓰기 전의 transient.
+  // `drawerExpanded`(UI 선호)는 의도적으로 유지 — 히스토리 로드가 드로어 펼침
+  // 상태를 강제로 바꾸지 않는다(사용자가 접어둔 상태면 접힌 채로 적재).
   startHistoryView: (executionId: string, startedAt: string | null) =>
     set({
       executionId,

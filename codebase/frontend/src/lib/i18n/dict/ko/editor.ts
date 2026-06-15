@@ -59,6 +59,7 @@ export const editor = {
   runHistoryEmpty: "이전 실행 없음",
   historyLoadFailed: "실행 입력을 불러오지 못했어요.",
   executionHistory: "실행 히스토리",
+  historyDisabledRunning: "실행이 끝난 뒤 과거 실행을 불러올 수 있어요.",
   executionHistoryEmpty: "아직 실행 내역이 없습니다.",
   executionHistoryListFailed: "실행 내역을 불러오지 못했어요.",
   executionHistoryLoadFailed: "실행을 불러오지 못했어요.",

@@ -61,6 +61,7 @@ export const editor: Dict["editor"] = {
   runHistoryEmpty: "No past executions",
   historyLoadFailed: "Failed to load execution input.",
   executionHistory: "Execution History",
+  historyDisabledRunning: "You can load past executions once the current run finishes.",
   executionHistoryEmpty: "No executions yet.",
   executionHistoryListFailed: "Failed to load execution history.",
   executionHistoryLoadFailed: "Failed to load execution.",
