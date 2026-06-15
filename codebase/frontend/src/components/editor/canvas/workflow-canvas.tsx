@@ -34,10 +34,13 @@ import {
   Plus,
   Crosshair,
   Search,
+  Play,
 } from "lucide-react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCanvasHoverStore } from "@/lib/stores/canvas-hover-store";
+import { useExecutionStore } from "@/lib/stores/execution-store";
+import { workflowsApi } from "@/lib/api/workflows";
 import { CustomNode } from "./custom-node";
 import { HasDefaultLlmConfigProvider } from "./has-default-llm-config-context";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
@@ -101,6 +104,10 @@ export function WorkflowCanvas() {
   const selectNode = useEditorStore((s) => s.selectNode);
   const pushUndo = useEditorStore((s) => s.pushUndo);
   const updateNodeConfig = useEditorStore((s) => s.updateNodeConfig);
+  const workflowId = useEditorStore((s) => s.workflowId);
+  const isDirty = useEditorStore((s) => s.isDirty);
+  const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
+  const startExecution = useExecutionStore((s) => s.startExecution);
   const setHoveredNode = useCanvasHoverStore((s) => s.setHoveredNode);
   const setHoveredEdge = useCanvasHoverStore((s) => s.setHoveredEdge);
 
@@ -253,6 +260,34 @@ export function WorkflowCanvas() {
     [],
   );
 
+  // 단일 노드 실행 (§1.3) — 대상 노드 1개만 실행. dirty 캔버스를 먼저 저장해 엔진이
+  // 최신 노드 설정을 실행하게 하고, 직전 실행(executionId)을 previousExecutionId 로
+  // 전달해 상류 노드 출력을 입력으로 자동 주입한다. 결과는 일반 실행과 동일하게
+  // Run Results 드로어로 surface 된다.
+  const handleRunThisNode = useCallback(
+    async (nodeId: string) => {
+      if (!workflowId) return;
+      const execState = useExecutionStore.getState();
+      if (execState.status === "running") return;
+      if (isDirty) {
+        const saved = await saveWorkflow();
+        if (!saved) return;
+      }
+      try {
+        const response = await workflowsApi.executeNode(workflowId, nodeId, {
+          previousExecutionId: execState.executionId ?? undefined,
+        });
+        const { executionId } = (
+          response.data as { data: { executionId: string } }
+        ).data;
+        startExecution(executionId);
+      } catch (error) {
+        console.error("Single-node execution failed:", error);
+      }
+    },
+    [workflowId, isDirty, saveWorkflow, startExecution],
+  );
+
   // Node context menu actions
   const handleNodeMenuAction = useCallback(
     (action: string) => {
@@ -263,6 +298,9 @@ export function WorkflowCanvas() {
       switch (action) {
         case "settings":
           selectNode(nodeId);
+          break;
+        case "run":
+          void handleRunThisNode(nodeId);
           break;
         case "duplicate": {
           if (!node) break;
@@ -330,6 +368,7 @@ export function WorkflowCanvas() {
       canDeleteNode,
       updateNodeConfig,
       onNodesChange,
+      handleRunThisNode,
     ],
   );
 
@@ -539,6 +578,14 @@ export function WorkflowCanvas() {
           >
             <Settings className="h-4 w-4" />
             {t("editor.openSettings")}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleNodeMenuAction("run")}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
+          >
+            <Play className="h-4 w-4" />
+            {t("editor.runThisNode")}
           </button>
           <button
             type="button"

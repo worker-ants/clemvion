@@ -122,6 +122,25 @@ export class Execution {
   @Column({ name: 'dry_run', type: 'boolean', default: false })
   dryRun: boolean;
 
+  // single_node_id / previous_execution_id: 단일 노드 실행(§1.3, V098).
+  // single_node_id: `POST /api/workflows/:id/nodes/:nodeId/execute` 로 진입한
+  //   단일 노드 실행의 대상 노드 id. 엔진(runExecution)은 이 노드만 실행하고
+  //   downstream 으로 진행하지 않는다(§1.2 Run-from-Selected 와 구분). NULL =
+  //   일반/부분 실행. `_node_id` 접미사가 Node FK 도메인을 표기하며 `single_`
+  //   한정자는 §1.2 부분실행 fromNodeId(컬럼 아님, input_data 경유)와 구분한다 —
+  //   dry_run/re_run_of 와 동일한 mode-encoding 컬럼.
+  // previous_execution_id: 단일 노드 실행 시 입력 seed 출처가 되는 직전 실행 id.
+  //   해당 실행의 predecessor NodeExecution.output_data 를 nodeOutputCache 에
+  //   pre-seed 해 상류 출력을 자동 주입한다. NULL = seed 없음(수동 입력만).
+  //   re_run_of(re-run 파생 부모)와 의미가 다르다 — 입력 주입 참조일 뿐 chain 관계 아님.
+  //   API 응답 DTO 미포함(whitelist 매핑이라 자동 배제). spec: 3-execution §1.3/§9,
+  //   13-replay-rerun §15(C3), 1-data-model §2.13.
+  @Column({ name: 'single_node_id', type: 'uuid', nullable: true })
+  singleNodeId: string | null;
+
+  @Column({ name: 'previous_execution_id', type: 'uuid', nullable: true })
+  previousExecutionId: string | null;
+
   // conversation_thread: waiting_for_input park 진입 시 ExecutionContext의
   //   conversationThread 전체 스냅샷을 commit 하는 durable resume 매체 (V084).
   //   rehydration(§7.5)이 여기서 thread를 무손실 복원(runningSummary 포함).

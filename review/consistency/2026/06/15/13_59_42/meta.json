@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-15T13:59:42.228953",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=/Users/gehrig/.claude/jobs/2b1c5d02/tmp/impl-prep-scope)",
+  "target_path": "/Users/gehrig/.claude/jobs/2b1c5d02/tmp/impl-prep-scope",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

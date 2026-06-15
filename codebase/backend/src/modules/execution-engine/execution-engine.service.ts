@@ -119,6 +119,7 @@ import {
 import {
   adaptHandlerReturn,
   toEngineFlatShape,
+  wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 import { ButtonConfig } from '../../nodes/presentation/_shared/button.types';
 import {
@@ -562,6 +563,13 @@ export type ExecuteOptions =
       chainId?: string;
       // dry-run re-run (RR-PL-01) — 외부 부수효과 노드가 mock 출력을 반환한다.
       dryRun?: boolean;
+      // 단일 노드 실행 (§1.3) — 수동 실행(executedBy)으로만 진입. singleNodeId 가
+      // 세팅되면 runExecution 이 그 노드 1개만 실행하고 downstream 으로 진행하지
+      // 않는다. previousExecutionId 의 상류 출력을 입력으로 pre-seed(미지정 시
+      // 수동 입력 input 으로 대체). 두 값은 execution 컬럼으로 영속돼 큐 재조회
+      // 후 runExecution 이 읽는다(dry_run/source_ip 선례).
+      singleNodeId?: string;
+      previousExecutionId?: string;
     }
   | {
       executedBy?: never;
@@ -2847,6 +2855,17 @@ export class ExecutionEngineService
       options && 'responseCode' in options
         ? (options.responseCode ?? null)
         : null;
+    // 단일 노드 실행 (§1.3). executedBy variant 전용 — `in` 내로잉으로 unsafe cast
+    // 회피. 미전달(일반/부분 실행)은 NULL 영속. previous_execution_id 는 입력 seed
+    // 출처일 뿐 chain 관계가 아니다(re_run_of 와 분리).
+    const singleNodeId =
+      options && 'singleNodeId' in options
+        ? (options.singleNodeId ?? null)
+        : null;
+    const previousExecutionId =
+      options && 'previousExecutionId' in options
+        ? (options.previousExecutionId ?? null)
+        : null;
     const execution = this.executionRepository.create({
       workflowId,
       status: ExecutionStatus.PENDING,
@@ -2858,6 +2877,8 @@ export class ExecutionEngineService
       dryRun,
       sourceIp,
       responseCode,
+      singleNodeId,
+      previousExecutionId,
     });
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
@@ -3637,13 +3658,28 @@ export class ExecutionEngineService
       // Keeping them in the set ensures downstream nodes see predecessor output.
       const executedNodes = new Set<string>();
       context._executedNodes = executedNodes;
+      // 단일 노드 실행 (§1.3) — singleNodeId 가 세팅되면 대상 노드 1개만 reachable
+      // seed 하고(explicitEntryIds) downstream 으로 전파하지 않는다(§1.2 구분).
+      // previousExecutionId 의 predecessor 출력을 nodeOutputCache 에 pre-seed 해
+      // gatherNodeInput 이 상류 출력을 자동 사용(미지정 시 수동 입력 input fallback).
+      const singleNodeId = savedExecution.singleNodeId ?? null;
       // CRIT #2 — executeInline 과 동일한 helper. trigger-first / no-incoming
-      // fallback 으로 reachable seed.
+      // fallback 으로 reachable seed. 단일 노드는 대상 노드만 entry.
       const reachable = this.graphTraversal.seedInitialReachability(
         sortedNodeIds,
         nodeMap,
         forwardEdges,
+        singleNodeId ? [singleNodeId] : undefined,
       );
+      if (singleNodeId) {
+        await this.seedSingleNodePredecessorOutputs(
+          savedExecution,
+          singleNodeId,
+          incomingEdgeMap,
+          context,
+          executedNodes,
+        );
+      }
 
       let pointer = 0;
       while (pointer < sortedNodeIds.length) {
@@ -3711,6 +3747,16 @@ export class ExecutionEngineService
           },
           outgoingEdgeMap,
         );
+
+        // 단일 노드 실행 (§1.3) — 대상 노드 1개만 실행하고 종결한다. container body
+        // 순회·parallel branch·downstream 전파·back-edge 재진입을 일절 수행하지 않는다
+        // (§1.2 Run-from-Selected 와 구분). blocking(form/buttons/AI 멀티턴) 대화형
+        // 노드의 park 도 진입하지 않으므로 — 단일 노드 테스트는 표준/AI/코드/HTTP 등
+        // 비-blocking 노드를 대상으로 한다(blocking 노드는 향후 확장). break 직후
+        // 완료 분기가 outputData 를 대상 노드 출력으로 마감한다.
+        if (singleNodeId) {
+          break;
+        }
 
         // PR-G — metadata flag dispatch (CRIT #3 시나리오 D).
         const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
@@ -3866,10 +3912,13 @@ export class ExecutionEngineService
       // 세팅한 뒤 guarded updateExecutionStatus 가 status 와 함께 원자적으로 영속
       // (M-3 — 옛 2-save 를 1 guarded UPDATE 로). affected=0(동시 cancel/park 선점)
       // 이면 emit skip.
-      const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
-      if (lastNodeId) {
+      // 단일 노드 실행(§1.3)은 topological 최종 노드가 아닌 대상 노드 출력으로 마감
+      // (downstream 미진행이라 마지막 실행 노드 = 대상 노드).
+      const resultNodeId =
+        singleNodeId ?? sortedNodeIds[sortedNodeIds.length - 1];
+      if (resultNodeId) {
         savedExecution.outputData =
-          (context.nodeOutputCache[lastNodeId] as Record<string, unknown>) ??
+          (context.nodeOutputCache[resultNodeId] as Record<string, unknown>) ??
           {};
         savedExecution.finishedAt = new Date();
         savedExecution.durationMs =
@@ -7735,6 +7784,94 @@ export class ExecutionEngineService
         | ErrorPolicyConfig['retryConfig']
         | undefined,
     };
+  }
+
+  /**
+   * 단일 노드 실행(§1.3) 입력 pre-seed. `previousExecutionId` 가 가리키는 직전
+   * 실행에서 대상 노드의 직속 predecessor 들의 출력을 조회해 현재 실행 context 의
+   * nodeOutputCache / structuredOutputCache 에 채우고 `executedNodes` 에 등록한다.
+   * 그 결과 main loop 의 `gatherNodeInput` 이 정상 실행과 동일하게 상류 출력을
+   * 재구성하고, 대상 노드의 `$node['predecessor']` 표현식도 resolve 된다.
+   *
+   * previousExecutionId 미지정 또는 predecessor 없음 → no-op (gatherNodeInput 이
+   * workflowInput=수동 입력으로 fallback). 직속 predecessor 만 seed 하므로 비인접
+   * `$node[...]` 참조나 추가 컨텍스트는 복원하지 않는다(디버그 도구 v1 범위 —
+   * spec/5-system/13-replay-rerun.md §15 C3 재조정 주석 참조).
+   */
+  private async seedSingleNodePredecessorOutputs(
+    savedExecution: Execution,
+    targetNodeId: string,
+    incomingEdgeMap: Map<string, GraphEdge[]>,
+    context: ExecutionContext,
+    executedNodes: Set<string>,
+  ): Promise<void> {
+    const previousExecutionId = savedExecution.previousExecutionId;
+    if (!previousExecutionId) {
+      return;
+    }
+    const predecessorIds = (incomingEdgeMap.get(targetNodeId) ?? []).map(
+      (e) => e.sourceNodeId,
+    );
+    if (predecessorIds.length === 0) {
+      return;
+    }
+    const outputs = await this.getLatestPredecessorOutputs(
+      previousExecutionId,
+      predecessorIds,
+    );
+    const ctxKey = this.contextKeyOf(context);
+    for (const [predId, storedOutput] of outputs) {
+      // NodeExecution.outputData 는 canonical `{config, output, ...}` 형태로
+      // 저장되므로(handler raw return / adapted) adaptHandlerReturn 으로 정규화한다.
+      // 혹시 비-canonical(legacy/배포 이전 row)이면 lenient wrapper 로 폴백.
+      const isCanonical =
+        typeof storedOutput === 'object' &&
+        storedOutput !== null &&
+        !Array.isArray(storedOutput) &&
+        'config' in storedOutput &&
+        'output' in storedOutput;
+      const adapted = isCanonical
+        ? adaptHandlerReturn(storedOutput)
+        : wrapBareAsNodeHandlerOutput(storedOutput);
+      // 정상 실행의 노드 완료 경로(setStructuredOutput → setNodeOutput(flat))를
+      // 동일 순서로 재현해 두 캐시 상태를 무손실 복원한다.
+      this.contextService.setStructuredOutput(ctxKey, predId, adapted);
+      this.contextService.setNodeOutput(
+        ctxKey,
+        predId,
+        this.applyPortSelection(toEngineFlatShape(adapted)),
+      );
+      executedNodes.add(predId);
+    }
+  }
+
+  /**
+   * 주어진 실행(executionId)에서 지정 노드들의 **최신** 완료 출력(output_data)을
+   * 조회한다. 컨테이너 반복 등으로 한 노드가 여러 NodeExecution 을 가질 수 있어
+   * finishedAt DESC 정렬 후 노드별 첫 행만 취한다. 단일 노드 실행 입력 pre-seed 전용.
+   */
+  private async getLatestPredecessorOutputs(
+    executionId: string,
+    predecessorNodeIds: string[],
+  ): Promise<Map<string, Record<string, unknown>>> {
+    const result = new Map<string, Record<string, unknown>>();
+    if (predecessorNodeIds.length === 0) {
+      return result;
+    }
+    const rows = await this.nodeExecutionRepository.find({
+      where: {
+        executionId,
+        nodeId: In(predecessorNodeIds),
+        status: NodeExecutionStatus.COMPLETED,
+      },
+      order: { finishedAt: 'DESC' },
+    });
+    for (const row of rows) {
+      if (!result.has(row.nodeId) && row.outputData != null) {
+        result.set(row.nodeId, row.outputData);
+      }
+    }
+    return result;
   }
 
   private gatherNodeInput(
