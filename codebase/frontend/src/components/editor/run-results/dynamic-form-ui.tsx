@@ -12,8 +12,11 @@ interface FormField {
   options?: Array<{ label: string; value: unknown }>;
   defaultValue?: unknown;
   allowedMimeTypes?: string[];
+  /** MB — 단일 파일 최대 크기 (§1 기본 10). */
   maxFileSize?: number;
+  /** MB — 필드 전체 파일 합계 최대 크기 (§1 기본 50). */
   maxTotalSize?: number;
+  /** 필드당 최대 파일 수 (§1 기본 5). */
   maxFiles?: number;
 }
 
@@ -32,7 +35,7 @@ interface FilePickMetadata {
 /**
  * spec/4-nodes/6-presentation/4-form.md §1 — `type: 'file'` 공유 기본값.
  *
- * **SoT 는 spec §1**(13종 MIME / 10·50MB / 5). backend `form-mode.ts` 의 DEFAULT_FILE_* 와
+ * **SoT 는 spec §1**(14종 MIME / 10·50MB / 5). backend `form-mode.ts` 의 DEFAULT_FILE_* 와
  * 본 상수는 그 spec 값의 두 런타임 미러다 — frontend(CSR Next.js)는 backend NestJS 모듈을
  * 직접 import 할 수 없어(빌드/번들 분리) 값을 복제한다. 변경 시 spec §1 + 양쪽 미러를 함께
  * 갱신한다. (런타임 중립 공유 패키지로의 추출은 아키텍처 백로그 B-1 추적 — 검증 로직 전체
@@ -76,6 +79,9 @@ function toFileMetadata(file: File): FilePickMetadata {
  * MIME 체크를 skip 한다(브라우저가 타입을 못 매기는 경우 거부하지 않음 — 서버 검증이 최종 게이트).
  * 메시지 i18n 키: `editor.runResults.{formFileMimeRejected, formFileSizeExceeded,
  * formFileTotalExceeded, formFileCountExceeded}`.
+ *
+ * **UX 가드 전용 — 보안 게이트가 아니다.** `File.type` 은 클라이언트가 보고하는 metadata 라
+ * 우회 가능하며, 서버 `validateFileField` 가 최종 검증 지점이다(§6.2).
  */
 function validateFilesClient(
   files: File[],
@@ -130,13 +136,57 @@ function normalizeOptionValue(v: unknown): string {
   return String(v ?? "");
 }
 
+/**
+ * spec/4-nodes/6-presentation/4-form.md §1.5 — file 필드 전용 렌더.
+ * file 만 필요로 하는 onError/t(클라이언트 reject + i18n)를 일반 renderField 시그니처에서
+ * 분리한다(W6). FileList → metadata 객체 배열(`{name,size,type,lastModified}[]`) 직렬화,
+ * binary 미전달(multimodal 비지원 모델 호환 + 1MB cap 보호).
+ */
+function renderFileField(
+  field: FormField,
+  idx: number,
+  onChange: (v: unknown) => void,
+  onError: (msg: string | null) => void,
+  t: TFunction,
+) {
+  const id = fieldInputId(field, idx);
+  return (
+    <Input
+      id={id}
+      type="file"
+      className="h-7 text-xs"
+      accept={(field.allowedMimeTypes ?? []).join(",") || undefined}
+      multiple={typeof field.maxFiles === "number" && field.maxFiles > 1}
+      required={field.required}
+      onChange={(e) => {
+        const input = e.target as HTMLInputElement;
+        const fileList = input.files;
+        if (!fileList) {
+          onError(null);
+          onChange([]);
+          return;
+        }
+        const files = Array.from(fileList);
+        // spec §1.5 — 제출 전 클라이언트 가드. MIME/크기/개수 위반 시 selection 자체를
+        // 거부(fieldState 에 반영하지 않음) + 에러 표시 + input clear (제출 버튼은 유지).
+        const err = validateFilesClient(files, field, t);
+        if (err) {
+          onError(err);
+          input.value = "";
+          return;
+        }
+        onError(null);
+        onChange(files.map(toFileMetadata));
+      }}
+    />
+  );
+}
+
 function renderField(
   field: FormField,
   idx: number,
   value: unknown,
   onChange: (v: unknown) => void,
-  onError: (msg: string | null) => void,
-  t: TFunction,
 ) {
   const id = fieldInputId(field, idx);
 
@@ -256,40 +306,7 @@ function renderField(
           {field.label}
         </label>
       );
-    case "file":
-      // spec/4-nodes/6-presentation/4-form.md §1.5 — file 필드는 FileList →
-      // metadata 객체 배열 (`{name, size, type, lastModified}[]`) 로 직렬화.
-      // binary 본문은 LLM 에 미전달 (multimodal 비지원 모델 호환 + 1MB cap 보호).
-      return (
-        <Input
-          id={id}
-          type="file"
-          className="h-7 text-xs"
-          accept={(field.allowedMimeTypes ?? []).join(",") || undefined}
-          multiple={typeof field.maxFiles === "number" && field.maxFiles > 1}
-          required={field.required}
-          onChange={(e) => {
-            const input = e.target as HTMLInputElement;
-            const fileList = input.files;
-            if (!fileList) {
-              onError(null);
-              onChange([]);
-              return;
-            }
-            const files = Array.from(fileList);
-            // spec §1.5 — 제출 전 클라이언트 가드. MIME/크기/개수 위반 시 selection 자체를
-            // 거부(fieldState 에 반영하지 않음) + 에러 표시 + input clear (제출 버튼은 유지).
-            const err = validateFilesClient(files, field, t);
-            if (err) {
-              onError(err);
-              input.value = "";
-              return;
-            }
-            onError(null);
-            onChange(files.map(toFileMetadata));
-          }}
-        />
-      );
+    // case "file" 은 renderFileField 로 분리 (W6 — file 전용 onError/t 시그니처 누수 제거).
     default:
       return (
         <Input
@@ -346,7 +363,7 @@ export function DynamicFormUI({
   const handleError = (name: string, msg: string | null) => {
     setErrors((prev) => {
       if (msg === null) {
-        if (prev[name] === undefined) return prev;
+        if (!(name in prev)) return prev;
         const next = { ...prev };
         delete next[name];
         return next;
@@ -385,14 +402,17 @@ export function DynamicFormUI({
                 )}
               </Label>
             )}
-            {renderField(
-              field,
-              idx,
-              values[field.name],
-              (v) => handleChange(field.name, v),
-              (msg) => handleError(field.name, msg),
-              t,
-            )}
+            {field.type === "file"
+              ? renderFileField(
+                  field,
+                  idx,
+                  (v) => handleChange(field.name, v),
+                  (msg) => handleError(field.name, msg),
+                  t,
+                )
+              : renderField(field, idx, values[field.name], (v) =>
+                  handleChange(field.name, v),
+                )}
             {errors[field.name] && (
               <p className="text-xs text-red-500">{errors[field.name]}</p>
             )}

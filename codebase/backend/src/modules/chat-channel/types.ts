@@ -252,7 +252,7 @@ export interface FormModalField {
   pattern?: string;
   /**
    * §6.2 / §1 — `type: 'file'` 전용 제약. `extractFormFields` 가 file 필드에 한해
-   * 공유 기본값(13종 MIME / 10MB / 50MB / 5)을 주입한다(비-file 필드는 미설정 유지 — Principle 1.1).
+   * 공유 기본값(14종 MIME / 10MB / 50MB / 5)을 주입한다(비-file 필드는 미설정 유지 — Principle 1.1).
    * **서버측 검증 전용**(`validateFileField`). chat-channel modal 은 file 미수용이라 UI hint 미사용.
    */
   allowedMimeTypes?: string[];

@@ -4,6 +4,7 @@ import {
   extractFormTitle,
   validateFormSubmission,
   validateFileField,
+  validateAllFields,
   DEFAULT_FILE_ALLOWED_MIME_TYPES,
   DEFAULT_FILE_MAX_FILE_SIZE_MB,
   DEFAULT_FILE_MAX_TOTAL_SIZE_MB,
@@ -664,6 +665,11 @@ describe('validateFileField', () => {
     ).toEqual({ field: 'doc', message: '허용되지 않은 파일 형식입니다.' });
   });
 
+  it("빈 MIME(type:'') 은 skip → 통과 (클라이언트 가드와 대칭, W1)", () => {
+    // 브라우저가 타입 미판별한 파일(File.type === '')은 서버도 MIME 거부하지 않는다.
+    expect(validateFileField([meta({ type: '' })], fileDef())).toBeNull();
+  });
+
   it('방어적 — size/type 미보유 shape(Slack 등)는 해당 체크 skip → 통과', () => {
     // Slack 어댑터 file payload shape: { fileId, mimeType, ... } (size/type 부재).
     expect(
@@ -677,6 +683,71 @@ describe('validateFileField', () => {
   it('방어적 — 비배열/비객체 element 는 무시', () => {
     expect(validateFileField('not-array', fileDef())).toBeNull();
     expect(validateFileField([null, 3, meta()], fileDef())).toBeNull();
+  });
+});
+
+describe('validateAllFields', () => {
+  // execution-engine coerceFormValue 의 scalar 부분 모방 (string/number 만 — 본 테스트가
+  // 넘기는 scalar 값 종류). file 값은 validateFileField 로 raw 전달돼 coerce 를 거치지 않는다.
+  const idCoerce = (v: unknown): string =>
+    typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
+
+  it('scalar + file 혼합 — 전부 통과면 null', () => {
+    const defs: FormModalField[] = [
+      field({ name: 'email', type: 'email', required: true }),
+      field({
+        name: 'doc',
+        type: 'file',
+        allowedMimeTypes: ['image/png'],
+        maxFileSize: 10,
+        maxTotalSize: 50,
+        maxFiles: 5,
+      }),
+    ];
+    expect(
+      validateAllFields(
+        {
+          email: 'a@b.com',
+          doc: [{ name: 'x.png', size: 1, type: 'image/png' }],
+        },
+        defs,
+        idCoerce,
+      ),
+    ).toBeNull();
+  });
+
+  it('cross-type FIRST 오류 — 앞선 file 오류가 뒤 scalar 오류보다 먼저 표면', () => {
+    const defs: FormModalField[] = [
+      field({
+        name: 'doc',
+        type: 'file',
+        allowedMimeTypes: ['image/png'],
+        maxFiles: 1,
+      }),
+      field({ name: 'email', type: 'email', required: true }),
+    ];
+    // file MIME 위반(앞) + email 형식 위반(뒤) 동시 → file 먼저.
+    expect(
+      validateAllFields(
+        {
+          doc: [{ name: 'e.exe', size: 1, type: 'application/x-msdownload' }],
+          email: 'not-email',
+        },
+        defs,
+        idCoerce,
+      ),
+    ).toEqual({ field: 'doc', message: '허용되지 않은 파일 형식입니다.' });
+  });
+
+  it('coerceScalar 주입 — number 값을 string 으로 정규화해 scalar 검증', () => {
+    const defs: FormModalField[] = [
+      field({ name: 'qty', type: 'number', min: 1, max: 10 }),
+    ];
+    // 주입된 coerce 가 100 → '100' 변환 후 max 위반 표면.
+    expect(validateAllFields({ qty: 100 }, defs, idCoerce)).toEqual({
+      field: 'qty',
+      message: '최댓값은 10 이하여야 합니다.',
+    });
   });
 });
 

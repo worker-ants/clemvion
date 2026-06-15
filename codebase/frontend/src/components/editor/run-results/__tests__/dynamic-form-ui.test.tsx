@@ -1,6 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { DynamicFormUI } from "../dynamic-form-ui";
+import { useLocaleStore } from "@/lib/stores/locale-store";
+
+// file 검증 에러 등 user-facing 문자열을 한국어로 단언하므로 locale 을 ko 로 고정한다
+// (DEFAULT_LOCALE='ko' 이지만 모듈 store 의 테스트 간 잔류를 방어 — W5).
+beforeEach(() => {
+  useLocaleStore.setState({ locale: "ko" });
+});
 
 /**
  * DynamicFormUI 컴포넌트 통합 테스트.

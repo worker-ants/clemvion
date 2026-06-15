@@ -31,8 +31,7 @@ import {
 } from './workflow-errors';
 import {
   extractFormFields,
-  validateScalarField,
-  validateFileField,
+  validateAllFields,
 } from '../chat-channel/shared/form-mode';
 import { resolveMaxActiveRunningMs } from './execution-limits';
 import {
@@ -4319,11 +4318,11 @@ export class ExecutionEngineService
    * `pattern`(regex)·select/radio 선택지·`type:'file'` MIME/크기/개수.
    * 실패 시 FIRST 오류로 {@link FormValidationError} throw.
    *
-   * field 정의 순서로 단일 패스(cross-type FIRST 오류 순서 보존) — scalar 는 `coerceFormValue`
-   * 정규화 후 {@link validateScalarField}, `type:'file'` 은 raw metadata 배열로 {@link validateFileField}.
-   * file metadata 는 frontend(`DynamicFormUI`)가 `{name,size,type,lastModified}[]` 로 직렬화한
-   * payload (binary 미전달, §1.5). chat-channel 어댑터(Slack 등)의 다른 file shape 은 size/MIME
-   * 미보유라 자연 bypass (form §1.5 divergence).
+   * `validateAllFields` 가 field 정의 순서로 단일 패스(cross-type FIRST 오류 순서 보존) — scalar 는
+   * `coerceFormValue` 정규화 후 validateScalarField, `type:'file'` 은 raw metadata 배열로
+   * validateFileField. file metadata 는 frontend(`DynamicFormUI`)가 `{name,size,type,lastModified}[]`
+   * 로 직렬화한 payload (binary 미전달, §1.5). chat-channel 어댑터(Slack 등)의 다른 file shape 은
+   * size/MIME 미보유라 자연 bypass (form §1.5 divergence).
    *
    * 검증 불가(노드/field 정의 부재) 시 통과(기존 whitelist-only 동작 유지) — 방어적.
    */
@@ -4344,17 +4343,13 @@ export class ExecutionEngineService
       formData && typeof formData === 'object'
         ? (formData as Record<string, unknown>)
         : {};
-    for (const def of fields) {
-      const err =
-        def.type === 'file'
-          ? validateFileField(rawData[def.name], def)
-          : validateScalarField(
-              ExecutionEngineService.coerceFormValue(rawData[def.name]),
-              def,
-            );
-      if (err) {
-        throw new FormValidationError(err.field, err.message);
-      }
+    const err = validateAllFields(
+      rawData,
+      fields,
+      ExecutionEngineService.coerceFormValue,
+    );
+    if (err) {
+      throw new FormValidationError(err.field, err.message);
     }
   }
 
@@ -4383,7 +4378,8 @@ export class ExecutionEngineService
             .map((x) => (typeof x === 'string' ? x : JSON.stringify(x)))
             .join(',');
     }
-    // 객체(단일 file 메타 등) — 비어있지 않은 것으로 간주(required 통과), 형식 규칙 미해당.
+    // 그 외 객체 — 비어있지 않은 것으로 간주(required 통과), scalar 형식 규칙 미해당.
+    // (scalar 전용 — file metadata 는 본 함수를 거치지 않고 validateFileField 가 raw 로 처리.)
     return JSON.stringify(v);
   }
 

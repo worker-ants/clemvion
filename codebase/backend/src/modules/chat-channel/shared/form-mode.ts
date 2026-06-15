@@ -52,6 +52,11 @@ export const DEFAULT_FILE_MAX_FILES = 5;
 /** MB → bytes 변환 (MiB = 1024×1024). file size 비교에 사용. */
 export const MB_IN_BYTES = 1024 * 1024;
 
+/** 유한 양수 판정 — file 숫자 제약 정규화에서 NaN/Infinity/0/음수 거부에 사용. */
+function isPositiveFinite(v: unknown): v is number {
+  return Number.isFinite(v) && (v as number) > 0;
+}
+
 export interface DecideFormModeParams {
   /** config.uiMapping.formMode — 미설정 시 'auto'. */
   formMode: FormMode | undefined;
@@ -166,15 +171,13 @@ export function extractFormFields(formConfig: unknown): FormModalField[] {
           ? mimes
           : [...DEFAULT_FILE_ALLOWED_MIME_TYPES];
       // 유한 양수만 수용 — NaN/Infinity/0/음수는 기본값 fallback(min/max 정규화와 동일 규칙).
-      const posFinite = (v: unknown): v is number =>
-        Number.isFinite(v) && (v as number) > 0;
-      field.maxFileSize = posFinite(f.maxFileSize)
+      field.maxFileSize = isPositiveFinite(f.maxFileSize)
         ? f.maxFileSize
         : DEFAULT_FILE_MAX_FILE_SIZE_MB;
-      field.maxTotalSize = posFinite(f.maxTotalSize)
+      field.maxTotalSize = isPositiveFinite(f.maxTotalSize)
         ? f.maxTotalSize
         : DEFAULT_FILE_MAX_TOTAL_SIZE_MB;
-      field.maxFiles = posFinite(f.maxFiles)
+      field.maxFiles = isPositiveFinite(f.maxFiles)
         ? f.maxFiles
         : DEFAULT_FILE_MAX_FILES;
     }
@@ -364,11 +367,17 @@ export function validateFileField(
   }
   if (metas.length === 0) return null;
 
-  // MIME — 첫 위반 파일.
+  // MIME — 첫 위반 파일. 빈 문자열(`File.type === ''`, 브라우저가 타입 미판별)은
+  // 클라이언트 가드(validateFilesClient)와 동일하게 skip — 신뢰 불가한 metadata 라
+  // 거부 대신 통과시키고, 형식 강제는 content 검사(향후 별 surface)가 담당한다 (§1.5).
   if (def.allowedMimeTypes && def.allowedMimeTypes.length > 0) {
     const allowed = def.allowedMimeTypes;
     for (const m of metas) {
-      if (typeof m.type === 'string' && !allowed.includes(m.type)) {
+      if (
+        typeof m.type === 'string' &&
+        m.type !== '' &&
+        !allowed.includes(m.type)
+      ) {
         return { field: def.name, message: '허용되지 않은 파일 형식입니다.' };
       }
     }
@@ -404,6 +413,33 @@ export function validateFileField(
       field: def.name,
       message: `최대 ${def.maxFiles}개까지 업로드할 수 있습니다.`,
     };
+  }
+  return null;
+}
+
+/**
+ * submit_form payload 의 **전 필드**를 노드 field 정의 순서로 단일 패스 검증 (pure). FIRST 오류
+ * 반환, 통과면 null. `type:'file'` 은 raw metadata 배열로 {@link validateFileField}, scalar 는
+ * `coerceScalar` 로 string 정규화 후 {@link validateScalarField} — file/scalar 가 섞여 있어도
+ * 필드 정의 순서의 cross-type FIRST 오류 순서를 보존한다.
+ *
+ * `coerceScalar` 는 호출자가 주입한다(EIA/WS 의 typed 값 → string 정규화. execution-engine 은
+ * `coerceFormValue` 주입). 새 scalar 규칙은 {@link validateScalarField}, 새 file 규칙은
+ * {@link validateFileField} 에 추가하면 본 단일 진입점이 자동 반영한다.
+ *
+ * SoT: spec/4-nodes/6-presentation/4-form.md §6.2 "검증 지점".
+ */
+export function validateAllFields(
+  formData: Record<string, unknown>,
+  defs: FormModalField[],
+  coerceScalar: (v: unknown) => string,
+): { field: string; message: string } | null {
+  for (const def of defs) {
+    const err =
+      def.type === 'file'
+        ? validateFileField(formData[def.name], def)
+        : validateScalarField(coerceScalar(formData[def.name]), def);
+    if (err) return err;
   }
   return null;
 }
