@@ -10,6 +10,7 @@ import {
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AUTH_CONFIG_TYPES } from './create-auth-config.dto';
 import type { AuthConfigType } from './create-auth-config.dto';
+import { IsIpOrCidr } from './is-ip-or-cidr.validator';
 
 export class UpdateAuthConfigDto {
   /** 변경할 인증 설정 이름 */
@@ -51,10 +52,12 @@ export class UpdateAuthConfigDto {
       '변경할 IP 화이트리스트 (CIDR 또는 단일 IP). ' +
       '빈 배열(`[]`) 전송 시 화이트리스트 전체 삭제.',
     type: [String],
+    example: ['10.0.0.0/8', '203.0.113.42'],
   })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @IsIpOrCidr({ each: true })
   ipWhitelist?: string[];
 
   /** 활성 상태 여부 */
