@@ -128,6 +128,32 @@ describe("AuthenticationPage — create form §A.2 fields", () => {
     // Validation runs before the request — nothing is sent to the backend.
     expect(postMock).not.toHaveBeenCalled();
   });
+
+  it("shows the one-time plaintext secret after a successful create", async () => {
+    // 발급 응답에 평문 key 가 담긴 경로 — generatedKey 표시 분기를 검증.
+    postMock.mockResolvedValueOnce({
+      data: {
+        data: { id: "c1", type: "api_key", config: { key: "wfk_live_abc123" } },
+      },
+    });
+    renderPage();
+    await openDialogAsApiKey();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Create$/ }));
+    await waitFor(() => expect(postMock).toHaveBeenCalled());
+
+    // 평문 키 + "다시 보이지 않는다" 안내가 1회 노출된다.
+    expect(await screen.findByText("wfk_live_abc123")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Save this key now/i),
+    ).toBeInTheDocument();
+
+    // Done 클릭 시 다이얼로그가 닫혀 평문이 사라진다.
+    fireEvent.click(screen.getByRole("button", { name: /^Done$/ }));
+    await waitFor(() =>
+      expect(screen.queryByText("wfk_live_abc123")).not.toBeInTheDocument(),
+    );
+  });
 });
 
 describe("AuthenticationPage — edit form §A.2", () => {
