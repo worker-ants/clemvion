@@ -10,6 +10,7 @@ import {
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AUTH_CONFIG_TYPES } from './create-auth-config.dto';
 import type { AuthConfigType } from './create-auth-config.dto';
+import { IsIpOrCidr } from './is-ip-or-cidr.validator';
 
 export class UpdateAuthConfigDto {
   /** 변경할 인증 설정 이름 */
@@ -55,6 +56,7 @@ export class UpdateAuthConfigDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @IsIpOrCidr({ each: true })
   ipWhitelist?: string[];
 
   /** 활성 상태 여부 */

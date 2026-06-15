@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -149,6 +149,16 @@ export default function AuthenticationPage() {
   const [revealTarget, setRevealTarget] = useState<string | null>(null);
   const [revealPassword, setRevealPassword] = useState("");
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
+
+  // create/regenerate 로 1회 표시되는 평문 키(generatedKey)는 30초 후 자동으로
+  // 비운다 — 화면 방치 시 평문 노출 시간을 제한 (reveal 경로의 30초 자동 hide 와
+  // 동일 정책, spec/2-navigation/6-config.md §A.4). 언마운트·값 변경 시 타이머를
+  // 정리해 누수·stale clear 를 막는다.
+  useEffect(() => {
+    if (!generatedKey) return;
+    const timer = window.setTimeout(() => setGeneratedKey(null), 30_000);
+    return () => window.clearTimeout(timer);
+  }, [generatedKey]);
 
   const { data: configs = [], isLoading, isError } = useQuery<AuthConfig[]>({
     queryKey: ["auth-configs"],
