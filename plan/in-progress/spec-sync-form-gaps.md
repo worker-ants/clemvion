@@ -28,7 +28,7 @@ owner: planner
 - [x] §5.5 resumed meta.durationMs — `processFormResumeTurn` 이 resume 시 `prevStructured.meta`(durationMs=0)를 재사용하던 것을, `nodeExec.startedAt`→재개 시각 경과로 `meta.durationMs` 갱신(기존 meta 필드 보존, DB durationMs 와 동일 계산 공유). 테스트 추가.
 
 ## INFO 후속 (min/max·pattern PR 리뷰 산출 — 비차단)
-- [ ] 인접 spec validation 규칙 열거 동기화 — `chat-channel-adapter.md §4.1 step 4`(validateFormSubmission SoT)·`6-system/6-websocket-protocol.md §4.2` 의 검증 규칙 열거가 min/max/pattern 미반영(구식). (impl-done 23_05_43 cross_spec INFO)
+- [x] 인접 spec validation 규칙 열거 동기화 — `chat-channel-adapter.md §4.1 step 4`·§4.2 step 3·`6-system/6-websocket-protocol.md §4.2` 검증 규칙 열거에 min/max(숫자 범위)·(WS는 pattern·select/radio 포함) 추가. (spec-sync-form-validation-enum PR — impl-done 23_05_43 cross_spec INFO)
 - [ ] `execution-engine.service.spec` 에 min/max·pattern 위반 시 `FormValidationError` throw 통합 케이스 1건씩 추가 — assertFormSubmissionValid 단위 커버는 충분하나 3경로 wiring 명시 검증. (ai-review 23_05_30 INFO #5)
 
 ## 비고
