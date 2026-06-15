@@ -30,7 +30,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useT } from "@/lib/i18n";
+import { useT, type TranslationKey } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
 import {
   buildAuthConfigPayload,
@@ -39,8 +39,7 @@ import {
 import {
   type AuthConfig,
   type AuthConfigUsage,
-  TYPE_LABEL_KEYS,
-  STATUS_BADGE_VARIANT,
+  AUTH_TYPES,
   pickPlaintextSecret,
 } from "./auth-config-types";
 import { useAuthConfigForm } from "./use-auth-config-form";
@@ -49,6 +48,23 @@ import { AuthConfigEditDialog } from "./auth-config-edit-dialog";
 
 /** 1회 노출된 평문 비밀값을 자동으로 비우기까지의 시간(ms). reveal·create/regenerate 공통. */
 const SECRET_AUTOCLEAR_MS = 30_000;
+
+// 목록 type 배지 라벨 — AUTH_TYPES 단일 SoT 에서 파생(중복 정의 방지).
+const TYPE_LABEL_KEYS = Object.fromEntries(
+  AUTH_TYPES.map((opt) => [opt.value, opt.labelKey]),
+) as Record<string, TranslationKey>;
+
+// usage 호출 이력 status → Badge variant. 미등록 status 는 사용처에서 "outline" 폴백.
+// (page 전용 — lib/utils/execution-status.ts 의 동명 상수와 값 집합이 달라 export 하지 않는다.)
+const STATUS_BADGE_VARIANT: Record<
+  string,
+  "success" | "warning" | "destructive" | "outline"
+> = {
+  completed: "success",
+  running: "warning",
+  failed: "destructive",
+  pending: "outline",
+};
 
 export default function AuthenticationPage() {
   const t = useT();

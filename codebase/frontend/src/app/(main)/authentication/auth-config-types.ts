@@ -43,29 +43,16 @@ export interface AuthConfigUsage {
   recentCalls: UsageRecentCall[];
 }
 
+/**
+ * 인증 type 셀렉트 옵션 — create/edit 폼(AuthConfigFormFields)이 공유한다.
+ * type→labelKey 단일 SoT(목록 화면의 type 배지 라벨도 여기서 파생).
+ */
 export const AUTH_TYPES: { value: AuthConfigType; labelKey: TranslationKey }[] = [
   { value: "api_key", labelKey: "authentication.typeApiKey" },
   { value: "bearer_token", labelKey: "authentication.typeBearerToken" },
   { value: "basic_auth", labelKey: "authentication.typeBasicAuth" },
   { value: "hmac", labelKey: "authentication.typeHmac" },
 ];
-
-export const TYPE_LABEL_KEYS: Record<string, TranslationKey> = {
-  api_key: "authentication.typeApiKey",
-  bearer_token: "authentication.typeBearerToken",
-  basic_auth: "authentication.typeBasicAuth",
-  hmac: "authentication.typeHmac",
-};
-
-export const STATUS_BADGE_VARIANT: Record<
-  string,
-  "success" | "warning" | "destructive" | "outline"
-> = {
-  completed: "success",
-  running: "warning",
-  failed: "destructive",
-  pending: "outline",
-};
 
 /** create/regenerate/reveal 응답에서 평문 비밀값 1개를 추출 (표시용). */
 export function pickPlaintextSecret(
