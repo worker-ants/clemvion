@@ -38,6 +38,7 @@ import {
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import { Node } from '../nodes/entities/node.entity';
+import { Execution } from '../executions/entities/execution.entity';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ShutdownStateService } from '../execution-engine/shutdown/shutdown-state.service';
@@ -49,6 +50,7 @@ import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { QueryWorkflowDto } from './dto/query-workflow.dto';
 import { SaveCanvasDto } from './dto/save-canvas.dto';
 import { ImportWorkflowDto } from './dto/import-workflow.dto';
+import { ExecuteNodeDto } from './dto/execute-node.dto';
 import {
   CanvasSaveResultDto,
   ExecuteAcceptedDto,
@@ -71,6 +73,8 @@ export class WorkflowsController {
     private readonly shutdownState: ShutdownStateService,
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
+    @InjectRepository(Execution)
+    private readonly executionRepository: Repository<Execution>,
   ) {}
 
   @Get()
@@ -317,6 +321,101 @@ export class WorkflowsController {
       id,
       executionInput,
       { executedBy: user.sub },
+    );
+    return { executionId };
+  }
+
+  @Post(':id/nodes/:nodeId/execute')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Roles('editor')
+  @ApiOperation({
+    summary: '단일 노드 실행 (§1.3)',
+    description:
+      '대상 노드 1개만 실행 큐에 등록한다(downstream 미진행 — §1.2 Run-from-Selected 와 구분). 입력은 previousExecutionId 의 상류 노드 출력을 자동 주입하며 미지정 시 body.input(수동 입력)으로 대체한다. 결과는 GET /api/executions/:id 로 조회한다.',
+  })
+  @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
+  @ApiParam({ name: 'nodeId', description: '대상 노드 UUID', format: 'uuid' })
+  @ApiAcceptedWrappedResponse(ExecuteAcceptedDto, {
+    description: '단일 노드 실행 큐 등록 완료 (비동기 실행)',
+  })
+  @ApiBadRequestResponse({
+    description:
+      '대상 노드가 워크플로우에 없거나 previousExecutionId 가 유효하지 않음',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
+  @ApiResponse({
+    status: 503,
+    description: '서버 종료 중 — Retry-After 헤더 초 단위 대기 후 재시도',
+    schema: {
+      example: {
+        statusCode: 503,
+        code: 'SERVER_SHUTTING_DOWN',
+        message: 'Service temporarily unavailable. Please retry.',
+      },
+    },
+  })
+  async executeNode(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('nodeId', ParseUUIDPipe) nodeId: string,
+    @WorkspaceId() workspaceId: string,
+    @CurrentUser() user: JwtPayload,
+    @Res({ passthrough: true }) res: Response,
+    @Body() body?: ExecuteNodeDto,
+  ) {
+    // Graceful Shutdown gate (execute 와 동일 — spec/5-system/4-execution-engine.md §11).
+    if (this.shutdownState.isShuttingDown) {
+      res.setHeader('Retry-After', String(this.shutdownState.retryAfterSec));
+      throw new ServiceUnavailableException({
+        code: 'SERVER_SHUTTING_DOWN',
+        message: 'Service temporarily unavailable. Please retry.',
+      });
+    }
+
+    // Verify workflow belongs to workspace (404 if not).
+    await this.workflowsService.findById(id, workspaceId);
+
+    // 대상 노드가 이 워크플로우에 속하는지 검증 (workflow 스코핑으로 IDOR 방지).
+    const node = await this.nodeRepository.findOneBy({
+      id: nodeId,
+      workflowId: id,
+    });
+    if (!node) {
+      throw new BadRequestException({
+        code: 'NODE_NOT_IN_WORKFLOW',
+        message: '대상 노드가 해당 워크플로우에 존재하지 않습니다.',
+      });
+    }
+
+    // previousExecutionId(있으면)가 같은 워크플로우의 실행인지 검증 — 타 워크플로우
+    // 실행의 노드 출력을 seed 출처로 지정하는 것을 차단.
+    if (body?.previousExecutionId) {
+      const prev = await this.executionRepository.findOneBy({
+        id: body.previousExecutionId,
+        workflowId: id,
+      });
+      if (!prev) {
+        throw new BadRequestException({
+          code: 'PREVIOUS_EXECUTION_NOT_FOUND',
+          message:
+            'previousExecutionId 가 해당 워크플로우의 실행이 아니거나 존재하지 않습니다.',
+        });
+      }
+    }
+
+    const executionInput = {
+      ...(body?.input ?? {}),
+      __triggerSource: 'manual' as const,
+    };
+    const executionId = await this.executionEngineService.execute(
+      id,
+      executionInput,
+      {
+        executedBy: user.sub,
+        singleNodeId: nodeId,
+        previousExecutionId: body?.previousExecutionId,
+      },
     );
     return { executionId };
   }

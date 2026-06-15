@@ -21,7 +21,7 @@ code: ["codebase/backend/src/modules/executions"]
   { name: "Run from Selected", type: "부분 실행", description: "선택한 노드부터 하류 끝까지만 실행해요. 이전 실행에서 해당 노드가 받았던 입력을 그대로 쓰거나 수동 입력을 제공할 수 있어요." }
 ]} />
 
-추가로 노드를 우클릭하면 나오는 **단일 노드 실행**(이 노드만 실행)도 쓸 수 있어요. 노드의 동작을 빠르게 검증할 때 유용해요.
+캔버스에서 노드를 우클릭하면 나오는 **이 노드 실행**으로 해당 노드 하나만 따로 실행할 수도 있어요. 자세한 내용은 아래 [이 노드 실행](#이-노드-실행) 섹션을 참고해요.
 
 ## Run with Input 다이얼로그
 
@@ -95,6 +95,24 @@ code: ["codebase/backend/src/modules/executions"]
 </Steps>
 
 <Callout type="tip">AI Agent나 HTTP Request처럼 비용·시간이 드는 노드를 다시 돌리고 싶지 않을 때, 그 **다음 노드**부터 부분 실행하면 시간을 크게 아낄 수 있어요.</Callout>
+
+## 이 노드 실행
+
+<ImplAnchor
+  kind="component"
+  file="codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx"
+  symbol="handleRunThisNode"
+  describes="노드 우클릭 컨텍스트 메뉴의 단일 노드 실행 핸들러"
+/>
+
+캔버스에서 노드를 우클릭한 뒤 **이 노드 실행**을 선택하면 해당 노드 하나만 실행해요. 전체 실행이나 Run from Selected 와 달리 하류 노드는 실행되지 않아요.
+
+- **입력**: 직전 실행이 있으면 그 실행에서 상류(직속 이전) 노드의 출력이 자동으로 입력으로 주입돼요. 직전 실행이 없으면 빈 입력으로 실행돼요.
+- **결과**: 설정 패널 **Info** 탭에 해당 노드의 출력·오류·소요 시간이 표시돼요. 하단 Run Results 드로어 타임라인에도 해당 노드가 나타나요.
+
+<Callout type="tip">먼저 워크플로우를 한 번 전체 실행한 뒤, 수정하고 싶은 노드를 우클릭해 단독 재실행하며 디버깅하면 효율적이에요.</Callout>
+
+<Callout type="note">form, buttons, AI 멀티턴처럼 사용자 응답을 대기하는 대화형 노드와 Loop·ForEach·Map 같은 컨테이너 내부 노드는 단독 실행 대상이 아니에요. 표준·AI·코드·HTTP Request 등 일반 노드에서 사용할 수 있어요.</Callout>
 
 ## 트리거 종류와 실행 방식의 차이
 

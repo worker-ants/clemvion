@@ -185,6 +185,25 @@ export const workflowsApi = {
     }),
 
   /**
+   * 단일 노드 실행 (§1.3). 대상 노드 1개만 실행하고 downstream 으로 진행하지 않는다.
+   * previousExecutionId 의 상류 노드 출력을 입력으로 자동 주입(미지정 시 input 으로
+   * 대체). 결과는 일반 실행과 동일하게 WS 이벤트 → Run Results 드로어로 surface 되며
+   * GET /executions/:id 로도 조회 가능하다.
+   */
+  executeNode: (
+    workflowId: string,
+    nodeId: string,
+    options?: {
+      previousExecutionId?: string;
+      input?: Record<string, unknown>;
+    },
+  ) =>
+    apiClient.post(`/workflows/${workflowId}/nodes/${nodeId}/execute`, {
+      previousExecutionId: options?.previousExecutionId,
+      input: options?.input,
+    }),
+
+  /**
    * parallel-p2 결정 D + E + I (2026-05-30) — cross-node graphWarningRules
    * 의 frontend canvas 사전 평가. graph 변경 시점에 호출하여 results /
    * hasError / hasWarning 받음. severity error 가 하나라도 있으면 canvas 가

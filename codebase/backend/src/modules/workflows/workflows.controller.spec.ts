@@ -12,6 +12,7 @@ import { ExecutionEngineService } from '../execution-engine/execution-engine.ser
 import { ShutdownStateService } from '../execution-engine/shutdown/shutdown-state.service';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
+import { Execution } from '../executions/entities/execution.entity';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import type { JwtPayload } from '../../common/decorators';
 
@@ -73,6 +74,10 @@ describe('WorkflowsController (execute endpoint)', () => {
         {
           provide: getRepositoryToken(Edge),
           useValue: { find: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Execution),
+          useValue: { findOneBy: jest.fn() },
         },
         {
           provide: NodeComponentRegistry,
@@ -163,6 +168,194 @@ describe('WorkflowsController (execute endpoint)', () => {
   });
 });
 
+// 단일 노드 실행 (§1.3) — POST /api/workflows/:id/nodes/:nodeId/execute.
+// SoT: spec/3-workflow-editor/3-execution.md §1.3 / §9.
+describe('WorkflowsController (executeNode endpoint, §1.3)', () => {
+  let controller: WorkflowsController;
+  let nodeRepo: jest.Mocked<Repository<Node>>;
+  let executionRepo: jest.Mocked<Repository<Execution>>;
+  let engine: jest.Mocked<ExecutionEngineService>;
+  let workflowsService: jest.Mocked<WorkflowsService>;
+
+  const user: JwtPayload = { sub: 'u1', email: 'x@y' } as unknown as JwtPayload;
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [WorkflowsController],
+      providers: [
+        {
+          provide: WorkflowsService,
+          useValue: { findById: jest.fn().mockResolvedValue({ id: 'wf1' }) },
+        },
+        {
+          provide: ExecutionEngineService,
+          useValue: { execute: jest.fn().mockResolvedValue('exec-node-1') },
+        },
+        { provide: ShutdownStateService, useValue: mockShutdownState() },
+        {
+          provide: getRepositoryToken(Node),
+          useValue: {
+            findOneBy: jest.fn(),
+            findOne: jest.fn(),
+            find: jest.fn(),
+          },
+        },
+        { provide: getRepositoryToken(Edge), useValue: { find: jest.fn() } },
+        {
+          provide: getRepositoryToken(Execution),
+          useValue: { findOneBy: jest.fn() },
+        },
+        {
+          provide: NodeComponentRegistry,
+          useValue: { getComponent: jest.fn().mockReturnValue(undefined) },
+        },
+      ],
+    }).compile();
+
+    controller = moduleRef.get(WorkflowsController);
+    nodeRepo = moduleRef.get(getRepositoryToken(Node));
+    executionRepo = moduleRef.get(getRepositoryToken(Execution));
+    engine = moduleRef.get(ExecutionEngineService);
+    workflowsService = moduleRef.get(WorkflowsService);
+  });
+
+  it('runs a single node with singleNodeId + previousExecutionId injected', async () => {
+    nodeRepo.findOneBy.mockResolvedValue({
+      id: 'n1',
+      workflowId: 'wf1',
+    } as unknown as Node);
+    executionRepo.findOneBy.mockResolvedValue({
+      id: 'prev-1',
+      workflowId: 'wf1',
+    } as unknown as Execution);
+
+    const res = await controller.executeNode(
+      'wf1',
+      'n1',
+      'ws',
+      user,
+      mockResponse(),
+      { previousExecutionId: 'prev-1' },
+    );
+
+    expect(res).toEqual({ executionId: 'exec-node-1' });
+    expect(workflowsService.findById).toHaveBeenCalledWith('wf1', 'ws');
+    expect(engine.execute).toHaveBeenCalledWith(
+      'wf1',
+      expect.objectContaining({ __triggerSource: 'manual' }),
+      {
+        executedBy: 'u1',
+        singleNodeId: 'n1',
+        previousExecutionId: 'prev-1',
+      },
+    );
+  });
+
+  it('passes previousExecutionId undefined when omitted (manual input only)', async () => {
+    nodeRepo.findOneBy.mockResolvedValue({
+      id: 'n1',
+      workflowId: 'wf1',
+    } as unknown as Node);
+
+    await controller.executeNode('wf1', 'n1', 'ws', user, mockResponse(), {
+      input: { foo: 1 },
+    });
+
+    expect(executionRepo.findOneBy).not.toHaveBeenCalled();
+    expect(engine.execute).toHaveBeenCalledWith(
+      'wf1',
+      expect.objectContaining({ foo: 1, __triggerSource: 'manual' }),
+      { executedBy: 'u1', singleNodeId: 'n1', previousExecutionId: undefined },
+    );
+  });
+
+  it('returns 400 when the node is not in the workflow', async () => {
+    nodeRepo.findOneBy.mockResolvedValue(null);
+
+    const err = await controller
+      .executeNode('wf1', 'n-foreign', 'ws', user, mockResponse(), {})
+      .catch((e: unknown) => e as BadRequestException);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(engine.execute).not.toHaveBeenCalled();
+  });
+
+  it('propagates workspace 404 (findById throws) without touching node/engine', async () => {
+    workflowsService.findById.mockRejectedValue(
+      new BadRequestException('workflow not in workspace'),
+    );
+
+    const err = await controller
+      .executeNode('wf-foreign', 'n1', 'ws', user, mockResponse(), {})
+      .catch((e: unknown) => e as BadRequestException);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(nodeRepo.findOneBy).not.toHaveBeenCalled();
+    expect(engine.execute).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when previousExecutionId belongs to another workflow', async () => {
+    nodeRepo.findOneBy.mockResolvedValue({
+      id: 'n1',
+      workflowId: 'wf1',
+    } as unknown as Node);
+    executionRepo.findOneBy.mockResolvedValue(null);
+
+    const err = await controller
+      .executeNode('wf1', 'n1', 'ws', user, mockResponse(), {
+        previousExecutionId: 'prev-other',
+      })
+      .catch((e: unknown) => e as BadRequestException);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(engine.execute).not.toHaveBeenCalled();
+  });
+
+  it('rejects with 503 while shutting down (does not touch repos/engine)', async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [WorkflowsController],
+      providers: [
+        {
+          provide: WorkflowsService,
+          useValue: { findById: jest.fn() },
+        },
+        {
+          provide: ExecutionEngineService,
+          useValue: { execute: jest.fn() },
+        },
+        {
+          provide: ShutdownStateService,
+          useValue: mockShutdownState({ isShuttingDown: true }),
+        },
+        {
+          provide: getRepositoryToken(Node),
+          useValue: { findOneBy: jest.fn() },
+        },
+        { provide: getRepositoryToken(Edge), useValue: { find: jest.fn() } },
+        {
+          provide: getRepositoryToken(Execution),
+          useValue: { findOneBy: jest.fn() },
+        },
+        {
+          provide: NodeComponentRegistry,
+          useValue: { getComponent: jest.fn() },
+        },
+      ],
+    }).compile();
+    const ctrl = moduleRef.get(WorkflowsController);
+    const eng = moduleRef.get<ExecutionEngineService>(ExecutionEngineService);
+    const res = mockResponse();
+
+    const err = await ctrl
+      .executeNode('wf1', 'n1', 'ws', user, res, {})
+      .catch((e: unknown) => e as ServiceUnavailableException);
+
+    expect(err).toBeInstanceOf(ServiceUnavailableException);
+    expect(res.setHeader).toHaveBeenCalledWith('Retry-After', '30');
+    expect(eng.execute as jest.Mock).not.toHaveBeenCalled();
+  });
+});
+
 // workflow-resumable-execution Phase 1.2 — Graceful Shutdown 503 gate.
 // SoT: spec/5-system/4-execution-engine.md §11.
 describe('WorkflowsController (execute — graceful shutdown gate)', () => {
@@ -199,6 +392,10 @@ describe('WorkflowsController (execute — graceful shutdown gate)', () => {
         {
           provide: getRepositoryToken(Edge),
           useValue: { find: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Execution),
+          useValue: { findOneBy: jest.fn() },
         },
         {
           provide: NodeComponentRegistry,
@@ -293,6 +490,10 @@ describe('WorkflowsController (canvas + version endpoints)', () => {
           useValue: { find: jest.fn() },
         },
         {
+          provide: getRepositoryToken(Execution),
+          useValue: { findOneBy: jest.fn() },
+        },
+        {
           provide: NodeComponentRegistry,
           useValue: { getComponent: jest.fn().mockReturnValue(undefined) },
         },
@@ -355,6 +556,7 @@ describe('WorkflowsController (findAll — ownership wiring)', () => {
         { provide: ShutdownStateService, useValue: mockShutdownState() },
         { provide: getRepositoryToken(Node), useValue: {} },
         { provide: getRepositoryToken(Edge), useValue: {} },
+        { provide: getRepositoryToken(Execution), useValue: {} },
         { provide: NodeComponentRegistry, useValue: {} },
       ],
     }).compile();
@@ -408,6 +610,7 @@ describe('WorkflowsController (graph-warnings endpoint, parallel-p2 §6)', () =>
         { provide: ExecutionEngineService, useValue: {} },
         { provide: ShutdownStateService, useValue: mockShutdownState() },
         { provide: getRepositoryToken(Node), useValue: {} },
+        { provide: getRepositoryToken(Execution), useValue: {} },
       ],
     }).compile();
 

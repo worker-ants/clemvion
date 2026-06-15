@@ -2703,6 +2703,151 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  describe('runExecution — 단일 노드 실행 (§1.3)', () => {
+    // node-1 → node-2 → node-3 선형 그래프. singleNodeId 가 세팅된 실행은 대상
+    // 노드만 실행하고 downstream 으로 진행하지 않으며, previousExecutionId 의
+    // 직속 predecessor 출력을 입력으로 seed 한다.
+    // 기본 mockExecutionRepo.create 는 인자를 무시하고 고정 객체를 반환하므로
+    // (실 TypeORM 과 달리) singleNodeId/previousExecutionId 가 saved row 에 실리지
+    // 않는다. 단일 노드 분기를 타게 하려면 create 가 인자를 pass-through 하도록 override.
+    function passThroughCreate() {
+      mockExecutionRepo.create.mockImplementation((d: Partial<Execution>) => ({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.PENDING,
+        startedAt: new Date(),
+        inputData: {},
+        ...d,
+      }));
+    }
+
+    it('대상 노드만 실행하고 downstream 미진행 + previousExecutionId 상류 출력을 입력으로 seed', async () => {
+      passThroughCreate();
+      const seenInputs: unknown[] = [];
+      (mockHandler.execute as jest.Mock).mockImplementation(
+        async (input: unknown) => {
+          seenInputs.push(input);
+          return mockOutput({ processed: true, input });
+        },
+      );
+      // getLatestPredecessorOutputs → prev-exec 의 node-1 완료 출력(canonical shape).
+      mockNodeExecutionRepo.find.mockResolvedValueOnce([
+        {
+          id: 'ne-prev-node-1',
+          executionId: 'prev-exec',
+          nodeId: 'node-1',
+          status: NodeExecutionStatus.COMPLETED,
+          outputData: mockOutput({ seeded: 42 }),
+          finishedAt: new Date(),
+        },
+      ]);
+
+      await service.execute(
+        workflowId,
+        { manual: 'ignored-when-seeded' },
+        {
+          executedBy: 'u1',
+          singleNodeId: 'node-2',
+          previousExecutionId: 'prev-exec',
+        },
+      );
+      await flushPromises();
+      await flushPromises();
+
+      // 오직 node-2 만 실행 — node-1(상류) 및 node-3(하류) 미실행.
+      expect(mockHandler.execute).toHaveBeenCalledTimes(1);
+      // node-2 입력 = node-1 의 seed 출력(flat + stripControlFields).
+      expect(seenInputs[0]).toEqual({ seeded: 42 });
+      // predecessor 조회가 previousExecutionId 로 수행됐는지.
+      expect(mockNodeExecutionRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            executionId: 'prev-exec',
+            status: NodeExecutionStatus.COMPLETED,
+          }),
+        }),
+      );
+      // 완료 outputData = 대상 노드(node-2) 출력 (topological-last node-3 아님).
+      // updateExecutionStatus(COMPLETED) 의 guarded UPDATE param[5] = JSON.stringify(outputData).
+      const completedCall = mockExecutionRepo.query.mock.calls.find(
+        (c: unknown[]) =>
+          typeof c[0] === 'string' &&
+          c[0].includes('output_data') &&
+          (c[1] as unknown[])?.[1] === ExecutionStatus.COMPLETED,
+      );
+      expect(completedCall).toBeDefined();
+      const persistedOutput = JSON.parse(
+        (completedCall![1] as string[])[5],
+      ) as Record<string, unknown>;
+      expect(persistedOutput).toMatchObject({
+        processed: true,
+        input: { seeded: 42 },
+      });
+    });
+
+    it('비-canonical(bare) predecessor outputData 도 wrapBareAsNodeHandlerOutput 로 안전 seed', async () => {
+      passThroughCreate();
+      const seenInputs: unknown[] = [];
+      (mockHandler.execute as jest.Mock).mockImplementation(
+        async (input: unknown) => {
+          seenInputs.push(input);
+          return mockOutput({ processed: true, input });
+        },
+      );
+      // config/output 키가 없는 bare object (legacy/배포 이전 row) — adaptHandlerReturn
+      // strict 가 throw 하지 않도록 lenient wrapper 폴백 경로를 검증.
+      mockNodeExecutionRepo.find.mockResolvedValueOnce([
+        {
+          id: 'ne-prev-node-1',
+          executionId: 'prev-exec',
+          nodeId: 'node-1',
+          status: NodeExecutionStatus.COMPLETED,
+          outputData: { seeded: 99 },
+          finishedAt: new Date(),
+        },
+      ]);
+
+      await service.execute(
+        workflowId,
+        {},
+        {
+          executedBy: 'u1',
+          singleNodeId: 'node-2',
+          previousExecutionId: 'prev-exec',
+        },
+      );
+      await flushPromises();
+      await flushPromises();
+
+      expect(mockHandler.execute).toHaveBeenCalledTimes(1);
+      // bare {seeded:99} → wrap → {config:{}, output:{seeded:99}} → flat {seeded:99}.
+      expect(seenInputs[0]).toEqual({ seeded: 99 });
+    });
+
+    it('previousExecutionId 미지정 시 수동 입력(input)으로 단일 노드 실행', async () => {
+      passThroughCreate();
+      const seenInputs: unknown[] = [];
+      (mockHandler.execute as jest.Mock).mockImplementation(
+        async (input: unknown) => {
+          seenInputs.push(input);
+          return mockOutput({ processed: true, input });
+        },
+      );
+
+      // node-1 은 incoming edge 가 없으므로 workflowInput(수동 입력)을 사용한다.
+      await service.execute(
+        workflowId,
+        { manual: 'value' },
+        { executedBy: 'u1', singleNodeId: 'node-1' },
+      );
+      await flushPromises();
+      await flushPromises();
+
+      expect(mockHandler.execute).toHaveBeenCalledTimes(1);
+      expect(seenInputs[0]).toEqual({ manual: 'value' });
+    });
+  });
+
   it('should execute all nodes in background after returning', async () => {
     await service.execute(workflowId, { data: 'test' });
 
