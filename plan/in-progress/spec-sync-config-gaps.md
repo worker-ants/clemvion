@@ -37,6 +37,14 @@ owner: planner
   - [x] /ai-review — RISK MEDIUM, Critical 0 / Warning 7. WARNING 2·3·5·6·7 fix(commit 29a24c5d), WARNING 1·4(God Component) → 후속 분리. RESOLUTION.md 기록.
   - [x] /consistency-check --impl-done — BLOCK: NO. W-1(Edit 버튼 Admin+ 가드 누락) fix(commit a47e3ea5). W-2·W-3 은 base-read 오탐(이미 반영됨).
 
+## config C-2 (2026-06-16, gap-closure 마지막 슬라이스) — 구현 완료
+
+- [x] **generatedKey 30초 자동클리어** (frontend): create/regenerate 로 1회 노출되는 평문 키(`generatedKey`)를 `useEffect([value]) + clearTimeout` 으로 30초 뒤 자동 비움(언마운트·재노출 시 타이머 정리). 동일 패턴을 reveal 경로(`revealedSecret`)에도 적용해 bare `setTimeout` 누수 제거, 공유 상수 `SECRET_AUTOCLEAR_MS` 도입. spec `6-config.md §A.4` + Rationale R-2 동기화.
+- [x] **auth-config ipWhitelist 저장 시점 형식 검증** (backend): `Create/UpdateAuthConfigDto.ipWhitelist` 에 커스텀 `@IsIpOrCidr({ each: true })` 추가 — 무효 IP/CIDR 는 `400`. class-validator `@IsIP` 는 CIDR 거부라 `AuthConfigsService.parseIp` 와 동일한 `ip-address`(`Address4`/`Address6.isValid`) 수용 기준의 커스텀 validator 사용(저장↔런타임 drift 0). spec `1-data-model.md §2.17` 행 + §2.17.3 Rationale 동기화.
+  - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전 단계 PASS. unit: backend `auth-config-ip-whitelist.dto.spec`(33) + auth-configs 회귀 91, frontend `generated-key-autoclear.test`(create/reveal 자동클리어·언마운트 4) + authentication 회귀 40. e2e backend 202/202.
+  - [x] /ai-review (--range merge-base..HEAD) — 2 fresh round 모두 Critical 0. round1(00_27_07) MEDIUM 6W → revealedSecret useEffect 통일·테스트·문서 fix(commit 8ab9f197). round2(00_43_24) LOW 5W → 의도된 설계·범위 밖·loop-avoidance 로 코드 무변경 수용. RESOLUTION.md 기록.
+  - [x] /consistency-check --impl-done (00_54_33) — BLOCK: NO (Critical 0/Warning 0). INFO 7건 중 Rationale 보강(§2.17.3·R-2)·plan 추적(auth-config-webhook-followups §3)·SoT 경계는 본 PR 반영, 상수 export 는 loop-avoidance 로 후속 권고.
+
 ## 후속 — God Component 분리 (ai-review 2026-06-14 WARNING 1·4 재확인)
 - [ ] `authentication/page.tsx` God Component 분리 — `AuthConfigCreateForm` + `AuthConfigEditDialog` 컴포넌트·커스텀 훅(`useAuthConfigEditDialog`)으로 edit 흐름 추출. (ai-review 2026-06-14 WARNING 1·4 재확인 — edit 폼 `useState` 11개 통합 포함)
   - 우선순위: 저(현재 기능 동작 OK, 회귀 위험 대비 scope 분리가 적절)

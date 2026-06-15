@@ -9,6 +9,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsIpOrCidr } from './is-ip-or-cidr.validator';
 
 // "인증 없음" 은 AuthConfig row 가 아니라 Trigger.authConfigId IS NULL 로 표현한다
 // (spec/1-data-model.md §2.17.3). 따라서 type 에 'none' 을 두지 않는다.
@@ -65,6 +66,7 @@ export class CreateAuthConfigDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @IsIpOrCidr({ each: true })
   ipWhitelist?: string[];
 
   /** 활성 상태 여부 (기본값 true) */
