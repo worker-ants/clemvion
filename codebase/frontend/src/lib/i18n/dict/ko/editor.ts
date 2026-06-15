@@ -272,6 +272,10 @@ export const editor = {
     nodeTotal: "노드 전체",
     chunksAcrossTurns: "{{chunks}}개 청크 / {{turns}}개 턴",
     configMissing: "이 노드는 config 를 기록하지 않았어요 — 핸들러가 아직 레거시 출력 형식을 사용 중일 수 있어요.",
+    formFileMimeRejected: "허용되지 않은 파일 형식입니다.",
+    formFileSizeExceeded: "파일 크기는 {{max}}MB 이하여야 합니다.",
+    formFileTotalExceeded: "전체 파일 크기는 {{max}}MB 이하여야 합니다.",
+    formFileCountExceeded: "최대 {{max}}개까지 업로드할 수 있습니다.",
   },
   llmInfo: {
     tabResponse: "응답",

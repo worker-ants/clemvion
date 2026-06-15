@@ -8,6 +8,8 @@ code:
   - codebase/backend/src/nodes/presentation/form/form.handler.ts
   - codebase/backend/src/nodes/presentation/form/form.schema.ts
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
+  - codebase/backend/src/modules/chat-channel/shared/form-mode.ts
+  - codebase/backend/src/modules/chat-channel/types.ts
   - codebase/frontend/src/components/editor/run-results/dynamic-form-ui.tsx
 ---
 
@@ -41,12 +43,12 @@ code:
 | options | Option[]? | | `select`/`radio`/`checkbox` 용 선택지 (`{ label, value }`). `value` 가 빈 문자열·`null`·`undefined` 인 경우는 LLM tool 모드 (`render_form`) 에 한해 backend 가 결정적 fallback `opt-{fieldIdx}-{optIdx}` (인덱스 단일 형식) 으로 backfill — [공통 §10.5 step 4](./0-common.md#105-schema-위반-처리-및-정규화) SoT. 사용자 직접 config 의 빈 value 는 frontend 입력 시점에 가드되므로 본 단계 영향권 밖. |
 | defaultValue | Any? | | 기본값 (`{{ }}` 표현식 사용 가능) |
 | validation | ValidationRule? | | 유효성 검증 규칙 |
-| allowedMimeTypes | String[]? | | `type: 'file'` 전용. 허용 MIME 타입 목록 (계획상 기본은 아래 참조) |
-| maxFileSize | Number? | | `type: 'file'` 전용. 단일 파일 최대 크기 (MB, 계획상 기본 10) |
-| maxTotalSize | Number? | | `type: 'file'` 전용. 필드 내 전체 파일 합계 최대 크기 (MB, 계획상 기본 50) |
-| maxFiles | Number? | | `type: 'file'` 전용. 필드당 최대 파일 수 (계획상 기본 5) |
+| allowedMimeTypes | String[]? | | `type: 'file'` 전용. 허용 MIME 타입 목록 (미설정 시 기본 14종 — 아래 참조) |
+| maxFileSize | Number? | | `type: 'file'` 전용. 단일 파일 최대 크기 (MB, 미설정 시 기본 10) |
+| maxTotalSize | Number? | | `type: 'file'` 전용. 필드 내 전체 파일 합계 최대 크기 (MB, 미설정 시 기본 50) |
+| maxFiles | Number? | | `type: 'file'` 전용. 필드당 최대 파일 수 (미설정 시 기본 5) |
 
-> ⚠ 위 4개 file 옵션은 `formFieldSchema` (`form.schema.ts:71-74`) 에서 모두 `optional()` 로만 선언돼 있고 **zod default 가 없다** — 즉 미설정 시 아래 기본값(13종 MIME, 10MB/50MB/5)이 코드에서 자동 주입되지 않으며, frontend `DynamicFormUI` 도 `accept = (allowedMimeTypes ?? []).join(",")` / `multiple = maxFiles > 1` 만 사용한다. 기본값 적용·서버 강제는 **미구현 (Planned)** — `plan/in-progress/spec-sync-form-gaps.md` 추적.
+> 위 4개 file 옵션은 `formFieldSchema` (`form.schema.ts:71-74`) 에서 모두 `optional()` 로만 선언돼 zod default 가 없다(비-file 필드 config echo 오염 방지, Principle 1.1). 대신 **`type: 'file'` 필드에 한해** 정규화 단계(`extractFormFields`, `form-mode.ts`)가 미설정 옵션에 아래 공유 기본값(14종 MIME / 10MB / 50MB / 5)을 주입하고, 서버측 검증(`validateFileField`, §6.2)·클라이언트 가드(`DynamicFormUI`, §1.5)가 이를 강제한다. MB 비교는 `1024×1024` bytes 기준. 기본값 상수 SoT: backend `form-mode.ts` `DEFAULT_FILE_*` (frontend `dynamic-form-ui.tsx` 가 동일 값 미러).
 
 **ValidationRule 구조:**
 
@@ -96,17 +98,19 @@ code:
 
 `type: 'file'` 필드의 frontend 렌더와 제출 payload 형식 SoT.
 
-**UI 렌더 (`DynamicFormUI.renderField` 의 file case)**:
+**UI 렌더 (`DynamicFormUI` 의 `renderFileField` / `validateFilesClient`)**:
 
-- 입력 element: `<input type="file" accept={(allowedMimeTypes ?? []).join(",") || undefined} multiple={maxFiles > 1}>` (`dynamic-form-ui.tsx:185-202`)
-  - `maxFiles` 가 1 이면 단일 파일 선택, >1 이면 multiple 모드.
-  - `accept` 는 사용자 명시 `allowedMimeTypes` 값을 그대로 콤마 결합 (미설정 시 `accept` 미부여 — §1 의 기본 MIME 목록은 코드에서 주입되지 않음).
-- **실시간 검증 (제출 전 클라이언트 가드) — 미구현 (Planned)**: 현재 `onChange` 는 `FileList` 를 그대로 `Array.from(...).map(toFileMetadata)` 로 변환해 fieldState 에 넣을 뿐, 아래 reject 로직이 전혀 없다 (`dynamic-form-ui.tsx:193-200`). 아래는 계획 사양:
-  - (Planned) `allowedMimeTypes` 미일치 시 즉시 reject + `validation.message` (없으면 기본 메시지 "허용되지 않은 파일 형식입니다.").
-  - (Planned) 단일 파일 크기 > `maxFileSize` (MB) 시 즉시 reject.
-  - (Planned) 합계 크기 > `maxTotalSize` (MB) 시 즉시 reject.
-  - (Planned) 선택 개수 > `maxFiles` 시 즉시 reject.
-- (Planned) 검증 실패 시 selection 자체를 거부 (선택된 file 이 fieldState 에 들어가지 않음) — 제출 버튼 활성 상태 그대로 유지.
+- 입력 element: `<input type="file" accept={(allowedMimeTypes ?? []).join(",") || undefined} multiple={(maxFiles ?? 1) > 1}>` (`dynamic-form-ui.tsx`)
+  - `maxFiles` 가 1 또는 미설정이면 단일 파일 선택, >1 이면 multiple 모드(미설정 시 방어적으로 단일).
+  - `accept` 는 사용자 명시 `allowedMimeTypes` 값을 그대로 콤마 결합 (미설정 시 `accept` 미부여 — 단, 아래 클라이언트 가드는 미설정 필드에 §1 기본 MIME 목록을 적용한다).
+- **실시간 검증 (제출 전 클라이언트 가드)**: `onChange` 가 `FileList` 를 fieldState 에 반영하기 **전에** `validateFilesClient` 로 검사하고, 위반 시 selection 을 거부한다 (`dynamic-form-ui.tsx`). 검사 순서는 서버 `validateFileField` 와 동일하며, 필드에 명시되지 않은 제약은 §1 기본값을 적용한다:
+  - `allowedMimeTypes`(미설정 시 기본 14종) 미일치 → 즉시 reject + 기본 메시지 "허용되지 않은 파일 형식입니다.".
+  - 단일 파일 크기 > `maxFileSize` (MB) → reject + "파일 크기는 {N}MB 이하여야 합니다.".
+  - 합계 크기 > `maxTotalSize` (MB) → reject + "전체 파일 크기는 {N}MB 이하여야 합니다.".
+  - 선택 개수 > `maxFiles` → reject + "최대 {N}개까지 업로드할 수 있습니다.".
+- 검증 실패 시 selection 자체를 거부 (선택된 file 이 fieldState 에 들어가지 않음, file input 도 clear) + 에러 문구를 필드 하단에 표시 — 제출 버튼 활성 상태 그대로 유지.
+
+> 메시지는 서버·클라이언트 공통 **기본 메시지**를 사용한다 (`validation.message` override 는 v1 에서 file 에 미적용 — 현 scalar 검증도 동일하게 기본 메시지를 쓴다. message override 는 scalar/file 공통 향후 과제).
 
 **제출 payload (metadata-only)**:
 
@@ -133,6 +137,8 @@ code:
 > file **내용 자체 (binary)** 는 본 spec 시점에서 LLM 에 전달하지 않는다. multimodal 비지원 모델 호환 + §10.4 1MB cap 보호 + 별도 binary upload 채널이 정해질 때까지 보류 — [공통 §Rationale file 타입 metadata-only](./0-common.md#file-타입-metadata-only) SoT.
 
 `maxFiles == 1` 인 경우도 frontend 는 **단일 metadata 객체** 가 아니라 **길이 1 의 배열** 로 직렬화한다 — backend / LLM 측 단일 진실 (`formData[fieldName]` 은 항상 배열) 유지. 빈 선택 시 `[]` (빈 배열). field 가 `required: true` 인데 빈 배열이면 §6.2 의 "필수 필드 미입력" 검증 실패 흐름.
+
+> **어댑터 divergence (file payload shape)**: 위 `{name, size, type, lastModified}` 는 **workspace UI(`DynamicFormUI`) 경로** 의 형식이다. chat-channel 어댑터를 거치는 file 입력은 provider 별 다른 shape 으로 같은 슬롯(`formData[fieldName]` → `output.interaction.data.<fieldName>`)에 흘러든다 — 예: Slack 은 `{ fileId, filename, mimeType, urlPrivate }` ([slack.md R-S-7](../7-trigger/providers/slack.md)). file 필드는 native modal 미수용(`isFieldModalCompatible` 배제, [chat-channel-adapter §4.1](../../conventions/chat-channel-adapter.md))이라 §6.2 서버측 file 검증(`validateFileField`)은 **이 metadata-only(`size`/`type`) 경로를 대상**으로 하며, 다른 shape(Slack 등)은 `size`/`type` 미보유라 해당 체크를 자연 bypass 한다(방어적 skip).
 
 **`output.interaction.data.<fieldName>` (resumed)**:
 
@@ -324,13 +330,13 @@ Form 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 |-----------|------|
 | 필수 필드 미입력 | 클라이언트 에러 응답 → 폼 재표시 (`status` 유지) |
 | `type` 별 형식 불일치 (`email` 형식 / `number` 형식) | 동상 |
-| `validation.minLength`/`maxLength` 위반 | 동상 (`validation.message` 가 있으면 그것을, 없으면 기본 메시지) |
+| `validation.minLength`/`maxLength` 위반 | 동상 — 기본 메시지 사용 (`validation.message` override 는 향후 과제, scalar/file 공통 미적용 — §1.5 주) |
 | `validation.min`/`max`(숫자 범위) 위반 | 동상 — `type: 'number'` 한정, 형식 검증 통과 후 범위 비교 |
 | `validation.pattern`(정규식) 위반 | 동상 — custom regex 미일치 (잘못된 regex 는 방어적으로 통과) |
 | `select`/`radio` 정의 외 선택지 | 동상 |
-| `type: 'file'` MIME / 크기 / 개수 초과 | 동상 — **미구현 (Planned)**, `plan/in-progress/spec-sync-form-gaps.md` 추적 |
+| `type: 'file'` MIME / 크기(단일·합계) / 개수 초과 | 동상 — `validateFileField` (metadata `size`/`type`·개수 검사, 기본값 §1) |
 
-> **검증 지점 (구현)**: 위 field-level 검증 중 **필수·`type`(email/number)·`validation.minLength`/`maxLength`·`min`/`max`(숫자 범위)·`pattern`(정규식)·select/radio 선택지**는 실행 엔진 publisher 측 `continueExecution` chokepoint 에서 노드 config 의 field 정의로 일괄 수행된다 (`validateFormSubmission` 재사용) — UI(workspace WS)·외부 WS·EIA REST `submit_form` 3 경로가 같은 검증을 공유한다. 검증 실패는 typed `FormValidationError` 로 표면하며, EIA 는 `400 VALIDATION_ERROR` + `details[]` ([EIA §5.1](../../5-system/14-external-interaction-api.md#51-인터랙션-명령-제출--post-apiexternalexecutionsexecutionidinteract)), WS 는 `VALIDATION_ERROR` ack ([WS §4.2](../../5-system/6-websocket-protocol.md#42-실행-제어-명령-client--server)) 로 매핑한다. `type: 'file'` 의 MIME/크기/개수 검증만 아직 **Planned** (§1.5, `plan/in-progress/spec-sync-form-gaps.md` 추적).
+> **검증 지점 (구현)**: 위 field-level 검증(필수·`type`(email/number)·`validation.minLength`/`maxLength`·`min`/`max`(숫자 범위)·`pattern`(정규식)·select/radio 선택지·`type:'file'` MIME/크기/개수)은 실행 엔진 publisher 측 `continueExecution` chokepoint(`assertFormSubmissionValid`)에서 노드 config 의 field 정의로 **필드 정의 순서 단일 패스**로 수행된다 — scalar 는 `validateScalarField`, `type:'file'` 은 raw metadata 배열로 `validateFileField`. UI(workspace WS)·외부 WS·EIA REST `submit_form` 3 경로가 같은 검증을 공유한다. 검증 실패는 typed `FormValidationError` 로 표면하며, EIA 는 `400 VALIDATION_ERROR` + `details[]` ([EIA §5.1](../../5-system/14-external-interaction-api.md#51-인터랙션-명령-제출--post-apiexternalexecutionsexecutionidinteract)), WS 는 `VALIDATION_ERROR` ack ([WS §4.2](../../5-system/6-websocket-protocol.md#42-실행-제어-명령-client--server)) 로 매핑한다. file 검증 대상은 workspace UI 의 metadata-only payload(`size`/`type`)이며, chat-channel 어댑터의 다른 file shape(Slack 등)은 §1.5 divergence 주석대로 자연 bypass.
 
 > Form 입력 검증은 `output.error` 를 생성하지 않는다 — 사용자가 같은 폼을 재제출하면 §5.5 의 정상 출력만 발생한다 (Principle 3.1 의 "예상 가능한 비즈니스 실패" 와 별도, 재제출 루프이므로 새 NodeExecution 결과가 만들어지지 않음).
 
@@ -344,7 +350,7 @@ Form 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 
 폼 입력 field-level 검증(§6.2)은 필드 정의 순서대로 검사해 **첫 번째 위반에서 즉시 실패를 표면**하며, 모든 필드의 위반을 한 번에 수집하지 않는다. 이는 publisher `continueExecution` chokepoint 이 빠른 거부 게이트이기 때문이다 — `waiting_for_input` 재제출 루프 안에서 사용자는 오류를 순차로 해소하면 되고, 첫 위반에서 throw 하는 편이 검증 비용·코드 단순성에서 유리하다.
 
-한 필드 안의 규칙 적용 순서도 고정이다: **required → `type`(email/number) → `minLength`/`maxLength` → `min`/`max`(number 범위) → `pattern`(regex) → select/radio 선택지**. 첫 위반에서 throw 하므로, 예컨대 숫자 형식 오류가 범위(min/max) 오류보다, 길이 오류가 pattern 오류보다 먼저 표면된다.
+한 필드 안의 규칙 적용 순서도 고정이다: scalar 는 **required → `type`(email/number) → `minLength`/`maxLength` → `min`/`max`(number 범위) → `pattern`(regex) → select/radio 선택지**, `type:'file'` 은 **required → MIME → 단일 크기 → 합계 크기 → 개수**. 첫 위반에서 throw 하므로, 예컨대 숫자 형식 오류가 범위(min/max) 오류보다, file 의 MIME 오류가 크기 오류보다 먼저 표면된다. file 과 scalar 필드가 섞여 있어도 **필드 정의 순서**의 단일 패스라 cross-type FIRST 오류 순서가 보존된다.
 
 이 때문에 EIA `400 VALIDATION_ERROR` 의 `error.details[]` 는 **계약상 다중 배열** 이지만 **현 구현은 항상 길이 1** 이다 ([EIA §5.1](../../5-system/14-external-interaction-api.md#51-인터랙션-명령-제출--post-apiexternalexecutionsexecutionidinteract)). 두 레이어는 구분된다: 계약은 복수 entry 를 허용하므로, 향후 전수 수집으로 바뀌어도 `details[]` 응답 형태 자체는 변경이 불필요하다. 단건→복수 수집 전환 여부는 현재 **미결정** 이며 필요 발생 시 별도 논의한다.
 
@@ -354,8 +360,10 @@ Form 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 
 publish **전** throw 라는 점이 핵심이다 — 검증 실패 시 execution 은 `waiting_for_input` 을 유지하며(재제출 가능) 새 NodeExecution 출력을 만들지 않는다 (§6.2 / [node-output Principle 3.1](../../conventions/node-output.md)).
 
-### `validation.min`/`max`·`pattern` 은 공유 validator 확장으로, file 검증은 cluster 로 분리
+### file 검증은 cluster 로 분리 구현 (execution-engine 경로 전용)
 
-`validation.min`/`max`(숫자 범위)·`pattern`(정규식)은 공유 `validateFormSubmission`(`src/modules/chat-channel/shared/form-mode.ts`) 확장만으로 EIA/WS/UI 3 경로에 자동 공통 적용되므로, file 검증 cluster 와 독립적으로 먼저 구현됐다 — 새 흐름·상수·UI 표면이 필요 없고 기존 chokepoint 의 validator 한 곳만 늘리면 되기 때문이다.
+`validation.min`/`max`(숫자 범위)·`pattern`(정규식)은 공유 scalar validator 확장만으로 3 경로에 자동 공통 적용돼 file 과 독립적으로 먼저 구현됐고, `type: 'file'` 검증은 별도 **cluster** 로 뒤따랐다 — 단일 함수가 아니라 공유 default 상수(14종 MIME / 10MB·50MB / count 5, §1) + 서버측 enforcement(`validateFileField`) + frontend reject(§1.5) + 재-waiting 흐름이 함께 와야 의미가 있기 때문이다. file 은 metadata-only 전달(binary 미전달, §1.5 / [공통 §Rationale file 타입 metadata-only](./0-common.md#file-타입-metadata-only))이라 검증 대상이 metadata 필드(`size`/`type`)·개수에 한정된다.
 
-반면 §6.2 표의 `type: 'file'` 검증 행은 여전히 **Planned** 로 분리돼 있다 (`plan/in-progress/spec-sync-form-gaps.md` 추적). file 검증은 단일 함수 추가가 아니라 **cluster** 이기 때문이다 — 공유 default 상수(13종 MIME / 10MB·50MB / count 5, §1) + 서버측 enforcement + frontend reject(§1.5) + 재-waiting 흐름이 함께 와야 의미가 있다. 또한 file 은 metadata-only 전달(binary 미전달, §1.5 / [공통 §Rationale file 타입 metadata-only](./0-common.md#file-타입-metadata-only))이라 검증 대상이 metadata 필드(`size`/`type`)에 한정되는 등 별도 설계 표면이 있어 분리 추적이 적절하다.
+file 검증은 `validateFormSubmission`(scalar batch)이 아니라 `assertFormSubmissionValid` 의 단일 패스 안에서 `validateFileField` 로 수행된다. scalar 검증과 달리 **chat-channel modal 경로에는 적용되지 않는데**, file 필드는 native modal 미수용(`isFieldModalCompatible` 배제, [chat-channel-adapter §4.1](../../conventions/chat-channel-adapter.md))이라 modal(`hooks.service` validateFormSubmission)에 도달하지 않기 때문이다. 따라서 file 검증의 단일 진실 지점은 publisher chokepoint(`assertFormSubmissionValid`)이며, 검증 대상은 workspace UI 의 metadata-only payload 다. chat-channel 어댑터(Slack 등)의 다른 file shape 은 `size`/`type` 미보유라 방어적으로 bypass 된다(§1.5 divergence).
+
+또한 scalar/file 단일 패스 도입으로 EIA/WS 의 typed 값을 string 으로 정규화하던 `coerceFormSubmission` 헬퍼는 제거되고 per-field `coerceFormValue`(scalar 전용) 로 대체됐다 — file 은 raw metadata 배열을 그대로 `validateFileField` 에 넘겨야 하므로 일괄 string 정규화가 더 이상 단일 진입이 아니기 때문이다.

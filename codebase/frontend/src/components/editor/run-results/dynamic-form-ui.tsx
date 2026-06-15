@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT, type TFunction } from "@/lib/i18n";
 
 interface FormField {
   name: string;
@@ -11,6 +12,11 @@ interface FormField {
   options?: Array<{ label: string; value: unknown }>;
   defaultValue?: unknown;
   allowedMimeTypes?: string[];
+  /** MB — 단일 파일 최대 크기 (§1 기본 10). */
+  maxFileSize?: number;
+  /** MB — 필드 전체 파일 합계 최대 크기 (§1 기본 50). */
+  maxTotalSize?: number;
+  /** 필드당 최대 파일 수 (§1 기본 5). */
   maxFiles?: number;
 }
 
@@ -26,6 +32,37 @@ interface FilePickMetadata {
   lastModified: number;
 }
 
+/**
+ * spec/4-nodes/6-presentation/4-form.md §1 — `type: 'file'` 공유 기본값.
+ *
+ * **SoT 는 spec §1**(14종 MIME / 10·50MB / 5). backend `form-mode.ts` 의 DEFAULT_FILE_* 와
+ * 본 상수는 그 spec 값의 두 런타임 미러다 — frontend(CSR Next.js)는 backend NestJS 모듈을
+ * 직접 import 할 수 없어(빌드/번들 분리) 값을 복제한다. 변경 시 spec §1 + 양쪽 미러를 함께
+ * 갱신한다. (런타임 중립 공유 패키지로의 추출은 아키텍처 백로그 B-1 추적 — 검증 로직 전체
+ * 승격과 함께.) 서버는 미설정 시 동일 기본값을 주입하므로 클라이언트도 같은 기본값으로
+ * 서버 왕복 전 1차 reject 한다.
+ */
+const DEFAULT_FILE_ALLOWED_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv",
+];
+const DEFAULT_FILE_MAX_FILE_SIZE_MB = 10;
+const DEFAULT_FILE_MAX_TOTAL_SIZE_MB = 50;
+const DEFAULT_FILE_MAX_FILES = 5;
+const MB_IN_BYTES = 1024 * 1024;
+
 function toFileMetadata(file: File): FilePickMetadata {
   return {
     name: file.name,
@@ -33,6 +70,51 @@ function toFileMetadata(file: File): FilePickMetadata {
     type: file.type,
     lastModified: file.lastModified,
   };
+}
+
+/**
+ * spec §1.5 — file 선택 시 제출 전 클라이언트 가드. FIRST 오류 메시지를 반환(통과면 null).
+ * 검사 순서는 서버 `validateFileField` 와 동일(MIME → per-file size → total size → count).
+ * 필드에 명시되지 않은 제약은 §1 공유 기본값을 적용한다. 확장자 없는 파일(`File.type === ""`)은
+ * MIME 체크를 skip 한다(브라우저가 타입을 못 매기는 경우 거부하지 않음 — 서버 검증이 최종 게이트).
+ * 메시지 i18n 키: `editor.runResults.{formFileMimeRejected, formFileSizeExceeded,
+ * formFileTotalExceeded, formFileCountExceeded}`.
+ *
+ * **UX 가드 전용 — 보안 게이트가 아니다.** `File.type` 은 클라이언트가 보고하는 metadata 라
+ * 우회 가능하며, 서버 `validateFileField` 가 최종 검증 지점이다(§6.2).
+ */
+function validateFilesClient(
+  files: File[],
+  field: FormField,
+  t: TFunction,
+): string | null {
+  if (files.length === 0) return null;
+  const allowedMime =
+    field.allowedMimeTypes && field.allowedMimeTypes.length > 0
+      ? field.allowedMimeTypes
+      : DEFAULT_FILE_ALLOWED_MIME_TYPES;
+  const maxFileSize = field.maxFileSize ?? DEFAULT_FILE_MAX_FILE_SIZE_MB;
+  const maxTotalSize = field.maxTotalSize ?? DEFAULT_FILE_MAX_TOTAL_SIZE_MB;
+  const maxFiles = field.maxFiles ?? DEFAULT_FILE_MAX_FILES;
+
+  for (const f of files) {
+    if (f.type && !allowedMime.includes(f.type)) {
+      return t("editor.runResults.formFileMimeRejected");
+    }
+  }
+  for (const f of files) {
+    if (f.size > maxFileSize * MB_IN_BYTES) {
+      return t("editor.runResults.formFileSizeExceeded", { max: maxFileSize });
+    }
+  }
+  const total = files.reduce((sum, f) => sum + f.size, 0);
+  if (total > maxTotalSize * MB_IN_BYTES) {
+    return t("editor.runResults.formFileTotalExceeded", { max: maxTotalSize });
+  }
+  if (files.length > maxFiles) {
+    return t("editor.runResults.formFileCountExceeded", { max: maxFiles });
+  }
+  return null;
 }
 
 /**
@@ -52,6 +134,52 @@ function fieldInputId(field: FormField, idx: number): string {
  */
 function normalizeOptionValue(v: unknown): string {
   return String(v ?? "");
+}
+
+/**
+ * spec/4-nodes/6-presentation/4-form.md §1.5 — file 필드 전용 렌더.
+ * file 만 필요로 하는 onError/t(클라이언트 reject + i18n)를 일반 renderField 시그니처에서
+ * 분리한다(W6). FileList → metadata 객체 배열(`{name,size,type,lastModified}[]`) 직렬화,
+ * binary 미전달(multimodal 비지원 모델 호환 + 1MB cap 보호).
+ */
+function renderFileField(
+  field: FormField,
+  idx: number,
+  onChange: (v: unknown) => void,
+  onError: (msg: string | null) => void,
+  t: TFunction,
+) {
+  const id = fieldInputId(field, idx);
+  return (
+    <Input
+      id={id}
+      type="file"
+      className="h-7 text-xs"
+      accept={(field.allowedMimeTypes ?? []).join(",") || undefined}
+      multiple={(field.maxFiles ?? 1) > 1}
+      required={field.required}
+      onChange={(e) => {
+        const input = e.target as HTMLInputElement;
+        const fileList = input.files;
+        if (!fileList) {
+          onError(null);
+          onChange([]);
+          return;
+        }
+        const files = Array.from(fileList);
+        // spec §1.5 — 제출 전 클라이언트 가드. MIME/크기/개수 위반 시 selection 자체를
+        // 거부(fieldState 에 반영하지 않음) + 에러 표시 + input clear (제출 버튼은 유지).
+        const err = validateFilesClient(files, field, t);
+        if (err) {
+          onError(err);
+          input.value = "";
+          return;
+        }
+        onError(null);
+        onChange(files.map(toFileMetadata));
+      }}
+    />
+  );
 }
 
 function renderField(
@@ -178,28 +306,7 @@ function renderField(
           {field.label}
         </label>
       );
-    case "file":
-      // spec/4-nodes/6-presentation/4-form.md §1.5 — file 필드는 FileList →
-      // metadata 객체 배열 (`{name, size, type, lastModified}[]`) 로 직렬화.
-      // binary 본문은 LLM 에 미전달 (multimodal 비지원 모델 호환 + 1MB cap 보호).
-      return (
-        <Input
-          id={id}
-          type="file"
-          className="h-7 text-xs"
-          accept={(field.allowedMimeTypes ?? []).join(",") || undefined}
-          multiple={typeof field.maxFiles === "number" && field.maxFiles > 1}
-          required={field.required}
-          onChange={(e) => {
-            const fileList = (e.target as HTMLInputElement).files;
-            if (!fileList) {
-              onChange([]);
-              return;
-            }
-            onChange(Array.from(fileList).map(toFileMetadata));
-          }}
-        />
-      );
+    // case "file" 은 renderFileField 로 분리 (W6 — file 전용 onError/t 시그니처 누수 제거).
     default:
       return (
         <Input
@@ -228,6 +335,7 @@ export function DynamicFormUI({
   formConfig: Record<string, unknown>;
   onSubmit: (data: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const fields = (formConfig.fields ?? []) as FormField[];
   const title = formConfig.title as string | undefined;
   const description = formConfig.description as string | undefined;
@@ -245,9 +353,23 @@ export function DynamicFormUI({
     }
     return initial;
   });
+  // spec §1.5 — file 선택 클라이언트 검증 실패 메시지 (필드명 → 메시지).
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleChange = (name: string, value: unknown) => {
     setValues((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleError = (name: string, msg: string | null) => {
+    setErrors((prev) => {
+      if (msg === null) {
+        if (!(name in prev)) return prev;
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      }
+      return { ...prev, [name]: msg };
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -280,8 +402,19 @@ export function DynamicFormUI({
                 )}
               </Label>
             )}
-            {renderField(field, idx, values[field.name], (v) =>
-              handleChange(field.name, v),
+            {field.type === "file"
+              ? renderFileField(
+                  field,
+                  idx,
+                  (v) => handleChange(field.name, v),
+                  (msg) => handleError(field.name, msg),
+                  t,
+                )
+              : renderField(field, idx, values[field.name], (v) =>
+                  handleChange(field.name, v),
+                )}
+            {errors[field.name] && (
+              <p className="text-xs text-red-500">{errors[field.name]}</p>
             )}
           </div>
         );

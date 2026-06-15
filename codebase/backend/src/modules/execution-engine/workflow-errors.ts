@@ -239,10 +239,11 @@ export interface ValidationDetail {
 }
 
 /**
- * `execution.submit_form` 의 제출 데이터가 폼 노드 field 검증(필수 / type / length / 선택지)을
- * 통과하지 못함 (publisher 측 동기 검증 — spec/4-nodes/6-presentation/4-form.md §4·§6.2,
- * spec/5-system/14-external-interaction-api.md §5.1). chat-channel `validateFormSubmission` 와
- * 동일하게 **FIRST 오류**만 surface 한다. EIA REST 는 `400 VALIDATION_ERROR` + `details[{field,
+ * `execution.submit_form` 의 제출 데이터가 폼 노드 field 검증(필수 / type / length / 범위 / pattern /
+ * 선택지 / file MIME·크기·개수)을 통과하지 못함 (publisher 측 동기 검증 —
+ * spec/4-nodes/6-presentation/4-form.md §4·§6.2, spec/5-system/14-external-interaction-api.md §5.1).
+ * `assertFormSubmissionValid` 가 `validateScalarField`/`validateFileField` 로
+ * **FIRST 오류**만 surface 한다. EIA REST 는 `400 VALIDATION_ERROR` + `details[{field,
  * message, code:'INVALID_FIELD'}]`, WS ack 는 평면 `errorCode='VALIDATION_ERROR'` 로 매핑.
  * publish 전에 throw 되므로 execution 은 `waiting_for_input` 유지(재제출 가능).
  *
