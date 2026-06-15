@@ -98,8 +98,8 @@ code:
 
 **UI 렌더 (`DynamicFormUI.renderField` 의 file case)**:
 
-- 입력 element: `<input type="file" accept={(allowedMimeTypes ?? []).join(",") || undefined} multiple={maxFiles > 1}>` (`dynamic-form-ui.tsx`)
-  - `maxFiles` 가 1 이면 단일 파일 선택, >1 이면 multiple 모드.
+- 입력 element: `<input type="file" accept={(allowedMimeTypes ?? []).join(",") || undefined} multiple={(maxFiles ?? 1) > 1}>` (`dynamic-form-ui.tsx`)
+  - `maxFiles` 가 1 또는 미설정이면 단일 파일 선택, >1 이면 multiple 모드(미설정 시 방어적으로 단일).
   - `accept` 는 사용자 명시 `allowedMimeTypes` 값을 그대로 콤마 결합 (미설정 시 `accept` 미부여 — 단, 아래 클라이언트 가드는 미설정 필드에 §1 기본 MIME 목록을 적용한다).
 - **실시간 검증 (제출 전 클라이언트 가드)**: `onChange` 가 `FileList` 를 fieldState 에 반영하기 **전에** `validateFilesClient` 로 검사하고, 위반 시 selection 을 거부한다 (`dynamic-form-ui.tsx`). 검사 순서는 서버 `validateFileField` 와 동일하며, 필드에 명시되지 않은 제약은 §1 기본값을 적용한다:
   - `allowedMimeTypes`(미설정 시 기본 13종) 미일치 → 즉시 reject + 기본 메시지 "허용되지 않은 파일 형식입니다.".

@@ -467,6 +467,10 @@ export class HooksService {
           // §4.1 step 4: client-side 값 검증 — submit_form 전 1차 게이트. 실패 시 interact 호출
           // 없이 provider 재표시 응답 + 버튼 재노출 (catch 경로와 동일한 best-effort re-noise).
           // pendingFormModal 유지 → 사용자가 정정 후 재제출 가능.
+          // NOTE: scalar 전용. file 필드는 chat-channel native modal 미수용
+          // (isFieldModalCompatible 배제)이라 modal 제출(form_submission)에 도달하지 않으므로
+          // 여기서 file 검증은 불필요하다. file 검증(validateFileField)은 EIA/WS/UI 의
+          // submit_form publisher chokepoint(execution-engine assertFormSubmissionValid)에서만 수행.
           const verr = validateFormSubmission(
             filteredFields as Record<string, string>,
             state.pendingFormModal!.fields,

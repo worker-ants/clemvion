@@ -165,18 +165,18 @@ export function extractFormFields(formConfig: unknown): FormModalField[] {
         mimes && mimes.length > 0
           ? mimes
           : [...DEFAULT_FILE_ALLOWED_MIME_TYPES];
-      field.maxFileSize =
-        typeof f.maxFileSize === 'number' && f.maxFileSize > 0
-          ? f.maxFileSize
-          : DEFAULT_FILE_MAX_FILE_SIZE_MB;
-      field.maxTotalSize =
-        typeof f.maxTotalSize === 'number' && f.maxTotalSize > 0
-          ? f.maxTotalSize
-          : DEFAULT_FILE_MAX_TOTAL_SIZE_MB;
-      field.maxFiles =
-        typeof f.maxFiles === 'number' && f.maxFiles > 0
-          ? f.maxFiles
-          : DEFAULT_FILE_MAX_FILES;
+      // 유한 양수만 수용 — NaN/Infinity/0/음수는 기본값 fallback(min/max 정규화와 동일 규칙).
+      const posFinite = (v: unknown): v is number =>
+        Number.isFinite(v) && (v as number) > 0;
+      field.maxFileSize = posFinite(f.maxFileSize)
+        ? f.maxFileSize
+        : DEFAULT_FILE_MAX_FILE_SIZE_MB;
+      field.maxTotalSize = posFinite(f.maxTotalSize)
+        ? f.maxTotalSize
+        : DEFAULT_FILE_MAX_TOTAL_SIZE_MB;
+      field.maxFiles = posFinite(f.maxFiles)
+        ? f.maxFiles
+        : DEFAULT_FILE_MAX_FILES;
     }
     out.push(field);
   }
@@ -309,7 +309,12 @@ export function validateScalarField(
 /**
  * §4.1 step 4 — submit_form 전 client-side 값 검증 (pure). 서버측 EIA 검증 + catch 경로를
  * 보완하는 1차 게이트. defs 순서대로 scalar 검사해 FIRST 오류를 반환, 모두 통과면 null.
- * (chat-channel modal 경로 — file 필드는 modal 미수용이라 도달하지 않으므로 scalar 만 검사.)
+ *
+ * **scalar 전용 경로**(chat-channel modal — `hooks.service` form_submission). file 필드는 native
+ * modal 미수용(`isFieldModalCompatible` 배제)이라 여기 도달하지 않으므로 file 검증을 하지 않는다.
+ * `type:'file'` MIME/크기/개수 검증은 EIA/WS/UI submit_form chokepoint(execution-engine
+ * `assertFormSubmissionValid`)이 {@link validateScalarField} + {@link validateFileField} 단일 패스로
+ * 수행한다 — 새 scalar 규칙은 {@link validateScalarField}, 새 file 규칙은 {@link validateFileField} 에 추가.
  *
  * SoT: spec/conventions/chat-channel-adapter.md §4.1 step 4 + spec/4-nodes/6-presentation/4-form.md §6.2.
  */

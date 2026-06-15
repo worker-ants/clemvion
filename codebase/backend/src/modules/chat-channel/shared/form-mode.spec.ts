@@ -324,6 +324,25 @@ describe('extractFormFields', () => {
     expect(fields[1].maxFiles).toBe(DEFAULT_FILE_MAX_FILES);
   });
 
+  it('§1 file 필드 — NaN/Infinity 숫자 제약은 비유한수라 기본값 fallback', () => {
+    const fields = extractFormFields({
+      fields: [
+        {
+          name: 'a',
+          label: 'A',
+          type: 'file',
+          maxFileSize: NaN,
+          maxTotalSize: Infinity,
+          maxFiles: Infinity,
+        },
+      ],
+    });
+    // Number.isFinite 가드 — NaN·Infinity 모두 거부하고 기본값 적용(무제한 size 회귀 차단).
+    expect(fields[0].maxFileSize).toBe(DEFAULT_FILE_MAX_FILE_SIZE_MB);
+    expect(fields[0].maxTotalSize).toBe(DEFAULT_FILE_MAX_TOTAL_SIZE_MB);
+    expect(fields[0].maxFiles).toBe(DEFAULT_FILE_MAX_FILES);
+  });
+
   it('§1 Principle 1.1 — 비-file 필드에는 file 제약 미주입', () => {
     const fields = extractFormFields({
       fields: [{ name: 't', label: 'T', type: 'text' }],
@@ -577,6 +596,10 @@ describe('validateFileField', () => {
 
   it('통과 — 허용 MIME · 크기/개수 이내', () => {
     expect(validateFileField([meta()], fileDef())).toBeNull();
+  });
+
+  it('required + 파일 있음(충족) → null (양방향 검증)', () => {
+    expect(validateFileField([meta()], fileDef({ required: true }))).toBeNull();
   });
 
   it('required 빈 배열/누락 → 필수 입력 오류', () => {

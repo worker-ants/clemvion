@@ -24,6 +24,7 @@ import {
   MessageTooLongError,
   FormValidationError,
 } from './workflow-errors';
+import { MB_IN_BYTES } from '../chat-channel/shared/form-mode';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import {
@@ -1411,7 +1412,7 @@ describe('ExecutionEngineService', () => {
         });
         await expect(
           service.continueExecution('exec-file-size', {
-            doc: [fileMeta({ size: 11 * 1024 * 1024 })],
+            doc: [fileMeta({ size: 11 * MB_IN_BYTES })],
           }),
         ).rejects.toMatchObject({
           field: 'doc',
@@ -1440,7 +1441,7 @@ describe('ExecutionEngineService', () => {
           fields: [{ name: 'doc', label: '문서', type: 'file' }],
         });
         await service.continueExecution('exec-file-ok', {
-          doc: [fileMeta({ type: 'application/pdf', size: 2 * 1024 * 1024 })],
+          doc: [fileMeta({ type: 'application/pdf', size: 2 * MB_IN_BYTES })],
         });
         expect(mockBus.publish).toHaveBeenCalledWith(
           expect.objectContaining({

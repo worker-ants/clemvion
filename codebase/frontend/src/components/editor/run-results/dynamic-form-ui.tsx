@@ -31,9 +31,13 @@ interface FilePickMetadata {
 
 /**
  * spec/4-nodes/6-presentation/4-form.md §1 — `type: 'file'` 공유 기본값.
- * backend `form-mode.ts` 의 DEFAULT_FILE_* 상수와 값이 일치해야 한다(SoT: spec §1).
- * 서버는 미설정 시 동일 기본값을 주입하므로, 클라이언트도 미설정 필드에 같은 기본값으로
- * 즉시 reject 한다(서버 왕복 전 1차 가드).
+ *
+ * **SoT 는 spec §1**(13종 MIME / 10·50MB / 5). backend `form-mode.ts` 의 DEFAULT_FILE_* 와
+ * 본 상수는 그 spec 값의 두 런타임 미러다 — frontend(CSR Next.js)는 backend NestJS 모듈을
+ * 직접 import 할 수 없어(빌드/번들 분리) 값을 복제한다. 변경 시 spec §1 + 양쪽 미러를 함께
+ * 갱신한다. (런타임 중립 공유 패키지로의 추출은 아키텍처 백로그 B-1 추적 — 검증 로직 전체
+ * 승격과 함께.) 서버는 미설정 시 동일 기본값을 주입하므로 클라이언트도 같은 기본값으로
+ * 서버 왕복 전 1차 reject 한다.
  */
 const DEFAULT_FILE_ALLOWED_MIME_TYPES = [
   "image/jpeg",
@@ -68,7 +72,10 @@ function toFileMetadata(file: File): FilePickMetadata {
 /**
  * spec §1.5 — file 선택 시 제출 전 클라이언트 가드. FIRST 오류 메시지를 반환(통과면 null).
  * 검사 순서는 서버 `validateFileField` 와 동일(MIME → per-file size → total size → count).
- * 필드에 명시되지 않은 제약은 §1 공유 기본값을 적용한다. 메시지는 i18n(`editor.runResults.formFile*`).
+ * 필드에 명시되지 않은 제약은 §1 공유 기본값을 적용한다. 확장자 없는 파일(`File.type === ""`)은
+ * MIME 체크를 skip 한다(브라우저가 타입을 못 매기는 경우 거부하지 않음 — 서버 검증이 최종 게이트).
+ * 메시지 i18n 키: `editor.runResults.{formFileMimeRejected, formFileSizeExceeded,
+ * formFileTotalExceeded, formFileCountExceeded}`.
  */
 function validateFilesClient(
   files: File[],

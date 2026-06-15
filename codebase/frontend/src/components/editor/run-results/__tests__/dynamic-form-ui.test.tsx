@@ -331,6 +331,70 @@ describe("DynamicFormUI — file 클라이언트 검증 (spec §1.5 reject)", ()
     expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
   });
 
+  it("합계 크기 초과(maxTotalSize) → reject + 에러 표시", () => {
+    const onSubmit = vi.fn();
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            {
+              name: "doc",
+              type: "file",
+              label: "Doc",
+              allowedMimeTypes: ["image/png"],
+              maxFileSize: 10,
+              maxTotalSize: 10,
+            },
+          ],
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const input = screen.getByLabelText("Doc") as HTMLInputElement;
+    const mk = (n: string, bytes: number) => {
+      const f = new File(["x"], n, { type: "image/png" });
+      Object.defineProperty(f, "size", { value: bytes });
+      return f;
+    };
+    // 개별 6MB(≤10) 이나 합계 12MB(>10) → total 초과.
+    selectFiles(input, [mk("a.png", 6 * MB), mk("b.png", 6 * MB)]);
+
+    expect(
+      screen.getByText("전체 파일 크기는 10MB 이하여야 합니다."),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
+  });
+
+  it("확장자 없는 파일(File.type === '') → MIME 체크 skip → 통과(반영)", () => {
+    const onSubmit = vi.fn();
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            {
+              name: "doc",
+              type: "file",
+              label: "Doc",
+              allowedMimeTypes: ["image/png"],
+            },
+          ],
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const input = screen.getByLabelText("Doc") as HTMLInputElement;
+    // type "" — 브라우저가 MIME 미상. MIME 거부 없이 통과.
+    selectFiles(input, [new File(["x"], "noext", { type: "" })]);
+    expect(
+      screen.queryByText("허용되지 않은 파일 형식입니다."),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    const submitted = onSubmit.mock.calls[0][0] as { doc: Array<{ name: string }> };
+    expect(submitted.doc).toHaveLength(1);
+    expect(submitted.doc[0].name).toBe("noext");
+  });
+
   it("개수 초과(maxFiles 2) → reject + 에러 표시", () => {
     const onSubmit = vi.fn();
     render(
