@@ -8,6 +8,8 @@ code:
   - codebase/backend/src/nodes/presentation/form/form.handler.ts
   - codebase/backend/src/nodes/presentation/form/form.schema.ts
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
+  - codebase/backend/src/modules/chat-channel/shared/form-mode.ts
+  - codebase/backend/src/modules/chat-channel/types.ts
   - codebase/frontend/src/components/editor/run-results/dynamic-form-ui.tsx
 ---
 
@@ -41,12 +43,12 @@ code:
 | options | Option[]? | | `select`/`radio`/`checkbox` 용 선택지 (`{ label, value }`). `value` 가 빈 문자열·`null`·`undefined` 인 경우는 LLM tool 모드 (`render_form`) 에 한해 backend 가 결정적 fallback `opt-{fieldIdx}-{optIdx}` (인덱스 단일 형식) 으로 backfill — [공통 §10.5 step 4](./0-common.md#105-schema-위반-처리-및-정규화) SoT. 사용자 직접 config 의 빈 value 는 frontend 입력 시점에 가드되므로 본 단계 영향권 밖. |
 | defaultValue | Any? | | 기본값 (`{{ }}` 표현식 사용 가능) |
 | validation | ValidationRule? | | 유효성 검증 규칙 |
-| allowedMimeTypes | String[]? | | `type: 'file'` 전용. 허용 MIME 타입 목록 (미설정 시 기본 13종 — 아래 참조) |
+| allowedMimeTypes | String[]? | | `type: 'file'` 전용. 허용 MIME 타입 목록 (미설정 시 기본 14종 — 아래 참조) |
 | maxFileSize | Number? | | `type: 'file'` 전용. 단일 파일 최대 크기 (MB, 미설정 시 기본 10) |
 | maxTotalSize | Number? | | `type: 'file'` 전용. 필드 내 전체 파일 합계 최대 크기 (MB, 미설정 시 기본 50) |
 | maxFiles | Number? | | `type: 'file'` 전용. 필드당 최대 파일 수 (미설정 시 기본 5) |
 
-> 위 4개 file 옵션은 `formFieldSchema` (`form.schema.ts:71-74`) 에서 모두 `optional()` 로만 선언돼 zod default 가 없다(비-file 필드 config echo 오염 방지, Principle 1.1). 대신 **`type: 'file'` 필드에 한해** 정규화 단계(`extractFormFields`, `form-mode.ts`)가 미설정 옵션에 아래 공유 기본값(13종 MIME / 10MB / 50MB / 5)을 주입하고, 서버측 검증(`validateFileField`, §6.2)·클라이언트 가드(`DynamicFormUI`, §1.5)가 이를 강제한다. MB 비교는 `1024×1024` bytes 기준. 기본값 상수 SoT: backend `form-mode.ts` `DEFAULT_FILE_*` (frontend `dynamic-form-ui.tsx` 가 동일 값 미러).
+> 위 4개 file 옵션은 `formFieldSchema` (`form.schema.ts:71-74`) 에서 모두 `optional()` 로만 선언돼 zod default 가 없다(비-file 필드 config echo 오염 방지, Principle 1.1). 대신 **`type: 'file'` 필드에 한해** 정규화 단계(`extractFormFields`, `form-mode.ts`)가 미설정 옵션에 아래 공유 기본값(14종 MIME / 10MB / 50MB / 5)을 주입하고, 서버측 검증(`validateFileField`, §6.2)·클라이언트 가드(`DynamicFormUI`, §1.5)가 이를 강제한다. MB 비교는 `1024×1024` bytes 기준. 기본값 상수 SoT: backend `form-mode.ts` `DEFAULT_FILE_*` (frontend `dynamic-form-ui.tsx` 가 동일 값 미러).
 
 **ValidationRule 구조:**
 
@@ -102,7 +104,7 @@ code:
   - `maxFiles` 가 1 또는 미설정이면 단일 파일 선택, >1 이면 multiple 모드(미설정 시 방어적으로 단일).
   - `accept` 는 사용자 명시 `allowedMimeTypes` 값을 그대로 콤마 결합 (미설정 시 `accept` 미부여 — 단, 아래 클라이언트 가드는 미설정 필드에 §1 기본 MIME 목록을 적용한다).
 - **실시간 검증 (제출 전 클라이언트 가드)**: `onChange` 가 `FileList` 를 fieldState 에 반영하기 **전에** `validateFilesClient` 로 검사하고, 위반 시 selection 을 거부한다 (`dynamic-form-ui.tsx`). 검사 순서는 서버 `validateFileField` 와 동일하며, 필드에 명시되지 않은 제약은 §1 기본값을 적용한다:
-  - `allowedMimeTypes`(미설정 시 기본 13종) 미일치 → 즉시 reject + 기본 메시지 "허용되지 않은 파일 형식입니다.".
+  - `allowedMimeTypes`(미설정 시 기본 14종) 미일치 → 즉시 reject + 기본 메시지 "허용되지 않은 파일 형식입니다.".
   - 단일 파일 크기 > `maxFileSize` (MB) → reject + "파일 크기는 {N}MB 이하여야 합니다.".
   - 합계 크기 > `maxTotalSize` (MB) → reject + "전체 파일 크기는 {N}MB 이하여야 합니다.".
   - 선택 개수 > `maxFiles` → reject + "최대 {N}개까지 업로드할 수 있습니다.".
@@ -360,7 +362,7 @@ publish **전** throw 라는 점이 핵심이다 — 검증 실패 시 execution
 
 ### file 검증은 cluster 로 분리 구현 (execution-engine 경로 전용)
 
-`validation.min`/`max`(숫자 범위)·`pattern`(정규식)은 공유 scalar validator 확장만으로 3 경로에 자동 공통 적용돼 file 과 독립적으로 먼저 구현됐고, `type: 'file'` 검증은 별도 **cluster** 로 뒤따랐다 — 단일 함수가 아니라 공유 default 상수(13종 MIME / 10MB·50MB / count 5, §1) + 서버측 enforcement(`validateFileField`) + frontend reject(§1.5) + 재-waiting 흐름이 함께 와야 의미가 있기 때문이다. file 은 metadata-only 전달(binary 미전달, §1.5 / [공통 §Rationale file 타입 metadata-only](./0-common.md#file-타입-metadata-only))이라 검증 대상이 metadata 필드(`size`/`type`)·개수에 한정된다.
+`validation.min`/`max`(숫자 범위)·`pattern`(정규식)은 공유 scalar validator 확장만으로 3 경로에 자동 공통 적용돼 file 과 독립적으로 먼저 구현됐고, `type: 'file'` 검증은 별도 **cluster** 로 뒤따랐다 — 단일 함수가 아니라 공유 default 상수(14종 MIME / 10MB·50MB / count 5, §1) + 서버측 enforcement(`validateFileField`) + frontend reject(§1.5) + 재-waiting 흐름이 함께 와야 의미가 있기 때문이다. file 은 metadata-only 전달(binary 미전달, §1.5 / [공통 §Rationale file 타입 metadata-only](./0-common.md#file-타입-metadata-only))이라 검증 대상이 metadata 필드(`size`/`type`)·개수에 한정된다.
 
 file 검증은 `validateFormSubmission`(scalar batch)이 아니라 `assertFormSubmissionValid` 의 단일 패스 안에서 `validateFileField` 로 수행된다. scalar 검증과 달리 **chat-channel modal 경로에는 적용되지 않는데**, file 필드는 native modal 미수용(`isFieldModalCompatible` 배제, [chat-channel-adapter §4.1](../../conventions/chat-channel-adapter.md))이라 modal(`hooks.service` validateFormSubmission)에 도달하지 않기 때문이다. 따라서 file 검증의 단일 진실 지점은 publisher chokepoint(`assertFormSubmissionValid`)이며, 검증 대상은 workspace UI 의 metadata-only payload 다. chat-channel 어댑터(Slack 등)의 다른 file shape 은 `size`/`type` 미보유라 방어적으로 bypass 된다(§1.5 divergence).
 
