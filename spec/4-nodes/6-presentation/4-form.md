@@ -330,7 +330,7 @@ Form 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 |-----------|------|
 | 필수 필드 미입력 | 클라이언트 에러 응답 → 폼 재표시 (`status` 유지) |
 | `type` 별 형식 불일치 (`email` 형식 / `number` 형식) | 동상 |
-| `validation.minLength`/`maxLength` 위반 | 동상 (`validation.message` 가 있으면 그것을, 없으면 기본 메시지) |
+| `validation.minLength`/`maxLength` 위반 | 동상 — 기본 메시지 사용 (`validation.message` override 는 향후 과제, scalar/file 공통 미적용 — §1.5 주) |
 | `validation.min`/`max`(숫자 범위) 위반 | 동상 — `type: 'number'` 한정, 형식 검증 통과 후 범위 비교 |
 | `validation.pattern`(정규식) 위반 | 동상 — custom regex 미일치 (잘못된 regex 는 방어적으로 통과) |
 | `select`/`radio` 정의 외 선택지 | 동상 |

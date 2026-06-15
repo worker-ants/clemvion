@@ -156,7 +156,7 @@ function renderFileField(
       type="file"
       className="h-7 text-xs"
       accept={(field.allowedMimeTypes ?? []).join(",") || undefined}
-      multiple={typeof field.maxFiles === "number" && field.maxFiles > 1}
+      multiple={(field.maxFiles ?? 1) > 1}
       required={field.required}
       onChange={(e) => {
         const input = e.target as HTMLInputElement;
