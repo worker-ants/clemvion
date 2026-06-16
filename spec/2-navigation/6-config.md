@@ -235,7 +235,7 @@ KB 검색 후처리(리랭킹)에 사용할 리랭커 provider 와 모델(`kind=
 | 프로바이더 유형 | 드롭다운: `tei` (자가호스팅 HF Text-Embeddings-Inference), `cohere` (외부 API) |
 | 이름 | 사용자 지정 별칭 |
 | API Key | provider 별 API 키 (마스킹 입력). **`cohere` 등 외부 provider 필수**, `tei` 는 선택 |
-| Base URL | 자가호스팅 endpoint. **`tei` 필수** — 단 강제 지점은 폼 검증 + rerank client 사용 시점이며 생성 API(POST) 시점에는 검증하지 않는다. `cohere` 는 UI 폼에서 미노출, API 레벨에서는 optional override 허용 (미지정 시 provider 공식 endpoint — R-4). `tei` 외 provider 의 사설망/loopback baseUrl 은 SSRF 가드로 400 `RERANK_CONFIG_INVALID` ([LLM Client §5.5](../5-system/7-llm-client.md)) |
+| Base URL | 자가호스팅 endpoint. **`tei` 필수** — 단 강제 지점은 폼 검증 + rerank client 사용 시점이며 생성 API(POST) 시점에는 검증하지 않는다. `cohere` 는 UI 폼에서 미노출, API 레벨에서는 optional override 허용 (미지정 시 provider 공식 endpoint — R-4). `tei` 외 provider 의 사설망/loopback baseUrl 은 SSRF 가드로 400 `MODEL_CONFIG_INVALID` ([LLM Client §5.5](../5-system/7-llm-client.md)) |
 | 기본 모델 | 기본 리랭커 모델 ID 자유 입력 (예: `dragonkue/bge-reranker-v2-m3-ko`, `bge-reranker-v2-m3`, `rerank-3.5`). 리랭커 provider 는 표준 model-list API 가 없어 Chat/Embedding 탭과 달리 자유 입력 |
 | 기본 리랭커 설정 | ⭐ 아이콘으로 표시. KB `rerank_config_id` 미지정 시 기본 선택 |
 
@@ -290,7 +290,7 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 
 ### R-1. 기본 모델 선택을 select-only 로 한정
 
-잘못된 모델 ID (오타·프로바이더 측 deprecation 으로 사라진 ID) 가 저장되면 실제 호출 시점에 `LLM_MODEL_NOT_FOUND` 로 실패한다. 저장 시점에 자격증명·Base URL 로 실 호출이 가능한 모델만 선택할 수 있도록 강제하면 이 회귀가 구조적으로 차단된다.
+잘못된 모델 ID (오타·프로바이더 측 deprecation 으로 사라진 ID) 가 저장되면 실제 호출 시점에 런타임 LLM 호출 에러로 실패한다 (클라이언트 계층의 에러 코드 매핑·미존재 모델 세분화(Planned) 는 [LLM Client §6 에러 처리](../5-system/7-llm-client.md#6-에러-처리) 가 SoT). 저장 시점에 자격증명·Base URL 로 실 호출이 가능한 모델만 선택할 수 있도록 강제하면 이 회귀가 구조적으로 차단된다.
 
 - **동작**: §B.2 "기본 모델 선택 UX" 는 자유 입력 fallback 없이 `<select>` 만 제공한다. 모델 미로드 시 select 비활성. 조회 실패 시 자유 입력 없이 에러 메시지만 표시 (사용자는 자격증명 재확인 후 다시 시도).
 - **편집 흐름 호환**: 기존에 저장된 모델 ID 가 새로 불러온 목록에 없을 경우 "현재 저장값: <id>" placeholder option 을 노출해, 사용자가 모델을 굳이 다시 선택하지 않아도 다른 필드(temperature 등) 만 수정 가능. 사용자가 명시적으로 다른 option 을 선택해야 모델이 바뀐다.
@@ -322,7 +322,7 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 
 ### R-4. cohere Base URL — UI 미노출 + API optional override
 
-§B.6.2(구 §C.2) 의 종전 서술("`cohere` 는 Base URL 을 받지 않는다 — 공식 endpoint 고정")은 UI 폼 기준으로만 맞고 API 계약과 불일치했다. 실제 생성/수정 API 는 `baseUrl` 을 provider 무관 optional 로 받으며(미지정 시 공식 endpoint), cohere-호환 게이트웨이/프록시 경유 같은 운영 시나리오를 허용한다. 단 외부 provider 의 `baseUrl` 로는 복호화된 Bearer 키가 전송되므로 사설망/loopback 주소는 SSRF 가드로 차단한다 (400 `RERANK_CONFIG_INVALID`; `tei`/local 만 예외 — [LLM Client §5.5](../5-system/7-llm-client.md) 가드 재사용). UI 폼은 일반 사용자의 혼란을 줄이기 위해 `cohere` 선택 시 Base URL 입력을 노출하지 않는다. 같은 맥락에서 `tei` 의 "Base URL 필수" 도 생성 API 의 DTO 검증이 아니라 frontend 폼 검증 + rerank client 사용 시점에 강제된다 — API 단독 호출로 Base URL 없는 tei config 를 만들 수 있으나 사용 시점에 실패한다.
+§B.6.2(구 §C.2) 의 종전 서술("`cohere` 는 Base URL 을 받지 않는다 — 공식 endpoint 고정")은 UI 폼 기준으로만 맞고 API 계약과 불일치했다. 실제 생성/수정 API 는 `baseUrl` 을 provider 무관 optional 로 받으며(미지정 시 공식 endpoint), cohere-호환 게이트웨이/프록시 경유 같은 운영 시나리오를 허용한다. 단 외부 provider 의 `baseUrl` 로는 복호화된 Bearer 키가 전송되므로 사설망/loopback 주소는 SSRF 가드로 차단한다 (400 `MODEL_CONFIG_INVALID`; rerank 에선 `tei` 만 예외 — `local` 리랭커 provider 는 Dropped([LLM Client §2.1](../5-system/7-llm-client.md)), SSRF 가드 자체는 [LLM Client §5.5](../5-system/7-llm-client.md) 의 `tei`/`local` 예외 규칙 재사용). UI 폼은 일반 사용자의 혼란을 줄이기 위해 `cohere` 선택 시 Base URL 입력을 노출하지 않는다. 같은 맥락에서 `tei` 의 "Base URL 필수" 도 생성 API 의 DTO 검증이 아니라 frontend 폼 검증 + rerank client 사용 시점에 강제된다 — API 단독 호출로 Base URL 없는 tei config 를 만들 수 있으나 사용 시점에 실패한다.
 
 ### R-5. max_tokens 기본값 4096 (구 spec 의 2048 정정)
 
