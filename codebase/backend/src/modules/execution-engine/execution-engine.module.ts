@@ -9,6 +9,8 @@ import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import { ExecutionEngineService } from './execution-engine.service';
+import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
+import { ENGINE_DRIVER } from './engine-driver.interface';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { WORKFLOW_EXECUTOR } from '../../nodes/core/workflow-executor.interface';
@@ -77,6 +79,13 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
   ],
   providers: [
     ExecutionEngineService,
+    // C-1 step2 — AI 멀티턴 생명주기 추출 서비스. 엔진과 forwardRef 순환 DI.
+    AiTurnOrchestrator,
+    {
+      // orchestrator 가 주입받는 EngineDriver capability 를 canonical 엔진에 바인딩.
+      provide: ENGINE_DRIVER,
+      useExisting: ExecutionEngineService,
+    },
     NodeHandlerRegistry,
     NodeComponentRegistry,
     ExecutionContextService,
