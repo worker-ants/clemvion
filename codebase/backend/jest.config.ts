@@ -14,12 +14,14 @@ const config: Config = {
   transform: {
     '^.+\\.(t|j)s$': 'ts-jest',
   },
-  // ESM-only packages (uuid >=12, p-limit >=4, yocto-queue) must be transformed.
+  // ESM-only packages must be transformed. uuid >=12, p-limit >=4, yocto-queue;
+  // otplib >=13 rewrite ships ESM + pulls ESM-only @otplib/*, @scure/base,
+  // @noble/hashes (totp.service uses otplib for 2FA).
   // The optional `\.pnpm/[^/]+/node_modules/` prefix is a leftover from a prior
   // pnpm install — kept for forward-compat if anyone reintroduces pnpm locally,
   // though the project itself now standardizes on npm (see CLAUDE.md).
   transformIgnorePatterns: [
-    'node_modules/(?!(?:\\.pnpm/[^/]+/node_modules/)?(?:uuid|p-limit|yocto-queue)/)',
+    'node_modules/(?!(?:\\.pnpm/[^/]+/node_modules/)?(?:uuid|p-limit|yocto-queue|otplib|@otplib|@scure|@noble)/)',
   ],
   collectCoverageFrom: ['**/*.(t|j)s'],
   coverageDirectory: '../coverage',
