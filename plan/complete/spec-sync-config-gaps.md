@@ -2,6 +2,9 @@
 worktree: spec-sync-audit
 started: 2026-06-03
 owner: planner
+spec_impact:
+  - spec/2-navigation/6-config.md
+  - spec/1-data-model.md
 ---
 
 # config — spec 약속 대비 미구현 surface
@@ -64,6 +67,15 @@ owner: planner
   - 근거: spec/5-system/1-auth.md §3.2 RBAC(Auth Config: Admin=CRUD, Editor/Viewer=R). 실제 권한상승 아님(백엔드 `@Roles('admin')` fail-closed) — UI 일관성·403 혼란 방지.
   - 동작 변경(비-admin 에 버튼 숨김)이라 God-split(순수 리팩토링) PR 과 분리한 별도 PR.
   - 테스트: `authentication-form.test.tsx` — 비-admin 전체 mutation 버튼 숨김 + admin 노출 2건. 게이트: lint·tsc·unit(4440 pass)·build PASS.
+
+## spec 동기화 종결 + status 승격 (2026-06-16, spec-sync-config-c PR) — 완료
+
+> Part A(본 plan) 의 모든 surface 가 #614~#618 슬라이스로 구현 완료됐고, Part B/C(Models)를 담당하던 `unified-model-management.md` 는 이미 `plan/complete/` 로 이동됨(Models 구현 surface — `models/page.tsx`·`model-config-manager.tsx`(chat/embedding/rerank 탭)·`model-config` 모듈 전부 실재 확인). ⇒ `6-config.md` frontmatter `status: partial → implemented` 승격 + `pending_plans` 제거 + 본 plan 완료 이동.
+
+- [x] **frontmatter `code:` God-split 5파일 등재**: 단건 `authentication/page.tsx` → glob `codebase/frontend/src/app/(main)/authentication/**` 로 교체(#616 의 `use-auth-config-form.ts`·`auth-config-create-form.tsx`·`auth-config-edit-dialog.tsx`·`auth-config-form-fields.tsx`·`auth-config-types.ts` + 향후 파일 커버). 빌드 가드 `spec-code-paths` glob 매칭 지원 확인.
+- [x] **RBAC UI 가드 문서화**(#618 정합): §A.4 권한 소절을 Reveal 단독 → 모든 변경 액션 버튼(Add Config·활성 토글·Reveal·Edit·Regenerate·Delete) Admin+ 로 확장, §3 Authentication API 표 mutation 행에 `(Admin+)` 주석 + 표 헤더 RBAC 한 줄, Rationale R-2 에 "isActive 토글도 Update 라 Admin+" 근거 추가.
+- [x] **status 승격**: `partial → implemented`, `pending_plans` 제거. 빌드 가드 `spec-status-lifecycle` (c) (pending_plans 전건 complete 시 implemented 승격 강제) 충족 — plan 이동과 동일 PR.
+  - 게이트: `/consistency-check --spec` BLOCK:NO, docs 빌드 가드(`spec-code-paths`·`spec-status-lifecycle`) PASS. spec/plan 전용 변경이라 ai-review/`--impl-done`(codebase 트리거) 무관.
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 및 `auth-configs.service.ts:399-450`, `authentication/page.tsx:81-89` 참조.

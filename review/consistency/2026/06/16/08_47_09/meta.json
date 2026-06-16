@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-16T08:47:09.434917",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/2-navigation/6-config.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
