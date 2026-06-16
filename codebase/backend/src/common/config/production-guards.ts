@@ -74,7 +74,9 @@ export const MIN_JWT_SECRET_LENGTH = 32;
  * @param env 검사할 환경변수 맵 (기본 `process.env`).
  * @returns Swagger 를 노출하면 `true`.
  */
-export function isSwaggerEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+export function isSwaggerEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
   if (env.NODE_ENV !== 'production') return true;
   return isFlagOn(env.ENABLE_SWAGGER_IN_PROD);
 }
