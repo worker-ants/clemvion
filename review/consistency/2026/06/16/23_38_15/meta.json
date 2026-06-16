@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-16T23:38:15.043643",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/7-channel-web-chat/4-security.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

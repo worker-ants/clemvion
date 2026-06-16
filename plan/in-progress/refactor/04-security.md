@@ -1,8 +1,9 @@
 # Refactor 백로그 — 보안 (2026-06-10 전수 감사)
 
 > 인덱스: [README.md](./README.md). Critical 3 / Major 7 / Minor 4 — **spec 대조(2026-06-10) 후 전 항목 유효** (철회 0).
+> **✅ 전 14항목 종결 (2026-06-16)**: 코드 14건 모두 머지 + 동반 spec 갱신(M-1·M-3·M-5·M-6·m-2 PR #570, C-1·M-4·M-7 `prod-fail-closed-guards`, m-1 optional 2026-06-16) 완료. M-6 DI 순환은 실 부팅 e2e 로 검증. 잔여 ⏳/⚠️ 없음.
 > **spec 대조 판정 분포**: A 6 (C-2, M-2, M-3, m-2, m-3, m-4) / B 2 / C 2 (M-6, M-7 — spec 자체 갭/enforcement 비대칭) / D 4.
-> **⚠️ A(의도된 트레이드오프)인데 여전히 위험**: C-2, M-2, M-3 (결정 대기), m-4 (✅ 2026-06-10 사용자 승인 — pub/sub 전파 진행 확정). spec 이 위험을 인지·기록했으나 방어가 실질 불충분한 항목들로, 제거하지 않고 유지한다.
+> **⚠️ A(의도된 트레이드오프)였던 항목 — 모두 결정·처리 완료**: C-2(✅ isolated-vm 전환), M-2(✅ C-2 흡수), M-3(✅ safe-regex), m-4(✅ pub/sub 전파). 더 이상 결정 대기 항목 없음.
 > 전반 평가: SSRF 이중 레이어, AES-256-GCM(AAD), WS 소유권 검증, DOMPurify, OAuth state 등 핵심 패턴 양호. fail-closed 부팅 가드의 **비대칭**(EIA·STUB 류는 있고 C-1·M-4·M-7 은 없음)이 공통 패턴.
 > 옵션 비교·권장안 보강 (2026-06-10)
 
@@ -98,7 +99,7 @@ spec 내부 모순 발견.
 ### M-1 [Major] Swagger UI 프로덕션 무인증 노출
 
 - [x] ✅ 코드 완료 (2026-06-12, worktree `refactor-04-security`, **옵션 A**) — `isSwaggerEnabled(env)` 헬퍼(`production-guards.ts`): non-production 항상 노출, production 기본 미노출 + `ENABLE_SWAGGER_IN_PROD=true` opt-in 만 노출 (OAUTH/LLM stub 가드와 동형). `main.ts` Swagger 설정을 `setupSwagger()` 로 추출해 조건부 마운트 + 부팅 로그 게이팅. unit: prod 기본 미노출/opt-in/non-prod 분기. — `common/config/production-guards.ts`, `main.ts`
-  - ⏳ **spec 갱신 (planner)**: swagger.md 또는 2-api-convention 에 "Swagger UI 는 non-production 전용 + ENABLE_SWAGGER_IN_PROD opt-in" 규약 1줄.
+  - ✅ **spec 갱신 완료** (PR #570, `spec/conventions/swagger.md §0`): "Swagger UI(`/docs`)는 non-production 에서만 노출 + `ENABLE_SWAGGER_IN_PROD=true` opt-in escape hatch, 게이팅은 `isSwaggerEnabled(env)` 단일 함수" 규약 명문화 (OAUTH/LLM stub 가드 동형).
 
 **spec 대조**: B — `swagger.md`(DTO 패턴만)·`2-api-convention.md` 모두 UI 노출 게이팅 무언급. 의도 근거 없음.
 
@@ -151,7 +152,7 @@ spec 내부 모순 발견.
 ### M-3 [Major] ReDoS — regex 길이 제한만 있고 위험 패턴 검출 없음 ⚠️
 
 - [x] ✅ 코드 완료 (2026-06-12, worktree `refactor-04-security`, **옵션 B — 사용자 확정**) — `safe-regex@^2.1.1`(순수 JS, 네이티브 의존성 없음) 추가. 단일 chokepoint `compileUserRegex(source, flags)` 신설(`condition-evaluator.util.ts`): 길이(200) + safe-regex 위험성(`(a+)+$` 등 지수 백트래킹) + 문법을 한 곳에서 검사하고 `{regex|null, reason: 'too-long'|'unsafe'|'invalid'}` 반환. 3 평가 사이트 모두 경유 — `compileRegexCache`(switch/if-else/transform array_filter), filter `getRegex`(unsafe→`meta.invalidRegexPatterns` 가시화), transform `safeCompileRegex`. unit: `(a+)+$`·`(a*)*$` 등 거부 + 긴 비매칭 입력 hang 회귀(<100ms·<1000ms). — `nodes/core/condition-evaluator.util.ts`, `nodes/logic/_shared/condition-eval.util.ts`, `nodes/logic/filter/filter.handler.ts`, `nodes/data/transform/transform.handler.ts`
-  - ⏳ **spec 갱신 (planner, 필요)**: 4개 spec(1-transform/filter/if-else/switch)의 "길이 200 = ReDoS 방지" 서술이 **부정확** — "길이 200 + safe-regex 위험패턴 거부" 로 정정 + ReDoS 정책 1곳 단일 정의.
+  - ✅ **spec 갱신 완료** (PR #570): 4개 노드 spec 모두 정정됨 — `1-transform.md:68`·`8-filter.md:103`·`1-if-else.md:164`·`2-switch.md:97` 가 "단일 헬퍼 `compileUserRegex`: 길이 ≤ 200 + `safe-regex` 위험 패턴(지수 백트래킹) 거부 + 문법 검사. 길이 200 단독은 ReDoS 방지 불충분이라 safe-regex 가 1차 방어, 길이는 2차" 로 통일 서술. (별도 단일 정의 문서 0-common/expression-language 신설은 미채택 — 4곳이 동일 정책을 `compileUserRegex` 단일 chokepoint 참조로 일관 서술해 SoT 코드측에 수렴.)
 
 ⚠️ A — 단 spec 의 방어 효과 주장이 부정확.
 
@@ -205,7 +206,7 @@ spec 내부 모순 발견.
 ### M-5 [Major] refresh token 쿠키 `SameSite=None`
 
 - [x] ✅ 코드 완료 (2026-06-12, **재제안 전체 구현 — 사용자 승인**) — `getRefreshCookieSameSite(env)` 추가(`COOKIE_SAMESITE` env, 기본 `none` 무중단, lax/strict 하드닝). cookie `path` `/` → `/api/auth` 축소(set/clear 동일). `/auth/refresh` 에 `isOriginAllowed(req.headers.origin)` CSRF 검증 추가(allowlist 외 403, Origin 부재 통과 — CSRF 토큰 인프라 불요). `.env.example` 문서화. unit: refresh-cookie(SameSite/path/maxAge/domain) + controller(Origin 거부/허용). — `auth/utils/refresh-cookie.ts`, `auth/auth.controller.ts`
-  - ⏳ **spec 갱신 (planner, 필요)**: `1-auth.md §2.1/2.3` 에 SameSite 정책(COOKIE_SAMESITE, 기본 none)·Origin CSRF 보완책 명문화(현재 완전 공백).
+  - ✅ **spec 갱신 완료** (PR #570, 후속 #601 hygiene): `1-auth.md §2.1`(refresh 쿠키 표 — `SameSite` 는 §2.3, Path `/api/auth`)·`§2.3`(`COOKIE_SAMESITE` env, 기본 `none` cross-site 지원 / `lax`·`strict` 하드닝 / 미인식값 none fallback)·`/auth/refresh` CSRF(`isOriginAllowed` Origin 대조, allowlist 외·불투명 Origin 403, Origin 부재 통과)·Rationale §2.3.B 모두 명문화.
 
 > **🔄 재검토 결과 (2026-06-12) — 사용자 추가 맥락 반영:**
 > 사용자 확인: **프론트와 API 가 사이트 경계(eTLD+1)를 달리하는 배포**가 실제 사용 중이며, 그래서 `SameSite=None` 으로 개발됐다. → 티켓 **원안 옵션 A(Lax 기본)의 전제가 틀렸다**. 원안 A 는 "web-chat 이 Bearer 라 None 의존 없음"을 근거로 Lax 기본을 권했으나, **메인 앱 프론트↔API 자체가 cross-site** 이므로 그 배포에서는 None 이 **필수**(Lax 면 refresh 쿠키가 cross-site 요청에 미첨부 → 세션 끊김).
@@ -249,8 +250,8 @@ spec 내부 모순 발견.
 ### M-6 [Major] WS `workflow:`·`notifications:` 채널 authorizer 부재
 
 - [x] ✅ 코드 완료 (2026-06-12, worktree `refactor-04-security`, **옵션 A**) — `channelAuthorizers` 의 `authorize` 시그니처를 `(channel, {workspaceId, userId})` 로 확장. `workflow:` authorizer 추가(`WorkflowsService.findById(workflowId, workspaceId)` 소유 검증 — NotFound throw→boolean, 비-UUID 선차단, `execution:` 동형). `notifications:<userId>` authorizer 추가(JWT sub==userId 일치 — emit 미구현이나 fail-closed 선제 차단). `WorkflowsService` forwardRef 주입 + `WebsocketModule` 에 `forwardRef(WorkflowsModule)` 배선(KB 패턴 동형). unit 5종(workflow 소유 통과/cross-workspace 거부/비-UUID, notifications 일치/불일치). — `modules/websocket/websocket.gateway.ts`, `modules/websocket/websocket.module.ts`
-  - ⚠️ **잔여 검증**: 모듈 DI 순환은 unit mock 으로 미검출 — 실 부팅/e2e 로 확인 필요(forwardRef 로 완화, 도커 미가용으로 본 세션 미실행).
-  - ⏳ **spec 갱신 (planner, 필요)**: §3.3 소유검증 채널 목록에 `workflow:`·`notifications:` 2채널 추가 + notifications 는 user 단위 명시.
+  - ✅ **잔여 검증 완료** (2026-06-16, worktree `security-spec-followup`): DI 순환 체인 `WebsocketModule →(fwd) WorkflowsModule →(fwd) ExecutionEngineModule →(fwd) WebsocketModule` 이 양쪽 모듈 import + gateway provider 주입(`@Inject(forwardRef(() => WorkflowsService))`) 모두 forwardRef 로 감싼 정석 패턴(작동 중인 KB↔WS 순환과 동형)임을 코드 확인. docker e2e(`docker-compose.e2e.yml` 가 backend 이미지 빌드→health 통과 전제로 전체 AppModule 부팅) 실행으로 실부팅 검증 — **통과** (34 suites / 202 tests pass, `health.e2e-spec` 포함; backend-e2e 컨테이너 healthy = 전체 DI 그래프가 forwardRef 순환 포함 부팅 해소됨. log `_test_logs/e2e-20260616-233420.log`). 잔여 우려 해소.
+  - ✅ **spec 갱신 완료** (PR #570, `6-websocket-protocol.md §3.3` 채널표 + Rationale): `workflow:{workflowId}`(workspace 소유 검증, `WorkflowsService.findById`, 비-UUID 선차단)·`notifications:{userId}`(user 단위 — JWT `sub` 일치, emit 미구현이나 fail-closed 선제 배치) 2채널 추가 명문화.
 
 spec 자체가 갭.
 
@@ -308,7 +309,7 @@ enforcement 비대칭.
 ### m-1 [Minor] web-chat HTML sanitize — `ALLOWED_TAGS` 화이트리스트 미적용
 
 - [x] ✅ 코드 완료 (2026-06-12, worktree `refactor-04-security`, **옵션 A**) — `safe-html.ts` DOMPurify 를 블랙리스트(FORBID)에서 deny-by-default 화이트리스트로 전환: `ALLOWED_TAGS`(marked GFM 산출 태그 audit — heading/list/code/blockquote/table/link 등, task-list `<input>` 제외) + `ALLOWED_ATTR`(href/src/alt/title/target/rel/표 정렬) + `ALLOWED_URI_REGEXP`(http(s)/mailto/relative 만 — javascript:·data: 이중 차단). 링크 훅(target=_blank rel=noopener) 보존. 회귀: svg/math/iframe/object 제거 + data: href 차단 + 마크다운 핵심 태그 보존(16 tests pass). — `channel-web-chat/src/lib/safe-html.ts`
-  - spec 갱신: 선택("화이트리스트 권장" 1줄, planner).
+  - ✅ **spec 갱신 완료** (2026-06-16, worktree `security-spec-followup`): optional 항목이나 출하된 deny-by-default 화이트리스트를 spec 에 반영 — `7-channel-web-chat/4-security.md §1` 입력 sanitize 행을 "deny-by-default 화이트리스트 권장(DOMPurify `ALLOWED_TAGS`/`ALLOWED_ATTR` + `ALLOWED_URI_REGEXP` scheme 제한), 임베드 위젯은 XSS 호스트 전파 위험이라 deny-by-default 합당" 으로 보강.
 
 **spec 대조**: D — `7-channel-web-chat/4-security.md:34` 는 "XSS 방지 sanitize + rel=noopener" **결과만** 요구 (방식 미규정) — 현 블랙리스트도 spec 충족, 화이트리스트는 추가 하드닝. rel=noopener 는 hook 으로 이미 충족.
 
@@ -333,7 +334,7 @@ enforcement 비대칭.
 ### m-2 [Minor] 비프로덕션 `NODE_ENV` 에서 error.stack 응답 노출
 
 - [x] ✅ 검토 완료 (2026-06-12, **옵션 A — 코드 변경 없음**) — 현 코드(`code.handler.ts` 의 `exposeStack = process.env.NODE_ENV !== 'production'`, line ~648)는 이미 spec `2-code.md §5.3` 와 정합하며, 권장안 A 는 코드 변경이 아니라 **운영 가이드**("staging 은 `NODE_ENV=production` 으로 운영")다. 따라서 developer 측 코드 작업 없음. 위험도 낮음 판정 유지.
-  - ⏳ **spec/가이드 (planner)**: §5.3 또는 배포 가이드에 "staging = NODE_ENV=production 권고" 1줄. (별도 플래그 `DEBUG_STACK_TRACES`(옵션 B)는 staging stack 가시성이 실무 요구로 확인될 때 재검토.)
+  - ✅ **spec/가이드 완료** (PR #570, `2-code.md §5.3.1`): "stack 노출은 `NODE_ENV` prod/non-prod 이분법을 따르며, 외부 노출 staging 은 `NODE_ENV=production` 으로 운영해 stack 미노출 + 환경 차이 버그 감소; staging stack 가시성이 실무 요구로 확인되면 `DEBUG_STACK_TRACES` 디커플 플래그 재검토" 운영 가이드 명문화.
 
 ⚠️ A — spec 명시 정책, 위험 낮음.
 
