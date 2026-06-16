@@ -10,7 +10,7 @@
 
 ### C-1 [Critical] ExecutionEngineService — 9,210줄 god-class (SRP 전면 위반)
 
-- [ ] 미착수 — `backend/src/modules/execution-engine/execution-engine.service.ts`
+- [ ] 진행 중 — `backend/src/modules/execution-engine/execution-engine.service.ts`. **stacked PR 로드맵·진행 상황: [c1-engine-split.md](./c1-engine-split.md)**. step1(NodeBootstrapService + WORKFLOW_EXECUTOR 토큰, = m-3) PR1 완료, step2–4 대기.
 
 단일 클래스가 8개 이상 책임: 그래프 순회, 노드 dispatch(`executeNode` 412줄), AI 멀티턴 생명주기, form/button 인터랙션, retry-last-turn, 상태 머신, 핸들러 등록 bootstrap. 생성자 의존성 20개, 메서드 ~70개.
 
@@ -18,7 +18,7 @@
 
 **개선 방안** (분리 순서·통신 방식 확정):
 
-- [ ] 1. `NodeBootstrapService` — m-3 과 함께 **가장 먼저** (독립적·소규모, 아래 m-3 참조).
+- [x] 1. `NodeBootstrapService` — m-3 과 함께 **가장 먼저** (독립적·소규모, 아래 m-3 참조). ✅ PR1 완료 (`claude/engine-split-s1-nodebootstrap`).
 - [ ] 2. `AiTurnOrchestrator` (waitForAiConversation / processAiResumeTurn / handleAiMessageTurn / finalizeAiNode ~600줄) — 기존 `ResumeTurnDispatch` registry 의 `handleAiResumeTurn` 진입점을 신규 서비스로 위임.
 - [ ] 3. `FormInteractionService` / `ButtonInteractionService` — `waitForX`/`processXResumeTurn` 쌍 이동, registry 등록부만 엔진 잔류.
 - [ ] 4. `RetryTurnService` (applyRetryLastTurn / buildRetryReentryState / resumeGraphAfterRetry) — `_retryState`/`_resumeCheckpoint` 는 spec §1.3 공유 계약, allow-list 불변 유지.
@@ -391,14 +391,14 @@
 
 ### m-3 [Minor] 엔진 내 `ALL_NODE_COMPONENTS` 직접 bootstrap — nodes 레이어 의존 역전
 
-- [ ] 미착수 — `execution-engine.service.ts:55,2718-2720`
+- [x] 완료 (PR1 `claude/engine-split-s1-nodebootstrap`, = C-1 step1) — bootstrap 분리 + `WORKFLOW_EXECUTOR` 토큰화. 상세: [c1-engine-split.md](./c1-engine-split.md).
 
 **spec 대조**: D — bootstrap 주체(`NodeComponentRegistry`)는 spec 명시, **호출 위치는 무언급** — 이동은 구현 재량. 난점은 `handlerDeps.build(this)` 가 엔진 자신(WorkflowExecutor 역)을 요구하는 것 — spec 이 이미 정의한 `WorkflowExecutor` 계약을 DI token 화하면 자연 해소 (C-1 의 내부 통신과 달리 **여기는 그 계약의 정확한 용처**).
 
 **개선 방안**:
 
 1. `WORKFLOW_EXECUTOR` token — 엔진 모듈이 `useExisting: ExecutionEngineService` 바인딩.
-2. nodes 모듈에 `NodeBootstrapService`(`OnModuleInit`) — bootstrap 호출 이관, deps 는 token 주입.
+2. **execution-engine 모듈**에 `NodeBootstrapService`(`OnModuleInit`) — bootstrap 호출 이관, deps 는 token 주입. (배치 정정: bootstrap 은 nodes 카탈로그 + 엔진 deps[`NodeHandlerDependenciesProvider` 가 `ExecutionEventEmitter`·`ConversationThreadService` 집약] 를 잇는 브리지 — nodes/core 거주 시 nodes→engine 순환 발생 → 엔진 모듈이 유일 무순환 경로. 레이어 위반은 god-class **서비스**에서 카탈로그 import 제거로 달성, 모듈 배치는 차선. PR2 EngineDriver 도입 시 재평가.)
 3. 엔진의 import(:55)·`registerHandlers()`(:2718) 제거 → `nodes.module.ts:12` forwardRef 해소 확인.
 4. C-1 로드맵 중 **최우선 실행** (M-5 배열 형태 변경과는 분리 — 본 건은 spec 무변).
 
