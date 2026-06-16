@@ -580,6 +580,27 @@ LoginHistoryService 는 AuthModule 과 WebAuthnModule 양쪽에 provider 로 둔
 - 같은 의미를 두 필드로 중복 표현하는 비용 — Swagger 문서·클라이언트 타입·DTO·테스트 mock 모두에서 노이즈 발생.
 - "두 필드 충돌 시 `requires2fa` 우선" 같은 정합성 규칙을 유지보수해야 하는 부담 제거.
 
+### 1.4.J — TOTP 라이브러리: `otplib` v13
+
+TOTP 발급·검증은 `otplib` (v13 라인) 을 사용한다 (`totp.service.ts`). secret 은 base32(RFC 6238) 이며 라이브러리 교체와 무관하게 호환된다.
+
+**v12 → v13 업그레이드 근거 (refactor 07-dependency m-9)**
+
+- v12 라인은 2021 이후 릴리스가 멈춘 stale 버전 — TOTP 라는 보안 크리티컬 경로에서 향후 CVE 패치 라인 부재 리스크. v13 은 현행 활성 라인(audited `@noble/hashes`·`@scure/base` 플러그인 기반).
+- v13 은 complete rewrite (ESM-only, `authenticator` preset 제거 → functional API). 단 `verifySync`/`generateSync` 가 기본 crypto 플러그인에서 동작해 **서비스 메서드는 동기 유지**(호출자 async 전파 불필요).
+- **기존 secret 호환성 보존**: v12·v13 모두 RFC 6238 준수 — v12 시절 발급된 base32 secret 은 v13 검증과 동일하게 동작한다 (RFC 6238 Appendix B 벡터 cross-version 단위 테스트로 보장). 따라서 기존 사용자 2FA 락아웃 없음.
+- v12 `window:1` 허용 오차는 v13 `epochTolerance: 30`(±1 time step) 으로 등가 유지.
+
+### 1.4.K — 복구 코드 해시: SHA-256 (KDF 미채택)
+
+복구 코드(TOTP·WebAuthn 양쪽)는 **SHA-256** 단순 해시로 저장한다 (§1.4 표). 비밀번호용 KDF(argon2id·bcrypt·scrypt)는 채택하지 않는다.
+
+**근거**
+
+- 복구 코드는 `randomBytes(9)`(72비트) 기반의 **고엔트로피 일회성** 시크릿이다. KDF 의 느린-해시·솔트는 **저엔트로피 사용자 비밀번호**의 사전·brute-force 공격을 늦추기 위한 것으로, 고엔트로피 랜덤 값에는 실익이 없다 — 2^50+ 탐색 공간은 GPU 로도 비현실적이라 SHA-256 으로 충분하다 (OWASP 복구 코드 가이드와 정합).
+- KDF 전환 시 코드별 솔트 → 로그인 검증이 배열 `indexOf` 매칭에서 **순차 KDF compare 반복**으로 바뀌어 (최대 10개 × 느린 해시) 복구 로그인 지연이 커지고, TOTP·WebAuthn 두 풀을 대칭으로 변경해야 한다 — 한계 이득 대비 비용 과대.
+- (참고) ai-review 가 KDF 전환을 제안했으나(LOW/즉각 수정 불필요), 위 엔트로피 분석으로 **현행 SHA-256 유지**가 정설.
+
 ### 2.3.A — Refresh 쿠키 Domain 자동 유도 (명시 env 없음)
 
 Refresh 쿠키의 `Domain` 속성은 운영자 env 가 아니라 `FRONTEND_URL`/`APP_URL` 의 hostname 에서 공통 상위 도메인을 자동 유도한다 (§2.3 표, `common/config/app.config.ts` `computeCookieDomain`). 서브도메인 분리 배포(`api.x.com` / `app.x.com`)에서 별도 설정 없이 인증이 동작하고, 잘못된 명시 Domain 설정으로 쿠키가 전달되지 않는 운영 사고를 줄이기 위함이다. localhost·IP·공통 상위 도메인 부재 시에는 Domain 을 지정하지 않아 backend origin 한정으로 좁힌다 — 전혀 다른 도메인 간에는 쿠키 공유 자체가 불가능하므로 클라이언트의 `withCredentials` cross-origin 요청에 의존한다.
