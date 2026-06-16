@@ -467,7 +467,7 @@ Code 노드의 `output` 은 사용자 `return` 값을 **root 에 그대로** 담
 - **컨테이너/gVisor 즉시 전환** — 격리 강도는 최강이나 노드 실행마다 컨테이너 기동·런타임 의존(self-host 부담)이라 운영 복잡도 대비 과도. V8 자체 버그에 의한 isolate 탈출까지 막아야 할 다중 테넌트 확장 시점의 **후속 강화**로 §7.1 로드맵에 남긴다.
 - **현상 유지 + frozen-prototype 단기완화** — 우회 경로가 다수라 근본 차단이 아니며 다중 워크스페이스에서 수용 불가.
 
-**트레이드오프**: 네이티브 빌드(node-gyp) 의존성이 추가된다. CI 이미지 빌드 시 1회 컴파일로 흡수되어 배포 시점 복잡도는 0 이나, 빌드 환경(alpine/musl 포함)에 C++ 툴체인이 필요하다. `$helpers`·`console` 은 host 클로저를 `Reference`/`ivm.Callback` 으로 브리지하므로 host realm 에서 실행되어 기존 사용자 코드(dayjs·crypto·base64) 호환성은 보존된다. isolated-vm 버전은 `node>=22` 를 지원하는 `6.x` 라인을 사용한다 (`7.x` 는 `node>=26` 요구 — Node 26 승급 시 재검토).
+**트레이드오프**: 네이티브 빌드(node-gyp) 의존성이 추가된다. CI 이미지 빌드 시 1회 컴파일로 흡수되어 배포 시점 복잡도는 0 이나, 빌드 환경(alpine/musl 포함)에 C++ 툴체인이 필요하다. `$helpers`·`console` 은 host 클로저를 `Reference`/`ivm.Callback` 으로 브리지하므로 host realm 에서 실행되어 기존 사용자 코드(dayjs·crypto·base64) 호환성은 보존된다. isolated-vm 버전은 `node>=22` 를 지원하는 `6.x` 라인을 사용한다 (`7.x` 는 `node>=26` 요구 — Node 26 승급 시 재검토). 여기서 `node>=22` 는 **라이브러리 지원 범위**일 뿐, 프로젝트 runtime floor 는 `PROJECT.md §버전·도구 정책`(내부 앱 `>=24`)을 따른다.
 
 ### dayjs per-exec 재컴파일 → 힙 스냅샷 (2026-06-12)
 

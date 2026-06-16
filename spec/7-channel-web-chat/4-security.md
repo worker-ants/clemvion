@@ -34,7 +34,7 @@ pending_plans:
 | postMessage | 양방향 `event.origin` 화이트리스트 검증. 토큰/대화 내용 host 로 비노출 |
 | 토큰 노출 | per_execution 단일 → 클라이언트에 장기 비밀 없음 |
 | rate-limit / abuse | EIA §8.4 + 공개 webhook 남용 방어(§4) |
-| 입력 sanitize | AI 메시지/presentation 렌더 시 XSS 방지 — 위젯 책임. **deny-by-default 화이트리스트**(DOMPurify `ALLOWED_TAGS`/`ALLOWED_ATTR` + `ALLOWED_URI_REGEXP` 로 scheme 제한 — `javascript:`·`data:` 차단), 링크 `rel=noopener`. 임베드 위젯은 XSS 가 호스트 사이트로 전파되므로 블랙리스트가 아닌 deny-by-default 가 합당(refactor 04 m-1). 렌더러별 정책 매트릭스 §1.1 |
+| 입력 sanitize | AI 메시지/presentation 렌더 시 XSS 방지 — 위젯 책임. **deny-by-default 화이트리스트** + 링크 `rel=noopener`. 임베드 위젯은 XSS 가 호스트 사이트로 전파되므로 블랙리스트가 아닌 deny-by-default 가 합당(refactor 04 M-1). 구현 세부(`ALLOWED_TAGS`/`ALLOWED_ATTR`/`ALLOWED_URI_REGEXP`)·렌더러별 정책 매트릭스 §1.1 |
 | 프라이버시·데이터 처리 | **배포자(워크스페이스 운영자) 책임** — 동의 고지·보존기간 spec 미규정. 위젯은 `disclaimer` 고지 문구만 제공 |
 | 텔레메트리 | SDK 는 Clemvion 으로 사용 지표 미전송. 호스트 자체 분석은 이벤트 구독으로만 |
 
