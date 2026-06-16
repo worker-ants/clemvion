@@ -185,7 +185,10 @@ describe('isSwaggerEnabled (04 M-1)', () => {
       expect(isSwaggerEnabled({ NODE_ENV: nodeEnv })).toBe(true);
       // opt-in 플래그는 non-production 노출에 영향 없음.
       expect(
-        isSwaggerEnabled({ NODE_ENV: nodeEnv, ENABLE_SWAGGER_IN_PROD: 'false' }),
+        isSwaggerEnabled({
+          NODE_ENV: nodeEnv,
+          ENABLE_SWAGGER_IN_PROD: 'false',
+        }),
       ).toBe(true);
     },
   );

@@ -37,6 +37,12 @@
 
 **Worktree 별 e2e 자동 격리**: `make e2e-*` 는 현재 worktree dir basename 으로 compose project name 을 도출 (main worktree = `clemvion-e2e`, `.claude/worktrees/<task>-<slug>/` = `clemvion-e2e-<task>-<slug>`). 컨테이너·볼륨·network 가 worktree 별로 분리되므로 여러 worktree 에서 e2e 를 **동시에** 돌려도 충돌 없음. image 자체는 worktree 간 공유되어 (각 빌드 서비스에 `image:` 명시) 두 번째 worktree 의 첫 e2e 가 image rebuild 비용을 다시 치르지 않는다. `COMPOSE_PROJECT=foo make e2e-test` 로 사용자 override 가능. 자세한 내용은 `docker-compose.e2e.yml` 헤더 주석과 `Makefile` 상단, 운영 정책은 [`CLAUDE.md` §Worktree 기반 작업 정책](CLAUDE.md#worktree-기반-작업-정책) 참고.
 
+## 버전·도구 정책
+
+- **테스트 프레임워크 이원화 (정책)**: backend·내부 packages = jest / frontend·channel-web-chat = vitest. 신규 패키지는 소속 스택의 기본값을 따른다 — `.claude/tools/run-test.sh` wrapper 가 양쪽을 묶어 한 단계로 운용한다. packages/* 의 vitest 이행은 jest 가 실제로 막는 ESM 의존이 등장하는 별도 트리거 전까지 보류한다.
+- **버전 핀 정책**: (a) 기본 caret(`^`) — `package-lock.json` 이 재현성의 단일 진실(SoT)이므로 선언 범위는 넓게 둔다. (b) exact·tilde 핀은 **사유 주석 필수** — package.json 인접 `"//pin"` 필드에 근거를 명시한다 (예: sanitize 경로 공급망 무결성 = `dompurify`·`marked`, 0.x semver 의 minor-breaking 위험 = `three ~0.184.0`, monorepo 전역 버전 정렬 = `react`·`react-dom`). (c) 사유 없는 핀은 caret 으로 완화한다.
+- **Node 지원 floor**: 내부 앱(backend·frontend·channel-web-chat)·내부 packages = `engines.node >=24` (운영 `node:24`·CI 와 정렬 — 실제 빌드·테스트되는 환경만 약속). 외부 배포 SDK(`@workflow/sdk`·`@workflow/web-chat`) = `>=20` (소비자 호환폭 보존). `@types/node` 도 동일 기준으로 정렬한다. README "20+" 표기는 "외부 SDK 소비 기준" 을 의미한다. engines 는 engine-strict 미사용 시 advisory 다.
+
 ## e2e 실행 원칙
 
 코드가 한 줄이라도 바뀌었으면 **e2e 수행이 default**. 면제는 §e2e 면제 화이트리스트 의 부분집합 조건만 인정한다. 자가 판단·후속 단계 떠넘기기·"변경이 작아서" 는 모두 면제 사유가 아니다.

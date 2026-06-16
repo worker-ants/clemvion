@@ -71,7 +71,7 @@ User ──┬── Workspace (1:N)
 | notification_preferences | JSONB | 사용자 알림 환경설정 (기본 `{}`) |
 | theme | Enum | light / dark |
 | two_factor_enabled | Boolean | TOTP 2FA 활성 여부 (WebAuthn credential 등록 여부와는 독립 — WebAuthn 만 등록한 사용자는 이 값이 false) |
-| two_factor_secret | String? | TOTP secret (otplib base32). 활성화 verify 전까지는 채워져 있어도 `two_factor_enabled = false`. 비활성 시 NULL |
+| two_factor_secret | String? | TOTP secret (base32, RFC 6238 호환 — 라이브러리 무관). 활성화 verify 전까지는 채워져 있어도 `two_factor_enabled = false`. 비활성 시 NULL |
 | totp_recovery_codes | String[]? | TOTP 활성화 시점에 발급한 복구 코드 10개의 SHA-256 해시 배열. 사용 시 해당 항목 제거 |
 | webauthn_recovery_codes | String[]? | WebAuthn 첫 credential 등록 시점에 발급한 복구 코드 10개의 SHA-256 해시 배열. 모든 credential 삭제 시 NULL 로 비움 — **이 NULL 화는 애플리케이션 레이어(`WebAuthnService.deleteCredential`) 의 책임이며 DB 트리거가 아니다.** 사용자가 명시적으로 "재발급" 시에도 갱신 |
 | created_at | Timestamp | 생성 시각 |

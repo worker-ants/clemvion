@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { authenticator } from 'otplib';
+import { generateSecret, generateURI, verifySync } from 'otplib';
 import * as QRCode from 'qrcode';
 import { createHash, randomBytes } from 'crypto';
 import { UsersService } from '../users/users.service';
@@ -13,6 +13,10 @@ import { User } from '../users/entities/user.entity';
 
 const ISSUER = 'Clemvion';
 const RECOVERY_CODE_COUNT = 10;
+// v12 `authenticator.options = { window: 1 }` 와 동등한 허용 오차. otplib v13 은
+// tolerance 를 초 단위로 받으며(`epochTolerance`), period 30s 기준 30 = ±1 time step.
+// 표준 Google Authenticator 호환(6자리 / 30초 step) 은 v13 기본값.
+const EPOCH_TOLERANCE_SECONDS = 30;
 
 function generateRecoveryCode(): string {
   // xxxx-xxxx-xxxx (소문자 영숫자 12자리)
@@ -31,9 +35,29 @@ export class TotpService {
   constructor(
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
-  ) {
-    // 6자리 코드, 30초 step (기본값) — 표준 Google Authenticator 호환
-    authenticator.options = { window: 1 };
+  ) {}
+
+  /**
+   * base32 secret 으로 6자리 TOTP 코드를 검증한다 (otplib v13, sync 경로).
+   * - `epochTolerance`: ±1 time step (v12 `window:1` 등가).
+   * - 손상·과거 형식 secret 으로 verify 자체가 throw 하면(예: 16바이트 미만
+   *   `SecretTooShortError`) 500 대신 "검증 실패(false)" 로 처리한다.
+   */
+  private verifyCode(token: string, secret: string): boolean {
+    try {
+      return verifySync({
+        secret,
+        token,
+        epochTolerance: EPOCH_TOLERANCE_SECONDS,
+      }).valid;
+    } catch (err) {
+      // 에러 타입명만 로깅 — otplib 내부 에러 메시지가 로그 집계로 유입되지
+      // 않도록 한다 (OWASP A09). 타입명(예: SecretTooShortError)으로 충분히 진단 가능.
+      this.logger.warn(
+        `TOTP verify threw (${(err as Error).name}), treating as invalid`,
+      );
+      return false;
+    }
   }
 
   /**
@@ -50,8 +74,12 @@ export class TotpService {
         message: '사용자를 찾을 수 없습니다.',
       });
     }
-    const secret = authenticator.generateSecret();
-    const otpauthUrl = authenticator.keyuri(user.email, ISSUER, secret);
+    const secret = generateSecret();
+    const otpauthUrl = generateURI({
+      issuer: ISSUER,
+      label: user.email,
+      secret,
+    });
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
     await this.usersService.update(userId, { twoFactorSecret: secret });
     return { secret, otpauthUrl, qrCodeDataUrl };
@@ -72,7 +100,7 @@ export class TotpService {
         message: '2FA 설정을 먼저 시작해주세요.',
       });
     }
-    const isValid = authenticator.check(code, user.twoFactorSecret);
+    const isValid = this.verifyCode(code, user.twoFactorSecret);
     if (!isValid) {
       throw new UnauthorizedException({
         code: 'TOTP_INVALID',
@@ -107,7 +135,7 @@ export class TotpService {
     const trimmed = code.trim();
     // 1) TOTP
     if (/^\d{6}$/.test(trimmed)) {
-      if (authenticator.check(trimmed, user.twoFactorSecret)) return true;
+      if (this.verifyCode(trimmed, user.twoFactorSecret)) return true;
     }
     // 2) 복구 코드
     const hash = hashRecoveryCode(trimmed);

@@ -85,7 +85,7 @@ Client (Next.js SPA)
 
 ### 사전 요구 사항
 
-- Node.js 20+
+- Node.js 24+ (내부 개발·빌드 기준 — 운영 `node:24`·CI 와 정렬. 외부 배포 SDK `@workflow/sdk`·`@workflow/web-chat` 소비는 Node 20+ 호환)
 - Docker & Docker Compose
 
 ### 풀스택 한 번에 기동 (권장)

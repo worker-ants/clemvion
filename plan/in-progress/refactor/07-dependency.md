@@ -1,5 +1,6 @@
 # Refactor 백로그 — 의존성 (2026-06-10 전수 감사)
 
+> ✅ **2026-06-17 전 항목 처리 완료** — 유효 9건 종결: C-1·C-2(`plan/complete/deps-security-hygiene.md`) + 잔여 8건(M-2·M-4·m-1·m-2·m-4·m-6·m-8·m-9, PR `deps-backlog-residual`, 추적 [07-dependency-residual.md](./07-dependency-residual.md)). follow-up(복구코드 KDF·spec Rationale 등재)은 별건.
 > 인덱스: [README.md](./README.md). Critical 2 / Major 4 / Minor 9 — **spec/문서 대조(2026-06-10) 후 유효 9건 / 철회·종결 5건(M-1, M-3, m-3, m-5, m-7)**. C-1 은 Critical→Major 재분류.
 > **spec 대조 판정 분포**: A 1 (m-9) / B 5 / C 2 (m-1, m-8 — Node 버전 문서 괴리) / D 2 / E 4. (registry/lock 실측 기반 — `npm audit`·`npm view` 실행 검증.)
 > 전반 평가: NestJS 11 + Next.js 16 + TS 5.7 구성 합리적. lock 파일로 재현성 확보.
@@ -66,7 +67,7 @@
 
 ### M-2 [Major] `@vitejs/plugin-react` 메이저 불일치 (^6 vs ^4) + jsdom (^29 vs ^25)
 
-- [ ] 미착수 — `channel-web-chat/package.json`
+- [x] ✅ 2026-06-17 완료 (PR deps-backlog-residual, plan: 07-dependency-residual.md) — vite ^4→^6.0.1, jsdom ^25→^29.0.1 + @types/node ^24. cwc 188 unit PASS — `channel-web-chat/package.json`
 
 **spec 대조**: B — channel-web-chat spec/README/plan 에 버전 결정 기록 없음 — 생성 시점 스캐폴드 잔재. 둘 다 React 19.2.4 + vitest 4 메이저 — 통일 비용 낮음.
 
@@ -98,7 +99,7 @@
 
 ### M-4 [Major] `dayjs` 버전 스큐 — 현재 미발현(단일 dedupe), 예방 정렬
 
-- [ ] 미착수 — `packages/expression-engine/package.json:14`
+- [x] ✅ 2026-06-17 완료 (PR deps-backlog-residual, plan: 07-dependency-residual.md) — dayjs ^1.11.13→^1.11.20 (resolution 불변). ee 123 unit PASS — `packages/expression-engine/package.json:14`
 
 **spec 대조**: B — 버전 기록 없음. **보정**: lock 실측 — `^1.11.13 ∩ ^1.11.20` → 1.11.20 단일 dedupe (인스턴스 2개 아님). `dayjs.extend` 사용처도 backend transform.handler 1곳뿐(expression-engine 은 plugin 미사용) — 원안의 plugin 공유 버그는 현재 미발현. 향후 backend 가 ^1.12 로 가는 순간 중첩 설치 발생 — 예방 차원 유효, 긴급도 낮음.
 
@@ -123,7 +124,7 @@
 
 ### m-1 [Minor] `@types/node` 불일치 — 단 "Node 22" 전제 자체가 문서 괴리 (floor 결정 선행)
 
-- [ ] 결정 대기 (사용자) — Node floor 선행 결정 (m-1·m-8 한 PR) — frontend `^20`, sdk `^20.0.0`, backend `^22.10.7`
+- [x] ✅ 2026-06-17 완료 (PR deps-backlog-residual, plan: 07-dependency-residual.md) — 권장 C(이원화): 내부 @types/node ^24·engines >=24 / 외부 SDK >=20. README 동기화 — m-1·m-8 한 PR
 
 **spec 대조**: **C(문서 괴리)** — 원안 전제 "실행환경 Node 22" 가 어느 문서와도 불일치: Dockerfile 은 `node:24-alpine`, CI `node-version: '24'`, README:88 "Node.js 20+", `.nvmrc` 없음. 타입을 floor(20)에 맞출지 운영(24)에 맞출지 **결정이 선행**돼야 하는 항목.
 
@@ -149,7 +150,7 @@
 
 ### m-2 [Minor] 테스트 프레임워크 이원화 — "장기 통일" 에서 "정책 문서화" 로 축소
 
-- [ ] 미착수
+- [x] ✅ 2026-06-17 완료 (PR deps-backlog-residual, plan: 07-dependency-residual.md) — PROJECT.md §버전·도구 정책에 테스트 프레임워크 이원화 정책 명문화
 
 **spec 대조**: D — `PROJECT.md:26` 이 이원화를 **현황으로 명시** (run-test.sh wrapper 가 양쪽을 묶어 운용). M-1 철회로 "결합 시 리스크 증폭" 논거 소멸 — 통일 편익이 마이그레이션 비용을 정당화 못 함 (생태계 기본값 준수가 사실상 의도).
 
@@ -180,7 +181,7 @@
 
 ### m-4 [Minor] 마크다운 렌더러 이원화 — sanitize 정책 매트릭스 문서화가 본체
 
-- [ ] 미착수 — marked(web-chat) vs react-markdown(frontend assistant 패널 1곳)
+- [x] ✅ 2026-06-17 완료 (PR deps-backlog-residual, plan: 07-dependency-residual.md) — spec §1.1 sanitize 정책 매트릭스 + frontend markdown-renderer.test 4/4 정렬 — marked(web-chat) vs react-markdown(frontend)
 
 **spec 대조**: D — web-chat 측 선택은 문서화됨(README:68, plan, `4-security.md:34` 가 sanitize 의무를 위젯 책임으로 명시). frontend 측은 무문서. 번들 환경이 달라(경량 CSR vs React 트리) 이원화 자체는 합리 — "문서화 우선" 결론 유지.
 
@@ -207,7 +208,7 @@
 
 ### m-6 [Minor] 버전 핀 정책 비일관 — "패키지 내부까지 비일관" 으로 보정
 
-- [ ] 미착수 (참고: `hono` override 핀 사유는 C-2 완료 시 `plan/complete/deps-security-hygiene.md` 에 기록됨 — 전체 override 핀 정책 문서화는 본 항목 잔여)
+- [x] ✅ 2026-06-17 완료 (PR deps-backlog-residual, plan: 07-dependency-residual.md) — PROJECT.md §버전·도구 정책 3줄(caret 기본/lock SoT/exact·tilde 사유 주석) + three·web-chat 핀 사유 //pin 주석
 
 **spec 대조**: B — 핀 정책 문서 0건. **보정**: channel-web-chat 도 전부 exact 아님(dompurify/marked/react 만 exact, next 는 caret) + frontend 에 `three ~0.184.0` tilde — 패키지 *내부*까지 비일관.
 
@@ -237,7 +238,7 @@
 
 ### m-8 [Minor] `engines.node` 미선언 — floor 결정 선행 (제안값 22 는 출처 불명)
 
-- [ ] 결정 대기 (사용자) — Node floor 선행 결정 (m-1·m-8 한 PR)
+- [x] ✅ 2026-06-17 완료 (PR deps-backlog-residual, plan: 07-dependency-residual.md) — engines 이원화(내부 >=24 / 외부 SDK >=20) — m-1·m-8 한 PR
 
 **spec 대조**: **C(문서 괴리)** — 원안 `>=22.0.0` 이 README("20+")·기존 선언(web-chat/sdk `>=20`)·운영(`node:24`) 어느 쪽과도 불일치. m-1 과 동일한 floor 결정 선행 — README·engines·@types/node 를 단일 결정으로 정렬.
 
@@ -263,7 +264,7 @@
 
 ### m-9 [Minor] ⚠️ otplib — "유지관리 정지" 전제 오류, 올바른 조치는 ^13 업그레이드 (A — 라이브러리 선택은 spec 명시)
 
-- [ ] 결정 대기 (사용자) — otplib ^13 업그레이드 (secret 호환성 게이트) — `backend/package.json:68` (v12.0.1)
+- [x] ✅ 2026-06-17 완료 (PR deps-backlog-residual, plan: 07-dependency-residual.md) — otplib ^13.4.1 async-free 재작성(verifySync) + cross-version secret 게이트 11/11. **사용자 승인 후 착수** — `backend/package.json` (v13)
 
 **spec 대조**: **A** — `1-data-model.md:66` "two_factor_secret | TOTP secret (**otplib base32**)" — spec 데이터 모델이 otplib 지정. **전제 반증**: otplib 는 활발히 유지 중 — 13.0.2(2026-01)~13.4.1(2026-05-30) 연속 릴리스. "2021년 정지" 는 v12 라인 한정 과거 사실. **남는 문제**: 사용 버전이 4년 stale 한 12.0.1 — 직접 구현(원안)이 아니라 **^13 메이저 업그레이드**가 올바른 조치. **사용자 보고 대상(기존 secret 호환성 게이트).**
 

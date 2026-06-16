@@ -23,8 +23,8 @@
 | [04-security.md](./04-security.md) | 14 | 14 | 0 | 4 (C-2, M-2, M-3, m-4) | vm 탈출(spec 인지 트레이드오프), SSRF spec 내부 모순, WS 채널 spec 갭 |
 | [05-database.md](./05-database.md) | 15 | 13 | 2 (M-6, m-2) | 2 (C-2, m-5) | 토큰 rotation 비원자, 인덱스 신규 제안, full-entity save lost-update |
 | [06-concurrency.md](./06-concurrency.md) | 15 | 12 | 3 (m-1, m-2, m-4) | 2 (C-2, M-5) | check-then-act vs spec 불변식, fire-and-forget, spec 드리프트 2건 |
-| [07-dependency.md](./07-dependency.md) | 15 | 9 | 5 (M-1, M-3, m-3, m-7 + m-5 기종결) | 1 (m-9) | jsonwebtoken(Critical→Major 정정), hono CVE, Node floor 결정 필요 |
-| **합계** | **104** | **91** | **12** | **15** | |
+| [07-dependency.md](./07-dependency.md) | 15 | **0 (전 항목 처리 완료)** | 5 (M-1, M-3, m-3, m-7 + m-5 기종결) | 0 | ✅ 2026-06-17 완료: C-1·C-2(deps-security-hygiene) + 잔여 8건(M-2·M-4·m-1·m-2·m-4·m-6·m-8·m-9) → [07-dependency-residual.md](./07-dependency-residual.md) (otplib v13·Node floor 이원화·sanitize 매트릭스) |
+| **합계** | **104** | **82** | **12** | **14** | |
 
 > ⚠️ = spec/plan 에 **의도된 설계로 문서화됐으나 여전히 문제**인 항목 — 제거하지 않고 유지하며 사용자 결정 대상 (각 파일 본문에 근거 인용).
 > 철회 항목은 삭제하지 않고 `[x]` + 철회 사유(반증 근거)로 보존.

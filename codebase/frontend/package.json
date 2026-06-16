@@ -2,6 +2,7 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "//pin": "비-caret 핀 사유 (PROJECT.md §버전 핀 정책): three '~0.184.0' = 0.x semver (minor 가 breaking 가능 → tilde 로 patch 만 허용), react·react-dom '19.2.4' = monorepo 전역 정렬.",
   "scripts": {
     "dev": "source .env 2>/dev/null; next dev --port ${PORT:-3012} --webpack",
     "build": "next build --webpack",
@@ -74,7 +75,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/dompurify": "^3.0.5",
     "@types/mdx": "^2.0.13",
-    "@types/node": "^20",
+    "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.184.0",
@@ -91,5 +92,8 @@
       "postcss": "^8.5.14"
     },
     "eslint-plugin-react-hooks": "7.0.1"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
