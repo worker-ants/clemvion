@@ -9,6 +9,7 @@ code:
   - codebase/backend/src/modules/hooks/embed-config.service.ts
   - codebase/backend/src/modules/hooks/dto/responses/embed-config.dto.ts
   - codebase/channel-web-chat/src/widget/host-bridge.ts
+  - codebase/channel-web-chat/src/lib/safe-html.ts
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
   - plan/in-progress/channel-web-chat-followups.md
@@ -33,9 +34,20 @@ pending_plans:
 | postMessage | 양방향 `event.origin` 화이트리스트 검증. 토큰/대화 내용 host 로 비노출 |
 | 토큰 노출 | per_execution 단일 → 클라이언트에 장기 비밀 없음 |
 | rate-limit / abuse | EIA §8.4 + 공개 webhook 남용 방어(§4) |
-| 입력 sanitize | AI 메시지/presentation 렌더 시 XSS 방지 — 위젯 책임. **deny-by-default 화이트리스트** 권장(DOMPurify `ALLOWED_TAGS`/`ALLOWED_ATTR` + `ALLOWED_URI_REGEXP` 로 scheme 제한 — `javascript:`·`data:` 차단), 링크 `rel=noopener`. 임베드 위젯은 XSS 가 호스트 사이트로 전파되므로 블랙리스트가 아닌 deny-by-default 가 합당(refactor 04 m-1) |
+| 입력 sanitize | AI 메시지/presentation 렌더 시 XSS 방지 — 위젯 책임. **deny-by-default 화이트리스트**(DOMPurify `ALLOWED_TAGS`/`ALLOWED_ATTR` + `ALLOWED_URI_REGEXP` 로 scheme 제한 — `javascript:`·`data:` 차단), 링크 `rel=noopener`. 임베드 위젯은 XSS 가 호스트 사이트로 전파되므로 블랙리스트가 아닌 deny-by-default 가 합당(refactor 04 m-1). 렌더러별 정책 매트릭스 §1.1 |
 | 프라이버시·데이터 처리 | **배포자(워크스페이스 운영자) 책임** — 동의 고지·보존기간 spec 미규정. 위젯은 `disclaimer` 고지 문구만 제공 |
 | 텔레메트리 | SDK 는 Clemvion 으로 사용 지표 미전송. 호스트 자체 분석은 이벤트 구독으로만 |
+
+### 1.1 마크다운/HTML sanitize 정책 매트릭스
+
+AI 메시지·presentation 을 마크다운/HTML 로 렌더하는 표면은 **위젯**과 **메인 앱** 두 곳이며, 번들 환경이 달라(경량 임베드 CSR vs React 트리) 렌더러가 이원화돼 있다. 두 렌더러는 구현이 다르나 **동일 위협 — 스크립트 주입 · 이벤트 핸들러 속성(`onerror` 등) · `javascript:`/`data:` 링크 — 에 대해 보안 동등성**을 보장한다.
+
+| 렌더 표면 | 라이브러리 | sanitize 메커니즘 | 링크 정책 | 코드 SoT |
+|---|---|---|---|---|
+| 위젯(channel-web-chat) presentation·메시지 | `marked`(GFM) + `DOMPurify` | **deny-by-default allowlist** (`ALLOWED_TAGS`/`ALLOWED_ATTR`) + URL scheme 을 http(s)·mailto·relative/anchor 로 제한(`ALLOWED_URI_REGEXP`). 미지 태그(svg/math 등 mXSS 벡터) 기본 차단 | `afterSanitizeAttributes` 훅 → `target=_blank` + `rel="noopener noreferrer nofollow"` | `codebase/channel-web-chat/src/lib/safe-html.ts` |
+| 메인 앱 assistant 패널 메시지 | `react-markdown` + `remark-gfm` | **`rehype-raw` 미사용** → LLM 응답의 raw HTML 은 파싱하지 않고 텍스트로 escape. react-markdown 기본 `urlTransform` 이 `javascript:`/`data:` 등 위험 scheme 차단 | `a` 컴포넌트 override → `target=_blank` + `rel="noreferrer noopener"` | `codebase/frontend/src/components/editor/assistant-panel/markdown-renderer.tsx` |
+
+**검증 동등성**: 양쪽 모두 동일 XSS 페이로드 셋(raw `<script>` · `<img onerror>` 이벤트 핸들러 · `javascript:` 링크 · 정상 링크의 noopener)으로 unit 검증한다 — 위젯 `safe-html.test.ts`, 메인 앱 `markdown-renderer.test.tsx`.
 
 ## 2. CORS — 두 공개 표면 분리
 
