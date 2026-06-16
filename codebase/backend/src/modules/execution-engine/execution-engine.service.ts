@@ -1,10 +1,8 @@
 import {
-  Inject,
   Injectable,
   Logger,
   OnApplicationBootstrap,
   OnModuleInit,
-  forwardRef,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
@@ -58,8 +56,6 @@ import {
 } from './containers/parallel-executor';
 import { assertTransition } from './state/state-machine';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
-import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
-import { ALL_NODE_COMPONENTS } from '../../nodes';
 import { ExecutionContextService } from './context/execution-context.service';
 // sanitizeLastErrorMessage lives in a neutral shared layer (arch-C2).
 import { sanitizeLastErrorMessage } from '../../shared/utils/sanitize-error-message';
@@ -96,7 +92,6 @@ import {
 } from '../websocket/websocket.service';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
-import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
@@ -869,14 +864,11 @@ export class ExecutionEngineService
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly handlerRegistry: NodeHandlerRegistry,
-    private readonly componentRegistry: NodeComponentRegistry,
     private readonly contextService: ExecutionContextService,
     private readonly errorPolicyHandler: ErrorPolicyHandler,
     private readonly expressionResolver: ExpressionResolverService,
     private readonly eventEmitter: ExecutionEventEmitter,
     private readonly graphTraversal: GraphTraversalService,
-    @Inject(forwardRef(() => NodeHandlerDependenciesProvider))
-    private readonly handlerDeps: NodeHandlerDependenciesProvider,
     private readonly configService: ConfigService,
     private readonly llmService: LlmService,
     private readonly foreachExecutor: ForEachExecutor,
@@ -917,7 +909,6 @@ export class ExecutionEngineService
   }
 
   onModuleInit(): void {
-    this.registerHandlers();
     // NF-OB-07 `clemvion.queue.depth` — 본 서비스가 소유한 두 큐의 깊이를 gauge 에
     // 등록한다 (continuation 큐는 ContinuationDlqMonitorService 가 별도 등록).
     this.businessMetrics.registerQueueDepthProvider(async () => {
@@ -2804,13 +2795,6 @@ export class ExecutionEngineService
       // expire 되어 다른 인스턴스가 잡은 lock 은 절대 삭제하지 않는다.
       await this.continuationBus.releaseLock(RECOVERY_LOCK_KEY);
     }
-  }
-
-  private registerHandlers() {
-    this.componentRegistry.bootstrap(
-      ALL_NODE_COMPONENTS,
-      this.handlerDeps.build(this),
-    );
   }
 
   /**

@@ -11,6 +11,7 @@ import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import { ExecutionEngineService } from './execution-engine.service';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { WORKFLOW_EXECUTOR } from '../../nodes/core/workflow-executor.interface';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
@@ -42,6 +43,7 @@ import { ConversationThreadService } from './conversation-thread/conversation-th
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
+import { NodeBootstrapService } from './node-bootstrap.service';
 import { ShutdownStateService } from './shutdown/shutdown-state.service';
 import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
 
@@ -101,6 +103,15 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     ExecutionEventEmitter,
     GraphTraversalService,
     NodeHandlerDependenciesProvider,
+    // C-1 step1 (m-3): 노드 핸들러 bootstrap 을 god-class 에서 분리한 lifecycle 서비스.
+    NodeBootstrapService,
+    {
+      // bootstrap 이 의존하는 WorkflowExecutor capability 를 canonical executor
+      // (엔진) 에 바인딩. NodeBootstrapService 가 본 토큰을 주입받아 옛 god-class 의
+      // `handlerDeps.build(this)` 자기참조를 DI 경계로 대체한다.
+      provide: WORKFLOW_EXECUTOR,
+      useExisting: ExecutionEngineService,
+    },
     ShutdownStateService,
     {
       // SoT: spec §11. ENV var name 은 spec 표와 일치.
