@@ -11,7 +11,10 @@
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
-    "dayjs": "^1.11.13"
+    "dayjs": "^1.11.20"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "devDependencies": {
     "typescript": "^5.7.3",
