@@ -909,6 +909,9 @@ export class ExecutionEngineService
   }
 
   onModuleInit(): void {
+    // NOTE: 노드 핸들러 bootstrap (ALL_NODE_COMPONENTS 등록) 은 C-1 step1 에서
+    // NodeBootstrapService 로 이전됨. 본 hook 은 큐 깊이 gauge 등록 전용 —
+    // 핸들러 등록 책임 없음.
     // NF-OB-07 `clemvion.queue.depth` — 본 서비스가 소유한 두 큐의 깊이를 gauge 에
     // 등록한다 (continuation 큐는 ContinuationDlqMonitorService 가 별도 등록).
     this.businessMetrics.registerQueueDepthProvider(async () => {
