@@ -189,3 +189,23 @@ describe("hookInstalled 멱등성 (W4/W6)", () => {
     expect((result2 ?? "").split('target="_blank"').length - 1).toBe(1);
   });
 });
+
+describe("빈/공백 입력 경계값 (ai-review m-4 W5)", () => {
+  it("빈 문자열 html → throw 없이 빈 string", () => {
+    const result = renderTemplateHtml("", "html");
+    expect(typeof result).toBe("string");
+    expect(result).toBe("");
+  });
+
+  it("빈 문자열 markdown → throw 없이 string (script 없음)", () => {
+    const result = renderTemplateHtml("", "markdown");
+    expect(typeof result).toBe("string");
+    expect(result).not.toContain("<script");
+  });
+
+  it("공백만 있는 markdown → throw 없이 안전 string", () => {
+    const result = renderTemplateHtml("   ", "markdown");
+    expect(typeof result).toBe("string");
+    expect(result).not.toContain("<script");
+  });
+});

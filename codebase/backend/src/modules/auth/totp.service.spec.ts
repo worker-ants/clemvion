@@ -102,6 +102,24 @@ describe('TotpService', () => {
         service.verifyAndEnable('user-1', '123456'),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
+
+    it('사용자가 없으면(findById null) BadRequestException', async () => {
+      usersService.findById.mockResolvedValue(null);
+      await expect(
+        service.verifyAndEnable('ghost', '123456'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('disable', () => {
+    it('2FA secret·복구 코드·활성 플래그를 모두 초기화한다', async () => {
+      await service.disable('user-1');
+      expect(usersService.update).toHaveBeenCalledWith('user-1', {
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+        totpRecoveryCodes: null,
+      });
+    });
   });
 
   describe('verifyForLogin', () => {

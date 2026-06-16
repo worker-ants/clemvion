@@ -51,8 +51,10 @@ export class TotpService {
         epochTolerance: EPOCH_TOLERANCE_SECONDS,
       }).valid;
     } catch (err) {
+      // 에러 타입명만 로깅 — otplib 내부 에러 메시지가 로그 집계로 유입되지
+      // 않도록 한다 (OWASP A09). 타입명(예: SecretTooShortError)으로 충분히 진단 가능.
       this.logger.warn(
-        `TOTP verify threw, treating as invalid: ${(err as Error).message}`,
+        `TOTP verify threw (${(err as Error).name}), treating as invalid`,
       );
       return false;
     }

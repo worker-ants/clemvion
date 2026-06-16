@@ -992,8 +992,7 @@ describe('AuthService', () => {
       // 한다. 순서가 뒤집히면 방금 발급한 새 family 까지 revoke 돼 현재 디바이스가 끊긴다.
       const revokeOrder =
         sessionsService.revokeAllFamilies.mock.invocationCallOrder[0];
-      const signOrder = (jwtService.sign as jest.Mock).mock
-        .invocationCallOrder[0];
+      const signOrder = jwtService.sign.mock.invocationCallOrder[0];
       expect(revokeOrder).toBeLessThan(signOrder);
     });
 
