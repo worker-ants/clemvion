@@ -74,6 +74,8 @@ describe('FormInteractionService', () => {
     );
   });
 
+  afterEach(() => jest.restoreAllMocks());
+
   const makeFormNode = (nodeId = 'node-form-w1'): Node =>
     ({
       id: nodeId,
@@ -185,6 +187,10 @@ describe('FormInteractionService', () => {
 
       const ctx = makeContext();
       const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+      const appendSpy = jest.spyOn(
+        conversationThreadService,
+        'appendPresentationInteraction',
+      );
 
       await service.processFormResumeTurn(
         saved,
@@ -208,6 +214,136 @@ describe('FormInteractionService', () => {
       );
       // nodeOutputCache 에 form_submitted 상호작용 기록 확인 (setNodeOutput 경로).
       expect(ctx.nodeOutputCache[nodeId]).toBeDefined();
+      // W-2 — ConversationThread 에 form_submitted 상호작용 append (단일 mutation
+      // entrypoint, button spec 의 button_click append 검증과 대칭).
+      expect(appendSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          interaction: expect.objectContaining({
+            type: 'form_submitted',
+            data: expect.objectContaining({ answer: 'yes' }),
+          }),
+        }),
+      );
+      // W-1 — NODE_COMPLETED + EXECUTION_RESUMED emit (button spec 와 동일 shape).
+      expect(mockEventEmitter.emitNode).toHaveBeenCalledWith(
+        execId,
+        nodeId,
+        'execution.node.completed',
+        expect.objectContaining({ status: NodeExecutionStatus.COMPLETED }),
+      );
+      expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
+        execId,
+        'execution.resumed',
+        expect.objectContaining({ status: ExecutionStatus.RUNNING }),
+      );
+    });
+
+    // W-3(a) 필드 화이트리스트 — config.fields 에 없는 키는 영속 interaction/output
+    //   data 에서 제거 (WARN #8 Security defense-in-depth). makeFormNode 의
+    //   config.fields=[{name:'answer'}] 이므로 'evil' 키는 통과 못 한다.
+    it('W-3(a) config.fields 미정의 키 → 영속 interaction data 에서 제거', async () => {
+      const nodeId = 'node-form-wl-strip';
+      const nodeExecRow: Partial<NodeExecution> = {
+        id: 'ne-form-wl-strip',
+        nodeId,
+        executionId: execId,
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      };
+      mockNodeExecutionRepository.findOne = jest
+        .fn()
+        .mockResolvedValue(nodeExecRow);
+
+      const ctx = makeContext();
+      const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+      const appendSpy = jest.spyOn(
+        conversationThreadService,
+        'appendPresentationInteraction',
+      );
+      const setStructuredSpy = jest.spyOn(
+        contextService,
+        'setStructuredOutput',
+      );
+
+      await service.processFormResumeTurn(
+        saved,
+        execId,
+        makeFormNode(nodeId), // config.fields = [{ name: 'answer' }]
+        ctx,
+        {
+          type: 'form_submitted',
+          formData: { answer: 'yes', evil: '<script>alert(1)</script>' },
+        },
+      );
+
+      // 영속 interaction data: 화이트리스트 통과 키만 (evil 제거).
+      const appendArg = appendSpy.mock.calls[0]?.[1] as {
+        interaction?: { data?: Record<string, unknown> };
+      };
+      expect(appendArg?.interaction?.data).toEqual({ answer: 'yes' });
+      expect(appendArg?.interaction?.data).not.toHaveProperty('evil');
+      // structured output 의 interaction.data 도 동일하게 strip.
+      const structuredCall = setStructuredSpy.mock.calls.find(
+        (c) => c[1] === nodeId,
+      );
+      const structuredOut = structuredCall?.[2] as {
+        output?: { interaction?: { data?: Record<string, unknown> } };
+      };
+      expect(structuredOut?.output?.interaction?.data).toEqual({
+        answer: 'yes',
+      });
+      expect(structuredOut?.output?.interaction?.data).not.toHaveProperty(
+        'evil',
+      );
+    });
+
+    // W-3(b) config.fields = [] (빈 배열) → allowedFieldNames.size === 0 분기로
+    //   모든 제출 키가 verbatim 통과 (현재 동작 lock).
+    it('W-3(b) config.fields=[] → 모든 제출 키 verbatim 통과', async () => {
+      const nodeId = 'node-form-wl-empty';
+      const nodeExecRow: Partial<NodeExecution> = {
+        id: 'ne-form-wl-empty',
+        nodeId,
+        executionId: execId,
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      };
+      mockNodeExecutionRepository.findOne = jest
+        .fn()
+        .mockResolvedValue(nodeExecRow);
+
+      const emptyFieldsNode = {
+        id: nodeId,
+        workflowId: wfId,
+        type: 'form',
+        category: NodeCategory.LOGIC,
+        label: 'Form',
+        config: { fields: [] },
+        isDisabled: false,
+      } as unknown as Node;
+
+      const ctx = makeContext();
+      const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
+      const appendSpy = jest.spyOn(
+        conversationThreadService,
+        'appendPresentationInteraction',
+      );
+
+      await service.processFormResumeTurn(saved, execId, emptyFieldsNode, ctx, {
+        type: 'form_submitted',
+        formData: { foo: 1, bar: 'two', anything: true },
+      });
+
+      // 빈 화이트리스트 → 모든 키 verbatim 보존.
+      const appendArg = appendSpy.mock.calls[0]?.[1] as {
+        interaction?: { data?: Record<string, unknown> };
+      };
+      expect(appendArg?.interaction?.data).toEqual({
+        foo: 1,
+        bar: 'two',
+        anything: true,
+      });
     });
 
     // (b) non-sentinel warn 폴백 — sentinel 없는 payload 는 warn 을 기록하고 payload 를

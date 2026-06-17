@@ -71,6 +71,8 @@ describe('ButtonInteractionService', () => {
     );
   });
 
+  afterEach(() => jest.restoreAllMocks());
+
   const makeButtonNode = (nodeId = 'node-btn'): Node =>
     ({
       id: nodeId,
