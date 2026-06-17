@@ -39,7 +39,6 @@ import {
   RECOVERY_LOCK_KEY,
 } from './continuation/continuation-bus.service';
 import type { ContinuationPayload } from './queues/continuation-execution.queue';
-import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ShutdownStateService } from './shutdown/shutdown-state.service';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import {
@@ -77,7 +76,6 @@ import { extractBackgroundRunId } from './utils/extract-background-run-id';
 import {
   ExecutionContext,
   NodeHandler,
-  NodeHandlerOutput,
   ParallelBranchContext,
   ResumableMessageSource,
 } from '../../nodes/core/node-handler.interface';
@@ -114,7 +112,6 @@ import {
   toEngineFlatShape,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
-import { ButtonConfig } from '../../nodes/presentation/_shared/button.types';
 import {
   WorkflowExecutor,
   SubWorkflowOptions,
@@ -130,14 +127,17 @@ import type { EngineDriver } from './engine-driver.interface';
 // (forwardRef) 가 단방향이 되도록 ES module 순환을 끊었다. 엔진은 본 helper 를
 // 내부적으로 사용하면서, 기존 외부 import 호환을 위해 아래에서 re-export 한다.
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
+// C-1 step3 — Form/Button blocking-interaction 생명주기는 FormInteractionService /
+// ButtonInteractionService 로 추출됨. 엔진은 dispatch loop park 진입·resume registry
+// 에서 본 서비스로 위임한다. 두 서비스가 ENGINE_DRIVER(=엔진) 를 주입받으므로
+// 순환 DI → forwardRef 로 해소한다 (AiTurnOrchestrator 선례와 동일).
+import { FormInteractionService } from './form-interaction.service';
+import { ButtonInteractionService } from './button-interaction.service';
 // AI 대화 helper·RehydrationError·builder 의 canonical 정의는 leaf 모듈
 // `./ai-conversation-helpers` 단일이며, 모든 소비자(엔진·orchestrator·spec)가 거기서
 // 직접 import 한다 — re-export 체인 제거(impl-done Critical 해소: `RehydrationError`
 // 단일 클래스 식별성으로 `instanceof` 일관 보장). 엔진은 내부 사용분만 값 import.
-import {
-  RehydrationError,
-  withInteractionMeta,
-} from './ai-conversation-helpers';
+import { RehydrationError } from './ai-conversation-helpers';
 import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
 import {
   PARK_RELEASED,
@@ -658,13 +658,18 @@ export class ExecutionEngineService
     @InjectQueue(EXECUTION_RUN_QUEUE)
     private readonly executionRunQueue: Queue<ExecutionRunJob>,
     private readonly continuationBus: ContinuationBusService,
-    private readonly conversationThreadService: ConversationThreadService,
     private readonly shutdownState: ShutdownStateService,
     private readonly businessMetrics: BusinessMetricsService,
     // C-1 step2 — AI 멀티턴 생명주기 위임 대상. orchestrator 가 ENGINE_DRIVER(=본
     // 엔진) 를 주입받으므로 순환 DI → forwardRef 로 해소.
     @Inject(forwardRef(() => AiTurnOrchestrator))
     private readonly aiTurnOrchestrator: AiTurnOrchestrator,
+    // C-1 step3 — Form/Button blocking-interaction 위임 대상. 두 서비스가
+    // ENGINE_DRIVER(=본 엔진) 를 주입받으므로 순환 DI → forwardRef 로 해소.
+    @Inject(forwardRef(() => FormInteractionService))
+    private readonly formInteraction: FormInteractionService,
+    @Inject(forwardRef(() => ButtonInteractionService))
+    private readonly buttonInteraction: ButtonInteractionService,
   ) {}
 
   /**
@@ -1448,7 +1453,7 @@ export class ExecutionEngineService
             // 블로킹 노드에 도달해 fresh park 하면 release 한다. PARK_RELEASED 수신
             // 시 이 드라이브 세그먼트를 종료하고 { parked:true } 를 caller
             // (driveResumeAwaited / resumeGraphAfterRetry)로 올려 코루틴을 해제한다.
-            const parkSignal = await this.waitForFormSubmission(
+            const parkSignal = await this.formInteraction.waitForFormSubmission(
               savedExecution,
               executionId,
               node,
@@ -1456,13 +1461,14 @@ export class ExecutionEngineService
             );
             if (parkSignal === PARK_RELEASED) return { parked: true };
           } else if (downstreamInteraction === 'buttons') {
-            const parkSignal = await this.waitForButtonInteraction(
-              savedExecution,
-              executionId,
-              node,
-              context,
-              graphEdges,
-            );
+            const parkSignal =
+              await this.buttonInteraction.waitForButtonInteraction(
+                savedExecution,
+                executionId,
+                node,
+                context,
+                graphEdges,
+              );
             if (parkSignal === PARK_RELEASED) return { parked: true };
           } else if (downstreamInteraction === 'ai_conversation') {
             // Phase B (PR-B2, exec-park D4) — top-level 멀티턴 AI turn-park.
@@ -1688,8 +1694,9 @@ export class ExecutionEngineService
       {
         kind: 'form',
         selects: (sel) => sel.blockingInteraction === 'form',
+        // C-1 step3 — form resume turn 처리는 FormInteractionService 로 위임.
         handle: async (ctx) => {
-          await this.processFormResumeTurn(
+          await this.formInteraction.processFormResumeTurn(
             ctx.savedExecution,
             ctx.executionId,
             ctx.node,
@@ -1701,8 +1708,9 @@ export class ExecutionEngineService
       {
         kind: 'buttons',
         selects: (sel) => sel.persistedInteractionType === 'buttons',
+        // C-1 step3 — button resume turn 처리는 ButtonInteractionService 로 위임.
         handle: async (ctx) => {
-          await this.processButtonResumeTurn(
+          await this.buttonInteraction.processButtonResumeTurn(
             ctx.savedExecution,
             ctx.executionId,
             ctx.node,
@@ -2434,21 +2442,6 @@ export class ExecutionEngineService
   }
 
   /**
-   * spec §10.9 — `continueExecution` 이 publish 하는 sentinel 형태인지 확인.
-   * `{ type: 'form_submitted', formData }` 구조를 type-safe 하게 판별.
-   * W7 (SUMMARY): sentinel 언래핑 이중 타입 단언 → 헬퍼 추출.
-   */
-  private static isFormSubmittedSentinel(
-    v: unknown,
-  ): v is { type: 'form_submitted'; formData: unknown } {
-    return (
-      v !== null &&
-      typeof v === 'object' &&
-      (v as Record<string, unknown>)['type'] === 'form_submitted'
-    );
-  }
-
-  /**
    * Recovery 의 stale 임계값 — RUNNING execution 이 이 시간보다 오래되면
    * worker heartbeat 가 끊긴 stuck 으로 간주한다. WAITING_FOR_INPUT 은 본
    * 임계값과 무관하며 recovery 대상이 아니다 (사용자 입력은 며칠 후 도착할
@@ -3055,20 +3048,21 @@ export class ExecutionEngineService
               blocking.kind === 'blocking' &&
               blocking.interaction === 'form'
             ) {
-              parkSignal = await this.waitForFormSubmission(
+              parkSignal = await this.formInteraction.waitForFormSubmission(
                 execution,
                 executionId,
                 node,
                 context,
               );
             } else if (interactionType === 'buttons') {
-              parkSignal = await this.waitForButtonInteraction(
-                execution,
-                executionId,
-                node,
-                context,
-                graphEdges,
-              );
+              parkSignal =
+                await this.buttonInteraction.waitForButtonInteraction(
+                  execution,
+                  executionId,
+                  node,
+                  context,
+                  graphEdges,
+                );
             } else if (
               interactionType === 'ai_conversation' ||
               interactionType === 'ai_form_render'
@@ -3571,7 +3565,7 @@ export class ExecutionEngineService
             // Phase B (PR-B1) — fresh top-level park → 코루틴 해제. PARK_RELEASED
             // 수신 시 세그먼트를 종료하고 반환한다(finally 가 context cleanup +
             // settleFirstSegment 로 worker job 반환). 재개는 §7.5 rehydration.
-            const parkSignal = await this.waitForFormSubmission(
+            const parkSignal = await this.formInteraction.waitForFormSubmission(
               savedExecution,
               executionId,
               node,
@@ -3579,13 +3573,14 @@ export class ExecutionEngineService
             );
             if (parkSignal === PARK_RELEASED) return;
           } else if (interactionType === 'buttons') {
-            const parkSignal = await this.waitForButtonInteraction(
-              savedExecution,
-              executionId,
-              node,
-              context,
-              graphEdges,
-            );
+            const parkSignal =
+              await this.buttonInteraction.waitForButtonInteraction(
+                savedExecution,
+                executionId,
+                node,
+                context,
+                graphEdges,
+              );
             if (parkSignal === PARK_RELEASED) return;
           } else if (interactionType === 'ai_conversation') {
             // Phase B (PR-B2, exec-park D4) — top-level 멀티턴 AI turn-park.
@@ -3772,286 +3767,6 @@ export class ExecutionEngineService
       | undefined;
     const flatType = flat?.interactionType;
     return typeof flatType === 'string' ? flatType : undefined;
-  }
-
-  /**
-   * Park execution at a Form node (waiting_for_input) — durable 영속
-   * (stageDurableResumeSnapshot + WAITING 전이 + resume_call_stack) 후 즉시
-   * `PARK_RELEASED` 반환(코루틴 해제; top-level dispatch + 중첩 executeInline 공통,
-   * exec-park D6 full B3). 폼 제출 재개는 §7.5 rehydration 의 직접 처리기
-   * {@link processFormResumeTurn} 가 payload 로 수행한다.
-   */
-  private async waitForFormSubmission(
-    savedExecution: Execution,
-    executionId: string,
-    node: Node,
-    context: ExecutionContext,
-  ): Promise<ProcessTurnResult> {
-    // Emit waiting event so frontend can render the form. Prefer the
-    // structured cache entry (new NodeHandlerOutput shape) so the frontend
-    // can read the form declaration from `.config`; fall back to the flat
-    // cache for legacy handlers that still stash declarations at the root.
-    const nodeOutput =
-      context.structuredOutputCache?.[node.id] ??
-      context.nodeOutputCache[node.id];
-
-    // Update the node execution to waiting_for_input AND persist the output
-    // shape so REST polling reconciliation stays consistent with WS —
-    // otherwise polling would overwrite the WS-delivered outputData with
-    // `null`, making the rendered form declaration disappear between polls.
-    const nodeExec = await this.nodeExecutionRepository.findOne({
-      where: { executionId, nodeId: node.id },
-      order: { startedAt: 'DESC' },
-    });
-    if (nodeExec) {
-      nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
-      // outputData 의 meta.interactionType 을 명시 보장 — 페이지 재마운트 시
-      // execution.snapshot reconcile (use-execution-events.ts) 이 이 필드로
-      // store 의 waitingInteractionType 을 set. 누락 시 prev/page 마운트 race
-      // 에서 'buttons'/'form'/'ai_conversation' 분기를 못 잡아 Preview 탭의
-      // 버튼이 disabled 로 그려진다.
-      nodeExec.outputData = withInteractionMeta(
-        nodeOutput as unknown as Record<string, unknown>,
-        'form',
-      );
-    }
-    // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
-    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원처).
-    this.stageDurableResumeSnapshot(savedExecution, context);
-    // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
-    await this.updateExecutionStatus(
-      savedExecution,
-      ExecutionStatus.WAITING_FOR_INPUT,
-      nodeExec ?? undefined,
-    );
-    await this.eventEmitter.emitExecution(
-      executionId,
-      ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
-      {
-        status: ExecutionStatus.WAITING_FOR_INPUT,
-        waitingNodeId: node.id,
-        waitingNodeType: node.type,
-        waitingNodeLabel: node.label ?? node.type,
-        nodeExecutionId: nodeExec?.id,
-        // 프론트엔드 store 가 NODE_STARTED 를 ws subscribe 완료 전에 놓친
-        // 시나리오에서도 row 의 startedAt 을 채울 수 있도록 항상 동봉한다 —
-        // 누락 시 selectSortedNodeResults 이 해당 row 를 timeline 마지막으로 보냄.
-        startedAt: nodeExec?.startedAt?.toISOString?.(),
-        // 3 waiting emit (Buttons / Form / AI) 모두 top-level interactionType
-        // 을 명시 — frontend 의 handleWaitingForInput 가 첫 fallback (즉
-        // payload.interactionType) 만으로 정확히 분기하도록 일관화. (Carousel
-        // 버튼 disabled stuck 버그의 defense-in-depth.)
-        interactionType: 'form',
-        nodeOutput,
-        // Live ConversationThread snapshot so UI can render the running
-        // thread panel (spec/conventions/conversation-thread.md §4 +
-        // spec/5-system/6-websocket-protocol.md §4.4.5).
-        conversationThread: cloneThread(context.conversationThread),
-      },
-    );
-
-    // park = 세그먼트 종료 — durable 영속(stageDurableResumeSnapshot + WAITING 전이
-    // + resume_call_stack)이 끝났으므로 대기 없이 즉시 PARK_RELEASED 반환(코루틴 해제,
-    // top-level / 중첩 executeInline 공통 — exec-park D6 full B3). 재개(폼 제출)는
-    // §7.5 rehydration 의 직접 처리기 {@link processFormResumeTurn} 가 payload 로
-    // 수행한다 — 옛 in-memory pendingContinuations + firePayload 경로는 제거됐다.
-    return PARK_RELEASED;
-  }
-
-  /**
-   * §7.5 rehydration — 폼 제출 payload 로 waiting Form 노드를 직접 완료 처리한다
-   * (exec-park D6 full B3). `driveResumeAwaited`(top-level) / `driveResumeFrame`
-   * (중첩 innermost) 가 도착 continuation payload 와 함께 호출한다. 옛
-   * `waitForFormSubmission('await')` + pendingContinuations + firePayload 폴링 경로를
-   * 대체 — in-memory 머신 없이 직접 전달. 처리: sentinel unwrap → 필드 화이트리스트 →
-   * structured/flat output 갱신 → ConversationThread append → NodeExecution
-   * COMPLETED + Execution RUNNING 전이 → NODE_COMPLETED / EXECUTION_RESUMED emit.
-   */
-  private async processFormResumeTurn(
-    savedExecution: Execution,
-    executionId: string,
-    node: Node,
-    context: ExecutionContext,
-    payload: unknown,
-  ): Promise<void> {
-    const nodeExec = await this.nodeExecutionRepository.findOne({
-      where: { executionId, nodeId: node.id },
-      order: { startedAt: 'DESC' },
-    });
-    // spec §10.9 — sentinel unwrap. continueExecution 이 `{type:'form_submitted',
-    // formData}` 로 wrap 해 publish 했으므로 sentinel guard 로 안전하게 unwrap.
-    const formData = ExecutionEngineService.isFormSubmittedSentinel(payload)
-      ? payload.formData
-      : (() => {
-          this.logger.warn(
-            `processFormResumeTurn — sentinel 없는 폴백 payload execution=${executionId} (continueExecution 경로 외 비정상).`,
-          );
-          return payload;
-        })();
-
-    // Merge submitted form data into the structured NodeHandlerOutput.
-    // The form handler stored `{ config, output: {}, status:
-    // 'waiting_for_input', meta }` on the initial execute; here we populate
-    // `output.interaction.{type,data,receivedAt}` and flip `status` to the
-    // unified `'resumed'` value (CONVENTIONS §4.4 / §4.5).
-    const prevStructured = context.structuredOutputCache?.[node.id];
-    const receivedAt = new Date().toISOString();
-    // WARN #8 (Security) — formData 가 node.config.fields 에 정의된 필드명만
-    // 통과하도록 화이트리스트 필터링. 미정의 키 (XSS payload, 외부 통합 키 등)
-    // 는 제거. 필드 type / required 는 form handler 의 도메인이므로 여기서는
-    // 화이트리스트만 적용 (defense-in-depth).
-    const rawData =
-      formData === null ||
-      formData === undefined ||
-      typeof formData !== 'object'
-        ? {}
-        : (formData as Record<string, unknown>);
-    const fieldDefs = (node.config?.fields ?? []) as Array<{
-      name?: unknown;
-    }>;
-    const allowedFieldNames = new Set(
-      fieldDefs
-        .map((f) => f?.name)
-        .filter((n): n is string => typeof n === 'string'),
-    );
-    const interactionData: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(rawData)) {
-      if (allowedFieldNames.size === 0 || allowedFieldNames.has(key)) {
-        interactionData[key] = value;
-      }
-    }
-    // §5.5 — resume 시 실제 대기 경과시간으로 meta.durationMs 를 갱신한다. waiting tick 에 저장된
-    // prevStructured.meta 의 durationMs 는 0(대기 진입 직후 계산)이라, 재개 시점에 nodeExec.startedAt
-    // (대기 진입 시각) 으로부터의 경과로 대체한다. nodeExec 부재 시(테스트 등) prevStructured.meta 보존.
-    const resumeFinishedAt = new Date();
-    const resumeDurationMs = nodeExec?.startedAt
-      ? Math.max(0, resumeFinishedAt.getTime() - nodeExec.startedAt.getTime())
-      : undefined;
-    const prevMeta =
-      typeof prevStructured?.meta === 'object' && prevStructured.meta !== null
-        ? prevStructured.meta
-        : undefined;
-    // 재수화(서버 재시작) 경로에서는 structuredOutputCache 가 비어 prevMeta 가 undefined 일 수 있다.
-    // 이 경우에도 form 노드의 meta.interactionType 은 보존돼야 하므로(spec §5.5) fallback 으로 보강한다.
-    const fallbackMeta: Record<string, unknown> =
-      node.type === 'form' ? { interactionType: 'form' } : {};
-    const resumedMeta =
-      prevMeta !== undefined ||
-      resumeDurationMs !== undefined ||
-      Object.keys(fallbackMeta).length > 0
-        ? {
-            ...fallbackMeta,
-            ...(prevMeta ?? {}),
-            ...(resumeDurationMs !== undefined
-              ? { durationMs: resumeDurationMs }
-              : {}),
-          }
-        : undefined;
-    const updatedStructured = {
-      config: prevStructured?.config ?? node.config ?? {},
-      output: {
-        interaction: {
-          type: 'form_submitted' as const,
-          data: interactionData,
-          receivedAt,
-        },
-      },
-      status: 'resumed',
-      port: 'out',
-      ...(resumedMeta !== undefined ? { meta: resumedMeta } : {}),
-    };
-    this.contextService.setStructuredOutput(
-      this.contextKeyOf(context),
-      node.id,
-      updatedStructured,
-    );
-    this.contextService.setNodeOutput(
-      this.contextKeyOf(context),
-      node.id,
-      toEngineFlatShape(updatedStructured),
-    );
-    // Append the user interaction to the ConversationThread so downstream AI
-    // Agent nodes with `contextScope` can auto-inject it. Single mutation
-    // entrypoint per spec/conventions/conversation-thread.md §2.1.
-    this.conversationThreadService.appendPresentationInteraction(context, {
-      node: {
-        id: node.id,
-        label: node.label,
-        type: node.type,
-        config: node.config,
-      },
-      interaction: {
-        type: 'form_submitted',
-        data: interactionData,
-        receivedAt,
-      },
-    });
-    // Keep `updatedOutput` alias for the rest of the function (DB save, emit).
-    // Downstream consumers (frontend) receive the structured shape and can
-    // unwrap via output-shape helper.
-    const updatedOutput = updatedStructured;
-
-    // Update node execution to completed with merged output
-    if (nodeExec) {
-      nodeExec.status = NodeExecutionStatus.COMPLETED;
-      nodeExec.outputData = updatedOutput;
-      // §5.5 — meta.durationMs 와 동일 시각·계산을 공유 (structured meta ↔ DB durationMs 일관성).
-      // startedAt 부재 시 NaN 회피, 시계 역행 시 Math.max(0) (resumeDurationMs 계산과 동일 가드).
-      nodeExec.finishedAt = resumeFinishedAt;
-      nodeExec.durationMs =
-        resumeDurationMs ??
-        (nodeExec.startedAt
-          ? Math.max(
-              0,
-              resumeFinishedAt.getTime() - nodeExec.startedAt.getTime(),
-            )
-          : 0);
-    }
-
-    // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
-    // 재개 드라이브(driveResumeAwaited / driveResumeFrame)가 진입 시 이미
-    // WAITING_FOR_INPUT → RUNNING 전이를 수행했으므로, 이미 RUNNING 이면 상태 전이를
-    // 건너뛰고 NodeExecution 만 COMPLETED 영속한다 (RUNNING→RUNNING assertTransition
-    // 회피 — finalizeAiNode 의 동일 가드와 대칭).
-    if (savedExecution.status === ExecutionStatus.RUNNING) {
-      if (nodeExec) {
-        await this.nodeExecutionRepository.save(nodeExec);
-      }
-    } else {
-      await this.updateExecutionStatus(
-        savedExecution,
-        ExecutionStatus.RUNNING,
-        nodeExec ?? undefined,
-      );
-    }
-
-    if (nodeExec) {
-      await this.eventEmitter.emitNode(
-        executionId,
-        node.id,
-        NodeEventType.NODE_COMPLETED,
-        {
-          nodeExecutionId: nodeExec.id,
-          parentNodeExecutionId: context.parentNodeExecutionId,
-          status: NodeExecutionStatus.COMPLETED,
-          duration: nodeExec.durationMs,
-          nodeType: node.type,
-          nodeLabel: node.label ?? node.type,
-          output: nodeExec.outputData,
-          input: nodeExec.inputData,
-          // ws 의 NODE_STARTED race miss 시에도 store row 의 startedAt 이
-          // 누락되지 않도록 모든 NODE_* 이벤트에 startedAt 동봉 (timeline
-          // selectSortedNodeResults 정합성).
-          startedAt: nodeExec.startedAt?.toISOString?.(),
-          finishedAt: nodeExec.finishedAt?.toISOString?.(),
-        },
-      );
-    }
-    await this.eventEmitter.emitExecution(
-      executionId,
-      ExecutionEventType.EXECUTION_RESUMED,
-      { status: ExecutionStatus.RUNNING },
-    );
   }
 
   /**
@@ -5209,399 +4924,6 @@ export class ExecutionEngineService
       );
     }
     return rows[0].id;
-  }
-
-  /**
-   * Park execution at a Presentation node with buttons (waiting_for_input) —
-   * durable 영속 후 즉시 `PARK_RELEASED` 반환(코루틴 해제; top-level + 중첩
-   * executeInline 공통, exec-park D6 full B3). 버튼 클릭 재개는 §7.5 rehydration 의
-   * 직접 처리기 {@link processButtonResumeTurn} 가 payload 로 _selectedPort 라우팅·
-   * output 갱신을 수행한다. (`_graphEdges` 는 호출자 시그니처 호환용 — 미사용.)
-   */
-  private async waitForButtonInteraction(
-    savedExecution: Execution,
-    executionId: string,
-    node: Node,
-    context: ExecutionContext,
-    _graphEdges: GraphEdge[],
-  ): Promise<ProcessTurnResult> {
-    // Resolve buttonConfig up front so we can persist it on the node execution
-    // before releasing control to the user. This means the REST polling
-    // reconciler (which reads `nodeExecution.outputData` every 2s) sees the
-    // same structured shape the WebSocket delivers — otherwise polling would
-    // overwrite the WS-delivered outputData with `null`, making buttons
-    // disappear until NODE_COMPLETED fires on the next event.
-    const flatNodeOutput = context.nodeOutputCache[node.id] as Record<
-      string,
-      unknown
-    >;
-    const structured = context.structuredOutputCache?.[node.id];
-    const structuredConfig = structured?.config;
-    const buttonConfig = (structuredConfig?.buttonConfig ??
-      flatNodeOutput.buttonConfig) as ButtonConfig | undefined;
-    if (!buttonConfig || !Array.isArray(buttonConfig.buttons)) {
-      throw new Error(
-        `MISSING_BUTTON_CONFIG: Node ${node.id} entered waitForButtonInteraction without a buttonConfig`,
-      );
-    }
-    const buttons = buttonConfig.buttons;
-    // Prefer the structured NodeHandlerOutput so the frontend receives
-    // `config.buttonConfig` (required by presentation renderers) in the first
-    // render pass. Legacy (non-migrated) handlers still fall back to the flat
-    // cache.
-    const nodeOutputForEvent: unknown = structured ?? flatNodeOutput;
-
-    // Update the node execution to waiting_for_input AND persist the output
-    // shape so REST polling reconciliation stays consistent with WS.
-    const nodeExec = await this.nodeExecutionRepository.findOne({
-      where: { executionId, nodeId: node.id },
-      order: { startedAt: 'DESC' },
-    });
-    if (nodeExec) {
-      nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
-      // meta.interactionType='buttons' 명시 — snapshot reconcile 이 store 의
-      // waitingInteractionType 을 'buttons' 로 hydrate 해 Preview 탭 버튼이
-      // 콜백을 받아 interactive 가 되도록 한다.
-      nodeExec.outputData = withInteractionMeta(
-        nodeOutputForEvent as Record<string, unknown>,
-        'buttons',
-      );
-    }
-    // park 직전 conversationThread 스냅샷을 Execution 행에 실어, 아래 상태 전이
-    // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원처).
-    this.stageDurableResumeSnapshot(savedExecution, context);
-    // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
-    await this.updateExecutionStatus(
-      savedExecution,
-      ExecutionStatus.WAITING_FOR_INPUT,
-      nodeExec ?? undefined,
-    );
-
-    // Emit waiting event so frontend can render buttons
-    await this.eventEmitter.emitExecution(
-      executionId,
-      ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
-      {
-        status: ExecutionStatus.WAITING_FOR_INPUT,
-        waitingNodeId: node.id,
-        waitingNodeType: node.type,
-        waitingNodeLabel: node.label ?? node.type,
-        // Surface the DB row id so the frontend's addNodeResult can match
-        // the same timeline entry created by NODE_STARTED, preventing a
-        // phantom duplicate row when execution resumes.
-        nodeExecutionId: nodeExec?.id,
-        // 워크플로 첫 노드는 사용자 "Run" 직후 도달해 ws subscribe 완료 전
-        // NODE_STARTED 를 놓칠 race window 가 있다. 그 경우에도 store row 의
-        // startedAt 이 채워지도록 항상 동봉 — selectSortedNodeResults 이 startedAt
-        // 미정 row 를 timeline 마지막으로 보내는 것을 방지.
-        startedAt: nodeExec?.startedAt?.toISOString?.(),
-        interactionType: 'buttons',
-        // Live thread snapshot for UI (button waiting tick).
-        conversationThread: cloneThread(context.conversationThread),
-        buttonConfig: {
-          buttons,
-          nodeOutput: nodeOutputForEvent,
-        },
-      },
-    );
-
-    // park = 세그먼트 종료 — durable 영속 후 즉시 PARK_RELEASED 반환(코루틴 해제,
-    // top-level / 중첩 executeInline 공통 — exec-park D6 full B3). 재개(버튼 클릭)는
-    // §7.5 rehydration 의 직접 처리기 {@link processButtonResumeTurn} 가 payload 로
-    // 수행한다 — 옛 in-memory pendingContinuations + firePayload 경로는 제거됐다.
-    return PARK_RELEASED;
-  }
-
-  /**
-   * §7.5 rehydration — 버튼 클릭 payload 로 waiting Button 노드를 직접 완료 처리한다
-   * (exec-park D6 full B3). `driveResumeAwaited`(top-level) / `driveResumeFrame`
-   * (중첩 innermost) 가 호출. 옛 `waitForButtonInteraction('await')` +
-   * pendingContinuations + firePayload 경로 대체 — buttonConfig/buttons/output 을
-   * context 에서 재계산하고 port 선택·structured/flat output·thread append·
-   * NodeExecution COMPLETED + RUNNING 전이·NODE_COMPLETED/EXECUTION_RESUMED emit.
-   */
-  private async processButtonResumeTurn(
-    savedExecution: Execution,
-    executionId: string,
-    node: Node,
-    context: ExecutionContext,
-    payload: unknown,
-  ): Promise<void> {
-    const flatNodeOutput = context.nodeOutputCache[node.id] as Record<
-      string,
-      unknown
-    >;
-    const structured = context.structuredOutputCache?.[node.id];
-    const structuredConfig = structured?.config;
-    const buttonConfig = (structuredConfig?.buttonConfig ??
-      flatNodeOutput?.buttonConfig) as ButtonConfig | undefined;
-    if (!buttonConfig || !Array.isArray(buttonConfig.buttons)) {
-      throw new Error(
-        `MISSING_BUTTON_CONFIG: Node ${node.id} resume without a buttonConfig`,
-      );
-    }
-    const buttons = buttonConfig.buttons;
-    const nodeExec = await this.nodeExecutionRepository.findOne({
-      where: { executionId, nodeId: node.id },
-      order: { startedAt: 'DESC' },
-    });
-
-    // Process the interaction result
-    const click = payload as {
-      type: string;
-      buttonId?: string;
-      action?: string;
-    };
-    const now = new Date().toISOString();
-
-    let selectedPort: string;
-    let interactionData: Record<string, unknown>;
-    let updatedOutput: Record<string, unknown>;
-
-    // Strip internal fields from nodeOutput for downstream consumption
-    // Keep buttonConfig so the execution detail page can render all buttons
-    const cleanNodeOutput = { ...flatNodeOutput };
-    delete cleanNodeOutput.status;
-    delete cleanNodeOutput.interactionType;
-
-    // Resolve selected item for item-level buttons (e.g. carousel per-item buttons)
-    const buttonItemMap = buttonConfig.buttonItemMap;
-    const structuredOutputObj = structured?.output as
-      | Record<string, unknown>
-      | undefined;
-    const outputItems = (structuredOutputObj?.items ??
-      flatNodeOutput.items ??
-      cleanNodeOutput.items) as unknown[] | undefined;
-
-    // `interactionData` carries the legacy wire-shape (interactionType +
-    // flat fields) used by the WS button event. `structuredInteraction`
-    // carries the unified `{type, data, receivedAt}` shape exposed through
-    // `$node["X"].output.interaction.*` (CONVENTIONS §4.5).
-    let structuredInteraction: {
-      type:
-        | 'form_submitted'
-        | 'button_click'
-        | 'button_continue'
-        | 'message_received';
-      data: Record<string, unknown>;
-      receivedAt: string;
-    };
-
-    if (click.type === 'button_click') {
-      const buttonId = click.buttonId!;
-      const clickedButton = buttons.find((b) => b.id === buttonId);
-
-      if (!clickedButton) {
-        throw new Error(`INVALID_BUTTON_ID: Button ${buttonId} not found`);
-      }
-
-      // Determine selected item for item-level buttons
-      const itemIndex =
-        buttonItemMap != null ? buttonItemMap[buttonId] : undefined;
-      const selectedItem =
-        itemIndex != null && outputItems ? outputItems[itemIndex] : undefined;
-
-      if (clickedButton.type === 'port') {
-        // Dynamic item buttons have IDs like "{defId}__item_{idx}".
-        // Route to the base definition port so editor edges match.
-        selectedPort = buttonId.includes('__item_')
-          ? buttonId.split('__item_')[0]
-          : buttonId;
-        interactionData = {
-          interactionType: 'button_click',
-          buttonId,
-          buttonLabel: clickedButton.label,
-          clickedAt: now,
-        };
-        structuredInteraction = {
-          type: 'button_click',
-          data: {
-            buttonId,
-            buttonLabel: clickedButton.label,
-            ...(selectedItem !== undefined && { selectedItem }),
-          },
-          receivedAt: now,
-        };
-        updatedOutput = {
-          type: 'button_click',
-          buttonId,
-          buttonLabel: clickedButton.label,
-          clickedAt: now,
-          ...(selectedItem !== undefined && { selectedItem }),
-          nodeOutput: cleanNodeOutput,
-          _selectedPort: selectedPort,
-        };
-      } else {
-        // __continue__ for link-only "Continue" click
-        selectedPort = 'continue';
-        interactionData = {
-          interactionType: 'button_continue',
-          clickedAt: now,
-        };
-        structuredInteraction = {
-          type: 'button_continue',
-          data: {
-            buttonId,
-            buttonLabel: clickedButton.label,
-            ...(clickedButton.url ? { url: clickedButton.url } : {}),
-            ...(selectedItem !== undefined && { selectedItem }),
-          },
-          receivedAt: now,
-        };
-        updatedOutput = {
-          type: 'button_continue',
-          clickedAt: now,
-          ...(selectedItem !== undefined && { selectedItem }),
-          nodeOutput: cleanNodeOutput,
-          _selectedPort: selectedPort,
-        };
-      }
-    } else {
-      // Fallback: treat as continue
-      selectedPort = 'continue';
-      interactionData = {
-        interactionType: 'button_continue',
-        clickedAt: now,
-      };
-      structuredInteraction = {
-        type: 'button_continue',
-        data: {},
-        receivedAt: now,
-      };
-      updatedOutput = {
-        type: 'button_continue',
-        clickedAt: now,
-        nodeOutput: cleanNodeOutput,
-        _selectedPort: selectedPort,
-      };
-    }
-
-    // Update node output cache with port selection. The flat-shape
-    // `updatedOutput` carries `_selectedPort` so existing routing logic
-    // (applyPortSelection / hasPortMismatch / stripControlFields) keeps
-    // operating without changes.
-    this.contextService.setNodeOutput(
-      this.contextKeyOf(context),
-      node.id,
-      updatedOutput,
-    );
-
-    // Mirror the interaction result into the structured NodeHandlerOutput
-    // cache so `$node["<label>"].output.interaction.buttonId` and
-    // `.output.selectedItem` resolve predictably. `setNodeOutput` above
-    // already derived a legacy structured view; we overwrite it with a
-    // richer shape that preserves the handler's original `config`/`meta`.
-    const prevStructured = context.structuredOutputCache?.[node.id];
-    const prevConfig = prevStructured?.config ?? {};
-    const prevMeta = prevStructured?.meta;
-    const rawPrevOutput = prevStructured?.output ?? cleanNodeOutput;
-    // Strip any nested `previousOutput` so repeated resume cycles (loops,
-    // retries) don't produce `previousOutput.previousOutput.…` chains that
-    // grow unbounded in memory and DB rows.
-    const prevOutput =
-      rawPrevOutput &&
-      typeof rawPrevOutput === 'object' &&
-      !Array.isArray(rawPrevOutput)
-        ? Object.fromEntries(
-            Object.entries(rawPrevOutput as Record<string, unknown>).filter(
-              ([key]) => key !== 'previousOutput',
-            ),
-          )
-        : rawPrevOutput;
-    // Structured output at the resumed tick: previous runtime fields are
-    // retained (per CONVENTIONS §4.4 — "immutable snapshot") and
-    // `output.interaction` is appended with the unified `{type, data,
-    // receivedAt}` shape.
-    //
-    // `previousOutput` is a legacy transitional field (CONVENTIONS §4.2
-    // explicitly marks it for retirement). Do NOT add new consumers — use
-    // the top-level runtime fields directly. Removal is tracked as a
-    // Phase 3 precondition in `memory/node-specs-improvement-progress.md`.
-    const structuredOutputPayload: Record<string, unknown> = {
-      ...(prevOutput as Record<string, unknown>),
-      interaction: structuredInteraction,
-      previousOutput: prevOutput,
-    };
-    const updatedStructured: NodeHandlerOutput = {
-      config: prevConfig,
-      output: structuredOutputPayload,
-      port: selectedPort,
-      status: 'resumed',
-      ...(prevMeta !== undefined ? { meta: prevMeta } : {}),
-    };
-    this.contextService.setStructuredOutput(
-      this.contextKeyOf(context),
-      node.id,
-      updatedStructured,
-    );
-    // Append the button interaction to the ConversationThread so downstream
-    // AI Agent nodes with `contextScope` can auto-inject it (single mutation
-    // entrypoint per spec/conventions/conversation-thread.md §2.1).
-    this.conversationThreadService.appendPresentationInteraction(context, {
-      node: {
-        id: node.id,
-        label: node.label,
-        type: node.type,
-        config: node.config,
-      },
-      interaction: structuredInteraction,
-    });
-
-    // Update node execution to completed with interaction data
-    if (nodeExec) {
-      nodeExec.status = NodeExecutionStatus.COMPLETED;
-      nodeExec.outputData = updatedStructured as unknown as Record<
-        string,
-        unknown
-      >;
-      nodeExec.interactionData = interactionData;
-      nodeExec.finishedAt = new Date();
-      nodeExec.durationMs =
-        nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
-    }
-
-    // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
-    // 재개 드라이브(driveResumeAwaited / driveResumeFrame)가 진입 시 이미
-    // WAITING_FOR_INPUT → RUNNING 전이를 수행했으므로, 이미 RUNNING 이면 상태 전이를
-    // 건너뛰고 NodeExecution 만 COMPLETED 영속한다 (RUNNING→RUNNING assertTransition
-    // 회피 — finalizeAiNode 의 동일 가드와 대칭).
-    if (savedExecution.status === ExecutionStatus.RUNNING) {
-      if (nodeExec) {
-        await this.nodeExecutionRepository.save(nodeExec);
-      }
-    } else {
-      await this.updateExecutionStatus(
-        savedExecution,
-        ExecutionStatus.RUNNING,
-        nodeExec ?? undefined,
-      );
-    }
-
-    if (nodeExec) {
-      await this.eventEmitter.emitNode(
-        executionId,
-        node.id,
-        NodeEventType.NODE_COMPLETED,
-        {
-          nodeExecutionId: nodeExec.id,
-          parentNodeExecutionId: context.parentNodeExecutionId,
-          status: NodeExecutionStatus.COMPLETED,
-          duration: nodeExec.durationMs,
-          nodeType: node.type,
-          nodeLabel: node.label ?? node.type,
-          output: nodeExec.outputData,
-          input: nodeExec.inputData,
-          interactionData: nodeExec.interactionData,
-          startedAt: nodeExec.startedAt?.toISOString?.(),
-          finishedAt: nodeExec.finishedAt?.toISOString?.(),
-        },
-      );
-    }
-    await this.eventEmitter.emitExecution(
-      executionId,
-      ExecutionEventType.EXECUTION_RESUMED,
-      { status: ExecutionStatus.RUNNING },
-    );
   }
 
   /**
