@@ -77,7 +77,7 @@ AI 멀티턴 생명주기 ~1,250줄을 god-class 에서 `AiTurnOrchestrator` 로
 - [x] TEST — lint ✓ · unit ✓(30 suites/779 execution-engine) · build ✓(execution-engine clean) · e2e ✓(34/202, dockerized npm ci v12)
 - [x] /ai-review — MEDIUM · C0 · W9. W1·2·3·5·7·8 fix(`d1386c07`), W4·6·9 수용. RESOLUTION.md(`review/code/2026/06/17/08_20_06`)
 - [x] /consistency-check --impl-done — 1차 BLOCK:YES(Critical: RehydrationError re-export 체인) → 해소(`a894ad62`) 재실행 **BLOCK:NO**. 잔여 Warning 3(W-1/2/3) 비차단 → 후속/체인종료
-- [ ] push + PR (base = PR1 브랜치 `claude/engine-split-s1-nodebootstrap`)
+- [x] push + PR — **#625** (base PR1 `claude/engine-split-s1-nodebootstrap` #622): https://github.com/worker-ants/clemvion/pull/625
 
 **환경 노트**: otplib v13 공유(심링크) node_modules 오염(병렬 잡의 ^13 업그레이드)으로 호스트 build/full-unit 의 auth 부분 실패 — 본 PR 무관(`totp.service.ts` 미변경). dockerized e2e(npm ci=package-lock v12)는 면역·통과. 상세: RESOLUTION.md 환경 노트.
 
