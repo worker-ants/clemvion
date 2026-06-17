@@ -103,7 +103,7 @@ retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄
 - [x] /ai-review — MEDIUM · C0. W-5/6/7(retry 분기 테스트)+W-2/8(@internal JSDoc) fix(`cffd95c8`); W-1/3/9(strangler-fig 누적 구조)·W-4(completeRetryExecution verbatim pre-existing) 수용/이연. RESOLUTION.md(`review/code/2026/06/18/07_09_54`)
 - [x] /consistency-check --impl-done — **BLOCK:NO**. Warning 1(본 plan PR4 절 stale)=본 갱신으로 해소. INFO(@internal 대칭·spec-sync)는 후속/체인종료
 - [x] push + PR — **#627** (base PR3 `claude/engine-split-s3-formbutton` #626): https://github.com/worker-ants/clemvion/pull/627
-- [ ] 체인 종료 spec-sync: `spec-update-engine-split.md` → project-planner 위임 (spec 반영 + /consistency-check --spec BLOCK:NO) — 진행 중
+- [ ] 체인 종료 spec-sync: `spec-update-engine-split.md` (draft 완료) → **4 PR 머지 후** project-planner 가 spec 반영 + /consistency-check --spec BLOCK:NO. (사전 실행은 코드 리뷰 변경 시 rework 위험 — 코드 settle 후 정합. 전부 비차단: impl-done 4회 BLOCK:NO.)
 
 **후속(impl-done INFO)**: `ExecutionCancelledError`(workflow-errors)·EngineDriver 인터페이스 신규 5멤버에 `@internal` JSDoc 대칭 추가(impl 측은 W-2 로 추가됨) — codebase 변경이라 별도 후속(impl-done 무효화 회피). `ExecutionGraphState`/`NodeDispatchLoopParams` leaf 이동도 후속.
 
