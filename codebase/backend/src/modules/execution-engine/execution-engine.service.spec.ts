@@ -8,13 +8,8 @@ import {
   EXECUTION_RUN_PRIORITY,
 } from './queues/execution-run.queue';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
-import {
-  ExecutionEngineService,
-  buildAiMessageDebugFromResumeState,
-  buildConversationConfigFromOutput,
-  buildConversationMetaFromResumeState,
-  userMessageSignalApplies,
-} from './execution-engine.service';
+import { ExecutionEngineService } from './execution-engine.service';
+import { userMessageSignalApplies } from './ai-conversation-helpers';
 import { CALL_STACK_SCHEMA_VERSION } from '../../shared/execution-resume/resume-call-stack.types';
 import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
@@ -27,6 +22,8 @@ import {
 import { MB_IN_BYTES } from '../chat-channel/shared/form-mode';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
+import { ENGINE_DRIVER } from './engine-driver.interface';
 import {
   ExecutionContextService,
   CreateContextOptions,
@@ -94,6 +91,10 @@ function flushResumeDrive(ms = 200): Promise<void> {
 
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;
+  // C-1 step2 — AI 멀티턴 lifecycle 은 AiTurnOrchestrator 로 추출됨. 엔진의
+  // dispatch/registry/retry 가 위임하므로, 추출된 메서드를 spy 하는 테스트는 본
+  // 인스턴스를 대상으로 한다 (엔진 인스턴스가 아님).
+  let aiTurnOrchestrator: AiTurnOrchestrator;
   // PR1 — execution-run intake 큐 mock (execute() 가 enqueue 하는지 검증).
   let mockExecutionRunQueue: { add: jest.Mock };
   // Phase 2 — ContinuationBusService mock 의 publish closure 가 lazy reference 로
@@ -288,6 +289,8 @@ describe('ExecutionEngineService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        AiTurnOrchestrator,
+        { provide: ENGINE_DRIVER, useExisting: ExecutionEngineService },
         BusinessMetricsService,
         ExecutionEventEmitter,
         GraphTraversalService,
@@ -524,6 +527,7 @@ describe('ExecutionEngineService', () => {
 
     service = module.get<ExecutionEngineService>(ExecutionEngineService);
     resolvedService = service;
+    aiTurnOrchestrator = module.get<AiTurnOrchestrator>(AiTurnOrchestrator);
     handlerRegistry = module.get<NodeHandlerRegistry>(NodeHandlerRegistry);
     mockWebsocketService = module.get(WebsocketService);
     mockExecutionRunQueue = module.get(getQueueToken(EXECUTION_RUN_QUEUE));
@@ -5474,6 +5478,15 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue([]);
     });
 
+    // W8 (SUMMARY) — 본 블록의 일부 테스트가 `aiTurnOrchestrator.logger` 에
+    // jest.spyOn(warn) 을 건다(C-1 step2 에서 spy 대상이 service.logger →
+    // orchestrator.logger 로 변경). 각 테스트가 warnSpy.mockRestore() 를 호출하나,
+    // 조기 실패 시 복원 누락으로 후속 테스트 logger 가 오염되지 않도록 방어적으로
+    // 전체 복원한다.
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
     it('W11 — form_submitted dispatch: handleAiMessageTurn 이 JSON.stringify(formData) 인자로 호출됨', async () => {
       // spec §10.9 + §10.9 dispatch 표 — form_submitted case 는
       // handleAiMessageTurn(executionId, contextKey, node, JSON.stringify(formData), ...) 호출.
@@ -5583,8 +5596,11 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      const logger = (service as unknown as { logger: { warn: jest.Mock } })
-        .logger;
+      // C-1 step2 — re-park warn 은 orchestrator 의 processAiResumeTurn 에서
+      // 발생하므로 orchestrator 의 logger 를 spy 한다.
+      const logger = (
+        aiTurnOrchestrator as unknown as { logger: { warn: jest.Mock } }
+      ).logger;
       const warnSpy = jest.spyOn(logger, 'warn');
 
       await service.execute(workflowId, { data: 'test' });
@@ -5655,8 +5671,11 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      const logger = (service as unknown as { logger: { warn: jest.Mock } })
-        .logger;
+      // C-1 step2 — re-park warn 은 orchestrator 의 processAiResumeTurn 에서
+      // 발생하므로 orchestrator 의 logger 를 spy 한다.
+      const logger = (
+        aiTurnOrchestrator as unknown as { logger: { warn: jest.Mock } }
+      ).logger;
       const warnSpy = jest.spyOn(logger, 'warn');
 
       await service.execute(workflowId, { data: 'test' });
@@ -5752,118 +5771,6 @@ describe('ExecutionEngineService', () => {
         expect.any(Object),
         expect.objectContaining({ source: 'ai_message' }),
       );
-    });
-
-    // -------------------------------------------------------------------------
-    // W5 (SUMMARY) — processAiResumeTurn 의 방어 가드.
-    // exec-park D6 full B3 — 옛 `runAiConversationLoop` 가 제거됐다. unknown
-    // action.type 의 `slice(0,64)` 가드와 stale button_click 의 graceful re-park 가
-    // 단발 turn 처리기 `processAiResumeTurn` 으로 이관됐다. 본 블록은 그 처리기를
-    // 직접 구동해 가드를 검증한다.
-    // -------------------------------------------------------------------------
-    describe('W5 — processAiResumeTurn 방어 가드 (unknown type slice / stale button_click re-park)', () => {
-      type AiSubject = {
-        processAiResumeTurn: (
-          savedExecution: unknown,
-          executionId: string,
-          node: unknown,
-          context: unknown,
-          nodeExec: unknown,
-          resumeState: Record<string, unknown>,
-          payload: unknown,
-          opts?: { retryReentry?: boolean },
-        ) => Promise<unknown>;
-        contextService: {
-          createContext: (e: string, w: string) => ExecutionContext;
-        };
-      };
-
-      // processAiResumeTurn 을 직접 구동한다. savedExecution 은 재개 드라이브가
-      // 이미 RUNNING 으로 전이한 상태를 모사(status=RUNNING)하므로, re-park 의
-      // RUNNING→WAITING_FOR_INPUT 전이가 유효하다. 반환값은 re-park 시 PARK_RELEASED
-      // (Symbol) 이다.
-      const driveResumeTurn = async (
-        payload: unknown,
-      ): Promise<{ warnSpy: jest.SpyInstance; result: unknown }> => {
-        const handler = makeAiDispatchHandler(() => ({
-          config: { mode: 'multi_turn' },
-          output: {},
-          meta: {},
-          port: 'ended',
-          status: 'ended',
-        }));
-        handlerRegistry.register('ai_agent', handler, {
-          kind: 'blocking',
-          interaction: 'ai_conversation',
-        });
-
-        const logger = (service as unknown as { logger: { warn: jest.Mock } })
-          .logger;
-        const warnSpy = jest.spyOn(logger, 'warn');
-
-        const subject = service as unknown as AiSubject;
-        const context = subject.contextService.createContext(
-          executionId,
-          workflowId,
-        );
-        const node = aiDispatchNodes[0];
-        const savedExecution = {
-          id: executionId,
-          workflowId,
-          status: ExecutionStatus.RUNNING,
-          startedAt: new Date(),
-        };
-
-        const result = await subject.processAiResumeTurn(
-          savedExecution,
-          executionId,
-          node,
-          context,
-          null,
-          { messages: [], turnCount: 0 },
-          payload,
-        );
-        return { warnSpy, result };
-      };
-
-      it('unknown action.type 64자 초과 → 64자로 슬라이싱되어 warn log 에 포함 + re-park(PARK_RELEASED)', async () => {
-        const longType = 'a'.repeat(100);
-        const { warnSpy, result } = await driveResumeTurn({ type: longType });
-
-        // unknown action.type 은 slice(0,64) 로 잘려 warn 메시지에 포함된다.
-        const hasSlicedWarn = warnSpy.mock.calls.some((args) => {
-          const msg = String(args[0]);
-          return (
-            msg.includes('unknown continuation action.type') &&
-            msg.includes('a'.repeat(64)) &&
-            !msg.includes('a'.repeat(65))
-          );
-        });
-        expect(hasSlicedWarn).toBe(true);
-        // 대화 alive — re-park 로 PARK_RELEASED 반환.
-        expect(typeof result).toBe('symbol');
-        warnSpy.mockRestore();
-      });
-
-      it('stale button_click → graceful re-park(PARK_RELEASED) + warn (TypeError 없음, buttonId 형태 무관)', async () => {
-        // ai_conversation 대기 중 도달한 button_click 은 상태 변경 없이 re-park.
-        // buttonId 가 어떤 형태든(긴 문자열/null/숫자) 처리기는 buttonId 를 읽지
-        // 않으므로 TypeError 없이 graceful re-park 한다.
-        for (const buttonId of ['a'.repeat(100), null, 42]) {
-          const { warnSpy, result } = await driveResumeTurn({
-            type: 'button_click',
-            buttonId,
-          });
-          const hasButtonWarn = warnSpy.mock.calls.some((args) =>
-            String(args[0]).includes(
-              'button_click received during ai_conversation',
-            ),
-          );
-          expect(hasButtonWarn).toBe(true);
-          expect(typeof result).toBe('symbol');
-          warnSpy.mockRestore();
-        }
-      });
     });
   });
 
@@ -6132,243 +6039,6 @@ describe('ExecutionEngineService', () => {
       // 재수화 경로에서도 interactionType 보존(W1) + durationMs 계산.
       expect(out.meta?.interactionType).toBe('form');
       expect(out.meta?.durationMs as number).toBeGreaterThanOrEqual(2000);
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // extractAiTurnErrorPayload — 단위 테스트 (testing-W req W_json)
-  // private static 이므로 `as unknown as` 캐스팅으로 직접 호출.
-  // ---------------------------------------------------------------------------
-  describe('extractAiTurnErrorPayload', () => {
-    type ExtractFn = (err: unknown) => {
-      code: string;
-      message: string;
-      details?: unknown;
-    };
-    const extract = (): ExtractFn =>
-      (
-        ExecutionEngineService as unknown as {
-          extractAiTurnErrorPayload: ExtractFn;
-        }
-      ).extractAiTurnErrorPayload;
-
-    // spec/conventions/node-output.md Principle 3.2.1 — LLM 계열 노드는
-    // details.retryable 필수. 본 PR (2026-05-23) 의 행동 변경.
-    it('Error 인스턴스 + 명시 code 를 올바르게 추출한다 (details.retryable 보장)', () => {
-      const err = Object.assign(new Error('LLM rate limited'), {
-        code: 'LLM_RATE_LIMIT',
-      });
-      const result = extract()(err);
-      expect(result.code).toBe('LLM_RATE_LIMIT');
-      expect(result.message).toContain('LLM rate limited');
-      // Principle 3.2.1 — LLM_RATE_LIMIT 은 retryable=true
-      expect(result.details).toEqual({ retryable: true });
-    });
-
-    it('string throw 를 처리한다', () => {
-      const result = extract()('something went wrong');
-      // 분류 불가 fallback → LLM_CALL_FAILED non-retryable (spec §10 단일 taxonomy)
-      expect(result.code).toBe('LLM_CALL_FAILED');
-      expect(result.message).toBe('something went wrong');
-    });
-
-    it('null/undefined throw 를 처리한다', () => {
-      expect(extract()(null).message).toBe('unknown error');
-      expect(extract()(undefined).message).toBe('unknown error');
-    });
-
-    it('number/boolean/bigint throw 를 처리한다', () => {
-      expect(extract()(429).message).toBe('429');
-      expect(extract()(true).message).toBe('true');
-    });
-
-    it('message 에 429 포함 시 code=LLM_RATE_LIMIT fallback', () => {
-      const err = new Error('API returned 429');
-      const result = extract()(err);
-      expect(result.code).toBe('LLM_RATE_LIMIT');
-    });
-
-    it('message 에 rate limit 포함 시 code=LLM_RATE_LIMIT fallback', () => {
-      const err = new Error('Rate limit exceeded');
-      const result = extract()(err);
-      expect(result.code).toBe('LLM_RATE_LIMIT');
-    });
-
-    it('network/timeout 메시지 → LLM_CALL_FAILED + retryable=true (spec §10)', () => {
-      const err = new Error('Connection timeout');
-      const result = extract()(err);
-      expect(result.code).toBe('LLM_CALL_FAILED');
-      expect((result.details as Record<string, unknown>).retryable).toBe(true);
-    });
-
-    it('분류 불가 메시지 → LLM_CALL_FAILED + retryable=false', () => {
-      const err = new Error('something unexpected happened');
-      const result = extract()(err);
-      // spec §10 — 별도 AI_* fallback 없이 LLM_CALL_FAILED non-retryable 로 통합
-      expect(result.code).toBe('LLM_CALL_FAILED');
-      expect((result.details as Record<string, unknown>).retryable).toBe(false);
-    });
-
-    it('details 필드를 포함한 오류를 처리한다 (retryable 자동 분류)', () => {
-      const err = Object.assign(new Error('API error'), {
-        code: 'LLM_API_ERROR',
-        details: { retryAfter: 60, status: 429 },
-      });
-      const result = extract()(err);
-      // 기존 details 필드 보존 + Principle 3.2.1 retryable 추가.
-      // LLM_API_ERROR 는 RETRYABLE_CODES 에 없어 retryable=false (보수적 default).
-      expect(result.details).toEqual({
-        retryAfter: 60,
-        status: 429,
-        retryable: false,
-      });
-    });
-
-    it('details 에 secret 포함 시 sanitize 가 적용된다', () => {
-      const err = Object.assign(new Error('OAuth error'), {
-        details: { message: 'Bearer abc123token invalid' },
-      });
-      const result = extract()(err);
-      expect(JSON.stringify(result.details)).not.toContain('abc123token');
-      expect(JSON.stringify(result.details)).toContain('***');
-    });
-
-    it('details 가 순환참조 객체이면 직렬화 실패 시 fallback 문자열 반환 (req W_json)', () => {
-      const circular: Record<string, unknown> = { name: 'circular' };
-      circular['self'] = circular;
-      const err = Object.assign(new Error('circular error'), {
-        details: circular,
-      });
-      // JSON.stringify(circular) throws — should NOT throw out, must return safe value
-      expect(() => extract()(err)).not.toThrow();
-      const result = extract()(err);
-      // Principle 3.2.1 갱신 후 — fallback `[serialization error]` 가
-      // baseDetails 의 `details` 필드로 래핑되고 retryable 이 추가됨.
-      expect(result.details).toMatchObject({
-        details: '[serialization error]',
-        retryable: false,
-      });
-    });
-
-    it('비-Error 객체 throw 시 JSON.stringify 실패해도 throw 하지 않는다 (req W_json)', () => {
-      const nonSerializable: Record<string, unknown> = {};
-      nonSerializable['self'] = nonSerializable; // circular
-      expect(() => extract()(nonSerializable)).not.toThrow();
-      const result = extract()(nonSerializable);
-      expect(result.message).toBe('[non-serializable error object]');
-      expect(result.code).toBe('LLM_CALL_FAILED');
-    });
-
-    // spec/conventions/node-output.md Principle 3.2.1 — LLM 계열 retryable 분류
-    describe('retryable 분류 (Principle 3.2.1)', () => {
-      it('LLM_RATE_LIMIT → retryable=true', () => {
-        const result = extract()(
-          Object.assign(new Error('429'), { code: 'LLM_RATE_LIMIT' }),
-        );
-        expect((result.details as Record<string, unknown>).retryable).toBe(
-          true,
-        );
-      });
-
-      it('분류 불가 fallback → LLM_CALL_FAILED + retryable=false (보수적 default)', () => {
-        const result = extract()(new Error('unexpected error'));
-        expect(result.code).toBe('LLM_CALL_FAILED');
-        expect((result.details as Record<string, unknown>).retryable).toBe(
-          false,
-        );
-      });
-
-      // spec/4-nodes/3-ai/1-ai-agent.md §10 — HTTP status 기반 분류 (스펙이 SoT).
-      // 멀티턴 경로는 raw SDK 에러(.status)를 받으므로 status 로 분류한다.
-      describe('HTTP status 기반 분류 (§10)', () => {
-        const withStatus = (status: number, msg = 'provider error') =>
-          Object.assign(new Error(msg), { status });
-
-        it('status 429 → LLM_RATE_LIMIT + retryable=true', () => {
-          const r = extract()(withStatus(429, 'too many requests'));
-          expect(r.code).toBe('LLM_RATE_LIMIT');
-          expect((r.details as Record<string, unknown>).retryable).toBe(true);
-        });
-
-        it('status 500 → LLM_CALL_FAILED + retryable=true (5xx)', () => {
-          const r = extract()(withStatus(500));
-          expect(r.code).toBe('LLM_CALL_FAILED');
-          expect((r.details as Record<string, unknown>).retryable).toBe(true);
-        });
-
-        it('status 503 → LLM_CALL_FAILED + retryable=true (5xx)', () => {
-          const r = extract()(withStatus(503));
-          expect(r.code).toBe('LLM_CALL_FAILED');
-          expect((r.details as Record<string, unknown>).retryable).toBe(true);
-        });
-
-        it('status 401 → LLM_CALL_FAILED + retryable=false (auth)', () => {
-          const r = extract()(withStatus(401, 'unauthorized'));
-          expect(r.code).toBe('LLM_CALL_FAILED');
-          expect((r.details as Record<string, unknown>).retryable).toBe(false);
-        });
-
-        it('status 403 → LLM_CALL_FAILED + retryable=false (auth)', () => {
-          const r = extract()(withStatus(403, 'forbidden'));
-          expect(r.code).toBe('LLM_CALL_FAILED');
-          expect((r.details as Record<string, unknown>).retryable).toBe(false);
-        });
-
-        it('err.response.status 502 fallback → LLM_CALL_FAILED + retryable=true', () => {
-          const r = extract()(
-            Object.assign(new Error('bad gateway'), {
-              response: { status: 502 },
-            }),
-          );
-          expect(r.code).toBe('LLM_CALL_FAILED');
-          expect((r.details as Record<string, unknown>).retryable).toBe(true);
-        });
-
-        it('errno ECONNRESET → LLM_CALL_FAILED + retryable=true (network)', () => {
-          const r = extract()(
-            Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }),
-          );
-          expect(r.code).toBe('LLM_CALL_FAILED');
-          expect((r.details as Record<string, unknown>).retryable).toBe(true);
-        });
-
-        it('client-layer LLM_CONNECTION_ERROR 코드 누출 시 LLM_CALL_FAILED 로 매핑 + retryable=true', () => {
-          const r = extract()(
-            Object.assign(new Error('network down'), {
-              code: 'LLM_CONNECTION_ERROR',
-            }),
-          );
-          expect(r.code).toBe('LLM_CALL_FAILED');
-          expect((r.details as Record<string, unknown>).retryable).toBe(true);
-        });
-
-        it('status 400 (bad request, 비-auth 4xx) → 비재시도 fallback', () => {
-          const r = extract()(withStatus(400, 'bad request'));
-          expect((r.details as Record<string, unknown>).retryable).toBe(false);
-        });
-      });
-
-      it('LLM_RATE_LIMIT + Retry-After 헤더 → retryAfterSec 추출 (초 단위)', () => {
-        const err = Object.assign(new Error('429'), {
-          code: 'LLM_RATE_LIMIT',
-          headers: { 'retry-after': '30' }, // 초 단위 RFC delta-seconds
-        });
-        const result = extract()(err);
-        const details = result.details as Record<string, unknown>;
-        expect(details.retryable).toBe(true);
-        expect(details.retryAfterSec).toBe(30);
-      });
-
-      it('retryable=false 면 retryAfterSec 미동봉 (invariant)', () => {
-        const err = Object.assign(new Error('parse fail'), {
-          code: 'LLM_RESPONSE_INVALID',
-          headers: { 'retry-after': '30' },
-        });
-        const result = extract()(err);
-        const details = result.details as Record<string, unknown>;
-        expect(details.retryable).toBe(false);
-        expect(details.retryAfterSec).toBeUndefined();
-      });
     });
   });
 
@@ -11070,7 +10740,6 @@ describe('ExecutionEngineService', () => {
       // 가 describe 블록에 등록돼 있어 개별 복원 코드 불필요.
       const svcAny = service as unknown as {
         loadAndBuildGraph: (...args: unknown[]) => Promise<unknown>;
-        processAiResumeTurn: (...args: unknown[]) => Promise<void>;
       };
       // 그래프는 waiting node 단일 — post-branch traversal 이 즉시 종료.
       const loadSpy = jest
@@ -11090,8 +10759,9 @@ describe('ExecutionEngineService', () => {
       // Phase B (exec-park D4) — top-level AI resume 은 옛 장수 루프
       // waitForAiConversation 대신 단발 turn 처리기 processAiResumeTurn 으로
       // 재진입한다. 도착한 payload 1건만 처리하고 (계속이면 re-park) 반환.
+      // C-1 step2 — processAiResumeTurn 은 orchestrator 로 이동 (registry 위임).
       const turnSpy = jest
-        .spyOn(svcAny, 'processAiResumeTurn')
+        .spyOn(aiTurnOrchestrator, 'processAiResumeTurn')
         .mockResolvedValue(undefined);
 
       await subject().rehydrateAndResume(executionId, 'ne-1', {
@@ -11180,7 +10850,6 @@ describe('ExecutionEngineService', () => {
       // 전역 서비스 인스턴스 오염을 방지한다.
       const svcAny = service as unknown as {
         loadAndBuildGraph: (...args: unknown[]) => Promise<unknown>;
-        processAiResumeTurn: (...args: unknown[]) => Promise<void>;
         contextService: {
           setNodeOutput: jest.Mock;
           getContext: (
@@ -11206,8 +10875,9 @@ describe('ExecutionEngineService', () => {
         });
       // Phase B (exec-park D4) — IE multi-turn resume 도 동일 공용 경로:
       // 단발 turn 처리기 processAiResumeTurn 으로 재진입.
+      // C-1 step2 — processAiResumeTurn 은 orchestrator 로 이동 (registry 위임).
       const turnSpy = jest
-        .spyOn(svcAny, 'processAiResumeTurn')
+        .spyOn(aiTurnOrchestrator, 'processAiResumeTurn')
         .mockResolvedValue(undefined);
 
       // W6 (ai-review) — setNodeOutput 호출 인자를 캡처해 buildRetryReentryState 가
@@ -11301,11 +10971,12 @@ describe('ExecutionEngineService', () => {
       mockExecutionNodeLogRepo.find.mockResolvedValue([]);
 
       // W2 (SUMMARY) — jest.spyOn 으로 교체해 복원 누락 side-effect 방지.
-      const svcAny = service as unknown as {
+      // C-1 step2 — waitForAiConversation 은 orchestrator 로 이동.
+      const orchAny = aiTurnOrchestrator as unknown as {
         waitForAiConversation: (...args: unknown[]) => Promise<void>;
       };
       const waitSpy = jest
-        .spyOn(svcAny, 'waitForAiConversation')
+        .spyOn(orchAny, 'waitForAiConversation')
         .mockResolvedValue(undefined);
 
       await subject().rehydrateAndResume(executionId, 'ne-1', {
@@ -11378,11 +11049,12 @@ describe('ExecutionEngineService', () => {
       });
       mockExecutionNodeLogRepo.find.mockResolvedValue([]);
 
-      const svcAny2 = service as unknown as {
+      // C-1 step2 — waitForAiConversation 은 orchestrator 로 이동.
+      const orchAny2 = aiTurnOrchestrator as unknown as {
         waitForAiConversation: (...args: unknown[]) => Promise<void>;
       };
       const waitSpyIe = jest
-        .spyOn(svcAny2, 'waitForAiConversation')
+        .spyOn(orchAny2, 'waitForAiConversation')
         .mockResolvedValue(undefined);
 
       await subject().rehydrateAndResume(executionId, 'ne-1', {
@@ -11572,17 +11244,21 @@ describe('ExecutionEngineService', () => {
       });
       mockExecutionNodeLogRepo.find.mockResolvedValue([]);
 
+      // C-1 step2 — processAiResumeTurn 은 orchestrator 로 이동. buildRetryReentryState /
+      // updateExecutionStatus 는 EngineDriver(=엔진) 경유 호출이므로 엔진 인스턴스에 둔다.
       const svcAny = service as unknown as {
         loadAndBuildGraph: jest.Mock;
         buildRetryReentryState: jest.Mock;
-        processAiResumeTurn: jest.Mock;
         runNodeDispatchLoop: jest.Mock;
         updateExecutionStatus: jest.Mock;
+      };
+      const orchAny = aiTurnOrchestrator as unknown as {
+        processAiResumeTurn: jest.Mock;
       };
       const orig = {
         load: svcAny.loadAndBuildGraph,
         build: svcAny.buildRetryReentryState,
-        turn: svcAny.processAiResumeTurn,
+        turn: orchAny.processAiResumeTurn,
         loop: svcAny.runNodeDispatchLoop,
         upd: svcAny.updateExecutionStatus,
       };
@@ -11600,7 +11276,7 @@ describe('ExecutionEngineService', () => {
         .mockResolvedValue({ parked: false });
       svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
       // turn 처리기를 terminal(void resolve)로 스텁 — drive 가 이를 await 한다.
-      svcAny.processAiResumeTurn = jest.fn().mockResolvedValue(undefined);
+      orchAny.processAiResumeTurn = jest.fn().mockResolvedValue(undefined);
 
       const { guard, timer } = makeCompletionGuard();
       try {
@@ -11612,9 +11288,9 @@ describe('ExecutionEngineService', () => {
           }),
           guard,
         ]);
-        expect(svcAny.processAiResumeTurn).toHaveBeenCalledTimes(1);
+        expect(orchAny.processAiResumeTurn).toHaveBeenCalledTimes(1);
         // 도착한 turn(payload)이 그대로 forward 됐는지.
-        expect(svcAny.processAiResumeTurn).toHaveBeenCalledWith(
+        expect(orchAny.processAiResumeTurn).toHaveBeenCalledWith(
           expect.anything(), // savedExecution
           executionId,
           expect.objectContaining({ id: 'node-1' }),
@@ -11628,7 +11304,7 @@ describe('ExecutionEngineService', () => {
         await flushPromises();
         svcAny.loadAndBuildGraph = orig.load;
         svcAny.buildRetryReentryState = orig.build;
-        svcAny.processAiResumeTurn = orig.turn;
+        orchAny.processAiResumeTurn = orig.turn;
         svcAny.runNodeDispatchLoop = orig.loop;
         svcAny.updateExecutionStatus = orig.upd;
       }
@@ -11844,8 +11520,9 @@ describe('ExecutionEngineService', () => {
       jest
         .spyOn(handlerRegistry, 'getMetadata')
         .mockReturnValue({ kind: 'standard' } as never);
+      // C-1 step2 — registry 의 ai_conversation 항목은 orchestrator 로 위임.
       const aiSpy = jest
-        .spyOn(svc, 'handleAiResumeTurn')
+        .spyOn(aiTurnOrchestrator, 'handleAiResumeTurn')
         .mockResolvedValue(undefined);
 
       const out = await svc.dispatchResumeTurn(
@@ -11866,7 +11543,10 @@ describe('ExecutionEngineService', () => {
       jest
         .spyOn(handlerRegistry, 'getMetadata')
         .mockReturnValue({ kind: 'standard' } as never);
-      jest.spyOn(svc, 'handleAiResumeTurn').mockResolvedValue(PARK_RELEASED);
+      // C-1 step2 — registry 의 ai_conversation 항목은 orchestrator 로 위임.
+      jest
+        .spyOn(aiTurnOrchestrator, 'handleAiResumeTurn')
+        .mockResolvedValue(PARK_RELEASED);
 
       const out = await svc.dispatchResumeTurn(
         makeCtx({
@@ -11944,23 +11624,27 @@ describe('ExecutionEngineService', () => {
     // handleAiResumeTurn 내부 로직(ai-review W3) — dispatch 라우팅 테스트는 이 메서드를
     // spy 대체하므로, 재구성 실패→throw / 정상 경로→seed+processAiResumeTurn 은 여기서 직접 검증.
     it('handleAiResumeTurn: buildRetryReentryState 실패 → RESUME_INCOMPATIBLE_STATE 전파', async () => {
+      // C-1 step2 — handleAiResumeTurn 은 orchestrator 로 이동. buildRetryReentryState
+      // 는 EngineDriver(=엔진 인스턴스) 경유 호출이므로 service 에 spy 한다.
       const svc = service as unknown as DispatchSubject;
       jest.spyOn(svc, 'buildRetryReentryState').mockImplementation(() => {
         throw new Error('checkpoint corrupt');
       });
 
       await expect(
-        svc.handleAiResumeTurn(
+        aiTurnOrchestrator.handleAiResumeTurn(
           makeCtx({
             node: { id: 'ai1', type: 'ai_agent' },
             isAiConversation: true,
             resumeCheckpoint: { schemaVersion: 1 },
-          }),
+          }) as never,
         ),
       ).rejects.toMatchObject({ code: 'RESUME_INCOMPATIBLE_STATE' });
     });
 
     it('handleAiResumeTurn: 정상 → _resumeState seed(setNodeOutput) + processAiResumeTurn 결과 전달', async () => {
+      // C-1 step2 — handleAiResumeTurn / processAiResumeTurn 은 orchestrator 로
+      // 이동. buildRetryReentryState / contextKeyOf 는 driver(=엔진) 경유 호출.
       const svc = service as unknown as DispatchSubject;
       const resumeState = { messages: [], turnCount: 2 };
       jest
@@ -11969,22 +11653,25 @@ describe('ExecutionEngineService', () => {
       jest.spyOn(svc, 'contextKeyOf').mockReturnValue('ctx-key');
       const setOutputSpy = jest
         .spyOn(
-          (service as unknown as { contextService: { setNodeOutput: unknown } })
-            .contextService as { setNodeOutput: (...a: unknown[]) => void },
+          (
+            aiTurnOrchestrator as unknown as {
+              contextService: { setNodeOutput: unknown };
+            }
+          ).contextService as { setNodeOutput: (...a: unknown[]) => void },
           'setNodeOutput',
         )
         .mockImplementation(() => undefined);
       const aiSpy = jest
-        .spyOn(svc, 'processAiResumeTurn')
+        .spyOn(aiTurnOrchestrator, 'processAiResumeTurn')
         .mockResolvedValue(PARK_RELEASED);
 
-      const out = await svc.handleAiResumeTurn(
+      const out = await aiTurnOrchestrator.handleAiResumeTurn(
         makeCtx({
           node: { id: 'ai1', type: 'ai_agent' },
           isAiConversation: true,
           resumeCheckpoint: { schemaVersion: 1 },
           cachedOutput: { foo: 'bar' },
-        }),
+        }) as never,
       );
 
       expect(out).toBe(PARK_RELEASED);
@@ -14238,11 +13925,13 @@ describe('ExecutionEngineService', () => {
         },
       });
 
-      const svcAny = service as unknown as {
+      // C-1 step2 — waitForAiConversation 은 orchestrator 로 이동. dispatch loop 의
+      // ai_conversation 분기가 orchestrator 로 위임하므로 orchestrator 에 둔다.
+      const orchAny = aiTurnOrchestrator as unknown as {
         waitForAiConversation: jest.Mock;
       };
-      const originalWait = svcAny.waitForAiConversation;
-      svcAny.waitForAiConversation = jest.fn().mockResolvedValue(undefined);
+      const originalWait = orchAny.waitForAiConversation;
+      orchAny.waitForAiConversation = jest.fn().mockResolvedValue(undefined);
 
       try {
         await service.applyRetryLastTurn(EXEC, SPAWNED);
@@ -14251,9 +13940,9 @@ describe('ExecutionEngineService', () => {
         expect(downstreamHandler.execute).toHaveBeenCalledTimes(1);
         // runNodeDispatchLoop 의 `downstreamInteraction === 'ai_conversation'`
         // 분기 도달.
-        expect(svcAny.waitForAiConversation).toHaveBeenCalledTimes(1);
+        expect(orchAny.waitForAiConversation).toHaveBeenCalledTimes(1);
       } finally {
-        svcAny.waitForAiConversation = originalWait;
+        orchAny.waitForAiConversation = originalWait;
       }
     });
   });
@@ -14558,420 +14247,6 @@ describe('ExecutionEngineService', () => {
   });
 });
 
-describe('buildConversationMetaFromResumeState', () => {
-  it('exposes turnDebug + ragSources from _resumeState for frontend References / LLM Usage tabs', () => {
-    const turnEntry = {
-      turnIndex: 1,
-      llmCalls: [],
-      totalDurationMs: 100,
-      ragSources: [
-        { chunkId: 'c1', documentId: 'd1', documentName: 'doc.md', score: 0.9 },
-      ],
-      ragDiagnostics: {
-        attempted: true,
-        searchedKbCount: 1,
-        queriesUsed: ['q'],
-        resultCount: 1,
-      },
-    };
-    const meta = buildConversationMetaFromResumeState({
-      model: 'gpt-4o',
-      totalInputTokens: 100,
-      totalOutputTokens: 50,
-      totalThinkingTokens: 5,
-      toolCalls: 1,
-      ragSources: [
-        { chunkId: 'c1', documentId: 'd1', documentName: 'doc.md', score: 0.9 },
-      ],
-      ragLastDiagnostics: {
-        attempted: true,
-        searchedKbCount: 1,
-        queriesUsed: ['q'],
-        resultCount: 1,
-      },
-      turnDebugHistory: [turnEntry],
-    });
-
-    expect(meta).toEqual({
-      interactionType: 'ai_conversation',
-      model: 'gpt-4o',
-      inputTokens: 100,
-      outputTokens: 50,
-      totalTokens: 150,
-      thinkingTokens: 5,
-      toolCalls: 1,
-      ragSources: [
-        { chunkId: 'c1', documentId: 'd1', documentName: 'doc.md', score: 0.9 },
-      ],
-      ragDiagnostics: {
-        attempted: true,
-        searchedKbCount: 1,
-        queriesUsed: ['q'],
-        resultCount: 1,
-      },
-      turnDebug: [turnEntry],
-    });
-  });
-
-  it('returns safe defaults when state lacks accumulators (initial waiting before first user message)', () => {
-    const meta = buildConversationMetaFromResumeState({ model: 'gpt-4o' });
-    expect(meta).toMatchObject({
-      interactionType: 'ai_conversation',
-      model: 'gpt-4o',
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      thinkingTokens: 0,
-      toolCalls: 0,
-      ragSources: [],
-      turnDebug: [],
-    });
-    // ragLastDiagnostics 가 없으면 ragDiagnostics 도 undefined — frontend 에서
-    // null 가드로 처리.
-    expect(meta.ragDiagnostics).toBeUndefined();
-  });
-});
-
-describe('buildAiMessageDebugFromResumeState', () => {
-  // spec/5-system/6-websocket-protocol.md §4.4 — execution.ai_message
-  it('extracts llmCalls and durationMs from the last turn entry', () => {
-    const lastTurn = {
-      turnIndex: 2,
-      llmCalls: [
-        {
-          requestPayload: { messages: [] },
-          responsePayload: { content: 'a' },
-          durationMs: 100,
-        },
-        {
-          requestPayload: { messages: [] },
-          responsePayload: { content: 'b' },
-          durationMs: 200,
-        },
-      ],
-      totalDurationMs: 300,
-    };
-    const debug = buildAiMessageDebugFromResumeState({
-      turnDebugHistory: [
-        { turnIndex: 1, llmCalls: [], totalDurationMs: 50 },
-        lastTurn,
-      ],
-    });
-    expect(debug).toEqual({
-      llmCalls: lastTurn.llmCalls,
-      durationMs: 300,
-    });
-  });
-
-  // spec/5-system/6-websocket-protocol.md §4.4 — llmCalls[].startedAt/finishedAt
-  // 절대 발생 시각이 payload 로 전파돼야 어시스턴트 turn 발생 시각을 표시할 수 있다.
-  it('carries per-call startedAt/finishedAt through to the payload', () => {
-    const lastTurn = {
-      turnIndex: 1,
-      llmCalls: [
-        {
-          requestPayload: {},
-          responsePayload: { content: 'a' },
-          durationMs: 100,
-          startedAt: '2026-05-10T06:42:01.500Z',
-          finishedAt: '2026-05-10T06:42:01.600Z',
-        },
-      ],
-      totalDurationMs: 100,
-    };
-    const debug = buildAiMessageDebugFromResumeState({
-      turnDebugHistory: [lastTurn],
-    });
-    expect(debug.llmCalls?.[0]).toMatchObject({
-      startedAt: '2026-05-10T06:42:01.500Z',
-      finishedAt: '2026-05-10T06:42:01.600Z',
-    });
-  });
-
-  it('preserves multi-call llm sequence for tool-loop turns', () => {
-    const llmCalls = [
-      {
-        requestPayload: { tool: 1 },
-        responsePayload: { content: '' },
-        durationMs: 80,
-      },
-      {
-        requestPayload: { tool: 2 },
-        responsePayload: { content: '' },
-        durationMs: 90,
-      },
-      {
-        requestPayload: { tool: 3 },
-        responsePayload: { content: 'final' },
-        durationMs: 120,
-      },
-    ];
-    const debug = buildAiMessageDebugFromResumeState({
-      turnDebugHistory: [{ turnIndex: 1, llmCalls, totalDurationMs: 290 }],
-    });
-    expect(debug.llmCalls).toEqual(llmCalls);
-    expect(debug.llmCalls).toHaveLength(3);
-    expect(debug.durationMs).toBe(290);
-  });
-
-  it('returns empty object when turnDebugHistory is missing (initial waiting)', () => {
-    const debug = buildAiMessageDebugFromResumeState({ model: 'gpt-4o' });
-    expect(debug).toEqual({});
-  });
-
-  it('returns empty object when turnDebugHistory is an empty array', () => {
-    const debug = buildAiMessageDebugFromResumeState({ turnDebugHistory: [] });
-    expect(debug).toEqual({});
-  });
-
-  it('omits llmCalls field when the last turn entry has none', () => {
-    const debug = buildAiMessageDebugFromResumeState({
-      turnDebugHistory: [{ turnIndex: 1, totalDurationMs: 50 }],
-    });
-    expect(debug.llmCalls).toBeUndefined();
-    expect(debug.durationMs).toBe(50);
-  });
-
-  it('emits an empty array when the last turn has llmCalls: []', () => {
-    const debug = buildAiMessageDebugFromResumeState({
-      turnDebugHistory: [{ turnIndex: 1, llmCalls: [], totalDurationMs: 0 }],
-    });
-    // []는 의도된 값(이번 턴에 LLM 호출이 0건)이므로 보존한다 — undefined와
-    // 의미가 다르다.
-    expect(debug.llmCalls).toEqual([]);
-    expect(debug.durationMs).toBe(0);
-  });
-
-  it('drops llmCalls when the field is non-array (defensive against legacy null)', () => {
-    const debug = buildAiMessageDebugFromResumeState({
-      turnDebugHistory: [
-        // Array.isArray rejects null / undefined / non-array values
-        { turnIndex: 1, llmCalls: null, totalDurationMs: 50 },
-      ],
-    });
-    expect(debug.llmCalls).toBeUndefined();
-    expect(debug.durationMs).toBe(50);
-  });
-});
-
-// WARN #22 — 단위 테스트 신설.
-//
-// `buildConversationConfigFromOutput` 은 핸들러 출력 (handler 의 raw output)
-// 을 WS `execution.waiting_for_input` payload 의 `conversationConfig` 으로
-// 변환한다. spec/5-system/4-execution-engine.md §1.3 의 multi-turn 컨트랙트
-// 일부로, system 메시지 필터링 / partial 필드 선택적 전파 등 비자명한 변환을
-// 포함한다.
-//
-// D6 (2026-05-17) — 대화 필드는 `output.result.*` 단일 경로. 옛 top-level
-// `output.message` / `.messages` / `.turnCount` / `.maxTurns` 는 폐기됐고,
-// `partial.*` (info-extractor 부분 수집) 만 top-level 유지.
-describe('buildConversationConfigFromOutput', () => {
-  it('returns defaults when output is undefined', () => {
-    const conv = buildConversationConfigFromOutput(undefined);
-    expect(conv).toEqual({
-      message: '',
-      turnCount: 0,
-      messages: [],
-    });
-  });
-
-  it('returns defaults when output is empty', () => {
-    const conv = buildConversationConfigFromOutput({});
-    expect(conv).toEqual({
-      message: '',
-      turnCount: 0,
-      messages: [],
-    });
-  });
-
-  it('echoes message and turnCount from output.result', () => {
-    const conv = buildConversationConfigFromOutput({
-      result: { message: 'hello', turnCount: 3 },
-    });
-    expect(conv.message).toBe('hello');
-    expect(conv.turnCount).toBe(3);
-  });
-
-  it('filters system role messages (CONVENTIONS — system 메시지는 client 미노출)', () => {
-    const conv = buildConversationConfigFromOutput({
-      result: {
-        messages: [
-          { role: 'system', content: 'You are helpful' },
-          { role: 'user', content: 'hi' },
-          { role: 'assistant', content: 'hello' },
-          { role: 'system', content: 'reset' },
-        ],
-      },
-    });
-    // Each non-system message gets `source: 'live'` backfilled per
-    // spec/5-system/6-websocket-protocol.md §4.4.6 (default when handler
-    // didn't tag the push site explicitly).
-    expect(conv.messages).toEqual([
-      { role: 'user', content: 'hi', source: 'live' },
-      { role: 'assistant', content: 'hello', source: 'live' },
-    ]);
-  });
-
-  it("preserves explicit source: 'injected' from ConversationThread injection (§4.4.6)", () => {
-    const conv = buildConversationConfigFromOutput({
-      result: {
-        messages: [
-          { role: 'system', content: 'You are helpful' },
-          {
-            role: 'user',
-            content: '[from Template] start',
-            source: 'injected',
-          },
-          { role: 'user', content: 'live message', source: 'live' },
-          { role: 'assistant', content: 'response' }, // unmarked → backfilled
-        ],
-      },
-    });
-    expect(conv.messages).toEqual([
-      {
-        role: 'user',
-        content: '[from Template] start',
-        source: 'injected',
-      },
-      { role: 'user', content: 'live message', source: 'live' },
-      { role: 'assistant', content: 'response', source: 'live' },
-    ]);
-  });
-
-  it("preserves existing source: 'live' as-is (no double-wrap)", () => {
-    const original = { role: 'user', content: 'hi', source: 'live' };
-    const conv = buildConversationConfigFromOutput({
-      result: { messages: [original] },
-    });
-    // Backfill must short-circuit on already-marked items so identity is
-    // preserved (no needless object allocations on hot paths).
-    expect(conv.messages[0]).toBe(original);
-  });
-
-  it('returns empty messages array unchanged', () => {
-    const conv = buildConversationConfigFromOutput({
-      result: { messages: [] },
-    });
-    expect(conv.messages).toEqual([]);
-  });
-
-  it('handles a multi-turn mixed sequence (system stripped, injected preserved, live backfilled)', () => {
-    const conv = buildConversationConfigFromOutput({
-      result: {
-        messages: [
-          { role: 'system', content: 'You are helpful' },
-          {
-            role: 'user',
-            content: '[from Form] name=Alice',
-            source: 'injected',
-          },
-          {
-            role: 'assistant',
-            content: '[from PrevAgent] Welcome',
-            source: 'injected',
-          },
-          { role: 'user', content: '실제 메시지' },
-          { role: 'assistant', content: '응답' },
-        ],
-      },
-    });
-    expect(conv.messages).toHaveLength(4);
-    expect(conv.messages[0].source).toBe('injected');
-    expect(conv.messages[1].source).toBe('injected');
-    expect(conv.messages[2].source).toBe('live');
-    expect(conv.messages[3].source).toBe('live');
-  });
-
-  it('includes maxTurns from config echo only when present (decision C-1)', () => {
-    // maxTurns 는 output.result 가 아니라 config echo (2번째 인자) 에서 읽는다.
-    const withMax = buildConversationConfigFromOutput({}, { maxTurns: 5 });
-    expect(withMax.maxTurns).toBe(5);
-    // output.result.maxTurns 는 더 이상 읽지 않는다.
-    const ignoredFromResult = buildConversationConfigFromOutput({
-      result: { maxTurns: 5 },
-    });
-    expect(ignoredFromResult).not.toHaveProperty('maxTurns');
-    const without = buildConversationConfigFromOutput({});
-    expect(without).not.toHaveProperty('maxTurns');
-  });
-
-  it('propagates partial.extracted / missingFields / collectionRetryCount only when present', () => {
-    const conv = buildConversationConfigFromOutput({
-      partial: {
-        extracted: { name: 'Alice' },
-        missingFields: ['email'],
-        collectionRetryCount: 2,
-      },
-    });
-    expect(conv.extracted).toEqual({ name: 'Alice' });
-    expect(conv.missingFields).toEqual(['email']);
-    expect(conv.collectionRetryCount).toBe(2);
-  });
-
-  it('omits partial fields when undefined (no key pollution)', () => {
-    const conv = buildConversationConfigFromOutput({
-      partial: { extracted: { name: 'Bob' } },
-    });
-    expect(conv.extracted).toEqual({ name: 'Bob' });
-    expect(conv).not.toHaveProperty('missingFields');
-    expect(conv).not.toHaveProperty('collectionRetryCount');
-  });
-
-  it('handles missing partial gracefully', () => {
-    const conv = buildConversationConfigFromOutput({
-      result: { message: 'hi' },
-    });
-    expect(conv.message).toBe('hi');
-    expect(conv).not.toHaveProperty('extracted');
-    expect(conv).not.toHaveProperty('missingFields');
-  });
-
-  // D6 회귀 차단 — 옛 top-level shape (`output.message` / `.messages` /
-  // `.turnCount` / `.maxTurns`) 은 더 이상 인식되지 않는다. 핸들러가 옛
-  // shape 으로 회귀했을 때 빈 conversationConfig 가 emit 되어 사용자에게
-  // assistant 응답이 전달되지 않던 회귀를 차단한다 (D6 동기화).
-  it('ignores legacy top-level message/messages/turnCount/maxTurns (D6 정합)', () => {
-    const conv = buildConversationConfigFromOutput({
-      message: 'legacy-msg',
-      messages: [{ role: 'assistant', content: 'legacy' }],
-      turnCount: 99,
-      maxTurns: 42,
-    });
-    expect(conv.message).toBe('');
-    expect(conv.messages).toEqual([]);
-    expect(conv.turnCount).toBe(0);
-    expect(conv).not.toHaveProperty('maxTurns');
-  });
-});
-
-describe('buildAiMessageDebugFromResumeState — null/mutation guards', () => {
-  it('returns empty object when turnDebugHistory is null', () => {
-    const debug = buildAiMessageDebugFromResumeState({
-      turnDebugHistory: null,
-    });
-    expect(debug).toEqual({});
-  });
-
-  it('shallow-copies llmCalls so later mutation of resumeState cannot retroactively change a buffered emit', () => {
-    const llmCalls: Array<{
-      requestPayload: Record<string, unknown>;
-      responsePayload: Record<string, unknown>;
-      durationMs: number;
-    }> = [{ requestPayload: { a: 1 }, responsePayload: {}, durationMs: 10 }];
-    const state = {
-      turnDebugHistory: [{ turnIndex: 1, llmCalls, totalDurationMs: 10 }],
-    };
-    const debug = buildAiMessageDebugFromResumeState(state);
-    // simulate the next turn pushing a new call into the source array
-    llmCalls.push({
-      requestPayload: { b: 2 },
-      responsePayload: {},
-      durationMs: 20,
-    });
-    expect(debug.llmCalls).toHaveLength(1);
-  });
-});
-
 // W-10 fix (SUMMARY#W-10): executeNode 가 registerInFlight/unregisterInFlight 를
 // 성공 경로와 throw 경로 모두에서 짝으로 호출하는지 검증.
 // W-1 fix (이동 후 회귀 방지): registerInFlight 가 try 블록 안에 있으므로
@@ -15024,6 +14299,8 @@ describe('ExecutionEngineService — registerInFlight / unregisterInFlight pairi
     const mod = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        AiTurnOrchestrator,
+        { provide: ENGINE_DRIVER, useExisting: ExecutionEngineService },
         BusinessMetricsService,
         NodeHandlerRegistry,
         NodeComponentRegistry,
@@ -15319,6 +14596,8 @@ describe('processFormResumeTurn — 4 branches (SUMMARY W1)', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        AiTurnOrchestrator,
+        { provide: ENGINE_DRIVER, useExisting: ExecutionEngineService },
         BusinessMetricsService,
         ExecutionEventEmitter,
         GraphTraversalService,
@@ -15731,6 +15010,8 @@ describe('SUMMARY W3 / W5 / W6 / W7 보완 단위 테스트', () => {
       const module3 = await Test.createTestingModule({
         providers: [
           ExecutionEngineService,
+          AiTurnOrchestrator,
+          { provide: ENGINE_DRIVER, useExisting: ExecutionEngineService },
           BusinessMetricsService,
           ExecutionEventEmitter,
           GraphTraversalService,
@@ -16136,6 +15417,8 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
     const modRef: TestingModule = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        AiTurnOrchestrator,
+        { provide: ENGINE_DRIVER, useExisting: ExecutionEngineService },
         { provide: BusinessMetricsService, useValue: mockBizMetrics },
         ExecutionEventEmitter,
         GraphTraversalService,

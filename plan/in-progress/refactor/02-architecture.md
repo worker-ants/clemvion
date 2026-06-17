@@ -19,10 +19,10 @@
 **개선 방안** (분리 순서·통신 방식 확정):
 
 - [x] 1. `NodeBootstrapService` — m-3 과 함께 **가장 먼저** (독립적·소규모, 아래 m-3 참조). ✅ PR1 완료 (`claude/engine-split-s1-nodebootstrap`).
-- [ ] 2. `AiTurnOrchestrator` (waitForAiConversation / processAiResumeTurn / handleAiMessageTurn / finalizeAiNode ~600줄) — 기존 `ResumeTurnDispatch` registry 의 `handleAiResumeTurn` 진입점을 신규 서비스로 위임.
+- [x] 2. `AiTurnOrchestrator` (waitForAiConversation / processAiResumeTurn / handleAiMessageTurn / finalizeAiNode 등 ~1,250줄) — 기존 `ResumeTurnDispatch` registry 의 `handleAiResumeTurn` 진입점을 신규 서비스로 위임. ✅ PR2 #625 (+ `EngineDriver` 신설, = step5 통신 계약 선반영).
 - [ ] 3. `FormInteractionService` / `ButtonInteractionService` — `waitForX`/`processXResumeTurn` 쌍 이동, registry 등록부만 엔진 잔류.
 - [ ] 4. `RetryTurnService` (applyRetryLastTurn / buildRetryReentryState / resumeGraphAfterRetry) — `_retryState`/`_resumeCheckpoint` 는 spec §1.3 공유 계약, allow-list 불변 유지.
-- [ ] 5. 통신 인터페이스는 `WorkflowExecutor` 재사용 대신 **엔진 내부 전용 `EngineDriver`**(또는 `ResumeTurnContext` 확장) 신설. 분리 서비스의 이벤트 발행은 **`WebsocketService` 직접 주입 유지** (spec §4.4 — `IExecutionEventEmitter` 도입 금지).
+- [x] 5. 통신 인터페이스는 `WorkflowExecutor` 재사용 대신 **엔진 내부 전용 `EngineDriver`**(또는 `ResumeTurnContext` 확장) 신설. 분리 서비스의 이벤트 발행은 **`WebsocketService`/`ExecutionEventEmitter` 직접 주입 유지** (spec §4.4 — `IExecutionEventEmitter` 도입 금지). ✅ PR2 #625 에서 `EngineDriver`(token `ENGINE_DRIVER`, useExisting) 신설, PR3·4 재사용.
 
 **옵션 비교**:
 
