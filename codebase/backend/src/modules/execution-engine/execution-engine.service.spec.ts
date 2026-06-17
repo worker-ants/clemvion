@@ -23,6 +23,8 @@ import { MB_IN_BYTES } from '../chat-channel/shared/form-mode';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
+import { FormInteractionService } from './form-interaction.service';
+import { ButtonInteractionService } from './button-interaction.service';
 import { ENGINE_DRIVER } from './engine-driver.interface';
 import {
   ExecutionContextService,
@@ -95,6 +97,16 @@ describe('ExecutionEngineService', () => {
   // dispatch/registry/retry 가 위임하므로, 추출된 메서드를 spy 하는 테스트는 본
   // 인스턴스를 대상으로 한다 (엔진 인스턴스가 아님).
   let aiTurnOrchestrator: AiTurnOrchestrator;
+  // C-1 step3 — Form/Button blocking-interaction 은 FormInteractionService /
+  // ButtonInteractionService 로 추출됨. 엔진의 dispatch/registry 가 위임하므로,
+  // 위임된 메서드를 spy 하는 테스트는 이 인스턴스를 대상으로 한다 (엔진 인스턴스
+  // 가 아님 — AiTurnOrchestrator 선례와 동일).
+  let formInteraction: FormInteractionService;
+  let buttonInteraction: ButtonInteractionService;
+  // 엔진·interaction 서비스가 공유하는 ConversationThreadService 싱글톤 — form/button
+  // resume 의 thread append 부작용을 위임 너머로 검증하기 위해 모듈에서 직접 얻는다
+  // (옛 `service.conversationThreadService` 접근은 엔진에서 주입이 제거돼 무효).
+  let conversationThreadService: ConversationThreadService;
   // PR1 — execution-run intake 큐 mock (execute() 가 enqueue 하는지 검증).
   let mockExecutionRunQueue: { add: jest.Mock };
   // Phase 2 — ContinuationBusService mock 의 publish closure 가 lazy reference 로
@@ -290,6 +302,9 @@ describe('ExecutionEngineService', () => {
       providers: [
         ExecutionEngineService,
         AiTurnOrchestrator,
+        // C-1 step3 — 엔진이 forwardRef 로 위임하는 추출 서비스 (DI 필수).
+        FormInteractionService,
+        ButtonInteractionService,
         { provide: ENGINE_DRIVER, useExisting: ExecutionEngineService },
         BusinessMetricsService,
         ExecutionEventEmitter,
@@ -528,6 +543,15 @@ describe('ExecutionEngineService', () => {
     service = module.get<ExecutionEngineService>(ExecutionEngineService);
     resolvedService = service;
     aiTurnOrchestrator = module.get<AiTurnOrchestrator>(AiTurnOrchestrator);
+    formInteraction = module.get<FormInteractionService>(
+      FormInteractionService,
+    );
+    buttonInteraction = module.get<ButtonInteractionService>(
+      ButtonInteractionService,
+    );
+    conversationThreadService = module.get<ConversationThreadService>(
+      ConversationThreadService,
+    );
     handlerRegistry = module.get<NodeHandlerRegistry>(NodeHandlerRegistry);
     mockWebsocketService = module.get(WebsocketService);
     mockExecutionRunQueue = module.get(getQueueToken(EXECUTION_RUN_QUEUE));
@@ -3827,11 +3851,9 @@ describe('ExecutionEngineService', () => {
     // the workflow completes (this test runs the form to terminal state).
     // Spying captures the hook's call args at the exact resume tick.
     it('appends presentation_user turn to ConversationThread on form resume', async () => {
-      const conversationThreadService = (
-        service as unknown as {
-          conversationThreadService: ConversationThreadService;
-        }
-      ).conversationThreadService;
+      // C-1 step3 — form resume 는 이제 FormInteractionService 로 위임된다. 그 서비스가
+      // 주입받는 ConversationThreadService 는 엔진과 같은 싱글톤이므로 모듈에서 얻은
+      // 인스턴스를 그대로 spy 한다 (위임 너머 thread append 부작용 검증).
       const appendSpy = jest.spyOn(
         conversationThreadService,
         'appendPresentationInteraction',
@@ -4385,11 +4407,9 @@ describe('ExecutionEngineService', () => {
     });
 
     it('appends presentation_user turn (button_click) to ConversationThread on resume', async () => {
-      const conversationThreadService = (
-        service as unknown as {
-          conversationThreadService: ConversationThreadService;
-        }
-      ).conversationThreadService;
+      // C-1 step3 — button resume 는 이제 ButtonInteractionService 로 위임된다. 그
+      // 서비스가 주입받는 ConversationThreadService 는 엔진과 같은 싱글톤이므로 모듈에서
+      // 얻은 인스턴스를 그대로 spy 한다 (위임 너머 thread append 부작용 검증).
       const appendSpy = jest.spyOn(
         conversationThreadService,
         'appendPresentationInteraction',
@@ -5852,8 +5872,12 @@ describe('ExecutionEngineService', () => {
       // 구동한다: form slow-path mock 무장 후 applyContinuation 을 raw 값으로 직접
       // 호출(continueExecution 의 sentinel-wrap 우회) → firePayload 가 그 raw 를
       // 그대로 resolvePending 으로 전달 → await-mode waitForFormSubmission 의 fallback.
-      const logger = (service as unknown as { logger: { warn: jest.Mock } })
-        .logger;
+      // C-1 step3 — non-sentinel 폴백 warn 은 이제 FormInteractionService.logger 에서
+      // 발생한다 (processFormResumeTurn 이 그 서비스로 위임됐으므로). 엔진 로거가
+      // 아니라 위임 대상 서비스의 로거를 spy 한다.
+      const logger = (
+        formInteraction as unknown as { logger: { warn: jest.Mock } }
+      ).logger;
       const warnSpy = jest.spyOn(logger, 'warn');
 
       void service.execute(workflowId, { data: 'test' });
@@ -5879,166 +5903,6 @@ describe('ExecutionEngineService', () => {
       expect(hasFallbackWarn).toBe(true);
 
       warnSpy.mockRestore();
-    });
-
-    it('§5.5 resume 시 meta.durationMs 를 nodeExec.startedAt 경과로 갱신', async () => {
-      const svc = service as unknown as {
-        processFormResumeTurn: (
-          savedExecution: unknown,
-          executionId: string,
-          node: unknown,
-          context: unknown,
-          payload: unknown,
-        ) => Promise<void>;
-        contextService: {
-          createContext: (e: string, w: string) => Record<string, unknown>;
-          setStructuredOutput: jest.Mock;
-        };
-        conversationThreadService: {
-          appendPresentationInteraction: (...a: unknown[]) => void;
-        };
-      };
-      const ctSvc = svc.contextService;
-      // 대기 진입 5초 전 startedAt — durationMs 가 0 이 아니라 ~5000 이어야 한다.
-      const startedAt = new Date(Date.now() - 5000);
-      mockNodeExecutionRepo.findOne.mockResolvedValueOnce({
-        id: 'ne-dur',
-        nodeId: 'f-dur',
-        startedAt,
-      });
-      mockNodeExecutionRepo.save.mockResolvedValueOnce(undefined);
-      const context = ctSvc.createContext('exec-dur', workflowId);
-      // waiting tick 에 저장된 meta.durationMs=0 을 시뮬레이션.
-      (
-        context as { structuredOutputCache: Record<string, unknown> }
-      ).structuredOutputCache = {
-        'f-dur': {
-          config: {},
-          output: {},
-          status: 'waiting_for_input',
-          meta: { durationMs: 0, interactionType: 'form' },
-        },
-      };
-      jest
-        .spyOn(svc.conversationThreadService, 'appendPresentationInteraction')
-        .mockImplementation(() => undefined);
-      const setSpy = jest.spyOn(ctSvc, 'setStructuredOutput');
-
-      await svc.processFormResumeTurn(
-        { id: 'exec-dur', status: ExecutionStatus.RUNNING },
-        'exec-dur',
-        { id: 'f-dur', type: 'form', config: { fields: [{ name: 'name' }] } },
-        context,
-        { type: 'form_submitted', formData: { name: 'A' } },
-      );
-
-      const call = setSpy.mock.calls.find((c) => c[1] === 'f-dur');
-      expect(call).toBeDefined();
-      const out = call?.[2] as { meta?: { durationMs?: number } };
-      expect(out.meta?.durationMs).toBeGreaterThanOrEqual(4000);
-      // 기존 meta 필드는 보존.
-      expect((out.meta as { interactionType?: string }).interactionType).toBe(
-        'form',
-      );
-      // I11 — DB nodeExec.durationMs 도 동일하게 갱신됐는지.
-      const savedNe = mockNodeExecutionRepo.save.mock.calls
-        .map((c) => c[0] as { id?: string; durationMs?: number })
-        .find((e) => e?.id === 'ne-dur');
-      expect(savedNe?.durationMs).toBeGreaterThanOrEqual(4000);
-    });
-
-    // §5.5 엣지 케이스 헬퍼 — node/nodeExec/prevMeta 조합별 resumedMeta 검증.
-    const runFormResume = async (opts: {
-      nodeExec: Record<string, unknown> | null;
-      prevMeta: Record<string, unknown> | undefined | 'absent';
-      execId: string;
-      nodeId: string;
-    }) => {
-      const svc = service as unknown as {
-        processFormResumeTurn: (
-          s: unknown,
-          e: string,
-          n: unknown,
-          c: unknown,
-          p: unknown,
-        ) => Promise<void>;
-        contextService: {
-          createContext: (e: string, w: string) => Record<string, unknown>;
-          setStructuredOutput: jest.Mock;
-        };
-        conversationThreadService: {
-          appendPresentationInteraction: (...a: unknown[]) => void;
-        };
-      };
-      const ctSvc = svc.contextService;
-      mockNodeExecutionRepo.findOne.mockResolvedValueOnce(opts.nodeExec);
-      mockNodeExecutionRepo.save.mockResolvedValueOnce(undefined);
-      const context = ctSvc.createContext(opts.execId, workflowId);
-      const cache: Record<string, unknown> = {};
-      cache[opts.nodeId] = {
-        config: {},
-        output: {},
-        status: 'waiting_for_input',
-        ...(opts.prevMeta === 'absent' ? {} : { meta: opts.prevMeta }),
-      };
-      (
-        context as { structuredOutputCache: Record<string, unknown> }
-      ).structuredOutputCache = cache;
-      jest
-        .spyOn(svc.conversationThreadService, 'appendPresentationInteraction')
-        .mockImplementation(() => undefined);
-      const setSpy = jest.spyOn(ctSvc, 'setStructuredOutput');
-      await svc.processFormResumeTurn(
-        { id: opts.execId, status: ExecutionStatus.RUNNING },
-        opts.execId,
-        { id: opts.nodeId, type: 'form', config: { fields: [{ name: 'x' }] } },
-        context,
-        { type: 'form_submitted', formData: { x: '1' } },
-      );
-      const call = setSpy.mock.calls.find((c) => c[1] === opts.nodeId);
-      return call?.[2] as { meta?: Record<string, unknown> };
-    };
-
-    it('§5.5 nodeExec.startedAt 부재 → durationMs 미설정, 기존 meta 보존', async () => {
-      const out = await runFormResume({
-        nodeExec: { id: 'ne-ns', nodeId: 'f-ns' },
-        prevMeta: { interactionType: 'form', custom: 1 },
-        execId: 'exec-ns',
-        nodeId: 'f-ns',
-      });
-      expect(out.meta?.durationMs).toBeUndefined();
-      expect(out.meta?.interactionType).toBe('form');
-      expect(out.meta?.custom).toBe(1);
-    });
-
-    it('§5.5 시계 역행(미래 startedAt) → durationMs 0 클램핑', async () => {
-      const out = await runFormResume({
-        nodeExec: {
-          id: 'ne-fut',
-          nodeId: 'f-fut',
-          startedAt: new Date(Date.now() + 5000),
-        },
-        prevMeta: { interactionType: 'form' },
-        execId: 'exec-fut',
-        nodeId: 'f-fut',
-      });
-      expect(out.meta?.durationMs).toBe(0);
-    });
-
-    it('§5.5 prevMeta 부재(재수화) → form fallback interactionType + durationMs', async () => {
-      const out = await runFormResume({
-        nodeExec: {
-          id: 'ne-rh',
-          nodeId: 'f-rh',
-          startedAt: new Date(Date.now() - 3000),
-        },
-        prevMeta: 'absent',
-        execId: 'exec-rh',
-        nodeId: 'f-rh',
-      });
-      // 재수화 경로에서도 interactionType 보존(W1) + durationMs 계산.
-      expect(out.meta?.interactionType).toBe('form');
-      expect(out.meta?.durationMs as number).toBeGreaterThanOrEqual(2000);
     });
   });
 
@@ -11157,22 +11021,28 @@ describe('ExecutionEngineService', () => {
       });
       mockExecutionNodeLogRepo.find.mockResolvedValue([]);
 
+      // C-1 step3 — processButtonResumeTurn 은 ButtonInteractionService 로 이동.
+      // loadAndBuildGraph / runNodeDispatchLoop / updateExecutionStatus 는 엔진
+      // 인스턴스에 둔다 (registry 가 this.buttonInteraction.processButtonResumeTurn
+      // 으로 위임하므로 button 처리기는 그 인스턴스에서 스텁).
       const svcAny = service as unknown as {
         loadAndBuildGraph: jest.Mock;
-        processButtonResumeTurn: jest.Mock;
         runNodeDispatchLoop: jest.Mock;
         updateExecutionStatus: jest.Mock;
       };
+      const btnAny = buttonInteraction as unknown as {
+        processButtonResumeTurn: jest.Mock;
+      };
       const orig = {
         load: svcAny.loadAndBuildGraph,
-        btn: svcAny.processButtonResumeTurn,
+        btn: btnAny.processButtonResumeTurn,
         loop: svcAny.runNodeDispatchLoop,
         upd: svcAny.updateExecutionStatus,
       };
       svcAny.loadAndBuildGraph = jest.fn().mockResolvedValue(twoNodeGraph);
       svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
       // processButtonResumeTurn: 도착 click 을 직접 처리(단일 상호작용).
-      svcAny.processButtonResumeTurn = jest.fn().mockResolvedValue(undefined);
+      btnAny.processButtonResumeTurn = jest.fn().mockResolvedValue(undefined);
       // 남은 그래프 구동 — 다음 노드에서 park (runNodeDispatchLoop 는 { parked } 반환).
       svcAny.runNodeDispatchLoop = jest
         .fn()
@@ -11189,9 +11059,9 @@ describe('ExecutionEngineService', () => {
           }),
           guard,
         ]);
-        expect(svcAny.processButtonResumeTurn).toHaveBeenCalledTimes(1);
+        expect(btnAny.processButtonResumeTurn).toHaveBeenCalledTimes(1);
         // 도착 payload 가 직접 처리기로 forward 됐는지.
-        expect(svcAny.processButtonResumeTurn).toHaveBeenCalledWith(
+        expect(btnAny.processButtonResumeTurn).toHaveBeenCalledWith(
           expect.anything(), // savedExecution
           executionId,
           expect.objectContaining({ id: 'node-1' }),
@@ -11203,7 +11073,7 @@ describe('ExecutionEngineService', () => {
         clearTimeout(timer);
         await flushPromises();
         svcAny.loadAndBuildGraph = orig.load;
-        svcAny.processButtonResumeTurn = orig.btn;
+        btnAny.processButtonResumeTurn = orig.btn;
         svcAny.runNodeDispatchLoop = orig.loop;
         svcAny.updateExecutionStatus = orig.upd;
       }
@@ -11438,11 +11308,13 @@ describe('ExecutionEngineService', () => {
   // ──────────────────────────────────────────────────────────────────────
   describe('dispatchResumeTurn — resume dispatch registry (exec-park B-1)', () => {
     // private 메서드를 직접 spy/호출하기 위한 테스트 전용 캐스팅 타입.
+    // C-1 step3 — form/button resume turn 처리는 Form/ButtonInteractionService 로
+    // 위임되므로 그 메서드는 본 (엔진) 캐스팅 타입에서 제거됐다. 라우팅 검증은 위임
+    // 대상 인스턴스(formInteraction / buttonInteraction)를 직접 spy 한다
+    // (AiTurnOrchestrator 선례와 동일).
     type DispatchSubject = {
       dispatchResumeTurn: (ctx: Record<string, unknown>) => Promise<unknown>;
       handleAiResumeTurn: (ctx: Record<string, unknown>) => Promise<unknown>;
-      processFormResumeTurn: (...a: unknown[]) => Promise<void>;
-      processButtonResumeTurn: (...a: unknown[]) => Promise<void>;
       processAiResumeTurn: (...a: unknown[]) => Promise<unknown>;
       buildRetryReentryState: (...a: unknown[]) => { resumeState: unknown };
       contextKeyOf: (...a: unknown[]) => string;
@@ -11476,10 +11348,10 @@ describe('ExecutionEngineService', () => {
         .spyOn(handlerRegistry, 'getMetadata')
         .mockReturnValue({ kind: 'blocking', interaction: 'form' } as never);
       const formSpy = jest
-        .spyOn(svc, 'processFormResumeTurn')
+        .spyOn(formInteraction, 'processFormResumeTurn')
         .mockResolvedValue(undefined);
       const buttonSpy = jest
-        .spyOn(svc, 'processButtonResumeTurn')
+        .spyOn(buttonInteraction, 'processButtonResumeTurn')
         .mockResolvedValue(undefined);
 
       const out = await svc.dispatchResumeTurn(
@@ -11497,10 +11369,10 @@ describe('ExecutionEngineService', () => {
         .spyOn(handlerRegistry, 'getMetadata')
         .mockReturnValue({ kind: 'blocking', interaction: 'buttons' } as never);
       const formSpy = jest
-        .spyOn(svc, 'processFormResumeTurn')
+        .spyOn(formInteraction, 'processFormResumeTurn')
         .mockResolvedValue(undefined);
       const buttonSpy = jest
-        .spyOn(svc, 'processButtonResumeTurn')
+        .spyOn(buttonInteraction, 'processButtonResumeTurn')
         .mockResolvedValue(undefined);
 
       const out = await svc.dispatchResumeTurn(
@@ -11566,10 +11438,10 @@ describe('ExecutionEngineService', () => {
         .spyOn(handlerRegistry, 'getMetadata')
         .mockReturnValue({ kind: 'blocking', interaction: 'form' } as never);
       const formSpy = jest
-        .spyOn(svc, 'processFormResumeTurn')
+        .spyOn(formInteraction, 'processFormResumeTurn')
         .mockResolvedValue(undefined);
       const buttonSpy = jest
-        .spyOn(svc, 'processButtonResumeTurn')
+        .spyOn(buttonInteraction, 'processButtonResumeTurn')
         .mockResolvedValue(undefined);
 
       await svc.dispatchResumeTurn(
@@ -13857,13 +13729,14 @@ describe('ExecutionEngineService', () => {
         downstreamMetadata: { kind: 'blocking', interaction: 'buttons' },
       });
 
-      // waitForButtonInteraction private method 를 spy 로 대체 — 분기 도달
-      // 검증 + hang 회피.
-      const svcAny = service as unknown as {
+      // C-1 step3 — waitForButtonInteraction 은 ButtonInteractionService 로 이동.
+      // 엔진 dispatch loop 가 this.buttonInteraction.waitForButtonInteraction 으로
+      // 위임하므로, 분기 도달 검증(+hang 회피)을 위해 그 인스턴스 메서드를 spy 한다.
+      const btnAny = buttonInteraction as unknown as {
         waitForButtonInteraction: jest.Mock;
       };
-      const originalWait = svcAny.waitForButtonInteraction;
-      svcAny.waitForButtonInteraction = jest.fn().mockResolvedValue(undefined);
+      const originalWait = btnAny.waitForButtonInteraction;
+      btnAny.waitForButtonInteraction = jest.fn().mockResolvedValue(undefined);
 
       try {
         await service.applyRetryLastTurn(EXEC, SPAWNED);
@@ -13872,9 +13745,9 @@ describe('ExecutionEngineService', () => {
         // Buttons handler.execute 가 dispatch 됨.
         expect(downstreamHandler.execute).toHaveBeenCalledTimes(1);
         // runNodeDispatchLoop 의 `downstreamInteraction === 'buttons'` 분기 도달.
-        expect(svcAny.waitForButtonInteraction).toHaveBeenCalledTimes(1);
+        expect(btnAny.waitForButtonInteraction).toHaveBeenCalledTimes(1);
       } finally {
-        svcAny.waitForButtonInteraction = originalWait;
+        btnAny.waitForButtonInteraction = originalWait;
       }
     });
 
@@ -14300,6 +14173,9 @@ describe('ExecutionEngineService — registerInFlight / unregisterInFlight pairi
       providers: [
         ExecutionEngineService,
         AiTurnOrchestrator,
+        // C-1 step3 — 엔진이 forwardRef 로 위임하는 추출 서비스 (DI 필수).
+        FormInteractionService,
+        ButtonInteractionService,
         { provide: ENGINE_DRIVER, useExisting: ExecutionEngineService },
         BusinessMetricsService,
         NodeHandlerRegistry,
@@ -14533,427 +14409,6 @@ describe('ExecutionEngineService — registerInFlight / unregisterInFlight pairi
 });
 
 // ────────────────────────────────────────────────────────────────────────────
-// WARNING #1 (SUMMARY) — processFormResumeTurn 단위 테스트.
-// 4개 경로: (a) sentinel 정상 unwrap, (b) non-sentinel warn 폴백,
-// (c) savedExecution.status === RUNNING skip-transition vs !== RUNNING transition,
-// (d) nodeExec null skip.
-// exec-park D6 full B3, spec §10.9, spec §7.5.
-// ────────────────────────────────────────────────────────────────────────────
-describe('processFormResumeTurn — 4 branches (SUMMARY W1)', () => {
-  let service2: ExecutionEngineService;
-  let mockExecRepo2: Record<string, jest.Mock>;
-  let mockNodeExecRepo2: Record<string, jest.Mock>;
-  let mockNodeRepo2: Record<string, jest.Mock>;
-  let mockEdgeRepo2: Record<string, jest.Mock>;
-  let mockWorkflowRepo2: Record<string, jest.Mock>;
-  let mockNodeLogRepo2: Record<string, jest.Mock>;
-  let registry2: NodeHandlerRegistry;
-
-  const wfId2 = 'wf-form-resume';
-  const execId2 = 'exec-form-resume';
-
-  beforeEach(async () => {
-    mockExecRepo2 = {
-      create: jest.fn(),
-      save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
-      findOneBy: jest.fn(),
-      find: jest.fn().mockResolvedValue([]),
-    };
-    mockNodeExecRepo2 = {
-      create: jest.fn().mockImplementation((d: Partial<NodeExecution>) => ({
-        id: `ne-${d.nodeId}`,
-        ...d,
-        startedAt: new Date(),
-      })),
-      save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
-      findOne: jest.fn().mockResolvedValue(null),
-      find: jest.fn().mockResolvedValue([]),
-      createQueryBuilder: jest.fn().mockReturnValue({
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 0 }),
-      }),
-    };
-    mockNodeRepo2 = {
-      findBy: jest.fn().mockResolvedValue([]),
-      findOneBy: jest.fn().mockResolvedValue(null),
-    };
-    mockEdgeRepo2 = { findBy: jest.fn().mockResolvedValue([]) };
-    mockWorkflowRepo2 = {
-      findOneBy: jest.fn().mockResolvedValue({ id: wfId2, name: 'WF2' }),
-      findOne: jest.fn().mockResolvedValue({
-        id: wfId2,
-        workspace: { id: 'ws-2', settings: {} },
-      }),
-    };
-    mockNodeLogRepo2 = {
-      insert: jest.fn().mockResolvedValue({ identifiers: [{ id: '1' }] }),
-      find: jest.fn().mockResolvedValue([]),
-    };
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ExecutionEngineService,
-        AiTurnOrchestrator,
-        { provide: ENGINE_DRIVER, useExisting: ExecutionEngineService },
-        BusinessMetricsService,
-        ExecutionEventEmitter,
-        GraphTraversalService,
-        NodeHandlerRegistry,
-        NodeComponentRegistry,
-        ExecutionContextService,
-        ErrorPolicyHandler,
-        ExpressionResolverService,
-        ForEachExecutor,
-        LoopExecutor,
-        ParallelExecutor,
-        ConversationThreadService,
-        ShutdownStateService,
-        {
-          provide: getRepositoryToken(Execution),
-          useValue: mockExecRepo2,
-        },
-        {
-          provide: getRepositoryToken(NodeExecution),
-          useValue: mockNodeExecRepo2,
-        },
-        { provide: getRepositoryToken(Node), useValue: mockNodeRepo2 },
-        { provide: getRepositoryToken(Edge), useValue: mockEdgeRepo2 },
-        {
-          provide: getRepositoryToken(Workflow),
-          useValue: mockWorkflowRepo2,
-        },
-        {
-          provide: getRepositoryToken(ExecutionNodeLog),
-          useValue: mockNodeLogRepo2,
-        },
-        {
-          provide: getDataSourceToken(),
-          useValue: {
-            transaction: jest.fn(
-              async (cb: (manager: unknown) => Promise<unknown>) => {
-                const manager = {
-                  save: jest.fn(async (target: unknown, entity?: unknown) => {
-                    if (target === Execution) return mockExecRepo2.save(entity);
-                    if (target === NodeExecution)
-                      return mockNodeExecRepo2.save(entity);
-                    return entity;
-                  }),
-                };
-                return cb(manager);
-              },
-            ),
-          },
-        },
-        {
-          provide: getQueueToken(BACKGROUND_EXECUTION_QUEUE),
-          useValue: { add: jest.fn() },
-        },
-        {
-          provide: getQueueToken(EXECUTION_RUN_QUEUE),
-          useValue: { add: jest.fn() },
-        },
-        {
-          provide: WebsocketService,
-          useValue: {
-            emitExecutionEvent: jest.fn().mockResolvedValue(undefined),
-            emitNodeEvent: jest.fn().mockResolvedValue(undefined),
-            registerExecutionRouting: jest.fn(),
-            releaseExecutionRouting: jest.fn(),
-          },
-        },
-        {
-          provide: ContinuationBusService,
-          useValue: {
-            publish: jest.fn(),
-            subscribe: jest.fn(),
-            close: jest.fn(),
-          },
-        },
-        {
-          provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue(undefined) },
-        },
-        { provide: LlmService, useValue: { chat: jest.fn() } },
-        {
-          provide: RagSearchService,
-          useValue: { search: jest.fn().mockResolvedValue([]) },
-        },
-        {
-          provide: KnowledgeBaseService,
-          useValue: { findOne: jest.fn(), findAll: jest.fn() },
-        },
-        {
-          provide: IntegrationsService,
-          useValue: {
-            findByWorkspace: jest.fn().mockResolvedValue([]),
-            findByType: jest.fn().mockResolvedValue([]),
-            findOne: jest.fn(),
-          },
-        },
-        {
-          provide: McpClientService,
-          useValue: { listTools: jest.fn().mockResolvedValue([]) },
-        },
-        {
-          provide: Cafe24ApiClient,
-          useValue: { request: jest.fn() },
-        },
-        {
-          provide: MakeshopApiClient,
-          useValue: { request: jest.fn() },
-        },
-      ],
-    }).compile();
-
-    service2 = module.get(ExecutionEngineService);
-    registry2 = module.get(NodeHandlerRegistry);
-
-    // Register a blocking/form handler so handlerRegistry.getMetadata returns
-    // the right metadata for processFormResumeTurn dispatch guards.
-    const formHandler: NodeHandler = {
-      validate: () => ({ valid: true, errors: [] }),
-      execute: jest.fn().mockResolvedValue({
-        config: {},
-        output: {},
-        status: 'waiting_for_input',
-        meta: { interactionType: 'form' },
-        port: 'out',
-      }),
-    };
-    registry2.register('form_node', formHandler, {
-      kind: 'blocking',
-      interaction: 'form',
-    });
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
-  // Helper: access private method via as-unknown-as pattern.
-  type FormResumeSubject = {
-    processFormResumeTurn: (
-      savedExecution: unknown,
-      executionId: string,
-      node: unknown,
-      context: unknown,
-      payload: unknown,
-    ) => Promise<void>;
-    contextService: {
-      createContext: (e: string, w: string) => ExecutionContext;
-    };
-    updateExecutionStatus: (
-      execution: unknown,
-      status: unknown,
-      nodeExec?: unknown,
-    ) => Promise<void>;
-  };
-
-  const subject = () => service2 as unknown as FormResumeSubject;
-
-  const makeFormNode = (nodeId = 'node-form-w1'): Partial<Node> => ({
-    id: nodeId,
-    workflowId: wfId2,
-    type: 'form_node',
-    category: NodeCategory.LOGIC,
-    label: 'Form',
-    config: { fields: [{ name: 'answer' }] },
-    isDisabled: false,
-  });
-
-  const makeExecution = (
-    status: ExecutionStatus = ExecutionStatus.WAITING_FOR_INPUT,
-  ): Partial<Execution> => ({
-    id: execId2,
-    workflowId: wfId2,
-    status,
-    startedAt: new Date(),
-    inputData: {},
-  });
-
-  const makeContext = () =>
-    subject().contextService.createContext(execId2, wfId2);
-
-  // (a) sentinel 정상 unwrap — `{type:'form_submitted', formData:{answer:'yes'}}` 가
-  //     올바르게 unwrap 돼 interactionData 에 반영된다.
-  it('(a) sentinel form_submitted — formData 정상 unwrap + nodeExec COMPLETED 갱신', async () => {
-    const nodeId = 'node-form-a';
-    const nodeExecRow: Partial<NodeExecution> = {
-      id: 'ne-form-a',
-      nodeId,
-      executionId: execId2,
-      status: NodeExecutionStatus.WAITING_FOR_INPUT,
-      startedAt: new Date(),
-    };
-    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
-
-    const ctx = makeContext();
-    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
-
-    await subject().processFormResumeTurn(
-      saved,
-      execId2,
-      makeFormNode(nodeId),
-      ctx,
-      { type: 'form_submitted', formData: { answer: 'yes' } },
-    );
-
-    // nodeExec COMPLETED 로 갱신됐는지 확인.
-    expect(mockNodeExecRepo2.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: NodeExecutionStatus.COMPLETED }),
-    );
-    // nodeOutputCache 에 form_submitted 상호작용 기록 확인 (setNodeOutput 경로).
-    expect(ctx.nodeOutputCache[nodeId]).toBeDefined();
-  });
-
-  // (b) non-sentinel warn 폴백 — sentinel 없는 payload 는 warn 을 기록하고 payload 를
-  //     그대로 rawData 로 취급 (interactionData 로 진행, 예외 없음).
-  it('(b) non-sentinel payload — warn 기록 + 예외 없이 완료', async () => {
-    const nodeId = 'node-form-b';
-    const nodeExecRow: Partial<NodeExecution> = {
-      id: 'ne-form-b',
-      nodeId,
-      executionId: execId2,
-      status: NodeExecutionStatus.WAITING_FOR_INPUT,
-      startedAt: new Date(),
-    };
-    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
-
-    const ctx = makeContext();
-    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
-
-    const logger = (service2 as unknown as { logger: { warn: jest.Mock } })
-      .logger;
-    const warnSpy = jest.spyOn(logger, 'warn');
-
-    // No sentinel — raw object payload.
-    await expect(
-      subject().processFormResumeTurn(
-        saved,
-        execId2,
-        makeFormNode(nodeId),
-        ctx,
-        { answer: 'raw-no-sentinel' },
-      ),
-    ).resolves.toBeUndefined();
-
-    // warn 이 기록됐는지 확인.
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('sentinel 없는 폴백'),
-    );
-    warnSpy.mockRestore();
-  });
-
-  // (c-running) status === RUNNING — RUNNING→RUNNING assertTransition 회피.
-  //   드라이브가 이미 RUNNING 전이했으면 nodeExec 만 save 하고 updateExecutionStatus 미호출.
-  it('(c-running) savedExecution.status === RUNNING — nodeExec 만 save, updateExecutionStatus 미호출', async () => {
-    const nodeId = 'node-form-c1';
-    const nodeExecRow: Partial<NodeExecution> = {
-      id: 'ne-form-c1',
-      nodeId,
-      executionId: execId2,
-      status: NodeExecutionStatus.WAITING_FOR_INPUT,
-      startedAt: new Date(),
-    };
-    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
-
-    const ctx = makeContext();
-    const saved = makeExecution(ExecutionStatus.RUNNING);
-
-    const updateStatusSpy = jest.spyOn(
-      service2 as unknown as { updateExecutionStatus: jest.Mock },
-      'updateExecutionStatus',
-    );
-
-    await subject().processFormResumeTurn(
-      saved,
-      execId2,
-      makeFormNode(nodeId),
-      ctx,
-      { type: 'form_submitted', formData: { answer: 'x' } },
-    );
-
-    // status === RUNNING 이면 updateExecutionStatus 미호출 (RUNNING→RUNNING 회피).
-    expect(updateStatusSpy).not.toHaveBeenCalled();
-    // nodeExec 은 save 됨.
-    expect(mockNodeExecRepo2.save).toHaveBeenCalled();
-  });
-
-  // (c-not-running) status !== RUNNING — updateExecutionStatus(RUNNING, nodeExec) 호출.
-  it('(c-not-running) savedExecution.status !== RUNNING — updateExecutionStatus 호출', async () => {
-    const nodeId = 'node-form-c2';
-    const nodeExecRow: Partial<NodeExecution> = {
-      id: 'ne-form-c2',
-      nodeId,
-      executionId: execId2,
-      status: NodeExecutionStatus.WAITING_FOR_INPUT,
-      startedAt: new Date(),
-    };
-    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(nodeExecRow);
-
-    const ctx = makeContext();
-    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
-
-    const statusCalls: unknown[] = [];
-    jest
-      .spyOn(
-        service2 as unknown as { updateExecutionStatus: jest.Mock },
-        'updateExecutionStatus',
-      )
-      .mockImplementation(async (_exec: unknown, status: unknown) => {
-        statusCalls.push(status);
-      });
-
-    await subject().processFormResumeTurn(
-      saved,
-      execId2,
-      makeFormNode(nodeId),
-      ctx,
-      { type: 'form_submitted', formData: { answer: 'y' } },
-    );
-
-    // updateExecutionStatus(RUNNING) 이 호출됐어야 한다.
-    expect(statusCalls).toContain(ExecutionStatus.RUNNING);
-  });
-
-  // (d) nodeExec null skip — findOne 이 null 이면 nodeExec 관련 save/emit 생략,
-  //     예외 없이 완료.
-  it('(d) nodeExec null — nodeExec save 스킵, 예외 없이 완료', async () => {
-    const nodeId = 'node-form-d';
-    // findOne returns null → nodeExec is null.
-    mockNodeExecRepo2.findOne = jest.fn().mockResolvedValue(null);
-
-    const ctx = makeContext();
-    const saved = makeExecution(ExecutionStatus.WAITING_FOR_INPUT);
-
-    const updateStatusSpy = jest
-      .spyOn(
-        service2 as unknown as { updateExecutionStatus: jest.Mock },
-        'updateExecutionStatus',
-      )
-      .mockResolvedValue(undefined);
-
-    await expect(
-      subject().processFormResumeTurn(
-        saved,
-        execId2,
-        makeFormNode(nodeId),
-        ctx,
-        { type: 'form_submitted', formData: { answer: 'z' } },
-      ),
-    ).resolves.toBeUndefined();
-
-    // nodeExec null → nodeExecutionRepo.save 미호출.
-    expect(mockNodeExecRepo2.save).not.toHaveBeenCalled();
-    // updateExecutionStatus 는 호출됨 (status !== RUNNING).
-    expect(updateStatusSpy).toHaveBeenCalled();
-  });
-});
-
-// ────────────────────────────────────────────────────────────────────────────
 // WARNING #3 (SUMMARY) — driveCallStackResume 중 nested AI re-park.
 // processAiResumeTurn 이 PARK_RELEASED 반환 시 driveResumeFrame 이 {parked:true}
 // 를 반환해 runNodeDispatchLoop 가 호출되지 않음을 검증.
@@ -15011,6 +14466,9 @@ describe('SUMMARY W3 / W5 / W6 / W7 보완 단위 테스트', () => {
         providers: [
           ExecutionEngineService,
           AiTurnOrchestrator,
+          // C-1 step3 — 엔진이 forwardRef 로 위임하는 추출 서비스 (DI 필수).
+          FormInteractionService,
+          ButtonInteractionService,
           { provide: ENGINE_DRIVER, useExisting: ExecutionEngineService },
           BusinessMetricsService,
           ExecutionEventEmitter,
@@ -15418,6 +14876,9 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
       providers: [
         ExecutionEngineService,
         AiTurnOrchestrator,
+        // C-1 step3 — 엔진이 forwardRef 로 위임하는 추출 서비스 (DI 필수).
+        FormInteractionService,
+        ButtonInteractionService,
         { provide: ENGINE_DRIVER, useExisting: ExecutionEngineService },
         { provide: BusinessMetricsService, useValue: mockBizMetrics },
         ExecutionEventEmitter,
