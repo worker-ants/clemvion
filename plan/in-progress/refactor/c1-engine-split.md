@@ -81,10 +81,16 @@ AI 멀티턴 생명주기 ~1,250줄을 god-class 에서 `AiTurnOrchestrator` 로
 
 **환경 노트**: otplib v13 공유(심링크) node_modules 오염(병렬 잡의 ^13 업그레이드)으로 호스트 build/full-unit 의 auth 부분 실패 — 본 PR 무관(`totp.service.ts` 미변경). dockerized e2e(npm ci=package-lock v12)는 면역·통과. 상세: RESOLUTION.md 환경 노트.
 
-## PR3 — Form/Button InteractionService — 대기
+## PR3 — Form/Button InteractionService — ✅ 완료 (push/PR 대기)
 
-`waitForFormSubmission`/`processFormResumeTurn` + `waitForButtonInteraction`/`processButtonResumeTurn`
-이동, registry 등록부만 엔진 잔류. EngineDriver 재사용.
+Form/Button 블로킹 인터랙션을 god-class 에서 분리. 엔진 8,411→7,499줄. EngineDriver(7멤버) 재사용 — 신규 0.
+
+- [x] FormInteractionService(waitForFormSubmission·processFormResumeTurn)+ButtonInteractionService(waitForButtonInteraction·processButtonResumeTurn) 신설 — verbatim 이동 + this.driver.X 재배선. `InteractionService` 명 회피(W-3). continueButtonClick·continueExecution(form publisher) 엔진 잔류. WaitingInteractionType 미이동
+- [x] dispatch-loop 3쌍·resume registry form/buttons handle 위임. forwardRef 순환 DI(AiTurnOrchestrator 동일 패턴)
+- [x] TEST — lint ✓ · unit ✓(32 suites/794 execution-engine) · build ✓(execution-engine clean) · e2e ✓(34/202 dockerized)
+- [x] /ai-review — MEDIUM · C0. W-1/2/3(form spec emit·append·whitelist)+INFO-13(afterEach) fix(`77ae1522`); W-4/5(forwardRef) 일관 확인→INFO; SPEC-DRIFT→PR4. **security reviewer API 529×3 미생성** — 순수 추출(보안 surface 무변) transient gap 문서화. RESOLUTION.md(`review/code/2026/06/17/09_56_48`)
+- [x] /consistency-check --impl-done — **BLOCK:NO**. Warning 2(`selectedItem`·`previousOutput`)는 git diff 실증 **verbatim 이동된 pre-existing SPEC-DRIFT** → PR4/planner
+- [ ] push + PR (base = PR2 브랜치 `claude/engine-split-s2-aiturn`)
 
 ## PR4 — RetryTurnService — 대기
 
@@ -106,6 +112,10 @@ AI 멀티턴 생명주기 ~1,250줄을 god-class 에서 `AiTurnOrchestrator` 로
   - `4-nodes/3-ai/1-ai-agent.md §10` `classifyLlmError` 포인터 → `AiTurnOrchestrator.extractAiTurnErrorPayload`; frontmatter `code:` 에 `ai-turn-orchestrator.service.ts` 추가.
   - `conventions/interaction-type-registry.md §1.2` emit 위치 열에 `ai-turn-orchestrator.service.ts` 추가 + frontmatter `code:` 등재.
   - `5-system/4-execution-engine.md §1.3·§7.5` 의 `waitForAiConversation`/`processAiResumeTurn`/`handleAiResumeTurn` 소속을 `AiTurnOrchestrator` 로 명시; §Rationale 에 `EngineDriver` `useExisting`(in-process 전제) 명시; `4-nodes/6-presentation/0-common.md` L426 포인터 정정.
+- **PR3 식별 spec-sync 항목** (impl-done Warning/INFO, **pre-existing SPEC-DRIFT** — verbatim 기존 행위, 체인 종료 planner 일괄):
+  - `node-output.md §4.5` `button_continue` data shape 에 `selectedItem?`·`url?` optional 등재 (carousel item-level 링크 버튼 — git diff 로 verbatim 이동 실증).
+  - `node-output.md §4.2` `previousOutput` Phase 3 유예 예외 등재 (presentation resume 경로 — 코드 주석 근거 존재, verbatim 이동).
+  - `4-execution-engine.md §1.3·§7.5` form/button 메서드 소속을 `FormInteractionService`/`ButtonInteractionService` 로 명시; `interaction-type-registry.md §1.2` buttons emit 위치 + frontmatter `code:` 등재; `data-flow/3-execution.md` 시퀀스 actor 갱신.
 
 ## 후속 고려 (review 파생)
 
@@ -118,6 +128,12 @@ AI 멀티턴 생명주기 ~1,250줄을 god-class 에서 `AiTurnOrchestrator` 로
   `LlmCallRecord`/`AiTurnDebugEntry` 와 `information-extractor.handler` 의 `LlmCallTrace`/`TurnDebugEntry` 가
   동일 JSONB 도메인을 이름 분기로 중복 — `shared/` 승격·통일 별도 후속. `RehydrationError` 위치
   (`ai-conversation-helpers` vs `workflow-errors` 집중 패턴)도 함께 검토.
+- **엔진→서비스 주입 방향 제거(caller-side 전환)** (PR2·PR3 architecture WARNING): 엔진↔추출서비스 양방향
+  forwardRef 순환 DI 는 strangler-fig 의도된 중간상태. **체인 종료(엔진 슬림화 완료) 시** 엔진이 서비스를
+  주입받는 방향을 제거하는 백로그. (현재 토큰 주입은 정상·일관 — AiTurnOrchestrator/Form/Button 동일.)
+- **ButtonInteractionService 타입·분해** (PR3 INFO): `processButtonResumeTurn` payload `ButtonClickPayload`
+  discriminated union 타입가드, ~280줄 메서드 `resolveButtonInteraction` 순수함수 추출, `EngineDriver` ISP
+  소비자별 부분 인터페이스, `WaitingInteractionType` 공유 위치 이동 — 후속 step.
 
 ## 진행 로그
 
@@ -130,3 +146,7 @@ AI 멀티턴 생명주기 ~1,250줄을 god-class 에서 `AiTurnOrchestrator` 로
   AiTurnOrchestrator 1,332줄, EngineDriver 7멤버. TEST(lint·unit 30/779·build·e2e 34/202 dockerized).
   /ai-review MEDIUM(C0/W9)→fix `d1386c07`. impl-done BLOCK:YES(RehydrationError)→해소 `a894ad62`→BLOCK:NO.
   otplib v13 공유 node_modules 오염은 환경문제(본 PR 무관, dockerized 면역). push/PR 대기 → 이후 PR3 Form/Button.
+- 2026-06-17: **PR3 구현·검증 완료** (subagent 추출 + main 게이트). 엔진 8,411→7,499줄, FormInteractionService
+  355줄 + ButtonInteractionService 455줄, EngineDriver 신규멤버 0. TEST(lint·unit 32/794·build·e2e 34/202).
+  /ai-review MEDIUM(C0)→form spec 어서션 fix `77ae1522`; security reviewer 529×3 미생성(순수추출 gap 문서화).
+  impl-done BLOCK:NO(Warning 2 = verbatim pre-existing SPEC-DRIFT). push/PR 대기 → 이후 PR4 RetryTurnService.
