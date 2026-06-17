@@ -8,10 +8,8 @@ import {
   EXECUTION_RUN_PRIORITY,
 } from './queues/execution-run.queue';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
-import {
-  ExecutionEngineService,
-  userMessageSignalApplies,
-} from './execution-engine.service';
+import { ExecutionEngineService } from './execution-engine.service';
+import { userMessageSignalApplies } from './ai-conversation-helpers';
 import { CALL_STACK_SCHEMA_VERSION } from '../../shared/execution-resume/resume-call-stack.types';
 import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';

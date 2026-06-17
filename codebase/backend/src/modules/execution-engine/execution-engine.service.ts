@@ -130,22 +130,13 @@ import type { EngineDriver } from './engine-driver.interface';
 // (forwardRef) 가 단방향이 되도록 ES module 순환을 끊었다. 엔진은 본 helper 를
 // 내부적으로 사용하면서, 기존 외부 import 호환을 위해 아래에서 re-export 한다.
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
-// 엔진이 내부에서 직접 쓰는 helper 만 값으로 import 한다 (나머지는 아래 re-export
-// 만으로 외부 호환을 유지 — 값 binding 미사용 lint 회피).
+// AI 대화 helper·RehydrationError·builder 의 canonical 정의는 leaf 모듈
+// `./ai-conversation-helpers` 단일이며, 모든 소비자(엔진·orchestrator·spec)가 거기서
+// 직접 import 한다 — re-export 체인 제거(impl-done Critical 해소: `RehydrationError`
+// 단일 클래스 식별성으로 `instanceof` 일관 보장). 엔진은 내부 사용분만 값 import.
 import {
   RehydrationError,
   withInteractionMeta,
-} from './ai-conversation-helpers';
-// 기존 외부 소비자(spec 파일 등)가 `./execution-engine.service` 에서 직접 import
-// 하던 표면을 보존하기 위한 re-export. canonical 정의는 helper 모듈에 1곳.
-export {
-  RehydrationError,
-  withInteractionMeta,
-  withSourceMarker,
-  buildConversationConfigFromOutput,
-  buildConversationMetaFromResumeState,
-  buildAiMessageDebugFromResumeState,
-  userMessageSignalApplies,
 } from './ai-conversation-helpers';
 import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
 import {

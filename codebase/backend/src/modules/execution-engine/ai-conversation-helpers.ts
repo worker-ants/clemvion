@@ -112,7 +112,7 @@ interface LlmCallRecord {
 /** One entry of `state.turnDebugHistory`. `totalDurationMs` is the wall-clock
  * sum across all LLM calls + tool calls in the turn; `durationMs` on each
  * `llmCalls[]` item is the per-call latency. */
-interface TurnDebugEntry {
+interface AiTurnDebugEntry {
   turnIndex: number;
   llmCalls?: LlmCallRecord[];
   totalDurationMs?: number;
@@ -141,7 +141,7 @@ export function buildAiMessageDebugFromResumeState(
   state: Record<string, unknown>,
 ): { llmCalls?: LlmCallRecord[]; durationMs?: number } {
   const turnDebugArray = Array.isArray(state.turnDebugHistory)
-    ? (state.turnDebugHistory as TurnDebugEntry[])
+    ? (state.turnDebugHistory as AiTurnDebugEntry[])
     : [];
   const lastTurnDebug =
     turnDebugArray.length > 0

@@ -526,7 +526,7 @@ describe('AiTurnOrchestrator', () => {
           expect((r.details as Record<string, unknown>).retryable).toBe(true);
         });
 
-        it('client-layer LLM_CONNECTION_ERROR 코드 누출 시 LLM_CALL_FAILED 로 매핑 + retryable=true', () => {
+        it('레거시/미분류 명시 코드(LLM_CONNECTION_ERROR) 입력 시 LLM_CALL_FAILED 로 정규화 + retryable=true', () => {
           const r = extract()(
             Object.assign(new Error('network down'), {
               code: 'LLM_CONNECTION_ERROR',
