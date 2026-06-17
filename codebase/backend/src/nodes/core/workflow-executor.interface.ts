@@ -71,3 +71,14 @@ export interface WorkflowExecutor {
     options?: Omit<SubWorkflowOptions, 'timeoutMs'>,
   ): Promise<string>;
 }
+
+/**
+ * DI 토큰 — {@link WorkflowExecutor} capability 를 주입받기 위한 토큰.
+ * `ExecutionEngineModule` 에서 canonical executor 인 `ExecutionEngineService` 에
+ * `useExisting` 으로 바인딩한다.
+ *
+ * 노드 핸들러 bootstrap (`NodeBootstrapService`) 이 엔진 클래스를 직접 import
+ * 하는 대신 본 토큰으로 executor capability 만 주입받게 해, 엔진↔노드 레이어
+ * 결합을 DI 경계로 한정한다 (forwardRef 자기참조 `handlerDeps.build(this)` 대체).
+ */
+export const WORKFLOW_EXECUTOR = 'WORKFLOW_EXECUTOR';
