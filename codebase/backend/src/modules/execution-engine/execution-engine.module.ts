@@ -12,6 +12,7 @@ import { ExecutionEngineService } from './execution-engine.service';
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
 import { FormInteractionService } from './form-interaction.service';
 import { ButtonInteractionService } from './button-interaction.service';
+import { RetryTurnService } from './retry-turn.service';
 import { ENGINE_DRIVER } from './engine-driver.interface';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
@@ -87,9 +88,12 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     // 순환 DI (둘 다 ENGINE_DRIVER=엔진 을 주입받고, 엔진은 위임을 위해 주입받음).
     FormInteractionService,
     ButtonInteractionService,
+    // C-1 step4 — retry_last_turn 생명주기 추출 서비스. 엔진과 forwardRef 순환 DI
+    // (ENGINE_DRIVER=엔진 주입, 엔진은 retryLastTurn/applyRetryLastTurn 위임 위해 주입).
+    RetryTurnService,
     {
-      // orchestrator + interaction 서비스가 주입받는 EngineDriver capability 를
-      // canonical 엔진에 바인딩.
+      // orchestrator + interaction + retry 서비스가 주입받는 EngineDriver
+      // capability 를 canonical 엔진에 바인딩.
       provide: ENGINE_DRIVER,
       useExisting: ExecutionEngineService,
     },
