@@ -44,8 +44,11 @@ import {
   buildConversationMetaFromResumeState,
   buildAiMessageDebugFromResumeState,
   userMessageSignalApplies,
-  type WaitingInteractionType,
-} from './execution-engine.service';
+} from './ai-conversation-helpers';
+// C-1 step3 (W3) — `WaitingInteractionType` 정의는 interaction-type-registry.md
+// §1.1 핀에 따라 엔진 파일에 잔류한다. 타입 전용 import 라 런타임에 소거되어
+// orchestrator→엔진 값 순환을 만들지 않는다 (값 helper 는 위 helper 모듈에서).
+import type { WaitingInteractionType } from './execution-engine.service';
 import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
 
 /**
@@ -750,6 +753,15 @@ export class AiTurnOrchestrator {
           : undefined;
 
       // Emit waiting_for_input again
+      // Live thread snapshot for UI (multi-turn 후속 waiting tick — 새
+      // ai_user/ai_assistant turn 이 push 된 직후 UI 가 확인할 수 있도록).
+      // handleAiMessageTurn doesn't carry ExecutionContext, so we look it up
+      // via contextService — single Map access.
+      const liveThread =
+        this.contextService.getContext(contextKey)?.conversationThread;
+      const conversationThreadSnapshot = liveThread
+        ? cloneThread(liveThread)
+        : undefined;
       await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
@@ -765,15 +777,7 @@ export class AiTurnOrchestrator {
           // top-level interactionType — emitAiWaitingForInput 와 동일 shape
           // 유지 (multi-turn 후속 waiting emit). nested 도 backward compat 유지.
           interactionType: nextInteractionType,
-          // Live thread snapshot for UI (multi-turn 후속 waiting tick — 새
-          // ai_user/ai_assistant turn 이 push 된 직후 UI 가 확인할 수 있도록).
-          // handleAiMessageTurn doesn't carry ExecutionContext, so we look it
-          // up via contextService — single Map access.
-          conversationThread: (() => {
-            const t =
-              this.contextService.getContext(contextKey)?.conversationThread;
-            return t ? cloneThread(t) : undefined;
-          })(),
+          conversationThread: conversationThreadSnapshot,
           nodeOutput: {
             interactionType: nextInteractionType,
             // Pass through handler's echoed node config so the Config

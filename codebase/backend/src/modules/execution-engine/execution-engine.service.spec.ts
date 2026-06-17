@@ -5480,6 +5480,15 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue([]);
     });
 
+    // W8 (SUMMARY) — 본 블록의 일부 테스트가 `aiTurnOrchestrator.logger` 에
+    // jest.spyOn(warn) 을 건다(C-1 step2 에서 spy 대상이 service.logger →
+    // orchestrator.logger 로 변경). 각 테스트가 warnSpy.mockRestore() 를 호출하나,
+    // 조기 실패 시 복원 누락으로 후속 테스트 logger 가 오염되지 않도록 방어적으로
+    // 전체 복원한다.
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
     it('W11 — form_submitted dispatch: handleAiMessageTurn 이 JSON.stringify(formData) 인자로 호출됨', async () => {
       // spec §10.9 + §10.9 dispatch 표 — form_submitted case 는
       // handleAiMessageTurn(executionId, contextKey, node, JSON.stringify(formData), ...) 호출.

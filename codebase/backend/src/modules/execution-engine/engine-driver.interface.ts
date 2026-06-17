@@ -77,19 +77,6 @@ export interface EngineDriver {
 
   /** legacy `{port, data}` envelope → `_selectedPort` 라우팅 flat shape 으로 변환. */
   applyPortSelection(output: unknown): unknown;
-
-  /**
-   * INFO #10 — 실행 단위 LLM-default-config lookup single-flight 캐시.
-   * (orchestrator 에서 직접 쓰지 않더라도, 엔진 잔류 LLM 캐시 상태에 대한 단일
-   * 노출 표면으로 driver 에 둔다.)
-   */
-  resolveHasDefaultLlmConfigCached(
-    workspaceId: string,
-    context: ExecutionContext,
-  ): Promise<boolean>;
-
-  /** INFO #10 — `runExecution` finally 에서 본 실행 캐시 항목을 일괄 정리. */
-  clearLlmDefaultConfigCache(executionId: string): void;
 }
 
 /**

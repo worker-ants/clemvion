@@ -9,11 +9,12 @@ import {
 } from '../executions/entities/execution.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { NodeHandler } from '../../nodes/core/node-handler.interface';
+import { ExecutionEventType } from '../websocket/websocket.service';
 import {
   buildAiMessageDebugFromResumeState,
   buildConversationConfigFromOutput,
   buildConversationMetaFromResumeState,
-} from './execution-engine.service';
+} from './ai-conversation-helpers';
 
 // ---------------------------------------------------------------------------
 // C-1 step2 — AiTurnOrchestrator 단위 테스트.
@@ -47,8 +48,6 @@ function makeMockDriver(): jest.Mocked<EngineDriver> {
         ctx._contextKey ?? ctx.executionId,
     ),
     applyPortSelection: jest.fn((o: unknown) => o),
-    resolveHasDefaultLlmConfigCached: jest.fn().mockResolvedValue(false),
-    clearLlmDefaultConfigCache: jest.fn(),
   } as unknown as jest.Mocked<EngineDriver>;
 }
 
@@ -80,6 +79,15 @@ describe('AiTurnOrchestrator', () => {
       mockNodeExecutionRepo as never,
       driver,
     );
+  });
+
+  // W8 (SUMMARY) — logger / method spy 가 후속 테스트로 누출되지 않도록 방어적
+  // 복원. 본 describe 의 일부 테스트는 `orchestrator.logger` / contextService 등에
+  // jest.spyOn 을 건다 (W10/W11 블록 + 신규 handleAiMessageTurn/emitAiWaitingForInput
+  // 테스트). 각 테스트가 개별 mockRestore 를 호출하더라도, 조기 실패 시 복원 누락을
+  // 막기 위해 afterEach 에서 전체 복원한다.
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('should be defined', () => {
@@ -555,6 +563,356 @@ describe('AiTurnOrchestrator', () => {
         expect(details.retryable).toBe(false);
         expect(details.retryAfterSec).toBeUndefined();
       });
+    });
+  });
+  // -------------------------------------------------------------------------
+  // W1 (SUMMARY) — handleAiMessageTurn 직접 단위 테스트. private 메서드이므로
+  // `as unknown as` 캐스팅으로 직접 호출하고, EngineDriver / contextService /
+  // nodeExecutionRepo 를 mock 으로 격리해 4개 미커버 분기를 가드한다. 어서션은
+  // 현재 구현 본문(메서드 ~L516-860)의 실제 동작을 그대로 캡처한다.
+  // -------------------------------------------------------------------------
+  describe('handleAiMessageTurn — 직접 단위 테스트 (W1)', () => {
+    type HandleAiMessageTurn = (
+      executionId: string,
+      contextKey: string,
+      node: Node,
+      message: string,
+      resumeState: Record<string, unknown>,
+      nodeExec: unknown,
+      source?: string,
+    ) => Promise<{
+      resumeState: Record<string, unknown>;
+      ended: boolean;
+      finalStatus?: 'FAILED';
+    }>;
+
+    const aiNode: Partial<Node> = {
+      id: 'node-turn',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    /** waiting_for_input 을 반환하는 resumable handler 를 등록한다. */
+    const registerWaitingHandler = (): jest.Mock => {
+      const processMultiTurnMessage = jest.fn().mockResolvedValue({
+        config: { mode: 'multi_turn' },
+        output: { result: { message: 'hi', messages: [], turnCount: 1 } },
+        meta: {},
+        status: 'waiting_for_input',
+        _resumeState: { messages: [], turnCount: 1, model: 'gpt' },
+      });
+      const handler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(),
+        processMultiTurnMessage,
+        endMultiTurnConversation: jest.fn(),
+      } as unknown as NodeHandler;
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
+      return processMultiTurnMessage;
+    };
+
+    const invoke = (
+      contextKey: string,
+      nodeExec: unknown,
+      source?: string,
+    ): Promise<{
+      resumeState: Record<string, unknown>;
+      ended: boolean;
+      finalStatus?: 'FAILED';
+    }> =>
+      (
+        orchestrator as unknown as { handleAiMessageTurn: HandleAiMessageTurn }
+      ).handleAiMessageTurn(
+        executionId,
+        contextKey,
+        aiNode as Node,
+        'user message',
+        { messages: [], turnCount: 0 },
+        nodeExec,
+        source,
+      );
+
+    // (a) handler 가 waiting 을 반환했는데 await 도중 ExecutionContext 가 사라진
+    //     경우 — throw 없이 graceful exit { ended:true, finalStatus:'FAILED' } 반환.
+    it('(a) waiting 반환 + ExecutionContext 부재 → warn + { ended:true, finalStatus:"FAILED" } graceful exit', async () => {
+      registerWaitingHandler();
+      const logger = (orchestrator as unknown as { logger: Logger }).logger;
+      const warnSpy = jest.spyOn(logger, 'warn').mockReturnValue(undefined);
+
+      // contextKey 에 해당하는 context 를 생성하지 않음 → getContext === undefined.
+      const result = await invoke('missing-key', { id: 'ne-a' });
+
+      expect(result).toEqual({
+        resumeState: { messages: [], turnCount: 0 },
+        ended: true,
+        finalStatus: 'FAILED',
+      });
+      // graceful no-op 경로 — 상태 전이 / NodeExecution save / AI_MESSAGE emit 없음.
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+      expect(driver.updateExecutionStatus).not.toHaveBeenCalled();
+      const aiMessageEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.AI_MESSAGE,
+      );
+      expect(aiMessageEmitted).toBe(false);
+      // 진단 warn 발화.
+      expect(
+        warnSpy.mock.calls.some((args) =>
+          String(args[0]).includes('ExecutionContext absent on LLM-resume'),
+        ),
+      ).toBe(true);
+    });
+
+    // (b) waiting 분기에서 nodeExec === null → DB persist 를 skip 하고 warn 후
+    //     계속 진행 ({ ended:false }). context 는 존재해야 (a) 가드를 통과한다.
+    it('(b) waiting 반환 + nodeExec=null → DB persist skip + warn, { ended:false } 로 계속 진행', async () => {
+      registerWaitingHandler();
+      contextService.createContext(executionId, workflowId);
+      const logger = (orchestrator as unknown as { logger: Logger }).logger;
+      const warnSpy = jest.spyOn(logger, 'warn').mockReturnValue(undefined);
+
+      const result = await invoke(executionId, null);
+
+      expect(result.ended).toBe(false);
+      // nodeExec 가 없으므로 repository.save 는 호출되지 않는다.
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+      // 다음 turn 을 위한 AI_MESSAGE + WAITING_FOR_INPUT 는 정상 emit.
+      const emittedTypes = mockEventEmitter.emitExecution.mock.calls.map(
+        (c) => c[1],
+      );
+      expect(emittedTypes).toContain(ExecutionEventType.AI_MESSAGE);
+      expect(emittedTypes).toContain(
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+      );
+      expect(
+        warnSpy.mock.calls.some((args) =>
+          String(args[0]).includes('nodeExec missing'),
+        ),
+      ).toBe(true);
+    });
+
+    // (c) nodeExecutionRepository.save 가 throw → error 로깅 후 recover, turn 은
+    //     계속 진행 ({ ended:false }) 하고 후속 emit 도 정상 수행.
+    it('(c) waiting 반환 + nodeExecutionRepository.save throw → error 로깅 후 recover, { ended:false }', async () => {
+      registerWaitingHandler();
+      contextService.createContext(executionId, workflowId);
+      mockNodeExecutionRepo.save.mockRejectedValueOnce(new Error('db down'));
+      const logger = (orchestrator as unknown as { logger: Logger }).logger;
+      const errorSpy = jest.spyOn(logger, 'error').mockReturnValue(undefined);
+
+      const result = await invoke(executionId, { id: 'ne-c', startedAt: null });
+
+      // save 가 throw 해도 메서드는 rethrow 하지 않고 진행한다.
+      expect(result.ended).toBe(false);
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalledTimes(1);
+      expect(
+        errorSpy.mock.calls.some((args) =>
+          String(args[0]).includes(
+            'failed to persist NodeExecution.outputData',
+          ),
+        ),
+      ).toBe(true);
+      // recover 후 AI_MESSAGE emit 정상.
+      const emittedTypes = mockEventEmitter.emitExecution.mock.calls.map(
+        (c) => c[1],
+      );
+      expect(emittedTypes).toContain(ExecutionEventType.AI_MESSAGE);
+    });
+
+    // (d) source === 'form_submitted' → userMessageSignalApplies(false) 이므로
+    //     USER_MESSAGE 라이브 신호를 emit 하지 않고, handler 에 source 를 그대로
+    //     전달한다 (§6.2 step 2.c.bypass).
+    it('(d) source="form_submitted" → USER_MESSAGE 신호 미발화 + handler 에 source 전달', async () => {
+      const processMultiTurnMessage = registerWaitingHandler();
+      contextService.createContext(executionId, workflowId);
+
+      await invoke(executionId, { id: 'ne-d' }, 'form_submitted');
+
+      // form_submitted 는 라이브 USER_MESSAGE 신호를 발화하지 않는다.
+      const userMessageEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.USER_MESSAGE,
+      );
+      expect(userMessageEmitted).toBe(false);
+      // 그러나 handler 에는 source 가 결정적으로 전달된다.
+      expect(processMultiTurnMessage).toHaveBeenCalledWith(
+        'user message',
+        expect.any(Object),
+        { source: 'form_submitted' },
+      );
+    });
+
+    // 대조군 — source='ai_message'(기본) 일 때는 USER_MESSAGE 신호를 발화한다.
+    it('대조: source="ai_message" → USER_MESSAGE 신호 발화', async () => {
+      registerWaitingHandler();
+      contextService.createContext(executionId, workflowId);
+
+      await invoke(executionId, { id: 'ne-e' }, 'ai_message');
+
+      const userMessageEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.USER_MESSAGE,
+      );
+      expect(userMessageEmitted).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // W2 (SUMMARY) — emitAiWaitingForInput 직접 단위 테스트. private 메서드이므로
+  // `as unknown as` 캐스팅으로 호출하고, ai_form_render 분기 / checkpoint 조건부
+  // 영속 / nodeExec=null graceful pass-through 를 가드한다. 어서션은 현재 구현
+  // 본문(메서드 ~L344-476)의 실제 동작을 그대로 캡처한다.
+  // -------------------------------------------------------------------------
+  describe('emitAiWaitingForInput — 직접 단위 테스트 (W2)', () => {
+    type EmitAiWaitingForInput = (
+      savedExecution: unknown,
+      executionId: string,
+      node: Node,
+      context: unknown,
+      nodeExec: unknown,
+      nodeOutput: Record<string, unknown>,
+      resumeState: Record<string, unknown>,
+    ) => Promise<void>;
+
+    const aiNode: Partial<Node> = {
+      id: 'node-wait',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    const invoke = (
+      context: { structuredOutputCache: Record<string, unknown> } & Record<
+        string,
+        unknown
+      >,
+      nodeExec: unknown,
+      resumeState: Record<string, unknown>,
+    ): Promise<void> =>
+      (
+        orchestrator as unknown as {
+          emitAiWaitingForInput: EmitAiWaitingForInput;
+        }
+      ).emitAiWaitingForInput(
+        { id: executionId, status: ExecutionStatus.RUNNING },
+        executionId,
+        aiNode as Node,
+        context,
+        nodeExec,
+        {},
+        resumeState,
+      );
+
+    // ai_form_render 분기 — structuredOutputCache.meta.interactionType ==
+    // 'ai_form_render' 이고 resumeState.pendingFormToolCall 이 있으면, emit 의
+    // top-level interactionType 과 conversationConfig.pendingFormToolCall 에
+    // 반영된다.
+    it('ai_form_render 분기 — pendingFormToolCall 동봉 + interactionType="ai_form_render"', async () => {
+      const context = contextService.createContext(executionId, workflowId);
+      const pendingFormToolCall = {
+        toolCallId: 'tc-1',
+        formConfig: { fields: [] },
+      };
+      context.structuredOutputCache[aiNode.id as string] = {
+        config: { mode: 'multi_turn' },
+        output: { result: { message: 'fill the form', messages: [] } },
+        meta: { interactionType: 'ai_form_render' },
+      } as never;
+
+      await invoke(
+        context as never,
+        { id: 'ne-form' },
+        { pendingFormToolCall, messages: [], turnCount: 1 },
+      );
+
+      const waitingCall = mockEventEmitter.emitExecution.mock.calls.find(
+        (c) => c[1] === ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+      );
+      expect(waitingCall).toBeDefined();
+      const payload = waitingCall![2] as {
+        interactionType: string;
+        nodeOutput: {
+          interactionType: string;
+          conversationConfig: { pendingFormToolCall?: unknown };
+        };
+      };
+      expect(payload.interactionType).toBe('ai_form_render');
+      expect(payload.nodeOutput.interactionType).toBe('ai_form_render');
+      expect(payload.nodeOutput.conversationConfig.pendingFormToolCall).toEqual(
+        pendingFormToolCall,
+      );
+    });
+
+    // checkpoint 조건부 영속 — checkpoint-ineligible 노드 타입이면
+    // buildResumeCheckpoint 를 호출하지 않고 _resumeCheckpoint 도 set 하지 않는다.
+    // (driver.isCheckpointEligibleNodeType mock 기본값 false).
+    it('checkpoint 미대상 노드 타입 → buildResumeCheckpoint 미호출 + _resumeCheckpoint 미설정 + _resumeState strip', async () => {
+      const context = contextService.createContext(executionId, workflowId);
+      context.structuredOutputCache[aiNode.id as string] = {
+        config: {},
+        output: { result: { message: 'hi', messages: [] } },
+        meta: {},
+        _resumeState: { secret: 'x' },
+      } as never;
+      const nodeExec: { id: string; outputData?: Record<string, unknown> } = {
+        id: 'ne-ckpt',
+      };
+
+      // 기본 mock 은 isCheckpointEligibleNodeType=false.
+      await invoke(context as never, nodeExec, { messages: [], turnCount: 1 });
+
+      expect(driver.isCheckpointEligibleNodeType).toHaveBeenCalledWith(
+        'ai_agent',
+      );
+      expect(driver.buildResumeCheckpoint).not.toHaveBeenCalled();
+      // 영속 outputData 에 _resumeState 는 strip, _resumeCheckpoint 도 없다.
+      expect(nodeExec.outputData).toBeDefined();
+      expect(nodeExec.outputData!._resumeState).toBeUndefined();
+      expect(nodeExec.outputData!._resumeCheckpoint).toBeUndefined();
+      // 상태 전이는 driver 경유로 1회.
+      expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
+        { id: executionId, status: ExecutionStatus.RUNNING },
+        ExecutionStatus.WAITING_FOR_INPUT,
+        nodeExec,
+      );
+    });
+
+    // nodeExec === null → graceful pass-through: nodeExec 영속 블록 전체 skip,
+    // 단 stageDurableResumeSnapshot + updateExecutionStatus(undefined) + emit 은
+    // 그대로 수행되고 nodeExecutionId 는 undefined 로 나간다.
+    it('nodeExec=null → 영속 블록 skip + updateExecutionStatus(undefined) + emit 정상 (graceful pass-through)', async () => {
+      const context = contextService.createContext(executionId, workflowId);
+      context.structuredOutputCache[aiNode.id as string] = {
+        config: {},
+        output: { result: { message: 'hi', messages: [] } },
+        meta: {},
+      } as never;
+
+      await invoke(context as never, null, { messages: [], turnCount: 1 });
+
+      // checkpoint / save 경로 미진입.
+      expect(driver.isCheckpointEligibleNodeType).not.toHaveBeenCalled();
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+      // 상태 전이는 nodeExec 없이(undefined) 수행.
+      expect(driver.stageDurableResumeSnapshot).toHaveBeenCalledTimes(1);
+      expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
+        { id: executionId, status: ExecutionStatus.RUNNING },
+        ExecutionStatus.WAITING_FOR_INPUT,
+        undefined,
+      );
+      // waiting emit 의 nodeExecutionId 는 undefined.
+      const waitingCall = mockEventEmitter.emitExecution.mock.calls.find(
+        (c) => c[1] === ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+      );
+      expect(waitingCall).toBeDefined();
+      expect(
+        (waitingCall![2] as { nodeExecutionId?: string }).nodeExecutionId,
+      ).toBeUndefined();
     });
   });
 });
