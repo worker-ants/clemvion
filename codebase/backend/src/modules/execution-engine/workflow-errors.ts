@@ -278,3 +278,16 @@ export class FormValidationError extends ExecutionError {
     ];
   }
 }
+
+/**
+ * 실행이 입력 대기 중 취소될 때 던지는 sentinel. 엔진 cancel 경로(throw)와
+ * `RetryTurnService.failRetryExecution` 의 `instanceof` 판별이 **동일 클래스**로
+ * 식별돼야 하므로, 양쪽이 공유하는 leaf 에러 모듈(본 파일)에 둔다 — engine↔retry
+ * value cross-import 순환 회피 (C-1 step4).
+ */
+export class ExecutionCancelledError extends Error {
+  constructor() {
+    super('Execution cancelled while waiting for input');
+    this.name = 'ExecutionCancelledError';
+  }
+}

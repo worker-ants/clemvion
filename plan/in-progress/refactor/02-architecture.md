@@ -10,7 +10,7 @@
 
 ### C-1 [Critical] ExecutionEngineService — 9,210줄 god-class (SRP 전면 위반)
 
-- [ ] 진행 중 — `backend/src/modules/execution-engine/execution-engine.service.ts`. **stacked PR 로드맵·진행 상황: [c1-engine-split.md](./c1-engine-split.md)**. step1(NodeBootstrapService + WORKFLOW_EXECUTOR 토큰, = m-3) PR1 완료, step2–4 대기.
+- [ ] 코드 분할 5단계 완료 (PR #622·#625·#626·PR4, **9,670→7,033줄**) — `backend/src/modules/execution-engine/execution-engine.service.ts`. **stacked PR 로드맵·진행 상황: [c1-engine-split.md](./c1-engine-split.md)**. 잔여: 4 PR 순차 머지 + 체인 종료 spec-sync(planner, [spec-update-engine-split.md](../spec-update-engine-split.md)). 모두 머지·반영 시 [x].
 
 단일 클래스가 8개 이상 책임: 그래프 순회, 노드 dispatch(`executeNode` 412줄), AI 멀티턴 생명주기, form/button 인터랙션, retry-last-turn, 상태 머신, 핸들러 등록 bootstrap. 생성자 의존성 20개, 메서드 ~70개.
 
@@ -21,7 +21,7 @@
 - [x] 1. `NodeBootstrapService` — m-3 과 함께 **가장 먼저** (독립적·소규모, 아래 m-3 참조). ✅ PR1 완료 (`claude/engine-split-s1-nodebootstrap`).
 - [x] 2. `AiTurnOrchestrator` (waitForAiConversation / processAiResumeTurn / handleAiMessageTurn / finalizeAiNode 등 ~1,250줄) — 기존 `ResumeTurnDispatch` registry 의 `handleAiResumeTurn` 진입점을 신규 서비스로 위임. ✅ PR2 #625 (+ `EngineDriver` 신설, = step5 통신 계약 선반영).
 - [x] 3. `FormInteractionService` / `ButtonInteractionService` — `waitForX`/`processXResumeTurn` 쌍 이동, registry 등록부만 엔진 잔류. ✅ PR3 #626 (EngineDriver 재사용, 신규멤버 0).
-- [ ] 4. `RetryTurnService` (applyRetryLastTurn / buildRetryReentryState / resumeGraphAfterRetry) — `_retryState`/`_resumeCheckpoint` 는 spec §1.3 공유 계약, allow-list 불변 유지.
+- [x] 4. `RetryTurnService` (applyRetryLastTurn / resumeGraphAfterRetry / completeRetryExecution / failRetryExecution) — `_retryState`/`_resumeCheckpoint` spec §1.3 allow-list 불변. ✅ PR4 (`buildRetryReentryState` 는 EngineDriver 멤버라 엔진 잔류; EngineDriver +5 그래프 멤버 확장).
 - [x] 5. 통신 인터페이스는 `WorkflowExecutor` 재사용 대신 **엔진 내부 전용 `EngineDriver`**(또는 `ResumeTurnContext` 확장) 신설. 분리 서비스의 이벤트 발행은 **`WebsocketService`/`ExecutionEventEmitter` 직접 주입 유지** (spec §4.4 — `IExecutionEventEmitter` 도입 금지). ✅ PR2 #625 에서 `EngineDriver`(token `ENGINE_DRIVER`, useExisting) 신설, PR3·4 재사용.
 
 **옵션 비교**:
