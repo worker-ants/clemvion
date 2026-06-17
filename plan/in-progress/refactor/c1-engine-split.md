@@ -92,11 +92,20 @@ Form/Button 블로킹 인터랙션을 god-class 에서 분리. 엔진 8,411→7,
 - [x] /consistency-check --impl-done — **BLOCK:NO**. Warning 2(`selectedItem`·`previousOutput`)는 git diff 실증 **verbatim 이동된 pre-existing SPEC-DRIFT** → PR4/planner
 - [x] push + PR — **#626** (base PR2 `claude/engine-split-s2-aiturn` #625): https://github.com/worker-ants/clemvion/pull/626
 
-## PR4 — RetryTurnService — 대기
+## PR4 — RetryTurnService — ✅ 완료 (push/PR 대기)
 
-`applyRetryLastTurn`/`buildRetryReentryState`/`resumeGraphAfterRetry`/`completeRetryExecution`/
-`failRetryExecution`/`publishRetryLastTurn` 이동. `_retryState`/`_resumeCheckpoint` 는 spec §1.3 공유
-계약 — allow-list 불변. EngineDriver 재사용.
+retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄 (PR1–4 누적 **9,670→7,033**). EngineDriver 재사용+5멤버 확장.
+
+- [x] RetryTurnService 신설 — **이동**: `applyRetryLastTurn`·`completeRetryExecution`·`resumeGraphAfterRetry`·`failRetryExecution`. **엔진 잔류**: `retryLastTurn`(←websocket.gateway)·`applyRetryLastTurn`(←continuation processor) thin delegator; `publishRetryLastTurn`(publisher cluster, engine-private `buildPublishResult` 공유); `buildRetryReentryState`·`buildResumeCheckpoint`·`isCheckpointEligibleNodeType`(EngineDriver 멤버, AI resume 공유). `_retryState`/`_resumeCheckpoint` allow-list 불변(§1.3)
+- [x] EngineDriver +5멤버(rehydrateContext·loadAndBuildGraph·runNodeDispatchLoop·findActivatedBackEdge·clearLlmDefaultConfigCache) — retry 가 그래프 루프 구동. 엔진↔서비스 forwardRef 순환 DI
+- [x] `ExecutionCancelledError` → leaf `workflow-errors.ts` 이동 (engine↔retry value cross-import 순환 선제 차단; PR2 RehydrationError 교훈)
+- [x] TEST — lint ✓ · unit ✓(33 suites/805 execution-engine) · build ✓(execution-engine clean) · e2e ✓(34/202 dockerized)
+- [x] /ai-review — MEDIUM · C0. W-5/6/7(retry 분기 테스트)+W-2/8(@internal JSDoc) fix(`cffd95c8`); W-1/3/9(strangler-fig 누적 구조)·W-4(completeRetryExecution verbatim pre-existing) 수용/이연. RESOLUTION.md(`review/code/2026/06/18/07_09_54`)
+- [x] /consistency-check --impl-done — **BLOCK:NO**. Warning 1(본 plan PR4 절 stale)=본 갱신으로 해소. INFO(@internal 대칭·spec-sync)는 후속/체인종료
+- [ ] push + PR (base = PR3 브랜치 `claude/engine-split-s3-formbutton`)
+- [ ] 체인 종료 spec-sync: `spec-update-engine-split.md` → project-planner 위임 (spec 반영 + /consistency-check --spec BLOCK:NO)
+
+**후속(impl-done INFO)**: `ExecutionCancelledError`(workflow-errors)·EngineDriver 인터페이스 신규 5멤버에 `@internal` JSDoc 대칭 추가(impl 측은 W-2 로 추가됨) — codebase 변경이라 별도 후속(impl-done 무효화 회피). `ExecutionGraphState`/`NodeDispatchLoopParams` leaf 이동도 후속.
 
 ## spec 갱신 (formal phase)
 
@@ -150,3 +159,8 @@ Form/Button 블로킹 인터랙션을 god-class 에서 분리. 엔진 8,411→7,
   355줄 + ButtonInteractionService 455줄, EngineDriver 신규멤버 0. TEST(lint·unit 32/794·build·e2e 34/202).
   /ai-review MEDIUM(C0)→form spec 어서션 fix `77ae1522`; security reviewer 529×3 미생성(순수추출 gap 문서화).
   impl-done BLOCK:NO(Warning 2 = verbatim pre-existing SPEC-DRIFT). push/PR 대기 → 이후 PR4 RetryTurnService.
+- 2026-06-18: **PR4 구현·검증 완료** (주간 한도 리셋 후 재개; subagent 추출 + main 게이트). 엔진
+  7,499→7,033줄(누적 9,670→7,033), RetryTurnService 654줄, EngineDriver +5멤버. `ExecutionCancelledError`
+  를 leaf workflow-errors 로 선제 이동해 engine↔retry 순환 차단(PR2 교훈). TEST(lint·unit 33/805·build·e2e
+  34/202). /ai-review MEDIUM(C0)→retry 분기 테스트+@internal JSDoc fix `cffd95c8`(W-1/3/4/9 수용/이연).
+  impl-done BLOCK:NO(Warning 1=본 plan PR4 절 stale, 갱신 해소). **코드 4-PR 체인 완성** → push/PR4 + spec-sync(planner) 잔여.
