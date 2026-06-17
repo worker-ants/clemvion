@@ -5,6 +5,10 @@ import type { GraphTraversalService } from './graph/graph-traversal.service';
 import type { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
 import type { EngineDriver } from './engine-driver.interface';
 import { NodeExecutionStatus } from '../node-executions/entities/node-execution.entity';
+import { ExecutionStatus } from '../executions/entities/execution.entity';
+import { ExecutionEventType } from '../websocket/websocket.service';
+import { ExecutionCancelledError } from './workflow-errors';
+import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
 
 // ────────────────────────────────────────────────────────────────────────────
 // C-1 step4 — RetryTurnService 단위 테스트.
@@ -29,33 +33,43 @@ import { NodeExecutionStatus } from '../node-executions/entities/node-execution.
 describe('RetryTurnService', () => {
   let service: RetryTurnService;
   let mockNodeExecutionRepo: Record<string, jest.Mock>;
+  // 재진입(`applyRetryLastTurn`) 계열 테스트(W-5/W-6/W-7)가 per-test 로 반환값을
+  // override 하기 위해 describe 스코프로 노출한다. `retryLastTurn` 테스트는 이들을
+  // 참조하지 않으므로 기존 어서션 영향 없음.
+  let mockExecutionRepo: Record<string, jest.Mock>;
+  let mockNodeRepo: Record<string, jest.Mock>;
+  let mockEventEmitter: ExecutionEventEmitter;
+  let mockGraphTraversal: GraphTraversalService;
+  let mockAiTurnOrchestrator: AiTurnOrchestrator;
+  let mockDriver: jest.Mocked<EngineDriver>;
+  let contextService: ExecutionContextService;
 
   beforeEach(() => {
     mockNodeExecutionRepo = {
       findOneBy: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
     };
-    const mockExecutionRepo: Record<string, jest.Mock> = {
+    mockExecutionRepo = {
       findOneBy: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
     };
-    const mockNodeRepo: Record<string, jest.Mock> = {
+    mockNodeRepo = {
       findOneBy: jest.fn().mockResolvedValue(null),
       findBy: jest.fn().mockResolvedValue([]),
     };
-    const mockEventEmitter = {
+    mockEventEmitter = {
       emitExecution: jest.fn().mockResolvedValue(undefined),
       emitNode: jest.fn().mockResolvedValue(undefined),
     } as unknown as ExecutionEventEmitter;
-    const mockGraphTraversal = {
+    mockGraphTraversal = {
       seedInitialReachability: jest.fn(() => new Set<string>()),
       propagateReachability: jest.fn(),
       isPortFiltered: jest.fn(() => false),
     } as unknown as GraphTraversalService;
-    const mockAiTurnOrchestrator = {
+    mockAiTurnOrchestrator = {
       processAiResumeTurn: jest.fn(),
     } as unknown as AiTurnOrchestrator;
-    const mockDriver = {
+    mockDriver = {
       updateExecutionStatus: jest.fn().mockResolvedValue(true),
       stageDurableResumeSnapshot: jest.fn(),
       buildRetryReentryState: jest.fn(),
@@ -69,6 +83,7 @@ describe('RetryTurnService', () => {
       findActivatedBackEdge: jest.fn().mockReturnValue(null),
       clearLlmDefaultConfigCache: jest.fn(),
     } as unknown as jest.Mocked<EngineDriver>;
+    contextService = new ExecutionContextService();
 
     service = new RetryTurnService(
       mockExecutionRepo as unknown as never,
@@ -76,7 +91,7 @@ describe('RetryTurnService', () => {
       mockNodeRepo as unknown as never,
       // dataSource — `retryLastTurn` 테스트가 per-test 로 override 한다.
       { transaction: jest.fn() } as unknown as never,
-      new ExecutionContextService(),
+      contextService,
       mockEventEmitter,
       mockGraphTraversal,
       mockAiTurnOrchestrator,
@@ -270,6 +285,280 @@ describe('RetryTurnService', () => {
       await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
         code: 'RETRY_TOO_EARLY',
       });
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // W-5 — applyRetryLastTurn 의 early-exit 가드 분기 잠금(behavior lock).
+  //
+  // 각 가드에서 (1) 그래프를 구동하지 않고(`driver.rehydrateContext` /
+  // `processAiResumeTurn` / `runNodeDispatchLoop` 미호출) 조기 반환하며,
+  // (2) 코드가 spawn row 를 FAILED 로 마감하는 분기에서는 정확히 그 필드를
+  // set + save 하는지를 검증한다. 현재 구현 동작을 그대로 assert (변경 금지).
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('applyRetryLastTurn — early-exit guards', () => {
+    const EXEC = 'exec-apply';
+    const SPAWNED_ID = 'ne-spawned';
+    const NODE_ID = 'n-ai';
+
+    function makeSpawnedRow(overrides: Record<string, unknown> = {}) {
+      return {
+        id: SPAWNED_ID,
+        executionId: EXEC,
+        nodeId: NODE_ID,
+        status: NodeExecutionStatus.RUNNING,
+        startedAt: new Date(),
+        inputData: {
+          _retryState: { messages: [], turnCount: 1 },
+        },
+        ...overrides,
+      } as Record<string, unknown>;
+    }
+
+    function expectGraphNotDriven() {
+      expect(mockDriver.rehydrateContext).not.toHaveBeenCalled();
+      expect(mockAiTurnOrchestrator.processAiResumeTurn).not.toHaveBeenCalled();
+      expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
+    }
+
+    it('(a) returns without driving graph when spawned row is not found', async () => {
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(null);
+      await expect(
+        service.applyRetryLastTurn(EXEC, SPAWNED_ID),
+      ).resolves.toBeUndefined();
+      expectGraphNotDriven();
+      // not-found → ack-and-discard, no FAILED save.
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('(a) returns without driving graph when spawned row belongs to another execution', async () => {
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(
+        makeSpawnedRow({ executionId: 'other-exec' }),
+      );
+      await expect(
+        service.applyRetryLastTurn(EXEC, SPAWNED_ID),
+      ).resolves.toBeUndefined();
+      expectGraphNotDriven();
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('(b) returns without driving graph when spawned row is not RUNNING (idempotent discard)', async () => {
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(
+        makeSpawnedRow({ status: NodeExecutionStatus.COMPLETED }),
+      );
+      await expect(
+        service.applyRetryLastTurn(EXEC, SPAWNED_ID),
+      ).resolves.toBeUndefined();
+      expectGraphNotDriven();
+      // already-handled → ack-and-discard, no FAILED save.
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('(c) marks spawned row FAILED when _retryState is missing in inputData', async () => {
+      const row = makeSpawnedRow({ inputData: {} });
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+      expectGraphNotDriven();
+      expect(row.status).toBe(NodeExecutionStatus.FAILED);
+      expect(row.error).toEqual({
+        message: 'Retry re-entry failed: missing _retryState',
+      });
+      expect(row.finishedAt).toBeInstanceOf(Date);
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(row);
+    });
+
+    it('(d) marks spawned row FAILED when parent execution is not found', async () => {
+      const row = makeSpawnedRow();
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
+      mockExecutionRepo.findOneBy.mockResolvedValue(null);
+      // node lookup would succeed, but execution-not-found takes precedence.
+      mockNodeRepo.findOneBy.mockResolvedValue({ id: NODE_ID, type: 'ai' });
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+      expectGraphNotDriven();
+      expect(row.status).toBe(NodeExecutionStatus.FAILED);
+      expect(row.error).toEqual({
+        message: 'Retry re-entry failed: parent execution not found',
+      });
+      expect(row.finishedAt).toBeInstanceOf(Date);
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(row);
+    });
+
+    it('(e) marks spawned row FAILED when node definition is not found', async () => {
+      const row = makeSpawnedRow();
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC,
+        startedAt: new Date(),
+      });
+      mockNodeRepo.findOneBy.mockResolvedValue(null);
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+      expectGraphNotDriven();
+      expect(row.status).toBe(NodeExecutionStatus.FAILED);
+      expect(row.error).toEqual({
+        message: 'Retry re-entry failed: node definition not found',
+      });
+      expect(row.finishedAt).toBeInstanceOf(Date);
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(row);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // W-6 / W-7 — applyRetryLastTurn 의 종결 분기. 가드를 모두 통과해
+  // `processAiResumeTurn` 까지 도달하도록 happy-path mock 을 깔고, 그 이후의
+  // catch(취소) / resumeGraphAfterRetry defensive fallback 를 잠근다.
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('applyRetryLastTurn — re-entry outcome branches', () => {
+    const EXEC = 'exec-reentry';
+    const SPAWNED_ID = 'ne-spawned';
+    const NODE_ID = 'n-ai';
+
+    let spawnedRow: Record<string, unknown>;
+    let execution: Record<string, unknown>;
+    let node: Record<string, unknown>;
+
+    // 가드를 모두 통과시키는 공통 setup (spawn RUNNING + _retryState, execution +
+    // node 조회 성공, context rehydrate, _retryState→_resumeState 변환).
+    beforeEach(() => {
+      spawnedRow = {
+        id: SPAWNED_ID,
+        executionId: EXEC,
+        nodeId: NODE_ID,
+        status: NodeExecutionStatus.RUNNING,
+        startedAt: new Date(),
+        inputData: { _retryState: { messages: [], turnCount: 1 } },
+      };
+      execution = {
+        id: EXEC,
+        workflowId: 'wf-1',
+        status: ExecutionStatus.FAILED,
+        startedAt: new Date(Date.now() - 10_000),
+      };
+      node = { id: NODE_ID, type: 'ai', label: 'AI', config: {} };
+
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(spawnedRow);
+      mockExecutionRepo.findOneBy.mockResolvedValue(execution);
+      mockNodeRepo.findOneBy.mockResolvedValue(node);
+      // rehydrateContext 는 실제로 contextService 의 Map 에 context 를 등록한다.
+      // 따라서 mock 도 real contextService.createContext 로 등록해 후속
+      // setNodeOutput / contextKeyOf / deleteContext 가 동일 Map 에 작동하게 한다
+      // (그렇지 않으면 real setNodeOutput 이 "context not found" throw).
+      (mockDriver.rehydrateContext as jest.Mock).mockImplementation(() =>
+        Promise.resolve(contextService.createContext(EXEC, 'wf-1')),
+      );
+      (mockDriver.buildRetryReentryState as jest.Mock).mockReturnValue({
+        resumeState: { messages: [] },
+        initialAction: { type: 'ai_message' },
+      });
+    });
+
+    // W-6 — 재진입이 ExecutionCancelledError 를 던지면 failRetryExecution 이
+    // EXECUTION_CANCELLED (FAILED 아님) 를 emit 하고 Execution.status=CANCELLED.
+    it('emits EXECUTION_CANCELLED (not FAILED) when re-entry throws ExecutionCancelledError', async () => {
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockRejectedValue(new ExecutionCancelledError());
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expect(execution.status).toBe(ExecutionStatus.CANCELLED);
+      const emitExecution = mockEventEmitter.emitExecution as jest.Mock;
+      // CANCELLED event emitted, FAILED never.
+      expect(emitExecution).toHaveBeenCalledWith(
+        EXEC,
+        ExecutionEventType.EXECUTION_CANCELLED,
+        { status: ExecutionStatus.CANCELLED },
+      );
+      const emittedTypes = emitExecution.mock.calls.map((c) => c[1]);
+      expect(emittedTypes).not.toContain(ExecutionEventType.EXECUTION_FAILED);
+      // graph traversal not entered on the cancel path.
+      expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
+    });
+
+    // W-6 (대조) — 일반 Error 면 EXECUTION_FAILED + status=FAILED + error 필드.
+    it('emits EXECUTION_FAILED with error message when re-entry throws a generic Error', async () => {
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockRejectedValue(new Error('boom'));
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expect(execution.status).toBe(ExecutionStatus.FAILED);
+      expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
+        EXEC,
+        ExecutionEventType.EXECUTION_FAILED,
+        { status: ExecutionStatus.FAILED, error: 'boom' },
+      );
+    });
+
+    // 재진입이 re-park(PARK_RELEASED) 하면 graph 진행 없이 조기 반환.
+    it('returns without resuming graph when re-entry re-parks (PARK_RELEASED)', async () => {
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockResolvedValue(PARK_RELEASED);
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expect(mockDriver.loadAndBuildGraph).not.toHaveBeenCalled();
+      expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
+      // re-park leaves Execution untouched here (handled by next continuation).
+      expect(mockEventEmitter.emitExecution).not.toHaveBeenCalled();
+    });
+
+    // W-7 — resumeGraphAfterRetry defensive fallback (graph 비어 있음) →
+    // completeRetryExecution 으로 Execution.COMPLETED 마감, dispatch loop 미진입.
+    it('W-7: falls back to completeRetryExecution when the rebuilt graph has no nodes', async () => {
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockResolvedValue(undefined);
+      (mockDriver.loadAndBuildGraph as jest.Mock).mockResolvedValue({
+        nodes: [],
+        sortedNodeIds: [],
+        sortedIndexMap: new Map<string, number>(),
+        backEdgeMap: new Map(),
+        outgoingEdgeMap: new Map(),
+        nodeMap: new Map(),
+        forwardEdges: [],
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expect(mockDriver.loadAndBuildGraph).toHaveBeenCalledWith('wf-1');
+      // fallback finalize → COMPLETED, no dispatch loop.
+      expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
+      expect(execution.status).toBe(ExecutionStatus.COMPLETED);
+      expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
+        EXEC,
+        ExecutionEventType.EXECUTION_COMPLETED,
+        { status: ExecutionStatus.COMPLETED },
+      );
+    });
+
+    // W-7 — resumeGraphAfterRetry defensive fallback (completedNode 가 sorted
+    // graph 에 없음, sortedIndexMap.get(...) === undefined) → 동일 fallback.
+    it('W-7: falls back to completeRetryExecution when completed node is absent from the sorted graph', async () => {
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockResolvedValue(undefined);
+      (mockDriver.loadAndBuildGraph as jest.Mock).mockResolvedValue({
+        // non-empty nodes, but sortedIndexMap has no entry for completedNode.id.
+        nodes: [{ id: 'other-node' }],
+        sortedNodeIds: ['other-node'],
+        sortedIndexMap: new Map<string, number>(),
+        backEdgeMap: new Map(),
+        outgoingEdgeMap: new Map(),
+        nodeMap: new Map(),
+        forwardEdges: [],
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
+      expect(execution.status).toBe(ExecutionStatus.COMPLETED);
+      expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
+        EXEC,
+        ExecutionEventType.EXECUTION_COMPLETED,
+        { status: ExecutionStatus.COMPLETED },
+      );
     });
   });
 });

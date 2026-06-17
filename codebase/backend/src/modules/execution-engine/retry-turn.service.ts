@@ -623,6 +623,8 @@ export class RetryTurnService {
    * CANCELLED 로 마감한다 (runExecution catch 와 동형). NodeExecution 은
    * finalizeAiNode FAILED 분기가 이미 FAILED + NODE_FAILED emit 했고, retryable
    * 재실패면 새 `_retryState` 가 outputData 에 보존돼 재-retry 가능하다.
+   *
+   * @internal — applyRetryLastTurn 의 catch 블록에서만 호출된다.
    */
   private async failRetryExecution(
     execution: Execution,

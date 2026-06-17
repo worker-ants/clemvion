@@ -1101,6 +1101,8 @@ export class ExecutionEngineService
    * 채워지지 않는 항목 (의도적):
    *   - `_resumeState` — multi-turn AI 의 in-memory 전용 (WARN #6). 영속 보존 X
    *     → 후속 `resumeFromCheckpoint` 가 ai_conversation 케이스를 거부.
+   *
+   * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
   // C-1 step4 — EngineDriver member (RetryTurnService.applyRetryLastTurn 가 driver 경유).
   public async rehydrateContext(
@@ -1235,6 +1237,8 @@ export class ExecutionEngineService
    * @throws {Error} DB 조회 실패(`nodeRepository`/`edgeRepository`) 또는 그래프 빌드
    *   단계(`buildGraph` / `topologicalSort` / `buildEdgeIndexes`) 오류 — 호출자의
    *   catch 블록이 처리한다.
+   *
+   * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
   // C-1 step4 — EngineDriver member (RetryTurnService.resumeGraphAfterRetry 가 driver 경유).
   public async loadAndBuildGraph(
@@ -1311,6 +1315,8 @@ export class ExecutionEngineService
    *   호출자의 catch 블록이 실행 실패로 마감한다.
    * @throws {ExecutionCancelledError} 실행 취소 신호 수신 — 호출자의 catch 블록이
    *   처리한다.
+   *
+   * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
   // C-1 step4 — EngineDriver member (RetryTurnService.resumeGraphAfterRetry 가 driver 경유).
   public async runNodeDispatchLoop(
@@ -5049,6 +5055,8 @@ export class ExecutionEngineService
   /**
    * INFO #10 — `runExecution` 의 finally 에서 호출. 본 실행에 속한 캐시 항목
    * 을 일괄 정리하여 장기 메모리 누수를 차단한다.
+   *
+   * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
   // C-1 step3 (W5) — orchestrator 미사용으로 EngineDriver 표면에서 제거, 엔진
   // 내부 전용으로 되돌림 (ISP).
@@ -5372,6 +5380,8 @@ export class ExecutionEngineService
    * Check if any back-edge from the given source node should be activated.
    * A back-edge is activated when its sourcePort matches the selected port
    * (or the source has no port selection at all).
+   *
+   * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
   // C-1 step4 — EngineDriver member (RetryTurnService.resumeGraphAfterRetry 가 driver 경유).
   public findActivatedBackEdge(
