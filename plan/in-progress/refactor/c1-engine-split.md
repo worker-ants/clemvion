@@ -90,7 +90,7 @@ Form/Button 블로킹 인터랙션을 god-class 에서 분리. 엔진 8,411→7,
 - [x] TEST — lint ✓ · unit ✓(32 suites/794 execution-engine) · build ✓(execution-engine clean) · e2e ✓(34/202 dockerized)
 - [x] /ai-review — MEDIUM · C0. W-1/2/3(form spec emit·append·whitelist)+INFO-13(afterEach) fix(`77ae1522`); W-4/5(forwardRef) 일관 확인→INFO; SPEC-DRIFT→PR4. **security reviewer API 529×3 미생성** — 순수 추출(보안 surface 무변) transient gap 문서화. RESOLUTION.md(`review/code/2026/06/17/09_56_48`)
 - [x] /consistency-check --impl-done — **BLOCK:NO**. Warning 2(`selectedItem`·`previousOutput`)는 git diff 실증 **verbatim 이동된 pre-existing SPEC-DRIFT** → PR4/planner
-- [ ] push + PR (base = PR2 브랜치 `claude/engine-split-s2-aiturn`)
+- [x] push + PR — **#626** (base PR2 `claude/engine-split-s2-aiturn` #625): https://github.com/worker-ants/clemvion/pull/626
 
 ## PR4 — RetryTurnService — 대기
 
