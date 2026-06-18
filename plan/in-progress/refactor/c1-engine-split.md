@@ -140,9 +140,9 @@ retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄
 - **엔진→서비스 주입 방향 제거(caller-side 전환)** (PR2·PR3 architecture WARNING): 엔진↔추출서비스 양방향
   forwardRef 순환 DI 는 strangler-fig 의도된 중간상태. **체인 종료(엔진 슬림화 완료) 시** 엔진이 서비스를
   주입받는 방향을 제거하는 백로그. (현재 토큰 주입은 정상·일관 — AiTurnOrchestrator/Form/Button 동일.)
-- **ButtonInteractionService 타입·분해** (PR3 INFO): `processButtonResumeTurn` payload `ButtonClickPayload`
-  discriminated union 타입가드, ~280줄 메서드 `resolveButtonInteraction` 순수함수 추출, `EngineDriver` ISP
-  소비자별 부분 인터페이스, `WaitingInteractionType` 공유 위치 이동 — 후속 step.
+- **ButtonInteractionService 타입·분해** (PR3 INFO) — ✅ **완료 (후속 ⑤, 2026-06-19, branch `button-interaction`)**: `ButtonClickPayload` discriminated union + `isButtonClickPayload` 타입가드 + `resolveButtonInteraction`(payload→port/interaction 결정, 4 variant) + `buildResumedStructuredOutput` 순수함수 추출 (행위보존, I/O 순서 flat→structured→thread→DB→event 보존). 커밋 `4fb918d7`+`2ad44a71`. TEST lint·unit(execution-engine 33s/821; button-interaction 27)·build·e2e(34/202) ✓. ai-review 1차 MEDIUM(W6 fix)→2차 LOW(W7 전부 수용/이연·회귀 아님)·impl-done BLOCK:NO. RESOLUTION `review/code/2026/06/19/03_51_29`. **PR: (생성후 기재).**
+  - **범위 재조정**: `EngineDriver` ISP 부분인터페이스 → **후속 ④(엔진 DI 재구조화)로 이연** (#629 @internal 충돌 + ENGINE_DRIVER 소비자 전수 변경 동반). `WaitingInteractionType` 이동 → **제외**(spec-pinned — `interaction-type-registry.md §1.1/§1.2` SoT, plan L88 "미이동" 명시).
+  - **SPEC-DRIFT 후속(planner)**: (a) 순수함수 추출(resolveButtonInteraction/buildResumedStructuredOutput) → `4-execution-engine.md §Rationale C-1` 등재, (b) `node-output.md §4.2` interaction.type 열거에 `button_continue` 추가(§4.5 일관) + `4-nodes/6-presentation/0-common.md §4` button_continue `url?` 조건부 정정.
 - **`previousOutput` Phase 3 완전 제거** (spec-sync plan-coherence INFO, 2026-06-18): `node-output.md §4.2` 의
   presentation resume(`ButtonInteractionService`) `previousOutput` 보존 예외는 transitional — `node-output-redesign`
   plan 재개 시 Phase 3 정리와 함께 제거 검토 (현재 충돌 없음, 기존 행위 verbatim).
