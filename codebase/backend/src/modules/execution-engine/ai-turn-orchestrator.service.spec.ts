@@ -409,6 +409,11 @@ describe('AiTurnOrchestrator', () => {
         details: { retryAfter: 60, status: 429 },
       });
       const result = extract()(err);
+      // spec/4-nodes/3-ai/1-ai-agent.md §10 (L1099) — 미등록 explicit code 는
+      // status/network/429/auth 분기에 안 걸리면 classifyLlmError 가 그대로 보존
+      // (passthrough, non-retryable). details.status=429 는 extractHttpStatus 가
+      // 읽지 않으므로 LLM_RATE_LIMIT 으로 승격되지 않는다 (code 보존 + retryable=false).
+      expect(result.code).toBe('LLM_API_ERROR');
       // 기존 details 필드 보존 + Principle 3.2.1 retryable 추가.
       // LLM_API_ERROR 는 RETRYABLE_CODES 에 없어 retryable=false (보수적 default).
       expect(result.details).toEqual({
@@ -416,6 +421,18 @@ describe('AiTurnOrchestrator', () => {
         status: 429,
         retryable: false,
       });
+    });
+
+    it('미등록 explicit code 는 정규화 시 그대로 passthrough (spec §10 L1099 — 명시 code 보존·non-retryable)', () => {
+      // status / network / 429 / auth 어느 분기에도 안 걸리는 임의 explicit code 는
+      // classifyLlmError 의 explicitCode 보존 분기로 떨어진다. 미등록(§10 표 밖) 이라도
+      // 정규화 payload 에 code 가 그대로 실리고 retryable 은 보수적 false.
+      const err = Object.assign(new Error('vendor quota exhausted'), {
+        code: 'LLM_PROVIDER_QUOTA',
+      });
+      const result = extract()(err);
+      expect(result.code).toBe('LLM_PROVIDER_QUOTA');
+      expect((result.details as Record<string, unknown>).retryable).toBe(false);
     });
 
     it('details 에 secret 포함 시 sanitize 가 적용된다', () => {
