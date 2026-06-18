@@ -284,6 +284,8 @@ export class FormValidationError extends ExecutionError {
  * `RetryTurnService.failRetryExecution` 의 `instanceof` 판별이 **동일 클래스**로
  * 식별돼야 하므로, 양쪽이 공유하는 leaf 에러 모듈(본 파일)에 둔다 — engine↔retry
  * value cross-import 순환 회피 (C-1 step4).
+ *
+ * @internal — execution-engine 모듈 내부 cancel 전파 전용 sentinel. 모듈 외부 직접 참조 금지.
  */
 export class ExecutionCancelledError extends Error {
   constructor() {
