@@ -34,6 +34,10 @@ import {
   DEFAULT_MEMORY_TOP_K,
   DEFAULT_MEMORY_THRESHOLD,
 } from '../shared/agent-memory-schema';
+import type {
+  LlmCallRecord,
+  TurnDebugEntry,
+} from '../../../shared/llm-tracing/llm-call-record';
 
 /** ConversationThread injection debug echo snapshot (conversation-thread.md §5.3). */
 type ContextInjectionMeta = ConversationContextInjectionResult['injection'];
@@ -71,17 +75,9 @@ function defined<T extends Record<string, unknown>>(obj: T): T {
   return out as T;
 }
 
-interface LlmCallTrace {
-  requestPayload: unknown;
-  responsePayload: unknown;
-  durationMs: number;
-}
-
-interface TurnDebugEntry {
-  turnIndex: number;
-  llmCalls: LlmCallTrace[];
-  totalDurationMs: number;
-}
+// LLM 호출 trace 도메인 타입(LlmCallRecord / TurnDebugEntry)은
+// shared/llm-tracing/llm-call-record 의 canonical 정의를 공유한다 (AI Agent·
+// execution-engine helper 와 단일 진실). 위 import 참조.
 
 // Shape of the user-authored multi-turn config as it appears on
 // `context.rawConfig` / `state.rawConfig` after the engine freezes
@@ -482,7 +478,7 @@ export class InformationExtractorHandler implements NodeHandler {
     let lastError: Error | undefined;
     let lastResponse: string | undefined;
     let lastModel: string | undefined;
-    const llmCalls: LlmCallTrace[] = [];
+    const llmCalls: LlmCallRecord[] = [];
     const totalAttempts = maxRetries + 1;
     // CONVENTIONS Principle 7 — config echoes raw inputField / model /
     // schema / instructions / examples (`{{ ... }}` templates preserved on
@@ -501,7 +497,7 @@ export class InformationExtractorHandler implements NodeHandler {
     };
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      let call: { result: ChatResult; trace: LlmCallTrace };
+      let call: { result: ChatResult; trace: LlmCallRecord };
       try {
         call = await this.traceChat(
           llmConfig,
@@ -766,7 +762,7 @@ export class InformationExtractorHandler implements NodeHandler {
     }
 
     const turnStartedAt = Date.now();
-    const llmCalls: LlmCallTrace[] = [];
+    const llmCalls: LlmCallRecord[] = [];
     const turnIndex = 1;
 
     const runResult = await this.runTurnWithCollectionRetries(
@@ -863,7 +859,7 @@ export class InformationExtractorHandler implements NodeHandler {
 
     const processStartedAt = Date.now();
     const turnStartedAt = Date.now();
-    const llmCalls: LlmCallTrace[] = [];
+    const llmCalls: LlmCallRecord[] = [];
     const turnIndex = state.turnCount + 1;
 
     const runResult = await this.runTurnWithCollectionRetries(
@@ -975,7 +971,7 @@ export class InformationExtractorHandler implements NodeHandler {
       initialMessages: ChatMessage[];
       initialPartialResult: Record<string, unknown>;
       startingRetryCount: number;
-      llmCalls: LlmCallTrace[];
+      llmCalls: LlmCallRecord[];
       abortSignal?: AbortSignal;
       /** [Spec 7-llm-usage §1.3] attribution — WARNING#5. */
       llmContext?: LlmCallContext;
@@ -1005,7 +1001,7 @@ export class InformationExtractorHandler implements NodeHandler {
     let followUp = '';
 
     for (;;) {
-      let trace: LlmCallTrace;
+      let trace: LlmCallRecord;
       let result: ChatResult;
       try {
         // multi-turn 루프의 각 LLM 호출에 abortSignal 전파 (node-cancellation §2.1)
@@ -1364,7 +1360,7 @@ export class InformationExtractorHandler implements NodeHandler {
   }
 
   private buildSingleTurnDebug(
-    llmCalls: LlmCallTrace[],
+    llmCalls: LlmCallRecord[],
     startedAt: number,
   ): TurnDebugEntry[] {
     if (llmCalls.length === 0) return [];
@@ -1861,7 +1857,7 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
     params: Parameters<LlmService['chat']>[1],
     signal?: AbortSignal,
     llmContext?: LlmCallContext,
-  ): Promise<{ result: ChatResult; trace: LlmCallTrace }> {
+  ): Promise<{ result: ChatResult; trace: LlmCallRecord }> {
     const startedAt = Date.now();
     const result = await this.llmService.chat(llmConfig, params, llmContext, {
       signal,
