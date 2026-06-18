@@ -32,6 +32,274 @@ import type { GraphEdge } from './graph/graph-builder';
 import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
 
 /**
+ * 버튼 클릭 재개 payload 의 판별유니온 (continuation-bus 가 publish 하는 wire-shape).
+ *
+ * 코드가 **실제로 읽는 필드만** 반영한다 (`type` 판별 + `button_click` 변형의
+ * `buttonId`). 옛 캐스팅 `payload as { type; buttonId?; action? }` 의 `action?` 는
+ * 어디서도 읽히지 않으므로 의도적으로 제외한다. fallback 변형(그 외 type)은
+ * `buttonId` 를 읽지 않으므로 필드를 두지 않는다.
+ */
+export type ButtonClickPayload =
+  | { type: 'button_click'; buttonId?: string }
+  | { type: string };
+
+/**
+ * 런타임 narrowing — payload 가 `button_click` 변형인지 판별한다. 가드가 false 면
+ * 기존 fallback(`type !== 'button_click'` → continue) 경로를 그대로 탄다 (동작 불변).
+ */
+export function isButtonClickPayload(
+  payload: ButtonClickPayload,
+): payload is { type: 'button_click'; buttonId?: string } {
+  return payload.type === 'button_click';
+}
+
+/**
+ * {@link resolveButtonInteraction} 가 산출하는 순수 결정 결과. I/O 는 일절 포함하지
+ * 않으며, {@link ButtonInteractionService.processButtonResumeTurn} 이 이 값으로
+ * (기존과 동일한 순서의) context/DB/emit 부수효과를 수행한다.
+ *
+ * `updatedStructured`(structured NodeHandlerOutput)는 의도적으로 **여기 없다**:
+ * 원본 메서드가 그것을 `setNodeOutput()` **이후**의 `structuredOutputCache[nodeId]`
+ * (= setNodeOutput 이 `updatedOutput` 으로 재파생한 view) 로부터 구성하므로,
+ * read-timing 이 동작의 일부다. 따라서 structured 구성은 메서드에 잔류하되 순수
+ * 헬퍼 {@link buildResumedStructuredOutput} 로 분리했다.
+ */
+export interface ButtonInteractionResolution {
+  /** 라우팅 포트 (`continue` 또는 base def port). */
+  selectedPort: string;
+  /** NodeExecution.interactionData 에 실리는 legacy wire-shape. */
+  interactionData: Record<string, unknown>;
+  /** flat nodeOutput cache 에 set 되는 `_selectedPort` 동봉 결과. */
+  updatedOutput: Record<string, unknown>;
+  /** ConversationThread / structured cache 의 통합 `{type,data,receivedAt}` 형태. */
+  structuredInteraction: StructuredInteraction;
+}
+
+/** 통합 상호작용 형태 (CONVENTIONS §4.5 — `$node["X"].output.interaction.*`). */
+export interface StructuredInteraction {
+  type:
+    | 'form_submitted'
+    | 'button_click'
+    | 'button_continue'
+    | 'message_received';
+  data: Record<string, unknown>;
+  receivedAt: string;
+}
+
+/**
+ * **순수함수** — 버튼 클릭 재개의 결정 로직 (payload 분석 → port 선택 → flat
+ * `updatedOutput` / `interactionData` / `structuredInteraction` 구성).
+ * driver/repository/eventEmitter/contextService 등 I/O 의존성은 받지 않으며,
+ * 호출자({@link ButtonInteractionService.processButtonResumeTurn})가 그 지점까지
+ * 확보한 순수 값만 입력으로 받는다. 부수효과 없음 — 결과({@link
+ * ButtonInteractionResolution})만 반환.
+ *
+ * 4개 분기를 보존한다:
+ *  (a) `button_click` port 버튼 — `_selectedPort=buttonId` (item-level 은
+ *      `buttonId.split('__item_')[0]` 로 base def port).
+ *  (b) `button_click` link 버튼 — `_selectedPort='continue'` + `button_continue`
+ *      상호작용 (`url?`/`selectedItem?` 조건부 동봉).
+ *  (c) item-level — `buttonItemMap → outputItems → selectedItem` 해석.
+ *  (d) fallback — `type !== 'button_click'` → `continue`.
+ *
+ * 에러 throw 보존: 알 수 없는 buttonId 면 `INVALID_BUTTON_ID`.
+ *
+ * @param payload      버튼 클릭 payload (판별유니온).
+ * @param buttons      `buttonConfig.buttons` 배열.
+ * @param buttonItemMap item-level 버튼 id → item index 매핑 (없으면 undefined).
+ * @param outputItems  item-level 해석용 items 배열 (없으면 undefined).
+ * @param cleanNodeOutput 내부 필드(status/interactionType) 제거된 flat nodeOutput.
+ * @param now          클릭 시각 ISO8601 문자열 (호출자가 1회 산출해 전달 — 결정성).
+ */
+export function resolveButtonInteraction(
+  payload: ButtonClickPayload,
+  buttons: ButtonConfig['buttons'],
+  buttonItemMap: ButtonConfig['buttonItemMap'],
+  outputItems: unknown[] | undefined,
+  cleanNodeOutput: Record<string, unknown>,
+  now: string,
+): ButtonInteractionResolution {
+  let selectedPort: string;
+  let interactionData: Record<string, unknown>;
+  let updatedOutput: Record<string, unknown>;
+
+  // `interactionData` carries the legacy wire-shape (interactionType +
+  // flat fields) used by the WS button event. `structuredInteraction`
+  // carries the unified `{type, data, receivedAt}` shape exposed through
+  // `$node["X"].output.interaction.*` (CONVENTIONS §4.5).
+  let structuredInteraction: StructuredInteraction;
+
+  if (isButtonClickPayload(payload)) {
+    // `payload.buttonId` is optional on the discriminated union. `find` against
+    // a missing id yields `undefined`, hitting the `INVALID_BUTTON_ID` throw
+    // below — identical to the prior `buttonId!` path (behavior preserved). On
+    // the success path we use `clickedButton.id` (guaranteed `string`) for all
+    // downstream uses so no non-null assertion is needed.
+    const clickedButton = buttons.find((b) => b.id === payload.buttonId);
+
+    if (!clickedButton) {
+      throw new Error(
+        `INVALID_BUTTON_ID: Button ${payload.buttonId} not found`,
+      );
+    }
+
+    const buttonId = clickedButton.id;
+
+    // Determine selected item for item-level buttons
+    const itemIndex =
+      buttonItemMap != null ? buttonItemMap[buttonId] : undefined;
+    const selectedItem =
+      itemIndex != null && outputItems ? outputItems[itemIndex] : undefined;
+
+    if (clickedButton.type === 'port') {
+      // Dynamic item buttons have IDs like "{defId}__item_{idx}".
+      // Route to the base definition port so editor edges match.
+      selectedPort = buttonId.includes('__item_')
+        ? buttonId.split('__item_')[0]
+        : buttonId;
+      interactionData = {
+        interactionType: 'button_click',
+        buttonId,
+        buttonLabel: clickedButton.label,
+        clickedAt: now,
+      };
+      structuredInteraction = {
+        type: 'button_click',
+        data: {
+          buttonId,
+          buttonLabel: clickedButton.label,
+          ...(selectedItem !== undefined && { selectedItem }),
+        },
+        receivedAt: now,
+      };
+      updatedOutput = {
+        type: 'button_click',
+        buttonId,
+        buttonLabel: clickedButton.label,
+        clickedAt: now,
+        ...(selectedItem !== undefined && { selectedItem }),
+        nodeOutput: cleanNodeOutput,
+        _selectedPort: selectedPort,
+      };
+    } else {
+      // __continue__ for link-only "Continue" click
+      selectedPort = 'continue';
+      interactionData = {
+        interactionType: 'button_continue',
+        clickedAt: now,
+      };
+      structuredInteraction = {
+        type: 'button_continue',
+        data: {
+          buttonId,
+          buttonLabel: clickedButton.label,
+          ...(clickedButton.url ? { url: clickedButton.url } : {}),
+          ...(selectedItem !== undefined && { selectedItem }),
+        },
+        receivedAt: now,
+      };
+      updatedOutput = {
+        type: 'button_continue',
+        clickedAt: now,
+        ...(selectedItem !== undefined && { selectedItem }),
+        nodeOutput: cleanNodeOutput,
+        _selectedPort: selectedPort,
+      };
+    }
+  } else {
+    // Fallback: treat as continue
+    selectedPort = 'continue';
+    interactionData = {
+      interactionType: 'button_continue',
+      clickedAt: now,
+    };
+    structuredInteraction = {
+      type: 'button_continue',
+      data: {},
+      receivedAt: now,
+    };
+    updatedOutput = {
+      type: 'button_continue',
+      clickedAt: now,
+      nodeOutput: cleanNodeOutput,
+      _selectedPort: selectedPort,
+    };
+  }
+
+  return {
+    selectedPort,
+    interactionData,
+    updatedOutput,
+    structuredInteraction,
+  };
+}
+
+/**
+ * **순수함수** — 재개 tick 의 structured NodeHandlerOutput 을 구성한다. 직전
+ * structured view (`prevStructured`)·통합 상호작용·선택 포트로부터 파생하며
+ * 부수효과 없음. 원본 메서드는 이것을 `setNodeOutput()` **이후**의
+ * `structuredOutputCache[nodeId]` 로부터 구성했으므로, 호출자는 반드시 그
+ * 시점(= setNodeOutput 호출 후)의 view 를 `prevStructured` 로 넘겨 read-timing
+ * 동작을 보존한다.
+ *
+ * @param prevStructured `setNodeOutput()` 직후의 structured view (config/meta/output
+ *   보존 원천).
+ * @param structuredInteraction `output.interaction` 에 append 될 통합 형태.
+ * @param selectedPort 결정된 포트 (`NodeHandlerOutput.port`).
+ * @param cleanNodeOutput `prevStructured?.output` 부재 시 fallback.
+ */
+export function buildResumedStructuredOutput(
+  prevStructured: NodeHandlerOutput | undefined,
+  structuredInteraction: StructuredInteraction,
+  selectedPort: string,
+  cleanNodeOutput: Record<string, unknown>,
+): NodeHandlerOutput {
+  // Mirror the interaction result into the structured NodeHandlerOutput
+  // cache so `$node["<label>"].output.interaction.buttonId` and
+  // `.output.selectedItem` resolve predictably. `setNodeOutput` (called by
+  // the caller before this helper) already derived a legacy structured view;
+  // we overwrite it with a richer shape that preserves the handler's original
+  // `config`/`meta`.
+  const prevConfig = prevStructured?.config ?? {};
+  const prevMeta = prevStructured?.meta;
+  const rawPrevOutput = prevStructured?.output ?? cleanNodeOutput;
+  // Strip any nested `previousOutput` so repeated resume cycles (loops,
+  // retries) don't produce `previousOutput.previousOutput.…` chains that
+  // grow unbounded in memory and DB rows.
+  const prevOutput =
+    rawPrevOutput &&
+    typeof rawPrevOutput === 'object' &&
+    !Array.isArray(rawPrevOutput)
+      ? Object.fromEntries(
+          Object.entries(rawPrevOutput as Record<string, unknown>).filter(
+            ([key]) => key !== 'previousOutput',
+          ),
+        )
+      : rawPrevOutput;
+  // Structured output at the resumed tick: previous runtime fields are
+  // retained (per CONVENTIONS §4.4 — "immutable snapshot") and
+  // `output.interaction` is appended with the unified `{type, data,
+  // receivedAt}` shape.
+  //
+  // `previousOutput` is a legacy transitional field (CONVENTIONS §4.2
+  // explicitly marks it for retirement). Do NOT add new consumers — use
+  // the top-level runtime fields directly. Removal is tracked as a
+  // Phase 3 precondition in `memory/node-specs-improvement-progress.md`.
+  const structuredOutputPayload: Record<string, unknown> = {
+    ...(prevOutput as Record<string, unknown>),
+    interaction: structuredInteraction,
+    previousOutput: prevOutput,
+  };
+  return {
+    config: prevConfig,
+    output: structuredOutputPayload,
+    port: selectedPort,
+    status: 'resumed',
+    ...(prevMeta !== undefined ? { meta: prevMeta } : {}),
+  };
+}
+
+/**
  * C-1 step3 (strangler-fig) — Button(Presentation) blocking-interaction
  * 생명주기를 god-class `ExecutionEngineService` 에서 추출한 전담 서비스.
  *
@@ -195,17 +463,10 @@ export class ButtonInteractionService {
       order: { startedAt: 'DESC' },
     });
 
-    // Process the interaction result
-    const click = payload as {
-      type: string;
-      buttonId?: string;
-      action?: string;
-    };
+    // Process the interaction result — pure decision logic is extracted into
+    // the module-level {@link resolveButtonInteraction}. Only the pure inputs
+    // the method has resolved so far are passed; no I/O dependency leaks in.
     const now = new Date().toISOString();
-
-    let selectedPort: string;
-    let interactionData: Record<string, unknown>;
-    let updatedOutput: Record<string, unknown>;
 
     // Strip internal fields from nodeOutput for downstream consumption
     // Keep buttonConfig so the execution detail page can render all buttons
@@ -222,108 +483,19 @@ export class ButtonInteractionService {
       flatNodeOutput.items ??
       cleanNodeOutput.items) as unknown[] | undefined;
 
-    // `interactionData` carries the legacy wire-shape (interactionType +
-    // flat fields) used by the WS button event. `structuredInteraction`
-    // carries the unified `{type, data, receivedAt}` shape exposed through
-    // `$node["X"].output.interaction.*` (CONVENTIONS §4.5).
-    let structuredInteraction: {
-      type:
-        | 'form_submitted'
-        | 'button_click'
-        | 'button_continue'
-        | 'message_received';
-      data: Record<string, unknown>;
-      receivedAt: string;
-    };
-
-    if (click.type === 'button_click') {
-      const buttonId = click.buttonId!;
-      const clickedButton = buttons.find((b) => b.id === buttonId);
-
-      if (!clickedButton) {
-        throw new Error(`INVALID_BUTTON_ID: Button ${buttonId} not found`);
-      }
-
-      // Determine selected item for item-level buttons
-      const itemIndex =
-        buttonItemMap != null ? buttonItemMap[buttonId] : undefined;
-      const selectedItem =
-        itemIndex != null && outputItems ? outputItems[itemIndex] : undefined;
-
-      if (clickedButton.type === 'port') {
-        // Dynamic item buttons have IDs like "{defId}__item_{idx}".
-        // Route to the base definition port so editor edges match.
-        selectedPort = buttonId.includes('__item_')
-          ? buttonId.split('__item_')[0]
-          : buttonId;
-        interactionData = {
-          interactionType: 'button_click',
-          buttonId,
-          buttonLabel: clickedButton.label,
-          clickedAt: now,
-        };
-        structuredInteraction = {
-          type: 'button_click',
-          data: {
-            buttonId,
-            buttonLabel: clickedButton.label,
-            ...(selectedItem !== undefined && { selectedItem }),
-          },
-          receivedAt: now,
-        };
-        updatedOutput = {
-          type: 'button_click',
-          buttonId,
-          buttonLabel: clickedButton.label,
-          clickedAt: now,
-          ...(selectedItem !== undefined && { selectedItem }),
-          nodeOutput: cleanNodeOutput,
-          _selectedPort: selectedPort,
-        };
-      } else {
-        // __continue__ for link-only "Continue" click
-        selectedPort = 'continue';
-        interactionData = {
-          interactionType: 'button_continue',
-          clickedAt: now,
-        };
-        structuredInteraction = {
-          type: 'button_continue',
-          data: {
-            buttonId,
-            buttonLabel: clickedButton.label,
-            ...(clickedButton.url ? { url: clickedButton.url } : {}),
-            ...(selectedItem !== undefined && { selectedItem }),
-          },
-          receivedAt: now,
-        };
-        updatedOutput = {
-          type: 'button_continue',
-          clickedAt: now,
-          ...(selectedItem !== undefined && { selectedItem }),
-          nodeOutput: cleanNodeOutput,
-          _selectedPort: selectedPort,
-        };
-      }
-    } else {
-      // Fallback: treat as continue
-      selectedPort = 'continue';
-      interactionData = {
-        interactionType: 'button_continue',
-        clickedAt: now,
-      };
-      structuredInteraction = {
-        type: 'button_continue',
-        data: {},
-        receivedAt: now,
-      };
-      updatedOutput = {
-        type: 'button_continue',
-        clickedAt: now,
-        nodeOutput: cleanNodeOutput,
-        _selectedPort: selectedPort,
-      };
-    }
+    const {
+      selectedPort,
+      interactionData,
+      updatedOutput,
+      structuredInteraction,
+    } = resolveButtonInteraction(
+      payload as ButtonClickPayload,
+      buttons,
+      buttonItemMap,
+      outputItems,
+      cleanNodeOutput,
+      now,
+    );
 
     // Update node output cache with port selection. The flat-shape
     // `updatedOutput` carries `_selectedPort` so existing routing logic
@@ -335,49 +507,17 @@ export class ButtonInteractionService {
       updatedOutput,
     );
 
-    // Mirror the interaction result into the structured NodeHandlerOutput
-    // cache so `$node["<label>"].output.interaction.buttonId` and
-    // `.output.selectedItem` resolve predictably. `setNodeOutput` above
-    // already derived a legacy structured view; we overwrite it with a
-    // richer shape that preserves the handler's original `config`/`meta`.
+    // `setNodeOutput` above re-derived `structuredOutputCache[node.id]` from
+    // the flat `updatedOutput`; read it back (post-write) so the structured
+    // shape is built from the exact same value the pre-refactor method used
+    // (read-timing is part of the behavior — see buildResumedStructuredOutput).
     const prevStructured = context.structuredOutputCache?.[node.id];
-    const prevConfig = prevStructured?.config ?? {};
-    const prevMeta = prevStructured?.meta;
-    const rawPrevOutput = prevStructured?.output ?? cleanNodeOutput;
-    // Strip any nested `previousOutput` so repeated resume cycles (loops,
-    // retries) don't produce `previousOutput.previousOutput.…` chains that
-    // grow unbounded in memory and DB rows.
-    const prevOutput =
-      rawPrevOutput &&
-      typeof rawPrevOutput === 'object' &&
-      !Array.isArray(rawPrevOutput)
-        ? Object.fromEntries(
-            Object.entries(rawPrevOutput as Record<string, unknown>).filter(
-              ([key]) => key !== 'previousOutput',
-            ),
-          )
-        : rawPrevOutput;
-    // Structured output at the resumed tick: previous runtime fields are
-    // retained (per CONVENTIONS §4.4 — "immutable snapshot") and
-    // `output.interaction` is appended with the unified `{type, data,
-    // receivedAt}` shape.
-    //
-    // `previousOutput` is a legacy transitional field (CONVENTIONS §4.2
-    // explicitly marks it for retirement). Do NOT add new consumers — use
-    // the top-level runtime fields directly. Removal is tracked as a
-    // Phase 3 precondition in `memory/node-specs-improvement-progress.md`.
-    const structuredOutputPayload: Record<string, unknown> = {
-      ...(prevOutput as Record<string, unknown>),
-      interaction: structuredInteraction,
-      previousOutput: prevOutput,
-    };
-    const updatedStructured: NodeHandlerOutput = {
-      config: prevConfig,
-      output: structuredOutputPayload,
-      port: selectedPort,
-      status: 'resumed',
-      ...(prevMeta !== undefined ? { meta: prevMeta } : {}),
-    };
+    const updatedStructured = buildResumedStructuredOutput(
+      prevStructured,
+      structuredInteraction,
+      selectedPort,
+      cleanNodeOutput,
+    );
     this.contextService.setStructuredOutput(
       this.driver.contextKeyOf(context),
       node.id,
