@@ -119,6 +119,11 @@ import {
   InlineExecutionOptions,
 } from '../../nodes/core/workflow-executor.interface';
 import type { EngineDriver } from './engine-driver.interface';
+// C-1 후속 — graph/dispatch 헬퍼 타입을 leaf 모듈로 이동 (engine-driver.interface.ts ↔ 본 파일 타입 레벨 순환 해소).
+import type {
+  ExecutionGraphState,
+  NodeDispatchLoopParams,
+} from './types/graph-dispatch.types';
 // C-1 step2 — AI 멀티턴 생명주기는 AiTurnOrchestrator 로 추출됨. 엔진은 dispatch
 // loop·registry·retry 재진입에서 본 orchestrator 로 위임한다. orchestrator 가
 // ENGINE_DRIVER(=엔진) 를 주입받으므로 순환 DI → forwardRef 로 해소한다.
@@ -388,76 +393,9 @@ export type ExecuteOptions =
  *    `endAiConversation` / `cancelWaitingExecution`. 본 서비스는 ~4200줄로
  *    크기가 크므로 PR-H/I 에서 점진적으로 책임 분해 예정.
  */
-// ─── Helper Interfaces (loadAndBuildGraph / runNodeDispatchLoop) ────────────
-
-/**
- * Graph rebuild 결과를 한 번에 운반하는 구조체. `loadAndBuildGraph` 가 반환하며
- * `runExecution` / `resumeFromCheckpoint` / `resumeGraphAfterRetry` 가 traversal
- * 단계에서 사용한다. `runNodeDispatchLoop` 의 입력 `graphState` 이기도 하다.
- *
- * **`GraphTraversalSummary` (knowledge-base RAG) 와 의미 분리** — 본 타입은
- * execution-engine 의 워크플로 graph 재구축 결과만 담는다.
- */
-// C-1 step4 — `EngineDriver.loadAndBuildGraph` / `runNodeDispatchLoop` 시그니처가
-// 참조하므로 export (RetryTurnService 가 driver 경유로 호출).
-export interface ExecutionGraphState {
-  /** Workflow 에 속한 모든 노드 (container child / tool area 포함 — runContainer / runParallel 에 그대로 전달). */
-  nodes: Node[];
-  /** Workflow 에 속한 모든 edge (graph-builder filter 적용 전). */
-  edges: Edge[];
-  /** 최상위 노드만 필터된 graph edges (buildGraph 결과). */
-  graphEdges: GraphEdge[];
-  /** identifyBackEdges 가 forward 로 분류한 edges (topologicalSort 입력). */
-  forwardEdges: GraphEdge[];
-  /** identifyBackEdges 가 back 으로 분류한 edges (cyclic workflow). */
-  backEdges: GraphEdge[];
-  /** Topological 정렬된 노드 id 순서. */
-  sortedNodeIds: string[];
-  /** `sortedNodeIds` 의 id → index 역방향 O(1) lookup. */
-  sortedIndexMap: Map<string, number>;
-  /** sourceNodeId → list of back-edge + target sorted index. */
-  backEdgeMap: Map<string, Array<{ edge: GraphEdge; targetIndex: number }>>;
-  /** sourceNodeId → forward outgoing edges. */
-  outgoingEdgeMap: Map<string, GraphEdge[]>;
-  /** targetNodeId → forward incoming edges. */
-  incomingEdgeMap: Map<string, GraphEdge[]>;
-  /** id → Node 객체 lookup. */
-  nodeMap: Map<string, Node>;
-  /** `MAX_NODE_ITERATIONS` config (기본 100, 0 = unlimited). */
-  maxNodeIterations: number;
-}
-
-/**
- * `runNodeDispatchLoop` 의 파라미터. 호출자 (`resumeFromCheckpoint` /
- * `resumeGraphAfterRetry`) 가 시작 단계 (graph rebuild + reachability seed +
- * 시작 노드 전파) 와 종결 단계 (Execution.COMPLETED 마감 + outputData seed) 를
- * 모두 책임지고, 본 helper 는 그 사이의 pointer 기반 node dispatch loop 만
- * 책임진다.
- *
- * **`GraphTraversalService` 와의 책임 분리**: `GraphTraversalService` 는 pure
- * graph reachability / propagation (외부 service 호출 없음). 본 helper 는
- * dispatch (executeNode / runContainer / runParallel / scheduleBackgroundBody)
- * + blocking wait (form / button / AI multi-turn) 까지 포함하므로 도메인 책임
- * 이 다르다.
- */
-export interface NodeDispatchLoopParams {
-  executionId: string;
-  savedExecution: Execution;
-  context: ExecutionContext;
-  graphState: ExecutionGraphState;
-  /** Loop 가 mutate — 호출자가 helper 호출 전에 seed (예: completedNode / waitingNode 추가). */
-  executedNodes: Set<string>;
-  /** Loop 가 mutate — 호출자가 helper 호출 전에 seed (트리거 + no-incoming + executedNodes + 시작 노드). */
-  reachable: Set<string>;
-  /** Loop 가 mutate (+1 per visit) — 호출자가 helper 호출 전에 초기 entry (시작 노드 = 0) 만 set, 본 helper 의 첫 +1 이 1 이 되도록. */
-  nodeExecutionCount: Map<string, number>;
-  /** Loop 시작 pointer — 호출자가 시작 노드의 `sortedIndexMap.get(...) + 1` 로 설정 (시작 노드는 helper 호출 전 propagateReachability 가 이미 다음을 reachable 에 추가). */
-  pointer: number;
-  /** Input 객체 — gatherNodeInput 의 default fallback. resume / retry 경로엔 `{}`. */
-  input: Record<string, unknown>;
-  /** executeNode 의 meta — startedAt + mode. */
-  dispatchMeta: { startedAt?: string; mode: 'manual' };
-}
+// ─── Helper Interfaces moved to ./types/graph-dispatch.types.ts ─────────────
+// `ExecutionGraphState` / `NodeDispatchLoopParams` 는 C-1 후속에서 leaf 타입
+// 모듈로 이동 (engine-driver.interface.ts ↔ 본 파일 타입 레벨 순환 해소).
 
 /**
  * `error.name === 'AbortError'` 판별 타입 가드. `AbortSignal.throwIfAborted()` /

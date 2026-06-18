@@ -105,7 +105,7 @@ retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄
 - [x] push + PR — **#627** (base PR3 `claude/engine-split-s3-formbutton` #626): https://github.com/worker-ants/clemvion/pull/627
 - [x] 체인 종료 spec-sync: `spec-update-engine-split.md` → project-planner 가 spec **8개 파일** 반영(원안 7 + cross-spec 보강 `data-flow/15-external-interaction.md`) + /consistency-check --spec **BLOCK:NO** (`review/consistency/2026/06/18/09_27_06`; 1차 BLOCK:YES[plan frontmatter started 누락]→해소). plan 은 `plan/complete/spec-update-engine-split.md` 이동. (4 PR 머지 후 실행 — 전부 비차단: impl-done 4회 BLOCK:NO.)
 
-**후속(impl-done INFO)**: `ExecutionCancelledError`(workflow-errors)·EngineDriver 인터페이스 신규 5멤버에 `@internal` JSDoc 대칭 추가(impl 측은 W-2 로 추가됨) — codebase 변경이라 별도 후속(impl-done 무효화 회피). `ExecutionGraphState`/`NodeDispatchLoopParams` leaf 이동도 후속.
+**후속(impl-done INFO)** — ✅ **완료 (후속 ①, 2026-06-19)**: `ExecutionCancelledError`(workflow-errors)·EngineDriver 인터페이스 신규 5멤버 `@internal` JSDoc 대칭 추가 + `ExecutionGraphState`/`NodeDispatchLoopParams` → 신규 leaf `types/graph-dispatch.types.ts` 이동(engine-driver.interface.ts↔service.ts 타입 레벨 순환 해소). 커밋 `29e38a38`(impl)·`8a9d8a06`(ai-review INFO 주석). TEST lint·unit(805)·build·e2e(34/202) ✓. ai-review LOW·C0·W4(전부 수용/검증)·impl-done **BLOCK:NO**(`review/consistency/2026/06/19/01_58_07`). RESOLUTION `review/code/2026/06/19/01_41_04`(+ delta 재검토 `02_19_11`, review-gate 해소). **PR #629** (base main): https://github.com/worker-ants/clemvion/pull/629.
 
 ## spec 갱신 (formal phase)
 
@@ -128,7 +128,9 @@ retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄
 
 ## 후속 고려 (review 파생)
 
-- **`assertSameWorkspace` fail-open → fail-closed** (ai-review INFO-2): node handler 가
+> **진행 현황 (2026-06-19~)**: 실행 순서 = 후속 ①(@internal 대칭 + 타입 leaf 이동 — ✅ **완료**, 위 PR4 절) → ② `LLM_API_ERROR` 테스트 → ⑤ ButtonInteraction 분해 → ③ LLM 기록 타입통합 → ★ assertSameWorkspace fail-closed → ④ forwardRef 순환 DI 제거(고위험·단독·e2e 필수) → ⑥ `previousOutput` Phase 3(별도 plan 의존). 각 항목 독립 소 PR (base main).
+
+- **`assertSameWorkspace` fail-open → fail-closed** (ai-review INFO-2; 후속 ① ai-review INFO #11 재확인): node handler 가
   `executeAsync`/`executeInline` 경로를 활발히 쓰는 PR2+ 에서 `parentWorkspaceId` 전달 필수화 +
   fail-closed 전환 검토. 현재는 기존 코드라 PR1 미변경.
 - **`LLM_API_ERROR` passthrough 정규화 테스트 보강** (PR2 impl-done W-1): `classifyLlmError` 의 미등록 코드
@@ -146,6 +148,7 @@ retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄
 - **`previousOutput` Phase 3 완전 제거** (spec-sync plan-coherence INFO, 2026-06-18): `node-output.md §4.2` 의
   presentation resume(`ButtonInteractionService`) `previousOutput` 보존 예외는 transitional — `node-output-redesign`
   plan 재개 시 Phase 3 정리와 함께 제거 검토 (현재 충돌 없음, 기존 행위 verbatim).
+- **spec §Rationale C-1 EngineDriver 멤버목록 갱신** (후속 ① ai-review SPEC-DRIFT INFO #1, 2026-06-19): `spec/5-system/4-execution-engine.md` §Rationale C-1 의 EngineDriver 멤버 예시가 3개인데 실제 **12개**(step2 7 + step4 5). 본문 staleness — **planner 후속**(developer spec read-only). "최소 seam 원칙으로 필요한 멤버를 추가" 산문 또는 전체 12개 목록으로 갱신. 코드 무변·비차단.
 
 ## 진행 로그
 

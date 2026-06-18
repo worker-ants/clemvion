@@ -7,10 +7,11 @@ import type { Node } from '../nodes/entities/node.entity';
 import type { ExecutionContext } from '../../nodes/core/node-handler.interface';
 import type { ContinuationPayload } from './queues/continuation-execution.queue';
 import type { GraphEdge } from './graph/graph-builder';
+// C-1 후속 — graph/dispatch 헬퍼 타입을 leaf 모듈에서 가져온다 (이전엔 execution-engine.service.ts 에서 import → 타입 레벨 순환).
 import type {
   ExecutionGraphState,
   NodeDispatchLoopParams,
-} from './execution-engine.service';
+} from './types/graph-dispatch.types';
 
 /**
  * C-1 step2 — `AiTurnOrchestrator` 가 추출되면서, 엔진(`ExecutionEngineService`)
@@ -25,6 +26,10 @@ import type {
  * `{ provide: ENGINE_DRIVER, useExisting: ExecutionEngineService }` 로 바인딩한다.
  * 메서드 시그니처는 **엔진을 단일 진실(source of truth)** 로 그대로 미러링한다 —
  * 동작은 추출 전과 완전히 동일하게 보존된다.
+ *
+ * 모든 멤버는 `ENGINE_DRIVER` 토큰을 통해서만 호출되는 엔진 내부 전용 표면이다.
+ * (C-1 step4 멤버 5개는 impl 측과 대칭으로 `@internal` 을 명시 — 그 외 멤버도
+ * 동일 계약상 내부 전용이다.)
  */
 export interface EngineDriver {
   /**
@@ -94,6 +99,8 @@ export interface EngineDriver {
    * in-memory 면 그대로, 아니면 DB(`_resumeCheckpoint` / conversation_thread /
    * user_variables / resume_call_stack) 에서 재구성(§7.5). retry 재진입
    * (`applyRetryLastTurn`)이 spawn 된 RUNNING row 로 호출한다.
+   *
+   * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
   rehydrateContext(
     execution: Execution,
@@ -104,6 +111,8 @@ export interface EngineDriver {
    * Workflow 의 노드/엣지를 로드해 graph state (topological sort + edge index 등)
    * 를 빌드한다. `runExecution` / `resumeFromCheckpoint` / `resumeGraphAfterRetry`
    * 3 호출자 공통.
+   *
+   * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
   loadAndBuildGraph(workflowId: string): Promise<ExecutionGraphState>;
 
@@ -112,6 +121,8 @@ export interface EngineDriver {
    * downstream 진행(`resumeGraphAfterRetry`)이 공유한다. 호출자가 graph rebuild +
    * reachability seed 를 마친 뒤 본 loop 에 위임하고, 결과 `parked` 로 세그먼트
    * 종료(WAITING) 여부를 받는다.
+   *
+   * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
   runNodeDispatchLoop(
     params: NodeDispatchLoopParams,
@@ -121,6 +132,8 @@ export interface EngineDriver {
    * back-edge(loop) 후보 중 source 노드의 출력 포트가 통과시킨 첫 활성 back-edge
    * 를 찾는다. retry 성공 후 graph 재진입(`resumeGraphAfterRetry`)의 cyclic
    * workflow 처리에 사용.
+   *
+   * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
   findActivatedBackEdge(
     sourceNodeId: string,
@@ -131,6 +144,8 @@ export interface EngineDriver {
   /**
    * 해당 execution 의 per-node LLM default config 캐시 항목을 모두 제거한다.
    * retry 재진입(`applyRetryLastTurn`)의 finally 에서 context 해제와 함께 호출.
+   *
+   * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
   clearLlmDefaultConfigCache(executionId: string): void;
 }
