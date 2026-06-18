@@ -7,6 +7,7 @@ import type { Node } from '../nodes/entities/node.entity';
 import type { ExecutionContext } from '../../nodes/core/node-handler.interface';
 import type { ContinuationPayload } from './queues/continuation-execution.queue';
 import type { GraphEdge } from './graph/graph-builder';
+// C-1 후속 — graph/dispatch 헬퍼 타입을 leaf 모듈에서 가져온다 (이전엔 execution-engine.service.ts 에서 import → 타입 레벨 순환).
 import type {
   ExecutionGraphState,
   NodeDispatchLoopParams,
@@ -25,6 +26,10 @@ import type {
  * `{ provide: ENGINE_DRIVER, useExisting: ExecutionEngineService }` 로 바인딩한다.
  * 메서드 시그니처는 **엔진을 단일 진실(source of truth)** 로 그대로 미러링한다 —
  * 동작은 추출 전과 완전히 동일하게 보존된다.
+ *
+ * 모든 멤버는 `ENGINE_DRIVER` 토큰을 통해서만 호출되는 엔진 내부 전용 표면이다.
+ * (C-1 step4 멤버 5개는 impl 측과 대칭으로 `@internal` 을 명시 — 그 외 멤버도
+ * 동일 계약상 내부 전용이다.)
  */
 export interface EngineDriver {
   /**

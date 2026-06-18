@@ -64,6 +64,7 @@ export interface ExecutionGraphState {
  * 이 다르다.
  */
 export interface NodeDispatchLoopParams {
+  /** 현재 처리 중인 Execution UUID. */
   executionId: string;
   savedExecution: Execution;
   context: ExecutionContext;

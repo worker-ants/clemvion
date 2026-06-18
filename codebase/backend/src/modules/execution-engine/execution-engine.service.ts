@@ -119,6 +119,7 @@ import {
   InlineExecutionOptions,
 } from '../../nodes/core/workflow-executor.interface';
 import type { EngineDriver } from './engine-driver.interface';
+// C-1 후속 — graph/dispatch 헬퍼 타입을 leaf 모듈로 이동 (engine-driver.interface.ts ↔ 본 파일 타입 레벨 순환 해소).
 import type {
   ExecutionGraphState,
   NodeDispatchLoopParams,
