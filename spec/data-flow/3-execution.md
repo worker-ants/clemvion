@@ -169,6 +169,7 @@ sequenceDiagram
 
 > 재개 진입 surface 는 두 가지다: (1) REST `POST /executions/:id/continue` — body `{ formData? }` 만 받으며, waiting 아님이면 동기 422 `INVALID_STATE` (`executions.controller.ts` `continueExecution`); (2) WebSocket 메시지 `execution.submit_form` / `execution.click_button` / `execution.submit_message` / `execution.end_conversation` / `execution.retry_last_turn` (각 `<event>.ack` 응답, `websocket.gateway.ts`). `type` / `nodeExecutionId` / `payload` 는 클라이언트가 직접 보내는 필드가 아니라 publisher 가 `node_execution` lookup 후 구성해 `execution-continuation` 큐에 싣는 내부 ContinuationMessage 필드다.
 > Publisher 측 사전 검증 (REST 422 `INVALID_STATE` / WS `INVALID_EXECUTION_STATE` 동기 ack) 의 상세 분류는 [실행 엔진 §7.5.1](../5-system/4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 참조. rehydration 슬로우 패스의 실패 (`RESUME_CHECKPOINT_MISSING` / `RESUME_INCOMPATIBLE_STATE` / `RESUME_FAILED`) 는 후행 `EXECUTION_CANCELLED` 이벤트로 surface.
+> **C-1 분할 후 `Eng` 내부 위임**: 위 시퀀스의 `Eng`(`ExecutionEngineService`)는 단일 actor 로 표기했으나, 재개 turn 처리(`processFormResumeTurn` / `processButtonResumeTurn` / `processAiResumeTurn`)와 retry(`applyRetryLastTurn` 등)는 같은 프로세스 안의 추출 협력 서비스(`FormInteractionService` / `ButtonInteractionService` / `AiTurnOrchestrator` / `RetryTurnService`)에 in-process `EngineDriver` 로 위임된다 — 분산 분리가 아니라 클래스 경계 정리라 시퀀스 actor 는 `Eng` 로 유지한다 ([실행 엔진 §Rationale "C-1 god-class strangler-fig 분할"](../5-system/4-execution-engine.md#rationale)).
 
 ### 1.5 Sub-workflow 호출 (Workflow 노드 = flow.workflow)
 

@@ -4,6 +4,8 @@ status: implemented
 code:
   - codebase/frontend/src/lib/__tests__/interaction-type-exhaustiveness.test.ts
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
+  - codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts
+  - codebase/backend/src/modules/execution-engine/button-interaction.service.ts
   - codebase/backend/src/modules/execution-engine/resume-turn-dispatch.ts
   - codebase/frontend/src/lib/conversation/conversation-utils.ts
   - codebase/backend/src/shared/conversation-thread/conversation-thread.types.ts
@@ -40,9 +42,9 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 | Enum value | Backend emit 위치 | Frontend 처리 분기 (필수 N) |
 |---|---|---|
 | `form` | engine waiting emit `'form'` (form 노드 핸들러) | (a) `use-execution-events.handleExecutionResumed` (b) `handleWaitingForInput` 의 분기 (c) `apply-execution-snapshot.ts` 의 reconcile + waiting hydration + maybeSeed (d) `run-results-drawer.tsx` `isWaitingForm` (e) `executions/[id]/page.tsx` `isWaitingForm` (f) `result-detail.tsx` formPreview |
-| `buttons` | engine waiting emit `'buttons'` (presentation 노드 + 버튼) | (a)~(e) 동등 + `pauseForButtons` |
-| `ai_conversation` | ai-agent.handler multi-turn waiting (interactionType meta) | (a)~(f) 동등 + `pauseForConversation` + conversation timeline hydration |
-| `ai_form_render` | ai-agent.handler 의 render_form blocking 진입 | (a)~(c) 동등 + `conversationConfig.pendingFormToolCall: { toolCallId, formConfig }` 동봉 + 위 ai_conversation 의 모든 hydration 경로 + (d) `result-detail.tsx` `isWaitingConversation` 분기 (별도 formPreview stack 아님) + (e) `executions/[id]/page.tsx` `isWaitingConversation` 분기 + (f) `AssistantPresentationsBlock` case `"form"` 의 active 분기 (`payload.toolCallId === pendingFormToolCall.toolCallId` 매칭 시 interactive `DynamicFormUI`, 그 외 `FormSubmittedContent`) + (g) `resumeFromAiRenderForm` (별도 신규 action — `pendingFormToolCall` 만 nested null patch, 나머지 affordance 보존). SoT: [AI Agent §6.1.d.ii / §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합) |
+| `buttons` | engine waiting emit `'buttons'` (presentation 노드 + 버튼; via `ButtonInteractionService` — C-1 분할 후 엔진 위임) | (a)~(e) 동등 + `pauseForButtons` |
+| `ai_conversation` | ai-agent.handler multi-turn waiting → `AiTurnOrchestrator.emitAiWaitingForInput` (interactionType meta; C-1 분할 후 엔진 위임) | (a)~(f) 동등 + `pauseForConversation` + conversation timeline hydration |
+| `ai_form_render` | ai-agent.handler 의 render_form blocking 진입 → `AiTurnOrchestrator.emitAiWaitingForInput` (C-1 분할 후 엔진 위임) | (a)~(c) 동등 + `conversationConfig.pendingFormToolCall: { toolCallId, formConfig }` 동봉 + 위 ai_conversation 의 모든 hydration 경로 + (d) `result-detail.tsx` `isWaitingConversation` 분기 (별도 formPreview stack 아님) + (e) `executions/[id]/page.tsx` `isWaitingConversation` 분기 + (f) `AssistantPresentationsBlock` case `"form"` 의 active 분기 (`payload.toolCallId === pendingFormToolCall.toolCallId` 매칭 시 interactive `DynamicFormUI`, 그 외 `FormSubmittedContent`) + (g) `resumeFromAiRenderForm` (별도 신규 action — `pendingFormToolCall` 만 nested null patch, 나머지 affordance 보존). SoT: [AI Agent §6.1.d.ii / §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합) |
 
 **규칙**:
 1. 표의 모든 위치를 한 PR 안에서 동시 갱신.

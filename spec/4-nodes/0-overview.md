@@ -52,7 +52,7 @@ codebase/backend/src/nodes/
 - 카테고리 내부에서만 공유되는 유틸/베이스 클래스는 `<category>/_shared/`·`<category>/_base/` 또는 `<category>/shared/`에 배치한다. (예: `integration/_base/integration-handler-base.ts`, `logic/_shared/condition-eval.util.ts`, `presentation/_shared/button.types.ts`, `ai/shared/system-context-prefix.ts`) — 디렉터리 prefix 컨벤션(`_` 유무)은 카테고리별로 혼재한다.
 - `execution-engine` 모듈은 오케스트레이션(그래프 탐색·표현식 해석·state machine·큐 등)만 담당하며, 개별 노드의 실행 로직은 포함하지 않는다.
 
-`NodeComponentRegistry`는 서버 부팅 시 `ALL_NODE_COMPONENTS` 배열을 순회하며 각 컴포넌트의 `createHandler(deps)`를 호출하여 `NodeHandlerRegistry`에 등록한다. 또한 `listDefinitions()`를 통해 메타데이터, 포트, JSON Schema를 프론트엔드에 제공한다.
+서버 부팅 시 `NodeBootstrapService.onModuleInit`이 `NodeComponentRegistry.bootstrap(ALL_NODE_COMPONENTS, …)`을 호출하고, `NodeComponentRegistry`는 그 배열을 순회하며 각 컴포넌트의 `createHandler(deps)`를 호출하여 `NodeHandlerRegistry`에 등록한다. 또한 `listDefinitions()`를 통해 메타데이터, 포트, JSON Schema를 프론트엔드에 제공한다.
 
 #### 메타데이터 API
 

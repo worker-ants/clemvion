@@ -109,6 +109,7 @@ dispatch 매핑 (`interaction.service.ts`):
 | `end_conversation` | `ExecutionEngineService.endAiConversation(executionId)` | — |
 | `cancel` (또는 `POST /:id/cancel` alias) | `ExecutionsService.stop(executionId)` | waiting 상태 불요 |
 
+- **C-1 분할 후 위임 경로**: 위 WS 명령 진입점(`continueExecution`·`continueButtonClick`·`continueAiConversation`·`endAiConversation`)은 엔진 thin delegator 로 **엔진 잔류**(continuation bus 로 publish)이며, 큐 소비 후 재개 turn 처리는 추출 협력 서비스(`processAiResumeTurn`→`AiTurnOrchestrator`, `processButtonResumeTurn`→`ButtonInteractionService`, `processFormResumeTurn`→`FormInteractionService`)에 in-process `EngineDriver` 로 위임된다 ([실행 엔진 §Rationale "C-1 god-class strangler-fig 분할"](../5-system/4-execution-engine.md#rationale)).
 - 모든 continuation 은 영속 큐 `execution-continuation` 으로 enqueue 된다 (publisher =
   `ContinuationBusService`, [실행 data-flow](./3-execution.md) 가 큐·worker 의 단일 진실).
   publisher 측 사전 검증이 throw 하는 `InvalidExecutionStateError` 는 409 `STATE_MISMATCH` 로 매핑.
