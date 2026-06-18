@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-18T09:15:57.099673",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-update-engine-split.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
