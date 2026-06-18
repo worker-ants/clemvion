@@ -130,12 +130,20 @@ export function resolveButtonInteraction(
   let structuredInteraction: StructuredInteraction;
 
   if (isButtonClickPayload(payload)) {
-    const buttonId = payload.buttonId!;
-    const clickedButton = buttons.find((b) => b.id === buttonId);
+    // `payload.buttonId` is optional on the discriminated union. `find` against
+    // a missing id yields `undefined`, hitting the `INVALID_BUTTON_ID` throw
+    // below — identical to the prior `buttonId!` path (behavior preserved). On
+    // the success path we use `clickedButton.id` (guaranteed `string`) for all
+    // downstream uses so no non-null assertion is needed.
+    const clickedButton = buttons.find((b) => b.id === payload.buttonId);
 
     if (!clickedButton) {
-      throw new Error(`INVALID_BUTTON_ID: Button ${buttonId} not found`);
+      throw new Error(
+        `INVALID_BUTTON_ID: Button ${payload.buttonId} not found`,
+      );
     }
+
+    const buttonId = clickedButton.id;
 
     // Determine selected item for item-level buttons
     const itemIndex =

@@ -1,9 +1,12 @@
 import {
   ButtonInteractionService,
   resolveButtonInteraction,
+  buildResumedStructuredOutput,
   isButtonClickPayload,
   type ButtonClickPayload,
+  type StructuredInteraction,
 } from './button-interaction.service';
+import type { NodeHandlerOutput } from '../../nodes/core/node-handler.interface';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import type { ExecutionEventEmitter } from './events/execution-event-emitter.service';
@@ -205,6 +208,10 @@ describe('ButtonInteractionService', () => {
         'appendPresentationInteraction',
       );
       const setNodeSpy = jest.spyOn(contextService, 'setNodeOutput');
+      const setStructuredSpy = jest.spyOn(
+        contextService,
+        'setStructuredOutput',
+      );
 
       await service.processButtonResumeTurn(
         makeExecution(ExecutionStatus.WAITING_FOR_INPUT),
@@ -219,6 +226,19 @@ describe('ButtonInteractionService', () => {
       expect((flatCall?.[2] as { _selectedPort?: string })._selectedPort).toBe(
         'approve',
       );
+      // Fix 2 — structured output 도 동일 노드에 set 됨: buildResumedStructuredOutput
+      // 결과의 핵심 필드(interaction.type, port, status='resumed')를 단언.
+      const structCall = setStructuredSpy.mock.calls.find(
+        (c) => c[1] === nodeId,
+      );
+      const structured = structCall?.[2] as {
+        port?: string;
+        status?: string;
+        output?: { interaction?: { type?: string } };
+      };
+      expect(structured.port).toBe('approve');
+      expect(structured.status).toBe('resumed');
+      expect(structured.output?.interaction?.type).toBe('button_click');
       // nodeExec COMPLETED 갱신. status !== RUNNING 이므로 NodeExecution save 는
       // driver.updateExecutionStatus(execution, RUNNING, nodeExec) 의 원자 트랜잭션
       // 안에서 일어난다 (엔진 잔류) — COMPLETED 로 마킹된 nodeExec 이 driver 로
@@ -636,5 +656,155 @@ describe('resolveButtonInteraction', () => {
         NOW,
       ),
     ).toThrow('INVALID_BUTTON_ID');
+  });
+
+  // Fix 3 — buttonId 자체가 누락된 button_click payload. 가드는 여전히 true 라
+  // find(b.id === undefined) 가 미스 → INVALID_BUTTON_ID throw (fallback 아님).
+  // #6 타입안전 정리(buttonId! 제거) 후에도 이 행위가 보존됨을 못박는다.
+  it('button_click(buttonId 누락) → INVALID_BUTTON_ID throw (fallback 아님)', () => {
+    expect(() =>
+      resolveButtonInteraction(
+        { type: 'button_click' },
+        [{ id: 'b1', type: 'port', label: 'B1' }],
+        undefined,
+        undefined,
+        clean(),
+        NOW,
+      ),
+    ).toThrow('INVALID_BUTTON_ID');
+  });
+
+  // Fix 4 — link 버튼 + item-level(selectedItem 동봉) 조합. link 분기에서도
+  // buttonItemMap → outputItems → selectedItem 해석이 적용돼 data/updatedOutput
+  // 양쪽에 동봉된다.
+  it('(b3) link 버튼 + item-level — selectedItem 동봉 (data + updatedOutput)', () => {
+    const res = resolveButtonInteraction(
+      { type: 'button_click', buttonId: 'go__item_0' },
+      [{ id: 'go__item_0', type: 'link', label: 'Go', url: 'https://x.test' }],
+      { go__item_0: 0 },
+      [{ title: 'A' }, { title: 'B' }],
+      clean(),
+      NOW,
+    );
+
+    // link 버튼은 항상 continue 로 라우팅 (port 무시).
+    expect(res.selectedPort).toBe('continue');
+    expect(res.structuredInteraction.type).toBe('button_continue');
+    // buttonItemMap[btnId]=0 → items[0] 이 selectedItem 으로 동봉.
+    expect(res.structuredInteraction.data.selectedItem).toEqual({ title: 'A' });
+    expect(res.updatedOutput.selectedItem).toEqual({ title: 'A' });
+    // url 도 함께 동봉 (link).
+    expect(res.structuredInteraction.data.url).toBe('https://x.test');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// buildResumedStructuredOutput — 재개 tick 의 structured NodeHandlerOutput 구성
+// 순수함수. (prevStructured, structuredInteraction, selectedPort, cleanNodeOutput)
+// 만으로 config/meta/output 을 보존·파생하는지 변형별로 단언한다. 호출자는 반드시
+// setNodeOutput() 직후의 view 를 prevStructured 로 넘긴다 (read-timing 행위).
+// ────────────────────────────────────────────────────────────────────────────
+describe('buildResumedStructuredOutput', () => {
+  const NOW = '2026-06-19T00:00:00.000Z';
+  const SI: StructuredInteraction = {
+    type: 'button_click',
+    data: { buttonId: 'b1', buttonLabel: 'B1' },
+    receivedAt: NOW,
+  };
+
+  it('(a) prevStructured undefined — config={}, meta 키 없음, output 은 cleanNodeOutput 파생', () => {
+    const cleanNodeOutput = { foo: 'bar' };
+    const res = buildResumedStructuredOutput(
+      undefined,
+      SI,
+      'p',
+      cleanNodeOutput,
+    );
+
+    expect(res.config).toEqual({});
+    expect(res.port).toBe('p');
+    expect(res.status).toBe('resumed');
+    // prevMeta 부재 → meta 키 자체가 결과에 없음.
+    expect('meta' in res).toBe(false);
+    // output 은 cleanNodeOutput(prevStructured?.output ?? cleanNodeOutput) 에서 파생.
+    const out = res.output as Record<string, unknown>;
+    expect(out.foo).toBe('bar');
+    expect(out.interaction).toEqual(SI);
+    // previousOutput 은 (strip 후의) cleanNodeOutput.
+    expect(out.previousOutput).toEqual({ foo: 'bar' });
+  });
+
+  it('(b) Array 입력 fallback — strip 생략, 배열 그대로 previousOutput + 인덱스 spread', () => {
+    const prev = {
+      config: { c: 1 },
+      output: [{ a: 1 }],
+      meta: { m: 2 },
+    } as unknown as NodeHandlerOutput;
+    const res = buildResumedStructuredOutput(prev, SI, 'p', { foo: 'bar' });
+
+    const out = res.output as Record<string, unknown>;
+    // Array.isArray(rawPrevOutput) → strip 분기 우회, prevOutput = 배열 그대로.
+    expect(Array.isArray(out.previousOutput)).toBe(true);
+    expect(out.previousOutput).toEqual([{ a: 1 }]);
+    // `{ ...array }` spread → 인덱스 키('0')로 펼쳐짐.
+    expect(out['0']).toEqual({ a: 1 });
+    expect(out.interaction).toEqual(SI);
+  });
+
+  it('(c) previousOutput 키 제거 (체인 방지) — output.previousOutput 가 결과에 남지 않음', () => {
+    const prev = {
+      config: {},
+      output: { x: 1, previousOutput: { OLD: true } },
+    } as unknown as NodeHandlerOutput;
+    const res = buildResumedStructuredOutput(prev, SI, 'p', { foo: 'bar' });
+
+    const out = res.output as Record<string, unknown>;
+    const prevOut = out.previousOutput as Record<string, unknown>;
+    // 직전 output 의 nested previousOutput 이 strip 됨 → 체인 미형성.
+    expect(prevOut).toEqual({ x: 1 });
+    expect('previousOutput' in prevOut).toBe(false);
+    expect(prevOut.OLD).toBeUndefined();
+    // top-level runtime 필드(x)는 보존.
+    expect(out.x).toBe(1);
+  });
+
+  it('(d-1) prevMeta 부재 — meta 키 미포함', () => {
+    const prev = {
+      config: { c: 9 },
+      output: { x: 1 },
+    } as unknown as NodeHandlerOutput;
+    const res = buildResumedStructuredOutput(prev, SI, 'p', { foo: 'bar' });
+
+    expect('meta' in res).toBe(false);
+  });
+
+  it('(d-2) prevMeta 존재 — meta 조건부 포함 (원본 보존)', () => {
+    const prev = {
+      config: { c: 9 },
+      output: { x: 1 },
+      meta: { tokenUsage: 5 },
+    } as unknown as NodeHandlerOutput;
+    const res = buildResumedStructuredOutput(prev, SI, 'p', { foo: 'bar' });
+
+    expect(res.meta).toEqual({ tokenUsage: 5 });
+  });
+
+  it('(e) port·status(resumed)·config 보존', () => {
+    const prev = {
+      config: { buttonConfig: { buttons: [] } },
+      output: { y: 2 },
+    } as unknown as NodeHandlerOutput;
+    const res = buildResumedStructuredOutput(prev, SI, 'approve', {
+      foo: 'bar',
+    });
+
+    // selectedPort → port 그대로.
+    expect(res.port).toBe('approve');
+    // 항상 'resumed'.
+    expect(res.status).toBe('resumed');
+    // prevStructured.config 원본 보존.
+    expect(res.config).toEqual({ buttonConfig: { buttons: [] } });
+    // interaction append.
+    expect((res.output as Record<string, unknown>).interaction).toEqual(SI);
   });
 });
