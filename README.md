@@ -4,21 +4,50 @@
   <img src="codebase/frontend/public/logo.svg" alt="Clemvion — Agentic Workflow" width="280">
 </p>
 
-AI가 엮고, 실행하고, 성장시키는 워크플로우 시스템.
+AI 에이전틱 워크플로우 시스템.
 
-**Clemvion**은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실행 플랫폼입니다. 드래그앤드롭 캔버스 에디터에서 워크플로우를 설계하고, 워크플로우 안에 AI 에이전트 노드를 삽입해 각 단계가 단순 실행을 넘어 판단·적응까지 수행합니다. 비기술자부터 개발자까지 모두를 위한 도구입니다.
+**Clemvion**은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실행 플랫폼입니다.
 
-브랜드 스토리·비주얼 가이드: [`spec/6-brand.md`](./spec/6-brand.md).
+자동화를 위한 워크플로우와 AI 챗봇을 만들고, 실행할 수 있습니다.
+(자동화 워크플로우에서도 AI 노드를 활용할 수 있습니다.)
+
+
+## 안내사항
+
+본 프로젝트는 대규모 상용 제품에 적용이 가능한 claude code를 활용하는 개발 프로세스 실험을 위해 시작된 프로젝트입니다.
+
+따라서 기본적으로 상용 제품의 품질을 목표로 하지만, 실질적으로는 AI Slop 프로젝트입니다.
+
+구현 방식과 범위에 따라 복잡도가 높은 워크플로우 빌더(예:n8n, flowise 등)를 선정하여 진행되었으며,
+제품의 언급이나 코드 없이 Greenfield 방식으로 진행되었습니다.
+
+인간의 최소 개입을 원칙으로 한명의 개발자가 다음 역할을 수행하였습니다.
+
+- 구현할 제품의 기능 지정
+- 아키텍쳐 등의 핵심 사항 판단 (단순한 사항은 AI에게 판단 일임)
+- 최소한의 코드 리뷰
+- 제품 동작 테스트(QA)
+- 본 README.md의 일부 섹션 작성
+- 특정 AI 노드의 시스템 프롬프트 작성
+- 제품 로고 이미지 제작
+
 
 ## 주요 기능
 
+- **AI 어시스턴트** - AI와의 대화로 워크플로우 구성 및 디버깅
 - **캔버스 에디터** — 무한 2D 캔버스에서 노드를 드래그앤드롭으로 배치하고 연결
-- **28종 노드** — 로직(If/Else, Switch, Loop 등), AI 에이전트, 통합(HTTP, Email, DB), 데이터 변환, 프레젠테이션 노드
+- **다양한 노드** — 로직(If/Else, Switch, Loop 등), AI 에이전트, 통합(HTTP, Email, DB), 데이터 변환, 프레젠테이션 노드
 - **실행 엔진** — 수동 실행, 스케줄(Cron) 실행, Webhook 트리거 지원
 - **실시간 모니터링** — WebSocket 기반 실행 상태 실시간 추적
 - **버전 관리** — 워크플로우 버전 히스토리 및 롤백
 - **Expression Language** — 노드 간 데이터 참조 및 변환을 위한 표현식 언어
 - **다국어 사용자 가이드** — 한국어·영어 매뉴얼 내장 (`/docs/ko/...`, `/docs/en/...`)
+
+## 스크린샷
+
+![워크플로우 에디터 이미지](images/workflow-editor.png)
+
+![AI 어시스턴트 이미지](images/ai-assistant.png)
 
 ## 아키텍처
 
@@ -53,20 +82,20 @@ Client (Next.js SPA)
 
 ## 기술 스택
 
-| 영역 | 기술 |
-|------|------|
-| **Frontend** | Next.js 16, React 19, TypeScript |
-| **상태 관리** | Zustand, TanStack React Query |
-| **캔버스** | @xyflow/react |
-| **스타일링** | Tailwind CSS, Radix UI |
-| **Backend** | NestJS 11, TypeScript |
-| **ORM** | TypeORM |
-| **데이터베이스** | PostgreSQL 16 |
-| **캐시/메시지 큐** | Redis 7, BullMQ |
-| **실시간 통신** | Socket.io |
+| 영역            | 기술                                  |
+|---------------|-------------------------------------|
+| **Frontend**  | Next.js 16, React 19, TypeScript    |
+| **상태 관리**     | Zustand, TanStack React Query       |
+| **캔버스**       | @xyflow/react                       |
+| **스타일링**      | Tailwind CSS, Radix UI              |
+| **Backend**   | NestJS 11, TypeScript               |
+| **ORM**       | TypeORM                             |
+| **데이터베이스**    | PostgreSQL 18                       |
+| **캐시/메시지 큐**  | Redis 7, BullMQ                     |
+| **실시간 통신**    | Socket.io                           |
 | **오브젝트 스토리지** | MinIO (Self-hosted) / AWS S3 (SaaS) |
-| **인프라** | Docker Compose, Kubernetes |
-| **테스트** | Vitest (Frontend), Jest (Backend) |
+| **인프라**       | Docker Compose, Kubernetes          |
+| **테스트**       | Vitest (Frontend), Jest (Backend)   |
 
 ## 프로젝트 구조
 
