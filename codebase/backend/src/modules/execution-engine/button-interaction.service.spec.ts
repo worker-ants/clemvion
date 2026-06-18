@@ -1,4 +1,9 @@
-import { ButtonInteractionService } from './button-interaction.service';
+import {
+  ButtonInteractionService,
+  resolveButtonInteraction,
+  isButtonClickPayload,
+  type ButtonClickPayload,
+} from './button-interaction.service';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import type { ExecutionEventEmitter } from './events/execution-event-emitter.service';
@@ -464,5 +469,172 @@ describe('ButtonInteractionService', () => {
       // updateExecutionStatus 는 호출됨 (status !== RUNNING).
       expect(mockDriver.updateExecutionStatus).toHaveBeenCalled();
     });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// resolveButtonInteraction — 추출된 순수 결정 함수의 격리 단위 테스트.
+//
+// I/O 의존성 없이 (payload, buttons, buttonItemMap, outputItems, cleanNodeOutput,
+// now) 만으로 (selectedPort, interactionData, updatedOutput, structuredInteraction)
+// 를 산출하는지 variant 별로 단언한다 — processButtonResumeTurn 의 행위보존을 함수
+// 레벨에서 못박는다.
+// ────────────────────────────────────────────────────────────────────────────
+describe('resolveButtonInteraction', () => {
+  const NOW = '2026-06-19T00:00:00.000Z';
+  const clean = (): Record<string, unknown> => ({
+    buttonConfig: {},
+    foo: 'bar',
+  });
+
+  describe('isButtonClickPayload (type guard)', () => {
+    it('button_click → true (narrowing)', () => {
+      const p: ButtonClickPayload = { type: 'button_click', buttonId: 'b1' };
+      expect(isButtonClickPayload(p)).toBe(true);
+    });
+    it('그 외 type → false (fallback 경로)', () => {
+      const p: ButtonClickPayload = { type: 'something_else' };
+      expect(isButtonClickPayload(p)).toBe(false);
+    });
+  });
+
+  it('(a) button_click port 버튼 — _selectedPort=buttonId + button_click interaction', () => {
+    const cleanNodeOutput = clean();
+    const res = resolveButtonInteraction(
+      { type: 'button_click', buttonId: 'approve' },
+      [{ id: 'approve', type: 'port', label: 'Approve' }],
+      undefined,
+      undefined,
+      cleanNodeOutput,
+      NOW,
+    );
+
+    expect(res.selectedPort).toBe('approve');
+    expect(res.updatedOutput).toEqual({
+      type: 'button_click',
+      buttonId: 'approve',
+      buttonLabel: 'Approve',
+      clickedAt: NOW,
+      nodeOutput: cleanNodeOutput,
+      _selectedPort: 'approve',
+    });
+    expect(res.interactionData).toEqual({
+      interactionType: 'button_click',
+      buttonId: 'approve',
+      buttonLabel: 'Approve',
+      clickedAt: NOW,
+    });
+    expect(res.structuredInteraction).toEqual({
+      type: 'button_click',
+      data: { buttonId: 'approve', buttonLabel: 'Approve' },
+      receivedAt: NOW,
+    });
+    // selectedItem 미해석 시 동봉 안 됨.
+    expect(res.updatedOutput).not.toHaveProperty('selectedItem');
+    expect(res.structuredInteraction.data).not.toHaveProperty('selectedItem');
+  });
+
+  it('(b) button_click link 버튼 — _selectedPort=continue + button_continue(url 동봉)', () => {
+    const res = resolveButtonInteraction(
+      { type: 'button_click', buttonId: 'go' },
+      [{ id: 'go', type: 'link', label: 'Go', url: 'https://x.test' }],
+      undefined,
+      undefined,
+      clean(),
+      NOW,
+    );
+
+    expect(res.selectedPort).toBe('continue');
+    expect(res.interactionData).toEqual({
+      interactionType: 'button_continue',
+      clickedAt: NOW,
+    });
+    expect(res.structuredInteraction).toEqual({
+      type: 'button_continue',
+      data: { buttonId: 'go', buttonLabel: 'Go', url: 'https://x.test' },
+      receivedAt: NOW,
+    });
+    expect(res.updatedOutput.type).toBe('button_continue');
+    expect(res.updatedOutput._selectedPort).toBe('continue');
+    // link 버튼 updatedOutput 에는 buttonId 미동봉 (continue 형태).
+    expect(res.updatedOutput).not.toHaveProperty('buttonId');
+  });
+
+  it('(b2) link 버튼 url 부재 — structuredInteraction.data 에 url 키 없음', () => {
+    const res = resolveButtonInteraction(
+      { type: 'button_click', buttonId: 'noUrl' },
+      [{ id: 'noUrl', type: 'link', label: 'NoUrl' }],
+      undefined,
+      undefined,
+      clean(),
+      NOW,
+    );
+    expect(res.selectedPort).toBe('continue');
+    expect(res.structuredInteraction.data).not.toHaveProperty('url');
+    expect(res.structuredInteraction.data).toEqual({
+      buttonId: 'noUrl',
+      buttonLabel: 'NoUrl',
+    });
+  });
+
+  it('(c) item-level button (__item_) — base port 라우팅 + selectedItem 해석', () => {
+    const res = resolveButtonInteraction(
+      { type: 'button_click', buttonId: 'pick__item_1' },
+      [{ id: 'pick__item_1', type: 'port', label: 'Pick' }],
+      { pick__item_1: 1 },
+      [{ title: 'A' }, { title: 'B' }],
+      clean(),
+      NOW,
+    );
+
+    // "{defId}__item_{idx}" → base port "pick".
+    expect(res.selectedPort).toBe('pick');
+    // buttonItemMap[btnId]=1 → items[1].
+    expect(res.updatedOutput.selectedItem).toEqual({ title: 'B' });
+    expect(res.structuredInteraction.data.selectedItem).toEqual({ title: 'B' });
+    // base port 가 updatedOutput._selectedPort 에 반영.
+    expect(res.updatedOutput._selectedPort).toBe('pick');
+  });
+
+  it('(d) fallback (non-button_click) — _selectedPort=continue, 빈 data', () => {
+    const cleanNodeOutput = clean();
+    const res = resolveButtonInteraction(
+      { type: 'message_received_or_other' },
+      [{ id: 'b1', type: 'port', label: 'B1' }],
+      undefined,
+      undefined,
+      cleanNodeOutput,
+      NOW,
+    );
+
+    expect(res.selectedPort).toBe('continue');
+    expect(res.interactionData).toEqual({
+      interactionType: 'button_continue',
+      clickedAt: NOW,
+    });
+    expect(res.structuredInteraction).toEqual({
+      type: 'button_continue',
+      data: {},
+      receivedAt: NOW,
+    });
+    expect(res.updatedOutput).toEqual({
+      type: 'button_continue',
+      clickedAt: NOW,
+      nodeOutput: cleanNodeOutput,
+      _selectedPort: 'continue',
+    });
+  });
+
+  it('알 수 없는 buttonId → INVALID_BUTTON_ID throw (에러 보존)', () => {
+    expect(() =>
+      resolveButtonInteraction(
+        { type: 'button_click', buttonId: 'nope' },
+        [{ id: 'b1', type: 'port', label: 'B1' }],
+        undefined,
+        undefined,
+        clean(),
+        NOW,
+      ),
+    ).toThrow('INVALID_BUTTON_ID');
   });
 });
