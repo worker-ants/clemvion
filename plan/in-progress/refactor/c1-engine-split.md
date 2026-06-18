@@ -133,8 +133,8 @@ retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄
 - **`assertSameWorkspace` fail-open → fail-closed** (ai-review INFO-2; 후속 ① ai-review INFO #11 재확인): node handler 가
   `executeAsync`/`executeInline` 경로를 활발히 쓰는 PR2+ 에서 `parentWorkspaceId` 전달 필수화 +
   fail-closed 전환 검토. 현재는 기존 코드라 PR1 미변경.
-- **`LLM_API_ERROR` passthrough 정규화 테스트 보강** (PR2 impl-done W-1): `classifyLlmError` 의 미등록 코드
-  passthrough 경로에 정규화 어서션 추가 (verbatim 이동된 기존 행위·의미 불변이라 PR2 비차단).
+- **`LLM_API_ERROR` passthrough 정규화 테스트 보강** (PR2 impl-done W-1) — ✅ **완료 (후속 ②, 2026-06-19, branch `llm-error-passthrough`)**: `classifyLlmError` 의 미등록 코드
+  passthrough 경로에 정규화 어서션 추가 — 기존 `LLM_API_ERROR` 테스트에 `result.code` 보존 단언 + 미등록 `LLM_PROVIDER_QUOTA` 전용 테스트(spec §10 L1099 "명시 code 보존" 회귀 가드). TEST lint·unit(806)·build·e2e(34/202) ✓. ai-review **C0/W0** · impl-done **BLOCK:NO**. **SPEC-DRIFT 후속(planner)**: impl-done Warning — 미등록 explicit code passthrough(vendor 코드 포함)는 pre-existing 행위이나 `spec/4-nodes/3-ai/1-ai-agent.md §10 L1099` 가 그 범위를 미명시 → planner 가 (a) 미등록 code passthrough 허용·retryable=false, (b) HTTP status 는 top-level `.status` 기준 명시. **PR #630**: https://github.com/worker-ants/clemvion/pull/630.
 - **LLM 호출 기록 도메인 타입 통합** (PR2 impl-done W-3/I-7·I-8): `ai-conversation-helpers` 의
   `LlmCallRecord`/`AiTurnDebugEntry` 와 `information-extractor.handler` 의 `LlmCallTrace`/`TurnDebugEntry` 가
   동일 JSONB 도메인을 이름 분기로 중복 — `shared/` 승격·통일 별도 후속. `RehydrationError` 위치
