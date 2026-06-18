@@ -10,7 +10,7 @@
 
 ### C-1 [Critical] ExecutionEngineService — 9,210줄 god-class (SRP 전면 위반)
 
-- [ ] 코드 분할 5단계 완료 (PR #622·#625·#626·PR4, **9,670→7,033줄**) — `backend/src/modules/execution-engine/execution-engine.service.ts`. **stacked PR 로드맵·진행 상황: [c1-engine-split.md](./c1-engine-split.md)**. 잔여: 4 PR 순차 머지 + 체인 종료 spec-sync(planner, [spec-update-engine-split.md](../spec-update-engine-split.md)). 모두 머지·반영 시 [x].
+- [x] 코드 분할 5단계 완료 (PR #622·#625·#626·#627, **9,670→7,035줄**) — `backend/src/modules/execution-engine/execution-engine.service.ts`. **stacked PR 로드맵·진행 상황: [c1-engine-split.md](./c1-engine-split.md)** (review-파생 후속 백로그는 거기 `## 후속 고려`). 4 PR 전체 머지(origin/main `0c275dd7`) + 체인 종료 spec-sync(planner, [spec-update-engine-split.md](../../complete/spec-update-engine-split.md), `/consistency-check --spec` BLOCK:NO) 완료.
 
 단일 클래스가 8개 이상 책임: 그래프 순회, 노드 dispatch(`executeNode` 412줄), AI 멀티턴 생명주기, form/button 인터랙션, retry-last-turn, 상태 머신, 핸들러 등록 bootstrap. 생성자 의존성 20개, 메서드 ~70개.
 

@@ -191,7 +191,7 @@ pending_plans:
 
 - `_multiTurnState` → `_resumeState`로 통일. 노출되지 않는 internal 필드임을 문서에 명시.
 - 현재 form의 `output.submittedData` → `output.interaction.data` 로 이동.
-- 현재 carousel/chart/table/template의 `output.previousOutput` → **제거**. 이전 뷰 정보는 `config` + output의 런타임 필드 조합으로 재구성 가능 (Principle 1.1).
+- 현재 carousel/chart/table/template의 `output.previousOutput` → **제거**. 이전 뷰 정보는 `config` + output의 런타임 필드 조합으로 재구성 가능 (Principle 1.1). **단 Phase 3 완료 전 과도기 예외**: presentation resume 경로(`ButtonInteractionService`)는 재개 출력에 `previousOutput`(nested chain 은 strip)을 transitional legacy 필드로 여전히 보존한다 — Phase 3 정리 시 제거 예정 (코드 주석 SoT).
 - 초안의 `output.view` 래퍼 → **폐기** (Principle 1.1.4). 런타임 값은 `output` 최상위에 직접 배치.
 - 초안의 `output.view.type` 판별자 → **폐기** (Principle 1.1.4). 노드 타입은 워크플로우 정의에서 파악.
 - 현재 presentation 노드의 `output.type: 'carousel'|'table'|...` 판별자 → **폐기** (동일 이유).
@@ -256,7 +256,7 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 | --- | --- | --- |
 | `form_submitted` | `{ [fieldName]: value, via?: 'ai_render' }` (제출된 필드 값. `via: 'ai_render'` sentinel 은 AI Agent 의 `render_form` 도구 응답일 때만 박힘 — [Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn)) | `form`, `ai_agent` (`render_form`) |
 | `button_click` | `{ buttonId, buttonLabel, selectedItem? }` | `carousel`, `table`, `chart`, `template` |
-| `button_continue` | `{ buttonId, buttonLabel, url }` | link 타입 버튼의 Continue 포트 (presentation 노드) |
+| `button_continue` | `{ buttonId, buttonLabel, url?, selectedItem? }` | link 타입 버튼의 Continue 포트 (presentation 노드). `url`=링크 버튼 URL(존재 시), `selectedItem`=carousel item-level 버튼(존재 시) — 둘 다 조건부 동봉 (`ButtonInteractionService`) |
 | `message_received` | `{ content, role: "user" }` | `ai_agent`, `information_extractor` multi-turn |
 
 > 본 `interaction` 은 [ConversationThread](./conversation-thread.md) 에 자동 push 된다 — 후속 AI Agent 가 `contextScope` 설정으로 자동 주입받을 수 있다 ([Spec Conversation Thread §2](./conversation-thread.md#2-자동-누적-컨트랙트)).

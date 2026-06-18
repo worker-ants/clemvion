@@ -423,7 +423,7 @@ WS wire `execution.submit_form` 의 payload shape `{ executionId, formData }` ([
 - spec §10.9 (본 절 — internal bus payload sentinel SoT)
 - spec [WS §4.2](../../5-system/6-websocket-protocol.md#42-실행-제어-명령-client--server) — 외부 wire 호환 유지 (변경 없음)
 - spec [execution-engine §7.4](../../5-system/4-execution-engine.md#74-분산-실행-multi-instance) — bus 메시지 타입 5종 (변경 없음 — sentinel 은 payload layer)
-- backend `execution-engine.service.ts` `continueExecution` (wrap) · `ContinuationExecutionProcessor` → `ExecutionEngineService.applyContinuation → rehydrateAndResume` (forward) · `processAiResumeTurn` (4 케이스 명시 매칭)
+- backend `execution-engine.service.ts` `continueExecution` (wrap) · `ContinuationExecutionProcessor` → `ExecutionEngineService.applyContinuation → rehydrateAndResume` (forward) · `AiTurnOrchestrator.processAiResumeTurn` (4 케이스 명시 매칭 — C-1 분할로 엔진에서 `ai-turn-orchestrator.service.ts` 로 이동, in-process `EngineDriver` 위임)
 - backend `ai-agent.handler.processMultiTurnMessage` ([§7.4 invariant](../3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input) `pendingFormToolCall` 매칭 + 누락 시 fallback — [AI Agent §6.2 step 2.c](../3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn))
 
 ---

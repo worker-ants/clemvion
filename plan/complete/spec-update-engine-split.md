@@ -1,9 +1,18 @@
 ---
-worktree: .claude/worktrees/engine-split
-status: in-progress
+worktree: engine-split
+status: complete
 owner: project-planner (developer 는 spec write 금지 — 본 draft 는 핸드오프용)
 parent: plan/in-progress/refactor/c1-engine-split.md (C-1 strangler-fig 체인 종료 spec-sync)
-created: 2026-06-18
+started: 2026-06-18
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/4-nodes/0-overview.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/conventions/interaction-type-registry.md
+  - spec/conventions/node-output.md
+  - spec/4-nodes/6-presentation/0-common.md
+  - spec/data-flow/3-execution.md
+  - spec/data-flow/15-external-interaction.md
 ---
 
 # spec-sync — C-1 엔진 분할 (PR1–4 누적)
@@ -13,11 +22,19 @@ created: 2026-06-18
 > 시 planner 가 일괄 반영한다 (c1-engine-split.md §spec 갱신 phase 의 위임 대상). 모두 구현 코드는 정확하고
 > spec 텍스트만 추출 후 구조를 덜 반영한 상태 — 즉 spec→code 정합을 코드 기준으로 맞추는 작업.
 
-## 실행 절차 (planner)
+## 실행 절차 (planner) — ✅ 완료 (2026-06-18)
 
-1. 아래 파일별 변경을 `spec/` 에 반영 (developer 는 read-only 라 본 draft 가 핸드오프).
-2. `/consistency-check --spec <이 draft 또는 변경 spec>` → `BLOCK: NO` 확인.
-3. 반영 후 본 plan 을 `plan/complete/` 로 이동, c1-engine-split.md PR4 DoD 체크.
+0. PR #622·#625·#626·#627 GitHub 머지 완료 확인 ✅ (origin/main `0c275dd7` 에 4-PR 반영, 엔진 **9,670→7,035줄** 실측).
+1. 아래 파일별 변경을 `spec/` 에 반영 ✅ — **8개 파일**(원안 7 + cross-spec 보강 `data-flow/15-external-interaction.md`). developer 는 spec read-only 라 본 draft 핸드오프대로 planner 가 반영.
+2. `/consistency-check --spec` → ✅ `BLOCK: NO` (`review/consistency/2026/06/18/09_27_06`; 1차 `09_15_57` BLOCK:YES[plan frontmatter `started:` 누락]→해소 후 재검토 통과).
+3. 본 plan 을 `plan/complete/` 로 이동 ✅, `c1-engine-split.md` PR4 DoD 박스 [x] ✅.
+
+### 실측 정정 (draft 대비 — 코드 검증 기반)
+
+- **`classifyLlmError`**: draft 는 "→ `extractAiTurnErrorPayload`" 이라 했으나, `classifyLlmError` 는 **존재**(`AiTurnOrchestrator.classifyLlmError`, private static)하고 `extractAiTurnErrorPayload` 가 공개 진입점. spec 문장이 "분류 로직"이라 `AiTurnOrchestrator.classifyLlmError`(공개 진입점 병기)로 반영.
+- **6-presentation L426**: draft 는 "continueAiConversation" 이라 했으나 실제 L426 은 `processAiResumeTurn` 참조 → `AiTurnOrchestrator.processAiResumeTurn` 한정자로 반영.
+- **`continueAiConversation` 은 엔진 잔류** (이동 아님 — bus publish 진입점, execution-engine.service.ts:3916). 실제 참조처는 `data-flow/15-external-interaction.md` L108 → 표는 정확, 다운스트림 turn 처리 위임 노트만 보강 (cross-spec checker WARNING 해소).
+- **엔진 줄수 7,035** (draft·02-arch 의 7,033 추정 대신 실측).
 
 ## 변경 (spec 파일별)
 
