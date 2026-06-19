@@ -213,12 +213,19 @@ services:
     # W-58 — frontend package.json 의 @playwright/test ^1.59 과 동일 major.minor
     # 로 정렬. browser binary / Node modules 간 호환성을 보장한다.
     image: mcr.microsoft.com/playwright:v1.59.1-jammy
-    # pnpm workspace 라 frontend 단독 설치가 불가 — workspace 루트를 mount 하고
-    # frontend subtree 만 --filter 로 설치한다. node_modules 는 anonymous volume 으로
-    # 가려 호스트(macOS) 네이티브 바이너리가 컨테이너(linux)로 새지 않게 한다.
+    # pnpm workspace 라 frontend 단독 설치가 불가 — workspace 를 mount 하고
+    # frontend subtree 만 --filter 로 설치한다. 루트 전체(`./`) 대신 codebase +
+    # workspace 루트 파일만 선별 mount 해 .git/.claude/spec/plan/review/memory 등
+    # 민감 경로 노출을 막는다. node_modules 는 anonymous volume 으로 가려 호스트(macOS)
+    # 네이티브 바이너리가 컨테이너(linux)로 새지 않게 한다 (hoisted 라 대부분
+    # /app/node_modules 에 모임 — 신규 내부 패키지 추가 시 아래 마스킹 목록도 보충).
     working_dir: /app
     volumes:
-      - ./:/app
+      - ./codebase:/app/codebase
+      - ./package.json:/app/package.json:ro
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./.npmrc:/app/.npmrc:ro
       - /app/node_modules
       - /app/codebase/frontend/node_modules
       - /app/codebase/packages/expression-engine/node_modules
@@ -228,7 +235,8 @@ services:
     command:
       - sh
       - -c
-      - "corepack enable && pnpm install --frozen-lockfile --filter frontend... && pnpm --filter frontend exec playwright install --with-deps chromium && pnpm --filter frontend e2e"
+      # corepack 실패 대비 fallback (jammy 이미지의 corepack 동작 CI 미검증).
+      - "(corepack enable || npm i -g pnpm@10.23.0) && pnpm install --frozen-lockfile --filter frontend... && pnpm --filter frontend exec playwright install --with-deps chromium && pnpm --filter frontend e2e"
     environment:
       CI: "true"
       PLAYWRIGHT_BASE_URL: http://localhost:3012

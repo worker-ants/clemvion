@@ -26,6 +26,7 @@ on:
       - 'codebase/frontend/**'
       - 'codebase/packages/**'
       - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
 
 concurrency:
   group: frontend-checks-${{ github.ref }}

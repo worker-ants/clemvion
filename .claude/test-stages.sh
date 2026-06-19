@@ -16,7 +16,8 @@
 # dist 는 각 패키지 `prepare`(tsc)가 install 중 자동 빌드하므로 별도 빌드 단계 불필요
 # (새 worktree 의 수동 node_modules/dist 준비 레시피도 폐기됨).
 _ensure_deps() {
-  [ -d node_modules ] || pnpm install --frozen-lockfile
+  # workspace 루트 기준으로 확인 (CWD 가 어디든 stale 설치 건너뛰지 않도록).
+  [ -d "$(git rev-parse --show-toplevel)/node_modules" ] || pnpm install --frozen-lockfile
 }
 
 cmd_lint() {

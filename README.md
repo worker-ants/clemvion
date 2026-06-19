@@ -138,6 +138,8 @@ docker compose --profile app up
 
 인프라(PostgreSQL/Redis/MinIO)만 컨테이너로 띄우고 backend·frontend 는 host 에서 직접 실행하는 방식입니다.
 
+> **전제조건**: Node.js 24+ 와 pnpm. pnpm 은 corepack 으로 활성화하면 버전이 루트 `package.json` 의 `packageManager` 필드로 자동 고정됩니다 — `corepack enable`.
+
 ```bash
 # 인프라만 기동 — PostgreSQL(5432), Redis(6379), MinIO(9000/9001)
 docker compose up -d

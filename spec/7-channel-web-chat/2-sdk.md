@@ -73,7 +73,7 @@ chat.shutdown();
 - **EIA HTTP/SSE 호출은 기존 `@workflow/sdk`(EIA 클라이언트, PR #230) 재사용** — web-chat 은 그 위의 위젯(loader+
   iframe bridge+UI) 레이어. 의존 방향: `web-chat → @workflow/sdk`. **M2 BYO-UI headless client = `@workflow/sdk` 직접 사용**
   ([0-architecture §5.3](./0-architecture.md)). **현 increment 미배선 (계획)** — SDK 코어(타입·boot 검증·`wc:*` bridge·
-  명령 큐·iframe 주입)만 구현됐고 `@workflow/sdk` 는 아직 import 되지 않는다(`package.json` devDependencies 의 `file:../sdk` 만).
+  명령 큐·iframe 주입)만 구현됐고 `@workflow/sdk` 는 아직 import 되지 않는다(`package.json` devDependencies 의 `workspace:*` 선언만).
   EIA 호출(triggerWebhook/SSE)·예시 배선은 [plan channel-web-chat-followups](../../plan/in-progress/channel-web-chat-followups.md) 에서 추적한다.
 
 ## 3. host ↔ iframe postMessage 프로토콜
