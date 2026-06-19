@@ -2,6 +2,7 @@ import { WorkflowHandler, mapSubWorkflowError } from './workflow.handler.js';
 import {
   WorkflowNotFoundError,
   SubWorkflowTimeoutError,
+  WorkflowForbiddenWorkspaceError,
 } from '../../../modules/execution-engine/workflow-errors.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
@@ -656,6 +657,39 @@ describe('WorkflowHandler', () => {
       // failed" fallback substring. The instanceof branch must take priority.
       const trap = new WorkflowNotFoundError('wf-queue-failed');
       expect(mapSubWorkflowError(trap)).toBe(ErrorCode.SUB_WORKFLOW_NOT_FOUND);
+    });
+
+    // W-6 (dev 1b) — workspace 격리 차단(fail-closed)이 더 이상 generic
+    // SUB_WORKFLOW_FAILED 로 흡수되지 않고 전용 WORKFLOW_FORBIDDEN_WORKSPACE 로
+    // surface 한다. mismatch / 누락(callerWorkspaceId 미공급) 양 케이스.
+    it('maps WorkflowForbiddenWorkspaceError (mismatch) → WORKFLOW_FORBIDDEN_WORKSPACE (typed branch)', () => {
+      expect(
+        mapSubWorkflowError(
+          new WorkflowForbiddenWorkspaceError('ws-A', 'ws-B'),
+        ),
+      ).toBe(ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE);
+    });
+
+    it('maps WorkflowForbiddenWorkspaceError (missing caller context) → WORKFLOW_FORBIDDEN_WORKSPACE (typed branch)', () => {
+      expect(
+        mapSubWorkflowError(new WorkflowForbiddenWorkspaceError('ws-A')),
+      ).toBe(ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE);
+    });
+
+    it('maps plain Error with WORKFLOW_FORBIDDEN_WORKSPACE prefix → WORKFLOW_FORBIDDEN_WORKSPACE (message backstop)', () => {
+      expect(
+        mapSubWorkflowError(
+          new Error('WORKFLOW_FORBIDDEN_WORKSPACE: Sub-workflow ws-A ...'),
+        ),
+      ).toBe(ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE);
+    });
+
+    it('does NOT over-match — unrelated plain Error mentioning "workspace" → SUB_WORKFLOW_FAILED', () => {
+      // backstop 은 full token `workflow_forbidden_workspace` 만 매칭한다 — 무관한
+      // inner-node 에러("workspace") 가 격리 코드로 오분류되면 안 된다.
+      expect(
+        mapSubWorkflowError(new Error('workspace quota exceeded for tenant')),
+      ).toBe(ErrorCode.SUB_WORKFLOW_FAILED);
     });
   });
 

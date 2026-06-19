@@ -14,6 +14,7 @@ import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
 import {
   WorkflowNotFoundError,
   SubWorkflowTimeoutError,
+  WorkflowForbiddenWorkspaceError,
 } from '../../../modules/execution-engine/workflow-errors.js';
 import { workflowNodeMetadata } from './workflow.schema.js';
 import { ParkReleaseSignal } from '../../../shared/execution-resume/park-release-signal.js';
@@ -255,6 +256,9 @@ export function mapSubWorkflowError(err: unknown): ErrorCodeValue {
   if (err instanceof SubWorkflowTimeoutError) {
     return ErrorCode.SUB_WORKFLOW_TIMEOUT;
   }
+  if (err instanceof WorkflowForbiddenWorkspaceError) {
+    return ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE;
+  }
   // Defensive backstop — 외부 executor / queue layer 가 plain Error 로 던진
   // 경우 메시지 토큰으로 분류. typed error 가 도입된 in-process executor
   // 에서는 도달하지 않는다.
@@ -278,6 +282,11 @@ export function mapSubWorkflowError(err: unknown): ErrorCodeValue {
       lower.includes('reject'))
   ) {
     return ErrorCode.SUB_WORKFLOW_QUEUE_FAILED;
+  }
+  // W-6 workspace 격리 차단 — typed WorkflowForbiddenWorkspaceError 가 위에서
+  // 잡히지만, 외부가 plain Error(prefix 보존)로 던진 경우의 defensive backstop.
+  if (lower.includes('workflow_forbidden_workspace')) {
+    return ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE;
   }
   return ErrorCode.SUB_WORKFLOW_FAILED;
 }

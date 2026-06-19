@@ -8,6 +8,7 @@ code:
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts
   - codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
+  - codebase/backend/src/shared/llm-tracing/llm-call-record.ts
 pending_plans:
   - plan/in-progress/ai-context-memory-followup-v2.md
 ---
@@ -103,9 +104,11 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
 | `meta.totalTokens` | 필수 | input + output |
 | `meta.thinkingTokens` | 선택 | 모델이 thinking 토큰을 보고하는 경우 |
 | `meta.durationMs` | 필수 | 실행 소요 시간 |
-| `meta.turnDebug` | 선택 | 턴별 LLM 호출 트레이스 (multi-turn) — `[{ turnIndex, llmCalls, totalDurationMs, toolCalls?, ragSources?, ragDiagnostics? }, ...]` |
+| `meta.turnDebug` | 선택 | 턴별 LLM 호출 트레이스 (multi-turn) — `[{ turnIndex, llmCalls, totalDurationMs, toolCalls?, ragSources?, ragDiagnostics?, mcpDiagnostics? }, ...]` |
 
 상세는 각 노드 문서 참조.
+
+> **Canonical 타입 SoT (C-1 후속 ③)**: `LlmCallRecord` / `TurnDebugEntry` 의 단일 진실 타입은 `codebase/backend/src/shared/llm-tracing/llm-call-record.ts` 다 (AI Agent + Information Extractor 공유). `LlmCallRecord` = all-optional superset(`requestPayload?` / `responsePayload?` / `durationMs?` / `startedAt?` / `finishedAt?` — `startedAt`/`finishedAt` 은 ISO 8601 wall-clock). `TurnDebugEntry` = base `{ turnIndex, llmCalls?, totalDurationMs? }`; AI Agent 런타임 `meta.turnDebug[i]` 가 여기에 turn-단위 진단 delta(`toolCalls?` / `ragSources?` / `ragDiagnostics?` / `mcpDiagnostics?` — §7)를 더한 superset 으로 발행한다(코드의 shared 타입은 base, 진단필드는 AI 노드 런타임 확장).
 
 ## 7. 진단 누적 (provider tool)
 

@@ -1,11 +1,24 @@
 ---
-worktree: .claude/worktrees/engine-split
-status: in-progress
+worktree: engine-split
+status: complete
 spec_area:
   - spec/5-system/4-execution-engine.md
   - spec/4-nodes/0-overview.md
-created: 2026-06-16
+started: 2026-06-16
+owner: developer (+ project-planner spec-sync)
 parent_backlog: plan/in-progress/refactor/02-architecture.md (C-1 · m-3)
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/5-system/3-error-handling.md
+  - spec/4-nodes/2-flow/1-workflow.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/4-nodes/3-ai/0-common.md
+  - spec/4-nodes/6-presentation/0-common.md
+  - spec/4-nodes/0-overview.md
+  - spec/conventions/node-output.md
+  - spec/conventions/interaction-type-registry.md
+  - spec/data-flow/3-execution.md
+  - spec/data-flow/15-external-interaction.md
 ---
 
 # C-1 엔진 분할 (strangler-fig, A 방식) — stacked PR 로드맵
@@ -128,7 +141,11 @@ retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄
 
 ## 후속 고려 (review 파생)
 
-> **진행 현황 (2026-06-19~)**: 실행 순서 = 후속 ①(@internal 대칭 + 타입 leaf 이동 — ✅ **완료**, 위 PR4 절) → ② `LLM_API_ERROR` 테스트 → ⑤ ButtonInteraction 분해 → ③ LLM 기록 타입통합 → ★ assertSameWorkspace fail-closed(✅ **완료**) → ④ forwardRef 순환 DI 제거(고위험·단독·e2e 필수) → ⑥ `previousOutput` Phase 3(별도 plan 의존). 각 항목 독립 소 PR (base main).
+> **진행 현황 (2026-06-19~)**: 실행 순서 = 후속 ①(@internal 대칭 + 타입 leaf 이동 — ✅ **완료**, 위 PR4 절) → ② `LLM_API_ERROR` 테스트(✅ **완료**) → ⑤ ButtonInteraction 분해(✅ **완료**) → ③ LLM 기록 타입통합(✅ **완료**) → ★ assertSameWorkspace fail-closed(✅ **완료**) → ④ forwardRef 순환 DI 제거(✅ **완료**) → ⑥ `previousOutput` Phase 3(**blocked — node-output-redesign 의존, c1 종료 후에도 유지**). 각 항목 독립 소 PR (base main).
+>
+> **✅ 누적 planner SPEC-DRIFT 일괄 반영 완료 (2026-06-19, PR #641, branch `spec-drift-c1-ea8bcb`)**: 후속 ①②③④⑤★ 머지로 누적된 비차단 SPEC-DRIFT 를 일괄 반영. **6 spec 파일** 편집 — `4-execution-engine.md §Rationale C-1`(①④⑤a: ISP 5-부분인터페이스 + engine→Retry 제거 + button 순수함수 + §3 L193·§4.4 facade 동기화), `1-workflow.md §2 W-6 / §6`(★ fail-closed), `3-error-handling.md §1.4·§3.2`(★ SUB_WORKFLOW 3종 + W-6 guard note), `1-ai-agent.md §10·§8`(② passthrough·top-level `.status` + ③ canonical SoT) + frontmatter `code:`, `3-ai/0-common.md §6`(③ canonical SoT + `mcpDiagnostics?`) + frontmatter, `6-presentation/0-common.md §4.5`(⑤b button_continue `url?`/`selectedItem?`). `/consistency-check --spec` **BLOCK:NO**(`review/consistency/2026/06/19/21_40_43`; WARNING 7·INFO 14 전부 편집에 반영 — W-7 enum-미등재 note 처리, W-1 passthrough 정밀화, W-5 Rationale cross-ref, I-3 executeSync 표기 등). 정확성 정정 2건: shared `TurnDebugEntry` 는 minimal base(진단필드는 런타임 superset), `WORKFLOW_FORBIDDEN_WORKSPACE` 는 enum 미등재(`SUB_WORKFLOW_FAILED` 로 surface) — spec 에 실제 코드 상태 그대로 기술하고 dev 후속 명시. node-output.md §4.4/§4.5 는 chain-close #628 기반영 → 재편집 불요. **이로써 c1-engine-split 의 review-파생 SPEC-DRIFT 백로그 전부 소진** → Gate C `plan/complete/` 이동.
+>
+> **잔여 handoff (c1 책임 아님)**: ⑥ previousOutput Phase 3 → `node-output-redesign` plan 의존(blocked). dev 1b(별도 소 PR — `WORKFLOW_FORBIDDEN_WORKSPACE`+sub-workflow 3종 `error-codes.ts` enum 등재, `ai-agent.handler.ts` inline llmCalls → shared `LlmCallRecord` 전환, frontend `TurnDebugEntry` 다중정의 rename) → 우선순위 낮음·중기, 본 plan 의 "후속 고려" 항에 기록 유지(history).
 
 - **`assertSameWorkspace` fail-open → fail-closed** (ai-review INFO-2; 후속 ① ai-review INFO #11 재확인) — ✅ **완료 (★, 2026-06-19, branch `assert-workspace-6215be`)**: sub-workflow 진입점(executeInline/executeSync/executeAsync) workspace 격리를 fail-open(누락 시 로그-후-통과)→fail-closed(누락 시 `WORKFLOW_FORBIDDEN_WORKSPACE` deny)로 전환. **착수 전 호출경로 전수 trace**(general-purpose subagent)로 프로덕션 3 호출처 전부 workspace 컨텍스트 공급 입증(executeInline×2=handler sync+background consumer, executeAsync×1=handler parentWorkspaceId; executeSync 프로덕션 호출자 0) → blanket fail-closed 안전 확정. 동일 `WORKFLOW_FORBIDDEN_WORKSPACE` 코드 재사용(신규 코드 미도입). 커밋 `4ad33c8b`(impl)+`2d6f0de8`(ai-review fix: withWorkspace 헬퍼 공유화·sync/async mismatch 테스트). TEST lint·build·unit(execution-engine 319, +5 fail-closed 케이스)·dockerized e2e(34/202, 2회) ✓. impl-prep **BLOCK:NO**(`13_25_28`). ai-review 1차 LOW·C0·W4→fix, 2차 MEDIUM·C0·W3 전부 dispositioning 수렴(deploy-risk=trace 검증·nicety·pre-existing). RESOLUTION `review/code/2026/06/19/17_05_22`+`17_15_57`. **PR #637**: https://github.com/worker-ants/clemvion/pull/637.
   - **SPEC-DRIFT 후속(planner)**: fail-closed 행동(callerWorkspaceId 누락 시 throw)이 spec 미반영 — `spec/4-nodes/2-flow/1-workflow.md §2 W-6` callout + `spec/5-system/4-execution-engine.md` workspace-isolation 절에 "누락 시에도 fail-closed throw" 명시. + impl-prep WARNING(에러 카탈로그): `WORKFLOW_FORBIDDEN_WORKSPACE`·`SUB_WORKFLOW_NOT_FOUND`·`SUB_WORKFLOW_TIMEOUT`·`SUB_WORKFLOW_QUEUE_FAILED` 를 `spec/5-system/3-error-handling.md §1.4/§3.2` 등재 + `error-codes.ts` enum(dev). 비차단.
@@ -146,10 +163,9 @@ retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄
 - **ButtonInteractionService 타입·분해** (PR3 INFO) — ✅ **완료 (후속 ⑤, 2026-06-19, branch `button-interaction`)**: `ButtonClickPayload` discriminated union + `isButtonClickPayload` 타입가드 + `resolveButtonInteraction`(payload→port/interaction 결정, 4 variant) + `buildResumedStructuredOutput` 순수함수 추출 (행위보존, I/O 순서 flat→structured→thread→DB→event 보존). 커밋 `4fb918d7`+`2ad44a71`. TEST lint·unit(execution-engine 33s/821; button-interaction 27)·build·e2e(34/202) ✓. ai-review 1차 MEDIUM(W6 fix)→2차 LOW(W7 전부 수용/이연·회귀 아님)·impl-done BLOCK:NO. RESOLUTION `review/code/2026/06/19/03_51_29`. **PR #631**: https://github.com/worker-ants/clemvion/pull/631.
   - **범위 재조정**: `EngineDriver` ISP 부분인터페이스 → **후속 ④(엔진 DI 재구조화)로 이연** (#629 @internal 충돌 + ENGINE_DRIVER 소비자 전수 변경 동반). `WaitingInteractionType` 이동 → **제외**(spec-pinned — `interaction-type-registry.md §1.1/§1.2` SoT, plan L88 "미이동" 명시).
   - **SPEC-DRIFT 후속(planner)**: (a) 순수함수 추출(resolveButtonInteraction/buildResumedStructuredOutput) → `4-execution-engine.md §Rationale C-1` 등재, (b) `node-output.md §4.2` interaction.type 열거에 `button_continue` 추가(§4.5 일관) + `4-nodes/6-presentation/0-common.md §4` button_continue `url?` 조건부 정정.
-- **`previousOutput` Phase 3 완전 제거** (spec-sync plan-coherence INFO, 2026-06-18): `node-output.md §4.2` 의
-  presentation resume(`ButtonInteractionService`) `previousOutput` 보존 예외는 transitional — `node-output-redesign`
-  plan 재개 시 Phase 3 정리와 함께 제거 검토 (현재 충돌 없음, 기존 행위 verbatim).
-- **spec §Rationale C-1 EngineDriver 멤버목록 갱신** (후속 ① ai-review SPEC-DRIFT INFO #1, 2026-06-19): `spec/5-system/4-execution-engine.md` §Rationale C-1 의 EngineDriver 멤버 예시가 3개인데 실제 **12개**(step2 7 + step4 5). 본문 staleness — **planner 후속**(developer spec read-only). "최소 seam 원칙으로 필요한 멤버를 추가" 산문 또는 전체 12개 목록으로 갱신. 코드 무변·비차단.
+- **⑥ `previousOutput` Phase 3 완전 제거** (spec-sync plan-coherence INFO, 2026-06-18) — 🔒 **BLOCKED 유지 (c1 종료 시점에도 미진행, handoff)**: `node-output.md §4.2` 의
+  presentation resume(`ButtonInteractionService`) `previousOutput` 보존 예외는 transitional. 제거는 **`node-output-redesign` plan(spec+code 동반) 재개에 의존** — Phase 3 정리와 함께만 수행한다. **현재 충돌 없음**(기존 행위 verbatim, 코드 주석 SoT). c1-engine-split 범위 밖이므로 본 plan 에서 진행하지 않고 node-output-redesign 으로 handoff. (consistency-check I-10: `node-output-redesign` cluster 와 편집 위치 달라 직접 충돌 없음.)
+- **spec §Rationale C-1 EngineDriver 멤버목록 갱신** (후속 ① ai-review SPEC-DRIFT INFO #1, 2026-06-19) — ✅ **완료 (SPEC-DRIFT 일괄 PR, 2026-06-19)**: §Rationale C-1 의 EngineDriver 멤버 3-예시 → 실제 **12 distinct 멤버** + ISP 5-부분인터페이스 계층(`CoreEngineDriver`/`InteractionEngineDriver`/`ReentryStateDriver`/`AiTurnEngineDriver`/`RetryEngineDriver`) + 소비자별 바인딩으로 갱신(후속 ④와 통합). 코드 검증 후 정확 등재(Explore subagent 좌표 확인). 코드 무변·비차단.
 
 ## 진행 로그
 
@@ -172,3 +188,5 @@ retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄
   34/202). /ai-review MEDIUM(C0)→retry 분기 테스트+@internal JSDoc fix `cffd95c8`(W-1/3/4/9 수용/이연).
   impl-done BLOCK:NO(Warning 1=본 plan PR4 절 stale, 갱신 해소). **코드 4-PR 체인 완성** → push/PR4 + spec-sync(planner) 잔여.
 - 2026-06-18: **4 PR 전체 머지 완료** (#622·#625·#626·#627 → origin/main `0c275dd7`). stacked 체인 cascade 충돌은 squash-머지마다 `rebase --onto origin/main`(중복 커밋 드롭)+force-push 로 순차 해소(#622→#625, #625→#626, #626→#627). 최종 병합상태 dockerized e2e 34/202 통과. **체인 종료 spec-sync 완료**(planner): spec **8개 파일**(원안 7 + `data-flow/15-external-interaction.md` cross-spec 보강) 코드정합 반영, `/consistency-check --spec` **BLOCK:NO**(`09_27_06`; 1차 09_15_57 BLOCK:YES[plan started 누락]→해소). 메서드 포인터 실측 정정 2건(classifyLlmError 존재·AiTurnOrchestrator 이동, L426=processAiResumeTurn). 엔진 최종 **7,035줄**(실측). `spec-update-engine-split.md` → `plan/complete/` 이동. **C-1 god-class 분할 로드맵 완료** — 잔여는 `## 후속 고려` review-파생 백로그(별도 후속).
+- 2026-06-19: **review-파생 후속 ①②③④⑤★ 전부 머지 완료** (#629·#630·#631·#632·#637·#638 → origin/main). developer 백로그 소진. 엔진 ISP 분해 + engine→Retry 순환 DI 제거(#638) + workspace fail-closed(#637) 등 착지.
+- 2026-06-19: **누적 planner SPEC-DRIFT 일괄 반영 완료** (project-planner, branch `spec-drift-c1-ea8bcb`). 후속 ①②③④⑤★ 가 머지되며 누적된 비차단 SPEC-DRIFT 를 **6 spec 파일**에 일괄 반영(①④⑤a engine §Rationale ISP+engine→Retry+button 순수함수 / ★ workflow W-6 fail-closed + error-handling SUB_WORKFLOW 3종·W-6 guard note / ② ai-agent §10 passthrough·top-level `.status` / ③ ai 0-common §6·ai-agent §8 canonical SoT + frontmatter `code:` + `mcpDiagnostics?` / ⑤b presentation §4.5 button_continue 조건부). 착수 전 Explore subagent 로 ISP 인터페이스·shared 타입·engine→Retry 호출처 좌표 전수 검증(정확성 정정 2건: shared `TurnDebugEntry`=minimal base / `WORKFLOW_FORBIDDEN_WORKSPACE`=enum 미등재 → 실제 코드 상태 그대로 기술). `/consistency-check --spec` **BLOCK:NO**(`review/consistency/2026/06/19/21_40_43`, Critical 0; WARNING 7·INFO 14 전부 편집 반영). **⑥ previousOutput Phase 3 = BLOCKED 유지**(node-output-redesign handoff). dev 1b = 별도 소 PR handoff(plan 기록 유지). **Gate C: `c1-engine-split.md`(+`c1-pr2-aiturn-blueprint.md`) → `plan/complete/` 이동, `spec_impact` 선언. C-1 엔진 분할 plan 전 작업·후속 소진 완료.**

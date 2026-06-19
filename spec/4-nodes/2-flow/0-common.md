@@ -48,7 +48,7 @@ Flow 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 | 시나리오 | 처리 방식 |
 |----------|-----------|
 | Pre-flight: `workflowId` 미설정·존재 안 함·재귀 깊이 초과 | throw |
-| Sync 모드: 서브 워크플로우 런타임 실패 | `output.error.{code, message, details: {workflowId, mode}}` + `port: 'error'`. `code` 는 세분화: `SUB_WORKFLOW_NOT_FOUND` (대상 부재) / `SUB_WORKFLOW_TIMEOUT` (timeout 초과) / 그 외 generic `SUB_WORKFLOW_FAILED` (`workflow.handler.ts:237-269`) |
+| Sync 모드: 서브 워크플로우 런타임 실패 | `output.error.{code, message, details: {workflowId, mode}}` + `port: 'error'`. `code` 는 세분화: `SUB_WORKFLOW_NOT_FOUND` (대상 부재) / `SUB_WORKFLOW_TIMEOUT` (timeout 초과) / `WORKFLOW_FORBIDDEN_WORKSPACE` (W-6 워크스페이스 격리 차단, fail-closed — [1-workflow §2 W-6](./1-workflow.md#2-설정-ui)) / 그 외 generic `SUB_WORKFLOW_FAILED` (`workflow.handler.ts:237-269`) |
 | Async 모드: 큐 enqueue 실패 | `output.error.{code: 'SUB_WORKFLOW_QUEUE_FAILED', ...}` + `port: 'error'` (드물게 발생) |
 | Async 모드: 서브 워크플로우의 런타임 에러 | 부모에 전파되지 않음 (fire-and-forget) — 서브 Execution의 로그에만 기록 |
 

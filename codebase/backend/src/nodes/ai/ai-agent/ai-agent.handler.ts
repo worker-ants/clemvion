@@ -64,6 +64,7 @@ import {
   applyCap,
   renderThreadAsSystemText,
 } from '../../../shared/conversation-thread/thread-renderer';
+import { LlmCallRecord } from '../../../shared/llm-tracing/llm-call-record';
 import { truncateForErrorDetails } from '../../core/error-codes';
 
 /**
@@ -1485,13 +1486,9 @@ export class AiAgentHandler implements NodeHandler {
     // Per-call trace so the frontend LlmInformationTab can inspect each
     // request/response/usage even for single-turn runs (tool loop commonly
     // spans several calls).
-    const llmCalls: Array<{
-      requestPayload: unknown;
-      responsePayload: unknown;
-      durationMs: number;
-      startedAt?: string;
-      finishedAt?: string;
-    }> = [];
+    // Canonical shared trace type (C-1 follow-up ③ / dev 1b). The shared type is
+    // an all-optional superset; the push sites below always supply every field.
+    const llmCalls: LlmCallRecord[] = [];
     const toolCallTraces: ToolCallTrace[] = [];
     const singleTurnStartedAt = Date.now();
     const firstRequest = {
@@ -2410,13 +2407,9 @@ export class AiAgentHandler implements NodeHandler {
       maxTokens,
       tools: toolsDef,
     };
-    const llmCalls: Array<{
-      requestPayload: unknown;
-      responsePayload: unknown;
-      durationMs: number;
-      startedAt?: string;
-      finishedAt?: string;
-    }> = [];
+    // Canonical shared trace type (C-1 follow-up ③ / dev 1b). The shared type is
+    // an all-optional superset; the push sites below always supply every field.
+    const llmCalls: LlmCallRecord[] = [];
     const toolCallTraces: ToolCallTrace[] = [];
     let callStart = Date.now();
     let result = await this.llmService.chat(llmConfig, {

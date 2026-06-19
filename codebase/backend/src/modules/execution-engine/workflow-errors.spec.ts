@@ -4,6 +4,7 @@ import {
   InvalidExecutionStateError,
   MessageTooLongError,
   RetryLastTurnError,
+  WorkflowForbiddenWorkspaceError,
 } from './workflow-errors';
 import { ErrorCode } from '../../nodes/core/error-codes';
 
@@ -114,5 +115,32 @@ describe('ExecutionError typed error 계약 (§7.5.2)', () => {
         { field: 'age', message: '숫자를 입력하세요.', code: 'INVALID_FIELD' },
       ]);
     });
+  });
+});
+
+/**
+ * W-6 workspace 격리 typed error (dev 1b). plain `Error` 계열(ExecutionError 가
+ * 아님 — WorkflowNotFoundError / SubWorkflowTimeoutError 와 동일 계층). Sub-Workflow
+ * 핸들러의 `mapSubWorkflowError` 가 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 매핑한다
+ * (매핑 검증은 workflow.handler.spec.ts). 본 블록은 클래스 계약(메시지 prefix 보존·
+ * 필드 캡처·name)을 검증한다.
+ */
+describe('WorkflowForbiddenWorkspaceError 클래스 계약 (W-6)', () => {
+  it('mismatch — targetWorkspaceId/callerWorkspaceId 캡처 + message prefix 보존', () => {
+    const err = new WorkflowForbiddenWorkspaceError('ws-target', 'ws-caller');
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe('WorkflowForbiddenWorkspaceError');
+    expect(err.targetWorkspaceId).toBe('ws-target');
+    expect(err.callerWorkspaceId).toBe('ws-caller');
+    expect(err.message).toMatch(/^WORKFLOW_FORBIDDEN_WORKSPACE:/);
+    expect(err.message).toContain('ws-target');
+    expect(err.message).toContain('ws-caller');
+  });
+
+  it('missing caller context — callerWorkspaceId 미공급 시 undefined + 전용 message', () => {
+    const err = new WorkflowForbiddenWorkspaceError('ws-target');
+    expect(err.callerWorkspaceId).toBeUndefined();
+    expect(err.message).toMatch(/^WORKFLOW_FORBIDDEN_WORKSPACE:/);
+    expect(err.message).toContain('without caller workspace context');
   });
 });

@@ -58,6 +58,12 @@ export const ErrorCode = {
   SUB_WORKFLOW_NOT_FOUND: 'SUB_WORKFLOW_NOT_FOUND',
   SUB_WORKFLOW_TIMEOUT: 'SUB_WORKFLOW_TIMEOUT',
   SUB_WORKFLOW_QUEUE_FAILED: 'SUB_WORKFLOW_QUEUE_FAILED',
+  // WORKFLOW_FORBIDDEN_WORKSPACE: cross-workspace sub-workflow call blocked
+  // (W-6 fail-closed). assertSameWorkspace throws WorkflowForbiddenWorkspaceError
+  // when the target workflow belongs to a different workspace, or when the caller
+  // workspace context is missing (deny-by-default). Surfaced at the Sub-Workflow
+  // node's error port. spec/4-nodes/2-flow/1-workflow.md §2 W-6.
+  WORKFLOW_FORBIDDEN_WORKSPACE: 'WORKFLOW_FORBIDDEN_WORKSPACE',
   // Execution Engine — engine-level limits (spec/5-system/4-execution-engine.md §8).
   // EXECUTION_TIME_LIMIT_EXCEEDED: a single Execution exceeded its max **active-running**
   // cumulative time (default 30min; waiting_for_input park time excluded). Distinct from

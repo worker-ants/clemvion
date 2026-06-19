@@ -73,6 +73,8 @@ code:
 - 삭제·비활성된 워크플로우(`workflowId` 有 + `workflowName` 無)는 캔버스 배지에서 `⚠ Missing workflow` 표시 (`warnWhen: 'workflowId && !workflowName'`)
 
 > ℹ️ **런타임 워크스페이스 격리 (구현됨, W-6)**: 셀렉터 후보 필터링과 별개로, 엔진은 sub-workflow 실행 시 `assertSameWorkspace` 로 대상 워크플로우가 호출자(부모)와 다른 워크스페이스이면 `WORKFLOW_FORBIDDEN_WORKSPACE` 를 throw 하여 cross-workspace 호출을 차단한다. handler 가 `parentWorkspaceId`(`context.variables.__workspaceId`)를 engine 의 `executeInline`/`executeAsync` 에 전달하며, 검증은 `execution-engine.service.ts` 의 `assertSameWorkspace` 호출부에서 수행된다.
+>
+> **fail-closed (후속 ★, PR #637)**: `callerWorkspaceId`(호출자 워크스페이스 컨텍스트)가 **누락된 경우에도** 통과시키지 않고 동일하게 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 deny 한다 — 이전 fail-open(누락 시 로그 후 통과) → fail-closed 전환. 프로덕션 3 호출처(`executeInline` ×2·`executeAsync` ×1) 전수 trace 로 workspace 컨텍스트 상시 공급을 입증해 blanket fail-closed 안전을 확정했다([실행 엔진 §Rationale "C-1"](../../5-system/4-execution-engine.md#rationale)). 본 guard 는 typed `WorkflowForbiddenWorkspaceError`(message prefix `WORKFLOW_FORBIDDEN_WORKSPACE:`)를 throw 하고, Sub-Workflow 핸들러가 이를 전용 `ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE` 로 매핑해 error 포트(`output.error.code`)에 surface 한다(§6).
 
 ## 3. 포트
 
@@ -103,7 +105,7 @@ code:
    - **Sync**: `executionEngine.executeInline(workflowId, effectiveInput, { executionId, context, executedNodes, recursionDepth: depth+1, parentNodeExecutionId, invokerNodeId })` → 반환값을 `output: { result: <inlineResult> }` 으로 1단 래핑 (§5.1). `invokerNodeId` 는 이 Workflow 노드 자신의 Node.id — sub-workflow 안의 blocking 노드가 durable park 할 때 `resume_call_stack` frame 키로 영속되어 [실행 엔진 §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration) rehydration 이 부모 그래프에서 이 노드까지 전진 후 재진입하는 데 쓰인다
    - **Async**: `executionEngine.executeAsync(workflowId, effectiveInput, { parentExecutionId, recursionDepth: depth+1 })` → `output: { executionId, workflowId, status: 'started' }` + top-level `status: 'started'` 즉시 반환 (§5.2)
 4. **런타임 에러 처리** (Principle 3.2):
-   - sync `executeInline` / async `executeAsync` 가 throw 한 경우 — `output.error.{code, message, details: {workflowId, mode}}` + `port: 'error'` (§5.3). `code` 는 executor 메시지에 따라 `SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `SUB_WORKFLOW_FAILED` (기본) 로 매핑된다 (§6 표 참조)
+   - sync `executeInline` / async `executeAsync` 가 throw 한 경우 — `output.error.{code, message, details: {workflowId, mode}}` + `port: 'error'` (§5.3). `code` 는 executor 에러(typed error 또는 메시지)에 따라 `SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `WORKFLOW_FORBIDDEN_WORKSPACE` (W-6 격리 차단) / `SUB_WORKFLOW_FAILED` (기본) 로 매핑된다 (§6 표 참조)
    - **예외**: `ParkReleaseSignal` (sub-workflow 안 blocking 노드의 durable park 신호) 은 런타임 실패가 아니므로 error 포트로 라우팅하지 않고 그대로 re-throw 한다 — 엔진이 세그먼트를 종료하고 [실행 엔진 §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration) rehydration 으로 재개
 5. **재귀 깊이 누적**: 자식 호출 시 `recursionDepth` 를 +1 하여 전달. sync 는 `ExecutionContext`, async 는 Execution 레코드에 누적 (Flow 공통 §2.2)
 
@@ -223,7 +225,7 @@ code:
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.*` | (§5.1 과 동일) | config echo | 에러 케이스에서도 동일하게 echo |
-| `output.error.code` | `ErrorCodeValue` | handler return | §6 의 코드 표 참조 — executor 에러 메시지에 따라 세분화 (`SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `SUB_WORKFLOW_FAILED`) |
+| `output.error.code` | `ErrorCodeValue` | handler return | §6 의 코드 표 참조 — executor 에러에 따라 세분화 (`SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `WORKFLOW_FORBIDDEN_WORKSPACE` / `SUB_WORKFLOW_FAILED`) |
 | `output.error.message` | string | handler return | `err.message` 원문 (i18n 없음, 로그/디버깅용) |
 | `output.error.details.workflowId` | string | handler return | 실패한 sub-workflow 정의 ID (디버깅 payload — Principle 1.1 의 config↔output 직교성 예외 — 에러 컨텍스트는 자유 스키마) |
 | `output.error.details.mode` | `'sync'` / `'async'` | handler return | 실패 발생 모드 |
@@ -260,12 +262,15 @@ code:
 | `SUB_WORKFLOW_NOT_FOUND` | Runtime (port `error`) | 대상 워크플로우 정의가 존재하지 않음 — executor 의 `Workflow not found: <id>` 를 매핑 |
 | `SUB_WORKFLOW_TIMEOUT` | Runtime (port `error`) | sync 모드 timeout 초과 — executor 의 `timed out` / `timeout` 메시지를 매핑 |
 | `SUB_WORKFLOW_QUEUE_FAILED` | Runtime (port `error`) | async 모드 큐 등록 실패 — 메시지에 `queue` + 실패 표시(`failed`/`enqueue`/`reject`) 가 모두 포함된 경우 |
-| `SUB_WORKFLOW_FAILED` | Runtime (port `error`) | 위 3개에 매칭되지 않은 모든 런타임 실패 — sub-workflow 내부 노드 실패, expression 평가 에러 등 일반 fallback |
+| `WORKFLOW_FORBIDDEN_WORKSPACE` | Runtime (port `error`) | W-6 워크스페이스 격리 차단 (fail-closed) — 대상 워크플로우가 호출자와 다른 워크스페이스이거나 호출자 컨텍스트 누락. typed `WorkflowForbiddenWorkspaceError` 를 매핑 (§2 W-6) |
+| `SUB_WORKFLOW_FAILED` | Runtime (port `error`) | 위 4개에 매칭되지 않은 모든 런타임 실패 — sub-workflow 내부 노드 실패, expression 평가 에러 등 일반 fallback |
 | (throw) `Maximum recursion depth exceeded` | Pre-flight | `recursionDepth >= 10` |
 | (throw) `Inline execution requires _executedNodes in context` | Pre-flight | sync 모드 내부 invariant 위반 (직접 호출자용 방어) |
 | (throw) Schema/validate 메시지 | Pre-flight | §5.8 표 참조 |
 
 > Async 모드에서 큐 등록 후 발생한 sub-workflow 런타임 에러는 **부모 Execution 에 전파되지 않는다** (fire-and-forget). 서브 Execution 자체의 로그·상태에만 기록되며, 모니터링은 `parentExecutionId` 로 조회한다.
+
+> **W-6 워크스페이스 격리 guard**: cross-workspace(또는 호출자 컨텍스트 누락) sub-workflow 호출은 `assertSameWorkspace` 가 typed `WorkflowForbiddenWorkspaceError` 를 throw 하고(§2 W-6, fail-closed), `mapSubWorkflowError` 가 이를 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 매핑해 error 포트에 surface 한다(위 표에 등재). `executeInline`/`executeAsync` 진입에서 발생.
 
 ## 7. 캔버스 요약
 
