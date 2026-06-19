@@ -2011,9 +2011,13 @@ export class AiAgentHandler implements NodeHandler {
       memoryThreshold: config.memoryThreshold,
       // persistent TTL (일) — saveMemories expires_at 산정용 (AGM-10). 매 turn 재적용.
       memoryTtlDays: config.memoryTtlDays,
-      // 요약/추출 전용 config id (A3, AI Agent §12.12 재번복) — resume state 에
-      // 영속해야 멀티턴 turn2+ 에서도 전용 config 가 적용된다. 미저장 시 노드
-      // 기본으로 silent 폴백(C1 회귀). 매 turn 재적용.
+      // 임베딩/요약/추출 전용 config id (A3, AI Agent §12.12 재번복) — resume state 에
+      // 영속해야 멀티턴 turn2+ 에서도 전용 config 가 적용된다. 특히 embeddingModelConfigId
+      // 미저장 시 turn2+ recall 이 워크스페이스 기본 embedding config 로 silent 폴백해
+      // 저장·회수 차원 불일치(spec §3 불변식 위반)를 유발한다. 매 turn 재적용.
+      embeddingModelConfigId: config.embeddingModelConfigId as
+        | string
+        | undefined,
       summaryModelConfigId: config.summaryModelConfigId as string | undefined,
       extractionModelConfigId: config.extractionModelConfigId as
         | string

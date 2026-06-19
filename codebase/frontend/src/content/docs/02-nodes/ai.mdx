@@ -50,9 +50,9 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
   {name: "memoryTopK", required: false, type: "integer", description: "턴마다 회수할 메모리 청크 수예요 (RAG Top-K와 독립). `persistent`일 때 보여요.", default: "5"},
   {name: "memoryThreshold", required: false, type: "float", description: "메모리 회수에 필요한 최소 유사도예요 (0~1, RAG 임계값과 독립). `persistent`일 때 보여요.", default: "0.7"},
   {name: "memoryTtlDays", required: false, type: "integer", description: "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요. `persistent`일 때 보여요.", default: "-"},
-  {name: "embeddingModel", required: false, type: "모델 선택", description: "메모리 회수·추출에 쓸 임베딩 모델이에요. 노드의 LLM 프로바이더에 등록된 모델 중에서 골라요. 처음 저장했을 때와 차원이 일치해야 해요. 비우면 워크스페이스 기본 임베딩 모델을 써요. `persistent`일 때 보여요.", default: "-"},
-  {name: "summaryModel", required: false, type: "모델 선택", description: "롤링 요약에 쓸 별도 모델이에요. 노드의 LLM 프로바이더에 등록된 모델 중에서 골라요. 비우면 노드 모델을 그대로 써요. 요약은 비교적 단순한 작업이라 저비용 모델을 골라 비용을 줄일 수 있어요. `summary_buffer`·`persistent`일 때 보여요.", default: "-"},
-  {name: "extractionModel", required: false, type: "모델 선택", description: "세션 간 메모리 추출에 쓸 별도 모델이에요. 노드의 LLM 프로바이더에 등록된 모델 중에서 골라요. 비우면 노드 모델을 그대로 써요. 저비용 추출 모델로 비용을 줄일 수 있어요. `persistent`일 때 보여요.", default: "-"},
+  {name: "embeddingModelConfigId", required: false, type: "모델 설정 선택", description: "메모리 회수·추출에 쓸 임베딩 모델 설정이에요. 모델 설정 페이지(/models)에 등록된 임베딩 설정 중에서 골라요(노드 LLM 제공자와 독립). 처음 저장했을 때와 같은 설정을 써야 차원이 맞아요. 비우면 워크스페이스 기본 임베딩 설정을 써요. `persistent`일 때 보여요.", default: "-"},
+  {name: "summaryModelConfigId", required: false, type: "모델 설정 선택", description: "롤링 요약에 쓸 별도 chat 모델 설정이에요. /models 에 등록된 chat 설정 중에서 골라요(노드 메인 LLM 과 독립 — 다른 제공자의 저렴한 모델 가능). 비우면 노드 모델을 그대로 써요. 요약은 비교적 단순한 작업이라 저비용 모델을 골라 비용을 줄일 수 있어요. `summary_buffer`·`persistent`일 때 보여요.", default: "-"},
+  {name: "extractionModelConfigId", required: false, type: "모델 설정 선택", description: "세션 간 메모리 추출에 쓸 별도 chat 모델 설정이에요. /models 에 등록된 chat 설정 중에서 골라요(노드 메인 LLM 과 독립 — 다른 제공자의 저렴한 모델 가능). 비우면 노드 모델을 그대로 써요. 저비용 추출 모델로 비용을 줄여요. `persistent`일 때 보여요.", default: "-"},
   {name: "presentationTools", required: false, type: "PresentationToolDef[]", description: "LLM이 응답을 텍스트 대신 표·차트·캐러셀·템플릿·폼으로 렌더링할 수 있게 해주는 가상 도구 목록이에요. 비어 있으면 기능이 꺼져요. 각 항목은 `type`(필수), `description`(선택), `defaults`(선택)으로 구성돼요.", default: "[]"},
   {name: "maxTurns", required: false, type: "integer", description: "Multi Turn 모드의 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "20"}
 ]} />
@@ -99,7 +99,7 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
 - `memoryTopK` (기본 5) — 한 턴에 회수할 메모리 조각 수예요. RAG 검색의 `ragTopK` 와는 독립이에요.
 - `memoryThreshold` (기본 0.7) — 메모리를 회수할 때 요구하는 최소 유사도(0~1)예요. RAG 검색의 `ragThreshold` 와는 독립이에요.
 - `memoryTtlDays` — 지속 메모리의 보관 기간(일)이에요. 설정하면 그 일수가 지난 메모리는 만료돼 회수되지 않고 정리돼요. **비워 두면 만료 없이 계속 보관**돼요.
-- `summaryModel` / `extractionModel` — 요약·추출 LLM 호출에만 쓸 **별도 모델**을 정할 수 있어요. 비워 두면 노드 모델을 그대로 써서 동작이 바뀌지 않아요. 메인 답변보다 단순한 요약·추출에 저비용 모델을 골라 **비용을 줄이는 선택지**예요. (`summaryModel` 은 `summary_buffer`·`persistent`, `extractionModel` 은 `persistent` 일 때 보여요.)
+- `summaryModelConfigId` / `extractionModelConfigId` — 요약·추출 LLM 호출에만 쓸 **별도 모델 설정**을 정할 수 있어요. 모델 설정 페이지(/models)에 등록된 chat 설정을 골라요 — 노드 메인 LLM 과 독립이라 **다른 제공자의 저렴한 모델**도 쓸 수 있어요. 비워 두면 노드 모델을 그대로 써서 동작이 바뀌지 않아요. 메인 답변보다 단순한 요약·추출에 저비용 모델을 골라 **비용을 줄이는 선택지**예요. (`summaryModelConfigId` 은 `summary_buffer`·`persistent`, `extractionModelConfigId` 은 `persistent` 일 때 보여요.)
 
 <Callout type="note">
 `memoryStrategy` 가 `manual` 이 아니면 자동 전략이 맥락을 관리하므로 위 대화 컨텍스트 필드(`contextScope` 등)는 설정 UI에서 숨겨져요. 토큰 예산·메모리 키 같은 필드는 해당 전략을 골랐을 때만 나타나요.
@@ -261,8 +261,8 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
   {name: "memoryTopK", required: false, type: "integer", description: "추출 전에 회수할 메모리 청크 수예요 (RAG Top-K와 독립). `persistent`일 때 보여요.", default: "5"},
   {name: "memoryThreshold", required: false, type: "float", description: "메모리 회수에 필요한 최소 유사도예요 (0~1, RAG 임계값과 독립). `persistent`일 때 보여요.", default: "0.7"},
   {name: "memoryTtlDays", required: false, type: "integer", description: "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요. `persistent`일 때 보여요.", default: "-"},
-  {name: "embeddingModel", required: false, type: "모델 선택", description: "메모리 회수·추출에 쓸 임베딩 모델이에요. 노드의 LLM 프로바이더에 등록된 모델 중에서 골라요. 처음 저장했을 때와 차원이 일치해야 해요. 비우면 워크스페이스 기본 임베딩 모델을 써요. `persistent`일 때 보여요.", default: "-"},
-  {name: "extractionModel", required: false, type: "모델 선택", description: "세션 간 메모리 추출에 쓸 별도 모델이에요. 노드의 LLM 프로바이더에 등록된 모델 중에서 골라요. 비우면 노드 모델을 그대로 써요. 저비용 추출 모델로 비용을 줄일 수 있어요. `persistent`일 때 보여요.", default: "-"},
+  {name: "embeddingModelConfigId", required: false, type: "모델 설정 선택", description: "메모리 회수·추출에 쓸 임베딩 모델 설정이에요. 모델 설정 페이지(/models)에 등록된 임베딩 설정 중에서 골라요(노드 LLM 제공자와 독립). 처음 저장했을 때와 같은 설정을 써야 차원이 맞아요. 비우면 워크스페이스 기본 임베딩 설정을 써요. `persistent`일 때 보여요.", default: "-"},
+  {name: "extractionModelConfigId", required: false, type: "모델 설정 선택", description: "세션 간 메모리 추출에 쓸 별도 chat 모델 설정이에요. /models 에 등록된 chat 설정 중에서 골라요(노드 메인 LLM 과 독립 — 다른 제공자의 저렴한 모델 가능). 비우면 노드 모델을 그대로 써요. 저비용 추출 모델로 비용을 줄여요. `persistent`일 때 보여요.", default: "-"},
   {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread 자동 주입 범위예요. `none`은 입력만, `thread`는 thread 전체를, `lastN`은 최근 N turn 만 LLM에 함께 보내요. `multi_turn`은 첫 진입 때 1회 주입돼요. `memoryStrategy`가 `manual`일 때만 적용돼요. AI Agent와 동일한 인터페이스예요.", default: "none"},
   {name: "contextScopeN", required: false, type: "integer", description: "`contextScope=lastN`일 때 주입할 최근 turn 수예요.", default: "20"},
   {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "Thread 주입 방식이에요. `messages`는 LLM messages 배열 앞에 turn 별로 prepend하고, `system_text`는 system 프롬프트 뒤에 한 덩어리로 append해요.", default: "messages"},

@@ -216,7 +216,11 @@ export interface NodeComponentMetadata {
  *  - integration-selector / llm-config-selector / kb-selector / workflow-selector / mcp-server-selector
  *  - chat-config-selector / embedding-config-selector — pick a registered chat /
  *    embedding ModelConfig (stores config.id; decoupled from the node's main
- *    llmConfigId — runtime resolves the picked config's provider/defaultModel)
+ *    llmConfigId — runtime resolves the picked config's provider/defaultModel).
+ *    Replaced the removed `chat-model-selector` / `embedding-model-selector`
+ *    (which stored a bare model-name string within the node's provider); any
+ *    node config persisting those old widget keys now falls through to the
+ *    UnsupportedWidget path and should be re-saved with a config-selector.
  *  - condition-builder   — array-of-ConditionGroup editor (operators per spec §1.1)
  *  - field-array         — generic ordered array-of-object editor
  */

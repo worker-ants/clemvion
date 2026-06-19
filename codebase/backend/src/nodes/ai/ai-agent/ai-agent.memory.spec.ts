@@ -721,6 +721,47 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(systemMsg?.content).toContain('Loyalty member since 2020');
     });
 
+    it('multi-turn: embeddingModelConfigId 가 _resumeState 에 영속돼 turn2+ recall 에 전달 (C1 회귀)', async () => {
+      // 회귀: multiTurnStateBase 에 embeddingModelConfigId 가 누락되면 turn2+ recall 이
+      // 워크스페이스 기본 embedding config 로 silent 폴백해 저장·회수 차원이 어긋난다
+      // (spec §3 "회수·저장 동일 config" 불변식). summary/extraction 만 영속하고 embedding
+      // 을 빠뜨렸던 결함을 잡는다.
+      agentMemoryService.recall.mockResolvedValue([] as RecalledMemory[]);
+      const context = makeContext();
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-1',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          memoryStrategy: 'persistent',
+          memoryKey: 'cust-7',
+          memoryTokenBudget: 100000,
+          embeddingModelConfigId: 'emb-cfg-1',
+          summaryModelConfigId: 'summary-cfg',
+          extractionModelConfigId: 'extract-cfg',
+        },
+        context,
+      );
+      const state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+      // 세 전용 config id 모두 resume state 에 영속돼야 한다 (embedding 누락이 C1).
+      expect(state.embeddingModelConfigId).toBe('emb-cfg-1');
+      expect(state.summaryModelConfigId).toBe('summary-cfg');
+      expect(state.extractionModelConfigId).toBe('extract-cfg');
+
+      // turn2 recall 의 embed source(4번째 인자)가 영속된 config 를 그대로 전달.
+      await handler.processMultiTurnMessage('주문 상태 알려줘', state);
+      expect(agentMemoryService.recall).toHaveBeenCalledTimes(1);
+      expect(agentMemoryService.recall.mock.calls[0][3]).toMatchObject({
+        embeddingModelConfigId: 'emb-cfg-1',
+      });
+    });
+
     it('multi-turn: persistent + 낮은 budget 도 물리 압축 발생 (compactedMessages>0, 페어링 유지)', async () => {
       // summary_buffer 와 동일하게 persistent 전략 + 낮은 memoryTokenBudget 에서도
       // 누적 messages 물리 압축이 일어나야 한다 (전략 무관 d.6 경로 일관).
@@ -1433,6 +1474,12 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       };
       expect(summaryCall.model).toBe('cheap-mini');
       expect(mainCall.model).toBe('gpt-4o');
+      // 원인 단언: 요약 콜 모델은 summaryModelConfigId 가 가리키는 config 를
+      // resolve 한 결과여야 한다 (mock 반환값뿐 아니라 호출 인자도 검증).
+      expect(mockLlmService.resolveConfig).toHaveBeenCalledWith(
+        'summary-cfg',
+        'ws-1',
+      );
     });
 
     it('summaryModel 미설정 시 요약 LLM 콜은 노드 model 로 폴백 (기존 동작 유지)', async () => {
