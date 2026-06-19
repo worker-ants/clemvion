@@ -18,6 +18,10 @@ import { RetryTurnService } from '../retry-turn.service';
  * BullMQ `execution-continuation` 큐의 consumer. 옛 Redis pub/sub
  * subscriber (ExecutionEngineService.registerContinuationHandlers) 를 대체.
  *
+ * C-1 후속 ④ — `retry_last_turn` 분기는 engine→Retry 순환 DI 제거에 따라
+ * 엔진 delegator 가 아니라 `RetryTurnService.applyRetryLastTurn` 을 직접 호출한다.
+ * 나머지 분기(continue/cancel/button/ai)는 계속 `ExecutionEngineService` 경유.
+ *
  * Worker 동시성은 `CONTINUATION_WORKER_CONCURRENCY` (기본 1, spec §7.4 / §11) 로
  * 설정. 기본 직렬이며, 대량 동시 resume 의 setup latency 가 관측되면 상향한다.
  *

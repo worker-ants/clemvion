@@ -219,7 +219,10 @@ describe('ContinuationExecutionProcessor', () => {
         }),
       );
       expect(engine.isNodeExecutionWaiting).not.toHaveBeenCalled();
-      expect(retry.applyRetryLastTurn).toHaveBeenCalled();
+      expect(retry.applyRetryLastTurn).toHaveBeenCalledWith(
+        'exec-1',
+        'ne-spawned',
+      );
     });
   });
 

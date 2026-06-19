@@ -175,7 +175,7 @@ export interface RetryEngineDriver
 
 /**
  * 엔진(`ExecutionEngineService`)이 구현하는 전체 표면 — 소비자별 부분
- * 인터페이스의 합집합(12 멤버). 엔진만 `implements EngineDriver` 하며, 각 소비
+ * 인터페이스의 합집합. 엔진만 `implements EngineDriver` 하며, 각 소비
  * 서비스는 자신의 부분 인터페이스로만 주입받는다.
  */
 export interface EngineDriver extends AiTurnEngineDriver, RetryEngineDriver {}

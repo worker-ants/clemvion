@@ -10,7 +10,7 @@ import type { NodeHandlerOutput } from '../../nodes/core/node-handler.interface'
 import { ExecutionContextService } from './context/execution-context.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import type { ExecutionEventEmitter } from './events/execution-event-emitter.service';
-import type { EngineDriver } from './engine-driver.interface';
+import type { InteractionEngineDriver } from './engine-driver.interface';
 import {
   Execution,
   ExecutionStatus,
@@ -46,7 +46,7 @@ describe('ButtonInteractionService', () => {
     Pick<ExecutionEventEmitter, 'emitExecution' | 'emitNode'>
   >;
   let mockNodeExecutionRepository: Record<string, jest.Mock>;
-  let mockDriver: jest.Mocked<EngineDriver>;
+  let mockDriver: jest.Mocked<InteractionEngineDriver>;
 
   beforeEach(() => {
     contextService = new ExecutionContextService();
@@ -68,7 +68,7 @@ describe('ButtonInteractionService', () => {
       // in-memory context Map 키 — 엔진과 동일하게 비-background 는 executionId.
       contextKeyOf: jest.fn((ctx: ExecutionContext) => ctx.executionId),
       applyPortSelection: jest.fn((o: unknown) => o),
-    } as unknown as jest.Mocked<EngineDriver>;
+    } as unknown as jest.Mocked<InteractionEngineDriver>;
 
     service = new ButtonInteractionService(
       contextService,
