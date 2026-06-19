@@ -61,6 +61,7 @@ KB 의 `embeddingModelConfigId` 패턴 미러(검증된 선례 — 서버가 con
 
 ## 워크플로
 - [x] 코드+spec 구현, unit(backend 267 / frontend 6+146) 통과.
-- [ ] TEST WORKFLOW (lint·build·e2e).
+- [x] TEST WORKFLOW: lint PASS / unit PASS(backend 7134·frontend 214 files·sdk 40·web-chat 16) /
+      build PASS(docker 포함) / e2e PASS(205 tests).
 - [ ] /ai-review + impl-done.
 </content>
