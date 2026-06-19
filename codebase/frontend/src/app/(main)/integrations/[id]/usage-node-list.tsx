@@ -13,10 +13,10 @@ import type { TFunction } from "@/lib/i18n";
  * 목록 + `usageKind==='mcp'` 배지를 그리므로 한 컴포넌트로 추출해 중복을
  * 막는다. SoT: spec/2-navigation/4-integration.md §7.1 / §7.2.
  *
- * - `withLinks`: 워크플로우 이름을 `/workflows/<id>` 링크로 (Usage 탭처럼)
- *   렌더할지, 차단 다이얼로그처럼 "워크플로우 열기" 보조 링크를 별도 행으로
- *   둘지 분기한다. 차단 다이얼로그는 §7.2 mockup 의 `[Open Workflow A →]`
- *   액션을 워크플로우별로 노출한다.
+ * - `variant`: 워크플로우 이름을 `/workflows/<id>` 링크로 (Usage 탭처럼)
+ *   렌더할지(`tab`), 차단 다이얼로그처럼 이름은 텍스트로 두고 "워크플로우
+ *   열기" 보조 링크를 별도 행으로 둘지(`dialog`) 분기한다. 차단 다이얼로그는
+ *   §7.2 mockup 의 `[Open Workflow A →]` 액션을 워크플로우별로 노출한다.
  */
 export function UsageNodeList({
   usages,
