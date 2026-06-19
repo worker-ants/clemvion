@@ -100,6 +100,13 @@ describe("WorkflowSelectorWidget", () => {
     expect(optionTexts.join(" ")).not.toContain("Self");
   });
 
+  it("renders the schema field label (regression: 'Target Workflow' must show)", () => {
+    // FieldGroup 래핑으로 schema label 을 렌더해야 한다. ExpressionInput 의 내부
+    // "Workflow ID" 라벨과 별개로, 필드 자체의 용도 라벨이 표시돼야 한다.
+    renderWidget();
+    expect(screen.getByText("Target Workflow")).toBeTruthy();
+  });
+
   it("marks inactive workflows with the inactive suffix", () => {
     renderWidget();
     expect(screen.getByRole("option", { name: /Beta/ }).textContent).toContain(

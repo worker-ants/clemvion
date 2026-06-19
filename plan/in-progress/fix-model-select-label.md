@@ -27,7 +27,13 @@ PR #642 에서 메모리 모델 필드(embeddingModel/summaryModel/extractionMod
       (테스트 hint 픽스처) fix: 실제 schema hint + ko 케이스. RESOLUTION 동봉.
 - [x] /consistency-check --impl-done BLOCK:NO — review/consistency/2026/06/19/22_49_22/ (순수 UI 렌더, drift 0).
 
-## 후속 (별도)
-- WorkflowSelectorWidget(Sub-Workflow 노드)도 FieldGroup 미사용 → schema 필드 라벨 누락 가능성.
-  #642 이전 별개 위젯이라 본 fix 범위 밖 — 사용자 보고 + 별도 확인 후보.
+## 후속 감사 + 수정 (사용자 요청 — 같은 PR #643)
+FieldGroup 미사용 custom 위젯 전수 감사 결과 동일 라벨/hint 누락 추가 발견 → 같은 브랜치에서 수정:
+- [x] **McpServerSelectorWidget**: 라벨("MCP Servers")+hint 둘 다 누락(내부 라벨 없음) → FieldGroup 래핑.
+- [x] **WorkflowSelectorWidget**: schema 라벨("Target Workflow") 누락(ExpressionInput "Workflow ID"는
+      별개 내부 라벨) → FieldGroup 래핑.
+- [x] **KbSelectorWidget**: 자체 라벨 있음(OK) but schema hint 누락 → 셀렉터 아래 캡션으로 hint 렌더
+      (이중 라벨 회피 위해 FieldGroup 미사용).
+- [x] LlmConfigSelectorWidget: 자체 라벨 OK + schema hint 미정의 → 무변경(주석만 보강).
+- [x] 회귀 테스트: workflow 라벨 단언 + 신규 selector-widgets.test.tsx(mcp 라벨+hint / kb hint).
 </content>
