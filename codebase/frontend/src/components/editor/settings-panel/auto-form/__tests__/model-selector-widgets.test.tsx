@@ -307,3 +307,67 @@ describe("EmbeddingModelSelectorWidget", () => {
     expect(onChange).toHaveBeenCalledWith("text-embedding-3-large");
   });
 });
+
+// Regression: the model selector widgets must render the schema field label +
+// hint (via FieldGroup) — earlier they rendered only the combobox, dropping the
+// "Embedding/Summary/Extraction Model" label and its role description so users
+// could no longer tell what each model field was for.
+describe("model selector widgets — field label + hint (regression)", () => {
+  beforeEach(() => {
+    useLocaleStore.getState().setLocale("en");
+    chatConfigs = CONFIGS;
+  });
+  afterEach(() => {
+    cleanup();
+    useLocaleStore.getState().setLocale("ko");
+  });
+
+  function renderWithLabelHint(
+    Widget:
+      | typeof ChatModelSelectorWidget
+      | typeof EmbeddingModelSelectorWidget,
+    label: string,
+    hint: string,
+  ) {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData([...CHAT_KEY], chatConfigs);
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <Widget
+          schema={SCHEMA}
+          ui={{ hint }}
+          label={label}
+          value=""
+          onChange={() => {}}
+          config={{ llmConfigId: "cfg-a" }}
+        />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("ChatModelSelectorWidget renders its field label and hint", () => {
+    renderWithLabelHint(
+      ChatModelSelectorWidget,
+      "Summary Model",
+      "Optional low-cost model for the rolling-summary call.",
+    );
+    expect(screen.getByText("Summary Model")).toBeTruthy();
+    expect(
+      screen.getByText("Optional low-cost model for the rolling-summary call."),
+    ).toBeTruthy();
+  });
+
+  it("EmbeddingModelSelectorWidget renders its field label and hint", () => {
+    renderWithLabelHint(
+      EmbeddingModelSelectorWidget,
+      "Embedding Model",
+      "Embedding model used for memory recall/extraction.",
+    );
+    expect(screen.getByText("Embedding Model")).toBeTruthy();
+    expect(
+      screen.getByText("Embedding model used for memory recall/extraction."),
+    ).toBeTruthy();
+  });
+});
