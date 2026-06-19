@@ -31,16 +31,24 @@ const config: Config = {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
-  // Exit as soon as the run finishes even if a handle is still open. Nest
-  // TestingModule/app, TypeORM pools, Redis/BullMQ clients or stray timers
-  // occasionally outlive teardown and trigger "Jest did not exit one second
-  // after the test run has completed", hanging the process indefinitely even
-  // though every test passed. forceExit turns that hang into a clean ~1s exit.
-  // It masks (does not fix) the leak — run `npm test -- --detectOpenHandles`
-  // to locate the source and close it in afterAll. The run-test.sh watchdog is
-  // the outer backstop if a test ever hangs *during* execution rather than at
-  // teardown.
-  forceExit: true,
+  // No forceExit: the unit suite exits on its own. The single open handle that
+  // forceExit previously masked was a process-lifetime `CustomGC` libuv handle
+  // from the native `@napi-rs/canvas` addon, which `pdf-parse` (via pdfjs-dist)
+  // loaded at *import* time — pulled in transitively by knowledge-base parser
+  // specs that never actually parse a PDF. `pdf.parser.ts` now `require`s
+  // pdf-parse lazily on first parse, so the addon never loads during unit tests
+  // and `npm test -- --detectOpenHandles` reports zero handles. If a future
+  // change reintroduces a leak, that flag is the diagnostic; close the resource
+  // in afterAll rather than re-adding forceExit. The run-test.sh watchdog
+  // remains the backstop for a hang *during* execution.
+  //
+  // test/jest-e2e.json drops forceExit for the same reason (JSON can't carry
+  // this note): e2e specs are black-box HTTP against a container — they own no
+  // Nest app and no native addon, only a `pg` Client per spec, which every spec
+  // that opens one now closes via `await db.end()` in afterAll (specs that issue
+  // no DB query, e.g. health.e2e-spec, open no handle at all). detectOpenHandles
+  // across all e2e suites reports zero handles, so don't re-add forceExit there
+  // on a hang — find the spec that forgot db.end() instead.
 };
 
 export default config;

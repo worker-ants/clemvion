@@ -11,11 +11,33 @@ type PdfParseOptions = {
   pagerender?: (pageData: PdfPageData) => Promise<string>;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse') as (
+type PdfParseFn = (
   buffer: Buffer,
   options?: PdfParseOptions,
 ) => Promise<{ text: string; numpages: number }>;
+
+let cachedPdfParse: PdfParseFn | undefined;
+
+/**
+ * Lazily `require('pdf-parse')` on first parse instead of at module import.
+ *
+ * pdf-parse pulls in pdfjs-dist, which `dlopen`s the native `@napi-rs/canvas`
+ * addon. That addon registers a process-lifetime `CustomGC` libuv handle the
+ * instant it loads, which keeps Jest's event loop alive past teardown (the
+ * leak `forceExit` was masking) and has even SIGSEGV'd on import in some test
+ * environments — which is why several parser specs `jest.mock('pdf-parse')`.
+ * Deferring the require keeps the addon out of every test (and every process)
+ * that imports the parser graph but never actually parses a PDF, so the suite
+ * exits cleanly without `forceExit`. The result is memoised; production behaviour
+ * is unchanged beyond moving the one-time load from boot to first PDF parse.
+ */
+function getPdfParse(): PdfParseFn {
+  if (!cachedPdfParse) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    cachedPdfParse = require('pdf-parse') as PdfParseFn;
+  }
+  return cachedPdfParse;
+}
 
 /**
  * Render a single PDF page's text content, inserting a newline whenever the
@@ -37,7 +59,7 @@ function renderPageText(items: PdfTextItem[]): string {
 }
 
 export async function parsePdf(buffer: Buffer): Promise<string> {
-  const result = await pdfParse(buffer);
+  const result = await getPdfParse()(buffer);
   return result.text;
 }
 
@@ -51,7 +73,7 @@ export async function parsePdfSegments(
   buffer: Buffer,
 ): Promise<ParsedSegment[]> {
   const pages: string[] = [];
-  await pdfParse(buffer, {
+  await getPdfParse()(buffer, {
     pagerender: async (pageData: PdfPageData) => {
       const content = await pageData.getTextContent();
       const text = renderPageText(content.items);
