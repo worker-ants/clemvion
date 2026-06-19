@@ -8,7 +8,9 @@ import {
 } from "@/lib/api/model-configs";
 import { ModelCombobox } from "@/components/llm-config/model-combobox";
 import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
-import { useT } from "@/lib/i18n";
+import { useT, useLocale } from "@/lib/i18n";
+import { translateBackendHint } from "@/lib/i18n/backend-labels";
+import { FieldGroup } from "../node-configs/shared";
 import type { WidgetProps } from "./widgets";
 
 /**
@@ -67,45 +69,55 @@ function useResolvedChatConfig(llmConfigId: string | undefined): {
  * 저장된 config 의 `:id/models` 엔드포인트로 모델을 조회한다.
  */
 export function ChatModelSelectorWidget({
+  ui,
+  label,
   value,
   onChange,
   config,
+  required,
 }: WidgetProps) {
   const t = useT();
+  const locale = useLocale();
   const { config: modelConfig, isStale } = useResolvedChatConfig(
     siblingLlmConfigId(config),
   );
   return (
-    <div className="flex flex-col gap-1">
-      <ModelCombobox
-        value={typeof value === "string" ? value : ""}
-        onChange={(v) => onChange(v)}
-        provider={modelConfig?.provider ?? ""}
-        // 의도적 "" — apiKey 빈 값 + configId 설정이면 loader 가 저장된 config 의
-        // `:id/models` 엔드포인트로 모델을 조회한다 (preview 가 아닌 edit-mode 경로,
-        // ModelCombobox JSDoc 참고). 노드는 자유 입력 키를 가지지 않는다.
-        apiKey=""
-        baseUrl={modelConfig?.baseUrl ?? undefined}
-        configId={modelConfig?.id}
-        modelType="chat"
-      />
-      {isStale && (
-        <p
-          className="text-xs text-[hsl(var(--destructive))]"
-          data-testid="chat-model-stale-warning"
-        >
-          {t("nodeConfigs.modelSelector.staleConfigWarning")}
-        </p>
-      )}
-      {looksLikeExpression(value) && (
-        <p
-          className="text-xs text-[hsl(var(--destructive))]"
-          data-testid="chat-model-expression-warning"
-        >
-          {t("nodeConfigs.modelSelector.expressionValueWarning")}
-        </p>
-      )}
-    </div>
+    <FieldGroup
+      label={label}
+      hint={translateBackendHint(ui?.hint, locale)}
+      required={required}
+    >
+      <div className="flex flex-col gap-1">
+        <ModelCombobox
+          value={typeof value === "string" ? value : ""}
+          onChange={(v) => onChange(v)}
+          provider={modelConfig?.provider ?? ""}
+          // 의도적 "" — apiKey 빈 값 + configId 설정이면 loader 가 저장된 config 의
+          // `:id/models` 엔드포인트로 모델을 조회한다 (preview 가 아닌 edit-mode 경로,
+          // ModelCombobox JSDoc 참고). 노드는 자유 입력 키를 가지지 않는다.
+          apiKey=""
+          baseUrl={modelConfig?.baseUrl ?? undefined}
+          configId={modelConfig?.id}
+          modelType="chat"
+        />
+        {isStale && (
+          <p
+            className="text-xs text-[hsl(var(--destructive))]"
+            data-testid="chat-model-stale-warning"
+          >
+            {t("nodeConfigs.modelSelector.staleConfigWarning")}
+          </p>
+        )}
+        {looksLikeExpression(value) && (
+          <p
+            className="text-xs text-[hsl(var(--destructive))]"
+            data-testid="chat-model-expression-warning"
+          >
+            {t("nodeConfigs.modelSelector.expressionValueWarning")}
+          </p>
+        )}
+      </div>
+    </FieldGroup>
   );
 }
 
@@ -117,26 +129,36 @@ export function ChatModelSelectorWidget({
  * 차단"을 정확히 충족한다. 저장 값은 모델명 문자열(종전 `text` 위젯과 하위호환).
  */
 export function EmbeddingModelSelectorWidget({
+  ui,
+  label,
   value,
   onChange,
   config,
+  required,
 }: WidgetProps) {
   const t = useT();
+  const locale = useLocale();
   return (
-    <div className="flex flex-col gap-1">
-      <EmbeddingModelCombobox
-        value={typeof value === "string" ? value : ""}
-        onChange={(v) => onChange(v)}
-        modelConfigId={siblingLlmConfigId(config)}
-      />
-      {looksLikeExpression(value) && (
-        <p
-          className="text-xs text-[hsl(var(--destructive))]"
-          data-testid="embedding-model-expression-warning"
-        >
-          {t("nodeConfigs.modelSelector.expressionValueWarning")}
-        </p>
-      )}
-    </div>
+    <FieldGroup
+      label={label}
+      hint={translateBackendHint(ui?.hint, locale)}
+      required={required}
+    >
+      <div className="flex flex-col gap-1">
+        <EmbeddingModelCombobox
+          value={typeof value === "string" ? value : ""}
+          onChange={(v) => onChange(v)}
+          modelConfigId={siblingLlmConfigId(config)}
+        />
+        {looksLikeExpression(value) && (
+          <p
+            className="text-xs text-[hsl(var(--destructive))]"
+            data-testid="embedding-model-expression-warning"
+          >
+            {t("nodeConfigs.modelSelector.expressionValueWarning")}
+          </p>
+        )}
+      </div>
+    </FieldGroup>
   );
 }
