@@ -25,7 +25,10 @@ import {
   type ProcessTurnResult,
 } from '../../shared/execution-resume/process-turn-result';
 import { withInteractionMeta } from './ai-conversation-helpers';
-import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
+import {
+  ENGINE_DRIVER,
+  type InteractionEngineDriver,
+} from './engine-driver.interface';
 
 /**
  * C-1 step3 (strangler-fig) — Form blocking-interaction 생명주기를 god-class
@@ -33,7 +36,8 @@ import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
  *
  * **책임**: Form 노드 park(`waitForFormSubmission`) + §7.5 rehydration 의 폼 제출
  * 직접 처리(`processFormResumeTurn`). 엔진 잔류 상태/라이프사이클 메서드는
- * `EngineDriver`(token `ENGINE_DRIVER`, `useExisting: ExecutionEngineService`)
+ * `InteractionEngineDriver`(소비자별 ISP slice; token `ENGINE_DRIVER`,
+ * `useExisting: ExecutionEngineService`)
  * 경유로 호출한다 (PR2 `AiTurnOrchestrator` 선례와 동일 패턴). 메서드 본문은
  * 추출 전과 **완전히 동일**하게 보존됐고, `this.<engine-stays>` 호출만
  * `this.driver.<…>` 로 재배선됐다.
@@ -55,7 +59,7 @@ export class FormInteractionService {
     @InjectRepository(NodeExecution)
     private readonly nodeExecutionRepository: Repository<NodeExecution>,
     @Inject(ENGINE_DRIVER)
-    private readonly driver: EngineDriver,
+    private readonly driver: InteractionEngineDriver,
   ) {}
 
   /**

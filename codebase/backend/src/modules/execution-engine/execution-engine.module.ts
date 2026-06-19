@@ -88,8 +88,9 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     // 순환 DI (둘 다 ENGINE_DRIVER=엔진 을 주입받고, 엔진은 위임을 위해 주입받음).
     FormInteractionService,
     ButtonInteractionService,
-    // C-1 step4 — retry_last_turn 생명주기 추출 서비스. 엔진과 forwardRef 순환 DI
-    // (ENGINE_DRIVER=엔진 주입, 엔진은 retryLastTurn/applyRetryLastTurn 위임 위해 주입).
+    // C-1 step4 — retry_last_turn 생명주기 추출 서비스. ENGINE_DRIVER(=엔진)을
+    // 주입받는다. 후속 ④ 에서 engine→Retry 역방향 주입을 제거해 단방향
+    // (Retry→engine)으로 정리 — 외부 진입점은 본 서비스를 직접 호출(아래 exports).
     RetryTurnService,
     {
       // orchestrator + interaction + retry 서비스가 주입받는 EngineDriver
@@ -150,6 +151,10 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
   ],
   exports: [
     ExecutionEngineService,
+    // C-1 후속 ④ — retryLastTurn/applyRetryLastTurn 외부 진입점(websocket.gateway·
+    // continuation processor)이 엔진 thin delegator 대신 RetryTurnService 를 직접
+    // 호출하도록 export (engine→Retry 순환 DI 제거 — strangler-fig 최종 정리).
+    RetryTurnService,
     NodeHandlerRegistry,
     NodeComponentRegistry,
     ExpressionResolverService,

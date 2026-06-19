@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { RetryTurnService } from '../execution-engine/retry-turn.service';
 import {
   InvalidExecutionStateError,
   MessageTooLongError,
@@ -69,10 +70,6 @@ describe('WebsocketGateway', () => {
               .fn()
               .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
             cancelWaitingExecution: jest.fn(),
-            // execution.retry_last_turn — validate+consume+spawn → publish handoff.
-            retryLastTurn: jest
-              .fn()
-              .mockResolvedValue({ spawnedNodeExecutionId: 'ne-spawned' }),
             publishRetryLastTurn: jest
               .fn()
               .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
@@ -80,6 +77,16 @@ describe('WebsocketGateway', () => {
             markSpawnedRowFailedOnPublishError: jest
               .fn()
               .mockResolvedValue(undefined),
+          },
+        },
+        {
+          // C-1 후속 ④ — retryLastTurn(validate+consume+spawn)은 엔진 delegator
+          // 제거 후 RetryTurnService 가 직접 표면. gateway 가 본 서비스를 호출한다.
+          provide: RetryTurnService,
+          useValue: {
+            retryLastTurn: jest
+              .fn()
+              .mockResolvedValue({ spawnedNodeExecutionId: 'ne-spawned' }),
           },
         },
         {
@@ -833,11 +840,12 @@ describe('WebsocketGateway', () => {
 
     it('validate+consume+spawn then publish handoff with spawned id', async () => {
       const mockEngine = module.get(ExecutionEngineService);
+      const mockRetry = module.get(RetryTurnService);
       await gateway.handleRetryLastTurn(
         { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
         authedSocket(),
       );
-      expect(mockEngine.retryLastTurn).toHaveBeenCalledWith(
+      expect(mockRetry.retryLastTurn).toHaveBeenCalledWith(
         'exec-1',
         'ne-failed',
       );
@@ -875,8 +883,8 @@ describe('WebsocketGateway', () => {
     });
 
     it('RetryLastTurnError → nested error ack with its code (RETRY_STATE_NOT_FOUND)', async () => {
-      const mockEngine = module.get(ExecutionEngineService);
-      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+      const mockRetry = module.get(RetryTurnService);
+      (mockRetry.retryLastTurn as jest.Mock).mockRejectedValueOnce(
         RetryLastTurnError.notFound('gone'),
       );
       const result = await gateway.handleRetryLastTurn(
@@ -893,8 +901,8 @@ describe('WebsocketGateway', () => {
     });
 
     it('NODE_NOT_RETRYABLE surfaces in nested error ack', async () => {
-      const mockEngine = module.get(ExecutionEngineService);
-      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+      const mockRetry = module.get(RetryTurnService);
+      (mockRetry.retryLastTurn as jest.Mock).mockRejectedValueOnce(
         RetryLastTurnError.notRetryable('nope'),
       );
       const result = await gateway.handleRetryLastTurn(
@@ -905,8 +913,8 @@ describe('WebsocketGateway', () => {
     });
 
     it('RETRY_TOO_EARLY surfaces in nested error ack', async () => {
-      const mockEngine = module.get(ExecutionEngineService);
-      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+      const mockRetry = module.get(RetryTurnService);
+      (mockRetry.retryLastTurn as jest.Mock).mockRejectedValueOnce(
         RetryLastTurnError.tooEarly('wait'),
       );
       const result = await gateway.handleRetryLastTurn(
@@ -917,8 +925,8 @@ describe('WebsocketGateway', () => {
     });
 
     it('InvalidExecutionStateError → nested INVALID_EXECUTION_STATE error ack', async () => {
-      const mockEngine = module.get(ExecutionEngineService);
-      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+      const mockRetry = module.get(RetryTurnService);
+      (mockRetry.retryLastTurn as jest.Mock).mockRejectedValueOnce(
         new InvalidExecutionStateError('not failed'),
       );
       const result = await gateway.handleRetryLastTurn(

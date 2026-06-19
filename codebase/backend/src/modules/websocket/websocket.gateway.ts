@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { RetryTurnService } from '../execution-engine/retry-turn.service';
 import {
   ExecutionError,
   InvalidExecutionStateError,
@@ -97,6 +98,11 @@ export class WebsocketGateway
     private readonly jwtService: JwtService,
     @Inject(forwardRef(() => ExecutionEngineService))
     private readonly executionEngineService: ExecutionEngineService,
+    // C-1 후속 ④ — retry-last-turn 진입은 엔진 thin delegator 가 아니라
+    // RetryTurnService 를 직접 호출한다(engine→Retry 순환 DI 제거). publish/마감 등
+    // 나머지 표면은 계속 ExecutionEngineService 경유.
+    @Inject(forwardRef(() => RetryTurnService))
+    private readonly retryTurnService: RetryTurnService,
     @Inject(forwardRef(() => ExecutionsService))
     private readonly executionsService: ExecutionsService,
     @Inject(forwardRef(() => BackgroundRunsService))
@@ -796,11 +802,10 @@ export class WebsocketGateway
     let spawnedNodeExecutionId: string | undefined;
     try {
       // 1. validate + atomic consume + spawn 새 row.
-      ({ spawnedNodeExecutionId } =
-        await this.executionEngineService.retryLastTurn(
-          data.executionId,
-          data.nodeExecutionId,
-        ));
+      ({ spawnedNodeExecutionId } = await this.retryTurnService.retryLastTurn(
+        data.executionId,
+        data.nodeExecutionId,
+      ));
       // 2. spawn 된 row 로 multi-turn loop 재진입을 worker 에 handoff.
       const publishResult =
         await this.executionEngineService.publishRetryLastTurn(

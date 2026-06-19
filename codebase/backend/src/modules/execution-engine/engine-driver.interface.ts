@@ -14,24 +14,26 @@ import type {
 } from './types/graph-dispatch.types';
 
 /**
- * C-1 step2 — `AiTurnOrchestrator` 가 추출되면서, 엔진(`ExecutionEngineService`)
- * 에 잔류하는 라이프사이클/상태 메서드를 orchestrator 로 노출하는 **엔진 내부
- * capability 계약**.
+ * C-1 step2~4 — god-class(`ExecutionEngineService`) 분해로 추출된 서비스들이
+ * 엔진 잔류 capability 를 주입받는 **엔진 내부 전용 계약**.
  *
  * `WorkflowExecutor`(노드 레이어용, 과적)를 재사용하지 않고 별도 최소 seam 으로
- * 둔다 — orchestrator 가 필요로 하는 정확한 표면만 노출해 god-class 분해 후에도
- * 엔진↔orchestrator 결합을 DI 경계로 한정한다 (PR1 `WORKFLOW_EXECUTOR` 선례).
+ * 둔다 — 각 소비자가 필요로 하는 정확한 표면만 노출해 god-class 분해 후에도
+ * 엔진↔서비스 결합을 DI 경계로 한정한다 (PR1 `WORKFLOW_EXECUTOR` 선례).
  *
  * 구현체는 canonical 엔진(`ExecutionEngineService`) 1개뿐이며, 모듈에서
  * `{ provide: ENGINE_DRIVER, useExisting: ExecutionEngineService }` 로 바인딩한다.
  * 메서드 시그니처는 **엔진을 단일 진실(source of truth)** 로 그대로 미러링한다 —
  * 동작은 추출 전과 완전히 동일하게 보존된다.
  *
- * 모든 멤버는 `ENGINE_DRIVER` 토큰을 통해서만 호출되는 엔진 내부 전용 표면이다.
- * (C-1 step4 멤버 5개는 impl 측과 대칭으로 `@internal` 을 명시 — 그 외 멤버도
- * 동일 계약상 내부 전용이다.)
+ * **C-1 후속 ④ (ISP)**: 단일 12-멤버 `EngineDriver` 를 소비자별 부분 인터페이스로
+ * 분해했다. 각 추출 서비스는 자신이 실제 호출하는 표면만(`AiTurnEngineDriver` /
+ * `InteractionEngineDriver` / `RetryEngineDriver`) 주입받는다. 런타임 바인딩
+ * (`ENGINE_DRIVER` useExisting)·동작은 불변 — 컴파일 타임 가시성만 좁힌다.
+ * 모든 멤버는 `ENGINE_DRIVER` 토큰을 통해서만 호출되는 엔진 내부 전용 표면이며,
+ * step4 멤버 5개는 impl 측과 대칭으로 `@internal` 을 명시한다.
  */
-export interface EngineDriver {
+export interface CoreEngineDriver {
   /**
    * Execution 상태 전이의 단일 choke point. guarded 전이 + §8 segmentStartMs
    * active-time 추적. `false` 는 else 분기(linkedNodeExec 없음)에서 동시
@@ -45,6 +47,15 @@ export interface EngineDriver {
     opts?: { allowRetryReentry?: boolean },
   ): Promise<boolean>;
 
+  /** in-memory context Map 키 (원칙 4) — background 본문은 bgKey, 그 외 executionId. */
+  contextKeyOf(context: ExecutionContext): string;
+}
+
+/**
+ * Form/Button blocking-interaction 서비스(`FormInteractionService` /
+ * `ButtonInteractionService`)가 소비하는 표면 — core + durable resume 스테이징.
+ */
+export interface InteractionEngineDriver extends CoreEngineDriver {
   /**
    * §7.5 durable resume snapshot(V084/V085/V087) 를 Execution 행에 스테이징한다
    * (conversation_thread / user_variables / resume_call_stack). 이후 상태 전이
@@ -54,7 +65,13 @@ export interface EngineDriver {
     execution: Execution,
     context: ExecutionContext,
   ): void;
+}
 
+/**
+ * AI resume(§7.5) ↔ retry-last-turn 재진입이 공유하는 `_resumeState` 재구성기.
+ * `AiTurnEngineDriver` 와 `RetryEngineDriver` 가 함께 소비한다.
+ */
+export interface ReentryStateDriver {
   /**
    * AI resume(§7.5) ↔ retry-last-turn 재진입이 공유하는 `_resumeState`
    * 재구성기. `_resumeCheckpoint`/`_retryState` 로 turn-state 를 복원하고,
@@ -70,7 +87,14 @@ export interface EngineDriver {
     resumeState: Record<string, unknown>;
     initialAction: ContinuationPayload | undefined;
   };
+}
 
+/**
+ * `AiTurnOrchestrator` 가 소비하는 표면 — interaction(core + durable resume) +
+ * reentry-state + checkpoint/port-selection 헬퍼.
+ */
+export interface AiTurnEngineDriver
+  extends InteractionEngineDriver, ReentryStateDriver {
   /**
    * §1.3 allow-list 서브셋(credential-free)으로 DB 영속용 `_resumeCheckpoint`
    * 부분집합을 만든다.
@@ -82,18 +106,17 @@ export interface EngineDriver {
   /** `_resumeCheckpoint` 저장·재개 허용 노드 타입 가드(§1.3 allow-list). */
   isCheckpointEligibleNodeType(t: string): boolean;
 
-  /** in-memory context Map 키 (원칙 4) — background 본문은 bgKey, 그 외 executionId. */
-  contextKeyOf(context: ExecutionContext): string;
-
   /** legacy `{port, data}` envelope → `_selectedPort` 라우팅 flat shape 으로 변환. */
   applyPortSelection(output: unknown): unknown;
+}
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // C-1 step4 — `RetryTurnService` 가 필요로 하는 엔진 잔류 capability.
-  // `applyRetryLastTurn` / `resumeGraphAfterRetry` 가 호출하는 graph rebuild +
-  // dispatch loop + context rehydration + cache 정리 표면만 최소 노출한다.
-  // ──────────────────────────────────────────────────────────────────────────
-
+/**
+ * C-1 step4 — `RetryTurnService` 가 소비하는 표면 — core + reentry-state +
+ * graph rebuild / dispatch loop / context rehydration / cache 정리. step4 멤버
+ * 5개는 `@internal`(엔진 내부 전용, 모듈 외부 직접 참조 금지).
+ */
+export interface RetryEngineDriver
+  extends CoreEngineDriver, ReentryStateDriver {
   /**
    * waiting/spawned NodeExecution 으로부터 live ExecutionContext 를 확보한다 —
    * in-memory 면 그대로, 아니면 DB(`_resumeCheckpoint` / conversation_thread /
@@ -149,6 +172,13 @@ export interface EngineDriver {
    */
   clearLlmDefaultConfigCache(executionId: string): void;
 }
+
+/**
+ * 엔진(`ExecutionEngineService`)이 구현하는 전체 표면 — 소비자별 부분
+ * 인터페이스의 합집합. 엔진만 `implements EngineDriver` 하며, 각 소비
+ * 서비스는 자신의 부분 인터페이스로만 주입받는다.
+ */
+export interface EngineDriver extends AiTurnEngineDriver, RetryEngineDriver {}
 
 /**
  * DI 토큰 — {@link EngineDriver} capability 를 주입받기 위한 토큰.

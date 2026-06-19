@@ -29,7 +29,10 @@ import {
 import { withInteractionMeta } from './ai-conversation-helpers';
 import { ButtonConfig } from '../../nodes/presentation/_shared/button.types';
 import type { GraphEdge } from './graph/graph-builder';
-import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
+import {
+  ENGINE_DRIVER,
+  type InteractionEngineDriver,
+} from './engine-driver.interface';
 
 /**
  * 버튼 클릭 재개 payload 의 판별유니온 (continuation-bus 가 publish 하는 wire-shape).
@@ -305,8 +308,9 @@ export function buildResumedStructuredOutput(
  *
  * **책임**: 버튼 보유 Presentation 노드 park(`waitForButtonInteraction`) + §7.5
  * rehydration 의 버튼 클릭 직접 처리(`processButtonResumeTurn` — port 선택·
- * output 갱신·thread append). 엔진 잔류 상태/라이프사이클 메서드는 `EngineDriver`
- * (token `ENGINE_DRIVER`, `useExisting: ExecutionEngineService`) 경유로 호출한다
+ * output 갱신·thread append). 엔진 잔류 상태/라이프사이클 메서드는
+ * `InteractionEngineDriver`(소비자별 ISP slice; token `ENGINE_DRIVER`,
+ * `useExisting: ExecutionEngineService`) 경유로 호출한다
  * (PR2 `AiTurnOrchestrator` 선례와 동일 패턴). 메서드 본문은 추출 전과 **완전히
  * 동일**하게 보존됐고, `this.<engine-stays>` 호출만 `this.driver.<…>` 로
  * 재배선됐다.
@@ -325,7 +329,7 @@ export class ButtonInteractionService {
     @InjectRepository(NodeExecution)
     private readonly nodeExecutionRepository: Repository<NodeExecution>,
     @Inject(ENGINE_DRIVER)
-    private readonly driver: EngineDriver,
+    private readonly driver: InteractionEngineDriver,
   ) {}
 
   /**

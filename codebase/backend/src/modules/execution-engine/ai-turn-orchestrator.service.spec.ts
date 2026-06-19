@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
-import type { EngineDriver } from './engine-driver.interface';
+import type { AiTurnEngineDriver } from './engine-driver.interface';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 import {
@@ -33,7 +33,7 @@ import {
 const workflowId = 'wf-orch';
 const executionId = 'exec-orch';
 
-function makeMockDriver(): jest.Mocked<EngineDriver> {
+function makeMockDriver(): jest.Mocked<AiTurnEngineDriver> {
   return {
     updateExecutionStatus: jest.fn().mockResolvedValue(true),
     stageDurableResumeSnapshot: jest.fn(),
@@ -48,14 +48,14 @@ function makeMockDriver(): jest.Mocked<EngineDriver> {
         ctx._contextKey ?? ctx.executionId,
     ),
     applyPortSelection: jest.fn((o: unknown) => o),
-  } as unknown as jest.Mocked<EngineDriver>;
+  } as unknown as jest.Mocked<AiTurnEngineDriver>;
 }
 
 describe('AiTurnOrchestrator', () => {
   let orchestrator: AiTurnOrchestrator;
   let handlerRegistry: NodeHandlerRegistry;
   let contextService: ExecutionContextService;
-  let driver: jest.Mocked<EngineDriver>;
+  let driver: jest.Mocked<AiTurnEngineDriver>;
   let mockEventEmitter: { emitExecution: jest.Mock; emitNode: jest.Mock };
   let mockNodeExecutionRepo: { save: jest.Mock; findOne: jest.Mock };
 

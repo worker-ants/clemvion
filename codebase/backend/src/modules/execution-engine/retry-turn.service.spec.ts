@@ -3,7 +3,7 @@ import { ExecutionContextService } from './context/execution-context.service';
 import type { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import type { GraphTraversalService } from './graph/graph-traversal.service';
 import type { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
-import type { EngineDriver } from './engine-driver.interface';
+import type { RetryEngineDriver } from './engine-driver.interface';
 import { NodeExecutionStatus } from '../node-executions/entities/node-execution.entity';
 import { ExecutionStatus } from '../executions/entities/execution.entity';
 import { ExecutionEventType } from '../websocket/websocket.service';
@@ -41,7 +41,7 @@ describe('RetryTurnService', () => {
   let mockEventEmitter: ExecutionEventEmitter;
   let mockGraphTraversal: GraphTraversalService;
   let mockAiTurnOrchestrator: AiTurnOrchestrator;
-  let mockDriver: jest.Mocked<EngineDriver>;
+  let mockDriver: jest.Mocked<RetryEngineDriver>;
   let contextService: ExecutionContextService;
 
   beforeEach(() => {
@@ -82,7 +82,7 @@ describe('RetryTurnService', () => {
       runNodeDispatchLoop: jest.fn().mockResolvedValue({ parked: false }),
       findActivatedBackEdge: jest.fn().mockReturnValue(null),
       clearLlmDefaultConfigCache: jest.fn(),
-    } as unknown as jest.Mocked<EngineDriver>;
+    } as unknown as jest.Mocked<RetryEngineDriver>;
     contextService = new ExecutionContextService();
 
     service = new RetryTurnService(

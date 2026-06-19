@@ -25,7 +25,10 @@ import {
   RetryLastTurnError,
 } from './workflow-errors';
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
-import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
+import {
+  ENGINE_DRIVER,
+  type RetryEngineDriver,
+} from './engine-driver.interface';
 
 /**
  * C-1 step4 (strangler-fig, FINAL) — `execution.retry_last_turn` lifecycle 를
@@ -37,22 +40,22 @@ import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
  * 뒤 (`applyRetryLastTurn`) downstream graph 로 진행하거나 (`resumeGraphAfterRetry`)
  * Execution 을 마감한다 (`completeRetryExecution` / `failRetryExecution`).
  *
- * 엔진 잔류 상태/라이프사이클 메서드는 `EngineDriver`(token `ENGINE_DRIVER`,
- * `useExisting: ExecutionEngineService`) 경유로 호출한다 (PR2 `AiTurnOrchestrator`
- * / PR3 `Form`·`ButtonInteractionService` 선례와 동일 패턴). 메서드 본문은 추출
- * 전과 **완전히 동일**하게 보존됐고, `this.<engine-stays>` 호출만
- * `this.driver.<…>` 로 재배선됐다.
+ * 엔진 잔류 상태/라이프사이클 메서드는 `RetryEngineDriver`(소비자별 ISP slice;
+ * token `ENGINE_DRIVER`, `useExisting: ExecutionEngineService`) 경유로 호출한다
+ * (PR2 `AiTurnOrchestrator` / PR3 `Form`·`ButtonInteractionService` 선례와 동일
+ * 패턴). 메서드 본문은 추출 전과 **완전히 동일**하게 보존됐고,
+ * `this.<engine-stays>` 호출만 `this.driver.<…>` 로 재배선됐다.
  *
- * WS gateway / continuation processor 가 호출하는 진입점(`retryLastTurn` /
- * `applyRetryLastTurn`)은 엔진에 thin delegator 로 잔류해 본 서비스로 위임한다
- * (PR2 가 `continueAiConversation` 을, PR3 가 `continueButtonClick` 을 엔진에 남긴
- * 것과 동일하게 외부 표면을 보존). 단발 publisher `publishRetryLastTurn` 은
- * `continueAiConversation` / `continueButtonClick` 등 자매 publisher 와 함께
- * 엔진의 publisher cluster (engine-private `buildPublishResult` 공유) 에 그대로
- * 잔류한다 — 본 서비스로 이관하지 않는다. `_retryState` → `_resumeState`
- * 재구성기 `buildRetryReentryState` 는 §1.3 공유 계약이자 AI resume 과 공유되는
- * `EngineDriver` 멤버이므로 엔진에 잔류하고, 본 서비스는
- * `this.driver.buildRetryReentryState(...)` 로 호출한다.
+ * **C-1 후속 ④**: WS gateway / continuation processor 가 호출하는 진입점
+ * (`retryLastTurn` / `applyRetryLastTurn`)은 본 서비스의 **public 메서드를 직접
+ * 호출**한다 — 엔진의 thin delegator 를 제거하고 engine→Retry 역방향 주입을 없애
+ * 양방향 forwardRef 순환 DI 를 단방향(Retry→engine)으로 정리했다. 단발 publisher
+ * `publishRetryLastTurn` 은 `continueAiConversation` / `continueButtonClick` 등
+ * 자매 publisher 와 함께 엔진의 publisher cluster (engine-private
+ * `buildPublishResult` 공유) 에 그대로 잔류한다 — 본 서비스로 이관하지 않는다.
+ * `_retryState` → `_resumeState` 재구성기 `buildRetryReentryState` 는 §1.3 공유
+ * 계약이자 AI resume 과 공유되는 `ReentryStateDriver` 멤버이므로 엔진에 잔류하고,
+ * 본 서비스는 `this.driver.buildRetryReentryState(...)` 로 호출한다.
  */
 @Injectable()
 export class RetryTurnService {
@@ -76,7 +79,7 @@ export class RetryTurnService {
     private readonly aiTurnOrchestrator: AiTurnOrchestrator,
     // 엔진 잔류 라이프사이클 capability. canonical 엔진에 `useExisting` 바인딩.
     @Inject(ENGINE_DRIVER)
-    private readonly driver: EngineDriver,
+    private readonly driver: RetryEngineDriver,
   ) {}
 
   /**
