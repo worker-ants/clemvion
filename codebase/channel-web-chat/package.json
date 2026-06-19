@@ -12,7 +12,7 @@
   },
   "//pin": "exact pin 사유 (PROJECT.md §버전 핀 정책): dompurify·marked = sanitize 경로(공급망 무결성), react·react-dom = monorepo 전역 정렬(19.2.4).",
   "dependencies": {
-    "dompurify": "3.4.7",
+    "dompurify": "3.4.11",
     "marked": "18.0.4",
     "next": "^16.2.6",
     "react": "19.2.4",
