@@ -1,0 +1,8 @@
+# pnpm workspace 정의 — 모노레포 단일 lockfile(pnpm-lock.yaml)의 앵커.
+# 내부 패키지는 file:../packages/* 대신 workspace:* 프로토콜로 참조된다.
+# .claude/tools/mermaid-lint 은 하니스 전용 독립 도구라 workspace 에 포함하지 않는다(자체 npm lockfile 유지).
+packages:
+  - "codebase/backend"
+  - "codebase/frontend"
+  - "codebase/channel-web-chat"
+  - "codebase/packages/*"

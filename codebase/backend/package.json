@@ -50,10 +50,10 @@
     "@opentelemetry/sdk-node": "^0.219.0",
     "@opentelemetry/semantic-conventions": "^1.30.0",
     "@simplewebauthn/server": "^13.3.0",
-    "@workflow/chat-channel-validation": "file:../packages/chat-channel-validation",
-    "@workflow/expression-engine": "file:../packages/expression-engine",
-    "@workflow/graph-warning-rules": "file:../packages/graph-warning-rules",
-    "@workflow/node-summary": "file:../packages/node-summary",
+    "@workflow/chat-channel-validation": "workspace:*",
+    "@workflow/expression-engine": "workspace:*",
+    "@workflow/graph-warning-rules": "workspace:*",
+    "@workflow/node-summary": "workspace:*",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.76.6",
     "class-transformer": "^0.5.1",
@@ -121,23 +121,6 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
-  },
-  "//security-overrides": "npm audit 취약점 해소용 전이 의존성 상향 핀. ws/@grpc-js/multer/form-data/protobufjs = 부모가 좁게 핀해 forward 불가 → override 로 안전 버전 강제. nodemailer = direct dep 는 ^9.0.1 이지만 preview-email/mailparser 가 nodemailer@8(취약)을 중첩 설치 → 두 중첩 사본까지 9 로 강제(해당 preview 기능 미사용). 직접 deps 와 중복 선언처럼 보이나 의도된 중첩-사본 강제임.",
-  "overrides": {
-    "lodash": "^4.18.0",
-    "picomatch": "^4.0.4",
-    "liquidjs": "^10.27.0",
-    "ip-address": "^10.2.0",
-    "express-rate-limit": "^8.5.1",
-    "protobufjs": "^7.6.3",
-    "fast-uri": "^3.1.2",
-    "hono": "^4.12.21",
-    "uuid": "^13.0.2",
-    "ws": "^8.21.0",
-    "@grpc/grpc-js": "^1.14.4",
-    "multer": "^2.2.0",
-    "form-data": "^4.0.6",
-    "nodemailer": "^9.0.1"
   },
   "engines": {
     "node": ">=24"

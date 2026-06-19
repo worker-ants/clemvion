@@ -2,7 +2,7 @@
 #
 # 도입 배경: 2026-05 Callout MDX `type="info"` 미정의 값이 `next dev` 에서만
 # 발현되어 production prerender 단계에서 진작 잡혔어야 할 버그가 사용자 환경에서
-# runtime crash 로 드러난 사건. 본 워크플로는 PR 단계에서 `npm run build` 를
+# runtime crash 로 드러난 사건. 본 워크플로는 PR 단계에서 `pnpm build` 를
 # 실제로 돌려 `generateStaticParams` 가 만드는 모든 docs 라우트를 prerender 하고
 # vitest unit 테스트도 함께 실행해 회귀를 조기 차단한다.
 #
@@ -17,12 +17,15 @@ on:
     paths:
       - 'codebase/frontend/**'
       - 'codebase/packages/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/frontend-checks.yml'
   push:
     branches: [main]
     paths:
       - 'codebase/frontend/**'
       - 'codebase/packages/**'
+      - 'pnpm-lock.yaml'
 
 concurrency:
   group: frontend-checks-${{ github.ref }}
@@ -32,40 +35,29 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: codebase/frontend
     steps:
       - uses: actions/checkout@v5
+
+      # pnpm 버전은 root package.json 의 `packageManager` 필드를 따른다.
+      - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: codebase/frontend/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
-      # 로컬 symlink 패키지 (packages/expression-engine, packages/node-summary) 가
-      # frontend dependency 로 끌어가지지만 사전 빌드가 필요하다. Dockerfile §deps 와 동일 순서.
-      - name: Build local package — expression-engine
-        working-directory: codebase/packages/expression-engine
-        run: |
-          npm ci
-          npm run build
-
-      - name: Build local package — node-summary
-        working-directory: codebase/packages/node-summary
-        run: |
-          npm ci
-          npm run build
-
-      - name: Install frontend deps
-        run: npm ci
+      # 단일 workspace 설치 — frontend + 그 workspace 의존(`...`). 내부 패키지
+      # dist 는 각 패키지 `prepare`(tsc)가 install 중 자동 빌드한다 (이전의
+      # 패키지별 `npm ci && npm run build` 단계를 대체).
+      - name: Install frontend workspace
+        run: pnpm install --frozen-lockfile --filter "frontend..."
 
       - name: Vitest (unit)
-        run: npm test
+        run: pnpm --filter frontend test
 
       # `next build` 가 모든 docs 라우트(`/docs/<locale>/<...>`) 를
       # `generateStaticParams` 로 prerender 한다. MDX 안의 invalid 컴포넌트 prop
       # (e.g. `<Callout type="info">`) 은 여기서 server-side render 실패로 잡힌다.
       - name: Next build (prerender 검증)
-        run: npm run build
+        run: pnpm --filter frontend build

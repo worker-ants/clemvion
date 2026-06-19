@@ -11,10 +11,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Docker/k8s 배포용 — .next/standalone 에 server.js + 필요한 파일만 자동 복사.
   output: "standalone",
-  // 모노레포(file:../packages/*) 트레이싱 루트는 codebase/ — 본 파일은
-  // codebase/frontend/ 에 있고 packages 는 codebase/packages/ 에 위치하므로
-  // 둘의 공통 부모인 codebase/ 한 단계 위면 충분하다.
-  outputFileTracingRoot: path.join(import.meta.dirname, ".."),
+  // 트레이싱 루트는 pnpm workspace 루트(레포 루트). pnpm(node-linker=hoisted)은
+  // 의존성을 workspace 루트의 node_modules 로 hoist 하므로, 루트가 codebase/ 이면
+  // standalone file-tracer 가 hoist 된 node_modules 를 누락한다. 본 파일은
+  // codebase/frontend/ → 두 단계 위가 workspace 루트.
+  outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
   // Local symlinked package — transpile required for bundler resolution.
   // Build uses --webpack flag because Turbopack cannot follow symlinked local packages.
   transpilePackages: ["@workflow/expression-engine"],

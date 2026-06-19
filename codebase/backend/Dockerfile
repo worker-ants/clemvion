@@ -1,58 +1,53 @@
-# Build context must be the repo root so that codebase/packages/* are reachable.
+# Build context must be the repo root so the pnpm workspace (root manifest +
+# pnpm-lock.yaml + codebase/*) is reachable.
 #   docker build -f codebase/backend/Dockerfile -t clemvion/backend .
 
-# ---------- deps: install all deps (incl. native compile for bcrypt) ----------
-# node:24-alpine ships with npm 11.x, which matches the npm version used to
-# author package-lock.json. Older majors (22/23) ship npm 10.x and cause
-# `npm ci` lockfile-shape mismatches.
+# ---------- deps: install backend's workspace subtree (incl. native bcrypt/isolated-vm) ----------
+# pnpm 버전은 root package.json 의 `packageManager` 필드를 corepack 이 따른다
+# (이전의 "node:24 = npm 11 lockfile 정합" 근거는 pnpm 전환으로 불필요).
 FROM node:24-alpine AS deps
 RUN apk add --no-cache python3 make g++
+RUN corepack enable
 WORKDIR /app
 
-COPY codebase/packages/expression-engine/package.json codebase/packages/expression-engine/package-lock.json codebase/packages/expression-engine/tsconfig.json ./packages/expression-engine/
-COPY codebase/packages/expression-engine/src ./packages/expression-engine/src
-RUN cd packages/expression-engine && npm ci && npm run build
+# Workspace anchor + 단일 lockfile. --frozen-lockfile 검증을 위해 모든 workspace
+# manifest 가 존재해야 하므로 package.json(작음)을 먼저 전부 복사한다.
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY codebase/backend/package.json ./codebase/backend/
+COPY codebase/frontend/package.json ./codebase/frontend/
+COPY codebase/channel-web-chat/package.json ./codebase/channel-web-chat/
+COPY codebase/packages/expression-engine/package.json ./codebase/packages/expression-engine/
+COPY codebase/packages/node-summary/package.json ./codebase/packages/node-summary/
+COPY codebase/packages/chat-channel-validation/package.json ./codebase/packages/chat-channel-validation/
+COPY codebase/packages/graph-warning-rules/package.json ./codebase/packages/graph-warning-rules/
+COPY codebase/packages/sdk/package.json ./codebase/packages/sdk/
+COPY codebase/packages/web-chat-sdk/package.json ./codebase/packages/web-chat-sdk/
 
-COPY codebase/packages/node-summary/package.json codebase/packages/node-summary/package-lock.json codebase/packages/node-summary/tsconfig.json ./packages/node-summary/
-COPY codebase/packages/node-summary/src ./packages/node-summary/src
-RUN cd packages/node-summary && npm ci && npm run build
+# 내부 패키지 소스 — 각 패키지의 `prepare`(tsc)가 install 중 dist 를 빌드하는 데
+# 필요하다 (이전의 패키지별 `npm ci && npm run build` 단계를 대체).
+COPY codebase/packages ./codebase/packages
 
-COPY codebase/packages/chat-channel-validation/package.json codebase/packages/chat-channel-validation/package-lock.json codebase/packages/chat-channel-validation/tsconfig.json ./packages/chat-channel-validation/
-COPY codebase/packages/chat-channel-validation/src ./packages/chat-channel-validation/src
-RUN cd packages/chat-channel-validation && npm ci && npm run build
+# backend + 그 workspace 의존(`...`)만 설치. native(bcrypt/isolated-vm)는
+# onlyBuiltDependencies 허용 목록에 따라 컴파일된다.
+RUN pnpm install --frozen-lockfile --filter "backend..."
 
-COPY codebase/packages/graph-warning-rules/package.json codebase/packages/graph-warning-rules/package-lock.json codebase/packages/graph-warning-rules/tsconfig.json ./packages/graph-warning-rules/
-COPY codebase/packages/graph-warning-rules/src ./packages/graph-warning-rules/src
-RUN cd packages/graph-warning-rules && npm ci && npm run build
-
-COPY codebase/backend/package.json codebase/backend/package-lock.json ./backend/
-RUN cd backend && npm ci
-
-# Prune devDeps from @workflow packages AFTER backend `npm ci` has consumed
-# them as file: deps. Pruning earlier would remove typescript and break the
-# `prepare` script that npm re-runs while resolving file: deps.
-RUN cd packages/expression-engine && npm prune --omit=dev \
-    && cd ../node-summary && npm prune --omit=dev \
-    && cd ../chat-channel-validation && npm prune --omit=dev \
-    && cd ../graph-warning-rules && npm prune --omit=dev
-
-# ---------- builder: compile TypeScript ----------
+# ---------- builder: compile backend TypeScript ----------
 FROM deps AS builder
 WORKDIR /app
-COPY codebase/backend ./backend
-RUN cd backend && npm run build && npm prune --omit=dev
+COPY codebase/backend ./codebase/backend
+RUN pnpm --filter backend build
 
-# ---------- runner: minimal runtime ----------
+# ---------- runner: runtime ----------
+# 빌드된 workspace 전체를 그대로 옮긴다. node-linker=hoisted 라 node_modules 는
+# flat(심링크 dangling 없음)이고, 내부 @workflow/* 는 codebase/packages/* 의 built
+# dist 로 해소된다. (devDeps 까지 포함 — 이미지 크기 최적화는 후속 과제.)
 FROM node:24-alpine AS runner
 ENV NODE_ENV=production
+RUN corepack enable
 WORKDIR /app
-
-COPY --from=builder --chown=node:node /app/packages ./packages
-COPY --from=builder --chown=node:node /app/backend/node_modules ./backend/node_modules
-COPY --from=builder --chown=node:node /app/backend/dist ./backend/dist
-COPY --from=builder --chown=node:node /app/backend/package.json ./backend/package.json
+COPY --from=builder --chown=node:node /app ./
 
 USER node
-WORKDIR /app/backend
+WORKDIR /app/codebase/backend
 EXPOSE 3011
 CMD ["node", "dist/main"]

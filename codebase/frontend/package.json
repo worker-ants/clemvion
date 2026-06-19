@@ -32,10 +32,10 @@
     "@simplewebauthn/browser": "^13.3.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-query": "^5.95.2",
-    "@workflow/chat-channel-validation": "file:../packages/chat-channel-validation",
-    "@workflow/expression-engine": "file:../packages/expression-engine",
-    "@workflow/graph-warning-rules": "file:../packages/graph-warning-rules",
-    "@workflow/node-summary": "file:../packages/node-summary",
+    "@workflow/chat-channel-validation": "workspace:*",
+    "@workflow/expression-engine": "workspace:*",
+    "@workflow/graph-warning-rules": "workspace:*",
+    "@workflow/node-summary": "workspace:*",
     "@xyflow/react": "^12.10.2",
     "axios": "^1.16.0",
     "clsx": "^2.1.1",
@@ -86,18 +86,6 @@
     "jsdom": "^29.0.1",
     "typescript": "^5",
     "vitest": "^4.1.4"
-  },
-  "//security-overrides": "ws/form-data/undici/vite/@babel/core = npm audit 취약점 해소용 전이 의존성 상향 핀. 부모(socket.io-client·vitest·next 등)가 좁게 핀해 forward 불가 → override 로 안전 버전 강제.",
-  "overrides": {
-    "next": {
-      "postcss": "^8.5.14"
-    },
-    "eslint-plugin-react-hooks": "7.0.1",
-    "ws": "^8.21.0",
-    "form-data": "^4.0.6",
-    "undici": "^7.28.0",
-    "vite": "^8.0.16",
-    "@babel/core": "^7.29.7"
   },
   "engines": {
     "node": ">=24"
