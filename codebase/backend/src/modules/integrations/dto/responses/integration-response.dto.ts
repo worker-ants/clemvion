@@ -319,6 +319,26 @@ export class Cafe24PrecheckResultDto {
   status?: 'connected' | 'pending_install' | 'expired' | 'error';
 }
 
+/** 사용처 조회 응답의 노드 항목 */
+export class IntegrationUsageNodeDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty()
+  label: string;
+
+  @ApiProperty()
+  type: string;
+
+  /**
+   * 통합 참조 방식 — 'direct'=노드 config.integrationId,
+   * 'mcp'=AI Agent config.mcpServers[].integrationId.
+   * 한 노드가 양쪽에 해당하면 'direct' 우선.
+   */
+  @ApiProperty({ enum: ['direct', 'mcp'] })
+  usageKind: 'direct' | 'mcp';
+}
+
 /** 사용처 조회 응답 */
 export class IntegrationUsageItemDto {
   @ApiProperty({ format: 'uuid' })
@@ -327,8 +347,8 @@ export class IntegrationUsageItemDto {
   @ApiProperty()
   workflowName: string;
 
-  @ApiProperty({ type: [Object] })
-  nodes: Array<{ id: string; label: string; type: string }>;
+  @ApiProperty({ type: [IntegrationUsageNodeDto] })
+  nodes: IntegrationUsageNodeDto[];
 }
 
 export class IntegrationUsagesDto {

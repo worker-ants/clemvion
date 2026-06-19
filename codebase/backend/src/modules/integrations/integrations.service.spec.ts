@@ -1009,6 +1009,7 @@ describe('IntegrationsService', () => {
               workflow_id: 'w1',
               workflow_name: 'Workflow A',
               is_active: true,
+              usage_kind: 'direct',
             },
           ],
         }),
@@ -1030,6 +1031,7 @@ describe('IntegrationsService', () => {
               workflow_id: 'w1',
               workflow_name: 'Workflow A',
               is_active: true,
+              usage_kind: 'direct',
             },
           ],
         }),
@@ -1078,6 +1080,7 @@ describe('IntegrationsService', () => {
               workflow_id: 'w1',
               workflow_name: 'Workflow A',
               is_active: true,
+              usage_kind: 'direct',
             },
             {
               node_id: 'n2',
@@ -1086,6 +1089,7 @@ describe('IntegrationsService', () => {
               workflow_id: 'w1',
               workflow_name: 'Workflow A',
               is_active: true,
+              usage_kind: 'direct',
             },
             {
               node_id: 'n3',
@@ -1094,6 +1098,7 @@ describe('IntegrationsService', () => {
               workflow_id: 'w2',
               workflow_name: 'Workflow B',
               is_active: false,
+              usage_kind: 'mcp',
             },
           ],
         }),
@@ -1102,6 +1107,12 @@ describe('IntegrationsService', () => {
       expect(usages).toHaveLength(2);
       expect(usages[0].nodes).toHaveLength(2);
       expect(usages[1].isActive).toBe(false);
+      // 회귀 차단: 그루핑 시 usageKind 필드가 노드별로 보존되어야 한다.
+      expect(usages[0].nodes.map((n) => n.usageKind)).toEqual([
+        'direct',
+        'direct',
+      ]);
+      expect(usages[1].nodes[0].usageKind).toBe('mcp');
     });
 
     it('exposes usageKind=direct for direct config.integrationId references', async () => {
@@ -1144,6 +1155,34 @@ describe('IntegrationsService', () => {
       const usages = await service.getUsages('int-1', 'ws-1');
       expect(usages).toHaveLength(1);
       expect(usages[0].nodes[0].usageKind).toBe('mcp');
+    });
+
+    it('keeps direct precedence when a node matches both direct and MCP (spec §7.1)', async () => {
+      // spec §7.1: 한 노드가 직접 참조와 MCP 참조 양쪽에 해당하면 'direct' 우선.
+      // 이는 SQL CASE 식이 결정한다 (CASE WHEN ->>'integrationId' = id THEN 'direct'
+      // ELSE 'mcp'). mock 은 SQL 을 실행하지 않으므로 여기서는 "양쪽 매칭 시 SQL 이
+      // 단일 raw row 를 usage_kind='direct' 로 반환한다" 는 상황을 시뮬레이션하고,
+      // 매핑이 단일 'direct' 노드로 나오는지만 검증한다. CASE 식 자체의 실 DB 검증은
+      // integration-usage-mcp.e2e-spec.ts (실 PostgreSQL @>/CASE) 가 담당한다.
+      nodeRepo.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({
+          raw: [
+            {
+              node_id: 'nBoth',
+              node_label: 'AI Agent (also direct)',
+              node_type: 'ai-agent',
+              workflow_id: 'w1',
+              workflow_name: 'Workflow A',
+              is_active: true,
+              usage_kind: 'direct',
+            },
+          ],
+        }),
+      );
+      const usages = await service.getUsages('int-1', 'ws-1');
+      expect(usages).toHaveLength(1);
+      expect(usages[0].nodes).toHaveLength(1);
+      expect(usages[0].nodes[0].usageKind).toBe('direct');
     });
   });
 
