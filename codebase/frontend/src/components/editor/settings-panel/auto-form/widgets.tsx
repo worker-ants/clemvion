@@ -40,6 +40,14 @@ export type WidgetProps = {
    * on stale config. Optional — provided by `SchemaForm`.
    */
   onChangeFields?: (patch: Record<string, unknown>) => void;
+  /**
+   * The full sibling config object this field belongs to (read-only). Most
+   * widgets own a single field and ignore this; widgets that derive their
+   * behaviour from a sibling value (e.g. the model selectors reading
+   * `llmConfigId` to scope the model list to the node's provider) read it
+   * here. Optional — provided by `SchemaForm`.
+   */
+  config?: Record<string, unknown>;
 };
 
 /** Widget that renders a string as plain text input. */

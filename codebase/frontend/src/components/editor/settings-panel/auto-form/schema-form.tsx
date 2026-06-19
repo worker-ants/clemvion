@@ -194,6 +194,7 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
         value={value[key]}
         onChange={(v) => update(key, v, ui)}
         onChangeFields={(patch) => updateFields(patch, ui)}
+        config={value}
         required={required}
       />
     );

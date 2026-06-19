@@ -21,6 +21,10 @@ import {
   McpServerSelectorWidget,
   WorkflowSelectorWidget,
 } from "./selector-widgets";
+import {
+  ChatModelSelectorWidget,
+  EmbeddingModelSelectorWidget,
+} from "./model-selector-widgets";
 import { ButtonListWidget } from "./button-list-widget";
 import { registerWidgets } from "./widget-resolver";
 
@@ -49,6 +53,8 @@ export const WIDGET_REGISTRY: Record<UiWidget, ComponentType<WidgetProps>> = {
   "kb-selector": KbSelectorWidget,
   "mcp-server-selector": McpServerSelectorWidget,
   "workflow-selector": WorkflowSelectorWidget,
+  "chat-model-selector": ChatModelSelectorWidget,
+  "embedding-model-selector": EmbeddingModelSelectorWidget,
   "condition-builder": UnsupportedWidget,
   "field-array": FieldArrayWidget,
   "button-list": ButtonListWidget,

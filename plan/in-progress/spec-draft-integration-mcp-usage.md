@@ -1,8 +1,9 @@
 ---
 worktree: agent-ae9a373e25190d9f9
 role: project-planner
+owner: project-planner
 status: in-progress
-created: 2026-06-19
+started: 2026-06-19
 ---
 
 # Spec draft — 사용처 추적에 AI Agent MCP 참조 포함 (usageKind 구분)
