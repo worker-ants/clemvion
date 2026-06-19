@@ -130,6 +130,22 @@ describe('ExecutionEngineService', () => {
     id: workflowId,
     name: 'Test Workflow',
     isActive: true,
+    // W-6 workspace 격리는 fail-closed — sub-workflow target lookup(findOneBy)이
+    // 반환하는 workflow 는 workspaceId 를 가져야 호출자 __workspaceId='ws-1' 와
+    // 일치 통과한다. (runExecution 의 __workspaceId 주입은 findOne(relations) 경로라
+    // 본 기본값과 무관 — 그쪽은 개별 테스트의 findOne mock 이 결정.)
+    workspaceId: 'ws-1',
+  };
+
+  // W-6 fail-closed: sub-workflow 실행은 context.variables.__workspaceId 가
+  // target workflow.workspaceId 와 일치해야 통과한다. 격리-무관 테스트들이
+  // 기본 'ws-1'(=mockWorkflow.workspaceId) 호출자 컨텍스트를 공유 주입하는 헬퍼.
+  const withWorkspace = (
+    ctx: ExecutionContext,
+    workspaceId = 'ws-1',
+  ): ExecutionContext => {
+    ctx.variables = { ...(ctx.variables ?? {}), __workspaceId: workspaceId };
+    return ctx;
   };
 
   const mockNodes: Partial<Node>[] = [
@@ -669,7 +685,9 @@ describe('ExecutionEngineService', () => {
 
     it('stamps parent_node_execution_id on every child created during inline run', async () => {
       mockNodeExecutionRepo.create.mockClear();
-      const context = contextService.createContext(executionId, workflowId);
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
 
       await service.executeInline(
         workflowId,
@@ -695,7 +713,9 @@ describe('ExecutionEngineService', () => {
     });
 
     it('restores context.parentNodeExecutionId after the inline run (happy path)', async () => {
-      const context = contextService.createContext(executionId, workflowId);
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       context.parentNodeExecutionId = 'outer-parent';
 
       await service.executeInline(
@@ -720,7 +740,9 @@ describe('ExecutionEngineService', () => {
       };
       handlerRegistry.register('test_node', throwingHandler);
 
-      const context = contextService.createContext(executionId, workflowId);
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       context.parentNodeExecutionId = 'outer-parent';
 
       await expect(
@@ -767,7 +789,9 @@ describe('ExecutionEngineService', () => {
         execute: captureSpy,
       });
 
-      const context = contextService.createContext(executionId, workflowId);
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       await service.executeInline(
         workflowId,
         { name: 'Alice' },
@@ -803,7 +827,9 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue([subTriggerNode]);
       mockEdgeRepo.findBy.mockResolvedValue([]);
 
-      const context = contextService.createContext(executionId, workflowId);
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
 
       await expect(
         service.executeInline(
@@ -886,6 +912,32 @@ describe('ExecutionEngineService', () => {
       ).resolves.toBeDefined();
     });
 
+    it('차단(fail-closed): 호출자 workspace 컨텍스트 누락 (W-6)', async () => {
+      // __workspaceId 가 없는 컨텍스트 — 옛/미마이그레이션 진입을 모사. fail-closed
+      // 전환 후에는 격리 증명 불가이므로 통과하지 않고 차단해야 한다.
+      mockWorkflowRepo.findOneBy.mockResolvedValueOnce({
+        id: workflowId,
+        workspaceId: 'ws-target',
+        name: 'no-caller-ctx-target',
+      });
+      const context = contextService.createContext(executionId, workflowId);
+      // 의도적으로 withWorkspace 미적용 — context.variables.__workspaceId 부재.
+
+      await expect(
+        service.executeInline(
+          workflowId,
+          {},
+          {
+            executionId,
+            context,
+            executedNodes: new Set<string>(),
+            recursionDepth: 1,
+            parentNodeExecutionId: 'p',
+          },
+        ),
+      ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
+    });
+
     it('passes manual_trigger through pass-through (input forwarded as output)', async () => {
       const manualTriggerNode: Partial<Node> = {
         id: 'manual-trigger-in-sub',
@@ -899,7 +951,9 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue([manualTriggerNode]);
       mockEdgeRepo.findBy.mockResolvedValue([]);
 
-      const context = contextService.createContext(executionId, workflowId);
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
 
       // throw 하지 않아야 함 — manual_trigger 는 정상 pass-through.
       // 반환값은 마지막 노드 (= manual_trigger 자체) 의 output 인 입력 그대로.
@@ -1771,12 +1825,30 @@ describe('ExecutionEngineService', () => {
         const result = await service.executeSync(
           workflowId,
           { foo: 'bar' },
-          { timeoutMs: 0 },
+          { timeoutMs: 0, parentWorkspaceId: 'ws-1' },
         );
         expect(result.executionId).toBe(executionId);
         expect(result.output).toEqual({ final: 'value' });
         expect(result.status).toBe(ExecutionStatus.COMPLETED);
         spy.mockRestore();
+      });
+
+      // W-6 fail-closed — public sub-workflow API 도 parentWorkspaceId 없으면 차단.
+      it('throws WORKFLOW_FORBIDDEN_WORKSPACE when parentWorkspaceId is absent (fail-closed)', async () => {
+        await expect(
+          service.executeSync(workflowId, {}, { timeoutMs: 0 }),
+        ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
+      });
+
+      // W-6 — parentWorkspaceId 가 존재하나 target workspace 와 불일치 → 차단.
+      it('throws WORKFLOW_FORBIDDEN_WORKSPACE when parentWorkspaceId mismatches target', async () => {
+        await expect(
+          service.executeSync(
+            workflowId,
+            {},
+            { timeoutMs: 0, parentWorkspaceId: 'ws-other' },
+          ),
+        ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
       });
 
       it('throws when sub-workflow status is FAILED', async () => {
@@ -1785,7 +1857,11 @@ describe('ExecutionEngineService', () => {
           execution.error = { message: 'inner failure' };
         });
         await expect(
-          service.executeSync(workflowId, {}, { timeoutMs: 0 }),
+          service.executeSync(
+            workflowId,
+            {},
+            { timeoutMs: 0, parentWorkspaceId: 'ws-1' },
+          ),
         ).rejects.toThrow('Sub-workflow execution failed: inner failure');
         spy.mockRestore();
       });
@@ -1795,7 +1871,11 @@ describe('ExecutionEngineService', () => {
           execution.status = ExecutionStatus.CANCELLED;
         });
         await expect(
-          service.executeSync(workflowId, {}, { timeoutMs: 0 }),
+          service.executeSync(
+            workflowId,
+            {},
+            { timeoutMs: 0, parentWorkspaceId: 'ws-1' },
+          ),
         ).rejects.toThrow('Sub-workflow execution was cancelled');
         spy.mockRestore();
       });
@@ -1825,7 +1905,11 @@ describe('ExecutionEngineService', () => {
         mockExecutionRepo.save.mockClear();
 
         await expect(
-          service.executeSync(workflowId, {}, { timeoutMs: 50 }),
+          service.executeSync(
+            workflowId,
+            {},
+            { timeoutMs: 50, parentWorkspaceId: 'ws-1' },
+          ),
         ).rejects.toThrow(/timed out after 50ms/);
 
         // catch 블록에서 reloaded 를 FAILED 로 다시 save 한다.
@@ -1854,8 +1938,34 @@ describe('ExecutionEngineService', () => {
       });
 
       it('returns executionId immediately (fire-and-forget)', async () => {
-        const result = await service.executeAsync(workflowId, { foo: 'bar' });
+        const result = await service.executeAsync(
+          workflowId,
+          { foo: 'bar' },
+          {
+            parentWorkspaceId: 'ws-1',
+          },
+        );
         expect(result).toBe(executionId);
+      });
+
+      // W-6 fail-closed — executeAsync 도 parentWorkspaceId 없으면 차단.
+      it('throws WORKFLOW_FORBIDDEN_WORKSPACE when parentWorkspaceId is absent (fail-closed)', async () => {
+        await expect(
+          service.executeAsync(workflowId, { foo: 'bar' }),
+        ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
+      });
+
+      // W-6 — parentWorkspaceId 존재하나 target workspace 와 불일치 → 차단.
+      it('throws WORKFLOW_FORBIDDEN_WORKSPACE when parentWorkspaceId mismatches target', async () => {
+        await expect(
+          service.executeAsync(
+            workflowId,
+            { foo: 'bar' },
+            {
+              parentWorkspaceId: 'ws-other',
+            },
+          ),
+        ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
       });
     });
   });
@@ -12383,7 +12493,9 @@ describe('ExecutionEngineService', () => {
     });
 
     it('invokerNodeId 있을 때 frame 이 _callStack 에 push 된다', async () => {
-      const context = contextService.createContext(executionId, workflowId);
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       context._callStack = [];
 
       let capturedStack: unknown[] | undefined;
@@ -12421,7 +12533,9 @@ describe('ExecutionEngineService', () => {
     });
 
     it('정상 반환 후 _callStack 이 pop 된다 (frame 제거)', async () => {
-      const context = contextService.createContext(executionId, workflowId);
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       context._callStack = [];
 
       (mockHandler.execute as jest.Mock).mockResolvedValue({
@@ -12453,7 +12567,9 @@ describe('ExecutionEngineService', () => {
       };
       handlerRegistry.register('test_node', throwingHandler);
 
-      const context = contextService.createContext(executionId, workflowId);
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       context._callStack = [];
 
       await expect(
@@ -12476,7 +12592,9 @@ describe('ExecutionEngineService', () => {
     });
 
     it('invokerNodeId 없으면 _callStack 에 push 하지 않는다', async () => {
-      const context = contextService.createContext(executionId, workflowId);
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       context._callStack = [];
 
       (mockHandler.execute as jest.Mock).mockResolvedValue({
