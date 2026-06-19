@@ -998,6 +998,25 @@ describe('IntegrationsService', () => {
       expect(integrationCacheBus.publish).toHaveBeenCalledWith('int-1');
     });
 
+    it('throws NotFoundException when the integration is absent', async () => {
+      integrationRepo.findOne.mockResolvedValue(null);
+      await expect(service.remove('missing', 'ws-1', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
+      // NotFound short-circuits before the usage-node query runs (post-⑦ the
+      // remove()-local findOne is the sole existence gate).
+      expect(nodeRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('reads the integration row only once (no duplicate findById — PR #633 후속 ⑦)', async () => {
+      await service.remove('int-1', 'ws-1', 'user-1');
+      // remove() validates via findOne and calls queryUsageNodes directly,
+      // so it must NOT re-read the integration row through getUsages→findById.
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(1);
+      // The usage-node query still runs.
+      expect(nodeRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+    });
+
     it('does not broadcast when removal is blocked by usages', async () => {
       nodeRepo.createQueryBuilder.mockReturnValue(
         makeQueryBuilder({

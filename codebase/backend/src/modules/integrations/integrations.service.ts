@@ -699,7 +699,10 @@ export class IntegrationsService {
       });
     }
 
-    const usages = await this.getUsages(id, workspaceId);
+    // remove() 가 이미 위에서 findOne 으로 통합 존재·workspace 소유를 검증했으므로,
+    // getUsages 의 findById 선검증을 거치지 않고 사용처 조회 헬퍼를 직접 호출한다
+    // (통합 행 중복 조회 제거 — PR #633 후속 ⑦).
+    const usages = await this.queryUsageNodes(id, workspaceId);
     if (usages.length > 0) {
       throw new ConflictException({
         code: 'INTEGRATION_IN_USE',
@@ -733,9 +736,30 @@ export class IntegrationsService {
     id: string,
     workspaceId: string,
   ): Promise<IntegrationUsageWorkflow[]> {
-    // Verify integration belongs to workspace (throws if missing).
+    // Verify integration belongs to workspace (throws if missing). The actual
+    // usage-node query lives in {@link queryUsageNodes} so callers that have
+    // already established existence (e.g. {@link remove}) can skip this
+    // duplicate findById. Public contract — controller-facing NotFound throw —
+    // is preserved here.
     await this.findById(id, workspaceId);
+    return this.queryUsageNodes(id, workspaceId);
+  }
 
+  /**
+   * Query workflow nodes that reference the integration, grouped by workflow.
+   * **No existence check** — the caller is responsible for having verified the
+   * integration belongs to the workspace. {@link getUsages} prepends a
+   * `findById` for the public/controller path; {@link remove} calls this
+   * directly because it has already loaded the row (avoids a duplicate
+   * integration-row read — PR #633 후속 ⑦).
+   *
+   * Reference union (PR #633): direct (`config.integrationId`) ∪ MCP
+   * (`config.mcpServers[].integrationId`). `usageKind` discriminates them.
+   */
+  private async queryUsageNodes(
+    id: string,
+    workspaceId: string,
+  ): Promise<IntegrationUsageWorkflow[]> {
     const rows: Array<{
       node_id: string;
       node_label: string;
