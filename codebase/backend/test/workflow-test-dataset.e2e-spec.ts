@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -64,6 +64,10 @@ describe('Workflow Test Datasets (e2e)', () => {
     expect(wf.status).toBe(201);
     workflowId = wf.body.data.id;
   }, 90_000);
+
+  afterAll(async () => {
+    await db.end();
+  });
 
   const create = (
     token: string,

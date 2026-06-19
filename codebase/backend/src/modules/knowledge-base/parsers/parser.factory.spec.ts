@@ -18,6 +18,15 @@ describe('parseDocument', () => {
     expect(result).toBe('# Heading\n\nSome **bold** text.');
   });
 
+  it('should parse pdf content via the lazily-loaded pdf-parse', async () => {
+    // Exercises parseDocument's 'pdf' branch end-to-end: parsePdf now resolves
+    // pdf-parse through getPdfParse() (lazy require), which the jest.mock above
+    // intercepts — proving the lazy loader still routes through the mock.
+    const buffer = Buffer.from('%PDF-1.4 stub');
+    const result = await parseDocument(buffer, 'pdf');
+    expect(result).toBe('mocked pdf content');
+  });
+
   it('should parse csv and convert rows to key-value pairs', async () => {
     const csv = 'name,age\nAlice,30\nBob,25';
     const buffer = Buffer.from(csv);
