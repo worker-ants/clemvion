@@ -42,6 +42,8 @@ export type UiWidget =
   | "kb-selector"
   | "mcp-server-selector"
   | "workflow-selector"
+  | "chat-model-selector"
+  | "embedding-model-selector"
   | "condition-builder"
   | "field-array"
   | "button-list"

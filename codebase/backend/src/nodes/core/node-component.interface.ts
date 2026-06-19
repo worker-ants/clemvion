@@ -214,6 +214,8 @@ export interface NodeComponentMetadata {
  *  - kv / kv-expression  — key-value list editor (expression-aware variant)
  *  - code                — monospaced multiline editor
  *  - integration-selector / llm-config-selector / kb-selector / workflow-selector / mcp-server-selector
+ *  - chat-model-selector / embedding-model-selector — pick a registered model name
+ *    from the node's `llmConfigId` provider (lazy-load select; model-name string)
  *  - condition-builder   — array-of-ConditionGroup editor (operators per spec §1.1)
  *  - field-array         — generic ordered array-of-object editor
  */
@@ -236,6 +238,8 @@ export interface UiHint {
     | 'kb-selector'
     | 'workflow-selector'
     | 'mcp-server-selector'
+    | 'chat-model-selector'
+    | 'embedding-model-selector'
     | 'condition-builder'
     | 'field-array'
     | 'button-list'

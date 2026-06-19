@@ -1,10 +1,30 @@
+import { z } from 'zod';
 import { evaluateWarnings } from '@workflow/node-summary';
 import {
+  informationExtractorNodeConfigSchema,
   informationExtractorNodeMetadata,
   informationExtractorNodeOutputSchema,
   validateInformationExtractorConfig,
 } from './information-extractor.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+
+describe('informationExtractorNodeConfigSchema ui', () => {
+  it('memory model fields use registered-model select widgets', () => {
+    // §12.12 후속 결정: embeddingModel / extractionModel 은 자유입력/expression 대신
+    // 노드 llmConfigId provider 의 등록 모델 select (IE 는 summaryModel 없음).
+    const jsonSchema = z.toJSONSchema(
+      informationExtractorNodeConfigSchema,
+    ) as unknown as {
+      properties?: Record<string, { ui?: Record<string, unknown> }>;
+    };
+    expect(jsonSchema.properties?.embeddingModel?.ui).toMatchObject({
+      widget: 'embedding-model-selector',
+    });
+    expect(jsonSchema.properties?.extractionModel?.ui).toMatchObject({
+      widget: 'chat-model-selector',
+    });
+  });
+});
 
 describe('informationExtractorNodeOutputSchema', () => {
   // Post Stage 1 of the node-specs-improvement rollout the handler emits the

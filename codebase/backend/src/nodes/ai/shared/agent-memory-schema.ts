@@ -188,13 +188,14 @@ export function buildAgentMemorySchemaFields(
     .optional()
     .meta({
       ui: {
+        // NOTE: 'embedding-model-selector' (not 'text'/'expression') — 등록 모델만
+        // 고르는 순수 select. embeddingModel 은 scope 의 모든 저장 메모리와 차원이
+        // 일치해야 하는 불변식(17-agent-memory §3)이라, 자유 입력은 오타·미존재 모델명을
+        // 저장해 차원 불일치로 recall 이 조용히 실패시킬 수 있다. select 는 노드
+        // llmConfigId provider 의 등록 모델만 노출해 이 footgun 을 구조적으로 차단한다
+        // (KB §Rationale R-1 select-only 와 동일 논리, ai-agent §12.12 후속 결정).
         label: 'Embedding Model',
-        // NOTE: 'text' (not 'expression') — 의도적. summaryModel/extractionModel
-        // 은 stateless(매 콜 독립)라 expression 평가가 무해하나, embeddingModel 은
-        // scope 의 모든 저장 메모리와 차원이 일치해야 하는 불변식(17-agent-memory §3)
-        // 이라 실행마다 동적으로 바뀌면 차원 불일치로 recall 이 조용히 실패한다.
-        // 정적 리터럴(text)로 그 footgun 을 차단한다.
-        widget: 'text',
+        widget: 'embedding-model-selector',
         order: orders.embeddingModel,
         group: GROUP,
         placeholder: 'text-embedding-3-small',
@@ -205,17 +206,19 @@ export function buildAgentMemorySchemaFields(
 
   if (opts.summaryModelOrder !== undefined) {
     // SoT: spec/4-nodes/3-ai/1-ai-agent.md §1·§6.1·§12.12. 요약/추출 LLM 콜에
-    // 쓸 전용 모델 ID (expression). 미설정 시 노드 `model` → llmConfig 기본으로
-    // 폴백 (fallback 체인 `[전용] → [model] → [llmConfig 기본]`, 기존 동작 유지).
-    // `summaryModel` 은 summary_buffer/persistent 둘 다, `extractionModel` 은
-    // persistent 에서만 의미 (요약/추출 분기 — §2 visibleWhen).
+    // 쓸 전용 모델 ID. 노드 llmConfigId provider 의 등록 chat 모델만 고르는 순수
+    // select(`chat-model-selector`) — 자유입력/expression 제거(§12.12 후속 결정).
+    // 미설정 시 노드 `model` → llmConfig 기본으로 폴백 (fallback 체인
+    // `[전용] → [model] → [llmConfig 기본]`, 기존 동작 유지). `summaryModel` 은
+    // summary_buffer/persistent 둘 다, `extractionModel` 은 persistent 에서만
+    // 의미 (요약/추출 분기 — §2 visibleWhen).
     fields.summaryModel = z
       .string()
       .optional()
       .meta({
         ui: {
           label: 'Summary Model',
-          widget: 'expression',
+          widget: 'chat-model-selector',
           order: opts.summaryModelOrder,
           group: GROUP,
           placeholder: 'Leave empty to reuse the node Model',
@@ -234,7 +237,7 @@ export function buildAgentMemorySchemaFields(
     .meta({
       ui: {
         label: 'Extraction Model',
-        widget: 'expression',
+        widget: 'chat-model-selector',
         order: orders.extractionModel,
         group: GROUP,
         placeholder: 'Leave empty to reuse the node Model',

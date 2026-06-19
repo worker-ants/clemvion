@@ -73,8 +73,14 @@ rerank) 탭으로 통합돼 모델 목록을 동적 조회할 수 있음.
 - [x] consistency --spec (planner 의무): impl-prep 가 rationale/convention/naming 검증 +
       결정적 grep 으로 dangling 참조 부재 확인(다른 곳 "19종"·spec표 "embeddingModel|String"
       0건) → 동일 변경 중복 5-checker 사이클 생략, 본 노트로 근거 대체.
-- [ ] TDD 테스트 선작성
-- [ ] 구현
+- [x] 구현 — backend(interface union·schema 3필드·주석) + frontend(UiWidget·WidgetProps.config·
+      SchemaForm·registry·신규 model-selector-widgets.tsx 2위젯)
+- [x] 테스트 — backend ai-agent/IE schema spec widget 단언 + frontend
+      model-selector-widgets.test.tsx (wiring/provider-scope/value)
+- [x] DOCUMENTATION — ai.mdx/ai.en.mdx 메모리 모델 필드 type "expression"/"string" →
+      "모델 선택"/"model select" 동반 갱신 (bgIsolation 으로 user-guide-writer 대신 직접;
+      라벨 불변 → backend-labels parity 무영향). 관찰: AI Agent 가이드 KO/EN 표에
+      embeddingModel 행 부재(기존 갭, 본 변경 무관 — follow-up 후보).
 - [ ] TEST WORKFLOW (lint/unit/build/e2e — e2e 면제 후보: 순수 UI 위젯+schema 메타,
       백엔드 동작/저장형태 무변경)
 - [ ] /ai-review + SUMMARY + (Critical/Warning fix)
