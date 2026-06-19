@@ -139,7 +139,7 @@ retry-last-turn 생명주기를 god-class 에서 분리. 엔진 7,499→7,033줄
   `LlmCallRecord`/`AiTurnDebugEntry` 와 `information-extractor.handler` 의 `LlmCallTrace`/`TurnDebugEntry` 가
   동일 JSONB 도메인을 이름 분기로 중복 — `shared/` 승격·통일 별도 후속. `RehydrationError` 위치
   (`ai-conversation-helpers` vs `workflow-errors` 집중 패턴)도 함께 검토.
-  - ✅ **완료 (후속 ③, 2026-06-19, branch `llm-record-types`)**: `shared/llm-tracing/llm-call-record.ts` 신설 — canonical `LlmCallRecord`(all-optional superset) + `TurnDebugEntry`. EE+IE 로컬 중복 제거·shared import. 커밋 `f70dbbfa`. TEST lint·unit(ee 822/ie 71/ai-agent 420)·build·e2e(34/202) ✓. ai-review LOW·C0·W2(deferrable)·impl-done BLOCK:NO. RESOLUTION `review/code/2026/06/19/08_42_57`. **PR #생성후**.
+  - ✅ **완료 (후속 ③, 2026-06-19, branch `llm-record-types`)**: `shared/llm-tracing/llm-call-record.ts` 신설 — canonical `LlmCallRecord`(all-optional superset) + `TurnDebugEntry`. EE+IE 로컬 중복 제거·shared import. 커밋 `f70dbbfa`. TEST lint·unit(ee 822/ie 71/ai-agent 420)·build·e2e(34/202) ✓. ai-review LOW·C0·W2(deferrable)·impl-done BLOCK:NO. RESOLUTION `review/code/2026/06/19/08_42_57`. **PR #632**: https://github.com/worker-ants/clemvion/pull/632.
     - **`RehydrationError` 미이동** 결정: ai-conversation-helpers leaf = orchestrator↔engine 순환차단 의도(C-1 step3) 유지(workflow-errors 이동 시 순환 재발).
     - **후속(별도)**: (a) `ai-agent.handler.ts` inline llmCalls → shared 전환(범위밖·stricter shape loosen 평가) + StructuredInteraction(item⑤) 묶어 **type-consolidation**, (b) **SPEC-DRIFT(planner)**: `startedAt`/`finishedAt`·canonical SoT → `0-common.md §6`/`1-ai-agent.md §8` 반영 + frontmatter `code:` 에 shared 등록 + `TurnDebugEntry` spec full 진단필드 superset 확장, (c) frontend `TurnDebugEntry` 다중정의 rename(중기).
 - **엔진→서비스 주입 방향 제거(caller-side 전환)** (PR2·PR3 architecture WARNING): 엔진↔추출서비스 양방향
