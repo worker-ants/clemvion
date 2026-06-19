@@ -105,7 +105,7 @@ code:
    - **Sync**: `executionEngine.executeInline(workflowId, effectiveInput, { executionId, context, executedNodes, recursionDepth: depth+1, parentNodeExecutionId, invokerNodeId })` → 반환값을 `output: { result: <inlineResult> }` 으로 1단 래핑 (§5.1). `invokerNodeId` 는 이 Workflow 노드 자신의 Node.id — sub-workflow 안의 blocking 노드가 durable park 할 때 `resume_call_stack` frame 키로 영속되어 [실행 엔진 §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration) rehydration 이 부모 그래프에서 이 노드까지 전진 후 재진입하는 데 쓰인다
    - **Async**: `executionEngine.executeAsync(workflowId, effectiveInput, { parentExecutionId, recursionDepth: depth+1 })` → `output: { executionId, workflowId, status: 'started' }` + top-level `status: 'started'` 즉시 반환 (§5.2)
 4. **런타임 에러 처리** (Principle 3.2):
-   - sync `executeInline` / async `executeAsync` 가 throw 한 경우 — `output.error.{code, message, details: {workflowId, mode}}` + `port: 'error'` (§5.3). `code` 는 executor 메시지에 따라 `SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `SUB_WORKFLOW_FAILED` (기본) 로 매핑된다 (§6 표 참조)
+   - sync `executeInline` / async `executeAsync` 가 throw 한 경우 — `output.error.{code, message, details: {workflowId, mode}}` + `port: 'error'` (§5.3). `code` 는 executor 에러(typed error 또는 메시지)에 따라 `SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `WORKFLOW_FORBIDDEN_WORKSPACE` (W-6 격리 차단) / `SUB_WORKFLOW_FAILED` (기본) 로 매핑된다 (§6 표 참조)
    - **예외**: `ParkReleaseSignal` (sub-workflow 안 blocking 노드의 durable park 신호) 은 런타임 실패가 아니므로 error 포트로 라우팅하지 않고 그대로 re-throw 한다 — 엔진이 세그먼트를 종료하고 [실행 엔진 §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration) rehydration 으로 재개
 5. **재귀 깊이 누적**: 자식 호출 시 `recursionDepth` 를 +1 하여 전달. sync 는 `ExecutionContext`, async 는 Execution 레코드에 누적 (Flow 공통 §2.2)
 
@@ -225,7 +225,7 @@ code:
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.*` | (§5.1 과 동일) | config echo | 에러 케이스에서도 동일하게 echo |
-| `output.error.code` | `ErrorCodeValue` | handler return | §6 의 코드 표 참조 — executor 에러 메시지에 따라 세분화 (`SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `SUB_WORKFLOW_FAILED`) |
+| `output.error.code` | `ErrorCodeValue` | handler return | §6 의 코드 표 참조 — executor 에러에 따라 세분화 (`SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `WORKFLOW_FORBIDDEN_WORKSPACE` / `SUB_WORKFLOW_FAILED`) |
 | `output.error.message` | string | handler return | `err.message` 원문 (i18n 없음, 로그/디버깅용) |
 | `output.error.details.workflowId` | string | handler return | 실패한 sub-workflow 정의 ID (디버깅 payload — Principle 1.1 의 config↔output 직교성 예외 — 에러 컨텍스트는 자유 스키마) |
 | `output.error.details.mode` | `'sync'` / `'async'` | handler return | 실패 발생 모드 |

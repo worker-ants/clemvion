@@ -304,7 +304,12 @@ export interface AiMetadata {
   turnDebug: TurnRagDelta[];
 }
 
-/** 한 턴 동안 호출된 KB tool 의 chunk delta + 진단. */
+/**
+ * 한 턴 동안 호출된 KB tool 의 chunk delta + 진단 (References 탭 per-turn delta).
+ * (formerly `TurnDebugEntry` — `conversation-utils.ts` 의 canonical-shaped
+ * `TurnDebugEntry`(llmCalls/toolCalls/totalDurationMs)와의 동명 충돌 해소를 위해
+ * `TurnRagDelta` 로 rename. dev 1b.)
+ */
 export interface TurnRagDelta {
   turnIndex: number;
   ragSources: RagSource[];

@@ -1486,8 +1486,8 @@ export class AiAgentHandler implements NodeHandler {
     // Per-call trace so the frontend LlmInformationTab can inspect each
     // request/response/usage even for single-turn runs (tool loop commonly
     // spans several calls).
-    // Canonical shared trace type (C-1 후속 ③ / dev 1b). all-optional superset
-    // 이지만 아래 push site 는 항상 전 필드를 공급한다.
+    // Canonical shared trace type (C-1 follow-up ③ / dev 1b). The shared type is
+    // an all-optional superset; the push sites below always supply every field.
     const llmCalls: LlmCallRecord[] = [];
     const toolCallTraces: ToolCallTrace[] = [];
     const singleTurnStartedAt = Date.now();
@@ -2407,8 +2407,8 @@ export class AiAgentHandler implements NodeHandler {
       maxTokens,
       tools: toolsDef,
     };
-    // Canonical shared trace type (C-1 후속 ③ / dev 1b). all-optional superset
-    // 이지만 아래 push site 는 항상 전 필드를 공급한다.
+    // Canonical shared trace type (C-1 follow-up ③ / dev 1b). The shared type is
+    // an all-optional superset; the push sites below always supply every field.
     const llmCalls: LlmCallRecord[] = [];
     const toolCallTraces: ToolCallTrace[] = [];
     let callStart = Date.now();

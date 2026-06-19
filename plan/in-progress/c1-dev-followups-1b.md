@@ -29,10 +29,10 @@ parent: plan/complete/c1-engine-split.md (작업 1b dev 잔꼬리)
 
 ## 워크플로
 
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
-- [ ] /ai-review + SUMMARY
+- [x] TEST WORKFLOW (lint·unit·build·e2e) — lint PASS · unit(backend 355s/**7134** · frontend 212/213, 1 실패는 무관 flaky [격리 통과]) · build PASS · **e2e 35 suites/205 PASS** (rebased onto origin/main #640·#642)
+- [x] /ai-review + SUMMARY — **LOW · C0 · W2** (`review/code/2026/06/19/22_49_28`). W-1 spec 갱신 · W-2 disposition + 가치 INFO(I-4/5/7/9/10) 반영
 - [ ] /consistency-check --impl-done (spec-linked: error-handling·workflow·ai-agent)
-- [ ] RESOLUTION.md (Critical/Warning 시)
+- [x] RESOLUTION.md (`review/code/2026/06/19/22_49_28/RESOLUTION.md`)
 
 ## 결정·근거
 

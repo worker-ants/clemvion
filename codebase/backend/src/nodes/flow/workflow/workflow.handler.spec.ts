@@ -683,6 +683,14 @@ describe('WorkflowHandler', () => {
         ),
       ).toBe(ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE);
     });
+
+    it('does NOT over-match — unrelated plain Error mentioning "workspace" → SUB_WORKFLOW_FAILED', () => {
+      // backstop 은 full token `workflow_forbidden_workspace` 만 매칭한다 — 무관한
+      // inner-node 에러("workspace") 가 격리 코드로 오분류되면 안 된다.
+      expect(
+        mapSubWorkflowError(new Error('workspace quota exceeded for tenant')),
+      ).toBe(ErrorCode.SUB_WORKFLOW_FAILED);
+    });
   });
 
   // WARNING #7 (ai-review) — WorkflowHandler 가 ParkReleaseSignal 을 re-throw 하는지

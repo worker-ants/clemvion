@@ -18,6 +18,7 @@ import {
   ExecutionTimeLimitError,
   MessageTooLongError,
   FormValidationError,
+  WorkflowForbiddenWorkspaceError,
 } from './workflow-errors';
 import { MB_IN_BYTES } from '../chat-channel/shared/form-mode';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
@@ -1839,10 +1840,14 @@ describe('ExecutionEngineService', () => {
       });
 
       // W-6 fail-closed — public sub-workflow API 도 parentWorkspaceId 없으면 차단.
+      // typed error 계층 검증 (dev 1b — message regex 외 instanceof 가드).
       it('throws WORKFLOW_FORBIDDEN_WORKSPACE when parentWorkspaceId is absent (fail-closed)', async () => {
         await expect(
           service.executeSync(workflowId, {}, { timeoutMs: 0 }),
         ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
+        await expect(
+          service.executeSync(workflowId, {}, { timeoutMs: 0 }),
+        ).rejects.toBeInstanceOf(WorkflowForbiddenWorkspaceError);
       });
 
       // W-6 — parentWorkspaceId 가 존재하나 target workspace 와 불일치 → 차단.
