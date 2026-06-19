@@ -645,6 +645,11 @@ function UsageTab({ integrationId, t }: { integrationId: string; t: TFunction })
                   className="text-[hsl(var(--muted-foreground))]"
                 >
                   ├─ {n.label}{" "}
+                  {n.usageKind === "mcp" && (
+                    <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-xs text-[hsl(var(--muted-foreground))]">
+                      {t("integrations.usageMcpBadge")}
+                    </span>
+                  )}{" "}
                   <span className="text-xs">({n.type})</span>
                 </li>
               ))}

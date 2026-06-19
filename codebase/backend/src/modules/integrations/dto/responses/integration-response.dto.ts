@@ -319,6 +319,29 @@ export class Cafe24PrecheckResultDto {
   status?: 'connected' | 'pending_install' | 'expired' | 'error';
 }
 
+/** 사용처 조회 응답의 노드 항목 */
+export class IntegrationUsageNodeDto {
+  /** 노드 UUID */
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  /** 노드 표시 라벨 */
+  @ApiProperty()
+  label: string;
+
+  /** 노드 타입 (예: http-request, ai-agent) */
+  @ApiProperty()
+  type: string;
+
+  /**
+   * 통합 참조 방식 — 'direct'=노드 config.integrationId,
+   * 'mcp'=AI Agent config.mcpServers[].integrationId.
+   * 한 노드가 양쪽에 해당하면 'direct' 우선.
+   */
+  @ApiProperty({ enum: ['direct', 'mcp'] })
+  usageKind: 'direct' | 'mcp';
+}
+
 /** 사용처 조회 응답 */
 export class IntegrationUsageItemDto {
   @ApiProperty({ format: 'uuid' })
@@ -327,8 +350,12 @@ export class IntegrationUsageItemDto {
   @ApiProperty()
   workflowName: string;
 
-  @ApiProperty({ type: [Object] })
-  nodes: Array<{ id: string; label: string; type: string }>;
+  /** 워크플로우 활성화 여부. 사용처 목록에서 활성/비활성 구분 표시에 사용. */
+  @ApiProperty({ type: Boolean })
+  isActive: boolean;
+
+  @ApiProperty({ type: [IntegrationUsageNodeDto] })
+  nodes: IntegrationUsageNodeDto[];
 }
 
 export class IntegrationUsagesDto {

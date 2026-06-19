@@ -163,7 +163,7 @@ export interface UsageWorkflow {
   workflowId: string;
   workflowName: string;
   isActive: boolean;
-  nodes: { id: string; label: string; type: string }[];
+  nodes: { id: string; label: string; type: string; usageKind: "direct" | "mcp" }[];
 }
 
 export interface ActivityItem {

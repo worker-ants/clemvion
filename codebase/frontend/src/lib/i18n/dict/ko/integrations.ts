@@ -118,6 +118,7 @@ export const integrations = {
   scopeOnlyOauth: "권한 관리는 OAuth 통합에서만 사용할 수 있어요.",
   usageEmpty: "현재 이 통합을 사용 중인 워크플로우 노드가 없어요.",
   usageSummary: "{{workflows}}개 워크플로우의 {{nodes}}개 노드에서 사용 중이에요.",
+  usageMcpBadge: "MCP",
   activityEmpty: "최근 7일간 호출 기록이 없어요.",
   activitySummary: "최근 7일: {{total}}회 호출 · 성공률 {{rate}}%",
   activityWhen: "시간",

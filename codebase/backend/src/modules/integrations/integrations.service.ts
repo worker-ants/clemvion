@@ -7,7 +7,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { createTransport } from 'nodemailer';
 import { isSmtpHostBlocked } from '../../common/utils/smtp-host-guard';
 import { Integration } from './entities/integration.entity';
@@ -174,6 +174,8 @@ export interface IntegrationUsageNode {
   id: string;
   label: string;
   type: string;
+  /** 통합 참조 방식 — 'direct'=노드 config.integrationId, 'mcp'=AI Agent config.mcpServers[].integrationId */
+  usageKind: 'direct' | 'mcp';
 }
 
 export interface IntegrationUsageWorkflow {
@@ -741,19 +743,30 @@ export class IntegrationsService {
       workflow_id: string;
       workflow_name: string;
       is_active: boolean;
+      usage_kind: 'direct' | 'mcp';
     }> = await this.nodeRepository
       .createQueryBuilder('n')
       .innerJoin(Workflow, 'w', 'w.id = n.workflow_id')
       .where('w.workspace_id = :workspaceId', { workspaceId })
-      .andWhere("n.config ->> 'integrationId' = :integrationId", {
-        integrationId: id,
-      })
+      .andWhere(
+        new Brackets((qb) => {
+          qb.where("n.config ->> 'integrationId' = :integrationId", {
+            integrationId: id,
+          }).orWhere("n.config -> 'mcpServers' @> :mcpProbe::jsonb", {
+            mcpProbe: JSON.stringify([{ integrationId: id }]),
+          });
+        }),
+      )
       .select('n.id', 'node_id')
       .addSelect('n.label', 'node_label')
       .addSelect('n.type', 'node_type')
       .addSelect('w.id', 'workflow_id')
       .addSelect('w.name', 'workflow_name')
       .addSelect('w.is_active', 'is_active')
+      .addSelect(
+        "CASE WHEN n.config ->> 'integrationId' = :integrationId THEN 'direct' ELSE 'mcp' END",
+        'usage_kind',
+      )
       .orderBy('w.name', 'ASC')
       .addOrderBy('n.label', 'ASC')
       .getRawMany();
@@ -774,6 +787,7 @@ export class IntegrationsService {
         id: r.node_id,
         label: r.node_label,
         type: r.node_type,
+        usageKind: r.usage_kind,
       });
     }
     return [...grouped.values()];
