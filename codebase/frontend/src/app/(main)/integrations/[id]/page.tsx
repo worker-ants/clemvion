@@ -47,6 +47,8 @@ import { tryTranslateLabel } from "./activity-label";
 import { ScopeTab } from "./scope-tab";
 import { Cafe24AppUrlCard } from "./cafe24-app-url-card";
 import { openOAuthPopup } from "./open-oauth-popup";
+import { UsageNodeList } from "./usage-node-list";
+import { DeleteBlockedDialog } from "./delete-blocked-dialog";
 
 /** catalog staleTime: 1h (operation 메타데이터는 정적·변경 빈도 매우 낮음) */
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -77,7 +79,6 @@ export default function IntegrationDetailPage({
 }) {
   const t = useT();
   const { id } = use(params);
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -101,25 +102,6 @@ export default function IntegrationDetailPage({
     void queryClient.invalidateQueries({ queryKey: ["integrations", id] });
     void queryClient.invalidateQueries({ queryKey: ["integrations", "list"] });
   };
-
-  const deleteMutation = useMutation({
-    mutationFn: () => integrationsApi.remove(id),
-    onSuccess: () => {
-      toast.success(t("integrations.deleted"));
-      queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      router.push("/integrations");
-    },
-    onError: (err: unknown) => {
-      const e = err as {
-        response?: { status?: number; data?: { code?: string } };
-      };
-      if (e.response?.status === 409) {
-        toast.error(t("integrations.inUseError"));
-      } else {
-        toast.error(t("integrations.deleteFailed"));
-      }
-    },
-  });
 
   if (isLoading) {
     return (
@@ -226,8 +208,6 @@ export default function IntegrationDetailPage({
       {tab === "danger" && (
         <DangerTab
           integration={integration}
-          onDelete={() => deleteMutation.mutate()}
-          deleting={deleteMutation.isPending}
           onScopeChanged={invalidate}
           t={t}
         />
@@ -617,46 +597,7 @@ function UsageTab({ integrationId, t }: { integrationId: string; t: TFunction })
           workflows: usages.length,
         })}
       </p>
-      <div className="divide-y rounded-lg border border-[hsl(var(--border))]">
-        {usages.map((w: UsageWorkflow) => (
-          <div key={w.workflowId} className="p-4">
-            <div className="flex items-center gap-2">
-              <Link
-                href={`/workflows/${w.workflowId}`}
-                className="font-medium hover:underline"
-              >
-                {w.workflowName}
-              </Link>
-              <span
-                className={cn(
-                  "rounded-full px-2 py-0.5 text-xs",
-                  w.isActive
-                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-                )}
-              >
-                {w.isActive ? t("common.active") : t("common.inactive")}
-              </span>
-            </div>
-            <ul className="mt-2 space-y-1 text-sm">
-              {w.nodes.map((n) => (
-                <li
-                  key={n.id}
-                  className="text-[hsl(var(--muted-foreground))]"
-                >
-                  ├─ {n.label}{" "}
-                  {n.usageKind === "mcp" && (
-                    <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-xs text-[hsl(var(--muted-foreground))]">
-                      {t("integrations.usageMcpBadge")}
-                    </span>
-                  )}{" "}
-                  <span className="text-xs">({n.type})</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
+      <UsageNodeList usages={usages} t={t} variant="tab" />
     </div>
   );
 }
@@ -834,21 +775,23 @@ function renderApiCell(args: {
 
 // ---------------- Danger zone ----------------
 
-function DangerTab({
+/** @internal exported for unit testing (danger-tab.test.tsx) only. */
+export function DangerTab({
   integration,
-  onDelete,
-  deleting,
   onScopeChanged,
   t,
 }: {
   integration: IntegrationDto;
-  onDelete: () => void;
-  deleting: boolean;
   onScopeChanged: () => void;
   t: TFunction;
 }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const [nextScope, setNextScope] = useState<IntegrationScope>(integration.scope);
+  const [blockedUsages, setBlockedUsages] = useState<UsageWorkflow[] | null>(
+    null,
+  );
 
   const scopeMutation = useMutation({
     mutationFn: () => integrationsApi.updateScope(integration.id, nextScope),
@@ -859,6 +802,53 @@ function DangerTab({
     onError: (err: unknown) => {
       const e = err as { response?: { data?: { message?: string } } };
       toast.error(e.response?.data?.message ?? t("integrations.scopeUpdateFailedDefault"));
+    },
+  });
+
+  // 삭제 흐름 (§4.7):
+  //  1) "통합 삭제" 버튼 클릭 → GET /usages 사전 조회.
+  //  2) 사용처 ≥ 1건 → 삭제하지 않고 차단 다이얼로그 노출 (§7.2).
+  //  3) 사용처 0건 → 인라인 확인 버튼 노출 → 확인 시 DELETE.
+  const precheckMutation = useMutation({
+    mutationFn: () => integrationsApi.usages(integration.id),
+    onSuccess: (usages) => {
+      if (usages.length > 0) {
+        setBlockedUsages(usages);
+      } else {
+        setConfirming(true);
+      }
+    },
+    onError: () => toast.error(t("integrations.deleteFailed")),
+  });
+
+  // 확인 후 실제 DELETE. 사전 조회와 DELETE 사이 race 로 409
+  // INTEGRATION_IN_USE 가 오면 응답 body 의 usages 로 동일 차단 다이얼로그를
+  // 띄운다 (body 없으면 기존 toast fallback).
+  const deleteMutation = useMutation({
+    mutationFn: () => integrationsApi.remove(integration.id),
+    onSuccess: () => {
+      toast.success(t("integrations.deleted"));
+      void queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      router.push("/integrations");
+    },
+    onError: (err: unknown) => {
+      const e = err as {
+        response?: {
+          status?: number;
+          data?: { code?: string; usages?: UsageWorkflow[] };
+        };
+      };
+      if (e.response?.status === 409) {
+        const usages = e.response.data?.usages;
+        setConfirming(false);
+        if (usages && usages.length > 0) {
+          setBlockedUsages(usages);
+        } else {
+          toast.error(t("integrations.inUseError"));
+        }
+      } else {
+        toast.error(t("integrations.deleteFailed"));
+      }
     },
   });
 
@@ -910,19 +900,24 @@ function DangerTab({
           <Button
             variant="outline"
             className="text-red-600"
-            onClick={() => setConfirming(true)}
+            onClick={() => precheckMutation.mutate()}
+            disabled={precheckMutation.isPending}
           >
-            <Trash2 className="mr-2 h-4 w-4" />
+            {precheckMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-4 w-4" />
+            )}
             {t("integrations.dangerDeleteBtn")}
           </Button>
         ) : (
           <div className="flex items-center gap-2">
             <Button
-              onClick={onDelete}
-              disabled={deleting}
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
               className="bg-red-600 hover:bg-red-700"
             >
-              {deleting ? (
+              {deleteMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
               {t("integrations.confirmDeleteBtn")}
@@ -933,6 +928,16 @@ function DangerTab({
           </div>
         )}
       </section>
+
+      <DeleteBlockedDialog
+        open={blockedUsages !== null}
+        onOpenChange={(open) => {
+          if (!open) setBlockedUsages(null);
+        }}
+        integrationName={integration.name}
+        usages={blockedUsages ?? []}
+        t={t}
+      />
     </div>
   );
 }
