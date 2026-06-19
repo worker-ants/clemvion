@@ -1,8 +1,9 @@
 ---
 name: agent-memory-model-select
-worktree: .claude/worktrees/agent-memory-model-select-83e703
+worktree: agent-memory-model-select-83e703
+started: 2026-06-19
+owner: developer
 status: in-progress
-created: 2026-06-19
 spec_area:
   - spec/5-system/17-agent-memory.md
   - spec/4-nodes/3-ai/1-ai-agent.md
