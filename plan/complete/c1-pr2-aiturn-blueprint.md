@@ -1,8 +1,9 @@
 ---
-parent: plan/in-progress/refactor/c1-engine-split.md (PR2)
+parent: plan/complete/c1-engine-split.md (PR2)
 branch: claude/engine-split-s2-aiturn (base = PR1 claude/engine-split-s1-nodebootstrap)
-status: designed (실행 대기)
+status: complete (PR #625 머지)
 created: 2026-06-17
+spec_impact: none
 ---
 
 # PR2 청사진 — AiTurnOrchestrator + EngineDriver (C-1 step2)
