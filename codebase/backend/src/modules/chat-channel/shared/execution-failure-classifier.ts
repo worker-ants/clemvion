@@ -61,6 +61,10 @@ const INTERNAL_CODES = new Set([
   // 측 정책 결정이므로 third-party 가 아닌 internal 로 분류 (§3.1 매핑 표).
   'HTTP_BLOCKED',
   'SUB_WORKFLOW_FAILED',
+  // Cross-workspace sub-workflow 호출 차단 (W-6 fail-closed). 차단은 우리 측
+  // 격리 정책 결정이므로 internal 로 분류 (§3.1 매핑 표). SUB_WORKFLOW_FAILED 와
+  // 동일 그룹 — 명시 등재로 CCH-ERR-04 unknown-fallback warn 노이즈 제거.
+  'WORKFLOW_FORBIDDEN_WORKSPACE',
   'DB_QUERY_FAILED',
   'DB_CONNECTION_ERROR',
   'DB_CONSTRAINT_VIOLATION',

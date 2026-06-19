@@ -385,7 +385,7 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 | `LLM_CALL_FAILED` · `LLM_RESPONSE_INVALID` · `MAX_COLLECTION_RETRIES_EXCEEDED` | — | `executionFailedThirdParty` | `{}` |
 | `EMAIL_SEND_FAILED` | — | `executionFailedThirdParty` | `{}` |
 | `EXECUTION_TIMEOUT` (Code 노드 스크립트) · `EXECUTION_TIME_LIMIT_EXCEEDED` (엔진 active-running 누적, §8) · `CODE_TIMEOUT` | — | `executionFailedTimeout` | `{}` |
-| `CODE_EXECUTION_FAILED` · `CODE_MEMORY_LIMIT` · `HTTP_BLOCKED`(SSRF 차단) · `SUB_WORKFLOW_FAILED` · `DB_*` · `RECURSION_DEPTH_EXCEEDED` · `MAX_ITERATIONS_EXCEEDED` · `CYCLE_DETECTED` · `INVALID_EXPRESSION` · `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` · `ERROR_PORT_FALLBACK` | — | `executionFailedInternal` | `{}` |
+| `CODE_EXECUTION_FAILED` · `CODE_MEMORY_LIMIT` · `HTTP_BLOCKED`(SSRF 차단) · `SUB_WORKFLOW_FAILED` · `WORKFLOW_FORBIDDEN_WORKSPACE`(W-6 워크스페이스 격리 차단) · `DB_*` · `RECURSION_DEPTH_EXCEEDED` · `MAX_ITERATIONS_EXCEEDED` · `CYCLE_DETECTED` · `INVALID_EXPRESSION` · `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` · `ERROR_PORT_FALLBACK` | — | `executionFailedInternal` | `{}` |
 | 그 외 모든 code (`error.code === null` 포함) | unknown — fallback | `executionFailedInternal` | `{}` (+ backend `warn` 로그, CCH-ERR-04) |
 
 **`HTTP_TIMEOUT`(미발행)**: HTTP Request 핸들러는 timeout reject 를 `HTTP_TRANSPORT_FAILED` 로 통합 발행하므로 (`spec/5-system/3-error-handling.md §1.4 註`) 실제 EIA payload 에 `error.code === 'HTTP_TIMEOUT'` 이 도달하는 경로는 현재 없다. 본 행은 enum 보존·방어적 매핑 차원에서 유지한다 (도달 시에도 timeout 분류로 안전 처리).

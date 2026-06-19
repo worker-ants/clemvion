@@ -108,6 +108,7 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       'CODE_MEMORY_LIMIT',
       'HTTP_BLOCKED',
       'SUB_WORKFLOW_FAILED',
+      'WORKFLOW_FORBIDDEN_WORKSPACE',
       'DB_QUERY_FAILED',
       'DB_CONNECTION_ERROR',
       'DB_CONSTRAINT_VIOLATION',
@@ -131,7 +132,14 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
     // (all already fell through to executionFailedInternal); the only
     // difference is the absence of the diagnostic warn. (DB_HOST_BLOCKED 는
     // spec §3.1 `DB_*` 매핑과 일치 — 그룹2b.)
-    it.each(['CODE_MEMORY_LIMIT', 'HTTP_BLOCKED', 'DB_HOST_BLOCKED'])(
+    // WORKFLOW_FORBIDDEN_WORKSPACE (W-6 워크스페이스 격리 차단) 도 동일 — 신규
+    // surface 코드를 INTERNAL_CODES 에 명시 등재해 unknown-fallback warn 제거.
+    it.each([
+      'CODE_MEMORY_LIMIT',
+      'HTTP_BLOCKED',
+      'DB_HOST_BLOCKED',
+      'WORKFLOW_FORBIDDEN_WORKSPACE',
+    ])(
       '%s → executionFailedInternal with no CCH-ERR-04 warn log',
       (code) => {
         const warnSpy = jest
