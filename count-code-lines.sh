@@ -86,31 +86,61 @@ shopt -u nullglob
 IFS=$'\n' areas=($(printf '%s\n' "${areas[@]}" | sort -u))
 unset IFS
 
-# 4) 출력
-HEAD_FMT="  %-12s %12s %14s    %12s %14s\n"
-ROW_FMT="  %-12s %12s %14s    %12s %14s\n"
+# 4) 출력 — 컬럼 폭을 데이터에 맞춰 동적으로 산출해 라인 수가 커져도 정렬 유지
 
-echo
-echo "Codebase line counts  (${TARGET})"
-echo "----------------------------------------------------------------------------"
-printf "${HEAD_FMT}" "Area" "Logic files" "Logic lines" "Test files" "Test lines"
-echo "----------------------------------------------------------------------------"
-
+# 4-1) 모든 행(영역들 + TOTAL)의 표시 문자열을 먼저 수집
+row_area=()  row_lf=()  row_ll=()  row_tf=()  row_tl=()
 for a in "${areas[@]}"; do
-  lf=$(count_files "${tmp}/area.${a}.logic.list")
-  ll=$(sum_lines  "${tmp}/area.${a}.logic.list")
-  tf=$(count_files "${tmp}/area.${a}.test.list")
-  tl=$(sum_lines  "${tmp}/area.${a}.test.list")
-  printf "${ROW_FMT}" "$a" "$(fmt "$lf")" "$(fmt "$ll")" "$(fmt "$tf")" "$(fmt "$tl")"
+  row_area+=("$a")
+  row_lf+=("$(fmt "$(count_files "${tmp}/area.${a}.logic.list")")")
+  row_ll+=("$(fmt "$(sum_lines  "${tmp}/area.${a}.logic.list")")")
+  row_tf+=("$(fmt "$(count_files "${tmp}/area.${a}.test.list")")")
+  row_tl+=("$(fmt "$(sum_lines  "${tmp}/area.${a}.test.list")")")
 done
-
-echo "----------------------------------------------------------------------------"
 
 LF=$(count_files "${tmp}/all.logic.list")
 LL=$(sum_lines  "${tmp}/all.logic.list")
 TF=$(count_files "${tmp}/all.test.list")
 TL=$(sum_lines  "${tmp}/all.test.list")
-printf "${ROW_FMT}" "TOTAL" "$(fmt "$LF")" "$(fmt "$LL")" "$(fmt "$TF")" "$(fmt "$TL")"
+row_area+=("TOTAL")
+row_lf+=("$(fmt "$LF")")
+row_ll+=("$(fmt "$LL")")
+row_tf+=("$(fmt "$TF")")
+row_tl+=("$(fmt "$TL")")
+
+# 4-2) 컬럼별 최대 폭 = max(헤더 길이, 모든 셀 표시 길이)
+maxw() {
+  local m=0 v
+  for v in "$@"; do (( ${#v} > m )) && m=${#v}; done
+  echo "$m"
+}
+H_AREA="Area"; H_LF="Logic files"; H_LL="Logic lines"
+H_TF="Test files"; H_TL="Test lines"
+w_area=$(maxw "$H_AREA" "${row_area[@]}")
+w_lf=$(maxw   "$H_LF"   "${row_lf[@]}")
+w_ll=$(maxw   "$H_LL"   "${row_ll[@]}")
+w_tf=$(maxw   "$H_TF"   "${row_tf[@]}")
+w_tl=$(maxw   "$H_TL"   "${row_tl[@]}")
+
+# 4-3) 동적 폭으로 포맷 / 구분선 구성 (GAP: 컬럼 간격, GGAP: logic↔test 그룹 간격)
+GAP="  "; GGAP="    "
+ROW_FMT="  %-${w_area}s${GAP}%${w_lf}s${GAP}%${w_ll}s${GGAP}%${w_tf}s${GAP}%${w_tl}s\n"
+total_w=$(( 2 + w_area + ${#GAP} + w_lf + ${#GAP} + w_ll + ${#GGAP} + w_tf + ${#GAP} + w_tl ))
+sep="$(printf '%*s' "${total_w}" '' | tr ' ' '-')"
+
+echo
+echo "Codebase line counts  (${TARGET})"
+echo "${sep}"
+printf "${ROW_FMT}" "$H_AREA" "$H_LF" "$H_LL" "$H_TF" "$H_TL"
+echo "${sep}"
+
+# 4-4) 영역 행 출력 → 구분선 → TOTAL 행 (마지막 원소가 TOTAL)
+last=$(( ${#row_area[@]} - 1 ))
+for i in "${!row_area[@]}"; do
+  (( i == last )) && echo "${sep}"
+  printf "${ROW_FMT}" \
+    "${row_area[i]}" "${row_lf[i]}" "${row_ll[i]}" "${row_tf[i]}" "${row_tl[i]}"
+done
 
 TOTAL_LINES=$((LL + TL))
 TOTAL_FILES=$((LF + TF))
