@@ -72,3 +72,11 @@ _cmd_build_docker_images() {
 cmd_e2e() {
   make e2e-test
 }
+
+# run-test.sh 워치독이 e2e 스테이지를 timeout 으로 강제 종료할 때 호출된다.
+# `make e2e-test` 는 마지막에 `make e2e-down` 으로 컨테이너·볼륨을 내리는데,
+# runner 가 hang 한 채 KILL 되면 그 후행 down 이 실행되지 못해 dockerd 에 orphan
+# 컨테이너·볼륨이 남는다. 본 훅이 현재 worktree 의 compose project 를 정리한다.
+on_timeout_e2e() {
+  make e2e-down
+}
