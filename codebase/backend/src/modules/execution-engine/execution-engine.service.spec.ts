@@ -137,6 +137,17 @@ describe('ExecutionEngineService', () => {
     workspaceId: 'ws-1',
   };
 
+  // W-6 fail-closed: sub-workflow 실행은 context.variables.__workspaceId 가
+  // target workflow.workspaceId 와 일치해야 통과한다. 격리-무관 테스트들이
+  // 기본 'ws-1'(=mockWorkflow.workspaceId) 호출자 컨텍스트를 공유 주입하는 헬퍼.
+  const withWorkspace = (
+    ctx: ExecutionContext,
+    workspaceId = 'ws-1',
+  ): ExecutionContext => {
+    ctx.variables = { ...(ctx.variables ?? {}), __workspaceId: workspaceId };
+    return ctx;
+  };
+
   const mockNodes: Partial<Node>[] = [
     {
       id: 'node-1',
@@ -671,15 +682,6 @@ describe('ExecutionEngineService', () => {
         service as unknown as { contextService: ExecutionContextService }
       ).contextService;
     });
-
-    // W-6 fail-closed: executeInline 은 context.variables.__workspaceId 가
-    // target workflow.workspaceId 와 일치해야 통과한다. 본 describe 의
-    // workspace-무관 테스트들은 기본 'ws-1'(=mockWorkflow.workspaceId) 컨텍스트를
-    // 주입해 격리 검증을 통과시킨다.
-    const withWorkspace = (ctx: ExecutionContext): ExecutionContext => {
-      ctx.variables = { ...(ctx.variables ?? {}), __workspaceId: 'ws-1' };
-      return ctx;
-    };
 
     it('stamps parent_node_execution_id on every child created during inline run', async () => {
       mockNodeExecutionRepo.create.mockClear();
@@ -1838,6 +1840,17 @@ describe('ExecutionEngineService', () => {
         ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
       });
 
+      // W-6 — parentWorkspaceId 가 존재하나 target workspace 와 불일치 → 차단.
+      it('throws WORKFLOW_FORBIDDEN_WORKSPACE when parentWorkspaceId mismatches target', async () => {
+        await expect(
+          service.executeSync(
+            workflowId,
+            {},
+            { timeoutMs: 0, parentWorkspaceId: 'ws-other' },
+          ),
+        ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
+      });
+
       it('throws when sub-workflow status is FAILED', async () => {
         const spy = stubRunExecution((execution) => {
           execution.status = ExecutionStatus.FAILED;
@@ -1939,6 +1952,19 @@ describe('ExecutionEngineService', () => {
       it('throws WORKFLOW_FORBIDDEN_WORKSPACE when parentWorkspaceId is absent (fail-closed)', async () => {
         await expect(
           service.executeAsync(workflowId, { foo: 'bar' }),
+        ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
+      });
+
+      // W-6 — parentWorkspaceId 존재하나 target workspace 와 불일치 → 차단.
+      it('throws WORKFLOW_FORBIDDEN_WORKSPACE when parentWorkspaceId mismatches target', async () => {
+        await expect(
+          service.executeAsync(
+            workflowId,
+            { foo: 'bar' },
+            {
+              parentWorkspaceId: 'ws-other',
+            },
+          ),
         ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
       });
     });
@@ -12467,13 +12493,9 @@ describe('ExecutionEngineService', () => {
     });
 
     it('invokerNodeId 있을 때 frame 이 _callStack 에 push 된다', async () => {
-      const context = contextService.createContext(executionId, workflowId);
-      // W-6 fail-closed — executeInline 격리 통과를 위해 호출자 workspace 주입
-      // (target = 기본 mockWorkflow.workspaceId='ws-1' 와 일치).
-      context.variables = {
-        ...(context.variables ?? {}),
-        __workspaceId: 'ws-1',
-      };
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       context._callStack = [];
 
       let capturedStack: unknown[] | undefined;
@@ -12511,13 +12533,9 @@ describe('ExecutionEngineService', () => {
     });
 
     it('정상 반환 후 _callStack 이 pop 된다 (frame 제거)', async () => {
-      const context = contextService.createContext(executionId, workflowId);
-      // W-6 fail-closed — executeInline 격리 통과를 위해 호출자 workspace 주입
-      // (target = 기본 mockWorkflow.workspaceId='ws-1' 와 일치).
-      context.variables = {
-        ...(context.variables ?? {}),
-        __workspaceId: 'ws-1',
-      };
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       context._callStack = [];
 
       (mockHandler.execute as jest.Mock).mockResolvedValue({
@@ -12549,13 +12567,9 @@ describe('ExecutionEngineService', () => {
       };
       handlerRegistry.register('test_node', throwingHandler);
 
-      const context = contextService.createContext(executionId, workflowId);
-      // W-6 fail-closed — executeInline 격리 통과를 위해 호출자 workspace 주입
-      // (target = 기본 mockWorkflow.workspaceId='ws-1' 와 일치).
-      context.variables = {
-        ...(context.variables ?? {}),
-        __workspaceId: 'ws-1',
-      };
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       context._callStack = [];
 
       await expect(
@@ -12578,13 +12592,9 @@ describe('ExecutionEngineService', () => {
     });
 
     it('invokerNodeId 없으면 _callStack 에 push 하지 않는다', async () => {
-      const context = contextService.createContext(executionId, workflowId);
-      // W-6 fail-closed — executeInline 격리 통과를 위해 호출자 workspace 주입
-      // (target = 기본 mockWorkflow.workspaceId='ws-1' 와 일치).
-      context.variables = {
-        ...(context.variables ?? {}),
-        __workspaceId: 'ws-1',
-      };
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
       context._callStack = [];
 
       (mockHandler.execute as jest.Mock).mockResolvedValue({
