@@ -62,6 +62,9 @@ export function ChatModelSelectorWidget({
       value={typeof value === "string" ? value : ""}
       onChange={(v) => onChange(v)}
       provider={modelConfig?.provider ?? ""}
+      // 의도적 "" — apiKey 빈 값 + configId 설정이면 loader 가 저장된 config 의
+      // `:id/models` 엔드포인트로 모델을 조회한다 (preview 가 아닌 edit-mode 경로,
+      // ModelCombobox JSDoc 참고). 노드는 자유 입력 키를 가지지 않는다.
       apiKey=""
       baseUrl={modelConfig?.baseUrl ?? undefined}
       configId={modelConfig?.id}

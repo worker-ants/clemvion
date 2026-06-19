@@ -28,18 +28,21 @@ vi.mock("@/components/llm-config/model-combobox", () => ({
     value,
     onChange,
     provider,
+    baseUrl,
     configId,
     modelType,
   }: {
     value: string;
     onChange: (v: string) => void;
     provider: string;
+    baseUrl?: string;
     configId?: string;
     modelType?: string;
   }) => (
     <div
       data-testid="chat-combobox"
       data-provider={provider}
+      data-base-url={baseUrl ?? ""}
       data-config-id={configId ?? ""}
       data-model-type={modelType ?? ""}
     >
@@ -96,7 +99,7 @@ const CONFIGS = [
     kind: "chat",
     provider: "anthropic",
     name: "Anthropic",
-    baseUrl: null,
+    baseUrl: "https://anthropic.example/v1",
     defaultModel: "claude-x",
     isDefault: false,
   },
@@ -133,10 +136,11 @@ describe("ChatModelSelectorWidget", () => {
   });
   afterEach(() => cleanup());
 
-  it("scopes the model list to the node's llmConfigId provider", () => {
+  it("scopes the model list to the node's llmConfigId provider (provider + baseUrl + configId)", () => {
     renderWidget(ChatModelSelectorWidget, { config: { llmConfigId: "cfg-a" } });
     const box = screen.getByTestId("chat-combobox");
     expect(box.getAttribute("data-provider")).toBe("anthropic");
+    expect(box.getAttribute("data-base-url")).toBe("https://anthropic.example/v1");
     expect(box.getAttribute("data-config-id")).toBe("cfg-a");
     expect(box.getAttribute("data-model-type")).toBe("chat");
   });
@@ -146,6 +150,36 @@ describe("ChatModelSelectorWidget", () => {
     const box = screen.getByTestId("chat-combobox");
     expect(box.getAttribute("data-provider")).toBe("openai");
     expect(box.getAttribute("data-config-id")).toBe("cfg-default");
+  });
+
+  it("falls back to the default config when llmConfigId is stale (not in the list)", () => {
+    // 노드 llmConfigId 가 삭제됐거나 목록에 없으면 default chat config 로 fallback —
+    // useResolvedChatConfig 의 `configs.find(id) ?? isDefault ?? configs[0]` 경로.
+    renderWidget(ChatModelSelectorWidget, {
+      config: { llmConfigId: "cfg-nonexistent" },
+    });
+    const box = screen.getByTestId("chat-combobox");
+    expect(box.getAttribute("data-provider")).toBe("openai");
+    expect(box.getAttribute("data-config-id")).toBe("cfg-default");
+  });
+
+  it("degrades gracefully to empty provider when the config list is empty (loading)", () => {
+    chatConfigs = [];
+    renderWidget(ChatModelSelectorWidget, { config: { llmConfigId: "cfg-a" } });
+    const box = screen.getByTestId("chat-combobox");
+    expect(box.getAttribute("data-provider")).toBe("");
+    expect(box.getAttribute("data-config-id")).toBe("");
+  });
+
+  it("coerces a non-string saved value to an empty string", () => {
+    // 종전 expression 위젯에서 저장된 비문자열 값 등 하위호환 — typeof !== string → "".
+    renderWidget(ChatModelSelectorWidget, {
+      value: 42,
+      config: { llmConfigId: "cfg-a" },
+    });
+    expect(
+      (screen.getByLabelText("chat-model") as HTMLInputElement).value,
+    ).toBe("");
   });
 
   it("stores the picked value as a model-name string", () => {
@@ -162,6 +196,11 @@ describe("ChatModelSelectorWidget", () => {
 });
 
 describe("EmbeddingModelSelectorWidget", () => {
+  // 모듈-레벨 chatConfigs 를 리셋해 앞 describe 의 변형(빈 목록 등)이 누수되지 않게 한다
+  // (현재 embedding 콤보박스 stub 은 chatConfigs 를 읽지 않으나 격리를 명시).
+  beforeEach(() => {
+    chatConfigs = CONFIGS;
+  });
   afterEach(() => cleanup());
 
   it("passes the node's llmConfigId as the embedding model config source", () => {

@@ -82,9 +82,15 @@ rerank) 탭으로 통합돼 모델 목록을 동적 조회할 수 있음.
       "모델 선택"/"model select" 동반 갱신 (bgIsolation 으로 user-guide-writer 대신 직접;
       라벨 불변 → backend-labels parity 무영향). 관찰: AI Agent 가이드 KO/EN 표에
       embeddingModel 행 부재(기존 갭, 본 변경 무관 — follow-up 후보).
-- [ ] TEST WORKFLOW (lint/unit/build/e2e — e2e 면제 후보: 순수 UI 위젯+schema 메타,
-      백엔드 동작/저장형태 무변경)
-- [ ] /ai-review + SUMMARY + (Critical/Warning fix)
+- [x] TEST WORKFLOW (origin/main `1a6bbe73` rebase 후): lint PASS / unit PASS(plan
+      frontmatter guard fix 포함) / build PASS(110s) / e2e PASS(35 suites·205 tests 전원,
+      45s). build 차단했던 DangerTab 회귀는 PR #636 으로 main 에서 해소됨(rebase 로 흡수).
+      e2e 는 jest open-handle teardown 으로 러너가 클린종료 못 해 wrapper 가 매달렸으나
+      테스트 결과는 전원 PASS(내 변경은 async 추가 없음 — infra 아티팩트). 컨테이너 정리 완료.
+- [x] /ai-review (5 reviewer, 전체 LOW, Critical 0) — review/code/2026/06/19/20_40_01/SUMMARY.md.
+      FIX 적용: AI Agent 가이드 embeddingModel 행(KO/EN) + 위젯 테스트 보강(격리+엣지 3종+baseUrl,
+      6→9 cases) + apiKey="" 주석. NO-FIX: config={value} 리렌더(controlled form 본질, 근거 SUMMARY).
+      RESOLUTION: review/code/2026/06/19/20_40_01/RESOLUTION.md.
 - [ ] /consistency-check --impl-done (spec 연결 코드 변경 → SPEC-CONSISTENCY 게이트)
 
 ## 미결정 / 리스크
@@ -92,5 +98,15 @@ rerank) 탭으로 통합돼 모델 목록을 동적 조회할 수 있음.
   없을 수 있음 → `:id/models?type=embedding` 빈 목록 가능. 런타임 폴백과 일치하나
   UX 상 안내 필요. (EmbeddingModelCombobox 가 빈목록/저장값 fallback 처리.)
 - WidgetProps `config` 확장은 모든 위젯에 optional 로 무해. 기존 위젯 무영향.
+
+## Follow-up (ai-review DEFER — spec 약속 surface 아님, 신규 i18n/디자인 필요)
+방어적 UX 개선. 본 PR 범위 밖(새 문자열·디자인). 후속 작업 후보:
+- 삭제된/미존재 `llmConfigId` 시 chat 위젯이 다른 provider 모델을 silent 노출 → "연결된 LLM
+  config 없음" 시각 경고.
+- chat 연결에 embedding 모델 부재 시 빈 목록 → "이 연결은 임베딩 모델 미제공, 비우면 워크스페이스
+  기본" 안내.
+- 종전 `expression` 저장값(`{{ }}`)이 saved-fallback 으로 노출 → 선택 시 리터럴 호출 실패 가능,
+  `{{ }}` 감지 경고 오버레이.
+- (별도 부채) backend `UiHint.widget` union 에 `multiselect` 누락(frontend/spec 엔 존재).
 </content>
 </invoke>

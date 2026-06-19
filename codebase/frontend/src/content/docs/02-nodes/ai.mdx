@@ -50,6 +50,7 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
   {name: "memoryTopK", required: false, type: "integer", description: "턴마다 회수할 메모리 청크 수예요 (RAG Top-K와 독립). `persistent`일 때 보여요.", default: "5"},
   {name: "memoryThreshold", required: false, type: "float", description: "메모리 회수에 필요한 최소 유사도예요 (0~1, RAG 임계값과 독립). `persistent`일 때 보여요.", default: "0.7"},
   {name: "memoryTtlDays", required: false, type: "integer", description: "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요. `persistent`일 때 보여요.", default: "-"},
+  {name: "embeddingModel", required: false, type: "모델 선택", description: "메모리 회수·추출에 쓸 임베딩 모델이에요. 노드의 LLM 프로바이더에 등록된 모델 중에서 골라요. 처음 저장했을 때와 차원이 일치해야 해요. 비우면 워크스페이스 기본 임베딩 모델을 써요. `persistent`일 때 보여요.", default: "-"},
   {name: "summaryModel", required: false, type: "모델 선택", description: "롤링 요약에 쓸 별도 모델이에요. 노드의 LLM 프로바이더에 등록된 모델 중에서 골라요. 비우면 노드 모델을 그대로 써요. 요약은 비교적 단순한 작업이라 저비용 모델을 골라 비용을 줄일 수 있어요. `summary_buffer`·`persistent`일 때 보여요.", default: "-"},
   {name: "extractionModel", required: false, type: "모델 선택", description: "세션 간 메모리 추출에 쓸 별도 모델이에요. 노드의 LLM 프로바이더에 등록된 모델 중에서 골라요. 비우면 노드 모델을 그대로 써요. 저비용 추출 모델로 비용을 줄일 수 있어요. `persistent`일 때 보여요.", default: "-"},
   {name: "presentationTools", required: false, type: "PresentationToolDef[]", description: "LLM이 응답을 텍스트 대신 표·차트·캐러셀·템플릿·폼으로 렌더링할 수 있게 해주는 가상 도구 목록이에요. 비어 있으면 기능이 꺼져요. 각 항목은 `type`(필수), `description`(선택), `defaults`(선택)으로 구성돼요.", default: "[]"},
