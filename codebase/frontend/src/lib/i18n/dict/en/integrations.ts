@@ -120,6 +120,7 @@ export const integrations: Dict["integrations"] = {
   scopeOnlyOauth: "Scope management is only available for OAuth integrations.",
   usageEmpty: "No workflow nodes currently use this integration.",
   usageSummary: "Used by {{nodes}} nodes across {{workflows}} workflows.",
+  usageMcpBadge: "MCP",
   activityEmpty: "No calls recorded in the last 7 days.",
   activitySummary: "Last 7 days: {{total}} calls · {{rate}}% success",
   activityWhen: "When",

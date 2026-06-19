@@ -1039,6 +1039,28 @@ describe('IntegrationsService', () => {
       );
       expect(integrationRepo.remove).not.toHaveBeenCalled();
     });
+
+    it('blocks deletion when only an MCP reference exists', async () => {
+      nodeRepo.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({
+          raw: [
+            {
+              node_id: 'n9',
+              node_label: 'AI Agent',
+              node_type: 'ai-agent',
+              workflow_id: 'w1',
+              workflow_name: 'Workflow A',
+              is_active: true,
+              usage_kind: 'mcp',
+            },
+          ],
+        }),
+      );
+      await expect(service.remove('int-1', 'ws-1', 'user-1')).rejects.toThrow(
+        ConflictException,
+      );
+      expect(integrationRepo.remove).not.toHaveBeenCalled();
+    });
   });
 
   // -----------------------------------------------------------------
@@ -1080,6 +1102,48 @@ describe('IntegrationsService', () => {
       expect(usages).toHaveLength(2);
       expect(usages[0].nodes).toHaveLength(2);
       expect(usages[1].isActive).toBe(false);
+    });
+
+    it('exposes usageKind=direct for direct config.integrationId references', async () => {
+      nodeRepo.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({
+          raw: [
+            {
+              node_id: 'n1',
+              node_label: 'Send',
+              node_type: 'http-send',
+              workflow_id: 'w1',
+              workflow_name: 'Workflow A',
+              is_active: true,
+              usage_kind: 'direct',
+            },
+          ],
+        }),
+      );
+      const usages = await service.getUsages('int-1', 'ws-1');
+      expect(usages).toHaveLength(1);
+      expect(usages[0].nodes[0].usageKind).toBe('direct');
+    });
+
+    it('exposes usageKind=mcp for AI Agent config.mcpServers[].integrationId references', async () => {
+      nodeRepo.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({
+          raw: [
+            {
+              node_id: 'n9',
+              node_label: 'AI Agent',
+              node_type: 'ai-agent',
+              workflow_id: 'w1',
+              workflow_name: 'Workflow A',
+              is_active: true,
+              usage_kind: 'mcp',
+            },
+          ],
+        }),
+      );
+      const usages = await service.getUsages('int-1', 'ws-1');
+      expect(usages).toHaveLength(1);
+      expect(usages[0].nodes[0].usageKind).toBe('mcp');
     });
   });
 
