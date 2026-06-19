@@ -209,7 +209,7 @@ export interface NodeComponentMetadata {
  * pick a widget and rendering options per field.
  *
  * Supported widget values:
- *  - text / textarea / number / select / checkbox  (basic primitives)
+ *  - text / textarea / number / select / multiselect / checkbox  (basic primitives)
  *  - expression          — renders ExpressionInput (template syntax + autocomplete)
  *  - kv / kv-expression  — key-value list editor (expression-aware variant)
  *  - code                — monospaced multiline editor
@@ -228,6 +228,7 @@ export interface UiHint {
     | 'textarea'
     | 'number'
     | 'select'
+    | 'multiselect'
     | 'checkbox'
     | 'expression'
     | 'kv'

@@ -13,6 +13,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 const CHAT_KEY = ["model-configs", "chat", "list"] as const;
 
@@ -132,6 +133,7 @@ function renderWidget(
 
 describe("ChatModelSelectorWidget", () => {
   beforeEach(() => {
+    useLocaleStore.getState().setLocale("en");
     chatConfigs = CONFIGS;
   });
   afterEach(() => cleanup());
@@ -193,15 +195,56 @@ describe("ChatModelSelectorWidget", () => {
     });
     expect(onChange).toHaveBeenCalledWith("claude-x");
   });
+
+  it("warns when llmConfigId is stale (set but not in the loaded list)", () => {
+    renderWidget(ChatModelSelectorWidget, {
+      config: { llmConfigId: "cfg-nonexistent" },
+    });
+    expect(screen.queryByTestId("chat-model-stale-warning")).not.toBeNull();
+  });
+
+  it("does not warn stale when llmConfigId resolves to a real config", () => {
+    renderWidget(ChatModelSelectorWidget, { config: { llmConfigId: "cfg-a" } });
+    expect(screen.queryByTestId("chat-model-stale-warning")).toBeNull();
+  });
+
+  it("does not warn stale while the config list is still empty (loading)", () => {
+    chatConfigs = [];
+    renderWidget(ChatModelSelectorWidget, {
+      config: { llmConfigId: "cfg-nonexistent" },
+    });
+    expect(screen.queryByTestId("chat-model-stale-warning")).toBeNull();
+  });
+
+  it("warns when the saved value is a dynamic expression ({{ }})", () => {
+    renderWidget(ChatModelSelectorWidget, {
+      value: "{{ vars.model }}",
+      config: { llmConfigId: "cfg-a" },
+    });
+    expect(
+      screen.queryByTestId("chat-model-expression-warning"),
+    ).not.toBeNull();
+  });
 });
 
 describe("EmbeddingModelSelectorWidget", () => {
   // 모듈-레벨 chatConfigs 를 리셋해 앞 describe 의 변형(빈 목록 등)이 누수되지 않게 한다
   // (현재 embedding 콤보박스 stub 은 chatConfigs 를 읽지 않으나 격리를 명시).
   beforeEach(() => {
+    useLocaleStore.getState().setLocale("en");
     chatConfigs = CONFIGS;
   });
   afterEach(() => cleanup());
+
+  it("warns when the saved value is a dynamic expression ({{ }})", () => {
+    renderWidget(EmbeddingModelSelectorWidget, {
+      value: "{{ env.EMBED_MODEL }}",
+      config: { llmConfigId: "cfg-a" },
+    });
+    expect(
+      screen.queryByTestId("embedding-model-expression-warning"),
+    ).not.toBeNull();
+  });
 
   it("passes the node's llmConfigId as the embedding model config source", () => {
     renderWidget(EmbeddingModelSelectorWidget, {

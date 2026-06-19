@@ -442,6 +442,12 @@ export const nodeConfigs = {
     noCollections: "사용 가능한 컬렉션이 없어요",
     docsCount: "{{count}}건",
   },
+  modelSelector: {
+    staleConfigWarning:
+      "이 노드에 연결된 LLM 제공자를 찾을 수 없어 기본 제공자의 모델을 보여주고 있어요. 노드의 LLM 제공자를 다시 선택하세요.",
+    expressionValueWarning:
+      "저장된 값이 동적 참조 표현식이에요. 그대로 두면 평가 없이 문자열 그대로 모델 이름으로 쓰여 호출이 실패해요. 목록에서 모델을 새로 선택하세요.",
+  },
   buttonList: {
     buttonLabel: "버튼 {{index}}",
     moveUp: "위로 이동",

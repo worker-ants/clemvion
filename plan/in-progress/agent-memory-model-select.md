@@ -99,14 +99,16 @@ rerank) 탭으로 통합돼 모델 목록을 동적 조회할 수 있음.
   UX 상 안내 필요. (EmbeddingModelCombobox 가 빈목록/저장값 fallback 처리.)
 - WidgetProps `config` 확장은 모든 위젯에 optional 로 무해. 기존 위젯 무영향.
 
-## Follow-up (ai-review DEFER — spec 약속 surface 아님, 신규 i18n/디자인 필요)
-방어적 UX 개선. 본 PR 범위 밖(새 문자열·디자인). 후속 작업 후보:
-- 삭제된/미존재 `llmConfigId` 시 chat 위젯이 다른 provider 모델을 silent 노출 → "연결된 LLM
-  config 없음" 시각 경고.
-- chat 연결에 embedding 모델 부재 시 빈 목록 → "이 연결은 임베딩 모델 미제공, 비우면 워크스페이스
-  기본" 안내.
-- 종전 `expression` 저장값(`{{ }}`)이 saved-fallback 으로 노출 → 선택 시 리터럴 호출 실패 가능,
-  `{{ }}` 감지 경고 오버레이.
-- (별도 부채) backend `UiHint.widget` union 에 `multiselect` 누락(frontend/spec 엔 존재).
+## Follow-up (ai-review DEFER) — 동일 브랜치 구현 완료 (2026-06-19)
+방어적 UX 개선. 사용자 요청으로 동일 브랜치에서 진행:
+- [x] **FU1 stale config 경고**: chat 위젯에서 `llmConfigId` 가 (로드된) 목록에 없어 default 로
+      fallback 한 경우(`useResolvedChatConfig.isStale`) 경고 표시. i18n `modelSelector.staleConfigWarning`.
+- [x] **FU3 expression 저장값 경고**: 두 위젯 모두 `value` 가 `{{ }}` 포함 시(`looksLikeExpression`)
+      "동적 참조 — 새로 선택" 경고. i18n `modelSelector.expressionValueWarning`.
+- [x] **FU4 multiselect backend union**: `node-component.interface.ts` UiHint.widget 에 `multiselect`
+      추가 (spec §2.6.2 "기본 입력(10)" 와 정합 — 기존 갭 해소, spec 변경 불요).
+- [~] **FU2 빈 임베딩 목록 안내**: 기존 `ModelSelectField` 가 이미 `isEmpty` → `noModelsFound`
+      메시지로 처리 → 변경 불요. (메시지 특화는 공유 컴포넌트(KB 공용) 수정이라 blast radius 큼, skip.)
+- i18n: KO/EN `nodeConfigs.modelSelector` 양쪽 등록(parity 확인). 신규 위젯 테스트 9→14 cases.
 </content>
 </invoke>
