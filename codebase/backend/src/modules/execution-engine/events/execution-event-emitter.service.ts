@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import {
   ExecutionEventType,
   ExecutionRoutingContext,
@@ -21,7 +21,14 @@ import {
  */
 @Injectable()
 export class ExecutionEventEmitter {
-  constructor(private readonly websocketService: WebsocketService) {}
+  constructor(
+    // C-1 후속 ④ — engine→Retry 역방향 DI 제거로 retry-turn.service 의 import 위치가
+    // 엔진에서 외부 진입점(websocket.gateway)으로 이동하며 ws.service↔gateway↔
+    // event-emitter ES-module 순환이 더 짧은 경로로 노출됐다. forwardRef 로 주입을
+    // 지연 해석해 데코레이터 메타데이터 eval 순서와 무관하게 견고화한다(동작 불변).
+    @Inject(forwardRef(() => WebsocketService))
+    private readonly websocketService: WebsocketService,
+  ) {}
 
   /**
    * Execution 단위 이벤트 발행 — `execution:<id>` 채널.

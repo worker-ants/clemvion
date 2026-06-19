@@ -29,7 +29,10 @@ import {
 import { withInteractionMeta } from './ai-conversation-helpers';
 import { ButtonConfig } from '../../nodes/presentation/_shared/button.types';
 import type { GraphEdge } from './graph/graph-builder';
-import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
+import {
+  ENGINE_DRIVER,
+  type InteractionEngineDriver,
+} from './engine-driver.interface';
 
 /**
  * 버튼 클릭 재개 payload 의 판별유니온 (continuation-bus 가 publish 하는 wire-shape).
@@ -325,7 +328,7 @@ export class ButtonInteractionService {
     @InjectRepository(NodeExecution)
     private readonly nodeExecutionRepository: Repository<NodeExecution>,
     @Inject(ENGINE_DRIVER)
-    private readonly driver: EngineDriver,
+    private readonly driver: InteractionEngineDriver,
   ) {}
 
   /**

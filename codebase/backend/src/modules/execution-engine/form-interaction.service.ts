@@ -25,7 +25,10 @@ import {
   type ProcessTurnResult,
 } from '../../shared/execution-resume/process-turn-result';
 import { withInteractionMeta } from './ai-conversation-helpers';
-import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
+import {
+  ENGINE_DRIVER,
+  type InteractionEngineDriver,
+} from './engine-driver.interface';
 
 /**
  * C-1 step3 (strangler-fig) — Form blocking-interaction 생명주기를 god-class
@@ -55,7 +58,7 @@ export class FormInteractionService {
     @InjectRepository(NodeExecution)
     private readonly nodeExecutionRepository: Repository<NodeExecution>,
     @Inject(ENGINE_DRIVER)
-    private readonly driver: EngineDriver,
+    private readonly driver: InteractionEngineDriver,
   ) {}
 
   /**

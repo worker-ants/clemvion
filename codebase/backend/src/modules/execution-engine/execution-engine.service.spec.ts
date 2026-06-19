@@ -104,6 +104,10 @@ describe('ExecutionEngineService', () => {
   // 가 아님 — AiTurnOrchestrator 선례와 동일).
   let formInteraction: FormInteractionService;
   let buttonInteraction: ButtonInteractionService;
+  // C-1 후속 ④ — retry_last_turn 진입점은 엔진 delegator 가 제거되고 RetryTurnService
+  // 가 직접 표면이 됐다. 본 spec 의 applyRetryLastTurn 통합 테스트는 이 실 인스턴스를
+  // 대상으로 호출한다 (driver=엔진 이므로 엔진 내부 협력은 그대로 exercise).
+  let retryTurnService: RetryTurnService;
   // 엔진·interaction 서비스가 공유하는 ConversationThreadService 싱글톤 — form/button
   // resume 의 thread append 부작용을 위임 너머로 검증하기 위해 모듈에서 직접 얻는다
   // (옛 `service.conversationThreadService` 접근은 엔진에서 주입이 제거돼 무효).
@@ -553,6 +557,7 @@ describe('ExecutionEngineService', () => {
     buttonInteraction = module.get<ButtonInteractionService>(
       ButtonInteractionService,
     );
+    retryTurnService = module.get<RetryTurnService>(RetryTurnService);
     conversationThreadService = module.get<ConversationThreadService>(
       ConversationThreadService,
     );
@@ -12624,7 +12629,7 @@ describe('ExecutionEngineService', () => {
     it('replays the failed last turn and produces a new assistant response on the spawned row', async () => {
       const { handler } = installReentry({ processReturn: terminalSuccess });
 
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       // The failed last user message was replayed verbatim (spec §7.9).
@@ -12652,7 +12657,7 @@ describe('ExecutionEngineService', () => {
 
     it('marks the Execution COMPLETED when the replayed conversation ends normally', async () => {
       installReentry({ processReturn: terminalSuccess });
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       const completed =
@@ -12669,7 +12674,7 @@ describe('ExecutionEngineService', () => {
           throw Object.assign(new Error('429'), { status: 429 });
         },
       });
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       expect(handler.processMultiTurnMessage).toHaveBeenCalledTimes(1);
@@ -12694,7 +12699,7 @@ describe('ExecutionEngineService', () => {
         processReturn: terminalSuccess,
         spawnedStatus: NodeExecutionStatus.COMPLETED,
       });
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
       // Already handled by another worker — no re-entry.
       expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
@@ -12705,7 +12710,7 @@ describe('ExecutionEngineService', () => {
         processReturn: terminalSuccess,
         retryState: undefined,
       });
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
       expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
       // spawned row saved as FAILED.
@@ -12732,7 +12737,7 @@ describe('ExecutionEngineService', () => {
           maxTurns: 20,
         },
       });
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       expect(handler.processMultiTurnMessage).toHaveBeenCalledTimes(1);
@@ -12777,7 +12782,7 @@ describe('ExecutionEngineService', () => {
         .fn()
         .mockReturnValue(noopQb);
 
-      const p = service.applyRetryLastTurn(EXEC, SPAWNED);
+      const p = retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       // replay turn 시작까지 진행하도록 flush.
       await flushPromises();
       // 외부 cancel 도달 (worker applyCancellation 경유와 동형). fire-and-forget 의도.
@@ -12965,7 +12970,7 @@ describe('ExecutionEngineService', () => {
         edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
       });
 
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       // downstream handler.execute 가 1회 호출됨 (graph traversal 합류).
@@ -13005,7 +13010,7 @@ describe('ExecutionEngineService', () => {
         edges: [],
       });
 
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       // downstream handler 는 호출되지 않음.
@@ -13070,7 +13075,7 @@ describe('ExecutionEngineService', () => {
       } as unknown as NodeHandler;
       handlerRegistry.register('ai_agent', agentHandler);
 
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       // 정상 COMPLETED — fallback 경로도 동일 종결.
@@ -13114,7 +13119,7 @@ describe('ExecutionEngineService', () => {
       // completedNode (AGENT_ID) won't be in sortedIndexMap.
       mockNodeRepo.findBy = jest.fn().mockResolvedValue([otherNode]);
 
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       // Execution is COMPLETED via defensive fallback (completeRetryExecution).
@@ -13158,7 +13163,7 @@ describe('ExecutionEngineService', () => {
         downstreamHandler: failingDownstreamHandler,
       });
 
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       // Execution is FAILED — applyRetryLastTurn catch → failRetryExecution.
@@ -13259,7 +13264,7 @@ describe('ExecutionEngineService', () => {
         return defaultValue;
       });
 
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       // Trigger must have been called once (not zero, not two).
@@ -13328,7 +13333,7 @@ describe('ExecutionEngineService', () => {
         downstreamMetadata: { kind: 'parallel' },
       });
 
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       // Parallel downstream handler 가 dispatch 됨 (runNodeDispatchLoop 의
@@ -13380,7 +13385,7 @@ describe('ExecutionEngineService', () => {
         downstreamMetadata: { kind: 'background' },
       });
 
-      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       // Background downstream handler 가 dispatch 됨 (runNodeDispatchLoop 의
@@ -13452,7 +13457,7 @@ describe('ExecutionEngineService', () => {
 
       // Retry 시작 — form node 가 waiting_for_input 으로 진입 후 hang.
       // applyRetryLastTurn 의 Promise 는 continueExecution 후에야 resolve.
-      const retryPromise = service.applyRetryLastTurn(EXEC, SPAWNED);
+      const retryPromise = retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
 
       // Form handler.execute 가 dispatch 됨 (runNodeDispatchLoop 의 blocking
@@ -13556,7 +13561,7 @@ describe('ExecutionEngineService', () => {
       btnAny.waitForButtonInteraction = jest.fn().mockResolvedValue(undefined);
 
       try {
-        await service.applyRetryLastTurn(EXEC, SPAWNED);
+        await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
         await flushPromises();
 
         // Buttons handler.execute 가 dispatch 됨.
@@ -13624,7 +13629,7 @@ describe('ExecutionEngineService', () => {
       orchAny.waitForAiConversation = jest.fn().mockResolvedValue(undefined);
 
       try {
-        await service.applyRetryLastTurn(EXEC, SPAWNED);
+        await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
         await flushPromises();
 
         expect(downstreamHandler.execute).toHaveBeenCalledTimes(1);

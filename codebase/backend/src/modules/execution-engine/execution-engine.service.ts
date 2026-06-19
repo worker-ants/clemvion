@@ -138,10 +138,6 @@ import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
 // 순환 DI → forwardRef 로 해소한다 (AiTurnOrchestrator 선례와 동일).
 import { FormInteractionService } from './form-interaction.service';
 import { ButtonInteractionService } from './button-interaction.service';
-// C-1 step4 — retry_last_turn 생명주기는 RetryTurnService 로 추출됨. 엔진은 외부
-// 진입점(retryLastTurn / applyRetryLastTurn)을 thin delegator 로 잔류시켜 본
-// 서비스로 위임한다 (publishRetryLastTurn 는 publisher cluster 로 엔진 잔류).
-import { RetryTurnService } from './retry-turn.service';
 // AI 대화 helper·RehydrationError·builder 의 canonical 정의는 leaf 모듈
 // `./ai-conversation-helpers` 단일이며, 모든 소비자(엔진·orchestrator·spec)가 거기서
 // 직접 import 한다 — re-export 체인 제거(impl-done Critical 해소: `RehydrationError`
@@ -607,10 +603,11 @@ export class ExecutionEngineService
     private readonly formInteraction: FormInteractionService,
     @Inject(forwardRef(() => ButtonInteractionService))
     private readonly buttonInteraction: ButtonInteractionService,
-    // C-1 step4 — retry_last_turn 생명주기 위임 대상. RetryTurnService 가
-    // ENGINE_DRIVER(=본 엔진) 를 주입받으므로 순환 DI → forwardRef 로 해소.
-    @Inject(forwardRef(() => RetryTurnService))
-    private readonly retryTurnService: RetryTurnService,
+    // C-1 후속 ④ — RetryTurnService 역방향 주입 제거(engine→Retry 순환 DI 해소).
+    // 외부 진입점(websocket.gateway·continuation processor)이 RetryTurnService 를
+    // 직접 호출하므로 엔진은 더 이상 retry delegator 를 잔류시키지 않는다. 단방향
+    // Retry→engine(ENGINE_DRIVER) 만 유지. AiTurn/Form/Button 은 dispatch-loop·
+    // resume-registry 가 그래프 순회 중 위임하므로 forwardRef 양방향 유지.
   ) {}
 
   /**
@@ -3889,48 +3886,6 @@ export class ExecutionEngineService
   }
 
   /**
-   * AI Agent multi-turn 의 `execution.retry_last_turn` (spec/5-system/
-   * 6-websocket-protocol.md §4.2, spec/5-system/4-execution-engine.md §1.3,
-   * spec/4-nodes/3-ai/1-ai-agent.md §7.9) 진입점.
-   *
-   * retryable error 로 종결된 NodeExecution 의 보존된 `_retryState` 를 lookup·
-   * 검증하고, **동일 트랜잭션 안에서** `_retryState` 키를 제거(소비)하면서 동일
-   * nodeId 의 새 NodeExecution row 를 spawn 한다. 키 제거가 affected=1 인 쪽만
-   * 진행하므로 동시 retry 의 중복 spawn 이 차단된다 (한 번 소비되면 후속 retry 는
-   * `RETRY_STATE_NOT_FOUND`).
-   *
-   * 검증 순서 (spec §4.2 에러 코드 표):
-   *  1. NodeExecution lookup (executionId 소속 확인). 미존재 → INVALID_EXECUTION_STATE.
-   *  2. status !== FAILED → INVALID_EXECUTION_STATE.
-   *  3. `outputData.output.error.details.retryable !== true` → NODE_NOT_RETRYABLE.
-   *  4. `outputData._retryState` 부재 또는 `now > expiresAt` → RETRY_STATE_NOT_FOUND.
-   *  5. `retryAfterSec` 카운트다운 미경과 → RETRY_TOO_EARLY.
-   *  6. atomic consume + spawn.
-   *
-   * **본 메서드는 큐를 publish 하지 않음** — caller(WS gateway) 가 spawn 된 row
-   * id 로 `publishRetryLastTurn` 을 호출해 `retry_last_turn` continuation job 을
-   * BullMQ 에 enqueue 하고, worker 가 `applyRetryLastTurn` 으로 multi-turn loop
-   * 에 재진입한다 (INFO#3: "Continuation Bus 미경유" 표현 수정 — 본 메서드 자체가
-   * publish 안 할 뿐, caller 가 publish 함).
-   *
-   * **재진입 구현 완료**: `applyRetryLastTurn` 이 `_retryState` → `_resumeState`
-   * shape 변환 후 `runAiConversationLoop` 로 재진입. INFO#1: 이전 "재진입 미완 갭"
-   * 주석은 현 구현을 반영해 삭제함. 남은 문서화된 갭은 downstream graph traversal
-   * (성공 후 후속 노드 재개) — `applyRetryLastTurn` 의 docstring 참조.
-   */
-  // C-1 step4 — 외부 진입점 thin delegator. 실제 lookup/검증/atomic-consume/spawn
-  // 로직은 RetryTurnService 로 추출됨. WS gateway (`websocket.gateway.ts`) 가
-  // `executionEngineService.retryLastTurn(...)` 으로 호출하는 외부 표면을 보존한다
-  // (PR2 가 `continueAiConversation` 을, PR3 가 `continueButtonClick` 을 엔진에 남긴
-  // 것과 동일 패턴). 본문은 `retry-turn.service.ts` 참조.
-  async retryLastTurn(
-    executionId: string,
-    nodeExecutionId: string,
-  ): Promise<{ spawnedNodeExecutionId: string }> {
-    return this.retryTurnService.retryLastTurn(executionId, nodeExecutionId);
-  }
-
-  /**
    * spec/5-system/6-websocket-protocol.md §4.2 "Continuation Bus 경유 (worker
    * handoff)" — `retryLastTurn` 으로 spawn 된 RUNNING row 의 id 를 담아
    * `retry_last_turn` continuation job 을 publish 한다. worker processor 가
@@ -3983,49 +3938,6 @@ export class ExecutionEngineService
         }`,
       );
     }
-  }
-
-  /**
-   * spec/5-system/6-websocket-protocol.md §4.2 / spec/5-system/4-execution-engine.md
-   * §1.3 / spec/4-nodes/3-ai/1-ai-agent.md §7.9 — `retry_last_turn` worker 재진입.
-   *
-   * `retryLastTurn` 이 spawn 한 RUNNING row 를 `_retryState` 로 seed 해 multi-turn
-   * loop 에 재진입시킨다. 기존 rehydration (`rehydrateAndResume`) 과 다른 점:
-   *   - 대상 Execution 은 FAILED (waiting_for_input 아님), spawn 된 row 는 RUNNING.
-   *   - `_retryState` 가 DB (spawn 된 row 의 `inputData`) 에 영속돼 있어 in-memory
-   *     `_resumeState` 가 없어도 재구성 가능 (multi-turn rehydration 의 알려진
-   *     한계 RESUME_INCOMPATIBLE_STATE 를 retry 는 우회 — _retryState 가 DB SoT).
-   *
-   * 재진입 절차:
-   *   1. spawn 된 row + `inputData._retryState` 로드.
-   *   2. ExecutionContext 확보 (`rehydrateContext` 재사용 — live 면 그대로).
-   *   3. `_retryState` → `_resumeState` shape 변환 후 nodeOutputCache /
-   *      structuredOutputCache 에 주입.
-   *   4. NODE_STARTED (spawn 된 row) emit. Execution FAILED → RUNNING 전이는
-   *      `finalizeAiNode` 의 COMPLETED 분기가 담당 (W4: JSDoc 정합).
-   *   5. `runAiConversationLoop` 를 마지막 user message replay (initialAction =
-   *      `ai_message`) 로 구동 → 실패했던 LLM turn 재실행. 이후 정상 loop.
-   *   6. `finalizeAiNode` 로 spawn row 마감 + Execution 을 RUNNING 으로 전이.
-   *   7. 성공 종결이면 `resumeGraphAfterRetry` 가 downstream graph 로 진행
-   *      (WARNING #10 해소; spec/4-nodes/3-ai/1-ai-agent.md §7.9 + §12.8).
-   *      실패/취소/`resumeGraphAfterRetry` 내부 예외 등 모든 catch 는
-   *      `failRetryExecution` 이 Execution 을 FAILED 또는 CANCELLED 로 마감
-   *      (일반 노드 종결 규칙 — spec §10).
-   */
-  // C-1 step4 — 외부 진입점 thin delegator. 실제 worker 재진입 (context rehydrate /
-  // _retryState→_resumeState 복원 / single-turn replay / downstream graph 진행 /
-  // Execution 마감) 로직은 RetryTurnService 로 추출됨. continuation processor
-  // (`continuation-execution.processor.ts`) 가 `engine.applyRetryLastTurn(...)`
-  // 으로 호출하는 외부 표면을 보존한다 (PR2/PR3 delegator 선례와 동일). 본문은
-  // `retry-turn.service.ts` 참조.
-  async applyRetryLastTurn(
-    executionId: string,
-    spawnedNodeExecutionId: string,
-  ): Promise<void> {
-    return this.retryTurnService.applyRetryLastTurn(
-      executionId,
-      spawnedNodeExecutionId,
-    );
   }
 
   /**

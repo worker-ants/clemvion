@@ -25,7 +25,10 @@ import {
   RetryLastTurnError,
 } from './workflow-errors';
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
-import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
+import {
+  ENGINE_DRIVER,
+  type RetryEngineDriver,
+} from './engine-driver.interface';
 
 /**
  * C-1 step4 (strangler-fig, FINAL) — `execution.retry_last_turn` lifecycle 를
@@ -76,7 +79,7 @@ export class RetryTurnService {
     private readonly aiTurnOrchestrator: AiTurnOrchestrator,
     // 엔진 잔류 라이프사이클 capability. canonical 엔진에 `useExisting` 바인딩.
     @Inject(ENGINE_DRIVER)
-    private readonly driver: EngineDriver,
+    private readonly driver: RetryEngineDriver,
   ) {}
 
   /**

@@ -8,6 +8,7 @@ import {
   type ContinuationJob,
 } from '../queues/continuation-execution.queue';
 import { ExecutionEngineService } from '../execution-engine.service';
+import { RetryTurnService } from '../retry-turn.service';
 
 /**
  * Phase 2 — Durable Continuation Worker.
@@ -53,6 +54,10 @@ export class ContinuationExecutionProcessor extends WorkerHost {
   constructor(
     @Inject(forwardRef(() => ExecutionEngineService))
     private readonly engine: ExecutionEngineService,
+    // C-1 후속 ④ — retry_last_turn 재진입은 엔진 thin delegator 가 아니라
+    // RetryTurnService 를 직접 호출(engine→Retry 순환 DI 제거). 나머지 continuation
+    // 처리(applyContinuation/applyCancellation 등)는 계속 엔진 경유.
+    private readonly retryTurnService: RetryTurnService,
   ) {
     super();
   }
@@ -127,7 +132,7 @@ export class ContinuationExecutionProcessor extends WorkerHost {
         const spawnedNodeExecutionId =
           (payload as { spawnedNodeExecutionId?: string } | undefined)
             ?.spawnedNodeExecutionId ?? nodeExecutionId;
-        await this.engine.applyRetryLastTurn(
+        await this.retryTurnService.applyRetryLastTurn(
           executionId,
           spawnedNodeExecutionId,
         );

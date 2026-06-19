@@ -49,7 +49,10 @@ import {
 // §1.1 핀에 따라 엔진 파일에 잔류한다. 타입 전용 import 라 런타임에 소거되어
 // orchestrator→엔진 값 순환을 만들지 않는다 (값 helper 는 위 helper 모듈에서).
 import type { WaitingInteractionType } from './execution-engine.service';
-import { ENGINE_DRIVER, type EngineDriver } from './engine-driver.interface';
+import {
+  ENGINE_DRIVER,
+  type AiTurnEngineDriver,
+} from './engine-driver.interface';
 
 /**
  * C-1 step2 (strangler-fig) — AI 멀티턴 생명주기를 god-class
@@ -76,7 +79,7 @@ export class AiTurnOrchestrator {
     @InjectRepository(NodeExecution)
     private readonly nodeExecutionRepository: Repository<NodeExecution>,
     @Inject(ENGINE_DRIVER)
-    private readonly driver: EngineDriver,
+    private readonly driver: AiTurnEngineDriver,
   ) {}
 
   /**

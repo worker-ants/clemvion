@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import type { Job } from 'bullmq';
 import { ContinuationExecutionProcessor } from './continuation-execution.processor';
 import { ExecutionEngineService } from '../execution-engine.service';
+import { RetryTurnService } from '../retry-turn.service';
 import type { ContinuationJob } from '../queues/continuation-execution.queue';
 
 /**
@@ -36,18 +37,20 @@ describe('ContinuationExecutionProcessor', () => {
   let engine: jest.Mocked<
     Pick<
       ExecutionEngineService,
-      | 'applyContinuation'
-      | 'applyCancellation'
-      | 'isNodeExecutionWaiting'
-      | 'applyRetryLastTurn'
+      'applyContinuation' | 'applyCancellation' | 'isNodeExecutionWaiting'
     >
   >;
+  // C-1 후속 ④ — retry_last_turn 재진입은 엔진 delegator 제거 후 RetryTurnService
+  // 가 직접 표면. 처리기가 본 서비스를 호출한다.
+  let retry: jest.Mocked<Pick<RetryTurnService, 'applyRetryLastTurn'>>;
 
   beforeEach(async () => {
     const engineMock = {
       applyContinuation: jest.fn().mockResolvedValue(undefined),
       applyCancellation: jest.fn().mockResolvedValue(undefined),
       isNodeExecutionWaiting: jest.fn().mockResolvedValue(true),
+    };
+    const retryMock = {
       applyRetryLastTurn: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -58,11 +61,16 @@ describe('ContinuationExecutionProcessor', () => {
           provide: ExecutionEngineService,
           useValue: engineMock,
         },
+        {
+          provide: RetryTurnService,
+          useValue: retryMock,
+        },
       ],
     }).compile();
 
     processor = module.get(ContinuationExecutionProcessor);
     engine = module.get(ExecutionEngineService);
+    retry = module.get(RetryTurnService);
   });
 
   // ── idempotency guard ─────────────────────────────────────────────────────
@@ -184,7 +192,7 @@ describe('ContinuationExecutionProcessor', () => {
           payload: { spawnedNodeExecutionId: 'ne-spawned' },
         }),
       );
-      expect(engine.applyRetryLastTurn).toHaveBeenCalledWith(
+      expect(retry.applyRetryLastTurn).toHaveBeenCalledWith(
         'exec-1',
         'ne-spawned',
       );
@@ -195,7 +203,7 @@ describe('ContinuationExecutionProcessor', () => {
       await processor.process(
         makeJob({ type: 'retry_last_turn', nodeExecutionId: 'ne-spawned' }),
       );
-      expect(engine.applyRetryLastTurn).toHaveBeenCalledWith(
+      expect(retry.applyRetryLastTurn).toHaveBeenCalledWith(
         'exec-1',
         'ne-spawned',
       );
@@ -211,7 +219,7 @@ describe('ContinuationExecutionProcessor', () => {
         }),
       );
       expect(engine.isNodeExecutionWaiting).not.toHaveBeenCalled();
-      expect(engine.applyRetryLastTurn).toHaveBeenCalled();
+      expect(retry.applyRetryLastTurn).toHaveBeenCalled();
     });
   });
 
