@@ -176,4 +176,54 @@ describe('Integration usage tracking — direct ∪ MCP (e2e)', () => {
     // GlobalExceptionFilter 가 nested `{ error: { code, message } }` 로 직렬화한다.
     expect(del.body.error?.code).toBe('INTEGRATION_IN_USE');
   }, 30_000);
+
+  it('C. direct precedence (spec §7.1) and multi-entry mcpServers matched by real-PG @>/CASE', async () => {
+    const intId = await createIntegration(uniqueName('usage-prec'));
+    const otherIntId = await createIntegration(uniqueName('usage-prec-other'));
+    const workflowId = await insertWorkflow(uniqueName('WF-prec'));
+
+    // 노드 BOTH: 직접 참조와 MCP 참조에 동시 해당.
+    // spec §7.1 — direct 우선. 실 PG 의 CASE(WHEN ->>'integrationId'=id THEN 'direct'
+    // ELSE 'mcp') 가 단일 row 를 'direct' 로 반환해야 하며, OR 두 조건 모두 매칭해도
+    // 노드가 중복(2건)으로 나오지 않아야 한다 (innerJoin + 단일 node row).
+    const nodeBoth = await insertNode(
+      workflowId,
+      'ai-agent',
+      'ai',
+      'AI Agent (direct + mcp)',
+      {
+        integrationId: intId,
+        mcpServers: [{ integrationId: intId, enabledTools: [] }],
+      },
+    );
+
+    // 노드 MULTI: mcpServers 배열의 2번째 항목이 대상. `@>` containment 가
+    // 인덱스 0 뿐 아니라 임의 위치 항목을 매칭하는지 실 PG 로 검증.
+    const nodeMulti = await insertNode(
+      workflowId,
+      'ai-agent',
+      'ai',
+      'AI Agent (multi mcp)',
+      {
+        mcpServers: [
+          { integrationId: otherIntId, enabledTools: [] },
+          { integrationId: intId, enabledTools: ['x'] },
+        ],
+      },
+    );
+
+    const usages = await getUsages(intId);
+    const allNodes = usages.flatMap((w) => w.nodes);
+    const byId = new Map(allNodes.map((n) => [n.id, n]));
+
+    // direct 우선: 양쪽 매칭 노드는 단일 'direct' 항목으로만 나타난다 (중복 없음).
+    const bothOccurrences = allNodes.filter((n) => n.id === nodeBoth);
+    expect(bothOccurrences).toHaveLength(1);
+    expect(byId.get(nodeBoth)?.usageKind).toBe('direct');
+
+    // 배열 비-0 인덱스 매칭 → 'mcp'.
+    expect(byId.get(nodeMulti)?.usageKind).toBe('mcp');
+
+    expect(allNodes).toHaveLength(2);
+  }, 30_000);
 });

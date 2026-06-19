@@ -347,6 +347,10 @@ export class IntegrationUsageItemDto {
   @ApiProperty()
   workflowName: string;
 
+  /** 워크플로우 활성화 여부. 사용처 목록에서 활성/비활성 구분 표시에 사용. */
+  @ApiProperty({ type: Boolean })
+  isActive: boolean;
+
   @ApiProperty({ type: [IntegrationUsageNodeDto] })
   nodes: IntegrationUsageNodeDto[];
 }

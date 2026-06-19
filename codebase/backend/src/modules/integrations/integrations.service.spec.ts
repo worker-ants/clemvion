@@ -1069,6 +1069,13 @@ describe('IntegrationsService', () => {
   // getUsages
   // -----------------------------------------------------------------
   describe('getUsages', () => {
+    it('throws NotFoundException when the integration is absent (cross-workspace leak defense)', async () => {
+      integrationRepo.findOne.mockResolvedValue(null);
+      await expect(service.getUsages('missing', 'ws-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
     it('groups rows by workflow', async () => {
       nodeRepo.createQueryBuilder.mockReturnValue(
         makeQueryBuilder({
