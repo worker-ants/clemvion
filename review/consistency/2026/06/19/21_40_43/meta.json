@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-19T21:40:43.133492",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-c1-spec-drift.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

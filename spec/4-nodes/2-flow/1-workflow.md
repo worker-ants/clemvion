@@ -73,6 +73,8 @@ code:
 - 삭제·비활성된 워크플로우(`workflowId` 有 + `workflowName` 無)는 캔버스 배지에서 `⚠ Missing workflow` 표시 (`warnWhen: 'workflowId && !workflowName'`)
 
 > ℹ️ **런타임 워크스페이스 격리 (구현됨, W-6)**: 셀렉터 후보 필터링과 별개로, 엔진은 sub-workflow 실행 시 `assertSameWorkspace` 로 대상 워크플로우가 호출자(부모)와 다른 워크스페이스이면 `WORKFLOW_FORBIDDEN_WORKSPACE` 를 throw 하여 cross-workspace 호출을 차단한다. handler 가 `parentWorkspaceId`(`context.variables.__workspaceId`)를 engine 의 `executeInline`/`executeAsync` 에 전달하며, 검증은 `execution-engine.service.ts` 의 `assertSameWorkspace` 호출부에서 수행된다.
+>
+> **fail-closed (후속 ★, PR #637)**: `callerWorkspaceId`(호출자 워크스페이스 컨텍스트)가 **누락된 경우에도** 통과시키지 않고 동일하게 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 deny 한다 — 이전 fail-open(누락 시 로그 후 통과) → fail-closed 전환. 프로덕션 3 호출처(`executeInline` ×2·`executeAsync` ×1) 전수 trace 로 workspace 컨텍스트 상시 공급을 입증해 blanket fail-closed 안전을 확정했다([실행 엔진 §Rationale "C-1"](../../5-system/4-execution-engine.md#rationale)). 본 guard 의 throw 는 `WORKFLOW_FORBIDDEN_WORKSPACE:` 메시지 prefix 를 갖되 아직 `ErrorCode` enum 미등재라, §6 일반 매핑상 error 포트에서 `SUB_WORKFLOW_FAILED` 로 surface 된다(메시지 prefix 보존 — enum 등재는 dev 후속).
 
 ## 3. 포트
 
@@ -266,6 +268,8 @@ code:
 | (throw) Schema/validate 메시지 | Pre-flight | §5.8 표 참조 |
 
 > Async 모드에서 큐 등록 후 발생한 sub-workflow 런타임 에러는 **부모 Execution 에 전파되지 않는다** (fire-and-forget). 서브 Execution 자체의 로그·상태에만 기록되며, 모니터링은 `parentExecutionId` 로 조회한다.
+
+> **W-6 워크스페이스 격리 guard**: cross-workspace(또는 호출자 컨텍스트 누락) sub-workflow 호출은 `assertSameWorkspace` 가 `WORKFLOW_FORBIDDEN_WORKSPACE:` prefix 로 throw 한다(§2 W-6, fail-closed). 이 prefix 는 아직 `ErrorCode` enum 미등재라 위 매핑상 error 포트에서 `SUB_WORKFLOW_FAILED` 로 surface 된다(메시지 prefix 보존). enum 등재는 dev 후속.
 
 ## 7. 캔버스 요약
 

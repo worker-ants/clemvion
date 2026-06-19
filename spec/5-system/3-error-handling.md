@@ -82,13 +82,15 @@ code:
 | Email | `EMAIL_SEND_FAILED` (+ `details.integrationCode` 로 원본 `INTEGRATION_INCOMPLETE` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` 보존) · `EMAIL_HOST_BLOCKED` (SSRF 가드 차단 — host 가 사설/loopback, 기본 ON·`ALLOW_PRIVATE_HOST_TARGETS` opt-out) |
 | LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT` · `MAX_COLLECTION_RETRIES_EXCEEDED` |
 | Code 노드 | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT` (isolate 메모리 하드 리밋 초과 — 기본 128MB, `CODE_NODE_MEMORY_LIMIT_MB` env 조정 가능) |
-| Sub-workflow | `SUB_WORKFLOW_FAILED` |
+| Sub-workflow | `SUB_WORKFLOW_FAILED` · `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` · `SUB_WORKFLOW_QUEUE_FAILED` (분기 매핑 SoT [workflow §6](../4-nodes/2-flow/1-workflow.md#6-에러-코드)) |
 
 > **`HTTP_TIMEOUT`(미발행)**: enum 에는 정의돼 있으나 현재 HTTP Request 핸들러는 timeout 시 `AbortController.abort()` 로 fetch 를 중단하고, 그 reject 를 다른 전송 오류와 함께 `HTTP_TRANSPORT_FAILED` 로 통합 발행한다 (`http-request.handler.ts`). 따라서 `output.error.code` 로 `HTTP_TIMEOUT` 이 관측되는 경로는 없다. enum·분류 표(§3.1)에는 향후 세분화 여지와 방어적 매핑을 위해 코드를 보존한다.
 
 > 구 에러 코드 `NODE_EXECUTION_FAILED` / `INTEGRATION_ERROR` / `LLM_ERROR` 는 노드 수준 envelope 에 더 이상 사용하지 않는다. 엔진 레벨(노드 실패가 Stop Workflow 로 격상된 경우)에서만 `NodeExecution.error.message` 컨텍스트로 남는다.
 
 > Chat Channel 어댑터의 사용자 안내 메시지 분류는 본 enum 을 입력으로 사용한다 — 분류 표 SoT 는 [`spec/conventions/chat-channel-adapter.md §3.1`](../conventions/chat-channel-adapter.md#31-execution-failed-분류-알고리즘). 본 enum 확장 (예: MCP 도구 카테고리) 시 분류 표 행 추가 검토 의무.
+
+> **W-6 워크스페이스 격리 guard (`WORKFLOW_FORBIDDEN_WORKSPACE`)**: cross-workspace(또는 호출자 컨텍스트 누락) sub-workflow 호출 차단(fail-closed, [workflow §2 W-6](../4-nodes/2-flow/1-workflow.md#2-설정-ui))은 `assertSameWorkspace` 가 `WORKFLOW_FORBIDDEN_WORKSPACE:` prefix 로 throw 한다. 이 코드는 **아직 `ErrorCode` enum 미등재** — 위 Sub-workflow 매핑상 error 포트에서 `SUB_WORKFLOW_FAILED` 로 surface 되며 메시지 prefix 만 보존된다. enum 등재는 dev 후속(코드 명명·등재 원칙: [`conventions/error-codes.md`](../conventions/error-codes.md)).
 
 ### 1.5 WS commands 에러 코드 (도메인 spec 참조)
 
@@ -245,7 +247,7 @@ code:
 | Email | `EMAIL_SEND_FAILED` |
 | LLM | `LLM_CALL_FAILED`, `LLM_RATE_LIMIT`, `LLM_RESPONSE_INVALID`, `LLM_TIMEOUT`, `MAX_COLLECTION_RETRIES_EXCEEDED` |
 | Code | `CODE_EXECUTION_FAILED`, `CODE_TIMEOUT`, `CODE_MEMORY_LIMIT` |
-| Sub-workflow | `SUB_WORKFLOW_FAILED` |
+| Sub-workflow | `SUB_WORKFLOW_FAILED` · `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` · `SUB_WORKFLOW_QUEUE_FAILED` (분기 매핑 SoT [workflow §6](../4-nodes/2-flow/1-workflow.md#6-에러-코드)) |
 
 **에러 포트 보유 노드** (기본):
 

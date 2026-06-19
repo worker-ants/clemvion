@@ -128,7 +128,7 @@ CONVENTIONS §4.5 의 `interaction` 규격:
 | `interaction.type` | 트리거 | `data` 예시 |
 |---------------------|--------|-------------|
 | `button_click` | port 타입 버튼 클릭 | `{ buttonId, buttonLabel, selectedItem? }` |
-| `button_continue` | link 전용 시 Continue 클릭 | `{ buttonId, buttonLabel, url }` |
+| `button_continue` | link 전용 시 Continue 클릭 | `{ buttonId, buttonLabel, url?, selectedItem? }` (`url`=링크 버튼 URL 존재 시, `selectedItem`=carousel item-level 버튼 존재 시 — 둘 다 조건부 동봉; [node-output §4.5](../../conventions/node-output.md#45-interactiondata-payload-규격)·`ButtonInteractionService` 정합) |
 | `form_submitted` | Form 제출 | `{ <field>: <value>, ... }` |
 
 > `selectedItem` 은 per-item 버튼(동적 item 버튼) 클릭 시에만 `data` 에 포함된다. 엔진은 per-item 버튼 ID 를 `${buttonId}__item_${index}` 형태로 생성하고, 라우팅 시 접미사를 제거해 원본 포트(`buttonId`) 로 연결한다.
