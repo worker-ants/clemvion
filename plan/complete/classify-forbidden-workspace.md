@@ -1,9 +1,11 @@
 ---
 worktree: classify-forbidden-ws-3673c8
-status: in-progress
+status: complete
 started: 2026-06-19
 owner: developer
 parent: plan/complete/c1-dev-followups-1b.md (PR #641 후속 — chat-channel 분류 명시화)
+spec_impact:
+  - spec/conventions/chat-channel-adapter.md
 ---
 
 # chat-channel 에러 분류에 WORKFLOW_FORBIDDEN_WORKSPACE 명시 등재
@@ -21,10 +23,14 @@ parent: plan/complete/c1-dev-followups-1b.md (PR #641 후속 — chat-channel �
 
 ## 워크플로
 
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
-- [ ] /ai-review + SUMMARY
-- [ ] /consistency-check --impl-done (spec-linked: chat-channel-adapter §3.1)
-- [ ] RESOLUTION.md (Critical/Warning 시)
+- [x] TEST WORKFLOW (lint·unit·build·e2e) — lint·unit·build PASS · **e2e 35 suites/205 PASS** (classifier 격리 46 passed)
+- [x] /ai-review + SUMMARY — **NONE · C0 · W0 clean** (`review/code/2026/06/19/23_57_37`). INFO 7건 전부 범위 밖/현행 유지
+- [x] /consistency-check --impl-done — **BLOCK:NO** (`review/consistency/2026/06/19/23_57_38`). Cross-Spec NONE(완전 정합). WARNING 2 = 무관 cafe24 도메인 pre-existing(별도 트랙)
+- [x] RESOLUTION.md — 불요(양 review clean)
+
+## 후속(권장, 별도 소 PR)
+
+- impl-done INFO-1: `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` · `SUB_WORKFLOW_QUEUE_FAILED` 3종도 `INTERNAL_CODES`/`§3.1` 미등재(동일 CCH-ERR-04 warn 노이즈 gap, pre-existing). 본 PR 은 사용자 지정 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 한정 — 3종은 동일 패턴 별도 소 PR 로 마저 등재 검토.
 
 ## 결정·근거
 
