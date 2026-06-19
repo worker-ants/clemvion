@@ -1,5 +1,9 @@
 import type { ResumableMessageSource } from '../../nodes/core/node-handler.interface';
 import type { WaitingInteractionType } from './execution-engine.service';
+import type {
+  LlmCallRecord,
+  TurnDebugEntry,
+} from '../../shared/llm-tracing/llm-call-record';
 
 /**
  * C-1 step3 (W3) — AI 멀티턴 대화 lifecycle 이 공유하는 순수 helper / sentinel.
@@ -94,29 +98,9 @@ export function buildConversationMetaFromResumeState(
   };
 }
 
-/**
- * Single LLM call trace (request / response / latency) — one entry per call
- * inside a turn. A turn produces multiple entries when tool loops occur.
- * Mirrors `LlmCallTrace` defined in the AI handlers.
- */
-interface LlmCallRecord {
-  requestPayload?: unknown;
-  responsePayload?: unknown;
-  durationMs?: number;
-  /** ISO8601 — LLM 호출 시작/종료 절대 시각. 디버깅 타임라인의 어시스턴트
-   *  발생 시각 표시 출처. spec/5-system/6-websocket-protocol.md §4.4 */
-  startedAt?: string;
-  finishedAt?: string;
-}
-
-/** One entry of `state.turnDebugHistory`. `totalDurationMs` is the wall-clock
- * sum across all LLM calls + tool calls in the turn; `durationMs` on each
- * `llmCalls[]` item is the per-call latency. */
-interface AiTurnDebugEntry {
-  turnIndex: number;
-  llmCalls?: LlmCallRecord[];
-  totalDurationMs?: number;
-}
+// LLM 호출 trace 도메인 타입(LlmCallRecord / TurnDebugEntry)은
+// shared/llm-tracing/llm-call-record 의 canonical 정의를 사용한다 (AI Agent·
+// Information Extractor 와 단일 진실 공유). 위 import 참조.
 
 /**
  * Extract per-turn LLM debug payload from the last entry of
@@ -141,7 +125,7 @@ export function buildAiMessageDebugFromResumeState(
   state: Record<string, unknown>,
 ): { llmCalls?: LlmCallRecord[]; durationMs?: number } {
   const turnDebugArray = Array.isArray(state.turnDebugHistory)
-    ? (state.turnDebugHistory as AiTurnDebugEntry[])
+    ? (state.turnDebugHistory as TurnDebugEntry[])
     : [];
   const lastTurnDebug =
     turnDebugArray.length > 0
