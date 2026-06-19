@@ -146,6 +146,8 @@ export function WorkflowSelectorWidget({
       hint={translateBackendHint(ui?.hint, locale)}
       required={required}
     >
+      {/* inner div: select 와 ExpressionInput(수동 UUID 입력) 사이 gap-3 — FieldGroup
+          의 label/hint gap(1.5)과 별개로 두 서브 컨트롤 간격을 넓게 둔다. */}
       <div className="flex flex-col gap-3">
         <select
           value={selectValue}

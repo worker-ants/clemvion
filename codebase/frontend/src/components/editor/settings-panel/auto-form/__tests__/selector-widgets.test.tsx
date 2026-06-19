@@ -23,7 +23,12 @@ vi.mock("@/components/editor/expression", () => ({
   ExpressionInput: () => null,
 }));
 vi.mock("@/lib/api/workflows", () => ({ workflowsApi: { list: vi.fn() } }));
-vi.mock("@/lib/stores/editor-store", () => ({ useEditorStore: () => null }));
+// selector-fn 형태로 모킹 — 미래에 이 파일에 WorkflowSelectorWidget 테스트가 추가돼도
+// `useEditorStore((s) => s.workflowId)` 호출이 깨지지 않게 한다.
+vi.mock("@/lib/stores/editor-store", () => ({
+  useEditorStore: (selector: (s: { workflowId: string | null }) => unknown) =>
+    selector({ workflowId: null }),
+}));
 
 import {
   McpServerSelectorWidget,
@@ -70,6 +75,7 @@ describe("KbSelectorWidget — hint (regression)", () => {
       <KbSelectorWidget
         schema={SCHEMA}
         ui={{ hint: "Selected KBs are exposed to the LLM as search tools." }}
+        label="Knowledge Bases"
         value={[]}
         onChange={() => {}}
       />,
