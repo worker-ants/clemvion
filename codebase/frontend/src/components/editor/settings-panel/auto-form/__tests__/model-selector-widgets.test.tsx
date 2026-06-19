@@ -313,8 +313,19 @@ describe("EmbeddingModelSelectorWidget", () => {
 // "Embedding/Summary/Extraction Model" label and its role description so users
 // could no longer tell what each model field was for.
 describe("model selector widgets — field label + hint (regression)", () => {
+  // 실제 agent-memory-schema.ts 의 hint + backend-labels `HINT_KO` 번역으로 검증해
+  // schema hint → translateBackendHint(ui.hint, locale) → 렌더 파이프라인을 en/ko
+  // 양쪽에서 잠근다 (단축 픽스처는 "렌더 연결"만 검증해 HINT_KO 동기화를 놓친다).
+  const SUMMARY_HINT_EN =
+    "Optional low-cost model for the rolling-summary LLM call. Empty = reuse the node Model (then the provider default).";
+  const SUMMARY_HINT_KO =
+    "롤링 요약 LLM 호출에 사용할 선택적 저비용 모델. 비우면 노드 모델을 재사용합니다(그다음 프로바이더 기본값).";
+  const EMBED_HINT_EN =
+    "Embedding model used for memory recall/extraction (must match the dimensions of the model used when memories were first stored). Empty = workspace default LLMConfig embedding model.";
+  const EMBED_HINT_KO =
+    "메모리 회수/추출에 쓰는 임베딩 모델이에요 (메모리를 처음 저장할 때 쓴 모델과 차원이 같아야 해요). 비우면 워크스페이스 기본 LLMConfig 임베딩 모델을 써요.";
+
   beforeEach(() => {
-    useLocaleStore.getState().setLocale("en");
     chatConfigs = CONFIGS;
   });
   afterEach(() => {
@@ -347,27 +358,30 @@ describe("model selector widgets — field label + hint (regression)", () => {
     );
   }
 
-  it("ChatModelSelectorWidget renders its field label and hint", () => {
-    renderWithLabelHint(
-      ChatModelSelectorWidget,
-      "Summary Model",
-      "Optional low-cost model for the rolling-summary call.",
-    );
+  it("ChatModelSelectorWidget renders its field label + hint (en)", () => {
+    useLocaleStore.getState().setLocale("en");
+    renderWithLabelHint(ChatModelSelectorWidget, "Summary Model", SUMMARY_HINT_EN);
     expect(screen.getByText("Summary Model")).toBeTruthy();
-    expect(
-      screen.getByText("Optional low-cost model for the rolling-summary call."),
-    ).toBeTruthy();
+    expect(screen.getByText(SUMMARY_HINT_EN)).toBeTruthy();
   });
 
-  it("EmbeddingModelSelectorWidget renders its field label and hint", () => {
-    renderWithLabelHint(
-      EmbeddingModelSelectorWidget,
-      "Embedding Model",
-      "Embedding model used for memory recall/extraction.",
-    );
+  it("ChatModelSelectorWidget renders the ko-translated hint", () => {
+    useLocaleStore.getState().setLocale("ko");
+    // ui.hint 는 schema 의 영문 원문 — ko 에서 HINT_KO 조회로 번역돼 렌더돼야 한다.
+    renderWithLabelHint(ChatModelSelectorWidget, "Summary Model", SUMMARY_HINT_EN);
+    expect(screen.getByText(SUMMARY_HINT_KO)).toBeTruthy();
+  });
+
+  it("EmbeddingModelSelectorWidget renders its field label + hint (en)", () => {
+    useLocaleStore.getState().setLocale("en");
+    renderWithLabelHint(EmbeddingModelSelectorWidget, "Embedding Model", EMBED_HINT_EN);
     expect(screen.getByText("Embedding Model")).toBeTruthy();
-    expect(
-      screen.getByText("Embedding model used for memory recall/extraction."),
-    ).toBeTruthy();
+    expect(screen.getByText(EMBED_HINT_EN)).toBeTruthy();
+  });
+
+  it("EmbeddingModelSelectorWidget renders the ko-translated hint", () => {
+    useLocaleStore.getState().setLocale("ko");
+    renderWithLabelHint(EmbeddingModelSelectorWidget, "Embedding Model", EMBED_HINT_EN);
+    expect(screen.getByText(EMBED_HINT_KO)).toBeTruthy();
   });
 });

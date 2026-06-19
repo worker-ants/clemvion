@@ -21,8 +21,13 @@ PR #642 에서 메모리 모델 필드(embeddingModel/summaryModel/extractionMod
 - 회귀 테스트: 두 위젯이 라벨+hint 를 렌더하는지 단언(19 cases).
 
 ## 체크리스트
-- [x] FieldGroup 래핑 + 회귀 테스트 (위젯 테스트 17→19)
-- [ ] TEST WORKFLOW (lint/unit/build/e2e)
-- [ ] /ai-review + (fix)
-- [ ] /consistency-check --impl-done
+- [x] FieldGroup 래핑 + 회귀 테스트 (위젯 테스트 17→21, en 라벨+hint / ko hint × 2 위젯)
+- [x] TEST WORKFLOW: lint/unit/build/**e2e 205 전원 PASS** (clean, forceExit)
+- [x] /ai-review (2 reviewer, LOW, Critical 0) — review/code/2026/06/19/22_42_37/. requirement Warning
+      (테스트 hint 픽스처) fix: 실제 schema hint + ko 케이스. RESOLUTION 동봉.
+- [x] /consistency-check --impl-done BLOCK:NO — review/consistency/2026/06/19/22_49_22/ (순수 UI 렌더, drift 0).
+
+## 후속 (별도)
+- WorkflowSelectorWidget(Sub-Workflow 노드)도 FieldGroup 미사용 → schema 필드 라벨 누락 가능성.
+  #642 이전 별개 위젯이라 본 fix 범위 밖 — 사용자 보고 + 별도 확인 후보.
 </content>
