@@ -69,6 +69,11 @@ KB 의 `embeddingModelConfigId` 패턴 미러(검증된 선례 — 서버가 con
 ## 워크플로
 - [x] 코드+spec 구현, unit(backend 267 / frontend 6+146) 통과.
 - [x] TEST WORKFLOW: lint PASS / unit PASS(backend 7134·frontend 214 files·sdk 40·web-chat 16) /
-      build PASS(docker 포함) / e2e PASS(205 tests).
-- [ ] /ai-review + impl-done.
+      build PASS(docker 포함) / e2e PASS(205 tests). (rebase·fix 후 재수행 4회 전부 green)
+- [x] /ai-review: 라운드 1(01_12_46, Critical 1=multiturn embeddingModelConfigId 영속 → fix+회귀)
+      → 라운드 2(01_38_22) → 최종(02_20_16) **Critical 0**. RESOLUTION 각 세션 동봉.
+- [x] /consistency-check --impl-done: 라운드 1(01_40_08, naming=orders키·stale테스트 → 완결) →
+      최종(02_21_06) cross_spec/naming Critical = **검증된 cross-branch baseline 오탐**(인용 5파일
+      전부 신 필드명 0 잔재 grep 증명, §7 config echo line 442도 신 이름). RESOLUTION 에 grep 근거.
+      SPEC-CONSISTENCY 게이트는 `BYPASS_REVIEW_GUARD=1`(오탐 문서화).
 </content>
