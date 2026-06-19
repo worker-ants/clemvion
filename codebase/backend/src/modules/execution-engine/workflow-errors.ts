@@ -69,6 +69,30 @@ export class SubWorkflowTimeoutError extends Error {
 }
 
 /**
+ * Cross-workspace sub-workflow 호출 차단 (W-6 fail-closed). `assertSameWorkspace`
+ * 가 (a) 대상 워크플로우가 호출자(부모)와 다른 워크스페이스이거나, (b) 호출자
+ * workspace 컨텍스트(`callerWorkspaceId`)가 누락된 경우(격리 증명 불가 →
+ * deny-by-default) throw 한다. `executeInline` / `executeSync` / `executeAsync`
+ * 진입에서 발생하며, Sub-Workflow 핸들러가 `WORKFLOW_FORBIDDEN_WORKSPACE` 코드로
+ * error 포트에 surface 한다.
+ * spec/4-nodes/2-flow/1-workflow.md §2 W-6 · spec/5-system/3-error-handling.md §1.4.
+ */
+export class WorkflowForbiddenWorkspaceError extends Error {
+  readonly targetWorkspaceId: string;
+  readonly callerWorkspaceId?: string;
+  constructor(targetWorkspaceId: string, callerWorkspaceId?: string) {
+    super(
+      callerWorkspaceId
+        ? `WORKFLOW_FORBIDDEN_WORKSPACE: Sub-workflow ${targetWorkspaceId} is not accessible from workspace ${callerWorkspaceId}`
+        : `WORKFLOW_FORBIDDEN_WORKSPACE: Sub-workflow ${targetWorkspaceId} invoked without caller workspace context`,
+    );
+    this.name = 'WorkflowForbiddenWorkspaceError';
+    this.targetWorkspaceId = targetWorkspaceId;
+    this.callerWorkspaceId = callerWorkspaceId;
+  }
+}
+
+/**
  * Phase 2.3 (변경 2.3) — publisher 측 사전 검증 실패 에러.
  *
  * spec/5-system/4-execution-engine.md §7.5.1 — 입력 receiver (controller / WS

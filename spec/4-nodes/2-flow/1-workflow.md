@@ -74,7 +74,7 @@ code:
 
 > ℹ️ **런타임 워크스페이스 격리 (구현됨, W-6)**: 셀렉터 후보 필터링과 별개로, 엔진은 sub-workflow 실행 시 `assertSameWorkspace` 로 대상 워크플로우가 호출자(부모)와 다른 워크스페이스이면 `WORKFLOW_FORBIDDEN_WORKSPACE` 를 throw 하여 cross-workspace 호출을 차단한다. handler 가 `parentWorkspaceId`(`context.variables.__workspaceId`)를 engine 의 `executeInline`/`executeAsync` 에 전달하며, 검증은 `execution-engine.service.ts` 의 `assertSameWorkspace` 호출부에서 수행된다.
 >
-> **fail-closed (후속 ★, PR #637)**: `callerWorkspaceId`(호출자 워크스페이스 컨텍스트)가 **누락된 경우에도** 통과시키지 않고 동일하게 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 deny 한다 — 이전 fail-open(누락 시 로그 후 통과) → fail-closed 전환. 프로덕션 3 호출처(`executeInline` ×2·`executeAsync` ×1) 전수 trace 로 workspace 컨텍스트 상시 공급을 입증해 blanket fail-closed 안전을 확정했다([실행 엔진 §Rationale "C-1"](../../5-system/4-execution-engine.md#rationale)). 본 guard 의 throw 는 `WORKFLOW_FORBIDDEN_WORKSPACE:` 메시지 prefix 를 갖되 아직 `ErrorCode` enum 미등재라, §6 일반 매핑상 error 포트에서 `SUB_WORKFLOW_FAILED` 로 surface 된다(메시지 prefix 보존 — enum 등재는 dev 후속).
+> **fail-closed (후속 ★, PR #637)**: `callerWorkspaceId`(호출자 워크스페이스 컨텍스트)가 **누락된 경우에도** 통과시키지 않고 동일하게 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 deny 한다 — 이전 fail-open(누락 시 로그 후 통과) → fail-closed 전환. 프로덕션 3 호출처(`executeInline` ×2·`executeAsync` ×1) 전수 trace 로 workspace 컨텍스트 상시 공급을 입증해 blanket fail-closed 안전을 확정했다([실행 엔진 §Rationale "C-1"](../../5-system/4-execution-engine.md#rationale)). 본 guard 는 typed `WorkflowForbiddenWorkspaceError`(message prefix `WORKFLOW_FORBIDDEN_WORKSPACE:`)를 throw 하고, Sub-Workflow 핸들러가 이를 전용 `ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE` 로 매핑해 error 포트(`output.error.code`)에 surface 한다(§6).
 
 ## 3. 포트
 
@@ -262,14 +262,15 @@ code:
 | `SUB_WORKFLOW_NOT_FOUND` | Runtime (port `error`) | 대상 워크플로우 정의가 존재하지 않음 — executor 의 `Workflow not found: <id>` 를 매핑 |
 | `SUB_WORKFLOW_TIMEOUT` | Runtime (port `error`) | sync 모드 timeout 초과 — executor 의 `timed out` / `timeout` 메시지를 매핑 |
 | `SUB_WORKFLOW_QUEUE_FAILED` | Runtime (port `error`) | async 모드 큐 등록 실패 — 메시지에 `queue` + 실패 표시(`failed`/`enqueue`/`reject`) 가 모두 포함된 경우 |
-| `SUB_WORKFLOW_FAILED` | Runtime (port `error`) | 위 3개에 매칭되지 않은 모든 런타임 실패 — sub-workflow 내부 노드 실패, expression 평가 에러 등 일반 fallback |
+| `WORKFLOW_FORBIDDEN_WORKSPACE` | Runtime (port `error`) | W-6 워크스페이스 격리 차단 (fail-closed) — 대상 워크플로우가 호출자와 다른 워크스페이스이거나 호출자 컨텍스트 누락. typed `WorkflowForbiddenWorkspaceError` 를 매핑 (§2 W-6) |
+| `SUB_WORKFLOW_FAILED` | Runtime (port `error`) | 위 4개에 매칭되지 않은 모든 런타임 실패 — sub-workflow 내부 노드 실패, expression 평가 에러 등 일반 fallback |
 | (throw) `Maximum recursion depth exceeded` | Pre-flight | `recursionDepth >= 10` |
 | (throw) `Inline execution requires _executedNodes in context` | Pre-flight | sync 모드 내부 invariant 위반 (직접 호출자용 방어) |
 | (throw) Schema/validate 메시지 | Pre-flight | §5.8 표 참조 |
 
 > Async 모드에서 큐 등록 후 발생한 sub-workflow 런타임 에러는 **부모 Execution 에 전파되지 않는다** (fire-and-forget). 서브 Execution 자체의 로그·상태에만 기록되며, 모니터링은 `parentExecutionId` 로 조회한다.
 
-> **W-6 워크스페이스 격리 guard**: cross-workspace(또는 호출자 컨텍스트 누락) sub-workflow 호출은 `assertSameWorkspace` 가 `WORKFLOW_FORBIDDEN_WORKSPACE:` prefix 로 throw 한다(§2 W-6, fail-closed). 이 prefix 는 아직 `ErrorCode` enum 미등재라 위 매핑상 error 포트에서 `SUB_WORKFLOW_FAILED` 로 surface 된다(메시지 prefix 보존). enum 등재는 dev 후속.
+> **W-6 워크스페이스 격리 guard**: cross-workspace(또는 호출자 컨텍스트 누락) sub-workflow 호출은 `assertSameWorkspace` 가 typed `WorkflowForbiddenWorkspaceError` 를 throw 하고(§2 W-6, fail-closed), `mapSubWorkflowError` 가 이를 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 매핑해 error 포트에 surface 한다(위 표에 등재). `executeInline`/`executeAsync` 진입에서 발생.
 
 ## 7. 캔버스 요약
 

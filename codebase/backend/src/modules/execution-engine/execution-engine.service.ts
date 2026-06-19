@@ -24,6 +24,7 @@ import {
   ExecutionCancelledError,
   WorkflowNotFoundError,
   SubWorkflowTimeoutError,
+  WorkflowForbiddenWorkspaceError,
   InvalidExecutionStateError,
   ExecutionTimeLimitError,
   MessageTooLongError,
@@ -552,13 +553,12 @@ export class ExecutionEngineService
   ): void {
     if (!callerWorkspaceId) {
       // 호출자 workspace 컨텍스트 누락 — 격리 증명 불가이므로 deny-by-default.
-      throw new Error(
-        `WORKFLOW_FORBIDDEN_WORKSPACE: Sub-workflow ${targetWorkspaceId} invoked without caller workspace context`,
-      );
+      throw new WorkflowForbiddenWorkspaceError(targetWorkspaceId);
     }
     if (targetWorkspaceId !== callerWorkspaceId) {
-      throw new Error(
-        `WORKFLOW_FORBIDDEN_WORKSPACE: Sub-workflow ${targetWorkspaceId} is not accessible from workspace ${callerWorkspaceId}`,
+      throw new WorkflowForbiddenWorkspaceError(
+        targetWorkspaceId,
+        callerWorkspaceId,
       );
     }
   }

@@ -301,11 +301,11 @@ export interface AiMetadata {
    * 를 정규화한 결과. References 탭이 메시지(턴)별로 KB 사용처를 그룹핑한다.
    * 단일턴은 길이 1, 멀티턴은 진행 턴 수만큼. legacy payload 면 빈 배열.
    */
-  turnDebug: TurnDebugEntry[];
+  turnDebug: TurnRagDelta[];
 }
 
 /** 한 턴 동안 호출된 KB tool 의 chunk delta + 진단. */
-export interface TurnDebugEntry {
+export interface TurnRagDelta {
   turnIndex: number;
   ragSources: RagSource[];
   ragDiagnostics: RagDiagnostics | null;
@@ -413,9 +413,9 @@ export function extractAiMetadata(raw: unknown): AiMetadata | null {
  * required for matching assistant messages back to their RAG delta, so a
  * missing index would render the entry meaningless to the References tab.
  */
-export function extractTurnDebug(raw: unknown): TurnDebugEntry[] {
+export function extractTurnDebug(raw: unknown): TurnRagDelta[] {
   if (!Array.isArray(raw)) return [];
-  const out: TurnDebugEntry[] = [];
+  const out: TurnRagDelta[] = [];
   for (const entry of raw) {
     const r = toRecord(entry);
     if (!r) continue;
