@@ -63,12 +63,27 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       // config.id 별 defaultModel — 보조콜(summary/extraction)이 전용 config 의
       // defaultModel 로 호출되는지 검증하기 위해 id 분기 mock.
       resolveConfig: jest.fn().mockImplementation((id?: string) => {
-        const byId: Record<string, { id: string; provider: string; defaultModel: string }> = {
-          'summary-cfg': { id: 'summary-cfg', provider: 'openai', defaultModel: 'cheap-mini' },
-          'extract-cfg': { id: 'extract-cfg', provider: 'openai', defaultModel: 'cheap-extract' },
+        const byId: Record<
+          string,
+          { id: string; provider: string; defaultModel: string }
+        > = {
+          'summary-cfg': {
+            id: 'summary-cfg',
+            provider: 'openai',
+            defaultModel: 'cheap-mini',
+          },
+          'extract-cfg': {
+            id: 'extract-cfg',
+            provider: 'openai',
+            defaultModel: 'cheap-extract',
+          },
         };
         return Promise.resolve(
-          (id && byId[id]) ?? { id: 'cfg-1', provider: 'openai', defaultModel: 'gpt-4o' },
+          (id && byId[id]) ?? {
+            id: 'cfg-1',
+            provider: 'openai',
+            defaultModel: 'gpt-4o',
+          },
         );
       }),
       chat: jest.fn().mockResolvedValue({
@@ -526,7 +541,9 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(recallArgs[0]).toBe('ws-1'); // workspaceId
       expect(recallArgs[1]).toBe('user-42'); // scopeKey
       expect(recallArgs[2]).toBe('What plan am I on?'); // queryText
-      expect(recallArgs[3]).toMatchObject({ embeddingModelConfigId: 'emb-cfg-1' });
+      expect(recallArgs[3]).toMatchObject({
+        embeddingModelConfigId: 'emb-cfg-1',
+      });
       expect(recallArgs[4]).toMatchObject({ topK: 3, threshold: 0.5 });
 
       // meta.memory echoes recalledCount.
@@ -1531,7 +1548,10 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(1);
       expect(
         agentMemoryService.scheduleExtraction.mock.calls[0][0],
-      ).toMatchObject({ extractionModelConfigId: 'extract-cfg', model: 'gpt-4o' });
+      ).toMatchObject({
+        extractionModelConfigId: 'extract-cfg',
+        model: 'gpt-4o',
+      });
 
       // (b) 미설정 → payload.extractionModel undefined (processor 가 model 로 폴백).
       agentMemoryService.scheduleExtraction.mockClear();

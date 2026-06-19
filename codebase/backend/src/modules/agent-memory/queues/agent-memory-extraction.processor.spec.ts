@@ -39,11 +39,22 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
     llmService = {
       // config.id 별 defaultModel — 전용 extraction config 의 defaultModel 로 호출되는지 검증.
       resolveConfig: jest.fn().mockImplementation((id?: string) => {
-        const byId: Record<string, { id: string; provider: string; defaultModel: string }> = {
-          'extract-cfg': { id: 'extract-cfg', provider: 'openai', defaultModel: 'cheap-extract' },
+        const byId: Record<
+          string,
+          { id: string; provider: string; defaultModel: string }
+        > = {
+          'extract-cfg': {
+            id: 'extract-cfg',
+            provider: 'openai',
+            defaultModel: 'cheap-extract',
+          },
         };
         return Promise.resolve(
-          (id && byId[id]) ?? { id: 'cfg-1', provider: 'openai', defaultModel: 'gpt-4o' },
+          (id && byId[id]) ?? {
+            id: 'cfg-1',
+            provider: 'openai',
+            defaultModel: 'gpt-4o',
+          },
         );
       }),
       chat: jest.fn().mockResolvedValue({
