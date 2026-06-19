@@ -1,9 +1,14 @@
 ---
 worktree: spec-drift-c1-ea8bcb
-status: in-progress
+status: complete
 started: 2026-06-19
 owner: developer
 parent: plan/complete/c1-engine-split.md (작업 1b dev 잔꼬리)
+spec_impact:
+  - spec/4-nodes/2-flow/1-workflow.md
+  - spec/4-nodes/2-flow/0-common.md
+  - spec/5-system/3-error-handling.md
+  - spec/5-system/4-execution-engine.md
 ---
 
 # C-1 dev 잔꼬리 (작업 1b) — PR #641 동반
