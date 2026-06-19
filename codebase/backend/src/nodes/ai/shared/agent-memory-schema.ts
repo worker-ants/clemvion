@@ -183,46 +183,42 @@ export function buildAgentMemorySchemaFields(
       },
     });
 
-  fields.embeddingModel = z
+  fields.embeddingModelConfigId = z
     .string()
     .optional()
     .meta({
       ui: {
-        // NOTE: 'embedding-model-selector' (not 'text'/'expression') — 등록 모델만
-        // 고르는 순수 select. embeddingModel 은 scope 의 모든 저장 메모리와 차원이
-        // 일치해야 하는 불변식(17-agent-memory §3)이라, 자유 입력은 오타·미존재 모델명을
-        // 저장해 차원 불일치로 recall 이 조용히 실패시킬 수 있다. select 는 노드
-        // llmConfigId provider 의 등록 모델만 노출해 이 footgun 을 구조적으로 차단한다
-        // (KB §Rationale R-1 select-only 와 동일 논리, ai-agent §12.12 후속 결정).
+        // 등록된 embedding ModelConfig(kind=embedding) 를 고른다 — 저장값은 config.id.
+        // 서버가 그 config 의 defaultModel·provider 로 임베딩한다(KB embeddingModelConfigId
+        // 패턴 미러). 회수·저장이 같은 config 라 차원이 일치한다(17-agent-memory §3).
+        // 미설정 시 워크스페이스 기본 embedding ModelConfig.
         label: 'Embedding Model',
-        widget: 'embedding-model-selector',
+        widget: 'embedding-config-selector',
         order: orders.embeddingModel,
         group: GROUP,
-        placeholder: 'text-embedding-3-small',
-        hint: 'Embedding model used for memory recall/extraction (must match the dimensions of the model used when memories were first stored). Empty = workspace default LLMConfig embedding model.',
+        hint: 'Registered embedding model config used for memory recall/extraction (its provider/model). Recall and storage use the same config so dimensions match. Empty = workspace default embedding config.',
         visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
       },
     });
 
   if (opts.summaryModelOrder !== undefined) {
-    // SoT: spec/4-nodes/3-ai/1-ai-agent.md §1·§6.1·§12.12. 요약/추출 LLM 콜에
-    // 쓸 전용 모델 ID. 노드 llmConfigId provider 의 등록 chat 모델만 고르는 순수
-    // select(`chat-model-selector`) — 자유입력/expression 제거(§12.12 후속 결정).
-    // 미설정 시 노드 `model` → llmConfig 기본으로 폴백 (fallback 체인
-    // `[전용] → [model] → [llmConfig 기본]`, 기존 동작 유지). `summaryModel` 은
-    // summary_buffer/persistent 둘 다, `extractionModel` 은 persistent 에서만
-    // 의미 (요약/추출 분기 — §2 visibleWhen).
-    fields.summaryModel = z
+    // SoT: spec/4-nodes/3-ai/1-ai-agent.md §1·§6.1·§12.12. 요약/추출 보조 LLM 콜에
+    // 쓸 **등록 chat ModelConfig** id 를 고른다(저장값 config.id, widget
+    // `chat-config-selector`). 서버가 그 config 의 provider/credential/defaultModel 로
+    // 호출한다 — 노드 main `llmConfigId` 와 분리되어 다른(저렴한) provider 의 모델도
+    // 쓸 수 있다(§12.12 재번복). 미설정 시 노드 model → llmConfig 기본 폴백(기존 동작
+    // 유지). `summaryModelConfigId` 는 summary_buffer/persistent 둘 다, `extractionModelConfigId`
+    // 는 persistent 에서만 의미.
+    fields.summaryModelConfigId = z
       .string()
       .optional()
       .meta({
         ui: {
           label: 'Summary Model',
-          widget: 'chat-model-selector',
+          widget: 'chat-config-selector',
           order: opts.summaryModelOrder,
           group: GROUP,
-          placeholder: 'Leave empty to reuse the node Model',
-          hint: 'Optional low-cost model for the rolling-summary LLM call. Empty = reuse the node Model (then the provider default).',
+          hint: 'Optional registered chat model config for the rolling-summary LLM call (a cheaper one cuts cost). Empty = reuse the node Model.',
           visibleWhen: {
             field: 'memoryStrategy',
             oneOf: ['summary_buffer', 'persistent'],
@@ -231,17 +227,16 @@ export function buildAgentMemorySchemaFields(
       });
   }
 
-  fields.extractionModel = z
+  fields.extractionModelConfigId = z
     .string()
     .optional()
     .meta({
       ui: {
         label: 'Extraction Model',
-        widget: 'chat-model-selector',
+        widget: 'chat-config-selector',
         order: orders.extractionModel,
         group: GROUP,
-        placeholder: 'Leave empty to reuse the node Model',
-        hint: 'Optional low-cost model for the turn-boundary memory extraction LLM call. Empty = reuse the node Model (then the provider default).',
+        hint: 'Optional registered chat model config for the turn-boundary memory extraction LLM call (a cheaper one cuts cost). Empty = reuse the node Model.',
         visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
       },
     });

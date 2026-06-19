@@ -43,21 +43,22 @@ export interface ExtractionTurnSnapshot {
 export interface AgentMemoryExtractionJob {
   workspaceId: string;
   scopeKey: string;
+  /** 노드 main provider config — 추출 전용 config 미설정 시 폴백 (chat resolve). */
   llmConfigId?: string | null;
+  /** 노드 메인 모델 — 추출 폴백 체인의 2순위 (전용 config 미설정 시). */
   model?: string | null;
   /**
-   * 추출 LLM 콜 전용 모델 식별자 — 노드 config `extractionModel`. 미설정
-   * (null/undefined) 이면 processor 가 `model → llmConfig.defaultModel` 로
-   * 폴백한다 (fallback 체인 `extractionModel → model → 기본`, §3·§12.12).
+   * 추출 LLM 콜 전용 **chat ModelConfig id** — 노드 config `extractionModelConfigId`.
+   * 설정 시 processor 가 그 config(provider/credential/defaultModel)로 호출한다(노드 main
+   * 과 분리). 미설정 시 `llmConfigId(노드) → model → defaultModel` 폴백(§3·§12.12 재번복).
    */
-  extractionModel?: string | null;
+  extractionModelConfigId?: string | null;
   /**
-   * 임베딩(저장) 모델 식별자 — 노드 config `embeddingModel`. 회수 경로와 동일
-   * 값을 써 query/저장 임베딩의 차원이 일치하게 한다 (spec §임베딩 출처, §3).
-   * 미설정(null/undefined)이면 saveMemories 가 워크스페이스 기본 → 최후 하드코딩
-   * 기본으로 폴백한다.
+   * 저장 임베딩 출처 **embedding ModelConfig id** — 노드 config `embeddingModelConfigId`.
+   * 회수 경로와 동일 config 를 써 query/저장 임베딩의 차원·endpoint 가 일치한다(§3).
+   * 미설정이면 saveMemories 가 워크스페이스 기본 embedding ModelConfig 로 폴백.
    */
-  embeddingModel?: string | null;
+  embeddingModelConfigId?: string | null;
   turns: ExtractionTurnSnapshot[];
   /**
    * persistent 메모리 TTL (일). 노드 config `memoryTtlDays` 가 enqueue payload 로

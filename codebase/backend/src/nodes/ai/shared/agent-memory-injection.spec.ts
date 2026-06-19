@@ -1101,8 +1101,8 @@ describe('scheduleMemoryExtraction', () => {
           memoryKey: 'mk',
           llmConfigId: 'cfg-1',
           model: 'gpt-4o',
-          extractionModel: 'gpt-4o-mini',
-          embeddingModel: 'text-embedding-3-small',
+          extractionModelConfigId: 'chat-cfg-2',
+          embeddingModelConfigId: 'emb-cfg-1',
           memoryTtlDays: 30,
         },
         strategy: 'persistent',
@@ -1117,8 +1117,8 @@ describe('scheduleMemoryExtraction', () => {
     expect(payload.workspaceId).toBe('ws1');
     expect(payload.llmConfigId).toBe('cfg-1');
     expect(payload.model).toBe('gpt-4o');
-    expect(payload.extractionModel).toBe('gpt-4o-mini');
-    expect(payload.embeddingModel).toBe('text-embedding-3-small');
+    expect(payload.extractionModelConfigId).toBe('chat-cfg-2');
+    expect(payload.embeddingModelConfigId).toBe('emb-cfg-1');
     expect(payload.ttlDays).toBe(30);
     // 증분: watermark(0) 초과 turn(seq 1,2) 만 snapshot.
     expect(payload.turns).toHaveLength(2);

@@ -18,9 +18,12 @@ function makeJob(
       scopeKey: data.scopeKey ?? 'cust-7',
       llmConfigId: 'llmConfigId' in data ? data.llmConfigId : 'cfg-1',
       model: data.model ?? 'gpt-4o',
-      // 추출 전용 모델 — 미지정이면 생략 (processor 가 model → 기본 폴백).
-      ...('extractionModel' in data
-        ? { extractionModel: data.extractionModel }
+      // 추출 전용 config — 미지정이면 생략 (processor 가 노드 llmConfigId → model → 기본 폴백).
+      ...('extractionModelConfigId' in data
+        ? { extractionModelConfigId: data.extractionModelConfigId }
+        : {}),
+      ...('embeddingModelConfigId' in data
+        ? { embeddingModelConfigId: data.embeddingModelConfigId }
         : {}),
       turns,
     },
@@ -34,10 +37,14 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
 
   beforeEach(() => {
     llmService = {
-      resolveConfig: jest.fn().mockResolvedValue({
-        id: 'cfg-1',
-        provider: 'openai',
-        defaultModel: 'gpt-4o',
+      // config.id 별 defaultModel — 전용 extraction config 의 defaultModel 로 호출되는지 검증.
+      resolveConfig: jest.fn().mockImplementation((id?: string) => {
+        const byId: Record<string, { id: string; provider: string; defaultModel: string }> = {
+          'extract-cfg': { id: 'extract-cfg', provider: 'openai', defaultModel: 'cheap-extract' },
+        };
+        return Promise.resolve(
+          (id && byId[id]) ?? { id: 'cfg-1', provider: 'openai', defaultModel: 'gpt-4o' },
+        );
       }),
       chat: jest.fn().mockResolvedValue({
         content: '["사용자 이름은 지수다", "사용자는 간결한 답변을 선호한다"]',
@@ -54,7 +61,7 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
   });
 
   it('transcript 로 추출 LLM 콜 후 saveMemories 로 content 단위 저장', async () => {
-    await processor.process(makeJob({}));
+    await processor.process(makeJob({ embeddingModelConfigId: 'emb-cfg-1' }));
 
     // 추출 LLM 콜 — 노드 llmConfigId 재사용.
     expect(llmService.resolveConfig).toHaveBeenCalledWith('cfg-1', 'ws-1');
@@ -84,7 +91,7 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
         metadata: { kind: 'fact', source: 'turn_boundary_extraction' },
       },
     ]);
-    expect(embedCfg).toMatchObject({ llmConfigId: 'cfg-1' });
+    expect(embedCfg).toMatchObject({ embeddingModelConfigId: 'emb-cfg-1' });
   });
 
   it('AGM-11: 분류된 {content, kind} 응답을 metadata.kind 로 저장', async () => {
@@ -172,19 +179,27 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
     await processor.process(makeJob({ llmConfigId: null }));
     expect(llmService.resolveConfig).toHaveBeenCalledWith(undefined, 'ws-1');
   });
-  describe('추출 모델 폴백 체인 (extractionModel → model → llmConfig 기본, A3)', () => {
-    it('extractionModel set 시 추출 LLM 콜이 그 모델을 쓴다', async () => {
-      await processor.process(makeJob({ extractionModel: 'cheap-extract' }));
+  describe('추출 모델 폴백 체인 (extractionModelConfigId → llmConfigId → model → 기본, A3)', () => {
+    it('extractionModelConfigId set 시 추출 LLM 콜이 그 config 의 defaultModel 을 쓴다', async () => {
+      // 전용 추출 config 'extract-cfg' → resolveConfig 가 defaultModel='cheap-extract'.
+      await processor.process(
+        makeJob({ extractionModelConfigId: 'extract-cfg' }),
+      );
+      expect(llmService.resolveConfig).toHaveBeenCalledWith(
+        'extract-cfg',
+        'ws-1',
+      );
       expect(llmService.chat.mock.calls[0][1].model).toBe('cheap-extract');
     });
 
-    it('extractionModel 미설정·model 있으면 model 로 폴백', async () => {
-      // makeJob 기본 model='gpt-4o', extractionModel 없음.
+    it('extractionModelConfigId 미설정·node llmConfigId 있으면 그 config 로 폴백', async () => {
+      // makeJob 기본 llmConfigId='cfg-1'(defaultModel='gpt-4o'), extractionModelConfigId 없음.
       await processor.process(makeJob({}));
+      expect(llmService.resolveConfig).toHaveBeenCalledWith('cfg-1', 'ws-1');
       expect(llmService.chat.mock.calls[0][1].model).toBe('gpt-4o');
     });
 
-    it('extractionModel·model 모두 미설정이면 llmConfig.defaultModel 로 폴백', async () => {
+    it('extractionModelConfigId·model 모두 미설정이면 llmConfig.defaultModel 로 폴백', async () => {
       const job = makeJob({});
       (job.data as { model?: string | null }).model = null;
       // resolveConfig 가 defaultModel='ws-default' 를 돌려주게.

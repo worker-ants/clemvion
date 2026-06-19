@@ -538,8 +538,8 @@ export interface AgentMemoryScheduler {
     scopeKey: string;
     llmConfigId?: string | null;
     model?: string | null;
-    extractionModel?: string | null;
-    embeddingModel?: string | null;
+    extractionModelConfigId?: string | null;
+    embeddingModelConfigId?: string | null;
     turns: ExtractionTurnSnapshot[];
     ttlDays?: number | null;
   }): Promise<boolean>;
@@ -645,13 +645,17 @@ export async function scheduleMemoryExtraction(
     scopeKey,
     llmConfigId: args.config.llmConfigId as string | undefined,
     model: args.config.model as string | undefined,
-    // 추출 LLM 콜 전용 모델 — 미설정이면 processor 가 model → llmConfig 기본으로
-    // 폴백한다 (fallback 체인 `extractionModel → model → llmConfig 기본`,
-    // spec §3·§6.1 단계 2.7·§12.12). 기존 동작 (전용 필드 미설정) 100% 유지.
-    extractionModel: args.config.extractionModel as string | undefined,
-    // 추출(저장) 임베딩 모델 — 회수와 동일 노드 config 값을 써 query/저장
-    // 임베딩의 차원이 일치하게 한다 (§3, 차원 불일치 방지).
-    embeddingModel: args.config.embeddingModel as string | undefined,
+    // 추출 LLM 콜 전용 chat ModelConfig id — 설정 시 processor 가 그 config 로 호출
+    // (노드 main 과 분리). 미설정이면 노드 llmConfigId → model → defaultModel 폴백
+    // (§3·§6.1 단계 2.7·§12.12 재번복).
+    extractionModelConfigId: args.config.extractionModelConfigId as
+      | string
+      | undefined,
+    // 저장 임베딩 출처 embedding ModelConfig id — 회수와 동일 config 를 써 query/
+    // 저장 임베딩의 차원이 일치하게 한다 (§3).
+    embeddingModelConfigId: args.config.embeddingModelConfigId as
+      | string
+      | undefined,
     turns: snapshot,
     ttlDays,
   });

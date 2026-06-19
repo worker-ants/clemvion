@@ -194,10 +194,10 @@ const HINT_KO: Record<string, string> = {
     "도트 경로(예: \"name\", \"address.city\") 또는 표현식(\"{{ $item.name }}\"). 비워두거나 \"$item\" 으로 두면 item 자체와 비교합니다.",
   "Dot-path or inline expression returning an array":
     "배열을 반환하는 점 경로 또는 인라인 표현식",
-  "Optional low-cost model for the rolling-summary LLM call. Empty = reuse the node Model (then the provider default).":
-    "롤링 요약 LLM 호출에 사용할 선택적 저비용 모델. 비우면 노드 모델을 재사용합니다(그다음 프로바이더 기본값).",
-  "Optional low-cost model for the turn-boundary memory extraction LLM call. Empty = reuse the node Model (then the provider default).":
-    "턴 경계 메모리 추출 LLM 호출에 사용할 선택적 저비용 모델. 비우면 노드 모델을 재사용합니다(그다음 프로바이더 기본값).",
+  "Optional registered chat model config for the rolling-summary LLM call (a cheaper one cuts cost). Empty = reuse the node Model.":
+    "롤링 요약 LLM 호출에 사용할 선택적 chat 모델 설정이에요(더 저렴한 모델을 고르면 비용을 줄일 수 있어요). 비우면 노드 모델을 재사용해요.",
+  "Optional registered chat model config for the turn-boundary memory extraction LLM call (a cheaper one cuts cost). Empty = reuse the node Model.":
+    "턴 경계 메모리 추출 LLM 호출에 사용할 선택적 chat 모델 설정이에요(더 저렴한 모델을 고르면 비용을 줄일 수 있어요). 비우면 노드 모델을 재사용해요.",
   "Exit loop when condition is met": "조건이 충족되면 루프를 종료",
   "Expose list/get meta-tools when the server reports prompts capability":
     "서버가 prompts capability 를 보고할 때 list/get 메타도구를 노출",
@@ -236,8 +236,8 @@ const HINT_KO: Record<string, string> = {
     "메모리 회수에 필요한 최소 유사도(0~1)예요 (KB RAG 임계값과 독립).",
   "Persistent memories expire after this many days. Empty = never expire.":
     "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요.",
-  "Embedding model used for memory recall/extraction (must match the dimensions of the model used when memories were first stored). Empty = workspace default LLMConfig embedding model.":
-    "메모리 회수/추출에 쓰는 임베딩 모델이에요 (메모리를 처음 저장할 때 쓴 모델과 차원이 같아야 해요). 비우면 워크스페이스 기본 LLMConfig 임베딩 모델을 써요.",
+  "Registered embedding model config used for memory recall/extraction (its provider/model). Recall and storage use the same config so dimensions match. Empty = workspace default embedding config.":
+    "메모리 회수/추출에 쓰는 등록된 임베딩 모델 설정이에요(그 설정의 제공자/모델로 임베딩해요). 회수와 저장이 같은 설정을 써서 차원이 일치해요. 비우면 워크스페이스 기본 임베딩 설정을 써요.",
   "Merge arrived inputs when timeout elapses":
     "타임아웃 발생 시 도착한 입력들을 병합",
   "Minimum similarity score (0-1)": "최소 유사도 점수 (0~1)",
