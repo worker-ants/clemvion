@@ -541,21 +541,24 @@ export class ExecutionEngineService
   /**
    * Sub-workflow 진입점에서 호출자-피호출자 workspace 격리를 강제한다 (W-6).
    *
-   * 호출자 workspaceId 가 비어 있으면(옛 진입 경로, 트리거에서 직접 실행 등)
-   * 진단 로그만 남기고 통과 — 점진적 도입을 위함. 향후 모든 호출자가
-   * `parentWorkspaceId` 를 전달하도록 정착되면 unknown 진입을 fail-closed 로
-   * 전환한다.
+   * **fail-closed**: 호출자 workspace 컨텍스트(`callerWorkspaceId`)가 없으면
+   * 격리를 증명할 수 없으므로 거부한다. 모든 정당한 진입점
+   * (`executeInline`/`executeSync`/`executeAsync`)은 부모 실행 컨텍스트의
+   * `__workspaceId`(=`runExecution`/`rehydrateContext` 가 주입) 또는
+   * `options.parentWorkspaceId`(handler 가 전달)로 항상 workspace 를 넘긴다.
+   * 컨텍스트 누락은 정상 플로우가 아니라 미마이그레이션 경로의 신호이므로
+   * 통과시키지 않고 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 차단한다 (이전의 점진적
+   * 도입용 fail-open 로그-후-통과를 대체).
    */
   private assertSameWorkspace(
     targetWorkspaceId: string,
     callerWorkspaceId: string | undefined,
   ): void {
     if (!callerWorkspaceId) {
-      // 진입점 누락 — 트리거 / 옛 호출자. 로그만 남기고 통과.
-      this.logger.warn(
-        `[workspace-isolation] Sub-workflow invoked without parentWorkspaceId (target=${targetWorkspaceId}). Update caller to pass workspace context.`,
+      // 호출자 workspace 컨텍스트 누락 — 격리 증명 불가이므로 deny-by-default.
+      throw new Error(
+        `WORKFLOW_FORBIDDEN_WORKSPACE: Sub-workflow ${targetWorkspaceId} invoked without caller workspace context`,
       );
-      return;
     }
     if (targetWorkspaceId !== callerWorkspaceId) {
       throw new Error(
