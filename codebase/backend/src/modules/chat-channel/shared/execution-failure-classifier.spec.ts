@@ -139,18 +139,15 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       'HTTP_BLOCKED',
       'DB_HOST_BLOCKED',
       'WORKFLOW_FORBIDDEN_WORKSPACE',
-    ])(
-      '%s → executionFailedInternal with no CCH-ERR-04 warn log',
-      (code) => {
-        const warnSpy = jest
-          .spyOn(Logger.prototype, 'warn')
-          .mockImplementation(() => undefined);
-        const result = classifyExecutionFailure(makeEvent(code));
-        expect(result.key).toBe('executionFailedInternal');
-        expect(warnSpy).not.toHaveBeenCalled();
-        warnSpy.mockRestore();
-      },
-    );
+    ])('%s → executionFailedInternal with no CCH-ERR-04 warn log', (code) => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const result = classifyExecutionFailure(makeEvent(code));
+      expect(result.key).toBe('executionFailedInternal');
+      expect(warnSpy).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
   });
 
   describe('Unknown fallback (CCH-ERR-04)', () => {
