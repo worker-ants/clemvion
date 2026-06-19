@@ -43,7 +43,7 @@ vi.mock("@/lib/api/integrations", async () => {
   };
 });
 
-import { DangerTab } from "../page";
+import { DangerTab } from "../danger-tab";
 
 function buildIntegration(
   overrides: Partial<IntegrationDto> = {},
