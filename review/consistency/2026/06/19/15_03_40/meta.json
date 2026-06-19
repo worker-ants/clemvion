@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-06-19T15:03:40.000000",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/2-navigation/4-integration.md, diff-base=origin/main)",
+  "target_path": "spec/2-navigation/4-integration.md",
+  "checkers": ["cross_spec", "convention_compliance"]
+}
