@@ -136,7 +136,10 @@ describe("ChatModelSelectorWidget", () => {
     useLocaleStore.getState().setLocale("en");
     chatConfigs = CONFIGS;
   });
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    useLocaleStore.getState().setLocale("ko");
+  });
 
   it("scopes the model list to the node's llmConfigId provider (provider + baseUrl + configId)", () => {
     renderWidget(ChatModelSelectorWidget, { config: { llmConfigId: "cfg-a" } });
@@ -225,6 +228,26 @@ describe("ChatModelSelectorWidget", () => {
       screen.queryByTestId("chat-model-expression-warning"),
     ).not.toBeNull();
   });
+
+  it("shows BOTH stale and expression warnings together (deleted provider + old expression value)", () => {
+    // 현실 마이그레이션 시나리오: 종전 expression 값이 남아있고 provider 도 삭제된 경우.
+    renderWidget(ChatModelSelectorWidget, {
+      value: "{{ vars.model }}",
+      config: { llmConfigId: "cfg-nonexistent" },
+    });
+    expect(screen.queryByTestId("chat-model-stale-warning")).not.toBeNull();
+    expect(
+      screen.queryByTestId("chat-model-expression-warning"),
+    ).not.toBeNull();
+  });
+
+  it("shows no expression warning for a normal model-name value", () => {
+    renderWidget(ChatModelSelectorWidget, {
+      value: "gpt-4o",
+      config: { llmConfigId: "cfg-a" },
+    });
+    expect(screen.queryByTestId("chat-model-expression-warning")).toBeNull();
+  });
 });
 
 describe("EmbeddingModelSelectorWidget", () => {
@@ -234,7 +257,10 @@ describe("EmbeddingModelSelectorWidget", () => {
     useLocaleStore.getState().setLocale("en");
     chatConfigs = CONFIGS;
   });
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    useLocaleStore.getState().setLocale("ko");
+  });
 
   it("warns when the saved value is a dynamic expression ({{ }})", () => {
     renderWidget(EmbeddingModelSelectorWidget, {
@@ -244,6 +270,16 @@ describe("EmbeddingModelSelectorWidget", () => {
     expect(
       screen.queryByTestId("embedding-model-expression-warning"),
     ).not.toBeNull();
+  });
+
+  it("shows no expression warning for a normal model-name value", () => {
+    renderWidget(EmbeddingModelSelectorWidget, {
+      value: "text-embedding-3-small",
+      config: { llmConfigId: "cfg-a" },
+    });
+    expect(
+      screen.queryByTestId("embedding-model-expression-warning"),
+    ).toBeNull();
   });
 
   it("passes the node's llmConfigId as the embedding model config source", () => {

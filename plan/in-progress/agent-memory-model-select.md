@@ -109,6 +109,11 @@ rerank) 탭으로 통합돼 모델 목록을 동적 조회할 수 있음.
       추가 (spec §2.6.2 "기본 입력(10)" 와 정합 — 기존 갭 해소, spec 변경 불요).
 - [~] **FU2 빈 임베딩 목록 안내**: 기존 `ModelSelectField` 가 이미 `isEmpty` → `noModelsFound`
       메시지로 처리 → 변경 불요. (메시지 특화는 공유 컴포넌트(KB 공용) 수정이라 blast radius 큼, skip.)
-- i18n: KO/EN `nodeConfigs.modelSelector` 양쪽 등록(parity 확인). 신규 위젯 테스트 9→14 cases.
+- i18n: KO/EN `nodeConfigs.modelSelector` 양쪽 등록(parity 확인).
+- [x] follow-up TEST WORKFLOW: lint/unit/build PASS, e2e 205 PASS(carried — 이후 변경 테스트/문서 전용).
+      unit 1회 flaky(http-request abort timeout, 내 변경 무관 — 격리 재실행 통과) 후 통과.
+- [x] follow-up /ai-review (3 reviewer: side-effect NONE/requirement NONE/testing LOW, Critical 0) —
+      review/code/2026/06/19/21_23_25/. 테스트 보강(동시·미발화·teardown, 14→17 cases) + §12.12 문구 정정.
+- [x] follow-up /consistency-check --impl-done BLOCK:NO — review/consistency/2026/06/19/21_30_59/.
 </content>
 </invoke>
