@@ -13,5 +13,6 @@
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },
   "maxWorkers": 1,
-  "testTimeout": 60000
+  "testTimeout": 60000,
+  "forceExit": true
 }

@@ -31,6 +31,16 @@ const config: Config = {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
+  // Exit as soon as the run finishes even if a handle is still open. Nest
+  // TestingModule/app, TypeORM pools, Redis/BullMQ clients or stray timers
+  // occasionally outlive teardown and trigger "Jest did not exit one second
+  // after the test run has completed", hanging the process indefinitely even
+  // though every test passed. forceExit turns that hang into a clean ~1s exit.
+  // It masks (does not fix) the leak — run `npm test -- --detectOpenHandles`
+  // to locate the source and close it in afterAll. The run-test.sh watchdog is
+  // the outer backstop if a test ever hangs *during* execution rather than at
+  // teardown.
+  forceExit: true,
 };
 
 export default config;
