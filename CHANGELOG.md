@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — npm audit 취약점 해소 의존성 상향
+
+### 변경 사항
+
+1. **보안 취약점 의존성 업그레이드** — `npm audit` 의 모든 high/critical 제거 (backend 63→0 high·crit / frontend 9→0 / channel-web-chat 2→0). 직접 의존성은 상위 패키지를 올리고, 전이 의존성은 부모가 좁게 핀해 forward 가 불가능한 경우 `overrides` 로 안전 버전을 강제했다.
+
+   - **backend**: `nodemailer` ^8.0.4 → ^9.0.1(메이저, raw 옵션 파일읽기/SSRF `<=9.0.0` 해소) · `@nestjs-modules/mailer` ^2.3.4 → ^2.3.7(부모 상향 — 취약 `preview-email`/`mailparser` 를 optional 로 분리) · `@opentelemetry/*` 0.218→0.219·core 2.7→2.8(`@opentelemetry/core` 메모리 누수 해소) · overrides 추가/상향: `ws` ^8.21.0(DoS) · `@grpc/grpc-js` ^1.14.4 · `multer` ^2.2.0(DoS) · `form-data` ^4.0.6(CRLF) · `protobufjs` ^7.5.6→^7.6.3 · `nodemailer` ^9.0.1(중첩 사본 강제).
+   - **frontend**: `dompurify` ^3.4.2 → ^3.4.11(XSS) · overrides 추가: `ws` ^8.21.0 · `form-data` ^4.0.6 · `undici` ^7.28.0(TLS 검증 우회) · `vite` ^8.0.16 · `@babel/core` ^7.29.7.
+   - **channel-web-chat**: `dompurify` 3.4.7 → 3.4.11(exact pin 유지).
+
+   **잔여(accept)**: `js-yaml`(moderate, merge-key DoS) — gray-matter@4 가 3.x `safeLoad` API 에 묶여 forward 불가하며 빌드타임 신뢰 입력(자체 docs frontmatter)만 파싱하므로 실위험 없음. backend `@babel/core`(low) — 동일하게 빌드타임 신뢰 입력.
+
+   소스 코드 변경 없음. build·unit·e2e 전부 통과.
+
 ## Unreleased — EIA submit_form 서버 측 field 검증
 
 ### 변경 사항
