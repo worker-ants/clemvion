@@ -321,12 +321,15 @@ export class Cafe24PrecheckResultDto {
 
 /** 사용처 조회 응답의 노드 항목 */
 export class IntegrationUsageNodeDto {
+  /** 노드 UUID */
   @ApiProperty({ format: 'uuid' })
   id: string;
 
+  /** 노드 표시 라벨 */
   @ApiProperty()
   label: string;
 
+  /** 노드 타입 (예: http-request, ai-agent) */
   @ApiProperty()
   type: string;
 

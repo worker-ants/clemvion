@@ -9,7 +9,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * e2e: 통합(Integration) 사용처 추적이 직접 참조(node.config.integrationId) ∪
  * MCP 참조(AI Agent node.config.mcpServers[].integrationId) 합집합을 실 PostgreSQL
  * 의 jsonb `@>` containment + CASE 분기로 정확히 산출하는지 검증한다.
- * (spec/4-nodes/4-integration §7 사용처 추적 — usageKind 'direct'|'mcp').
+ * (spec/2-navigation/4-integration.md §7 사용처 추적 — usageKind 'direct'|'mcp').
  *
  * 단위테스트(integrations.service.spec.ts)는 QueryBuilder mock 이라 `@>` containment
  * 와 CASE 식 자체를 실행하지 못한다. 이 핵심 SQL 동작은 실 PG 에서만 검증 가능하므로
