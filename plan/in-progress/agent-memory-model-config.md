@@ -61,6 +61,10 @@ KB 의 `embeddingModelConfigId` 패턴 미러(검증된 선례 — 서버가 con
 
 ### 마이그레이션
 - #642 방금 머지라 기존 데이터 ~0. 옛 모델명 값(다른 키)은 폐기되고 미설정 폴백으로 graceful degrade.
+- **배포 전 운영 (ai-review/impl-done WARNING)**: ① BullMQ `agent-memory-extraction` 큐 in-flight
+  job 0건 확인 또는 drain (payload 필드 rename — 구 job dequeue 시 config id `undefined`→폴백,
+  crash 아님). ② `node_configs` 테이블에 구 위젯 키(`chat-model-selector`/`embedding-model-selector`)
+  저장 레코드 0건 확인 (구 키는 `UnsupportedWidget` 폴백). 둘 다 #642 직후라 실데이터 ~0.
 
 ## 워크플로
 - [x] 코드+spec 구현, unit(backend 267 / frontend 6+146) 통과.

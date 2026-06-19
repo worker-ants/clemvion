@@ -54,6 +54,9 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
     // 추출 LLM config: 전용 config(extractionModelConfigId) 우선 — 그 config 의
     // provider/credential/defaultModel 사용(노드 main 과 분리, §12.12 재번복). 미설정이면
     // 노드 llmConfigId(없으면 워크스페이스 기본) chat config 로 폴백.
+    // NOTE: `||` 는 의도적이다 — config-selector 의 빈 선택은 빈 문자열("")="노드 config 상속"
+    // 의미이므로 ""(falsy)도 llmConfigId 로 폴백해야 한다. `??` 로 바꾸면 ""을 실제 config id
+    // 로 간주해 resolveConfig("") 를 시도하므로 금지.
     const llmConfig = await this.llmService.resolveConfig(
       extractionModelConfigId || llmConfigId || undefined,
       workspaceId,
