@@ -26,11 +26,12 @@ created: 2026-06-19
   ```
   마이그레이션은 `CONCURRENTLY` 라 트랜잭션 밖에서 실행해야 한다(TypeORM 마이그레이션 작성 시 주의). `jsonb_path_ops` 는 `@>` containment 에 최적이며, 직접참조의 `->>'integrationId' = ...` 등치 조건에는 부분 도움 정도다(필요 시 별도 expression index 검토).
 
-## ⑥ 삭제 차단 다이얼로그 프론트 미구현
+## ⑥ 삭제 차단 다이얼로그 프론트 미구현 ✅ (구현 완료 — PR #635)
 
 - **출처**: requirement-reviewer MEDIUM.
 - **현황**: spec §4.7 / §7.2 는 통합 삭제가 차단될 때 **사용처 목록 다이얼로그 + MCP 배지** 표시를 요구한다. 그러나 현재 프론트(`page.tsx` 의 삭제 `onError`)는 **toast 만** 표시한다 — 사용처 목록을 보여주지 않는다. (이번 PR 이 만든 갭이 아니라 **기존부터 존재한 갭**이며, 이번 PR 은 백엔드 usageKind 산출과 UsageTab 배지까지만 다뤘다.)
 - **후속 작업**: DangerTab(삭제 영역)에서 `GET /api/integrations/:id/usages` 사전 조회 → 차단 시 사용처 목록 다이얼로그 렌더 + 각 노드의 `usageKind` 배지('direct'/'mcp') 표시. UsageTab 의 기존 배지 컴포넌트·i18n 키 재사용.
+- **완료 (PR #635)**: DangerTab 삭제 흐름을 사전 `GET /usages` 조회 → 사용처 ≥ 1건이면 차단 다이얼로그(`delete-blocked-dialog.tsx`), 0건이면 DELETE 진행으로 개선. UsageTab 과 차단 다이얼로그가 공유하는 워크플로우-노드+MCP 배지 렌더를 `usage-node-list.tsx` 공용 컴포넌트로 추출. 409 `INTEGRATION_IN_USE`(usages body 포함) race fallback 으로 동일 다이얼로그 노출, body 없으면 기존 toast 유지. i18n ko/en parity 추가(`usageOpenWorkflow`/`deleteBlocked*`). RTL 테스트 4건(`__tests__/danger-tab.test.tsx`).
 
 ## ⑦ `remove()` 이중 `findById`
 

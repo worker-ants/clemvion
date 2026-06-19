@@ -121,6 +121,14 @@ export const integrations: Dict["integrations"] = {
   usageEmpty: "No workflow nodes currently use this integration.",
   usageSummary: "Used by {{nodes}} nodes across {{workflows}} workflows.",
   usageMcpBadge: "MCP",
+  usageOpenWorkflow: "Open workflow",
+  // Delete-blocked dialog (§7.2)
+  deleteBlockedTitle: 'Cannot delete "{{name}}"',
+  deleteBlockedDescription:
+    "This integration is still referenced by the following workflow nodes.",
+  deleteBlockedHint:
+    "Please replace or remove these node references before deleting.",
+  deleteBlockedClose: "Close",
   activityEmpty: "No calls recorded in the last 7 days.",
   activitySummary: "Last 7 days: {{total}} calls · {{rate}}% success",
   activityWhen: "When",

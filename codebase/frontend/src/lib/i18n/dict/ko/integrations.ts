@@ -119,6 +119,12 @@ export const integrations = {
   usageEmpty: "현재 이 통합을 사용 중인 워크플로우 노드가 없어요.",
   usageSummary: "{{workflows}}개 워크플로우의 {{nodes}}개 노드에서 사용 중이에요.",
   usageMcpBadge: "MCP",
+  usageOpenWorkflow: "워크플로우 열기",
+  // 삭제 차단 다이얼로그 (§7.2)
+  deleteBlockedTitle: '"{{name}}" 통합을 삭제할 수 없어요',
+  deleteBlockedDescription: "아직 아래 워크플로우 노드가 이 통합을 사용하고 있어요.",
+  deleteBlockedHint: "삭제하려면 먼저 이 노드들에서 통합 참조를 교체하거나 제거해 주세요.",
+  deleteBlockedClose: "닫기",
   activityEmpty: "최근 7일간 호출 기록이 없어요.",
   activitySummary: "최근 7일: {{total}}회 호출 · 성공률 {{rate}}%",
   activityWhen: "시간",
