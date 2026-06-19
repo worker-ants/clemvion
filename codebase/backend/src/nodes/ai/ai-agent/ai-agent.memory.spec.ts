@@ -1317,14 +1317,15 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(1);
     });
   });
-  describe('요약/추출 전용 모델 (summaryModel / extractionModel — A3)', () => {
-    // C1 회귀 핀: multiTurnStateBase 에 summaryModel/extractionModel 미저장 시
-    // resume turn(turn2+)에서 state.summaryModel / state.extractionModel 이
+  describe('요약/추출 전용 config (summaryModelConfigId / extractionModelConfigId — A3)', () => {
+    // C1 회귀 핀: multiTurnStateBase 에 summaryModelConfigId/extractionModelConfigId
+    // 미저장 시 resume turn(turn2+)에서 state.summaryModelConfigId /
+    // state.extractionModelConfigId 가
     // undefined 가 되어 노드 model 로 silent 폴백한다. 이 테스트는 turn2 의 요약
-    // LLM 콜이 summaryModel 을, 추출 enqueue payload 가 extractionModel 을 실제로
-    // 쓰는지 단언한다 (미수정 시 'cheap-mini'/'cheap-extract' 대신 'gpt-4o' 가
-    // 잡혀 실패).
-    it('multi-turn resume(turn2): 요약 콜=summaryModel, 추출 enqueue=extractionModel (state 영속)', async () => {
+    // LLM 콜이 summaryModelConfigId config 를, 추출 enqueue payload 가
+    // extractionModelConfigId 를 실제로 쓰는지 단언한다 (미수정 시
+    // 'cheap-mini'/'cheap-extract' 대신 'gpt-4o' 가 잡혀 실패).
+    it('multi-turn resume(turn2): 요약 콜=summaryModelConfigId, 추출 enqueue=extractionModelConfigId (state 영속)', async () => {
       const context = makeContext();
       const big = 'w'.repeat(600);
       // 첫 turn 부터 예산 초과를 만들어 요약 콜이 매 turn 발화하도록 seed.
@@ -1402,7 +1403,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
         summarized: true,
       });
 
-      // turn2 의 chat 콜들 중 첫 콜 = 요약 콜. summaryModel 을 써야 한다.
+      // turn2 의 chat 콜들 중 첫 콜 = 요약 콜. summaryModelConfigId config 를 써야 한다.
       const summaryCall = mockLlmService.chat.mock.calls[
         callsBeforeTurn2
       ][1] as {
@@ -1415,7 +1416,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       ][1] as { model: string };
       expect(mainCall.model).toBe('gpt-4o');
 
-      // turn2 의 추출 enqueue payload 는 extractionModel 을 그대로 전달.
+      // turn2 의 추출 enqueue payload 는 extractionModelConfigId 를 그대로 전달.
       expect(agentMemoryService.scheduleExtraction).toHaveBeenCalled();
       expect(
         agentMemoryService.scheduleExtraction.mock.calls.at(-1)?.[0],
@@ -1425,7 +1426,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       });
     });
 
-    it('summaryModel set 시 요약 LLM 콜이 그 모델을 쓴다 (main 콜은 노드 model)', async () => {
+    it('summaryModelConfigId set 시 요약 LLM 콜이 그 config 의 모델을 쓴다 (main 콜은 노드 model)', async () => {
       const context = makeContext();
       // 예산 초과를 만들기 위해 큰 turn 들을 seed.
       const big = 'w'.repeat(500);
@@ -1465,7 +1466,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
         },
         context,
       );
-      // 요약 콜(첫 콜)은 summaryModel, main 콜(둘째)은 노드 model.
+      // 요약 콜(첫 콜)은 summaryModelConfigId config, main 콜(둘째)은 노드 model.
       const summaryCall = mockLlmService.chat.mock.calls[0][1] as {
         model: string;
       };
@@ -1482,7 +1483,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       );
     });
 
-    it('summaryModel 미설정 시 요약 LLM 콜은 노드 model 로 폴백 (기존 동작 유지)', async () => {
+    it('summaryModelConfigId 미설정 시 요약 LLM 콜은 노드 model 로 폴백 (기존 동작 유지)', async () => {
       const context = makeContext();
       const big = 'w'.repeat(500);
       for (let i = 0; i < 6; i++) {
@@ -1516,7 +1517,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
           maxToolCalls: 10,
           memoryStrategy: 'summary_buffer',
           memoryTokenBudget: 300,
-          // summaryModel intentionally absent.
+          // summaryModelConfigId intentionally absent.
         },
         context,
       );
@@ -1526,8 +1527,8 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(summaryCall.model).toBe('gpt-4o');
     });
 
-    it('summaryModel·model 모두 미설정 시 요약 LLM 콜은 llmConfig 기본 모델로 폴백 (fallback 3단째)', async () => {
-      // fallback 체인 3단째: summaryModel → model → llmConfig 기본.
+    it('summaryModelConfigId·model 모두 미설정 시 요약 LLM 콜은 llmConfig 기본 모델로 폴백 (fallback 3단째)', async () => {
+      // fallback 체인 3단째: summaryModelConfigId → model → llmConfig 기본.
       // model 도 생략하면 호출부 `model || llmConfig.defaultModel` 로 합성되어
       // 요약 콜이 llmConfig.defaultModel('gpt-4o')을 써야 한다.
       const context = makeContext();
@@ -1556,7 +1557,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
         undefined,
         {
           mode: 'single_turn',
-          // model + summaryModel 모두 생략 → llmConfig.defaultModel('gpt-4o') 폴백.
+          // model + summaryModelConfigId 모두 생략 → llmConfig.defaultModel('gpt-4o') 폴백.
           systemPrompt: 'Sys',
           userPrompt: 'Hi',
           responseFormat: 'text',
@@ -1572,8 +1573,8 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(summaryCall.model).toBe('gpt-4o');
     });
 
-    it('extractionModel 을 scheduleExtraction payload 로 전달 (set / 미설정 분기)', async () => {
-      // (a) set → payload.extractionModel 그대로.
+    it('extractionModelConfigId 을 scheduleExtraction payload 로 전달 (set / 미설정 분기)', async () => {
+      // (a) set → payload.extractionModelConfigId 그대로.
       const ctxA = makeContext();
       await buildHandler().execute(
         undefined,
@@ -1600,7 +1601,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
         model: 'gpt-4o',
       });
 
-      // (b) 미설정 → payload.extractionModel undefined (processor 가 model 로 폴백).
+      // (b) 미설정 → payload.extractionModelConfigId undefined (processor 가 노드 llmConfigId/model 로 폴백).
       agentMemoryService.scheduleExtraction.mockClear();
       const ctxB = makeContext();
       await buildHandler().execute(
@@ -1619,7 +1620,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
         ctxB,
       );
       const argB = agentMemoryService.scheduleExtraction.mock.calls[0][0];
-      expect(argB.extractionModel).toBeUndefined();
+      expect(argB.extractionModelConfigId).toBeUndefined();
       expect(argB.model).toBe('gpt-4o');
     });
   });

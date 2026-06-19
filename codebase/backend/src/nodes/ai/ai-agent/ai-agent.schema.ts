@@ -430,7 +430,7 @@ export const aiAgentNodeConfigSchema = z
     // order 44-49.7 — System Context (42-43) 뒤, Multi Turn (50) 앞. 한 그룹으로
     // 연속 배치해 frontend SchemaForm.groupEntries 가 쪼개지 않게 한다.
     // Fragment SoT: shared/agent-memory-schema.ts (2 노드 공통 helper). ai_agent 는
-    // memoryTokenBudget(45)·summaryModel(49.6) 을 갖는 superset (summary_buffer
+    // memoryTokenBudget(45)·summaryModelConfigId(49.6) 을 갖는 superset (summary_buffer
     // 경로 전용), memoryStrategy enum 은 3값. 종전 인라인 정의와 100% 동치.
     ...buildAgentMemorySchemaFields({
       strategy: {
@@ -458,8 +458,8 @@ export const aiAgentNodeConfigSchema = z
         memoryTopK: 47,
         memoryThreshold: 48,
         memoryTtlDays: 49,
-        embeddingModel: 49.5,
-        extractionModel: 49.7,
+        embeddingModelConfigId: 49.5,
+        extractionModelConfigId: 49.7,
       },
       summaryModelOrder: 49.6,
     }),

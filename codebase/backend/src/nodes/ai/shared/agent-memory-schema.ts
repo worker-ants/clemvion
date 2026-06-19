@@ -5,8 +5,8 @@
  *      · spec/5-system/17-agent-memory.md.
  *
  * AI Agent / Information Extractor 두 노드가 동일 의미·라벨·hint 의 메모리 config
- * 필드(`memoryKey`/`memoryTopK`/`memoryThreshold`/`memoryTtlDays`/`embeddingModel`/
- * `extractionModel` + `memoryStrategy`)를 갖는다. 본 헬퍼가 라벨·hint·default·
+ * 필드(`memoryKey`/`memoryTopK`/`memoryThreshold`/`memoryTtlDays`/`embeddingModelConfigId`/
+ * `extractionModelConfigId` + `memoryStrategy`)를 갖는다. 본 헬퍼가 라벨·hint·default·
  * visibleWhen 의 단일 진실이다 (`buildConversationContextSchemaFields` 패턴).
  *
  * 노드별 차이는 opts 로 제어한다:
@@ -14,8 +14,9 @@
  *    manual|summary_buffer|persistent, IE: manual|persistent) → `strategy` opt.
  *  - 각 필드의 UI `order` 는 노드별로 다르므로 `orders` 로 명시 주입한다
  *    (ai_agent 44~49.7, IE 11~14.7 — 단순 orderStart+N 패턴이 아님).
- *  - `memoryTokenBudget` / `summaryModel` 는 **ai_agent 전용** (summary_buffer
+ *  - `memoryTokenBudget` / `summaryModelConfigId` 는 **ai_agent 전용** (summary_buffer
  *    경로) → 각 order 가 주어질 때만 방출한다 (`tokenBudgetOrder`/`summaryModelOrder`).
+ *    (order 키 `summaryModelOrder` 는 필드 `summaryModelConfigId` 의 UI 위치를 가리킨다.)
  *
  * 방출되는 필드 객체의 키 순서·meta 내용은 종전 인라인 정의와 100% 동일하다
  * (ui-label-parity·노드 schema 테스트 회귀 0).
@@ -55,8 +56,8 @@ export interface BuildAgentMemorySchemaFieldsOptions {
     memoryTopK: number;
     memoryThreshold: number;
     memoryTtlDays: number;
-    embeddingModel: number;
-    extractionModel: number;
+    embeddingModelConfigId: number;
+    extractionModelConfigId: number;
   };
   /**
    * 주어지면 `memoryTokenBudget` 필드를 이 order 로 방출한다 (ai_agent 전용 —
@@ -64,7 +65,7 @@ export interface BuildAgentMemorySchemaFieldsOptions {
    */
   tokenBudgetOrder?: number;
   /**
-   * 주어지면 `summaryModel` 필드를 이 order 로 방출한다 (ai_agent 전용 — 요약
+   * 주어지면 `summaryModelConfigId` 필드를 이 order 로 방출한다 (ai_agent 전용 — 요약
    * LLM 콜 모델). undefined 면 방출 안 함 (IE).
    */
   summaryModelOrder?: number;
@@ -75,8 +76,8 @@ export interface BuildAgentMemorySchemaFieldsOptions {
  *
  * 반환 객체의 spread 순서가 곧 필드 선언 순서이므로, 종전 인라인 정의의 순서
  * (memoryStrategy → [memoryTokenBudget] → memoryKey → memoryTopK →
- * memoryThreshold → memoryTtlDays → embeddingModel → [summaryModel] →
- * extractionModel) 를 그대로 보존한다.
+ * memoryThreshold → memoryTtlDays → embeddingModelConfigId →
+ * [summaryModelConfigId] → extractionModelConfigId) 를 그대로 보존한다.
  */
 export function buildAgentMemorySchemaFields(
   opts: BuildAgentMemorySchemaFieldsOptions,
@@ -194,7 +195,7 @@ export function buildAgentMemorySchemaFields(
         // 미설정 시 워크스페이스 기본 embedding ModelConfig.
         label: 'Embedding Model',
         widget: 'embedding-config-selector',
-        order: orders.embeddingModel,
+        order: orders.embeddingModelConfigId,
         group: GROUP,
         hint: 'Registered embedding model config used for memory recall/extraction (its provider/model). Recall and storage use the same config so dimensions match. Empty = workspace default embedding config.',
         visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },
@@ -234,7 +235,7 @@ export function buildAgentMemorySchemaFields(
       ui: {
         label: 'Extraction Model',
         widget: 'chat-config-selector',
-        order: orders.extractionModel,
+        order: orders.extractionModelConfigId,
         group: GROUP,
         hint: 'Optional registered chat model config for the turn-boundary memory extraction LLM call (a cheaper one cuts cost). Empty = reuse the node Model.',
         visibleWhen: { field: 'memoryStrategy', equals: 'persistent' },

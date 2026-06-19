@@ -32,12 +32,12 @@ export interface ExtractionTurnSnapshot {
  *
  * - `workspaceId` / `scopeKey`: 저장 네임스페이스 `(workspace_id, scope_key)`
  *   (격리 의무 §5 — workspaceId 는 execution context 권위 값에서만 온다).
- * - `llmConfigId`: 추출 LLM 콜이 재사용할 노드 provider/credential (§3).
- * - `model`: 노드 메인 모델. 추출 모델 폴백 체인의 2순위.
- * - `extractionModel`: 추출 LLM 콜 전용 모델 (노드 config `extractionModel`).
- *   미설정(null) 이면 processor 가 `model → llmConfig.defaultModel` 로 폴백한다
- *   (fallback 체인 `extractionModel → model → 기본`, §3·§12.12). 미설정 시 기존
- *   동작 (노드 model 재사용) 100% 유지.
+ * - `llmConfigId`: 추출 LLM 콜이 폴백할 노드 chat config (§3).
+ * - `model`: 노드 메인 모델. 추출 모델 폴백 체인의 후순위.
+ * - `extractionModelConfigId`: 추출 LLM 콜 전용 chat ModelConfig id (노드 config
+ *   `extractionModelConfigId`). 설정 시 그 config 의 provider/defaultModel 로 호출(노드
+ *   main LLM 과 독립). 미설정 이면 processor 가 `llmConfigId → model → llmConfig.defaultModel`
+ *   로 폴백한다 (§3·§12.12). 미설정 시 기존 동작 (노드 llmConfigId 재사용) 유지.
  * - `turns`: 추출 대상 직전 turn 들의 shallow-copy 스냅샷 (격리 invariant).
  */
 export interface AgentMemoryExtractionJob {

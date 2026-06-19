@@ -9,6 +9,9 @@ status: in-progress
 
 ## 결정 (사용자 확정)
 #642 의 "노드 provider 내 모델명 select" 를 **/models 등록 config 선택**으로 전환.
+**선행 plan `agent-memory-model-select`(#642) 의 설계를 supersede** — 그 plan 의 미완료
+체크박스(위젯/스키마/`--impl-done`)는 본 plan 에서 새 설계로 재구현·검증되어 이행 불필요
+(선행 plan 상단에 SUPERSEDED 배너 추가). plan_coherence WARNING(impl-done 01_40_08) 해소.
 KB 의 `embeddingModelConfigId` 패턴 미러(검증된 선례 — 서버가 config.defaultModel 로 모델 도출).
 
 - summary/extraction → 등록 **chat config** 선택 = `llm-config-selector` **재사용**.
