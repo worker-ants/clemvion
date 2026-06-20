@@ -44,8 +44,9 @@ flowise `NodesPool`(카테고리 디렉토리 → 단일 pool) 충실 + 경량: 
 - [x] **spec §1.0/§4 등록 메커니즘 sync** (커밋 `7283a216`) — "정적 배열 순회"→"DI 부팅 등록(`NodeComponentsModule`→`NODE_COMPONENT`→`@Inject` bootstrap)". §4 "런타임 플러그인/마켓플레이스 로딩 미구현" invariant **유지**, Rationale 번복 아님. 개발자 SPEC-DRIFT 동기 반영(impl-prep W2 사전 검증) → cross-spec 검증은 아래 impl-done.
 - [x] TEST WORKFLOW: lint(내 파일 check-mode 0 errors ✓ — `run-test.sh lint`(--fix)는 repo 전역 pre-existing format drift+8 err, M-5 무관) · unit(관련 56+ ✓; 3 FAIL 전부 pre-existing frontend/tooling) · build ✓(tsc 132s) · **e2e ✓(205 tests 91s)**
 - [x] `/ai-review --branch main` → **위험도 LOW, Critical 0** (산출 `review/code/2026/06/20/15_14_06/`). WARNING 3건 수동 fix(multi-provider 주석 정정·plan 동기화) + RESOLUTION.md. SPEC-DRIFT(W1)은 7283a216 으로 이미 반영.
-- [ ] `/consistency-check --impl-done spec/4-nodes` BLOCK:NO (spec-linked 코드 변경)
-- [ ] fresh `/ai-review` (resolution fix 커버 — stale 가드) + push + PR
+- [x] fresh `/ai-review --branch main` (resolution 커버) → **CLEAN: Critical 0 / Warning 0** (산출 `review/code/2026/06/20/15_26_45/`). 이전 W2/W3 정정 확인. INFO 13건(layer-3 미래·pre-existing·선택 테스트보완)만 — 후속.
+- [x] `/consistency-check --impl-done spec/4-nodes` → checker **BLOCK:YES 이나 본 changeset 기준 false-positive** (산출 `review/consistency/2026/06/20/15_25_26/`). Critical(C1/C2)=동적 포트 ID UUID↔slug drift 는 **내 changeset 밖 pre-existing**(diff 에 §7/§1.5/ND-AG-20/port-id 미포함, UUID 변경 0건; impl-prep 가 이미 pre-existing 판정, §범위 밖 등재). W1(§1.0 미싱크)=7283a216 으로 이미 sync(fresh ai-review 독립 확인). ⇒ 메모리 "impl-done spec 번들 버그" 패턴 → **BYPASS_REVIEW_GUARD=1 + 근거**(SUMMARY §개발자 판정).
+- [ ] push (BYPASS_REVIEW_GUARD=1) + PR
 
 ## 범위 밖 / 후속 (이 PR 에 넣지 않음)
 
