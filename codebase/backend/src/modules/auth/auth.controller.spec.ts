@@ -1,11 +1,9 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
 import { TotpService } from './totp.service';
-import { UsersService } from '../users/users.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import type { JwtPayload } from '../../common/decorators';
@@ -15,7 +13,6 @@ describe('AuthController', () => {
   let authService: jest.Mocked<AuthService>;
   let oauthService: jest.Mocked<AuthOauthService>;
   let totpService: jest.Mocked<TotpService>;
-  let usersService: jest.Mocked<UsersService>;
   let auditLogsService: jest.Mocked<AuditLogsService>;
 
   const mockRes = {
@@ -38,6 +35,7 @@ describe('AuthController', () => {
       refresh: jest.fn(),
       logout: jest.fn(),
       resendVerification: jest.fn(),
+      verifyPasswordForUser: jest.fn(),
     } as unknown as jest.Mocked<AuthService>;
 
     oauthService = {
@@ -53,10 +51,6 @@ describe('AuthController', () => {
       disable: jest.fn(),
     } as unknown as jest.Mocked<TotpService>;
 
-    usersService = {
-      findById: jest.fn(),
-    } as unknown as jest.Mocked<UsersService>;
-
     auditLogsService = {
       record: jest.fn(),
     } as unknown as jest.Mocked<AuditLogsService>;
@@ -66,7 +60,6 @@ describe('AuthController', () => {
       mockConfigService,
       oauthService,
       totpService,
-      usersService,
       auditLogsService,
     );
   });
@@ -428,10 +421,7 @@ describe('AuthController', () => {
     });
 
     it('records user.2fa_disabled (with ipAddress) on disable2fa after password reconfirm', async () => {
-      usersService.findById.mockResolvedValue({
-        id: 'user-uuid',
-        passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
-      } as never);
+      authService.verifyPasswordForUser.mockResolvedValue(undefined);
       totpService.disable.mockResolvedValue(undefined);
 
       await controller.disable2fa(
@@ -440,6 +430,10 @@ describe('AuthController', () => {
         mock2faReq,
       );
 
+      expect(authService.verifyPasswordForUser).toHaveBeenCalledWith(
+        'user-uuid',
+        'OldP@ssw0rd1',
+      );
       expect(totpService.disable).toHaveBeenCalledWith('user-uuid');
       expect(auditLogsService.record).toHaveBeenCalledWith({
         workspaceId: 'ws-uuid',
@@ -453,10 +447,12 @@ describe('AuthController', () => {
     });
 
     it('does not record an audit log when disable2fa password is wrong', async () => {
-      usersService.findById.mockResolvedValue({
-        id: 'user-uuid',
-        passwordHash: await bcrypt.hash('OldP@ssw0rd1', 4),
-      } as never);
+      authService.verifyPasswordForUser.mockRejectedValue(
+        new UnauthorizedException({
+          code: 'PASSWORD_INVALID',
+          message: '비밀번호가 일치하지 않습니다.',
+        }),
+      );
 
       await expect(
         controller.disable2fa(payload, { password: 'WrongPass!' }, mock2faReq),

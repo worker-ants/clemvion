@@ -46,6 +46,36 @@ export class AuthService {
     private readonly sessionsService: SessionsService,
   ) {}
 
+  // ========== PASSWORD RE-VERIFICATION (레이어 정렬 — refactor 02 C-3) ==========
+
+  /**
+   * 현재 사용자의 비밀번호를 재확인한다 (2FA 비활성화 등 민감 작업의 재인증용).
+   * 옛 `AuthController.disable2fa` 가 raw `bcrypt.compare` 로 직접 수행하던 검증을
+   * Service 로 이관한 것 — `data-flow/2-auth.md §1.2` 가 bcrypt 비교를 일관되게
+   * `AuthService` 에 배치한다(레이어 정렬). 검증은 login 과 동일한 `comparePassword`
+   * 헬퍼를 쓰며, 실패 시 에러 코드(`PASSWORD_REQUIRED`/`PASSWORD_INVALID`)·메시지·
+   * 401 shape 은 옛 컨트롤러 동작 그대로 보존한다.
+   */
+  async verifyPasswordForUser(
+    userId: string,
+    plainPassword: string,
+  ): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException({
+        code: 'PASSWORD_REQUIRED',
+        message: '비밀번호 확인이 필요합니다.',
+      });
+    }
+    const ok = await comparePassword(plainPassword, user.passwordHash);
+    if (!ok) {
+      throw new UnauthorizedException({
+        code: 'PASSWORD_INVALID',
+        message: '비밀번호가 일치하지 않습니다.',
+      });
+    }
+  }
+
   // ========== REGISTER ==========
   async register(
     dto: {

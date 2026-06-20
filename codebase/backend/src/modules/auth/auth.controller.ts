@@ -54,8 +54,6 @@ import type { JwtPayload } from '../../common/decorators';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UseGuards } from '@nestjs/common';
 import { LoginTotpDto, Verify2faDto, Disable2faDto } from './dto/totp.dto';
-import { UsersService } from '../users/users.service';
-import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -95,7 +93,6 @@ export class AuthController {
     private readonly configService: ConfigService,
     private readonly authOauthService: AuthOauthService,
     private readonly totpService: TotpService,
-    private readonly usersService: UsersService,
     private readonly auditLogsService: AuditLogsService,
   ) {
     this.cookieDomain =
@@ -339,20 +336,9 @@ export class AuthController {
     @Body() dto: Disable2faDto,
     @Req() req: Express.Request,
   ) {
-    const userEntity = await this.usersService.findById(user.sub);
-    if (!userEntity || !userEntity.passwordHash) {
-      throw new UnauthorizedException({
-        code: 'PASSWORD_REQUIRED',
-        message: '비밀번호 확인이 필요합니다.',
-      });
-    }
-    const ok = await bcrypt.compare(dto.password, userEntity.passwordHash);
-    if (!ok) {
-      throw new UnauthorizedException({
-        code: 'PASSWORD_INVALID',
-        message: '비밀번호가 일치하지 않습니다.',
-      });
-    }
+    // [refactor 02 C-3] 비밀번호 재확인은 AuthService 로 이관 (레이어 정렬,
+    // data-flow/2-auth.md §1.2). 에러 코드·메시지·401 shape 동일 보존.
+    await this.authService.verifyPasswordForUser(user.sub, dto.password);
     await this.totpService.disable(user.sub);
     // [Spec Auth §4.1 / Rationale 4.1.B] 액터의 현재 세션 workspaceId 에 귀속.
     // ipAddress 동반(포렌식, data-flow §1.1).
