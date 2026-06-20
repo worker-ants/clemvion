@@ -70,6 +70,28 @@
 - **회귀 위험**: Nest DI 초기화 순서 변경 부팅 실패(컴파일로 안 잡힘).
 - **spec 갱신**: 1번 추진 시에만 §4.4 Rationale 개정 (planner, consistency-check --spec 의무).
 
+**부록 — Option B(엔진↔WS 이벤트 포트 교체) 심층 트레이드오프 (2026-06-20, 코드·spec 전수 대조)**
+
+> "#1 엔진↔WS 를 위 옵션 B 로 바꾸면?" 질의에 답해 코드 표면과 spec 결정을 전수 확인한 결과. **결론: 비용/편익 비대칭 — 현 조건에서 A 유지가 타당. B 재추진 조건은 "facade 로 못 푸는 새 sink 요구의 실제 출현"(= §4.4/§R10 이 못박은 재검토 트리거) 충족 시점.**
+
+**(1) 재검토 트리거가 이미 발동·소진됨**: §4.4 단서 "외부 sink 가 실제 추가될 때 재검토"는 발동됐고(EIA Outbound Webhook·SSE·ChatChannel), 그 결론이 **EIA §R10 "엔진 단일 sink 유지 + 외부 facade 분리"** 였다 — port 가 아니라. 세 형제 listener(`external-interaction/notification-fanout.service.ts`·`sse-adapter.service.ts`·`chat-channel/chat-channel.dispatcher.ts`)가 단일 sink `WebsocketService.executionEvents$`(RxJS Subject)에 `onModuleInit` 직접 구독 중. 즉 "엔진을 다수 consumer 에서 분리"라는 port 의 본래 목적은 **이미 달성**됨. `15-chat-channel.md §R4`(line 575)는 `"WebsocketService.executionEvents$ 를 EventEmitter 기반으로 교체"`를 **본 결정 범위 밖**으로 정확히 명시 배제.
+
+**(2) port 편익의 대부분이 기존 코드에 이미 존재** → B 의 순수 추가 편익은 "타입화 interface + forwardRef 봉인→제거"로 협소:
+
+| port 가 보통 주는 가치 | 현재 이미 제공 중 |
+| --- | --- |
+| emit call-site 일원화 | `execution-engine/events/execution-event-emitter.service.ts`(95줄 "동형 thin 래퍼" — §4.4 가 "금지 대상 추상화 인터페이스 아님"으로 명시 구분) |
+| 다수 consumer ↔ 생산자 분리 | `executionEvents$` RxJS Subject + 3 형제 listener facade (EIA §R10) |
+| 테스트 시 sink 고립 | 하위 서비스가 `jest.fn()` partial(`Pick<>`)로 이미 고립(`form-interaction.service.spec.ts`); §4.4 도 `Partial<WebsocketService>` 충분 명시 |
+| 인스턴스 간 분산 fan-out | **직교** — Continuation Bus(BullMQ `execution-continuation`)가 담당. 옛 Redis pub/sub 폐기(§4.4·Rationale "Durable Continuation") |
+
+**(3) 비용·회귀 표면 (코드 정량)**: emit call-site **~40곳 / 6 클래스** — `ExecutionEngineService`(22)·`AiTurnOrchestrator`(8)·`FormInteractionService`(3)·`ButtonInteractionService`(3)·`RetryTurnService`(4)·`AiAgentHandler`(2, optional). emitter 우회 **직접 주입 4곳**(`background-execution.processor`·`embedding.service`·`graph-extraction.service` → `emitKbEvent`/`emitBackgroundRunEvent`). **이벤트 29종**(Execution 11 + Node 5 + BgRun 2 + Kb 11, `websocket.service.ts:66–311`) wire 호환 유지 대상.
+보존해야 할 런타임 계약: **seq monotonic**(`ExecutionSeqAllocator`, Redis `INCR exec:seq:<id>`, **SSE `id:`·Outbound Notification `seq` 와 동일 값 공유** — EIA §R7), **이벤트 순서**(`NODE_FAILED → EXECUTION_FAILED`, §1.1), **TX commit 후 emit**(EIA-RL-04). `EventEmitter2`(비동기·재정렬 가능)로 가면 위 전부 회귀 위험 + Subject 교체 시 **3 형제 listener(EIA + chat-channel + KB) 재배선**으로 blast radius 가 엔진 밖으로 확산. DI: #638 이 입증한 `ws.service↔gateway↔retry↔event-emitter` ES-module 순환의 민감성 — 부팅 실패는 컴파일로 미검출(위 "회귀 위험" 항 그대로).
+
+**(4) 스코프 한계 (중요)**: 엔진↔WS 결합은 **두 방향**이다. ⓐ outbound(emit): 엔진 → emitter → WS = **B 가 다루는 변**. ⓑ inbound(command): `websocket.gateway.ts` → `ExecutionEngineService`(:99)·`RetryTurnService`(:104) = **M-7 인접 영역, B 무관**. 따라서 **B 단독으로는 WS↔engine 순환의 절반(emit 변)만 포트화** — "forwardRef 근본 제거"는 M-7(gateway→서비스 역전)과 동반할 때만 성립.
+
+**(5) 추진 시 최소비용 변형**: `EventEmitter2` 로 Subject 를 교체하지 말고, 현 `ExecutionEventEmitter` 를 `ExecutionEventPort` **interface 구현체로 승격 + `WebsocketService` 는 sink 그대로 유지**(executionEvents$·seq·3 listener 무변). call-site ~40곳은 이미 emitter 주입 중이라 거의 무변, 엔진은 token 의존으로 forwardRef 제거. **단 이 변형조차** §4.4 "별도 추상화 인터페이스 도입 금지"에 막혀 **spec 개정(§4.4 + EIA §R10 + `15-chat-channel.md §R4` 동반) + consistency-check --spec(`rationale-continuity-checker` 의 "기각된 대안 재도입" Critical 해소) 선행이 필수**. → A 유지 권장 결론 불변.
+
 ### C-3 [Critical] AuthController 에 bcrypt 비밀번호 검증 (레이어 침범)
 
 - [ ] 미착수 — `auth.controller.ts:55,328-335`
