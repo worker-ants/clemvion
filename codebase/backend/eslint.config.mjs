@@ -36,6 +36,13 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'warn',
       '@typescript-eslint/no-unsafe-member-access': 'warn',
       '@typescript-eslint/no-unsafe-call': 'warn',
+      // 정리성 규칙(차단 아님). backend `lint` 가 유일하게 `--fix` 게이트였던 탓에
+      // redundant `as T` 단언이 로컬에서만 제거되고 커밋 안 돼 누적됐다(전수 281건).
+      // gate 를 타 패키지와 동일한 report-only 로 전환하면서, 본 규칙은 warn 으로
+      // 가시화만 하고 차단하지 않는다 — opt-in 정리는 `pnpm --filter backend lint:fix`.
+      // (error 로 두면 --fix 가 단언을 지우며 import 를 orphan 시켜 no-unused-vars
+      //  cascade 로 게이트가 깨졌다.)
+      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
       '@typescript-eslint/no-unbound-method': 'off',
       '@typescript-eslint/unbound-method': 'off',
       '@typescript-eslint/class-methods-use-this': 'off',
