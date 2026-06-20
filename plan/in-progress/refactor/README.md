@@ -65,9 +65,10 @@
 17. **park-진입 dispatch 추출** — PR #507 resume registry 와 대칭(`ParkEntryDispatch`) → [02](./02-architecture.md) M-4
 18. **ExecutionContext 스케일아웃** — 독립 작업화 금지, exec-intake PR3 연동 → [06](./06-concurrency.md) C-3
 
-## ⚠️ 의도된 설계지만 문제 — 사용자 결정 현황 (15건 중 ✅ 승인 5건 / 결정 대기 10건)
+## ⚠️ 의도된 설계지만 문제 — 사용자 결정 현황 (15건 중 ✅ 승인/확정 6건 / 결정 대기 9건)
 
 > **2026-06-10 사용자 결정**: 04 m-4, 03 M-6, 03 m-2, 06 M-5, 06 M-1 — **권고안대로 진행 확정** (아래 표 ✅ 표시). 나머지는 결정 대기 — 착수 금지 유지.
+> **2026-06-20 사용자 결정**: 02 M-5 — **Option B(DI multi-provider 3-레이어) 방향 확정 + 레이어1 구현 착수** (n8n·flowise 리서치 기반, 격리=flowise·샌드박스=n8n). 02 C-2 #1(엔진↔WS)은 트레이드오프 부록만 추가하고 **유지 결론 불변**.
 
 | 항목 | spec 근거 | 잔존 문제 | 권고 |
 | --- | --- | --- | --- |
@@ -77,7 +78,7 @@
 | 04 m-4 DB Pool 캐시 | `2-database-query.md:77` evict 명시 | 멀티 인스턴스 무효화 미조율(MTTR) | pub/sub 전파 — **✅ 승인(2026-06-10)** |
 | 04 m-2/m-3 | stack 노출·trust proxy — spec/주석 명시 | 낮음 | 운영 가이드/인프라 절차로 충분 |
 | 02 C-2 엔진↔WS forwardRef | §4.4 "추상화 도입 금지, 안티패턴 아님" | 테스트 격리·초기화 순서 고충 | 유지(spec 준수). 다중 sink 가시화 시 spec 개정 발의 |
-| 02 M-5 정적 노드 배열 | `4-nodes/0-overview.md §1.0` 명시 | merge-conflict hotspot | 카테고리 spread 경량안(spec 무변), DI 전환은 마켓플레이스 plan 묶음 |
+| 02 M-5 정적 노드 배열 | `4-nodes/0-overview.md §1.0` 명시 | merge-conflict hotspot | **✅ 방향 확정(2026-06-20)**: Option B(DI multi-provider 3-레이어) — 레이어1(모듈 격리+핫스팟 제거) 구현 착수 ([refactor-m5-node-di-layer1.md](../refactor-m5-node-di-layer1.md), [02-architecture.md M-5 §방향 확정](./02-architecture.md)) |
 | 03 C-3/M-4 cafe24·makeshop 미러 | "cafe24 미러" + DRY-deferral("3번째 provider 시") 문서화 | 1,600줄은 deferral 명시 목록의 사각, 3중 복제 예약 | **본문 권장 = 보류**: 3번째 provider 까지 deferral 준수 + "결정의 사각" 을 plan 에 기록 (앞당김은 사용자 결정) |
 | 03 M-6/m-2 dead code | 제거가 예약된 잔류물 | 잔존 중 | 즉시 제거 (단일 cleanup PR) — **✅ 승인(2026-06-10)** |
 | 05 C-2 re_run_of walk | `13-replay-rerun.md §9.1` 함수명까지 명시 | 직렬 SELECT ≤64회 | 재귀 CTE 교체(앱-레벨 enforce 의도 내) + spec 1줄 |
