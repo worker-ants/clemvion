@@ -12,9 +12,9 @@ import {
 import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
 
 /**
- * 서버 부팅 시 DI 로 주입받은 노드 컴포넌트(`NODE_COMPONENT` multi-provider)를
- * 결정적으로 정렬한 뒤 `NodeComponentRegistry.bootstrap` 으로 `NodeHandlerRegistry`
- * 에 등록하는 단일-책임 lifecycle 진입점.
+ * 서버 부팅 시 DI 로 주입받은 노드 컴포넌트 카탈로그(`NODE_COMPONENT` 토큰 — 단일
+ * `useValue` 배열)를 결정적으로 정렬한 뒤 `NodeComponentRegistry.bootstrap` 으로
+ * `NodeHandlerRegistry` 에 등록하는 단일-책임 lifecycle 진입점.
  *
  * 옛 `ExecutionEngineService.onModuleInit` 이 직접 수행하던 책임을 분리하고
  * (C-1 strangler-fig step 1 / m-3), **M-5 레이어1** 에서 노드 카탈로그 지식을
@@ -52,8 +52,8 @@ export class NodeBootstrapService implements OnModuleInit {
   }
 
   /**
-   * `(카테고리 order, type)` 결정적 정렬. multi-provider 주입 순서(= 모듈 import
-   * 순서)에 비의존하며, 같은 규칙이 미래 동적 컴포넌트에도 적용된다.
+   * `(카테고리 order, type)` 결정적 정렬. 주입 배열 순서(= 카탈로그 spread 순서)에
+   * 비의존하며, 같은 규칙이 미래 동적 컴포넌트에도 적용된다.
    */
   private sortComponents(components: NodeComponent[]): NodeComponent[] {
     const categoryOrder = new Map<string, number>(

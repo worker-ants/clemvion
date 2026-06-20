@@ -56,9 +56,9 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
 @Module({
   imports: [
     ConfigModule,
-    // M-5 레이어1 — 노드 컴포넌트 `NODE_COMPONENT` multi-provider 등록 모듈.
-    // NodeBootstrapService 가 `@Inject(NODE_COMPONENT)` 로 주입받아 부팅 등록한다
-    // (옛 `ALL_NODE_COMPONENTS` 정적 import 대체).
+    // M-5 레이어1 — 노드 컴포넌트 `NODE_COMPONENT` DI 토큰(단일 `useValue` 카탈로그)
+    // 등록 모듈. NodeBootstrapService 가 `@Inject(NODE_COMPONENT)` 로 주입받아 부팅
+    // 등록한다 (옛 `ALL_NODE_COMPONENTS` 정적 import 대체).
     NodeComponentsModule,
     TypeOrmModule.forFeature([
       Execution,

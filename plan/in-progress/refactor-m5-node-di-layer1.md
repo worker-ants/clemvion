@@ -41,10 +41,11 @@ flowise `NodesPool`(카테고리 디렉토리 → 단일 pool) 충실 + 경량: 
 - [x] 테스트 선작성 (`node-bootstrap.service.spec` DI·정렬 결정성, `node-components.module.spec` DI 배선+spread 동등)
 - [x] 구현 (NODE_COMPONENT 토큰 + 7 카테고리 배열 + `NodeComponentsModule`(단일 useValue) + bootstrap DI 주입+정렬 + `nodes/index.ts` spread 파생)
 - [x] DOCUMENTATION 매핑 갱신 — PROJECT.md 매트릭스 trigger **없음**(신규 노드/스키마/errorCode/label/가이드 무변, 등록 메커니즘 내부 리팩터)
-- [ ] **spec §1.0/§4 등록 메커니즘 sync (planner 위임 — 구현 *후*)**: "정적 배열 순회"→"DI 부팅 등록(`@Inject(NODE_COMPONENT)` 집합 bootstrap)". §4 "런타임 플러그인/마켓플레이스 로딩 미구현(Planned)" invariant **유지**(레이어2·3 미완), Rationale 번복 아님. + `/consistency-check --spec` BLOCK:NO
-- [ ] TEST WORKFLOW: lint(내 파일 check-mode 0 errors ✓ — `run-test.sh lint`(--fix)는 repo 전역 pre-existing format drift+8 err, M-5 무관) · unit(관련 56+ ✓; 3 FAIL 전부 pre-existing frontend/tooling) · build ✓(tsc 132s) · **e2e 대기**
-- [ ] `/ai-review` + Critical/Warning 0
+- [x] **spec §1.0/§4 등록 메커니즘 sync** (커밋 `7283a216`) — "정적 배열 순회"→"DI 부팅 등록(`NodeComponentsModule`→`NODE_COMPONENT`→`@Inject` bootstrap)". §4 "런타임 플러그인/마켓플레이스 로딩 미구현" invariant **유지**, Rationale 번복 아님. 개발자 SPEC-DRIFT 동기 반영(impl-prep W2 사전 검증) → cross-spec 검증은 아래 impl-done.
+- [x] TEST WORKFLOW: lint(내 파일 check-mode 0 errors ✓ — `run-test.sh lint`(--fix)는 repo 전역 pre-existing format drift+8 err, M-5 무관) · unit(관련 56+ ✓; 3 FAIL 전부 pre-existing frontend/tooling) · build ✓(tsc 132s) · **e2e ✓(205 tests 91s)**
+- [x] `/ai-review --branch main` → **위험도 LOW, Critical 0** (산출 `review/code/2026/06/20/15_14_06/`). WARNING 3건 수동 fix(multi-provider 주석 정정·plan 동기화) + RESOLUTION.md. SPEC-DRIFT(W1)은 7283a216 으로 이미 반영.
 - [ ] `/consistency-check --impl-done spec/4-nodes` BLOCK:NO (spec-linked 코드 변경)
+- [ ] fresh `/ai-review` (resolution fix 커버 — stale 가드) + push + PR
 
 ## 범위 밖 / 후속 (이 PR 에 넣지 않음)
 
