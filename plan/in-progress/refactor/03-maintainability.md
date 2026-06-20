@@ -298,7 +298,7 @@
 
 ### m-2 [Minor] `@deprecated` 심볼 4건 잔류
 
-- [ ] 진행 확정 — ✅ 2026-06-10 사용자 승인 (권고안: 심볼 3건 삭제 + types.ts 주석 정리, M-6 와 단일 cleanup PR) — `chat-channel.dispatcher.ts:632-636`(toEiaEvent), `system-status.constants.ts:117-119`(상수 2건), `execution-engine.service.ts:877`(M-6 와 동일 건), `chat-channel/types.ts:102`
+- [x] 진행 확정 — ✅ PR #522 (`724e7350`) 머지 완료 (심볼 3건 삭제 + types.ts:102 주석 의도적 보존, M-6 와 단일 cleanup PR; 2026-06-10 사용자 승인) — `chat-channel.dispatcher.ts:632-636`(toEiaEvent), `system-status.constants.ts:117-119`(상수 2건), `execution-engine.service.ts:877`(M-6 와 동일 건), `chat-channel/types.ts:102`
 
 **spec 대조**: **A** — 각 주석이 제거 예약("후속 PR 에서 제거"), 외부 참조 0건 grep 확인. **단 `types.ts:102` 는 성격이 다름** — 제거된 옛 키에 대한 **문서 주석**이고 spec 이 폐기를 명문화(§4.1 breaking change 안내) — "심볼 제거" 아닌 "주석 정리" 가 올바른 액션.
 

@@ -40,8 +40,8 @@ EIA(External Interaction API, `spec/5-system/14`)는 **이미 구현됨**(`codeb
 
 ### 백엔드 (소수)
 - [x] `/api/external/*` 워크스페이스 단위 동적 CORS(`interactionAllowedOrigins`, path 역인덱스, 단일 delegate). `/api/hooks/*` 무제한.
-- [ ] 임베드 soft 검증 config 엔드포인트(→ followup #3, `detectHostOrigin` helper 만 존재).
-- [ ] 공개 webhook 남용 방어(→ followup #1·#2: auth-scoped throttle + 워크플로우 비용 가드).
+- [x] 임베드 soft 검증 config 엔드포인트 — ✅ 구현 완료 (`embed-config.service.ts` + `hooks.controller.ts` `GET :endpointPath/embed-config`, 위젯 `use-widget.ts` 소비; followups §3 ✅ 2026-06-02).
+- [ ] 공개 webhook 남용 방어 — #1 auth-scoped throttle ✅ 구현(`public-webhook-quota.service.ts` + `public-webhook-throttle.guard.ts`); #2 워크플로우 비용 가드만 잔여(deferred — execution-engine spec 설계 필요).
 
 > 잔여 surface 추적: [`channel-web-chat-followups.md`](./channel-web-chat-followups.md). 관련 spec `status: partial`.
 

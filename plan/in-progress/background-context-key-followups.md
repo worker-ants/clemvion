@@ -44,7 +44,7 @@ consistency-check INFO 중 spec-doc 보완 권장(developer read-only 영역). *
 
 ## 보류 (별 PR — 미착수)
 
-- [ ] **(pre-existing, 본 PR 무관 — 별 branch/PR 로 실행 예정. 2026-06-03 진단 완료, 실행만 보류)** `spec-frontmatter.test.ts` 444건 실패. **별도 작업으로 분리** (background-context 와 무관 + convention SoT 편집 동반).
+- [x] **(✅ 해소 — PR #453 `b6e4a879`, 옵션 b)** `spec-frontmatter.test.ts` 444건 실패 해소 — `spec-frontmatter-parse.ts` 의 `isApplicable` 가 `cafe24-api-catalog/<resource>/` 하위경로 제외 + SoT `spec-impl-evidence.md §1` 제외 규칙 추가.
   - **현상**: frontmatter guard 4종(`spec-frontmatter`/`spec-code-paths`/`spec-status-lifecycle`/`spec-pending-plan-existence`, 공유 helper `spec-frontmatter-parse.ts` 의 `collectApplicableSpecs`)이 `id` non-empty + `status` enum 을 요구. **main HEAD 66f4ffd9 에서도 동일 444건 red** (pre-existing).
   - **Root cause**: #447(d9512d7b)이 `spec/conventions/cafe24-api-catalog/<resource>/<entity>.md` 222개(필드 단위 API 레퍼런스 카탈로그, `_generator.py` 생성물 — frontmatter 가 `resource`/`entity`/`cafe24_docs`/`source`)를 추가했으나, SoT `spec/conventions/spec-impl-evidence.md §1` 의 applicable inclusive list 가 `spec/conventions/**` 전체를 포함하고 제외 규칙에 카탈로그가 없어 222×2=444 assertion 실패.
   - **구조 확인**: 최상위 19개 중 18개 리소스 인덱스(`application.md` 등)는 `id`+`status: implemented` 보유한 **진짜 spec → 유지**. `_overview.md` 는 `_` prefix 로 이미 제외. 실패는 **하위 디렉토리 222개 필드 카탈로그뿐**.
