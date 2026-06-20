@@ -204,31 +204,40 @@
 - **회귀 위험**: `withInteractionMeta` 의 interactionType meta 누락 시 frontend snapshot reconcile 파괴.
 - **spec 갱신**: **필요** — `interaction-type-registry.md §1.2` emit 위치 열 + 진행 중 `spec-sync-resume-dispatch-registry.md` 에 park-entry 레이어 추가 (planner).
 
-### M-5 [Major] `ALL_NODE_COMPONENTS` 정적 배열 ⚠️ (A — 의도된 설계, 경량안만 단독 진행 가능)
+### M-5 [Major] `ALL_NODE_COMPONENTS` 정적 배열 ⚠️ (방향 확정 2026-06-20: Option B — DI multi-provider 3-레이어)
 
-- [ ] 미착수 — `nodes/index.ts:39-75`
+- [ ] 미착수 — `nodes/index.ts:39-75` (현행 29개 컴포넌트). **방향 확정: Option B(아래 §방향 확정). 경량안 A(spread)는 폐기 — B 레이어1 로 대체.**
 
-**spec 대조**: **A** — `4-nodes/0-overview.md §1.0` 이 "정적 배열로 부팅 시 부트스트랩, 런타임 플러그인 로딩 경로는 존재하지 않는다" 로 현행을 명시. 동적 발견은 `marketplace-and-plugin-sdk.md` plan 의 미래 축으로 별도 예약. **의도된 설계지만 merge-conflict hotspot 고충은 실재 — 사용자 보고 대상.**
+**spec 대조**: A(기술적 판정) — `4-nodes/0-overview.md §1.0`/§4 가 "정적 배열로 부팅 시 부트스트랩, 런타임 플러그인 로딩 경로는 존재하지 않는다" 로 **현행을 기술**. 단 같은 §4 가 그 정적 배열을 "**미구현/Planned**" 플러그인 인터페이스(§4.1~4.3 — `manifest.json` 초안 + "빌트인·향후 플러그인 노드가 공유"하는 핸들러 계약)의 **전 단계로 명시 예약**한다 — 즉 정적 배열은 v1 단순화이지 플러그인 모델의 영구 기각이 아니다. 북극성(per-workspace 노드셋)은 `marketplace-and-plugin-sdk.md` Phase D(line 83 "워크스페이스에 설치된 커스텀 노드를 `NodeComponentRegistry` 에 동적 등록")에 예약. **merge-conflict hotspot 고충은 실재.**
 
-**개선 방안**:
+**방향 확정 (2026-06-20, 사용자 결정) — Option B: DI multi-provider 3-레이어**
 
-1. (spec 무변 경량안) 카테고리별 배열(`AI_COMPONENTS`·`LOGIC_COMPONENTS`…)의 spread 합성으로 재구성 — 부팅 모델 불변, conflict 표면 분산, "정적 배열" 서술과 양립.
-2. DI token/multi-provider 전환은 **마켓플레이스 plugin SDK plan 과 한 묶음으로만** (spec §1.0 개정 + consistency-check --spec 선행).
-3. m-3 의 bootstrap 위치 이동은 본 항목과 독립 — 먼저 처리 가능.
+> **결정 근거 (n8n·flowise 1차 소스 리서치)**: n8n(`LoadNodesAndCredentials`)·flowise(`NodesPool`) 모두 **부팅 시 글로벌 노드 registry 구성(static discovery) + 인스턴스/테넌트 단위 필터링**(`NODES_EXCLUDE`/`NODES_INCLUDE`·`DISABLED_NODES`) 패턴이며 **런타임 동적 코드 로딩은 미채택**(n8n community nodes 도 install+restart, Cloud 는 verified+provenance 게이팅). per-tenant 차등 노드 = "superset 필터" 또는 "테넌트당 별도 인스턴스" 두 가지뿐. ⇒ "유저마다 다른 노드 목록"에 런타임 코드 로딩은 **불필요**하며, **부팅 registry + 필터 뷰(= Option B)** 가 업계 정합 설계. §1.0 제한이 막는 것은 신뢰불가 3rd-party 코드의 런타임 로딩(레이어3)이지 필터 뷰(레이어2)가 아니다.
 
-**옵션 비교**:
+**추가 지정 (사용자, 2026-06-20)**:
 
-| 옵션 | 장점 | 단점 / 트레이드오프 |
-| --- | --- | --- |
-| A. 카테고리별 배열 spread 합성 (경량안) | §1.0 의 "정적 배열로 부팅 시 부트스트랩" 서술과 양립 — spec 무변·단독 진행 가능. 노드 추가 시 conflict 표면이 카테고리 파일로 분산돼 hotspot 고충 완화. 부팅 모델·배열 순서 불변이라 회귀 위험 최소 | 근본 구조는 동일 — 정적 합성일 뿐이라 모듈 경계 분리는 아님 |
-| B. DI token/multi-provider 전환 (모듈별 등록) | conflict 근본 해소 + 마켓플레이스 동적 로딩(`marketplace-and-plugin-sdk.md` plan)의 자연스러운 전 단계 | spec §1.0 "런타임 플러그인 로딩 경로는 존재하지 않는다" 명시(A 판정)와 충돌 — plugin SDK plan 과 한 묶음으로 spec §1.0 개정 + consistency-check --spec 선행 없이는 금지 |
-| C. 현상 유지 | A 판정 — 의도된 설계의 그대로 수용, 비용 0 | merge-conflict hotspot 고충은 실재 (본 항목이 사용자 보고 대상인 이유) — 노드 추가 빈도만큼 누적 |
+- **노드 격리 단위 = flowise 스타일** — 모노레포 카테고리 디렉토리(`codebase/backend/src/nodes/<category>/<type>/`). **현행이 이미 이 스타일**이라 1st-party 노드는 n8n 식 노드별 npm 패키지 경계로 분리하지 않는다 — 외부 npm 패키지는 3rd-party 커스텀 노드(레이어3)에 한정.
+- **샌드박스 = n8n 스타일** — 레이어3 커스텀 노드 실행은 n8n 모델(**out-of-process task-runner/사이드카 격리** + builtin/external 모듈 allowlist[`NODE_FUNCTION_ALLOW_*` 등가] + **credential 을 샌드박스 밖 host 에서 주입**)을 따른다. flowise 의 in-process vm2(`@flowiseai/nodevm` — SSRF/escape/RCE CVE 다발)는 채택 안 함. 기존 `code` 노드 isolated-vm 은 유지하되, 신뢰불가 커스텀 노드엔 프로세스 격리를 상위 적용(별도 격리 정책·리소스 한도 설계 — marketplace Phase D).
 
-**권장**: A — spec 이 현행을 명시한 A 판정 항목이므로 B 는 마켓플레이스 plan 착수 전까지 선택지가 아니고, C 는 실재하는 conflict 고충을 방치한다. spread 합성은 "정적 배열" 서술과 양립하면서 고충만 덜어내는 유일한 spec 무변 경로다. B 는 plugin SDK plan 합류 시점에 재평가한다.
+**레이어**:
 
-- **검증**: 부팅 시 25 핸들러 등록 수 단언 + `GET /api/nodes/definitions` 스냅샷.
-- **회귀 위험**: 배열 순서 의존 보존.
-- **spec 갱신**: 1안 불요, 2안 필수.
+1. **레이어1 — 정적 배열 → DI multi-provider (모듈 격리 + 핫스팟 제거; spec §1.0 메커니즘 sync 만)**. 결합점은 `node-bootstrap.service.ts:2` 의 `import { ALL_NODE_COMPONENTS }` **단 한 줄**. `NODE_COMPONENT` multi-provider 토큰 신설 → 각 카테고리/노드 모듈이 `{ provide: NODE_COMPONENT, useValue: <comp>, multi: true }` 등록(컴포넌트는 평범한 객체라 `useValue` 적합) → `NodeBootstrapService` 가 `@Inject(NODE_COMPONENT) components: NodeComponent[]` 주입(현 `import` 제거). `NodeComponentRegistry.bootstrap(components[], deps)` 와 내부 `Map<type, _>` 은 무변. **노드 추가 = 자기 모듈 provider 1줄, 중앙 배열 편집 0 → 핫스팟 소멸**(경량안 A 의 spread 보다 근본적). **정렬키 명시 필수**: multi-provider 주입 순서(=모듈 import 순서) 의존을 제거하기 위해 `bootstrap`/`listDefinitions` 가 `categories.ts` 의 category `order` + 노드 `order`/`type` 로 정렬 — 기존 "배열 순서 의존"을 암묵→명시로 전환(개선). `ALL_NODE_TYPES`·정의 스냅샷 테스트도 정렬 파생으로 이동.
+2. **레이어2 — per-workspace 필터 뷰 (유저마다 다른 노드 목록; 런타임 로딩 불필요)**. chokepoint **2곳 모두 게이트**(n8n 도 팔레트+실행 양쪽 차단): ⓐ **노출** — `GET /api/nodes/definitions`/`listDefinitions()` 는 현재 무필터·workspace 미수신 → `@WorkspaceId()`(동일 컨트롤러 타 엔드포인트가 이미 주입 중) 추가 후 entitled 집합으로 필터. ⓑ **실행/검증** — registry Map 은 full superset 보유라 손편집 JSON 우회 차단 위해 workflow save/validate + 엔진 dispatch 에서도 비-entitled 노드 거부(필수). entitlement 소스는 **신규**(코드에 plan-tier/entitlement 개념 부재 확인) — `NodeEntitlementService(workspaceId) → Set<type>`(MVP: tier→types 정적 맵 + `workspace_enabled_nodes` 테이블). superset 전부 1st-party 신뢰 코드라 코드 격리 불요 — read-time 필터 뷰로 충분.
+3. **레이어3 — 진짜 3rd-party 커스텀 노드 (marketplace Phase D; §1.0 제한이 실제로 무는 지점)**. 레이어1 registry 가 seam(`registerDynamic(comp, { workspaceId })` → 같은 Map 에 테넌트 태그, 레이어2 필터가 스코프). 여기부터 Phase D 필요: **n8n 스타일 샌드박스(위 추가 지정)** + Ed25519 서명·검증 + `manifest.json` + **`NodeCategory` DB enum 마이그레이션**(`custom` 미포함 — `node.entity.ts:45`) + 공급망 하드닝(verified/provenance — 2026-01 n8n 공급망 공격[인기 노드 사칭 악성 npm → OAuth 토큰 탈취] 교훈). **install 시 등록(영속)→제어된 reload**, per-execution eval 아님(부팅 registry 불변식 유지).
+
+**옵션 비교** (방향 확정 후):
+
+| 옵션 | 장점 | 단점 / 트레이드오프 | 판정 |
+| --- | --- | --- | --- |
+| **B. DI multi-provider + per-workspace 필터 (3-레이어)** | 모듈 격리·핫스팟 근본 해소 + 마켓플레이스 per-workspace 노드셋의 정합 seam. n8n/flowise 가 실증한 부팅-registry+필터 표준과 합치. 레이어1 은 spec Rationale 번복 아닌 메커니즘 sync 만 | 레이어2 entitlement 저장소 신규, 실행+노출 양쪽 게이트 필요. 레이어3 은 샌드박스/서명(Phase D)으로 분리 | **채택** |
+| A. 카테고리별 배열 spread 합성 (경량안) | spec 무변·단독, 부팅 모델 불변 | 정적 합성일 뿐 모듈 경계 분리·마켓 seam 아님 — 핫스팟만 분산 | 폐기 (B 레이어1 이 상위호환) |
+| C. 현상 유지 | 비용 0 | 핫스팟 누적, 마켓 북극성 미진전 | 기각 |
+
+**C-2 Option B 와의 차이 (spec 비용 경량)**: C-2 Option B 는 §4.4 가 명시 *기각*한 대안(`EventEmitter2`/인터페이스)의 재도입이라 `rationale-continuity-checker` Critical. 반면 본 레이어1 은 §1.0 이 정적 배열을 *provisional*(미구현/Planned 미래 명시 예약)로 기술할 뿐 DI 등록을 기각한 바 없어, 필요한 spec 작업은 **등록 메커니즘 기술 갱신**("정적 배열"→"DI 부팅 등록"; "런타임 로딩 경로 없음" 제한은 레이어3 까지 유지)이지 Rationale 번복이 아니다 — consistency-check --spec 통과가 자연스럽다.
+
+- **검증**: (레이어1) 부팅 시 컴포넌트 등록 수(현행 29개) 단언 + `GET /api/nodes/definitions` 스냅샷 + 정렬키 결정성 단언. (레이어2) workspace 별 definitions 필터 + 비-entitled 노드 실행 거부 e2e. (레이어3) Phase D `security-review` 필수.
+- **회귀 위험**: (레이어1) 정렬키 누락 시 팔레트/스냅샷 순서 변동 — 명시 정렬로 봉인. (레이어2) 실행 게이트 누락 시 entitlement 우회. (레이어3) 샌드박스 escape·credential 신뢰 경계.
+- **spec 갱신**: 레이어1 = §1.0/§4 등록 메커니즘 기술 갱신(planner, consistency-check --spec — Rationale 번복 아님). 레이어2 = 노드 entitlement/필터 신규 절(planner). 레이어3 = §1.0 런타임 로딩 제한 개정 + §5 샌드박스(n8n 모델 명문화) — `marketplace-and-plugin-sdk.md` Phase D 와 한 묶음.
 
 ### M-6 [Major] 서비스 계층 `process.env` 직접 접근 32곳
 
