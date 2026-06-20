@@ -28,7 +28,9 @@ describe('NodeComponentsModule', () => {
 
     // DI 주입 카탈로그와 정적 spread 집합이 정확히 일치 (등록 누락/오염 가드).
     const injectedTypes = new Set(injected.map((c) => c.metadata.type));
-    const staticTypes = new Set(ALL_NODE_COMPONENTS.map((c) => c.metadata.type));
+    const staticTypes = new Set(
+      ALL_NODE_COMPONENTS.map((c) => c.metadata.type),
+    );
     expect(injectedTypes).toEqual(staticTypes);
     expect(injectedTypes.size).toBe(injected.length); // 중복 type 없음
 
