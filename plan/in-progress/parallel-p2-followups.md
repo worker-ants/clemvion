@@ -12,20 +12,24 @@ owner: developer
 > 핵심 구현(commit `ec0f56e1`)은 [`plan/complete/parallel-p2-followups-done.md`](../complete/parallel-p2-followups-done.md).
 > 본 문서는 **e2e·ai-review·user-doc·미구현 signal 전파·§7 잔여 Warning** 만 남긴다.
 > 분리 출처: `plan/complete/parallel-p2.md` (본체 7 PR 완료).
+>
+> **재검증 (2026-06-20)**: 잔여 5박스 재대조 — `NodeExecution.status='cancelled'`(§1)만 genuinely 완료(PR #442) → `[x]`. IE multi-turn signal 은 resume 경로 by-design 미전파 → `[~]`. e2e(§2-4)·ai-review(§5)·e2e 회귀(§7)는 **PARTIAL** — 직전 audit 의 과대평가 정정: §5 가 인용한 `09_36_00` SUMMARY 는 i18n 리뷰(§6)였고 누적 fan-out 산출물 `05/31` 은 main 부재; §2-4 runtime-depth e2e 는 JSDoc-only(미작성). plan 은 in-progress 유지.
 
 ## 잔여 항목
 
 ### 1. signal-aware 노드 — 미구현 잔여
 > 완료: Database·AI Agent·Text Classifier·IE single-turn·Send Email 의 사전 체크/전파 (complete 기록 §1).
-- [ ] Information Extractor multi-turn (`runTurnWithCollectionRetries`) — params chain 에 signal 추가 (→ cancel-status 작업에서 함께 처리, `spec-draft-node-execution-cancelled.md`).
-- [ ] `NodeExecution.status='cancelled'` 추가 (엔티티 + migration) — **별 plan 구체화됨**: [`spec-draft-node-execution-cancelled.md`](../complete/spec-draft-node-execution-cancelled.md) (옵션 B 확정, V069 migration), `node-cancellation-engine` worktree 구현 중.
+- [~] Information Extractor multi-turn (`runTurnWithCollectionRetries`) — params chain 에 signal 추가 — ✅ params chain + 초기실행 경로 전파됨 (`information-extractor.handler.ts:779/976/1020`); resume(continuation) 경로는 abort context 부재로 **by-design 미전파** (`:876-877`).
+- [x] `NodeExecution.status='cancelled'` 추가 (엔티티 + migration) — ✅ **PR #442 머지** (`node-execution.entity.ts:19` CANCELLED + `V069` migration, 옵션 B). node-cancellation §2 와 동일 작업 — 함께 닫힘. spec: [`spec-draft-node-execution-cancelled.md`](../complete/spec-draft-node-execution-cancelled.md).
 
 ### 2~4. e2e 통합 테스트 (묶음 — 별 PR)
 > 완료: §2 frontend canvas 배지·§3 backend save reject·§4 단위/통합 테스트 (complete 기록).
 - [ ] e2e — 3층 중첩 Parallel 워크플로우의 **canvas 배지 → save 400 reject → runtime reject** 3중 가드 흐름을 실 HTTP server + browser 로 검증. §2/§3/§4 의 e2e 를 한 PR 로 묶어 진행.
+  - ⚠️ **부분 (2026-06-20)**: save-400 layer 만 e2e 커버됨 (`graph-warning-save.e2e-spec.ts:113-168` A/B/C, 실 HTTP+DB). runtime-reject throw 는 코드 존재(`execution-engine.service.ts:5858`)하나 **미단언** — `parallel-p2-integration.spec.ts:6` JSDoc 이 약속한 `it()` 미작성; canvas-badge **browser e2e 부재**. → 1/3 layer 만 충족, open 유지.
 
 ### 5. ai-review
 - [ ] parallel-p2 + followups 누적 변경(#363~#377)에 대한 `ai-review` — Concurrency / Performance / Security 중심. Critical/Warning 해소 + RESOLUTION.md.
+  - ⚠️ **부분 (2026-06-20)**: parallel-executor slice 리뷰는 main 존재 (`review/code/2026/06/02/08_11_57/` — Critical 0, 동시성·보안 결함 0 = W-1/W-2 후속). 단 본 박스가 요구한 #363~#377 **누적 5-reviewer fan-out 산출물(`review/code/2026/05/31/20_55_42/`)은 main 부재**(미머지 worktree 산출 — §7 노트의 인용도 동일). → 재실행/검증 필요, open 유지.
 
 ### 6. GRAPH_VALIDATION_FAILED i18n + 사용자 문서 갱신 (ai-review SUMMARY#20)
 > **2026-06-02 재범위**: 메시지가 동적 템플릿(`${node.label}` 등)이라 정적 매핑 불가 + `ERROR_KO` 인프라를 spec 이 미정의 상태였음이 드러나, i18n 아키텍처를 선행 spec 으로 분리 정의했다. 구현은 별 plan [`backend-msg-i18n-impl.md`](../complete/backend-msg-i18n-impl.md) 로 이관 — 본 §6 은 그 plan 으로 대체된다.
@@ -38,6 +42,7 @@ owner: developer
 > **핵심 구현 완료** (commit `ec0f56e1`, complete 기록 §7). spec body(`10-parallel.md §Rationale 결정 G`,
 > `execution-context.md`)가 본 §7 을 구현 책임 plan 으로 참조 — 아래 잔여가 닫힐 때까지 본 plan 유지.
 - [ ] e2e 통합 테스트 회귀 확인 — §2~4 e2e 와 함께 별 PR (본 변경은 런타임 동작 불변·타입 리팩토링이라 단위/통합 그린으로 회귀 잠금됨).
+  - ⚠️ **부분 (2026-06-20)**: unit/integration 회귀잠금은 충족(`parallel-executor.spec.ts:237`·`parallel-p2-integration.spec.ts`); e2e leg 는 §2~4(위 박스)의 partial 상태를 승계 → open 유지.
 
 #### ai-review 잔여 Warning (2건, LOW — 별 PR)
 > 2026-05-31 ai-review 5-reviewer fan-out 결과 Critical 0. 둘 다 즉각 버그 아님(프로덕션 호출처 1곳이 이미 올바르게 전달). 본 작업 worktree 의 환경 제약으로 검증된 적용이 미뤄짐.
