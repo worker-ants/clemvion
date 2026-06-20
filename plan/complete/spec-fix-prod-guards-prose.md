@@ -1,9 +1,18 @@
 ---
-worktree: (stale — prod-fail-closed-guards 제거됨; 본 W5/W8/W9/W10+SPEC-DRIFT 미착수)
+worktree: plan-groom-tier12-c03bec
 started: 2026-06-11
 owner: resolution-applier
+status: complete
+spec_impact:
+  - spec/5-system/3-error-handling.md
+  - spec/5-system/7-llm-client.md
+  - spec/5-system/14-external-interaction-api.md
+  - spec/conventions/secret-store.md
+  - spec/5-system/1-auth.md
 ---
 # Spec Fix Draft — production-guards prose (W5, W8, W9, W10 + SPEC-DRIFT)
+
+> **2026-06-20 적용 완료**: W5(`3-error-handling §1.2` TOKEN_INVALID reuse cross-ref → `data-flow/2-auth §1.4`)·W8(`7-llm-client §7.1` assertProductionConfig 구조화)·W10(`secret-store §3.3`+R5 production fail-closed)·SPEC-DRIFT(`1-auth §Rationale` `OAUTH_STUB_MODE`/`LLM_STUB_MODE` 불릿)은 PR #504/#539/#560 에서 반영. **W9**(`14-EIA §8.3` `iext_*` 서명 bullet 4주제 sub-bullet 분리)는 본 plan-groom PR 에서 적용. 전 항목 spec 반영 완료 → complete.
 
 ## 분류
 spec 결함 (spec 자체 수정) — 구현은 맞고 spec 본문이 부정확하거나 가독성 저하
