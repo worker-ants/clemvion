@@ -1,5 +1,9 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import { ALL_NODE_COMPONENTS } from '../../nodes';
+import {
+  NODE_COMPONENT,
+  type NodeComponent,
+} from '../../nodes/core/node-component.interface';
+import { NODE_CATEGORIES } from '../../nodes/core/categories';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import {
   WORKFLOW_EXECUTOR,
@@ -8,24 +12,26 @@ import {
 import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
 
 /**
- * 서버 부팅 시 `ALL_NODE_COMPONENTS` 를 순회하며 각 컴포넌트의 핸들러를
- * `NodeComponentRegistry.bootstrap` 으로 `NodeHandlerRegistry` 에 등록한다.
+ * 서버 부팅 시 DI 로 주입받은 노드 컴포넌트(`NODE_COMPONENT` multi-provider)를
+ * 결정적으로 정렬한 뒤 `NodeComponentRegistry.bootstrap` 으로 `NodeHandlerRegistry`
+ * 에 등록하는 단일-책임 lifecycle 진입점.
  *
- * 옛 `ExecutionEngineService.onModuleInit` 이 직접 수행하던 책임을 분리한
- * 단일-책임 서비스 — 9,670줄 god-class 에서 노드 카탈로그 지식
- * (`ALL_NODE_COMPONENTS`) 과 bootstrap 절차를 떼어낸다
- * (C-1 strangler-fig step 1 / [02-architecture.md](../../../plan/in-progress/refactor/02-architecture.md) m-3).
+ * 옛 `ExecutionEngineService.onModuleInit` 이 직접 수행하던 책임을 분리하고
+ * (C-1 strangler-fig step 1 / m-3), **M-5 레이어1** 에서 노드 카탈로그 지식을
+ * `ALL_NODE_COMPONENTS` 정적 import 대신 `NodeComponentsModule` 이 바인딩하는
+ * {@link NODE_COMPONENT} 토큰 주입으로 전환했다 — 노드 추가가 중앙 파일을 건드리지
+ * 않게 하고(merge-conflict hotspot 해소), 마켓플레이스 레이어3 의 동적 등록 seam 을
+ * 연다. `WorkflowExecutor`(= 엔진)도 {@link WORKFLOW_EXECUTOR} 토큰으로 주입받는다.
  *
- * `WorkflowExecutor`(= 엔진) 는 클래스 직접 import 대신 {@link WORKFLOW_EXECUTOR}
- * 토큰으로 주입받는다 — 옛 `handlerDeps.build(this)` 자기참조를 DI 바인딩으로
- * 정리한 것. spec `4-nodes/0-overview.md §1.0` 의 "`NodeComponentRegistry` 는 서버
- * 부팅 시 `ALL_NODE_COMPONENTS` 배열을 순회하며 …`NodeHandlerRegistry` 에 등록"
- * 계약은 그대로 유지된다 — 본 서비스는 그 순회를 트리거하는 lifecycle 진입점일 뿐.
+ * **등록 순서**: 주입 배열 순서는 Nest provider 등록 순서(= 모듈 import 순서)에
+ * 의존하므로 신뢰하지 않는다. `(NODE_CATEGORIES.order, metadata.type)` 로 명시
+ * 정렬해 결정적 등록·`listDefinitions` 순서를 보장한다 — 옛 `ALL_NODE_COMPONENTS`
+ * 배열의 암묵적 선언 순서를 명시 정렬키로 승격한 것이며, 미래 동적(레이어3)
+ * 컴포넌트도 같은 규칙으로 정렬된다.
  *
- * 시점 안전성: 핸들러는 dispatch (앱 listen 이후) 와 엔진의
- * `onApplicationBootstrap`(metadata `assertConsistency`) 에서만 필요한데, Nest 는
- * 모든 provider 의 `onModuleInit` 완료를 보장한 뒤에야 `onApplicationBootstrap`
- * 단계로 진입하므로 등록은 항상 그 전에 끝난다.
+ * 시점 안전성: 핸들러는 dispatch(앱 listen 이후)와 엔진의 `onApplicationBootstrap`
+ * 에서만 필요한데, Nest 는 모든 provider 의 `onModuleInit` 완료 후에야
+ * `onApplicationBootstrap` 으로 진입하므로 등록은 항상 그 전에 끝난다.
  */
 @Injectable()
 export class NodeBootstrapService implements OnModuleInit {
@@ -34,12 +40,31 @@ export class NodeBootstrapService implements OnModuleInit {
     private readonly handlerDeps: NodeHandlerDependenciesProvider,
     @Inject(WORKFLOW_EXECUTOR)
     private readonly workflowExecutor: WorkflowExecutor,
+    @Inject(NODE_COMPONENT)
+    private readonly components: NodeComponent[],
   ) {}
 
   onModuleInit(): void {
     this.componentRegistry.bootstrap(
-      ALL_NODE_COMPONENTS,
+      this.sortComponents(this.components),
       this.handlerDeps.build(this.workflowExecutor),
+    );
+  }
+
+  /**
+   * `(카테고리 order, type)` 결정적 정렬. multi-provider 주입 순서(= 모듈 import
+   * 순서)에 비의존하며, 같은 규칙이 미래 동적 컴포넌트에도 적용된다.
+   */
+  private sortComponents(components: NodeComponent[]): NodeComponent[] {
+    const categoryOrder = new Map<string, number>(
+      NODE_CATEGORIES.map((c) => [c.id, c.order]),
+    );
+    const orderOf = (c: NodeComponent): number =>
+      categoryOrder.get(c.metadata.category) ?? Number.MAX_SAFE_INTEGER;
+    return [...components].sort(
+      (a, b) =>
+        orderOf(a) - orderOf(b) ||
+        a.metadata.type.localeCompare(b.metadata.type),
     );
   }
 }

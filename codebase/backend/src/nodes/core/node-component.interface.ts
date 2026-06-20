@@ -373,3 +373,21 @@ export interface NodeComponent<TConfig = Record<string, unknown>> {
    */
   extras?: () => unknown;
 }
+
+/**
+ * DI token for the builtin node component catalog (refactor 02-architecture M-5 레이어1).
+ *
+ * `NodeComponentsModule` 이 빌트인 노드 컴포넌트 카탈로그(`ALL_NODE_COMPONENTS` —
+ * `nodes/<category>/index.ts` 의 카테고리 배열을 `NODE_CATEGORIES` 순서로 spread)를
+ * 본 토큰으로 바인딩(`useValue`)하고, `NodeBootstrapService` 가
+ * `@Inject(NODE_COMPONENT) components: NodeComponent[]` 로 주입받아 부팅 시
+ * `NodeComponentRegistry.bootstrap` 에 전달한다. `node-bootstrap.service.ts` 의 정적
+ * `ALL_NODE_COMPONENTS` import 를 대체해 카탈로그 출처를 DI 로 주입한다 — 노드 추가가
+ * 중앙 파일을 건드리지 않게 하고(카테고리 배열 단일 출처, merge-conflict hotspot 해소),
+ * 마켓플레이스 레이어3 의 워크스페이스별 동적 등록(`registerDynamic`)이 얹힐
+ * `NodeComponentRegistry` seam 을 연다.
+ *
+ * string-valued — 기존 `WORKFLOW_EXECUTOR` 토큰 컨벤션(UPPER_SNAKE, interface
+ * co-locate)을 답습한다.
+ */
+export const NODE_COMPONENT = 'NODE_COMPONENT';

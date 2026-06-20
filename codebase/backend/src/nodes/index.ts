@@ -1,81 +1,49 @@
 import { NodeComponent } from './core/node-component.interface';
+import { TRIGGER_COMPONENTS } from './trigger';
+import { LOGIC_COMPONENTS } from './logic';
+import { FLOW_COMPONENTS } from './flow';
+import { AI_COMPONENTS } from './ai';
+import { INTEGRATION_COMPONENTS } from './integration';
+import { DATA_COMPONENTS } from './data';
+import { PRESENTATION_COMPONENTS } from './presentation';
 
-import { manualTriggerComponent } from './trigger/manual-trigger';
-
-import { ifElseComponent } from './logic/if-else';
-import { switchNodeComponent } from './logic/switch';
-import { loopNodeComponent } from './logic/loop';
-import { variableDeclarationNodeComponent } from './logic/variable-declaration';
-import { variableModificationNodeComponent } from './logic/variable-modification';
-import { splitNodeComponent } from './logic/split';
-import { mapNodeComponent } from './logic/map';
-import { foreachNodeComponent } from './logic/foreach';
-import { mergeNodeComponent } from './logic/merge';
-import { filterNodeComponent } from './logic/filter';
-import { parallelNodeComponent } from './logic/parallel';
-import { backgroundNodeComponent } from './logic/background';
-
-import { workflowNodeComponent } from './flow/workflow';
-
-import { aiAgentNodeComponent } from './ai/ai-agent';
-import { textClassifierNodeComponent } from './ai/text-classifier';
-import { informationExtractorNodeComponent } from './ai/information-extractor';
-
-import { httpRequestNodeComponent } from './integration/http-request';
-import { databaseQueryNodeComponent } from './integration/database-query';
-import { sendEmailNodeComponent } from './integration/send-email';
-import { cafe24NodeComponent } from './integration/cafe24';
-import { makeshopNodeComponent } from './integration/makeshop';
-
-import { transformNodeComponent } from './data/transform';
-import { codeNodeComponent } from './data/code';
-
-import { carouselNodeComponent } from './presentation/carousel';
-import { tableNodeComponent } from './presentation/table';
-import { chartComponent } from './presentation/chart';
-import { formNodeComponent } from './presentation/form';
-import { templateNodeComponent } from './presentation/template';
-
+/**
+ * 정적 노드 컴포넌트 목록 (M-5 레이어1).
+ *
+ * **부팅 등록은 DI 가 담당**한다 — `NodeComponentsModule` 이 `NODE_COMPONENT`
+ * multi-provider 로 등록하고 `NodeBootstrapService` 가 주입받아 부트스트랩한다.
+ * 본 배열은 그 등록과 **동일한 카테고리 배열에서 파생된 정적 소비용**이다:
+ *  - `ALL_NODE_TYPES` (워크플로 import DTO `@IsIn`·Swagger enum — 모듈 로드 시점
+ *    평가라 DI 로 받을 수 없는 정적 소비처)
+ *  - `NodeBootstrapService` 의 drift-guard 기준 집합 (DI 주입 집합 == 본 집합)
+ *  - metadata 불변 테스트 (`nodes.integration.spec.ts`)
+ *
+ * 카테고리 배열을 `NODE_CATEGORIES` 순서로 spread 해 기존 팔레트 순서를 보존한다.
+ * 노드 추가는 해당 `<category>/index.ts` 배열만 수정하면 되고 본 파일은 카테고리
+ * 추가 시에만 바뀐다(merge-conflict hotspot 해소).
+ */
 export const ALL_NODE_COMPONENTS: NodeComponent[] = [
-  manualTriggerComponent,
-
-  ifElseComponent,
-  switchNodeComponent,
-  loopNodeComponent,
-  variableDeclarationNodeComponent,
-  variableModificationNodeComponent,
-  splitNodeComponent,
-  mapNodeComponent,
-  foreachNodeComponent,
-  mergeNodeComponent,
-  filterNodeComponent,
-  parallelNodeComponent,
-  backgroundNodeComponent,
-
-  workflowNodeComponent,
-
-  aiAgentNodeComponent,
-  textClassifierNodeComponent,
-  informationExtractorNodeComponent,
-
-  httpRequestNodeComponent,
-  databaseQueryNodeComponent,
-  sendEmailNodeComponent,
-  cafe24NodeComponent,
-  makeshopNodeComponent,
-
-  transformNodeComponent,
-  codeNodeComponent,
-
-  carouselNodeComponent,
-  tableNodeComponent,
-  chartComponent,
-  formNodeComponent,
-  templateNodeComponent,
+  ...TRIGGER_COMPONENTS,
+  ...LOGIC_COMPONENTS,
+  ...FLOW_COMPONENTS,
+  ...AI_COMPONENTS,
+  ...INTEGRATION_COMPONENTS,
+  ...DATA_COMPONENTS,
+  ...PRESENTATION_COMPONENTS,
 ];
 
 export const ALL_NODE_TYPES: readonly string[] = ALL_NODE_COMPONENTS.map(
   (c) => c.metadata.type,
 );
+
+export {
+  TRIGGER_COMPONENTS,
+  LOGIC_COMPONENTS,
+  FLOW_COMPONENTS,
+  AI_COMPONENTS,
+  INTEGRATION_COMPONENTS,
+  DATA_COMPONENTS,
+  PRESENTATION_COMPONENTS,
+};
 
 export * from './core';
