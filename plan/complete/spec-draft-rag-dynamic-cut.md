@@ -2,6 +2,13 @@
 worktree: rag-dynamic-cut-12fac1
 started: 2026-06-06
 owner: project-planner
+status: complete
+spec_impact:
+  - spec/5-system/9-rag-search.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/4-nodes/3-ai/0-common.md
+  - spec/5-system/17-agent-memory.md
+  - spec/5-system/10-graph-rag.md
 ---
 # Spec draft — RAG P1 D1(점수 기반 동적 컷) + D2(conditional escalate 메커니즘)
 

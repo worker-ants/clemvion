@@ -32,10 +32,10 @@ owner: developer
 ### item 1 — in-body 링크/앵커 무결성 ⭐
 청소 78건(확실) 적용 → 빌드 가드 신설 → green.
 
-- [ ] `.kb-broken-links.tsv` confident 수정 78건 적용 (dead 19 + anchor 59)
-- [ ] UNKNOWN 32건 개별 조사 (삭제된 타깃은 링크 제거/대체, 모호한 것은 보류 기록)
-- [ ] `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` 신설 — 본문 in-repo 링크 타깃 존재 + `#anchor` heading slug 대조 (GitHub slug, CJK 유지). 카탈로그 scope 제외(`isApplicable` 재사용)
-- [ ] 전체 spec/plan green 확인 후 게이트 on
+- [x] `.kb-broken-links.tsv` confident 수정 78건 적용 (dead 19 + anchor 59) — PR #457
+- [x] UNKNOWN 32건 개별 조사 (삭제된 타깃은 링크 제거/대체, 모호한 것은 보류 기록) — PR #457
+- [x] `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` 신설 — 본문 in-repo 링크 타깃 존재 + `#anchor` heading slug 대조 (GitHub slug, CJK 유지). 카탈로그 scope 제외(`isApplicable` 재사용) — PR #457
+- [x] 전체 spec/plan green 확인 후 게이트 on — PR #457 (가드 scope 는 `spec/**`; plan-side 링크 위생은 plan-coherence-checker 로 위임, 의도된 설계)
 
 ### item 2 — plan-stale-audit.sh 수정 + 완료 plan 이동
 - [x] `find -maxdepth 1` → 재귀화 (node-output-redesign/ 포함 — 64→93 plan)

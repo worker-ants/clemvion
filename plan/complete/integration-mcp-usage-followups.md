@@ -2,8 +2,9 @@
 worktree: (unstarted)
 started: 2026-06-19
 owner: developer
-status: pending
+status: complete
 created: 2026-06-19
+spec_impact: none
 ---
 
 # 통합(Integration) MCP 사용처 추적 — ai-review 후속 항목

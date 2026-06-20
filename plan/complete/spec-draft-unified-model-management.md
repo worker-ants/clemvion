@@ -2,7 +2,18 @@
 worktree: unified-model-mgmt-5af7ee
 started: 2026-06-10
 owner: project-planner
-related_plan: plan/in-progress/unified-model-management.md
+related_plan: plan/complete/unified-model-management.md
+status: complete
+spec_impact:
+  - spec/1-data-model.md
+  - spec/2-navigation/6-config.md
+  - spec/2-navigation/_layout.md
+  - spec/5-system/7-llm-client.md
+  - spec/5-system/8-embedding-pipeline.md
+  - spec/5-system/9-rag-search.md
+  - spec/5-system/1-auth.md
+  - spec/0-overview.md
+  - spec/data-flow/6-knowledge-base.md
 ---
 
 # Spec Draft — Unified Model Management (B안 + 임베딩 1급화)

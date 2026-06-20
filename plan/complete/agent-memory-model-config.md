@@ -2,7 +2,14 @@
 worktree: agent-memory-model-config-73a1a5
 started: 2026-06-20
 owner: developer
-status: in-progress
+status: complete
+spec_impact:
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/4-nodes/3-ai/3-information-extractor.md
+  - spec/5-system/17-agent-memory.md
+  - spec/3-workflow-editor/1-node-common.md
+  - spec/data-flow/13-agent-memory.md
+  - spec/conventions/conversation-thread.md
 ---
 
 # 에이전트 메모리 모델 필드 → 등록 config 선택 (모델명 문자열 → config.id)

@@ -2,7 +2,8 @@
 worktree: fix-model-select-label-e0d535
 started: 2026-06-19
 owner: developer
-status: in-progress
+status: complete
+spec_impact: none
 ---
 
 # fix: 모델 select 위젯의 필드 라벨·hint 복원 (PR #642 회귀)
