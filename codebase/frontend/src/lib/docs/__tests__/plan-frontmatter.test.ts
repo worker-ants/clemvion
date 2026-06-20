@@ -50,7 +50,7 @@ describe("plan-frontmatter guard", () => {
     ).toBe(true);
     expect(plans.length).toBeGreaterThan(20);
     expect(
-      plans.some((p) => path.basename(p) === "knowledge-base-quality-improvements.md"),
+      plans.some((p) => path.basename(p) === "competitive-analysis-n8n-flowise.md"),
       "expected a known plan file to be discovered",
     ).toBe(true);
   });
