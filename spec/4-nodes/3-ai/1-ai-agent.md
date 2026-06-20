@@ -76,7 +76,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| id | UUID | ✓ | 조건의 고유 식별자. 출력 포트 ID 로 사용. LLM 도구 이름은 `cond_` 접두사 + 정제된 UUID 로 자동 생성. 생성 시 UUID v4 할당, 이후 불변 |
+| id | String (UUID v4) | ✓ | 조건의 고유 식별자. 출력 포트 ID 로 사용(UUID v4 는 slug-regex `^[a-zA-Z0-9_-]{1,64}$` 통과 유효 포트 ID — 노드 §1.3). LLM 도구 이름은 `cond_` 접두사 + 정제된 UUID 로 자동 생성. 생성 시 UUID v4 할당, 이후 불변 |
 | label | String | ✓ | 조건 이름 (UI 표시 및 포트 라벨) |
 | prompt | String (≤ 2000자) | ✓ | 조건 설명 (LLM 도구의 description 으로 사용 — "언제 이 조건을 선택해야 하는지" 기술) |
 
