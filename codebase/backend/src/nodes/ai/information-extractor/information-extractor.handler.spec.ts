@@ -319,6 +319,40 @@ describe('InformationExtractorHandler', () => {
   });
 
   describe('execute (single_turn)', () => {
+    // node-cancellation §5 / §5.5: single-turn 경로(handler.ts:511)가 context.abortSignal
+    // 을 traceChat → llmService.chat 의 4번째 인자 signal 로 전파하는지 검증. multi-turn
+    // 은 W4(:691)에서 이미 검증됐으나 single-turn 은 미검증이던 갭 — PR #649 재검증에서 발견.
+    it('single-turn path forwards context.abortSignal to llmService.chat', async () => {
+      const controller = new AbortController();
+      const contextWithSignal = {
+        ...context,
+        abortSignal: controller.signal,
+      };
+
+      await handler.execute(
+        {},
+        {
+          inputField: 'Email from John about order ORD-123',
+          outputSchema: [
+            {
+              name: 'senderName',
+              type: 'string',
+              description: 'Sender name',
+              required: true,
+            },
+          ],
+        },
+        contextWithSignal,
+      );
+
+      expect(mockLlmService.chat).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ executionId: context.executionId }),
+        expect.objectContaining({ signal: controller.signal }),
+      );
+    });
+
     it('extracts structured data and returns output.result.extracted', async () => {
       const rawResult = await handler.execute(
         {},

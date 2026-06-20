@@ -3475,6 +3475,55 @@ describe('ExecutionEngineService', () => {
       );
     });
 
+    // parallel-p2 §2-4 런타임 가드: dispatch 시점 planParallelBody 가 depth>2
+    // (depth=2 분기 body 안에 또 Parallel) 를 PARALLEL_NESTED_DEPTH_EXCEEDED 로
+    // throw 하는지 검증. 정적 save-time 규칙(parallel:nested-depth-exceeded)은
+    // parallel.schema.spec.ts:319 가 별도 커버 — 런타임 throw 는 미검증이던 갭
+    // (parallel-p2-integration.spec.ts JSDoc 이 약속했으나 미작성). PR #649 재검증에서 발견.
+    it('planParallelBody throws PARALLEL_NESTED_DEPTH_EXCEEDED when a depth-2 branch nests another Parallel (runtime guard)', () => {
+      handlerRegistry.register(
+        'parallel_depthtest',
+        { validate: () => ({ valid: true, errors: [] }), execute: jest.fn() },
+        { kind: 'parallel' },
+      );
+      const inner = { id: 'p2', type: 'parallel_depthtest', label: 'Inner' };
+      const innermost = {
+        id: 'p3',
+        type: 'parallel_depthtest',
+        label: 'Innermost',
+      };
+      const forwardEdges = [
+        {
+          id: 'e1',
+          sourceNodeId: 'p2',
+          sourcePort: 'branch_0',
+          targetNodeId: 'p3',
+        },
+      ];
+      const planParallelBody = (
+        service as unknown as {
+          planParallelBody: (
+            parallelNode: unknown,
+            allNodes: unknown[],
+            forwardEdges: unknown[],
+            backEdges: unknown[],
+            branchCount: number,
+            currentDepth: 1 | 2,
+          ) => unknown;
+        }
+      ).planParallelBody.bind(service);
+
+      // depth=2 분기 body 에 또 Parallel → throw.
+      expect(() =>
+        planParallelBody(inner, [inner, innermost], forwardEdges, [], 1, 2),
+      ).toThrow(/PARALLEL_NESTED_DEPTH_EXCEEDED/);
+
+      // depth=1 (outermost) 에서는 한 단계 중첩 허용 → throw 안 함.
+      expect(() =>
+        planParallelBody(inner, [inner, innermost], forwardEdges, [], 1, 1),
+      ).not.toThrow();
+    });
+
     it('stops the workflow (ERROR_PORT_FALLBACK) when the error port has no connected edge', async () => {
       const nodes: Partial<Node>[] = [
         {

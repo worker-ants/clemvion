@@ -184,6 +184,25 @@ describe('TextClassifierHandler', () => {
       ],
     };
 
+    // node-cancellation §5: text-classifier 가 context.abortSignal 을 llmService.chat
+    // 의 opts.signal 로 전달하는지 검증 (handler.ts:211). wiring 만 있고 테스트가
+    // 없던 갭 — PR #649 재검증에서 발견.
+    it('forwards context.abortSignal to llmService.chat opts.signal', async () => {
+      const controller = new AbortController();
+      const ctxWithSignal: ExecutionContext = {
+        ...createContext(),
+        abortSignal: controller.signal,
+      };
+      await handler.execute({}, baseConfig, ctxWithSignal);
+      const chatCallArgs = mockLlmService.chat.mock.calls[
+        mockLlmService.chat.mock.calls.length - 1
+      ] as unknown[];
+      // llmService.chat(llmConfig, requestPayload, LlmCallContext, opts) — opts 는 4번째(index 3).
+      const opts = chatCallArgs[3] as Record<string, unknown>;
+      expect(opts).toBeDefined();
+      expect(opts.signal).toBe(controller.signal);
+    });
+
     it('should classify and route to correct port (first category)', async () => {
       const result = (await handler.execute(
         {},

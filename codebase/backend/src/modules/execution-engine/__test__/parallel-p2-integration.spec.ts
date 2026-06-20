@@ -3,13 +3,13 @@
  *
  * - HTTP 노드 분기에서 첫 실패 시 다른 분기의 HTTP 호출이 abort 되는지
  *   (cancel-others-on-fail × HTTP fetch signal cascade)
- * - 3층 중첩 Parallel dispatch 가 `PARALLEL_NESTED_DEPTH_EXCEEDED` 로 throw
- *   되는지 (#367 의 단위 테스트가 planParallelBody depth=2 만 검증 — 본
- *   spec 은 ParallelExecutor + planParallelBody 의 dispatch chain 검증)
+ * - nested Parallel concurrency cap silent clamp (ParallelExecutor)
  *
- * 본 spec 은 ExecutionEngineService 의 전체 mock 셋업을 거치지 않고
- * ParallelExecutor + planParallelBody 의 통합만 직접 검증 — 기존
- * execution-engine.service.spec.ts 의 무거운 셋업을 피한다.
+ * 런타임 nested-depth 가드(`PARALLEL_NESTED_DEPTH_EXCEEDED` throw) 검증은
+ * execution-engine.service.spec.ts 의 planParallelBody 테스트로 이전했고,
+ * 정적 save-time 규칙(`parallel:nested-depth-exceeded`)은 parallel.schema.spec.ts
+ * 가 커버한다. 본 spec 은 cancel-others-on-fail signal cascade + concurrency
+ * clamp 만 다룬다 — ExecutionEngineService 의 전체 mock 셋업을 피한다.
  */
 import { ParallelExecutor } from '../containers/parallel-executor';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
