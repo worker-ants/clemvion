@@ -23,13 +23,11 @@ import {
   ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger';
-import * as bcrypt from 'bcrypt';
 
 import { ApiOkWrappedResponse } from '../../../common/swagger';
 import { Public, CurrentUser } from '../../../common/decorators';
 import type { JwtPayload } from '../../../common/decorators';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { UsersService } from '../../users/users.service';
 
 import { AuthService } from '../auth.service';
 import { AccessTokenDto } from '../dto/responses/auth-response.dto';
@@ -68,7 +66,6 @@ export class WebAuthnController {
   constructor(
     private readonly authService: AuthService,
     private readonly webauthnService: WebAuthnService,
-    private readonly usersService: UsersService,
     private readonly configService: ConfigService,
     private readonly auditLogsService: AuditLogsService,
   ) {
@@ -370,20 +367,9 @@ export class WebAuthnController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: WebAuthnRegenerateRecoveryDto,
   ) {
-    const userEntity = await this.usersService.findById(user.sub);
-    if (!userEntity || !userEntity.passwordHash) {
-      throw new UnauthorizedException({
-        code: 'PASSWORD_REQUIRED',
-        message: '비밀번호 확인이 필요합니다.',
-      });
-    }
-    const ok = await bcrypt.compare(dto.password, userEntity.passwordHash);
-    if (!ok) {
-      throw new UnauthorizedException({
-        code: 'PASSWORD_INVALID',
-        message: '비밀번호가 일치하지 않습니다.',
-      });
-    }
+    // [refactor 02 C-3 §3] 비밀번호 재확인은 AuthService 로 통일(레이어 정렬,
+    // data-flow/2-auth.md §1.2). 에러 코드·메시지·401 shape 동일 보존.
+    await this.authService.verifyPasswordForUser(user.sub, dto.password);
     const codes = await this.webauthnService.regenerateRecoveryCodes(user.sub);
     return { data: { webauthnRecoveryCodes: codes } };
   }

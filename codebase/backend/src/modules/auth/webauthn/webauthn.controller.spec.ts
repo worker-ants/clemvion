@@ -1,15 +1,19 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WebAuthnController } from './webauthn.controller';
 import { WebAuthnService } from './webauthn.service';
 import { AuthService } from '../auth.service';
-import { UsersService } from '../../users/users.service';
 import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../../audit-logs/audit-action.const';
 import type { JwtPayload } from '../../../common/decorators';
 
 describe('WebAuthnController (audit)', () => {
   let controller: WebAuthnController;
+  let authService: jest.Mocked<AuthService>;
   let webauthnService: jest.Mocked<WebAuthnService>;
   let auditLogsService: jest.Mocked<AuditLogsService>;
 
@@ -26,9 +30,14 @@ describe('WebAuthnController (audit)', () => {
     // ipAddress 단언이 깨질 수 있으므로 off(부재) 상태로 고정한다.
     delete process.env.TRUST_CF_CONNECTING_IP;
 
+    authService = {
+      verifyPasswordForUser: jest.fn(),
+    } as unknown as jest.Mocked<AuthService>;
+
     webauthnService = {
       verifyRegistration: jest.fn(),
       deleteCredential: jest.fn(),
+      regenerateRecoveryCodes: jest.fn(),
     } as unknown as jest.Mocked<WebAuthnService>;
 
     auditLogsService = {
@@ -40,9 +49,8 @@ describe('WebAuthnController (audit)', () => {
     } as unknown as ConfigService;
 
     controller = new WebAuthnController(
-      {} as unknown as AuthService,
+      authService,
       webauthnService,
-      {} as unknown as UsersService,
       configService,
       auditLogsService,
     );
@@ -180,6 +188,38 @@ describe('WebAuthnController (audit)', () => {
         controller.webauthnDelete(payload, 'cred-uuid', mockReq),
       ).rejects.toThrow(NotFoundException);
       expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('webauthnRegenerateRecovery', () => {
+    // [refactor 02 C-3 §3] 비밀번호 재확인을 authService.verifyPasswordForUser 로
+    // 위임 — controller 의 raw bcrypt 제거(레이어 정렬). 검증 위임·재발급 흐름 가드.
+    it('비밀번호 확인 후 recovery 코드 재발급', async () => {
+      authService.verifyPasswordForUser.mockResolvedValue(undefined);
+      webauthnService.regenerateRecoveryCodes.mockResolvedValue(['x', 'y']);
+
+      const res = await controller.webauthnRegenerateRecovery(payload, {
+        password: 'OldP@ssw0rd1',
+      } as never);
+
+      expect(authService.verifyPasswordForUser).toHaveBeenCalledWith(
+        'user-uuid',
+        'OldP@ssw0rd1',
+      );
+      expect(res).toEqual({ data: { webauthnRecoveryCodes: ['x', 'y'] } });
+    });
+
+    it('비밀번호 실패 시 throw + 재발급 안 함', async () => {
+      authService.verifyPasswordForUser.mockRejectedValue(
+        new UnauthorizedException({ code: 'PASSWORD_INVALID' }),
+      );
+
+      await expect(
+        controller.webauthnRegenerateRecovery(payload, {
+          password: 'WrongPass!',
+        } as never),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(webauthnService.regenerateRecoveryCodes).not.toHaveBeenCalled();
     });
   });
 });
