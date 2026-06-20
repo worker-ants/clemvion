@@ -16,9 +16,9 @@ TEST WORKFLOW 의 lint / unit / build / e2e 4단계 출력이 main ctx 에 직�
 각 stage 의 실제 명령은 `.claude/test-stages.sh` (프로젝트 채택 시 작성) 에 정의:
 
 ```bash
-cmd_lint()  { cd codebase/backend && npm run lint; }
-cmd_unit()  { cd codebase/backend && npm test; }
-cmd_build() { cd codebase/backend && npm run build; }
+cmd_lint()  { pnpm --filter backend lint; }
+cmd_unit()  { pnpm --filter backend test; }
+cmd_build() { pnpm --filter backend build; }
 cmd_e2e()   { make e2e-test; }
 ```
 

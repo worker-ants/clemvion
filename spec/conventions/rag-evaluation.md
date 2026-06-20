@@ -97,9 +97,9 @@ positive(`shouldRetrieve:true` 이면서 `goldChunkIds` 1개 이상) entry 의 o
 
 | 단계 | 도구 | 비고 |
 | --- | --- | --- |
-| ① 자동 합성 | `npm run eval:golden:generate -- --workspace-id .. --kb-id .. [--sample N]` | 제품 `LlmService` 사용. silver 산출 |
+| ① 자동 합성 | `pnpm --filter backend run eval:golden:generate -- --workspace-id .. --kb-id .. [--sample N]` | 제품 `LlmService` 사용. silver 산출 |
 | ③ SME 스팟검수 | golden.json 직접 편집 | 통과분 `reviewed:true` 승격. 20~30% 표본 |
-| 지표 실행 | `npm run eval:retrieval -- --golden eval/golden.json [--ks ..] [--top-k N] [--threshold 0] [--fail-metric .. --fail-k .. --fail-under ..]` | `--threshold 0`: 검색 점수 하한(기본 0). KB `rerank_mode=off` 시 cosine 임계, `cross_encoder` 시 rerank 점수 컷으로 해석 — 단 rerank 점수 컷은 `kb.rerankScoreThreshold ?? threshold` 로 **KB 의 `rerank_score_threshold` 설정이 우선**하며 CLI 값은 NULL fallback. `--fail-under` 로 CI 게이트 |
+| 지표 실행 | `pnpm --filter backend run eval:retrieval -- --golden eval/golden.json [--ks ..] [--top-k N] [--threshold 0] [--fail-metric .. --fail-k .. --fail-under ..]` | `--threshold 0`: 검색 점수 하한(기본 0). KB `rerank_mode=off` 시 cosine 임계, `cross_encoder` 시 rerank 점수 컷으로 해석 — 단 rerank 점수 컷은 `kb.rerankScoreThreshold ?? threshold` 로 **KB 의 `rerank_score_threshold` 설정이 우선**하며 CLI 값은 NULL fallback. `--fail-under` 로 CI 게이트 |
 | | `--top-k N` (기본: `--ks` 최댓값) | `searchWithMeta` 의 **inject-cap ceiling** 으로 전달 — 고정 LIMIT 이 아니다. 측정 대상은 '순수 top-k' 가 아니라 **동적 점수 컷([9-rag-search §3.4](../5-system/9-rag-search.md#34-동적-점수-컷-생성-주입-모든-모드-공통): token-budget 8000 + inject-cap) 적용 후 생성 주입 집합** — off 경로는 wide 회수(`RAG_RECALL_K`) 후 동적 컷, rerank 경로도 injectCap+tokenBudget 전달. 컷은 순수 함수라 결정성(D-E4)은 유지 |
 
 **부트스트랩 격리**: 두 스크립트는 `EvalCliModule`(전용 경량 DI)로 부팅한다 —

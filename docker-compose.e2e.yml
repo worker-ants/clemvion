@@ -183,8 +183,8 @@ services:
       context: .
       dockerfile: codebase/backend/Dockerfile
       target: deps
-    working_dir: /app/backend
-    command: ["npm", "run", "test:e2e"]
+    working_dir: /app/codebase/backend
+    command: ["pnpm", "run", "test:e2e"]
     environment:
       E2E_BASE_URL: http://backend-e2e:3011
       DB_HOST: postgres
@@ -196,8 +196,11 @@ services:
       # 호스트 backend 소스를 그대로 사용. node_modules 는 anonymous volume 으로
       # 가려서 deps stage 가 설치한 dev dep 가 호스트의 (잠재적으로 부재한) node_modules
       # 로 덮어씌워지지 않도록 한다.
-      - ./codebase/backend:/app/backend
-      - /app/backend/node_modules
+      - ./codebase/backend:/app/codebase/backend
+      # 이미지가 설치한 node_modules(hoisted 심링크)를 anonymous volume 으로 보존.
+      # hoist 된 실제 deps 는 /app/node_modules 에 있고 호스트 mount(/app/codebase/backend)
+      # 밖이라 그대로 살아있다.
+      - /app/codebase/backend/node_modules
     depends_on:
       backend-e2e:
         condition: service_healthy
@@ -210,14 +213,30 @@ services:
     # W-58 — frontend package.json 의 @playwright/test ^1.59 과 동일 major.minor
     # 로 정렬. browser binary / Node modules 간 호환성을 보장한다.
     image: mcr.microsoft.com/playwright:v1.59.1-jammy
-    working_dir: /app/frontend
+    # pnpm workspace 라 frontend 단독 설치가 불가 — workspace 를 mount 하고
+    # frontend subtree 만 --filter 로 설치한다. 루트 전체(`./`) 대신 codebase +
+    # workspace 루트 파일만 선별 mount 해 .git/.claude/spec/plan/review/memory 등
+    # 민감 경로 노출을 막는다. node_modules 는 anonymous volume 으로 가려 호스트(macOS)
+    # 네이티브 바이너리가 컨테이너(linux)로 새지 않게 한다 (hoisted 라 대부분
+    # /app/node_modules 에 모임 — 신규 내부 패키지 추가 시 아래 마스킹 목록도 보충).
+    working_dir: /app
     volumes:
-      - ./codebase/frontend:/app/frontend
-      - /app/frontend/node_modules
+      - ./codebase:/app/codebase
+      - ./package.json:/app/package.json:ro
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./.npmrc:/app/.npmrc:ro
+      - /app/node_modules
+      - /app/codebase/frontend/node_modules
+      - /app/codebase/packages/expression-engine/node_modules
+      - /app/codebase/packages/node-summary/node_modules
+      - /app/codebase/packages/chat-channel-validation/node_modules
+      - /app/codebase/packages/graph-warning-rules/node_modules
     command:
       - sh
       - -c
-      - "npm ci && npx playwright install --with-deps chromium && npm run e2e"
+      # corepack 실패 대비 fallback (jammy 이미지의 corepack 동작 CI 미검증).
+      - "(corepack enable || npm i -g pnpm@10.23.0) && pnpm install --frozen-lockfile --filter frontend... && pnpm --filter frontend exec playwright install --with-deps chromium && pnpm --filter frontend e2e"
     environment:
       CI: "true"
       PLAYWRIGHT_BASE_URL: http://localhost:3012

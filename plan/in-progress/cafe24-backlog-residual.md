@@ -101,7 +101,7 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 
 > 각 항목 = 해당 resource 의 `metadata/<resource>.ts` (path/method/scope) + index `cafe24-api-catalog/<resource>.md`
 > 행을 docs 값으로 정정하거나 row 제거. **field-level 카탈로그(`<resource>/<entity>.md`) 는 이미 docs
-> 기준이라 수정 불요** — 정정의 정답지로 사용. 정정 후 `npm test --workspace backend -- catalog-sync` 통과 확인.
+> 기준이라 수정 불요** — 정정의 정답지로 사용. 정정 후 `pnpm --filter backend test -- catalog-sync` 통과 확인.
 > 액션 표기: **FIX** = docs 에 동일 operation 존재, 경로/scope 문자열만 정정 / **DECIDE** = docs 에 해당
 > (method,path) 자체가 없음 → remove vs remap(다른 docs endpoint) vs cafe24 문의 판단 필요.
 

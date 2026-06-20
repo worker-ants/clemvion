@@ -121,8 +121,8 @@ services:
       context: .
       dockerfile: codebase/backend/Dockerfile
       target: deps
-    working_dir: /app/backend
-    command: ["npm", "run", "start:dev"]
+    working_dir: /app/codebase/backend
+    command: ["pnpm", "run", "start:dev"]
     env_file:
       - ./codebase/backend/.env
     # @nestjs/config 는 process.env 에 이미 있는 키를 덮어쓰지 않으므로,
@@ -147,9 +147,9 @@ services:
     ports:
       - "3011:3011"
     volumes:
-      - ./codebase/backend:/app/backend
-      - backend_node_modules:/app/backend/node_modules
-      - backend_dist:/app/backend/dist
+      - ./codebase/backend:/app/codebase/backend
+      - backend_node_modules:/app/codebase/backend/node_modules
+      - backend_dist:/app/codebase/backend/dist
     depends_on:
       postgres:
         condition: service_healthy
@@ -166,11 +166,11 @@ services:
       context: .
       dockerfile: codebase/frontend/Dockerfile
       target: deps
-    working_dir: /app/frontend
+    working_dir: /app/codebase/frontend
     # package.json 의 `dev` 는 `source .env 2>/dev/null; next dev …` 형태이므로
     # 컨테이너에 주입할 값은 host codebase/frontend/.env 에 직접 작성한다.
     # (compose `environment:` 로 줘도 `source` 가 덮어쓸 수 있음 — 폴링 변수만 예외적으로 둠)
-    command: ["npm", "run", "dev"]
+    command: ["pnpm", "run", "dev"]
     env_file:
       - ./codebase/frontend/.env
     environment:
@@ -178,9 +178,9 @@ services:
     ports:
       - "3012:3012"
     volumes:
-      - ./codebase/frontend:/app/frontend
-      - frontend_node_modules:/app/frontend/node_modules
-      - frontend_next:/app/frontend/.next
+      - ./codebase/frontend:/app/codebase/frontend
+      - frontend_node_modules:/app/codebase/frontend/node_modules
+      - frontend_next:/app/codebase/frontend/.next
     depends_on:
       backend:
         condition: service_started

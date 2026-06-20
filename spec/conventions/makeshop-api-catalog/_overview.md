@@ -76,7 +76,7 @@ REST 표의 `status` 컬럼이 가지는 값. cafe24 카탈로그([cafe24-api-ca
    - 처음 등재 시 `status: planned`, `method`/`path` 는 `?` 허용.
    - 구현 PR 에서 backend 메타데이터(`codebase/backend/src/nodes/integration/makeshop/metadata/`) row 1줄 추가 + 카탈로그 row 를 `planned → supported` 로 갱신 + `method`/`path`/`scope`/`paginated` 채움.
 3. `_overview.md §5` 의 Coverage Matrix 카운트도 함께 갱신.
-4. `npm test --workspace backend -- catalog-sync` 통과 확인.
+4. `pnpm --filter backend test -- catalog-sync` 통과 확인.
 
 > 카탈로그 row 갱신과 backend 메타데이터 row 추가는 **같은 PR** 에 묶는다 (cafe24 catalog([`_overview.md §6`](../cafe24-api-catalog/_overview.md#6-신규-endpoint-등재-절차))와 동일 체계). [`spec/conventions/makeshop-api-metadata.md §6`](../makeshop-api-metadata.md#6-신규-endpoint-등재-절차) 의 신규 endpoint 추가 절차도 본 카탈로그 row 갱신을 step 으로 포함한다.
 

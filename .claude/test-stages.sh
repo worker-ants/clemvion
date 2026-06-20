@@ -6,47 +6,49 @@
 # 각 함수는 직접 명령을 실행하고 exit code 를 반환합니다. stdout/stderr 는 wrapper 가
 # 잡아서 디스크에 저장하므로 자유롭게 작성하면 됩니다.
 
-# lint/unit/build 는 backend + frontend 양쪽을 모두 실행한다.
+# lint/unit/build 는 backend + frontend + web-chat 전부 실행한다.
 # 한쪽만 돌리면 cross-stack 회귀가 누락된다 (예: PR-E3 의 i18n drawer
 # t.x.y → t("x.y") 타입 오류가 backend-only 검증으로 빠져나가 0f05d3e5
-# 핫픽스가 필요했다). 단일 wrapper 호출이 양쪽을 모두 커버하도록 묶어 둔다.
-# web-chat 위젯 SPA(channel-web-chat) + SDK(packages/web-chat-sdk) 는 backend/frontend 의 file:dep 에
-# 묶이지 않은 **독립 패키지**라 별도 install 이 필요하다. harness 가 매번 install 하지 않으므로 stage
-# 진입 시 node_modules 부재면 npm ci 로 보충(install 순서를 backend/frontend 와 분리 — followup #7).
-_ensure_web_chat_deps() {
-  ( cd codebase/packages/web-chat-sdk && { [ -d node_modules ] || npm ci; } ) && \
-  ( cd codebase/channel-web-chat && { [ -d node_modules ] || npm ci; } )
+# 핫픽스가 필요했다). 단일 wrapper 호출이 전부를 커버하도록 묶어 둔다.
+#
+# pnpm workspace 전환으로, 이전의 패키지별 `npm ci`/per-package install·web-chat
+# 특수처리(_ensure_web_chat_deps)는 단일 `pnpm install` 로 수렴한다. 내부 패키지
+# dist 는 각 패키지 `prepare`(tsc)가 install 중 자동 빌드하므로 별도 빌드 단계 불필요
+# (새 worktree 의 수동 node_modules/dist 준비 레시피도 폐기됨).
+_ensure_deps() {
+  # workspace 루트 기준으로 확인 (CWD 가 어디든 stale 설치 건너뛰지 않도록).
+  [ -d "$(git rev-parse --show-toplevel)/node_modules" ] || pnpm install --frozen-lockfile
 }
 
 cmd_lint() {
-  (cd codebase/backend && npx eslint "{src,apps,libs,test}/**/*.ts" --fix) && \
-  (cd codebase/frontend && npm run lint) && \
-  _ensure_web_chat_deps && \
-  (cd codebase/packages/web-chat-sdk && npm run lint) && \
-  (cd codebase/channel-web-chat && npm run lint)
+  _ensure_deps && \
+  pnpm --filter backend lint && \
+  pnpm --filter frontend lint && \
+  pnpm --filter @workflow/web-chat lint && \
+  pnpm --filter channel-web-chat lint
 }
 
 cmd_unit() {
-  (cd codebase/backend && npm test) && \
-  (cd codebase/frontend && npm test) && \
-  _ensure_web_chat_deps && \
-  (cd codebase/packages/web-chat-sdk && npm test) && \
-  (cd codebase/channel-web-chat && npm test)
+  _ensure_deps && \
+  pnpm --filter backend test && \
+  pnpm --filter frontend test && \
+  pnpm --filter @workflow/web-chat test && \
+  pnpm --filter channel-web-chat test
 }
 
 cmd_build() {
-  (cd codebase/backend && npm run build) && \
-  (cd codebase/frontend && npm run build) && \
-  _ensure_web_chat_deps && \
-  (cd codebase/packages/web-chat-sdk && npm run build) && \
-  (cd codebase/channel-web-chat && npm run build) && \
+  _ensure_deps && \
+  pnpm --filter backend build && \
+  pnpm --filter frontend build && \
+  pnpm --filter @workflow/web-chat build && \
+  pnpm --filter channel-web-chat build && \
   _cmd_build_docker_images
 }
 
 # Dockerfile 자체의 monorepo packages COPY 누락 회귀 차단 — PR #311 hotfix 의 재발 방지.
-# In-process `npm run build` 는 local node_modules 에 file:dep 가 link 돼 있어 통과하지만,
-# docker context 안의 `npm ci` 는 packages/* 가 COPY 안 됐을 때 file:dep resolve 실패 → deploy
-# 시점에 회귀. 본 단계가 사전 차단.
+# In-process `pnpm --filter <app> build` 는 workspace 가 이미 link 돼 있어 통과하지만,
+# docker context 안의 `pnpm install --frozen-lockfile` 은 workspace manifest/packages 가
+# COPY 안 됐을 때 resolve 실패 → deploy 시점에 회귀. 본 단계가 사전 차단.
 #
 # NEXT_PUBLIC_* 는 dummy build-arg (build-time baking 만 검증, deploy 는 실 값 주입).
 # tag 는 throwaway (`clemvion-build-check/*:latest`) — 외부 registry push 없음.

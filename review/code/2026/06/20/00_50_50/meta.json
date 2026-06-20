@@ -1,0 +1,198 @@
+{
+  "timestamp": "2026-06-20T00:50:50.033996",
+  "files": [
+    {
+      "file_path": ".claude/docs/test-wrapper.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": ".claude/test-stages.sh",
+      "change_type": "Review",
+      "file_extension": "sh"
+    },
+    {
+      "file_path": ".github/workflows/e2e.yml",
+      "change_type": "Review",
+      "file_extension": "yml"
+    },
+    {
+      "file_path": ".github/workflows/frontend-checks.yml",
+      "change_type": "Review",
+      "file_extension": "yml"
+    },
+    {
+      "file_path": ".github/workflows/web-chat-checks.yml",
+      "change_type": "Review",
+      "file_extension": "yml"
+    },
+    {
+      "file_path": ".npmrc",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": ".nvmrc",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": "PROJECT.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "codebase/backend/Dockerfile",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": "codebase/backend/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/backend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/channel-web-chat/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/channel-web-chat/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/frontend/Dockerfile",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": "codebase/frontend/next.config.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/frontend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/packages/chat-channel-validation/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/packages/expression-engine/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/packages/graph-warning-rules/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/packages/node-summary/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/packages/web-chat-sdk/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/packages/web-chat-sdk/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "docker-compose.e2e.yml",
+      "change_type": "Review",
+      "file_extension": "yml"
+    },
+    {
+      "file_path": "docker-compose.yml",
+      "change_type": "Review",
+      "file_extension": "yml"
+    },
+    {
+      "file_path": "package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "plan/in-progress/cafe24-backlog-residual.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "pnpm-lock.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "pnpm-workspace.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "spec/conventions/cafe24-api-catalog/_overview.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/conventions/cafe24-restricted-scopes.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/conventions/makeshop-api-catalog/_overview.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "dependency",
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

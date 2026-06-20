@@ -7,7 +7,7 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc && npm run build:loader",
+    "build": "tsc && pnpm run build:loader",
     "build:loader": "esbuild src/loader-entry.ts --bundle --minify --format=iife --outfile=dist/loader.js",
     "prepare": "[ -d dist ] || tsc",
     "test": "jest",
@@ -26,7 +26,7 @@
     "jest-environment-jsdom": "^30.0.0",
     "ts-jest": "^29.2.5",
     "typescript-eslint": "^8.20.0",
-    "@workflow/sdk": "file:../sdk"
+    "@workflow/sdk": "workspace:*"
   },
   "engines": {
     "node": ">=20"

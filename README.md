@@ -138,18 +138,21 @@ docker compose --profile app up
 
 인프라(PostgreSQL/Redis/MinIO)만 컨테이너로 띄우고 backend·frontend 는 host 에서 직접 실행하는 방식입니다.
 
+> **전제조건**: Node.js 24+ 와 pnpm. pnpm 은 corepack 으로 활성화하면 버전이 루트 `package.json` 의 `packageManager` 필드로 자동 고정됩니다 — `corepack enable`.
+
 ```bash
 # 인프라만 기동 — PostgreSQL(5432), Redis(6379), MinIO(9000/9001)
 docker compose up -d
 
-# 공유 패키지 빌드 (backend 가 참조)
-cd codebase/packages/expression-engine && npm install && npm run build
+# 의존성 설치 — 레포 루트에서 1회. pnpm workspace 가 전체를 설치하고
+# 내부 공유 패키지(expression-engine 등) dist 도 prepare 로 자동 빌드한다.
+pnpm install
 
 # Backend
-cd codebase/backend && npm install && npm run start:dev
+pnpm --filter backend start:dev
 
 # Frontend (새 터미널)
-cd codebase/frontend && npm install && npm run dev
+pnpm --filter frontend dev
 ```
 
 </details>
@@ -158,7 +161,7 @@ cd codebase/frontend && npm install && npm run dev
 <summary>컨테이너 의존성·볼륨 관리</summary>
 
 - `dist`, `.next`, `node_modules` 는 named volume 으로 host 와 격리되어 macOS native 모듈(예: bcrypt)이 컨테이너로 새지 않습니다.
-- 컨테이너에 의존성 추가: `docker compose exec backend npm install <pkg>`. named volume 재시드가 필요하면 `docker volume rm clemvion_backend_node_modules` 후 `docker compose --profile app up --build`.
+- 컨테이너에 의존성 추가: `docker compose exec backend pnpm add <pkg>`. named volume 재시드가 필요하면 `docker volume rm clemvion_backend_node_modules` 후 `docker compose --profile app up --build`.
 - 공유 패키지(`expression-engine`·`node-summary`)는 이미지에 baked-in. 변경 시 `docker compose build backend frontend`.
 - 마이그레이션만 재실행: `docker compose --profile app run --rm migrate`.
 
@@ -166,13 +169,15 @@ cd codebase/frontend && npm install && npm run dev
 
 ### 개발 스크립트
 
+각 stack 디렉터리(`codebase/{frontend,backend}`)에서 `pnpm <script>`, 또는 레포 루트에서 `pnpm --filter <frontend|backend> <script>`.
+
 | 명령어 | Frontend | Backend |
 |--------|----------|---------|
-| 개발 서버 | `npm run dev` | `npm run start:dev` |
-| 빌드 | `npm run build` | `npm run build` |
-| 린트 | `npm run lint` | `npm run lint` |
-| 테스트 | `npm run test` | `npm run test` |
-| 테스트 (E2E) | — | `npm run test:e2e` |
+| 개발 서버 | `pnpm dev` | `pnpm start:dev` |
+| 빌드 | `pnpm build` | `pnpm build` |
+| 린트 | `pnpm lint` | `pnpm lint` |
+| 테스트 | `pnpm test` | `pnpm test` |
+| 테스트 (E2E) | — | `pnpm test:e2e` |
 
 ## 환경 변수
 
