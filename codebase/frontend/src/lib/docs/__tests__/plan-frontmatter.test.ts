@@ -49,9 +49,16 @@ describe("plan-frontmatter guard", () => {
       `repoRoot missing plan/in-progress/: ${root}`,
     ).toBe(true);
     expect(plans.length).toBeGreaterThan(20);
+    // 특정 plan 파일명에 의존하지 않는다 — 그 파일이 complete/ 로 이동하면 테스트가
+    // 깨지는 fragility 회피(ai-review WARNING#1). discovery 가 plan/in-progress 의
+    // 실제 .md 만 반환하는지로 sanity (잘못된 디렉토리 스캔 → vacuous pass 방지).
     expect(
-      plans.some((p) => path.basename(p) === "knowledge-base-quality-improvements.md"),
-      "expected a known plan file to be discovered",
+      plans.every(
+        (p) =>
+          p.endsWith(".md") &&
+          p.includes(`${path.sep}plan${path.sep}in-progress${path.sep}`),
+      ),
+      "discovered plans must be .md files under plan/in-progress",
     ).toBe(true);
   });
 

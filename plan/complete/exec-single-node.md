@@ -2,7 +2,10 @@
 worktree: exec-single-node
 started: 2026-06-15
 owner: developer
-spec_impact: spec/3-workflow-editor/3-execution.md §1.3·§9·R; spec/5-system/13-replay-rerun.md §15(C3); spec/1-data-model.md §2.13
+spec_impact:
+  - spec/3-workflow-editor/3-execution.md
+  - spec/5-system/13-replay-rerun.md
+  - spec/1-data-model.md
 ---
 
 # execution §1.3 단일 노드 실행 (single-node execution)
