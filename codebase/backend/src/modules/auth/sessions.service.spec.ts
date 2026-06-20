@@ -143,6 +143,7 @@ describe('SessionsService', () => {
         'fam-A',
         { password: 'correct-pw' },
         {},
+        null,
       );
 
       expect(repo.update).toHaveBeenCalledWith(
@@ -162,21 +163,27 @@ describe('SessionsService', () => {
     it('returns 404 when family does not belong to user (information disclosure prevention)', async () => {
       repo.findOne.mockResolvedValue(null);
       await expect(
-        service.revokeFamily('user-1', 'fam-X', { password: 'pw' }, {}),
+        service.revokeFamily('user-1', 'fam-X', { password: 'pw' }, {}, null),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('rejects with 401 on wrong password', async () => {
       repo.findOne.mockResolvedValue(makeToken({ familyId: 'fam-A' }));
       await expect(
-        service.revokeFamily('user-1', 'fam-A', { password: 'wrong' }, {}),
+        service.revokeFamily(
+          'user-1',
+          'fam-A',
+          { password: 'wrong' },
+          {},
+          null,
+        ),
       ).rejects.toThrow(UnauthorizedException);
     });
 
     it('requires reauth input (400) when neither password nor totp provided', async () => {
       repo.findOne.mockResolvedValue(makeToken({ familyId: 'fam-A' }));
       await expect(
-        service.revokeFamily('user-1', 'fam-A', {}, {}),
+        service.revokeFamily('user-1', 'fam-A', {}, {}, null),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -190,7 +197,13 @@ describe('SessionsService', () => {
       } as never);
       totpService.verifyForLogin.mockResolvedValue(true);
 
-      await service.revokeFamily('user-1', 'fam-A', { totpCode: '123456' }, {});
+      await service.revokeFamily(
+        'user-1',
+        'fam-A',
+        { totpCode: '123456' },
+        {},
+        null,
+      );
       expect(repo.update).toHaveBeenCalled();
     });
 
@@ -204,8 +217,59 @@ describe('SessionsService', () => {
       } as never);
 
       await expect(
-        service.revokeFamily('user-1', 'fam-A', { password: 'pw' }, {}),
+        service.revokeFamily('user-1', 'fam-A', { password: 'pw' }, {}, null),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    // [ai-review C-3 §3 W#2/W#3] self-revoke 방지 분기(currentRefreshToken) 커버리지.
+    // 기존 호출이 5번째 인자를 생략(undefined)해 분기가 dead-path 였음.
+    it('rejects self-revoke (400) when the target family is the current session', async () => {
+      const rawToken = 'rt-current';
+      const currentHash = hashRaw(rawToken);
+      // owned 조회(userId+familyId)와 현재 family 해석(tokenHash) 두 findOne 분기.
+      repo.findOne.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) =>
+          'tokenHash' in where
+            ? makeToken({ familyId: 'fam-A', tokenHash: currentHash })
+            : makeToken({ familyId: 'fam-A' }),
+      );
+
+      await expect(
+        service.revokeFamily(
+          'user-1',
+          'fam-A',
+          { password: 'correct-pw' },
+          {},
+          rawToken,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      // self-revoke 차단은 verifyReauth 이전에 발생 → revoke 미수행.
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('revokes a non-current family even when a current refresh token is present', async () => {
+      const rawToken = 'rt-current';
+      const currentHash = hashRaw(rawToken);
+      repo.findOne.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) =>
+          'tokenHash' in where
+            ? makeToken({ familyId: 'fam-current', tokenHash: currentHash })
+            : makeToken({ familyId: 'fam-A' }),
+      );
+      repo.update.mockResolvedValue({ affected: 1 });
+
+      await service.revokeFamily(
+        'user-1',
+        'fam-A',
+        { password: 'correct-pw' },
+        {},
+        rawToken,
+      );
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { userId: 'user-1', familyId: 'fam-A' },
+        { isRevoked: true },
+      );
     });
   });
 

@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Not, Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
 import { createHash } from 'crypto';
+import { comparePassword } from '../../common/utils/password.util';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
 import { TotpService } from './totp.service';
@@ -215,7 +215,7 @@ export class SessionsService {
    * 사용자 유형별 본인 재인증.
    *
    * 우선순위 (위에서부터 매치):
-   *   1) `passwordHash` 보유 + `password` 입력 → bcrypt 검증
+   *   1) `passwordHash` 보유 + `password` 입력 → comparePassword 헬퍼로 검증
    *   2) `twoFactorEnabled` + `totpCode` 입력 → TOTP 검증
    *   3) 둘 다 가진 사용자는 1 → 2 순으로 한 가지만 통과해도 된다
    *   4) 어느 자격증명도 없거나 미입력 → `REAUTH_REQUIRED`
@@ -243,7 +243,7 @@ export class SessionsService {
     }
 
     if (hasPassword && auth.password) {
-      const ok = await bcrypt.compare(auth.password, user.passwordHash!);
+      const ok = await comparePassword(auth.password, user.passwordHash!);
       if (ok) return;
       throw new UnauthorizedException({
         code: 'PASSWORD_INVALID',
