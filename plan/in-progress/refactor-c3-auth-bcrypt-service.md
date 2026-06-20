@@ -29,8 +29,15 @@ spec 대조 D: 행위(2FA 비활성 시 비밀번호 재확인)는 `1-auth.md §
 ## 체크리스트
 
 - [x] 현황·설계·spec 정합 확인 (impl-prep 동등)
-- [x] 테스트 — AuthService.verifyPasswordForUser unit 3케이스(no-hash→REQUIRED 401, 불일치→INVALID 401, 일치→resolve) + controller disable2fa 테스트를 authService.verifyPasswordForUser mock 으로 갱신. 두 spec 66 tests 통과
+- [x] 테스트 — AuthService.verifyPasswordForUser unit 4케이스(user-null·no-hash→REQUIRED 401, 불일치→INVALID 401, 일치→resolve; `.rejects.toMatchObject` 패턴) + controller disable2fa 테스트를 authService mock 으로 갱신
 - [x] 구현 — service 메서드(comparePassword 통일) + controller 1줄 위임 + bcrypt·UsersService import·생성자 의존 제거
-- [ ] TEST WORKFLOW (lint·unit·build·e2e — 2FA disable e2e 응답 불변)
-- [ ] `/ai-review` + Critical/Warning 0
-- [ ] `/consistency-check --impl-done spec/5-system/1-auth` BLOCK:NO
+- [x] TEST WORKFLOW — lint·unit·build·e2e(205) **전부 PASS**
+- [x] `/ai-review --range origin/main..HEAD` → **LOW, Critical 0** (`review/code/2026/06/20/17_22_15/`). WARNING 3: W1·W2(테스트 null 케이스·toMatchObject) 수정, W3(brute-force) 후속. INFO #4·#5(태그·주석) 수정. ※첫 시도(17_14_14)는 stale 로컬 main base 라 잘못된 changeset → 폐기·재실행
+- [x] `/consistency-check --impl-done spec/5-system/1-auth` → **BLOCK:NO** (`17_23_25/`)
+- [ ] fresh ai-review + impl-done (resolution fix 커버 — stale 가드) → push + PR
+
+## 범위 밖 / 후속 (이 PR 에 넣지 않음)
+
+- **W3 보안**: `POST /auth/2fa/disable` 비밀번호 실패 시 brute-force 보호(`@Throttle`/`incrementLoginAttempts`) — **옛 controller 도 동일 동작**(C-3 도입 아님), 카운터 추가는 behavior-change 라 behavior-preserving C-3 범위 밖. 별도 보안 작업.
+- **단일진실 완성(C-3 §3)**: `webauthn.controller.ts:369-386`·`sessions.service.ts:244-252` 의 raw bcrypt → `authService.verifyPasswordForUser` 통합. (webauthn 은 controller 라 같은 침범, sessions 는 이미 service-layer 중복.)
+- **spec 문서(planner, 선택)**: `data-flow/2-auth.md §1.2` 에 `verifyPasswordForUser` 흐름 + `error-codes.md` 에 `PASSWORD_REQUIRED`/`PASSWORD_INVALID` 등재(옛 동일 코드 재사용이라 신규 아님).

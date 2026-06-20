@@ -61,6 +61,7 @@ export class AuthService {
     plainPassword: string,
   ): Promise<void> {
     const user = await this.usersService.findById(userId);
+    // !user: 사용자 미존재 / !passwordHash: OAuth-only 계정 — 둘 다 비밀번호 재확인 불가
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException({
         code: 'PASSWORD_REQUIRED',

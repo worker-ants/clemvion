@@ -539,23 +539,30 @@ describe('AuthService', () => {
     });
   });
 
-  describe('verifyPasswordForUser (refactor 02 C-3)', () => {
-    // 옛 AuthController.disable2fa 의 raw bcrypt 검증을 이관 — 에러 코드·메시지·401
-    // shape 이 정확히 보존되는지(컨트롤러 동작 불변) 가드.
-    it('passwordHash 부재 → PASSWORD_REQUIRED (401)', async () => {
+  describe('verifyPasswordForUser', () => {
+    // 옛 AuthController.disable2fa 의 raw bcrypt 검증을 이관(refactor 02 C-3) —
+    // 에러 코드·메시지·401 shape 이 정확히 보존되는지(컨트롤러 동작 불변) 가드.
+    it('사용자 미존재 → PASSWORD_REQUIRED (401)', async () => {
+      usersService.findById.mockResolvedValue(null as never);
+      await expect(
+        service.verifyPasswordForUser('user-uuid', 'anything'),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'PASSWORD_REQUIRED' },
+      });
+    });
+
+    it('passwordHash 부재(OAuth-only) → PASSWORD_REQUIRED (401)', async () => {
       usersService.findById.mockResolvedValue({
         ...mockUser,
         passwordHash: null,
       } as unknown as User);
-      expect.assertions(2);
-      try {
-        await service.verifyPasswordForUser('user-uuid', 'anything');
-      } catch (e) {
-        expect((e as UnauthorizedException).getStatus()).toBe(401);
-        expect((e as UnauthorizedException).getResponse()).toMatchObject({
-          code: 'PASSWORD_REQUIRED',
-        });
-      }
+      await expect(
+        service.verifyPasswordForUser('user-uuid', 'anything'),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'PASSWORD_REQUIRED' },
+      });
     });
 
     it('비밀번호 불일치 → PASSWORD_INVALID (401)', async () => {
@@ -564,15 +571,12 @@ describe('AuthService', () => {
         ...mockUser,
         passwordHash: hash,
       } as User);
-      expect.assertions(2);
-      try {
-        await service.verifyPasswordForUser('user-uuid', 'WrongP@ss1');
-      } catch (e) {
-        expect((e as UnauthorizedException).getStatus()).toBe(401);
-        expect((e as UnauthorizedException).getResponse()).toMatchObject({
-          code: 'PASSWORD_INVALID',
-        });
-      }
+      await expect(
+        service.verifyPasswordForUser('user-uuid', 'WrongP@ss1'),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'PASSWORD_INVALID' },
+      });
     });
 
     it('비밀번호 일치 → throw 없이 resolve', async () => {

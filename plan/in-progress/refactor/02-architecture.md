@@ -94,7 +94,7 @@
 
 ### C-3 [Critical] AuthController 에 bcrypt 비밀번호 검증 (레이어 침범)
 
-- [ ] 미착수 — `auth.controller.ts:55,328-335`
+- [~] 구현 PR (disable2fa 부분, 2026-06-20) — `auth.controller.ts:328-335` 의 raw bcrypt 검증을 `AuthService.verifyPasswordForUser` 로 이관(레이어 정렬, behavior-preserving). plan: [refactor-c3-auth-bcrypt-service.md](../refactor-c3-auth-bcrypt-service.md). **후속(통일 미완)**: `webauthn.controller.ts:369-386`·`sessions.service.ts:244-252` 의 raw bcrypt 도 같은 메서드로 통일(§3) + 2FA disable brute-force 보호(별도 보안).
 
 **spec 대조**: D — 행위(2FA 비활성화 시 비밀번호 재확인)는 `1-auth.md §1.2` spec 명시, 계층 배치는 무언급이나 `data-flow/2-auth.md §1.2` 의 시퀀스가 bcrypt.compare 를 일관되게 **Service** 에 배치 — controller 내 bcrypt 는 spec 의 데이터 흐름 모델과 불일치.
 
