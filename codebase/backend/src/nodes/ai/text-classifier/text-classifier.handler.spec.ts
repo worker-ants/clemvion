@@ -184,6 +184,26 @@ describe('TextClassifierHandler', () => {
       ],
     };
 
+    // node-cancellation §5: text-classifier 가 context.abortSignal 을 llmService.chat
+    // 의 opts.signal 로 전달하는지 검증 (handler.ts:211). wiring 만 있고 테스트가
+    // 없던 갭 — PR #649 재검증에서 발견.
+    it('forwards context.abortSignal to llmService.chat opts.signal', async () => {
+      const controller = new AbortController();
+      const ctxWithSignal: ExecutionContext = {
+        ...createContext(),
+        abortSignal: controller.signal,
+      };
+      await handler.execute({}, baseConfig, ctxWithSignal);
+      // IE 패턴과 일관 (ai-review W3): 인덱스 접근 대신 toHaveBeenCalledWith 로 4번째
+      // 인자 signal 검증 — chat(llmConfig, requestPayload, LlmCallContext, { signal }).
+      expect(mockLlmService.chat).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ signal: controller.signal }),
+      );
+    });
+
     it('should classify and route to correct port (first category)', async () => {
       const result = (await handler.execute(
         {},
