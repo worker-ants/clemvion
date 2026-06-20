@@ -118,7 +118,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 
 ### 4.2 지식저장소·plan 무결성 가드 (별도 family, 본 절이 규약 SoT)
 
-§4 의 frontmatter-evidence 와 **별개 family** — 지식저장소(링크·index)·plan frontmatter·plan 완료 정합을 지키는 build 차단 4건 + advisory 1건. **본 절이 규약 SoT**, 도입 경위·로드맵은 [`plan/in-progress/knowledge-base-quality-improvements.md`](../../plan/in-progress/knowledge-base-quality-improvements.md). 4개 build 가드 구현 파일은 본 문서 frontmatter `code:` 에 등재. 근거 [R-9](#r-9-42-지식저장소plan-무결성-가드--별도-family-신설-근거).
+§4 의 frontmatter-evidence 와 **별개 family** — 지식저장소(링크·index)·plan frontmatter·plan 완료 정합을 지키는 build 차단 4건 + advisory 1건. **본 절이 규약 SoT**, 도입 경위·로드맵은 [`plan/complete/knowledge-base-quality-improvements.md`](../../plan/complete/knowledge-base-quality-improvements.md). 4개 build 가드 구현 파일은 본 문서 frontmatter `code:` 에 등재. 근거 [R-9](#r-9-42-지식저장소plan-무결성-가드--별도-family-신설-근거).
 
 | 가드 | 대상 / 검증 | 예외 / 비고 |
 |---|---|---|

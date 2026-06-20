@@ -22,4 +22,4 @@ owner: planner
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/data-flow/data-flow__8-notifications.md 참조.
-- 별도(코드 버그) 추적 필요: `AlertsEvaluatorService` 가 발사하는 `alert_<rule.type>` 동적 type 값이 V052 의 notification.type CHECK 제약 허용 목록에 없음 — 런타임 INSERT 제약 위반 가능. 본 spec 범위 밖(코드/마이그레이션 정합) 으로 developer 추적 대상.
+- ~~별도(코드 버그) 추적 필요: `AlertsEvaluatorService` 가 발사하는 `alert_<rule.type>` 동적 type 값이 V052 의 notification.type CHECK 제약 허용 목록에 없음~~ — ✅ **해소**: `V070__notification_type_alert_breach.sql` 가 `alert_failure_rate`/`alert_duration`/`alert_llm_cost` 를 CHECK 허용목록에 추가.

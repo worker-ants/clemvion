@@ -2,6 +2,13 @@
 worktree: http-ssrf-all-auth
 started: 2026-06-11
 owner: developer
+status: complete
+spec_impact:
+  - spec/4-nodes/4-integration/1-http-request.md
+  - spec/4-nodes/4-integration/2-database-query.md
+  - spec/4-nodes/4-integration/0-common.md
+  - spec/5-system/3-error-handling.md
+  - spec/2-navigation/4-integration.md
 ---
 
 # P0 — HTTP Request 노드 SSRF 가드 전 인증 방식 적용 (refactor 04 C-3)

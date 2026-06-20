@@ -28,4 +28,4 @@ spec_impact:
 - [x] 1. 작업 복구 (orphaned #2/#3 diff → fresh main 적용)
 - [x] 2. TEST WORKFLOW — lint·unit·build·e2e(176) 통과. (부수: PR #498 Gate C main breakage 해소)
 - [x] 3. /ai-review 18_06_44(MEDIUM=W1 scope FP 견인, 실코드 NONE/LOW) + consistency --impl-done 18_06_44 **BLOCK: NO**. W1 stale-local-main FP 반증(merge-base), 나머지 LOW nit advisory disposition(RESOLUTION).
-- [ ] 4. push + PR
+- [x] 4. push + PR (#503 merged)

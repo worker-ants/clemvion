@@ -2,6 +2,13 @@
 worktree: prod-fail-closed-guards
 started: 2026-06-11
 owner: developer
+status: complete
+spec_impact:
+  - spec/5-system/1-auth.md
+  - spec/5-system/11-mcp-client.md
+  - spec/5-system/7-llm-client.md
+  - spec/5-system/14-external-interaction-api.md
+  - spec/conventions/secret-store.md
 ---
 
 # P0 — production fail-closed 가드 블록 (refactor 04 C-1·M-4·M-7)

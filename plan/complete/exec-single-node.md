@@ -57,4 +57,4 @@ spec_impact: spec/3-workflow-editor/3-execution.md §1.3·§9·R; spec/5-system/
 - [x] resolution(15_05_56 RESOLUTION) + fresh review(15_29_28 Critical 0, Warning 2 비-defect accept 수렴)
 - [x] consistency-check --impl-done (15_36_35 BLOCK NO)
 - [x] spec-sync-execution-gaps.md §1.3 [x]
-- [ ] push + PR
+- [x] push + PR (#614 merged)

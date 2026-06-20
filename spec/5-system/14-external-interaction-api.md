@@ -655,7 +655,12 @@ ALTER TABLE trigger
 
 - **secret 출처는 토큰 family 별로 다르다**:
   - `itk_*` (`per_trigger`) — trigger 가 발급하는 per-trigger opaque 토큰. trigger 별로 분리되어 서로 다른 trigger 의 토큰을 cross-validate 할 수 없다.
-  - `iext_*` (`per_execution`) — HS256 으로 서명하되 **단일 글로벌 secret** `INTERACTION_JWT_SECRET`(미설정 시 configService `jwt.secret` → `JWT_SECRET` 순으로 fallback; 셋 다 미설정이면 dev 는 **프로세스 시작 시 1회 생성하는 ephemeral random 키**(`randomBytes(32)` — 버전 이력에 예측 가능한 고정 secret 을 남기지 않고, 재시작마다 변경돼 dev 토큰이 무효화됨)로 떨어지지만 **`NODE_ENV=production` 에서는 `InteractionTokenService` 생성자가 throw 해 서버 부팅을 차단한다**(fail-closed — `OAUTH_STUB_MODE`/`LLM_STUB_MODE` 및 `JWT_SECRET`/`ENCRYPTION_KEY` 부팅 가드와 동형. 후자들은 `common/config/production-guards.ts` 의 `assertProductionConfig` 에 응집돼 있으나, 본 `INTERACTION_JWT_SECRET` 만은 `InteractionTokenService` 생성자 throw 로 별도 유지 — 비보안 fallback 서명 원천 차단). 따라서 프로덕션은 `INTERACTION_JWT_SECRET` 또는 `JWT_SECRET` 중 하나를 반드시 설정해야 한다) 을 쓴다. trigger 별 분리가 아니라 execution scope 로 한정되는데, payload `{ sub: executionId, aud: 'interaction', jti }` 가 단일 execution 에 묶이고 jti 가 Redis blacklist 로 revoke 되기 때문이다 (아래).
+  - `iext_*` (`per_execution`) — **단일 글로벌 secret** 으로 서명하는 단명 JWT. trigger 별 분리가 아니라 execution scope 로 한정되는데, payload `{ sub: executionId, aud: 'interaction', jti }` 가 단일 execution 에 묶이고 jti 가 Redis blacklist 로 revoke 되기 때문이다 (아래).
+    - **알고리즘**: HS256
+    - **secret 우선순위**: `INTERACTION_JWT_SECRET` → (미설정 시) configService `jwt.secret` → `JWT_SECRET` fallback
+    - **dev fallback**: 셋 다 미설정이면 프로세스 시작 시 1회 생성하는 ephemeral random 키(`randomBytes(32)`)로 떨어진다 — 버전 이력에 예측 가능한 고정 secret 을 남기지 않고, 재시작마다 변경돼 dev 토큰이 무효화된다.
+    - **production fail-closed**: `NODE_ENV=production` 에서는 셋 다 미설정이면 `InteractionTokenService` 생성자가 throw 해 서버 부팅을 차단한다 — `OAUTH_STUB_MODE`/`LLM_STUB_MODE` 및 `JWT_SECRET`/`ENCRYPTION_KEY` 부팅 가드와 동형. 따라서 프로덕션은 `INTERACTION_JWT_SECRET` 또는 `JWT_SECRET` 중 하나를 반드시 설정해야 한다.
+    - **참고**: 위 stub/JWT/ENCRYPTION 가드는 `common/config/production-guards.ts` 의 `assertProductionConfig` 에 응집돼 있으나, 본 `INTERACTION_JWT_SECRET` 만은 `InteractionTokenService` 생성자 throw 로 별도 유지된다 (모듈 로컬 컨텍스트 필요 — 비보안 fallback 서명 원천 차단).
 - `iext_*` 의 jti 는 Redis blacklist 가능 — execution 종료 시 즉시 blacklist 등록
 - HTTPS 강제 (개발 env 예외)
 - 토큰을 query parameter 로 받는 것은 SSE 한정 (`?token=` ; EventSource 가 헤더 미지원). 그 외는 모두 `Authorization: Bearer`

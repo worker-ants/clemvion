@@ -3,7 +3,9 @@ started: 2026-06-03
 owner: developer
 worktree: followup-conversation-reconcile
 branch: worktree-followup-conversation-reconcile
-status: in-progress
+status: complete
+spec_impact:
+  - spec/5-system/6-websocket-protocol.md
 ---
 
 # conversation reconcile 후속 (PR #428 ai-review INFO 처리)
