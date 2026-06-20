@@ -444,11 +444,15 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     noCollections: "No collections available",
     docsCount: "{{count}} docs",
   },
-  modelSelector: {
+  configSelector: {
+    chatDefaultOption: "Inherit node's LLM config",
+    embeddingDefaultOption: "Workspace default embedding",
     staleConfigWarning:
-      "The LLM provider linked to this node was not found, so models from the default provider are shown. Re-select the node's LLM provider.",
-    expressionValueWarning:
-      "The saved value looks like a dynamic expression. Left as-is it is used literally as the model name (no evaluation) and the call fails. Pick a model from the list.",
+      "The selected model config no longer exists (it may have been deleted). Pick one from the list.",
+    noChatConfigsHint:
+      "No chat (LLM) model configs are registered. Add one on the model settings page first.",
+    noEmbeddingConfigsHint:
+      "No embedding model configs are registered. Add one on the model settings page first.",
   },
   buttonList: {
     buttonLabel: "Button {{index}}",

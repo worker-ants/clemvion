@@ -12,6 +12,12 @@ spec_area:
 
 # AI Agent / IE 메모리 모델 필드 → select 전환
 
+> **⚠️ SUPERSEDED (2026-06-20)**: 본 plan 의 "노드 provider 내 **모델명** select"(`chat-model-selector`/
+> `embedding-model-selector`, 모델명 문자열 저장) 설계는 PR #642 로 머지됐으나, 후속으로 **등록
+> ModelConfig 선택(`config.id`, provider 디커플)** 으로 재번복됐다 — 후속 plan [[agent-memory-model-config]]
+> (worktree `agent-memory-model-config-73a1a5`) 가 대체한다. 아래 미완료 체크박스(위젯/스키마/`--impl-done`
+> gate)는 후속 plan 에서 새 설계로 재구현·검증 완료되어 **별도 이행 불필요**. 본 plan 은 이력으로 보존.
+
 ## 배경 / 결정
 
 사용자 관찰: AI Agent·Information Extractor 노드의 모델 입력란(`embeddingModel`,

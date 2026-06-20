@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LlmService, extractRetryAfterMs } from './llm.service';
 import { StubLlmClient } from './clients/stub.client';
 
@@ -46,6 +46,14 @@ describe('LlmService', () => {
         apiKey: 'encrypted',
       }),
       findDefault: jest.fn().mockResolvedValue(null),
+      resolveEmbedding: jest.fn().mockResolvedValue({
+        config: {
+          id: 'emb-1',
+          kind: 'embedding',
+          defaultModel: 'text-embedding-3-small',
+        },
+        model: 'text-embedding-3-small',
+      }),
     };
 
     mockClientFactory = {
@@ -522,6 +530,41 @@ describe('LlmService', () => {
           message: expect.stringContaining('워크스페이스 정보가 없어'),
         },
       });
+    });
+  });
+
+  describe('resolveEmbedding', () => {
+    it('passes embeddingModelConfigId + workspaceId through to ModelConfigService.resolveEmbedding', async () => {
+      const result = await service.resolveEmbedding('emb-1', 'ws-1');
+      expect(mockModelConfigService.resolveEmbedding).toHaveBeenCalledWith({
+        embeddingModelConfigId: 'emb-1',
+        workspaceId: 'ws-1',
+      });
+      expect(result).toEqual({
+        config: {
+          id: 'emb-1',
+          kind: 'embedding',
+          defaultModel: 'text-embedding-3-small',
+        },
+        model: 'text-embedding-3-small',
+      });
+    });
+
+    it('coerces null id to undefined (워크스페이스 기본 embedding 폴백 경로)', async () => {
+      await service.resolveEmbedding(null, 'ws-1');
+      expect(mockModelConfigService.resolveEmbedding).toHaveBeenCalledWith({
+        embeddingModelConfigId: undefined,
+        workspaceId: 'ws-1',
+      });
+    });
+
+    it('propagates NotFoundException when no embedding config resolves', async () => {
+      mockModelConfigService.resolveEmbedding.mockRejectedValueOnce(
+        new NotFoundException('no embedding config'),
+      );
+      await expect(service.resolveEmbedding('gone', 'ws-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

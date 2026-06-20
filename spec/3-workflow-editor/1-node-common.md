@@ -265,7 +265,7 @@ widget id → 컴포넌트 매핑의 SoT 는 frontend `auto-form/widget-registry
 |------|-----------|
 | 기본 입력 (10) | `text` · `textarea` · `number` · `select` · `multiselect` · `checkbox` · `expression` (§3.3 표현식 에디터) · `kv` · `kv-expression` · `code` |
 | 공용 selector (4) | `llm-config-selector` · `kb-selector` · `mcp-server-selector` · `workflow-selector` (`auto-form/selector-widgets.tsx`. AI Assistant 의 후보 조회 계약은 [Spec AI Assistant §4.3.1](./4-ai-assistant.md#431-pendinguserconfig-구조-candidate-picker)) |
-| 모델 selector (2) | `chat-model-selector` · `embedding-model-selector` — 노드 `llmConfigId` provider 의 **등록 모델명**을 lazy-load select 로 고른다 (`auto-form/model-selector-widgets.tsx`, 각각 `ModelCombobox`/`EmbeddingModelCombobox` 래핑). 저장 형태는 모델명 문자열이라 `text`/`expression` 과 하위호환. AI Assistant candidate picker 비대상 (`UserActionWidget` 미등재) |
+| 모델 config selector (2) | `chat-config-selector` · `embedding-config-selector` — `/models` 에 등록된 **chat / embedding ModelConfig** 를 고른다 (저장 형태 = `config.id`, `llm-config-selector` 와 동일). 후보는 워크스페이스 ModelConfig 를 kind 별 조회(`modelConfigsApi.list("chat"|"embedding")`)하며, 노드 `llmConfigId` 와 **독립**이다 — 런타임이 고른 config 의 provider/credential/defaultModel 로 직접 resolve 한다 (`auto-form/config-selector-widgets.tsx`). AI Assistant candidate picker 비대상 (`UserActionWidget` 미등재) |
 | 배열 편집 (2) | `field-array` · `button-list` |
 | 강제 override (3) | `integration-selector` · `condition-builder` · `table-grid` — `UnsupportedWidget` 으로 매핑되어 auto-form 단독 렌더 불가. 이 위젯을 쓰는 노드는 override 트랙에 남아야 한다 |
 

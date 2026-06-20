@@ -7,14 +7,17 @@ import {
 } from './agent-memory.service';
 
 const embedCfg: EmbedConfigSource = {
-  llmConfigId: null,
-  embeddingModel: 'text-embedding-3-small',
+  embeddingModelConfigId: 'emb-cfg-1',
 };
 
 describe('AgentMemoryService', () => {
   let service: AgentMemoryService;
   let mockDataSource: { query: jest.Mock; transaction: jest.Mock };
-  let mockLlmService: { resolveConfig: jest.Mock; embed: jest.Mock };
+  let mockLlmService: {
+    resolveConfig: jest.Mock;
+    resolveEmbedding: jest.Mock;
+    embed: jest.Mock;
+  };
 
   beforeEach(() => {
     // W2: saveMemories 는 dataSource.transaction(manager) 안에서 manager.query 로
@@ -32,6 +35,11 @@ describe('AgentMemoryService', () => {
         id: 'config-1',
         provider: 'openai',
         workspaceId: 'ws-1',
+      }),
+      // embedding 경로는 resolveEmbedding({embeddingModelConfigId}) → {config, model}.
+      resolveEmbedding: jest.fn().mockResolvedValue({
+        config: { id: 'emb-cfg-1', provider: 'openai', workspaceId: 'ws-1' },
+        model: 'text-embedding-3-small',
       }),
       embed: jest.fn(),
     };
@@ -152,6 +160,12 @@ describe('AgentMemoryService', () => {
       expect(params[2]).toBe('cust-42');
       expect(params[3]).toBe(0.5);
       expect(params[4]).toBe(3);
+      // 쿼리 임베딩은 embedCfg.embeddingModelConfigId + workspaceId 로 resolve 돼야
+      // 저장 임베딩과 동일 config(차원 일치) 를 보장한다 (spec §3 불변식).
+      expect(mockLlmService.resolveEmbedding).toHaveBeenCalledWith(
+        'emb-cfg-1',
+        'ws-1',
+      );
     });
 
     it('opts 미지정 시 topK=5 / threshold=0.7 기본값을 바인딩한다', async () => {
@@ -265,6 +279,12 @@ describe('AgentMemoryService', () => {
         embedCfg,
       );
 
+      // 저장 임베딩 모델은 embedCfg.embeddingModelConfigId 로 resolve 한 config 의
+      // defaultModel ('text-embedding-3-small') 이어야 한다 (회수와 동일 config → 차원 일치).
+      expect(mockLlmService.resolveEmbedding).toHaveBeenCalledWith(
+        'emb-cfg-1',
+        'ws-1',
+      );
       expect(mockLlmService.embed).toHaveBeenCalledWith(
         expect.anything(),
         ['user likes tea', 'user is in Seoul'],
@@ -754,15 +774,15 @@ describe('AgentMemoryService', () => {
       ).resolves.toBe(false);
     });
 
-    it('payload 에 embeddingModel 을 전달한다 (회수/추출 차원 일치)', async () => {
+    it('payload 에 embeddingModelConfigId 를 전달한다 (회수/추출 차원 일치)', async () => {
       await serviceWithQueue.scheduleExtraction({
         workspaceId: 'ws-1',
         scopeKey: 'cust-7',
-        embeddingModel: 'text-embedding-3-large',
+        embeddingModelConfigId: 'emb-cfg-large',
         turns,
       });
       const payload = mockQueue.add.mock.calls[0][1];
-      expect(payload.embeddingModel).toBe('text-embedding-3-large');
+      expect(payload.embeddingModelConfigId).toBe('emb-cfg-large');
     });
   });
 

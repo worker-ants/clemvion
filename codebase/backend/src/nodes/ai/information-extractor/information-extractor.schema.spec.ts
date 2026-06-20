@@ -9,19 +9,20 @@ import {
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
 describe('informationExtractorNodeConfigSchema ui', () => {
-  it('memory model fields use registered-model select widgets', () => {
-    // §12.12 후속 결정: embeddingModel / extractionModel 은 자유입력/expression 대신
-    // 노드 llmConfigId provider 의 등록 모델 select (IE 는 summaryModel 없음).
+  it('memory model fields pick a registered ModelConfig (config-selector widgets)', () => {
+    // §12.12 재번복: embeddingModelConfigId / extractionModelConfigId 는 /models 등록
+    // ModelConfig 를 고른다(저장 config.id). embedding=embedding-config-selector,
+    // extraction=chat-config-selector (IE 는 summary 없음).
     const jsonSchema = z.toJSONSchema(
       informationExtractorNodeConfigSchema,
     ) as unknown as {
       properties?: Record<string, { ui?: Record<string, unknown> }>;
     };
-    expect(jsonSchema.properties?.embeddingModel?.ui).toMatchObject({
-      widget: 'embedding-model-selector',
+    expect(jsonSchema.properties?.embeddingModelConfigId?.ui).toMatchObject({
+      widget: 'embedding-config-selector',
     });
-    expect(jsonSchema.properties?.extractionModel?.ui).toMatchObject({
-      widget: 'chat-model-selector',
+    expect(jsonSchema.properties?.extractionModelConfigId?.ui).toMatchObject({
+      widget: 'chat-config-selector',
     });
   });
 });

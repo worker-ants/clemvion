@@ -144,7 +144,7 @@ describe('InformationExtractor persistent memory — single-turn', () => {
       singleTurnConfig({
         memoryStrategy: 'persistent',
         memoryKey: 'user-42',
-        extractionModel: 'gpt-4o-mini-cheap',
+        extractionModelConfigId: 'chat-cfg-cheap',
         memoryTtlDays: 30,
       }),
       context,
@@ -153,7 +153,7 @@ describe('InformationExtractor persistent memory — single-turn', () => {
     const arg = memory.scheduleExtraction.mock.calls[0][0];
     expect(arg.workspaceId).toBe('ws-1');
     expect(arg.scopeKey).toBe('user-42');
-    expect(arg.extractionModel).toBe('gpt-4o-mini-cheap');
+    expect(arg.extractionModelConfigId).toBe('chat-cfg-cheap');
     expect(arg.ttlDays).toBe(30);
     // turns snapshot includes the pushed ai_assistant extraction turn.
     expect(arg.turns.length).toBeGreaterThanOrEqual(1);

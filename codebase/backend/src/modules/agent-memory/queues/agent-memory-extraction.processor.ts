@@ -40,8 +40,8 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
       scopeKey,
       llmConfigId,
       model,
-      extractionModel,
-      embeddingModel,
+      extractionModelConfigId,
+      embeddingModelConfigId,
       turns,
       ttlDays,
     } = job.data ?? {};
@@ -51,18 +51,22 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
     const transcript = buildExtractionTranscript(turns);
     if (!transcript.trim()) return;
 
-    // 추출 LLM 콜 — 노드 llmConfigId(provider/credential) 재사용 (§3). 미지정이면
-    // 워크스페이스 기본 LLMConfig (resolveConfig fallback).
+    // 추출 LLM config: 전용 config(extractionModelConfigId) 우선 — 그 config 의
+    // provider/credential/defaultModel 사용(노드 main 과 분리, §12.12 재번복). 미설정이면
+    // 노드 llmConfigId(없으면 워크스페이스 기본) chat config 로 폴백.
+    // NOTE: `||` 는 의도적이다 — config-selector 의 빈 선택은 빈 문자열("")="노드 config 상속"
+    // 의미이므로 ""(falsy)도 llmConfigId 로 폴백해야 한다. `??` 로 바꾸면 ""을 실제 config id
+    // 로 간주해 resolveConfig("") 를 시도하므로 금지.
     const llmConfig = await this.llmService.resolveConfig(
-      llmConfigId ?? undefined,
+      extractionModelConfigId || llmConfigId || undefined,
       workspaceId,
     );
 
-    // 추출 모델 폴백 체인 (§3·§6.1 단계 2.7·§12.12):
-    //   extractionModel (전용 필드) → model (노드 메인) → llmConfig.defaultModel.
-    // 두 전용/노드 필드 모두 미설정이면 기존 동작 (노드 model → 기본) 100% 유지.
-    const resolvedExtractionModel =
-      extractionModel || model || llmConfig.defaultModel;
+    // 추출 모델: 전용 config 지정 시 그 config 의 defaultModel, 아니면 노드 model →
+    // defaultModel 폴백(§3·§6.1 단계 2.7·§12.12 — 전용 미설정이면 기존 동작 유지).
+    const resolvedExtractionModel = extractionModelConfigId
+      ? llmConfig.defaultModel
+      : model || llmConfig.defaultModel;
 
     const result = await this.llmService.chat(llmConfig, {
       model: resolvedExtractionModel,
@@ -93,13 +97,9 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
         // LLM 이 분류한 kind 를 metadata 에 저장 (AGM-11 — 기존 hardcoded 'fact' 대체).
         metadata: { kind: item.kind, source: 'turn_boundary_extraction' },
       })),
-      // 저장 임베딩 출처 — 회수/추출과 동일 llmConfigId·embeddingModel (차원·
-      // endpoint 일치, §3). embeddingModel 미설정이면 saveMemories 가 워크스페이스
-      // 기본 → 최후 하드코딩 기본으로 폴백한다.
-      {
-        llmConfigId: llmConfigId ?? undefined,
-        embeddingModel: embeddingModel ?? undefined,
-      },
+      // 저장 임베딩 출처 — 회수와 동일 embedding ModelConfig(차원·endpoint 일치, §3).
+      // 미설정이면 saveMemories 가 워크스페이스 기본 embedding config 로 폴백한다.
+      { embeddingModelConfigId: embeddingModelConfigId ?? undefined },
       // TTL (일) — 노드 config memoryTtlDays 전달분 (AGM-10). 미설정이면 무만료.
       safeTtlDays,
     );

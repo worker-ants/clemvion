@@ -366,6 +366,23 @@ export class LlmService {
   }
 
   /**
+   * 등록 embedding ModelConfig(kind=embedding) 해석 — config + 모델명을 반환한다.
+   * agent_memory / KB 가 `embeddingModelConfigId` 로 임베딩 출처를 단일 해석하는
+   * 경로(ModelConfigService.resolveEmbedding)를 LlmService 표면으로 노출한다
+   * (resolveConfig 가 kind=chat 고정이라 임베딩엔 부적합 — 호출부 DI 단순화 목적).
+   * 미지정 시 워크스페이스 기본 kind=embedding ModelConfig 로 폴백한다.
+   */
+  async resolveEmbedding(
+    embeddingModelConfigId: string | undefined | null,
+    workspaceId: string,
+  ): Promise<{ config: ModelConfig; model: string }> {
+    return this.modelConfigService.resolveEmbedding({
+      embeddingModelConfigId: embeddingModelConfigId ?? undefined,
+      workspaceId,
+    });
+  }
+
+  /**
    * 워크스페이스에 isDefault=true 인 LlmConfig 가 존재하는지만 확인.
    *
    * execution-engine 의 AI 노드 검증 후처리에서, no-llm-provider 규칙을

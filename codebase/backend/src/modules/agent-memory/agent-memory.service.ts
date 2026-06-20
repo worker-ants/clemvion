@@ -35,29 +35,19 @@ export const AGENT_MEMORY_MAX_PER_SCOPE = 1000;
 export const MEMORY_DEDUP_SIMILARITY = 0.85;
 
 /**
- * 임베딩에 사용할 LLMConfig·모델 출처. KnowledgeBase 의 (embeddingLlmConfigId, embeddingModel)
- * 해석 경로를 그대로 재사용한다 (EmbeddingService / RagSearchService 와 동형).
+ * 임베딩에 사용할 출처 — 등록 embedding ModelConfig(kind=embedding) 의 id.
+ * KnowledgeBase 의 `embeddingModelConfigId` 해석 경로를 그대로 재사용한다
+ * (ModelConfigService.resolveEmbedding — config·model·dimension 단일 해석).
  *
- * - `llmConfigId`: truthy 면 그 LLMConfig, 아니면 워크스페이스 기본 LLMConfig (LlmService.resolveConfig).
- * - `embeddingModel`: 임베딩 모델 식별자. **출처 우선순위**:
- *   1. AI Agent 노드 config 의 `embeddingModel` 필드 (유저가 노드에서 직접 선택).
- *   2. (1 미지정 시) 워크스페이스 기본 LLMConfig 의 임베딩 모델 — `embedQuery`/
- *      `embedTexts` 가 LlmService.resolveConfig 로 해석하는 기본.
- *   3. (그 외 모두 미지정 시) 최후 하드코딩 기본 `DEFAULT_EMBEDDING_MODEL`.
+ * - `embeddingModelConfigId`: truthy 면 그 embedding ModelConfig, 아니면 워크스페이스
+ *   기본 kind=embedding ModelConfig 로 resolve. 서버가 그 config 의 provider/credential·
+ *   defaultModel 로 임베딩한다 (유저는 노드에서 config 만 고른다).
  *
- * KB 는 per-KB 컬럼으로 이 둘을 보관하지만 agent_memory 는 전용 LLMConfig 컬럼이 없으므로
- * (노드 config 필드로 충분 — llm_config 컬럼 확장 없음), 호출부 (AI Agent 핸들러) 가 노드/
- * 워크스페이스 컨텍스트에서 이 출처를 넘긴다. 회수·추출이 같은 출처를 써야 query 임베딩과
- * 저장 임베딩의 차원·endpoint 가 일치한다.
+ * 회수·추출(저장)이 **같은 config** 를 써야 query/저장 임베딩의 차원·endpoint 가 일치한다.
  */
 export interface EmbedConfigSource {
-  llmConfigId?: string | null;
-  embeddingModel?: string | null;
+  embeddingModelConfigId?: string | null;
 }
-
-// 최후 폴백 임베딩 모델 — 노드 config `embeddingModel` 도, 워크스페이스 기본
-// LLMConfig 임베딩 모델도 모두 미지정일 때만 쓰는 하드코딩 기본 (agent-memory 자체 경로 전용).
-const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
 
 /**
  * scope_key 최대 길이 상한 (W-1). memoryKey 는 Expression 평가값이라 극단 길이
@@ -193,9 +183,10 @@ export class AgentMemoryService {
     scopeKey: string;
     llmConfigId?: string | null;
     model?: string | null;
-    /** 추출 LLM 콜 전용 모델 (노드 config `extractionModel`). 미설정 시 processor 가 model → llmConfig 기본 폴백. */
-    extractionModel?: string | null;
-    embeddingModel?: string | null;
+    /** 추출 LLM 콜 전용 chat ModelConfig id (노드 config `extractionModelConfigId`). 미설정 시 노드 llmConfigId → model → 기본 폴백. */
+    extractionModelConfigId?: string | null;
+    /** 저장 임베딩 출처 embedding ModelConfig id (노드 config `embeddingModelConfigId`). */
+    embeddingModelConfigId?: string | null;
     turns: ExtractionTurnSnapshot[];
     ttlDays?: number | null;
   }): Promise<boolean> {
@@ -212,12 +203,12 @@ export class AgentMemoryService {
           scopeKey: args.scopeKey,
           llmConfigId: args.llmConfigId ?? null,
           model: args.model ?? null,
-          // 추출 LLM 콜 전용 모델 — 노드 config extractionModel. 미설정이면 null
-          // 로 운반돼 processor 가 model → llmConfig 기본으로 폴백 (§3·§12.12).
-          extractionModel: args.extractionModel ?? null,
-          // 추출(저장) 임베딩 모델 — 노드 config embeddingModel. 회수와 동일
-          // 값을 써 query/저장 임베딩의 차원이 일치하게 한다 (§3).
-          embeddingModel: args.embeddingModel ?? null,
+          // 추출 LLM 콜 전용 chat ModelConfig id. 미설정이면 null 로 운반돼
+          // processor 가 노드 llmConfigId → model → 기본으로 폴백 (§3·§12.12 재번복).
+          extractionModelConfigId: args.extractionModelConfigId ?? null,
+          // 저장 임베딩 출처 embedding ModelConfig id — 회수와 동일 config 를 써
+          // query/저장 임베딩의 차원이 일치하게 한다 (§3).
+          embeddingModelConfigId: args.embeddingModelConfigId ?? null,
           // 방어적 shallow-copy — 호출부가 이미 격리 스냅샷을 넘기지만,
           // producer 가 payload 직렬화 전 array 를 재참조하지 않도록 한 번 더.
           turns: [...args.turns],
@@ -411,10 +402,8 @@ export class AgentMemoryService {
     });
     if (valid.length === 0) return;
 
-    const model =
-      embedCfgSource.embeddingModel?.trim() || DEFAULT_EMBEDDING_MODEL;
-    const llmConfig = await this.llmService.resolveConfig(
-      embedCfgSource.llmConfigId ?? undefined,
+    const { config: llmConfig, model } = await this.llmService.resolveEmbedding(
+      embedCfgSource.embeddingModelConfigId,
       workspaceId,
     );
     const embeddings = await this.llmService.embed(
@@ -889,10 +878,8 @@ export class AgentMemoryService {
     workspaceId: string,
     embedCfgSource: EmbedConfigSource,
   ): Promise<number[] | null> {
-    const model =
-      embedCfgSource.embeddingModel?.trim() || DEFAULT_EMBEDDING_MODEL;
-    const llmConfig = await this.llmService.resolveConfig(
-      embedCfgSource.llmConfigId ?? undefined,
+    const { config: llmConfig, model } = await this.llmService.resolveEmbedding(
+      embedCfgSource.embeddingModelConfigId,
       workspaceId,
     );
     const embeddings = await this.llmService.embed(

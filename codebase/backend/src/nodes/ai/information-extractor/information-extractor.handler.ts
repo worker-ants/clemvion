@@ -319,9 +319,10 @@ export class InformationExtractorHandler implements NodeHandler {
         scopeKey,
         queryText,
         {
-          llmConfigId: args.config.llmConfigId as string | undefined,
-          // 회수/추출 동일 embeddingModel — query/저장 임베딩 차원 일치 (§3).
-          embeddingModel: args.config.embeddingModel as string | undefined,
+          // 회수/추출 동일 embedding config — query/저장 임베딩 차원 일치 (§3).
+          embeddingModelConfigId: args.config.embeddingModelConfigId as
+            | string
+            | undefined,
         },
         { topK, threshold },
       );
@@ -693,8 +694,8 @@ export class InformationExtractorHandler implements NodeHandler {
               memoryKey: config.memoryKey,
               llmConfigId: config.llmConfigId,
               model: config.model,
-              extractionModel: config.extractionModel,
-              embeddingModel: config.embeddingModel,
+              extractionModelConfigId: config.extractionModelConfigId,
+              embeddingModelConfigId: config.embeddingModelConfigId,
               memoryTtlDays: config.memoryTtlDays,
             },
           }

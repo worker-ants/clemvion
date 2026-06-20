@@ -86,22 +86,22 @@ describe('aiAgentNodeConfigSchema', () => {
     });
   });
 
-  it('memory model fields use registered-model select widgets (not free text/expression)', () => {
-    // §12.12 후속 결정 (spec/4-nodes/3-ai/1-ai-agent.md): embeddingModel /
-    // summaryModel / extractionModel 은 자유입력(text)/expression 대신 노드
-    // llmConfigId provider 의 등록 모델만 고르는 순수 select 를 쓴다. embeddingModel
-    // 은 차원 불변식 footgun 차단, summary/extraction 은 잘못된 모델 ID 저장 차단.
+  it('memory model fields pick a registered ModelConfig (config-selector widgets)', () => {
+    // §12.12 재번복 (spec/4-nodes/3-ai/1-ai-agent.md): embeddingModelConfigId /
+    // summaryModelConfigId / extractionModelConfigId 는 /models 등록 ModelConfig 를
+    // 고른다(저장값 config.id). chat 보조콜은 chat-config-selector, embedding 은
+    // embedding-config-selector. 서버가 그 config 의 provider/defaultModel 로 호출.
     const jsonSchema = z.toJSONSchema(aiAgentNodeConfigSchema) as unknown as {
       properties?: Record<string, { ui?: Record<string, unknown> }>;
     };
-    expect(jsonSchema.properties?.embeddingModel?.ui).toMatchObject({
-      widget: 'embedding-model-selector',
+    expect(jsonSchema.properties?.embeddingModelConfigId?.ui).toMatchObject({
+      widget: 'embedding-config-selector',
     });
-    expect(jsonSchema.properties?.summaryModel?.ui).toMatchObject({
-      widget: 'chat-model-selector',
+    expect(jsonSchema.properties?.summaryModelConfigId?.ui).toMatchObject({
+      widget: 'chat-config-selector',
     });
-    expect(jsonSchema.properties?.extractionModel?.ui).toMatchObject({
-      widget: 'chat-model-selector',
+    expect(jsonSchema.properties?.extractionModelConfigId?.ui).toMatchObject({
+      widget: 'chat-config-selector',
     });
   });
 

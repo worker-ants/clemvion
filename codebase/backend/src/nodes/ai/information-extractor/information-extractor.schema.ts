@@ -133,7 +133,7 @@ export const informationExtractorNodeConfigSchema = z
     // (summary_buffer 는 추출 노드에 무의미하므로 제외; Rationale 참조). manual=기존
     // 동작 100% 유지. persistent=추출 LLM 콜 전 recall 주입 + 턴 경계 비동기 extraction.
     // Fragment SoT: shared/agent-memory-schema.ts (2 노드 공통 helper). IE 는
-    // memoryStrategy 2값 enum + memoryTokenBudget/summaryModel 미방출 (추출 노드에
+    // memoryStrategy 2값 enum + memoryTokenBudget/summaryModelConfigId 미방출 (추출 노드에
     // working-memory 압축 무의미). 종전 인라인 정의와 100% 동치.
     ...buildAgentMemorySchemaFields({
       strategy: {
@@ -156,8 +156,8 @@ export const informationExtractorNodeConfigSchema = z
         memoryTopK: 13,
         memoryThreshold: 14,
         memoryTtlDays: 14.5,
-        embeddingModel: 14.6,
-        extractionModel: 14.7,
+        embeddingModelConfigId: 14.6,
+        extractionModelConfigId: 14.7,
       },
     }),
     // ── System Context Prefix (spec/4-nodes/3-ai/0-common.md §11) ──
