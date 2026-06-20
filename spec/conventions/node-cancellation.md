@@ -128,6 +128,7 @@ if (upstream) {
 | HTTP 노드 signal 전파 (fetch cascade) | ✓ | `http-request.handler.ts` (§4 cascade 패턴) |
 | HTTP 단위 테스트 | ✓ | `http-request.handler.spec.ts` |
 | AI 노드 signal 전파 (Anthropic SDK `signal`) | ✓ | `ai-agent.handler.ts` / `text-classifier.handler.ts` / `information-extractor.handler.ts` 의 SDK 호출에 `signal: context.abortSignal` 전파 |
+| AI 노드 signal 단위 테스트 | ✓ | `text-classifier.handler.spec.ts` · `information-extractor.handler.spec.ts`(single-turn; multi-turn 초기 경로는 W4) · `ai-agent.handler.spec.ts`(SUMMARY#16) — `context.abortSignal` 이 `llmService.chat` 으로 전파됨을 검증 |
 | Parallel `cancel-others-on-fail` 통합 | ✓ | `parallel-executor.ts` — `errorPolicy==='cancel-others-on-fail'` 시 그룹 `AbortController` 생성, 첫 분기 실패 시 abort, upstream cascade (parallel-p2 §5) |
 | 사용자 cancel (`POST /executions/:id/stop` + 툴바 Stop) | ✓ | `executions.controller.ts` / `executions.service.ts` / `editor-toolbar.tsx` (§2.3) |
 | DB 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`database-query.handler.ts` — 진입 직전 `abortSignal?.aborted` → AbortError). in-flight `pg.client.cancel` 은 미구현 (Planned) |

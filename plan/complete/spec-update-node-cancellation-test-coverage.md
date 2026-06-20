@@ -1,10 +1,15 @@
 ---
-worktree: (unstarted)
+worktree: spec-node-cancellation-test-coverage
 started: 2026-06-20
 owner: project-planner
+status: complete
+spec_impact:
+  - spec/conventions/node-cancellation.md
 ---
 
 # Spec Update Draft — node-cancellation §6 구현 현황 표에 AI 노드 signal 단위 테스트 반영
+
+> **2026-06-20 적용 완료**: `spec/conventions/node-cancellation.md §6` 표에 "AI 노드 signal 단위 테스트" 행 신설 (HTTP 단위 테스트 행 패턴 대칭). `/consistency-check --spec` 포커스 검증 BLOCK:NO (factual·cross-spec·convention·rationale·naming 전 lens PASS). → complete.
 
 ## 분류
 SPEC-DRIFT (구현이 spec 을 앞지름 — 코드 옳음, spec 갱신 누락). 출처: ai-review `review/code/2026/06/20/15_55_44` WARNING#1 (및 15_43_17 INFO).
