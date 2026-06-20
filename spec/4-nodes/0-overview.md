@@ -120,7 +120,7 @@ codebase/backend/src/nodes/
 
 **포트 ID 생성 규칙:**
 - 정적 포트: 노드 정의에서 고정 문자열 (`in`, `out`, `true`, `false`, `body`, `done` 등)
-- 동적 포트: config 항목(switch case, classifier category, presentation button 등)이 보유한 **stable slug id** 를 포트 ID 로 사용한다. slug 는 `^[a-zA-Z0-9_-]{1,64}$` 형식이며, 형식을 벗어나면 인덱스 기반 fallback(`case_0`, `branch_1` 등)으로 떨어진다. 포트 이름 변경, 재정렬, 다른 포트 삭제 등 편집 작업에도 **기존 slug id 는 불변**이므로 포트에 연결된 엣지가 편집 이후에도 유지된다. 검증·해석 단일 출처는 backend `nodes/core/port-id.util.ts` 와 frontend `lib/node-definitions/resolve-dynamic-ports.ts` 가 lockstep 으로 보유한다. (UUID v4 는 사용하지 않는다.)
+- 동적 포트: config 항목(switch case, classifier category, presentation button 등)이 보유한 **stable slug id** 를 포트 ID 로 사용한다. slug 는 `^[a-zA-Z0-9_-]{1,64}$` 형식이며, 형식을 벗어나면 인덱스 기반 fallback(`case_0`, `branch_1` 등)으로 떨어진다. 포트 이름 변경, 재정렬, 다른 포트 삭제 등 편집 작업에도 **기존 slug id 는 불변**이므로 포트에 연결된 엣지가 편집 이후에도 유지된다. 검증·해석 단일 출처는 backend `nodes/core/port-id.util.ts`(`resolveStablePortId`) 와 frontend `lib/node-definitions/resolve-dynamic-ports.ts` 가 lockstep 으로 보유한다. **id 의 생성 출처는 노드별로 다르다** — Switch case·Filter 등은 사용자가 입력한 의미있는 slug(`approve`), AI Agent ConditionDef·Presentation ButtonDef 등은 frontend `crypto.randomUUID()` 가 발급한 UUID v4(이 또한 위 slug regex 를 통과하므로 유효한 포트 ID 다). 포트 ID 는 slug-regex 를 만족하면 생성 출처(meaningful slug / UUID v4)를 가리지 않는다 (근거·옛 서술 정정: §Rationale).
 
 ### 1.4 캔버스 설정 요약 (summaryTemplate)
 
@@ -302,3 +302,20 @@ execute(input: JSON, config: JSON, context: ExecutionContext) → JSON
 | 네트워크 접근 | `code` 노드 sandbox 에는 `fetch`/`http` 등 네트워크 API 를 노출하지 않는다. 외부 호출은 Integration 노드를 통해서만 가능 | 구현됨 (code 노드) |
 | 메모리 제한 | `code` 노드는 isolate `memoryLimit` 기본 128MB 하드 리밋 (`CODE_NODE_MEMORY_LIMIT_MB` env 로 조정 가능, 안전 상한 512MB — `5-data/2-code.md §7.2`). 초과 시 isolate 가 실행을 중단하고 `CODE_MEMORY_LIMIT` 로 `error` 포트 분기. 그 외 노드는 노드별 메모리 제한 미적용 | 구현됨 (code 노드) |
 | 파일 시스템 | 읽기 전용 (임시 디렉토리만 쓰기 가능) — `code` sandbox 는 `fs`/`require` 미노출이나 명시적 FS 정책은 없음 | **미구현 (Planned)** |
+
+---
+
+## Rationale
+
+### 동적 포트 ID 모델 — slug-regex, 혼합 생성 (§1.3)
+
+동적 포트 ID 는 `^[a-zA-Z0-9_-]{1,64}$`(slug-regex) 를 만족하는 안정 문자열이다. **검증·해석은 단일**(`port-id.util.ts` `resolveStablePortId` — 유효하면 그대로 사용, 아니면 인덱스 fallback `case_0`), **생성 출처는 노드별**:
+
+- **의미있는 slug** — Switch case·Filter: 사용자가 편집 가능한 의미 id(`approve`). schema 가 slug-regex(`^[a-zA-Z0-9_-]+$`) 강제.
+- **UUID v4** — AI Agent ConditionDef·Presentation ButtonDef: frontend `crypto.randomUUID()` 자동 발급. UUID v4 문자열도 slug-regex 를 통과하므로 별도 모델이 아니라 **같은 slug-id 공간의 한 생성 방식**이다.
+
+근거: (1) **엣지 보존** — id 가 config 항목과 1:1·불변이라 포트 이름 변경·재정렬·삭제 편집 후에도 연결 엣지 유지. (2) **통일 검증** — 생성 출처 무관 slug-regex 단일 게이트(라우팅 키 인젝션 차단). (3) **직렬화 안정성** — 워크플로 JSON export/import·재로드 결정적.
+
+**옛 서술 정정 (2026-06-20)**: §1.3 의 "(UUID v4 는 사용하지 않는다)" 는 부정확했다 — UUID v4 는 condition·button 의 현행 생성 방식이며 slug-regex 유효(게다가 같은 절이 presentation button 을 slug 예시로 들면서 UUID 라 서술해 자기모순이었다). 본 정정으로 `§1.3`·`1-logic/0-common.md §7`·`3-workflow-editor/1-node-common.md §1.5`·`3-ai/_product-overview.md ND-AG-20`·`3-ai/1-ai-agent.md §2 ConditionDef.id` 서술을 단일 모델로 일원화했다 (carousel `§1 ButtonDef.id`·`§10.5 backfillButtonUuids` 는 이미 정합 — 무수정). **제외**: ND-AG-17 LLM 도구명(`cond_` 접두사 + 정제 UUID)·`meta.backgroundRunId`(run 식별자) 는 포트 ID 가 아니다.
+
+> 본 drift 는 refactor M-5(노드 등록 DI) 작업 중 consistency-check 가 발견·위임한 pre-existing 문서 모순이며, 코드 변경은 없다(코드가 이미 본 모델).
