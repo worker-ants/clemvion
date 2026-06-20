@@ -37,5 +37,11 @@ C-3 와 동일 패턴·spec 무변(D). webauthn 은 data-flow/2-auth §1.2(bcryp
 - [ ] `/consistency-check --impl-done spec/5-system/1-auth` BLOCK:NO
 
 ## 범위 밖 / 후속
-- 2FA disable·webauthn regenerate brute-force 보호(별도 보안, behavior-change) — C-3 후속과 동일.
-- spec 문서(planner): data-flow/2-auth §1.2 verifyPasswordForUser 흐름 + error-codes 등재.
+- 2FA disable·webauthn regenerate brute-force 보호(별도 보안, behavior-change) — C-3 후속과 동일 (ai-review INFO#10).
+- **spec 문서(planner)** — ai-review/consistency 가 발견한 SPEC-DRIFT(코드 옳음·spec 낡음, INFO 라 비차단):
+  - `data-flow/2-auth.md §1.2` 에 `verifyPasswordForUser` 헬퍼·위임 경로(disable2fa/webauthn regenerate)·에러 코드 등재 + `bcrypt.compare` 직접 참조를 `comparePassword` 추상화로 갱신 (ai-review INFO#1·#3).
+  - `verifyReauth` 에러 코드(`PASSWORD_INVALID`/`TOTP_INVALID`/`REAUTH_REQUIRED`) spec 본문 테이블 등재 (ai-review INFO#2).
+  - `spec/5-system/3-error-handling.md §1` 에 `PASSWORD_REQUIRED`/`PASSWORD_INVALID` 카탈로그 등재(401·트리거·적용 엔드포인트) + `1-auth.md §5` regenerate 행 에러코드 보강 (consistency WARNING#1·INFO#4). 기존 동일코드 재사용이라 신규 아님.
+  - `1-auth.md ## Rationale` 에 "비밀번호 재확인 AuthService 단일 귀속" 결정 등재 (consistency INFO#1).
+- **단일진실 완성 후보**: `auth-configs.service.ts:309` raw `bcrypt.compare`(에러코드 `AUTH_FAILED` 로 계약 상이 — user 비밀번호 재확인과 다른 의미) 처리 방향 별도 검토 (consistency naming INFO#5).
+- **defer (behavior-change·범위 밖)**: ai-review WARNING#1 `verifyPasswordForUser` early-exit 타이밍 사이드채널 — 대상 `auth.service.ts` 는 본 changeset 밖(C-3 #658), 호출 경로가 JWT 인증 후 본인 비밀번호 확인이라 userId enumeration 불가(자기 계정만 조회)·실위험 ~0. dummy-compare 도입은 별도 보안 작업. ai-review INFO#6·#7·#9(미변경 메서드 pre-existing 테스트/타입 정리)도 동일하게 비차단 defer.

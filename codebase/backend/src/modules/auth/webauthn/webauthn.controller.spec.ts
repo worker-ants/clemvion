@@ -192,9 +192,12 @@ describe('WebAuthnController (audit)', () => {
   });
 
   describe('webauthnRegenerateRecovery', () => {
-    // [refactor 02 C-3 §3] 비밀번호 재확인을 authService.verifyPasswordForUser 로
-    // 위임 — controller 의 raw bcrypt 제거(레이어 정렬). 검증 위임·재발급 흐름 가드.
-    it('비밀번호 확인 후 recovery 코드 재발급', async () => {
+    // [refactor 02 C-3 §3] delegates password reverification to
+    // authService.verifyPasswordForUser — controller raw bcrypt removed (layer
+    // alignment). Guards the delegation + regenerate flow. The error message
+    // contract is owned by AuthService.verifyPasswordForUser (asserted in
+    // auth.service.spec); here we verify the delegation + regenerate wiring only.
+    it('regenerates recovery codes after the password is verified', async () => {
       authService.verifyPasswordForUser.mockResolvedValue(undefined);
       webauthnService.regenerateRecoveryCodes.mockResolvedValue(['x', 'y']);
 
@@ -206,10 +209,13 @@ describe('WebAuthnController (audit)', () => {
         'user-uuid',
         'OldP@ssw0rd1',
       );
+      expect(webauthnService.regenerateRecoveryCodes).toHaveBeenCalledWith(
+        'user-uuid',
+      );
       expect(res).toEqual({ data: { webauthnRecoveryCodes: ['x', 'y'] } });
     });
 
-    it('비밀번호 실패 시 throw + 재발급 안 함', async () => {
+    it('throws and does not regenerate when the password is wrong', async () => {
       authService.verifyPasswordForUser.mockRejectedValue(
         new UnauthorizedException({ code: 'PASSWORD_INVALID' }),
       );
