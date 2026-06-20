@@ -539,6 +539,58 @@ describe('AuthService', () => {
     });
   });
 
+  describe('verifyPasswordForUser', () => {
+    // 옛 AuthController.disable2fa 의 raw bcrypt 검증을 이관(refactor 02 C-3) —
+    // 에러 코드·메시지·401 shape 이 정확히 보존되는지(컨트롤러 동작 불변) 가드.
+    it('사용자 미존재 → PASSWORD_REQUIRED (401)', async () => {
+      usersService.findById.mockResolvedValue(null as never);
+      await expect(
+        service.verifyPasswordForUser('user-uuid', 'anything'),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'PASSWORD_REQUIRED' },
+      });
+    });
+
+    it('passwordHash 부재(OAuth-only) → PASSWORD_REQUIRED (401)', async () => {
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        passwordHash: null,
+      } as unknown as User);
+      await expect(
+        service.verifyPasswordForUser('user-uuid', 'anything'),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'PASSWORD_REQUIRED' },
+      });
+    });
+
+    it('비밀번호 불일치 → PASSWORD_INVALID (401)', async () => {
+      const hash = await bcrypt.hash('CorrectP@ss1', BCRYPT_ROUNDS);
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+      } as User);
+      await expect(
+        service.verifyPasswordForUser('user-uuid', 'WrongP@ss1'),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'PASSWORD_INVALID' },
+      });
+    });
+
+    it('비밀번호 일치 → throw 없이 resolve', async () => {
+      const hash = await bcrypt.hash('CorrectP@ss1', BCRYPT_ROUNDS);
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+      } as User);
+      await expect(
+        service.verifyPasswordForUser('user-uuid', 'CorrectP@ss1'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
   describe('refresh', () => {
     it('should refresh tokens with valid refresh token', async () => {
       refreshTokenRepo.findOne.mockResolvedValue({
