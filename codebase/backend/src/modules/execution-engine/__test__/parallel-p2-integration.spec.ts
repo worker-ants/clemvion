@@ -106,6 +106,56 @@ describe('parallel-p2 integration (§4 followups)', () => {
         .catch(() => undefined);
       expect(branch1Completed).toBe(true);
     });
+
+    // ai-review(15_43_17 INFO#4 / 15_55_44 INFO) — addEventListener 경로가 아닌
+    // 즉시 `signal.aborted` 분기(parallel-executor 의 분기 진입 시점 사전 체크) 커버.
+    // 상위 context.abortSignal 을 진입 전 이미 abort 상태로 전달하면 executor 가
+    // cancelController 로 cascade(§5) → 모든 분기가 시작 즉시 aborted signal 을 본다.
+    it('상위 abortSignal 이 이미 abort 된 채 진입 → 분기가 즉시 signal.aborted 경로로 reject', async () => {
+      const executor = new ParallelExecutor();
+      const immediateAbortObserved = jest.fn();
+      const viaListener = jest.fn();
+      const preAborted = new AbortController();
+      preAborted.abort(); // 진입 전 이미 abort
+      const ctx: ExecutionContext = {
+        ...baseContext,
+        abortSignal: preAborted.signal,
+      };
+      await executor
+        .execute(
+          {
+            branchCount: 2,
+            maxConcurrency: 0,
+            waitAll: true,
+            errorPolicy: 'cancel-others-on-fail',
+          },
+          ctx,
+          async (_i, branchCtx) => {
+            const signal = branchCtx.abortSignal;
+            if (!signal) throw new Error('no signal');
+            if (signal.aborted) {
+              immediateAbortObserved();
+              throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+            }
+            // 여기 도달 = 즉시 경로 미발화 (listener 경로로 빠짐) → 실패로 간주.
+            await new Promise<void>((_, reject) => {
+              signal.addEventListener(
+                'abort',
+                () => {
+                  viaListener();
+                  reject(new Error('via-listener'));
+                },
+                { once: true },
+              );
+            });
+          },
+          undefined,
+        )
+        .catch(() => undefined);
+      // 상위 signal 이 cancelController 로 cascade → 분기들이 즉시-abort 경로로 진입.
+      expect(immediateAbortObserved).toHaveBeenCalled();
+      expect(viaListener).not.toHaveBeenCalled();
+    });
   });
 
   describe('nested Parallel concurrency cap silent clamp', () => {
@@ -149,6 +199,34 @@ describe('parallel-p2 integration (§4 followups)', () => {
       );
       // 8 × 4 = 32 ≤ 32 → no clamp
       expect(result.clampedConcurrency).toBeUndefined();
+    });
+
+    // ai-review(15_43_17 INFO#3 / 15_55_44 INFO) — clamp 하한 경계.
+    // parentEffective=32 → allowed = max(1, floor(32/32)) = 1 → 내부가 1 로 clamp.
+    // `Math.max(1, …)` 가 0 으로의 clamp(=deadlock)를 막아 최소 1 분기는 실행됨을 확정.
+    it('외부 effective=32 → 내부 1 로 clamp (하한 1, deadlock 방지)', async () => {
+      const executor = new ParallelExecutor();
+      let observedPeak = 0;
+      let currentRunning = 0;
+      const result = await executor.execute(
+        { branchCount: 2, maxConcurrency: 2, waitAll: true },
+        baseContext,
+        async () => {
+          currentRunning++;
+          observedPeak = Math.max(observedPeak, currentRunning);
+          await new Promise((r) => setTimeout(r, 5));
+          currentRunning--;
+        },
+        32, // 외부 effective=32 → allowed = floor(32/32) = 1
+      );
+      // 하한 보장: 동시 실행 peak 가 정확히 1 (0 으로 clamp 되지 않아 진행됨).
+      expect(observedPeak).toBe(1);
+      expect(result.clampedConcurrency).toEqual({
+        intended: 2,
+        actual: 1,
+        parentEffective: 32,
+        cap: 32,
+      });
     });
   });
 });
