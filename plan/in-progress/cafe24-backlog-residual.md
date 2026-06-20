@@ -110,21 +110,22 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
   - `translation_categories_list`/`_update` → `translations/categories[/{category_no}]`
   - `translation_store_list`/`_update` → `translations/store`
   - `translation_themes_list` → `translations/themes`; `translation_themes_get`/`_update` `translation/themes/{theme_no}` → `translations/themes/{skin_no}` (**path param 명도 `theme_no`→`skin_no`**)
-- [ ] **G-3b order (FIX ×1 / DECIDE ×6)**:
+- [x] **G-3b order (FIX ×1 / DECIDE ×6)**:
   - FIX: `exchange_update_multiple` PUT `exchanges`→`exchange` (단수). ✅ 2026-06-03 정정
   - DECIDE(semantics 변경 — 단순 string fix 아님): `orders_benefits_list` `orders/{order_id}/benefits`·`orders_coupons_list` `orders/{order_id}/coupons` → docs 는 `orders/benefits`·`orders/coupons` (per-order endpoint 자체 부재 → collection 으로 의미 변경, 응답·노드 재설계 필요); `order_items_labels_delete` DELETE `.../labels` → docs `.../labels/{name}` (전체삭제 vs 단건삭제 = 다른 operation); ~~`orders_calculation_total` POST `orders/{order_id}/calculation/total` → docs `orders/calculation`~~ **✅ G-3m 가드 검출로 정정 완료(path+scope read→write, 2026-06-03)**; `order/control` `orders/control` → docs 무; `subscription_shipments_get` GET `subscription/shipments/{subscription_id}` → docs 는 PUT 만 (GET single 부재)
-- [ ] **G-3c personal (FIX ×1 / DECIDE ×1)**: FIX `customers_wishlist_count` `customers/wishlist/count`→`customers/{member_id}/wishlist/count` (이미 per-customer 의도, `{member_id}` path 화) — ✅ 2026-06-03 정정. DECIDE `wishlists_list` `wishlists` → docs 는 per-member `customers/{member_id}/wishlist` 만 (collection "전체 위시리스트" endpoint 부재 → 의미 변경, remap 판단 필요).
-- [ ] **G-3d salesreport (DECIDE ×2 — resource 재편)**: `salesreport_daily` `salesreport/sales`→`financials/dailysales`; `salesreport_products` `salesreport/products`→`reports/productsales`. 경로뿐 아니라 응답 스키마도 바뀌었을 수 있어 연동 코드 재확인.
-- [ ] **G-3e mileage (DECIDE ×2)**: `points_autoexpiration_get`/`_delete` `points/autoexpiration/{id}` → docs 는 `{id}` 없는 collection-level GET/POST/DELETE (단건 vs 목록 semantics 확인).
-- [ ] **G-3f community (DECIDE ×3)**: `board_article_get` GET `boards/{board_no}/articles/{article_no}` (docs PUT/DELETE 만); `financials_monthlyreviews_count` `.../count` (docs 무); `urgentinquiry_get` `urgentinquiry/{inquiry_no}` (docs list 만).
+- [x] **G-3c personal (FIX ×1 / DECIDE ×1)**: FIX `customers_wishlist_count` `customers/wishlist/count`→`customers/{member_id}/wishlist/count` (이미 per-customer 의도, `{member_id}` path 화) — ✅ 2026-06-03 정정. DECIDE `wishlists_list` `wishlists` → docs 는 per-member `customers/{member_id}/wishlist` 만 (collection "전체 위시리스트" endpoint 부재 → 의미 변경, remap 판단 필요) **→ ✅ 해소: `customers_wishlist_list` 로 remap+rename (하단 A REMAP·네이밍 정비 note)**.
+- [x] **G-3d salesreport (DECIDE ×2 — resource 재편)**: `salesreport_daily` `salesreport/sales`→`financials/dailysales`; `salesreport_products` `salesreport/products`→`reports/productsales`. 경로뿐 아니라 응답 스키마도 바뀌었을 수 있어 연동 코드 재확인.
+- [x] **G-3e mileage (DECIDE ×2)**: `points_autoexpiration_get`/`_delete` `points/autoexpiration/{id}` → docs 는 `{id}` 없는 collection-level GET/POST/DELETE (단건 vs 목록 semantics 확인).
+- [x] **G-3f community (DECIDE ×3)**: `board_article_get` GET `boards/{board_no}/articles/{article_no}` (docs PUT/DELETE 만); `financials_monthlyreviews_count` `.../count` (docs 무); `urgentinquiry_get` `urgentinquiry/{inquiry_no}` (docs list 만).
 - [x] **G-3g notification (FIX ×1)** ✅ 2026-06-03 정정 (member_id body→path): `customers_invitation_send` POST `customers/invitation`→`customers/{member_id}/invitation`.
-- [ ] **G-3h design (DECIDE ×1)**: `theme_pages_get` GET `themes/{skin_no}/pages/{page_path}` → docs `themes/{skin_no}/pages` (`{page_path}` 없음).
-- [ ] **G-3i shipping (DECIDE ×1)**: `shipping_companies_list` GET `shippingcompanies` → docs 엔 없고 `carriers` 가 대응이나 **다른 resource·응답 스키마** → 단순 remap 불가, 노드 출력 매핑 재설계 판단 필요.
-- [ ] **G-3j product (DECIDE ×1)**: `mains_products_delete` DELETE `mains/{display_group}/products` → docs GET/POST/PUT 만 (DELETE 부재).
+- [x] **G-3h design (DECIDE ×1)**: `theme_pages_get` GET `themes/{skin_no}/pages/{page_path}` → docs `themes/{skin_no}/pages` (`{page_path}` 없음).
+- [x] **G-3i shipping (DECIDE ×1)**: `shipping_companies_list` GET `shippingcompanies` → docs 엔 없고 `carriers` 가 대응이나 **다른 resource·응답 스키마** → 단순 remap 불가, 노드 출력 매핑 재설계 판단 필요 **→ ✅ 해소: `carriers_list` 로 remap+rename (하단 A REMAP·네이밍 정비 note)**.
+- [x] **G-3j product (DECIDE ×1)**: `mains_products_delete` DELETE `mains/{display_group}/products` → docs GET/POST/PUT 만 (DELETE 부재).
 - [x] **G-3k store (SCOPE FIX ×1)** ✅ 2026-06-03 정정 (docs 기본스펙 재확인: PUT 이지만 `mall.read_store`): `carts_setting_update` PUT `carts/setting` scope `write`→`read`.
 - [ ] **G-3l KNOWN_G2 재검토 (7)**: HTML 이 최종 상태로 확정됐으므로, 위 G-2 의 "production 검증 전 보류" 전제가
   해소됨 — docs 에 없는 `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·
   `socials_apple_settings_get` 는 **최종 API 부재 확정**. 제거 여부를 G-2 결정과 합쳐 재판단 (planner 트랙).
+  - ⏸ **미결 유지 (2026-06-20 재검증)**: 해당 9 ops 는 여전히 metadata 잔존 + drift-guard `KNOWN_DOCS_ABSENT` allowlist 면제 상태(제거 아님). 제거 결정은 planner 트랙 미결 — G-3b~G-3j(아래 [x])와 달리 본 항목만 open.
 - [x] **G-3m catalog-sync 가드 보강** ✅ 2026-06-03 완료: `catalog-docs-drift.spec.ts` 신설 —
   metadata 의 모든 supported op `(method, path, scope)` 를 field-level 카탈로그(docs SoT) 와 대조.
   metadata↔index 동기(둘 다 Chrome 유래)로는 못 잡던 docs 드리프트를 단방향 검출. G-2 docs-부재
@@ -157,6 +158,11 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 >   단건 조회, 누락된 `path` query 추가) fix. W5(`shipping_companies_list` vs `carriers_get` 중복 아님 —
 >   목록/단건) · W6(community field-level 링크는 유효 entity) · W1~W3(breaking 우려는 정정 전 이미 404
 >   비동작) 은 문서화로 정리. 네이밍 정비(id rename = breaking)·field-set 은 후속 트랙. e2e 144 pass.
+
+> **G-3 체크박스 재검증 (2026-06-20)**: G-3b~G-3j 의 모든 FIX·DECIDE(REMAP/REMOVE) sub-claim 이
+> metadata(`nodes/integration/cafe24/metadata/*.ts`) + index + i18n 에 반영됨을 재확인 — `catalog-docs-drift.spec.ts`
+> 10/10·`catalog-sync.spec.ts` 24/24 green, `_overview.md §5` coverage = 494. 이에 8개 박스 stale `[ ]`→`[x]` 정정.
+> G-3l 은 planner 미결로 open 유지. 남은 트랙(G-1 field-set·G-3k carts 실증)은 별개로 in-progress.
 
 > **네이밍 정비 완료 (2026-06-03, 사용자 결정)**: sibling 컨벤션 일치 op id rename —
 > `shipping_companies_list`→`carriers_list` (형제 `carriers_get/create/update/delete`),
