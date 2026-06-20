@@ -67,6 +67,9 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
+      // 테스트 더블·방어적 캐스트(`as T`)가 흔해 정리성 단언 경고는 노이즈 — off
+      // (ai-review INFO#5; 프로덕션 코드에는 위 warn 유지).
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
     },
   },
 );
