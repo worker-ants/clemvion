@@ -3518,10 +3518,18 @@ describe('ExecutionEngineService', () => {
         planParallelBody(inner, [inner, innermost], forwardEdges, [], 1, 2),
       ).toThrow(/PARALLEL_NESTED_DEPTH_EXCEEDED/);
 
-      // depth=1 (outermost) 에서는 한 단계 중첩 허용 → throw 안 함.
-      expect(() =>
-        planParallelBody(inner, [inner, innermost], forwardEdges, [], 1, 1),
-      ).not.toThrow();
+      // depth=1 (outermost) 에서는 한 단계 중첩 허용 → throw 안 함. 반환의
+      // allBodyNodeIds 에 inner Parallel(p3) 이 포함됨을 단언해, 위 depth=2 throw 가
+      // edge 위상 우연이 아니라 'body 내 Parallel + depth>2' 조건 발화임을 확정 (ai-review W1).
+      const planDepth1 = planParallelBody(
+        inner,
+        [inner, innermost],
+        forwardEdges,
+        [],
+        1,
+        1,
+      ) as { allBodyNodeIds: Set<string> };
+      expect(planDepth1.allBodyNodeIds.has('p3')).toBe(true);
     });
 
     it('stops the workflow (ERROR_PORT_FALLBACK) when the error port has no connected edge', async () => {

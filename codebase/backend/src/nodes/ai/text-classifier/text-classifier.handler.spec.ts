@@ -194,13 +194,14 @@ describe('TextClassifierHandler', () => {
         abortSignal: controller.signal,
       };
       await handler.execute({}, baseConfig, ctxWithSignal);
-      const chatCallArgs = mockLlmService.chat.mock.calls[
-        mockLlmService.chat.mock.calls.length - 1
-      ] as unknown[];
-      // llmService.chat(llmConfig, requestPayload, LlmCallContext, opts) — opts 는 4번째(index 3).
-      const opts = chatCallArgs[3] as Record<string, unknown>;
-      expect(opts).toBeDefined();
-      expect(opts.signal).toBe(controller.signal);
+      // IE 패턴과 일관 (ai-review W3): 인덱스 접근 대신 toHaveBeenCalledWith 로 4번째
+      // 인자 signal 검증 — chat(llmConfig, requestPayload, LlmCallContext, { signal }).
+      expect(mockLlmService.chat).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ signal: controller.signal }),
+      );
     });
 
     it('should classify and route to correct port (first category)', async () => {
