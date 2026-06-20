@@ -17,6 +17,7 @@ import { ENGINE_DRIVER } from './engine-driver.interface';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { WORKFLOW_EXECUTOR } from '../../nodes/core/workflow-executor.interface';
+import { NodeComponentsModule } from '../../nodes/node-components.module';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
@@ -55,6 +56,10 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
 @Module({
   imports: [
     ConfigModule,
+    // M-5 레이어1 — 노드 컴포넌트 `NODE_COMPONENT` DI 토큰(단일 `useValue` 카탈로그)
+    // 등록 모듈. NodeBootstrapService 가 `@Inject(NODE_COMPONENT)` 로 주입받아 부팅
+    // 등록한다 (옛 `ALL_NODE_COMPONENTS` 정적 import 대체).
+    NodeComponentsModule,
     TypeOrmModule.forFeature([
       Execution,
       NodeExecution,

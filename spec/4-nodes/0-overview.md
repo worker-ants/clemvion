@@ -42,7 +42,9 @@ codebase/backend/src/nodes/
 │       ├── <type>.handler.ts     # NodeHandler.execute 실행 로직
 │       ├── <type>.handler.spec.ts
 │       └── index.ts
-└── index.ts                          # ALL_NODE_COMPONENTS 배열
+│   (카테고리 디렉토리마다) index.ts   # <CATEGORY>_COMPONENTS 배열 (노드 추가 단위 — 카테고리-로컬)
+├── node-components.module.ts         # NODE_COMPONENT DI 토큰에 빌트인 카탈로그 바인딩 (부팅 등록 진입)
+└── index.ts                          # 카테고리 배열 spread → ALL_NODE_COMPONENTS·ALL_NODE_TYPES (정적 소비용)
 ```
 
 - 위 `core/` 트리는 **주요 파일 발췌**다. 그 외에 `categories.ts`(카테고리 메타데이터 단일 소스 — §3) · `port-id.util.ts`(동적 포트 slug 검증·해석 — §1.3) · `button-slug.util.ts` · `node-type-metadata.ts` · `node-types.constants.ts` · `metadata-validation.ts` · `truncate-output.util.ts` · `condition-evaluator.util.ts` · `dry-run.util.ts` · `error-codes.ts` · `graph-warning-rule.ts` 가 `core/` 에 함께 위치한다.
@@ -52,7 +54,7 @@ codebase/backend/src/nodes/
 - 카테고리 내부에서만 공유되는 유틸/베이스 클래스는 `<category>/_shared/`·`<category>/_base/` 또는 `<category>/shared/`에 배치한다. (예: `integration/_base/integration-handler-base.ts`, `logic/_shared/condition-eval.util.ts`, `presentation/_shared/button.types.ts`, `ai/shared/system-context-prefix.ts`) — 디렉터리 prefix 컨벤션(`_` 유무)은 카테고리별로 혼재한다.
 - `execution-engine` 모듈은 오케스트레이션(그래프 탐색·표현식 해석·state machine·큐 등)만 담당하며, 개별 노드의 실행 로직은 포함하지 않는다.
 
-서버 부팅 시 `NodeBootstrapService.onModuleInit`이 `NodeComponentRegistry.bootstrap(ALL_NODE_COMPONENTS, …)`을 호출하고, `NodeComponentRegistry`는 그 배열을 순회하며 각 컴포넌트의 `createHandler(deps)`를 호출하여 `NodeHandlerRegistry`에 등록한다. 또한 `listDefinitions()`를 통해 메타데이터, 포트, JSON Schema를 프론트엔드에 제공한다.
+서버 부팅 시 `NodeBootstrapService.onModuleInit`이 DI 로 주입받은 빌트인 노드 카탈로그(`NodeComponentsModule`이 `NODE_COMPONENT` 토큰에 바인딩한 `ALL_NODE_COMPONENTS`)를 `(카테고리 order, type)` 으로 결정적 정렬한 뒤 `NodeComponentRegistry.bootstrap(...)`을 호출하고, `NodeComponentRegistry`는 각 컴포넌트의 `createHandler(deps)`를 호출하여 `NodeHandlerRegistry`에 등록한다. 또한 `listDefinitions()`를 통해 메타데이터, 포트, JSON Schema를 프론트엔드에 제공한다. (노드 카탈로그를 정적 `import` 가 아닌 `NODE_COMPONENT` DI 토큰으로 주입받는 것은 메서드 물리 위치와 동일한 **구현 재량** 영역으로, 노드 추가가 중앙 파일을 건드리지 않게 하고 향후 동적 등록 seam 을 연다. 런타임 플러그인/마켓플레이스 로딩 경로는 여전히 부재 — §4.)
 
 #### 메타데이터 API
 
@@ -241,7 +243,7 @@ codebase/backend/src/nodes/
 
 ## 4. 노드 플러그인 인터페이스 (미구현 / Planned)
 
-> **구현 상태**: 본 절(마켓플레이스 플러그인 패키지·`manifest.json`·동적 노드 로딩)은 **아직 구현되지 않은 계획**이다. 현재 노드는 전부 빌트인이며 `nodes/index.ts` 의 `ALL_NODE_COMPONENTS` 정적 배열로 부팅 시 부트스트랩된다 — 런타임 플러그인/마켓플레이스 로딩 경로는 존재하지 않는다. 단, 빌트인·향후 플러그인 노드가 공유하는 §4.3 실행 인터페이스(핸들러 계약)는 이미 빌트인에 적용된 현행 계약이다.
+> **구현 상태**: 본 절(마켓플레이스 플러그인 패키지·`manifest.json`·동적 노드 로딩)은 **아직 구현되지 않은 계획**이다. 현재 노드는 전부 빌트인이며 `NodeComponentsModule`이 `NODE_COMPONENT` DI 토큰에 바인딩한 카탈로그(`nodes/<category>/index.ts` 의 카테고리 배열 합성)를 부팅 시 등록한다 — **런타임 플러그인/마켓플레이스 로딩 경로는 존재하지 않는다**(빌트인 정적 등록만; 워크스페이스별 동적 노드 등록은 미구현). 단, 빌트인·향후 플러그인 노드가 공유하는 §4.3 실행 인터페이스(핸들러 계약)는 이미 빌트인에 적용된 현행 계약이다.
 
 마켓플레이스를 통한 커스텀 노드 개발을 위한 표준 인터페이스(계획).
 
