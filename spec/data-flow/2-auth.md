@@ -303,7 +303,7 @@ IP 단위 throttle 은 계정 잠금(5회 실패 → 10분, §3.2)과 별개의 
 
 | Sink | 흐름 | 비고 |
 | --- | --- | --- |
-| SMTP (MailService) | 이메일 인증·비밀번호 reset·초대 메일 | `codebase/backend/src/modules/mail/mail.service.ts` |
+| SMTP (MailService) | 이메일 인증·비밀번호 reset·초대 메일·이메일 변경 확인(신규 주소)·변경 통지(옛 주소) | `codebase/backend/src/modules/mail/mail.service.ts` |
 | OAuth provider | authorize / token / userinfo | Google·GitHub. 셀프 호스팅은 LDAP/SAML 추가 가능 (`spec/5-system/1-auth.md §1.3`) |
 
 ---

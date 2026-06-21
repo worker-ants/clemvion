@@ -1290,6 +1290,29 @@ describe('AuthService', () => {
         BadRequestException,
       );
     });
+
+    it('W2 — 메일 발송 실패 시 토큰 롤백하지 않음 (request 와 비대칭, spec §1.1.B)', async () => {
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        pendingEmail: 'new@example.com',
+      } as User);
+      usersService.update.mockResolvedValue(mockUser as User);
+      mailService.sendEmailChangeVerification.mockRejectedValueOnce(
+        new Error('SMTP down'),
+      );
+
+      await expect(service.resendEmailChange('user-uuid-1')).rejects.toThrow(
+        'SMTP down',
+      );
+
+      // request 와 달리 롤백 update 가 없다 — 토큰 재발급 1회만, pending 은 유지(NULL화 안 함).
+      expect(usersService.update).toHaveBeenCalledTimes(1);
+      const [, patch] = usersService.update.mock.calls[0] as [
+        string,
+        Partial<User>,
+      ];
+      expect(patch).not.toHaveProperty('pendingEmail', null);
+    });
   });
 
   describe('cancelEmailChange', () => {

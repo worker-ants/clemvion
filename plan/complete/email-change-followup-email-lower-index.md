@@ -20,7 +20,7 @@ spec_impact:
 - 인덱스 추가는 독립적 micro-optimization 이라 기능 정확성과 무관. 본 PR 의 코드 재변경(→ ai-review 재실행 루프)을 피하기 위해 분리.
 
 ## 할 일
-- 마이그레이션 `V101__add_user_email_lower_index.sql`:
+- [x] 마이그레이션 `V101__add_user_email_lower_index.sql`:
   `CREATE INDEX IF NOT EXISTS idx_user_email_lower ON "user" (LOWER(email));`
   (non-unique — 기존 case-sensitive UNIQUE 제약과 의미 충돌 없이 LOWER() 조회만 가속. UNIQUE 표현식 인덱스는 기존 case-variant 데이터 존재 시 충돌하므로 비채택.)
-- emailTakenByOther / register 의 case-insensitive 조회가 인덱스를 타는지 EXPLAIN 확인.
+- [ ] (선택·deferred) `emailTakenByOther` 의 case-insensitive 조회가 인덱스를 타는지 운영/대용량 환경에서 `EXPLAIN (ANALYZE, BUFFERS)` 확인 — 데이터가 충분한 환경 필요(ai-review INFO-2, 비차단).
