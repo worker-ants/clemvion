@@ -123,7 +123,7 @@
 
 - [~] 진행 중 (Option A, 단계별 PR) — `nodes/ai/ai-agent/ai-agent.handler.ts`. worktree `refactor-m1-condition-evaluator`.
   - [x] **1단계 — `AiConditionEvaluator` 추출 완료** (commit `24ca3340`, branch `claude/refactor-m1-condition-evaluator`). 조건 평가 로직(`classifyToolCalls`/`extractConditionReason`/`buildConditionSystemPromptSuffix`/`buildConditionTools`/`condToolName`/`sanitizeId` + `ConditionDef`/`ConditionClassification` 타입)을 핸들러 상태 무의존 무상태 collaborator 로 분리 (`ai-condition-evaluator.ts` 신설). `classifyToolCalls` 의 `toolProviders` 만 인자 주입으로 외부화. 핸들러 -128/+22줄. `processMultiTurnMessage` 시그니처·`out` 포트 라우팅·`buildConditionOutput` 핸들러 잔류(behavior-preserving). spec §5.1 정합 `required: []` 명시(JSON Schema 동치). 신규 단위 테스트 `ai-condition-evaluator.spec.ts`.
-    - 검증: lint·build PASS · backend unit 7207+ PASS(ai-agent 439) · e2e 205 PASS. ai-review `review/code/2026/06/21/18_50_15/`(Critical/Warning 0 수렴) · 선행 리뷰 `18_28_08`·`18_38_11`(RESOLUTION). impl-done `review/consistency/2026/06/21/18_38_47/` **BLOCK:NO**.
+    - 검증: lint·build PASS · backend unit 7207+ PASS(ai-agent 439) · e2e 205 PASS. ai-review `review/code/2026/06/21/18_50_15/`(Critical/Warning 0 수렴) · 선행 리뷰 `18_28_08`·`18_38_11`(RESOLUTION). impl-done(최종 코드 `24ca3340` 커버) `review/consistency/2026/06/21/18_57_55/` **BLOCK:NO** (선행 `18_38_47` 은 fix 이전 기준).
   - [ ] 2단계 — `AiMemoryManager` (§12.9~12.14 Rationale 동작 보존 체크리스트). 별도 PR.
   - [ ] 3단계 — `AiTurnExecutor` (~1,050줄, `processMultiTurnMessage` 시그니처 핸들러 잔류). 별도 PR.
   - **planner 후속(비차단 SPEC-DRIFT)**: §6.1 step 3a 구현 참조(`ai-agent.handler.ts classifyToolCalls` → evaluator) 갱신 + `1-ai-agent.md` frontmatter `code:` 에 `ai-condition-evaluator.ts` 등재.
