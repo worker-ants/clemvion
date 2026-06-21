@@ -924,7 +924,23 @@ export class IntegrationsService {
     );
   }
 
+  /**
+   * m-1: serviceType/authType 조합 유효성 검증 (registry `findVariant`). 옛 controller
+   * 인라인 검증을 service 로 이관해 레이어 정렬 — controller 의 도메인 registry(`findVariant`)
+   * 직접 의존을 제거한다. 미지원 조합 시 controller 와 동일한 `INTEGRATION_INVALID_SERVICE`
+   * 400 (code·message 불변) 을 throw.
+   */
+  validateServiceAuthType(serviceType: string, authType: string): void {
+    if (!findVariant(serviceType, authType)) {
+      throw new BadRequestException({
+        code: 'INTEGRATION_INVALID_SERVICE',
+        message: `Unsupported service/auth combination: ${serviceType}/${authType}`,
+      });
+    }
+  }
+
   previewTest(body: PreviewTestDto): Promise<IntegrationTestResult> {
+    this.validateServiceAuthType(body.serviceType, body.authType);
     return this.dispatchTest(body.serviceType, body.authType, body.credentials);
   }
 

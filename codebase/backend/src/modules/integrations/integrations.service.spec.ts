@@ -1723,6 +1723,34 @@ describe('IntegrationsService', () => {
       expect(result.success).toBe(true);
     });
 
+    // m-1: serviceType/authType 조합 검증을 controller → service 로 이관(레이어 정렬).
+    // 미지원 조합은 INTEGRATION_INVALID_SERVICE 400 (code·message 불변).
+    it('validateServiceAuthType throws INTEGRATION_INVALID_SERVICE (400) for unsupported combination', () => {
+      expect(() =>
+        service.validateServiceAuthType('nonexistent_service', 'api_key'),
+      ).toThrow(BadRequestException);
+      try {
+        service.validateServiceAuthType('nonexistent_service', 'api_key');
+        throw new Error('expected throw');
+      } catch (e) {
+        expect((e as BadRequestException).getResponse()).toMatchObject({
+          code: 'INTEGRATION_INVALID_SERVICE',
+          message:
+            'Unsupported service/auth combination: nonexistent_service/api_key',
+        });
+      }
+    });
+
+    it('previewTest validates the service/auth combination before dispatch', () => {
+      expect(() =>
+        service.previewTest({
+          serviceType: 'nonexistent_service',
+          authType: 'api_key',
+          credentials: {},
+        } as never),
+      ).toThrow(BadRequestException);
+    });
+
     it('returns failure for invalid credentials', async () => {
       const result = await service.previewTest({
         serviceType: 'http',
