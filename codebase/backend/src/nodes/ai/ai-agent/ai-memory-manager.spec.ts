@@ -326,5 +326,76 @@ describe('AiMemoryManager', () => {
         content: 'now',
       });
     });
+
+    it('memoryKey 미설정 시 resolveScopeKey 변환값(exec 스코프)을 recall scopeKey 로 전달한다', async () => {
+      const agentMem = agentMemFake();
+      const mgr = new AiMemoryManager(llmFake(), threadFake([], []), agentMem);
+      await mgr.injectMemoryContext(
+        baseInject({
+          strategy: 'persistent',
+          config: {}, // memoryKey 부재 → resolveScopeKey 가 exec:<id> 합성
+          target: { conversationThread: { turns: [] } } as InjectArgs['target'],
+        }),
+      );
+      const am = agentMem as unknown as {
+        resolveScopeKey: jest.Mock;
+        recall: jest.Mock;
+      };
+      // 입력 원시값이 아닌 **변환된 scopeKey** 가 recall 두 번째 인자로 흘러야 한다.
+      expect(am.resolveScopeKey).toHaveBeenCalledWith(undefined, 'exec-1');
+      expect(am.recall.mock.calls[0][1]).toBe('exec:exec-1');
+    });
+
+    it('contextInjectionMode=system_text 는 꼬리를 system 메시지에 접고 messages 길이를 유지한다', async () => {
+      const turns: FakeTurn[] = [
+        { seq: 1, source: 'ai_user', text: 'older', nodeLabel: 'n' },
+      ];
+      const mgr = new AiMemoryManager(
+        llmFake(),
+        threadFake(turns, turns),
+        agentMemFake(),
+      );
+      const messages = [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'now' },
+      ] as ChatMessage[];
+      const res = await mgr.injectMemoryContext(
+        baseInject({
+          strategy: 'summary_buffer',
+          tailMode: 'prepend',
+          config: { contextInjectionMode: 'system_text' },
+          messages,
+          target: {
+            conversationThread: { turns },
+          } as InjectArgs['target'],
+        }),
+      );
+      // system_text 는 별도 tail 메시지를 splice 하지 않고 systemPrompt 에 접는다 →
+      // messages 길이 불변, 마지막 user 메시지 보존 (messages 모드와 대비).
+      expect(res.messages).toHaveLength(2);
+      expect(res.messages[res.messages.length - 1]).toEqual({
+        role: 'user',
+        content: 'now',
+      });
+    });
+
+    it('summaryModelConfigId 설정 시 그 config 로 resolveConfig 를 호출한다 (요약 콜 provider 디커플 §12.12)', async () => {
+      const llm = {
+        resolveConfig: jest
+          .fn()
+          .mockResolvedValue({ defaultModel: 'sum-model' }),
+      } as unknown as Ctor[0];
+      const mgr = new AiMemoryManager(llm, threadFake([], []), agentMemFake());
+      await mgr.injectMemoryContext(
+        baseInject({
+          strategy: 'summary_buffer',
+          summaryModelConfigId: 'sum-cfg',
+          target: { conversationThread: { turns: [] } } as InjectArgs['target'],
+        }),
+      );
+      expect(
+        (llm as unknown as { resolveConfig: jest.Mock }).resolveConfig,
+      ).toHaveBeenCalledWith('sum-cfg', 'ws-1');
+    });
   });
 });
