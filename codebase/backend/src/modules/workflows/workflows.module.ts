@@ -9,6 +9,7 @@ import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { WorkflowVersionsModule } from '../workflow-versions/workflow-versions.module';
 import { ModelConfigModule } from '../model-config/model-config.module';
+import { WorkflowChannelAuthorizer } from './workflow-channel-authorizer';
 
 @Module({
   imports: [
@@ -21,7 +22,12 @@ import { ModelConfigModule } from '../model-config/model-config.module';
     ModelConfigModule,
   ],
   controllers: [WorkflowsController],
-  providers: [WorkflowsService],
-  exports: [WorkflowsService],
+  providers: [
+    WorkflowsService,
+    // refactor 02 M-7 — `workflow:` 채널 authorizer 를 본 모듈이 소유. 클래스를 export →
+    // WS 모듈의 CHANNEL_AUTHORIZER 집계 factory 가 주입(gateway→WorkflowsService 역참조 제거).
+    WorkflowChannelAuthorizer,
+  ],
+  exports: [WorkflowsService, WorkflowChannelAuthorizer],
 })
 export class WorkflowsModule {}

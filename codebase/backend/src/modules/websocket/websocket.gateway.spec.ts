@@ -14,6 +14,12 @@ import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { WorkflowsService } from '../workflows/workflows.service';
+import { CHANNEL_AUTHORIZER, ChannelAuthorizer } from './channel-authorizer';
+import { NotificationsChannelAuthorizer } from './notifications-channel-authorizer';
+import { ExecutionChannelAuthorizer } from '../executions/execution-channel-authorizer';
+import { BackgroundRunChannelAuthorizer } from '../executions/background-runs/background-run-channel-authorizer';
+import { KbChannelAuthorizer } from '../knowledge-base/kb-channel-authorizer';
+import { WorkflowChannelAuthorizer } from '../workflows/workflow-channel-authorizer';
 
 function createMockSocket(overrides: Record<string, unknown> = {}): {
   socket: Socket;
@@ -120,6 +126,28 @@ describe('WebsocketGateway', () => {
             findById: jest.fn().mockResolvedValue({ id: 'wf' }),
           },
         },
+        // refactor 02 M-7 — gateway 가 인라인 배열 대신 CHANNEL_AUTHORIZER 를 주입받는다.
+        // 실 authorizer 클래스들을 위 서비스 mock 위에 wiring + useFactory 로 집계(prod
+        // websocket.module 과 동일 구조)하면 기존 subscribe 인가 동작 테스트
+        // (verifyOwnership/findById 호출 검증)가 그대로 유효하며 DI 역전도 함께 검증된다.
+        ExecutionChannelAuthorizer,
+        BackgroundRunChannelAuthorizer,
+        WorkflowChannelAuthorizer,
+        KbChannelAuthorizer,
+        NotificationsChannelAuthorizer,
+        {
+          provide: CHANNEL_AUTHORIZER,
+          useFactory: (
+            ...authorizers: ChannelAuthorizer[]
+          ): ChannelAuthorizer[] => authorizers,
+          inject: [
+            ExecutionChannelAuthorizer,
+            BackgroundRunChannelAuthorizer,
+            WorkflowChannelAuthorizer,
+            KbChannelAuthorizer,
+            NotificationsChannelAuthorizer,
+          ],
+        },
       ],
     }).compile();
 
@@ -137,6 +165,40 @@ describe('WebsocketGateway', () => {
 
   it('should be defined', () => {
     expect(gateway).toBeDefined();
+  });
+
+  describe('CHANNEL_AUTHORIZER 주입 (refactor 02 M-7)', () => {
+    function injectedAuthorizers(): unknown[] {
+      return (gateway as unknown as { channelAuthorizers: unknown[] })
+        .channelAuthorizers;
+    }
+
+    it('injects all registered channel authorizers as an array', () => {
+      // useFactory 집계가 5개 authorizer(execution/background:run/workflow/kb/
+      // notifications)를 배열로 주입했는지 — module/spec wiring 동기화 가드.
+      const authorizers = injectedAuthorizers();
+      expect(Array.isArray(authorizers)).toBe(true);
+      expect(authorizers).toHaveLength(5);
+    });
+
+    it('rejects a valid-prefix channel with no matching authorizer (fail-closed, W-5)', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      getSubscriptions().set('client-1', new Set());
+      // VALID_CHANNEL_PREFIXES 와 authorizer 배열이 어긋난 상황을 강제(배열 비움).
+      (
+        gateway as unknown as { channelAuthorizers: unknown[] }
+      ).channelAuthorizers = [];
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'execution:11111111-1111-4111-8111-111111111111' },
+        socket,
+      );
+
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for this channel');
+      expect(join).not.toHaveBeenCalled();
+    });
   });
 
   describe('handlePing', () => {
@@ -179,16 +241,15 @@ describe('WebsocketGateway', () => {
       (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
       getSubscriptions().set('client-1', new Set());
 
-      const result = await gateway.handleSubscribe(
-        { channel: 'kb:doc-abc' },
-        socket,
-      );
+      // kb document id 는 UUID(Document.id = @PrimaryGeneratedColumn('uuid')).
+      const channel = 'kb:cccccccc-1111-4111-8111-cccccccccccc';
+      const result = await gateway.handleSubscribe({ channel }, socket);
       expect(result.data.success).toBe(true);
-      expect(result.data.channel).toBe('kb:doc-abc');
-      expect(join).toHaveBeenCalledWith('kb:doc-abc');
+      expect(result.data.channel).toBe(channel);
+      expect(join).toHaveBeenCalledWith(channel);
       const kbService = module.get(KnowledgeBaseService);
       expect(kbService.verifyDocumentOwnership).toHaveBeenCalledWith(
-        'doc-abc',
+        'cccccccc-1111-4111-8111-cccccccccccc',
         'ws-1',
       );
     });
@@ -203,7 +264,7 @@ describe('WebsocketGateway', () => {
       );
 
       const result = await gateway.handleSubscribe(
-        { channel: 'kb:doc-victim' },
+        { channel: 'kb:dddddddd-2222-4222-8222-dddddddddddd' },
         socket,
       );
       expect(result.data.success).toBe(false);
@@ -221,7 +282,7 @@ describe('WebsocketGateway', () => {
       );
 
       const result = await gateway.handleSubscribe(
-        { channel: 'kb:doc-abc' },
+        { channel: 'kb:cccccccc-1111-4111-8111-cccccccccccc' },
         socket,
       );
       expect(result.data.success).toBe(false);
@@ -520,7 +581,7 @@ describe('WebsocketGateway', () => {
 
     it('enforces MAX_SUBSCRIPTIONS across concurrent subscribe with deferred authorize (TOCTOU race)', async () => {
       // 시나리오: clientSubs.size === 19, MAX === 20.
-      // 동시에 두 개의 인가 대상 채널(kb:doc-A, kb:doc-B) 을 subscribe 한다.
+      // 동시에 두 개의 인가 대상 채널(kb:<uuidA>, kb:<uuidB>) 을 subscribe 한다.
       // authorize 가 둘 다 yield 한 뒤 차례로 resolve 될 때, recheck + add 의
       // 원자성이 깨지면 size 가 21 까지 증가할 수 있다.
       const { socket, join } = createMockSocket({ id: 'client-1' });
@@ -542,8 +603,14 @@ describe('WebsocketGateway', () => {
           () => new Promise<boolean>((r) => (resolveB = r)),
         );
 
-      const pA = gateway.handleSubscribe({ channel: 'kb:doc-A' }, socket);
-      const pB = gateway.handleSubscribe({ channel: 'kb:doc-B' }, socket);
+      const pA = gateway.handleSubscribe(
+        { channel: 'kb:aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa' },
+        socket,
+      );
+      const pB = gateway.handleSubscribe(
+        { channel: 'kb:bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb' },
+        socket,
+      );
       // 둘 다 authorize 단계에 진입한 뒤 동시 resolve.
       resolveA(true);
       resolveB(true);

@@ -21,6 +21,7 @@ import { KbStatsHelper } from './graph/kb-stats.helper';
 import { S3Service } from '../../common/services/s3.service';
 import { LlmModule } from '../llm/llm.module';
 import { WebsocketModule } from '../websocket/websocket.module';
+import { KbChannelAuthorizer } from './kb-channel-authorizer';
 import { DOCUMENT_EMBEDDING_QUEUE } from './queues/document-embedding.queue';
 import { DocumentEmbeddingProcessor } from './queues/document-embedding.processor';
 import { GRAPH_EXTRACTION_QUEUE } from './queues/graph-extraction.queue';
@@ -66,7 +67,15 @@ import { StuckDocumentRecoveryService } from './queues/stuck-document-recovery.s
     DocumentEmbeddingProcessor,
     GraphExtractionProcessor,
     StuckDocumentRecoveryService,
+    // refactor 02 M-7 — `kb:` 채널 authorizer 를 본 모듈이 소유. 클래스를 export →
+    // WS 모듈의 CHANNEL_AUTHORIZER 집계 factory 가 주입(gateway→KnowledgeBaseService 역참조 제거).
+    KbChannelAuthorizer,
   ],
-  exports: [KnowledgeBaseService, RagSearchService, EmbeddingService],
+  exports: [
+    KnowledgeBaseService,
+    RagSearchService,
+    EmbeddingService,
+    KbChannelAuthorizer,
+  ],
 })
 export class KnowledgeBaseModule {}

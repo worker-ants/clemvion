@@ -11,6 +11,8 @@ import { BackgroundRunsService } from './background-runs/background-runs.service
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { ExecutionChannelAuthorizer } from './execution-channel-authorizer';
+import { BackgroundRunChannelAuthorizer } from './background-runs/background-run-channel-authorizer';
 
 @Module({
   imports: [
@@ -35,10 +37,22 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     AuditLogsModule,
   ],
   controllers: [ExecutionsController, BackgroundRunsController],
-  providers: [ExecutionsService, BackgroundRunsService],
-  // BackgroundRunsService 는 WebsocketGateway 가 채널 subscribe 가드
-  // (`verifyBackgroundRunOwnership`) 호출 때문에 export 한다. 다른 사용처
-  // 가 없으면 본 export 를 줄이고 NestJS Guard 로 분리할 수 있다 (follow-up).
-  exports: [ExecutionsService, BackgroundRunsService],
+  providers: [
+    ExecutionsService,
+    BackgroundRunsService,
+    // refactor 02 M-7 — `execution:`·`background:run:` 채널 authorizer 를 본 모듈이 소유.
+    // gateway 가 forwardRef 로 서비스를 역참조하던 구조를 제거하고, authorizer 클래스를
+    // export → WS 모듈의 CHANNEL_AUTHORIZER 집계 factory 가 주입한다(역전).
+    ExecutionChannelAuthorizer,
+    BackgroundRunChannelAuthorizer,
+  ],
+  // refactor 02 M-7 — authorizer 클래스를 export(WS 모듈 factory 가 inject). 채널 가드가
+  // 도메인 모듈 소유로 이동하며 gateway→ExecutionsService 직접 의존(채널 인가 목적)은 제거.
+  exports: [
+    ExecutionsService,
+    BackgroundRunsService,
+    ExecutionChannelAuthorizer,
+    BackgroundRunChannelAuthorizer,
+  ],
 })
 export class ExecutionsModule {}

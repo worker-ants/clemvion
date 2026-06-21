@@ -20,12 +20,10 @@ import {
 } from '../execution-engine/workflow-errors';
 import { ErrorCode } from '../../nodes/core/error-codes';
 import { ExecutionsService } from '../executions/executions.service';
-import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
-import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
-import { WorkflowsService } from '../workflows/workflows.service';
 import { ExecutionEventType } from './websocket.service';
 import { corsOriginCallback } from '../../common/utils/cors-origins';
 import { WsErrorCode } from './ws-error-codes';
+import { CHANNEL_AUTHORIZER, ChannelAuthorizer } from './channel-authorizer';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
@@ -39,20 +37,8 @@ const VALID_CHANNEL_PREFIXES = [
   'background:run:',
 ];
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 function isValidChannel(channel: string): boolean {
   return VALID_CHANNEL_PREFIXES.some((prefix) => channel.startsWith(prefix));
-}
-
-/**
- * UUID 채널 ID 검증 — `background:run:<id>` 와 같이 UUID v4 가 식별자인
- * 채널에서 임의 문자열이 DB 쿼리로 전달되는 것을 방어 (W-6). 빈 문자열 /
- * 비-UUID 형식이면 false → handleSubscribe 가 'Not authorized' 로 응답.
- */
-function isValidUuid(value: string): boolean {
-  return UUID_PATTERN.test(value);
 }
 
 // @Public() bypasses the global JwtAuthGuard for WebSocket message handlers.
@@ -76,130 +62,27 @@ export class WebsocketGateway
   private subscriptions = new Map<string, Set<string>>();
 
   /**
-   * 채널 prefix 별 인가 전략. handleSubscribe 가 첫 매칭 strategy 의
-   * `authorize` 만 호출한다. 새 채널 타입을 추가할 때 본 배열만 확장하면
-   * subscribe 로직 자체는 건드리지 않는다 (W-13: OCP 개선).
-   *
-   * `null` 반환 = 인가 통과. 그 외는 `{ error }` 로 거부 메시지 명시.
-   * `authorize` 반환은 항상 Promise — 동기 판별(예: notifications 의 userId 비교)도
-   * `Promise.resolve(...)` 로 감싸 시그니처를 통일한다(호출부의 `await` 단일화).
-   * `ctx.workspaceId`(workspace-scoped 채널 소유 검증)·`ctx.userId`(user-scoped 채널,
-   * JWT sub) 중 채널 성격에 맞는 값을 사용한다.
+   * refactor 02 M-7 — 채널 prefix 별 인가 전략은 각 도메인 모듈이 `CHANNEL_AUTHORIZER` 로
+   * 등록한 `ChannelAuthorizer[]` 를 주입받는다. `handleSubscribe` 가 첫 매칭 authorizer 의
+   * `authorize` 만 호출(OCP — 신규 채널 = 해당 모듈 provider 1개, gateway 무수정). prefix 는
+   * 상호 배타라 주입 순서 무관. `execution:`/`workflow:`/`kb:`/`background:run:` 는 도메인 모듈,
+   * `notifications:` 는 WS-local provider.
    */
-  private channelAuthorizers: Array<{
-    matches: (channel: string) => boolean;
-    authorize: (
-      channel: string,
-      ctx: { workspaceId: string; userId: string },
-    ) => Promise<{ error: string } | null>;
-  }>;
-
   constructor(
     private readonly jwtService: JwtService,
+    // refactor 02 M-7 — engine/retry/executions 는 **inbound command**(continueX·retryLastTurn·
+    // snapshot 의 verifyOwnership) 전용으로 유지. authorizer 가 아니라 M-7 역전 대상 아님.
     @Inject(forwardRef(() => ExecutionEngineService))
     private readonly executionEngineService: ExecutionEngineService,
-    // C-1 후속 ④ — retry-last-turn 진입은 엔진 thin delegator 가 아니라
-    // RetryTurnService 를 직접 호출한다(engine→Retry 순환 DI 제거). publish/마감 등
-    // 나머지 표면은 계속 ExecutionEngineService 경유.
     @Inject(forwardRef(() => RetryTurnService))
     private readonly retryTurnService: RetryTurnService,
     @Inject(forwardRef(() => ExecutionsService))
     private readonly executionsService: ExecutionsService,
-    @Inject(forwardRef(() => BackgroundRunsService))
-    private readonly backgroundRunsService: BackgroundRunsService,
-    @Inject(forwardRef(() => KnowledgeBaseService))
-    private readonly knowledgeBaseService: KnowledgeBaseService,
-    @Inject(forwardRef(() => WorkflowsService))
-    private readonly workflowsService: WorkflowsService,
-  ) {
-    this.channelAuthorizers = [
-      {
-        // CRIT (IDOR) — `execution:` 구독은 join 전 workspace 소유 검증을 받는다.
-        // 과거에는 1회성 snapshot 만 verifyOwnership 으로 보호되고 room join 은
-        // 무검증이라, 타 workspace executionId 를 추측한 사용자가 증분 broadcast
-        // 이벤트(node.started/completed, ai_message 등)를 수신할 수 있었다.
-        // authorizer 로 승격해 join(아래 handleSubscribe) 이전에 동기 차단한다.
-        matches: (channel) => channel.startsWith('execution:'),
-        authorize: async (channel, { workspaceId }) => {
-          const executionId = channel.slice('execution:'.length);
-          // UUID 형식 검증 — 비-UUID 입력은 DB 조회 전 차단 (background:run 과 동일 정책).
-          if (!isValidUuid(executionId)) {
-            return { error: 'Not authorized for this execution' };
-          }
-          // verifyOwnership 은 미소유/부재 시 throw (NotFound 통일 — ID enumeration 차단).
-          const allowed = await this.executionsService
-            .verifyOwnership(executionId, workspaceId)
-            .then(() => true)
-            .catch(() => false);
-          return allowed
-            ? null
-            : { error: 'Not authorized for this execution' };
-        },
-      },
-      {
-        // 04 M-6 (IDOR) — `workflow:` 구독은 workflowId→workspace 소유 검증.
-        // 에디터 실행 알림 emit(`workflow:<workflowId>`) 이 실존하므로, 타 workspace
-        // workflowId 를 추측한 사용자가 이벤트를 수신하는 IDOR 를 join 전 차단한다
-        // (`execution:` authorizer 와 동형). `findById` 는 미소유/부재 시 NotFound
-        // throw (ID enumeration 차단) — boolean 으로 평탄화.
-        matches: (channel) => channel.startsWith('workflow:'),
-        authorize: async (channel, { workspaceId }) => {
-          const workflowId = channel.slice('workflow:'.length);
-          if (!isValidUuid(workflowId)) {
-            return { error: 'Not authorized for this workflow' };
-          }
-          const allowed = await this.workflowsService
-            .findById(workflowId, workspaceId)
-            .then(() => true)
-            .catch(() => false);
-          return allowed ? null : { error: 'Not authorized for this workflow' };
-        },
-      },
-      {
-        // 04 M-6 (IDOR, 선제) — `notifications:<userId>` 는 user 단위 채널이므로
-        // JWT sub(userId) 와 채널의 userId 가 일치할 때만 구독 허용. emit 은 아직
-        // 미구현(spec §4.4 Planned)이라 현재 실피해 0 이나, emit 도입 시 사용자간
-        // 알림 누출이 즉시 현실화되므로 fail-closed 로 먼저 막는다.
-        matches: (channel) => channel.startsWith('notifications:'),
-        authorize: (channel, { userId }) => {
-          const targetUserId = channel.slice('notifications:'.length);
-          // userId 는 workspace 와 달리 JWT sub 에서 옴 — 빈 값/불일치 모두 거부.
-          const allowed = !!userId && targetUserId === userId;
-          return Promise.resolve(
-            allowed
-              ? null
-              : { error: 'Not authorized for these notifications' },
-          );
-        },
-      },
-      {
-        matches: (channel) => channel.startsWith('kb:'),
-        authorize: async (channel, { workspaceId }) => {
-          const documentId = channel.slice('kb:'.length);
-          const allowed = await this.knowledgeBaseService
-            .verifyDocumentOwnership(documentId, workspaceId)
-            .catch(() => false);
-          return allowed ? null : { error: 'Not authorized for this document' };
-        },
-      },
-      {
-        matches: (channel) => channel.startsWith('background:run:'),
-        authorize: async (channel, { workspaceId }) => {
-          const backgroundRunId = channel.slice('background:run:'.length);
-          // W-6: UUID 형식 검증 — 비-UUID 입력 차단 (DB 쿼리 진입 전).
-          if (!isValidUuid(backgroundRunId)) {
-            return { error: 'Not authorized for this background run' };
-          }
-          const allowed = await this.backgroundRunsService
-            .verifyBackgroundRunOwnership(backgroundRunId, workspaceId)
-            .catch(() => false);
-          return allowed
-            ? null
-            : { error: 'Not authorized for this background run' };
-        },
-      },
-    ];
-  }
+    // refactor 02 M-7 — 채널 authorizer 배열 주입(옛 workflows/kb/background-runs 서비스
+    // forwardRef + 인라인 배열 제거). 각 도메인 모듈이 CHANNEL_AUTHORIZER multi-provider 로 등록.
+    @Inject(CHANNEL_AUTHORIZER)
+    private readonly channelAuthorizers: ChannelAuthorizer[],
+  ) {}
 
   handleConnection(client: Socket): void {
     try {
@@ -289,28 +172,36 @@ export class WebsocketGateway
     const workspaceId = enriched.workspaceId ?? '';
     const userId = enriched.userId ?? '';
     const authorizer = this.channelAuthorizers.find((a) => a.matches(channel));
-    if (authorizer) {
-      // workspace 가 가입되지 않은 소켓이 인가 대상 채널을 구독하려 시도하면
-      // 즉시 거부 — handleConnection 이 인증 실패 시 disconnect 하므로 정상
-      // 경로에서 도달 불가하지만 의도를 코드로 명시 (side-effect W#2 보강).
-      // (notifications: 는 user 단위지만, 인증된 소켓은 JWT 에 workspaceId 를
-      // 함께 담으므로 본 가드는 정상 경로를 막지 않는다. userId 검증은 authorizer.)
-      if (!workspaceId) {
-        return {
-          event: 'subscribed',
-          data: { success: false, error: 'Not authenticated' },
-        };
-      }
-      const rejection = await authorizer.authorize(channel, {
-        workspaceId,
-        userId,
-      });
-      if (rejection) {
-        return {
-          event: 'subscribed',
-          data: { success: false, error: rejection.error },
-        };
-      }
+    // refactor 02 M-7 W-5 (fail-closed): `isValidChannel` 을 통과한 채널은 매칭 authorizer 가
+    // 반드시 있어야 한다. 현재 VALID_CHANNEL_PREFIXES 의 모든 prefix 에 authorizer 가
+    // 존재하므로 정상 경로에서는 도달 불가하나, 새 prefix 만 추가하고 authorizer 등록을
+    // 누락하면 인가 없이 join 되는 구멍이 생긴다 — 기본 거부로 봉인.
+    if (!authorizer) {
+      return {
+        event: 'subscribed',
+        data: { success: false, error: 'Not authorized for this channel' },
+      };
+    }
+    // workspace 가 가입되지 않은 소켓이 인가 대상 채널을 구독하려 시도하면
+    // 즉시 거부 — handleConnection 이 인증 실패 시 disconnect 하므로 정상
+    // 경로에서 도달 불가하지만 의도를 코드로 명시 (side-effect W#2 보강).
+    // (notifications: 는 user 단위지만, 인증된 소켓은 JWT 에 workspaceId 를
+    // 함께 담으므로 본 가드는 정상 경로를 막지 않는다. userId 검증은 authorizer.)
+    if (!workspaceId) {
+      return {
+        event: 'subscribed',
+        data: { success: false, error: 'Not authenticated' },
+      };
+    }
+    const rejection = await authorizer.authorize(channel, {
+      workspaceId,
+      userId,
+    });
+    if (rejection) {
+      return {
+        event: 'subscribed',
+        data: { success: false, error: rejection.error },
+      };
     }
 
     // 원자 블록: authorize() await 이후의 한도 검사와 Set add 를 한 동기 구간
