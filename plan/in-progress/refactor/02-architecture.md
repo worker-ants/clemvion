@@ -369,7 +369,7 @@
 
 ### M-9 [Major] `extractRetryAfterMs` 유틸이 `llm.service.ts` 에 위치
 
-- [ ] 미착수 — `llm.service.ts:407`
+- [x] 완료 (Option A) — `shared/utils/retry-after.ts` 이동(+ 테스트 describe 이동), re-export 없음. import 4곳 교체(llm.service 내부·ai-turn-orchestrator·information-extractor·text-classifier). TEST WORKFLOW(lint·unit·build·e2e 205) PASS · `/ai-review` Critical 0(Warning 1 = 범위 밖 기존 god-method, RESOLUTION 문서화) · `/consistency-check --impl-done` **BLOCK:NO**. 후속 후보: `isLlmRateLimit` 동종 이동(INFO). worktree `m9-retry-after-util`.
 
 **spec 대조**: B — `node-output.md §3.2.1` 은 `retryAfterSec` 의미·invariant 만 규정, 물리 위치 무언급. **선례 존재**: 같은 사유로 `sanitizeLastErrorMessage` 가 이미 `shared/utils/` 이동 완료.
 
