@@ -281,10 +281,10 @@
 
 **하위 체크리스트**:
 
-- [ ] `common/config/` 에 `oauth`/`mcp`/`interaction` namespace 신설 + `llm` 확장(stubMode) + barrel·app.module load 등록
-- [ ] 4 서비스 call-site 이전 (동작 보존)
-- [ ] `.env.example ↔ namespace 키` 대조 테스트 + 단위 테스트
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
+- [x] `common/config/` 에 `oauth`/`mcp`/`interaction` namespace 신설 + `llm` 확장(stubMode) + barrel·app.module load 등록 (PR commit `b8119f7e`)
+- [x] 4 서비스 call-site 이전 (동작 보존) — oauth(integration-oauth) / interaction(interaction-token) / mcp(mcp-client + McpToolProvider insecure-URL 단일 source) / llm(LLM_STUB_MODE). 동적 키·fallback 체인·파싱 규칙 보존
+- [x] `.env.example ↔ namespace 키` 대조 테스트(`config-env-coverage.spec.ts`) + 런타임 env-flip 단위 테스트 ConfigService mock 재작성
+- [x] TEST WORKFLOW (lint·unit·build·e2e 전부 PASS — 2026-06-21)
 - [ ] planner spec-sync (`7-llm-client.md §7.1` LLM_STUB_MODE → ConfigService) + `/consistency-check --spec` BLOCK:NO
 - [ ] `/ai-review` + Critical/Warning 0 (resolution)
 - [ ] `/consistency-check --impl-done` (spec 연결 코드 변경 — llm/oauth/EIA)
