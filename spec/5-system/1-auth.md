@@ -93,6 +93,8 @@ pending_plans:
 
 확인 완료 후 옛 이메일 통지는 best-effort(실패 swallow)이며 "본인이 아니면 비밀번호 재설정으로 보안 조치" 안내를 포함한다. pending 이 있을 때 재요청은 기존 토큰을 덮어쓴다(항상 0~1개 유효). `email-change/cancel` 은 pending 이 없어도 멱등(no-op)이다.
 
+**메일 발송 실패 처리 (request vs resend 비대칭)**: 최초 `request` 의 확인 메일 발송이 실패하면 pending 3필드를 롤백(NULL화)하고 오류를 전파한다 — 사용자가 pending 잔존 없이 깨끗이 재시작하도록. 반면 `resend` 의 발송 실패 시에는 **갱신된 토큰을 유지**하고(롤백하지 않음) 사용자가 `resend` 재호출로 복구한다 — 이미 진행 중인 변경의 pending 을 발송 실패로 제거하면 UX 가 더 나빠지기 때문이다(Rationale 1.1.B-2 의 토큰 바인딩 전제는 불변).
+
 ### 1.2 OAuth 소셜 로그인
 
 | 프로바이더 | 설명 |
