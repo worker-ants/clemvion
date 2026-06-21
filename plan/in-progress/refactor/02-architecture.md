@@ -314,18 +314,20 @@
 - **회귀 위험**: ConfigModule 로드 전 초기화 시점 읽기(워커 분리 프로세스).
 - **spec 갱신**: `7-llm-client.md` 의 `process.env.LLM_STUB_MODE` 원문은 이전 시 동기화 (planner).
 
-### M-7 [Major] WebsocketGateway — 4개 서비스 forwardRef 직접 의존
+### M-7 [Major] WebsocketGateway — authorizer 도메인 서비스 forwardRef 역참조 (재정의 2026-06-21)
 
-- [ ] 미착수 — `websocket.gateway.ts:89-98`
+- [x] 완료 (Option A, 2026-06-21) — `websocket.gateway.ts`. **planner 재정의 완료(2026-06-21)**: 원안 "forwardRef 4개 제거" → 코드 실측 반영해 **gateway 서비스-레벨 forwardRef 3개 제거(workflows/kb/background-runs) + authorizer 4개 도메인 모듈 이동(OCP)**; `executionsService`(inbound 8회)·engine·retry forwardRef 와 모듈-레벨 forwardRef(§4.4 순환)는 유지. 상세 아래 **코드 실측·개선 방안(재정의)** + **구현 결과**. worktree `m7-channel-authorizer-inversion`.
 
 **spec 대조**: D — 구독 시 소유권 검증은 `6-websocket-protocol.md §3` 의 spec 의무, 주입 메커니즘은 무언급. §4.4 단일 sink 정책과 비저촉(역방향 의존 제거일 뿐). gateway 에 이미 `channelAuthorizers` 내부 배열 존재 — 인터페이스화의 절반은 완료 상태.
 
-**개선 방안**:
+**코드 실측 (2026-06-21, 재정의 — 원안 전제 일부 정정)**: gateway 의 6개 forwardRef 서비스 중 authorizer 에만 쓰이는 건 **3개**(`workflowsService`·`knowledgeBaseService`·`backgroundRunsService`, 각 1회)다. **`executionsService` 는 inbound command 핸들러에서 7회 더 사용**(handleSubscribe snapshot·continueExecution/continueButtonClick/continueAiConversation/endAiConversation·retryLastTurn 의 `verifyOwnership`/`findById`) + authorizer 1회 = **총 8회 → 제거 불가**. `executionEngineService`·`retryTurnService` 도 inbound command(continueX·publishRetryLastTurn 등) 전용이라 유지. 따라서 원안의 "forwardRef 4개 제거"는 **3개 제거(workflows/kb/background-runs)** 로 정정. 또 multi-provider 수집은 WS module 이 도메인 모듈을 import 해야 성립하고 도메인 모듈은 §4.4 emit 때문에 WS 를 import 하므로 **모듈-레벨 forwardRef(순환)는 잔존** — M-7 이 없애는 것은 **gateway 생성자의 서비스-레벨 forwardRef** 와 OCP(신규 채널 = provider 1개) 확보다.
 
-1. `CHANNEL_AUTHORIZER` multi-provider token + `ChannelAuthorizer { matches; authorize }` 인터페이스를 WS 모듈에 정의.
-2. executions/background-runs/KB/engine 각 모듈이 자기 authorizer 를 provider 등록 (도메인 모듈 → WS 단방향).
-3. gateway 는 token 배열만 주입 — forwardRef 4개 + 모듈 import 제거.
-4. C-2 의 forwardRef 감소 효과를 같은 PR 에서 측정·기록.
+**개선 방안 (재정의)**:
+
+1. `CHANNEL_AUTHORIZER` multi-provider token + `ChannelAuthorizer { matches; authorize }` 인터페이스를 WS 모듈(순환 무관한 token 파일)에 정의.
+2. authorizer **4개**(`execution:`·`workflow:`·`kb:`·`background:run:`)를 각 도메인 모듈(executions/workflows/kb/background-runs)의 `{ provide: CHANNEL_AUTHORIZER, useClass, multi: true }` provider 로 이동 — 각 authorizer 는 자기 모듈 서비스를 직접 주입(같은 모듈, forwardRef 불요). `notifications:`(무서비스, userId 비교)는 WS-local provider.
+3. gateway 생성자: `@Inject(CHANNEL_AUTHORIZER) channelAuthorizers: ChannelAuthorizer[]` 주입 + 인라인 배열 제거. **서비스-레벨 forwardRef 3개 제거**(workflows·kb·background-runs). `executionsService`(inbound 8회)·`executionEngineService`·`retryTurnService`(inbound)는 유지.
+4. WS module: authorizer 수집을 위해 executions/kb/workflows(기존 forwardRef import) + background-runs(forwardRef 추가) import 유지. **모듈-레벨 forwardRef(순환)는 §4.4 단일 sink(도메인→WS emit) 때문에 잔존** — 제거 대상 아님. C-2 클러스터의 gateway 변(역방향 서비스 의존) 감소 효과를 같은 PR 에서 기록.
 
 **옵션 비교**:
 
@@ -336,9 +338,22 @@
 
 **권장**: A — 주입 메커니즘은 spec 무언급(D 판정)이고 단일 sink 정책과도 무관하므로 spec 갱신 없이 진행 가능하다. 내부 배열이 이미 존재해 변경 폭이 작고, C-2 클러스터(gateway 변·KB gateway 의존)의 해소 수단을 겸하므로 투자 대비 효과가 가장 크다. 구독 실패 ack 계약(spec §3 원문) 보존만 e2e 로 고정하면 된다.
 
-- **검증**: 구독 실패 ack 계약 보존(`subscribed` ack 에 `success:false` + 평문 error — spec §3 원문) + WS e2e.
-- **회귀 위험**: authorizer 등록 순서·미매칭 채널 기본 거부.
-- **spec 갱신**: 불요.
+- **검증**: 구독 실패 ack 계약 보존(`subscribed` ack 에 `success:false` + 평문 error — spec §3 원문) + WS e2e. inbound command 경로(continueX·retryLastTurn 의 `executionsService.verifyOwnership`)가 유지됨도 함께 확인.
+- **회귀 위험**: authorizer 등록 순서·미매칭 채널 기본 거부 + **Nest DI 초기화 순서(부팅 실패는 컴파일 미검출 — e2e 부팅 스모크로 봉인)**. 채널 prefix 매칭은 상호 배타라 집계 순서 무관(단 동일 prefix 중복 금지).
+- **spec 갱신**: 불요(주입 메커니즘 spec 무언급). executions/engine/retry inbound forwardRef 유지는 §4.4 와 정합.
+
+**구현 결과 (2026-06-21)**:
+
+- **신설**: `common/utils/uuid.ts`(`isValidUuid` — gateway 로컬 함수 승격, authorizer 공유), `websocket/channel-authorizer.ts`(`ChannelAuthorizer` 인터페이스 + `ChannelAuthorizerContext` + `CHANNEL_AUTHORIZER` 토큰 — 모듈 의존 없는 순수 token 파일로 순환 무유발). authorizer 5개: `executions/execution-channel-authorizer.ts`·`executions/background-runs/background-run-channel-authorizer.ts`·`workflows/workflow-channel-authorizer.ts`·`knowledge-base/kb-channel-authorizer.ts`(도메인 모듈 소유) + `websocket/notifications-channel-authorizer.ts`(WS-local).
+- **gateway**: 인라인 `channelAuthorizers` 배열 + `isValidUuid`/`UUID_PATTERN` 로컬 + 서비스 forwardRef 3개(workflows/kb/background-runs) + 해당 import 제거. `@Inject(CHANNEL_AUTHORIZER) channelAuthorizers: ChannelAuthorizer[]` 주입으로 대체. `handleSubscribe` 의 `find((a) => a.matches(channel))` 로직·ack 계약 무변.
+- **집계 방식 (multi-provider → useFactory)**: 원안의 `{ provide: CHANNEL_AUTHORIZER, useClass/useExisting, multi: true }` 는 **본 환경 NestJS 11 에서 배열로 집계되지 않고 last-write-wins(useClass/useValue/useExisting 3종 모두 재현)** — probe 로 확인. 따라서 WS 모듈에서 **`useFactory` 명시 집계**(`(...authorizers) => authorizers` + `inject:` 5개)로 전환. 각 authorizer 는 자기 도메인 모듈이 provider 로 소유·**클래스 export**, WS 모듈 factory 가 inject. 도메인 소유·gateway 역참조 제거·OCP(gateway·handleSubscribe 무수정) 는 동일 달성. 신규 채널 추가 시 편집 지점은 "도메인 모듈 authorizer+export" + "WS factory inject 한 줄"(원안 multi 의 도메인-only 1지점 대비 1지점 추가 — multi 미지원의 수용 비용).
+- **테스트**: 기존 `websocket.gateway.spec.ts`(49) 를 실 authorizer 클래스 + useFactory wiring 으로 갱신(DI 역전 + 인가 동작 동시 검증, 서비스 mock 위). authorizer 5종 도메인-로컬 단위 spec 신설(matches/authorize 경계 — UUID 가드·소유 검증 throw·notifications userId 비교 fail-closed). TEST WORKFLOW: lint·build·unit(40 suites)·**e2e 205 PASS(DI 부팅 스모크 — useFactory 집계가 WS↔도메인 forwardRef 순환 넘어 정상 부팅 확인)**.
+
+**리뷰·정합 (2026-06-21)**:
+
+- `/ai-review`(2 사이클, `--commit HEAD` — stale 로컬 main 오염 회피): ① `15_56_59` LOW/Critical 0/Warning 6 → resolution: W-1(Kb UUID 선차단 가드, 동작 보존)·W-5(fail-closed 기본 거부)·W-6(authorizer 개수 assertion) **FIXED**, W-2/W-3/W-4 근거와 함께 **DEFER**(pre-existing 또는 maintainability nit). ② resolution 후 fresh `16_16_49` LOW/Critical 0/Warning 3 — 전부 prior-DEFER 계승 또는 plan 명시 의도(모듈-레벨 순환). RESOLUTION.md 양 세션 기록.
+- `/consistency-check --impl-done spec/5-system/6-websocket-protocol.md` (`16_29_03`): **BLOCK: NO**. WARNING 2건(내 주석 태그)은 즉시 수정 — `W-6` 태그(코드베이스 전역 "sub-workflow 격리" 의미와 충돌)를 서술형으로, `refactor M-7` → `refactor 02 M-7`(완료된 `04 M-7` MCP 와 구분) 일괄.
+- **project-planner 후속(비차단 SPEC-DRIFT)**: ① spec §3.3 `kb:` 행에 "(비-UUID 선차단)" 추가(sibling 채널 패턴 확장), ② §3.3 fail-closed(매칭 authorizer 없는 valid 채널 = 기본 거부) 정책 명시, ③ §3.2 표에 `background:run:{id}` 행 추가(기존 drift, M-7 이전), ④ frontmatter `code:` 에 신규 파일 등록, ⑤ Rationale 에 M-7 DI 역전 결정(M-6 "배열 추가 확장" → 역전) 기록. impl ⊇ spec 라 비차단.
 
 ### M-8 [Major] `trigger-detail-drawer.tsx` 1,604줄 god-component + API 직접 호출 8곳
 
