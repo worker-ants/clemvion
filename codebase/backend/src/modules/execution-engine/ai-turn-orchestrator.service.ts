@@ -25,7 +25,7 @@ import {
 } from '../websocket/websocket.service';
 import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
 import { sanitizeLastErrorMessage } from '../../shared/utils/sanitize-error-message';
-import { extractRetryAfterMs } from '../llm/llm.service';
+import { extractRetryAfterMs } from '../../shared/utils/retry-after';
 import {
   adaptHandlerReturn,
   toEngineFlatShape,

@@ -6,11 +6,8 @@ import {
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { resolveStablePortId } from '../../core/port-id.util';
-import {
-  LlmService,
-  extractRetryAfterMs,
-  isLlmRateLimit,
-} from '../../../modules/llm/llm.service';
+import { LlmService, isLlmRateLimit } from '../../../modules/llm/llm.service';
+import { extractRetryAfterMs } from '../../../shared/utils/retry-after';
 import { ChatResult } from '../../../modules/llm/interfaces/llm-client.interface';
 import { truncateForErrorDetails } from '../../core/error-codes';
 import { textClassifierNodeMetadata } from './text-classifier.schema';
