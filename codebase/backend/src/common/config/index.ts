@@ -5,7 +5,7 @@ export { s3Config } from './s3.config';
 export { jwtConfig } from './jwt.config';
 export { mailConfig } from './mail.config';
 export { llmConfig } from './llm.config';
-export { oauthConfig } from './oauth.config';
+export { oauthConfig, emptyOAuthEnvConfig } from './oauth.config';
 export type { OAuthEnvConfig } from './oauth.config';
 export { mcpConfig } from './mcp.config';
 export { interactionConfig } from './interaction.config';

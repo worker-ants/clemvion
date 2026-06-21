@@ -24,6 +24,22 @@ export interface OAuthEnvConfig {
   appUrl: string;
 }
 
+/**
+ * 미설정/테스트 폴백용 빈 OAuth env 의 단일 SoT (review W4·Maintainability#5).
+ * **factory** 인 이유: 소비자(서비스 getter, 테스트 mock)가 nested 객체를 mutate 할 수 있어
+ * 공유 frozen 싱글턴은 cross-test 누수를 유발한다 — 매 호출 fresh nested 객체를 반환한다.
+ */
+export function emptyOAuthEnvConfig(): OAuthEnvConfig {
+  return {
+    cafe24: { clientId: '', clientSecret: '' },
+    google: { clientId: '', clientSecret: '' },
+    github: { clientId: '', clientSecret: '' },
+    stubModeRaw: '',
+    frontendUrl: '',
+    appUrl: '',
+  };
+}
+
 export const oauthConfig = registerAs(
   'oauth',
   (): OAuthEnvConfig => ({

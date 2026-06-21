@@ -73,6 +73,21 @@ describe('McpClientService', () => {
     service = new McpClientService(mockConfigService as never);
   });
 
+  describe('config injection (refactor M-6)', () => {
+    it('생성자가 ConfigService(`mcp.maxConcurrentConnections`/`mcp.connectTimeoutMs`)를 읽어 초기화한다', () => {
+      const keysRead: string[] = [];
+      const cfg = {
+        get: (key: string) => {
+          keysRead.push(key);
+          return key === 'mcp.maxConcurrentConnections' ? '5' : undefined;
+        },
+      };
+      expect(() => new McpClientService(cfg as never)).not.toThrow();
+      expect(keysRead).toContain('mcp.maxConcurrentConnections');
+      expect(keysRead).toContain('mcp.connectTimeoutMs');
+    });
+  });
+
   describe('connect — URL & SSRF policy', () => {
     it('rejects non-HTTPS URLs', async () => {
       await expect(

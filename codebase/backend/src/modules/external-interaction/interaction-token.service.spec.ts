@@ -634,3 +634,27 @@ describe('InteractionTokenService — itk_* (per_trigger)', () => {
     });
   });
 });
+
+// refactor M-6 (review W1) — raw process.env fallback 제거 후 핵심 계약:
+// interaction.jwtSecret 미설정 시 jwt.secret(=JWT_SECRET) 으로 fallback 함을 고정.
+describe('InteractionTokenService — secret fallback chain (refactor M-6)', () => {
+  it('interaction.jwtSecret 미설정 → jwt.secret 으로 서명/검증 round-trip', async () => {
+    const FALLBACK = 'jwt-fallback-secret-long-enough-32bytes-xx';
+    const config = {
+      get: jest.fn((key: string) =>
+        key === 'jwt.secret' ? FALLBACK : undefined,
+      ),
+    };
+    const redis = makeRedisMock();
+    const svc = new InteractionTokenService(config as never, redis as never);
+
+    const { token } = await svc.issuePerExecution('exec-fb');
+    const result = await svc.verifyPerExecution(token);
+
+    expect(result.valid).toBe(true);
+    expect(result.executionId).toBe('exec-fb');
+    // interaction.jwtSecret 를 먼저 조회한 뒤 jwt.secret 으로 fallback 한 체인을 확인.
+    expect(config.get).toHaveBeenCalledWith('interaction.jwtSecret');
+    expect(config.get).toHaveBeenCalledWith('jwt.secret');
+  });
+});

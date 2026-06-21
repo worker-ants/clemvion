@@ -11,7 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
-import type { OAuthEnvConfig } from '../../common/config';
+import { emptyOAuthEnvConfig, type OAuthEnvConfig } from '../../common/config';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import {
   INSTALL_TOKEN_BYTES,
@@ -305,8 +305,7 @@ function normalizeRawStateRow(
   const providerMetaRaw = raw.provider_meta;
   const providerMeta =
     providerMetaRaw !== null && providerMetaRaw !== undefined
-      ? (decryptJson<Record<string, unknown>>(providerMetaRaw as string) ??
-        null)
+      ? (decryptJson<Record<string, unknown>>(providerMetaRaw) ?? null)
       : null;
   return {
     id: raw.id as string,
@@ -418,14 +417,7 @@ export class IntegrationOAuthService {
    */
   private get oauthEnv(): OAuthEnvConfig {
     return (
-      this.configService?.get<OAuthEnvConfig>('oauth') ?? {
-        cafe24: { clientId: '', clientSecret: '' },
-        google: { clientId: '', clientSecret: '' },
-        github: { clientId: '', clientSecret: '' },
-        stubModeRaw: '',
-        frontendUrl: '',
-        appUrl: '',
-      }
+      this.configService?.get<OAuthEnvConfig>('oauth') ?? emptyOAuthEnvConfig()
     );
   }
 
@@ -1661,7 +1653,7 @@ export class IntegrationOAuthService {
       integrationId: target.id,
       requestedScopes: scopes,
       integrationName: target.name,
-      scope: target.scope as 'personal' | 'organization',
+      scope: target.scope,
       providerMeta: providerMeta as unknown as Record<string, unknown>,
       expiresAt: new Date(Date.now() + STATE_TTL_MS),
     });
@@ -1984,7 +1976,7 @@ export class IntegrationOAuthService {
       integrationId: target.id,
       requestedScopes: scopes,
       integrationName: target.name,
-      scope: target.scope as 'personal' | 'organization',
+      scope: target.scope,
       providerMeta: providerMeta as unknown as Record<string, unknown>,
       expiresAt: new Date(Date.now() + STATE_TTL_MS),
     });

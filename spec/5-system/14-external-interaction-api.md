@@ -657,7 +657,7 @@ ALTER TABLE trigger
   - `itk_*` (`per_trigger`) — trigger 가 발급하는 per-trigger opaque 토큰. trigger 별로 분리되어 서로 다른 trigger 의 토큰을 cross-validate 할 수 없다.
   - `iext_*` (`per_execution`) — **단일 글로벌 secret** 으로 서명하는 단명 JWT. trigger 별 분리가 아니라 execution scope 로 한정되는데, payload `{ sub: executionId, aud: 'interaction', jti }` 가 단일 execution 에 묶이고 jti 가 Redis blacklist 로 revoke 되기 때문이다 (아래).
     - **알고리즘**: HS256
-    - **secret 우선순위**: `INTERACTION_JWT_SECRET` → (미설정 시) configService `jwt.secret` → `JWT_SECRET` fallback
+    - **secret 우선순위**: configService `interaction.jwtSecret`(= env `INTERACTION_JWT_SECRET`) → (미설정 시) configService `jwt.secret`(= env `JWT_SECRET`). refactor M-6 으로 서비스 계층의 raw `process.env` 직접 접근을 `registerAs` namespace(`interaction`/`jwt`)로 중앙화했다 — 우선순위·의미는 불변(`interaction.jwtSecret` 미설정 시 `??` 체인이 `jwt.secret` 으로 fallback).
     - **dev fallback**: 셋 다 미설정이면 프로세스 시작 시 1회 생성하는 ephemeral random 키(`randomBytes(32)`)로 떨어진다 — 버전 이력에 예측 가능한 고정 secret 을 남기지 않고, 재시작마다 변경돼 dev 토큰이 무효화된다.
     - **production fail-closed**: `NODE_ENV=production` 에서는 셋 다 미설정이면 `InteractionTokenService` 생성자가 throw 해 서버 부팅을 차단한다 — `OAUTH_STUB_MODE`/`LLM_STUB_MODE` 및 `JWT_SECRET`/`ENCRYPTION_KEY` 부팅 가드와 동형. 따라서 프로덕션은 `INTERACTION_JWT_SECRET` 또는 `JWT_SECRET` 중 하나를 반드시 설정해야 한다.
     - **참고**: 위 stub/JWT/ENCRYPTION 가드는 `common/config/production-guards.ts` 의 `assertProductionConfig` 에 응집돼 있으나, 본 `INTERACTION_JWT_SECRET` 만은 `InteractionTokenService` 생성자 throw 로 별도 유지된다 (모듈 로컬 컨텍스트 필요 — 비보안 fallback 서명 원천 차단).

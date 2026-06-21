@@ -270,13 +270,13 @@
 - **이전 대상** (4 namespace):
   - `oauth` ← `integration-oauth.service.ts`: CAFE24_CLIENT_ID/SECRET, 동적 `{GOOGLE,GITHUB}_CLIENT_ID/SECRET`, OAUTH_STUB_MODE 방어 로그, FRONTEND_URL/APP_URL redirect base
   - `interaction` ← `interaction-token.service.ts`: INTERACTION_JWT_SECRET (이미 `interaction.jwtSecret` 참조 중 — namespace 부재로 fallback 만 작동). raw fallback 제거, `?? jwt.secret` 체인 보존 (interaction.jwtSecret 은 기본값 없이 — `?? ''` 금지)
-  - `mcp` ← `mcp-client.service.ts` 생성자: MCP_MAX_CONCURRENT_CONNECTIONS, MCP_CONNECT_TIMEOUT_MS
-  - `llm` (확장) ← `llm.service.ts:78`: LLM_STUB_MODE — **spec `7-llm-client.md §7.1` 가 리터럴 명문화 → planner spec-sync 동반 필수**
+  - `mcp` ← `mcp-client.service.ts`: MCP_MAX_CONCURRENT_CONNECTIONS·MCP_CONNECT_TIMEOUT_MS(생성자) + **MCP_ALLOW_INSECURE_URL** — 사용자 결정(literal Option B)으로 보안 플래그도 이전. 옛 `isInsecureUrlAllowed()` free 함수 → `McpClientService.allowInsecureUrl` getter **단일 source**, `McpToolProvider` 가 주입 mcpClient 경유 공유(call-time→boot-snapshot, deploy 플래그라 무영향, production-guards 부팅 가드 유지)
+  - `llm` (확장) ← `llm.service.ts:78`: LLM_STUB_MODE — 사용자 결정(literal Option B)으로 이전. spec `7-llm-client.md §7.1` 리터럴 → ConfigService 표현 동기화(완료), 런타임 flip 단위 테스트 3개 ConfigService mock 재작성
 - **문서화 면제** (동작 회귀 방지):
-  - `mcp-client.ts isInsecureUrlAllowed()` — call-time read (테스트 env flip + SSRF 보안 플래그, production-guards 가 부팅 가드로 중복 보호)
-  - 모듈 로드 `const`(`mcp-tool-provider.ts`·`mcp-test-connection.service.ts` 의 MCP_*) — import-시 1회 read 의미 변경 위험·노드/probe 레이어
+  - `OAUTH_STUB_MODE` honored 판정 헬퍼 `isOAuthStubModeAllowed()`(`common/utils/`) — NODE_ENV-gated cross-module(auth+integration) 단일-source 추상화. **직접 read(integration-oauth 방어 로그)는 이전**, 헬퍼 자체는 유지(M-6 "서비스 계층 직접 read" 범위 밖)
+  - 모듈 로드 `const`(`mcp-tool-provider.ts`·`mcp-test-connection.service.ts` 의 MCP_MAX_RESPONSE_BYTES 등 timeout) — import-시 1회 read 의미 변경 위험·노드/probe 레이어
   - `production-guards.ts` (부팅 fail-closed, 플랜이 bootstrap 면제로 분류)
-  - 이미 단일-source 추상화된 헬퍼(`getAppBaseUrl`·`isOAuthStubModeAllowed`)
+  - 이미 단일-source 추상화된 헬퍼(`getAppBaseUrl`)
   - `NODE_ENV`/`TZ` framework 체크, DIP 주입형(`env: NodeJS.ProcessEnv = process.env`) 기본 파라미터(review W-9)
 
 **하위 체크리스트**:

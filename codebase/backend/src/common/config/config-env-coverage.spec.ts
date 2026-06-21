@@ -19,9 +19,7 @@ const EXEMPT_ENV_VARS = new Set(['NODE_ENV', 'TZ']);
 
 function collectConfigEnvVars(): Map<string, string[]> {
   const byVar = new Map<string, string[]>();
-  const files = readdirSync(CONFIG_DIR).filter(
-    (f) => f.endsWith('.config.ts') && !f.endsWith('.spec.ts'),
-  );
+  const files = readdirSync(CONFIG_DIR).filter((f) => f.endsWith('.config.ts'));
   for (const file of files) {
     const src = readFileSync(join(CONFIG_DIR, file), 'utf8');
     // process.env.NAME  /  process.env['NAME']  /  process.env["NAME"]
@@ -49,6 +47,7 @@ describe('config ↔ .env.example coverage (refactor M-6)', () => {
       'GITHUB_CLIENT_SECRET',
       'OAUTH_STUB_MODE',
       'MCP_MAX_CONCURRENT_CONNECTIONS',
+      'MCP_CONNECT_TIMEOUT_MS',
       'MCP_ALLOW_INSECURE_URL',
       'INTERACTION_JWT_SECRET',
       'LLM_STUB_MODE',

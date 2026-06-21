@@ -1,4 +1,7 @@
-import type { OAuthEnvConfig } from '../../../common/config';
+import {
+  emptyOAuthEnvConfig,
+  type OAuthEnvConfig,
+} from '../../../common/config';
 
 /**
  * refactor M-6 — `IntegrationOAuthService` 테스트용 ConfigService 최소 mock.
@@ -21,15 +24,7 @@ export interface OAuthConfigMock {
 export function makeOAuthConfigMock(
   overrides: Partial<OAuthEnvConfig> = {},
 ): OAuthConfigMock {
-  const env: OAuthEnvConfig = {
-    cafe24: { clientId: '', clientSecret: '' },
-    google: { clientId: '', clientSecret: '' },
-    github: { clientId: '', clientSecret: '' },
-    stubModeRaw: '',
-    frontendUrl: '',
-    appUrl: '',
-    ...overrides,
-  };
+  const env: OAuthEnvConfig = { ...emptyOAuthEnvConfig(), ...overrides };
   return {
     env,
     configService: {
