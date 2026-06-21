@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import pLimit, { LimitFunction } from 'p-limit';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -11,20 +12,6 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
  */
 const MCP_CLIENT_NAME = 'clemvion-backend';
 const MCP_CLIENT_VERSION = '1.0.0';
-
-/**
- * Local-development escape hatch. When `MCP_ALLOW_INSECURE_URL=true` the
- * URL safety checks (https-only + SSRF host blocklist) are bypassed —
- * operator explicitly accepts http:// and loopback / RFC 1918 hosts.
- *
- * Read at call time (not module load) so a test can flip `process.env`
- * with `process.env.MCP_ALLOW_INSECURE_URL = 'true'` without rewiring
- * jest's module cache.
- */
-export function isInsecureUrlAllowed(): boolean {
-  const v = process.env.MCP_ALLOW_INSECURE_URL;
-  return v === 'true' || v === '1';
-}
 
 /**
  * Connection parameters for an MCP server. Resolved from a workspace
@@ -245,13 +232,28 @@ export class McpClientService {
   private readonly limit: LimitFunction;
   private readonly connectTimeoutMs: number;
 
-  constructor() {
+  // refactor M-6: MCP_MAX_CONCURRENT_CONNECTIONS / MCP_CONNECT_TIMEOUT_MS 직접 접근을
+  // ConfigService(`mcp.*`, number|undefined 로 파싱됨)로 이전. `@Optional()` — 수동 생성
+  // 테스트(`new McpClientService()`)는 configService 미주입 → `undefined || DEFAULT_*` 로
+  // 기존 폴백 동작을 보존한다(`'0'`→DEFAULT 등 `||` 의미 동일).
+  constructor(@Optional() private readonly configService?: ConfigService) {
     const max =
-      Number(process.env.MCP_MAX_CONCURRENT_CONNECTIONS) ||
+      this.configService?.get<number>('mcp.maxConcurrentConnections') ||
       DEFAULT_MAX_CONCURRENT_CONNECTIONS;
     this.limit = pLimit(max);
     this.connectTimeoutMs =
-      Number(process.env.MCP_CONNECT_TIMEOUT_MS) || DEFAULT_CONNECT_TIMEOUT_MS;
+      this.configService?.get<number>('mcp.connectTimeoutMs') ||
+      DEFAULT_CONNECT_TIMEOUT_MS;
+  }
+
+  /**
+   * refactor M-6: MCP_ALLOW_INSECURE_URL escape hatch 의 단일 source. ConfigService
+   * (`mcp.allowInsecureUrl`, boolean — `'true'`/`'1'` 만 ON 으로 config 레이어가 파싱)를 읽는다.
+   * configService 미주입(수동 테스트) 시 false(strict). `McpToolProvider` 가 주입된 본 인스턴스
+   * 경유로 동일 source 를 공유한다.
+   */
+  get allowInsecureUrl(): boolean {
+    return this.configService?.get<boolean>('mcp.allowInsecureUrl') ?? false;
   }
 
   async connect(params: McpConnectParams): Promise<McpSession> {
@@ -315,8 +317,8 @@ export class McpClientService {
     // Local-development escape hatch. When set, the operator has explicitly
     // accepted that http:// + private-network / loopback hosts may be used
     // (e.g. running a sample MCP server on http://localhost:3001). The flag
-    // is read at call time so tests can flip it without resetModules.
-    if (isInsecureUrlAllowed()) {
+    // is resolved via ConfigService (`mcp.allowInsecureUrl`, refactor M-6).
+    if (this.allowInsecureUrl) {
       // Still require http/https — file://, ftp://, ws:// etc. are never OK.
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
         throw new McpHttpsRequiredError(
@@ -500,7 +502,7 @@ class SessionImpl implements McpSession {
   ) {}
 
   listTools(params?: ListParams): Promise<ListToolsResult> {
-    return this.client.listTools(params) as Promise<ListToolsResult>;
+    return this.client.listTools(params);
   }
 
   callTool(params: CallToolParams): Promise<CallToolResult> {
@@ -512,22 +514,19 @@ class SessionImpl implements McpSession {
   }
 
   listResources(params?: ListParams): Promise<ListResourcesResult> {
-    return this.client.listResources(params) as Promise<ListResourcesResult>;
+    return this.client.listResources(params);
   }
 
   readResource(params: { uri: string }): Promise<ReadResourceResult> {
-    return this.client.readResource(
-      params,
-      undefined,
-    ) as Promise<ReadResourceResult>;
+    return this.client.readResource(params, undefined);
   }
 
   listPrompts(params?: ListParams): Promise<ListPromptsResult> {
-    return this.client.listPrompts(params) as Promise<ListPromptsResult>;
+    return this.client.listPrompts(params);
   }
 
   getPrompt(params: GetPromptParams): Promise<GetPromptResult> {
-    return this.client.getPrompt(params, undefined) as Promise<GetPromptResult>;
+    return this.client.getPrompt(params, undefined);
   }
 
   async close(): Promise<void> {

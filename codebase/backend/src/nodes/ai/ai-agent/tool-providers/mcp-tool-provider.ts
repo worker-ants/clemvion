@@ -7,7 +7,6 @@ import {
 } from '../../../../modules/llm/interfaces/llm-client.interface';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service';
 import {
-  isInsecureUrlAllowed,
   McpClientService,
   McpConnectParams,
   McpSession,
@@ -170,7 +169,10 @@ export function parseMcpToolName(
  * so a local-dev operator does not see a different rule on either side of
  * the call.
  */
-function assertHttpsUrl(url: unknown): asserts url is string {
+function assertHttpsUrl(
+  url: unknown,
+  allowInsecure: boolean,
+): asserts url is string {
   if (typeof url !== 'string' || url.length === 0) {
     throw new Error('MCP integration is missing a server URL');
   }
@@ -180,9 +182,7 @@ function assertHttpsUrl(url: unknown): asserts url is string {
   } catch {
     throw new Error(`MCP integration URL is malformed: ${url}`);
   }
-  const allowedProtocols = isInsecureUrlAllowed()
-    ? ['https:', 'http:']
-    : ['https:'];
+  const allowedProtocols = allowInsecure ? ['https:', 'http:'] : ['https:'];
   if (!allowedProtocols.includes(parsed.protocol)) {
     throw new Error(
       `MCP integration URL must use ${allowedProtocols.join('/')} (got ${url})`,
@@ -832,7 +832,8 @@ export class McpToolProvider implements AgentToolProvider {
   private toConnectParams(integration: Integration): McpConnectParams {
     const creds = integration.credentials;
     const url = creds.url;
-    assertHttpsUrl(url);
+    // refactor M-6: insecure-URL escape hatch 는 McpClientService 가 단일 source(`mcp.allowInsecureUrl`).
+    assertHttpsUrl(url, this.mcpClient.allowInsecureUrl);
     const defaultHeaders = creds.default_headers as
       | Record<string, string>
       | undefined;

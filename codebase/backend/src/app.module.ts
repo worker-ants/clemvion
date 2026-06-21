@@ -14,6 +14,9 @@ import {
   jwtConfig,
   mailConfig,
   llmConfig,
+  oauthConfig,
+  mcpConfig,
+  interactionConfig,
   webauthnConfig,
 } from './common/config';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
@@ -78,6 +81,9 @@ export { ROOT_ENTITIES } from './database/root-entities';
         jwtConfig,
         mailConfig,
         llmConfig,
+        oauthConfig,
+        mcpConfig,
+        interactionConfig,
         webauthnConfig,
       ],
       envFilePath: '.env',

@@ -173,6 +173,8 @@ Multi-turn AI Agent 가 `waiting_for_input` 상태로 일시 중단되면 세션
 
 워크스페이스 단위 동시 connect 수는 백엔드 환경 변수 `MCP_MAX_CONCURRENT_CONNECTIONS` (기본 20) 로 상한한다.
 
+> **env 접근 (refactor M-6)**: `MCP_MAX_CONCURRENT_CONNECTIONS`·`MCP_CONNECT_TIMEOUT_MS`·`MCP_ALLOW_INSECURE_URL` 은 `McpClientService` 가 `process.env` 를 직접 읽지 않고 ConfigService `mcp.*` namespace(`registerAs('mcp')`, `common/config/mcp.config.ts`)를 경유한다 — 서비스 계층 env 접근 중앙화. `MCP_ALLOW_INSECURE_URL` 의 단일 source 는 `McpClientService.allowInsecureUrl` getter 이며 `McpToolProvider` 가 주입된 인스턴스 경유로 공유한다(부팅-스냅샷 — deploy 플래그라 재기동 시 반영).
+
 > **Internal Bridge (§2.3)**: connect / `initialize` / close 가 모두 no-op. `buildTools` 는 메모리에서 즉시 메타데이터 테이블 기반 도구 목록 생성. `tools/call` 은 직접 함수 호출. `(integrationId, executionId)` 캐시 규칙은 동일 적용 (Bridge 인스턴스가 같은 execution 내에서 1회 lazy init). `MCP_MAX_CONCURRENT_CONNECTIONS` 상한은 외부 HTTP transport 에만 카운트되며 Internal Bridge 는 별도 상한 없음.
 
 ### 4.4 타임아웃

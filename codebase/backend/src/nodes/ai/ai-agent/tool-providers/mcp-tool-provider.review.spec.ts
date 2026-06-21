@@ -66,7 +66,12 @@ function makeSession(o: Partial<McpSession> = {}): McpSession {
 }
 
 describe('McpToolProvider — review issues', () => {
-  let mcpClient: { connect: jest.Mock<Promise<McpSession>, [unknown]> };
+  let mcpClient: {
+    connect: jest.Mock<Promise<McpSession>, [unknown]>;
+    // refactor M-6: insecure-URL escape hatch 는 McpClientService 가 단일 source —
+    // McpToolProvider 가 주입된 mcpClient.allowInsecureUrl 을 읽는다(옛 process.env flip 대체).
+    allowInsecureUrl: boolean;
+  };
   let integrations: {
     getForExecution: jest.Mock<Promise<Integration>, [string, string]>;
   };
@@ -74,7 +79,7 @@ describe('McpToolProvider — review issues', () => {
 
   beforeEach(() => {
     jest.useRealTimers();
-    mcpClient = { connect: jest.fn() };
+    mcpClient = { connect: jest.fn(), allowInsecureUrl: false };
     integrations = { getForExecution: jest.fn() };
     provider = new McpToolProvider(
       mcpClient as unknown as McpClientService,
@@ -220,31 +225,23 @@ describe('McpToolProvider — review issues', () => {
     });
 
     it('honors MCP_ALLOW_INSECURE_URL — provider-layer http URL passes through', async () => {
-      const originalFlag = process.env.MCP_ALLOW_INSECURE_URL;
-      process.env.MCP_ALLOW_INSECURE_URL = 'true';
-      try {
-        integrations.getForExecution.mockResolvedValue(
-          makeIntegration({
-            credentials: { url: 'http://localhost:3001', token: 't' },
-          }),
-        );
-        mcpClient.connect.mockResolvedValueOnce(makeSession());
-        const tools = await provider.buildTools({
-          config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
-          workspaceId: 'ws-1',
-          executionId: 'exec-1',
-        });
-        expect(mcpClient.connect).toHaveBeenCalledWith(
-          expect.objectContaining({ url: 'http://localhost:3001' }),
-        );
-        expect(tools.length).toBeGreaterThan(0);
-      } finally {
-        if (originalFlag === undefined) {
-          delete process.env.MCP_ALLOW_INSECURE_URL;
-        } else {
-          process.env.MCP_ALLOW_INSECURE_URL = originalFlag;
-        }
-      }
+      // refactor M-6: insecure escape hatch 는 McpClientService 단일 source — mock 플래그로 제어.
+      mcpClient.allowInsecureUrl = true;
+      integrations.getForExecution.mockResolvedValue(
+        makeIntegration({
+          credentials: { url: 'http://localhost:3001', token: 't' },
+        }),
+      );
+      mcpClient.connect.mockResolvedValueOnce(makeSession());
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      expect(mcpClient.connect).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'http://localhost:3001' }),
+      );
+      expect(tools.length).toBeGreaterThan(0);
     });
   });
 

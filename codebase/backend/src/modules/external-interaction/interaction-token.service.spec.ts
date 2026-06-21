@@ -634,3 +634,47 @@ describe('InteractionTokenService — itk_* (per_trigger)', () => {
     });
   });
 });
+
+// refactor M-6 (review W1) — raw process.env fallback 제거 후 핵심 계약:
+// interaction.jwtSecret 미설정 시 jwt.secret(=JWT_SECRET) 으로 fallback 함을 고정.
+describe('InteractionTokenService — secret fallback chain (refactor M-6)', () => {
+  it('interaction.jwtSecret 미설정 → jwt.secret 으로 서명/검증 round-trip', async () => {
+    const FALLBACK = 'jwt-fallback-secret-long-enough-32bytes-xx';
+    const config = {
+      get: jest.fn((key: string) =>
+        key === 'jwt.secret' ? FALLBACK : undefined,
+      ),
+    };
+    const redis = makeRedisMock();
+    const svc = new InteractionTokenService(config as never, redis as never);
+
+    const { token } = await svc.issuePerExecution('exec-fb');
+    const result = await svc.verifyPerExecution(token);
+
+    expect(result.valid).toBe(true);
+    expect(result.executionId).toBe('exec-fb');
+    // interaction.jwtSecret 를 먼저 조회한 뒤 jwt.secret 으로 fallback 한 체인을 확인.
+    expect(config.get).toHaveBeenCalledWith('interaction.jwtSecret');
+    expect(config.get).toHaveBeenCalledWith('jwt.secret');
+  });
+
+  // review I17: interaction.jwtSecret 가 설정되면 그 값을 우선하고 jwt.secret 은 조회조차 안 함(`??` 단락).
+  it('interaction.jwtSecret 설정 시 우선 사용하고 jwt.secret 은 조회하지 않는다', async () => {
+    const PRIMARY = 'interaction-primary-secret-long-enough-32b';
+    const config = {
+      get: jest.fn((key: string) =>
+        key === 'interaction.jwtSecret' ? PRIMARY : 'SHOULD-NOT-BE-USED',
+      ),
+    };
+    const redis = makeRedisMock();
+    const svc = new InteractionTokenService(config as never, redis as never);
+
+    const { token } = await svc.issuePerExecution('exec-primary');
+    const result = await svc.verifyPerExecution(token);
+
+    expect(result.valid).toBe(true);
+    expect(config.get).toHaveBeenCalledWith('interaction.jwtSecret');
+    // `??` 단락 평가: 좌측이 truthy 라 jwt.secret 은 조회되지 않아야 한다.
+    expect(config.get).not.toHaveBeenCalledWith('jwt.secret');
+  });
+});

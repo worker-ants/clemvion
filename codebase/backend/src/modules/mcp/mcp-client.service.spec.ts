@@ -58,23 +58,38 @@ jest.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 
 describe('McpClientService', () => {
   let service: McpClientService;
+  // refactor M-6: MCP_ALLOW_INSECURE_URL 은 `mcp.allowInsecureUrl`(boolean) config 로 이전 —
+  // 'true'/'1' 파싱은 config 레이어 책임(→ mcp.config.spec.ts). 본 spec 은 boolean flag 로 제어.
+  // getter 가 호출 시점에 읽으므로 connect 직전 set.
+  let allowInsecure: boolean;
+  const mockConfigService = {
+    get: (key: string) =>
+      key === 'mcp.allowInsecureUrl' ? allowInsecure : undefined,
+  };
 
   beforeEach(() => {
     mockClientInstances.length = 0;
     mockTransportInstances.length = 0;
-    service = new McpClientService();
+    allowInsecure = false;
+    service = new McpClientService(mockConfigService as never);
+  });
+
+  describe('config injection (refactor M-6)', () => {
+    it('생성자가 ConfigService(`mcp.maxConcurrentConnections`/`mcp.connectTimeoutMs`)를 읽어 초기화한다', () => {
+      const keysRead: string[] = [];
+      const cfg = {
+        get: (key: string) => {
+          keysRead.push(key);
+          return key === 'mcp.maxConcurrentConnections' ? 5 : undefined;
+        },
+      };
+      expect(() => new McpClientService(cfg as never)).not.toThrow();
+      expect(keysRead).toContain('mcp.maxConcurrentConnections');
+      expect(keysRead).toContain('mcp.connectTimeoutMs');
+    });
   });
 
   describe('connect — URL & SSRF policy', () => {
-    const ORIGINAL_INSECURE = process.env.MCP_ALLOW_INSECURE_URL;
-    afterEach(() => {
-      if (ORIGINAL_INSECURE === undefined) {
-        delete process.env.MCP_ALLOW_INSECURE_URL;
-      } else {
-        process.env.MCP_ALLOW_INSECURE_URL = ORIGINAL_INSECURE;
-      }
-    });
-
     it('rejects non-HTTPS URLs', async () => {
       await expect(
         service.connect({
@@ -134,9 +149,11 @@ describe('McpClientService', () => {
       expect(mockTransportInstances).toHaveLength(1);
     });
 
-    describe('MCP_ALLOW_INSECURE_URL escape hatch', () => {
-      it('allows http://localhost when set to "true"', async () => {
-        process.env.MCP_ALLOW_INSECURE_URL = 'true';
+    // 'true'/'1' → ON, 그 외 → OFF 의 env 문자열 파싱은 config 레이어(mcp.config.spec.ts)가
+    // 검증한다. 본 describe 는 서비스가 boolean flag 를 받았을 때의 SSRF 우회 동작을 검증.
+    describe('allowInsecureUrl escape hatch', () => {
+      it('allowInsecureUrl=true 면 http://localhost 를 허용한다', async () => {
+        allowInsecure = true;
         await service.connect({
           url: 'http://localhost:3001/mcp',
           authType: 'none',
@@ -144,8 +161,8 @@ describe('McpClientService', () => {
         expect(mockTransportInstances).toHaveLength(1);
       });
 
-      it('also allows previously-blocked private IPs when set', async () => {
-        process.env.MCP_ALLOW_INSECURE_URL = 'true';
+      it('allowInsecureUrl=true 면 차단되던 사설 IP 도 허용한다', async () => {
+        allowInsecure = true;
         await service.connect({
           url: 'http://10.0.0.5/mcp',
           authType: 'none',
@@ -153,29 +170,10 @@ describe('McpClientService', () => {
         expect(mockTransportInstances).toHaveLength(1);
       });
 
-      it('still rejects non-http(s) schemes (file://) even when set', async () => {
-        process.env.MCP_ALLOW_INSECURE_URL = 'true';
+      it('allowInsecureUrl=true 여도 non-http(s) 스킴(file://)은 거부한다', async () => {
+        allowInsecure = true;
         await expect(
           service.connect({ url: 'file:///etc/passwd', authType: 'none' }),
-        ).rejects.toThrow(McpHttpsRequiredError);
-      });
-
-      it('"1" is also accepted as truthy', async () => {
-        process.env.MCP_ALLOW_INSECURE_URL = '1';
-        await service.connect({
-          url: 'http://localhost:3001/mcp',
-          authType: 'none',
-        });
-        expect(mockTransportInstances).toHaveLength(1);
-      });
-
-      it('any other value falls back to strict mode', async () => {
-        process.env.MCP_ALLOW_INSECURE_URL = 'yes-please';
-        await expect(
-          service.connect({
-            url: 'http://localhost:3001/mcp',
-            authType: 'none',
-          }),
         ).rejects.toThrow(McpHttpsRequiredError);
       });
     });
