@@ -15,6 +15,8 @@ import { registerAndLogin, TEST_PASSWORD } from './helpers/auth';
  *   - verify: 토큰 검증 → email 교체 + email_verified=true + pending 정리,
  *             전 세션 revoke(login_history session_revoked) + 재발급(accessToken/refresh 쿠키),
  *             audit_log user.email_changed
+ *   - resend: 토큰·만료 시각 갱신 / pending 없으면 400
+ *   - verify race: 확인 시점 신규 이메일 선점 → 409 + pending 정리
  *   - cancel: pending 정리 (멱등)
  */
 
@@ -23,6 +25,26 @@ const CLIENT_IP = '203.0.113.21';
 
 function sha256(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+/**
+ * pending 이메일 변경 상태를 DB 에 직접 시드한다 (raw 토큰은 메일로만 전달되므로
+ * e2e 는 해시를 주입). `expiresSql` 로 만료 시각을 제어 (만료 케이스는 과거 시각).
+ */
+async function seedPendingEmailChange(
+  db: Client,
+  userId: string,
+  newEmail: string,
+  rawToken: string,
+  expiresSql = "NOW() + INTERVAL '1 hour'",
+): Promise<void> {
+  await db.query(
+    `UPDATE "user"
+       SET pending_email = $2, email_change_token = $3,
+           email_change_expires_at = ${expiresSql}
+     WHERE id = $1`,
+    [userId, newEmail, sha256(rawToken)],
+  );
 }
 
 describe('Email change — 재인증 + 신규 이메일 확인 (e2e)', () => {
@@ -103,15 +125,7 @@ describe('Email change — 재인증 + 신규 이메일 확인 (e2e)', () => {
     const newEmail = uniqueEmail('emchg-v-new');
     const rawToken = `e2e-token-${user.userId}`;
 
-    // pending 상태를 직접 시드 — raw 토큰은 메일로만 전달되므로 e2e 는 해시를 주입한다.
-    await db.query(
-      `UPDATE "user"
-         SET pending_email = $2,
-             email_change_token = $3,
-             email_change_expires_at = NOW() + INTERVAL '1 hour'
-       WHERE id = $1`,
-      [user.userId, newEmail, sha256(rawToken)],
-    );
+    await seedPendingEmailChange(db, user.userId, newEmail, rawToken);
 
     const res = await request(BASE_URL)
       .post('/api/users/me/email-change/verify')
@@ -159,13 +173,12 @@ describe('Email change — 재인증 + 신규 이메일 확인 (e2e)', () => {
 
   it('verify rejects invalid/expired token (400)', async () => {
     const user = await registerAndLogin(BASE_URL, uniqueEmail('emchg-bad'), db);
-    await db.query(
-      `UPDATE "user"
-         SET pending_email = $2,
-             email_change_token = $3,
-             email_change_expires_at = NOW() - INTERVAL '1 minute'
-       WHERE id = $1`,
-      [user.userId, uniqueEmail('emchg-bad-new'), sha256('expired-token')],
+    await seedPendingEmailChange(
+      db,
+      user.userId,
+      uniqueEmail('emchg-bad-new'),
+      'expired-token',
+      "NOW() - INTERVAL '1 minute'",
     );
 
     const res = await request(BASE_URL)
@@ -178,13 +191,11 @@ describe('Email change — 재인증 + 신규 이메일 확인 (e2e)', () => {
 
   it('cancel clears the pending change (idempotent)', async () => {
     const user = await registerAndLogin(BASE_URL, uniqueEmail('emchg-c'), db);
-    await db.query(
-      `UPDATE "user"
-         SET pending_email = $2,
-             email_change_token = $3,
-             email_change_expires_at = NOW() + INTERVAL '1 hour'
-       WHERE id = $1`,
-      [user.userId, uniqueEmail('emchg-c-new'), sha256('cancel-token')],
+    await seedPendingEmailChange(
+      db,
+      user.userId,
+      uniqueEmail('emchg-c-new'),
+      'cancel-token',
     );
 
     const res = await request(BASE_URL)
@@ -206,5 +217,88 @@ describe('Email change — 재인증 + 신규 이메일 확인 (e2e)', () => {
       .set('Authorization', `Bearer ${user.accessToken}`)
       .send({});
     expect(again.status).toBe(200);
+  }, 60_000);
+
+  it('resend → 200; 토큰·만료 시각 갱신', async () => {
+    const user = await registerAndLogin(BASE_URL, uniqueEmail('emchg-rs'), db);
+    const newEmail = uniqueEmail('emchg-rs-new');
+
+    // request 로 pending 생성
+    await request(BASE_URL)
+      .post('/api/users/me/email-change/request')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ newEmail, password: TEST_PASSWORD })
+      .expect(200);
+
+    const before = await db.query(
+      `SELECT email_change_token, email_change_expires_at
+       FROM "user" WHERE id = $1`,
+      [user.userId],
+    );
+
+    const res = await request(BASE_URL)
+      .post('/api/users/me/email-change/resend')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({});
+    expect(res.status).toBe(200);
+
+    const after = await db.query(
+      `SELECT pending_email, email_change_token, email_change_expires_at
+       FROM "user" WHERE id = $1`,
+      [user.userId],
+    );
+    // pending 은 유지, 토큰은 재발급(변경)
+    expect(after.rows[0].pending_email).toBe(newEmail);
+    expect(after.rows[0].email_change_token).toMatch(/^[a-f0-9]{64}$/);
+    expect(after.rows[0].email_change_token).not.toBe(
+      before.rows[0].email_change_token,
+    );
+    // 만료 시각도 재발급 시점 기준으로 갱신됨 (resend 가 NOW()+1h 로 다시 설정)
+    expect(
+      new Date(after.rows[0].email_change_expires_at).getTime(),
+    ).toBeGreaterThan(
+      new Date(before.rows[0].email_change_expires_at).getTime(),
+    );
+  }, 60_000);
+
+  it('resend without pending → 400 VALIDATION_ERROR', async () => {
+    const user = await registerAndLogin(BASE_URL, uniqueEmail('emchg-rs0'), db);
+    const res = await request(BASE_URL)
+      .post('/api/users/me/email-change/resend')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  }, 60_000);
+
+  it('verify 시점 신규 이메일 선점 → 409 + pending 정리', async () => {
+    // userA 가 newEmail 로 변경 대기 중인데, 그 사이 userB 가 newEmail 로 가입(선점).
+    const newEmail = uniqueEmail('emchg-race-new');
+    const userA = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('emchg-raceA'),
+      db,
+    );
+    const rawToken = `race-token-${userA.userId}`;
+    await seedPendingEmailChange(db, userA.userId, newEmail, rawToken);
+
+    // userB 가 newEmail 선점
+    await registerAndLogin(BASE_URL, newEmail, db);
+
+    const res = await request(BASE_URL)
+      .post('/api/users/me/email-change/verify')
+      .set('Authorization', `Bearer ${userA.accessToken}`)
+      .send({ token: rawToken });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('RESOURCE_CONFLICT');
+
+    // userA 이메일 미변경 + pending 정리됨
+    const row = await db.query(
+      `SELECT email, pending_email, email_change_token FROM "user" WHERE id = $1`,
+      [userA.userId],
+    );
+    expect(row.rows[0].email).not.toBe(newEmail);
+    expect(row.rows[0].pending_email).toBeNull();
+    expect(row.rows[0].email_change_token).toBeNull();
   }, 60_000);
 });

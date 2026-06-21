@@ -2,8 +2,15 @@
 worktree: spec-email-change-0fcba4
 started: 2026-06-21
 owner: developer
+status: complete
 spec_area: spec/5-system/1-auth.md, spec/2-navigation/9-user-profile.md
-parent: plan/in-progress/spec-draft-email-change.md
+parent: plan/complete/spec-draft-email-change.md
+spec_impact:
+  - spec/5-system/1-auth.md
+  - spec/2-navigation/9-user-profile.md
+  - spec/1-data-model.md
+  - spec/conventions/audit-actions.md
+  - spec/data-flow/1-audit.md
 ---
 
 # 이메일 변경 프로세스 구현
