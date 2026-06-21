@@ -1074,6 +1074,10 @@ export class IntegrationOAuthService {
     // (PKCE code_verifier for makeshop). Provider-specific config / credential
     // errors (OAUTH_CONFIG_MISSING, CAFE24_INVALID_MALL_ID, *_CREDENTIALS_*)
     // are thrown from there — same codes/messages as before. (M-2)
+    //
+    // `envCredentials` is always passed (env.cafe24 for cafe24) but only the
+    // env-backed strategies read it: cafe24-private and makeshop ignore it and
+    // use the per-install creds from `providerMeta` instead.
     const {
       tokenUrl,
       headers,
