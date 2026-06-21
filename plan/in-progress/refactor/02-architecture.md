@@ -285,9 +285,11 @@
 - [x] 4 서비스 call-site 이전 (동작 보존) — oauth(integration-oauth) / interaction(interaction-token) / mcp(mcp-client + McpToolProvider insecure-URL 단일 source) / llm(LLM_STUB_MODE). 동적 키·fallback 체인·파싱 규칙 보존
 - [x] `.env.example ↔ namespace 키` 대조 테스트(`config-env-coverage.spec.ts`) + 런타임 env-flip 단위 테스트 ConfigService mock 재작성
 - [x] TEST WORKFLOW (lint·unit·build·e2e 전부 PASS — 2026-06-21)
-- [ ] planner spec-sync (`7-llm-client.md §7.1` LLM_STUB_MODE → ConfigService) + `/consistency-check --spec` BLOCK:NO
-- [ ] `/ai-review` + Critical/Warning 0 (resolution)
-- [ ] `/consistency-check --impl-done` (spec 연결 코드 변경 — llm/oauth/EIA)
+- [x] spec-sync: `7-llm-client.md §7.1`(LLM_STUB_MODE)·`14-external-interaction-api.md §8.3`(interaction secret 체인)·`11-mcp-client.md §4.3`(mcp.* namespace) ConfigService 표현 동기화
+- [x] `/ai-review` Critical/Warning 0 — 4 사이클 수렴(8W→3W→3W→0W). resolution: `review/code/2026/06/21/{11_04_06,11_34_45,11_59_04}/RESOLUTION.md`, 최종 clean `12_16_46`
+- [x] `/consistency-check --impl-done spec/5-system/` **BLOCK:NO** (`review/consistency/2026/06/21/12_17_54/`)
+
+**커밋**: `b8119f7e`(구현)·`4ed3328a`(rev#1)·`cada33a7`(rev#2)·`3e20293b`(rev#3). 잔여 INFO(문서화 nit·FRONTEND_URL app namespace 통일·OAUTH_STUB_MODE 헬퍼 이전·4-integration §5.8 env 표기)는 비차단 후속 후보. **M-6 완료 — 02-architecture 잔여(C-2·M-1~M-5·M-7~M-9·m-1·m-2)는 별도 작업.**
 
 **spec 대조**: D — ConfigService 패턴이 spec 에 모델링된 영역 존재(`4-file-storage.md §2.3` "ConfigService 키: s3.*"), 단 **spec 이 직접 접근을 원문 명시한 곳도 있음**(`7-llm-client.md` "`process.env.LLM_STUB_MODE === 'true'`"). 전역 config 규약 문서는 부재.
 
