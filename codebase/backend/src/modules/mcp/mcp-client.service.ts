@@ -14,19 +14,6 @@ const MCP_CLIENT_NAME = 'clemvion-backend';
 const MCP_CLIENT_VERSION = '1.0.0';
 
 /**
- * Local-development escape hatch. When `MCP_ALLOW_INSECURE_URL=true` the
- * URL safety checks (https-only + SSRF host blocklist) are bypassed —
- * operator explicitly accepts http:// and loopback / RFC 1918 hosts.
- *
- * refactor M-6: 옛 `isInsecureUrlAllowed()` free 함수의 `process.env` 직접 접근을
- * `McpClientService.allowInsecureUrl` getter(ConfigService `mcp.allowInsecureUrl`)로 이전 —
- * mcp-client 내부 SSRF 체크 + `McpToolProvider`(주입된 mcpClient 경유)가 단일 source 를 공유한다.
- */
-function parseAllowInsecure(raw: string | undefined): boolean {
-  return raw === 'true' || raw === '1';
-}
-
-/**
  * Connection parameters for an MCP server. Resolved from a workspace
  * Integration ({@link Integration}) of `service_type='mcp'`. The shape
  * mirrors the credentials JSONB schema declared in
@@ -246,27 +233,27 @@ export class McpClientService {
   private readonly connectTimeoutMs: number;
 
   // refactor M-6: MCP_MAX_CONCURRENT_CONNECTIONS / MCP_CONNECT_TIMEOUT_MS 직접 접근을
-  // ConfigService(`mcp.*`)로 이전. `@Optional()` — 수동 생성 테스트(`new McpClientService()`)
-  // 는 configService 미주입 → `Number(undefined) || DEFAULT_*` 로 기존 폴백 동작을 보존한다.
+  // ConfigService(`mcp.*`, number|undefined 로 파싱됨)로 이전. `@Optional()` — 수동 생성
+  // 테스트(`new McpClientService()`)는 configService 미주입 → `undefined || DEFAULT_*` 로
+  // 기존 폴백 동작을 보존한다(`'0'`→DEFAULT 등 `||` 의미 동일).
   constructor(@Optional() private readonly configService?: ConfigService) {
     const max =
-      Number(this.configService?.get<string>('mcp.maxConcurrentConnections')) ||
+      this.configService?.get<number>('mcp.maxConcurrentConnections') ||
       DEFAULT_MAX_CONCURRENT_CONNECTIONS;
     this.limit = pLimit(max);
     this.connectTimeoutMs =
-      Number(this.configService?.get<string>('mcp.connectTimeoutMs')) ||
+      this.configService?.get<number>('mcp.connectTimeoutMs') ||
       DEFAULT_CONNECT_TIMEOUT_MS;
   }
 
   /**
    * refactor M-6: MCP_ALLOW_INSECURE_URL escape hatch 의 단일 source. ConfigService
-   * (`mcp.allowInsecureUrl`, raw env)를 읽어 `'true'`/`'1'` 만 ON 으로 파싱. configService
-   * 미주입(수동 테스트) 시 false(strict). `McpToolProvider` 가 주입된 본 인스턴스 경유로 공유.
+   * (`mcp.allowInsecureUrl`, boolean — `'true'`/`'1'` 만 ON 으로 config 레이어가 파싱)를 읽는다.
+   * configService 미주입(수동 테스트) 시 false(strict). `McpToolProvider` 가 주입된 본 인스턴스
+   * 경유로 동일 source 를 공유한다.
    */
   get allowInsecureUrl(): boolean {
-    return parseAllowInsecure(
-      this.configService?.get<string>('mcp.allowInsecureUrl'),
-    );
+    return this.configService?.get<boolean>('mcp.allowInsecureUrl') ?? false;
   }
 
   async connect(params: McpConnectParams): Promise<McpSession> {
@@ -515,7 +502,7 @@ class SessionImpl implements McpSession {
   ) {}
 
   listTools(params?: ListParams): Promise<ListToolsResult> {
-    return this.client.listTools(params) as Promise<ListToolsResult>;
+    return this.client.listTools(params);
   }
 
   callTool(params: CallToolParams): Promise<CallToolResult> {
@@ -527,22 +514,19 @@ class SessionImpl implements McpSession {
   }
 
   listResources(params?: ListParams): Promise<ListResourcesResult> {
-    return this.client.listResources(params) as Promise<ListResourcesResult>;
+    return this.client.listResources(params);
   }
 
   readResource(params: { uri: string }): Promise<ReadResourceResult> {
-    return this.client.readResource(
-      params,
-      undefined,
-    ) as Promise<ReadResourceResult>;
+    return this.client.readResource(params, undefined);
   }
 
   listPrompts(params?: ListParams): Promise<ListPromptsResult> {
-    return this.client.listPrompts(params) as Promise<ListPromptsResult>;
+    return this.client.listPrompts(params);
   }
 
   getPrompt(params: GetPromptParams): Promise<GetPromptResult> {
-    return this.client.getPrompt(params, undefined) as Promise<GetPromptResult>;
+    return this.client.getPrompt(params, undefined);
   }
 
   async close(): Promise<void> {
