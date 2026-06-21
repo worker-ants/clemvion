@@ -259,7 +259,11 @@ export class AiMemoryManager {
     const tail = selectVolatileTail(turns, update.summarizedUpToSeq);
     const capped = applyCap(tail);
 
-    // multi-turn 누적 messages 물리 압축의 keepUserExchanges 도출.
+    // ── [keepUserExchanges 도출] multi-turn 누적 messages 물리 압축 경계 ──
+    //
+    // self 제외 `turns`(요약용)와 별개로 **self 포함 전체 thread**(`getThread`)를
+    // 다시 읽는다 — 두 호출은 목적이 다르다 (위 `getThreadExcludingNode` =
+    // 요약·꼬리 / 아래 `getThread` = 물리 압축 경계). 중복 호출이 아니다.
     //
     // 압축 대상은 **에이전트 자신의 누적 messages** (user/assistant/tool) 다.
     // summarization 에 쓰는 `turns` 는 self 노드를 제외하므로 에이전트 자신의
