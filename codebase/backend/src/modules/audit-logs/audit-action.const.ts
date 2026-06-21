@@ -40,6 +40,7 @@ export const AUDIT_ACTIONS = {
   USER_PASSWORD_CHANGED: 'user.password_changed',
   USER_2FA_ENABLED: 'user.2fa_enabled',
   USER_2FA_DISABLED: 'user.2fa_disabled',
+  USER_EMAIL_CHANGED: 'user.email_changed',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

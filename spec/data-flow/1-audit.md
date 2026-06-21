@@ -58,6 +58,7 @@ workspaceId 가 살아있는 controller 경계가 기록한다(§Rationale 4.1.B
 | 〃 | `auth_config.regenerate` | auth_config | 키/토큰 재발급 |
 | 〃 | `auth_config.reveal` | auth_config | 평문 노출 (비밀번호 재확인). auth_config 계열은 모두 `ipAddress` 를 함께 전달 |
 | `users/users.controller.ts` | `user.password_changed` | user | 인증 세션 비밀번호 변경 (`POST /users/me/change-password`). 액터 세션 workspaceId 귀속 · `ipAddress` 동반(포렌식) |
+| `users/users.controller.ts` | `user.email_changed` | user | 이메일 변경 확인 (`POST /users/me/email-change/verify`, 인증 §1.1.B). 액터 세션 workspaceId 귀속 · `ipAddress` 동반 · **details 에 raw 이메일 미저장**(PII 최소화) |
 | `auth/auth.controller.ts` | `user.2fa_enabled` | user | TOTP 활성 (`POST /auth/2fa/verify`). `details.method='totp'` · `ipAddress` 동반(포렌식) |
 | 〃 | `user.2fa_disabled` | user | TOTP 비활성 (`POST /auth/2fa/disable`). `details.method='totp'` · `ipAddress` 동반(포렌식) |
 | `auth/webauthn/webauthn.controller.ts` | `user.2fa_enabled` | user | WebAuthn credential 등록 (`POST …/webauthn/register/verify`). `details.method='webauthn'`·`credentialId`·`firstCredential` · `ipAddress` 동반(포렌식) |

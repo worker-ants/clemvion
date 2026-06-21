@@ -203,4 +203,88 @@ describe('MailService', () => {
       expect(result.mailerService.sendMail).toHaveBeenCalled();
     });
   });
+
+  // W4 — 신규 메서드 2개 테스트
+
+  describe('sendEmailChangeVerification', () => {
+    it('신규 이메일로 변경 확인 링크 발송', async () => {
+      await service.sendEmailChangeVerification(
+        'new@example.com',
+        'Test User',
+        'change-token-abc',
+      );
+
+      expect(mailerService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'new@example.com',
+          subject: 'Clemvion - 이메일 변경 확인',
+        }),
+      );
+      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      expect(callArgs.html).toContain(
+        '/profile/change-email/verify?token=change-token-abc',
+      );
+      expect(callArgs.html).toContain('Test User');
+      expect(callArgs.text).toContain('change-token-abc');
+    });
+
+    it('발송 실패 → throw (rethrow)', async () => {
+      mailerService.sendMail.mockRejectedValueOnce(new Error('SMTP error'));
+      await expect(
+        service.sendEmailChangeVerification('new@example.com', 'User', 'tok'),
+      ).rejects.toThrow('SMTP error');
+    });
+
+    it('CONSOLE transport — mailer 여전히 호출', async () => {
+      const result = await createService({ 'mail.transport': 'console' });
+      await result.service.sendEmailChangeVerification(
+        'new@example.com',
+        'User',
+        'dev-token',
+      );
+      expect(result.mailerService.sendMail).toHaveBeenCalled();
+    });
+  });
+
+  describe('sendEmailChangedNotice', () => {
+    it('옛 이메일로 변경 완료 통지 발송', async () => {
+      await service.sendEmailChangedNotice(
+        'old@example.com',
+        'Test User',
+        'new@example.com',
+      );
+
+      expect(mailerService.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'old@example.com',
+          subject: 'Clemvion - 이메일이 변경되었습니다',
+        }),
+      );
+      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      expect(callArgs.html).toContain('new@example.com');
+      expect(callArgs.text).toContain('new@example.com');
+    });
+
+    it('발송 실패 → throw (rethrow)', async () => {
+      mailerService.sendMail.mockRejectedValueOnce(new Error('SMTP down'));
+      await expect(
+        service.sendEmailChangedNotice(
+          'old@example.com',
+          'User',
+          'new@example.com',
+        ),
+      ).rejects.toThrow('SMTP down');
+    });
+
+    it('XSS — 이름/신규 이메일 HTML 이스케이프', async () => {
+      await service.sendEmailChangedNotice(
+        'old@example.com',
+        '<script>alert(1)</script>',
+        'safe@example.com',
+      );
+      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      expect(callArgs.html).not.toContain('<script>');
+      expect(callArgs.html).toContain('&lt;script&gt;');
+    });
+  });
 });

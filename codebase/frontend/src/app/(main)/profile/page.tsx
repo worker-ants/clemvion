@@ -29,6 +29,7 @@ interface UserProfile {
   avatarUrl?: string | null;
   locale: Locale;
   theme: ServerTheme;
+  pendingEmail?: string | null;
 }
 
 export default function ProfilePage() {
@@ -81,7 +82,13 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">{t("profile.title")}</h1>
 
-      <ProfileInfoCard user={{ name: user.name, email: user.email }} />
+      <ProfileInfoCard
+        user={{
+          name: user.name,
+          email: user.email,
+          pendingEmail: user.pendingEmail,
+        }}
+      />
 
       <Card>
         <CardHeader>

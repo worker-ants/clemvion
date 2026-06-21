@@ -320,6 +320,40 @@ describe('SessionsService', () => {
     });
   });
 
+  describe('reauthenticate (W2 — 이메일 변경 재인증 진입점)', () => {
+    it('user 없음 → UNAUTHENTICATED (401)', async () => {
+      usersService.findById.mockResolvedValue(null as never);
+      await expect(
+        service.reauthenticate('ghost', { password: 'pw' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('정상 비밀번호 → resolve (verifyReauth 위임)', async () => {
+      const hash = await bcrypt.hash('correct', 12);
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        passwordHash: hash,
+        twoFactorEnabled: false,
+        email: 'a@b.c',
+      } as never);
+      await expect(
+        service.reauthenticate('user-1', { password: 'correct' }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('OAuth-only (no password, no 2FA) → REAUTH_NOT_AVAILABLE (403)', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        passwordHash: null,
+        twoFactorEnabled: false,
+        email: 'a@b.c',
+      } as never);
+      await expect(service.reauthenticate('user-1', {})).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
+
   describe('revokeAllFamilies (refactor 04 A-1 — 비밀번호 변경 후)', () => {
     it('revokes all active families and records a bulk session_revoked', async () => {
       usersService.findById.mockResolvedValue({

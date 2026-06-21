@@ -62,6 +62,9 @@ User ──┬── Workspace (1:N)
 | email_verified | Boolean | 이메일 인증 완료 여부 (기본 false — 인증 전 로그인 제한, [Auth §1.1](./5-system/1-auth.md#11-이메일비밀번호-인증)) |
 | email_verify_token | String? | 이메일 인증 토큰 **SHA-256 해시** (24h 유효). 인증 완료 시 NULL |
 | email_verify_expires_at | Timestamp? | 이메일 인증 토큰 만료 시각 |
+| pending_email | String? | 변경 확인 대기 중인 신규 이메일. 확인 완료(email 로 승격)/취소 시 NULL ([Auth §1.1.B](./5-system/1-auth.md#11b-이메일-변경-흐름)) |
+| email_change_token | String? | 이메일 변경 확인 토큰 **SHA-256 해시** (1h 유효). 확인/취소/만료 시 NULL |
+| email_change_expires_at | Timestamp? | 이메일 변경 확인 토큰 만료 시각 |
 | password_reset_token | String? | 비밀번호 재설정 토큰 **SHA-256 해시** (30분 유효). 사용/만료 시 NULL |
 | password_reset_expires_at | Timestamp? | 재설정 토큰 만료 시각 |
 | login_attempts | Integer | 연속 로그인 실패 횟수 (기본 0 — 5회 실패 시 잠금, [data-flow §3.2](./data-flow/2-auth.md)) |

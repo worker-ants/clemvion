@@ -212,6 +212,24 @@ export class SessionsService {
   }
 
   /**
+   * 본인 재인증 (민감 작업 step-up). 세션 강제 종료와 동일 계약을 재사용한다 —
+   * `password` 또는 `totpCode` (password 없는 2FA 사용자). 둘 다 없는 OAuth-only 는
+   * `REAUTH_NOT_AVAILABLE`. 이메일 변경 시작(spec/5-system/1-auth.md §1.1.B)이 호출한다.
+   *
+   * WebAuthn 은 challenge/response step-up 이 필요해 본 동기 경로에서 미지원(verifyReauth
+   * 와 동일 한계) — WebAuthn-only 계정은 password/TOTP 설정 후 재시도.
+   *
+   * @throws REAUTH_NOT_AVAILABLE / REAUTH_REQUIRED / PASSWORD_INVALID / TOTP_INVALID
+   */
+  async reauthenticate(userId: string, auth: RevokeSessionDto): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException({ code: 'UNAUTHENTICATED' });
+    }
+    await this.verifyReauth(user, auth);
+  }
+
+  /**
    * 사용자 유형별 본인 재인증.
    *
    * 우선순위 (위에서부터 매치):

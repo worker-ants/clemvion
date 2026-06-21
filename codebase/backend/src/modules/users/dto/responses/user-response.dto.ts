@@ -20,6 +20,19 @@ export class UserProfileDto {
 
   @ApiProperty({ enum: USER_THEMES, example: 'light' })
   theme: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      '진행 중인 이메일 변경의 확인 대기 신규 이메일. 없으면 null (spec/5-system/1-auth.md §1.1.B).',
+  })
+  pendingEmail?: string | null;
+}
+
+/** 단순 메시지 응답 (이메일 변경 request/resend/cancel). */
+export class MessageResponseDto {
+  @ApiProperty({ description: '결과 메시지' })
+  message: string;
 }
 
 /**

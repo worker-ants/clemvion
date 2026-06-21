@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { useT } from "@/lib/i18n";
 import { ConfirmDiffDialog, type DiffEntry } from "./confirm-diff-dialog";
 
 interface ProfileInfoCardProps {
-  user: { name: string; email: string };
+  user: { name: string; email: string; pendingEmail?: string | null };
 }
 
 function getInitials(name: string, email: string): string {
@@ -157,12 +158,31 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
               </div>
               <div>
                 <Label htmlFor="profile-email">{t("profile.email")}</Label>
-                <p id="profile-email" className="mt-1 text-sm">
-                  {user.email}
-                </p>
-                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  {t("profile.emailReadonlyHint")}
-                </p>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <p id="profile-email" className="text-sm">
+                    {user.email}
+                  </p>
+                  <Link
+                    href="/profile/change-email"
+                    className="shrink-0 text-sm text-[hsl(var(--primary))] hover:underline"
+                    data-testid="profile-change-email-link"
+                  >
+                    {t("profile.changeEmailCta")}
+                  </Link>
+                </div>
+                {user.pendingEmail ? (
+                  <p
+                    className="mt-1 text-xs text-[hsl(var(--muted-foreground))]"
+                    data-testid="profile-email-pending"
+                  >
+                    {t("profile.emailPendingLabel")}{" "}
+                    <strong>{user.pendingEmail}</strong>
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                    {t("profile.emailReadonlyHint")}
+                  </p>
+                )}
               </div>
             </div>
           </div>

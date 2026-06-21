@@ -70,7 +70,7 @@ pending_plans:
 │                                                              │
 │  ┌──────┐  사용자 정보                          [편집]        │
 │  │Avatar│    Name:   Gehrig Kim                              │
-│  └──────┘    Email:  gehrig@example.com  (변경 불가, 별도)    │
+│  └──────┘    Email:  gehrig@example.com        [변경하기 →]   │
 │                                                              │
 │  ── 비밀번호 ──                                               │
 │    현재 비밀번호 확인이 필요합니다           [변경하기 →]     │
@@ -89,7 +89,7 @@ pending_plans:
 |-----------|-----------|------|
 | **인라인 토글** | 사용자 정보(아바타·이름), 환경설정(언어·테마) | 카드 우상단 [편집] → 해당 카드만 input 활성 + [취소]/[저장]. 저장 클릭 시 **변경 전·후 diff 확인 모달**("이전: A → 새: B") 한 단계를 거친 뒤 PATCH 실행. 다른 카드는 readonly 유지. 환경설정의 테마 라이브 프리뷰는 **편집 모드 동안 로컬 임시 state** 로 격리되어 [취소] / 모달 닫힘 시 항상 원복된다 |
 | **전용 페이지(sub-route)** | 비밀번호 | `/profile/change-password` 로 이동. 페이지 진입 자체가 "지금 비밀번호를 변경하려는 의도" 의 표명 역할. 자세한 폼은 §2.2 참조 |
-| **별도 프로세스** | 이메일 | 본 화면에서는 readonly 표시만. 변경은 확인 메일 발송 플로우로 분리 (현 단계 미구현) |
+| **전용 페이지(sub-route)** | 이메일 | 본 화면에서는 표시 + [변경하기 →]. `/profile/change-email` 로 이동해 재인증 → 신규 이메일 확인 메일 → 링크 클릭으로 확정. 상세 [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름) |
 | **별도 sub-route** | 2FA, 활성 세션·로그인 이력 | 보안 카드의 Link 로 `/profile/security`, `/profile/sessions` 진입 |
 
 ```
@@ -106,6 +106,24 @@ pending_plans:
 └──────────────────────────────────────────────────────────────┘
 ```
 
+```
+/profile/change-email
+┌──────────────────────────────────────────────────────────────┐
+│  이메일 변경                                                  │
+│  새 이메일로 확인 메일을 보내 변경을 완료합니다             │
+│                                                              │
+│    New email:        [_______________]                       │
+│    재인증(비밀번호 또는 2FA 코드): [_______________]         │
+│                                                              │
+│                           [취소]   [확인 메일 보내기]        │
+│  ─────────────────────────────────────────────────────────  │
+│  (발송 후) new@example.com 으로 확인 메일을 보냈어요.        │
+│           메일 링크로 변경을 완료하세요.   [재발송] [취소]   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+이메일 변경 페이지는 `/profile/change-password` 와 같은 sub-route 진입형이다. 신규 이메일 + 재인증(비밀번호 또는 2FA — 계정 상태에 따라)을 입력해 확인 메일을 보내고, 신규 이메일의 링크 클릭으로 확정한다. 확정 시 비밀번호 변경과 동일하게 전 세션 revoke + 현재 디바이스 재발급된다. pending 상태(확인 대기)는 본 화면과 `/profile` 카드에서 [재발송]/[취소] 와 함께 표시된다. 흐름·재인증 범위·차단 조건(OAuth-only 무2FA)은 [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름).
+
 비밀번호 변경 페이지는 diff 미리보기 모달을 생략한다(마스킹된 값이라 무의미). currentPassword 가 1차 인증 역할을 한다. 변경 성공 시 서버가 사용자의 **전 세션을 revoke 하고 현재 디바이스에 새 세션을 재발급**하며([인증 §2.3 / Rationale 2.3.C](../5-system/1-auth.md#23-세션-정책)) 응답 `{ accessToken }` 으로 새 access token 을 내려준다 — 클라이언트는 이 토큰으로 in-memory access token(`auth-store`)을 교체하고(refresh 쿠키는 `Set-Cookie` 로 자동 회전) `/profile` 로 리다이렉트 + 성공 토스트를 표시한다. 재로그인 화면으로 보내지 않는다(현재 디바이스는 로그인 유지).
 
 ### 2.1 프로필 필드
@@ -114,7 +132,7 @@ pending_plans:
 |------|-----------|-----------|------|
 | 아바타 | O | 인라인 토글 | 현재 구현: `PATCH /users/me` 의 `avatarUrl` 필드로 URL 갱신/제거. **이미지 파일 업로드는 미구현 (Planned)** — 전용 업로드 엔드포인트(§6.1 참조) 부재 |
 | 이름 | O | 인라인 토글 | 표시 이름 |
-| 이메일 | X (별도 변경) | 별도 프로세스 | 이메일 변경 시 확인 메일 발송 플로우 |
+| 이메일 | O (별도 변경) | 전용 페이지 `/profile/change-email` | 재인증(비밀번호 또는 2FA) + 신규 이메일 확인 메일. 확인 완료 시 전 세션 revoke + 현재 디바이스 재발급. 상세 [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름) |
 | 언어 | O | 인라인 토글 | UI 언어 (ko, en) |
 | 테마 | O | 인라인 토글 (라이브 프리뷰는 임시 state 로 격리) | Light / Dark / **System** — backend `UpdateMeDto.USER_THEMES` 가 `['light','dark','system']` 수용(저장·반환). `system` = OS 색상 모드 자동 추종으로 **frontend 가 `prefers-color-scheme` 로 적용**(frontend UI 토글 노출은 Planned) |
 | 비밀번호 | O | 전용 페이지 `/profile/change-password` | 현재 비밀번호 확인 → 새 비밀번호 입력 |
@@ -297,10 +315,14 @@ pending_plans:
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | /api/users/me | 내 프로필 조회 |
-| PATCH | /api/users/me | 프로필 수정 |
+| GET | /api/users/me | 내 프로필 조회. 응답(`UserProfileDto`)에 진행 중인 이메일 변경 표시용 **`pendingEmail: string \| null`** 포함(확인 대기 중인 신규 이메일, 없으면 null — [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름)) |
+| PATCH | /api/users/me | 프로필 수정 (이메일 제외 — 이메일은 `/email-change/*` 별도 흐름) |
 | ~~POST~~ | ~~/api/users/me/avatar~~ | 아바타 **이미지 파일** 업로드 — **미구현 (Planned)**. 현재는 `PATCH /api/users/me` 의 `avatarUrl` 로 URL 설정/제거만 가능 |
 | POST | /api/users/me/change-password | 비밀번호 변경. 성공 시 전 세션 revoke + 현재 디바이스 새 세션 재발급 — `{ accessToken }` 반환 + refresh 쿠키 회전 ([인증 §2.3 / Rationale 2.3.C](../5-system/1-auth.md#23-세션-정책)) |
+| POST | /api/users/me/email-change/request | 이메일 변경 시작. **재인증 필수**(비밀번호 또는 등록 TOTP — WebAuthn step-up 재인증은 현재 미지원, 인증 §1.1.B Rationale 1.1.B-4; OAuth-only 무2FA 는 403 `REAUTH_NOT_AVAILABLE`). 신규 이메일 형식·중복 검증 후 신규 이메일로 확인 메일(1h) 발송. throttle 5/min. 흐름 [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름) |
+| POST | /api/users/me/email-change/verify | 이메일 변경 확인(JWT 인증). 토큰 검증 → `email` 교체 + `email_verified=true` + 전 세션 revoke + 현재 디바이스 재발급(`{ accessToken }` + refresh 쿠키 회전) + 옛 이메일 통지 + `user.email_changed` 감사. 토큰 무효·만료 400 `VALIDATION_ERROR`, 신규 이메일 선점 시 409 `RESOURCE_CONFLICT` |
+| POST | /api/users/me/email-change/resend | 확인 메일 재발송(pending 의 신규 이메일로 토큰 재발급). throttle 5/min. pending 없으면 400 `VALIDATION_ERROR` |
+| POST | /api/users/me/email-change/cancel | 진행 중 이메일 변경 취소(pending 필드 NULL화). 재인증 불요, pending 없어도 멱등 |
 | POST | /api/users/me/enable-2fa | 2FA TOTP 활성화 시작 (canonical: `POST /api/auth/2fa/setup` — [인증 spec §5](../5-system/1-auth.md#5-api-엔드포인트)) |
 | POST | /api/users/me/confirm-2fa | 2FA TOTP 활성화 verify (canonical: `POST /api/auth/2fa/verify`) |
 | — | /api/auth/2fa/webauthn/* | Passkey · 보안 키 등록·인증·관리. canonical 정의는 [인증 spec §5](../5-system/1-auth.md#5-api-엔드포인트) |
@@ -363,7 +385,7 @@ pending_plans:
 - **무방비 편집 활성화** — 모든 input 이 디폴트로 활성화되어 있어 단순 탐색 중에도 실수 입력이 그대로 저장 대상이 되었다.
 - **세션 강제 종료 패턴과의 톤 불일치** — `/profile/sessions` 의 강제 종료는 이미 `RevokeConfirmDialog`(password/TOTP 재인증) 로 명시적 의도를 분리해 안전하게 운영 중인데, 같은 영역의 다른 민감 동작은 그 톤을 따르지 못하고 있었다.
 
-해법으로 (a) `/profile` 을 디폴트 readonly 로 두고 카드 단위 [편집] 토글로 의도를 분리, (b) 저위험 항목(이름·환경설정) 도 저장 직전 변경 전·후 diff 확인 모달을 한 단계 거치게 해 실수 방지, (c) 고위험 항목(비밀번호) 은 별도 sub-route 진입 자체가 의도 표명 역할을 하도록 채택했다. 이메일은 기존 결정대로 "별도 변경 (확인 메일)" 으로 본 화면에서 분리한 상태를 유지한다.
+해법으로 (a) `/profile` 을 디폴트 readonly 로 두고 카드 단위 [편집] 토글로 의도를 분리, (b) 저위험 항목(이름·환경설정) 도 저장 직전 변경 전·후 diff 확인 모달을 한 단계 거치게 해 실수 방지, (c) 고위험 항목(비밀번호·이메일) 은 별도 sub-route 진입 자체가 의도 표명 역할을 하도록 채택했다. 이메일은 비밀번호와 동일한 sub-route 패턴(`/profile/change-email`)을 따르되, 식별자 교체라는 민감도를 반영해 재인증 + 신규 이메일 확인 메일 + 옛 이메일 통지를 거치는 별도 흐름으로 분리한다([인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름)).
 
 폐기된 대안:
 

@@ -260,4 +260,151 @@ export class MailService {
   private buildPasswordResetText(name: string, resetUrl: string): string {
     return `안녕하세요, ${name}님!\n\n비밀번호 재설정을 요청하셨습니다.\n아래 링크를 클릭하여 새 비밀번호를 설정해 주세요:\n\n${resetUrl}\n\n이 링크는 30분 동안 유효합니다.\n본인이 요청하지 않으셨다면 이 메일을 무시해 주세요. 비밀번호는 변경되지 않습니다.`;
   }
+
+  /**
+   * Send an email-change confirmation link to the **new** address. The link
+   * expires in 1 hour (spec/5-system/1-auth.md §1.1.B). Raw token URL is only
+   * logged when MAIL_TRANSPORT=console (dev); other transports omit it.
+   */
+  async sendEmailChangeVerification(
+    newEmail: string,
+    name: string,
+    token: string,
+  ): Promise<void> {
+    const verifyUrl = `${this.frontendUrl}/profile/change-email/verify?token=${encodeURIComponent(token)}`;
+
+    if (this.transport === MAIL_TRANSPORT_CONSOLE) {
+      this.logger.debug(
+        `Email-change verification for ${newEmail}: ${verifyUrl}`,
+      );
+    }
+
+    try {
+      await this.mailerService.sendMail({
+        to: newEmail,
+        subject: 'Clemvion - 이메일 변경 확인',
+        html: this.buildEmailChangeVerificationHtml(name, verifyUrl),
+        text: this.buildEmailChangeVerificationText(name, verifyUrl),
+      });
+      this.logger.log(`Email-change verification sent to ${newEmail}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send email-change verification to ${newEmail}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
+  }
+
+  private buildEmailChangeVerificationHtml(
+    name: string,
+    verifyUrl: string,
+  ): string {
+    const safeName = this.escapeHtml(name);
+    return `
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td>
+          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Clemvion</h1>
+          <p style="margin:0 0 16px;font-size:16px;color:#333;">안녕하세요, ${safeName}님!</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#555;">이 주소를 새 로그인 이메일로 변경하려고 합니다. 아래 버튼을 클릭하여 변경을 완료해 주세요.</p>
+          <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+            <tr><td style="background:#111;border-radius:6px;padding:12px 32px;">
+              <a href="${verifyUrl}" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;">이메일 변경 완료하기</a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 8px;font-size:12px;color:#999;">버튼이 작동하지 않으면 아래 링크를 브라우저에 붙여넣어 주세요:</p>
+          <p style="margin:0 0 24px;font-size:12px;color:#999;word-break:break-all;">${verifyUrl}</p>
+          <p style="margin:0 0 8px;font-size:12px;color:#999;">이 링크는 1시간 동안 유효합니다.</p>
+          <p style="margin:0;font-size:12px;color:#999;">본인이 요청하지 않으셨다면 이 메일을 무시해 주세요. 이메일은 변경되지 않습니다.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`.trim();
+  }
+
+  private buildEmailChangeVerificationText(
+    name: string,
+    verifyUrl: string,
+  ): string {
+    return `안녕하세요, ${name}님!\n\n이 주소를 새 로그인 이메일로 변경하려고 합니다.\n아래 링크를 클릭하여 변경을 완료해 주세요:\n\n${verifyUrl}\n\n이 링크는 1시간 동안 유효합니다.\n본인이 요청하지 않으셨다면 이 메일을 무시해 주세요. 이메일은 변경되지 않습니다.`;
+  }
+
+  /**
+   * Notify the **old** address that the account email was changed. Best-effort
+   * (caller swallows failures) — a security signal so the original owner can act
+   * (reset password) if the change was not initiated by them.
+   */
+  async sendEmailChangedNotice(
+    oldEmail: string,
+    name: string,
+    newEmail: string,
+  ): Promise<void> {
+    const resetUrl = `${this.frontendUrl}/reset-password`;
+
+    try {
+      await this.mailerService.sendMail({
+        to: oldEmail,
+        subject: 'Clemvion - 이메일이 변경되었습니다',
+        html: this.buildEmailChangedNoticeHtml(name, newEmail, resetUrl),
+        text: this.buildEmailChangedNoticeText(name, newEmail, resetUrl),
+      });
+      this.logger.log(`Email-changed notice sent to ${oldEmail}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send email-changed notice to ${oldEmail}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
+  }
+
+  private buildEmailChangedNoticeHtml(
+    name: string,
+    newEmail: string,
+    resetUrl: string,
+  ): string {
+    const safeName = this.escapeHtml(name);
+    const safeNewEmail = this.escapeHtml(newEmail);
+    return `
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td>
+          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Clemvion</h1>
+          <p style="margin:0 0 16px;font-size:16px;color:#333;">안녕하세요, ${safeName}님!</p>
+          <p style="margin:0 0 16px;font-size:14px;color:#555;">계정 로그인 이메일이 <strong>${safeNewEmail}</strong> (으)로 변경되었습니다.</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#555;">본인이 변경하셨다면 별도 조치가 필요 없습니다. 본인이 요청하지 않으셨다면 계정이 도용됐을 수 있으니, 아래 링크에서 즉시 비밀번호를 재설정해 주세요.</p>
+          <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+            <tr><td style="background:#111;border-radius:6px;padding:12px 32px;">
+              <a href="${resetUrl}" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;">비밀번호 재설정</a>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:12px;color:#999;word-break:break-all;">${resetUrl}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`.trim();
+  }
+
+  private buildEmailChangedNoticeText(
+    name: string,
+    newEmail: string,
+    resetUrl: string,
+  ): string {
+    return `안녕하세요, ${name}님!\n\n계정 로그인 이메일이 ${newEmail} (으)로 변경되었습니다.\n본인이 변경하셨다면 별도 조치가 필요 없습니다.\n본인이 요청하지 않으셨다면 계정이 도용됐을 수 있으니, 아래 링크에서 즉시 비밀번호를 재설정해 주세요:\n\n${resetUrl}`;
+  }
 }

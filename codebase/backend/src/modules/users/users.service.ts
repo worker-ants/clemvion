@@ -97,6 +97,22 @@ export class UsersService {
     return count > 0;
   }
 
+  /**
+   * 다른 사용자가 해당 이메일을 (대소문자 무시) 사용 중인지. 이메일 변경 흐름의
+   * 신규 이메일 중복 검사용 (spec/5-system/1-auth.md §1.1.B). 본인(excludeUserId)은 제외.
+   */
+  async emailTakenByOther(
+    email: string,
+    excludeUserId: string,
+  ): Promise<boolean> {
+    const count = await this.userRepository
+      .createQueryBuilder('u')
+      .where('LOWER(u.email) = LOWER(:email)', { email })
+      .andWhere('u.id != :id', { id: excludeUserId })
+      .getCount();
+    return count > 0;
+  }
+
   async incrementLoginAttempts(id: string): Promise<number> {
     const user = await this.userRepository.findOneOrFail({ where: { id } });
     user.loginAttempts += 1;
