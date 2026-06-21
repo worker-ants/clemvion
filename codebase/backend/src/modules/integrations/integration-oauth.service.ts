@@ -36,11 +36,23 @@ import {
 import { normalizeStatusReason } from './integration-status-reason';
 import { pickRestrictedApprovalScopes } from '../../nodes/integration/cafe24/metadata/restricted-approval';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
-import { parseJwtExp } from './jwt-exp';
-import { normalizeCafe24IsoTimezone } from './cafe24-token-utils';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { isOAuthStubModeAllowed } from '../../common/utils/oauth-stub-mode';
 import { sanitizeLastErrorMessage } from '../../shared/utils/sanitize-error-message';
+import {
+  resolveOAuthStrategy,
+  ALLOWED_OAUTH_PROVIDERS,
+  type OAuthProvider,
+  type Cafe24BeginMeta,
+  type MakeshopBeginMeta,
+  type TokenExchangeResult,
+  readString,
+} from './oauth-providers';
+
+// Re-exported so existing importers (controllers, tests) keep their import
+// path. The canonical definitions live in `./oauth-providers` (refactor M-2).
+export { ALLOWED_OAUTH_PROVIDERS };
+export type { OAuthProvider, Cafe24BeginMeta, MakeshopBeginMeta };
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
@@ -53,81 +65,11 @@ const PREVIEW_TTL_MS = 10 * 60 * 1000;
  */
 const RECOVERY_CANDIDATE_LIMIT = 5;
 
-export const ALLOWED_OAUTH_PROVIDERS = [
-  'google',
-  'github',
-  'cafe24',
-  'makeshop',
-] as const;
-export type OAuthProvider = (typeof ALLOWED_OAUTH_PROVIDERS)[number];
-
-/**
- * MakeShop OAuth (OAuth 2.1 + PKCE, confidential client) 의 고정 호스트.
- * cafe24 와 달리 single host — `connect.makeshop.co.kr` 는 data-call 호스트,
- * `auth.makeshop.com` 은 authorize/token 호스트 (data-call 과 분리).
- * spec/2-navigation/4-integration.md §5.9 + spec/4-nodes/4-integration/
- * 5-makeshop.md §9.1.
- *
- * ⚠ VERIFY against makeshop docs before production: authorize/token 호스트와
- * endpoint path 는 makeshop 가이드 페이지 추출이 1차 출처 (spec §9.7 미확인
- * 항목). 토큰 refresh 경로(`makeshop-api.client.ts`)와 동일 상수 유지.
- */
-const MAKESHOP_AUTHORIZE_URL = 'https://auth.makeshop.com/oauth/authorize';
-const MAKESHOP_TOKEN_URL = 'https://auth.makeshop.com/oauth/token';
-
-/**
- * Static authorize URLs for providers that have a single global authorize
- * endpoint. Cafe24 is mall_id-dependent — `cafe24AuthorizeUrl(mallId)`.
- */
-const STATIC_AUTHORIZE_URLS: Record<'google' | 'github', string> = {
-  google: 'https://accounts.google.com/o/oauth2/v2/auth',
-  github: 'https://github.com/login/oauth/authorize',
-};
-
-const STATIC_TOKEN_URLS: Record<'google' | 'github', string> = {
-  google: 'https://oauth2.googleapis.com/token',
-  github: 'https://github.com/login/oauth/access_token',
-};
-
 const CAFE24_MALL_ID_PATTERN = /^[a-z0-9-]{3,50}$/;
 
 /** Integration OAUTH_STUB_MODE 가드 — 단일 헬퍼 위임 (W-74). */
 function isIntegrationOAuthStubEnabled(): boolean {
   return isOAuthStubModeAllowed();
-}
-
-function cafe24AuthorizeUrl(mallId: string): string {
-  return `https://${mallId}.cafe24api.com/api/v2/oauth/authorize`;
-}
-
-function cafe24TokenUrl(mallId: string): string {
-  return `https://${mallId}.cafe24api.com/api/v2/oauth/token`;
-}
-
-/**
- * Begin-time metadata for cafe24 OAuth (also persisted on the state row's
- * `provider_meta` JSONB column until callback consumption). Public apps may
- * omit `client_id`/`client_secret` (env-provided); private apps must supply
- * both — the values exist on the wire only for the state TTL (10 min).
- */
-export interface Cafe24BeginMeta {
-  mall_id: string;
-  app_type: 'public' | 'private';
-  client_id?: string;
-  client_secret?: string;
-}
-
-/**
- * Begin-time metadata for makeshop OAuth. MakeShop is a confidential-client-only
- * app (no public/private split like cafe24) — the user always supplies
- * `client_id`/`client_secret`. `shop_uid` is NOT known at begin time: it is
- * learned from the ShopStore install redirect's `?shop_uid=...` parameter and
- * projected onto the `mall_id` column at callback. spec/2-navigation/4-
- * integration.md §5.9, spec/4-nodes/4-integration/5-makeshop.md §9.1.
- */
-export interface MakeshopBeginMeta {
-  client_id: string;
-  client_secret: string;
 }
 
 export interface BeginParams {
@@ -274,14 +216,6 @@ export {
   SECRET_LEAK_PATTERNS,
   sanitizeLastErrorMessage,
 } from '../../shared/utils/sanitize-error-message';
-
-interface TokenExchangeResult {
-  accessToken: string;
-  refreshToken: string | null;
-  scopes: string[];
-  tokenExpiresAt: Date | null;
-  providerMeta: Record<string, unknown>;
-}
 
 /**
  * TypeORM `dataSource.query()` 는 raw SQL 결과를 column 이름 그대로 반환한다.
@@ -455,7 +389,7 @@ export class IntegrationOAuthService {
     // an invalid value never reaches the state row.
     let clientId: string;
     let providerMeta: Record<string, unknown> | null = null;
-    let authorizeBaseUrl: string;
+    let mallId: string | undefined;
     if (service.oauthProvider === 'cafe24') {
       const meta = (params.providerMeta ?? {}) as Partial<Cafe24BeginMeta>;
       if (!meta.mall_id || !CAFE24_MALL_ID_PATTERN.test(meta.mall_id)) {
@@ -532,7 +466,7 @@ export class IntegrationOAuthService {
         mall_id: meta.mall_id,
         app_type: meta.app_type,
       };
-      authorizeBaseUrl = cafe24AuthorizeUrl(meta.mall_id);
+      mallId = meta.mall_id;
     } else if (service.oauthProvider === 'makeshop') {
       // MakeShop is confidential-client-only (no public/private split). The
       // user supplies client_id/client_secret at begin; shop_uid is unknown
@@ -574,7 +508,6 @@ export class IntegrationOAuthService {
         });
       }
       clientId = envClientId;
-      authorizeBaseUrl = STATIC_AUTHORIZE_URLS[service.oauthProvider];
     }
 
     // Fire-and-forget purge of expired records.
@@ -599,23 +532,19 @@ export class IntegrationOAuthService {
 
     const appUrl = getAppBaseUrl();
     const redirectUri = buildOauthCallbackUrl(appUrl, service.oauthProvider);
-    // Cafe24 deviates from RFC 6749 §3.3 (space-delimited) and requires
-    // comma-delimited scopes on /oauth/authorize. Sending space-delimited
-    // scopes is rejected with `invalid_scope` even for a single valid
-    // scope, because Cafe24's parser treats the whole string as one token.
-    // Sources: developers.cafe24.com /docs/...oauth/oauthcode examples and
-    // the official cafe24_app_sample StoreToken.java getCodeRedirectUrl.
-    const scopeSeparator = service.oauthProvider === 'cafe24' ? ',' : ' ';
-    const urlParams = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      scope: params.scopes.join(scopeSeparator),
-      state,
-      response_type: 'code',
-    });
-
+    // Public-flow begin reaches here only for google / github / cafe24-public
+    // (makeshop + cafe24-private returned a pending_install result above). The
+    // provider strategy owns the authorize URL — base host (static vs cafe24
+    // mall_id-dependent) + scope separator (cafe24 ',' vs RFC ' '). (M-2)
+    const strategy = resolveOAuthStrategy(service.oauthProvider, 'public');
     return {
-      authUrl: `${authorizeBaseUrl}?${urlParams.toString()}`,
+      authUrl: strategy.buildAuthorizeUrl({
+        clientId,
+        redirectUri,
+        scopes: params.scopes,
+        state,
+        mallId,
+      }),
       state,
     };
   }
@@ -1116,8 +1045,17 @@ export class IntegrationOAuthService {
     requestedScopes: string[],
     providerMeta: Record<string, unknown> | null,
   ): Promise<TokenExchangeResult> {
+    // Provider strategy (M-2). Cafe24 sub-dispatches on the state's app_type
+    // (public = env creds, private = state-body creds); response parsing is
+    // identical across the two, so non-cafe24 callers ignore the appType.
+    const appType =
+      providerMeta && providerMeta.app_type === 'private'
+        ? 'private'
+        : undefined;
+    const strategy = resolveOAuthStrategy(provider, appType);
+
     if (isIntegrationOAuthStubEnabled()) {
-      return stubTokenResult(provider, requestedScopes, providerMeta);
+      return strategy.buildStubResult(requestedScopes, providerMeta);
     }
     if (
       this.oauthEnv.stubModeRaw === 'true' &&
@@ -1128,131 +1066,28 @@ export class IntegrationOAuthService {
       );
     }
 
-    // Resolve client_id / client_secret / token URL with provider-specific
-    // rules. Cafe24: mall_id-dependent URL + per-mall private-app creds may
-    // come from the state row's provider_meta (private) or env (public).
-    let clientId: string;
-    let clientSecret: string;
-    let tokenUrl: string;
-    let isCafe24 = false;
-    let isMakeshop = false;
-    // makeshop PKCE verifier — pulled from the state row's provider_meta
-    // (stashed in handleMakeshopInstall). Sent as `code_verifier` in the
-    // token exchange (OAuth 2.1 PKCE S256).
-    let makeshopCodeVerifier: string | undefined;
-    if (provider === 'makeshop') {
-      isMakeshop = true;
-      const pm = (providerMeta ?? {}) as Partial<MakeshopBeginMeta> & {
-        code_verifier?: string;
-      };
-      if (!pm.client_id || !pm.client_secret) {
-        throw new BadRequestException({
-          code: 'MAKESHOP_CREDENTIALS_REQUIRED',
-          message:
-            'makeshop client credentials missing on OAuth state — cannot exchange code',
-        });
-      }
-      clientId = pm.client_id;
-      clientSecret = pm.client_secret;
-      makeshopCodeVerifier = pm.code_verifier;
-      tokenUrl = MAKESHOP_TOKEN_URL;
-    } else if (provider === 'cafe24') {
-      isCafe24 = true;
-      const pm = (providerMeta ?? {}) as Partial<Cafe24BeginMeta>;
-      if (!pm.mall_id) {
-        throw new BadRequestException({
-          code: 'CAFE24_INVALID_MALL_ID',
-          message: 'mall_id missing on OAuth state — cannot build token URL',
-        });
-      }
-      if (pm.app_type === 'private') {
-        if (!pm.client_id || !pm.client_secret) {
-          throw new BadRequestException({
-            code: 'CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED',
-            message:
-              'private app credentials missing on OAuth state — cannot exchange code',
-          });
-        }
-        clientId = pm.client_id;
-        clientSecret = pm.client_secret;
-      } else {
-        const { clientId: envId, clientSecret: envSecret } =
-          this.oauthEnv.cafe24;
-        if (!envId || !envSecret) {
-          throw new InternalServerErrorException({
-            code: 'OAUTH_CONFIG_MISSING',
-            message:
-              'CAFE24_CLIENT_ID / CAFE24_CLIENT_SECRET env not configured',
-          });
-        }
-        clientId = envId;
-        clientSecret = envSecret;
-      }
-      tokenUrl = cafe24TokenUrl(pm.mall_id);
-    } else {
-      const clientIdKey = `${provider.toUpperCase()}_CLIENT_ID`;
-      const clientSecretKey = `${provider.toUpperCase()}_CLIENT_SECRET`;
-      const { clientId: envId, clientSecret: envSecret } =
-        this.providerEnvCredentials(provider);
-      if (!envId || !envSecret) {
-        throw new InternalServerErrorException({
-          code: 'OAUTH_CONFIG_MISSING',
-          message: `OAuth credentials (${clientIdKey}, ${clientSecretKey}) are not configured`,
-        });
-      }
-      clientId = envId;
-      clientSecret = envSecret;
-      tokenUrl = STATIC_TOKEN_URLS[provider];
-    }
-
     const appUrl = getAppBaseUrl();
     const redirectUri = buildOauthCallbackUrl(appUrl, provider);
 
-    // Cafe24 의 token endpoint 는 **Basic auth only** 요구. body 에
-    // client_id/client_secret 을 같이 넣으면 `invalid_request: The request
-    // is invalid. check the request parameters.` 로 거부된다 (2026-05-15
-    // 운영 보고). 다른 provider (google/github) 는 RFC 6749 §2.3.1 의 권장
-    // 대로 body 에 넣는다 — 일부 provider 는 양쪽 다 받지만 우리 옛 코드의
-    // "Basic + body 동시 전송" 은 cafe24 가 reject 한다.
+    // The strategy resolves the token URL, headers (Basic auth for
+    // cafe24/makeshop vs RFC creds-in-body for google/github) and form body
+    // (PKCE code_verifier for makeshop). Provider-specific config / credential
+    // errors (OAUTH_CONFIG_MISSING, CAFE24_INVALID_MALL_ID, *_CREDENTIALS_*)
+    // are thrown from there — same codes/messages as before. (M-2)
     //
-    // 출처: spec/2-navigation/4-integration.md §3.2 "토큰 교환 endpoint:
-    // POST .../oauth/token (Basic auth: client_id:client_secret)".
-    // 공식 샘플 `cafe24_app_sample` 도 Authorization 헤더만 사용.
-    let form: URLSearchParams;
-    if (isMakeshop) {
-      // MakeShop: confidential client → Basic auth (client creds in header,
-      // NOT body) + PKCE code_verifier. spec/2-navigation/4-integration.md
-      // §5.9 ("Basic auth client_id:client_secret"), makeshop node §9.1.
-      const params: Record<string, string> = {
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: redirectUri,
-      };
-      if (makeshopCodeVerifier) params.code_verifier = makeshopCodeVerifier;
-      form = new URLSearchParams(params);
-    } else if (isCafe24) {
-      form = new URLSearchParams({
-        code,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      });
-    } else {
-      form = new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      });
-    }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
-    };
-    if (isCafe24 || isMakeshop) {
-      headers.Authorization = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
-    }
+    // `envCredentials` is always passed (env.cafe24 for cafe24) but only the
+    // env-backed strategies read it: cafe24-private and makeshop ignore it and
+    // use the per-install creds from `providerMeta` instead.
+    const {
+      tokenUrl,
+      headers,
+      body: form,
+    } = strategy.buildTokenRequest({
+      code,
+      redirectUri,
+      providerMeta,
+      envCredentials: this.providerEnvCredentials(provider),
+    });
 
     // 10s 타임아웃 — 토큰 endpoint hang 시 무한 대기 방지 (cafe24-api.client
     // bounded-fetch 동일 패턴). abort 시 AbortError 가 surface 된다.
@@ -1306,33 +1141,19 @@ export class IntegrationOAuthService {
 
     const result = normalizeTokenResponse(provider, data, requestedScopes);
 
-    // Diagnostic — record what scope/mall the provider *actually* granted vs
-    // what we asked for. Helps catch the silent-mismatch case where
-    // Cafe24's app-level permissions are narrower than our requested scopes
-    // (token issued but every API call 403s on the missing scope) or where
-    // the user authorized into a different mall than we redirected to.
-    if (isCafe24) {
-      const pm = (providerMeta ?? {}) as Partial<Cafe24BeginMeta>;
-      const echoMallId =
-        typeof result.providerMeta?.cafe24_response_mall_id === 'string'
-          ? result.providerMeta.cafe24_response_mall_id
-          : null;
-      if (echoMallId && pm.mall_id && echoMallId !== pm.mall_id) {
-        this.logger.warn(
-          `Cafe24 token mall_id mismatch: requested=${pm.mall_id} echoed=${echoMallId} — subsequent API calls against ${pm.mall_id} will 403`,
-        );
-      }
-      const missingScopes = requestedScopes.filter(
-        (s) => !result.scopes.includes(s),
-      );
-      if (missingScopes.length > 0) {
-        this.logger.warn(
-          `Cafe24 granted fewer scopes than requested for mall=${pm.mall_id ?? echoMallId ?? 'unknown'}: requested=${requestedScopes.join(',')} granted=${result.scopes.join(',')} missing=${missingScopes.join(',')}`,
-        );
-      }
-      this.logger.log(
-        `Cafe24 token exchange succeeded: mall_id=${echoMallId ?? pm.mall_id ?? 'unknown'} granted_scopes=${result.scopes.join(',')} expires_at=${result.tokenExpiresAt?.toISOString() ?? 'none'}`,
-      );
+    // Provider-specific post-exchange diagnostics (cafe24: mall_id / scope
+    // mismatch — catches the silent case where the granted scope/mall differs
+    // from what we requested). The strategy returns the log lines; the facade
+    // emits them so logging stays here while the provider logic lives in the
+    // strategy. (M-2)
+    const diagnostics = strategy.describeExchange?.(
+      result,
+      requestedScopes,
+      providerMeta,
+    );
+    if (diagnostics) {
+      for (const warning of diagnostics.warnings) this.logger.warn(warning);
+      for (const line of diagnostics.info) this.logger.log(line);
     }
 
     return result;
@@ -1659,14 +1480,15 @@ export class IntegrationOAuthService {
     });
     await this.stateRepository.save(stateRecord);
 
-    const urlParams = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      scope: scopes.join(','),
+    // The cafe24-private strategy builds the (mall_id-dependent, comma-scoped)
+    // authorize URL; the install security (HMAC / nonce) above stays here. (M-2)
+    return resolveOAuthStrategy('cafe24', 'private').buildAuthorizeUrl({
+      clientId,
+      redirectUri,
+      scopes,
       state,
-      response_type: 'code',
+      mallId: query.mall_id,
     });
-    return `${cafe24AuthorizeUrl(query.mall_id)}?${urlParams.toString()}`;
   }
 
   // ---------------------------------------------------------------------
@@ -1982,17 +1804,16 @@ export class IntegrationOAuthService {
     });
     await this.stateRepository.save(stateRecord);
 
-    // MakeShop follows OAuth 2.1 — SPACE-separated scopes (NOT cafe24's comma).
-    const urlParams = new URLSearchParams({
-      response_type: 'code',
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      scope: scopes.join(' '),
+    // The makeshop strategy builds the OAuth 2.1 authorize URL (space-scoped +
+    // PKCE S256 challenge); the install security (HMAC / nonce) above stays
+    // here. (M-2)
+    return resolveOAuthStrategy('makeshop').buildAuthorizeUrl({
+      clientId,
+      redirectUri,
+      scopes,
       state,
-      code_challenge: challenge,
-      code_challenge_method: 'S256',
+      codeChallenge: challenge,
     });
-    return `${MAKESHOP_AUTHORIZE_URL}?${urlParams.toString()}`;
   }
 
   /**
@@ -2299,74 +2120,15 @@ export class IntegrationOAuthService {
 
 /**
  * Resolve the access_token expiry instant from a provider's OAuth token
- * response.
- *
- * **Provider quirk (Cafe24, 2026-05-18 갱신)**: Cafe24 의 access_token /
- * refresh_token 은 JWT 이므로 `exp` claim (RFC 7519, Unix epoch seconds —
- * UTC absolute) 이 만료 시각의 single source of truth. 본 함수는 cafe24
- * 분기에서 다음 precedence 로 채택한다:
- *
- * 1. **JWT `exp` claim** (`parseJwtExp(access_token)`) — TZ 모호성 없음.
- * 2. 표준 `expires_in` (초) — Cafe24 가 보내지 않지만 향후 OAuth 표준 준수
- *    가능성 대비 backward-compatible.
- * 3. Cafe24 의 `expires_at` ISO 문자열 — timezone designator 누락 시
- *    `+09:00` (KST) 부여로 정규화. ECMA-262 의 "TZ-less ISO 는 local time"
- *    해석으로 UTC 컨테이너에서 9h skew 가 발생하던 회귀 ([Rationale "Cafe24
- *    token 만료 SoT — JWT exp 격상 (2026-05-18)"](../../../spec/2-navigation/4-integration.md#cafe24-token-만료-sot--jwt-exp-격상-2026-05-18))
- *    을 차단.
- * 4. 둘 다 없으면 cafe24 documented access_token TTL 인 **2h default**.
- *
- * 다른 provider 는 표준 `expires_in` 만 사용 (옛 동작 유지) — 해당 provider
- * 가 expires_in 을 항상 돌려준다는 기존 가정 유지.
- *
- * Exported for direct unit testing.
+ * response. Thin delegating shim — the per-provider precedence (cafe24 JWT
+ * `exp` first, makeshop `expires_in` first, etc.) lives in each strategy under
+ * `./oauth-providers`. Kept exported for direct unit testing. (M-2)
  */
 export function parseTokenExpiresAt(
   provider: OAuthProvider,
   data: Record<string, unknown>,
 ): Date | null {
-  // MakeShop — access_token TTL ~1h. expires_in (초) 우선, 없으면 expires_at
-  // ISO, 둘 다 없으면 우연히 JWT 일 때 exp, 최종 fallback 1h default. 토큰
-  // refresh 경로(`makeshop-api.client.ts`)와 동일 precedence. spec §5.9.
-  if (provider === 'makeshop') {
-    const expiresIn = readNumber(data, 'expires_in');
-    if (expiresIn) return new Date(Date.now() + expiresIn * 1000);
-    const expiresAtStr = readString(data, 'expires_at');
-    if (expiresAtStr) {
-      const parsed = Date.parse(expiresAtStr);
-      if (Number.isFinite(parsed)) return new Date(parsed);
-    }
-    const jwtExpMs = parseJwtExp(readString(data, 'access_token'));
-    if (jwtExpMs !== null) return new Date(jwtExpMs);
-    return new Date(Date.now() + 60 * 60 * 1000);
-  }
-
-  // 비-cafe24 provider — 표준 expires_in 만 사용 (옛 동작 유지).
-  if (provider !== 'cafe24') {
-    const expiresIn = readNumber(data, 'expires_in');
-    return expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
-  }
-
-  // 1) JWT exp 가 SoT. Cafe24 의 access_token 은 JWT 라 토큰 자체에
-  //    issuer 가 박아둔 만료 시각이 응답 표기보다 신뢰도가 높음.
-  const accessToken = readString(data, 'access_token');
-  const jwtExpMs = parseJwtExp(accessToken);
-  if (jwtExpMs !== null) return new Date(jwtExpMs);
-
-  // 2) 표준 expires_in — Cafe24 가 향후 표준 준수해도 자동 호환.
-  const expiresIn = readNumber(data, 'expires_in');
-  if (expiresIn) return new Date(Date.now() + expiresIn * 1000);
-
-  // 3) Cafe24 의 expires_at ISO. TZ designator 누락 시 KST 정규화.
-  const expiresAtStr = readString(data, 'expires_at');
-  if (expiresAtStr) {
-    const normalized = normalizeCafe24IsoTimezone(expiresAtStr);
-    const parsed = Date.parse(normalized);
-    if (Number.isFinite(parsed)) return new Date(parsed);
-  }
-
-  // 4) Cafe24 default — access_token 은 발급 시점 + 2h.
-  return new Date(Date.now() + 2 * 60 * 60 * 1000);
+  return resolveOAuthStrategy(provider).parseTokenExpiresAt(data);
 }
 
 function normalizeTokenResponse(
@@ -2382,7 +2144,10 @@ function normalizeTokenResponse(
     });
   }
   const refreshToken = readString(data, 'refresh_token') ?? null;
-  const tokenExpiresAt = parseTokenExpiresAt(provider, data);
+  // cafe24 public/private parse + meta are identical, so the default
+  // (public) cafe24 strategy is fine here regardless of app_type. (M-2)
+  const strategy = resolveOAuthStrategy(provider);
+  const tokenExpiresAt = strategy.parseTokenExpiresAt(data);
 
   // Cafe24 returns `scopes` as an ARRAY (e.g. `["mall.read_product", ...]`).
   // OAuth standard providers (google/github) return `scope` as a space- or
@@ -2408,26 +2173,7 @@ function normalizeTokenResponse(
         ? scopeString.split(/[,\s]+/).filter(Boolean)
         : requestedScopes;
 
-  const providerMeta: Record<string, unknown> = {};
-  if (provider === 'google') {
-    providerMeta.account_email =
-      readString(data, 'account_email') ?? readString(data, 'email');
-  }
-  if (provider === 'github') {
-    providerMeta.login = readString(data, 'login');
-  }
-  if (provider === 'cafe24') {
-    // Cafe24 token response carries `user_id` (operator account). We rename
-    // it to `cafe24_operator_id` in stored credentials to avoid confusion
-    // with internal `User.id` (UUID) — see spec/2-navigation/4-integration.md §5.8.
-    const operator = readString(data, 'user_id');
-    if (operator) providerMeta.cafe24_operator_id = operator;
-    // Cafe24 echoes mall_id in the token response — capture as a sanity
-    // check, even though credentials.mall_id is already populated from the
-    // state's provider_meta in handleCallback.
-    const mallId = readString(data, 'mall_id');
-    if (mallId) providerMeta.cafe24_response_mall_id = mallId;
-  }
+  const providerMeta = strategy.extractProviderMeta(data);
 
   return {
     accessToken,
@@ -2438,59 +2184,12 @@ function normalizeTokenResponse(
   };
 }
 
-function stubTokenResult(
-  provider: OAuthProvider,
-  requestedScopes: string[],
-  beginMeta: Record<string, unknown> | null,
-): TokenExchangeResult {
-  const providerMeta: Record<string, unknown> = { stub: true };
-  if (provider === 'cafe24') {
-    providerMeta.cafe24_operator_id = `stub-operator-${randomBytes(4).toString('hex')}`;
-    const pmMall =
-      beginMeta && typeof beginMeta.mall_id === 'string'
-        ? beginMeta.mall_id
-        : null;
-    if (pmMall) providerMeta.cafe24_response_mall_id = pmMall;
-  }
-  if (provider === 'makeshop') {
-    const pmShop =
-      beginMeta && typeof beginMeta.shop_uid === 'string'
-        ? beginMeta.shop_uid
-        : null;
-    if (pmShop) providerMeta.makeshop_response_shop_uid = pmShop;
-  }
-  // makeshop access_token TTL ~1h (cafe24 2h); others 30d.
-  const ttlMs =
-    provider === 'cafe24'
-      ? 2 * 60 * 60 * 1000
-      : provider === 'makeshop'
-        ? 60 * 60 * 1000
-        : 30 * 24 * 60 * 60 * 1000;
-  return {
-    accessToken: `stub-${provider}-${randomBytes(8).toString('hex')}`,
-    refreshToken: `stub-refresh-${randomBytes(8).toString('hex')}`,
-    scopes: requestedScopes,
-    tokenExpiresAt: new Date(Date.now() + ttlMs),
-    providerMeta,
-  };
-}
-
 async function safeReadBody(response: Response): Promise<string> {
   try {
     return await response.text();
   } catch {
     return '';
   }
-}
-
-function readString(obj: Record<string, unknown>, key: string): string | null {
-  const v = obj[key];
-  return typeof v === 'string' && v.length > 0 ? v : null;
-}
-
-function readNumber(obj: Record<string, unknown>, key: string): number | null {
-  const v = obj[key];
-  return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
 /**

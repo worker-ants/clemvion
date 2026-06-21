@@ -148,7 +148,11 @@
 
 ### M-2 [Major] IntegrationOAuthService 2,579줄 — 다중 OAuth 프로토콜 혼합
 
-- [ ] 미착수 — `integrations/integration-oauth.service.ts`
+- [x] **완료 (Option A)** — branch `claude/m-2-oauth-strategy`. `OAuthProviderStrategy` 인터페이스 + `integrations/oauth-providers/` 5개 strategy(google/github/cafe24-public/cafe24-private/makeshop, + 표준/cafe24 base·hub·registry) 신설. 프로토콜 혼합(begin authorize URL·exchangeCodeForToken cred/URL/form·normalizeTokenResponse meta·parseTokenExpiresAt expiry·stub)을 strategy 로 전량 이전, facade(`IntegrationOAuthService`) 명·외부 API·`status_reason` 매핑·install 보안(HMAC/nonce/recovery)·state/preview lifecycle 잔류. facade 2,612→2,307줄. `refreshToken` 은 본 서비스에 없음(`*-api.client.ts`·expiry-scanner 담당) → 인터페이스에서 제외. process.env 무수정(M-6 #660 에서 oauth.config.ts 이전 완료).
+  - 검증: lint/build PASS · unit PASS(integrations 477[기존 446 + 신규 전략 31] + 전체) · e2e PASS(205, cafe24-install·makeshop-install·begin·precheck 포함). `_test_logs/` 참조.
+  - consistency impl-prep: `review/consistency/2026/06/21/17_02_20/SUMMARY.md` (BLOCK: NO — 발견 전부 spec 영역 기존 사안, M-2 무관).
+  - ai-review: `review/code/2026/06/21/17_32_11/SUMMARY.md` (Critical 0 / WARNING 7 → 전략 단위 테스트 31건 + 주석으로 전건 해소, RESOLUTION.md) → fresh `review/code/2026/06/21/17_44_52/SUMMARY.md` (Critical 0 / WARNING 0 — clean pass).
+  - consistency impl-done: `review/consistency/2026/06/21/17_49_11/SUMMARY.md` (BLOCK: NO — WARNING 4건 전부 spec 영역 기존 사안[overview port 수·send_email port·output.rowCount·INTEGRATION_SERVICE_UNAVAILABLE surface]으로 M-2 무관·planner 별건. I-6/I-7 이 M-2 정합·refreshToken 제외 정합 명시).
 
 **spec 대조**: B — data-flow 시퀀스의 participant 가 `IntegrationOauthService` 단일이지만 spec 이 내부 구조를 구현 재량으로 명시(`4-integration.md` Rationale "provider 별 분리인지 파라메트릭인지는 구현 세부 사항"). facade 명 유지 시 다이어그램 무변.
 
