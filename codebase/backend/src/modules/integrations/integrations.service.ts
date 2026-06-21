@@ -548,7 +548,7 @@ export class IntegrationsService {
     userRole: string | null,
     body: CreateIntegrationDto,
   ): Promise<PublicIntegration> {
-    this.validateServiceAndAuth(body.serviceType, body.authType);
+    this.validateServiceAuthType(body.serviceType, body.authType);
 
     const requestedScope = body.scope ?? 'personal';
     if (requestedScope === 'organization' && !this.isAdmin(userRole)) {
@@ -924,22 +924,9 @@ export class IntegrationsService {
     );
   }
 
-  /**
-   * m-1: serviceType/authType 조합 유효성 검증 (registry `findVariant`). 옛 controller
-   * 인라인 검증을 service 로 이관해 레이어 정렬 — controller 의 도메인 registry(`findVariant`)
-   * 직접 의존을 제거한다. 미지원 조합 시 controller 와 동일한 `INTEGRATION_INVALID_SERVICE`
-   * 400 (code·message 불변) 을 throw.
-   */
-  validateServiceAuthType(serviceType: string, authType: string): void {
-    if (!findVariant(serviceType, authType)) {
-      throw new BadRequestException({
-        code: 'INTEGRATION_INVALID_SERVICE',
-        message: `Unsupported service/auth combination: ${serviceType}/${authType}`,
-      });
-    }
-  }
-
   previewTest(body: PreviewTestDto): Promise<IntegrationTestResult> {
+    // m-1: 미지원 serviceType/authType 조합은 validateServiceAuthType 에서 400 throw
+    // (옛 controller 인라인 검증을 service 로 이관 — 레이어 정렬). create() 와 단일 메서드 공유.
     this.validateServiceAuthType(body.serviceType, body.authType);
     return this.dispatchTest(body.serviceType, body.authType, body.credentials);
   }
@@ -1408,7 +1395,17 @@ export class IntegrationsService {
     };
   }
 
-  private validateServiceAndAuth(serviceType: string, authType: string): void {
+  /**
+   * serviceType/authType 조합이 service-registry(`findVariant`)에 존재하는지 검증.
+   * `create()`(저장)와 `previewTest()`(미저장 미리보기) 가 공유하는 단일 진입점 —
+   * m-1 에서 옛 controller 인라인 검증을 본 메서드로 일원화해(중복 제거) controller 의
+   * 도메인 registry 직접 의존을 제거했다.
+   *
+   * @param serviceType 통합 서비스 타입 (예: `http`, `mcp`, `cafe24`).
+   * @param authType 인증 방식 (예: `api_key`, `bearer_token`).
+   * @throws {BadRequestException} 미지원 조합이면 `INTEGRATION_INVALID_SERVICE` (400).
+   */
+  validateServiceAuthType(serviceType: string, authType: string): void {
     const variant = findVariant(serviceType, authType);
     if (!variant) {
       throw new BadRequestException({

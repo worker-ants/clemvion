@@ -396,7 +396,11 @@
 
 ### m-1 [Minor] `IntegrationsController.previewTest` — registry 검증을 controller 가 수행
 
-- [ ] 미착수 — `integrations.controller.ts:65,175`
+- [~] 구현 완료 (Option A) — `IntegrationsService.validateServiceAuthType()` 로 일원화(기존 private `validateServiceAndAuth` 중복을 ai-review W1 반영해 통합 — `create()`/`previewTest()` 단일 메서드 공유), `previewTest` 가 dispatch 전 호출. controller 의 인라인 `findVariant` 검증 + `findVariant`·`BadRequestException` import 제거(레이어 정렬). 미지원 조합 `INTEGRATION_INVALID_SERVICE` 400 불변 + service 단위 테스트(경계 케이스 포함) 추가. worktree `m1-integrations-validate-authtype`.
+
+  **planner 후속 (spec drift, 이전부터 존재 — m-1 이 신설한 것 아님)**:
+  - [ ] `INTEGRATION_INVALID_SERVICE (400)` 를 `spec/2-navigation/4-integration.md §9.4` + `spec/conventions/error-codes.md` 에 등재
+  - [ ] `spec/2-navigation/4-integration.md §9.2` preview-test 요청 바디 `service` → `serviceType` (DTO 정합)
 
 **spec 대조**: B — preview-test 행위만 spec 규정. **부수 발견**: 에러 코드 `INTEGRATION_INVALID_SERVICE` 가 `error-codes.md` 미등재.
 

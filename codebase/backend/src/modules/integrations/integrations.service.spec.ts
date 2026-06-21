@@ -1723,22 +1723,36 @@ describe('IntegrationsService', () => {
       expect(result.success).toBe(true);
     });
 
-    // m-1: serviceType/authType 조합 검증을 controller → service 로 이관(레이어 정렬).
-    // 미지원 조합은 INTEGRATION_INVALID_SERVICE 400 (code·message 불변).
-    it('validateServiceAuthType throws INTEGRATION_INVALID_SERVICE (400) for unsupported combination', () => {
-      expect(() =>
-        service.validateServiceAuthType('nonexistent_service', 'api_key'),
-      ).toThrow(BadRequestException);
+    // m-1: serviceType/authType 조합 검증을 controller → service 로 이관(레이어 정렬,
+    // create()/previewTest() 단일 메서드 공유). 미지원 조합은 INTEGRATION_INVALID_SERVICE
+    // 400 (code·message 불변).
+    it('validateServiceAuthType throws INTEGRATION_INVALID_SERVICE (400) for unknown serviceType', () => {
+      let caught: BadRequestException | undefined;
       try {
         service.validateServiceAuthType('nonexistent_service', 'api_key');
-        throw new Error('expected throw');
       } catch (e) {
-        expect((e as BadRequestException).getResponse()).toMatchObject({
-          code: 'INTEGRATION_INVALID_SERVICE',
-          message:
-            'Unsupported service/auth combination: nonexistent_service/api_key',
-        });
+        caught = e as BadRequestException;
       }
+      expect(caught).toBeInstanceOf(BadRequestException);
+      expect(caught?.getResponse()).toMatchObject({
+        code: 'INTEGRATION_INVALID_SERVICE',
+        message:
+          'Unsupported service/auth combination: nonexistent_service/api_key',
+      });
+    });
+
+    it('validateServiceAuthType rejects a valid serviceType with an unsupported authType', () => {
+      // 경계값 — serviceType 은 유효(http)하나 해당 service 가 지원하지 않는 authType.
+      let caught: BadRequestException | undefined;
+      try {
+        service.validateServiceAuthType('http', 'no_such_auth');
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+      expect(caught).toBeInstanceOf(BadRequestException);
+      expect(caught?.getResponse()).toMatchObject({
+        code: 'INTEGRATION_INVALID_SERVICE',
+      });
     });
 
     it('previewTest validates the service/auth combination before dispatch', () => {
