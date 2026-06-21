@@ -319,7 +319,7 @@ pending_plans:
 | PATCH | /api/users/me | 프로필 수정 (이메일 제외 — 이메일은 `/email-change/*` 별도 흐름) |
 | ~~POST~~ | ~~/api/users/me/avatar~~ | 아바타 **이미지 파일** 업로드 — **미구현 (Planned)**. 현재는 `PATCH /api/users/me` 의 `avatarUrl` 로 URL 설정/제거만 가능 |
 | POST | /api/users/me/change-password | 비밀번호 변경. 성공 시 전 세션 revoke + 현재 디바이스 새 세션 재발급 — `{ accessToken }` 반환 + refresh 쿠키 회전 ([인증 §2.3 / Rationale 2.3.C](../5-system/1-auth.md#23-세션-정책)) |
-| POST | /api/users/me/email-change/request | 이메일 변경 시작. **재인증 필수**(비밀번호 또는 등록 2FA — OAuth-only 무2FA 는 403 `REAUTH_NOT_AVAILABLE`). 신규 이메일 형식·중복 검증 후 신규 이메일로 확인 메일(1h) 발송. throttle 5/min. 흐름 [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름) |
+| POST | /api/users/me/email-change/request | 이메일 변경 시작. **재인증 필수**(비밀번호 또는 등록 TOTP — WebAuthn step-up 재인증은 현재 미지원, 인증 §1.1.B Rationale 1.1.B-4; OAuth-only 무2FA 는 403 `REAUTH_NOT_AVAILABLE`). 신규 이메일 형식·중복 검증 후 신규 이메일로 확인 메일(1h) 발송. throttle 5/min. 흐름 [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름) |
 | POST | /api/users/me/email-change/verify | 이메일 변경 확인(JWT 인증). 토큰 검증 → `email` 교체 + `email_verified=true` + 전 세션 revoke + 현재 디바이스 재발급(`{ accessToken }` + refresh 쿠키 회전) + 옛 이메일 통지 + `user.email_changed` 감사. 토큰 무효·만료 400 `VALIDATION_ERROR`, 신규 이메일 선점 시 409 `RESOURCE_CONFLICT` |
 | POST | /api/users/me/email-change/resend | 확인 메일 재발송(pending 의 신규 이메일로 토큰 재발급). throttle 5/min. pending 없으면 400 `VALIDATION_ERROR` |
 | POST | /api/users/me/email-change/cancel | 진행 중 이메일 변경 취소(pending 필드 NULL화). 재인증 불요, pending 없어도 멱등 |
