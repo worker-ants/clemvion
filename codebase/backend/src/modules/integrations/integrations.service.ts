@@ -548,7 +548,7 @@ export class IntegrationsService {
     userRole: string | null,
     body: CreateIntegrationDto,
   ): Promise<PublicIntegration> {
-    this.validateServiceAndAuth(body.serviceType, body.authType);
+    this.validateServiceAuthType(body.serviceType, body.authType);
 
     const requestedScope = body.scope ?? 'personal';
     if (requestedScope === 'organization' && !this.isAdmin(userRole)) {
@@ -924,7 +924,8 @@ export class IntegrationsService {
     );
   }
 
-  previewTest(body: PreviewTestDto): Promise<IntegrationTestResult> {
+  async previewTest(body: PreviewTestDto): Promise<IntegrationTestResult> {
+    this.validateServiceAuthType(body.serviceType, body.authType);
     return this.dispatchTest(body.serviceType, body.authType, body.credentials);
   }
 
@@ -1392,7 +1393,20 @@ export class IntegrationsService {
     };
   }
 
-  private validateServiceAndAuth(serviceType: string, authType: string): void {
+  /**
+   * serviceType/authType 조합이 service-registry(`findVariant`)에 존재하는지 검증.
+   * `create()`(저장)와 `previewTest()`(미저장 미리보기) 가 공유하는 단일 진입점 —
+   * m-1 에서 옛 controller 인라인 검증을 본 메서드로 일원화해(중복 제거) controller 의
+   * 도메인 registry 직접 의존을 제거했다.
+   *
+   * **내부 공유 guard** (`private`) — 외부에서 직접 호출하지 않는다. 소비자는 `create()`/
+   * `previewTest()` 경유로 검증된다.
+   *
+   * @param serviceType 통합 서비스 타입 (예: `http`, `mcp`, `cafe24`).
+   * @param authType 인증 방식 (예: `api_key`, `bearer_token`).
+   * @throws {BadRequestException} 미지원 조합이면 `INTEGRATION_INVALID_SERVICE` (400).
+   */
+  private validateServiceAuthType(serviceType: string, authType: string): void {
     const variant = findVariant(serviceType, authType);
     if (!variant) {
       throw new BadRequestException({

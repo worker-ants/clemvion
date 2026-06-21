@@ -1468,6 +1468,20 @@ describe('IntegrationsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    // m-1: create() 도 previewTest 와 동일 guard(validateServiceAuthType)를 공유한다.
+    it('rejects an unsupported service/auth combination (INTEGRATION_INVALID_SERVICE)', async () => {
+      await expect(
+        service.create('ws-1', 'user-1', 'member', {
+          serviceType: 'nonexistent_service',
+          authType: 'api_key',
+          name: 'X',
+          credentials: {},
+        } as never),
+      ).rejects.toMatchObject({
+        response: { code: 'INTEGRATION_INVALID_SERVICE' },
+      });
+    });
+
     it('persists valid integration', async () => {
       const result = await service.create('ws-1', 'user-1', 'member', {
         serviceType: 'http',
@@ -1721,6 +1735,37 @@ describe('IntegrationsService', () => {
         },
       });
       expect(result.success).toBe(true);
+    });
+
+    // m-1: serviceType/authType 조합 검증을 controller → service 로 이관(레이어 정렬,
+    // create()/previewTest() 가 공유하는 private guard). 미지원 조합은
+    // INTEGRATION_INVALID_SERVICE 400 (code·message 불변).
+    it('rejects an unknown serviceType with INTEGRATION_INVALID_SERVICE (400)', async () => {
+      await expect(
+        service.previewTest({
+          serviceType: 'nonexistent_service',
+          authType: 'api_key',
+          credentials: {},
+        } as never),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'INTEGRATION_INVALID_SERVICE',
+          message:
+            'Unsupported service/auth combination: nonexistent_service/api_key',
+        },
+      });
+    });
+
+    it('rejects a valid serviceType with an unsupported authType (boundary)', async () => {
+      await expect(
+        service.previewTest({
+          serviceType: 'http',
+          authType: 'no_such_auth',
+          credentials: {},
+        } as never),
+      ).rejects.toMatchObject({
+        response: { code: 'INTEGRATION_INVALID_SERVICE' },
+      });
     });
 
     it('returns failure for invalid credentials', async () => {

@@ -10,7 +10,6 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  BadRequestException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../../common/guards/roles.guard';
@@ -62,7 +61,6 @@ import {
   UpdateIntegrationDto,
   UpdateScopeDto,
 } from './dto/integration.dto';
-import { findVariant } from './services/service-registry';
 
 /**
  * OAuth begin / reauthorize / request-scopes 세 엔드포인트가 동일한 분기
@@ -172,12 +170,8 @@ export class IntegrationsController {
   @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 20회)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   previewTest(@Body() body: PreviewTestDto) {
-    if (!findVariant(body.serviceType, body.authType)) {
-      throw new BadRequestException({
-        code: 'INTEGRATION_INVALID_SERVICE',
-        message: `Unsupported service/auth combination: ${body.serviceType}/${body.authType}`,
-      });
-    }
+    // m-1: serviceType/authType 조합 검증은 IntegrationsService.validateServiceAuthType
+    // (previewTest 내부 호출)로 이관 — controller 의 도메인 registry(findVariant) 의존 제거.
     return this.integrationsService.previewTest(body);
   }
 
