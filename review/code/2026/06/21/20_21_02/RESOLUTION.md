@@ -19,7 +19,7 @@
 - lint  : 통과 (71fd0f02 기준, 0 errors)
 - unit  : 통과 (71fd0f02 기준 — backend 7227 / frontend 4515 passed)
 - build : 통과 (71fd0f02 기준)
-- e2e   : 보류 — Docker VM 디스크 차단(빌드 캐시 42GB)으로 최종 커밋 e2e 재실행 대기. 사용자 prune 후 main 이 `.claude/tools/run-test.sh e2e` 재실행 예정. (이메일 변경 e2e 는 직전 feature 커밋 50bcdad1 에서 통과 exit 0; 71fd0f02 변경은 신규 unit 테스트 + e2e-neutral 경계 보강이라 happy-path 불변.)
+- e2e   : 통과 — 사용자 `docker builder prune` 으로 디스크 확보 후 최종 커밋에서 재실행. **211 passed**(baseline 205 + 이메일 변경 신규 6 케이스: request 성공·동일이메일400·오답401·중복409, verify 성공(email 교체·세션revoke·감사)·만료400, cancel 멱등). log: e2e-20260621-205820.log
 
 ## 보류·후속 항목
 - W1 → `plan/in-progress/email-change-followup-email-lower-index.md` (LOWER 인덱스 V101).

@@ -25,7 +25,7 @@ parent: plan/in-progress/spec-draft-email-change.md
   - frontend: /profile/change-email page + /verify landing, profile-info-card CTA+pending, lib/api/users.ts +4, i18n ko/en, UserProfile 타입 +pendingEmail
 - [x] 5/6/7. 구현 + 테스트 (backend 12파일 + frontend 8파일 + e2e/unit 테스트)
 - [x] 8. TEST WORKFLOW — lint PASS / unit PASS / build PASS / e2e PASS (entity DataTypeNotSupported 1건 → type:'varchar' 명시로 수정)
-- [ ] 9. REVIEW WORKFLOW (/ai-review → resolution → /consistency-check --impl-done)
+- [x] 9. REVIEW WORKFLOW 완료 — /ai-review 1차(Critical0/W10→전부 fix 71fd0f02) → resolution-applier → fresh /ai-review 2차(Critical0/W3→W1보류·W2수용·W3 spec) → /consistency-check --impl-done BLOCK:NO. e2e 최종 커밋 재실행 211 passed.
 
 ## 설계 변경 노트
 - WebAuthn-as-reauth: spec §1.1.B 를 password/TOTP 로 **narrow** (verifyReauth 재사용, §2.3 세션-revoke 와 동일 한계 — WebAuthn step-up 일반화는 refactor-auth-reverify-unify 영역). spec==impl 이라 별도 follow-up plan 불요.
