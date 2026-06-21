@@ -263,7 +263,31 @@
 
 ### M-6 [Major] 서비스 계층 `process.env` 직접 접근 32곳
 
-- [ ] 미착수 — 대표: `integration-oauth.service.ts`, `mcp-client.service.ts`, `interaction-token.service.ts`, `llm.service.ts:78`
+- [~] 진행 중 (방향 확정: **Option B — 32곳 일괄 단일 PR**, 사용자 지정 2026-06-21) — 대표: `integration-oauth.service.ts`, `mcp-client.service.ts`, `interaction-token.service.ts`, `llm.service.ts:78`. worktree `m6-service-config-127027`.
+
+**범위 결정 (2026-06-21, 코드 전수 대조)**: 2026-06-10 감사의 "32곳"은 미열거이고 트리가 drift 했다. Option B 의 의도("서비스 계층 env 접근을 한 PR 로 ConfigService 중앙화")를 충실히 이행하되 **동작 보존**을 우선해, `registerAs` 4 namespace 로 **클래스/생성자 인스턴스 reads** 를 이전한다. 일부 사이트는 의도적 직접 read 라 **문서화 면제**(플랜 §개선방안3 의 REDIS_* 면제 패턴 확장):
+
+- **이전 대상** (4 namespace):
+  - `oauth` ← `integration-oauth.service.ts`: CAFE24_CLIENT_ID/SECRET, 동적 `{GOOGLE,GITHUB}_CLIENT_ID/SECRET`, OAUTH_STUB_MODE 방어 로그, FRONTEND_URL/APP_URL redirect base
+  - `interaction` ← `interaction-token.service.ts`: INTERACTION_JWT_SECRET (이미 `interaction.jwtSecret` 참조 중 — namespace 부재로 fallback 만 작동). raw fallback 제거, `?? jwt.secret` 체인 보존 (interaction.jwtSecret 은 기본값 없이 — `?? ''` 금지)
+  - `mcp` ← `mcp-client.service.ts` 생성자: MCP_MAX_CONCURRENT_CONNECTIONS, MCP_CONNECT_TIMEOUT_MS
+  - `llm` (확장) ← `llm.service.ts:78`: LLM_STUB_MODE — **spec `7-llm-client.md §7.1` 가 리터럴 명문화 → planner spec-sync 동반 필수**
+- **문서화 면제** (동작 회귀 방지):
+  - `mcp-client.ts isInsecureUrlAllowed()` — call-time read (테스트 env flip + SSRF 보안 플래그, production-guards 가 부팅 가드로 중복 보호)
+  - 모듈 로드 `const`(`mcp-tool-provider.ts`·`mcp-test-connection.service.ts` 의 MCP_*) — import-시 1회 read 의미 변경 위험·노드/probe 레이어
+  - `production-guards.ts` (부팅 fail-closed, 플랜이 bootstrap 면제로 분류)
+  - 이미 단일-source 추상화된 헬퍼(`getAppBaseUrl`·`isOAuthStubModeAllowed`)
+  - `NODE_ENV`/`TZ` framework 체크, DIP 주입형(`env: NodeJS.ProcessEnv = process.env`) 기본 파라미터(review W-9)
+
+**하위 체크리스트**:
+
+- [ ] `common/config/` 에 `oauth`/`mcp`/`interaction` namespace 신설 + `llm` 확장(stubMode) + barrel·app.module load 등록
+- [ ] 4 서비스 call-site 이전 (동작 보존)
+- [ ] `.env.example ↔ namespace 키` 대조 테스트 + 단위 테스트
+- [ ] TEST WORKFLOW (lint·unit·build·e2e)
+- [ ] planner spec-sync (`7-llm-client.md §7.1` LLM_STUB_MODE → ConfigService) + `/consistency-check --spec` BLOCK:NO
+- [ ] `/ai-review` + Critical/Warning 0 (resolution)
+- [ ] `/consistency-check --impl-done` (spec 연결 코드 변경 — llm/oauth/EIA)
 
 **spec 대조**: D — ConfigService 패턴이 spec 에 모델링된 영역 존재(`4-file-storage.md §2.3` "ConfigService 키: s3.*"), 단 **spec 이 직접 접근을 원문 명시한 곳도 있음**(`7-llm-client.md` "`process.env.LLM_STUB_MODE === 'true'`"). 전역 config 규약 문서는 부재.
 

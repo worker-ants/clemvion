@@ -8,8 +8,10 @@ import {
   Logger,
   Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
+import type { OAuthEnvConfig } from '../../common/config';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import {
   INSTALL_TOKEN_BYTES,
@@ -398,12 +400,49 @@ export class IntegrationOAuthService {
     @InjectRepository(IntegrationOAuthPreview)
     private readonly previewRepository: Repository<IntegrationOAuthPreview>,
     private readonly dataSource: DataSource,
+    // refactor M-6: provider 자격증명·redirect URL·OAUTH_STUB_MODE 직접 접근을
+    // ConfigService(`oauth.*`)로 이전. `@Optional()` — 수동 생성 테스트가 config mock
+    // 미주입 시 `oauthEnv` 기본 빈값으로 폴백(기존 env 미설정 = OAUTH_CONFIG_MISSING throw 보존).
+    @Optional()
+    private readonly configService?: ConfigService,
     // B-1-3: timestamp replay 보호용 Redis nonce cache. `@Optional()` 로
     // 두어 옛 테스트 (mock 없이 직접 생성) 와 Redis 미설정 환경에서도
     // graceful degradation.
     @Optional()
     private readonly installNonceCache?: Cafe24InstallNonceCache,
   ) {}
+
+  /**
+   * refactor M-6: `oauth` namespace 의 안전한 조회. configService 미주입(수동 테스트)
+   * 시 빈 기본값을 반환해 기존 "env 미설정 → falsy → OAUTH_CONFIG_MISSING throw" 동작을 보존.
+   */
+  private get oauthEnv(): OAuthEnvConfig {
+    return (
+      this.configService?.get<OAuthEnvConfig>('oauth') ?? {
+        cafe24: { clientId: '', clientSecret: '' },
+        google: { clientId: '', clientSecret: '' },
+        github: { clientId: '', clientSecret: '' },
+        stubModeRaw: '',
+        frontendUrl: '',
+        appUrl: '',
+      }
+    );
+  }
+
+  /**
+   * provider 별 env 자격증명. 기존 `process.env[\`${provider.toUpperCase()}_CLIENT_ID\`]`
+   * 동적 키 접근을 대체. makeshop 은 요청 body 로 자격증명을 받으므로 빈값(env 대상 아님).
+   */
+  private providerEnvCredentials(provider: OAuthProvider): {
+    clientId: string;
+    clientSecret: string;
+  } {
+    const env = this.oauthEnv;
+    if (provider === 'cafe24') return env.cafe24;
+    if (provider === 'google') return env.google;
+    if (provider === 'github') return env.github;
+    return { clientId: '', clientSecret: '' };
+  }
 
   static isAllowedProvider(value: string): value is OAuthProvider {
     return (ALLOWED_OAUTH_PROVIDERS as readonly string[]).includes(value);
@@ -467,7 +506,7 @@ export class IntegrationOAuthService {
             Cafe24BeginMeta,
         );
       } else {
-        const envClientId = process.env.CAFE24_CLIENT_ID;
+        const envClientId = this.oauthEnv.cafe24.clientId;
         if (!envClientId) {
           throw new InternalServerErrorException({
             code: 'OAUTH_CONFIG_MISSING',
@@ -533,7 +572,9 @@ export class IntegrationOAuthService {
       );
     } else {
       const clientIdKey = `${service.oauthProvider.toUpperCase()}_CLIENT_ID`;
-      const envClientId = process.env[clientIdKey];
+      const envClientId = this.providerEnvCredentials(
+        service.oauthProvider,
+      ).clientId;
       if (!envClientId) {
         throw new InternalServerErrorException({
           code: 'OAUTH_CONFIG_MISSING',
@@ -1087,7 +1128,7 @@ export class IntegrationOAuthService {
       return stubTokenResult(provider, requestedScopes, providerMeta);
     }
     if (
-      process.env.OAUTH_STUB_MODE === 'true' &&
+      this.oauthEnv.stubModeRaw === 'true' &&
       !isIntegrationOAuthStubEnabled()
     ) {
       this.logger.error(
@@ -1143,8 +1184,8 @@ export class IntegrationOAuthService {
         clientId = pm.client_id;
         clientSecret = pm.client_secret;
       } else {
-        const envId = process.env.CAFE24_CLIENT_ID;
-        const envSecret = process.env.CAFE24_CLIENT_SECRET;
+        const { clientId: envId, clientSecret: envSecret } =
+          this.oauthEnv.cafe24;
         if (!envId || !envSecret) {
           throw new InternalServerErrorException({
             code: 'OAUTH_CONFIG_MISSING',
@@ -1159,8 +1200,8 @@ export class IntegrationOAuthService {
     } else {
       const clientIdKey = `${provider.toUpperCase()}_CLIENT_ID`;
       const clientSecretKey = `${provider.toUpperCase()}_CLIENT_SECRET`;
-      const envId = process.env[clientIdKey];
-      const envSecret = process.env[clientSecretKey];
+      const { clientId: envId, clientSecret: envSecret } =
+        this.providerEnvCredentials(provider);
       if (!envId || !envSecret) {
         throw new InternalServerErrorException({
           code: 'OAUTH_CONFIG_MISSING',
@@ -1586,8 +1627,8 @@ export class IntegrationOAuthService {
     // ## Rationale "Cafe24 App URL 재호출 흐름" 항.
     if (target.status !== 'pending_install') {
       const frontendBaseUrl =
-        process.env.FRONTEND_URL ||
-        process.env.APP_URL ||
+        this.oauthEnv.frontendUrl ||
+        this.oauthEnv.appUrl ||
         'http://localhost:3000';
       const trimmed = frontendBaseUrl.replace(/\/$/, '');
       this.logger.log(
@@ -1860,8 +1901,8 @@ export class IntegrationOAuthService {
     // status routing — non-pending rows are post-install navigation.
     if (target.status !== 'pending_install') {
       const frontendBaseUrl =
-        process.env.FRONTEND_URL ||
-        process.env.APP_URL ||
+        this.oauthEnv.frontendUrl ||
+        this.oauthEnv.appUrl ||
         'http://localhost:3000';
       const trimmed = frontendBaseUrl.replace(/\/$/, '');
       this.logger.log(

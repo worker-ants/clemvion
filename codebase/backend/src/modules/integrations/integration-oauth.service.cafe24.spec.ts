@@ -3,6 +3,7 @@ import { createHmac } from 'crypto';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { encryptJson } from './services/credentials-transformer';
 import { makeFakeJwt } from './__test-utils__/make-fake-jwt';
+import { makeOAuthConfigMock } from './__test-utils__/oauth-config-mock';
 
 type Mock = jest.Mock;
 
@@ -123,6 +124,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
   let stateRepo: Record<string, Mock>;
   let previewRepo: Record<string, Mock>;
   let dataSource: { query: Mock; transaction: Mock };
+  let oauthMock: ReturnType<typeof makeOAuthConfigMock>;
 
   beforeEach(() => {
     integrationRepo = makeRepo();
@@ -142,21 +144,25 @@ describe('IntegrationOAuthService — Cafe24', () => {
     };
 
     process.env.OAUTH_STUB_MODE = 'true';
-    process.env.CAFE24_CLIENT_ID = 'test-cafe24-client-id';
-    process.env.CAFE24_CLIENT_SECRET = 'test-cafe24-client-secret';
+    // refactor M-6: CAFE24_CLIENT_ID/SECRET 는 `oauth` namespace 로 이전 — config mock 으로 제공.
+    oauthMock = makeOAuthConfigMock({
+      cafe24: {
+        clientId: 'test-cafe24-client-id',
+        clientSecret: 'test-cafe24-client-secret',
+      },
+    });
 
     service = new IntegrationOAuthService(
       integrationRepo as never,
       stateRepo as never,
       previewRepo as never,
       dataSource as never,
+      oauthMock.configService as never,
     );
   });
 
   afterEach(() => {
     delete process.env.OAUTH_STUB_MODE;
-    delete process.env.CAFE24_CLIENT_ID;
-    delete process.env.CAFE24_CLIENT_SECRET;
   });
 
   describe('begin — validation', () => {
@@ -226,7 +232,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
     });
 
     it('public app rejects when CAFE24_CLIENT_ID env is missing', async () => {
-      delete process.env.CAFE24_CLIENT_ID;
+      oauthMock.env.cafe24.clientId = '';
       await expect(
         service.begin({
           workspaceId: 'ws-1',
@@ -1208,10 +1214,34 @@ describe('IntegrationOAuthService — Cafe24', () => {
       integrationRepo.findOne.mockResolvedValue(
         makePendingRow({ status: 'connected', installToken: INSTALL_TOKEN }),
       );
-      const originalFrontend = process.env.FRONTEND_URL;
-      process.env.FRONTEND_URL = 'https://app.example.com';
+      // refactor M-6: FRONTEND_URL 은 `oauth` namespace 로 이전 — config mock 으로 제공.
+      oauthMock.env.frontendUrl = 'https://app.example.com';
 
-      try {
+      const validTs = Math.floor(Date.now() / 1000);
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+
+      const url = await service.handleInstall(INSTALL_TOKEN, {
+        mall_id: 'priv-shop',
+        timestamp: String(validTs),
+        hmac: params.get('hmac')!,
+        rawQuery,
+      });
+
+      expect(url).toBe('https://app.example.com/integrations/integration-1');
+      // Must NOT generate an OAuthState — no OAuth re-auth on post-install nav.
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it.each(['error', 'expired'] as const)(
+      'redirects to frontend for status=%s (post-install nav also works for non-connected non-pending rows)',
+      async (status) => {
+        integrationRepo.findOne.mockResolvedValue(
+          makePendingRow({ status, installToken: INSTALL_TOKEN }),
+        );
+        // refactor M-6: FRONTEND_URL 은 `oauth` namespace 로 이전 — config mock 으로 제공.
+        oauthMock.env.frontendUrl = 'https://app.example.com';
+
         const validTs = Math.floor(Date.now() / 1000);
         const rawQuery = buildRawQuery(validTs);
         const params = new URLSearchParams(rawQuery);
@@ -1224,43 +1254,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
         });
 
         expect(url).toBe('https://app.example.com/integrations/integration-1');
-        // Must NOT generate an OAuthState — no OAuth re-auth on post-install nav.
         expect(stateRepo.save).not.toHaveBeenCalled();
-      } finally {
-        if (originalFrontend === undefined) delete process.env.FRONTEND_URL;
-        else process.env.FRONTEND_URL = originalFrontend;
-      }
-    });
-
-    it.each(['error', 'expired'] as const)(
-      'redirects to frontend for status=%s (post-install nav also works for non-connected non-pending rows)',
-      async (status) => {
-        integrationRepo.findOne.mockResolvedValue(
-          makePendingRow({ status, installToken: INSTALL_TOKEN }),
-        );
-        const originalFrontend = process.env.FRONTEND_URL;
-        process.env.FRONTEND_URL = 'https://app.example.com';
-
-        try {
-          const validTs = Math.floor(Date.now() / 1000);
-          const rawQuery = buildRawQuery(validTs);
-          const params = new URLSearchParams(rawQuery);
-
-          const url = await service.handleInstall(INSTALL_TOKEN, {
-            mall_id: 'priv-shop',
-            timestamp: String(validTs),
-            hmac: params.get('hmac')!,
-            rawQuery,
-          });
-
-          expect(url).toBe(
-            'https://app.example.com/integrations/integration-1',
-          );
-          expect(stateRepo.save).not.toHaveBeenCalled();
-        } finally {
-          if (originalFrontend === undefined) delete process.env.FRONTEND_URL;
-          else process.env.FRONTEND_URL = originalFrontend;
-        }
       },
     );
 

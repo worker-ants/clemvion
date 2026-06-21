@@ -20,6 +20,7 @@ describe('LlmService', () => {
   let mockModelConfigService: Record<string, jest.Mock>;
   let mockClientFactory: Record<string, jest.Mock>;
   let mockClient: Record<string, jest.Mock>;
+  let mockConfigService: Record<string, jest.Mock>;
 
   beforeEach(() => {
     mockClient = {
@@ -63,10 +64,13 @@ describe('LlmService', () => {
     const mockUsageLogService = {
       record: jest.fn().mockResolvedValue(undefined),
     };
+    // refactor M-6: LLM_STUB_MODE 는 ConfigService(`llm.stubMode`)로 이전 — 기본 OFF.
+    mockConfigService = { get: jest.fn().mockReturnValue(undefined) };
     service = new LlmService(
       mockModelConfigService as never,
       mockClientFactory as never,
       mockUsageLogService as never,
+      mockConfigService as never,
     );
   });
 
@@ -945,36 +949,31 @@ describe('LlmService', () => {
     });
   });
 
-  describe('LLM_STUB_MODE (createClient) — review W3', () => {
+  describe('llm.stubMode (createClient) — review W3 / refactor M-6', () => {
     const config = {
       id: 'config-1',
       provider: 'openai',
       defaultModel: 'gpt-4o',
       baseUrl: undefined,
     } as never;
-    const prev = process.env.LLM_STUB_MODE;
-    afterEach(() => {
-      if (prev === undefined) delete process.env.LLM_STUB_MODE;
-      else process.env.LLM_STUB_MODE = prev;
-    });
 
-    it('LLM_STUB_MODE=true 면 StubLlmClient 를 반환하고 실 provider/복호화 경로를 타지 않는다', () => {
-      process.env.LLM_STUB_MODE = 'true';
+    it('llm.stubMode=true 면 StubLlmClient 를 반환하고 실 provider/복호화 경로를 타지 않는다', () => {
+      mockConfigService.get.mockReturnValue(true);
       const client = service.createClient(config);
       expect(client).toBeInstanceOf(StubLlmClient);
       expect(mockClientFactory.create).not.toHaveBeenCalled();
       expect(mockModelConfigService.getDecryptedApiKey).not.toHaveBeenCalled();
     });
 
-    it('LLM_STUB_MODE 미설정이면 정상 provider 클라이언트를 반환한다', () => {
-      delete process.env.LLM_STUB_MODE;
+    it('llm.stubMode 미설정이면 정상 provider 클라이언트를 반환한다', () => {
+      mockConfigService.get.mockReturnValue(undefined);
       const client = service.createClient(config);
       expect(client).not.toBeInstanceOf(StubLlmClient);
       expect(mockClientFactory.create).toHaveBeenCalledTimes(1);
     });
 
-    it('LLM_STUB_MODE=true 면 같은 config.id 에 대해 동일 stub 인스턴스를 캐시한다', () => {
-      process.env.LLM_STUB_MODE = 'true';
+    it('llm.stubMode=true 면 같은 config.id 에 대해 동일 stub 인스턴스를 캐시한다', () => {
+      mockConfigService.get.mockReturnValue(true);
       const a = service.createClient(config);
       const b = service.createClient(config);
       expect(a).toBe(b);

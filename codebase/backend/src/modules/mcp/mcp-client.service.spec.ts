@@ -58,23 +58,22 @@ jest.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 
 describe('McpClientService', () => {
   let service: McpClientService;
+  // refactor M-6: MCP_ALLOW_INSECURE_URL 은 `mcp.allowInsecureUrl`(raw env) config 로 이전 —
+  // 옛 process.env flip 을 본 가변 string 으로 대체. getter 가 호출 시점에 읽으므로 connect 직전 set.
+  let allowInsecureRaw: string | undefined;
+  const mockConfigService = {
+    get: (key: string) =>
+      key === 'mcp.allowInsecureUrl' ? allowInsecureRaw : undefined,
+  };
 
   beforeEach(() => {
     mockClientInstances.length = 0;
     mockTransportInstances.length = 0;
-    service = new McpClientService();
+    allowInsecureRaw = undefined;
+    service = new McpClientService(mockConfigService as never);
   });
 
   describe('connect — URL & SSRF policy', () => {
-    const ORIGINAL_INSECURE = process.env.MCP_ALLOW_INSECURE_URL;
-    afterEach(() => {
-      if (ORIGINAL_INSECURE === undefined) {
-        delete process.env.MCP_ALLOW_INSECURE_URL;
-      } else {
-        process.env.MCP_ALLOW_INSECURE_URL = ORIGINAL_INSECURE;
-      }
-    });
-
     it('rejects non-HTTPS URLs', async () => {
       await expect(
         service.connect({
@@ -136,7 +135,7 @@ describe('McpClientService', () => {
 
     describe('MCP_ALLOW_INSECURE_URL escape hatch', () => {
       it('allows http://localhost when set to "true"', async () => {
-        process.env.MCP_ALLOW_INSECURE_URL = 'true';
+        allowInsecureRaw = 'true';
         await service.connect({
           url: 'http://localhost:3001/mcp',
           authType: 'none',
@@ -145,7 +144,7 @@ describe('McpClientService', () => {
       });
 
       it('also allows previously-blocked private IPs when set', async () => {
-        process.env.MCP_ALLOW_INSECURE_URL = 'true';
+        allowInsecureRaw = 'true';
         await service.connect({
           url: 'http://10.0.0.5/mcp',
           authType: 'none',
@@ -154,14 +153,14 @@ describe('McpClientService', () => {
       });
 
       it('still rejects non-http(s) schemes (file://) even when set', async () => {
-        process.env.MCP_ALLOW_INSECURE_URL = 'true';
+        allowInsecureRaw = 'true';
         await expect(
           service.connect({ url: 'file:///etc/passwd', authType: 'none' }),
         ).rejects.toThrow(McpHttpsRequiredError);
       });
 
       it('"1" is also accepted as truthy', async () => {
-        process.env.MCP_ALLOW_INSECURE_URL = '1';
+        allowInsecureRaw = '1';
         await service.connect({
           url: 'http://localhost:3001/mcp',
           authType: 'none',
@@ -170,7 +169,7 @@ describe('McpClientService', () => {
       });
 
       it('any other value falls back to strict mode', async () => {
-        process.env.MCP_ALLOW_INSECURE_URL = 'yes-please';
+        allowInsecureRaw = 'yes-please';
         await expect(
           service.connect({
             url: 'http://localhost:3001/mcp',

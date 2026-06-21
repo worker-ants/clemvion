@@ -1,4 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ModelConfigService } from '../model-config/model-config.service';
 import { ModelConfig } from '../model-config/entities/model-config.entity';
 import { LLMClientFactory } from './llm-client.factory';
@@ -67,15 +68,17 @@ export class LlmService {
     private readonly modelConfigService: ModelConfigService,
     private readonly clientFactory: LLMClientFactory,
     private readonly usageLogService: LlmUsageLogService,
+    private readonly configService: ConfigService,
   ) {}
 
   createClient(config: ModelConfig): LLMClient {
     // 테스트 전용(`OAUTH_STUB_MODE` 선례) — dockerized e2e 가 실제 LLM 키/호출 없이
     // 멀티턴 AI park→재개(§4.x turn-park, §7.5 rehydration)를 결정적으로 검증하도록,
-    // env-gated 시 결정적 stub 클라이언트를 반환한다. 프로덕션(env 미설정 + main.ts
-    // 부팅 가드)에는 절대 활성화되지 않는다. **캐시 체크보다 앞**에 둬 stub 이 항상
-    // 우선하도록 한다(실 클라이언트가 먼저 캐시된 상태에서의 오염 방지 — review W5/I7).
-    if (process.env.LLM_STUB_MODE === 'true') {
+    // ConfigService(`llm.stubMode`, env `LLM_STUB_MODE` 유래)가 ON 이면 결정적 stub
+    // 클라이언트를 반환한다. 프로덕션(env 미설정 + main.ts 부팅 가드)에는 절대 활성화되지
+    // 않는다. **캐시 체크보다 앞**에 둬 stub 이 항상 우선하도록 한다(실 클라이언트가 먼저
+    // 캐시된 상태에서의 오염 방지 — review W5/I7). SoT: spec/5-system/7-llm-client.md §7.1.
+    if (this.configService.get<boolean>('llm.stubMode')) {
       const cachedStub = this.clientCache.get(config.id);
       if (cachedStub instanceof StubLlmClient) {
         return cachedStub;

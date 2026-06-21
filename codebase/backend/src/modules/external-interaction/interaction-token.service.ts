@@ -111,11 +111,12 @@ export class InteractionTokenService {
     // 미가용(config 누락/장애) 시 null 로 degrade — blacklist 검사 fail-open (위 클래스 주석).
     this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
 
+    // refactor M-6: raw `process.env.{INTERACTION_JWT_SECRET,JWT_SECRET}` 직접 접근을 제거.
+    // interaction namespace(`interaction.jwtSecret`=INTERACTION_JWT_SECRET, 미설정 시 undefined)
+    // → jwt namespace(`jwt.secret`=JWT_SECRET) 순 `??` fallback 으로 기존 resolution 순서를 보존.
     const envSecret =
       configService?.get<string>('interaction.jwtSecret') ??
-      process.env.INTERACTION_JWT_SECRET ??
       configService?.get<string>('jwt.secret') ??
-      process.env.JWT_SECRET ??
       null;
     if (!envSecret) {
       // Fail-closed (OAUTH_STUB_MODE / LLM_STUB_MODE 부팅 가드 패턴): 프로덕션에서

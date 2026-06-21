@@ -9,6 +9,7 @@ import {
   callbackContextOf,
   sanitizeLastErrorMessage,
 } from './integration-oauth.service';
+import { makeOAuthConfigMock } from './__test-utils__/oauth-config-mock';
 
 type Mock = jest.Mock;
 
@@ -25,6 +26,7 @@ function makeRepo(): Record<string, Mock> {
 
 describe('IntegrationOAuthService', () => {
   let service: IntegrationOAuthService;
+  let oauthMock: ReturnType<typeof makeOAuthConfigMock>;
   let integrationRepo: Record<string, Mock>;
   let stateRepo: Record<string, Mock>;
   let previewRepo: Record<string, Mock>;
@@ -51,12 +53,15 @@ describe('IntegrationOAuthService', () => {
     };
 
     process.env.OAUTH_STUB_MODE = 'true';
+    // refactor M-6: provider 자격증명은 `oauth` namespace 로 이전 — config mock 으로 제공.
+    oauthMock = makeOAuthConfigMock();
 
     service = new IntegrationOAuthService(
       integrationRepo as never,
       stateRepo as never,
       previewRepo as never,
       dataSource as never,
+      oauthMock.configService as never,
     );
   });
 
@@ -78,7 +83,7 @@ describe('IntegrationOAuthService', () => {
     });
 
     it('throws InternalServerError when CLIENT_ID env var is missing', async () => {
-      delete process.env.GOOGLE_CLIENT_ID;
+      oauthMock.env.google.clientId = '';
       await expect(
         service.begin({
           workspaceId: 'ws-1',
@@ -91,7 +96,7 @@ describe('IntegrationOAuthService', () => {
     });
 
     it('returns authUrl and persists state for new mode', async () => {
-      process.env.GOOGLE_CLIENT_ID = 'cid-123';
+      oauthMock.env.google.clientId = 'cid-123';
       const result = await service.begin({
         workspaceId: 'ws-1',
         userId: 'u-1',
@@ -106,7 +111,6 @@ describe('IntegrationOAuthService', () => {
       expect(result.authUrl).toContain('https');
       expect(result.state).toHaveLength(48);
       expect(stateRepo.save).toHaveBeenCalled();
-      delete process.env.GOOGLE_CLIENT_ID;
     });
   });
 
@@ -366,8 +370,7 @@ describe('IntegrationOAuthService', () => {
       // Run without OAUTH_STUB_MODE so exchangeCodeForToken does a real fetch
       // which we intercept globally to force a 401.
       delete process.env.OAUTH_STUB_MODE;
-      process.env.GOOGLE_CLIENT_ID = 'cid';
-      process.env.GOOGLE_CLIENT_SECRET = 'csec';
+      oauthMock.env.google = { clientId: 'cid', clientSecret: 'csec' };
       const originalFetch = global.fetch;
       (global as { fetch: jest.Mock }).fetch = jest.fn().mockResolvedValue({
         ok: false,
@@ -408,8 +411,6 @@ describe('IntegrationOAuthService', () => {
         expect(code).toBe('OAUTH_TOKEN_EXCHANGE_FAILED');
       } finally {
         global.fetch = originalFetch;
-        delete process.env.GOOGLE_CLIENT_ID;
-        delete process.env.GOOGLE_CLIENT_SECRET;
         process.env.OAUTH_STUB_MODE = 'true';
       }
     });
@@ -418,8 +419,7 @@ describe('IntegrationOAuthService', () => {
       // 토큰 endpoint hang → AbortController 가 fetch 를 abort. AbortError 가
       // BadRequestException(OAUTH_TOKEN_EXCHANGE_FAILED) 로 surface 돼야 한다.
       delete process.env.OAUTH_STUB_MODE;
-      process.env.GOOGLE_CLIENT_ID = 'cid';
-      process.env.GOOGLE_CLIENT_SECRET = 'csec';
+      oauthMock.env.google = { clientId: 'cid', clientSecret: 'csec' };
       const originalFetch = global.fetch;
       const abortErr = new Error('The operation was aborted');
       abortErr.name = 'AbortError';
@@ -450,8 +450,6 @@ describe('IntegrationOAuthService', () => {
         expect(code).toBe('OAUTH_TOKEN_EXCHANGE_FAILED');
       } finally {
         global.fetch = originalFetch;
-        delete process.env.GOOGLE_CLIENT_ID;
-        delete process.env.GOOGLE_CLIENT_SECRET;
         process.env.OAUTH_STUB_MODE = 'true';
       }
     });

@@ -10,6 +10,7 @@ import {
   generatePkcePair,
   type MakeshopInstallQuery,
 } from './integration-oauth.service';
+import { makeOAuthConfigMock } from './__test-utils__/oauth-config-mock';
 
 type Mock = jest.Mock;
 
@@ -104,6 +105,7 @@ describe('IntegrationOAuthService — MakeShop', () => {
   let stateRepo: Record<string, Mock>;
   let previewRepo: Record<string, Mock>;
   let dataSource: { query: Mock; transaction: Mock };
+  let oauthMock: ReturnType<typeof makeOAuthConfigMock>;
 
   beforeEach(() => {
     integrationRepo = makeRepo();
@@ -123,12 +125,15 @@ describe('IntegrationOAuthService — MakeShop', () => {
     };
 
     process.env.OAUTH_STUB_MODE = 'true';
+    // refactor M-6: FRONTEND_URL 등 redirect base 는 `oauth` namespace 로 이전 — config mock 으로 제공.
+    oauthMock = makeOAuthConfigMock();
 
     service = new IntegrationOAuthService(
       integrationRepo as never,
       stateRepo as never,
       previewRepo as never,
       dataSource as never,
+      oauthMock.configService as never,
     );
   });
 
@@ -379,7 +384,7 @@ describe('IntegrationOAuthService — MakeShop', () => {
     });
 
     it('routes a connected row to the frontend detail page (post-install navigation)', async () => {
-      process.env.FRONTEND_URL = 'https://app.example.com';
+      oauthMock.env.frontendUrl = 'https://app.example.com';
       const row = buildFakeMakeshopIntegration({
         id: 'mk-connected',
         status: 'connected',
@@ -390,7 +395,6 @@ describe('IntegrationOAuthService — MakeShop', () => {
       const query = makeInstallQuery('myshop', 'mk-client-secret');
       const url = await service.handleMakeshopInstall(INSTALL_TOKEN, query);
       expect(url).toBe('https://app.example.com/integrations/mk-connected');
-      delete process.env.FRONTEND_URL;
     });
 
     // W-3 — V072 통일 인덱스명(`idx_integration_workspace_service_mall`)을 사용하는
