@@ -26,6 +26,10 @@ import {
 } from './tool-providers/agent-tool-provider.interface';
 import type { McpServerSummary } from './tool-providers/mcp-diagnostics';
 import {
+  AiConditionEvaluator,
+  type ConditionDef,
+} from './ai-condition-evaluator';
+import {
   aiAgentNodeMetadata,
   DEFAULT_MEMORY_TOKEN_BUDGET,
   DEFAULT_MEMORY_TOP_K,
@@ -152,12 +156,6 @@ interface RagDiagnostics {
   rerank?: import('../../../modules/knowledge-base/search/rerank.service').RerankDiagnostics;
 }
 
-interface ConditionDef {
-  id: string;
-  label: string;
-  prompt: string;
-}
-
 // Shape of the user-authored multi-turn config as it appears on
 // `context.rawConfig` / `state.rawConfig` after the engine freezes
 // `node.config`. All fields optional — partial configs may exist (e.g.
@@ -173,23 +171,6 @@ interface RawAiAgentMultiTurnConfig {
   maxToolCalls?: number;
   knowledgeBases?: string[];
   conditions?: ConditionDef[];
-}
-
-interface ConditionClassification {
-  providerToolCalls: Array<{ provider: AgentToolProvider; call: ToolCall }>;
-  conditionToolCalls: ToolCall[];
-  normalToolCalls: ToolCall[];
-  matchedCondition: ConditionDef | null;
-}
-
-/** Replace non-alphanumeric/underscore chars for LLM-safe tool names. */
-function sanitizeId(id: string): string {
-  return id.replace(/[^a-zA-Z0-9_]/g, '_');
-}
-
-/** Build LLM tool name for a condition. */
-function condToolName(conditionId: string): string {
-  return `cond_${sanitizeId(conditionId)}`;
 }
 
 /**
@@ -527,6 +508,12 @@ class RagAccumulatorGroup {
 
 export class AiAgentHandler implements NodeHandler {
   metadata = aiAgentNodeMetadata;
+
+  /**
+   * 조건(condition) 평가 — 도구 정의·프롬프트 안내문 생성, tool_call 분류, 사유
+   * 추출. 핸들러 상태에 의존하지 않는 무상태 collaborator (refactor §M-1 1단계).
+   */
+  private readonly conditionEvaluator = new AiConditionEvaluator();
 
   constructor(
     private readonly llmService: LlmService,
@@ -1408,7 +1395,8 @@ export class AiAgentHandler implements NodeHandler {
       finalSystemPrompt += KB_TOOL_GUIDANCE;
     }
     if (conditions.length > 0) {
-      finalSystemPrompt += this.buildConditionSystemPromptSuffix(conditions);
+      finalSystemPrompt +=
+        this.conditionEvaluator.buildConditionSystemPromptSuffix(conditions);
     }
     if (
       Array.isArray(config.presentationTools) &&
@@ -1539,9 +1527,10 @@ export class AiAgentHandler implements NodeHandler {
 
     let toolCallCount = 0;
     while (result.toolCalls?.length && toolCallCount < maxToolCalls) {
-      const classification = this.classifyToolCalls(
+      const classification = this.conditionEvaluator.classifyToolCalls(
         result.toolCalls,
         conditions,
+        this.toolProviders,
       );
 
       // Case 1: Only condition tools (no provider, no normal) — route immediately.
@@ -1550,7 +1539,7 @@ export class AiAgentHandler implements NodeHandler {
         classification.normalToolCalls.length === 0 &&
         classification.matchedCondition
       ) {
-        const reason = this.extractConditionReason(
+        const reason = this.conditionEvaluator.extractConditionReason(
           result.toolCalls,
           classification.matchedCondition.id,
         );
@@ -1935,7 +1924,8 @@ export class AiAgentHandler implements NodeHandler {
       finalSystemPrompt += KB_TOOL_GUIDANCE;
     }
     if (conditions.length > 0) {
-      finalSystemPrompt += this.buildConditionSystemPromptSuffix(conditions);
+      finalSystemPrompt +=
+        this.conditionEvaluator.buildConditionSystemPromptSuffix(conditions);
     }
     if (
       Array.isArray(config.presentationTools) &&
@@ -2445,9 +2435,10 @@ export class AiAgentHandler implements NodeHandler {
       toolCallCount < maxToolCalls &&
       !pendingFormBlock
     ) {
-      const classification = this.classifyToolCalls(
+      const classification = this.conditionEvaluator.classifyToolCalls(
         result.toolCalls,
         conditions,
+        this.toolProviders,
       );
 
       // Condition-only: route immediately.
@@ -2456,7 +2447,7 @@ export class AiAgentHandler implements NodeHandler {
         classification.normalToolCalls.length === 0 &&
         classification.matchedCondition
       ) {
-        const reason = this.extractConditionReason(
+        const reason = this.conditionEvaluator.extractConditionReason(
           result.toolCalls,
           classification.matchedCondition.id,
         );
@@ -3284,92 +3275,6 @@ export class AiAgentHandler implements NodeHandler {
   }
 
   /**
-   * Classify tool calls into provider (KB 등 핸들러 내부 실행), condition,
-   * normal (외부 노드 stub) 그룹으로 분리. condition 다중 호출 시 conditions
-   * 배열에서 가장 앞쪽 정의된 항목을 winner 로 채택.
-   */
-  private classifyToolCalls(
-    toolCalls: ToolCall[],
-    conditions: ConditionDef[],
-  ): ConditionClassification {
-    const condNameToCondition = new Map<string, ConditionDef>();
-    for (const c of conditions) {
-      condNameToCondition.set(condToolName(c.id), c);
-    }
-
-    const providerToolCalls: Array<{
-      provider: AgentToolProvider;
-      call: ToolCall;
-    }> = [];
-    const conditionToolCalls: ToolCall[] = [];
-    const normalToolCalls: ToolCall[] = [];
-
-    for (const tc of toolCalls) {
-      const matchedProvider = this.toolProviders.find((p) =>
-        p.matches(tc.name),
-      );
-      if (matchedProvider) {
-        providerToolCalls.push({ provider: matchedProvider, call: tc });
-      } else if (condNameToCondition.has(tc.name)) {
-        conditionToolCalls.push(tc);
-      } else {
-        normalToolCalls.push(tc);
-      }
-    }
-
-    let matchedCondition: ConditionDef | null = null;
-    if (conditionToolCalls.length > 0) {
-      let lowestIndex = Infinity;
-      for (const ctc of conditionToolCalls) {
-        const cond = condNameToCondition.get(ctc.name);
-        if (cond) {
-          const idx = conditions.indexOf(cond);
-          if (idx !== -1 && idx < lowestIndex) {
-            lowestIndex = idx;
-            matchedCondition = cond;
-          }
-        }
-      }
-    }
-
-    return {
-      providerToolCalls,
-      conditionToolCalls,
-      normalToolCalls,
-      matchedCondition,
-    };
-  }
-
-  /**
-   * Extract the reason argument from a condition tool call.
-   */
-  private extractConditionReason(
-    toolCalls: ToolCall[],
-    conditionId: string,
-  ): string {
-    const name = condToolName(conditionId);
-    const tc = toolCalls.find((t) => t.name === name);
-    if (!tc) return '';
-    try {
-      const args = JSON.parse(tc.arguments) as Record<string, unknown>;
-      const reason = typeof args.reason === 'string' ? args.reason : '';
-      return reason.slice(0, 500);
-    } catch {
-      return '';
-    }
-  }
-
-  /**
-   * Build system prompt suffix that instructs the LLM about available conditions.
-   */
-  private buildConditionSystemPromptSuffix(conditions: ConditionDef[]): string {
-    const condList = conditions
-      .map((c) => `- ${condToolName(c.id)}: ${c.prompt}`)
-      .join('\n');
-    return `\n\n[조건 안내] 대화 중 아래 조건에 해당하는 상황이 감지되면, 해당 조건 도구를 호출하세요:\n${condList}\n조건에 해당하지 않으면 대화를 계속하세요.`;
-  }
-
-  /**
    * spec/5-system/11-mcp-client.md §6.2 — buildTools 가 수집한 serverSummaries
    * 를 meta 로 emit 할 때 쓰는 helper. 비어있으면 omit (정상 케이스에 noise
    * 추가 안 함). 2026-05-18 시점에는 `mcpDiagnostics` 의 `serverSummaries`
@@ -3414,19 +3319,8 @@ export class AiAgentHandler implements NodeHandler {
       }
     }
 
-    const conditionTools: ToolDef[] = conditions.map((c) => ({
-      name: condToolName(c.id),
-      description: c.prompt,
-      parameters: {
-        type: 'object',
-        properties: {
-          reason: {
-            type: 'string',
-            description: '이 조건을 선택한 이유',
-          },
-        },
-      },
-    }));
+    const conditionTools =
+      this.conditionEvaluator.buildConditionTools(conditions);
 
     return [...providerTools, ...normalTools, ...conditionTools];
   }
