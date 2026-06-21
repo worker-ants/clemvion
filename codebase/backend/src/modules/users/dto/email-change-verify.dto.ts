@@ -1,4 +1,4 @@
-import { IsString, MinLength } from 'class-validator';
+import { IsString, MaxLength, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
@@ -9,5 +9,6 @@ export class EmailChangeVerifyDto {
   @ApiProperty({ description: '신규 이메일로 발송된 변경 확인 토큰' })
   @IsString()
   @MinLength(1)
+  @MaxLength(128)
   token: string;
 }

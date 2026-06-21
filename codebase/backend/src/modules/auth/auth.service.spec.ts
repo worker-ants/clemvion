@@ -43,7 +43,10 @@ describe('AuthService', () => {
   };
   let mockDataSource: { transaction: jest.Mock };
   let loginHistoryService: { record: jest.Mock; findForUser: jest.Mock };
-  let sessionsService: { revokeAllFamilies: jest.Mock };
+  let sessionsService: {
+    revokeAllFamilies: jest.Mock;
+    reauthenticate: jest.Mock;
+  };
 
   const mockUser: Partial<User> = {
     id: 'user-uuid-1',
@@ -96,6 +99,7 @@ describe('AuthService', () => {
             incrementLoginAttempts: jest.fn(),
             resetLoginAttempts: jest.fn(),
             isLocked: jest.fn().mockResolvedValue(false),
+            emailTakenByOther: jest.fn().mockResolvedValue(false),
           },
         },
         {
@@ -126,6 +130,8 @@ describe('AuthService', () => {
           useValue: {
             sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
             sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+            sendEmailChangeVerification: jest.fn().mockResolvedValue(undefined),
+            sendEmailChangedNotice: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -178,9 +184,11 @@ describe('AuthService', () => {
         },
         {
           // refactor 04 A-1 — AuthService.rotateSessionAfterPasswordChange 가 위임.
+          // 이메일 변경(requestEmailChange)의 재인증도 reauthenticate 를 통해 위임.
           provide: SessionsService,
           useValue: {
             revokeAllFamilies: jest.fn().mockResolvedValue({ revoked: 0 }),
+            reauthenticate: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],
@@ -1017,6 +1025,293 @@ describe('AuthService', () => {
       await expect(service.verifyEmail('expired-token')).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  // ========== EMAIL CHANGE (W1 — spec/5-system/1-auth.md §1.1.B) ==========
+
+  describe('requestEmailChange', () => {
+    const NEW_EMAIL = 'new@example.com';
+
+    beforeEach(() => {
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        email: 'test@example.com',
+        pendingEmail: null,
+      } as User);
+      usersService.emailTakenByOther.mockResolvedValue(false);
+      sessionsService.reauthenticate.mockResolvedValue(undefined);
+      usersService.update.mockResolvedValue(mockUser as User);
+      mailService.sendEmailChangeVerification.mockResolvedValue(undefined);
+    });
+
+    it('정상: 재인증 → pending 저장 → 확인 메일 발송', async () => {
+      await service.requestEmailChange('user-uuid-1', NEW_EMAIL, {
+        password: 'somePass',
+      });
+
+      expect(sessionsService.reauthenticate).toHaveBeenCalledWith(
+        'user-uuid-1',
+        { password: 'somePass' },
+      );
+      expect(usersService.update).toHaveBeenCalledWith(
+        'user-uuid-1',
+        expect.objectContaining({
+          pendingEmail: NEW_EMAIL,
+          emailChangeToken: expect.any(String),
+          emailChangeExpiresAt: expect.any(Date),
+        }),
+      );
+      expect(mailService.sendEmailChangeVerification).toHaveBeenCalledWith(
+        NEW_EMAIL,
+        mockUser.name,
+        expect.any(String),
+      );
+    });
+
+    it('현재 이메일과 동일 → BadRequestException', async () => {
+      await expect(
+        service.requestEmailChange('user-uuid-1', 'test@example.com', {
+          password: 'pw',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mailService.sendEmailChangeVerification).not.toHaveBeenCalled();
+    });
+
+    it('다른 계정이 신규 이메일 사용 중 → ConflictException', async () => {
+      usersService.emailTakenByOther.mockResolvedValue(true);
+      await expect(
+        service.requestEmailChange('user-uuid-1', NEW_EMAIL, {
+          password: 'pw',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('user 없음 → UnauthorizedException (UNAUTHENTICATED)', async () => {
+      usersService.findById.mockResolvedValue(null);
+      await expect(
+        service.requestEmailChange('user-uuid-1', NEW_EMAIL, {
+          password: 'pw',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('W6/W9 — 메일 발송 실패 시 clearPendingEmailChange 호출 후 rethrow', async () => {
+      mailService.sendEmailChangeVerification.mockRejectedValueOnce(
+        new Error('SMTP down'),
+      );
+      usersService.update.mockResolvedValue(mockUser as User);
+
+      await expect(
+        service.requestEmailChange('user-uuid-1', NEW_EMAIL, {
+          password: 'pw',
+        }),
+      ).rejects.toThrow('SMTP down');
+
+      // clearPendingEmailChange 는 update 를 두 번째로 호출한다(1st = pending 저장, 2nd = rollback).
+      expect(usersService.update).toHaveBeenCalledTimes(2);
+      const [, rollbackPatch] = usersService.update.mock.calls[1] as [
+        string,
+        Partial<User>,
+      ];
+      expect(rollbackPatch).toMatchObject({
+        pendingEmail: null,
+        emailChangeToken: null,
+        emailChangeExpiresAt: null,
+      });
+    });
+
+    it('DB 저장 토큰은 SHA-256 해시이고 메일 링크 토큰은 raw UUID (round-trip)', async () => {
+      await service.requestEmailChange('user-uuid-1', NEW_EMAIL, {
+        password: 'pw',
+      });
+
+      const [, patch] = usersService.update.mock.calls[0] as [
+        string,
+        { emailChangeToken: string },
+      ];
+      const mailedToken = (
+        mailService.sendEmailChangeVerification.mock.calls[0] as [
+          string,
+          string,
+          string,
+        ]
+      )[2];
+
+      expect(patch.emailChangeToken).toMatch(/^[0-9a-f]{64}$/);
+      expect(sha256(mailedToken)).toBe(patch.emailChangeToken);
+    });
+  });
+
+  describe('verifyEmailChange', () => {
+    const RAW_TOKEN = '11111111-2222-3333-4444-555555555555';
+
+    function validUser(): Partial<User> {
+      return {
+        ...mockUser,
+        email: 'old@example.com',
+        pendingEmail: 'new@example.com',
+        emailChangeToken: sha256(RAW_TOKEN),
+        emailChangeExpiresAt: new Date(Date.now() + 3_600_000),
+      };
+    }
+
+    beforeEach(() => {
+      usersService.findById.mockResolvedValue(validUser() as User);
+      usersService.emailTakenByOther.mockResolvedValue(false);
+      usersService.update.mockResolvedValue({
+        ...validUser(),
+        email: 'new@example.com',
+      } as User);
+      sessionsService.revokeAllFamilies.mockResolvedValue({ revoked: 1 });
+      mailService.sendEmailChangedNotice.mockResolvedValue(undefined);
+    });
+
+    it('정상: 이메일 교체 → revoke → 토큰 재발급 → 통지', async () => {
+      const tokens = await service.verifyEmailChange(
+        'user-uuid-1',
+        RAW_TOKEN,
+        {},
+      );
+
+      expect(usersService.update).toHaveBeenCalledWith(
+        'user-uuid-1',
+        expect.objectContaining({
+          email: 'new@example.com',
+          pendingEmail: null,
+          emailChangeToken: null,
+        }),
+      );
+      expect(sessionsService.revokeAllFamilies).toHaveBeenCalledWith(
+        'user-uuid-1',
+        {},
+      );
+      expect(tokens.accessToken).toBe('mock-access-token');
+      expect(tokens.refreshToken).toBeDefined();
+    });
+
+    it('토큰 불일치 → BadRequestException', async () => {
+      await expect(
+        service.verifyEmailChange('user-uuid-1', 'wrong-token', {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('만료된 토큰 → BadRequestException', async () => {
+      usersService.findById.mockResolvedValue({
+        ...validUser(),
+        emailChangeExpiresAt: new Date(Date.now() - 1000),
+      } as User);
+      await expect(
+        service.verifyEmailChange('user-uuid-1', RAW_TOKEN, {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('pending 없음 → BadRequestException', async () => {
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        pendingEmail: null,
+        emailChangeToken: null,
+      } as unknown as User);
+      await expect(
+        service.verifyEmailChange('user-uuid-1', RAW_TOKEN, {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('확인 시점 이메일 선점 → clearPending + ConflictException', async () => {
+      usersService.emailTakenByOther.mockResolvedValue(true);
+      await expect(
+        service.verifyEmailChange('user-uuid-1', RAW_TOKEN, {}),
+      ).rejects.toThrow(ConflictException);
+      // clearPendingEmailChange 호출 검증
+      expect(usersService.update).toHaveBeenCalledWith(
+        'user-uuid-1',
+        expect.objectContaining({ pendingEmail: null }),
+      );
+    });
+
+    it('W7 — sendEmailChangedNotice 실패 시 logger.warn 기록 후 토큰 반환', async () => {
+      mailService.sendEmailChangedNotice.mockRejectedValueOnce(
+        new Error('mail timeout'),
+      );
+      // logger 를 spy
+      const warnSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { warn: jest.Mock } }).logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+
+      const tokens = await service.verifyEmailChange(
+        'user-uuid-1',
+        RAW_TOKEN,
+        {},
+      );
+      expect(tokens.accessToken).toBe('mock-access-token');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('sendEmailChangedNotice'),
+        expect.any(String),
+      );
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe('resendEmailChange', () => {
+    it('pending 있음 → 토큰 재발급 + 메일 재발송', async () => {
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        pendingEmail: 'new@example.com',
+      } as User);
+      usersService.update.mockResolvedValue(mockUser as User);
+      mailService.sendEmailChangeVerification.mockResolvedValue(undefined);
+
+      await service.resendEmailChange('user-uuid-1');
+
+      expect(usersService.update).toHaveBeenCalledWith(
+        'user-uuid-1',
+        expect.objectContaining({
+          emailChangeToken: expect.any(String),
+          emailChangeExpiresAt: expect.any(Date),
+        }),
+      );
+      expect(mailService.sendEmailChangeVerification).toHaveBeenCalledWith(
+        'new@example.com',
+        mockUser.name,
+        expect.any(String),
+      );
+    });
+
+    it('pending 없음 → BadRequestException', async () => {
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        pendingEmail: null,
+      } as unknown as User);
+
+      await expect(service.resendEmailChange('user-uuid-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('cancelEmailChange', () => {
+    it('pending 있는 경우 — pending 필드 초기화', async () => {
+      usersService.update.mockResolvedValue(mockUser as User);
+
+      await service.cancelEmailChange('user-uuid-1');
+
+      expect(usersService.update).toHaveBeenCalledWith(
+        'user-uuid-1',
+        expect.objectContaining({
+          pendingEmail: null,
+          emailChangeToken: null,
+          emailChangeExpiresAt: null,
+        }),
+      );
+    });
+
+    it('멱등 — pending 없어도 update 호출(clearPendingEmailChange)', async () => {
+      usersService.update.mockResolvedValue(mockUser as User);
+      await service.cancelEmailChange('user-uuid-1');
+      expect(usersService.update).toHaveBeenCalledTimes(1);
     });
   });
 

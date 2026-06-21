@@ -112,6 +112,10 @@ export class User {
   })
   emailChangeToken: string | null;
 
+  /**
+   * 이메일 변경 토큰 만료 시각 (UTC). request/resend 시 `Date.now() + EMAIL_CHANGE_TTL_MS`(1h)
+   * 로 갱신. verify 성공·cancel·pending 정리 시 NULL.
+   */
   @Column({
     name: 'email_change_expires_at',
     type: 'timestamptz',

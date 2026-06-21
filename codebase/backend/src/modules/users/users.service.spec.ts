@@ -9,12 +9,23 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
 
+/** createQueryBuilder 체인 mock 빌더 — emailTakenByOther 테스트용. */
+function makeQb(count: number): unknown {
+  const qb = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    getCount: jest.fn().mockResolvedValue(count),
+  };
+  return qb;
+}
+
 describe('UsersService', () => {
   let service: UsersService;
   let repo: {
     findOne: jest.Mock;
     update: jest.Mock;
     findOneOrFail: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -22,6 +33,7 @@ describe('UsersService', () => {
       findOne: jest.fn(),
       update: jest.fn(),
       findOneOrFail: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue(makeQb(0)),
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -116,6 +128,48 @@ describe('UsersService', () => {
         service.changePassword('user-uuid', 'OldP@ssw0rd1', 'alllowercase'),
       ).rejects.toThrow(BadRequestException);
       expect(repo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('emailTakenByOther (W3 — 이메일 변경 중복 검사)', () => {
+    it('다른 계정이 동일 이메일(소문자) 사용 중 → true', async () => {
+      repo.createQueryBuilder.mockReturnValue(makeQb(1));
+      const result = await service.emailTakenByOther(
+        'Taken@Example.com',
+        'self-id',
+      );
+      expect(result).toBe(true);
+    });
+
+    it('이메일이 자신의 것이거나 없음 → false', async () => {
+      repo.createQueryBuilder.mockReturnValue(makeQb(0));
+      const result = await service.emailTakenByOther(
+        'mine@example.com',
+        'self-id',
+      );
+      expect(result).toBe(false);
+    });
+
+    it('QueryBuilder 가 LOWER + excludeUserId 조건을 모두 받는다', async () => {
+      const qb = makeQb(0) as {
+        where: jest.Mock;
+        andWhere: jest.Mock;
+        getCount: jest.Mock;
+      };
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.emailTakenByOther('target@example.com', 'excl-id');
+
+      // LOWER(:email) 조건 — 대소문자 무시 검사
+      expect(qb.where).toHaveBeenCalledWith(
+        expect.stringContaining('LOWER'),
+        expect.objectContaining({ email: 'target@example.com' }),
+      );
+      // 본인 제외 조건
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('!= :id'),
+        expect.objectContaining({ id: 'excl-id' }),
+      );
     });
   });
 });

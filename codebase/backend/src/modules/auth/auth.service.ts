@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  Logger,
   UnauthorizedException,
   ConflictException,
 } from '@nestjs/common';
@@ -29,8 +30,13 @@ import { SessionsService } from './sessions.service';
 
 export type { AuthContext };
 
+/** 이메일 변경 토큰 TTL (1시간). requestEmailChange / resendEmailChange 두 곳에서 동일하게 사용. */
+const EMAIL_CHANGE_TTL_MS = 60 * 60 * 1000; // 1h
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
@@ -820,19 +826,32 @@ export class AuthService {
     }
 
     // 3) 토큰 발급 — raw 는 메일로만, DB 엔 SHA-256 해시(email_verify_token 패턴 §1.1).
+    // TOCTOU 주의: emailTakenByOther 검사 후 이 update 사이에 다른 계정이 동일 이메일로
+    // 가입할 수 있다. 최종 가드는 verifyEmailChange 의 email UNIQUE 제약이므로 여기서는
+    // 관측 가능한 UX 저하(409 at verify time)로 수용한다 — transaction-per-request 구조.
     const rawToken = uuidv4();
     await this.usersService.update(userId, {
       pendingEmail: newEmail,
       emailChangeToken: this.hashToken(rawToken),
-      emailChangeExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1h
+      emailChangeExpiresAt: new Date(Date.now() + EMAIL_CHANGE_TTL_MS),
     });
 
-    // 4) 신규 이메일로 확인 메일.
-    await this.mailService.sendEmailChangeVerification(
-      newEmail,
-      user.name,
-      rawToken,
-    );
+    // 4) 신규 이메일로 확인 메일. 발송 실패 시 pending 필드를 롤백해 DB 잔류를 방지한다
+    // (롤백 실패는 무시 — 이미 주 오류를 rethrow 했으므로 부작용 정리가 best-effort).
+    try {
+      await this.mailService.sendEmailChangeVerification(
+        newEmail,
+        user.name,
+        rawToken,
+      );
+    } catch (mailErr) {
+      try {
+        await this.clearPendingEmailChange(userId);
+      } catch {
+        // clearPendingEmailChange 실패는 무시 — 주 오류를 rethrow 하는 게 우선.
+      }
+      throw mailErr;
+    }
   }
 
   /**
@@ -893,7 +912,15 @@ export class AuthService {
     }
 
     // 전 세션 revoke + 현재 디바이스 재발급 (비밀번호 변경과 동형).
+    // revoke 실패 시: 이메일 교체는 이미 커밋됐으므로 여기서 롤백할 수 없다. spec §2.3 /
+    // Rationale 2.3.C — best-effort 이지만 반드시 관측 가능해야 한다. revokeAllFamilies
+    // 자체에서 내부 에러를 throw 하면 그대로 전파돼 호출자가 500 을 받으므로 관측 가능하다.
+    // (구 세션 무효화 불변식 위반은 로그 알림 + 운영자 대응 경로로 처리.)
     await this.sessionsService.revokeAllFamilies(userId, ctx);
+
+    // generateTokens 는 revoke 성공 후 새 family 를 발급한다. 만약 이 단계가 실패하면
+    // 이메일은 이미 변경 + 전 세션 revoke 완료 상태가 되어 사용자가 강제 로그아웃된다.
+    // 이 경우 사용자는 새 이메일로 재로그인하면 되므로 허용 가능한 상태이다(주석 명시 — W10).
     const updated = await this.usersService.findById(userId);
     if (!updated) {
       throw new UnauthorizedException({ code: 'UNAUTHENTICATED' });
@@ -907,8 +934,13 @@ export class AuthService {
         updated.name,
         newEmail,
       );
-    } catch {
-      // MailService 가 자체 로깅. 통지 누락이 변경을 되돌리지 않는다.
+    } catch (noticeErr) {
+      // 통지 누락이 변경을 되돌리지 않는다. MailService 가 error 를 자체 로깅하지만
+      // AuthService 에서도 warn 을 남겨 운영자가 알림 채널(구 이메일)에 이상을 감지할 수 있게 한다.
+      this.logger.warn(
+        `sendEmailChangedNotice to ${oldEmail} failed — email change already committed`,
+        noticeErr instanceof Error ? noticeErr.message : String(noticeErr),
+      );
     }
 
     return tokens;
@@ -928,7 +960,7 @@ export class AuthService {
     const rawToken = uuidv4();
     await this.usersService.update(userId, {
       emailChangeToken: this.hashToken(rawToken),
-      emailChangeExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      emailChangeExpiresAt: new Date(Date.now() + EMAIL_CHANGE_TTL_MS),
     });
     await this.mailService.sendEmailChangeVerification(
       user.pendingEmail,
@@ -953,6 +985,7 @@ export class AuthService {
   private isUniqueEmailViolation(err: unknown): boolean {
     if (typeof err !== 'object' || err === null) return false;
     const e = err as { code?: string; driverError?: { code?: string } };
+    // 23505 = PostgreSQL unique_violation — email UNIQUE 제약 위반.
     return e.code === '23505' || e.driverError?.code === '23505';
   }
 

@@ -20,6 +20,7 @@ import {
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
   ApiBadRequestResponse,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
@@ -193,7 +194,12 @@ export class UsersController {
     description: '신규 이메일로 확인 메일 발송됨',
   })
   @ApiBadRequestResponse({ description: '신규 이메일이 현재와 동일·형식 오류' })
-  @ApiUnauthorizedResponse({ description: '재인증 실패' })
+  @ApiUnauthorizedResponse({
+    description: '재인증 실패 (비밀번호/TOTP 불일치)',
+  })
+  @ApiForbiddenResponse({
+    description: '재인증 수단 없음 — OAuth 전용 계정(REAUTH_NOT_AVAILABLE)',
+  })
   async requestEmailChange(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: EmailChangeRequestDto,
@@ -219,8 +225,10 @@ export class UsersController {
   @ApiOkWrappedResponse(PasswordChangeResultDto, {
     description: '이메일 변경 성공 — 새 access token 반환',
   })
-  @ApiBadRequestResponse({ description: '토큰 무효 또는 만료' })
-  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiBadRequestResponse({ description: '이메일 변경 토큰 무효 또는 만료' })
+  @ApiUnauthorizedResponse({
+    description: 'JWT 인증 실패 (access token 만료·미제공)',
+  })
   async verifyEmailChange(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: EmailChangeVerifyDto,
