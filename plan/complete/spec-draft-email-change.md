@@ -2,8 +2,14 @@
 worktree: spec-email-change-0fcba4
 started: 2026-06-21
 owner: planner
-status: draft
+status: complete
 spec_targets:
+  - spec/5-system/1-auth.md
+  - spec/2-navigation/9-user-profile.md
+  - spec/1-data-model.md
+  - spec/conventions/audit-actions.md
+  - spec/data-flow/1-audit.md
+spec_impact:
   - spec/5-system/1-auth.md
   - spec/2-navigation/9-user-profile.md
   - spec/1-data-model.md

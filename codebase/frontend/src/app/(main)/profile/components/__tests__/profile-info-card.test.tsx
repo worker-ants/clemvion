@@ -34,7 +34,11 @@ import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
 import { ProfileInfoCard } from "../profile-info-card";
 
-function renderCard(user: { name: string; email: string }) {
+function renderCard(user: {
+  name: string;
+  email: string;
+  pendingEmail?: string | null;
+}) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -131,5 +135,27 @@ describe("ProfileInfoCard", () => {
     });
     // mode 가 edit 으로 유지되어 input 이 그대로 보인다 (사용자가 재시도 가능)
     expect(screen.getByRole("textbox")).toBeInTheDocument();
+  });
+
+  it("이메일 변경 CTA 링크를 /profile/change-email 로 노출한다", () => {
+    renderCard({ name: "Gehrig", email: "g@example.com" });
+    const link = screen.getByTestId("profile-change-email-link");
+    expect(link).toHaveAttribute("href", "/profile/change-email");
+  });
+
+  it("pendingEmail 이 없으면 readonly 힌트를 보이고 pending 표시는 없다", () => {
+    renderCard({ name: "Gehrig", email: "g@example.com" });
+    expect(screen.queryByTestId("profile-email-pending")).toBeNull();
+  });
+
+  it("pendingEmail 이 있으면 확인 대기 주소를 표시한다", () => {
+    renderCard({
+      name: "Gehrig",
+      email: "g@example.com",
+      pendingEmail: "new@example.com",
+    });
+    expect(screen.getByTestId("profile-email-pending")).toHaveTextContent(
+      "new@example.com",
+    );
   });
 });

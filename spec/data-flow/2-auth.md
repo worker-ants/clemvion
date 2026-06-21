@@ -229,6 +229,27 @@ sequenceDiagram
    forgot-password 와 동일한 enumeration 방지 정책 (항상 동일 응답).
 4. `POST /api/auth/check-email` (5 req/min) — 가입 전 이메일 사용 가능 여부 `{ available }` 반환.
 
+#### 1.7.1 이메일 변경 (`/api/users/me/email-change/*`, 인증 §1.1.B)
+
+로그인 사용자가 로그인 이메일을 바꾸는 흐름. 모두 JWT 인증 필수. `users.controller.ts` → `AuthService`.
+
+```
+1. POST .../request { newEmail, password?|totpCode? }   (request/resend 5 req/min)
+   → 재인증(SessionsService.reauthenticate: password OR TOTP) → newEmail 검증(동일/중복)
+   → pending_email + email_change_token(sha256, 1h) 저장 → 신규 이메일로 확인 메일
+   → 메일 발송 실패 시 pending 3필드 롤백(clearPendingEmailChange) 후 오류 전파
+2. POST .../verify { token }   (인증 본인 세션 — 토큰이 사용자에 바인딩)
+   → token sha256 == email_change_token + 미만료 검증 → 트랜잭션: 선점 재검사
+     → email = pending_email, email_verified=true, pending 3필드 NULL
+   → revokeAllFamilies(전 세션 revoke) + 현재 디바이스 재발급({accessToken}+refresh 쿠키 회전)
+   → 옛 이메일 통지(best-effort, 실패 시 logger.warn) → audit user.email_changed
+   → login_history session_revoked(bulk, family_id=null)
+3. POST .../resend → 토큰 재발급(발송 실패 시 토큰 유지, 재시도로 복구)
+4. POST .../cancel → pending 3필드 NULL (재인증 불요, 멱등)
+```
+
+세션 처리·감사·토큰 라이프사이클 근거: [인증 §1.1.B / Rationale 2.3.C·1.1.B-1~6](../5-system/1-auth.md#11b-이메일-변경-흐름).
+
 ---
 
 ## 2. Schema 매핑
@@ -245,6 +266,7 @@ sequenceDiagram
 | `user` | OAuth 첫 연결 | UPDATE `oauth_provider, oauth_provider_id` | — |
 | `user` | TOTP 2FA on/off | UPDATE `two_factor_enabled, two_factor_secret, totp_recovery_codes` | — |
 | `user` | WebAuthn 복구 코드 발급/소진/재발급 | UPDATE `webauthn_recovery_codes` | — |
+| `user` | 이메일 변경 (§1.1.B) | UPDATE `pending_email, email_change_token, email_change_expires_at`; 확정 시 `email, email_verified` | `email UNIQUE`, `LOWER(email)` (V101 — `emailTakenByOther` 대소문자 무시 조회) |
 | `webauthn_credential` | Passkey 등록 / 이름 수정 / 삭제 / 인증 | INSERT(register/verify), UPDATE counter/last_used_at/device_name, DELETE(개별) | `credential_id UNIQUE`, `(user_id)` |
 | `refresh_token` | 로그인·refresh | INSERT `user_id, token_hash, family_id, is_revoked=false, expires_at, device_label, user_agent, ip_address` | `token_hash UNIQUE`, `(user_id, family_id) WHERE is_revoked=false` (V040 metadata) |
 | `refresh_token` | refresh 회전 | UPDATE `is_revoked=true, last_used_at, last_used_ip` (old row) + INSERT new row | — |

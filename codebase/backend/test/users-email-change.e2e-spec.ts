@@ -207,4 +207,88 @@ describe('Email change — 재인증 + 신규 이메일 확인 (e2e)', () => {
       .send({});
     expect(again.status).toBe(200);
   }, 60_000);
+
+  it('resend → 200; 토큰·만료 시각 갱신', async () => {
+    const user = await registerAndLogin(BASE_URL, uniqueEmail('emchg-rs'), db);
+    const newEmail = uniqueEmail('emchg-rs-new');
+
+    // request 로 pending 생성
+    await request(BASE_URL)
+      .post('/api/users/me/email-change/request')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ newEmail, password: TEST_PASSWORD })
+      .expect(200);
+
+    const before = await db.query(
+      `SELECT email_change_token, email_change_expires_at
+       FROM "user" WHERE id = $1`,
+      [user.userId],
+    );
+
+    const res = await request(BASE_URL)
+      .post('/api/users/me/email-change/resend')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({});
+    expect(res.status).toBe(200);
+
+    const after = await db.query(
+      `SELECT pending_email, email_change_token, email_change_expires_at
+       FROM "user" WHERE id = $1`,
+      [user.userId],
+    );
+    // pending 은 유지, 토큰은 재발급(변경)
+    expect(after.rows[0].pending_email).toBe(newEmail);
+    expect(after.rows[0].email_change_token).toMatch(/^[a-f0-9]{64}$/);
+    expect(after.rows[0].email_change_token).not.toBe(
+      before.rows[0].email_change_token,
+    );
+  }, 60_000);
+
+  it('resend without pending → 400 VALIDATION_ERROR', async () => {
+    const user = await registerAndLogin(BASE_URL, uniqueEmail('emchg-rs0'), db);
+    const res = await request(BASE_URL)
+      .post('/api/users/me/email-change/resend')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  }, 60_000);
+
+  it('verify 시점 신규 이메일 선점 → 409 + pending 정리', async () => {
+    // userA 가 newEmail 로 변경 대기 중인데, 그 사이 userB 가 newEmail 로 가입(선점).
+    const newEmail = uniqueEmail('emchg-race-new');
+    const userA = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('emchg-raceA'),
+      db,
+    );
+    const rawToken = `race-token-${userA.userId}`;
+    await db.query(
+      `UPDATE "user"
+         SET pending_email = $2,
+             email_change_token = $3,
+             email_change_expires_at = NOW() + INTERVAL '1 hour'
+       WHERE id = $1`,
+      [userA.userId, newEmail, sha256(rawToken)],
+    );
+
+    // userB 가 newEmail 선점
+    await registerAndLogin(BASE_URL, newEmail, db);
+
+    const res = await request(BASE_URL)
+      .post('/api/users/me/email-change/verify')
+      .set('Authorization', `Bearer ${userA.accessToken}`)
+      .send({ token: rawToken });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('RESOURCE_CONFLICT');
+
+    // userA 이메일 미변경 + pending 정리됨
+    const row = await db.query(
+      `SELECT email, pending_email, email_change_token FROM "user" WHERE id = $1`,
+      [userA.userId],
+    );
+    expect(row.rows[0].email).not.toBe(newEmail);
+    expect(row.rows[0].pending_email).toBeNull();
+    expect(row.rows[0].email_change_token).toBeNull();
+  }, 60_000);
 });

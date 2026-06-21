@@ -1,8 +1,11 @@
 ---
-worktree: (unassigned)
+worktree: email-change-followup
 started: 2026-06-21
 owner: developer
-parent: plan/in-progress/impl-email-change.md
+status: complete
+parent: plan/complete/impl-email-change.md
+spec_impact:
+  - spec/data-flow/2-auth.md
 ---
 
 # follow-up — user.email LOWER() 표현식 인덱스
