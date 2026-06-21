@@ -22,8 +22,10 @@ import {
   ApiBadRequestResponse,
 } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import { ApiOkWrappedResponse } from '../../common/swagger';
 import {
+  MessageResponseDto,
   PasswordChangeResultDto,
   UserProfileDto,
 } from './dto/responses/user-response.dto';
@@ -33,6 +35,8 @@ import type { JwtPayload } from '../../common/decorators';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { EmailChangeRequestDto } from './dto/email-change-request.dto';
+import { EmailChangeVerifyDto } from './dto/email-change-verify.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { AuthService } from '../auth/auth.service';
@@ -84,6 +88,8 @@ export class UsersController {
         avatarUrl: user.avatarUrl,
         locale: user.locale ?? 'ko',
         theme: user.theme ?? 'light',
+        // 진행 중인 이메일 변경 표시용 (spec/5-system/1-auth.md §1.1.B).
+        pendingEmail: user.pendingEmail ?? null,
       },
     };
   }
@@ -173,5 +179,111 @@ export class UsersController {
     });
 
     return { data: { accessToken: tokens.accessToken } };
+  }
+
+  @Post('me/email-change/request')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({
+    summary: '이메일 변경 시작',
+    description:
+      '재인증(비밀번호 또는 TOTP) 후 신규 이메일로 확인 메일을 발송합니다. 신규 이메일이 현재와 같으면 400, 다른 계정이 사용 중이면 409, 재인증 수단이 없는 OAuth 전용 계정은 403(`REAUTH_NOT_AVAILABLE`). 인증 §1.1.B.',
+  })
+  @ApiOkWrappedResponse(MessageResponseDto, {
+    description: '신규 이메일로 확인 메일 발송됨',
+  })
+  @ApiBadRequestResponse({ description: '신규 이메일이 현재와 동일·형식 오류' })
+  @ApiUnauthorizedResponse({ description: '재인증 실패' })
+  async requestEmailChange(
+    @CurrentUser() payload: JwtPayload,
+    @Body() dto: EmailChangeRequestDto,
+  ) {
+    await this.authService.requestEmailChange(payload.sub, dto.newEmail, {
+      password: dto.password,
+      totpCode: dto.totpCode,
+    });
+    return {
+      data: {
+        message: 'A confirmation email has been sent to the new address.',
+      },
+    };
+  }
+
+  @Post('me/email-change/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '이메일 변경 확인',
+    description:
+      '신규 이메일로 받은 토큰을 인증된 본인 세션에서 검증해 이메일을 교체합니다. 성공 시 전 세션을 revoke 하고 현재 디바이스에 새 세션을 재발급(새 access token + refresh 쿠키 회전)하며, 옛 이메일로 변경 통지를 보냅니다. 토큰 무효·만료는 400, 신규 이메일 선점은 409. 인증 §1.1.B / Rationale 2.3.C.',
+  })
+  @ApiOkWrappedResponse(PasswordChangeResultDto, {
+    description: '이메일 변경 성공 — 새 access token 반환',
+  })
+  @ApiBadRequestResponse({ description: '토큰 무효 또는 만료' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  async verifyEmailChange(
+    @CurrentUser() payload: JwtPayload,
+    @Body() dto: EmailChangeVerifyDto,
+    @Req() req: Express.Request,
+    @Res({ passthrough: true }) res: Express.Response,
+  ) {
+    const ctx = authContextFromRequest(req);
+    const tokens = await this.authService.verifyEmailChange(
+      payload.sub,
+      dto.token,
+      ctx,
+    );
+    setRefreshTokenCookie(res, tokens.refreshToken, {
+      cookieDomain: this.cookieDomain,
+    });
+
+    // [Spec Auth §4.1 / Rationale 4.1.B] 액터 현재 세션 workspaceId 귀속, ipAddress 포렌식.
+    // record 는 내부적으로 실패를 삼켜 주 동작을 깨지 않는다. raw 이메일은 details 에 미저장(R 1.1.B-6).
+    await this.auditLogsService.record({
+      workspaceId: payload.workspaceId,
+      userId: payload.sub,
+      action: AUDIT_ACTIONS.USER_EMAIL_CHANGED,
+      resourceType: 'user',
+      resourceId: payload.sub,
+      ipAddress: ctx.ip ?? undefined,
+    });
+
+    return { data: { accessToken: tokens.accessToken } };
+  }
+
+  @Post('me/email-change/resend')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({
+    summary: '이메일 변경 확인 메일 재발송',
+    description:
+      '진행 중인 이메일 변경의 확인 메일을 재발송합니다(토큰 재발급, 1h). 진행 중인 변경이 없으면 400. 인증 §1.1.B.',
+  })
+  @ApiOkWrappedResponse(MessageResponseDto, {
+    description: '확인 메일 재발송됨',
+  })
+  @ApiBadRequestResponse({ description: '진행 중인 이메일 변경 없음' })
+  async resendEmailChange(@CurrentUser() payload: JwtPayload) {
+    await this.authService.resendEmailChange(payload.sub);
+    return {
+      data: { message: 'A confirmation email has been re-sent.' },
+    };
+  }
+
+  @Post('me/email-change/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '이메일 변경 취소',
+    description:
+      '진행 중인 이메일 변경을 취소합니다(대기 중인 신규 이메일·토큰 제거). 진행 중인 변경이 없어도 정상(멱등). 인증 §1.1.B.',
+  })
+  @ApiOkWrappedResponse(MessageResponseDto, {
+    description: '이메일 변경 취소됨',
+  })
+  async cancelEmailChange(@CurrentUser() payload: JwtPayload) {
+    await this.authService.cancelEmailChange(payload.sub);
+    return {
+      data: { message: 'The pending email change has been cancelled.' },
+    };
   }
 }

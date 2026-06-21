@@ -87,6 +87,38 @@ export class User {
   })
   passwordResetExpiresAt: Date;
 
+  /**
+   * 이메일 변경 흐름의 pending 신규 이메일 (spec/5-system/1-auth.md §1.1.B).
+   * request 시 저장, verify 시 `email` 로 승격되며 NULL, cancel 시 NULL.
+   */
+  @Column({
+    name: 'pending_email',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
+  pendingEmail: string | null;
+
+  /**
+   * 이메일 변경 확인 토큰 **SHA-256 해시** (1h 유효). raw 토큰은 메일 링크로만 전달
+   * (email_verify_token / password_reset_token 과 동일 at-rest 정책 §1.1).
+   * 확인/취소/만료 시 NULL.
+   */
+  @Column({
+    name: 'email_change_token',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
+  emailChangeToken: string | null;
+
+  @Column({
+    name: 'email_change_expires_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  emailChangeExpiresAt: Date | null;
+
   @Column({ name: 'login_attempts', default: 0 })
   loginAttempts: number;
 

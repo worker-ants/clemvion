@@ -785,6 +785,177 @@ export class AuthService {
     return this.generateTokens(user, false, undefined, ctx);
   }
 
+  // ========== EMAIL CHANGE (spec/5-system/1-auth.md §1.1.B) ==========
+
+  /**
+   * 이메일 변경 시작. 재인증(password 또는 TOTP) → 신규 이메일 검증 → SHA-256 토큰(1h)
+   * 저장 → 신규 이메일로 확인 메일 발송. 재인증 수단 없는 OAuth-only 는
+   * `REAUTH_NOT_AVAILABLE`. 이메일 OTP 는 변경 대상 메일함과의 순환성으로 배제(Rationale 1.1.B-4).
+   */
+  async requestEmailChange(
+    userId: string,
+    newEmail: string,
+    auth: { password?: string; totpCode?: string },
+  ): Promise<void> {
+    // 1) 재인증 — 세션 강제 종료와 동일 계약 재사용(password OR TOTP).
+    await this.sessionsService.reauthenticate(userId, auth);
+
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException({ code: 'UNAUTHENTICATED' });
+    }
+
+    // 2) 신규 이메일 검증 — 현재와 동일(대소문자 무시) 금지 + 타 계정 사용 중 금지.
+    if (newEmail.trim().toLowerCase() === user.email.toLowerCase()) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: '현재 이메일과 동일한 주소예요.',
+      });
+    }
+    if (await this.usersService.emailTakenByOther(newEmail, userId)) {
+      throw new ConflictException({
+        code: 'RESOURCE_CONFLICT',
+        message: 'Email already registered',
+      });
+    }
+
+    // 3) 토큰 발급 — raw 는 메일로만, DB 엔 SHA-256 해시(email_verify_token 패턴 §1.1).
+    const rawToken = uuidv4();
+    await this.usersService.update(userId, {
+      pendingEmail: newEmail,
+      emailChangeToken: this.hashToken(rawToken),
+      emailChangeExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1h
+    });
+
+    // 4) 신규 이메일로 확인 메일.
+    await this.mailService.sendEmailChangeVerification(
+      newEmail,
+      user.name,
+      rawToken,
+    );
+  }
+
+  /**
+   * 이메일 변경 확인. 토큰을 **인증 사용자에 바인딩**해 검증(누출 링크 단독 무용,
+   * Rationale 1.1.B-2) → email 교체 → 전 세션 revoke + 현재 디바이스 재발급(Rationale 2.3.C)
+   * → 옛 이메일 통지(best-effort). 감사(`user.email_changed`)·쿠키 set 은 controller 책임.
+   */
+  async verifyEmailChange(
+    userId: string,
+    token: string,
+    ctx: AuthContext = {},
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const user = await this.usersService.findById(userId);
+    if (
+      !user ||
+      !user.pendingEmail ||
+      !user.emailChangeToken ||
+      user.emailChangeToken !== this.hashToken(token) ||
+      !user.emailChangeExpiresAt ||
+      user.emailChangeExpiresAt.getTime() < Date.now()
+    ) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid or expired email change token',
+      });
+    }
+
+    const oldEmail = user.email;
+    const newEmail = user.pendingEmail;
+
+    // 확인 시점 재검사 — request 이후 신규 이메일이 타 계정에 선점됐는지(대소문자 무시).
+    if (await this.usersService.emailTakenByOther(newEmail, userId)) {
+      await this.clearPendingEmailChange(userId);
+      throw new ConflictException({
+        code: 'RESOURCE_CONFLICT',
+        message: 'Email already registered',
+      });
+    }
+
+    // email 교체 + 검증 완료 + pending 정리. email UNIQUE 제약이 race 의 최종 가드.
+    try {
+      await this.usersService.update(userId, {
+        email: newEmail,
+        emailVerified: true,
+        pendingEmail: null,
+        emailChangeToken: null,
+        emailChangeExpiresAt: null,
+      });
+    } catch (e) {
+      if (this.isUniqueEmailViolation(e)) {
+        await this.clearPendingEmailChange(userId);
+        throw new ConflictException({
+          code: 'RESOURCE_CONFLICT',
+          message: 'Email already registered',
+        });
+      }
+      throw e;
+    }
+
+    // 전 세션 revoke + 현재 디바이스 재발급 (비밀번호 변경과 동형).
+    await this.sessionsService.revokeAllFamilies(userId, ctx);
+    const updated = await this.usersService.findById(userId);
+    if (!updated) {
+      throw new UnauthorizedException({ code: 'UNAUTHENTICATED' });
+    }
+    const tokens = await this.generateTokens(updated, false, undefined, ctx);
+
+    // 옛 이메일 통지 — best-effort(변경은 이미 커밋). 실패해도 주 동작을 깨지 않는다.
+    try {
+      await this.mailService.sendEmailChangedNotice(
+        oldEmail,
+        updated.name,
+        newEmail,
+      );
+    } catch {
+      // MailService 가 자체 로깅. 통지 누락이 변경을 되돌리지 않는다.
+    }
+
+    return tokens;
+  }
+
+  /**
+   * 진행 중인 이메일 변경의 확인 메일 재발송(토큰 재발급, 1h). pending 없으면 VALIDATION_ERROR.
+   */
+  async resendEmailChange(userId: string): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.pendingEmail) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'No pending email change',
+      });
+    }
+    const rawToken = uuidv4();
+    await this.usersService.update(userId, {
+      emailChangeToken: this.hashToken(rawToken),
+      emailChangeExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    await this.mailService.sendEmailChangeVerification(
+      user.pendingEmail,
+      user.name,
+      rawToken,
+    );
+  }
+
+  /** 진행 중인 이메일 변경 취소(pending 정리). 멱등 — pending 없어도 정상 동작. */
+  async cancelEmailChange(userId: string): Promise<void> {
+    await this.clearPendingEmailChange(userId);
+  }
+
+  private async clearPendingEmailChange(userId: string): Promise<void> {
+    await this.usersService.update(userId, {
+      pendingEmail: null,
+      emailChangeToken: null,
+      emailChangeExpiresAt: null,
+    });
+  }
+
+  private isUniqueEmailViolation(err: unknown): boolean {
+    if (typeof err !== 'object' || err === null) return false;
+    const e = err as { code?: string; driverError?: { code?: string } };
+    return e.code === '23505' || e.driverError?.code === '23505';
+  }
+
   // Public entry point for OAuth sign-in — wraps the private token issuance
   // so other auth paths (email/password login, refresh) remain the only callers
   // of the private implementation.

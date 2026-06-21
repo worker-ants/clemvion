@@ -51,7 +51,13 @@ describe('UsersController', () => {
         },
         {
           provide: AuthService,
-          useValue: { rotateSessionAfterPasswordChange: jest.fn() },
+          useValue: {
+            rotateSessionAfterPasswordChange: jest.fn(),
+            requestEmailChange: jest.fn(),
+            verifyEmailChange: jest.fn(),
+            resendEmailChange: jest.fn(),
+            cancelEmailChange: jest.fn(),
+          },
         },
         {
           provide: ConfigService,
@@ -83,6 +89,7 @@ describe('UsersController', () => {
           avatarUrl: undefined,
           locale: 'ko',
           theme: 'light',
+          pendingEmail: null,
         },
       });
 
@@ -276,6 +283,105 @@ describe('UsersController', () => {
       expect(
         (mockRes as unknown as { cookie: jest.Mock }).cookie,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('email change (spec/5-system/1-auth.md §1.1.B)', () => {
+    const mockReq = {
+      headers: { 'user-agent': 'jest-agent', 'x-forwarded-for': '9.9.9.9' },
+      ip: '9.9.9.9',
+      socket: {},
+    } as never;
+    const mockRes = { cookie: jest.fn() } as never;
+
+    beforeEach(() => {
+      (mockRes as unknown as { cookie: jest.Mock }).cookie.mockClear();
+      delete process.env.TRUST_CF_CONNECTING_IP;
+    });
+
+    it('request delegates to AuthService with reauth payload', async () => {
+      const spy = jest
+        .spyOn(authService, 'requestEmailChange')
+        .mockResolvedValue(undefined);
+
+      const result = await controller.requestEmailChange(payload, {
+        newEmail: 'new@example.com',
+        password: 'OldP@ssw0rd1',
+      });
+
+      expect(spy).toHaveBeenCalledWith('user-uuid', 'new@example.com', {
+        password: 'OldP@ssw0rd1',
+        totpCode: undefined,
+      });
+      expect(result.data.message).toEqual(expect.any(String));
+    });
+
+    it('verify swaps email, sets cookie, audits user.email_changed with ipAddress, returns accessToken', async () => {
+      const spy = jest
+        .spyOn(authService, 'verifyEmailChange')
+        .mockResolvedValue({ accessToken: 'new-at', refreshToken: 'new-rt' });
+
+      const result = await controller.verifyEmailChange(
+        payload,
+        { token: 'raw-token' },
+        mockReq,
+        mockRes,
+      );
+
+      expect(spy).toHaveBeenCalledWith('user-uuid', 'raw-token', {
+        ip: '9.9.9.9',
+        userAgent: 'jest-agent',
+      });
+      expect(
+        (mockRes as unknown as { cookie: jest.Mock }).cookie,
+      ).toHaveBeenCalledTimes(1);
+      expect(auditLogsService.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-uuid',
+        userId: 'user-uuid',
+        action: AUDIT_ACTIONS.USER_EMAIL_CHANGED,
+        resourceType: 'user',
+        resourceId: 'user-uuid',
+        ipAddress: '9.9.9.9',
+      });
+      expect(result).toEqual({ data: { accessToken: 'new-at' } });
+    });
+
+    it('verify failure does not set cookie or audit', async () => {
+      jest
+        .spyOn(authService, 'verifyEmailChange')
+        .mockRejectedValue(new Error('Invalid or expired email change token'));
+
+      await expect(
+        controller.verifyEmailChange(
+          payload,
+          { token: 'bad' },
+          mockReq,
+          mockRes,
+        ),
+      ).rejects.toThrow();
+
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+      expect(
+        (mockRes as unknown as { cookie: jest.Mock }).cookie,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('resend delegates to AuthService', async () => {
+      const spy = jest
+        .spyOn(authService, 'resendEmailChange')
+        .mockResolvedValue(undefined);
+      const result = await controller.resendEmailChange(payload);
+      expect(spy).toHaveBeenCalledWith('user-uuid');
+      expect(result.data.message).toEqual(expect.any(String));
+    });
+
+    it('cancel delegates to AuthService', async () => {
+      const spy = jest
+        .spyOn(authService, 'cancelEmailChange')
+        .mockResolvedValue(undefined);
+      const result = await controller.cancelEmailChange(payload);
+      expect(spy).toHaveBeenCalledWith('user-uuid');
+      expect(result.data.message).toEqual(expect.any(String));
     });
   });
 });
