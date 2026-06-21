@@ -7,11 +7,8 @@ import {
   ResumableMessageOptions,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
-import {
-  LlmService,
-  LlmCallContext,
-  extractRetryAfterMs,
-} from '../../../modules/llm/llm.service';
+import { LlmService, LlmCallContext } from '../../../modules/llm/llm.service';
+import { extractRetryAfterMs } from '../../../shared/utils/retry-after';
 import {
   ChatMessage,
   ChatResult,
