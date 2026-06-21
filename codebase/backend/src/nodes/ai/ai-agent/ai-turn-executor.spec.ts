@@ -1,4 +1,8 @@
-import { AiTurnExecutor } from './ai-turn-executor';
+import {
+  AiTurnExecutor,
+  capFormDataBytes,
+  FORM_SUBMITTED_MAX_BYTES,
+} from './ai-turn-executor';
 import { AiConditionEvaluator } from './ai-condition-evaluator';
 import { AiMemoryManager } from './ai-memory-manager';
 import { ExecutionContext } from '../../core/node-handler.interface';
@@ -232,42 +236,132 @@ describe('AiTurnExecutor', () => {
       ragSources: [],
     };
 
-    it('maps max_turns / user_ended / error to their ports', () => {
+    // spec §3.2 — 종결 사유별 전용 포트. `condition` 은 buildConditionOutput
+    // 경로이므로 이 함수로 새면 방어적으로 `error` 로 매핑한다.
+    it.each([
+      ['max_turns', 'max_turns'],
+      ['user_ended', 'user_ended'],
+      ['error', 'error'],
+      ['condition', 'error'],
+    ] as const)('maps endReason=%s to port %s', (endReason, port) => {
       const executor = buildExecutor();
+      const result = executor.buildMultiTurnFinalOutput(
+        [],
+        '',
+        1,
+        endReason,
+        meta,
+      ) as Record<string, unknown>;
+      expect(result.port).toBe(port);
+      expect(result.status).toBe('ended');
+    });
+  });
+
+  // spec §12.7 — form 제출 tool_result content 의 byte cap. 복잡한 순수 함수라
+  // executor 모듈에서 export 해 직접 단위 고정한다 (ai-review WARNING #7).
+  describe('capFormDataBytes', () => {
+    it('returns formData unchanged below the cap (no truncation meta)', () => {
+      const formData = { name: '홍길동', note: 'short' };
+      const { capped, formDataTruncation } = capFormDataBytes(
+        formData,
+        FORM_SUBMITTED_MAX_BYTES,
+      );
+      expect(capped).toEqual(formData);
+      expect(formDataTruncation).toBeUndefined();
+    });
+
+    it('truncates oversized string fields and reports truncation meta', () => {
+      const big = 'a'.repeat(FORM_SUBMITTED_MAX_BYTES + 5000);
+      const { capped, formDataTruncation } = capFormDataBytes(
+        { essay: big, keep: 1 },
+        FORM_SUBMITTED_MAX_BYTES,
+      );
+      expect(formDataTruncation).toBeDefined();
+      expect(formDataTruncation?.truncatedFields).toContain('essay');
+      // 비-string 필드는 보존, 구조도 보존.
+      expect((capped as { keep: number }).keep).toBe(1);
       expect(
-        (
-          executor.buildMultiTurnFinalOutput(
-            [],
-            '',
-            1,
-            'max_turns',
-            meta,
-          ) as Record<string, unknown>
-        ).port,
-      ).toBe('max_turns');
-      expect(
-        (
-          executor.buildMultiTurnFinalOutput(
-            [],
-            '',
-            1,
-            'user_ended',
-            meta,
-          ) as Record<string, unknown>
-        ).port,
-      ).toBe('user_ended');
-      // condition 은 buildConditionOutput 경로 — 여기로 새면 방어적으로 error.
-      expect(
-        (
-          executor.buildMultiTurnFinalOutput(
-            [],
-            '',
-            1,
-            'condition',
-            meta,
-          ) as Record<string, unknown>
-        ).port,
-      ).toBe('error');
+        Buffer.byteLength(JSON.stringify(capped), 'utf8'),
+      ).toBeLessThanOrEqual(
+        Buffer.byteLength(JSON.stringify({ essay: big, keep: 1 }), 'utf8'),
+      );
+    });
+
+    it('truncates on UTF-8 byte boundaries (multibyte safe)', () => {
+      // 한글은 3 bytes/char — byte 단위 절단이 valid UTF-8 을 깨지 않아야 한다.
+      const big = '가'.repeat(FORM_SUBMITTED_MAX_BYTES);
+      const { capped } = capFormDataBytes(
+        { ko: big },
+        FORM_SUBMITTED_MAX_BYTES,
+      );
+      // round-trip 가능한 valid UTF-8 인지 확인 (깨진 surrogate 없음).
+      expect(() => JSON.stringify(capped)).not.toThrow();
+      expect(typeof (capped as { ko: string }).ko).toBe('string');
+    });
+
+    it('attaches truncation meta even when no string field is truncatable', () => {
+      // 모든 필드가 비-string 인데 cap 초과 — truncate 대상 없음이지만 메타는 부착.
+      const arr = Array.from({ length: 4000 }, (_, i) => i);
+      const { capped, formDataTruncation } = capFormDataBytes(
+        { ids: arr },
+        FORM_SUBMITTED_MAX_BYTES,
+      );
+      expect(capped).toEqual({ ids: arr });
+      expect(formDataTruncation?.truncatedFields).toEqual([]);
+    });
+  });
+
+  // spec §6.2 step 2.c — render_form 제출 resume 분기를 executor 레벨에서 직접
+  // 고정 (ai-review WARNING #8). pendingFormToolCall 클리어 부작용 포함.
+  describe('processMultiTurnMessage — form_submitted resume', () => {
+    const formResumeState = (): Record<string, unknown> => ({
+      llmConfigId: 'cfg-1',
+      model: 'gpt-4o',
+      maxToolCalls: 10,
+      maxTurns: 20,
+      knowledgeBases: [],
+      conditions: [],
+      mcpServers: [],
+      presentationTools: [],
+      // 직전 turn 의 render_form tool_use 가 messages 에 남아 있어야 tool_result
+      // splice 가 toolCallId 로 매칭된다 (tool_use ↔ tool_result 페어링).
+      messages: [
+        { role: 'system', content: 'sys' },
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [{ id: 'form-tc-1', name: 'render_form', arguments: {} }],
+        },
+      ],
+      turnCount: 1,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalThinkingTokens: 0,
+      toolCalls: 0,
+      ragSources: [],
+      workspaceId: 'ws-1',
+      executionId: 'exec-1',
+      memoryStrategy: 'manual',
+      pendingFormToolCall: { toolCallId: 'form-tc-1', formConfig: {} },
+    });
+
+    it('splices the form tool_result, clears pendingFormToolCall, and continues', async () => {
+      const executor = buildExecutor();
+      const state = formResumeState();
+      const result = (await executor.processMultiTurnMessage(
+        JSON.stringify({ email: 'a@b.com' }),
+        state,
+        { source: 'form_submitted' },
+      )) as Record<string, unknown>;
+
+      // form 제출 후 LLM 재호출 → waiting 재진입.
+      expect(result.status).toBe('waiting_for_input');
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
+      // pendingFormToolCall 클리어 부작용 (호출자 state 변이).
+      expect(state.pendingFormToolCall).toBeUndefined();
+      // 다음 turn resume state 에도 pendingFormToolCall 이 남지 않는다.
+      const next = result._resumeState as Record<string, unknown>;
+      expect(next.pendingFormToolCall).toBeUndefined();
     });
   });
 });
