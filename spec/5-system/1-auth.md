@@ -45,7 +45,7 @@ pending_plans:
 | 로그인 | 이메일 + 비밀번호 → JWT 발급 |
 | 비밀번호 분실 | 이메일로 재설정 링크 발송 (유효기간 30분). 모든 이메일 보유 사용자에게 발급 (§1.1.A 참고) |
 | 로그인 실패 | 5회 실패 시 10분 잠금, 이메일 알림 |
-| 토큰 at-rest 저장 | 이메일 인증 토큰(`emailVerifyToken`)·비밀번호 재설정 토큰(`passwordResetToken`)은 **SHA-256 해시**로만 저장한다 (raw 토큰은 메일 링크로만 전달, DB 미저장). 검증 시 입력 토큰을 동일 해시로 변환해 비교 |
+| 토큰 at-rest 저장 | 이메일 인증 토큰(`emailVerifyToken`)·비밀번호 재설정 토큰(`passwordResetToken`)·이메일 변경 토큰(`emailChangeToken`, §1.1.B)은 **SHA-256 해시**로만 저장한다 (raw 토큰은 메일 링크로만 전달, DB 미저장). 검증 시 입력 토큰을 동일 해시로 변환해 비교 |
 | 인증 메일 재발송 | `POST /api/auth/resend-verification` — throttle 5/min, 이메일 enumeration-safe 응답 (존재 여부 무관 동일 응답). 발급되는 인증 토큰은 24h 유효 (§5 동일) |
 
 #### 1.1.A 비밀번호 재설정 흐름과 가입 경로 (OAuth-only · WebAuthn 보유 사용자 포함)
@@ -66,6 +66,32 @@ pending_plans:
 - **응답 동일성**: forgot-password 는 사용자 존재 여부·가입 경로와 무관하게 동일 응답 (`200 { data: { message } }`). 메일 발송 실패는 swallow.
 - **WebAuthn 자동 무효화 없음**: 비밀번호 재설정으로 WebAuthn credential 을 disable 하지 않는다. 비밀번호는 1단계 인증일 뿐, 2단계 WebAuthn 의 신뢰 기반(개인 키)을 흔들 사건이 아니기 때문. 분실한 디바이스를 비활성화하고 싶으면 사용자가 WebAuthn 관리 화면(`/profile/security` Passkey 카드) 에서 명시적으로 credential 을 삭제한다 ((해당 사용자가 로그인할 수 있어야 가능하므로) credential 분실 + 복구 코드 분실 시는 관리자 개입).
 - **refresh 토큰 전체 revoke**: 비밀번호 재설정 직후 모든 활성 세션 종료 (탈취된 비밀번호 시나리오 차단). WebAuthn credential 보유 사용자는 재로그인 시 §1.4.2 의 WebAuthn challenge 를 통과해야 한다.
+
+#### 1.1.B 이메일 변경 흐름
+
+로그인한 사용자가 자신의 로그인 이메일을 바꾸는 **별도 프로세스**다. `/profile` 본 화면은 readonly 표시만 하고, 변경은 전용 페이지(`/profile/change-email`)에서 (1) 재인증 → (2) 신규 이메일로 확인 메일 발송 → (3) 신규 이메일 링크 클릭으로 확정하는 3단계로 진행한다. 엔드포인트 정의는 [사용자 프로필 §6.1](../2-navigation/9-user-profile.md#61-사용자워크스페이스-api).
+
+**핵심 설계**
+
+- **재인증 후 신규 이메일만 인증**: 변경 시작 시 §2.3 강제 종료와 유사한 재인증(비밀번호, 또는 비밀번호 없는 계정은 등록된 2FA factor)을 요구하고, 신규 이메일로만 확인 링크를 보낸다. 기존(옛) 이메일에는 차단 없는 **보안 통지**만 발송한다. 옛 이메일을 차단 조건으로 두지 않는 이유는 Rationale 1.1.B-1.
+- **이메일 OTP 배제**: 이메일 변경 재인증은 비밀번호 또는 등록 2FA(TOTP/WebAuthn)로 한정하며 §2.3 의 "이메일 OTP" 대체 수단은 채택하지 않는다 — 변경 대상 메일함과의 순환성 때문(Rationale 1.1.B-4).
+- **재인증 수단 없는 계정 차단**: `password_hash` 도 2FA 도 없는 OAuth-only 계정은 `REAUTH_NOT_AVAILABLE`(§2.3 재인증 상류 코드 재사용)로 변경 불가하다.
+- **토큰 at-rest SHA-256**: 변경 확인 토큰(`emailChangeToken`)은 `emailVerifyToken`/`passwordResetToken` 과 동일하게 SHA-256 해시로만 저장하고 raw 는 메일 링크로만 전달한다(§1.1 표). 유효기간 1h(Rationale 1.1.B-3).
+- **확인은 인증 필수**: 신규 이메일의 확인 토큰은 **인증된 본인 세션**에서만 소비된다(`POST /api/users/me/email-change/verify`, JWT). 토큰이 사용자에 바인딩되어 누출 링크 단독으로는 무용하다 — signup `verify-email`(`@Public`)보다 강한 가드(Rationale 1.1.B-2).
+- **확인 성공 시 세션 처리**: 비밀번호 변경과 동일하게 전 family revoke + 현재 디바이스 재발급(§2.3 / Rationale 2.3.C). `login_history` 에 `session_revoked`(bulk, `familyId=null`) 1건, 감사 `user.email_changed`(§4.1) 1건이 동반된다.
+
+**운영 시나리오**
+
+| 사용자 상태 | request 동작 | verify 동작 |
+|------------|-------------|-------------|
+| 비밀번호 보유 (일반) | 비밀번호 재확인 → pending_email 저장 + 신규 이메일로 확인 메일(1h) | email = pending_email, email_verified=true + 전 세션 revoke + 현재 디바이스 재발급(`{ accessToken }`) |
+| 비밀번호 없음 + 2FA(TOTP/WebAuthn) 보유 | 등록 2FA factor 재확인 → 동일 | 동일 |
+| OAuth-only + 2FA 없음 | 403 `REAUTH_NOT_AVAILABLE` — 변경 불가 (안내만) | — |
+| 신규 이메일 = 현재 이메일 · 형식 오류 | 400 `VALIDATION_ERROR` | — |
+| 신규 이메일이 타 계정 사용 중 | 409 `RESOURCE_CONFLICT` (register 중복과 동일 코드) | 트랜잭션 내 UNIQUE 재검사 → 선점 시 409 + pending NULL화 |
+| 토큰 만료(1h 경과)·무효 | — | 400 `VALIDATION_ERROR` |
+
+확인 완료 후 옛 이메일 통지는 best-effort(실패 swallow)이며 "본인이 아니면 비밀번호 재설정으로 보안 조치" 안내를 포함한다. pending 이 있을 때 재요청은 기존 토큰을 덮어쓴다(항상 0~1개 유효). `email-change/cancel` 은 pending 이 없어도 멱등(no-op)이다.
 
 ### 1.2 OAuth 소셜 로그인
 
@@ -288,6 +314,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 강제 종료 | 사용자가 활성 세션 목록에서 개별 종료 가능 (family 전체 revoke) |
 | 강제 종료 재인증 | 비밀번호 재확인 필수. OAuth-only 사용자는 등록된 2FA (TOTP 또는 WebAuthn) 또는 이메일 OTP 로 대체. 두 방식 모두 등록한 사용자는 §1.4.2 의 우선순위(WebAuthn 우선) 를 따른다 |
 | 비밀번호 변경 시 처리 | 비밀번호 변경(`POST /users/me/change-password`) 성공 시 사용자의 **모든 활성 family 를 revoke** 하고 변경을 수행한 **현재 디바이스에 새 세션(access token + refresh 쿠키 회전)을 즉시 재발급**한다 — 탈취 가능한 모든 refresh token(현재 family 포함)을 변경 시점에 무효화하면서 변경한 본인은 재로그인 없이 계속 사용한다. `login_history` 에 `session_revoked`(bulk, `familyId=null`) 1건 기록. 재발급 세션은 표준 7일(`rememberMe=false`) — 현재 family 미식별으로 직전 세션의 remember-me 상태는 승계하지 않는다 — Rationale 2.3.C |
+| 이메일 변경 시 처리 | 이메일 변경 확인(`POST /users/me/email-change/verify`, §1.1.B) 성공 시 **비밀번호 변경과 동일**하게 전 family revoke + 현재 디바이스 재발급한다. verify 가 `/api/users/me/*` 라 refresh 쿠키(Path `/api/auth`)가 미첨부되어 현재 family 를 식별할 수 없으므로 전체 revoke + 재발급으로 수렴한다(비밀번호 변경과 동형, Rationale 2.3.C 공유). `login_history` 에 `session_revoked`(bulk, `familyId=null`) 1건 — enum 값 재사용이라 DB CHECK·마이그레이션 불요 |
 | 현재 세션 식별 | 서버가 요청의 refresh-token 쿠키 해시를 조회해 `isCurrent` 플래그로 응답 — raw token은 JS로 노출하지 않음 |
 | 메타데이터 | 발급 시점의 IP·User-Agent·디바이스 라벨 및 마지막 사용 시각을 RefreshToken 에 기록 |
 | 클라이언트 IP | `CF-Connecting-IP` 는 **`TRUST_CF_CONNECTING_IP=true` 일 때만 1순위** (기본 off — 위변조 가능 헤더). off 면 `X-Forwarded-For` 첫 IP → `req.ip`(trust proxy) → `req.socket.remoteAddress` 순. Cloudflare(Tunnel 포함) 뒤 배포만 활성화 — Rationale 2.3.B |
@@ -382,6 +409,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 | 카테고리 | Planned action |
 |----------|------|
+| 인증 (워크스페이스 컨텍스트) | `user.email_changed` — 이메일 변경 확인(`POST /users/me/email-change/verify`, §1.1.B) 성공 시. 액터 현재 세션 `workspaceId` 귀속(verify 는 인증 세션), `resourceType: 'user'`, `resourceId: <userId>`, `ipAddress` 동반. **details 에 raw 이메일 미저장**(PII 노출 최소화 — Rationale 1.1.B-6). 구현 시 `AUDIT_ACTIONS` 에 추가 |
 | 워크스페이스 | `workspace.created`, `workspace.updated`, `workspace.deleted` |
 | 멤버 | `member.invited`, `member.role_changed`, `member.removed` |
 | 워크플로우 | `workflow.created`, `workflow.updated`, `workflow.deleted`, `workflow.executed` |
@@ -412,7 +440,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | totp_failed | 2FA TOTP 코드 검증 실패 |
 | webauthn_failed | 2FA WebAuthn 검증 실패. `failure_reason` 으로 `WEBAUTHN_INVALID`·`WEBAUTHN_COUNTER_REGRESSION` 등 세부 구분 |
 | logout | 사용자가 `/auth/logout` 호출 → 호출 디바이스 family 전체 revoke |
-| session_revoked | 사용자가 활성 세션 목록에서 다른 family 강제 종료, 또는 **비밀번호 변경 성공 시 전체 family revoke**(bulk, `familyId=null`). enum 값(`session_revoked`)은 기존 그대로 재사용 — DB CHECK 제약·마이그레이션 불요 |
+| session_revoked | 사용자가 활성 세션 목록에서 다른 family 강제 종료, 또는 **비밀번호 변경·이메일 변경(§1.1.B) confirm 성공 시 전체 family revoke**(bulk, `familyId=null`). enum 값(`session_revoked`)은 기존 그대로 재사용 — DB CHECK 제약·마이그레이션 불요 |
 | token_reuse_detected | revoke된 refresh token 재사용 감지 → family 전체 revoke |
 
 보존: **180일** 경과 row 는 일일 배치(BullMQ repeatable scheduler, `0 3 * * *` Asia/Seoul)로 자동 삭제. 조회는 사용자 본인만 가능하며 워크스페이스 관리자에게는 노출되지 않는다.
@@ -454,6 +482,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 사용자 본인 세션·이력 관리 엔드포인트는 [사용자 프로필 spec §6.1](../2-navigation/9-user-profile.md#61-사용자워크스페이스-api) 에 정의 (`/api/users/me/sessions`, `/api/users/me/login-history`).
 
+사용자 본인 이메일 변경 엔드포인트(`/api/users/me/email-change/request`·`/verify`·`/resend`·`/cancel`)도 [사용자 프로필 spec §6.1](../2-navigation/9-user-profile.md#61-사용자워크스페이스-api) 에 정의된다. 흐름·토큰 라이프사이클·재인증·세션·감사는 본 문서 §1.1.B 가 소유한다.
+
 초대 발송·재발송·취소·수락 엔드포인트는 [사용자 프로필 spec §6.1](../2-navigation/9-user-profile.md#61-사용자워크스페이스-api) 에 정의 (`/api/workspaces/:id/invitations`, `/api/workspaces/invitations/accept`).
 
 인증 설정(AuthConfig) CRUD 엔드포인트(`/api/auth-configs/*` — 평문 노출 `POST /api/auth-configs/:id/reveal` 포함)는 [설정 spec §A.4](../2-navigation/6-config.md) 의 표가 단일 SoT 다. 본 문서는 그 권한·감사만 다룬다 — RBAC 매트릭스 §3.2, 감사 액션 §4.1(`auth_config.*`), reveal 권한 분리 근거는 §3.2 하단 주석 참조.
@@ -463,6 +493,24 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 ---
 
 ## Rationale
+
+### 1.1.B-1 — 이메일 변경: "둘 다 인증" 기각, "재인증 + 신규만 인증 + 옛 통지" 채택
+옛 이메일을 *차단 조건*(링크 클릭 강제)으로 두면 옛 메일함 접근을 잃은 사용자 — 이메일 변경의 주된 사유(퇴사로 회사 메일 상실·메일 서비스 종료) — 가 영구히 변경 불가가 된다. 옛 이메일의 두 역할(통제 증명 / 알림 채널) 중 "통제 증명"은 §2.3 재인증(비밀번호·2FA)이 메일함 소유보다 강하게 대체하므로, 옛 이메일은 비차단 **통지**(알림 채널)로만 둔다. 결과적으로 "둘 다 인증"보다 본인 증명이 강하면서 UX·복구성이 낫다. 기각: (a) 옛+신규 둘 다 링크 확인 — 위 lockout 문제, (b) 재인증 없이 신규만 확인 — 세션 탈취만으로 식별자 교체가 가능해짐.
+
+### 1.1.B-2 — 확인(verify)을 `@Public` 이 아니라 인증 필수로
+signup `verify-email` 은 계정 활성화(아직 세션 없음)라 `@Public` 이다. 이메일 *변경* 은 이미 로그인된 계정의 식별자 교체라, 확인 토큰을 인증 사용자에 바인딩하면 누출된 링크 단독으로는 변경이 불가능하다(공격자가 그 사용자로 로그인돼 있어야 함) — signup 보다 강한 가드다. 비용은 다른 기기에서 링크 클릭 시 로그인 1스텝(아직 옛 이메일로)뿐이다. 기각: `@Public` verify(누구나 클릭 시 즉시 커밋) — 링크 누출 시 제3자가 피해자 이메일을 바꿀 위협.
+
+### 1.1.B-3 — 변경 토큰 TTL 1h
+signup 인증 24h(가입 직후 여유)와 비밀번호 재설정 30분(탈취 시나리오·짧게) 사이. 로그인 상태에서 능동 수행하는 in-flow 동작이라 짧게 두되, 신규 메일함 확인 여유로 1h 로 정한다.
+
+### 1.1.B-4 — 이메일 변경 재인증은 이메일 OTP 를 배제 (§2.3 세션-revoke 재인증과 차등)
+§2.3 강제 종료 재인증은 OAuth-only 대안으로 "이메일 OTP" 를 언급하지만, 이메일 *변경* 흐름에서는 변경 대상 메일함의 소유 자체가 증명 대상이라 이메일 OTP 가 본인 증명으로 순환·부적합하다(공격자가 지정한 새 메일함의 OTP 로 통과하는 모순). 따라서 이메일 변경 재인증은 비밀번호 또는 등록 2FA(TOTP/WebAuthn)로 좁히고 이메일 OTP 를 채택하지 않는다. §2.3 의 세션-revoke 재인증 정의 자체(이메일 OTP 포함)는 본 작업에서 변경하지 않는다 — 그 정합은 `plan/in-progress/refactor-auth-reverify-unify.md` 영역이다.
+
+### 1.1.B-5 — OAuth-only · 재인증 수단 없는 계정은 변경 차단
+`password_hash` 도 2FA 도 없는 OAuth-only 계정은 재인증 수단이 없어 `REAUTH_NOT_AVAILABLE` 로 이메일 변경을 차단한다(self-service 불가, 안내만). 세션 탈취만으로 로그인 식별자를 교체해 계정을 탈취하는 위협을 차단하기 위함이다. 기존 OAuth provider 링크는 provider account id 기준이라 이메일 변경과 독립적이다(구현 시 확인). 강제 2FA·계정 복구 흐름은 §4.1.B 의 "OAuth-only 마지막 2FA 비활성화" 와 동일하게 별개 결정 사안이다.
+
+### 1.1.B-6 — `user.email_changed` 감사 details 에 raw 이메일 미저장
+`user.email_changed` 는 액터 세션 workspace 의 admin 이 조회 가능하다(§4.2). 변경 전/후 주소를 details 에 넣으면 필요 이상으로 PII 가 노출되므로, "변경 발생" 사실과 `ipAddress`(포렌식)만 기록하고 raw 이메일 값은 details 에 담지 않는다. 액션 분류는 §4.1.A 가 예고한 `user.*` 네임스페이스·과거분사 규약을 그대로 따른다.
 
 ### 1.5.A — 가입 시 이메일 일치 강제
 
