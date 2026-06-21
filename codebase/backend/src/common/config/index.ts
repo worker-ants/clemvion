@@ -8,6 +8,7 @@ export { llmConfig } from './llm.config';
 export { oauthConfig, emptyOAuthEnvConfig } from './oauth.config';
 export type { OAuthEnvConfig } from './oauth.config';
 export { mcpConfig } from './mcp.config';
+export type { McpEnvConfig } from './mcp.config';
 export { interactionConfig } from './interaction.config';
 export { webauthnConfig } from './webauthn.config';
 export type { WebAuthnConfig } from './webauthn.config';

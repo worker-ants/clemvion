@@ -657,4 +657,24 @@ describe('InteractionTokenService — secret fallback chain (refactor M-6)', () 
     expect(config.get).toHaveBeenCalledWith('interaction.jwtSecret');
     expect(config.get).toHaveBeenCalledWith('jwt.secret');
   });
+
+  // review I17: interaction.jwtSecret 가 설정되면 그 값을 우선하고 jwt.secret 은 조회조차 안 함(`??` 단락).
+  it('interaction.jwtSecret 설정 시 우선 사용하고 jwt.secret 은 조회하지 않는다', async () => {
+    const PRIMARY = 'interaction-primary-secret-long-enough-32b';
+    const config = {
+      get: jest.fn((key: string) =>
+        key === 'interaction.jwtSecret' ? PRIMARY : 'SHOULD-NOT-BE-USED',
+      ),
+    };
+    const redis = makeRedisMock();
+    const svc = new InteractionTokenService(config as never, redis as never);
+
+    const { token } = await svc.issuePerExecution('exec-primary');
+    const result = await svc.verifyPerExecution(token);
+
+    expect(result.valid).toBe(true);
+    expect(config.get).toHaveBeenCalledWith('interaction.jwtSecret');
+    // `??` 단락 평가: 좌측이 truthy 라 jwt.secret 은 조회되지 않아야 한다.
+    expect(config.get).not.toHaveBeenCalledWith('jwt.secret');
+  });
 });

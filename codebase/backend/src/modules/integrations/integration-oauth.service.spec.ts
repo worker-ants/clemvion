@@ -27,6 +27,8 @@ function makeRepo(): Record<string, Mock> {
 describe('IntegrationOAuthService', () => {
   let service: IntegrationOAuthService;
   let oauthMock: ReturnType<typeof makeOAuthConfigMock>;
+  // review W2: OAUTH_STUB_MODE 초기값 보존 — suite 진입 전 설정돼 있던 값을 afterEach 에서 원복.
+  let savedOAuthStub: string | undefined;
   let integrationRepo: Record<string, Mock>;
   let stateRepo: Record<string, Mock>;
   let previewRepo: Record<string, Mock>;
@@ -52,6 +54,7 @@ describe('IntegrationOAuthService', () => {
         ),
     };
 
+    savedOAuthStub = process.env.OAUTH_STUB_MODE;
     process.env.OAUTH_STUB_MODE = 'true';
     // refactor M-6: provider 자격증명은 `oauth` namespace 로 이전 — config mock 으로 제공.
     oauthMock = makeOAuthConfigMock();
@@ -66,7 +69,8 @@ describe('IntegrationOAuthService', () => {
   });
 
   afterEach(() => {
-    delete process.env.OAUTH_STUB_MODE;
+    if (savedOAuthStub === undefined) delete process.env.OAUTH_STUB_MODE;
+    else process.env.OAUTH_STUB_MODE = savedOAuthStub;
   });
 
   describe('begin', () => {

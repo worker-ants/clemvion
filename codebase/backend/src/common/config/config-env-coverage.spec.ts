@@ -37,8 +37,14 @@ function collectConfigEnvVars(): Map<string, string[]> {
 }
 
 describe('config ↔ .env.example coverage (refactor M-6)', () => {
-  const envExample = readFileSync(ENV_EXAMPLE_PATH, 'utf8');
-  const configEnvVars = collectConfigEnvVars();
+  // review I7: 파일 I/O 를 beforeAll 로 — `.env.example` 부재 시 collection 단계 크래시 대신
+  // 명확한 테스트 오류 컨텍스트를 남긴다.
+  let envExample: string;
+  let configEnvVars: Map<string, string[]>;
+  beforeAll(() => {
+    envExample = readFileSync(ENV_EXAMPLE_PATH, 'utf8');
+    configEnvVars = collectConfigEnvVars();
+  });
 
   it('collects at least the M-6 namespaces 의 키 (sanity)', () => {
     for (const expected of [

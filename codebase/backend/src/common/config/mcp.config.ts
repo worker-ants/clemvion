@@ -22,6 +22,10 @@ export interface McpEnvConfig {
   allowInsecureUrl: boolean;
 }
 
+/**
+ * raw env string → number. 미설정/빈 문자열/비유한값(`NaN`·`Infinity`)은 `undefined` 로 떨어져
+ * 소비자의 `(값) || DEFAULT_*` 폴백이 동작한다. 음수/소수는 그대로 파싱(기존 `Number(...)` 동작 보존).
+ */
 function parseOptionalNumber(raw: string | undefined): number | undefined {
   if (raw === undefined || raw === '') return undefined;
   const n = Number(raw);

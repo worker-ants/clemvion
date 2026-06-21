@@ -28,7 +28,17 @@ export function makeOAuthConfigMock(
   return {
     env,
     configService: {
-      get: (key: string) => (key === 'oauth' ? env : undefined),
+      // review W3: 'oauth' 외 키 접근은 silent undefined 대신 명시 throw — 미래에
+      // IntegrationOAuthService 가 새 namespace 를 읽기 시작하면 본 mock 확장을 강제한다.
+      get: (key: string) => {
+        if (key !== 'oauth') {
+          throw new Error(
+            `makeOAuthConfigMock: 예상치 못한 config 키 '${key}' (현재 'oauth' 만 지원). ` +
+              `소비자가 새 namespace 를 읽으면 본 mock 을 확장하라.`,
+          );
+        }
+        return env;
+      },
     },
   };
 }

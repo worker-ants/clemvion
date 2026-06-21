@@ -106,6 +106,8 @@ describe('IntegrationOAuthService — MakeShop', () => {
   let previewRepo: Record<string, Mock>;
   let dataSource: { query: Mock; transaction: Mock };
   let oauthMock: ReturnType<typeof makeOAuthConfigMock>;
+  // review W2: OAUTH_STUB_MODE 초기값 보존 — suite 진입 전 값을 afterEach 에서 원복.
+  let savedOAuthStub: string | undefined;
 
   beforeEach(() => {
     integrationRepo = makeRepo();
@@ -124,6 +126,7 @@ describe('IntegrationOAuthService — MakeShop', () => {
         ),
     };
 
+    savedOAuthStub = process.env.OAUTH_STUB_MODE;
     process.env.OAUTH_STUB_MODE = 'true';
     // refactor M-6: FRONTEND_URL 등 redirect base 는 `oauth` namespace 로 이전 — config mock 으로 제공.
     oauthMock = makeOAuthConfigMock();
@@ -138,7 +141,8 @@ describe('IntegrationOAuthService — MakeShop', () => {
   });
 
   afterEach(() => {
-    delete process.env.OAUTH_STUB_MODE;
+    if (savedOAuthStub === undefined) delete process.env.OAUTH_STUB_MODE;
+    else process.env.OAUTH_STUB_MODE = savedOAuthStub;
     jest.restoreAllMocks();
   });
 

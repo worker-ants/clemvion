@@ -21,6 +21,7 @@ describe('LlmService', () => {
   let mockClientFactory: Record<string, jest.Mock>;
   let mockClient: Record<string, jest.Mock>;
   let mockConfigService: Record<string, jest.Mock>;
+  let llmStubMode: boolean | undefined;
 
   beforeEach(() => {
     mockClient = {
@@ -65,7 +66,13 @@ describe('LlmService', () => {
       record: jest.fn().mockResolvedValue(undefined),
     };
     // refactor M-6: LLM_STUB_MODE 는 ConfigService(`llm.stubMode`)로 이전 — 기본 OFF.
-    mockConfigService = { get: jest.fn().mockReturnValue(undefined) };
+    // review W1: key-specific mock — `llm.stubMode` 외 키는 undefined (미래 키 추가 시 오탐 방지).
+    llmStubMode = undefined;
+    mockConfigService = {
+      get: jest.fn((key: string) =>
+        key === 'llm.stubMode' ? llmStubMode : undefined,
+      ),
+    };
     service = new LlmService(
       mockModelConfigService as never,
       mockClientFactory as never,
@@ -958,7 +965,7 @@ describe('LlmService', () => {
     } as never;
 
     it('llm.stubMode=true 면 StubLlmClient 를 반환하고 실 provider/복호화 경로를 타지 않는다', () => {
-      mockConfigService.get.mockReturnValue(true);
+      llmStubMode = true;
       const client = service.createClient(config);
       expect(client).toBeInstanceOf(StubLlmClient);
       expect(mockClientFactory.create).not.toHaveBeenCalled();
@@ -966,14 +973,14 @@ describe('LlmService', () => {
     });
 
     it('llm.stubMode 미설정이면 정상 provider 클라이언트를 반환한다', () => {
-      mockConfigService.get.mockReturnValue(undefined);
+      llmStubMode = undefined;
       const client = service.createClient(config);
       expect(client).not.toBeInstanceOf(StubLlmClient);
       expect(mockClientFactory.create).toHaveBeenCalledTimes(1);
     });
 
     it('llm.stubMode=true 면 같은 config.id 에 대해 동일 stub 인스턴스를 캐시한다', () => {
-      mockConfigService.get.mockReturnValue(true);
+      llmStubMode = true;
       const a = service.createClient(config);
       const b = service.createClient(config);
       expect(a).toBe(b);
