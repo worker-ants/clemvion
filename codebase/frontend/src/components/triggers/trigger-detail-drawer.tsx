@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api/client";
+import {
+  triggersApi,
+  type TriggerDetail,
+  type ChatChannelConfigView,
+} from "@/lib/api/triggers";
 import { SlideDrawer } from "@/components/ui/slide-drawer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,63 +42,6 @@ import { isValidNotificationUrl } from "@/lib/utils/url-validation";
  */
 const DEFAULT_RATE_LIMIT_PER_MINUTE = 60;
 
-/** Spec Chat Channel §4.1 + §5.4.2 — config.chatChannel (응답 sanitize 후 형태). */
-interface ChatChannelConfigView {
-  provider?: string;
-  /** Spec §5.4.2 — derived 필드 (`botTokenRef IS NOT NULL → true`). */
-  hasBotToken?: boolean;
-  botIdentity?: { botId?: number; username?: string };
-  uiMapping?: {
-    formMode?: "multi_step" | "native_modal" | "auto";
-    /** Spec R-CC-11 — text/photo/auto, default auto. legacy text_only 는 backend normalize. */
-    visualNode?: "text" | "photo" | "auto";
-    buttonLayout?: "auto" | "vertical" | "horizontal";
-  };
-  rateLimitPerMinute?: number;
-  languageHints?: Record<string, string>;
-  /** Spec §4.1 — languageHints 미설정 키의 default 문구 언어 (default ko). */
-  languageLocale?: "ko" | "en";
-}
-
-interface TriggerDetail {
-  id: string;
-  name: string;
-  type: "webhook" | "schedule" | "manual";
-  isActive: boolean;
-  workflowId: string;
-  workflowName: string;
-  endpointPath?: string;
-  /** Webhook 인증 — 연결된 AuthConfig (없으면 인증 없음). 인증 자료는 Authentication 메뉴에서 관리. */
-  authConfigId?: string | null;
-  config?: {
-    /** Spec EIA §4 — notification webhook 설정 (외부 인터랙션 채널 메타). */
-    notification?: {
-      url?: string;
-      events?: string[];
-      signing?: { algorithm?: string };
-      retry?: { maxAttempts?: number };
-    };
-    /** Spec EIA §4 — inbound interaction (REST + SSE) 설정. */
-    interaction?: {
-      enabled?: boolean;
-      tokenStrategy?: "per_execution" | "per_trigger";
-    };
-    /** Spec Chat Channel §4.1 — chatChannel adapter 설정 (sanitize 후). */
-    chatChannel?: ChatChannelConfigView;
-    [key: string]: unknown;
-  };
-  /** Spec EIA §7.1 — outbound notification 발송 건강도. */
-  notificationHealth?: "unknown" | "healthy" | "degraded";
-  /** Spec Chat Channel §3.4 CCH-SE-01 — chat channel 외부 호출 건강도. */
-  chatChannelHealth?: "unknown" | "healthy" | "degraded";
-  chatChannelLastError?: string | null;
-  chatChannelSetupAt?: string | null;
-  chatChannelRotatedAt?: string | null;
-  cronExpression?: string;
-  timezone?: string;
-  nextRunAt?: string;
-}
-
 const TYPE_BADGE_STYLES: Record<string, string> = {
   webhook: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   schedule: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
@@ -112,15 +59,7 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
   const queryClient = useQueryClient();
   const { data: trigger, isLoading: isLoadingTrigger } = useQuery<TriggerDetail>({
     queryKey: ["trigger-detail", triggerId],
-    queryFn: async () => {
-      const res = await apiClient.get(`/triggers/${triggerId}`);
-      const raw = res.data.data ?? res.data;
-      return {
-        ...raw,
-        workflowName: raw.workflow?.name ?? raw.workflowName ?? "",
-        workflowId: raw.workflowId ?? raw.workflow?.id ?? "",
-      } as TriggerDetail;
-    },
+    queryFn: () => triggersApi.getById(triggerId as string),
     enabled: !!triggerId && open,
   });
 
@@ -189,7 +128,7 @@ function OverviewCard({
 
   const updateMutation = useMutation({
     mutationFn: async (name: string) => {
-      await apiClient.patch(`/triggers/${trigger.id}`, { name });
+      await triggersApi.update(trigger.id, { name });
     },
     onSuccess: () => {
       toast.success(t("triggers.detail.saved"));
@@ -418,7 +357,7 @@ function WebhookConfigCard({
       if (authConfigIdValue !== (trigger.authConfigId ?? null)) {
         body.authConfigId = authConfigIdValue;
       }
-      await apiClient.patch(`/triggers/${trigger.id}`, body);
+      await triggersApi.update(trigger.id, body);
     },
     onSuccess: () => {
       toast.success(t("triggers.detail.saved"));
@@ -710,7 +649,7 @@ function ExternalInteractionCard({
         enabled: interactionEnabled,
         tokenStrategy: strategy,
       };
-      await apiClient.patch(`/triggers/${trigger.id}`, patchBody);
+      await triggersApi.update(trigger.id, patchBody);
     },
     onSuccess: () => {
       toast.success(t("triggers.externalInteraction.saveSucceeded"));
@@ -748,10 +687,10 @@ function ExternalInteractionCard({
   async function handleRotateSecret(): Promise<void> {
     if (!window.confirm(t("triggers.externalInteraction.rotateConfirm"))) return;
     try {
-      const res = await apiClient.post<{
-        data: { secret: string; rotatedAt: string };
-      }>(`/triggers/${trigger.id}/notification/rotate-secret`, {});
-      setRotateResult(res.data.data.secret);
+      const { secret } = await triggersApi.rotateNotificationSecret(
+        trigger.id,
+      );
+      setRotateResult(secret);
       toast.success(t("triggers.externalInteraction.rotateSucceeded"));
     } catch {
       toast.error(t("triggers.externalInteraction.rotateFailed"));
@@ -761,11 +700,8 @@ function ExternalInteractionCard({
   async function handleRevokeToken(): Promise<void> {
     if (!window.confirm(t("triggers.externalInteraction.revokeConfirm"))) return;
     try {
-      const res = await apiClient.post<{ data: { token: string } }>(
-        `/triggers/${trigger.id}/interaction/revoke-token`,
-        {},
-      );
-      setRevokeResult(res.data.data.token);
+      const { token } = await triggersApi.revokeInteractionToken(trigger.id);
+      setRevokeResult(token);
       toast.success(t("triggers.externalInteraction.revokeSucceeded"));
     } catch {
       toast.error(t("triggers.externalInteraction.revokeFailed"));
@@ -1349,7 +1285,7 @@ function ChatChannelCard({
       // backend mergeExternalConfig 가 chatChannel 전체를 교체하므로 비편집 필드도 동봉
       // 단 botToken 은 미포함 — single-path 정책상 PATCH 로 토큰 변경 불가
       // botTokenRef / secretTokenRef / secretToken 도 미포함 — backend assertChatChannelInputSafe 차단
-      await apiClient.patch(`/triggers/${trigger.id}`, {
+      await triggersApi.update(trigger.id, {
         chatChannel: patchChatChannel,
       });
     },
@@ -1370,10 +1306,7 @@ function ChatChannelCard({
 
   const rotateMutation = useMutation({
     mutationFn: async (newBotToken: string) => {
-      await apiClient.post(
-        `/triggers/${trigger.id}/chat-channel/rotate-bot-token`,
-        { newBotToken },
-      );
+      await triggersApi.rotateBotToken(trigger.id, newBotToken);
     },
     onSuccess: () => {
       toast.success(t("triggers.chatChannel.rotateBotTokenSucceeded"));

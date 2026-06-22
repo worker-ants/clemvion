@@ -371,7 +371,9 @@
 
 ### M-8 [Major] `trigger-detail-drawer.tsx` 1,604줄 god-component + API 직접 호출 8곳
 
-- [ ] 미착수
+- [~] 진행 중 (단계 분할 — API 레이어 먼저, god-component 파일분리 후속)
+  - [x] **1단계 — `lib/api/triggers.ts` API 레이어** (직접 호출 제거 + m-2 차단 해제). `lib/api/executions.ts` 관례로 typed 카탈로그 신설: `list`/`getById`/`create`/`update`(단일 PATCH R-4)/`rotateNotificationSecret`/`revokeInteractionToken`/`rotateBotToken`(R-CC-10) + 타입(`TriggerDetail`·`ChatChannelConfigView`·`TriggerListItem`·`TriggerUpdateBody`·`CreateTriggerBody`). `trigger-detail-drawer.tsx` 의 `apiClient` 직접 호출 **8곳 전부** + `triggers/page.tsx`(m-2 triggers 부분: list·toggle·create) 이전. 컴포넌트 구조·렌더·권한 게이트 무변(behavior-preserving) — public surface(`TriggerDetailDrawer` + apiClient) 보존으로 기존 테스트(drawer/page 5 suites·54 tests) 무수정 통과. 검증: lint·build·unit·e2e(214) PASS, `/consistency-check --impl-prep` BLOCK:NO(`review/consistency/2026/06/23/07_55_57/`). 잔여: `page.tsx` 의 `/workflows` 호출은 workflows 도메인이라 비대상(m-2 workflows 트랙). PR: branch `claude/refactor-m8-trigger-drawer`.
+  - [ ] 2단계 — god-component 파일 분리 + hooks (후속 PR). 현행 단일 파일에 이미 카드 컴포넌트로 분리돼 있음(Overview/Schedule/Webhook[+authConfigId]/ExternalInteraction[EIA]/ChatChannel + `ChatChannelEditForm`·`RotateBotTokenModal`). 각 카드를 별 파일로 추출 + 공용 `useCardEditToggle`(편집 토글 패턴 5곳 공유) + `useTrigger(id)` hook. **유의**: 현행은 **5카드**(auth 가 WebhookConfigCard 에 병합) — plan 의 6카드(`AuthConfigCard` 분리)는 UI 구조 변경이라 behavior-preserving 추출과 별개 결정(필요 시 planner/UX). W-1/I-7(impl-prep): `WebhookConfigCard` 에 `hmacSecret` rotate UI 추가 금지(R-2 폐기, R-14 단일경로).
 
 **spec 대조**: B — `2-trigger-list.md` 는 행위·필드 권한 매트릭스만 규정. spec §2.3.1 의 카드 단위 매트릭스가 분리의 자연 경계를 이미 제공.
 
@@ -454,7 +456,9 @@
 
 ### m-2 [Minor] frontend 다수 페이지의 apiClient 직접 호출
 
-- [ ] 미착수 — statistics/triggers/schedules/dashboard 페이지
+- [~] 진행 중 — statistics/triggers/schedules/dashboard 페이지
+  - [x] **triggers** — `triggers/page.tsx` 의 trigger 호출(list·toggle·create)을 `lib/api/triggers.ts`(M-8 1단계 산출)로 이전. 잔여: 같은 페이지의 `/workflows` 호출은 workflows 도메인이라 workflows 트랙으로 분리.
+  - [ ] statistics / schedules / dashboard — `lib/api/{statistics,schedules,dashboard}.ts` 신설 + 페이지별 점진 이전 (각 1 PR).
 
 **spec 대조**: B — frontend api 계층 규약 부재, 기존 `lib/api/*` 는 코드베이스 관례.
 
