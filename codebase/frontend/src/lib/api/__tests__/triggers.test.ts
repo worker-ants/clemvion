@@ -5,12 +5,14 @@ import type { AxiosResponse } from "axios";
 const getMock = vi.fn();
 const postMock = vi.fn();
 const patchMock = vi.fn();
+const deleteMock = vi.fn();
 
 vi.mock("../client", () => ({
   apiClient: {
     get: (...args: unknown[]) => getMock(...args),
     post: (...args: unknown[]) => postMock(...args),
     patch: (...args: unknown[]) => patchMock(...args),
+    delete: (...args: unknown[]) => deleteMock(...args),
   },
 }));
 
@@ -125,6 +127,35 @@ describe("triggersApi mutations — single PATCH path (R-4)", () => {
       name: "T",
       endpointPath: "abc",
     });
+  });
+
+  it("delete DELETEs /triggers/:id", async () => {
+    deleteMock.mockResolvedValue(fakeAxios({}));
+    await triggersApi.delete("t1");
+    expect(deleteMock).toHaveBeenCalledWith("/triggers/t1");
+  });
+});
+
+describe("triggersApi.getHistory — array/envelope normalization", () => {
+  it("passes limit param and returns a bare array body as-is", async () => {
+    getMock.mockResolvedValue(fakeAxios([{ id: "h1" }, { id: "h2" }]));
+    const r = await triggersApi.getHistory("t1", { limit: 10 });
+    expect(getMock).toHaveBeenCalledWith("/triggers/t1/history", {
+      params: { limit: 10 },
+    });
+    expect(r).toHaveLength(2);
+  });
+
+  it("unwraps the { data: { items } } envelope to the items array", async () => {
+    getMock.mockResolvedValue(fakeAxios({ data: { items: [{ id: "h1" }] } }));
+    const r = await triggersApi.getHistory("t1");
+    expect(r).toEqual([{ id: "h1" }]);
+  });
+
+  it("returns [] when neither array nor items is present", async () => {
+    getMock.mockResolvedValue(fakeAxios({ data: {} }));
+    const r = await triggersApi.getHistory("t1");
+    expect(r).toEqual([]);
   });
 });
 

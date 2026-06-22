@@ -159,6 +159,25 @@ export const triggersApi = {
     await apiClient.patch(`/triggers/${id}`, body);
   },
 
+  /** `DELETE /triggers/:id` — 트리거 삭제 (Spec §3). cascade(schedule·notification·interaction)는 backend. */
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/triggers/${id}`);
+  },
+
+  /**
+   * `GET /triggers/:id/history` — 호출 이력 (R-6/R-7 별도 Dialog 전용, drawer 비포함).
+   * 배열 root 또는 `{ items }` envelope 모두 정규화해 항목 배열을 돌려준다.
+   */
+  getHistory: async <T>(
+    id: string,
+    params?: { limit?: number },
+  ): Promise<T[]> => {
+    const res = await apiClient.get(`/triggers/${id}/history`, { params });
+    const body = res.data as { data?: unknown };
+    const data = (body?.data ?? body) as T[] | { items?: T[] };
+    return Array.isArray(data) ? data : (data?.items ?? []);
+  },
+
   /** `POST /triggers/:id/notification/rotate-secret` — outbound HMAC secret 회전 (Spec EIA §7.1). */
   rotateNotificationSecret: async (
     id: string,
