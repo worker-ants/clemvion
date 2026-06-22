@@ -40,7 +40,9 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 **비목표 (v1 → 백로그)**
 - 파일 첨부 / 이모지 picker (Form file upload 연동 시).
 - 음성/통화, 상담원 핸드오프, 프로액티브(봇 선발화) 메시지.
-- 위젯 외형의 서버사이드 관리 콘솔 — 외형은 v1·v2 모두 **로더(boot) 옵션으로만** 주입(백엔드 미저장).
+- 위젯 외형의 **백엔드 저장·서빙형** 관리 콘솔 — 외형은 v1·v2 모두 **로더(boot) 옵션으로만** 주입(백엔드 미저장,
+  per-workspace 외형 JSON 서빙 안 함). *단, 외형을 boot 옵션으로 **emit 만** 하는 [설치 스니펫 빌더 콘솔(구성요소 D)](./5-admin-console.md)
+  은 본 비목표에 해당하지 않으며 v1 범위다* — 구분 근거는 [5-admin-console R2](./5-admin-console.md).
 - 호스트 제공 사용자 식별키(impersonation 방지 서명 포함) — 추후. v1 은 **익명만**.
 - 유저당 다중 세션 목록 노출 — 전제(식별 + 유저별 execution 목록 API) 필요, 백로그.
 - React/Vue 프레임워크 wrapper — v1 은 framework-agnostic JS API + 타입만.
@@ -62,9 +64,16 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 | A | **위젯 SPA** | `codebase/channel-web-chat/` (Next.js CSR 전용, **구현 시 신설**) | iframe 내부 채팅 UI. static export → CDN |
 | B | **SDK** | `codebase/packages/web-chat-sdk/` → loader 스니펫 + `@workflow/web-chat` npm | host↔iframe bridge + 공개 JS API. EIA 호출은 기존 `@workflow/sdk` 재사용. SPA 와 분리 패키지 |
 | C | **샘플** | SDK 패키지의 `examples/` | 스니펫·npm 두 경로 시연 |
+| D | **운영 콘솔** | `codebase/frontend/src/app/(main)/web-chat/**` (admin 메뉴) | 제품 내 위젯 *소비자* surface — 인스턴스 생성·외형 빌더·설치 스니펫·라이브 미리보기. 위젯을 합치지 않고 loader+iframe 으로 임베드. 상세 [5-admin-console](./5-admin-console.md) |
 
 ## Rationale
 
 ### 제품 영역 분리 (vs 5-system 흡수)
 클라이언트 SDK·위젯은 제품 표면이 서버 기술명세(5-system)와 분명히 달라 신규 top-level 영역 `7-`로 분리한다.
 5-system 에 흡수하면 client 산출물(SDK/npm/iframe)과 server 명세가 섞인다. 상세 결정 근거는 `0-architecture.md §R6`.
+
+### 운영 콘솔(구성요소 D)과 "외형 백엔드 미저장" 비목표의 경계
+§2 비목표의 "위젯 외형의 서버사이드 관리 콘솔"은 *백엔드가 외형을 저장·per-workspace 로 서빙하는 콘솔*을 겨냥했고,
+그 비목표를 적을 당시 **설치 스니펫 빌더 콘솔은 명시 검토 대상이 아니었다**. 구성요소 D 콘솔은 외형을 boot 옵션으로
+**emit 만** 하고 백엔드에 저장·서빙하지 않으므로 비목표를 *번복*하지 않고 **경계를 명확화**한다(저장·서빙형 = 비목표
+유지 / emit-only 빌더 = v1 범위). 서버 저장형 외형 관리는 여전히 백로그. 상세는 [5-admin-console R2](./5-admin-console.md).

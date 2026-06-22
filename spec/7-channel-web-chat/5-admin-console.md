@@ -1,0 +1,173 @@
+---
+id: web-chat-admin-console
+status: spec-only
+code: []
+pending_plans:
+  - plan/in-progress/web-chat-console.md
+---
+
+# Spec: Channel Web Chat — 운영 콘솔 (제품 내 설치·미리보기)
+
+> 영역 개요: [_product-overview](./_product-overview.md). 관련: [아키텍처](./0-architecture.md) · [SDK/스니펫](./2-sdk.md) ·
+> [보안/CORS](./4-security.md) · [메뉴 등록](../2-navigation/_layout.md#22-메뉴-항목) · [요구사항 NAV-WC](../2-navigation/_product-overview.md) ·
+> [Trigger 화면](../2-navigation/2-trigger-list.md) · [EIA](../5-system/14-external-interaction-api.md).
+
+---
+
+## Overview (제품 정의)
+
+운영자가 **제품 안에서** 웹채팅 위젯을 만들고, 외형을 정하고, 자기 사이트에 붙일 **설치 스니펫**을 받고, 콘솔에서
+**라이브로 미리보기** 할 수 있게 한다. 지금까지 위젯 SPA(`codebase/channel-web-chat`)와 SDK 는 별도 산출물로 존재했지만,
+운영자가 위젯을 설치·시연할 **제품 내 surface 가 없었다**. 본 콘솔이 그 간극을 채운다.
+
+- **위젯 SPA 런타임은 그대로 별도 유지** — 콘솔은 위젯을 *소비*(loader.js + iframe 임베드)만 하고, admin 앱에 합치지 않는다
+  ([0-architecture §2.1](./0-architecture.md): 위젯은 정적 cross-origin CDN 자산).
+- **친화 추상화** — 내부적으로는 `webhook trigger + config.interaction.enabled` 위에 얹히지만, 운영자에게는
+  "웹채팅 만들기 → 외형 설정 → 스니펫 복사 → 미리보기" 흐름으로 노출한다(`endpointPath`/webhook 플럼빙 숨김).
+- 사이드바 신규 **"웹채팅"** 메뉴(`/web-chat`, Schedule 아래)로 진입. 요구사항 SoT: [`NAV-WC-01..06`](../2-navigation/_product-overview.md).
+
+---
+
+## 1. 화면 구조
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  웹채팅                                   [+ 웹채팅 만들기]    │
+│                                                              │
+│  ┌─ 인스턴스 목록 ──────────────────────────────────────────┐ │
+│  │ ● 고객지원 봇      → 워크플로우: FAQ Bot      [관리]     │ │
+│  │ ● 가격문의 위젯    → 워크플로우: Pricing Q&A  [관리]     │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ── 인스턴스 상세 (선택 시) ────────────────────────────────  │
+│  ┌─ 외형/콘텐츠 ───────────┐  ┌─ 라이브 미리보기 ──────────┐  │
+│  │ primaryColor [#5B4FE9] │  │   ┌──────────────────┐     │  │
+│  │ position  [bottom-right]│  │   │  (위젯 런처/패널)  │     │  │
+│  │ headerTitle [...]      │  │   │   실제 부팅·대화   │     │  │
+│  │ welcome.text [...]     │  │   └──────────────────┘     │  │
+│  │ suggestions [...]      │  └────────────────────────────┘  │
+│  └────────────────────────┘                                  │
+│  ┌─ 설치 스니펫 ───────────────────────────────  [복사] ───┐ │
+│  │ <script>…loader.js…</script>                            │ │
+│  │ <script>ClemvionChat('boot', { … })</script>           │ │
+│  └──────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. 웹채팅 인스턴스 모델 (= webhook trigger, 신규 엔티티 없음)
+
+웹채팅 1개 = `type=webhook` + `config.interaction.enabled=true` 인 **기존 Trigger** + 연결된 workflow.
+신규 백엔드 트리거 유형·테이블·엔드포인트·facade 를 **추가하지 않는다** ([0-architecture R5](./0-architecture.md)의 client-consumer 원칙 유지).
+
+| 콘솔 동작 | 매핑 (기존 API) | 비고 |
+|---|---|---|
+| 인스턴스 목록 | `GET /api/triggers` → `type==='webhook' && config.interaction?.enabled` 클라이언트 필터 | v1 클라이언트 필터. (서버 `?interactionEnabled=true` 는 데이터 증가 시 도입 검토 — 백로그) |
+| 인스턴스 생성 | `POST /api/triggers` `{ type:'webhook', workflowId, name, endpointPath(클라이언트 UUID 생성), interaction:{ enabled:true, tokenStrategy:'per_execution' } }` | `interaction` 스키마: [EIA §4](../5-system/14-external-interaction-api.md) / `interaction-config.dto.ts` |
+| 외형/콘텐츠 | (백엔드 미저장) boot 옵션으로만 — §4 | Trigger 에 저장하지 않음 |
+| 설치 스니펫 | 클라이언트 템플릿팅 — §5 | endpointPath = 트리거의 공개 webhook path |
+| 라이브 미리보기 | 위젯 임베드(M1 hosted iframe) — §6 | 위젯이 `POST /api/hooks/:endpointPath`·`/api/external/*` 호출 |
+
+> **Trigger 화면과의 관계**: 같은 인스턴스는 webhook trigger 이므로 [Triggers 메뉴](../2-navigation/2-trigger-list.md)
+> 목록에도 나타난다. Triggers 화면은 raw trigger(인증·EIA 카드)를, 본 콘솔은 **설치·미리보기에 특화한 친화 surface** 를
+> 제공한다 — 동일 자원의 두 표현. EIA 활성/`tokenStrategy` 편집은 양쪽 모두 `ExternalInteractionCard`/`POST·PATCH /api/triggers` 단일 경로.
+
+## 3. 인스턴스 생성 (추상화)
+
+"+ 웹채팅 만들기" → 마법사:
+1. **워크플로우 선택** (필수 — `Trigger.workflow_id` NOT NULL, [데이터 모델 §2.8](../1-data-model.md#28-trigger)). 웹채팅은 이
+   워크플로우를 webhook 으로 실행한다.
+2. **이름** 입력.
+3. 콘솔이 `endpointPath` 를 `crypto.randomUUID()` 로 생성하고 `POST /api/triggers` 로 webhook+interaction 트리거를 만든다.
+- 권한: 생성은 `editor`+ (`RoleGate minRole="editor"`, [Trigger 생성 규약](../2-navigation/2-trigger-list.md#25-트리거-생성)과 일치).
+
+## 4. 외형/콘텐츠 빌더 (백엔드 미저장)
+
+[BootConfig](./2-sdk.md#4-boot-config-스키마) 필드를 폼으로 편집한다 — `appearance{primaryColor,position,zIndex}` ·
+`headerTitle` · `welcome{text,suggestions}` · `launcher{suggestions}` · `disclaimer` · `locale`.
+
+- **백엔드에 저장하지 않는다** — 값은 §5 스니펫의 boot 옵션으로만 emit 된다([_product-overview §2 비목표](./_product-overview.md) 준수).
+- 폼 상태는 운영자 편의를 위해 **브라우저 `localStorage`** 에만 보존(재방문 시 직전 외형 복원). 서버 동기화 없음.
+
+## 5. 설치 스니펫
+
+출력(SoT: [2-sdk §1](./2-sdk.md)):
+```html
+<script>(function(d,s){var j=d.createElement(s);j.async=1;
+  j.src="<widget-cdn-base>/web-chat/v1/loader.js";d.head.appendChild(j);})(document,"script");</script>
+<script>
+  ClemvionChat('boot', {
+    apiBase: '<api-base>',
+    triggerEndpointPath: '<인스턴스 endpointPath>',
+    locale, appearance, headerTitle, welcome, launcher, disclaimer
+  });
+</script>
+```
+값 출처:
+
+| 토큰 | 출처 |
+|---|---|
+| `<widget-cdn-base>` | **신규 env `NEXT_PUBLIC_WIDGET_CDN_BASE`** (admin 프론트엔드 전용). [0-architecture §4](./0-architecture.md) 참조 |
+| `<api-base>` | 기존 webhook-url 로직 (`NEXT_PUBLIC_WEBHOOK_BASE_URL` → `NEXT_PUBLIC_API_URL` 에서 `/api` 제거 → `window.location.origin`) |
+| `triggerEndpointPath` | 선택 인스턴스의 공개 webhook path |
+| 외형/콘텐츠 | §4 폼 값 |
+
+- 복사: 기존 `useCopyToClipboard()` 훅 재사용(웹훅 URL 복사와 동일 패턴).
+- **`NEXT_PUBLIC_WIDGET_CDN_BASE` 미설정 시 fallback**: 스니펫 생성·라이브 미리보기 UI 를 **비활성 + "위젯 호스팅 미설정"
+  경고** 로 노출한다(잘못된 dead `src` 스니펫 발급 방지). 인스턴스 관리·외형 폼은 계속 동작.
+
+## 6. 라이브 미리보기 (M1 hosted iframe)
+
+콘솔 화면 안에서 위젯을 **M1 hosted iframe** 방식(loader.js + iframe)으로 부팅해 런처/패널을 렌더하고, 선택 인스턴스의
+`endpointPath` 로 **대화까지** 시연한다. 외형은 §4 폼 값을 그대로 반영한다.
+
+- **유일한 선행조건 = 위젯 호스팅**: 위젯 번들이 `<widget-cdn-base>/web-chat/v1/` 에 배포돼 있어야 한다(미설정 시 §5 fallback).
+- **EIA 대화 배선은 이미 완료** — 위젯 SPA 는 자체 `eia-client.ts` 로 `POST /api/hooks/:path`(eager start)·SSE `/api/external/*`·
+  `submit_message` 를 직접 호출한다([0-architecture §3 EIA 매핑](./0-architecture.md)). M1 hosted iframe 미리보기는 추가 배선이 필요 없다.
+  ([2-sdk §2](./2-sdk.md)의 "미배선"은 SDK 패키지가 `@workflow/sdk` 를 재사용하는 **M2 headless** 한정 — 콘솔과 무관.)
+- **CORS**: 위젯 iframe(위젯 CDN origin)이 `/api/external/*` 를 호출하므로 그 origin 이 백엔드 `WEB_CHAT_WIDGET_ORIGINS`
+  allowlist 에 있어야 한다([4-security §2](./4-security.md)).
+
+## 7. 권한 (RBAC — Trigger 규약과 일치)
+
+| 동작 | 최소 역할 | 근거 |
+|---|---|---|
+| 인스턴스 목록·상세·스니펫 복사·미리보기 | `viewer`+ | `endpointPath` 는 공개 값(비밀 아님). 조회 surface 는 전 역할 가시 |
+| 인스턴스 생성·삭제·외형 편집 | `editor`+ | [Trigger 생성/삭제 규약](../2-navigation/2-trigger-list.md)과 동일 (`RoleGate`) |
+
+## 8. i18n (KO/EN 동반 갱신 의무)
+
+신규 메뉴·페이지 문자열은 ko/en **양쪽** dict 에 키를 추가한다([convention i18n-userguide](../conventions/i18n-userguide.md) Principle 1·2):
+- 메뉴 라벨 `sidebar.webChat` — `lib/i18n/dict/{ko,en}/sidebar.ts`
+- 콘솔 페이지 문자열 — `lib/i18n/dict/{ko,en}/web-chat.ts` (+ 각 `index.ts` 등록)
+
+---
+
+## Rationale
+
+### R1. 트리거 재사용 (vs 신규 web-chat 엔티티)
+웹채팅은 본질적으로 webhook trigger + EIA interaction 이다. 신규 엔티티/테이블/엔드포인트를 만들면 동일 개념의 이중 진실과
+동기화 부담이 생긴다. 콘솔은 **표현 레이어로만 추상화**해 backend 변경을 최소화(env + 선택적 목록 필터)하고, EIA
+client-consumer 원칙([0-architecture R5](./0-architecture.md))과 단일 sink 정책을 유지한다.
+
+### R2. 외형 백엔드 미저장 — 기존 비목표와의 경계 명확화 (번복 아님)
+[_product-overview §2 비목표](./_product-overview.md)의 "위젯 외형의 서버사이드 관리 콘솔(백엔드 미저장)"은 *백엔드가
+외형을 저장·per-workspace 로 서빙하는 관리 콘솔* 을 겨냥한 것이고, 그 당시 **설치 스니펫 빌더 콘솔은 명시 검토 대상이
+아니었다**. 본 콘솔은 외형을 boot 옵션으로 **emit 만** 하고 백엔드에 저장·서빙하지 않으므로 비목표를 *번복*하지 않고
+**경계를 명확화**한다(저장·서빙형 = 비목표 유지 / emit-only 빌더 = 본 범위). 서버 저장형 외형 관리는 여전히 백로그.
+
+### R3. localStorage 폼 보존
+폼 상태 보존은 운영자 편의용이며 백엔드 미저장 제약을 지키는 **클라이언트 저장만** 쓴다. `localStorage`(탭을 닫아도
+유지 → 재방문 시 직전 외형 복원)가 `sessionStorage`(탭 닫으면 소실)·쿠키(매 요청 전송 불필요)·indexedDB(과한 복잡도)보다
+적합. 백엔드 저장은 비목표라 기각.
+
+### R4. 신규 env `NEXT_PUBLIC_WIDGET_CDN_BASE` (admin) + 백엔드 `WEB_CHAT_WIDGET_ORIGINS` 상보관계
+기존 `NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_WEBHOOK_BASE_URL` 은 API/webhook origin 을 가리키고, 위젯 자산은 별도 **CDN
+origin** 에서 서빙되므로 별도 키가 필요하다(한 변수로 합치면 두 origin 이 다른 배포에서 깨짐). 이 값은 백엔드 CORS env
+`WEB_CHAT_WIDGET_ORIGINS` 와 **동일한 위젯 CDN origin** 을 각 앱에서 주입하는 상보 관계이며 일치해야 한다
+([0-architecture §4](./0-architecture.md) 플레이스홀더 표).
+
+### R5. 라이브 미리보기 선행조건은 위젯 호스팅 하나
+"대화까지" 미리보기의 유일한 실제 선행조건은 **위젯 호스팅(현재 미배포)** 이다. EIA 대화 배선은 위젯 자체 `eia-client.ts`
+로 M1 hosted iframe 경로에서 이미 완료되어 prerequisite 가 아니다. 미설정 시 §5 fallback 으로 안전하게 비활성화한다.

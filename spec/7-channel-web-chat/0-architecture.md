@@ -87,6 +87,13 @@ Clemvion 은 SaaS + 셀프호스팅 병행이므로 본 spec 의 도메인은 **
 | `<api-base>` | EIA 가 서빙되는 API origin | SDK `boot.apiBase` 로 **런타임 주입**(클라이언트가 빌드 없이 지정) |
 | `<widget-cdn-base>` | 위젯 SPA·`loader.js` 호스팅 CDN origin (스니펫 `<script src>` + iframe `src` 의 base) | SaaS 는 공식 CDN, 셀프호스팅은 운영자 지정. loader 빌드/배포 시 env 주입(빌드타임) 또는 런타임 조회 |
 
+`<widget-cdn-base>` 를 받는 구체 env 키 (동일 위젯 CDN origin 을 각 앱이 별도 주입 — **두 값은 일치해야 함**):
+
+| env 키 | 앱 | 용도 |
+|---|---|---|
+| `NEXT_PUBLIC_WIDGET_CDN_BASE` | admin 프론트엔드 (`codebase/frontend`) | 운영 콘솔이 설치 스니펫의 `loader.js src` + 라이브 미리보기 iframe base 로 사용 ([5-admin-console §5](./5-admin-console.md)) |
+| `WEB_CHAT_WIDGET_ORIGINS` | 백엔드 (`codebase/backend`) | `/api/external/*` CORS allowlist — 위젯 iframe(위젯 CDN origin)의 EIA 호출 허용 ([4-security §2](./4-security.md)) |
+
 - **버전 전략**: `loader.js`·위젯 SPA 는 `/web-chat/v1/` major 버전 path 고정(불변 자산) → 하위호환 깨짐 없이 v2 병행.
 - **npm scope**: `@workflow/web-chat` 로 확정 — [eia-sdk-publish.md §결정 #3](../../plan/in-progress/eia-sdk-publish.md) (`@workflow/sdk` 와 일관, [2-sdk](./2-sdk.md)).
 - CORS allowlist 의 "위젯 CDN 빌트인 허용"([4-security §2](./4-security.md))도 이 `<widget-cdn-base>` 를 가리킨다 — 배포 설정값.
