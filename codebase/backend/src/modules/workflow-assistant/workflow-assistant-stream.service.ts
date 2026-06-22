@@ -7,7 +7,11 @@ import { ModelConfig } from '../model-config/entities/model-config.entity';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { WorkflowAssistantSessionService } from './workflow-assistant-session.service';
-import { ExploreToolsService } from './tools/explore-tools.service';
+import {
+  AssistantToolRouter,
+  SchemaCacheEntry,
+} from './tools/assistant-tool-router.service';
+import { asString } from './tools/coerce';
 import { CandidateLookupService } from './tools/candidate-lookup.service';
 import {
   ShadowNode,
@@ -20,7 +24,6 @@ import {
 import { resolveEffectiveOutputPorts } from './tools/resolve-dynamic-ports';
 import {
   buildAssistantTools,
-  TOOL_KIND_BY_NAME,
   AssistantToolKind,
 } from './tools/tool-definitions';
 import {
@@ -214,12 +217,6 @@ const MAX_HISTORY_TURNS = 30;
 // tool-call budget 과 별개로 단일 턴당 LLM 호출 횟수의 명시적 상한을 둔다.
 // 50 라운드면 50-step plan 도 충분히 커버하면서 비용 폭주는 차단한다.
 const MAX_TOOL_LOOP_ROUNDS = 50;
-// 같은 타입의 `get_node_schema` 가 한 턴에 `hits` 가 이 값 이상이 되면 LLM
-// 이 진전 없이 낭비 루프에 빠진 것으로 간주해 hard-stop 응답으로 바꾼다.
-// 카운트 규칙 (`cached.hits`): 첫 호출 직후 1, 두 번째 호출 2, 세 번째 3...
-// 3 이면 첫 호출 + cache hit 1회 (hits=2) 까지 warning, **세 번째 호출**
-// (hits===3) 부터 `ok:false, error: 'REDUNDANT_SCHEMA_LOOKUP'` 로 차단.
-const SCHEMA_LOOKUP_HARD_STOP = 3;
 // WORKFLOW_REVIEW_REQUIRED 응답의 `originalRequest` 필드에 실을 사용자 원문의
 // 최대 길이. 전체 원문은 system prompt 의 Active plan context 에 이미 XML fence
 // 로 중화되어 주입되므로 review tool_result 에는 요약만 싣는다. 프롬프트 인젝션
@@ -295,10 +292,11 @@ function makeResumeMeta(stallRounds: number): {
  *  2. 사용자 메시지를 DB에 저장
  *  3. ShadowWorkflow에 현재 워크플로우 스냅샷 적재
  *  4. LlmService.chatStream 루프 — text/tool_call/done 이벤트 처리
- *       - explore: DB·registry 조회가 필요한 도구는 ExploreToolsService로
- *         위임, `get_current_workflow` 만은 shadow 접근이 필요하므로 루프
- *         안의 buildCurrentWorkflowResult() 로 선처리 (handleExploreCall 의
- *         switch 에는 방어용 INTERNAL 응답이 남아 있음)
+ *       - explore: `AssistantToolRouter.dispatchExplore()` 로 위임 —
+ *         DB·registry 조회가 필요한 도구는 ExploreToolsService 로, shadow
+ *         접근이 필요한 `get_current_workflow`/`verify_workflow` 는 shadow
+ *         스냅샷으로 선처리한다. `verify_workflow` ok:true 는 reviewCompleted
+ *         신호로 되돌려 호출부가 guard 상태를 갱신한다
  *       - plan: PlanCard 이벤트만 SSE로 발행, shadow 변경 없음
  *       - edit: ShadowWorkflow 적용 → 성공 시 SSE로 발행, tool_result를 LLM에 반환
  *       - finish: evaluateFinishGuard() 로 plan 완결성(남은 step, openQuestions)
@@ -324,7 +322,7 @@ export class WorkflowAssistantStreamService {
   constructor(
     private readonly llmService: LlmService,
     private readonly sessionService: WorkflowAssistantSessionService,
-    private readonly exploreTools: ExploreToolsService,
+    private readonly toolRouter: AssistantToolRouter,
     private readonly nodeRegistry: NodeComponentRegistry,
     private readonly handlerRegistry: NodeHandlerRegistry,
     private readonly candidateLookup: CandidateLookupService,
@@ -483,10 +481,11 @@ export class WorkflowAssistantStreamService {
       verifyFiredOnce: false,
     };
     // Turn-scoped cache for `get_node_schema` results. LLM 이 같은 노드 타입의
-    // 스키마를 여러 번 조회하는 낭비 패턴을 잡기 위해 첫 호출 결과를 캐시하고,
-    // 2회차부터는 cached 결과 + warning 을, SCHEMA_LOOKUP_HARD_STOP 을 넘기면
-    // error 로 되돌려 낭비 루프를 끊는다.
-    const schemaCache = new Map<string, { result: unknown; hits: number }>();
+    // 스키마를 여러 번 조회하는 낭비 패턴을 잡기 위해 첫 호출 결과를 캐시한다.
+    // 캐시 자체는 `streamMessage` 가 소유하고 `dispatchExplore` 에 참조로 넘겨,
+    // hits 증가·hard-stop 정책은 `AssistantToolRouter` 가 적용한다 (router 는
+    // 무상태 singleton 이라 turn-scoped 상태를 보유하지 않는다).
+    const schemaCache = new Map<string, SchemaCacheEntry>();
     // LLM 호출 라운드 수 — toolCallsBudget 과 별개의 라운드 상한.
     // progress-aware guard 가 N step plan 에서 N+ 라운드를 돌릴 수 있어 비용
     // 폭주를 막기 위한 명시적 안전망.
@@ -571,8 +570,9 @@ export class WorkflowAssistantStreamService {
               break;
             }
             const parsed = safeParse(ev.arguments);
-            const kind: AssistantToolKind =
-              TOOL_KIND_BY_NAME[ev.name] ?? 'edit';
+            const kind: AssistantToolKind = this.toolRouter.classifyKind(
+              ev.name,
+            );
 
             if (kind === 'finish') {
               // 실행 턴에서 LLM 이 plan 의 일부만 실행한 채로 finish 를
@@ -671,70 +671,22 @@ export class WorkflowAssistantStreamService {
 
             let result: unknown;
             if (kind === 'explore') {
-              // `get_current_workflow` 는 세션 외부 DB를 조회하지 않고 현재
-              // turn 의 shadow 스냅샷을 그대로 돌려준다. 같은 turn 안에서
-              // edit 도구를 먼저 호출한 뒤 최신 상태를 확인하기 위한 용도.
-              if (ev.name === 'get_current_workflow') {
-                result = this.buildCurrentWorkflowResult(shadow);
-              } else if (ev.name === 'verify_workflow') {
-                // Phase 3: LLM 의 self-review 외부화. snapshot 의 모든 node/edge
-                // id 가 verifiedNodeIds / verifiedEdgeIds 에 포함되어야 ok:true.
-                // 성공 호출은 review/verify 가드를 충족해 다음 finish 가 verify
-                // 라운드로 다시 막히지 않는다 — Phase 2 의 "finish 두 번" 경로와
-                // 동등한 효과지만, LLM 이 "무엇을 봤는지" 를 명시화하는 더 엄격한
-                // 검증.
-                const verifyResult = this.buildVerifyWorkflowResult(
+              const exploreOutcome = await this.toolRouter.dispatchExplore(
+                ev.name,
+                parsed,
+                {
                   shadow,
-                  parsed,
-                );
-                result = verifyResult;
-                if (
-                  (verifyResult as { ok?: boolean } | undefined)?.ok === true
-                ) {
-                  guardState.reviewCompleted = true;
-                }
-              } else if (ev.name === 'get_node_schema') {
-                // 같은 타입을 반복해서 조회하는 낭비 루프 방지. 첫 호출은 실제
-                // 실행 (hits=1), 두 번째 호출(hits=2) 은 cached 결과 + warning,
-                // 세 번째 호출(hits=3 ≥ SCHEMA_LOOKUP_HARD_STOP) 부터 error 로
-                // escalate.
-                const typeArg =
-                  typeof parsed.type === 'string' ? parsed.type : '';
-                const cached = typeArg ? schemaCache.get(typeArg) : undefined;
-                if (cached) {
-                  cached.hits += 1;
-                  if (cached.hits >= SCHEMA_LOOKUP_HARD_STOP) {
-                    result = {
-                      ok: false,
-                      error: 'REDUNDANT_SCHEMA_LOOKUP',
-                      message: `You have already fetched the schema for "${typeArg}" ${cached.hits} times this turn. Re-use the earlier result; do not call get_node_schema for this type again.`,
-                    };
-                  } else {
-                    result = {
-                      ...(cached.result as Record<string, unknown>),
-                      warning: 'REDUNDANT_SCHEMA_LOOKUP',
-                      warningMessage: `get_node_schema for "${typeArg}" already returned in this turn — reuse that result instead of re-calling.`,
-                      cached: true,
-                    };
-                  }
-                } else {
-                  result = await this.handleExploreCall(
-                    ev.name,
-                    parsed,
-                    workspaceId,
-                    session.workflowId,
-                  );
-                  if (typeArg) {
-                    schemaCache.set(typeArg, { result, hits: 1 });
-                  }
-                }
-              } else {
-                result = await this.handleExploreCall(
-                  ev.name,
-                  parsed,
                   workspaceId,
-                  session.workflowId,
-                );
+                  currentWorkflowId: session.workflowId,
+                  schemaCache,
+                },
+              );
+              result = exploreOutcome.result;
+              // `verify_workflow` 가 ok:true 로 외부화 검증을 마친 경우에만
+              // review 가드를 충족시켜 다음 finish 가 verify 라운드로 다시
+              // 막히지 않게 한다 (Phase 3). 그 외 explore 도구는 guard 무영향.
+              if (exploreOutcome.reviewCompleted) {
+                guardState.reviewCompleted = true;
               }
             } else if (kind === 'plan') {
               if (ev.name === 'clear_plan') {
@@ -1251,65 +1203,6 @@ export class WorkflowAssistantStreamService {
     });
   }
 
-  // DB 혹은 registry 조회가 필요한 explore 도구들을 ExploreToolsService 로
-  // 위임한다. `get_current_workflow` 는 호출 루프에서 shadow 에 직접 접근해
-  // 선처리되므로 여기로 오면 안 된다 (도달 시 프로그래밍 오류).
-  private async handleExploreCall(
-    name: string,
-    args: Record<string, unknown>,
-    workspaceId: string,
-    currentWorkflowId: string,
-  ): Promise<unknown> {
-    switch (name) {
-      case 'get_node_schema':
-        return this.exploreTools.getNodeSchema(asString(args.type, ''));
-      case 'list_integrations':
-        return this.exploreTools.listIntegrations(
-          workspaceId,
-          typeof args.category === 'string' ? args.category : undefined,
-        );
-      case 'list_workflows':
-        return this.exploreTools.listWorkflows(workspaceId, {
-          search: typeof args.search === 'string' ? args.search : undefined,
-          limit: typeof args.limit === 'number' ? args.limit : undefined,
-          excludeId: currentWorkflowId,
-        });
-      case 'get_workflow':
-        return this.exploreTools.getWorkflow(
-          workspaceId,
-          asString(args.id, ''),
-          args.mode === 'full' ? 'full' : 'summary',
-        );
-      case 'list_knowledge_bases':
-        return this.exploreTools.listKnowledgeBases(workspaceId);
-      case 'get_workflow_executions':
-        return this.exploreTools.getWorkflowExecutions(
-          workspaceId,
-          currentWorkflowId,
-          {
-            limit: typeof args.limit === 'number' ? args.limit : undefined,
-            status: typeof args.status === 'string' ? args.status : undefined,
-          },
-        );
-      case 'get_execution_details':
-        return this.exploreTools.getExecutionDetails(
-          workspaceId,
-          currentWorkflowId,
-          asString(args.id, ''),
-        );
-      case 'get_current_workflow':
-        // Safety net: should have been handled by caller with shadow access.
-        return {
-          ok: false,
-          error: 'INTERNAL',
-          message:
-            'get_current_workflow must be handled by the stream loop with shadow access.',
-        };
-      default:
-        return { ok: false, error: 'UNKNOWN_EXPLORE_TOOL' };
-    }
-  }
-
   /**
    * `finish` 호출 시점의 plan 완결성을 평가한다. ActivePlanContext 기반으로
    * 판단하며 — `cleared` 상태거나 completed 상태면 guard 가 발동하지 않는다.
@@ -1622,63 +1515,6 @@ export class WorkflowAssistantStreamService {
     };
   }
 
-  // 같은 턴 안에서 edit 도구로 수정된 최신 shadow 를 LLM 에 되돌려준다.
-  // 시스템 프롬프트 스냅샷과 동일한 보안 정책(redactConfig) · 동일한 shape
-  // (`toWorkflowView`) 을 공유해 두 표현이 발산하지 않도록 한다.
-  private buildCurrentWorkflowResult(shadow: ShadowWorkflow): unknown {
-    return { ok: true, ...toWorkflowView(shadow.snapshot()) };
-  }
-
-  /**
-   * Phase 3: `verify_workflow` 도구의 결과 빌더. LLM 이 명시한 verifiedNodeIds /
-   * verifiedEdgeIds 가 현재 shadow 의 모든 node / edge id 를 포함하는지 검사.
-   *
-   * - 누락 있으면 `ok:false, error: 'VERIFY_INCOMPLETE', missingNodeIds, missingEdgeIds`
-   *   로 LLM 에게 정확히 무엇을 안 봤는지 알려준다 — LLM 은 그것들을 walk 한
-   *   뒤 verify_workflow 를 다시 호출하면 된다. snapshot 자체를 응답에 포함하지
-   *   않는 이유: WORKFLOW_VERIFY_REQUIRED 가 이미 토대로 currentWorkflow 를
-   *   주었거나, LLM 이 `get_current_workflow` 로 따로 받을 수 있어 중복 노출 방지.
-   * - 다 포함하면 `ok:true` + 검증된 카운트. 호출부에서 state.reviewCompleted
-   *   를 set 해 다음 finish 가 verify 가드로 다시 막히지 않게 한다.
-   */
-  private buildVerifyWorkflowResult(
-    shadow: ShadowWorkflow,
-    args: Record<string, unknown>,
-  ): unknown {
-    const verifiedNodeIds = new Set(
-      Array.isArray(args.verifiedNodeIds)
-        ? args.verifiedNodeIds.filter((v): v is string => typeof v === 'string')
-        : [],
-    );
-    const verifiedEdgeIds = new Set(
-      Array.isArray(args.verifiedEdgeIds)
-        ? args.verifiedEdgeIds.filter((v): v is string => typeof v === 'string')
-        : [],
-    );
-    const snapshot = shadow.snapshot();
-    const missingNodeIds = snapshot.nodes
-      .filter((n) => !verifiedNodeIds.has(n.id))
-      .map((n) => n.id);
-    const missingEdgeIds = snapshot.edges
-      .filter((e) => !verifiedEdgeIds.has(e.id))
-      .map((e) => e.id);
-    if (missingNodeIds.length > 0 || missingEdgeIds.length > 0) {
-      return {
-        ok: false,
-        error: 'VERIFY_INCOMPLETE',
-        missingNodeIds,
-        missingEdgeIds,
-        message:
-          'Your verifiedNodeIds / verifiedEdgeIds did not include every node/edge currently on the canvas. Walk the listed missing items, confirm each was intended, and call verify_workflow again with the COMPLETE arrays — or call finish if you decide they should be left as-is (the verify gate will only block once per turn).',
-      };
-    }
-    return {
-      ok: true,
-      verifiedNodeCount: snapshot.nodes.length,
-      verifiedEdgeCount: snapshot.edges.length,
-    };
-  }
-
   private buildPlanFromArgs(
     args: Record<string, unknown>,
   ): AssistantPlanRecord {
@@ -1858,13 +1694,6 @@ function safeParse(raw: string): Record<string, unknown> {
   } catch {
     return {};
   }
-}
-
-// args.X is `unknown`; `String(...)` on an object would yield "[object Object]".
-// 이 helper는 string 타입만 통과시키고, 그 외(객체·배열·null·number 등)는
-// fallback으로 대체한다.
-function asString(value: unknown, fallback: string): string {
-  return typeof value === 'string' ? value : fallback;
 }
 
 /**

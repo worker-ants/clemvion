@@ -2,6 +2,7 @@ import {
   WorkflowAssistantStreamService,
   toRuntimePortDescriptor,
 } from './workflow-assistant-stream.service';
+import { AssistantToolRouter } from './tools/assistant-tool-router.service';
 import type { ChatStreamEvent } from '../llm/interfaces/llm-client.interface';
 import { z } from 'zod';
 import { carouselNodeMetadata } from '../../nodes/presentation/carousel/carousel.schema';
@@ -148,10 +149,14 @@ function makeService(): {
     ),
   };
 
+  // M-3 1단계: explore dispatch 는 AssistantToolRouter 로 분리됐다. 통합
+  // 테스트는 실제 router 를 mock ExploreToolsService 로 생성해 주입하므로,
+  // `mocks.exploreTools.*` 호출 단언은 router 위임 경유로 그대로 성립한다.
+  const toolRouter = new AssistantToolRouter(mocks.exploreTools as never);
   const service = new WorkflowAssistantStreamService(
     mocks.llmService as never,
     mocks.sessionService as never,
-    mocks.exploreTools as never,
+    toolRouter,
     mocks.nodeRegistry as never,
     mocks.handlerRegistry as never,
     candidateLookup as never,

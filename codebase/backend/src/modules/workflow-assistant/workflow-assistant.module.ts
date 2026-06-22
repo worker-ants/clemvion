@@ -19,6 +19,7 @@ import { WorkflowAssistantSessionService } from './workflow-assistant-session.se
 import { WorkflowAssistantStreamService } from './workflow-assistant-stream.service';
 import { ExploreToolsService } from './tools/explore-tools.service';
 import { CandidateLookupService } from './tools/candidate-lookup.service';
+import { AssistantToolRouter } from './tools/assistant-tool-router.service';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { CandidateLookupService } from './tools/candidate-lookup.service';
   providers: [
     WorkflowAssistantSessionService,
     WorkflowAssistantStreamService,
+    AssistantToolRouter,
     ExploreToolsService,
     CandidateLookupService,
   ],
