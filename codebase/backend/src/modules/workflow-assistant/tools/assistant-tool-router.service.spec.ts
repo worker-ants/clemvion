@@ -279,6 +279,61 @@ describe('AssistantToolRouter', () => {
           error: 'REDUNDANT_SCHEMA_LOOKUP',
         });
       });
+
+      it('bypasses the cache for non-string type args (no key, delegates every call)', async () => {
+        exploreTools.getNodeSchema.mockResolvedValue({ ok: true });
+        const ctx = makeCtx(makeShadow(EMPTY_SNAPSHOT));
+        await router.dispatchExplore('get_node_schema', { type: 123 }, ctx);
+        await router.dispatchExplore('get_node_schema', { type: 123 }, ctx);
+        // typeArg === '' → no cache key → 매 호출 위임, 하드스톱 미적용.
+        expect(exploreTools.getNodeSchema).toHaveBeenCalledTimes(2);
+        expect(ctx.schemaCache.size).toBe(0);
+      });
+    });
+
+    it('returns UNKNOWN_EXPLORE_TOOL for an unregistered explore tool name', async () => {
+      const { result, reviewCompleted } = await router.dispatchExplore(
+        'totally_unknown_explore',
+        {},
+        makeCtx(makeShadow(EMPTY_SNAPSHOT)),
+      );
+      expect(reviewCompleted).toBe(false);
+      expect(result).toEqual({ ok: false, error: 'UNKNOWN_EXPLORE_TOOL' });
+    });
+
+    it('delegates get_workflow with mode=full when requested, summary otherwise', async () => {
+      exploreTools.getWorkflow.mockResolvedValue({ ok: true });
+      const ctx = makeCtx(makeShadow(EMPTY_SNAPSHOT));
+      await router.dispatchExplore(
+        'get_workflow',
+        { id: 'w2', mode: 'full' },
+        ctx,
+      );
+      expect(exploreTools.getWorkflow).toHaveBeenLastCalledWith(
+        'ws-1',
+        'w2',
+        'full',
+      );
+      await router.dispatchExplore('get_workflow', { id: 'w3' }, ctx);
+      expect(exploreTools.getWorkflow).toHaveBeenLastCalledWith(
+        'ws-1',
+        'w3',
+        'summary',
+      );
+    });
+
+    it('verify_workflow on an empty canvas passes (nothing to cover) and signals reviewCompleted', async () => {
+      const { result, reviewCompleted } = await router.dispatchExplore(
+        'verify_workflow',
+        { verifiedNodeIds: [], verifiedEdgeIds: [] },
+        makeCtx(makeShadow(EMPTY_SNAPSHOT)),
+      );
+      expect(reviewCompleted).toBe(true);
+      expect(result).toMatchObject({
+        ok: true,
+        verifiedNodeCount: 0,
+        verifiedEdgeCount: 0,
+      });
     });
   });
 });

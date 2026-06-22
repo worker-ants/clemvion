@@ -106,44 +106,7 @@ export class AssistantToolRouter {
       };
     }
     if (toolName === 'get_node_schema') {
-      // 같은 타입을 반복해서 조회하는 낭비 루프 방지. 첫 호출은 실제
-      // 실행 (hits=1), 두 번째 호출(hits=2) 은 cached 결과 + warning,
-      // 세 번째 호출(hits=3 ≥ SCHEMA_LOOKUP_HARD_STOP) 부터 error 로
-      // escalate.
-      const typeArg = typeof args.type === 'string' ? args.type : '';
-      const cached = typeArg ? ctx.schemaCache.get(typeArg) : undefined;
-      if (cached) {
-        cached.hits += 1;
-        if (cached.hits >= SCHEMA_LOOKUP_HARD_STOP) {
-          return {
-            result: {
-              ok: false,
-              error: 'REDUNDANT_SCHEMA_LOOKUP',
-              message: `You have already fetched the schema for "${typeArg}" ${cached.hits} times this turn. Re-use the earlier result; do not call get_node_schema for this type again.`,
-            },
-            reviewCompleted: false,
-          };
-        }
-        return {
-          result: {
-            ...(cached.result as Record<string, unknown>),
-            warning: 'REDUNDANT_SCHEMA_LOOKUP',
-            warningMessage: `get_node_schema for "${typeArg}" already returned in this turn — reuse that result instead of re-calling.`,
-            cached: true,
-          },
-          reviewCompleted: false,
-        };
-      }
-      const result = await this.handleExploreCall(
-        toolName,
-        args,
-        ctx.workspaceId,
-        ctx.currentWorkflowId,
-      );
-      if (typeArg) {
-        ctx.schemaCache.set(typeArg, { result, hits: 1 });
-      }
-      return { result, reviewCompleted: false };
+      return this.dispatchNodeSchema(args, ctx);
     }
     const result = await this.handleExploreCall(
       toolName,
@@ -151,6 +114,55 @@ export class AssistantToolRouter {
       ctx.workspaceId,
       ctx.currentWorkflowId,
     );
+    return { result, reviewCompleted: false };
+  }
+
+  /**
+   * `get_node_schema` 의 turn-scoped 캐시 + 하드스톱 정책. 같은 타입을 반복
+   * 조회하는 낭비 루프 방지: 첫 호출은 실제 실행(hits=1), 두 번째(hits=2)
+   * 는 cached 결과 + warning, 세 번째(hits=3 ≥ `SCHEMA_LOOKUP_HARD_STOP`)
+   * 부터 error 로 escalate. `type` 인자가 비-문자열(`typeArg === ''`) 이면
+   * 캐시 키가 없어 정책이 적용되지 않고 매번 위임한다 — 빈 type 의 스키마
+   * 조회 자체가 무의미해 별도 차단 이득이 없기 때문 (도달 시 explore tool
+   * 이 빈 결과를 돌려준다).
+   */
+  private async dispatchNodeSchema(
+    args: Record<string, unknown>,
+    ctx: ExploreDispatchContext,
+  ): Promise<ExploreDispatchResult> {
+    const typeArg = asString(args.type, '');
+    const cached = typeArg ? ctx.schemaCache.get(typeArg) : undefined;
+    if (cached) {
+      cached.hits += 1;
+      if (cached.hits >= SCHEMA_LOOKUP_HARD_STOP) {
+        return {
+          result: {
+            ok: false,
+            error: 'REDUNDANT_SCHEMA_LOOKUP',
+            message: `You have already fetched the schema for "${typeArg}" ${cached.hits} times this turn. Re-use the earlier result; do not call get_node_schema for this type again.`,
+          },
+          reviewCompleted: false,
+        };
+      }
+      return {
+        result: {
+          ...(cached.result as Record<string, unknown>),
+          warning: 'REDUNDANT_SCHEMA_LOOKUP',
+          warningMessage: `get_node_schema for "${typeArg}" already returned in this turn — reuse that result instead of re-calling.`,
+          cached: true,
+        },
+        reviewCompleted: false,
+      };
+    }
+    const result = await this.handleExploreCall(
+      'get_node_schema',
+      args,
+      ctx.workspaceId,
+      ctx.currentWorkflowId,
+    );
+    if (typeArg) {
+      ctx.schemaCache.set(typeArg, { result, hits: 1 });
+    }
     return { result, reviewCompleted: false };
   }
 
