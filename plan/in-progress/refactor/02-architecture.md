@@ -186,7 +186,10 @@
 
 ### M-3 [Major] WorkflowAssistantStreamService — `streamMessage` 혼재
 
-- [ ] 미착수 — `workflow-assistant-stream.service.ts`
+- [~] 진행 중 (단계 분할 — 권장안 A 의 Router→Guard→Persistence 순) — `workflow-assistant-stream.service.ts`
+  - [x] **1단계 — `AssistantToolRouter`** (explore dispatch registry + kind 메타). `tools/assistant-tool-router.service.ts` 신설: `classifyKind`(도구명→kind, `TOOL_KIND_BY_NAME` 단일 소비점) + `dispatchExplore`(explore 9도구 registry — `get_current_workflow`/`verify_workflow` shadow 선처리, `get_node_schema` turn-scoped 캐시·하드스톱, 그 외 `ExploreToolsService` 위임) + `handleExploreCall`·`buildCurrentWorkflowResult`·`buildVerifyWorkflowResult` **verbatim 이동**. 공유 `asString`→`tools/coerce.ts`, `SCHEMA_LOOKUP_HARD_STOP` 이동. `streamMessage` 는 kind 룩업·explore 분기를 router 에 위임(나머지 SSE 조립·plan/edit/finish dispatch·§10 가드 잔류). 동작 보존: `verify_workflow` ok:true → `reviewCompleted` 신호 반환으로 호출부가 guardState 갱신. 검증: 신규 `assistant-tool-router.service.spec.ts`(classifyKind + dispatchExplore 캐시/위임 격리 테스트) + 기존 `workflow-assistant-stream.service.spec.ts` 통합 테스트 green(unit 375 PASS, e2e 214 PASS). 산출: `review/consistency/2026/06/23/00_33_41/`(impl-prep BLOCK:NO). PR: branch `worktree-refactor-m3-assistant-tool-router`.
+  - [ ] 2단계 — `AssistantFinishGuard`/`AssistantReviewGuard` (§10 상태 필드 `reviewRoundCount` 등 캡슐화, 분리 단위를 §10 Phase 경계와 일치) — 후속 PR. `evaluateFinishGuard`/`evaluateReviewGuard`/`shouldSkipReview` + `FinishGuardState` 이동 대상.
+  - [ ] 3단계 — `AssistantTurnPersistenceService` (세션/메시지 영속 + `autoResumed` 메타) — 후속 PR. `persistAssistantTurn` + `makeResumeMeta` + session/message append 이동 대상.
 
 **spec 대조**: B — `4-ai-assistant.md` 는 도구 정의(§4)·SSE(§5~6)·가드(§10)의 **행위 계약**만 규정, 내부 분해 무언급. §10 의 미세 의미(progress-aware finish 재발동·review 최대 2회·verify 턴당 1회·plan-only fast-path)가 회귀 포인트.
 
