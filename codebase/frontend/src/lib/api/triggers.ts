@@ -75,6 +75,7 @@ export interface TriggerListItem {
   type: "webhook" | "schedule" | "manual";
   isActive: boolean;
   workflowId?: string;
+  /** backend shape 편차 흡수 — `workflow.{id,name}` 중첩 표현이 평탄 필드와 공존 가능. */
   workflow?: { id?: string; name?: string };
   endpointPath?: string;
   lastTriggeredAt?: string;
@@ -85,11 +86,12 @@ export interface TriggerListItem {
   chatChannelHealth?: "unknown" | "healthy" | "degraded";
 }
 
+/** `GET /triggers` 쿼리 파라미터 (Spec §3). type/status 는 허용 enum 으로 제한. */
 export interface TriggerListParams {
   page: number;
   limit: number;
-  type?: string;
-  status?: string;
+  type?: "webhook" | "schedule" | "manual";
+  status?: "active" | "inactive";
 }
 
 /** Spec §2.5 — webhook 트리거 생성 바디 (chatChannel 은 top-level — setupChannel 진입 조건). */
@@ -144,7 +146,10 @@ export const triggersApi = {
     };
   },
 
-  /** `POST /triggers` — webhook 트리거 생성 (Spec §2.5). */
+  /**
+   * `POST /triggers` — webhook 트리거 생성 (Spec §2.5). 응답 바디는 버린다 —
+   * 호출부가 `triggers` queryKey 무효화로 재조회한다.
+   */
   create: async (body: CreateTriggerBody): Promise<void> => {
     await apiClient.post("/triggers", body);
   },

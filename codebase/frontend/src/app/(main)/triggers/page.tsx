@@ -226,6 +226,8 @@ export default function TriggersPage() {
   const isLoading = triggersQuery.isLoading;
   const isError = triggersQuery.isError;
 
+  // `/workflows` 는 workflows 도메인 호출이라 triggersApi 비대상 — m-2 workflows
+  // 트랙에서 `lib/api/workflows.ts` 로 이전 예정. 그때까지 apiClient 직접 잔류.
   const { data: workflows = [] } = useQuery<Workflow[]>({
     queryKey: ["workflows-list"],
     queryFn: async () => {
