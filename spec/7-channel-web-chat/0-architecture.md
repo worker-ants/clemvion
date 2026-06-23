@@ -52,7 +52,8 @@ pending_plans:
 - loader 가 iframe 을 만들지만 `src` 는 **정적·불변 CDN 파일**(`output:'export'` 산출). CDN 캐시 히트로 클라이언트 수가
   늘어도 서버 per-request 부담 없음(동적 렌더링 아님).
 - ⚠️ `srcdoc`/`about:blank` 자가 생성은 **기각** — 그 iframe 은 호스트 origin 을 상속해 cross-origin 격리가 깨진다.
-  격리를 위해 iframe 은 **반드시 다른 origin 의 실제 `src`** 여야 한다(§R8).
+  격리를 위해 iframe 은 **반드시 다른 origin 의 실제 `src`** 여야 한다(§R8). *예외*: admin 콘솔 **내부 미리보기**는 cross-origin
+격리가 목적이 아니므로 same-origin 동봉 위젯을 실제 `src` iframe 으로 로드한다(§4.1·§R8 carve-out) — `srcdoc` 자가 생성은 여기서도 금지.
 - 워크스페이스/트리거/외형은 문서를 워크스페이스별로 렌더링하지 않고 query param / postMessage / 캐시 가능한 per-workspace JSON 으로 주입.
 
 ## 3. EIA 매핑 (위젯이 사용하는 EIA 표면)
@@ -85,16 +86,22 @@ Clemvion 은 SaaS + 셀프호스팅 병행이므로 본 spec 의 도메인은 **
 | 플레이스홀더 | 의미 | 주입 방식 |
 |---|---|---|
 | `<api-base>` | EIA 가 서빙되는 API origin | SDK `boot.apiBase` 로 **런타임 주입**(클라이언트가 빌드 없이 지정) |
-| `<widget-cdn-base>` | 위젯 SPA·`loader.js` 호스팅 CDN origin (스니펫 `<script src>` + iframe `src` 의 base) | SaaS 는 공식 CDN, 셀프호스팅은 운영자 지정. loader 빌드/배포 시 env 주입(빌드타임) 또는 런타임 조회 |
+| `<widget-cdn-base>` | 위젯 SPA·`loader.js` 호스팅 origin (스니펫 `<script src>` + iframe `src` 의 base) | **기본값 = 배포 자신의 origin**(위젯을 제품과 동봉 서빙, §4.1) — 셀프호스트는 추가 인프라 없이 same-origin. SaaS·별도 엣지 CDN 운영 시에만 `NEXT_PUBLIC_WIDGET_CDN_BASE` 로 override(그래도 같은 릴리스 버전 번들) |
 
-`<widget-cdn-base>` 를 받는 구체 env 키 (동일 위젯 CDN origin 을 각 앱이 별도 주입 — **두 값은 일치해야 함**):
+`<widget-cdn-base>` 를 받는 구체 env 키 (동일 위젯 origin 을 각 앱이 주입 — **두 값은 일치해야 함**):
 
-| env 키 | 앱 | 용도 |
-|---|---|---|
-| `NEXT_PUBLIC_WIDGET_CDN_BASE` | admin 프론트엔드 (`codebase/frontend`) | 운영 콘솔이 설치 스니펫의 `loader.js src` + 라이브 미리보기 iframe base 로 사용 ([5-admin-console §5](./5-admin-console.md)) |
-| `WEB_CHAT_WIDGET_ORIGINS` | 백엔드 (`codebase/backend`) | `/api/external/*` CORS allowlist — 위젯 iframe(위젯 CDN origin)의 EIA 호출 허용 ([4-security §2](./4-security.md)) |
+| env 키 | 앱 | 신규/기존 | 용도 |
+|---|---|---|---|
+| `NEXT_PUBLIC_WIDGET_CDN_BASE` | admin 프론트엔드 (`codebase/frontend`) | 신규 (선택) | 운영 콘솔이 설치 스니펫의 `loader.js src` + 라이브 미리보기 iframe base 로 사용. **미설정 시 self-origin 기본**([5-admin-console §5·§6](./5-admin-console.md)) |
+| `WEB_CHAT_WIDGET_ORIGINS` | 백엔드 (`codebase/backend`) | 기존 (`main.ts`·`web-chat-cors.ts`) | `/api/external/*` CORS allowlist — 위젯 iframe origin 의 EIA 호출 허용 ([4-security §2](./4-security.md)) |
 
-- **버전 전략**: `loader.js`·위젯 SPA 는 `/web-chat/v1/` major 버전 path 고정(불변 자산) → 하위호환 깨짐 없이 v2 병행.
+### 4.1 위젯 동봉(co-deploy) + 버전 잠금
+- **버전 전략**: `loader.js`·위젯 SPA 는 `/web-chat/v1/` major 버전 path 고정(불변 자산). 마이너/패치는 floating "latest" 가
+  아니라 **제품과 같은 릴리스로 동봉(co-deploy)** 되어 배포 단위로 잠긴다 → 셀프호스트의 위젯 버전이 그 배포의 백엔드/EIA 버전과 항상 일치.
+- **동봉 방식**: 위젯(`channel-web-chat`)을 frontend workspace 의존으로 묶고 `NEXT_PUBLIC_BASE_PATH=/_widget/web-chat/v1/app`
+  로 빌드해 `codebase/frontend/public/_widget/web-chat/v1/` 로 동봉(빌드 파이프라인 복사) → 배포 origin 에서 same-origin 서빙.
+- 이로써 `<widget-cdn-base>` 가 기본 self-origin 이 되어 **외부 위젯 CDN 호스팅은 선행조건이 아니다**(SaaS 엣지 CDN 은 선택 최적화).
+- admin 콘솔 라이브 미리보기는 이 동봉 위젯을 same-origin iframe 으로 로드 — 버전 일치·외부 의존 0 (격리 carve-out 은 §R8).
 - **npm scope**: `@workflow/web-chat` 로 확정 — [eia-sdk-publish.md §결정 #3](../../plan/in-progress/eia-sdk-publish.md) (`@workflow/sdk` 와 일관, [2-sdk](./2-sdk.md)).
 - CORS allowlist 의 "위젯 CDN 빌트인 허용"([4-security §2](./4-security.md))도 이 `<widget-cdn-base>` 를 가리킨다 — 배포 설정값.
   빌트인 origin 상수는 **빌드타임 env 주입**(loader/SPA 빌드) + 백엔드는 **런타임 config**(워크스페이스 무관 고정값)로 관리한다.
@@ -154,3 +161,10 @@ REST/SSE/토큰) 변경 없음. EIA §R10 의 단일 sink·facade 계층에 새 
 생성(클라이언트) + 문서는 정적 cross-origin CDN 자산"으로 동적 서버 회피와 격리를 동시에 만족한다. 임베드 제어는 문서
 CSP 가 아니라 부팅 시 host origin soft 검증으로 이동([4-security](./4-security.md)). CORS 도 워크스페이스 동적 처리가
 필요 없는 경계로 둔다([4-security §CORS](./4-security.md)): M1 은 위젯 CDN 단일 origin, M2 만 워크스페이스 allowlist.
+
+**carve-out — admin 콘솔 내부 미리보기(same-origin 동봉 iframe)**: 위 기각은 *고객 사이트* 임베드(외부 origin 에서 우리
+위젯을 호스트와 격리)에 대한 것이다. admin 운영 콘솔의 라이브 미리보기는 맥락이 다르다 — **우리 앱이 우리 위젯을** 미리보는
+것이라 cross-origin 격리가 목적이 아니고, 셀프호스팅·버전 다양성 하에서 **버전 일치·외부 의존 제거**가 목적이다. 따라서
+미리보기는 §4.1 의 동봉(co-deploy) 위젯을 **same-origin 실제 `src` iframe**(srcdoc 자가 생성 아님)으로 로드한다 — 위젯
+CSS/JS 격리(§R1)는 iframe 으로 유지하되 외부 CDN fetch 0, 그 배포의 버전과 100% 일치. 고객 임베드 경로(loader + cross-origin
+iframe)는 불변. 상세는 [5-admin-console §6·§R6](./5-admin-console.md).

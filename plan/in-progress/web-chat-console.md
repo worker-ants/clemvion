@@ -30,8 +30,10 @@ related_plans:
   `POST/GET /api/triggers` 재사용. 콘솔은 `endpointPath`/webhook 플럼빙을 추상화한 친화 레이어.
 - **외형은 boot 옵션으로만 emit, 백엔드 미저장** — 기존 비목표(`_product-overview §2`) 준수. 폼 상태는 localStorage(편의).
 - **설치 스니펫** = `ClemvionChat('boot', {...})` (SoT `7-channel-web-chat/2-sdk.md §4 BootConfig`). `apiBase` 는 기존
-  webhook-url 로직, `<widget-cdn-base>` 는 신규 env `NEXT_PUBLIC_WIDGET_CDN_BASE`(admin). 복사는 `useCopyToClipboard`.
-- **라이브 미리보기** = M1 hosted iframe 임베드. **유일 선행조건은 위젯 호스팅(Phase 1)** — EIA 대화 배선은 위젯 자체
+  webhook-url 로직, `<widget-cdn-base>` 는 **기본값 self-origin**(동봉), `NEXT_PUBLIC_WIDGET_CDN_BASE`(admin)는 선택 override. 복사는 `useCopyToClipboard`.
+- **위젯 동봉(co-deploy) + 버전잠금** (사용자 결정 2026-06-23): 위젯을 제품과 같은 릴리스로 동봉(frontend workspace 의존 +
+  `/_widget/web-chat/v1/` same-origin 서빙) → 셀프호스트·버전 다양성 대응. 외부 위젯 CDN 은 선행조건 아님.
+- **라이브 미리보기** = **same-origin 동봉 위젯을 iframe** 으로 임베드. 선행조건은 위젯 동봉(Phase 1). EIA 대화 배선은 위젯 자체
   `eia-client.ts` 로 이미 완료(M2 headless 의 `@workflow/sdk` 보류와 무관).
 
 ## Phase
@@ -49,11 +51,13 @@ related_plans:
   - [ ] EDIT `spec/0-overview.md §8` 문서 맵에 `5-admin-console.md` 등록
 - [ ] side-effect 점검 + commit `docs(spec): 7-channel-web-chat — 웹채팅 운영 콘솔`
 
-### Phase 1 — 선행: 위젯 호스팅 (유일 prerequisite) [developer/infra]
-- [ ] 위젯 `out/` 번들을 `<widget-cdn-base>/web-chat/v1/` 로 서빙하는 배포 경로 확정(별도 배포 계획과 조율)
-- [ ] 프론트 env `NEXT_PUBLIC_WIDGET_CDN_BASE` + 백엔드 CORS env `WEB_CHAT_WIDGET_ORIGINS`(동일 origin) 주입
-- [ ] `.env.example` 샘플 추가
-> Phase 2(콘솔 코어)는 이 phase 없이도 착수 가능 — 스니펫 텍스트 생성·복사는 위젯 배포 전에도 가치 전달.
+### Phase 1 — 위젯 동봉(co-deploy) + 버전잠금 [developer]
+- [ ] `channel-web-chat` 을 frontend workspace 의존으로 연결 (버전 잠금)
+- [ ] 위젯을 `NEXT_PUBLIC_BASE_PATH=/_widget/web-chat/v1/app` 로 빌드 → `frontend/public/_widget/web-chat/v1/` 동봉하는 빌드 파이프라인(복사 스크립트)
+- [ ] `NEXT_PUBLIC_WIDGET_CDN_BASE` 기본값 self-origin 해석 로직(미설정 시 `window.location.origin`) + 선택 override
+- [ ] 백엔드 `WEB_CHAT_WIDGET_ORIGINS`(기존 env) — same-origin 동봉이면 불필요, 엣지 CDN override 시에만 추가
+- [ ] `.env.example`(frontend) 샘플 갱신
+> 외부 위젯 CDN 호스팅은 선행조건 아님(동봉으로 대체). Phase 2 스니펫 빌더는 Phase 1 전에도 텍스트 생성·복사로 가치 전달 가능.
 
 ### Phase 2 — 콘솔 코어 [developer] (TDD)
 - [ ] 사이드바 메뉴 등록 (`components/layout/sidebar.tsx` navItems, Schedule 아래) + i18n `sidebar.webChat` (ko/en)

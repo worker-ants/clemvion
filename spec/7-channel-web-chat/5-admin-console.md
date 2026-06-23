@@ -108,26 +108,31 @@ pending_plans:
 
 | 토큰 | 출처 |
 |---|---|
-| `<widget-cdn-base>` | **신규 env `NEXT_PUBLIC_WIDGET_CDN_BASE`** (admin 프론트엔드 전용). [0-architecture §4](./0-architecture.md) 참조 |
+| `<widget-cdn-base>` | **기본값 = 배포 origin**(위젯 동봉 서빙, [0-architecture §4.1](./0-architecture.md)). SaaS·별도 엣지 CDN 운영 시에만 `NEXT_PUBLIC_WIDGET_CDN_BASE`(admin, 선택) 로 override |
 | `<api-base>` | 기존 webhook-url 로직 (`NEXT_PUBLIC_WEBHOOK_BASE_URL` → `NEXT_PUBLIC_API_URL` 에서 `/api` 제거 → `window.location.origin`) |
 | `triggerEndpointPath` | 선택 인스턴스의 공개 webhook path |
 | 외형/콘텐츠 | §4 폼 값 |
 
 - 복사: 기존 `useCopyToClipboard()` 훅 재사용(웹훅 URL 복사와 동일 패턴).
-- **`NEXT_PUBLIC_WIDGET_CDN_BASE` 미설정 시 fallback**: 스니펫 생성·라이브 미리보기 UI 를 **비활성 + "위젯 호스팅 미설정"
-  경고** 로 노출한다(잘못된 dead `src` 스니펫 발급 방지). 인스턴스 관리·외형 폼은 계속 동작.
+- **fallback**: `NEXT_PUBLIC_WIDGET_CDN_BASE` 미설정 시 **self-origin 기본값**(동봉 경로 `/_widget/web-chat/v1/`)을 쓴다 →
+  셀프호스트도 별도 설정 없이 동작. **동봉 번들 자체가 없을 때만** 스니펫/미리보기 UI 를 비활성 + 경고로 노출(dead `src` 방지);
+  인스턴스 관리·외형 폼은 계속 동작.
 
-## 6. 라이브 미리보기 (M1 hosted iframe)
+## 6. 라이브 미리보기 (same-origin 동봉 iframe)
 
-콘솔 화면 안에서 위젯을 **M1 hosted iframe** 방식(loader.js + iframe)으로 부팅해 런처/패널을 렌더하고, 선택 인스턴스의
-`endpointPath` 로 **대화까지** 시연한다. 외형은 §4 폼 값을 그대로 반영한다.
+콘솔 화면 안에서 위젯을 부팅해 런처/패널을 렌더하고, 선택 인스턴스의 `endpointPath` 로 **대화까지** 시연한다. 외형은 §4 폼
+값을 그대로 반영한다.
 
-- **유일한 선행조건 = 위젯 호스팅**: 위젯 번들이 `<widget-cdn-base>/web-chat/v1/` 에 배포돼 있어야 한다(미설정 시 §5 fallback).
+- **same-origin 동봉 위젯을 iframe 으로 로드** ([0-architecture §4.1·§R8 carve-out](./0-architecture.md)): 외부 CDN 에서 fetch
+  하지 않고 **제품과 함께 동봉된(co-deploy) 위젯**(`<배포 origin>/_widget/web-chat/v1/`)을 실제 `src` iframe 으로 띄운다.
+  → 미리보기 버전이 그 배포의 백엔드/EIA 버전과 **항상 일치**(셀프호스트·버전 다양성 대응), 외부 의존 0. 위젯 CSS/JS 격리는
+  iframe 으로 유지(srcdoc 자가 생성 아님). 고객 임베드(loader + cross-origin iframe)는 별개 경로로 불변.
+- **선행조건 = 위젯 동봉(co-deploy)** ([plan Phase 1](../../plan/in-progress/web-chat-console.md)). 외부 위젯 CDN 은 선행조건이 아니다(SaaS 엣지 CDN 은 선택).
 - **EIA 대화 배선은 이미 완료** — 위젯 SPA 는 자체 `eia-client.ts` 로 `POST /api/hooks/:path`(eager start)·SSE `/api/external/*`·
-  `submit_message` 를 직접 호출한다([0-architecture §3 EIA 매핑](./0-architecture.md)). M1 hosted iframe 미리보기는 추가 배선이 필요 없다.
+  `submit_message` 를 직접 호출한다([0-architecture §3 EIA 매핑](./0-architecture.md)). 추가 배선 불필요.
   ([2-sdk §2](./2-sdk.md)의 "미배선"은 SDK 패키지가 `@workflow/sdk` 를 재사용하는 **M2 headless** 한정 — 콘솔과 무관.)
-- **CORS**: 위젯 iframe(위젯 CDN origin)이 `/api/external/*` 를 호출하므로 그 origin 이 백엔드 `WEB_CHAT_WIDGET_ORIGINS`
-  allowlist 에 있어야 한다([4-security §2](./4-security.md)).
+- **CORS**: 동봉이면 위젯 origin = 배포 origin 이라 same-origin (별도 CORS 불필요). 엣지 CDN override 시에는 그 origin 이
+  백엔드 `WEB_CHAT_WIDGET_ORIGINS` allowlist 에 있어야 한다([4-security §2](./4-security.md)).
 
 ## 7. 권한 (RBAC — Trigger 규약과 일치)
 
@@ -162,12 +167,24 @@ client-consumer 원칙([0-architecture R5](./0-architecture.md))과 단일 sink 
 유지 → 재방문 시 직전 외형 복원)가 `sessionStorage`(탭 닫으면 소실)·쿠키(매 요청 전송 불필요)·indexedDB(과한 복잡도)보다
 적합. 백엔드 저장은 비목표라 기각.
 
-### R4. 신규 env `NEXT_PUBLIC_WIDGET_CDN_BASE` (admin) + 백엔드 `WEB_CHAT_WIDGET_ORIGINS` 상보관계
-기존 `NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_WEBHOOK_BASE_URL` 은 API/webhook origin 을 가리키고, 위젯 자산은 별도 **CDN
-origin** 에서 서빙되므로 별도 키가 필요하다(한 변수로 합치면 두 origin 이 다른 배포에서 깨짐). 이 값은 백엔드 CORS env
-`WEB_CHAT_WIDGET_ORIGINS` 와 **동일한 위젯 CDN origin** 을 각 앱에서 주입하는 상보 관계이며 일치해야 한다
-([0-architecture §4](./0-architecture.md) 플레이스홀더 표).
+### R4. env `NEXT_PUBLIC_WIDGET_CDN_BASE`(admin, 선택) + 기존 백엔드 `WEB_CHAT_WIDGET_ORIGINS` 상보관계
+기존 `NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_WEBHOOK_BASE_URL` 은 API/webhook origin 을 가리키고 위젯 자산은 별도 origin
+에서 서빙될 수 있으므로 별도 키를 둔다(한 변수로 합치면 두 origin 이 다른 배포에서 깨짐). 단 §R6 동봉으로 **기본값이
+self-origin** 이라 이 키는 **선택**(SaaS 엣지 CDN override 용)이다. 백엔드 CORS env `WEB_CHAT_WIDGET_ORIGINS` 는 **기존
+키**(`main.ts`·`web-chat-cors.ts`)이며, override 로 위젯 origin 이 배포 origin 과 달라질 때 그 origin 을 allowlist 에
+넣어야 한다(동봉 same-origin 이면 불필요). [0-architecture §4](./0-architecture.md).
 
-### R5. 라이브 미리보기 선행조건은 위젯 호스팅 하나
-"대화까지" 미리보기의 유일한 실제 선행조건은 **위젯 호스팅(현재 미배포)** 이다. EIA 대화 배선은 위젯 자체 `eia-client.ts`
-로 M1 hosted iframe 경로에서 이미 완료되어 prerequisite 가 아니다. 미설정 시 §5 fallback 으로 안전하게 비활성화한다.
+### R5. 라이브 미리보기 — EIA 배선은 선행조건 아님
+"대화까지" 미리보기에서 EIA 대화 배선은 위젯 자체 `eia-client.ts` 로 이미 완료되어 prerequisite 가 아니다([2-sdk §2](./2-sdk.md)
+의 "미배선"은 M2 BYO-UI 한정). 실제 선행조건은 §R6 의 위젯 동봉(co-deploy) 하나다.
+
+### R6. 위젯 동봉(co-deploy) + same-origin 미리보기 (vs 외부 CDN fetch / 직접 컴포넌트 mount)
+**문제**: 셀프호스팅 가능 + 배포마다 버전 다양 → 미리보기 위젯을 외부(SaaS) CDN 에서 fetch 하면 그 배포의 백엔드/EIA 버전과
+어긋나고, 셀프호스터가 별도 CDN 을 운영해야 한다.
+**결정(2026-06-23)**: 위젯을 제품과 **같은 릴리스로 동봉(co-deploy, frontend workspace 의존 + `/_widget/web-chat/v1/` 동봉
+서빙)** 해 버전을 배포 단위로 잠그고, 미리보기는 그 **same-origin 동봉 위젯을 iframe** 으로 로드한다.
+- vs **외부 CDN fetch**: 버전 skew·셀프호스트 CDN 운영 부담 → 기각. 동봉이면 `<widget-cdn-base>` 기본 self-origin 이라 외부
+  호스팅이 선행조건에서 사라지고, 고객 스니펫도 셀프호스터 자기 버전을 가리킨다.
+- vs **직접 React 컴포넌트 mount(iframe 없음)**: 위젯 app→lib 재구조화 부담 + 미리보기가 실제 고객 iframe 임베드와 경로가
+  갈려 충실도 저하 → 기각. same-origin iframe 은 위젯을 그대로(output:export) 두고 격리(§R1)를 유지하면서 버전 일치·외부 의존
+  0 을 달성. cross-origin 격리 carve-out 근거는 [0-architecture §R8](./0-architecture.md).

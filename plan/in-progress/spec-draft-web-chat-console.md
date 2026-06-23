@@ -108,6 +108,35 @@ related:
 - 단계 분리(선택): **UI 미리보기**(런처/패널·외형 반영)와 **대화형 미리보기**(메시지 왕복) 모두 선행 A(위젯 호스팅)만
   충족되면 가능. 대화형은 추가 코드 prerequisite 없음.
 
+### 1.5 위젯 동봉(co-deploy) + 버전잠금 + same-origin 미리보기 (사용자 결정 2026-06-23)
+
+**문제**: 셀프호스팅이 가능하고 배포마다 버전이 다를 수 있다. 미리보기 위젯을 외부(SaaS) CDN 에서 fetch 하면
+(a) 그 배포의 백엔드/EIA 버전과 어긋나고, (b) 셀프호스터가 별도 CDN 인프라를 운영해야 한다.
+
+**결정**: 위젯을 **제품과 같은 릴리스로 co-deploy** 하고, UI 미리보기는 **same-origin 동봉 위젯을 iframe 으로** 로드한다.
+
+- 위젯(`channel-web-chat`)을 frontend 의 **workspace 의존**으로 묶어 **버전 잠금**(같은 릴리스 = 같은 위젯 = 같은 백엔드).
+- 위젯 `out/` 번들을 **배포 자신의 origin** 에서 서빙: `NEXT_PUBLIC_BASE_PATH=/_widget/web-chat/v1/app` 로 빌드 →
+  `codebase/frontend/public/_widget/web-chat/v1/` 로 동봉(빌드 파이프라인이 복사). frontend `next start`/정적 서빙이
+  same-origin 으로 제공.
+- `<widget-cdn-base>` **기본값 = 배포 origin**(`window.location.origin` 기반). SaaS 만 원하면 엣지 CDN 으로 override
+  (override 해도 같은 릴리스 버전 번들). → **`NEXT_PUBLIC_WIDGET_CDN_BASE` 는 필수 prerequisite 가 아니라 선택**
+  (미설정 시 self-origin 기본값). 이전 draft 의 "미설정 시 비활성+경고" fallback 은 **self-origin 기본 동작으로 대체**
+  (동봉이 없을 때만 비활성).
+- **미리보기**: 위 same-origin 동봉 위젯을 **sandbox iframe** 으로 로드 — 위젯 CSS/JS 격리(§R1)는 유지하되 외부 fetch 0,
+  버전 100% 일치. (옵션 A 채택 — 위젯을 app 그대로 두고 동봉. 옵션 B 직접 컴포넌트 mount 는 기각: 위젯 app→lib
+  재구조화 부담 + 미리보기가 실제 iframe 임베드와 경로 갈림.)
+- **고객 스니펫도 동일 이득**: `<widget-cdn-base>` 기본값이 배포 origin → 셀프호스터 스니펫은 자기 서버의 자기 버전 위젯을 임베드.
+
+**§R8(srcdoc 기각)과의 정합**: §R8 은 *고객 사이트* 임베드에서 `srcdoc`/`about:blank` 자가 생성이 호스트 origin 을
+상속해 cross-origin 격리를 깬다는 이유로 기각했다. 본 미리보기는 **실제 `src` 를 가진 same-origin 서빙 파일**을 iframe 으로
+로드하는 것(자가 생성 srcdoc 아님)이며, admin 콘솔 미리보기는 cross-origin 격리가 목적이 아니라(우리 앱이 우리 위젯을
+미리보는 맥락) **버전 일치·외부 의존 제거**가 목적이다. 따라서 R8 을 위반하지 않는다 — 고객 임베드 경로(loader+cross-origin
+iframe)는 그대로 유지되고, 미리보기만 same-origin 동봉을 쓴다.
+
+**버전 전략 보강**: 위젯 `/web-chat/v1/` major path 는 유지하되, 마이너/패치는 **제품 릴리스에 동봉**되어 배포 단위로 잠긴다
+(floating "latest" 아님). → `0-architecture §4` 버전 전략에 co-deploy 명시.
+
 ## 2. 반영할 spec 변경
 
 ### 2.1 NEW: `spec/7-channel-web-chat/5-admin-console.md`
@@ -162,13 +191,20 @@ pending_plans:
 
 ### 2.5 EDIT: `spec/7-channel-web-chat/0-architecture.md`
 - §4 배포/도메인 플레이스홀더 표에 admin 콘솔 관련 env 2건 등재 + 상보관계 명시:
-  - `NEXT_PUBLIC_WIDGET_CDN_BASE` (admin 프론트엔드 — 스니펫·iframe src base)
+  - `NEXT_PUBLIC_WIDGET_CDN_BASE` (admin 프론트엔드 — 스니펫·iframe src base). **기본값 = 배포 origin**(미설정 시
+    self-origin), SaaS override 가능 (§1.5).
   - `WEB_CHAT_WIDGET_ORIGINS` (백엔드 — `/api/external/*` CORS allowlist)
   - 두 값은 **동일 위젯 CDN origin** 을 각 앱에서 주입하며 일치해야 함 (§1.3).
+- §4 버전 전략에 **co-deploy(동봉) 잠금** 명시: 위젯은 제품과 같은 릴리스로 동봉 빌드·배포되어 배포 단위로 버전 잠금
+  (floating latest 아님). 셀프호스트는 별도 CDN 없이 배포 origin 에서 same-origin 서빙 (§1.5).
 
-### 2.6 변경 없음 (확인만)
+### 2.7 EDIT: `spec/0-overview.md`
+- §8 문서 맵의 `7-channel-web-chat` 행에 `5-admin-console.md`(운영 콘솔) 등재.
+
+### 2.8 변경 없음 (확인만)
 - `spec/1-data-model.md`: 신규 엔티티 없음(Trigger 재사용). 변경 불요.
 - `spec/5-system/14-external-interaction-api.md`: EIA 표면 변경 없음(콘솔은 기존 표면 소비). 변경 불요.
+- `WEB_CHAT_WIDGET_ORIGINS` 는 **기존 env**(backend `main.ts`·`web-chat-cors.ts`, `4-security.md`) — 신규 아님. 동봉 same-origin 이면 미사용.
 
 ## 3. 구현 plan 개요 (별도 파일 `plan/in-progress/web-chat-console.md`)
 
@@ -177,18 +213,19 @@ pending_plans:
 > `spec-pending-plan-existence` 가드에 걸리지 않는다. (Phase 0 안에서 plan 파일 생성 → spec write 순서.)
 
 - **Phase 0 — Spec**: plan 파일 생성 → 본 draft 반영 (planner). spec write 전 `/consistency-check --spec` (완료).
-- **Phase 1 — 선행 A (위젯 호스팅, 유일 prerequisite)**: 위젯 `out/` 번들 배포 경로 + `NEXT_PUBLIC_WIDGET_CDN_BASE`
-  (프론트) / `WEB_CHAT_WIDGET_ORIGINS`(백엔드 CORS) 확정. 별도 배포 계획과 조율 — 이 phase 없이는 라이브 미리보기·
-  스니펫 `src` 가 dead.
+- **Phase 1 — 위젯 동봉(co-deploy) + 버전잠금 (§1.5)**: `channel-web-chat` 을 frontend workspace 의존으로 묶고,
+  위젯을 `NEXT_PUBLIC_BASE_PATH=/_widget/web-chat/v1/app` 로 빌드해 `frontend/public/_widget/web-chat/v1/` 로 동봉하는
+  빌드 파이프라인. `NEXT_PUBLIC_WIDGET_CDN_BASE` 기본값 = self-origin(선택 override) + `WEB_CHAT_WIDGET_ORIGINS`
+  (백엔드 CORS, self-origin 포함). `.env.example` 갱신. → **외부 CDN 선행 불필요**(이전 draft 의 "외부 호스팅
+  prerequisite" 철회). 셀프호스트 same-origin 기본 동작.
 - **Phase 2 — 콘솔 코어**: 사이드바 메뉴 + 라우트 `(main)/web-chat` + i18n(ko/en sidebar + web-chat dict) +
-  인스턴스 목록/생성(기존 trigger API) + 외형 빌더 + 스니펫 생성·복사. (TDD) — **선행 A 없이도 착수 가능**
-  (스니펫 텍스트 생성·복사는 위젯 배포 전에도 가치 전달).
-- **Phase 3 — 라이브 미리보기**: 위젯 M1 hosted iframe 임베드(UI + 대화형). **선행 A(위젯 호스팅)에만 의존** —
-  EIA 대화 배선은 이미 완료(§1.4)라 추가 코드 prerequisite 없음.
+  인스턴스 목록/생성(기존 trigger API) + 외형 빌더 + 스니펫 생성·복사. (TDD)
+- **Phase 3 — 라이브 미리보기**: 동봉 위젯을 **same-origin sandbox iframe** 으로 임베드(UI + 대화형, §1.5). EIA 대화
+  배선 완료(§1.4)·동봉(Phase 1) 위에서 동작.
 - **Phase 4 — 검증**: unit/integration/e2e + `/ai-review` + critical/warning fix.
 
-> 선행조건은 **Phase 1(위젯 호스팅) 하나**다 (이전 draft 의 "EIA 배선 선행"은 §1.4 검증으로 철회). Phase 2(스니펫
-> 빌더)는 선행 없이 먼저 착수해 가치 전달 가능.
+> 외부 위젯 CDN 선행조건 없음 (§1.5 co-deploy 로 대체). Phase 1(동봉)·Phase 2(콘솔)·Phase 3(미리보기) 순차 진행하되
+> Phase 2 의 스니펫 빌더는 Phase 1 전에도 텍스트 생성·복사로 가치 전달 가능.
 
 ## Rationale (draft 결정 근거)
 
