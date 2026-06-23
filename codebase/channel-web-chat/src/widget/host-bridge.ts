@@ -1,7 +1,7 @@
 // iframe(위젯 SPA) 측 ↔ host 브리지. SDK 의 WidgetBridge(host 측)와 짝. spec/7-channel-web-chat/2-sdk §3.
 // 핸드셰이크: iframe 로드 → wc:ready(targetOrigin '*', 비밀 없음) → host 가 wc:boot 응답 → iframe 이 host origin 핀.
 
-import type { WcMessageType } from "./wc-protocol";
+import type { WcMessageType, WcResizePayload } from "./wc-protocol";
 import { WC_PREFIX } from "./wc-protocol";
 
 export interface BootMessage {
@@ -27,6 +27,8 @@ export interface IframeBridge {
   onBoot(cb: (config: BootMessage) => void): void;
   onCommand(cb: (command: CommandMessage) => void): void;
   sendEvent(name: string, data?: unknown): void;
+  /** host(loader/미리보기)가 iframe 박스를 위젯 요청 크기에 맞추도록 wc:resize 송신(2-sdk §3 필수). */
+  sendResize(payload: WcResizePayload): void;
   destroy(): void;
 }
 
@@ -75,6 +77,9 @@ export function createIframeBridge(win: Window = window): IframeBridge {
     },
     sendEvent(name, dataPayload) {
       post("wc:event", { name, data: dataPayload });
+    },
+    sendResize(payload) {
+      post("wc:resize", payload);
     },
     destroy() {
       win.removeEventListener("message", onMessage);

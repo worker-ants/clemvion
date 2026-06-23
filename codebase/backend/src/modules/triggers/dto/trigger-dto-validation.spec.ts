@@ -2,6 +2,8 @@ import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { CreateTriggerDto } from './create-trigger.dto';
 import { UpdateTriggerDto } from './update-trigger.dto';
+import { WebChatAppearanceDto } from './web-chat-appearance.dto';
+import { QueryTriggerDto } from './query-trigger.dto';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const VALIDATE_OPTIONS = { whitelist: true, forbidNonWhitelisted: true };
@@ -484,5 +486,180 @@ describe('CreateTriggerDto — notification/interaction sub-DTO', () => {
         expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
       });
     });
+  });
+});
+
+// SUMMARY#4 — WebChatAppearanceDto 필드 유효성 검증 단위 테스트
+describe('WebChatAppearanceDto — 필드 검증 (SUMMARY#4)', () => {
+  const VALIDATE_OPTS = { whitelist: true, forbidNonWhitelisted: true };
+
+  it('통과 — 모든 필드 유효값', async () => {
+    const dto = plainToInstance(WebChatAppearanceDto, {
+      locale: 'ko',
+      primaryColor: '#5B4FE9',
+      position: 'bottom-right',
+      headerTitle: '봇',
+      welcomeText: '안녕하세요',
+      suggestions: '질문1\n질문2',
+      disclaimer: 'AI 답변은 부정확할 수 있어요.',
+    });
+    const errors = await validate(dto, VALIDATE_OPTS);
+    expect(errors).toEqual([]);
+  });
+
+  it('통과 — 모든 필드 미설정 (전부 optional)', async () => {
+    const dto = plainToInstance(WebChatAppearanceDto, {});
+    const errors = await validate(dto, VALIDATE_OPTS);
+    expect(errors).toEqual([]);
+  });
+
+  describe('primaryColor — #RRGGBB 패턴', () => {
+    it('통과 — #aabbcc (소문자 hex)', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, {
+        primaryColor: '#aabbcc',
+      });
+      expect(await validate(dto, VALIDATE_OPTS)).toEqual([]);
+    });
+
+    it('통과 — #AABBCC (대문자 hex)', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, {
+        primaryColor: '#AABBCC',
+      });
+      expect(await validate(dto, VALIDATE_OPTS)).toEqual([]);
+    });
+
+    it('실패 — # 없는 hex', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, {
+        primaryColor: 'AABBCC',
+      });
+      const errors = await validate(dto, VALIDATE_OPTS);
+      expect(errors.find((e) => e.property === 'primaryColor')).toBeDefined();
+    });
+
+    it('실패 — 3자리 단축 hex (#abc)', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, {
+        primaryColor: '#abc',
+      });
+      const errors = await validate(dto, VALIDATE_OPTS);
+      expect(errors.find((e) => e.property === 'primaryColor')).toBeDefined();
+    });
+
+    it('실패 — rgba 값 (패턴 외)', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, {
+        primaryColor: 'rgba(0,0,0,1)',
+      });
+      const errors = await validate(dto, VALIDATE_OPTS);
+      expect(errors.find((e) => e.property === 'primaryColor')).toBeDefined();
+    });
+  });
+
+  describe('headerTitle — MaxLength(80)', () => {
+    it('통과 — 80자', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, {
+        headerTitle: 'a'.repeat(80),
+      });
+      expect(await validate(dto, VALIDATE_OPTS)).toEqual([]);
+    });
+
+    it('실패 — 81자 초과', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, {
+        headerTitle: 'a'.repeat(81),
+      });
+      const errors = await validate(dto, VALIDATE_OPTS);
+      expect(errors.find((e) => e.property === 'headerTitle')).toBeDefined();
+    });
+  });
+
+  describe('locale — IsIn([ko, en])', () => {
+    it('통과 — ko', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, { locale: 'ko' });
+      expect(await validate(dto, VALIDATE_OPTS)).toEqual([]);
+    });
+
+    it('통과 — en', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, { locale: 'en' });
+      expect(await validate(dto, VALIDATE_OPTS)).toEqual([]);
+    });
+
+    it('실패 — fr (화이트리스트 외)', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, { locale: 'fr' });
+      const errors = await validate(dto, VALIDATE_OPTS);
+      expect(errors.find((e) => e.property === 'locale')).toBeDefined();
+    });
+  });
+
+  describe('position — IsIn([bottom-right, bottom-left])', () => {
+    it('통과 — bottom-right', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, {
+        position: 'bottom-right',
+      });
+      expect(await validate(dto, VALIDATE_OPTS)).toEqual([]);
+    });
+
+    it('통과 — bottom-left', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, {
+        position: 'bottom-left',
+      });
+      expect(await validate(dto, VALIDATE_OPTS)).toEqual([]);
+    });
+
+    it('실패 — top-right (화이트리스트 외)', async () => {
+      const dto = plainToInstance(WebChatAppearanceDto, {
+        position: 'top-right',
+      });
+      const errors = await validate(dto, VALIDATE_OPTS);
+      expect(errors.find((e) => e.property === 'position')).toBeDefined();
+    });
+  });
+});
+
+// SUMMARY#5 — QueryTriggerDto.interactionEnabled Transform 경계값 테스트
+describe('QueryTriggerDto — interactionEnabled Transform (SUMMARY#5)', () => {
+  it("'true' → true (boolean)", () => {
+    const dto = plainToInstance(QueryTriggerDto, {
+      interactionEnabled: 'true',
+    });
+    expect(dto.interactionEnabled).toBe(true);
+  });
+
+  it("'false' → false (boolean)", () => {
+    const dto = plainToInstance(QueryTriggerDto, {
+      interactionEnabled: 'false',
+    });
+    expect(dto.interactionEnabled).toBe(false);
+  });
+
+  it('true (boolean) → true (그대로)', () => {
+    const dto = plainToInstance(QueryTriggerDto, { interactionEnabled: true });
+    expect(dto.interactionEnabled).toBe(true);
+  });
+
+  it('undefined → undefined (미설정)', () => {
+    const dto = plainToInstance(QueryTriggerDto, {});
+    expect(dto.interactionEnabled).toBeUndefined();
+  });
+
+  it("'1' → false ('1' !== 'true' 이므로 false)", () => {
+    // Transform: value === true || value === 'true' — '1' 은 해당 안 되어 false
+    const dto = plainToInstance(QueryTriggerDto, { interactionEnabled: '1' });
+    expect(dto.interactionEnabled).toBe(false);
+  });
+
+  it("validate 통과 — 'true' 문자열 입력 후 boolean 검증", async () => {
+    const dto = plainToInstance(QueryTriggerDto, {
+      interactionEnabled: 'true',
+    });
+    const errors = await validate(dto, { whitelist: true });
+    expect(
+      errors.find((e) => e.property === 'interactionEnabled'),
+    ).toBeUndefined();
+  });
+
+  it('validate 통과 — undefined (옵셔널)', async () => {
+    const dto = plainToInstance(QueryTriggerDto, {});
+    const errors = await validate(dto, { whitelist: true });
+    expect(
+      errors.find((e) => e.property === 'interactionEnabled'),
+    ).toBeUndefined();
   });
 });

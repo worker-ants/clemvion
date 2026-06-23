@@ -85,7 +85,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 영역 | 상태 |
 |------|------|
 | **Parallel 노드 (P1+P2)** | `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값. `PARALLEL_ENGINE=off` 로 rollback). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드·back-edge 금지. 중첩 Parallel 은 깊이 ≤ 2 허용 + 외부 × 내부 concurrency 곱셈 cap = 32 silent clamp (P2, 2026-05-30 결정 #3). Merge `wait_all` 조합으로 결과 합산 가능. `waitAll=false` 는 spec out — fire-and-forget 의미는 Background 노드 사용 권고. |
-| **임베드형 웹채팅 위젯 + SDK** | 외부 사이트에 삽입하는 iframe 격리형 웹채팅 위젯 SPA(`codebase/channel-web-chat`, Next.js CSR) + 개발자 SDK(스니펫 로더 / npm, `codebase/packages/web-chat-sdk`) + 샘플이 구현됐다. [External Interaction API](./5-system/14-external-interaction-api.md) 의 client-side consumer. 영역 spec 은 `status: partial` (인증/세션·보안 후속 항목 잔존). spec: [Channel Web Chat](./7-channel-web-chat/_product-overview.md). |
+| **임베드형 웹채팅 위젯 + SDK** | 외부 사이트에 삽입하는 iframe 격리형 웹채팅 위젯 SPA(`codebase/channel-web-chat`, Next.js CSR) + 개발자 SDK(스니펫 로더 / npm, `codebase/packages/web-chat-sdk`) + 샘플이 구현됐다. [External Interaction API](./5-system/14-external-interaction-api.md) 의 client-side consumer. 제품 내 **운영 콘솔**(사이드바 "웹채팅" 메뉴 `/web-chat` — 인스턴스 생성·외형 빌더·설치 스니펫 구현 완료, 라이브 미리보기는 위젯 co-deploy 후 증분 2)도 제공한다([운영 콘솔](./7-channel-web-chat/5-admin-console.md)). 영역 spec 은 `status: partial` (인증/세션·보안·미리보기 후속 항목 잔존). spec: [Channel Web Chat](./7-channel-web-chat/_product-overview.md). |
 
 #### 6.3 로드맵 / 미구현 (❌)
 
@@ -137,7 +137,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 워크플로우 에디터 | `spec/3-workflow-editor/` | `_product-overview.md` + 캔버스·노드 공통·엣지·실행·AI Assistant·버전 이력 |
 | 노드 시스템 | `spec/4-nodes/` | `_product-overview.md` + `0-overview.md` + 카테고리별 폴더 (`1-logic/` ~ `7-trigger/`) |
 | 시스템 공통 | `spec/5-system/` | `_product-overview.md` + 영역별 spec (인증·API 규칙·실행 엔진·LLM Client·임베딩·RAG·Graph RAG·MCP·Webhook·Agent Memory 등) |
-| 채널 웹채팅 위젯 | `spec/7-channel-web-chat/` | `_product-overview.md` + 아키텍처·위젯 SPA·SDK·인증/세션·보안 |
+| 채널 웹채팅 위젯 | `spec/7-channel-web-chat/` | `_product-overview.md` + 아키텍처·위젯 SPA·SDK·인증/세션·보안·운영 콘솔(`5-admin-console.md`, 제품 내 설치·미리보기) |
 | 데이터 흐름 | `spec/data-flow/` | `0-overview.md` + 도메인별 흐름·schema 매핑 (`1-audit` ~ `12-workspace`, 알파벳 순 숫자 prefix) |
 
 문서 컨벤션:

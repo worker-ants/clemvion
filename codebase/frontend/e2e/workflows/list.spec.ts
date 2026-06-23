@@ -1,84 +1,13 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { mockAuth, WORKSPACE } from "../helpers/mock-auth";
 
 /**
  * e2e: 워크플로우 목록 페이지 (spec/2-navigation/1-workflow-list.md).
  *
- * (main) 레이아웃 의 AuthProvider 가 /auth/refresh → /users/me 호출하고, Sidebar 가
- * /workspaces + /notifications 호출. 모두 mock 하지 않으면 page 가 loading 또는
- * error 상태에서 멈춘다.
- *
+ * 인증·워크스페이스·알림 mock 은 공용 헬퍼(e2e/helpers/mock-auth)로 단일화한다.
  * 응답 shape (codebase/frontend/src/lib/api/paginated.ts):
  *   - normalizePagedResponse 는 `{ data: T[], pagination: {...} }` 형태를 기대
  */
-
-const ACCESS = "mock-access-token";
-const USER = {
-  id: "user-1",
-  email: "alice@example.com",
-  name: "Alice",
-  locale: "ko",
-  theme: "light",
-};
-const WORKSPACE = {
-  id: "ws-1",
-  name: "Personal",
-  type: "personal",
-  slug: "personal-alice",
-  role: "owner",
-};
-
-async function mockAuth(page: Page) {
-  // proxy.ts 가 has_session cookie 없으면 server-side 로 /login redirect.
-  // 페이지 진입 전에 미리 cookie 주입.
-  await page.context().addCookies([
-    {
-      name: "has_session",
-      value: "1",
-      domain: "localhost",
-      path: "/",
-    },
-  ]);
-  await page.route("**/api/auth/refresh", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ data: { accessToken: ACCESS } }),
-    });
-  });
-  await page.route("**/api/users/me", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ data: USER }),
-    });
-  });
-  await page.route("**/api/workspaces", async (route) => {
-    if (route.request().method() === "GET") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ data: [WORKSPACE] }),
-      });
-    } else {
-      await route.continue();
-    }
-  });
-  // Sidebar 가 호출하는 알림 API 도 catch. 비어있는 응답 으로 통과.
-  await page.route("**/api/notifications/unread-count", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ data: 0 }),
-    });
-  });
-  await page.route(/\/api\/notifications(\?|$)/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ data: [] }),
-    });
-  });
-}
 
 interface WorkflowFixture {
   id: string;

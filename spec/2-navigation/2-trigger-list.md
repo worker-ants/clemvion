@@ -148,7 +148,7 @@ code:
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | POST | /api/triggers | 트리거 생성 (`editor`+). `webhook` / `manual` 타입만 — `schedule` 은 Schedules API 가 자동 생성하므로 미지원. 목록 화면 "Add Webhook" 다이얼로그가 본 endpoint 로 webhook 트리거를 생성한다 ([§2.5 트리거 생성](#25-트리거-생성)) |
-| GET | /api/triggers | 목록 조회 (쿼리: type, status, search, page, limit, sort, order). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수. ⚠️ `PaginationQueryDto` 가 `sort`/`order` 를 받긴 하나 `findAll` 은 이를 무시하고 `created_at DESC` 로 고정 정렬한다 (triggers.service.ts:99). sort/order 반영은 미구현/Planned |
+| GET | /api/triggers | 목록 조회 (쿼리: type, status, search, page, limit, sort, order, `interactionEnabled`). `interactionEnabled`(boolean, optional)는 `config.interaction.enabled` 일치 트리거만 반환하는 JSONB 필터 — 웹채팅 콘솔 목록용([7-channel-web-chat/5-admin-console §2](../7-channel-web-chat/5-admin-console.md)). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수. ⚠️ `PaginationQueryDto` 가 `sort`/`order` 를 받긴 하나 `findAll` 은 이를 무시하고 `created_at DESC` 로 고정 정렬한다. sort/order 반영은 미구현/Planned |
 | GET | /api/triggers/:id | 트리거 상세 조회 |
 | PATCH | /api/triggers/:id | 트리거 수정 (활성/비활성 토글 포함 — body `{ isActive: boolean }`). 별도 `/toggle` 서브경로는 없다 |
 | GET | /api/triggers/:id/history | 호출 이력 조회 |

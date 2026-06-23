@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "source .env 2>/dev/null; next dev --port ${PORT:-3012} --webpack",
     "build": "next build --webpack",
+    "build:widget": "node scripts/copy-widget.mjs",
     "start": "source .env 2>/dev/null; next start --port ${PORT:-3012}",
     "lint": "eslint",
     "test": "vitest run",

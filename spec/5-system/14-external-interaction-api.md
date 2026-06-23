@@ -166,7 +166,7 @@ POST /api/triggers
   "type": "webhook",
   "workflowId": "uuid",
   "endpointPath": "uuid-or-slug",
-  "authType": "bearer",
+  "authConfigId": null,   // 인증 연결(없으면 무인증). 구 `authType` 필드는 V066 에서 폐기
 
   // === 신규: outbound notification ===
   "notification": {
@@ -185,10 +185,29 @@ POST /api/triggers
   // === 신규: inbound interaction ===
   "interaction": {
     "enabled": true,
-    "tokenStrategy": "per_execution"   // "per_execution" (default) | "per_trigger"
+    "tokenStrategy": "per_execution",  // "per_execution" (default) | "per_trigger"
+    // 옵셔널: 웹채팅 운영 콘솔이 저장하는 위젯 외형/콘텐츠(표시용 메타, 토큰/런타임 무관).
+    // SoT: `interaction-config.dto.ts` 의 WebChatAppearanceDto / spec 7-channel-web-chat/5-admin-console §4.
+    "appearance": {
+      "locale": "ko",
+      "primaryColor": "#5B4FE9",
+      "position": "bottom-right",
+      "headerTitle": "AI 어시스턴트",
+      "welcomeText": "...",
+      "suggestions": "...",
+      "disclaimer": "..."
+    }
   }
 }
 ```
+
+> `interaction.appearance` 는 **웹채팅(임베드 위젯) 콘솔 전용** 옵셔널 서브객체다 — interaction token 발급·검증과
+> 무관한 표시용 메타이며, PATCH 로 갱신 시 `mergeExternalConfig` 가 interaction 키를 통째로 교체하므로 `enabled`·
+> `tokenStrategy` 를 함께 보내 보존한다. 필드 화이트리스트(enum/hex/길이)는 `WebChatAppearanceDto` 가 강제한다.
+>
+> **주의 (외부 API 호출자)**: `interaction` 객체는 PATCH 시 통째로 교체된다(merge 아님). `appearance` 없이 PATCH 하면
+> 기존 저장된 `appearance` 가 조용히 소실(silent deletion)된다. 기존 외형을 유지하려면 `appearance` 를 포함해 전송하거나,
+> 먼저 `GET /api/triggers/:id` 로 현재 값을 조회한 뒤 병합해 PATCH 한다.
 
 **응답:**
 

@@ -1,152 +1,127 @@
-This page explains how to embed an AI chat widget on external websites (customer landing pages, SaaS products, etc.) and connect it to a workflow.
+This page explains how to create and manage embedded web-chat widgets from within the product, set up the appearance, and embed the widget on your website.
 
-The widget connects to a public webhook trigger. When a site visitor starts a chat, the workflow runs and all interactions — AI Multi-turn, buttons, and forms — take place inside the chat panel.
+**Web Chat** lets you add an AI chat widget to your website with a single install script, connected to a workflow you choose. You can customize the widget's color, name, welcome message, and more — then verify everything with a live preview right in the console.
 
-## 1. Installation
+<Callout type="note">
+If you want to integrate the widget directly using the CDN snippet or npm package, or build your own UI (BYO-UI), see [Web Chat widget direct integration (SDK)](/docs/06-integrations-and-config/web-chat-sdk).
+</Callout>
 
-Choose one of the two methods below.
+## 1. Opening the console
 
-### CDN snippet (no build step required)
+**GUI entry flow**
 
-Paste the two blocks below into the `<head>` or at the end of `<body>` of your HTML page.
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="WebChatPage"
+  describes="Web Chat console page reached from the sidebar 'Web Chat' menu item"
+/>
+
+Click **Web Chat** in the left sidebar to open the [Web Chat console](/web-chat). It sits below the Schedule menu item.
+
+The console shows the list of web-chat instances in your workspace, and — for the selected instance — the appearance settings, install script, and live preview.
+
+## 2. Creating a web chat
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="CreateWebChatDialog"
+  describes="Create web chat dialog — workflow selection and name input"
+/>
+
+Click **+ Create web chat** in the top-right corner.
+
+<Steps>
+<li>Select the **workflow** to connect. When a conversation starts through this web chat, the workflow runs. Set up your workflow in [Workflows](/workflows) beforehand.</li>
+<li>Enter a **name**. This label identifies the instance in the console list.</li>
+<li>Click **Create** to finish.</li>
+</Steps>
+
+<Callout type="note">
+Creating a web chat and editing its appearance require the **editor** role or above. Viewing, copying the install script, and using the live preview are available to **viewers** and above.
+</Callout>
+
+## 3. Appearance and content settings
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="AppearanceBuilder"
+  describes="Appearance/content builder — color, position, bot name, welcome message, suggestions, disclaimer"
+/>
+
+Select an instance from the list to reveal the **Appearance/Content** settings.
+
+| Setting | Description |
+|---|---|
+| **Primary color** | Theme color for the chat button and header |
+| **Position** | Bottom-right or bottom-left of the screen |
+| **Bot name** | Name displayed at the top of the chat panel |
+| **Welcome message** | Greeting shown immediately when the chat panel opens |
+| **Suggested questions** | Question bubbles a user can tap to send as the first message. Enter one per line |
+| **Disclaimer** | AI disclaimer text shown at the bottom of the chat |
+
+These values are embedded directly in the install script. Click **Save** to persist them on the server — your settings are then preserved across browsers and team members. If you leave the page before saving, unsaved changes may be lost (a notice appears next to the Save button when there are unsaved changes).
+
+<Callout type="tip">
+Changes to the appearance settings are reflected instantly in the **Live preview** on the right. Adjust your settings while watching the preview, then click **Save** when you're happy.
+</Callout>
+
+## 4. Copying the install script
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="InstallSnippetBox"
+  describes="Install script code box and copy button"
+/>
+
+In the **Install script** area below the appearance settings, click the **Copy** button. The full script is copied to your clipboard.
+
+Paste the script at the end of the `<body>` tag in your website's HTML to activate the widget.
 
 ```html
 <script>
   (function(d,s){var j=d.createElement(s);j.async=1;
-   j.src="https://<widget-cdn>/web-chat/v1/loader.js";
+   j.src="https://<widget-host>/web-chat/v1/loader.js";
    d.head.appendChild(j);})(document,"script");
 </script>
 <script>
   ClemvionChat('boot', {
     apiBase: 'https://<api-domain>',
-    triggerEndpointPath: 'a1b2c3-...',
+    triggerEndpointPath: '...',
     locale: 'en',
     appearance: { primaryColor: '#5B4FE9', position: 'bottom-right' },
-    headerTitle: 'AI Assistant',
+    headerTitle: 'Bot name',
     welcome: {
       text: 'Hi! How can I help you today?',
-      suggestions: ['Tell me about your product', 'How do I get started?']
+      suggestions: ['Question example 1', 'Question example 2']
     },
-    disclaimer: 'AI responses are based on limited data and may not always be accurate.'
+    disclaimer: 'AI responses may not always be accurate.'
   });
 </script>
 ```
 
-| Field | Description |
-|---|---|
-| `apiBase` | The domain of your Clemvion API (enter the value for your deployment) |
-| `triggerEndpointPath` | The endpoint path of the public webhook trigger to connect to. Find it in the [Triggers list](/triggers) |
-| `locale` | Widget UI language (`ko` or `en`) |
-| `headerTitle` | Bot name shown at the top of the chat panel |
-| `welcome.text` | Welcome message shown immediately when the chat panel opens |
-| `welcome.suggestions` | Suggestion bubbles. Tapping one sends that text as the first message |
-| `disclaimer` | AI disclaimer text shown at the bottom of the chat |
-
 <Callout type="note">
-`triggerEndpointPath` is not an auth token. It is a public webhook path and is safe to expose in your site source. The widget execution token is issued automatically by the server when a workflow starts and is managed internally by the widget.
+The widget path in the script is not a secret. It is safe to leave it visible in your site source.
 </Callout>
 
-### npm package (for developers)
-
-```bash
-npm install @workflow/web-chat
-```
-
-```ts
-import { ClemvionChat } from '@workflow/web-chat';
-
-const chat = ClemvionChat.boot({
-  apiBase: 'https://<api-domain>',
-  triggerEndpointPath: 'a1b2c3-...',
-  locale: 'en',
-  appearance: { primaryColor: '#5B4FE9' },
-  headerTitle: 'AI Assistant',
-});
-
-// Clean up handlers when an SPA route changes
-const unsubscribe = chat.on('message', (m) => console.log(m));
-// On page unmount
-unsubscribe();
-chat.shutdown();
-```
-
-The npm package provides the same functionality as the CDN snippet, with full TypeScript types.
-
-### Renaming the global (`data-global`)
-
-If you need to embed multiple widgets on the same page or avoid a conflict with an existing global variable, add a `data-global` attribute to the CDN `<script>` tag to rename the global function.
-
-```html
-<script data-global="SupportChat" async src="...loader.js"></script>
-<script>
-  SupportChat('boot', { ... });
-</script>
-```
-
-## 2. Allowed domains (embed restriction)
-
-**GUI configuration flow**
+## 5. Live preview
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/workspace/settings/page.tsx"
-  symbol="EmbedOriginsCard"
-  describes="Embed allowed-origins editor card in the workspace settings Overview tab"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="LivePreview"
+  describes="Live preview area that boots the actual widget and lets you have a real conversation"
 />
 
-Go to [Workspace settings](/workspace/settings) → **Overview** tab → **Embed allowed domains** section to add or remove allowed origins and save.
+The **Live preview** appears to the right of the appearance settings. The actual widget boots there — the launcher button and chat panel render, and you can have a real conversation with the connected workflow to verify everything works.
 
-- **Edit access**: Owner or Admin
-- **View access**: all members
-
-Enter origins in `scheme://host[:port]` format (no path). For example: `https://example.com`, `https://shop.example.com`.
-
-Only domains in the list are allowed to display the widget. On any unlisted domain, the widget render is refused and the chat will not start.
-
-<Callout type="note">
-An empty list means no domain restriction is applied. The widget CDN origin is always allowed. If you use BYO-UI (bring your own UI) mode and call the API directly, you must also add your service domain to this list for API requests to be accepted (see §4).
-</Callout>
-
-This is a soft control intended to prevent casual misuse. Changes take effect within 5 minutes (cache refresh).
-
-The stored value looks like this:
-
-```json
-{
-  "interactionAllowedOrigins": [
-    "https://example.com",
-    "https://shop.example.com"
-  ]
-}
-```
-
-## 3. Rich message rendering
-
-When a workflow uses presentation nodes (Carousel · Table · Chart · Template · Form), the output is displayed inline inside the chat panel. No extra work is needed on the widget side — rendering is automatic.
-
-| Node type | Widget rendering |
-|---|---|
-| **Carousel** | Card-style slides |
-| **Table** | Table |
-| **Chart** | Bar/line chart |
-| **Template** | Body text |
-| **Form** | Multi-field input form |
-| **Button Presentation** | Selection buttons |
-
-## 4. Bring Your Own UI (BYO-UI)
-
-If you want to build your own chat interface instead of using the widget, use `@workflow/sdk` (`ClemvionClient`) directly. This is a headless approach that calls the External Interaction API without the widget iframe.
-
-```ts
-import { ClemvionClient } from "@workflow/sdk";
-// Full example: codebase/packages/web-chat-sdk/examples/byo-ui-headless.ts
-```
-
-In BYO-UI mode the request Origin is your own service domain. You must add that domain to the **Embed allowed domains** section in [Workspace settings](/workspace/settings) for API requests to be accepted.
+The widget is included with the product, so no external setup is needed. Appearance changes appear in the preview right away.
 
 ## Tips & reference
 
-- **Automatic token and session management**: The widget automatically manages per-execution tokens and refreshes them before they expire. Users never need to handle tokens directly.
-- **Programmatic panel control**: Use `chat.open()` / `chat.close()` to expand or collapse the chat panel, and `chat.show()` / `chat.hide()` to show or hide the launcher button itself. Useful when you want to hide the widget on specific SPA routes.
-- **Event subscriptions**: Subscribe to events like `chat.on('conversationStarted', cb)` and `chat.on('message', cb)` to feed your own analytics.
-- **Public webhook trigger**: The widget must connect to a trigger with no authentication (public). Find the trigger's endpoint path in [Triggers](/triggers).
+- **Prepare your workflow first**: Create your [workflow](/workflows) before making a web chat — it makes selection easier.
+- **Save then re-copy the script**: After updating the appearance settings, click **Save** first, then copy the script again and update your site's HTML. Changes are not synced automatically.
+- **Run multiple web chats**: You can create several web chats for different purposes (customer support, pricing inquiries, etc.) and connect each to a different workflow. Use names to tell them apart in the list.

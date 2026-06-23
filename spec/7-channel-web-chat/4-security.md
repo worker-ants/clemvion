@@ -30,7 +30,7 @@ pending_plans:
 | CORS — `/api/hooks/*` | **무제한 유지**(`Access-Control-Allow-Origin: *`, EIA §8.5). 위젯은 credential 없이 POST 하므로 `*` 로 충분 |
 | CORS — `/api/external/*` | **워크스페이스 단위 동적 allowlist**(`interactionAllowedOrigins`). M1=위젯 CDN(빌트인 허용), M2=고객 도메인(워크스페이스 설정). §2 |
 | 임베드 allowlist | **워크스페이스 단위** `interactionAllowedOrigins`(CORS 와 동일 키). v1 = 부팅 시 host origin **soft 검증**(불일치 시 위젯 `blocked`), hard `frame-ancestors` 는 opt-in. §3 |
-| iframe sandbox | `sandbox="allow-scripts allow-forms allow-same-origin"`(필요 최소) |
+| iframe sandbox | `sandbox="allow-scripts allow-forms allow-same-origin"`(필요 최소). `allow-same-origin` 은 same-origin 동봉 위젯의 쿠키·스토리지 접근 및 위젯 자체의 `postMessage` origin 핀을 유지하기 위해 필수다. 트레이드오프: `allow-same-origin` 이 있으면 동일 origin 악성 스크립트가 sandbox 를 탈출할 수 있으나, 동봉 위젯은 제품과 동일 릴리스로 배포되어 공급망 무결성이 보장되므로 허용한다. 외부 CDN override 환경(`NEXT_PUBLIC_WIDGET_CDN_BASE` 설정)에서는 cross-origin 이므로 `allow-same-origin` 없이도 동작하며 sandbox 탈출 위협이 없다. |
 | postMessage | 양방향 `event.origin` 화이트리스트 검증. 토큰/대화 내용 host 로 비노출 |
 | 토큰 노출 | per_execution 단일 → 클라이언트에 장기 비밀 없음 |
 | rate-limit / abuse | EIA §8.4 + 공개 webhook 남용 방어(§4) |
@@ -87,10 +87,16 @@ backend 는 **단일 CORS 레이어**(`main.ts` 의 `app.enableCors(webChatCorsD
 "이 워크스페이스의 봇 위젯은 특정 호스트 도메인에서만 임베드 가능"을 워크스페이스 단위로 제어. **봇이 공개이므로 hard
 보안 경계가 아니라 캐주얼 오남용 차단용 soft 컨트롤**이다. 문서를 워크스페이스별로 동적 렌더링하지 않으므로([0-architecture
 §2.1·§R8](./0-architecture.md)) CSP `frame-ancestors` 동적 주입은 v1 기본이 아니다:
-- **① 클라이언트 soft 검증(v1 기본)**: 부팅 시 실제 host origin(`window.location.ancestorOrigins[0]`, 미지원 시
-  `document.referrer` 폴백)을 읽어 캐시 가능한 워크스페이스 allowlist 와 대조 → 불일치 시 렌더 거부 + 시작 차단
+- **① 클라이언트 soft 검증(v1 기본)**: 부팅 시 위젯이 **`GET /api/hooks/:endpointPath/embed-config`** 로 워크스페이스
+  allowlist 를 조회(`EmbedConfigDto { allowlist, enforce }`, `EmbedConfigService`)한 뒤, 실제 host origin
+  (`window.location.ancestorOrigins[0]`, 미지원 시 `document.referrer` 폴백)을 읽어 대조 → 불일치 시 렌더 거부 + 시작 차단
   (위젯 상태 `blocked` — host `show` 로도 해제되지 않는 정책 거부. **상태 정의 SoT = [1-widget-app §3.2](./1-widget-app.md)**;
-  본 §3-① 은 그 상태를 발동하는 정책 trigger).
+  본 §3-① 은 그 상태를 발동하는 정책 trigger). 부팅 시퀀스상 위치는 [3-auth-session §3 step 0](./3-auth-session.md). `enforce=false`
+  또는 allowlist 빈 경우 fail-open(통과). **host origin 미탐지**(iframe sandbox·프라이버시 설정으로 `ancestorOrigins`·
+  `referrer` 모두 불가) 시에도 **통과(fail-open)** — soft 컨트롤이므로 환경적 미탐지로 정당 사용자를 막지 않는다.
+  - **`/embed-config` 엔드포인트 동작(공개·무인증)**: 비존재 endpointPath·DB 오류·인증 webhook(`authConfigId` NOT NULL)
+    모두 `{ allowlist: [], enforce: false }`(HTTP 200)로 동일 응답 → **존재 여부 누설(enumeration)·allowlist 노출 없음**.
+    응답은 `Cache-Control: public, max-age=300`(워크스페이스 설정 변경 후 최대 5분 반영, CDN/브라우저 캐시 의존). SoT: `EmbedConfigService`.
 - **② API soft 필터(선택)**: webhook 시작 요청의 host origin 을 서버가 allowlist 와 대조해 거부.
 - **③ hard frame-ancestors(opt-in)**: 강제 차단이 꼭 필요한 워크스페이스만 동적 문서 제공을 감수하고 사용. v1 기본 아님.
 

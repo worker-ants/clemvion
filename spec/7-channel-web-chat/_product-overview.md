@@ -1,12 +1,12 @@
 # Channel Web Chat — 임베드형 웹채팅 위젯 + SDK + 샘플 (제품 정의)
 
 > 영역 진입 문서. 기술 명세는 본 영역의 `0-architecture.md`(아키텍처) · `1-widget-app.md`(위젯 SPA) ·
-> `2-sdk.md`(SDK) · `3-auth-session.md`(인증/세션) · `4-security.md`(보안) 참조.
+> `2-sdk.md`(SDK) · `3-auth-session.md`(인증/세션) · `4-security.md`(보안) · `5-admin-console.md`(운영 콘솔) 참조.
 > 관련: [External Interaction API (EIA)](../5-system/14-external-interaction-api.md) ·
 > [Webhook 트리거](../5-system/12-webhook.md) · [Chat Channel](../5-system/15-chat-channel.md) ·
 > [Convention Conversation Thread](../conventions/conversation-thread.md).
 >
-> **구성요소 spec**: [아키텍처](./0-architecture.md) · [위젯 SPA](./1-widget-app.md) · [SDK](./2-sdk.md) · [인증·세션 흐름](./3-auth-session.md) · [보안](./4-security.md)
+> **구성요소 spec**: [아키텍처](./0-architecture.md) · [위젯 SPA](./1-widget-app.md) · [SDK](./2-sdk.md) · [인증·세션 흐름](./3-auth-session.md) · [보안](./4-security.md) · [운영 콘솔](./5-admin-console.md)
 
 ---
 
@@ -40,7 +40,9 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 **비목표 (v1 → 백로그)**
 - 파일 첨부 / 이모지 picker (Form file upload 연동 시).
 - 음성/통화, 상담원 핸드오프, 프로액티브(봇 선발화) 메시지.
-- 위젯 외형의 서버사이드 관리 콘솔 — 외형은 v1·v2 모두 **로더(boot) 옵션으로만** 주입(백엔드 미저장).
+- 위젯 외형의 **per-workspace 테마/브랜딩 관리 콘솔**(워크스페이스 단위 외형 JSON 서빙·테마 라이브러리) — 백로그.
+  *단, [운영 콘솔(구성요소 D)](./5-admin-console.md)의 **per-instance 외형 저장**(트리거 `config.interaction.appearance`)은
+  v1 범위다(결정 2026-06-24)* — 구분 근거·번복 전말은 [5-admin-console R2](./5-admin-console.md).
 - 호스트 제공 사용자 식별키(impersonation 방지 서명 포함) — 추후. v1 은 **익명만**.
 - 유저당 다중 세션 목록 노출 — 전제(식별 + 유저별 execution 목록 API) 필요, 백로그.
 - React/Vue 프레임워크 wrapper — v1 은 framework-agnostic JS API + 타입만.
@@ -62,9 +64,17 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 | A | **위젯 SPA** | `codebase/channel-web-chat/` (Next.js CSR 전용, **구현 시 신설**) | iframe 내부 채팅 UI. static export → CDN |
 | B | **SDK** | `codebase/packages/web-chat-sdk/` → loader 스니펫 + `@workflow/web-chat` npm | host↔iframe bridge + 공개 JS API. EIA 호출은 기존 `@workflow/sdk` 재사용. SPA 와 분리 패키지 |
 | C | **샘플** | SDK 패키지의 `examples/` | 스니펫·npm 두 경로 시연 |
+| D | **운영 콘솔** | `codebase/frontend/src/app/(main)/web-chat/**` (admin 메뉴) | 제품 내 위젯 *소비자* surface — 인스턴스 생성·외형 빌더·설치 스니펫·라이브 미리보기. 위젯을 합치지 않고 loader+iframe 으로 임베드. 상세 [5-admin-console](./5-admin-console.md) |
 
 ## Rationale
 
 ### 제품 영역 분리 (vs 5-system 흡수)
 클라이언트 SDK·위젯은 제품 표면이 서버 기술명세(5-system)와 분명히 달라 신규 top-level 영역 `7-`로 분리한다.
 5-system 에 흡수하면 client 산출물(SDK/npm/iframe)과 server 명세가 섞인다. 상세 결정 근거는 `0-architecture.md §R6`.
+
+### 운영 콘솔(구성요소 D)과 외형 저장 범위의 경계
+§2 비목표가 겨냥한 것은 *워크스페이스 단위 외형을 관리하는 별도 테마/브랜딩 콘솔*(per-workspace 외형 JSON 서빙·
+테마 라이브러리)이다. 구성요소 D 콘솔의 **per-instance 외형 저장**(웹채팅 = 트리거 단위, `config.interaction.appearance`,
+신규 엔티티 없이 기존 trigger config 재사용)은 **2026-06-24 결정으로 v1 범위**다 — 운영자가 브라우저를 바꿔도 동일
+미리보기·스니펫이 재현되도록 localStorage-only 의 한계를 해소한다. per-workspace 테마 관리 콘솔은 여전히 백로그.
+번복 전말·기존 미저장 결정과의 관계는 [5-admin-console R2](./5-admin-console.md).

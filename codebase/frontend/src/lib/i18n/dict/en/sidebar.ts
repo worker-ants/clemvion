@@ -5,6 +5,7 @@ export const sidebar: Dict["sidebar"] = {
   workflows: "Workflows",
   triggers: "Triggers",
   schedule: "Schedule",
+  webChat: "Web Chat",
   integration: "Integration",
   knowledgeBase: "Knowledge Base",
   models: "Model Settings",

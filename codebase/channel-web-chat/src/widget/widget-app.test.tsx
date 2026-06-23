@@ -63,6 +63,25 @@ describe("WidgetApp", () => {
     expect(screen.getByLabelText("채팅 열기")).toBeInTheDocument();
   });
 
+  it("mount(collapsed)·패널 open(expanded) 시 host 로 wc:resize 송신 (2-sdk §3)", async () => {
+    const postSpy = vi.spyOn(window.parent, "postMessage").mockImplementation(() => {});
+    render(<WidgetApp />);
+    // 초기 mount → 런처 박스(collapsed) 알림.
+    expect(postSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "wc:resize", payload: expect.objectContaining({ state: "collapsed" }) }),
+      expect.anything(),
+    );
+    await boot({ apiBase: "https://api.example.com", triggerEndpointPath: "t1", headerTitle: "B" });
+    postSpy.mockClear();
+    fireEvent.click(screen.getByLabelText("채팅 열기"));
+    // 패널 open → expanded 박스(높이 증가) 알림.
+    expect(postSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "wc:resize", payload: expect.objectContaining({ state: "expanded" }) }),
+      expect.anything(),
+    );
+    postSpy.mockRestore();
+  });
+
   it("임베드 불허 host → 위젯 렌더 거부(런처도 없음)", async () => {
     // detectHostOrigin 은 document.referrer 폴백을 사용(jsdom 엔 ancestorOrigins 없음).
     Object.defineProperty(document, "referrer", {

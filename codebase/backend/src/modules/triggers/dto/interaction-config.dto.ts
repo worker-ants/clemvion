@@ -1,5 +1,13 @@
-import { IsBoolean, IsIn, IsOptional } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsObject,
+  IsOptional,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { WebChatAppearanceDto } from './web-chat-appearance.dto';
 
 /**
  * Interaction token 발급 전략.
@@ -36,4 +44,15 @@ export class InteractionConfigDto {
   @IsOptional()
   @IsIn(['per_execution', 'per_trigger'])
   tokenStrategy?: InteractionTokenStrategy;
+
+  /**
+   * 웹채팅 운영 콘솔이 저장하는 위젯 외형/콘텐츠 설정(서버 영속화). 위젯 런타임/토큰 발급과
+   * 무관한 표시용 메타다. SoT: spec/7-channel-web-chat/5-admin-console.md §4.
+   */
+  @ApiPropertyOptional({ type: () => WebChatAppearanceDto })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => WebChatAppearanceDto)
+  appearance?: WebChatAppearanceDto;
 }

@@ -85,9 +85,14 @@ chat.shutdown();
 | host → iframe | `wc:boot` | 전체 boot config |
 | host → iframe | `wc:command` | `open`/`close`/`show`/`hide`/`sendMessage(text)`/`updateProfile`/`shutdown` |
 | iframe → host | `wc:ready` | 위젯 로드 완료 |
-| iframe → host | `wc:resize` | `{ width, height, state: 'collapsed' \| 'expanded' }` |
+| iframe → host | `wc:resize` | `{ width, height, state: 'collapsed' \| 'expanded' }`. **hidden/blocked 시**(위젯이 `visible=false` 또는 host `hide()` 명령으로 숨겨진 경우) `{ width: 0, height: 0, state: 'collapsed' }` 를 emit 해 host 의 iframe 박스 점유를 제거한다. |
 | iframe → host | `wc:event` | `{ name, data }` — `name` ∈ `open`/`close`/`message`/`unread`/`conversationStarted`/`conversationEnded`, `data` 는 이벤트별 페이로드 |
 - **origin 검증 필수**(양방향 `event.origin` 화이트리스트). 토큰·대화 내용은 iframe 내부 유지, host 로 비노출.
+- **`wc:boot` 재전송(멱등 재설정)**: host 는 iframe 을 재생성하지 않고 `wc:boot` 을 다시 보내 boot config
+  (외형·locale·콘텐츠)를 갱신할 수 있다. 위젯은 **마지막 wc:boot 의 config 를 적용**하며, 동일
+  `triggerEndpointPath` 로의 재부팅은 진행 중 execution 을 중복 시작하지 않는다(eager-start 가드 §R6·세션 복원).
+  운영 콘솔 라이브 미리보기가 외형 폼 변경 시 이 경로로 재전송한다(인스턴스/locale 변경 시에만 iframe 재마운트).
+  첫 `wc:boot` 의 origin 만 host 로 핀되므로(이후 동일 origin 만 수용) 재전송도 같은 origin 이어야 한다.
 - **`wc:resize` host 처리(필수)**: host(loader/WidgetBridge)는 `wc:resize` 수신 시 iframe 엘리먼트의 크기를
   payload(`width`/`height`/`state`)에 맞춰 적용한다 — `collapsed`(런처만) ↔ `expanded`(패널 전개) 전환 시
   iframe 박스가 따라 변하지 않으면 클릭 영역·스크롤이 깨진다. position/zIndex 는 `appearance` 를 따른다.

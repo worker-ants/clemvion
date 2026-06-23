@@ -1,0 +1,58 @@
+export const webChat = {
+  title: "웹채팅",
+  description:
+    "임베드형 웹채팅 위젯을 만들고, 외형을 정하고, 설치 스크립트를 받아 사이트에 붙이고 미리보기할 수 있어요",
+  create: "웹채팅 만들기",
+  empty: {
+    title: "아직 웹채팅이 없어요",
+    description: "워크플로우를 연결한 웹채팅을 만들어 사이트에 설치해 보세요",
+  },
+  list: {
+    workflowLabel: "워크플로우",
+    loadError: "웹채팅 목록을 불러오지 못했어요",
+  },
+  createDialog: {
+    title: "웹채팅 만들기",
+    workflowLabel: "워크플로우",
+    workflowPlaceholder: "연결할 워크플로우를 선택하세요",
+    noWorkflows: "먼저 워크플로우를 만들어 주세요",
+    nameLabel: "이름",
+    namePlaceholder: "예: 고객지원 봇",
+    submit: "만들기",
+    cancel: "취소",
+    success: "웹채팅을 만들었어요",
+    error: "웹채팅을 만들지 못했어요",
+  },
+  appearance: {
+    title: "외형 · 콘텐츠",
+    note: "이 설정은 서버에 저장되고, 설치 스크립트·미리보기에 반영돼요",
+    save: "저장",
+    saved: "외형을 저장했어요",
+    saveError: "외형을 저장하지 못했어요",
+    unsaved: "저장하지 않은 변경이 있어요",
+    primaryColor: "주요 색상",
+    position: "위치",
+    positionBottomRight: "오른쪽 아래",
+    positionBottomLeft: "왼쪽 아래",
+    headerTitle: "봇 이름",
+    headerTitlePlaceholder: "예: AI 어시스턴트",
+    welcomeText: "환영 메시지",
+    welcomeTextPlaceholder: "예: 안녕하세요! 무엇을 도와드릴까요?",
+    suggestions: "추천 질문",
+    suggestionsHint: "줄바꿈으로 구분하세요",
+    disclaimer: "고지 문구",
+    disclaimerPlaceholder: "예: AI는 한정된 데이터로 동작해요",
+  },
+  snippet: {
+    title: "설치 스크립트",
+    description: "아래 스크립트를 사이트의 </body> 앞에 붙여넣으세요",
+    copy: "복사",
+    copied: "설치 스크립트를 복사했어요",
+    copyError: "복사하지 못했어요",
+  },
+  preview: {
+    title: "라이브 미리보기",
+    unavailable:
+      "라이브 미리보기는 위젯 번들이 배포에 동봉된 후 사용할 수 있어요",
+  },
+} as const;

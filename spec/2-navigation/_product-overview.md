@@ -20,6 +20,7 @@
 ├── Workflow List         # 워크플로우 목록                   — ✅
 ├── Trigger List          # 트리거(엔드포인트) 목록           — ✅
 ├── Schedule              # Cron Job 스케줄 관리              — ✅
+├── Web Chat              # 임베드 웹채팅 위젯 설치·미리보기   — 🚧 (partial: 설치·스니펫 ✅ / 미리보기 증분2)
 ├── Integration           # Third-party 연동 관리             — ✅
 ├── Knowledge Base        # RAG 지식 저장소 관리              — ✅
 ├── Models                # 통합 모델 설정 (Chat/Embedding/Rerank)  — ✅
@@ -206,3 +207,16 @@ AI Agent 노드의 `memoryStrategy: 'persistent'` 로 누적된 영속 메모리
 | NAV-AM-04 | 메모리 단건 삭제 (확인 모달, editor+) | 필수 | ✅ |
 | NAV-AM-05 | scope 전체 삭제 (건수 경고 확인 모달, editor+) | 권장 | ✅ |
 | NAV-AM-06 | 빈 상태 / 권한별 노출 (조회 viewer+, 삭제 editor+) | 필수 | ✅ |
+
+### 3.14 Web Chat (웹채팅 운영 콘솔)
+
+운영자가 제품 안에서 임베드형 웹채팅 위젯을 만들고, 외형을 정하고, 설치 스니펫을 받아 자기 사이트에 붙이고, 콘솔에서 라이브로 미리본다. 내부적으로는 `webhook trigger + config.interaction.enabled` 위에 얹히는 친화 추상화다(신규 백엔드 엔티티 없음). 화면·흐름·권한·스니펫·미리보기 계약은 [Web Chat 운영 콘솔](../7-channel-web-chat/5-admin-console.md), 위젯 SPA·SDK·배포는 [Channel Web Chat 영역](../7-channel-web-chat/_product-overview.md) 참조.
+
+| ID | 요구사항 | 우선순위 | 상태 |
+|----|----------|----------|-------|
+| NAV-WC-01 | 사이드바에 웹채팅 메뉴 노출 (Schedule 아래, `/web-chat`) | 필수 | ✅ |
+| NAV-WC-02 | 웹채팅 인스턴스 목록 표시 (= interaction 활성 webhook trigger) | 필수 | ✅ |
+| NAV-WC-03 | "웹채팅 만들기" — workflow 선택 → 자동 webhook trigger(interaction.enabled) 생성 (editor+) | 필수 | ✅ |
+| NAV-WC-04 | 외형/콘텐츠 빌더 (BootConfig 필드, 인스턴스 단위 서버 저장 `config.interaction.appearance` — 결정 2026-06-24, [5-admin-console §4·R2](../7-channel-web-chat/5-admin-console.md)) | 필수 | ✅ |
+| NAV-WC-05 | 설치 스니펫 생성 + 클립보드 복사. 위젯 cdn-base 미설정 시 self-origin 기본 | 필수 | ✅ |
+| NAV-WC-06 | 라이브 미리보기 (M1 hosted iframe, 위젯 동봉 선행). 조회·복사·미리보기 viewer+ | 권장 | 🚧 (증분 2 — 위젯 co-deploy 후) |

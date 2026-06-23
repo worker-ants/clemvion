@@ -53,13 +53,14 @@ import {
   SLACK_SIGNING_SECRET_REGEX,
   DISCORD_PUBLIC_KEY_REGEX,
 } from "@workflow/chat-channel-validation";
+import type { TriggerType } from "@/lib/types/trigger";
 
 const PAGE_SIZE = 20;
 
 interface Trigger {
   id: string;
   name: string;
-  type: "webhook" | "schedule" | "manual";
+  type: TriggerType;
   isActive: boolean;
   workflowId: string;
   workflowName: string;

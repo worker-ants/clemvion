@@ -77,9 +77,20 @@ export class TriggersService {
 
   async findAll(
     workspaceId: string,
-    query: PaginationQueryDto & { type?: string; status?: string },
+    query: PaginationQueryDto & {
+      type?: string;
+      status?: string;
+      interactionEnabled?: boolean;
+    },
   ): Promise<PaginatedResponseDto<Trigger>> {
-    const { page = 1, limit = 20, search, type, status } = query;
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      type,
+      status,
+      interactionEnabled,
+    } = query;
 
     const qb = this.triggerRepository
       .createQueryBuilder('t')
@@ -96,6 +107,15 @@ export class TriggersService {
       qb.andWhere('t.is_active = true');
     } else if (status === 'inactive') {
       qb.andWhere('t.is_active = false');
+    }
+    if (interactionEnabled !== undefined) {
+      // config(JSONB) -> interaction -> enabled 를 boolean 으로 비교. interaction 미설정/누락
+      // 시 `->>'enabled'` 가 null → ::boolean null → 비교 결과 null(제외) — enabled=true 필터에
+      // 정확히 부합한다(웹채팅 콘솔이 사용하는 경로).
+      qb.andWhere(
+        "(t.config->'interaction'->>'enabled')::boolean = :interactionEnabled",
+        { interactionEnabled },
+      );
     }
 
     qb.orderBy('t.created_at', 'DESC');
