@@ -52,4 +52,12 @@ for state_dir in \
     fi
 done
 
+# 4. Reap worktrees / local branches whose PR has merged (local-only, fail-safe,
+#    self-throttled to once per few hours). Never blocks the session — the
+#    reaper always exits 0 and skips the current/dirty worktree.
+reaper="$main_root/.claude/tools/reap-merged-worktrees.sh"
+if [ -f "$reaper" ]; then
+    bash "$reaper" || true
+fi
+
 exit 0

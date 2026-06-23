@@ -36,6 +36,7 @@ import sys
 import traceback
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(THIS_DIR, "_lib"))
 
 # Characters allowed verbatim in a marker filename component; everything else
 # (`/`, `..`, whitespace, …) is collapsed to `_` so an unexpected session_id /
@@ -45,13 +46,20 @@ _MARKER_SAFE = re.compile(r"[^A-Za-z0-9._-]")
 
 def _sanitize_component(value: str) -> str:
     return _MARKER_SAFE.sub("_", value)
-sys.path.insert(0, os.path.join(THIS_DIR, "_lib"))
 
+
+# Both nudges are imported independently and best-effort: a failure to import one
+# must not silence the other (a Stop hook must never wedge a session either way).
 try:
     from review_guard import evaluate_review  # noqa: E402
 except Exception:
     traceback.print_exc(file=sys.stderr)
-    sys.exit(0)
+    evaluate_review = None  # review nudge disabled; plan nudge still runs.
+
+try:
+    from plan_guard import evaluate_plan  # noqa: E402
+except Exception:
+    evaluate_plan = None  # plan nudge disabled; review nudge still runs.
 
 
 def _read_payload() -> dict:
@@ -98,15 +106,20 @@ def _state_dir() -> str:
     return os.path.join(project_dir, ".claude", "state", "review_stop_nudged")
 
 
-def _marker_path(session_id: str | None, token: str) -> str:
+def _marker_path(session_id: str | None, token: str, kind: str = "") -> str:
     # A missing session_id must NOT disable the throttle (that would nudge on
     # every stop). Fall back to a stable sentinel so the once-per-branch marker
     # is still written; the worst case is throttling slightly across sessions,
     # which is the safe direction (the push guard is the hard gate). Both
     # components are sanitized — session_id comes from the harness payload and
     # the token from `git`, so neither is trusted to stay inside the state dir.
+    # `kind` separates independent nudges (review vs plan-complete) so firing one
+    # never throttles the other; empty kind keeps the original review marker name.
     sid = _sanitize_component(session_id or "nosession")
-    return os.path.join(_state_dir(), f"{sid}__{_sanitize_component(token)}")
+    base = f"{sid}__{_sanitize_component(token)}"
+    if kind:
+        base += f"__{_sanitize_component(kind)}"
+    return os.path.join(_state_dir(), base)
 
 
 def _already_nudged(marker: str) -> bool:
@@ -127,45 +140,78 @@ def _allow() -> int:
     return 0
 
 
-def main() -> int:
-    if os.environ.get("BYPASS_REVIEW_GUARD") == "1":
-        return _allow()
+def _block(reason: str) -> int:
+    print(json.dumps({"decision": "block", "reason": reason}))
+    return 0
 
+
+def _nudge_once(session_id: str | None, token: str, kind: str, reason: str) -> int | None:
+    """Emit a one-shot block nudge keyed by (session, branch, kind).
+
+    Returns the block exit code on the first firing, or None when this nudge has
+    already fired (caller should fall through to the next check / allow)."""
+    marker = _marker_path(session_id, token, kind)
+    if _already_nudged(marker):
+        return None
+    _mark_nudged(marker)
+    return _block(reason)
+
+
+def main() -> int:
     payload = _read_payload()
 
     # Hard loop-break: never block a stop that is itself a continuation.
     if payload.get("stop_hook_active"):
         return _allow()
 
-    try:
-        decision = evaluate_review()
-    except Exception:
-        traceback.print_exc(file=sys.stderr)
-        return _allow()
-
-    if not decision.blocked:
-        return _allow()
-
     session_id = payload.get("session_id") or payload.get("sessionId")
-    marker = _marker_path(session_id, _throttle_token())
-    if _already_nudged(marker):
-        return _allow()  # one nudge per (session, branch) — push guard still gates.
+    token = _throttle_token()
 
-    _mark_nudged(marker)
+    # ---- REVIEW nudge (soft counterpart of the push review gate) -----------
+    if evaluate_review is not None and os.environ.get("BYPASS_REVIEW_GUARD") != "1":
+        try:
+            decision = evaluate_review()
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
+            decision = None
+        if decision is not None and decision.blocked:
+            reason = (
+                "구현을 완료하면 test·review·critical/warning fix 는 강제 사항입니다. "
+                f"({decision.reason}) 턴을 끝내기 전에 REVIEW WORKFLOW 를 이행하세요:\n"
+                "  1. /ai-review — 변경에 대한 리뷰.\n"
+                "  2. SUMMARY 의 Critical/Warning > 0 이면 resolution-applier 로 fix "
+                "(또는 수동 조치 + RESOLUTION.md).\n"
+                "  3. TEST WORKFLOW 재수행.\n"
+                "리뷰를 다음 턴/PR 로 미루지 마세요. 정말 지금 멈춰야 하는 사정이 "
+                "있으면 사용자에게 그 사정을 먼저 보고하세요. (이 nudge 는 현재 branch "
+                "기준 세션당 1회만 표시됩니다.)"
+            )
+            fired = _nudge_once(session_id, token, "", reason)
+            if fired is not None:
+                return fired
 
-    reason = (
-        "구현을 완료하면 test·review·critical/warning fix 는 강제 사항입니다. "
-        f"({decision.reason}) 턴을 끝내기 전에 REVIEW WORKFLOW 를 이행하세요:\n"
-        "  1. /ai-review — 변경에 대한 리뷰.\n"
-        "  2. SUMMARY 의 Critical/Warning > 0 이면 resolution-applier 로 fix "
-        "(또는 수동 조치 + RESOLUTION.md).\n"
-        "  3. TEST WORKFLOW 재수행.\n"
-        "리뷰를 다음 턴/PR 로 미루지 마세요. 정말 지금 멈춰야 하는 사정이 "
-        "있으면 사용자에게 그 사정을 먼저 보고하세요. (이 nudge 는 현재 branch "
-        "기준 세션당 1회만 표시됩니다.)"
-    )
-    print(json.dumps({"decision": "block", "reason": reason}))
-    return 0
+    # ---- PLAN-COMPLETE nudge (move a finished plan to plan/complete/) -------
+    if evaluate_plan is not None and os.environ.get("BYPASS_PLAN_GUARD") != "1":
+        try:
+            plan = evaluate_plan()
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
+            plan = None
+        if plan is not None and plan.complete_but_in_progress:
+            reason = (
+                f"연결된 plan ({plan.plan_path}) 의 체크박스가 모두 완료([x])됐지만 "
+                "아직 plan/in-progress/ 에 있습니다. 턴을 끝내기 전에 "
+                "plan/complete/ 로 이동을 검토하세요 — 마지막 작업 PR 안에서 "
+                "`chore(plan): mark <name> complete` 로 옮깁니다 (plan-lifecycle.md §3, "
+                "별도 PR 분리 금지). 이동하면 push gate 의 'plan 미갱신' 차단도 함께 "
+                "해소됩니다. 아직 후속 작업이 남았다면 무시해도 됩니다. "
+                "(이 nudge 는 현재 branch 기준 세션당 1회만 표시됩니다.)"
+            )
+            fired = _nudge_once(session_id, token, "plan_complete", reason)
+            if fired is not None:
+                return fired
+
+    return _allow()
 
 
 if __name__ == "__main__":
