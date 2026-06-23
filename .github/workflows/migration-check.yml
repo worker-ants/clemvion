@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 5
     steps:
       # base ref (보통 main) 와의 merge-base 를 계산하려면 전체 히스토리가 필요.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -44,7 +44,7 @@ jobs:
       # 을 자동 설정하지만, base 브랜치 ref 를 fetch 해야 origin/<base> 로
       # 비교할 수 있다.
       - name: Fetch base ref
-        # actions/checkout@v5 의 fetch-depth: 0 이 전체 history 를 가져오지만,
+        # actions/checkout@v7 의 fetch-depth: 0 이 전체 history 를 가져오지만,
         # PR 컨텍스트에서 base 브랜치의 origin/<base> ref 가 항상 set 되어 있지
         # 않을 수 있어 명시적으로 fetch. --depth 는 양의 정수만 허용하므로
         # 옵션 자체를 제거해 전체 fetch (이미 unshallow 상태라 비용 미미).
