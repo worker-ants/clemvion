@@ -277,7 +277,7 @@
 
 ### M-6 [Major] 서비스 계층 `process.env` 직접 접근 32곳
 
-- [~] 진행 중 (방향 확정: **Option B — 32곳 일괄 단일 PR**, 사용자 지정 2026-06-21) — 대표: `integration-oauth.service.ts`, `mcp-client.service.ts`, `interaction-token.service.ts`, `llm.service.ts:78`. worktree `m6-service-config-127027`.
+- [x] **완료** (**Option B — 32곳 일괄 단일 PR #660**, 2026-06-21 머지) — 대표: `integration-oauth.service.ts`, `mcp-client.service.ts`, `interaction-token.service.ts`, `llm.service.ts:78`. worktree `m6-service-config-127027`. (상세·잔여 INFO 는 아래 §범위 결정·커밋 참조.)
 
 **범위 결정 (2026-06-21, 코드 전수 대조)**: 2026-06-10 감사의 "32곳"은 미열거이고 트리가 drift 했다. Option B 의 의도("서비스 계층 env 접근을 한 PR 로 ConfigService 중앙화")를 충실히 이행하되 **동작 보존**을 우선해, `registerAs` 4 namespace 로 **클래스/생성자 인스턴스 reads** 를 이전한다. 일부 사이트는 의도적 직접 read 라 **문서화 면제**(플랜 §개선방안3 의 REDIS_* 면제 패턴 확장):
 
