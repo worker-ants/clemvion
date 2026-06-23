@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T08:44:15.198832",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/3-workflow-editor/4-ai-assistant.md, diff-base=origin/main)",
+  "target_path": "spec/3-workflow-editor/4-ai-assistant.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
