@@ -52,13 +52,17 @@ related_plans:
 - [x] side-effect 점검 + commit (`edc233db`·`1716bc63`)
 - [x] impl-prep 게이트: C-1 Critical 은 origin/main baseline drift **FALSE POSITIVE**(git 실측 반증, `review/consistency/2026/06/23/09_21_43/SUMMARY.md`). working tree Critical 0.
 
-### Phase 1 — 위젯 동봉(co-deploy) + 버전잠금 [developer]
-- [ ] `channel-web-chat` 을 frontend workspace 의존으로 연결 (버전 잠금)
-- [ ] 위젯을 `NEXT_PUBLIC_BASE_PATH=/_widget/web-chat/v1/app` 로 빌드 → `frontend/public/_widget/web-chat/v1/` 동봉하는 빌드 파이프라인(복사 스크립트)
-- [ ] `NEXT_PUBLIC_WIDGET_CDN_BASE` 기본값 self-origin 해석 로직(미설정 시 `window.location.origin`) + 선택 override
-- [ ] 백엔드 `WEB_CHAT_WIDGET_ORIGINS`(기존 env) — same-origin 동봉이면 불필요, 엣지 CDN override 시에만 추가
-- [ ] `.env.example`(frontend) 샘플 갱신
-> 외부 위젯 CDN 호스팅은 선행조건 아님(동봉으로 대체). Phase 2 스니펫 빌더는 Phase 1 전에도 텍스트 생성·복사로 가치 전달 가능.
+### Phase 1 — 위젯 동봉(co-deploy) + 버전잠금 [developer] (증분 2) — ✅ 완료 (커밋 `e5cb32e9`)
+- [x] 위젯 빌드+복사 파이프라인 — `scripts/copy-widget.mjs` + `build:widget` 스크립트: `channel-web-chat` 을
+      `NEXT_PUBLIC_BASE_PATH=/_widget/web-chat/v1/app` 로 빌드 + SDK loader 빌드 → `frontend/public/_widget/web-chat/v1/` 복사.
+      pnpm `--filter` 로 같은 릴리스 버전 잠금(formal dep 대신 빌드 스텝). 실측 검증(artifacts 복사 확인).
+- [x] `NEXT_PUBLIC_WIDGET_CDN_BASE` 기본값 self-origin 해석(`getWidgetBase`/`getWidgetOrigin`, 미설정 시 `<origin>/_widget`) + 선택 override
+- [x] 백엔드 `WEB_CHAT_WIDGET_ORIGINS`(기존 env) — same-origin 동봉이면 불필요(엣지 CDN override 시에만). 문서화
+- [x] `.env.example`(frontend) + README Deployment 절 갱신, `public/_widget` gitignore·eslint ignore
+> 외부 위젯 CDN 호스팅은 선행조건 아님(동봉으로 대체).
+> **배포 wiring (검증 완료)**: 배포/CI 가 `docker build` 전에 `pnpm --filter frontend build:widget` 만 실행하면 된다.
+> `.dockerignore` 는 `**/node_modules`·`**/.next` 만 제외하므로 `public/_widget` 은 frontend Dockerfile 의
+> `COPY codebase/frontend`(builder)→`COPY .../public`(runner) 경로로 이미지에 그대로 포함된다 — Dockerfile 변경 불필요.
 
 ### Phase 2 — 콘솔 코어 [developer] (TDD) — ✅ 증분 1 완료 (커밋 `8c5a3a54` + REVIEW fix)
 - [x] 사이드바 메뉴 등록 (`components/layout/sidebar.tsx` navItems, Schedule 아래) + i18n `sidebar.webChat` (ko/en)
@@ -76,10 +80,11 @@ related_plans:
 - [x] 동봉 미설정(wc:ready 타임아웃) 시 fallback (안내 오버레이)
 - [x] unit 테스트(iframe src·wc:boot·origin 무시·타임아웃·외형 재전송). e2e 는 docker/풀스택 의존 — 환경 차단(DeadlineExceeded) 으로 보류
 
-### Phase 4 — 검증 [developer] — 증분 1 부분
-- [x] lint/unit 통과 (리뷰 앞). frontend `next build` 통과(`/web-chat` 라우트 생성)
-- [ ] docker 이미지 빌드 + e2e: **환경 차단**(`DeadlineExceeded`, 실측 확인 `review/code/.../RESOLUTION.md`). frontend-only·대응 e2e 부재
-- [x] `/ai-review` (코드 스코프) + WARNING fix — Critical 0, RESOLUTION 작성 (`review/code/2026/06/23/10_07_47/`)
+### Phase 4 — 검증 [developer]
+- [x] lint/unit 통과. frontend `next build` 통과(`/web-chat` 라우트 생성)
+- [x] **e2e 통과** — 재시도 시 PASS (214 tests, `_test_logs/e2e-20260624-011500.log`). 직전 `DeadlineExceeded` 는
+      transient docker 빌드 타임아웃이었고 이미지 캐시 후 정상 실행. (backend supertest — frontend-only 변경의 무회귀 확인)
+- [x] `/ai-review` (코드 스코프 ×2 증분) + WARNING fix — Critical 0, RESOLUTION 작성. `/consistency-check --impl-done` ×2 BLOCK: NO
 - [x] **(증분 2)** user guide 작성 (`user-guide-writer`): 콘솔 가이드 `web-chat.mdx`(KO/EN) + SDK 개발자 가이드 `web-chat-sdk.mdx`(KO/EN, 콘솔 교체로 사라졌던 내용 별 페이지 복원) + 상호링크. docs 가드 2312 통과, documentation 리뷰 Critical 0.
 
 ## 미해결/이월
