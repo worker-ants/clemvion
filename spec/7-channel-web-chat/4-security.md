@@ -92,7 +92,11 @@ backend 는 **단일 CORS 레이어**(`main.ts` 의 `app.enableCors(webChatCorsD
   (`window.location.ancestorOrigins[0]`, 미지원 시 `document.referrer` 폴백)을 읽어 대조 → 불일치 시 렌더 거부 + 시작 차단
   (위젯 상태 `blocked` — host `show` 로도 해제되지 않는 정책 거부. **상태 정의 SoT = [1-widget-app §3.2](./1-widget-app.md)**;
   본 §3-① 은 그 상태를 발동하는 정책 trigger). 부팅 시퀀스상 위치는 [3-auth-session §3 step 0](./3-auth-session.md). `enforce=false`
-  또는 allowlist 빈 경우 fail-open(통과).
+  또는 allowlist 빈 경우 fail-open(통과). **host origin 미탐지**(iframe sandbox·프라이버시 설정으로 `ancestorOrigins`·
+  `referrer` 모두 불가) 시에도 **통과(fail-open)** — soft 컨트롤이므로 환경적 미탐지로 정당 사용자를 막지 않는다.
+  - **`/embed-config` 엔드포인트 동작(공개·무인증)**: 비존재 endpointPath·DB 오류·인증 webhook(`authConfigId` NOT NULL)
+    모두 `{ allowlist: [], enforce: false }`(HTTP 200)로 동일 응답 → **존재 여부 누설(enumeration)·allowlist 노출 없음**.
+    응답은 `Cache-Control: public, max-age=300`(워크스페이스 설정 변경 후 최대 5분 반영, CDN/브라우저 캐시 의존). SoT: `EmbedConfigService`.
 - **② API soft 필터(선택)**: webhook 시작 요청의 host origin 을 서버가 allowlist 와 대조해 거부.
 - **③ hard frame-ancestors(opt-in)**: 강제 차단이 꼭 필요한 워크스페이스만 동적 문서 제공을 감수하고 사용. v1 기본 아님.
 

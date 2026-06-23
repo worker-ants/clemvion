@@ -87,15 +87,20 @@ related_plans:
 - [x] `/ai-review` (코드 스코프 ×2 증분) + WARNING fix — Critical 0, RESOLUTION 작성. `/consistency-check --impl-done` ×2 BLOCK: NO
 - [x] **(증분 2)** user guide 작성 (`user-guide-writer`): 콘솔 가이드 `web-chat.mdx`(KO/EN) + SDK 개발자 가이드 `web-chat-sdk.mdx`(KO/EN, 콘솔 교체로 사라졌던 내용 별 페이지 복원) + 상호링크. docs 가드 2312 통과, documentation 리뷰 Critical 0.
 
-## 미해결/이월
+## 미해결/이월 (genuine backlog — 이 기능 범위 밖)
 - 서버 저장형 외형 관리(per-workspace 외형 JSON 서빙) — 여전히 비목표/백로그.
 - `GET /api/triggers?interactionEnabled=true` 서버 필터 — v1 클라이언트 필터로 충분, 데이터 많아지면 도입 검토.
-- [x] **embed-config spec 갭 해소 (impl-prep W-2)**: 위젯 부팅 `GET /api/hooks/:path/embed-config` allowlist 조회 단계를
-  `3-auth-session.md §3 step 0` + `4-security.md §3-①` 에 문서화(기존 동작·기존 엔드포인트, spec 가드 통과).
 
-## 추가 e2e (frontend)
+## 해소된 후속 (이번 작업)
+- [x] **embed-config spec 갭 해소 (impl-prep W-2 + 코드리뷰 W-1·W-2)**: 위젯 부팅 `GET /api/hooks/:path/embed-config`
+  allowlist 조회·soft 검증 단계를 `3-auth-session.md §3 step 0` + `4-security.md §3-①` 에 문서화 — 비존재/오류/인증 webhook
+  시 allow-all degrade(enumeration 없음)·`Cache-Control: public, max-age=300`·origin 미탐지 시 fail-open 까지 명시(기존 동작).
 - [x] **콘솔 playwright e2e** `e2e/web-chat/console.spec.ts` — interaction 필터 목록·설치 스니펫(endpointPath·ClemvionChat boot)·
   빈 상태→웹채팅 만들기 다이얼로그(워크플로우 셀렉터). 2/2 PASS (mock API + dev 서버). 라이브 미리보기 iframe 은 풀스택 의존이라 비검증.
+
+## 테스트 follow-up (코드리뷰 INFO, 비차단)
+- 콘솔 e2e 확장: 생성 happy-path(이름 입력→submit→목록 갱신→신규 스니펫), viewer role 분기 / `mockAuth` 공용 헬퍼 추출
+  (`e2e/helpers/`) / 설치 스니펫 testid 셀렉터 / `CreateWebChatDialog` 독립 unit. 별도 후속 턴.
 
 ## 증분 전략 (2026-06-23)
 - **증분 1 (현재 PR)**: Phase 2 콘솔 코어(메뉴·라우트·인스턴스 목록/생성·외형 빌더·스니펫 생성·복사) + Phase 1 env 유틸
