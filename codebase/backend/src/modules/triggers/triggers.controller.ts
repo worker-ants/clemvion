@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { Roles } from '../../common/guards/roles.guard';
 import {
@@ -210,5 +211,40 @@ export class TriggersController {
     @WorkspaceId() workspaceId: string,
   ): Promise<{ token: string }> {
     return this.triggersService.revokePerTriggerToken(id, workspaceId);
+  }
+
+  /**
+   * `POST /api/triggers/:id/chat-channel/rotate-bot-token`
+   *
+   * Spec [CCH-SE-04 / providers/telegram §6] — Chat Channel bot token 회전.
+   * 위임: `TriggersService.rotateBotToken()` 가 secret store + adapter 오케스트레이션
+   * 6단계 담당. 본 메서드는 input validation 만. 동사 `rotate-bot-token` — EIA
+   * `/notification/rotate-secret` 와 다른 자원이라 별도 동사(api-convention §2.2 RPC sub-action).
+   *
+   * (C-2: ChatChannelController 에서 이전 — chat-channel↔triggers forwardRef 순환 해소.)
+   */
+  @Post(':id/chat-channel/rotate-bot-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Chat Channel bot token 회전',
+    description:
+      'Spec CCH-SE-04 — 외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관, CCH-SE-04-C cron 이 grace 만료 시 정리.',
+  })
+  async rotateBotToken(
+    @Param('id') triggerId: string,
+    @Body() body: { newBotToken?: string },
+    @WorkspaceId() workspaceId: string,
+  ): Promise<Awaited<ReturnType<TriggersService['rotateBotToken']>>> {
+    if (!body?.newBotToken || typeof body?.newBotToken !== 'string') {
+      throw new BadRequestException({
+        code: 'INVALID_BOT_TOKEN',
+        message: 'newBotToken is required',
+      });
+    }
+    return this.triggersService.rotateBotToken(
+      triggerId,
+      workspaceId,
+      body.newBotToken,
+    );
   }
 }

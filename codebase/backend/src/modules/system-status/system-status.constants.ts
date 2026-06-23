@@ -14,7 +14,7 @@ import { INTEGRATION_EXPIRY_QUEUE } from '../integrations/integration-expiry-sca
 import { SCHEDULE_QUEUE } from '../schedules/schedule-runner.service';
 import { LOGIN_HISTORY_PRUNER_QUEUE } from '../auth/jobs/login-history-pruner.service';
 import { NOTIFICATION_SECRET_ROTATOR_QUEUE } from '../triggers/notification-secret-rotator.service';
-import { CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE } from '../chat-channel/chat-channel-token-rotator.service';
+import { CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE } from '../triggers/chat-channel-token-rotator.service';
 import { ALERTS_EVALUATOR_QUEUE } from '../alerts/alerts-evaluator.service';
 
 /**

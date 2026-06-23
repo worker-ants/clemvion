@@ -136,7 +136,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 <ImplAnchor
   kind="api-endpoint"
-  file="codebase/backend/src/modules/chat-channel/chat-channel.controller.ts"
+  file="codebase/backend/src/modules/triggers/triggers.controller.ts"
   symbol="rotateBotToken"
   describes="POST /api/triggers/:id/chat-channel/rotate-bot-token"
 />

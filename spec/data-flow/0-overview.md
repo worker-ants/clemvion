@@ -198,7 +198,7 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 | `makeshop-token-refresh` | `makeshop.module.ts` | `MakeshopApiClient` (proactive·reactive_401 enqueue + MCP tool provider 가 `refreshTokenViaQueue` 로 호출하는 source `background` self-heal — scanner background cron 없음, refresh TTL 30~90일) | `MakeshopTokenRefreshProcessor` | makeshop 통합 1건 token refresh |
 | `notification-webhook` | `external-interaction.module.ts` | `NotificationDispatcher` | `NotificationWebhookProcessor` | webhook 알림 1건 발송 |
 | `login-history-pruner` | `auth.module.ts` | `LoginHistoryPrunerService` (daily scheduler, `0 3 * * *` Asia/Seoul) | 동일 service (`@Processor`) | login_history 180일 경과 prune |
-| `chat-channel-token-rotator` | `chat-channel.module.ts` | `ChatChannelTokenRotatorService` (hourly scheduler) | 동일 service (`@Processor`) | chat_channel_token_v2 24h grace 정리 |
+| `chat-channel-token-rotator` | `triggers.module.ts` | `ChatChannelTokenRotatorService` (hourly scheduler) | 동일 service (`@Processor`) | chat_channel_token_v2 24h grace 정리 |
 | `notification-secret-rotator` | `triggers.module.ts` | `NotificationSecretRotatorService` (hourly scheduler) | 동일 service (`@Processor`) | notification_secret_v2 24h grace 승격 |
 | `terminal-revoke-reconcile` | `external-interaction.module.ts` | `TerminalRevokeReconcilerService` (per-minute repeatable scheduler `* * * * *`) | 동일 service (`@Processor`, concurrency 1) | terminal execution 의 잔존 interaction token sweep revoke — at-least-once 보강 ([EIA §3.4 EIA-RL-06 / §9.3 R15](../5-system/14-external-interaction-api.md)) |
 

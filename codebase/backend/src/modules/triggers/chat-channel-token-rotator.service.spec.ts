@@ -5,7 +5,7 @@
  */
 import type { Queue } from 'bullmq';
 import { ChatChannelTokenRotatorService } from './chat-channel-token-rotator.service';
-import type { TriggersService } from '../triggers/triggers.service';
+import type { TriggersService } from './triggers.service';
 
 function makeTriggersServiceMock(): jest.Mocked<TriggersService> {
   return {

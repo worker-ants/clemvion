@@ -25,7 +25,7 @@ webhook 진입의 chatChannel 분기 자체는 [트리거 data-flow](./10-trigge
 - `codebase/backend/src/modules/hooks/hooks.service.ts` — `handleChatChannelWebhook` (inbound 전체 오케스트레이션)
 - `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts` — Redis ConversationState CRUD + form-submit lock
 - `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts` — outbound subscription (`WebsocketService.executionEvents$`)
-- `codebase/backend/src/modules/chat-channel/chat-channel-token-rotator.service.ts` — `chat-channel-token-rotator` 큐 (매시간 cleanup)
+- `codebase/backend/src/modules/triggers/chat-channel-token-rotator.service.ts` — `chat-channel-token-rotator` 큐 (매시간 cleanup; C-2 로 triggers 모듈로 이전 — cleanup 로직 `TriggersService` 와 co-location)
 - `codebase/backend/src/modules/triggers/triggers.service.ts` — `setupChatChannel` / `rotateBotToken` / `cleanupRotatedChatChannelTokens`
 - `codebase/backend/src/modules/web-chat-cors/web-chat-cors-origin.resolver.ts` + `codebase/backend/src/modules/hooks/embed-config.service.ts` — web-chat 경로 (§1.4)
 

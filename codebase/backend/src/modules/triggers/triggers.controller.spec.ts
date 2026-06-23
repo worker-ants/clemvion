@@ -1,18 +1,21 @@
 import { BadRequestException } from '@nestjs/common';
-import { ChatChannelController } from './chat-channel.controller';
-import { TriggersService } from '../triggers/triggers.service';
+import { TriggersController } from './triggers.controller';
+import { TriggersService } from './triggers.service';
 
 /**
- * ChatChannelController.rotateBotToken 단위 테스트.
+ * `TriggersController.rotateBotToken` 단위 테스트.
  *
- * 본 컨트롤러는 input validation 만 책임. workspaceId 부재 검증은 공용 `@WorkspaceId()`
+ * (C-2: ChatChannelController 에서 본 컨트롤러로 이전 — chat-channel↔triggers
+ * forwardRef 순환 해소. route `POST /api/triggers/:id/chat-channel/rotate-bot-token`
+ * 와 핸들러 로직은 무변.)
+ *
+ * 본 메서드는 input validation 만 책임. workspaceId 부재 검증은 공용 `@WorkspaceId()`
  * 데코레이터(부재 시 `WORKSPACE_ID_REQUIRED` 400)가 담당하며 `common/decorators/
- * workspace.decorator.spec.ts` 에서 검증 — 데코레이터는 Nest param 파이프라인에서만
- * 동작해 직접 호출 단위테스트 범위 밖이다. 6단계 오케스트레이션은 TriggersService.
+ * workspace.decorator.spec.ts` 에서 검증. 6단계 오케스트레이션은 TriggersService.
  * rotateBotToken 으로 위임되어 별도 spec 에서 검증.
  */
-describe('ChatChannelController.rotateBotToken', () => {
-  let controller: ChatChannelController;
+describe('TriggersController.rotateBotToken', () => {
+  let controller: TriggersController;
   let triggersService: jest.Mocked<Pick<TriggersService, 'rotateBotToken'>>;
 
   const WORKSPACE_ID = 'ws-1';
@@ -31,7 +34,7 @@ describe('ChatChannelController.rotateBotToken', () => {
     triggersService = {
       rotateBotToken: jest.fn().mockResolvedValue(ROTATE_RESULT),
     } as jest.Mocked<Pick<TriggersService, 'rotateBotToken'>>;
-    controller = new ChatChannelController(
+    controller = new TriggersController(
       triggersService as unknown as TriggersService,
     );
   });

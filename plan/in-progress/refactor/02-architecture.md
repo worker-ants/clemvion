@@ -41,7 +41,7 @@
 
 ### C-2 [Critical] forwardRef 양방향 순환 의존 클러스터 — 클러스터별 개별 처리로 재정의 ⚠️
 
-- [ ] 미착수
+- [~] 진행 중 — 클러스터 5(chat-channel↔triggers) **완료**; 1 무조치(spec 준수 유지)·2·3 M-7(#663) 해소 확인; **4(llm↔model-config)는 plan premise(type-move) 정정 후 별건**.
 
 **spec 대조**: D — 단 **핵심 쌍(엔진↔WS)은 A**: `4-execution-engine.md §4.4` "sink 는 `WebsocketService` 가 canonical … 별도 추상화를 도입하지 않는다", "forwardRef … 회피해야 할 안티패턴이 아님", EIA·chat-channel 추가 후에도 재확인(`15-chat-channel.md §R4` "EventEmitter 교체는 본 결정 범위 밖"). KB→WS 직접 의존도 spec 명시(`8-embedding-pipeline.md` "`WebsocketService.emitKbEvent` 가 권위 정의"). 반면 `llm↔llm-config`, `chat-channel↔triggers` 는 spec 무언급.
 
@@ -49,11 +49,11 @@
 
 **개선 방안** (클러스터별):
 
-- [ ] 1. **엔진↔WS**: 현행 forwardRef 유지가 spec 준수. 다중 sink 가 실제 가시화될 때 §4.4 의 단서("그때 재검토")로 planner 에 spec 개정 발의 — 그 전 구현 금지.
-- [ ] 2. **WS gateway → 4개 서비스** (순환의 반대 변): M-7 authorizer 역전으로 해소 — sink 정책 비저촉.
-- [ ] 3. **KB cluster**: emit 방향(KB→WS)은 spec 명시라 유지. gateway→KB(`verifyDocumentOwnership`) 를 M-7 로 끊으면 단방향 import 로 단순화.
-- [ ] 4. **llm ↔ llm-config**: 공유 타입을 `shared/` 로 내려 단방향화 (모듈 흡수보다 `data-flow/7-llm-usage.md` participant 유지가 자연스러움).
-- [ ] 5. **chat-channel ↔ triggers**: trigger 의 chatChannel config 타입·registry 참조를 `chat-channel/types.ts` 또는 shared 로 내려 단방향화.
+- [x] 1. **엔진↔WS**: 현행 forwardRef 유지가 spec 준수(무조치). 다중 sink 가 실제 가시화될 때 §4.4 단서로 planner 에 spec 개정 발의 — 그 전 구현 금지.
+- [x] 2. **WS gateway → 4개 서비스**: **M-7(#663) authorizer 역전으로 해소 확인** — gateway 잔존 forwardRef 는 inbound command(continueX/retry/snapshot, spec 의도)뿐. 무조치.
+- [x] 3. **KB cluster**: emit(KB→WS) spec 준수 유지 + gateway→KB 는 M-7 해소 확인. 무조치.
+- [ ] 4. **llm ↔ model-config** — **별건(planner premise 정정)**. plan 의 "공유 타입 shared 강하" 전제는 **부족**: 실제 순환은 **서비스 양방향**(llm→model-config: `LlmService`→`ModelConfigService` 코어 / model-config→llm: `ModelConfigController` 의 `preview-models`·`:id/test`·`:id/models` 3 엔드포인트가 `LlmService`/`LlmPreviewService` 주입). 끊으려면 type-move 가 아니라 **3 엔드포인트를 llm 모듈로 이전**(model-config 스코프 route 라 어색) 또는 **인터페이스 역전**(M-7 식) 필요 — design 결정 사안이라 planner refine 후 별 PR.
+- [x] 5. **chat-channel ↔ triggers** — **완료**. plan 의 "type 강하" 전제도 부족(서비스 양방향)이었으나 끊김: chat-channel→triggers 의존 2곳[ⓐ `ChatChannelController.rotateBotToken`→TriggersService, ⓑ `ChatChannelTokenRotatorService`→`TriggersService.cleanupRotatedChatChannelTokens`]을 **triggers 로 이전**(ⓐ 엔드포인트→`TriggersController`, route `POST /api/triggers/:id/chat-channel/rotate-bot-token` 무변; ⓑ 워커+큐 등록+상수→`triggers/`, cleanup 로직과 co-location). chat-channel→triggers 잔존은 `Trigger` 엔티티만(순환 무관) → 양 모듈 forwardRef 제거, 단방향(triggers→chat-channel) 화. **검증**: lint·build(docker)·unit·**e2e 214(부팅/DI 정상 — 회귀 위험인 DI 초기화 실패 없음 확인)** PASS. spec-impl 앵커 동기화(`15-chat-channel.md` 컨트롤러 링크·file-tree, `user-guide-evidence.md` ImplAnchor, `data-flow/{0-overview,14-chat-channel}.md` 로테이터 위치 — 기계적 경로 sync). PR: branch `claude/refactor-c2-circular-deps`.
 
 **옵션 비교**:
 
