@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# co-deployed web-chat widget bundle (built by `build:widget`, copy-widget.mjs)
+/public/_widget/
+
 # production
 /build
 

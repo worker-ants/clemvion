@@ -47,6 +47,18 @@ export function getWidgetAppUrl(): string {
   return `${getWidgetBase()}${WIDGET_VERSION_PATH}/app`;
 }
 
+/** 위젯 iframe 의 origin — 미리보기 postMessage 송수신 origin 검증용. 동봉 self-origin 이면 배포 origin. */
+export function getWidgetOrigin(): string {
+  const base = getWidgetBase();
+  if (!base) return "";
+  try {
+    const ref = typeof window !== "undefined" ? window.location.href : undefined;
+    return new URL(base, ref).origin;
+  } catch {
+    return "";
+  }
+}
+
 /**
  * 위젯 서빙 위치를 해석할 수 있는지. 브라우저 컨텍스트면 동봉 self-origin 으로
  * 항상 가능. SSR + env 미설정일 때만 false(스니펫/미리보기 UI 비활성 안내).

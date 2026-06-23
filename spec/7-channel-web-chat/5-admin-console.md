@@ -139,6 +139,28 @@ pending_plans:
 - **CORS**: 동봉이면 위젯 origin = 배포 origin 이라 same-origin (별도 CORS 불필요). 엣지 CDN override 시에는 그 origin 이
   백엔드 `WEB_CHAT_WIDGET_ORIGINS` allowlist 에 있어야 한다([4-security §2](./4-security.md)).
 
+### 6.1 boot config 전달 메커니즘 (이미 로드된 iframe 으로)
+
+콘솔은 위젯 iframe 을 직접 마운트하고 [2-sdk §3 의 `wc:*` postMessage 프로토콜](./2-sdk.md)로 부팅한다 — 위젯 dev 데모 host
+(`channel-web-chat/src/app/demo/demo-host.tsx`)와 **동일 경로**.
+
+1. **iframe `src`** = `<widgetBase>/web-chat/v1/app/?apiBase=<api-base>&trigger=<endpointPath>&locale=<locale>` —
+   `<widgetBase>` 는 §5 의 동봉 base(self-origin `/_widget`, 또는 `NEXT_PUBLIC_WIDGET_CDN_BASE`). `apiBase`/`trigger`/`locale` 은
+   **query param** 으로 1차 전달(위젯은 `configFromQuery()` 로 부트스트랩).
+2. iframe 이 로드되면 위젯이 host 로 **`wc:ready`** postMessage 를 보낸다.
+3. 콘솔은 `wc:ready` 수신 후 **`wc:boot`** postMessage 로 **전체 boot config**(외형 `appearance`·`headerTitle`·`welcome`·
+   `launcher`·`disclaimer` 등 §4 폼 값)를 전달한다. 위젯은 `configFromQuery()` 와 `wc:boot` payload 를 머지해 적용한다.
+4. **origin 검증**: 양방향 postMessage 는 `event.origin` 을 검증한다. 동봉이면 위젯 iframe origin = 콘솔 origin(same-origin).
+5. 외형 폼이 바뀌면 **iframe 재마운트**(key 변경) 후 1–3 을 재실행해 미리보기를 갱신한다(데모 host 패턴).
+
+> **임베드 soft 검증과의 관계**: 위젯은 부팅 시 `GET /api/hooks/:path/embed-config` 로 host origin allowlist 를 soft 검증한다
+> ([4-security §3](./4-security.md), `use-widget.ts`). 동봉 same-origin 미리보기는 allowlist 미설정(`enforce=false`) 시 fail-open
+> 으로 통과하며, allowlist 가 설정된 인스턴스는 콘솔(배포) origin 도 허용 목록에 있어야 미리보기가 렌더된다.
+
+> **구현 선택지(비규범)**: 콘솔은 위 프로토콜을 직접 구현(데모 host 처럼 iframe+postMessage)하거나, npm `@workflow/web-chat`
+> 의 `ClemvionChat.setWidgetBase(<widgetBase>)` + `boot()` 를 재사용할 수 있다. v1 은 **미리보기를 패널에 가두기 위해**
+> contained iframe + postMessage 직접 구현을 택한다(SDK `boot()` 는 host body 에 floating 위젯을 주입하므로 패널 격리에 부적합).
+
 ## 7. 권한 (RBAC — Trigger 규약과 일치)
 
 | 동작 | 최소 역할 | 근거 |

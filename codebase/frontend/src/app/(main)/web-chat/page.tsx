@@ -114,7 +114,7 @@ function WebChatDetail({ instance }: { instance: WebChatInstance }) {
         <InstallSnippetBox endpointPath={instance.endpointPath} draft={draft} />
       </Card>
       <Card className="p-6">
-        <LivePreview />
+        <LivePreview endpointPath={instance.endpointPath} draft={draft} />
       </Card>
     </div>
   );

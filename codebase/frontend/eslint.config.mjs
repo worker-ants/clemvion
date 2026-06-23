@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // co-deployed web-chat widget bundle (built artifact, copy-widget.mjs)
+    "public/_widget/**",
   ]),
 ]);
 

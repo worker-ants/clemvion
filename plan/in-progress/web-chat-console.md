@@ -70,13 +70,11 @@ related_plans:
 - [x] i18n `web-chat` dict (ko/en) + index 등록
 - [x] unit 테스트 (widget-base·snippet·snippet-input·page; 27 케이스)
 
-### Phase 3 — 라이브 미리보기 [developer]
-- [ ] **(착수 전 spec 선결, ai-review W-1)** `5-admin-console §6` 에 already-loaded iframe 에 boot config 를 전달하는
-      메커니즘(URL query param vs `wc:boot` postMessage, `2-sdk §3` 프로토콜)을 명시 → project-planner 위임. 미정의 시 Phase 3 구현 방향 모호.
-- [ ] 콘솔 내 위젯 M1 hosted iframe 임베드(loader + iframe) — 선택 인스턴스 `endpointPath` 부팅, 외형 반영
-- [ ] UI 미리보기(런처/패널) + 대화형(메시지 왕복) — 선행 A(위젯 호스팅)에만 의존
-- [ ] 미설정 fallback (disabled + 경고)
-- [ ] e2e 시나리오 (생성 → 스니펫 → 미리보기)
+### Phase 3 — 라이브 미리보기 [developer] (증분 2)
+- [x] **spec 선결 해소**: `5-admin-console §6.1` 에 boot config 전달 메커니즘(iframe query param + `wc:boot` postMessage, 2-sdk §3) 명시
+- [ ] 콘솔 내 contained same-origin iframe 임베드 — `getWidgetAppUrl()` + query(apiBase/trigger/locale), `wc:ready` 후 `wc:boot` 로 외형 전달, 폼 변경 시 재마운트
+- [ ] 동봉 미설정 시 fallback (placeholder 유지)
+- [ ] unit 테스트(iframe src·postMessage 흐름 mock). e2e 는 docker/풀스택 의존 — 환경 차단 시 보류
 
 ### Phase 4 — 검증 [developer] — 증분 1 부분
 - [x] lint/unit 통과 (리뷰 앞). frontend `next build` 통과(`/web-chat` 라우트 생성)
