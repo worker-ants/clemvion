@@ -1,0 +1,169 @@
+---
+title: "웹채팅 위젯 직접 통합 (SDK)"
+title_en: "Web Chat widget direct integration (SDK)"
+section: "06-integrations-and-config"
+order: 12
+summary: "CDN 스니펫이나 npm 패키지로 AI 채팅 위젯을 웹사이트에 직접 삽입하는 방법과, 허용 도메인 설정 및 자체 UI(BYO-UI) 구현 방법을 설명해요."
+summary_en: "Embed an AI chat widget directly on your website using a CDN snippet or npm package, configure allowed domains, and build your own UI with the SDK."
+spec:
+  - spec/7-channel-web-chat/2-sdk.md
+code:
+  - codebase/packages/web-chat-sdk
+---
+
+이 페이지에서는 외부 웹사이트(고객 랜딩 페이지, SaaS 서비스 등)에 AI 채팅 위젯을 직접 삽입해 워크플로우와 연결하는 방법을 설명해요.
+
+위젯은 공개 웹훅 트리거에 연결돼요. 사이트 방문자가 채팅을 시작하면 워크플로우가 실행되고, AI Multi-turn · 버튼 · 폼 등 모든 인터랙션이 채팅 안에서 이루어져요.
+
+<Callout type="note">
+코드 없이 위젯을 만들고 설치 스크립트를 복사하려면 [웹채팅 운영 콘솔](/docs/06-integrations-and-config/web-chat)을 이용해요. 이 페이지는 스니펫·npm을 직접 다루는 개발자를 위한 가이드예요.
+</Callout>
+
+## 1. 설치 방법
+
+두 가지 방법 중 하나를 선택해요.
+
+### CDN 스니펫 (빌드 불필요)
+
+HTML 페이지의 `<head>` 또는 `<body>` 끝에 아래 두 블록을 붙여 넣어요.
+
+```html
+<script>
+  (function(d,s){var j=d.createElement(s);j.async=1;
+   j.src="https://<위젯 CDN>/web-chat/v1/loader.js";
+   d.head.appendChild(j);})(document,"script");
+</script>
+<script>
+  ClemvionChat('boot', {
+    apiBase: 'https://<API 도메인>',
+    triggerEndpointPath: 'a1b2c3-...',
+    locale: 'ko',
+    appearance: { primaryColor: '#5B4FE9', position: 'bottom-right' },
+    headerTitle: 'AI 어시스턴트',
+    welcome: {
+      text: '안녕하세요! 무엇을 도와드릴까요?',
+      suggestions: ['제품 소개를 받아볼 수 있나요?', '설치는 어떻게 하나요?']
+    },
+    disclaimer: 'AI는 한정된 데이터로 동작하며 답변이 부정확할 수 있어요.'
+  });
+</script>
+```
+
+| 필드 | 설명 |
+|---|---|
+| `apiBase` | Clemvion API의 도메인(배포 환경에 맞게 입력) |
+| `triggerEndpointPath` | 연결할 공개 웹훅 트리거의 endpoint path. [Triggers 목록](/triggers)에서 확인 가능 |
+| `locale` | 위젯 UI 언어 (`ko` 또는 `en`) |
+| `headerTitle` | 채팅 패널 상단에 표시할 봇 이름 |
+| `welcome.text` | 채팅 패널이 열릴 때 즉시 표시되는 환영 메시지 |
+| `welcome.suggestions` | 추천 질문 버블. 탭 시 해당 텍스트가 첫 메시지로 전송됨 |
+| `disclaimer` | 채팅 하단 AI 면책 문구 |
+
+<Callout type="note">
+`triggerEndpointPath`는 인증 토큰이 아니에요. 공개 webhook path로, 사이트 소스에 노출돼도 괜찮아요. 위젯 실행 토큰은 워크플로우 시작 시 서버에서 자동 발급되고, 위젯이 내부적으로 관리해요.
+</Callout>
+
+### npm 패키지 (개발자용)
+
+```bash
+npm install @workflow/web-chat
+```
+
+```ts
+import { ClemvionChat } from '@workflow/web-chat';
+
+const chat = ClemvionChat.boot({
+  apiBase: 'https://<API 도메인>',
+  triggerEndpointPath: 'a1b2c3-...',
+  locale: 'ko',
+  appearance: { primaryColor: '#5B4FE9' },
+  headerTitle: 'AI 어시스턴트',
+});
+
+// SPA 라우트 이동 시 핸들러 정리
+const unsubscribe = chat.on('message', (m) => console.log(m));
+// 페이지 언마운트 시
+unsubscribe();
+chat.shutdown();
+```
+
+npm 패키지는 CDN 스니펫과 동일한 기능을 타입과 함께 제공해요.
+
+### 전역명 재지정 (`data-global`)
+
+한 페이지에 위젯을 여러 개 올리거나 기존 전역 변수와 이름이 충돌할 때, CDN 스니펫 `<script>` 태그에 `data-global` 속성을 추가해 전역 함수 이름을 바꿀 수 있어요.
+
+```html
+<script data-global="SupportChat" async src="...loader.js"></script>
+<script>
+  SupportChat('boot', { ... });
+</script>
+```
+
+## 2. 허용 도메인 설정 (임베드 제한)
+
+**GUI 설정 흐름**
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/workspace/settings/page.tsx"
+  symbol="EmbedOriginsCard"
+  describes="워크스페이스 설정 개요 탭의 임베드 허용 도메인 편집 카드"
+/>
+
+[워크스페이스 설정](/workspace/settings) 페이지의 **개요** 탭 → **임베드 허용 도메인** 섹션에서 허용할 origin을 추가하거나 삭제하고 저장해요.
+
+- **편집 권한**: Owner 또는 Admin
+- **조회**: 모든 멤버
+
+origin은 `scheme://host[:port]` 형식으로 입력해요(경로 제외). 예: `https://example.com`, `https://shop.example.com`.
+
+목록에 등록된 도메인에서만 위젯이 표시돼요. 목록에 없는 도메인에서는 위젯 렌더가 거부되고 채팅이 시작되지 않아요.
+
+<Callout type="note">
+목록이 비어 있으면 도메인 제한을 적용하지 않아요. 위젯 CDN origin은 항상 허용돼요. BYO-UI(자체 UI) 모드처럼 API를 직접 호출하는 경우, 자체 서비스 도메인도 목록에 추가해야 API 요청이 수락돼요(§4 참고).
+</Callout>
+
+이 설정은 캐주얼 오남용을 방지하는 soft 컨트롤이에요. 설정 변경 후 최대 5분 이내에 반영돼요(캐시 갱신).
+
+저장되는 값의 형식은 아래와 같아요.
+
+```json
+{
+  "interactionAllowedOrigins": [
+    "https://example.com",
+    "https://shop.example.com"
+  ]
+}
+```
+
+## 3. 리치 메시지 렌더
+
+워크플로우에서 presentation 노드(Carousel · Table · Chart · Template · Form)를 사용하면 그 결과가 채팅 패널 안에 inline으로 표시돼요. 위젯 개발자가 별도로 작업할 필요 없이 자동 렌더돼요.
+
+| 노드 유형 | 위젯 표현 |
+|---|---|
+| **Carousel** | 카드형 슬라이드 |
+| **Table** | 표 |
+| **Chart** | 막대/선 차트 |
+| **Template** | 본문 텍스트 |
+| **Form** | 필드별 입력 폼 |
+| **Button Presentation** | 선택 버튼 |
+
+## 4. 자체 UI (BYO-UI)
+
+위젯 UI 대신 자체 디자인의 채팅 화면을 구현하려면 `@workflow/sdk`(`ClemvionClient`)를 직접 사용해요. 위젯 iframe 없이 External Interaction API를 직접 호출하는 headless 방식이에요.
+
+```ts
+import { ClemvionClient } from "@workflow/sdk";
+```
+
+BYO-UI 방식에서는 API 요청의 Origin이 자체 서비스 도메인이 돼요. 그러므로 해당 도메인을 [워크스페이스 설정](/workspace/settings)의 **임베드 허용 도메인** 섹션에 추가해야 API 요청이 허용돼요.
+
+## 팁 & 참고
+
+- **토큰·세션 자동 관리**: 위젯이 per-execution 토큰을 자동으로 관리하고 만료 전에 갱신해요. 위젯 사용자가 직접 토큰을 다룰 필요는 없어요.
+- **대화 패널 제어 API**: `chat.open()` / `chat.close()`로 패널 전개·접힘, `chat.show()` / `chat.hide()`로 런처(위젯 진입 버튼) 자체를 표시·숨길 수 있어요. SPA 라우팅에서 특정 페이지에서만 위젯을 숨길 때 유용해요.
+- **이벤트 구독**: `chat.on('conversationStarted', cb)` / `chat.on('message', cb)` 등으로 대화 이벤트를 구독해 자체 분석에 활용할 수 있어요.
+- **공개 웹훅 트리거 연결**: 위젯은 인증 없는(공개) 웹훅 트리거와 연결돼야 해요. [Triggers](/triggers)에서 워크플로우에 연결된 트리거의 endpoint path를 확인해요.
+- **콘솔로 빠르게 시작하기**: 코드 없이 위젯을 만들고 라이브 미리보기까지 확인하려면 [웹채팅 운영 콘솔](/docs/06-integrations-and-config/web-chat)을 이용해요.
