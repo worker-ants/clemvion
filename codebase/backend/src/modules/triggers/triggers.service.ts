@@ -83,8 +83,14 @@ export class TriggersService {
       interactionEnabled?: boolean;
     },
   ): Promise<PaginatedResponseDto<Trigger>> {
-    const { page = 1, limit = 20, search, type, status, interactionEnabled } =
-      query;
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      type,
+      status,
+      interactionEnabled,
+    } = query;
 
     const qb = this.triggerRepository
       .createQueryBuilder('t')

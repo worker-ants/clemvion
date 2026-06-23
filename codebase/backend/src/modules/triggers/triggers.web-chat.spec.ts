@@ -25,28 +25,50 @@ function otherProviders(): Provider[] {
       provide: getRepositoryToken(Schedule),
       useValue: { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() },
     },
-    { provide: getRepositoryToken(AuthConfig), useValue: { findOne: jest.fn() } },
-    { provide: ChannelAdapterRegistry, useValue: { has: jest.fn(() => false), get: jest.fn() } },
+    {
+      provide: getRepositoryToken(AuthConfig),
+      useValue: { findOne: jest.fn() },
+    },
+    {
+      provide: ChannelAdapterRegistry,
+      useValue: { has: jest.fn(() => false), get: jest.fn() },
+    },
     {
       provide: ChannelListenerRegistry,
       useValue: {
-        register: jest.fn(), unregister: jest.fn(), has: jest.fn(() => false),
-        get: jest.fn(), size: jest.fn(() => 0), bulkRegister: jest.fn(),
+        register: jest.fn(),
+        unregister: jest.fn(),
+        has: jest.fn(() => false),
+        get: jest.fn(),
+        size: jest.fn(() => 0),
+        bulkRegister: jest.fn(),
       },
     },
-    { provide: ConfigService, useValue: { get: jest.fn(() => 'http://localhost:3000') } },
-    { provide: ScheduleRunnerService, useValue: { registerJob: jest.fn(), removeJob: jest.fn() } },
+    {
+      provide: ConfigService,
+      useValue: { get: jest.fn(() => 'http://localhost:3000') },
+    },
+    {
+      provide: ScheduleRunnerService,
+      useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
+    },
     {
       provide: SecretResolverService,
       useValue: {
-        resolve: jest.fn(), store: jest.fn(), rotate: jest.fn(), delete: jest.fn(),
-        deleteByPrefix: jest.fn().mockResolvedValue(0), exists: jest.fn(),
+        resolve: jest.fn(),
+        store: jest.fn(),
+        rotate: jest.fn(),
+        delete: jest.fn(),
+        deleteByPrefix: jest.fn().mockResolvedValue(0),
+        exists: jest.fn(),
       },
     },
   ];
 }
 
-async function makeService(triggerRepoMock: Record<string, unknown>): Promise<TriggersService> {
+async function makeService(
+  triggerRepoMock: Record<string, unknown>,
+): Promise<TriggersService> {
   const moduleRef = await Test.createTestingModule({
     providers: [
       TriggersService,
@@ -74,7 +96,9 @@ describe('TriggersService.findAll — interactionEnabled 필터 (follow-up 3)', 
 
   it('interactionEnabled=true 면 config.interaction.enabled JSONB 절을 추가한다', async () => {
     const qb = makeQb();
-    const service = await makeService({ createQueryBuilder: jest.fn(() => qb) });
+    const service = await makeService({
+      createQueryBuilder: jest.fn(() => qb),
+    });
     await service.findAll('ws-1', { interactionEnabled: true });
     expect(qb.andWhere).toHaveBeenCalledWith(
       expect.stringContaining("config->'interaction'->>'enabled'"),
@@ -84,7 +108,9 @@ describe('TriggersService.findAll — interactionEnabled 필터 (follow-up 3)', 
 
   it('interactionEnabled 미지정이면 해당 절을 추가하지 않는다', async () => {
     const qb = makeQb();
-    const service = await makeService({ createQueryBuilder: jest.fn(() => qb) });
+    const service = await makeService({
+      createQueryBuilder: jest.fn(() => qb),
+    });
     await service.findAll('ws-1', {});
     const interactionClause = qb.andWhere.mock.calls.find(
       ([sql]) => typeof sql === 'string' && sql.includes("'interaction'"),
@@ -97,21 +123,33 @@ describe('TriggersService — config.interaction.appearance 저장 (follow-up 2)
   it('create 시 interaction.appearance 가 config 에 보존된다', async () => {
     const service = await makeService({
       create: jest.fn((x: unknown) => x),
-      save: jest.fn(async (x: Record<string, unknown>) => ({ id: 't-new', ...x })),
+      save: jest.fn(async (x: Record<string, unknown>) => ({
+        id: 't-new',
+        ...x,
+      })),
       findOne: jest.fn(),
       update: jest.fn(),
     });
-    const appearance = { primaryColor: '#5B4FE9', position: 'bottom-right', headerTitle: 'Bot' };
+    const appearance = {
+      primaryColor: '#5B4FE9',
+      position: 'bottom-right',
+      headerTitle: 'Bot',
+    };
     const result = await service.create('ws-1', {
       type: 'webhook',
       workflowId: 'wf-1',
       name: 'n',
       endpointPath: 'ep',
-      interaction: { enabled: true, tokenStrategy: 'per_execution', appearance },
+      interaction: {
+        enabled: true,
+        tokenStrategy: 'per_execution',
+        appearance,
+      },
     } as never);
-    expect((result.config as { interaction?: { appearance?: unknown } }).interaction?.appearance).toEqual(
-      appearance,
-    );
+    expect(
+      (result.config as { interaction?: { appearance?: unknown } }).interaction
+        ?.appearance,
+    ).toEqual(appearance);
   });
 
   it('update 시 interaction 전체(enabled·tokenStrategy·appearance)를 교체 저장한다', async () => {
@@ -119,7 +157,9 @@ describe('TriggersService — config.interaction.appearance 저장 (follow-up 2)
       id: 't-1',
       workspaceId: 'ws-1',
       type: 'webhook',
-      config: { interaction: { enabled: true, tokenStrategy: 'per_execution' } },
+      config: {
+        interaction: { enabled: true, tokenStrategy: 'per_execution' },
+      },
     };
     const service = await makeService({
       findOne: jest.fn().mockResolvedValue(existing),
@@ -128,9 +168,15 @@ describe('TriggersService — config.interaction.appearance 저장 (follow-up 2)
     });
     const appearance = { primaryColor: '#112233', welcomeText: '안녕하세요' };
     const result = await service.update('t-1', 'ws-1', {
-      interaction: { enabled: true, tokenStrategy: 'per_execution', appearance },
+      interaction: {
+        enabled: true,
+        tokenStrategy: 'per_execution',
+        appearance,
+      },
     } as never);
-    const interaction = (result.config as { interaction?: Record<string, unknown> }).interaction;
+    const interaction = (
+      result.config as { interaction?: Record<string, unknown> }
+    ).interaction;
     expect(interaction?.appearance).toEqual(appearance);
     expect(interaction?.enabled).toBe(true);
     expect(interaction?.tokenStrategy).toBe('per_execution');
