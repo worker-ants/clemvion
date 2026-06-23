@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { getWebhookBaseUrl } from "@/lib/utils/webhook-url";
@@ -16,6 +16,8 @@ interface Props {
 
 /** 위젯이 `wc:ready` 를 보내지 않으면(번들 미동봉·로드 실패) 안내로 전환하는 시간. */
 const READY_TIMEOUT_MS = 8000;
+/** 미리보기 iframe 높이(px). */
+const PREVIEW_HEIGHT = 320;
 
 /**
  * 라이브 미리보기 — same-origin 동봉 위젯을 contained iframe 으로 띄우고 `wc:boot` postMessage
@@ -38,8 +40,6 @@ export function LivePreview({ endpointPath, draft }: Props) {
     () => buildBootConfig(draftToBootInput(draft, { apiBase, triggerEndpointPath: endpointPath })),
     [draft, apiBase, endpointPath],
   );
-  const bootConfigRef = useRef(bootConfig);
-  bootConfigRef.current = bootConfig;
 
   // 인스턴스/apiBase/locale 변경 시에만 iframe 재마운트(외형은 boot 재전송으로 처리).
   const iframeSrc = useMemo(() => {
@@ -48,19 +48,32 @@ export function LivePreview({ endpointPath, draft }: Props) {
     return `${getWidgetAppUrl()}/?${params.toString()}`;
   }, [apiBase, endpointPath, draft.locale]);
 
-  function postBoot() {
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "wc:boot", payload: bootConfigRef.current },
-      widgetOrigin || "*",
-    );
+  // iframe 재마운트(iframeSrc 변경) 시 status 를 loading 으로 리셋 — effect 안 setState 회피를 위해
+  // 렌더 중 처리(React 권장 "previous-render 정보 저장" 패턴).
+  const [srcKey, setSrcKey] = useState(iframeSrc);
+  if (srcKey !== iframeSrc) {
+    setSrcKey(iframeSrc);
+    setStatus("loading");
   }
 
-  // wc:ready 수신 → status ready. 타임아웃 시 unavailable. (boot 전송은 아래 effect 가 일원 담당)
+  // boot config 전송 — widgetOrigin 미확보 시 `"*"` 로 보내지 않고 전송 자체를 건너뛴다(보안).
+  // bootConfig 에 직접 의존 → 외형 변경 시 postBoot 가 갱신돼 아래 effect 가 재전송한다.
+  const postBoot = useCallback(() => {
+    if (!widgetOrigin) return;
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "wc:boot", payload: bootConfig },
+      widgetOrigin,
+    );
+  }, [widgetOrigin, bootConfig]);
+
+  // wc:ready 수신 → status ready. 타임아웃 시 unavailable. (boot 전송은 아래 effect 가 담당)
+  // status 리셋은 위 렌더-중 처리. 여기서는 리스너·타임아웃만 등록.
   useEffect(() => {
-    setStatus("loading");
+    // widgetOrigin 미확보(SSR 엣지) 시에도 동봉 same-origin 으로 폴백 검증 — `*` 수용 금지.
+    const expectedOrigin = widgetOrigin || window.location.origin;
     const onMessage = (e: MessageEvent) => {
       if (e.source !== iframeRef.current?.contentWindow) return;
-      if (widgetOrigin && e.origin !== widgetOrigin) return;
+      if (e.origin !== expectedOrigin) return;
       const data = e.data as { type?: string } | null;
       if (data?.type === "wc:ready") setStatus("ready");
     };
@@ -72,26 +85,29 @@ export function LivePreview({ endpointPath, draft }: Props) {
       window.removeEventListener("message", onMessage);
       window.clearTimeout(timer);
     };
-    // iframeSrc 변경 = 재마운트 → ready 재대기. widgetOrigin 은 안정적.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iframeSrc, widgetOrigin]);
 
-  // ready 진입 시(초기 boot) + 외형 폼 변경 시(재마운트 없이 갱신) wc:boot 전송 — 단일 경로.
+  // ready 진입 시(초기 boot) + 외형 폼 변경 시(postBoot 갱신, 재마운트 없이) wc:boot 전송 — 단일 경로.
   useEffect(() => {
     if (status === "ready") postBoot();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bootConfig, status]);
+  }, [status, postBoot]);
 
   return (
     <section className="space-y-2">
       <h3 className="text-sm font-semibold">{t("webChat.preview.title")}</h3>
-      <div className="relative min-h-[320px] overflow-hidden rounded-md border border-[hsl(var(--border))]">
+      <div
+        className="relative overflow-hidden rounded-md border border-[hsl(var(--border))]"
+        style={{ minHeight: PREVIEW_HEIGHT }}
+      >
+        {/* 동봉 위젯은 same-origin 우리 자산이라 EIA(localStorage/세션) 동작 위해 allow-same-origin 필요.
+            allow-scripts 와 함께 두는 트레이드오프는 신뢰된 1st-party 위젯 한정으로 수용. */}
         <iframe
           key={iframeSrc}
           ref={iframeRef}
           src={iframeSrc}
           title={t("webChat.preview.title")}
-          className="h-[320px] w-full border-0 bg-[hsl(var(--background))]"
+          className="w-full border-0 bg-[hsl(var(--background))]"
+          style={{ height: PREVIEW_HEIGHT }}
           sandbox="allow-scripts allow-same-origin allow-forms"
         />
         {status === "unavailable" && (

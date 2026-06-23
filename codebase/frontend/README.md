@@ -126,8 +126,21 @@ docker build -f codebase/frontend/Dockerfile \
 | ---- | ---- | ---- |
 | `NEXT_PUBLIC_API_URL` | **build-time** | client bundle에 inline. `--build-arg`로 전달. 환경별 이미지 빌드 필요 |
 | `NEXT_PUBLIC_WS_URL` | **build-time** | 동일 |
+| `NEXT_PUBLIC_WIDGET_CDN_BASE` | **build-time** (선택) | 웹채팅 위젯 CDN base override. 미설정 시 self-origin 동봉(`/_widget/web-chat/v1/`)을 사용한다. 별도 엣지 CDN 서빙 시에만 지정 (spec 7-channel-web-chat 5-admin-console §5). |
 | `INTERNAL_API_URL` | runtime | Server Component fetch 시 우선 사용 (예: `http://backend.<ns>.svc:3011/api`) |
 | `PORT` / `HOSTNAME` | runtime | 기본 `3012` / `0.0.0.0` (Dockerfile에서 설정) |
+
+### 웹채팅 위젯 동봉 (build:widget)
+
+운영 콘솔의 라이브 미리보기·설치 스니펫은 위젯이 같은 origin 에 동봉돼 있어야 동작한다. `next build` **앞단계**로
+위젯 번들을 빌드·복사한다:
+
+```bash
+pnpm --filter frontend build:widget   # channel-web-chat + SDK loader → public/_widget/web-chat/v1/
+pnpm --filter frontend build
+```
+
+`build:widget` 을 건너뛰면 미리보기가 런타임에 "위젯 미동봉" 안내로 비활성화된다. 산출물(`public/_widget/`)은 gitignore.
 
 ### 헬스체크
 

@@ -151,7 +151,8 @@ pending_plans:
 3. 콘솔은 `wc:ready` 수신 후 **`wc:boot`** postMessage 로 **전체 boot config**(외형 `appearance`·`headerTitle`·`welcome`·
    `launcher`·`disclaimer` 등 §4 폼 값)를 전달한다. 위젯은 `configFromQuery()` 와 `wc:boot` payload 를 머지해 적용한다.
 4. **origin 검증**: 양방향 postMessage 는 `event.origin` 을 검증한다. 동봉이면 위젯 iframe origin = 콘솔 origin(same-origin).
-5. 외형 폼이 바뀌면 **iframe 재마운트**(key 변경) 후 1–3 을 재실행해 미리보기를 갱신한다(데모 host 패턴).
+5. **외형 폼만** 바뀌면 재마운트 없이 **`wc:boot` 를 재전송**해 미리보기를 갱신한다(불필요한 iframe 리로드·깜빡임 회피).
+   **`endpointPath`/`locale`** 이 바뀔 때만 iframe key 를 바꿔 재마운트하고 1–4 를 재실행한다.
 
 > **임베드 soft 검증과의 관계**: 위젯은 부팅 시 `GET /api/hooks/:path/embed-config` 로 host origin allowlist 를 soft 검증한다
 > ([4-security §3](./4-security.md), `use-widget.ts`). 동봉 same-origin 미리보기는 allowlist 미설정(`enforce=false`) 시 fail-open

@@ -47,13 +47,14 @@ export function getWidgetAppUrl(): string {
   return `${getWidgetBase()}${WIDGET_VERSION_PATH}/app`;
 }
 
-/** 위젯 iframe 의 origin — 미리보기 postMessage 송수신 origin 검증용. 동봉 self-origin 이면 배포 origin. */
+/**
+ * 위젯 iframe 의 origin — 미리보기 postMessage 송수신 origin 검증용.
+ * 동봉 self-origin 이면 배포 origin, `NEXT_PUBLIC_WIDGET_CDN_BASE` override 시 그 CDN origin.
+ * 해석 불가(SSR + 미설정) 시 빈 문자열. `getWidgetBase()` 는 항상 절대 URL 또는 빈 문자열을 반환한다.
+ */
 export function getWidgetOrigin(): string {
-  const base = getWidgetBase();
-  if (!base) return "";
   try {
-    const ref = typeof window !== "undefined" ? window.location.href : undefined;
-    return new URL(base, ref).origin;
+    return new URL(getWidgetBase()).origin;
   } catch {
     return "";
   }

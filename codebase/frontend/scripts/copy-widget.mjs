@@ -26,6 +26,8 @@ const BASE_PATH = "/_widget/web-chat/v1/app";
 
 function run(cmd, env) {
   console.log(`[copy-widget] $ ${cmd}`);
+  // process.env 를 그대로 전달한다 — pnpm/next 빌드가 PATH·HOME 등 환경에 의존한다. cmd 는
+  // 정적 리터럴이라 인젝션 표면이 없고, stdio:inherit 는 env 를 로그에 노출하지 않는다.
   execSync(cmd, { stdio: "inherit", cwd: repoRoot, env: { ...process.env, ...env } });
 }
 
@@ -40,6 +42,8 @@ const loaderJs = path.join(sdkDir, "dist/loader.js");
 if (!existsSync(widgetOut)) throw new Error(`[copy-widget] widget build 산출물 없음: ${widgetOut}`);
 if (!existsSync(loaderJs)) throw new Error(`[copy-widget] loader.js 없음: ${loaderJs}`);
 
+// 빌드타임 전용 스텝(배포의 `next build` 앞단계) — 앱이 서빙 중일 때 실행하지 않는다.
+// rmSync→cpSync 는 비원자적이라 교체 도중 일시적으로 빈 상태가 될 수 있다(서빙 중 미실행 전제).
 rmSync(dest, { recursive: true, force: true });
 mkdirSync(path.join(dest, "app"), { recursive: true });
 cpSync(widgetOut, path.join(dest, "app"), { recursive: true });

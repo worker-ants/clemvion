@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, act, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, act, cleanup } from "@testing-library/react";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { LivePreview } from "../live-preview";
 import { DEFAULT_DRAFT } from "../use-appearance-draft";
@@ -66,6 +66,31 @@ describe("LivePreview", () => {
       );
     });
     expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it("ready 후 외형 폼이 바뀌면 재마운트 없이 wc:boot 을 재전송", async () => {
+    const { rerender } = render(
+      <LivePreview endpointPath="ep-1" draft={{ ...DEFAULT_DRAFT, headerTitle: "A" }} />,
+    );
+    const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    const cw = iframe.contentWindow;
+    const postSpy = vi.spyOn(cw as Window, "postMessage");
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent("message", { source: cw, origin: ORIGIN, data: { type: "wc:ready" } }),
+      );
+    });
+    expect(postSpy).toHaveBeenCalledTimes(1); // 초기 boot
+
+    // 외형(headerTitle)만 변경 → 재마운트 없이 boot 재전송
+    await act(async () => {
+      rerender(<LivePreview endpointPath="ep-1" draft={{ ...DEFAULT_DRAFT, headerTitle: "B" }} />);
+    });
+    expect(postSpy).toHaveBeenCalledTimes(2);
+    expect(postSpy.mock.calls[1][0]).toMatchObject({ payload: { headerTitle: "B" } });
+    // iframe 은 재마운트되지 않았다(같은 contentWindow).
+    expect((screen.getByTitle("Live preview") as HTMLIFrameElement).contentWindow).toBe(cw);
   });
 
   it("wc:ready 가 타임아웃까지 안 오면 안내 메시지를 노출", async () => {

@@ -3,6 +3,7 @@ import {
   getWidgetBase,
   getWidgetLoaderUrl,
   getWidgetAppUrl,
+  getWidgetOrigin,
   isWidgetHostingConfigured,
 } from "../widget-base";
 
@@ -47,6 +48,33 @@ describe("widget-base — NEXT_PUBLIC_WIDGET_CDN_BASE override (엣지 CDN)", ()
     vi.stubEnv(ENV_KEY, "https://cdn.example.com");
     vi.stubGlobal("window", { location: { origin: "https://app.example.com" } });
     expect(getWidgetBase()).not.toContain("_widget");
+  });
+});
+
+describe("widget-base — getWidgetOrigin", () => {
+  it("env override 시 CDN origin 을 추출", () => {
+    vi.stubEnv(ENV_KEY, "https://cdn.example.com/some/path");
+    vi.stubGlobal("window", { location: { origin: "https://app.example.com" } });
+    expect(getWidgetOrigin()).toBe("https://cdn.example.com");
+  });
+
+  it("동봉 self-origin(env 미설정) 시 배포 origin", () => {
+    vi.stubEnv(ENV_KEY, "");
+    vi.stubGlobal("window", { location: { origin: "https://app.example.com" } });
+    // base = https://app.example.com/_widget → origin = https://app.example.com
+    expect(getWidgetOrigin()).toBe("https://app.example.com");
+  });
+
+  it("해석 불가(SSR + env 미설정) 시 빈 문자열", () => {
+    vi.stubEnv(ENV_KEY, "");
+    vi.stubGlobal("window", undefined);
+    expect(getWidgetOrigin()).toBe("");
+  });
+
+  it("SSR + env override 면 그 origin", () => {
+    vi.stubEnv(ENV_KEY, "https://cdn.example.com");
+    vi.stubGlobal("window", undefined);
+    expect(getWidgetOrigin()).toBe("https://cdn.example.com");
   });
 });
 
