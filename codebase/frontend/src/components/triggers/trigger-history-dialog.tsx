@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ChevronRight, Loader2 } from "lucide-react";
-import { apiClient } from "@/lib/api/client";
+import { triggersApi } from "@/lib/api/triggers";
 import { useT } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils/date";
 import { Badge } from "@/components/ui/badge";
@@ -72,11 +72,9 @@ export function TriggerHistoryDialog({
   } = useQuery<TriggerHistoryEntry[]>({
     queryKey: ["trigger-history-dialog", triggerId],
     queryFn: async () => {
-      const res = await apiClient.get(`/triggers/${triggerId}/history`, {
-        params: { limit: HISTORY_LIMIT },
+      return triggersApi.getHistory<TriggerHistoryEntry>(triggerId as string, {
+        limit: HISTORY_LIMIT,
       });
-      const data = res.data.data ?? res.data;
-      return Array.isArray(data) ? data : (data.items ?? []);
     },
     enabled: !!triggerId && open,
   });

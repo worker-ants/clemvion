@@ -40,7 +40,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { normalizePagedResponse } from "@/lib/api/paginated";
+import {
+  triggersApi,
+  type TriggerListParams,
+  type CreateTriggerBody,
+} from "@/lib/api/triggers";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { getWebhookUrl } from "@/lib/utils/webhook-url";
 import { useT, type TranslationKey } from "@/lib/i18n";
@@ -187,37 +191,17 @@ export default function TriggersPage() {
   ] = useState("");
 
   const { page, setPage } = usePageParam();
-  // Raw row shape from /triggers — only the fields we map
-  interface RawTrigger {
-    id: string;
-    name: string;
-    type: "webhook" | "schedule" | "manual";
-    isActive: boolean;
-    workflowId?: string;
-    workflow?: { id?: string; name?: string };
-    endpointPath?: string;
-    lastTriggeredAt?: string;
-    cronExpression?: string;
-    nextRunAt?: string;
-    authConfigId?: string | null;
-    config?: { chatChannel?: { provider?: string } };
-    chatChannelHealth?: "unknown" | "healthy" | "degraded";
-  }
   const triggersQuery = useQuery<{ items: Trigger[]; totalPages: number }>({
     queryKey: ["triggers", activeTab, statusFilter, page],
     queryFn: async () => {
-      const params: Record<string, string | number> = {
+      const params: TriggerListParams = {
         page,
         limit: PAGE_SIZE,
       };
       if (activeTab !== "all") params.type = activeTab;
       if (statusFilter === "active") params.status = "active";
       if (statusFilter === "inactive") params.status = "inactive";
-      const res = await apiClient.get("/triggers", { params });
-      const { items: raw, totalPages } = normalizePagedResponse<RawTrigger>(
-        res.data,
-        page,
-      );
+      const { items: raw, totalPages } = await triggersApi.list(params);
       const items: Trigger[] = raw.map((t) => ({
         id: t.id,
         name: t.name,
@@ -242,6 +226,8 @@ export default function TriggersPage() {
   const isLoading = triggersQuery.isLoading;
   const isError = triggersQuery.isError;
 
+  // `/workflows` 는 workflows 도메인 호출이라 triggersApi 비대상 — m-2 workflows
+  // 트랙에서 `lib/api/workflows.ts` 로 이전 예정. 그때까지 apiClient 직접 잔류.
   const { data: workflows = [] } = useQuery<Workflow[]>({
     queryKey: ["workflows-list"],
     queryFn: async () => {
@@ -259,7 +245,7 @@ export default function TriggersPage() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      await apiClient.patch(`/triggers/${id}`, { isActive });
+      await triggersApi.update(id, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });
@@ -279,7 +265,7 @@ export default function TriggersPage() {
       // inboundSigningPlaintext 도 함께 전송.
       // SoT: spec/conventions/secret-store.md §5.5 / providers/{slack,discord}.md §6 /
       //      codebase/backend/src/modules/triggers/dto/create-trigger.dto.ts.
-      const requestBody: Record<string, unknown> = {
+      const requestBody: CreateTriggerBody = {
         workflowId: formWorkflowId,
         type: "webhook",
         name: formName,
@@ -300,7 +286,7 @@ export default function TriggersPage() {
         }
         requestBody.chatChannel = chatChannel;
       }
-      await apiClient.post("/triggers", requestBody);
+      await triggersApi.create(requestBody);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });

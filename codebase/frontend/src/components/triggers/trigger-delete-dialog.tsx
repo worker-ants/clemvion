@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api/client";
+import { triggersApi } from "@/lib/api/triggers";
 import { useT } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils/date";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ function DialogInner({ trigger, open, onClose }: Props) {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiClient.delete(`/triggers/${id}`);
+      await triggersApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });
