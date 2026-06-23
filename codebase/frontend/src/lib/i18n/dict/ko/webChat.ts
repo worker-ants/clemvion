@@ -9,9 +9,6 @@ export const webChat = {
   },
   list: {
     workflowLabel: "워크플로우",
-    manage: "관리",
-    active: "활성",
-    inactive: "비활성",
     loadError: "웹채팅 목록을 불러오지 못했어요",
   },
   createDialog: {

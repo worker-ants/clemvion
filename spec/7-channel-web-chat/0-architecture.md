@@ -54,7 +54,7 @@ pending_plans:
   늘어도 서버 per-request 부담 없음(동적 렌더링 아님).
 - ⚠️ `srcdoc`/`about:blank` 자가 생성은 **기각** — 그 iframe 은 호스트 origin 을 상속해 cross-origin 격리가 깨진다.
   격리를 위해 iframe 은 **반드시 다른 origin 의 실제 `src`** 여야 한다(§R8). *예외*: admin 콘솔 **내부 미리보기**는 cross-origin
-격리가 목적이 아니므로 same-origin 동봉 위젯을 실제 `src` iframe 으로 로드한다(§4.1·§R8 carve-out) — `srcdoc` 자가 생성은 여기서도 금지.
+  격리가 목적이 아니므로 same-origin 동봉 위젯을 실제 `src` iframe 으로 로드한다(§4.1·§R8 carve-out) — `srcdoc` 자가 생성은 여기서도 금지.
 - 워크스페이스/트리거/외형은 문서를 워크스페이스별로 렌더링하지 않고 query param / postMessage / 캐시 가능한 per-workspace JSON 으로 주입.
 
 ## 3. EIA 매핑 (위젯이 사용하는 EIA 표면)
@@ -95,6 +95,11 @@ Clemvion 은 SaaS + 셀프호스팅 병행이므로 본 spec 의 도메인은 **
 |---|---|---|---|
 | `NEXT_PUBLIC_WIDGET_CDN_BASE` | admin 프론트엔드 (`codebase/frontend`) | 신규 (선택) | 운영 콘솔이 설치 스니펫의 `loader.js src` + 라이브 미리보기 iframe base 로 사용. **미설정 시 self-origin 기본**([5-admin-console §5·§6](./5-admin-console.md)) |
 | `WEB_CHAT_WIDGET_ORIGINS` | 백엔드 (`codebase/backend`) | 기존 (`main.ts`·`web-chat-cors.ts`) | `/api/external/*` CORS allowlist — 위젯 iframe origin 의 EIA 호출 허용 ([4-security §2](./4-security.md)) |
+
+> **불일치 시 동작**: 동봉(self-origin) 기본 경로에서는 위젯 origin = 배포 origin 이라 same-origin — 별도 CORS 불필요. 단
+> `NEXT_PUBLIC_WIDGET_CDN_BASE` 로 **엣지 CDN override 할 때**, 그 CDN origin 이 백엔드 `WEB_CHAT_WIDGET_ORIGINS`
+> allowlist 에 없으면 위젯의 `/api/external/*` 호출이 **CORS 거부**된다(조용한 실패). 두 값을 일치시키는 것은 **배포 운영자
+> 책임**이며, 검증 주체는 배포 설정(런타임 config)이다. 상세 CORS 동작은 [4-security §2·§2.1](./4-security.md).
 
 ### 4.1 위젯 동봉(co-deploy) + 버전 잠금
 - **버전 전략**: `loader.js`·위젯 SPA 는 `/web-chat/v1/` major 버전 path 고정(불변 자산). 마이너/패치는 floating "latest" 가

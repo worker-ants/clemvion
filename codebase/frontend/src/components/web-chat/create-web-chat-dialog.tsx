@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useT } from "@/lib/i18n";
-import { useWorkflowOptions, useCreateWebChat } from "./use-web-chat";
+import { useWorkflowOptions, useCreateWebChat, extractCreatedId } from "./use-web-chat";
 
 interface Props {
   open: boolean;
@@ -25,22 +25,23 @@ interface Props {
 export function CreateWebChatDialog({ open, onOpenChange, onCreated }: Props) {
   const t = useT();
   const workflows = useWorkflowOptions();
-  const createMut = useCreateWebChat();
+  const createWebChatMutation = useCreateWebChat();
   const [workflowId, setWorkflowId] = useState("");
   const [name, setName] = useState("");
 
   const noWorkflows = workflows.data !== undefined && workflows.data.length === 0;
-  const canSubmit = Boolean(workflowId) && name.trim().length > 0 && !createMut.isPending;
+  const canSubmit =
+    Boolean(workflowId) && name.trim().length > 0 && !createWebChatMutation.isPending;
 
   async function submit() {
     if (!canSubmit) return;
     try {
-      const created = await createMut.mutateAsync({ workflowId, name: name.trim() });
+      const created = await createWebChatMutation.mutateAsync({ workflowId, name: name.trim() });
       toast.success(t("webChat.createDialog.success"));
       onOpenChange(false);
       setWorkflowId("");
       setName("");
-      const id = (created as { id?: string } | undefined)?.id;
+      const id = extractCreatedId(created);
       if (id) onCreated?.(id);
     } catch {
       toast.error(t("webChat.createDialog.error"));

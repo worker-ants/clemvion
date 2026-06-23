@@ -16,6 +16,14 @@ describe("draftToBootInput", () => {
     expect(input.launcher?.suggestions).toEqual(["제품 소개", "가격 안내"]);
   });
 
+  it("CRLF(\\r\\n) 줄바꿈도 trim 으로 정상 분리", () => {
+    const input = draftToBootInput(
+      { ...DEFAULT_DRAFT, suggestions: "질문1\r\n질문2\r\n" },
+      { apiBase: "https://api.example.com", triggerEndpointPath: "abc" },
+    );
+    expect(input.welcome?.suggestions).toEqual(["질문1", "질문2"]);
+  });
+
   it("apiBase·endpointPath 를 그대로 전달, 외형을 매핑", () => {
     const input = draftToBootInput(
       { ...DEFAULT_DRAFT, primaryColor: "#000000", position: "bottom-left", locale: "en" },

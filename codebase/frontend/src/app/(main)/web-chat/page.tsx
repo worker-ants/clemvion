@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle, Plus } from "lucide-react";
+import { Loader2, MessageCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -56,7 +56,12 @@ export default function WebChatPage() {
         </p>
       )}
 
-      {!isLoading && !isError && instances.length === 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center gap-2 py-12 text-sm text-[hsl(var(--muted-foreground))]">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {t("common.loading")}
+        </div>
+      ) : !isError && instances.length === 0 ? (
         <EmptyState
           icon={MessageCircle}
           title={t("webChat.empty.title")}

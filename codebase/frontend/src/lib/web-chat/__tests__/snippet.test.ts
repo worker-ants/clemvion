@@ -76,4 +76,29 @@ describe("buildWebChatSnippet", () => {
     expect(evil).not.toContain("</script><script>alert(1)");
     expect(evil).toContain("<\\/script>");
   });
+
+  it("XSS — U+2028/U+2029 라인 구분자를 이스케이프", () => {
+    const LS = String.fromCharCode(0x2028);
+    const PS = String.fromCharCode(0x2029);
+    const evil = buildWebChatSnippet("https://x/loader.js", {
+      apiBase: "https://api.example.com",
+      triggerEndpointPath: "abc",
+      headerTitle: `a${LS}b${PS}c`,
+    });
+    expect(evil).not.toContain(LS);
+    expect(evil).not.toContain(PS);
+    expect(evil).toContain("\\u2028");
+    expect(evil).toContain("\\u2029");
+  });
+});
+
+describe("buildBootConfig — 공백 외형 값 prune", () => {
+  it("primaryColor 가 공백뿐이면 appearance 전체 제거", () => {
+    const cfg = buildBootConfig({
+      apiBase: "https://api.example.com",
+      triggerEndpointPath: "abc",
+      appearance: { primaryColor: "  " },
+    });
+    expect(cfg).not.toHaveProperty("appearance");
+  });
 });

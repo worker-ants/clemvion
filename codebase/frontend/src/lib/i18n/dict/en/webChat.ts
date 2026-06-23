@@ -12,9 +12,6 @@ export const webChat: Dict["webChat"] = {
   },
   list: {
     workflowLabel: "Workflow",
-    manage: "Manage",
-    active: "Active",
-    inactive: "Inactive",
     loadError: "Failed to load web chats",
   },
   createDialog: {

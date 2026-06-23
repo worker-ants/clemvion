@@ -60,26 +60,29 @@ related_plans:
 - [ ] `.env.example`(frontend) 샘플 갱신
 > 외부 위젯 CDN 호스팅은 선행조건 아님(동봉으로 대체). Phase 2 스니펫 빌더는 Phase 1 전에도 텍스트 생성·복사로 가치 전달 가능.
 
-### Phase 2 — 콘솔 코어 [developer] (TDD)
-- [ ] 사이드바 메뉴 등록 (`components/layout/sidebar.tsx` navItems, Schedule 아래) + i18n `sidebar.webChat` (ko/en)
-- [ ] 라우트 `app/(main)/web-chat/page.tsx` ("use client") + `components/web-chat/**`
-- [ ] 인스턴스 목록 — `GET /api/triggers` 클라이언트 필터(`type==webhook && config.interaction?.enabled`)
-- [ ] "웹채팅 만들기" wizard — workflow 선택 → 이름 → `POST /api/triggers { type:'webhook', workflowId, endpointPath(uuid), interaction:{enabled:true, tokenStrategy:'per_execution'} }` (`editor`+ / `RoleGate`)
-- [ ] 외형/콘텐츠 빌더 폼 (BootConfig 필드) + localStorage 보존
-- [ ] 설치 스니펫 생성 + `useCopyToClipboard` 복사. cdn-base 미설정 시 disabled+경고
-- [ ] i18n `web-chat` dict (ko/en) + index 등록
-- [ ] unit/integration 테스트
+### Phase 2 — 콘솔 코어 [developer] (TDD) — ✅ 증분 1 완료 (커밋 `8c5a3a54` + REVIEW fix)
+- [x] 사이드바 메뉴 등록 (`components/layout/sidebar.tsx` navItems, Schedule 아래) + i18n `sidebar.webChat` (ko/en)
+- [x] 라우트 `app/(main)/web-chat/page.tsx` ("use client") + `components/web-chat/**`
+- [x] 인스턴스 목록 — `GET /api/triggers` 클라이언트 필터(`type==webhook && config.interaction?.enabled`)
+- [x] "웹채팅 만들기" wizard — workflow 선택 → 이름 → `POST /api/triggers { ..., interaction:{enabled:true} }` (`editor`+ / `RoleGate`)
+- [x] 외형/콘텐츠 빌더 폼 (BootConfig 필드) + localStorage 보존(sanitize 포함)
+- [x] 설치 스니펫 생성 + `useCopyToClipboard` 복사 (lib/web-chat/snippet, `</script>`·U+2028 XSS 이스케이프)
+- [x] i18n `web-chat` dict (ko/en) + index 등록
+- [x] unit 테스트 (widget-base·snippet·snippet-input·page; 27 케이스)
 
 ### Phase 3 — 라이브 미리보기 [developer]
+- [ ] **(착수 전 spec 선결, ai-review W-1)** `5-admin-console §6` 에 already-loaded iframe 에 boot config 를 전달하는
+      메커니즘(URL query param vs `wc:boot` postMessage, `2-sdk §3` 프로토콜)을 명시 → project-planner 위임. 미정의 시 Phase 3 구현 방향 모호.
 - [ ] 콘솔 내 위젯 M1 hosted iframe 임베드(loader + iframe) — 선택 인스턴스 `endpointPath` 부팅, 외형 반영
 - [ ] UI 미리보기(런처/패널) + 대화형(메시지 왕복) — 선행 A(위젯 호스팅)에만 의존
 - [ ] 미설정 fallback (disabled + 경고)
 - [ ] e2e 시나리오 (생성 → 스니펫 → 미리보기)
 
-### Phase 4 — 검증 [developer]
-- [ ] lint/build/test (리뷰 앞)
-- [ ] `/ai-review` + critical/warning fix (`resolution-applier`)
-- [ ] PROJECT.md §동반 갱신 매트릭스 — 유저 가이드 페이지 신규/갱신 (`user-guide-writer`)
+### Phase 4 — 검증 [developer] — 증분 1 부분
+- [x] lint/unit 통과 (리뷰 앞). frontend `next build` 통과(`/web-chat` 라우트 생성)
+- [ ] docker 이미지 빌드 + e2e: **환경 차단**(`DeadlineExceeded`, 실측 확인 `review/code/.../RESOLUTION.md`). frontend-only·대응 e2e 부재
+- [x] `/ai-review` (코드 스코프) + WARNING fix — Critical 0, RESOLUTION 작성 (`review/code/2026/06/23/10_07_47/`)
+- [ ] **(증분 2)** user guide 페이지 신규 작성 (`user-guide-writer`) — 미리보기 포함 완성 시. ai-review 코드 W-8.
 
 ## 미해결/이월
 - 서버 저장형 외형 관리(per-workspace 외형 JSON 서빙) — 여전히 비목표/백로그.

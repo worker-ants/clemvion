@@ -1,7 +1,7 @@
 # Channel Web Chat — 임베드형 웹채팅 위젯 + SDK + 샘플 (제품 정의)
 
 > 영역 진입 문서. 기술 명세는 본 영역의 `0-architecture.md`(아키텍처) · `1-widget-app.md`(위젯 SPA) ·
-> `2-sdk.md`(SDK) · `3-auth-session.md`(인증/세션) · `4-security.md`(보안) 참조.
+> `2-sdk.md`(SDK) · `3-auth-session.md`(인증/세션) · `4-security.md`(보안) · `5-admin-console.md`(운영 콘솔) 참조.
 > 관련: [External Interaction API (EIA)](../5-system/14-external-interaction-api.md) ·
 > [Webhook 트리거](../5-system/12-webhook.md) · [Chat Channel](../5-system/15-chat-channel.md) ·
 > [Convention Conversation Thread](../conventions/conversation-thread.md).

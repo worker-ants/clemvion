@@ -1,7 +1,10 @@
 ---
 id: web-chat-admin-console
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/frontend/src/app/(main)/web-chat/**
+  - codebase/frontend/src/components/web-chat/**
+  - codebase/frontend/src/lib/web-chat/**
 pending_plans:
   - plan/in-progress/web-chat-console.md
 ---
@@ -109,7 +112,7 @@ pending_plans:
 | 토큰 | 출처 |
 |---|---|
 | `<widget-cdn-base>` | **기본값 = 배포 origin**(위젯 동봉 서빙, [0-architecture §4.1](./0-architecture.md)). SaaS·별도 엣지 CDN 운영 시에만 `NEXT_PUBLIC_WIDGET_CDN_BASE`(admin, 선택) 로 override |
-| `<api-base>` | 기존 webhook-url 로직 (`NEXT_PUBLIC_WEBHOOK_BASE_URL` → `NEXT_PUBLIC_API_URL` 에서 `/api` 제거 → `window.location.origin`) |
+| `<api-base>` | 기존 webhook-url 로직과 **동일** (SoT: `codebase/frontend/src/lib/utils/webhook-url.ts` `getWebhookBaseUrl()` — `NEXT_PUBLIC_WEBHOOK_BASE_URL` → `NEXT_PUBLIC_API_URL` 에서 `/api` 제거 → `window.location.origin`) |
 | `triggerEndpointPath` | 선택 인스턴스의 공개 webhook path |
 | 외형/콘텐츠 | §4 폼 값 |
 
@@ -117,6 +120,8 @@ pending_plans:
 - **fallback**: `NEXT_PUBLIC_WIDGET_CDN_BASE` 미설정 시 **self-origin 기본값**(동봉 경로 `/_widget/web-chat/v1/`)을 쓴다 →
   셀프호스트도 별도 설정 없이 동작. **동봉 번들 자체가 없을 때만** 스니펫/미리보기 UI 를 비활성 + 경고로 노출(dead `src` 방지);
   인스턴스 관리·외형 폼은 계속 동작.
+  - **증분 단계 주의**: 동봉 번들 **존재 감지**는 Phase 1(co-deploy 빌드 파이프라인)과 함께 도입한다. 그 전(증분 1)에는
+    감지 없이 self-origin loader URL 을 항상 생성하며(`getWidgetLoaderUrl()`), 라이브 미리보기는 placeholder 로 노출한다.
 
 ## 6. 라이브 미리보기 (same-origin 동봉 iframe)
 

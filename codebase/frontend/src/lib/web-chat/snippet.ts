@@ -85,7 +85,11 @@ export function buildBootConfig(input: WebChatBootInput): Record<string, unknown
  * (값에 `</script>` 가 들어가면 HTML 파서가 스크립트를 조기 종료해 XSS 가 된다.)
  */
 function escapeForScript(json: string): string {
-  return json.replace(/<\/(script)/gi, "<\\/$1");
+  // `</script>` 조기 종료 방지 + U+2028/U+2029(JS 줄바꿈으로 해석되는 라인 구분자) 이스케이프.
+  return json
+    .replace(/<\/(script)/gi, "<\\/$1")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
 }
 
 /**
