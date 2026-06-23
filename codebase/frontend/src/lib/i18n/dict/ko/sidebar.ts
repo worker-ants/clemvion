@@ -3,6 +3,7 @@ export const sidebar = {
   workflows: "워크플로우",
   triggers: "트리거",
   schedule: "스케줄",
+  webChat: "웹채팅",
   integration: "통합",
   knowledgeBase: "지식 저장소",
   models: "모델 설정",

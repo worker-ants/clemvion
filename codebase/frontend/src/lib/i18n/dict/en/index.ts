@@ -13,6 +13,7 @@ import { editor } from "./editor";
 import { nodeConfigs } from "./nodeConfigs";
 import { triggers } from "./triggers";
 import { schedules } from "./schedules";
+import { webChat } from "./webChat";
 import { integrations } from "./integrations";
 import { cafe24Catalog } from "./cafe24Catalog";
 import { makeshopCatalog } from "./makeshopCatalog";
@@ -45,6 +46,7 @@ export const en: Dict = {
   nodeConfigs,
   triggers,
   schedules,
+  webChat,
   integrations,
   cafe24Catalog,
   makeshopCatalog,
