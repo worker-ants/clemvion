@@ -64,7 +64,7 @@ pending_plans:
 | 콘솔 동작 | 매핑 (기존 API) | 비고 |
 |---|---|---|
 | 인스턴스 목록 | `GET /api/triggers` → `type==='webhook' && config.interaction?.enabled` 클라이언트 필터 | v1 클라이언트 필터. (서버 `?interactionEnabled=true` 는 데이터 증가 시 도입 검토 — 백로그) |
-| 인스턴스 생성 | `POST /api/triggers` `{ type:'webhook', workflowId, name, endpointPath(클라이언트 UUID 생성), interaction:{ enabled:true, tokenStrategy:'per_execution' } }` | `interaction` 스키마: [EIA §4](../5-system/14-external-interaction-api.md) / `interaction-config.dto.ts` |
+| 인스턴스 생성 | `POST /api/triggers` `{ type:'webhook', workflowId, name, endpointPath(클라이언트 UUID 생성), interaction:{ enabled:true, tokenStrategy:'per_execution' } }` | `interaction` 은 POST body **top-level** 필드이며 backend 가 저장 시 `config.interaction` 으로 머지한다(EIA §4 등록 페이로드). 스키마: [EIA §4](../5-system/14-external-interaction-api.md) / `interaction-config.dto.ts` |
 | 외형/콘텐츠 | (백엔드 미저장) boot 옵션으로만 — §4 | Trigger 에 저장하지 않음 |
 | 설치 스니펫 | 클라이언트 템플릿팅 — §5 | endpointPath = 트리거의 공개 webhook path |
 | 라이브 미리보기 | 위젯 임베드(M1 hosted iframe) — §6 | 위젯이 `POST /api/hooks/:endpointPath`·`/api/external/*` 호출 |
@@ -138,7 +138,7 @@ pending_plans:
 
 | 동작 | 최소 역할 | 근거 |
 |---|---|---|
-| 인스턴스 목록·상세·스니펫 복사·미리보기 | `viewer`+ | `endpointPath` 는 공개 값(비밀 아님). 조회 surface 는 전 역할 가시 |
+| 인스턴스 목록·상세·스니펫 복사·미리보기 | `viewer`+ | `endpointPath` 는 외부 사이트에 그대로 박히는 **공개 UUID**(비밀 아님 — [trigger-list R-15](../2-navigation/2-trigger-list.md)). 따라서 스니펫 전체를 viewer 에게 노출해도 비밀 누출 아님 |
 | 인스턴스 생성·삭제·외형 편집 | `editor`+ | [Trigger 생성/삭제 규약](../2-navigation/2-trigger-list.md)과 동일 (`RoleGate`) |
 
 ## 8. i18n (KO/EN 동반 갱신 의무)

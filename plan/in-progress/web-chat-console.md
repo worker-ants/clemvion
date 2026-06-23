@@ -48,8 +48,9 @@ related_plans:
   - [ ] EDIT `spec/2-navigation/_product-overview.md` NAV-WC-01..06 요구사항 + 화면 설명
   - [ ] EDIT `spec/7-channel-web-chat/_product-overview.md` 구성요소 D + 비목표 명확화 + Rationale
   - [ ] EDIT `spec/7-channel-web-chat/0-architecture.md §4` env 2건(상보) 등재
-  - [ ] EDIT `spec/0-overview.md §8` 문서 맵에 `5-admin-console.md` 등록
-- [ ] side-effect 점검 + commit `docs(spec): 7-channel-web-chat — 웹채팅 운영 콘솔`
+  - [x] EDIT `spec/0-overview.md §8` 문서 맵에 `5-admin-console.md` 등록
+- [x] side-effect 점검 + commit (`edc233db`·`1716bc63`)
+- [x] impl-prep 게이트: C-1 Critical 은 origin/main baseline drift **FALSE POSITIVE**(git 실측 반증, `review/consistency/2026/06/23/09_21_43/SUMMARY.md`). working tree Critical 0.
 
 ### Phase 1 — 위젯 동봉(co-deploy) + 버전잠금 [developer]
 - [ ] `channel-web-chat` 을 frontend workspace 의존으로 연결 (버전 잠금)
@@ -81,6 +82,14 @@ related_plans:
 - [ ] PROJECT.md §동반 갱신 매트릭스 — 유저 가이드 페이지 신규/갱신 (`user-guide-writer`)
 
 ## 미해결/이월
-- 위젯 호스팅 인프라 확정(SaaS CDN / 셀프호스팅) — Phase 1, 별도 배포 계획과 조율.
 - 서버 저장형 외형 관리(per-workspace 외형 JSON 서빙) — 여전히 비목표/백로그.
 - `GET /api/triggers?interactionEnabled=true` 서버 필터 — v1 클라이언트 필터로 충분, 데이터 많아지면 도입 검토.
+- **(선재 spec 갭, project-planner 후속)** 위젯 부팅 `GET /api/hooks/:path/embed-config` allowlist 조회 단계가
+  `spec/7-channel-web-chat/3-auth-session.md §3`·`4-security.md §3` 에 미문서화 (impl-prep W-2). 기존 위젯 동작
+  (`use-widget.ts:31`)인데 spec 누락된 선재 갭 → console 구현과 독립. 별도 planner 턴에서 보강.
+
+## 증분 전략 (2026-06-23)
+- **증분 1 (현재 PR)**: Phase 2 콘솔 코어(메뉴·라우트·인스턴스 목록/생성·외형 빌더·스니펫 생성·복사) + Phase 1 env 유틸
+  (`<widget-cdn-base>` self-origin 기본 해석). 핵심 "설치 스크립트" 가치, unit 검증 가능.
+- **증분 2 (후속 PR)**: Phase 1 위젯 동봉 빌드 파이프라인(workspace dep + `out/` 복사) + Phase 3 라이브 미리보기
+  (same-origin iframe). 인프라성 — 별 PR. 그때까지 미리보기 UI 는 cdn-base 미해석 시 disabled+안내.
