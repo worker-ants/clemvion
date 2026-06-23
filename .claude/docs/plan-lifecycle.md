@@ -22,6 +22,21 @@
 - **revert 패턴**: review 중 follow-up 으로 빠지면 `[ ]` 복원 + 이동(PROJECT.md 지정 방식, 미명시 시 `git mv`)도 `in-progress/` 로 revert.
 - **인입 참조**: `review/**` 같은 시점 기록 문서는 옛 경로 유지. `spec/` 등 살아있는 문서의 plan 링크는 이동과 동시에 갱신.
 
+### PR 전 plan 갱신·이동 강제 (push gate)
+
+"코드를 바꿨으면 PR 전에 처리하던 plan 을 갱신하거나(진행 메모·체크박스) 완료 시 `complete/` 로 이동" 은 hook 으로 강제된다. 판정은 `.claude/hooks/_lib/plan_guard.py`, 게이트는 review gate 와 같은 지점에 얹힌다.
+
+| 시점 | hook | 효과 |
+|---|---|---|
+| PreToolUse(`git push`) | `guard_review_before_push.py` (plan gate) | **차단** — branch 가 `codebase/**` 를 바꿨는데 연결된 in-progress plan 이 갱신·이동 흔적이 전혀 없으면 push 거부 |
+| Stop | `guard_review_before_stop.py` (plan-complete nudge) | 연결된 plan 의 체크박스가 모두 `[x]` 인데 아직 `in-progress/` 에 있으면 "complete/ 로 이동" 1회 nudge (차단 아님) |
+
+- **연결 판정**: in-progress plan frontmatter 의 `worktree:` 가 현재 worktree 디렉토리(또는 `claude/` 뗀 branch)와 매칭되는 plan 이 대상. 연결된 plan 이 없는 ad-hoc/hotfix 작업은 차단되지 않는다(자연스러운 escape).
+- **만족 조건**: branch diff 에서 그 plan 이 **같은 경로로 수정**됐거나 **`plan/complete/` 로 이동**(같은 파일명, archive 제외)됐으면 push gate 통과. 단순 동일 파일명 매칭이 아니라 정확 경로/완료-이동만 인정하므로, plan/ 내 다른 위치의 동명 파일로는 우회되지 않는다. 이미 `complete/` 로 옮겨 in-progress 에 없는 plan 은 연결 대상에서 빠지므로 역시 통과.
+- **복수 연결**: 한 worktree 에 여러 in-progress plan 이 연결돼 있으면, 그중 **하나라도** 갱신·이동되면 gate 를 통과한다(한 worktree 가 여러 plan 을 정당하게 다룰 수 있으므로). 다만 한 worktree 에 다수 plan 을 묶는 것은 data quality 상 권장하지 않는다.
+- **우회**: `BYPASS_PLAN_GUARD=1` (연결 plan 오판 등 드문 경우의 의식적 단발 우회).
+- **scope**: review gate 와 동일하게 `codebase/**` 변경이 있을 때만 발화. spec/plan/docs-only branch 는 대상 아님. review/plan 두 게이트는 서로 독립이라 한쪽 모듈 import 실패가 다른 쪽을 침묵시키지 않는다.
+
 ## 4. Frontmatter 스키마
 
 `plan/in-progress/<name>.md` 상단:

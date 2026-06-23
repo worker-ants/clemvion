@@ -11,6 +11,7 @@ on:
       - '.claude/hooks/**'
       - '.claude/skills/**'
       - '.claude/tests/**'
+      - '.claude/tools/**'
       - '.claude.project.json'
       - 'PROJECT.md'
       - '.github/workflows/harness-checks.yml'
