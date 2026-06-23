@@ -1,12 +1,10 @@
 ---
 id: web-chat-admin-console
-status: partial
+status: implemented
 code:
   - codebase/frontend/src/app/(main)/web-chat/**
   - codebase/frontend/src/components/web-chat/**
   - codebase/frontend/src/lib/web-chat/**
-pending_plans:
-  - plan/in-progress/web-chat-console.md
 ---
 
 # Spec: Channel Web Chat — 운영 콘솔 (제품 내 설치·미리보기)
@@ -83,6 +81,7 @@ pending_plans:
    워크플로우를 webhook 으로 실행한다.
 2. **이름** 입력.
 3. 콘솔이 `endpointPath` 를 `crypto.randomUUID()` 로 생성하고 `POST /api/triggers` 로 webhook+interaction 트리거를 만든다.
+- **`endpointPath` 검증**: 콘솔은 신규 검증을 도입하지 않고 **기존 webhook 트리거 생성 규약**([2-trigger-list §2.5](../2-navigation/2-trigger-list.md#25-트리거-생성))의 형식·유일성 제약을 그대로 따른다 — 공개 webhook path 이므로 경로 주입·중복 가로채기 방지는 그 규약(+ DB unique)이 단일 책임. 콘솔은 클라이언트 UUID 를 제출할 뿐이다.
 - 권한: 생성은 `editor`+ (`RoleGate minRole="editor"`, [Trigger 생성 규약](../2-navigation/2-trigger-list.md#25-트리거-생성)과 일치).
 
 ## 4. 외형/콘텐츠 빌더 (서버 저장)
@@ -98,6 +97,10 @@ pending_plans:
   마운트 시드 우선순위: 서버 `appearance` → localStorage → 기본값.
 - 서버 저장 값도 결국 공개 설치 스니펫 JSON 으로 흘러가므로, 프런트(`sanitizeDraft`)와 서버(`WebChatAppearanceDto`의
   enum/hex/길이 검증) 양쪽에서 화이트리스트한다(다층 방어, [4-security](./4-security.md)).
+- **저장 포맷(flat) ↔ BootConfig(nested) 변환**: 콘솔 폼·서버는 flat shape(`welcomeText`·`suggestions` textarea 단일
+  string)로 저장하고, 클라이언트 `draftToBootInput` 이 BootConfig(`welcome.text`·`welcome.suggestions: string[]`)로 매핑한다.
+  추천질문은 **`welcome.suggestions`·`launcher.suggestions` 양쪽에 동일 주입**(콘솔은 공용 단일 필드로 관리). `appearance.zIndex`
+  는 콘솔 저장 대상 외 — 스니펫 직접 편집 전용이다.
 
 ## 5. 설치 스니펫
 
@@ -141,7 +144,7 @@ pending_plans:
 - **미리보기 iframe 높이 clamp**: 위젯 `wc:resize` payload 의 `height` 는 콘솔 패널 안에 수용할 수 있도록
   **[320, 640]px** 범위로 clamp 한다(최소 320 = collapsed 런처 높이 보장, 최대 640 = 콘솔 영역 초과 방지).
   `width` 는 미리보기 컨테이너 100% 너비로 고정하며 별도 clamp 없음.
-- **선행조건 = 위젯 동봉(co-deploy)** ([plan Phase 1](../../plan/in-progress/web-chat-console.md)). 외부 위젯 CDN 은 선행조건이 아니다(SaaS 엣지 CDN 은 선택).
+- **선행조건 = 위젯 동봉(co-deploy)** ([plan Phase 1](../../plan/complete/web-chat-console.md)). 외부 위젯 CDN 은 선행조건이 아니다(SaaS 엣지 CDN 은 선택).
 - **EIA 대화 배선은 이미 완료** — 위젯 SPA 는 자체 `eia-client.ts` 로 `POST /api/hooks/:path`(eager start)·SSE `/api/external/*`·
   `submit_message` 를 직접 호출한다([0-architecture §3 EIA 매핑](./0-architecture.md)). 추가 배선 불필요.
   ([2-sdk §2](./2-sdk.md)의 "미배선"은 SDK 패키지가 `@workflow/sdk` 를 재사용하는 **M2 headless** 한정 — 콘솔과 무관.)

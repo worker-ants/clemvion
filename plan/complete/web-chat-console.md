@@ -3,7 +3,18 @@ title: 웹채팅 운영 콘솔 (제품 내 데모 + 설치 스니펫)
 worktree: webchat-console-95fe1e
 started: 2026-06-23
 owner: planner
-status: in-progress
+status: complete
+spec_impact:
+  - spec/7-channel-web-chat/5-admin-console.md
+  - spec/7-channel-web-chat/0-architecture.md
+  - spec/7-channel-web-chat/2-sdk.md
+  - spec/7-channel-web-chat/3-auth-session.md
+  - spec/7-channel-web-chat/4-security.md
+  - spec/7-channel-web-chat/_product-overview.md
+  - spec/2-navigation/_layout.md
+  - spec/2-navigation/_product-overview.md
+  - spec/5-system/14-external-interaction-api.md
+  - spec/0-overview.md
 related_spec:
   - spec/7-channel-web-chat/5-admin-console.md
   - spec/2-navigation/_layout.md
