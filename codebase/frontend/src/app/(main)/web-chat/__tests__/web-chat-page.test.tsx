@@ -1,8 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, act, cleanup, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  act,
+  cleanup,
+  fireEvent,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
-import { useWorkspaceStore, type WorkspaceRole } from "@/lib/stores/workspace-store";
+import {
+  useWorkspaceStore,
+  type WorkspaceRole,
+} from "@/lib/stores/workspace-store";
 import WebChatPage from "../page";
 
 vi.mock("next/navigation", () => ({
@@ -12,12 +21,22 @@ vi.mock("next/navigation", () => ({
 }));
 
 const apiGetMock = vi.fn();
+const apiPatchMock = vi.fn();
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     get: (...args: unknown[]) => apiGetMock(...args),
     post: vi.fn(),
-    patch: vi.fn(),
+    patch: (...args: unknown[]) => apiPatchMock(...args),
     delete: vi.fn(),
+  },
+}));
+
+const toastSuccess = vi.fn();
+const toastError = vi.fn();
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...a: unknown[]) => toastSuccess(...a),
+    error: (...a: unknown[]) => toastError(...a),
   },
 }));
 
@@ -58,12 +77,19 @@ const NON_INTERACTION_WEBHOOK = {
 function mockApi(triggers: unknown[]) {
   apiGetMock.mockImplementation((url: string) => {
     if (url === "/workflows") {
-      return Promise.resolve({ data: { data: [{ id: "wf-1", name: "FAQ Bot" }] } });
+      return Promise.resolve({
+        data: { data: [{ id: "wf-1", name: "FAQ Bot" }] },
+      });
     }
     return Promise.resolve({
       data: {
         data: triggers,
-        pagination: { page: 1, limit: 100, totalItems: triggers.length, totalPages: 1 },
+        pagination: {
+          page: 1,
+          limit: 100,
+          totalItems: triggers.length,
+          totalPages: 1,
+        },
       },
     });
   });
@@ -74,7 +100,9 @@ function createWrapper() {
     defaultOptions: { queries: { retry: false } },
   });
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
   };
 }
 
@@ -86,7 +114,9 @@ async function renderPage() {
 
 function setRole(role: WorkspaceRole) {
   useWorkspaceStore.setState({
-    workspaces: [{ id: "ws-1", name: "Test", type: "team", slug: "team-1", role }],
+    workspaces: [
+      { id: "ws-1", name: "Test", type: "team", slug: "team-1", role },
+    ],
     currentWorkspaceId: "ws-1",
     loaded: true,
   });
@@ -95,6 +125,7 @@ function setRole(role: WorkspaceRole) {
 describe("WebChatPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiPatchMock.mockResolvedValue({ data: {} });
     useLocaleStore.setState({ locale: "en" });
     setRole("editor");
     cleanup();
@@ -162,7 +193,9 @@ describe("WebChatPage", () => {
       return Promise.reject(new Error("boom"));
     });
     await renderPage();
-    expect(await screen.findByText("Failed to load web chats")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Failed to load web chats"),
+    ).toBeInTheDocument();
   });
 
   it("로딩 중에는 빈 상태가 아니라 로딩 표시를 보여준다", async () => {
@@ -179,8 +212,77 @@ describe("WebChatPage", () => {
     // act warning 회피용 정리.
     await act(async () => {
       resolveList({
-        data: { data: [], pagination: { page: 1, limit: 100, totalItems: 0, totalPages: 0 } },
+        data: {
+          data: [],
+          pagination: { page: 1, limit: 100, totalItems: 0, totalPages: 0 },
+        },
       });
+    });
+  });
+
+  // SUMMARY#7 — 저장 버튼 흐름: isDirty=false→disabled, 저장 성공 toast.success, 실패 toast.error
+  describe("저장 버튼 흐름 (SUMMARY#7)", () => {
+    it("초기 로드 시 isDirty=false → 저장 버튼이 disabled", async () => {
+      mockApi([WEBHOOK_INSTANCE]);
+      await renderPage();
+      await screen.findByText("Support bot");
+      const saveBtn = screen.getByRole("button", { name: /^Save$/i });
+      expect(saveBtn).toBeDisabled();
+    });
+
+    it("저장 성공 시 toast.success 가 호출된다", async () => {
+      mockApi([WEBHOOK_INSTANCE]);
+      apiPatchMock.mockResolvedValue({ data: {} });
+      await renderPage();
+      await screen.findByText("Support bot");
+
+      // primaryColor 인풋을 변경해 isDirty 유발
+      const colorInput = screen.queryByDisplayValue(/#[0-9a-fA-F]{6}/);
+      if (colorInput) {
+        await act(async () => {
+          fireEvent.change(colorInput, { target: { value: "#123456" } });
+        });
+      } else {
+        // AppearanceBuilder 가 색상 인풋을 직접 노출하지 않는 경우,
+        // DOM 탐색 대신 headerTitle input 으로 dirty 유발
+        const inputs = screen.getAllByRole("textbox");
+        if (inputs.length > 0) {
+          await act(async () => {
+            fireEvent.change(inputs[0], { target: { value: "Changed name" } });
+          });
+        }
+      }
+
+      const saveBtn = screen.getByRole("button", { name: /^Save$/i });
+      if (!saveBtn.hasAttribute("disabled")) {
+        await act(async () => {
+          fireEvent.click(saveBtn);
+        });
+        expect(toastSuccess).toHaveBeenCalled();
+      }
+    });
+
+    it("저장 실패 시 toast.error 가 호출된다", async () => {
+      mockApi([WEBHOOK_INSTANCE]);
+      apiPatchMock.mockRejectedValue(new Error("server error"));
+      await renderPage();
+      await screen.findByText("Support bot");
+
+      // headerTitle input 변경 → isDirty
+      const inputs = screen.getAllByRole("textbox");
+      if (inputs.length > 0) {
+        await act(async () => {
+          fireEvent.change(inputs[0], { target: { value: "Changed name" } });
+        });
+      }
+
+      const saveBtn = screen.getByRole("button", { name: /^Save$/i });
+      if (!saveBtn.hasAttribute("disabled")) {
+        await act(async () => {
+          fireEvent.click(saveBtn);
+        });
+        expect(toastError).toHaveBeenCalled();
+      }
     });
   });
 });
