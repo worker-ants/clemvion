@@ -20,6 +20,7 @@ import { WorkflowAssistantStreamService } from './workflow-assistant-stream.serv
 import { ExploreToolsService } from './tools/explore-tools.service';
 import { CandidateLookupService } from './tools/candidate-lookup.service';
 import { AssistantToolRouter } from './tools/assistant-tool-router.service';
+import { AssistantFinishGuard } from './tools/assistant-finish-guard.service';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { AssistantToolRouter } from './tools/assistant-tool-router.service';
     WorkflowAssistantSessionService,
     WorkflowAssistantStreamService,
     AssistantToolRouter,
+    AssistantFinishGuard,
     ExploreToolsService,
     CandidateLookupService,
   ],

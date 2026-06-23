@@ -3,6 +3,7 @@ import {
   toRuntimePortDescriptor,
 } from './workflow-assistant-stream.service';
 import { AssistantToolRouter } from './tools/assistant-tool-router.service';
+import { AssistantFinishGuard } from './tools/assistant-finish-guard.service';
 import type { ChatStreamEvent } from '../llm/interfaces/llm-client.interface';
 import { z } from 'zod';
 import { carouselNodeMetadata } from '../../nodes/presentation/carousel/carousel.schema';
@@ -153,6 +154,13 @@ function makeService(): {
   // 테스트는 실제 router 를 mock ExploreToolsService 로 생성해 주입하므로,
   // `mocks.exploreTools.*` 호출 단언은 router 위임 경유로 그대로 성립한다.
   const toolRouter = new AssistantToolRouter(mocks.exploreTools as never);
+  // M-3 2단계: finish/review 가드는 AssistantFinishGuard 로 분리됐다. 통합
+  // 테스트는 실제 가드를 같은 mock nodeRegistry/candidateLookup 으로 생성해
+  // 주입하므로, 가드 발동(블로킹·재발동·통과) 단언이 그대로 성립한다.
+  const finishGuard = new AssistantFinishGuard(
+    mocks.nodeRegistry as never,
+    candidateLookup as never,
+  );
   const service = new WorkflowAssistantStreamService(
     mocks.llmService as never,
     mocks.sessionService as never,
@@ -160,6 +168,7 @@ function makeService(): {
     mocks.nodeRegistry as never,
     mocks.handlerRegistry as never,
     candidateLookup as never,
+    finishGuard,
   );
   return { service, mocks: { ...mocks, candidateLookup } };
 }

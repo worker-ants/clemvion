@@ -245,3 +245,13 @@ export function computeToolCallsBudget(
     Math.max(DEFAULT_MAX_TOOL_CALLS_PER_TURN, planBased),
   );
 }
+
+/**
+ * plan 이 존재하지만 아직 사용자 승인(`approvedAt`) 전인지 — 승인 전이면 edit 이
+ * PAA(pending-approval) 로 차단되므로 finish guard 도 비활성화해야 한다.
+ */
+export function isPlanPendingApproval(
+  plan: AssistantPlanRecord | null,
+): boolean {
+  return !!plan && !plan.approvedAt;
+}
