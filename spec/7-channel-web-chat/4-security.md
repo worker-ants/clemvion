@@ -87,10 +87,12 @@ backend 는 **단일 CORS 레이어**(`main.ts` 의 `app.enableCors(webChatCorsD
 "이 워크스페이스의 봇 위젯은 특정 호스트 도메인에서만 임베드 가능"을 워크스페이스 단위로 제어. **봇이 공개이므로 hard
 보안 경계가 아니라 캐주얼 오남용 차단용 soft 컨트롤**이다. 문서를 워크스페이스별로 동적 렌더링하지 않으므로([0-architecture
 §2.1·§R8](./0-architecture.md)) CSP `frame-ancestors` 동적 주입은 v1 기본이 아니다:
-- **① 클라이언트 soft 검증(v1 기본)**: 부팅 시 실제 host origin(`window.location.ancestorOrigins[0]`, 미지원 시
-  `document.referrer` 폴백)을 읽어 캐시 가능한 워크스페이스 allowlist 와 대조 → 불일치 시 렌더 거부 + 시작 차단
+- **① 클라이언트 soft 검증(v1 기본)**: 부팅 시 위젯이 **`GET /api/hooks/:endpointPath/embed-config`** 로 워크스페이스
+  allowlist 를 조회(`EmbedConfigDto { allowlist, enforce }`, `EmbedConfigService`)한 뒤, 실제 host origin
+  (`window.location.ancestorOrigins[0]`, 미지원 시 `document.referrer` 폴백)을 읽어 대조 → 불일치 시 렌더 거부 + 시작 차단
   (위젯 상태 `blocked` — host `show` 로도 해제되지 않는 정책 거부. **상태 정의 SoT = [1-widget-app §3.2](./1-widget-app.md)**;
-  본 §3-① 은 그 상태를 발동하는 정책 trigger).
+  본 §3-① 은 그 상태를 발동하는 정책 trigger). 부팅 시퀀스상 위치는 [3-auth-session §3 step 0](./3-auth-session.md). `enforce=false`
+  또는 allowlist 빈 경우 fail-open(통과).
 - **② API soft 필터(선택)**: webhook 시작 요청의 host origin 을 서버가 allowlist 와 대조해 거부.
 - **③ hard frame-ancestors(opt-in)**: 강제 차단이 꼭 필요한 워크스페이스만 동적 문서 제공을 감수하고 사용. v1 기본 아님.
 

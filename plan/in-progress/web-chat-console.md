@@ -90,9 +90,12 @@ related_plans:
 ## 미해결/이월
 - 서버 저장형 외형 관리(per-workspace 외형 JSON 서빙) — 여전히 비목표/백로그.
 - `GET /api/triggers?interactionEnabled=true` 서버 필터 — v1 클라이언트 필터로 충분, 데이터 많아지면 도입 검토.
-- **(선재 spec 갭, project-planner 후속)** 위젯 부팅 `GET /api/hooks/:path/embed-config` allowlist 조회 단계가
-  `spec/7-channel-web-chat/3-auth-session.md §3`·`4-security.md §3` 에 미문서화 (impl-prep W-2). 기존 위젯 동작
-  (`use-widget.ts:31`)인데 spec 누락된 선재 갭 → console 구현과 독립. 별도 planner 턴에서 보강.
+- [x] **embed-config spec 갭 해소 (impl-prep W-2)**: 위젯 부팅 `GET /api/hooks/:path/embed-config` allowlist 조회 단계를
+  `3-auth-session.md §3 step 0` + `4-security.md §3-①` 에 문서화(기존 동작·기존 엔드포인트, spec 가드 통과).
+
+## 추가 e2e (frontend)
+- [x] **콘솔 playwright e2e** `e2e/web-chat/console.spec.ts` — interaction 필터 목록·설치 스니펫(endpointPath·ClemvionChat boot)·
+  빈 상태→웹채팅 만들기 다이얼로그(워크플로우 셀렉터). 2/2 PASS (mock API + dev 서버). 라이브 미리보기 iframe 은 풀스택 의존이라 비검증.
 
 ## 증분 전략 (2026-06-23)
 - **증분 1 (현재 PR)**: Phase 2 콘솔 코어(메뉴·라우트·인스턴스 목록/생성·외형 빌더·스니펫 생성·복사) + Phase 1 env 유틸
