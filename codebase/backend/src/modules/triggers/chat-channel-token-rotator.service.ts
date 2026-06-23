@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
-import { TriggersService } from '../triggers/triggers.service';
+import { TriggersService } from './triggers.service';
 
 export const CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE = 'chat-channel-token-rotator';
 const CLEANUP_JOB = 'cleanup-rotated-chat-channel-tokens';

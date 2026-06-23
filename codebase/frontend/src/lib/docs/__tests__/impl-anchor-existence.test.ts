@@ -138,10 +138,12 @@ describe("ImplAnchor api-endpoint path/decorator match", () => {
     expect(HTTP_DECORATOR_RE.test("@ApiOperation({})")).toBe(false);
   });
 
-  it("validates the canonical chat-channel controller anchor end-to-end", () => {
+  it("validates the canonical chat-channel rotate-bot-token anchor end-to-end", () => {
     const anchor = {
       kind: "api-endpoint" as const,
-      file: "codebase/backend/src/modules/chat-channel/chat-channel.controller.ts",
+      // C-2: rotateBotToken 엔드포인트가 chat-channel→triggers forwardRef 순환
+      // 해소를 위해 TriggersController 로 이전됨 (route 무변).
+      file: "codebase/backend/src/modules/triggers/triggers.controller.ts",
       symbol: "rotateBotToken",
       describes: "POST /api/triggers/:id/chat-channel/rotate-bot-token",
     };
