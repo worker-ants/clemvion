@@ -42,12 +42,12 @@ related_plans:
 - [x] 영향 spec 식별 + draft (`spec-draft-web-chat-console.md`)
 - [x] `/consistency-check --spec` (5 checker, BLOCK: NO — Critical 0)
 - [x] plan 파일 생성(본 파일, spec write 전 `pending_plans` 가드 충족)
-- [ ] spec 반영:
-  - [ ] NEW `spec/7-channel-web-chat/5-admin-console.md` (`status: spec-only`, `code: []`, `pending_plans: [본 파일]`)
-  - [ ] EDIT `spec/2-navigation/_layout.md` §1 ASCII + §2.2 메뉴 행(Schedule 아래) 신설·번호 재정렬
-  - [ ] EDIT `spec/2-navigation/_product-overview.md` NAV-WC-01..06 요구사항 + 화면 설명
-  - [ ] EDIT `spec/7-channel-web-chat/_product-overview.md` 구성요소 D + 비목표 명확화 + Rationale
-  - [ ] EDIT `spec/7-channel-web-chat/0-architecture.md §4` env 2건(상보) 등재
+- [x] spec 반영:
+  - [x] NEW `spec/7-channel-web-chat/5-admin-console.md` (구현 후 `status: partial` + code globs 로 승격)
+  - [x] EDIT `spec/2-navigation/_layout.md` §1 ASCII + §2.2 메뉴 행(Schedule 아래) 신설·번호 재정렬
+  - [x] EDIT `spec/2-navigation/_product-overview.md` NAV-WC-01..06 요구사항 + 화면 설명 (구현 후 01~05 ✅)
+  - [x] EDIT `spec/7-channel-web-chat/_product-overview.md` 구성요소 D + 비목표 명확화 + Rationale
+  - [x] EDIT `spec/7-channel-web-chat/0-architecture.md §4` env 2건(상보) 등재
   - [x] EDIT `spec/0-overview.md §8` 문서 맵에 `5-admin-console.md` 등록
 - [x] side-effect 점검 + commit (`edc233db`·`1716bc63`)
 - [x] impl-prep 게이트: C-1 Critical 은 origin/main baseline drift **FALSE POSITIVE**(git 실측 반증, `review/consistency/2026/06/23/09_21_43/SUMMARY.md`). working tree Critical 0.

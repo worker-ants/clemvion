@@ -27,6 +27,8 @@ interface TriggerListItem {
   workflowName: string;
   endpointPath?: string;
   config?: {
+    // tokenStrategy 유니언은 trigger API 응답 형태를 그대로 반영(per_trigger 도 유효한
+    // 백엔드 옵션). 단 웹채팅 콘솔은 생성 시 per_execution 만 사용한다(useCreateWebChat).
     interaction?: { enabled?: boolean; tokenStrategy?: "per_execution" | "per_trigger" };
     [key: string]: unknown;
   };
