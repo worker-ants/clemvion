@@ -60,6 +60,17 @@ describe("wc:command 수신 + wc:event 송신", () => {
       "https://host.example.com",
     );
   });
+
+  it("sendResize 는 핀된 host origin 으로 wc:resize 송신", () => {
+    const b = createIframeBridge();
+    messageFromHost({ type: "wc:boot", payload: { apiBase: "a", triggerEndpointPath: "t" } });
+    postSpy.mockClear();
+    b.sendResize({ width: 392, height: 572, state: "expanded" });
+    expect(postSpy).toHaveBeenCalledWith(
+      { type: "wc:resize", payload: { width: 392, height: 572, state: "expanded" } },
+      "https://host.example.com",
+    );
+  });
 });
 
 describe("wc: prefix 검증", () => {

@@ -4,6 +4,11 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { normalizePagedResponse } from "@/lib/api/paginated";
+import type {
+  InteractionTokenStrategy,
+  TriggerListItem,
+  WebChatAppearanceConfig,
+} from "@/lib/types/trigger";
 
 /**
  * 웹채팅 인스턴스 = `type=webhook` + `config.interaction.enabled` 인 기존 Trigger.
@@ -16,22 +21,10 @@ export interface WebChatInstance {
   workflowName: string;
   endpointPath: string;
   isActive: boolean;
-}
-
-interface TriggerListItem {
-  id: string;
-  name: string;
-  type: "webhook" | "schedule" | "manual";
-  isActive: boolean;
-  workflowId: string;
-  workflowName: string;
-  endpointPath?: string;
-  config?: {
-    // tokenStrategy 유니언은 trigger API 응답 형태를 그대로 반영(per_trigger 도 유효한
-    // 백엔드 옵션). 단 웹채팅 콘솔은 생성 시 per_execution 만 사용한다(useCreateWebChat).
-    interaction?: { enabled?: boolean; tokenStrategy?: "per_execution" | "per_trigger" };
-    [key: string]: unknown;
-  };
+  /** interaction 토큰 전략 — 외형 저장(PATCH) 시 interaction 객체 전체를 보존해 보내야 한다. */
+  tokenStrategy?: InteractionTokenStrategy;
+  /** 서버에 저장된 외형/콘텐츠(`config.interaction.appearance`). 미저장이면 undefined. */
+  appearance?: WebChatAppearanceConfig;
 }
 
 export interface WorkflowOption {
@@ -45,7 +38,7 @@ export interface CreateWebChatInput {
 }
 
 export const WEB_CHAT_INSTANCES_KEY = ["web-chat-instances"] as const;
-/** 트리거 화면과 공유하는 캐시 키 prefix — 웹채팅 생성 시 함께 무효화한다. */
+/** 트리거 화면과 공유하는 캐시 키 prefix — 웹채팅 생성/수정 시 함께 무효화한다. */
 const TRIGGERS_KEY = ["triggers"] as const;
 const MAX_LIST_LIMIT = 100;
 
@@ -55,7 +48,13 @@ export function useWebChatInstances() {
     queryKey: WEB_CHAT_INSTANCES_KEY,
     queryFn: async () => {
       const { data } = await apiClient.get("/triggers", {
-        params: { type: "webhook", limit: MAX_LIST_LIMIT },
+        // interactionEnabled 는 서버측 JSONB 필터(인스턴스 多 시 페이지네이션 정확도).
+        // 아래 client 필터는 캐시 오염·응답 변형 방어로 유지(다층).
+        params: {
+          type: "webhook",
+          interactionEnabled: true,
+          limit: MAX_LIST_LIMIT,
+        },
       });
       return normalizePagedResponse<TriggerListItem>(data).items;
     },
@@ -64,8 +63,7 @@ export function useWebChatInstances() {
   const instances = useMemo<WebChatInstance[]>(
     () =>
       (query.data ?? [])
-        // type 은 서버 필터(?type=webhook)와 중복이나, 캐시 오염·응답 변형에 대한
-        // 방어로 유지. 핵심 필터는 interaction.enabled.
+        // type·interaction 은 서버 필터와 중복이나, 캐시 오염·응답 변형에 대한 방어로 유지.
         .filter((t) => t.type === "webhook" && t.config?.interaction?.enabled)
         .map((t) => ({
           id: t.id,
@@ -74,6 +72,8 @@ export function useWebChatInstances() {
           workflowName: t.workflowName,
           endpointPath: t.endpointPath ?? "",
           isActive: t.isActive,
+          tokenStrategy: t.config?.interaction?.tokenStrategy,
+          appearance: t.config?.interaction?.appearance,
         })),
     [query.data],
   );
@@ -122,6 +122,48 @@ export function useCreateWebChat() {
     onSuccess: () =>
       // 웹채팅 = webhook 트리거이므로 트리거 화면 캐시도 함께 무효화한다.
       // 반환(await)해 invalidation 완료까지 mutation settle 을 지연시킨다.
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: WEB_CHAT_INSTANCES_KEY }),
+        queryClient.invalidateQueries({ queryKey: TRIGGERS_KEY }),
+      ]),
+  });
+}
+
+export interface UpdateWebChatAppearanceInput {
+  instanceId: string;
+  appearance: WebChatAppearanceConfig;
+  /** 기존 interaction 토큰 전략 — PATCH 시 interaction 객체 전체를 재전송해 보존한다. */
+  tokenStrategy?: InteractionTokenStrategy;
+}
+
+/**
+ * 외형/콘텐츠를 서버(`config.interaction.appearance`)에 저장한다.
+ *
+ * **제약**: 이 훅은 `interaction.enabled=true` 인 웹채팅 인스턴스(= 현 콘솔 내부 경로)에만 사용한다.
+ * `enabled` 를 `true` 로 하드코딩하므로, interaction 이 비활성인 인스턴스에 사용하면 해당 값이
+ * silent mutation 될 수 있다. 내부 경로는 `useWebChatInstances` 의 `interactionEnabled=true` 필터로
+ * 보호되지만, 이 훅을 다른 컨텍스트에서 재사용할 때는 이 제약을 명심할 것.
+ *
+ * 백엔드 `mergeExternalConfig` 는 interaction 키를 통째로 교체하므로, enabled·tokenStrategy 를
+ * 함께 보내 기존 값을 보존한다(spec 5-admin-console §4).
+ *
+ * `tokenStrategy` 파라미터를 생략하면 `"per_execution"` 이 기본값으로 폴백된다. 기존 인스턴스가
+ * `"per_trigger"` 전략이었다면 반드시 인스턴스 값을 전달해야 한다.
+ */
+export function useUpdateWebChatAppearance() {
+  const queryClient = useQueryClient();
+  return useMutation<unknown, unknown, UpdateWebChatAppearanceInput>({
+    mutationFn: async ({ instanceId, appearance, tokenStrategy }) => {
+      const { data } = await apiClient.patch(`/triggers/${instanceId}`, {
+        interaction: {
+          enabled: true,
+          tokenStrategy: tokenStrategy ?? "per_execution",
+          appearance,
+        },
+      });
+      return data;
+    },
+    onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: WEB_CHAT_INSTANCES_KEY }),
         queryClient.invalidateQueries({ queryKey: TRIGGERS_KEY }),

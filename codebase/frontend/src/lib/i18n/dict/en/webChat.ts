@@ -28,7 +28,11 @@ export const webChat: Dict["webChat"] = {
   },
   appearance: {
     title: "Appearance & content",
-    note: "These settings are baked into the install script (not stored on the server)",
+    note: "These settings are saved on the server and reflected in the install script and preview",
+    save: "Save",
+    saved: "Appearance saved",
+    saveError: "Failed to save appearance",
+    unsaved: "You have unsaved changes",
     primaryColor: "Primary color",
     position: "Position",
     positionBottomRight: "Bottom right",

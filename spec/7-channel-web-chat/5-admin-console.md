@@ -66,9 +66,9 @@ pending_plans:
 
 | 콘솔 동작 | 매핑 (기존 API) | 비고 |
 |---|---|---|
-| 인스턴스 목록 | `GET /api/triggers` → `type==='webhook' && config.interaction?.enabled` 클라이언트 필터 | v1 클라이언트 필터. (서버 `?interactionEnabled=true` 는 데이터 증가 시 도입 검토 — 백로그) |
+| 인스턴스 목록 | `GET /api/triggers?type=webhook&interactionEnabled=true` (서버 JSONB 필터, `query-trigger.dto.ts`) + `type==='webhook' && config.interaction?.enabled` 클라이언트 방어 필터 | 서버 필터로 페이지네이션 정확도 확보. 클라이언트 필터는 캐시 오염·응답 변형 방어로 유지(다층) |
 | 인스턴스 생성 | `POST /api/triggers` `{ type:'webhook', workflowId, name, endpointPath(클라이언트 UUID 생성), interaction:{ enabled:true, tokenStrategy:'per_execution' } }` | `interaction` 은 POST body **top-level** 필드이며 backend 가 저장 시 `config.interaction` 으로 머지한다(EIA §4 등록 페이로드). 스키마: [EIA §4](../5-system/14-external-interaction-api.md) / `interaction-config.dto.ts` |
-| 외형/콘텐츠 | (백엔드 미저장) boot 옵션으로만 — §4 | Trigger 에 저장하지 않음 |
+| 외형/콘텐츠 | 서버 저장(`config.interaction.appearance`) + 스니펫/미리보기로 emit — §4 | 기존 trigger config 재사용(신규 엔티티 없음). `PATCH /api/triggers/:id { interaction:{ enabled, tokenStrategy, appearance } }` |
 | 설치 스니펫 | 클라이언트 템플릿팅 — §5 | endpointPath = 트리거의 공개 webhook path |
 | 라이브 미리보기 | 위젯 임베드(M1 hosted iframe) — §6 | 위젯이 `POST /api/hooks/:endpointPath`·`/api/external/*` 호출 |
 
@@ -85,13 +85,19 @@ pending_plans:
 3. 콘솔이 `endpointPath` 를 `crypto.randomUUID()` 로 생성하고 `POST /api/triggers` 로 webhook+interaction 트리거를 만든다.
 - 권한: 생성은 `editor`+ (`RoleGate minRole="editor"`, [Trigger 생성 규약](../2-navigation/2-trigger-list.md#25-트리거-생성)과 일치).
 
-## 4. 외형/콘텐츠 빌더 (백엔드 미저장)
+## 4. 외형/콘텐츠 빌더 (서버 저장)
 
-[BootConfig](./2-sdk.md#4-boot-config-스키마) 필드를 폼으로 편집한다 — `appearance{primaryColor,position,zIndex}` ·
+[BootConfig](./2-sdk.md#4-boot-config-스키마) 필드를 폼으로 편집한다 — `appearance{primaryColor,position}` ·
 `headerTitle` · `welcome{text,suggestions}` · `launcher{suggestions}` · `disclaimer` · `locale`.
 
-- **백엔드에 저장하지 않는다** — 값은 §5 스니펫의 boot 옵션으로만 emit 된다([_product-overview §2 비목표](./_product-overview.md) 준수).
-- 폼 상태는 운영자 편의를 위해 **브라우저 `localStorage`** 에만 보존(재방문 시 직전 외형 복원). 서버 동기화 없음.
+- **서버에 저장한다** — "저장" 시 트리거의 `config.interaction.appearance` 로 영속화한다(`PATCH /api/triggers/:id`,
+  `interaction-config.dto.ts` 의 `WebChatAppearanceDto`). 신규 엔티티 없이 기존 trigger config 를 재사용한다.
+  `mergeExternalConfig` 가 interaction 키를 통째로 교체하므로 PATCH 는 `enabled`·`tokenStrategy` 를 함께 보내 보존한다.
+  저장된 값은 인스턴스 로드 시 폼·미리보기·설치 스니펫에 시드된다(브라우저/운영자가 바뀌어도 재현).
+- 미저장 편집은 운영자 편의를 위해 **브라우저 `localStorage`** 에 캐시한다(저장 전 새로고침/이탈 시 손실 방지).
+  마운트 시드 우선순위: 서버 `appearance` → localStorage → 기본값.
+- 서버 저장 값도 결국 공개 설치 스니펫 JSON 으로 흘러가므로, 프런트(`sanitizeDraft`)와 서버(`WebChatAppearanceDto`의
+  enum/hex/길이 검증) 양쪽에서 화이트리스트한다(다층 방어, [4-security](./4-security.md)).
 
 ## 5. 설치 스니펫
 
@@ -111,7 +117,7 @@ pending_plans:
 
 | 토큰 | 출처 |
 |---|---|
-| `<widget-cdn-base>` | **기본값 = 배포 origin**(위젯 동봉 서빙, [0-architecture §4.1](./0-architecture.md)). SaaS·별도 엣지 CDN 운영 시에만 `NEXT_PUBLIC_WIDGET_CDN_BASE`(admin, 선택) 로 override |
+| `<widget-cdn-base>` | **기본값 = 배포 origin**(위젯 동봉 서빙, [0-architecture §4.1](./0-architecture.md)). SaaS·별도 엣지 CDN 운영 시에만 `NEXT_PUBLIC_WIDGET_CDN_BASE`(admin, 선택) 로 override. SoT: `codebase/frontend/src/lib/web-chat/widget-base.ts` (`getWidgetLoaderUrl()`/`getWidgetAppUrl()`/`getWidgetOrigin()`) |
 | `<api-base>` | 기존 webhook-url 로직과 **동일** (SoT: `codebase/frontend/src/lib/utils/webhook-url.ts` `getWebhookBaseUrl()` — `NEXT_PUBLIC_WEBHOOK_BASE_URL` → `NEXT_PUBLIC_API_URL` 에서 `/api` 제거 → `window.location.origin`) |
 | `triggerEndpointPath` | 선택 인스턴스의 공개 webhook path |
 | 외형/콘텐츠 | §4 폼 값 |
@@ -132,6 +138,9 @@ pending_plans:
   하지 않고 **제품과 함께 동봉된(co-deploy) 위젯**(`<배포 origin>/_widget/web-chat/v1/`)을 실제 `src` iframe 으로 띄운다.
   → 미리보기 버전이 그 배포의 백엔드/EIA 버전과 **항상 일치**(셀프호스트·버전 다양성 대응), 외부 의존 0. 위젯 CSS/JS 격리는
   iframe 으로 유지(srcdoc 자가 생성 아님). 고객 임베드(loader + cross-origin iframe)는 별개 경로로 불변.
+- **미리보기 iframe 높이 clamp**: 위젯 `wc:resize` payload 의 `height` 는 콘솔 패널 안에 수용할 수 있도록
+  **[320, 640]px** 범위로 clamp 한다(최소 320 = collapsed 런처 높이 보장, 최대 640 = 콘솔 영역 초과 방지).
+  `width` 는 미리보기 컨테이너 100% 너비로 고정하며 별도 clamp 없음.
 - **선행조건 = 위젯 동봉(co-deploy)** ([plan Phase 1](../../plan/in-progress/web-chat-console.md)). 외부 위젯 CDN 은 선행조건이 아니다(SaaS 엣지 CDN 은 선택).
 - **EIA 대화 배선은 이미 완료** — 위젯 SPA 는 자체 `eia-client.ts` 로 `POST /api/hooks/:path`(eager start)·SSE `/api/external/*`·
   `submit_message` 를 직접 호출한다([0-architecture §3 EIA 매핑](./0-architecture.md)). 추가 배선 불필요.
@@ -173,7 +182,7 @@ pending_plans:
 
 신규 메뉴·페이지 문자열은 ko/en **양쪽** dict 에 키를 추가한다([convention i18n-userguide](../conventions/i18n-userguide.md) Principle 1·2):
 - 메뉴 라벨 `sidebar.webChat` — `lib/i18n/dict/{ko,en}/sidebar.ts`
-- 콘솔 페이지 문자열 — `lib/i18n/dict/{ko,en}/web-chat.ts` (+ 각 `index.ts` 등록)
+- 콘솔 페이지 문자열 — `lib/i18n/dict/{ko,en}/webChat.ts` (+ 각 `index.ts` 등록)
 
 ---
 
@@ -184,16 +193,24 @@ pending_plans:
 동기화 부담이 생긴다. 콘솔은 **표현 레이어로만 추상화**해 backend 변경을 최소화(env + 선택적 목록 필터)하고, EIA
 client-consumer 원칙([0-architecture R5](./0-architecture.md))과 단일 sink 정책을 유지한다.
 
-### R2. 외형 백엔드 미저장 — 기존 비목표와의 경계 명확화 (번복 아님)
-[_product-overview §2 비목표](./_product-overview.md)의 "위젯 외형의 서버사이드 관리 콘솔(백엔드 미저장)"은 *백엔드가
-외형을 저장·per-workspace 로 서빙하는 관리 콘솔* 을 겨냥한 것이고, 그 당시 **설치 스니펫 빌더 콘솔은 명시 검토 대상이
-아니었다**. 본 콘솔은 외형을 boot 옵션으로 **emit 만** 하고 백엔드에 저장·서빙하지 않으므로 비목표를 *번복*하지 않고
-**경계를 명확화**한다(저장·서빙형 = 비목표 유지 / emit-only 빌더 = 본 범위). 서버 저장형 외형 관리는 여전히 백로그.
+### R2. 외형 per-instance 서버 저장 — 기존 "미저장" 결정의 부분 번복 (결정 2026-06-24)
+**경위**: 초기 v1 은 외형을 boot 옵션으로 **emit-only** 하고 백엔드에 저장하지 않았다(아래 *기존 결정*). 운영자 피드백
+관점에서 localStorage-only 는 **브라우저/기기/운영자가 바뀌면 외형이 사라지는** 한계가 분명했고, 2026-06-24 결정으로
+**per-instance 외형의 서버 저장**을 v1 에 포함한다.
 
-### R3. localStorage 폼 보존
-폼 상태 보존은 운영자 편의용이며 백엔드 미저장 제약을 지키는 **클라이언트 저장만** 쓴다. `localStorage`(탭을 닫아도
-유지 → 재방문 시 직전 외형 복원)가 `sessionStorage`(탭 닫으면 소실)·쿠키(매 요청 전송 불필요)·indexedDB(과한 복잡도)보다
-적합. 백엔드 저장은 비목표라 기각.
+**범위(의도적으로 최소)**: 외형을 **웹채팅 인스턴스(= 트리거) 단위**로 기존 `config.interaction.appearance` 에 저장한다
+(`WebChatAppearanceDto`). **신규 엔티티/테이블/엔드포인트를 만들지 않고** `PATCH /api/triggers/:id` 를 재사용하므로 R1
+(트리거 재사용)·EIA 단일 sink 원칙과 정합한다. 여전히 **비목표**인 것은 *per-workspace 테마/브랜딩 관리 콘솔*(워크스페이스
+단위 외형 라이브러리·테마 서빙) 이다 — [_product-overview §2](./_product-overview.md).
+
+**기존 결정과의 관계**: 과거 "외형 백엔드 미저장"은 *별도 외형 관리 시스템을 만들지 않는다*는 복잡도 회피가 핵심 근거였다.
+per-instance 저장은 그 시스템을 만들지 않고(기존 trigger config 한 필드) 한계만 해소하므로, 복잡도 근거를 보존한 채
+**저장 대상 범위를 좁게 확장**한 부분 번복이다. 보안 측면은 §4 다층 화이트리스트로 흡수한다.
+
+### R3. localStorage = 미저장 편집 캐시 (서버가 SoT)
+서버(`config.interaction.appearance`)가 단일 출처다. `localStorage` 는 **저장 전 편집의 캐시**로만 둔다(저장 전 새로고침/
+이탈 시 손실 방지) — `sessionStorage`(탭 닫으면 소실)·쿠키(매 요청 전송)·indexedDB(과한 복잡도)보다 적합. 마운트 시드
+우선순위는 서버 → localStorage → 기본값이라, 저장된 값이 항상 우선한다.
 
 ### R4. env `NEXT_PUBLIC_WIDGET_CDN_BASE`(admin, 선택) + 기존 백엔드 `WEB_CHAT_WIDGET_ORIGINS` 상보관계
 기존 `NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_WEBHOOK_BASE_URL` 은 API/webhook origin 을 가리키고 위젯 자산은 별도 origin

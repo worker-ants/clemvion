@@ -25,7 +25,11 @@ export const webChat = {
   },
   appearance: {
     title: "외형 · 콘텐츠",
-    note: "이 설정은 설치 스크립트에 포함돼요 (서버에 저장되지 않아요)",
+    note: "이 설정은 서버에 저장되고, 설치 스크립트·미리보기에 반영돼요",
+    save: "저장",
+    saved: "외형을 저장했어요",
+    saveError: "외형을 저장하지 못했어요",
+    unsaved: "저장하지 않은 변경이 있어요",
     primaryColor: "주요 색상",
     position: "위치",
     positionBottomRight: "오른쪽 아래",

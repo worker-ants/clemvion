@@ -1,14 +1,38 @@
 "use client";
 
+import { useEffect } from "react";
 import { useWidget } from "./use-widget";
 import { Launcher } from "./components/launcher";
 import { Panel } from "./components/panel";
 import { widgetStyles } from "./styles";
 
+// 위젯 박스 크기(px) — host(loader/미리보기)가 iframe 엘리먼트를 이 값에 맞춘다(wc:resize, 2-sdk §3).
+// styles.ts 의 고정 치수에서 유도: 패널 360×540 + 16px 여백 = 392×572; 런처 버튼 56 + 추천 버블/여백 여유.
+const PANEL_BOX = { width: 392, height: 572 } as const;
+const LAUNCHER_BOX = { width: 392, height: 132 } as const;
+
 // 위젯 SPA 진입 — useWidget(상태기계+EIA+bridge) 로 런처/패널 렌더.
 // spec/7-channel-web-chat/1-widget-app.
 export default function WidgetApp() {
   const { state, config, actions } = useWidget();
+
+  // host 가 iframe 박스를 위젯 상태에 맞추도록 wc:resize 송신(2-sdk §3 필수). 렌더 분기(early return)
+  // 이전에 effect 를 두어 hooks 순서를 보존한다. blocked/hidden → 박스 0(호스트 페이지 클릭 방해 제거),
+  // 패널 open → expanded, 그 외 → launcher.
+  const visible = state.phase !== "blocked" && !state.hidden;
+  const expanded = visible && state.open && !!config;
+  const { sendResize } = actions;
+  useEffect(() => {
+    if (!visible) {
+      sendResize({ width: 0, height: 0, state: "collapsed" });
+      return;
+    }
+    sendResize(
+      expanded
+        ? { ...PANEL_BOX, state: "expanded" }
+        : { ...LAUNCHER_BOX, state: "collapsed" },
+    );
+  }, [visible, expanded, sendResize]);
 
   // 임베드 allowlist soft 검증 실패 → 위젯을 전혀 렌더하지 않음(렌더 거부, 4-security §3-①).
   if (state.phase === "blocked") return null;

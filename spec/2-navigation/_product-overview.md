@@ -217,6 +217,6 @@ AI Agent 노드의 `memoryStrategy: 'persistent'` 로 누적된 영속 메모리
 | NAV-WC-01 | 사이드바에 웹채팅 메뉴 노출 (Schedule 아래, `/web-chat`) | 필수 | ✅ |
 | NAV-WC-02 | 웹채팅 인스턴스 목록 표시 (= interaction 활성 webhook trigger) | 필수 | ✅ |
 | NAV-WC-03 | "웹채팅 만들기" — workflow 선택 → 자동 webhook trigger(interaction.enabled) 생성 (editor+) | 필수 | ✅ |
-| NAV-WC-04 | 외형/콘텐츠 빌더 (BootConfig 필드, 백엔드 미저장 — boot 옵션으로만 emit) | 필수 | ✅ |
+| NAV-WC-04 | 외형/콘텐츠 빌더 (BootConfig 필드, 인스턴스 단위 서버 저장 `config.interaction.appearance` — 결정 2026-06-24, [5-admin-console §4·R2](../7-channel-web-chat/5-admin-console.md)) | 필수 | ✅ |
 | NAV-WC-05 | 설치 스니펫 생성 + 클립보드 복사. 위젯 cdn-base 미설정 시 self-origin 기본 | 필수 | ✅ |
 | NAV-WC-06 | 라이브 미리보기 (M1 hosted iframe, 위젯 동봉 선행). 조회·복사·미리보기 viewer+ | 권장 | 🚧 (증분 2 — 위젯 co-deploy 후) |

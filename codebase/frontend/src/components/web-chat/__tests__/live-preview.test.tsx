@@ -93,6 +93,52 @@ describe("LivePreview", () => {
     expect((screen.getByTitle("Live preview") as HTMLIFrameElement).contentWindow).toBe(cw);
   });
 
+  it("위젯 wc:resize(expanded) 수신 시 미리보기 높이를 키운다(범위 clamp)", async () => {
+    render(<LivePreview endpointPath="ep-1" draft={DEFAULT_DRAFT} />);
+    const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    const cw = iframe.contentWindow;
+    expect(iframe.style.height).toBe("320px"); // 기본/최소
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: cw,
+          origin: ORIGIN,
+          data: { type: "wc:resize", payload: { height: 572, state: "expanded" } },
+        }),
+      );
+    });
+    expect((screen.getByTitle("Live preview") as HTMLIFrameElement).style.height).toBe("572px");
+
+    // 과도한 높이는 최대(640)로 clamp.
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: cw,
+          origin: ORIGIN,
+          data: { type: "wc:resize", payload: { height: 9999, state: "expanded" } },
+        }),
+      );
+    });
+    expect((screen.getByTitle("Live preview") as HTMLIFrameElement).style.height).toBe("640px");
+  });
+
+  it("다른 origin 의 wc:resize 는 무시한다", async () => {
+    render(<LivePreview endpointPath="ep-1" draft={DEFAULT_DRAFT} />);
+    const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    const cw = iframe.contentWindow;
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: cw,
+          origin: "https://evil.example.com",
+          data: { type: "wc:resize", payload: { height: 572 } },
+        }),
+      );
+    });
+    expect((screen.getByTitle("Live preview") as HTMLIFrameElement).style.height).toBe("320px");
+  });
+
   it("wc:ready 가 타임아웃까지 안 오면 안내 메시지를 노출", async () => {
     vi.useFakeTimers();
     render(<LivePreview endpointPath="ep-1" draft={DEFAULT_DRAFT} />);

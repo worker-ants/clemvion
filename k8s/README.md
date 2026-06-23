@@ -38,6 +38,8 @@ k8s/
 ```bash
 # 이미지 빌드 (repo 루트에서)
 docker build -f codebase/backend/Dockerfile             -t clemvion/backend:latest  .
+# frontend: 동봉 웹채팅 위젯을 먼저 빌드(public/_widget)한 뒤 이미지 빌드 — 위젯이 이미지에 포함된다.
+pnpm --filter frontend build:widget
 docker build -f codebase/frontend/Dockerfile            -t clemvion/frontend:latest .
 docker build -f codebase/backend/migrations/Dockerfile  -t clemvion/migrate:latest  .
 
@@ -205,11 +207,21 @@ TLS Secret 자체는 cert-manager (`Certificate` CR) 또는 외부 발급 후 im
 `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL` 은 build-time 에 client bundle 에 인라인됨 → staging / prod 별로 다른 이미지가 필요. CI 파이프라인 예:
 
 ```bash
+# 동봉 웹채팅 위젯 산출(public/_widget) — frontend 이미지 빌드 직전 필수(아래 주의 참고).
+pnpm --filter frontend build:widget
 docker build -f codebase/frontend/Dockerfile \
   --build-arg NEXT_PUBLIC_API_URL=https://api.staging.clemvion.example.com/api \
   --build-arg NEXT_PUBLIC_WS_URL=https://api.staging.clemvion.example.com \
   -t <registry>/clemvion-frontend:staging .
 ```
+
+> **동봉 위젯(웹채팅) 주의**: frontend Dockerfile 의 builder 스테이지는 `codebase/channel-web-chat` 소스를
+> COPY 하지 않고 `--filter "frontend..."` 로만 설치하므로 이미지 내부에서 위젯을 빌드할 수 없다(의도된 설계).
+> `pnpm --filter frontend build:widget` 를 **호스트 작업 트리에서 `docker build` 직전에** 실행해
+> `codebase/frontend/public/_widget/web-chat/v1/` 를 생성해야, 사전 생성물이 `COPY codebase/frontend`→
+> `COPY .../public` 경로로 이미지에 동봉된다. CI(GitHub Actions)에서 frontend 이미지를 빌드/푸시하는 잡을 추가할
+> 때도 이 스텝을 docker build 앞에 배치한다. (SoT: `codebase/frontend/Dockerfile` 헤더 주석 ·
+> spec/7-channel-web-chat/0-architecture.md §4.1)
 
 ### 7. (옵셔널) 자원 / 스케일링
 

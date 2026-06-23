@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
@@ -27,6 +27,13 @@ vi.mock("@/lib/api/client", () => ({
 }));
 
 import SchedulesPage from "../page";
+
+// 각 테스트 후 마운트된 DOM 을 정리한다. 두 describe 의 beforeEach 가 cleanup() 을 호출하지만
+// 파일의 마지막 렌더는 정리되지 않아, 전체 스위트 실행 시 다음 파일로 DOM 이 누수돼 간헐 실패가
+// 났다(예: 중복 'Daily' 매칭). 상시 afterEach 로 culprit 잔류를 제거한다.
+afterEach(() => {
+  cleanup();
+});
 
 function createWrapper() {
   const queryClient = new QueryClient({

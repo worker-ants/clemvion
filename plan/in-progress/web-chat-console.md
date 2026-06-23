@@ -87,20 +87,45 @@ related_plans:
 - [x] `/ai-review` (코드 스코프 ×2 증분) + WARNING fix — Critical 0, RESOLUTION 작성. `/consistency-check --impl-done` ×2 BLOCK: NO
 - [x] **(증분 2)** user guide 작성 (`user-guide-writer`): 콘솔 가이드 `web-chat.mdx`(KO/EN) + SDK 개발자 가이드 `web-chat-sdk.mdx`(KO/EN, 콘솔 교체로 사라졌던 내용 별 페이지 복원) + 상호링크. docs 가드 2312 통과, documentation 리뷰 Critical 0.
 
-## 미해결/이월 (genuine backlog — 이 기능 범위 밖)
-- 서버 저장형 외형 관리(per-workspace 외형 JSON 서빙) — 여전히 비목표/백로그.
-- `GET /api/triggers?interactionEnabled=true` 서버 필터 — v1 클라이언트 필터로 충분, 데이터 많아지면 도입 검토.
+## Follow-up 13건 일괄 처리 (2026-06-24, 사용자 goal "1~13 진행")
 
-## 해소된 후속 (이번 작업)
-- [x] **embed-config spec 갭 해소 (impl-prep W-2 + 코드리뷰 W-1·W-2)**: 위젯 부팅 `GET /api/hooks/:path/embed-config`
-  allowlist 조회·soft 검증 단계를 `3-auth-session.md §3 step 0` + `4-security.md §3-①` 에 문서화 — 비존재/오류/인증 webhook
-  시 allow-all degrade(enumeration 없음)·`Cache-Control: public, max-age=300`·origin 미탐지 시 fail-open 까지 명시(기존 동작).
-- [x] **콘솔 playwright e2e** `e2e/web-chat/console.spec.ts` — interaction 필터 목록·설치 스니펫(endpointPath·ClemvionChat boot)·
-  빈 상태→웹채팅 만들기 다이얼로그(워크플로우 셀렉터). 2/2 PASS (mock API + dev 서버). 라이브 미리보기 iframe 은 풀스택 의존이라 비검증.
+이전 "미해결/이월·테스트 follow-up" 으로 적어둔 항목 + 배포 wiring·UX·코드품질·선재 항목을 전부 이 브랜치에서 처리했다.
 
-## 테스트 follow-up (코드리뷰 INFO, 비차단)
-- 콘솔 e2e 확장: 생성 happy-path(이름 입력→submit→목록 갱신→신규 스니펫), viewer role 분기 / `mockAuth` 공용 헬퍼 추출
-  (`e2e/helpers/`) / 설치 스니펫 testid 셀렉터 / `CreateWebChatDialog` 독립 unit. 별도 후속 턴.
+**A. 배포 wiring**
+- [x] (1) `build:widget` → docker build 앞단계 wiring. Dockerfile 헤더에 전제 주석 + `k8s/README.md` 로컬/staging/prod
+  build 커맨드에 `pnpm --filter frontend build:widget` 선행 단계 명문화. (builder 가 channel-web-chat 소스를 COPY 안 하고
+  `--filter "frontend..."` 로만 설치 → 이미지 내부 위젯 빌드 불가가 의도된 설계임을 문서화.)
+
+**B. 백엔드 (비목표 부분 번복 — 결정 2026-06-24)**
+- [x] (2) per-instance 외형 **서버 저장** — `config.interaction.appearance` (`WebChatAppearanceDto`, 신규 엔티티 없음).
+  `5-admin-console §4`·R2/R3·`_product-overview §2` 비목표 갱신(번복 전말·rationale 명시). 프런트: 콘솔 "저장" 버튼 +
+  서버 시드(서버→localStorage→기본값) + `useUpdateWebChatAppearance` (PATCH, interaction 전체 재전송으로 enabled·tokenStrategy 보존).
+- [x] (3) `GET /api/triggers?interactionEnabled=true` 서버 JSONB 필터 (`QueryTriggerDto`+findAll). 프런트가 사용 + 클라 방어필터 유지.
+
+**C. 테스트 커버리지 (코드리뷰 INFO)**
+- [x] (4) 콘솔 e2e 확장: 생성 happy-path(stateful mock: 입력→submit→목록 갱신→신규 endpointPath 스니펫)·viewer role 분기. (3/3 PASS)
+- [x] (5) `mockAuth` 공용 헬퍼 `e2e/helpers/mock-auth.ts` 추출 + console·workflows/list 마이그레이션(role 파라미터화).
+- [x] (6) `CreateWebChatDialog` 독립 unit (no-workflows·제출 게이팅·성공/실패 토스트).
+- [x] (7) 설치 스니펫 `data-testid="web-chat-install-snippet"` + e2e 셀렉터 전환.
+
+**D. UX enhancement**
+- [x] (8) `wc:resize` 동적 미리보기 높이 — 위젯이 collapsed/expanded 박스 크기를 emit(host-bridge `sendResize`, widget-app effect;
+  실제 loader 도 적용 — 기존 emit 누락 보완) + LivePreview 가 수신해 iframe 높이 clamp(320~640). `2-sdk §3` 멱등 재전송 + resize 명문화.
+
+**E. 코드 품질**
+- [x] (9) `web-chat/page.tsx` `CreateWebChatButton` 컴포넌트 추출(헤더·EmptyState 재사용).
+- [x] (10) 공유 trigger 도메인 타입 `lib/types/trigger.ts` 신설 → `use-web-chat.ts` 전면 사용 + triggers/page·detail-drawer 의 type/interaction 서브타입 채택(중복 제거).
+- [x] (11) `copy-widget.mjs` 패키지/경로 매직 문자열 상수화(WIDGET_PACKAGE·SDK_PACKAGE·CODEPLOY_DIR·VERSION_SEGMENT).
+
+**F. 선재/무관 + spec**
+- [x] (12) `schedules-page.test` 전체-스위트 flake 안정화 — top-level `afterEach(cleanup)` (마지막 렌더 누수 제거).
+- [x] (13) `2-sdk §3` `wc:boot` 멱등 재전송 시맨틱 + wc:resize host 처리 명문화.
+
+> 검증: lint(0 err)·frontend unit 4630·channel-web-chat 193·backend triggers 61·builds(be/cwc/fe)·e2e(console+workflows 6/6) 통과.
+
+## 해소된 후속 (직전 작업, 유지)
+- [x] **embed-config spec 갭 해소**: `3-auth-session §3 step 0` + `4-security §3-①` 문서화(allow-all degrade·max-age=300·fail-open).
+- [x] **콘솔 playwright e2e** `e2e/web-chat/console.spec.ts` (위 (4) 에서 확장).
 
 ## 증분 전략 (2026-06-23)
 - **증분 1 (현재 PR)**: Phase 2 콘솔 코어(메뉴·라우트·인스턴스 목록/생성·외형 빌더·스니펫 생성·복사) + Phase 1 env 유틸

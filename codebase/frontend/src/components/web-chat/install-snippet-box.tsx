@@ -50,7 +50,10 @@ export function InstallSnippetBox({ endpointPath, draft }: Props) {
       <p className="text-sm text-[hsl(var(--muted-foreground))]">
         {t("webChat.snippet.description")}
       </p>
-      <pre className="overflow-x-auto rounded-md bg-[hsl(var(--muted))] p-3 text-xs leading-relaxed">
+      <pre
+        data-testid="web-chat-install-snippet"
+        className="overflow-x-auto rounded-md bg-[hsl(var(--muted))] p-3 text-xs leading-relaxed"
+      >
         <code>{snippet}</code>
       </pre>
     </section>

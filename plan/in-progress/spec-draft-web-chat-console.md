@@ -47,6 +47,12 @@ related:
   존재 → **콘솔은 이를 중복하지 않고**, 비개발자 친화 wrapper + **스니펫 빌더 + 라이브 미리보기**(현재 제품에 없는 surface)만 신설.
 
 ### 1.2 외형은 boot 옵션으로만 — 비목표와의 정합 (중요)
+
+> **⚠️ 2026-06-24 번복 — 이 섹션은 초기 draft 시점 기록이다.** 이후 사용자 결정으로 **per-instance 외형의 서버 저장**
+> (트리거 `config.interaction.appearance`, 신규 엔티티 없음)이 v1 에 포함됐다. 아래의 "백엔드 미저장 / emit-only" 서술은
+> 현행이 아니며, 최신 결정·rationale 은 [5-admin-console §4·R2](../../spec/7-channel-web-chat/5-admin-console.md) 가 SoT 다.
+> (여전히 비목표인 것은 *per-workspace 테마 관리 콘솔*.) 본 draft 는 의사결정 history 로 남긴다.
+
 - 기존 `_product-overview §2 비목표`: **"위젯 외형의 서버사이드 관리 콘솔 — 외형은 boot 옵션으로만 주입(백엔드 미저장)"**.
 - 신설 콘솔은 이 비목표와 **충돌하지 않는다**. 콘솔은 *설치 스니펫 빌더*다:
   - 외형/콘텐츠(`appearance`/`headerTitle`/`welcome`/`launcher`/`disclaimer`/`locale`) 를 콘솔 폼에서 편집 →

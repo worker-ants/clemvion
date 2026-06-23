@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Loader2, MessageCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { cn } from "@/lib/utils/cn";
 import { useT } from "@/lib/i18n";
 import {
   useWebChatInstances,
+  useUpdateWebChatAppearance,
   type WebChatInstance,
 } from "@/components/web-chat/use-web-chat";
 import { useAppearanceDraft } from "@/components/web-chat/use-appearance-draft";
@@ -17,6 +19,19 @@ import { AppearanceBuilder } from "@/components/web-chat/appearance-builder";
 import { InstallSnippetBox } from "@/components/web-chat/install-snippet-box";
 import { LivePreview } from "@/components/web-chat/live-preview";
 import { CreateWebChatDialog } from "@/components/web-chat/create-web-chat-dialog";
+
+/** "웹채팅 만들기" 버튼 — 헤더·빈 상태 양쪽에서 재사용(editor+ 만 노출). */
+function CreateWebChatButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
+  return (
+    <RoleGate minRole="editor">
+      <Button onClick={onClick}>
+        <Plus className="mr-1 h-4 w-4" />
+        {t("webChat.create")}
+      </Button>
+    </RoleGate>
+  );
+}
 
 export default function WebChatPage() {
   const t = useT();
@@ -29,14 +44,7 @@ export default function WebChatPage() {
   const selected =
     instances.find((i) => i.id === selectedId) ?? instances[0] ?? null;
 
-  const createButton = (
-    <RoleGate minRole="editor">
-      <Button onClick={() => setCreateOpen(true)}>
-        <Plus className="mr-1 h-4 w-4" />
-        {t("webChat.create")}
-      </Button>
-    </RoleGate>
-  );
+  const openCreate = () => setCreateOpen(true);
 
   return (
     <div className="space-y-6">
@@ -47,7 +55,7 @@ export default function WebChatPage() {
             {t("webChat.description")}
           </p>
         </div>
-        {createButton}
+        <CreateWebChatButton onClick={openCreate} />
       </header>
 
       {isError && (
@@ -66,7 +74,7 @@ export default function WebChatPage() {
           icon={MessageCircle}
           title={t("webChat.empty.title")}
           description={t("webChat.empty.description")}
-          action={createButton}
+          action={<CreateWebChatButton onClick={openCreate} />}
         />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -104,11 +112,49 @@ export default function WebChatPage() {
 }
 
 function WebChatDetail({ instance }: { instance: WebChatInstance }) {
-  const { draft, setDraft } = useAppearanceDraft(instance.id);
+  const t = useT();
+  const { draft, setDraft, isDirty, markSaved } = useAppearanceDraft(
+    instance.id,
+    instance.appearance,
+  );
+  const updateAppearance = useUpdateWebChatAppearance();
+
+  async function save() {
+    try {
+      await updateAppearance.mutateAsync({
+        instanceId: instance.id,
+        appearance: draft,
+        tokenStrategy: instance.tokenStrategy,
+      });
+      markSaved();
+      toast.success(t("webChat.appearance.saved"));
+    } catch {
+      toast.error(t("webChat.appearance.saveError"));
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <Card className="p-6">
+      <Card className="space-y-4 p-6">
         <AppearanceBuilder draft={draft} onChange={setDraft} />
+        <RoleGate minRole="editor">
+          <div className="flex items-center justify-end gap-3 border-t border-[hsl(var(--border))] pt-4">
+            {isDirty && (
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                {t("webChat.appearance.unsaved")}
+              </span>
+            )}
+            <Button
+              onClick={() => void save()}
+              disabled={!isDirty || updateAppearance.isPending}
+            >
+              {updateAppearance.isPending && (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              )}
+              {t("webChat.appearance.save")}
+            </Button>
+          </div>
+        </RoleGate>
       </Card>
       <Card className="p-6">
         <InstallSnippetBox endpointPath={instance.endpointPath} draft={draft} />

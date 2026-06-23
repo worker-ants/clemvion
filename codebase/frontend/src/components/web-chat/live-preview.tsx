@@ -16,8 +16,14 @@ interface Props {
 
 /** 위젯이 `wc:ready` 를 보내지 않으면(번들 미동봉·로드 실패) 안내로 전환하는 시간. */
 const READY_TIMEOUT_MS = 8000;
-/** 미리보기 iframe 높이(px). */
+/** 미리보기 iframe 기본/최소 높이(px) — 위젯 collapsed(런처) 상태 기준. */
 const PREVIEW_HEIGHT = 320;
+/** wc:resize 로 늘어날 수 있는 미리보기 최대 높이(px) — expanded(패널) 도 콘솔에 담기게. */
+const PREVIEW_MAX_HEIGHT = 640;
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
 
 /**
  * 라이브 미리보기 — same-origin 동봉 위젯을 contained iframe 으로 띄우고 `wc:boot` postMessage
@@ -32,6 +38,8 @@ export function LivePreview({ endpointPath, draft }: Props) {
   const t = useT();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "unavailable">("loading");
+  // 위젯이 보내는 wc:resize(collapsed↔expanded) 에 맞춰 미리보기 높이를 동적 조절(2-sdk §3).
+  const [previewHeight, setPreviewHeight] = useState(PREVIEW_HEIGHT);
 
   const apiBase = getWebhookBaseUrl();
   const widgetOrigin = getWidgetOrigin();
@@ -54,6 +62,7 @@ export function LivePreview({ endpointPath, draft }: Props) {
   if (srcKey !== iframeSrc) {
     setSrcKey(iframeSrc);
     setStatus("loading");
+    setPreviewHeight(PREVIEW_HEIGHT);
   }
 
   // boot config 전송 — widgetOrigin 미확보 시 `"*"` 로 보내지 않고 전송 자체를 건너뛴다(보안).
@@ -74,8 +83,12 @@ export function LivePreview({ endpointPath, draft }: Props) {
     const onMessage = (e: MessageEvent) => {
       if (e.source !== iframeRef.current?.contentWindow) return;
       if (e.origin !== expectedOrigin) return;
-      const data = e.data as { type?: string } | null;
+      const data = e.data as { type?: string; payload?: { height?: number } } | null;
       if (data?.type === "wc:ready") setStatus("ready");
+      else if (data?.type === "wc:resize" && typeof data.payload?.height === "number") {
+        // 위젯 박스 높이에 맞춰 미리보기 iframe 을 늘리되, 콘솔 레이아웃을 위해 범위를 제한한다.
+        setPreviewHeight(clamp(data.payload.height, PREVIEW_HEIGHT, PREVIEW_MAX_HEIGHT));
+      }
     };
     window.addEventListener("message", onMessage);
     const timer = window.setTimeout(() => {
@@ -96,8 +109,8 @@ export function LivePreview({ endpointPath, draft }: Props) {
     <section className="space-y-2">
       <h3 className="text-sm font-semibold">{t("webChat.preview.title")}</h3>
       <div
-        className="relative overflow-hidden rounded-md border border-[hsl(var(--border))]"
-        style={{ minHeight: PREVIEW_HEIGHT }}
+        className="relative overflow-hidden rounded-md border border-[hsl(var(--border))] transition-[min-height] duration-200"
+        style={{ minHeight: previewHeight }}
       >
         {/* 동봉 위젯은 same-origin 우리 자산이라 EIA(localStorage/세션) 동작 위해 allow-same-origin 필요.
             allow-scripts 와 함께 두는 트레이드오프는 신뢰된 1st-party 위젯 한정으로 수용. */}
@@ -106,8 +119,8 @@ export function LivePreview({ endpointPath, draft }: Props) {
           ref={iframeRef}
           src={iframeSrc}
           title={t("webChat.preview.title")}
-          className="w-full border-0 bg-[hsl(var(--background))]"
-          style={{ height: PREVIEW_HEIGHT }}
+          className="w-full border-0 bg-[hsl(var(--background))] transition-[height] duration-200"
+          style={{ height: previewHeight }}
           sandbox="allow-scripts allow-same-origin allow-forms"
         />
         {status === "unavailable" && (

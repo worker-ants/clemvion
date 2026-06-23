@@ -13,16 +13,23 @@ import { cpSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+// pnpm workspace 필터 이름 + 동봉 경로 세그먼트(매직 문자열 단일화 — frontend `lib/web-chat/widget-base.ts`
+// 의 WIDGET_CODEPLOY_PREFIX(`/_widget`)·WIDGET_VERSION_PATH(`/web-chat/v1`) 와 정합 유지).
+const WIDGET_PACKAGE = "channel-web-chat"; // pnpm --filter 대상 + codebase 하위 디렉터리명
+const SDK_PACKAGE = "@workflow/web-chat"; // SDK loader 패키지(pnpm --filter 대상)
+const CODEPLOY_DIR = "_widget"; // public 하위 동봉 디렉터리
+const WIDGET_VERSION_SEGMENT = "web-chat/v1"; // 버전 잠금 경로 세그먼트
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(here, "..");
 const repoRoot = path.resolve(frontendRoot, "../..");
-const widgetDir = path.join(repoRoot, "codebase/channel-web-chat");
+const widgetDir = path.join(repoRoot, "codebase", WIDGET_PACKAGE);
 const sdkDir = path.join(repoRoot, "codebase/packages/web-chat-sdk");
-const dest = path.join(frontendRoot, "public/_widget/web-chat/v1");
+const dest = path.join(frontendRoot, "public", CODEPLOY_DIR, WIDGET_VERSION_SEGMENT);
 
 // 위젯 SPA 의 Next.js basePath — iframe 은 `<base>/web-chat/v1/app/` 로 서빙되므로
 // (resolveIframeTarget, 2-sdk §3), 동봉 self-origin base(`/_widget`) 아래의 이 경로로 고정한다.
-const BASE_PATH = "/_widget/web-chat/v1/app";
+const BASE_PATH = `/${CODEPLOY_DIR}/${WIDGET_VERSION_SEGMENT}/app`;
 
 function run(cmd, env) {
   console.log(`[copy-widget] $ ${cmd}`);
@@ -32,10 +39,10 @@ function run(cmd, env) {
 }
 
 console.log(`[copy-widget] building widget SPA (NEXT_PUBLIC_BASE_PATH=${BASE_PATH})`);
-run("pnpm --filter channel-web-chat build", { NEXT_PUBLIC_BASE_PATH: BASE_PATH });
+run(`pnpm --filter ${WIDGET_PACKAGE} build`, { NEXT_PUBLIC_BASE_PATH: BASE_PATH });
 
 console.log("[copy-widget] building SDK loader (IIFE)");
-run("pnpm --filter @workflow/web-chat build:loader");
+run(`pnpm --filter ${SDK_PACKAGE} build:loader`);
 
 const widgetOut = path.join(widgetDir, "out");
 const loaderJs = path.join(sdkDir, "dist/loader.js");

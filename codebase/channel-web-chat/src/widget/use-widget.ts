@@ -14,6 +14,7 @@ import { threadToMessages } from "@/lib/conversation";
 import { clearSession, loadSession, saveSession } from "@/lib/session-store";
 import { initialState, widgetReducer } from "@/lib/widget-state";
 import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
+import type { WcResizePayload } from "./wc-protocol";
 
 interface EmbedConfig {
   allowlist: string[];
@@ -328,6 +329,11 @@ export function useWidget() {
   // 위젯(런처) 가시성 — open/close 와 직교한 축(§3.2). hide 해도 대화·SSE 유지.
   const show = useCallback(() => dispatch({ type: "SHOW" }), []);
   const hide = useCallback(() => dispatch({ type: "HIDE" }), []);
+  // host(loader/미리보기)가 iframe 박스를 위젯 상태(collapsed↔expanded)에 맞춰 조절하도록 알린다
+  // (2-sdk §3 필수). 박스 크기 산정은 호출부(widget-app)가 위젯 레이아웃 상수로 결정한다.
+  const sendResize = useCallback((payload: WcResizePayload) => {
+    bridgeRef.current?.sendResize(payload);
+  }, []);
   // 진행 중 execution 의 기전송 profile 은 소급 변경 불가(webhook payload 는 시작 1회) — boot profile 에
   // merge 해 **다음 시작(패널 open/새 대화)** payload 에만 반영(§3.2 / 2-sdk §5 updateProfile).
   const updateProfile = useCallback((profile: Record<string, unknown>) => {
@@ -461,7 +467,7 @@ export function useWidget() {
     state,
     config,
     // I3: start 는 open() 이 자동 호출 — 외부 직접 호출 불필요. 하위 호환 목적으로 노출 유지.
-    actions: { open, close, start, submitMessage, clickButton, submitForm, newChat, show, hide, updateProfile },
+    actions: { open, close, start, submitMessage, clickButton, submitForm, newChat, show, hide, updateProfile, sendResize },
   };
 }
 
