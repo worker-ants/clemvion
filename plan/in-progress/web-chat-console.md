@@ -80,7 +80,7 @@ related_plans:
 - [x] lint/unit 통과 (리뷰 앞). frontend `next build` 통과(`/web-chat` 라우트 생성)
 - [ ] docker 이미지 빌드 + e2e: **환경 차단**(`DeadlineExceeded`, 실측 확인 `review/code/.../RESOLUTION.md`). frontend-only·대응 e2e 부재
 - [x] `/ai-review` (코드 스코프) + WARNING fix — Critical 0, RESOLUTION 작성 (`review/code/2026/06/23/10_07_47/`)
-- [ ] **(증분 2)** user guide 페이지 신규 작성 (`user-guide-writer`) — 미리보기 포함 완성 시. ai-review 코드 W-8.
+- [x] **(증분 2)** user guide 작성 (`user-guide-writer`): 콘솔 가이드 `web-chat.mdx`(KO/EN) + SDK 개발자 가이드 `web-chat-sdk.mdx`(KO/EN, 콘솔 교체로 사라졌던 내용 별 페이지 복원) + 상호링크. docs 가드 2312 통과, documentation 리뷰 Critical 0.
 
 ## 미해결/이월
 - 서버 저장형 외형 관리(per-workspace 외형 JSON 서빙) — 여전히 비목표/백로그.
