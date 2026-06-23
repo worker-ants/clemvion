@@ -41,9 +41,13 @@ Paste the two blocks below into the `<head>` or at the end of `<body>` of your H
 | `apiBase` | The domain of your Clemvion API (enter the value for your deployment) |
 | `triggerEndpointPath` | The endpoint path of the public webhook trigger to connect to. Find it in the [Triggers list](/triggers) |
 | `locale` | Widget UI language (`ko` or `en`) |
+| `appearance.primaryColor` | Theme color for the chat button and header |
+| `appearance.position` | Widget position (`bottom-right` or `bottom-left`) |
+| `appearance.zIndex` | Widget z-index (to control stacking with other elements) |
 | `headerTitle` | Bot name shown at the top of the chat panel |
 | `welcome.text` | Welcome message shown immediately when the chat panel opens |
 | `welcome.suggestions` | Suggestion bubbles. Tapping one sends that text as the first message |
+| `launcher.suggestions` | Suggested questions shown next to the launcher button |
 | `disclaimer` | AI disclaimer text shown at the bottom of the chat |
 
 <Callout type="note">
@@ -144,6 +148,8 @@ If you want to build your own chat interface instead of using the widget, use `@
 ```ts
 import { ClemvionClient } from "@workflow/sdk";
 ```
+
+A complete headless example (including a `startHeadlessChat` helper) is available in the SDK package at `packages/web-chat-sdk/examples/byo-ui-headless.ts`. Snippet and npm examples live in the same `examples/` folder (`snippet.html`, `npm-usage.ts`).
 
 In BYO-UI mode the request Origin is your own service domain. You must add that domain to the **Embed allowed domains** section in [Workspace settings](/workspace/settings) for API requests to be accepted.
 
