@@ -13,7 +13,12 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api/client";
+import {
+  dashboardApi,
+  type DashboardSummary,
+  type RecentWorkflow,
+  type RecentExecution,
+} from "@/lib/api/dashboard";
 import { workflowsApi } from "@/lib/api/workflows";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,35 +32,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { timeAgo, formatDuration } from "@/lib/utils/date";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { TriggerCell } from "@/components/executions/trigger-cell";
-import type { ExecutionTriggerSource } from "@/lib/api/executions";
-
-interface DashboardSummary {
-  totalWorkflows: number;
-  activeWorkflows: number;
-  runs7d: number;
-  runs7dPrevious: number;
-  runs7dChangePercent: number | null;
-  successRate: number;
-  avgExecutionTime: number;
-}
-
-interface RecentWorkflow {
-  id: string;
-  name: string;
-  isActive: boolean;
-  updatedAt: string;
-}
-
-interface RecentExecution {
-  id: string;
-  workflowId: string;
-  workflowName: string;
-  status: string;
-  durationMs: number | null;
-  startedAt: string;
-  triggerSource: ExecutionTriggerSource;
-  triggerLabel: string | null;
-}
 
 function SummaryCardSkeleton() {
   return (
@@ -100,26 +76,17 @@ export default function DashboardPage() {
 
   const summaryQuery = useQuery<DashboardSummary>({
     queryKey: ["dashboard", "summary"],
-    queryFn: async () => {
-      const { data } = await apiClient.get("/dashboard/summary");
-      return data.data ?? data;
-    },
+    queryFn: () => dashboardApi.getSummary(),
   });
 
   const recentWorkflowsQuery = useQuery<RecentWorkflow[]>({
     queryKey: ["dashboard", "recent-workflows"],
-    queryFn: async () => {
-      const { data } = await apiClient.get("/dashboard/recent-workflows");
-      return data.data ?? data;
-    },
+    queryFn: () => dashboardApi.getRecentWorkflows(),
   });
 
   const recentExecutionsQuery = useQuery<RecentExecution[]>({
     queryKey: ["dashboard", "recent-executions"],
-    queryFn: async () => {
-      const { data } = await apiClient.get("/dashboard/recent-executions");
-      return data.data ?? data;
-    },
+    queryFn: () => dashboardApi.getRecentExecutions(),
   });
 
   const createWorkflowMutation = useMutation({
