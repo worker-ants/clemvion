@@ -6,6 +6,7 @@ code:
   - codebase/backend/src/modules/triggers/dto/chat-channel-config.dto.ts
   - codebase/backend/src/modules/triggers/triggers.service.ts
   - codebase/backend/src/modules/triggers/triggers.controller.ts
+  - codebase/backend/src/modules/triggers/chat-channel-token-rotator.service.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/test/chat-channel-slack.e2e-spec.ts
@@ -471,6 +472,8 @@ codebase/backend/src/modules/
     hooks.service.ts                       # 기존 — adapter dispatch 추가
   triggers/
     triggers.service.ts                    # 기존 — setupChannel / teardownChannel / rotateBotToken 호출 추가
+    triggers.controller.ts                 # C-2: rotateBotToken 엔드포인트 이전 (chat-channel→triggers forwardRef 순환 해소)
+    chat-channel-token-rotator.service.ts  # C-2: chat-channel 에서 이전 — bot token 회전 hourly 워커
     dto/create-trigger.dto.ts              # 기존 — chatChannel 필드 추가
 ```
 
