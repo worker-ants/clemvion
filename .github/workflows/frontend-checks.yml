@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v5
 
       # pnpm 버전은 root package.json 의 `packageManager` 필드를 따른다.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
