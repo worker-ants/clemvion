@@ -26,7 +26,7 @@ import cronstrue from "cronstrue";
 import { CronExpressionParser } from "cron-parser";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
-import { normalizePagedResponse } from "@/lib/api/paginated";
+import { schedulesApi, type RawSchedule } from "@/lib/api/schedules";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { RoleGate } from "@/components/auth/role-gate";
@@ -475,21 +475,7 @@ export default function SchedulesPage() {
   );
 
   const { page, setPage } = usePageParam();
-  // Raw row shape from /schedules — only the fields we map
-  interface RawSchedule {
-    id: string;
-    name?: string;
-    cronExpression: string;
-    timezone: string;
-    isActive: boolean;
-    nextRunAt?: string;
-    parameterValues?: Record<string, unknown>;
-    trigger?: {
-      name?: string;
-      workflowId?: string;
-      workflow?: { name?: string };
-    };
-  }
+  // Raw row shape from /schedules lives in lib/api/schedules (RawSchedule).
   function mapSchedule(s: RawSchedule): Schedule {
     return {
       id: s.id,
@@ -508,13 +494,10 @@ export default function SchedulesPage() {
   const schedulesQuery = useQuery<{ items: Schedule[]; totalPages: number }>({
     queryKey: ["schedules", "list", page],
     queryFn: async () => {
-      const res = await apiClient.get("/schedules", {
-        params: { page, limit: PAGE_SIZE },
-      });
-      const { items: raw, totalPages } = normalizePagedResponse<RawSchedule>(
-        res.data,
+      const { items: raw, totalPages } = await schedulesApi.list({
         page,
-      );
+        limit: PAGE_SIZE,
+      });
       return { items: raw.map(mapSchedule), totalPages };
     },
     enabled: viewMode === "list",
@@ -527,10 +510,7 @@ export default function SchedulesPage() {
   const calendarSchedulesQuery = useQuery<Schedule[]>({
     queryKey: ["schedules", "calendar"],
     queryFn: async () => {
-      const res = await apiClient.get("/schedules", {
-        params: { page: 1, limit: 200 },
-      });
-      const { items } = normalizePagedResponse<RawSchedule>(res.data, 1);
+      const { items } = await schedulesApi.list({ page: 1, limit: 200 });
       return items.map(mapSchedule);
     },
     enabled: viewMode === "calendar",
@@ -553,6 +533,7 @@ export default function SchedulesPage() {
   const { data: workflows = [] } = useQuery<Workflow[]>({
     queryKey: ["workflows-list"],
     queryFn: async () => {
+      // /workflows: cross-domain — workflows 트랙에서 이전 예정
       const res = await apiClient.get("/workflows");
       return res.data.data ?? res.data;
     },
@@ -560,7 +541,7 @@ export default function SchedulesPage() {
 
   const createMutation = useMutation({
     mutationFn: async (parameterValues: Record<string, unknown>) => {
-      await apiClient.post("/schedules", {
+      await schedulesApi.create({
         name: formName,
         workflowId: formWorkflowId,
         cronExpression: formCron,
@@ -591,7 +572,7 @@ export default function SchedulesPage() {
         parameterValues: Record<string, unknown>;
       };
     }) => {
-      await apiClient.patch(`/schedules/${id}`, data);
+      await schedulesApi.update(id, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
@@ -605,7 +586,7 @@ export default function SchedulesPage() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      await apiClient.patch(`/schedules/${id}`, { isActive });
+      await schedulesApi.update(id, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
@@ -618,7 +599,7 @@ export default function SchedulesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiClient.delete(`/schedules/${id}`);
+      await schedulesApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
@@ -639,7 +620,7 @@ export default function SchedulesPage() {
 
   const runNowMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiClient.post(`/schedules/${id}/run-now`);
+      await schedulesApi.runNow(id);
     },
     onSuccess: () => {
       toast.success(t("schedules.executed"));

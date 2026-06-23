@@ -458,9 +458,10 @@
 
 ### m-2 [Minor] frontend 다수 페이지의 apiClient 직접 호출
 
-- [~] 진행 중 — statistics/triggers/schedules/dashboard 페이지
-  - [x] **triggers** — `triggers/page.tsx` 의 trigger 호출(list·toggle·create)을 `lib/api/triggers.ts`(M-8 1단계 산출)로 이전. 잔여: 같은 페이지의 `/workflows` 호출은 workflows 도메인이라 workflows 트랙으로 분리.
-  - [ ] statistics / schedules / dashboard — `lib/api/{statistics,schedules,dashboard}.ts` 신설 + 페이지별 점진 이전 (각 1 PR).
+- [x] 완료 — statistics/triggers/schedules/dashboard 페이지 도메인 호출 전부 `lib/api/*` 이전
+  - [x] **triggers** — `triggers/page.tsx` 의 trigger 호출(list·toggle·create)을 `lib/api/triggers.ts`(M-8 1단계 산출)로 이전.
+  - [x] **statistics / schedules / dashboard** — `lib/api/{statistics,schedules,dashboard}.ts` 신설(`executions.ts` 관례, 타입 카탈로그 SoT) + 페이지 이전. 사용자 결정으로 **3페이지 1 PR**(plan 의 페이지별 PR 권장과 다름 — Minor·기계적·각 페이지 테스트 회귀 격리). dashboard 3 GET / statistics 7(+export blob, `unwrap`=`extractData` 동치) / schedules paginated+CRUD+run-now. 신규 wrapper 유닛 테스트(dashboard 4·statistics 5·schedules 8). behavior-preserving — 기존 페이지 테스트(statistics 4·schedules 9) 무수정 통과. 검증: lint·패키지빌드(next/nest)·unit·vitest 30 PASS, `--impl-prep` BLOCK:NO. **e2e·docker-image-build 환경블록**(docker 레지스트리 base 이미지 메타데이터 fetch DeadlineExceeded — frontend 변경과 직교; CI/회복 후 재실행). PR: branch `claude/refactor-m2-page-api`.
+  - **잔여(비대상, cross-domain)**: statistics·schedules·triggers 페이지의 `/workflows` 직접 호출은 workflows 도메인 → 별도 **workflows 트랙**(`lib/api/workflows.ts` 활용). ESLint `app/**/page.tsx` apiClient 금지 규칙(plan §4)은 전 페이지 이전 완료 후 후속.
 
 **spec 대조**: B — frontend api 계층 규약 부재, 기존 `lib/api/*` 는 코드베이스 관례.
 

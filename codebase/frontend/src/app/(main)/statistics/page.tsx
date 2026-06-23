@@ -3,6 +3,15 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import {
+  statisticsApi,
+  type StatsSummary,
+  type ExecutionDataPoint,
+  type ErrorEntry,
+  type TopWorkflow,
+  type NodeStat,
+  type LlmUsageSummaryResponse,
+} from "@/lib/api/statistics";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -40,66 +49,6 @@ import {
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 /* ---------- types ---------- */
-
-interface StatsSummary {
-  totalExecutions: number;
-  successCount: number;
-  failedCount: number;
-  cancelledCount: number;
-  successRate: number;
-  avgDurationMs: number;
-  totalExecutionsChangeRate?: number | null;
-}
-
-interface ExecutionDataPoint {
-  date: string;
-  total: number;
-  completed: number;
-  failed: number;
-  cancelled: number;
-}
-
-interface ErrorEntry {
-  workflowId: string;
-  workflowName: string;
-  errorCount: number;
-  lastErrorAt: string;
-}
-
-interface TopWorkflow {
-  workflowId: string;
-  workflowName: string;
-  executionCount: number;
-  successRate: number;
-  avgDurationMs: number;
-}
-
-interface NodeStat {
-  nodeId: string;
-  nodeLabel: string;
-  nodeType: string;
-  executionCount: number;
-  avgDurationMs: number;
-  errorRate: number;
-}
-
-interface LlmUsageByModel {
-  provider: string;
-  model: string;
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-  costUsd: number | null;
-}
-
-interface LlmUsageSummaryResponse {
-  totalPromptTokens: number;
-  totalCompletionTokens: number;
-  totalTokens: number;
-  totalCostUsd: number | null;
-  topProvider: string | null;
-  byModel: LlmUsageByModel[];
-}
 
 interface Workflow {
   id: string;
@@ -275,6 +224,7 @@ export default function StatisticsPage() {
   const { data: workflows } = useQuery<Workflow[]>({
     queryKey: ["workflows-list"],
     queryFn: async () => {
+      // /workflows: cross-domain — workflows 트랙에서 이전 예정
       const res = await apiClient.get("/workflows", {
         params: { limit: 200 },
       });
@@ -290,12 +240,12 @@ export default function StatisticsPage() {
     isError: summaryError,
   } = useQuery<StatsSummary>({
     queryKey: ["statistics-summary", period, selectedWorkflowId, rangeParams],
-    queryFn: async () => {
-      const res = await apiClient.get("/statistics/summary", {
-        params: { period, workflowId: workflowParam, ...rangeParams },
-      });
-      return extractData<StatsSummary>(res);
-    },
+    queryFn: () =>
+      statisticsApi.getSummary({
+        period,
+        workflowId: workflowParam,
+        ...rangeParams,
+      }),
     enabled: rangeReady,
   });
 
@@ -303,23 +253,23 @@ export default function StatisticsPage() {
     ExecutionDataPoint[]
   >({
     queryKey: ["statistics-executions", period, selectedWorkflowId, rangeParams],
-    queryFn: async () => {
-      const res = await apiClient.get("/statistics/executions", {
-        params: { period, workflowId: workflowParam, ...rangeParams },
-      });
-      return extractData<ExecutionDataPoint[]>(res);
-    },
+    queryFn: () =>
+      statisticsApi.getExecutions({
+        period,
+        workflowId: workflowParam,
+        ...rangeParams,
+      }),
     enabled: rangeReady,
   });
 
   const { data: errors, isLoading: errorsLoading } = useQuery<ErrorEntry[]>({
     queryKey: ["statistics-errors", period, selectedWorkflowId, rangeParams],
-    queryFn: async () => {
-      const res = await apiClient.get("/statistics/errors", {
-        params: { period, workflowId: workflowParam, ...rangeParams },
-      });
-      return extractData<ErrorEntry[]>(res);
-    },
+    queryFn: () =>
+      statisticsApi.getErrors({
+        period,
+        workflowId: workflowParam,
+        ...rangeParams,
+      }),
     enabled: rangeReady,
   });
 
@@ -327,12 +277,7 @@ export default function StatisticsPage() {
     TopWorkflow[]
   >({
     queryKey: ["statistics-top-workflows", period, rangeParams],
-    queryFn: async () => {
-      const res = await apiClient.get("/statistics/top-workflows", {
-        params: { period, ...rangeParams },
-      });
-      return extractData<TopWorkflow[]>(res);
-    },
+    queryFn: () => statisticsApi.getTopWorkflows({ period, ...rangeParams }),
     enabled: !selectedWorkflowId && rangeReady,
   });
 
@@ -340,24 +285,24 @@ export default function StatisticsPage() {
     NodeStat[]
   >({
     queryKey: ["statistics-node-stats", period, selectedWorkflowId, rangeParams],
-    queryFn: async () => {
-      const res = await apiClient.get("/statistics/node-stats", {
-        params: { period, workflowId: selectedWorkflowId, ...rangeParams },
-      });
-      return extractData<NodeStat[]>(res);
-    },
+    queryFn: () =>
+      statisticsApi.getNodeStats({
+        period,
+        workflowId: selectedWorkflowId,
+        ...rangeParams,
+      }),
     enabled: !!selectedWorkflowId && rangeReady,
   });
 
   const { data: llmUsage, isLoading: llmUsageLoading } =
     useQuery<LlmUsageSummaryResponse>({
       queryKey: ["statistics-llm-usage", period, selectedWorkflowId, rangeParams],
-      queryFn: async () => {
-        const res = await apiClient.get("/statistics/llm-usage/summary", {
-          params: { period, workflowId: workflowParam, ...rangeParams },
-        });
-        return extractData<LlmUsageSummaryResponse>(res);
-      },
+      queryFn: () =>
+        statisticsApi.getLlmUsageSummary({
+          period,
+          workflowId: workflowParam,
+          ...rangeParams,
+        }),
       enabled: rangeReady,
     });
 
@@ -415,11 +360,11 @@ export default function StatisticsPage() {
   const handleExport = useCallback(
     async (format: "csv" | "json") => {
       try {
-        const res = await apiClient.get("/statistics/export", {
-          params: { period, format, ...rangeParams },
-          responseType: "blob",
+        const blob = await statisticsApi.exportStats({
+          period,
+          format,
+          ...rangeParams,
         });
-        const blob = new Blob([res.data as BlobPart]);
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
