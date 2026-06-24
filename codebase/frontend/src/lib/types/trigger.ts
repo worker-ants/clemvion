@@ -49,5 +49,7 @@ export interface TriggerListItem {
   workflowId: string;
   workflowName: string;
   endpointPath?: string;
+  /** 마지막 호출 시각(ISO 8601, UTC). 백엔드 `GET /api/triggers` 응답 포함(trigger-response.dto). 호출 이력 없으면 undefined. */
+  lastTriggeredAt?: string;
   config?: TriggerConfig;
 }

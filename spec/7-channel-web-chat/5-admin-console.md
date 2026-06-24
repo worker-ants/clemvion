@@ -36,11 +36,11 @@ code:
 │  웹채팅                                   [+ 웹채팅 만들기]    │
 │                                                              │
 │  ┌─ 인스턴스 목록 ──────────────────────────────────────────┐ │
-│  │ ● 고객지원 봇      → 워크플로우: FAQ Bot      [관리]     │ │
-│  │ ● 가격문의 위젯    → 워크플로우: Pricing Q&A  [관리]     │ │
+│  │ 고객지원 봇          FAQ Bot · 마지막 호출 2시간 전       │ │
+│  │ 가격문의 위젯 [비활성] Pricing Q&A · 호출 없음            │ │
 │  └──────────────────────────────────────────────────────────┘ │
 │                                                              │
-│  ── 인스턴스 상세 (선택 시) ────────────────────────────────  │
+│  ── 고객지원 봇 [활성]    [호출 이력]  [⋮ 이름변경·토글·삭제] ─ │
 │  ┌─ 외형/콘텐츠 ───────────┐  ┌─ 라이브 미리보기 ──────────┐  │
 │  │ primaryColor [#5B4FE9] │  │   ┌──────────────────┐     │  │
 │  │ position  [bottom-right]│  │   │  (위젯 런처/패널)  │     │  │
@@ -73,6 +73,30 @@ code:
 > **Trigger 화면과의 관계**: 같은 인스턴스는 webhook trigger 이므로 [Triggers 메뉴](../2-navigation/2-trigger-list.md)
 > 목록에도 나타난다. Triggers 화면은 raw trigger(인증·EIA 카드)를, 본 콘솔은 **설치·미리보기에 특화한 친화 surface** 를
 > 제공한다 — 동일 자원의 두 표현. EIA 활성/`tokenStrategy` 편집은 양쪽 모두 `ExternalInteractionCard`/`POST·PATCH /api/triggers` 단일 경로.
+
+### 2.1 인스턴스 관리 (이름·활성·삭제·호출이력)
+
+생성·외형 편집에 더해, 선택 인스턴스의 **생애주기 관리**(이름·활성 상태·삭제)와 **호출 이력 조회**를 콘솔 상세에서 직접
+수행한다 — [Triggers 메뉴](../2-navigation/2-trigger-list.md) 왕복 없이 콘솔 한 곳에서 완결. 모두 기존 trigger API 단일
+경로를 재사용한다(신규 엔티티/엔드포인트 없음 — R1).
+
+| 콘솔 동작 | 매핑 (기존 API) | 권한 | 비고 |
+|---|---|---|---|
+| 이름 변경 | `PATCH /api/triggers/:id { name }` (R-4 단일 PATCH 경로) | `editor`+ | 부분 바디 — interaction(외형)·isActive 미포함이라 silent mutation 없음 |
+| 활성/비활성 토글 | `PATCH /api/triggers/:id { isActive }` | `editor`+ | 비활성 트리거는 webhook 호출이 거부된다(기존 trigger 규약). 목록·상세에 비활성 배지 |
+| 삭제 | `DELETE /api/triggers/:id` | `editor`+ | 이름 입력 확인 다이얼로그. 삭제 시 설치된 위젯이 동작을 멈춘다(공개 webhook path 소멸) |
+| 호출 이력 | `GET /api/triggers/:id/history` | `viewer`+ | 최근 호출·실행 drill-down. 조회 전용 |
+
+- **UI 배치**: 상세 헤더 = 활성 상태 배지 + `[호출 이력]` 버튼(`viewer`+) + 관리 `⋮` 메뉴(`editor`+: 이름 변경·활성 토글·삭제).
+- **목록 행 메타**: 각 인스턴스 행에 비활성 배지 + 마지막 호출 시각(`lastTriggeredAt` → `timeAgo`)을 표시해 "지금 활성인지·
+  최근 호출되는지"를 한눈에 식별한다(`lastTriggeredAt` 은 `GET /api/triggers` 응답 포함).
+- **컴포넌트 재사용**: 삭제·호출이력은 Triggers 화면의 `TriggerDeleteDialog`/`TriggerHistoryDialog` 를 그대로 공유한다
+  (동일 자원의 두 표현 — §2 비고). 삭제 다이얼로그는 `onDeleted` 콜백으로 콘솔 전용 캐시(`["web-chat-instances"]`)·선택
+  상태를 추가 정리하고(다이얼로그 자체는 `["triggers"]` 만 무효화), 부모가 선택을 첫 인스턴스로 폴백한다.
+- **미저장 보호(UX)**: 외형 미저장(`isDirty`) 상태에서 페이지 이탈/새로고침 시 `beforeunload` 경고로 손실을 한 번 잡는다
+  (localStorage 캐시와 다층 — R3).
+- **온보딩**: 외형이 서버에 한 번도 저장되지 않은(갓 생성된) 인스턴스는 상세 상단에 다음 단계(외형 설정→저장→스니펫 복사→
+  설치) 안내를 노출하고, 저장되면 `appearance` 가 채워지며 자연히 사라진다(파생 상태, 별도 플래그 없음).
 
 ## 3. 인스턴스 생성 (추상화)
 
@@ -178,8 +202,8 @@ code:
 
 | 동작 | 최소 역할 | 근거 |
 |---|---|---|
-| 인스턴스 목록·상세·스니펫 복사·미리보기 | `viewer`+ | `endpointPath` 는 외부 사이트에 그대로 박히는 **공개 UUID**(비밀 아님 — [trigger-list R-15](../2-navigation/2-trigger-list.md)). 따라서 스니펫 전체를 viewer 에게 노출해도 비밀 누출 아님 |
-| 인스턴스 생성·삭제·외형 편집 | `editor`+ | [Trigger 생성/삭제 규약](../2-navigation/2-trigger-list.md)과 동일 (`RoleGate`) |
+| 인스턴스 목록·상세·스니펫 복사·미리보기·호출이력 조회 | `viewer`+ | `endpointPath` 는 외부 사이트에 그대로 박히는 **공개 UUID**(비밀 아님 — [trigger-list R-15](../2-navigation/2-trigger-list.md)). 따라서 스니펫 전체를 viewer 에게 노출해도 비밀 누출 아님. 호출 이력도 조회 전용이라 viewer+ |
+| 인스턴스 생성·삭제·이름/활성/외형 편집 | `editor`+ | [Trigger 생성/삭제 규약](../2-navigation/2-trigger-list.md)과 동일 (`RoleGate`). 이름·활성·삭제는 `PATCH·DELETE /api/triggers/:id` 단일 경로(§2.1) |
 
 ## 8. i18n (KO/EN 동반 갱신 의무)
 
