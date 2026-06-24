@@ -1,4 +1,4 @@
-// SUMMARY#6 — useUpdateWebChatAppearance mutation 단위 테스트
+// SUMMARY#6 — useUpdateWebChatAppearance + useUpdateWebChatMeta mutation 단위 테스트
 // PATCH body 구성(enabled/tokenStrategy/appearance) + query invalidation 검증
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -240,5 +240,16 @@ describe("useUpdateWebChatMeta (이름·활성 부분 PATCH)", () => {
       ),
     ).toBe(true);
     expect(invalidatedKeys.some((k) => k.includes('"triggers"'))).toBe(true);
+  });
+
+  it("PATCH 실패 시 mutation 이 reject 된다 — onError 없어도 서버 미변경이므로 stale 아님", async () => {
+    patchMock.mockRejectedValue(new Error("fail"));
+    const { result } = renderHook(() => useUpdateWebChatMeta(), { wrapper });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({ instanceId: "t-fail", name: "X" }),
+      ).rejects.toThrow("fail");
+    });
   });
 });

@@ -120,6 +120,60 @@ The **Live preview** appears to the right of the appearance settings. The actual
 
 The widget is included with the product, so no external setup is needed. Appearance changes appear in the preview right away.
 
+## 6. Managing instances
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="WebChatRenameDialog"
+  describes="Web chat instance rename dialog"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="TriggerHistoryDialog"
+  describes="Web chat instance call history dialog"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="TriggerDeleteDialog"
+  describes="Web chat instance delete confirmation dialog"
+/>
+
+Select an instance from the list, then open the **More (⋮)** menu on the right to manage it.
+
+### Rename
+
+Choose **More → Rename** to open the rename dialog. Enter a new name and click **Save**. The name is the label that identifies the instance in the console list.
+
+### Activate or deactivate
+
+Choose **More → Activate** or **Deactivate** to toggle the instance on or off.
+
+- **Active** instances accept conversations from the install script.
+- **Inactive** instances show an **Inactive** badge in the list, and the widget stops responding.
+
+<Callout type="note">
+Activating or deactivating an instance requires the **editor** role or above.
+</Callout>
+
+### Call history
+
+Choose **More → Call history** to view recent web-chat execution records for this instance. The last call time is also shown in each row of the instance list.
+
+### Delete
+
+Click **More → Delete** to open the delete confirmation dialog. You must type the instance name exactly before the delete button becomes available.
+
+<Callout type="warn">
+Deleted web chats cannot be recovered. The widget stops responding on any site where the install script is embedded.
+</Callout>
+
+---
+
 ## Tips & reference
 
 - **Prepare your workflow first**: Create your [workflow](/workflows) before making a web chat — it makes selection easier.

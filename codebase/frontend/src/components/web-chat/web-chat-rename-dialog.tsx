@@ -31,10 +31,11 @@ interface Props {
  * 리마운트한다(다이얼로그를 다시 열 때마다 최신 이름으로 reset).
  */
 export function WebChatRenameDialog(props: Props) {
-  return <Inner key={`${props.instanceId}:${String(props.open)}`} {...props} />;
+  // open=false→true 전환 시에도 state 초기화를 위해 open 포함
+  return <WebChatRenameDialogInner key={`${props.instanceId}:${String(props.open)}`} {...props} />;
 }
 
-function Inner({ instanceId, currentName, open, onOpenChange }: Props) {
+function WebChatRenameDialogInner({ instanceId, currentName, open, onOpenChange }: Props) {
   const t = useT();
   const [name, setName] = useState(currentName);
   const updateMeta = useUpdateWebChatMeta();
