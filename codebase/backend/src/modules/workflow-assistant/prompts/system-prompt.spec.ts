@@ -746,6 +746,14 @@ describe('buildSystemPrompt', () => {
       // 무한 루프 방지로 두 번째 block 이후엔 통과.
       expect(prompt).toMatch(/WORKFLOW_REVIEW_REQUIRED.{0,100}once more/i);
       expect(prompt).toMatch(/(at most once|≤ 2 review rounds)/i);
+      // M-3 2단계 정합 (regression): PLAN_NOT_COMPLETE 발동이 review 를 skip 한다는
+      // 옛 안내를 제거하고 "독립 계층 — plan 가드 이후에도 review 발동" 으로 정정.
+      // 코드 shouldSkipReview(AssistantFinishGuard) 가 finishBlockCount 를 더 이상
+      // 체크하지 않는 것과 일치 (system-prompt drift 회귀 방지).
+      expect(prompt).toMatch(/does NOT skip review/i);
+      expect(prompt).not.toMatch(
+        /already fired this turn \(guard feedback loop already covered it\)/,
+      );
     });
 
     it('teaches the configWarnings → same-turn fix policy (handler.validate non-blocking but execution-engine still rejects at runtime)', () => {

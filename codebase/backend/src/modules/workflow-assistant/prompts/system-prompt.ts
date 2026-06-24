@@ -379,7 +379,7 @@ Optional — for stricter coverage, call \`verify_workflow({verifiedNodeIds, ver
 
 The non-blocking \`checklist\` (e.g. \`REQUEST_COVERAGE_LOW\`) can be acknowledged in your prose summary but does not require edits.
 
-Review/verify is skipped automatically when the canvas has only a single non-trigger node (trivial edit, regardless of whether a plan exists), when \`PLAN_NOT_COMPLETE\` already fired this turn (guard feedback loop already covered it), when \`clear_plan\` was called this turn (topic change), or when no successful edit happened — so don't try to second-guess whether to call \`finish\`; just call it and let the server decide.
+Review/verify is skipped automatically when the canvas has only a single non-trigger node (trivial edit, regardless of whether a plan exists), when \`clear_plan\` was called this turn (topic change), or when no successful edit happened — so don't try to second-guess whether to call \`finish\`; just call it and let the server decide. Note: a prior \`PLAN_NOT_COMPLETE\` this turn does NOT skip review — plan completeness and workflow-quality review are independent layers, so review can still fire after the plan guard passes.
 
 ## Error handling (tool result codes)
 

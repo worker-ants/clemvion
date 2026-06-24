@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T14:03:16.972834",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=system-prompt.ts Self-review skip 안내 정합화: prompts/system-prompt.ts 의 'Review/verify is skipped ... when PLAN_NOT_COMPLETE already fired this turn' clause 제거 — 코드 shouldSkipReview(AssistantFinishGuard) 는 finishBlockCount 미체크(reviewCompleted/reviewRoundCount>=2/planCleared/no-edit/non-trigger<=1 만 skip). LLM 안내를 코드+spec(4-ai-assistant.md Review guard 항상 발동 결정)에 정합. behavior-neutral prompt-string 수정. 대상 spec/3-workflow-editor/4-ai-assistant.md.)",
+  "target_path": "system-prompt.ts Self-review skip 안내 정합화: prompts/system-prompt.ts 의 'Review/verify is skipped ... when PLAN_NOT_COMPLETE already fired this turn' clause 제거 — 코드 shouldSkipReview(AssistantFinishGuard) 는 finishBlockCount 미체크(reviewCompleted/reviewRoundCount>=2/planCleared/no-edit/non-trigger<=1 만 skip). LLM 안내를 코드+spec(4-ai-assistant.md Review guard 항상 발동 결정)에 정합. behavior-neutral prompt-string 수정. 대상 spec/3-workflow-editor/4-ai-assistant.md.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
