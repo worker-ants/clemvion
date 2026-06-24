@@ -677,7 +677,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | Stall 자동 복구 | LLM 이 tool call 없이 텍스트만 뱉고 `finishReason: 'stop'` 으로 종료했는데 active plan 에 pending actionable step 이 남은 경우, 서버가 `"이어서 진행해줘."` user nudge 를 history 에 주입해 **추가 라운드**를 자동으로 시도한다 (gpt-oss-120b 임의 중단 quirk 대응). 연속 `MAX_STALL_ROUNDS = 2` 회까지 허용하고 초과 시 포기. **자동 복구로 추가 라운드가 시작될 때** 서버는 지금까지 누적된 assistant text 를 별도 메시지 row 로 persist 하고 (`finishReason='auto_resume_pending'`) `event: auto_resume` 을 SSE 로 발행한다. 이후 라운드의 텍스트는 `autoResumed=true` 인 새 row 로 누적되어, 한 턴이 여러 버블로 쪼개져 표시된다. 반복 confirmation 문구("계속 진행해도 될까요?" 등) 가 한 버블에 몰리는 UX 문제를 구조적으로 제거 |
 | `finish` guard 반복 block | 진척 기반(progress-aware). block 이후에도 LLM 이 edit/plan tool 을 추가 성공시키면 `PLAN_NOT_COMPLETE` 로 다시 block — plan 이 끝날 때까지 LLM 을 끌고 간다. block 후 어떤 진척도 없이 또 finish 를 호출하면 진짜 stuck 으로 간주해 안전 탈출(`finishReason: 'stop'`) 허용. **Plan-only 턴(이번 턴 propose_plan + 미승인) 과 모든 edit 이 ok:false 로 실패한 턴은 가드 비활성** — 사용자 approve 전 자동 진행 시도와 핑퐁 루프 모두 방어. 무한 루프 방어는 `toolCallsBudget` 과 `MAX_TOOL_LOOP_ROUNDS` 가 담당 |
 | Workflow self-review 가드 (Phase 1 — `WORKFLOW_REVIEW_REQUIRED`) | `finish` 가 plan 완결성 검증을 통과한 뒤 1회, 실행 턴(성공한 edit 이 1건 이상) 에 한해 워크플로 품질을 점검한다. blocking 항목이 있으면 LLM 이 수정 후 `finish` 를 다시 호출하도록 유도. 응답에는 turn-end 시점의 권위 있는 `currentWorkflow` 스냅샷(redact 적용, `get_current_workflow` 와 동일 직렬화) 이 동봉되어 LLM 이 추가 조회 없이 비교·교정할 수 있다. 주요 체크 항목: orphan 노드, 실패 tool_call 미수습, plan step 의 허위 완료, **pendingUserConfig 미안내 (`PENDING_USER_CONFIG_UNMENTIONED`)** 등. `PENDING_USER_CONFIG_UNMENTIONED` 는 §4.3.1 의 candidate 가 **0 개인 경우에만** 발동한다 — 후보가 1건 이상이면 in-message picker 가 UX 를 완결하므로 LLM 의 한국어 mention 이 불필요하다. 상한: 같은 턴에 review 는 최대 2회(`reviewRoundCount`), 이후에는 자동 통과 (무한 루프 방어) |
-| Workflow self-verify 가드 (Phase 2 — `WORKFLOW_VERIFY_REQUIRED`) | Phase 1 의 blocking 체크리스트가 모두 통과했더라도, 성공 edit 이 `MIN_EDITS_FOR_VERIFY` 이상이고 non-trigger 노드가 **3개 이상**인 non-trivial 턴이면 `finish` 를 한 번 더 막아 LLM 이 "사용자 원 요청 ↔ 실제 캔버스" 를 1:1 로 대조하도록 강제한다. blocking 항목은 비어 있고 `REQUEST_COVERAGE_LOW` 같은 non-blocking 항목만 실릴 수 있다. LLM 의 액션은 ① 캔버스가 요청을 충실히 반영하면 짧은 '검토 완료' 메시지 후 `finish` 재호출(통과), 또는 ② 누락/오류를 보강 후 `finish` 재호출. 더 정밀하게 검증하려면 `verify_workflow`(§4.1, Phase 3) 도구로 검토한 node/edge id 를 명시 보고할 수 있다. **한 턴에 1회만 발동**(`verifyFiredOnce`) — 반복 fire 시 무한 루프이고 blocking 항목이 없어 fix 강제 의미가 약하기 때문. Phase 1 의 `reviewCompleted` 플래그를 공유하므로 두 번째 `finish` 는 review/verify 둘 다 다시 발동하지 않는다 |
+| Workflow self-verify 가드 (Phase 2 — `WORKFLOW_VERIFY_REQUIRED`) | Phase 1 의 blocking 체크리스트가 모두 통과했더라도, non-trigger 노드가 `MIN_NONTRIGGER_NODES_FOR_VERIFY`(**3개**) 이상인 non-trivial 턴이면 `finish` 를 한 번 더 막아 LLM 이 "사용자 원 요청 ↔ 실제 캔버스" 를 1:1 로 대조하도록 강제한다. blocking 항목은 비어 있고 `REQUEST_COVERAGE_LOW` 같은 non-blocking 항목만 실릴 수 있다. LLM 의 액션은 ① 캔버스가 요청을 충실히 반영하면 짧은 '검토 완료' 메시지 후 `finish` 재호출(통과), 또는 ② 누락/오류를 보강 후 `finish` 재호출. 더 정밀하게 검증하려면 `verify_workflow`(§4.1, Phase 3) 도구로 검토한 node/edge id 를 명시 보고할 수 있다. **한 턴에 1회만 발동**(`verifyFiredOnce`) — 반복 fire 시 무한 루프이고 blocking 항목이 없어 fix 강제 의미가 약하기 때문. Phase 1 의 `reviewCompleted` 플래그를 공유하므로 두 번째 `finish` 는 review/verify 둘 다 다시 발동하지 않는다 |
 | 메시지 히스토리 크기 | 기본 최근 30턴만 LLM에 전달. 그 이전은 서버에는 저장되되 프롬프트에서 제외 |
 | 스트리밍 지연 허용치 | 첫 delta까지 3초 이내 권장 (SSE keep-alive: `: ping\n\n` 15초 간격) |
 | 동시 활성 세션 | 사용자당 무제한. **(계획)** 워크플로우당 활성 스트리밍 1건 제한(중복 POST 시 409) 은 아직 미구현 — 현재 서버는 동시 스트리밍을 거부하는 lock/409 가드를 두지 않는다. 향후 추가 예정 |
@@ -838,6 +838,18 @@ Workflow AI Assistant(에디터 내 채팅형 AI) 스펙 작성 시 사용자와
 - 세션 공유/내보내기 — v1 스코프 밖 명시. 팀 워크스페이스 RBAC 선행 필요.
 - Plan 카드의 step을 사용자가 직접 편집/체크 가능한지 — 현재 Spec은 "사용자 조작 불가, 진행도 표시 전용"(§3.3). 필요해지면 별도 RFC.
 
+### streamMessage god-service 분할 (M-3)
+
+`WorkflowAssistantStreamService.streamMessage` 의 혼재 책임을 단계별 무상태 collaborator 로 분리했다 (refactor 백로그 M-3, PR #670/#680/#683). 분리 후 `streamMessage` 는 SSE 조립·tool-loop·turn-scoped 상태(`assistantText`/`pendingToolCalls`/stall 카운터) 소유만 담당하고, 아래 3 collaborator 에 위임한다:
+
+| collaborator (`tools/`) | 책임 | 단계 |
+| --- | --- | --- |
+| `AssistantToolRouter` | 도구명→kind 분류(`classifyKind`) + explore dispatch | 1단계 (#670) |
+| `AssistantFinishGuard` | finish/review/verify 가드 판정(`evaluateFinishGuard`/`evaluateReviewGuard`/`shouldSkipReview`) | 2단계 (#680) — `FinishGuardState` 는 호출부 소유, 가드는 판정만 |
+| `AssistantTurnPersistenceService` | 세션/메시지 영속(`persistUserTurn`/`persistAssistantTurn`) + `makeResumeMeta` | 3단계 (#683) |
+
+세 collaborator 모두 `@Injectable` 무상태 singleton 으로, 메서드 verbatim 이동 + 생성자 주입 패턴. 분리 경계를 finish/review/verify 가드 Phase 와 일치시켜 가드 미세 의미(progress-aware finish 재발동·review 최대 2회·verify 턴당 1회·plan-only fast-path)를 collaborator unit 테스트로 직접 커버한다. **행위 계약(가드 발동 조건·횟수·SSE 이벤트·상태 전이·usage/resumeMeta 적재)은 불변** — 순수 구조 리팩토링이다.
+
 ### Workflow AI Assistant 시스템 프롬프트 구조
 
 `codebase/backend/src/modules/workflow-assistant/prompts/system-prompt.ts` 는 5블록 구조로 구성된다. 정적 콘텐츠를 앞에 두고 동적 상태를 뒤로 보내 provider prefix cache hit rate 를 높이고, 규칙 중복을 제거해 LLM 이 매 턴 파싱하는 부담을 줄이는 게 설계 의도다.
@@ -942,7 +954,7 @@ LLM 이 `finish` 를 호출하면 서버는 아래 순서로 판정:
 
 1. `evaluateFinishGuard` → `PLAN_NOT_COMPLETE` 면 block (기존 동작, 변경 없음).
 2. 통과하면 `evaluateReviewGuard` → blocking 체크리스트 위반이 있으면 `WORKFLOW_REVIEW_REQUIRED` 로 block (Phase 1).
-3. blocking 이 없어도, 성공 edit ≥ `MIN_EDITS_FOR_VERIFY` 이고 non-trigger 노드 ≥ 3 인 non-trivial 턴이면 `WORKFLOW_VERIFY_REQUIRED` 로 한 번 더 block 해 LLM 이 "요청 ↔ 캔버스" 의미 대조를 1회 수행하게 한다 (Phase 2). LLM 은 짧은 검토 후 `finish` 재호출하거나, 더 정밀하게는 `verify_workflow` 도구(§4.1) 로 검토한 node/edge id 를 외부화 보고할 수 있다 (Phase 3 — 전수 커버 시 `ok:true` 가 `reviewCompleted` 를 set).
+3. blocking 이 없어도, non-trigger 노드 ≥ `MIN_NONTRIGGER_NODES_FOR_VERIFY`(=3) 인 non-trivial 턴이면 `WORKFLOW_VERIFY_REQUIRED` 로 한 번 더 block 해 LLM 이 "요청 ↔ 캔버스" 의미 대조를 1회 수행하게 한다 (Phase 2). LLM 은 짧은 검토 후 `finish` 재호출하거나, 더 정밀하게는 `verify_workflow` 도구(§4.1) 로 검토한 node/edge id 를 외부화 보고할 수 있다 (Phase 3 — 전수 커버 시 `ok:true` 가 `reviewCompleted` 를 set).
 4. 모두 통과하면 `{ ok: true }` 로 finish 성공.
 
 Review(Phase 1) 는 한 턴에 최대 2회(`reviewRoundCount`) 발동 후 자동 통과. Verify(Phase 2) 는 **한 턴에 1회만**(`verifyFiredOnce`) — blocking 항목이 없어 fix 강제 의미가 약하고 반복 fire 시 무한 루프이기 때문. Phase 1·2·3 는 모두 `state.reviewCompleted` 플래그를 공유하므로 일단 review/verify 가 끝나면 두 번째 `finish` 는 둘 다 건너뛰고 통과해, LLM 이 사용자에게 다음 턴에서 후속 지시를 받을 기회를 보장.
@@ -955,10 +967,11 @@ Review(Phase 1) 는 한 턴에 최대 2회(`reviewRoundCount`) 발동 후 자동
 
 - `state.reviewCompleted`
 - `state.reviewRoundCount >= 2`
-- `state.finishBlockCount > 0` — PLAN_NOT_COMPLETE 가 이미 발동했다면 LLM 은 한 라운드 feedback 을 받았으므로 review 는 중복
 - `state.planClearedThisTurn`
 - 이번 턴 성공 edit 이 0 — 실행 턴 아님
 - non-trigger 노드 ≤ 1 — trivial 편집 (plan 유무 무관)
+
+> **`finishBlockCount > 0` 은 skip 조건이 아니다** — PLAN_NOT_COMPLETE(plan 충족성)와 review(워크플로 품질)는 독립 계층이라, plan 가드가 fire 한 뒤에도 review 는 발동한다 (Rationale 의 "Review guard 항상 발동" 절 참조). `shouldSkipReview`(`AssistantFinishGuard`) 구현과 일치.
 
 ##### 체크리스트 항목 (`review-workflow.ts`)
 
@@ -1290,9 +1303,9 @@ stall 전·후 라운드의 같은 문구가 한 버블 안에서 2~3번 겹쳐 
 **stream.service 변경** — stall 복구 블록 (§7) 에서:
 ```ts
 // 1) 현재까지의 assistant 텍스트를 "중간 row" 로 먼저 persist
-await this.persistAssistantTurn(sessionId, assistantText, pendingToolCalls,
+await this.turnPersistence.persistAssistantTurn(sessionId, assistantText, pendingToolCalls,
   planPersisted ? null : planForTurn, null, 'auto_resume_pending',
-  /* resumeMeta */ { autoResumed: false, ... });
+  makeResumeMeta(0)); // 중간 row 는 비-resumed 메타
 if (planForTurn) planPersisted = true;
 // 2) 누적 커서 리셋 — 다음 라운드는 새 row
 assistantText = ''; pendingToolCalls = [];
@@ -1301,11 +1314,17 @@ yield { event: 'auto_resume', data: { reason, attempt, max } };
 // 4) 기존 nudge 주입 + continue
 ```
 
-턴 종료 시점의 최종 persist 에는 `autoResumed: consecutiveStallRounds > 0` 를 전달.
+턴 종료 시점의 최종 persist 에는 `makeResumeMeta(totalStallCount)` 를 전달 — 즉
+`autoResumed: totalStallCount > 0`. 누적 카운터 `totalStallCount` 는 진척 라운드에도 0 으로
+리셋되지 않아 "이번 턴에 stall 이 한 번이라도 있었는지" 를 정확히 판정한다
+(`consecutiveStallRounds` 는 진척 시 0 리셋되므로 이 판정엔 부적합 — 루프 bound·SSE attempt 전용).
 
-**`persistAssistantTurn` 시그니처 확장** — 마지막 파라미터로 `resumeMeta` 를 받고
-기본값으로 `{autoResumed: false, autoResumeReason: null, autoResumeAttempt: null}`
-를 쓴다. 기존 호출부 변경 최소.
+**`persistAssistantTurn` 시그니처** — 마지막 파라미터로 `resumeMeta` 를 받고 기본값은
+`makeResumeMeta(0)` (= `{autoResumed: false, autoResumeReason: null, autoResumeAttempt: null}`).
+본 메서드·`makeResumeMeta`·user 메시지 영속(`persistUserTurn`)은 M-3 분할로
+`AssistantTurnPersistenceService`(`tools/assistant-turn-persistence.service.ts`)가 소유하고,
+`streamMessage` 는 `this.turnPersistence` 로 위임한다 (`totalStallCount` 는 streamMessage 가
+소유한 채 `makeResumeMeta` 로 derive — 무상태 collaborator 경계).
 
 **Plan 중복 방지** — 같은 턴 안에 plan 이 최초로 emit 되는 row 에만 plan 을 싣고,
 그 뒤로 분리된 row 는 `plan=null` 로 persist. 로컬 `planPersisted` 플래그로 관리.

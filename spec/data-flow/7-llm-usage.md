@@ -105,7 +105,7 @@ usage 적재 정책:
 | `AI Agent` 노드 (`nodes/ai/ai-agent/ai-agent.handler.ts`, chat 호출 4곳) | chat (tool calling 포함) | **context 미전달 → `workflow_id / execution_id / node_execution_id` 전부 NULL** (현행 한계 — abortSignal 만 opts 로 전달) |
 | `Text Classifier` (`text-classifier.handler.ts`) / `Information Extractor` (`information-extractor.handler.ts` `traceChat`) 노드 | chat | 동일 — context 미전달, 전부 NULL |
 | AI Agent 자동 메모리 롤링 요약 압축 (`nodes/ai/shared/agent-memory-injection.ts`) | chat | context 미전달, 전부 NULL |
-| `WorkflowAssistantStreamService` (`workflow-assistant-stream.service.ts`) | chatStream | `workflow_id` 만 채움 (`{ workflowId: session.workflowId }`). usage 는 assistant message row (`persistAssistantTurn` → `appendMessage.usage`) 와 usage_log **양쪽**에 적재 |
+| `WorkflowAssistantStreamService` (`workflow-assistant-stream.service.ts`) | chatStream | `workflow_id` 만 채움 (`{ workflowId: session.workflowId }`). usage 는 assistant message row (`WorkflowAssistantStreamService → AssistantTurnPersistenceService.persistAssistantTurn` → `appendMessage.usage`, M-3 분할) 와 usage_log **양쪽**에 적재 |
 | `GraphExtractionService` (KB graph 추출, `knowledge-base/graph/graph-extraction.service.ts`) | chat | context 미전달, 전부 NULL. `timeoutMs` + `disableInnerRetry` (외부 `retryWithBackoff` 가 재시도 통제) |
 | `RerankService` listwise LLM grading (`cross_encoder_llm` escalate 시, `knowledge-base/search/rerank.service.ts`) | chat | context 미전달, 전부 NULL |
 | AgentMemory 추출 processor (BullMQ, `agent-memory/queues/agent-memory-extraction.processor.ts`) | chat | context 미전달, 전부 NULL |
