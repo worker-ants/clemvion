@@ -1,5 +1,7 @@
 # Manual Trigger output 개선안
 
+> **6차 갱신 (2026-06-25 코드 재검증)**: handler/schema/spec 코드는 2026-06-03 이후 변화 없음 (이 노드 파일은 PR #443 이후 무수정 — git log 확인). §8 항목 4개 모두 잔여 (해소 0). impl 1·테스트 1·frontend 1 은 코드 무변화로 그대로 잔존, spec 2개는 본문 라인 드리프트만 정정: §3 input fallback 인용 `1-manual-trigger.md:55`→`:65`, `0-common.md:60`→`:75` (meta 행). §7 handler 라인 인용(`41-59`/`86-101`/`111-120`/`130-137` 등)은 현 코드와 여전히 일치 (정정 불요). 새 갭 없음.
+
 > **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `config.parameters` (스키마) ↔ `output.parameters` (런타임 값) 직교 + webhook 한정 `output.request` 노출 + `__triggerSource` internal 마커 유지. 잔여 권고 없음 (이름 중복 리네이밍은 호환성 영향이 커 별도 트랙).
 
 > 대상 spec: `spec/4-nodes/7-trigger/1-manual-trigger.md` (§5 출력 구조)
@@ -131,8 +133,8 @@ Manual Trigger 는 **워크플로우 진입점** (단계 1개). 어댑터 종류
 
 ## 종합 개선안 (2026-05-16)
 
-- [ ] (impl) `manual-trigger.handler.ts:41-59` 의 `detectTriggerSource` 가 internal string literal `'__triggerSource'` 비교 (`:45`) 대신 `TRIGGER_SOURCE_INPUT_KEY` 상수 import 사용. 근거: 같은 파일 내 export 상수 (`:23`) 가 이미 정의되어 있고, 어댑터/핸들러 분기점에서 단일 진입점 유지가 안전.
-- [ ] (spec) §3 의 `input` shape 설명 (`spec/4-nodes/7-trigger/1-manual-trigger.md:55`) 에서 "input.parameters 만 객체, 그 외 fallback `{}`" 라는 Principle 10 fallback 동작을 명시적으로 인용 — 현재 §4-2 ("`input.parameters` 가 객체이면 그대로 채택, 아니면 `{}` 로 fallback") 가 §4 안에만 있어 §3 input 표만 보면 누락. 근거: handler `:114-120` 동작.
-- [ ] (spec) `spec/4-nodes/7-trigger/0-common.md:60` 의 `meta` 카테고리 행에 "meta.source 는 실행 컨텍스트 식별자로 Principle 2 의 변형" 한 줄 추가 — 다른 노드의 `meta` 가 모두 실행 메트릭(durationMs/tokens 등) 인 점과 비교해 의미 분리. 근거: Manual Trigger 만 `meta` 에 카테고리 식별자를 두는 유일한 노드.
-- [ ] (impl/test) `manual-trigger.handler.spec.ts` 에 `meta.source` enum 모든 3종 (manual/webhook/schedule) + 마커 없이 transport-shape fallback 의 4 케이스를 정리한 parameterized describe 추가 검토 — 현재 개별 it 로 분산되어 있음. 근거: 횡단 가독성 (저우선).
-- [ ] (frontend) 노드 spec §5 의 expression 접근 예 (`$node["Manual Trigger"].output.parameters.orderId` / `$params.orderId` / `$input.parameters.orderId`) 가 frontend expression autocomplete 에 모두 등록되어 있는지 확인. 특히 `$params` shortcut 의 동작 범위(다운스트림 첫 노드 한정) 가 UI hint 로 노출되는지 점검. 근거: spec §5 footnote, expression-language §5-system 참조 필요.
+- [ ] (impl) `manual-trigger.handler.ts:41-59` 의 `detectTriggerSource` 가 internal string literal `'__triggerSource'` 비교 (`:45` `input?.__triggerSource`) 대신 `TRIGGER_SOURCE_INPUT_KEY` 상수 import 사용. 근거: 같은 파일 내 export 상수 (`:23`) 가 이미 정의되어 있고, 어댑터/핸들러 분기점에서 단일 진입점 유지가 안전. *(2026-06-25 확인: `:45` 여전히 `input?.__triggerSource` 프로퍼티 직접 접근 — 상수 미사용, 잔여. 라인 인용 정확.)*
+- [ ] (spec) §3 의 `input` shape 설명 (`spec/4-nodes/7-trigger/1-manual-trigger.md:65`) 에서 "input.parameters 만 객체, 그 외 fallback `{}`" 라는 Principle 10 fallback 동작을 명시적으로 인용 — 현재 §4-2 (`:78` "`input.parameters` 가 객체이면 그대로 채택, 아니면 `{}` 로 fallback") 가 §4 안에만 있어 §3 input 표만 보면 누락. 근거: handler `:114-120` 동작. *(2026-06-25 확인: spec §3.1 `:65` 여전히 fallback 미인용 — 잔여. stale 인용 `:55`→`:65`, §4-2 `:78` 로 정정.)*
+- [ ] (spec) `spec/4-nodes/7-trigger/0-common.md:75` 의 `meta` 카테고리 행에 "meta.source 는 실행 컨텍스트 식별자로 Principle 2 의 변형" 한 줄 추가 — 다른 노드의 `meta` 가 모두 실행 메트릭(durationMs/tokens 등) 인 점과 비교해 의미 분리. 근거: Manual Trigger 만 `meta` 에 카테고리 식별자를 두는 유일한 노드. *(2026-06-25 확인: `0-common.md:75` 행이 `meta.source` 를 "필수" 로만 표기 — Principle 2 변형 주석 미추가, 잔여. stale 인용 `:60`→`:75` 로 정정.)*
+- [ ] (impl/test) `manual-trigger.handler.spec.ts` 에 `meta.source` enum 모든 3종 (manual/webhook/schedule) + 마커 없이 transport-shape fallback 의 4 케이스를 정리한 parameterized describe 추가 검토 — 현재 개별 it 로 분산되어 있음. 근거: 횡단 가독성 (저우선). *(2026-06-25 확인: `manual-trigger.handler.spec.ts:128-192` 4 케이스 여전히 개별 `it` 분산 — 잔여, 저우선.)*
+- [ ] (frontend) 노드 spec §5 의 expression 접근 예 (`$node["Manual Trigger"].output.parameters.orderId` / `$params.orderId` / `$input.parameters.orderId`) 가 frontend expression autocomplete 에 모두 등록되어 있는지 확인. 특히 `$params` shortcut 의 동작 범위(다운스트림 첫 노드 한정) 가 UI hint 로 노출되는지 점검. 근거: spec §5 footnote, expression-language §5-system 참조 필요. *(2026-06-25 미해결: frontend 에 `$params`/`output.parameters` 전용 autocomplete 레지스트리 근거 미확인 — 확인 항목 잔여.)*

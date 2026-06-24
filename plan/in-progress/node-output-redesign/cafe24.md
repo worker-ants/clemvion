@@ -2,6 +2,8 @@
 
 > 대상 spec: `spec/4-nodes/4-integration/4-cafe24.md` (§5 출력 구조)
 
+> **6차 갱신 (2026-06-25 코드 재검증)**: 핸들러는 **분할되지 않음** — `cafe24.handler.ts` 단일 유지(현재 558줄). 다만 §7·§8 의 `파일:라인` 인용 **거의 전부 stale** 라 정정함. (1) §8 spec 체크박스 ① cursor 폐기는 spec §1(`4-cafe24.md:42`)·§6 표가 이미 `{ limit?, offset? }` + "cursor 폐기(B-3-7)" 명시로 정정됨 → **해소(PR #440/#516 spec-sync audit)**. (2) **새 갭/변화**: D4 라우팅 도입으로 모든 pre-flight `IntegrationError` 가 throw 가 아니라 outer catch(`cafe24.handler.ts:343-371`)에서 `port:'error'` 로 변환됨 — §7 item 4·§5.8 의 "노드 실행 실패" 전제가 **CHANGED**(spec §5.8 `4-cafe24.md:322-334` 이 이미 반영). (3) **새 기능**: re-run dry-run(`:172-196`) + INT-US-05 logUsage `apiInfo`(`:135-144`) 추가 — 핸들러 흐름 확장. (4) 잔여(STILL PENDING): §8 test ②(4xx 에서 callLimit/callRemain/callUsage 동봉 회귀 — `cafe24.handler.spec.ts:456-494` 가 여전히 미검증, mock `headers:{}`), test ③(Cafe24 handler 통합에서 `sanitizeConfigEcho` fields 마스킹 직접 검증 부재 — 마스킹 테스트는 `_base/integration-handler-base.spec.ts:205-221` 에만), spec ⑤(unknown error → `CAFE24_TRANSPORT_FAILED` fallback `:545-555` 이 spec §6 표 `:348` 에 미문서화). api-client 심볼 전면 이동(markAuthFailed `:1003`, refreshAccessToken `:805`, executeWithRateLimit `:1158`, buildUrl `:1339`, wrapInCafe24Envelope `:1408` 등).
+
 > **최신화 검토 (2026-05-16)**: Cafe24 노드는 본 redesign 폴더의 1차 초안(2026-04) 이후에 신설된 노드이므로 본 plan 은 최초 작성이다. 현 spec 은 이미 `spec/conventions/node-output.md` 11 원칙을 따른 형태로 출발했다.
 
 ## 현재 output (spec 인용)
@@ -157,57 +159,58 @@ Cafe24 는 외부 API 호출 노드 (단계 1개). HTTP Request 와 같은 `succ
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `codebase/backend/src/nodes/integration/cafe24/{cafe24.handler.ts, cafe24.schema.ts, cafe24-api.client.ts, cafe24.handler.spec.ts, cafe24-token-refresh.processor.ts, metadata/*}`.
+대상 파일: `codebase/backend/src/nodes/integration/cafe24/{cafe24.handler.ts, cafe24.schema.ts, cafe24-api.client.ts, cafe24.handler.spec.ts, cafe24-token-refresh.processor.ts, metadata/*}`. → (2026-06-25) 핸들러 **분할 없음** — `cafe24.handler.ts` 단일 유지(558줄). 단 dry-run(`:172-196`)·INT-US-05 logUsage `apiInfo`(`:135-144`) 추가로 흐름 확장됨.
 
-1. **spec §5 ↔ handler return 정합성**:
-   - 정상 (`cafe24.handler.ts:269-275`): `{ config: echo, output: { response: result.body }, meta: buildMeta(result, durationMs), port: 'success' }`. `buildMeta` (`:347-361`) 가 `statusCode/durationMs/callUsage?/callRemain?/callLimit?/timeUsage?/timeRemain?` 동봉 — spec §5.1 표 정확 일치.
-   - HTTP 응답 4xx/5xx (`:231-262`): `{ output: { response: result.body, error: { code, message, details: { statusCode, mallId, resource, operation, cafe24ErrorCode?, cafe24Message? } } }, meta, port: 'error' }`. `codeForStatus` (`:363-368`): 404 → `CAFE24_404`, 422 → `CAFE24_422`, 5xx → `CAFE24_5XX`, 그 외 → `CAFE24_4XX`. spec §5.3.1 + §6 표 정확 일치.
-   - Client 에러 catch (`:194-224`): `mapClientErrorToOutput` (`:397-462`) 가 `Cafe24AuthFailedError` / `Cafe24RateLimitedError` / `Cafe24TransportFailedError` / `Cafe24IncompleteCredentialsError` 각각을 envelope 으로 변환. `IncompleteCredentialsError` 는 `IntegrationError('INTEGRATION_INCOMPLETE')` 로 re-throw (Pre-flight). `IntegrationError` 도 re-throw (Pre-flight 분류 보존). 그 외 unknown 은 `CAFE24_TRANSPORT_FAILED` fallback. spec §5.3.2 / §5.3.3 + §5.8 정확 일치.
-   - `responseBody` 동봉은 `Cafe24AuthFailedError` 만 (`:421`) — Rate-limit / Transport 는 응답 body 부재 자연스러움.
+1. **spec §5 ↔ handler return 정합성**: (2026-06-25 라인 전면 정정)
+   - 정상 (`cafe24.handler.ts:337-342`): `{ config: echo, output: { response: result.body }, meta: buildMeta(result, durationMs), port: 'success' }`. `buildMeta` (`:441-455`) 가 `statusCode/durationMs/callUsage?/callRemain?/callLimit?/timeUsage?/timeRemain?` 동봉 — spec §5.1 표 정확 일치.
+   - HTTP 응답 4xx/5xx (`:296-328`): `{ output: { response: result.body, error: { code, message, details: { statusCode, mallId, resource, operation, cafe24ErrorCode?, cafe24Message? } } }, meta, port: 'error' }`. `codeForStatus` (`:457-462`): 404 → `CAFE24_404`, 422 → `CAFE24_422`, 5xx → `CAFE24_5XX`, 그 외 → `CAFE24_4XX`. spec §5.3.1 + §6 표 정확 일치.
+   - Client 에러 catch (`:259-289`): `mapClientErrorToOutput` (`:491-556`) 가 `Cafe24AuthFailedError` / `Cafe24RateLimitedError` / `Cafe24TransportFailedError` / `Cafe24IncompleteCredentialsError` 각각을 envelope 으로 변환. `IncompleteCredentialsError` 는 `IntegrationError('INTEGRATION_INCOMPLETE')` 로 re-throw (`:537-539`). `IntegrationError` 도 re-throw (`:540-544` — Pre-flight 분류 보존). 그 외 unknown 은 `CAFE24_TRANSPORT_FAILED` fallback (`:545-555`). → (2026-06-25) **CHANGED (D4)**: 여기서 re-throw 된 pre-flight `IntegrationError` 는 더 이상 노드 실행 실패로 전파되지 않고 outer catch (`:343-371`) 가 받아 `port:'error'` 로 변환한다. spec §5.8 (`4-cafe24.md:322-334`) 이 이 라우팅을 이미 반영.
+   - `responseBody` 동봉은 `Cafe24AuthFailedError` 만 (`:508-515`) — Rate-limit / Transport 는 응답 body 부재 자연스러움.
 
-2. **schema ↔ spec config 정합성**: `cafe24NodeConfigSchema` (`cafe24.schema.ts:29-63`) 의 `integrationId`/`resource` (enum from `CAFE24_RESOURCES`)/`operation`/`fields` (Record)/`pagination` (limit/offset 만 — cursor 폐기, B-3-7) — spec §1 표와 정합. `cafe24PaginationSchema` (`:21-27`) 의 cursor 제거가 spec §1 의 옛 `cursor?: string` 과 미세 불일치 — spec 본문은 cursor 를 여전히 언급(`:23`) 하지만 schema 에서 제거됨.
+2. **schema ↔ spec config 정합성**: `cafe24NodeConfigSchema` (`cafe24.schema.ts:29-63`) 의 `integrationId`/`resource` (enum from `CAFE24_RESOURCES`)/`operation`/`fields` (Record)/`pagination` (limit/offset 만 — cursor 폐기, B-3-7) — spec §1 표와 정합. `cafe24PaginationSchema` (`:21-27`) 의 cursor 제거. → (2026-06-25) 해소: spec §1 표 (`4-cafe24.md:42`) 가 이제 `{ limit?, offset? }` + "`cursor` 는 Cafe24 Admin API 가 일관 지원하지 않아 폐기됨 (B-3-7)" 명시 → schema 와 정합. 옛 불일치(spec 가 cursor 잔존) 제거됨.
 
-3. **validate 일관성** (`cafe24.handler.ts:66-108`):
+3. **validate 일관성** (`cafe24.handler.ts:68-110`):
    - `integrationId`/`resource`/`operation` string 가드 + `resource` enum 가드.
-   - **`findCafe24Operation` 으로 (resource, operation) 조합을 사전 검증** (`:89-97`) — 캔버스에서 잘못된 operation 선택 시 즉시 경고 (B-3-3). spec §5.8 의 `CAFE24_UNKNOWN_OPERATION` 을 execute 시점이 아닌 validate 시점에도 잡음.
-   - `fields` 타입 가드 — object/non-null/non-array.
+   - **`findCafe24Operation` 으로 (resource, operation) 조합을 사전 검증** (`:91-99`) — 캔버스에서 잘못된 operation 선택 시 즉시 경고 (B-3-3). spec §5.8 의 `CAFE24_UNKNOWN_OPERATION` 을 execute 시점이 아닌 validate 시점에도 잡음.
+   - `fields` 타입 가드 — object/non-null/non-array (`:101-108`).
 
-4. **에러 컨트랙트 (Principle 3)** — **핵심**:
-   - **Pre-flight throw**: `CAFE24_UNKNOWN_OPERATION` (`:141-146`), `CAFE24_MISSING_FIELDS` (`:153-158`), `CAFE24_INVALID_MALL_ID` (`:172-177`), `CAFE24_UNRESOLVED_PATH_PARAM` (`buildRequestParts :333-336`), 그리고 `apiClient` 미주입 (`:125-128`) + Integration 단계 errors (resolveIntegration → INTEGRATION_NOT_FOUND/TYPE_MISMATCH/NOT_CONNECTED). 모두 spec §5.8 일치.
+4. **에러 컨트랙트 (Principle 3)** — **핵심**: (2026-06-25 라인 정정 + D4 CHANGED)
+   - **Pre-flight throw → outer catch 로 변환**: `CAFE24_UNKNOWN_OPERATION` (`:162-167`), `CAFE24_MISSING_FIELDS` (requiredFields `:205-210`, constraints `:215-221`), `CAFE24_INVALID_MALL_ID` (`:236-241`), `CAFE24_UNRESOLVED_PATH_PARAM` (`buildRequestParts :426-431`), 그리고 `apiClient` 미주입 → `INTEGRATION_SERVICE_UNAVAILABLE` (`:153-158`) + Integration 단계 errors (resolveIntegration → INTEGRATION_TYPE_MISMATCH/NOT_CONNECTED/INCOMPLETE). → (2026-06-25) **CHANGED (D4)**: 이들은 throw 되지만 노드 실행 실패로 전파되지 않고 **outer catch (`:343-371`) 가 `port:'error'` + `output.error.{code,message,details}` + `meta.statusCode:0` 으로 변환**한다. spec §5.8 (`4-cafe24.md:322-334`) / §6 표 (`:349-353`) 이 이 라우팅을 반영 — 옛 "노드 실행 실패(Principle 3.1)" 전제는 더 이상 성립하지 않음.
    - **Runtime `port:'error'`**: Cafe24Auth/RateLimit/Transport 4종 + 4xx/5xx 일반. 모두 envelope.
-   - **401/403 → `Integration.status='error(auth_failed|insufficient_scope)'` 자동 전이** — `Cafe24ApiClient.markAuthFailed` (`:799-830`) 에서 atomic UPDATE + `actionRequiredNotifier` 발사. spec §6.1 정확 일치. `detectInsufficientScope` (`:844-876`) 가 응답 body 시그널로 reason 분기.
-   - **3회 연속 transport 실패 → `error(network)`** (`recordNetworkFailure :884-924`, `resetNetworkFailures :926-938`): spec §6 의 status 전이 표 부합. recordNetworkFailure 가 refresh 의 transport 실패에도 적용 (`:694`) — REQ-C2.
+   - **401/403 → `Integration.status='error(auth_failed|insufficient_scope)'` 자동 전이** — `Cafe24ApiClient.markAuthFailed` (`cafe24-api.client.ts:1003-1048`) 에서 atomic UPDATE + `actionRequiredNotifier` 발사. spec §6.1 정확 일치. `detectInsufficientScope` (`:1062-1094`) 가 응답 body 시그널로 reason 분기.
+   - **3회 연속 transport 실패 → `error(network)`** (`recordNetworkFailure :1102-1142`, `resetNetworkFailures :1144-1156`): spec §6 의 status 전이 표 부합. recordNetworkFailure 가 refresh 의 transport 실패에도 적용 (`:841-845`) — REQ-C2.
 
 5. **conventions Principle 0–11 위반 패턴**:
    - Principle 1.1: `config.fields` raw (`{{ }}` 보존), `output.response` evaluated — 직교.
    - Principle 2: `meta` 가 statusCode/durationMs + rate-limit 메트릭. `meta.statusCode=0` magic number 가 HTTP Request 와 동일 패턴.
-   - Principle 7: `echo = sanitizeConfigEcho({integrationId, resource, operation, fields ?? {}, pagination})` (`:117-123`). **`sanitizeConfigEcho` 사용** — DB/Email/HTTP 중 유일한 명시적 자격증명 sanitize (defense-in-depth). 자격증명 키 (password/apiKey/token/secret/accessToken 등) 가 `fields` 안에 들어가더라도 `***` 마스킹. spec footnote (`5.3.2 :265` "config.fields = {} 도 명시적으로 echo") 부합.
+   - Principle 7: `echo = sanitizeConfigEcho({integrationId, resource, operation, fields ?? {}, pagination})` (`:119-125`, `rawConfig` 기반 — `{{ }}` 원본 보존). **`sanitizeConfigEcho` 사용** — DB/Email/HTTP 중 유일한 명시적 자격증명 sanitize (defense-in-depth). 자격증명 키 (password/apiKey/token/secret/accessToken 등) 가 `fields` 안에 들어가더라도 `***` 마스킹.
    - Principle 8.2: `output.response` — HTTP 관용 네이밍 재사용 (spec §9.5 명시).
 
-6. **handler 테스트 (`cafe24.handler.spec.ts`, 503 줄)**:
+6. **handler 테스트 (`cafe24.handler.spec.ts`, 745 줄)**: (2026-06-25 라인 정정 + dry-run 블록 추가 반영)
    - validate (`:73-115`): missing integrationId/resource/operation, unknown resource enum, well-formed accept, fields 타입.
-   - Pre-flight (`:117-214`): UNKNOWN_OPERATION / MISSING_FIELDS / TYPE_MISMATCH / NOT_CONNECTED / INVALID_MALL_ID.
-   - Runtime (`:216-501`): happy path (path/query/method assertion, config echo 검증), path placeholder (`:272-298`), PUT body/path 분리 (`:300-335`), 4xx 404 (`:337-375` — `output.response` 보존 + `cafe24ErrorCode/cafe24Message` 추출), AUTH_FAILED (`:377-402`), RATE_LIMITED + `details.retries/lastRetryAfterSec` (`:404-431`), TRANSPORT_FAILED + `meta.statusCode=0` (`:433-454`), IntegrationError re-raise (`:456-473`), logUsage 실패 시 result port 보존 (`:476-501` — B-5-6).
-   - **누락**: `meta.callLimit/callRemain/callUsage` 의 4xx/5xx 케이스에서의 동봉 (현재 happy path 만 검증). Rate-limit 헤더가 4xx 응답에도 동봉되는지 회귀 보호 부재.
-   - **누락**: `sanitizeConfigEcho` 의 실효성 (`fields` 안에 `apiKey` 키 있을 때 `***` 마스킹) 직접 검증 부재 — defense-in-depth 코드의 회귀 보호 없음.
+   - Pre-flight → port:error D4 (`:117-287`): UNKNOWN_OPERATION (`:127`), apiInfo.label only on lookup fail INT-US-05 (`:143`), MISSING_FIELDS requiredFields (`:171`) + constraints oneOf 위반/충족 (`:189`/`:208`), TYPE_MISMATCH (`:230`), NOT_CONNECTED (`:247`), INVALID_MALL_ID (`:264`).
+   - Runtime (`:289-624`): happy path (path/query/method assertion, config echo + `meta.callUsage/callLimit` 검증 `:330-331`), path placeholder (`:356`), PUT body/path 분리 (`:384`), path-location field 마이그레이션 (`:425`), 4xx 404 (`:456-494` — `output.response` 보존 + `cafe24ErrorCode/cafe24Message` 추출), AUTH_FAILED (`:496`), RATE_LIMITED + `details.retries/lastRetryAfterSec` (`:523`), TRANSPORT_FAILED + `meta.statusCode=0` (`:552`), IntegrationError → port:error D4 (`:575`), logUsage 실패 시 result port 보존 (`:597` — B-5-6).
+   - **추가됨 (2026-06-25)**: dry-run 블록 (`:626-744`) — WRITE op(PUT) mock + no ApiClient call (`:633`), READ op(GET) 정상 호출 (`:681`), non-dry-run WRITE 정상 (`:712`).
+   - **누락 (STILL PENDING)**: `meta.callLimit/callRemain/callUsage` 의 4xx/5xx 케이스에서의 동봉 (현재 happy path 만 검증). 4xx (404) 테스트 (`:456-494`) 는 mock `headers:{}` 이라 rate-limit 메트릭 동봉 회귀 보호 부재.
+   - **누락 (STILL PENDING)**: `sanitizeConfigEcho` 의 실효성 (`fields` 안에 `apiKey` 키 있을 때 `***` 마스킹) 직접 검증 부재 — Cafe24 handler 통합 테스트엔 없고 `_base/integration-handler-base.spec.ts:205-221` 단위 테스트만 존재. defense-in-depth 코드의 핸들러 레벨 회귀 보호 없음.
 
 7. **횡단 일관성 (Integration 4종)**:
-   - `mapClientErrorToOutput` 의 `IntegrationError` re-throw 분기 (`:446-450`) — DB / Email 패턴과 일치 (pre-flight 분류 보존).
+   - `mapClientErrorToOutput` 의 `IntegrationError` re-throw 분기 (`:540-544`) — DB / Email 패턴과 일치 (pre-flight 분류 보존; D4 로 outer catch 가 port:error 변환).
    - `output.response` (HTTP / Cafe24) vs `output.rows` (DB) vs `output.messageId` (Email) — Principle 8.2 표 정합.
    - `meta.statusCode=0` (HTTP / Cafe24 transport) — magic number 공유. DB / Email 은 `meta.statusCode` 자체 미보유.
    - **`sanitizeConfigEcho` 적용은 Cafe24 만 — HTTP/DB/Email 은 미적용**. HTTP 는 `sanitizeUrlCredentials` 로 URL만 sanitize (보안 surface 다름), DB/Email 은 `integrationId` 등 특정 필드만 echo 하므로 schema 차원 보호. Cafe24 의 `fields: Record<string, unknown>` 은 사용자 자유 입력에 가까워 (메타데이터로 제한되지만 schema 차원에선 임의) 추가 마스킹 합리적.
 
-8. **구현 품질**:
-   - Token refresh: `Cafe24ApiClient.refreshAccessToken` (`:661-775`) 가 atomic 4-field UPDATE + pessimistic_write row lock (defense-in-depth). BullMQ `cafe24-token-refresh` 큐 (`refreshViaQueue :572-659`) 로 cross-pod 직렬화 — spec §9.6 정확 일치.
-   - Rate limit: leaky bucket `executeWithRateLimit` (`:940-1073`) max 2 retries + jitter. 429 헤더 (`X-Cafe24-Call-Remain` / `X-Cafe24-Time-Remain`) 기반 sleep. spec §4.1 + 9.6 정합. `withIntegrationLock` (`:236-258`) 가 in-process mutex 로 같은 Integration 의 동시 호출 직렬화.
+8. **구현 품질**: (2026-06-25 api-client 라인 전면 정정 — 심볼 대거 이동)
+   - Token refresh: `Cafe24ApiClient.refreshAccessToken` (`cafe24-api.client.ts:805-966`) 가 atomic 4-field UPDATE + pessimistic_write row lock (defense-in-depth). BullMQ `cafe24-token-refresh` 큐 (`refreshViaQueue :621-736`) 로 cross-pod 직렬화 — spec §9.6 정확 일치.
+   - Rate limit: leaky bucket `executeWithRateLimit` (`:1158-1337`) max 2 retries + jitter. 429 헤더 (`X-Cafe24-Call-Remain` / `X-Cafe24-Time-Remain`) 기반 sleep. spec §4.1 + 9.6 정합. `withIntegrationLock` (`:245-`, free function) 가 in-process mutex 로 같은 Integration 의 동시 호출 직렬화.
    - 응답 크기 제한: cap 없음 — HTTP Request 와 동일 trade-off (응답은 사용자 비즈니스 데이터).
-   - SSRF 가드: `buildUrl :1075-1099` 가 host 가 `.cafe24api.com` 인지 강제. 임의 host 호출 차단.
-   - Request envelope wrapping: `wrapInCafe24Envelope :1147-1158` 가 POST/PUT 의 `{ shop_no?, request: {...} }` wire format 적용 — spec §4.2 + §9.10 단일 책임 부합. 이중 wrap throw 가드 포함.
+   - SSRF 가드: `buildUrl :1339-1360` 가 host 가 `.cafe24api.com` 인지 강제. 임의 host 호출 차단.
+   - Request envelope wrapping: `wrapInCafe24Envelope :1408-1419` (free export) 가 POST/PUT 의 `{ shop_no?, request: {...} }` wire format 적용 — spec §4.2 + §9.10 단일 책임 부합. 이중 wrap throw 가드 포함.
 
 ## 종합 개선안 (2026-05-16)
 
-- [ ] (spec) `4-cafe24.md:23` 의 `pagination` 설명에서 `cursor?: string` 표기 제거 — schema (`cafe24.schema.ts:21-27`) 는 cursor 폐기 (B-3-7) 됐고 본문 footnote (`:321-322`) 도 cursor 제거 명시. §1 표만 정정 누락. 근거: `cafe24-api.client.ts` 의 fields path/query 분배에서 cursor 미사용.
-- [ ] (test) `meta.callLimit/callRemain/callUsage` 가 4xx/5xx 응답에서도 동봉되는지 회귀 테스트 추가 — `cafe24.handler.spec.ts:337-375` 가 4xx 경로의 `buildMeta` 호출 (`cafe24.handler.ts:259`) 결과를 부분적으로만 검증. rate-limit 메트릭이 에러 시에도 디버깅 메트릭으로 유지되는지 spec §5.3.1 표 (callUsage 항목) 와 회귀 보호. 근거: spec `4-cafe24.md:221` (`"callUsage": 13` 4xx 케이스 동봉).
-- [ ] (test) `sanitizeConfigEcho` 의 `fields` 마스킹 회귀 테스트 추가 — 사용자가 `fields: { apiKey: 'secret' }` 처럼 자격증명-shape 키를 잘못 입력했을 때 `config.fields.apiKey === '***'` 가 echo 되는지 직접 검증. 현재 `_base/integration-handler-base.spec.ts` 의 sanitizeConfigEcho 단위 테스트는 있으나 Cafe24 handler 통합 테스트 부재. 근거: `cafe24.handler.ts:117-123`.
-- [ ] (impl, 선택) Rate-limit 회복 후 정상 응답 동안 `meta.callRemain` 값이 0 보다 큰 경우 spec 표 (`callRemain?: number`) 가 optional 명시 — `buildMeta` (`:347-361`) 는 `undefined` 만 생략, `0` 은 동봉. spec 의 §5.1 JSON 예시 (`"callRemain": 0`) 와 정합. 변경 불필요, 회귀 회피만 점검.
-- [ ] (spec, 선택) §5.3.3 (`Transport 실패`) 의 `output.error.code = 'CAFE24_TRANSPORT_FAILED'` 가 unknown error fallback 경로 (`cafe24.handler.ts:451-461`) 에서도 도달하는 사실 명시 — handler 가 모든 unknown 을 transport 로 분류한다는 implementation detail 이 spec 본문에 부재. 운영 측 가시성 향상. 근거: `cafe24.handler.ts:452-461`.
+- [x] (spec) `pagination` 설명에서 `cursor?: string` 표기 제거 — ✅ (2026-06-25) spec §1 표 (`4-cafe24.md:42`) 가 이제 `{ limit?: number, offset?: number }` + "`cursor` 는 Cafe24 Admin API 가 일관 지원하지 않아 폐기됨 (B-3-7)" 명시. §6 표 (`:348-353`) 도 cursor 미언급. schema (`cafe24.schema.ts:21-27`) 와 완전 정합. PR #440/#516 (spec-sync 전수 코드정합성 audit).
+- [ ] (test) `meta.callLimit/callRemain/callUsage` 가 4xx/5xx 응답에서도 동봉되는지 회귀 테스트 추가 — `cafe24.handler.spec.ts:456-494` (4xx 404 테스트) 가 mock `headers:{}` 라 `buildMeta` 호출 (`cafe24.handler.ts:325`) 결과의 rate-limit 메트릭 동봉을 미검증. rate-limit 메트릭이 에러 시에도 디버깅 메트릭으로 유지되는지 spec §5.3.1 표 와 회귀 보호. 근거: spec `4-cafe24.md:254` (`"callUsage": 13` 4xx 케이스 동봉).
+- [ ] (test) `sanitizeConfigEcho` 의 `fields` 마스킹 회귀 테스트 추가 — 사용자가 `fields: { apiKey: 'secret' }` 처럼 자격증명-shape 키를 잘못 입력했을 때 `config.fields.apiKey === '***'` 가 echo 되는지 직접 검증. 현재 `_base/integration-handler-base.spec.ts:205-221` 의 sanitizeConfigEcho 단위 테스트는 있으나 Cafe24 handler 통합 테스트 부재. 근거: `cafe24.handler.ts:119-125`.
+- [ ] (impl, 선택) Rate-limit 회복 후 정상 응답 동안 `meta.callRemain` 값이 0 보다 큰 경우 spec 표 (`callRemain?: number`) 가 optional 명시 — `buildMeta` (`cafe24.handler.ts:441-455`) 는 `undefined` 만 생략, `0` 은 동봉. spec 의 §5.1 JSON 예시 (`"callRemain": 0`) 와 정합. 변경 불필요, 회귀 회피만 점검.
+- [ ] (spec, 선택) §5.3.3 (`Transport 실패`) 의 `output.error.code = 'CAFE24_TRANSPORT_FAILED'` 가 unknown error fallback 경로 (`cafe24.handler.ts:545-555`) 에서도 도달하는 사실 명시 — handler 가 모든 unknown 을 transport 로 분류한다는 implementation detail 이 spec 본문 §6 표 (`4-cafe24.md:348`, "fetch reject" 만 기술) 에 부재. 운영 측 가시성 향상. 근거: `cafe24.handler.ts:545-555`.

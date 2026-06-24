@@ -1,5 +1,7 @@
 # Loop output 개선안
 
+> **6차 갱신 (2026-06-25 코드 재검증)**: loop 노드 디렉토리는 분할 없이 유지(handler/schema/component + 2 spec). §8 3개 항목 중 — **checkbox 1 (outputSchema.config.count union 확장)은 `[x]` 로 표시돼 있었으나 실제 코드 미반영** (`loop.schema.ts:16` 여전히 `z.number().optional()`), 따라서 **잔여로 정정**. 다만 `outputSchema` 는 런타임 출력을 `.parse()` 하지 않는 **순수 서술 metadata** (`explore-tools.service.ts:101` 에서 노출만) 임을 확인 — "잠재 회귀" 우려는 약하나 spec §5.1:113 (`number | string`) ↔ schema (`z.number()`) 미스매치는 실재. **checkbox 2 (엔진 오버라이트 결과 통합 테스트)는 해소** — `execution-engine.service.spec.ts` 가 `output.iterations`/`output.count` 다운스트림 sink + `meta.exitReason`(completed/maxIterations/break) 를 직접 가드(7791-7807, 7946, 8091); 2026-05-16 분석이 "read-only 미확인" 으로 남겼던 디렉토리였음. **checkbox 3 (Principle 7 선택적 echo 에 breakCondition 명시)은 잔여** — `node-output.md:298,307` 화이트리스트 여전히 breakCondition 미언급. stale ref 정정: outputSchema `:14-21`/`:18`→`:12-26`/`:16`, validateLoopConfig `:99-136`→`:113-150`, loopLooksLikeExpression `:96-98`→`:110-112`, configSchema `:28-64`→`:28-68`, handler.spec `:87`→`:96`.
+
 > **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `breakCondition` 평가 + `meta.exitReason` (D2) 이 활성화되어 컨테이너 컨트랙트 (Principle 9) 가 일관되게 적용된 상태. (2026-05-16 구현 분석) handler 본체는 부합하나, schema `loopNodeOutputSchema` 의 `config.count` 타입 (`z.number()`) 이 spec / handler 가 raw string echo 를 보존하는 정의 (`number | string`) 와 미세 불일치 — schema 보강 권고 1건.
 
 > 대상 spec: `spec/4-nodes/1-logic/3-loop.md` (§5 출력 구조)
@@ -93,19 +95,19 @@ Loop 은 **컨테이너 노드**로 두 단계가 명확하다 — (1) 시작(bo
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `codebase/backend/src/nodes/logic/loop/{loop.handler.ts, loop.schema.ts, loop.handler.spec.ts, loop.schema.spec.ts, loop.component.ts}`. 엔진 측 오버라이트 로직 (`LoopExecutor` / `meta.exitReason` 채움)은 본 노드 디렉토리 밖이므로 read-only 로 가정.
+대상 파일: `codebase/backend/src/nodes/logic/loop/{loop.handler.ts, loop.schema.ts, loop.handler.spec.ts, loop.schema.spec.ts, loop.component.ts, index.ts}` (2026-06-25 기준 분할 없음). 엔진 측 오버라이트 로직 (`loop-executor.ts` / `meta.exitReason` 채움)은 `codebase/backend/src/modules/execution-engine/containers/loop-executor.ts` + `execution-engine.service.ts` 에 있으며, 통합 테스트는 `execution-engine.service.spec.ts` 가 보유 (→ 2026-06-25 §7 item 6 갱신 참조).
 
 1. **spec §5 ↔ handler return 정합성**:
    - `loop.handler.ts:39-45` 의 return `{ config: { count, maxIterations }, output: null }` 가 spec §5.1 (시작 시점) 과 일치. `breakCondition` 미echo 는 spec §5.1 footnote 의 의도된 결정과 부합.
    - 완료 시점 `output: { iterations, count }` + `meta.{iterations, maxIterationsReached, exitReason}` 는 엔진이 오버라이트하므로 handler 단위에서는 책임 없음 — Principle 9.1 컨트랙트 (`output: null` 시그널) 만 충족.
 
 2. **schema (Zod) ↔ spec config 정합성**:
-   - `loopNodeConfigSchema` (`loop.schema.ts:28-64`) 의 `count` 가 `z.string().default('1')` — spec §1 의 "Expression | Integer" 와 일치 (number 도 string 으로 직렬화되어 들어옴, validate 가 parse). `maxIterations` 가 `z.number().int().default(1000)`, `breakCondition` 이 `z.string().optional()` — spec §1 표와 일치.
-   - **gap**: `loopNodeOutputSchema.config.count` 는 `z.number().optional()` (`loop.schema.ts:18`) 로 정의되어 있으나, handler 는 raw string `'10'` 또는 `'{{ ... }}'` 를 그대로 echo 한다 (`loop.handler.ts:41`). 즉 outputSchema 가 실제 출력 형태를 너무 좁게 정의 — runtime 에서 `z.number().optional()` 로 parse 시 string 이 떨어진다. outputSchema 가 호출되는 경로 (debugger/inspector 등) 가 있다면 잠재 회귀.
+   - `loopNodeConfigSchema` (`loop.schema.ts:28-68`) 의 `count` 가 `z.string().default('1')` — spec §1 의 "Expression | Integer" 와 일치 (number 도 string 으로 직렬화되어 들어옴, validate 가 parse). `maxIterations` 가 `z.number().int().default(1000)` (`:45-55`), `breakCondition` 이 `z.string().optional()` (`:56-66`) — spec §1 표와 일치.
+   - **gap (잔여 — 2026-06-25 확인)**: `loopNodeOutputSchema.config.count` 는 여전히 `z.number().optional()` (`loop.schema.ts:16`) 로 정의되어 있으나, handler 는 raw string `'10'` 또는 `'{{ ... }}'` 를 그대로 echo 한다 (`loop.handler.ts:41`). 즉 outputSchema 가 실제 출력 형태를 너무 좁게 정의 — spec §5.1:113 의 `number | string` 과 미스매치. → (2026-06-25) **단, `outputSchema` 는 런타임 출력을 `.parse()`/`safeParse` 하지 않음** — 노드 정의 metadata 로서 `explore-tools.service.ts:101` 의 workflow-assistant 노출에만 쓰임. 따라서 "runtime parse 시 string 이 떨어진다 / debugger·inspector 잠재 회귀" 우려는 실효성 낮음. 그러나 spec ↔ schema 타입 불일치 자체는 잔여 (§8 checkbox 1).
 
 3. **validate 일관성**:
    - `handler.validate()` (`loop.handler.ts:20-25`) 는 `evaluateMetadataBlockingErrors` 만 호출 — warningRules + `validateLoopConfig` 의 SSOT 로 위임. 깨끗.
-   - `validateLoopConfig` (`loop.schema.ts:99-136`) 가 `count` numeric/expression 분기 + cross-field `count ≤ maxIterations` 담당. 명확한 분리.
+   - `validateLoopConfig` (`loop.schema.ts:113-150`) 가 `count` numeric/expression 분기 + cross-field `count ≤ maxIterations` 담당. 명확한 분리.
 
 4. **에러 컨트랙트 (Principle 3)**:
    - pre-flight throw (count 누락 / 파싱 실패 / cross-field) + 엔진 런타임 throw (`MAX_ITERATIONS_EXCEEDED`, `CONTAINER_MISSING_EMIT`, `CONTAINER_MULTIPLE_EMIT`) 만 사용. spec §6 와 일치. runtime `port:'error'` 없음 — 컨테이너 노드 컨트랙트 부합.
@@ -117,8 +119,8 @@ Loop 은 **컨테이너 노드**로 두 단계가 명확하다 — (1) 시작(bo
    - Principle 9: `output: null` → 엔진 `{ iterations, count }` 오버라이트 컨트랙트 활성화. 부합.
 
 6. **handler 테스트 (`loop.handler.spec.ts`)**:
-   - count numeric / string / expression / 누락 / 음수 / `count > maxIterations` / numeric maxIterations / rawConfig echo / output: null 모두 커버 (`:1-115`).
-   - **미세 누락**: 엔진 오버라이트 결과 (`output.iterations` / `meta.exitReason`) 의 통합 테스트는 본 spec 디렉토리에 없음 — 엔진 통합 테스트가 `codebase/backend/src/execution-engine/*` 또는 `codebase/backend/test/` 에 있을 것 (read-only 가정으로 미확인).
+   - count numeric / string / expression / 누락 / 음수 / `count > maxIterations` / numeric maxIterations / rawConfig echo / output: null 모두 커버 (`:1-124`).
+   - ~~**미세 누락**: 엔진 오버라이트 결과 (`output.iterations` / `meta.exitReason`) 의 통합 테스트는 본 spec 디렉토리에 없음~~ → (2026-06-25) **해소**: 엔진 통합 테스트 `codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts` 가 (1) 다운스트림 sink 로 흐르는 `{ count, iterations: [...] }` 오버라이트 결과 (`:7791-7796`), (2) `meta.exitReason` 의 3가지 종료 모드 — `completed` (`:7805-7807`), `maxIterations` (`:7946`), `break` (`:8091`) — 를 모두 직접 가드. 본 노드 디렉토리 밖이라 2026-05-16 분석이 "read-only 가정 미확인" 으로 남겼던 영역.
 
 7. **횡단 일관성 (컨테이너 4종)**:
    - Loop / Map / ForEach / Parallel 모두 `output: null` → 엔진 오버라이트 컨트랙트. Loop 의 컬렉션 키는 `iterations` 로 README 잔여 권고 표의 Parallel `done` 시점 meta 누락과 대조되어 양호.
@@ -127,10 +129,10 @@ Loop 은 **컨테이너 노드**로 두 단계가 명확하다 — (1) 시작(bo
 8. **구현 품질**:
    - `DEFAULT_MAX_ITERATIONS = 1000` (`loop.handler.ts:15`) 는 spec §1 default 와 일치 (매직 넘버 아닌 명명 상수).
    - `rawConfig ?? config` fallback (`:38`) — 다른 logic 핸들러들과 일관된 escape hatch 패턴.
-   - `loopLooksLikeExpression` (`loop.schema.ts:96-98`) 의 regex `/\{\{.*\}\}/` 는 greedy — 다중 expression 토큰이 한 줄에 있어도 매칭. 의도된 동작.
+   - `loopLooksLikeExpression` (`loop.schema.ts:110-112`) 의 regex `/\{\{.*\}\}/` 는 greedy — 다중 expression 토큰이 한 줄에 있어도 매칭. 의도된 동작.
 
 ## 종합 개선안 (2026-05-16)
 
-- [x] (impl) `loop.schema.ts:14-21` 의 `loopNodeOutputSchema.config.count` 를 `z.union([z.string(), z.number()]).optional()` 로 확장 — handler 가 raw string 을 echo 하므로 outputSchema 가 runtime 출력을 통과시켜야 함. 근거: `loop.handler.ts:41` 가 `rawConfig.count` (string) 를 그대로 echo + `loop.handler.spec.ts:87` 가 `count: '10'` 기대.
-- [ ] (impl) `loop.handler.spec.ts` 또는 새 통합 테스트에 엔진 오버라이트 결과 (`output.iterations` / `meta.exitReason`) 를 직접 검증하는 케이스 추가 — 현재 handler 단위 테스트는 `output: null` 만 확인. 근거: spec §5.2 의 다운스트림이 보는 출력 형태가 가드되지 않음.
-- [ ] (spec) §5.1 footnote 의 `breakCondition` 미echo 결정과, `loopNodeConfigSchema` 의 `breakCondition: z.string().optional()` 존재가 호환됨을 명시 — Principle 7 의 "선택적 echo" 항목에 안 들어있어 모호. 근거: `spec/conventions/node-output.md` 의 Principle 7 "선택적 echo" 표는 form.fields / ai_agent.systemPrompt 만 언급.
+- [ ] (impl) `loop.schema.ts:12-26` 의 `loopNodeOutputSchema.config.count` 를 `z.union([z.string(), z.number()]).optional()` 로 확장 — handler 가 raw string 을 echo 하므로 outputSchema 가 runtime 출력 형태와 일치해야 함. 근거: `loop.handler.ts:41` 가 `rawConfig.count` (string) 를 그대로 echo + `loop.handler.spec.ts:96` 가 `count: '10'` 기대 + spec §5.1:113 가 `number | string` 명시. **(2026-06-25 정정)** 이 항목은 이전에 `[x]` 로 표시됐으나 **실제 코드 미반영** — `loop.schema.ts:16` 은 여전히 `z.number().optional()` (git 전 이력상 union 적용 흔적 없음). 따라서 잔여로 환원. 단 `outputSchema` 는 런타임 출력을 `.parse()` 하지 않고 `explore-tools.service.ts:101` metadata 노출에만 쓰여 회귀 위험은 낮으므로 우선순위 P3 성격.
+- [x] (impl) `loop.handler.spec.ts` 또는 새 통합 테스트에 엔진 오버라이트 결과 (`output.iterations` / `meta.exitReason`) 를 직접 검증하는 케이스 추가 — ✅ (2026-06-25) `codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts` 가 다운스트림 sink `{ count, iterations: [...] }` (`:7791-7796`) + `meta.exitReason` 3 모드 — `completed` (`:7805-7807`), `maxIterations` (`:7946`), `break` (`:8091`) — 를 직접 가드. handler 단위 테스트(`output: null`)와 별개로 spec §5.2 다운스트림 출력 형태가 엔진 통합 테스트에서 보장됨. (디렉토리 외부라 2026-05-16 분석이 미확인으로 남겼던 영역)
+- [ ] (spec) §5.1 footnote 의 `breakCondition` 미echo 결정과, `loopNodeConfigSchema` 의 `breakCondition: z.string().optional()` (`loop.schema.ts:56-66`) 존재가 호환됨을 명시 — Principle 7 의 "선택적 echo" 항목에 안 들어있어 모호. 근거 (2026-06-25 재확인): `spec/conventions/node-output.md:298` echo 화이트리스트 + `:307` "선택적 echo" 표 모두 `breakCondition` 미언급 (`conditions`/`categories` 등은 포함). spec §5.1:117 footnote 가 미echo 사유는 설명하나 Principle 7 와의 연결은 부재 — 잔여.
