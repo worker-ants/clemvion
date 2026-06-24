@@ -525,6 +525,30 @@ type MultiTurnMemoryMeta = {
   compactedMessages?: number;
 };
 
+/**
+ * Turn 출력 accumulator 묶음 (03 C-2 review W5 — condition-route helper 의 ISP
+ * 경계 완화). turn 단위로 누적되는 진단/추적 버퍼를 한 객체로 전달한다.
+ */
+interface TurnOutputAccumulators {
+  ragAcc: RagAccumulator;
+  turnRagAcc: RagAccumulator;
+  mcpDiagnosticsAcc: McpServerSummary[];
+  presentationPayloads: PresentationPayload[];
+  presentationCalls: PresentationCallTrace[];
+  presentationSchemaViolations: PresentationSchemaViolation[];
+  llmCalls: LlmCallRecord[];
+  toolCallTraces: ToolCallTrace[];
+}
+
+/**
+ * 비-provider 도구 결과 stub 문자열 (single/multi-turn 도구 루프 공유, 03 C-2
+ * review INFO-2). condition deferral 은 "최종 판단 유도" 신호, budget 초과는
+ * tool_use↔tool_result 매칭 유지를 위한 회신.
+ */
+const CONDITION_DEFERRAL_RESULT_MSG =
+  '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.';
+const TOOL_BUDGET_EXCEEDED_ERROR = 'tool_call_budget_exceeded';
+
 export class AiTurnExecutor {
   constructor(
     private readonly llmService: LlmService,
@@ -1135,7 +1159,7 @@ export class AiTurnExecutor {
     for (const tc of conditionToolCalls) {
       // Condition tool: send deferral message (does not count toward toolCallCount).
       const condDeferralContent = JSON.stringify({
-        result: '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+        result: CONDITION_DEFERRAL_RESULT_MSG,
       });
       messages.push({
         role: 'tool',
@@ -1160,7 +1184,7 @@ export class AiTurnExecutor {
     for (const tc of normalToolCalls) {
       if (toolCallCount >= maxToolCalls) {
         const budgetContent = JSON.stringify({
-          error: 'tool_call_budget_exceeded',
+          error: TOOL_BUDGET_EXCEEDED_ERROR,
         });
         messages.push({
           role: 'tool',
@@ -1218,14 +1242,7 @@ export class AiTurnExecutor {
     model: string | undefined;
     llmConfig: Awaited<ReturnType<LlmService['resolveConfig']>>;
     toolCallCount: number;
-    ragAcc: RagAccumulator;
-    turnRagAcc: RagAccumulator;
-    mcpDiagnosticsAcc: McpServerSummary[];
-    presentationPayloads: PresentationPayload[];
-    presentationCalls: PresentationCallTrace[];
-    presentationSchemaViolations: PresentationSchemaViolation[];
-    llmCalls: LlmCallRecord[];
-    toolCallTraces: ToolCallTrace[];
+    accumulators: TurnOutputAccumulators;
     singleTurnStartedAt: number;
     rawConfig: Record<string, unknown> | undefined;
   }): Promise<NodeHandlerOutput> {
@@ -1240,6 +1257,11 @@ export class AiTurnExecutor {
       model,
       llmConfig,
       toolCallCount,
+      accumulators,
+      singleTurnStartedAt,
+      rawConfig,
+    } = args;
+    const {
       ragAcc,
       turnRagAcc,
       mcpDiagnosticsAcc,
@@ -1248,9 +1270,7 @@ export class AiTurnExecutor {
       presentationSchemaViolations,
       llmCalls,
       toolCallTraces,
-      singleTurnStartedAt,
-      rawConfig,
-    } = args;
+    } = accumulators;
     const reason = this.conditionEvaluator.extractConditionReason(
       result.toolCalls ?? [],
       matchedCondition.id,
@@ -1492,14 +1512,16 @@ export class AiTurnExecutor {
           model,
           llmConfig,
           toolCallCount,
-          ragAcc,
-          turnRagAcc,
-          mcpDiagnosticsAcc,
-          presentationPayloads,
-          presentationCalls,
-          presentationSchemaViolations,
-          llmCalls,
-          toolCallTraces,
+          accumulators: {
+            ragAcc,
+            turnRagAcc,
+            mcpDiagnosticsAcc,
+            presentationPayloads,
+            presentationCalls,
+            presentationSchemaViolations,
+            llmCalls,
+            toolCallTraces,
+          },
           singleTurnStartedAt,
           rawConfig,
         });
@@ -1936,6 +1958,10 @@ export class AiTurnExecutor {
    * - condition: deferral content (최종 판단 유도) + toolCallCount++.
    * - normal: budget 초과 시 budget_exceeded content (count 미증가), 아니면 normal
    *   content + toolCallCount++.
+   *
+   * INVARIANT (03 C-2 review W6/INFO-5): condition deferral 의 toolCallCount 처리는
+   * single-turn 의 {@link recordSingleTurnNonProviderToolResults} 와 **의도적으로
+   * 다르다** — single-turn 은 미합산(§3.f-g), multi-turn 은 합산. 동기화 금지.
    */
   private recordMultiTurnNonProviderToolResults(args: {
     conditionToolCalls: ToolCall[];
@@ -1954,9 +1980,13 @@ export class AiTurnExecutor {
     } = args;
     let toolCallCount = args.toolCallCount;
     for (const tc of conditionToolCalls) {
+      // [SPEC-DRIFT] (03 C-2 review W7) — multi-turn 은 condition deferral 에도
+      // toolCallCount 를 합산한다. 이는 spec §7.1 `meta.toolCalls` "조건 도구
+      // 제외" 명세와 불일치하나 **본 리팩터 이전부터의 동작**으로 behavior-
+      // preserving 분해에서 보존했다. 합산/spec 정정 결정은 planner 위임 (백로그).
       toolCallCount++;
       const condDeferralContent = JSON.stringify({
-        result: '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+        result: CONDITION_DEFERRAL_RESULT_MSG,
       });
       messages.push({
         role: 'tool',
@@ -1980,7 +2010,7 @@ export class AiTurnExecutor {
     for (const tc of normalToolCalls) {
       if (toolCallCount >= maxToolCalls) {
         const budgetContent = JSON.stringify({
-          error: 'tool_call_budget_exceeded',
+          error: TOOL_BUDGET_EXCEEDED_ERROR,
         });
         messages.push({
           role: 'tool',
@@ -2046,14 +2076,7 @@ export class AiTurnExecutor {
     totalOutputTokens: number;
     totalThinkingTokens: number;
     toolCallCount: number;
-    ragAcc: RagAccumulator;
-    turnRagAcc: RagAccumulator;
-    mcpDiagnosticsAcc: McpServerSummary[];
-    presentationPayloads: PresentationPayload[];
-    presentationCalls: PresentationCallTrace[];
-    presentationSchemaViolations: PresentationSchemaViolation[];
-    llmCalls: LlmCallRecord[];
-    toolCallTraces: ToolCallTrace[];
+    accumulators: TurnOutputAccumulators;
     turnStartedAt: number;
     memoryMeta: MultiTurnMemoryMeta | undefined;
   }): ReturnType<AiTurnExecutor['buildConditionOutput']> {
@@ -2068,6 +2091,11 @@ export class AiTurnExecutor {
       totalOutputTokens,
       totalThinkingTokens,
       toolCallCount,
+      accumulators,
+      turnStartedAt,
+      memoryMeta,
+    } = args;
+    const {
       ragAcc,
       turnRagAcc,
       mcpDiagnosticsAcc,
@@ -2076,9 +2104,7 @@ export class AiTurnExecutor {
       presentationSchemaViolations,
       llmCalls,
       toolCallTraces,
-      turnStartedAt,
-      memoryMeta,
-    } = args;
+    } = accumulators;
     const reason = this.conditionEvaluator.extractConditionReason(
       // caller 의 while 가드가 toolCalls?.length 를 보장하므로 `?? []` 는 실제
       // 분기되지 않음 (루프 narrowing 이 메서드 추출로 사라진 데 따른 타입 보정).
@@ -2550,14 +2576,16 @@ export class AiTurnExecutor {
           totalOutputTokens,
           totalThinkingTokens,
           toolCallCount,
-          ragAcc,
-          turnRagAcc,
-          mcpDiagnosticsAcc,
-          presentationPayloads,
-          presentationCalls,
-          presentationSchemaViolations,
-          llmCalls,
-          toolCallTraces,
+          accumulators: {
+            ragAcc,
+            turnRagAcc,
+            mcpDiagnosticsAcc,
+            presentationPayloads,
+            presentationCalls,
+            presentationSchemaViolations,
+            llmCalls,
+            toolCallTraces,
+          },
           turnStartedAt,
           memoryMeta,
         });

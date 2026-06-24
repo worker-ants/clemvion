@@ -136,6 +136,75 @@ describe('AiTurnExecutor', () => {
         sys!.indexOf('[조건 안내]'),
       );
     });
+
+    // C-2 2차 (review W10) — condition-only 라우팅(handleSingleTurnConditionRoute)
+    // 을 executor 레벨에서 고정: LLM 이 조건 도구만 호출하면 즉시 condition 분기로
+    // 종결한다 (루프 미진입).
+    it('routes to the condition branch when the LLM calls only a condition tool', async () => {
+      mockLlmService.chat.mockResolvedValueOnce({
+        content: '',
+        toolCalls: [{ id: 't1', name: 'cond_c1', arguments: {} }],
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        model: 'gpt-4o',
+        finishReason: 'tool_calls',
+      });
+      const executor = buildExecutor();
+      const result = (await executor.executeSingleTurn(
+        undefined,
+        {
+          mode: 'single_turn',
+          systemPrompt: 'sys',
+          userPrompt: '환불해주세요',
+          conditions: [{ id: 'c1', label: '환불', prompt: '환불 요청' }],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      const output = result.output as { result: Record<string, unknown> };
+      expect(output.result.endReason).toBe('condition');
+      expect((output.result.condition as { id: string }).id).toBe('c1');
+      // condition-only → 즉시 분기, 루프 미진입(첫 호출 후 종결).
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
+    });
+
+    // C-2 2차 (review W1/W6) — single-turn 도구 루프에서 condition deferral 은
+    // toolCallCount 에 합산되지 않고(§3.f-g), normal 도구만 합산되는 비대칭을
+    // executor 레벨에서 고정 (multi-turn 의 동명 helper 는 의도적으로 합산 — 다름).
+    it('counts only normal tools, not condition tools, toward toolCalls (single-turn)', async () => {
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [
+            { id: 't1', name: 'cond_c1', arguments: {} },
+            { id: 't2', name: 'do_thing', arguments: {} },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: '완료했습니다.',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      const executor = buildExecutor();
+      const result = (await executor.executeSingleTurn(
+        undefined,
+        {
+          mode: 'single_turn',
+          systemPrompt: 'sys',
+          userPrompt: 'go',
+          conditions: [{ id: 'c1', label: 'c', prompt: 'p' }],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      expect(result.status).toBe('ended');
+      // cond_c1 은 미합산, do_thing(normal) 만 +1 → toolCalls === 1.
+      expect((result.meta as { toolCalls: number }).toolCalls).toBe(1);
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('executeMultiTurn (first-turn park)', () => {
@@ -403,6 +472,38 @@ describe('AiTurnExecutor', () => {
       // 다음 turn resume state 에도 pendingFormToolCall 이 남지 않는다.
       const next = result._resumeState as Record<string, unknown>;
       expect(next.pendingFormToolCall).toBeUndefined();
+    });
+
+    // C-2 2차 (review W3) — form bypass(handleMultiTurnUserMessageEntry §6.2
+    // 2.c.bypass): 사용자가 form 활성 중 일반 ai_message 를 보내면 render_form
+    // tool_use 를 cancelled tool_result 로 채우고 pendingFormToolCall 클리어 +
+    // 정상 ai_user turn 진행 (tool_use↔tool_result 매칭 보존).
+    it('bypasses the active form on a plain ai_message: cancels the tool_result and clears pendingFormToolCall', async () => {
+      const executor = buildExecutor();
+      const state = formResumeState();
+      const result = (await executor.processMultiTurnMessage(
+        '그냥 다른 질문할게요',
+        state,
+        { source: 'ai_message' },
+      )) as Record<string, unknown>;
+
+      expect(result.status).toBe('waiting_for_input');
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
+      // bypass: pendingFormToolCall 클리어 (caller state + resume state).
+      expect(state.pendingFormToolCall).toBeUndefined();
+      const next = result._resumeState as Record<string, unknown>;
+      expect(next.pendingFormToolCall).toBeUndefined();
+      // cancelled tool_result 가 render_form tool_use(form-tc-1)와 매칭되어 삽입됨.
+      const msgs = next.messages as Array<{
+        role: string;
+        toolCallId?: string;
+        content?: string;
+      }>;
+      const cancelled = msgs.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'form-tc-1',
+      );
+      expect(cancelled).toBeDefined();
+      expect(cancelled!.content).toContain('user_sent_message_instead');
     });
   });
 });
