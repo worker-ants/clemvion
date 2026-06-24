@@ -2,16 +2,26 @@
   "version": 1,
   "started_at": "2026-06-25T00:08:13Z",
   "summary_items_total": 8,
-  "items_resolved_ids": [],
-  "items_pending_ids": [1, 2, 3, 4, 5, 6, 7, 8],
+  "items_resolved_ids": [1, 2, 6],
+  "items_pending_ids": [3, 4, 5, 7, 8],
   "items_escalated_ids": {},
-  "commits_made": [],
+  "commits_made": [
+    {
+      "sha": "fac49ee5",
+      "summary_ids": [1, 2, 6],
+      "scope": "web-chat-eia",
+      "notes": "W1 @Index + W2 security JSDoc + W6 it→rawInteractionType + INFO1/2/3/14"
+    }
+  ],
   "spec_drafts_pending": [],
-  "spec_drafts_applied": [],
-  "e2e_attempts": 0,
-  "e2e_last_status": null,
-  "e2e_log_paths": [],
+  "spec_drafts_applied": ["spec/5-system/14-external-interaction-api.md (EIA-IN-07 INFO1 SPEC-DRIFT inline)"],
+  "e2e_attempts": 2,
+  "e2e_last_status": "blocked",
+  "e2e_log_paths": [
+    "_test_logs/e2e-20260625-002451.log",
+    "_test_logs/e2e-20260625-002622.log"
+  ],
   "auto_fix_iterations": {},
-  "escalation_reason": null,
+  "escalation_reason": "infra: Docker VM disk No space left on device — postgres initdb fail",
   "last_reset_hint_sec": null
 }

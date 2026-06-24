@@ -1,0 +1,11 @@
+2026-06-25T00:21:00Z item=SUMMARY#1 type=code action=@Index+migration-note commit=fac49ee5
+2026-06-25T00:21:00Z item=SUMMARY#2 type=code action=security-jsdoc commit=fac49ee5
+2026-06-25T00:21:00Z item=SUMMARY#6 type=code action=rename-it-rawInteractionType commit=fac49ee5
+2026-06-25T00:21:00Z item=INFO1 type=spec-drift action=EIA-IN-07-1line commit=fac49ee5
+2026-06-25T00:21:00Z item=INFO2 type=doc action=module-jsdoc commit=fac49ee5
+2026-06-25T00:21:00Z item=INFO3 type=doc action=seedWaitingFromStatus-jsdoc commit=fac49ee5
+2026-06-25T00:21:00Z item=INFO14 type=code action=SSE_SEQ_PLACEHOLDER-named-const commit=fac49ee5
+2026-06-25T00:22:51Z lint attempt=1 status=pass duration=41s
+2026-06-25T00:22:51Z unit attempt=1 status=4724/4725 pre-existing-fail=spec-link-integrity
+2026-06-25T00:24:51Z e2e attempt=1 status=blocked reason=docker-vm-no-space-postgres-fail
+2026-06-25T00:26:22Z e2e attempt=2 status=blocked reason=docker-vm-no-space-postgres-fail
