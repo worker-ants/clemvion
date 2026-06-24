@@ -430,7 +430,7 @@ code:
 
 | 계층 | 구현 | 동작 |
 |------|------|------|
-| 1. 서버 proxy | `codebase/frontend/src/proxy.ts` (Next 서버 미들웨어) | `has_session` 힌트 쿠키 부재 시 JS 로드 전 서버 단계에서 `/login?redirect=<path>` 로 redirect. public 경로(`/login` · `/register` · `/forgot-password` · `/reset-password` · `/verify-email` · `/callback`)와 `/_next` · `/api` · 정적 자산은 제외 |
+| 1. 서버 proxy | `codebase/frontend/src/proxy.ts` (Next 서버 미들웨어) | `has_session` 힌트 쿠키 부재 시 JS 로드 전 서버 단계에서 `/login?redirect=<path>` 로 redirect. public 경로(`/login` · `/register` · `/forgot-password` · `/reset-password` · `/verify-email` · `/callback`)와 `/_next` · `/api` · `/_widget`(동봉 웹채팅 위젯 정적 번들 — [7-channel-web-chat/0-architecture §4.1](../7-channel-web-chat/0-architecture.md)) · 정적 자산은 제외 |
 | 2. 클라이언트 AuthProvider | `codebase/frontend/src/components/auth/auth-provider.tsx` | 실제 토큰 검증 기준 최종 가드. 미인증 시 `/login` 으로 리다이렉트 (원래 URL 을 `redirect` 파라미터에 보존) |
 
 `has_session` 은 **인증 수단이 아닌 UX 용 힌트 쿠키**다 — API 가 cross-domain 이라 Next 서버 미들웨어가 백엔드 세션을 직접 알 수 없으므로, 로그인 성공 시 프론트엔드 JS 가 non-httpOnly 쿠키 `has_session=1` (path=/, max-age 30일, SameSite=Lax) 을 set 하고 로그아웃 시 삭제한다 (`codebase/frontend/src/lib/stores/auth-store.ts`). 실제 인가 판정은 항상 토큰(계층 2 + API 401)이 담당한다.

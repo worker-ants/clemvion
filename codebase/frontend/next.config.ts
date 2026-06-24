@@ -35,6 +35,22 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    // 동봉(co-deploy) 웹채팅 위젯 SPA 진입 — `/_widget/.../app[/]`(디렉토리) 요청을 정적
+    // `index.html` 로 매핑한다. Next 의 public/ 서빙은 디렉토리 index 자동 폴백을 하지 않아,
+    // 라이브 미리보기 iframe·설치 스니펫 loader 가 `…/app/` 를 열면 그냥 404 가 났다.
+    // SoT: spec/7-channel-web-chat/5-admin-console.md §6, 0-architecture.md §4.1.
+    return [
+      {
+        source: "/_widget/:segment*/app",
+        destination: "/_widget/:segment*/app/index.html",
+      },
+      {
+        source: "/_widget/:segment*/app/",
+        destination: "/_widget/:segment*/app/index.html",
+      },
+    ];
+  },
 };
 
 const withMDX = createMDX({
