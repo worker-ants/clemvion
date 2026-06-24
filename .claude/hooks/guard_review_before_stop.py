@@ -56,6 +56,20 @@ except Exception:
     traceback.print_exc(file=sys.stderr)
     evaluate_review = None  # review nudge disabled; plan nudge still runs.
 
+# Resolution-in-flight suppression + nudge-text branching helpers. Imported
+# separately so a failure here only disables the *suppression/branching* (the
+# core review nudge still fires), never the other way round.
+try:
+    from review_guard import (  # noqa: E402
+        _resolution_in_flight,
+        _repo_root,
+        _iter_summaries,
+    )
+except Exception:
+    _resolution_in_flight = None
+    _repo_root = None
+    _iter_summaries = None
+
 try:
     from plan_guard import evaluate_plan  # noqa: E402
 except Exception:
@@ -157,6 +171,66 @@ def _nudge_once(session_id: str | None, token: str, kind: str, reason: str) -> i
     return _block(reason)
 
 
+def _suppress_for_resolution() -> bool:
+    """True when a `resolution-applier` fix is in flight → skip the review nudge.
+
+    Stop-only suppression: once `/ai-review` writes SUMMARY.md the applier's
+    codebase edits postdate the review and re-arm the gate, but the fix is
+    legitimately in progress — nudging then just goads a premature, redundant
+    re-review over work the background sub-agent is already doing. The push guard
+    still hard-gates (it never consults this). Fail-open: any error → False."""
+    if _resolution_in_flight is None or _repo_root is None:
+        return False
+    try:
+        repo_root = _repo_root(os.getcwd())
+        return bool(repo_root) and bool(_resolution_in_flight(repo_root))
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        return False
+
+
+def _review_was_performed() -> bool:
+    """True when ≥1 review SUMMARY exists (a review ran) — picks the nudge
+    wording. Fail-open: any error → False (use the 'run /ai-review' wording)."""
+    if _iter_summaries is None or _repo_root is None:
+        return False
+    try:
+        repo_root = _repo_root(os.getcwd())
+        return bool(repo_root) and bool(_iter_summaries(repo_root))
+    except Exception:
+        return False
+
+
+def _review_nudge_reason(decision_reason: str, review_done: bool) -> str:
+    """The Stop nudge body. When a review already ran (`review_done`) we steer
+    toward *resolution* (wait for resolution-applier / write RESOLUTION.md)
+    instead of re-running `/ai-review` from scratch — that redundant re-review
+    over an in-progress fix is the token-waste this whole change targets."""
+    if review_done:
+        return (
+            "구현을 완료하면 test·review·critical/warning fix 는 강제 사항입니다. "
+            f"({decision_reason}) 단, 리뷰(SUMMARY)는 이미 수행됐습니다 — 처음부터 "
+            "/ai-review 를 다시 돌리지 마세요:\n"
+            "  1. resolution-applier 가 진행 중이면 완료(SubagentStop)를 기다리세요.\n"
+            "  2. 아니면 SUMMARY 의 Critical/Warning 을 fix + "
+            "<session_dir>/RESOLUTION.md 작성(또는 수동 조치).\n"
+            "  3. TEST WORKFLOW 재수행.\n"
+            "리뷰/fix 를 다음 턴·PR 로 미루지 마세요. (이 nudge 는 현재 branch 기준 "
+            "세션당 1회만 표시됩니다.)"
+        )
+    return (
+        "구현을 완료하면 test·review·critical/warning fix 는 강제 사항입니다. "
+        f"({decision_reason}) 턴을 끝내기 전에 REVIEW WORKFLOW 를 이행하세요:\n"
+        "  1. /ai-review — 변경에 대한 리뷰.\n"
+        "  2. SUMMARY 의 Critical/Warning > 0 이면 resolution-applier 로 fix "
+        "(또는 수동 조치 + RESOLUTION.md).\n"
+        "  3. TEST WORKFLOW 재수행.\n"
+        "리뷰를 다음 턴/PR 로 미루지 마세요. 정말 지금 멈춰야 하는 사정이 "
+        "있으면 사용자에게 그 사정을 먼저 보고하세요. (이 nudge 는 현재 branch "
+        "기준 세션당 1회만 표시됩니다.)"
+    )
+
+
 def main() -> int:
     payload = _read_payload()
 
@@ -174,18 +248,12 @@ def main() -> int:
         except Exception:
             traceback.print_exc(file=sys.stderr)
             decision = None
-        if decision is not None and decision.blocked:
-            reason = (
-                "구현을 완료하면 test·review·critical/warning fix 는 강제 사항입니다. "
-                f"({decision.reason}) 턴을 끝내기 전에 REVIEW WORKFLOW 를 이행하세요:\n"
-                "  1. /ai-review — 변경에 대한 리뷰.\n"
-                "  2. SUMMARY 의 Critical/Warning > 0 이면 resolution-applier 로 fix "
-                "(또는 수동 조치 + RESOLUTION.md).\n"
-                "  3. TEST WORKFLOW 재수행.\n"
-                "리뷰를 다음 턴/PR 로 미루지 마세요. 정말 지금 멈춰야 하는 사정이 "
-                "있으면 사용자에게 그 사정을 먼저 보고하세요. (이 nudge 는 현재 branch "
-                "기준 세션당 1회만 표시됩니다.)"
-            )
+        # Suppress while a resolution-applier fix is in flight (Stop only); fall
+        # through to the plan nudge rather than returning, so an unrelated
+        # plan-complete nudge can still fire.
+        if (decision is not None and decision.blocked
+                and not _suppress_for_resolution()):
+            reason = _review_nudge_reason(decision.reason, _review_was_performed())
             fired = _nudge_once(session_id, token, "", reason)
             if fired is not None:
                 return fired

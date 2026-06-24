@@ -71,7 +71,11 @@ reads as already-covered — a conscious bypass, accepted per the fail-open
 contract below. Additionally, a review that has
 *started but not finished* (session dir + meta.json present, SUMMARY.md not yet
 written, within _IN_FLIGHT_TTL_SECONDS) suppresses the gate — the async
-`/ai-review` is mid-flight, not an unreviewed branch.
+`/ai-review` is mid-flight, not an unreviewed branch. Symmetrically, the *Stop*
+guard (not the push guard) also suppresses its nudge while a `resolution-applier`
+fix is in flight — after SUMMARY.md exists, the applier's codebase edits postdate
+the review and would re-arm the gate, goading a premature redundant re-review
+(see _resolution_in_flight, driven by the PreToolUse(Agent)/SubagentStop marker).
 
 This is a strong nudge, not a precise oracle; like the CWD-based worktree guard
 it errs toward not false-blocking, and BYPASS_REVIEW_GUARD=1 (handled by
@@ -656,6 +660,98 @@ def _code_review_in_flight(repo_root: str, now: float | None = None) -> bool:
         except (OSError, ValueError):
             continue
         return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# RESOLUTION-IN-FLIGHT suppression (Stop nudge only) — see module docstring.
+# ---------------------------------------------------------------------------
+# Subdir (under the project's gitignored .claude/state/) where the
+# PreToolUse(Agent) hook stamps a marker the instant `resolution-applier` is
+# dispatched. Kept in sync with mark_/clear_resolution_in_flight.py.
+RESOLUTION_MARKER_SUBDIR = os.path.join(".claude", "state", "resolution_in_flight")
+# Idempotency state file the resolution-applier writes on entry (its first
+# action) — the corroborating "applier has started" signal.
+_RESOLUTION_STATE_FILE = "_resolution_state.json"
+
+
+def _resolution_marker_dir() -> str:
+    """Dir the PreToolUse(Agent) hook writes resolution markers to.
+
+    Resolved from CLAUDE_PROJECT_DIR (the stable main-project dir both the marker
+    hooks and the Stop guard share), falling back to cwd — NOT repo_root, so a
+    worktree-isolated session and the main session agree on one location."""
+    base = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    return os.path.join(base, RESOLUTION_MARKER_SUBDIR)
+
+
+def _marker_epoch(path: str) -> float:
+    """Epoch recorded inside a marker file (its content), falling back to mtime.
+
+    The content (written by the dispatch hook) is rewrite-immune; mtime is the
+    fallback for an empty/legacy marker (and is reliable here since the marker
+    lives in the working tree during an active, no-checkout resolution)."""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            txt = f.read().strip()
+        if txt:
+            return float(txt.split()[0])
+    except (OSError, ValueError):
+        pass
+    return _mtime(path)
+
+
+def _resolution_in_flight(repo_root: str, now: float | None = None,
+                          marker_dir: str | None = None) -> bool:
+    """True when a `resolution-applier` fix is genuinely in progress.
+
+    Used by guard_review_before_stop.py ONLY (not evaluate_review): once
+    `/ai-review` writes SUMMARY.md, the applier edits codebase/ files to fix the
+    findings, which postdate the review — so the Stop guard would fire its nudge
+    and goad a premature, redundant re-review over work the background sub-agent
+    is already doing. This suppresses that one nudge while the fix is in flight.
+    It is deliberately NOT consulted by the push guard: pushing half-fixed code
+    must still be blocked.
+
+    Two corroborating signals, either within _IN_FLIGHT_TTL_SECONDS:
+      1. A dispatch marker under .claude/state/resolution_in_flight/ — written by
+         the PreToolUse(Agent) hook the instant resolution-applier is launched
+         (before any edit), cleared on SubagentStop. The precise, race-free
+         signal that covers the immediate-after-dispatch window.
+      2. A review session with `_resolution_state.json` present AND SUMMARY.md
+         present AND RESOLUTION.md absent — the applier started but has not
+         finished. Corroborates / backs up signal 1 (e.g. if a marker write was
+         lost), bounded by the checkout-immune session-dir timestamp.
+
+    Both are TTL-bounded so a crashed/abandoned resolution re-arms the gate. `now`
+    and `marker_dir` are injectable for tests."""
+    now = time.time() if now is None else now
+
+    # Signal 1 — dispatch marker (precise; covers immediate-after-dispatch).
+    mdir = marker_dir if marker_dir is not None else _resolution_marker_dir()
+    try:
+        if os.path.isdir(mdir):
+            for name in os.listdir(mdir):
+                p = os.path.join(mdir, name)
+                if not os.path.isfile(p):
+                    continue
+                t = _marker_epoch(p)
+                if t > 0.0 and (now - t) <= _IN_FLIGHT_TTL_SECONDS:
+                    return True
+    except OSError:
+        pass
+
+    # Signal 2 — applier-started filesystem state (corroboration / fallback).
+    root = os.path.join(repo_root, REVIEW_GLOB_ROOT)
+    if os.path.isdir(root):
+        for dirpath, _dirs, files in os.walk(root):
+            if (_RESOLUTION_STATE_FILE not in files
+                    or "SUMMARY.md" not in files
+                    or "RESOLUTION.md" in files):
+                continue
+            t = _path_session_time(dirpath)
+            if t > 0.0 and (now - t) <= _IN_FLIGHT_TTL_SECONDS:
+                return True
     return False
 
 
