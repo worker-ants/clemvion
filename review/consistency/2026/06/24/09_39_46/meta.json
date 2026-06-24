@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T09:39:46.945399",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=M-3 3단계: WorkflowAssistantStreamService 에서 persistAssistantTurn + makeResumeMeta + 사용자/assistant 메시지 영속 로직을 무상태 AssistantTurnPersistenceService(tools/assistant-turn-persistence.service.ts) 로 분리. behavior-preserving 백엔드 리팩터(메서드 verbatim 이동 + 생성자 주입 + leaf 헬퍼 추출 + streamMessage 위임). 1단계 AssistantToolRouter(#670)·2단계 AssistantFinishGuard(#680)와 동일 패턴. spec 변경 없음. 대상 spec: spec/5-system/4-ai-assistant.md.)",
+  "target_path": "M-3 3단계: WorkflowAssistantStreamService 에서 persistAssistantTurn + makeResumeMeta + 사용자/assistant 메시지 영속 로직을 무상태 AssistantTurnPersistenceService(tools/assistant-turn-persistence.service.ts) 로 분리. behavior-preserving 백엔드 리팩터(메서드 verbatim 이동 + 생성자 주입 + leaf 헬퍼 추출 + streamMessage 위임). 1단계 AssistantToolRouter(#670)·2단계 AssistantFinishGuard(#680)와 동일 패턴. spec 변경 없음. 대상 spec: spec/5-system/4-ai-assistant.md.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

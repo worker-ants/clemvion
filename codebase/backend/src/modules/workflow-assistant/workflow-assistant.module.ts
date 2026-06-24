@@ -21,6 +21,7 @@ import { ExploreToolsService } from './tools/explore-tools.service';
 import { CandidateLookupService } from './tools/candidate-lookup.service';
 import { AssistantToolRouter } from './tools/assistant-tool-router.service';
 import { AssistantFinishGuard } from './tools/assistant-finish-guard.service';
+import { AssistantTurnPersistenceService } from './tools/assistant-turn-persistence.service';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { AssistantFinishGuard } from './tools/assistant-finish-guard.service';
     WorkflowAssistantStreamService,
     AssistantToolRouter,
     AssistantFinishGuard,
+    AssistantTurnPersistenceService,
     ExploreToolsService,
     CandidateLookupService,
   ],
