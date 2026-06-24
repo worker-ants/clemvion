@@ -141,8 +141,11 @@ describe("WebChatPage", () => {
     mockApi([WEBHOOK_INSTANCE, NON_INTERACTION_WEBHOOK]);
     await renderPage();
 
-    // interaction 켜진 것만 목록에 (Plain webhook 제외)
-    expect(await screen.findByText("Support bot")).toBeInTheDocument();
+    // interaction 켜진 것만 목록에 (Plain webhook 제외). "Support bot" 은 목록+상세
+    // 헤더 양쪽에 렌더되므로 findAllByText 로 ≥1 매칭을 확인한다.
+    expect((await screen.findAllByText("Support bot")).length).toBeGreaterThan(
+      0,
+    );
     expect(screen.queryByText("Plain webhook")).not.toBeInTheDocument();
 
     // 첫 인스턴스 자동 선택 → 설치 스니펫에 endpointPath 포함
@@ -155,14 +158,18 @@ describe("WebChatPage", () => {
     setRole("viewer");
     mockApi([WEBHOOK_INSTANCE]);
     await renderPage();
-    await screen.findByText("Support bot");
+    // 인스턴스가 목록(좌측)+상세 헤더 양쪽에 렌더되므로 findAllByText 로 로드를 대기한다
+    // (#692 운영 콘솔이 상세 헤더를 추가한 뒤 단일 findByText 가 multiple-match 로 실패).
+    await screen.findAllByText("Support bot");
     expect(screen.queryByText("New web chat")).not.toBeInTheDocument();
   });
 
   it("editor 는 '웹채팅 만들기' 버튼이 보인다", async () => {
     mockApi([WEBHOOK_INSTANCE]);
     await renderPage();
-    await screen.findByText("Support bot");
+    // 인스턴스가 목록(좌측)+상세 헤더 양쪽에 렌더되므로 findAllByText 로 로드를 대기한다
+    // (#692 운영 콘솔이 상세 헤더를 추가한 뒤 단일 findByText 가 multiple-match 로 실패).
+    await screen.findAllByText("Support bot");
     expect(screen.getByText("New web chat")).toBeInTheDocument();
   });
 
@@ -170,7 +177,9 @@ describe("WebChatPage", () => {
     setRole("admin");
     mockApi([WEBHOOK_INSTANCE]);
     await renderPage();
-    await screen.findByText("Support bot");
+    // 인스턴스가 목록(좌측)+상세 헤더 양쪽에 렌더되므로 findAllByText 로 로드를 대기한다
+    // (#692 운영 콘솔이 상세 헤더를 추가한 뒤 단일 findByText 가 multiple-match 로 실패).
+    await screen.findAllByText("Support bot");
     expect(screen.getByText("New web chat")).toBeInTheDocument();
   });
 
@@ -225,7 +234,9 @@ describe("WebChatPage", () => {
     it("초기 로드 시 isDirty=false → 저장 버튼이 disabled", async () => {
       mockApi([WEBHOOK_INSTANCE]);
       await renderPage();
-      await screen.findByText("Support bot");
+      // 인스턴스가 목록(좌측)+상세 헤더 양쪽에 렌더되므로 findAllByText 로 로드를 대기한다
+      // (#692 운영 콘솔이 상세 헤더를 추가한 뒤 단일 findByText 가 multiple-match 로 실패).
+      await screen.findAllByText("Support bot");
       const saveBtn = screen.getByRole("button", { name: /^Save$/i });
       expect(saveBtn).toBeDisabled();
     });
@@ -234,7 +245,9 @@ describe("WebChatPage", () => {
       mockApi([WEBHOOK_INSTANCE]);
       apiPatchMock.mockResolvedValue({ data: {} });
       await renderPage();
-      await screen.findByText("Support bot");
+      // 인스턴스가 목록(좌측)+상세 헤더 양쪽에 렌더되므로 findAllByText 로 로드를 대기한다
+      // (#692 운영 콘솔이 상세 헤더를 추가한 뒤 단일 findByText 가 multiple-match 로 실패).
+      await screen.findAllByText("Support bot");
 
       // primaryColor 인풋을 변경해 isDirty 유발
       const colorInput = screen.queryByDisplayValue(/#[0-9a-fA-F]{6}/);
@@ -266,7 +279,9 @@ describe("WebChatPage", () => {
       mockApi([WEBHOOK_INSTANCE]);
       apiPatchMock.mockRejectedValue(new Error("server error"));
       await renderPage();
-      await screen.findByText("Support bot");
+      // 인스턴스가 목록(좌측)+상세 헤더 양쪽에 렌더되므로 findAllByText 로 로드를 대기한다
+      // (#692 운영 콘솔이 상세 헤더를 추가한 뒤 단일 findByText 가 multiple-match 로 실패).
+      await screen.findAllByText("Support bot");
 
       // headerTitle input 변경 → isDirty
       const inputs = screen.getAllByRole("textbox");
