@@ -168,6 +168,9 @@ describe('ContinuationBusService (Phase 2 BullMQ-based)', () => {
       // idempotency key 계약, §7.4/§9.2). nextSeq throw → publish outer catch →
       // null(queued:false) 반환. caller 가 재시도하도록 표면된다.
       expect(jobId).toBeNull();
+      // INCR 실패 시 enqueue 시도 자체가 생략된다 (init publish 1회만 — 실패한
+      // publish 는 queue.add 호출 없이 중단).
+      expect(queueAdd).toHaveBeenCalledTimes(1);
     });
 
     it('BullMQ enqueue 자체가 실패하면 null 반환 + logger.error', async () => {

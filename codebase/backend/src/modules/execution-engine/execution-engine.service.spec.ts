@@ -1150,6 +1150,14 @@ describe('ExecutionEngineService', () => {
       expect(result).toEqual({ queued: true, jobId: 'jobId-stub' });
     });
 
+    it('cancelWaitingExecution — publish null(Redis 장애) 시 queued:false 반환 (C-1 fail-fast)', async () => {
+      // M-7 fail-fast → publish 가 null 반환하는 경로. cancel 도 4종과 동일하게
+      // queued:false 로 표면 (caller REST stop() 이 503 으로 surface).
+      mockBus.publish.mockResolvedValueOnce(null);
+      const result = await service.cancelWaitingExecution('exec-cancel-fail');
+      expect(result).toEqual({ queued: false, jobId: null });
+    });
+
     it('continueButtonClick → bus.publish({type:"button_click", payload:{buttonId}})', async () => {
       await service.continueButtonClick('exec-3', 'btn-confirm');
       expect(mockBus.publish).toHaveBeenCalledWith({

@@ -18,6 +18,7 @@ import { ExecutionNodeLog } from '../execution-engine/entities/execution-node-lo
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { ErrorCode } from '../../nodes/core/error-codes';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { WorkspacesService } from '../workspaces/workspaces.service';
@@ -736,7 +737,7 @@ export class ExecutionsService {
         await this.executionEngineService.cancelWaitingExecution(id);
       if (!result.queued) {
         throw new ServiceUnavailableException({
-          code: 'EXECUTION_ENQUEUE_FAILED',
+          code: ErrorCode.EXECUTION_ENQUEUE_FAILED,
           message:
             'Cancel could not be queued (continuation bus unavailable). Please retry.',
         });
