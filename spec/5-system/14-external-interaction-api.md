@@ -75,7 +75,7 @@ code:
 | EIA-IN-04 | `GET /api/external/executions/:executionId` 는 현재 상태 단발 조회 (status / currentNode / context / result|error / seq / updatedAt) | 필수 |
 | EIA-IN-05 | `POST /api/external/executions/:executionId/cancel` 는 명시적 취소 — `interact` 의 `command:"cancel"` 과 동치 (편의 alias) | 권장 |
 | EIA-IN-06 | 모든 inbound 요청은 §4 의 interaction token 으로 인증. **단 §3.3 EIA-AU-08 + §3.3.1 Implementation Note 의 in-process trusted caller 는 제외** — HTTP 표면을 거치지 않는 in-process 호출에 한정. HTTP guard 의 ctx 합성 시 `scope` 필드 set 금지 invariant 는 §3.3.1 참조 | 필수 |
-| EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 (버퍼 내 재전송은 구현됨; 만료 시 `execution.replay_unavailable` 신호 emit 은 계획·미구현 — §5.2) | 필수 |
+| EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 (버퍼 내 재전송은 구현됨; 만료 시 `execution.replay_unavailable` 신호 emit 은 계획·미구현 — §5.2). **첫 연결 시 `?lastEventId=0` 을 명시하면 버퍼 내 seq≥1 이벤트 전체를 replay** — race window 로 놓친 이벤트를 시드 가능 (§5.3 getStatus 시드와 병용) | 필수 |
 | EIA-IN-08 | SSE 는 15초마다 `: heartbeat` comment 라인 전송 — proxy idle timeout 회피 | 필수 |
 | EIA-IN-09 | execution 당 동시 SSE 연결 수 제한: 기본 3 (multi-tab 허용, 무제한 fan-out 차단) | 권장 |
 | EIA-IN-10 | `submit_form` 검증 실패는 execution 상태를 바꾸지 않고 `400 VALIDATION_ERROR` + `details[]`(`{field,message,code}` 배열, §5.1) 반환 (waiting_for_input 유지, 재제출 가능) | 필수 |

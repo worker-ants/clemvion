@@ -35,9 +35,9 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
  *  - SseAdapter (executionEvents$ 구독)
  *  - TerminalRevokeReconcilerService (EIA-RL-06 — terminal revoke at-least-once sweep, BullMQ repeatable)
  *
- * 의존성: WebsocketModule (executionEvents$), TypeOrmModule.forFeature([Trigger, Execution]),
- * ExecutionEngineModule + ExecutionsModule (interact dispatch), BullModule
- * (notification-webhook 큐).
+ * 의존성: WebsocketModule (executionEvents$), TypeOrmModule.forFeature([Trigger, Execution,
+ * ExecutionToken, NodeExecution]), ExecutionEngineModule + ExecutionsModule (interact dispatch),
+ * BullModule (notification-webhook 큐).
  */
 @Module({
   imports: [

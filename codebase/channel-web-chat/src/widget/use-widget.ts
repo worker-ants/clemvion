@@ -175,10 +175,25 @@ export function useWidget() {
     [closeStream, handleEiaEvent],
   );
 
-  // getStatus 로 현재 waiting 표면을 시드한다 — 첫 waiting 이벤트를 SSE 구독 전 emit race(§R6)로
-  // 놓쳤거나 buffer(5분) 만료 후 복원하는 경우에도 현재 표면을 복구한다. status.context 는 SSE
-  // waiting_for_input wire payload 와 동일 형식이라 `parseWaitingForInput` 을 그대로 재사용한다.
-  // 실패는 soft(로그 후 진행) — SSE replay 가 1차, 본 시드는 보강.
+  /**
+   * `getStatus` REST 응답으로 현재 `waiting_for_input` 표면을 시드한다.
+   *
+   * @param client - EIA 클라이언트 (session endpoint 보유).
+   * @param session - 현재 세션 (executionId, token, endpoints).
+   *
+   * **호출 시점**: `start()` 직후(새 실행) 및 `applyConfig()` 세션 복원 직후 — 두 경로 모두
+   * SSE 구독 이전에 호출된다. 첫 노드 race(§R6) 또는 버퍼(5분) 만료 후 복원 시
+   * SSE replay 만으로는 채울 수 없는 현재 표면을 1회 시드한다.
+   *
+   * **실패 정책**: soft-fail — HTTP 오류·네트워크 실패 시 `console.warn` 후 진행.
+   * SSE replay 가 1차 복구 경로이므로 본 시드는 보강(best-effort).
+   *
+   * **파싱 재사용**: `status.context` 는 SSE `waiting_for_input` wire payload 와 동일 형식
+   * (EIA §5.3) → `parseWaitingForInput` 을 그대로 재사용.
+   *
+   * **의존성 배열 `[]`**: `dispatch` 는 `useReducer` 반환값으로 stable, `parseWaitingForInput` /
+   * `threadToMessages` 는 pure import — 클로저 캡처 없이 안전하게 빈 배열.
+   */
   const seedWaitingFromStatus = useCallback(
     async (client: EiaClient, session: SessionRef) => {
       try {

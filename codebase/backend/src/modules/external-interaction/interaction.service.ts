@@ -44,6 +44,14 @@ const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
 ]);
 
 /**
+ * `getStatus()` 반환의 `seq` 필드 placeholder 값.
+ *
+ * REST V1 단발 응답에는 in-memory SSE seq 카운터에 접근할 방법이 없다.
+ * 클라이언트는 이 값이 아니라 SSE `Last-Event-Id` 로 실제 seq 를 보정한다 (EIA §5.3).
+ */
+const SSE_SEQ_PLACEHOLDER = 0;
+
+/**
  * [Spec EIA §5] — Inbound interaction REST endpoint 의 비즈니스 로직.
  *
  * 본 service 는 facade — 토큰 검증은 InteractionGuard 가 이미 통과시킨 상태에서 호출된다.
@@ -210,6 +218,18 @@ export class InteractionService {
     return { token: result.token, expiresAt: result.expiresAt };
   }
 
+  /**
+   * [EIA §5.3] 단발 상태 조회 — 현재 execution 상태와 waiting_for_input 컨텍스트 반환.
+   *
+   * **보안 제약**: `nodeOutput` / `outputData` 는 SSE `waiting_for_input` payload 와
+   * 동일하게 **공개 EIA 표면**(SSE + 본 REST 엔드포인트)으로 흘러간다. 실행 엔진·노드
+   * 핸들러는 민감 중간 결과(API 키, PII 등)를 `NodeExecution.outputData` 에 기록하면
+   * 안 된다. 허용되는 데이터는 EIA 클라이언트가 렌더에 필요한 interaction 메타(버튼 설정,
+   * 폼 스키마, conversation config)로 한정한다 (node-execution.entity.ts `@Index` JSDoc 참조).
+   *
+   * `seq` 는 항상 `SSE_SEQ_PLACEHOLDER(0)` — REST 단발 응답에서는 in-memory SSE seq 에
+   * 접근할 수 없다. 클라이언트는 SSE `Last-Event-Id` 로 실제 seq 를 보정한다.
+   */
   async getStatus(ctx: InteractionRequestContext): Promise<ExecutionStatusDto> {
     const execution = await this.executionRepository.findOne({
       where: { id: ctx.executionId },
@@ -238,10 +258,12 @@ export class InteractionService {
       if (nodeExec?.node) {
         const out = nodeExec.outputData ?? {};
         const meta = (out.meta ?? {}) as { interactionType?: string };
-        const it = meta.interactionType ?? null;
+        const rawInteractionType = meta.interactionType ?? null;
         const interactionType =
-          it === 'form' || it === 'buttons' || it === 'ai_conversation'
-            ? it
+          rawInteractionType === 'form' ||
+          rawInteractionType === 'buttons' ||
+          rawInteractionType === 'ai_conversation'
+            ? rawInteractionType
             : null;
         currentNode = {
           id: nodeExec.nodeId,
@@ -286,9 +308,7 @@ export class InteractionService {
         execution.status === ExecutionStatus.FAILED
           ? ((execution.outputData ?? null) as Record<string, unknown> | null)
           : null,
-      // V1 의 단발 응답에는 seq 최신값을 알 길이 없음 (WebsocketService 의 in-memory counter 는
-      // 직접 access 안 함). 0 으로 placeholder — 클라이언트는 SSE Last-Event-Id 로 보정.
-      seq: 0,
+      seq: SSE_SEQ_PLACEHOLDER,
       updatedAt: (
         execution.finishedAt ??
         execution.startedAt ??
