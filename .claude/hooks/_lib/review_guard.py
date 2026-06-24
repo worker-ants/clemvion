@@ -46,16 +46,29 @@ EITHER of these coverage gates fails:
   `--impl-done` AND whose top `BLOCK:` line is NO (no Critical spec-impl
   divergence), postdating the newest spec-linked changed file.
 
-Freshness uses **checkout-immune** clocks, NOT raw filesystem mtime. `git
-worktree add` / checkout / rebase reset a file's mtime to the checkout instant,
-which made a genuinely-resolved review look stale (its committed SUMMARY.md
-mtime jumped behind the code) and false-blocked. Instead:
+Freshness uses **checkout- and rebase-immune** clocks, NOT raw filesystem
+mtime, and NOT a commit's committer date. Two distinct history rewrites would
+otherwise poison the comparison:
+  - `git worktree add` / checkout reset a file's *mtime* to the checkout
+    instant — which made a genuinely-resolved review look stale (its committed
+    SUMMARY.md mtime jumped behind the code) and false-blocked;
+  - `git rebase` (also `commit --amend`, `cherry-pick`) rewrite each replayed
+    commit's *committer* date to the rewrite instant while PRESERVING its author
+    date — so a content-identical rebase pushed the code's committer clock past
+    the review session that already covered it, re-arming the gate on unchanged
+    code (the symptom this module's author-date clock fixes).
+Instead:
   - a review's "done" time is its session-dir timestamp (`<Y>/<m>/<d>/<H>_<M>_
-    <S>`, encoded in the path — never reset by checkout), with a just-written
-    (dirty) SUMMARY/RESOLUTION's mtime folded in;
-  - a code file's edit time is its last *commit* time when clean, or its mtime
+    <S>`, encoded in the path — never reset by checkout/rebase), with a
+    just-written (dirty) SUMMARY/RESOLUTION's mtime folded in;
+  - a code file's edit time is the newest *author* date among the commits that
+    touch it when clean (rebase-immune; see _newest_commit_time), or its mtime
     when it carries an uncommitted change (genuinely just edited).
-Both sides therefore share one stable clock. Additionally, a review that has
+Both sides therefore share one stable, rewrite-immune clock. The residual hole
+is deliberate-and-rare: a commit authored before the review but introduced onto
+the branch *after* it (cherry-pick of an old commit, or `--date` backdating)
+reads as already-covered — a conscious bypass, accepted per the fail-open
+contract below. Additionally, a review that has
 *started but not finished* (session dir + meta.json present, SUMMARY.md not yet
 written, within _IN_FLIGHT_TTL_SECONDS) suppresses the gate — the async
 `/ai-review` is mid-flight, not an unreviewed branch.
@@ -218,22 +231,50 @@ def _dirty_set(repo_root: str) -> set[str]:
 
 
 def _newest_commit_time(repo_root: str, rel_paths: list[str]) -> float:
-    """Commit time (epoch) of the most recent commit touching any of rel_paths.
+    """Newest *author* date (epoch) across the commits touching any of rel_paths.
 
-    Checkout-immune: `git worktree add`, `git checkout`, `git rebase` and friends
-    reset file *mtime* to the checkout instant but never change commit time. 0.0
-    if none are tracked / committed. One `git log` call regardless of count."""
+    Both checkout- AND rebase-immune. Two distinct history rewrites would poison
+    a naive code clock:
+      - `git worktree add` / `git checkout` reset a file's *mtime* to the
+        checkout instant — sidestepped by reading commit metadata at all rather
+        than fs mtime;
+      - `git rebase` (also `git commit --amend`, `git cherry-pick`) rewrite each
+        replayed commit's *committer* date to the rewrite instant while
+        PRESERVING its author date. Using committer date (`%ct`, the old
+        behaviour) therefore made a content-identical rebase look newer than the
+        resolved review that already covered it → false-stale re-arming of the
+        gate. Author date (`%at`) is the stable "when was this content authored"
+        clock that survives a rebase.
+
+    We take the MAX author date across *every* commit touching the paths, not
+    `git log -1`'s topmost: after a rebase all replayed commits share ~one
+    committer date, so the commit-date-ordered `-1` could return a non-latest
+    commit; a max over author dates is order-independent. 0.0 if none are
+    tracked / committed. One `git log` call regardless of count.
+
+    Residual (deliberate, rare) hole: a commit authored *before* the review but
+    introduced onto the branch *after* it — a cherry-pick of an old commit, or
+    an explicit `--date` backdate — reads as already-covered. This guard is a
+    nudge, not an oracle; that bypass is conscious and accepted per fail-open."""
     if not rel_paths:
         return 0.0
     rc, out, _ = _run_git(
-        ["log", "-1", "--format=%ct", "HEAD", "--", *rel_paths], repo_root
+        ["log", "--format=%at", "HEAD", "--", *rel_paths], repo_root
     )
     if rc != 0 or not out.strip():
         return 0.0
-    try:
-        return float(out.strip().splitlines()[0])
-    except (ValueError, IndexError):
-        return 0.0
+    newest = 0.0
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            v = float(line)
+        except ValueError:
+            continue
+        if v > newest:
+            newest = v
+    return newest
 
 
 def _authoritative_code_time(repo_root: str, rel_paths: list[str],
@@ -241,9 +282,11 @@ def _authoritative_code_time(repo_root: str, rel_paths: list[str],
     """Newest *real* edit time across rel_paths, immune to checkout mtime resets.
 
     Dirty (uncommitted) files → filesystem mtime (they were genuinely just
-    edited). Clean tracked files → their last commit time (mtime would be a
-    checkout artifact in a worktree). This is the same clock on both the code
-    and review sides, so the freshness comparison stays internally consistent."""
+    edited). Clean tracked files → the newest author date of the commits that
+    touch them (rebase-immune; see _newest_commit_time — a committer date or fs
+    mtime would be a rebase/checkout artifact in a worktree). This is the same
+    clock on both the code and review sides, so the freshness comparison stays
+    internally consistent."""
     if not rel_paths:
         return 0.0
     if dirty is None:

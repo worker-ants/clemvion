@@ -6,6 +6,8 @@ audit surfaced:
   - _glob_to_regex         — `**/` must match on a segment boundary, not `ax`.
   - _path_session_time     — checkout-immune review clock from the dir name.
   - _authoritative_code_time — dirty→mtime, clean→commit-time split.
+  - _newest_commit_time    — author-date (rebase-immune) clock; a rebase that
+    only rewrites committer date must NOT re-arm the gate on unchanged code.
   - _code_review_in_flight — started-but-unfinished review suppresses the gate.
   - evaluate_review        — in-flight short-circuit.
   - _summary_is_resolved   — risk level found beyond the old 3-line window.
@@ -16,8 +18,10 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from unittest import mock
 
 import _harness  # noqa: F401  — side effect: puts .claude/hooks on sys.path
@@ -200,6 +204,116 @@ class RiskLevelWindowTest(unittest.TestCase):
             "## 경고 (WARNING)\n\n| # |\n|---|\n"
         )
         self.assertTrue(rg._summary_is_resolved(self._write(summary)))
+
+
+_RESOLVED_SUMMARY = (
+    "# Code Review 통합 보고서\n\n## 전체 위험도\n**NONE**\n\n"
+    "## Critical 발견사항\n\n| # | 카테고리 | 발견 | 위치 | 제안 |\n"
+    "|---|---|---|---|---|\n\n"
+    "## 경고 (WARNING)\n\n| # | 카테고리 | 발견 | 위치 | 제안 |\n"
+    "|---|---|---|---|---|\n"
+)
+
+
+def _epoch_utc(y, m, d):
+    """Absolute epoch for a UTC calendar date — tz-independent, so it can be
+    compared against git `%at` (also absolute) regardless of the test host TZ."""
+    return float(int(datetime(y, m, d, tzinfo=timezone.utc).timestamp()))
+
+
+class RebaseAuthorDateTest(unittest.TestCase):
+    """Regression: `git rebase` rewrites a replayed commit's committer date to
+    the rebase instant while preserving its author date. The code-freshness
+    clock must track the AUTHOR date, so a content-identical rebase does NOT
+    push the code past the review that already covered it (the reported
+    false-stale block). Uses a real temp git repo: a commit with author date in
+    the past and committer date in the future is exactly a post-rebase replayed
+    commit, with no wall-clock dependency.
+
+    Dates are spaced ~2 months apart so the session-dir clock (parsed in LOCAL
+    time by _path_session_time) and the git author clock (absolute UTC) cannot
+    cross-over under any real timezone offset (max ±14h)."""
+
+    def setUp(self):
+        self.root = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self._git("init", "-b", "main")
+
+    def _git(self, *args, author=None, committer=None):
+        env = dict(os.environ)
+        # Isolate from the host's global/system git config (signing, hooks, …).
+        env["GIT_CONFIG_GLOBAL"] = os.devnull
+        env["GIT_CONFIG_SYSTEM"] = os.devnull
+        env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
+        env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
+        if author:
+            env["GIT_AUTHOR_DATE"] = author
+        if committer:
+            env["GIT_COMMITTER_DATE"] = committer
+        subprocess.run(
+            ["git", *args], cwd=self.root, env=env, check=True,
+            capture_output=True, text=True,
+        )
+
+    def _write(self, rel, body):
+        p = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def _base_then_feature_code(self, *, author, committer):
+        # main baseline → merge-base anchor for the code diff.
+        self._write("README.md", "base\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "base",
+                  author="2026-01-01T00:00:00 +0000",
+                  committer="2026-01-01T00:00:00 +0000")
+        # feature branch carrying the code change. author=PAST / committer=FUTURE
+        # models a commit replayed by `git rebase` after the review ran.
+        self._git("checkout", "-b", "feat")
+        self._write("codebase/backend/a.py", "print('x')\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "feat code", author=author, committer=committer)
+
+    def _add_resolved_review(self, *ymdhms):
+        d = os.path.join(self.root, "review", "code", *ymdhms)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
+            f.write(_RESOLVED_SUMMARY)
+
+    def test_newest_commit_time_follows_author_not_committer(self):
+        # author 2026-02-01, committer 2026-06-01 (the rebase instant).
+        self._base_then_feature_code(
+            author="2026-02-01T00:00:00 +0000",
+            committer="2026-06-01T00:00:00 +0000",
+        )
+        t = rg._newest_commit_time(self.root, ["codebase/backend/a.py"])
+        self.assertEqual(t, _epoch_utc(2026, 2, 1))          # author date
+        self.assertLess(t, _epoch_utc(2026, 6, 1))           # NOT committer date
+
+    def test_rebase_does_not_rearm_gate(self):
+        # author Feb 1  <  review session Apr 1  <  committer Jun 1.
+        # Pre-fix the committer clock (Jun 1) looked newer than the review →
+        # false block. The author clock (Feb 1) keeps the review fresh.
+        self._base_then_feature_code(
+            author="2026-02-01T00:00:00 +0000",
+            committer="2026-06-01T00:00:00 +0000",
+        )
+        self._add_resolved_review("2026", "04", "01", "12_00_00")
+        d = rg.evaluate_review(self.root)
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_genuinely_newer_code_still_blocks(self):
+        # Negative case: code authored AFTER the review (author==committer==Jun)
+        # is real unreviewed work and must STILL block.
+        self._base_then_feature_code(
+            author="2026-06-01T00:00:00 +0000",
+            committer="2026-06-01T00:00:00 +0000",
+        )
+        self._add_resolved_review("2026", "04", "01", "12_00_00")
+        d = rg.evaluate_review(self.root)
+        self.assertTrue(d.blocked, d.reason)
+        self.assertIn("AFTER", d.reason)
 
 
 class StopThrottleTest(unittest.TestCase):
