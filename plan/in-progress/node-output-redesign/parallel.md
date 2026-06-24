@@ -1,15 +1,17 @@
 # Parallel output 개선안
 
+> **6차 갱신 (2026-06-25 코드 재검증)**: `errorPolicy` 가 schema (`codebase/backend/src/nodes/logic/parallel/parallel.schema.ts:73-82`) + handler echo (`parallel.handler.ts:57`) 로 **노출 완료** — 기존 "§1 미구현 마킹" 전제가 깨졌다 (parallel-p2: PR #370 `cancel-others-on-fail` 등, 2026-05-16 분석 시점엔 미반영이었던 stale 주장). `count` 복원도 spec §5.2 + engine (`codebase/backend/src/modules/execution-engine/execution-engine.service.ts:6290-6294, 6305`) 양쪽에서 `{ branches, count }` 로 확정 (PR #432). **잔여 4건**: ① `meta.branches`/`meta.durationMs` 가 완료 출력 구조화 `meta` 에 미주입 (engine 은 `meta.clampedConcurrency` 만 조건부 주입, `execution-engine.service.ts:6307-6309`); ② spec §5.2 `meta` 표 부재; ③ `parallel.handler.spec.ts` 분리 파일 여전히 부재; ④ branchCount 에러 메시지 2종 불일치 (`schema.ts:181` `must be 2 to 16.` vs `schema.ts:112` `must be a value between 2 and 16.`). **새 갭(CRITICAL)**: spec §5.2 가 약속한 `branches[i]` 의 `Promise.allSettled` 모델 (`{status:'fulfilled', value}` / `{status:'rejected', error:{code,message}}`) 이 **구현에 없음** — engine 은 각 분기 terminal 노드 출력을 `stripControlFields` 로 벗겨 bare value 를 push (`execution-engine.service.ts:6277-6284`), `{status,...}` envelope 을 만들지 않는다. 따라서 `errorPolicy='continue'` 실패 분기의 `{status:'rejected', error}` 도 미관측. 모든 `파일:라인` 인용을 현재 코드(엔진은 `modules/execution-engine/` 로 이동)로 정정함.
+
 > **최신화 검토 (2026-05-16)**: 현 spec 의 §5.2 JSON 예시·필드 표에서 `meta` 가 여전히 누락된 상태(2026-05-16 확인). 컨테이너 컨트랙트 (Principle 9) 자체는 정합.
 > 잔여 권고 항목:
 > - §5.2 (`done` 포트) JSON 예시 + 필드 표에 `meta.durationMs` (engine 공통) + `meta.branches` (= `branches.length`, Container 메트릭 — Principle 2) 보강. 다른 Container 노드 (Loop / ForEach / Map) 와 일관성 확보.
-> - (2026-05-16 구현 분석) `errorPolicy` 가 schema 에 노출되지 않음(`parallel.schema.ts:29-67`) — handler 도 echo 안 함. spec §1 미구현 마킹 유지 + 추후 노출 검토. `parallel.handler.spec.ts` 자체 부재 — `parallel.schema.spec.ts` 에 handler 테스트가 통합되어 있으나 unit-test 파일 분리 권장.
+> - (2026-05-16 구현 분석) `errorPolicy` 가 schema 에 노출되지 않음(`parallel.schema.ts:29-67`) — handler 도 echo 안 함. spec §1 미구현 마킹 유지 + 추후 노출 검토. `parallel.handler.spec.ts` 자체 부재 — `parallel.schema.spec.ts` 에 handler 테스트가 통합되어 있으나 unit-test 파일 분리 권장. → **(2026-06-25) 전반부 해소**: `errorPolicy` 는 `parallel.schema.ts:73-82` (enum `'stop'|'continue'|'cancel-others-on-fail'`, default `'stop'`) + handler echo (`parallel.handler.ts:57`) 로 노출 완료. `parallel.handler.spec.ts` 분리는 여전히 미해소 (잔여).
 
 > 대상 spec: `spec/4-nodes/1-logic/10-parallel.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)
 
-`spec/4-nodes/1-logic/10-parallel.md:77-83` — §5.1 시작 (N 분기 fan-out):
+`spec/4-nodes/1-logic/10-parallel.md:84-90` — §5.1 시작 (N 분기 fan-out). (2026-06-25 정정: 과거 `:77-83`):
 
 ```json
 {
@@ -19,7 +21,7 @@
 }
 ```
 
-`spec/4-nodes/1-logic/10-parallel.md:95-107` — §5.2 완료 (`done`, 엔진 오버라이트):
+`spec/4-nodes/1-logic/10-parallel.md:101-114` — §5.2 완료 (`done`, 엔진 오버라이트). (2026-06-25 정정: 과거 `:95-107`. 현 JSON 예시는 `count: 3` 포함):
 
 ```json
 {
@@ -59,7 +61,8 @@ Parallel 은 **컨테이너** (병렬 fan-out). 단계 2개. Loop 와 같이 `ou
 1. **`output.count`** — ~~제거됨 (spec §5.2: "P1.1 직교성 — `branches.length` 가 SSOT"). 적절 (Principle 1.1 직교).~~ **(2026-06-03 spec-drift 결정 B 로 stale)**: 이 진단은 번복됨. §5.2 의 count 제거 노트가 컨테이너 공통 규약(`{<컬렉션>, count}`)·node-output.md Principle 9.2·엔진 구현과 모순되는 drift 였음이 밝혀져 `count` 가 **복원**됐다. Parallel `done` 출력은 `{ branches, count }` 를 방출한다.
 2. **`meta` 누락** — §5.2 JSON 예시에 `meta` 필드가 없음. CONVENTIONS Principle 2 에 따라 최소한 `meta.durationMs` 와 `meta.branches` (Container 메트릭) 가 채워져야 함. spec 보강 필요.
 3. **dead field `waitAll`** — schema 에 노출되지만 P1 에서 항상 `true` 로 동작. spec §1 미구현 마킹. raw echo 는 유지하나 사용자 혼동 우려 — schema 단계 제거 또는 reject 가 개선안 logic/parallel.md §3 에서 제안. 본 plan 은 spec 본문에 dead field 경고가 잘 명시되어 있어 변경 없음.
-4. **`errorPolicy` config 누출 미흡** — schema 에 노출되지 않았다고 §1 미구현 마킹 — config echo 도 안 됨. P1 schema 노출 시 plan 갱신.
+4. **`errorPolicy` config 누출 미흡** — schema 에 노출되지 않았다고 §1 미구현 마킹 — config echo 도 안 됨. P1 schema 노출 시 plan 갱신. → **(2026-06-25) 해소**: `errorPolicy` 가 schema (`codebase/backend/src/nodes/logic/parallel/parallel.schema.ts:73-82`) 에 `enum(['stop','continue','cancel-others-on-fail']).default('stop')` 로 노출되고 handler 도 `errorPolicy: rawConfig.errorPolicy` 로 echo (`parallel.handler.ts:57`). spec §3 `errorPolicy` 적용 규칙도 본문화됨 (`spec/4-nodes/1-logic/10-parallel.md:70-74`).
+5. **`branches[i]` allSettled envelope 미구현 (CRITICAL, 2026-06-25 신규)** — spec §5.2 (`spec/4-nodes/1-logic/10-parallel.md:74 (§3 step 6), :120-123 (§5.2 표), :143 (§5.7)` JSON 예시·필드 표) 는 `branches[i]` 를 `Promise.allSettled` 모델 `{status:'fulfilled', value}` / `{status:'rejected', error:{code,message}}` 로 약속하지만, engine 은 각 분기 terminal 노드 출력을 `this.stripControlFields(rawOutput)` 로 벗긴 **bare value** 를 그대로 push 한다 (`codebase/backend/src/modules/execution-engine/execution-engine.service.ts:6276-6294`). `{status, value|error}` envelope 을 만드는 코드가 엔진 어디에도 없으며, 통합 테스트도 `{ branches, count }` shape 만 검증 (`execution-engine.service.spec.ts:9486-9491`) 하고 per-branch envelope 은 검증 안 함. 결과적으로 `errorPolicy='continue'` 모드의 `{status:'rejected', error}` 실패 분기 정보도 `branches` 배열에 표면화되지 않는다. spec ↔ 구현 직접 충돌 — spec 본문 정정(bare value 로 하향) 또는 engine envelope 래핑 중 결정 필요.
 
 ## 개선안 — 정리된 output
 
@@ -107,49 +110,50 @@ Parallel 은 **컨테이너** (병렬 fan-out). 단계 2개. Loop 와 같이 `ou
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `codebase/backend/src/nodes/logic/parallel/{parallel.handler.ts, parallel.schema.ts, parallel.schema.spec.ts, parallel.component.ts}`. `parallel.handler.spec.ts` 는 존재하지 않으며 `parallel.schema.spec.ts` 에 handler.execute / handler.validate 테스트가 통합되어 있다.
+대상 파일 (2026-06-25 갱신): `codebase/backend/src/nodes/logic/parallel/{parallel.handler.ts, parallel.schema.ts, parallel.schema.spec.ts, parallel.component.ts, index.ts}`. 완료 시점 오버라이트·`meta` 주입 책임은 `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`runParallel`/`finalizeParallel` 영역, 특히 `:6276-6311`) + 순수 concurrency orchestrator `codebase/backend/src/modules/execution-engine/containers/parallel-executor.ts` 로 분리돼 있다 (엔진은 과거 `execution-engine/` 가 아니라 `modules/execution-engine/` 로 이동). `parallel.handler.spec.ts` 는 여전히 존재하지 않으며 `parallel.schema.spec.ts` 에 handler.execute (`:405-472`) / handler.validate 테스트가 통합되어 있다.
 
 1. **spec §5 ↔ handler return 정합성 (컨테이너 컨트랙트)**:
-   - `parallel.handler.ts:52-60` 의 return 객체 `{ config: { branchCount, maxConcurrency, waitAll }, output: null, port: ports }` — 시작 시점 반환. spec §5.1 JSON 과 정합 (`output: null` + `port: string[]`).
-   - **gap1**: handler 가 `config.errorPolicy` 를 echo 하지 않는다 — schema 에 노출되지 않은 미구현 필드 (§1 마킹). spec 본문은 P1 미구현이라고 명시하므로 spec ↔ 구현 정합. schema 노출 시 함께 echo 추가 필요.
-   - 완료 시점 `{ branches: [...] }` 오버라이트는 엔진 책임 (`ParallelExecutor`) — handler 가 직접 반환하지 않음. Principle 9.2 부합.
+   - `parallel.handler.ts:52-61` 의 return 객체 `{ config: { branchCount, maxConcurrency, waitAll, errorPolicy }, output: null, port: ports }` — 시작 시점 반환. spec §5.1 JSON 과 정합 (`output: null` + `port: string[]`).
+   - ~~**gap1**: handler 가 `config.errorPolicy` 를 echo 하지 않는다~~ → **(2026-06-25) 해소**: handler 가 `errorPolicy: rawConfig.errorPolicy` 를 echo 한다 (`parallel.handler.ts:57`), schema 노출(`parallel.schema.ts:73-82`)과 함께 정합.
+   - 완료 시점 오버라이트는 엔진 책임 (`execution-engine.service.ts:6290-6311`) — handler 가 직접 반환하지 않음. Principle 9.2 부합. **단, 실제 오버라이트는 `{ branches, count }` 이고 `branches[i]` 는 분기 terminal 노드의 bare 출력** (`stripControlFields(rawOutput)`, `:6276-6284`) — spec §5.2 의 `{status, value|error}` allSettled envelope 과 **불일치** (위 진단 §5 신규 CRITICAL 참조). 순수 concurrency 조정은 `ParallelExecutor.execute` (`containers/parallel-executor.ts:133-290`) 가 담당하나 이 클래스는 출력 shape 을 만들지 않는다 (`Promise.allSettled<void>` 만 반환).
 
 2. **schema ↔ spec config 정합성**:
-   - `parallelNodeConfigSchema` (`parallel.schema.ts:29-67`): `branchCount` (int, 2-16, default 2) / `maxConcurrency` (int, 0-16, default 0) / `waitAll` (boolean, default true). spec §1 표와 일치.
-   - **gap2**: spec §1 의 `errorPolicy` 필드는 schema 에 부재 (§1 미구현 마킹). 정합 (의도).
-   - **dead field**: `waitAll` 은 schema 에 있으나 P1 항상 true 동작 (spec §1 마킹). raw echo 유지.
+   - `parallelNodeConfigSchema` (`parallel.schema.ts:30-84`): `branchCount` (int, 2-16, default 2) / `maxConcurrency` (int, 0-16, default 0) / `waitAll` (boolean, default true) / `errorPolicy` (enum `'stop'|'continue'|'cancel-others-on-fail'`, default `'stop'`). spec §1 표와 일치.
+   - ~~**gap2**: spec §1 의 `errorPolicy` 필드는 schema 에 부재~~ → **(2026-06-25) 해소**: `errorPolicy` enum 이 schema 에 추가됨 (`parallel.schema.ts:73-82`) + `validateParallelConfig` 도 enum 가드 (`:143-152`).
+   - **dead field**: `waitAll` 은 schema 에 있으나 P1 항상 true 동작 — 현재는 `validateParallelConfig` 가 `waitAll=false` 를 명시적으로 reject 한다 (`parallel.schema.ts:129-141`, 결정 K). raw echo 유지.
 
 3. **validate 일관성**:
    - `parallel.handler.ts:21-26` 의 `handler.validate()` 는 `evaluateMetadataBlockingErrors` (warningRules + `validateConfig` SSOT) 만 사용 — SSOT 침범 없음. 깔끔.
-   - `warningRules` (`parallel.schema.ts:140-146`) 가 `parallel:branch-count-out-of-range` 만 정의 (canvas badge용 mini-DSL), `validateParallelConfig` (`:85-118`) 가 integer / range / boolean type 가드. 분리 명확.
-   - **gap3**: 메시지 일관성 — `branchCount must be 2 to 16.` (warningRule) vs `branchCount must be a value between 2 and 16.` (validateConfig) 가 다름 — `parallel.schema.spec.ts:171-173` 가 두 메시지 모두 검증. 의도된 분리 (canvas vs runtime) 지만 사용자 노출 시 중복 메시지 발생.
+   - `warningRules` (`parallel.schema.ts:177-183`) 가 `parallel:branch-count-out-of-range` 만 정의 (canvas badge용 mini-DSL), `validateParallelConfig` (`:101-155`) 가 integer / range / boolean / errorPolicy enum 타입 가드. 분리 명확.
+   - **gap3 (잔여)**: 메시지 일관성 — `branchCount must be 2 to 16.` (warningRule, `parallel.schema.ts:181`) vs `branchCount must be a value between 2 and 16.` (validateConfig, `:112`) 가 여전히 다름 — `parallel.schema.spec.ts:220-221` 가 두 메시지 모두 검증. 의도된 분리 (canvas vs runtime) 지만 사용자 노출 시 중복 메시지 발생.
 
 4. **에러 컨트랙트 (Principle 3)**: pre-flight throw (config validate) 만 사용 — runtime `port:'error'` 없음 (spec §6 명시). `errorPolicy=continue` 의 분기 실패 정보 수집은 엔진 책임. 부합.
 
 5. **conventions Principle 0–11 위반 패턴**:
    - Principle 1.1: `output: null` + `port: string[]` — config 와 직교. 부합.
-   - Principle 2: handler 가 `meta` 를 발행하지 않음 — 완료 시점 엔진이 `meta.durationMs` 만 주입 (engine 공통). **잔여 권고 항목** — `meta.branches` (= `branches.length`) / `meta.fulfilledCount` / `meta.rejectedCount` 도 엔진에서 inject 검토. spec §5.2 `meta` 표 자체 부재.
-   - Principle 5: 시작 `port: string[]` (fan-out) → 완료 `port: 'done'` (단일). 부합.
-   - Principle 6: `branch_<index>` 동적 포트 ID — `<prefix>_<index>` 형식. 부합.
-   - Principle 7: `branchCount` / `maxConcurrency` / `waitAll` raw echo (`parallel.handler.ts:53-57`). 부합. clamp 는 `port.length` 에서 관찰 (테스트 `parallel.schema.spec.ts:220-242`).
+   - Principle 2: handler 가 `meta` 를 발행하지 않음 — **잔여 (2026-06-25 정정)**: 완료 시점 엔진 구조화 출력에 주입되는 `meta` 는 `clampedConcurrency` 뿐이며 그나마 조건부다 (`execution-engine.service.ts:6307-6309`, 중첩 Parallel clamp 발생 시에만). `meta.durationMs`/`meta.branches`/`meta.fulfilledCount`/`meta.rejectedCount` 는 구조화 출력 `meta` 에 inject 되지 않는다 — `durationMs` 는 `NodeExecution` DB row 레벨에만 기록 (`:6376` 등). spec §5.2 `meta` 표 자체 부재도 유지. → engine 측 `meta.branches`/`meta.durationMs` inject 미구현.
+   - Principle 5: 시작 `port: string[]` (fan-out) → 완료 `port: 'done'` (단일, `execution-engine.service.ts:6291, 6306`). 부합.
+   - Principle 6: `branch_<index>` 동적 포트 ID — `<prefix>_<index>` 형식 (`parallel.handler.ts:40`). 부합.
+   - Principle 7: `branchCount` / `maxConcurrency` / `waitAll` / `errorPolicy` raw echo (`parallel.handler.ts:53-58`, `rawConfig ?? config` `:51`). 부합. clamp 는 `port.length` 에서 관찰 (테스트 `parallel.schema.spec.ts:449-471`).
    - Principle 9: `output: null` 컨테이너 컨트랙트 + 엔진 오버라이트. 부합.
 
 6. **handler 테스트 (`parallel.schema.spec.ts` 에 통합)**:
    - schema 기본값 / 명시 값 / 메타데이터 / handler.validate (branchCount 범위, maxConcurrency 범위·정수, waitAll boolean) / warningRules / validateParallelConfig / evaluateMetadataBlockingErrors / handler.execute (branchCount 포트 생성 + `output: null`, config echo, default 2, clamp 16, raw echo of out-of-range maxConcurrency).
-   - **누락**:
-     - handler 의 `rawConfig` 우선 사용 (`parallel.handler.ts:51`) 직접 확인 테스트 없음 — `{{ }}` 표현식 echo 시나리오는 if-else 처럼 별도 테스트 권장.
+   - **누락 (2026-06-25 재확인, 잔여)**:
+     - handler 의 `rawConfig` 우선 사용 (`parallel.handler.ts:51`) 직접 확인 테스트 없음 — `handler.execute` 테스트(`parallel.schema.spec.ts:405-472`)는 `context.rawConfig` 를 넣지 않아 `config ?? config` 경로만 탄다. `{{ }}` 표현식 echo 시나리오 별도 테스트 권장. 또한 `errorPolicy` echo 검증도 부재 (`:437-441` 의 `toEqual` 는 `errorPolicy: undefined` 를 무시).
      - 별도 `parallel.handler.spec.ts` 파일 부재 — 다른 노드(`if-else`/`foreach`/`merge`/`background`)는 분리되어 있어 횡단 컨벤션 위배.
 
 7. **횡단 일관성 (컨테이너 4종)**:
    - ~~Loop / ForEach / Map 은 완료 시점 `{<key>, count}` (count 포함) — Parallel 만 `{branches}` (count 제거). 일관성을 위해 다른 3 노드의 `count` 도 제거 검토할지, 아니면 Parallel 만 추가할지 결정 필요.~~ **(2026-06-03 결정 B 로 해소)**: Parallel 에 `count` 복원으로 4종 모두 `{<컬렉션>, count}` 균일. 비대칭 해소됨 — 추가 결정 불필요.
    - 완료 시점 `meta`: Loop / ForEach / Map 은 `meta.iterations` (Parallel: `meta.branches` 권고) — 횡단 명명 통일 필요 (`iterations` vs `branches` 차이는 의도).
 
-8. **구현 품질**: clean — clamp 로직 (`Math.max(2, Math.min(16, Math.floor(...)))`) 명확. `rawConfig ?? config` (`:51`) 패턴 일관. ParallelExecutor 위임 분리 깔끔.
+8. **구현 품질**: clean — clamp 로직 (`Math.max(2, Math.min(16, Math.floor(...)))`, `parallel.handler.ts:37`) 명확. `rawConfig ?? config` (`parallel.handler.ts:51`) 패턴 일관. ParallelExecutor 위임 분리 깔끔 (`containers/parallel-executor.ts` 는 concurrency·격리·errorPolicy 집계만, 출력 shape 은 engine `runParallel`). dev/test 한정 branch cache deep-freeze 가드 (`parallel-executor.ts:34-62`, M-5) 도 추가됨.
 
 ## 종합 개선안 (2026-05-16)
 
-- [ ] (spec) §5.2 JSON 예시 + 필드 표에 `meta.durationMs` (engine inject) + `meta.branches` (= `branches.length`, Container 메트릭) 보강. 옵션으로 `meta.fulfilledCount` / `meta.rejectedCount` (`errorPolicy=continue` 진단용) 추가 검토. 근거: spec `10-parallel.md:95-107` 와 Loop/ForEach/Map 의 `meta.iterations` 일관성.
-- [ ] (impl) 엔진 (`ParallelExecutor`) 측에서 완료 시점 오버라이트에 `meta.branches` / `meta.durationMs` inject — 위 spec 결정에 따라.
-- [ ] (impl) `parallel.handler.spec.ts` 분리 신설 — 다른 노드와 횡단 컨벤션 일치. `parallel.schema.spec.ts` 의 handler.execute / handler.validate 블록 (`:35-242`) 을 옮긴다. 근거: `foreach.handler.spec.ts` / `merge.handler.spec.ts` / `background.handler.spec.ts` 의 분리 패턴.
-- [ ] (impl) handler.execute 의 `rawConfig` 우선 echo (`parallel.handler.ts:51-57`) 직접 확인 unit-test 추가 — `{{ }}` template 시나리오는 numeric/boolean 필드라 의미가 약하나 일관성 차원.
-- [ ] (spec) `branchCount` 범위 에러 메시지 통일 — `parallel.schema.ts:144` (`must be 2 to 16.`) vs `:95-96` (`must be a value between 2 and 16.`) 가 다름 → mini-DSL 메시지를 imperative 와 동일하게 통일하거나, validateConfig 가 warningRule 발화 시 imperative 검사 skip.
+- [ ] (spec) §5.2 JSON 예시 + 필드 표에 `meta.durationMs` (engine inject) + `meta.branches` (= `branches.length`, Container 메트릭) 보강. 옵션으로 `meta.fulfilledCount` / `meta.rejectedCount` (`errorPolicy=continue` 진단용) 추가 검토. 근거: spec `10-parallel.md:101-130` (§5.2 JSON+표) 와 Loop/ForEach/Map 의 `meta.iterations` 일관성. — 잔여 (2026-06-25): 현 spec §5.2 표에 `meta` 행 여전히 없음.
+- [ ] (impl) 엔진 (`runParallel`, `codebase/backend/src/modules/execution-engine/execution-engine.service.ts:6290-6311`) 측에서 완료 시점 오버라이트에 `meta.branches` / `meta.durationMs` inject — 위 spec 결정에 따라. — 잔여 (2026-06-25): 현재 `meta` 는 `clampedConcurrency` 만 조건부 주입 (`:6307-6309`), `branches`/`durationMs` 미주입.
+- [ ] (impl) `parallel.handler.spec.ts` 분리 신설 — 다른 노드와 횡단 컨벤션 일치. `parallel.schema.spec.ts` 의 handler.execute (`:405-472`) / handler.validate 블록을 옮긴다. 근거: `foreach.handler.spec.ts` / `merge.handler.spec.ts` / `background.handler.spec.ts` 의 분리 패턴. — 잔여 (2026-06-25): `parallel.handler.spec.ts` 여전히 부재.
+- [ ] (impl) handler.execute 의 `rawConfig` 우선 echo (`parallel.handler.ts:51-58`) 직접 확인 unit-test 추가 — `context.rawConfig` 를 주입한 시나리오. `errorPolicy` echo 검증도 함께. — 잔여 (2026-06-25): `handler.execute` 테스트가 `context.rawConfig` 미주입, `errorPolicy` echo 미검증.
+- [ ] (spec) `branchCount` 범위 에러 메시지 통일 — `parallel.schema.ts:181` (`must be 2 to 16.`) vs `:112` (`must be a value between 2 and 16.`) 가 다름 → mini-DSL 메시지를 imperative 와 동일하게 통일하거나, validateConfig 가 warningRule 발화 시 imperative 검사 skip. — 잔여 (2026-06-25): 두 메시지 여전히 불일치 (`parallel.schema.spec.ts:220-221` 가 둘 다 검증).
+- [ ] (spec/impl, 2026-06-25 신규 CRITICAL) `branches[i]` 출력 shape 결정 — spec §5.2 (`spec/4-nodes/1-logic/10-parallel.md:74 (§3 step 6), :120-123 (§5.2 표), :143 (§5.7)`) 의 `Promise.allSettled` envelope (`{status, value|error}`) vs 구현의 bare terminal 출력 (`execution-engine.service.ts:6276-6294`, `stripControlFields`) 충돌. spec 을 bare value 로 하향하거나, engine 이 `errorPolicy='continue'` 실패 분기를 `{status:'rejected', error:{code,message}}` envelope 로 래핑하도록 구현. `errorPolicy='continue'` 의 실패 분기 정보 표면화 여부가 이 결정에 종속.

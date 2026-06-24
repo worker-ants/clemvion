@@ -1,5 +1,20 @@
 # Node 개선안 — 노드별 종합 인덱스
 
+> **6차 갱신 (2026-06-25 코드 재검증)**: 27개 노드 plan 문서를 현재 코드베이스와 전수 재대조 (노드별 sub-agent fan-out). 그동안의 대규모 리팩토링 — ai-agent **god-handler 분할** (#665 AiConditionEvaluator / #668 AiMemoryManager / #669 AiTurnExecutor; turn 로직은 `ai-turn-executor.ts`, 엔진은 `modules/execution-engine/ai-turn-orchestrator.service.ts`), 엔진 **C-1 분할 체인 + `src/execution-engine/` → `src/modules/execution-engine/` 재배치**, code 노드 **isolated-vm 전면 재작성** (#546), if-else/filter/transform **regex chokepoint 통일** (`compileUserRegex`, #570), core util `nodes/logic/core` → `nodes/core` 이동 — 으로 각 문서의 `파일:라인` 인용이 대거 stale 해진 것을 **전수 현행화**했다. 각 노드 문서 최상단에 동일 `6차 갱신` 블록으로 해소·잔여·정정 내역을 기록했다. **아래 §"진행 상태 요약" Phase 2 표의 `핵심 갭` 컬럼은 2026-05-16 분석 시점 값** — 노드별 현행 해소 상태는 각 노드 문서의 `6차 갱신` 블록이 SoT.
+>
+> **우선순위 항목 net 변화**:
+> - **P0 (ai-agent error 컨트랙트)** — **multi-turn 경로 해소**: 엔진 `handleAiTurnError` + `classifyLlmError` (429→`LLM_RATE_LIMIT` retryable, 5xx/network→`LLM_CALL_FAILED`, 401/403 non-retryable) 가 `output.error` + 부분 `output.result.*` 병존 · `port:'error'` 로 finalize, error 포트 단위테스트 추가. D6 통일(waiting/resumed `output.result.*`, top-level `output.maxTurns`/단수 `output.message` 제거)도 정합. **잔여: single-turn (`executeSingleTurn`) 경로만** — `llmService.chat` (`ai-turn-executor.ts:1209`·`:1439`) try/catch 미적용 → single throw 는 여전히 engine FAILED. (신규) `LLM_RESPONSE_INVALID` 가 spec §10 "예약"→"runtime" 격상됐으나 single-turn 은 raw-string fallback 유지 → drift. config echo 의 memory 필드 누락 잔여.
+> - **P1 — 2건 모두 해소**: information-extractor **ConversationThread v2 multi-turn push 구현** (#484, 종결 4분기 push) + D6 단일화 (`78594c71`). Code 노드 sandbox API **전건 해소** (`timeout` schema·`$node`/`$helpers` 주입·timer 셰도잉 + #546 isolated-vm) — **Code 노드 잔여 갭 0**.
+> - **P2** — Cafe24 §1 `cursor?: string` spec 잔재 **정정** (#440/#516). Parallel `meta.durationMs`/`meta.branches` **잔여**. ForEach `collectResults` dead field **잔여**. Chart `chartOutputSchema` 는 **dead schema 아님으로 전제 정정** (`chart.component.ts` 가 `outputSchema` 로 사용 중) — Principle 1.1.4 관점 정리만 잔여.
+> - **P3** — Merge `meta.strategy`/`meta.outputFormat` 중복은 **"유지" 결정으로 spec 명문화** (해소). HTTP transport-failed `output.response:{error}` legacy **잔여**. Workflow async `output.workflowId`/`output.status` 중복 **잔여**.
+>
+> **신규 발견 갭** (이번 재검증에서 도출, 각 노드 문서 §"종합 개선안"에 반영):
+> - **(CRITICAL) Parallel** — spec §5.2 가 약속한 `branches[i]` 의 `Promise.allSettled` envelope (`{status:'fulfilled', value}` / `{status:'rejected', error}`) 이 **구현에 없음**. 엔진은 각 분기 terminal 출력을 `stripControlFields` 한 bare value 만 push → `errorPolicy='continue'` 실패 분기의 `{status:'rejected'}` 미관측. spec 하향 또는 engine envelope 래핑 결정 필요.
+> - **Loop** — §8 checkbox 1 (`outputSchema.config.count` union 확장) 이 `[x]` 였으나 **실제 코드 미반영** (`loop.schema.ts:16` 여전히 `z.number()`) → 잔여로 환원 (문서-코드 false-resolved 정정).
+> - **Merge** — dormant `warningRules` (timeout/partialOnTimeout) 가 severity 미명시로 기본 blocking 이 되어 validate 차단 동작 신규 발생, 그 blocking validate 테스트 부재.
+> - **역방향 drift (impl→spec 미반영)** — if-else `strictComparison` / variable-modification `config.recordValues` 를 handler 가 echo 하는데 spec §5.1 JSON 예시 미기재.
+> - **text-classifier** — `LLM_RATE_LIMIT` 가 reserved→실발화로 CHANGED (#448/#661). 에러경로 주석이 `durationMs` 를 `callStartedAt` 기준으로 서술하나 코드는 `executeStartedAt` (주석-코드 drift).
+
 > **5차 갱신 (2026-06-03 구현 재검증)**: Phase E 착수 전 코드 재검증 결과 — (1) **template `helpers` echo** 는 이미 구현됨 (`template.handler.ts:48-52` `configEcho.helpers`, D1 era). (2) **text-classifier `originalInput` 위치 비대칭** 도 이미 해소됨 (`text-classifier.handler.ts:184-227`, 에러 시 `output.error.details.originalInput` 만 surface, D6). 두 항목에 대한 §"진행 상태 요약" Phase 2 표(template/text-classifier 행)의 "핵심 갭" 기술은 **stale**. 잔여 실착수 대상은 **Code 노드**(`timeout` schema 미정의 `code.schema.ts:37-57` + `$node`/`$helpers` 미주입 `code.handler.ts:35-90`; 추가로 `code.schema.ts:53` UI 힌트가 `$helpers` 주입을 광고하나 실제 미주입 — 거짓 광고), **ai-agent P0**(multi-turn error builder 는 구현됨 `:2384+`, **single-turn 경로만 미구현** `:1199` chat 호출에 try/catch 없음), **information-extractor P0/P1**(multi-turn thread push 미구현 `:131-135`).
 
 > **4차 갱신 (2026-05-17 D 결정 phase 완료)**: §"결정 사항" 의 6개 횡단 결정 (D1~D6) 이 모두 PR 로 머지됐다 — D1 #145, D2 #148, D3 #149, D4 #159, D5 #153, D6 #157. spec / backend handler / test 모두 D 결정 방향으로 정렬 완료. 본 plan 은 D 결정이 다루지 못한 **노드별 P0/P1/P2/P3 항목** (§"진행 상태 요약" Phase 2 / §"요약 — §B 구현 분석") 이 남아 있으므로 `in-progress` 유지. 다음 phase 는 P0 (ai-agent error builder, information-extractor ConversationThread v2 등) 부터 노드 단위 처리.
@@ -152,10 +167,10 @@
 
 | 노드 | 잔여 권고 요약 |
 | --- | --- |
-| [parallel](./parallel.md) | §5.2 (`done`) `meta.durationMs` + `meta.branches` 보강 |
-| [merge](./merge.md) | `meta.strategy` / `meta.outputFormat` 의 `config` 중복 제거 검토 (D1 으로 일부 정리됐으나 `meta.*` echo 정책 별도 결정 필요) |
-| [workflow](../../../spec/data-flow/11-workflow.md) | Async `output.workflowId` / `output.status: 'started'` 중복 제거 |
-| [http-request](./http-request.md) | Transport 실패 시 `output.response: { error }` legacy 잔재 제거 (D4 와 별개 — D4 는 throw → port:'error' 통일이고 본 항목은 transport-failed 본문 형태 정리) |
+| [parallel](./parallel.md) | §5.2 (`done`) `meta.durationMs` + `meta.branches` 보강 **(2026-06-25 잔여 유지)** + **신규 CRITICAL: `branches[i]` allSettled envelope 미구현** |
+| [merge](./merge.md) | ~~`meta.strategy` / `meta.outputFormat` 의 `config` 중복 제거 검토~~ → **(2026-06-25 해소)** 중복 "유지" 결정으로 spec 명문화 (§4 step5 / §5 표). 잔여는 `timeout` zod `.nonnegative()` + echo 회귀 테스트 |
+| [workflow](../../../spec/data-flow/11-workflow.md) | Async `output.workflowId` / `output.status: 'started'` 중복 제거 **(2026-06-25 잔여 유지 — 코드·spec 모두 미해소)** |
+| [http-request](./http-request.md) | Transport 실패 시 `output.response: { error }` legacy 잔재 제거 (D4 와 별개 — D4 는 throw → port:'error' 통일이고 본 항목은 transport-failed 본문 형태 정리) **(2026-06-25 잔여 유지 — D4 통일은 #549/#550/#555 로 완성)** |
 
 #### D 결정 phase 로 처리된 노드 (잔여 권고 해소, 2026-05-17)
 
@@ -191,28 +206,28 @@ if-else / switch / loop / variable-declaration / split / filter / background / t
 | [map](./map.md) | 2 | 3+1 | 0 | `errorPolicy` echo 누락, `meta.iterations/fellBackToEmpty` 부재, 시작 시점 output 표현 (items[] vs null) |
 | [filter](./filter.md) | 1 | 1 | 0 | spec 정합도 최상, 미시 보강만 |
 | [foreach](./foreach.md) | 1 | 3 | 0 | `errorPolicy` echo, `collectResults` dead field (schema 부재) |
-| [parallel](./parallel.md) | 2 | 3 | 0 | `meta.durationMs`/`meta.branches` 누락, `handler.spec.ts` 별도 파일 부재 |
+| [parallel](./parallel.md) | 2 | 3 | 0 | `meta.durationMs`/`meta.branches` 누락, `handler.spec.ts` 별도 파일 부재 · **(2026-06-25) 신규 CRITICAL: `branches[i]` allSettled envelope 미구현** |
 | [merge](./merge.md) | 2 | 3 | 1 | `meta.strategy`/`outputFormat` config 중복 |
 | [background](./background.md) | 1 | 1 | 1 | rawConfig 명시 echo (credential leak 가드 baseline 사례) |
 | [workflow](./workflow.md) | 4 | 2 | 1 | async `output.workflowId`/`output.status` 중복 제거 |
 | [manual-trigger](./manual-trigger.md) | 2 | 2 | 1 | 단독 진입점 미시 보강 |
-| [ai-agent](./ai-agent.md) | 3 | **6** | 0 | **CRITICAL — `output.error`/`port:'error'` builder 미구현** (`llmService.chat` throw 가 엔진 FAILED 로 빠짐) |
+| [ai-agent](./ai-agent.md) | 3 | **6** | 0 | ~~**CRITICAL — `output.error`/`port:'error'` builder 미구현**~~ → **(2026-06-25) multi-turn 경로 해소** (engine `handleAiTurnError`+`classifyLlmError`, error 포트 테스트). **잔여: single-turn `executeSingleTurn` try/catch 미적용** + `LLM_RESPONSE_INVALID` drift |
 | [text-classifier](./text-classifier.md) | 2 | 3 | 0 | `output.originalInput` 위치 비대칭 (정상 inside result / 에러 top-level), config echo 비대칭 |
-| [information-extractor](./information-extractor.md) | 1 | **7** | 0 | `output.maxTurns`/`message`/`turnCount` 잔재, ConversationThread v2 multi-turn push 미구현, `MAX_TURN_DEBUG_HISTORY` cap 누락 |
+| [information-extractor](./information-extractor.md) | 1 | **7** | 0 | ~~`output.maxTurns`/`message`/`turnCount` 잔재, ConversationThread v2 multi-turn push 미구현~~ → **(2026-06-25) 해소** (D6 `78594c71`, multi-turn push #484). 잔여: resumed snapshot 미emit, `turnDebug` cap, config echo 비대칭 |
 | [http-request](./http-request.md) | 1 | 3 | 0 | transport 실패 `output.response: { error }` legacy 잔재 제거 |
 | [database-query](./database-query.md) | 0 | 3 | 0 | `meta.statusCode` 미부여, rows truncation cap 누락 |
 | [send-email](./send-email.md) | 1 | 2 | 0 | body cap 일관성 |
 | [cafe24](./cafe24.md) | 2 | 3 | 0 | §1 pagination `cursor?: string` schema 폐기 잔재 정정 |
 | [transform](./transform.md) | 1 | 1 | 0 | 미시 보강만 |
-| [code](./code.md) | 1 | 0 | 0 | P1 impl 4건 완료 (커밋 8419923b + ai-review fix). spec 잔여: `meta.durationMs` 출처 확정 (project-planner 영역) |
+| [code](./code.md) | 1 | 0 | 0 | **(2026-06-25) 전건 해소 — 잔여 갭 0** (#546 isolated-vm 재작성, `timeout` schema·`$node`/`$helpers` 주입·timer 셰도잉 모두 구현+테스트) |
 | [carousel](./carousel.md) | 2 | 3 | 0 | `maxItems` echo 누락, `buttonConfig` runtime 생성 위치 |
 | [table](./table.md) | 2 | 3 | 0 | `output.rendered` HTML snapshot 위치 비대칭 (Carousel/Chart 는 client 전환 완료) |
-| [chart](./chart.md) | 1 | **4** | 0 | `chartOutputSchema` (schema:113-118) 옛 dead schema, `groupBy` 다중시리즈 미구현, raw echo 누락 |
+| [chart](./chart.md) | 1 | **4** | 0 | ~~`chartOutputSchema` 옛 dead schema~~ → **(2026-06-25) dead 아님으로 정정** (`chart.component.ts` 사용 중); raw echo 해소(D1). 잔여: `groupBy` 다중시리즈 미구현, `chartType` schema 5↔validate 3 불일치 |
 | [form](./form.md) | 1 | 2 | 0 | 양호, blocking 재개 토큰 보강 |
 | [template](./template.md) | 1 | **4** | 0 | `helpers` echo 누락, XSS 안전성 보강 |
 | **합계** | **~39** | **~74** | **~3** | spec/impl 비율 ≈ 1:1.9 (구현 갭이 더 많이 발견됨) |
 
-> 위 28종 중 **split** 만 모든 단면이 완전 부합 (구현 분석에서도 추가 권고 없음). 나머지 27종은 1건 이상의 새 권고 발생 — 대부분 미세 보강이지만 `ai-agent` (에러 builder 미구현) 와 `information-extractor` (ConversationThread v2 미구현) 는 P0/P1 우선순위.
+> 위 28종 중 **split** 만 모든 단면이 완전 부합 (구현 분석에서도 추가 권고 없음). 나머지 27종은 1건 이상의 새 권고 발생 — 대부분 미세 보강. **(2026-06-25 갱신)** 당시 P0/P1 로 표시됐던 `ai-agent` (multi-turn error builder 해소, single-turn 만 잔여) · `information-extractor` (ConversationThread v2 해소) · `code` (sandbox API 전건 해소) 는 대부분 해소되었고, 새로 **`parallel` `branches[i]` allSettled envelope 미구현 (CRITICAL)** 이 최우선 항목으로 부상. 노드별 현행 상태는 각 문서 `6차 갱신` 블록 참조.
 
 ## 요약 — 가장 빈번한 부적절 패턴 (2026-05-16 갱신)
 
@@ -349,11 +364,14 @@ D1 → D2 → D3 → D4 → D5 → D6 알파벳·숫자 순서로 각 D 별 work
 
 D 결정이 다루지 못한 **노드별 구현 갭** 처리. §"진행 상태 요약" Phase 2 표 + §"요약 — §B 구현 분석" 의 남은 항목을 우선순위 순으로 단일 노드 / 단일 PR 로 분할한다.
 
-- **P0** — ai-agent `buildErrorOutput` + `port:'error'` 추가 (`llmService.chat` throw 가 엔진 FAILED 로 전파되는 비대칭). 별도 plan + worktree 필요.
+> **(2026-06-25 갱신)** 아래 P0/P1 의 다수가 그 사이 머지되어 해소됨 — 취소선/✅ 로 현행화. 잔여만 착수 대상.
+
+- **P0** — ai-agent error 컨트랙트. **multi-turn 경로 ✅ 해소** (engine `handleAiTurnError`+`classifyLlmError`, `output.error`+`port:'error'`, error 포트 단위테스트). **잔여: single-turn (`executeSingleTurn`) `llmService.chat` try/catch 미적용** — single throw 가 여전히 engine FAILED. 추가 잔여: `LLM_RESPONSE_INVALID` spec "예약"→"runtime" 격상 vs single-turn raw-string fallback drift, config echo memory 필드 누락.
   - (EIA cross-ref) 본 P0 가 ai-agent `output.error` shape 을 신설할 경우 [Spec External Interaction API §6.3](../../../spec/5-system/14-external-interaction-api.md) 의 `execution.failed` payload `error` 필드 매핑에 영향. 착수 전 EIA §6.3 호환성 확인 후 SSE payload spec 동기화 필요.
-- **P1** — information-extractor ConversationThread v2 multi-turn push (ai-agent 와 패턴 정합), Code 노드 sandbox API (`$node` / `$helpers` 주입 + `timeout` schema).
-- **P2** — Parallel `meta.durationMs` / `meta.branches` 보강, ForEach `collectResults` dead field 제거, Chart `chartOutputSchema` dead schema 제거, Cafe24 §1 pagination `cursor?: string` spec 정정.
-- **P3** — HTTP transport-failed envelope 의 `output.response: { error }` legacy 잔재 제거, Workflow async `output.workflowId` / `output.status: 'started'` 중복 제거, Merge `meta.strategy` / `meta.outputFormat` config 중복 제거.
+- **P1** — ~~information-extractor ConversationThread v2 multi-turn push~~ **✅ 해소** (#484), ~~Code 노드 sandbox API (`$node`/`$helpers`+`timeout`)~~ **✅ 해소** (#546). **P1 잔여 없음**.
+- **P2** — Parallel `meta.durationMs` / `meta.branches` 보강 **+ 신규 CRITICAL `branches[i]` allSettled envelope 미구현 (최우선)**, ForEach `collectResults` dead field 제거, ~~Chart `chartOutputSchema` dead schema 제거~~ (전제 정정 — dead 아님; `groupBy` 다중시리즈·`chartType` 5↔3 불일치로 대체), ~~Cafe24 §1 pagination `cursor?: string` spec 정정~~ **✅ 해소**.
+- **P3** — HTTP transport-failed envelope 의 `output.response: { error }` legacy 잔재 제거, Workflow async `output.workflowId` / `output.status: 'started'` 중복 제거, ~~Merge `meta.strategy` / `meta.outputFormat` config 중복 제거~~ **✅ "유지" 결정으로 spec 명문화 (해소)**.
+- **P4 (신규, 2026-06-25)** — Loop `outputSchema.config.count` union 미반영 (문서 false-resolved 정정분), Merge dormant `warningRules` blocking validate 테스트 부재, if-else/variable-modification 역방향 drift (impl echo ↔ spec §5.1 미기재), text-classifier `durationMs` 주석-코드 drift.
 
 각 노드 항목은 `/consistency-check --impl-prep` (developer) 또는 `--spec` (project-planner) 의무 호출 후 진행.
 

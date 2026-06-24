@@ -1,5 +1,7 @@
 # HTTP Request output 개선안
 
+> **6차 갱신 (2026-06-25 코드 재검증)**: §8 4개 권고 항목 모두 **여전히 잔여** — net 변화 없음(미해소). (1) transport 실패 분기의 legacy `output.response:{error}` 는 handler 에 그대로(`http-request.handler.ts:512`), spec footnote 도 그대로(`1-http-request.md:299`). (2) 이를 검증하는 테스트도 잔존(`http-request.handler.spec.ts:222`, 종전 `:191-194` → 현재 위치로 정정). (3) spec §5.3.2 JSON 예시의 `output.response.error` 줄도 잔존(`1-http-request.md:280`). (4) `output.error.details.url` Basic-Auth sanitize 회귀 테스트 여전히 부재. **구조 변화(CHANGED)**: #549·#550·#555 로 D4 통일이 완성됨 — 모든 pre-flight 실패(integration resolve/auth build/service unavailable/SSRF)가 더 이상 throw 하지 않고 `buildPreflightErrorOutput`(`http-request.handler.ts:554-580`) 로 `port:'error'`+`output.error` 라우팅된다. SSRF 는 `HTTP_BLOCKED` enum(`:357,366`) 사용. handler 가 단일 파일 유지(분할 없음). 라인 인용 전반 정정(handler 343→460·394→512·415→427/533, schema 96-176→96-190 등).
+>
 > **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `output.requestBody` (evaluated, 256KB cap) + `output.response` + `output.error` 병존 (4xx/5xx) + `meta.statusCode` (transport 실패 시 `0`) 유지.
 > 잔여 권고 항목:
 > - Transport 실패 시 `output.response: { error: <message> }` legacy 잔재 제거 — `output.error` 만 사용. spec footnote 가 deprecation 의도 명시.
@@ -130,38 +132,37 @@ HTTP Request 는 외부 호출 노드 (단계 1개). 정상 / HTTP 에러 / tran
 - `meta.statusCode = 0` magic number 는 transport 실패 식별용으로 합리적이지만, `output.error.code === 'HTTP_TRANSPORT_FAILED'` 가 더 명확한 분기 키 — spec 이 권장.
 - `config.url` 의 sanitize echo 는 자격증명 leak 방지 (Principle 7 절대 echo 금지). raw 보존을 위한 trade-off — 사용자가 입력한 `{{ }}` 표현식은 보존되며 credential 만 redact.
 
-## 구현 분석 (2026-05-16)
+## 구현 분석 (2026-05-16, 2026-06-25 라인 정정)
 
-대상 파일: `codebase/backend/src/nodes/integration/http-request/{http-request.handler.ts, http-request.schema.ts, http-request.handler.spec.ts, http-safety.ts}` + `codebase/backend/src/nodes/integration/_base/{integration-handler-base.ts, sanitize-response-headers.util.ts}`.
+대상 파일 (2026-06-25 — handler 단일 파일 유지, 분할 없음): `codebase/backend/src/nodes/integration/http-request/{http-request.handler.ts (806줄), http-request.schema.ts, http-request.handler.spec.ts (~1650줄), http-safety.ts}` + `codebase/backend/src/nodes/integration/_base/{integration-handler-base.ts, sanitize-response-headers.util.ts}`.
 
 1. **spec §5 ↔ handler return 정합성**:
-   - 2xx 분기 (`http-request.handler.ts:343-349`): `{config: configEcho, output: { response, ...bodyFields }, meta, port: 'success' }` — spec §5.1 과 정합. `bodyFields` 는 `buildBodyOutputFields` 가 만드는 `{ requestBodyType, requestBody?, bodyTruncated?, responseHeaders? }` (`:415-427`).
-   - 4xx/5xx 분기 (`:356-374`): `output.response` 보존 + `output.error.{code, message, details}` 동봉. `code` 는 `res.status >= 500 ? 'HTTP_5XX' : 'HTTP_4XX'` (`:362`). spec §5.3.1 과 정합.
-   - **gap (잔여 권고와 정합)**: Transport 실패 분기 (`:391-404`) 는 `output.response: { error: message }` 를 그대로 동봉한다 (`:394`) — spec §5.3.2 의 "legacy 호환 잔재 — 신규 코드는 `output.error` 를 사용" footnote 와 정확히 일치. handler 가 곧 deprecation 대상 코드를 보유 중. `bodyFields` 호출 시 `responseHeaders` 인자를 의도적으로 생략(`:390`) 하므로 transport 실패 시 `output.responseHeaders` 는 부재 (spec 명시 부합).
+   - 2xx 분기 (`http-request.handler.ts:460-466`): `{config: configEcho, output: { response, ...bodyFields }, meta, port: 'success' }` — spec §5.1 과 정합. `bodyFields` 는 `buildBodyOutputFields` 가 만드는 `{ requestBodyType, requestBody?, bodyTruncated?, responseHeaders? }` (`:533-545`).
+   - 4xx/5xx 분기 (`:473-491`): `output.response` 보존 + `output.error.{code, message, details}` 동봉. `code` 는 `res.status >= 500 ? 'HTTP_5XX' : 'HTTP_4XX'` (`:479`). spec §5.3.1 과 정합.
+   - **gap (잔여 권고와 정합)**: Transport 실패 분기 (`:509-522`) 는 `output.response: { error: message }` 를 그대로 동봉한다 (`:512`) — spec §5.3.2 의 "Deprecated (legacy 호환 잔재) — 신규 코드는 `output.error.{code,message}` 를 SoT 로" footnote(`1-http-request.md:299`) 와 정확히 일치. handler 가 여전히 deprecation 대상 코드를 보유 중 (2026-06-25 재확인: 미제거). `bodyFields` 호출 시 `responseHeaders` 인자를 의도적으로 생략(`:508`) 하므로 transport 실패 시 `output.responseHeaders` 는 부재 (spec 명시 부합).
 
-2. **schema ↔ spec config 정합성**: `httpRequestNodeConfigSchema` (`http-request.schema.ts:96-176`) 의 모든 필드 (method/url/authentication/integrationId/headers/queryParams/body/bodyType/responseType/timeout/followRedirects/verifySsl) 가 spec §1 표와 동일. default 값 일치 (`GET` / `none` / `[]` / `json` / `30000` / `true` / `true`). `keyValueSchema` (`:17-29`) 가 CRLF 차단 + `.passthrough()` 로 메타 필드 허용. 변경 없음.
+2. **schema ↔ spec config 정합성**: `httpRequestNodeConfigSchema` (`http-request.schema.ts:96-190`) 의 모든 필드 (method/url/authentication/integrationId/headers/queryParams/body/bodyType/responseType/timeout/followRedirects/verifySsl) 가 spec §1 표와 동일. default 값 일치 (`GET` / `none` / `[]` / `json` / `30000` / `true` / `true`). `keyValueSchema` (`:18-29`) 가 CRLF 차단 + `.passthrough()` 로 메타 필드 허용. 변경 없음.
 
-3. **validate 일관성**: `handler.validate()` (`http-request.handler.ts:84-122`) 는 SSOT (`evaluateMetadataBlockingErrors` + `validateConfig` 의 timeout guard) + method enum / url-string / integrationId-string 의 type 가드만 추가. spec §5.8 의 throw 매트릭스와 1:1 정합.
+3. **validate 일관성**: `handler.validate()` (`http-request.handler.ts:89-127`) 는 SSOT (`evaluateMetadataBlockingErrors` + `validateConfig` 의 timeout guard) + method enum / url-string / integrationId-string 의 type 가드만 추가. spec §5.8 의 throw 매트릭스와 1:1 정합. **(2026-06-25) 이제 `validate` config 형식 오류만이 유일한 pre-flight throw 경로** — execute() 내부는 더 이상 engine 으로 throw 하지 않음(아래 4 참조).
 
-4. **에러 컨트랙트 (Principle 3)** — **핵심**:
-   > **갱신(#549, refactor 04 C-3 / D4)**: 본 항의 "SSRF=Pre-flight throw" 서술은 **이전 스냅샷**이다. 현재는 SSRF 차단이 **전 인증 방식(none/integration/custom) 공통**으로 적용되며, throw 가 아니라 **`port:'error'` + `output.error.code='HTTP_BLOCKED'`** 로 라우팅된다 (`spec/4-nodes/4-integration/1-http-request.md §4 step8`·`node-output.md §3.1 D4`). Pre-flight throw 로 남는 건 `handler.validate` config 형식 오류뿐.
-   - **Pre-flight throw** — `assertSafeOutboundUrl` SSRF 차단 (`:265-282`), `Integration-based authentication is not available` (`:170-173`), `INTEGRATION_INCOMPLETE` (`buildHttpCredentials :534-589`), redirect 5홉 (`:301-303`). 모두 spec §5.8 일치. *(SSRF 부분은 #549 로 `HTTP_BLOCKED` port:error 전환됨 — 위 갱신 노트 참조.)*
-   - **Runtime `port:'error'`** — 비-2xx (`:356-374`) + transport 실패 (`:391-404`). 두 경로 모두 `output.error.{code, message, details}` 표준 envelope. **부합**.
-   - **`output.response: { error }` 잔재** (`:394`) — Principle 3.2 의 `output.error` 만으로 충분하고 spec footnote 가 deprecation 의도 명시 — 본 plan §"분리 제안" 항목과 일치. handler 코드는 spec 과 같은 형태로 잔재가 코드에 남아있다.
-   - SSRF 차단을 throw 로 유지하는 spec 명시 정책 (`spec §5.8` 끝 footnote) 과 일치 — `Cafe24` 노드와 비교했을 때, Cafe24 는 호스트가 정해져 있어 별도 `Cafe24_TRANSPORT_FAILED` 로 처리하는 점에서 미세 차이.
+4. **에러 컨트랙트 (Principle 3)** — **핵심** *(2026-06-25 전면 정정 — D4 통일 완성)*:
+   > **갱신(#549·#550·#555, refactor 04 C-3 / D4)**: 본 항의 종전 "Pre-flight throw" 서술은 **폐기된 스냅샷**이다. 현재 execute() 안의 모든 pre-flight 실패는 **throw 하지 않고** `buildPreflightErrorOutput`(`http-request.handler.ts:554-580`) 로 **`port:'error'` + `output.error.{code,message,details}`** 라우팅된다. SSRF 차단은 전 인증 방식(none/integration/custom) 공통이며 `HTTP_BLOCKED` enum(`ErrorCode.HTTP_BLOCKED`, `:357,366`) 사용 (`spec/4-nodes/4-integration/1-http-request.md §4 step8`·`node-output.md §3.1 D4`).
+   - **Pre-flight 실패 → `port:'error'` (throw 아님)** — integration service unavailable (`:195-206`), integration resolve/auth build 실패 (catch `:220-238`), SSRF 차단 (`assertSafeOutbound*` catch `:348-376`, `HTTP_BLOCKED`). redirect 5홉 초과는 `try` 블록 내부 throw(`:417`)지만 transport catch(`:492`)에 잡혀 `HTTP_TRANSPORT_FAILED` port:error 로 surface. `buildHttpCredentials` 의 `INTEGRATION_INCOMPLETE`/`INTEGRATION_AUTH_UNSUPPORTED` throw(`:697-772`)도 `:220` catch 에 잡힘. **결과적으로 engine 으로 escape 하는 throw 는 `handler.validate` config 오류뿐**.
+   - **Runtime `port:'error'`** — 비-2xx (`:473-491`) + transport 실패 (`:509-522`). 두 경로 모두 `output.error.{code, message, details}` 표준 envelope. **부합**.
+   - **`output.response: { error }` 잔재** (`:512`) — Principle 3.2 의 `output.error` 만으로 충분하고 spec footnote(`1-http-request.md:299`)가 deprecation 의도 명시 — 본 plan §"분리 제안" 항목과 일치. handler·spec·테스트 모두에 잔재 여전히 존재 (2026-06-25 재확인 미해소).
 
-5. **conventions Principle 0–11 위반 패턴**:
+5. **conventions Principle 0–11 위반 패턴** *(2026-06-25 라인 정정)*:
    - Principle 1.1: `config` 에 `headers`/`queryParams`/`body` 의 raw (`{{ }}` 보존) echo, `output` 에 evaluated `requestBody` / `responseHeaders` — 직교 부합.
-   - Principle 2: `meta = { statusCode, durationMs }` 만 (`:324`). `meta.statusCode=0` 은 transport 실패 magic number (spec 권장과 정합 — `output.error.code` 가 더 명확한 분기 키).
-   - Principle 7 (`config` echo): `configEcho = { ...rawConfig, url: sanitizeUrlCredentials(rawConfig.url) }` (`:148-155`) — spread 패턴으로 신규 schema 필드 자동 echo + URL 만 sanitize. `sanitizeUrlCredentials` (`:50-72`) 는 userinfo + QUERY_PARAM_BLACKLIST (api_key/token/secret/signature/x-amz-* 등) 모두 redact. **자격증명 echo 금지 부합**.
+   - Principle 2: `meta = { statusCode, durationMs }` 만 (`:330,440,520,577`). `meta.statusCode=0` 은 transport/pre-flight 실패 magic number (spec 권장과 정합 — `output.error.code` 가 더 명확한 분기 키).
+   - Principle 7 (`config` echo): **(2026-06-25) spread 폐지 → 명시 필드 열거로 전환됨** — `configEcho` 가 12개 schema 필드를 하나씩 나열(`:164-177`), `url` 만 `sanitizeUrlCredentials(rawConfig.url)` (`:154-157`). 주석 D1: `{ ...rawConfig }` spread 는 미래 credential-shaped 필드 자동 leak 위험으로 금지. `sanitizeUrlCredentials` (`:55-77`) 는 userinfo + QUERY_PARAM_BLACKLIST (api_key/token/secret/signature/x-amz-* 등, `:39-53`) 모두 redact. **자격증명 echo 금지 부합**.
    - Principle 8.2: `output.response` / `output.requestBody` / `output.requestBodyType` / `output.responseHeaders` — spec 표 그대로.
-   - `sanitizeResponseHeaders` (`_base/sanitize-response-headers.util.ts:69-`) 가 Authorization/Cookie/Set-Cookie/X-*-Token/X-*-Key 등을 `[REDACTED]` 로 — Principle 7 자격증명 누출 차단의 응답 측 호혜.
+   - `sanitizeResponseHeaders` (`_base/sanitize-response-headers.util.ts:69`) 가 Authorization/Cookie/Set-Cookie/X-*-Token/X-*-Key 등을 `[REDACTED]` 로 — Principle 7 자격증명 누출 차단의 응답 측 호혜.
 
-6. **handler 테스트 (`http-request.handler.spec.ts`, 1059 줄)**:
-   - 정상 2xx (`:132-154`) / 4xx error 포트 (`:156-176`) / 네트워크 실패 (`:178-194`) 케이스 모두 커버.
-   - **transport 실패 + legacy `output.response: { error }` 검증** (`:178-194`): 테스트가 명시적으로 `result.output.response.error === 'Network error'` 를 assert 한다 — 본 잔재가 제거되면 본 테스트도 동시 갱신 필요.
-   - URL credential sanitize (`:108-130`), 헤더 CRLF 차단 (`:332-355`), redirect SSRF (`:678-716`), `output.requestBody` evaluated + 256KB cap (`:968-995`), 응답 헤더 redact (`:939-966`), 4xx/transport 시에도 `requestBody` 동봉 (`:997-1057`) 모두 커버.
-   - 미세 누락: `output.error.details.url` 의 sanitize 적용 여부 (handler `:367,399` 에서 적용) 에 대한 회귀 테스트 없음 — `Basic Auth` URL 이 `details.url` 에서 redact 되는지 직접 assert 부재.
+6. **handler 테스트 (`http-request.handler.spec.ts`, ~1650 줄, 2026-06-25 라인 정정)**:
+   - 정상 2xx (`:162-185`) / 비-2xx error 포트 (`:186-206`) / 네트워크 실패 (`:208-224`) 케이스 모두 커버.
+   - **transport 실패 + legacy `output.response: { error }` 검증** (`:208-224`): 테스트가 명시적으로 `result.output.response.error === 'Network error'` 를 assert 한다 (`:222`) — 본 잔재가 제거되면 본 테스트도 동시 갱신 필요. **(2026-06-25 재확인: 미제거, assert 잔존.)**
+   - URL credential sanitize (`:108-`), 헤더 CRLF 차단 (`:362-`), SSRF/HTTP_BLOCKED port:error (`:912-1056`, #549 로 throw→port 전환됨), `output.requestBody` evaluated + responseHeaders (ENG-RC describe `:1260-`), 응답 헤더 redact (`:1448-`), 비-2xx 시에도 `requestBody` 동봉 (`:1484-`), cancellation abortSignal cascade (`:1546-`, #369) 모두 커버.
+   - 미세 누락 (여전히 잔여): `output.error.details.url` 의 sanitize 적용 여부 (handler `:484,517,574` 의 `sanitizeUrlCredentials(url)`) 에 대한 회귀 테스트 없음 — `Basic Auth` userinfo 가 `details.url` 에서 redact 되는지 직접 assert 부재. (`:1123-1148` 은 `config.url` redaction 만 assert, `output.error.details.url` 미검증.)
 
 7. **횡단 일관성 (Integration 4종)**:
    - `IntegrationHandlerBase` extends 패턴: HTTP, DB, Email, Cafe24 모두 동일. `resolveIntegration` + `logUsage` + `toLogError` + `sanitizeMessage` 공유.
@@ -169,14 +170,15 @@ HTTP Request 는 외부 호출 노드 (단계 1개). 정상 / HTTP 에러 / tran
    - `output.response` (HTTP / Cafe24) vs `output.rows` (DB) vs `output.messageId` (Email) — Principle 8.2 표의 노드별 1차 네이밍 통일과 정확히 정합.
    - `meta.statusCode=0` magic number 가 HTTP / Cafe24 transport 실패에 공유 — 일관성 OK.
 
-8. **구현 품질**:
-   - 풀/timeout/retry: AbortController + `timeout` (`:284-286`), redirect manual + 5홉 SSRF 재검증 (`:295-310`).
-   - 응답 크기 제한: `truncateBodyForOutput(evaluatedRequestBody)` 256KB (`:161`) — **요청** body 만 cap. 응답 body 는 cap 없음 (HTTP Request 의 응답은 사용자가 직접 받아 처리하는 비즈니스 데이터라서). Cafe24 / DB 와 비교 시 응답 cap 부재가 의도된 trade-off.
-   - 헤더 병합 우선순위 (`:223-227`) — `credentials.headers` 가 사용자 `userHeaders` 를 덮어쓰는 보안 패턴 (사용자가 Authorization 위조해서 자격증명 무력화 차단). 테스트 `:560-577` 가 회귀 보호.
+8. **구현 품질** *(2026-06-25 라인 정정)*:
+   - 풀/timeout/retry: AbortController + `timeout` (`:378-380`), 추가로 `context.abortSignal` upstream cascade abort (`:385-401`, #369 cancellation 인프라), redirect manual + 5홉 SSRF 재검증 (`:405-426`).
+   - 응답 크기 제한: `truncateBodyForOutput(evaluatedRequestBody)` 256KB (`:183`) — **요청** body 만 cap. 응답 body 는 cap 없음 (HTTP Request 의 응답은 사용자가 직접 받아 처리하는 비즈니스 데이터라서). Cafe24 / DB 와 비교 시 응답 cap 부재가 의도된 trade-off.
+   - 헤더 병합 우선순위 (`:272-276`) — `credentials.headers` 가 사용자 `userHeaders` 를 덮어쓰는 보안 패턴 (사용자가 Authorization 위조해서 자격증명 무력화 차단).
+   - **(2026-06-25 신규 확인)** dry-run 분기 (`:321-333`, #390) — `isDryRun(context)` 시 SSRF 가드·실제 fetch **이전**에 `buildDryRunMock` 반환, URL 은 자격증명 query param 적용 전 값에 `sanitizeUrlCredentials` 추가 적용.
 
-## 종합 개선안 (2026-05-16)
+## 종합 개선안 (2026-05-16, 2026-06-25 라인 정정 — 4건 전부 잔여)
 
-- [ ] (impl) Transport 실패 분기에서 `output.response: { error: message }` 제거 — `output.error.{code, message, details}` 만 유지. 다운스트림 호환성을 위해 deprecation 노트를 1 minor cycle 둔 뒤 제거 권장. 근거: `http-request.handler.ts:394`, spec `1-http-request.md:273-274` footnote.
-- [ ] (impl/test) 위 변경에 따라 `http-request.handler.spec.ts:191-194` (`expect(result.output.response.error).toBe('Network error')`) 갱신 또는 제거. 동시에 `output.error.message === 'Network error'` 의 직접 assert 추가.
-- [ ] (spec) `1-http-request.md:264-265` 의 §5.3.2 JSON 예시에서 `output.response.error` 줄 제거 + `output.responseHeaders` 부재 footnote 만 남기기 — 본 변경에 spec 측 정정 필요. 근거: `1-http-request.md:273` "legacy 호환 잔재 — 신규 코드는 `output.error` 를 사용".
-- [ ] (impl/test, 선택) `output.error.details.url` 의 sanitize 적용 회귀 테스트 추가 — `Basic Auth` userinfo 가 details 에 leak 되지 않는지 직접 assert. 근거: `http-request.handler.ts:367, 399` 의 `sanitizeUrlCredentials(url)` 적용.
+- [ ] (impl) Transport 실패 분기에서 `output.response: { error: message }` 제거 — `output.error.{code, message, details}` 만 유지. 다운스트림 호환성을 위해 deprecation 노트를 1 minor cycle 둔 뒤 제거 권장. 근거: `http-request.handler.ts:512` (잔존), spec `1-http-request.md:299` footnote.
+- [ ] (impl/test) 위 변경에 따라 `http-request.handler.spec.ts:222` (`expect(result.output.response.error).toBe('Network error')`) 갱신 또는 제거. 동시에 `output.error.message === 'Network error'` 의 직접 assert 추가. (2026-06-25 재확인: assert 잔존.)
+- [ ] (spec) `1-http-request.md:280` 의 §5.3.2 JSON 예시에서 `output.response.error` 줄 제거 + `output.responseHeaders` 부재 footnote(`:303`)만 남기기 — 본 변경에 spec 측 정정 필요. 근거: `1-http-request.md:299` "Deprecated (legacy 호환 잔재) — 신규 코드는 `output.error.{code,message}` 를 SoT 로". (`:312`·`:337` 의 `{ error: "..." }` 서술도 동반 정정 대상.)
+- [ ] (impl/test, 선택) `output.error.details.url` 의 sanitize 적용 회귀 테스트 추가 — `Basic Auth` userinfo 가 details 에 leak 되지 않는지 직접 assert. 근거: `http-request.handler.ts:484, 517, 574` 의 `sanitizeUrlCredentials(url)` 적용. (2026-06-25 재확인: 회귀 테스트 여전히 부재 — `:1123-1148` 은 `config.url` 만 검증.)

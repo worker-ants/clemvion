@@ -1,12 +1,14 @@
 # Code output 개선안
 
+> **6차 갱신 (2026-06-25 코드 재검증)**: 잔여 갭 0건 — §8 4개 항목 모두 구현 확인(PR #434 `a7097a78` timeout schema·`$node`/`$helpers`·timer 셰도잉, PR #546 `730d9542` isolated-vm 전환). 핸들러가 isolated-vm 으로 전면 재작성되어 §7·top-block 의 `node:vm` 기준 `파일:라인` 인용 다수를 현재 값으로 정정함: `buildSandbox`(구 `:35-90`) → `_buildIsolateContext`(`code.handler.ts:528-595`)+`BOOTSTRAP_SOURCE`(`:206-277`); 성공 return(구 `:199-208`) → `:479-488`; `failure()`(구 `:225-275`) → `:633-685`; `validate()`(구 `:99-122`) → `:392-413`; `expression-exclusions`(구 `expression/...:8`) → `modules/execution-engine/expression/expression-exclusions.ts:7`; spec §5.1(구 `:130-148`) → `:164-182`, §5.3.1(구 `:191-220`) → `:228-254`. §7 item 6 "누락"(`$node`/`$helpers` 테스트 부재)도 해소(`code.handler.spec.ts:453, 476`). 회귀 없음.
+
 > **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. 사용자 `return` 값 root 자유 형태(Principle 8 예외) + 에러 시 표준 `output.error` envelope 분기 유지. (2026-05-16 구현 분석) **spec ↔ schema/handler 갭 3건 발견**: (a) `codeNodeConfigSchema` 에 `timeout` 필드 누락, (b) sandbox 에 `$node` / `$helpers` 미주입, (c) `setTimeout`/`setInterval`/`setImmediate` 명시 셰도잉 누락. 모두 사용자 가시 영향이 있어 spec 결정 후 impl 보강 필요.
 
 > 대상 spec: `spec/4-nodes/5-data/2-code.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)
 
-`spec/4-nodes/5-data/2-code.md:130-148` — §5.1 정상 종료 (port `success`):
+`spec/4-nodes/5-data/2-code.md:164-182` — §5.1 정상 종료 (port `success`):
 
 ```json
 {
@@ -17,7 +19,7 @@
 }
 ```
 
-`spec/4-nodes/5-data/2-code.md:191-220` — §5.3.1 사용자 코드 throw (port `error`):
+`spec/4-nodes/5-data/2-code.md:228-254` — §5.3.1 사용자 코드 throw (port `error`):
 
 ```json
 {
@@ -106,66 +108,65 @@ Code 는 사용자 정의 JS 실행 노드 (단계 1개). 정상 / 런타임 thr
 - 사용자 코드 throw 와 타임아웃을 모두 `port: 'error'` 로 흘리는 결정 (Data 공통 §4.1) 은 "사용자 코드의 throw / 타임아웃은 정상 시나리오의 일부" 라는 시멘틱 — 코드는 외부 호출과 같은 신뢰성 모델로 다루는 것이 합리적.
 - 컴파일 실패는 pre-flight throw (사용자 코드를 단 한 번도 실행하지 못한 상태이므로 runtime 에러 포트 부적절).
 
-## 구현 분석 (2026-05-16)
+## 구현 분석 (2026-05-16, 라인 인용 2026-06-25 정정 — isolated-vm 재작성 반영)
 
-대상 파일: `codebase/backend/src/nodes/data/code/{code.handler.ts, code.schema.ts, code.handler.spec.ts, code.schema.spec.ts, code.component.ts}`.
+대상 파일: `codebase/backend/src/nodes/data/code/{code.handler.ts, code.schema.ts, code.handler.spec.ts, code.schema.spec.ts, code.component.ts}`. (핸들러는 #546 으로 isolated-vm 전환되며 전면 재작성 — 구 `node:vm`/`buildSandbox` 구조는 `_buildIsolateContext`+`BOOTSTRAP_SOURCE`+`_runWithTimeout` 으로 분할됨.)
 
 1. **spec §5 ↔ handler return 정합성**:
-   - **정상 (`port: 'success'`)**: `code.handler.ts:199-208` 의 return `{ config: {code,language,timeout}, output: result, meta: {success:true, logs}, port: 'success' }` 가 spec §5.1 JSON 예시와 완전 일치.
-   - **에러 (`port: 'error'`)**: `failure()` (`:225-275`) 가 `{ config, output: {error:{code,message,details:{legacyCode,stack?}}}, meta: {success:false, logs}, port: 'error' }` 반환 — spec §5.3 표와 일치. `details.stack` 은 `process.env.NODE_ENV !== 'production'` 일 때만 노출 (`:240, 252`) — spec §5.3 footnote "프로덕션에서는 내부 파일 경로 노출 방지로 생략" 일치.
-   - **에러 코드 정규화**: `EXECUTION_TIMEOUT → CODE_TIMEOUT`, `CODE_RUNTIME_ERROR → CODE_EXECUTION_FAILED` (`:245-250`) — spec §5.3 footnote "에러 코드 정규화 매핑" 표와 일치. `details.legacyCode` 에 원본 보존 (`:251`).
-   - **`meta.error` / `meta.errorCode` / `meta.stack` 제거** (`:243` 주석 명시 — Phase 1 (D) 마이그레이션): 테스트 (`code.handler.spec.ts:156-165`) 가 명시 검증. spec footnote 와 일치.
+   - **정상 (`port: 'success'`)**: `code.handler.ts:479-488` 의 return `{ config: {code,language,timeout}, output: result, meta: {success:true, logs}, port: 'success' }` 가 spec §5.1 JSON 예시와 완전 일치.
+   - **에러 (`port: 'error'`)**: `failure()` (`:633-685`) 가 `{ config, output: {error:{code,message,details:{legacyCode,stack?}}}, meta: {success:false, logs}, port: 'error' }` 반환 — spec §5.3 표와 일치. `details.stack` 은 `process.env.NODE_ENV !== 'production'` 일 때만 노출 (`exposeStack` `:648`, `:662`) — spec §5.3 footnote "프로덕션에서는 내부 파일 경로 노출 방지로 생략" 일치.
+   - **에러 코드 정규화**: `EXECUTION_TIMEOUT → CODE_TIMEOUT`, `CODE_RUNTIME_ERROR → CODE_EXECUTION_FAILED`, `EXECUTION_MEMORY_EXCEEDED → CODE_MEMORY_LIMIT` — `node:vm` 시절 ternary 체인이 frozen 매핑 테이블 `LEGACY_TO_NORMALIZED` (`:347-353`) 로 교체됨 (W8). lookup `:659-660`. spec §5.3 footnote "에러 코드 정규화 매핑" 표와 일치. `details.legacyCode` 에 원본 보존 (`:661`).
+   - **`meta.error` / `meta.errorCode` / `meta.stack` 제거** (`:649-652` 주석 명시 — Phase 1 (D) 마이그레이션): 테스트 (`code.handler.spec.ts` `describe('execute — basic')` 의 deprecated alias 미발생 검증) 가 명시 확인. spec footnote 와 일치.
 
-2. **schema ↔ spec config 정합성 (gap 발견)**:
+2. **schema ↔ spec config 정합성** → (2026-06-25) 해소: PR #434 (`a7097a78`) 로 `timeout` 필드가 `codeNodeConfigSchema` 에 선언됨:
    - spec §1 표: `language` (필수, default `javascript`), `code` (필수, default `''`), **`timeout` (선택, default 30, 1-120초)**.
-   - `code.schema.ts:37-57` 의 `codeNodeConfigSchema` 는 `language` + `code` 만 정의 — **`timeout` 필드가 zod schema 에 없다** (`.passthrough()` 가 있어 런타임에는 통과하지만, frontend NodeConfigForm 이 schema 기반으로 UI 를 자동 생성한다면 spec §2 UI mockup 의 "Timeout : [30] sec (1–120)" 슬라이더가 렌더되지 않는다).
-   - `code.handler.ts:130-131` 은 `typeof config.timeout === 'number' ? config.timeout : DEFAULT_TIMEOUT_SEC` 로 fallback — handler 동작은 spec 일치. `validateCodeConfig` (`code.schema.ts:76-93`) 도 timeout 범위 검증을 imperative 로 구현. 즉 spec ↔ handler/validate 는 일치하지만 **spec ↔ schema 가 비대칭**.
+   - `code.schema.ts:64-69` 의 `codeNodeConfigSchema` 에 `timeout: z.number().default(DEFAULT_TIMEOUT_SEC).meta({ ui: { label: 'Timeout (sec)', widget: 'number', min: 1, max: 120 } })` 가 선언되어 — **spec §2 UI mockup 의 "Timeout [30] sec (1–120)" 슬라이더가 schema 기반으로 렌더됨**. `DEFAULT_TIMEOUT_SEC` 은 `:39` 에서 export (INFO-6 해소).
+   - `code.handler.ts:421-422` 은 `typeof config.timeout === 'number' ? config.timeout : DEFAULT_TIMEOUT_SEC` 로 fallback — handler 동작 spec 일치. `validateCodeConfig` (`code.schema.ts:90-107`) 도 timeout 범위(1-120) 검증을 imperative 로 구현 (zod 선언과 병존; 커스텀 에러 메시지·비-numeric 가드 SoT). 즉 spec ↔ schema ↔ handler/validate 모두 정합.
 
 3. **validate 일관성**:
-   - `code.handler.ts:99-122` 의 `handler.validate()` = `evaluateMetadataBlockingErrors(metadata, config)` (warningRules `code:no-code` + `validateCodeConfig` SSOT) + 비-string code guard + **vm.Script syntax check**.
-   - vm.Script syntax check (`:113-120`) 는 사용자 코드를 한 번도 실행하지 못한 상태이므로 pre-flight throw 로 분류 (spec §6 "code 컴파일 실패" 표 row). CONVENTIONS Principle 3.1 부합.
-   - `execute()` 의 second-pass syntax check (`:151-157`) — engine 이 validate 를 호출했다면 도달 불가능. 안전망으로 throw (handler 가 engine 외부 경로로 호출되는 경우 대비). 테스트 `code.handler.spec.ts:167-173` 이 명시 검증.
+   - `code.handler.ts:392-413` 의 `handler.validate()` = `evaluateMetadataBlockingErrors(metadata, config)` (warningRules `code:no-code` + `validateCodeConfig` SSOT) + 비-string code guard + **syntax check** (#546 이후 isolated-vm `syntaxCheck(wrapUserCode(...))` `:315-327` — 디스포저블 syntax-check isolate `compileScriptSync`).
+   - syntax check (`:406-411`) 는 사용자 코드를 한 번도 실행하지 못한 상태이므로 pre-flight throw 로 분류 (spec §6 "code 컴파일 실패" 표 row). CONVENTIONS Principle 3.1 부합.
+   - `execute()` 의 second-pass syntax check (`:449-454` — `isolate.compileScript(wrapUserCode(code))` 실패 시 `code has a syntax error:` 재throw) — engine 이 validate 를 호출했다면 도달 불가능. 안전망 (handler 가 engine 외부 경로로 호출되는 경우 대비). catch 블록 `:494-499` 이 이 메시지를 식별해 runtime 에러로 가장하지 않고 재throw.
 
 4. **에러 컨트랙트 (Principle 3)**:
-   - Pre-flight throw 5종 (`code.handler.spec.ts:23-81` + spec §6): `code` 빈/누락, 비-string, `timeout` 범위 밖, `language` enum 미일치 (zod), syntax error. 모두 throw 로 처리.
-   - Runtime `port:'error'` 2종 (spec §5.3): 사용자 코드 throw, timeout (sync `vm.runInContext timeout` + async `Promise.race`). `code.handler.ts:161-179` 의 sync timeout 캐치 + `:181-193` 의 async race 가 이중 적용 (spec §7.2 "이중 적용" 부합).
-   - 메모리 초과: **구현 완료(#546 — isolated-vm 전환)**. ~~spec §5.3 footnote 에 `CODE_MEMORY_LIMIT` 로드맵 — 현재 `node:vm` 한계로 미구현~~ → isolated-vm 128MB 하드 리밋 초과 시 isolate hard-kill → `EXECUTION_MEMORY_EXCEEDED` 내부 분류 → `CODE_MEMORY_LIMIT` 정규화 발행. (본 항 이하 §4·§5 분석은 #546 이전 `node:vm` 기준 스냅샷.)
+   - Pre-flight throw 5종 (`code.handler.spec.ts` `describe('validate')` `:27-` + spec §6): `code` 빈/누락, 비-string, `timeout` 범위 밖, `language` enum 미일치 (zod), syntax error. 모두 throw 로 처리.
+   - Runtime `port:'error'` 2종 (spec §5.3): 사용자 코드 throw, timeout. #546 이후 `_runWithTimeout` (`code.handler.ts:602-631`) 이 isolate CPU `timeout` 옵션 (`script.run(..., { timeout })` `:607-611`) + 호스트 wall-clock `Promise.race` (`:618-627`, `timeoutMs + 1000` 후 `EXECUTION_TIMEOUT` reject) 를 이중 적용 (spec §7.2 "이중 적용" 부합). `timeoutHandle` 의 `clearTimeout` finally (`:628-629`) 로 leak 방지.
+   - 메모리 초과: **구현 완료(#546 — isolated-vm 전환)**. ~~spec §5.3 footnote 에 `CODE_MEMORY_LIMIT` 로드맵 — 현재 `node:vm` 한계로 미구현~~ → isolated-vm 128MB 하드 리밋 초과 시 isolate hard-kill → `classifyCodeNodeError` (`code.handler.ts:371-387`) 가 `isolate.isDisposed` 로 `EXECUTION_MEMORY_EXCEEDED` 분류 → `CODE_MEMORY_LIMIT` 정규화 발행 (`LEGACY_TO_NORMALIZED` `:351`). 테스트 `code.handler.spec.ts:848-` (`describe('execute — memory limit (spec §7.2)')`). (이하 §5·§8 라인 인용은 2026-06-25 기준으로 정정됨 — 더 이상 `node:vm` 스냅샷 아님.)
 
 5. **conventions Principle 0–11 위반 패턴**:
    - Principle 1.1: `config` (raw echo) ↔ `output` (사용자 return 값 / error envelope) 직교. 부합.
    - Principle 2: `meta.success` (Code 권장), `meta.logs` (디버깅 메트릭). 부합. `meta.durationMs` 는 엔진 inject — handler return 에 없음.
    - Principle 3.2: `output.error.{code, message, details?}` envelope 표준. `details.legacyCode` / `details.stack?` 노드별 확장. 부합.
    - Principle 5: `port: 'success' | 'error'` 정적 분기. 부합.
-   - Principle 7: `rawConfigForEcho = context.rawConfig ?? config` (`:159`) 로 raw echo. expression-exclusions 가 `code` 필드를 제외 (`expression/expression-exclusions.ts:8`) — 사용자 코드는 평가되지 않으므로 raw 와 evaluated 가 동일. 부합.
+   - Principle 7: `rawConfigForEcho = context.rawConfig ?? config` (`:427`) 로 raw echo. expression-exclusions 가 `code` 필드를 제외 (`modules/execution-engine/expression/expression-exclusions.ts:7` — `code: new Set(['code'])`) — 사용자 코드는 평가되지 않으므로 raw 와 evaluated 가 동일. 부합.
    - Principle 8.2 예외: 정상 시 `output` root 자유 형태 (spec footnote 명시). 에러 시 `output.error.*` envelope. 합리적 분기.
-   - Principle 11: `output: undefined` 시 JSON 예시에서 생략 (`code.handler.spec.ts:175-183` 가 검증). 부합.
+   - Principle 11: `output: undefined` 시 JSON 예시에서 생략 (`code.handler.spec.ts:198-` `'should return undefined output when code returns nothing'` 가 검증). 부합.
 
-6. **handler 테스트 (`code.handler.spec.ts`)**:
-   - validate 7건 (`:23-81`) — spec §6 표 row 5종 모두 커버 + empty code 시 syntax check 미실행 보장.
-   - execute basic 11건 (`:83-217`) — 동기/비동기, top-level await, runtime throw 정규화, deprecated `meta.error/errorCode/stack` 미발생 검증, config echo 정상/에러 양쪽.
-   - **security 11건** (`:219-317`) — `require` / `process` / `global` / `Buffer` / `fetch` / `setTimeout` / `setInterval` / `setImmediate` / `Reflect` / `Proxy` / `globalThis` / dynamic `import()` / `eval` / `new Function` / approved globals / console.log 캡처 / 100줄 cap 모두 검증.
-   - timeout 2건 (`:319-355`) — 동기 무한루프 (vm timeout) / 비동기 무한 대기 (Promise.race) 모두 `CODE_TIMEOUT` 정규화.
-   - `$vars` atomic replace 2건 (`:357-378`) — 정상 시 전체 교체, throw 시 롤백.
-   - **누락**: spec §2.1 의 `$node` (현재 노드 메타데이터 `{id, label}`) 및 §2.2 의 `$helpers` (date/crypto/uuid/base64) 가 sandbox 에 노출되는지 검증하는 테스트 부재 — 다음 §8 gap 참고.
+6. **handler 테스트 (`code.handler.spec.ts`)** (라인은 #546·#434·#563 이후 재배치):
+   - validate (`describe('validate')` `:27-`) — spec §6 표 row 모두 커버 + empty code 시 syntax check 미실행 보장.
+   - execute basic (`describe('execute — basic')` `:106-`) — 동기/비동기, top-level await, runtime throw 정규화, deprecated `meta.error/errorCode/stack` 미발생 검증, config echo 정상/에러 양쪽.
+   - **security** (`describe('execute — security restrictions')` `:242-`) — `setTimeout` / `setInterval` / `setImmediate` (`:249-251`) / `require` / `process` / `global` / `Buffer` / `fetch` / `Reflect` / `Proxy` / `globalThis` / dynamic `import()` / `eval` / `new Function` / approved globals / console.log 캡처 / 100줄 cap 모두 검증. + isolated-vm host-realm isolation (`:611-`).
+   - timeout (`describe('execute — timeouts')` `:367-`) — 동기 무한루프 (isolate timeout) / 비동기 무한 대기 (Promise.race) 모두 `CODE_TIMEOUT` 정규화.
+   - `$vars` atomic replace (`describe('execute — \$vars atomic replace')` `:405-`) — 정상 시 전체 교체, throw 시 롤백.
+   - **(2026-06-25) 해소** — 구 "누락" (spec §2.1 `$node` / §2.2 `$helpers` 노출 검증 테스트 부재) 은 PR #434/#563 으로 추가됨: `describe('execute — \$node (spec §2.1)')` (`:453-`), `describe('execute — \$helpers (spec §2.2)')` (`:476-`, crypto.hash hex digest / base64 round-trip / 비문자열 TypeError / 무효 알고리즘 / invalid base64 silent-string 포함). 추가로 memory limit (`describe('execute — memory limit (spec §7.2)')` `:848-`), `resolveMemoryLimitMb` (`:888-`), `classifyCodeNodeError` 스푸핑 방어 (`:931-`) 까지 커버.
 
 7. **횡단 일관성 (Data 2종)**:
    - Transform / Code 모두 정상 시 `output` root 자유 형태 — "shape 자유" 패턴 일관 (Principle 8.2 예외 두 노드 동일).
    - Code 만 runtime 에러 포트 (`error`) 보유. Transform 은 pre-flight throw 만. 차이는 시멘틱 (Code = 외부 I/O 동급 신뢰성, Transform = 순수 변형) 으로 정당.
    - `meta.success` 가 Code 만 사용 (Transform 은 `operationsApplied`/`operationsSkipped`). spec Data 공통 §4 의 카테고리별 패턴 차이 일치.
 
-8. **구현 품질 — sandbox 안전성 (gap 발견)**:
-   - **gap (a) — `$node` / `$helpers` 미주입**: `buildSandbox` (`code.handler.ts:35-90`) 는 `$input` / `$vars` / `$execution` / `console` / 기본 globals 만 주입한다. **spec §2.1 의 `$node` (현재 노드 메타데이터 `{id, label}`) 와 §2.2 의 `$helpers` (`date`/`crypto.hash`/`crypto.uuid`/`base64.encode`/`base64.decode`) 는 sandbox 에 노출되지 않는다**. 사용자가 코드에서 `$node` / `$helpers` 를 참조하면 `ReferenceError` 발생 → runtime 에러로 분기됨. spec §2.1 / §2.2 / §7.3 "허용" 표가 약속하는 컨텍스트와 불일치.
-   - **gap (c) — 명시 셰도잉 누락**: spec §7.3 "차단" 표는 `setTimeout` / `setInterval` / `setImmediate` 를 "비결정적 스케줄링 차단 (Promise.race 타임아웃 흐름 단순화)" 으로 명시하지만 `buildSandbox` 의 셰도잉 목록 (`:78-89`) 에는 이 셋이 없다. 테스트 (`code.handler.spec.ts:226-228`) 는 셋 다 `result.meta.success === false` 만 확인 — 실제로는 `node:vm` 의 격리 context 가 host globals 를 노출하지 않기 때문에 `setTimeout` 등이 `undefined` 라 `TypeError` 가 발생해 통과한다. 즉 우연한 통과이지 명시 차단이 아니다. spec 의 의도 (셰도잉으로 명시 차단) 와 실제 동작 (격리 context 의 기본 동작에 의존) 사이의 의도 차이.
-   - **이중 타임아웃 (spec §7.2 부합)**: vm.Script timeout 옵션 (sync 무한루프) + outer `Promise.race` 의 `setTimeout` reject (async 무한 대기). `timeoutHandle` 의 `clearTimeout` finally 블록 (`:220-222`) 으로 leak 방지.
-   - **`$vars` 보호**: `deepClone(context.variables)` (`:135`) 로 격리. 정상 종료 시 `context.variables = varsClone` (`:194`) — 전체 교체 (spec §4.5 부합). throw 시 `context.variables` 미변경 (롤백).
-   - **codeGeneration 차단**: `vm.createContext(sandbox, { codeGeneration: { strings: false, wasm: false } })` (`:143-145`) — `eval` / `new Function` / WASM 차단. spec §7.1 표와 일치.
-   - **dynamic import / require / fetch**: `vm.createContext` 가 모듈 로더를 제공하지 않으므로 dynamic `import(...)` 는 SyntaxError, `require` / `fetch` 는 `ReferenceError`. 테스트 검증 완료.
-   - **isolated-vm 전환: 구현 완료(#546)** — ~~로드맵 (`isolated-vm` 또는 컨테이너): 현재 미구현~~. host 탈출 차단 + 128MB 메모리 하드 리밋이 isolated-vm 으로 도입됨 (P0 보안, refactor 04 C-2/M-2). 위 `node:vm`(`vm.createContext`/`codeGeneration`) 기준 서술은 #546 이전 스냅샷.
+8. **구현 품질 — sandbox 안전성** (gap a/c 모두 해소; #546 isolated-vm 재작성으로 구 `buildSandbox` → `_buildIsolateContext`+`BOOTSTRAP_SOURCE` 로 분할):
+   - **gap (a) — `$node` / `$helpers` 미주입** → (2026-06-25) 해소 (PR #434): `_buildIsolateContext` (`code.handler.ts:528-595`) 가 `$node` (`{id, label}`) 를 `:548-554` 에서, `$helpers` 의 host 콜백 (`__host_hash`/`__host_uuid`/`__host_b64encode`/`__host_b64decode`) 을 `:557-571` 에서 주입하고, `BOOTSTRAP_SOURCE` (`:206-277`) 가 `$helpers = { date, crypto.{hash,uuid}, base64.{encode,decode} }` 표면을 `:227-237` 에서 IIFE 로 lexical capture 해 조립한다. `$helpers.date` 는 isolate 안에서 동작하는 dayjs UMD (`:77-127` 스냅샷) 로 realm 경계를 넘지 않는다. spec §2.1 / §2.2 / §7.3 "허용" 표와 일치. 테스트 `:453-`(`$node`), `:476-`(`$helpers`).
+   - **gap (c) — 명시 셰도잉 누락** → (2026-06-25) 해소 (PR #434): `BOOTSTRAP_SOURCE` 의 §7.3 hardening `delete` 목록 (`:256-274`) 에 `setTimeout` / `setInterval` / `setImmediate` (+ `queueMicrotask`) 가 명시적으로 포함됨 — 우연한 `undefined`/`TypeError` 의존이 아니라 명시 차단. `eval` / `Function` / `Reflect` / `Proxy` / `Symbol` / `Weak*` / `Atomics` / `SharedArrayBuffer` / `Intl` / `globalThis` 도 함께 제거. 테스트 `:249-251` 이 셋을 각각 검증.
+   - **이중 타임아웃 (spec §7.2 부합)**: `_runWithTimeout` (`:602-631`) 의 isolate CPU `timeout` 옵션 (sync 무한루프) + outer `Promise.race` 의 `setTimeout` reject (`:621-625`, async 무한 대기). host 측 `timeoutHandle` 의 `clearTimeout` finally (`:628-629`) 로 leak 방지. (이 host `setTimeout` 은 핸들러 realm — isolate 안에서 셰도잉된 사용자측 `setTimeout` 과 무관.)
+   - **`$vars` 보호**: `deepClone(context.variables)` (`:426`, `varsClone`) 로 격리. 정상 종료 시 isolate 의 최종 `$vars` 를 `copy: true` 로 읽어 `context.variables` 전체 교체 (`:461-465`, spec §4.5 부합). copy-out 실패 시 pre-exec 스냅샷(`varsClone`) 복원 (`:466-474` — 원본 보존). throw 시 `context.variables` 미변경 (롤백).
+   - **dynamic code 차단 (spec §7.1)**: `eval` / `Function` 을 `BOOTSTRAP_SOURCE` `delete` 목록 (`:256-258`) 에서 제거 — `eval` / `new Function` 차단. WASM 은 isolate 의 별도 격리 realm 으로 흡수. dynamic `import(...)` 는 isolate 가 모듈 로더 미제공으로 차단, `require` / `fetch` 는 미주입으로 `ReferenceError`. 테스트 검증 완료.
+   - **isolated-vm 전환: 구현 완료(#546, `730d9542`)** — host 탈출 차단 + 128MB 메모리 하드 리밋 (operator-tunable via `CODE_NODE_MEMORY_LIMIT_MB`, 512MB clamp — `resolveMemoryLimitMb` `:35-56`) 도입 (P0 보안, refactor 04 C-2/M-2). 메모리 초과 → isolate hard-kill → `classifyCodeNodeError` 가 `isolate.isDisposed` 로 `EXECUTION_MEMORY_EXCEEDED` 분류 (`:371-387`) → `CODE_MEMORY_LIMIT` 정규화. 구 `node:vm`(`vm.createContext`/`codeGeneration`) 기준 서술은 본 항으로 대체됨.
 
 ## 종합 개선안 (2026-05-16)
 
-- [x] (spec) `codeNodeConfigSchema` 에 `timeout` 필드 추가 확정 → 커밋 8419923b 에서 (a) 노선으로 구현. `z.number().default(30).meta({ ui: { label: 'Timeout (sec)', widget: 'number', min: 1, max: 120 } })` 추가. 근거: spec `2-code.md:9-17` ↔ `code.schema.ts:37-57`.
-- [x] (impl) `codeNodeConfigSchema` 에 `timeout` 필드 구현 완료 — 커밋 8419923b. `validateCodeConfig` 의 imperative 검증과 병존. `DEFAULT_TIMEOUT_SEC` 상수를 schema 에서 export 하여 handler 에서 참조 (INFO-6 해소).
-- [x] (impl) `buildSandbox` 에 `$node` 와 `$helpers` 주입 완료 — 커밋 8419923b. `$helpers` 는 `HelpersApi` typed interface 로 강화, `crypto.hash` 알고리즘 화이트리스트 + 타입 가드 추가.
-- [x] (impl) `buildSandbox` 의 명시 셰도잉 목록에 `setTimeout` / `setInterval` / `setImmediate` 추가 완료 — 커밋 8419923b.
-- [x] (impl) `code.handler.spec.ts` 에 `$node` / `$helpers` 테스트 추가 완료 — 커밋 8419923b. + 추가: crypto.hash 무효 알고리즘/타입, base64 silent-failure, date invalid, host-realm isolation 테스트.
+- [x] (spec) `codeNodeConfigSchema` 에 `timeout` 필드 추가 확정 → (a) 노선으로 구현. `z.number().default(DEFAULT_TIMEOUT_SEC).meta({ ui: { label: 'Timeout (sec)', widget: 'number', min: 1, max: 120 } })` 추가. — ✅ (2026-06-25) `code.schema.ts:64-69` ↔ spec `2-code.md` §1 표, PR #434. (구 기록의 커밋 `8419923b` 은 squash 으로 git 부재 — 실 머지는 `a7097a78`.)
+- [x] (impl) `codeNodeConfigSchema` 에 `timeout` 필드 구현 완료. `validateCodeConfig` 의 imperative 검증과 병존. `DEFAULT_TIMEOUT_SEC` 상수를 schema 에서 export 하여 handler 에서 참조 (INFO-6 해소). — ✅ (2026-06-25) `code.schema.ts:39` (export) · `:64-69` (필드) · `:90-107` (validate), handler 참조 `code.handler.ts:12, 421-422`, PR #434.
+- [x] (impl) sandbox 에 `$node` 와 `$helpers` 주입 완료. `$helpers` 는 host 콜백 + isolate-realm 조립, `crypto.hash` 알고리즘 화이트리스트 + 타입 가드 추가. — ✅ (2026-06-25) #546 isolated-vm 재작성 후 `_buildIsolateContext` (`code.handler.ts:548-571`) + `BOOTSTRAP_SOURCE` (`:227-237`); `ALLOWED_HASH_ALGORITHMS` 화이트리스트 `:64-70`, `hostHash` 타입 가드 `:144-159`, PR #434(주입)·#546(isolated-vm)·#563(base64 TypeError).
+- [x] (impl) 명시 셰도잉 목록에 `setTimeout` / `setInterval` / `setImmediate` 추가 완료. — ✅ (2026-06-25) `BOOTSTRAP_SOURCE` §7.3 hardening `delete` 목록 `code.handler.ts:269-271` (+`queueMicrotask` `:272`), PR #434.
+- [x] (impl) `code.handler.spec.ts` 에 `$node` / `$helpers` 테스트 추가 완료. + 추가: crypto.hash 무효 알고리즘/타입, base64 비문자열 TypeError, invalid base64 silent-string, host-realm isolation, memory-limit 테스트. — ✅ (2026-06-25) `$node` `code.handler.spec.ts:453-`, `$helpers` `:476-`, base64 비문자열 `:512-`, 무효 알고리즘 `:562-`, silent-string `:599-`, host-realm `:611-`, memory-limit `:848-`, PR #434·#546·#563.
