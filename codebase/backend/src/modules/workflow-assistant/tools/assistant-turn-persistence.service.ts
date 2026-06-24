@@ -7,6 +7,29 @@ import {
 } from '../entities/workflow-assistant-message.entity';
 
 /**
+ * 한 assistant 턴에 실리는 토큰 사용량 스냅샷. SSE `usage` 이벤트
+ * (`AssistantStreamEvent`) 와 동형이며, persist 시 entity `usage` 컬럼에
+ * 그대로 기록된다.
+ */
+export interface UsageSnapshot {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  thinkingTokens?: number;
+  model: string;
+}
+
+/**
+ * Stall 자동 복구로 한 턴이 여러 row 로 쪼개질 때, 각 row 가 "복구 이후
+ * 새로 시작된 row" 인지 표시하는 메타. entity 필드명과 1:1 대응한다.
+ */
+export interface ResumeMeta {
+  autoResumed: boolean;
+  autoResumeReason: AutoResumeReason | null;
+  autoResumeAttempt: number | null;
+}
+
+/**
  * `persistAssistantTurn` 이 요구하는 resumeMeta literal object 를 한 곳에서
  * 생성한다. 기존에는 세 persist 경로(라운드 한도 초과 / 에러 / 최종 정상
  * 종료) 에서 같은 삼항 패턴을 복붙하던 것을 통합 (review W-11).
@@ -19,11 +42,7 @@ import {
  * derive 해 `persistAssistantTurn` 에 넘기는 leaf 헬퍼. persist 본체와 한
  * 파일에 둬 두 곳에서 공유한다 (M-3 3단계 — 무상태 collaborator 분리).
  */
-export function makeResumeMeta(stallRounds: number): {
-  autoResumed: boolean;
-  autoResumeReason: AutoResumeReason | null;
-  autoResumeAttempt: number | null;
-} {
+export function makeResumeMeta(stallRounds: number): ResumeMeta {
   if (stallRounds <= 0) {
     return {
       autoResumed: false,
@@ -79,31 +98,27 @@ export class AssistantTurnPersistenceService {
     }
   }
 
+  /**
+   * assistant 턴 한 row 를 저장한다. 누적 텍스트·toolCalls·plan·usage·
+   * finishReason 와 stall 복구 메타를 받아 entity 필드로 그대로 append 한다
+   * (`appendMessage` 가 `Partial<WorkflowAssistantMessage>` 를 수용).
+   *
+   * `finishReason` 은 의도적으로 `string` — provider 가 돌려주는 원본
+   * finishReason(`'stop'`/`'tool_calls'`/`'length'`/`'content_filter'`/
+   * `'aborted'`)과 서버 합성 마커(`'error'`/`'auto_resume_pending'`)가 모두
+   * 흘러들고, entity 컬럼도 `string | null` 이라 strict union 으로 좁히면
+   * 누락 케이스가 생긴다.
+   *
+   * @param resumeMeta stall 복구 row 표시 메타. 기본은 정상 단일 row 용.
+   */
   async persistAssistantTurn(
     sessionId: string,
     content: string,
     toolCalls: AssistantToolCallRecord[],
     plan: AssistantPlanRecord | null,
-    usage:
-      | {
-          inputTokens: number;
-          outputTokens: number;
-          totalTokens: number;
-          thinkingTokens?: number;
-          model: string;
-        }
-      | null
-      | undefined,
+    usage: UsageSnapshot | null | undefined,
     finishReason: string,
-    // Stall 자동 복구로 한 턴이 여러 row 로 쪼개질 때, 이 row 가 "복구 이후
-    // 새로 시작된 row" 인지 표시하는 메타. 기본값은 정상 단일 row 용.
-    // `appendMessage` 가 `Partial<WorkflowAssistantMessage>` 를 수용하므로
-    // 여기서 entity 필드명 그대로 전달하면 TypeORM 이 DB 컬럼에 기록한다.
-    resumeMeta: {
-      autoResumed: boolean;
-      autoResumeReason: AutoResumeReason | null;
-      autoResumeAttempt: number | null;
-    } = makeResumeMeta(0),
+    resumeMeta: ResumeMeta = makeResumeMeta(0),
   ): Promise<void> {
     await this.sessionService.appendMessage(sessionId, {
       role: 'assistant',

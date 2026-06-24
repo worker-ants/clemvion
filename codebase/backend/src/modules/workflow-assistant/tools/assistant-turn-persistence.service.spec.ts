@@ -89,6 +89,11 @@ describe('AssistantTurnPersistenceService.persistUserTurn', () => {
     const { service, sessionService } = makeService();
     await service.persistUserTurn('sess-1', '   \n\t  ', null);
     expect(sessionService.setTitleIfEmpty).not.toHaveBeenCalled();
+    // title 은 건너뛰지만 user 메시지 append 자체는 원문 그대로 일어난다.
+    expect(sessionService.appendMessage).toHaveBeenCalledWith('sess-1', {
+      role: 'user',
+      content: '   \n\t  ',
+    });
   });
 });
 
@@ -168,5 +173,43 @@ describe('AssistantTurnPersistenceService.persistAssistantTurn', () => {
     );
     const row = sessionService.appendMessage.mock.calls[0][1];
     expect(row.usage).toEqual(usage);
+  });
+
+  it('preserves the optional thinkingTokens field on the usage snapshot', async () => {
+    const { service, sessionService } = makeService();
+    const usage = {
+      inputTokens: 10,
+      outputTokens: 20,
+      totalTokens: 30,
+      thinkingTokens: 5,
+      model: 'gpt-4o',
+    };
+    await service.persistAssistantTurn(
+      'sess-1',
+      'text',
+      [],
+      null,
+      usage,
+      'stop',
+    );
+    const row = sessionService.appendMessage.mock.calls[0][1];
+    expect(row.usage).toEqual(usage);
+    expect(row.usage.thinkingTokens).toBe(5);
+  });
+
+  it('passes through provider-opaque finishReason values (e.g. length) unchanged', async () => {
+    // finishReason 은 strict union 이 아니라 string — provider 원본
+    // (`'length'`/`'content_filter'`/`'aborted'`)이 그대로 흘러야 한다.
+    const { service, sessionService } = makeService();
+    await service.persistAssistantTurn(
+      'sess-1',
+      'text',
+      [],
+      null,
+      null,
+      'length',
+    );
+    const row = sessionService.appendMessage.mock.calls[0][1];
+    expect(row.finishReason).toBe('length');
   });
 });

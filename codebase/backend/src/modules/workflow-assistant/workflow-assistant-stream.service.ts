@@ -38,6 +38,10 @@ import {
   isPlanPendingApproval,
 } from './tools/active-plan-context';
 import { recoverLeakedPlan } from './tools/recover-leaked-plan';
+// `makeResumeMeta` 는 persist 모듈의 leaf 헬퍼지만 streamMessage 가 의도적으로
+// 공유 import 한다 — turn-scoped stall 카운터(`totalStallCount`)를 소유한 쪽이
+// streamMessage 이므로, 메타 derive 는 호출부에서 하고 persist 는 그 결과만
+// 받는 무상태 collaborator 경계를 유지한다 (1·2단계와 동일 패턴).
 import {
   AssistantTurnPersistenceService,
   makeResumeMeta,
