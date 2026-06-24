@@ -3817,9 +3817,20 @@ export class ExecutionEngineService
   /**
    * Cancel a waiting execution by rejecting the pending continuation.
    * cancel 은 nodeExecutionId 불필요 (rehydration 대상 아님).
+   *
+   * C-1 (06-concurrency, refactor 백로그) — 4종 continuation 메서드와 동일하게
+   * `ContinuationPublishResult` 를 반환한다 (옛 `void publish` fire-and-forget 의
+   * 에러 유실 제거). publish 실패(`queued:false`) 는 caller (REST `stop()`) 가
+   * 동기 surface 한다 — WS §4.2 `queued:false` 재시도 계약 준용.
    */
-  cancelWaitingExecution(executionId: string): void {
-    void this.continuationBus.publish({ type: 'cancel', executionId });
+  async cancelWaitingExecution(
+    executionId: string,
+  ): Promise<ContinuationPublishResult> {
+    const jobId = await this.continuationBus.publish({
+      type: 'cancel',
+      executionId,
+    });
+    return ExecutionEngineService.buildPublishResult(jobId);
   }
 
   async continueButtonClick(

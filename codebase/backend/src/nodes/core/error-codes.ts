@@ -79,8 +79,12 @@ export const ErrorCode = {
   //    fixed generic string instead.
   //  - EXECUTION_MESSAGE_TOO_LONG: `submit_message` exceeded the max message length
   //    (publisher-side sync validation, typed `MessageTooLongError`).
+  //  - EXECUTION_ENQUEUE_FAILED: continuation publish (BullMQ enqueue) failed — Redis
+  //    dependency outage. Surfaced synchronously as `queued:false`; the REST `stop()`
+  //    WAITING cancel path maps it to 503 (retryable upstream failure). C-1 (06-concurrency).
   EXECUTION_INTERNAL_ERROR: 'EXECUTION_INTERNAL_ERROR',
   EXECUTION_MESSAGE_TOO_LONG: 'EXECUTION_MESSAGE_TOO_LONG',
+  EXECUTION_ENQUEUE_FAILED: 'EXECUTION_ENQUEUE_FAILED',
   // Interaction / blocking — user-cancellation & timeout on presentation
   // or AI-conversation waits. Presentation node engine paths raise these
   // when a `waitFor*` promise is rejected externally.

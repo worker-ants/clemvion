@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
+  ServiceUnavailableException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -723,11 +724,23 @@ export class ExecutionsService {
     }
 
     if (execution.status === ExecutionStatus.WAITING_FOR_INPUT) {
-      // cancelWaitingExecution 은 ContinuationBusService.publish 로 fan-out
-      // 한다 — 호스팅 인스턴스가 reject 핸들러를 비동기 수행하므로 여기서
-      // 즉시 re-fetch 한 결과는 아직 PENDING/RUNNING 일 수 있다. 클라이언트는
-      // websocket 으로 후속 CANCELLED 이벤트를 수신해 화면을 갱신한다 (PR-B).
-      this.executionEngineService.cancelWaitingExecution(id);
+      // cancelWaitingExecution 은 ContinuationBusService.publish 로 fan-out 한다.
+      // C-1 (06-concurrency) — publish 결과를 동기 surface 한다 (옛 fire-and-forget
+      // 의 에러 유실 제거). queued=false 는 Redis 장애로 enqueue 자체가 실패한
+      // 케이스 → 503 으로 클라이언트 재시도를 유도한다 (api-convention §6 — Redis
+      // 의존성 장애 = upstream 불가용이므로 502 가 아닌 503). 성공(queued=true) 시:
+      // 호스팅 인스턴스가 reject 핸들러를 비동기 수행하므로 즉시 re-fetch 결과는
+      // 아직 PENDING/RUNNING 일 수 있다 — 클라이언트는 websocket 후속 CANCELLED
+      // 이벤트로 화면을 갱신한다 (PR-B).
+      const result =
+        await this.executionEngineService.cancelWaitingExecution(id);
+      if (!result.queued) {
+        throw new ServiceUnavailableException({
+          code: 'EXECUTION_ENQUEUE_FAILED',
+          message:
+            'Cancel could not be queued (continuation bus unavailable). Please retry.',
+        });
+      }
       const updated = await this.executionRepository.findOne({ where: { id } });
       return updated ?? execution;
     }

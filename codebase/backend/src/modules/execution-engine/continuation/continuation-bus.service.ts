@@ -149,33 +149,33 @@ export class ContinuationBusService {
    * monotonic 증가 seq per executionId. Redis INCR — 동시 호출에서도 단조
    * 증가 보장. 같은 executionId 의 두 publish 가 같은 seq 를 받으면 jobId
    * 가 같아져 BullMQ 가 두 번째를 중복으로 거부한다 (idempotency 1단 가드).
+   *
+   * (`ConversationThread.nextSeq` 와 동명이나 무관 — 이쪽은 Redis seq 생성기.)
+   *
+   * M-7 (06-concurrency, refactor 백로그) — INCR 실패는 catch 하지 않고 그대로
+   * 전파해 `publish` 의 outer catch 가 `null`(= `queued:false`) 을 반환하게 한다.
+   * 옛 random fallback (`Math.random` 기반 seq) 은 spec §7.4 "seq = idempotency
+   * key"·§9.2 "단조성 보존" 의 결정적 계약을 위반했다 — random seq 는 jobId 충돌
+   * dedup 을 무력화하고 단조성을 깨뜨린다. 게다가 BullMQ 자체가 Redis 라 INCR 가
+   * 실패하는 장애에선 직후 `queue.add` 도 실패할 공산이 커 fallback 의 가용성
+   * 실익이 사실상 없다. fail-fast 가 WS §4.2 `queued:false` 재시도 경로와 정합.
    */
   private async nextSeq(executionId: string): Promise<number> {
     const key = `${ContinuationBusService.SEQ_KEY_PREFIX}${executionId}`;
-    try {
-      const client = this.getLockClient();
-      const seq = await client.incr(key);
-      // G3 (spec §9.2) — sliding-window TTL. 매 publish 가 만료 시계를 갱신.
-      // EXPIRE 실패는 이미 성공한 INCR (= 유효 seq) 를 무효화하지 않도록 swallow
-      // — 다음 publish 가 TTL 을 다시 시도하므로 누수는 일시적.
-      await client.expire(key, this.seqKeyTtlSeconds).catch((err: unknown) => {
-        this.logger.warn(
-          `seq 키 EXPIRE 설정 실패 (${ContinuationBusService.sanitizeForLog(
-            executionId,
-          )}): ${err instanceof Error ? err.message : String(err)}`,
-        );
-        return 0;
-      });
-      return seq;
-    } catch (err) {
+    const client = this.getLockClient();
+    const seq = await client.incr(key);
+    // G3 (spec §9.2) — sliding-window TTL. 매 publish 가 만료 시계를 갱신.
+    // EXPIRE 실패는 이미 성공한 INCR (= 유효 seq) 를 무효화하지 않도록 swallow
+    // — 다음 publish 가 TTL 을 다시 시도하므로 누수는 일시적.
+    await client.expire(key, this.seqKeyTtlSeconds).catch((err: unknown) => {
       this.logger.warn(
-        `nextSeq Redis INCR 실패 (${ContinuationBusService.sanitizeForLog(
+        `seq 키 EXPIRE 설정 실패 (${ContinuationBusService.sanitizeForLog(
           executionId,
-        )}): ${err instanceof Error ? err.message : String(err)} — fallback random seq`,
+        )}): ${err instanceof Error ? err.message : String(err)}`,
       );
-      // fallback: random 16-bit seq. 충돌 확률 매우 낮으나 결정적 보장 없음.
-      return Math.floor(Math.random() * 65536) + 1_000_000;
-    }
+      return 0;
+    });
+    return seq;
   }
 
   /**

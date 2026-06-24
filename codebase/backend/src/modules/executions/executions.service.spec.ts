@@ -1,3 +1,5 @@
+import { ServiceUnavailableException } from '@nestjs/common';
+
 import {
   ExecutionsService,
   MAX_EXECUTION_PATH_ROWS,
@@ -135,7 +137,12 @@ describe('ExecutionsService', () => {
       createQueryBuilder: jest.fn(() => buildNodeCountQB([])),
     } as unknown as typeof nodeExecutionRepo;
     executionNodeLogRepo = { find: jest.fn().mockResolvedValue([]) };
-    engine = { cancelWaitingExecution: jest.fn() };
+    engine = {
+      // C-1 — cancelWaitingExecution 은 async + ContinuationPublishResult 반환.
+      cancelWaitingExecution: jest
+        .fn()
+        .mockResolvedValue({ queued: true, jobId: 'job-cancel' }),
+    };
     service = new ExecutionsService(
       executionRepo as never,
       nodeExecutionRepo as never,
@@ -654,6 +661,49 @@ describe('ExecutionsService', () => {
       );
       expect(triggerNe?.status).toBe('completed'); // 변경 없음
       expect(carouselNe?.status).toBe('waiting_for_input'); // 정규화 적용
+    });
+  });
+
+  // C-1 (06-concurrency) — WAITING 실행 stop 은 cancelWaitingExecution 의 publish
+  // 결과를 동기 surface 한다. queued=false (Redis 장애) 면 503 으로 재시도 유도.
+  describe('stop — WAITING_FOR_INPUT cancel (C-1)', () => {
+    it('queued=true 면 cancel 후 갱신된 execution 을 반환 (throw 없음)', async () => {
+      const waiting = baseFake({
+        id: 'eW-ok',
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+      });
+      const afterCancel = baseFake({
+        id: 'eW-ok',
+        status: ExecutionStatus.RUNNING,
+      });
+      executionRepo.findOne
+        .mockResolvedValueOnce(waiting as unknown) // 최초 lookup
+        .mockResolvedValueOnce(afterCancel as unknown); // cancel 후 re-fetch
+      // engine.cancelWaitingExecution 기본 mock = { queued: true } (beforeEach).
+
+      const result = await service.stop('eW-ok');
+      expect(engine.cancelWaitingExecution).toHaveBeenCalledWith('eW-ok');
+      expect(result).toBe(afterCancel);
+    });
+
+    it('queued=false 면 503 EXECUTION_ENQUEUE_FAILED throw (publish 실패 surface)', async () => {
+      const waiting = baseFake({
+        id: 'eW-503',
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+      });
+      executionRepo.findOne.mockResolvedValueOnce(waiting as unknown);
+      engine.cancelWaitingExecution.mockResolvedValueOnce({
+        queued: false,
+        jobId: null,
+      });
+
+      const err = await service.stop('eW-503').catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ServiceUnavailableException);
+      expect((err as ServiceUnavailableException).getStatus()).toBe(503);
+      expect((err as ServiceUnavailableException).getResponse()).toMatchObject({
+        code: 'EXECUTION_ENQUEUE_FAILED',
+      });
+      expect(engine.cancelWaitingExecution).toHaveBeenCalledWith('eW-503');
     });
   });
 });

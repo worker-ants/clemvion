@@ -75,7 +75,9 @@ describe('WebsocketGateway', () => {
             endAiConversation: jest
               .fn()
               .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
-            cancelWaitingExecution: jest.fn(),
+            cancelWaitingExecution: jest
+              .fn()
+              .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
             publishRetryLastTurn: jest
               .fn()
               .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
