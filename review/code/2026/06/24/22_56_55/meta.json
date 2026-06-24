@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-06-24T22:56:55.402508",
+  "files": [
+    {
+      "file_path": "codebase/frontend/src/app/(main)/web-chat/__tests__/web-chat-page.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
