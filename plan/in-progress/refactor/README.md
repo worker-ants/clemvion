@@ -19,15 +19,15 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | [01-performance.md](./01-performance.md) | 15 | 10 | 5 (1철회 #9 + 4종결 #11·#12·#13·#15) | **0** | 0 | ✅ 2026-06-10 완료: 구현 10건(perf-backlog-01) + 종결 4건. spec 동기화 = `plan/complete/spec-update-perf-backlog-01.md` |
 | [02-architecture.md](./02-architecture.md) | 15 | 10 | 0 | 5 | 2 (C-2, M-5) | C-1(엔진분할 PR #622–627)·M-1·M-2·M-6(#660)·M-7·M-8·M-9·m-1·m-2·m-3 완료. 잔여(진행중): C-2(5클러스터 중 4 처리, #676 로 클러스터5 해소 — 클러스터4 llm↔model-config 만 별건 잔여)·M-5(레이어1)·C-3·M-3, M-4(미착수) |
-| [03-maintainability.md](./03-maintainability.md) | 15 | 3 (M-6·m-2 PR #522 + M-2 API_BASE_URL) | 1 (철회 M-3) | 11 | 2 (C-3, M-4) | dead-code 제거 2건 + M-2(frontend API_BASE_URL 통합·3001→3011) 외 대부분 미착수. cafe24/makeshop 미러(DRY-deferral) |
+| [03-maintainability.md](./03-maintainability.md) | 15 | 4 (M-6·m-2 PR #522 + M-2 API_BASE_URL + C-2 ai-turn-executor 분해 #697·2차) | 1 (철회 M-3) | 10 | 2 (C-3, M-4) | dead-code 제거 2건 + M-2(API_BASE_URL 3001→3011) + C-2(ai-agent god-method §6.1/§6.2 분해) 외 대부분 미착수. cafe24/makeshop 미러(DRY-deferral) |
 | [04-security.md](./04-security.md) | 14 | **14** | 0 | **0** | 0 | ✅ 2026-06-16 전 항목 종결: 코드+spec 머지(PR #570·prod-fail-closed-guards 등). isolated-vm 전환·SSRF 가드·WS authorizer |
 | [05-database.md](./05-database.md) | 15 | 11 | 2 (철회 M-6·m-2) | 2 (m-4·m-5 보류) | 1 (m-5) | ✅ 핵심 11건 완료(2026-06-14 batch): rotation 원자화·partial 인덱스·CTE. m-4·m-5 보류 |
 | [06-concurrency.md](./06-concurrency.md) | 15 | 5 (M-1·M-5·C-1·M-7·M-2) | 3 (철회 m-1·m-2·m-4) | 7 | 1 (C-2) | M-1·M-5·C-1·M-7·M-2(shutdown 추적 드리프트) 완료 외 7건 미착수. rehydrate 가드 |
 | [07-dependency.md](./07-dependency.md) | 15 | 10 | 5 (3철회 M-1·M-3·m-3 + 2종결 m-5·m-7) | **0** | 0 | ✅ 2026-06-17 완료: C-1·C-2(deps-security-hygiene) + 잔여 8건 → [07-dependency-residual.md](./07-dependency-residual.md) |
-| **합계** | **104** | **63** | **16** (10철회 + 6종결) | **25** | **6** | |
+| **합계** | **104** | **64** | **16** (10철회 + 6종결) | **24** | **6** | |
 
 > **완료** = 구현·머지 또는 결정 종결(코드/spec 변경 동반). **철회·종결** = 코드 변경 없이 닫음 (철회=E 사실관계 반증 / 종결=no-action·현상유지). **잔여(미완)** = 미착수·진행중·보류 (`[ ]` 또는 `[~]`). **⚠️ A-잔존** = 잔여 중 spec/plan 이 의도된 설계로 문서화했으나 여전히 문제로 남은 항목 (착수·번복은 **사용자 결정 대상**; 결정 상태는 각기 다름 — 상세는 아래 「⚠️ 의도된 설계지만 문제」 절).
-> 완료(63) + 철회·종결(16) + 잔여(25) = 104. 처리 종료(완료+철회·종결) = 79/104.
+> 완료(64) + 철회·종결(16) + 잔여(24) = 104. 처리 종료(완료+철회·종결) = 80/104.
 > 철회 항목은 삭제하지 않고 `[x]` + 철회 사유(반증 근거)로 보존.
 
 ## spec 대조가 바꾼 주요 사실 (요약)
@@ -39,7 +39,7 @@
 
 ## 종합 우선순위 (P0 → P2, spec 대조 반영)
 
-> **진행 현황 (2026-06-24)**: P0 5건 전부 ✅ 완료. P1 은 6·7·9·10·11·12 완료, 8 잔여. P2 는 13(엔진분할) 완료, 14(forwardRef)는 진행중(M-7·클러스터5 완료·#676, 클러스터4 별건), 15·16·17·18 잔여.
+> **진행 현황 (2026-06-24)**: P0 5건 전부 ✅ 완료. P1 은 6·7·9·10·11·12 완료, 8 잔여. P2 는 13(엔진분할)·16(ai-agent 분해) 완료, 14(forwardRef)는 진행중(M-7·클러스터5 완료·#676, 클러스터4 별건), 15·17·18 잔여.
 
 ### P0 — 보안·데이터 정합 즉시 대응 (단독 PR) — ✅ 전건 완료
 
@@ -64,7 +64,7 @@
 13. ~~**엔진 분할**~~ ✅ 완료 (C-1 5단계 PR #622–627, m-3 NodeBootstrapService = step1) → [02](./02-architecture.md) C-1·m-3
 14. **forwardRef — 클러스터별 개별 처리** *(진행중)* — ~~M-7 authorizer 역전(클러스터2·3)~~ ✅(2026-06-21 `m7-channel-authorizer-inversion`), ~~클러스터5 chat-channel↔triggers~~ ✅(#676), 클러스터1 엔진↔WS 는 spec 의도라 **유지**; 잔여 클러스터4(llm↔model-config) 별건 → [02](./02-architecture.md) C-2 ⚠️·M-7
 15. **cafe24/makeshop Base 클라이언트 통합** — DRY-deferral 결정 정리 선행, spec 명시 비대칭 5종은 policy 주입으로 통합 금지 → [03](./03-maintainability.md) C-3 ⚠️·M-4 ⚠️ *(결정대기)*
-16. **ai-agent 파이프라인 분리** — spec §6.2 단계 번호와 1:1 정렬 → [03](./03-maintainability.md) C-2 *(잔여)*
+16. ~~**ai-agent 파이프라인 분리** — spec §6.1/§6.2 단계 번호와 정렬~~ ✅ 완료 (1차 #697 setup 분해, 2차 god-method 6 helper + TurnOutputAccumulators 번들) → [03](./03-maintainability.md) C-2
 17. **park-진입 dispatch 추출** — PR #507 resume registry 와 대칭(`ParkEntryDispatch`) → [02](./02-architecture.md) M-4 *(잔여)*
 18. **ExecutionContext 스케일아웃** — 독립 작업화 금지, exec-intake PR3 연동 → [06](./06-concurrency.md) C-3 *(잔여)*
 
