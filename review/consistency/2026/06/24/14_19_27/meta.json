@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T14:19:27.048479",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=system-prompt.ts Self-review skip 안내 코드 정합 완료(커밋 86cd2a97). PLAN_NOT_COMPLETE skip clause 제거 + 능동 정정 + 회귀 단언 2건. behavior-neutral. spec §10 line 958 stale finishBlockCount 는 sibling PR #685(planner)가 처리 — 본 PR 은 system-prompt.ts 짝 동기화. 대상 spec/3-workflow-editor/4-ai-assistant.md., diff-base=origin/main)",
+  "target_path": "system-prompt.ts Self-review skip 안내 코드 정합 완료(커밋 86cd2a97). PLAN_NOT_COMPLETE skip clause 제거 + 능동 정정 + 회귀 단언 2건. behavior-neutral. spec §10 line 958 stale finishBlockCount 는 sibling PR #685(planner)가 처리 — 본 PR 은 system-prompt.ts 짝 동기화. 대상 spec/3-workflow-editor/4-ai-assistant.md.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
