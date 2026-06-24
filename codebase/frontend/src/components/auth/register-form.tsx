@@ -28,8 +28,7 @@ import {
 } from "@/components/ui/card";
 import { useT, useLocale } from "@/lib/i18n";
 import { getPasswordStrength } from "@/lib/utils/password";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
+import { API_BASE_URL } from "@/lib/api/constants";
 
 function startOauth(provider: OAuthProvider) {
   window.location.href = `${API_BASE_URL}/auth/oauth/${provider}?mode=register`;

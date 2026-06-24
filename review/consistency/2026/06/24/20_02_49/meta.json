@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T20:02:49.956156",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=03-maintainability M-2: frontend API_BASE_URL 분산 정의 + 3001 to 3011 포트 fallback 정정. lib/api/constants.ts 단일 모듈로 API_BASE_URL + getServerApiBaseUrl() 통합, client.ts/assistant.ts/auth-providers.ts/login-form.tsx/register-form.tsx/ws-client.ts 6파일 교체. behavior-preserving 리팩터 + fallback 값 버그(3001 to 3011) 수정. spec 변경 불요.)",
+  "target_path": "03-maintainability M-2: frontend API_BASE_URL 분산 정의 + 3001 to 3011 포트 fallback 정정. lib/api/constants.ts 단일 모듈로 API_BASE_URL + getServerApiBaseUrl() 통합, client.ts/assistant.ts/auth-providers.ts/login-form.tsx/register-form.tsx/ws-client.ts 6파일 교체. behavior-preserving 리팩터 + fallback 값 버그(3001 to 3011) 수정. spec 변경 불요.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
