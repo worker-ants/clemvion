@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T20:51:52.933043",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=06-concurrency C-1 + M-7 함께 적용 (동일 publish 실패 표면). C-1: cancelWaitingExecution 을 async + ContinuationPublishResult 반환으로 4개 continuation 메서드와 패턴 통일, REST stop() WAITING 분기에서 queued=false 시 503(CONTINUATION_ENQUEUE_FAILED) surface. M-7: ContinuationBusService.nextSeq 의 Redis INCR 실패 random fallback 제거 → throw 전파 → publish null(queued:false) 반환 (seq idempotency key 계약 §7.4/§9.2 복원, spec 드리프트 수정). spec §7.4 1줄 + 에러코드 카탈로그 등재는 sibling planner spec-sync 로 defer (impl-first).)",
+  "target_path": "06-concurrency C-1 + M-7 함께 적용 (동일 publish 실패 표면). C-1: cancelWaitingExecution 을 async + ContinuationPublishResult 반환으로 4개 continuation 메서드와 패턴 통일, REST stop() WAITING 분기에서 queued=false 시 503(CONTINUATION_ENQUEUE_FAILED) surface. M-7: ContinuationBusService.nextSeq 의 Redis INCR 실패 random fallback 제거 → throw 전파 → publish null(queued:false) 반환 (seq idempotency key 계약 §7.4/§9.2 복원, spec 드리프트 수정). spec §7.4 1줄 + 에러코드 카탈로그 등재는 sibling planner spec-sync 로 defer (impl-first).",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

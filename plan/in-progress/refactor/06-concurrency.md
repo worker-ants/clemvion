@@ -10,7 +10,8 @@
 
 ### C-1 [Critical] `cancelWaitingExecution` fire-and-forget — 에러 유실
 
-- [ ] 미착수 — `execution-engine.service.ts:4191-4193`
+- [x] **구현 완료 (Option A, 2026-06-24, 커밋 `f9f93655`+review-fix `74101de7`·`b08c0bb7`)** — branch `claude/refactor-06-c1-m7-publish-failfast`. M-7 과 동일 publish 실패 표면(`ContinuationPublishResult`/`queued:false`) 공유로 함께 적용. `cancelWaitingExecution` 을 `void`→`async … Promise<ContinuationPublishResult>` 로 전환(4종 continuation 메서드와 통일, `buildPublishResult(jobId)`), REST `stop()` WAITING 분기는 `await` 후 `queued=false` 시 **503 `EXECUTION_ENQUEUE_FAILED`**(ErrorCode enum 등재, §11 SERVER_SHUTTING_DOWN 503 선례 준용) surface. 검증: lint·build·unit(7387, cancel async 반환·queued:false·stop WAITING 503 신규)·**e2e 214 PASS**. impl-prep `review/consistency/2026/06/24/20_51_52` BLOCK:NO · ai-review `review/code/2026/06/24/21_13_19`(Risk LOW, Critical 0/Warning 2→ErrorCode 상수·테스트 반영, RESOLUTION) · impl-done `review/consistency/2026/06/24/21_27_43` BLOCK:NO.
+  - **⏳ planner spec-sync 후속 (sibling PR, merge-gate 동행 권장)**: `4-execution-engine.md §7.4`(cancel publish 실패 동기 surface·REST stop() `queued:false`→503 행동)·`§7.5.2`(continuation 핸들러 "4종"→cancel 포함 "5종")·`§7.4 Rationale`(void→ContinuationPublishResult 결정) + `3-error-handling.md §1.4` 에러 카탈로그 `EXECUTION_ENQUEUE_FAILED` 등재 + `2-api-convention.md §6` 503 추가. developer 는 spec read-only이므로 별 planner PR — 본 impl PR 의 consistency/ai-review SPEC-DRIFT 는 이 후속으로 처리(defer).
 
 **spec 대조**: B — cancel publish 실패의 caller surface 는 spec 미정의. **단 형제 계약은 명시**: WS §4.2 "`queued: false` 면 publish 단계 실패 (Redis 장애 등) — 재시도 권장" — continuation 4종은 코드도 `ContinuationPublishResult` 반환(:4184/:4207/:4232). cancel 만 `void publish` + REST `stop()` 은 즉시 200 — §1.1 "사용자 취소 → cancelled" 보장·queued 계약의 정신과 어긋나는 예외.
 
@@ -241,7 +242,7 @@
 
 ### M-7 [Major] `ContinuationBusService.nextSeq` — Redis INCR 실패 시 random fallback
 
-- [ ] 미착수 — `continuation-bus.service.ts:188-196`
+- [x] **구현 완료 (Option A, 2026-06-24, 커밋 `f9f93655`)** — branch `claude/refactor-06-c1-m7-publish-failfast` (C-1 과 함께). `nextSeq` 의 INCR 실패 `Math.random` fallback 제거 → INCR 실패를 `publish` outer catch 로 전파 → `null`(`queued:false`) 반환. random seq 가 §7.4 "seq=idempotency key"·§9.2 단조성 계약을 위반(jobId dedup 무력화)하던 드리프트 수정. BullMQ=Redis 동반 구조상 INCR 실패 장애엔 `queue.add` 도 실패 — fallback 실익 없고 fail-fast 가 §4.2 `queued:false` 와 정합. 검증: nextSeq INCR 실패→null + enqueue 미호출 단언(unit). spec §9.2 Rationale fail-fast 근거 1줄은 C-1 의 sibling planner spec-sync 에 합류(spec 변경 불요 판정이나 Rationale 보강 권장).
 
 **spec 대조**: **C(드리프트)** — §7.4 "seq 는 Redis INCR per executionId — **idempotency key**" + §9.2 "seq 단조성은 활성 구간 내내 보존" 의 결정적 계약에서 random fallback 이 이탈. BullMQ 자체가 Redis 라 INCR 실패 장애에선 직후 `queue.add` 도 실패할 공산 — fallback 실익 거의 없음. fail-fast 가 WS §4.2 의 `queued:false` 경로와 정확히 합치.
 

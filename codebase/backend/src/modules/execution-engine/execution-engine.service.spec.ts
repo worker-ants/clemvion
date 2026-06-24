@@ -1140,12 +1140,22 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    it('cancelWaitingExecution → bus.publish({type:"cancel"})', () => {
-      service.cancelWaitingExecution('exec-2');
+    it('cancelWaitingExecution → bus.publish({type:"cancel"}) 후 ContinuationPublishResult 반환 (C-1)', async () => {
+      const result = await service.cancelWaitingExecution('exec-2');
       expect(mockBus.publish).toHaveBeenCalledWith({
         type: 'cancel',
         executionId: 'exec-2',
       });
+      // C-1 — 4종 continuation 메서드와 동일하게 publish 결과를 표면 (queued/jobId).
+      expect(result).toEqual({ queued: true, jobId: 'jobId-stub' });
+    });
+
+    it('cancelWaitingExecution — publish null(Redis 장애) 시 queued:false 반환 (C-1 fail-fast)', async () => {
+      // M-7 fail-fast → publish 가 null 반환하는 경로. cancel 도 4종과 동일하게
+      // queued:false 로 표면 (caller REST stop() 이 503 으로 surface).
+      mockBus.publish.mockResolvedValueOnce(null);
+      const result = await service.cancelWaitingExecution('exec-cancel-fail');
+      expect(result).toEqual({ queued: false, jobId: null });
     });
 
     it('continueButtonClick → bus.publish({type:"button_click", payload:{buttonId}})', async () => {
@@ -4170,7 +4180,7 @@ describe('ExecutionEngineService', () => {
       mockNodeExecutionRepo.createQueryBuilder = jest
         .fn()
         .mockReturnValue(cancelQb);
-      service.cancelWaitingExecution(executionId);
+      await service.cancelWaitingExecution(executionId);
       await flushResumeDrive();
 
       // Should emit cancelled event

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T21:27:43.178547",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=06-concurrency C-1+M-7: continuation publish 실패 fail-fast 통일. cancelWaitingExecution async+ContinuationPublishResult, stop() WAITING queued=false 503 EXECUTION_ENQUEUE_FAILED, nextSeq random fallback 제거. spec §7.4/§7.5.2 + 에러코드 카탈로그는 sibling planner spec-sync defer., diff-base=origin/main)",
+  "target_path": "06-concurrency C-1+M-7: continuation publish 실패 fail-fast 통일. cancelWaitingExecution async+ContinuationPublishResult, stop() WAITING queued=false 503 EXECUTION_ENQUEUE_FAILED, nextSeq random fallback 제거. spec §7.4/§7.5.2 + 에러코드 카탈로그는 sibling planner spec-sync defer.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

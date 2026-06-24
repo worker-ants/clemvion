@@ -149,7 +149,7 @@ describe('ContinuationBusService (Phase 2 BullMQ-based)', () => {
       expect(j2).toMatch(/^exec-3:ne-3:\d+$/);
     });
 
-    it('Redis 장애 (INCR 실패) 시 fallback random seq 로 진행 — null 반환 아님', async () => {
+    it('Redis 장애 (INCR 실패) 시 null 반환 — fail-fast (M-7: random fallback 제거)', async () => {
       // ioredis instance 의 incr 가 실패하도록 override (서비스 lazy init 이후).
       await bus.publish({
         type: 'continue',
@@ -164,8 +164,13 @@ describe('ContinuationBusService (Phase 2 BullMQ-based)', () => {
         executionId: 'exec-4',
         nodeExecutionId: 'ne-4',
       });
-      // fallback random seq 로 jobId 생성 — null 이 아닌 정상 enqueue.
-      expect(jobId).toMatch(/^exec-4:ne-4:\d+$/);
+      // M-7 — INCR 실패는 더 이상 random seq 로 silent 진행하지 않는다 (seq =
+      // idempotency key 계약, §7.4/§9.2). nextSeq throw → publish outer catch →
+      // null(queued:false) 반환. caller 가 재시도하도록 표면된다.
+      expect(jobId).toBeNull();
+      // INCR 실패 시 enqueue 시도 자체가 생략된다 (init publish 1회만 — 실패한
+      // publish 는 queue.add 호출 없이 중단).
+      expect(queueAdd).toHaveBeenCalledTimes(1);
     });
 
     it('BullMQ enqueue 자체가 실패하면 null 반환 + logger.error', async () => {
