@@ -38,12 +38,19 @@ import {
   isPlanPendingApproval,
 } from './tools/active-plan-context';
 import { recoverLeakedPlan } from './tools/recover-leaked-plan';
+// `makeResumeMeta` 는 persist 모듈의 leaf 헬퍼지만 streamMessage 가 의도적으로
+// 공유 import 한다 — turn-scoped stall 카운터(`totalStallCount`)를 소유한 쪽이
+// streamMessage 이므로, 메타 derive 는 호출부에서 하고 persist 는 그 결과만
+// 받는 무상태 collaborator 경계를 유지한다 (1·2단계와 동일 패턴).
+import {
+  AssistantTurnPersistenceService,
+  makeResumeMeta,
+} from './tools/assistant-turn-persistence.service';
 import { buildSystemPrompt } from './prompts/system-prompt';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
 import {
   AssistantToolCallRecord,
   AssistantPlanRecord,
-  AutoResumeReason,
   FINISH_REASON_AUTO_RESUME_PENDING,
   WorkflowAssistantMessage,
 } from './entities/workflow-assistant-message.entity';
@@ -134,34 +141,6 @@ const MAX_TOOL_LOOP_ROUNDS = 50;
 const MAX_STALL_ROUNDS = 2;
 
 /**
- * `persistAssistantTurn` 이 요구하는 resumeMeta literal object 를 한 곳에서
- * 생성한다. 기존에는 세 persist 경로(라운드 한도 초과 / 에러 / 최종 정상
- * 종료) 에서 같은 삼항 패턴을 복붙하던 것을 통합 (review W-11).
- *
- * `stallRounds === 0` → 정상 턴으로 간주해 autoResumed=false 의 기본값 메타.
- * `stallRounds > 0` → 이번 턴이 stall 복구로 한 번 이상 쪼개졌으므로 해당
- *   row 는 "복구 이후 새로 시작된 row" 로 표시.
- */
-function makeResumeMeta(stallRounds: number): {
-  autoResumed: boolean;
-  autoResumeReason: AutoResumeReason | null;
-  autoResumeAttempt: number | null;
-} {
-  if (stallRounds <= 0) {
-    return {
-      autoResumed: false,
-      autoResumeReason: null,
-      autoResumeAttempt: null,
-    };
-  }
-  return {
-    autoResumed: true,
-    autoResumeReason: 'stall_pending_steps',
-    autoResumeAttempt: stallRounds,
-  };
-}
-
-/**
  * Workflow AI Assistant의 대화 한 턴을 처리한다.
  *
  * 흐름:
@@ -204,6 +183,7 @@ export class WorkflowAssistantStreamService {
     private readonly handlerRegistry: NodeHandlerRegistry,
     private readonly candidateLookup: CandidateLookupService,
     private readonly finishGuard: AssistantFinishGuard,
+    private readonly turnPersistence: AssistantTurnPersistenceService,
   ) {}
 
   async *streamMessage(
@@ -291,15 +271,11 @@ export class WorkflowAssistantStreamService {
     );
 
     // user 메시지 저장 + session title 자동 생성
-    await this.sessionService.appendMessage(sessionId, {
-      role: 'user',
-      content: dto.content,
-    });
-    if (!session.title) {
-      const derived = dto.content.trim().slice(0, 40);
-      if (derived)
-        await this.sessionService.setTitleIfEmpty(sessionId, derived);
-    }
+    await this.turnPersistence.persistUserTurn(
+      sessionId,
+      dto.content,
+      session.title,
+    );
 
     // LLM messages 조립
     // 세션 전반을 이어가는 "active plan" 컨텍스트 — history + 이번 턴 상태
@@ -393,7 +369,7 @@ export class WorkflowAssistantStreamService {
             message: `Per-turn LLM round limit (${MAX_TOOL_LOOP_ROUNDS}) exceeded. Send a follow-up message (e.g. "이어서 진행해줘") to continue executing remaining plan steps.`,
           },
         };
-        await this.persistAssistantTurn(
+        await this.turnPersistence.persistAssistantTurn(
           sessionId,
           assistantText,
           pendingToolCalls,
@@ -759,7 +735,7 @@ export class WorkflowAssistantStreamService {
       if (usageEvent) yield usageEvent;
 
       if (hadError) {
-        await this.persistAssistantTurn(
+        await this.turnPersistence.persistAssistantTurn(
           sessionId,
           assistantText,
           pendingToolCalls,
@@ -907,7 +883,7 @@ export class WorkflowAssistantStreamService {
         // 회귀를 막기 위해 try/finally 로 리셋을 보장한다 (review W-14).
         let midRowPersistSucceeded = false;
         try {
-          await this.persistAssistantTurn(
+          await this.turnPersistence.persistAssistantTurn(
             sessionId,
             assistantText,
             pendingToolCalls,
@@ -1028,7 +1004,7 @@ export class WorkflowAssistantStreamService {
       // 턴 종료. stall 복구로 여러 row 로 쪼개진 경우, 이 최종 row 는
       // "복구 이후 새로 시작된 row" 이므로 `autoResumed=true` 로 표시한다.
       // 프론트는 이 플래그를 보고 rehydrate 시 row 앞에 divider 를 렌더.
-      await this.persistAssistantTurn(
+      await this.turnPersistence.persistAssistantTurn(
         sessionId,
         assistantText,
         pendingToolCalls,
@@ -1040,45 +1016,6 @@ export class WorkflowAssistantStreamService {
       yield { event: 'done', data: { finishReason } };
       return;
     }
-  }
-
-  private async persistAssistantTurn(
-    sessionId: string,
-    content: string,
-    toolCalls: AssistantToolCallRecord[],
-    plan: AssistantPlanRecord | null,
-    usage:
-      | {
-          inputTokens: number;
-          outputTokens: number;
-          totalTokens: number;
-          thinkingTokens?: number;
-          model: string;
-        }
-      | null
-      | undefined,
-    finishReason: string,
-    // Stall 자동 복구로 한 턴이 여러 row 로 쪼개질 때, 이 row 가 "복구 이후
-    // 새로 시작된 row" 인지 표시하는 메타. 기본값은 정상 단일 row 용.
-    // `appendMessage` 가 `Partial<WorkflowAssistantMessage>` 를 수용하므로
-    // 여기서 entity 필드명 그대로 전달하면 TypeORM 이 DB 컬럼에 기록한다.
-    resumeMeta: {
-      autoResumed: boolean;
-      autoResumeReason: AutoResumeReason | null;
-      autoResumeAttempt: number | null;
-    } = makeResumeMeta(0),
-  ): Promise<void> {
-    await this.sessionService.appendMessage(sessionId, {
-      role: 'assistant',
-      content: content || null,
-      toolCalls: toolCalls.length ? toolCalls : null,
-      plan,
-      usage: usage ?? null,
-      finishReason,
-      autoResumed: resumeMeta.autoResumed,
-      autoResumeReason: resumeMeta.autoResumeReason,
-      autoResumeAttempt: resumeMeta.autoResumeAttempt,
-    });
   }
 
   /**

@@ -4,6 +4,7 @@ import {
 } from './workflow-assistant-stream.service';
 import { AssistantToolRouter } from './tools/assistant-tool-router.service';
 import { AssistantFinishGuard } from './tools/assistant-finish-guard.service';
+import { AssistantTurnPersistenceService } from './tools/assistant-turn-persistence.service';
 import type { ChatStreamEvent } from '../llm/interfaces/llm-client.interface';
 import { z } from 'zod';
 import { carouselNodeMetadata } from '../../nodes/presentation/carousel/carousel.schema';
@@ -161,6 +162,13 @@ function makeService(): {
     mocks.nodeRegistry as never,
     candidateLookup as never,
   );
+  // M-3 3단계: 세션/메시지 영속은 AssistantTurnPersistenceService 로 분리됐다.
+  // 통합 테스트는 같은 mock sessionService 로 생성해 주입하므로,
+  // `mocks.sessionService.appendMessage`·`setTitleIfEmpty` 호출 단언이
+  // persist 위임 경유로 그대로 성립한다.
+  const turnPersistence = new AssistantTurnPersistenceService(
+    mocks.sessionService as never,
+  );
   const service = new WorkflowAssistantStreamService(
     mocks.llmService as never,
     mocks.sessionService as never,
@@ -169,6 +177,7 @@ function makeService(): {
     mocks.handlerRegistry as never,
     candidateLookup as never,
     finishGuard,
+    turnPersistence,
   );
   return { service, mocks: { ...mocks, candidateLookup } };
 }

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T10:12:59.955388",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=M-3 3단계: AssistantTurnPersistenceService 분리 완료. 최종 코드 da0d1c03(impl 813a4829 + fix 8426d829). behavior-preserving, spec 무변경. 대상 spec/3-workflow-editor/4-ai-assistant.md., diff-base=origin/main)",
+  "target_path": "M-3 3단계: AssistantTurnPersistenceService 분리 완료. 최종 코드 da0d1c03(impl 813a4829 + fix 8426d829). behavior-preserving, spec 무변경. 대상 spec/3-workflow-editor/4-ai-assistant.md.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
