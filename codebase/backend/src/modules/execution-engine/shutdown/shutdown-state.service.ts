@@ -100,10 +100,18 @@ export class ShutdownStateService implements OnApplicationShutdown {
 
   /**
    * NodeExecution 시작 직전 호출. 본 인스턴스가 처리 중인 row 식별.
-   * shutdown 진행 중이면 무시 (이미 큐 consume 중단된 상태로 새 진입은 없음 — race 대비 가드).
+   *
+   * M-2 (06-concurrency) — shutdown 중에도 등록한다 (옛 `if (shuttingDown) return`
+   * early-return 제거). §11.2 가 "현재 세그먼트를 완료까지 진행" 을 약속하고 세그먼트
+   * 내부 노드는 큐 미경유 in-process while-loop 로 dispatch 되므로(§4.2), shutdown
+   * 진입 후에도 같은 세그먼트의 다음 노드가 계속 시작된다. 이를 등록하지 않으면 grace
+   * 만료 시 마킹 대상에서 누락돼 §11.4 "미완료 RUNNING → failed + SERVER_INTERRUPTED"
+   * 약속이 깨지고 zombie RUNNING row 가 남는다. 신규 세그먼트 job consume 중단은
+   * @nestjs/bullmq WorkerHost 의 shutdown lifecycle(worker close)이 담당하므로(§11.2)
+   * drain 집합은 grace 한도 내로 bounded — 별도 `queue.pause()` 는 전역 Redis 플래그라
+   * multi-instance 를 stall 시켜 쓰지 않는다.
    */
   registerInFlight(nodeExecutionId: string, executionId: string): void {
-    if (this.shuttingDown) return;
     this.inFlightNodeExecutions.set(nodeExecutionId, executionId);
   }
 

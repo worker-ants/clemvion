@@ -134,15 +134,29 @@ describe('ShutdownStateService', () => {
       );
     });
 
-    it('shutdown 중 register 호출은 무시 (멱등)', async () => {
-      service = buildService(30);
+    it('shutdown 중(세그먼트 완료 진행 중) register 된 노드도 추적되어 grace 만료 시 마킹된다 (M-2 — §11.4 보존)', async () => {
+      service = buildService(50, 10);
+      service.registerInFlight('ne-early', 'exec-1');
       const shutdownPromise = service.onApplicationShutdown('SIGTERM');
-      // markShutdown 직후라고 가정 — isShuttingDown true 면 registerInFlight 는 noop
-      // 실제로는 markShutdown 이 동기적으로 실행되므로 즉시 true.
+      // onApplicationShutdown 은 markShutdown 을 동기 실행 후 waitForDrain 에서 await.
       expect(service.isShuttingDown).toBe(true);
-      service.registerInFlight('ne-late', 'exec-late');
-      expect(service.inFlightCount).toBe(0);
+      // §11.2 "현재 세그먼트를 완료까지 진행" 동안 in-process while-loop 가 다음 노드를
+      // 시작 → registerInFlight 호출. 옛 early-return 은 이를 누락해 zombie RUNNING 을
+      // 남겼다. 이제는 등록되어 drain 대상에 포함된다.
+      service.registerInFlight('ne-late', 'exec-1');
+      expect(service.inFlightCount).toBe(2);
+
       await shutdownPromise;
+
+      // grace 만료 → 두 노드 모두 SERVER_INTERRUPTED 마킹 대상. WHERE 절에 둘 다 포함.
+      const neChain = (nodeExecutionRepo.createQueryBuilder as jest.Mock).mock
+        .results[0].value as { update: jest.Mock };
+      const whereCall = (
+        neChain.update.mock.results[0].value as { set: jest.Mock }
+      ).set.mock.results[0].value as { where: jest.Mock };
+      const whereArgs = JSON.stringify(whereCall.where.mock.calls[0]);
+      expect(whereArgs).toContain('ne-early');
+      expect(whereArgs).toContain('ne-late');
     });
   });
 
