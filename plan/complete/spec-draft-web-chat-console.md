@@ -3,9 +3,13 @@ title: 웹채팅 운영 콘솔 — spec draft
 worktree: webchat-console-95fe1e
 started: 2026-06-23
 owner: planner
-status: draft
+status: complete
 kind: spec-draft
 created: 2026-06-23
+spec_impact:
+  - spec/7-channel-web-chat/5-admin-console.md
+  - spec/7-channel-web-chat/_product-overview.md
+  - spec/2-navigation/_layout.md
 scope:
   - spec/7-channel-web-chat/5-admin-console.md   # NEW — 콘솔 product+tech spec
   - spec/7-channel-web-chat/_product-overview.md # 구성요소 D 추가 + 비목표 재정합
