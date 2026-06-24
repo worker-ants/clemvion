@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
+import { NodeExecution } from '../node-executions/entities/node-execution.entity';
 import { ExecutionToken } from './entities/execution-token.entity';
 import { WebsocketModule } from '../websocket/websocket.module';
 import { ExecutionsModule } from '../executions/executions.module';
@@ -34,13 +35,18 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
  *  - SseAdapter (executionEvents$ 구독)
  *  - TerminalRevokeReconcilerService (EIA-RL-06 — terminal revoke at-least-once sweep, BullMQ repeatable)
  *
- * 의존성: WebsocketModule (executionEvents$), TypeOrmModule.forFeature([Trigger, Execution]),
- * ExecutionEngineModule + ExecutionsModule (interact dispatch), BullModule
- * (notification-webhook 큐).
+ * 의존성: WebsocketModule (executionEvents$), TypeOrmModule.forFeature([Trigger, Execution,
+ * ExecutionToken, NodeExecution]), ExecutionEngineModule + ExecutionsModule (interact dispatch),
+ * BullModule (notification-webhook 큐).
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Trigger, Execution, ExecutionToken]),
+    TypeOrmModule.forFeature([
+      Trigger,
+      Execution,
+      ExecutionToken,
+      NodeExecution,
+    ]),
     BullModule.registerQueue({ name: NOTIFICATION_WEBHOOK_QUEUE }),
     BullModule.registerQueue({ name: TERMINAL_REVOKE_RECONCILE_QUEUE }),
     WebsocketModule,

@@ -1,5 +1,6 @@
 import {
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
@@ -21,6 +22,19 @@ export enum NodeExecutionStatus {
   WAITING_FOR_INPUT = 'waiting_for_input',
 }
 
+/**
+ * 활성 상태 복합 인덱스 (execution_id, status) — 핫 경로 가속.
+ *
+ * `getStatus()` / `resolveWaitingNodeExecutionId()` 등 `WHERE execution_id=$1 AND
+ * status='waiting_for_input'` 쿼리를 커버한다. 실제 인덱스는 Flyway V095 마이그레이션
+ * (V095__node_execution_exec_status_active_index.sql) 의 partial index
+ * `WHERE status IN ('waiting_for_input','running')` 로 DB 에 적용되어 있다 —
+ * 중복 DDL 방지를 위해 새 마이그레이션 없이 이 데코레이터로 TypeORM 스키마 인식만 선언.
+ *
+ * 참고: `outputData` 는 공개 EIA 표면(SSE·status)으로 흘러가므로 민감 중간 결과를
+ * 이 컬럼에 기록 금지 (EIA §5.3 / interaction.service.ts `getStatus()` JSDoc 참조).
+ */
+@Index(['executionId', 'status'])
 @Entity('node_execution')
 export class NodeExecution {
   @PrimaryGeneratedColumn('uuid')

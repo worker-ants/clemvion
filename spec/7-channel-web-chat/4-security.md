@@ -81,6 +81,13 @@ backend 는 **단일 CORS 레이어**(`main.ts` 의 `app.enableCors(webChatCorsD
   `parseWidgetOrigins`, [`common/cors/web-chat-cors.ts`](../../codebase/backend/src/common/cors/web-chat-cors.ts)).
   워크스페이스 무관 고정 always-allow 목록의 SoT 이며 [0-architecture §4](./0-architecture.md) 가 이 키를 참조한다.
   샘플 항목은 [`codebase/backend/.env.example`](../../codebase/backend/.env.example).
+- **⚠️ 프론트/API origin 분리 배포 주의**: 프론트(위젯 동봉 origin)와 API 를 **별도 도메인**(예: `app.example.com`
+  vs `api.example.com`, 운영 `workflow.getit.co.kr` vs `workflow-api.getit.co.kr`)으로 분리 배포하면, 위젯이
+  same-origin 동봉이어도 위젯(프론트 origin)→`/api/external/*`(API origin) 호출이 **cross-origin** 이 된다. 이때
+  **프론트 origin 을 `WEB_CHAT_WIDGET_ORIGINS` 에 반드시 포함**해야 SSE·토큰 갱신이 CORS 를 통과한다. 누락 시
+  `/api/external/*` 응답에 `Access-Control-Allow-Origin` 이 없어 차단되고(`/api/hooks/*` 는 무제한이라 대화 start 만
+  통과), 위젯은 환영 메시지만 뜬 채 SSE 이벤트를 못 받아 대화·라이브 미리보기가 막힌다. (same-origin 단일 배포라면
+  불필요 — 이 키는 분리 배포·엣지 CDN override 시점에만 채운다.)
 
 ## 3. 임베드 allowlist (무단 임베드 차단)
 

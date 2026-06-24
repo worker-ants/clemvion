@@ -217,6 +217,12 @@ docker build -f codebase/frontend/Dockerfile \
 > Actions 등)에서 별도 `build:widget` 선행이 필요 없다 — 빌드 노드에 pnpm 이 없어도 무방. (SoT: `codebase/frontend/Dockerfile`
 > 헤더 주석 · spec/7-channel-web-chat/0-architecture.md §4.1)
 
+> **웹채팅 위젯 CORS (`WEB_CHAT_WIDGET_ORIGINS`)**: 프론트(위젯 동봉 origin)와 API 를 **별도 도메인**으로 분리 배포하면
+> (예: `app.example.com` ↔ `api.example.com`) 위젯→`/api/external/*`(SSE·토큰) 호출이 cross-origin 이 되므로, backend env
+> **`WEB_CHAT_WIDGET_ORIGINS` 에 프론트 origin 을 콤마로 포함**해야 한다 — 미설정 시 라이브 미리보기·대화가 CORS 로 막힌다
+> (`/api/hooks/*` 는 무제한이라 환영 메시지만 뜨고, `/api/external/*` SSE 이벤트는 수신 못 함). same-origin 단일 배포면
+> 불필요. SoT: spec/7-channel-web-chat/4-security.md §2.
+
 ### 7. (옵셔널) 자원 / 스케일링
 
 `base/*-deployment.yaml` 의 `resources` requests/limits 와 `replicas` 는 starter 값. 실 트래픽 측정 후 조정. HPA / KEDA 도입 시 `replicas` 는 minimum 으로만 사용.

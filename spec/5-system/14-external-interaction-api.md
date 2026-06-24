@@ -75,7 +75,7 @@ code:
 | EIA-IN-04 | `GET /api/external/executions/:executionId` 는 현재 상태 단발 조회 (status / currentNode / context / result|error / seq / updatedAt) | 필수 |
 | EIA-IN-05 | `POST /api/external/executions/:executionId/cancel` 는 명시적 취소 — `interact` 의 `command:"cancel"` 과 동치 (편의 alias) | 권장 |
 | EIA-IN-06 | 모든 inbound 요청은 §4 의 interaction token 으로 인증. **단 §3.3 EIA-AU-08 + §3.3.1 Implementation Note 의 in-process trusted caller 는 제외** — HTTP 표면을 거치지 않는 in-process 호출에 한정. HTTP guard 의 ctx 합성 시 `scope` 필드 set 금지 invariant 는 §3.3.1 참조 | 필수 |
-| EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 (버퍼 내 재전송은 구현됨; 만료 시 `execution.replay_unavailable` 신호 emit 은 계획·미구현 — §5.2) | 필수 |
+| EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 (버퍼 내 재전송은 구현됨; 만료 시 `execution.replay_unavailable` 신호 emit 은 계획·미구현 — §5.2). **첫 연결 시 `?lastEventId=0` 을 명시하면 버퍼 내 seq≥1 이벤트 전체를 replay** — race window 로 놓친 이벤트를 시드 가능 (§5.3 getStatus 시드와 병용) | 필수 |
 | EIA-IN-08 | SSE 는 15초마다 `: heartbeat` comment 라인 전송 — proxy idle timeout 회피 | 필수 |
 | EIA-IN-09 | execution 당 동시 SSE 연결 수 제한: 기본 3 (multi-tab 허용, 무제한 fan-out 차단) | 권장 |
 | EIA-IN-10 | `submit_form` 검증 실패는 execution 상태를 바꾸지 않고 `400 VALIDATION_ERROR` + `details[]`(`{field,message,code}` 배열, §5.1) 반환 (waiting_for_input 유지, 재제출 가능) | 필수 |
@@ -398,7 +398,15 @@ data: { ... §6 payload ... }
 
 ### 5.3 단발 상태 조회 — `GET /api/external/executions/:executionId`
 
-> **구현 상태 (V1)**: 아래 응답 shape 중 `id` / `workflowId` / `status` / `result` / `error` / `updatedAt` 는 실제 값으로 채워진다. 단 **`currentNode` 와 `context` 는 현재 항상 `null`, `seq` 는 항상 `0` placeholder** 로 반환된다 ([`interaction.service.ts` `getStatus()`](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)). 자세한 노드 context 와 최신 seq 는 SSE 의 `waiting_for_input` 페이로드·`id:` 필드가 권위이며, 클라이언트는 SSE `Last-Event-Id` 로 보정한다. `currentNode`/`context`/`seq` 의 실값 노출은 **미구현 (Planned)**.
+> **구현 상태 (V1)**: `id` / `workflowId` / `status` / `result` / `error` / `updatedAt` 는 실제 값으로 채워진다.
+> **`waiting_for_input` 상태에서는 `currentNode`(id/type/interactionType)와 `context` 도 채워진다** — 현재 대기 중인
+> `NodeExecution.outputData`(`meta.interactionType` + structured `config.buttonConfig`)에서 복원하며, buttons 는
+> `context.buttonConfig{buttons, nodeOutput}`, form/ai_conversation 은 `context.nodeOutput` 으로 동봉한다.
+> 이는 SSE `waiting_for_input` **wire payload 와 동일 형식**이라 위젯이 `parseWaitingForInput` 으로 그대로 시드할 수 있고,
+> 첫 노드가 SSE 구독 전 emit 되는 race(빠른 buttons/carousel)에서 현재 표면을 복구하는 1차 경로가 된다
+> ([`interaction.service.ts` `getStatus()`](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)).
+> 단 `conversationThread` snapshot 과 `seq`(항상 `0` placeholder)는 SSE replay(`Last-Event-Id`/첫 연결 `lastEventId=0`)가
+> 권위이며 만료 전 5분 buffer 에서 보정한다.
 
 ```jsonc
 GET /api/external/executions/{executionId}
@@ -1053,3 +1061,28 @@ scope/audience 불일치를 HTTP 시맨틱대로 `403 Forbidden`(인증됐으나
 **채택**: §5.1 `interact`·§5.4 `cancel` 는 비동기 처리라 `202 Accepted` 로 응답하되 **빈 body(no-content)가 아니라 ack body** 를 반환한다 (§5.1 `InteractAckDto` `{ executionId, accepted, currentStatus }`, §5.4 `{ executionId, status }`). 구현(`@HttpCode(ACCEPTED)` + DTO 반환)과 전역 `TransformInterceptor`(`{ data: ... }` 래핑)의 실제 동작을 반영한 것이다.
 
 과거 spec 은 §5 서두에서 "예외 2: §5.1(`interact`)는 성공 시 `202 Accepted` + body 없음(no-content path)" 으로 기술했으나 이는 구현과 어긋난 표기였다. ack body 를 반환하는 쪽을 채택한 이유: (1) 클라이언트가 명령 수신 직후 관측된 `currentStatus`(즉시 또 `waiting_for_input` 진입 가능)를 SSE 구독 전에 1회성으로 확인할 수 있어 UX 가 매끄럽다. (2) `accepted: true` 가 큐 적재 성공의 명시 신호다. (3) 다른 §5.x 엔드포인트와 동일하게 `{ data: ... }` 봉투로 일관 처리된다 — `interact` 만 no-content 예외로 두면 클라이언트 언랩 로직이 분기된다. body 가 비동기 진행의 **확정** 상태가 아님(202)은 유지되며, 확정 상태는 SSE/단발 조회로 받는다.
+
+### R17. `getStatus` 의 `currentNode`/`context` 실값 노출 (null placeholder 부분 번복) + SSE 역할 분담 + outputData 표면 제약 (결정 2026-06-25)
+
+**경위**: 초기 V1 은 §5.3 `getStatus` 의 `currentNode`/`context` 를 항상 `null`, `seq` 를 `0` placeholder 로 두고
+상세 표면은 SSE `waiting_for_input` 페이로드를 권위로 삼았다(git `5b468d37` 이전).
+
+**번복 배경(race window)**: webhook eager start(§5.1, `202` 비동기) 직후 **빠른 첫 노드(buttons/carousel)의
+`waiting_for_input` 이 위젯의 SSE 구독보다 먼저 emit** 되는 race 가 확인됐다. 위젯이 `lastEventId` 없이 첫 연결하면
+5분 buffer(§3.5 EIA-NF-03)가 있어도 replay 를 못 받아 heartbeat 만 수신 → 첫 표면(캐러셀)이 렌더되지 않는다.
+보정으로 위젯은 (a) `openStream(lastEventId=0)` 으로 buffer 의 누락 이벤트(seq≥1)를 replay + (b) start/복원 직후
+`getStatus` 로 현재 표면을 1회 시드한다. 후자를 위해 `getStatus` 가 `waiting_for_input` 시 `currentNode`(id/type/
+interactionType)·`context`(buttons→`buttonConfig{buttons,nodeOutput}`, form/ai_conversation→`nodeOutput`)를 실값으로
+반환하도록 **좁게 확장**했다(현재 대기 `NodeExecution.outputData` 에서 복원).
+
+**SSE 와의 역할 분담**: REST `getStatus` = **현재 표면 1회 시드**(race·새로고침 복구). SSE = **`seq`·
+`conversationThread`·이후 이벤트의 권위**. 그래서 `getStatus.context` 는 SSE `waiting_for_input` wire 형식과 동일하게
+만들어 위젯이 `parseWaitingForInput` 을 재사용하고, `conversationThread`·`seq`(여전히 `SSE_SEQ_PLACEHOLDER=0` —
+REST 단발 응답은 in-memory seq 카운터에 접근하지 않음)는 SSE 가 권위로 유지한다. 위젯의 `seedWaitingFromStatus` 는
+**soft-fail**(HTTP 오류 시 `console.warn` 후 진행) — SSE replay 가 1차 복구 경로라 REST 시드 실패가 대화 흐름을
+막지 않는다.
+
+**outputData 표면 제약(보안)**: `getStatus`·SSE fanout 모두 `NodeExecution.outputData` 를 `nodeOutput` 으로 동봉하므로
+이 컬럼은 **공개 EIA 표면**으로 흘러간다. 노드 핸들러는 `outputData` 에 민감 중간결과(secret·내부 토큰 등)를 기록하지
+않아야 한다(현재 `withInteractionMeta` 관례 + `getStatus` JSDoc 제약으로 명문화). 허용 키 런타임 allowlist 필터는 후속
+하드닝 항목이다.

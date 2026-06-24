@@ -12,6 +12,10 @@ import {
   Execution,
   ExecutionStatus,
 } from '../executions/entities/execution.entity';
+import {
+  NodeExecution,
+  NodeExecutionStatus,
+} from '../node-executions/entities/node-execution.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import {
   InvalidExecutionStateError,
@@ -40,6 +44,14 @@ const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
 ]);
 
 /**
+ * `getStatus()` 반환의 `seq` 필드 placeholder 값.
+ *
+ * REST V1 단발 응답에는 in-memory SSE seq 카운터에 접근할 방법이 없다.
+ * 클라이언트는 이 값이 아니라 SSE `Last-Event-Id` 로 실제 seq 를 보정한다 (EIA §5.3).
+ */
+const SSE_SEQ_PLACEHOLDER = 0;
+
+/**
  * [Spec EIA §5] — Inbound interaction REST endpoint 의 비즈니스 로직.
  *
  * 본 service 는 facade — 토큰 검증은 InteractionGuard 가 이미 통과시킨 상태에서 호출된다.
@@ -58,6 +70,8 @@ export class InteractionService {
   constructor(
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
+    @InjectRepository(NodeExecution)
+    private readonly nodeExecutionRepository: Repository<NodeExecution>,
     private readonly executionEngineService: ExecutionEngineService,
     private readonly executionsService: ExecutionsService,
     private readonly tokenService: InteractionTokenService,
@@ -204,6 +218,18 @@ export class InteractionService {
     return { token: result.token, expiresAt: result.expiresAt };
   }
 
+  /**
+   * [EIA §5.3] 단발 상태 조회 — 현재 execution 상태와 waiting_for_input 컨텍스트 반환.
+   *
+   * **보안 제약**: `nodeOutput` / `outputData` 는 SSE `waiting_for_input` payload 와
+   * 동일하게 **공개 EIA 표면**(SSE + 본 REST 엔드포인트)으로 흘러간다. 실행 엔진·노드
+   * 핸들러는 민감 중간 결과(API 키, PII 등)를 `NodeExecution.outputData` 에 기록하면
+   * 안 된다. 허용되는 데이터는 EIA 클라이언트가 렌더에 필요한 interaction 메타(버튼 설정,
+   * 폼 스키마, conversation config)로 한정한다 (node-execution.entity.ts `@Index` JSDoc 참조).
+   *
+   * `seq` 는 항상 `SSE_SEQ_PLACEHOLDER(0)` — REST 단발 응답에서는 in-memory SSE seq 에
+   * 접근할 수 없다. 클라이언트는 SSE `Last-Event-Id` 로 실제 seq 를 보정한다.
+   */
   async getStatus(ctx: InteractionRequestContext): Promise<ExecutionStatusDto> {
     const execution = await this.executionRepository.findOne({
       where: { id: ctx.executionId },
@@ -213,14 +239,67 @@ export class InteractionService {
         error: { code: 'EXECUTION_NOT_FOUND', message: 'Execution not found' },
       });
     }
-    // 단발 상태 조회 응답 — currentNode / context 는 V1 에서 최소 정보만 노출. 자세한 context 는
-    // SSE 의 waiting_for_input 페이로드가 권위. 본 응답은 클라이언트 복구용.
+    // waiting_for_input 이면 현재 대기 노드의 표면을 복원해 동봉한다 (EIA §5.3).
+    // SSE waiting 이벤트를 구독 전 emit race 로 놓친 클라이언트가 본 응답으로 현재 표면을
+    // 시드할 수 있도록, SSE `waiting_for_input` wire payload 와 **동일 형식**(interactionType /
+    // waitingNodeId / buttonConfig / nodeOutput)으로 구성한다 → 위젯이 `parseWaitingForInput`
+    // 을 그대로 재사용. conversationThread snapshot 은 SSE replay 가 권위라 여기선 생략한다.
+    let currentNode: ExecutionStatusDto['currentNode'] = null;
+    let context: ExecutionStatusDto['context'] = null;
+    if (execution.status === ExecutionStatus.WAITING_FOR_INPUT) {
+      const nodeExec = await this.nodeExecutionRepository.findOne({
+        where: {
+          executionId: ctx.executionId,
+          status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        },
+        order: { startedAt: 'DESC' },
+        relations: ['node'],
+      });
+      if (nodeExec?.node) {
+        const out = nodeExec.outputData ?? {};
+        const meta = (out.meta ?? {}) as { interactionType?: string };
+        const rawInteractionType = meta.interactionType ?? null;
+        const interactionType =
+          rawInteractionType === 'form' ||
+          rawInteractionType === 'buttons' ||
+          rawInteractionType === 'ai_conversation'
+            ? rawInteractionType
+            : null;
+        currentNode = {
+          id: nodeExec.nodeId,
+          type: nodeExec.node.type,
+          interactionType,
+        };
+        // buttons: structured(`config.buttonConfig`) 우선, legacy flat(`buttonConfig`) fallback.
+        const structured = out as {
+          config?: { buttonConfig?: { buttons?: unknown } };
+          buttonConfig?: { buttons?: unknown };
+        };
+        const bc = structured.config?.buttonConfig ?? structured.buttonConfig;
+        if (interactionType === 'buttons' && bc) {
+          // SSE 와 동일 wire: buttonConfig = { buttons, nodeOutput }.
+          context = {
+            interactionType,
+            waitingNodeId: nodeExec.nodeId,
+            buttonConfig: { buttons: bc.buttons, nodeOutput: out },
+          };
+        } else if (interactionType) {
+          // form / ai_conversation: parseWaitingForInput 이 nodeOutput.formConfig /
+          // nodeOutput.conversationConfig 를 읽는다 → nodeOutput 그대로 동봉.
+          context = {
+            interactionType,
+            waitingNodeId: nodeExec.nodeId,
+            nodeOutput: out,
+          };
+        }
+      }
+    }
     return {
       id: execution.id,
       workflowId: execution.workflowId,
       status: execution.status as ExecutionStatusDto['status'],
-      currentNode: null,
-      context: null,
+      currentNode,
+      context,
       result:
         execution.status === ExecutionStatus.COMPLETED
           ? ((execution.outputData ?? null) as Record<string, unknown> | null)
@@ -229,9 +308,7 @@ export class InteractionService {
         execution.status === ExecutionStatus.FAILED
           ? ((execution.outputData ?? null) as Record<string, unknown> | null)
           : null,
-      // V1 의 단발 응답에는 seq 최신값을 알 길이 없음 (WebsocketService 의 in-memory counter 는
-      // 직접 access 안 함). 0 으로 placeholder — 클라이언트는 SSE Last-Event-Id 로 보정.
-      seq: 0,
+      seq: SSE_SEQ_PLACEHOLDER,
       updatedAt: (
         execution.finishedAt ??
         execution.startedAt ??
