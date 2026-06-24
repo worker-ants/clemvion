@@ -107,6 +107,12 @@ Clemvion 은 SaaS + 셀프호스팅 병행이므로 본 spec 의 도메인은 **
   로 빌드해 `codebase/frontend/public/_widget/web-chat/v1/` 로 동봉(빌드 파이프라인 복사) → 배포 origin 에서 same-origin 서빙.
 - 이로써 `<widget-cdn-base>` 가 기본 self-origin 이 되어 **외부 위젯 CDN 호스팅은 선행조건이 아니다**(SaaS 엣지 CDN 은 선택 최적화).
 - admin 콘솔 라이브 미리보기는 이 동봉 위젯을 same-origin iframe 으로 로드 — 버전 일치·외부 의존 0 (격리 carve-out 은 §R8).
+- **동봉 서빙의 frontend 라우팅 전제(필수)**: 위젯을 frontend(Next) `public/_widget/...` 로 same-origin 서빙할 때 두 처리가 없으면
+  미리보기·설치 스니펫이 깨진다 — (1) **인증 미들웨어(`proxy.ts`) 예외**: `/_widget/**` 는 공개 정적 번들이므로 인증
+  redirect 대상에서 prefix 로 제외한다(위젯 앱 진입 `…/app/` 는 점 없는 디렉토리 경로라 `includes(".")` 정적 예외를 못 타
+  /login 으로 튕긴다). (2) **디렉토리→index.html rewrite**: Next `public/` 서빙은 디렉토리 index 자동 폴백을 하지 않으므로,
+  위젯 SPA 진입 `…/web-chat/v1/app[/]` 를 `…/app/index.html` 로 `next.config rewrites` 한다(없으면 404). 외부 위젯 CDN
+  override(`NEXT_PUBLIC_WIDGET_CDN_BASE`) 경로에서는 CDN 의 디렉토리 index 폴백이 처리하므로 해당 없음.
 - **npm scope**: `@workflow/web-chat` 로 확정 — [eia-sdk-publish.md §결정 #3](../../plan/in-progress/eia-sdk-publish.md) (`@workflow/sdk` 와 일관, [2-sdk](./2-sdk.md)).
 - CORS allowlist 의 "위젯 CDN 빌트인 허용"([4-security §2](./4-security.md))도 이 `<widget-cdn-base>` 를 가리킨다 — 배포 설정값.
   빌트인 origin 상수는 **빌드타임 env 주입**(loader/SPA 빌드) + 백엔드는 **런타임 config**(워크스페이스 무관 고정값)로 관리한다.
