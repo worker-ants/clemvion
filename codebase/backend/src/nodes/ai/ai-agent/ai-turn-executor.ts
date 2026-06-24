@@ -544,6 +544,10 @@ interface TurnOutputAccumulators {
  * 비-provider 도구 결과 stub 문자열 (single/multi-turn 도구 루프 공유, 03 C-2
  * review INFO-2). condition deferral 은 "최종 판단 유도" 신호, budget 초과는
  * tool_use↔tool_result 매칭 유지를 위한 회신.
+ *
+ * `TOOL_BUDGET_EXCEEDED_ERROR` 는 LLM 에 돌려보내는 tool_result payload 내부의
+ * `error` 값(LLM-internal 신호)으로, 공개 에러코드 enum (`MAX_TOOL_CALLS_EXCEEDED`
+ * 등)과 다른 레이어다 — 외부 API 계약에 노출되지 않으므로 lower_snake_case 유지.
  */
 const CONDITION_DEFERRAL_RESULT_MSG =
   '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.';
@@ -959,7 +963,7 @@ export class AiTurnExecutor {
     for (const { call } of truncated) {
       args.messages.push({
         role: 'tool',
-        content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
+        content: JSON.stringify({ error: TOOL_BUDGET_EXCEEDED_ERROR }),
         toolCallId: call.id,
       });
     }
@@ -1133,8 +1137,8 @@ export class AiTurnExecutor {
    * deferral / normal 도구 호출의 tool_result 를 messages 에 기록하고 (opt-in 시)
    * thread 에 push 한다. `executeSingleTurn` 에서 추출 (03 C-2). messages 를 in-place
    * 변이하고 갱신된 toolCallCount 를 반환한다.
-   * - condition: deferral content. **single-turn 은 toolCallCount 미합산** (멀티턴의
-   *   동명 helper 와 의도적으로 다른 동작 — §3.f-g).
+   * - condition: deferral content. condition 도구는 toolCallCount 미합산 (spec §7.1
+   *   `meta.toolCalls` 는 조건 도구 제외; multi-turn 동명 helper 와 동일 정책 — §6.1.f-g).
    * - normal: budget 초과 시 budget_exceeded content (count 미증가), 아니면 normal
    *   content + toolCallCount++.
    */
@@ -1179,8 +1183,8 @@ export class AiTurnExecutor {
     // 일반 도구도 maxToolCalls 합산 대상이므로 잔여 한도를 초과한 항목은
     // budget_exceeded 로 회신해 LLM 의 다음 turn 에서 모든 tool_use 가
     // tool_result 와 매칭되도록 한다. 현재 일반 도구는 stub 결과만 만들므로
-    // 실제 외부 호출 비용은 없으나, maxToolCalls 합산 시맨틱은 spec §3.f-g
-    // 와 일치시킨다.
+    // 실제 외부 호출 비용은 없으나, maxToolCalls 합산 시맨틱은
+    // spec/4-nodes/3-ai/1-ai-agent.md §6.1.f-g 와 일치시킨다.
     for (const tc of normalToolCalls) {
       if (toolCallCount >= maxToolCalls) {
         const budgetContent = JSON.stringify({
@@ -1296,6 +1300,9 @@ export class AiTurnExecutor {
       workspaceId,
       executionId: context.executionId,
     });
+    // condition-route turn duration 단일 캡처 (03 C-2 review INFO-3) — trace
+    // durationMs 와 turnDebug 가 동일 시각을 참조하도록.
+    const condRouteDurationMs = Date.now() - singleTurnStartedAt;
     return this.buildConditionOutput(
       matchedCondition,
       reason,
@@ -1321,13 +1328,13 @@ export class AiTurnExecutor {
       },
       {
         llmCalls,
-        totalDurationMs: Date.now() - singleTurnStartedAt,
+        totalDurationMs: condRouteDurationMs,
       },
       [
         {
           turnIndex: 1,
           llmCalls,
-          totalDurationMs: Date.now() - singleTurnStartedAt,
+          totalDurationMs: condRouteDurationMs,
           ...(toolCallTraces.length > 0
             ? { toolCalls: [...toolCallTraces] }
             : {}),
@@ -1570,8 +1577,8 @@ export class AiTurnExecutor {
       toolCallCount += providerExecuted;
 
       // condition/normal 비-provider 도구 결과 기록 (deferral / budget / normal +
-      // opt-in thread push). spec §6.1 도구 루프. single-turn condition 은
-      // toolCallCount 미합산(§3.f-g — multi-turn 과 의도적으로 다름). (03 C-2)
+      // opt-in thread push). spec §6.1 도구 루프. condition 은 toolCallCount 미합산
+      // (spec §7.1 조건 도구 제외; multi-turn 과 동일 정책). (03 C-2)
       toolCallCount = this.recordSingleTurnNonProviderToolResults({
         conditionToolCalls: classification.conditionToolCalls,
         normalToolCalls: classification.normalToolCalls,
@@ -1955,13 +1962,14 @@ export class AiTurnExecutor {
    * deferral / normal 도구 호출의 tool_result 를 messages 에 기록하고 (opt-in 시)
    * thread 에 push 한다. `processMultiTurnMessage` 에서 추출 (03 C-2). messages 를
    * in-place 변이하고 갱신된 toolCallCount 를 반환한다.
-   * - condition: deferral content (최종 판단 유도) + toolCallCount++.
+   * - condition: deferral content (최종 판단 유도). toolCallCount 미합산
+   *   (spec §7.1 `meta.toolCalls` 는 조건 도구 제외).
    * - normal: budget 초과 시 budget_exceeded content (count 미증가), 아니면 normal
    *   content + toolCallCount++.
    *
-   * INVARIANT (03 C-2 review W6/INFO-5): condition deferral 의 toolCallCount 처리는
-   * single-turn 의 {@link recordSingleTurnNonProviderToolResults} 와 **의도적으로
-   * 다르다** — single-turn 은 미합산(§3.f-g), multi-turn 은 합산. 동기화 금지.
+   * single-turn {@link recordSingleTurnNonProviderToolResults} 와 **동일 정책** —
+   * condition 도구는 meta.toolCalls·maxToolCalls budget 어디에도 합산하지 않는다
+   * (spec §7.1 / §6.1.f-g; W7 SPEC-DRIFT 해소로 single/multi 통일).
    */
   private recordMultiTurnNonProviderToolResults(args: {
     conditionToolCalls: ToolCall[];
@@ -1980,11 +1988,10 @@ export class AiTurnExecutor {
     } = args;
     let toolCallCount = args.toolCallCount;
     for (const tc of conditionToolCalls) {
-      // [SPEC-DRIFT] (03 C-2 review W7) — multi-turn 은 condition deferral 에도
-      // toolCallCount 를 합산한다. 이는 spec §7.1 `meta.toolCalls` "조건 도구
-      // 제외" 명세와 불일치하나 **본 리팩터 이전부터의 동작**으로 behavior-
-      // preserving 분해에서 보존했다. 합산/spec 정정 결정은 planner 위임 (백로그).
-      toolCallCount++;
+      // Condition tool: send deferral message (does not count toward
+      // toolCallCount). spec §7.1 `meta.toolCalls` 는 조건 도구 제외 —
+      // single-turn recordSingleTurnNonProviderToolResults 와 동일 (W7 SPEC-DRIFT
+      // 해소: 이전 multi-turn 은 합산했으나 spec/single-turn 에 맞춰 미합산으로 통일).
       const condDeferralContent = JSON.stringify({
         result: CONDITION_DEFERRAL_RESULT_MSG,
       });
@@ -2131,13 +2138,16 @@ export class AiTurnExecutor {
     const finalThinkingTokens =
       totalThinkingTokens + (result.usage?.thinkingTokens ?? 0);
 
+    // condition-route turn duration 단일 캡처 (03 C-2 review INFO-3) — trace
+    // durationMs 와 turnDebug 가 동일 시각을 참조하도록.
+    const condRouteDurationMs = Date.now() - turnStartedAt;
     const prevHistory = (state.turnDebugHistory as unknown[]) || [];
     const condTurnDebugHistory = [
       ...prevHistory,
       {
         turnIndex: turnCount,
         llmCalls,
-        totalDurationMs: Date.now() - turnStartedAt,
+        totalDurationMs: condRouteDurationMs,
         ...(toolCallTraces.length > 0
           ? { toolCalls: [...toolCallTraces] }
           : {}),
@@ -2173,7 +2183,7 @@ export class AiTurnExecutor {
         ],
         ...(memoryMeta ? { memory: memoryMeta } : {}),
       },
-      { llmCalls, totalDurationMs: Date.now() - turnStartedAt },
+      { llmCalls, totalDurationMs: condRouteDurationMs },
       condTurnDebugHistory,
       state.rawConfig as Record<string, unknown> | undefined,
     );

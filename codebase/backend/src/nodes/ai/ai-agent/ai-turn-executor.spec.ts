@@ -277,6 +277,44 @@ describe('AiTurnExecutor', () => {
       expect(result.status).toBe('ended');
       expect(result.port).toBe('max_turns');
     });
+
+    // C-2 후속 (review W7 / impl-prep BLOCK 해소) — multi-turn 도구 루프에서
+    // condition deferral 은 toolCallCount 에 합산하지 않고(spec §7.1 조건 도구
+    // 제외) normal 도구만 합산. single-turn 과 동일 정책으로 통일됨을 고정.
+    it('does not count condition tools toward toolCalls in multi-turn, only normal tools', async () => {
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [
+            { id: 't1', name: 'cond_c1', arguments: {} },
+            { id: 't2', name: 'do_thing', arguments: {} },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: '처리했습니다.',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      const executor = buildExecutor();
+      const state = {
+        ...resumeState(),
+        conditions: [{ id: 'c1', label: 'c', prompt: 'p' }],
+      };
+      const result = (await executor.processMultiTurnMessage(
+        'go',
+        state,
+      )) as Record<string, unknown>;
+
+      expect(result.status).toBe('waiting_for_input');
+      // cond_c1 미합산, do_thing(normal)만 +1 → toolCalls === 1 (single-turn 과 동일).
+      const next = result._resumeState as { toolCalls: number };
+      expect(next.toolCalls).toBe(1);
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('endMultiTurnConversation', () => {
