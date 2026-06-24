@@ -94,7 +94,7 @@ code:
 
 ### 1.5 WS commands 에러 코드 (도메인 spec 참조)
 
-다음 에러 코드는 WebSocket ack 응답 전용이며 REST API 에는 적용되지 않는다. 각 코드의 정의·트리거 조건·적용 명령 범위는 해당 도메인 spec 이 SoT 이고, 본 §1.5 는 공용 카탈로그 가시성을 위한 등재 목적이다.
+다음 에러 코드는 주로 WebSocket ack 응답 전용이다. 일부 코드(`SERVER_SHUTTING_DOWN`·`EXECUTION_ENQUEUE_FAILED`)는 REST 실행 제어 진입점에서 HTTP **503** 으로도 표기된다 — 행별로 명시한다 (설계 원칙: [실행 엔진 §Rationale](./4-execution-engine.md#rationale) 의 `SERVER_SHUTTING_DOWN` 503 선례). 각 코드의 정의·트리거 조건·적용 명령 범위는 해당 도메인 spec 이 SoT 이고, 본 §1.5 는 공용 카탈로그 가시성을 위한 등재 목적이다.
 
 | 코드 | 설명 | 도메인 SoT |
 |------|------|-----------|
@@ -105,6 +105,7 @@ code:
 | `SERVER_SHUTTING_DOWN` | 서버 SIGTERM 수신 후 새 Execution 시작 불가. HTTP 진입점은 503 으로 표기 ([실행 엔진 §11](./4-execution-engine.md#11-graceful-shutdown)) | [실행 엔진 §11](./4-execution-engine.md#11-graceful-shutdown) |
 | `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 의 메시지가 최대 길이 초과 (publisher 측 동기 검증, typed `MessageTooLongError`) | [WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단) |
 | `EXECUTION_INTERNAL_ERROR` | continuation 처리 중 typed `ExecutionError` 가 아닌 내부 에러의 generic fallback. ack `error` 는 고정 generic 문자열이며 내부 message 는 client 미전달(서버 로그 전용) — 누출 차단 게이트 | [WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단) |
+| `EXECUTION_ENQUEUE_FAILED` | REST `POST /executions/:id/stop` 의 WAITING cancel 경로에서 continuation publish(BullMQ `queue.add`) 자체가 실패한 케이스 — `publish` 가 `queued:false`(Redis 장애 등 **enqueue 미진입**)를 반환. HTTP 진입점은 **503** 으로 표기하고 Execution 은 `waiting_for_input` 유지(failed 아님), 재시도 권장. `SERVER_SHUTTING_DOWN` 503 선례와 동형이며, worker 측 **비동기** 실패(`RESUME_*` — enqueue 수락 후 재개 실패)와 구별된다 | [실행 엔진 §7.4](./4-execution-engine.md#74-분산-실행-multi-instance) |
 
 > `INVALID_EXECUTION_STATE` 와 동일 의미의 REST 코드는 §1.3 의 `INVALID_STATE` (422) — 두 layer 의 routing 분기 가시성을 위해 의도적으로 분리. 상세: [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state).
 
