@@ -3,7 +3,10 @@ title: 라이브 미리보기 동봉 위젯 서빙 픽스 (PR #679 후속 hotfix
 worktree: webchat-console-95fe1e
 started: 2026-06-24
 owner: developer
-status: in-progress
+status: complete
+spec_impact:
+  - spec/7-channel-web-chat/0-architecture.md
+  - spec/2-navigation/10-auth-flow.md
 related_spec:
   - spec/7-channel-web-chat/0-architecture.md
   - spec/2-navigation/10-auth-flow.md
