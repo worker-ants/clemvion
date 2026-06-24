@@ -29,6 +29,9 @@ import { DEFAULT_GRACE_MS } from './shutdown.constants';
  *    `isShuttingDown` / `retryAfterSec` 을 읽어 응답 헤더 + body 구성).
  * 2. `inFlightNodeExecutions` 가 비기를 기다린다 — 활성 NodeExecution 핸들러는
  *    `ExecutionEngineService.executeNode` 의 try/finally 에서 등록/해제된다.
+ *    **shutdown 진입 후 동일 세그먼트가 완료까지 진행하며 시작하는 추가 노드도
+ *    등록 대상에 포함된다** (§11.2 "세그먼트 완료 보장" — `registerInFlight` 가
+ *    shutdown 중에도 추적해야 §11.4 마킹 약속이 깨지지 않는다, M-2).
  * 3. `SIGTERM_GRACE_MS` (기본 30000) 경과 후 남은 in-flight 는 단일 atomic
  *    UPDATE 로 `FAILED` + `error.code='SERVER_INTERRUPTED'` 마킹. 동반 Execution
  *    도 마찬가지로 마킹. **WAITING_FOR_INPUT 은 본 서비스가 절대 건드리지
