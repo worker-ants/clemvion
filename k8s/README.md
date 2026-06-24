@@ -36,7 +36,7 @@ k8s/
 ### 로컬 (docker-desktop / kind / minikube)
 
 ```bash
-# 이미지 빌드 (repo 루트에서). frontend 이미지는 동봉 웹채팅 위젯을 builder 스테이지에서 자급 빌드한다(아래 §6 주의).
+# 이미지 빌드 (repo 루트에서). frontend 이미지는 동봉 웹채팅 위젯을 builder 스테이지에서 자급 빌드한다(§6 "동봉 위젯" 안내 참고).
 docker build -f codebase/backend/Dockerfile             -t clemvion/backend:latest  .
 docker build -f codebase/frontend/Dockerfile            -t clemvion/frontend:latest .
 docker build -f codebase/backend/migrations/Dockerfile  -t clemvion/migrate:latest  .
