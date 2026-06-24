@@ -1,17 +1,16 @@
 # Build context must be the repo root so the pnpm workspace (root manifest +
 # pnpm-lock.yaml + codebase/*) is reachable.
-#   pnpm --filter frontend build:widget   # 1) 동봉 위젯 산출(아래 참고) — 이미지 빌드 전 필수
 #   docker build -f codebase/frontend/Dockerfile \
 #     --build-arg NEXT_PUBLIC_API_URL=https://api.example.com/api \
 #     --build-arg NEXT_PUBLIC_WS_URL=https://api.example.com \
-#     -t clemvion/frontend .                # 2) 위 산출물(public/_widget)을 그대로 이미지에 동봉
+#     -t clemvion/frontend .
 #
-# 동봉 위젯(웹채팅) 전제: 본 빌더 스테이지는 `codebase/channel-web-chat` 소스를 COPY 하지 않고
-# `--filter "frontend..."` 로만 설치하므로 이미지 내부에서 위젯을 빌드할 수 없다(의도된 설계).
-# 따라서 `pnpm --filter frontend build:widget` 를 **호스트 작업 트리에서 docker build 직전에** 실행해
-# `codebase/frontend/public/_widget/web-chat/v1/` 를 생성해야 한다. `.dockerignore` 는 node_modules·.next
-# 만 제외하므로, 사전 생성된 public/_widget 은 아래 `COPY codebase/frontend`(builder)→`COPY .../public`
-# (runner) 경로로 이미지에 그대로 포함된다(SoT: spec/7-channel-web-chat/0-architecture.md §4.1, k8s/README.md §6).
+# 동봉 위젯(웹채팅) — **이미지 내부에서 자급 빌드**한다. builder 가 `channel-web-chat`(위젯 SPA) +
+# `@workflow/web-chat`(loader SDK) 의 소스·deps 를 갖추고 `pnpm --filter frontend build:widget`(copy-widget.mjs)
+# 을 `next build` 직전에 실행해 `codebase/frontend/public/_widget/web-chat/v1/{app,loader.js}` 를 생성한다.
+# 그 산출물이 standalone runner 의 `COPY .../public` 으로 이미지에 동봉된다. 외부 CI(Jenkins 등)는
+# `docker build` 만 하면 되고 호스트에서 별도 `build:widget` 을 선행할 필요가 없다(외부 의존 0).
+# SoT: spec/7-channel-web-chat/0-architecture.md §4.1.
 
 # ---------- deps: install frontend's workspace subtree ----------
 FROM node:24-alpine AS deps
@@ -33,7 +32,12 @@ COPY codebase/packages/web-chat-sdk/package.json ./codebase/packages/web-chat-sd
 # 내부 패키지 소스 — prepare(tsc)가 install 중 dist 빌드.
 COPY codebase/packages ./codebase/packages
 
-RUN pnpm install --frozen-lockfile --filter "frontend..."
+# frontend + 동봉 위젯(channel-web-chat·@workflow/web-chat) 의 workspace 의존까지 설치 —
+# build:widget 이 두 패키지를 빌드하므로 그 deps(next·tsc·esbuild 등)가 필요하다.
+RUN pnpm install --frozen-lockfile \
+    --filter "frontend..." \
+    --filter "channel-web-chat..." \
+    --filter "@workflow/web-chat..."
 
 # ---------- builder: next build with output: 'standalone' ----------
 FROM deps AS builder
@@ -46,7 +50,11 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# 위젯 SPA 소스(web-chat-sdk 소스는 deps 의 `COPY codebase/packages` 로 이미 존재).
+COPY codebase/channel-web-chat ./codebase/channel-web-chat
 COPY codebase/frontend ./codebase/frontend
+# 동봉 위젯 산출(public/_widget) → 이어지는 next build 가 public 을 standalone 에 포함.
+RUN pnpm --filter frontend build:widget
 RUN pnpm --filter frontend build
 
 # ---------- runner: minimal standalone server ----------

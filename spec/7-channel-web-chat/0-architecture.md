@@ -103,8 +103,13 @@ Clemvion 은 SaaS + 셀프호스팅 병행이므로 본 spec 의 도메인은 **
 ### 4.1 위젯 동봉(co-deploy) + 버전 잠금
 - **버전 전략**: `loader.js`·위젯 SPA 는 `/web-chat/v1/` major 버전 path 고정(불변 자산). 마이너/패치는 floating "latest" 가
   아니라 **제품과 같은 릴리스로 동봉(co-deploy)** 되어 배포 단위로 잠긴다 → 셀프호스트의 위젯 버전이 그 배포의 백엔드/EIA 버전과 항상 일치.
-- **동봉 방식**: 위젯(`channel-web-chat`)을 frontend workspace 의존으로 묶고 `NEXT_PUBLIC_BASE_PATH=/_widget/web-chat/v1/app`
-  로 빌드해 `codebase/frontend/public/_widget/web-chat/v1/` 로 동봉(빌드 파이프라인 복사) → 배포 origin 에서 same-origin 서빙.
+- **동봉 방식**: frontend 의 `build:widget`(copy-widget.mjs)이 `channel-web-chat`(`NEXT_PUBLIC_BASE_PATH=/_widget/web-chat/v1/app`)
+  + `@workflow/web-chat` loader 를 빌드해 `codebase/frontend/public/_widget/web-chat/v1/` 로 복사 → 배포 origin 에서 same-origin 서빙.
+- **build:widget 실행 위치 = frontend Dockerfile builder 스테이지(이미지 내부 자급)**. builder 가 두 위젯 패키지의
+  소스·deps 를 COPY·설치하고 `next build` 직전에 `build:widget` 을 실행해 `public/_widget` 를 산출 → standalone runner 의
+  `COPY .../public` 으로 이미지에 동봉. 따라서 **외부 CI(Jenkins 등)는 `docker build` 만 하면 되고** 호스트에서 별도
+  `build:widget` 선행이 필요 없다(빌드 노드에 pnpm 이 없어도 무방, 외부 의존 0). 누락 시 위젯 번들 부재로 미리보기·스니펫이
+  404 가 난다(과거 운영 회귀 사례).
 - 이로써 `<widget-cdn-base>` 가 기본 self-origin 이 되어 **외부 위젯 CDN 호스팅은 선행조건이 아니다**(SaaS 엣지 CDN 은 선택 최적화).
 - admin 콘솔 라이브 미리보기는 이 동봉 위젯을 same-origin iframe 으로 로드 — 버전 일치·외부 의존 0 (격리 carve-out 은 §R8).
 - **동봉 서빙의 frontend 라우팅 전제(필수)**: 위젯을 frontend(Next) `public/_widget/...` 로 same-origin 서빙할 때 두 처리가 없으면
