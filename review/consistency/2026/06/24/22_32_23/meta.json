@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T22:32:23.467897",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=06-concurrency M-2: ShutdownStateService shutdown 중 시작 노드 추적 포기 → §11.4 마킹 약속 위반 드리프트 수정. Option A 채택(early-return 제거): registerInFlight 의 'if(shuttingDown) return' 제거 → 세그먼트 완료(§11.2) 중 in-process while-loop 가 시작한 노드도 추적·drain·SERVER_INTERRUPTED 마킹(§11.4 보존, zombie RUNNING 제거). Option B(worker pause)는 의도적 거절: execution workers 가 @nestjs/bullmq WorkerHost 라 framework 가 shutdown 시 worker close(§11.2 신규 consume 중단 이미 충족), BullMQ queue.pause()는 전역(Redis 플래그—타 인스턴스 stall)이라 multi-instance 에서 오답. spec 변경 불요(spec 옳고 구현이 따라감). 테스트: shutdown 중 register 추적+grace 만료 마킹 단언, 기존 '무시' 테스트 교체.)",
+  "target_path": "06-concurrency M-2: ShutdownStateService shutdown 중 시작 노드 추적 포기 → §11.4 마킹 약속 위반 드리프트 수정. Option A 채택(early-return 제거): registerInFlight 의 'if(shuttingDown) return' 제거 → 세그먼트 완료(§11.2) 중 in-process while-loop 가 시작한 노드도 추적·drain·SERVER_INTERRUPTED 마킹(§11.4 보존, zombie RUNNING 제거). Option B(worker pause)는 의도적 거절: execution workers 가 @nestjs/bullmq WorkerHost 라 framework 가 shutdown 시 worker close(§11.2 신규 consume 중단 이미 충족), BullMQ queue.pause()는 전역(Redis 플래그—타 인스턴스 stall)이라 multi-instance 에서 오답. spec 변경 불요(spec 옳고 구현이 따라감). 테스트: shutdown 중 register 추적+grace 만료 마킹 단언, 기존 '무시' 테스트 교체.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

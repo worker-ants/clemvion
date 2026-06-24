@@ -134,15 +134,56 @@ describe('ShutdownStateService', () => {
       );
     });
 
-    it('shutdown 중 register 호출은 무시 (멱등)', async () => {
-      service = buildService(30);
+    it('shutdown 중(세그먼트 완료 진행 중) register 된 노드도 추적되어 grace 만료 시 마킹된다 (M-2 — §11.4 보존)', async () => {
+      service = buildService(50, 10);
+      service.registerInFlight('ne-early', 'exec-1');
       const shutdownPromise = service.onApplicationShutdown('SIGTERM');
-      // markShutdown 직후라고 가정 — isShuttingDown true 면 registerInFlight 는 noop
-      // 실제로는 markShutdown 이 동기적으로 실행되므로 즉시 true.
+      // onApplicationShutdown 은 markShutdown 을 동기 실행 후 waitForDrain 에서 await.
       expect(service.isShuttingDown).toBe(true);
-      service.registerInFlight('ne-late', 'exec-late');
-      expect(service.inFlightCount).toBe(0);
+      // §11.2 "현재 세그먼트를 완료까지 진행" 동안 in-process while-loop 가 다음 노드를
+      // 시작 → registerInFlight 호출. 옛 early-return 은 이를 누락해 zombie RUNNING 을
+      // 남겼다. 이제는 등록되어 drain 대상에 포함된다.
+      service.registerInFlight('ne-late', 'exec-1');
+      expect(service.inFlightCount).toBe(2);
+
       await shutdownPromise;
+
+      // grace 만료 → 두 노드 모두 SERVER_INTERRUPTED 마킹 대상. WHERE 절에 둘 다 포함.
+      // (mock chain 을 직접 순회하므로, 단계가 끊기면 undefined 오탐 대신 명시 실패하도록
+      //  중간 단계를 toBeDefined/toHaveBeenCalled 로 가드한다.)
+      const neChain = (nodeExecutionRepo.createQueryBuilder as jest.Mock).mock
+        .results[0]?.value as { update: jest.Mock } | undefined;
+      expect(neChain).toBeDefined();
+      const whereCall = (
+        neChain!.update.mock.results[0].value as { set: jest.Mock }
+      ).set.mock.results[0].value as { where: jest.Mock };
+      expect(whereCall.where).toHaveBeenCalled();
+      const whereArgs = JSON.stringify(whereCall.where.mock.calls[0]);
+      expect(whereArgs).toContain('ne-early');
+      expect(whereArgs).toContain('ne-late');
+    });
+
+    it('shutdown 중 register 된 노드가 grace 내 drain(정상 완료)되면 마킹하지 않는다 (M-2 — happy-path)', async () => {
+      service = buildService(300, 10);
+      // shutdown 진입 시 drain 대상이 있어야 drain 루프에 진입한다 (inFlightCount=0 이면 즉시 반환).
+      service.registerInFlight('ne-early', 'exec-1');
+      const shutdownPromise = service.onApplicationShutdown('SIGTERM');
+      expect(service.isShuttingDown).toBe(true);
+      // §11.2 세그먼트 완료 진행 중 다음 노드 시작(register) — early-return 제거로 추적됨.
+      service.registerInFlight('ne-late', 'exec-1');
+      expect(service.inFlightCount).toBe(2);
+      // 두 노드 모두 grace 내 정상 완료(unregister) → drain 성공.
+      setTimeout(() => {
+        service.unregisterInFlight('ne-early');
+        service.unregisterInFlight('ne-late');
+      }, 30);
+
+      await shutdownPromise;
+
+      // drain 성공 → 정상 완료 노드를 spurious 마킹하지 않는다 (UPDATE 미호출).
+      expect(service.inFlightCount).toBe(0);
+      expect(nodeExecutionUpdateMock).not.toHaveBeenCalled();
+      expect(executionUpdateMock).not.toHaveBeenCalled();
     });
   });
 
