@@ -38,13 +38,19 @@ import {
 function renderDialog(
   trigger: TriggerDeleteTarget,
   onClose: () => void = vi.fn(),
+  onDeleted?: () => void,
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
-      <TriggerDeleteDialog trigger={trigger} open={true} onClose={onClose} />
+      <TriggerDeleteDialog
+        trigger={trigger}
+        open={true}
+        onClose={onClose}
+        onDeleted={onDeleted}
+      />
     </QueryClientProvider>,
   );
 }
@@ -162,5 +168,47 @@ describe("TriggerDeleteDialog", () => {
       expect(toastError).toHaveBeenCalled();
     });
     expect(toastMessage).not.toHaveBeenCalled();
+  });
+
+  // ── onDeleted 콜백 (웹채팅 콘솔 재사용 경로) ──────────────────────
+
+  it("삭제 성공 시 onDeleted 콜백이 호출된다", async () => {
+    apiDeleteMock.mockResolvedValueOnce({});
+    const onDeleted = vi.fn();
+    renderDialog(webhook, vi.fn(), onDeleted);
+
+    fireEvent.change(screen.getByLabelText(/type the trigger name/i), {
+      target: { value: "order-webhook" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+  });
+
+  it("404 동시삭제에도 onDeleted 콜백이 호출된다", async () => {
+    apiDeleteMock.mockRejectedValueOnce({ response: { status: 404 } });
+    const onDeleted = vi.fn();
+    renderDialog(webhook, vi.fn(), onDeleted);
+
+    fireEvent.change(screen.getByLabelText(/type the trigger name/i), {
+      target: { value: "order-webhook" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+  });
+
+  it("5xx 실패 시 onDeleted 는 호출되지 않는다", async () => {
+    apiDeleteMock.mockRejectedValueOnce({ response: { status: 500 } });
+    const onDeleted = vi.fn();
+    renderDialog(webhook, vi.fn(), onDeleted);
+
+    fireEvent.change(screen.getByLabelText(/type the trigger name/i), {
+      target: { value: "order-webhook" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(onDeleted).not.toHaveBeenCalled();
   });
 });

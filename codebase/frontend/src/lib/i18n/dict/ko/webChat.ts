@@ -10,6 +10,9 @@ export const webChat = {
   list: {
     workflowLabel: "워크플로우",
     loadError: "웹채팅 목록을 불러오지 못했어요",
+    inactive: "비활성",
+    lastTriggered: "마지막 호출 {{when}}",
+    neverTriggered: "아직 호출 없음",
   },
   createDialog: {
     title: "웹채팅 만들기",
@@ -54,5 +57,26 @@ export const webChat = {
     title: "라이브 미리보기",
     unavailable:
       "라이브 미리보기는 위젯 번들이 배포에 동봉된 후 사용할 수 있어요",
+  },
+  manage: {
+    active: "활성",
+    inactive: "비활성",
+    menu: "관리 메뉴",
+    history: "호출 이력",
+    rename: "이름 변경",
+    activate: "활성화",
+    deactivate: "비활성화",
+    delete: "삭제",
+    activated: "웹채팅을 활성화했어요",
+    deactivated: "웹채팅을 비활성화했어요",
+    toggleError: "상태를 변경하지 못했어요",
+    renameTitle: "이름 변경",
+    renameLabel: "이름",
+    renameSubmit: "변경",
+    renamed: "이름을 변경했어요",
+    renameError: "이름을 변경하지 못했어요",
+  },
+  onboarding: {
+    hint: "먼저 외형을 설정해 저장한 뒤, 설치 스크립트를 복사해 사이트의 </body> 앞에 붙여넣으세요",
   },
 } as const;

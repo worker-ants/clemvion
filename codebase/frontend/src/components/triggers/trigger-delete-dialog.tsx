@@ -33,6 +33,13 @@ interface Props {
   trigger: TriggerDeleteTarget | null;
   open: boolean;
   onClose: () => void;
+  /**
+   * 삭제 성공(또는 404 동시삭제) 직후 호출 — 호출자 전용 후처리.
+   * 이 컴포넌트는 항상 `["triggers"]` 캐시를 무효화하지만, 웹채팅 콘솔처럼 별도 캐시 키
+   * (`["web-chat-instances"]`)·선택 상태를 가진 화면은 이 콜백에서 추가 무효화·리셋한다.
+   * 미전달 시(triggers 목록 단독 사용처) 기존 동작 그대로.
+   */
+  onDeleted?: () => void;
 }
 
 function isAxiosLikeStatus(err: unknown, status: number): boolean {
@@ -50,16 +57,15 @@ function isAxiosLikeStatus(err: unknown, status: number): boolean {
  * 외부에서 `trigger` 가 바뀌면 key 가 변하면서 내부 state (confirm input) 가 초기화된다.
  *
  * **캐시 무효화 책임**: 이 컴포넌트는 삭제 성공/404 동시 삭제 시 `queryClient.invalidateQueries(["triggers"])`
- * 를 직접 호출한다. 현재 `page.tsx` 단독 사용처에서는 문제없으나, 다른 화면에서 재사용할 경우
- * `["triggers"]` prefix 가 의도치 않은 refetch 를 유발할 수 있다.
- * 재사용 시에는 `onDeleted?: () => void` prop 패턴으로 무효화 책임을 호출자에게 위임하는
- * 리팩터링을 고려한다.
+ * 를 직접 호출한다. 별도 캐시 키·선택 상태를 가진 화면(웹채팅 콘솔: `["web-chat-instances"]`)은
+ * `onDeleted` 콜백에서 추가 무효화·리셋을 수행한다 — 이 컴포넌트의 `["triggers"]` 무효화는
+ * 그대로 유지되므로 콜백은 "추가" 책임만 진다.
  */
 export function TriggerDeleteDialog(props: Props) {
   return <DialogInner key={props.trigger?.id ?? "__none__"} {...props} />;
 }
 
-function DialogInner({ trigger, open, onClose }: Props) {
+function DialogInner({ trigger, open, onClose, onDeleted }: Props) {
   const t = useT();
   const queryClient = useQueryClient();
   const [confirmText, setConfirmText] = useState("");
@@ -70,6 +76,7 @@ function DialogInner({ trigger, open, onClose }: Props) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });
+      onDeleted?.();
       toast.success(t("triggers.deleted"));
       onClose();
     },
@@ -77,6 +84,7 @@ function DialogInner({ trigger, open, onClose }: Props) {
       // 동시 삭제 시 404 — 결과적으로는 이미 사라졌으므로 silent invalidate + 안내 1회.
       if (isAxiosLikeStatus(err, 404)) {
         queryClient.invalidateQueries({ queryKey: ["triggers"] });
+        onDeleted?.();
         toast.message(t("triggers.notFoundOnDelete"));
         onClose();
         return;

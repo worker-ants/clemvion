@@ -133,6 +133,60 @@ CDN 스니펫이나 npm 패키지로 위젯을 직접 통합하거나 자체 UI(
 
 위젯은 제품과 함께 제공되므로 별도 외부 설정 없이 바로 동작해요. 외형 설정을 바꾸면 미리보기에 즉시 반영돼요.
 
+## 6. 인스턴스 관리
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="WebChatRenameDialog"
+  describes="웹채팅 인스턴스 이름 변경 다이얼로그"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="TriggerHistoryDialog"
+  describes="웹채팅 인스턴스 호출 이력 다이얼로그"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/web-chat/page.tsx"
+  symbol="TriggerDeleteDialog"
+  describes="웹채팅 인스턴스 삭제 확인 다이얼로그"
+/>
+
+목록에서 인스턴스를 선택하면 우측 상단 **더보기(⋮)** 메뉴에서 인스턴스를 관리할 수 있어요.
+
+### 이름 변경
+
+**더보기 → 이름 변경**을 선택하면 다이얼로그가 열려요. 새 이름을 입력하고 **저장**을 클릭해요. 이름은 콘솔 목록에서 인스턴스를 구분하는 라벨이에요.
+
+### 활성·비활성 토글
+
+**더보기 → 활성화** 또는 **비활성화**를 선택해 인스턴스를 켜고 끌 수 있어요.
+
+- **활성** 상태면 설치 스크립트를 통해 대화가 가능해요.
+- **비활성** 상태면 목록에 **비활성** 배지가 표시되고, 위젯은 응답하지 않아요.
+
+<Callout type="note">
+활성·비활성 전환은 **편집자(editor) 이상** 역할이 필요해요.
+</Callout>
+
+### 호출 이력
+
+**더보기 → 호출 이력**을 선택하면 이 인스턴스로 들어온 최근 웹채팅 실행 이력을 확인할 수 있어요. 목록 행에는 마지막 호출 시각도 표시돼요.
+
+### 삭제
+
+**더보기 → 삭제**를 클릭하면 삭제 확인 다이얼로그가 열려요. 인스턴스 이름을 정확히 입력해야 삭제 버튼이 활성화돼요.
+
+<Callout type="warn">
+삭제된 웹채팅은 복구할 수 없어요. 설치 스크립트가 삽입된 사이트에서 위젯이 즉시 응답을 멈춰요.
+</Callout>
+
+---
+
 ## 팁 & 참고
 
 - **워크플로우 먼저 준비하세요**: 웹채팅을 만들기 전에 [워크플로우](/workflows)를 미리 작성해 두면 선택이 편해요.

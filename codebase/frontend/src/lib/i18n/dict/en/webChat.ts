@@ -13,6 +13,9 @@ export const webChat: Dict["webChat"] = {
   list: {
     workflowLabel: "Workflow",
     loadError: "Failed to load web chats",
+    inactive: "Inactive",
+    lastTriggered: "Last triggered {{when}}",
+    neverTriggered: "No calls yet",
   },
   createDialog: {
     title: "New web chat",
@@ -57,5 +60,26 @@ export const webChat: Dict["webChat"] = {
     title: "Live preview",
     unavailable:
       "Live preview becomes available once the widget bundle is co-deployed",
+  },
+  manage: {
+    active: "Active",
+    inactive: "Inactive",
+    menu: "Manage menu",
+    history: "Call history",
+    rename: "Rename",
+    activate: "Activate",
+    deactivate: "Deactivate",
+    delete: "Delete",
+    activated: "Web chat activated",
+    deactivated: "Web chat deactivated",
+    toggleError: "Failed to change status",
+    renameTitle: "Rename",
+    renameLabel: "Name",
+    renameSubmit: "Save",
+    renamed: "Name updated",
+    renameError: "Failed to rename",
+  },
+  onboarding: {
+    hint: "Set up the appearance and save it, then copy the install script and paste it right before </body> on your site",
   },
 };

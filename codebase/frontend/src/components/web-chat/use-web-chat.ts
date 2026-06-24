@@ -21,6 +21,8 @@ export interface WebChatInstance {
   workflowName: string;
   endpointPath: string;
   isActive: boolean;
+  /** 마지막 호출 시각(ISO 8601, UTC). 목록 행 메타·상태 가시성용. undefined = 호출 이력 없음. */
+  lastTriggeredAt?: string;
   /** interaction 토큰 전략 — 외형 저장(PATCH) 시 interaction 객체 전체를 보존해 보내야 한다. */
   tokenStrategy?: InteractionTokenStrategy;
   /** 서버에 저장된 외형/콘텐츠(`config.interaction.appearance`). 미저장이면 undefined. */
@@ -72,6 +74,7 @@ export function useWebChatInstances() {
           workflowName: t.workflowName,
           endpointPath: t.endpointPath ?? "",
           isActive: t.isActive,
+          lastTriggeredAt: t.lastTriggeredAt,
           tokenStrategy: t.config?.interaction?.tokenStrategy,
           appearance: t.config?.interaction?.appearance,
         })),
@@ -161,6 +164,42 @@ export function useUpdateWebChatAppearance() {
           appearance,
         },
       });
+      return data;
+    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: WEB_CHAT_INSTANCES_KEY }),
+        queryClient.invalidateQueries({ queryKey: TRIGGERS_KEY }),
+      ]),
+  });
+}
+
+export interface UpdateWebChatMetaInput {
+  instanceId: string;
+  name?: string;
+  isActive?: boolean;
+}
+
+/**
+ * 인스턴스의 top-level 메타(이름·활성 상태)를 PATCH 한다.
+ *
+ * 외형 저장(`useUpdateWebChatAppearance`)과 분리된 경로 — interaction 객체를 보내지 않으므로
+ * `enabled`/`tokenStrategy`/`appearance` 가 영향받지 않는다(silent mutation 방지). name·isActive
+ * 는 단일 PATCH 경로(R-4, `TriggerUpdateBody`)로 전달된다. undefined 필드는 바디에서 제외해
+ * 부분 수정만 보낸다(이름만, 또는 활성 상태만).
+ *
+ * **onError 미처리**: PATCH 실패 시 서버는 미변경이므로 목록이 stale 되지 않는 것이 올바른
+ * 동작이다 — `onError` 에서 `invalidateQueries` 를 하지 않는다. `useUpdateWebChatAppearance`
+ * 와 동일 패턴 (onSuccess 만 invalidate).
+ */
+export function useUpdateWebChatMeta() {
+  const queryClient = useQueryClient();
+  return useMutation<unknown, unknown, UpdateWebChatMetaInput>({
+    mutationFn: async ({ instanceId, name, isActive }) => {
+      const body: { name?: string; isActive?: boolean } = {};
+      if (name !== undefined) body.name = name;
+      if (isActive !== undefined) body.isActive = isActive;
+      const { data } = await apiClient.patch(`/triggers/${instanceId}`, body);
       return data;
     },
     onSuccess: () =>
