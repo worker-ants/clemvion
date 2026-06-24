@@ -176,6 +176,7 @@ GET /api/triggers?type=webhook&status=active
 | 422 | Unprocessable Entity | 비즈니스 로직 오류 |
 | 429 | Too Many Requests | Rate Limit 초과 |
 | 500 | Internal Server Error | 서버 오류 |
+| 503 | Service Unavailable | upstream 의존성(Redis 등) 일시 장애로 요청을 수락할 수 없음 — 재시도 가능. 코드: `SERVER_SHUTTING_DOWN`(SIGTERM 후 새 실행 거부)·`EXECUTION_ENQUEUE_FAILED`(continuation publish 실패로 cancel 미수락) — [error-handling §1.5](./3-error-handling.md#15-ws-commands-에러-코드-도메인-spec-참조) |
 
 ---
 

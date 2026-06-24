@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T21:59:32.428196",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-c1m7-publish-failfast.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
