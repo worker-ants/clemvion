@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T15:52:12.393664",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=M-4 park-진입 dispatch 추출 완료(커밋 ecd70dd1). ParkEntryDispatch registry(park-entry-dispatch.ts) + dispatchParkEntry 로 3개 사이트 일원화. behavior-preserving, e2e 214 PASS. spec frontmatter code:·§1.2 park-entry 노트는 후속 planner spec-sync PR(developer spec read-only). 대상 spec/conventions/interaction-type-registry.md + spec/5-system/4-execution-engine.md., diff-base=origin/main)",
+  "target_path": "M-4 park-진입 dispatch 추출 완료(커밋 ecd70dd1). ParkEntryDispatch registry(park-entry-dispatch.ts) + dispatchParkEntry 로 3개 사이트 일원화. behavior-preserving, e2e 214 PASS. spec frontmatter code:·§1.2 park-entry 노트는 후속 planner spec-sync PR(developer spec read-only). 대상 spec/conventions/interaction-type-registry.md + spec/5-system/4-execution-engine.md.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

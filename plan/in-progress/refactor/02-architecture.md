@@ -218,7 +218,8 @@
 
 ### M-4 [Major] blocking 인터랙션 문자열 리터럴 분기 잔존 — park-진입 측 dispatch 추출
 
-- [ ] 미착수 — `execution-engine.service.ts:1577-1616,3709,3944-3948`
+- [x] **구현 완료 (Option A, 2026-06-24, 커밋 `ecd70dd1`)** — branch `claude/refactor-m4-park-entry-dispatch`. park-진입 측 form/buttons/ai `waitForX` 선택 분기를 `ParkEntryDispatch` registry(`park-entry-dispatch.ts` — 인터페이스 + 순수 factory `buildParkEntryRegistry`)·`dispatchParkEntry` 로 일원화. resume 측 `dispatchResumeTurn`(#507)과 대칭. **3개 사이트**(plan 원안 "두 블록"에서 확대 — `runNodeDispatchLoop` 드라이브·`executeInline` 중첩·`runExecution` 메인 루프)의 if/else 를 단일 dispatch 호출로 치환. **PARK_RELEASED escape 는 사이트별 보존**(bare `return`/`ParkReleaseSignal` throw/`{parked:true}`) — registry 는 `ProcessTurnResult` 만 반환, escape 는 호출측 유지. `ai_form_render` 는 `ai_conversation` 항목 공유 매칭. behavior-preserving. 검증: lint·build·unit(신규 `park-entry-dispatch.spec.ts` 7)·**e2e 214 PASS**. impl-prep `review/consistency/2026/06/24/15_38_48/` BLOCK:NO · ai-review `review/code/2026/06/24/15_44_39/`(Risk LOW, Critical 0, Warning 2=SPEC-DRIFT defer, RESOLUTION) · impl-done `review/consistency/2026/06/24/15_52_12/` BLOCK:NO.
+  - **후속 planner spec-sync 필요(별 PR)**: `interaction-type-registry.md` frontmatter `code:` 에 `park-entry-dispatch.ts` 등재 + §1.2 끝 주석에 park-entry 라우팅 대칭 노트(`dispatchParkEntry`/`parkEntryRegistry`, first-match-wins form→buttons→ai, `ai_form_render` 는 `ai_conversation` 공유) + `spec/5-system/4-execution-engine.md §Rationale` 에 "park-entry dispatch registry 추출 (M-4)" 항 추가. 근거: `review/consistency/2026/06/24/15_52_12/SUMMARY.md`. (impl-first 채택 사유: spec frontmatter `code:` 는 파일 존재 후 등재 가능 — doc-guard. behavior-preserving 이라 impl 이 spec 계약 미위반.)
 
 **spec 대조**: D — `interaction-type-registry.md` 가 이 분기들을 직접 통치: 문자열 분기 존재 자체는 규약이 인지·가드하는 상태(exhaustive switch 규칙), 단 규약 §4 Rationale 의 목적(shotgun surgery 차단)은 항목과 동일. **resume 측은 이미 registry 추출 완료(PR #507)** — 잔존 지점은 park-진입(waitForX 선택) 측.
 

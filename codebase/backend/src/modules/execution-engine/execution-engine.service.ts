@@ -154,6 +154,11 @@ import type {
   ResumeTurnDispatch,
   ResumeTurnSelector,
 } from './resume-turn-dispatch';
+import type {
+  ParkEntryContext,
+  ParkEntryDispatch,
+} from './park-entry-dispatch';
+import { buildParkEntryRegistry } from './park-entry-dispatch';
 import {
   CALL_STACK_SCHEMA_VERSION,
   ResumeCallStack,
@@ -1390,49 +1395,20 @@ export class ExecutionEngineService
         const downstreamOutput = context.nodeOutputCache[node.id] as
           | Record<string, unknown>
           | undefined;
-        const downstreamInteraction = this.getInteractionType(context, node.id);
         if (downstreamOutput?.status === 'waiting_for_input') {
-          const downstreamBlocking = this.handlerRegistry.getMetadata(
-            node.type,
-          );
-          if (
-            downstreamBlocking.kind === 'blocking' &&
-            downstreamBlocking.interaction === 'form'
-          ) {
-            // Phase B (PR-B1) — resume/retry 드라이브가 downstream top-level
-            // 블로킹 노드에 도달해 fresh park 하면 release 한다. PARK_RELEASED 수신
-            // 시 이 드라이브 세그먼트를 종료하고 { parked:true } 를 caller
-            // (driveResumeAwaited / resumeGraphAfterRetry)로 올려 코루틴을 해제한다.
-            const parkSignal = await this.formInteraction.waitForFormSubmission(
-              savedExecution,
-              executionId,
-              node,
-              context,
-            );
-            if (parkSignal === PARK_RELEASED) return { parked: true };
-          } else if (downstreamInteraction === 'buttons') {
-            const parkSignal =
-              await this.buttonInteraction.waitForButtonInteraction(
-                savedExecution,
-                executionId,
-                node,
-                context,
-                graphEdges,
-              );
-            if (parkSignal === PARK_RELEASED) return { parked: true };
-          } else if (downstreamInteraction === 'ai_conversation') {
-            // Phase B (PR-B2, exec-park D4) — top-level 멀티턴 AI turn-park.
-            // resume/retry 드라이브가 downstream AI 노드에 도달해 fresh park 하면
-            // release 해 세그먼트 종료(코루틴 해제). 후속 turn 은 rehydration 재개.
-            const parkSignal =
-              await this.aiTurnOrchestrator.waitForAiConversation(
-                savedExecution,
-                executionId,
-                node,
-                context,
-              );
-            if (parkSignal === PARK_RELEASED) return { parked: true };
-          }
+          // M-4 — park 진입 분기(form/buttons/ai)를 parkEntryRegistry 로 일원화
+          // (resume 측 dispatchResumeTurn 과 대칭). Phase B (PR-B1·B2) — resume/retry
+          // 드라이브가 downstream blocking 노드에 도달해 fresh park 하면 release 해
+          // PARK_RELEASED 수신 시 이 드라이브 세그먼트를 종료하고 { parked:true } 를
+          // caller(driveResumeAwaited / resumeGraphAfterRetry)로 올려 코루틴을 해제한다.
+          const parkSignal = await this.dispatchParkEntry({
+            savedExecution,
+            executionId,
+            node,
+            context,
+            graphEdges,
+          });
+          if (parkSignal === PARK_RELEASED) return { parked: true };
         }
 
         this.graphTraversal.propagateReachability(
@@ -1638,6 +1614,7 @@ export class ExecutionEngineService
    * 지연 초기화 — `this` 처리기 메서드를 캡처하는 closure 이므로 첫 접근 시 빌드.
    */
   private _resumeTurnRegistry?: readonly ResumeTurnDispatch[];
+  private _parkEntryRegistry?: readonly ParkEntryDispatch[];
 
   private get resumeTurnRegistry(): readonly ResumeTurnDispatch[] {
     return (this._resumeTurnRegistry ??= [
@@ -1719,6 +1696,66 @@ export class ExecutionEngineService
       );
     }
     return handler.handle(ctx);
+  }
+
+  /**
+   * 최초 park 진입 registry (`buildParkEntryRegistry`). resume 측
+   * `resumeTurnRegistry` 와 대칭이며 lazy 캐시한다. handle 은 `this`-bound
+   * `waitForX` 로 위임 — buttons 만 `ctx.graphEdges` 를 읽는다.
+   * 신규 blocking 노드 타입은 `park-entry-dispatch.ts` 의 factory 에 항목 1줄 추가.
+   */
+  private get parkEntryRegistry(): readonly ParkEntryDispatch[] {
+    return (this._parkEntryRegistry ??= buildParkEntryRegistry({
+      handleForm: (ctx) =>
+        this.formInteraction.waitForFormSubmission(
+          ctx.savedExecution,
+          ctx.executionId,
+          ctx.node,
+          ctx.context,
+        ),
+      handleButtons: (ctx) =>
+        this.buttonInteraction.waitForButtonInteraction(
+          ctx.savedExecution,
+          ctx.executionId,
+          ctx.node,
+          ctx.context,
+          ctx.graphEdges,
+        ),
+      handleAiConversation: (ctx) =>
+        this.aiTurnOrchestrator.waitForAiConversation(
+          ctx.savedExecution,
+          ctx.executionId,
+          ctx.node,
+          ctx.context,
+        ),
+    }));
+  }
+
+  /**
+   * 최초 park 진입의 **단일 진입점** — 대기 노드를 노드-타입별 `waitForX` 로 라우팅.
+   * `runExecution`(메인 루프)·`executeInline`(중첩)·`runNodeDispatchLoop`(드라이브)
+   * 세 곳이 공유한다 (추출 전 세 곳에 중복돼 있던 form/buttons/ai if/else 를
+   * `parkEntryRegistry` 조회로 일원화).
+   *
+   * **반환값을 호출측이 해석**한다 — `PARK_RELEASED` 후 control-flow 반응이
+   * 사이트마다 다르기 때문(bare `return` / `ParkReleaseSignal` throw /
+   * `{ parked: true }`). dispatch 는 선택 + `waitForX` 호출만 하고 결과를 그대로
+   * 반환한다. 매칭 처리기가 없으면 `undefined`(park 진입 분기 없음 — 추출 전
+   * if/else 의 else-fallthrough 와 동일).
+   */
+  private async dispatchParkEntry(
+    ctx: ParkEntryContext,
+  ): Promise<ProcessTurnResult> {
+    const meta = this.handlerRegistry.getMetadata(ctx.node.type);
+    const handler = this.parkEntryRegistry.find((h) =>
+      h.selects({
+        node: ctx.node,
+        blockingInteraction:
+          meta.kind === 'blocking' ? meta.interaction : undefined,
+        interactionType: this.getInteractionType(ctx.context, ctx.node.id),
+      }),
+    );
+    return handler ? handler.handle(ctx) : undefined;
   }
 
   /**
@@ -2967,7 +3004,6 @@ export class ExecutionEngineService
         const nodeOutput = context.nodeOutputCache[node.id] as
           | Record<string, unknown>
           | undefined;
-        const interactionType = this.getInteractionType(context, node.id);
         const statusForLog =
           typeof nodeOutput?.status === 'string' ? nodeOutput.status : 'none';
         this.logger.log(
@@ -2992,38 +3028,17 @@ export class ExecutionEngineService
             // stack 을 unwind(코루틴 해제 → bounded 메모리). 재개는 §7.5 rehydration
             // (`driveCallStackResume`)이 frame-by-frame 으로 재진입한다. 옛 'await'
             // (in-memory pendingContinuations 루프)은 제거됐다.
-            const blocking = this.handlerRegistry.getMetadata(node.type);
-            let parkSignal: ProcessTurnResult = undefined;
-            if (
-              blocking.kind === 'blocking' &&
-              blocking.interaction === 'form'
-            ) {
-              parkSignal = await this.formInteraction.waitForFormSubmission(
-                execution,
-                executionId,
-                node,
-                context,
-              );
-            } else if (interactionType === 'buttons') {
-              parkSignal =
-                await this.buttonInteraction.waitForButtonInteraction(
-                  execution,
-                  executionId,
-                  node,
-                  context,
-                  graphEdges,
-                );
-            } else if (
-              interactionType === 'ai_conversation' ||
-              interactionType === 'ai_form_render'
-            ) {
-              parkSignal = await this.aiTurnOrchestrator.waitForAiConversation(
-                execution,
-                executionId,
-                node,
-                context,
-              );
-            }
+            // M-4 — park 진입 분기를 parkEntryRegistry 로 일원화. 중첩
+            // sub-workflow 는 narrowed `execution` 을 savedExecution 으로 넣는다.
+            // PARK_RELEASED 시 `ParkReleaseSignal` 을 throw 해 deep call stack 을
+            // unwind(코루틴 해제). 재개는 §7.5 rehydration(driveCallStackResume).
+            const parkSignal = await this.dispatchParkEntry({
+              savedExecution: execution,
+              executionId,
+              node,
+              context,
+              graphEdges,
+            });
             if (parkSignal === PARK_RELEASED) {
               throw new ParkReleaseSignal();
             }
@@ -3508,43 +3523,19 @@ export class ExecutionEngineService
         const nodeOutput = context.nodeOutputCache[node.id] as
           | Record<string, unknown>
           | undefined;
-        const interactionType = this.getInteractionType(context, node.id);
         if (nodeOutput?.status === 'waiting_for_input') {
-          const blocking = this.handlerRegistry.getMetadata(node.type);
-          if (blocking.kind === 'blocking' && blocking.interaction === 'form') {
-            // Phase B (PR-B1) — fresh top-level park → 코루틴 해제. PARK_RELEASED
-            // 수신 시 세그먼트를 종료하고 반환한다(finally 가 context cleanup +
-            // settleFirstSegment 로 worker job 반환). 재개는 §7.5 rehydration.
-            const parkSignal = await this.formInteraction.waitForFormSubmission(
-              savedExecution,
-              executionId,
-              node,
-              context,
-            );
-            if (parkSignal === PARK_RELEASED) return;
-          } else if (interactionType === 'buttons') {
-            const parkSignal =
-              await this.buttonInteraction.waitForButtonInteraction(
-                savedExecution,
-                executionId,
-                node,
-                context,
-                graphEdges,
-              );
-            if (parkSignal === PARK_RELEASED) return;
-          } else if (interactionType === 'ai_conversation') {
-            // Phase B (PR-B2, exec-park D4) — top-level 멀티턴 AI turn-park.
-            // 첫 turn 진입에서 초기 AI 응답 emit + park-release → 세그먼트 종료.
-            // 후속 turn 은 continuation job → §7.5 rehydration(processAiResumeTurn).
-            const parkSignal =
-              await this.aiTurnOrchestrator.waitForAiConversation(
-                savedExecution,
-                executionId,
-                node,
-                context,
-              );
-            if (parkSignal === PARK_RELEASED) return;
-          }
+          // M-4 — park 진입 분기를 parkEntryRegistry 로 일원화. Phase B (PR-B1·B2)
+          // — fresh top-level park → 코루틴 해제. PARK_RELEASED 수신 시 세그먼트를
+          // 종료하고 반환한다(finally 가 context cleanup + settleFirstSegment 로
+          // worker job 반환). 후속 turn 은 §7.5 rehydration.
+          const parkSignal = await this.dispatchParkEntry({
+            savedExecution,
+            executionId,
+            node,
+            context,
+            graphEdges,
+          });
+          if (parkSignal === PARK_RELEASED) return;
         }
 
         // Propagate reachability to downstream nodes through activated edges.

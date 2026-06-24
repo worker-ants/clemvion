@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T15:38:48.963021",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=M-4 park-진입 dispatch 추출: execution-engine.service.ts 의 3개 park-entry 사이트(runExecution·executeInline·runNodeDispatchLoop)에 중복된 form/buttons/ai waitForX 선택 분기를 ParkEntryDispatch registry(park-entry-dispatch.ts, buildParkEntryRegistry factory)로 일원화. resume 측 dispatchResumeTurn(PR #507)과 대칭. PARK_RELEASED escape는 사이트별 보존(bare return/ParkReleaseSignal throw/{parked:true}). behavior-preserving. spec 노트(interaction-type-registry.md §1.2 park-entry)는 후속 planner spec-sync PR. 대상 spec/conventions/interaction-type-registry.md + spec/5-system/4-execution-engine.md.)",
+  "target_path": "M-4 park-진입 dispatch 추출: execution-engine.service.ts 의 3개 park-entry 사이트(runExecution·executeInline·runNodeDispatchLoop)에 중복된 form/buttons/ai waitForX 선택 분기를 ParkEntryDispatch registry(park-entry-dispatch.ts, buildParkEntryRegistry factory)로 일원화. resume 측 dispatchResumeTurn(PR #507)과 대칭. PARK_RELEASED escape는 사이트별 보존(bare return/ParkReleaseSignal throw/{parked:true}). behavior-preserving. spec 노트(interaction-type-registry.md §1.2 park-entry)는 후속 planner spec-sync PR. 대상 spec/conventions/interaction-type-registry.md + spec/5-system/4-execution-engine.md.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
