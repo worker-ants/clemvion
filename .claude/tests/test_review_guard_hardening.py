@@ -12,13 +12,22 @@ audit surfaced:
   - evaluate_review        — in-flight short-circuit.
   - _summary_is_resolved   — risk level found beyond the old 3-line window.
   - stop-hook throttle     — per-branch token + missing session_id fallback.
+  - _resolution_in_flight  — resolution-applier fix in flight suppresses the Stop
+    nudge (dispatch marker + applier-started filesystem signal, both TTL-bound).
+  - mark_/clear_resolution_in_flight — the PreToolUse(Agent)/SubagentStop marker
+    hooks: write on resolution-applier dispatch, remove on completion.
+  - stop-hook resolution suppression + nudge-text branching (review-done wording).
 """
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -27,6 +36,8 @@ from unittest import mock
 import _harness  # noqa: F401  — side effect: puts .claude/hooks on sys.path
 from _lib import review_guard as rg
 import guard_review_before_stop as stop
+import mark_resolution_in_flight as mark_hook
+import clear_resolution_in_flight as clear_hook
 
 
 class PorcelainPathTest(unittest.TestCase):
@@ -352,6 +363,170 @@ class StopThrottleTest(unittest.TestCase):
     def test_throttle_token_no_git_returns_norepo(self):
         with mock.patch("subprocess.run", side_effect=FileNotFoundError()):
             self.assertEqual(stop._throttle_token(), "norepo")
+
+
+class ResolutionInFlightTest(unittest.TestCase):
+    """`_resolution_in_flight`: a resolution-applier fix in progress must be
+    detected (to suppress the Stop nudge), via either the dispatch marker or the
+    applier-started filesystem state, both TTL-bounded."""
+
+    def setUp(self):
+        self.root = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.mdir = os.path.join(self.root, "markers")
+        os.makedirs(self.mdir)
+
+    def _marker(self, name, epoch):
+        with open(os.path.join(self.mdir, name), "w", encoding="utf-8") as f:
+            f.write(str(epoch))
+
+    def _write(self, path, body):
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def _session(self, *parts, state=True, summary=True, resolution=False):
+        sd = os.path.join(self.root, "review", "code", *parts)
+        os.makedirs(sd, exist_ok=True)
+        if state:
+            self._write(os.path.join(sd, "_resolution_state.json"), "{}")
+        if summary:
+            self._write(os.path.join(sd, "SUMMARY.md"), "# x")
+        if resolution:
+            self._write(os.path.join(sd, "RESOLUTION.md"), "# r")
+        return sd
+
+    def test_fresh_marker_is_in_flight(self):
+        self._marker("toolu_1", 1000.0 - 10)
+        self.assertTrue(rg._resolution_in_flight(self.root, now=1000.0, marker_dir=self.mdir))
+
+    def test_stale_marker_not_in_flight(self):
+        self._marker("toolu_1", 1000.0 - rg._IN_FLIGHT_TTL_SECONDS - 100)
+        self.assertFalse(rg._resolution_in_flight(self.root, now=1000.0, marker_dir=self.mdir))
+
+    def test_empty_marker_falls_back_to_mtime(self):
+        # A 0-byte marker (content lost) still counts via its fresh mtime.
+        p = os.path.join(self.mdir, "toolu_empty")
+        open(p, "w").close()
+        now = rg._mtime(p) + 5.0
+        self.assertTrue(rg._resolution_in_flight(self.root, now=now, marker_dir=self.mdir))
+
+    def test_applier_started_state_is_in_flight(self):
+        # No marker; the applier-started filesystem signal alone suffices.
+        self._session("2026", "06", "25", "00_30_00", resolution=False)
+        now = rg._path_session_time("x/2026/06/25/00_30_00") + 60.0
+        self.assertTrue(rg._resolution_in_flight(self.root, now=now, marker_dir=self.mdir))
+
+    def test_resolution_written_not_in_flight(self):
+        # RESOLUTION.md present → the fix is done, not in flight.
+        self._session("2026", "06", "25", "00_30_00", resolution=True)
+        now = rg._path_session_time("x/2026/06/25/00_30_00") + 60.0
+        self.assertFalse(rg._resolution_in_flight(self.root, now=now, marker_dir=self.mdir))
+
+    def test_stale_started_state_not_in_flight(self):
+        self._session("2026", "06", "25", "00_30_00", resolution=False)
+        now = rg._path_session_time("x/2026/06/25/00_30_00") + rg._IN_FLIGHT_TTL_SECONDS + 100.0
+        self.assertFalse(rg._resolution_in_flight(self.root, now=now, marker_dir=self.mdir))
+
+    def test_nothing_in_flight_when_no_signals(self):
+        self.assertFalse(rg._resolution_in_flight(self.root, now=1000.0, marker_dir=self.mdir))
+
+
+class ResolutionMarkerHookTest(unittest.TestCase):
+    """The PreToolUse(Agent)/SubagentStop marker hooks."""
+
+    def setUp(self):
+        self.pd = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.pd, ignore_errors=True)
+
+    def _run(self, mod, payload):
+        with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": self.pd}), \
+             mock.patch.object(sys, "stdin", io.StringIO(json.dumps(payload))):
+            return mod.main()
+
+    def _marker(self, tool_use_id):
+        return os.path.join(self.pd, ".claude", "state", "resolution_in_flight", tool_use_id)
+
+    def test_mark_writes_marker_for_resolution_applier(self):
+        rc = self._run(mark_hook, {
+            "tool_name": "Agent", "tool_use_id": "toolu_ABC",
+            "tool_input": {"subagent_type": "resolution-applier",
+                           "prompt": "session_dir=review/code/2026/06/25/00_30_00"},
+        })
+        self.assertEqual(rc, 0)
+        m = self._marker("toolu_ABC")
+        self.assertTrue(os.path.isfile(m))
+        with open(m, encoding="utf-8") as f:
+            float(f.read().strip())  # content is a parseable epoch
+
+    def test_mark_ignores_non_agent_tool(self):
+        self._run(mark_hook, {"tool_name": "Bash", "tool_input": {"command": "ls"}})
+        self.assertFalse(os.path.isdir(os.path.dirname(self._marker("x"))))
+
+    def test_mark_ignores_other_subagent_type(self):
+        self._run(mark_hook, {
+            "tool_name": "Agent", "tool_use_id": "t",
+            "tool_input": {"subagent_type": "general-purpose"},
+        })
+        self.assertFalse(os.path.exists(self._marker("t")))
+
+    def test_clear_removes_marker_by_tool_use_id(self):
+        # seed a marker, then clear it.
+        self._run(mark_hook, {
+            "tool_name": "Agent", "tool_use_id": "toolu_ABC",
+            "tool_input": {"subagent_type": "resolution-applier", "prompt": "session_dir=x"},
+        })
+        self.assertTrue(os.path.isfile(self._marker("toolu_ABC")))
+        rc = self._run(clear_hook, {"tool_use_id": "toolu_ABC"})
+        self.assertEqual(rc, 0)
+        self.assertFalse(os.path.exists(self._marker("toolu_ABC")))
+
+    def test_clear_without_tool_use_id_is_noop(self):
+        self.assertEqual(self._run(clear_hook, {}), 0)  # no crash
+
+
+class StopResolutionSuppressionTest(unittest.TestCase):
+    """guard_review_before_stop: suppress the review nudge while resolution is in
+    flight (Stop only), and branch the nudge wording on whether a review ran."""
+
+    def _run_stop(self, *, blocked, in_flight, summaries):
+        payload = {"session_id": "s", "stop_hook_active": False}
+        buf = io.StringIO()
+        with mock.patch.object(stop, "evaluate_review",
+                               return_value=rg.ReviewDecision(blocked, "reason-x")), \
+             mock.patch.object(stop, "_resolution_in_flight", return_value=in_flight), \
+             mock.patch.object(stop, "_repo_root", return_value="/r"), \
+             mock.patch.object(stop, "_iter_summaries", return_value=summaries), \
+             mock.patch.object(stop, "evaluate_plan", None), \
+             mock.patch.object(stop, "_throttle_token", return_value="br"), \
+             mock.patch.object(stop, "_already_nudged", return_value=False), \
+             mock.patch.object(stop, "_mark_nudged"), \
+             mock.patch.object(sys, "stdin", io.StringIO(json.dumps(payload))), \
+             contextlib.redirect_stdout(buf):
+            os.environ.pop("BYPASS_REVIEW_GUARD", None)
+            stop.main()
+        return buf.getvalue()
+
+    def test_in_flight_suppresses_review_nudge(self):
+        # Resolution in flight + a review exists → no block emitted (falls through
+        # to the plan nudge, which is disabled here → allow / empty stdout).
+        out = self._run_stop(blocked=True, in_flight=True, summaries=["s"])
+        self.assertEqual(out.strip(), "")
+
+    def test_not_in_flight_blocks_with_review_done_wording(self):
+        out = self._run_stop(blocked=True, in_flight=False, summaries=["s"])
+        d = json.loads(out)
+        self.assertEqual(d["decision"], "block")
+        self.assertIn("이미 수행됐습니다", d["reason"])
+
+    def test_not_in_flight_no_review_uses_run_ai_review_wording(self):
+        out = self._run_stop(blocked=True, in_flight=False, summaries=[])
+        d = json.loads(out)
+        self.assertEqual(d["decision"], "block")
+        self.assertIn("/ai-review — 변경에 대한 리뷰", d["reason"])
+
+    def test_not_blocked_allows(self):
+        out = self._run_stop(blocked=False, in_flight=False, summaries=[])
+        self.assertEqual(out.strip(), "")
 
 
 if __name__ == "__main__":
