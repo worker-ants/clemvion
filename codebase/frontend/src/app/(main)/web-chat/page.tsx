@@ -297,33 +297,40 @@ function WebChatDetail({
         </div>
       )}
 
-      <Card className="space-y-4 p-6">
-        <AppearanceBuilder draft={draft} onChange={setDraft} />
-        <RoleGate minRole="editor">
-          <div className="flex items-center justify-end gap-3 border-t border-[hsl(var(--border))] pt-4">
-            {isDirty && (
-              <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                {t("webChat.appearance.unsaved")}
-              </span>
-            )}
-            <Button
-              onClick={() => void save()}
-              disabled={!isDirty || updateAppearance.isPending}
-            >
-              {updateAppearance.isPending && (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              )}
-              {t("webChat.appearance.save")}
-            </Button>
-          </div>
-        </RoleGate>
-      </Card>
-      <Card className="p-6">
-        <InstallSnippetBox endpointPath={instance.endpointPath} draft={draft} />
-      </Card>
-      <Card className="p-6">
-        <LivePreview endpointPath={instance.endpointPath} draft={draft} />
-      </Card>
+      {/* xl+ 2-column: 외형 설정·설치 스니펫(좌) / 라이브 미리보기(우 sticky). 외형 변경이
+          미리보기에 즉시 반영되므로 한 화면에서 확인 가능. xl 미만은 단일 컬럼 세로 stack
+          (좌측 280px 인스턴스 목록 + detail 2분할이 좁은 화면에서 과밀해지는 것 방지). */}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,400px)] xl:items-start">
+        <div className="space-y-6">
+          <Card className="space-y-4 p-6">
+            <AppearanceBuilder draft={draft} onChange={setDraft} />
+            <RoleGate minRole="editor">
+              <div className="flex items-center justify-end gap-3 border-t border-[hsl(var(--border))] pt-4">
+                {isDirty && (
+                  <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                    {t("webChat.appearance.unsaved")}
+                  </span>
+                )}
+                <Button
+                  onClick={() => void save()}
+                  disabled={!isDirty || updateAppearance.isPending}
+                >
+                  {updateAppearance.isPending && (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  )}
+                  {t("webChat.appearance.save")}
+                </Button>
+              </div>
+            </RoleGate>
+          </Card>
+          <Card className="p-6">
+            <InstallSnippetBox endpointPath={instance.endpointPath} draft={draft} />
+          </Card>
+        </div>
+        <Card className="p-6 xl:sticky xl:top-6">
+          <LivePreview endpointPath={instance.endpointPath} draft={draft} />
+        </Card>
+      </div>
 
       <WebChatRenameDialog
         instanceId={instance.id}

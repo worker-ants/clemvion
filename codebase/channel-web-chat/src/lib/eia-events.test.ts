@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseWaitingForInput, parseAiMessage } from "./eia-events";
-import type { WaitingForInputEvent, AiMessageEvent } from "./eia-types";
+import { parseWaitingForInput, parseAiMessage, parseMessage } from "./eia-events";
+import type {
+  WaitingForInputEvent,
+  AiMessageEvent,
+  ExecutionMessageEvent,
+} from "./eia-types";
 
 describe("parseWaitingForInput — SSE wire 형태 매핑", () => {
   it("ai_conversation: waitingNodeId → nodeId, nodeOutput.conversationConfig → config (실제 wire 캡처)", () => {
@@ -111,5 +115,85 @@ describe("parseAiMessage — SSE wire 형태 매핑", () => {
   it("구 형태 .text 는 무시 — message 없으면 빈 문자열", () => {
     const r = parseAiMessage({ text: "legacy" } as unknown as AiMessageEvent);
     expect(r.text).toBe("");
+  });
+});
+
+describe("parseMessage — execution.message(presentation 노드 자동 진행) 매핑", () => {
+  it("template 노드: {config, output} envelope 를 presentations 로 그대로 전달", () => {
+    // 백엔드 execution-engine 이 비차단 presentation 완료 시 발행하는 wire payload 축약.
+    const ev = {
+      nodeId: "n-template",
+      nodeType: "template",
+      presentations: [
+        { config: { outputFormat: "markdown" }, output: { rendered: "**안내** 메시지" } },
+      ],
+    } as unknown as ExecutionMessageEvent;
+    const r = parseMessage(ev);
+    expect(r.presentations?.length).toBe(1);
+    // 위젯 classifyPresentation/toTemplate 가 읽는 envelope 그대로(변환 없음).
+    expect(r.presentations?.[0]).toMatchObject({
+      config: { outputFormat: "markdown" },
+      output: { rendered: "**안내** 메시지" },
+    });
+  });
+
+  it("presentations 빈 배열은 undefined 로 정규화 (parseAiMessage 와 동일 규약)", () => {
+    expect(
+      parseMessage({ presentations: [] } as unknown as ExecutionMessageEvent).presentations,
+    ).toBeUndefined();
+  });
+
+  it("presentations 누락 시 undefined", () => {
+    expect(parseMessage({ nodeType: "template" } as ExecutionMessageEvent).presentations).toBeUndefined();
+  });
+
+  it("carousel 노드: config.layout + output.items envelope 그대로 전달", () => {
+    const ev = {
+      nodeId: "n-carousel",
+      nodeType: "carousel",
+      presentations: [
+        { config: { layout: "card" }, output: { items: [{ title: "A" }, { title: "B" }] } },
+      ],
+    } as unknown as ExecutionMessageEvent;
+    const r = parseMessage(ev);
+    expect(r.presentations?.[0]).toMatchObject({
+      config: { layout: "card" },
+      output: { items: [{ title: "A" }, { title: "B" }] },
+    });
+  });
+
+  it("table 노드: output.rows/columns envelope 그대로 전달", () => {
+    const ev = {
+      nodeId: "n-table",
+      nodeType: "table",
+      presentations: [
+        {
+          config: { columns: [{ field: "name", label: "이름" }] },
+          output: { rows: [{ name: "홍길동" }] },
+        },
+      ],
+    } as unknown as ExecutionMessageEvent;
+    const r = parseMessage(ev);
+    expect(r.presentations?.[0]).toMatchObject({
+      output: { rows: [{ name: "홍길동" }] },
+    });
+  });
+
+  it("chart 노드: config.chartType + output.data envelope 그대로 전달", () => {
+    const ev = {
+      nodeId: "n-chart",
+      nodeType: "chart",
+      presentations: [
+        {
+          config: { chartType: "bar" },
+          output: { data: [{ x: "1월", y: 10 }, { x: "2월", y: 20 }] },
+        },
+      ],
+    } as unknown as ExecutionMessageEvent;
+    const r = parseMessage(ev);
+    expect(r.presentations?.[0]).toMatchObject({
+      config: { chartType: "bar" },
+      output: { data: [{ x: "1월", y: 10 }, { x: "2월", y: 20 }] },
+    });
   });
 });

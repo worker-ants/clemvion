@@ -80,6 +80,19 @@ export enum ExecutionEventType {
    */
   USER_MESSAGE = 'execution.user_message',
   AI_MESSAGE = 'execution.ai_message',
+  /**
+   * 표시-전용 presentation 노드(carousel/table/chart/template)가 버튼 없이 자동 진행
+   * (non-blocking) 완료될 때 발행하는 표시 메시지. EIA SSE 표면(웹채팅 위젯 등)이 렌더한다.
+   *
+   * `execution.node.completed`(node-level)는 **모든 비차단 노드**에 대해 나오는 firehose 라
+   * EIA 표면이 직접 구독하기엔 내부 라이프사이클이 새므로, presentation 4종 한정 execution-level
+   * 표시 이벤트를 별도로 둔다. AI 가 생성한 메시지(`AI_MESSAGE`)가 아니며, 권위 출처는 영속
+   * `NodeExecution.outputData` 다. payload: `{ nodeId, nodeType, presentations: [{config, output}] }`
+   * — presentations envelope 은 AI Agent render_* 와 동일한 위젯 렌더 경로를 탄다.
+   *
+   * 명명 주의: WS 에러코드 `EXECUTION_MESSAGE_TOO_LONG` 와는 무관한 별개 네임스페이스다.
+   */
+  EXECUTION_MESSAGE = 'execution.message',
   /** AI Agent provider tool 실행 시작. 디버깅 타임라인의 pending 표시용 */
   TOOL_CALL_STARTED = 'execution.tool_call_started',
   /** AI Agent provider tool 실행 완료. status: 'success' | 'error' */

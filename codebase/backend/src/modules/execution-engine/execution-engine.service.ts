@@ -87,6 +87,7 @@ import {
   NodeEventType,
 } from '../websocket/websocket.service';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
+import { PRESENTATION_NODE_TYPES } from '../../common/constants/presentation';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -4570,6 +4571,26 @@ export class ExecutionEngineService
             finishedAt: nodeExecution.finishedAt?.toISOString?.(),
           },
         );
+        // presentation 노드(carousel/table/chart/template)가 버튼 없이 자동 진행 완료하면,
+        // EIA SSE 표면(웹채팅 위젯 등)이 렌더할 수 있도록 execution-level `execution.message` 를
+        // 발행한다. node.completed 는 모든 비차단 노드에 대한 firehose 라 EIA 표면이 직접 구독하지
+        // 않으며(내부 라이프사이클 누출), chat-channel 은 node.completed 를 별도 픽업하므로 본
+        // 이벤트로 인한 중복 발화가 없다. presentations envelope `{config, output}` 은 위젯
+        // classifyPresentation 입력 계약과 동일(AI render_* presentations 와 같은 렌더 경로).
+        // spec: spec/5-system/14-external-interaction-api.md §5.2.
+        if (PRESENTATION_NODE_TYPES.has(node.type)) {
+          await this.eventEmitter.emitExecution(
+            executionId,
+            ExecutionEventType.EXECUTION_MESSAGE,
+            {
+              nodeId: node.id,
+              nodeType: node.type,
+              presentations: [
+                { config: adapted.config, output: adapted.output },
+              ],
+            },
+          );
+        }
       } else {
         // Save output for blocking nodes (waitForButtonInteraction will update status)
         nodeExecution.outputData = (output as Record<string, unknown>) ?? {};

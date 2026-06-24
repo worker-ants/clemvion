@@ -186,6 +186,15 @@ code:
   별도 도메인으로 분리 배포**(예: `app.example.com` ↔ `api.example.com`)하면 위젯→`/api/external/*` 가 cross-origin 이 되어
   그 프론트 origin 을 백엔드 `WEB_CHAT_WIDGET_ORIGINS` 에 포함해야 한다(엣지 CDN override 시에도 동일 — [4-security §2](./4-security.md)).
   누락 시 SSE 가 막혀 미리보기에 환영 메시지만 뜨고 대화가 진행되지 않는다.
+- **표시-전용 presentation 노드 렌더**: 버튼 없이 자동 진행하는 presentation 노드(template/carousel/table/chart)의
+  출력은 위젯이 `execution.message` SSE 이벤트([EIA §5.2](../5-system/14-external-interaction-api.md))로 받아 말풍선으로
+  렌더한다. 이로써 캐러셀 버튼 클릭 → **다음 템플릿 노드 메시지** → AI 노드처럼 **노드 사이의 표시 메시지**가 미리보기에
+  누락 없이 나타난다(이 이벤트가 없으면 자동 진행 노드 출력은 node-level firehose 에만 갇혀 위젯이 무시).
+- **레이아웃(2-column)**: 넓은 화면(`xl`+)에서는 **외형/콘텐츠 설정(좌) + 라이브 미리보기(우, sticky)** 2-column 으로
+  배치해(§1 화면 구조) 외형 변경(`wc:boot` 재전송)이 즉시 반영되는 미리보기를 한 화면에서 확인한다. 설치 스니펫은 좌측
+  컬럼 외형 아래에 둔다. `xl` 미만에서는 단일 컬럼 세로 stack 으로 collapse 한다.
+- **세션 초기화("새 세션" 버튼)**: 미리보기 헤더의 "새 세션" 버튼이 위젯에 `wc:command resetSession`([2-sdk §3](./2-sdk.md))을
+  보내 대화를 처음부터 다시 시작한다 — 시나리오를 반복 테스트할 수 있다. 위젯 ready 상태에서만 활성.
 
 ### 6.1 boot config 전달 메커니즘 (이미 로드된 iframe 으로)
 
@@ -272,3 +281,12 @@ self-origin** 이라 이 키는 **선택**(SaaS 엣지 CDN override 용)이다. 
 - vs **직접 React 컴포넌트 mount(iframe 없음)**: 위젯 app→lib 재구조화 부담 + 미리보기가 실제 고객 iframe 임베드와 경로가
   갈려 충실도 저하 → 기각. same-origin iframe 은 위젯을 그대로(output:export) 두고 격리(§R1)를 유지하면서 버전 일치·외부 의존
   0 을 달성. cross-origin 격리 carve-out 근거는 [0-architecture §R8](./0-architecture.md).
+
+### R7. 미리보기 2-column 배치 — `xl` breakpoint 에서만 (결정 2026-06-25)
+**문제**: 미리보기가 상세 패널 **세로 stack 최하단**에 있어, 외형을 바꿔도 효과를 보려면 페이지 끝까지 스크롤해야 했다
+("라이브" 미리보기의 즉시성 상실).
+**결정**: 외형 변경이 `wc:boot` 재전송으로 미리보기에 즉시 반영되므로, 변경↔결과를 한 화면에 두기 위해 **외형(좌)/미리보기
+(우, sticky)** 2-column 으로 배치(§1 화면 구조의 본래 의도와 정합 — 구현이 stack 으로 drift 했던 것을 교정).
+- **`xl` 이상에서만 2-column, 미만은 세로 stack**: 좌측에 이미 **280px 인스턴스 목록** 네비가 있어, 상세 패널 내부를 다시
+  2분할하면 좁은 노트북(≈1280px)에서 외형 폼·미리보기가 과밀해진다. `xl`(≥1280px) 이상에서만 분할하고 그 미만은 단일 컬럼
+  세로 stack 으로 collapse 해 가독성을 지킨다. 미리보기는 우측 컬럼에서 `sticky` 로 고정해 좌측 폼 스크롤 중에도 보인다.

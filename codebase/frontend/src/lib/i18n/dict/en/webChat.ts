@@ -60,6 +60,8 @@ export const webChat: Dict["webChat"] = {
     title: "Live preview",
     unavailable:
       "Live preview becomes available once the widget bundle is co-deployed",
+    reset: "New session",
+    resetHint: "Restart the conversation from the beginning",
   },
   manage: {
     active: "Active",

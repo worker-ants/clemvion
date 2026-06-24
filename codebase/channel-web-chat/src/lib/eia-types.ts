@@ -47,6 +47,7 @@ export type EiaEventName =
   | "execution.started"
   | "execution.waiting_for_input"
   | "execution.ai_message"
+  | "execution.message"
   | "execution.resumed"
   | "execution.completed"
   | "execution.failed"
@@ -85,6 +86,19 @@ export interface AiMessageEvent {
   message?: string;
   nodeId?: string;
   turnCount?: number;
+  presentations?: Array<Record<string, unknown>>;
+  seq?: number;
+}
+
+/**
+ * SSE `execution.message` — wire 형태. 표시-전용 presentation 노드(carousel/table/chart/template)가
+ * 버튼 없이 자동 진행 완료할 때 백엔드가 발행하는 표시 메시지. `presentations[i]` 는 위젯
+ * `classifyPresentation` 입력과 동일한 `{ config, output }` envelope (AI render_* 와 같은 렌더 경로).
+ * AI 가 생성한 메시지가 아니므로 `AiMessageEvent` 와 구분한다 (DOM 전역 `MessageEvent` 와도 별개).
+ */
+export interface ExecutionMessageEvent {
+  nodeId?: string;
+  nodeType?: string;
   presentations?: Array<Record<string, unknown>>;
   seq?: number;
 }

@@ -23,6 +23,7 @@ import {
   EiaEvent,
 } from './types';
 import { extractFormFields, extractFormTitle } from './shared/form-mode';
+import { PRESENTATION_NODE_TYPES } from '../../common/constants/presentation';
 
 const SUBSCRIBED_EVENTS = new Set<string>([
   'execution.waiting_for_input',
@@ -35,13 +36,6 @@ const SUBSCRIBED_EVENTS = new Set<string>([
   // presentation 노드 (`carousel`/`table`/`chart`/`template`) 비-blocking 완료만
   // 발화 — `toChatChannelEvent` 의 sub-filter 가 sub-set 한정 (다른 노드는 null 반환).
   'execution.node.completed',
-]);
-
-const PRESENTATION_NODE_TYPES = new Set<string>([
-  'carousel',
-  'table',
-  'chart',
-  'template',
 ]);
 
 /**

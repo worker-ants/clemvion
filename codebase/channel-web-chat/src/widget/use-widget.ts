@@ -4,12 +4,13 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { EiaClient, EiaError, type EventSourceLike } from "@/lib/eia-client";
 import type {
   AiMessageEvent,
+  ExecutionMessageEvent,
   HookStartResponse,
   InteractCommand,
   InteractionEndpoints,
   WaitingForInputEvent,
 } from "@/lib/eia-types";
-import { parseAiMessage, parseWaitingForInput } from "@/lib/eia-events";
+import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-events";
 import { threadToMessages } from "@/lib/conversation";
 import { clearSession, loadSession, saveSession } from "@/lib/session-store";
 import { initialState, widgetReducer } from "@/lib/widget-state";
@@ -132,6 +133,12 @@ export function useWidget() {
           dispatch({ type: "AI_MESSAGE", text, presentations });
           if (text) bridgeRef.current?.sendEvent("message", { role: "assistant", text });
         }
+      } else if (name === "execution.message") {
+        // 표시-전용 presentation 노드(carousel/table/chart/template)가 버튼 없이 자동 진행
+        // 완료 → presentation 말풍선. text 없이 presentations 만 dispatch 해 기존 AI_MESSAGE
+        // 렌더 경로(text/presentations 분리 렌더)를 재사용한다(이중 텍스트 방지).
+        const { presentations } = parseMessage(data as ExecutionMessageEvent);
+        if (presentations) dispatch({ type: "AI_MESSAGE", text: "", presentations });
       } else if (
         name === "execution.completed" ||
         name === "execution.failed" ||
@@ -397,9 +404,9 @@ export function useWidget() {
 
   // host 명령은 1회 등록 핸들러에서 최신 함수를 참조해야 함(stale closure 회피).
   // ref 갱신은 render 중이 아니라 effect 에서(매 렌더).
-  const apiRef = useRef({ open, close, submitMessage, closeStream, show, hide, updateProfile });
+  const apiRef = useRef({ open, close, submitMessage, closeStream, show, hide, updateProfile, newChat });
   useEffect(() => {
-    apiRef.current = { open, close, submitMessage, closeStream, show, hide, updateProfile };
+    apiRef.current = { open, close, submitMessage, closeStream, show, hide, updateProfile, newChat };
   });
 
   // 마운트: bridge + config + 세션 복원.
@@ -493,6 +500,10 @@ export function useWidget() {
         case "updateProfile":
           if (cmd.profile && typeof cmd.profile === "object")
             apiRef.current.updateProfile(cmd.profile as Record<string, unknown>);
+          break;
+        case "resetSession":
+          // 라이브 미리보기 등 host 가 대화를 처음부터 다시 시작 — closeStream→clearSession→start.
+          apiRef.current.newChat();
           break;
       }
     });
