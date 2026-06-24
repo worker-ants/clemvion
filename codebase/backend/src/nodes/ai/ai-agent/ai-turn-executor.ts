@@ -509,6 +509,22 @@ class RagAccumulatorGroup {
  * 흐름)·§7.4~7.9(출력 포트 shape·`_resumeState`/`_resumeCheckpoint`/`_retryState`
  * 생명주기)·§12.6~12.8(form 재호출 가드·formData cap·retry_last_turn).
  */
+/**
+ * Multi-turn turn 메모리 재주입 (spec §6.2 d.5/d.6) 메타. processMultiTurnMessage
+ * 와 추출 helper {@link AiTurnExecutor.applyMultiTurnTurnMemory} 가 공유한다.
+ */
+type MultiTurnMemoryMeta = {
+  strategy: MemoryStrategy;
+  summarized: boolean;
+  recalledCount: number;
+  tokenBudgetUsed: number;
+  /**
+   * 이 turn 의 요약 압축이 누적 `messages` 에서 물리 제거한 메시지 수
+   * (요약이 커버한 오래된 exchange). 0 이면 물리 압축 미발생.
+   */
+  compactedMessages?: number;
+};
+
 export class AiTurnExecutor {
   constructor(
     private readonly llmService: LlmService,
@@ -1088,6 +1104,221 @@ export class AiTurnExecutor {
     return { messages, finalSystemPrompt, memoryMeta, singleTurnInjection };
   }
 
+  /**
+   * spec §6.1 도구 루프 — provider 도구(executeProviderToolBatch)가 아닌 condition
+   * deferral / normal 도구 호출의 tool_result 를 messages 에 기록하고 (opt-in 시)
+   * thread 에 push 한다. `executeSingleTurn` 에서 추출 (03 C-2). messages 를 in-place
+   * 변이하고 갱신된 toolCallCount 를 반환한다.
+   * - condition: deferral content. **single-turn 은 toolCallCount 미합산** (멀티턴의
+   *   동명 helper 와 의도적으로 다른 동작 — §3.f-g).
+   * - normal: budget 초과 시 budget_exceeded content (count 미증가), 아니면 normal
+   *   content + toolCallCount++.
+   */
+  private recordSingleTurnNonProviderToolResults(args: {
+    conditionToolCalls: ToolCall[];
+    normalToolCalls: ToolCall[];
+    messages: ChatMessage[];
+    config: Record<string, unknown>;
+    context: ExecutionContext;
+    toolCallCount: number;
+    maxToolCalls: number;
+  }): number {
+    const {
+      conditionToolCalls,
+      normalToolCalls,
+      messages,
+      config,
+      context,
+      maxToolCalls,
+    } = args;
+    let toolCallCount = args.toolCallCount;
+    for (const tc of conditionToolCalls) {
+      // Condition tool: send deferral message (does not count toward toolCallCount).
+      const condDeferralContent = JSON.stringify({
+        result: '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+      });
+      messages.push({
+        role: 'tool',
+        content: condDeferralContent,
+        toolCallId: tc.id,
+      });
+      if (this.isToolTurnsEnabled(config)) {
+        this.pushAiToolResultTurn(
+          context,
+          this.buildAiNodeRefFromContext(context, config),
+          tc.id,
+          condDeferralContent,
+        );
+      }
+    }
+
+    // 일반 도구도 maxToolCalls 합산 대상이므로 잔여 한도를 초과한 항목은
+    // budget_exceeded 로 회신해 LLM 의 다음 turn 에서 모든 tool_use 가
+    // tool_result 와 매칭되도록 한다. 현재 일반 도구는 stub 결과만 만들므로
+    // 실제 외부 호출 비용은 없으나, maxToolCalls 합산 시맨틱은 spec §3.f-g
+    // 와 일치시킨다.
+    for (const tc of normalToolCalls) {
+      if (toolCallCount >= maxToolCalls) {
+        const budgetContent = JSON.stringify({
+          error: 'tool_call_budget_exceeded',
+        });
+        messages.push({
+          role: 'tool',
+          content: budgetContent,
+          toolCallId: tc.id,
+        });
+        if (this.isToolTurnsEnabled(config)) {
+          this.pushAiToolResultTurn(
+            context,
+            this.buildAiNodeRefFromContext(context, config),
+            tc.id,
+            budgetContent,
+          );
+        }
+        continue;
+      }
+      toolCallCount++;
+      const normalContent = JSON.stringify({
+        result: `Tool ${tc.name} executed`,
+        arguments: tc.arguments,
+      });
+      messages.push({
+        role: 'tool',
+        content: normalContent,
+        toolCallId: tc.id,
+      });
+      if (this.isToolTurnsEnabled(config)) {
+        this.pushAiToolResultTurn(
+          context,
+          this.buildAiNodeRefFromContext(context, config),
+          tc.id,
+          normalContent,
+        );
+      }
+    }
+    return toolCallCount;
+  }
+
+  /**
+   * spec §6.1 — single-turn 도구 루프 condition 판정 라우팅. LLM 이 condition tool
+   * 만 호출했을 때(provider/normal 도구 없음 + matchedCondition) 즉시 분기 출력을
+   * 조립한다. `executeSingleTurn` 에서 추출 (03 C-2). caller 가 early return 으로
+   * 호출한다. ai_assistant thread push (§2.2 / §7.10) + 턴 경계 비동기 추출
+   * (§6.1 단계 2.7, condition-route 도 응답 종결점) 을 수행한 뒤
+   * {@link buildConditionOutput} 으로 분기 출력을 반환한다.
+   */
+  private async handleSingleTurnConditionRoute(args: {
+    result: Awaited<ReturnType<LlmService['chat']>>;
+    matchedCondition: Parameters<AiTurnExecutor['buildConditionOutput']>[0];
+    messages: ChatMessage[];
+    config: Record<string, unknown>;
+    context: ExecutionContext;
+    memoryStrategy: MemoryStrategy;
+    workspaceId: string;
+    model: string | undefined;
+    llmConfig: Awaited<ReturnType<LlmService['resolveConfig']>>;
+    toolCallCount: number;
+    ragAcc: RagAccumulator;
+    turnRagAcc: RagAccumulator;
+    mcpDiagnosticsAcc: McpServerSummary[];
+    presentationPayloads: PresentationPayload[];
+    presentationCalls: PresentationCallTrace[];
+    presentationSchemaViolations: PresentationSchemaViolation[];
+    llmCalls: LlmCallRecord[];
+    toolCallTraces: ToolCallTrace[];
+    singleTurnStartedAt: number;
+    rawConfig: Record<string, unknown> | undefined;
+  }): Promise<NodeHandlerOutput> {
+    const {
+      result,
+      matchedCondition,
+      messages,
+      config,
+      context,
+      memoryStrategy,
+      workspaceId,
+      model,
+      llmConfig,
+      toolCallCount,
+      ragAcc,
+      turnRagAcc,
+      mcpDiagnosticsAcc,
+      presentationPayloads,
+      presentationCalls,
+      presentationSchemaViolations,
+      llmCalls,
+      toolCallTraces,
+      singleTurnStartedAt,
+      rawConfig,
+    } = args;
+    const reason = this.conditionEvaluator.extractConditionReason(
+      result.toolCalls ?? [],
+      matchedCondition.id,
+    );
+    messages.push({ role: 'assistant', content: result.content || '' });
+    // ConversationThread push (spec §2.2 — single-turn ai_assistant on condition
+    // route). render_* display-only payloads accumulated from earlier batch
+    // iterations attach here (spec §7.10).
+    this.pushAiThreadTurn(
+      context,
+      this.buildAiNodeRefFromContext(context, config),
+      'ai_assistant',
+      result.content || '',
+      undefined,
+      presentationPayloads.length > 0 ? presentationPayloads : undefined,
+    );
+    // 턴 경계 비동기 추출 (condition-route 도 single-turn 응답 종결점).
+    await this.memoryManager.scheduleMemoryExtraction({
+      strategy: memoryStrategy,
+      target: context,
+      selfNodeId: context.nodeId ?? '',
+      config,
+      workspaceId,
+      executionId: context.executionId,
+    });
+    return this.buildConditionOutput(
+      matchedCondition,
+      reason,
+      messages,
+      1,
+      {
+        model: result.model ?? (model || llmConfig.defaultModel),
+        totalInputTokens: result.usage?.inputTokens ?? 0,
+        totalOutputTokens: result.usage?.outputTokens ?? 0,
+        totalThinkingTokens: result.usage?.thinkingTokens ?? 0,
+        toolCalls: toolCallCount,
+        ragSources: ragAcc.getSources(),
+        ragDiagnostics: ragAcc.getDiagnostics(),
+        mcpServerSummaries: mcpDiagnosticsAcc,
+        presentationCalls:
+          presentationCalls.length > 0 ? presentationCalls : undefined,
+        presentationSchemaViolations:
+          presentationSchemaViolations.length > 0
+            ? presentationSchemaViolations
+            : undefined,
+        allPresentations:
+          presentationPayloads.length > 0 ? presentationPayloads : undefined,
+      },
+      {
+        llmCalls,
+        totalDurationMs: Date.now() - singleTurnStartedAt,
+      },
+      [
+        {
+          turnIndex: 1,
+          llmCalls,
+          totalDurationMs: Date.now() - singleTurnStartedAt,
+          ...(toolCallTraces.length > 0
+            ? { toolCalls: [...toolCallTraces] }
+            : {}),
+          ragSources: turnRagAcc.getSources(),
+          ragDiagnostics: turnRagAcc.getDiagnostics(),
+        },
+      ],
+      rawConfig,
+    );
+  }
+
   async executeSingleTurn(
     _input: unknown,
     config: Record<string, unknown>,
@@ -1242,80 +1473,36 @@ export class AiTurnExecutor {
         this.toolProviders,
       );
 
-      // Case 1: Only condition tools (no provider, no normal) — route immediately.
+      // Case 1: Only condition tools (no provider, no normal) — route immediately
+      // (spec §6.1 — condition 판정). early return 은 caller 에 유지하고 출력
+      // 조립 + 턴 경계 추출(2.7)만 helper 로 분리 (03 C-2).
       if (
         classification.providerToolCalls.length === 0 &&
         classification.normalToolCalls.length === 0 &&
         classification.matchedCondition
       ) {
-        const reason = this.conditionEvaluator.extractConditionReason(
-          result.toolCalls,
-          classification.matchedCondition.id,
-        );
-        messages.push({ role: 'assistant', content: result.content || '' });
-        // ConversationThread push (spec §2.2 — single-turn ai_assistant on
-        // condition route). render_* display-only payloads accumulated from
-        // earlier batch iterations attach here (spec §7.10).
-        this.pushAiThreadTurn(
-          context,
-          this.buildAiNodeRefFromContext(context, config),
-          'ai_assistant',
-          result.content || '',
-          undefined,
-          presentationPayloads.length > 0 ? presentationPayloads : undefined,
-        );
-        // 턴 경계 비동기 추출 (condition-route 도 single-turn 응답 종결점).
-        await this.memoryManager.scheduleMemoryExtraction({
-          strategy: memoryStrategy,
-          target: context,
-          selfNodeId: context.nodeId ?? '',
-          config,
-          workspaceId,
-          executionId: context.executionId,
-        });
-        return this.buildConditionOutput(
-          classification.matchedCondition,
-          reason,
+        return this.handleSingleTurnConditionRoute({
+          result,
+          matchedCondition: classification.matchedCondition,
           messages,
-          1,
-          {
-            model: result.model ?? (model || llmConfig.defaultModel),
-            totalInputTokens: result.usage?.inputTokens ?? 0,
-            totalOutputTokens: result.usage?.outputTokens ?? 0,
-            totalThinkingTokens: result.usage?.thinkingTokens ?? 0,
-            toolCalls: toolCallCount,
-            ragSources: ragAcc.getSources(),
-            ragDiagnostics: ragAcc.getDiagnostics(),
-            mcpServerSummaries: mcpDiagnosticsAcc,
-            presentationCalls:
-              presentationCalls.length > 0 ? presentationCalls : undefined,
-            presentationSchemaViolations:
-              presentationSchemaViolations.length > 0
-                ? presentationSchemaViolations
-                : undefined,
-            allPresentations:
-              presentationPayloads.length > 0
-                ? presentationPayloads
-                : undefined,
-          },
-          {
-            llmCalls,
-            totalDurationMs: Date.now() - singleTurnStartedAt,
-          },
-          [
-            {
-              turnIndex: 1,
-              llmCalls,
-              totalDurationMs: Date.now() - singleTurnStartedAt,
-              ...(toolCallTraces.length > 0
-                ? { toolCalls: [...toolCallTraces] }
-                : {}),
-              ragSources: turnRagAcc.getSources(),
-              ragDiagnostics: turnRagAcc.getDiagnostics(),
-            },
-          ],
+          config,
+          context,
+          memoryStrategy,
+          workspaceId,
+          model,
+          llmConfig,
+          toolCallCount,
+          ragAcc,
+          turnRagAcc,
+          mcpDiagnosticsAcc,
+          presentationPayloads,
+          presentationCalls,
+          presentationSchemaViolations,
+          llmCalls,
+          toolCallTraces,
+          singleTurnStartedAt,
           rawConfig,
-        );
+        });
       }
 
       // Case 2/3: provider / normal / mixed-with-condition — execute and continue.
@@ -1360,71 +1547,18 @@ export class AiTurnExecutor {
         });
       toolCallCount += providerExecuted;
 
-      for (const tc of classification.conditionToolCalls) {
-        // Condition tool: send deferral message (does not count toward toolCallCount).
-        const condDeferralContent = JSON.stringify({
-          result:
-            '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
-        });
-        messages.push({
-          role: 'tool',
-          content: condDeferralContent,
-          toolCallId: tc.id,
-        });
-        if (this.isToolTurnsEnabled(config)) {
-          this.pushAiToolResultTurn(
-            context,
-            this.buildAiNodeRefFromContext(context, config),
-            tc.id,
-            condDeferralContent,
-          );
-        }
-      }
-
-      // 일반 도구도 maxToolCalls 합산 대상이므로 잔여 한도를 초과한 항목은
-      // budget_exceeded 로 회신해 LLM 의 다음 turn 에서 모든 tool_use 가
-      // tool_result 와 매칭되도록 한다. 현재 일반 도구는 stub 결과만 만들므로
-      // 실제 외부 호출 비용은 없으나, maxToolCalls 합산 시맨틱은 spec §3.f-g
-      // 와 일치시킨다.
-      for (const tc of classification.normalToolCalls) {
-        if (toolCallCount >= maxToolCalls) {
-          const budgetContent = JSON.stringify({
-            error: 'tool_call_budget_exceeded',
-          });
-          messages.push({
-            role: 'tool',
-            content: budgetContent,
-            toolCallId: tc.id,
-          });
-          if (this.isToolTurnsEnabled(config)) {
-            this.pushAiToolResultTurn(
-              context,
-              this.buildAiNodeRefFromContext(context, config),
-              tc.id,
-              budgetContent,
-            );
-          }
-          continue;
-        }
-        toolCallCount++;
-        const normalContent = JSON.stringify({
-          result: `Tool ${tc.name} executed`,
-          arguments: tc.arguments,
-        });
-        messages.push({
-          role: 'tool',
-          content: normalContent,
-          toolCallId: tc.id,
-        });
-        if (this.isToolTurnsEnabled(config)) {
-          this.pushAiToolResultTurn(
-            context,
-            this.buildAiNodeRefFromContext(context, config),
-            tc.id,
-            normalContent,
-          );
-        }
-      }
+      // condition/normal 비-provider 도구 결과 기록 (deferral / budget / normal +
+      // opt-in thread push). spec §6.1 도구 루프. single-turn condition 은
+      // toolCallCount 미합산(§3.f-g — multi-turn 과 의도적으로 다름). (03 C-2)
+      toolCallCount = this.recordSingleTurnNonProviderToolResults({
+        conditionToolCalls: classification.conditionToolCalls,
+        normalToolCalls: classification.normalToolCalls,
+        messages,
+        config,
+        context,
+        toolCallCount,
+        maxToolCalls,
+      });
 
       const loopRequest = {
         model: model || llmConfig.defaultModel,
@@ -1794,57 +1928,344 @@ export class AiTurnExecutor {
     return waitingResult;
   }
 
-  async processMultiTurnMessage(
+  /**
+   * spec §6.2 도구 루프 — provider 도구(executeProviderToolBatch)가 아닌 condition
+   * deferral / normal 도구 호출의 tool_result 를 messages 에 기록하고 (opt-in 시)
+   * thread 에 push 한다. `processMultiTurnMessage` 에서 추출 (03 C-2). messages 를
+   * in-place 변이하고 갱신된 toolCallCount 를 반환한다.
+   * - condition: deferral content (최종 판단 유도) + toolCallCount++.
+   * - normal: budget 초과 시 budget_exceeded content (count 미증가), 아니면 normal
+   *   content + toolCallCount++.
+   */
+  private recordMultiTurnNonProviderToolResults(args: {
+    conditionToolCalls: ToolCall[];
+    normalToolCalls: ToolCall[];
+    messages: ChatMessage[];
+    state: Record<string, unknown>;
+    toolCallCount: number;
+    maxToolCalls: number;
+  }): number {
+    const {
+      conditionToolCalls,
+      normalToolCalls,
+      messages,
+      state,
+      maxToolCalls,
+    } = args;
+    let toolCallCount = args.toolCallCount;
+    for (const tc of conditionToolCalls) {
+      toolCallCount++;
+      const condDeferralContent = JSON.stringify({
+        result: '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+      });
+      messages.push({
+        role: 'tool',
+        content: condDeferralContent,
+        toolCallId: tc.id,
+      });
+      if (
+        this.isToolTurnsEnabled(
+          state.rawConfig as Record<string, unknown> | undefined,
+        )
+      ) {
+        this.pushAiToolResultTurn(
+          this.threadHolderFromState(state),
+          this.buildAiNodeRefFromState(state),
+          tc.id,
+          condDeferralContent,
+        );
+      }
+    }
+
+    for (const tc of normalToolCalls) {
+      if (toolCallCount >= maxToolCalls) {
+        const budgetContent = JSON.stringify({
+          error: 'tool_call_budget_exceeded',
+        });
+        messages.push({
+          role: 'tool',
+          content: budgetContent,
+          toolCallId: tc.id,
+        });
+        if (
+          this.isToolTurnsEnabled(
+            state.rawConfig as Record<string, unknown> | undefined,
+          )
+        ) {
+          this.pushAiToolResultTurn(
+            this.threadHolderFromState(state),
+            this.buildAiNodeRefFromState(state),
+            tc.id,
+            budgetContent,
+          );
+        }
+        continue;
+      }
+      toolCallCount++;
+      const normalContent = JSON.stringify({
+        result: `Tool ${tc.name} executed`,
+        arguments: tc.arguments,
+      });
+      messages.push({
+        role: 'tool',
+        content: normalContent,
+        toolCallId: tc.id,
+      });
+      if (
+        this.isToolTurnsEnabled(
+          state.rawConfig as Record<string, unknown> | undefined,
+        )
+      ) {
+        this.pushAiToolResultTurn(
+          this.threadHolderFromState(state),
+          this.buildAiNodeRefFromState(state),
+          tc.id,
+          normalContent,
+        );
+      }
+    }
+    return toolCallCount;
+  }
+
+  /**
+   * spec §6.2 — multi-turn 도구 루프 condition 판정 라우팅. LLM 이 condition tool
+   * 만 호출했을 때(provider/normal 도구 없음 + matchedCondition) 즉시 분기 출력을
+   * 조립한다. `processMultiTurnMessage` 에서 추출 (03 C-2). caller 가 early return
+   * 으로 호출하므로 토큰 누적은 본 메서드 내부에서 지역 계산한다 (이후 caller 가
+   * 재참조하지 않음). ai_assistant thread push (§2.2 / §7.10 presentations) 를
+   * 수행한 뒤 {@link buildConditionOutput} 으로 분기 출력을 반환한다.
+   */
+  private handleMultiTurnConditionRoute(args: {
+    result: Awaited<ReturnType<LlmService['chat']>>;
+    matchedCondition: Parameters<AiTurnExecutor['buildConditionOutput']>[0];
+    messages: ChatMessage[];
+    state: Record<string, unknown>;
+    turnCount: number;
+    model: string;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalThinkingTokens: number;
+    toolCallCount: number;
+    ragAcc: RagAccumulator;
+    turnRagAcc: RagAccumulator;
+    mcpDiagnosticsAcc: McpServerSummary[];
+    presentationPayloads: PresentationPayload[];
+    presentationCalls: PresentationCallTrace[];
+    presentationSchemaViolations: PresentationSchemaViolation[];
+    llmCalls: LlmCallRecord[];
+    toolCallTraces: ToolCallTrace[];
+    turnStartedAt: number;
+    memoryMeta: MultiTurnMemoryMeta | undefined;
+  }): ReturnType<AiTurnExecutor['buildConditionOutput']> {
+    const {
+      result,
+      matchedCondition,
+      messages,
+      state,
+      turnCount,
+      model,
+      totalInputTokens,
+      totalOutputTokens,
+      totalThinkingTokens,
+      toolCallCount,
+      ragAcc,
+      turnRagAcc,
+      mcpDiagnosticsAcc,
+      presentationPayloads,
+      presentationCalls,
+      presentationSchemaViolations,
+      llmCalls,
+      toolCallTraces,
+      turnStartedAt,
+      memoryMeta,
+    } = args;
+    const reason = this.conditionEvaluator.extractConditionReason(
+      // caller 의 while 가드가 toolCalls?.length 를 보장하므로 `?? []` 는 실제
+      // 분기되지 않음 (루프 narrowing 이 메서드 추출로 사라진 데 따른 타입 보정).
+      result.toolCalls ?? [],
+      matchedCondition.id,
+    );
+    messages.push({ role: 'assistant', content: result.content || '' });
+    // ConversationThread push (spec §2.2 — multi-turn ai_assistant on condition
+    // route). render_* display-only payloads accumulated from earlier batch
+    // iterations attach here (spec §7.10).
+    this.pushAiThreadTurn(
+      this.threadHolderFromState(state),
+      this.buildAiNodeRefFromState(state),
+      'ai_assistant',
+      result.content || '',
+      undefined,
+      presentationPayloads.length > 0 ? presentationPayloads : undefined,
+    );
+
+    const finalInputTokens =
+      totalInputTokens + (result.usage?.inputTokens ?? 0);
+    const finalOutputTokens =
+      totalOutputTokens + (result.usage?.outputTokens ?? 0);
+    const finalThinkingTokens =
+      totalThinkingTokens + (result.usage?.thinkingTokens ?? 0);
+
+    const prevHistory = (state.turnDebugHistory as unknown[]) || [];
+    const condTurnDebugHistory = [
+      ...prevHistory,
+      {
+        turnIndex: turnCount,
+        llmCalls,
+        totalDurationMs: Date.now() - turnStartedAt,
+        ...(toolCallTraces.length > 0
+          ? { toolCalls: [...toolCallTraces] }
+          : {}),
+        ragSources: turnRagAcc.getSources(),
+        ragDiagnostics: turnRagAcc.getDiagnostics(),
+      },
+    ];
+
+    return this.buildConditionOutput(
+      matchedCondition,
+      reason,
+      messages,
+      turnCount,
+      {
+        model,
+        totalInputTokens: finalInputTokens,
+        totalOutputTokens: finalOutputTokens,
+        totalThinkingTokens: finalThinkingTokens,
+        toolCalls: toolCallCount,
+        ragSources: ragAcc.getSources(),
+        ragDiagnostics: ragAcc.getDiagnostics(),
+        mcpServerSummaries: mcpDiagnosticsAcc,
+        presentationCalls:
+          presentationCalls.length > 0 ? presentationCalls : undefined,
+        presentationSchemaViolations:
+          presentationSchemaViolations.length > 0
+            ? presentationSchemaViolations
+            : undefined,
+        allPresentations: [
+          ...((state.allPresentations as PresentationPayload[] | undefined) ??
+            []),
+          ...presentationPayloads,
+        ],
+        ...(memoryMeta ? { memory: memoryMeta } : {}),
+      },
+      { llmCalls, totalDurationMs: Date.now() - turnStartedAt },
+      condTurnDebugHistory,
+      state.rawConfig as Record<string, unknown> | undefined,
+    );
+  }
+
+  /**
+   * spec §6.2 step d.5 (auto-memory 재주입) + d.6 (누적 messages 물리 압축) —
+   * `processMultiTurnMessage` 에서 추출 (03 C-2). `multiTurnMemoryStrategy !==
+   * 'manual'` 일 때만 caller 가 호출한다 (manual 은 무변경, 회귀 0).
+   *
+   * summary_buffer/persistent 는 LLM 호출 **전** 동기로 회수 (persistent) +
+   * 롤링 요약 (임계치 도달 시) 을 system 메시지 안정 프리픽스에 재적용하고,
+   * 요약이 오래된 turn 을 새로 커버했으면 (d.6) 누적 `messages` 를 물리 압축한다.
+   * `messages` 를 in-place 변이하고 갱신된 memoryMeta 를 반환한다.
+   *
+   * SoT: spec/4-nodes/3-ai/1-ai-agent.md §6.2 step d.5 / d.6.
+   */
+  private async applyMultiTurnTurnMemory(args: {
+    // caller 가드(`!== 'manual'`)로 narrowing 된 전략만 전달된다 — injectMemoryContext
+    // 의 strategy 파라미터(non-manual)와 정합.
+    multiTurnMemoryStrategy: Exclude<MemoryStrategy, 'manual'>;
+    state: Record<string, unknown>;
+    messages: ChatMessage[];
+    llmConfig: Awaited<ReturnType<LlmService['resolveConfig']>>;
+    model: string;
+    userMessage: string;
+    workspaceId: string;
+    executionId: string | undefined;
+  }): Promise<MultiTurnMemoryMeta> {
+    const {
+      multiTurnMemoryStrategy,
+      state,
+      messages,
+      llmConfig,
+      model,
+      userMessage,
+      workspaceId,
+      executionId,
+    } = args;
+    const mem = await this.memoryManager.injectMemoryContext({
+      strategy: multiTurnMemoryStrategy,
+      target: this.threadHolderFromState(state),
+      selfNodeId: (state.nodeId as string) ?? '',
+      config: state,
+      messages,
+      // system 메시지 안정 프리픽스의 base 는 첫 turn 의 system 본문 (이미
+      // messages[0] 에 있음). 직전 turn 의 프리픽스 누적을 막기 위해 base 에서
+      // 이전 메모리 블록을 제거한 본문을 쓴다 (재요약 금지 불변식 — 안정
+      // 프리픽스는 임계치 도달 시에만 갱신, 회수 블록은 매 turn 갱신).
+      finalSystemPrompt: stripMemoryBlocks(
+        (messages.find((m) => m.role === 'system')?.content as string) ?? '',
+      ),
+      llmConfig,
+      model,
+      // 요약 전용 모델 (resume state 의 평가값; 미설정이면 model 로 폴백).
+      summaryModelConfigId: state.summaryModelConfigId as string | undefined,
+      workspaceId,
+      executionId: executionId ?? '',
+      queryText: userMessage,
+      tailMode: 'system-only',
+    });
+    // injectMemoryContext 가 반환한 messages 는 system 메시지만 갱신된 사본.
+    messages.length = 0;
+    messages.push(...mem.messages);
+    let memoryMeta: MultiTurnMemoryMeta = mem.memory;
+
+    // ── 멀티턴 누적 messages 물리 압축 (spec §6.2 d.6 — followup-v2) ──
+    // 요약이 이번 turn 에 오래된 turn 을 새로 커버했을 때만(summarized=true),
+    // 다음 turn 으로 영속되는 누적 messages 에서 요약이 커버한 오래된 exchange 를
+    // 물리 제거한다. user 경계에서만 잘라 tool_use↔tool_result 페어링을 절대 보존.
+    if (mem.memory.summarized && mem.keepUserExchanges > 0) {
+      const before = messages.length;
+      const compacted = compactMessagesToTail(messages, mem.keepUserExchanges);
+      if (compacted.length < before) {
+        messages.length = 0;
+        messages.push(...compacted);
+        memoryMeta = {
+          ...mem.memory,
+          compactedMessages: before - compacted.length,
+        };
+      }
+    } else if (mem.memory.summarized) {
+      // 요약은 발생했으나 keepUserExchanges=0 → 물리 압축 skip (fallback 진단).
+      // thread service 미주입(또는 getThread 미가용) 으로 보존할 user 경계를
+      // 도출하지 못한 경우 — 누적 messages 는 무변경으로 둔다 (회귀 안전).
+      AiTurnExecutor.logger.debug(
+        'memory compaction skipped: keepUserExchanges=0 (missing thread service or no retained user exchange)',
+      );
+    }
+    return memoryMeta;
+  }
+
+  /**
+   * spec §6.2 step 2.c / step 2.c.bypass — multi-turn 사용자 메시지 entry 처리.
+   * `processMultiTurnMessage` 에서 추출 (03 C-2). render_form blocking resume 의
+   * 세 경로를 분기한다:
+   * - `source: 'form_submitted'` + pendingFormToolCall set → form 제출 처리
+   *   (JSON parse → tool_result splice → presentation_user thread push).
+   * - `source: 'ai_message'` + pendingFormToolCall set → **form bypass** —
+   *   사용자가 form 활성 중 일반 텍스트를 보냄. cancelled tool_result
+   *   ({type:'cancelled', reason:'user_sent_message_instead'}) 로 채워 LLM 의
+   *   tool_use ↔ tool_result 매칭 요건을 충족 + pendingFormToolCall 클리어 +
+   *   정상 ai_user turn 진행.
+   * - pendingFormToolCall 없음 → fallback (JSON 형태 userMessage 라면 warn log)
+   *   + 정상 ai_user turn.
+   *
+   * 순서 불변식: ai_user thread push 는 본 메서드 안에서 수행되며 caller 의 LLM
+   * 호출보다 **앞서** 일어난다 (spec §6.2.c, conversation-thread §1.4).
+   * `messages`(배열) 와 `state`(pendingFormToolCall delete) 를 in-place 변이한다.
+   *
+   * SoT: spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.c / step 2.c.bypass.
+   */
+  private handleMultiTurnUserMessageEntry(
     userMessage: string,
     state: Record<string, unknown>,
-    options?: ResumableMessageOptions,
-  ): Promise<unknown> {
-    const messages = [...(state.messages as ChatMessage[])];
-    const turnCount = (state.turnCount as number) + 1;
-    const maxTurns = state.maxTurns as number;
-    const maxToolCalls = state.maxToolCalls as number;
-    const knowledgeBases = (state.knowledgeBases as string[]) || [];
-    const workspaceId = (state.workspaceId as string) || '';
-    const conditions = (state.conditions as ConditionDef[]) || [];
-    let totalInputTokens = state.totalInputTokens as number;
-    let totalOutputTokens = state.totalOutputTokens as number;
-    let totalThinkingTokens = (state.totalThinkingTokens as number) ?? 0;
-    let toolCallCount = state.toolCalls as number;
-
-    // ragSources 는 turn 누적 — 새 turn 의 KB tool 호출 결과를 push 한다.
-    const ragAcc = RagAccumulator.fromState(
-      knowledgeBases.length,
-      (state.ragSources as unknown[]) ?? [],
-    );
-    // 이번 턴에서만 호출된 KB delta — meta.turnDebug[].ragSources 로 노출되어
-    // run-results UI 가 "어느 응답이 어느 청크를 사용했는지" 를 매핑한다.
-    const turnRagAcc = new RagAccumulator(knowledgeBases.length);
-    const ragGroup = new RagAccumulatorGroup(ragAcc, turnRagAcc);
-    // MCP build 결과 — multi-turn 은 매 turn 마다 buildTools 재호출이므로 본
-    // accumulator 도 turn 단위. 직전 turn 의 summary 는 resumeState 에 보존
-    // 하지 않고 매 turn 새로 결정 — buildTools 가 결정론적이므로 안전.
-    const mcpDiagnosticsAcc: McpServerSummary[] = [];
-    // Render tool (`render_*`) accumulators — turn-scoped. ai_assistant turn
-    // push 시 본 buffer 가 부착된다 (spec §7.10).
-    const presentationPayloads: PresentationPayload[] = [];
-    const presentationCalls: PresentationCallTrace[] = [];
-    const presentationSchemaViolations: PresentationSchemaViolation[] = [];
-    // Per-toolName retry counter for spec §4.1 schema-violation gate, within
-    // this LLM turn's tool-call loop.
-    const presentationViolationCounters = new Map<string, number>();
-
-    // render_form blocking resume (spec §6.2 step 2 + step 2.c.bypass):
-    // - `source: 'form_submitted'` + pendingFormToolCall set → form 제출 처리
-    //   (JSON parse → tool_result splice → presentation_user thread push)
-    // - `source: 'ai_message'` + pendingFormToolCall set → **form bypass** —
-    //   사용자가 form 활성 중 일반 텍스트를 보냄. cancelled tool_result
-    //   ({type:'cancelled', reason:'user_sent_message_instead'}) 로 채워
-    //   LLM 의 tool_use ↔ tool_result 매칭 요건을 충족 + pendingFormToolCall
-    //   클리어 + 정상 ai_user turn 진행.
-    // - pendingFormToolCall 없음 → 기존 fallback (JSON 형태 userMessage 라면
-    //   warn log) + 정상 ai_user turn.
-    //
-    // SoT: spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.c / step 2.c.bypass.
+    messages: ChatMessage[],
+    options: ResumableMessageOptions | undefined,
+  ): void {
     const messageSource: ResumableMessageSource =
       options?.source ?? 'ai_message';
     const pendingFormToolCall = state.pendingFormToolCall as
@@ -1966,6 +2387,50 @@ export class AiTurnExecutor {
         userMessage,
       );
     }
+  }
+
+  async processMultiTurnMessage(
+    userMessage: string,
+    state: Record<string, unknown>,
+    options?: ResumableMessageOptions,
+  ): Promise<unknown> {
+    const messages = [...(state.messages as ChatMessage[])];
+    const turnCount = (state.turnCount as number) + 1;
+    const maxTurns = state.maxTurns as number;
+    const maxToolCalls = state.maxToolCalls as number;
+    const knowledgeBases = (state.knowledgeBases as string[]) || [];
+    const workspaceId = (state.workspaceId as string) || '';
+    const conditions = (state.conditions as ConditionDef[]) || [];
+    let totalInputTokens = state.totalInputTokens as number;
+    let totalOutputTokens = state.totalOutputTokens as number;
+    let totalThinkingTokens = (state.totalThinkingTokens as number) ?? 0;
+    let toolCallCount = state.toolCalls as number;
+
+    // ragSources 는 turn 누적 — 새 turn 의 KB tool 호출 결과를 push 한다.
+    const ragAcc = RagAccumulator.fromState(
+      knowledgeBases.length,
+      (state.ragSources as unknown[]) ?? [],
+    );
+    // 이번 턴에서만 호출된 KB delta — meta.turnDebug[].ragSources 로 노출되어
+    // run-results UI 가 "어느 응답이 어느 청크를 사용했는지" 를 매핑한다.
+    const turnRagAcc = new RagAccumulator(knowledgeBases.length);
+    const ragGroup = new RagAccumulatorGroup(ragAcc, turnRagAcc);
+    // MCP build 결과 — multi-turn 은 매 turn 마다 buildTools 재호출이므로 본
+    // accumulator 도 turn 단위. 직전 turn 의 summary 는 resumeState 에 보존
+    // 하지 않고 매 turn 새로 결정 — buildTools 가 결정론적이므로 안전.
+    const mcpDiagnosticsAcc: McpServerSummary[] = [];
+    // Render tool (`render_*`) accumulators — turn-scoped. ai_assistant turn
+    // push 시 본 buffer 가 부착된다 (spec §7.10).
+    const presentationPayloads: PresentationPayload[] = [];
+    const presentationCalls: PresentationCallTrace[] = [];
+    const presentationSchemaViolations: PresentationSchemaViolation[] = [];
+    // Per-toolName retry counter for spec §4.1 schema-violation gate, within
+    // this LLM turn's tool-call loop.
+    const presentationViolationCounters = new Map<string, number>();
+
+    // spec §6.2 step 2.c / 2.c.bypass — render_form blocking resume 및 사용자
+    // 메시지 entry 처리 (form 제출 / form bypass / fallback). messages·state 변이.
+    this.handleMultiTurnUserMessageEntry(userMessage, state, messages, options);
 
     // Capture render_form blocking signal across the tool loop. Set when a
     // batch processes a `render_form` tool_use; checked after each batch to
@@ -2004,88 +2469,27 @@ export class AiTurnExecutor {
       mcpDiagnosticsAcc,
     );
 
-    // ── Auto-memory 재주입 (매 turn, spec §6.2 d.5) ──
+    // ── Auto-memory 재주입 (매 turn, spec §6.2 d.5/d.6) ──
     // memoryStrategy 로 분기: manual 은 무변경 (누적 messages 그대로 — 첫 turn
     // 의 thread injection 이 이미 반영됨), summary_buffer/persistent 는 LLM 호출
-    // 전 동기로 회수 (persistent) + 롤링 요약 (임계치 도달 시) 을 system 메시지
-    // 안정 프리픽스에 재적용한다. 휘발성 꼬리는 이미 누적 messages 에 있으므로
-    // tailMode='system-only' (중복 prepend 회피).
+    // 전 회수/롤링 요약을 system 안정 프리픽스에 재적용 + 누적 압축. 상세·불변식은
+    // applyMultiTurnTurnMemory JSDoc 참조. multiTurnMemoryStrategy 는 완료부의
+    // scheduleMemoryExtraction (§6.2 d, 비동기 추출) 에서 재사용하므로 caller
+    // scope 에 유지한다.
     const multiTurnMemoryStrategy =
       this.memoryManager.resolveMemoryStrategy(state);
-    let memoryMeta:
-      | {
-          strategy: MemoryStrategy;
-          summarized: boolean;
-          recalledCount: number;
-          tokenBudgetUsed: number;
-          /**
-           * 이 turn 의 요약 압축이 누적 `messages` 에서 물리 제거한 메시지 수
-           * (요약이 커버한 오래된 exchange). 0 이면 물리 압축 미발생.
-           */
-          compactedMessages?: number;
-        }
-      | undefined;
+    let memoryMeta: MultiTurnMemoryMeta | undefined;
     if (multiTurnMemoryStrategy !== 'manual') {
-      const mem = await this.memoryManager.injectMemoryContext({
-        strategy: multiTurnMemoryStrategy,
-        target: this.threadHolderFromState(state),
-        selfNodeId: (state.nodeId as string) ?? '',
-        config: state,
+      memoryMeta = await this.applyMultiTurnTurnMemory({
+        multiTurnMemoryStrategy,
+        state,
         messages,
-        // system 메시지 안정 프리픽스의 base 는 첫 turn 의 system 본문 (이미
-        // messages[0] 에 있음). injectMemoryContext 가 그 위에 [5a]/[5b] 를
-        // append 하려면 현재 system 본문을 base 로 넘긴다 — 단, 직전 turn 의
-        // 프리픽스 누적을 막기 위해 첫 system 본문만 base 로 쓸 수 없으므로
-        // (재append 누적) base 를 빈 문자열로 두고 system 메시지를 통째로
-        // 재생성하는 대신, 현재 system 메시지 content 를 그대로 base 로 쓴다.
-        // 안정 프리픽스는 임계치 도달 시에만 갱신되므로 (재요약 금지 불변식)
-        // 매 turn append 해도 요약 본문은 동일 — 단 회수 블록은 매 turn 갱신.
-        // 누적 방지를 위해 base 에서 이전 메모리 블록을 제거한 본문을 쓴다.
-        finalSystemPrompt: stripMemoryBlocks(
-          (messages.find((m) => m.role === 'system')?.content as string) ?? '',
-        ),
         llmConfig,
         model,
-        // 요약 전용 모델 (resume state 의 평가값; 미설정이면 model 로 폴백).
-        summaryModelConfigId: state.summaryModelConfigId as string | undefined,
+        userMessage,
         workspaceId,
-        executionId: executionId ?? '',
-        queryText: userMessage,
-        tailMode: 'system-only',
+        executionId,
       });
-      // injectMemoryContext 가 반환한 messages 는 system 메시지만 갱신된 사본.
-      messages.length = 0;
-      messages.push(...mem.messages);
-      memoryMeta = mem.memory;
-
-      // ── 멀티턴 누적 messages 물리 압축 (spec §6.2 d.6 — followup-v2) ──
-      // 요약이 이번 turn 에 오래된 turn 을 새로 커버했을 때만(summarized=true),
-      // 다음 turn 으로 영속되는 누적 messages 에서 요약이 커버한 오래된 exchange 를
-      // 물리 제거한다. system(요약 포함) 메시지는 위에서 이미 갱신됨 — 압축은 그
-      // system + 휘발성 꼬리만 남긴다. user 경계에서만 잘라 tool_use↔tool_result
-      // 페어링을 절대 보존한다. manual 은 이 분기에 들어오지 않음(회귀 0).
-      if (mem.memory.summarized && mem.keepUserExchanges > 0) {
-        const before = messages.length;
-        const compacted = compactMessagesToTail(
-          messages,
-          mem.keepUserExchanges,
-        );
-        if (compacted.length < before) {
-          messages.length = 0;
-          messages.push(...compacted);
-          memoryMeta = {
-            ...mem.memory,
-            compactedMessages: before - compacted.length,
-          };
-        }
-      } else if (mem.memory.summarized) {
-        // 요약은 발생했으나 keepUserExchanges=0 → 물리 압축 skip (fallback 진단).
-        // thread service 미주입(또는 getThread 미가용) 으로 보존할 user 경계를
-        // 도출하지 못한 경우 — 누적 messages 는 무변경으로 둔다 (회귀 안전).
-        AiTurnExecutor.logger.debug(
-          'memory compaction skipped: keepUserExchanges=0 (missing thread service or no retained user exchange)',
-        );
-      }
     }
 
     const turnStartedAt = Date.now();
@@ -2128,80 +2532,35 @@ export class AiTurnExecutor {
         this.toolProviders,
       );
 
-      // Condition-only: route immediately.
+      // Condition-only: route immediately (spec §6.2 — condition 판정). early
+      // return 은 caller 에 유지하고 출력 조립만 helper 로 분리 (03 C-2).
       if (
         classification.providerToolCalls.length === 0 &&
         classification.normalToolCalls.length === 0 &&
         classification.matchedCondition
       ) {
-        const reason = this.conditionEvaluator.extractConditionReason(
-          result.toolCalls,
-          classification.matchedCondition.id,
-        );
-        messages.push({ role: 'assistant', content: result.content || '' });
-        // ConversationThread push (spec §2.2 — multi-turn ai_assistant on
-        // condition route). render_* display-only payloads accumulated from
-        // earlier batch iterations attach here (spec §7.10).
-        this.pushAiThreadTurn(
-          this.threadHolderFromState(state),
-          this.buildAiNodeRefFromState(state),
-          'ai_assistant',
-          result.content || '',
-          undefined,
-          presentationPayloads.length > 0 ? presentationPayloads : undefined,
-        );
-
-        totalInputTokens += result.usage?.inputTokens ?? 0;
-        totalOutputTokens += result.usage?.outputTokens ?? 0;
-        totalThinkingTokens += result.usage?.thinkingTokens ?? 0;
-
-        const prevHistory = (state.turnDebugHistory as unknown[]) || [];
-        const condTurnDebugHistory = [
-          ...prevHistory,
-          {
-            turnIndex: turnCount,
-            llmCalls,
-            totalDurationMs: Date.now() - turnStartedAt,
-            ...(toolCallTraces.length > 0
-              ? { toolCalls: [...toolCallTraces] }
-              : {}),
-            ragSources: turnRagAcc.getSources(),
-            ragDiagnostics: turnRagAcc.getDiagnostics(),
-          },
-        ];
-
-        return this.buildConditionOutput(
-          classification.matchedCondition,
-          reason,
+        return this.handleMultiTurnConditionRoute({
+          result,
+          matchedCondition: classification.matchedCondition,
           messages,
+          state,
           turnCount,
-          {
-            model,
-            totalInputTokens,
-            totalOutputTokens,
-            totalThinkingTokens,
-            toolCalls: toolCallCount,
-            ragSources: ragAcc.getSources(),
-            ragDiagnostics: ragAcc.getDiagnostics(),
-            mcpServerSummaries: mcpDiagnosticsAcc,
-            presentationCalls:
-              presentationCalls.length > 0 ? presentationCalls : undefined,
-            presentationSchemaViolations:
-              presentationSchemaViolations.length > 0
-                ? presentationSchemaViolations
-                : undefined,
-            allPresentations: [
-              ...((state.allPresentations as
-                | PresentationPayload[]
-                | undefined) ?? []),
-              ...presentationPayloads,
-            ],
-            ...(memoryMeta ? { memory: memoryMeta } : {}),
-          },
-          { llmCalls, totalDurationMs: Date.now() - turnStartedAt },
-          condTurnDebugHistory,
-          state.rawConfig as Record<string, unknown> | undefined,
-        );
+          model,
+          totalInputTokens,
+          totalOutputTokens,
+          totalThinkingTokens,
+          toolCallCount,
+          ragAcc,
+          turnRagAcc,
+          mcpDiagnosticsAcc,
+          presentationPayloads,
+          presentationCalls,
+          presentationSchemaViolations,
+          llmCalls,
+          toolCallTraces,
+          turnStartedAt,
+          memoryMeta,
+        });
       }
 
       messages.push({
@@ -2256,78 +2615,16 @@ export class AiTurnExecutor {
         pendingFormBlock = blockingFormRender;
       }
 
-      for (const tc of classification.conditionToolCalls) {
-        toolCallCount++;
-        const condDeferralContent = JSON.stringify({
-          result:
-            '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
-        });
-        messages.push({
-          role: 'tool',
-          content: condDeferralContent,
-          toolCallId: tc.id,
-        });
-        if (
-          this.isToolTurnsEnabled(
-            state.rawConfig as Record<string, unknown> | undefined,
-          )
-        ) {
-          this.pushAiToolResultTurn(
-            this.threadHolderFromState(state),
-            this.buildAiNodeRefFromState(state),
-            tc.id,
-            condDeferralContent,
-          );
-        }
-      }
-
-      for (const tc of classification.normalToolCalls) {
-        if (toolCallCount >= maxToolCalls) {
-          const budgetContent = JSON.stringify({
-            error: 'tool_call_budget_exceeded',
-          });
-          messages.push({
-            role: 'tool',
-            content: budgetContent,
-            toolCallId: tc.id,
-          });
-          if (
-            this.isToolTurnsEnabled(
-              state.rawConfig as Record<string, unknown> | undefined,
-            )
-          ) {
-            this.pushAiToolResultTurn(
-              this.threadHolderFromState(state),
-              this.buildAiNodeRefFromState(state),
-              tc.id,
-              budgetContent,
-            );
-          }
-          continue;
-        }
-        toolCallCount++;
-        const normalContent = JSON.stringify({
-          result: `Tool ${tc.name} executed`,
-          arguments: tc.arguments,
-        });
-        messages.push({
-          role: 'tool',
-          content: normalContent,
-          toolCallId: tc.id,
-        });
-        if (
-          this.isToolTurnsEnabled(
-            state.rawConfig as Record<string, unknown> | undefined,
-          )
-        ) {
-          this.pushAiToolResultTurn(
-            this.threadHolderFromState(state),
-            this.buildAiNodeRefFromState(state),
-            tc.id,
-            normalContent,
-          );
-        }
-      }
+      // condition/normal 비-provider 도구 결과 기록 (deferral / budget / normal +
+      // opt-in thread push). spec §6.2 도구 루프. (03 C-2)
+      toolCallCount = this.recordMultiTurnNonProviderToolResults({
+        conditionToolCalls: classification.conditionToolCalls,
+        normalToolCalls: classification.normalToolCalls,
+        messages,
+        state,
+        toolCallCount,
+        maxToolCalls,
+      });
 
       // Skip the next LLM call when render_form blocking was triggered —
       // the user must submit the form before LLM gets the next turn.
