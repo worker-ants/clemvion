@@ -7,11 +7,15 @@
 // fallback 값은 env 미설정 로컬 dev 전용이며 .env.example 과 동일한 :3011 을 쓴다
 // (백엔드 docker-compose APP_PORT 와 일치). NEXT_PUBLIC_* 는 빌드 타임에 인라인 치환된다.
 
+// env 미설정 로컬 dev 의 API fallback. API_BASE_URL 과 getServerApiBaseUrl() 두
+// 경로가 같은 값을 쓰도록 단일 상수로 묶어 파일 내부 drift 를 차단한다.
+const LOCAL_API_FALLBACK = "http://localhost:3011/api";
+
 /**
  * 브라우저·클라이언트 컴포넌트에서 쓰는 REST API base URL.
  */
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
+  process.env.NEXT_PUBLIC_API_URL || LOCAL_API_FALLBACK;
 
 /**
  * WebSocket(socket.io) 서버 base URL.
@@ -32,6 +36,6 @@ export function getServerApiBaseUrl(): string {
   return (
     process.env.INTERNAL_API_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:3011/api"
+    LOCAL_API_FALLBACK
   );
 }
