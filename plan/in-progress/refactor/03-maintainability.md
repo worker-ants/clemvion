@@ -147,7 +147,7 @@
 
 ### M-2 [Major] frontend `API_BASE_URL` 분산 정의 + 포트 불일치 — 진단 방향 정정
 
-- [ ] 미착수 — 정포트 = **3011**, 잘못된 3001 fallback 은 `lib/api/client.ts:4`·`lib/api/assistant.ts:315`
+- [x] **구현 완료 (Option A, 2026-06-24, 커밋 `b70e82dc`+review-fix `bfe8155b`)** — branch `claude/refactor-03-m2-api-base-url-dd2bc5`. 분산된 API/WS base URL fallback 정의를 신규 `lib/api/constants.ts`(`API_BASE_URL`·`WS_BASE_URL`·`getServerApiBaseUrl()`) 단일 모듈로 통합하고, `client.ts:4`·`assistant.ts:315` 의 잘못된 3001 fallback 을 canonical **3011** 로 정정. 6파일(client·assistant·auth-providers·login-form·register-form·ws-client) 로컬 const 제거→중앙 import, `getServerApiBaseUrl()` 은 서버 전용(INTERNAL_API_URL→NEXT_PUBLIC_API_URL→fallback) 별도 export 유지. **`grep -rn 3001 frontend/src` = 0건 검증**. behavior-preserving + env 미설정 dev 포트 버그 수정. spec 변경 불요(포트 미규정). 검증: lint·build·unit(신규 `constants.test.ts` 7, fallback 3011 회귀 가드)·**e2e 214 PASS**. impl-prep `review/consistency/2026/06/24/20_02_49/` BLOCK:NO · ai-review `review/code/2026/06/24/20_17_55/`(Risk LOW, Critical 0/Warning 0, INFO 2건 반영=테스트·dedup, RESOLUTION) · impl-done `review/consistency/2026/06/24/20_29_40/` BLOCK:NO.
 
 **spec 대조**: D(drift) — **원안 서술이 역방향**: docker-compose(`APP_PORT: 3011`)·backend/.env.example(`APP_PORT=3011`)·frontend/.env.example(`localhost:3011/api`) 모두 3011 이 정답. **잘못된 3001 fallback 은 `lib/api/client.ts:4`·`lib/api/assistant.ts:315` 쪽** (login/register 의 3011 이 옳음). env 미설정 환경에서 **메인 API 클라이언트 전체**가 잘못된 포트를 친다 — 원안 추정보다 심각.
 

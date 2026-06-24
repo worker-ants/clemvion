@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T20:29:40.590064",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=03-maintainability M-2: frontend API_BASE_URL 분산 정의 통합 + 3001 to 3011 fallback 정정 (lib/api/constants.ts 단일화, behavior-preserving), diff-base=origin/main)",
+  "target_path": "03-maintainability M-2: frontend API_BASE_URL 분산 정의 통합 + 3001 to 3011 fallback 정정 (lib/api/constants.ts 단일화, behavior-preserving)",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
