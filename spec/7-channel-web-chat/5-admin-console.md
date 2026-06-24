@@ -97,6 +97,10 @@ code:
   (localStorage 캐시와 다층 — R3).
 - **온보딩**: 외형이 서버에 한 번도 저장되지 않은(갓 생성된) 인스턴스는 상세 상단에 다음 단계(외형 설정→저장→스니펫 복사→
   설치) 안내를 노출하고, 저장되면 `appearance` 가 채워지며 자연히 사라진다(파생 상태, 별도 플래그 없음).
+- **부분 PATCH 시맨틱**: 이름·활성 수정(`useUpdateWebChatMeta`)은 `name`·`isActive` 중 **지정한 필드만** 바디에 담아 보낸다
+  (둘 다 전달도 허용 — 부분 바디). interaction(외형) 객체를 보내지 않으므로 `enabled`/`tokenStrategy`/`appearance` 가 영향받지
+  않는다(silent mutation 없음). PATCH 실패 시 서버는 미변경이므로 목록이 stale 되지 않아 `onError` 무효화가 불필요하다
+  (`onSuccess` 에서만 캐시 무효화 — 외형 저장과 동일 패턴).
 
 ## 3. 인스턴스 생성 (추상화)
 
