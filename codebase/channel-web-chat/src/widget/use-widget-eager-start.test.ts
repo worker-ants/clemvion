@@ -270,4 +270,77 @@ describe("useWidget — eager 시작(§R6)", () => {
     await waitFor(() => expect(result.current.state.executionId).toBe("e2"));
     expect(callCount).toBe(2);
   });
+
+  // race fix(§R6) — start 직후 빠른 첫 노드(buttons)의 waiting 이벤트를 SSE 구독 전 놓쳐도
+  // getStatus 시드로 현재 표면을 복원한다(미리보기 캐러셀 미표시 회귀 방지).
+  it("race fix: getStatus 가 buttons waiting 표면을 주면 SSE 없이도 pending=buttons 로 시드", async () => {
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      // getStatus(GET status) — waiting buttons 표면(SSE wire 형식)을 반환.
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {
+              id: "e1",
+              status: "waiting_for_input",
+              seq: 1,
+              context: {
+                interactionType: "buttons",
+                waitingNodeId: "n1",
+                buttonConfig: { buttons: [{ id: "b1", label: "문의" }] },
+              },
+            },
+          }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    // SSE 이벤트 주입 없이 getStatus 시드만으로 buttons 표면이 복원돼야 한다.
+    await waitFor(() => expect(result.current.state.pending?.type).toBe("buttons"));
+    expect(result.current.state.phase).toBe("awaiting_user_message");
+  });
+
+  // race fix — openStream 을 lastEventId="0" 으로 열어 buffer 의 누락 이벤트(seq≥1)를 replay 받는다.
+  it("race fix: openStream 을 lastEventId=0 으로 열어 buffer replay 를 요청", async () => {
+    let esUrl = "";
+    vi.stubGlobal(
+      "EventSource",
+      class {
+        constructor(url: string) {
+          esUrl = url;
+        }
+        addEventListener() {}
+        close() {}
+      },
+    );
+    installFetch();
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(esUrl).toContain("/stream"));
+    expect(esUrl).toContain("lastEventId=0");
+  });
 });

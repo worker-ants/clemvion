@@ -41,6 +41,8 @@ interface ExecRepoMocks {
 
 function makeMocks() {
   const repo: ExecRepoMocks = { findOne: jest.fn() };
+  // getStatus 가 waiting_for_input 표면 복원 시 조회하는 NodeExecution repo.
+  const nodeRepo: ExecRepoMocks = { findOne: jest.fn() };
   const engine: ExecutionEngineMocks = {
     continueExecution: jest.fn(),
     continueButtonClick: jest.fn(),
@@ -53,11 +55,12 @@ function makeMocks() {
   };
   const service = new InteractionService(
     repo as never,
+    nodeRepo as never,
     engine as never,
     executions as never,
     token as never,
   );
-  return { service, repo, engine, executions, token };
+  return { service, repo, nodeRepo, engine, executions, token };
 }
 
 const IEXT_CTX: InteractionRequestContext = {
@@ -493,5 +496,42 @@ describe('InteractionService.getStatus', () => {
     await expect(service.getStatus(IEXT_CTX)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('waiting_for_input — buttons 노드 표면을 SSE wire 형식 context 로 복원', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'Carousel' },
+      outputData: {
+        meta: { interactionType: 'buttons' },
+        config: { buttonConfig: { buttons: [{ id: 'b1', label: '문의' }] } },
+      },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.currentNode).toMatchObject({
+      id: 'n1',
+      type: 'Carousel',
+      interactionType: 'buttons',
+    });
+    expect(r.context).toMatchObject({
+      interactionType: 'buttons',
+      waitingNodeId: 'n1',
+      buttonConfig: { buttons: [{ id: 'b1', label: '문의' }] },
+    });
+  });
+
+  it('waiting_for_input — 대기 NodeExecution 없으면 currentNode/context null', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue(null);
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.currentNode).toBeNull();
+    expect(r.context).toBeNull();
   });
 });

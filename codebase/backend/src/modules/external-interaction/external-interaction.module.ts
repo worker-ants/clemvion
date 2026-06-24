@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
+import { NodeExecution } from '../node-executions/entities/node-execution.entity';
 import { ExecutionToken } from './entities/execution-token.entity';
 import { WebsocketModule } from '../websocket/websocket.module';
 import { ExecutionsModule } from '../executions/executions.module';
@@ -40,7 +41,12 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Trigger, Execution, ExecutionToken]),
+    TypeOrmModule.forFeature([
+      Trigger,
+      Execution,
+      ExecutionToken,
+      NodeExecution,
+    ]),
     BullModule.registerQueue({ name: NOTIFICATION_WEBHOOK_QUEUE }),
     BullModule.registerQueue({ name: TERMINAL_REVOKE_RECONCILE_QUEUE }),
     WebsocketModule,

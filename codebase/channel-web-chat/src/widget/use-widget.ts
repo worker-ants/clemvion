@@ -175,6 +175,38 @@ export function useWidget() {
     [closeStream, handleEiaEvent],
   );
 
+  // getStatus 로 현재 waiting 표면을 시드한다 — 첫 waiting 이벤트를 SSE 구독 전 emit race(§R6)로
+  // 놓쳤거나 buffer(5분) 만료 후 복원하는 경우에도 현재 표면을 복구한다. status.context 는 SSE
+  // waiting_for_input wire payload 와 동일 형식이라 `parseWaitingForInput` 을 그대로 재사용한다.
+  // 실패는 soft(로그 후 진행) — SSE replay 가 1차, 본 시드는 보강.
+  const seedWaitingFromStatus = useCallback(
+    async (client: EiaClient, session: SessionRef) => {
+      try {
+        const status = await client.getStatus(session.endpoints, session.token);
+        if (status.status === "waiting_for_input" && status.context) {
+          const parsed = parseWaitingForInput(
+            status.context as WaitingForInputEvent,
+          );
+          dispatch({
+            type: "WAITING",
+            interaction: {
+              type: parsed.type,
+              config: parsed.config,
+              nodeId: parsed.nodeId,
+            },
+            threadMessages: threadToMessages(parsed.conversationThread),
+          });
+        }
+      } catch (err) {
+        console.warn(
+          "[widget] getStatus seed failed:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    },
+    [],
+  );
+
   const persist = useCallback((cfg: BootMessage, res: HookStartResponse) => {
     if (!res.interaction) return null;
     const session: SessionRef = {
@@ -211,14 +243,18 @@ export function useWidget() {
       bridgeRef.current?.sendEvent("conversationStarted", { executionId: res.executionId });
       const session = persist(cfg, res);
       if (session) {
-        openStream(session);
+        // race(§R6) 보정 — 첫 waiting 이벤트가 SSE 구독 전 emit 되어도:
+        // (1) getStatus 로 현재 표면을 시드하고, (2) openStream 을 lastEventId="0" 으로 열어
+        // buffer 의 누락 이벤트(seq≥1)를 replay 받는다.
+        await seedWaitingFromStatus(client, session);
+        openStream(session, "0");
         scheduleRefreshRef.current(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
       startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
       dispatch({ type: "ERROR", message: errMessage(e) });
     }
-  }, [openStream, persist]);
+  }, [openStream, persist, seedWaitingFromStatus]);
 
   const sendCommand = useCallback(
     async (command: InteractCommand) => {
@@ -407,7 +443,9 @@ export function useWidget() {
         sessionRef.current = saved;
         startedRef.current = true; // 복원된 세션 — open 시 새 execution 시작 금지(§R6 재open 복원).
         dispatch({ type: "RESTORED", executionId: saved.executionId });
-        openStream(saved);
+        // 복원 시에도 현재 표면을 getStatus 로 시드 + SSE replay(lastEventId="0")로 누락분 보정.
+        if (clientRef.current) await seedWaitingFromStatus(clientRef.current, saved);
+        openStream(saved, "0");
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
     };

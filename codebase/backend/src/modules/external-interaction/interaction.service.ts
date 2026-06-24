@@ -12,6 +12,10 @@ import {
   Execution,
   ExecutionStatus,
 } from '../executions/entities/execution.entity';
+import {
+  NodeExecution,
+  NodeExecutionStatus,
+} from '../node-executions/entities/node-execution.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import {
   InvalidExecutionStateError,
@@ -58,6 +62,8 @@ export class InteractionService {
   constructor(
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
+    @InjectRepository(NodeExecution)
+    private readonly nodeExecutionRepository: Repository<NodeExecution>,
     private readonly executionEngineService: ExecutionEngineService,
     private readonly executionsService: ExecutionsService,
     private readonly tokenService: InteractionTokenService,
@@ -213,14 +219,65 @@ export class InteractionService {
         error: { code: 'EXECUTION_NOT_FOUND', message: 'Execution not found' },
       });
     }
-    // 단발 상태 조회 응답 — currentNode / context 는 V1 에서 최소 정보만 노출. 자세한 context 는
-    // SSE 의 waiting_for_input 페이로드가 권위. 본 응답은 클라이언트 복구용.
+    // waiting_for_input 이면 현재 대기 노드의 표면을 복원해 동봉한다 (EIA §5.3).
+    // SSE waiting 이벤트를 구독 전 emit race 로 놓친 클라이언트가 본 응답으로 현재 표면을
+    // 시드할 수 있도록, SSE `waiting_for_input` wire payload 와 **동일 형식**(interactionType /
+    // waitingNodeId / buttonConfig / nodeOutput)으로 구성한다 → 위젯이 `parseWaitingForInput`
+    // 을 그대로 재사용. conversationThread snapshot 은 SSE replay 가 권위라 여기선 생략한다.
+    let currentNode: ExecutionStatusDto['currentNode'] = null;
+    let context: ExecutionStatusDto['context'] = null;
+    if (execution.status === ExecutionStatus.WAITING_FOR_INPUT) {
+      const nodeExec = await this.nodeExecutionRepository.findOne({
+        where: {
+          executionId: ctx.executionId,
+          status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        },
+        order: { startedAt: 'DESC' },
+        relations: ['node'],
+      });
+      if (nodeExec?.node) {
+        const out = nodeExec.outputData ?? {};
+        const meta = (out.meta ?? {}) as { interactionType?: string };
+        const it = meta.interactionType ?? null;
+        const interactionType =
+          it === 'form' || it === 'buttons' || it === 'ai_conversation'
+            ? it
+            : null;
+        currentNode = {
+          id: nodeExec.nodeId,
+          type: nodeExec.node.type,
+          interactionType,
+        };
+        // buttons: structured(`config.buttonConfig`) 우선, legacy flat(`buttonConfig`) fallback.
+        const structured = out as {
+          config?: { buttonConfig?: { buttons?: unknown } };
+          buttonConfig?: { buttons?: unknown };
+        };
+        const bc = structured.config?.buttonConfig ?? structured.buttonConfig;
+        if (interactionType === 'buttons' && bc) {
+          // SSE 와 동일 wire: buttonConfig = { buttons, nodeOutput }.
+          context = {
+            interactionType,
+            waitingNodeId: nodeExec.nodeId,
+            buttonConfig: { buttons: bc.buttons, nodeOutput: out },
+          };
+        } else if (interactionType) {
+          // form / ai_conversation: parseWaitingForInput 이 nodeOutput.formConfig /
+          // nodeOutput.conversationConfig 를 읽는다 → nodeOutput 그대로 동봉.
+          context = {
+            interactionType,
+            waitingNodeId: nodeExec.nodeId,
+            nodeOutput: out,
+          };
+        }
+      }
+    }
     return {
       id: execution.id,
       workflowId: execution.workflowId,
       status: execution.status as ExecutionStatusDto['status'],
-      currentNode: null,
-      context: null,
+      currentNode,
+      context,
       result:
         execution.status === ExecutionStatus.COMPLETED
           ? ((execution.outputData ?? null) as Record<string, unknown> | null)

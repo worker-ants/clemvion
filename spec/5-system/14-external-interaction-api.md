@@ -398,7 +398,15 @@ data: { ... §6 payload ... }
 
 ### 5.3 단발 상태 조회 — `GET /api/external/executions/:executionId`
 
-> **구현 상태 (V1)**: 아래 응답 shape 중 `id` / `workflowId` / `status` / `result` / `error` / `updatedAt` 는 실제 값으로 채워진다. 단 **`currentNode` 와 `context` 는 현재 항상 `null`, `seq` 는 항상 `0` placeholder** 로 반환된다 ([`interaction.service.ts` `getStatus()`](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)). 자세한 노드 context 와 최신 seq 는 SSE 의 `waiting_for_input` 페이로드·`id:` 필드가 권위이며, 클라이언트는 SSE `Last-Event-Id` 로 보정한다. `currentNode`/`context`/`seq` 의 실값 노출은 **미구현 (Planned)**.
+> **구현 상태 (V1)**: `id` / `workflowId` / `status` / `result` / `error` / `updatedAt` 는 실제 값으로 채워진다.
+> **`waiting_for_input` 상태에서는 `currentNode`(id/type/interactionType)와 `context` 도 채워진다** — 현재 대기 중인
+> `NodeExecution.outputData`(`meta.interactionType` + structured `config.buttonConfig`)에서 복원하며, buttons 는
+> `context.buttonConfig{buttons, nodeOutput}`, form/ai_conversation 은 `context.nodeOutput` 으로 동봉한다.
+> 이는 SSE `waiting_for_input` **wire payload 와 동일 형식**이라 위젯이 `parseWaitingForInput` 으로 그대로 시드할 수 있고,
+> 첫 노드가 SSE 구독 전 emit 되는 race(빠른 buttons/carousel)에서 현재 표면을 복구하는 1차 경로가 된다
+> ([`interaction.service.ts` `getStatus()`](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)).
+> 단 `conversationThread` snapshot 과 `seq`(항상 `0` placeholder)는 SSE replay(`Last-Event-Id`/첫 연결 `lastEventId=0`)가
+> 권위이며 만료 전 5분 buffer 에서 보정한다.
 
 ```jsonc
 GET /api/external/executions/{executionId}
