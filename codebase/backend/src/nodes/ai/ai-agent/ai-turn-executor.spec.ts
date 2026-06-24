@@ -95,6 +95,47 @@ describe('AiTurnExecutor', () => {
       expect(result.status).toBe('ended');
       expect(mockEventEmitter.emitExecution).not.toHaveBeenCalled();
     });
+
+    // C-2 1차 — buildSingleTurnSystemPrompt 의 §11.4 ordering 분기(KB/condition/
+    // presentation guidance)를 executor 레벨에서 직접 고정. setup 추출(메서드 분리)
+    // 후 system 프롬프트 조립 회귀를 핸들러 spec 간접 커버에 의존하지 않고 잡는다.
+    it('composes the §11.4-ordered system prompt (systemPrompt → KB → condition → presentation)', async () => {
+      const executor = buildExecutor();
+      await executor.executeSingleTurn(
+        undefined,
+        {
+          mode: 'single_turn',
+          systemPrompt: 'You are helpful.',
+          userPrompt: 'Hi',
+          knowledgeBases: ['kb-1'],
+          conditions: [{ id: 'c1', prompt: '환불 요청' }],
+          presentationTools: [{ type: 'render_table' }],
+        },
+        baseContext,
+      );
+
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
+      const chatPayload = mockLlmService.chat.mock.calls[0][1] as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const sys = chatPayload.messages.find(
+        (m) => m.role === 'system',
+      )?.content;
+      expect(sys).toBeDefined();
+      // [2] 사용자 systemPrompt · [3] KB · [4] condition · presentation guidance 모두 포함
+      expect(sys).toContain('You are helpful.');
+      expect(sys).toContain('[Knowledge Base]');
+      expect(sys).toContain('[조건 안내]');
+      expect(sys).toContain('환불 요청');
+      expect(sys).toContain('[Presentation Tools]');
+      // §11.4 ordering: systemPrompt → KB_TOOL_GUIDANCE → condition suffix (인덱스 단조 증가)
+      expect(sys!.indexOf('You are helpful.')).toBeLessThan(
+        sys!.indexOf('[Knowledge Base]'),
+      );
+      expect(sys!.indexOf('[Knowledge Base]')).toBeLessThan(
+        sys!.indexOf('[조건 안내]'),
+      );
+    });
   });
 
   describe('executeMultiTurn (first-turn park)', () => {

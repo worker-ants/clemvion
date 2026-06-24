@@ -930,6 +930,164 @@ export class AiTurnExecutor {
     };
   }
 
+  /**
+   * §6.1 단계 0.5 · [1]~[4] — single-turn 시스템 프롬프트를 §11.4 ordering 으로 조립.
+   * [1] System Context Prefix → [2] 사용자 systemPrompt → [3] KB_TOOL_GUIDANCE →
+   * [4] Condition suffix → (presentation guidance). [5] Thread/Memory 주입은 호출측의
+   * `buildSingleTurnMessages` / `applySingleTurnMemoryInjection` 가 이 결과 **뒤에**
+   * 수행한다 (ordering 의존: [3][4] suffix 포함 후 [5] 주입).
+   * KB 검색은 prefill 하지 않고 LLM 이 능동 호출한다 (spec/4-nodes/3-ai/0-common.md §11.4).
+   */
+  private buildAgentSingleTurnSystemPrompt(
+    context: ExecutionContext,
+    config: Record<string, unknown>,
+    systemPrompt: string,
+    knowledgeBases: string[],
+    conditions: ConditionDef[],
+  ): string {
+    const systemContextPrefix = buildSystemContextPrefixFromContext({
+      context,
+      config,
+      now: new Date(),
+    });
+    let finalSystemPrompt = systemContextPrefix + systemPrompt;
+    if (knowledgeBases.length > 0) {
+      finalSystemPrompt += KB_TOOL_GUIDANCE;
+    }
+    if (conditions.length > 0) {
+      finalSystemPrompt +=
+        this.conditionEvaluator.buildConditionSystemPromptSuffix(conditions);
+    }
+    if (
+      Array.isArray(config.presentationTools) &&
+      config.presentationTools.length > 0
+    ) {
+      finalSystemPrompt += PRESENTATION_TOOLS_GUIDANCE;
+    }
+    return finalSystemPrompt;
+  }
+
+  /**
+   * §6.1 단계 1.7 — single-turn 초기 messages(system/user) 조립 + ConversationThread
+   * `ai_user` push (spec §2.2). `ai_user` push 는 LLM 호출 **전**(단계 1.7) `userPrompt`
+   * resolved 직후 1회만 발생한다 — 추출 시에도 이 ordering 을 보존한다 (대응 `ai_assistant`
+   * push 는 응답 직후). 메모리 회수/주입(단계 1.3/1.5)은 `applySingleTurnMemoryInjection`
+   * 가 별도로 수행한다.
+   */
+  private buildSingleTurnMessages(
+    context: ExecutionContext,
+    config: Record<string, unknown>,
+    finalSystemPrompt: string,
+    userPrompt: string,
+  ): ChatMessage[] {
+    const messages: ChatMessage[] = [];
+    if (finalSystemPrompt) {
+      messages.push({ role: 'system', content: finalSystemPrompt });
+    }
+    if (userPrompt) {
+      messages.push({ role: 'user', content: userPrompt });
+      // ConversationThread push (spec §2.2 — single-turn ai_user, 단계 1.7, LLM 호출 전).
+      this.pushAiThreadTurn(
+        context,
+        this.buildAiNodeRefFromContext(context, config),
+        'ai_user',
+        userPrompt,
+      );
+    }
+    return messages;
+  }
+
+  /**
+   * §6.1 단계 1.3·1.5 — ConversationThread / Memory 주입 (LLM 호출 전, spec §5·§6.1·§11.4 [5]).
+   * single-turn 은 첫 chat 전 1회 수행하며 memoryStrategy 로 분기한다:
+   *  - manual (기본): 기존 contextScope 경로 완전 무변경 (하위호환 불변식, 단계 1.5).
+   *  - summary_buffer / persistent: 단계 1.5 토큰예산 롤링 요약 + (persistent) 단계 1.3 회수,
+   *    안정 프리픽스 + 휘발성 꼬리 주입. 자동 전략은 contextInjection meta 미echo.
+   * `memoryStrategy` 는 caller(executeSingleTurn) scope 에서 1회 resolve 해 전달한다 —
+   * caller 가 이후 turn 경계 scheduleMemoryExtraction(2.7)에서도 동일 값을 쓰기 때문.
+   * 호출측이 반환값으로 `messages`/`finalSystemPrompt`/`memoryMeta`/`singleTurnInjection`
+   * 을 **반드시** 갱신해야 한다 (공유 accumulator 는 호출측 scope 유지 — 본 메서드에 흡수 안 함).
+   */
+  private async applySingleTurnMemoryInjection(args: {
+    context: ExecutionContext;
+    config: Record<string, unknown>;
+    messages: ChatMessage[];
+    finalSystemPrompt: string;
+    memoryStrategy: MemoryStrategy;
+    llmConfig: Awaited<ReturnType<LlmService['resolveConfig']>>;
+    model: string | undefined;
+    workspaceId: string;
+    userPrompt: string;
+  }): Promise<{
+    messages: ChatMessage[];
+    finalSystemPrompt: string;
+    memoryMeta:
+      | {
+          strategy: MemoryStrategy;
+          summarized: boolean;
+          recalledCount: number;
+          tokenBudgetUsed: number;
+        }
+      | undefined;
+    singleTurnInjection: ReturnType<AiTurnExecutor['injectThreadContext']>;
+  }> {
+    const {
+      context,
+      config,
+      memoryStrategy,
+      llmConfig,
+      model,
+      workspaceId,
+      userPrompt,
+    } = args;
+    let { messages, finalSystemPrompt } = args;
+    let singleTurnInjection = this.injectThreadContext({
+      target: context,
+      selfNodeId: context.nodeId ?? '',
+      config,
+      messages,
+      finalSystemPrompt,
+    });
+    let memoryMeta:
+      | {
+          strategy: MemoryStrategy;
+          summarized: boolean;
+          recalledCount: number;
+          tokenBudgetUsed: number;
+        }
+      | undefined;
+    if (memoryStrategy === 'manual') {
+      messages = singleTurnInjection.messages;
+      finalSystemPrompt = singleTurnInjection.finalSystemPrompt;
+    } else {
+      const mem = await this.memoryManager.injectMemoryContext({
+        strategy: memoryStrategy,
+        target: context,
+        selfNodeId: context.nodeId ?? '',
+        config,
+        messages,
+        finalSystemPrompt,
+        llmConfig,
+        model: model || llmConfig.defaultModel,
+        // 요약 전용 모델 (미설정이면 injectMemoryContext 가 model 로 폴백).
+        summaryModelConfigId: config.summaryModelConfigId as string | undefined,
+        workspaceId,
+        executionId: context.executionId,
+        queryText: userPrompt,
+        tailMode: 'prepend',
+      });
+      messages = mem.messages;
+      finalSystemPrompt = mem.finalSystemPrompt;
+      memoryMeta = mem.memory;
+      // 자동 전략은 contextScope 계열 무효 — contextInjection meta 미echo (spec §5·§1).
+      singleTurnInjection = {
+        ...singleTurnInjection,
+        injection: { ...singleTurnInjection.injection, appliedScope: 'none' },
+      };
+    }
+    return { messages, finalSystemPrompt, memoryMeta, singleTurnInjection };
+  }
+
   async executeSingleTurn(
     _input: unknown,
     config: Record<string, unknown>,
@@ -980,99 +1138,48 @@ export class AiTurnExecutor {
     // Spans the single-turn tool loop; multi-turn has its own counter.
     const presentationViolationCounters = new Map<string, number>();
 
-    // System prompt: KB 검색은 더 이상 prefill 하지 않는다. LLM 이 능동 호출 결정.
-    // spec/4-nodes/3-ai/0-common.md §11.4 ordering:
-    //   [1] System Context Prefix  ← buildSystemContextPrefixFromContext
-    //   [2] 사용자 systemPrompt
-    //   [3] KB_TOOL_GUIDANCE
-    //   [4] Condition suffix
-    //   [5] Thread injection (system_text 모드)
-    const systemContextPrefix = buildSystemContextPrefixFromContext({
+    // §6.1 단계 0.5 — System prompt 를 §11.4 ordering [1]~[4] 으로 조립.
+    // §11.4 [5] Thread/Memory 주입(단계 1.3/1.5)은 아래 applySingleTurnMemoryInjection
+    // 가 이 결과 뒤에 수행한다 (ordering 의존: [3][4] suffix 포함 후 [5] 주입).
+    let finalSystemPrompt = this.buildAgentSingleTurnSystemPrompt(
       context,
       config,
-      now: new Date(),
-    });
-    let finalSystemPrompt = systemContextPrefix + systemPrompt;
-    if (knowledgeBases.length > 0) {
-      finalSystemPrompt += KB_TOOL_GUIDANCE;
-    }
-    if (conditions.length > 0) {
-      finalSystemPrompt +=
-        this.conditionEvaluator.buildConditionSystemPromptSuffix(conditions);
-    }
-    if (
-      Array.isArray(config.presentationTools) &&
-      config.presentationTools.length > 0
-    ) {
-      finalSystemPrompt += PRESENTATION_TOOLS_GUIDANCE;
-    }
+      systemPrompt,
+      knowledgeBases,
+      conditions,
+    );
 
-    // Build messages
-    let messages: ChatMessage[] = [];
-    if (finalSystemPrompt) {
-      messages.push({ role: 'system', content: finalSystemPrompt });
-    }
-    if (userPrompt) {
-      messages.push({ role: 'user', content: userPrompt });
-      // ConversationThread push (spec §2.2 — single-turn ai_user, 1회).
-      this.pushAiThreadTurn(
-        context,
-        this.buildAiNodeRefFromContext(context, config),
-        'ai_user',
-        userPrompt,
-      );
-    }
+    // §6.1 단계 1.7 — 초기 messages(system/user) 조립 + ConversationThread `ai_user`
+    // push (spec §2.2, LLM 호출 전).
+    let messages = this.buildSingleTurnMessages(
+      context,
+      config,
+      finalSystemPrompt,
+      userPrompt,
+    );
 
-    // ConversationThread / Memory inject (spec §5·§6.1) — single-turn runs
-    // once before the first chat. memoryStrategy 로 분기:
-    //  - manual (기본): 기존 contextScope 경로 완전 무변경 (하위호환 불변식).
-    //  - summary_buffer / persistent: 토큰예산 롤링 요약 + (persistent) 회수,
-    //    안정 프리픽스 + 휘발성 꼬리 주입.
+    // §6.1 단계 1.3·1.5 — ConversationThread / Memory 주입 (spec §5·§6.1, LLM 호출 전).
+    // 실행 순서가 spec 단계 번호와 역전(1.7 → 1.3/1.5)인 것은 의도적이며 원본 동작 보존:
+    // `ai_user` push(1.7)가 먼저 thread 에 들어가도, 주입의 `getThreadExcludingNode` 가
+    // self 노드 turn 을 제외하므로 주입 결과는 동일하다 (회귀 없음).
+    // memoryStrategy 는 caller scope 에 둔다 — 이후 turn 경계 scheduleMemoryExtraction(2.7,
+    // condition-route·tool-loop·final completion)에서도 동일 값을 참조한다.
     const memoryStrategy = this.memoryManager.resolveMemoryStrategy(config);
-    let singleTurnInjection = this.injectThreadContext({
-      target: context,
-      selfNodeId: context.nodeId ?? '',
+    const memInjection = await this.applySingleTurnMemoryInjection({
+      context,
       config,
       messages,
       finalSystemPrompt,
+      memoryStrategy,
+      llmConfig,
+      model,
+      workspaceId,
+      userPrompt,
     });
-    let memoryMeta:
-      | {
-          strategy: MemoryStrategy;
-          summarized: boolean;
-          recalledCount: number;
-          tokenBudgetUsed: number;
-        }
-      | undefined;
-    if (memoryStrategy === 'manual') {
-      messages = singleTurnInjection.messages;
-      finalSystemPrompt = singleTurnInjection.finalSystemPrompt;
-    } else {
-      const mem = await this.memoryManager.injectMemoryContext({
-        strategy: memoryStrategy,
-        target: context,
-        selfNodeId: context.nodeId ?? '',
-        config,
-        messages,
-        finalSystemPrompt,
-        llmConfig,
-        model: model || llmConfig.defaultModel,
-        // 요약 전용 모델 (미설정이면 injectMemoryContext 가 model 로 폴백).
-        summaryModelConfigId: config.summaryModelConfigId as string | undefined,
-        workspaceId,
-        executionId: context.executionId,
-        queryText: userPrompt,
-        tailMode: 'prepend',
-      });
-      messages = mem.messages;
-      finalSystemPrompt = mem.finalSystemPrompt;
-      memoryMeta = mem.memory;
-      // 자동 전략은 contextScope 계열 무효 — contextInjection meta 미echo.
-      singleTurnInjection = {
-        ...singleTurnInjection,
-        injection: { ...singleTurnInjection.injection, appliedScope: 'none' },
-      };
-    }
+    messages = memInjection.messages;
+    finalSystemPrompt = memInjection.finalSystemPrompt;
+    const memoryMeta = memInjection.memoryMeta;
+    const singleTurnInjection = memInjection.singleTurnInjection;
 
     const tools = await this.buildTools(
       config,
