@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T00:35:15.388893",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=03-maintainability C-2 2차(완결): ai-turn-executor.ts 의 잔여 god-method 를 spec §6.1/§6.2 단계 정렬 private 메서드로 behavior-preserving 분해. (a) executeSingleTurn 의 tool-loop/completion(~493줄 잔여, §6.1 단계 3 dispatch·condition-route·provider-tool-batch·completion-output). (b) processMultiTurnMessage(~768줄, §6.2 단계 — buildTurnMessages d.5/d.6·executeToolBatch·classifyTurnResult 3판정·handleTurnCompletion turn push·checkpoint). 공유 accumulator·_resumeState 운반·turn push ordering(ai_user LLM전·ai_assistant 응답직후)·park-rehydration/checkpoint 호환 보존. 각 메서드 doc 에 §6.1/§6.2 단계번호. spec 변경 불요. 1차 슬라이스(setup, #697)에 이어 03 C-2 완결.)",
+  "target_path": "03-maintainability C-2 2차(완결): ai-turn-executor.ts 의 잔여 god-method 를 spec §6.1/§6.2 단계 정렬 private 메서드로 behavior-preserving 분해. (a) executeSingleTurn 의 tool-loop/completion(~493줄 잔여, §6.1 단계 3 dispatch·condition-route·provider-tool-batch·completion-output). (b) processMultiTurnMessage(~768줄, §6.2 단계 — buildTurnMessages d.5/d.6·executeToolBatch·classifyTurnResult 3판정·handleTurnCompletion turn push·checkpoint). 공유 accumulator·_resumeState 운반·turn push ordering(ai_user LLM전·ai_assistant 응답직후)·park-rehydration/checkpoint 호환 보존. 각 메서드 doc 에 §6.1/§6.2 단계번호. spec 변경 불요. 1차 슬라이스(setup, #697)에 이어 03 C-2 완결.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
