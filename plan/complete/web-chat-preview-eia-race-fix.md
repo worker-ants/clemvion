@@ -3,7 +3,7 @@ title: 웹채팅 미리보기 EIA race fix — SSE replay(lastEventId) + getStat
 worktree: web-chat-console-mgmt
 started: 2026-06-24
 owner: planner
-status: in-progress
+status: complete
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
   - spec/7-channel-web-chat/4-security.md
@@ -47,5 +47,5 @@ related_plans:
 
 ## 마감
 - [x] **테스트**: interaction.service.spec(getStatus waiting 표면), sse-adapter.spec(lastEventId=0 replay), use-widget.test(getStatus 시드·openStream lastEventId), eia-client.test(getStatus)
-- [~] **검증**: bootstrap·typecheck·lint(error 0)·unit(backend 28·cwc 16) green → build 진행 중 → e2e
-- [ ] **리뷰·PR**: `/ai-review` → resolution → `/consistency-check --impl-done` → PR(base main)
+- [x] **검증**: typecheck·lint(error 0)·unit(backend 28·cwc 16)·build green; **e2e 36 suites/214 PASS**(make e2e-test, dockerized — docker 26.69GB 회수 후)
+- [x] **리뷰·PR**: `/ai-review`(LOW, Critical 0) → resolution-applier(W1 인덱스·W2 JSDoc·W6 + INFO fix) → fix diff 재리뷰(WARNING 5 코드동결 dismiss/defer) → `/consistency-check --impl-done`(BLOCK:NO, R17 Rationale 추가) → PR(base main)
