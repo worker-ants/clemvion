@@ -968,9 +968,11 @@ export class AiTurnExecutor {
   }
 
   /**
-   * §6.1 단계 1.5·1.7 — single-turn 초기 messages 조립 + ConversationThread `ai_user`
-   * push (spec §2.2). `ai_user` push 는 LLM 호출 **전**(단계 1.7) 1회만 발생한다 —
-   * 추출 시에도 이 ordering 을 보존한다 (대응 `ai_assistant` push 는 응답 직후 단계 2.5).
+   * §6.1 단계 1.7 — single-turn 초기 messages(system/user) 조립 + ConversationThread
+   * `ai_user` push (spec §2.2). `ai_user` push 는 LLM 호출 **전**(단계 1.7) `userPrompt`
+   * resolved 직후 1회만 발생한다 — 추출 시에도 이 ordering 을 보존한다 (대응 `ai_assistant`
+   * push 는 응답 직후). 메모리 회수/주입(단계 1.3/1.5)은 `applySingleTurnMemoryInjection`
+   * 가 별도로 수행한다.
    */
   private buildSingleTurnMessages(
     context: ExecutionContext,
@@ -984,6 +986,7 @@ export class AiTurnExecutor {
     }
     if (userPrompt) {
       messages.push({ role: 'user', content: userPrompt });
+      // ConversationThread push (spec §2.2 — single-turn ai_user, 단계 1.7, LLM 호출 전).
       this.pushAiThreadTurn(
         context,
         this.buildAiNodeRefFromContext(context, config),
@@ -995,27 +998,39 @@ export class AiTurnExecutor {
   }
 
   /**
-   * §6.1 단계 1.3 · [5] — ConversationThread / Memory 주입 (spec §5·§6.1).
+   * §6.1 단계 1.3·1.5 — ConversationThread / Memory 주입 (LLM 호출 전, spec §5·§6.1·§11.4 [5]).
    * single-turn 은 첫 chat 전 1회 수행하며 memoryStrategy 로 분기한다:
-   *  - manual (기본): 기존 contextScope 경로 완전 무변경 (하위호환 불변식).
-   *  - summary_buffer / persistent: 토큰예산 롤링 요약 + (persistent) 회수,
+   *  - manual (기본): 기존 contextScope 경로 완전 무변경 (하위호환 불변식, 단계 1.5).
+   *  - summary_buffer / persistent: 단계 1.5 토큰예산 롤링 요약 + (persistent) 단계 1.3 회수,
    *    안정 프리픽스 + 휘발성 꼬리 주입. 자동 전략은 contextInjection meta 미echo.
+   * `memoryStrategy` 는 caller(executeSingleTurn) scope 에서 1회 resolve 해 전달한다 —
+   * caller 가 이후 turn 경계 scheduleMemoryExtraction(2.7)에서도 동일 값을 쓰기 때문.
    * 호출측이 반환값으로 `messages`/`finalSystemPrompt`/`memoryMeta`/`singleTurnInjection`
-   * 을 갱신한다 (공유 accumulator 는 호출측 scope 유지 — 본 메서드에 흡수하지 않음).
+   * 을 **반드시** 갱신해야 한다 (공유 accumulator 는 호출측 scope 유지 — 본 메서드에 흡수 안 함).
    */
   private async applySingleTurnMemoryInjection(args: {
     context: ExecutionContext;
     config: Record<string, unknown>;
     messages: ChatMessage[];
     finalSystemPrompt: string;
-    // memoryStrategy 는 caller(executeSingleTurn) scope 에서 1회 resolve 해 전달한다 —
-    // executeSingleTurn 이 이후 turn 경계 scheduleMemoryExtraction 에서도 동일 값을 쓴다.
     memoryStrategy: MemoryStrategy;
     llmConfig: Awaited<ReturnType<LlmService['resolveConfig']>>;
     model: string | undefined;
     workspaceId: string;
     userPrompt: string;
-  }) {
+  }): Promise<{
+    messages: ChatMessage[];
+    finalSystemPrompt: string;
+    memoryMeta:
+      | {
+          strategy: MemoryStrategy;
+          summarized: boolean;
+          recalledCount: number;
+          tokenBudgetUsed: number;
+        }
+      | undefined;
+    singleTurnInjection: ReturnType<AiTurnExecutor['injectThreadContext']>;
+  }> {
     const {
       context,
       config,
@@ -1064,6 +1079,7 @@ export class AiTurnExecutor {
       messages = mem.messages;
       finalSystemPrompt = mem.finalSystemPrompt;
       memoryMeta = mem.memory;
+      // 자동 전략은 contextScope 계열 무효 — contextInjection meta 미echo (spec §5·§1).
       singleTurnInjection = {
         ...singleTurnInjection,
         injection: { ...singleTurnInjection.injection, appliedScope: 'none' },
@@ -1122,8 +1138,8 @@ export class AiTurnExecutor {
     // Spans the single-turn tool loop; multi-turn has its own counter.
     const presentationViolationCounters = new Map<string, number>();
 
-    // §6.1 단계 0.5 · [1]~[4] — System prompt 를 §11.4 ordering 으로 조립.
-    // [5] Thread/Memory 주입은 아래 buildSingleTurnMessages / applySingleTurnMemoryInjection
+    // §6.1 단계 0.5 — System prompt 를 §11.4 ordering [1]~[4] 으로 조립.
+    // §11.4 [5] Thread/Memory 주입(단계 1.3/1.5)은 아래 applySingleTurnMemoryInjection
     // 가 이 결과 뒤에 수행한다 (ordering 의존: [3][4] suffix 포함 후 [5] 주입).
     let finalSystemPrompt = this.buildSingleTurnSystemPrompt(
       context,
@@ -1133,8 +1149,8 @@ export class AiTurnExecutor {
       conditions,
     );
 
-    // §6.1 단계 1.5·1.7 — 초기 messages 조립 + ConversationThread `ai_user` push
-    // (spec §2.2, LLM 호출 전 단계 1.7).
+    // §6.1 단계 1.7 — 초기 messages(system/user) 조립 + ConversationThread `ai_user`
+    // push (spec §2.2, LLM 호출 전).
     let messages = this.buildSingleTurnMessages(
       context,
       config,
@@ -1142,9 +1158,12 @@ export class AiTurnExecutor {
       userPrompt,
     );
 
-    // §6.1 단계 1.3 · [5] — ConversationThread / Memory 주입 (spec §5·§6.1).
-    // memoryStrategy 는 caller scope 에 둔다 — 이후 turn 경계 scheduleMemoryExtraction
-    // (condition-route·tool-loop·final completion)에서도 동일 값을 참조한다.
+    // §6.1 단계 1.3·1.5 — ConversationThread / Memory 주입 (spec §5·§6.1, LLM 호출 전).
+    // 실행 순서가 spec 단계 번호와 역전(1.7 → 1.3/1.5)인 것은 의도적이며 원본 동작 보존:
+    // `ai_user` push(1.7)가 먼저 thread 에 들어가도, 주입의 `getThreadExcludingNode` 가
+    // self 노드 turn 을 제외하므로 주입 결과는 동일하다 (회귀 없음).
+    // memoryStrategy 는 caller scope 에 둔다 — 이후 turn 경계 scheduleMemoryExtraction(2.7,
+    // condition-route·tool-loop·final completion)에서도 동일 값을 참조한다.
     const memoryStrategy = this.memoryManager.resolveMemoryStrategy(config);
     const memInjection = await this.applySingleTurnMemoryInjection({
       context,
