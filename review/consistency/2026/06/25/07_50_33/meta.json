@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T07:50:33.856083",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=03-maintainability C-2 후속(W7 SPEC-DRIFT 해소): recordMultiTurnNonProviderToolResults 의 condition deferral toolCallCount++ 제거 → multi-turn 도 condition 도구를 meta.toolCalls·budget 카운트에서 제외해 single-turn 및 spec/4-nodes/3-ai/1-ai-agent.md §7.1('KB·MCP·일반 도구 합산, 조건 도구 제외')과 정합. 행위 변경(multi-turn meta.toolCalls·maxToolCalls budget 에서 condition 도구 미합산). + INFO cleanup 동봉: executeProviderToolBatch L962 인라인 'tool_call_budget_exceeded'→TOOL_BUDGET_EXCEEDED_ERROR 상수, JSDoc §3.f-g 표기 정정, condition-route Date.now 이중호출 단일캡처. 코드를 기존 spec 에 맞추는 버그픽스라 spec 변경 불요.)",
+  "target_path": "03-maintainability C-2 후속(W7 SPEC-DRIFT 해소): recordMultiTurnNonProviderToolResults 의 condition deferral toolCallCount++ 제거 → multi-turn 도 condition 도구를 meta.toolCalls·budget 카운트에서 제외해 single-turn 및 spec/4-nodes/3-ai/1-ai-agent.md §7.1('KB·MCP·일반 도구 합산, 조건 도구 제외')과 정합. 행위 변경(multi-turn meta.toolCalls·maxToolCalls budget 에서 condition 도구 미합산). + INFO cleanup 동봉: executeProviderToolBatch L962 인라인 'tool_call_budget_exceeded'→TOOL_BUDGET_EXCEEDED_ERROR 상수, JSDoc §3.f-g 표기 정정, condition-route Date.now 이중호출 단일캡처. 코드를 기존 spec 에 맞추는 버그픽스라 spec 변경 불요.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

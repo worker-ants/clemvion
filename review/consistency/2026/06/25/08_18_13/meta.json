@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T08:18:13.011553",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=03-maintainability C-2 후속 W7 SPEC-DRIFT 해소: recordMultiTurnNonProviderToolResults 의 condition deferral toolCallCount++ 제거 완료 — multi-turn 도 condition 도구를 meta.toolCalls·maxToolCalls budget 에서 미합산(single-turn·spec §7.1 정합). [SPEC-DRIFT] 주석 제거, JSDoc 대칭화. cleanup: tool_call_budget_exceeded 상수화, Date.now 단일캡처, §3.f-g→§6.1.f-g. 신규 multi-turn condition no-count 테스트. spec 변경 없음., diff-base=origin/main)",
+  "target_path": "03-maintainability C-2 후속 W7 SPEC-DRIFT 해소: recordMultiTurnNonProviderToolResults 의 condition deferral toolCallCount++ 제거 완료 — multi-turn 도 condition 도구를 meta.toolCalls·maxToolCalls budget 에서 미합산(single-turn·spec §7.1 정합). [SPEC-DRIFT] 주석 제거, JSDoc 대칭화. cleanup: tool_call_budget_exceeded 상수화, Date.now 단일캡처, §3.f-g→§6.1.f-g. 신규 multi-turn condition no-count 테스트. spec 변경 없음.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

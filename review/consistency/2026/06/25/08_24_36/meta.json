@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T08:24:36.632119",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=03-maintainability C-2 후속 W7 SPEC-DRIFT 해소 (재검). 결정 권한: 2026-06-25 사용자가 AskUserQuestion 으로 'spec 따라 버그픽스'를 직접 승인 → #700 의 'planner 위임 백로그' 상태 해소(사용자 결정이 위임 메모보다 우선). spec §7.1 이 이미 '조건 도구 제외'를 규정하므로 spec 본문 변경 0 — 코드를 기존 spec 에 맞추는 developer 버그픽스(planner spec 작업 영역 아님). 변경: recordMultiTurnNonProviderToolResults condition toolCallCount++ 제거(single-turn·spec 정합). plan 03-maintainability.md C-2 W7 항목에 사용자 승인 provenance 명시 완료., diff-base=origin/main)",
+  "target_path": "03-maintainability C-2 후속 W7 SPEC-DRIFT 해소 (재검). 결정 권한: 2026-06-25 사용자가 AskUserQuestion 으로 'spec 따라 버그픽스'를 직접 승인 → #700 의 'planner 위임 백로그' 상태 해소(사용자 결정이 위임 메모보다 우선). spec §7.1 이 이미 '조건 도구 제외'를 규정하므로 spec 본문 변경 0 — 코드를 기존 spec 에 맞추는 developer 버그픽스(planner spec 작업 영역 아님). 변경: recordMultiTurnNonProviderToolResults condition toolCallCount++ 제거(single-turn·spec 정합). plan 03-maintainability.md C-2 W7 항목에 사용자 승인 provenance 명시 완료.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
