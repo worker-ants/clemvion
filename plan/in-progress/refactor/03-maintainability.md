@@ -43,7 +43,8 @@
 
 ### C-2 [Critical] ai-agent.handler.ts — `processMultiTurnMessageInner` 971줄 단일 메서드
 
-- [ ] 미착수 — `ai-agent.handler.ts:2084` (+ `executeSingleTurn` 540줄)
+- [~] **1차 슬라이스 완료 (2026-06-25, 커밋 `bf91ebff`+review-fix `9dcd34ae`)** — branch `claude/refactor-03-c2-single-turn-split`. **위치 정정**: M-1 god-handler 분할(#665·#668·#669)로 god-method 들은 `ai-turn-executor.ts`(~2911줄)로 이전됨 — `executeSingleTurn`(~545줄)·`processMultiTurnMessage`(~768줄). 본 1차 PR 은 `executeSingleTurn` 의 **setup 단계**를 spec §6.1 정렬 private 메서드 3개(`buildAgentSingleTurnSystemPrompt` §6.1 0.5/§11.4 [1]~[4] · `buildSingleTurnMessages` §6.1 1.7 · `applySingleTurnMemoryInjection` §6.1 1.3/1.5)로 behavior-preserving 분해. ordering-sensitive tool-loop·공유 accumulator·memoryStrategy 는 caller scope 유지. 검증: lint·build(tsc)·unit(executor §11.4 ordering 신규 116)·**e2e 214 PASS**. impl-prep `review/consistency/2026/06/24/23_43_01` BLOCK:NO · ai-review `review/code/2026/06/25/00_03_24`(Risk LOW, Critical 0/Warning 2→§6.1 단계번호 정정·executor 테스트 반영, RESOLUTION) · impl-done BLOCK 확인.
+  - **⏳ 2차 슬라이스 (별 PR)**: `executeSingleTurn` 의 tool-loop·completion + `processMultiTurnMessage`(~768줄, §6.2 단계) 분해. ai-review INFO-4 가 명시한 SRP 완성 후속.
 
 **spec 대조**: C — `1-ai-agent.md §6.2` 가 멀티턴 행위를 단계 열거(2.a~h, c.bypass/c.fallback, d.5 메모리 재주입, d.6 물리 압축)로 상세 규정, 메서드 구조는 미규정. `executeProviderToolBatch` 기존재(:1128) — 재활용 제안 유효.
 
