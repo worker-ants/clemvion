@@ -938,7 +938,7 @@ export class AiTurnExecutor {
    * 수행한다 (ordering 의존: [3][4] suffix 포함 후 [5] 주입).
    * KB 검색은 prefill 하지 않고 LLM 이 능동 호출한다 (spec/4-nodes/3-ai/0-common.md §11.4).
    */
-  private buildSingleTurnSystemPrompt(
+  private buildAgentSingleTurnSystemPrompt(
     context: ExecutionContext,
     config: Record<string, unknown>,
     systemPrompt: string,
@@ -1141,7 +1141,7 @@ export class AiTurnExecutor {
     // §6.1 단계 0.5 — System prompt 를 §11.4 ordering [1]~[4] 으로 조립.
     // §11.4 [5] Thread/Memory 주입(단계 1.3/1.5)은 아래 applySingleTurnMemoryInjection
     // 가 이 결과 뒤에 수행한다 (ordering 의존: [3][4] suffix 포함 후 [5] 주입).
-    let finalSystemPrompt = this.buildSingleTurnSystemPrompt(
+    let finalSystemPrompt = this.buildAgentSingleTurnSystemPrompt(
       context,
       config,
       systemPrompt,
