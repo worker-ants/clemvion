@@ -7,6 +7,7 @@ code:
   - codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts
   - codebase/backend/src/modules/execution-engine/button-interaction.service.ts
   - codebase/backend/src/modules/execution-engine/resume-turn-dispatch.ts
+  - codebase/backend/src/modules/execution-engine/park-entry-dispatch.ts
   - codebase/frontend/src/lib/conversation/conversation-utils.ts
   - codebase/backend/src/shared/conversation-thread/conversation-thread.types.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/render-tool-provider.ts
@@ -52,6 +53,8 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 3. AST 가드 (`interaction-type-exhaustiveness.test.ts` 의 `REGISTRY_SITES`) 가 매트릭스의 모든 enum 값이 **등록된 grep 대상 파일**에 string literal 로 등장하는지 검증한다. 현재 `REGISTRY_SITES` 는 4개 파일 — `use-execution-events.ts` (위 (a)·(b)), `apply-execution-snapshot.ts` ((c)), `run-results-drawer.tsx` ((d)), `executions/[executionId]/page.tsx` ((e)). (f) `result-detail.tsx` formPreview / `AssistantPresentationsBlock` 은 grep 가드가 아니라 TS exhaustive `default: never` 로만 커버된다 (동작 drift 아님). switch 기반이 아닌 if/else·flag 파생 소비처를 잡기 위한 보조 가드이며, switch 누락은 rule 2 의 컴파일러 단계에서 별도로 fail 한다.
 
 > **재개(resume) turn 라우팅 진입점 (backend)**: 위 "Backend emit 위치" 열은 *최초 waiting 진입* 기준이다. park 후 **재개** 시 `form`/`buttons`/`ai_conversation` turn 라우팅은 `driveResumeAwaited`(top-level)·`driveResumeFrame`(중첩) 양쪽에서 단일 진입점 `dispatchResumeTurn`(ordered `resumeTurnRegistry`, first-match-wins: form → buttons → ai_conversation, `codebase/backend/src/modules/execution-engine/resume-turn-dispatch.ts`)으로 일원화돼 있다. `ai_form_render` 는 별도 registry 항목이 아니라 **`ai_conversation` AI turn 경로(`isAiConversation`)를 공유**해 재개되고, frontend 측 affordance 정리는 별도 `resumeFromAiRenderForm` action 이 맡는다(위 §1.2 매트릭스 `ai_form_render` 행 (g) 참조). 새 blocking 노드 타입은 registry 항목 1개 등록으로 plug-in 되므로, §1.1 enum 추가 시 이 registry 도 함께 점검한다 (enum 신규 추가 아님 — 매트릭스 완전성 보강). SoT: [execution-engine §7.5](../5-system/4-execution-engine.md).
+
+> **최초 park 진입(park-entry) dispatch 라우팅 (backend)**: 위 "Backend emit 위치" 열의 *최초 waiting 진입* 분기는 `runExecution`(메인 루프)·`executeInline`(중첩 sub-workflow)·`runNodeDispatchLoop`(retry/resume 드라이브) **세 곳**에서 단일 진입점 `dispatchParkEntry`(ordered `parkEntryRegistry`, first-match-wins: form → buttons → ai_conversation, `codebase/backend/src/modules/execution-engine/park-entry-dispatch.ts`)으로 일원화돼 있다 — resume 측 `dispatchResumeTurn`(위 노트)과 대칭(M-4). `form` 은 핸들러 metadata(`getMetadata().interaction === 'form'`)로, `buttons`/`ai` 는 런타임 cached `meta.interactionType`(`getInteractionType`)로 선택한다. `ai_form_render` 는 별도 registry 항목이 아니라 `ai_conversation` 항목이 함께 매칭해 `waitForAiConversation` 경로를 공유한다(resume 측 `isAiConversation` 정책과 동일). 세 사이트는 선택 로직만 공유하고 `PARK_RELEASED` 후 control-flow 반응은 사이트별로 다르므로(메인 루프 = bare `return`, 중첩 = `ParkReleaseSignal` throw, 드라이브 = `{ parked: true }`) registry 는 `ProcessTurnResult` 만 반환하고 escape 는 호출측이 유지한다. 새 blocking 노드 타입은 `buildParkEntryRegistry` factory 에 항목 1줄 등록으로 plug-in. SoT: [execution-engine §7.5](../5-system/4-execution-engine.md).
 
 ---
 
