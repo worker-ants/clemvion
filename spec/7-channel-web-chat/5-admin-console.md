@@ -180,7 +180,7 @@ code:
   `waiting_for_input` 이 위젯 SSE 구독보다 먼저 emit** 될 수 있다(첫 노드가 즉시 도달하면 거의 항상). 위젯은 두 경로로
   보정한다 — (1) `openStream` 을 `lastEventId=0` 으로 열어 5분 buffer 의 누락 이벤트(seq≥1)를 replay 받고, (2) start/복원
   직후 `GET /api/external/executions/:id`(status)로 현재 표면을 시드한다(status `context` 가 SSE wire 형식이라 위젯
-  `parseWaitingForInput` 재사용 — [EIA §5.3](../../5-system/14-external-interaction-api.md)). 미보정 시 SSE 가 heartbeat 만
+  `parseWaitingForInput` 재사용 — [EIA §5.3](../5-system/14-external-interaction-api.md)). 미보정 시 SSE 가 heartbeat 만
   받아 첫 노드(캐러셀 버튼)가 렌더되지 않는다.
 - **CORS**: 동봉이면 위젯 origin = 배포 origin 이라 same-origin (별도 CORS 불필요). 단 **프론트(위젯 동봉 origin)와 API 를
   별도 도메인으로 분리 배포**(예: `app.example.com` ↔ `api.example.com`)하면 위젯→`/api/external/*` 가 cross-origin 이 되어

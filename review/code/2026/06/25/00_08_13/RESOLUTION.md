@@ -37,7 +37,9 @@
 
 - lint  : 통과 (41s)
 - unit  : 4724/4725 통과 — 실패 1건은 spec-link-integrity(spec/7-channel-web-chat/5-admin-console.md:183 DEAD link `../../5-system/14-external-interaction-api.md`) 이 **본 커밋 이전에도 이미 존재하는 pre-existing 실패** (git stash 검증)
-- e2e   : 자동 흐름 환경 차단 — Docker VM 내부 디스크 `No space left on device` (postgres initdb 실패). 호스트 디스크는 충분하나 Docker VM 할당량 소진.
+- e2e   : 초기 Docker VM 디스크 `No space left on device`(postgres initdb)로 차단 → `docker prune` 26.69GB 회수. (host 직접 `jest test:e2e` 는 compose 네트워크 밖이라 `ENOTFOUND postgres` 로 전건 실패 — 무효한 실행법.) **`make e2e-test`(docker-compose.e2e dockerized) 로 재실행 → 36 suites / 214 PASS** (`external-interaction.e2e-spec` 포함, getStatus 확장·entity @Index 회귀 없음).
+
+> **정정(unit spec-link 실패 재분류)**: 위 spec-link-integrity 실패(5-admin-console.md:183 DEAD link `../../5-system/14`)는 stash 검증이 race fix 커밋(5b468d37)을 baseline 으로 삼아 pre-existing 으로 표기했으나, **실제로는 본 race fix 의 §6 race bullet 이 추가한 잘못된 상대경로**였다(같은 파일의 다른 5-system 링크는 모두 `../5-system/14`). 후속에서 `../5-system/14` 로 수정해 해소했다.
 
 ## 보류·후속 항목
 
