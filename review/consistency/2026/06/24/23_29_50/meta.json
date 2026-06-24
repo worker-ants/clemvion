@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-24T23:29:50.341524",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=06-concurrency M-2: ShutdownStateService early-return 제거(Option A) — shutdown 중 시작 노드도 추적·drain·SERVER_INTERRUPTED 마킹(§11.4 보존). Option B(worker pause) 미채택(WorkerHost framework 충족·queue.pause 전역 stall). plan 옵션표 권장 B→A 정정 반영. spec 변경 불요., diff-base=origin/main)",
+  "target_path": "06-concurrency M-2: ShutdownStateService early-return 제거(Option A) — shutdown 중 시작 노드도 추적·drain·SERVER_INTERRUPTED 마킹(§11.4 보존). Option B(worker pause) 미채택(WorkerHost framework 충족·queue.pause 전역 stall). plan 옵션표 권장 B→A 정정 반영. spec 변경 불요.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

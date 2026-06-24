@@ -115,7 +115,8 @@
 
 ### M-2 [Major] ShutdownState — shutdown 중 시작된 노드의 추적 포기 → §11.4 마킹 약속 위반
 
-- [ ] 미착수 — `shutdown-state.service.ts:107-109`
+- [x] **구현 완료 (Option A, 2026-06-24, 커밋 `fc0c491e`+review-fix `5e9b612d`)** — branch `claude/refactor-06-m2-shutdown-tracking`. `ShutdownStateService.registerInFlight` 의 `if (this.shuttingDown) return` early-return 제거. §11.2 가 세그먼트 완료까지 진행을 약속하고 세그먼트 내부 노드는 큐 미경유 in-process while-loop dispatch(§4.2)이므로, shutdown 후 시작된 노드도 추적·drain·`SERVER_INTERRUPTED` 마킹 대상에 포함돼 §11.4 약속 보존(zombie RUNNING 제거). **Option B(worker pause) 미채택 — 아래 옵션표·권장 정정 참조**. 테스트: 옛 "shutdown 중 register 무시" → "추적+grace 만료 마킹" 교체 + drain 성공 happy-path 추가. spec 변경 불요. 검증: lint·build·unit(신규 13)·**e2e 214 PASS**. impl-prep `review/consistency/2026/06/24/22_32_23` BLOCK:NO · ai-review `review/code/2026/06/24/23_15_30`(Risk LOW, Critical 0/Warning 5→W-1/W-2/INFO-6 반영, W-3/W-4 선재 defer, RESOLUTION) · impl-done `review/consistency/2026/06/24/<impl-done>` BLOCK 확인.
+  - **⏳ optional planner 후속(비차단)**: `spec/5-system/4-execution-engine.md §11 Rationale` 에 "신규 job consume 중단 = @nestjs/bullmq WorkerHost 의 shutdown lifecycle(worker close) 이행, 별도 `queue.pause()` 금지(전역 Redis 플래그·multi-instance stall)" 1줄 보충(spec 변경 불요 판정이라 비차단).
 
 **spec 대조**: **C(드리프트)** — §11.4 "미완료 RUNNING NodeExecution 을 `failed` + `SERVER_INTERRUPTED` 마킹" 약속 vs 구현의 `if (this.shuttingDown) return` 은 추적 포기. §11.2 "현재 세그먼트를 완료까지 진행" = 세그먼트 내 in-process dispatch 가 **다음 노드를 계속 시작**하므로(세그먼트=다중 노드, §4.2) 그 노드들이 snapshot 에서 누락 — zombie RUNNING row. 코드 주석의 "새 진입 없음" 전제가 spec 모델과 모순.
 
@@ -130,10 +131,10 @@
 | 옵션 | 장점 | 단점 / 트레이드오프 |
 | --- | --- | --- |
 | A. `registerInFlight` early-return 제거만 | §11.4 마킹 약속(`failed` + `SERVER_INTERRUPTED`) 보존을 최소 변경으로 달성 — shutdown 중 시작된 노드도 snapshot 에 포함돼 zombie RUNNING 제거 | drain 집합 증가로 종료가 grace 한도까지 길어질 수 있음(한도 자체는 불변). 신규 job consume 은 여전히 열려 있어 shutdown 중 새 세그먼트 유입 가능 — drain 집합 상한 없음 |
-| B. A + `onApplicationShutdown` 진입 즉시 BullMQ worker `pause()` 병행 | §11.2 "신규 job consume 중단" 의 명시 구현 — 새 세그먼트 유입을 입구에서 차단해 drain 집합에 상한. A 의 마킹 보존과 합쳐 §11.2/§11.4 양쪽 약속 동시 충족 | 변경 범위 소폭 증가 — pause 실패/timeout 처리 분기 추가 필요 |
+| B. A + `onApplicationShutdown` 진입 즉시 BullMQ worker `pause()` 병행 | §11.2 "신규 job consume 중단" 의 명시 구현 — 새 세그먼트 유입을 입구에서 차단해 drain 집합에 상한. A 의 마킹 보존과 합쳐 §11.2/§11.4 양쪽 약속 동시 충족 | **(착수 시 정정 — 미채택)** ① execution workers 가 `@nestjs/bullmq` `WorkerHost` 라 framework 가 shutdown lifecycle 에서 worker 를 close → **§11.2 "신규 consume 중단" 이 이미 framework 로 충족**(drain 집합도 grace 한도 내 bounded). ② BullMQ `queue.pause()` 는 **전역 Redis 플래그**라 호출 시 **타 인스턴스의 큐까지 멈춰** multi-instance 를 stall 시킴 — 단일 인스턴스 graceful shutdown 용으로 오답. worker-local pause 는 framework close 와 중복. 따라서 B 는 효익 없이 결합도·위험만 추가 |
 | C. 노드 경계에서 자발적 조기 중단 (**기각**) | 종료 시간 최단 — drain 대기 최소화 | **기각 사유**: §11.2 "현재 세그먼트를 완료까지 진행" 정책과 정면 충돌 — 세그먼트(=다중 노드, §4.2) 중간에서 멈추는 것은 spec 이 명시적으로 배제한 동작. 채택하려면 §11 정책 자체의 개정이 선행돼야 함 |
 
-**권장**: B — A 만으로는 마킹 약속은 지키지만 shutdown 중 신규 consume 이 drain 집합을 계속 키울 수 있어, §11.2 가 이미 약속한 "신규 job consume 중단" 을 `pause()` 로 명시 구현하는 것이 spec 양쪽 조항의 완결 이행이다. C 는 spec 충돌로 기각.
+**권장**: ~~B~~ → **A** (착수 시 코드 조사로 정정, 2026-06-24) — 옛 권장 B 의 전제("신규 consume 이 계속 열려 drain 집합 무한 증가")는 **틀렸다**: execution workers 가 `WorkerHost` 라 `@nestjs/bullmq` 가 shutdown lifecycle 에서 worker 를 close 해 §11.2 "신규 consume 중단" 을 **이미 framework 로 이행**한다(drain 집합 grace 한도 내 bounded). 게다가 B 가 제안한 `queue.pause()` 는 전역 Redis 플래그라 **multi-instance 를 stall** 시키는 오답이다(worker-local pause 는 framework close 와 중복). 따라서 §11.4 드리프트의 정확·최소 수정은 **A(early-return 제거)** 이고, B 는 효익 없이 결합도만 늘려 미채택. C 는 spec 충돌로 기각. (impl-prep consistency WARNING + ai-review 동의.)
 
 - **검증**: shutdown 직후 tick 의 registerInFlight → grace 만료 시 `SERVER_INTERRUPTED` 마킹 fake-timer unit + 다노드 SIGTERM e2e 에서 RUNNING 잔류 0.
 - **회귀 위험**: 낮음 — drain 집합 증가로 종료가 grace 한도까지 길어질 수 있으나 한도 불변.

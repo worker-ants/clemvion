@@ -22,12 +22,12 @@
 | [03-maintainability.md](./03-maintainability.md) | 15 | 3 (M-6·m-2 PR #522 + M-2 API_BASE_URL) | 1 (철회 M-3) | 11 | 2 (C-3, M-4) | dead-code 제거 2건 + M-2(frontend API_BASE_URL 통합·3001→3011) 외 대부분 미착수. cafe24/makeshop 미러(DRY-deferral) |
 | [04-security.md](./04-security.md) | 14 | **14** | 0 | **0** | 0 | ✅ 2026-06-16 전 항목 종결: 코드+spec 머지(PR #570·prod-fail-closed-guards 등). isolated-vm 전환·SSRF 가드·WS authorizer |
 | [05-database.md](./05-database.md) | 15 | 11 | 2 (철회 M-6·m-2) | 2 (m-4·m-5 보류) | 1 (m-5) | ✅ 핵심 11건 완료(2026-06-14 batch): rotation 원자화·partial 인덱스·CTE. m-4·m-5 보류 |
-| [06-concurrency.md](./06-concurrency.md) | 15 | 4 (M-1·M-5·C-1·M-7) | 3 (철회 m-1·m-2·m-4) | 8 | 1 (C-2) | M-1(resumed ack)·M-5(deep freeze)·C-1(cancel publish surface)·M-7(seq fail-fast) 완료 외 8건 미착수. rehydrate 가드 |
+| [06-concurrency.md](./06-concurrency.md) | 15 | 5 (M-1·M-5·C-1·M-7·M-2) | 3 (철회 m-1·m-2·m-4) | 7 | 1 (C-2) | M-1·M-5·C-1·M-7·M-2(shutdown 추적 드리프트) 완료 외 7건 미착수. rehydrate 가드 |
 | [07-dependency.md](./07-dependency.md) | 15 | 10 | 5 (3철회 M-1·M-3·m-3 + 2종결 m-5·m-7) | **0** | 0 | ✅ 2026-06-17 완료: C-1·C-2(deps-security-hygiene) + 잔여 8건 → [07-dependency-residual.md](./07-dependency-residual.md) |
-| **합계** | **104** | **62** | **16** (10철회 + 6종결) | **26** | **6** | |
+| **합계** | **104** | **63** | **16** (10철회 + 6종결) | **25** | **6** | |
 
 > **완료** = 구현·머지 또는 결정 종결(코드/spec 변경 동반). **철회·종결** = 코드 변경 없이 닫음 (철회=E 사실관계 반증 / 종결=no-action·현상유지). **잔여(미완)** = 미착수·진행중·보류 (`[ ]` 또는 `[~]`). **⚠️ A-잔존** = 잔여 중 spec/plan 이 의도된 설계로 문서화했으나 여전히 문제로 남은 항목 (착수·번복은 **사용자 결정 대상**; 결정 상태는 각기 다름 — 상세는 아래 「⚠️ 의도된 설계지만 문제」 절).
-> 완료(62) + 철회·종결(16) + 잔여(26) = 104. 처리 종료(완료+철회·종결) = 78/104.
+> 완료(63) + 철회·종결(16) + 잔여(25) = 104. 처리 종료(완료+철회·종결) = 79/104.
 > 철회 항목은 삭제하지 않고 `[x]` + 철회 사유(반증 근거)로 보존.
 
 ## spec 대조가 바꾼 주요 사실 (요약)
@@ -39,7 +39,7 @@
 
 ## 종합 우선순위 (P0 → P2, spec 대조 반영)
 
-> **진행 현황 (2026-06-24)**: P0 5건 전부 ✅ 완료. P1 은 6·7·10·11·12 완료, 8·9 잔여. P2 는 13(엔진분할) 완료, 14(forwardRef)는 진행중(M-7·클러스터5 완료·#676, 클러스터4 별건), 15·16·17·18 잔여.
+> **진행 현황 (2026-06-24)**: P0 5건 전부 ✅ 완료. P1 은 6·7·9·10·11·12 완료, 8 잔여. P2 는 13(엔진분할) 완료, 14(forwardRef)는 진행중(M-7·클러스터5 완료·#676, 클러스터4 별건), 15·16·17·18 잔여.
 
 ### P0 — 보안·데이터 정합 즉시 대응 (단독 PR) — ✅ 전건 완료
 
@@ -54,7 +54,7 @@
 6. ~~**resume rehydration N+1**~~ ✅ 완료(2026-06-10, 01 #1·05 M-4). ~~`(execution_id,status)` partial 인덱스(05 C-3)~~ ✅ 완료(2026-06-14, V095) → [05](./05-database.md) C-3
 7. ~~**cancel fire-and-forget + nextSeq random fallback**~~ ✅ 완료(2026-06-24, branch `refactor-06-c1-m7-publish-failfast`) — publish 실패 fail-fast 통일(`queued:false`): cancel async+503 surface, nextSeq random fallback 제거. spec §7.4/§7.5.2·에러코드 카탈로그는 sibling planner spec-sync → [06](./06-concurrency.md) C-1·M-7 *(spec-sync 후속)*
 8. **rehydrate optimistic claim** — spec 불변식("이중 실행 0")의 보장 수단 보강 + §7.5 문구 갱신 → [06](./06-concurrency.md) C-2 ⚠️ *(결정대기)*
-9. **shutdown 중 시작 노드 추적 포기** — §11.4 약속 위반 드리프트 → [06](./06-concurrency.md) M-2 *(잔여)*
+9. ~~**shutdown 중 시작 노드 추적 포기** — §11.4 약속 위반 드리프트~~ ✅ 완료(2026-06-24, branch `refactor-06-m2-shutdown-tracking`) — Option A(early-return 제거): shutdown 중 시작 노드도 추적·drain·SERVER_INTERRUPTED 마킹. B(worker pause)는 framework 충족·queue.pause 전역이라 미채택 → [06](./06-concurrency.md) M-2
 10. ~~**프론트 execution-store O(N² log N) + 선형 탐색**~~ ✅ 완료(2026-06-10, 01 #3·#8 단일 커밋)
 11. ~~**WS `workflow:`/`notifications:` authorizer**~~ ✅ 완료 (PR #570 — spec §3.3 갱신 동반) → [04](./04-security.md) M-6
 12. ~~**frontend API_BASE_URL 3001 fallback 수정** (정답 3011)~~ ✅ 완료(2026-06-24, branch `refactor-03-m2-api-base-url`) — `lib/api/constants.ts` 단일화 + client/assistant 3001→3011, grep 3001 0건 → [03](./03-maintainability.md) M-2
