@@ -1,4 +1,5 @@
 import { apiClient, getAccessToken, refreshAccessToken } from "./client";
+import { API_BASE_URL } from "./constants";
 import { getCurrentWorkspaceId } from "@/lib/stores/workspace-store";
 
 export interface AssistantSessionData {
@@ -311,9 +312,7 @@ export const assistantApi = {
     onEvent: (event: AssistantSseEvent) => void,
     signal?: AbortSignal,
   ): Promise<void> {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
-    const url = `${baseUrl}/workflow-assistant/sessions/${sessionId}/messages`;
+    const url = `${API_BASE_URL}/workflow-assistant/sessions/${sessionId}/messages`;
     const body = JSON.stringify(payload);
 
     const openStream = async (): Promise<Response> => {

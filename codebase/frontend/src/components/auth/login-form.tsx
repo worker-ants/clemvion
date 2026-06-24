@@ -28,8 +28,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { useT, useLocale } from "@/lib/i18n";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
+import { API_BASE_URL } from "@/lib/api/constants";
 
 interface LoginFormProps {
   enabledProviders?: OAuthProvider[];
