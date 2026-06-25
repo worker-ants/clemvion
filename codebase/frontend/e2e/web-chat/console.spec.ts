@@ -112,6 +112,9 @@ test.describe("Web Chat console", () => {
     await dialog.locator("#wc-create-name").fill("신규 봇");
     await dialog.getByRole("button", { name: /^만들기$|^Create$/i }).click();
 
+    // 제출 성공 → dialog 닫힘 (CreateWebChatDialog 가 mutate 성공 시 onOpenChange(false))
+    await expect(dialog).not.toBeVisible({ timeout: DIALOG_TIMEOUT });
+
     // 생성 후 목록에 신규 인스턴스 노출(목록 버튼) + 자동 선택 → 신규 endpointPath 스니펫 렌더
     await expect(page.getByRole("button", { name: /신규 봇/ })).toBeVisible({ timeout: PAGE_READY_TIMEOUT });
     await expect(page.getByTestId("web-chat-install-snippet")).toContainText("endpoint-new");
