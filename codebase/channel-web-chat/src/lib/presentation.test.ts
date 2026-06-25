@@ -100,6 +100,120 @@ describe("converters", () => {
   });
 });
 
+describe("PresentationPayload (AI 에이전트 render_* 도구)", () => {
+  // 실 SSE wire 캡처(execution.ai_message.presentations[0]) 축약 — top-level type + .payload 중첩.
+  const aiCarousel = {
+    type: "carousel",
+    toolCallId: "call_test",
+    renderedAt: "2026-01-01T00:00:00.000Z",
+    payload: {
+      mode: "static",
+      items: [
+        { title: "샘플상품 3", buttons: [{ id: "btn_p10", label: "구매하기", type: "link", style: "primary" }] },
+        { title: "샘플상품 1", buttons: [{ id: "btn_p9", label: "구매하기", type: "link", style: "primary" }] },
+      ],
+      layout: "card",
+      itemButtons: [
+        { id: "btn_detail_10", label: "자세히 보기", type: "port", style: "outline" },
+      ],
+      buttons: [{ id: "btn_view_all", label: "전체 상품 보기", type: "link", style: "primary" }],
+    },
+  };
+
+  it("classifyPresentation — 명시 type 으로 4종 판별(.payload 중첩)", () => {
+    expect(classifyPresentation(aiCarousel)).toBe("carousel");
+    expect(classifyPresentation({ type: "table", toolCallId: "t", payload: { rows: [] } })).toBe("table");
+    expect(classifyPresentation({ type: "chart", toolCallId: "t", payload: { chartType: "bar" } })).toBe("chart");
+    expect(classifyPresentation({ type: "template", toolCallId: "t", payload: { content: "hi" } })).toBe(
+      "template",
+    );
+  });
+
+  it("classifyPresentation — payload 없는 type-만 객체는 PresentationPayload 로 보지 않음", () => {
+    // payload 누락 → envelope shape 판별로 폴백(여기선 config/output 없어 null)
+    expect(classifyPresentation({ type: "carousel" })).toBeNull();
+  });
+
+  it("toCarousel — payload.items/layout/global buttons + itemButtons 를 각 item 에 병합", () => {
+    const c = toCarousel(aiCarousel);
+    expect(c.layout).toBe("card");
+    expect(c.items.length).toBe(2);
+    expect(c.items[0].title).toBe("샘플상품 3");
+    // item.buttons(구매하기) 먼저, itemButtons(자세히 보기) 뒤 — 병합 순서 고정.
+    expect(c.items[0].buttons.map((b) => b.label)).toEqual(["구매하기", "자세히 보기"]);
+    // global buttons
+    expect(c.buttons.map((b) => b.label)).toEqual(["전체 상품 보기"]);
+  });
+
+  it("toTemplate — AI payload 의 content 를 rendered 로 매핑", () => {
+    const t = toTemplate({
+      type: "template",
+      toolCallId: "t",
+      payload: { content: "**안내**", outputFormat: "markdown" },
+    });
+    expect(t.rendered).toBe("**안내**");
+    expect(t.outputFormat).toBe("markdown");
+  });
+
+  it("toTable — payload.columns/rows + truncated 기본 false", () => {
+    const tb = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { columns: [{ field: "n", label: "N" }], rows: [{ n: "a" }] },
+    });
+    expect(tb.rows).toEqual([{ n: "a" }]);
+    expect(tb.columns[0].field).toBe("n");
+    expect(tb.truncated).toBe(false);
+  });
+
+  it("toChart — payload.chartType/data + title/축 라벨", () => {
+    const ch = toChart({
+      type: "chart",
+      toolCallId: "t",
+      payload: {
+        chartType: "line",
+        data: [{ x: "1월", y: 10 }],
+        title: "월별",
+        xAxis: { label: "월" },
+        yAxis: { label: "값" },
+      },
+    });
+    expect(ch.chartType).toBe("line");
+    expect(ch.points).toEqual([{ x: "1월", y: 10 }]);
+    expect(ch.title).toBe("월별");
+    expect(ch.xLabel).toBe("월");
+    expect(ch.yLabel).toBe("값");
+  });
+
+  it("toTemplate — rendered/content 동시 존재 시 rendered 우선", () => {
+    const t = toTemplate({ type: "template", toolCallId: "t", payload: { rendered: "R", content: "C" } });
+    expect(t.rendered).toBe("R");
+  });
+
+  it("classifyPresentation — payload:null 이면 PresentationPayload 로 보지 않음(null)", () => {
+    expect(classifyPresentation({ type: "carousel", payload: null })).toBeNull();
+  });
+
+  it("classifyPresentation — form 타입은 fast-path 제외 → null (presentations[] 비대상)", () => {
+    expect(classifyPresentation({ type: "form", toolCallId: "t", payload: { fields: [] } })).toBeNull();
+  });
+});
+
+describe("converters — {config,output} envelope 회귀(하위 호환)", () => {
+  it("기존 envelope classify/toTemplate 그대로 동작", () => {
+    expect(classifyPresentation({ output: { items: [] } })).toBe("carousel");
+    expect(toTemplate({ config: {}, output: { rendered: "<b>x</b>" } }).rendered).toBe("<b>x</b>");
+  });
+
+  it("노드 카루셀 envelope 의 config.itemButtons 도 각 item 에 병합(AI 경로와 동일)", () => {
+    const c = toCarousel({
+      config: { layout: "card", itemButtons: [{ id: "d", label: "자세히", type: "port" }] },
+      output: { items: [{ title: "X", buttons: [{ id: "b", label: "사기", type: "port" }] }] },
+    });
+    expect(c.items[0].buttons.map((b) => b.label)).toEqual(["사기", "자세히"]);
+  });
+});
+
 describe("isSafeUrl", () => {
   it("http:/https: URL 허용", () => {
     expect(isSafeUrl("https://example.com/img.png")).toBe(true);
