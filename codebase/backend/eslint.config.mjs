@@ -55,7 +55,20 @@ export default tseslint.config(
           destructuredArrayIgnorePattern: '^_',
         },
       ],
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
+      // 03 m-1 — backend 서비스 코드는 구조화 Logger(3-error-handling.md §6.2) 사용.
+      // console.* 직접 사용 차단해 §6.2 로그 규약 drift 재발 방지. 면제: scripts/(CLI)·
+      // instrumentation.ts(부트스트랩 이전 OTel)는 아래 override, code.handler 등
+      // module-load 경로는 inline `// eslint-disable-next-line no-console`.
+      'no-console': 'error',
+    },
+  },
+  {
+    // CLI 스크립트(독립 실행)·instrumentation.ts(NestJS 부트스트랩 이전 OTel)는
+    // console 직접 사용이 정당 — no-console 면제 (03 m-1).
+    files: ['src/scripts/**/*.ts', 'src/instrumentation.ts'],
+    rules: {
+      'no-console': 'off',
     },
   },
   {
@@ -70,6 +83,8 @@ export default tseslint.config(
       // 테스트 더블·방어적 캐스트(`as T`)가 흔해 정리성 단언 경고는 노이즈 — off
       // (ai-review INFO#5; 프로덕션 코드에는 위 warn 유지).
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      // 테스트는 디버그 console.* 가 흔하므로 no-console 면제 (03 m-1).
+      'no-console': 'off',
     },
   },
 );

@@ -41,12 +41,14 @@ export function resolveMemoryLimitMb(): number {
   const asNumber = Number(raw.trim());
   const parsed = Math.trunc(asNumber);
   if (!Number.isInteger(asNumber) || !Number.isFinite(parsed) || parsed <= 0) {
+    // eslint-disable-next-line no-console -- pre-bootstrap env 설정 검증 (NestJS Logger 컨텍스트 이전 module-load 경로)
     console.warn(
       `[CodeHandler] CODE_NODE_MEMORY_LIMIT_MB="${raw}" is invalid (non-integer or ≤ 0) — falling back to ${DEFAULT_MEMORY_LIMIT_MB} MB`,
     );
     return DEFAULT_MEMORY_LIMIT_MB;
   }
   if (parsed > MAX_MEMORY_LIMIT_MB) {
+    // eslint-disable-next-line no-console -- pre-bootstrap env 설정 검증 (NestJS Logger 컨텍스트 이전 module-load 경로)
     console.warn(
       `[CodeHandler] CODE_NODE_MEMORY_LIMIT_MB=${parsed} exceeds the ${MAX_MEMORY_LIMIT_MB} MB safety ceiling — clamped to ${MAX_MEMORY_LIMIT_MB} MB`,
     );
@@ -118,6 +120,7 @@ const DAYJS_SNAPSHOT: ivm.ExternalCopy<ArrayBuffer> | undefined = (() => {
       { code: DAYJS_LOAD_SCRIPT, filename: 'dayjs.js' },
     ]);
   } catch (err) {
+    // eslint-disable-next-line no-console -- module-load 시점 IIFE (NestJS Logger 컨텍스트 이전)
     console.warn(
       '[CodeHandler] dayjs snapshot 생성 실패 — per-exec 컴파일 fallback 사용:',
       err,

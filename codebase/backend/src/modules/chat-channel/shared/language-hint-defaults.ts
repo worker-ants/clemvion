@@ -1,4 +1,7 @@
+import { Logger } from '@nestjs/common';
 import type { ExecutionFailureClass } from './execution-failure-classifier';
+
+const logger = new Logger('ChatChannel.LanguageHint');
 
 /**
  * languageHints default 문구 (KO / EN) + lookup / placeholder 치환 helper.
@@ -72,7 +75,7 @@ export function resolveLanguageHint(
     typeof (languageHints as Record<string, unknown>)['executionFailed'] ===
       'string'
   ) {
-    console.warn(
+    logger.warn(
       JSON.stringify({
         kind: 'chat_channel_deprecated_execution_failed_hint',
         message:

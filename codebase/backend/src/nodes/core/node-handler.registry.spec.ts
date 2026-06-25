@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { NodeHandlerRegistry } from './node-handler.registry';
 import { NodeHandler } from './node-handler.interface';
 
@@ -83,11 +84,14 @@ describe('NodeHandlerRegistry', () => {
 
     it('warns (no throw) in non-production for missing metadata', () => {
       process.env.NODE_ENV = 'test';
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      // 03 m-1 — console.warn → NestJS Logger 전환(컨텍스트가 'NodeHandlerRegistry').
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
       registry.register('a', noopHandler);
       expect(() => registry.assertConsistency()).not.toThrow();
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('NodeHandlerRegistry'),
+        expect.stringContaining('executionMetadata'),
       );
       warnSpy.mockRestore();
     });

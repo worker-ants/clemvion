@@ -201,9 +201,9 @@ async function bootstrap() {
 
   const port = configService.get<number>('app.port') || 3011;
   await app.listen(port);
-  console.log(`Application running on port ${port}`);
+  logger.log(`Application running on port ${port}`);
   if (swaggerEnabled) {
-    console.log(`Swagger docs available at http://localhost:${port}/docs`);
+    logger.log(`Swagger docs available at http://localhost:${port}/docs`);
   }
 }
 void bootstrap();

@@ -5,6 +5,7 @@ import {
   ChatChannelInternalEvent,
   EiaEvent,
 } from '../../types';
+import { Logger } from '@nestjs/common';
 import type { PresentationPayload } from '../../../../shared/conversation-thread/conversation-thread.types';
 import { classifyExecutionFailure } from '../../shared/execution-failure-classifier';
 import {
@@ -13,6 +14,8 @@ import {
   applyPlaceholders,
   type LanguageLocale,
 } from '../../shared/language-hint-defaults';
+
+const logger = new Logger('ChatChannel.Telegram');
 
 const TELEGRAM_MESSAGE_LIMIT = 4096;
 const CONTINUED_SUFFIX = '\n_(continued…)_';
@@ -424,8 +427,8 @@ function renderButtons(
         : 'auto';
   if (visualNode === 'photo') {
     // v1 fallback — SSR PNG 인프라 도입 시 별 plan `chat-channel-visual-ssr-png` 의 SSR adapter 로 위임.
-    console.warn(
-      `[chat-channel/telegram] uiMapping.visualNode='photo' is not supported in v1 — falling back to text (nodeType=${visualKind ?? 'none'})`,
+    logger.warn(
+      `uiMapping.visualNode='photo' is not supported in v1 — falling back to text (nodeType=${visualKind ?? 'none'})`,
     );
   }
   if (visualNode !== 'text' && typeof visualKind === 'string') {
