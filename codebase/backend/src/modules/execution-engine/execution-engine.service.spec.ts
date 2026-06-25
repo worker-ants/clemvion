@@ -3196,6 +3196,136 @@ describe('ExecutionEngineService', () => {
   // 이후 Integration·LLM·Code·Workflow 노드 8종이 이 경로를 쓴다. 회귀 전:
   // 엔진이 모든 정상 return 을 COMPLETED 로 마킹해 인증 실패한 send_email 도
   // 실행 성공으로 표시됐다.
+  describe('execution.message — presentation 노드 자동 진행 (EIA §5.2)', () => {
+    const presentationHandler = (rendered: string): NodeHandler => ({
+      validate: () => ({ valid: true, errors: [] }),
+      // 버튼 없는 template → status 없이 자동 진행(non-blocking) → NODE_COMPLETED + execution.message.
+      execute: jest.fn(async () => ({
+        config: { outputFormat: 'markdown' },
+        output: { rendered },
+      })),
+    });
+
+    it('비차단 presentation(template) 완료 시 execution.message 를 {config,output} envelope 로 발행', async () => {
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-tmpl',
+          workflowId,
+          type: 'template',
+          category: NodeCategory.PRESENTATION,
+          label: 'Template',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      handlerRegistry.register(
+        'template',
+        presentationHandler('**안내** 메시지'),
+      );
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // EIA SSE 표면용 execution.message — presentations[0] 은 위젯 classifyPresentation 입력 envelope.
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.message',
+        expect.objectContaining({
+          nodeId: 'n-tmpl',
+          nodeType: 'template',
+          presentations: [
+            expect.objectContaining({
+              config: expect.objectContaining({ outputFormat: 'markdown' }),
+              output: expect.objectContaining({ rendered: '**안내** 메시지' }),
+            }),
+          ],
+        }),
+      );
+      // node-level NODE_COMPLETED 도 그대로 발행(기존 firehose 동작 유지 — chat-channel 픽업).
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'n-tmpl',
+        'execution.node.completed',
+        expect.objectContaining({ status: 'completed' }),
+      );
+    });
+
+    it('비차단 presentation(carousel) 완료 시에도 execution.message 발행 (4종 커버)', async () => {
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-carousel',
+          workflowId,
+          type: 'carousel',
+          category: NodeCategory.PRESENTATION,
+          label: 'Carousel',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      // 버튼 없는 carousel → 자동 진행. output.items + config.layout envelope.
+      handlerRegistry.register('carousel', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: { layout: 'card' },
+          output: { items: [{ title: 'A' }, { title: 'B' }] },
+        })),
+      });
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.message',
+        expect.objectContaining({
+          nodeId: 'n-carousel',
+          nodeType: 'carousel',
+          presentations: [
+            expect.objectContaining({
+              config: expect.objectContaining({ layout: 'card' }),
+              output: expect.objectContaining({
+                items: [{ title: 'A' }, { title: 'B' }],
+              }),
+            }),
+          ],
+        }),
+      );
+    });
+
+    it('비-presentation 노드 완료 시 execution.message 미발행 (firehose 누출 방지)', async () => {
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-plain',
+          workflowId,
+          type: 'plain_node',
+          category: NodeCategory.LOGIC,
+          label: 'Plain',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      handlerRegistry.register('plain_node', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => mockOutput({ ok: true })),
+      });
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      expect(mockWebsocketService.emitExecutionEvent).not.toHaveBeenCalledWith(
+        executionId,
+        'execution.message',
+        expect.anything(),
+      );
+    });
+  });
+
   describe('error port routing (§3.2)', () => {
     const errHandler = (): NodeHandler => ({
       validate: () => ({ valid: true, errors: [] }),

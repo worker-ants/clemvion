@@ -5,6 +5,7 @@
 import type {
   AiMessageEvent,
   ConversationThread,
+  ExecutionMessageEvent,
   ExternalInteractionType,
   WaitingForInputEvent,
 } from "./eia-types";
@@ -63,4 +64,25 @@ export function parseAiMessage(ev: AiMessageEvent): ParsedAiMessage {
   const presentations =
     Array.isArray(ev.presentations) && ev.presentations.length ? ev.presentations : undefined;
   return { text: ev.message ?? "", presentations };
+}
+
+export interface ParsedMessage {
+  /**
+   * carousel/table/chart/template presentation 페이로드. 빈 배열은 undefined 로 정규화.
+   * `ParsedAiMessage.presentations` 와 **동일 규약**(`{config, output}` envelope 배열) — shape/정규화
+   * 변경 시 양쪽을 함께 갱신한다.
+   */
+  presentations?: Array<Record<string, unknown>>;
+}
+
+/**
+ * `execution.message`(wire) → presentation-only 말풍선. 표시-전용 presentation 노드가 버튼 없이
+ * 자동 진행 완료할 때 백엔드가 발행한다. `presentations[i]` 는 `{ config, output }` envelope 로,
+ * `parseAiMessage` 와 동일하게 그대로 통과시켜 위젯 presentation 렌더 경로를 재사용한다.
+ * 텍스트 필드는 없다 — template 의 본문도 `presentations[0].output.rendered` 안에 있다.
+ */
+export function parseMessage(ev: ExecutionMessageEvent): ParsedMessage {
+  const presentations =
+    Array.isArray(ev.presentations) && ev.presentations.length ? ev.presentations : undefined;
+  return { presentations };
 }

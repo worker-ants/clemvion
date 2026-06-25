@@ -384,9 +384,35 @@ data: { ... §6 payload ... }
 
 §6 의 outbound notification 이벤트 + 디버깅용 추가 이벤트:
 `execution.node.started` / `execution.node.completed` / `execution.node.failed` / `execution.node.cancelled` / `execution.node.skipped` /
-`execution.ai_message` / `execution.user_message` / `execution.tool_call_started` / `execution.tool_call_completed` / `execution.resumed`.
+`execution.ai_message` / `execution.message` / `execution.user_message` / `execution.tool_call_started` / `execution.tool_call_completed` / `execution.resumed`.
 
 각 이벤트의 페이로드는 [Spec WebSocket 프로토콜 §4.1·§4.4](./6-websocket-protocol.md#41-실행-이벤트-server--client) 와 동일.
+
+**`execution.message` (표시-전용 presentation 노드 자동 진행):** 버튼 없이 자동 진행(non-blocking)하는
+presentation 노드(`carousel` / `table` / `chart` / `template`)가 완료될 때 발행되는 execution-level **표시 메시지**다.
+AI 가 생성한 `execution.ai_message` 와 의미적으로 구분되는 정적 표시 메시지다. payload:
+
+```json
+{
+  "executionId": "550e8400-...",
+  "nodeId": "<graph uuid>",
+  "nodeType": "template",
+  "presentations": [{ "config": { "outputFormat": "markdown" }, "output": { "rendered": "..." } }],
+  "seq": 12,
+  "timestamp": "..."
+}
+```
+
+- `presentations[i]` 는 `{ config, output }` flat envelope 로, AI Agent `render_*` 의 `PresentationPayload`
+  ([§7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반))과 **동일한 위젯 렌더 경로**(`classifyPresentation`)를 탄다.
+  단 `PresentationPayload` 의 `{type,toolCallId,renderedAt,payload}` 래핑 없이 핸들러 구조 출력(`adaptHandlerReturn` 의 config/output)을 그대로 운반한다.
+- 5분 버퍼 replay 대상(`id`=seq). node-level `execution.node.completed` 와 **별개** — 후자는 모든 비차단 노드에 대한
+  디버깅 firehose 이고, `execution.message` 는 presentation 4종 한정 EIA 표면 표시 이벤트다(EIA 표면이 firehose 를 직접 구독하지 않게 한다).
+- **불변식**: 위젯/EIA 클라이언트는 비차단 presentation 노드의 렌더를 **`execution.message` 에서만 소비**하고
+  `execution.node.completed`(node-level firehose)는 **무시**한다. 반대로 chat-channel adapter 는 종전대로
+  `execution.node.completed` 를 픽업하므로(§15 CCH-AD-07) 두 표면 간 중복 발화가 없다.
+- 본 이벤트는 **SSE 표면에만 additive 로 추가**되며 §6 outbound notification 화이트리스트(server-to-server webhook)에는 포함되지 않는다.
+- 참조 구현(SoT): [`codebase/channel-web-chat/src/lib/eia-events.ts`](../../codebase/channel-web-chat/src/lib/eia-events.ts) `parseMessage`.
 
 **규약:**
 - `id` 필드 = execution 내 monotonic `seq` (= WebSocket §2.2 의 `seq` 와 같은 값)
@@ -1086,3 +1112,30 @@ REST 단발 응답은 in-memory seq 카운터에 접근하지 않음)는 SSE 가
 이 컬럼은 **공개 EIA 표면**으로 흘러간다. 노드 핸들러는 `outputData` 에 민감 중간결과(secret·내부 토큰 등)를 기록하지
 않아야 한다(현재 `withInteractionMeta` 관례 + `getStatus` JSDoc 제약으로 명문화). 허용 키 런타임 allowlist 필터는 후속
 하드닝 항목이다.
+
+### R18. `execution.message` — 표시-전용 presentation 노드 자동 진행 메시지 신설 (결정 2026-06-25)
+
+**문제**: 버튼 없이 자동 진행(non-blocking)하는 presentation 노드(carousel/table/chart/template)는 핸들러가
+`status` 없이 `{config, output}` 만 반환하고, 엔진은 node-level `execution.node.completed` 만 발행한다. 이 이벤트는
+SSE 표면까지 전달되지만 웹채팅 위젯은 node-level 핸들러가 없어 무시한다 → **노드 사이의 표시 메시지(예: 캐러셀 다음
+템플릿 메시지)가 미리보기에 누락**(2026-06-25 운영 미리보기 보고). `waiting_for_input`(blocking)·`ai_message`(AI 생성)는
+보이지만 자동 진행 표시 노드의 출력을 실어 나르는 execution-level 이벤트가 없었다.
+
+**결정**: presentation 4종 비차단 완료 시 execution-level `execution.message` 를 신설 발행(§5.2). payload 의
+`presentations` 는 `{config, output}` flat envelope 로 위젯의 기존 presentation 렌더 경로(`classifyPresentation`)를
+그대로 재사용한다.
+
+**기각 대안**:
+- *node-level `execution.node.completed` 를 위젯이 직접 구독*: 모든 비차단 노드(code/llm/logic 등)에 대한 firehose 라
+  내부 라이프사이클 필드가 EIA 표면으로 누출되고 필터링이 취약. presentation 한정 전용 이벤트가 경계를 명확히 한다.
+- *`execution.ai_message` 재사용*: 정적 표시 노드 출력을 "AI 생성 메시지"로 표기하면 의미가 혼선되고 ai-turn 전용
+  invariant(turnCount/messages 스냅샷 등)와 충돌. 표시 메시지는 별 타입으로 분리.
+
+**R-CC-16·R10 와의 관계**: 본 변경은 **SSE/in-process fan-out 표면에만 additive** 로 이벤트를 추가하며,
+[Chat Channel §R-CC-16](./15-chat-channel.md#r-cc-16-chat-channel-outbound-의-비-blocking-presentation--ai-render_-presentations-발화)
+이 기각한 대상(외부 **outbound HTTP webhook** 화이트리스트 확장, §6.1)과는 **별개**다. §6.1 5종 webhook 화이트리스트는
+변경 없다. 엔진은 여전히 단일 sink `WebsocketService.emit*` 로만 발행하므로 R10(단일 sink) 원칙도 유지된다 — chat-channel
+은 종전대로 `execution.node.completed` 를 픽업하므로 텔레그램 등 채널에 **중복 발화가 발생하지 않는다**.
+
+**위젯 reducer 재사용**: 위젯은 `execution.message` 를 기존 `AI_MESSAGE` reducer(text/presentations 분리 렌더 지원)로
+dispatch 하되 text 를 비워 presentation 만 렌더한다 — 이중 말풍선(텍스트+표현 중복)을 방지하기 위함.

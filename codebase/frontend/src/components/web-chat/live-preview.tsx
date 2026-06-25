@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n";
 import { getWebhookBaseUrl } from "@/lib/utils/webhook-url";
 import { buildBootConfig } from "@/lib/web-chat/snippet";
@@ -75,6 +76,18 @@ export function LivePreview({ endpointPath, draft }: Props) {
     );
   }, [widgetOrigin, bootConfig]);
 
+  // host→위젯 명령 — 세션 초기화 등(host-bridge `wc:command`). widgetOrigin 미확보 시 전송 생략(보안, postBoot 와 동형).
+  const postCommand = useCallback(
+    (action: string) => {
+      if (!widgetOrigin) return;
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "wc:command", payload: { action } },
+        widgetOrigin,
+      );
+    },
+    [widgetOrigin],
+  );
+
   // wc:ready 수신 → status ready. 타임아웃 시 unavailable. (boot 전송은 아래 effect 가 담당)
   // status 리셋은 위 렌더-중 처리. 여기서는 리스너·타임아웃만 등록.
   useEffect(() => {
@@ -107,7 +120,19 @@ export function LivePreview({ endpointPath, draft }: Props) {
 
   return (
     <section className="space-y-2">
-      <h3 className="text-sm font-semibold">{t("webChat.preview.title")}</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">{t("webChat.preview.title")}</h3>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => postCommand("resetSession")}
+          disabled={status !== "ready"}
+          title={t("webChat.preview.resetHint")}
+        >
+          <RotateCcw className="mr-1 h-3.5 w-3.5" />
+          {t("webChat.preview.reset")}
+        </Button>
+      </div>
       <div
         className="relative overflow-hidden rounded-md border border-[hsl(var(--border))] transition-[min-height] duration-200"
         style={{ minHeight: previewHeight }}
