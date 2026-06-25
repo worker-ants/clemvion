@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-26T00:06:25.655785",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=refactor 03 m-1 — backend 서비스 console.* → NestJS Logger 전환 + eslint no-console 가드 완료. 전환 5(telegram·language-hint 모듈 Logger, node-handler·mcp-test class Logger, main bootstrap), 면제(code.handler inline disable, scripts/instrumentation/test eslint override). 테스트 4건 갱신(console spy→Logger.prototype.warn + W1 telegram photo·W2 mcp logInternal 검증). 잔여 console 0. 커밋 980b6375+review-fix 8378bd18. plan §m-1 완료·audit-logs stale 제거·planner spec-sync(ai-agent/presentation/EIA/audit console.warn 처방 정정) 위임 등록·README 67완료/21잔여. spec 코드 변경 없음(로그 채널 behavior-adjacent, 의도된 §6.2 정합)., diff-base=origin/main)",
+  "target_path": "refactor 03 m-1 — backend 서비스 console.* → NestJS Logger 전환 + eslint no-console 가드 완료. 전환 5(telegram·language-hint 모듈 Logger, node-handler·mcp-test class Logger, main bootstrap), 면제(code.handler inline disable, scripts/instrumentation/test eslint override). 테스트 4건 갱신(console spy→Logger.prototype.warn + W1 telegram photo·W2 mcp logInternal 검증). 잔여 console 0. 커밋 980b6375+review-fix 8378bd18. plan §m-1 완료·audit-logs stale 제거·planner spec-sync(ai-agent/presentation/EIA/audit console.warn 처방 정정) 위임 등록·README 67완료/21잔여. spec 코드 변경 없음(로그 채널 behavior-adjacent, 의도된 §6.2 정합).",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
