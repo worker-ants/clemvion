@@ -371,6 +371,105 @@ describe('IntegrationOAuthService — MakeShop', () => {
       expect(stateRow.provider).toBe('makeshop');
     });
 
+    // M-1 shared install helpers — security-branch coverage for the boilerplate
+    // now shared with handleInstall (cafe24) (ai-review W1–W4).
+    it('rejects non-numeric timestamp (assertInstallTimestampFresh NaN branch)', async () => {
+      await expect(
+        service.handleMakeshopInstall(INSTALL_TOKEN, {
+          shop_uid: 'myshop',
+          timestamp: 'not-a-number',
+          hmac: 'x',
+          rawQuery: 'shop_uid=myshop&timestamp=not-a-number',
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'MAKESHOP_INSTALL_REPLAY' },
+      });
+    });
+
+    it('throws MAKESHOP_INSTALL_REPLAY and keys the nonce on shop_uid when the nonce cache reports a replay', async () => {
+      // installNonceCache is an @Optional() ctor dep — inject a mock that
+      // reports a replay and assert makeshop passes `shop_uid` as the identifier.
+      const isReplay = jest.fn().mockResolvedValue(true);
+      const svc = new IntegrationOAuthService(
+        integrationRepo as never,
+        stateRepo as never,
+        previewRepo as never,
+        dataSource as never,
+        oauthMock.configService as never,
+        { isReplay } as never,
+      );
+      const row = buildFakeMakeshopIntegration({ mallId: null });
+      integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+
+      const query = makeInstallQuery('myshop', 'mk-client-secret');
+      await expect(
+        svc.handleMakeshopInstall(INSTALL_TOKEN, query),
+      ).rejects.toMatchObject({
+        response: { code: 'MAKESHOP_INSTALL_REPLAY' },
+      });
+      expect(isReplay).toHaveBeenCalledWith(
+        expect.objectContaining({ mallId: 'myshop', hmac: query.hmac }),
+      );
+      // Replay is rejected before shop_uid projection / OAuthState minting.
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('falls back to http://localhost:3000 for post-install redirect when neither frontendUrl nor appUrl is set', async () => {
+      oauthMock.env.frontendUrl = '';
+      oauthMock.env.appUrl = '';
+      const row = buildFakeMakeshopIntegration({
+        id: 'mk-connected',
+        status: 'connected',
+        mallId: 'myshop',
+      });
+      integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+
+      const query = makeInstallQuery('myshop', 'mk-client-secret');
+      const url = await service.handleMakeshopInstall(INSTALL_TOKEN, query);
+      expect(url).toBe('http://localhost:3000/integrations/mk-connected');
+    });
+
+    it('strips a trailing slash from the configured frontend URL in post-install redirect (no double slash)', async () => {
+      oauthMock.env.frontendUrl = 'https://app.example.com/';
+      const row = buildFakeMakeshopIntegration({
+        id: 'mk-connected',
+        status: 'connected',
+        mallId: 'myshop',
+      });
+      integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+
+      const query = makeInstallQuery('myshop', 'mk-client-secret');
+      const url = await service.handleMakeshopInstall(INSTALL_TOKEN, query);
+      expect(url).toBe('https://app.example.com/integrations/mk-connected');
+    });
+
+    it('persists the reauthorize state with a future expiry, requested scopes, and the PKCE code_verifier (persistReauthorizeState)', async () => {
+      const row = buildFakeMakeshopIntegration({
+        scopes: ['store.read', 'product.write'],
+        mallId: null,
+      });
+      integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+      integrationRepo.find = jest.fn().mockResolvedValue([]);
+      integrationRepo.save = jest
+        .fn()
+        .mockImplementation((e: unknown) => Promise.resolve(e));
+
+      const before = Date.now();
+      const query = makeInstallQuery('myshop', 'mk-client-secret');
+      await service.handleMakeshopInstall(INSTALL_TOKEN, query);
+
+      const stateRow = stateRepo.create.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(stateRow.serviceType).toBe('makeshop');
+      expect(stateRow.requestedScopes).toEqual(['store.read', 'product.write']);
+      expect((stateRow.expiresAt as Date).getTime()).toBeGreaterThan(before);
+      const pm = stateRow.providerMeta as Record<string, unknown>;
+      expect(typeof pm.code_verifier).toBe('string');
+      expect((pm.code_verifier as string).length).toBeGreaterThan(0);
+    });
+
     it('returns 409 when a connected makeshop row already owns the shop_uid', async () => {
       const row = buildFakeMakeshopIntegration({ mallId: null });
       const connectedDup = buildFakeMakeshopIntegration({
