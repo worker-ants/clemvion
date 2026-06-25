@@ -56,6 +56,17 @@ owner: planner
 
 C 항목 구현 완료로 대응 spec frontmatter `status: partial → implemented` 승격 + `pending_plans` 정리 + 일부 본문 정정이 필요하다. developer 는 spec 직접 수정 불가 → `plan/in-progress/spec-update-c-sync-promotions.md` 에 위임 노트 작성. 대상: 각 `spec-sync-*-gaps.md` 가 가리키는 spec + C-4 의 if-else §6 경고 정정.
 
+##### console.warn 처방 stale 정정 (refactor 03 m-1 후속, 2026-06-26)
+
+refactor `03-maintainability.md §m-1`(서비스 `console.*` → NestJS Logger 전환 + eslint `no-console` 가드, PR 머지 완료 대기)로 backend 코드는 Logger 를 사용하나, 아래 spec 본문은 여전히 `console.warn(...)` 구체 호출을 처방해 코드와 어긋난다. **코드는 정합(이미 Logger 또는 해당 호출 미존재)** — spec 텍스트만 stale. 각 `console.warn(...)` → `logger.warn(...)` 또는 방법론 중립 표현으로 갱신:
+
+- [ ] `spec/4-nodes/3-ai/1-ai-agent.md §6.2.c.fallback` (≈:406) — form bypass/fallback `console.warn` 처방
+- [ ] `spec/4-nodes/6-presentation/0-common.md` (≈:407) — `processAiResumeTurn` `console.warn` 처방
+- [ ] `spec/5-system/14-external-interaction-api.md` (≈:1108) — "HTTP 오류 시 console.warn 후 진행" 처방
+- [ ] `spec/data-flow/1-audit.md` (≈:23) — `audit-logs.service.ts` console.warn 명기(코드는 이미 Logger 전환 — 원문 stale)
+
+> 근거: m-1 impl-prep `review/consistency/2026/06/25/23_28_57` W-1~4 + ai-review `review/code/2026/06/25/23_51_54` SPEC-DRIFT INFO-1 + impl-done `review/consistency/2026/06/26/00_06_25` W-2(독립 추적 등재 권고). (선택) `spec/conventions/logging.md` 신설 또는 `3-error-handling.md §6` 확장으로 Logger 인스턴스화 패턴·컨텍스트 이름 형식·면제 범위(scripts/·instrumentation·test) 규약화 검토.
+
 ### C-1. 상태 필터 파라미터 불일치 - isActive vs status  — ✅ FIXED (this PR)
 
 - **위치**: `codebase/frontend/src/app/(main)/workflows/page.tsx:112-113 / codebase/backend/src/modules/workflows/dto/query-workflow.dto.ts:19 / codebase/backend/src/modules/workflows/workflows.service.ts:64, 77-81`

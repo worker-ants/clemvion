@@ -283,7 +283,9 @@
 
 ### m-1 [Minor] NestJS 서비스 내 `console.warn` 직접 사용 — 경로 정정 + 1건 추가
 
-- [ ] 미착수 — `modules/chat-channel/providers/telegram/telegram-message.renderer.ts:416`, `modules/audit-logs/audit-logs.service.ts:85`, `modules/chat-channel/shared/language-hint-defaults.ts:75`, `modules/mcp/mcp-test-connection.service.ts:153`, (추가 발견) `nodes/core/node-handler.registry.ts:89`
+- [x] **구현 완료 (2026-06-26, 커밋 `980b6375`+review-fix `8378bd18`)** — branch `claude/refactor-03-m1-console-to-logger`. backend 서비스 `console.*` → NestJS Logger 전환(`3-error-handling.md §6.2` 정합) + eslint `no-console: error` 가드(재발 차단). **전환 5**: `telegram-message.renderer.ts:427`(원안 :416 stale 정정, 모듈 `Logger('ChatChannel.Telegram')`)·`language-hint-defaults.ts:75`(모듈 Logger)·`mcp-test-connection.service.ts`(class `this.logger`)·`node-handler.registry.ts:89`(class)·`main.ts`(bootstrap Logger). **면제**: `code.handler.ts`(3, pre-bootstrap env 검증·module-load IIFE — inline eslint-disable), `scripts/**`·`instrumentation.ts`·`*.spec`(eslint override). 테스트 4건 갱신(node-handler·language-hint console spy→`Logger.prototype.warn`; review-fix W1 telegram photo·W2 mcp logInternal 검증 추가). 잔여 un-exempted console.* **0건**. ~~`audit-logs.service.ts:85`~~ 는 이미 이전에 Logger 전환됨(stale 목록 — 제거). 검증: lint(no-console 활성)·build·unit(backend 7398 전건) PASS. impl-prep `review/consistency/2026/06/25/23_28_57`(BLOCK:NO) · ai-review `review/code/2026/06/25/23_51_54`(Risk LOW·Critical 0·Warning 2→W1·W2 테스트 반영·RESOLUTION).
+- [ ] **e2e 재실행 (레지스트리 회복 후)** — 환경 Docker 레지스트리 아웃티지로 미실행. 코드 무관(behavior-adjacent 로그 채널 변경 + backend unit 전건 PASS).
+- [ ] **(planner 위임) spec 텍스트 stale console.warn 처방 정정** — `1-ai-agent.md §6.2.c.fallback`·`6-presentation/0-common.md`·`5-system/14-external-interaction-api.md`·`data-flow/1-audit.md` 의 `console.warn(...)` 처방을 `logger.warn`/방법론 중립 표현으로 갱신(코드는 이미 Logger 사용 — spec 원문만 stale). impl-prep W-1~4 / ai-review SPEC-DRIFT INFO-1.
 
 **spec 대조**: D(drift) — `3-error-handling.md §6.2` 구조화 JSON 로그 형식을 우회, `chat-channel-adapter.md:84` 는 "swallow (logger.warn)" 명시 — telegram renderer 가 규약 불일치. (원안의 경로 2건 stale — 위로 정정.)
 

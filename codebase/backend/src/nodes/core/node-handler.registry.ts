@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { NodeHandler } from './node-handler.interface';
 import { NodeTypeMetadata } from './node-type-metadata';
 
 @Injectable()
 export class NodeHandlerRegistry {
+  private readonly logger = new Logger(NodeHandlerRegistry.name);
   private readonly handlers = new Map<string, NodeHandler>();
   private readonly metadata = new Map<string, NodeTypeMetadata>();
 
@@ -86,6 +87,6 @@ export class NodeHandlerRegistry {
       throw new Error(message);
     }
 
-    console.warn(`[NodeHandlerRegistry] (non-production) ${message}`);
+    this.logger.warn(`(non-production) ${message}`);
   }
 }

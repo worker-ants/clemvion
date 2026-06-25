@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { withTimeout } from '../../common/utils/with-timeout';
 import {
   McpAuthError,
@@ -71,6 +71,8 @@ const LIST_TIMEOUT_MS = Number(process.env.MCP_LIST_TIMEOUT_MS) || 10_000;
  */
 @Injectable()
 export class McpTestConnectionService {
+  private readonly logger = new Logger(McpTestConnectionService.name);
+
   constructor(private readonly client: McpClientService) {}
 
   async test(params: McpConnectParams): Promise<TestConnectionResult> {
@@ -150,6 +152,6 @@ export class McpTestConnectionService {
   private logInternal(code: McpFailureCode, err: unknown): void {
     const detail = err instanceof Error ? err.message : String(err);
 
-    console.warn(`[mcp:test] ${code}: ${detail}`);
+    this.logger.warn(`[mcp:test] ${code}: ${detail}`);
   }
 }
