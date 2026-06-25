@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBootConfig, buildWebChatSnippet } from "../snippet";
+import { buildBootConfig, buildWebChatSnippet, QUEUE_STUB_JS } from "../snippet";
 
 describe("buildBootConfig — undefined/빈 값 정리", () => {
   it("필수 필드(apiBase, triggerEndpointPath)만 남기고 빈 옵션 제거", () => {
@@ -65,6 +65,20 @@ describe("buildWebChatSnippet", () => {
   it("두 개의 <script> 블록을 생성", () => {
     expect(snippet.match(/<script>/g)).toHaveLength(2);
     expect(snippet.match(/<\/script>/g)).toHaveLength(2);
+  });
+
+  it("command-queue 스텁(QUEUE_STUB_JS)을 포함 — async 로더 로드 전 boot 호출 버퍼링(ReferenceError 방지)", () => {
+    // 상수 직접 참조 — 스텁 형식이 바뀌면 본 단언이 소스와 자동 동기화된다.
+    expect(snippet).toContain(QUEUE_STUB_JS);
+  });
+
+  it("큐 스텁 블록이 ClemvionChat('boot') 블록보다 먼저 위치(동기 정의 후 큐잉)", () => {
+    // 인덱스 substring 매칭 대신 </script> 블록 분리로 구조적 검증(향후 .q 재참조에도 견고).
+    const blocks = snippet.split("</script>");
+    const stubBlockIdx = blocks.findIndex((b) => b.includes(QUEUE_STUB_JS));
+    const bootBlockIdx = blocks.findIndex((b) => b.includes("ClemvionChat('boot'"));
+    expect(stubBlockIdx).toBeGreaterThanOrEqual(0);
+    expect(bootBlockIdx).toBeGreaterThan(stubBlockIdx);
   });
 
   it("XSS — boot 값의 </script> 시퀀스를 이스케이프해 조기 종료 방지", () => {

@@ -134,7 +134,9 @@ code:
 
 출력(SoT: [2-sdk §1](./2-sdk.md)):
 ```html
-<script>(function(d,s){var j=d.createElement(s);j.async=1;
+<script>(function(d,s){
+  window.ClemvionChat=window.ClemvionChat||function(){(window.ClemvionChat.q=window.ClemvionChat.q||[]).push(arguments)};  // 큐 스텁(필수, 2-sdk §1·R5)
+  var j=d.createElement(s);j.async=1;
   j.src="<widget-cdn-base>/web-chat/v1/loader.js";d.head.appendChild(j);})(document,"script");</script>
 <script>
   ClemvionChat('boot', {

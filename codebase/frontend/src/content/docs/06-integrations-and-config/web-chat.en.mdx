@@ -83,7 +83,10 @@ Paste the script at the end of the `<body>` tag in your website's HTML to activa
 
 ```html
 <script>
-  (function(d,s){var j=d.createElement(s);j.async=1;
+  (function(d,s){
+   // Queue stub (required): buffers ClemvionChat calls until the async loader.js is ready.
+   window.ClemvionChat=window.ClemvionChat||function(){(window.ClemvionChat.q=window.ClemvionChat.q||[]).push(arguments)};
+   var j=d.createElement(s);j.async=1;
    j.src="https://<widget-host>/web-chat/v1/loader.js";
    d.head.appendChild(j);})(document,"script");
 </script>
