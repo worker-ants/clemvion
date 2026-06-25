@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T22:17:32.860667",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=refactor 03 m-3 — frontend integrations/new/page.tsx(1444줄, 8 단위) behavior-preserving 분할. components/integrations/steps/ 로 AuthStep(+Cafe24ExtraFields·MakeshopExtraFields)·TestStep·Cafe24PrivatePendingStep·MakeshopPendingStep 컴포넌트 추출, lib/integrations/ 로 useOauthPopupReturn(OAuth 팝업 message handler·popup.closed 폴링·stale-read 방지 refs·5분 timeout — §3.5)·useUnsavedChangesWarning(beforeunload 이탈 가드 §3.6) hook + openOAuthPopup util 추출. page 는 default export NewIntegrationPage 유지(step 상태기계 + oauthBegin mutation + 렌더). spec/2-navigation/4-integration.md §3 상태기계 경계 보존: §3.1 쿼리파라미터 step 제어·§3.5 팝업 postMessage·§3.6 이탈복원·§5/§9.2 cafe24/makeshop 분기·precheck 동작 불변. 행위·UI·wire 불변, spec 변경 없음. 검증: lint·build·unit(cafe24-precheck.test 통합). e2e 는 환경 Docker 레지스트리 아웃티지로 다른 머신 위임.)",
+  "target_path": "refactor 03 m-3 — frontend integrations/new/page.tsx(1444줄, 8 단위) behavior-preserving 분할. components/integrations/steps/ 로 AuthStep(+Cafe24ExtraFields·MakeshopExtraFields)·TestStep·Cafe24PrivatePendingStep·MakeshopPendingStep 컴포넌트 추출, lib/integrations/ 로 useOauthPopupReturn(OAuth 팝업 message handler·popup.closed 폴링·stale-read 방지 refs·5분 timeout — §3.5)·useUnsavedChangesWarning(beforeunload 이탈 가드 §3.6) hook + openOAuthPopup util 추출. page 는 default export NewIntegrationPage 유지(step 상태기계 + oauthBegin mutation + 렌더). spec/2-navigation/4-integration.md §3 상태기계 경계 보존: §3.1 쿼리파라미터 step 제어·§3.5 팝업 postMessage·§3.6 이탈복원·§5/§9.2 cafe24/makeshop 분기·precheck 동작 불변. 행위·UI·wire 불변, spec 변경 없음. 검증: lint·build·unit(cafe24-precheck.test 통합). e2e 는 환경 Docker 레지스트리 아웃티지로 다른 머신 위임.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

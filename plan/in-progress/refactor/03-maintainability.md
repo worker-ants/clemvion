@@ -334,14 +334,15 @@
 
 ### m-3 [Minor] `integrations/new/page.tsx` 1,444줄 — 8개 컴포넌트 단일 파일
 
-- [ ] 미착수 — `integrations/new/page.tsx`
+- [x] **구현 완료 (2026-06-25, 커밋 `174bd906`+review-fix `77a04a4f`)** — branch `claude/refactor-03-m3-integrations-new-split`. behavior-preserving 분할(UI·wire·동작 100% 불변): page.tsx **1444→448줄**. 라우트-로컬 `new/_components/`(AuthStep+Cafe24/Makeshop ExtraFields·TestStep·Cafe24PrivatePendingStep·MakeshopPendingStep) + `lib/integrations/use-oauth-popup-return.ts`(OAuth 팝업 message handler·popup.closed 폴링·stale-read 방지 refs·5분 timeout — §3.5; deps·eslint-disable 보존) + `lib/hooks/use-unsaved-changes-warning.ts`(beforeunload 이탈 가드 §3.6). page 는 step 상태기계 + oauthBegin mutation + 렌더(default export 유지). **배치 결정**: 컴포넌트는 `components/integrations/steps/` 대신 라우트-로컬(`../_shared` 정방향 의존 — components→app 역import 회피, impl-prep I1); `openOAuthPopup` 은 use-oauth-popup-return.ts 내 module-private(`[id]/open-oauth-popup.ts` 와 충돌 회피, impl-prep W1, 통합은 후속 PR). 검증: lint·build·unit(신규 훅 10/10, frontend 231 files/4728, cafe24-precheck 통합 포함) PASS. impl-prep `review/consistency/2026/06/25/22_17_32`(BLOCK:NO) · ai-review `review/code/2026/06/25/22_44_09`(Risk MEDIUM·Critical 0·Warning 10→W1·W2 훅 테스트·W9 상수화 반영, W3~W8·W10 사전존재/후속 PR 보류·RESOLUTION).
+- [ ] **e2e 재실행 (레지스트리 회복 후)** — 환경 Docker 레지스트리 아웃티지로 미실행. integrations e2e(cafe24 private·makeshop·google 흐름, §3.5/§3.6 팝업·복원). 코드 무관(behavior-preserving + frontend unit 전건 PASS).
 
 **spec 대조**: C — `4-integration.md §3` 의 step 상태 기계(§3.1 쿼리 파라미터 제어, §3.5 OAuth 팝업 postMessage, §3.6 이탈·복원)가 분리 경계를 그대로 제공.
 
 **개선 방안**:
 
-1. `components/integrations/steps/` 로 `AuthStep`(§5 서비스별 분기)/`TestStep`/`SaveStep` 분리, page 는 step 상태 기계만.
-2. 팝업 postMessage(§3.5)·이탈 복원(§3.6)은 `useOauthPopupReturn`/`useDraftRestore` hook 으로.
+1. step 컴포넌트(`AuthStep`(§5 서비스별 분기)·`TestStep`·`Cafe24PrivatePendingStep`·`MakeshopPendingStep`) 분리, page 는 step 상태 기계만. *(구현: `SaveStep` 은 별도 없음 — TestStep 이 저장 담당. 배치는 `components/integrations/steps/` 대신 라우트-로컬 `new/_components/` — impl-prep I1 의존방향.)*
+2. 팝업 postMessage(§3.5)·이탈 복원(§3.6)은 `useOauthPopupReturn`/`useUnsavedChangesWarning` hook 으로. *(plan 원안 `useDraftRestore`→구현 `useUnsavedChangesWarning`: 실제 동작이 draft 복원 없는 beforeunload 가드라 명칭 정정 — impl-prep W2.)*
 3. M-4 의 제네릭 폼과 별건(이쪽은 Integration 생성 폼).
 
 **옵션 비교**:
