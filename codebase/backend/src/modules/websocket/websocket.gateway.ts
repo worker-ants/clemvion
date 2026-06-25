@@ -41,6 +41,29 @@ function isValidChannel(channel: string): boolean {
   return VALID_CHANNEL_PREFIXES.some((prefix) => channel.startsWith(prefix));
 }
 
+/**
+ * refactor 03 C-4 — 인증된 WS 소켓. `handleConnection` 이 JWT 검증 성공 시
+ * `userId`/`workspaceId` 를 enrich 한다(실패 시 즉시 disconnect). 명령·구독
+ * 핸들러는 이 단언으로 식별자에 접근하며, 핸들러별 인라인 `Socket & {...}`
+ * 단언을 단일 alias 로 통합한다.
+ *
+ * 주의: 인가 DTO 인 `ChannelAuthorizerContext`(channel-authorizer.ts)와 필드
+ * 교집합(workspaceId/userId)이 있으나 역할이 다르다 — 본 타입은 socket 형태
+ * 단언, 후자는 authorizer 입력 DTO. 혼용 금지.
+ */
+type AuthenticatedSocket = Socket & {
+  userId?: string;
+  workspaceId?: string;
+};
+
+// refactor 03 C-4 — 명령 핸들러(submitForm·clickButton·submitMessage·
+// endConversation·retryLastTurn)의 반복 인증/소유권 거부 메시지 상수.
+// 값은 명문 wire 문자열 — 변경 금지(테스트가 정확한 값을 검증).
+// subscribe(§3.3) 경로는 채널 인가(channelAuthorizers)가 담당하는 별개 계약이라
+// 본 상수를 공유하지 않고 자체 리터럴을 유지한다(경로 간 커플링 차단).
+const MSG_NOT_AUTHENTICATED = 'Not authenticated';
+const MSG_NOT_AUTHORIZED_EXECUTION = 'Not authorized for this execution';
+
 // @Public() bypasses the global JwtAuthGuard for WebSocket message handlers.
 // Authentication is handled manually in handleConnection() via JWT verification.
 @Public()
@@ -101,10 +124,7 @@ export class WebsocketGateway
 
       const payload: { sub: string; workspaceId?: string } =
         this.jwtService.verify(token);
-      const enrichedClient = client as Socket & {
-        userId?: string;
-        workspaceId?: string;
-      };
+      const enrichedClient = client as AuthenticatedSocket;
       enrichedClient.userId = payload.sub;
       enrichedClient.workspaceId = payload.workspaceId;
 
@@ -165,10 +185,7 @@ export class WebsocketGateway
 
     // W-13: 채널별 인가는 strategy 맵을 lookup — 새 채널 추가 시 본 함수
     // 본문을 건드리지 않고 channelAuthorizers 만 확장하면 된다 (OCP).
-    const enriched = client as Socket & {
-      workspaceId?: string;
-      userId?: string;
-    };
+    const enriched = client as AuthenticatedSocket;
     const workspaceId = enriched.workspaceId ?? '';
     const userId = enriched.userId ?? '';
     const authorizer = this.channelAuthorizers.find((a) => a.matches(channel));
@@ -253,7 +270,7 @@ export class WebsocketGateway
     // endpoint 의 `verifyOwnership` 와 동일 정책으로 정렬.
     if (isNewSubscription && channel.startsWith('execution:')) {
       const executionId = channel.slice('execution:'.length);
-      const enriched = client as Socket & { workspaceId?: string };
+      const enriched = client as AuthenticatedSocket;
       void this.emitExecutionSnapshot(
         client,
         executionId,
@@ -323,6 +340,55 @@ export class WebsocketGateway
     };
   }
 
+  /**
+   * refactor 03 C-4 — 명령 핸들러 5종 전용(submitForm·clickButton·submitMessage·
+   * endConversation·retryLastTurn) 인증 컨텍스트 추출. `handleConnection` 이
+   * enrich 한 `userId` 가 없으면(미인증 소켓) null 을 반환하고, 호출 핸들러가
+   * 자신의 ack shape 으로 거부 ack 를 조립한다. `workspaceId` 는 인증 JWT 에 함께
+   * 담기지만 누락 시 ''(`verifyOwnership` 가 소유 불일치로 처리 — NotFound 통일)로
+   * 정규화한다.
+   *
+   * 본 helper 는 ack payload 를 만들지 않는다 — §7.2(§4.2) 의 ack wire shape 분리
+   * (continuation 4종 flat `error: string` vs retry_last_turn nested
+   * `error:{code,message}`)는 각 핸들러가 소유해야 보존된다.
+   *
+   * subscribe 경로에는 적용하지 않는다 — 채널 인가는 `channelAuthorizers`(OCP, 02
+   * M-7)가 담당하며, 본 helper 도입은 그 구조를 우회하게 된다.
+   */
+  private getCommandAuthContext(
+    client: Socket,
+  ): { userId: string; workspaceId: string } | null {
+    const enriched = client as AuthenticatedSocket;
+    if (!enriched.userId) {
+      return null;
+    }
+    return { userId: enriched.userId, workspaceId: enriched.workspaceId ?? '' };
+  }
+
+  /**
+   * refactor 03 C-4 — 명령 핸들러 공통: execution 의 workspace 소유 검증.
+   * `verifyOwnership` 은 NotFound 로 통일(Forbidden 금지 — executionId 존재 추론
+   * 차단, §7.1 IDOR 정책·sibling handler 일치). 소유 불일치·부재·DB 오류는 모두
+   * false 로 환원한다.
+   *
+   * 판단(boolean)만 담당하고 ack 는 만들지 않는다 — 호출 핸들러가 자신의 shape 으로
+   * 조립한다: continuation 4종은 flat `{success:false, error:
+   * MSG_NOT_AUTHORIZED_EXECUTION}`, retry_last_turn 은 nested `{success:false,
+   * resumed:false, error:{code:NOT_FOUND, message:'Execution not found'}}`(의도된
+   * 분리, §4.2).
+   */
+  private async verifyExecutionOwnership(
+    executionId: string,
+    workspaceId: string,
+  ): Promise<boolean> {
+    try {
+      await this.executionsService.verifyOwnership(executionId, workspaceId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   @SubscribeMessage('execution.submit_form')
   async handleSubmitForm(
     @MessageBody() data: { executionId: string; formData: unknown },
@@ -338,28 +404,21 @@ export class WebsocketGateway
       errorCode?: string;
     };
   }> {
-    // Verify the client is authenticated
-    const enriched = client as Socket & {
-      userId?: string;
-      workspaceId?: string;
-    };
-    if (!enriched.userId) {
+    // refactor 03 C-4 — 인증 + IDOR(소유권) 가드 공통 helper. 거부 ack 는 본
+    // 핸들러의 flat shape(§7.2)으로 직접 조립한다.
+    const auth = this.getCommandAuthContext(client);
+    if (!auth) {
       return {
         event: 'execution.form_submitted',
-        data: { success: false, error: 'Not authenticated' },
+        data: { success: false, error: MSG_NOT_AUTHENTICATED },
       };
     }
-
-    // CRIT #1 — IDOR 차단.
-    try {
-      await this.executionsService.verifyOwnership(
-        data.executionId,
-        enriched.workspaceId ?? '',
-      );
-    } catch {
+    if (
+      !(await this.verifyExecutionOwnership(data.executionId, auth.workspaceId))
+    ) {
       return {
         event: 'execution.form_submitted',
-        data: { success: false, error: 'Not authorized for this execution' },
+        data: { success: false, error: MSG_NOT_AUTHORIZED_EXECUTION },
       };
     }
 
@@ -415,27 +474,20 @@ export class WebsocketGateway
       errorCode?: string;
     };
   }> {
-    const enriched = client as Socket & {
-      userId?: string;
-      workspaceId?: string;
-    };
-    if (!enriched.userId) {
+    // refactor 03 C-4 — 인증 + IDOR(소유권) 가드 공통 helper (flat ack §7.2).
+    const auth = this.getCommandAuthContext(client);
+    if (!auth) {
       return {
         event: 'execution.click_button.ack',
-        data: { success: false, error: 'Not authenticated' },
+        data: { success: false, error: MSG_NOT_AUTHENTICATED },
       };
     }
-
-    // CRIT #1 — IDOR 차단. workspace 소유 검증.
-    try {
-      await this.executionsService.verifyOwnership(
-        data.executionId,
-        enriched.workspaceId ?? '',
-      );
-    } catch {
+    if (
+      !(await this.verifyExecutionOwnership(data.executionId, auth.workspaceId))
+    ) {
       return {
         event: 'execution.click_button.ack',
-        data: { success: false, error: 'Not authorized for this execution' },
+        data: { success: false, error: MSG_NOT_AUTHORIZED_EXECUTION },
       };
     }
 
@@ -488,28 +540,21 @@ export class WebsocketGateway
       errorCode?: string;
     };
   }> {
-    const enriched = client as Socket & {
-      userId?: string;
-      workspaceId?: string;
-    };
-    if (!enriched.userId) {
+    // refactor 03 C-4 — 인증 + IDOR(소유권) 가드 공통 helper (flat ack §7.2).
+    // (subscription 체크는 첫 단계 방어, 실제 권한 검증은 verifyOwnership 가 담당.)
+    const auth = this.getCommandAuthContext(client);
+    if (!auth) {
       return {
         event: 'execution.submit_message.ack',
-        data: { success: false, error: 'Not authenticated' },
+        data: { success: false, error: MSG_NOT_AUTHENTICATED },
       };
     }
-
-    // CRIT #1 — IDOR 차단. workspace 소유 검증 (subscription 체크는 첫 단계
-    // 방어, 실제 권한 검증은 verifyOwnership 가 담당).
-    try {
-      await this.executionsService.verifyOwnership(
-        data.executionId,
-        enriched.workspaceId ?? '',
-      );
-    } catch {
+    if (
+      !(await this.verifyExecutionOwnership(data.executionId, auth.workspaceId))
+    ) {
       return {
         event: 'execution.submit_message.ack',
-        data: { success: false, error: 'Not authorized for this execution' },
+        data: { success: false, error: MSG_NOT_AUTHORIZED_EXECUTION },
       };
     }
 
@@ -560,27 +605,20 @@ export class WebsocketGateway
       errorCode?: string;
     };
   }> {
-    const enriched = client as Socket & {
-      userId?: string;
-      workspaceId?: string;
-    };
-    if (!enriched.userId) {
+    // refactor 03 C-4 — 인증 + IDOR(소유권) 가드 공통 helper (flat ack §7.2).
+    const auth = this.getCommandAuthContext(client);
+    if (!auth) {
       return {
         event: 'execution.end_conversation.ack',
-        data: { success: false, error: 'Not authenticated' },
+        data: { success: false, error: MSG_NOT_AUTHENTICATED },
       };
     }
-
-    // CRIT #1 — IDOR 차단.
-    try {
-      await this.executionsService.verifyOwnership(
-        data.executionId,
-        enriched.workspaceId ?? '',
-      );
-    } catch {
+    if (
+      !(await this.verifyExecutionOwnership(data.executionId, auth.workspaceId))
+    ) {
       return {
         event: 'execution.end_conversation.ack',
-        data: { success: false, error: 'Not authorized for this execution' },
+        data: { success: false, error: MSG_NOT_AUTHORIZED_EXECUTION },
       };
     }
 
@@ -645,11 +683,12 @@ export class WebsocketGateway
     };
   }> {
     const event = 'execution.retry_last_turn.ack';
-    const enriched = client as Socket & {
-      userId?: string;
-      workspaceId?: string;
-    };
-    if (!enriched.userId) {
+    // refactor 03 C-4 — 인증 + IDOR(소유권) 가드 공통 helper. 거부 ack 는 본
+    // 핸들러의 nested shape(§4.2: { error: { code, message } })으로 직접 조립한다 —
+    // continuation 4종(flat)과 의도적으로 다른 계층이라 UNAUTHENTICATED/NOT_FOUND
+    // 코드와 'Execution not found' 문구를 helper 가 아닌 핸들러가 소유한다.
+    const auth = this.getCommandAuthContext(client);
+    if (!auth) {
       return {
         event,
         data: {
@@ -659,21 +698,17 @@ export class WebsocketGateway
           resumed: false,
           error: {
             code: WsErrorCode.UNAUTHENTICATED,
-            message: 'Not authenticated',
+            message: MSG_NOT_AUTHENTICATED,
           },
         },
       };
     }
 
-    // CRIT #1 — IDOR 차단. workspace 소유 검증.
     // verifyOwnership 은 NotFound 로 통일 — Forbidden 으로 응답하면 attacker 가
     // executionId 의 존재 여부를 추론할 수 있다 (sibling handler 정책 일치, S1).
-    try {
-      await this.executionsService.verifyOwnership(
-        data.executionId,
-        enriched.workspaceId ?? '',
-      );
-    } catch {
+    if (
+      !(await this.verifyExecutionOwnership(data.executionId, auth.workspaceId))
+    ) {
       return {
         event,
         data: {
