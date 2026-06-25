@@ -270,12 +270,9 @@ export class WebsocketGateway
     // endpoint 의 `verifyOwnership` 와 동일 정책으로 정렬.
     if (isNewSubscription && channel.startsWith('execution:')) {
       const executionId = channel.slice('execution:'.length);
-      const enriched = client as AuthenticatedSocket;
-      void this.emitExecutionSnapshot(
-        client,
-        executionId,
-        enriched.workspaceId ?? '',
-      );
+      // refactor 03 C-4 (review W2) — 함수 스코프의 `workspaceId`(상단에서 이미
+      // `enriched.workspaceId ?? ''` 로 산출)를 재사용. 중복 단언 제거.
+      void this.emitExecutionSnapshot(client, executionId, workspaceId);
     }
 
     return {
@@ -293,6 +290,9 @@ export class WebsocketGateway
       // CRIT — IDOR 차단: workspace 소유 검증 후에만 snapshot 발행.
       // `verifyOwnership` 은 NotFound 로 통일 — Forbidden 으로 응답하면
       // attacker 가 executionId 존재 여부를 추론할 수 있다.
+      // refactor 03 C-4 (review INFO-2) — 구독 경로의 IDOR 이중 방어. 명령 핸들러용
+      // `verifyExecutionOwnership` helper(boolean)와 의도적으로 분리한다: 여기서는
+      // 실패를 ack 가 아니라 snapshot skip(아래 catch)으로 흡수하기 때문.
       await this.executionsService.verifyOwnership(
         executionId,
         userWorkspaceId,
