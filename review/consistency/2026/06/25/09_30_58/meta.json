@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T09:30:58.007938",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=plan/in-progress/web-chat-preview-improvements.md, diff-base=origin/main)",
+  "target_path": "plan/in-progress/web-chat-preview-improvements.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
