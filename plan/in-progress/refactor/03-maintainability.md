@@ -103,13 +103,14 @@
 
 ### C-4 [Critical] WebSocket Gateway — 5개 핸들러 인증+소유권 보일러플레이트 복붙
 
-- [ ] 미착수 — `websocket.gateway.ts` (핸들러 :376/:451/:525/:598/:683)
+- [x] **구현 완료 (Option A, 2026-06-25, 커밋 `b72f634e`+review-fix `203222a3`)** — branch `claude/refactor-03-c4-ws-gateway-auth-7a9671`. 5개 명령 핸들러(`execution.submit_form`/`click_button`/`submit_message`/`end_conversation`/`retry_last_turn`)의 인증+소유권 보일러플레이트를 behavior-preserving 추출: `AuthenticatedSocket` 타입 alias(인라인 `Socket & {...}` 단언 통합), `getCommandAuthContext(client)` private helper(미인증=null·workspaceId '' 정규화), `verifyExecutionOwnership(id, ws)` private helper(verifyOwnership try/catch→boolean·NotFound 통일), `MSG_NOT_AUTHENTICATED`/`MSG_NOT_AUTHORIZED_EXECUTION` 상수화(flat 4종 전용). **§7.2/§4.2 ack shape 핸들러 소유 보존**: helper 는 식별자/boolean 만 반환, continuation 4종=flat·retry_last_turn=nested(UNAUTHENTICATED/NOT_FOUND/'Execution not found' 보존). subscribe §3.3 경로·channelAuthorizers(OCP) 미변경. 검증: lint·build·unit(gateway spec **51/51**, backend **7395** 전건) PASS. impl-prep consistency `review/consistency/2026/06/25/09_23_27`(BLOCK:YES=조건부 구현경계 가드, 본 설계가 충족) · ai-review `review/code/2026/06/25/09_59_33`(Risk LOW·Critical 0·Warning 2→W2 fix·W1 검증후 무변경·RESOLUTION) · impl-done consistency `review/consistency/2026/06/25/10_17_56`(**BLOCK:NO**; cross_spec·naming_collision transient 실패는 impl-prep cross-confirm 으로 갈음).
+- [ ] **e2e 재실행 (레지스트리 회복 후)** — 환경 Docker 레지스트리 아웃티지(`flyway/flyway:10-alpine` FROM resolve DeadlineExceeded — 5 probe 재현)로 미실행. 코드 무관(behavior-preserving + unit 7395 전건 PASS). `registry-1.docker.io` 도달 회복 시 `.claude/tools/run-test.sh e2e` 로 검증.
 
 **spec 대조**: C — `6-websocket-protocol.md §7.1` 이 오히려 "통일" 을 의도(UNAUTHENTICATED/NOT_FOUND 코드 통일, IDOR 은 의도적 NOT_FOUND). **단 §7.2 가 ack wire shape 를 명령군별로 의도적으로 다르게 규정** (continuation 4종 = 평면 `{success,error,errorCode?}`, retry_last_turn = nested) — helper 가 응답 포맷까지 획일화하면 spec 위반.
 
 **개선 방안**:
 
-1. `requireAuthenticated(client)` + `requireOwnership(executionId, workspaceId)` private helper (Guard 보다 helper 권장 — ack 포맷 제어가 핸들러에 남아야 §7.2 shape 차이 보존 용이).
+1. `requireAuthenticated(client)` + `requireOwnership(executionId, workspaceId)` private helper (Guard 보다 helper 권장 — ack 포맷 제어가 핸들러에 남아야 §7.2 shape 차이 보존 용이). *(구현 시 재명명: `getCommandAuthContext`(미인증=null·workspaceId 정규화) + `verifyExecutionOwnership`(boolean) — 의미 명확화, ack 비조립 원칙 동일.)*
 2. `as Socket & {...}` 단언 7회 → `AuthenticatedSocket` 타입 alias 1곳.
 3. 에러 메시지 문자열 상수화로 "미세 불일치" 해소 — 단 §3.3 구독 거부의 평문 error 포맷은 spec 명문화 — 변경 금지.
 

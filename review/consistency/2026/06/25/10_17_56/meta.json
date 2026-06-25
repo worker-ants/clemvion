@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T10:17:56.224744",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=refactor 03 C-4 — WebsocketGateway 5개 명령 핸들러 인증+소유권 보일러플레이트 behavior-preserving 추출 완료. AuthenticatedSocket alias + getCommandAuthContext/verifyExecutionOwnership private helper + MSG_NOT_AUTHENTICATED/MSG_NOT_AUTHORIZED_EXECUTION 상수. §7.2/§4.2 ack shape(continuation flat·retry nested) 핸들러 소유 보존, §7.1 NotFound·IDOR 보존, §3.3 subscribe 미변경. spec 변경 없음. 커밋 b72f634e+review-fix 203222a3. plan 03-maintainability.md C-4 완료·README 집계 65완료/23잔여 갱신., diff-base=origin/main)",
+  "target_path": "refactor 03 C-4 — WebsocketGateway 5개 명령 핸들러 인증+소유권 보일러플레이트 behavior-preserving 추출 완료. AuthenticatedSocket alias + getCommandAuthContext/verifyExecutionOwnership private helper + MSG_NOT_AUTHENTICATED/MSG_NOT_AUTHORIZED_EXECUTION 상수. §7.2/§4.2 ack shape(continuation flat·retry nested) 핸들러 소유 보존, §7.1 NotFound·IDOR 보존, §3.3 subscribe 미변경. spec 변경 없음. 커밋 b72f634e+review-fix 203222a3. plan 03-maintainability.md C-4 완료·README 집계 65완료/23잔여 갱신.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

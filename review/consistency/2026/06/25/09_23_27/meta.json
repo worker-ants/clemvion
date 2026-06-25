@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T09:23:27.656597",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=refactor 03 C-4 — WebsocketGateway(codebase/backend/src/modules/websocket/websocket.gateway.ts) 5개 명령 핸들러(execution.submit_form/click_button/submit_message/end_conversation/retry_last_turn)의 인증+소유권 보일러플레이트를 behavior-preserving 추출. 변경: (1) inline client as Socket & {userId?,workspaceId?} 단언 다수를 AuthenticatedSocket 타입 alias 1곳으로, (2) getCommandAuthContext(client) private helper(미인증=null) 로 userId 존재 체크 + workspaceId '' 정규화 중앙화, (3) verifyExecutionOwnership(executionId, workspaceId) private helper(boolean) 로 verifyOwnership try/catch 중앙화, (4) 반복 메시지 'Not authenticated'/'Not authorized for this execution' 상수화. 불변: spec 6-websocket-protocol.md §7.2 ack wire shape(continuation 4종=flat, retry_last_turn=nested)는 핸들러 소유 보존, §7.1 NotFound 통일·IDOR 정책 보존, §3.3 subscribe 평문 error 포맷 미변경. spec 변경 없음, 행위 불변.)",
+  "target_path": "refactor 03 C-4 — WebsocketGateway(codebase/backend/src/modules/websocket/websocket.gateway.ts) 5개 명령 핸들러(execution.submit_form/click_button/submit_message/end_conversation/retry_last_turn)의 인증+소유권 보일러플레이트를 behavior-preserving 추출. 변경: (1) inline client as Socket & {userId?,workspaceId?} 단언 다수를 AuthenticatedSocket 타입 alias 1곳으로, (2) getCommandAuthContext(client) private helper(미인증=null) 로 userId 존재 체크 + workspaceId '' 정규화 중앙화, (3) verifyExecutionOwnership(executionId, workspaceId) private helper(boolean) 로 verifyOwnership try/catch 중앙화, (4) 반복 메시지 'Not authenticated'/'Not authorized for this execution' 상수화. 불변: spec 6-websocket-protocol.md §7.2 ack wire shape(continuation 4종=flat, retry_last_turn=nested)는 핸들러 소유 보존, §7.1 NotFound 통일·IDOR 정책 보존, §3.3 subscribe 평문 error 포맷 미변경. spec 변경 없음, 행위 불변.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
