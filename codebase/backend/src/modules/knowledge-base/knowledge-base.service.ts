@@ -291,8 +291,8 @@ export class KnowledgeBaseService {
         undefined /* opts */,
         'document',
       );
-    } catch (e) {
-      const raw = e instanceof Error ? e.message : String(e);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
       throw new BadRequestException({
         code: 'EMBEDDING_PROBE_FAILED',
         message: sanitizeLlmErrorMessage(raw),

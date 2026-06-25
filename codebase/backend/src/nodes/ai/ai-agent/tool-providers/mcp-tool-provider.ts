@@ -361,8 +361,8 @@ export class McpToolProvider implements AgentToolProvider {
       if (typeof args !== 'object' || args === null || Array.isArray(args)) {
         throw new Error('arguments must be a JSON object');
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       return this.errorResult(
         call.id,
         'INVALID_TOOL_ARGUMENTS',
@@ -413,8 +413,8 @@ export class McpToolProvider implements AgentToolProvider {
       }
       this.fireUsageLog(ctx, entry, callStartedAt, 'success');
       return this.successResult(call.id, result);
-    } catch (e) {
-      const message = sanitizeMcpErrorMessage(e);
+    } catch (err) {
+      const message = sanitizeMcpErrorMessage(err);
       McpToolProvider.logger.warn(
         `${MCP_ERROR_CODES.CALL_FAILED} ${entry.integrationId}/${originalName}: ${message}`,
       );
@@ -423,7 +423,7 @@ export class McpToolProvider implements AgentToolProvider {
       // instead of a silent retry-storm. SDK error structure isn't
       // standardized — prefer a structured `code`/`status` field if the
       // SDK exposes one, fall back to the original message regex.
-      const code = isAuthFailure(e, message)
+      const code = isAuthFailure(err, message)
         ? MCP_ERROR_CODES.AUTH_FAILED
         : MCP_ERROR_CODES.CALL_FAILED;
       this.fireUsageLog(ctx, entry, callStartedAt, 'failed', {
@@ -463,10 +463,10 @@ export class McpToolProvider implements AgentToolProvider {
         durationMs: Date.now() - startedAt,
         error: error ?? null,
       })
-      .catch((e: unknown) => {
+      .catch((err: unknown) => {
         McpToolProvider.logger.warn(
           `MCP usage logging failed: ${
-            e instanceof Error ? e.message : String(e)
+            err instanceof Error ? err.message : String(err)
           }`,
         );
       });
@@ -487,10 +487,10 @@ export class McpToolProvider implements AgentToolProvider {
 
     await Promise.allSettled(
       [...sessions.values()].map((entry) =>
-        entry.session.close().catch((e: unknown) => {
+        entry.session.close().catch((err: unknown) => {
           McpToolProvider.logger.warn(
             `Failed to close MCP session for ${entry.integrationId}: ${
-              e instanceof Error ? e.message : String(e)
+              err instanceof Error ? err.message : String(err)
             }`,
           );
         }),
@@ -950,9 +950,9 @@ export class McpToolProvider implements AgentToolProvider {
         'prompts/get',
       );
       return this.successResult(toolCallId, r);
-    } catch (e) {
+    } catch (err) {
       McpToolProvider.logger.warn(
-        `MCP meta tool failed (${meta}): ${e instanceof Error ? e.message : String(e)}`,
+        `MCP meta tool failed (${meta}): ${err instanceof Error ? err.message : String(err)}`,
       );
       return this.errorResult(
         toolCallId,

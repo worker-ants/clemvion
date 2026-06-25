@@ -241,8 +241,8 @@ export class AgentMemoryService {
         (job?.data as { enqueueNonce?: string } | undefined)?.enqueueNonce ===
         enqueueNonce;
       return accepted;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.warn(`Agent memory extraction enqueue failed: ${message}`);
       return false;
     }
@@ -355,8 +355,8 @@ export class AgentMemoryService {
         content: r.content,
         score: parseFloat(r.score),
       }));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.warn(`Agent memory recall failed: ${message}`);
       return [];
     }
@@ -735,8 +735,8 @@ export class AgentMemoryService {
         [vectorStr, workspaceId, scopeKey, MEMORY_DEDUP_SIMILARITY],
       );
       return rows[0]?.id ?? null;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.warn(`Agent memory dedup lookup failed: ${message}`);
       return null;
     }

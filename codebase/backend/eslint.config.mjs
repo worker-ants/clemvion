@@ -1,6 +1,7 @@
 // @ts-check
 import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
+import eslintPluginUnicorn from 'eslint-plugin-unicorn';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
@@ -11,6 +12,12 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   eslintPluginPrettierRecommended,
+  {
+    // 03 m-4 — unicorn 플러그인은 preset 전체가 아니라 catch-error-name 단일 룰만
+    // 사용하기 위해 등록한다 (부수 규칙 유입 차단). 버전: ^56 — v57+ 는 eslint
+    // peer 를 >=9.20 으로 올려 본 패키지의 선언 floor(^9.18) 를 넘으므로 v56 고정.
+    plugins: { unicorn: eslintPluginUnicorn },
+  },
   {
     languageOptions: {
       globals: {
@@ -61,6 +68,12 @@ export default tseslint.config(
       // instrumentation.ts(부트스트랩 이전 OTel)는 아래 override, code.handler 등
       // module-load 경로는 inline `// eslint-disable-next-line no-console`.
       'no-console': 'error',
+      // 03 m-4 — catch 파라미터 명명의 SoT. spec/conventions 어느 문서도 catch 변수명을
+      // 소유하지 않으므로(error-codes.md 는 에러 코드 문자열만) 이 lint 룰이 단일 진실이다.
+      // `err` 로 통일(기존 다수파) — `error`/`e`/서술형(`mailErr` 등) 혼재를 차단. `^_`
+      // prefix 는 의도적 미사용 표식으로 면제(기존 no-unused-vars caughtErrorsIgnorePattern
+      // 과 동일 패턴). preset 전체가 아닌 본 단일 룰만 활성.
+      'unicorn/catch-error-name': ['error', { name: 'err', ignore: ['^_'] }],
     },
   },
   {

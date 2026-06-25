@@ -406,8 +406,8 @@ export class RetryTurnService {
       // 재진입 성공 후 일반 노드 COMPLETED 와 동일하게 downstream graph 진행.
       // (FAILED 면 processAiResumeTurn 내 finalizeAiNode 가 sentinel throw → 아래 catch.)
       await this.resumeGraphAfterRetry(execution, executionId, context, node);
-    } catch (error: unknown) {
-      await this.failRetryExecution(execution, executionId, error);
+    } catch (err: unknown) {
+      await this.failRetryExecution(execution, executionId, err);
     } finally {
       this.contextService.deleteContext(executionId);
       this.driver.clearLlmDefaultConfigCache(executionId);

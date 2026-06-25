@@ -1544,8 +1544,8 @@ describe('IntegrationsService', () => {
       ).throwIfUniqueViolation.bind(service);
       try {
         throwFn(err, serviceType);
-      } catch (e) {
-        return e as { response?: { code?: string } };
+      } catch (err_) {
+        return err_ as { response?: { code?: string } };
       }
       return undefined;
     };
@@ -1611,7 +1611,7 @@ describe('IntegrationsService', () => {
             value: 'secret',
           },
         })
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       const response = (error as { response?: { code?: string } }).response;
       expect(response?.code).toBe('INTEGRATION_NAME_TAKEN');
     });
@@ -1642,7 +1642,7 @@ describe('IntegrationsService', () => {
             value: 'secret',
           },
         })
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
 
       // 호출자에게는 row 가 정상 반환되어야 한다 (audit 실패는 swallow).
       // 만약 audit 실패가 user-visible 500 으로 빠지면 본 단언이 실패해

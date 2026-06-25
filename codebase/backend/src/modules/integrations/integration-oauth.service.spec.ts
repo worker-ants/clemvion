@@ -321,7 +321,7 @@ describe('IntegrationOAuthService', () => {
       ]);
       const error = await service
         .handleCallback('google', { code: 'code', state: 'abc' })
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       expect(error).toBeInstanceOf(BadRequestException);
       const ctx = (error as { context?: unknown }).context as
         | { integrationId?: string; workspaceId?: string; mode?: string }
@@ -352,7 +352,7 @@ describe('IntegrationOAuthService', () => {
       integrationRepo.findOne.mockResolvedValue(null);
       const error = await service
         .handleCallback('google', { code: 'code', state: 'abc' })
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       // findOne -> null inside transaction throws NotFoundException
       const ctx = (error as { context?: unknown }).context as
         | { integrationId?: string }
@@ -364,7 +364,7 @@ describe('IntegrationOAuthService', () => {
       dataSource.query.mockResolvedValue([[], 0]); // DELETE…RETURNING returned 0 rows
       const error = await service
         .handleCallback('google', { code: 'code', state: 'abc' })
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       expect(error).toBeInstanceOf(BadRequestException);
       const ctx = (error as { context?: unknown }).context;
       expect(ctx).toBeUndefined();
@@ -399,7 +399,7 @@ describe('IntegrationOAuthService', () => {
         ]);
         const error = await service
           .handleCallback('google', { code: 'bad-code', state: 'abc' })
-          .catch((e: Error) => e);
+          .catch((err: Error) => err);
         expect(error).toBeInstanceOf(BadRequestException);
         const ctx = (error as { context?: unknown }).context as
           | { integrationId?: string; workspaceId?: string; mode?: string }
@@ -448,7 +448,7 @@ describe('IntegrationOAuthService', () => {
         ]);
         const error = await service
           .handleCallback('google', { code: 'slow-code', state: 'abc' })
-          .catch((e: Error) => e);
+          .catch((err: Error) => err);
         expect(error).toBeInstanceOf(BadRequestException);
         const code = (error as { response?: { code?: string } }).response?.code;
         expect(code).toBe('OAUTH_TOKEN_EXCHANGE_FAILED');
@@ -506,7 +506,7 @@ describe('IntegrationOAuthService', () => {
       const spy = jest.spyOn(service, 'markIntegrationCallbackError');
       const err = await service
         .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
-        .catch((e: Error) => e);
+        .catch((err_: Error) => err_);
       expect(err).toBeInstanceOf(BadRequestException);
       expect(spy).toHaveBeenCalledWith(
         'int-1',
@@ -582,7 +582,7 @@ describe('IntegrationOAuthService', () => {
         .mockRejectedValue(new Error('db down'));
       const err = await service
         .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
-        .catch((e: Error) => e);
+        .catch((err_: Error) => err_);
       expect(err).toBeInstanceOf(BadRequestException);
     });
   });

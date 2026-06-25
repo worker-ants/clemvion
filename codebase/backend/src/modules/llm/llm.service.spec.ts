@@ -624,7 +624,7 @@ describe('LlmService', () => {
         mockClient.listModels.mockImplementation(() => new Promise(() => {}));
         const pending = service
           .listModels('config-1', 'ws-1')
-          .catch((e: unknown) => e);
+          .catch((err_: unknown) => err_);
         await jest.advanceTimersByTimeAsync(30_000);
         const err = await pending;
         expect(err).toMatchObject({
@@ -926,7 +926,9 @@ describe('LlmService', () => {
           throw makeRateLimitError({ 'retry-after': '0' });
         });
 
-        const promise = service.chat(retryConfig, retryParams).catch((e) => e);
+        const promise = service
+          .chat(retryConfig, retryParams)
+          .catch((err_) => err_);
         // retry 3회 × Retry-After=0 → 각 0ms backoff. runAllTimersAsync 가 큐에
         // 들어가는 setTimeout(0) 들을 모두 소진할 때까지 반복 실행.
         await jest.runAllTimersAsync();

@@ -300,8 +300,8 @@ export class LlmService {
       // clientFactory 에 없어 graceful 실패(catch → { success: false }).
       await client.testConnection();
       return { success: true };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.warn(`LLM connection test failed: ${message}`);
       return { success: false, error: sanitizeLlmErrorMessage(message) };
     }
@@ -330,8 +330,8 @@ export class LlmService {
           (signal) => client.listModels(signal),
           LIST_MODELS_TIMEOUT_MS,
         );
-      } catch (error) {
-        const raw = error instanceof Error ? error.message : String(error);
+      } catch (err) {
+        const raw = err instanceof Error ? err.message : String(err);
         const sanitized = sanitizeLlmErrorMessage(raw);
         this.logger.warn(`LLM list models failed: ${sanitized}`);
         throw new BadRequestException({
@@ -415,8 +415,8 @@ export class LlmService {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         return await fn();
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
         // AbortError 는 retry 대상이 아님 — abort 이후 LLM retry 낭비 방지
         if (lastError.name === 'AbortError') {
           throw lastError;
@@ -430,7 +430,7 @@ export class LlmService {
         // retry 예산만 소모. 상한 60s 는 그 turn 자체가 stuck 되는 것을 막는
         // 합리적 fallback — 일반적 rate-limit window (1분) 의 경계.
         const MAX_BACKOFF_MS = 60_000;
-        const retryAfterMs = extractRetryAfterMs(error);
+        const retryAfterMs = extractRetryAfterMs(err);
         const exponentialMs = Math.pow(2, attempt) * 1000;
         const delay =
           retryAfterMs !== null

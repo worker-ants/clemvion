@@ -208,8 +208,8 @@ export class TextClassifierHandler implements NodeHandler {
           signal: context.abortSignal,
         },
       );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       // CONVENTIONS §7 — truncate originalInput in the error envelope so long
       // user prompts / PII don't land full-length in `output.error.details`.
       // D6 (2026-05-17) — 정상 (`output.result.originalInput`) / 에러
@@ -234,7 +234,7 @@ export class TextClassifierHandler implements NodeHandler {
       // LLM_RATE_LIMIT and LLM_CALL_FAILED are transient → retryable.
       const isRateLimit = isLlmRateLimit(message);
       const code = isRateLimit ? 'LLM_RATE_LIMIT' : 'LLM_CALL_FAILED';
-      const retryAfterMs = isRateLimit ? extractRetryAfterMs(error) : null;
+      const retryAfterMs = isRateLimit ? extractRetryAfterMs(err) : null;
       const retryDetails: { retryable: boolean; retryAfterSec?: number } =
         retryAfterMs !== null
           ? { retryable: true, retryAfterSec: Math.ceil(retryAfterMs / 1000) }

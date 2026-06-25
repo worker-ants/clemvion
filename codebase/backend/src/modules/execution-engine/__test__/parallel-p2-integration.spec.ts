@@ -74,7 +74,7 @@ describe('parallel-p2 integration (§4 followups)', () => {
           },
           undefined,
         )
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       expect((result as Error).message).toBe('first-branch-fails');
       expect(fetchAbortObserved).toHaveBeenCalledTimes(1);
     });

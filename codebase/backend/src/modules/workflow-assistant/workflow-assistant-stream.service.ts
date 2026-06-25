@@ -207,13 +207,13 @@ export class WorkflowAssistantStreamService {
         configIdOverride,
         workspaceId,
       );
-    } catch (error) {
+    } catch (err) {
       yield {
         event: 'error',
         data: {
           code: 'ASSISTANT_NO_LLM_CONFIG',
           message:
-            error instanceof BadRequestException
+            err instanceof BadRequestException
               ? 'No LLM config available. Please configure one first.'
               : 'Failed to resolve LLM config.',
         },
@@ -721,9 +721,8 @@ export class WorkflowAssistantStreamService {
             break;
           }
         }
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unknown error';
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
         this.logger.error(`Assistant stream failed: ${message}`);
         yield {
           event: 'error',

@@ -324,8 +324,8 @@ function syntaxCheck(wrappedCode: string): string | undefined {
     const script = syntaxIsolate.compileScriptSync(wrappedCode);
     script.release();
     return undefined;
-  } catch (error) {
-    return error instanceof Error ? error.message : String(error);
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
   }
 }
 
@@ -451,8 +451,8 @@ export class CodeHandler implements NodeHandler {
       let script: ivm.Script;
       try {
         script = await isolate.compileScript(wrapUserCode(code));
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
         throw new Error(`code has a syntax error: ${message}`);
       }
 
@@ -489,8 +489,8 @@ export class CodeHandler implements NodeHandler {
         meta: { success: true, logs },
         port: 'success',
       };
-    } catch (error) {
-      const err = error as CodeExecutionError;
+    } catch (err_) {
+      const err = err_ as CodeExecutionError;
       // Compile failures are screened in validate() (Principle 3.1). If one
       // slips through here, re-throw rather than masquerading as a runtime
       // error — keeps the contract single-meaning.

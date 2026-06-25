@@ -235,7 +235,7 @@ export class TableHandler implements NodeHandler {
   private safeEvaluate(template: string, ctx: EngineContext): unknown {
     try {
       return evaluate(template, ctx);
-    } catch (e) {
+    } catch (err) {
       // PII/토큰 노출 차단: ctx.$sourceItem / ctx.$var 의 키 이름만 로깅한다.
       // 전체 값 직렬화는 운영 로그를 통한 민감 정보 유출 경로가 된다 (Review INFO #4).
       const sourceKeys =
@@ -248,7 +248,7 @@ export class TableHandler implements NodeHandler {
           : typeof ctx.$var;
       logger.error(
         `safeEvaluate error: template=${template} sourceItemKeys=${JSON.stringify(sourceKeys)} varKeys=${JSON.stringify(varKeys)}`,
-        e instanceof Error ? e.stack : String(e),
+        err instanceof Error ? err.stack : String(err),
       );
       return null;
     }

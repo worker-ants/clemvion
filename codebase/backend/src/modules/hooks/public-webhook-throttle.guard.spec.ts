@@ -122,8 +122,8 @@ describe('PublicWebhookThrottleGuard', () => {
     expect.assertions(2);
     try {
       await guard.canActivate(makeContext(PUBLIC_REQ));
-    } catch (e) {
-      const err = e as HttpException;
+    } catch (err_) {
+      const err = err_ as HttpException;
       expect(err.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
       const r = err.getResponse() as { error?: { code?: string } };
       expect(r.error?.code).toBe('PUBLIC_WEBHOOK_HOURLY_LIMIT');

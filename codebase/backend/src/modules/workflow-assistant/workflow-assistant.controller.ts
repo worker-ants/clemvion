@@ -188,12 +188,12 @@ export class WorkflowAssistantController {
         res.write(`event: ${ev.event}\n`);
         res.write(`data: ${payload}\n\n`);
       }
-    } catch (error) {
+    } catch (err) {
       // 상세 에러는 서버 로그에만 남기고, 클라이언트에는 코드만 노출한다.
       // 원본 메시지가 SQL·LLM 응답·스택 조각 등을 포함할 수 있기 때문.
       this.logger.error(
         `Assistant stream failed for session ${id}`,
-        error instanceof Error ? error.stack : String(error),
+        err instanceof Error ? err.stack : String(err),
       );
       if (!res.writableEnded) {
         res.write(`event: error\n`);

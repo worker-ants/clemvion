@@ -366,30 +366,30 @@ export class InteractionService {
   private async dispatchContinuation(promise: Promise<unknown>): Promise<void> {
     try {
       await promise;
-    } catch (error: unknown) {
-      if (error instanceof InvalidExecutionStateError) {
+    } catch (err: unknown) {
+      if (err instanceof InvalidExecutionStateError) {
         throw new ConflictException({
-          error: { code: 'STATE_MISMATCH', message: error.message },
+          error: { code: 'STATE_MISMATCH', message: err.message },
         });
       }
       // I-5 (refactor 04 A-1 후속) — submit_message 길이 초과 typed error 를
       // generic 500 대신 400 으로 매핑한다 (spec §14 §5.1 / 실행 엔진 §7.5.2).
       // `error.message` 는 고정 client-safe 문자열 — 내부 길이 수치는 serverDetail
       // 전용이라 응답에 노출되지 않는다.
-      if (error instanceof MessageTooLongError) {
-        throw badRequest('MESSAGE_TOO_LONG', error.message);
+      if (err instanceof MessageTooLongError) {
+        throw badRequest('MESSAGE_TOO_LONG', err.message);
       }
       // [spec §5.1 / form §4·§6.2] submit_form field 검증 실패 → 400 VALIDATION_ERROR
       // + details[{field, message, code:'INVALID_FIELD'}]. execution 은 waiting 유지
       // (publisher 가 publish 전 throw — 재제출 가능).
-      if (error instanceof FormValidationError) {
+      if (err instanceof FormValidationError) {
         throw badRequest(
           ErrorCode.VALIDATION_ERROR,
-          error.message,
-          error.toHttpDetails(),
+          err.message,
+          err.toHttpDetails(),
         );
       }
-      throw error;
+      throw err;
     }
   }
 

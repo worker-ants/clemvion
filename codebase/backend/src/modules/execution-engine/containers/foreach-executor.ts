@@ -87,15 +87,13 @@ export class ForEachExecutor {
           if (collectResults) {
             items.push(output);
           }
-        } catch (error: unknown) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          const errorCode =
-            error instanceof Error ? error.name : 'UNKNOWN_ERROR';
+        } catch (err: unknown) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          const errorCode = err instanceof Error ? err.name : 'UNKNOWN_ERROR';
 
           switch (errorPolicy) {
             case 'stop':
-              throw error;
+              throw err;
 
             case 'skip':
             case 'continue':

@@ -119,8 +119,8 @@ export class EmbeddingService {
           },
         },
       );
-    } catch (error) {
-      const raw = error instanceof Error ? error.message : String(error);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
       const safe = capErrorMessage(sanitizeLlmErrorMessage(raw));
       this.logger.error(
         `Embedding failed permanently for document ${documentId}: ${raw}`,

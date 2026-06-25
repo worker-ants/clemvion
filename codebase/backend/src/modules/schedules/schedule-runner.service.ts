@@ -117,9 +117,9 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
     for (const schedule of activeSchedules) {
       try {
         await this.registerJob(schedule);
-      } catch (error) {
+      } catch (err) {
         this.logger.error(
-          `Failed to register schedule ${schedule.id}: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to register schedule ${schedule.id}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
@@ -182,11 +182,11 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
         schedule.nextRunAt = null as unknown as Date;
       }
       await this.scheduleRepository.save(schedule);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        `Failed to execute schedule ${scheduleId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to execute schedule ${scheduleId}: ${err instanceof Error ? err.message : String(err)}`,
       );
-      throw error;
+      throw err;
     }
   }
 

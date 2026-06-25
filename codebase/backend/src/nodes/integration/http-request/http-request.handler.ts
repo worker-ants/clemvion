@@ -489,10 +489,10 @@ export class HttpRequestHandler
         meta,
         port: 'error',
       };
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId);
       const durationMs = Date.now() - start;
-      const message = error instanceof Error ? error.message : String(error);
+      const message = err instanceof Error ? err.message : String(err);
       if (integrationId && authentication === 'integration') {
         await this.logUsage(context, {
           integrationId,

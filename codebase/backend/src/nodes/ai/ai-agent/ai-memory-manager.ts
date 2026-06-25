@@ -197,9 +197,8 @@ export class AiMemoryManager {
           },
           { topK, threshold },
         );
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unknown error';
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
         AiMemoryManager.logger.warn(
           `Agent memory recall failed (graceful): ${message}`,
         );

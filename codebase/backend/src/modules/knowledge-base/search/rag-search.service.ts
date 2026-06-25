@@ -273,8 +273,8 @@ export class RagSearchService {
       }
 
       return mergeUnsearchable({ results: sliced, graphTraversal });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.warn(`RAG search failed: ${message}`);
       return { results: [] };
     }

@@ -27,8 +27,8 @@ import { makeFakeJwt } from '../__test-utils__/make-fake-jwt';
 function thrownCode(fn: () => unknown): string {
   try {
     fn();
-  } catch (e) {
-    const res = (e as { getResponse?: () => unknown }).getResponse?.();
+  } catch (err) {
+    const res = (err as { getResponse?: () => unknown }).getResponse?.();
     return (res as { code?: string })?.code ?? 'NO_CODE';
   }
   return 'DID_NOT_THROW';
@@ -113,8 +113,8 @@ describe('Standard OAuth strategies (google / github)', () => {
         providerMeta: null,
         envCredentials: emptyEnvCreds,
       });
-    } catch (e) {
-      caught = e;
+    } catch (err) {
+      caught = err;
     }
     expect(caught).toBeInstanceOf(InternalServerErrorException);
     const res = (caught as InternalServerErrorException).getResponse() as {

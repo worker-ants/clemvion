@@ -50,12 +50,12 @@ export class MailService {
         text: this.buildVerificationText(name, verifyUrl),
       });
       this.logger.log(`Verification email sent to ${email}`);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
         `Failed to send verification email to ${email}`,
-        error instanceof Error ? error.stack : String(error),
+        err instanceof Error ? err.stack : String(err),
       );
-      throw error;
+      throw err;
     }
   }
 
@@ -134,12 +134,12 @@ export class MailService {
         text: this.buildInvitationText(workspaceName, invitedByName, acceptUrl),
       });
       this.logger.log(`Invitation email sent to ${email} for ${workspaceName}`);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
         `Failed to send invitation email to ${email}`,
-        error instanceof Error ? error.stack : String(error),
+        err instanceof Error ? err.stack : String(err),
       );
-      throw error;
+      throw err;
     }
   }
 
@@ -217,12 +217,12 @@ export class MailService {
         text: this.buildPasswordResetText(name, resetUrl),
       });
       this.logger.log(`Password reset email sent to ${email}`);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
         `Failed to send password reset email to ${email}`,
-        error instanceof Error ? error.stack : String(error),
+        err instanceof Error ? err.stack : String(err),
       );
-      throw error;
+      throw err;
     }
   }
 
@@ -287,12 +287,12 @@ export class MailService {
         text: this.buildEmailChangeVerificationText(name, verifyUrl),
       });
       this.logger.log(`Email-change verification sent to ${newEmail}`);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
         `Failed to send email-change verification to ${newEmail}`,
-        error instanceof Error ? error.stack : String(error),
+        err instanceof Error ? err.stack : String(err),
       );
-      throw error;
+      throw err;
     }
   }
 
@@ -357,12 +357,12 @@ export class MailService {
         text: this.buildEmailChangedNoticeText(name, newEmail, resetUrl),
       });
       this.logger.log(`Email-changed notice sent to ${oldEmail}`);
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
         `Failed to send email-changed notice to ${oldEmail}`,
-        error instanceof Error ? error.stack : String(error),
+        err instanceof Error ? err.stack : String(err),
       );
-      throw error;
+      throw err;
     }
   }
 
