@@ -103,7 +103,7 @@
 
 ### C-4 [Critical] WebSocket Gateway — 5개 핸들러 인증+소유권 보일러플레이트 복붙
 
-- [ ] 미착수 — `websocket.gateway.ts` (핸들러 :376/:451/:525/:598/:683)
+- [x] **구현 완료 (Option A, 2026-06-25, 커밋 `b72f634e`+review-fix `203222a3`)** — branch `claude/refactor-03-c4-ws-gateway-auth-7a9671`. 5개 명령 핸들러(`execution.submit_form`/`click_button`/`submit_message`/`end_conversation`/`retry_last_turn`)의 인증+소유권 보일러플레이트를 behavior-preserving 추출: `AuthenticatedSocket` 타입 alias(인라인 `Socket & {...}` 단언 통합), `getCommandAuthContext(client)` private helper(미인증=null·workspaceId '' 정규화), `verifyExecutionOwnership(id, ws)` private helper(verifyOwnership try/catch→boolean·NotFound 통일), `MSG_NOT_AUTHENTICATED`/`MSG_NOT_AUTHORIZED_EXECUTION` 상수화(flat 4종 전용). **§7.2/§4.2 ack shape 핸들러 소유 보존**: helper 는 식별자/boolean 만 반환, continuation 4종=flat·retry_last_turn=nested(UNAUTHENTICATED/NOT_FOUND/'Execution not found' 보존). subscribe §3.3 경로·channelAuthorizers(OCP) 미변경. 검증: lint·build·unit(gateway spec **51/51**, backend **7395** 전건) PASS. impl-prep consistency `review/consistency/2026/06/25/09_23_27`(BLOCK:YES=조건부 구현경계 가드, 본 설계가 충족) · ai-review `review/code/2026/06/25/09_59_33`(Risk LOW·Critical 0·Warning 2→W2 fix·W1 검증후 무변경·RESOLUTION). **e2e 보류**: 환경 Docker 레지스트리 아웃티지(`flyway/flyway:10-alpine` FROM resolve DeadlineExceeded — 5 probe 재현)로 미실행, 코드 무관 — 레지스트리 회복 시 재실행 필요.
 
 **spec 대조**: C — `6-websocket-protocol.md §7.1` 이 오히려 "통일" 을 의도(UNAUTHENTICATED/NOT_FOUND 코드 통일, IDOR 은 의도적 NOT_FOUND). **단 §7.2 가 ack wire shape 를 명령군별로 의도적으로 다르게 규정** (continuation 4종 = 평면 `{success,error,errorCode?}`, retry_last_turn = nested) — helper 가 응답 포맷까지 획일화하면 spec 위반.
 
