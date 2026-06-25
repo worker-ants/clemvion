@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T23:45:42.386147",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=plan/in-progress/web-chat-snippet-queue-stub.md)",
+  "target_path": "plan/in-progress/web-chat-snippet-queue-stub.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
