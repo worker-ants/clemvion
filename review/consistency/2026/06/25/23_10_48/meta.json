@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T23:10:48.238591",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=refactor 03 m-3 — integrations/new/page.tsx 1444→448줄 behavior-preserving 분할 완료. new/_components/(AuthStep+ExtraFields·TestStep·Cafe24/Makeshop PendingStep) + lib/integrations/use-oauth-popup-return.ts(§3.5 팝업) + lib/hooks/use-unsaved-changes-warning.ts(§3.6) 추출, page 는 상태기계+oauthBegin+렌더(default export 유지). UI·wire·동작 불변, spec 변경 없음. 커밋 174bd906+review-fix 77a04a4f(신규 훅 테스트 W1·W2 + 매직넘버 상수 W9). plan 03-maintainability.md m-3 완료·README 66완료/22잔여 갱신. 배치: 컴포넌트 라우트-로컬(impl-prep I1), openOAuthPopup module-private(impl-prep W1)., diff-base=origin/main)",
+  "target_path": "refactor 03 m-3 — integrations/new/page.tsx 1444→448줄 behavior-preserving 분할 완료. new/_components/(AuthStep+ExtraFields·TestStep·Cafe24/Makeshop PendingStep) + lib/integrations/use-oauth-popup-return.ts(§3.5 팝업) + lib/hooks/use-unsaved-changes-warning.ts(§3.6) 추출, page 는 상태기계+oauthBegin+렌더(default export 유지). UI·wire·동작 불변, spec 변경 없음. 커밋 174bd906+review-fix 77a04a4f(신규 훅 테스트 W1·W2 + 매직넘버 상수 W9). plan 03-maintainability.md m-3 완료·README 66완료/22잔여 갱신. 배치: 컴포넌트 라우트-로컬(impl-prep I1), openOAuthPopup module-private(impl-prep W1).",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
