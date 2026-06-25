@@ -1,26 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  CheckCircle2,
-  Copy,
-  Loader2,
-  XCircle,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils/cn";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import {
   integrationsApi,
   type AuthVariant,
-  type Cafe24PrecheckResult,
   type IntegrationScope,
   type ServiceDefinition,
 } from "@/lib/api/integrations";
@@ -29,25 +17,14 @@ import {
   useCafe24MallIdPrecheck,
   CAFE24_MALL_ID_PATTERN,
 } from "@/lib/integrations/use-cafe24-mall-id-precheck";
+import { useOauthPopupReturn } from "@/lib/integrations/use-oauth-popup-return";
+import { useUnsavedChangesWarning } from "@/lib/hooks/use-unsaved-changes-warning";
 import { ServiceIcon } from "../_shared/service-icons";
-import { CredentialsForm } from "../_shared/credentials-form";
-import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
-import { useCafe24PendingPolling } from "@/lib/integrations/use-cafe24-pending-polling";
-import { useMakeshopPendingPolling } from "@/lib/integrations/use-makeshop-pending-polling";
-import {
-  ApprovalRequiredBadge,
-  RestrictedScopeNotice,
-} from "@/components/integrations/approval-required-badge";
-
-interface OAuthCallbackPayload {
-  type: "oauth_callback";
-  status: "success" | "error";
-  mode?: "new" | "reauthorize" | "request_scopes";
-  provider?: string;
-  integrationId?: string | null;
-  previewToken?: string | null;
-  error?: string | null;
-}
+import { useT, type TranslationKey } from "@/lib/i18n";
+import { AuthStep } from "./_components/auth-step";
+import { TestStep } from "./_components/test-step";
+import { Cafe24PrivatePendingStep } from "./_components/cafe24-private-pending-step";
+import { MakeshopPendingStep } from "./_components/makeshop-pending-step";
 
 type Step = "auth" | "test";
 
@@ -79,8 +56,35 @@ export default function NewIntegrationPage() {
   const [credentials, setCredentials] = useState<Record<string, unknown>>({});
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   const [testError, setTestError] = useState<string | null>(null);
-  const [previewToken, setPreviewToken] = useState<string | null>(null);
-  const popupRef = useRef<Window | null>(null);
+
+  const goToStep = (next: Step) => {
+    const qp = new URLSearchParams();
+    qp.set("service", serviceType);
+    qp.set("step", next);
+    router.replace(`/integrations/new?${qp.toString()}`);
+  };
+
+  // OAuth 팝업 복귀 상태 기계(§3.5) — message handler·popup.closed 폴링·5분
+  // 타임아웃·previewToken 을 훅으로 분리. 성공 시 test 단계로 이동.
+  const {
+    oauthWaiting,
+    oauthError,
+    previewToken,
+    setPreviewToken,
+    startPopup,
+  } = useOauthPopupReturn({ t, onAuthorized: () => goToStep("test") });
+
+  const [privatePending, setPrivatePending] = useState<{
+    integrationId: string;
+    appUrl: string;
+    callbackUrl: string;
+  } | null>(null);
+  // MakeShop install-first pending — appUrl/callbackUrl 등록 안내 + 설치 폴링.
+  const [makeshopPending, setMakeshopPending] = useState<{
+    integrationId: string;
+    appUrl: string;
+    callbackUrl: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!variant) {
@@ -143,9 +147,7 @@ export default function NewIntegrationPage() {
         name,
         authType: variant!.authType,
         scope,
-        credentials: isOAuth
-          ? { scopes: selectedScopes }
-          : credentials,
+        credentials: isOAuth ? { scopes: selectedScopes } : credentials,
         previewToken: isOAuth ? (previewToken ?? undefined) : undefined,
       };
       return integrationsApi.create(payload);
@@ -161,28 +163,6 @@ export default function NewIntegrationPage() {
       );
     },
   });
-
-  const oauthTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [oauthWaiting, setOauthWaiting] = useState(false);
-  const [oauthError, setOauthError] = useState<string | null>(null);
-  const [privatePending, setPrivatePending] = useState<{
-    integrationId: string;
-    appUrl: string;
-    callbackUrl: string;
-  } | null>(null);
-  // MakeShop install-first pending — appUrl/callbackUrl 등록 안내 + 설치 폴링.
-  const [makeshopPending, setMakeshopPending] = useState<{
-    integrationId: string;
-    appUrl: string;
-    callbackUrl: string;
-  } | null>(null);
-
-  const clearOAuthTimeout = () => {
-    if (oauthTimeoutRef.current) {
-      clearTimeout(oauthTimeoutRef.current);
-      oauthTimeoutRef.current = null;
-    }
-  };
 
   const oauthBeginMutation = useMutation({
     mutationFn: async () => {
@@ -246,124 +226,26 @@ export default function NewIntegrationPage() {
         return;
       }
       if (!("authUrl" in result)) return;
-      popupRef.current = openOAuthPopup(result.authUrl);
-      setOauthError(null);
-      setOauthWaiting(true);
-      clearOAuthTimeout();
-      oauthTimeoutRef.current = setTimeout(() => {
-        setOauthWaiting(false);
-        setOauthError(t("integrations.oauthTimedOutShort"));
-        if (popupRef.current && !popupRef.current.closed) {
-          popupRef.current.close();
-        }
-        toast.error(t("integrations.oauthTimedOutMessage"));
-      }, 5 * 60 * 1000);
-      toast.message(t("integrations.oauthContinueInPopup"));
+      startPopup(result.authUrl);
     },
     onError: (err: unknown) => {
       toast.error(formatErrorToast(err, "integrations.oauthStartFailed"));
     },
   });
 
-  useEffect(() => {
-    const handler = (event: MessageEvent<OAuthCallbackPayload>) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data?.type !== "oauth_callback") return;
-      clearOAuthTimeout();
-      setOauthWaiting(false);
-      if (event.data.status === "error") {
-        const msg = event.data.error ?? t("integrations.oauthFailedShort");
-        setOauthError(msg);
-        toast.error(msg);
-        return;
-      }
-      if (event.data.previewToken) {
-        setPreviewToken(event.data.previewToken);
-        setOauthError(null);
-        toast.success(t("integrations.oauthCompletedToast"));
-        goToStep("test");
-      }
-    };
-    window.addEventListener("message", handler);
-    return () => {
-      window.removeEventListener("message", handler);
-      clearOAuthTimeout();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Public-flow safety net: if the popup is closed (manually or after our
-  // callback HTML's delayed close) without ever firing the message handler
-  // — e.g. the user cancelled at the provider, blocked popups, or origin
-  // mismatch silently dropped postMessage — we'd otherwise sit in
-  // `oauthWaiting` until the 5-minute timeout. Poll popup.closed and bail
-  // out within 5s of close.
-  //
-  // Refs (not state) feed the closure to avoid stale reads: the success
-  // postMessage handler can fire BETWEEN our popup.closed observation and
-  // the deferred check, flipping oauthWaiting → false; we must see that
-  // latest value or we'd double-fire the error toast.
-  const oauthWaitingRef = useRef(oauthWaiting);
-  const previewTokenRef = useRef(previewToken);
-  useEffect(() => {
-    oauthWaitingRef.current = oauthWaiting;
-  }, [oauthWaiting]);
-  useEffect(() => {
-    previewTokenRef.current = previewToken;
-  }, [previewToken]);
-
-  useEffect(() => {
-    if (!oauthWaiting) return;
-    let bailTimer: ReturnType<typeof setTimeout> | null = null;
-    const interval = setInterval(() => {
-      const popup = popupRef.current;
-      if (popup && popup.closed) {
-        bailTimer = setTimeout(() => {
-          if (!oauthWaitingRef.current) return; // success handler already won
-          clearOAuthTimeout();
-          setOauthWaiting(false);
-          if (!previewTokenRef.current) {
-            setOauthError(t("integrations.oauthPopupClosedNoResult"));
-            toast.error(t("integrations.oauthPopupClosedNoResult"));
-          }
-        }, 1500);
-        clearInterval(interval);
-      }
-    }, 500);
-    return () => {
-      clearInterval(interval);
-      if (bailTimer) clearTimeout(bailTimer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [oauthWaiting]);
-
-  useEffect(() => {
-    const isOAuth = variant?.authType === "oauth2";
-    const hasUserInput =
-      (!isOAuth && Object.values(credentials).some((v) => v)) ||
-      name.trim().length > 0 ||
-      oauthWaiting;
-    if (!hasUserInput) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [variant, credentials, name, oauthWaiting]);
-
-  const goToStep = (next: Step) => {
-    const qp = new URLSearchParams();
-    qp.set("service", serviceType);
-    qp.set("step", next);
-    router.replace(`/integrations/new?${qp.toString()}`);
-  };
+  // 이탈 가드(§3.6) — 미저장 입력이 있으면 브라우저 이탈 시 네이티브 확인.
+  const isOAuth = variant?.authType === "oauth2";
+  const hasUserInput =
+    (!isOAuth && Object.values(credentials).some((v) => v)) ||
+    name.trim().length > 0 ||
+    oauthWaiting;
+  useUnsavedChangesWarning(hasUserInput);
 
   const validate = (): string | null => {
     if (!variant) return t("integrations.selectAuthType");
     if (!name.trim()) return t("integrations.nameRequired");
-    const isOAuth = variant.authType === "oauth2";
-    if (isOAuth) {
+    const isOAuthVariant = variant.authType === "oauth2";
+    if (isOAuthVariant) {
       // Cafe24 begin-time validation — mirror backend OAuth begin checks
       // so users hit them locally before the popup opens.
       if (serviceType === "cafe24") {
@@ -395,7 +277,8 @@ export default function NewIntegrationPage() {
           return t("integrations.makeshopValidateClientSecretRequired");
         }
       }
-      if (selectedScopes.length === 0) return t("integrations.selectAtLeastOneScope");
+      if (selectedScopes.length === 0)
+        return t("integrations.selectAtLeastOneScope");
       if (!previewToken) return t("integrations.completeOauth");
       return null;
     }
@@ -452,7 +335,9 @@ export default function NewIntegrationPage() {
             {t("integrations.connectWith", { name: service.name })}
           </h1>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {t("integrations.stepCounter", { current: step === "auth" ? 1 : 2 })}
+            {t("integrations.stepCounter", {
+              current: step === "auth" ? 1 : 2,
+            })}
           </p>
         </div>
       </div>
@@ -487,9 +372,7 @@ export default function NewIntegrationPage() {
             }
             if (serviceType === "makeshop") {
               if (!String(credentials.client_id ?? "").trim()) {
-                toast.error(
-                  t("integrations.makeshopValidateClientIdRequired"),
-                );
+                toast.error(t("integrations.makeshopValidateClientIdRequired"));
                 return;
               }
               if (!String(credentials.client_secret ?? "").trim()) {
@@ -503,9 +386,7 @@ export default function NewIntegrationPage() {
             // backend 도 동일한 가드를 가지지만 사용자 입장에선 toast 만
             // 보고 OAuth 흐름이 시작 안 되니 inline 배너가 더 명확.
             if (cafe24Conflict?.conflict) {
-              toast.error(
-                t("integrations.cafe24DuplicateMallToast"),
-              );
+              toast.error(t("integrations.cafe24DuplicateMallToast"));
               return;
             }
             oauthBeginMutation.mutate();
@@ -562,883 +443,6 @@ export default function NewIntegrationPage() {
           t={t}
         />
       )}
-    </div>
-  );
-}
-
-interface AuthStepProps {
-  service: ServiceDefinition;
-  variant: AuthVariant | undefined;
-  variantIndex: number;
-  setVariantIndex: (i: number) => void;
-  name: string;
-  setName: (s: string) => void;
-  scope: IntegrationScope;
-  setScope: (s: IntegrationScope) => void;
-  credentials: Record<string, unknown>;
-  setCredentials: (c: Record<string, unknown>) => void;
-  selectedScopes: string[];
-  setSelectedScopes: (s: string[]) => void;
-  previewToken: string | null;
-  oauthWaiting: boolean;
-  oauthError: string | null;
-  cafe24Conflict: Cafe24PrecheckResult | null;
-  cafe24PrecheckLoading: boolean;
-  onConnect: () => void;
-  connecting: boolean;
-  onContinue: () => void;
-  t: TFunction;
-}
-
-function AuthStep({
-  service,
-  variant,
-  variantIndex,
-  setVariantIndex,
-  name,
-  setName,
-  scope,
-  setScope,
-  credentials,
-  setCredentials,
-  selectedScopes,
-  setSelectedScopes,
-  previewToken,
-  oauthWaiting,
-  oauthError,
-  cafe24Conflict,
-  cafe24PrecheckLoading,
-  onConnect,
-  connecting,
-  onContinue,
-  t,
-}: AuthStepProps) {
-  const isOAuth = variant?.authType === "oauth2";
-  const toggleScope = (value: string) => {
-    setSelectedScopes(
-      selectedScopes.includes(value)
-        ? selectedScopes.filter((s) => s !== value)
-        : [...selectedScopes, value],
-    );
-  };
-
-  return (
-    <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
-      <div>
-        <Label htmlFor="int-name">
-          {t("integrations.nameLabel")} <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="int-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t("integrations.namePlaceholderWithService", { name: service.name })}
-        />
-      </div>
-
-      <div>
-        <Label>{t("integrations.scopeChangeTitle")}</Label>
-        <div className="inline-flex w-full rounded-lg border border-[hsl(var(--border))] p-1">
-          {(["personal", "organization"] as const).map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              className={cn(
-                "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                scope === opt
-                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
-              )}
-              onClick={() => setScope(opt)}
-            >
-              {opt === "personal"
-                ? t("integrations.scopePersonal")
-                : t("integrations.scopeOrganization")}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-          {t("integrations.scopeHint")}
-        </p>
-      </div>
-
-      {service.authVariants.length > 1 && (
-        <div>
-          <Label>{t("integrations.authTypeLabel2")}</Label>
-          <div className="flex flex-wrap gap-2">
-            {service.authVariants.map((v, i) => (
-              <button
-                key={v.authType}
-                type="button"
-                onClick={() => setVariantIndex(i)}
-                className={cn(
-                  "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
-                  variantIndex === i
-                    ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                    : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
-                )}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {variant && !isOAuth && (
-        <CredentialsForm
-          variant={variant}
-          values={credentials}
-          onChange={(key, value) =>
-            setCredentials({ ...credentials, [key]: value })
-          }
-        />
-      )}
-
-      {variant?.authType === "oauth2" && service.type === "cafe24" && (
-        <Cafe24ExtraFields
-          credentials={credentials}
-          setCredentials={setCredentials}
-          publicAppAvailable={service.meta?.publicAppAvailable !== false}
-          conflict={cafe24Conflict}
-          precheckLoading={cafe24PrecheckLoading}
-        />
-      )}
-
-      {variant?.authType === "oauth2" && service.type === "makeshop" && (
-        <MakeshopExtraFields
-          credentials={credentials}
-          setCredentials={setCredentials}
-        />
-      )}
-
-      {variant?.authType === "oauth2" && service.scopes.length > 0 && (
-        <div>
-          <Label>{t("integrations.oauthScopesLabel")}</Label>
-          {service.type === "cafe24" && (
-            <div
-              role="note"
-              className="mb-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
-            >
-              {t("integrations.cafe24ScopeWarning")}
-            </div>
-          )}
-          <div className="space-y-2 rounded-md border border-[hsl(var(--border))] p-3">
-            {service.scopes.map((s) => (
-              <label
-                key={s.value}
-                className="flex cursor-pointer items-start gap-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedScopes.includes(s.value)}
-                  onChange={() => toggleScope(s.value)}
-                  className="mt-0.5"
-                />
-                <div className="flex-1">
-                  <div className="font-medium">{s.label}</div>
-                  <div className="text-xs text-[hsl(var(--muted-foreground))]">
-                    {s.value}
-                  </div>
-                </div>
-                {s.requiresApproval && <ApprovalRequiredBadge t={t} />}
-                {s.recommended && (
-                  <span className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                    {t("integrations.recommendedBadge")}
-                  </span>
-                )}
-              </label>
-            ))}
-          </div>
-          <RestrictedScopeNotice
-            count={
-              service.scopes.filter(
-                (s) => s.requiresApproval && selectedScopes.includes(s.value),
-              ).length
-            }
-            t={t}
-          />
-        </div>
-      )}
-
-      {isOAuth && (
-        <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30 p-4">
-          <div className="mb-2 text-sm font-medium">
-            {oauthWaiting
-              ? t("integrations.waitingPopup")
-              : previewToken
-                ? t("integrations.oauthComplete")
-                : t("integrations.authorizePrompt")}
-          </div>
-          {oauthError && (
-            <div className="mb-2 text-xs text-red-600 dark:text-red-400">
-              {oauthError}
-            </div>
-          )}
-          <Button
-            variant={previewToken ? "outline" : "default"}
-            onClick={onConnect}
-            // Cafe24 사전 중복 감지 — conflict 가 발견된 mall_id 로는 OAuth
-            // 진입 자체를 막는다. 사용자가 mall_id 를 다른 값으로 바꾸거나
-            // 기존 통합을 삭제하지 않는 한 Connect 비활성. precheck 가
-            // 350ms debounce 후 fetching 중인 동안에도 Connect 를 비활성화해
-            // "사전 감지 결과를 보기 전에 OAuth 시작" race 를 막는다.
-            // backend 가드는 backstop 으로 살아있어 우회 시도도 안전.
-            disabled={
-              connecting ||
-              oauthWaiting ||
-              cafe24PrecheckLoading ||
-              cafe24Conflict?.conflict === true
-            }
-          >
-            {connecting || oauthWaiting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
-            {previewToken
-              ? t("integrations.reauthorizeBtn2")
-              : t("integrations.connectWith", { name: service.name })}
-          </Button>
-          {oauthWaiting && (
-            <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
-              {t("integrations.timesOutHint")}
-            </p>
-          )}
-        </div>
-      )}
-
-      <div className="flex justify-end">
-        <Button onClick={onContinue}>{t("integrations.continueBtn")}</Button>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Cafe24-only extra fields for OAuth2 — Mall ID + App type (+ private-app
- * client_id / client_secret). Stored on the same `credentials` map so the
- * page-level oauthBegin handler can pluck them out at the call site.
- * spec/2-navigation/4-integration.md §3.2 (OAuth2 Cafe24 흐름).
- */
-function Cafe24ExtraFields({
-  credentials,
-  setCredentials,
-  publicAppAvailable,
-  conflict,
-  precheckLoading,
-}: {
-  credentials: Record<string, unknown>;
-  setCredentials: (c: Record<string, unknown>) => void;
-  /** False when server's CAFE24_CLIENT_* env vars are unset → only Private. */
-  publicAppAvailable: boolean;
-  /** Cafe24 mall_id 사전 중복 감지 결과 (null 이면 미감지 / 진행 중). */
-  conflict: Cafe24PrecheckResult | null;
-  /** debounce 호출 중 표시용 (배너 자리 안정화). */
-  precheckLoading: boolean;
-}) {
-  // `t` 를 prop 으로 받지 않고 useT 를 직접 호출 — 다른 컴포넌트(`AuthStep` 등)
-  // 와의 일관성. ai-review WARNING #10 (2026-05-16) 조치.
-  const t = useT();
-  const set = (key: string, value: unknown) =>
-    setCredentials({ ...credentials, [key]: value });
-  const mallId = String(credentials.mall_id ?? "");
-  // When Public isn't usable on this deployment, force the form to Private
-  // and never even render the toggle so the user can't accidentally pick a
-  // dead-end option. Default to "public" only if the deployment supports it.
-  const rawAppType = credentials.app_type as
-    | "public"
-    | "private"
-    | undefined;
-  const appType: "public" | "private" = !publicAppAvailable
-    ? "private"
-    : (rawAppType ?? "public");
-  // When the deployment forbids Public, coerce the credentials state to
-  // "private" exactly once. Done in an effect (not during render) so we
-  // don't violate React's "no setState during render" rule.
-  useEffect(() => {
-    if (!publicAppAvailable && rawAppType !== "private") {
-      set("app_type", "private");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicAppAvailable, rawAppType]);
-  const clientId = String(credentials.client_id ?? "");
-  const clientSecret = String(credentials.client_secret ?? "");
-  const appTypeOptions = publicAppAvailable
-    ? (["public", "private"] as const)
-    : (["private"] as const);
-
-  // 상태별 안내 메시지 분기 — connected 는 가장 강한 차단, pending_install
-  // 은 install 진행 중 안내, expired/error 는 정리 후 재등록 안내.
-  // spec/2-navigation/4-integration.md §9.2 Rationale "precheck endpoint".
-  const conflictDescKey: TranslationKey | null = !conflict?.conflict
-    ? null
-    : conflict.status === "pending_install"
-      ? "integrations.cafe24DuplicateMallPendingDesc"
-      : conflict.status === "expired"
-        ? "integrations.cafe24DuplicateMallExpiredDesc"
-        : conflict.status === "error"
-          ? "integrations.cafe24DuplicateMallErrorDesc"
-          : "integrations.cafe24DuplicateMallConnectedDesc";
-
-  return (
-    <div className="space-y-4 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-4">
-      <div>
-        <Label htmlFor="cafe24-mall-id">
-          Mall ID <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="cafe24-mall-id"
-          placeholder="myshop"
-          value={mallId}
-          onChange={(e) => set("mall_id", e.target.value.trim())}
-          // `-` is escaped because browsers compile the HTML5 `pattern`
-          // attribute with the ES2024 `v` flag, which rejects an
-          // unescaped hyphen inside a character class. Same semantic as
-          // the backend regex /^[a-z0-9-]{3,50}$/.
-          pattern="^[a-z0-9\-]{3,50}$"
-          aria-invalid={conflict?.conflict ? true : undefined}
-          aria-describedby={
-            conflict?.conflict ? "cafe24-mall-dup-banner" : undefined
-          }
-        />
-        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-          Lower-case letters, digits, and hyphens, 3–50 chars. Forms the
-          base URL <code>https://{"{mall_id}"}.cafe24api.com</code>.
-        </p>
-        {/* 사전 중복 감지 inline 배너 — precheck endpoint 응답에 따라
-            상태별 안내 + 기존 통합으로 가는 deep link 노출. */}
-        {conflict?.conflict && conflictDescKey && (
-          <div
-            id="cafe24-mall-dup-banner"
-            role="alert"
-            className="mt-2 flex gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200"
-          >
-            <AlertTriangle
-              className="mt-0.5 h-4 w-4 flex-shrink-0"
-              aria-hidden
-            />
-            <div className="space-y-1.5">
-              <div className="font-semibold">
-                {t("integrations.cafe24DuplicateMallTitle")}
-              </div>
-              <div>{t(conflictDescKey)}</div>
-              {conflict.existingIntegrationId && (
-                <Link
-                  href={`/integrations/${conflict.existingIntegrationId}`}
-                  className="inline-flex items-center gap-1 font-medium underline underline-offset-2"
-                >
-                  {t("integrations.cafe24DuplicateMallViewExisting")}
-                  {conflict.existingName ? ` — ${conflict.existingName}` : ""}
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
-        {precheckLoading && !conflict?.conflict && (
-          <p className="mt-1 inline-flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]">
-            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-            {t("integrations.cafe24DuplicateMallChecking")}
-          </p>
-        )}
-      </div>
-
-      <div>
-        <Label>
-          App Type <span className="text-red-500">*</span>
-        </Label>
-        <div className="inline-flex w-full rounded-lg border border-[hsl(var(--border))] p-1">
-          {appTypeOptions.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              className={cn(
-                "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                appType === opt
-                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
-              )}
-              onClick={() => set("app_type", opt)}
-            >
-              {opt === "public" ? "Public (App Store)" : "Private (Self-issued)"}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-          {publicAppAvailable ? (
-            <>
-              <strong>Public</strong> — official Cafe24 app store app
-              (server-side credentials). <strong>Private</strong> — paste the
-              client_id / client_secret from your shop&apos;s admin.
-            </>
-          ) : (
-            <>
-              <strong>Private only</strong> — this deployment has not registered
-              a Cafe24 App Store app, so only self-issued Private apps are
-              available. Paste your shop&apos;s client_id / client_secret below.
-            </>
-          )}
-        </p>
-      </div>
-
-      {appType === "private" && (
-        <>
-          <div>
-            <Label htmlFor="cafe24-client-id">
-              Client ID <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="cafe24-client-id"
-              value={clientId}
-              onChange={(e) => set("client_id", e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="cafe24-client-secret">
-              Client Secret <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="cafe24-client-secret"
-              type="password"
-              autoComplete="new-password"
-              value={clientSecret}
-              onChange={(e) => set("client_secret", e.target.value)}
-            />
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-/**
- * MakeShop-only extra fields for OAuth2 — Client ID + Client Secret. MakeShop is
- * confidential-client install-first: there is NO public/private toggle and NO
- * shop_uid input at begin (shop_uid arrives via the ShopStore install redirect).
- * Stored on the same `credentials` map so the page-level oauthBegin handler can
- * pluck them out at the call site. spec/2-navigation/4-integration.md §5.9.
- */
-function MakeshopExtraFields({
-  credentials,
-  setCredentials,
-}: {
-  credentials: Record<string, unknown>;
-  setCredentials: (c: Record<string, unknown>) => void;
-}) {
-  const t = useT();
-  const set = (key: string, value: unknown) =>
-    setCredentials({ ...credentials, [key]: value });
-  const clientId = String(credentials.client_id ?? "");
-  const clientSecret = String(credentials.client_secret ?? "");
-
-  return (
-    <div className="space-y-4 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-4">
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        {t("integrations.makeshopExtraFieldsHint")}
-      </p>
-      <div>
-        <Label htmlFor="makeshop-client-id">
-          Client ID <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="makeshop-client-id"
-          value={clientId}
-          onChange={(e) => set("client_id", e.target.value)}
-        />
-      </div>
-      <div>
-        <Label htmlFor="makeshop-client-secret">
-          Client Secret <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="makeshop-client-secret"
-          type="password"
-          autoComplete="new-password"
-          value={clientSecret}
-          onChange={(e) => set("client_secret", e.target.value)}
-        />
-      </div>
-    </div>
-  );
-}
-
-/**
- * MakeShop install-first pending step — mirror of `Cafe24PrivatePendingStep`.
- * Shows the App URL (register in MakeShop Partner Center as the ShopStore app's
- * App URL) + Redirect URI, and polls the integration row until the ShopStore
- * install drives the callback to `connected`. spec/2-navigation/4-integration.md §5.9.
- */
-function MakeshopPendingStep({
-  appUrl,
-  callbackUrl,
-  integrationId,
-  t,
-}: {
-  appUrl: string;
-  callbackUrl: string;
-  integrationId: string;
-  t: TFunction;
-}) {
-  const router = useRouter();
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-
-  const copy = (value: string, field: string) => {
-    void navigator.clipboard.writeText(value);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  const { poll, timedOut, lastErrorMessage } =
-    useMakeshopPendingPolling(integrationId);
-
-  return (
-    <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
-      <div>
-        <h2 className="text-lg font-semibold">
-          {t("integrations.makeshopPendingTitle")}
-        </h2>
-        <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-          {t("integrations.makeshopPendingDesc")}
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <Label className="mb-1 block text-xs font-medium text-[hsl(var(--muted-foreground))]">
-            {t("integrations.makeshopAppUrlLabel")}
-          </Label>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 overflow-x-auto rounded bg-[hsl(var(--muted))] px-3 py-2 text-xs">
-              {appUrl}
-            </code>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => copy(appUrl, "appUrl")}
-              className="shrink-0"
-            >
-              <Copy className="mr-1 h-3 w-3" />
-              {copiedField === "appUrl" ? t("integrations.copied") : "Copy"}
-            </Button>
-          </div>
-        </div>
-
-        <div>
-          <Label className="mb-1 block text-xs font-medium text-[hsl(var(--muted-foreground))]">
-            {t("integrations.makeshopCallbackUrlLabel")}
-          </Label>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 overflow-x-auto rounded bg-[hsl(var(--muted))] px-3 py-2 text-xs">
-              {callbackUrl}
-            </code>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => copy(callbackUrl, "callbackUrl")}
-              className="shrink-0"
-            >
-              <Copy className="mr-1 h-3 w-3" />
-              {copiedField === "callbackUrl"
-                ? t("integrations.copied")
-                : "Copy"}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {lastErrorMessage ? (
-        <div
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
-        >
-          <strong>{t("integrations.makeshopPendingLastErrorLabel")}:</strong>{" "}
-          {lastErrorMessage}
-        </div>
-      ) : (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-          {t("integrations.makeshopPendingSteps")}
-        </div>
-      )}
-
-      {poll?.status === "pending_install" && !timedOut && (
-        <p className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          {t("integrations.makeshopPendingWaiting")}
-        </p>
-      )}
-      {timedOut && (
-        <p className="text-xs text-amber-700 dark:text-amber-300">
-          {t("integrations.makeshopPendingTimedOut")}
-        </p>
-      )}
-      {poll &&
-        poll.status !== "pending_install" &&
-        poll.status !== "connected" && (
-          <p
-            role="status"
-            className="text-xs text-amber-700 dark:text-amber-300"
-          >
-            {poll.status === "expired" &&
-            poll.statusReason === "install_timeout"
-              ? t("integrations.makeshopPendingExpired")
-              : t("integrations.makeshopPendingTerminal")}
-          </p>
-        )}
-
-      <div className="flex justify-end">
-        <Button onClick={() => router.push(`/integrations/${integrationId}`)}>
-          {t("integrations.makeshopPendingViewList")}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Cafe24PrivatePendingStep({
-  appUrl,
-  callbackUrl,
-  integrationId,
-  t,
-}: {
-  appUrl: string;
-  callbackUrl: string;
-  integrationId: string;
-  t: TFunction;
-}) {
-  const router = useRouter();
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-
-  const copy = (value: string, field: string) => {
-    void navigator.clipboard.writeText(value);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  // Polling state machine extracted to a hook so it can be unit-tested
-  // independently of this presentational shell.
-  const { poll, timedOut, lastErrorMessage } =
-    useCafe24PendingPolling(integrationId);
-
-  return (
-    <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
-      <div>
-        <h2 className="text-lg font-semibold">
-          {t("integrations.cafe24PrivatePendingTitle")}
-        </h2>
-        <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-          {t("integrations.cafe24PrivatePendingDesc")}
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <Label className="mb-1 block text-xs font-medium text-[hsl(var(--muted-foreground))]">
-            {t("integrations.cafe24AppUrlLabel")}
-          </Label>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 overflow-x-auto rounded bg-[hsl(var(--muted))] px-3 py-2 text-xs">
-              {appUrl}
-            </code>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => copy(appUrl, "appUrl")}
-              className="shrink-0"
-            >
-              <Copy className="mr-1 h-3 w-3" />
-              {copiedField === "appUrl"
-                ? t("integrations.copied")
-                : "Copy"}
-            </Button>
-          </div>
-        </div>
-
-        <div>
-          <Label className="mb-1 block text-xs font-medium text-[hsl(var(--muted-foreground))]">
-            {t("integrations.cafe24CallbackUrlLabel")}
-          </Label>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 overflow-x-auto rounded bg-[hsl(var(--muted))] px-3 py-2 text-xs">
-              {callbackUrl}
-            </code>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => copy(callbackUrl, "callbackUrl")}
-              className="shrink-0"
-            >
-              <Copy className="mr-1 h-3 w-3" />
-              {copiedField === "callbackUrl"
-                ? t("integrations.copied")
-                : "Copy"}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {lastErrorMessage ? (
-        <div
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
-        >
-          <strong>
-            {t("integrations.cafe24PrivatePendingLastErrorLabel")}:
-          </strong>{" "}
-          {lastErrorMessage}
-        </div>
-      ) : (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-          {t("integrations.cafe24PrivatePendingSteps")}
-        </div>
-      )}
-
-      {poll?.status === "pending_install" && !timedOut && (
-        <p className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          {t("integrations.cafe24PrivatePendingWaiting")}
-        </p>
-      )}
-      {timedOut && (
-        <p className="text-xs text-amber-700 dark:text-amber-300">
-          {t("integrations.cafe24PrivatePendingTimedOut")}
-        </p>
-      )}
-      {/* Polling stops when status transitions out of pending_install — the
-       * user otherwise sees a silent UI. expired (TTL) and error both need
-       * an explicit "delete and re-register" hint since Cafe24 Private has
-       * no reauthorize entry point. */}
-      {poll &&
-        poll.status !== "pending_install" &&
-        poll.status !== "connected" && (
-          <p
-            role="status"
-            className="text-xs text-amber-700 dark:text-amber-300"
-          >
-            {poll.status === "expired" &&
-            poll.statusReason === "install_timeout"
-              ? t("integrations.cafe24PrivatePendingExpired")
-              : t("integrations.cafe24PrivatePendingTerminal")}
-          </p>
-        )}
-
-      <div className="flex justify-end">
-        <Button onClick={() => router.push(`/integrations/${integrationId}`)}>
-          {t("integrations.cafe24PrivatePendingViewList")}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function openOAuthPopup(url: string): Window | null {
-  const width = 600;
-  const height = 700;
-  const left = window.screenX + (window.outerWidth - width) / 2;
-  const top = window.screenY + (window.outerHeight - height) / 2;
-  return window.open(
-    url,
-    "integration-oauth",
-    `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`,
-  );
-}
-
-interface TestStepProps {
-  service: ServiceDefinition;
-  name: string;
-  serviceType: string;
-  authType: string;
-  credentials: Record<string, unknown>;
-  skipProbe: boolean;
-  savedError: string | null;
-  onTestError: (err: string | null) => void;
-  saving: boolean;
-  onBack: () => void;
-  onSave: () => void;
-  t: TFunction;
-}
-
-function TestStep({
-  service,
-  name,
-  serviceType,
-  authType,
-  credentials,
-  skipProbe,
-  savedError,
-  onTestError,
-  saving,
-  onBack,
-  onSave,
-  t,
-}: TestStepProps) {
-  const test = useQuery({
-    queryKey: ["integrations", "preview-test", serviceType, authType],
-    enabled: !skipProbe,
-    refetchOnWindowFocus: false,
-    queryFn: async () => {
-      const result = await integrationsApi.previewTest({
-        serviceType,
-        authType,
-        credentials,
-      });
-      if (!result.success) {
-        throw new Error(result.message);
-      }
-      return result;
-    },
-  });
-
-  useEffect(() => {
-    if (!skipProbe && test.isError) {
-      onTestError((test.error as Error | undefined)?.message ?? t("integrations.validationFailed"));
-    } else if (test.isSuccess) {
-      onTestError(null);
-    }
-  }, [skipProbe, test.isError, test.isSuccess, test.error, onTestError, t]);
-
-  const pending = !skipProbe && test.isPending;
-  const failed = (!skipProbe && test.isError) || !!savedError;
-  const message = savedError
-    ? savedError
-    : test.isError
-      ? (test.error as Error | undefined)?.message
-      : null;
-
-  return (
-    <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
-      <div className="flex items-center gap-3">
-        {pending ? (
-          <Loader2 className="h-8 w-8 animate-spin text-[hsl(var(--muted-foreground))]" />
-        ) : failed ? (
-          <XCircle className="h-8 w-8 text-red-500" />
-        ) : (
-          <CheckCircle2 className="h-8 w-8 text-green-500" />
-        )}
-        <div>
-          <h2 className="text-lg font-semibold">
-            {pending
-              ? t("integrations.testingCredentials")
-              : failed
-                ? t("integrations.validationFailed")
-                : t("integrations.readyToSave")}
-          </h2>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {pending
-              ? t("integrations.runningProbe")
-              : failed
-                ? message ?? t("integrations.checkAuthRetry")
-                : t("integrations.readyMessage", { service: service.name, name })}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>
-          {t("integrations.backToAuth")}
-        </Button>
-        <Button onClick={onSave} disabled={saving || pending || failed}>
-          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {t("integrations.saveIntegration")}
-        </Button>
-      </div>
     </div>
   );
 }
