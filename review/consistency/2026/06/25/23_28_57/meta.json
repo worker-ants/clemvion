@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-25T23:28:57.541363",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=refactor 03 m-1 — backend NestJS console.* → Logger 전환 + eslint no-console 가드. 전환 4곳: nodes/core/node-handler.registry.ts:89(class)·modules/mcp/mcp-test-connection.service.ts:153(class)→this.logger.warn(Logger 필드 추가), modules/chat-channel/providers/telegram/telegram-message.renderer.ts:427·modules/chat-channel/shared/language-hint-defaults.ts:75(함수)→모듈레벨 new Logger. 면제 5곳(inline eslint-disable + 사유 주석): main.ts:204/206(bootstrap console.log)·nodes/data/code/code.handler.ts:44/50/121(pre-bootstrap — resolveMemoryLimitMb env 검증 + 모듈로드 IIFE DAYJS_SNAPSHOT). eslint.config.mjs 에 no-console 룰 추가(scripts/·instrumentation.ts·*.spec override). spec 3-error-handling.md §6.2 구조화 JSON 로깅·chat-channel-adapter.md §swallow(logger.warn) 정합. ai-agent spec §6.2.c.fallback 의 console.warn 원문 정정은 planner 위임(별건, 본 PR 미포함). 로그 채널 변경=behavior-adjacent(의도된 규약 정합), 그 외 동작 불변. 검증 lint·build·unit·e2e(e2e 는 환경 레지스트리 아웃티지로 다른 머신 위임).)",
+  "target_path": "refactor 03 m-1 — backend NestJS console.* → Logger 전환 + eslint no-console 가드. 전환 4곳: nodes/core/node-handler.registry.ts:89(class)·modules/mcp/mcp-test-connection.service.ts:153(class)→this.logger.warn(Logger 필드 추가), modules/chat-channel/providers/telegram/telegram-message.renderer.ts:427·modules/chat-channel/shared/language-hint-defaults.ts:75(함수)→모듈레벨 new Logger. 면제 5곳(inline eslint-disable + 사유 주석): main.ts:204/206(bootstrap console.log)·nodes/data/code/code.handler.ts:44/50/121(pre-bootstrap — resolveMemoryLimitMb env 검증 + 모듈로드 IIFE DAYJS_SNAPSHOT). eslint.config.mjs 에 no-console 룰 추가(scripts/·instrumentation.ts·*.spec override). spec 3-error-handling.md §6.2 구조화 JSON 로깅·chat-channel-adapter.md §swallow(logger.warn) 정합. ai-agent spec §6.2.c.fallback 의 console.warn 원문 정정은 planner 위임(별건, 본 PR 미포함). 로그 채널 변경=behavior-adjacent(의도된 규약 정합), 그 외 동작 불변. 검증 lint·build·unit·e2e(e2e 는 환경 레지스트리 아웃티지로 다른 머신 위임).",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
