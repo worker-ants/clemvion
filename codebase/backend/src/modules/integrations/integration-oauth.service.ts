@@ -1298,6 +1298,123 @@ export class IntegrationOAuthService {
     };
   }
 
+  // ---------------------------------------------------------------------
+  // Shared install-flow boilerplate (M-1)
+  //
+  // The cafe24 ({@link handleInstall}) and makeshop ({@link
+  // handleMakeshopInstall}) App-URL handlers share an identical security
+  // skeleton: ① ±5min timestamp window → … → ④ nonce replay guard → ⑤
+  // post-install navigation redirect → ⑥ reauthorize state persistence.
+  // These four blocks are extracted below; the provider-specific parts that
+  // genuinely diverge stay inline in each handler so they remain locally
+  // auditable: HMAC verification (the message builders `buildHmacMessage` /
+  // `buildMakeshopHmacMessage` are already separate module functions — the
+  // makeshop one carries a `VERIFY` marking, spec/4-nodes/4-integration/
+  // 5-makeshop.md §9.7 — and MUST stay caller-selected, never shared here),
+  // the provider error-code prefix (`CAFE24_*` / `MAKESHOP_*`, error-codes.md
+  // §2 rename = breaking), the HMAC-failure logging mechanism, cafe24's
+  // install_token recovery + mall_id/app_type guard, and makeshop's shop_uid
+  // SSRF guard, shop_uid mismatch guard, 409 duplicate detection, shop_uid
+  // projection, and PKCE.
+  // ---------------------------------------------------------------------
+
+  /**
+   * ① Reject install App-URL calls whose `timestamp` is malformed or outside
+   * the ±5min replay window. `replayErrorCode` keeps the provider prefix
+   * (`CAFE24_INSTALL_REPLAY` / `MAKESHOP_INSTALL_REPLAY`) with the caller.
+   */
+  private assertInstallTimestampFresh(
+    timestamp: string,
+    replayErrorCode: string,
+  ): void {
+    const timestampSec = parseInt(timestamp, 10);
+    if (
+      isNaN(timestampSec) ||
+      Math.abs(Math.floor(Date.now() / 1000) - timestampSec) > 5 * 60
+    ) {
+      throw new BadRequestException({
+        code: replayErrorCode,
+        message: 'Request timestamp is outside the acceptable window (±5 min)',
+      });
+    }
+  }
+
+  /**
+   * ④ Replay nonce guard. `identifier` is the store identifier the cache keys
+   * on (cafe24 `mall_id` / makeshop `shop_uid`); it maps to the cache's
+   * `mallId` param. No-op when the nonce cache is unconfigured (graceful
+   * fallback to the ±5min window only). Provider error code/message stay with
+   * the caller.
+   */
+  private async assertInstallNonceNotReplayed(params: {
+    identifier: string;
+    timestamp: string;
+    hmac: string;
+    replayErrorCode: string;
+    replayMessage: string;
+  }): Promise<void> {
+    if (!this.installNonceCache) return;
+    const isReplay = await this.installNonceCache.isReplay({
+      mallId: params.identifier,
+      timestamp: params.timestamp,
+      hmac: params.hmac,
+    });
+    if (isReplay) {
+      throw new BadRequestException({
+        code: params.replayErrorCode,
+        message: params.replayMessage,
+      });
+    }
+  }
+
+  /**
+   * ⑤ Build the frontend integration-detail URL used for post-install
+   * navigation (non-`pending_install` status). Returns the URL only — the
+   * provider-specific `this.logger.log(...)` line stays in each caller.
+   */
+  private buildIntegrationDetailRedirectUrl(integrationId: string): string {
+    const frontendBaseUrl =
+      this.oauthEnv.frontendUrl ||
+      this.oauthEnv.appUrl ||
+      'http://localhost:3000';
+    const trimmed = frontendBaseUrl.replace(/\/$/, '');
+    return `${trimmed}/integrations/${integrationId}`;
+  }
+
+  /**
+   * ⑥ Persist a `reauthorize` OAuth state row for the install→authorize hop
+   * and return the generated `state`. `providerMeta` is caller-built so the
+   * provider-specific shape stays explicit — cafe24 `{ mall_id, app_type,
+   * client_id, client_secret }`, makeshop `{ shop_uid, client_id,
+   * client_secret, code_verifier }` (the PKCE verifier must be threaded
+   * through here).
+   */
+  private async persistReauthorizeState(params: {
+    target: Integration;
+    provider: string;
+    serviceType: string;
+    scopes: string[];
+    providerMeta: Record<string, unknown>;
+  }): Promise<string> {
+    const state = randomBytes(24).toString('hex');
+    const stateRecord = this.stateRepository.create({
+      state,
+      workspaceId: params.target.workspaceId,
+      userId: params.target.createdBy,
+      provider: params.provider,
+      serviceType: params.serviceType,
+      mode: 'reauthorize',
+      integrationId: params.target.id,
+      requestedScopes: params.scopes,
+      integrationName: params.target.name,
+      scope: params.target.scope,
+      providerMeta: params.providerMeta,
+      expiresAt: new Date(Date.now() + STATE_TTL_MS),
+    });
+    await this.stateRepository.save(stateRecord);
+    return state;
+  }
+
   /**
    * Handles Cafe24 App URL calls from "테스트 실행".
    *
@@ -1314,16 +1431,7 @@ export class IntegrationOAuthService {
     installToken: string,
     query: Cafe24InstallQuery,
   ): Promise<string> {
-    const timestampSec = parseInt(query.timestamp, 10);
-    if (
-      isNaN(timestampSec) ||
-      Math.abs(Math.floor(Date.now() / 1000) - timestampSec) > 5 * 60
-    ) {
-      throw new BadRequestException({
-        code: 'CAFE24_INSTALL_REPLAY',
-        message: 'Request timestamp is outside the acceptable window (±5 min)',
-      });
-    }
+    this.assertInstallTimestampFresh(query.timestamp, 'CAFE24_INSTALL_REPLAY');
 
     if (!installToken) {
       throw new NotFoundException({
@@ -1417,20 +1525,14 @@ export class IntegrationOAuthService {
     // (mall_id, timestamp, hmac) 튜플이 5분 윈도우 안에서 재전송됐는지 확인.
     // Redis 미설정 / 통신 실패 시 isReplay 가 false → 옛 정책 (±5분 윈도우만) 으로
     // graceful fallback. spec/4-nodes/4-integration/4-cafe24.md 잔여 위험 절 참조.
-    if (this.installNonceCache) {
-      const isReplay = await this.installNonceCache.isReplay({
-        mallId: query.mall_id,
-        timestamp: query.timestamp,
-        hmac: query.hmac,
-      });
-      if (isReplay) {
-        throw new BadRequestException({
-          code: 'CAFE24_INSTALL_REPLAY',
-          message:
-            'Request (mall_id, timestamp, hmac) tuple has been seen within the 10-minute window — refusing replay.',
-        });
-      }
-    }
+    await this.assertInstallNonceNotReplayed({
+      identifier: query.mall_id,
+      timestamp: query.timestamp,
+      hmac: query.hmac,
+      replayErrorCode: 'CAFE24_INSTALL_REPLAY',
+      replayMessage:
+        'Request (mall_id, timestamp, hmac) tuple has been seen within the 10-minute window — refusing replay.',
+    });
 
     // status 분기 — pending_install 만 OAuth authorize 로 진입.
     // connected/error/expired 는 post-install navigation 으로 간주 (카페24
@@ -1439,15 +1541,11 @@ export class IntegrationOAuthService {
     // 상세 페이지로 안내. 자세한 근거는 spec/2-navigation/4-integration.md
     // ## Rationale "Cafe24 App URL 재호출 흐름" 항.
     if (target.status !== 'pending_install') {
-      const frontendBaseUrl =
-        this.oauthEnv.frontendUrl ||
-        this.oauthEnv.appUrl ||
-        'http://localhost:3000';
-      const trimmed = frontendBaseUrl.replace(/\/$/, '');
+      const redirectUrl = this.buildIntegrationDetailRedirectUrl(target.id);
       this.logger.log(
-        `Cafe24 post-install navigation: mall=${query.mall_id} integration=${target.id} status=${target.status} → redirect to ${trimmed}/integrations/${target.id}`,
+        `Cafe24 post-install navigation: mall=${query.mall_id} integration=${target.id} status=${target.status} → redirect to ${redirectUrl}`,
       );
-      return `${trimmed}/integrations/${target.id}`;
+      return redirectUrl;
     }
 
     const clientId = creds.client_id as string;
@@ -1457,28 +1555,19 @@ export class IntegrationOAuthService {
     const appUrl = getAppBaseUrl();
     const redirectUri = buildOauthCallbackUrl(appUrl, 'cafe24');
 
-    const state = randomBytes(24).toString('hex');
     const providerMeta = {
       mall_id: query.mall_id,
       app_type: 'private',
       client_id: clientId,
       client_secret: creds.client_secret,
     };
-    const stateRecord = this.stateRepository.create({
-      state,
-      workspaceId: target.workspaceId,
-      userId: target.createdBy,
+    const state = await this.persistReauthorizeState({
+      target,
       provider: 'cafe24',
       serviceType: 'cafe24',
-      mode: 'reauthorize',
-      integrationId: target.id,
-      requestedScopes: scopes,
-      integrationName: target.name,
-      scope: target.scope,
+      scopes,
       providerMeta: providerMeta as unknown as Record<string, unknown>,
-      expiresAt: new Date(Date.now() + STATE_TTL_MS),
     });
-    await this.stateRepository.save(stateRecord);
 
     // The cafe24-private strategy builds the (mall_id-dependent, comma-scoped)
     // authorize URL; the install security (HMAC / nonce) above stays here. (M-2)
@@ -1619,16 +1708,10 @@ export class IntegrationOAuthService {
     installToken: string,
     query: MakeshopInstallQuery,
   ): Promise<string> {
-    const timestampSec = parseInt(query.timestamp, 10);
-    if (
-      isNaN(timestampSec) ||
-      Math.abs(Math.floor(Date.now() / 1000) - timestampSec) > 5 * 60
-    ) {
-      throw new BadRequestException({
-        code: 'MAKESHOP_INSTALL_REPLAY',
-        message: 'Request timestamp is outside the acceptable window (±5 min)',
-      });
-    }
+    this.assertInstallTimestampFresh(
+      query.timestamp,
+      'MAKESHOP_INSTALL_REPLAY',
+    );
 
     if (!installToken) {
       throw new NotFoundException({
@@ -1697,32 +1780,22 @@ export class IntegrationOAuthService {
     // Replay nonce guard (reuse cafe24 nonce cache — keyed by value+timestamp+
     // hmac; the hmac differs across providers so cross-provider collision is
     // not a practical concern). Graceful no-op when Redis is unconfigured.
-    if (this.installNonceCache) {
-      const isReplay = await this.installNonceCache.isReplay({
-        mallId: query.shop_uid,
-        timestamp: query.timestamp,
-        hmac: query.hmac,
-      });
-      if (isReplay) {
-        throw new BadRequestException({
-          code: 'MAKESHOP_INSTALL_REPLAY',
-          message:
-            'Request (shop_uid, timestamp, hmac) tuple has been seen within the replay window — refusing replay.',
-        });
-      }
-    }
+    await this.assertInstallNonceNotReplayed({
+      identifier: query.shop_uid,
+      timestamp: query.timestamp,
+      hmac: query.hmac,
+      replayErrorCode: 'MAKESHOP_INSTALL_REPLAY',
+      replayMessage:
+        'Request (shop_uid, timestamp, hmac) tuple has been seen within the replay window — refusing replay.',
+    });
 
     // status routing — non-pending rows are post-install navigation.
     if (target.status !== 'pending_install') {
-      const frontendBaseUrl =
-        this.oauthEnv.frontendUrl ||
-        this.oauthEnv.appUrl ||
-        'http://localhost:3000';
-      const trimmed = frontendBaseUrl.replace(/\/$/, '');
+      const redirectUrl = this.buildIntegrationDetailRedirectUrl(target.id);
       this.logger.log(
-        `MakeShop post-install navigation: shop_uid=${query.shop_uid} integration=${target.id} status=${target.status} → ${trimmed}/integrations/${target.id}`,
+        `MakeShop post-install navigation: shop_uid=${query.shop_uid} integration=${target.id} status=${target.status} → ${redirectUrl}`,
       );
-      return `${trimmed}/integrations/${target.id}`;
+      return redirectUrl;
     }
 
     // Project shop_uid onto the mall_id column + credentials. This is the
@@ -1781,28 +1854,19 @@ export class IntegrationOAuthService {
     // state row so the callback's token exchange can present it.
     const { verifier, challenge } = generatePkcePair();
 
-    const state = randomBytes(24).toString('hex');
     const providerMeta = {
       shop_uid: query.shop_uid,
       client_id: clientId,
       client_secret: creds.client_secret,
       code_verifier: verifier,
     };
-    const stateRecord = this.stateRepository.create({
-      state,
-      workspaceId: target.workspaceId,
-      userId: target.createdBy,
+    const state = await this.persistReauthorizeState({
+      target,
       provider: 'makeshop',
       serviceType: 'makeshop',
-      mode: 'reauthorize',
-      integrationId: target.id,
-      requestedScopes: scopes,
-      integrationName: target.name,
-      scope: target.scope,
+      scopes,
       providerMeta: providerMeta as unknown as Record<string, unknown>,
-      expiresAt: new Date(Date.now() + STATE_TTL_MS),
     });
-    await this.stateRepository.save(stateRecord);
 
     // The makeshop strategy builds the OAuth 2.1 authorize URL (space-scoped +
     // PKCE S256 challenge); the install security (HMAC / nonce) above stays
