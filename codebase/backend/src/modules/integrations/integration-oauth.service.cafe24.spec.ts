@@ -927,6 +927,128 @@ describe('IntegrationOAuthService — Cafe24', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    // M-1 shared install helpers — security-branch coverage for the boilerplate
+    // now shared with handleMakeshopInstall (ai-review W1–W4).
+    it('throws CAFE24_INSTALL_REPLAY when timestamp is non-numeric (assertInstallTimestampFresh NaN branch)', async () => {
+      const rawQuery = buildRawQuery(Math.floor(Date.now() / 1000));
+      const params = new URLSearchParams(rawQuery);
+
+      const error = await service
+        .handleInstall(INSTALL_TOKEN, {
+          mall_id: 'priv-shop',
+          timestamp: 'not-a-number',
+          hmac: params.get('hmac')!,
+          rawQuery,
+        })
+        .catch((err: Error) => err);
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'CAFE24_INSTALL_REPLAY',
+      );
+    });
+
+    it('throws CAFE24_INSTALL_REPLAY and keys the nonce on mall_id when the nonce cache reports a replay', async () => {
+      // installNonceCache is an @Optional() ctor dep — inject a mock that
+      // reports a replay and assert cafe24 passes `mall_id` as the identifier.
+      const isReplay = jest.fn().mockResolvedValue(true);
+      const svc = new IntegrationOAuthService(
+        integrationRepo as never,
+        stateRepo as never,
+        previewRepo as never,
+        dataSource as never,
+        oauthMock.configService as never,
+        { isReplay } as never,
+      );
+      integrationRepo.findOne.mockResolvedValue(makePendingRow());
+
+      const validTs = Math.floor(Date.now() / 1000);
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+
+      const error = await svc
+        .handleInstall(INSTALL_TOKEN, {
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        })
+        .catch((err: Error) => err);
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'CAFE24_INSTALL_REPLAY',
+      );
+      expect(isReplay).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mallId: 'priv-shop',
+          hmac: params.get('hmac'),
+        }),
+      );
+      // Replay is rejected before any OAuthState is minted.
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('falls back to http://localhost:3000 for post-install redirect when neither frontendUrl nor appUrl is set (buildIntegrationDetailRedirectUrl)', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makePendingRow({ status: 'connected', installToken: INSTALL_TOKEN }),
+      );
+      oauthMock.env.frontendUrl = '';
+      oauthMock.env.appUrl = '';
+
+      const validTs = Math.floor(Date.now() / 1000);
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+
+      const url = await service.handleInstall(INSTALL_TOKEN, {
+        mall_id: 'priv-shop',
+        timestamp: String(validTs),
+        hmac: params.get('hmac')!,
+        rawQuery,
+      });
+      expect(url).toBe('http://localhost:3000/integrations/integration-1');
+    });
+
+    it('strips a trailing slash from the configured frontend URL in post-install redirect (no double slash)', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makePendingRow({ status: 'connected', installToken: INSTALL_TOKEN }),
+      );
+      oauthMock.env.frontendUrl = 'https://app.example.com/';
+
+      const validTs = Math.floor(Date.now() / 1000);
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+
+      const url = await service.handleInstall(INSTALL_TOKEN, {
+        mall_id: 'priv-shop',
+        timestamp: String(validTs),
+        hmac: params.get('hmac')!,
+        rawQuery,
+      });
+      expect(url).toBe('https://app.example.com/integrations/integration-1');
+    });
+
+    it('persists the reauthorize state with a future expiry and the requested scopes (persistReauthorizeState)', async () => {
+      integrationRepo.findOne.mockResolvedValue(makePendingRow());
+
+      const before = Date.now();
+      const validTs = Math.floor(Date.now() / 1000);
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+
+      await service.handleInstall(INSTALL_TOKEN, {
+        mall_id: 'priv-shop',
+        timestamp: String(validTs),
+        hmac: params.get('hmac')!,
+        rawQuery,
+      });
+
+      const savedState = stateRepo.create.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(savedState.serviceType).toBe('cafe24');
+      expect(savedState.requestedScopes).toEqual(['mall.read_product']);
+      expect(savedState.integrationName).toBe('priv-shop (Cafe24 Private)');
+      expect((savedState.expiresAt as Date).getTime()).toBeGreaterThan(before);
+    });
+
     it('throws CAFE24_INSTALL_INVALID_TOKEN when install_token is unknown', async () => {
       integrationRepo.findOne.mockResolvedValue(null);
 

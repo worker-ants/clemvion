@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-26T08:20:56.333467",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=03 M-1: integration-oauth.service.ts install 보일러플레이트 4종 helper 추출 완료. behavior-preserving, HMAC 빌더·provider guard 유지. 커밋 f77aeed4+review-fix 6e5c5084. lint/build/unit(7409)/e2e(214) PASS, ai-review RISK LOW(W4 테스트 보강)., diff-base=origin/main)",
+  "target_path": "03 M-1: integration-oauth.service.ts install 보일러플레이트 4종 helper 추출 완료. behavior-preserving, HMAC 빌더·provider guard 유지. 커밋 f77aeed4+review-fix 6e5c5084. lint/build/unit(7409)/e2e(214) PASS, ai-review RISK LOW(W4 테스트 보강).",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

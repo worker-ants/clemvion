@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-26T07:47:54.125172",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=03 M-1: integration-oauth.service.ts handleInstall(cafe24)·handleMakeshopInstall 의 identical 보일러플레이트 4종(timestamp ±5min 가드·nonce replay 가드·post-install navigation redirect·reauthorize state 생성/save)을 private helper 로 추출(behavior-preserving). HMAC 검증(빌더 buildHmacMessage/buildMakeshopHmacMessage 이미 분리)·provider guard(cafe24 recovery·mall_id/app_type, makeshop SSRF·shop_uid mismatch·409 dedup·projection·PKCE)·에러코드 prefix(CAFE24_*/MAKESHOP_*)·로그 메커니즘은 각 메서드에 유지. spec: 4-cafe24.md §9.8, 5-makeshop.md §9.7 VERIFY-pending HMAC 격리, error-codes.md §2 prefix rename 금지.)",
+  "target_path": "03 M-1: integration-oauth.service.ts handleInstall(cafe24)·handleMakeshopInstall 의 identical 보일러플레이트 4종(timestamp ±5min 가드·nonce replay 가드·post-install navigation redirect·reauthorize state 생성/save)을 private helper 로 추출(behavior-preserving). HMAC 검증(빌더 buildHmacMessage/buildMakeshopHmacMessage 이미 분리)·provider guard(cafe24 recovery·mall_id/app_type, makeshop SSRF·shop_uid mismatch·409 dedup·projection·PKCE)·에러코드 prefix(CAFE24_*/MAKESHOP_*)·로그 메커니즘은 각 메서드에 유지. spec: 4-cafe24.md §9.8, 5-makeshop.md §9.7 VERIFY-pending HMAC 격리, error-codes.md §2 prefix rename 금지.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
