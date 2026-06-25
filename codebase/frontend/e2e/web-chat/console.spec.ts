@@ -81,8 +81,10 @@ test.describe("Web Chat console", () => {
 
     await page.goto("/web-chat");
 
-    // interaction 켜진 것만 목록에 (Plain webhook 제외)
-    await expect(page.getByText("고객지원 봇")).toBeVisible({ timeout: PAGE_READY_TIMEOUT });
+    // interaction 켜진 것만 목록에 (Plain webhook 제외).
+    // 인스턴스명은 사이드바 목록 버튼과 상세 패널 h2 양쪽에 렌더되므로(2-column 레이아웃)
+    // 목록 항목(button role)으로 좁혀 strict-mode 충돌을 피한다.
+    await expect(page.getByRole("button", { name: /고객지원 봇/ })).toBeVisible({ timeout: PAGE_READY_TIMEOUT });
     await expect(page.getByText("Plain webhook")).toHaveCount(0);
 
     // 첫 인스턴스 자동 선택 → 설치 스니펫(testid)에 endpointPath + ClemvionChat boot 포함
@@ -110,8 +112,8 @@ test.describe("Web Chat console", () => {
     await dialog.locator("#wc-create-name").fill("신규 봇");
     await dialog.getByRole("button", { name: /^만들기$|^Create$/i }).click();
 
-    // 생성 후 목록에 신규 인스턴스 노출 + 자동 선택 → 신규 endpointPath 스니펫 렌더
-    await expect(page.getByText("신규 봇")).toBeVisible({ timeout: PAGE_READY_TIMEOUT });
+    // 생성 후 목록에 신규 인스턴스 노출(목록 버튼) + 자동 선택 → 신규 endpointPath 스니펫 렌더
+    await expect(page.getByRole("button", { name: /신규 봇/ })).toBeVisible({ timeout: PAGE_READY_TIMEOUT });
     await expect(page.getByTestId("web-chat-install-snippet")).toContainText("endpoint-new");
   });
 
@@ -121,8 +123,8 @@ test.describe("Web Chat console", () => {
 
     await page.goto("/web-chat");
 
-    // 인스턴스는 보이되(viewer 도 조회 가능)
-    await expect(page.getByText("고객지원 봇")).toBeVisible({ timeout: PAGE_READY_TIMEOUT });
+    // 인스턴스는 보이되(viewer 도 조회 가능) — 목록 버튼으로 좁혀 상세 h2 와의 중복 매칭 회피
+    await expect(page.getByRole("button", { name: /고객지원 봇/ })).toBeVisible({ timeout: PAGE_READY_TIMEOUT });
     // 생성 버튼은 editor+ 전용 → viewer 에게 비노출
     await expect(page.getByRole("button", { name: /웹채팅 만들기|New web chat/i })).toHaveCount(0);
   });
