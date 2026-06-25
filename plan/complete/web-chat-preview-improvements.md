@@ -3,7 +3,7 @@ title: 웹채팅 미리보기 개선 — presentation 노드 메시지(execution
 worktree: web-chat-preview-improvements-fa0488
 started: 2026-06-25
 owner: developer
-status: in-progress
+status: complete
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
   - spec/7-channel-web-chat/5-admin-console.md

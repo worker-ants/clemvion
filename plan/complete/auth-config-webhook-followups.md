@@ -1,8 +1,10 @@
 ---
+spec_impact:
+  - spec/5-system/1-auth.md
 worktree: .claude/worktrees/audit-coverage-naming (branch claude/auth-config-audit)
 started: 2026-05-28
 owner: developer
-status: in-progress
+status: complete
 ---
 
 # auth-config-webhook-wiring 후속 작업

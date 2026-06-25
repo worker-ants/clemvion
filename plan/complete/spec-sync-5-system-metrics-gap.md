@@ -1,4 +1,6 @@
 ---
+spec_impact:
+  - spec/5-system/_product-overview.md
 worktree: spec-sync-audit
 started: 2026-06-03
 owner: planner

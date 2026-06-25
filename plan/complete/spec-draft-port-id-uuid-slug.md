@@ -1,4 +1,7 @@
 ---
+spec_impact:
+  - spec/0-overview.md
+  - spec/4-nodes/1-logic/0-common.md
 worktree: spec-port-id-slug-drift
 started: 2026-06-20
 owner: project-planner

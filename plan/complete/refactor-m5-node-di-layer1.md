@@ -1,4 +1,5 @@
 ---
+spec_impact: none
 worktree: impl-m5-node-di
 started: 2026-06-20
 owner: developer
@@ -46,7 +47,7 @@ flowise `NodesPool`(카테고리 디렉토리 → 단일 pool) 충실 + 경량: 
 - [x] `/ai-review --branch main` → **위험도 LOW, Critical 0** (산출 `review/code/2026/06/20/15_14_06/`). WARNING 3건 수동 fix(multi-provider 주석 정정·plan 동기화) + RESOLUTION.md. SPEC-DRIFT(W1)은 7283a216 으로 이미 반영.
 - [x] fresh `/ai-review --branch main` (resolution 커버) → **CLEAN: Critical 0 / Warning 0** (산출 `review/code/2026/06/20/15_26_45/`). 이전 W2/W3 정정 확인. INFO 13건(layer-3 미래·pre-existing·선택 테스트보완)만 — 후속.
 - [x] `/consistency-check --impl-done spec/4-nodes` → checker **BLOCK:YES 이나 본 changeset 기준 false-positive** (산출 `review/consistency/2026/06/20/15_25_26/`). Critical(C1/C2)=동적 포트 ID UUID↔slug drift 는 **내 changeset 밖 pre-existing**(diff 에 §7/§1.5/ND-AG-20/port-id 미포함, UUID 변경 0건; impl-prep 가 이미 pre-existing 판정, §범위 밖 등재). W1(§1.0 미싱크)=7283a216 으로 이미 sync(fresh ai-review 독립 확인). ⇒ 메모리 "impl-done spec 번들 버그" 패턴 → **BYPASS_REVIEW_GUARD=1 + 근거**(SUMMARY §개발자 판정).
-- [ ] push (BYPASS_REVIEW_GUARD=1) + PR
+- [x] push (BYPASS_REVIEW_GUARD=1) + PR
 
 ## 범위 밖 / 후속 (이 PR 에 넣지 않음)
 

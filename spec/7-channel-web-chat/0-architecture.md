@@ -7,7 +7,6 @@ code:
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
   - plan/in-progress/channel-web-chat-followups.md
-  - plan/in-progress/fix-webchat-sse-field-map.md
   - plan/in-progress/webchat-eager-start.md
 ---
 
@@ -118,7 +117,7 @@ Clemvion 은 SaaS + 셀프호스팅 병행이므로 본 spec 의 도메인은 **
   /login 으로 튕긴다). (2) **디렉토리→index.html rewrite**: Next `public/` 서빙은 디렉토리 index 자동 폴백을 하지 않으므로,
   위젯 SPA 진입 `…/web-chat/v1/app[/]` 를 `…/app/index.html` 로 `next.config rewrites` 한다(없으면 404). 외부 위젯 CDN
   override(`NEXT_PUBLIC_WIDGET_CDN_BASE`) 경로에서는 CDN 의 디렉토리 index 폴백이 처리하므로 해당 없음.
-- **npm scope**: `@workflow/web-chat` 로 확정 — [eia-sdk-publish.md §결정 #3](../../plan/in-progress/eia-sdk-publish.md) (`@workflow/sdk` 와 일관, [2-sdk](./2-sdk.md)).
+- **npm scope**: `@workflow/web-chat` 로 확정 — [eia-sdk-publish.md §결정 #3](../../plan/complete/eia-sdk-publish.md) (`@workflow/sdk` 와 일관, [2-sdk](./2-sdk.md)).
 - CORS allowlist 의 "위젯 CDN 빌트인 허용"([4-security §2](./4-security.md))도 이 `<widget-cdn-base>` 를 가리킨다 — 배포 설정값.
   빌트인 origin 상수는 **빌드타임 env 주입**(loader/SPA 빌드) + 백엔드는 **런타임 config**(워크스페이스 무관 고정값)로 관리한다.
   - 백엔드 런타임 allowlist(env 키·파싱·`.env.example` 샘플 등 구현 세부)의 SoT 는 [4-security §2·§2.1](./4-security.md).

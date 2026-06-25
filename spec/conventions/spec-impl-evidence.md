@@ -233,7 +233,7 @@ user_guide:
 
 ### R-8. Gate C — plan 완료 시점 `spec_impact` 선언 의무화
 
-원안(`plan/in-progress/spec-drift-gates.md §C`)은 "완료 plan 이 건드린 `code:` 코드가 변경됐으면 spec-update 강제" 였으나, "어떤 코드를 건드렸나" 를 build 테스트가 알려면 git history 분석이 필요해 fragile. 대신 **plan frontmatter `spec_impact` 선언** 으로 대체 — 완료 시 작성자가 정합 결정(spec 경로 목록 또는 `none`)을 명시하고 build 테스트는 그 선언 유무·실존만 결정적으로 검증한다.
+원안(`plan/complete/spec-drift-gates.md §C`)은 "완료 plan 이 건드린 `code:` 코드가 변경됐으면 spec-update 강제" 였으나, "어떤 코드를 건드렸나" 를 build 테스트가 알려면 git history 분석이 필요해 fragile. 대신 **plan frontmatter `spec_impact` 선언** 으로 대체 — 완료 시 작성자가 정합 결정(spec 경로 목록 또는 `none`)을 명시하고 build 테스트는 그 선언 유무·실존만 결정적으로 검증한다.
 
 - **grandfather cutoff `2026-06-04`**: 기존 백로그 수십 개를 소급 강제하면 대량 red — `started ≥ cutoff` 인 신규 plan 부터만 적용. `spec-only` TTL 과 동일한 date-cutoff 패턴(R-2)이라 선례 일관. cutoff 값은 spec-impl-evidence·plan-lifecycle·test 3곳에 동기 유지(변경 시 3곳 동시 갱신).
 - **no-op sentinel(`none`/`없음`/`n/a`/`na`) 채택, 빈 문자열 기각**: 빈 값은 "미작성(누락)" 과 "의식적 no-op" 을 구분 못 해 gate 의도(의식적 결정 강제)를 약화. 명시 sentinel 이라야 "검토 후 변경 불요" 임이 드러난다.

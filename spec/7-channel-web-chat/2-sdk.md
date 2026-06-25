@@ -11,7 +11,7 @@ pending_plans:
 # Spec: Channel Web Chat — SDK (스니펫 로더 + npm)
 
 > 관련: [아키텍처](./0-architecture.md) · [위젯 SPA](./1-widget-app.md) · [인증/세션](./3-auth-session.md) ·
-> npm publish 정책: [plan eia-sdk-publish](../../plan/in-progress/eia-sdk-publish.md).
+> npm publish 정책: [plan eia-sdk-publish](../../plan/complete/eia-sdk-publish.md).
 
 > **npm scope 확정**: 패키지명은 `@workflow/web-chat` — `eia-sdk-publish.md §결정 #3` 에서 `@workflow/sdk`
 > 와 일관되게 `@workflow/*` 로 통일(2026-06-02). publish 정책은 internal-only(별도 지정 전까지).

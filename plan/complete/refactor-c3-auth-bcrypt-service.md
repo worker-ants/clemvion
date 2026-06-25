@@ -1,4 +1,5 @@
 ---
+spec_impact: none
 worktree: refactor-c3-auth-bcrypt-service
 started: 2026-06-20
 owner: developer
@@ -35,7 +36,7 @@ spec 대조 D: 행위(2FA 비활성 시 비밀번호 재확인)는 `1-auth.md §
 - [x] `/ai-review --range origin/main..HEAD` → **LOW, Critical 0** (`review/code/2026/06/20/17_22_15/`). WARNING 3: W1·W2(테스트 null 케이스·toMatchObject) 수정, W3(brute-force) 후속. INFO #4·#5(태그·주석) 수정. ※첫 시도(17_14_14)는 stale 로컬 main base 라 잘못된 changeset → 폐기·재실행
 - [x] `/consistency-check --impl-done spec/5-system/1-auth` → **BLOCK:NO** (`17_23_25/`)
 - [x] fresh ai-review(`17_34_51` — Critical 0, WARNING 1=pre-existing brute-force defer + RESOLUTION) + fresh impl-done(`17_34_51` — **BLOCK:NO**, 전 checker NONE). resolution fix(W1·W2 테스트·주석) 커버 확인.
-- [ ] push + PR
+- [x] push + PR
 
 ## 범위 밖 / 후속 (이 PR 에 넣지 않음)
 

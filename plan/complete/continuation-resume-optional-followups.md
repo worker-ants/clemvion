@@ -1,10 +1,13 @@
 ---
+spec_impact: none
 started: 2026-05-31
 owner: developer
 worktree: continuation-worker-concurrency-env
 branch: worktree-continuation-worker-concurrency-env
-status: in-progress
+status: complete
 ---
+
+> **✅ 완료 이관 (2026-06-26)**: 실질 작업 머지 완료. 남은 double-drive optimistic lock 은 운영 영향 관측 전 착수 불필요로 명시된 조건부 deferred 항목 — 본 plan scope 종료(이력 보존).
 
 # continuation resume — optional follow-ups
 

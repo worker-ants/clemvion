@@ -1,9 +1,10 @@
 ---
+spec_impact: none
 title: 웹채팅 위젯 — AI 에이전트 render_* presentation(PresentationPayload) 렌더 버그 수정
 worktree: web-chat-ai-presentation-render-beb2be
 started: 2026-06-25
 owner: developer
-status: in-progress
+status: complete
 related_spec:
   - spec/7-channel-web-chat/1-widget-app.md
   - spec/4-nodes/3-ai/1-ai-agent.md
