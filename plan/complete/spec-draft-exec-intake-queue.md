@@ -1,8 +1,13 @@
 ---
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/0-overview.md
 worktree: spec-exec-intake-queue
 started: 2026-06-04
 owner: project-planner
 ---
+
+> **✅ 완료 이관 (2026-06-26)**: 실질 작업 머지 완료. spec 본문 반영(#463) 완료. 구현 추적은 후속 plan(exec-intake-queue-impl 등)으로 forwarding — 본 plan scope 종료(이력 보존).
 
 # Spec Draft — 실행엔진 분산 모델: execution-level intake 큐
 

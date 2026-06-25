@@ -50,7 +50,7 @@ spec_impact:
 - [x] /ai-review + SUMMARY — `review/code/2026/06/06/10_49_03/` LOW, Critical 0/Warning 3 → resolution-applier 처리 + RESOLUTION.md
 - [x] SPEC-DRIFT(EIA §6.2/§6.5 SSE wire note) — resolution-applier ESCALATE=spec → 본 plan 에서 spec 적용(§6.2 waiting_for_input·§6.5 ai_message wire 필드 note). 적용 후 draft(`spec-update-eia-sse-wire-fields.md`) 제거.
 - [x] consistency-check --impl-done — `review/consistency/2026/06/06/11_05_09/` **BLOCK: NO** (Critical 0; WARNING 8 전부 비차단). W-2(ev.text 잔존) grep 확인 clear.
-- [ ] plan complete 이동 — 아래 비차단 followup 잔여로 in-progress 유지
+- [x] plan complete 이동 (2026-06-26 완료-stale 그루밍 — 비차단 followup 은 별도 백로그 이월)
 
 ## 비차단 followup (impl-done WARNING — 차단 아님)
 

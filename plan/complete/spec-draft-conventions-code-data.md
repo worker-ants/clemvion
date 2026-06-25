@@ -4,6 +4,8 @@ started: 2026-06-03
 owner: project-planner
 ---
 
+> **✅ 완료 이관 (2026-06-26)**: 실질 작업 머지 완료. Critical/Warning 반영(#433/#434) 완료. 남은 INFO 급 Rationale 정리 항목은 별도 추적(이월) — 본 plan scope 종료(이력 보존).
+
 # spec-draft: Code/Data 노드 conventions 정합화 (Principle 7/8.2 + meta + 포트수)
 
 > 출처: `review/consistency/2026/06/03/08_50_44/SUMMARY.md` (impl-prep, BLOCK Critical 2건 + WARNING).

@@ -1,4 +1,5 @@
 ---
+spec_impact: none
 worktree: refactor-auth-reverify-unify
 started: 2026-06-20
 owner: developer

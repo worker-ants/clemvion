@@ -1,9 +1,13 @@
 ---
+spec_impact:
+  - spec/5-system/17-agent-memory.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/4-nodes/3-ai/3-information-extractor.md
 name: agent-memory-model-select
 worktree: agent-memory-model-select-83e703
 started: 2026-06-19
 owner: developer
-status: in-progress
+status: complete
 spec_area:
   - spec/5-system/17-agent-memory.md
   - spec/4-nodes/3-ai/1-ai-agent.md

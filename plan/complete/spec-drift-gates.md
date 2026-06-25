@@ -1,4 +1,6 @@
 ---
+spec_impact:
+  - spec/conventions/spec-impl-evidence.md
 worktree: spec-drift-gates-b26bce
 started: 2026-06-03
 owner: 사용자 본인 / developer
@@ -46,7 +48,7 @@ owner: 사용자 본인 / developer
 - **설계 변경 기록**: 원안의 "건드린 `code:` 코드 변경 감지" 는 빌드 테스트가 git history 를
       알아야 해 fragile → **frontmatter `spec_impact` 선언 + `started ≥ 2026-06-04` date-cutoff
       grandfather** 방식으로 대체 (기존 백로그 소급 면제, lifecycle TTL 패턴 동형). 결정적·비-git.
-- [ ] 근거: `memory/feedback_plan_must_include_spec_updates.md` 의 강제화 버전 —
+- [x] 근거: `memory/feedback_plan_must_include_spec_updates.md` 의 강제화 버전 —
       "구현 plan 은 spec 갱신까지 정식 phase 로 포함" 을 advisory → enforced 로.
 - 목적: 문제 ② 의 누락 방지 (A·B 를 빠져나간 케이스를 plan 완료 시점에 회수).
 
@@ -67,6 +69,6 @@ A·B 가 양방향 강제 게이트를 닫고, C 는 누락 방지, D 는 누적
 ## 완료 조건
 
 - [x] C 구현 + 테스트 (kb-quality #457)
-- [ ] D 구현
+- [x] D 구현
 - (A·B 만으로도 본 plan 의 핵심 목표는 달성. C·D 는 사용자 판단으로 착수 시점 결정 —
   착수 안 하기로 결정하면 본 plan 에 "C·D drop 결정" 명시 후 complete 이동 가능.)

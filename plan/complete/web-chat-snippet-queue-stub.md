@@ -1,4 +1,6 @@
 ---
+spec_impact:
+  - spec/7-channel-web-chat/2-sdk.md
 title: 웹채팅 설치 스니펫 — command-queue 스텁 누락으로 인한 ClemvionChat ReferenceError 수정
 worktree: web-chat-snippet-queue-stub-629472
 started: 2026-06-25

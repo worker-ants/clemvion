@@ -1,8 +1,13 @@
 ---
+spec_impact:
+  - spec/7-channel-web-chat/2-sdk.md
+  - spec/7-channel-web-chat/0-architecture.md
 worktree: eia-sdk-publish-<slug>
 started: 2026-05-21
 owner: developer
 ---
+
+> **✅ 완료 이관 (2026-06-26)**: 실질 작업 머지 완료. internal-only 배포 결정(2026-06-02) 확정. 아래 publish 실행 항목은 외부 배포 trigger 전까지 의도적 보류(이월) — 본 plan scope 종료(이력 보존).
 
 # EIA — `@workflow/sdk` npm publish 정책
 

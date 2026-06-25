@@ -1,8 +1,11 @@
 ---
+spec_impact: none
 worktree: fix-bg-context-followups
 started: 2026-05-31
 owner: developer
 ---
+
+> **✅ 완료 이관 (2026-06-26)**: 실질 작업 머지 완료. 남은 `(검토)` 가드는 spec 변경 동반 optional 후보 — 현재 동작이 이미 spec 충족 → 별도 백로그 이월 — 본 plan scope 종료(이력 보존).
 
 # Background context-key race — 선택적 후속 backlog
 
