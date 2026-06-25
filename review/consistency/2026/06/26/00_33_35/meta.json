@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-26T00:33:35.040486",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=03 m-4: backend catch 변수명 통일 — eslint-plugin-unicorn 추가 후 catch-error-name 단일룰(name:'err', ^_ ignore)만 활성화하고 --fix 일괄로 catch 파라미터를 err 로 통일(behavior-preserving, ~49파일). 명명 규약 SoT 는 lint 설정. error-codes.md 는 에러 코드 문자열만 소유.)",
+  "target_path": "03 m-4: backend catch 변수명 통일 — eslint-plugin-unicorn 추가 후 catch-error-name 단일룰(name:'err', ^_ ignore)만 활성화하고 --fix 일괄로 catch 파라미터를 err 로 통일(behavior-preserving, ~49파일). 명명 규약 SoT 는 lint 설정. error-codes.md 는 에러 코드 문자열만 소유.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
