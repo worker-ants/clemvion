@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { WidgetBridge } from "./bridge";
+import { WidgetBridge, DEFAULT_Z_INDEX } from "./bridge";
 
 const WIDGET_ORIGIN = "https://cdn.example.com";
 const IFRAME_SRC = "https://cdn.example.com/web-chat/v1/app/?trigger=x";
@@ -32,6 +32,55 @@ describe("WidgetBridge — iframe 생성", () => {
     expect(b.element.src).toBe(IFRAME_SRC);
     expect(b.element.getAttribute("sandbox")).toBe("allow-scripts allow-forms allow-same-origin");
     expect(document.body.contains(b.element)).toBe(true);
+  });
+
+  it("뷰포트 코너 고정 — 기본 bottom-right(position:fixed; bottom:0; right:0) + 기본 z-index", () => {
+    // position:fixed 만으로는 본문 끝 정적 위치에 박혀 화면 밖으로 나간다 — 코너 anchor 필수.
+    const b = makeBridge();
+    expect(b.element.style.position).toBe("fixed");
+    expect(b.element.style.bottom).toBe("0px");
+    expect(b.element.style.right).toBe("0px");
+    expect(b.element.style.left).toBe(""); // bottom-right 는 left 미설정
+    expect(b.element.style.zIndex).toBe(String(DEFAULT_Z_INDEX));
+  });
+
+  it("position='bottom-right' 명시 전달 시에도 right:0(left 미설정)", () => {
+    const b = new WidgetBridge({
+      iframeSrc: IFRAME_SRC,
+      widgetOrigin: WIDGET_ORIGIN,
+      position: "bottom-right",
+    });
+    expect(b.element.style.right).toBe("0px");
+    expect(b.element.style.left).toBe("");
+  });
+
+  it("bottom-left 는 left:0 으로 anchor(right 미설정)", () => {
+    const b = new WidgetBridge({
+      iframeSrc: IFRAME_SRC,
+      widgetOrigin: WIDGET_ORIGIN,
+      position: "bottom-left",
+    });
+    expect(b.element.style.bottom).toBe("0px");
+    expect(b.element.style.left).toBe("0px");
+    expect(b.element.style.right).toBe("");
+  });
+
+  it("appearance.zIndex 가 기본값을 override", () => {
+    const b = new WidgetBridge({
+      iframeSrc: IFRAME_SRC,
+      widgetOrigin: WIDGET_ORIGIN,
+      zIndex: 500,
+    });
+    expect(b.element.style.zIndex).toBe("500");
+  });
+
+  it("zIndex:0 은 falsy 지만 유효값 — DEFAULT 로 폴백하지 않는다(?? 동작)", () => {
+    const b = new WidgetBridge({
+      iframeSrc: IFRAME_SRC,
+      widgetOrigin: WIDGET_ORIGIN,
+      zIndex: 0,
+    });
+    expect(b.element.style.zIndex).toBe("0");
   });
 });
 

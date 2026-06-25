@@ -2,6 +2,7 @@
  * @jest-environment jsdom
  */
 import { boot, validateBootConfig, setWidgetBase, resolveIframeTarget } from "./index";
+import { DEFAULT_Z_INDEX } from "./bridge";
 import type { BootConfig } from "./types";
 
 const valid: BootConfig = {
@@ -44,6 +45,23 @@ describe("resolveIframeTarget", () => {
 });
 
 describe("boot", () => {
+  it("appearance.position/zIndex 를 iframe 코너 고정에 반영(host anchor)", () => {
+    boot({ ...valid, appearance: { position: "bottom-left", zIndex: 777 } });
+    const iframe = document.querySelector("iframe")!;
+    expect(iframe.style.position).toBe("fixed");
+    expect(iframe.style.bottom).toBe("0px");
+    expect(iframe.style.left).toBe("0px"); // bottom-left
+    expect(iframe.style.zIndex).toBe("777");
+  });
+
+  it("appearance 미지정 시 기본 bottom-right(right:0) 코너 고정", () => {
+    boot(valid);
+    const iframe = document.querySelector("iframe")!;
+    expect(iframe.style.right).toBe("0px");
+    expect(iframe.style.bottom).toBe("0px");
+    expect(iframe.style.zIndex).toBe(String(DEFAULT_Z_INDEX));
+  });
+
   it("iframe 을 body 에 주입하고 인스턴스 반환", () => {
     const chat = boot(valid);
     const iframe = document.querySelector("iframe");

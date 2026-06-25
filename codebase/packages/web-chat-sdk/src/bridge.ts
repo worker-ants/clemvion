@@ -17,10 +17,17 @@ export interface BridgeDeps {
   iframeSrc: string;
   /** host 가 수신 검증할 위젯 iframe origin. */
   widgetOrigin: string;
+  /** 위젯 코너 고정 위치 (appearance.position). 기본 bottom-right. (spec 2-sdk §3 — position 은 appearance 를 따른다) */
+  position?: "bottom-right" | "bottom-left";
+  /** iframe z-index (appearance.zIndex). 미지정 시 기본 최상위값. */
+  zIndex?: number;
   /** 테스트/SSR 회피용 DOM 주입 (기본 전역 document/window). */
   doc?: Document;
   win?: Window;
 }
+
+/** iframe 기본 z-index — 호스트 페이지 콘텐츠 위로 올린다(spec 2-sdk §1 스니펫 예시값). appearance.zIndex 로 override. */
+export const DEFAULT_Z_INDEX = 2147483000;
 
 type Listener = (payload: unknown) => void;
 
@@ -29,6 +36,11 @@ function originOf(url: string): string {
   return new URL(url).origin;
 }
 
+/**
+ * host ↔ iframe postMessage bridge. 위젯 SPA iframe 을 생성·뷰포트 코너에 고정하고, wc:* 메시지를
+ * 중계한다(wc:ready 전 명령 버퍼링, wc:resize 로 iframe 크기 조정, wc:event 구독 fan-out).
+ * spec/7-channel-web-chat/2-sdk §3.
+ */
 export class WidgetBridge {
   private readonly doc: Document;
   private readonly win: Window;
@@ -49,7 +61,16 @@ export class WidgetBridge {
     iframe.setAttribute("title", "Channel Web Chat");
     iframe.setAttribute("sandbox", "allow-scripts allow-forms allow-same-origin");
     iframe.style.border = "0";
+    // 코너 고정 — position:fixed 만으로는 in-flow 정적 위치(본문 끝, 화면 밖)에 박히므로
+    // 뷰포트 코너에 anchor 한다. 위젯 SPA 가 iframe 내부에서 launcher/panel 을 bottom/side:16px 로
+    // 띄우고 박스(LAUNCHER_BOX 392×132 등)에 여백을 포함하므로 iframe 은 코너 flush(0)로 고정.
+    // position/zIndex 는 appearance 를 따른다 (spec 2-sdk §3).
     iframe.style.position = "fixed";
+    iframe.style.bottom = "0";
+    // bottom-left 외 모든 값(미지정·미지원 값 포함)은 기본 bottom-right 로 anchor — 항상 한 코너에 고정됨을 보장.
+    if (deps.position === "bottom-left") iframe.style.left = "0";
+    else iframe.style.right = "0";
+    iframe.style.zIndex = String(deps.zIndex ?? DEFAULT_Z_INDEX);
     this.iframe = iframe;
     this.doc.body.appendChild(iframe);
 

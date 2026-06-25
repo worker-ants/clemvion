@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-26T08:30:07.145145",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=plan/complete/web-chat-loader-iframe-position.md, diff-base=origin/main)",
+  "target_path": "plan/complete/web-chat-loader-iframe-position.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
