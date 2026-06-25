@@ -3335,8 +3335,8 @@ export class AiTurnExecutor {
           mcpDiagnostics,
         });
         providerTools.push(...built);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
         AiTurnExecutor.logger.warn(
           `Provider "${provider.key}" buildTools failed: ${msg}`,
         );

@@ -697,7 +697,7 @@ describe('ExecutionsService', () => {
         jobId: null,
       });
 
-      const err = await service.stop('eW-503').catch((e: unknown) => e);
+      const err = await service.stop('eW-503').catch((err_: unknown) => err_);
       expect(err).toBeInstanceOf(ServiceUnavailableException);
       expect((err as ServiceUnavailableException).getStatus()).toBe(503);
       expect((err as ServiceUnavailableException).getResponse()).toMatchObject({

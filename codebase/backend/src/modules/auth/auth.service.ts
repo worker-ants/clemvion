@@ -900,15 +900,15 @@ export class AuthService {
         emailChangeToken: null,
         emailChangeExpiresAt: null,
       });
-    } catch (e) {
-      if (this.isUniqueEmailViolation(e)) {
+    } catch (err) {
+      if (this.isUniqueEmailViolation(err)) {
         await this.clearPendingEmailChange(userId);
         throw new ConflictException({
           code: 'RESOURCE_CONFLICT',
           message: 'Email already registered',
         });
       }
-      throw e;
+      throw err;
     }
 
     // 전 세션 revoke + 현재 디바이스 재발급 (비밀번호 변경과 동형).

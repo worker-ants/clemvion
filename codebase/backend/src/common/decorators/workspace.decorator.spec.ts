@@ -41,9 +41,9 @@ describe('WorkspaceId decorator', () => {
     expect(() => {
       try {
         factory(undefined, ctx);
-      } catch (e) {
-        caught = e;
-        throw e;
+      } catch (err) {
+        caught = err;
+        throw err;
       }
     }).toThrow(BadRequestException);
     expect((caught as BadRequestException).getResponse()).toEqual(

@@ -1912,21 +1912,21 @@ export class ExecutionEngineService
           { status: ExecutionStatus.COMPLETED },
         );
       }
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       // 본 메서드는 detached — 에러를 worker 로 전파할 수 없으므로 모두 in-band
       // 단말 처리한다 (BullMQ retry 대상 아님).
-      if (error instanceof RehydrationError) {
+      if (err instanceof RehydrationError) {
         // unsupported interaction / ai 재구성 실패 등. 옛 rehydrateAndResume
         // outer catch 와 동일한 graceful reset: Execution cancelled + node failed.
         // markExecutionCancelled 가 EXECUTION_CANCELLED 를 emit → 채널 어댑터
         // (텔레그램 등)에 "세션 만료 — 새 대화 시작" 안내 도달 (#398 routing).
-        await this.markExecutionCancelled(executionId, error.code);
-        await this.markNodeExecutionFailed(opts.nodeExec.id, error.code);
+        await this.markExecutionCancelled(executionId, err.code);
+        await this.markNodeExecutionFailed(opts.nodeExec.id, err.code);
       } else {
         // 다운스트림 노드 실패 등 — ExecutionCancelledError → cancelled, 그 외
         // → failed. (다운스트림 노드 실패가 continuation 전달을 retry 시키지
         // 않는 게 옳다.)
-        await this.finalizeResumedExecutionOutcome(savedExecution, error);
+        await this.finalizeResumedExecutionOutcome(savedExecution, err);
       }
     } finally {
       this.finalizeRehydrationCleanup(executionId);
@@ -2073,17 +2073,17 @@ export class ExecutionEngineService
           { status: ExecutionStatus.COMPLETED },
         );
       }
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       // detach 호출 — 에러를 worker 로 전파할 수 없어 in-band 단말 처리.
-      if (error instanceof ParkReleaseSignal) {
+      if (err instanceof ParkReleaseSignal) {
         // 방어적 — 정상 경로는 runNodeDispatchLoop 가 {parked} 로 흡수.
         return;
       }
-      if (error instanceof RehydrationError) {
-        await this.markExecutionCancelled(executionId, error.code);
-        await this.markNodeExecutionFailed(opts.nodeExec.id, error.code);
+      if (err instanceof RehydrationError) {
+        await this.markExecutionCancelled(executionId, err.code);
+        await this.markNodeExecutionFailed(opts.nodeExec.id, err.code);
       } else {
-        await this.finalizeResumedExecutionOutcome(savedExecution, error);
+        await this.finalizeResumedExecutionOutcome(savedExecution, err);
       }
     } finally {
       this.finalizeRehydrationCleanup(executionId);
@@ -2692,17 +2692,17 @@ export class ExecutionEngineService
     // 자체 catch 가 못 잡으므로 여기서 best-effort 마감한다.
     try {
       await this.runExecution(execution, input);
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       this.logger.error(
         `Background execution failed for ${executionId}: ${
-          error instanceof Error ? error.message : String(error)
+          err instanceof Error ? err.message : String(err)
         }`,
       );
       this.eventEmitter.releaseExecutionRouting(executionId);
       // W7 (ai-review) — `failFirstSegmentSetup` 자체가 throw 시 BullMQ worker 로
       // 전파돼 동일 continuation 이중 재시도(double-exec)를 유발한다. best-effort
       // 마감 실패는 worker 레벨 재시도보다 로그로 관측하는 것이 안전하다.
-      await this.failFirstSegmentSetup(executionId, error).catch(
+      await this.failFirstSegmentSetup(executionId, err).catch(
         (secondaryErr: unknown) => {
           this.logger.error(
             `failFirstSegmentSetup secondary error for ${executionId}: ${
@@ -3155,7 +3155,7 @@ export class ExecutionEngineService
       } else {
         await this.runExecution(savedExecution, input);
       }
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       // On timeout, mark the sub-execution as failed
       const reloaded = await this.executionRepository.findOneBy({
         id: savedExecution.id,
@@ -3167,7 +3167,7 @@ export class ExecutionEngineService
       ) {
         reloaded.status = ExecutionStatus.FAILED;
         reloaded.error = {
-          message: error instanceof Error ? error.message : String(error),
+          message: err instanceof Error ? err.message : String(err),
         };
         reloaded.finishedAt = new Date();
         if (reloaded.startedAt) {
@@ -3176,7 +3176,7 @@ export class ExecutionEngineService
         }
         await this.executionRepository.save(reloaded);
       }
-      throw error;
+      throw err;
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle);
     }
@@ -3238,10 +3238,10 @@ export class ExecutionEngineService
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
 
-    this.runExecution(savedExecution, input).catch((error: unknown) => {
+    this.runExecution(savedExecution, input).catch((err: unknown) => {
       this.logger.error(
         `Background sub-workflow execution failed for ${executionId}: ${
-          error instanceof Error ? error.message : String(error)
+          err instanceof Error ? err.message : String(err)
         }`,
       );
     });
@@ -3601,18 +3601,18 @@ export class ExecutionEngineService
           { status: ExecutionStatus.COMPLETED },
         );
       }
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       // exec-park D6 — 중첩 sub-workflow blocking 노드가 durable release park 했다.
       // `waitForX('release')` 가 이미 Execution 을 WAITING_FOR_INPUT + thread/variables
       // + `resume_call_stack` durable 영속했으므로, 여기서는 단지 세그먼트를 깨끗이
       // 종료(return)한다 — FAILED 마킹하면 안 된다. 재개는 §7.5 rehydration
       // (`driveCallStackResume`). finally 가 worker job 반환·context cleanup 처리.
-      if (error instanceof ParkReleaseSignal) {
+      if (err instanceof ParkReleaseSignal) {
         return;
       }
 
       // Cancelled while waiting for user input — mark as cancelled, not failed
-      if (error instanceof ExecutionCancelledError) {
+      if (err instanceof ExecutionCancelledError) {
         savedExecution.status = ExecutionStatus.CANCELLED;
         savedExecution.finishedAt = new Date();
         savedExecution.durationMs =
@@ -3631,11 +3631,11 @@ export class ExecutionEngineService
       savedExecution.status = ExecutionStatus.FAILED;
       // WARN #7 (Security) — error.stack 은 파일 경로·모듈명·내부 구조를 노출하므로
       // DB 에 저장하지 않는다. 디버깅이 필요한 stack 정보는 서버 로그로만 기록.
-      const errMessage = error instanceof Error ? error.message : String(error);
-      if (error instanceof Error && error.stack) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      if (err instanceof Error && err.stack) {
         this.logger.error(
           `Execution ${savedExecution.id} failed: ${errMessage}`,
-          error.stack,
+          err.stack,
         );
       }
       savedExecution.error = {
@@ -3644,9 +3644,9 @@ export class ExecutionEngineService
         // (예: Node `SystemError`) 의 우발적 `.code` 가 Execution.error 로
         // 누수되지 않도록 sentinel 타입으로 좁힌다 (ai-review side-effect WARNING).
         // PR2a — ExecutionTimeLimitError(§8 active-running 타임아웃)도 동일 sentinel 경로.
-        ...(error instanceof ErrorPortFallbackError ||
-        error instanceof ExecutionTimeLimitError
-          ? { code: error.code }
+        ...(err instanceof ErrorPortFallbackError ||
+        err instanceof ExecutionTimeLimitError
+          ? { code: err.code }
           : {}),
       };
       savedExecution.finishedAt = new Date();
@@ -3659,7 +3659,7 @@ export class ExecutionEngineService
         ExecutionEventType.EXECUTION_FAILED,
         {
           status: ExecutionStatus.FAILED,
-          error: error instanceof Error ? error.message : String(error),
+          error: err instanceof Error ? err.message : String(err),
         },
       );
     } finally {
@@ -3682,10 +3682,10 @@ export class ExecutionEngineService
   ): Promise<void> {
     try {
       await this.executionNodeLogRepository.insert({ executionId, nodeId });
-    } catch (error) {
+    } catch (err) {
       this.logger.warn(
         `Failed to append executionPath for ${executionId}/${nodeId}: ${
-          error instanceof Error ? error.message : String(error)
+          err instanceof Error ? err.message : String(err)
         }`,
       );
     }
@@ -4600,17 +4600,17 @@ export class ExecutionEngineService
       // Update execution path — serialized per execution to tolerate
       // ParallelExecutor branches finishing concurrently.
       await this.appendExecutionPath(executionId, node.id);
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       // spec/conventions/node-cancellation.md §5.1 — abortSignal 로 노드 외부 I/O
       // 가 중단된 경우(AbortError)는 실패가 아니라 취소다. errorPolicy 와 무관하게
       // NodeExecution.status=cancelled 로 기록하고 NODE_CANCELLED 이벤트를 발행한 뒤
       // abort 를 그대로 re-throw 해 생산자(ParallelExecutor cancel-others-on-fail
       // aggregation 등)가 워크플로 흐름을 마감하게 한다 (§5.2). 타임라인이 running
       // 에 영구 잔류하지 않도록 terminal 이벤트를 반드시 발행한다.
-      if (isAbortError(error)) {
+      if (isAbortError(err)) {
         // spec/conventions/node-cancellation.md §5.1 — `output.error` 봉투 형식:
         // `{ code: 'AbortError', message }` (node-output.md Principle 3.2 와 동형).
-        const errorEnvelope = { code: 'AbortError', message: error.message };
+        const errorEnvelope = { code: 'AbortError', message: err.message };
         nodeExecution.status = NodeExecutionStatus.CANCELLED;
         nodeExecution.error = errorEnvelope;
         nodeExecution.finishedAt = new Date();
@@ -4634,7 +4634,7 @@ export class ExecutionEngineService
             finishedAt: nodeExecution.finishedAt?.toISOString?.(),
           },
         );
-        throw error;
+        throw err;
       }
 
       // exec-park D6 — 중첩 Workflow 노드의 executeInline 이 sub-workflow blocking
@@ -4643,14 +4643,14 @@ export class ExecutionEngineService
       // 상위(runExecution/runNodeDispatchLoop)가 세그먼트를 종료하게 한다. 이 invoker
       // Workflow 노드의 NodeExecution 은 RUNNING 으로 잔류하고(COMPLETED 안 됨),
       // 재개 시 `driveCallStackResume` 가 executeNode 우회로 frame 을 재진입한다.
-      if (error instanceof ParkReleaseSignal) {
-        throw error;
+      if (err instanceof ParkReleaseSignal) {
+        throw err;
       }
 
       // Apply error policy
       const errorPolicyConfig = this.getErrorPolicyConfig(node);
       const result = this.errorPolicyHandler.handleError(
-        error instanceof Error ? error : new Error(String(error)),
+        err instanceof Error ? err : new Error(String(err)),
         errorPolicyConfig,
         nodeExecution.retryCount,
       );
@@ -4659,7 +4659,7 @@ export class ExecutionEngineService
         case 'skip':
           nodeExecution.status = NodeExecutionStatus.SKIPPED;
           nodeExecution.error = {
-            message: error instanceof Error ? error.message : String(error),
+            message: err instanceof Error ? err.message : String(err),
           };
           nodeExecution.finishedAt = new Date();
           nodeExecution.durationMs =
@@ -4710,7 +4710,7 @@ export class ExecutionEngineService
           );
           nodeExecution.status = NodeExecutionStatus.FAILED;
           nodeExecution.error = {
-            message: error instanceof Error ? error.message : String(error),
+            message: err instanceof Error ? err.message : String(err),
           };
           nodeExecution.finishedAt = new Date();
           nodeExecution.durationMs =
@@ -4724,7 +4724,7 @@ export class ExecutionEngineService
         default:
           nodeExecution.status = NodeExecutionStatus.FAILED;
           nodeExecution.error = {
-            message: error instanceof Error ? error.message : String(error),
+            message: err instanceof Error ? err.message : String(err),
           };
           nodeExecution.finishedAt = new Date();
           nodeExecution.durationMs =
@@ -4739,7 +4739,7 @@ export class ExecutionEngineService
               nodeExecutionId: nodeExecution.id,
               parentNodeExecutionId: context.parentNodeExecutionId,
               status: NodeExecutionStatus.FAILED,
-              error: error instanceof Error ? error.message : String(error),
+              error: err instanceof Error ? err.message : String(err),
               nodeType: node.type,
               nodeLabel: node.label ?? node.type,
               input: nodeExecution.inputData,
@@ -4747,7 +4747,7 @@ export class ExecutionEngineService
               finishedAt: nodeExecution.finishedAt?.toISOString?.(),
             },
           );
-          throw error;
+          throw err;
       }
     } finally {
       // Phase 1.2 — register 짝. handler 결과·에러·throw 무관 항상 해제.
@@ -4899,10 +4899,10 @@ export class ExecutionEngineService
         workspaceId,
         context,
       );
-    } catch (e) {
+    } catch (err) {
       this.logger.warn(
         `filterAiNoLlmProviderError: hasDefaultLlmConfig lookup failed (workspaceId=${workspaceId}); keeping original validation errors. ${
-          e instanceof Error ? e.message : String(e)
+          err instanceof Error ? err.message : String(err)
         }`,
       );
       return errors;
@@ -4976,8 +4976,8 @@ export class ExecutionEngineService
     for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
       try {
         return await handler.execute(input, config, context);
-      } catch (error: unknown) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
         nodeExecution.retryCount = attempt + 1;
 
         // abort 는 재시도 대상이 아님 — cancellation 은 terminal 이므로 즉시 전파.
@@ -6378,13 +6378,13 @@ export class ExecutionEngineService
         executedNodes,
         executionMeta,
       );
-    } catch (error) {
+    } catch (err) {
       // Container-level failure happens AFTER executeNode has already marked
       // the container as COMPLETED (handler's initial return succeeded). We
       // overwrite that to FAILED with the real error so the UI surfaces the
       // reason (e.g. CONTAINER_MISSING_EMIT) on the container node itself
       // instead of leaving it looking "completed with null output".
-      const message = error instanceof Error ? error.message : String(error);
+      const message = err instanceof Error ? err.message : String(err);
       const nodeExec = await this.nodeExecutionRepository.findOne({
         where: { executionId, nodeId: containerNode.id },
         order: { startedAt: 'DESC' },
@@ -6415,7 +6415,7 @@ export class ExecutionEngineService
           finishedAt: nodeExec?.finishedAt?.toISOString?.(),
         },
       );
-      throw error;
+      throw err;
     }
   }
 

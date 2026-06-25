@@ -393,7 +393,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
       ]);
       const error = await service
         .begin(privateBeginParams())
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       const response = (error as { response?: { code?: string } }).response;
       expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
       // No row should be created — the duplicate guard fires before save.
@@ -613,7 +613,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
       );
       integrationRepo.save = jest.fn().mockRejectedValueOnce(dbRaceError);
 
-      const error = await service.begin(privateBeginParams()).catch((e) => e);
+      const error = await service
+        .begin(privateBeginParams())
+        .catch((err) => err);
       expect((error as { response?: { code?: string } }).response?.code).toBe(
         'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
       );
@@ -664,7 +666,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
       const error = await service
         .begin(publicBeginParams())
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       const response = (error as { response?: { code?: string } }).response;
       expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
       // No OAuth state row created — the guard fires before save.
@@ -683,7 +685,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
       const error = await service
         .begin(publicBeginParams())
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       const response = (error as { response?: { code?: string } }).response;
       expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
       expect(stateRepo.save).not.toHaveBeenCalled();
@@ -738,7 +740,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
       const error = await service
         .begin(publicBeginParams())
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       expect((error as { response?: { code?: string } }).response?.code).toBe(
         'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
       );
@@ -939,7 +941,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
           hmac: params.get('hmac')!,
           rawQuery,
         })
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       const code = (error as { response?: { code?: string } }).response?.code;
       expect(code).toBe('CAFE24_INSTALL_INVALID_TOKEN');
     });
@@ -1009,7 +1011,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
           hmac: params.get('hmac')!,
           rawQuery,
         })
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       const code = (error as { response?: { code?: string } }).response?.code;
       expect(code).toBe('CAFE24_INSTALL_INVALID_TOKEN');
       expect(stateRepo.save).not.toHaveBeenCalled();
@@ -1042,7 +1044,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
           hmac: params.get('hmac')!,
           rawQuery,
         })
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       const code = (error as { response?: { code?: string } }).response?.code;
       expect(code).toBe('CAFE24_INSTALL_INVALID_TOKEN');
       expect(stateRepo.save).not.toHaveBeenCalled();
@@ -1160,7 +1162,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
           hmac: params.get('hmac')!,
           rawQuery,
         })
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       const code = (error as { response?: { code?: string } }).response?.code;
       expect(code).toBe('CAFE24_INSTALL_INVALID_HMAC');
     });
@@ -2342,7 +2344,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
             code: 'expired-code',
             state: 'state-token-invalid-grant',
           })
-          .catch((e: unknown) => e);
+          .catch((err_: unknown) => err_);
 
         // Step 2 — exchange throws OAUTH_TOKEN_EXCHANGE_FAILED 가 호출자에 surface.
         expect((err as { response?: { code?: string } }).response?.code).toBe(
@@ -2423,7 +2425,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
           error: 'invalid_scope',
           state: 'st-iscope',
         })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
 
       expect((err as { response?: { code?: string } }).response?.code).toBe(
         'OAUTH_INVALID_SCOPE',
@@ -2522,7 +2524,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
           error: 'invalid_scope',
           state: 'gone',
         })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect((err as { response?: { code?: string } }).response?.code).toBe(
         'OAUTH_INVALID_SCOPE',
       );
@@ -2535,7 +2537,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
           error: 'access_denied',
           state: 'st-iscope',
         })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect((err as { response?: { code?: string } }).response?.code).toBe(
         'OAUTH_DENIED',
       );
@@ -2552,7 +2554,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
           error: 'invalid_scope',
           state: 'st-iscope',
         })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect((err as { response?: { code?: string } }).response?.code).toBe(
         'OAUTH_INVALID_SCOPE',
       );

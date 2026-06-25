@@ -234,7 +234,7 @@ describe('HooksService', () => {
 
     const err = await service
       .handleWebhook('abc', { ...input, body: {} })
-      .catch((e: unknown) => e as BadRequestException);
+      .catch((err_: unknown) => err_ as BadRequestException);
     expect(err).toBeInstanceOf(BadRequestException);
     const executeMock = engine.execute;
     expect(executeMock).not.toHaveBeenCalled();
@@ -260,7 +260,7 @@ describe('HooksService', () => {
 
     const err = (await service
       .handleWebhook('abc', { ...input, body: { amount: 'not-a-number' } })
-      .catch((e: unknown) => e)) as BadRequestException;
+      .catch((err_: unknown) => err_)) as BadRequestException;
     expect(err).toBeInstanceOf(BadRequestException);
     const response = err.getResponse() as {
       errors: Array<{ field: string; reason: string }>;

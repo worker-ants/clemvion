@@ -147,8 +147,11 @@ function safeJsonParse(
   if (!raw) return { ok: false, error: 'empty arguments' };
   try {
     return { ok: true, value: JSON.parse(raw) };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 

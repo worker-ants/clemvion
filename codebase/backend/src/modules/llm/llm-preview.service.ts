@@ -59,11 +59,11 @@ export class LlmPreviewService {
         defaultModel: '',
         baseUrl: params.baseUrl,
       });
-    } catch (error) {
+    } catch (err) {
       // Factory errors are defined in llm-client.factory.ts and contain no
       // user-supplied apiKey, so they can surface as-is to help the user
       // (e.g. "Azure OpenAI requires a base URL").
-      const raw = error instanceof Error ? error.message : String(error);
+      const raw = err instanceof Error ? err.message : String(err);
       this.logger.warn(`LLM preview client init failed: ${raw}`);
       throw new BadRequestException({
         code: 'MODEL_CONFIG_INVALID',
@@ -75,8 +75,8 @@ export class LlmPreviewService {
         (signal) => client.listModels(signal),
         PREVIEW_TIMEOUT_MS,
       );
-    } catch (error) {
-      const raw = error instanceof Error ? error.message : String(error);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
       const sanitized = sanitizeLlmErrorMessage(raw);
       this.logger.warn(`LLM preview models failed: ${sanitized}`);
       throw new BadRequestException({

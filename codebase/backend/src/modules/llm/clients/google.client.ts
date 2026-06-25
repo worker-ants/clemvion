@@ -419,9 +419,9 @@ export class GoogleClient implements LLMClient {
         contents,
         config,
       });
-    } catch (error) {
+    } catch (err) {
       const message =
-        error instanceof Error ? error.message : 'Unknown stream error';
+        err instanceof Error ? err.message : 'Unknown stream error';
       yield { type: 'error', code: classifyStreamError(message), message };
       return;
     }
@@ -505,12 +505,12 @@ export class GoogleClient implements LLMClient {
           }
         }
       }
-    } catch (error) {
+    } catch (err) {
       if (signal?.aborted) {
         finishReason = 'aborted';
       } else {
         const message =
-          error instanceof Error ? error.message : 'Unknown stream error';
+          err instanceof Error ? err.message : 'Unknown stream error';
         yield { type: 'error', code: classifyStreamError(message), message };
         return;
       }

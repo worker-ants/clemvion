@@ -260,9 +260,9 @@ export class AnthropicClient implements LLMClient {
     let stream: Awaited<ReturnType<typeof this.client.messages.create>>;
     try {
       stream = await this.client.messages.create(requestParams, { signal });
-    } catch (error) {
+    } catch (err) {
       const message =
-        error instanceof Error ? error.message : 'Unknown stream error';
+        err instanceof Error ? err.message : 'Unknown stream error';
       yield {
         type: 'error',
         code: message.includes('429')
@@ -333,12 +333,12 @@ export class AnthropicClient implements LLMClient {
           }
         }
       }
-    } catch (error) {
+    } catch (err) {
       if (signal?.aborted) {
         finishReason = 'aborted';
       } else {
         const message =
-          error instanceof Error ? error.message : 'Unknown stream error';
+          err instanceof Error ? err.message : 'Unknown stream error';
         yield {
           type: 'error',
           code: message.includes('429')

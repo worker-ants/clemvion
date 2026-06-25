@@ -343,7 +343,7 @@ describe('TriggersService — notification/interaction config 병합 (External I
         name: 'hook',
         authConfigId: 'other-ws-ac',
       })
-      .catch((e: unknown) => e as BadRequestException);
+      .catch((err_: unknown) => err_ as BadRequestException);
     expect(err).toBeInstanceOf(BadRequestException);
     expect((err as BadRequestException).getResponse()).toMatchObject({
       code: 'AUTH_CONFIG_NOT_FOUND',

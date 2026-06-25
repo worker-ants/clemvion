@@ -303,11 +303,11 @@ export class WebsocketGateway
         execution: snapshot,
         timestamp: new Date().toISOString(),
       });
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       // Missing/forbidden executions just skip the snapshot — the client
       // will treat the absent event the same as "no prior state".
       this.logger.debug(
-        `Skipped snapshot for ${executionId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Skipped snapshot for ${executionId}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -448,10 +448,10 @@ export class WebsocketGateway
           queued: result.queued,
         },
       };
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       return this.buildContinuationErrorAck(
         'execution.form_submitted',
-        error,
+        err,
         'Form submission failed',
       );
     }
@@ -515,10 +515,10 @@ export class WebsocketGateway
           queued: result.queued,
         },
       };
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       return this.buildContinuationErrorAck(
         'execution.click_button.ack',
-        error,
+        err,
         'Button click failed',
       );
     }
@@ -581,10 +581,10 @@ export class WebsocketGateway
           queued: result.queued,
         },
       };
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       return this.buildContinuationErrorAck(
         'execution.submit_message.ack',
-        error,
+        err,
         'Message submission failed',
       );
     }
@@ -644,10 +644,10 @@ export class WebsocketGateway
           queued: result.queued,
         },
       };
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       return this.buildContinuationErrorAck(
         'execution.end_conversation.ack',
-        error,
+        err,
         'End conversation failed',
       );
     }
@@ -769,7 +769,7 @@ export class WebsocketGateway
           resumed: true,
         },
       };
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       // W3: publish 가 throw 한 경우에도 spawn 된 row 를 FAILED 로 마감한다.
       if (spawnedNodeExecutionId) {
         void this.executionEngineService.markSpawnedRowFailedOnPublishError(
@@ -778,17 +778,17 @@ export class WebsocketGateway
         );
       }
       const code =
-        error instanceof RetryLastTurnError
-          ? error.code
-          : error instanceof InvalidExecutionStateError
-            ? error.code
+        err instanceof RetryLastTurnError
+          ? err.code
+          : err instanceof InvalidExecutionStateError
+            ? err.code
             : WsErrorCode.INTERNAL_ERROR;
       // 보안 — RetryLastTurnError / InvalidExecutionStateError 의 message 는
       // 고정 client-safe 문자열. 그 외는 일반화한 메시지.
       const message =
-        error instanceof RetryLastTurnError ||
-        error instanceof InvalidExecutionStateError
-          ? error.message
+        err instanceof RetryLastTurnError ||
+        err instanceof InvalidExecutionStateError
+          ? err.message
           : 'Retry failed';
       return {
         event,

@@ -323,8 +323,8 @@ export class InformationExtractorHandler implements NodeHandler {
         },
         { topK, threshold },
       );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.warn(
         `Information Extractor memory recall failed (graceful): ${message}`,
       );
@@ -513,16 +513,15 @@ export class InformationExtractorHandler implements NodeHandler {
             nodeExecutionId: context.nodeExecutionId,
           },
         );
-      } catch (error) {
-        const errMessage =
-          error instanceof Error ? error.message : String(error);
+      } catch (err) {
+        const errMessage = err instanceof Error ? err.message : String(err);
         return this.buildErrorOutput(configEcho, {
           code: 'LLM_CALL_FAILED',
           message: errMessage,
           details: {
             attempts: attempt + 1,
             originalInput: inputField,
-            ...this.retryabilityDetails('LLM_CALL_FAILED', error),
+            ...this.retryabilityDetails('LLM_CALL_FAILED', err),
           },
           durationMs: Date.now() - startedAt,
           model: lastModel,
@@ -588,8 +587,8 @@ export class InformationExtractorHandler implements NodeHandler {
           port: 'out',
           status: 'ended',
         };
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
         if (attempt < maxRetries) {
           continue;
         }
@@ -1020,11 +1019,11 @@ export class InformationExtractorHandler implements NodeHandler {
         );
         result = call.result;
         trace = call.trace;
-      } catch (error) {
+      } catch (err) {
         return {
           kind: 'error',
-          error: error instanceof Error ? error.message : String(error),
-          rawError: error,
+          error: err instanceof Error ? err.message : String(err),
+          rawError: err,
         };
       }
       params.llmCalls.push(trace);

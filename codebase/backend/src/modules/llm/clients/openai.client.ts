@@ -392,12 +392,12 @@ export class OpenAIClient implements LLMClient {
           if (reasoning !== undefined) thinkingTokens = reasoning;
         }
       }
-    } catch (error) {
+    } catch (err) {
       if (signal?.aborted) {
         finishReason = 'aborted';
       } else {
         const message =
-          error instanceof Error ? error.message : 'Unknown stream error';
+          err instanceof Error ? err.message : 'Unknown stream error';
         const code = message.includes('429')
           ? 'LLM_RATE_LIMIT'
           : isHarmonyParseError(message)

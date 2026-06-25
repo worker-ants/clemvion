@@ -37,11 +37,8 @@ export class LlmUsageLogService {
     // 별도 try/catch 로 OTel 오류가 DB insert 를 막지 않도록 격리한다.
     try {
       this.businessMetrics.recordLlmTokens(params.model, params.usage);
-    } catch (metricError) {
-      const msg =
-        metricError instanceof Error
-          ? metricError.message
-          : String(metricError);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`LLM metrics 기록 실패: ${msg}`);
     }
     try {
@@ -65,8 +62,8 @@ export class LlmUsageLogService {
         thinkingTokens: params.usage.thinkingTokens ?? null,
         costUsd: cost === null ? null : cost.toFixed(6),
       });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`LLM usage 기록 실패: ${message}`);
     }
   }

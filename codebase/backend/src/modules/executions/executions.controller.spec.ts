@@ -92,7 +92,7 @@ describe('ExecutionsController', () => {
       );
       const rejection = controller
         .continueExecution('exec-1', 'workspace-1')
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       const err = (await rejection) as UnprocessableEntityException;
       // review W-5 — client 응답 메시지는 고정 문자열(내부 detail 미노출).
       expect(err.getResponse()).toEqual({
@@ -135,7 +135,7 @@ describe('ExecutionsController', () => {
         .continueExecution('exec-1', 'workspace-1', {
           formData: { email: 'not-an-email' },
         })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
 
       expect((err as BadRequestException).getResponse()).toEqual({
         error: {

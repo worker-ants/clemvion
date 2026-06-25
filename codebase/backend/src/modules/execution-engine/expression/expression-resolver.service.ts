@@ -260,8 +260,8 @@ export class ExpressionResolverService {
         return result.toString();
       }
       return `${result as string}`;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       throw new Error(`Expression error in config.${path}: ${message}`);
     }
   }

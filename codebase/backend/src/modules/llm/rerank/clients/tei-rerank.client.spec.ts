@@ -74,8 +74,8 @@ describe('TeiRerankClient', () => {
     await expect(
       new TeiRerankClient('http://tei:8080', 'm', 'secret')
         .rerank('q', ['a'])
-        .catch((e) => {
-          throw e;
+        .catch((err) => {
+          throw err;
         }),
     ).rejects.not.toThrow(/secret/);
   });

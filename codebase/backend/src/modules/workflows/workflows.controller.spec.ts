@@ -131,7 +131,7 @@ describe('WorkflowsController (execute endpoint)', () => {
 
     const err = await controller
       .execute('wf1', 'ws', user, mockResponse(), { parameterValues: {} })
-      .catch((e: unknown) => e as BadRequestException);
+      .catch((err_: unknown) => err_ as BadRequestException);
     expect(err).toBeInstanceOf(BadRequestException);
     const executeMock = engine.execute;
     expect(executeMock).not.toHaveBeenCalled();
@@ -274,7 +274,7 @@ describe('WorkflowsController (executeNode endpoint, §1.3)', () => {
 
     const err = await controller
       .executeNode('wf1', 'n-foreign', 'ws', user, mockResponse(), {})
-      .catch((e: unknown) => e as BadRequestException);
+      .catch((err_: unknown) => err_ as BadRequestException);
 
     expect(err).toBeInstanceOf(BadRequestException);
     expect(engine.execute).not.toHaveBeenCalled();
@@ -287,7 +287,7 @@ describe('WorkflowsController (executeNode endpoint, §1.3)', () => {
 
     const err = await controller
       .executeNode('wf-foreign', 'n1', 'ws', user, mockResponse(), {})
-      .catch((e: unknown) => e as BadRequestException);
+      .catch((err_: unknown) => err_ as BadRequestException);
 
     expect(err).toBeInstanceOf(BadRequestException);
     expect(nodeRepo.findOneBy).not.toHaveBeenCalled();
@@ -305,7 +305,7 @@ describe('WorkflowsController (executeNode endpoint, §1.3)', () => {
       .executeNode('wf1', 'n1', 'ws', user, mockResponse(), {
         previousExecutionId: 'prev-other',
       })
-      .catch((e: unknown) => e as BadRequestException);
+      .catch((err_: unknown) => err_ as BadRequestException);
 
     expect(err).toBeInstanceOf(BadRequestException);
     expect(engine.execute).not.toHaveBeenCalled();
@@ -348,7 +348,7 @@ describe('WorkflowsController (executeNode endpoint, §1.3)', () => {
 
     const err = await ctrl
       .executeNode('wf1', 'n1', 'ws', user, res, {})
-      .catch((e: unknown) => e as ServiceUnavailableException);
+      .catch((err_: unknown) => err_ as ServiceUnavailableException);
 
     expect(err).toBeInstanceOf(ServiceUnavailableException);
     expect(res.setHeader).toHaveBeenCalledWith('Retry-After', '30');
@@ -416,7 +416,7 @@ describe('WorkflowsController (execute — graceful shutdown gate)', () => {
 
     const err = await controller
       .execute('wf1', 'ws', user, res, { parameterValues: {} })
-      .catch((e: unknown) => e as ServiceUnavailableException);
+      .catch((err_: unknown) => err_ as ServiceUnavailableException);
 
     expect(err).toBeInstanceOf(ServiceUnavailableException);
     expect((err as ServiceUnavailableException).getStatus()).toBe(503);

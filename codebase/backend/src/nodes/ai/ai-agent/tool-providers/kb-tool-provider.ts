@@ -253,8 +253,8 @@ export class KbToolProvider implements AgentToolProvider {
       results = meta.results;
       rerankDiagnostics = meta.rerank;
       unsearchable = meta.unsearchable;
-    } catch (e) {
-      const rawMsg = e instanceof Error ? e.message : String(e);
+    } catch (err) {
+      const rawMsg = err instanceof Error ? err.message : String(err);
       KbToolProvider.logger.warn(`KB search failed (kb=${kbId}): ${rawMsg}`);
       // 원시 예외 메시지(`KB search failed: ${rawMsg}`)는 내부 호스트명·DB
       // 연결 문자열·스택 단편 등을 포함할 수 있다. tool_result content 는 그대로

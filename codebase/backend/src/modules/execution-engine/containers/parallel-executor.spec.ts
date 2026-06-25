@@ -403,7 +403,7 @@ describe('ParallelExecutor', () => {
           },
           undefined,
         )
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
       // root cause re-thrown
       expect((result as Error).message).toBe('root-cause');
       // both other branches observed the abort
@@ -489,7 +489,7 @@ describe('ParallelExecutor', () => {
           },
           undefined,
         )
-        .catch((e: Error) => e);
+        .catch((err: Error) => err);
 
       expect((result as Error).message).toBe('real-root-cause');
       expect((result as Error).name).not.toBe('AbortError');

@@ -171,24 +171,24 @@ export class ExecutionsController {
     // WS gateway 의 INVALID_EXECUTION_STATE 와 동일 의미, REST 진입점은 422.
     try {
       await this.executionEngineService.continueExecution(id, body?.formData);
-    } catch (error: unknown) {
-      if (error instanceof InvalidExecutionStateError) {
+    } catch (err: unknown) {
+      if (err instanceof InvalidExecutionStateError) {
         throw new UnprocessableEntityException({
-          error: { code: 'INVALID_STATE', message: error.message },
+          error: { code: 'INVALID_STATE', message: err.message },
         });
       }
       // form §4·§6.2 — field 검증 실패는 400 VALIDATION_ERROR + details[] (재제출 가능,
       // waiting 유지). publisher 가 publish 전 throw.
-      if (error instanceof FormValidationError) {
+      if (err instanceof FormValidationError) {
         throw new BadRequestException({
           error: {
             code: ErrorCode.VALIDATION_ERROR,
-            message: error.message,
-            details: error.toHttpDetails(),
+            message: err.message,
+            details: err.toHttpDetails(),
           },
         });
       }
-      throw error;
+      throw err;
     }
     return { success: true };
   }

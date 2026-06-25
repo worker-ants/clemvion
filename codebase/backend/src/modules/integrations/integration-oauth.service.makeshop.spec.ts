@@ -422,7 +422,7 @@ describe('IntegrationOAuthService — MakeShop', () => {
       const query = makeInstallQuery('myshop', 'mk-client-secret');
       const error = await service
         .handleMakeshopInstall(INSTALL_TOKEN, query)
-        .catch((e) => e);
+        .catch((err) => err);
       expect((error as { response?: { code?: string } }).response?.code).toBe(
         'MAKESHOP_ALREADY_CONNECTED',
       );

@@ -170,18 +170,18 @@ export class NodesService {
         return await this.nodeRepository.save(nodeOrNodes);
       }
       return await this.nodeRepository.save(nodeOrNodes);
-    } catch (error: unknown) {
+    } catch (err: unknown) {
       if (
-        error instanceof Error &&
-        'code' in error &&
-        (error as { code?: unknown }).code === '23505'
+        err instanceof Error &&
+        'code' in err &&
+        (err as { code?: unknown }).code === '23505'
       ) {
         throw new ConflictException({
           code: 'DUPLICATE_NODE_LABEL',
           message: 'A node with this label already exists in this workflow',
         });
       }
-      throw error;
+      throw err;
     }
   }
 }
