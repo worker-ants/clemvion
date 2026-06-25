@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   McpTestConnectionService,
   TestConnectionResult,
@@ -113,6 +114,11 @@ describe('McpTestConnectionService', () => {
         code: 'ECONNREFUSED',
       }),
     );
+    // 03 m-1 — logInternal 이 NestJS Logger.warn 로 진단 로그를 남기는지 검증.
+    // 응답은 sanitize 되지만(아래), 내부 로그에는 원본 detail 이 포함된다.
+    const warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
     const result = await service.test({
       url: 'https://mcp.example.com',
       authType: 'none',
@@ -120,6 +126,10 @@ describe('McpTestConnectionService', () => {
     expectFailure(result, 'MCP_CONNECT_FAILED');
     expect(result.message).not.toContain('10.0.0.5');
     expect(result.message).not.toContain('ECONNREFUSED');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[mcp:test] MCP_CONNECT_FAILED'),
+    );
+    warnSpy.mockRestore();
   });
 
   it('translates initialize-time tools/list failure to MCP_LIST_FAILED', async () => {

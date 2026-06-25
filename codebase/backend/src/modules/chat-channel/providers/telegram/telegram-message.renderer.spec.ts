@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   renderTelegramMessages,
   escapeMarkdownV2,
@@ -423,6 +424,27 @@ describe('visual fallback — chart (CCH-MP-04 v1)', () => {
     const m = renderTelegramMessages(event, config);
     expect(m).toHaveLength(1);
     expect(m[0].body.kind).toBe('buttons');
+  });
+
+  it("visualNode='photo' (v1 미지원) → logger.warn 후 text fallback (03 m-1)", () => {
+    const warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const event = buttonsEvent({
+      nodeType: 'chart',
+      title: 't',
+      payload: { labels: ['A'], series: [{ data: [1] }] },
+    });
+    const config: ChatChannelConfig = {
+      ...BASE_CONFIG,
+      uiMapping: { visualNode: 'photo' },
+    };
+    const m = renderTelegramMessages(event, config);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("visualNode='photo' is not supported"),
+    );
+    expect(m.length).toBeGreaterThanOrEqual(1);
+    warnSpy.mockRestore();
   });
 });
 
