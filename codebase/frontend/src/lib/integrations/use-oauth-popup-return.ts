@@ -24,6 +24,13 @@ function openOAuthPopup(url: string): Window | null {
   );
 }
 
+// 팝업 미복귀 시 대기 상한(이후 자동 종료). spec §3.5 OAuth 팝업 흐름.
+const OAUTH_POPUP_TIMEOUT_MS = 5 * 60 * 1000;
+// popup.closed 관측 후 성공 postMessage 가 끼어들 여지를 주는 deferred 대기.
+const POPUP_CLOSED_BAIL_DELAY_MS = 1500;
+// popup.closed 폴링 주기.
+const POPUP_CLOSED_POLL_INTERVAL_MS = 500;
+
 /**
  * OAuth 팝업 복귀 상태 기계 — `new/page.tsx` 인증 단계에서 OAuth 팝업을 열고,
  * 팝업이 postMessage 로 보내는 `oauth_callback` 을 수신해 previewToken 을 확보한다.
@@ -118,10 +125,10 @@ export function useOauthPopupReturn({
             setOauthError(t("integrations.oauthPopupClosedNoResult"));
             toast.error(t("integrations.oauthPopupClosedNoResult"));
           }
-        }, 1500);
+        }, POPUP_CLOSED_BAIL_DELAY_MS);
         clearInterval(interval);
       }
-    }, 500);
+    }, POPUP_CLOSED_POLL_INTERVAL_MS);
     return () => {
       clearInterval(interval);
       if (bailTimer) clearTimeout(bailTimer);
@@ -138,17 +145,14 @@ export function useOauthPopupReturn({
     setOauthError(null);
     setOauthWaiting(true);
     clearOAuthTimeout();
-    oauthTimeoutRef.current = setTimeout(
-      () => {
-        setOauthWaiting(false);
-        setOauthError(t("integrations.oauthTimedOutShort"));
-        if (popupRef.current && !popupRef.current.closed) {
-          popupRef.current.close();
-        }
-        toast.error(t("integrations.oauthTimedOutMessage"));
-      },
-      5 * 60 * 1000,
-    );
+    oauthTimeoutRef.current = setTimeout(() => {
+      setOauthWaiting(false);
+      setOauthError(t("integrations.oauthTimedOutShort"));
+      if (popupRef.current && !popupRef.current.closed) {
+        popupRef.current.close();
+      }
+      toast.error(t("integrations.oauthTimedOutMessage"));
+    }, OAUTH_POPUP_TIMEOUT_MS);
     toast.message(t("integrations.oauthContinueInPopup"));
   };
 
