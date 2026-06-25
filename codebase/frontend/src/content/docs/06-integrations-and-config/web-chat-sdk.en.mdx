@@ -16,7 +16,10 @@ Paste the two blocks below into the `<head>` or at the end of `<body>` of your H
 
 ```html
 <script>
-  (function(d,s){var j=d.createElement(s);j.async=1;
+  (function(d,s){
+   // Queue stub (required): buffers ClemvionChat calls until the async loader.js is ready.
+   window.ClemvionChat=window.ClemvionChat||function(){(window.ClemvionChat.q=window.ClemvionChat.q||[]).push(arguments)};
+   var j=d.createElement(s);j.async=1;
    j.src="https://<widget-cdn>/web-chat/v1/loader.js";
    d.head.appendChild(j);})(document,"script");
 </script>

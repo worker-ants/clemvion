@@ -29,7 +29,10 @@ HTML 페이지의 `<head>` 또는 `<body>` 끝에 아래 두 블록을 붙여 �
 
 ```html
 <script>
-  (function(d,s){var j=d.createElement(s);j.async=1;
+  (function(d,s){
+   // 로더(async)가 로드되기 전 ClemvionChat 호출을 버퍼링하는 큐 스텁(필수).
+   window.ClemvionChat=window.ClemvionChat||function(){(window.ClemvionChat.q=window.ClemvionChat.q||[]).push(arguments)};
+   var j=d.createElement(s);j.async=1;
    j.src="https://<위젯 CDN>/web-chat/v1/loader.js";
    d.head.appendChild(j);})(document,"script");
 </script>

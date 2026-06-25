@@ -96,7 +96,10 @@ CDN 스니펫이나 npm 패키지로 위젯을 직접 통합하거나 자체 UI(
 
 ```html
 <script>
-  (function(d,s){var j=d.createElement(s);j.async=1;
+  (function(d,s){
+   // 로더(async)가 로드되기 전 ClemvionChat 호출을 버퍼링하는 큐 스텁(필수).
+   window.ClemvionChat=window.ClemvionChat||function(){(window.ClemvionChat.q=window.ClemvionChat.q||[]).push(arguments)};
+   var j=d.createElement(s);j.async=1;
    j.src="https://<위젯 주소>/web-chat/v1/loader.js";
    d.head.appendChild(j);})(document,"script");
 </script>

@@ -93,7 +93,19 @@ function escapeForScript(json: string): string {
 }
 
 /**
+ * command-queue 스텁 — `window.ClemvionChat` 을 동기 정의해 `loader.js`(async) 로드 전 호출을 `.q` 에
+ * 버퍼링한다. 로더(`installGlobal`)가 로드되며 큐를 replay (spec 2-sdk §1 명령 큐 패턴 / Rationale R5).
+ * 스니펫·spec 예시·유저 가이드가 동일 스텁을 공유하므로, 형식 변경 시 본 상수와 마크다운 예시를 함께 갱신한다.
+ */
+export const QUEUE_STUB_JS =
+  "window.ClemvionChat=window.ClemvionChat||function(){(window.ClemvionChat.q=window.ClemvionChat.q||[]).push(arguments)};";
+
+/**
  * 전체 설치 스니펫(loader + boot 두 `<script>` 블록)을 생성한다.
+ *
+ * 첫 블록은 {@link QUEUE_STUB_JS}(command-queue 스텁)를 설치한 뒤 `loader.js` 를 async 로 붙인다.
+ * 이래야 둘째 블록의 `ClemvionChat('boot', …)` 가 로더 로드 **전**에 실행돼도 `ReferenceError` 없이
+ * 큐잉되고, 로더가 로드되며 `.q` 큐를 replay 한다 (spec 2-sdk §1 명령 큐 패턴 / Rationale R5).
  *
  * @param loaderUrl `getWidgetLoaderUrl()` 결과 — 위젯 동봉/CDN 위치의 loader.js URL.
  */
@@ -103,8 +115,10 @@ export function buildWebChatSnippet(loaderUrl: string, input: WebChatBootInput):
   const loaderSrc = escapeForScript(loaderUrl);
 
   return [
-    `<script>(function(d,s){var j=d.createElement(s);j.async=1;`,
-    `  j.src="${loaderSrc}";d.head.appendChild(j);})(document,"script");</script>`,
+    `<script>(function(d,s){`,
+    `  ${QUEUE_STUB_JS}`,
+    `  var j=d.createElement(s);j.async=1;j.src="${loaderSrc}";d.head.appendChild(j);`,
+    `})(document,"script");</script>`,
     `<script>`,
     `  ClemvionChat('boot', ${bootJson});`,
     `</script>`,
