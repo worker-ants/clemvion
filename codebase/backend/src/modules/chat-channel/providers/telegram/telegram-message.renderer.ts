@@ -15,7 +15,7 @@ import {
   type LanguageLocale,
 } from '../../shared/language-hint-defaults';
 
-const logger = new Logger('ChatChannel.Telegram');
+const logger = new Logger('ChatChannelTelegram');
 
 const TELEGRAM_MESSAGE_LIMIT = 4096;
 const CONTINUED_SUFFIX = '\n_(continued…)_';

@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type { ExecutionFailureClass } from './execution-failure-classifier';
 
-const logger = new Logger('ChatChannel.LanguageHint');
+const logger = new Logger('ChatChannelLanguageHint');
 
 /**
  * languageHints default 문구 (KO / EN) + lookup / placeholder 치환 helper.
