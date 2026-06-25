@@ -82,7 +82,13 @@ export function boot(config: BootConfig): ChatInstance {
   validateBootConfig(config);
   const base = resolveWidgetBase();
   const { iframeSrc, widgetOrigin } = resolveIframeTarget(config, base);
-  const bridge = new WidgetBridge({ iframeSrc, widgetOrigin });
+  // 위젯 코너 고정·z-index 는 appearance 를 따른다(spec 2-sdk §3). host iframe 을 뷰포트 코너에 anchor.
+  const bridge = new WidgetBridge({
+    iframeSrc,
+    widgetOrigin,
+    position: config.appearance?.position,
+    zIndex: config.appearance?.zIndex,
+  });
 
   // 초기 boot config 전달.
   bridge.post("wc:boot", config);

@@ -103,7 +103,12 @@ chat.shutdown();
   첫 `wc:boot` 의 origin 만 host 로 핀되므로(이후 동일 origin 만 수용) 재전송도 같은 origin 이어야 한다.
 - **`wc:resize` host 처리(필수)**: host(loader/WidgetBridge)는 `wc:resize` 수신 시 iframe 엘리먼트의 크기를
   payload(`width`/`height`/`state`)에 맞춰 적용한다 — `collapsed`(런처만) ↔ `expanded`(패널 전개) 전환 시
-  iframe 박스가 따라 변하지 않으면 클릭 영역·스크롤이 깨진다. position/zIndex 는 `appearance` 를 따른다.
+  iframe 박스가 따라 변하지 않으면 클릭 영역·스크롤이 깨진다.
+- **host iframe 코너 고정(필수)**: position/zIndex 는 `appearance` 를 따른다. host 는 iframe 을
+  `position:fixed; bottom:0;` + (`bottom-left` → `left:0` / 그 외 기본 `bottom-right` → `right:0`) +
+  `z-index: appearance.zIndex ?? 2147483000` 로 **뷰포트 코너에 고정**한다. 오프셋을 주지 않으면 `position:fixed`
+  iframe 이 본문 끝 정적 위치(화면 밖)에 박혀 위젯이 보이지 않는다. (위젯 SPA 가 iframe 내부에서 런처/패널을
+  `bottom/side:16px` 여백으로 띄우므로 iframe 은 코너 flush(0)로 고정한다.)
 
 ## 4. Boot config 스키마
 
