@@ -20,6 +20,7 @@ import {
   ApiBadRequestResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Roles } from '../../common/guards/roles.guard';
 import { ApiOkWrappedResponse } from '../../common/swagger';
@@ -67,12 +68,14 @@ export class LlmModelConfigController {
   @ApiBadRequestResponse({
     description: '자격증명 검증 실패 또는 Provider 호출 실패',
   })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async previewModels(@Body() dto: PreviewModelListDto) {
     return this.llmPreviewService.previewModels(dto);
   }
 
   @Post(':id/test')
+  @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary: '모델 연결 테스트 (chat/embedding)',
@@ -82,6 +85,7 @@ export class LlmModelConfigController {
   @ApiOkWrappedResponse(ModelTestConnectionResultDto, {
     description: '연결 테스트 결과',
   })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   async testConnection(
     @Param('id', ParseUUIDPipe) id: string,
@@ -105,6 +109,7 @@ export class LlmModelConfigController {
     description: '응답에 포함할 모델 타입 제한',
   })
   @ApiOkWrappedResponse(ModelListDto, { description: '사용 가능한 모델 목록' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   async listModels(
     @Param('id', ParseUUIDPipe) id: string,
