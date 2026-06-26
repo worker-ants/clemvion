@@ -3,8 +3,6 @@ import { ModelConfigController } from './model-config.controller';
 import { CustomValidationPipe } from '../../common/pipes/validation.pipe';
 import { ListModelConfigsQueryDto } from './dto/list-model-configs-query.dto';
 import type { ModelConfigService } from './model-config.service';
-import type { LlmService } from '../llm/llm.service';
-import type { LlmPreviewService } from '../llm/llm-preview.service';
 
 // Expose the module-private parseKind function via the controller's GET / endpoint,
 // since parseKind is an internal helper used by multiple handlers.
@@ -12,17 +10,10 @@ type ServiceMethods = Pick<
   ModelConfigService,
   'findAll' | 'findById' | 'create' | 'update' | 'setDefault' | 'remove'
 >;
-type LlmServiceMethods = Pick<
-  LlmService,
-  'clearClientCache' | 'testConnection' | 'listModels'
->;
-type PreviewMethods = Pick<LlmPreviewService, 'previewModels'>;
 
 describe('ModelConfigController', () => {
   let controller: ModelConfigController;
   let mockModelConfigService: jest.Mocked<ServiceMethods>;
-  let mockLlmService: jest.Mocked<LlmServiceMethods>;
-  let mockLlmPreviewService: jest.Mocked<PreviewMethods>;
 
   beforeEach(() => {
     mockModelConfigService = {
@@ -33,18 +24,8 @@ describe('ModelConfigController', () => {
       setDefault: jest.fn().mockResolvedValue(undefined),
       remove: jest.fn().mockResolvedValue(undefined),
     };
-    mockLlmService = {
-      clearClientCache: jest.fn(),
-      testConnection: jest.fn().mockResolvedValue({ ok: true }),
-      listModels: jest.fn().mockResolvedValue([]),
-    };
-    mockLlmPreviewService = {
-      previewModels: jest.fn().mockResolvedValue([]),
-    };
     controller = new ModelConfigController(
       mockModelConfigService as unknown as ModelConfigService,
-      mockLlmService as unknown as LlmService,
-      mockLlmPreviewService as unknown as LlmPreviewService,
     );
   });
 
@@ -176,10 +157,14 @@ describe('ModelConfigController', () => {
     });
   });
 
-  // ── update — clearClientCache called after service update ─────────────────
+  // ── update / remove — pure CRUD delegation ────────────────────────────────
+  // LLM client-cache invalidation no longer lives at the controller layer; it
+  // moved into ModelConfigService's invalidation-observer (LlmService subscribes
+  // on init) to break the model-config ↔ llm forwardRef cycle (C-2 cluster 4).
+  // Cache-clear-on-mutate is now asserted in model-config.service.spec.ts.
 
   describe('update', () => {
-    it('calls modelConfigService.update then clears the client cache', async () => {
+    it('delegates to modelConfigService.update and returns its result', async () => {
       const dto = { name: 'New name' };
       const updated = { id: 'cfg-1', name: 'New name' };
       mockModelConfigService.update.mockResolvedValue(updated);
@@ -191,50 +176,23 @@ describe('ModelConfigController', () => {
         'ws-1',
         dto,
       );
-      expect(mockLlmService.clearClientCache).toHaveBeenCalledWith('cfg-1');
       expect(result).toBe(updated);
-    });
-
-    it('clears cache even if service resolves with an empty object', async () => {
-      mockModelConfigService.update.mockResolvedValue({});
-      await controller.update('id-x', 'ws-1', {} as any);
-      expect(mockLlmService.clearClientCache).toHaveBeenCalledWith('id-x');
     });
   });
 
-  // ── remove — clearClientCache called after service remove ─────────────────
-
   describe('remove', () => {
-    it('calls modelConfigService.remove then clears the client cache', async () => {
+    it('delegates to modelConfigService.remove', async () => {
       await controller.remove('cfg-2', 'ws-1');
 
       expect(mockModelConfigService.remove).toHaveBeenCalledWith(
         'cfg-2',
         'ws-1',
       );
-      expect(mockLlmService.clearClientCache).toHaveBeenCalledWith('cfg-2');
     });
 
-    it('does NOT call clearClientCache when remove throws', async () => {
+    it('propagates the error when remove throws', async () => {
       mockModelConfigService.remove.mockRejectedValue(new Error('not found'));
       await expect(controller.remove('bad-id', 'ws-1')).rejects.toThrow();
-      expect(mockLlmService.clearClientCache).not.toHaveBeenCalled();
-    });
-  });
-
-  // ── previewModels ──────────────────────────────────────────────────────────
-
-  describe('previewModels', () => {
-    it('delegates to LlmPreviewService.previewModels and returns result', async () => {
-      const models = [{ id: 'gpt-4o', name: 'gpt-4o', type: 'chat' as const }];
-      mockLlmPreviewService.previewModels.mockResolvedValue(models);
-
-      const dto = { provider: 'openai' as const, apiKey: 'sk-xxx' };
-      const result = await controller.previewModels(dto as any);
-
-      expect(mockLlmPreviewService.previewModels).toHaveBeenCalledWith(dto);
-      expect(result).toBe(models);
-      expect(mockLlmService.clearClientCache).not.toHaveBeenCalled();
     });
   });
 
@@ -269,14 +227,6 @@ describe('ModelConfigController', () => {
       const roles = Reflect.getMetadata(
         'roles',
         ModelConfigController.prototype.setDefault,
-      );
-      expect(roles).toContain('editor');
-    });
-
-    it("previewModels method has 'editor' role metadata", () => {
-      const roles = Reflect.getMetadata(
-        'roles',
-        ModelConfigController.prototype.previewModels,
       );
       expect(roles).toContain('editor');
     });
