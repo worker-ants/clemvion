@@ -71,6 +71,15 @@ export class LlmService implements OnModuleInit {
   // preview 는 자격증명이 매번 달라 캐시하지 않는다 (spec §5.5).
   private readonly listModelsCache = new Map<string, ListModelsCacheEntry>();
 
+  /**
+   * ModelConfig invalidation 구독 리스너. 안정 참조를 위해 필드로 1회 바인딩한다 —
+   * onModuleInit 이 (테스트 등에서) 여러 번 호출돼도 Set 의 참조-동일성 dedup 이
+   * 작동해 중복 등록되지 않는다 (refactor 02 C-2 cluster 4).
+   */
+  private readonly onConfigInvalidatedListener = (configId: string): void => {
+    this.clearClientCache(configId);
+  };
+
   constructor(
     private readonly modelConfigService: ModelConfigService,
     private readonly clientFactory: LLMClientFactory,
@@ -81,14 +90,17 @@ export class LlmService implements OnModuleInit {
     @Optional() private readonly configService?: ConfigService,
   ) {}
 
+  /**
+   * ModelConfig 변경(update/remove) 시 해당 config 의 client·listModels 캐시를
+   * 무효화하도록 ModelConfigService 의 invalidation 통지를 구독한다.
+   *
+   * 이전에는 `ModelConfigController` 가 `clearClientCache` 를 직접 호출했으나, 그
+   * 역의존이 model-config ↔ llm forwardRef 순환을 만들었다. 옵저버 등록으로 역전해
+   * 의존을 llm → model-config 단방향으로만 유지한다 (refactor 02 C-2 cluster 4).
+   */
   onModuleInit(): void {
-    // ModelConfig 가 update/remove 되면 해당 config 의 client·listModels 캐시를
-    // 무효화한다. 이전에는 `ModelConfigController` 가 `clearClientCache` 를 직접
-    // 호출했으나, 그 역의존이 model-config ↔ llm forwardRef 순환을 만들었다.
-    // 옵저버 등록으로 역전해 의존을 llm → model-config 단방향으로만 유지한다
-    // (refactor 02 C-2 cluster 4).
-    this.modelConfigService.onConfigInvalidated((configId) =>
-      this.clearClientCache(configId),
+    this.modelConfigService.onConfigInvalidated(
+      this.onConfigInvalidatedListener,
     );
   }
 

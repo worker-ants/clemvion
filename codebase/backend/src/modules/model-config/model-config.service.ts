@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -23,6 +24,7 @@ const SELF_HOSTED_PROVIDERS = new Set(['tei', 'local']);
 
 @Injectable()
 export class ModelConfigService {
+  private readonly logger = new Logger(ModelConfigService.name);
   private readonly encryptionKey: string;
 
   /**
@@ -58,10 +60,24 @@ export class ModelConfigService {
     this.invalidationListeners.add(listener);
   }
 
-  /** 등록된 모든 리스너에 configId 무효화를 통지한다. */
+  /**
+   * 등록된 모든 리스너에 configId 무효화를 통지한다.
+   *
+   * 각 리스너 호출을 격리한다 — 한 리스너가 throw 해도 나머지 리스너 통지와
+   * mutation 응답(update/remove)을 깨지 않는다. 무효화는 best-effort 부수효과이지
+   * mutation 성공의 전제가 아니기 때문이다 (DB 커밋은 이미 완료된 시점).
+   */
   private notifyInvalidated(configId: string): void {
     for (const listener of this.invalidationListeners) {
-      listener(configId);
+      try {
+        listener(configId);
+      } catch (err) {
+        this.logger.warn(
+          `config invalidation listener failed for ${configId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
     }
   }
 

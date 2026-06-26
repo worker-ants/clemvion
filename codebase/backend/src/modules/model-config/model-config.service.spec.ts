@@ -391,6 +391,60 @@ describe('ModelConfigService', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
     });
+
+    it('notifies listeners on the isDefault=true transaction path', async () => {
+      const listener = jest.fn();
+      service.onConfigInvalidated(listener);
+      mockRepo.findOne.mockResolvedValue(cfg());
+      mockRepo.manager.transaction.mockImplementation(
+        async (
+          cb: (m: {
+            update: jest.Mock;
+            save: jest.Mock;
+          }) => Promise<ModelConfig>,
+        ) => {
+          const txManager = {
+            update: jest.fn().mockResolvedValue(undefined),
+            save: jest
+              .fn()
+              .mockImplementation((_, entity) => Promise.resolve(entity)),
+          };
+          return cb(txManager);
+        },
+      );
+
+      await service.update('cfg-1', 'ws-1', { isDefault: true });
+
+      expect(listener).toHaveBeenCalledWith('cfg-1');
+    });
+
+    it('isolates a throwing listener — update resolves and other listeners still run', async () => {
+      const bad = jest.fn(() => {
+        throw new Error('listener boom');
+      });
+      const good = jest.fn();
+      service.onConfigInvalidated(bad);
+      service.onConfigInvalidated(good);
+      mockRepo.findOne.mockResolvedValue(cfg());
+
+      await expect(
+        service.update('cfg-1', 'ws-1', { name: 'X' }),
+      ).resolves.toBeDefined();
+      expect(bad).toHaveBeenCalled();
+      // bad throwing must not skip subsequent listeners
+      expect(good).toHaveBeenCalledWith('cfg-1');
+    });
+
+    it('isolates a throwing listener on remove — remove still resolves', async () => {
+      const bad = jest.fn(() => {
+        throw new Error('listener boom');
+      });
+      service.onConfigInvalidated(bad);
+      mockRepo.findOne.mockResolvedValue(cfg({ id: 'cfg-9' }));
+
+      await expect(service.remove('cfg-9', 'ws-1')).resolves.toBeUndefined();
+      expect(bad).toHaveBeenCalledWith('cfg-9');
+    });
   });
 
   // ── create — ENCRYPTION_KEY_MISSING error path ───────────────────────────
