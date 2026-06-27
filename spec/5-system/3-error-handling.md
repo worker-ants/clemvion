@@ -45,7 +45,7 @@ code:
 |------|------|------|
 | `VALIDATION_ERROR` | 요청 데이터 유효성 실패 | 400 |
 | `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트 부재 — `X-Workspace-Id` 헤더와 JWT `workspaceId` 둘 다 없음 (`common/decorators/workspace.decorator.ts` 발행) | 400 |
-| `MODEL_CONFIG_INVALID` | ModelConfig 입력 검증 실패 — 알 수 없는 `kind`, 필수 provider 의 apiKey 누락, 사설망/loopback baseUrl(SSRF 가드, tei/local 외) 등 (`model-config.service.ts`·`model-config.controller.ts` 발행) | 400 |
+| `MODEL_CONFIG_INVALID` | ModelConfig 입력 검증 실패 — 알 수 없는 `kind`, 필수 provider 의 apiKey 누락, 사설망/loopback baseUrl(SSRF 가드, tei/local 외) 등 (`model-config.service.ts`·`model-config.controller.ts`·`llm-preview.service.ts`(preview-models, C-2 cluster 4 이후 llm 모듈) 발행) | 400 |
 | `RESOURCE_NOT_FOUND` | 리소스 없음 | 404 |
 | `MODEL_CONFIG_NOT_FOUND` | 지정 id 의 ModelConfig 부재 또는 cross-kind 접근 차단(존재 누설 방지) — id 지정 경로 + `resolveEmbedding` 의 ws-default 부재(KB 임베딩 config 부재 = 리소스 부재). `RESOURCE_NOT_FOUND` 의 ModelConfig 특화 코드 (`model-config.service.ts` 발행) | 404 |
 | `MODEL_CONFIG_DEFAULT_MISSING` | id 미지정 시 워크스페이스 default config 없음(setup 안내용) — `resolveConfig` 의 ws default(chat/LLM) 경로 전용. `resolveEmbedding` 의 ws-default 부재는 `MODEL_CONFIG_NOT_FOUND`(404) 를 사용한다(임베딩 config 부재 = 리소스 부재, setup 안내와 구분; 사용자 결정 2026-06-12) (`model-config.service.ts` 발행) | 400 |

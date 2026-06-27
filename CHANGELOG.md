@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — model-config 부속 엔드포인트 hardening (listModels type 검증)
+
+### 변경 사항
+
+1. **`GET /api/model-configs/:id/models` — `type` 쿼리 런타임 검증** — `type` 파라미터에 `ParseEnumPipe` 를 적용해 허용값(`chat`·`embedding`) 외 값은 이제 `400 Bad Request` 로 거부한다. 종전에는 런타임 검증 없이 서비스 레이어로 전달됐다. Swagger `@ApiQuery` 가 이미 `enum: [chat, embedding]` 을 선언하고 있어 **스펙 준수 클라이언트에는 영향이 없으며**(`@ApiBadRequestResponse` 동반 문서화), 문서 외 값을 보내던 직접 호출 클라이언트만 400 을 받는다. 코드 변경은 컨트롤러 한정(`@Throttle` 상수화·`type` enum 단일 소스 파생 동반).
+
 ## Unreleased — 웹채팅 로더 arguments-replay 버그 수정
 
 ### 변경 사항
