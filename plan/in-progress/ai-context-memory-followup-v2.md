@@ -77,8 +77,8 @@ related_plan: plan/complete/ai-context-memory-auto.md
 
 ## A1 가시화 UI / A2 contextScope 확장 도출 백로그 (2026-06-05)
 - [x] listScopes ORDER BY MAX(updated_at) filesort 인덱스 — 2026-06-05 완료 (#482, V086 CONCURRENTLY).
-- [ ] AgentMemoryAdminService 분리 (SRP, admin read/delete 를 런타임 메모리 서비스에서 분리) — A1 backlog.
-- [ ] agent-memory `page.tsx`(412줄) 컴포넌트 분해 + 프론트 page 컴포넌트 테스트 — A1 backlog.
-- [ ] agent-memories pagination offset→프로젝트 표준 page DTO 정렬 — A1 backlog.
-- [ ] clearScope 0건 삭제 시 toast 중립화/X-Deleted-Count — A1 backlog.
+- [x] AgentMemoryAdminService 분리 (SRP, admin read/delete 를 런타임 메모리 서비스에서 분리) — A1 backlog. 2026-06-27 완료 (Batch 3) — admin read/delete(list/delete/clear) + deletedRowCount 를 AgentMemoryAdminService 로 분리, 컨트롤러는 admin 서비스만 주입. 테스트도 admin spec 으로 이관.
+- [x] agent-memory `page.tsx`(412줄) 컴포넌트 분해 + 프론트 page 컴포넌트 테스트 — A1 backlog. 2026-06-27 완료 (Batch 3) — ScopeListPanel + MemoryListPanel 분해, page 는 오케스트레이터. page clearScope 토스트 분기 테스트 추가.
+- [x] agent-memories pagination offset→프로젝트 표준 page DTO 정렬 — A1 backlog. 2026-06-27 확인 (Batch 3) — 이미 표준 `PaginatedResponseDto`(data + pagination{page,limit,totalItems,totalPages}) 준수. 변경 불필요.
+- [x] clearScope 0건 삭제 시 toast 중립화/X-Deleted-Count — A1 backlog. 2026-06-27 완료 (Batch 3) — 컨트롤러 X-Deleted-Count 헤더 echo, api 클라이언트 파싱, 0건이면 toast.info(중립) 분기. api 헤더 파싱 테스트 추가.
 - [x] information_extractor §5.4/§5.5 meta 표에 contextInjection 행(waiting/resumed) — A2 backlog(minor). 2026-06-27 완료 (Batch 1) — **전제 정정**: 핸들러 검증 결과 waiting/resumed transient 스냅샷은 `contextInjection` 을 의도적으로 미포함(첫 진입 1회 주입 결과는 `state.contextInjection` 운반→§5.6 종결에서만 echo). 데이터 행 추가 대신 §5.4/§5.5 표 아래 "의도적 부재" 노트 명시로 재오해 방지.
