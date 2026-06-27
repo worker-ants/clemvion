@@ -4,7 +4,8 @@ worktree: webchat-composer-loading
 started: 2026-06-27
 owner: developer
 status: complete
-spec_impact: []
+spec_impact:
+  - spec/7-channel-web-chat/1-widget-app.md
 related_spec:
   - spec/7-channel-web-chat/1-widget-app.md
 ---
@@ -35,7 +36,17 @@ related_spec:
    - `.wc-composer-send[aria-busy="true"]:disabled` → 브랜드 컬러 `#5B4FE9` 유지(응답 중 = 활동 신호).
    - `.wc-composer-spinner` + `@keyframes wc-spin` 추가.
 
+4. `spec/7-channel-web-chat/1-widget-app.md §2` 입력창 행: 비활성 외형(idle 중립 회색 / booting·streaming
+   스피너+aria-busy+"AI 응답 중") 규약 추가 — 구현과 정합(#709·#713 선례대로 impl PR 에서 동반 갱신).
+
 동작은 불변: AI 처리 중 입력 차단(R6) 유지, 활성 시 보라색 전송 그대로.
+
+## ai-review 반영 (14_43_25)
+
+- W-3: `Composer` `submit` 가드·버튼 `disabled` 에 `loading` 포함 — 단독 재사용 시에도 스피너 중 전송 차단 계약 보장.
+- W-2: `composer.test.tsx` 신설 — loading 라벨/aria-busy/스피너/전송차단 단위 검증(5 케이스).
+- W-1(SPEC-DRIFT): 위 §2 갱신으로 해소.
+- INFO: panel.test booting 케이스 streaming 동등화 + `beforeEach(clearAllMocks)` + 주석/JSDoc 보강.
 
 # 검증
 

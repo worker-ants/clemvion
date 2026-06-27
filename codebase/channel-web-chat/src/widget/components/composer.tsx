@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 
 interface ComposerProps {
+  /** 외부 강제 비활성(§R6 게이팅: phase≠awaiting_user_message 또는 buttons/form 표면). */
   disabled?: boolean;
   /** AI 응답 처리 중(booting/streaming) — 전송 버튼 자리에 스피너로 "응답 중" 표시. spec 1-widget-app §R6. */
   loading?: boolean;
@@ -17,7 +18,8 @@ export function Composer({ disabled, loading, placeholder, onSend }: ComposerPro
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const trimmed = text.trim();
-    if (!trimmed || disabled) return;
+    // loading(응답 중)·disabled 시 전송 차단 — Composer 단독 재사용 시에도 계약 보장.
+    if (!trimmed || disabled || loading) return;
     onSend(trimmed);
     setText("");
   };
@@ -36,7 +38,7 @@ export function Composer({ disabled, loading, placeholder, onSend }: ComposerPro
       <button
         type="submit"
         className="wc-composer-send"
-        disabled={disabled || !text.trim()}
+        disabled={disabled || loading || !text.trim()}
         aria-busy={loading || undefined}
         aria-label={loading ? "AI 응답 중" : "전송"}
       >
