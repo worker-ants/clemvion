@@ -217,7 +217,10 @@ describe('Cafe24 metadata', () => {
     });
   });
 
-  describe('Core categories have CRUD coverage', () => {
+  // customer/order 등 일부 resource 는 G-3l(2026-06-27)에서 docs 부재 op 가
+  // 제거돼 더 이상 전체 CRUD 를 노출하지 않는다 — 본 블록은 각 resource 가
+  // "최소 필수 operation" 을 노출하는지만 검증한다(전체 CRUD 보장 아님).
+  describe('Core categories expose their minimum required operations', () => {
     const expectations: Array<[string, string[]]> = [
       [
         'product',
@@ -230,7 +233,7 @@ describe('Cafe24 metadata', () => {
         ],
       ],
       ['order', ['order_list', 'order_get']],
-      ['customer', ['customer_list', 'customer_get', 'customer_update']],
+      ['customer', ['customer_list']],
       [
         'category',
         [
@@ -241,7 +244,7 @@ describe('Cafe24 metadata', () => {
           'category_delete',
         ],
       ],
-      ['promotion', ['coupon_list', 'coupon_get', 'coupon_create']],
+      ['promotion', ['coupon_list', 'coupon_create']],
     ];
 
     for (const [resource, requiredOps] of expectations) {

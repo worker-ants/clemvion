@@ -16,9 +16,7 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 
 | id | 라벨 (한) | English title | method | path | scope | paginated | status | docs |
 |----|---|---|---|---|---|---|---|---|
-| `applications_list` | 설치된 앱 목록 조회 | Retrieve an app information | GET | `applications` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-an-app-information) |
 | `scripttags_list` | 스크립트태그 목록 조회 | Retrieve a list of script tags | GET | `scripttags` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-script-tags) |
-| `webhooks_list` | Webhook 설정 조회 | Retrieve webhook settings | GET | `webhooks` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-webhook-settings) |
 | `apps_update` | 앱 정보 수정 | Update an app information | PUT | `apps` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-app-information) |
 | `appstore_orders_get` | 앱스토어 주문 조회 | Retrieve a Cafe24 store order | GET | `appstore/orders/{order_id}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retreive-a-cafe24-store-order) |
 | `appstore_orders_create` | 앱스토어 주문 생성 | Create a Cafe24 store order | POST | `appstore/orders` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-cafe24-store-order) |
@@ -35,8 +33,6 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `scripttags_delete` | 스크립트태그 삭제 | Delete a script tag | DELETE | `scripttags/{script_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-script-tag) |
 | `webhooks_logs_list` | Webhook 로그 목록 | Retrieve a list of webhook logs | GET | `webhooks/logs` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-webhook-logs) |
 | `webhooks_update` | Webhook 설정 수정 | Edit webhook settings | PUT | `webhooks/setting` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#edit-webhook-settings) |
-
-> ⚠ **docs 부재 seed (`applications_list`, `webhooks_list`)**: 두 row 의 endpoint 는 cafe24 admin docs (Latest 2026-03-01) 에 **노출되지 않는다** — `GET applications` / `GET webhooks` 미문서화. 메타데이터 row 는 backwards-compat seed 로 유지되며 cafe24 wire 상 실제 동작 여부는 **미확인 (production 검증 전)**. `status: supported` 는 §3 정의상 "노드에서 호출 가능 = 메타데이터 row 존재" 를 뜻하므로 유효하나, docs 링크는 잠정적이다. JSDoc ⚠ 마크 + 운영 검증/제거 결정 트랙: [`plan/in-progress/cafe24-backlog-residual.md §G-2`](../../../plan/in-progress/cafe24-backlog-residual.md). 근거: [`application.ts`](../../../codebase/backend/src/nodes/integration/cafe24/metadata/application.ts) JSDoc 주석.
 
 ## Field-level 상세 카탈로그
 

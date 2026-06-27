@@ -1179,23 +1179,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
-  // ⚠ socials_apple_settings_get — cafe24 admin docs (Latest 2026-03-01) 는
-  // `GET socials/apple/settings` 를 노출하지 않는다 (`socials/apple` 의 GET/PUT
-  // 만 문서화). 본 row 는 Phase 7d/8 seed 였고 cafe24 wire 상 실제 동작 여부
-  // 미확인. 운영 검증 / 제거 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
-  {
-    id: 'socials_apple_settings_get',
-    description:
-      'Retrieve Apple login integration settings. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
-    scopeType: 'read',
-    method: 'GET',
-    path: 'socials/apple/settings',
-    requiredFields: [],
-    fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-    },
-    responseShape: 'single',
-  },
   {
     id: 'socials_kakaosync_get',
     description: 'Retrieve KakaoSync integration details.',

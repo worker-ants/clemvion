@@ -42,16 +42,21 @@ owner: developer (다음 진입자)
 > 했음. 2026-06-03 다운로드 HTML 제공으로 해소._
 
 - [ ] **G-1-remaining** (데이터 확보 완료 — docs↔metadata 갭 보강만 잔여):
-  - **store field-set 확장**: store 106 endpoint docs field 비교 audit 미수행.
+  - **store field-set 확장**: store 105 endpoint docs field 비교 audit 미수행 (G-3l 에서 socials_apple_settings_get 제거 후 106→105).
   - **field-set 확장 (모든 resource)**: docs 에 있으나 metadata 에 누락된 field 추가 (예: product_list docs ~50 field vs 우리 8 field). 전 resource 적용 시 수천 줄.
   - **impliesValue metadata 적용**: 인프라 완료. 실제 ops 적용은 trigger field(refund_method, material_composite 등) 추가 후 — order cancellation/return/exchange + products create/update + bundleproducts create/update.
   - **constraint-only sweep — 미적용 date-pair**: order_count, boards_articles_list, coupon_list/count, scripttags_list/count, salesreport_volume — date 필드 부재로 field-set 확장 선행.
 
 ### G-2 — 잔존 docs 부재 ops 처리 결정 (운영 검증 후)
 
-> **결정 2026-06-02**: 본 항목은 **현행 유지**한다 (production 검증 전이라 제거/문의 판단 보류). JSDoc ⚠ 마크 상태로 둔다.
+> **✅ 해소 (G-3l, 2026-06-27)**: 아래 9 ops 는 G-3l 에서 **전부 제거**됐다 (사용자 결정). 2026-06-03 공식
+> docs HTML(authoritative) 확보로 "production 검증 전 보류" 전제가 무효화됐고, 해당 ops 가 이미 비동작(404)
+> 이라 호환 영향 없음을 근거로 outright 제거. 본 §G-2 는 더 이상 대기 항목이 아니다 (이력 보존용).
+> 결정·실행 상세: §G-3l, rationale: [`cafe24-api-catalog/_overview.md` ## Rationale](../../spec/conventions/cafe24-api-catalog/_overview.md).
 
-production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요청. 모두 JSDoc ⚠ 마크 완료. 영향 ops:
+> **결정 2026-06-02 (superseded)**: 본 항목은 **현행 유지**한다 (production 검증 전이라 제거/문의 판단 보류). JSDoc ⚠ 마크 상태로 둔다.
+
+production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요청. 모두 JSDoc ⚠ 마크 완료. 영향 ops (전부 G-3l 제거 완료):
 - customer: customer_get, customer_update
 - promotion: coupon_get, coupon_delete
 - application: applications_list, webhooks_list
@@ -122,14 +127,24 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 - [x] **G-3i shipping (DECIDE ×1)**: `shipping_companies_list` GET `shippingcompanies` → docs 엔 없고 `carriers` 가 대응이나 **다른 resource·응답 스키마** → 단순 remap 불가, 노드 출력 매핑 재설계 판단 필요 **→ ✅ 해소: `carriers_list` 로 remap+rename (하단 A REMAP·네이밍 정비 note)**.
 - [x] **G-3j product (DECIDE ×1)**: `mains_products_delete` DELETE `mains/{display_group}/products` → docs GET/POST/PUT 만 (DELETE 부재).
 - [x] **G-3k store (SCOPE FIX ×1)** ✅ 2026-06-03 정정 (docs 기본스펙 재확인: PUT 이지만 `mall.read_store`): `carts_setting_update` PUT `carts/setting` scope `write`→`read`.
-- [ ] **G-3l KNOWN_G2 재검토 (7)**: HTML 이 최종 상태로 확정됐으므로, 위 G-2 의 "production 검증 전 보류" 전제가
-  해소됨 — docs 에 없는 `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·
-  `socials_apple_settings_get` 는 **최종 API 부재 확정**. 제거 여부를 G-2 결정과 합쳐 재판단 (planner 트랙).
-  - ⏸ **미결 유지 (2026-06-20 재검증)**: 해당 9 ops 는 여전히 metadata 잔존 + drift-guard `KNOWN_DOCS_ABSENT` allowlist 면제 상태(제거 아님). 제거 결정은 planner 트랙 미결 — G-3b~G-3j(아래 [x])와 달리 본 항목만 open.
+- [x] **G-3l KNOWN_G2 재검토 (9) — ✅ 2026-06-27 전부 제거 (사용자 결정)**: HTML 이 최종 상태로 확정됐으므로 위 G-2 의
+  "production 검증 전 보류" 전제가 해소됨 — docs 에 없는 `customer_get/update`·`coupon_get/delete`·`applications_list`·
+  `webhooks_list`·`mains_update/delete`·`socials_apple_settings_get` 는 **최종 API 부재 확정**. 사용자 결정으로 9 ops
+  전부 제거(현재도 비동작 404 라 호환 영향 미미).
+  - **동기 제거**: metadata `.ts` row(customer/promotion/category/store/application) + index `<resource>.md` row + seed
+    note/footnote + field 부재 i18n ko/en 라벨 + `_overview.md §5` coverage(494→485) + drift-guard `KNOWN_DOCS_ABSENT`
+    allowlist(9→0, size 테스트 0 으로 갱신) + metadata.spec.ts must-exist 기대값(customer/promotion) + frontend
+    activity-label 테스트 fixture(`applications_list`→`scripttags_list`) + 잔존 `customer_update` 예시 4곳
+    (spec `4-cafe24.md §8.1`·`cafe24-api-metadata.md` i18n 키 예시 + 유저가이드 `cafe24.mdx`/`cafe24.en.mdx`
+    → `customer_delete`) + "494 op" 주석 2곳 + `_overview.md` ## Rationale·§8 제거 절차 신설.
+  - **검증**: backend 전체 jest 7430 pass(metadata 97·catalog-sync/drift 포함), frontend i18n 79 pass
+    (`cafe24-catalog-sync.spec.ts` ko/en↔backend 485 parity) + activity-label 75 pass, backend build·eslint green.
+    e2e 는 DB/Redis infra 부재로 본 샌드박스 미실행(메타데이터 제거라 e2e 의존 없음 — 어떤 e2e 도 해당 op 미참조).
 - [x] **G-3m catalog-sync 가드 보강** ✅ 2026-06-03 완료: `catalog-docs-drift.spec.ts` 신설 —
   metadata 의 모든 supported op `(method, path, scope)` 를 field-level 카탈로그(docs SoT) 와 대조.
   metadata↔index 동기(둘 다 Chrome 유래)로는 못 잡던 docs 드리프트를 단방향 검출. G-2 docs-부재
-  9개는 `KNOWN_DOCS_ABSENT` allowlist 면제. **즉시 실효 입증**: DECIDE 배치에서 누락된
+  9개는 `KNOWN_DOCS_ABSENT` allowlist 면제(→ **G-3l(2026-06-27)에서 9개 전부 제거되어 allowlist 는 현재 빈 set,
+  size 테스트 0**). **즉시 실효 입증**: DECIDE 배치에서 누락된
   `orders_calculation_total` (path `orders/{order_id}/calculation/total`→`orders/calculation`,
   scope `read`→`write` 둘 다 오류)을 가드가 검출 → 정정. 이후 가드 green.
 
@@ -163,6 +178,7 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 > metadata(`nodes/integration/cafe24/metadata/*.ts`) + index + i18n 에 반영됨을 재확인 — `catalog-docs-drift.spec.ts`
 > 10/10·`catalog-sync.spec.ts` 24/24 green, `_overview.md §5` coverage = 494. 이에 8개 박스 stale `[ ]`→`[x]` 정정.
 > G-3l 은 planner 미결로 open 유지. 남은 트랙(G-1 field-set·G-3k carts 실증)은 별개로 in-progress.
+> _(2026-06-27 정정)_: G-3l 도 **완료**(9 ops 제거) — `KNOWN_DOCS_ABSENT` 0, `_overview.md §5` coverage = **485**.
 
 > **네이밍 정비 완료 (2026-06-03, 사용자 결정)**: sibling 컨벤션 일치 op id rename —
 > `shipping_companies_list`→`carriers_list` (형제 `carriers_get/create/update/delete`),

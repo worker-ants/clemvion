@@ -6,7 +6,7 @@ import { resolveMakeshopOperationLabel } from "@/lib/node-definitions/makeshop-e
  * `<provider>.<resource>.<operation>` catalog key 를 사람 친화 라벨로 변환한다.
  * provider prefix 로 flat catalog dict 를 직접 lookup 한다:
  *  - `makeshop.*` → makeshopCatalog dict (161 op)
- *  - `cafe24.*`  → cafe24Catalog dict (494 op)
+ *  - `cafe24.*`  → cafe24Catalog dict (485 op)
  * 두 dict 모두 채워져 있어, 매핑이 있으면 라벨·miss 면 null
  * (endpoint-only fallback 으로 위임).
  *

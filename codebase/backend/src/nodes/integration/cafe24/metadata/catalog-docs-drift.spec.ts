@@ -63,18 +63,13 @@ export function normPath(p: string): string {
  * docs 부재이나 운영상 유지 중인 operation (plan G-2 — 현행 유지, JSDoc ⚠).
  * production 검증 또는 cafe24 본사 문의로 docs 등재되면 제거한다. `<resource>/<id>` 형식.
  * 무분별한 항목 추가로 가드가 우회되지 않도록 크기를 테스트로 고정한다(아래 it).
+ *
+ * 2026-06-27 (plan G-3l): docs(=authoritative)에 부재 확정된 9개 seed op
+ * (customer_get/update · coupon_get/delete · applications_list · webhooks_list ·
+ * mains_update/delete · socials_apple_settings_get)을 metadata 에서 제거 → allowlist 비움.
+ * 향후 docs 부재 op 를 다시 supported 로 둘 경우에만 여기 추가하고 아래 size 테스트를 갱신한다.
  */
-const KNOWN_DOCS_ABSENT = new Set<string>([
-  'customer/customer_get',
-  'customer/customer_update',
-  'promotion/coupon_get',
-  'promotion/coupon_delete',
-  'application/applications_list',
-  'application/webhooks_list',
-  'category/mains_update',
-  'category/mains_delete',
-  'store/socials_apple_settings_get',
-]);
+const KNOWN_DOCS_ABSENT = new Set<string>([]);
 
 interface DocsOp {
   scope: 'read' | 'write' | null;
@@ -159,8 +154,8 @@ describe('Cafe24 metadata ↔ field-level catalog (docs) drift guard — G-3m', 
   });
 
   it('KNOWN_DOCS_ABSENT allowlist 크기 고정 (무분별 추가로 가드 우회 방지)', () => {
-    // 항목 추가/삭제 시 본 수치와 plan G-2 를 함께 갱신할 것.
-    expect(KNOWN_DOCS_ABSENT.size).toBe(9);
+    // 항목 추가/삭제 시 본 수치와 plan G-2/G-3l 을 함께 갱신할 것.
+    expect(KNOWN_DOCS_ABSENT.size).toBe(0);
   });
 
   it('every supported metadata operation matches a docs operation by method+path', () => {

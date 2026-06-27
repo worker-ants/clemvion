@@ -18,8 +18,8 @@ describe("tryTranslateLabel", () => {
 
   it("cafe24 prefix + dict hit → 사람 친화 라벨 (ko)", () => {
     expect(
-      tryTranslateLabel("cafe24.application.applications_list", "ko"),
-    ).toBe("설치된 앱 목록 조회");
+      tryTranslateLabel("cafe24.application.scripttags_list", "ko"),
+    ).toBe("스크립트태그 목록 조회");
   });
 
   it("makeshop prefix + dict miss → null (endpoint fallback)", () => {

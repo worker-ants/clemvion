@@ -23,43 +23,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
     responseShape: 'list',
     paginated: true,
   },
-  // ⚠ customer_get / customer_update — cafe24 admin docs (Latest 2026-03-01)
-  // 는 `GET/PUT customers/{member_id}` 를 노출하지 않는다 (`DELETE` 만 문서화).
-  // 본 row 들은 Phase 2 (2026-05-14) 시점에 seed 로 추가됐고 cafe24 wire 상
-  // 실제 동작 여부 미확인. 운영 검증 / 제거 / 대체 (customer_list + filter)
-  // 결정은 `plan/in-progress/cafe24-backlog-residual.md §G-2` 트랙에서 진행.
-  {
-    id: 'customer_get',
-    description:
-      'Get a single customer by member_id. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
-    scopeType: 'read',
-    method: 'GET',
-    path: 'customers/{member_id}',
-    requiredFields: ['member_id'],
-    fields: {
-      member_id: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
-    },
-    responseShape: 'single',
-  },
-  {
-    id: 'customer_update',
-    description:
-      'Update customer profile fields. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
-    scopeType: 'write',
-    method: 'PUT',
-    path: 'customers/{member_id}',
-    requiredFields: ['member_id'],
-    fields: {
-      member_id: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      email: { type: 'string', location: 'body' },
-      phone: { type: 'string', location: 'body' },
-      sms: { type: 'enum', location: 'body', enum: ['T', 'F'] },
-      news_mail: { type: 'enum', location: 'body', enum: ['T', 'F'] },
-    },
-    responseShape: 'single',
-  },
   {
     id: 'customer_group_update',
     description: 'Move a customer to a different customer tier.',
