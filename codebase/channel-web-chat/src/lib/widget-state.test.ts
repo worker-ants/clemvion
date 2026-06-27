@@ -1,5 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { widgetReducer, initialState, type WidgetState } from "./widget-state";
+import {
+  widgetReducer,
+  initialState,
+  isTextInputSurface,
+  type WidgetState,
+} from "./widget-state";
+
+// 3곳(use-widget submitMessage·flush effect, panel Composer disabled)이 공유하는 핵심 판정 — 직접 단위 검증.
+describe("isTextInputSurface — 자유 텍스트 표면 판정(§R6)", () => {
+  it("ai_conversation → 텍스트 표면(true)", () => {
+    expect(isTextInputSurface({ type: "ai_conversation" })).toBe(true);
+  });
+  it("null(ai_conversation 도달 전 과도 상태) → 텍스트 표면(true)", () => {
+    expect(isTextInputSurface(null)).toBe(true);
+  });
+  it("buttons → 비텍스트 표면(false)", () => {
+    expect(isTextInputSurface({ type: "buttons" })).toBe(false);
+  });
+  it("form → 비텍스트 표면(false)", () => {
+    expect(isTextInputSurface({ type: "form" })).toBe(false);
+  });
+});
 
 function reduce(actions: Parameters<typeof widgetReducer>[1][], from = initialState): WidgetState {
   return actions.reduce((s, a) => widgetReducer(s, a), from);
@@ -82,6 +103,29 @@ describe("widgetReducer", () => {
     const s = widgetReducer(initialState, { type: "ERROR", message: "410" });
     expect(s.phase).toBe("ended");
     expect(s.error).toBe("410");
+  });
+
+  it("ERROR(대기 중 pending 상태) → ended + pending 해제 + error", () => {
+    // awaiting_user_message + pending 표면에서 에러가 나도 ended 로 전이하며 pending 을 비운다.
+    const s = reduce([
+      { type: "WAITING", interaction: { type: "buttons" } },
+      { type: "ERROR", message: "network" },
+    ]);
+    expect(s.phase).toBe("ended");
+    expect(s.pending).toBeNull();
+    expect(s.error).toBe("network");
+  });
+
+  it("ended 재open: OPEN(ended 상태) → open=true, phase=ended 유지(종료 화면 재노출)", () => {
+    // OPEN 은 collapsed 일 때만 panel 로 전이 — ended 는 그대로 유지해 '새 대화 시작' 화면을 다시 보여준다.
+    const ended = reduce([
+      { type: "WAITING", interaction: { type: "ai_conversation" } },
+      { type: "ENDED" },
+    ]);
+    const s = widgetReducer({ ...ended, open: false }, { type: "OPEN" });
+    expect(s.open).toBe(true);
+    expect(s.phase).toBe("ended");
+    expect(s.unread).toBe(0);
   });
 
   it("NEW_CHAT → 초기화 + panel open", () => {

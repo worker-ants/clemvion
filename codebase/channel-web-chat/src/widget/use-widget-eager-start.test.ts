@@ -63,6 +63,45 @@ function installFetch(overrides?: { webhookStatus?: number }) {
   return fetchMock;
 }
 
+/**
+ * ControllableEventSource + fetch(embed-config reject, webhook 202, interact 202) 설치.
+ * SSE 이벤트를 수동 주입하는 C1 flush/폐기 테스트 공용. `getEs()` 로 최신 인스턴스 접근.
+ */
+function installControllableSse() {
+  let latest: ControllableEventSource | null = null;
+  const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+    const u = String(url);
+    if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+    if (u.includes("/api/hooks/") && init?.method === "POST") {
+      return Promise.resolve({
+        ok: true,
+        status: 202,
+        json: async () => ({
+          data: {
+            executionId: "e1",
+            status: "pending",
+            interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+          },
+        }),
+      } as Response);
+    }
+    if (u.includes("/interact")) {
+      return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+    }
+    return Promise.reject(new Error(`unexpected fetch ${u}`));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("EventSource", class {
+    constructor() {
+      latest = new ControllableEventSource();
+      return latest;
+    }
+    addEventListener() {}
+    close() {}
+  });
+  return { fetchMock, getEs: () => latest };
+}
+
 function boot() {
   act(() => {
     window.dispatchEvent(
@@ -206,6 +245,35 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(interactBody).toMatchObject({ command: "submit_message", message: "큐 텍스트" });
   });
 
+  // C1 폐기 — 첫 표면이 buttons/form 이면 큐된 자유 텍스트를 폐기(잘못된 표면 오제출 방지, §R6).
+  it("C1 폐기: open 직후 큐된 텍스트는 첫 waiting 이 buttons 면 폐기(submit_message 미전송)", async () => {
+    const { fetchMock, getEs } = installControllableSse();
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(1));
+    // booting/streaming 중 submitMessage → 큐에만 보관(interact 미발생).
+    act(() => result.current.actions.submitMessage("폐기될 텍스트"));
+    expect(interactCalls(fetchMock).length).toBe(0);
+
+    // 첫 waiting 표면이 buttons → 자유 텍스트 제출 비대상 → 큐 폐기(flush effect 의 else 분기).
+    // SSE wire 형식: interactionType/waitingNodeId/buttonConfig (eia-events.parseWaitingForInput).
+    act(() => {
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "buttons",
+        waitingNodeId: "n1",
+        buttonConfig: { buttons: [{ id: "b1", label: "예" }] },
+        conversationThread: [],
+      });
+    });
+    await waitFor(() => expect(result.current.state.pending?.type).toBe("buttons"));
+    // 큐가 폐기됐으므로 interact(submit_message)는 끝까지 발생하지 않는다.
+    await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
+    expect(interactCalls(fetchMock).length).toBe(0);
+  });
+
   // W7 — newChat() 후 기존 세션 정리 + 새 webhook POST 1회.
   it("W7: newChat() → 기존 세션 정리 후 새 webhook POST 1회", async () => {
     const fetchMock = installFetch();
@@ -320,6 +388,60 @@ describe("useWidget — eager 시작(§R6)", () => {
     // SSE 이벤트 주입 없이 getStatus 시드만으로 buttons 표면이 복원돼야 한다.
     await waitFor(() => expect(result.current.state.pending?.type).toBe("buttons"));
     expect(result.current.state.phase).toBe("awaiting_user_message");
+  });
+
+  // 토큰 자동 갱신 타이머(3-auth-session §3 step7) — refreshDelayMs 순수계산은 use-widget.test.ts 가
+  // 검증하고, 여기서는 실제 setTimeout 발화 → refresh-token 호출까지를 fake timer 로 결정적 검증한다.
+  it("fake timer: BOOTED 후 refresh delay(만료 30분 전) 경과 → refresh-token 호출", async () => {
+    // shouldAdvanceTime: RTL waitFor 내부 폴링이 동작하도록 실시간과 함께 진행하되,
+    // 60분 refresh 지연은 advanceTimersByTimeAsync 로 점프해 결정적으로 발화시킨다.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 202,
+            json: async () => ({
+              data: {
+                executionId: "e1",
+                status: "pending",
+                interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+              },
+            }),
+          } as Response);
+        }
+        if (u.includes("/refresh-token") && init?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { token: "iext_x2", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString() } }),
+          } as Response);
+        }
+        // getStatus(GET status) — 비-waiting 으로 무난히 응답(시드 dispatch 없음).
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { id: "e1", status: "streaming" } }) } as Response);
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { result } = renderHook(() => useWidget());
+      boot();
+      await waitFor(() => expect(result.current.config).not.toBeNull());
+      act(() => result.current.actions.open());
+      await waitFor(() => expect(result.current.state.executionId).toBe("e1"));
+
+      // refresh delay = 90분 - 30분 lead = 60분. 그 너머로 점프 → refresh-token 1회 발화.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(61 * 60 * 1000);
+      });
+      // `>= 1`: 갱신 성공 후 scheduleRefresh 가 다음 만료 기준(~+60분)으로 재예약하므로, 61분 점프가
+      // 경계에서 2회째를 스칠 수 있어 정확히 1회로 못박지 않는다(재귀 재예약 동작 자체는 정상).
+      const refreshCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/refresh-token"));
+      expect(refreshCalls.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // race fix — openStream 을 lastEventId="0" 으로 열어 buffer 의 누락 이벤트(seq≥1)를 replay 받는다.

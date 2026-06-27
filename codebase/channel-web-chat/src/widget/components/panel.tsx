@@ -1,6 +1,6 @@
 "use client";
 
-import type { WidgetState } from "@/lib/widget-state";
+import { isTextInputSurface, type WidgetState } from "@/lib/widget-state";
 import type { BootMessage } from "../host-bridge";
 import { Composer } from "./composer";
 import { DynamicForm } from "./dynamic-form";
@@ -109,11 +109,7 @@ export function Panel({ state, config, actions }: PanelProps) {
         // AI 처리(booting/streaming) 중엔 전송 버튼에 스피너로 "응답 중" 표시 — 흐린 비활성이 고장처럼 보이던 문제 해소.
         <Composer
           loading={phase === "booting" || phase === "streaming"}
-          disabled={
-            phase !== "awaiting_user_message" ||
-            pending?.type === "buttons" ||
-            pending?.type === "form"
-          }
+          disabled={phase !== "awaiting_user_message" || !isTextInputSurface(pending)}
           onSend={actions.submitMessage}
         />
       )}

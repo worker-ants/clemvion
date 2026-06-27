@@ -111,6 +111,19 @@ describe("Panel — Composer disabled 게이팅 (W6, §R6)", () => {
     );
     expect(screen.getByLabelText("메시지 입력")).not.toBeDisabled();
   });
+
+  it("phase=ended → Composer 자체 미렌더(입력창 없음), '새 대화 시작' 버튼 노출", () => {
+    // 종료 화면에서는 Composer 를 disabled 가 아니라 아예 렌더하지 않는다(panel.tsx `!isEnded` 게이팅).
+    render(
+      <Panel
+        state={makeState({ phase: "ended" })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    expect(screen.queryByLabelText("메시지 입력")).toBeNull();
+    expect(screen.getByText("새 대화 시작")).not.toBeNull();
+  });
 });
 
 describe("Panel — AI 처리 중 전송 버튼 로딩 표시 (§R6)", () => {

@@ -13,7 +13,7 @@ import type {
 import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-events";
 import { threadToMessages } from "@/lib/conversation";
 import { clearSession, loadSession, saveSession } from "@/lib/session-store";
-import { initialState, widgetReducer } from "@/lib/widget-state";
+import { initialState, isTextInputSurface, widgetReducer } from "@/lib/widget-state";
 import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
 import type { WcResizePayload } from "./wc-protocol";
 
@@ -56,6 +56,13 @@ async function isEmbedAllowed(
   if (!host) return true; // 호스트 origin 미탐지(직접 로드 등) → soft 허용.
   return cfg.allowlist.includes(host);
 }
+
+/** execution 종료를 알리는 SSE 이벤트명 — 도착 시 스트림·타이머·세션을 정리하고 ENDED 로 전이. */
+const TERMINAL_EVENTS = [
+  "execution.completed",
+  "execution.failed",
+  "execution.cancelled",
+] as const;
 
 interface SessionRef {
   executionId: string;
@@ -113,6 +120,25 @@ export function useWidget() {
     streamRef.current = null;
   }, []);
 
+  /** 토큰 자동 갱신 타이머 정리(idempotent). 종료·새 대화·언마운트에서 null 된 sessionRef 에 쓰기 방지(W9). */
+  const clearRefreshTimer = useCallback(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * 세션 리소스 정리 — SSE 닫기 → 갱신 타이머 정리 → 저장 세션 삭제. 순서 의존(W9):
+   * closeStream 먼저(sessionRef 무효화 전 SSE 닫기) → 타이머 정리(null 된 sessionRef 쓰기 방지) → clearSession.
+   * 종료 이벤트(handleEiaEvent)·newChat 공통 경로. dispatch/ref 초기화는 호출부가 맥락에 맞게 수행.
+   */
+  const teardownSession = useCallback(() => {
+    closeStream();
+    clearRefreshTimer();
+    if (configRef.current) clearSession(configRef.current.triggerEndpointPath);
+  }, [closeStream, clearRefreshTimer]);
+
   const handleEiaEvent = useCallback(
     (name: string, data: unknown) => {
       if (name === "execution.waiting_for_input") {
@@ -139,23 +165,16 @@ export function useWidget() {
         // 렌더 경로(text/presentations 분리 렌더)를 재사용한다(이중 텍스트 방지).
         const { presentations } = parseMessage(data as ExecutionMessageEvent);
         if (presentations) dispatch({ type: "AI_MESSAGE", text: "", presentations });
-      } else if (
-        name === "execution.completed" ||
-        name === "execution.failed" ||
-        name === "execution.cancelled"
-      ) {
-        closeStream();
-        // 대화 종료 → 토큰 갱신 타이머 정리(더 갱신할 필요 없음).
-        if (refreshTimerRef.current) {
-          clearTimeout(refreshTimerRef.current);
-          refreshTimerRef.current = null;
-        }
-        if (configRef.current) clearSession(configRef.current.triggerEndpointPath);
+        // `as readonly string[]`: TERMINAL_EVENTS 는 `as const` 리터럴 튜플이라 .includes 가 인자를
+        // 리터럴 union 으로 좁혀 임의 string 인 `name` 을 거부한다 — 비교용으로 string[] 로 넓힌다.
+      } else if ((TERMINAL_EVENTS as readonly string[]).includes(name)) {
+        // 종료 이벤트 → 스트림·갱신 타이머·저장 세션 정리 후 ENDED 전이.
+        teardownSession();
         dispatch({ type: "ENDED", reason: name });
         bridgeRef.current?.sendEvent("conversationEnded", { reason: name });
       }
     },
-    [closeStream],
+    [teardownSession],
   );
 
   const openStream = useCallback(
@@ -305,8 +324,7 @@ export function useWidget() {
       if (
         sessionRef.current &&
         state.phase === "awaiting_user_message" &&
-        state.pending?.type !== "buttons" &&
-        state.pending?.type !== "form"
+        isTextInputSurface(state.pending)
       ) {
         dispatch({ type: "USER_MESSAGE", text });
         void sendCommand({ command: "submit_message", nodeId: state.pending?.nodeId, message: text });
@@ -327,7 +345,7 @@ export function useWidget() {
       !sessionRef.current
     )
       return;
-    if (state.pending?.type !== "buttons" && state.pending?.type !== "form") {
+    if (isTextInputSurface(state.pending)) {
       const queued = pendingSendRef.current;
       pendingSendRef.current = null;
       dispatch({ type: "USER_MESSAGE", text: queued });
@@ -370,20 +388,15 @@ export function useWidget() {
    * closeStream 먼저 → sessionRef 무효화 전에 SSE 닫기. 타이머 정리가 그 뒤 → null 된 sessionRef 에
    * 쓰기 시도를 방지(W9). startedRef=false 가 dispatch 전에 → start() 재진입 가능 상태 확보. */
   const newChat = useCallback(() => {
-    closeStream();
-    // W9: newChat 직후 만료될 수 있는 토큰 갱신 타이머 정리 — null 된 sessionRef 에 쓰기 방지.
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
-    if (configRef.current) clearSession(configRef.current.triggerEndpointPath);
+    // 기존 세션 리소스 정리(SSE → 갱신 타이머 → 저장 세션). 순서 의존(W9)은 teardownSession 내부.
+    teardownSession();
     sessionRef.current = null;
     startedRef.current = false;
     // I1: 이전 대화 booting 중 큐된 텍스트가 새 대화 첫 waiting 에서 flush 되는 누수 차단.
     pendingSendRef.current = null;
     dispatch({ type: "NEW_CHAT" });
     void start();
-  }, [closeStream, start]);
+  }, [teardownSession, start]);
   // 위젯(런처) 가시성 — open/close 와 직교한 축(§3.2). hide 해도 대화·SSE 유지.
   const show = useCallback(() => dispatch({ type: "SHOW" }), []);
   const hide = useCallback(() => dispatch({ type: "HIDE" }), []);
@@ -416,10 +429,7 @@ export function useWidget() {
     // per_execution 토큰 자동 갱신 — 만료 30분 이내 진입 시 refresh 후 재예약(3-auth-session §3 step7).
     // 함수 선언이라 setTimeout 콜백에서 자기 재귀 호출(재예약) 가능. cancelled 시 no-op.
     function scheduleRefresh() {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
+      clearRefreshTimer();
       const session = sessionRef.current;
       if (!session || cancelled) return;
       const delay = refreshDelayMs(session.expiresAt, Date.now());
@@ -516,10 +526,7 @@ export function useWidget() {
 
     return () => {
       cancelled = true;
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
+      clearRefreshTimer();
       closeStream();
       bridge.destroy();
     };

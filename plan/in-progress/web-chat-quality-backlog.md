@@ -19,16 +19,18 @@ owner: developer (TBD)
 ## A. 위젯 보안 하드닝 (eager-start 이관)
 - [ ] **per_execution 토큰 저장 localStorage → sessionStorage** — 탭 종료 시 자동 소거(현재 localStorage 영속).
       per_execution 단명 토큰이라 위험도는 낮으나 defense-in-depth. **구현 격상 시 `spec_impact` 에
-      `spec/7-channel-web-chat/4-security.md` 포함**(consistency I7) + `3-auth-session` 토큰 저장 서술 정합.
+      `spec/7-channel-web-chat/4-security.md`**(consistency I7) **+ `spec/7-channel-web-chat/2-sdk.md §3 (resetSession)`**
+      (저장 세션 비움 서술, consistency W-3 @ `review/consistency/2026/06/27/21_51_31/`) **포함** + `3-auth-session` 토큰 저장 서술 정합.
 - [ ] `start()` 에러 메시지 UI 일반화(W1, 기존 동작 유지 — 내부 에러 문구 노출 축소).
 
 ## B. 위젯 리팩터 (eager-start 이관)
-- [ ] `useWidget` God hook 분리 — `useTokenRefresh` / `usePendingMessageQueue`.
-- [ ] `isTextInputSurface()` 헬퍼 추출(텍스트표면 판정 3중 중복 제거).
-- [ ] `teardownSession` 헬퍼 · `start()` check-then-set · composer allowlist 전환 · SSE 이벤트명 배열 파생.
+- [ ] `useWidget` God hook 분리 — `useTokenRefresh` / `usePendingMessageQueue`. **(별도 후속 PR — 회귀 위험·규모로 분리. `plan/in-progress/webchat-widget-refactor.md §후속` 추적)**
+- [x] `isTextInputSurface()` 헬퍼 추출(텍스트표면 판정 3중 중복 제거). — PR `webchat-widget-refactor` (commit df77e61e6+)
+- [x] `teardownSession` 헬퍼 · `start()` check-then-set(이미 충족·유지) · composer allowlist 전환 · SSE 이벤트명 배열 파생. — 동 PR
 
 ## C. 테스트 보강 (eager-start 이관)
-- [ ] `ended` Composer 미렌더 · fake timer 전환 · C1 buttons/form 폐기·ended 재open 케이스 · ERROR→ended reducer 케이스.
+- [x] `ended` Composer 미렌더 · fake timer(토큰 refresh) · C1 buttons/form 폐기 · ended 재open reducer · ERROR→ended reducer 강화. — 동 PR
+  - 추가 backlog 메모(ai-review/impl-done INFO): `configFromQuery` apiBase origin 검증(보안 #6) · `phase=blocked` Panel 테스트(#14) · `1-widget-app §3.1·§2` spec 문서화(SPEC-DRIFT, planner) — 전부 비차단.
 
 ## D. spec polish — ✅ 전부 완료 (PR 미정, consistency-check BLOCK: NO `review/consistency/2026/06/27/21_35_06/`)
 - [x] `0-architecture §R6` 중복 ID 재번호화 + C1 buttons/form 폐기 동작 Rationale 한 줄(eager-start 이관).

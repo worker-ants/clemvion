@@ -21,6 +21,16 @@ export interface PendingInteraction {
   nodeId?: string;
 }
 
+/**
+ * 자유 텍스트 입력 표면인지 판정 — `buttons`/`form` 은 선택/제출 표면이라 텍스트 입력 비대상(§R6).
+ * `null`(ai_conversation 진입 전 등)도 텍스트 표면으로 본다(현행 동작 보존). allowlist 의미:
+ * "텍스트 표면 = buttons/form 이 아님". use-widget(전송/큐 flush 게이팅)과 panel(Composer 활성)이
+ * 같은 판정을 공유하도록 단일화한다(텍스트표면 판정 3중 중복 제거).
+ */
+export function isTextInputSurface(pending: PendingInteraction | null): boolean {
+  return pending?.type !== "buttons" && pending?.type !== "form";
+}
+
 export interface WidgetState {
   phase: WidgetPhase;
   /** 패널 가시성. close 해도 대화(phase)는 유지(§3.1). */
