@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-27T19:01:08.730924",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/nav-spec-doc-fix.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
