@@ -87,7 +87,7 @@ pending_plans:
 | 분류 | 필수/권장 필드 |
 | --- | --- |
 | **공통** | `meta.durationMs: number` |
-| **LLM 계열** | `meta.model`, `meta.inputTokens`, `meta.outputTokens`, `meta.totalTokens`, `meta.thinkingTokens?`, `meta.toolCalls?`, `meta.contextInjection?` (ConversationThread 자동 주입 시 — `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` echo. 상세: [Spec Conversation Thread §5.3](./conversation-thread.md#53-cap-v1)), `meta.memory?` (auto-memory `memoryStrategy ≠ 'manual'` 적용 시 — `ai_agent` / `information_extractor`. `{ strategy, summarized, recalledCount, tokenBudgetUsed, compactedMessages? }` echo. 상세: [Spec Agent Memory](../5-system/17-agent-memory.md)) |
+| **LLM 계열** | `meta.model`, `meta.inputTokens`, `meta.outputTokens`, `meta.totalTokens`, `meta.thinkingTokens?`, `meta.toolCalls?`, `meta.contextInjection?` (ConversationThread 자동 주입 시 — `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` echo. 상세: [Spec Conversation Thread §5.3](./conversation-thread.md#53-cap-v1)), `meta.memory?` (auto-memory `memoryStrategy ≠ 'manual'` 적용 시 — **`ai_agent` 전용**. `information_extractor` 는 persistent 전략(회수+추출)을 지원하나 `meta.memory` 는 echo 하지 않는다(`meta.contextInjection` 만). `{ strategy, summarized, recalledCount, tokenBudgetUsed, compactedMessages? }` echo. 필드 정의: [Spec AI Agent §7.1](../4-nodes/3-ai/1-ai-agent.md#71-single-turn-모드--정상-완료-out-포트), 전략 SoT: [Spec Agent Memory](../5-system/17-agent-memory.md)) |
 | **HTTP** | `meta.statusCode`, `meta.durationMs` |
 | **DB** | `meta.durationMs`, `meta.rowCount` |
 | **Code** | `meta.durationMs`, `meta.success`, `meta.logs?` (런타임 에러는 `output.error` + `port:'error'` — `meta.error`/`meta.errorCode` 별칭은 Phase 1 D 에서 폐기) |
