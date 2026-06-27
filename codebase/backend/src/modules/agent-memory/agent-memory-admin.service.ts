@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 /**
@@ -29,8 +29,6 @@ function deletedRowCount(
  */
 @Injectable()
 export class AgentMemoryAdminService {
-  private readonly logger = new Logger(AgentMemoryAdminService.name);
-
   constructor(private readonly dataSource: DataSource) {}
 
   /**

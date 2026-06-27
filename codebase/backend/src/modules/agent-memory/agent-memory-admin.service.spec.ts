@@ -254,6 +254,13 @@ describe('AgentMemoryAdminService (spec §6, AGM-12/13)', () => {
       mockDataSource.query.mockResolvedValue([[], 0]);
       expect(await service.deleteMemory('ws-1', 'absent')).toBe(0);
     });
+
+    it('W10: 비-튜플(flat array) DELETE 결과도 rows 길이로 affected 산출 (방어 분기)', async () => {
+      // 일부 드라이버/경로가 [rows,count] 튜플이 아닌 rows 배열을 직접 반환할 때도
+      // deletedRowCount 가 길이로 affected 를 구하는 방어 분기 — 명시 계약 검증.
+      mockDataSource.query.mockResolvedValue([{ id: 'a' }]);
+      expect(await service.deleteMemory('ws-1', 'mem-1')).toBe(1);
+    });
   });
 
   describe('clearScope (spec §6, AGM-13)', () => {

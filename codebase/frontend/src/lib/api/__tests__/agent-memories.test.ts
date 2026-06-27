@@ -62,3 +62,68 @@ describe("agentMemoriesApi.clearScope (X-Deleted-Count)", () => {
     expect(await agentMemoriesApi.clearScope("cust-1")).toBe(0);
   });
 });
+
+describe("agentMemoriesApi.listScopes / listMemories", () => {
+  it("listScopes: GET /agent-memories/scopes (q 포함) + paged 정규화", async () => {
+    getMock.mockResolvedValue(
+      fakeAxios({
+        data: [{ scopeKey: "cust-1", count: 2, latestUpdatedAt: "T" }],
+        pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+      }),
+    );
+    const res = await agentMemoriesApi.listScopes({
+      limit: 20,
+      offset: 0,
+      q: "cust",
+    });
+    expect(getMock).toHaveBeenCalledWith("/agent-memories/scopes", {
+      params: { limit: 20, offset: 0, q: "cust" },
+    });
+    expect(res.items).toHaveLength(1);
+    expect(res.items[0].scopeKey).toBe("cust-1");
+    expect(res.totalItems).toBe(1);
+  });
+
+  it("listScopes: q 미지정이면 params 에 q 키 없음", async () => {
+    getMock.mockResolvedValue(
+      fakeAxios({
+        data: [],
+        pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+      }),
+    );
+    await agentMemoriesApi.listScopes({ limit: 20, offset: 0 });
+    expect(getMock).toHaveBeenCalledWith("/agent-memories/scopes", {
+      params: { limit: 20, offset: 0 },
+    });
+  });
+
+  it("listMemories: GET /agent-memories (kind 포함) + 정규화", async () => {
+    getMock.mockResolvedValue(
+      fakeAxios({
+        data: [
+          {
+            id: "m1",
+            content: "c",
+            kind: "fact",
+            scopeKey: "cust-1",
+            createdAt: "T",
+            updatedAt: "T",
+            expiresAt: null,
+          },
+        ],
+        pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+      }),
+    );
+    const res = await agentMemoriesApi.listMemories({
+      scopeKey: "cust-1",
+      kind: "fact",
+      limit: 20,
+      offset: 0,
+    });
+    expect(getMock).toHaveBeenCalledWith("/agent-memories", {
+      params: { scopeKey: "cust-1", limit: 20, offset: 0, kind: "fact" },
+    });
+    expect(res.items[0].id).toBe("m1");
+    expect(res.totalItems).toBe(1);
+  });
+});
