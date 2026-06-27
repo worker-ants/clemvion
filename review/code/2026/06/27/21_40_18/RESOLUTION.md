@@ -8,12 +8,12 @@
 
 | SUMMARY # | 조치 | commit |
 |---|---|---|
-| W-1 (saveMemories 무음 no-op) | FIX — `saveMemories` 첫줄 `if (typeof args !== 'object' \|\| args === null) throw`. 구 포지셔널 오용 시 throw. 테스트 `I3/W-1` 추가 | `<resolution2>` |
+| W-1 (saveMemories 무음 no-op) | FIX — `saveMemories` 첫줄 `if (typeof args !== 'object' \|\| args === null) throw`. 구 포지셔널 오용 시 throw. 테스트 `I3/W-1` 추가 | `20771c845` |
 | W-2 (updateSummaryState 무조건 대입) | 문서 수용 — JSDoc "두 필드 함께 제공" 계약(이전 resolution 에서 추가). 타입 narrow 는 caller 의 `string\|undefined` 와 마찰이라 미채택. 유일 호출부는 항상 둘 다 전달 | — |
 | W-3 (buildCosineMatch 파라미터 순서) | 처리완료 — recall/dedup 파라미터 순서 어설션 테스트로 계약 고정(이전 resolution). 리뷰어도 "테스트로 고정됨" 인정 | — |
 | W-4 (AgentMemoryService SRP) | 이월 — Batch 3 (기존 plan 백로그) | — |
 | W-5 (spec changeset 미포함) | 거짓양성 — 요구사항 리뷰어가 17-agent-memory.md §3·§7 갱신 직접 확인. 본 PR 에 17-agent-memory.md 포함됨 | — |
-| INFO I-10 | 채택 — readExtractionWatermark memoryState 원시값 폴백 테스트 추가 | `<resolution2>` |
+| INFO I-10 | 채택 — readExtractionWatermark memoryState 원시값 폴백 테스트 추가 | `20771c845` |
 | 기타 INFO | 비채택(현 상태 안전·규모 미미) 또는 후속 확장 시점 안내 | — |
 
 ## 별건 후속 (behind-base 충돌 회피 — 현재 main 기준 별도 spec PR)
