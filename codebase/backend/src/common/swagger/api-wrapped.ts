@@ -83,33 +83,29 @@ export function wrapItemsSchema<T>(dto: ClassRef<T>): SchemaObject {
 }
 
 /**
- * `{ data: { data: <ref>[], pagination: { page, limit, totalItems, totalPages } } }`
- * 본 프로젝트의 모든 페이지네이션 응답은 공용 `PaginatedResponseDto.create()` 를 거치므로
- * 이 형태를 따릅니다.
+ * `{ data: <ref>[], pagination: { page, limit, totalItems, totalPages } }` (single-wrap).
+ * 모든 페이지네이션 응답은 공용 `PaginatedResponseDto.create()`(= `{ data, pagination }` 2개
+ * top-level 키)를 거치고, `TransformInterceptor` 가 **이미 `data` 키를 가진 객체를 pass-through**
+ * 하므로(추가 래핑 없음) 이 single-wrap 이 실제 wire shape 다. (종전 헬퍼는 외곽 `data` 를
+ * 한 겹 더 씌운 double-wrap 으로 런타임과 불일치했다.)
  */
 export function wrapPaginatedSchema<T>(dto: ClassRef<T>): SchemaObject {
   return {
     type: 'object',
-    required: ['data'],
+    required: ['data', 'pagination'],
     properties: {
       data: {
+        type: 'array',
+        items: { $ref: getSchemaPath(dto) },
+      },
+      pagination: {
         type: 'object',
-        required: ['data', 'pagination'],
+        required: ['page', 'limit', 'totalItems', 'totalPages'],
         properties: {
-          data: {
-            type: 'array',
-            items: { $ref: getSchemaPath(dto) },
-          },
-          pagination: {
-            type: 'object',
-            required: ['page', 'limit', 'totalItems', 'totalPages'],
-            properties: {
-              page: { type: 'integer', example: 1 },
-              limit: { type: 'integer', example: 20 },
-              totalItems: { type: 'integer', example: 123 },
-              totalPages: { type: 'integer', example: 7 },
-            },
-          },
+          page: { type: 'integer', example: 1 },
+          limit: { type: 'integer', example: 20 },
+          totalItems: { type: 'integer', example: 123 },
+          totalPages: { type: 'integer', example: 7 },
         },
       },
     },
@@ -192,7 +188,8 @@ export function ApiOkWrappedArrayResponse<T>(
 
 /**
  * 공용 `PaginatedResponseDto` 형태의 페이지네이션 응답 래퍼.
- * `{ data: { data: <ref>[], pagination: { page, limit, totalItems, totalPages } } }` 구조를 문서화합니다.
+ * `{ data: <ref>[], pagination: { page, limit, totalItems, totalPages } }` (single-wrap) 구조를
+ * 문서화합니다 — `PaginatedResponseDto` 가 `data` 키를 가져 `TransformInterceptor` 가 pass-through.
  */
 export function ApiOkPaginatedResponse<T>(
   dto: ClassRef<T>,
