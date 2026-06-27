@@ -92,7 +92,7 @@ describe('Webhook trigger (e2e)', () => {
   }
 
   it('A. 활성 webhook 트리거 (인증 없음) 수신 → 202 + executionId', async () => {
-    const path = `e2e-a-${crypto.randomBytes(8).toString('hex')}`;
+    const path = crypto.randomUUID(); // endpoint_path 는 v4 UUID 형식 강제(W1)
     await createWebhookTrigger(uniqueName('hook-a'), path);
 
     const res = await request(BASE_URL)
@@ -113,7 +113,7 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('C. 비활성 트리거 → 410 TRIGGER_INACTIVE', async () => {
-    const path = `e2e-c-${crypto.randomBytes(8).toString('hex')}`;
+    const path = crypto.randomUUID();
     const triggerId = await createWebhookTrigger(uniqueName('hook-c'), path);
 
     await request(BASE_URL)
@@ -129,7 +129,7 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('D. bearer AuthConfig — 잘못된 토큰 401, 올바른 토큰 202', async () => {
-    const path = `e2e-d-${crypto.randomBytes(8).toString('hex')}`;
+    const path = crypto.randomUUID();
     const ac = await createAuthConfig('bearer_token');
     const expectedToken = ac.config.token as string;
     await createWebhookTrigger(uniqueName('hook-d'), path, {
@@ -151,7 +151,7 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('E. hmac AuthConfig — 서명 누락 401, 올바른 서명 202', async () => {
-    const path = `e2e-e-${crypto.randomBytes(8).toString('hex')}`;
+    const path = crypto.randomUUID();
     const ac = await createAuthConfig('hmac');
     const secret = ac.config.secret as string;
     const payload = JSON.stringify({ event: 'push', ref: 'main' });
@@ -180,7 +180,7 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('F. api_key AuthConfig — 헤더 누락/오류 401, 올바른 키 202', async () => {
-    const path = `e2e-f-${crypto.randomBytes(8).toString('hex')}`;
+    const path = crypto.randomUUID();
     const ac = await createAuthConfig('api_key');
     const key = ac.config.key as string;
     await createWebhookTrigger(uniqueName('hook-f'), path, {
@@ -201,7 +201,7 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('G. basic_auth AuthConfig — 잘못된 자격 401, 올바른 자격 202', async () => {
-    const path = `e2e-g-${crypto.randomBytes(8).toString('hex')}`;
+    const path = crypto.randomUUID();
     const ac = await createAuthConfig('basic_auth', {
       username: 'hookuser',
       password: 'hookpass',
@@ -226,7 +226,7 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('H. AuthConfig.is_active=false → 401', async () => {
-    const path = `e2e-h-${crypto.randomBytes(8).toString('hex')}`;
+    const path = crypto.randomUUID();
     const ac = await createAuthConfig('bearer_token');
     const tok = ac.config.token as string;
     await request(BASE_URL)
@@ -248,7 +248,7 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('I. 인증 성공 시 AuthConfig.last_used_at 갱신 (fire-and-forget, 폴링 확인)', async () => {
-    const path = `e2e-i-${crypto.randomBytes(8).toString('hex')}`;
+    const path = crypto.randomUUID();
     const ac = await createAuthConfig('bearer_token');
     const tok = ac.config.token as string;
     await createWebhookTrigger(uniqueName('hook-i'), path, {

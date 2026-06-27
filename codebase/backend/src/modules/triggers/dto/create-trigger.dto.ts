@@ -64,16 +64,18 @@ export class CreateTriggerDto {
   @IsObject()
   config?: Record<string, unknown>;
 
-  /** Webhook 트리거의 엔드포인트 경로 */
+  /** Webhook 트리거의 엔드포인트 경로 (v4 UUID) */
   @ApiPropertyOptional({
     description:
-      'Webhook 트리거 전용. 수신 엔드포인트 경로 (워크스페이스 내 유일)',
-    maxLength: 255,
-    example: '/hooks/my-integration',
+      'Webhook 트리거 전용. 수신 엔드포인트 경로 — v4 UUID 형식만 허용한다. ' +
+      '라우팅 키가 워크스페이스 무관 전역(`/api/hooks/:endpointPath`)이라 추측 불가한 ' +
+      'UUID 가 사실상 비밀 키 역할을 한다([Spec Webhook WH-SC-01·WH-MG-02]). ' +
+      '클라이언트가 `crypto.randomUUID()` 로 발급하며 서버가 형식을 강제한다.',
+    format: 'uuid',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(255)
+  @IsUUID('4')
   endpointPath?: string;
 
   /** 연결할 인증 설정 UUID */

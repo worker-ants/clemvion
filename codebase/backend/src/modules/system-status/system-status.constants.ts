@@ -13,6 +13,7 @@ import { MAKESHOP_REFRESH_QUEUE } from '../integrations/makeshop-token-refresh.c
 import { INTEGRATION_EXPIRY_QUEUE } from '../integrations/integration-expiry-scanner.service';
 import { SCHEDULE_QUEUE } from '../schedules/schedule-runner.service';
 import { LOGIN_HISTORY_PRUNER_QUEUE } from '../auth/jobs/login-history-pruner.service';
+import { WORKSPACE_INVITATIONS_PRUNER_QUEUE } from '../workspaces/jobs/workspace-invitations-pruner.service';
 import { NOTIFICATION_SECRET_ROTATOR_QUEUE } from '../triggers/notification-secret-rotator.service';
 import { CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE } from '../triggers/chat-channel-token-rotator.service';
 import { ALERTS_EVALUATOR_QUEUE } from '../alerts/alerts-evaluator.service';
@@ -70,6 +71,11 @@ export const MONITORED_QUEUES: readonly MonitoredQueue[] = [
   { name: MAKESHOP_REFRESH_QUEUE, group: 'integration', concurrency: 1 },
   { name: SCHEDULE_QUEUE, group: 'system', concurrency: 1 },
   { name: LOGIN_HISTORY_PRUNER_QUEUE, group: 'system', concurrency: 1 },
+  {
+    name: WORKSPACE_INVITATIONS_PRUNER_QUEUE,
+    group: 'system',
+    concurrency: 1,
+  },
   { name: NOTIFICATION_SECRET_ROTATOR_QUEUE, group: 'system', concurrency: 1 },
   {
     name: TERMINAL_REVOKE_RECONCILE_QUEUE,

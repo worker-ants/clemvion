@@ -45,15 +45,16 @@ export class UpdateTriggerDto {
   @IsObject()
   config?: Record<string, unknown>;
 
-  /** Webhook 엔드포인트 경로 */
+  /** Webhook 엔드포인트 경로 (v4 UUID) */
   @ApiPropertyOptional({
-    description: 'Webhook 트리거 전용. 수신 엔드포인트 경로',
-    maxLength: 255,
-    example: '/hooks/my-integration',
+    description:
+      'Webhook 트리거 전용. 수신 엔드포인트 경로 — v4 UUID 형식만 허용 ' +
+      '([Spec Webhook WH-SC-01·WH-MG-02]). 단, 생성 후 endpointPath 변경은 service 가 거부한다.',
+    format: 'uuid',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(255)
+  @IsUUID('4')
   endpointPath?: string;
 
   /** 인증 설정 UUID */

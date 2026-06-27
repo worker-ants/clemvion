@@ -63,7 +63,7 @@ pending_plans:
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
-| WH-SC-01 | 인증 없음(공개) 옵션 — `auth_config_id IS NULL`. `endpointPath` UUID 가 사실상 비밀 키 | 필수 |
+| WH-SC-01 | 인증 없음(공개) 옵션 — `auth_config_id IS NULL`. `endpointPath` UUID 가 사실상 비밀 키이므로 **반드시 CSPRNG 로 발급한 v4 UUID** 여야 한다(`crypto.randomUUID()`). 서버는 형식(v4)을 강제(WH-MG-02)하나 엔트로피 품질까지 검증할 수 없으므로, 클라이언트는 약한 RNG·고정값 사용을 금한다. | 필수 |
 | WH-SC-02 | HMAC 서명 검증 — AuthConfig.type=`hmac`, `config.secret` 기반, 헤더는 `config.header` (default `X-Hub-Signature-256`) | 필수 |
 | WH-SC-03 | Bearer Token 검증 — AuthConfig.type=`bearer_token` (`Authorization: Bearer <token>`) | 필수 |
 | WH-SC-04 | 인증 실패 시 `401 Unauthorized` 응답 (단일 메시지 `AUTH_FAILED` — enumeration 방지) | 필수 |
@@ -87,7 +87,7 @@ pending_plans:
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
 | WH-MG-01 | 워크플로우 에디터 또는 트리거 화면에서 webhook 트리거 생성 | 필수 |
-| WH-MG-02 | 생성 시 endpoint_path 자동 생성 (랜덤 UUID 기반) | 필수 |
+| WH-MG-02 | 생성 시 endpoint_path 자동 생성 (랜덤 UUID 기반). 클라이언트가 `crypto.randomUUID()` 로 발급하고 **서버가 생성/수정 DTO 에서 v4 UUID 형식을 강제**(`@IsUUID('4')`)해 예측 가능 경로 직접 지정을 차단한다 (WH-SC-01 비밀성 보강). | 필수 |
 | WH-MG-03 | 트리거 목록에서 webhook URL 전체를 클립보드 복사 | 필수 |
 | WH-MG-04 | 활성/비활성 토글로 webhook 수신 제어 (사용자 명시 토글 한정 — 시스템 자동 비활성화는 WH-MG-07 / [EIA §R6](./14-external-interaction-api.md#r6-notification-실패-시-자동-비활성화-금지) 참조) | 필수 |
 | WH-MG-05 | 호출 이력에서 요청 시각, 상태, 응답 코드 확인 | 필수 |

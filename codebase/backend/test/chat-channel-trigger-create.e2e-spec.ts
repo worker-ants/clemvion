@@ -75,8 +75,10 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       .send(body);
   }
 
-  function uniqueEndpoint(label: string): string {
-    return `e2e-mp-${label}-${crypto.randomBytes(8).toString('hex')}`;
+  // endpoint_path 는 서버가 v4 UUID 형식을 강제한다(W1) — 디버그용 label 은 더 이상
+  // path 에 실을 수 없어 무시하고 랜덤 v4 UUID 를 발급한다(call-site 호환 위해 인자는 유지).
+  function uniqueEndpoint(_label: string): string {
+    return crypto.randomUUID();
   }
 
   describe('telegram — server-issued inboundSigning (회귀)', () => {

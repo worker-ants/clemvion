@@ -238,8 +238,10 @@ webhook 진입 라우트는 `/api/hooks/:endpointPath` 단일 형태다 (`HooksC
 다만 실제 라우팅 키는 `endpoint_path` 단독이다 — `HooksController` 가 workspace 필터 없이
 `findOne({ endpointPath, type: 'webhook' })` 로 조회한다 (외부 호출이라 workspace 컨텍스트 없음).
 충돌 회피는 `endpoint_path` 를 UUID 로 자동 발급(WH-MG-02)해 사실상 전역 고유로 만드는 방식에 의존한다 —
-단, 이 자동 발급은 서버가 아니라 클라이언트(트리거 생성 화면의 `crypto.randomUUID()`)가 수행하며
-서버는 UUID 형식을 강제하지 않는다.
+이 값 발급은 클라이언트(트리거 생성 화면의 `crypto.randomUUID()`)가 수행하지만,
+**서버가 생성/수정 DTO 에서 v4 UUID 형식을 강제한다**(`@IsUUID('4')` — `create-trigger.dto.ts`·`update-trigger.dto.ts`).
+라우팅 키가 워크스페이스 무관 전역이고 공개(`auth_config_id IS NULL`) 트리거의 경우 `endpoint_path` 가
+사실상 비밀 키(WH-SC-01)이므로, 예측 가능한 비-UUID 경로 직접 지정(squatting·enumeration)을 형식 강제로 차단한다.
 공개 URL 형식은 `{base_url}/api/hooks/:endpointPath` 단일 형태다 (`spec/5-system/12-webhook.md` WH-EP-02).
 
 ### 역방향 동기화를 TriggersService 안의 private 메서드로 구현한 이유 (2026-06-10)

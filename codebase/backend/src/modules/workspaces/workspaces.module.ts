@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bullmq';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
@@ -8,6 +9,10 @@ import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
 import { InvitationsController } from './invitations.controller';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
+import {
+  WorkspaceInvitationsPrunerService,
+  WORKSPACE_INVITATIONS_PRUNER_QUEUE,
+} from './jobs/workspace-invitations-pruner.service';
 import { MailModule } from '../mail/mail.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
@@ -25,9 +30,14 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     ]),
     MailModule,
     AuditLogsModule,
+    BullModule.registerQueue({ name: WORKSPACE_INVITATIONS_PRUNER_QUEUE }),
   ],
   controllers: [WorkspacesController, InvitationsController],
-  providers: [WorkspacesService, WorkspaceInvitationsService],
+  providers: [
+    WorkspacesService,
+    WorkspaceInvitationsService,
+    WorkspaceInvitationsPrunerService,
+  ],
   exports: [WorkspacesService, WorkspaceInvitationsService],
 })
 export class WorkspacesModule {}
