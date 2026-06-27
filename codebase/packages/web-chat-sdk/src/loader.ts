@@ -97,10 +97,23 @@ export function installGlobal(
   const queued = Array.isArray(existing?.q) ? existing!.q! : [];
   w[globalName] = api;
   // 스니펫이 boot 전 큐잉한 호출 순서대로 replay. 형식 불량/예외는 흡수하고 계속 진행.
-  for (const call of queued) {
-    if (!Array.isArray(call) || typeof call[0] !== "string") continue;
+  // 스텁은 GA 식 표준대로 `push(arguments)` 하므로 각 항목의 런타임 형태는 진짜 Array 가 아니라
+  // array-like(arguments)다(타입상 GlobalCall 이어도). 여기서 Array.isArray 로 거르면 실제 스니펫이
+  // 큐잉한 호출이 통째로 버려져 boot 가 영영 실행되지 않는다(2-sdk §1·R5 위반). length 기반 array-like 로
+  // 수용한 뒤 실제 Array 로 정규화해 replay 한다.
+  for (const queuedCall of queued) {
+    const item = queuedCall as unknown;
+    if (
+      typeof item !== "object" ||
+      item === null ||
+      typeof (item as ArrayLike<unknown>).length !== "number"
+    ) {
+      continue;
+    }
+    const args = Array.prototype.slice.call(item as ArrayLike<unknown>);
+    if (typeof args[0] !== "string") continue;
     try {
-      api(call[0], ...call.slice(1));
+      api(args[0], ...args.slice(1));
     } catch (e) {
       console.warn("[web-chat] 큐 replay 중 오류", e);
     }
