@@ -17,7 +17,8 @@ interface PendingMessageQueueDeps {
   pending: PendingInteraction | null;
   /** 세션 핸들 — `.current` 없으면(미시작) flush 보류. */
   sessionRef: MutableRefObject<PersistedSession | null>;
-  /** EIA interact 전송기 — flush 시 `submit_message` 발행. */
+  /** EIA interact 전송기 — flush 시 `submit_message` 발행. **stable identity 전제**(useWidget 에서 `useCallback(…, [])`):
+   *  flush effect deps 에 포함되므로 매 렌더 새 함수면 의도치 않은 effect 재실행을 유발한다. */
   sendCommand: (command: InteractCommand) => Promise<void>;
   /** 위젯 reducer dispatch — flush 시 `USER_MESSAGE` 반영. */
   dispatch: Dispatch<WidgetAction>;

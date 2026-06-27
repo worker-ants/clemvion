@@ -66,17 +66,18 @@ export function useTokenRefresh({ sessionRef, clientRef, configRef }: TokenRefre
     const delay = refreshDelayMs(session.expiresAt, Date.now());
     if (delay === null) return;
     timerRef.current = setTimeout(() => {
-      const session = sessionRef.current;
-      const client = clientRef.current;
-      const cfg = configRef.current;
-      if (!session || !client || !cfg || cancelledRef.current) return;
-      void client
-        .refreshToken(session.endpoints, session.token)
+      // 타이머 발화 시점의 최신 ref 값을 다시 읽는다(예약 시점의 외부 `session` 과 구분 — 섀도잉 회피).
+      const currentSession = sessionRef.current;
+      const currentClient = clientRef.current;
+      const currentCfg = configRef.current;
+      if (!currentSession || !currentClient || !currentCfg || cancelledRef.current) return;
+      void currentClient
+        .refreshToken(currentSession.endpoints, currentSession.token)
         .then(({ token, expiresAt }) => {
           if (cancelledRef.current) return;
-          const updated = { ...session, token, expiresAt };
+          const updated = { ...currentSession, token, expiresAt };
           sessionRef.current = updated;
-          saveSession(cfg.triggerEndpointPath, updated);
+          saveSession(currentCfg.triggerEndpointPath, updated);
           scheduleRefresh(); // 다음 만료 기준 재예약.
         })
         .catch((err: unknown) => {

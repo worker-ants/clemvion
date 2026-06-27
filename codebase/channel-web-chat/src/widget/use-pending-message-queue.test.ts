@@ -58,18 +58,20 @@ describe("usePendingMessageQueue (C1 §R6)", () => {
   });
 
   it("clearQueue 후엔 awaiting 진입해도 flush 안 됨", () => {
-    const { result, rerender, sendCommand } = setup(INITIAL_PROPS);
+    const { result, rerender, sendCommand, dispatch } = setup(INITIAL_PROPS);
     act(() => result.current.enqueue("x"));
     act(() => result.current.clearQueue());
     act(() => rerender({ phase: "awaiting_user_message", pending: { type: "ai_conversation", nodeId: "n1" } }));
     expect(sendCommand).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it("세션 없으면 flush 보류(전송 안 함)", () => {
-    const { result, rerender, sendCommand } = setup(INITIAL_PROPS, false);
+    const { result, rerender, sendCommand, dispatch } = setup(INITIAL_PROPS, false);
     act(() => result.current.enqueue("대기"));
     act(() => rerender({ phase: "awaiting_user_message", pending: { type: "ai_conversation", nodeId: "n1" } }));
     expect(sendCommand).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it("pending=null 인 awaiting_user_message → flush(텍스트 표면, nodeId 미동봉)", () => {
