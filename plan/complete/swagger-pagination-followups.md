@@ -2,7 +2,10 @@
 worktree: swagger-passthrough-crossref
 started: 2026-06-27
 owner: developer
-status: in-progress
+status: complete
+completed: 2026-06-27
+spec_impact:
+  - spec/5-system/2-api-convention.md
 base: origin/main @ 8c5fdf257 (#725 포함)
 source: #723 swagger single-wrap 후속 (A: pass-through cross-ref / B: 테스트·JSDoc 하드닝)
 ---
@@ -31,7 +34,11 @@ source: #723 swagger single-wrap 후속 (A: pass-through cross-ref / B: 테스�
 - [x] TEST WORKFLOW (lint·unit·build·e2e 215) PASS (구현 후 + resolution 후)
 - [x] /ai-review (20_44_11) → LOW, Critical 0, **Warning 1**(pagination drift) → drift-guard 테스트 + JSDoc 보강(RESOLUTION.md)
 - [x] consistency-check --impl-done spec/conventions/ (20_44_11) → **BLOCK NO**. Warning(swagger.md Overview 부재)은 미변경 파일 pre-existing → out-of-scope
-- [ ] fresh /ai-review + fresh --impl-done (resolution 커버 — stale 가드 해소)
+- [x] fresh /ai-review (21_00_38) → Critical 0, **Warning 0** (clean) · fresh --impl-done (21_00_38) → **BLOCK NO**. WARNING(cafe24 application.md 명명)은 무관 pre-existing → out-of-scope
+
+## 완료
+
+A(§5.2 cross-ref, §11.4/channel-web-chat 는 false-positive 미수정) + B(wrapItemsSchema 테스트·JSDoc·drift-guard) 완료. 전 게이트 통과. C(plan 위생)는 별 PR.
 
 ## 메모
 
