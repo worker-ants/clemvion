@@ -440,5 +440,13 @@ describe('Workspace RBAC (e2e)', () => {
       .set('X-Workspace-Id', ws);
     expect(viewerModels.status).not.toBe(403);
     expect(viewerModels.status).toBe(404);
+
+    // ParseEnumPipe — 규격 외 `type` 은 가드 통과 후 pipe 가 핸들러 도달 전 400 으로
+    // 거부한다(허용값 chat|embedding). 단위 테스트는 pipe wiring 을 우회하므로 e2e 로 검증.
+    const invalidType = await request(BASE_URL)
+      .get(`/api/model-configs/${missingId}/models?type=bogus`)
+      .set('Authorization', `Bearer ${viewer.accessToken}`)
+      .set('X-Workspace-Id', ws);
+    expect(invalidType.status).toBe(400);
   });
 });

@@ -36,7 +36,13 @@ import {
 
 // 부속 엔드포인트(preview / test / list-models)는 실시간 provider 호출이라 과금·
 // rate-limit 보호용으로 동일 스로틀 정책을 공유한다 (3 핸들러 단일 SoT).
-const PROVIDER_PROBE_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
+// 분당 10회 — provider API 호출 비용·속도제한 여유분 기준.
+const PROVIDER_PROBE_THROTTLE = { default: { ttl: 60_000, limit: 10 } };
+
+// listModels `type` 필터 허용값. ParseEnumPipe 인자·Swagger enum·파라미터 타입을
+// 단일 소스에서 파생시켜 런타임 검증과 정적 타입을 일치시킨다.
+const MODEL_TYPE_ENUM = { chat: 'chat', embedding: 'embedding' } as const;
+type ModelTypeFilter = (typeof MODEL_TYPE_ENUM)[keyof typeof MODEL_TYPE_ENUM];
 
 /**
  * ModelConfig 의 LLM-구동 부속 엔드포인트(preview / test / list models).
@@ -115,17 +121,20 @@ export class LlmModelConfigController {
   @ApiQuery({
     name: 'type',
     required: false,
-    enum: ['chat', 'embedding'],
+    enum: Object.values(MODEL_TYPE_ENUM),
     description: '응답에 포함할 모델 타입 제한',
   })
   @ApiOkWrappedResponse(ModelListDto, { description: '사용 가능한 모델 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
+  @ApiBadRequestResponse({
+    description: '유효하지 않은 type 파라미터 (허용값: chat | embedding)',
+  })
   async listModels(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
-    @Query('type', new ParseEnumPipe(['chat', 'embedding'], { optional: true }))
-    type?: 'chat' | 'embedding',
+    @Query('type', new ParseEnumPipe(MODEL_TYPE_ENUM, { optional: true }))
+    type?: ModelTypeFilter,
   ) {
     return this.llmService.listModels(id, workspaceId, { type });
   }
