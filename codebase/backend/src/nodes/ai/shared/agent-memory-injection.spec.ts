@@ -1152,6 +1152,14 @@ describe('readExtractionWatermark — memoryState namespace + 하위호환 (I12)
     ).toBe(9);
   });
 
+  it('seq=0 은 유효한 watermark — falsy 로 버리지 않는다 (typeof number 판정)', () => {
+    expect(
+      readExtractionWatermark({ memoryState: { lastExtractionTurnSeq: 0 } }),
+    ).toBe(0);
+    // 구 평면 키 폴백 경로도 0 을 유효 watermark 로 본다.
+    expect(readExtractionWatermark({ lastExtractionTurnSeq: 0 })).toBe(0);
+  });
+
   it('숫자가 아니거나 부재면 undefined (= 전체 turn 재추출)', () => {
     expect(readExtractionWatermark(undefined)).toBeUndefined();
     expect(readExtractionWatermark({})).toBeUndefined();

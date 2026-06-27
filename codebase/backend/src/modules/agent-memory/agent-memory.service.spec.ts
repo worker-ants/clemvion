@@ -168,6 +168,27 @@ describe('AgentMemoryService', () => {
       );
     });
 
+    it('I5: buildCosineMatch 파라미터 순서 계약 — $1=vector, $2=ws, $3=scope, $4=threshold', async () => {
+      const vec = new Array(1536).fill(0.01);
+      mockLlmService.embed.mockResolvedValue([vec]);
+      mockDataSource.query.mockResolvedValue([]);
+      await service.recall('ws-c', 'scope-c', 'q', embedCfg, {
+        threshold: 0.6,
+        topK: 4,
+      });
+      const [sql, params] = mockDataSource.query.mock.calls[0];
+      // $1 = query vector (pgvector literal), 그 다음 ws/scope/threshold 순.
+      expect(typeof params[0]).toBe('string');
+      expect(params[0]).toMatch(/^\[/);
+      expect(params[1]).toBe('ws-c');
+      expect(params[2]).toBe('scope-c');
+      expect(params[3]).toBe(0.6);
+      expect(params[4]).toBe(4);
+      // SQL 이 빌더가 만든 $1(vector)·$4(임계) 를 cosine score/WHERE 에서 참조.
+      expect(sql).toContain('$1::');
+      expect(sql).toContain('>= $4');
+    });
+
     it('opts 미지정 시 topK=5 / threshold=0.7 기본값을 바인딩한다', async () => {
       const vec = new Array(1536).fill(0.01);
       mockLlmService.embed.mockResolvedValue([vec]);
@@ -364,10 +385,15 @@ describe('AgentMemoryService', () => {
       expect(dedupSql).toContain('am.workspace_id = $2');
       expect(dedupSql).toContain('am.scope_key = $3');
       expect(dedupSql).toContain('LIMIT 1');
-      // params: [vectorStr, ws, scope, MEMORY_DEDUP_SIMILARITY]
+      // I5: recall 과 동일한 buildCosineMatch 파라미터 순서 계약 —
+      // params: [vectorStr($1), ws($2), scope($3), MEMORY_DEDUP_SIMILARITY($4)]
+      expect(typeof dedupParams[0]).toBe('string');
+      expect(dedupParams[0]).toMatch(/^\[/); // $1 = query vector (pgvector literal)
       expect(dedupParams[1]).toBe('ws-3');
       expect(dedupParams[2]).toBe('scope-q');
       expect(dedupParams[3]).toBe(MEMORY_DEDUP_SIMILARITY);
+      expect(dedupSql).toContain('$1::');
+      expect(dedupSql).toContain('>= $4');
     });
 
     it('AGM-09: 같은 batch 내 유사 fact 는 두 번째를 INSERT 하지 않고 UPDATE', async () => {

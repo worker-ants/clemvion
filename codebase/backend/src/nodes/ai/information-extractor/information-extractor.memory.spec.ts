@@ -373,6 +373,53 @@ describe('InformationExtractor persistent memory — multi-turn', () => {
     );
   });
 
+  it('I12: 구 평면 키 _resumeState.lastExtractionTurnSeq 로 resume 시 watermark 폴백 (in-flight 하위호환)', async () => {
+    // Turn 1: no finalize → waiting.
+    llm.chat.mockResolvedValueOnce({
+      content: 'What is your name?',
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      model: 'gpt-4o-mini',
+    });
+    const context = makeExecutionContext({
+      executionId: 'exec-compat',
+      nodeId: 'ie-1',
+      variables: { __workspaceId: 'ws-1' },
+    });
+    const waiting = (await handler.execute(
+      {},
+      mtConfig({ memoryStrategy: 'persistent', memoryKey: 'persist-key' }),
+      context,
+    )) as { _resumeState?: Record<string, unknown> };
+    const state = waiting._resumeState as Record<string, unknown>;
+
+    // 배포 시점 in-flight 파킹 실행 모사 — 신 memoryState 없이 구 평면 키만 존재.
+    delete state.memoryState;
+    state.lastExtractionTurnSeq = 1_000_000; // 모든 turn seq 보다 큰 watermark.
+
+    // Turn 2: finalize → completed.
+    llm.chat.mockResolvedValueOnce({
+      content: '',
+      toolCalls: [
+        {
+          id: 'tc-compat',
+          name: 'finalize_extraction',
+          arguments: JSON.stringify({ name: 'Dave' }),
+        },
+      ],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      model: 'gpt-4o-mini',
+    });
+    const final = (await handler.processMultiTurnMessage(
+      'My name is Dave',
+      state,
+    )) as { port?: string };
+    expect(final.port).toBe('completed');
+
+    // 폴백이 동작하면 watermark(1_000_000)가 모든 turn 을 필터 → enqueue skip.
+    // 폴백이 깨져 undefined 로 읽히면 전체 snapshot → scheduleExtraction 이 호출된다.
+    expect(memory.scheduleExtraction).not.toHaveBeenCalled();
+  });
+
   it('persistent: waiting state does NOT push to thread (push only at terminal)', async () => {
     llm.chat.mockResolvedValueOnce({
       content: 'What is your name?',

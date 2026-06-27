@@ -380,6 +380,11 @@ export class AgentMemoryService {
     workspaceId: string;
     scopeKey: string;
     items: MemoryItem[];
+    /**
+     * 저장 임베딩 출처 — 회수(recall)와 동일 embedding ModelConfig 를 써야 차원·
+     * endpoint 가 일치한다 (§3). `embeddingModelConfigId` 미설정이면 워크스페이스
+     * 기본 embedding config 로 폴백.
+     */
     embedCfgSource: EmbedConfigSource;
     /** 양수면 INSERT/UPDATE 가 `expires_at = now()+ttlDays` (AGM-10). 미설정/0/음수 = 무만료. */
     ttlDays?: number | null;

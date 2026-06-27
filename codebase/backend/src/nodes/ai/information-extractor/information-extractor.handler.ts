@@ -1799,6 +1799,9 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
   }
 
   private hydrateState(raw: Record<string, unknown>): MultiTurnState {
+    // memoryState sub-namespace (I12) — 신 namespace 우선 + 구 평면 키 폴백
+    // (배포 시점 in-flight 파킹 실행 하위호환). watermark 부재면 슬롯 자체 생략.
+    const extractionSeq = readExtractionWatermark(raw);
     return {
       llmConfigId: raw.llmConfigId as string | undefined,
       model: raw.model as string,
@@ -1828,12 +1831,10 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
       executionId: raw.executionId as string | undefined,
       nodeId: raw.nodeId as string | undefined,
       memoryConfig: raw.memoryConfig as Record<string, unknown> | undefined,
-      // memoryState sub-namespace (I12) — 신 namespace 우선 + 구 평면 키 폴백
-      // (배포 시점 in-flight 파킹 실행 하위호환). watermark 부재면 슬롯 자체 생략.
-      memoryState: ((): MultiTurnState['memoryState'] => {
-        const seq = readExtractionWatermark(raw);
-        return seq !== undefined ? { lastExtractionTurnSeq: seq } : undefined;
-      })(),
+      memoryState:
+        extractionSeq !== undefined
+          ? { lastExtractionTurnSeq: extractionSeq }
+          : undefined,
     };
   }
 

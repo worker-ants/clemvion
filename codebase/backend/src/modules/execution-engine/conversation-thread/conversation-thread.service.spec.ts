@@ -400,6 +400,18 @@ describe('ConversationThreadService', () => {
       expect(after.nextSeq).toBe(nextSeq);
       expect(after.totalChars).toBe(totalChars);
     });
+
+    it('빈 객체로 호출하면 요약 필드를 클리어한다 (무조건 대입 계약)', () => {
+      const context = makeContext();
+      service.updateSummaryState(context, {
+        runningSummary: 'v1',
+        summarizedUpToSeq: 3,
+      });
+      service.updateSummaryState(context, {});
+      const thread = service.getThread(context);
+      expect(thread.runningSummary).toBeUndefined();
+      expect(thread.summarizedUpToSeq).toBeUndefined();
+    });
   });
 
   describe('immutability', () => {
