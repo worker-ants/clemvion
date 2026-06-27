@@ -64,8 +64,8 @@ related_plan: plan/complete/ai-context-memory-auto.md
 - [ ] `injectMemoryContext` 의 `getThread`/`getThreadExcludingNode` 이중 쿼리 단일화(I/O-backed 전환 대비, W-8).
 - [ ] `ConversationThreadService.updateSummaryState()` 신설 — runningSummary/summarizedUpToSeq 단일 변이 경로(I-7).
 - [x] `buildSummaryBufferUpdate` rolling 루프 토큰 재계산 O(n²)→O(1) 증분(perf I-11). 2026-06-05 완료 (B3 #474, bit-identical 증분).
-- [ ] `meta.memory.compactedMessages` 를 `_product-overview` ND-AG-30 열거에 등재(naming I-7).
-- [ ] §6.2 d.5 본문에 auto-memory multi-turn 실행 경로 부연(SPEC-DRIFT I-2).
+- [x] `meta.memory.compactedMessages` 를 `_product-overview` ND-AG-30 열거에 등재(naming I-7). 2026-06-27 완료 (Batch 1 spec 정밀화) — `spec/4-nodes/_product-overview.md` + `spec/4-nodes/3-ai/_product-overview.md` 두 ND-AG-30 행에 `compactedMessages?` 추가.
+- [x] §6.2 d.5 본문에 auto-memory multi-turn 실행 경로 부연(SPEC-DRIFT I-2). 2026-06-27 확인 — `1-ai-agent.md §6.2 d.5`(재주입 분기 manual/summary_buffer/persistent) + `d.6`(누적 messages 물리 압축) 이미 충분히 기술. 변경 불필요.
 
 ## persistent 고도화 코드 리뷰 도출 백로그
 - [x] SPEC-DRIFT: `17-agent-memory.md §3 AGM-04` "scheduleBackgroundBody snapshot" 표현 → 전용 BullMQ 큐(`agent-memory-extraction`, concurrency=2) 로 갱신(I1). — 2026-06-10 spec 전수 감사에서 §3 확정 구현 서술로 갱신 완료 (branch claude/spec-sync-audit-998544).
@@ -73,7 +73,7 @@ related_plan: plan/complete/ai-context-memory-auto.md
 - [ ] TTL 파싱(resolveMemoryTtlDays) 핸들러→AgentMemoryService/유틸 이전(I2).
 - [ ] saveMemories 포지셔널 5파라미터 → 옵션 객체(I3). cosine SQL WHERE 빌더 추출(I5).
 - [ ] `_resumeState.lastExtractionTurnSeq` → `memoryState` sub-namespace(I12).
-- [ ] `§7.1 meta.memory` 열거에 `compactedMessages?` + node-output Principle 2 에 meta.memory(impl-done W-1).
+- [x] `§7.1 meta.memory` 열거에 `compactedMessages?` + node-output Principle 2 에 meta.memory(impl-done W-1). 2026-06-27 완료 (Batch 1) — §7.1 은 기존 반영 확인, `node-output.md` Principle 2 LLM 계열 행에 `meta.memory?` 추가.
 
 ## A1 가시화 UI / A2 contextScope 확장 도출 백로그 (2026-06-05)
 - [x] listScopes ORDER BY MAX(updated_at) filesort 인덱스 — 2026-06-05 완료 (#482, V086 CONCURRENTLY).
@@ -81,4 +81,4 @@ related_plan: plan/complete/ai-context-memory-auto.md
 - [ ] agent-memory `page.tsx`(412줄) 컴포넌트 분해 + 프론트 page 컴포넌트 테스트 — A1 backlog.
 - [ ] agent-memories pagination offset→프로젝트 표준 page DTO 정렬 — A1 backlog.
 - [ ] clearScope 0건 삭제 시 toast 중립화/X-Deleted-Count — A1 backlog.
-- [ ] information_extractor §5.4/§5.5 meta 표에 contextInjection 행(waiting/resumed) — A2 backlog(minor).
+- [x] information_extractor §5.4/§5.5 meta 표에 contextInjection 행(waiting/resumed) — A2 backlog(minor). 2026-06-27 완료 (Batch 1) — **전제 정정**: 핸들러 검증 결과 waiting/resumed transient 스냅샷은 `contextInjection` 을 의도적으로 미포함(첫 진입 1회 주입 결과는 `state.contextInjection` 운반→§5.6 종결에서만 echo). 데이터 행 추가 대신 §5.4/§5.5 표 아래 "의도적 부재" 노트 명시로 재오해 방지.

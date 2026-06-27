@@ -86,7 +86,7 @@
 | ND-AG-27 | 자동 컨텍스트 메모리 전략 선택 — `memoryStrategy` (`manual`/`summary_buffer`/`persistent`, default `manual`) + `memoryTokenBudget`/`memoryKey`/`memoryTopK`/`memoryThreshold` 설정 필드. `manual` 은 기존 contextScope 계열 5필드 동작 그대로 (하위호환), `manual` 외 선택 시 5필드 무효 (자동 전략 대체). 상세: [Spec AI Agent §1·§12.9](./1-ai-agent.md#1-설정-config) | 권장 |
 | ND-AG-28 | summary_buffer — 단일 실행 내 토큰예산(`memoryTokenBudget`) 기반 롤링 요약 압축. 초과분을 오래된 turn 부터 요약, 요약 블록은 system_text 안정 프리픽스 배치, 임계치 도달 시에만 갱신 (캐시 보호). 요약 LLM 콜은 노드 `model`/`llmConfigId` 재사용. 상세: [Spec AI Agent §6.1·§12.11](./1-ai-agent.md#6-실행-로직) | 권장 |
 | ND-AG-29 | persistent — 세션 간 추출 메모리. 스코프 키 `(workspace_id, memoryKey ?? execution_id)`, LLM 호출 전 동기 top-k 의미검색 회수 + 턴 경계 비동기 추출, `agent_memory` 테이블(pgvector 재사용). 상세: [Spec Agent Memory](../../5-system/17-agent-memory.md) | 권장 |
-| ND-AG-30 | 메모리 적용 결과 meta echo — `meta.memory.{strategy, summarized, recalledCount, tokenBudgetUsed}` (`memoryStrategy ≠ manual` 시에만). 상세: [Spec AI Agent §7.1](./1-ai-agent.md#71-single-turn-모드--정상-완료-out-포트) | 권장 |
+| ND-AG-30 | 메모리 적용 결과 meta echo — `meta.memory.{strategy, summarized, recalledCount, tokenBudgetUsed, compactedMessages?}` (`memoryStrategy ≠ manual` 시에만. `compactedMessages?` 는 멀티턴 누적 messages 물리 압축 발생 시에만). 상세: [Spec AI Agent §7.1](./1-ai-agent.md#71-single-turn-모드--정상-완료-out-포트) | 권장 |
 
 ### 3.3 Text Classifier 노드
 
