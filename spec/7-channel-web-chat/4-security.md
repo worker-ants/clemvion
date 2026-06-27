@@ -1,6 +1,6 @@
 ---
 id: web-chat-security
-status: partial
+status: implemented
 code:
   - codebase/backend/src/common/cors/web-chat-cors.ts
   - codebase/backend/src/modules/web-chat-cors/**
@@ -10,8 +10,7 @@ code:
   - codebase/backend/src/modules/hooks/dto/responses/embed-config.dto.ts
   - codebase/channel-web-chat/src/widget/host-bridge.ts
   - codebase/channel-web-chat/src/lib/safe-html.ts
-pending_plans:
-  - plan/in-progress/channel-web-chat-impl.md
+  - codebase/frontend/src/components/editor/assistant-panel/markdown-renderer.tsx
 ---
 
 # Spec: Channel Web Chat — 보안 (CORS · 임베드 · 남용 방어 · 프라이버시)

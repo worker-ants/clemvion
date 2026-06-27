@@ -6,7 +6,6 @@ code:
   - codebase/channel-web-chat/src/lib/eia-client.ts
   - codebase/channel-web-chat/src/widget/use-widget.ts
 pending_plans:
-  - plan/in-progress/channel-web-chat-impl.md
   - plan/in-progress/webchat-eager-start.md
 ---
 
