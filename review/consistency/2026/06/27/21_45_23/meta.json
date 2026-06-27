@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-27T21:45:23.248713",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-eia-seq-nfr.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

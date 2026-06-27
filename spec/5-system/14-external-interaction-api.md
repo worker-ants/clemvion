@@ -152,6 +152,8 @@ type InteractionRequestContext =
 | EIA-NF-03 | 5분 이벤트 버퍼: 재연결 시 `seq > Last-Event-Id` 인 이벤트를 손실 없이 재전송 (버퍼 만료 시 신호 emit 은 계획·미구현, 만료분은 REST 재조회 폴백 — §5.2) | 필수 |
 | EIA-NF-04 | Inbound 명령 처리는 비동기. REST 응답은 `202 Accepted` 즉시 반환, 실제 워크플로우 진행은 백그라운드 | 필수 |
 | EIA-NF-05 | execution 당 active interact 명령 동시성: 1건 — 동일 노드에 대한 race 는 §5.3 의 lock 전략으로 직렬화 | 필수 |
+| EIA-NF-06 | **분산 seq monotonic — 부하 하 유지 (Redis 가용 경로)**: Redis 가용(정상) 경로에서, 멀티 인스턴스 환경의 같은 execution emit 이 서로 다른 인스턴스에서 동시 발생해도 seq(§R7 의 execution-scoped monotonic counter)는 1000 events/s 부하에서 중복·역전 없이 단조 유일하다 — Redis `INCR exec:seq:<id>` 의 원자성으로 보장 (§R7 · [실행 엔진 §9.2](./4-execution-engine.md#92-용도별-키-정의-및-ttl)). **degraded 예외**: Redis 미가용 시 in-memory per-instance fallback 으로 cross-instance monotonic 은 미보장 — 수용된 trade-off ([WS §2.2](./6-websocket-protocol.md#22-서버--클라이언트-이벤트-래퍼) · 실행 엔진 §9.2) | 필수 |
+| EIA-NF-07 | **seq 발급 latency 회귀 예산**: 분산 seq counter(Redis `INCR`) 도입에 따른 emit 당 seq 발급(`ExecutionSeqAllocator.next()`)의 추가 latency 는 single-instance 환경에서 in-memory baseline 대비 median < 5ms. (multi-instance 간 network hop latency 는 본 항목 범위 밖 — SSE/Notification fan-out latency 인 EIA-NF-01/02 에서 관리) | 필수 |
 
 ---
 
@@ -979,7 +981,9 @@ Long-polling 은 라이브 chat·multi-turn 에서 latency 가 커 사용자 경
 - 디버깅 시 backend 로그·DB 의 emit 순서와 클라이언트가 본 순서를 1:1 대응할 수 있음
 - 신규 counter 도입 시 두 채널 간 정합성 검증이 별도 필요해짐 → 비용 크고 이득 없음
 
-**구현 전제**: 본 spec 의 외부 표면 (SSE / Notification) 은 seq 가 필수 전제이므로, execution 별 atomic INCR (Redis `INCR exec:seq:<id>` 또는 DB row-level lock) 로 발급되는 seq counter 를 신설한다. 같은 counter 가 WS event envelope · SSE `id:` · Notification `seq` 세 곳 모두에 동봉된다.
+**구현 전제**: 본 spec 의 외부 표면 (SSE / Notification) 은 seq 가 필수 전제이므로, execution 별 atomic INCR 로 발급되는 seq counter 를 신설한다. 같은 counter 가 WS event envelope · SSE `id:` · Notification `seq` 세 곳 모두에 동봉된다. 저장소는 **Redis `INCR exec:seq:<id>` 단독(Redis-only)** 으로 확정됐다 — 초기 병기됐던 DB row-level lock 대안은 [`plan/complete/eia-distributed-seq-counter.md`](../../plan/complete/eia-distributed-seq-counter.md) 결정 (c)→Redis-only 로 폐기됐다(DB fallback 미사용, Redis 미가용 시 in-memory per-instance degrade).
+
+이 counter 의 (Redis 가용 경로) 부하 하 단조 유일성과 발급 latency 예산은 §3.5 **EIA-NF-06 / EIA-NF-07** 로 정량화되어 있으며, 실-Redis 2-instance e2e 로 경험 검증되었다 (관측: ≈63k events/s, single-instance latency median 0.083ms — 기준 대비 큰 여유; PR #730). degraded(Redis 미가용) 구간의 cross-instance monotonic 미보장은 [WS §2.2](./6-websocket-protocol.md#22-서버--클라이언트-이벤트-래퍼) · [실행 엔진 §9.2](./4-execution-engine.md#92-용도별-키-정의-및-ttl) 의 수용된 trade-off 와 동일하다.
 
 ### R8. Idempotency-Key 와 `submit_form` 검증 실패의 관계
 
