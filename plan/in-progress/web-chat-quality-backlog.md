@@ -19,7 +19,8 @@ owner: developer (TBD)
 ## A. 위젯 보안 하드닝 (eager-start 이관)
 - [ ] **per_execution 토큰 저장 localStorage → sessionStorage** — 탭 종료 시 자동 소거(현재 localStorage 영속).
       per_execution 단명 토큰이라 위험도는 낮으나 defense-in-depth. **구현 격상 시 `spec_impact` 에
-      `spec/7-channel-web-chat/4-security.md` 포함**(consistency I7) + `3-auth-session` 토큰 저장 서술 정합.
+      `spec/7-channel-web-chat/4-security.md`**(consistency I7) **+ `spec/7-channel-web-chat/2-sdk.md §3 (resetSession)`**
+      (저장 세션 비움 서술, consistency W-3 @ `review/consistency/2026/06/27/21_51_31/`) **포함** + `3-auth-session` 토큰 저장 서술 정합.
 - [ ] `start()` 에러 메시지 UI 일반화(W1, 기존 동작 유지 — 내부 에러 문구 노출 축소).
 
 ## B. 위젯 리팩터 (eager-start 이관)
