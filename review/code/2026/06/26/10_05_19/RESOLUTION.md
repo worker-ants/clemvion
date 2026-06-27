@@ -37,4 +37,4 @@ SUMMARY 의 scope reviewer 출력 누락(파일 없음) 표기 — 변경이 순
 - **lint**: 통과 (prettier 자동 정렬 2종 → fix 후 0 error)
 - **unit**: 통과 (backend 377 suites / 7423 passed · 1 skipped — 신규 observer/onModuleInit/throw-isolation spec 포함)
 - **build**: 통과 (tsc + docker 앱 이미지)
-- **e2e**: 자동 흐름 환경 차단 — `docker.io` 레지스트리 `flyway/flyway:10-alpine` base metadata fetch `DeadlineExceeded` (3회 실측: BuildKit 2회 + `DOCKER_BUILDKIT=0` legacy builder 30분 hang 1회; flyway 이미지 로컬 캐시됨에도 BuildKit 의 registry metadata HEAD 타임아웃). backend 앱 이미지 빌드·단위테스트는 정상 → **코드 회귀 아님**. CI/레지스트리 회복 후 재실행 필요.
+- **e2e**: 통과 (214 passed) — 2026-06-27 재실행. docker 레지스트리 회복 후 DI 부팅 스모크 포함 전수 통과(forwardRef 제거 후 Nest DI 그래프 정상 부팅 확인). 직전 3회 실패는 `docker.io` 레지스트리 `flyway/flyway:10-alpine` base metadata `DeadlineExceeded`(BuildKit 2 + legacy hang 1) 환경 이슈였고 코드 무관임이 재실행으로 확정됨.
