@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { AgentMemory } from './entities/agent-memory.entity';
 import { AgentMemoryService } from './agent-memory.service';
+import { AgentMemoryAdminService } from './agent-memory-admin.service';
 import { AgentMemoryController } from './agent-memory.controller';
 import { LlmModule } from '../llm/llm.module';
 import { AGENT_MEMORY_EXTRACTION_QUEUE } from './queues/agent-memory-extraction.queue';
@@ -26,7 +27,11 @@ import { AgentMemoryExtractionProcessor } from './queues/agent-memory-extraction
     BullModule.registerQueue({ name: AGENT_MEMORY_EXTRACTION_QUEUE }),
   ],
   controllers: [AgentMemoryController],
-  providers: [AgentMemoryService, AgentMemoryExtractionProcessor],
+  providers: [
+    AgentMemoryService,
+    AgentMemoryAdminService,
+    AgentMemoryExtractionProcessor,
+  ],
   exports: [AgentMemoryService],
 })
 export class AgentMemoryModule {}

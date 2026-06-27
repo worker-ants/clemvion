@@ -43,6 +43,7 @@ export const agentMemory: Dict["agentMemory"] = {
     message:
       "Delete all {{count}} memories in scope '{{scopeKey}}'? This cannot be undone.",
     success: "All memories in the scope were deleted",
+    empty: "There were no memories to delete",
     failed: "Failed to delete scope",
   },
 };
