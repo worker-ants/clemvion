@@ -2,6 +2,11 @@
 worktree: trigger-review-w1-w7
 started: 2026-06-10
 owner: developer
+spec_impact:
+  - spec/data-flow/10-triggers.md
+  - spec/5-system/12-webhook.md
+  - spec/0-overview.md
+  - spec/data-flow/12-workspace.md
 ---
 
 # ai-review 이월 fix 4건 (2026-06-10 trigger-schedule-sync 리뷰 도출, 사용자 결정: 전부 plan 이관)
