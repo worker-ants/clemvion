@@ -50,7 +50,7 @@ sequenceDiagram
 - 부속 엔드포인트 (`llm-model-config.controller.ts` — llm 모듈 소유, 라우트 프리픽스 `model-configs` 유지로 공개 API 무변[refactor-02 C-2 cluster 4]; CRUD 는 `model-config.controller.ts` 잔류; 구 `/api/llm-configs` alias 는 PR4 에서 제거됨 — [설정 §3](../2-navigation/6-config.md#3-api) SoT):
   - `POST /api/model-configs/preview-models` — `LlmPreviewService.previewModels` (미저장 자격증명, SSRF 가드, 30s 타임아웃, 캐시 없음)
   - `POST /api/model-configs/:id/test` — `LlmService.testConnection`
-  - `GET /api/model-configs/:id/models` — `LlmService.listModels`. config 별 5분 캐시 (key `${workspaceId}|${configId}`), 30s 타임아웃, `?type=chat|embedding` 필터
+  - `GET /api/model-configs/:id/models` — `LlmService.listModels`. config 별 5분 캐시 (key `${workspaceId}|${configId}`), 30s 타임아웃, `?type=chat|embedding` 필터 (컨트롤러 `ParseEnumPipe` — 허용값 외 `400`)
 - config 수정/삭제 시 `ModelConfigService` 가 `notifyInvalidated(id)`(옵저버 통지)를 호출하고, `LlmService`(`onModuleInit` 에서 `onConfigInvalidated` 구독)가 `clearClientCache(id)` 로 **client 캐시 + listModels 캐시** 를 함께 무효화한다 — 종전의 controller→LlmService 직접 호출을 옵저버로 역전해 model-config↔llm forwardRef 순환을 제거했다(refactor-02 C-2 cluster 4).
 
 ### 1.2 chat / chatStream 흐름 — usage 적재는 chat 계열만
