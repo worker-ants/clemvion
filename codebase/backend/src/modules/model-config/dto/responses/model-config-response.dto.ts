@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MODEL_CONFIG_KINDS } from '../../entities/model-config.entity';
+import { MODEL_TYPE_ENUM, type ModelTypeFilter } from '../model-type';
 
 /** ModelConfig 응답 DTO. apiKey 는 마스킹(또는 null)된 상태로 반환됩니다. */
 export class ModelConfigDto {
@@ -63,19 +64,22 @@ export class ModelTestConnectionResultDto {
   dimension?: number;
 }
 
-/** 모델 목록 항목 */
-export class ModelItemDto {
+/**
+ * 모델 목록 항목 — provider `listModels` 가 반환하는 `ModelInfo`
+ * (`llm/interfaces/llm-client.interface.ts`)를 충실히 미러한다.
+ *
+ * `GET /api/model-configs/:id/models`·`POST .../preview-models` 응답은 이 DTO 의
+ * **배열** 이다 (`@ApiOkWrappedArrayResponse` → `{ data: ModelInfoDto[] }`). 종전
+ * `ModelListDto`(`{ models: [...] }` 객체)는 실제 wire shape(bare array)와 불일치해
+ * 폐기했다.
+ */
+export class ModelInfoDto {
   @ApiProperty({ example: 'gpt-4o-mini' })
   id: string;
 
-  @ApiPropertyOptional()
-  name?: string;
+  @ApiProperty({ example: 'GPT-4o mini' })
+  name: string;
 
-  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
-  meta?: Record<string, unknown>;
-}
-
-export class ModelListDto {
-  @ApiProperty({ type: [ModelItemDto] })
-  models: ModelItemDto[];
+  @ApiProperty({ enum: Object.values(MODEL_TYPE_ENUM), example: 'chat' })
+  type: ModelTypeFilter;
 }
