@@ -208,8 +208,8 @@ status: complete
 - **#21 구 에러 코드 호환성 (W2/I7)**: `RERANK_CONFIG_*`/`LLM_CONFIG_*` → `MODEL_CONFIG_*` 변경.
   PR4 alias 제거 전 클라이언트 마이그레이션 가이드 또는 alias 서비스에서 catch + 구 코드 재매핑.
   alias 엔드포인트는 PR4에서 제거 예정이므로 중간 재매핑 레이어는 throwaway complexity — PR4 시점에 최종 처리.
-- **W3 컨트롤러→LlmService 직결 의존**: PR4 alias 제거 시 `ModelConfigController`의 `LlmService.clearClientCache()` 직접 호출이 사라지므로 구조적으로 해소됨.
-- **W4 forwardRef 순환 (LlmConfigModule↔ModelConfigModule)**: `preview-llm-models.dto` 이동으로 근본 원인 해소 — PR4 alias 모듈 제거 시 함께 처리.
+- **W3 컨트롤러→LlmService 직결 의존**: ~~PR4 alias 제거 시 구조적으로 해소됨~~ → **실제로는 잔존**(PR4 후에도 `ModelConfigController` 의 `update`/`remove` 가 `LlmService.clearClientCache()` 직접 호출 + preview/test/list 3 엔드포인트 주입 유지). **✅ 해소: refactor-02 C-2 cluster 4** — `clearClientCache` 직결 호출을 `ModelConfigService.onConfigInvalidated` 옵저버로 역전(LlmService 가 `onModuleInit` 구독).
+- **W4 forwardRef 순환 (LlmModule↔ModelConfigModule)**: ~~PR4 alias 모듈 제거 시 함께 처리~~ → **PR4 후에도 잔존**(부속 엔드포인트의 `LlmService`/`LlmPreviewService` 주입 + clearClientCache 역의존). **✅ 해소: refactor-02 C-2 cluster 4** — 부속 엔드포인트를 `LlmModelConfigController`(llm 모듈, 라우트 무변)로 재배치 + 캐시 무효화 옵저버 역전으로 양측 forwardRef 제거, 단방향(`LlmModule → ModelConfigModule`)화.
 - **W5 expectedKind ISP 누출**: PR4에서 alias 제거 + `expectedKind` 파라미터 삭제 시 해소.
 - **I18 Deprecation/Sunset 헤더**: alias 엔드포인트 RFC 8594 `Sunset` 헤더 — PR4 삭제 시점에 불필요.
 
