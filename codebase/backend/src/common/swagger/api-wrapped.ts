@@ -88,6 +88,11 @@ export function wrapItemsSchema<T>(dto: ClassRef<T>): SchemaObject {
  * top-level 키)를 거치고, `TransformInterceptor` 가 **이미 `data` 키를 가진 객체를 pass-through**
  * 하므로(추가 래핑 없음) 이 single-wrap 이 실제 wire shape 다. (종전 헬퍼는 외곽 `data` 를
  * 한 겹 더 씌운 double-wrap 으로 런타임과 불일치했다.)
+ *
+ * NOTE: 아래 `pagination` 서브스키마 필드(`page`·`limit`·`totalItems`·`totalPages`)는 공용
+ * `PaginatedResponseDto`/`PaginationMeta`(`common/dto/paginated-response.dto.ts`)와 **수동 동기화**다 —
+ * 해당 DTO 의 필드를 추가/변경하면 이 리터럴도 함께 갱신할 것. drift 는 `api-wrapped.spec.ts` 의
+ * "pagination keys stay in sync with PaginatedResponseDto runtime shape" 테스트가 감지한다.
  */
 export function wrapPaginatedSchema<T>(dto: ClassRef<T>): SchemaObject {
   return {
