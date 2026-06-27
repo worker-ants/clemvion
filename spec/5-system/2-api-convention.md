@@ -188,8 +188,12 @@ GET /api/triggers?type=webhook&status=active
 | 인증 API | 10 req/min (IP 기준) | 동일 |
 | Webhook 수신 | 100 req/min (글로벌 throttler `default`) | 동일 |
 | 파일 업로드 (KB 문서) | 글로벌 100 req/min 상속 (`POST /api/knowledge-bases/:id/documents` 에 별도 `@Throttle` 없음) | 동일 |
+| Provider probe API (`POST /api/model-configs/preview-models` · `POST /api/model-configs/:id/test` · `GET /api/model-configs/:id/models`) | 10 req/min (사용자 기준) — 실시간 provider 호출 비용·속도제한 보호용 `@Throttle`, 3 핸들러 공통 컨트롤러 상수 `PROVIDER_PROBE_THROTTLE` | 동일 |
+| KB 재임베딩 (`POST /api/knowledge-bases/:id/re-embed`) | 3 req/min (사용자 기준) — `@Throttle`, editor 이상 ([§8 임베딩 파이프라인](./8-embedding-pipeline.md) SoT) | 동일 |
 
 Rate Limit 초과 시 `429` 응답 + `Retry-After` 헤더.
+
+> **표의 범위**: 위 표는 글로벌 throttler tier(상위 4행)와, 그 위에 라우트별 `@Throttle` 로 덮어쓴 **주요 endpoint-specific 오버라이드**(하위 2행)를 cross-cutting SoT 로 정리한 것이다. 개별 엔드포인트의 권위 기술(권한·부수효과 등)은 각 도메인 spec 에 있으며, throttle **수치**의 단일 진실은 본 표다. 인증 요청은 전역 `UserThrottlerGuard` 가 `user:<sub>` 키로 **사용자당** 집계하고(미인증만 IP 폴백), 따라서 위 인증 보호 라우트의 제한은 사용자 기준이다.
 
 > **`NODE_ENV=test` 환경 한정 skip**: e2e 가 단일 컨테이너 IP 에서 빠른 인증 호출을 직렬로 폭주시켜 자체 throttle 한계 (100/60s) 에 막히는 자기충돌을 피하기 위해, test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 전역적으로 throttle 을 우회한다. production / development 동작은 무변경 — 위 표의 제한이 그대로 강제된다. helper: `codebase/backend/src/common/utils/throttler-skip.ts`.
 
