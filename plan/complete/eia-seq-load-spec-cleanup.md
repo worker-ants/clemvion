@@ -4,6 +4,7 @@ started: 2026-06-27
 owner: developer
 priority: optional
 parent: plan/complete/eia-distributed-seq-load-verify.md
+spec_impact: none
 ---
 
 # (선택) seq-load e2e — 리뷰 INFO trivial cleanup 3건
@@ -24,4 +25,4 @@ parent: plan/complete/eia-distributed-seq-load-verify.md
 - [x] unit (PASS — Gate C 회귀 수정 후)
 - [x] build (PASS)
 - [x] e2e (PASS 218 — load spec ≈75k events/s, latency median 0.076ms; compose anchor 검증)
-- [ ] /ai-review (Critical/Warning 0)
+- [x] /ai-review (NONE, Critical/Warning 0 — INFO #6 stale path fix 적용 + RESOLUTION.md)

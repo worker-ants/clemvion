@@ -8,7 +8,7 @@ import type { RedisConnectionProvider } from '../src/common/redis/redis-connecti
 /**
  * e2e (real-Redis integration): ExecutionSeqAllocator 분산 monotonic 부하 repro.
  *
- * 상위 plan: plan/in-progress/eia-distributed-seq-load-verify.md
+ * 상위 plan: plan/complete/eia-distributed-seq-load-verify.md
  *           (← plan/complete/eia-distributed-seq-counter.md 의 선택적 경험 검증 분리분)
  * spec: spec/5-system/14-external-interaction-api.md §R7,
  *       spec/5-system/6-websocket-protocol.md §2.2 (seq envelope)
