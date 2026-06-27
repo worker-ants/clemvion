@@ -165,6 +165,8 @@ export function useWidget() {
         // 렌더 경로(text/presentations 분리 렌더)를 재사용한다(이중 텍스트 방지).
         const { presentations } = parseMessage(data as ExecutionMessageEvent);
         if (presentations) dispatch({ type: "AI_MESSAGE", text: "", presentations });
+        // `as readonly string[]`: TERMINAL_EVENTS 는 `as const` 리터럴 튜플이라 .includes 가 인자를
+        // 리터럴 union 으로 좁혀 임의 string 인 `name` 을 거부한다 — 비교용으로 string[] 로 넓힌다.
       } else if ((TERMINAL_EVENTS as readonly string[]).includes(name)) {
         // 종료 이벤트 → 스트림·갱신 타이머·저장 세션 정리 후 ENDED 전이.
         teardownSession();

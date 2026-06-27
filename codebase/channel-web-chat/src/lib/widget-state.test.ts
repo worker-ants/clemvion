@@ -1,5 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { widgetReducer, initialState, type WidgetState } from "./widget-state";
+import {
+  widgetReducer,
+  initialState,
+  isTextInputSurface,
+  type WidgetState,
+} from "./widget-state";
+
+// 3곳(use-widget submitMessage·flush effect, panel Composer disabled)이 공유하는 핵심 판정 — 직접 단위 검증.
+describe("isTextInputSurface — 자유 텍스트 표면 판정(§R6)", () => {
+  it("ai_conversation → 텍스트 표면(true)", () => {
+    expect(isTextInputSurface({ type: "ai_conversation" })).toBe(true);
+  });
+  it("null(ai_conversation 도달 전 과도 상태) → 텍스트 표면(true)", () => {
+    expect(isTextInputSurface(null)).toBe(true);
+  });
+  it("buttons → 비텍스트 표면(false)", () => {
+    expect(isTextInputSurface({ type: "buttons" })).toBe(false);
+  });
+  it("form → 비텍스트 표면(false)", () => {
+    expect(isTextInputSurface({ type: "form" })).toBe(false);
+  });
+});
 
 function reduce(actions: Parameters<typeof widgetReducer>[1][], from = initialState): WidgetState {
   return actions.reduce((s, a) => widgetReducer(s, a), from);

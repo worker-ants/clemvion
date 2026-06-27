@@ -435,6 +435,8 @@ describe("useWidget — eager 시작(§R6)", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(61 * 60 * 1000);
       });
+      // `>= 1`: 갱신 성공 후 scheduleRefresh 가 다음 만료 기준(~+60분)으로 재예약하므로, 61분 점프가
+      // 경계에서 2회째를 스칠 수 있어 정확히 1회로 못박지 않는다(재귀 재예약 동작 자체는 정상).
       const refreshCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/refresh-token"));
       expect(refreshCalls.length).toBeGreaterThanOrEqual(1);
     } finally {

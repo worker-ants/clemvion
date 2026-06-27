@@ -25,8 +25,8 @@ spec_impact: []  # behavior-preserving 리팩터 — spec 변경 없음
 - [x] C: 테스트 보강 — ended Composer 미렌더(panel) · C1 buttons/form 폐기(hook) · ended 재open reducer ·
       ERROR→ended reducer 강화 · 토큰 refresh fake-timer 결정적 테스트. (channel-web-chat 225 tests green)
 - [x] TEST WORKFLOW (lint·unit·build·e2e) — 전부 PASS (e2e 218 passed).
-- [ ] /ai-review + Critical/Warning 0
-- [ ] (spec 연결 코드 변경) /consistency-check --impl-done spec/7-channel-web-chat/ BLOCK: NO
+- [x] /ai-review (--branch main) — RISK=LOW, Critical/Warning 0. INFO 자율반영(helper 단위테스트·주석·backlog). `review/code/2026/06/27/22_08_42/` (SUMMARY+RESOLUTION).
+- [x] (spec 연결 코드 변경) /consistency-check --impl-done spec/7-channel-web-chat/ BLOCK: NO. `review/consistency/2026/06/27/22_09_19/`.
 
 ## 후속 (별도 PR)
 - [ ] B1: `useWidget` God hook 분리 → `useTokenRefresh` / `usePendingMessageQueue`.
