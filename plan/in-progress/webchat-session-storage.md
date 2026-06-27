@@ -33,13 +33,15 @@ spec_impact:
 - **W-2 / I-5 (planner spec polish)**: 영역 R-번호 컨벤션 정립 · 4파일 `## Overview` carve-out — D·B+C 검토에서도 반복된 비차단 INFO.
 
 ## A-2. 구현(developer) — code
-- [ ] `session-store.ts`: getStorage 기본 localStorage → sessionStorage + 주석 갱신.
-- [ ] `use-widget.ts errMessage`: UI 일반화 문구 반환 + 원문 console 진단. start()/sendCommand 에러 경로 적용.
-- [ ] 테스트: session-store.test.ts·use-widget-eager-start.test.ts 의 localStorage 참조 → sessionStorage. 에러 일반화 테스트 추가.
-- [ ] /consistency-check --impl-prep → BLOCK: NO.
-- [ ] TEST WORKFLOW (lint·unit·build·e2e).
-- [ ] /ai-review + Critical/Warning 0.
-- [ ] /consistency-check --impl-done → BLOCK: NO.
+- [x] `session-store.ts`: getStorage 기본 localStorage → sessionStorage + 주석 갱신.
+- [x] `use-widget.ts errMessage`: UI 일반화 문구(GENERIC_ERROR_MESSAGE) 반환 + 원문 console 진단. start()/sendCommand 에러 경로 적용.
+- [x] 테스트: session-store/use-widget 의 localStorage 참조 → sessionStorage + 기본저장소=sessionStorage·에러 일반화(원문 미노출) 2건 추가. (231 green)
+- [x] /consistency-check --impl-prep → 직전 --spec(같은 영역·세션) 이 pre-flight 검증 대체(BLOCK: NO). + --impl-done 으로 사후 검증.
+- [x] TEST WORKFLOW (lint·unit·build·e2e) — 전부 PASS (e2e 218; 무관 backend e2e drift 1건 동반 수정).
+- [x] /ai-review — 1차(00_23_13)는 diff base(local main stale) 오염으로 무효 → `--branch origin/main` 재실행(00_30_51). 보고 RISK=CRITICAL 이나 **Critical#1+Warning#1~3 전부 false positive**(큐는 MONITORED_QUEUES:75 등재·e2e green / spec 변경은 파일 반영 완료) — RESOLUTION.md 에 증거로 refute. W4(주석 §5)·INFO 는 planner/후속. impl-done(00_23_26) BLOCK:NO 가 SPEC-DRIFT 오탐을 교차 반증.
+- [x] /consistency-check --impl-done → **BLOCK: NO** (`review/consistency/2026/06/28/00_23_26/`, 전원 NONE).
 
-## 후속
-- B1: useWidget God hook 분리 (다음 PR).
+## 후속 (별도)
+- **W-1 (planner)**: `3-auth-session §3.1 step 2` GET 410 Gone vs EIA §5.3 200+status drift — backlog 등재 + EIA 계약 대조.
+- **§R6 보강 (planner spec polish)**: 구 localStorage 잔류 항목 무시 정책 한 줄(impl-done INFO #3). 본 PR 추가 spec commit 회피로 분리.
+- **B1**: useWidget God hook 분리 (다음 PR).
