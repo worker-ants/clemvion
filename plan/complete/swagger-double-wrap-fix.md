@@ -2,7 +2,10 @@
 worktree: swagger-paginated-wrap
 started: 2026-06-27
 owner: developer
-status: in-progress
+status: complete
+completed: 2026-06-27
+spec_impact:
+  - spec/conventions/swagger.md
 base: origin/main @ 301b16fda (#722 포함)
 source: nav-spec-doc-fix(#722) §5 검증 중 발견 — paginated 응답 swagger double-wrap (ModelListDto #721 동형)
 ---
@@ -35,7 +38,11 @@ source: nav-spec-doc-fix(#722) §5 검증 중 발견 — paginated 응답 swagge
 - [x] TEST WORKFLOW (lint·unit·build·e2e 215) PASS (구현 후 + resolution 후 2회)
 - [x] /ai-review (19_31_47) → risk LOW, Critical 0, **Warning 0** (clean). cheap INFO(1·2·4·5) 반영(RESOLUTION.md)
 - [x] consistency-check --impl-done spec/conventions/ (19_31_47) → **BLOCK NO**. WARNING W-1(§2-5 pass-through) 동일 브랜치 RESOLVED
-- [ ] fresh /ai-review + fresh --impl-done (resolution 커버 — stale 가드 해소)
+- [x] fresh /ai-review (19_48_10) → Critical 0, **Warning 0** (clean) · fresh --impl-done (19_48_10) → **BLOCK NO, Warning 0** (W-1 RESOLVED). 잔여 INFO 전부 선택적/별 트랙
+
+## 완료
+
+paginated 응답 swagger single-wrap 정합 완료. 전 게이트 통과. 별 트랙(선택): api-convention §11.4/§5.2·channel-web-chat 의 "모든 응답 래핑" 일반 문구에 pass-through cross-ref(타 파일), wrapItemsSchema 테스트 통일, paginated e2e top-level 단언.
 
 ## 메모
 
