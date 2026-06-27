@@ -96,6 +96,9 @@ export class LlmModelConfigController {
     return this.llmService.testConnection(id, workspaceId);
   }
 
+  // 조회(Viewer+) — @Roles 미적용이 의도적이다(spec §3·R-7: `:id/models` 는 Viewer
+  // 이상). 역할 제한이 없어 @ApiForbiddenResponse 도 두지 않는다 — 워크스페이스
+  // 멤버십 미충족 403 은 컨트롤러 공통 인증 계층 책임이다.
   @Get(':id/models')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({

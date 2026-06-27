@@ -18,6 +18,8 @@ import {
  *   - owner 만 워크스페이스 삭제 가능 (service-level OWNER_REQUIRED, 트랜잭션 락 보유)
  *   - owner 역할은 멤버 추가/변경으로 부여할 수 없음 (CANNOT_ASSIGN_OWNER)
  *   - owner 이전 후 옛 owner 는 editor 로 강등
+ *   - model-config 과금 action-POST(`:id/test`·`preview-models`)는 Editor+ 게이트,
+ *     조회 GET(`:id/models`)은 Viewer+ 허용 (spec §3·R-7)
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -402,26 +404,36 @@ describe('Workspace RBAC (e2e)', () => {
     // findEntity NotFound 가 전파돼 404 — 본 케이스의 관심사는 가드 통과/차단이다.)
     const missingId = '00000000-0000-4000-8000-000000000000';
 
-    // viewer → 403 (Editor+ 게이트, 과금 action-POST).
+    // viewer → 403 (Editor+ 게이트, 과금 action-POST). RolesGuard 는 body 검증 pipe
+    // 보다 먼저 실행되므로 missingId·빈 body 와 무관하게 403.
     const viewerTest = await request(BASE_URL)
       .post(`/api/model-configs/${missingId}/test`)
       .set('Authorization', `Bearer ${viewer.accessToken}`)
       .set('X-Workspace-Id', ws);
     expect(viewerTest.status).toBe(403);
 
-    // editor → 가드 통과(403 아님). testConnection 은 미존재 설정의 findEntity
-    // NotFound 를 내부 catch 가 흡수해 200 + { success: false } 를 반환한다 —
-    // 200 자체가 역할 가드 통과의 증거다.
+    // viewer → 403 on preview-models (R-7 이 묶는 두 번째 action-POST). 가드가 body
+    // 검증보다 먼저 실행되므로 최소 body 로도 403 이며, 이 단언이 previewModels 의
+    // @Roles('editor') 회귀를 e2e 에서 잡는다.
+    const viewerPreview = await request(BASE_URL)
+      .post('/api/model-configs/preview-models')
+      .set('Authorization', `Bearer ${viewer.accessToken}`)
+      .set('X-Workspace-Id', ws)
+      .send({ provider: 'openai', apiKey: 'sk-test' });
+    expect(viewerPreview.status).toBe(403);
+
+    // editor → Editor+ 게이트 통과 → 403 이 아니다. 핸들러 도달 후 상태(testConnection
+    // 은 best-effort 라 미존재 설정도 200{success:false} 반환)는 본 인가 테스트의
+    // 관심사가 아니므로 단언하지 않는다 — 구현 변경에 테스트가 결합되지 않게 한다.
     const editorTest = await request(BASE_URL)
       .post(`/api/model-configs/${missingId}/test`)
       .set('Authorization', `Bearer ${editor.accessToken}`)
       .set('X-Workspace-Id', ws);
     expect(editorTest.status).not.toBe(403);
-    expect(editorTest.status).toBe(200);
-    expect(editorTest.body.data.success).toBe(false);
 
     // GET :id/models 는 Viewer+ 유지 — viewer 도 가드 통과(403 아님). listModels 는
-    // findEntity NotFound 가 전파되므로 미존재 설정엔 404.
+    // findEntity NotFound 를 (catch 밖이라) 전파하므로 미존재 설정엔 404 — 이 안정
+    // 경로는 viewer 가 핸들러에 실제 도달했음을 함께 확인해 준다.
     const viewerModels = await request(BASE_URL)
       .get(`/api/model-configs/${missingId}/models`)
       .set('Authorization', `Bearer ${viewer.accessToken}`)

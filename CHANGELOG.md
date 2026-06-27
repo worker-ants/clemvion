@@ -6,6 +6,16 @@
 
 1. **웹채팅 로더 `arguments`-replay 버그 수정** — 스니펫 스텁의 `push(arguments)` 산출물(array-like 객체)이 `Array.isArray` 가드에 걸려 통째로 버려지면서 `boot` 를 포함한 모든 사전 큐 호출이 무증상 누락되던 문제를 해소했다(#709 원인). `Array.isArray` 가드를 `length` 기반 array-like 수용 + `Array.from` 정규화로 교체. 회귀 테스트 추가.
 
+## Unreleased — model-config `:id/test` 인가 강화 (Viewer 차단, Editor+ 강제)
+
+### Breaking changes
+
+1. **`POST /api/model-configs/:id/test` — Viewer 호출 차단(Editor+ 강제)** — 종전 `@Roles` 부재로 워크스페이스 멤버 전원(Viewer 포함)이 호출 가능했으나, 이 엔드포인트는 과금 provider 호출(+embedding 차원 자동저장 PATCH 부수효과)을 일으키는 action-POST 이므로 이제 `@Roles('editor')` 로 게이트한다. Viewer 자격증명의 직접 API 호출은 이제 `403 FORBIDDEN` 을 받는다. UI 상 연결 테스트 버튼은 Editor+ 전용 모델 추가/수정 폼 안에 있어 도달 경로가 없고, 실질은 직접 API 인가 갭 차단이다. `GET /api/model-configs/:id/models`(조회)는 Viewer+ 를 유지한다. 권한 계약 SoT: `spec/2-navigation/6-config.md §3` + Rationale R-7, `spec/5-system/7-llm-client.md §8.3`.
+
+### 변경 사항
+
+소스 변경은 `LlmModelConfigController.testConnection` 에 `@Roles('editor')` + `@ApiForbiddenResponse` 추가뿐이다(behavior change = Viewer 직접 호출 403화). lint·unit·build·e2e 전부 통과.
+
 ## Unreleased — npm audit 취약점 해소 의존성 상향
 
 ### 변경 사항
