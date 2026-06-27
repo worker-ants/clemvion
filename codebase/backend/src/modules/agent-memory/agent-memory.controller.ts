@@ -74,10 +74,11 @@ export class AgentMemoryController {
   ): Promise<PaginatedResponseDto<AgentMemoryScopeDto>> {
     const limit = query.limit ?? 30;
     const offset = query.offset ?? 0;
-    const { items, total } = await this.adminService.listScopes(
-      workspaceId,
-      { limit, offset, q: query.q },
-    );
+    const { items, total } = await this.adminService.listScopes(workspaceId, {
+      limit,
+      offset,
+      q: query.q,
+    });
     // offset/limit → page 파생 (프로젝트 표준 PaginatedResponseDto shape 유지).
     const page = Math.floor(offset / limit) + 1;
     return PaginatedResponseDto.create(items, total, page, limit);
@@ -129,10 +130,7 @@ export class AgentMemoryController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
   ): Promise<void> {
-    const affected = await this.adminService.deleteMemory(
-      workspaceId,
-      id,
-    );
+    const affected = await this.adminService.deleteMemory(workspaceId, id);
     if (affected === 0) {
       throw new NotFoundException({
         code: 'RESOURCE_NOT_FOUND',
