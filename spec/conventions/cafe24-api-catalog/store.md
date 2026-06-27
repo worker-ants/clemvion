@@ -105,7 +105,6 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `sms_setting_get` | SMS 설정 조회 | Retrieve SMS settings | GET | `sms/setting` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-sms-settings) |
 | `sms_setting_update` | SMS 설정 수정 | Update SMS settings | PUT | `sms/setting` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-sms-settings) |
 | `socials_apple_get` | Apple 로그인 연동 상세 | Apple login sync details | GET | `socials/apple` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#apple-login-sync-details) |
-| `socials_apple_settings_get` | Apple 로그인 연동 설정 | Apple login sync settings | GET | `socials/apple/settings` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#apple-login-sync-settings) |
 | `socials_kakaosync_get` | 카카오 싱크 상세 | Kakao sync details | GET | `socials/kakaosync` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#kakao-sync-details) |
 | `socials_kakaosync_update` | 카카오 싱크 수정 | Kakao sync updates | PUT | `socials/kakaosync` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#kakao-sync-updates) |
 | `socials_naverlogin_get` | 네이버 로그인 상세 | Naver login details | GET | `socials/naverlogin` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#naver-login-details) |

@@ -16,10 +16,8 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | id | 라벨 (한) | English title | method | path | scope | paginated | status | docs |
 |----|---|---|---|---|---|---|---|---|
 | `coupon_list` | 쿠폰 목록 조회 | Retrieve a list of coupons | GET | `coupons` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-coupons) |
-| `coupon_get` | 쿠폰 단건 조회 | Retrieve a list of coupons (single) | GET | `coupons/{coupon_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-coupons) |
 | `coupon_create` | 쿠폰 생성 | Create a coupon | POST | `coupons` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-coupon) |
 | `coupon_issue` | 쿠폰 발급 | Create coupon issuance history | POST | `coupons/{coupon_no}/issues` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-coupon-issuance-history) |
-| `coupon_delete` | 쿠폰 삭제 | Coupon management (delete) | DELETE | `coupons/{coupon_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#coupon-management) |
 | `coupon_count` | 쿠폰 개수 조회 | Retrieve a count of coupons | GET | `coupons/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-coupons) |
 | `coupon_manage` | 쿠폰 관리 (사용/중지) | Coupon management (pause/resume) | PUT | `coupons/{coupon_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#coupon-management) |
 | `coupon_issuance_customers_list` | 쿠폰 발급 대상 회원 목록 | Retrieve a list of eligible customers for conditional issuance | GET | `coupons/{coupon_no}/issuancecustomers` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-eligible-customers-for-conditional-issuance) |
@@ -50,8 +48,6 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `serialcoupons_delete` | 시리얼 쿠폰 코드 삭제 | Delete coupon code | DELETE | `serialcoupons/{coupon_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-coupon-code) |
 | `serialcoupons_issues_get` | 시리얼 쿠폰 발급 코드 조회 | Retrieve a code of coupon codes | GET | `serialcoupons/{coupon_no}/issues` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-code-of-coupon-codes) |
 | `serialcoupons_issues_register` | 시리얼 쿠폰 발급 코드 등록 | Register a code of coupon codes | POST | `serialcoupons/{coupon_no}/issues` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#register-a-code-of-coupon-codes) |
-
-> ⚠ **docs 부재 seed (`coupon_get`, `coupon_delete`)**: 두 row 의 endpoint (`GET coupons/{coupon_no}` / `DELETE coupons/{coupon_no}`) 는 cafe24 admin docs (Latest 2026-03-01) 에 **노출되지 않는다** — coupon 단건 path 에는 `PUT` (즉 `coupon_manage`) 만 문서화되어 있다. 메타데이터 row 는 backwards-compat seed 로 유지되며 cafe24 wire 상 실제 동작 여부는 **미확인 (production 검증 전)**. `status: supported` 는 §3 정의상 "노드에서 호출 가능 = 메타데이터 row 존재" 를 뜻하므로 유효하나, 위 두 row 의 docs 링크는 잠정적이다. JSDoc ⚠ 마크 + 운영 검증/제거 결정 트랙: [`plan/in-progress/cafe24-backlog-residual.md §G-2`](../../../plan/in-progress/cafe24-backlog-residual.md). 근거: [`promotion.ts`](../../../codebase/backend/src/nodes/integration/cafe24/metadata/promotion.ts) JSDoc 주석.
 
 ## Field-level 상세 카탈로그
 

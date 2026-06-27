@@ -737,7 +737,7 @@ function renderApiCell(args: {
       : apiPath ?? "";
 
   // catalog endpoint 가 응답한 labelKey 가 dict 안에 있으면 사람 친화 라벨 사용.
-  // cafe24(494 op)·makeshop(161 op) dict 모두 채워져 있어 라벨이 렌더되고,
+  // cafe24(485 op)·makeshop(161 op) dict 모두 채워져 있어 라벨이 렌더되고,
   // dict miss 면 endpoint subtext fallback 으로 흐른다.
   const catalogEntry = apiLabel ? catalog.get(apiLabel) : undefined;
   const labelKey = catalogEntry?.labelKey ?? apiLabel ?? null;

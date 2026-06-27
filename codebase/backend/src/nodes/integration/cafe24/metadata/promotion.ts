@@ -26,24 +26,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     responseShape: 'list',
     paginated: true,
   },
-  // ⚠ coupon_get / coupon_delete — cafe24 admin docs (Latest 2026-03-01)
-  // 는 `GET/DELETE coupons/{coupon_no}` 를 노출하지 않는다 (PUT 만 — 즉
-  // `coupon_manage`). 본 row 들은 seed 이며 cafe24 wire 상 실제 동작 여부
-  // 미확인. 운영 검증 / 제거 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
-  {
-    id: 'coupon_get',
-    description:
-      'Get a single coupon by coupon_no. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
-    scopeType: 'read',
-    method: 'GET',
-    path: 'coupons/{coupon_no}',
-    requiredFields: ['coupon_no'],
-    fields: {
-      coupon_no: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
-    },
-    responseShape: 'single',
-  },
   {
     id: 'coupon_create',
     description: 'Create a new coupon.',
@@ -88,19 +70,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
       },
       member_ids: { type: 'array', location: 'body' },
       group_no: { type: 'number', location: 'body' },
-    },
-    responseShape: 'single',
-  },
-  {
-    id: 'coupon_delete',
-    description:
-      'Delete a coupon by coupon_no. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
-    scopeType: 'write',
-    method: 'DELETE',
-    path: 'coupons/{coupon_no}',
-    requiredFields: ['coupon_no'],
-    fields: {
-      coupon_no: { type: 'string', location: 'path' },
     },
     responseShape: 'single',
   },

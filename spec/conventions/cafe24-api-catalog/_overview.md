@@ -97,15 +97,15 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 
 | Resource | Supported | Planned | Cafe24 docs sub-resource 수 |
 |----------|-----------|---------|---|
-| [store](./store.md) | 106 | 0 | 50+ |
+| [store](./store.md) | 105 | 0 | 50+ |
 | [product](./product.md) | 62 | 0 | 28 |
 | [order](./order.md) | 104 | 0 | 47 |
-| [customer](./customer.md) | 24 | 0 | 12 |
+| [customer](./customer.md) | 22 | 0 | 12 |
 | [community](./community.md) | 21 | 0 | 9 |
 | [design](./design.md) | 9 | 0 | 3 |
-| [promotion](./promotion.md) | 35 | 0 | 10 |
-| [application](./application.md) | 19 | 0 | 8 |
-| [category](./category.md) | 19 | 0 | 5 |
+| [promotion](./promotion.md) | 33 | 0 | 10 |
+| [application](./application.md) | 17 | 0 | 8 |
+| [category](./category.md) | 17 | 0 | 5 |
 | [collection](./collection.md) | 15 | 0 | 5 |
 | [supply](./supply.md) | 20 | 0 | 6 |
 | [shipping](./shipping.md) | 15 | 0 | 5 |
@@ -115,7 +115,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | [mileage](./mileage.md) | 8 | 0 | 5 |
 | [notification](./notification.md) | 12 | 0 | 7 |
 | [translation](./translation.md) | 9 | 0 | 4 |
-| **합계** | **494** | **0** | **~250** |
+| **합계** | **485** | **0** | **~250** |
 
 > 18 resource 전부 0-planned. `store.md` 의 `privacy_*` id 명명 우려 (별 `privacy` resource 와 prefix 충돌) 는 별 트랙으로 follow-up 가능.
 
@@ -165,3 +165,19 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 본 레이어는 `catalog-sync.spec.ts` 의 검증 대상이 **아니다** (§4 의 동기 규칙은 top-level index 표 ↔ 메타데이터 사이만 강제). Field-level 문서와 backend 메타데이터의 field 단위 정합(`constraints` 등)은 `metadata.spec.ts` 트랙에서 별도로 다루며, 본 레이어는 그 작업의 **docs-side 참조 SoT** 역할이다.
 
 > 본 레이어는 [`plan/in-progress/cafe24-backlog-residual.md`](../../../plan/in-progress/cafe24-backlog-residual.md) 의 `G-1-remaining` (docs field ↔ metadata 갭 보강) 착수를 위한 선행 데이터 확보로 생성됐다.
+
+## 8. endpoint 제거 절차
+
+§6(등재)의 역과정. operation 을 카탈로그·메타데이터에서 내릴 때:
+
+1. backend 메타데이터 `<resource>.ts` 의 operation row 삭제.
+2. 본 카탈로그 index `<resource>.md` 의 표 row + 관련 seed note/footnote 삭제.
+3. frontend i18n `cafe24Catalog.ts` (ko/en) 의 대응 라벨 키 삭제.
+4. `_overview.md §5` coverage matrix 카운트 갱신.
+5. `pnpm --filter backend test -- catalog-sync` + `catalog-docs-drift` 통과 확인 (metadata↔index↔docs 3자 정합).
+
+> **`deprecated`(§3) 와 outright 제거의 구분**: `status: deprecated` 는 **Cafe24 공식 문서에 한 번 등재됐다가 폐기된** endpoint 의 전환 상태에만 쓴다. 반대로 **docs 에 한 번도 등재된 적 없는 미문서화 seed**(과거 Chrome 식별 기반으로 추가됐으나 공식 docs 에 부재 확정된 row)는 `deprecated` 단계 없이 **outright 제거**가 적합하다 — 사용자에게 노출할 폐기 안내 대상이 아니라 처음부터 비동작(404)이던 항목이기 때문이다.
+
+## Rationale
+
+- **미문서화 seed 9개 outright 제거 (G-3l, 2026-06-27)**: `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·`mains_update/delete`·`socials_apple_settings_get` 는 Cafe24 공식 docs(Latest 2026-03-01)에 부재한 backwards-compat seed 였다. 2026-06-02 시점에는 production 검증 전이라 `KNOWN_DOCS_ABSENT` allowlist 면제 + JSDoc ⚠ 로 **현행 유지**(plan §G-2)했으나, 2026-06-03 공식 docs 전체 HTML(authoritative) 확보로 **최종 API 부재가 확정**됐고, 해당 ops 가 wire 상 이미 비동작(404)이라 호환 영향이 없음을 근거로 **사용자가 전부 제거를 결정**(2026-06-27). 위 §8 의 outright-제거 경로(미문서화 seed)에 해당하며 `deprecated` 전환은 부적합하다. 결정 이력 SoT 는 [`plan/in-progress/cafe24-backlog-residual.md` §G-3l](../../../plan/in-progress/cafe24-backlog-residual.md). 제거 후 드리프트 가드 `catalog-docs-drift.spec.ts` 의 `KNOWN_DOCS_ABSENT` 는 빈 set 으로 수렴했다.

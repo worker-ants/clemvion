@@ -409,7 +409,7 @@ cafe24.<resource>.<operation>
 
 - `<resource>` 는 18 카테고리 enum (`store`, `product`, `order`, ...) 중 하나
 - `<operation>` 은 `Cafe24OperationMetadata.id` 의 값 (예: `product_list`, `order_update_status`)
-- 예시: `cafe24.product.product_list`, `cafe24.order.order_get`, `cafe24.customer.customer_update`
+- 예시: `cafe24.product.product_list`, `cafe24.order.order_get`, `cafe24.customer.customer_delete`
 
 **책임 분리** — DB·backend 메타데이터는 catalog key (single source of truth) 만 보유하고, frontend i18n dict 가 사람 친화 라벨의 단일 SoT 다. backend 가 한국어 라벨을 직접 보유하지 않는다 — 노드 에디터 operation 드롭다운과 활동 로그 라벨 모두 같은 catalog key 로 dict lookup:
 
