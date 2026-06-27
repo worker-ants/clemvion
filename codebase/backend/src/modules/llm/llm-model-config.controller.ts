@@ -25,13 +25,16 @@ import {
   ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import { Roles } from '../../common/guards/roles.guard';
-import { ApiOkWrappedResponse } from '../../common/swagger';
+import {
+  ApiOkWrappedResponse,
+  ApiOkWrappedArrayResponse,
+} from '../../common/swagger';
 import { WorkspaceId } from '../../common/decorators';
 import { LlmService } from './llm.service';
 import { LlmPreviewService } from './llm-preview.service';
 import { PreviewModelListDto } from '../model-config/dto/preview-model-list.dto';
 import {
-  ModelListDto,
+  ModelInfoDto,
   ModelTestConnectionResultDto,
 } from '../model-config/dto/responses/model-config-response.dto';
 import {
@@ -76,7 +79,9 @@ export class LlmModelConfigController {
       '저장되지 않은 폼 자격증명으로 Provider 모델 목록을 실시간 조회합니다. apiKey 는 저장되지 않습니다.',
   })
   @ApiBody({ type: PreviewModelListDto })
-  @ApiOkWrappedResponse(ModelListDto, { description: '사용 가능한 모델 목록' })
+  @ApiOkWrappedArrayResponse(ModelInfoDto, {
+    description: '사용 가능한 모델 목록',
+  })
   @ApiBadRequestResponse({
     description: '자격증명 검증 실패 또는 Provider 호출 실패',
   })
@@ -128,7 +133,9 @@ export class LlmModelConfigController {
     enumName: 'ModelTypeFilter',
     description: '응답에 포함할 모델 타입 제한',
   })
-  @ApiOkWrappedResponse(ModelListDto, { description: '사용 가능한 모델 목록' })
+  @ApiOkWrappedArrayResponse(ModelInfoDto, {
+    description: '사용 가능한 모델 목록',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   @ApiBadRequestResponse({

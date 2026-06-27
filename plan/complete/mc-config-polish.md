@@ -4,6 +4,11 @@ started: 2026-06-27
 owner: developer
 status: complete
 completed: 2026-06-27
+spec_impact:
+  - spec/2-navigation/6-config.md
+  - spec/5-system/2-api-convention.md
+  - spec/5-system/7-llm-client.md
+  - spec/data-flow/7-llm-usage.md
 base: origin/main @ 268ef02a4 (#719 포함)
 source: refactor backlog ③ (model-config 부속 엔드포인트 후속, #716·#718·#719 흐름)
 ---
