@@ -69,6 +69,7 @@ sequenceDiagram
 
 - 위 lookup+write 는 단일 트랜잭션이며, partial UNIQUE(§2.1) 경합 시 500 대신 `409 invitation_already_pending` 으로 매핑된다 (`workspace-invitations.service.ts` `create`).
 - **rate limit**: 초대 발급·재발송은 분당 10건(`workspaces.controller.ts` `INVITATION_THROTTLE`), 공개 토큰 메타 조회(`GET /api/invitations/:token`)는 분당 30건 — email-bombing / token enumeration 방어.
+- **에러 코드 케이스**: 본 초대 흐름이 발행하는 `workspace_type_mismatch`·`already_a_member`·`invitation_already_pending`·`invitation_already_accepted`(§1.8)는 모두 `lower_snake_case` 로, 초대 모듈(`workspace-invitations.service.ts`)의 v1 컨벤션을 따르는 historical artifact 다([`error-codes.md §3`](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리)). 특히 `already_a_member`·`workspace_type_mismatch` 는 직접 추가 경로(§1.9)가 발행하는 UPPER_SNAKE `ALREADY_A_MEMBER`·`WORKSPACE_TYPE_MISMATCH` 와 **동일 의미·별개 wire 코드**다(서로 다른 모듈·케이스 컨벤션 — 의도적 분리, 통합 금지).
 - **만료 초대 정리(data 위생)**: 만료(`expires_at < now`)되고 수락되지 않은(`accepted_at IS NULL`) 초대 row 는 매일 04:00 Asia/Seoul 에 BullMQ repeatable 잡(`WorkspaceInvitationsPrunerService`)이 삭제한다 — `login-history-pruner` 와 동일 패턴(멀티 인스턴스에서 전역 1회). 비즈니스 로직은 `WorkspaceInvitationsService.pruneExpired(now)`.
 
 ### 1.3 초대 수락 (이미 가입한 사용자)
@@ -169,6 +170,9 @@ sequenceDiagram
 (`WorkspacesService.addMemberByEmail`, admin+). 이미 가입된 사용자를 메일 없이 즉시
 `INSERT workspace_member` 한다. team 전용. `role=owner` 부여 불가(`403 CANNOT_ASSIGN_OWNER`),
 미가입 이메일은 `404 USER_NOT_FOUND`(미가입자는 초대 흐름으로), 기존 멤버는 `409 ALREADY_A_MEMBER`.
+non-team 워크스페이스 동작은 `403 WORKSPACE_TYPE_MISMATCH`.
+
+> **에러 코드 케이스**: 본 경로는 `WorkspacesService`(`workspaces.service.ts`)가 발행해 `UPPER_SNAKE_CASE`(`ALREADY_A_MEMBER`·`WORKSPACE_TYPE_MISMATCH`·`USER_NOT_FOUND`)를 쓴다 — §1.2 초대 흐름의 lowercase `already_a_member`·`workspace_type_mismatch` 와 **동일 의미·별개 wire 코드**다(다른 모듈·케이스 컨벤션, 의도적 분리). 초대 흐름 코드의 lowercase 보존 근거는 [`error-codes.md §3`](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리).
 
 ### 1.10 워크스페이스 삭제 / 나가기
 
