@@ -20,12 +20,10 @@ source: refactor backlog ③ (model-config 부속 엔드포인트 후속, #716·
 
 ## 워크플로 게이트
 
-- [x] lint (PASS)
-- [ ] unit test (plan-frontmatter guard 수정 후 재실행)
-- [ ] build
-- [ ] e2e
-- [ ] /ai-review → Critical/Warning 0 (or resolution-applier fix)
-- [ ] consistency-check --impl-done <spec 영역> → BLOCK NO (spec 연결 코드 변경)
+- [x] lint · unit · build · e2e (PASS — 1차 + resolution 후 2차)
+- [x] /ai-review (1차) → risk LOW, Critical 0, Warning 3 → 수동 resolution (RESOLUTION.md). 조치: W-1·W-3 fix, W-2 수용, SPEC-DRIFT I-1·I-2 + cheap INFO 반영
+- [ ] fresh /ai-review (resolution 커버 — stale-review push 가드 해소)
+- [ ] consistency-check --impl-done spec/5-system/ → BLOCK NO (spec 연결 코드 변경)
 
 ## 결정·메모
 

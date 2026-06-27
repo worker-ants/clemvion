@@ -10,6 +10,7 @@ code:
   - codebase/backend/src/modules/llm/llm.service.ts
   - codebase/backend/src/modules/llm/embedding-input-type.ts
   - codebase/backend/src/modules/llm/llm-preview.service.ts
+  - codebase/backend/src/modules/llm/list-models-cap.ts
   - codebase/backend/src/modules/llm/llm-usage-log.service.ts
   - codebase/backend/src/modules/llm/pricing.ts
   - codebase/backend/src/modules/llm/rerank/rerank-client.factory.ts

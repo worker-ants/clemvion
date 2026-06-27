@@ -14,4 +14,4 @@
  */
 export const SENSITIVE_ACTION_THROTTLE = {
   default: { ttl: 60_000, limit: 10 },
-};
+} as const;

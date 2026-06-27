@@ -14,9 +14,10 @@ describe('capModelList', () => {
     const exact = Array.from({ length: MAX_MODEL_LIST_SIZE }, (_, i) =>
       model(i),
     );
+    const empty: ModelInfo[] = [];
     expect(capModelList(under)).toBe(under);
     expect(capModelList(exact)).toBe(exact);
-    expect(capModelList([])).toEqual([]);
+    expect(capModelList(empty)).toBe(empty);
   });
 
   it('truncates to the first MAX_MODEL_LIST_SIZE preserving provider order', () => {
@@ -37,19 +38,21 @@ describe('capModelList', () => {
       .spyOn(Logger.prototype, 'warn')
       .mockImplementation(() => undefined);
     const logger = new Logger('test');
+    // try/finally — assertion 실패해도 spy 를 복원해 테스트 격리 유지.
+    try {
+      capModelList([model(0)], logger);
+      expect(warn).not.toHaveBeenCalled();
 
-    capModelList([model(0)], logger);
-    expect(warn).not.toHaveBeenCalled();
-
-    const over = Array.from({ length: MAX_MODEL_LIST_SIZE + 1 }, (_, i) =>
-      model(i),
-    );
-    capModelList(over, logger);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining(`${MAX_MODEL_LIST_SIZE}`),
-    );
-
-    warn.mockRestore();
+      const over = Array.from({ length: MAX_MODEL_LIST_SIZE + 1 }, (_, i) =>
+        model(i),
+      );
+      capModelList(over, logger);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(`${MAX_MODEL_LIST_SIZE}`),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

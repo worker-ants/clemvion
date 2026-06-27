@@ -279,7 +279,7 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 | PATCH | /api/model-configs/:id | 수정 |
 | PATCH | /api/model-configs/:id/set-default | kind 별 기본 설정. **동일 `(workspace_id, kind)` 내 기존 `is_default` 를 false 로 초기화 후 대상만 true** (kind 범위 한정) |
 | POST | /api/model-configs/:id/test | 연결 테스트 (chat/embedding 만 — rerank 미제공). 응답 `data`: chat `{ success }`, embedding `{ success, dimension? }`(probe embed 감지 차원). 설정 조회는 kind 무관(`ModelConfigService.findEntity`) **(Editor+ — 과금 action-POST)** |
-| POST | /api/model-configs/preview-models | 저장 전 폼 자격증명으로 모델 목록 미리보기 (chat/embedding) **(Editor+ — 과금 action-POST)** |
+| POST | /api/model-configs/preview-models | 저장 전 폼 자격증명으로 모델 목록 미리보기 (chat/embedding). 결과 수 방어적 상한 500(`:id/models` 와 동일) **(Editor+ — 과금 action-POST)** |
 | GET | /api/model-configs/:id/models | 사용 가능한 모델 목록 조회 (chat/embedding). 쿼리 `?type=chat\|embedding`(선택) 으로 타입 필터 — 허용값 외 `type` 은 `400 Bad Request`(컨트롤러 `ParseEnumPipe` 강제). 결과 수 방어적 상한 500(초과 시 앞 500개로 절단) **(Viewer+ — 조회)** |
 | DELETE | /api/model-configs/:id | 삭제 |
 

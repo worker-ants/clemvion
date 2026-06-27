@@ -15,6 +15,10 @@ export const MAX_MODEL_LIST_SIZE = 500;
  * provider 모델 목록을 방어적 상한으로 절단한다. 초과 시 **앞 N개만** 남기고
  * (provider 순서 보존 — 재정렬하지 않아 정상 케이스 표시 순서가 바뀌지 않는다)
  * 경고 로그를 남긴다. 응답 계약(`ModelInfo[]`)은 변하지 않는다.
+ *
+ * @param models provider 가 반환한 원본 모델 목록.
+ * @param logger 절단 발생 시 경고를 남길 선택적 로거 (생략 시 무로그).
+ * @returns 상한 이하면 원본 참조 그대로, 초과면 앞 `MAX_MODEL_LIST_SIZE` 개의 새 배열.
  */
 export function capModelList(
   models: ModelInfo[],

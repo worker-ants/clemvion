@@ -22,6 +22,7 @@ import {
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiUnauthorizedResponse,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import { Roles } from '../../common/guards/roles.guard';
 import { ApiOkWrappedResponse } from '../../common/swagger';
@@ -81,6 +82,7 @@ export class LlmModelConfigController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiTooManyRequestsResponse({ description: '요청 빈도 초과 (분당 10회)' })
   async previewModels(@Body() dto: PreviewModelListDto) {
     return this.llmPreviewService.previewModels(dto);
   }
@@ -100,6 +102,7 @@ export class LlmModelConfigController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
+  @ApiTooManyRequestsResponse({ description: '요청 빈도 초과 (분당 10회)' })
   async testConnection(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
@@ -131,6 +134,7 @@ export class LlmModelConfigController {
   @ApiBadRequestResponse({
     description: '유효하지 않은 type 파라미터 (허용값: chat | embedding)',
   })
+  @ApiTooManyRequestsResponse({ description: '요청 빈도 초과 (분당 10회)' })
   async listModels(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
