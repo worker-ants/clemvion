@@ -146,14 +146,20 @@ export class AiMemoryManager {
     const tokenBudget =
       (args.config.memoryTokenBudget as number) || DEFAULT_MEMORY_TOKEN_BUDGET;
 
-    // self 노드를 제외한 thread turns (중복 방지 — spec §6.2 d.5).
-    const turns =
+    // 단일 thread 읽기 (I/O-backed 전환 대비 — W-8): self 포함 전체 thread 를 한
+    // 번만 읽어 ⓐ self 제외 turns (요약·휘발성 꼬리, spec §6.2 d.5) 와 ⓑ self 포함
+    // 전체 turns (멀티턴 물리 압축 경계) 를 모두 in-memory 파생한다.
+    // `getThreadExcludingNode` 는 `getThread().turns.filter(nodeId)` 와 동치이므로
+    // 별도 쿼리가 불필요하다 (종전 이중 호출 제거).
+    const fullThread =
       this.conversationThreadService && args.target
-        ? this.conversationThreadService.getThreadExcludingNode(
-            args.target,
-            args.selfNodeId,
-          )
-        : [];
+        ? this.conversationThreadService.getThread(args.target)
+        : undefined;
+    const fullTurns: readonly ConversationTurn[] = fullThread
+      ? fullThread.turns
+      : [];
+    // self 노드를 제외한 thread turns (중복 방지 — spec §6.2 d.5).
+    const turns = fullTurns.filter((t) => t.nodeId !== args.selfNodeId);
 
     // ── [5a] persistent 회수 (LLM 호출 전 동기) ──
     let recalled: import('../../../modules/agent-memory/agent-memory.service').RecalledMemory[] =
@@ -234,15 +240,16 @@ export class AiMemoryManager {
       llmService: this.llmService,
     });
 
-    // 갱신된 요약을 in-memory thread 에 mutate (다음 turn 재사용 — Redis 직렬화로
-    // 영속되며 신규 DB 컬럼 없음, conversation-thread §1.3·§4).
-    if (update.summarized && thread) {
-      const mutable = thread as {
-        runningSummary?: string;
-        summarizedUpToSeq?: number;
-      };
-      mutable.runningSummary = update.runningSummary;
-      mutable.summarizedUpToSeq = update.summarizedUpToSeq;
+    // 갱신된 요약을 in-memory thread 에 반영 (다음 turn 재사용 — Redis 직렬화로
+    // 영속되며 신규 DB 컬럼 없음, conversation-thread §1.3·§4). thread 직접 mutate
+    // 대신 ConversationThreadService 의 단일 변이 경로를 거친다 (I-7). 요약은
+    // turns 가 있어야 발생하고 turns 는 service+target 이 있을 때만 채워지므로
+    // (위 단일 getThread), summarized=true 면 service·target 가 존재한다.
+    if (update.summarized && this.conversationThreadService && args.target) {
+      this.conversationThreadService.updateSummaryState(args.target, {
+        runningSummary: update.runningSummary,
+        summarizedUpToSeq: update.summarizedUpToSeq,
+      });
     }
 
     // ── 안정 프리픽스 [5a]+[5b] 를 systemPrompt 에 append ──
@@ -260,24 +267,14 @@ export class AiMemoryManager {
 
     // ── [keepUserExchanges 도출] multi-turn 누적 messages 물리 압축 경계 ──
     //
-    // self 제외 `turns`(요약용)와 별개로 **self 포함 전체 thread**(`getThread`)를
-    // 다시 읽는다 — 두 호출은 목적이 다르다 (위 `getThreadExcludingNode` =
-    // 요약·꼬리 / 아래 `getThread` = 물리 압축 경계). 중복 호출이 아니다.
-    //
     // 압축 대상은 **에이전트 자신의 누적 messages** (user/assistant/tool) 다.
     // summarization 에 쓰는 `turns` 는 self 노드를 제외하므로 에이전트 자신의
     // ai_user turn 을 포함하지 않는다 — 따라서 휘발성 꼬리(`capped.turns`)의
-    // user 수만으로는 messages 압축 경계를 도출할 수 없다. 대신 **self 포함 전체
-    // thread** 에서 요약에 커버되지 않은 (`seq > summarizedUpToSeq`) user-bearing
-    // turn 수를 센다 — 이것이 "물리적으로 보존해야 할 최근 exchange 수" 이고,
-    // compactMessagesToTail 가 messages 끝에서 그만큼의 user 경계까지만 남긴다.
-    const fullThread =
-      this.conversationThreadService && args.target
-        ? this.conversationThreadService.getThread(args.target)
-        : undefined;
-    const fullTurns: readonly ConversationTurn[] = fullThread
-      ? fullThread.turns
-      : turns;
+    // user 수만으로는 messages 압축 경계를 도출할 수 없다. 대신 위에서 한 번 읽은
+    // **self 포함 전체 thread**(`fullTurns`)에서 요약에 커버되지 않은
+    // (`seq > summarizedUpToSeq`) user-bearing turn 수를 센다 — 이것이 "물리적으로
+    // 보존해야 할 최근 exchange 수" 이고, compactMessagesToTail 가 messages 끝에서
+    // 그만큼의 user 경계까지만 남긴다.
     const keepUserExchanges = selectVolatileTail(
       fullTurns,
       update.summarizedUpToSeq,

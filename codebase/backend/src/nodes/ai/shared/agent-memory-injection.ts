@@ -582,6 +582,30 @@ export interface ScheduleMemoryExtractionArgs {
 }
 
 /**
+ * resume-state 에서 증분 추출 watermark 를 읽는다 (I12). 신 sub-namespace
+ * `memoryState.lastExtractionTurnSeq` 를 우선하되, 구 평면 키
+ * `lastExtractionTurnSeq` 로 폴백한다 — 배포 시점 in-flight 파킹 실행의 하위호환.
+ * (watermark 유실 자체는 dedup(AGM-09)이 흡수해 무해하나, 폴백으로 재추출 1회도
+ * 피한다.) 숫자가 아니면 undefined (= 전체 turn 재추출).
+ *
+ * 두 핸들러(ai_agent · information_extractor)가 같은 우선순위/폴백 규칙을 쓰도록
+ * 단일화 — resume-state 의 watermark 위치 계약을 한 곳에서 정의한다.
+ */
+export function readExtractionWatermark(
+  resumeState: Record<string, unknown> | undefined,
+): number | undefined {
+  if (!resumeState) return undefined;
+  const ns = resumeState.memoryState as
+    | { lastExtractionTurnSeq?: unknown }
+    | undefined;
+  if (ns && typeof ns.lastExtractionTurnSeq === 'number') {
+    return ns.lastExtractionTurnSeq;
+  }
+  const flat = resumeState.lastExtractionTurnSeq;
+  return typeof flat === 'number' ? flat : undefined;
+}
+
+/**
  * 턴 경계 비동기 추출 enqueue (spec/5-system/17-agent-memory.md §3, §6.1 단계
  * 2.7 — producer 측). `persistent` 전략에서만, single-turn 최종 응답 후 /
  * multi-turn 매 turn 종료 후 (= ai_assistant turn push 직후) 에 호출된다.

@@ -352,6 +352,56 @@ describe('ConversationThreadService', () => {
     });
   });
 
+  describe('updateSummaryState (I-7 단일 변이 경로)', () => {
+    it('runningSummary / summarizedUpToSeq 를 thread 에 반영한다', () => {
+      const context = makeContext();
+      service.updateSummaryState(context, {
+        runningSummary: '요약 텍스트',
+        summarizedUpToSeq: 5,
+      });
+      const thread = service.getThread(context);
+      expect(thread.runningSummary).toBe('요약 텍스트');
+      expect(thread.summarizedUpToSeq).toBe(5);
+    });
+
+    it('이후 호출이 직전 요약 상태를 교체한다 (덮어쓰기)', () => {
+      const context = makeContext();
+      service.updateSummaryState(context, {
+        runningSummary: 'v1',
+        summarizedUpToSeq: 2,
+      });
+      service.updateSummaryState(context, {
+        runningSummary: 'v2',
+        summarizedUpToSeq: 7,
+      });
+      const thread = service.getThread(context);
+      expect(thread.runningSummary).toBe('v2');
+      expect(thread.summarizedUpToSeq).toBe(7);
+    });
+
+    it('updateSummaryState 는 turns / nextSeq / totalChars 를 건드리지 않는다', () => {
+      const context = makeContext();
+      service.appendAiUserMessage(context, {
+        node: makeNode({ type: 'ai_agent' }),
+        content: 'hello',
+      });
+      const before = service.getThread(context);
+      const turnsLen = before.turns.length;
+      const nextSeq = before.nextSeq;
+      const totalChars = before.totalChars;
+
+      service.updateSummaryState(context, {
+        runningSummary: 's',
+        summarizedUpToSeq: 0,
+      });
+
+      const after = service.getThread(context);
+      expect(after.turns.length).toBe(turnsLen);
+      expect(after.nextSeq).toBe(nextSeq);
+      expect(after.totalChars).toBe(totalChars);
+    });
+  });
+
   describe('immutability', () => {
     it('getThread returns a snapshot — mutating it does not affect future appends', () => {
       const context = makeContext();

@@ -328,24 +328,19 @@ export class AgentMemoryService {
       }
 
       const vectorStr = `[${queryEmbedding.join(',')}]`;
-      const cast = getEmbeddingCastType(dim);
-      const castExpr = `${cast}(${dim})`;
 
       // 검색 SQL 은 partial HNSW 인덱스(V074~V079)와 동일한 cast/차원 조건을 사용해야
-      // 인덱스를 탄다. workspace_id + scope_key 로 네임스페이스 격리.
+      // 인덱스를 탄다. workspace_id + scope_key 로 네임스페이스 격리. WHERE/score 식은
+      // findSimilarFact 와 공유 빌더로 단일화 (I5 — 파라미터 순서 계약 동일).
+      const { scoreExpr, whereClause } = this.buildCosineMatch(dim);
       const rows = await this.dataSource.query<
         { content: string; score: string }[]
       >(
         `SELECT
           am.content,
-          1 - (am.embedding::${castExpr} <=> $1::${castExpr}) AS score
+          ${scoreExpr} AS score
         FROM agent_memory am
-        WHERE am.workspace_id = $2
-          AND am.scope_key = $3
-          AND vector_dims(am.embedding) = ${dim}
-          AND am.embedding IS NOT NULL
-          AND (am.expires_at IS NULL OR am.expires_at > now())
-          AND 1 - (am.embedding::${castExpr} <=> $1::${castExpr}) >= $4
+        WHERE ${whereClause}
         ORDER BY score DESC
         LIMIT $5`,
         [vectorStr, workspaceId, scopeKey, threshold, topK],
@@ -381,13 +376,15 @@ export class AgentMemoryService {
    * FIFO 초과분) 를 호출한다. 루프+evict 전체는 한 트랜잭션 (W2). 모든 쿼리는
    * workspace_id 격리 (§5, AGM-07).
    */
-  async saveMemories(
-    workspaceId: string,
-    scopeKey: string,
-    items: MemoryItem[],
-    embedCfgSource: EmbedConfigSource,
-    ttlDays?: number | null,
-  ): Promise<void> {
+  async saveMemories(args: {
+    workspaceId: string;
+    scopeKey: string;
+    items: MemoryItem[];
+    embedCfgSource: EmbedConfigSource;
+    /** 양수면 INSERT/UPDATE 가 `expires_at = now()+ttlDays` (AGM-10). 미설정/0/음수 = 무만료. */
+    ttlDays?: number | null;
+  }): Promise<void> {
+    const { workspaceId, scopeKey, items, embedCfgSource, ttlDays } = args;
     if (!workspaceId || !scopeKey) return;
     const valid = items.filter((it) => {
       if (!it.content?.trim()) return false;
@@ -719,18 +716,14 @@ export class AgentMemoryService {
     if (!SUPPORTED_EMBEDDING_DIMS.has(dim)) return null;
     try {
       const vectorStr = `[${embedding.join(',')}]`;
-      const cast = getEmbeddingCastType(dim);
-      const castExpr = `${cast}(${dim})`;
+      // recall 과 동일한 cosine WHERE/score 식 (I5 공유 빌더). 만료 row 제외 ·
+      // dim 인덱스 조건 · 파라미터 순서($1 vector/$2 ws/$3 scope/$4 임계)가 동일하다.
+      const { scoreExpr, whereClause } = this.buildCosineMatch(dim);
       const rows = await runner.query<{ id: string }[]>(
         `SELECT am.id
          FROM agent_memory am
-         WHERE am.workspace_id = $2
-           AND am.scope_key = $3
-           AND vector_dims(am.embedding) = ${dim}
-           AND am.embedding IS NOT NULL
-           AND (am.expires_at IS NULL OR am.expires_at > now())
-           AND 1 - (am.embedding::${castExpr} <=> $1::${castExpr}) >= $4
-         ORDER BY 1 - (am.embedding::${castExpr} <=> $1::${castExpr}) DESC
+         WHERE ${whereClause}
+         ORDER BY ${scoreExpr} DESC
          LIMIT 1`,
         [vectorStr, workspaceId, scopeKey, MEMORY_DEDUP_SIMILARITY],
       );
@@ -740,6 +733,34 @@ export class AgentMemoryService {
       this.logger.warn(`Agent memory dedup lookup failed: ${message}`);
       return null;
     }
+  }
+
+  /**
+   * recall / findSimilarFact 가 공유하는 cosine 검색 절 빌더 (I5). 두 경로가 같은
+   * 가시성 규칙(만료 row 제외) · 인덱스 조건 · 파라미터 순서를 쓰도록 단일화한다.
+   *
+   * **파라미터 순서 계약** (호출부가 반드시 이 순서로 바인딩): `$1` = query vector,
+   * `$2` = workspaceId, `$3` = scopeKey, `$4` = cosine 임계치. `dim` 은 partial
+   * HNSW 인덱스(V074~V079) 조건과 일치해야 인덱스를 탄다.
+   *
+   * 반환:
+   *  - `scoreExpr` — `1 - cosine_distance` (SELECT alias·ORDER BY·임계 비교 공용).
+   *  - `whereClause` — workspace/scope 격리 + dim/non-null + 만료 제외 + 임계 필터.
+   */
+  private buildCosineMatch(dim: number): {
+    scoreExpr: string;
+    whereClause: string;
+  } {
+    const cast = getEmbeddingCastType(dim);
+    const castExpr = `${cast}(${dim})`;
+    const scoreExpr = `1 - (am.embedding::${castExpr} <=> $1::${castExpr})`;
+    const whereClause = `am.workspace_id = $2
+           AND am.scope_key = $3
+           AND vector_dims(am.embedding) = ${dim}
+           AND am.embedding IS NOT NULL
+           AND (am.expires_at IS NULL OR am.expires_at > now())
+           AND ${scoreExpr} >= $4`;
+    return { scoreExpr, whereClause };
   }
 
   /** batch 내 직전 처리한 fact 중 cosine 유사도 ≥ 임계치인 row id (AGM-09). */

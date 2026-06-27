@@ -32,6 +32,16 @@ function makeContext(
   };
 }
 
+/**
+ * resume-state 의 증분 추출 watermark 접근자 — **신 namespace `memoryState`
+ * 만** 읽는다 (구 평면 키 폴백 없음). 이로써 ai_agent 가 watermark 를
+ * memoryState sub-namespace 에 실제로 영속하는지(I12) 회귀로 보장한다.
+ */
+function wmOf(state: Record<string, unknown>): number | undefined {
+  const ns = state.memoryState as { lastExtractionTurnSeq?: number } | undefined;
+  return ns?.lastExtractionTurnSeq;
+}
+
 describe('AiAgentHandler — auto-memory strategy', () => {
   let mockLlmService: Record<string, jest.Mock>;
   let conversationThreadService: ConversationThreadService;
@@ -1130,16 +1140,16 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       const call1 = agentMemoryService.scheduleExtraction.mock.calls[0][0];
       const snap1Len = (call1.turns as unknown[]).length;
       state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
-      // watermark (lastExtractionTurnSeq) 가 state 로 영속됐다.
-      expect(typeof state.lastExtractionTurnSeq).toBe('number');
-      const wm1 = state.lastExtractionTurnSeq as number;
+      // watermark 가 memoryState sub-namespace 로 state 에 영속됐다 (I12).
+      expect(typeof wmOf(state)).toBe('number');
+      const wm1 = wmOf(state) as number;
 
       // 2차 user 메시지 → enqueue #2 는 seq > wm1 인 신규 turn 만.
       const r2 = await handler.processMultiTurnMessage('둘째 질문', state);
       const call2 = agentMemoryService.scheduleExtraction.mock.calls[1][0];
       const snap2Len = (call2.turns as unknown[]).length;
       state = (r2 as { _resumeState: Record<string, unknown> })._resumeState;
-      const wm2 = state.lastExtractionTurnSeq as number;
+      const wm2 = wmOf(state) as number;
 
       // 증분: 2차 snapshot 이 누적 전체보다 작고, watermark 가 전진한다.
       expect(agentMemoryService.scheduleExtraction).toHaveBeenCalledTimes(2);
@@ -1175,7 +1185,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       agentMemoryService.scheduleExtraction.mockResolvedValueOnce(true);
       const r1 = await handler.processMultiTurnMessage('첫 질문', state);
       state = (r1 as { _resumeState: Record<string, unknown> })._resumeState;
-      const wm1 = state.lastExtractionTurnSeq as number;
+      const wm1 = wmOf(state) as number;
       expect(typeof wm1).toBe('number');
 
       // 2차: BullMQ dedup-drop (false) → 이 turn 들은 저장되지 않았으므로
@@ -1183,7 +1193,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       agentMemoryService.scheduleExtraction.mockResolvedValueOnce(false);
       const r2 = await handler.processMultiTurnMessage('둘째 질문', state);
       state = (r2 as { _resumeState: Record<string, unknown> })._resumeState;
-      expect(state.lastExtractionTurnSeq).toBe(wm1); // 전진 안 함.
+      expect(wmOf(state)).toBe(wm1); // 전진 안 함.
 
       // 3차: 다시 정상 수락 → 직전 drop 된 '둘째 질문' 까지 포함해 재-snapshot.
       agentMemoryService.scheduleExtraction.mockResolvedValueOnce(true);
@@ -1198,7 +1208,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(texts3).toContain('셋째 질문');
       state = (r3 as { _resumeState: Record<string, unknown> })._resumeState;
       // 이제는 전진 (정상 수락).
-      expect(state.lastExtractionTurnSeq as number).toBeGreaterThan(wm1);
+      expect(wmOf(state) as number).toBeGreaterThan(wm1);
     });
 
     it('AGM-10: 노드 config memoryTtlDays 를 scheduleExtraction payload.ttlDays 로 전달', async () => {
@@ -1309,7 +1319,8 @@ describe('AiAgentHandler — auto-memory strategy', () => {
 
       // watermark 를 thread 의 최신 seq 이상으로 인위적으로 올려, 신규 turn 이
       // 없는 상태를 만든다 — 다음 추출 시도는 fresh.length===0 으로 skip 되어야.
-      state.lastExtractionTurnSeq = 1_000_000;
+      // watermark 는 memoryState sub-namespace 에 운반된다 (I12).
+      state.memoryState = { lastExtractionTurnSeq: 1_000_000 };
       const r2 = await handler.processMultiTurnMessage('둘째 질문', state);
       // 새 user/assistant turn(seq 작음)은 watermark 초과가 아니므로 enqueue 없음.
       // (processMultiTurnMessage 가 push 하는 turn 의 seq < 1_000_000)

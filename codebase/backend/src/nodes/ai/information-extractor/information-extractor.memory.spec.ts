@@ -336,12 +336,17 @@ describe('InformationExtractor persistent memory — multi-turn', () => {
     );
     expect(state.executionId).toBe('exec-mt2');
     // F6: nodeId 운반(종결 push NodeRef) + watermark 운반 슬롯 핀. IE 는 종결 1회
-    // 추출 구조라 watermark 가 전진하지 않으므로 undefined 이거나(미전진) 숫자여야
-    // 한다 — forward-looking 운반 invariant 만 보장한다.
+    // 추출 구조라 watermark 가 전진하지 않으므로 memoryState 가 undefined 이거나(미전진),
+    // 있으면 lastExtractionTurnSeq 가 숫자여야 한다 — forward-looking 운반 invariant
+    // 만 보장한다 (I12: watermark 는 memoryState sub-namespace 로 운반).
     expect(state.nodeId).toBe('ie-1');
+    const memState = state.memoryState as
+      | { lastExtractionTurnSeq?: unknown }
+      | undefined;
     expect(
-      state.lastExtractionTurnSeq === undefined ||
-        typeof state.lastExtractionTurnSeq === 'number',
+      memState === undefined ||
+        memState.lastExtractionTurnSeq === undefined ||
+        typeof memState.lastExtractionTurnSeq === 'number',
     ).toBe(true);
 
     // Turn 2: finalize → completed. scope key must still resolve to persist-key.

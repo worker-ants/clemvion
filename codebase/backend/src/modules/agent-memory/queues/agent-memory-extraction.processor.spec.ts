@@ -85,10 +85,14 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
       '사용자: 내 이름은 지수야',
     );
 
-    // saveMemories — scopeKey / items / embedCfgSource 검증.
+    // saveMemories — scopeKey / items / embedCfgSource 검증 (옵션 객체, I3).
     expect(agentMemoryService.saveMemories).toHaveBeenCalledTimes(1);
-    const [wsId, scopeKey, items, embedCfg] =
-      agentMemoryService.saveMemories.mock.calls[0];
+    const {
+      workspaceId: wsId,
+      scopeKey,
+      items,
+      embedCfgSource: embedCfg,
+    } = agentMemoryService.saveMemories.mock.calls[0][0];
     expect(wsId).toBe('ws-1');
     expect(scopeKey).toBe('cust-7');
     // 구 shape(문자열 배열) → kind=fact fallback.
@@ -112,7 +116,7 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
       model: 'gpt-4o',
     });
     await processor.process(makeJob({}));
-    const [, , items] = agentMemoryService.saveMemories.mock.calls[0];
+    const { items } = agentMemoryService.saveMemories.mock.calls[0][0];
     expect(items).toEqual([
       {
         content: '이름은 지수다',
@@ -125,12 +129,11 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
     ]);
   });
 
-  it('AGM-10: job.ttlDays 를 saveMemories 5번째 인자로 전달', async () => {
+  it('AGM-10: job.ttlDays 를 saveMemories ttlDays 옵션으로 전달', async () => {
     const job = makeJob({});
     job.data.ttlDays = 14;
     await processor.process(job);
-    const callArgs = agentMemoryService.saveMemories.mock.calls[0];
-    expect(callArgs[4]).toBe(14);
+    expect(agentMemoryService.saveMemories.mock.calls[0][0].ttlDays).toBe(14);
   });
 
   it('W4: 비정상 ttlDays(0/음수/NaN/비숫자)는 undefined 로 정규화해 전달', async () => {
@@ -140,8 +143,9 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
       const job = makeJob({});
       job.data.ttlDays = bad as number;
       await processor.process(job);
-      const callArgs = agentMemoryService.saveMemories.mock.calls[0];
-      expect(callArgs[4]).toBeUndefined();
+      expect(
+        agentMemoryService.saveMemories.mock.calls[0][0].ttlDays,
+      ).toBeUndefined();
     }
   });
 
@@ -149,7 +153,7 @@ describe('AgentMemoryExtractionProcessor (spec §3, AGM-04)', () => {
     const job = makeJob({});
     job.data.ttlDays = 14;
     await processor.process(job);
-    expect(agentMemoryService.saveMemories.mock.calls[0][4]).toBe(14);
+    expect(agentMemoryService.saveMemories.mock.calls[0][0].ttlDays).toBe(14);
   });
 
   it('추출 결과 빈 배열이면 saveMemories 호출 안 함 (no-op)', async () => {

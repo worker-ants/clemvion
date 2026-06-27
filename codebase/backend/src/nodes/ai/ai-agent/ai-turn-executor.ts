@@ -31,6 +31,7 @@ import { type MemoryStrategy } from './ai-agent.schema';
 import { injectConversationContext } from '../shared/conversation-context-injection';
 import {
   compactMessagesToTail,
+  readExtractionWatermark,
   stripMemoryBlocks,
 } from '../shared/agent-memory-injection';
 import {
@@ -2711,12 +2712,12 @@ export class AiTurnExecutor {
     // 종료 후). persistent 전략에서만 발화. config 는 state (turn-1 snapshot),
     // target 은 state 가 들고 있는 thread ref.
     //
-    // 증분 추출 (AGM-08): state 의 watermark (lastExtractionTurnSeq) 를 넘겨 이
-    // 후 turn 만 추출하고, 반환된 새 watermark 를 _resumeState 로 영속한다.
-    const prevExtractionSeq =
-      typeof state.lastExtractionTurnSeq === 'number'
-        ? state.lastExtractionTurnSeq
-        : undefined;
+    // 증분 추출 (AGM-08): state 의 watermark 를 넘겨 이후 turn 만 추출하고, 반환된
+    // 새 watermark 를 _resumeState 의 memoryState sub-namespace 로 영속한다 (I12).
+    // readExtractionWatermark 는 신 namespace 우선 + 구 평면 키 폴백(하위호환).
+    const prevExtractionSeq = readExtractionWatermark(
+      state as Record<string, unknown>,
+    );
     const nextExtractionSeq = await this.memoryManager.scheduleMemoryExtraction(
       {
         strategy: multiTurnMemoryStrategy,
@@ -2848,10 +2849,20 @@ export class AiTurnExecutor {
         lastTurnResponse: result,
         lastTurnDurationMs: turnDurationMs,
         turnDebugHistory,
-        // 증분 추출 watermark 영속 (AGM-08) — 다음 resume turn 이 이 seq 초과
-        // turn 만 추출하도록. undefined 면 키를 두지 않아 다음 turn 이 전체 추출.
+        // 증분 추출 watermark 영속 (AGM-08) — memoryState sub-namespace (I12).
+        // 다음 resume turn 이 이 seq 초과 turn 만 추출하도록. undefined 면 키를
+        // 두지 않아 다음 turn 이 전체 추출. 기존 memoryState 의 타 키는 병합 보존.
+        // (구 평면 `lastExtractionTurnSeq` 는 readExtractionWatermark 가 폴백
+        // 처리하므로 in-flight 파킹 실행도 무손실.)
         ...(nextExtractionSeq !== undefined
-          ? { lastExtractionTurnSeq: nextExtractionSeq }
+          ? {
+              memoryState: {
+                ...(typeof state.memoryState === 'object' && state.memoryState
+                  ? (state.memoryState as Record<string, unknown>)
+                  : {}),
+                lastExtractionTurnSeq: nextExtractionSeq,
+              },
+            }
           : {}),
         // spec §7.4 — pendingFormToolCall set when render_form triggered
         // blocking. Resumed turn re-attaches submission to this toolCallId.

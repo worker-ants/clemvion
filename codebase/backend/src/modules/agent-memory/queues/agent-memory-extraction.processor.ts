@@ -89,20 +89,20 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
         ? ttlDays
         : undefined;
 
-    await this.agentMemoryService.saveMemories(
+    await this.agentMemoryService.saveMemories({
       workspaceId,
       scopeKey,
-      facts.map((item) => ({
+      items: facts.map((item) => ({
         content: item.content,
         // LLM 이 분류한 kind 를 metadata 에 저장 (AGM-11 — 기존 hardcoded 'fact' 대체).
         metadata: { kind: item.kind, source: 'turn_boundary_extraction' },
       })),
       // 저장 임베딩 출처 — 회수와 동일 embedding ModelConfig(차원·endpoint 일치, §3).
       // 미설정이면 saveMemories 가 워크스페이스 기본 embedding config 로 폴백한다.
-      { embeddingModelConfigId: embeddingModelConfigId ?? undefined },
+      embedCfgSource: { embeddingModelConfigId: embeddingModelConfigId ?? undefined },
       // TTL (일) — 노드 config memoryTtlDays 전달분 (AGM-10). 미설정이면 무만료.
-      safeTtlDays,
-    );
+      ttlDays: safeTtlDays,
+    });
 
     this.logger.debug(
       `Extracted ${facts.length} memory item(s) for scope ${scopeKey}`,
