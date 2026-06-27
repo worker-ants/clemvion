@@ -49,6 +49,7 @@ P2 의미 있는 활성화는 다음 중 하나가 선결되어야 한다:
 - [ ] Background 노드와의 상호작용 케이스 도출
 - [ ] 기존 단위/통합 테스트 회귀 영향 추정
 - [ ] (EIA cross-ref) [Spec External Interaction API §R7](../../spec/5-system/14-external-interaction-api.md) 의 monotonic seq 보장 검증 — 비동기 dispatch 후에도 `WebsocketService.emitExecutionEvent` 의 in-memory seq counter (PR2 P0 도입) 가 같은 execution 내 단조 증가하는지 PoC 안에 포함. 분산/병렬 환경에서 race 가 발견되면 EIA §R7 보강 노트의 "Redis INCR 또는 DB row-level lock" 으로 강화 follow-up.
+  - **(업데이트 2026-06-27)** 강화 follow-up 은 **완료**: in-memory v1 → `ExecutionSeqAllocator`(Redis `INCR`, Redis-only) 채택([`plan/complete/eia-distributed-seq-counter.md`](../complete/eia-distributed-seq-counter.md)), 부하 하 단조성·latency 는 EIA-NF-06/07 로 정량화·실-Redis e2e 검증(PR #730). 본 PoC 항목은 비동기 dispatch 후 단조성 PoC 포함 여부만 merge-p2 범위로 잔존.
 
 → 결과에 따라 §2 진행 여부 / 범위 결정.
 
