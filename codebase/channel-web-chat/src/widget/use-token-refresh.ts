@@ -12,7 +12,11 @@ export const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;
 
 /**
  * 만료 시각(ISO)과 현재 시각으로 다음 토큰 갱신 지연(ms) 계산.
- * 만료 30분 이전 시점을 목표로 하되, 이미 그 안쪽이면 최소 지연으로 즉시 갱신. 파싱 불가 시 null.
+ * 만료 30분 이전 시점을 목표로 하되, 이미 그 안쪽이면 최소 지연으로 즉시 갱신.
+ *
+ * @param expiresAt - 토큰 만료 시각(ISO 문자열).
+ * @param nowMs - 기준 현재 시각(epoch ms).
+ * @returns 다음 갱신까지 지연(ms, 최소 `TOKEN_REFRESH_MIN_DELAY_MS` 로 클램프). `expiresAt` 파싱 불가 시 `null`.
  */
 export function refreshDelayMs(expiresAt: string, nowMs: number): number | null {
   const expiryMs = Date.parse(expiresAt);
@@ -21,8 +25,11 @@ export function refreshDelayMs(expiresAt: string, nowMs: number): number | null 
 }
 
 interface TokenRefreshDeps {
+  /** 현재 세션(executionId·token·expiresAt·endpoints). 갱신 콜백이 `.current` 를 새 토큰으로 교체한다. */
   sessionRef: MutableRefObject<PersistedSession | null>;
+  /** EIA 클라이언트(`refreshToken` 사용). 부팅 전·미설정 시 null — 콜백에서 가드. */
   clientRef: MutableRefObject<EiaClient | null>;
+  /** boot config(`triggerEndpointPath` 로 저장 세션 키 결정). 미설정 시 null — 콜백에서 가드. */
   configRef: MutableRefObject<BootMessage | null>;
 }
 
@@ -59,15 +66,15 @@ export function useTokenRefresh({ sessionRef, clientRef, configRef }: TokenRefre
     const delay = refreshDelayMs(session.expiresAt, Date.now());
     if (delay === null) return;
     timerRef.current = setTimeout(() => {
-      const s = sessionRef.current;
+      const session = sessionRef.current;
       const client = clientRef.current;
       const cfg = configRef.current;
-      if (!s || !client || !cfg || cancelledRef.current) return;
+      if (!session || !client || !cfg || cancelledRef.current) return;
       void client
-        .refreshToken(s.endpoints, s.token)
+        .refreshToken(session.endpoints, session.token)
         .then(({ token, expiresAt }) => {
           if (cancelledRef.current) return;
-          const updated = { ...s, token, expiresAt };
+          const updated = { ...session, token, expiresAt };
           sessionRef.current = updated;
           saveSession(cfg.triggerEndpointPath, updated);
           scheduleRefresh(); // 다음 만료 기준 재예약.

@@ -11,6 +11,8 @@ import type { PersistedSession } from "@/lib/session-store";
 import type { BootMessage } from "./host-bridge";
 
 const NINETY_MIN = 90 * 60 * 1000;
+/** refresh delay(만료90m-lead30m=60m)를 넘기는 점프 — 타이머 1회 발화 보장. */
+const OVER_SIXTY_MIN_MS = 61 * 60 * 1000;
 const ENDPOINTS = { stream: "/s", submit: "/i", status: "/st", cancel: "/c", refresh: "/r" };
 
 function session(over: Partial<PersistedSession> = {}): PersistedSession {
@@ -33,6 +35,9 @@ describe("refreshDelayMs — 토큰 갱신 지연(3-auth-session §3 step7)", ()
   });
   it("정확히 lead 경계 → 최소 지연 클램프", () => {
     expect(refreshDelayMs(new Date(now + TOKEN_REFRESH_LEAD_MS).toISOString(), now)).toBe(TOKEN_REFRESH_MIN_DELAY_MS);
+  });
+  it("이미 만료된 토큰(과거 시각) → 최소 지연 클램프", () => {
+    expect(refreshDelayMs(new Date(now - 60 * 1000).toISOString(), now)).toBe(TOKEN_REFRESH_MIN_DELAY_MS);
   });
   it("파싱 불가 → null", () => {
     expect(refreshDelayMs("not-a-date", now)).toBeNull();
@@ -74,7 +79,7 @@ describe("useTokenRefresh (fake timer)", () => {
     const { result, refs, refreshToken } = setup();
     act(() => result.current.scheduleRefresh());
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(61 * 60 * 1000);
+      await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS);
     });
     expect(refreshToken).toHaveBeenCalledTimes(1);
     expect(refs.sessionRef.current?.token).toBe("iext_x2");
@@ -86,7 +91,7 @@ describe("useTokenRefresh (fake timer)", () => {
     act(() => result.current.scheduleRefresh());
     act(() => result.current.clearRefreshTimer());
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(61 * 60 * 1000);
+      await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS);
     });
     expect(refreshToken).not.toHaveBeenCalled();
   });
@@ -96,7 +101,7 @@ describe("useTokenRefresh (fake timer)", () => {
     act(() => result.current.scheduleRefresh());
     unmount();
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(61 * 60 * 1000);
+      await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS);
     });
     expect(refreshToken).not.toHaveBeenCalled();
   });
@@ -106,7 +111,7 @@ describe("useTokenRefresh (fake timer)", () => {
     refs.sessionRef.current = null;
     act(() => result.current.scheduleRefresh());
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(61 * 60 * 1000);
+      await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS);
     });
     expect(refreshToken).not.toHaveBeenCalled();
   });
@@ -116,7 +121,7 @@ describe("useTokenRefresh (fake timer)", () => {
     const before = refs.sessionRef.current?.token;
     act(() => result.current.scheduleRefresh());
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(61 * 60 * 1000);
+      await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS);
     });
     // 실패는 console.warn 만 — 토큰 유지(SSE 는 hard expiry 까지), 예외 미전파.
     expect(refs.sessionRef.current?.token).toBe(before);

@@ -11,10 +11,15 @@ import {
 } from "@/lib/widget-state";
 
 interface PendingMessageQueueDeps {
+  /** 현재 위젯 phase — `awaiting_user_message` 진입이 flush 트리거. */
   phase: WidgetPhase;
+  /** 현재 대기 표면 — 텍스트 표면(`isTextInputSurface`)일 때만 flush, buttons/form 이면 폐기. null 가능. */
   pending: PendingInteraction | null;
+  /** 세션 핸들 — `.current` 없으면(미시작) flush 보류. */
   sessionRef: MutableRefObject<PersistedSession | null>;
+  /** EIA interact 전송기 — flush 시 `submit_message` 발행. */
   sendCommand: (command: InteractCommand) => Promise<void>;
+  /** 위젯 reducer dispatch — flush 시 `USER_MESSAGE` 반영. */
   dispatch: Dispatch<WidgetAction>;
 }
 
@@ -56,6 +61,8 @@ export function usePendingMessageQueue({
       const queued = pendingSendRef.current;
       pendingSendRef.current = null;
       dispatch({ type: "USER_MESSAGE", text: queued });
+      // pending 은 이 분기에서 null 일 수 있다(ai_conversation 도달 전 과도 상태 — isTextInputSurface(null)=true).
+      // 따라서 `pending?.nodeId`(옵셔널 체이닝) 필수 — null 이면 nodeId 미동봉으로 submit_message.
       void sendCommand({ command: "submit_message", nodeId: pending?.nodeId, message: queued });
     } else {
       // 첫 표면이 buttons/form → 텍스트 제출 비대상. 큐 폐기.

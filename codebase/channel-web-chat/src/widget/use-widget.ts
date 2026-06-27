@@ -18,7 +18,8 @@ import { useTokenRefresh } from "./use-token-refresh";
 import { usePendingMessageQueue } from "./use-pending-message-queue";
 import type { WcResizePayload } from "./wc-protocol";
 
-// 토큰 갱신 헬퍼는 use-token-refresh 로 이동 — 기존 import 경로(use-widget) 하위 호환 re-export.
+// 토큰 갱신 헬퍼는 use-token-refresh 로 이동. 기존 import 경로(`./use-widget`) 사용처 보호를 위한
+// **영구 하위호환 re-export** — 신규 코드는 use-token-refresh 에서 직접 import 권장.
 export { refreshDelayMs, TOKEN_REFRESH_LEAD_MS, TOKEN_REFRESH_MIN_DELAY_MS } from "./use-token-refresh";
 
 interface EmbedConfig {
