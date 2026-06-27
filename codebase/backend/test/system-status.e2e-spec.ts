@@ -33,6 +33,7 @@ const EXPECTED_QUEUE_NAMES = [
   'makeshop-token-refresh',
   'schedule-execution',
   'login-history-pruner',
+  'workspace-invitations-pruner',
   'notification-secret-rotator',
   'terminal-revoke-reconcile',
   'chat-channel-token-rotator',
