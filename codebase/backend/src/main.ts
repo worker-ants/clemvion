@@ -182,7 +182,14 @@ async function bootstrap() {
     widgetOrigins: parseWidgetOrigins(process.env.WEB_CHAT_WIDGET_ORIGINS),
     resolveAllowlist: (executionId) =>
       webChatCorsResolver.resolveAllowlist(executionId),
-    defaultOptions: () => ({ origin: corsOriginCallback, credentials: true }),
+    defaultOptions: () => ({
+      origin: corsOriginCallback,
+      credentials: true,
+      // cross-origin 브라우저가 읽을 수 있게 노출하는 커스텀 응답 헤더.
+      // agent-memory clearScope 의 X-Deleted-Count (0건/다건 토스트 분기 근거) —
+      // 미노출 시 브라우저가 숨겨 프론트가 항상 0 으로 폴백한다.
+      exposedHeaders: ['X-Deleted-Count'],
+    }),
   });
   app.enableCors(
     (

@@ -21,6 +21,12 @@ export interface CorsOptionsLike {
         cb: (e: Error | null, allow?: boolean) => void,
       ) => void);
   credentials?: boolean;
+  /**
+   * 브라우저 JS 가 읽을 수 있게 노출할 비-safelisted 응답 헤더 (cross-origin).
+   * 예: agent-memory clearScope 의 `X-Deleted-Count` — 미설정 시 브라우저가
+   * 헤더를 숨겨 프론트가 항상 0 으로 폴백한다.
+   */
+  exposedHeaders?: string[];
 }
 
 export type CorsCallback = (

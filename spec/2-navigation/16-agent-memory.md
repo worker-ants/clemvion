@@ -45,7 +45,7 @@ scope 별로 조회하고 정리(삭제)하는 관리 화면. 경로 `/agent-mem
   (`fact`/`preference`/`entity`), 생성/갱신 시각, TTL 만료 예정(`expiresAt`) 표기.
   kind 필터 드롭다운. 페이지네이션(더 보기).
 - **단건 삭제**: 메모리 행 🗑 → 확인 모달 → `DELETE /agent-memories/:id`. 성공 시 목록 갱신.
-- **scope 전체 삭제**: scope 행 🗑 → 확인 모달(건수 경고) → `DELETE /agent-memories?scopeKey=`.
+- **scope 전체 삭제**: scope 행 🗑 → 확인 모달(건수 경고) → `DELETE /agent-memories?scopeKey=`. 응답 헤더 `X-Deleted-Count`([§6](../5-system/17-agent-memory.md#6-메모리-관리-api-조회삭제-admin-surface))로 실제 삭제 건수를 받아, **0건이면 success 가 아닌 중립 토스트**("삭제할 메모리가 없었어요")로 분기해 "삭제했다" 오해를 막는다(멱등 삭제 UX).
 - **읽기 권한**: 화면 진입·조회는 워크스페이스 멤버(viewer+). 삭제 액션은 editor+ (RoleGate).
 - **빈 상태**: persistent 메모리를 한 번도 쌓지 않은 워크스페이스는 "아직 메모리가 없습니다"
   안내와 함께 AI Agent 노드 `memoryStrategy` 설정 안내 링크.
