@@ -1,0 +1,41 @@
+---
+worktree: (unstarted)
+started: 2026-06-27
+owner: developer (TBD)
+---
+
+# Channel Web Chat — 품질·하드닝 backlog
+
+> 웹챗 영역의 구현·spec 은 전부 종결됐다(`channel-web-chat-impl` · `channel-web-chat-followups` ·
+> `webchat-eager-start` 모두 `plan/complete/`, spec 6문서 전부 `implemented`). 본 plan 은 그 과정에서
+> **비차단으로 이연된 품질·하드닝·spec-polish 항목**을 한 곳에 모은 backlog 다. **영역 기능 surface 는 완결**
+> (전부 비차단) — 활성 강제 TODO 아님, 우선순위 낮음. 여유/필요 시 picking 하며 큰 항목은 착수 시 별도 plan 분리 가능.
+
+## 출처
+- `webchat-eager-start` 종결(2026-06-27) 시 이관한 비차단 backlog (impl-done/ai-review followup).
+- `channel-web-chat-followups` 종결 시 `4-security.md` consistency-check 가 발견한 spec-quality 항목
+  (`review/consistency/2026/06/27/20_41_56/SUMMARY.md` — W1·I1~I6. W2 는 #727 에서 해소).
+
+## A. 위젯 보안 하드닝 (eager-start 이관)
+- [ ] **per_execution 토큰 저장 localStorage → sessionStorage** — 탭 종료 시 자동 소거(현재 localStorage 영속).
+      per_execution 단명 토큰이라 위험도는 낮으나 defense-in-depth. **구현 격상 시 `spec_impact` 에
+      `spec/7-channel-web-chat/4-security.md` 포함**(consistency I7) + `3-auth-session` 토큰 저장 서술 정합.
+- [ ] `start()` 에러 메시지 UI 일반화(W1, 기존 동작 유지 — 내부 에러 문구 노출 축소).
+
+## B. 위젯 리팩터 (eager-start 이관)
+- [ ] `useWidget` God hook 분리 — `useTokenRefresh` / `usePendingMessageQueue`.
+- [ ] `isTextInputSurface()` 헬퍼 추출(텍스트표면 판정 3중 중복 제거).
+- [ ] `teardownSession` 헬퍼 · `start()` check-then-set · composer allowlist 전환 · SSE 이벤트명 배열 파생.
+
+## C. 테스트 보강 (eager-start 이관)
+- [ ] `ended` Composer 미렌더 · fake timer 전환 · C1 buttons/form 폐기·ended 재open 케이스 · ERROR→ended reducer 케이스.
+
+## D. spec polish
+- [ ] `0-architecture §R6` 중복 ID 재번호화 + C1 buttons/form 폐기 동작 Rationale 한 줄(eager-start 이관).
+- [ ] **`4-security` Rationale R5 신설** — `allow-same-origin` sandbox 가 `0-architecture §R1` "완전 분리"와의 긴장
+      관계·공급망 무결성 전제를 명문화(consistency W1).
+- [ ] `4-security §4` EIA §8.4 인용 — SSE 동시 3(구현) vs interact 분당 60(Planned) 구분 기재(I1).
+- [ ] `spec/5-system/12-webhook.md` "POST 전용" SoT 에 `/embed-config` 서브경로 스코프 한정 문구(I2).
+- [ ] `4-security` R2 — 인증 webhook `embed-config enforce:false` 결정 Rationale(I3).
+- [ ] `4-security` Rationale — CORS(empty→CDN-only) vs 임베드(empty→allow-all) 비대칭을 의도된 설계로 기록(I4).
+- [ ] `4-security` `id`↔basename 불일치 주석 · `## Overview` 섹션 추가(I5/I6, 선택).
