@@ -41,12 +41,13 @@ EIA(External Interaction API, `spec/5-system/14`)는 **이미 구현됨**(`codeb
 ### 백엔드 (소수)
 - [x] `/api/external/*` 워크스페이스 단위 동적 CORS(`interactionAllowedOrigins`, path 역인덱스, 단일 delegate). `/api/hooks/*` 무제한.
 - [x] 임베드 soft 검증 config 엔드포인트 — ✅ 구현 완료 (`embed-config.service.ts` + `hooks.controller.ts` `GET :endpointPath/embed-config`, 위젯 `use-widget.ts` 소비; followups §3 ✅ 2026-06-02).
-- [ ] 공개 webhook 남용 방어 — #1 auth-scoped throttle ✅ 구현(`public-webhook-quota.service.ts` + `public-webhook-throttle.guard.ts`); #2 워크플로우 비용 가드만 잔여(deferred — execution-engine spec 설계 필요).
+- [x] 공개 webhook 남용 방어 — #1 auth-scoped throttle ✅ 구현(`public-webhook-quota.service.ts` + `public-webhook-throttle.guard.ts`). #2 워크플로우 비용 가드는 **비목표**(아래 §비목표 — execution-engine 영역, 본 plan 밖).
 
-> 잔여 surface 추적: [`channel-web-chat-followups.md`](./channel-web-chat-followups.md). 관련 spec `status: partial`.
+> followups([`channel-web-chat-followups.md`](../complete/channel-web-chat-followups.md))의 잔여 surface 는 완료·비목표로 종결(2026-06-27 `complete/` 이동). 영역 spec 은 다른 `pending_plans`(본 impl plan·`webchat-eager-start`)로 `status: partial` 유지.
 
 ## 비목표 (spec 비목표)
 파일 첨부/이모지, 상담원 핸드오프, 다중 세션 목록(N5), 호스트 제공 사용자 식별키(추후), 풀 CSS 테마.
+공개 webhook **워크플로우 비용 가드**(execution-engine/AI 노드 spec 연계, 본 영역 밖) · **동시 ≤3 대화 캡**(`conversationEnded` widget↔backend 배선 선행) — 보안 spec [`4-security §4`](../../spec/7-channel-web-chat/4-security.md) 비목표(2026-06-27 확정). 필요해지면 별도 plan.
 
 ## 참고
 - 결정 이력·Rationale: spec `7-channel-web-chat/*` 각 `## Rationale`.

@@ -1,7 +1,13 @@
 ---
-worktree: (unstarted)
+worktree: webchat-followups-complete
 started: 2026-05-30
 owner: developer (TBD)
+spec_impact:
+  - spec/7-channel-web-chat/4-security.md
+  - spec/7-channel-web-chat/2-sdk.md
+  - spec/7-channel-web-chat/0-architecture.md
+  - spec/7-channel-web-chat/1-widget-app.md
+  - spec/7-channel-web-chat/3-auth-session.md
 ---
 
 # Channel Web Chat — 잔여 surface (followup)
@@ -9,14 +15,20 @@ owner: developer (TBD)
 > 본 PR(`channel-web-chat-impl`)에서 핵심 end-to-end(위젯 SPA + SDK + loader + 경로-스코프 CORS + 샘플)를
 > 구현했고, 아래 surface 는 후속으로 분리한다. 관련 spec 은 `status: partial` + 본 plan 을 `pending_plans` 에 등록.
 
-## 종결 (parked, 2026-06-03)
+## 종결 (완료, 2026-06-27)
 
-잔여 항목은 **사용자 결정(2026-06-03)으로 전부 보류** — 현 시점 필요성 낮음. **활성 TODO 0건.** 신규 필요가
-생기면 본 문서에서 재개하거나 별도 plan 으로 분리한다.
+핵심 end-to-end 는 PR 로 구현 완료됐고, **남아 있던 보류 항목은 사용자 결정(2026-06-27)으로 전부 "현 시점 비목표"
+확정**됐다 — 이로써 추적할 활성/잔여 surface 가 0건이 되어 본 plan 을 `complete/` 로 종결한다. 비목표 항목이 다시
+필요해지면 본 문서가 아니라 **별도 신규 plan** 으로 착수한다.
+
+- spec 정합(이번 종결과 함께 처리, `spec_impact` 참조): spec/7 의 비목표 surface 서술에서 본 plan 참조를 제거하고
+  "현 시점 비목표"로 정정했다 — [`4-security §4`](../../spec/7-channel-web-chat/4-security.md)(동시 ≤3 캡·워크플로우 비용 가드) ·
+  [`2-sdk §2`](../../spec/7-channel-web-chat/2-sdk.md)(위젯 SDK ↔ `@workflow/sdk` 배선). 5개 spec frontmatter `pending_plans`
+  에서도 본 plan 을 제거했고, 영역 spec 은 다른 `pending_plans`([`channel-web-chat-impl`](../in-progress/channel-web-chat-impl.md)·
+  `webchat-eager-start`)로 `status: partial` 를 정당하게 유지한다.
 
 - ✅ **완료**: §1(공개 webhook rate-limit) · §3(임베드 soft 검증) · §4(rich presentation + `show`/`hide`/`updateProfile`, PR #436) · §5(token auto-refresh) · §6(M2 BYO-UI) · §7·7-b(CI wiring · resize/on/data-global)
-- ⏸ **보류(비목표/추후)**: 동시 ≤3 캡(§1) · invisible challenge Turnstile/hCaptcha(§1) · 워크플로우 비용 가드(§2) · hard `frame-ancestors`(§3) · **`unwrapEnvelope`/`ExecutionStatus` ↔ `@workflow/sdk` 통합**(§6 M2 BYO-UI sdk 배선 전제 — 현재 web-chat·sdk 양 패키지 독립 구현, 런타임 충돌 없음. 배선 시 sdk 의 `unwrapData`·`ExecutionStatus` 를 SoT 로 `import type` 재사용하거나 `currentNode` 구조 정렬. `fix-webchat-envelope-unwrap` 에서 이관, 2026-06-06)
-- 본 plan 은 spec/7 `pending_plans` 참조 대상이라 **`in-progress/` 유지**(plan-lifecycle: deferred ≠ complete — 미완 surface 가 있으면 `complete/` 이동 금지). worktree 는 active 체크아웃 없어 `(unstarted)` sentinel — 재개 시 실제 worktree 배정.
+- 🚫 **비목표 확정(2026-06-27)**: 동시 ≤3 캡(§1, `conversationEnded` widget↔backend 배선 선행) · invisible challenge Turnstile/hCaptcha(§1) · 워크플로우 비용 가드(§2, execution-engine 영역) · hard `frame-ancestors`(§3) · **`unwrapEnvelope`/`ExecutionStatus` ↔ `@workflow/sdk` 통합**(§6 M2 BYO-UI sdk 배선 전제 — 현재 web-chat·sdk 양 패키지 독립 구현, 런타임 충돌 없음. 배선 시 sdk 의 `unwrapData`·`ExecutionStatus` 를 SoT 로 `import type` 재사용하거나 `currentNode` 구조 정렬. `fix-webchat-envelope-unwrap` 에서 이관, 2026-06-06)
 
 ## 잔여 항목
 
@@ -100,4 +112,4 @@ owner: developer (TBD)
   (web-chat-sdk lint = eslint flat config, C-1 채택 완료.)
 
 ## 선행
-- ~~npm scope·운영 CDN 확정~~ → **확정 완료**(2026-06-02): scope `@workflow/web-chat`, CDN 플레이스홀더+env ([`channel-web-chat-impl.md`](./channel-web-chat-impl.md) 진입 조건).
+- ~~npm scope·운영 CDN 확정~~ → **확정 완료**(2026-06-02): scope `@workflow/web-chat`, CDN 플레이스홀더+env ([`channel-web-chat-impl.md`](../in-progress/channel-web-chat-impl.md) 진입 조건).
