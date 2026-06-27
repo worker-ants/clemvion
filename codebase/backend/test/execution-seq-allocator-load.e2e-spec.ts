@@ -43,6 +43,10 @@ const NS_PER_MS = 1e6;
 const LOG_PREFIX = '[seq-load]';
 /** latency 분포 보고용 p95 분위수. */
 const P95_PERCENTILE = 0.95;
+/** single-instance latency 측정 전 연결·키 초기화 outlier 를 제외하는 사전 발급 횟수. */
+const LATENCY_WARMUP_COUNT = 20;
+/** single-instance latency 측정 표본 수. */
+const LATENCY_SAMPLE_COUNT = 200;
 
 /**
  * 실 ioredis 연결 하나를 ExecutionSeqAllocator 가 기대하는 RedisConnectionProvider
@@ -197,14 +201,14 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
     // 전제: 테스트 1·2 가 먼저 실행돼 연결이 warmup 된 상태. 추가로 본 테스트
     // 자체도 WARMUP 회 사전 발급해 연결·키 초기화 outlier 를 제외한다.
     const executionId = `lat-${randomUUID()}`;
-    const WARMUP = 20; // 연결·키 초기화 outlier 제외.
-    const SAMPLES = 200;
 
     try {
-      for (let i = 0; i < WARMUP; i++) await allocA.next(executionId);
+      for (let i = 0; i < LATENCY_WARMUP_COUNT; i++) {
+        await allocA.next(executionId);
+      }
 
       const latenciesMs: number[] = [];
-      for (let i = 0; i < SAMPLES; i++) {
+      for (let i = 0; i < LATENCY_SAMPLE_COUNT; i++) {
         const start = process.hrtime.bigint();
         await allocA.next(executionId);
         latenciesMs.push(Number(process.hrtime.bigint() - start) / NS_PER_MS);
@@ -218,7 +222,7 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
       const avg = latenciesMs.reduce((s, v) => s + v, 0) / latenciesMs.length;
       // eslint-disable-next-line no-console
       console.log(
-        `${LOG_PREFIX} single-instance next() latency over ${SAMPLES} samples: ` +
+        `${LOG_PREFIX} single-instance next() latency over ${LATENCY_SAMPLE_COUNT} samples: ` +
           `median=${median.toFixed(3)}ms avg=${avg.toFixed(
             3,
           )}ms p95=${p95.toFixed(3)}ms`,

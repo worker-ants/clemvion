@@ -1,4 +1,5 @@
 import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
+import type { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 
 /**
  * ExecutionSeqAllocator 단위 테스트.
@@ -87,7 +88,9 @@ describe('ExecutionSeqAllocator', () => {
    * provider mock 도 같은 stub 을 반환하도록 구성한다.
    */
   function makeAllocator(redis: FakeRedis | null): ExecutionSeqAllocator {
-    const alloc = new ExecutionSeqAllocator(makeRedisConn(redis) as never);
+    const alloc = new ExecutionSeqAllocator(
+      makeRedisConn(redis) as unknown as RedisConnectionProvider,
+    );
     // private getClient 치환 — redis 가 null 이면 throw 로 장애 시뮬레이션.
     (alloc as unknown as { getClient: () => unknown }).getClient = () => {
       if (!redis) throw new Error('Redis unavailable (test)');
@@ -226,7 +229,9 @@ describe('ExecutionSeqAllocator', () => {
   describe('getClient — redis 설정 누락 시', () => {
     it('공유 연결 미가용(provider getClient throw) 시 next() 가 throw 를 잡아 degraded fallback (엔진 emit 중단 없음)', async () => {
       // 실제 getClient 경로 (monkey-patch 안 함) → redisConn.getClient() 가 throw → catch → degraded.
-      const alloc = new ExecutionSeqAllocator(makeRedisConn(null) as never);
+      const alloc = new ExecutionSeqAllocator(
+        makeRedisConn(null) as unknown as RedisConnectionProvider,
+      );
       expect(await alloc.next('exec-nocfg')).toBe(1);
       expect(await alloc.next('exec-nocfg')).toBe(2);
     });
@@ -239,7 +244,9 @@ describe('ExecutionSeqAllocator', () => {
     it('provider.getClient() 가 반환한 client 로 INCR pipeline 수행', async () => {
       const redis = makeRedis();
       const conn = makeRedisConn(redis);
-      const alloc = new ExecutionSeqAllocator(conn as never);
+      const alloc = new ExecutionSeqAllocator(
+        conn as unknown as RedisConnectionProvider,
+      );
       expect(await alloc.next('exec-deleg')).toBe(1);
       expect(await alloc.next('exec-deleg')).toBe(2);
       expect(conn.getClient).toHaveBeenCalled();
@@ -252,7 +259,9 @@ describe('ExecutionSeqAllocator', () => {
     it('release() 가 provider.getClientOrNull() 의 client 로 DEL 수행', () => {
       const redis = makeRedis();
       const conn = makeRedisConn(redis);
-      const alloc = new ExecutionSeqAllocator(conn as never);
+      const alloc = new ExecutionSeqAllocator(
+        conn as unknown as RedisConnectionProvider,
+      );
       alloc.release('exec-deleg-del');
       expect(conn.getClientOrNull).toHaveBeenCalled();
       expect(redis.del).toHaveBeenCalledWith('exec:seq:exec-deleg-del');
@@ -274,25 +283,37 @@ describe('ExecutionSeqAllocator', () => {
 
     it('양수 정수 env → 채택', () => {
       process.env[ENV] = '3600';
-      expect(ttlOf(new ExecutionSeqAllocator(makeRedisConn() as never))).toBe(
-        3600,
-      );
+      expect(
+        ttlOf(
+          new ExecutionSeqAllocator(
+            makeRedisConn() as unknown as RedisConnectionProvider,
+          ),
+        ),
+      ).toBe(3600);
     });
 
     it('NaN/음수/0 env → default 86400', () => {
       for (const bad of ['abc', '-5', '0']) {
         process.env[ENV] = bad;
-        expect(ttlOf(new ExecutionSeqAllocator(makeRedisConn() as never))).toBe(
-          86_400,
-        );
+        expect(
+          ttlOf(
+            new ExecutionSeqAllocator(
+              makeRedisConn() as unknown as RedisConnectionProvider,
+            ),
+          ),
+        ).toBe(86_400);
       }
     });
 
     it('미설정 → default 86400', () => {
       delete process.env[ENV];
-      expect(ttlOf(new ExecutionSeqAllocator(makeRedisConn() as never))).toBe(
-        86_400,
-      );
+      expect(
+        ttlOf(
+          new ExecutionSeqAllocator(
+            makeRedisConn() as unknown as RedisConnectionProvider,
+          ),
+        ),
+      ).toBe(86_400);
     });
   });
 
