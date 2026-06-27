@@ -9,6 +9,7 @@ code:
   - codebase/backend/src/modules/auth-configs/**
   - codebase/backend/src/modules/model-config/**
   - codebase/backend/src/modules/llm/llm-preview.service.ts
+  - codebase/backend/src/modules/llm/llm-model-config.controller.ts
 ---
 
 # Spec: 설정 (인증, Models) 화면

@@ -3,6 +3,7 @@ import {
   Logger,
   BadRequestException,
   Optional,
+  type OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ModelConfigService } from '../model-config/model-config.service';
@@ -63,12 +64,21 @@ export interface LlmCallOptions {
 }
 
 @Injectable()
-export class LlmService {
+export class LlmService implements OnModuleInit {
   private readonly logger = new Logger(LlmService.name);
   private readonly clientCache = new Map<string, LLMClient>();
   // 저장 설정 기반 listModels 결과 5분 캐시. key: `${workspaceId}|${configId}`.
   // preview 는 자격증명이 매번 달라 캐시하지 않는다 (spec §5.5).
   private readonly listModelsCache = new Map<string, ListModelsCacheEntry>();
+
+  /**
+   * ModelConfig invalidation 구독 리스너. 안정 참조를 위해 필드로 1회 바인딩한다 —
+   * onModuleInit 이 (테스트 등에서) 여러 번 호출돼도 Set 의 참조-동일성 dedup 이
+   * 작동해 중복 등록되지 않는다 (refactor 02 C-2 cluster 4).
+   */
+  private readonly onConfigInvalidatedListener = (configId: string): void => {
+    this.clearClientCache(configId);
+  };
 
   constructor(
     private readonly modelConfigService: ModelConfigService,
@@ -79,6 +89,20 @@ export class LlmService {
     // 수동 생성 레거시 테스트 호환 목적이다. 미주입 시 `llm.stubMode` 는 undefined→OFF(프로덕션 동작).
     @Optional() private readonly configService?: ConfigService,
   ) {}
+
+  /**
+   * ModelConfig 변경(update/remove) 시 해당 config 의 client·listModels 캐시를
+   * 무효화하도록 ModelConfigService 의 invalidation 통지를 구독한다.
+   *
+   * 이전에는 `ModelConfigController` 가 `clearClientCache` 를 직접 호출했으나, 그
+   * 역의존이 model-config ↔ llm forwardRef 순환을 만들었다. 옵저버 등록으로 역전해
+   * 의존을 llm → model-config 단방향으로만 유지한다 (refactor 02 C-2 cluster 4).
+   */
+  onModuleInit(): void {
+    this.modelConfigService.onConfigInvalidated(
+      this.onConfigInvalidatedListener,
+    );
+  }
 
   createClient(config: ModelConfig): LLMClient {
     // 테스트 전용(`OAUTH_STUB_MODE` 선례) — dockerized e2e 가 실제 LLM 키/호출 없이

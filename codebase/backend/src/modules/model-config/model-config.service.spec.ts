@@ -303,6 +303,150 @@ describe('ModelConfigService', () => {
     });
   });
 
+  // ── invalidation observer — update/remove notify subscribers ──────────────
+  // Cache invalidation (LlmService.clearClientCache) used to live in the
+  // controller; it moved here as an observer hook to break the model-config ↔
+  // llm forwardRef cycle (C-2 cluster 4). LlmService subscribes via
+  // onConfigInvalidated in its onModuleInit.
+  describe('onConfigInvalidated / notifyInvalidated', () => {
+    const cfg = (overrides: Partial<ModelConfig> = {}): ModelConfig =>
+      ({
+        id: 'cfg-1',
+        workspaceId: 'ws-1',
+        kind: 'chat',
+        provider: 'openai',
+        name: 'Test',
+        apiKey: encrypt('sk-original-key-1234', ENCRYPTION_KEY),
+        baseUrl: null,
+        defaultModel: 'gpt-4o',
+        defaultParams: {},
+        dimension: null,
+        isDefault: false,
+        ...overrides,
+      }) as ModelConfig;
+
+    it('notifies registered listeners with the config id after update', async () => {
+      const listener = jest.fn();
+      service.onConfigInvalidated(listener);
+      mockRepo.findOne.mockResolvedValue(cfg());
+
+      await service.update('cfg-1', 'ws-1', { name: 'Renamed' });
+
+      expect(listener).toHaveBeenCalledWith('cfg-1');
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('notifies registered listeners with the config id after remove', async () => {
+      const listener = jest.fn();
+      service.onConfigInvalidated(listener);
+      mockRepo.findOne.mockResolvedValue(cfg({ id: 'cfg-9' }));
+
+      await service.remove('cfg-9', 'ws-1');
+
+      expect(mockRepo.remove).toHaveBeenCalled();
+      expect(listener).toHaveBeenCalledWith('cfg-9');
+    });
+
+    it('notifies all registered listeners (multi-subscriber)', async () => {
+      const a = jest.fn();
+      const b = jest.fn();
+      service.onConfigInvalidated(a);
+      service.onConfigInvalidated(b);
+      mockRepo.findOne.mockResolvedValue(cfg());
+
+      await service.update('cfg-1', 'ws-1', { name: 'X' });
+
+      expect(a).toHaveBeenCalledWith('cfg-1');
+      expect(b).toHaveBeenCalledWith('cfg-1');
+    });
+
+    it('does NOT notify when update fails (config not found)', async () => {
+      const listener = jest.fn();
+      service.onConfigInvalidated(listener);
+      mockRepo.findOne.mockResolvedValue(null); // findEntity → MODEL_CONFIG_NOT_FOUND
+
+      await expect(
+        service.update('missing', 'ws-1', { name: 'X' }),
+      ).rejects.toThrow();
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('does NOT notify when remove fails (config not found)', async () => {
+      const listener = jest.fn();
+      service.onConfigInvalidated(listener);
+      mockRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.remove('missing', 'ws-1')).rejects.toThrow();
+      expect(mockRepo.remove).not.toHaveBeenCalled();
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('registers each listener once (Set dedup)', async () => {
+      const listener = jest.fn();
+      service.onConfigInvalidated(listener);
+      service.onConfigInvalidated(listener); // duplicate registration ignored
+      mockRepo.findOne.mockResolvedValue(cfg());
+
+      await service.update('cfg-1', 'ws-1', { name: 'X' });
+
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('notifies listeners on the isDefault=true transaction path', async () => {
+      const listener = jest.fn();
+      service.onConfigInvalidated(listener);
+      mockRepo.findOne.mockResolvedValue(cfg());
+      mockRepo.manager.transaction.mockImplementation(
+        async (
+          cb: (m: {
+            update: jest.Mock;
+            save: jest.Mock;
+          }) => Promise<ModelConfig>,
+        ) => {
+          const txManager = {
+            update: jest.fn().mockResolvedValue(undefined),
+            save: jest
+              .fn()
+              .mockImplementation((_, entity) => Promise.resolve(entity)),
+          };
+          return cb(txManager);
+        },
+      );
+
+      await service.update('cfg-1', 'ws-1', { isDefault: true });
+
+      expect(listener).toHaveBeenCalledWith('cfg-1');
+    });
+
+    it('isolates a throwing listener — update resolves and other listeners still run', async () => {
+      const bad = jest.fn(() => {
+        throw new Error('listener boom');
+      });
+      const good = jest.fn();
+      service.onConfigInvalidated(bad);
+      service.onConfigInvalidated(good);
+      mockRepo.findOne.mockResolvedValue(cfg());
+
+      await expect(
+        service.update('cfg-1', 'ws-1', { name: 'X' }),
+      ).resolves.toBeDefined();
+      expect(bad).toHaveBeenCalled();
+      // bad throwing must not skip subsequent listeners
+      expect(good).toHaveBeenCalledWith('cfg-1');
+    });
+
+    it('isolates a throwing listener on remove — remove still resolves', async () => {
+      const bad = jest.fn(() => {
+        throw new Error('listener boom');
+      });
+      service.onConfigInvalidated(bad);
+      mockRepo.findOne.mockResolvedValue(cfg({ id: 'cfg-9' }));
+
+      await expect(service.remove('cfg-9', 'ws-1')).resolves.toBeUndefined();
+      expect(bad).toHaveBeenCalledWith('cfg-9');
+    });
+  });
+
   // ── create — ENCRYPTION_KEY_MISSING error path ───────────────────────────
 
   describe('ENCRYPTION_KEY_MISSING', () => {

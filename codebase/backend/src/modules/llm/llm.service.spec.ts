@@ -56,6 +56,8 @@ describe('LlmService', () => {
         },
         model: 'text-embedding-3-small',
       }),
+      // C-2 cluster 4: LlmService.onModuleInit 가 캐시 무효화 리스너를 여기 등록한다.
+      onConfigInvalidated: jest.fn(),
     };
 
     mockClientFactory = {
@@ -683,6 +685,36 @@ describe('LlmService', () => {
         'config-1',
         'ws-1',
       );
+    });
+  });
+
+  // ── onModuleInit — config-invalidation wiring (C-2 cluster 4) ──────────────
+  // ModelConfigController no longer calls clearClientCache directly (that edge
+  // created the model-config ↔ llm forwardRef cycle). LlmService subscribes to
+  // ModelConfigService's invalidation notifications on init instead.
+  describe('onModuleInit (cache invalidation wiring)', () => {
+    it('registers a listener on ModelConfigService.onConfigInvalidated', () => {
+      service.onModuleInit();
+      expect(mockModelConfigService.onConfigInvalidated).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(mockModelConfigService.onConfigInvalidated).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
+    });
+
+    it('the registered listener invalidates the cache for the given config id', async () => {
+      service.onModuleInit();
+      const listener = mockModelConfigService.onConfigInvalidated.mock
+        .calls[0][0] as (configId: string) => void;
+
+      mockClient.listModels.mockResolvedValue([]);
+      await service.listModels('config-1', 'ws-1');
+      // Simulate ModelConfigService notifying on update/remove of config-1.
+      listener('config-1');
+      await service.listModels('config-1', 'ws-1');
+      // Cache was cleared → provider hit again.
+      expect(mockClient.listModels).toHaveBeenCalledTimes(2);
     });
   });
 

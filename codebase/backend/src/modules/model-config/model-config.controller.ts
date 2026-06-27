@@ -12,12 +12,10 @@ import {
   ParseUUIDPipe,
   BadRequestException,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
-  ApiBody,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -33,16 +31,9 @@ import {
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import { ModelConfigService } from './model-config.service';
-import { LlmService } from '../llm/llm.service';
-import { LlmPreviewService } from '../llm/llm-preview.service';
 import { CreateModelConfigDto } from './dto/create-model-config.dto';
 import { UpdateModelConfigDto } from './dto/update-model-config.dto';
-import { PreviewModelListDto } from './dto/preview-model-list.dto';
-import {
-  ModelConfigDto,
-  ModelListDto,
-  ModelTestConnectionResultDto,
-} from './dto/responses/model-config-response.dto';
+import { ModelConfigDto } from './dto/responses/model-config-response.dto';
 import {
   MODEL_CONFIG_KINDS,
   type ModelConfigKind,
@@ -60,15 +51,21 @@ function parseKind(kind: string | undefined): ModelConfigKind {
   return kind as ModelConfigKind;
 }
 
+/**
+ * ModelConfig CRUD (생성·조회·수정·삭제·set-default).
+ *
+ * LLM-구동 부속 엔드포인트(preview-models / :id/test / :id/models)는 같은
+ * `model-configs` 라우트를 쓰되 `LlmModelConfigController`(llm 모듈)가 소유한다
+ * — 모듈 간 forwardRef 순환(model-config ↔ llm) 제거를 위해서다
+ * (refactor 02 C-2 cluster 4). update/remove 시 LLM 클라이언트 캐시 무효화는
+ * `ModelConfigService` 가 옵저버 통지로 처리하므로(LlmService 가 구독), 본
+ * 컨트롤러는 llm 모듈에 직접 의존하지 않는다.
+ */
 @ApiTags('Model Config')
 @ApiBearerAuth('access-token')
 @Controller('model-configs')
 export class ModelConfigController {
-  constructor(
-    private readonly modelConfigService: ModelConfigService,
-    private readonly llmService: LlmService,
-    private readonly llmPreviewService: LlmPreviewService,
-  ) {}
+  constructor(private readonly modelConfigService: ModelConfigService) {}
 
   @Get()
   @ApiOperation({
@@ -135,9 +132,7 @@ export class ModelConfigController {
     @WorkspaceId() workspaceId: string,
     @Body() dto: UpdateModelConfigDto,
   ) {
-    const result = await this.modelConfigService.update(id, workspaceId, dto);
-    this.llmService.clearClientCache(id);
-    return result;
+    return this.modelConfigService.update(id, workspaceId, dto);
   }
 
   @Patch(':id/set-default')
@@ -159,67 +154,6 @@ export class ModelConfigController {
     await this.modelConfigService.setDefault(id, workspaceId);
   }
 
-  @Post('preview-models')
-  @HttpCode(HttpStatus.OK)
-  @Roles('editor')
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Provider 모델 목록 미리보기 (chat/embedding)',
-    description:
-      '저장되지 않은 폼 자격증명으로 Provider 모델 목록을 실시간 조회합니다. apiKey 는 저장되지 않습니다.',
-  })
-  @ApiBody({ type: PreviewModelListDto })
-  @ApiOkWrappedResponse(ModelListDto, { description: '사용 가능한 모델 목록' })
-  @ApiBadRequestResponse({
-    description: '자격증명 검증 실패 또는 Provider 호출 실패',
-  })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
-  async previewModels(@Body() dto: PreviewModelListDto) {
-    return this.llmPreviewService.previewModels(dto);
-  }
-
-  @Post(':id/test')
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({
-    summary: '모델 연결 테스트 (chat/embedding)',
-    description: '저장된 자격증명으로 Provider 테스트 호출을 수행합니다.',
-  })
-  @ApiParam({ name: 'id', description: '모델 설정 UUID', format: 'uuid' })
-  @ApiOkWrappedResponse(ModelTestConnectionResultDto, {
-    description: '연결 테스트 결과',
-  })
-  @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
-  async testConnection(
-    @Param('id', ParseUUIDPipe) id: string,
-    @WorkspaceId() workspaceId: string,
-  ) {
-    return this.llmService.testConnection(id, workspaceId);
-  }
-
-  @Get(':id/models')
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Provider 모델 목록 조회 (chat/embedding)',
-    description:
-      'Provider 에서 사용 가능한 모델 목록을 실시간 조회합니다. `type` 쿼리로 chat/embedding 제한 가능.',
-  })
-  @ApiParam({ name: 'id', description: '모델 설정 UUID', format: 'uuid' })
-  @ApiQuery({
-    name: 'type',
-    required: false,
-    enum: ['chat', 'embedding'],
-    description: '응답에 포함할 모델 타입 제한',
-  })
-  @ApiOkWrappedResponse(ModelListDto, { description: '사용 가능한 모델 목록' })
-  @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
-  async listModels(
-    @Param('id', ParseUUIDPipe) id: string,
-    @WorkspaceId() workspaceId: string,
-    @Query('type') type?: 'chat' | 'embedding',
-  ) {
-    return this.llmService.listModels(id, workspaceId, { type });
-  }
-
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles('editor')
@@ -233,6 +167,5 @@ export class ModelConfigController {
     @WorkspaceId() workspaceId: string,
   ) {
     await this.modelConfigService.remove(id, workspaceId);
-    this.llmService.clearClientCache(id);
   }
 }

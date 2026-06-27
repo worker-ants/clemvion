@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -23,7 +24,24 @@ const SELF_HOSTED_PROVIDERS = new Set(['tei', 'local']);
 
 @Injectable()
 export class ModelConfigService {
+  private readonly logger = new Logger(ModelConfigService.name);
   private readonly encryptionKey: string;
+
+  /**
+   * config 가 update/remove 될 때 통지받을 in-process 리스너 집합.
+   *
+   * LLM 클라이언트/listModels 캐시 무효화처럼 config 변경에 반응해야 하는 외부
+   * 소비자(`LlmService`)를 위한 것이다. `ModelConfigController` 가 직접
+   * `LlmService.clearClientCache` 를 호출하면 model-config → llm 역의존이 생겨
+   * 모듈 간 forwardRef 순환을 만든다 — 이를 옵저버 등록으로 역전해(소비자가
+   * 등록, model-config 는 통지만) 의존을 llm → model-config 단방향으로 만든다
+   * (refactor 02 C-2 cluster 4). EventEmitter2 가 코드베이스에 도입되지 않았으므로
+   * 신규 프레임워크 의존 없이 경량 훅으로 구현한다. 리스너는 throw 하지 않는
+   * 멱등 무효화여야 한다(캐시 delete 류).
+   */
+  private readonly invalidationListeners = new Set<
+    (configId: string) => void
+  >();
 
   constructor(
     @InjectRepository(ModelConfig)
@@ -32,6 +50,35 @@ export class ModelConfigService {
   ) {
     this.encryptionKey =
       this.configService.get<string>('llm.encryptionKey') || '';
+  }
+
+  /**
+   * config update/remove 시 호출될 무효화 리스너를 등록한다 (예: `LlmService` 가
+   * `onModuleInit` 에서 `clearClientCache` 를 연결). 중복 등록은 Set 으로 무시된다.
+   */
+  onConfigInvalidated(listener: (configId: string) => void): void {
+    this.invalidationListeners.add(listener);
+  }
+
+  /**
+   * 등록된 모든 리스너에 configId 무효화를 통지한다.
+   *
+   * 각 리스너 호출을 격리한다 — 한 리스너가 throw 해도 나머지 리스너 통지와
+   * mutation 응답(update/remove)을 깨지 않는다. 무효화는 best-effort 부수효과이지
+   * mutation 성공의 전제가 아니기 때문이다 (DB 커밋은 이미 완료된 시점).
+   */
+  private notifyInvalidated(configId: string): void {
+    for (const listener of this.invalidationListeners) {
+      try {
+        listener(configId);
+      } catch (err) {
+        this.logger.warn(
+          `config invalidation listener failed for ${configId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
   }
 
   async findAll(
@@ -245,6 +292,9 @@ export class ModelConfigService {
     } else {
       saved = await this.repo.save(config);
     }
+    // config 변경 → 의존 캐시(LLM client·listModels) 무효화 통지.
+    // 이전 controller 의 `llmService.clearClientCache(id)` 호출과 동일 시점·동일 효과.
+    this.notifyInvalidated(id);
     return this.maskApiKey(saved);
   }
 
@@ -286,6 +336,8 @@ export class ModelConfigService {
   async remove(id: string, workspaceId: string): Promise<void> {
     const config = await this.findEntity(id, workspaceId);
     await this.repo.remove(config);
+    // 삭제된 config 의 의존 캐시 무효화 통지 (이전 controller clearClientCache 와 동일).
+    this.notifyInvalidated(id);
   }
 
   /** 저장된 (암호화된) apiKey 를 평문으로 복호화. 키가 없으면(local/tei) null. */
