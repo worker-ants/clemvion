@@ -30,12 +30,15 @@ owner: developer (TBD)
 ## C. 테스트 보강 (eager-start 이관)
 - [ ] `ended` Composer 미렌더 · fake timer 전환 · C1 buttons/form 폐기·ended 재open 케이스 · ERROR→ended reducer 케이스.
 
-## D. spec polish
-- [ ] `0-architecture §R6` 중복 ID 재번호화 + C1 buttons/form 폐기 동작 Rationale 한 줄(eager-start 이관).
-- [ ] **`4-security` Rationale R5 신설** — `allow-same-origin` sandbox 가 `0-architecture §R1` "완전 분리"와의 긴장
+## D. spec polish — ✅ 전부 완료 (PR 미정, consistency-check BLOCK: NO `review/consistency/2026/06/27/21_35_06/`)
+- [x] `0-architecture §R6` 중복 ID 재번호화 + C1 buttons/form 폐기 동작 Rationale 한 줄(eager-start 이관).
+      → 실상 "중복"이 아니라 R1→R5 **번호 공백**(R2/R3/R4 부재, git 확인)이라 0-architecture Rationale 을
+      **R1–R5 연속으로 재번호화** + spec 트리 교차참조(§R6/§R8 → §R3/§R5) 7건 전부 정합. C1 buttons/form 폐기
+      Rationale 은 **이미 `1-widget-app §R6`(큐 게이팅 단락)에 존재**해 중복 생성하지 않음.
+- [x] **`4-security` Rationale R5 신설** — `allow-same-origin` sandbox 가 `0-architecture §R1` "완전 분리"와의 긴장
       관계·공급망 무결성 전제를 명문화(consistency W1).
-- [ ] `4-security §4` EIA §8.4 인용 — SSE 동시 3(구현) vs interact 분당 60(Planned) 구분 기재(I1).
-- [ ] `spec/5-system/12-webhook.md` "POST 전용" SoT 에 `/embed-config` 서브경로 스코프 한정 문구(I2).
-- [ ] `4-security` R2 — 인증 webhook `embed-config enforce:false` 결정 Rationale(I3).
-- [ ] `4-security` Rationale — CORS(empty→CDN-only) vs 임베드(empty→allow-all) 비대칭을 의도된 설계로 기록(I4).
-- [ ] `4-security` `id`↔basename 불일치 주석 · `## Overview` 섹션 추가(I5/I6, 선택).
+- [x] `4-security §4` EIA §8.4 인용 — SSE 동시 3(구현) vs interact 분당 60(Planned) 구분 기재(I1).
+- [x] `spec/5-system/12-webhook.md` "POST 전용" SoT 에 `/embed-config` 서브경로 스코프 한정 문구(I2).
+- [x] `4-security` R2 — 인증 webhook `embed-config enforce:false` 결정 Rationale(I3).
+- [x] `4-security` Rationale — CORS(empty→CDN-only) vs 임베드(empty→allow-all) 비대칭을 의도된 설계로 기록(I4).
+- [x] `4-security` `id`↔basename 불일치 주석 · `## Overview` 섹션 추가(I5/I6, 선택).

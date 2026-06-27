@@ -167,7 +167,7 @@ code:
 콘솔 화면 안에서 위젯을 부팅해 런처/패널을 렌더하고, 선택 인스턴스의 `endpointPath` 로 **대화까지** 시연한다. 외형은 §4 폼
 값을 그대로 반영한다.
 
-- **same-origin 동봉 위젯을 iframe 으로 로드** ([0-architecture §4.1·§R8 carve-out](./0-architecture.md)): 외부 CDN 에서 fetch
+- **same-origin 동봉 위젯을 iframe 으로 로드** ([0-architecture §4.1·§R5 carve-out](./0-architecture.md)): 외부 CDN 에서 fetch
   하지 않고 **제품과 함께 동봉된(co-deploy) 위젯**(`<배포 origin>/_widget/web-chat/v1/`)을 실제 `src` iframe 으로 띄운다.
   → 미리보기 버전이 그 배포의 백엔드/EIA 버전과 **항상 일치**(셀프호스트·버전 다양성 대응), 외부 의존 0. 위젯 CSS/JS 격리는
   iframe 으로 유지(srcdoc 자가 생성 아님). 고객 임베드(loader + cross-origin iframe)는 별개 경로로 불변.
@@ -282,7 +282,7 @@ self-origin** 이라 이 키는 **선택**(SaaS 엣지 CDN override 용)이다. 
   호스팅이 선행조건에서 사라지고, 고객 스니펫도 셀프호스터 자기 버전을 가리킨다.
 - vs **직접 React 컴포넌트 mount(iframe 없음)**: 위젯 app→lib 재구조화 부담 + 미리보기가 실제 고객 iframe 임베드와 경로가
   갈려 충실도 저하 → 기각. same-origin iframe 은 위젯을 그대로(output:export) 두고 격리(§R1)를 유지하면서 버전 일치·외부 의존
-  0 을 달성. cross-origin 격리 carve-out 근거는 [0-architecture §R8](./0-architecture.md).
+  0 을 달성. cross-origin 격리 carve-out 근거는 [0-architecture §R5](./0-architecture.md).
 
 ### R7. 미리보기 2-column 배치 — `xl` breakpoint 에서만 (결정 2026-06-25)
 **문제**: 미리보기가 상세 패널 **세로 stack 최하단**에 있어, 외형을 바꿔도 효과를 보려면 페이지 끝까지 스크롤해야 했다
