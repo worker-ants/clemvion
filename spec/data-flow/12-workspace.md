@@ -69,6 +69,7 @@ sequenceDiagram
 
 - 위 lookup+write 는 단일 트랜잭션이며, partial UNIQUE(§2.1) 경합 시 500 대신 `409 invitation_already_pending` 으로 매핑된다 (`workspace-invitations.service.ts` `create`).
 - **rate limit**: 초대 발급·재발송은 분당 10건(`workspaces.controller.ts` `INVITATION_THROTTLE`), 공개 토큰 메타 조회(`GET /api/invitations/:token`)는 분당 30건 — email-bombing / token enumeration 방어.
+- **만료 초대 정리(data 위생)**: 만료(`expires_at < now`)되고 수락되지 않은(`accepted_at IS NULL`) 초대 row 는 매일 04:00 Asia/Seoul 에 BullMQ repeatable 잡(`WorkspaceInvitationsPrunerService`)이 삭제한다 — `login-history-pruner` 와 동일 패턴(멀티 인스턴스에서 전역 1회). 비즈니스 로직은 `WorkspaceInvitationsService.pruneExpired(now)`.
 
 ### 1.3 초대 수락 (이미 가입한 사용자)
 
@@ -219,9 +220,10 @@ stateDiagram-v2
   Revoked --> [*]
 ```
 
-- **Expired 의 실제 수명**: 만료는 조회 시점 판정(`assertTokenUsable` → `410 invitation_expired`)일 뿐 row 는 남는다.
-  만료 row 정리용 `WorkspaceInvitationsService.pruneExpired` 가 존재하나(periodic job 용도) **현재 프로덕션 호출자가
-  없어** 만료 row 는 영구 잔존한다. 정리 job 연결은 미구현.
+- **Expired 의 실제 수명**: 만료는 조회 시점 판정(`assertTokenUsable` → `410 invitation_expired`)일 뿐 즉시 삭제되지 않는다.
+  만료(`expires_at < now`)되고 수락되지 않은(`accepted_at IS NULL`) row 는 `WorkspaceInvitationsPrunerService`
+  (매일 04:00 Asia/Seoul, BullMQ repeatable job — §1.2)가 주기적으로 삭제한다. 비즈니스 로직은
+  `WorkspaceInvitationsService.pruneExpired(now)`. (감사 보존이 필요하면 별도 audit 로그 트랙으로 — 본 정리는 운영 위생 목적.)
 
 ### 3.2 RBAC 매트릭스 (요약)
 
@@ -242,6 +244,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | Auth 도메인 | cross-ref | 일반(비초대) 회원가입 시 personal workspace 자동 생성(초대 가입은 미생성, §1.4). token payload 의 활성 워크스페이스 필드는 `workspaceId`. [`auth.md`](./2-auth.md) |
 | Mail 도메인 | 내부 → 외부 | 초대 메일 SMTP |
+| Redis / BullMQ | 내부 → Redis | 만료 초대 정리 repeatable 잡 `workspace-invitations-pruner` (§1.2·§3.1). 큐 마스터 카탈로그·모니터링 등재는 [`0-overview.md §4`](./0-overview.md#4-bullmq-큐-카탈로그) + `MONITORED_QUEUES`. |
 | Audit 도메인 | cross-ref | 현재 `audit_log` 에 적재되는 워크스페이스 액션은 `workspace.transfer_ownership` **1건뿐**이다 (`workspaces.service.ts` `transferOwnership`). create/delete/rename/member 변경 등은 아직 미적재. [`audit.md`](./1-audit.md) |
 
 ---

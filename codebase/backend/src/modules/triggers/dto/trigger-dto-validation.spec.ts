@@ -86,6 +86,65 @@ describe('UpdateTriggerDto', () => {
   });
 });
 
+// W1 (보안) — endpoint_path 는 라우팅 키가 전역이라 추측 불가한 v4 UUID 여야 한다.
+// 서버가 형식을 강제해 예측 가능 값 직접 지정(squatting/enumeration)을 차단한다.
+describe('endpointPath — v4 UUID 강제 (W1 보안)', () => {
+  it('통과 — 유효한 v4 UUID', async () => {
+    const dto = plainToInstance(CreateTriggerDto, {
+      ...baseCreate,
+      endpointPath: VALID_UUID,
+    });
+    const errors = await validate(dto, VALIDATE_OPTIONS);
+    expect(errors.find((e) => e.property === 'endpointPath')).toBeUndefined();
+  });
+
+  it('통과 — endpointPath 미설정 (옵셔널)', async () => {
+    const dto = plainToInstance(CreateTriggerDto, baseCreate);
+    const errors = await validate(dto, VALIDATE_OPTIONS);
+    expect(errors.find((e) => e.property === 'endpointPath')).toBeUndefined();
+  });
+
+  it('실패 — 예측 가능한 비-UUID 경로 (squatting 방지)', async () => {
+    const dto = plainToInstance(CreateTriggerDto, {
+      ...baseCreate,
+      endpointPath: 'my-integration',
+    });
+    const errors = await validate(dto, VALIDATE_OPTIONS);
+    expect(errors.find((e) => e.property === 'endpointPath')).toBeDefined();
+  });
+
+  it('실패 — 경로형 문자열 (/hooks/custom)', async () => {
+    const dto = plainToInstance(CreateTriggerDto, {
+      ...baseCreate,
+      endpointPath: '/hooks/custom',
+    });
+    const errors = await validate(dto, VALIDATE_OPTIONS);
+    expect(errors.find((e) => e.property === 'endpointPath')).toBeDefined();
+  });
+
+  it('실패 — v1 UUID (시간 기반·추측 가능 — v4 만 허용)', async () => {
+    const dto = plainToInstance(CreateTriggerDto, {
+      ...baseCreate,
+      // version nibble(3번째 그룹 첫 char) = 1 → v1
+      endpointPath: '550e8400-e29b-11d4-a716-446655440000',
+    });
+    const errors = await validate(dto, VALIDATE_OPTIONS);
+    expect(errors.find((e) => e.property === 'endpointPath')).toBeDefined();
+  });
+
+  it('UpdateTriggerDto — 비-UUID endpointPath 도 형식 거부', async () => {
+    const dto = plainToInstance(UpdateTriggerDto, { endpointPath: 'webhook' });
+    const errors = await validate(dto, VALIDATE_OPTIONS);
+    expect(errors.find((e) => e.property === 'endpointPath')).toBeDefined();
+  });
+
+  it('UpdateTriggerDto — 유효한 v4 UUID 통과 (데코레이터 실효 회귀 가드)', async () => {
+    const dto = plainToInstance(UpdateTriggerDto, { endpointPath: VALID_UUID });
+    const errors = await validate(dto, VALIDATE_OPTIONS);
+    expect(errors.find((e) => e.property === 'endpointPath')).toBeUndefined();
+  });
+});
+
 describe('CreateTriggerDto — notification/interaction sub-DTO', () => {
   it('통과 — 유효한 notification + interaction 전체 필드', async () => {
     const dto = plainToInstance(CreateTriggerDto, {
