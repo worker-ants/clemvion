@@ -377,6 +377,11 @@ handler 가 `output: { result: {...}, partial?: {...} }` 런타임 필드와 `_r
 | `status` | `'waiting_for_input'` | handler return | 엔진 일시 중단 트리거 |
 | `_resumeState` | object | handler internal | 다음 턴 처리에 필요한 internal state. expression 레이어에 노출되지 않음 (autocomplete/resolver 에서 숨김). DB 저장 시 strip — **`information_extractor` 도 `_resumeCheckpoint` 기반 turn 재개([실행 엔진 §1.3 / §7.5](../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration))를 사용한다** (turn-단위 park — 모든 turn 재개가 §7.5 rehydration 단일 경로, 재시작/타 인스턴스 포함): credential-strip 부분집합(고유 runtime state `partialResult`/`collectionRetryCount` 포함)이 `NodeExecution.outputData._resumeCheckpoint` 에 영속되고, 재개 시 config 필드(outputSchema/examples/instructions/maxCollectionRetries)는 `node.config` 에서 재유도된다. checkpoint 부재/손상/미래 버전 시에만 graceful reset (`RESUME_INCOMPATIBLE_STATE`) |
 
+> **`meta.contextInjection` 은 이 transient 스냅샷에 의도적으로 미포함**: 첫 진입 시 1회 주입한
+> 결과는 `state.contextInjection` 으로 운반되어 **종결 출력(§5.6) 에서만 echo** 된다 (waiting
+> 스냅샷은 lean 유지 — handler `buildWaitingOutput` 은 `meta.interactionType` 만 emit).
+> [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입) 참조.
+
 **Expression 접근 예**:
 - `$node["X"].output.result.messages[-1].content` → 마지막 assistant 메시지
 - `$node["X"].output.partial.missingFields` → 누락 필드 목록
@@ -437,6 +442,11 @@ handler 가 `output: { result: {...}, partial?: {...} }` 런타임 필드와 `_r
 | `meta.interactionType` | `'ai_conversation'` | handler — runtime | 대기 / 재개 공통 분류 메타 |
 | `status` | `'resumed'` | engine | observability transient — 그래프 라우팅 없음. handler 가 아니라 engine 이 주입 |
 | `_resumeState` | object | handler internal | 다음 턴 처리에 필요한 internal state |
+
+> **`meta.contextInjection` 은 이 transient 스냅샷에 의도적으로 미포함**: resumed 는 engine 이
+> 주입하는 observability-only 스냅샷(새 LLM 호출 없음)이라 `meta.durationMs`/`interactionType`
+> 만 담는다. 첫 진입 시 주입 결과는 `state.contextInjection` 으로 운반되어 **종결 출력(§5.6)
+> 에서만 echo** 된다. [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입) 참조.
 
 **Expression 접근 예**:
 - `$node["X"].output.interaction.data.content` → `"ORD-12345 입니다"`
