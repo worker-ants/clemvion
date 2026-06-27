@@ -1,12 +1,10 @@
 ---
 id: web-chat-auth-session
-status: partial
+status: implemented
 code:
   - codebase/channel-web-chat/src/lib/session-store.ts
   - codebase/channel-web-chat/src/lib/eia-client.ts
   - codebase/channel-web-chat/src/widget/use-widget.ts
-pending_plans:
-  - plan/in-progress/webchat-eager-start.md
 ---
 
 # Spec: Channel Web Chat — 인증 / 세션 흐름

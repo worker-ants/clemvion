@@ -1,10 +1,8 @@
 ---
 id: web-chat-widget-app
-status: partial
+status: implemented
 code:
   - codebase/channel-web-chat/**
-pending_plans:
-  - plan/in-progress/webchat-eager-start.md
 ---
 
 # Spec: Channel Web Chat — 위젯 SPA (`codebase/channel-web-chat`, Next.js CSR 전용)

@@ -40,14 +40,14 @@ spec_impact:
 - [x] SPEC-DRIFT(W2/I1/I2/I12) — 1-widget-app §2 런처 텍스트·§3 다이어그램 phase명(awaiting_user_message)·§3.2 updateProfile eager 기준 반영. (misplaced draft 정리)
 - [x] 후속 라운드 — I1(newChat pendingSendRef 누수) 수정 + W3/I4 주석. unit 181·e2e 174 재통과 (commit fix). 최종 ai-review `review/code/2026/06/06/12_58_00/` LOW, Critical 0, Warning 7(전부 backlog/품질) → RESOLUTION.md 보류 처리.
 - [x] consistency-check --impl-done — `review/consistency/2026/06/06/12_58_47/` **BLOCK: NO** (Critical 0, Warning 2 비차단)
-- [ ] plan complete 이동 — 비차단 backlog 잔여로 in-progress 유지
+- [x] **종결 (2026-06-27)** — 기능 surface 완결(위 9/9 + 테스트·ai-review·impl-done consistency 통과). 비차단 backlog 를
+  [`web-chat-quality-backlog`](../in-progress/web-chat-quality-backlog.md) 로 이관 후 `complete/` 이동. 동반 spec 승격:
+  `0-architecture`·`1-widget-app`·`3-auth-session` `partial → implemented` → **web-chat spec 6문서 전부 implemented, 영역 종결**.
 
 ## 비차단 backlog (impl-done/ai-review — followup)
+> 종결 시점(2026-06-27) 잔여 비차단 항목(보안 하드닝·리팩터·테스트·spec polish)은 전부
+> [`web-chat-quality-backlog`](../in-progress/web-chat-quality-backlog.md) §A~§D 로 이관했다. 영역 기능 surface 는 완결이라 비차단.
 - ~~**M2 SDK firstMessage 잔재(impl-done W1)**: `codebase/packages/web-chat-sdk/README.md`·`examples/byo-ui-headless.ts` 가 폐기된 `firstMessage` 참조 — M2 BYO-UI 예제. submit_message 패턴 예제로 교체 후속.~~ → **해소**: `rag-webchat-doc-strings` PR(cross-audit V-17) 에서 webhook(profile만) → submit_message 패턴으로 교체.
-- **보안 하드닝**: `start()` 에러 메시지 UI 일반화(W1, 기존 동작), localStorage→sessionStorage 토큰.
-- **아키텍처/리팩터**: useWidget God hook 분리(useTokenRefresh/usePendingMessageQueue), `isTextInputSurface()` 헬퍼(텍스트표면 판정 3중 중복), teardownSession 헬퍼, start() check-then-set, composer allowlist 전환, SSE 이벤트명 배열 파생.
-- **테스트**: `ended` Composer 미렌더, fake timer 전환, C1 buttons/form 폐기·ended 재open 케이스, ERROR→ended reducer 케이스.
-- **spec**: 0-architecture §R6 중복 ID 재번호화, C1 buttons/form 폐기 동작 Rationale 한 줄.
 
 ## 결정해야 할 세부
 
