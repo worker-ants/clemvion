@@ -76,6 +76,7 @@ export class LlmModelConfigController {
 
   @Post(':id/test')
   @HttpCode(HttpStatus.OK)
+  @Roles('editor')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary: '모델 연결 테스트 (chat/embedding)',
@@ -86,6 +87,7 @@ export class LlmModelConfigController {
     description: '연결 테스트 결과',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   async testConnection(
     @Param('id', ParseUUIDPipe) id: string,

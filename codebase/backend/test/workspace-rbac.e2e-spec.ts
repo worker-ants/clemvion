@@ -366,4 +366,67 @@ describe('Workspace RBAC (e2e)', () => {
       .set('Authorization', `Bearer ${outsider.accessToken}`);
     expect(outsiderGet.status).toBe(403);
   });
+
+  it('H. POST /api/model-configs/:id/test — viewer 403, editor 가드 통과; GET :id/models 는 viewer 통과 (spec §3·R-7)', async () => {
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-h-own'),
+      db,
+    );
+    const ws = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('H'),
+    );
+    const viewer = await inviteAndAccept(
+      BASE_URL,
+      owner.accessToken,
+      ws,
+      uniqueEmail('rbac-h-view'),
+      'viewer',
+      db,
+    );
+    const editor = await inviteAndAccept(
+      BASE_URL,
+      owner.accessToken,
+      ws,
+      uniqueEmail('rbac-h-edit'),
+      'editor',
+      db,
+    );
+
+    // 존재하지 않는 설정 UUID — RolesGuard 는 핸들러보다 먼저 실행되므로 viewer 는
+    // 설정 존재 여부와 무관하게 403 으로 차단되고, editor 는 가드를 통과한다. 실
+    // provider 호출 없이 역할 게이트만 검증한다. (핸들러 도달 후 상태는 엔드포인트별
+    // 상이: testConnection 은 best-effort 라 미존재도 200{success:false}, listModels 는
+    // findEntity NotFound 가 전파돼 404 — 본 케이스의 관심사는 가드 통과/차단이다.)
+    const missingId = '00000000-0000-4000-8000-000000000000';
+
+    // viewer → 403 (Editor+ 게이트, 과금 action-POST).
+    const viewerTest = await request(BASE_URL)
+      .post(`/api/model-configs/${missingId}/test`)
+      .set('Authorization', `Bearer ${viewer.accessToken}`)
+      .set('X-Workspace-Id', ws);
+    expect(viewerTest.status).toBe(403);
+
+    // editor → 가드 통과(403 아님). testConnection 은 미존재 설정의 findEntity
+    // NotFound 를 내부 catch 가 흡수해 200 + { success: false } 를 반환한다 —
+    // 200 자체가 역할 가드 통과의 증거다.
+    const editorTest = await request(BASE_URL)
+      .post(`/api/model-configs/${missingId}/test`)
+      .set('Authorization', `Bearer ${editor.accessToken}`)
+      .set('X-Workspace-Id', ws);
+    expect(editorTest.status).not.toBe(403);
+    expect(editorTest.status).toBe(200);
+    expect(editorTest.body.data.success).toBe(false);
+
+    // GET :id/models 는 Viewer+ 유지 — viewer 도 가드 통과(403 아님). listModels 는
+    // findEntity NotFound 가 전파되므로 미존재 설정엔 404.
+    const viewerModels = await request(BASE_URL)
+      .get(`/api/model-configs/${missingId}/models`)
+      .set('Authorization', `Bearer ${viewer.accessToken}`)
+      .set('X-Workspace-Id', ws);
+    expect(viewerModels.status).not.toBe(403);
+    expect(viewerModels.status).toBe(404);
+  });
 });

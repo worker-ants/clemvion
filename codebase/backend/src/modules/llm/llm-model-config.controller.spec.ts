@@ -82,7 +82,8 @@ describe('LlmModelConfigController', () => {
     expect(path).toBe('model-configs');
   });
 
-  // ── @Roles guard — preview-models stays editor-gated ──────────────────────
+  // ── @Roles guard — preview-models·testConnection editor-gated; listModels Viewer+ ──
+  // 인가 계약 SoT: spec/2-navigation/6-config.md §3 + R-7.
   describe('@Roles decorator presence (metadata check)', () => {
     it("previewModels method has 'editor' role metadata", () => {
       const roles = Reflect.getMetadata(
@@ -90,6 +91,22 @@ describe('LlmModelConfigController', () => {
         LlmModelConfigController.prototype.previewModels,
       );
       expect(roles).toContain('editor');
+    });
+
+    it("testConnection method has 'editor' role metadata (billed action-POST → Editor+)", () => {
+      const roles = Reflect.getMetadata(
+        'roles',
+        LlmModelConfigController.prototype.testConnection,
+      );
+      expect(roles).toContain('editor');
+    });
+
+    it('listModels (GET 조회) has NO role metadata — Viewer+ 유지', () => {
+      const roles = Reflect.getMetadata(
+        'roles',
+        LlmModelConfigController.prototype.listModels,
+      );
+      expect(roles).toBeUndefined();
     });
   });
 });
