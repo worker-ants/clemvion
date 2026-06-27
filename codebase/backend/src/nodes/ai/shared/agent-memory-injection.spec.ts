@@ -12,6 +12,7 @@ import {
   selectVolatileTail,
   stripMemoryBlocks,
   resolveMemoryTtlDays,
+  readExtractionWatermark,
   scheduleMemoryExtraction,
 } from './agent-memory-injection';
 import type {
@@ -1128,5 +1129,57 @@ describe('scheduleMemoryExtraction', () => {
     ]);
     // watermark 는 enqueue 한 snapshot 의 maxSeq(2) 로 전진.
     expect(out).toBe(2);
+  });
+});
+
+describe('readExtractionWatermark — memoryState namespace + 하위호환 (I12)', () => {
+  it('신 namespace memoryState.lastExtractionTurnSeq 를 읽는다', () => {
+    expect(
+      readExtractionWatermark({ memoryState: { lastExtractionTurnSeq: 9 } }),
+    ).toBe(9);
+  });
+
+  it('구 평면 키 lastExtractionTurnSeq 로 폴백한다 (in-flight 파킹 실행 하위호환)', () => {
+    expect(readExtractionWatermark({ lastExtractionTurnSeq: 4 })).toBe(4);
+  });
+
+  it('namespace 가 평면 키보다 우선한다 (둘 다 있을 때)', () => {
+    expect(
+      readExtractionWatermark({
+        memoryState: { lastExtractionTurnSeq: 9 },
+        lastExtractionTurnSeq: 4,
+      }),
+    ).toBe(9);
+  });
+
+  it('seq=0 은 유효한 watermark — falsy 로 버리지 않는다 (typeof number 판정)', () => {
+    expect(
+      readExtractionWatermark({ memoryState: { lastExtractionTurnSeq: 0 } }),
+    ).toBe(0);
+    // 구 평면 키 폴백 경로도 0 을 유효 watermark 로 본다.
+    expect(readExtractionWatermark({ lastExtractionTurnSeq: 0 })).toBe(0);
+  });
+
+  it('memoryState 가 원시값(오염된 state)이면 폴백 후 undefined (방어)', () => {
+    expect(readExtractionWatermark({ memoryState: 'invalid' })).toBeUndefined();
+    expect(readExtractionWatermark({ memoryState: 42 })).toBeUndefined();
+    // memoryState 원시값 + 구 평면 키 동시 → 평면 키 폴백.
+    expect(
+      readExtractionWatermark({ memoryState: 'x', lastExtractionTurnSeq: 5 }),
+    ).toBe(5);
+  });
+
+  it('숫자가 아니거나 부재면 undefined (= 전체 turn 재추출)', () => {
+    expect(readExtractionWatermark(undefined)).toBeUndefined();
+    expect(readExtractionWatermark({})).toBeUndefined();
+    expect(readExtractionWatermark({ memoryState: {} })).toBeUndefined();
+    expect(
+      readExtractionWatermark({ lastExtractionTurnSeq: 'nope' }),
+    ).toBeUndefined();
+    expect(
+      readExtractionWatermark({
+        memoryState: { lastExtractionTurnSeq: null as unknown as number },
+      }),
+    ).toBeUndefined();
   });
 });

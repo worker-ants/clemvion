@@ -176,6 +176,26 @@ export class ConversationThreadService {
     return turns.length <= n ? [...turns] : turns.slice(turns.length - n);
   }
 
+  /**
+   * runningSummary / summarizedUpToSeq 단일 변이 경로 (I-7). summary_buffer /
+   * persistent 롤링 요약 압축이 예산 임계치 도달 시 갱신한 요약 상태를 in-memory
+   * thread 에 반영한다 — Redis 직렬화로 다음 turn (multi-turn resume) 에 재사용되며
+   * 신규 DB 컬럼은 없다 (conversation-thread.md §1.3·§4). 핸들러/매니저가 thread
+   * 객체를 직접 mutate 하지 않도록 캡슐화 — 본 서비스가 thread 의 유일한 writer.
+   *
+   * **계약**: `runningSummary` 와 `summarizedUpToSeq` 는 한 쌍의 요약 상태이므로
+   * **항상 함께 제공**한다 — 두 필드를 무조건 대입하므로, 한쪽만 넘기면 나머지가
+   * `undefined` 로 덮인다. 요약 상태를 비우려는 의도라면 둘 다 생략(`{}`)한다.
+   */
+  updateSummaryState(
+    context: ThreadHolder,
+    state: { runningSummary?: string; summarizedUpToSeq?: number },
+  ): void {
+    const thread = context.conversationThread as MutableConversationThread;
+    thread.runningSummary = state.runningSummary;
+    thread.summarizedUpToSeq = state.summarizedUpToSeq;
+  }
+
   /* ---------- internal ---------- */
 
   private appendInternal(context: ThreadHolder, args: AppendBaseArgs): void {

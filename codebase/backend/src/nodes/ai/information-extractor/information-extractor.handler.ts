@@ -25,6 +25,7 @@ import type { ThreadHolder } from '../../../modules/execution-engine/conversatio
 import {
   buildRecallBlock,
   appendStablePrefix,
+  readExtractionWatermark,
   scheduleMemoryExtraction as sharedScheduleMemoryExtraction,
 } from '../shared/agent-memory-injection';
 import {
@@ -154,20 +155,22 @@ interface MultiTurnState {
    */
   memoryConfig?: Record<string, unknown>;
   /**
-   * persistent 메모리 증분 추출 watermark (memory-strategy-extend-ie) — 직전
-   * extraction enqueue 가 커버한 마지막 turn 의 seq. 멀티턴에서 이 seq 초과 turn 만
-   * 새로 snapshot 한다 (ai_agent §M1 패턴). undefined = 아직 추출 안 함.
+   * persistent 메모리 관련 resume-state sub-namespace (I12 — ai_agent 와 동일
+   * `memoryState` 그룹). 현재 키는 증분 추출 watermark `lastExtractionTurnSeq`
+   * 하나 — 직전 extraction enqueue 가 커버한 마지막 turn 의 seq. 멀티턴에서 이
+   * seq 초과 turn 만 새로 snapshot 한다 (ai_agent §M1 패턴). undefined = 아직 추출 안 함.
    *
    * **현재 구조 주의**: IE 멀티턴은 종결(`buildMultiTurnFinalOutput`)에서 1회만
    * 추출 enqueue 하고 그 반환 watermark 를 resume state 로 다시 싣지 않는다(종결은
    * 응답 정규화 직전 fire-and-forget). 따라서 watermark 는 현재 **전진하지 않으며**,
-   * 이 필드는 향후 waiting-tick 단위 추출(turn 경계마다 enqueue)을 도입할 때를 대비한
+   * 이 슬롯은 향후 waiting-tick 단위 추출(turn 경계마다 enqueue)을 도입할 때를 대비한
    * forward-looking 운반 슬롯이다 — 운반 invariant(A3)만 지금 핀으로 보장한다.
    *
-   * **A3 교훈**: 이 필드는 반드시 `stateBase` → resume state 로 운반돼야 한다.
+   * **A3 교훈**: 이 슬롯은 반드시 `stateBase` → resume state 로 운반돼야 한다.
    * turn2+ 에서 유실되면 매 turn 전체 thread 를 재추출(또는 scopeKey 불일치)하게 된다.
+   * (hydrate 는 구 평면 키 `lastExtractionTurnSeq` 도 폴백 수용 — 하위호환.)
    */
-  lastExtractionTurnSeq?: number;
+  memoryState?: { lastExtractionTurnSeq?: number };
   // Unused by this handler but kept so the engine can pass generic state fields
   toolCalls?: number;
   ragSources?: unknown[];
@@ -1202,7 +1205,7 @@ export class InformationExtractorHandler implements NodeHandler {
         config: state.memoryConfig ?? {},
         workspaceId: state.workspaceId,
         executionId: state.executionId ?? '',
-        lastExtractionTurnSeq: state.lastExtractionTurnSeq,
+        lastExtractionTurnSeq: state.memoryState?.lastExtractionTurnSeq,
       }).catch((err) =>
         this.logger.warn(
           'IE multi-turn memory extraction enqueue 실패',
@@ -1796,6 +1799,9 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
   }
 
   private hydrateState(raw: Record<string, unknown>): MultiTurnState {
+    // memoryState sub-namespace (I12) — 신 namespace 우선 + 구 평면 키 폴백
+    // (배포 시점 in-flight 파킹 실행 하위호환). watermark 부재면 슬롯 자체 생략.
+    const extractionSeq = readExtractionWatermark(raw);
     return {
       llmConfigId: raw.llmConfigId as string | undefined,
       model: raw.model as string,
@@ -1825,7 +1831,10 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
       executionId: raw.executionId as string | undefined,
       nodeId: raw.nodeId as string | undefined,
       memoryConfig: raw.memoryConfig as Record<string, unknown> | undefined,
-      lastExtractionTurnSeq: raw.lastExtractionTurnSeq as number | undefined,
+      memoryState:
+        extractionSeq !== undefined
+          ? { lastExtractionTurnSeq: extractionSeq }
+          : undefined,
     };
   }
 

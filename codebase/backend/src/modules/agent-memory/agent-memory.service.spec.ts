@@ -168,6 +168,27 @@ describe('AgentMemoryService', () => {
       );
     });
 
+    it('I5: buildCosineMatch 파라미터 순서 계약 — $1=vector, $2=ws, $3=scope, $4=threshold', async () => {
+      const vec = new Array(1536).fill(0.01);
+      mockLlmService.embed.mockResolvedValue([vec]);
+      mockDataSource.query.mockResolvedValue([]);
+      await service.recall('ws-c', 'scope-c', 'q', embedCfg, {
+        threshold: 0.6,
+        topK: 4,
+      });
+      const [sql, params] = mockDataSource.query.mock.calls[0];
+      // $1 = query vector (pgvector literal), 그 다음 ws/scope/threshold 순.
+      expect(typeof params[0]).toBe('string');
+      expect(params[0]).toMatch(/^\[/);
+      expect(params[1]).toBe('ws-c');
+      expect(params[2]).toBe('scope-c');
+      expect(params[3]).toBe(0.6);
+      expect(params[4]).toBe(4);
+      // SQL 이 빌더가 만든 $1(vector)·$4(임계) 를 cosine score/WHERE 에서 참조.
+      expect(sql).toContain('$1::');
+      expect(sql).toContain('>= $4');
+    });
+
     it('opts 미지정 시 topK=5 / threshold=0.7 기본값을 바인딩한다', async () => {
       const vec = new Array(1536).fill(0.01);
       mockLlmService.embed.mockResolvedValue([vec]);
@@ -269,15 +290,15 @@ describe('AgentMemoryService', () => {
       mockLlmService.embed.mockResolvedValue([vOrtho(0), vOrtho(1)]);
       mockNoSimilar();
 
-      await service.saveMemories(
-        'ws-1',
-        'scope-1',
-        [
+      await service.saveMemories({
+        workspaceId: 'ws-1',
+        scopeKey: 'scope-1',
+        items: [
           { content: 'user likes tea', metadata: { kind: 'preference' } },
           { content: 'user is in Seoul' },
         ],
-        embedCfg,
-      );
+        embedCfgSource: embedCfg,
+      });
 
       // 저장 임베딩 모델은 embedCfg.embeddingModelConfigId 로 resolve 한 config 의
       // defaultModel ('text-embedding-3-small') 이어야 한다 (회수와 동일 config → 차원 일치).
@@ -317,17 +338,17 @@ describe('AgentMemoryService', () => {
         return Promise.resolve(undefined);
       });
 
-      await service.saveMemories(
-        'ws-1',
-        'scope-1',
-        [
+      await service.saveMemories({
+        workspaceId: 'ws-1',
+        scopeKey: 'scope-1',
+        items: [
           {
             content: 'user account tier is gold',
             metadata: { kind: 'entity' },
           },
         ],
-        embedCfg,
-      );
+        embedCfgSource: embedCfg,
+      });
 
       const calls = mockDataSource.query.mock.calls;
       const updateCall = calls.find((c: unknown[]) =>
@@ -349,12 +370,12 @@ describe('AgentMemoryService', () => {
       mockLlmService.embed.mockResolvedValue([v(0.1)]);
       mockNoSimilar();
 
-      await service.saveMemories(
-        'ws-3',
-        'scope-q',
-        [{ content: 'x' }],
-        embedCfg,
-      );
+      await service.saveMemories({
+        workspaceId: 'ws-3',
+        scopeKey: 'scope-q',
+        items: [{ content: 'x' }],
+        embedCfgSource: embedCfg,
+      });
 
       const dedupCall = mockDataSource.query.mock.calls.find((c: unknown[]) =>
         (c[0] as string).includes('SELECT am.id'),
@@ -364,10 +385,15 @@ describe('AgentMemoryService', () => {
       expect(dedupSql).toContain('am.workspace_id = $2');
       expect(dedupSql).toContain('am.scope_key = $3');
       expect(dedupSql).toContain('LIMIT 1');
-      // params: [vectorStr, ws, scope, MEMORY_DEDUP_SIMILARITY]
+      // I5: recall 과 동일한 buildCosineMatch 파라미터 순서 계약 —
+      // params: [vectorStr($1), ws($2), scope($3), MEMORY_DEDUP_SIMILARITY($4)]
+      expect(typeof dedupParams[0]).toBe('string');
+      expect(dedupParams[0]).toMatch(/^\[/); // $1 = query vector (pgvector literal)
       expect(dedupParams[1]).toBe('ws-3');
       expect(dedupParams[2]).toBe('scope-q');
       expect(dedupParams[3]).toBe(MEMORY_DEDUP_SIMILARITY);
+      expect(dedupSql).toContain('$1::');
+      expect(dedupSql).toContain('>= $4');
     });
 
     it('AGM-09: 같은 batch 내 유사 fact 는 두 번째를 INSERT 하지 않고 UPDATE', async () => {
@@ -375,12 +401,12 @@ describe('AgentMemoryService', () => {
       mockLlmService.embed.mockResolvedValue([v(0.5), v(0.5)]);
       mockNoSimilar();
 
-      await service.saveMemories(
-        'ws-1',
-        'scope-1',
-        [{ content: 'fact one' }, { content: 'fact one repeated' }],
-        embedCfg,
-      );
+      await service.saveMemories({
+        workspaceId: 'ws-1',
+        scopeKey: 'scope-1',
+        items: [{ content: 'fact one' }, { content: 'fact one repeated' }],
+        embedCfgSource: embedCfg,
+      });
 
       const calls = mockDataSource.query.mock.calls;
       const insertCalls = calls.filter((c: unknown[]) =>
@@ -405,12 +431,16 @@ describe('AgentMemoryService', () => {
       mockLlmService.embed.mockResolvedValue([emb0, emb1, emb2]);
       mockNoSimilar();
 
-      await service.saveMemories(
-        'ws-1',
-        'scope-1',
-        [{ content: 'fact A' }, { content: 'fact B' }, { content: 'fact A2' }],
-        embedCfg,
-      );
+      await service.saveMemories({
+        workspaceId: 'ws-1',
+        scopeKey: 'scope-1',
+        items: [
+          { content: 'fact A' },
+          { content: 'fact B' },
+          { content: 'fact A2' },
+        ],
+        embedCfgSource: embedCfg,
+      });
 
       const calls = mockDataSource.query.mock.calls;
       const insertCalls = calls.filter((c: unknown[]) =>
@@ -430,12 +460,12 @@ describe('AgentMemoryService', () => {
       mockLlmService.embed.mockResolvedValue([vOrtho(0)]);
       mockNoSimilar();
 
-      await service.saveMemories(
-        'ws-1',
-        'scope-1',
-        [{ content: 'x' }],
-        embedCfg,
-      );
+      await service.saveMemories({
+        workspaceId: 'ws-1',
+        scopeKey: 'scope-1',
+        items: [{ content: 'x' }],
+        embedCfgSource: embedCfg,
+      });
 
       // 트랜잭션 래핑 — transaction 이 1회 호출되고 그 안에서 INSERT/evict 발생.
       expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
@@ -459,7 +489,12 @@ describe('AgentMemoryService', () => {
       });
 
       await expect(
-        service.saveMemories('ws-1', 'scope-1', [{ content: 'x' }], embedCfg),
+        service.saveMemories({
+          workspaceId: 'ws-1',
+          scopeKey: 'scope-1',
+          items: [{ content: 'x' }],
+          embedCfgSource: embedCfg,
+        }),
       ).resolves.toBeUndefined();
 
       const insertCall = mockDataSource.query.mock.calls.find((c: unknown[]) =>
@@ -472,13 +507,13 @@ describe('AgentMemoryService', () => {
       mockLlmService.embed.mockResolvedValue([v(0.1)]);
       mockNoSimilar();
 
-      await service.saveMemories(
-        'ws-1',
-        'scope-1',
-        [{ content: 'ttl fact' }],
-        embedCfg,
-        30,
-      );
+      await service.saveMemories({
+        workspaceId: 'ws-1',
+        scopeKey: 'scope-1',
+        items: [{ content: 'ttl fact' }],
+        embedCfgSource: embedCfg,
+        ttlDays: 30,
+      });
 
       const insertCall = mockDataSource.query.mock.calls.find((c: unknown[]) =>
         (c[0] as string).includes('INSERT INTO agent_memory'),
@@ -493,12 +528,12 @@ describe('AgentMemoryService', () => {
       mockLlmService.embed.mockResolvedValue([v(0.1)]);
       mockNoSimilar();
 
-      await service.saveMemories(
-        'ws-1',
-        'scope-1',
-        [{ content: 'x' }],
-        embedCfg,
-      );
+      await service.saveMemories({
+        workspaceId: 'ws-1',
+        scopeKey: 'scope-1',
+        items: [{ content: 'x' }],
+        embedCfgSource: embedCfg,
+      });
       const insertCall = mockDataSource.query.mock.calls.find((c: unknown[]) =>
         (c[0] as string).includes('INSERT INTO agent_memory'),
       ) as [string, unknown[]];
@@ -517,13 +552,13 @@ describe('AgentMemoryService', () => {
         return Promise.resolve(undefined);
       });
 
-      await service.saveMemories(
-        'ws-1',
-        'scope-1',
-        [{ content: 'updated fact' }],
-        embedCfg,
+      await service.saveMemories({
+        workspaceId: 'ws-1',
+        scopeKey: 'scope-1',
+        items: [{ content: 'updated fact' }],
+        embedCfgSource: embedCfg,
         // ttlDays 미지정.
-      );
+      });
 
       const updateCall = mockDataSource.query.mock.calls.find((c: unknown[]) =>
         (c[0] as string).includes('UPDATE agent_memory'),
@@ -543,13 +578,13 @@ describe('AgentMemoryService', () => {
         return Promise.resolve(undefined);
       });
 
-      await service.saveMemories(
-        'ws-1',
-        'scope-1',
-        [{ content: 'updated fact' }],
-        embedCfg,
-        7,
-      );
+      await service.saveMemories({
+        workspaceId: 'ws-1',
+        scopeKey: 'scope-1',
+        items: [{ content: 'updated fact' }],
+        embedCfgSource: embedCfg,
+        ttlDays: 7,
+      });
 
       const updateCall = mockDataSource.query.mock.calls.find((c: unknown[]) =>
         (c[0] as string).includes('UPDATE agent_memory'),
@@ -562,12 +597,12 @@ describe('AgentMemoryService', () => {
     });
 
     it('빈 content 항목은 걸러내고, 모두 비면 no-op', async () => {
-      await service.saveMemories(
-        'ws-1',
-        'scope-1',
-        [{ content: '   ' }, { content: '' }],
-        embedCfg,
-      );
+      await service.saveMemories({
+        workspaceId: 'ws-1',
+        scopeKey: 'scope-1',
+        items: [{ content: '   ' }, { content: '' }],
+        embedCfgSource: embedCfg,
+      });
       expect(mockLlmService.embed).not.toHaveBeenCalled();
       expect(mockDataSource.query).not.toHaveBeenCalled();
     });
@@ -576,12 +611,12 @@ describe('AgentMemoryService', () => {
       mockLlmService.embed.mockResolvedValue([v(0.1)]);
       mockNoSimilar();
 
-      await service.saveMemories(
-        'ws-7',
-        'scope-z',
-        [{ content: 'a fact' }],
-        embedCfg,
-      );
+      await service.saveMemories({
+        workspaceId: 'ws-7',
+        scopeKey: 'scope-z',
+        items: [{ content: 'a fact' }],
+        embedCfgSource: embedCfg,
+      });
 
       const calls = mockDataSource.query.mock.calls;
       const expiredEvict = calls.find(
@@ -626,8 +661,20 @@ describe('AgentMemoryService', () => {
     it('빈 임베딩 벡터면 throw 한다 (차원 mismatch 방어)', async () => {
       mockLlmService.embed.mockResolvedValue([[]]);
       await expect(
-        service.saveMemories('ws-1', 'scope-1', [{ content: 'x' }], embedCfg),
+        service.saveMemories({
+          workspaceId: 'ws-1',
+          scopeKey: 'scope-1',
+          items: [{ content: 'x' }],
+          embedCfgSource: embedCfg,
+        }),
       ).rejects.toThrow('Embedding vector is empty');
+    });
+
+    it('I3/W-1: 옵션 객체가 아닌 인자(구 포지셔널 오용)면 throw 한다', async () => {
+      await expect(
+        // @ts-expect-error 구 포지셔널 호출 시뮬레이션 — 런타임 계약 가드 검증.
+        service.saveMemories('ws-1'),
+      ).rejects.toThrow('args must be an options object');
     });
 
     it('AGENT_MEMORY_MAX_PER_SCOPE 상수는 1000, MEMORY_DEDUP_SIMILARITY 는 0.85 (spec §4)', () => {

@@ -61,18 +61,18 @@ related_plan: plan/complete/ai-context-memory-auto.md
 - [x] `1-ai-agent.md §12.13` Redis TTL 만료 시 runningSummary 유실 fallback 정책 명시(W-6).
 
 ## v2 코드 리뷰 도출 백로그 (멀티턴 물리압축 후속)
-- [ ] `injectMemoryContext` 의 `getThread`/`getThreadExcludingNode` 이중 쿼리 단일화(I/O-backed 전환 대비, W-8).
-- [ ] `ConversationThreadService.updateSummaryState()` 신설 — runningSummary/summarizedUpToSeq 단일 변이 경로(I-7).
+- [x] `injectMemoryContext` 의 `getThread`/`getThreadExcludingNode` 이중 쿼리 단일화(I/O-backed 전환 대비, W-8). 2026-06-27 완료 (Batch 2) — `getThread` 1회 읽고 `getThreadExcludingNode` 는 `fullTurns.filter(nodeId)` in-memory 파생으로 대체.
+- [x] `ConversationThreadService.updateSummaryState()` 신설 — runningSummary/summarizedUpToSeq 단일 변이 경로(I-7). 2026-06-27 완료 (Batch 2) — 매니저 직접 mutate → 서비스 단일 writer 경유. 테스트 3건 추가.
 - [x] `buildSummaryBufferUpdate` rolling 루프 토큰 재계산 O(n²)→O(1) 증분(perf I-11). 2026-06-05 완료 (B3 #474, bit-identical 증분).
 - [x] `meta.memory.compactedMessages` 를 `_product-overview` ND-AG-30 열거에 등재(naming I-7). 2026-06-27 완료 (Batch 1 spec 정밀화) — `spec/4-nodes/_product-overview.md` + `spec/4-nodes/3-ai/_product-overview.md` 두 ND-AG-30 행에 `compactedMessages?` 추가.
 - [x] §6.2 d.5 본문에 auto-memory multi-turn 실행 경로 부연(SPEC-DRIFT I-2). 2026-06-27 확인 — `1-ai-agent.md §6.2 d.5`(재주입 분기 manual/summary_buffer/persistent) + `d.6`(누적 messages 물리 압축) 이미 충분히 기술. 변경 불필요.
 
 ## persistent 고도화 코드 리뷰 도출 백로그
 - [x] SPEC-DRIFT: `17-agent-memory.md §3 AGM-04` "scheduleBackgroundBody snapshot" 표현 → 전용 BullMQ 큐(`agent-memory-extraction`, concurrency=2) 로 갱신(I1). — 2026-06-10 spec 전수 감사에서 §3 확정 구현 서술로 갱신 완료 (branch claude/spec-sync-audit-998544).
-- [ ] V080 `expires_at` 인덱스 무중단 배포 시 `CREATE INDEX CONCURRENTLY` 분리(V080a/b, executeInTransaction=false)(I9).
-- [ ] TTL 파싱(resolveMemoryTtlDays) 핸들러→AgentMemoryService/유틸 이전(I2).
-- [ ] saveMemories 포지셔널 5파라미터 → 옵션 객체(I3). cosine SQL WHERE 빌더 추출(I5).
-- [ ] `_resumeState.lastExtractionTurnSeq` → `memoryState` sub-namespace(I12).
+- [x] V080 `expires_at` 인덱스 무중단 배포 시 `CREATE INDEX CONCURRENTLY` 분리(V080a/b, executeInTransaction=false)(I9). 2026-06-27 **wontfix** (사용자 결정, Batch 2) — `expires_at` 은 신규·희소(대부분 NULL) 컬럼의 partial index 라 생성 락이 무시할 수준. 가치 대비 위험(이미 적용된 V080 수정 시 Flyway checksum 파손) 낮음. 향후 동일 패턴 신규 인덱스는 V086 처럼 CONCURRENTLY 적용 (선례 존재).
+- [x] TTL 파싱(resolveMemoryTtlDays) 핸들러→AgentMemoryService/유틸 이전(I2). 2026-06-27 확인 (Batch 2) — 이미 `nodes/ai/shared/agent-memory-injection.ts` 공유 유틸로 이전됨(핸들러 아님). 변경 불필요.
+- [x] saveMemories 포지셔널 5파라미터 → 옵션 객체(I3). cosine SQL WHERE 빌더 추출(I5). 2026-06-27 완료 (Batch 2) — saveMemories 옵션객체화(호출부 processor + 테스트 14곳 갱신) + `buildCosineMatch` 빌더로 recall/findSimilarFact 의 cosine WHERE·score 식 단일화.
+- [x] `_resumeState.lastExtractionTurnSeq` → `memoryState` sub-namespace(I12). 2026-06-27 완료 (Batch 2) — ai_agent(ai-turn-executor) + IE(MultiTurnState/hydrateState) 양쪽 `memoryState.lastExtractionTurnSeq` 로 운반. 공유 `readExtractionWatermark` 가 신 namespace 우선 + 구 평면 키 폴백(in-flight 하위호환). 테스트 갱신/추가.
 - [x] `§7.1 meta.memory` 열거에 `compactedMessages?` + node-output Principle 2 에 meta.memory(impl-done W-1). 2026-06-27 완료 (Batch 1) — §7.1 은 기존 반영 확인, `node-output.md` Principle 2 LLM 계열 행에 `meta.memory?` 추가.
 
 ## A1 가시화 UI / A2 contextScope 확장 도출 백로그 (2026-06-05)
@@ -82,3 +82,8 @@ related_plan: plan/complete/ai-context-memory-auto.md
 - [ ] agent-memories pagination offset→프로젝트 표준 page DTO 정렬 — A1 backlog.
 - [ ] clearScope 0건 삭제 시 toast 중립화/X-Deleted-Count — A1 backlog.
 - [x] information_extractor §5.4/§5.5 meta 표에 contextInjection 행(waiting/resumed) — A2 backlog(minor). 2026-06-27 완료 (Batch 1) — **전제 정정**: 핸들러 검증 결과 waiting/resumed transient 스냅샷은 `contextInjection` 을 의도적으로 미포함(첫 진입 1회 주입 결과는 `state.contextInjection` 운반→§5.6 종결에서만 echo). 데이터 행 추가 대신 §5.4/§5.5 표 아래 "의도적 부재" 노트 명시로 재오해 방지.
+
+## Batch 2 (백엔드 리팩터) 후속 — 별건 spec PR (impl-done consistency 도출, 2026-06-27)
+> Batch 2 PR 의 impl-done(21_39_37, BLOCK:NO) + fresh ai-review 가 발견. 현재 main 기준 별도 spec PR 로 처리 (Batch 2 branch 는 #726 이전 분기라 해당 파일 behind-base 충돌 회피).
+- [ ] `node-output.md` Principle 2 meta.memory 행: `ai_agent / information_extractor` → **`ai_agent` 단독** 정정. IE 핸들러는 meta.memory 를 emit 하지 않음(코드 검증 — contextInjection 만 echo). Batch 1(#726) 오류 정정 + SoT 링크 `ai-agent §7.1` 교정.
+- [ ] `3-information-extractor.md` l.163·l.684: watermark 참조 `lastExtractionTurnSeq` → `memoryState.lastExtractionTurnSeq` (I12 정합, 하위호환 폴백 병기). canonical AGM-08(`17-agent-memory.md`)은 Batch 2 에서 갱신 완료.
