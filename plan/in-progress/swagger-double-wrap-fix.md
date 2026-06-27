@@ -32,9 +32,10 @@ source: nav-spec-doc-fix(#722) §5 검증 중 발견 — paginated 응답 swagge
 
 ## 게이트
 
-- [x] TEST WORKFLOW (lint·unit·build·e2e 215) PASS
-- [ ] /ai-review → Critical/Warning 0
-- [ ] consistency-check --impl-done → BLOCK NO (spec 연결 시)
+- [x] TEST WORKFLOW (lint·unit·build·e2e 215) PASS (구현 후 + resolution 후 2회)
+- [x] /ai-review (19_31_47) → risk LOW, Critical 0, **Warning 0** (clean). cheap INFO(1·2·4·5) 반영(RESOLUTION.md)
+- [x] consistency-check --impl-done spec/conventions/ (19_31_47) → **BLOCK NO**. WARNING W-1(§2-5 pass-through) 동일 브랜치 RESOLVED
+- [ ] fresh /ai-review + fresh --impl-done (resolution 커버 — stale 가드 해소)
 
 ## 메모
 

@@ -86,18 +86,22 @@ describe('api-wrapped schema builders', () => {
     const schema = wrapPaginatedSchema(SampleDto);
     // single-wrap: data(array) + pagination 이 top-level — PaginatedResponseDto 가 `data` 키를
     // 가져 TransformInterceptor 가 pass-through 하므로 외곽 data 래퍼가 없다(실제 wire shape).
+    expect(schema.type).toBe('object');
     expect(schema.required).toEqual(['data', 'pagination']);
     const properties = schema.properties as Record<string, unknown>;
     expect(properties.data).toEqual({
       type: 'array',
       items: { $ref: getSchemaPath(SampleDto) },
     });
-    const pagination = properties.pagination as Record<string, unknown>;
-    expect(pagination.required).toEqual([
-      'page',
-      'limit',
-      'totalItems',
-      'totalPages',
-    ]);
+    expect(properties.pagination).toEqual({
+      type: 'object',
+      required: ['page', 'limit', 'totalItems', 'totalPages'],
+      properties: {
+        page: { type: 'integer', example: 1 },
+        limit: { type: 'integer', example: 20 },
+        totalItems: { type: 'integer', example: 123 },
+        totalPages: { type: 'integer', example: 7 },
+      },
+    });
   });
 });
