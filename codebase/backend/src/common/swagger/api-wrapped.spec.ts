@@ -33,6 +33,8 @@ describe('api-wrapped schema builders', () => {
 
   it('wrapItemsSchema builds { data: array($ref) }', () => {
     const schema = wrapItemsSchema(SampleDto);
+    expect(schema.type).toBe('object');
+    expect(schema.required).toEqual(['data']);
     expect(schema.properties?.data).toEqual({
       type: 'array',
       items: { $ref: getSchemaPath(SampleDto) },

@@ -136,6 +136,8 @@ GET /api/triggers?type=webhook&status=active
 }
 ```
 
+> `data`(배열)·`pagination` 이 **top-level 형제**다(중첩 아님). 목록 핸들러는 공용 `PaginatedResponseDto`(`{ data, pagination }`)를 반환하고, 이미 `data` 키를 가진 객체는 전역 `TransformInterceptor` 가 추가 래핑 없이 pass-through 하기 때문 — §5.1 단일 리소스의 `{ data: <obj> }` 와 달리 `data` 가 한 겹 더 감싸이지 않는다. 메커니즘 상세: [Swagger 규약 §2-5 응답 wrapping](../conventions/swagger.md#2-5-응답-wrapping).
+
 ### 5.3 에러 응답
 
 ```json
