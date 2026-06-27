@@ -138,7 +138,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 노드 시스템 | `spec/4-nodes/` | `_product-overview.md` + `0-overview.md` + 카테고리별 폴더 (`1-logic/` ~ `7-trigger/`) |
 | 시스템 공통 | `spec/5-system/` | `_product-overview.md` + 영역별 spec (인증·API 규칙·실행 엔진·LLM Client·임베딩·RAG·Graph RAG·MCP·Webhook·Agent Memory 등) |
 | 채널 웹채팅 위젯 | `spec/7-channel-web-chat/` | `_product-overview.md` + 아키텍처·위젯 SPA·SDK·인증/세션·보안·운영 콘솔(`5-admin-console.md`, 제품 내 설치·미리보기) |
-| 데이터 흐름 | `spec/data-flow/` | `0-overview.md` + 도메인별 흐름·schema 매핑 (`1-audit` ~ `12-workspace`, 알파벳 순 숫자 prefix) |
+| 데이터 흐름 | `spec/data-flow/` | `0-overview.md` + 도메인별 흐름·schema 매핑 (`1-audit` ~ `15-external-interaction`, 알파벳 순 숫자 prefix) |
 
 문서 컨벤션:
 - **`spec/0-overview.md` / `spec/1-data-model.md` / `spec/6-brand.md` (루트 레벨)** — `spec/` 루트에 위치하는 cross-cutting 진입 문서. `0-`/`1-`/`6-` 등 정수 prefix 로 정렬하며 영역 폴더 위에서 직접 참조한다. 본 패턴은 영역 폴더 안의 `0-overview.md` 와 prefix 형태는 같지만 위치(루트 vs 영역) 가 다르다. 본문 끝에 `## Rationale` 섹션을 둘 수 있다.
