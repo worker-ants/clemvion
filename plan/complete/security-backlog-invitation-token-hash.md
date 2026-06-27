@@ -1,15 +1,30 @@
 ---
-worktree: (main — 아직 착수 없음)
+worktree: invitation-token-plan-reconcile
 started: 2026-06-10
+completed: 2026-06-27
+status: complete
 owner: project-planner
 spec_impact:
   - spec/5-system/1-auth.md
 priority: low
 ---
 
-# 백로그: 초대 토큰 해시 저장 전환 검토
+# 백로그: 초대 토큰 해시 저장 전환 검토 — 종결 (raw 유지 결정)
 
 출처: ai-review SUMMARY W-1 (security-fixes-audit-guard-secret-rotation, 2026-06-10)
+
+## 결정 / 종결 (2026-06-27)
+
+`spec/5-system/1-auth.md §1.5.D — 워크스페이스 초대 토큰을 raw 로 저장하는 이유` 가 본 백로그
+질문(해시 전환 여부)에 **확정 답을 제공**한다: *"해시 전환의 보안 이득이 위협 모델 대비 작아
+**raw 저장을 유지한다**"*. 근거 — ① 토큰 단독 권한 획득 불가(수락 시 이메일 일치 강제 §1.5.3),
+② 단일 사용 + 7일 만료로 노출 창 한정, ③ pending 초대 lookup 필요. DB 유출 방어는 이메일 일치
+강제(1차)·만료(2차)가 담당.
+
+→ 따라서:
+- **작업 #1**(§1.5.D 결정 여부 명시) = **완료** — §1.5.D 가 raw 유지 명문화.
+- **작업 #2~4**(SHA-256 해시 저장·마이그레이션·테스트) = **N/A (취소)** — 해시 전환 미채택 결정이므로 구현 불요.
+- 백로그 종결, `plan/complete/` 이동. spec 변경 없음(§1.5.D 는 이미 기존 spec).
 
 ## 배경
 
