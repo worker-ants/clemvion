@@ -49,6 +49,26 @@ function makeProvider(client: Redis): {
   };
 }
 
+/**
+ * 두 인스턴스의 `next()` 를 인터리브해 같은 executionId 로 동시에 발사한다 —
+ * 같은 Redis 키에 대한 cross-instance race 를 최대화하기 위함. 인스턴스당 `total/2`
+ * 호출. 발급된 seq 배열(발사 순서)을 반환한다. (테스트 1·2 공용 — 중복 제거.)
+ */
+async function allocateConcurrentlyAcrossInstances(
+  instances: readonly [ExecutionSeqAllocator, ExecutionSeqAllocator],
+  executionId: string,
+  total: number,
+): Promise<number[]> {
+  const [a, b] = instances;
+  const perInstance = total / 2;
+  const calls: Array<Promise<number>> = [];
+  for (let i = 0; i < perInstance; i++) {
+    calls.push(a.next(executionId));
+    calls.push(b.next(executionId));
+  }
+  return Promise.all(calls);
+}
+
 describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)', () => {
   // 두 "backend 인스턴스" 를 시뮬레이션하는 독립 연결.
   let redisA: Redis;
@@ -65,6 +85,9 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
     expect(pongA).toBe('PONG');
     expect(pongB).toBe('PONG');
 
+    // `as never`: ExecutionSeqAllocator 는 RedisConnectionProvider 를 DI 로 받지만
+    // 본 테스트는 실 ioredis 를 감싼 duck-typed 어댑터(getClient/getClientOrNull 만)를
+    // 주입한다. sibling unit spec(execution-seq-allocator.service.spec.ts)의 동일 패턴.
     allocA = new ExecutionSeqAllocator(makeProvider(redisA) as never);
     allocB = new ExecutionSeqAllocator(makeProvider(redisB) as never);
   }, 60_000);
@@ -76,19 +99,22 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
     ]);
   });
 
+  /** 두 인스턴스가 모두 발급한 키이므로 양쪽 release 로 lifecycle 계약을 완결한다. */
+  function releaseBoth(executionId: string): void {
+    allocA.release(executionId);
+    allocB.release(executionId);
+  }
+
   it('두 인스턴스가 같은 executionId 를 동시 발급해도 중복·역전 0 (union = 1..N)', async () => {
     const executionId = `load-${randomUUID()}`;
     const N = 1000; // 인스턴스당 500개씩, 총 1000 동시 발급.
-    const perInstance = N / 2;
 
     try {
-      // 두 인스턴스의 next() 를 인터리브해 동시에 발사 — 같은 키에 대한 race 를 최대화.
-      const calls: Array<Promise<number>> = [];
-      for (let i = 0; i < perInstance; i++) {
-        calls.push(allocA.next(executionId));
-        calls.push(allocB.next(executionId));
-      }
-      const seqs = await Promise.all(calls);
+      const seqs = await allocateConcurrentlyAcrossInstances(
+        [allocA, allocB],
+        executionId,
+        N,
+      );
 
       // 중복 0: 발급된 seq 가 전부 유일.
       const unique = new Set(seqs);
@@ -97,28 +123,27 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
       expect(Math.min(...seqs)).toBe(1);
       expect(Math.max(...seqs)).toBe(N);
     } finally {
-      allocA.release(executionId);
+      releaseBoth(executionId);
     }
   }, 60_000);
 
   it('1000 events/s 부하에서 단조 유일 보장 + throughput 측정', async () => {
     const executionId = `tput-${randomUUID()}`;
     const N = 1000;
-    const perInstance = N / 2;
 
     try {
-      const calls: Array<Promise<number>> = [];
       const start = process.hrtime.bigint();
-      for (let i = 0; i < perInstance; i++) {
-        calls.push(allocA.next(executionId));
-        calls.push(allocB.next(executionId));
-      }
-      const seqs = await Promise.all(calls);
+      const seqs = await allocateConcurrentlyAcrossInstances(
+        [allocA, allocB],
+        executionId,
+        N,
+      );
       const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
       const throughput = (N / elapsedMs) * 1000; // events/s
 
-      // 단조 유일 보장이 부하에서도 유지.
+      // 단조 유일 보장이 부하에서도 유지 — test 1 과 동일 대칭 검증(중복·역전·빠짐 0).
       expect(new Set(seqs).size).toBe(N);
+      expect(Math.min(...seqs)).toBe(1);
       expect(Math.max(...seqs)).toBe(N);
 
       // throughput 측정 보고 + 회귀 가드. 파이프라인 INCR 동시성으로 로컬/도커망
@@ -131,11 +156,11 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
       );
       expect(throughput).toBeGreaterThanOrEqual(1000);
     } finally {
-      allocA.release(executionId);
+      releaseBoth(executionId);
     }
   }, 60_000);
 
-  it('single-instance 발급 latency < 5ms (수용 기준 #3: in-memory baseline 대비 회귀 < 5ms)', async () => {
+  it('single-instance 발급 latency < 5ms (in-memory baseline 대비 회귀 < 5ms)', async () => {
     const executionId = `lat-${randomUUID()}`;
     const WARMUP = 20; // 연결·키 초기화 outlier 제외.
     const SAMPLES = 200;
@@ -152,6 +177,8 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
 
       const sorted = [...latenciesMs].sort((a, b) => a - b);
       const median = sorted[Math.floor(sorted.length / 2)];
+      // avg/p95 는 측정 보고 전용(assert 안 함) — 회귀 가드는 outlier 에 견고한
+      // median 으로만 평가한다(아래 expect). p95 는 분포 가시성을 위한 로그값.
       const p95 = sorted[Math.floor(sorted.length * 0.95)];
       const avg = latenciesMs.reduce((s, v) => s + v, 0) / latenciesMs.length;
       // eslint-disable-next-line no-console
@@ -166,7 +193,7 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
       // median 으로 평가해 일시적 GC/네트워크 outlier 에 견고. criterion: < 5ms.
       expect(median).toBeLessThan(5);
     } finally {
-      allocA.release(executionId);
+      releaseBoth(executionId);
     }
   }, 60_000);
 });
