@@ -192,6 +192,11 @@ services:
       DB_USERNAME: clemvion
       DB_PASSWORD: clemvion-e2e
       DB_DATABASE: clemvion_e2e
+      # 실 Redis 직결 e2e (integration-cache-invalidate / execution-seq-allocator-load)
+      # 가 같은 docker network 의 redis 컨테이너로 ioredis 연결할 때 사용. 미지정 시
+      # 각 spec 의 `?? 'redis'` 기본값과 동일하지만, 의존성을 명시해 둔다.
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
     volumes:
       # 호스트 backend 소스를 그대로 사용. node_modules 는 anonymous volume 으로
       # 가려서 deps stage 가 설치한 dev dep 가 호스트의 (잠재적으로 부재한) node_modules
