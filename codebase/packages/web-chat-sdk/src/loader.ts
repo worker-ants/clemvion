@@ -4,6 +4,11 @@
 import { boot as defaultBoot } from "./index";
 import type { BootConfig, ChatInstance, WidgetEvent } from "./types";
 
+/**
+ * 큐 항목의 논리적 형태(method + args). 단, 런타임에서 스니펫 스텁이 `push(arguments)` 하므로
+ * 실제 큐 원소는 진짜 Array 가 아니라 array-like(`arguments` 객체)일 수 있다.
+ * replay 루프에서 `Array.isArray` 가 아닌 `length` 기반 가드 후 `Array.from` 으로 정규화해야 한다.
+ */
 export type GlobalCall = [method: string, ...args: unknown[]];
 
 /** 스니펫이 설치하는 큐 스텁 형태. */
@@ -97,20 +102,19 @@ export function installGlobal(
   const queued = Array.isArray(existing?.q) ? existing!.q! : [];
   w[globalName] = api;
   // 스니펫이 boot 전 큐잉한 호출 순서대로 replay. 형식 불량/예외는 흡수하고 계속 진행.
-  // 스텁은 GA 식 표준대로 `push(arguments)` 하므로 각 항목의 런타임 형태는 진짜 Array 가 아니라
-  // array-like(arguments)다(타입상 GlobalCall 이어도). 여기서 Array.isArray 로 거르면 실제 스니펫이
-  // 큐잉한 호출이 통째로 버려져 boot 가 영영 실행되지 않는다(2-sdk §1·R5 위반). length 기반 array-like 로
-  // 수용한 뒤 실제 Array 로 정규화해 replay 한다.
+  // 스텁은 `push(arguments)` 하므로 큐 항목은 array-like — `length` 기반 수용 후 Array.from 정규화.
   for (const queuedCall of queued) {
-    const item = queuedCall as unknown;
+    const raw = queuedCall as unknown;
     if (
-      typeof item !== "object" ||
-      item === null ||
-      typeof (item as ArrayLike<unknown>).length !== "number"
+      typeof raw !== "object" ||
+      raw === null ||
+      typeof (raw as ArrayLike<unknown>).length !== "number" ||
+      !Number.isFinite((raw as ArrayLike<unknown>).length) ||
+      (raw as ArrayLike<unknown>).length > 32
     ) {
       continue;
     }
-    const args = Array.prototype.slice.call(item as ArrayLike<unknown>);
+    const args = Array.from(raw as ArrayLike<unknown>);
     if (typeof args[0] !== "string") continue;
     try {
       api(args[0], ...args.slice(1));

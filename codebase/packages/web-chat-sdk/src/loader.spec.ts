@@ -110,6 +110,8 @@ describe("installGlobal — 큐 스텁 replay", () => {
   it("스니펫이 큐잉한 호출을 순서대로 replay", () => {
     const inst = fakeInstance();
     // 스니펫 스텁 시뮬레이션
+    // 이 스텁은 rest 파라미터 배열을 push — production 스텁의 `push(arguments)` 와 달리 진짜 Array.
+    // Array 경로 회귀 검증 목적이며, `push(arguments)` 패턴은 아래 array-like 테스트가 담당한다.
     const stub = ((...a: unknown[]) => {
       (stub as QueueStub).q!.push(a as [string, ...unknown[]]);
     }) as QueueStub;
@@ -134,7 +136,7 @@ describe("installGlobal — 큐 스텁 replay", () => {
     // (기존 위 테스트는 rest 파라미터 배열을 push 해 이 조건을 재현하지 못했다.)
     const bootArgs = { 0: "boot", 1: { apiBase: "a", triggerEndpointPath: "t" }, length: 2 };
     const openArgs = { 0: "open", length: 1 };
-    // 실제 스텁과 동일하게 함수 + .q 형태(점유 가드 통과). .q 항목만 array-like(arguments) 로 둔다.
+    // 의도: 실제 큐 로직 없이 `.q` 직접 주입 — `push(arguments)` 산출물(array-like)을 정확히 재현.
     const stub = (() => {}) as unknown as QueueStub;
     stub.q = [bootArgs, openArgs] as unknown as GlobalCall[];
     (window as unknown as { ClemvionChat: QueueStub }).ClemvionChat = stub;
