@@ -41,6 +41,7 @@ export const agentMemory = {
     message:
       "'{{scopeKey}}' scope 의 메모리 {{count}}건을 모두 삭제할까요? 되돌릴 수 없어요.",
     success: "scope 의 메모리를 모두 삭제했어요",
+    empty: "삭제할 메모리가 없었어요",
     failed: "scope 삭제에 실패했어요",
   },
 } as const;
