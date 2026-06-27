@@ -7,15 +7,20 @@ import type {
   ExecutionMessageEvent,
   HookStartResponse,
   InteractCommand,
-  InteractionEndpoints,
   WaitingForInputEvent,
 } from "@/lib/eia-types";
 import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-events";
 import { threadToMessages } from "@/lib/conversation";
-import { clearSession, loadSession, saveSession } from "@/lib/session-store";
+import { clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
 import { initialState, isTextInputSurface, widgetReducer } from "@/lib/widget-state";
 import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
+import { useTokenRefresh } from "./use-token-refresh";
+import { usePendingMessageQueue } from "./use-pending-message-queue";
 import type { WcResizePayload } from "./wc-protocol";
+
+// 토큰 갱신 헬퍼는 use-token-refresh 로 이동. 기존 import 경로(`./use-widget`) 사용처 보호를 위한
+// **영구 하위호환 re-export** — 신규 코드는 use-token-refresh 에서 직접 import 권장.
+export { refreshDelayMs, TOKEN_REFRESH_LEAD_MS, TOKEN_REFRESH_MIN_DELAY_MS } from "./use-token-refresh";
 
 interface EmbedConfig {
   allowlist: string[];
@@ -64,27 +69,8 @@ const TERMINAL_EVENTS = [
   "execution.cancelled",
 ] as const;
 
-interface SessionRef {
-  executionId: string;
-  token: string;
-  expiresAt: string;
-  endpoints: InteractionEndpoints;
-}
-
-/** 토큰 만료 이 시간 이내로 진입하면 갱신(3-auth-session §3 step7). */
-export const TOKEN_REFRESH_LEAD_MS = 30 * 60 * 1000;
-/** 갱신 타이머 최소 지연(즉시 폭주 방지). */
-export const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;
-
-/**
- * 만료 시각(ISO)과 현재 시각으로 다음 토큰 갱신 지연(ms) 계산.
- * 만료 30분 이전 시점을 목표로 하되, 이미 그 안쪽이면 최소 지연으로 즉시 갱신. 파싱 불가 시 null.
- */
-export function refreshDelayMs(expiresAt: string, nowMs: number): number | null {
-  const expiryMs = Date.parse(expiresAt);
-  if (Number.isNaN(expiryMs)) return null;
-  return Math.max(TOKEN_REFRESH_MIN_DELAY_MS, expiryMs - nowMs - TOKEN_REFRESH_LEAD_MS);
-}
+/** 위젯 내부 세션 핸들 — 저장 세션(session-store)과 동일 shape 라 PersistedSession 을 재사용. */
+type SessionRef = PersistedSession;
 
 /** boot config 를 query param 으로 폴백 해석(host 없이 직접 로드/샘플 대비). */
 function configFromQuery(): Partial<BootMessage> {
@@ -108,24 +94,13 @@ export function useWidget() {
   // eager 시작 가드(§R6) — 패널 open 시 execution 을 1회만 시작. 재open·중복 open 에서 재시작 방지.
   // 세션 복원/새 대화 시 재설정. true = 이미 시작(또는 진행 중).
   const startedRef = useRef(false);
-  // C1(§R6) — open() 직후 booting 중 submitMessage 호출 시 텍스트 유실 방지 큐.
-  // awaiting_user_message + ai_conversation 진입 시 flush. 최신 1건만 보관.
-  const pendingSendRef = useRef<string | null>(null);
-  // per_execution 토큰 자동 갱신(3-auth-session §3 step7) 타이머 + schedule 함수 ref(mount effect 에서 설정).
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scheduleRefreshRef = useRef<() => void>(() => {});
+
+  // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약·cancelled 가드는 useTokenRefresh 캡슐화(§B).
+  const { scheduleRefresh, clearRefreshTimer } = useTokenRefresh({ sessionRef, clientRef, configRef });
 
   const closeStream = useCallback(() => {
     streamRef.current?.close();
     streamRef.current = null;
-  }, []);
-
-  /** 토큰 자동 갱신 타이머 정리(idempotent). 종료·새 대화·언마운트에서 null 된 sessionRef 에 쓰기 방지(W9). */
-  const clearRefreshTimer = useCallback(() => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
   }, []);
 
   /**
@@ -289,13 +264,13 @@ export function useWidget() {
         // buffer 의 누락 이벤트(seq≥1)를 replay 받는다.
         await seedWaitingFromStatus(client, session);
         openStream(session, "0");
-        scheduleRefreshRef.current(); // 토큰 자동 갱신 예약(§3 step7).
+        scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
       startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
       dispatch({ type: "ERROR", message: errMessage(e) });
     }
-  }, [openStream, persist, seedWaitingFromStatus]);
+  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh]);
 
   const sendCommand = useCallback(
     async (command: InteractCommand) => {
@@ -316,6 +291,16 @@ export function useWidget() {
     [],
   );
 
+  // C1(§R6) 보류 메시지 큐 — booting/streaming 중 텍스트를 보관했다가 awaiting_user_message 진입 시 flush.
+  // 큐·flush effect·buttons/form 폐기는 usePendingMessageQueue 캡슐화(§B).
+  const { enqueue, clearQueue } = usePendingMessageQueue({
+    phase: state.phase,
+    pending: state.pending,
+    sessionRef,
+    sendCommand,
+    dispatch,
+  });
+
   const submitMessage = useCallback(
     (text: string) => {
       // eager 시작(§R6) — execution 은 open 시 이미 시작됨. 첫 메시지도 일반 submit_message.
@@ -330,31 +315,11 @@ export function useWidget() {
         void sendCommand({ command: "submit_message", nodeId: state.pending?.nodeId, message: text });
       } else {
         // 큐(최신 1건) — booting/streaming 중 도착한 텍스트. flush effect 가 ai_conversation waiting 시 전송.
-        pendingSendRef.current = text;
+        enqueue(text);
       }
     },
-    [sendCommand, state.phase, state.pending],
+    [sendCommand, state.phase, state.pending, enqueue],
   );
-
-  // C1 flush effect — booting/streaming 중 큐에 쌓인 텍스트를 awaiting_user_message 진입 시 전송.
-  // ai_conversation 표면에서만 flush(buttons/form 표면은 텍스트 입력 비대상 → 큐 폐기).
-  useEffect(() => {
-    if (
-      state.phase !== "awaiting_user_message" ||
-      pendingSendRef.current == null ||
-      !sessionRef.current
-    )
-      return;
-    if (isTextInputSurface(state.pending)) {
-      const queued = pendingSendRef.current;
-      pendingSendRef.current = null;
-      dispatch({ type: "USER_MESSAGE", text: queued });
-      void sendCommand({ command: "submit_message", nodeId: state.pending?.nodeId, message: queued });
-    } else {
-      // 첫 표면이 buttons/form → 텍스트 제출 비대상. 큐 폐기.
-      pendingSendRef.current = null;
-    }
-  }, [state.phase, state.pending, sendCommand]);
 
   const clickButton = useCallback(
     (buttonId: string) => {
@@ -393,10 +358,10 @@ export function useWidget() {
     sessionRef.current = null;
     startedRef.current = false;
     // I1: 이전 대화 booting 중 큐된 텍스트가 새 대화 첫 waiting 에서 flush 되는 누수 차단.
-    pendingSendRef.current = null;
+    clearQueue();
     dispatch({ type: "NEW_CHAT" });
     void start();
-  }, [teardownSession, start]);
+  }, [teardownSession, start, clearQueue]);
   // 위젯(런처) 가시성 — open/close 와 직교한 축(§3.2). hide 해도 대화·SSE 유지.
   const show = useCallback(() => dispatch({ type: "SHOW" }), []);
   const hide = useCallback(() => dispatch({ type: "HIDE" }), []);
@@ -425,37 +390,6 @@ export function useWidget() {
   // 마운트: bridge + config + 세션 복원.
   useEffect(() => {
     let cancelled = false;
-
-    // per_execution 토큰 자동 갱신 — 만료 30분 이내 진입 시 refresh 후 재예약(3-auth-session §3 step7).
-    // 함수 선언이라 setTimeout 콜백에서 자기 재귀 호출(재예약) 가능. cancelled 시 no-op.
-    function scheduleRefresh() {
-      clearRefreshTimer();
-      const session = sessionRef.current;
-      if (!session || cancelled) return;
-      const delay = refreshDelayMs(session.expiresAt, Date.now());
-      if (delay === null) return;
-      refreshTimerRef.current = setTimeout(() => {
-        const s = sessionRef.current;
-        const client = clientRef.current;
-        const cfg = configRef.current;
-        if (!s || !client || !cfg || cancelled) return;
-        void client
-          .refreshToken(s.endpoints, s.token)
-          .then(({ token, expiresAt }) => {
-            if (cancelled) return;
-            const updated = { ...s, token, expiresAt };
-            sessionRef.current = updated;
-            saveSession(cfg.triggerEndpointPath, updated);
-            scheduleRefresh(); // 다음 만료 기준 재예약.
-          })
-          .catch((err: unknown) => {
-            // 갱신 실패 — SSE 는 hard expiry 까지 유지. 다음 입력이 401 이면 sendCommand 가 ERROR 처리.
-            // I23: console.warn 으로 운영 추적 가능하게 — browser widget 에서 console 적절.
-            console.warn('[widget] token refresh failed:', err instanceof Error ? err.message : String(err));
-          });
-      }, delay);
-    }
-    scheduleRefreshRef.current = scheduleRefresh;
 
     const applyConfig = async (cfg: BootMessage) => {
       if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
@@ -526,7 +460,7 @@ export function useWidget() {
 
     return () => {
       cancelled = true;
-      clearRefreshTimer();
+      // 갱신 타이머 정리는 useTokenRefresh 자체 unmount cleanup 이 단일 소유(이중 호출 제거).
       closeStream();
       bridge.destroy();
     };
