@@ -106,7 +106,7 @@ flowchart LR
 | --- | --- |
 | Primary DB | PostgreSQL (`pgvector/pgvector:pg18` — `docker-compose.yml` 기본값; k8s local overlay `k8s/overlays/local/infra-postgres.yaml` 는 아직 `pg16`), TypeORM 매핑. 마이그레이션은 Flyway (`codebase/backend/migrations/V*.sql`). |
 | Queue | Redis 7 + BullMQ. 현재 등록된 큐 (17개): `agent-memory-extraction`, `alerts-evaluator`, `background-execution`, `cafe24-token-refresh`, `makeshop-token-refresh`, `chat-channel-token-rotator`, `document-embedding`, `execution-continuation`, `execution-run`, `graph-extraction`, `integration-expiry-scanner`, `login-history-pruner`, `workspace-invitations-pruner`, `notification-secret-rotator`, `notification-webhook`, `schedule-execution`, `terminal-revoke-reconcile`. 상세는 [§4 카탈로그](#4-bullmq-큐-카탈로그). |
-| Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 — `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts` 의 `s3Key` 구성 (`kb/{kbId}/{docId}/{filename}`). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
+| Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 — `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts` 의 `s3Key` 구성 (`kb/{kbId}/{documentId}/{sanitizedFilename}` — `spec/0-overview.md §2.7` 와 동일 표기). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
 | WebSocket | Socket.io. 실행 상태·노드 이벤트·KB 진행률·background run emit. 단일 sink (`WebsocketService`) — 같은 facade 의 `executionEvents$` RxJS fan-out 을 `SseAdapter`(External Interaction)·`ChatChannelDispatcher`·`NotificationDispatcher` 가 구독한다 (`websocket.service.ts` 헤더 주석, EIA §R10). |
 | SSE | `text/event-stream` 2곳 — ① 워크플로 에디터 AI Assistant 스트리밍 (`workflow-assistant.controller.ts`, 직접 SSE write, WebSocket 미경유 — [workflow data-flow](./11-workflow.md)), ② External Interaction 라이브 이벤트 스트림 (`SseAdapter` — [external-interaction data-flow](./15-external-interaction.md)). |
 | Auth | JWT access + rotated refresh (`refresh_token` table). Bearer 또는 cookie. |
@@ -213,7 +213,9 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 
 - **Stateless backend**: 모든 controller·service 는 stateless. 인스턴스 간 작업 조정은 Redis (BullMQ 영속 큐 + 보조 Pub/Sub) 가 담당.
 - **Continuation bus**: 실행 엔진은 form 제출·button click 같은 비동기 재개 신호를 BullMQ 영속 큐 `execution-continuation` (`ContinuationBusService`) 로 동기화. 옛 Redis pub/sub `execution:continuation` 채널은 폐기 (at-most-once 문제 해소 — `spec/5-system/4-execution-engine.md §7.4 / §7.5 / §Rationale "Durable Continuation"`). 어느 인스턴스가 사용자 입력을 받아도 다른 인스턴스가 BullMQ Worker 로 pick up 해 재개 가능. 재개는 §7.5 rehydration **단일 경로** — exec-park full B3 이후 park 가 항상 코루틴을 해제(release)하므로 깨울 in-memory resolver 가 없고, 옛 `pendingContinuations` fast-path 는 제거됐다 (`execution-engine.service.ts` 의 continuation dispatch 주석 "exec-park D6 full B3 — 단일 재개 경로").
-- **HNSW 인덱스**: pgvector HNSW 인덱스는 차원별로 분리된 partial index (`V022/V030~V033`) — KB 마다 차원이 다르면 각자 인덱스에 매칭된다.
+- **HNSW 인덱스**: pgvector HNSW 인덱스는 차원별로 분리된 partial index 다 — 임베딩 차원이 다른 행은 각자의 인덱스에 매칭된다. 두 벡터 테이블 모두 동일 패턴:
+  - `document_chunk` (KB 검색): `V022/V030~V033` (+ 3072차원 halfvec `V023`).
+  - `agent_memory` (Agent Memory recall): `V074~V079` — 384/512/768/1024/1536/3072 차원별 partial index.
 - **재시도 / 멱등**: BullMQ 의 `attempts` 와 service-level retry (`retryWithBackoff`) 양층. 두 층은 도메인 spec 의 상태 전이에 동기로 반영된다.
 
 ---
@@ -234,13 +236,15 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 read/write 되는 컬럼** 만 발췌하고, 전체 정의는 `1-data-model.md` 의 해당 섹션을 링크한다. 이렇게
 하면 entity 정의가 바뀌어도 본 폴더의 표는 흐름 관점에서 그대로 유효하다.
 
-### S3 key 의 코드/spec 불일치 처리
+### KB 원본 문서 S3 key 구조
 
-`spec/0-overview.md` §2.7 은 S3 버킷 구조를 `{bucket}/{workspaceId}/knowledge-base/{kbId}/...` 로
-기술하지만, 현재 코드 (`knowledge-base.service.ts` 의 `s3Key` 구성) 는 `kb/{kbId}/{docId}/{filename}` 으로
-업로드한다. data-flow 는 **현재 코드 동작이 진실** 이라는 원칙으로 후자를 기재하고,
-`file-storage.md` 의 Rationale 에 이 불일치를 명시했다. spec/0-overview.md §2.7 의 재구성은 본 작업의
-범위를 벗어나며, 별도 plan 에서 다룬다.
+KB 원본 문서의 S3 key 는 `kb/{kbId}/{documentId}/{sanitizedFilename}` 다 (`knowledge-base.service.ts` 의
+`s3Key` 구성). `spec/0-overview.md` §2.7 의 객체 키 표·동 문서 Rationale "S3 객체 키 prefix 설계" 와
+정합하며, KB 원본 키만 `workspaceId` prefix 를 제외한다 (워크스페이스 격리는 DB 권한 검증으로 보장 —
+prefix scan 비용·키 길이 절감). data-flow 의 schema 매핑 표도 이 키를 기재한다.
+
+> 과거 본 항목은 §2.7 가 `{workspaceId}/knowledge-base/{kbId}/...` 를 기술하던 시기의 코드/spec 불일치를
+> 다뤘으나, §2.7 이 `kb/{kbId}/{documentId}/...` 로 정합된 뒤 불일치는 해소됐다.
 
 ### Mermaid 사용
 

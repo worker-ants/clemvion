@@ -20,7 +20,7 @@
 
 두 `record` 모두 **실패를 삼킨다** (swallow) — 감사 기록 실패가 주 동작(리소스 변경·인증 흐름)을
 깨서는 안 된다는 계약. 호출부가 `await` 해도 throw 되지 않으며, 실패는 로그로만 남는다
-(`audit-logs.service.ts` 의 `console.warn`, `login-history.service.ts` 의 `Logger.error`).
+(`audit-logs.service.ts` 의 `logger.warn`, `login-history.service.ts` 의 `Logger.error` — 둘 다 NestJS `Logger`).
 
 ---
 
