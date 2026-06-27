@@ -832,5 +832,4 @@ describe('AgentMemoryService', () => {
       expect(payload.embeddingModelConfigId).toBe('emb-cfg-large');
     });
   });
-
 });
