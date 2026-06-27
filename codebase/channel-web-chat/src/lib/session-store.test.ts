@@ -19,7 +19,7 @@ function session(overrides: Partial<PersistedSession> = {}): PersistedSession {
   };
 }
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => sessionStorage.clear());
 
 describe("session-store", () => {
   it("save → load 라운드트립", () => {
@@ -43,7 +43,7 @@ describe("session-store", () => {
   it("만료 토큰 → null + 폐기", () => {
     saveSession("trig-1", session({ expiresAt: new Date(Date.now() - 1000).toISOString() }));
     expect(loadSession("trig-1")).toBeNull();
-    expect(localStorage.getItem("clemvion-web-chat:session:trig-1")).toBeNull();
+    expect(sessionStorage.getItem("clemvion-web-chat:session:trig-1")).toBeNull();
   });
 
   it("clear 후 null", () => {
@@ -53,7 +53,14 @@ describe("session-store", () => {
   });
 
   it("손상된 JSON → null", () => {
-    localStorage.setItem("clemvion-web-chat:session:trig-1", "{bad");
+    sessionStorage.setItem("clemvion-web-chat:session:trig-1", "{bad");
     expect(loadSession("trig-1")).toBeNull();
+  });
+
+  it("기본 저장소 = sessionStorage (localStorage 아님 — 탭 종료 시 소거, §R6)", () => {
+    localStorage.clear();
+    saveSession("trig-1", session());
+    expect(sessionStorage.getItem("clemvion-web-chat:session:trig-1")).not.toBeNull();
+    expect(localStorage.getItem("clemvion-web-chat:session:trig-1")).toBeNull();
   });
 });
