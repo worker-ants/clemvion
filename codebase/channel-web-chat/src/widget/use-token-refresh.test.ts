@@ -6,7 +6,9 @@ import {
   TOKEN_REFRESH_MIN_DELAY_MS,
   useTokenRefresh,
 } from "./use-token-refresh";
+import type { EiaClient } from "@/lib/eia-client";
 import type { PersistedSession } from "@/lib/session-store";
+import type { BootMessage } from "./host-bridge";
 
 const NINETY_MIN = 90 * 60 * 1000;
 const ENDPOINTS = { stream: "/s", submit: "/i", status: "/st", cancel: "/c", refresh: "/r" };
@@ -46,22 +48,25 @@ describe("useTokenRefresh (fake timer)", () => {
     vi.useRealTimers();
   });
 
-  function setup(over: Partial<PersistedSession> = {}) {
+  function setup(over: Partial<PersistedSession> = {}, refreshImpl?: () => Promise<unknown>) {
     // 매 호출 시 fresh 한 미래 만료시각 반환(실서버 동작) — 재예약이 다음 60m 뒤로 가 61m 점프엔 1회만 발화.
     const refreshToken = vi
       .fn()
-      .mockImplementation(() =>
-        Promise.resolve({ token: "iext_x2", expiresAt: new Date(Date.now() + NINETY_MIN).toISOString() }),
+      .mockImplementation(
+        refreshImpl ??
+          (() =>
+            Promise.resolve({ token: "iext_x2", expiresAt: new Date(Date.now() + NINETY_MIN).toISOString() })),
       );
-    const refs = {
-      sessionRef: { current: session(over) } as { current: PersistedSession | null },
-      clientRef: { current: { refreshToken } },
-      configRef: { current: { triggerEndpointPath: "t1", apiBase: "http://api.test/api" } },
+    // 훅이 client.refreshToken 만 호출하므로 부분 mock 으로 충분 — 캐스트는 mock 생성부에 국소화(전역 우회 회피).
+    const clientRef: { current: EiaClient | null } = {
+      current: { refreshToken } as Pick<EiaClient, "refreshToken"> as EiaClient,
     };
-    // 부분 mock client — 훅은 client.refreshToken 만 호출하므로 충분.
-    const { result, unmount } = renderHook(() =>
-      useTokenRefresh(refs as unknown as Parameters<typeof useTokenRefresh>[0]),
-    );
+    const refs: Parameters<typeof useTokenRefresh>[0] = {
+      sessionRef: { current: session(over) },
+      clientRef,
+      configRef: { current: { triggerEndpointPath: "t1", apiBase: "http://api.test/api" } as BootMessage },
+    };
+    const { result, unmount } = renderHook(() => useTokenRefresh(refs));
     return { result, unmount, refs, refreshToken };
   }
 
@@ -104,5 +109,16 @@ describe("useTokenRefresh (fake timer)", () => {
       await vi.advanceTimersByTimeAsync(61 * 60 * 1000);
     });
     expect(refreshToken).not.toHaveBeenCalled();
+  });
+
+  it("refresh 실패(reject) → sessionRef 미변경, throw 전파 없음", async () => {
+    const { result, refs } = setup({}, () => Promise.reject(new Error("401")));
+    const before = refs.sessionRef.current?.token;
+    act(() => result.current.scheduleRefresh());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61 * 60 * 1000);
+    });
+    // 실패는 console.warn 만 — 토큰 유지(SSE 는 hard expiry 까지), 예외 미전파.
+    expect(refs.sessionRef.current?.token).toBe(before);
   });
 });

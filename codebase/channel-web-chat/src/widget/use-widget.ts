@@ -459,7 +459,7 @@ export function useWidget() {
 
     return () => {
       cancelled = true;
-      clearRefreshTimer();
+      // 갱신 타이머 정리는 useTokenRefresh 자체 unmount cleanup 이 단일 소유(이중 호출 제거).
       closeStream();
       bridge.destroy();
     };

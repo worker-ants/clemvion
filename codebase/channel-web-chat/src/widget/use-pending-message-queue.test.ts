@@ -37,6 +37,23 @@ describe("usePendingMessageQueue (C1 §R6)", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it("첫 표면 form → 큐 폐기(미전송)", () => {
+    const { result, rerender, sendCommand, dispatch } = setup({ phase: "booting", pending: null });
+    act(() => result.current.enqueue("폐기될 텍스트"));
+    act(() => rerender({ phase: "awaiting_user_message", pending: { type: "form", nodeId: "n1" } }));
+    expect(sendCommand).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("enqueue 중복 → 최신 1건만 flush", () => {
+    const { result, rerender, sendCommand } = setup({ phase: "booting", pending: null });
+    act(() => result.current.enqueue("첫번째"));
+    act(() => result.current.enqueue("두번째"));
+    act(() => rerender({ phase: "awaiting_user_message", pending: { type: "ai_conversation", nodeId: "n1" } }));
+    expect(sendCommand).toHaveBeenCalledTimes(1);
+    expect(sendCommand).toHaveBeenCalledWith({ command: "submit_message", nodeId: "n1", message: "두번째" });
+  });
+
   it("clearQueue 후엔 awaiting 진입해도 flush 안 됨", () => {
     const { result, rerender, sendCommand } = setup({ phase: "booting", pending: null });
     act(() => result.current.enqueue("x"));

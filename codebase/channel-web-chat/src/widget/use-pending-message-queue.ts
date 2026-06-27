@@ -61,6 +61,8 @@ export function usePendingMessageQueue({
       // 첫 표면이 buttons/form → 텍스트 제출 비대상. 큐 폐기.
       pendingSendRef.current = null;
     }
+    // sessionRef·dispatch 는 stable 참조(.current 변화는 effect 트리거 아님 — effect 내에서만 읽음).
+    // 실질 재실행 트리거는 phase·pending·sendCommand. lint exhaustive-deps 만족 위해 ref 도 명시.
   }, [phase, pending, sendCommand, sessionRef, dispatch]);
 
   return { enqueue, clearQueue };
