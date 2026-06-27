@@ -2,7 +2,8 @@
 worktree: eia-seq-nfr-spec-2845e7
 started: 2026-06-27
 owner: project-planner
-spec_impact: spec/5-system/14-external-interaction-api.md
+spec_impact:
+  - spec/5-system/14-external-interaction-api.md
 ---
 
 # spec-draft: EIA 분산 seq counter NFR 명문화 (EIA-NF-06 / EIA-NF-07)

@@ -3,11 +3,12 @@ import { randomUUID } from 'node:crypto';
 import Redis from 'ioredis';
 
 import { ExecutionSeqAllocator } from '../src/modules/websocket/execution-seq-allocator.service';
+import type { RedisConnectionProvider } from '../src/common/redis/redis-connection.provider';
 
 /**
  * e2e (real-Redis integration): ExecutionSeqAllocator 분산 monotonic 부하 repro.
  *
- * 상위 plan: plan/in-progress/eia-distributed-seq-load-verify.md
+ * 상위 plan: plan/complete/eia-distributed-seq-load-verify.md
  *           (← plan/complete/eia-distributed-seq-counter.md 의 선택적 경험 검증 분리분)
  * spec: spec/5-system/14-external-interaction-api.md §R7,
  *       spec/5-system/6-websocket-protocol.md §2.2 (seq envelope)
@@ -40,16 +41,21 @@ const ALLOC_COUNT = 1000;
 const NS_PER_MS = 1e6;
 /** 측정 로그 공통 접두어. */
 const LOG_PREFIX = '[seq-load]';
+/** latency 분포 보고용 p95 분위수. */
+const P95_PERCENTILE = 0.95;
 
 /**
  * 실 ioredis 연결 하나를 ExecutionSeqAllocator 가 기대하는 RedisConnectionProvider
  * 표면 (getClient / getClientOrNull) 으로 감싸는 최소 어댑터. 각 인스턴스가 자기
  * 연결을 소유 → Redis 관점에서 별도 클라이언트(=별도 backend 인스턴스).
+ *
+ * 반환 타입을 실 `RedisConnectionProvider` 의 `Pick` 으로 묶어 두 메서드 시그니처가
+ * 인터페이스 drift 시 컴파일 에러로 잡히게 한다 (blind `as never` 대비 안전). 주입
+ * 시점의 cast 는 provider 가 private 멤버를 가져 구조적 매칭이 불가하기 때문 (아래 참조).
  */
-function makeProvider(client: Redis): {
-  getClient: () => Redis;
-  getClientOrNull: () => Redis | null;
-} {
+function makeProvider(
+  client: Redis,
+): Pick<RedisConnectionProvider, 'getClient' | 'getClientOrNull'> {
   return {
     getClient: () => client,
     getClientOrNull: () => client,
@@ -116,11 +122,16 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
     expect(pongA).toBe('PONG');
     expect(pongB).toBe('PONG');
 
-    // `as never`: ExecutionSeqAllocator 는 RedisConnectionProvider 를 DI 로 받지만
-    // 본 테스트는 실 ioredis 를 감싼 duck-typed 어댑터(getClient/getClientOrNull 만)를
-    // 주입한다. sibling unit spec(execution-seq-allocator.service.spec.ts)의 동일 패턴.
-    allocA = new ExecutionSeqAllocator(makeProvider(redisA) as never);
-    allocB = new ExecutionSeqAllocator(makeProvider(redisB) as never);
+    // 주입 cast: ExecutionSeqAllocator 는 RedisConnectionProvider(클래스, private 멤버 보유)를
+    // DI 로 받지만, 본 테스트는 실 ioredis 를 감싼 duck-typed 어댑터(getClient/getClientOrNull
+    // 만)를 주입한다. private 멤버 때문에 구조적 매칭이 불가해 `as unknown as` 이중 cast 가
+    // 필요하다 — 단, makeProvider 반환이 Pick 으로 타입되어 두 메서드 시그니처 자체는 검사된다.
+    allocA = new ExecutionSeqAllocator(
+      makeProvider(redisA) as unknown as RedisConnectionProvider,
+    );
+    allocB = new ExecutionSeqAllocator(
+      makeProvider(redisB) as unknown as RedisConnectionProvider,
+    );
   }, 60_000);
 
   afterAll(async () => {
@@ -203,7 +214,7 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
       const median = sorted[Math.floor(sorted.length / 2)];
       // avg/p95 는 측정 보고 전용(assert 안 함) — 회귀 가드는 outlier 에 견고한
       // median 으로만 평가한다(아래 expect). p95 는 분포 가시성을 위한 로그값.
-      const p95 = sorted[Math.floor(sorted.length * 0.95)];
+      const p95 = sorted[Math.floor(sorted.length * P95_PERCENTILE)];
       const avg = latenciesMs.reduce((s, v) => s + v, 0) / latenciesMs.length;
       // eslint-disable-next-line no-console
       console.log(
