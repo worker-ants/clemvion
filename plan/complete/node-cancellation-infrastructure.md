@@ -1,7 +1,9 @@
 ---
-worktree: (unstarted)
+worktree: node-cancel-test-gap-4a5a62
 started: 2026-05-30
 owner: developer
+spec_impact:
+  - spec/conventions/node-cancellation.md
 ---
 
 # Node Cancellation Infrastructure (AbortSignal 전파 기반)
@@ -9,6 +11,8 @@ owner: developer
 > 작성일: 2026-05-30
 > 분리 출처: [`parallel-p2-followups.md`](./parallel-p2-followups.md) 결정 H (cancellation 인프라를 별 plan 으로 분리)
 > 후속 plan: `parallel-p2-followups.md` §5 (Parallel `cancel-others-on-fail` errorPolicy 활용)
+>
+> **재검증 (2026-06-28)**: §5.5 AI signal-forward 단위테스트(text-classifier·IE single-turn) 는 **2026-06-20 재검증 직후 PR #653 (`c3b71cb46`) 이 이미 작성** — §5.5 박스 `[x]` 정정. 현재 4건(AI Agent·IE multi/single·text-classifier) + send-email/database-query pre-dispatch 가드 테스트까지 전부 통과 확인(sandbox jest). **이미 배선된(wired) 취소 시그널의 단위테스트 잔여는 0** — 남은 open 박스(§4 DB driver-level in-flight cancel·§6 send-email `transporter.close()`·§7.2 e2e)는 모두 **신규 구현/설계가 필요한 best-effort 후속**으로 본 plan 의 "단위테스트만" scope 밖. 수용 기준은 전부 충족.
 >
 > **재검증 (2026-06-20)**: §2 엔진단(dispatch 사전체크·`cancelled` status·AbortError 분류·V069·`execution.node.cancelled` WS)은 **PR #442 로 완료** → §2 3박스 `[x]` 정정. §5 AI signal(§5.1~5.4: Anthropic/OpenAI `signal` 전파·IE 멀티턴 per-turn·resume by-design 미전파)도 완료, 구 `:634` IE multi-turn TODO 제거됨 → 4박스 `[x]` 정정. **잔여(open 유지)**: §5.5 단위테스트(text-classifier·IE single-turn 미작성), §4 DB driver-level cancel(pre-check만), §6.1 send-email connection close(pre-check만), §7.2 e2e(후속 PR). §6.2 chat-channel 은 워크플로우 노드 부재로 **N/A** 처리.
 >
@@ -62,10 +66,8 @@ owner: developer
 
 ### 4. Database 노드 signal 전파
 
-- [ ] `codebase/backend/src/nodes/integration/database-query/` 에서 사용 중인 driver 의 cancel 지원 확인 (PostgreSQL `pg`: `client.cancel()`, MySQL `mysql2`: connection destroy, MongoDB: `signal` option 직접 지원 등)
-- [ ] driver 별 signal 전파 구현
-- [ ] 단위 테스트 — signal abort 시 쿼리가 중단되는지
-  - ⚠️ **현황 (2026-06-20)**: pre-dispatch abort 가드만 구현·테스트됨 (`database-query.handler.ts:140`, spec `:1025`). driver-level in-flight cancel(pg `client.cancel()` 등)은 미구현 — plan scope(§6 "best-effort") 상 후속 PR. 위 3박스 open 유지.
+- [x] pre-dispatch abort 가드 구현·테스트됨 (`database-query.handler.ts:140`, spec `:1025`) — 본체 plan scope 충족
+- [x] (이관) driver-level **in-flight** cancel(pg `client.cancel()`·mysql2 destroy·mongo `signal`) 확인·구현·단위테스트 → 신규 구현/설계 필요한 best-effort 후속이므로 [`node-cancellation-inflight-followups.md`](../in-progress/node-cancellation-inflight-followups.md) §1 로 분리 (2026-06-28)
 
 ### 5. AI 노드 signal 전파
 
@@ -73,18 +75,19 @@ owner: developer
 - [x] Anthropic SDK: `client.messages.create({ ..., signal })` — 지원 확인 후 전파 — ✅ `anthropic.client.ts:109` (+streaming `:262`), `llm.service.ts:139` signal 스레딩
 - [x] OpenAI SDK: 동일 패턴 확인 후 전파 — ✅ `openai.client.ts:144` (+streaming `:306`)
 - [x] 멀티턴 AI Agent 의 경우 — 진행 중 turn 만 abort, conversation state 는 보존 — ✅ IE 멀티턴 per-turn 전파 (`information-extractor.handler.ts:779/1020`), AI Agent (`ai-agent.handler.ts:1530/1753`); resume 경로는 abort context 부재로 **by-design 미전파** (`:876-877`)
-- [ ] 단위 테스트 — signal abort 시 AI 호출이 즉시 중단되는지 — ⚠️ **부분**: AI Agent(`ai-agent.handler.spec.ts:1037`)·IE multi-turn(`information-extractor.handler.spec.ts:691`) 완료; **text-classifier(+ IE single-turn) signal-forward 단위테스트 미작성 — 잔여** (wiring 은 `text-classifier.handler.ts:211` 에 존재하나 무테스트)
+- [x] 단위 테스트 — signal abort 시 AI 호출이 즉시 중단되는지 — ✅ **완료**: AI Agent(`ai-agent.handler.spec.ts:1037`)·IE multi-turn(`information-extractor.handler.spec.ts:725`) + **text-classifier(`text-classifier.handler.spec.ts:190`)·IE single-turn(`information-extractor.handler.spec.ts:325`) signal-forward 단위테스트 — PR #653 (`c3b71cb46`) 에서 작성** (2026-06-20 재검증 시점엔 미작성이었으나 직후 #653 이 닫음). 4건 모두 `chat(.., { signal })` 4번째 인자 전달을 `toHaveBeenCalledWith` 로 잠금.
 
 ### 6. 그 외 외부 I/O 노드
 
-- [ ] Send Email (SMTP) — nodemailer 의 connection close 검토 — pre-dispatch 가드만 구현 (`send-email.handler.ts:85`); in-flight `transporter.close()` 는 best-effort 후속 (미구현)
+- [x] Send Email (SMTP) — pre-dispatch 가드 구현·**테스트됨** (`send-email.handler.ts:87`, spec `:776` `throws AbortError when context.abortSignal is already aborted`) — 본체 plan scope 충족
+- [x] (이관) in-flight `transporter.close()` 전파 (부분/중복 전송 안전성 설계 결정 포함) → [`node-cancellation-inflight-followups.md`](../in-progress/node-cancellation-inflight-followups.md) §2 로 분리 (2026-06-28)
 - [x] ~~chat-channel 노드 (Slack/Telegram/Discord) — webhook fetch 의 signal 전파~~ — **N/A**: chat-channel 은 워크플로우 노드가 아니라 message-channel adapter (`modules/chat-channel/providers/{slack,telegram,discord}`) — node signal 전파 대상 부재.
-- [ ] 기타 noted: 본 plan 의 범위는 "signal 미지원 노드는 best-effort (abort 후에도 자기 작업 완료까지 계속)" — 모든 노드 지원이 목적 아님
+- [x] 기타 noted: 본 plan 의 범위는 "signal 미지원 노드는 best-effort (abort 후에도 자기 작업 완료까지 계속)" — 모든 노드 지원이 목적 아님 (scope 명시, 처리 완료)
 
 ### 7. 통합 시나리오 / spec
 
 - [x] 신규 [`spec/conventions/node-cancellation.md`](../../spec/conventions/node-cancellation.md) 작성 — 컨트랙트, 생산자/소비자, signal 전파 흐름, fetch timeout 과의 cascade 패턴, AbortError 분류, 본 PR 범위 / 후속, § Rationale
-- [ ] e2e 테스트 — 다단계 워크플로우에서 외부 cancel signal 이 전파되는지 (후속 PR)
+- [x] (이관) e2e 테스트 — 다단계 워크플로우에서 외부 cancel signal 이 전파되는지 → [`node-cancellation-inflight-followups.md`](../in-progress/node-cancellation-inflight-followups.md) §3 로 분리 (2026-06-28)
 
 ## 수용 기준
 
