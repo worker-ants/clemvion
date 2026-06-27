@@ -34,7 +34,7 @@ code:
 | 임베드 allowlist | **워크스페이스 단위** `interactionAllowedOrigins`(CORS 와 동일 키). v1 = 부팅 시 host origin **soft 검증**(불일치 시 위젯 `blocked`), hard `frame-ancestors` 는 opt-in. §3 |
 | iframe sandbox | `sandbox="allow-scripts allow-forms allow-same-origin"`(필요 최소). `allow-same-origin` 은 same-origin 동봉 위젯의 쿠키·스토리지 접근 및 위젯 자체의 `postMessage` origin 핀을 유지하기 위해 필수다. 트레이드오프: `allow-same-origin` 이 있으면 동일 origin 악성 스크립트가 sandbox 를 탈출할 수 있으나, 동봉 위젯은 제품과 동일 릴리스로 배포되어 공급망 무결성이 보장되므로 허용한다. 외부 CDN override 환경(`NEXT_PUBLIC_WIDGET_CDN_BASE` 설정)에서는 cross-origin 이므로 `allow-same-origin` 없이도 동작하며 sandbox 탈출 위협이 없다. |
 | postMessage | 양방향 `event.origin` 화이트리스트 검증. 토큰/대화 내용 host 로 비노출 |
-| 토큰 노출 | per_execution 단일 → 클라이언트에 장기 비밀 없음 |
+| 토큰 노출 | per_execution 단일 → 클라이언트에 장기 비밀 없음. 단명 토큰은 **sessionStorage** 저장 → 탭 종료 시 자동 소거(defense-in-depth, [3-auth-session §R6](./3-auth-session.md)) |
 | rate-limit / abuse | EIA §8.4 + 공개 webhook 남용 방어(§4) |
 | 입력 sanitize | AI 메시지/presentation 렌더 시 XSS 방지 — 위젯 책임. **deny-by-default 화이트리스트** + 링크 `rel=noopener`. 임베드 위젯은 XSS 가 호스트 사이트로 전파되므로 블랙리스트가 아닌 deny-by-default 가 합당(refactor 04 M-1). 구현 세부(`ALLOWED_TAGS`/`ALLOWED_ATTR`/`ALLOWED_URI_REGEXP`)·렌더러별 정책 매트릭스 §1.1 |
 | 프라이버시·데이터 처리 | **배포자(워크스페이스 운영자) 책임** — 동의 고지·보존기간 spec 미규정. 위젯은 `disclaimer` 고지 문구만 제공 |

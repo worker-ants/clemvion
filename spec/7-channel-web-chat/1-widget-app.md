@@ -74,7 +74,7 @@ code:
 | 대화 종료 (end) | 명시 "대화 종료" 또는 `completed` | `end_conversation` → execution 종료, 토큰 invalidate | `[ended]` — transcript 읽기전용 + "새 대화 시작" CTA |
 | 새 대화 (restart) | `[ended]` CTA 또는 명시 리셋 | 새 `POST /api/hooks/:path` → 새 executionId/token | transcript 초기화(구분선) 후 `[booting]` |
 | 토큰 만료/서버 타임아웃 | per_execution 만료(refresh 실패) 또는 idle → `410 Gone` | — | `[ended]` + "대화 종료, 새로 시작" 안내 |
-| 페이지 새로고침/이동 | 호스트 reload → iframe 재로드 | — | **(b) 복원**: `executionId`+단명 토큰을 iframe-origin storage 저장 → `GET /:id`+SSE(`Last-Event-Id`) 재연결. 만료/410 이면 [ended] |
+| 페이지 새로고침/이동 | 호스트 reload → iframe 재로드 | — | **(b) 복원**: `executionId`+단명 토큰을 iframe-origin **sessionStorage**(같은 탭 reload 는 유지·탭 종료 시 소거, [3-auth-session §R6](./3-auth-session.md)) 저장 → `GET /:id`+SSE(`Last-Event-Id`) 재연결. 만료/410 이면 [ended] |
 
 - proactive(봇 선발화)는 비목표. 단 진행 중 대화의 in-flight 이벤트는 위와 같이 캡처(unread).
 - 다중 세션(유저당 여러 대화) 목록은 비목표 — 식별(추후) + 유저별 execution 목록 API 신설 전제.
