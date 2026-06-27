@@ -1,5 +1,5 @@
 import * as bcrypt from 'bcrypt';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type { Client } from 'pg';
 
@@ -78,7 +78,9 @@ export async function setupChatChannelTrigger(args: {
   );
 
   const triggerId = randomUUID();
-  const endpointPath = `${slug}-e2e-${randomBytes(6).toString('hex')}`;
+  // endpoint_path 는 v4 UUID 형식 강제(WH-MG-02, DB CHECK chk_trigger_endpoint_path_uuid).
+  // 직접 INSERT 도 제약을 받으므로 라우팅 키는 UUID 로 발급한다(slug 가독성 라벨은 trigger name 으로만).
+  const endpointPath = randomUUID();
 
   const chatChannelConfig: Record<string, unknown> = {
     provider,

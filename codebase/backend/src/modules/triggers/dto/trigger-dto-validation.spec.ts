@@ -132,6 +132,16 @@ describe('endpointPath — v4 UUID 강제 (W1 보안)', () => {
     expect(errors.find((e) => e.property === 'endpointPath')).toBeDefined();
   });
 
+  it('실패 — v5 UUID (name 기반 — v4 만 허용, WH-MG-02)', async () => {
+    const dto = plainToInstance(CreateTriggerDto, {
+      ...baseCreate,
+      // version nibble(3번째 그룹 첫 char) = 5 → v5. @IsUUID('4') 는 v5 도 거부한다.
+      endpointPath: '550e8400-e29b-51d4-a716-446655440000',
+    });
+    const errors = await validate(dto, VALIDATE_OPTIONS);
+    expect(errors.find((e) => e.property === 'endpointPath')).toBeDefined();
+  });
+
   it('UpdateTriggerDto — 비-UUID endpointPath 도 형식 거부', async () => {
     const dto = plainToInstance(UpdateTriggerDto, { endpointPath: 'webhook' });
     const errors = await validate(dto, VALIDATE_OPTIONS);
