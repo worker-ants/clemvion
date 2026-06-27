@@ -389,6 +389,12 @@ export class AgentMemoryService {
     /** 양수면 INSERT/UPDATE 가 `expires_at = now()+ttlDays` (AGM-10). 미설정/0/음수 = 무만료. */
     ttlDays?: number | null;
   }): Promise<void> {
+    // 옵션 객체 계약 가드 (I3 review W-1): 포지셔널→옵션 마이그레이션을 놓친
+    // 동적/spyOn 호출이 첫 인자로 문자열을 넘기면 destructure 가 전부 undefined 가
+    // 되어 무음 no-op 으로 삼켜진다 — 그런 프로그래밍 오류를 조용히 묻지 않고 throw.
+    if (typeof args !== 'object' || args === null) {
+      throw new Error('saveMemories: args must be an options object');
+    }
     const { workspaceId, scopeKey, items, embedCfgSource, ttlDays } = args;
     if (!workspaceId || !scopeKey) return;
     const valid = items.filter((it) => {

@@ -1160,6 +1160,15 @@ describe('readExtractionWatermark — memoryState namespace + 하위호환 (I12)
     expect(readExtractionWatermark({ lastExtractionTurnSeq: 0 })).toBe(0);
   });
 
+  it('memoryState 가 원시값(오염된 state)이면 폴백 후 undefined (방어)', () => {
+    expect(readExtractionWatermark({ memoryState: 'invalid' })).toBeUndefined();
+    expect(readExtractionWatermark({ memoryState: 42 })).toBeUndefined();
+    // memoryState 원시값 + 구 평면 키 동시 → 평면 키 폴백.
+    expect(
+      readExtractionWatermark({ memoryState: 'x', lastExtractionTurnSeq: 5 }),
+    ).toBe(5);
+  });
+
   it('숫자가 아니거나 부재면 undefined (= 전체 turn 재추출)', () => {
     expect(readExtractionWatermark(undefined)).toBeUndefined();
     expect(readExtractionWatermark({})).toBeUndefined();

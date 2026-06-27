@@ -82,3 +82,8 @@ related_plan: plan/complete/ai-context-memory-auto.md
 - [ ] agent-memories pagination offset→프로젝트 표준 page DTO 정렬 — A1 backlog.
 - [ ] clearScope 0건 삭제 시 toast 중립화/X-Deleted-Count — A1 backlog.
 - [x] information_extractor §5.4/§5.5 meta 표에 contextInjection 행(waiting/resumed) — A2 backlog(minor). 2026-06-27 완료 (Batch 1) — **전제 정정**: 핸들러 검증 결과 waiting/resumed transient 스냅샷은 `contextInjection` 을 의도적으로 미포함(첫 진입 1회 주입 결과는 `state.contextInjection` 운반→§5.6 종결에서만 echo). 데이터 행 추가 대신 §5.4/§5.5 표 아래 "의도적 부재" 노트 명시로 재오해 방지.
+
+## Batch 2 (백엔드 리팩터) 후속 — 별건 spec PR (impl-done consistency 도출, 2026-06-27)
+> Batch 2 PR 의 impl-done(21_39_37, BLOCK:NO) + fresh ai-review 가 발견. 현재 main 기준 별도 spec PR 로 처리 (Batch 2 branch 는 #726 이전 분기라 해당 파일 behind-base 충돌 회피).
+- [ ] `node-output.md` Principle 2 meta.memory 행: `ai_agent / information_extractor` → **`ai_agent` 단독** 정정. IE 핸들러는 meta.memory 를 emit 하지 않음(코드 검증 — contextInjection 만 echo). Batch 1(#726) 오류 정정 + SoT 링크 `ai-agent §7.1` 교정.
+- [ ] `3-information-extractor.md` l.163·l.684: watermark 참조 `lastExtractionTurnSeq` → `memoryState.lastExtractionTurnSeq` (I12 정합, 하위호환 폴백 병기). canonical AGM-08(`17-agent-memory.md`)은 Batch 2 에서 갱신 완료.

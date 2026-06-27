@@ -670,6 +670,13 @@ describe('AgentMemoryService', () => {
       ).rejects.toThrow('Embedding vector is empty');
     });
 
+    it('I3/W-1: 옵션 객체가 아닌 인자(구 포지셔널 오용)면 throw 한다', async () => {
+      await expect(
+        // @ts-expect-error 구 포지셔널 호출 시뮬레이션 — 런타임 계약 가드 검증.
+        service.saveMemories('ws-1'),
+      ).rejects.toThrow('args must be an options object');
+    });
+
     it('AGENT_MEMORY_MAX_PER_SCOPE 상수는 1000, MEMORY_DEDUP_SIMILARITY 는 0.85 (spec §4)', () => {
       expect(AGENT_MEMORY_MAX_PER_SCOPE).toBe(1000);
       expect(MEMORY_DEDUP_SIMILARITY).toBe(0.85);
