@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { LlmPreviewService } from './llm-preview.service';
+import { MAX_MODEL_LIST_SIZE } from './list-models-cap';
 
 jest.mock('node:dns', () => {
   const actual = jest.requireActual<typeof import('node:dns')>('node:dns');
@@ -56,6 +57,22 @@ describe('LlmPreviewService', () => {
         baseUrl: undefined,
       });
       expect(result).toHaveLength(2);
+    });
+
+    it('caps a pathologically large preview response at MAX_MODEL_LIST_SIZE', async () => {
+      mockClient.listModels.mockResolvedValue(
+        Array.from({ length: MAX_MODEL_LIST_SIZE + 25 }, (_, i) => ({
+          id: `m-${i}`,
+          name: `model ${i}`,
+          type: 'chat' as const,
+        })),
+      );
+      const result = await service.previewModels({
+        provider: 'openai',
+        apiKey: 'sk-plain-key',
+      });
+      expect(result).toHaveLength(MAX_MODEL_LIST_SIZE);
+      expect(result[0].id).toBe('m-0');
     });
 
     it('passes baseUrl through for azure/local providers', async () => {

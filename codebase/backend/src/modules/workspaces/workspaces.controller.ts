@@ -26,13 +26,16 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
-// 초대 발송·재발송 폭격 방지. 운영 중 조정 시 한 곳만 고치면 됨.
-const INVITATION_THROTTLE = { default: { ttl: 60_000, limit: 10 } };
 import {
   ApiCreatedWrappedResponse,
   ApiOkWrappedArrayResponse,
   ApiOkWrappedResponse,
 } from '../../common/swagger';
+import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
+
+// 초대 발송·재발송(email-bombing) 방지 — 분당 10회. 값 SoT 는 공통 상수
+// `SENSITIVE_ACTION_THROTTLE`; 라우트 의미는 이 별칭으로 표현한다.
+const INVITATION_THROTTLE = SENSITIVE_ACTION_THROTTLE;
 import { WorkspacesService } from './workspaces.service';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
