@@ -1,11 +1,8 @@
 ---
 id: web-chat-sdk
-status: partial
+status: implemented
 code:
   - codebase/packages/web-chat-sdk/**
-pending_plans:
-  - plan/in-progress/channel-web-chat-impl.md
-  - plan/in-progress/channel-web-chat-followups.md
 ---
 
 # Spec: Channel Web Chat — SDK (스니펫 로더 + npm)
@@ -76,9 +73,10 @@ chat.shutdown();
 - 동일 코어를 모듈로 노출 + 타입 정의. ESM + UMD. loader.js = npm 코어의 IIFE thin wrapper(중복 구현 금지).
 - **EIA HTTP/SSE 호출은 기존 `@workflow/sdk`(EIA 클라이언트, PR #230) 재사용** — web-chat 은 그 위의 위젯(loader+
   iframe bridge+UI) 레이어. 의존 방향: `web-chat → @workflow/sdk`. **M2 BYO-UI headless client = `@workflow/sdk` 직접 사용**
-  ([0-architecture §5.3](./0-architecture.md)). **현 increment 미배선 (계획)** — SDK 코어(타입·boot 검증·`wc:*` bridge·
-  명령 큐·iframe 주입)만 구현됐고 `@workflow/sdk` 는 아직 import 되지 않는다(`package.json` devDependencies 의 `workspace:*` 선언만).
-  EIA 호출(triggerWebhook/SSE)·예시 배선은 [plan channel-web-chat-followups](../../plan/in-progress/channel-web-chat-followups.md) 에서 추적한다.
+  ([0-architecture §5.3](./0-architecture.md)) — 즉 BYO-UI 는 위젯 SDK 가 아닌 `@workflow/sdk` 직접 경로로 충족된다.
+  **위젯 SDK 코어로의 `@workflow/sdk` 직접 배선(EIA triggerWebhook/SSE)은 현 시점 비목표** — SDK 코어(타입·boot 검증·
+  `wc:*` bridge·명령 큐·iframe 주입)만 구현됐고 `@workflow/sdk` 는 아직 import 되지 않는다(`package.json` devDependencies 의
+  `workspace:*` 선언만). M2 BYO-UI 가 직접 경로로 충족되므로 위젯 SDK 코어 배선은 두지 않으며, 필요해지면 별도 plan 으로 착수한다.
 
 ## 3. host ↔ iframe postMessage 프로토콜
 

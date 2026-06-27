@@ -1,6 +1,6 @@
 ---
 id: web-chat-security
-status: partial
+status: implemented
 code:
   - codebase/backend/src/common/cors/web-chat-cors.ts
   - codebase/backend/src/modules/web-chat-cors/**
@@ -10,9 +10,7 @@ code:
   - codebase/backend/src/modules/hooks/dto/responses/embed-config.dto.ts
   - codebase/channel-web-chat/src/widget/host-bridge.ts
   - codebase/channel-web-chat/src/lib/safe-html.ts
-pending_plans:
-  - plan/in-progress/channel-web-chat-impl.md
-  - plan/in-progress/channel-web-chat-followups.md
+  - codebase/frontend/src/components/editor/assistant-panel/markdown-renderer.tsx
 ---
 
 # Spec: Channel Web Chat — 보안 (CORS · 임베드 · 남용 방어 · 프라이버시)
@@ -123,14 +121,16 @@ M2 에서는 "서빙 origin = 호출 origin"이라 CORS·임베드가 같은 도
 **v1 기본 적용**
 - IP 단위 대화 시작 rate-limit(예: 분당 10/IP). **[구현됨 v1]** `PublicWebhookThrottleGuard` + `PublicWebhookQuotaService`.
 - 익명 세션 + IP 조합 동시/누적 대화 상한(예: 동시 ≤3, 시간당 신규 ≤20).
-  - **누적 신규(시간당 ≤20/IP): 구현됨 v1.** **동시 ≤3 캡: v1.1 이연** — 대화 종료 신호(`conversationEnded`) 의 backend 연동이
-    필요하나 현재 widget↔backend 신호 흐름 미구현. [followups #1 동시캡 잔여](../../plan/in-progress/channel-web-chat-followups.md).
+  - **누적 신규(시간당 ≤20/IP): 구현됨 v1.** **동시 ≤3 캡: 현 시점 비목표** — 대화 종료 신호(`conversationEnded`) 의
+    backend 연동(widget↔backend 신호 흐름)이 선행돼야 하나 미구현이며, 누적 신규 상한으로 best-effort 방어가 충분해 의도적
+    비목표로 둔다. 필요해지면 별도 plan 으로 착수.
 - 메시지/페이로드 크기 제한(예: 메시지 4KB, body 32KB).
   - **body 32KB: webhook gate(`PublicWebhookThrottleGuard`)에서 구현됨 v1.** **메시지 4KB**: 대화 중 메시지는 EIA interact
     레이어 책임 — 현재 별도 body 검증 미적용, 네트워크/proxy 계층 한도에 의존(별도 강화는 EIA §8.4 연계 followup).
 - 기존 EIA §8.4 유지(interact 분당 60/execution, SSE 동시 3/execution).
-- **워크플로우 측 비용 가드(핵심)**: AI 노드 대화당 최대 turn + 워크스페이스 일일 토큰/비용 예산 → 초과 시 우아한 종료.
-  **별도 설계 필요(execution-engine/AI 노드 spec 연계, 본 영역 밖)** — [followups #2](../../plan/in-progress/channel-web-chat-followups.md).
+- **워크플로우 측 비용 가드**: AI 노드 대화당 최대 turn + 워크스페이스 일일 토큰/비용 예산 → 초과 시 우아한 종료.
+  LLM 비용은 공개 챗봇의 핵심 리스크이나, 그 가드는 execution-engine/AI 노드 spec 연계(본 영역 밖)라 별도 설계가 선행돼야
+  하므로 **현 시점 비목표** — 필요해지면 해당 영역 plan 으로 착수.
 
 > **rate-limit 구현 특성(v1)**: Redis **fixed-window** 카운터를 쓴다 — 윈도우 경계에서 최대 2배 버스팅이 허용되는 특성이
 > 있다. 본 rate-limit 은 인증 대체가 아닌 **best-effort defense-in-depth** 이며, Redis 미가용 시 **fail-open**(정당한

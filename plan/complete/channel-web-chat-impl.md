@@ -1,7 +1,13 @@
 ---
-worktree: (unstarted)
+worktree: webchat-followups-complete
 started: 2026-05-30
 owner: developer (TBD)
+spec_impact:
+  - spec/7-channel-web-chat/2-sdk.md
+  - spec/7-channel-web-chat/4-security.md
+  - spec/7-channel-web-chat/0-architecture.md
+  - spec/7-channel-web-chat/1-widget-app.md
+  - spec/7-channel-web-chat/3-auth-session.md
 ---
 
 # 구현: Channel Web Chat — 임베드형 웹채팅 위젯 + SDK + 샘플
@@ -24,7 +30,10 @@ EIA(External Interaction API, `spec/5-system/14`)는 **이미 구현됨**(`codeb
 
 - ✅ **impl-prep consistency-check** (review/consistency/2026/05/30/18_24_13) — Critical(0-architecture §5 dead ref) 해소(commit 2c86950e), 저비용 WARNING 반영. 잔여 WARNING: npm scope 확정(보류), §6.3 parallel-* merge 경합(PR rebase 시 처리).
 - ✅ **스캐폴딩 foundation** (commit 6573c38b) — 위젯 SPA(Next 16 CSR, static export build ✓ tsc ✓ eslint ✓) + SDK 패키지(`@workflow/web-chat`, scope 통일 후. build ✓ jest ✓ eslint ✓).
-- ⏳ 후속 increment (아래 체크박스).
+- ✅ **종결 (2026-06-27)** — 후속 increment 전량 완료(아래 체크박스 14/14). 마지막 잔여였던 공개 webhook **#2 비용 가드**가
+  비목표 확정(followups 종결과 동반)되어 추적 surface 0건 → 본 plan 을 `complete/` 로 이동. 동반 spec 정합: `2-sdk`·`4-security`
+  `status: partial → implemented` 승격(`pending_plans` 비움), `0-architecture`·`1-widget-app`·`3-auth-session` 는 `webchat-eager-start`
+  로 `partial` 유지.
 
 ## 작업 범위
 
@@ -41,12 +50,13 @@ EIA(External Interaction API, `spec/5-system/14`)는 **이미 구현됨**(`codeb
 ### 백엔드 (소수)
 - [x] `/api/external/*` 워크스페이스 단위 동적 CORS(`interactionAllowedOrigins`, path 역인덱스, 단일 delegate). `/api/hooks/*` 무제한.
 - [x] 임베드 soft 검증 config 엔드포인트 — ✅ 구현 완료 (`embed-config.service.ts` + `hooks.controller.ts` `GET :endpointPath/embed-config`, 위젯 `use-widget.ts` 소비; followups §3 ✅ 2026-06-02).
-- [ ] 공개 webhook 남용 방어 — #1 auth-scoped throttle ✅ 구현(`public-webhook-quota.service.ts` + `public-webhook-throttle.guard.ts`); #2 워크플로우 비용 가드만 잔여(deferred — execution-engine spec 설계 필요).
+- [x] 공개 webhook 남용 방어 — #1 auth-scoped throttle ✅ 구현(`public-webhook-quota.service.ts` + `public-webhook-throttle.guard.ts`). #2 워크플로우 비용 가드는 **비목표**(아래 §비목표 — execution-engine 영역, 본 plan 밖).
 
-> 잔여 surface 추적: [`channel-web-chat-followups.md`](./channel-web-chat-followups.md). 관련 spec `status: partial`.
+> followups([`channel-web-chat-followups.md`](./channel-web-chat-followups.md))의 잔여 surface 는 완료·비목표로 종결(2026-06-27 `complete/` 이동). 본 impl plan 도 동반 종결되며, `2-sdk`·`4-security` 는 `implemented` 로 승격, 가시성/eager-start 후속이 남은 `0-architecture`·`1-widget-app`·`3-auth-session` 만 `webchat-eager-start` 로 `partial` 유지.
 
 ## 비목표 (spec 비목표)
 파일 첨부/이모지, 상담원 핸드오프, 다중 세션 목록(N5), 호스트 제공 사용자 식별키(추후), 풀 CSS 테마.
+공개 webhook **워크플로우 비용 가드**(execution-engine/AI 노드 spec 연계, 본 영역 밖) · **동시 ≤3 대화 캡**(`conversationEnded` widget↔backend 배선 선행) — 보안 spec [`4-security §4`](../../spec/7-channel-web-chat/4-security.md) 비목표(2026-06-27 확정). 필요해지면 별도 plan.
 
 ## 참고
 - 결정 이력·Rationale: spec `7-channel-web-chat/*` 각 `## Rationale`.
