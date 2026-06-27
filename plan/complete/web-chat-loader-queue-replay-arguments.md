@@ -4,7 +4,7 @@ worktree: webchat-queue-replay-arguments
 started: 2026-06-27
 owner: developer
 status: complete
-spec_impact: []
+spec_impact: none
 related_spec:
   - spec/7-channel-web-chat/2-sdk.md
 ---

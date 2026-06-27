@@ -15,5 +15,5 @@ owner: planner
 
 ## 비고
 - §1 ~ §5 의 나머지 surface (이메일/비밀번호, OAuth, TOTP, WebAuthn, 세션, RBAC, Audit/LoginHistory, 초대 토큰, API 엔드포인트) 는 audit 재검증에서 모두 구현 확인됨.
-- 본 spec 의 다른 미구현 갭(auth_config CRUD audit 기록 등)은 `plan/in-progress/auth-config-webhook-followups.md` 가 추적.
+- 본 spec 의 다른 미구현 갭(auth_config CRUD audit 기록 등)은 `plan/complete/auth-config-webhook-followups.md`(완료) 가 추적했다.
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__1-auth.md 참조.

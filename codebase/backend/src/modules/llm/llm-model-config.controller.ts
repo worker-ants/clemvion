@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  ParseEnumPipe,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -33,6 +34,10 @@ import {
   ModelTestConnectionResultDto,
 } from '../model-config/dto/responses/model-config-response.dto';
 
+// 부속 엔드포인트(preview / test / list-models)는 실시간 provider 호출이라 과금·
+// rate-limit 보호용으로 동일 스로틀 정책을 공유한다 (3 핸들러 단일 SoT).
+const PROVIDER_PROBE_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
+
 /**
  * ModelConfig 의 LLM-구동 부속 엔드포인트(preview / test / list models).
  *
@@ -57,7 +62,7 @@ export class LlmModelConfigController {
   @Post('preview-models')
   @HttpCode(HttpStatus.OK)
   @Roles('editor')
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle(PROVIDER_PROBE_THROTTLE)
   @ApiOperation({
     summary: 'Provider 모델 목록 미리보기 (chat/embedding)',
     description:
@@ -77,7 +82,7 @@ export class LlmModelConfigController {
   @Post(':id/test')
   @HttpCode(HttpStatus.OK)
   @Roles('editor')
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle(PROVIDER_PROBE_THROTTLE)
   @ApiOperation({
     summary: '모델 연결 테스트 (chat/embedding)',
     description: '저장된 자격증명으로 Provider 테스트 호출을 수행합니다.',
@@ -100,7 +105,7 @@ export class LlmModelConfigController {
   // 이상). 역할 제한이 없어 @ApiForbiddenResponse 도 두지 않는다 — 워크스페이스
   // 멤버십 미충족 403 은 컨트롤러 공통 인증 계층 책임이다.
   @Get(':id/models')
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle(PROVIDER_PROBE_THROTTLE)
   @ApiOperation({
     summary: 'Provider 모델 목록 조회 (chat/embedding)',
     description:
@@ -119,7 +124,8 @@ export class LlmModelConfigController {
   async listModels(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
-    @Query('type') type?: 'chat' | 'embedding',
+    @Query('type', new ParseEnumPipe(['chat', 'embedding'], { optional: true }))
+    type?: 'chat' | 'embedding',
   ) {
     return this.llmService.listModels(id, workspaceId, { type });
   }
