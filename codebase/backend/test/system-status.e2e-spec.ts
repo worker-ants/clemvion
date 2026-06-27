@@ -38,6 +38,9 @@ const EXPECTED_QUEUE_NAMES = [
   'chat-channel-token-rotator',
   'integration-expiry-scanner',
   'alerts-evaluator',
+  // main 에 등록됐으나 기대 목록이 stale 했던 큐(system-status.constants WORKSPACE_INVITATIONS_PRUNER_QUEUE).
+  // 본 PR(web-chat sessionStorage)과 무관한 pre-existing e2e drift 수정 — 공유 e2e suite green 복구용.
+  'workspace-invitations-pruner',
 ];
 
 const HEALTH_VALUES = ['healthy', 'degraded', 'down'];
