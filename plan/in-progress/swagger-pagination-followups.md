@@ -28,9 +28,10 @@ source: #723 swagger single-wrap 후속 (A: pass-through cross-ref / B: 테스�
 
 ## 게이트
 
-- [x] TEST WORKFLOW (lint·unit·build·e2e 215) PASS
-- [ ] /ai-review → Critical/Warning 0
-- [ ] consistency-check --impl-done → BLOCK NO (api-wrapped.ts swagger.md glob + §5.2 spec 변경)
+- [x] TEST WORKFLOW (lint·unit·build·e2e 215) PASS (구현 후 + resolution 후)
+- [x] /ai-review (20_44_11) → LOW, Critical 0, **Warning 1**(pagination drift) → drift-guard 테스트 + JSDoc 보강(RESOLUTION.md)
+- [x] consistency-check --impl-done spec/conventions/ (20_44_11) → **BLOCK NO**. Warning(swagger.md Overview 부재)은 미변경 파일 pre-existing → out-of-scope
+- [ ] fresh /ai-review + fresh --impl-done (resolution 커버 — stale 가드 해소)
 
 ## 메모
 

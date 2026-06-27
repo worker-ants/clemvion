@@ -5,6 +5,7 @@ import {
   wrapOneOfDataSchema,
   wrapPaginatedSchema,
 } from './api-wrapped';
+import { PaginatedResponseDto } from '../dto/paginated-response.dto';
 
 class SampleDto {
   @ApiProperty({ example: 'a' })
@@ -105,5 +106,21 @@ describe('api-wrapped schema builders', () => {
         totalPages: { type: 'integer', example: 7 },
       },
     });
+  });
+
+  it('wrapPaginatedSchema pagination keys stay in sync with PaginatedResponseDto runtime shape', () => {
+    // drift guard: 스키마 리터럴의 pagination 필드 ↔ 실제 `PaginatedResponseDto.create()` 가
+    // 만드는 pagination 객체 키 대조. PaginationMeta 필드를 추가/변경하고 둘 중 한쪽(리터럴 또는
+    // create())만 고치면 이 테스트가 깨져 수동 동기화 drift 를 컴파일/테스트 시점에 잡는다.
+    const runtimeKeys = Object.keys(
+      PaginatedResponseDto.create([], 0, 1, 1).pagination,
+    ).sort();
+    const pagination = wrapPaginatedSchema(SampleDto).properties
+      ?.pagination as {
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+    expect(Object.keys(pagination.properties).sort()).toEqual(runtimeKeys);
+    expect([...pagination.required].sort()).toEqual(runtimeKeys);
   });
 });

@@ -91,7 +91,8 @@ export function wrapItemsSchema<T>(dto: ClassRef<T>): SchemaObject {
  *
  * NOTE: 아래 `pagination` 서브스키마 필드(`page`·`limit`·`totalItems`·`totalPages`)는 공용
  * `PaginatedResponseDto`/`PaginationMeta`(`common/dto/paginated-response.dto.ts`)와 **수동 동기화**다 —
- * 해당 DTO 의 필드를 추가/변경하면 이 리터럴도 함께 갱신할 것.
+ * 해당 DTO 의 필드를 추가/변경하면 이 리터럴도 함께 갱신할 것. drift 는 `api-wrapped.spec.ts` 의
+ * "pagination keys stay in sync with PaginatedResponseDto runtime shape" 테스트가 감지한다.
  */
 export function wrapPaginatedSchema<T>(dto: ClassRef<T>): SchemaObject {
   return {
