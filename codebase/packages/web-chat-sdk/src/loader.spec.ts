@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { afterEach } from "@jest/globals";
-import { createGlobalApi, installGlobal, type QueueStub } from "./loader";
+import { createGlobalApi, installGlobal, type GlobalCall, type QueueStub } from "./loader";
 import type { ChatInstance } from "./types";
 
 afterEach(() => {
@@ -110,6 +110,8 @@ describe("installGlobal — 큐 스텁 replay", () => {
   it("스니펫이 큐잉한 호출을 순서대로 replay", () => {
     const inst = fakeInstance();
     // 스니펫 스텁 시뮬레이션
+    // 이 스텁은 rest 파라미터 배열을 push — production 스텁의 `push(arguments)` 와 달리 진짜 Array.
+    // Array 경로 회귀 검증 목적이며, `push(arguments)` 패턴은 아래 array-like 테스트가 담당한다.
     const stub = ((...a: unknown[]) => {
       (stub as QueueStub).q!.push(a as [string, ...unknown[]]);
     }) as QueueStub;
@@ -125,6 +127,25 @@ describe("installGlobal — 큐 스텁 replay", () => {
     // 설치 후 새 호출도 동작
     (window as unknown as { ClemvionChat: (m: string, ...a: unknown[]) => unknown }).ClemvionChat("close");
     expect(inst.calls).toContain("close");
+  });
+
+  it("array-like(arguments) 큐 항목도 replay — 실제 스텁은 push(arguments) (회귀: #709 테스트 갭)", () => {
+    const inst = fakeInstance();
+    // 실제 스니펫 스텁(QUEUE_STUB_JS)은 `push(arguments)` 하므로 큐 항목의 런타임 형태는 진짜 Array 가
+    // 아니라 array-like(arguments) 객체다. 과거 Array.isArray 필터는 이를 통째로 버려 boot 가 누락됐다.
+    // (기존 위 테스트는 rest 파라미터 배열을 push 해 이 조건을 재현하지 못했다.)
+    const bootArgs = { 0: "boot", 1: { apiBase: "a", triggerEndpointPath: "t" }, length: 2 };
+    const openArgs = { 0: "open", length: 1 };
+    // 의도: 실제 큐 로직 없이 `.q` 직접 주입 — `push(arguments)` 산출물(array-like)을 정확히 재현.
+    const stub = (() => {}) as unknown as QueueStub;
+    stub.q = [bootArgs, openArgs] as unknown as GlobalCall[];
+    (window as unknown as { ClemvionChat: QueueStub }).ClemvionChat = stub;
+    // 과거 버그 조건 명시: 큐 항목은 Array 가 아니다.
+    expect(Array.isArray(stub.q[0])).toBe(false);
+
+    installGlobal(window, () => inst);
+    // 버그면 boot 가 건너뛰어져 instance 가 없어 open 도 no-op → [] 가 된다.
+    expect(inst.calls).toEqual(["open"]);
   });
 
   it("스니펫 미실행(window.ClemvionChat 없음) → 빈 큐로 설치", () => {

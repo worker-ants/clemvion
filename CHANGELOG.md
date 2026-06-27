@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 웹채팅 로더 arguments-replay 버그 수정
+
+### 변경 사항
+
+1. **웹채팅 로더 `arguments`-replay 버그 수정** — 스니펫 스텁의 `push(arguments)` 산출물(array-like 객체)이 `Array.isArray` 가드에 걸려 통째로 버려지면서 `boot` 를 포함한 모든 사전 큐 호출이 무증상 누락되던 문제를 해소했다(#709 원인). `Array.isArray` 가드를 `length` 기반 array-like 수용 + `Array.from` 정규화로 교체. 회귀 테스트 추가.
+
 ## Unreleased — npm audit 취약점 해소 의존성 상향
 
 ### 변경 사항
