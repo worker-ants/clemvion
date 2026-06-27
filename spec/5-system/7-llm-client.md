@@ -449,6 +449,8 @@ class LlmService {
 
 `LLMClient.testConnection(): Promise<boolean>` **인터페이스(§3.1)는 변경하지 않는다** — dimension 추출은 서비스 레이어 전용이며 `EmbedResponse`(§3.3 Planned, `dimensions` 복수) 트랙과 독립이다. 감지된 `dimension` 의 자동 저장(`ModelConfig.dimension`)·read-only UX 는 [설정 화면 §B.3](../2-navigation/6-config.md#b3-프로바이더-연결-테스트) SoT. `rerank` 는 표준 test API 부재로 연결 테스트 미제공(§2.1).
 
+**권한**: `editor` 이상. `POST /api/model-configs/:id/test` 는 과금 provider 호출(+embedding 차원 자동저장 PATCH 부수효과)을 일으키는 action-POST 이므로 `preview-models`(§5.5)와 대칭으로 Editor+ 로 게이트한다. 컨트롤러 `LlmModelConfigController.testConnection` 의 `@Roles('editor')` 로 강제 ([설정 화면 §3 Model Config API](../2-navigation/6-config.md#model-config-api) R-7 근거).
+
 ### 8.4 에러 매핑
 
 | 케이스 | 이벤트 | 비고 |

@@ -269,7 +269,7 @@ mutation (POST / PATCH / DELETE / regenerate / reveal) 은 **Admin+**, 조회 (G
 
 ### Model Config API
 
-chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관리한다. mutation (POST / PATCH / DELETE) 은 Editor+ ([Spec 인증 §3.2](../5-system/1-auth.md#32-리소스별-권한-매트릭스)). 조회는 Viewer 이상.
+chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관리한다. mutation (POST / PATCH / DELETE) 은 Editor+ ([Spec 인증 §3.2](../5-system/1-auth.md#32-리소스별-권한-매트릭스)). 조회(GET 목록·상세·`:id/models`)는 Viewer 이상. **데이터를 변경하지 않는 action-POST(`:id/test`·`preview-models`) 도 Editor+ 로 게이트한다** — 둘 다 과금 provider 호출을 일으키고(특히 `:id/test` 는 embedding 차원 자동저장 PATCH 부수효과를 동반), §3.2 Model Config 행의 `Viewer=R`(읽기 전용) 규정상 읽기(`R`)에 해당하지 않는 능동 호출이므로 mutation 과 동급으로 취급한다 ([Rationale R-7](#r-7-action-post-인-test-와-preview-models-를-editor-로-게이트)).
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
@@ -278,9 +278,9 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 | GET | /api/model-configs/:id | 상세 조회 |
 | PATCH | /api/model-configs/:id | 수정 |
 | PATCH | /api/model-configs/:id/set-default | kind 별 기본 설정. **동일 `(workspace_id, kind)` 내 기존 `is_default` 를 false 로 초기화 후 대상만 true** (kind 범위 한정) |
-| POST | /api/model-configs/:id/test | 연결 테스트 (chat/embedding 만 — rerank 미제공). 응답 `data`: chat `{ success }`, embedding `{ success, dimension? }`(probe embed 감지 차원). 설정 조회는 kind 무관(`ModelConfigService.findEntity`) |
-| POST | /api/model-configs/preview-models | 저장 전 폼 자격증명으로 모델 목록 미리보기 (chat/embedding) |
-| GET | /api/model-configs/:id/models | 사용 가능한 모델 목록 조회 (chat/embedding) |
+| POST | /api/model-configs/:id/test | 연결 테스트 (chat/embedding 만 — rerank 미제공). 응답 `data`: chat `{ success }`, embedding `{ success, dimension? }`(probe embed 감지 차원). 설정 조회는 kind 무관(`ModelConfigService.findEntity`) **(Editor+ — 과금 action-POST)** |
+| POST | /api/model-configs/preview-models | 저장 전 폼 자격증명으로 모델 목록 미리보기 (chat/embedding) **(Editor+ — 과금 action-POST)** |
+| GET | /api/model-configs/:id/models | 사용 가능한 모델 목록 조회 (chat/embedding) **(Viewer+ — 조회)** |
 | DELETE | /api/model-configs/:id | 삭제 |
 
 > **구 alias 제거 완료 (PR4)**: 종전 `/api/llm-configs`·`/api/rerank-configs` (및 서브경로 `:id/test`·`preview-models`·`:id/models`·`:id/set-default`) 한시 alias 와 프론트 redirect 라우트 `/llm-configs`·`/rerank-configs` 는 [`unified-model-management`](../../plan/complete/unified-model-management.md) **PR4 에서 제거**됐다. 모든 chat/embedding/rerank 설정은 위 `/api/model-configs` 단일 표면으로만 접근한다.
@@ -337,3 +337,12 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 - **응답 코드 = "둘 다".** webhook(및 chat-channel inbound)은 호출이 받는 **실제 HTTP 코드**를 저장한다 — execution 생성에 성공한 경로는 항상 `202 Accepted`(인증 401·검증 400·비활성 410 은 execute 전에 throw 되어 Execution row 자체가 안 생긴다). schedule 등 비-HTTP 트리거는 HTTP 코드가 없어 `response_code` 가 NULL 이며, `getUsage` 가 워크플로 `status` enum 으로 폴백 표시한다. 이로써 [WH-MG-05](../5-system/12-webhook.md) "응답 코드 확인 필수" 를 이행한다.
 - **기간별 호출 수 = 롤링 윈도(24h/7d/30d), 막대 차트.** 캘린더 버킷(일/주/월 경계) 대신 현재 시점 기준 롤링 윈도를 택했다 — "최근 활동량" 파악이 사용 내역 화면의 목적이고, 경계 정렬(타임존·주 시작 요일) 모호성을 피한다. `Execution.started_at` 을 단일 쿼리에서 조건부 집계(`COUNT(*) FILTER (WHERE started_at >= now()-window)`)해 round-trip 1회로 3종을 구한다. UI 는 recharts BarChart.
 - **소스 IP 캡처 경로**: `hooks.service` 가 webhook 진입 시 `extractClientIp`(CF-Connecting-IP 신뢰 시 → X-Forwarded-For 첫 IP) 결과를 인증 IP whitelist 검증과 호출 이력 영속에 공용으로 쓴다. 추출 불가 시 NULL.
+
+### R-7. action-POST 인 test 와 preview-models 를 Editor 로 게이트
+
+§3 Model Config API 의 `POST :id/test`·`POST preview-models` 는 HTTP POST 이지만 DB 를 변경하지 않는 **action-POST** 다. §3.2 인증 매트릭스의 Model Config 행은 `Editor=CRUD / Viewer=R`(읽기 전용) 인데, 이 두 엔드포인트는 다음 이유로 읽기(`R`)가 아니라 mutation 과 동급(Editor+)으로 분류한다.
+
+- **과금 provider 호출**: 두 엔드포인트 모두 외부 LLM/embedding provider 를 실제 호출해 과금·rate-limit 을 소모한다. `:id/test` 는 **검증 호출**이며, 부수효과로 embedding 차원을 감지하면 `ModelConfig.dimension` 을 자동 저장(PATCH §B.3)한다 — 이 PATCH 자체가 Editor+ mutation 이므로 호출 진입도 Editor+ 로 맞춰 일관성을 유지한다.
+- **`preview-models` 와의 대칭**: `preview-models` 는 종전부터 `@Roles('editor')` 로 게이트돼 있었다([LLM Client §5.5](../5-system/7-llm-client.md#55-모델-목록-preview-폼-자격증명-기반)). 같은 성격의 과금 action-POST 인 `:id/test` 만 게이트가 없던 비대칭(인가 갭)을 해소한다.
+- **behavior change 범위**: 종전 `:id/test` 는 `@Roles` 부재로 워크스페이스 멤버 전원(Viewer 포함)이 호출 가능했다. 본 결정으로 Viewer 의 직접 호출은 403 이 된다. 단 연결 테스트 버튼은 모델 추가/수정 폼(Editor+ 화면) 안에 있어 UI 상 Viewer 가 도달하는 경로는 사실상 없고, 변경의 실질은 **직접 API 호출 갭** 차단이다. refactor-02 C-2 cluster 4 의 behavior-preserving 리팩토링(PR #714)에서 의도적으로 제외해 본 후속 PR 로 분리했다.
+- **`:id/models` 는 Viewer+ 유지**: GET 모델 목록 조회는 §3.2 의 `R`(읽기)에 해당하므로 Viewer 이상을 그대로 둔다 — 인가 매트릭스를 좁히지 않는다.

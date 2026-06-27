@@ -76,6 +76,7 @@ export class LlmModelConfigController {
 
   @Post(':id/test')
   @HttpCode(HttpStatus.OK)
+  @Roles('editor')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary: '모델 연결 테스트 (chat/embedding)',
@@ -86,6 +87,7 @@ export class LlmModelConfigController {
     description: '연결 테스트 결과',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   async testConnection(
     @Param('id', ParseUUIDPipe) id: string,
@@ -94,6 +96,9 @@ export class LlmModelConfigController {
     return this.llmService.testConnection(id, workspaceId);
   }
 
+  // 조회(Viewer+) — @Roles 미적용이 의도적이다(spec §3·R-7: `:id/models` 는 Viewer
+  // 이상). 역할 제한이 없어 @ApiForbiddenResponse 도 두지 않는다 — 워크스페이스
+  // 멤버십 미충족 403 은 컨트롤러 공통 인증 계층 책임이다.
   @Get(':id/models')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({

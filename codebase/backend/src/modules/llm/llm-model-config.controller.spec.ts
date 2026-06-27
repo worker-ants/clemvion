@@ -1,6 +1,7 @@
 import { LlmModelConfigController } from './llm-model-config.controller';
 import type { LlmService } from './llm.service';
 import type { LlmPreviewService } from './llm-preview.service';
+import { ROLES_KEY } from '../../common/guards/roles.guard';
 
 // LLM-구동 부속 엔드포인트(preview / test / list models)는 model-config ↔ llm
 // forwardRef 순환을 끊기 위해 ModelConfigController 에서 이 컨트롤러로 이전됐다
@@ -82,14 +83,32 @@ describe('LlmModelConfigController', () => {
     expect(path).toBe('model-configs');
   });
 
-  // ── @Roles guard — preview-models stays editor-gated ──────────────────────
+  // ── @Roles guard — preview-models·testConnection editor-gated; listModels Viewer+ ──
+  // 인가 계약 SoT: spec/2-navigation/6-config.md §3 + R-7.
+  // ROLES_KEY 상수를 import 해 메타데이터 키 매직 스트링('roles') 하드코딩을 피한다.
   describe('@Roles decorator presence (metadata check)', () => {
     it("previewModels method has 'editor' role metadata", () => {
       const roles = Reflect.getMetadata(
-        'roles',
+        ROLES_KEY,
         LlmModelConfigController.prototype.previewModels,
       );
       expect(roles).toContain('editor');
+    });
+
+    it("testConnection method has 'editor' role metadata (billed action-POST -> Editor+)", () => {
+      const roles = Reflect.getMetadata(
+        ROLES_KEY,
+        LlmModelConfigController.prototype.testConnection,
+      );
+      expect(roles).toContain('editor');
+    });
+
+    it('listModels (GET read) has NO role metadata — Viewer+ retained', () => {
+      const roles = Reflect.getMetadata(
+        ROLES_KEY,
+        LlmModelConfigController.prototype.listModels,
+      );
+      expect(roles).toBeUndefined();
     });
   });
 });
