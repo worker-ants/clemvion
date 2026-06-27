@@ -27,8 +27,13 @@ export const widgetStyles = `
 .wc-ended { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; font-size: 14px; }
 .wc-composer { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid #f0f0f0; }
 .wc-composer-input { flex: 1; border: 1px solid #d1d5db; border-radius: 18px; padding: 8px 14px; font-size: 14px; }
-.wc-composer-send { width: 36px; height: 36px; border: 0; border-radius: 50%; background: #5B4FE9; color: #fff; cursor: pointer; }
-.wc-composer-send:disabled { opacity: .4; cursor: default; }
+.wc-composer-send { width: 36px; height: 36px; border: 0; border-radius: 50%; background: #5B4FE9; color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+/* idle/비활성(빈 입력·buttons/form) — 흐린 반투명 대신 중립 회색으로 '고장난 듯' 보이지 않게. */
+.wc-composer-send:disabled { background: #c7cad1; cursor: default; }
+/* AI 응답 중(booting/streaming) — 브랜드 컬러 유지 + 스피너로 '응답 중' 표시. */
+.wc-composer-send[aria-busy="true"]:disabled { background: #5B4FE9; }
+.wc-composer-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; animation: wc-spin .7s linear infinite; }
+@keyframes wc-spin { to { transform: rotate(360deg); } }
 .wc-disclaimer { padding: 6px 12px; font-size: 11px; color: #9ca3af; text-align: center; }
 .wc-presentations { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 .wc-pres-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

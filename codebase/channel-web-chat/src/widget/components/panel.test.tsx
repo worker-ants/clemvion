@@ -107,3 +107,44 @@ describe("Panel — Composer disabled 게이팅 (W6, §R6)", () => {
     expect(screen.getByLabelText("메시지 입력")).not.toBeDisabled();
   });
 });
+
+describe("Panel — AI 처리 중 전송 버튼 로딩 표시 (§R6)", () => {
+  it("phase=streaming → 전송 버튼이 로딩(aria-busy)·스피너, 입력은 여전히 비활성", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "streaming" })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    const btn = screen.getByLabelText("AI 응답 중");
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    expect(btn).toBeDisabled();
+    expect(btn.querySelector(".wc-composer-spinner")).not.toBeNull();
+    // R6: AI 처리 중 자유 텍스트 입력은 계속 차단.
+    expect(screen.getByLabelText("메시지 입력")).toBeDisabled();
+  });
+
+  it("phase=booting → 전송 버튼 로딩 표시", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "booting" })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    expect(screen.getByLabelText("AI 응답 중")).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("phase=awaiting_user_message → 로딩 아님(전송 라벨, aria-busy 없음)", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "awaiting_user_message", pending: null })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    expect(screen.queryByLabelText("AI 응답 중")).toBeNull();
+    expect(screen.getByLabelText("전송")).not.toHaveAttribute("aria-busy");
+  });
+});

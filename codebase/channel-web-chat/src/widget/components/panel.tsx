@@ -106,7 +106,9 @@ export function Panel({ state, config, actions }: PanelProps) {
       {!isEnded && (
         // eager 시작(§R6): execution 이 첫 입력 대기(awaiting_user_message)에 들어왔을 때만 자유 텍스트 입력 활성.
         // booting/streaming(AI 처리 중) 또는 buttons/form 표면일 때는 비활성 — 사용자는 선택/제출로 응답.
+        // AI 처리(booting/streaming) 중엔 전송 버튼에 스피너로 "응답 중" 표시 — 흐린 비활성이 고장처럼 보이던 문제 해소.
         <Composer
+          loading={phase === "booting" || phase === "streaming"}
           disabled={
             phase !== "awaiting_user_message" ||
             pending?.type === "buttons" ||
