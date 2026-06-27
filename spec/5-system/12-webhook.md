@@ -406,6 +406,8 @@ WH-EP-02 에 프론트엔드 base 결정 우선순위(`NEXT_PUBLIC_WEBHOOK_BASE_
 
 본 spec 을 webhook 도메인 SoT 로 확정한다: ① 응답은 전역 `TransformInterceptor` 로 `{data:...}` 래핑(§3.1) ② rate limit 은 글로벌 throttler **100 req/min**(§6·§8·WH-SC-05) ③ POST 전용(GET/PUT·`?wait` 동기모드 미지원) ④ URL 정본 `/api/hooks/:endpointPath`(`/api/webhooks`·workspaceSlug 세그먼트는 없음).
 
+③의 "POST 전용"은 **트리거 진입 엔드포인트(`/api/hooks/:endpointPath`)에 한정**한다. 그 하위 서브경로는 각 영역 spec 이 별도 메서드·정책으로 정의할 수 있다 — 예: 채널 웹챗의 `GET /api/hooks/:endpointPath/embed-config`(공개·무인증 조회, [7-channel-web-chat 4-security §3-①](../7-channel-web-chat/4-security.md))는 POST 전용 규칙의 예외가 아니라 본 SoT 의 스코프 밖이다.
+
 ### 외부 인터랙션 채널을 별도 spec 파일로 분리
 
 본 spec 은 "트리거 진입점" (외부 → workflow 시작) 의 책임에 한정한다. 트리거가 실행시킨 workflow 가 도중에 `waiting_for_input` 으로 멈추거나 종료될 때 외부 시스템과 turn 을 주고받는 채널은 [Spec External Interaction API](./14-external-interaction-api.md) 가 단일 진실로 다룬다. 본 문서는 그쪽 spec 에 cross-link 만 둔다.

@@ -70,7 +70,7 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 
 ### 제품 영역 분리 (vs 5-system 흡수)
 클라이언트 SDK·위젯은 제품 표면이 서버 기술명세(5-system)와 분명히 달라 신규 top-level 영역 `7-`로 분리한다.
-5-system 에 흡수하면 client 산출물(SDK/npm/iframe)과 server 명세가 섞인다. 상세 결정 근거는 `0-architecture.md §R6`.
+5-system 에 흡수하면 client 산출물(SDK/npm/iframe)과 server 명세가 섞인다. 상세 결정 근거는 `0-architecture.md §R3`.
 
 ### 운영 콘솔(구성요소 D)과 외형 저장 범위의 경계
 §2 비목표가 겨냥한 것은 *워크스페이스 단위 외형을 관리하는 별도 테마/브랜딩 콘솔*(per-workspace 외형 JSON 서빙·
