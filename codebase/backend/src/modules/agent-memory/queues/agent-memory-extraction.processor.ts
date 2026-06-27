@@ -99,7 +99,9 @@ export class AgentMemoryExtractionProcessor extends WorkerHost {
       })),
       // 저장 임베딩 출처 — 회수와 동일 embedding ModelConfig(차원·endpoint 일치, §3).
       // 미설정이면 saveMemories 가 워크스페이스 기본 embedding config 로 폴백한다.
-      embedCfgSource: { embeddingModelConfigId: embeddingModelConfigId ?? undefined },
+      embedCfgSource: {
+        embeddingModelConfigId: embeddingModelConfigId ?? undefined,
+      },
       // TTL (일) — 노드 config memoryTtlDays 전달분 (AGM-10). 미설정이면 무만료.
       ttlDays: safeTtlDays,
     });

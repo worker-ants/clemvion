@@ -408,7 +408,11 @@ describe('AgentMemoryService', () => {
       await service.saveMemories({
         workspaceId: 'ws-1',
         scopeKey: 'scope-1',
-        items: [{ content: 'fact A' }, { content: 'fact B' }, { content: 'fact A2' }],
+        items: [
+          { content: 'fact A' },
+          { content: 'fact B' },
+          { content: 'fact A2' },
+        ],
         embedCfgSource: embedCfg,
       });
 

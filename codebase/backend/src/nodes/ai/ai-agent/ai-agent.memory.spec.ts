@@ -38,7 +38,9 @@ function makeContext(
  * memoryState sub-namespace 에 실제로 영속하는지(I12) 회귀로 보장한다.
  */
 function wmOf(state: Record<string, unknown>): number | undefined {
-  const ns = state.memoryState as { lastExtractionTurnSeq?: number } | undefined;
+  const ns = state.memoryState as
+    | { lastExtractionTurnSeq?: number }
+    | undefined;
   return ns?.lastExtractionTurnSeq;
 }
 
