@@ -2,7 +2,8 @@
 worktree: mc-modellistdto-fix
 started: 2026-06-27
 owner: developer
-status: in-progress
+status: complete
+completed: 2026-06-27
 spec_impact: none
 base: origin/main @ 9381d0bce (#720 포함)
 source: #720 ai-review 부수 발견(I-16/I-14) — ModelListDto swagger↔wire shape 불일치
@@ -35,8 +36,12 @@ item schema 는 여전히 부정확.
 - [x] ModelInfoDto 신설(`{id,name,type}`, type enum=MODEL_TYPE_ENUM) + ModelListDto/ModelItemDto 삭제
 - [x] 컨트롤러 annotation 2건 `@ApiOkWrappedArrayResponse(ModelInfoDto)` 교체
 - [x] TEST WORKFLOW (lint·unit·build·e2e 215) PASS — 빌드가 미사용 DTO 삭제 안전성 검증
-- [ ] /ai-review → Critical/Warning 0
-- [ ] (spec 연결 시) consistency-check --impl-done → BLOCK NO
+- [x] /ai-review (18_26_21) → risk LOW, Critical 0, **Warning 0** (clean). INFO 13건 전부 선택적/pre-existing
+- [x] consistency-check --impl-done spec/2-navigation/ (18_26_21, 컨트롤러가 6-config code: glob) → **BLOCK NO**. WARNING 2건은 무관 pre-existing nav doc — 별 트랙
+
+## 완료
+
+swagger↔wire shape 정합 완료. 전 게이트 통과. 별 트랙(본 PR 아님): impl-done 이 노출한 `10-auth-flow.md`/`14-execution-history.md §5` pre-existing nav doc 결함.
 
 > **TEST 중 발견(pre-existing 조치)**: `plan/complete/mc-config-polish.md`(#720)가 Gate C(`spec_impact` frontmatter) 미선언으로 unit 실패 — #720 에서 plan-complete 이동이 마지막 unit 런 이후라 가드 미검증된 갭. `spec_impact:`(touched 4 spec) 추가로 해소.
 
