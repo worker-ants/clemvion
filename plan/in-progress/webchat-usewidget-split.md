@@ -23,7 +23,7 @@ spec_impact: []  # behavior-preserving 리팩터 — spec 변경 없음
 - [x] `use-token-refresh.ts` 신설 + 단위 테스트(refreshDelayMs + fake timer: refresh 발화·재예약·clear·cancelled·no-session).
 - [x] `use-pending-message-queue.ts` 신설 + 단위 테스트(enqueue→flush / buttons 폐기 / clearQueue / no-session).
 - [x] `use-widget.ts`: 두 hook 채택, scheduleRefreshRef·인라인 scheduleRefresh·refreshTimerRef·pendingSendRef·flush effect 제거. SessionRef=PersistedSession. refresh 헬퍼 re-export 하위호환.
-- [x] 기존 테스트(use-widget-eager-start·commands·state·panel) 전부 green 유지 — **243 tests green**(동작 불변 검증).
-- [x] TEST WORKFLOW — lint·unit(243)·build PASS. **e2e = 환경 차단**(docker registry DeadlineExceeded: flyway/node 이미지 pull timeout, 2회 재시도 동일. 프론트 전용 변경이라 backend e2e 무관).
-- [ ] /ai-review + Critical/Warning 0.
-- [ ] /consistency-check --impl-done spec/7-channel-web-chat/ → BLOCK: NO.
+- [x] 기존 테스트(use-widget-eager-start·commands·state·panel) 전부 green 유지 — **244 tests green**(동작 불변 검증) + 신규 hook 단위 14건.
+- [x] TEST WORKFLOW — lint·unit(244)·**build TS 컴파일 PASS**(✓ Compiled). **build docker-image-check·e2e = 환경 차단**(docker registry DeadlineExceeded: 이미지 pull timeout, 수회 재시도 동일. 프론트 전용 변경이라 backend e2e 무관).
+- [x] /ai-review (--branch origin/main) — **Critical/Warning 0** (`review/code/2026/06/28/01_40_09/`). 3차 후속(타입우회·섀도잉·stable-ref·커버리지)으로 수렴. INFO 는 planner frontmatter·선택 polish followup.
+- [x] /consistency-check --impl-done → **BLOCK: NO** (`review/consistency/2026/06/28/01_40_10/`). WARNING 1(frontmatter code: 명시성, glob 커버·가드 통과 — planner followup).
