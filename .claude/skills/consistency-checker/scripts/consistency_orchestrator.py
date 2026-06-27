@@ -214,6 +214,43 @@ def _collect_code_diff(diff_base, root):
     return proc.stdout
 
 
+def _head_basis_notice(root, diff_base):
+    """Prominent ``--impl-done`` preamble pinning *current code* to HEAD.
+
+    Root cause this guards against: consistency checker sub-agents (cross_spec,
+    naming_collision, …) run with a working directory that is the
+    *default-branch* checkout (≈ ``diff_base``), NOT this task's worktree where
+    the implementation lives. So a checker that inspects code via a relative
+    Read/Grep/Bash sees the PRE-change code and falsely reports "spec declares
+    X but code lacks X" as CRITICAL — blocking legitimate PRs that add code and
+    spec together (PR #738: checker counted ``MONITORED_QUEUES`` as 15 from the
+    base checkout while HEAD had 17). The orchestrator already runs *inside* the
+    worktree (``root == os.getcwd()``), so it can hand the checker the one
+    authoritative path and forbid missing-from-code conclusions drawn from the
+    sub-agent's own CWD. A relative read is stale; an absolute read under
+    ``root`` (or ``git -C root``) is HEAD-correct regardless of the CWD.
+    """
+    return (
+        "## ⚠️ 현재 구현 코드의 기준 (impl-done — 먼저 읽을 것)\n\n"
+        "본 검토에서 \"현재 구현\" 의 단일 진실(SoT)은 아래 **HEAD 워킹트리**다:\n\n"
+        f"    {root}\n\n"
+        f"(diff-base `{diff_base}` 대비 신규·변경 코드가 모두 반영된 working tree.)\n\n"
+        "당신(checker sub-agent)의 기본 작업 디렉토리(CWD)는 이 워킹트리가 **아닐 수 있으며**, "
+        f"`{diff_base}`(변경 전) 상태의 별도 체크아웃일 수 있다. 따라서:\n\n"
+        "- 코드의 존재·내용을 확인할 때 **상대경로 Read/Grep/Bash(=CWD 기준)를 신뢰하지 말 것.** "
+        "CWD 는 변경 전 코드라 \"신규 식별자가 코드에 없다\" 는 거짓 결론을 만든다 (과거 오탐: "
+        "checker 가 큐 상수를 변경 전 개수로 세어 신규 큐 미구현이라 단언 → 정당한 PR BLOCK).\n"
+        "- 코드를 직접 확인해야 하면 반드시 위 워킹트리를 **절대경로**로 지목하라:\n"
+        f"    - `Read(\"{root}/codebase/.../file.ts\")` — 절대경로 Read\n"
+        f"    - `git -C \"{root}\" grep -n \"<식별자>\"`\n"
+        f"    - `git -C \"{root}\" show HEAD:codebase/.../file.ts`\n"
+        "- 아래 `## 구현 변경 사항` 의 diff 는 위 워킹트리에서 산출된 것이라 신규·변경 코드의 1차 "
+        "근거다. diff 의 `+` 라인 또는 위 워킹트리에 식별자가 있으면 그것은 **구현된 것**이다.\n"
+        "- **\"spec 이 선언한 X 가 코드에 미구현·누락\" 류의 CRITICAL 은**, 위 절대경로 또는 "
+        f"`git -C \"{root}\"` 로 재확인하기 전에는 보고하지 말 것.\n\n"
+    )
+
+
 RATIONALE_HEADER_RE = re.compile(r"^##\s+Rationale\b.*$", re.MULTILINE)
 
 
@@ -292,7 +329,10 @@ def collect_context(args, root):
                 f"\n\n## 구현 변경 사항 (git diff {diff_base}...HEAD -- "
                 "<code_areas>)\n\n(변경 없음 또는 git diff 실패 — base ref 가 fetch 되어 있는지 확인)\n"
             )
-        target_doc = spec_bundle + diff_section
+        # HEAD-basis notice goes FIRST so it survives target_doc truncation
+        # (truncate_to_budget trims the tail) and the checker reads the
+        # current-code SoT before anything else.
+        target_doc = _head_basis_notice(root, diff_base) + spec_bundle + diff_section
         mode_label = (
             f"구현 완료 후 검토 (--impl-done, scope={target_path_rel}, "
             f"diff-base={diff_base})"
