@@ -34,6 +34,13 @@ import { ExecutionSeqAllocator } from '../src/modules/websocket/execution-seq-al
 const REDIS_HOST = process.env.REDIS_HOST ?? 'redis';
 const REDIS_PORT = Number(process.env.REDIS_PORT ?? '6379');
 
+/** 분산 발급 부하 테스트(테스트 1·2)의 총 발급 수 — 인스턴스당 절반씩 동시 발사. */
+const ALLOC_COUNT = 1000;
+/** process.hrtime.bigint() 의 나노초 → 밀리초 환산 상수. */
+const NS_PER_MS = 1e6;
+/** 측정 로그 공통 접두어. */
+const LOG_PREFIX = '[seq-load]';
+
 /**
  * 실 ioredis 연결 하나를 ExecutionSeqAllocator 가 기대하는 RedisConnectionProvider
  * 표면 (getClient / getClientOrNull) 으로 감싸는 최소 어댑터. 각 인스턴스가 자기
@@ -59,6 +66,10 @@ async function allocateConcurrentlyAcrossInstances(
   executionId: string,
   total: number,
 ): Promise<number[]> {
+  // 두 인스턴스에 정확히 절반씩 분배해야 union=1..total 가정이 성립 → 짝수만 허용.
+  if (total % 2 !== 0) {
+    throw new Error(`total must be even (got ${total})`);
+  }
   const [a, b] = instances;
   const perInstance = total / 2;
   const calls: Array<Promise<number>> = [];
@@ -67,6 +78,26 @@ async function allocateConcurrentlyAcrossInstances(
     calls.push(b.next(executionId));
   }
   return Promise.all(calls);
+}
+
+/**
+ * 발급된 seq 집합이 정확히 `1..expectedCount` (중복·역전·빠짐 0) 임을 단언한다.
+ * min/max 는 스프레드(`Math.min(...seqs)`) 대신 단일 패스로 구한다 — N 이 V8
+ * 인자 한도(~65,536)를 넘어도 스택 오버플로우 없이 안전(테스트 1·2 공용).
+ */
+function assertMonotonicUniqueness(
+  seqs: number[],
+  expectedCount: number,
+): void {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const s of seqs) {
+    if (s < min) min = s;
+    if (s > max) max = s;
+  }
+  expect(new Set(seqs).size).toBe(expectedCount); // 중복 0
+  expect(min).toBe(1); // 시작 1
+  expect(max).toBe(expectedCount); // 1..N 빠짐없이 (gap·역전 0)
 }
 
 describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)', () => {
@@ -107,21 +138,15 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
 
   it('두 인스턴스가 같은 executionId 를 동시 발급해도 중복·역전 0 (union = 1..N)', async () => {
     const executionId = `load-${randomUUID()}`;
-    const N = 1000; // 인스턴스당 500개씩, 총 1000 동시 발급.
 
     try {
       const seqs = await allocateConcurrentlyAcrossInstances(
         [allocA, allocB],
         executionId,
-        N,
+        ALLOC_COUNT,
       );
-
-      // 중복 0: 발급된 seq 가 전부 유일.
-      const unique = new Set(seqs);
-      expect(unique.size).toBe(N);
-      // 빠짐·역전 0: 두 인스턴스 발급의 합집합이 정확히 1..N (gap/중복 모두 없음).
-      expect(Math.min(...seqs)).toBe(1);
-      expect(Math.max(...seqs)).toBe(N);
+      // 합집합이 정확히 1..ALLOC_COUNT (중복·역전·빠짐 0).
+      assertMonotonicUniqueness(seqs, ALLOC_COUNT);
     } finally {
       releaseBoth(executionId);
     }
@@ -129,28 +154,25 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
 
   it('1000 events/s 부하에서 단조 유일 보장 + throughput 측정', async () => {
     const executionId = `tput-${randomUUID()}`;
-    const N = 1000;
 
     try {
       const start = process.hrtime.bigint();
       const seqs = await allocateConcurrentlyAcrossInstances(
         [allocA, allocB],
         executionId,
-        N,
+        ALLOC_COUNT,
       );
-      const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
-      const throughput = (N / elapsedMs) * 1000; // events/s
+      const elapsedMs = Number(process.hrtime.bigint() - start) / NS_PER_MS;
+      const throughput = (ALLOC_COUNT / elapsedMs) * 1000; // events/s
 
-      // 단조 유일 보장이 부하에서도 유지 — test 1 과 동일 대칭 검증(중복·역전·빠짐 0).
-      expect(new Set(seqs).size).toBe(N);
-      expect(Math.min(...seqs)).toBe(1);
-      expect(Math.max(...seqs)).toBe(N);
+      // 단조 유일 보장이 부하에서도 유지 — test 1 과 동일 대칭 검증.
+      assertMonotonicUniqueness(seqs, ALLOC_COUNT);
 
       // throughput 측정 보고 + 회귀 가드. 파이프라인 INCR 동시성으로 로컬/도커망
       // Redis 는 수천 events/s 가 정상 — 1000/s 목표 대비 큰 여유. (criterion: 1000 events/s)
       // eslint-disable-next-line no-console
       console.log(
-        `[seq-load] ${N} allocations across 2 instances in ${elapsedMs.toFixed(
+        `${LOG_PREFIX} ${ALLOC_COUNT} allocations across 2 instances in ${elapsedMs.toFixed(
           1,
         )}ms → ${throughput.toFixed(0)} events/s`,
       );
@@ -161,6 +183,8 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
   }, 60_000);
 
   it('single-instance 발급 latency < 5ms (in-memory baseline 대비 회귀 < 5ms)', async () => {
+    // 전제: 테스트 1·2 가 먼저 실행돼 연결이 warmup 된 상태. 추가로 본 테스트
+    // 자체도 WARMUP 회 사전 발급해 연결·키 초기화 outlier 를 제외한다.
     const executionId = `lat-${randomUUID()}`;
     const WARMUP = 20; // 연결·키 초기화 outlier 제외.
     const SAMPLES = 200;
@@ -172,7 +196,7 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
       for (let i = 0; i < SAMPLES; i++) {
         const start = process.hrtime.bigint();
         await allocA.next(executionId);
-        latenciesMs.push(Number(process.hrtime.bigint() - start) / 1e6);
+        latenciesMs.push(Number(process.hrtime.bigint() - start) / NS_PER_MS);
       }
 
       const sorted = [...latenciesMs].sort((a, b) => a - b);
@@ -183,7 +207,7 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
       const avg = latenciesMs.reduce((s, v) => s + v, 0) / latenciesMs.length;
       // eslint-disable-next-line no-console
       console.log(
-        `[seq-load] single-instance next() latency over ${SAMPLES} samples: ` +
+        `${LOG_PREFIX} single-instance next() latency over ${SAMPLES} samples: ` +
           `median=${median.toFixed(3)}ms avg=${avg.toFixed(
             3,
           )}ms p95=${p95.toFixed(3)}ms`,
