@@ -90,8 +90,8 @@ chat.shutdown();
 | iframe → host | `wc:resize` | `{ width, height, state: 'collapsed' \| 'expanded' }`. **hidden/blocked 시**(위젯이 `visible=false` 또는 host `hide()` 명령으로 숨겨진 경우) `{ width: 0, height: 0, state: 'collapsed' }` 를 emit 해 host 의 iframe 박스 점유를 제거한다. |
 | iframe → host | `wc:event` | `{ name, data }` — `name` ∈ `open`/`close`/`message`/`unread`/`conversationStarted`/`conversationEnded`, `data` 는 이벤트별 페이로드 |
 - **origin 검증 필수**(양방향 `event.origin` 화이트리스트). 토큰·대화 내용은 iframe 내부 유지, host 로 비노출.
-- **`resetSession` 명령**: 현재 대화를 처음부터 다시 시작한다 — 위젯이 SSE 연결을 닫고 저장 세션(localStorage)을
-  비운 뒤 새 execution 을 시작(`newChat`: closeStream→clearSession→start). 운영 콘솔 **라이브 미리보기의 "새 세션"
+- **`resetSession` 명령**: 현재 대화를 처음부터 다시 시작한다 — 위젯이 SSE 연결을 닫고 저장 세션(sessionStorage,
+  [3-auth-session §R6](./3-auth-session.md))을 비운 뒤 새 execution 을 시작(`newChat`: closeStream→clearSession→start). 운영 콘솔 **라이브 미리보기의 "새 세션"
   버튼**이 이 명령으로 반복 테스트를 가능케 한다. 위젯 내부의 대화 종료 후 "새 대화 시작"과 동일 동작을 host 가 임의
   시점에 트리거하는 경로다.
 - **`wc:boot` 재전송(멱등 재설정)**: host 는 iframe 을 재생성하지 않고 `wc:boot` 을 다시 보내 boot config

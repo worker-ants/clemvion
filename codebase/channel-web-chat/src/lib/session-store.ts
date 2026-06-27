@@ -1,5 +1,6 @@
-// 새로고침 세션 지속 (N1=복원). SoT: spec/7-channel-web-chat/1-widget-app §3.1, 3-auth-session §3.
-// executionId + 단명 토큰을 iframe-origin storage 에 저장 → 재로드 시 GET /:id + SSE 재연결로 복원.
+// 새로고침 세션 지속 (N1=복원). SoT: spec/7-channel-web-chat/1-widget-app §3.1, 3-auth-session §3·§R6.
+// executionId + 단명 토큰을 iframe-origin sessionStorage 에 저장 → 재로드 시 GET /:id + SSE 재연결로 복원.
+// sessionStorage = 탭 단위(같은 탭 reload 는 유지, 탭 종료 시 자동 소거 → defense-in-depth, 3-auth-session §R6).
 // 토큰 만료/410 이면 자연 종료([ended]).
 
 import type { InteractionEndpoints } from "./eia-types";
@@ -20,7 +21,8 @@ function key(triggerEndpointPath: string): string {
 function getStorage(storage?: Storage): Storage | null {
   if (storage) return storage;
   try {
-    return typeof localStorage !== "undefined" ? localStorage : null;
+    // sessionStorage: 탭 종료 시 자동 소거(단명 토큰 잔존 최소화). 같은 탭 reload 는 유지돼 N1 복원 보존(§R6).
+    return typeof sessionStorage !== "undefined" ? sessionStorage : null;
   } catch {
     return null; // sandbox/3rd-party storage 차단 시 graceful.
   }

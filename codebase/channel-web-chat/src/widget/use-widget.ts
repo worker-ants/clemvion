@@ -542,8 +542,14 @@ export function useWidget() {
   };
 }
 
+/** 사용자 노출용 일반화 에러 문구(W1·4-security §5). 임베드 위젯은 타 사이트에서 동작하므로 서버/예외 원문을
+ * UI 에 직접 흘리지 않고(내부 구현·인프라 정보 노출 축소) 진단 원문은 console 로만 남긴다. 에러 → [ended] +
+ * "새 대화 시작" 안내라는 기존 동작(1-widget-app §3.1)은 그대로 유지하고, 표시 문구만 일반화한다. */
+const GENERIC_ERROR_MESSAGE =
+  "일시적인 오류로 대화를 진행할 수 없어요. 잠시 후 새 대화로 다시 시도해 주세요.";
+
 function errMessage(e: unknown): string {
-  if (e instanceof EiaError) return `${e.message}`;
-  if (e instanceof Error) return e.message;
-  return "알 수 없는 오류";
+  // 진단 원문은 console 에만(운영 추적) — UI 비노출.
+  console.warn("[widget] conversation error:", e instanceof Error ? e.message : String(e));
+  return GENERIC_ERROR_MESSAGE;
 }

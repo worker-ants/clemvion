@@ -132,7 +132,7 @@ function interactCalls(fetchMock: ReturnType<typeof installFetch>) {
 
 beforeEach(() => {
   vi.stubGlobal("EventSource", FakeEventSource);
-  window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -171,7 +171,7 @@ describe("useWidget — eager 시작(§R6)", () => {
 
   it("저장 세션 복원 시 open() 은 새 execution 을 시작하지 않음", async () => {
     // 사전 저장된 세션 — applyConfig 가 RESTORED 로 복원하고 startedRef=true.
-    window.localStorage.setItem(
+    window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
       JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
     );
@@ -337,6 +337,23 @@ describe("useWidget — eager 시작(§R6)", () => {
     // callCount 를 기다린 뒤 곧바로 executionId 를 단언하면 race 로 flaky 했다.
     await waitFor(() => expect(result.current.state.executionId).toBe("e2"));
     expect(callCount).toBe(2);
+  });
+
+  // W1 — start 실패 시 UI 에러 문구는 일반화되어 서버/내부 원문을 노출하지 않는다(4-security §5).
+  it("W1: webhook 실패 → state.error 는 일반화 문구(서버/예외 원문 미노출)", async () => {
+    const fetchMock = installFetch({ webhookStatus: 500 });
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+
+    const err = result.current.state.error ?? "";
+    // 일반화 문구 노출.
+    expect(err).toContain("잠시 후 새 대화로 다시 시도");
+    // 내부 원문(HTTP status·예외 message 등) 미노출.
+    expect(err).not.toMatch(/500|EiaError|fetch|undefined/i);
   });
 
   // race fix(§R6) — start 직후 빠른 첫 노드(buttons)의 waiting 이벤트를 SSE 구독 전 놓쳐도

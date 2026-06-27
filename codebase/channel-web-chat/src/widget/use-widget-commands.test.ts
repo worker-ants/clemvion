@@ -14,7 +14,7 @@ function postCommand(action: string, extra: Record<string, unknown> = {}) {
 beforeEach(() => {
   // embed-config fetch 는 네트워크 없이 즉시 실패 → soft 허용(fail-open) 경로로 결정적 동작.
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("no network in test")));
-  window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
