@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LlmService } from './llm.service';
 import { StubLlmClient } from './clients/stub.client';
+import { MAX_MODEL_LIST_SIZE } from './list-models-cap';
 
 // ─── Shared test fixtures ────────────────────────────────────────────────────
 
@@ -674,6 +675,19 @@ describe('LlmService', () => {
       await service.listModels('config-1', 'ws-1');
       await service.listModels('config-1', 'ws-2');
       expect(mockClient.listModels).toHaveBeenCalledTimes(2);
+    });
+
+    it('caps a pathologically large provider response at MAX_MODEL_LIST_SIZE', async () => {
+      const huge = Array.from({ length: MAX_MODEL_LIST_SIZE + 25 }, (_, i) => ({
+        id: `m-${i}`,
+        name: `model ${i}`,
+        type: 'chat' as const,
+      }));
+      mockClient.listModels.mockResolvedValue(huge);
+      const result = await service.listModels('config-1', 'ws-1');
+      expect(result).toHaveLength(MAX_MODEL_LIST_SIZE);
+      // provider 순서 보존 — 앞에서부터 절단
+      expect(result[0].id).toBe('m-0');
     });
 
     it('resolves config kind-agnostically — findEntity called without kind argument (INFO #11)', async () => {

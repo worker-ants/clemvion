@@ -8,6 +8,7 @@ import {
 } from './interfaces/llm-client.interface';
 import { sanitizeLlmErrorMessage } from './utils/sanitize-error.util';
 import { withTimeout } from './utils/with-timeout.util';
+import { capModelList } from './list-models-cap';
 
 const PREVIEW_TIMEOUT_MS = 30_000;
 
@@ -71,10 +72,11 @@ export class LlmPreviewService {
       });
     }
     try {
-      return await withTimeout(
+      const models = await withTimeout(
         (signal) => client.listModels(signal),
         PREVIEW_TIMEOUT_MS,
       );
+      return capModelList(models, this.logger);
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
       const sanitized = sanitizeLlmErrorMessage(raw);

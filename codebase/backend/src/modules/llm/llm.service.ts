@@ -22,6 +22,8 @@ import { LlmUsageLogService } from './llm-usage-log.service';
 import { StubLlmClient } from './clients/stub.client';
 import { sanitizeLlmErrorMessage } from './utils/sanitize-error.util';
 import { withTimeout } from './utils/with-timeout.util';
+import { capModelList } from './list-models-cap';
+import type { ModelTypeFilter } from '../model-config/dto/model-type';
 
 const LIST_MODELS_TIMEOUT_MS = 30_000;
 const LIST_MODELS_CACHE_TTL_MS = 5 * 60 * 1_000;
@@ -334,7 +336,7 @@ export class LlmService implements OnModuleInit {
   async listModels(
     configId: string,
     workspaceId: string,
-    opts?: { type?: 'chat' | 'embedding' },
+    opts?: { type?: ModelTypeFilter },
   ): Promise<ModelInfo[]> {
     const cacheKey = `${workspaceId}|${configId}`;
     const cached = this.listModelsCache.get(cacheKey);
@@ -363,6 +365,8 @@ export class LlmService implements OnModuleInit {
           message: sanitized,
         });
       }
+      // 병적 대량 응답 방어 — 캐시에는 상한 적용된 목록을 저장한다.
+      models = capModelList(models, this.logger);
       this.listModelsCache.set(cacheKey, { models, fetchedAt: Date.now() });
     }
 
