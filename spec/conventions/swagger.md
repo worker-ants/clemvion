@@ -262,7 +262,7 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 | `ApiCreatedWrappedResponse(Dto)` | 단일 객체 201 Created | `{ data: <Dto> }` |
 | `ApiAcceptedWrappedResponse(Dto)` | 단일 객체 202 Accepted | `{ data: <Dto> }` |
 | `ApiOkWrappedArrayResponse(Dto)` | 배열 200 OK | `{ data: <Dto>[] }` |
-| `ApiOkPaginatedResponse(Dto)` | 페이지네이션 200 OK | `{ data: { data: <Dto>[], pagination: { page, limit, totalItems, totalPages } } }` (공용 `PaginatedResponseDto` 형태) |
+| `ApiOkPaginatedResponse(Dto)` | 페이지네이션 200 OK | `{ data: <Dto>[], pagination: { page, limit, totalItems, totalPages } }` (공용 `PaginatedResponseDto` 형태 — `data`·`pagination` 이 top-level. single-wrap: `PaginatedResponseDto` 가 `data` 키를 가져 `TransformInterceptor` 가 pass-through) |
 
 각 헬퍼는 내부에서 `ApiExtraModels(Dto)` + `getSchemaPath(Dto)` 를 자동 수행합니다.
 
