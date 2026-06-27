@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-27T20:09:05.513912",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/graph-rag-doc-fix.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
