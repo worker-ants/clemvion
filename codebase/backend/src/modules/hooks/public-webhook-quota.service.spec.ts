@@ -5,6 +5,7 @@ import {
   makeHourKey,
   MINUTE_WINDOW_SEC,
   HOUR_WINDOW_SEC,
+  UNIDENTIFIED_IP_BUCKET,
 } from './public-webhook-quota.service';
 
 /** INCR/EXPIRE/pipeline/quit 만 흉내내는 in-memory fake Redis. */
@@ -158,5 +159,42 @@ describe('PublicWebhookQuotaService', () => {
   it('key 포맷 상수 — makeMinKey/makeHourKey (Info#10)', () => {
     expect(makeMinKey('1.2.3.4')).toBe('wh:rl:min:1.2.3.4');
     expect(makeHourKey('1.2.3.4')).toBe('wh:rl:hour:1.2.3.4');
+  });
+
+  it('UNIDENTIFIED_IP_BUCKET — 정상 IP 와 충돌하지 않는 sentinel 이며 공유 버킷 키를 만든다 (D-12)', () => {
+    // sentinel 은 유효 IP 표기가 아니어야 정상 클라이언트가 공유 버킷에 섞이지 않는다.
+    expect(UNIDENTIFIED_IP_BUCKET).toBe('__no_client_ip__');
+    // 유효 IPv4·IPv6 표기 어느 쪽과도 충돌하지 않아야 정상 클라이언트가 공유 버킷에 섞이지 않는다.
+    expect(/^\d{1,3}(\.\d{1,3}){3}$/.test(UNIDENTIFIED_IP_BUCKET)).toBe(false);
+    expect(/^[0-9a-f:]+$/i.test(UNIDENTIFIED_IP_BUCKET)).toBe(false);
+    expect(makeMinKey(UNIDENTIFIED_IP_BUCKET)).toBe(
+      'wh:rl:min:__no_client_ip__',
+    );
+    expect(makeHourKey(UNIDENTIFIED_IP_BUCKET)).toBe(
+      'wh:rl:hour:__no_client_ip__',
+    );
+  });
+
+  it('UNIDENTIFIED_IP_BUCKET 으로 consumeStart — 일반 IP 처럼 카운트되어 미식별 트래픽이 한 버킷에 누적 (D-12)', async () => {
+    const redis = makeFakeRedis();
+    const svc = new PublicWebhookQuotaService(undefined, redis);
+    const r = await svc.consumeStart(UNIDENTIFIED_IP_BUCKET);
+    expect(r.allowed).toBe(true);
+    // 미식별 요청은 모두 동일 sentinel 키에 누적된다(단일 공유 버킷 = 보수적 완화 한도).
+    expect(redis.store.get(makeMinKey(UNIDENTIFIED_IP_BUCKET))).toBe(1);
+  });
+
+  it('UNIDENTIFIED_IP_BUCKET 시간당 누적 초과 → reason=hourly_new (미식별 공유 버킷도 per-IP 와 동일 한도, D-12)', async () => {
+    const redis = makeFakeRedis();
+    const svc = new PublicWebhookQuotaService(undefined, redis);
+    const store = (redis as unknown as { store: Map<string, number> }).store;
+    // 분당 카운터를 매번 리셋해 startup_rate 에 안 걸리게 하고 hour 만 누적.
+    const hourlyMax = PublicWebhookQuotaService.DEFAULT_HOURLY_NEW_MAX;
+    let last = { allowed: true, reason: null as string | null };
+    for (let i = 0; i < hourlyMax + 1; i++) {
+      store.set(makeMinKey(UNIDENTIFIED_IP_BUCKET), 0);
+      last = await svc.consumeStart(UNIDENTIFIED_IP_BUCKET);
+    }
+    expect(last).toEqual({ allowed: false, reason: 'hourly_new' });
   });
 });
