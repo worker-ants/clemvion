@@ -65,7 +65,19 @@ export const agentMemoriesApi = {
     await apiClient.delete(`/agent-memories/${id}`);
   },
 
-  async clearScope(scopeKey: string): Promise<void> {
-    await apiClient.delete("/agent-memories", { params: { scopeKey } });
+  /**
+   * scope 전체 삭제. 응답 `X-Deleted-Count` 헤더에서 실제 삭제 행 수를 파싱해
+   * 반환한다 (AGM-13 멱등 삭제 UX — 호출부가 0건일 때 중립 토스트로 분기).
+   * 헤더 부재/비숫자면 0 으로 폴백.
+   */
+  async clearScope(scopeKey: string): Promise<number> {
+    const res = await apiClient.delete("/agent-memories", {
+      params: { scopeKey },
+    });
+    const raw = (res.headers as Record<string, unknown> | undefined)?.[
+      "x-deleted-count"
+    ];
+    const count = Number(raw);
+    return Number.isFinite(count) ? count : 0;
   },
 };

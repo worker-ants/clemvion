@@ -1,4 +1,5 @@
 import {
+  buildDefaultCorsOptions,
   createWebChatCorsDelegate,
   extractExternalExecutionId,
   isExternalOriginAllowed,
@@ -160,5 +161,40 @@ describe('createWebChatCorsDelegate', () => {
       headers: { origin: 'https://app' },
     });
     expect(opts.credentials).toBe(true);
+  });
+
+  it('비-웹채팅 경로 → defaultOptions 의 exposedHeaders 를 응답에 전파', async () => {
+    // 프로덕션 팩토리(buildDefaultCorsOptions)를 그대로 주입해 delegate 가
+    // X-Deleted-Count 노출을 비-웹채팅 경로 응답까지 전달하는지 검증.
+    const d = createWebChatCorsDelegate({
+      widgetOrigins: [],
+      resolveAllowlist: async () => [],
+      defaultOptions: () => buildDefaultCorsOptions(() => {}),
+    });
+    const opts = await decide(d, {
+      path: '/api/agent-memories',
+      headers: { origin: 'https://app' },
+    });
+    expect(opts.exposedHeaders).toContain('X-Deleted-Count');
+  });
+});
+
+describe('buildDefaultCorsOptions (AGM-13 회귀 방지)', () => {
+  /**
+   * main.ts 부트스트랩이 실제로 사용하는 팩토리를 직접 검증한다.
+   * 프로덕션 코드에서 exposedHeaders 를 제거하거나 헤더 이름을 변경하면
+   * 이 테스트가 실패한다(동어반복 아님 — 실제 회귀 방지).
+   */
+  it('X-Deleted-Count 를 exposedHeaders 에 포함한다 (clearScope 0/다건 토스트 분기)', () => {
+    expect(buildDefaultCorsOptions(() => {}).exposedHeaders).toContain(
+      'X-Deleted-Count',
+    );
+  });
+
+  it('credentials true·주입된 origin 콜백을 유지한다', () => {
+    const cb: CorsOptionsLike['origin'] = () => {};
+    const opts = buildDefaultCorsOptions(cb);
+    expect(opts.credentials).toBe(true);
+    expect(opts.origin).toBe(cb);
   });
 });

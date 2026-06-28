@@ -1,8 +1,14 @@
 import { Reflector } from '@nestjs/core';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { AgentMemoryController } from './agent-memory.controller';
-import { AgentMemoryService } from './agent-memory.service';
+import { AgentMemoryAdminService } from './agent-memory-admin.service';
 import { ROLES_KEY } from '../../common/guards/roles.guard';
+import type { Response } from 'express';
+
+/** clearScope 의 `@Res({ passthrough: true })` 용 최소 Response 목. */
+function mockRes(): { setHeader: jest.Mock } {
+  return { setHeader: jest.fn() };
+}
 
 describe('AgentMemoryController (spec §6, AGM-12/13)', () => {
   let controller: AgentMemoryController;
@@ -21,7 +27,7 @@ describe('AgentMemoryController (spec §6, AGM-12/13)', () => {
       clearScope: jest.fn(),
     };
     controller = new AgentMemoryController(
-      service as unknown as AgentMemoryService,
+      service as unknown as AgentMemoryAdminService,
     );
   });
 
@@ -160,27 +166,47 @@ describe('AgentMemoryController (spec §6, AGM-12/13)', () => {
   });
 
   describe('clearScope (DELETE /agent-memories?scopeKey=)', () => {
-    it('scopeKey 가 있으면 workspaceId + scopeKey 위임 (204)', async () => {
+    it('scopeKey 가 있으면 workspaceId + scopeKey 위임 (204) + X-Deleted-Count 헤더 echo', async () => {
       service.clearScope.mockResolvedValue(5);
+      const res = mockRes();
       await expect(
-        controller.clearScope('ws-1', { scopeKey: 'cust-1' }),
+        controller.clearScope(
+          'ws-1',
+          { scopeKey: 'cust-1' },
+          res as unknown as Response,
+        ),
       ).resolves.toBeUndefined();
       expect(service.clearScope).toHaveBeenCalledWith('ws-1', 'cust-1');
+      // 삭제 행 수를 X-Deleted-Count 헤더로 echo (문자열).
+      expect(res.setHeader).toHaveBeenCalledWith('X-Deleted-Count', '5');
     });
 
-    it('scopeKey 가 공백만이면 BadRequestException, 서비스 미호출', async () => {
+    it('scopeKey 가 공백만이면 BadRequestException, 서비스·헤더 미호출', async () => {
+      const res = mockRes();
       await expect(
-        controller.clearScope('ws-1', { scopeKey: '   ' }),
+        controller.clearScope(
+          'ws-1',
+          { scopeKey: '   ' },
+          res as unknown as Response,
+        ),
       ).rejects.toThrow(BadRequestException);
       expect(service.clearScope).not.toHaveBeenCalled();
+      expect(res.setHeader).not.toHaveBeenCalled();
     });
 
-    it('대상 0건(affected=0)이어도 정상 void 반환 (204, 멱등)', async () => {
+    it('대상 0건(affected=0)이어도 정상 void 반환 (204, 멱등) + X-Deleted-Count: 0', async () => {
       service.clearScope.mockResolvedValue(0);
+      const res = mockRes();
       await expect(
-        controller.clearScope('ws-1', { scopeKey: 'empty-scope' }),
+        controller.clearScope(
+          'ws-1',
+          { scopeKey: 'empty-scope' },
+          res as unknown as Response,
+        ),
       ).resolves.toBeUndefined();
       expect(service.clearScope).toHaveBeenCalledWith('ws-1', 'empty-scope');
+      // 0건도 헤더로 명시 — 프론트가 중립 토스트로 분기하는 근거.
+      expect(res.setHeader).toHaveBeenCalledWith('X-Deleted-Count', '0');
     });
   });
 });

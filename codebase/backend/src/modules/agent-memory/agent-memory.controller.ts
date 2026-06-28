@@ -4,12 +4,14 @@ import {
   Delete,
   Param,
   Query,
+  Res,
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -21,12 +23,13 @@ import {
   ApiUnauthorizedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { ApiOkPaginatedResponse } from '../../common/swagger';
 import { WorkspaceId } from '../../common/decorators';
 import { Roles } from '../../common/guards/roles.guard';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
-import { AgentMemoryService } from './agent-memory.service';
+import { AgentMemoryAdminService } from './agent-memory-admin.service';
 import { ListAgentMemoryScopesQueryDto } from './dto/list-agent-memory-scopes.query';
 import { ListAgentMemoriesQueryDto } from './dto/list-agent-memories.query';
 import { ClearAgentMemoriesQueryDto } from './dto/clear-agent-memories.query';
@@ -52,7 +55,7 @@ import {
 @ApiBearerAuth('access-token')
 @Controller('agent-memories')
 export class AgentMemoryController {
-  constructor(private readonly agentMemoryService: AgentMemoryService) {}
+  constructor(private readonly adminService: AgentMemoryAdminService) {}
 
   @Get('scopes')
   @Roles('viewer')
@@ -71,10 +74,11 @@ export class AgentMemoryController {
   ): Promise<PaginatedResponseDto<AgentMemoryScopeDto>> {
     const limit = query.limit ?? 30;
     const offset = query.offset ?? 0;
-    const { items, total } = await this.agentMemoryService.listScopes(
-      workspaceId,
-      { limit, offset, q: query.q },
-    );
+    const { items, total } = await this.adminService.listScopes(workspaceId, {
+      limit,
+      offset,
+      q: query.q,
+    });
     // offset/limit → page 파생 (프로젝트 표준 PaginatedResponseDto shape 유지).
     const page = Math.floor(offset / limit) + 1;
     return PaginatedResponseDto.create(items, total, page, limit);
@@ -98,7 +102,7 @@ export class AgentMemoryController {
   ): Promise<PaginatedResponseDto<AgentMemoryItemDto>> {
     const limit = query.limit ?? 30;
     const offset = query.offset ?? 0;
-    const { items, total } = await this.agentMemoryService.listMemories(
+    const { items, total } = await this.adminService.listMemories(
       workspaceId,
       query.scopeKey,
       { kind: query.kind, limit, offset },
@@ -126,10 +130,7 @@ export class AgentMemoryController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
   ): Promise<void> {
-    const affected = await this.agentMemoryService.deleteMemory(
-      workspaceId,
-      id,
-    );
+    const affected = await this.adminService.deleteMemory(workspaceId, id);
     if (affected === 0) {
       throw new NotFoundException({
         code: 'RESOURCE_NOT_FOUND',
@@ -152,12 +153,19 @@ export class AgentMemoryController {
     required: true,
   })
   @ApiNoContentResponse({ description: '삭제 성공 (대상 없으면 0건 삭제)' })
+  @ApiHeader({
+    name: 'X-Deleted-Count',
+    description:
+      '실제 삭제된 메모리 행 수 (0 가능 — 멱등 삭제). 프론트가 0건일 때 중립 토스트로 분기하는 근거.',
+    schema: { type: 'integer' },
+  })
   @ApiBadRequestResponse({ description: 'scopeKey 누락' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async clearScope(
     @WorkspaceId() workspaceId: string,
     @Query() query: ClearAgentMemoriesQueryDto,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
     // class-validator 가 scopeKey 필수를 1차 검증하지만, 빈/공백만 들어온
     // 케이스를 방어적으로 한 번 더 차단 (spec §6 — scopeKey 필수, 없으면 400).
@@ -167,6 +175,12 @@ export class AgentMemoryController {
         message: 'scopeKey query parameter is required',
       });
     }
-    await this.agentMemoryService.clearScope(workspaceId, query.scopeKey);
+    const deleted = await this.adminService.clearScope(
+      workspaceId,
+      query.scopeKey,
+    );
+    // 삭제 행 수를 X-Deleted-Count 헤더로 echo (204 본문 없음). 프론트가 0건이면
+    // 중립 토스트("삭제할 메모리가 없습니다")로 분기한다 — AGM-13 멱등 삭제 UX.
+    res.setHeader('X-Deleted-Count', String(deleted));
   }
 }
