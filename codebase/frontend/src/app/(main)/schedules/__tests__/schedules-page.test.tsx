@@ -65,9 +65,22 @@ const EMPTY_RESPONSE = {
 };
 
 async function openAddDialog() {
-  const addBtn = await screen.findByRole("button", { name: /add schedule/i });
+  // 빈 목록 응답에서는 헤더의 'Add schedule' 버튼 외에 EmptyState 도 동일한
+  // 접근성 이름의 버튼을 렌더한다(둘 다 editor RoleGate). 목록 쿼리가 resolve
+  // 되어 EmptyState 가 그려진 뒤에는 'Add schedule' 버튼이 2개가 되는데,
+  // 쿼리 resolve 시점은 전체 스위트 부하에 따라 흔들려서 findByRole(단수)이
+  // 간헐적으로 다중 매칭 throw 를 냈다(이 파일의 flaky 원인). findAllByRole 로
+  // 다중 매칭을 허용해 비결정성을 제거한다.
+  // 인덱스 선택은 안전하다: 헤더·EmptyState 두 버튼 모두 onClick 이
+  // setShowDialog(true) 로 동일한 생성 다이얼로그를 열기 때문에 어느 쪽을
+  // 눌러도(또는 향후 DOM 순서가 바뀌어도) 테스트 의도인 "다이얼로그 오픈"은
+  // 동일하게 충족된다. (격리 렌더에는 app-shell <header> 가 없어 banner role
+  // 스코프 한정은 적용 불가.)
+  const addBtns = await screen.findAllByRole("button", {
+    name: /add schedule/i,
+  });
   await act(async () => {
-    fireEvent.click(addBtn);
+    fireEvent.click(addBtns[0]);
   });
 }
 
@@ -376,8 +389,15 @@ describe("SchedulesPage — RBAC", () => {
     expect(
       screen.queryByRole("button", { name: /deactivate|activate/i }),
     ).toBeNull();
-    expect(screen.queryByTitle(/^edit$/i)).toBeNull();
-    expect(screen.queryByTitle(/^delete$/i)).toBeNull();
+    // edit·delete 버튼은 title 이 아닌 aria-label 로 식별된다(Stage 10 a11y).
+    // queryByTitle 은 title 부재로 항상 null → viewer 에 버튼이 노출돼도
+    // 통과하는 false-negative 였다. Editor 테스트와 동일하게 role+name 으로 검증.
+    expect(
+      screen.queryByRole("button", { name: /^edit$/i }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^delete$/i }),
+    ).toBeNull();
     // Run now 는 viewer 도 가능
     expect(
       screen.getByRole("button", { name: /run now/i }),

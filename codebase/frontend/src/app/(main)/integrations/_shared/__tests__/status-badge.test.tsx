@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   computeStatus,
   computeAttentionBreakdown,
@@ -6,6 +6,20 @@ import {
   needsAttention,
 } from "../status-badge";
 import type { IntegrationDto } from "@/lib/api/integrations";
+
+// 이 파일의 단언은 모두 `Date.now()` 상대 시각(만료 임박 판정·humanizeUntil
+// 단위 경계)에 의존한다. 실제 시간을 쓰면 테스트가 타임스탬프를 만든 시점과
+// 함수가 내부에서 `Date.now()` 를 다시 읽는 시점 사이에 수 ms 가 흘러,
+// 예컨대 minutesFromNow(60) 이 60분에서 살짝 모자라 "1h" 가 아닌 "59m" 으로
+// 떨어지는 flaky 가 났다(전체 스위트 부하 시 간헐 발생). 시스템 시간을 고정해
+// 두 번의 읽기가 동일 시각을 보게 하여 경계 단언을 결정적으로 만든다.
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-06-28T00:00:00Z"));
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function row(overrides: Partial<IntegrationDto>): IntegrationDto {
   return {
