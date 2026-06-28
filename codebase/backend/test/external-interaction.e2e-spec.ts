@@ -84,7 +84,9 @@ async function createTriggerWithInteraction(
     ],
   );
   const triggerId = randomUUID();
-  const endpointPath = `e2e-${triggerId.slice(0, 8)}`;
+  // endpoint_path 는 v4 UUID 형식 강제(WH-MG-02, DB CHECK chk_trigger_endpoint_path_uuid).
+  // 직접 INSERT 도 제약 대상이므로 UUID 로 발급한다.
+  const endpointPath = randomUUID();
   const config = opts.interactionEnabled
     ? {
         notification: null,

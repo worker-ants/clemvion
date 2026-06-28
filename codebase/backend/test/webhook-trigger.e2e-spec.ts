@@ -112,6 +112,24 @@ describe('Webhook trigger (e2e)', () => {
     expect(res.body.error.code).toBe('TRIGGER_NOT_FOUND');
   });
 
+  it('B2. 비-UUID endpointPath 로 트리거 생성 → 400 VALIDATION_ERROR (W1·WH-MG-02)', async () => {
+    // ValidationPipe(@IsUUID('4')) 스택이 비-UUID endpoint_path 를 DB 도달 전에 막는지
+    // e2e 레벨에서 검증 — DTO unit 과 별개로 실 파이프라인 회귀 가드.
+    const res = await request(BASE_URL)
+      .post('/api/triggers')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({
+        workflowId,
+        type: 'webhook',
+        name: uniqueName('hook-b2'),
+        endpointPath: 'my-integration',
+        isActive: true,
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
   it('C. 비활성 트리거 → 410 TRIGGER_INACTIVE', async () => {
     const path = crypto.randomUUID();
     const triggerId = await createWebhookTrigger(uniqueName('hook-c'), path);
