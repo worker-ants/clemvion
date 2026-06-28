@@ -28,6 +28,10 @@ const cookieParser = require('cookie-parser') as () => (
 ) => void;
 import { AppModule } from './app.module';
 import {
+  createHooksBodyParsers,
+  createGlobalBodyParsers,
+} from './bootstrap/hooks-body-parser';
+import {
   assertCorsOriginsConfigured,
   corsOriginCallback,
 } from './common/utils/cors-origins';
@@ -142,10 +146,21 @@ async function bootstrap() {
     );
   }
 
-  // rawBody: true 는 HMAC 웹훅(`AuthConfigsService.verifyWebhookRequest`) 의 서명 검증에 필수다.
-  // 미설정 시 `req.rawBody` 가 undefined 가 되어 HMAC 분기가 항상 401 을 반환한다.
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  // 본문 파서를 직접 제어한다 (`bodyParser: false`). 이유: 라우트별 크기 한도 분리 —
+  // `/api/hooks/*` 인증 webhook 은 1MB(WH-NF-02 옵션 C), 그 외 라우트는 100KB 기본 방어선.
+  // Nest 기본 파서를 켜둔 채 `app.use(json())` 같은 수동 파서를 추가하면, Nest 가 이를 감지해
+  // **자기 전역 파서 등록을 건너뛰어** non-hooks 라우트 본문이 미파싱(req.body=undefined)되는
+  // 함정이 있다 — 그래서 전역 파서까지 명시 등록한다. 두 파서 모두 rawBody 를 보존해
+  // HMAC 서명 검증(`AuthConfigsService.verifyWebhookRequest`, Slack/Discord inbound)이 동작한다.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
   const configService = app.get(ConfigService);
+
+  // hooks(1MB)를 먼저 등록해 `/api/hooks/*` 를 1MB 로 파싱(req._body 세팅) → 후행 전역 파서는
+  // body-parser 의 idempotency 가드로 hooks 재파싱을 skip. 그 외 라우트는 전역 100KB 적용.
+  // 공개 webhook 의 32KB 추가 제한은 PublicWebhookThrottleGuard 가 파싱 후 별도 적용.
+  // (Spec 12-webhook §6·§8.)
+  app.use('/api/hooks', ...createHooksBodyParsers());
+  app.use(...createGlobalBodyParsers());
 
   // Cloudflare(또는 단일 reverse proxy) 한 단계 뒤에서 동작하므로 hop 1 만
   // 신뢰한다. `true` 로 두면 임의의 X-Forwarded-For 헤더가 그대로 받아들여져

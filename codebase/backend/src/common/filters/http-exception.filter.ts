@@ -66,11 +66,28 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       code = 'RESOURCE_CONFLICT';
       message = 'Resource already exists or has been modified concurrently.';
     } else if (exception instanceof Error) {
-      this.logger.error(
-        `Unhandled exception: ${exception.message}`,
-        exception.stack,
-      );
-      message = 'An unexpected error occurred. Please try again later.';
+      // http-errors (예: body-parser 의 `PayloadTooLargeError`) 는 NestJS HttpException 이
+      // 아니지만 숫자 `status`/`statusCode` 를 가진다. 4xx 는 그 상태로 매핑해 클라이언트
+      // 오류(예: 본문 초과 → 413 `PAYLOAD_TOO_LARGE`)가 오해의 소지 있는 500 으로 가려지지
+      // 않게 한다. 5xx·상태 부재는 generic 500 으로 마스킹(내부 메시지 누출 차단).
+      const errStatus =
+        (exception as { status?: number }).status ??
+        (exception as { statusCode?: number }).statusCode;
+      if (
+        typeof errStatus === 'number' &&
+        errStatus >= 400 &&
+        errStatus < 500
+      ) {
+        status = errStatus;
+        code = this.getCodeFromStatus(errStatus);
+        message = exception.message;
+      } else {
+        this.logger.error(
+          `Unhandled exception: ${exception.message}`,
+          exception.stack,
+        );
+        message = 'An unexpected error occurred. Please try again later.';
+      }
     }
 
     const errorResponse: Record<string, unknown> = {
@@ -97,6 +114,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         return 'RESOURCE_NOT_FOUND';
       case 409:
         return 'RESOURCE_CONFLICT';
+      case 413:
+        return 'PAYLOAD_TOO_LARGE';
       case 422:
         return 'INVALID_STATE';
       case 429:

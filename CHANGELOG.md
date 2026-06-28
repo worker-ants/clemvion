@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — 인증 webhook 1MB body 게이트 (옵션 C) + 공개 webhook 보호 우회 fix
+
+### 보안 수정 (Security)
+
+1. **공개 webhook 남용 보호가 전량 우회되던 버그 수정** — `PublicWebhookThrottleGuard` 가 트리거를 `findOne({ select: { authConfigId: true } })` 로 조회했는데, 이 partial projection 이 `authConfigId` 를 (`null` 대신) 비-`null` 값으로 잘못 반환해, **모든 공개(`auth_config_id IS NULL`) webhook 이 인증 webhook 으로 오판**되었다. 결과적으로 공개 webhook 의 **32KB body 크기 제한·IP 단위 분당/시간당 rate-limit 이 전혀 적용되지 않았다**(Guard 가 본문 검사 전 early-return). full entity 로드로 교정. 회귀 가드 e2e 추가(`webhook-trigger` L: 공개 64KB → `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE`).
+
+### 변경 사항
+
+1. **인증 webhook 본문 1MB 수용 (WH-NF-02 옵션 C)** — `/api/hooks/*` 라우트 스코프 body-parser(`createHooksBodyParsers`, 기본 1MB·`HOOKS_MAX_BODY_BYTES` env)가 인증 webhook 본문을 1MB 까지 수용하고, 초과 시 표준 봉투 `413 PAYLOAD_TOO_LARGE`. 종전 인증 webhook 은 express 기본 100KB 에서 비표준 에러로 끊겼다. 공개 webhook 의 32KB(`PublicWebhookThrottleGuard`)는 그 위에서 유지. 전역 100KB 기본은 non-webhook 라우트에 보존(라우트 스코프 분리). `main.ts` 는 `bodyParser: false` 로 Nest 기본 파서를 끄고 hooks·전역 파서를 직접 등록(Nest 가 수동 파서 감지 시 자기 전역 파서를 skip 해 본문 미파싱되는 함정 회피), rawBody 보존(HMAC 호환). SoT: `spec/5-system/12-webhook.md WH-NF-02`.
+2. **`413 → PAYLOAD_TOO_LARGE` 표준 매핑** — `GlobalExceptionFilter` 가 body-parser 등 http-errors 의 413(및 4xx) 을 표준 에러 봉투로 매핑(종전 413 → `INTERNAL_ERROR`/500 오매핑 교정). `api-convention §5.3·§6`·`error-handling §1.3` 에 `PAYLOAD_TOO_LARGE` 등재.
+
 ## Unreleased — webhook/manual 400 검증 실패 필드별 사유 `error.details[]` surface
 
 ### 변경 사항

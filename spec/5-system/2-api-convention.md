@@ -159,7 +159,7 @@ GET /api/triggers?type=webhook&status=active
 
 - `requestId`: 모든 에러 응답에 항상 포함되는 추적용 UUID (서버 로그 상관관계). `GlobalExceptionFilter` 가 매 응답마다 발급한다.
 - `details`: 선택 필드 (검증 오류 등 추가 컨텍스트 존재 시에만 동봉). 검증 오류 항목은 `{ field, message, code: "INVALID_FIELD" }` 구조이며 `field` 는 중첩 경로(`nodes[3].type`)를 유지한다.
-- `code` 의 상태코드별 기본값: 400=`VALIDATION_ERROR`, 401=`AUTH_REQUIRED`, 403=`FORBIDDEN`, 404=`RESOURCE_NOT_FOUND`, 409=`RESOURCE_CONFLICT`, 422=`INVALID_STATE`, 429=`RATE_LIMITED`, 5xx=`INTERNAL_ERROR`.
+- `code` 의 상태코드별 기본값: 400=`VALIDATION_ERROR`, 401=`AUTH_REQUIRED`, 403=`FORBIDDEN`, 404=`RESOURCE_NOT_FOUND`, 409=`RESOURCE_CONFLICT`, 413=`PAYLOAD_TOO_LARGE`, 422=`INVALID_STATE`, 429=`RATE_LIMITED`, 5xx=`INTERNAL_ERROR`.
 
 ---
 
@@ -175,6 +175,7 @@ GET /api/triggers?type=webhook&status=active
 | 403 | Forbidden | 권한 없음 |
 | 404 | Not Found | 리소스 없음 |
 | 409 | Conflict | 리소스 충돌 (중복 생성 등) |
+| 413 | Payload Too Large | 요청 본문 크기 초과 (body-parser 한도). 코드 `PAYLOAD_TOO_LARGE`. webhook 본문 크기 정책은 [Spec Webhook WH-NF-02](./12-webhook.md#비기능-요구사항) |
 | 422 | Unprocessable Entity | 비즈니스 로직 오류 |
 | 429 | Too Many Requests | Rate Limit 초과 |
 | 500 | Internal Server Error | 서버 오류 |

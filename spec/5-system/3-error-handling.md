@@ -44,6 +44,7 @@ code:
 | 코드 | 설명 | HTTP |
 |------|------|------|
 | `VALIDATION_ERROR` | 요청 데이터 유효성 실패 | 400 |
+| `PAYLOAD_TOO_LARGE` | 요청 본문 크기가 body-parser 한도 초과 — 전역 100KB 기본, `/api/hooks/*` 인증 webhook 1MB(`createHooksBodyParsers`). `GlobalExceptionFilter` 가 body-parser 의 413 을 표준 봉투로 매핑. 공개 webhook 의 32KB 추가 제한은 별도 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§1.7) | 413 |
 | `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트 부재 — `X-Workspace-Id` 헤더와 JWT `workspaceId` 둘 다 없음 (`common/decorators/workspace.decorator.ts` 발행) | 400 |
 | `MODEL_CONFIG_INVALID` | ModelConfig 입력 검증 실패 — 알 수 없는 `kind`, 필수 provider 의 apiKey 누락, 사설망/loopback baseUrl(SSRF 가드, tei/local 외) 등 (`model-config.service.ts`·`model-config.controller.ts`·`llm-preview.service.ts`(preview-models, C-2 cluster 4 이후 llm 모듈) 발행) | 400 |
 | `RESOURCE_NOT_FOUND` | 리소스 없음 | 404 |
