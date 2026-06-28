@@ -2,7 +2,7 @@
 worktree: .claude/worktrees/webchat-usewidget-split-5e9d26
 started: 2026-06-28
 owner: developer
-spec_impact: []  # behavior-preserving 리팩터 — spec 변경 없음
+spec_impact: none  # behavior-preserving 리팩터 — spec 변경 없음
 ---
 
 # Channel Web Chat — B1: useWidget God hook 분리

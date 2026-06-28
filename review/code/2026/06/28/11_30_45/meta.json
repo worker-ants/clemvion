@@ -1,0 +1,47 @@
+{
+  "timestamp": "2026-06-28T11:30:45.302239",
+  "files": [
+    {
+      "file_path": "codebase/backend/migrations/V103__trigger_endpoint_path_uuid_validate.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "plan/complete/webchat-spec-polish-followups.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/complete/webchat-usewidget-split.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/in-progress/trigger-endpoint-path-uuid-validate.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "database",
+    "documentation"
+  ]
+}

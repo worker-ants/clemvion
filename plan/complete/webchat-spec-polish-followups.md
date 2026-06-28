@@ -2,6 +2,12 @@
 worktree: .claude/worktrees/webchat-spec-polish-followups-0fd355
 started: 2026-06-28
 owner: project-planner
+spec_impact:
+  - spec/7-channel-web-chat/0-architecture.md
+  - spec/7-channel-web-chat/1-widget-app.md
+  - spec/7-channel-web-chat/2-sdk.md
+  - spec/7-channel-web-chat/3-auth-session.md
+  - spec/7-channel-web-chat/4-security.md
 ---
 
 # Channel Web Chat — spec polish followups (D/A/B+C/B1 검토 중 이연분)
