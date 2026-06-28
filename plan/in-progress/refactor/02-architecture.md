@@ -41,7 +41,7 @@
 
 ### C-2 [Critical] forwardRef 양방향 순환 의존 클러스터 — 클러스터별 개별 처리로 재정의 ⚠️
 
-- [~] 진행 중 — 클러스터 5(chat-channel↔triggers) **완료**; 1 무조치(spec 준수 유지)·2·3 M-7(#663) 해소 확인; **4(llm↔model-config) 완료 — Option a′(엔드포인트 재배치 + 옵저버 역전), 구현·테스트(e2e 214)·리뷰·spec-sync 전부 완료, PR 대기 (branch `claude/refactor-02-c2-llm-modelconfig-93cae7`)**.
+- [x] **완료** — 5개 클러스터 전부 처리(머지 완료): 1 무조치(spec §4.4 준수 유지)·2·3 M-7(#663) authorizer 역전으로 해소·**4(llm↔model-config) PR #714(`000d8963`) + authz 후속 #716(`3e102ed3`) + polish #718~#721 머지**·**5(chat-channel↔triggers) PR #676(`e827ed2a`) 머지**. (직전 `[~]` 마커는 cluster 4 PR 머지 전 스냅샷 — 하위 1~5 전부 완료/머지로 stale, 2026-06-28 정정.)
 
 **spec 대조**: D — 단 **핵심 쌍(엔진↔WS)은 A**: `4-execution-engine.md §4.4` "sink 는 `WebsocketService` 가 canonical … 별도 추상화를 도입하지 않는다", "forwardRef … 회피해야 할 안티패턴이 아님", EIA·chat-channel 추가 후에도 재확인(`15-chat-channel.md §R4` "EventEmitter 교체는 본 결정 범위 밖"). KB→WS 직접 의존도 spec 명시(`8-embedding-pipeline.md` "`WebsocketService.emitKbEvent` 가 권위 정의"). 반면 `llm↔llm-config`, `chat-channel↔triggers` 는 spec 무언급.
 
@@ -436,9 +436,9 @@
 
 - [x] 완료 (Option A) — `IntegrationsService.validateServiceAuthType()`(private guard) 로 일원화(기존 `validateServiceAndAuth` 중복 통합 — `create()`/`previewTest()` 공유), `previewTest` 가 dispatch 전 호출. controller 의 인라인 `findVariant` 검증 + `findVariant`·`BadRequestException` import 제거(레이어 정렬). 미지원 조합 `INTEGRATION_INVALID_SERVICE` 400 불변 + service 단위 테스트(create/previewTest 경계 케이스). TEST WORKFLOW(lint·unit·build·e2e 205) PASS · `/ai-review` 3사이클 수렴 Critical/**Warning 0** · `/consistency-check --impl-done` **BLOCK:NO**. worktree `m1-integrations-validate-authtype`.
 
-  **planner 후속 (spec drift, 이전부터 존재 — m-1 이 신설한 것 아님)**:
-  - [ ] `INTEGRATION_INVALID_SERVICE (400)` 를 `spec/2-navigation/4-integration.md §9.4` + `spec/conventions/error-codes.md` 에 등재
-  - [ ] `spec/2-navigation/4-integration.md §9.2` preview-test 요청 바디 `service` → `serviceType` (DTO 정합)
+  **planner 후속 (spec drift, 이전부터 존재 — m-1 이 신설한 것 아님) — ✅ 완료 (2026-06-28, spec-sync)**:
+  - [x] `INTEGRATION_INVALID_SERVICE (400)` 를 `spec/2-navigation/4-integration.md §9.4` 통합 에러 카탈로그에 등재 (`create()`·preview-test 공유 guard `validateServiceAuthType` 거부 메시지 포함). **`error-codes.md` 는 미등재로 정정**: 해당 문서는 명명 규율 + historical-artifact 예외 레지스트리(§3)일 뿐 범용 카탈로그가 아니며(Rationale "카탈로그는 `3-error-handling.md`"), `INTEGRATION_INVALID_SERVICE` 는 §1 의미 기반 명명을 준수하는 정상 코드라 §3(부정확한 이름 예외)에 넣으면 레지스트리 의미를 오염시킨다. 통합 에러 카탈로그(§9.4)가 올바른 단일 등재처.
+  - [x] `spec/2-navigation/4-integration.md §9.2` preview-test 요청 바디 `service` → `serviceType` (`PreviewTestDto` 정합). oauth/begin 의 `service` 는 별도 `OAuthBeginDto`(실제 필드명 `service`)라 정상·범위 밖으로 미변경.
 
 **spec 대조**: B — preview-test 행위만 spec 규정. **부수 발견**: 에러 코드 `INTEGRATION_INVALID_SERVICE` 가 `error-codes.md` 미등재.
 
