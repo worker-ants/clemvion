@@ -380,6 +380,10 @@ Content-Type: application/json
 
 ## Rationale
 
+### 413 `PAYLOAD_TOO_LARGE`(전역) — 도메인 `PUBLIC_WEBHOOK_BODY_TOO_LARGE` 와 공존
+
+§6 에 413 `PAYLOAD_TOO_LARGE` 를 전역 표준 코드로 등재했다. 이는 body-parser 레이어가 라우트 본문 한도(전역 100KB·`/api/hooks/*` 1MB)를 초과할 때 `GlobalExceptionFilter` 가 발행하는 **모든 라우트 공통** 코드다. 같은 413 이라도 공개 webhook 의 32KB 도메인 한도는 별도 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(Guard 발행)로 구분한다 — 일반 신규 코드는 전역 코드를 쓰고 도메인 특화 한도가 있을 때만 별도 코드를 신설하는 원칙. 상세 근거·레이어 구분은 [error-handling §Rationale](./3-error-handling.md#rationale) · [Spec Webhook WH-NF-02](./12-webhook.md#비기능-요구사항).
+
 ### §11 Webhook 절을 12-webhook.md 로 위임·정합화
 
 `§11` 은 webhook 도메인 SoT([Spec Webhook](./12-webhook.md))와 중복 기술돼 drift 가 누적됐다. 코드(`hooks.controller.ts` / `hooks.service.ts` / `app.module.ts` ThrottlerModule)를 ground truth 로 삼아 정합화하고, 상세는 12-webhook 으로 위임했다. 정정 내역:
