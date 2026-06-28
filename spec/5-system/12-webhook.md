@@ -1,16 +1,15 @@
 ---
 id: webhook
-status: partial
+status: implemented
 code:
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/dto/responses/webhook-response.dto.ts
   - codebase/backend/src/modules/hooks/public-webhook-throttle.guard.ts
   - codebase/backend/src/modules/hooks/public-webhook-quota.service.ts
+  - codebase/backend/src/bootstrap/hooks-body-parser.ts
   - codebase/backend/src/modules/auth-configs/auth-configs.service.ts
   - codebase/backend/src/modules/triggers/triggers.service.ts
-pending_plans:
-  - plan/in-progress/spec-sync-webhook-gaps.md
 ---
 
 # Spec: Webhook 트리거 시스템
@@ -419,6 +418,17 @@ WH-EP-02 에 프론트엔드 base 결정 우선순위(`NEXT_PUBLIC_WEBHOOK_BASE_
 본 spec 을 webhook 도메인 SoT 로 확정한다: ① 응답은 전역 `TransformInterceptor` 로 `{data:...}` 래핑(§3.1) ② rate limit 은 글로벌 throttler **100 req/min**(§6·§8·WH-SC-05) ③ POST 전용(GET/PUT·`?wait` 동기모드 미지원) ④ URL 정본 `/api/hooks/:endpointPath`(`/api/webhooks`·workspaceSlug 세그먼트는 없음).
 
 ③의 "POST 전용"은 **트리거 진입 엔드포인트(`/api/hooks/:endpointPath`)에 한정**한다. 그 하위 서브경로는 각 영역 spec 이 별도 메서드·정책으로 정의할 수 있다 — 예: 채널 웹챗의 `GET /api/hooks/:endpointPath/embed-config`(공개·무인증 조회, [7-channel-web-chat 4-security §3-①](../7-channel-web-chat/4-security.md))는 POST 전용 규칙의 예외가 아니라 본 SoT 의 스코프 밖이다.
+
+### WH-NF-02 본문 크기 — 분리 임계(옵션 C) 결정 근거
+
+요청 본문 최대 크기는 공개/인증 webhook 을 **분리 임계**로 둔다 (공개 32KB, 인증 1MB).
+
+- **기각 — 옵션 A (전역 1MB 통일)**: `app.use(json({ limit: '1mb' }))` 로 전역을 1MB 로 올리면 non-webhook 라우트(로그인 등 미인증 표면 포함)까지 1MB 본문을 버퍼링해 DoS 표면을 32배 확대한다. 전역 100KB 기본 방어선을 약화하므로 기각.
+- **기각 — 옵션 B (현행 32KB/100KB 박제)**: 인증 webhook 의 "100KB express 기본" 은 설계 결정이 아니라 우연한 프레임워크 기본값이고, 대형 PR/결제 이벤트 등 정당한 인증 페이로드를 막는다. 비표준 `PayloadTooLargeError` 로 끊기는 비일관도 남는다.
+- **채택 — 옵션 C (분리 임계)**: 미인증 공개 진입점은 brute-force·DoS 표면이라 32KB 보수 한도 유지, 신원 검증된 인증 webhook 만 `/api/hooks/*` 라우트 스코프 1MB body-parser 로 확대. 위험도에 비례한 한도.
+- **구현 결정 — `bodyParser: false` + 명시 등록 순서 의존성**: Nest 기본 파서를 켠 채 `app.use(json())` 같은 수동 파서를 추가하면 Nest 가 자기 전역 파서 등록을 건너뛰어 non-hooks 본문이 미파싱(`req.body=undefined`)되는 함정이 있다. 따라서 `bodyParser: false` 로 끄고 hooks(1MB, 먼저)·전역(100KB) 파서를 직접 등록한다. hooks 가 먼저 파싱해 `req._body` 를 세팅하면 후행 전역 파서가 hooks 를 재파싱하지 않는다(body-parser idempotency 가드). rawBody 는 두 파서 공통 `verify` 로 보존해 HMAC 호환.
+- **OOM 상한 클램프**: `HOOKS_MAX_BODY_BYTES` env override 는 `HOOKS_MAX_BODY_BYTES_CEILING`(16MiB)으로 클램프해 운영 실수로 인한 메모리 표면 확대를 막는다.
+- **표준 413**: 초과 시 body-parser 의 413 을 `GlobalExceptionFilter` 가 표준 봉투 `PAYLOAD_TOO_LARGE` 로 직렬화([API 규약 §5.3·§6](./2-api-convention.md#6-http-상태-코드), [error-handling §1.3](./3-error-handling.md#13-유효성-검증-에러)).
 
 ### 외부 인터랙션 채널을 별도 spec 파일로 분리
 

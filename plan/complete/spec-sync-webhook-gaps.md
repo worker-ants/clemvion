@@ -2,6 +2,11 @@
 worktree: spec-sync-audit
 started: 2026-06-03
 owner: planner
+spec_impact:
+  - spec/5-system/12-webhook.md
+  - spec/5-system/3-error-handling.md
+  - spec/5-system/2-api-convention.md
+  - spec/4-nodes/7-trigger/1-manual-trigger.md
 ---
 
 # webhook — spec 약속 대비 미구현 surface

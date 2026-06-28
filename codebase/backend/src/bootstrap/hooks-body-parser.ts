@@ -70,6 +70,7 @@ function captureRawBody(
   _res: unknown,
   buf: Buffer,
 ): void {
+  // 빈 Buffer(length===0)도 세팅 — 빈 본문 서명 검증을 위해. `buf.length` 체크 재도입 금지.
   if (buf) {
     (req as IncomingMessage & { rawBody?: Buffer }).rawBody = buf;
   }

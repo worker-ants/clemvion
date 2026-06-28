@@ -40,6 +40,14 @@ describe('resolveHooksMaxBodyBytes', () => {
       HOOKS_MAX_BODY_BYTES_CEILING,
     );
   });
+
+  it('accepts an override exactly at the ceiling (boundary)', () => {
+    expect(
+      resolveHooksMaxBodyBytes({
+        HOOKS_MAX_BODY_BYTES: String(HOOKS_MAX_BODY_BYTES_CEILING),
+      }),
+    ).toBe(HOOKS_MAX_BODY_BYTES_CEILING);
+  });
 });
 
 describe('createHooksBodyParsers', () => {

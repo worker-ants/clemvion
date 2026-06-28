@@ -17,6 +17,10 @@ import { GLOBAL_MAX_BODY_BYTES } from '../src/bootstrap/hooks-body-parser';
  *   - bearer / api_key / basic_auth / hmac AuthConfig → 자격 불일치 401 AUTH_FAILED, 일치 202
  *   - AuthConfig.is_active=false → 401
  *   - 인증 성공 시 AuthConfig.last_used_at 갱신 (fire-and-forget)
+ *
+ * 본문 크기 경계 (WH-NF-02 옵션 C): 인증 512KB 통과(J) / webhook 1MB 초과 413 PAYLOAD_TOO_LARGE
+ * (K 공개·M 인증) / 공개 32KB 초과 413 PUBLIC_WEBHOOK_BODY_TOO_LARGE(L) / non-webhook 100KB
+ * 초과 413(N, 전역 파서 방어선).
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -326,6 +330,7 @@ describe('Webhook trigger (e2e)', () => {
       .send(payload);
     expect(res.status).toBe(413);
     expect(res.body.error.code).toBe('PUBLIC_WEBHOOK_BODY_TOO_LARGE');
+    expect(res.body.error.requestId).toBeDefined();
   });
 
   it('M. 인증 webhook 본문 1MB 초과 → 413 PAYLOAD_TOO_LARGE (인증 경로도 라우트 limit 적용)', async () => {
@@ -343,6 +348,7 @@ describe('Webhook trigger (e2e)', () => {
       .send(tooBig);
     expect(res.status).toBe(413);
     expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(res.body.error.requestId).toBeDefined();
   });
 
   it('N. non-webhook 라우트 100KB 초과 → 413 PAYLOAD_TOO_LARGE (전역 파서 방어선 보존)', async () => {
@@ -357,6 +363,7 @@ describe('Webhook trigger (e2e)', () => {
       .send(JSON.stringify({ name: big }));
     expect(res.status).toBe(413);
     expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(res.body.error.requestId).toBeDefined();
   });
 
   it('F. api_key AuthConfig — 헤더 누락/오류 401, 올바른 키 202', async () => {
