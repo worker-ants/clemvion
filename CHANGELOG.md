@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — webhook/manual 400 검증 실패 필드별 사유 `error.details[]` surface
+
+### 변경 사항
+
+1. **webhook/manual-trigger 400 검증 실패 응답이 필드별 사유를 `error.details[]` 로 노출** — required 파라미터 누락·타입 강제 변환 실패 시(`POST /api/hooks/:endpointPath` 의 `INVALID_WEBHOOK_PAYLOAD`, 수동 실행 `POST /api/workflows/:id/execute` 의 `INVALID_TRIGGER_PARAMETERS`), 응답이 공식 에러 봉투의 `error.details[]` 에 `{ field, code, message }` 를 담는다. `code` 는 `UPPER_SNAKE_CASE` field code(`MISSING_REQUIRED_FIELD`·`TYPE_COERCION_FAILED`). 종전에는 필드별 사유가 내부적으로 산출되나 `GlobalExceptionFilter` 가 `errors` 키를 버려(클라이언트는 `{ error: { code, message, requestId } }` 만 수신) **노출되지 않았다** — 본 변경은 누락된 필드 목록을 surface 하는 **additive** 변경이며, 종전 미노출 `errors[]` 를 소비하던 클라이언트는 없다. SoT: `spec/5-system/12-webhook.md §5.2`. 코드 변경은 `hooks.service`·`workflows.controller` 의 throw payload(`errors`→`details`)와 공용 헬퍼 `toTriggerParameterErrorDetails` 한정.
+
 ## Unreleased — model-config 부속 엔드포인트 hardening (listModels type 검증)
 
 ### 변경 사항

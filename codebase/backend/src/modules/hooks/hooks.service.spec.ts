@@ -20,6 +20,7 @@ import { ChatChannelRateLimiterService } from '../chat-channel/chat-channel-rate
 import { ChatChannelAdapter } from '../chat-channel/types';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
+import { TriggerParameterErrorDetail } from '../execution-engine/types/trigger-parameter.types';
 
 describe('HooksService', () => {
   let service: HooksService;
@@ -239,10 +240,16 @@ describe('HooksService', () => {
     const executeMock = engine.execute;
     expect(executeMock).not.toHaveBeenCalled();
     const response = (err as BadRequestException).getResponse() as {
-      errors: Array<{ field: string; reason: string }>;
+      code: string;
+      details: TriggerParameterErrorDetail[];
     };
-    expect(response.errors).toEqual([
-      { field: 'orderId', reason: 'missing_required' },
+    expect(response.code).toBe('INVALID_WEBHOOK_PAYLOAD');
+    expect(response.details).toEqual([
+      {
+        field: 'orderId',
+        code: 'MISSING_REQUIRED_FIELD',
+        message: 'Required parameter is missing',
+      },
     ]);
   });
 
@@ -263,10 +270,16 @@ describe('HooksService', () => {
       .catch((err_: unknown) => err_)) as BadRequestException;
     expect(err).toBeInstanceOf(BadRequestException);
     const response = err.getResponse() as {
-      errors: Array<{ field: string; reason: string }>;
+      code: string;
+      details: TriggerParameterErrorDetail[];
     };
-    expect(response.errors).toEqual([
-      { field: 'amount', reason: 'coerce_failed' },
+    expect(response.code).toBe('INVALID_WEBHOOK_PAYLOAD');
+    expect(response.details).toEqual([
+      {
+        field: 'amount',
+        code: 'TYPE_COERCION_FAILED',
+        message: 'Value could not be coerced to the declared type',
+      },
     ]);
   });
 

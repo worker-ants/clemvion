@@ -137,7 +137,7 @@ code:
 | `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 413 | 공개 webhook(`auth_config_id IS NULL`) 요청 본문이 32KB(`DEFAULT_MAX_BODY_BYTES`, config `publicWebhook.maxBodyBytes`) 초과 (`PublicWebhookThrottleGuard`) ([Spec Webhook §8](./12-webhook.md#8-보안-고려사항)) | 구현 |
 | `AUTH_FAILED` | 401 | webhook 인증 실패 — type 무관 단일 응답(enumeration·정보 노출 차단, [Spec Webhook §4](./12-webhook.md#4-인증-방식)). `is_active=false` AuthConfig·서명/토큰 불일치·`ip_whitelist` 불일치 모두 동일 코드 ([WH-SC-04·WH-SC-09](./12-webhook.md#인증-및-보안)) | 구현 |
 
-> **`error.details[].code` (필드별 사유, Planned)**: `MISSING_REQUIRED_FIELD`(required 파라미터 누락)·`TYPE_COERCION_FAILED`(선언 타입으로 coerce 불가)는 `INVALID_WEBHOOK_PAYLOAD` 봉투의 `details[]` 항목 코드로 노출하려는 **목표**다. 현행 구현은 필드별 사유(`missing_required`/`coerce_failed`)를 내부 산출만 하고 `GlobalExceptionFilter` 가 `details` 만 전달하므로 클라이언트로 surface 되지 않는다 — [Spec Webhook §5.2](./12-webhook.md#52-400-응답-형식) / [plan](../../plan/in-progress/spec-sync-webhook-gaps.md). §2.1 의 generic `details[].code`(`INVALID_FIELD`)와 동일 레이어다.
+> **`error.details[].code` (필드별 사유, 구현)**: `MISSING_REQUIRED_FIELD`(required 파라미터 누락)·`TYPE_COERCION_FAILED`(선언 타입으로 coerce 불가)·`INVALID_SCHEMA`(스키마 구조 위반)는 `INVALID_WEBHOOK_PAYLOAD` 봉투의 `details[]` 항목 코드다. 내부 분류 문자열(`missing_required`/`coerce_failed`/`invalid_schema`)을 `toTriggerParameterErrorDetails`(`execution-engine/types/trigger-parameter.types.ts`)가 위 public field code 로 정규화해 throw 하고 `GlobalExceptionFilter` 가 `details` 를 봉투로 전달한다 — [Spec Webhook §5.2](./12-webhook.md#52-400-응답-형식). Manual 실행 경로의 `INVALID_TRIGGER_PARAMETERS` 도 동일 헬퍼를 쓴다. §2.1 의 generic `details[].code`(`INVALID_FIELD`)와 동일 레이어다.
 
 ---
 

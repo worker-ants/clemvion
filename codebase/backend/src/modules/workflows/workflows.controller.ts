@@ -44,7 +44,10 @@ import { ExecutionEngineService } from '../execution-engine/execution-engine.ser
 import { ShutdownStateService } from '../execution-engine/shutdown/shutdown-state.service';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
-import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
+import {
+  TriggerParameterValidationException,
+  toTriggerParameterErrorDetails,
+} from '../execution-engine/types/trigger-parameter.types';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { QueryWorkflowDto } from './dto/query-workflow.dto';
@@ -299,10 +302,13 @@ export class WorkflowsController {
       parameters = resolveTriggerParameters(schema, rawValues);
     } catch (err) {
       if (err instanceof TriggerParameterValidationException) {
+        // `details` so GlobalExceptionFilter surfaces the per-field breakdown
+        // in the official envelope's `error.details[]` (parity with the webhook
+        // path, spec manual-trigger §6). Field codes are UPPER_SNAKE_CASE.
         throw new BadRequestException({
           code: 'INVALID_TRIGGER_PARAMETERS',
           message: 'Invalid trigger parameters',
-          errors: err.errors,
+          details: toTriggerParameterErrorDetails(err.errors),
         });
       }
       throw err;

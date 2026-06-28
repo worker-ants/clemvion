@@ -2,7 +2,10 @@ import {
   resolveTriggerParameters,
   validateTriggerParameterSchema,
 } from './resolve-trigger-parameters';
-import { TriggerParameterValidationException } from '../types/trigger-parameter.types';
+import {
+  TriggerParameterValidationException,
+  toTriggerParameterErrorDetails,
+} from '../types/trigger-parameter.types';
 
 describe('resolveTriggerParameters', () => {
   it('returns {} when schema is empty or missing', () => {
@@ -151,5 +154,36 @@ describe('validateTriggerParameterSchema', () => {
         { field: 'ok', reason: 'invalid_schema' },
       ]),
     );
+  });
+});
+
+describe('toTriggerParameterErrorDetails', () => {
+  it('maps internal reasons to UPPER_SNAKE_CASE public field codes + messages', () => {
+    const details = toTriggerParameterErrorDetails([
+      { field: 'orderId', reason: 'missing_required' },
+      { field: 'amount', reason: 'coerce_failed' },
+      { field: '(root)', reason: 'invalid_schema' },
+    ]);
+    expect(details).toEqual([
+      {
+        field: 'orderId',
+        code: 'MISSING_REQUIRED_FIELD',
+        message: 'Required parameter is missing',
+      },
+      {
+        field: 'amount',
+        code: 'TYPE_COERCION_FAILED',
+        message: 'Value could not be coerced to the declared type',
+      },
+      {
+        field: '(root)',
+        code: 'INVALID_SCHEMA',
+        message: 'Trigger parameter schema is invalid',
+      },
+    ]);
+  });
+
+  it('returns an empty array for empty input', () => {
+    expect(toTriggerParameterErrorDetails([])).toEqual([]);
   });
 });
