@@ -29,5 +29,5 @@ spec_impact: []  # behavior-preserving 리팩터 — spec 변경 없음
 - [x] (spec 연결 코드 변경) /consistency-check --impl-done spec/7-channel-web-chat/ BLOCK: NO. `review/consistency/2026/06/27/22_09_19/`.
 
 ## 후속 (별도 PR)
-- [ ] B1: `useWidget` God hook 분리 → `useTokenRefresh` / `usePendingMessageQueue`.
-- [ ] A: per_execution 토큰 localStorage→sessionStorage + start() 에러메시지 일반화 (spec 4-security 동반 — planner 개입).
+- [x] B1: `useWidget` God hook 분리 → `useTokenRefresh` / `usePendingMessageQueue`. — PR `webchat-usewidget-split`.
+- [x] A: per_execution 토큰 localStorage→sessionStorage + start() 에러메시지 일반화. — PR #744.
