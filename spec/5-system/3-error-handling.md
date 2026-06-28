@@ -447,3 +447,10 @@ GET /api/health
   라우트 공통. `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§1.7)는 **공개 webhook 전용 도메인 Guard**
   (`PublicWebhookThrottleGuard`)가 파싱 후 32KB 보수 한도로 추가 제한할 때만 발행한다. 즉 일반 신규 코드는
   전역 `PAYLOAD_TOO_LARGE` 를 쓰고, 도메인 특화 한도가 있을 때만 별도 코드를 신설한다 ([Spec Webhook WH-NF-02](./12-webhook.md#비기능-요구사항)).
+- **4xx http-error `message` 고정 문구 — CWE-209 방지**: body-parser 등 http-errors 미들웨어가 던지는
+  4xx 오류(예: 413 `request entity too large`)는 `GlobalExceptionFilter` 가 **내부 원문을 echo 하지 않고**
+  상태 기반 고정 문구(413 → `"Request payload too large."`, 그 외 4xx → `"The request could not be
+  processed."`)로 직렬화한다. 라이브러리 원문에는 경로·버퍼 한계·미들웨어 힌트 등 구현 세부가 섞일 수
+  있어 그대로 노출하면 정보 누출(CWE-209)이 된다. 운영 가시성은 원문을 `logger.warn` 으로만 남겨 확보한다
+  (클라이언트 응답과 분리). 이는 WebSocket `EXECUTION_INTERNAL_ERROR` 의 고정 문구 결정(내부 예외 message
+  비노출)과 동일한 원칙이며, 5xx 마스킹(generic 500)과 일관된다.
