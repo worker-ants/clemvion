@@ -5,6 +5,7 @@ import { createHmac, randomUUID } from 'crypto';
 import { sign } from 'jsonwebtoken';
 
 import { createDbClient } from './helpers/db';
+import { nextE2eClientIp } from './helpers/e2e-client-ip';
 
 /**
  * e2e: External Interaction API ([Spec EIA §1~§11]).
@@ -145,6 +146,7 @@ describe('External Interaction API (e2e)', () => {
     });
     const res = await request(BASE_URL)
       .post(`/api/hooks/${endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
       .send({ foo: 'bar' });
     expect(res.status).toBe(202);
     expect(res.body.data.executionId).toBeDefined();
@@ -162,6 +164,7 @@ describe('External Interaction API (e2e)', () => {
     });
     const res = await request(BASE_URL)
       .post(`/api/hooks/${endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
       .send({});
     expect(res.status).toBe(202);
     expect(res.body.data.interaction).toBeUndefined();
@@ -173,6 +176,7 @@ describe('External Interaction API (e2e)', () => {
     });
     const trigger = await request(BASE_URL)
       .post(`/api/hooks/${endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
       .send({});
     const executionId = trigger.body.data.executionId as string;
     const res = await request(BASE_URL)
@@ -193,9 +197,11 @@ describe('External Interaction API (e2e)', () => {
     });
     const r1 = await request(BASE_URL)
       .post(`/api/hooks/${setup.endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
       .send({});
     const r2 = await request(BASE_URL)
       .post(`/api/hooks/${setup.endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
       .send({});
     expect(r1.status).toBe(202);
     expect(r2.status).toBe(202);
