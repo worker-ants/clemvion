@@ -49,7 +49,7 @@ code:
 </script>
 ```
 - 전역 함수 `ClemvionChat(method, payload)` — 단일 전역 진입점 + 명령 큐 패턴. 메서드: `boot`/`shutdown`/`show`/`hide`/
-  `open`/`close`/`sendMessage`/`updateProfile`/`on(event, cb)`/`off(event, cb?)`.
+  `open`/`close`/`sendMessage`/`updateProfile`/`resetSession`/`on(event, cb)`/`off(event, cb?)`.
   - **`show`/`hide` vs `open`/`close`**: `show`/`hide` 는 **런처(위젯 진입점) 가시성** 토글(hide=위젯 자체를 페이지에서 숨김),
     `open`/`close` 는 **대화 패널 전개/접힘**(런처는 유지). 즉 `hide` 후엔 `open` 해도 보이지 않는다(먼저 `show`). 상태기계는
     [1-widget-app](./1-widget-app.md) 참조.

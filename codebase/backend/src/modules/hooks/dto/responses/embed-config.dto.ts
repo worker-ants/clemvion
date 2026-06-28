@@ -5,6 +5,7 @@ import { ApiProperty } from '@nestjs/swagger';
  * spec [7-channel-web-chat/4-security.md §3-①].
  */
 export class EmbedConfigDto {
+  /** 워크스페이스 임베드 allowlist(호스트 origin 목록). 비어 있으면 제한 없음(allow-all). */
   @ApiProperty({
     description:
       '워크스페이스 임베드 allowlist(호스트 origin 목록). 비어 있으면 제한 없음(allow-all).',
@@ -14,6 +15,7 @@ export class EmbedConfigDto {
   })
   allowlist: string[];
 
+  /** soft 차단 활성 여부 — allowlist 가 1개 이상일 때 true. enforce=true + 호스트 origin 불일치 시 위젯이 렌더/시작 거부. */
   @ApiProperty({
     description:
       'soft 차단 활성 여부 — allowlist 가 1개 이상일 때 true. 위젯은 enforce=true 이고 호스트 origin 이 allowlist 에 없으면 렌더/시작을 거부한다.',
