@@ -68,8 +68,14 @@ worktree 가 stale origin/main(e6754f4cb, #738 직후·후속 fix 이전)에서 
 - [x] (INFO #9) v5 UUID 거부 unit 테스트
 - [x] (INFO #11) 비-UUID endpointPath 400 e2e 테스트
 - [x] (fixture) 직접 INSERT e2e 픽스처 endpoint_path → UUID (chat-channel-fixture, external-interaction)
-- [x] stale base 회귀 2건(Gate C·system-status) → rebase origin/main 으로 해소
-- [x] TEST: lint PASS · unit PASS (rebase 후 재수행 필요)
+- [x] stale base 회귀 2건(Gate C·system-status unit) → rebase origin/main 으로 해소
+- [x] (pre-existing) system-status **e2e** EXPECTED_QUEUE_NAMES 중복(`workspace-invitations-pruner` 2회, PR #744 유입) 제거 — 공유 e2e suite green 복구(test 코드, developer lane)
+- [x] TEST(rebase 후): lint PASS · unit 4723 pass / **1 pre-existing red**
 - [ ] TEST: build · e2e (rebase 후)
+
+> **남은 unit red 1건은 내 변경 무관·origin/main 도 red**: `spec-status-lifecycle.test.ts`
+> node-cancellation.md(status=partial) pending_plans repoint 누락(PR #742). spec/ 편집이라
+> planner 위임 — `spawn_task task_104dac77` 로 분리. graduate 아니라 pending_plans 를 새
+> followup plan 으로 교체해야 함(spec 본문이 실제 partial). 본 trigger PR scope 밖.
 - [ ] `/ai-review` + SUMMARY
 - [ ] `/consistency-check --impl-done` (spec 연결 코드 — BLOCK: NO)
