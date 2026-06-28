@@ -34,4 +34,8 @@ feedback_spec_impact_gate_c_list 재발):
 - [x] (부수) Gate C 회귀 2건 수정
 - [x] TEST: lint·unit·build PASS · **e2e 219/219 PASS** (Flyway 가 V103 적용)
 - [x] `/ai-review` (11_30_45) — CRITICAL=0·WARNING=1, WARNING 은 검증 결과 안전(`.conf` 없음=transactional default, e2e 적용 성공). RESOLUTION.md 기록
-- [ ] `/consistency-check --impl-done`
+- [x] `/consistency-check --impl-done` (11_38_36) — **BLOCK: NO**, 5 checker 전원 NONE
+
+## 완료 — 모든 게이트 통과
+TEST(lint·unit·build·e2e 219/219) · /ai-review(11_30_45, WARNING 검증 안전·RESOLUTION) ·
+/consistency-check --impl-done(11_38_36, BLOCK:NO).
