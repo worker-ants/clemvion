@@ -701,6 +701,31 @@ export class ExecutionsService {
   }
 
   /**
+   * Execution 의 현재 status 만 조회한다 (미존재 시 null). 가벼운 status 조회 전용 —
+   * HooksService 의 chat-channel 활성 execution 판정(CCH-CV-03) 등이 사용한다.
+   * 과거 소비처의 `executionsService['executionRepository']` private 브래킷 접근을
+   * 공개 API 로 캡슐화한다.
+   *
+   * @remarks 조회 실패(DB 장애 등)는 `null` 로 흡수하며 **throw 하지 않는다** — 호출부 분기를
+   *   단순화한다. 단 silent 누락(중복 실행 등 fail-open 부작용)을 운영이 인지하도록 실패는
+   *   `logger.warn` 으로 남긴다.
+   */
+  async getStatusById(executionId: string): Promise<ExecutionStatus | null> {
+    const row = await this.executionRepository
+      .findOne({
+        where: { id: executionId },
+        select: { id: true, status: true },
+      })
+      .catch((err: unknown) => {
+        this.logger.warn(
+          `getStatusById(${executionId}) 조회 실패 — null 로 흡수: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return null;
+      });
+    return row?.status ?? null;
+  }
+
+  /**
    * 동시 stop 요청에 대한 TOCTOU 경쟁을 막기 위해, 최종 상태 전환은 단일 원자 UPDATE
    * (status WHERE status IN [전이 가능 상태]) 로 수행한다.
    */

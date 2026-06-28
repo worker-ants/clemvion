@@ -33,6 +33,10 @@ export function shouldTrustCfConnectingIp(
  *
  * @remarks CF 신뢰 판정은 `process.env.TRUST_CF_CONNECTING_IP` 에 암묵 의존한다
  *   (`shouldTrustCfConnectingIp()` 인자 없이 호출) — 테스트는 해당 env 를 직접 주입·복원한다.
+ * @remarks 반환형은 `string | null` 로, 헤더 전용 코어 `extractClientIpFromHeaders`(`string | undefined`)와
+ *   **의도적으로 다르다** — 본 함수는 req 기반 4단계 폴백(req.ip/socket)을 갖는 세션·감사 IP 경로용이고,
+ *   소비처(auth/webauthn controller·sessions·audit)는 `ip:` 필드나 `?? undefined` 로 null 을 그대로 수용한다.
+ *   undefined 통일은 헤더 전용 코어(webhook rate-limit·ip_whitelist)에 한정한다.
  */
 export function extractClientIp(req: Request): string | null {
   const fromHeaders = extractClientIpFromHeaders(req.headers ?? {});
@@ -57,11 +61,13 @@ export function extractClientIp(req: Request): string | null {
  * `req.ip`/`socket` 폴백을 덧붙인다 — CF-신뢰 게이트(`shouldTrustCfConnectingIp`)·
  * XFF 파싱 로직을 **한 곳에 단일화**해 사본 간 drift 를 막는다(04 후속).
  *
- * @returns 추출된 IP 또는 `null`(헤더에서 식별 불가). 호출부가 `?? undefined` 등으로 변환.
+ * @returns 추출된 IP 또는 `undefined`(헤더에서 식별 불가). optional `sourceIp?`·`ip_whitelist`
+ *   소비처가 `string | undefined` 를 그대로 받도록 통일했다(과거 `string | null` + 호출부 `?? undefined` 제거).
+ *   `if (!ip)` falsy 분기(guard)와 동작 동일.
  */
 export function extractClientIpFromHeaders(
   headers: Record<string, string | string[] | undefined>,
-): string | null {
+): string | undefined {
   if (shouldTrustCfConnectingIp()) {
     const cf = pickFirst(headers['cf-connecting-ip']);
     if (cf) return normalize(cf);
@@ -73,7 +79,7 @@ export function extractClientIpFromHeaders(
     if (first) return normalize(first);
   }
 
-  return null;
+  return undefined;
 }
 
 function pickFirst(value: string | string[] | undefined): string | undefined {

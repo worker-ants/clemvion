@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import {
   ExecutionsService,
@@ -704,6 +704,37 @@ describe('ExecutionsService', () => {
         code: 'EXECUTION_ENQUEUE_FAILED',
       });
       expect(engine.cancelWaitingExecution).toHaveBeenCalledWith('eW-503');
+    });
+  });
+
+  describe('getStatusById', () => {
+    it('정상 조회 → status 반환 (id 로 조회)', async () => {
+      executionRepo.findOne.mockResolvedValueOnce({
+        id: 'e1',
+        status: ExecutionStatus.RUNNING,
+      } as unknown);
+      await expect(service.getStatusById('e1')).resolves.toBe(
+        ExecutionStatus.RUNNING,
+      );
+      expect(executionRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'e1' } }),
+      );
+    });
+
+    it('미존재 → null', async () => {
+      executionRepo.findOne.mockResolvedValueOnce(null);
+      await expect(service.getStatusById('nope')).resolves.toBeNull();
+    });
+
+    it('DB 예외 → null 로 흡수(throw 안 함) + logger.warn 로 가시화', async () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      executionRepo.findOne.mockRejectedValueOnce(new Error('db down'));
+      await expect(service.getStatusById('e2')).resolves.toBeNull();
+      // silent 누락 방지 — 실패가 warn 으로 남아야 한다(executionId 포함).
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('e2'));
+      warn.mockRestore();
     });
   });
 });

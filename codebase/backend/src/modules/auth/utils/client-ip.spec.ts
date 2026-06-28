@@ -36,11 +36,16 @@ describe('extractClientIpFromHeaders (shared core)', () => {
     ).toBe('203.0.113.7');
   });
 
-  it('normalizes IPv6-mapped IPv4 + returns null when absent', () => {
+  it('normalizes IPv6-mapped IPv4, preserves pure IPv6, returns undefined when absent', () => {
     expect(
       extractClientIpFromHeaders({ 'x-forwarded-for': '::ffff:1.2.3.4' }),
     ).toBe('1.2.3.4');
-    expect(extractClientIpFromHeaders({})).toBeNull();
+    // 순수 IPv6 는 normalize 변환 없이 그대로 반환.
+    expect(
+      extractClientIpFromHeaders({ 'x-forwarded-for': '2001:db8::1' }),
+    ).toBe('2001:db8::1');
+    // 헤더에서 IP 를 찾지 못하면 undefined.
+    expect(extractClientIpFromHeaders({})).toBeUndefined();
   });
 
   it('empty/whitespace cf-connecting-ip → falls back to XFF (CF on)', () => {
@@ -53,8 +58,10 @@ describe('extractClientIpFromHeaders (shared core)', () => {
     ).toBe('8.8.8.8');
   });
 
-  it('whitespace-only XFF → null', () => {
-    expect(extractClientIpFromHeaders({ 'x-forwarded-for': '   ' })).toBeNull();
+  it('whitespace-only XFF → undefined', () => {
+    expect(
+      extractClientIpFromHeaders({ 'x-forwarded-for': '   ' }),
+    ).toBeUndefined();
   });
 });
 
