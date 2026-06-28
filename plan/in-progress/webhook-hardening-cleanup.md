@@ -27,9 +27,9 @@ PR #763(W4·W2·W1) 머지 후, 그 fresh 리뷰(review/code/2026/06/28/17_16_16
 - [x] TEST WORKFLOW lint·unit·build·e2e(225) 통과
 - [x] /ai-review (19_00_30, LOW/0-Critical/3-WARNING) → WARNING 전부 FIXED (RESOLUTION)
 - [x] /consistency-check --impl-done (19_00_30, BLOCK:NO)
-- [ ] fresh /ai-review --route=all (WARNING fix 커버 + security/architecture 재수집) + fresh impl-done(1-auth)
+- [x] fresh /ai-review --route=all (19_15_39, LOW/0/0 — security·architecture 포함 전 14 NONE) + fresh impl-done(19_15_39·19_25_02, BLOCK:NO)
 - [ ] push + PR
 
 ## 범위 밖 (별도)
-- C(spec-only 단방향 포인터: 1-auth §2.3 / api-convention §5.3 / web-chat §4) — 별도 spec 묶음.
+- C(spec-only 단방향 포인터): 일부는 **본 PR 에 포함됨** — 1-auth §2.3 클라이언트 IP 행 분리(W1)·webhook 경로 함수명 동기화(extractClientIp→FromHeaders, 4 spec). 잔여(api-convention §5.3 echo 금지 포인터·web-chat §4 fail-open 언급)는 별도 spec 묶음.
 - D-12(IP 미식별 fail-open 우회) — `webhook-public-ip-failopen-hardening.md` plan 신설(보안 결정 필요).
