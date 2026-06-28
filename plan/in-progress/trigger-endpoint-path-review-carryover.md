@@ -77,5 +77,6 @@ worktree 가 stale origin/main(e6754f4cb, #738 직후·후속 fix 이전)에서 
 > node-cancellation.md(status=partial) pending_plans repoint 누락(PR #742). spec/ 편집이라
 > planner 위임 — `spawn_task task_104dac77` 로 분리. graduate 아니라 pending_plans 를 새
 > followup plan 으로 교체해야 함(spec 본문이 실제 partial). 본 trigger PR scope 밖.
-- [ ] `/ai-review` + SUMMARY
+- [x] TEST(rebase 후): build PASS · e2e 219/219 PASS
+- [x] `/ai-review` + SUMMARY (10_20_40) — CRITICAL=1·WARNING=3 **전부 오탐/pre-existing**, RESOLUTION.md 기록(근거 포함). actionable 0건
 - [ ] `/consistency-check --impl-done` (spec 연결 코드 — BLOCK: NO)
