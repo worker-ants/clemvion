@@ -224,6 +224,30 @@ describe('ExecutionSeqAllocator', () => {
       alloc.release('exec-del');
       expect(redis.del).toHaveBeenCalledWith('exec:seq:exec-del');
     });
+
+    it('DEL 이 reject 해도 throw 하지 않고 swallow + warn (best-effort)', async () => {
+      const redis = makeRedis({
+        del: jest.fn(async () => {
+          throw new Error('DEL failed');
+        }),
+      });
+      const alloc = makeAllocator(redis);
+      const warn = jest
+        .spyOn(
+          (alloc as unknown as { logger: { warn: (m: string) => void } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+
+      // release 는 동기 반환 — fire-and-forget DEL 의 reject 가 호출자에게 새지 않는다.
+      expect(() => alloc.release('exec-del-fail')).not.toThrow();
+      expect(redis.del).toHaveBeenCalledWith('exec:seq:exec-del-fail');
+      // .catch 는 microtask — flush 후 warn 이 기록됐는지 확인 (unhandled rejection 아님).
+      await Promise.resolve();
+      expect(warn).toHaveBeenCalledTimes(1);
+      warn.mockRestore();
+    });
   });
 
   describe('getClient — redis 설정 누락 시', () => {
@@ -323,6 +347,25 @@ describe('ExecutionSeqAllocator', () => {
     it('redis 미가용이어도 안전 종료 (TypeError 없음)', () => {
       const alloc = makeAllocator(null);
       expect(() => alloc.onModuleDestroy()).not.toThrow();
+    });
+  });
+
+  describe('sanitize — 로그 인젝션 방지 (정적)', () => {
+    // private static — 로그 경로(next/release 의 warn)에서만 쓰이므로 직접 호출로 계약 고정.
+    const sanitize = (
+      ExecutionSeqAllocator as unknown as { sanitize: (v: string) => string }
+    ).sanitize;
+
+    it('CR/LF/탭 을 공백으로 치환 (로그 라인 위조 차단)', () => {
+      expect(sanitize('a\r\nb\tc')).toBe('a  b c');
+    });
+
+    it('128자 초과는 cap (로그 폭주 차단)', () => {
+      expect(sanitize('x'.repeat(200))).toHaveLength(128);
+    });
+
+    it('비문자열 입력도 String() 강제 후 처리 (방어적)', () => {
+      expect(sanitize(123 as unknown as string)).toBe('123');
     });
   });
 });
