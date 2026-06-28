@@ -57,11 +57,13 @@ export function extractClientIp(req: Request): string | null {
  * `req.ip`/`socket` 폴백을 덧붙인다 — CF-신뢰 게이트(`shouldTrustCfConnectingIp`)·
  * XFF 파싱 로직을 **한 곳에 단일화**해 사본 간 drift 를 막는다(04 후속).
  *
- * @returns 추출된 IP 또는 `null`(헤더에서 식별 불가). 호출부가 `?? undefined` 등으로 변환.
+ * @returns 추출된 IP 또는 `undefined`(헤더에서 식별 불가). optional `sourceIp?`·`ip_whitelist`
+ *   소비처가 `string | undefined` 를 그대로 받도록 통일했다(과거 `string | null` + 호출부 `?? undefined` 제거).
+ *   `if (!ip)` falsy 분기(guard)와 동작 동일.
  */
 export function extractClientIpFromHeaders(
   headers: Record<string, string | string[] | undefined>,
-): string | null {
+): string | undefined {
   if (shouldTrustCfConnectingIp()) {
     const cf = pickFirst(headers['cf-connecting-ip']);
     if (cf) return normalize(cf);
@@ -73,7 +75,7 @@ export function extractClientIpFromHeaders(
     if (first) return normalize(first);
   }
 
-  return null;
+  return undefined;
 }
 
 function pickFirst(value: string | string[] | undefined): string | undefined {

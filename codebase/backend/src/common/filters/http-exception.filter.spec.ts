@@ -1,9 +1,12 @@
 import {
   ArgumentsHost,
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Logger,
   PayloadTooLargeException,
 } from '@nestjs/common';
+import { QueryFailedError } from 'typeorm';
 import { GlobalExceptionFilter } from './http-exception.filter';
 
 function mockHost(): {
@@ -98,6 +101,49 @@ describe('GlobalExceptionFilter', () => {
     const body = bodyOf(json);
     expect(body.error.code).toBe('INTERNAL_ERROR');
     expect(body.error.message).not.toContain('internal detail leak');
+    expect(body.error.requestId).toBeDefined(); // 5xx 도 requestId 항상 발급
+  });
+
+  it('maps a unique-violation QueryFailedError (23505) to 409 RESOURCE_CONFLICT', () => {
+    // typeorm race-window unique 위반 → 클라이언트엔 409 가 옳다(isUniqueViolation 분기).
+    const { host, status, json } = mockHost();
+    const driverError = Object.assign(new Error('duplicate key value'), {
+      code: '23505',
+    });
+    const err = new QueryFailedError('INSERT ...', [], driverError);
+    new GlobalExceptionFilter().catch(err, host);
+
+    expect(status).toHaveBeenCalledWith(409);
+    const body = bodyOf(json);
+    expect(body.error.code).toBe('RESOURCE_CONFLICT');
+    expect(body.error.requestId).toBeDefined();
+    // 드라이버 원문(컬럼·제약명)을 echo 하지 않는다.
+    expect(body.error.message).not.toContain('duplicate key value');
+  });
+
+  it('recognizes nested { error: { code, message, details } } envelope (API §5.3 shape)', () => {
+    // interaction 모듈처럼 nested error shape 으로 throw 하는 코드도 정상 직렬화한다.
+    const { host, status, json } = mockHost();
+    new GlobalExceptionFilter().catch(
+      new HttpException(
+        {
+          error: {
+            code: 'STATE_MISMATCH',
+            message: 'state conflict',
+            details: [{ field: 'x' }],
+          },
+        },
+        HttpStatus.CONFLICT,
+      ),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(409);
+    const body = bodyOf(json);
+    expect(body.error.code).toBe('STATE_MISMATCH');
+    expect(body.error.message).toBe('state conflict');
+    expect(body.error.details).toEqual([{ field: 'x' }]);
+    expect(body.error.requestId).toBeDefined();
   });
 
   it('passes through an explicit code + details', () => {

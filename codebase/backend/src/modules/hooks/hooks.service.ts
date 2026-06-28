@@ -149,7 +149,7 @@ export class HooksService {
     // X-Forwarded-For 첫 IP — spec/5-system/1-auth.md §2.3). req.ip(trust-proxy) 폴백을 whitelist
     // 경로에도 적용하려면 req 전달이 필요하므로 별도 후속으로 남긴다
     // (plan/in-progress/webhook-public-ip-failopen-hardening.md). 현재는 헤더 기반 동작 유지.
-    const clientIp = extractClientIpFromHeaders(input.headers) ?? undefined;
+    const clientIp = extractClientIpFromHeaders(input.headers);
 
     // 3. Authenticate — trigger.authConfigId 가 가리키는 AuthConfig 로 위임
     //    (spec/5-system/12-webhook.md §7 step 6). authConfigId 가 null 이면 인증 없음(none).
@@ -198,7 +198,7 @@ export class HooksService {
       {
         triggerId: trigger.id,
         // §A.3 호출 이력 — 소스 IP·응답 코드 영속 (WH-MG-05). 성공 경로는 202.
-        sourceIp: clientIp ?? undefined,
+        sourceIp: clientIp,
         responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
       },
     );
@@ -259,7 +259,7 @@ export class HooksService {
     // §A.3 소스 IP — handleWebhook 의 `const clientIp` 패턴과 통일 (W-9).
     // IP 추출은 헤더 기반(CF-gated → XFF, req.ip 폴백 없음 — spec/5-system/1-auth.md §2.3·Rationale
     // 2.3.B). req.ip 폴백 확대는 별도 후속(plan/in-progress/webhook-public-ip-failopen-hardening.md).
-    const clientIp = extractClientIpFromHeaders(input.headers) ?? undefined;
+    const clientIp = extractClientIpFromHeaders(input.headers);
 
     let adapter: ChatChannelAdapter;
     try {
@@ -629,7 +629,7 @@ export class HooksService {
       {
         triggerId: trigger.id,
         // §A.3 호출 이력 — chat-channel inbound 도 webhook POST(202)로 응답한다.
-        sourceIp: clientIp ?? undefined,
+        sourceIp: clientIp,
         responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
       },
     );
@@ -884,18 +884,13 @@ export class HooksService {
   private async getActiveExecutionStatus(
     executionId: string,
   ): Promise<ExecutionStatus | null> {
-    const execution = (await this.executionsService['executionRepository']
-      ?.findOne?.({
-        where: { id: executionId },
-        select: ['id', 'status'],
-      })
-      .catch(() => null)) as { status: ExecutionStatus } | null | undefined;
-    if (!execution) return null;
+    const status = await this.executionsService.getStatusById(executionId);
+    if (!status) return null;
     const isTerminal =
-      execution.status === ExecutionStatus.COMPLETED ||
-      execution.status === ExecutionStatus.FAILED ||
-      execution.status === ExecutionStatus.CANCELLED;
-    return isTerminal ? null : execution.status;
+      status === ExecutionStatus.COMPLETED ||
+      status === ExecutionStatus.FAILED ||
+      status === ExecutionStatus.CANCELLED;
+    return isTerminal ? null : status;
   }
 
   /**

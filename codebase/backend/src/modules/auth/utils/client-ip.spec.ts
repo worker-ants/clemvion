@@ -36,11 +36,12 @@ describe('extractClientIpFromHeaders (shared core)', () => {
     ).toBe('203.0.113.7');
   });
 
-  it('normalizes IPv6-mapped IPv4 + returns null when absent', () => {
+  it('normalizes IPv6-mapped IPv4 + returns undefined when absent', () => {
     expect(
       extractClientIpFromHeaders({ 'x-forwarded-for': '::ffff:1.2.3.4' }),
     ).toBe('1.2.3.4');
-    expect(extractClientIpFromHeaders({})).toBeNull();
+    // 반환형 통일: 헤더 식별 불가 시 undefined (과거 null) — 소비처 ?? undefined 제거.
+    expect(extractClientIpFromHeaders({})).toBeUndefined();
   });
 
   it('empty/whitespace cf-connecting-ip → falls back to XFF (CF on)', () => {
@@ -53,8 +54,10 @@ describe('extractClientIpFromHeaders (shared core)', () => {
     ).toBe('8.8.8.8');
   });
 
-  it('whitespace-only XFF → null', () => {
-    expect(extractClientIpFromHeaders({ 'x-forwarded-for': '   ' })).toBeNull();
+  it('whitespace-only XFF → undefined', () => {
+    expect(
+      extractClientIpFromHeaders({ 'x-forwarded-for': '   ' }),
+    ).toBeUndefined();
   });
 });
 
