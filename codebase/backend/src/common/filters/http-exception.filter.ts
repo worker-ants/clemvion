@@ -107,10 +107,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const err = exception as Error & HttpErrorLike;
     const errStatus = err.status ?? err.statusCode;
     if (typeof errStatus === 'number' && errStatus >= 400 && errStatus < 500) {
+      // 내부 메시지(경로·스택·라이브러리 힌트)를 클라이언트로 echo 하지 않는다(CWE-209) —
+      // 상태 기반 일반 문구만 반환한다. 원본 message 는 `catch` 의 `logger.warn` 으로만 남긴다.
+      // (현재 도달 경로는 body-parser 413 뿐이나, 향후 http-errors 미들웨어 추가에도 안전.)
       return {
         status: errStatus,
         code: this.getCodeFromStatus(errStatus),
-        message: exception.message,
+        message:
+          errStatus === 413
+            ? 'Request payload too large.'
+            : 'The request could not be processed.',
       };
     }
     return null;

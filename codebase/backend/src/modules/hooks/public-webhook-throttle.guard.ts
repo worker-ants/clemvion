@@ -74,8 +74,10 @@ export class PublicWebhookThrottleGuard implements CanActivate {
       });
     } catch (err) {
       // trigger 조회 실패는 throttle 판단 불가 → fail-open(통과). 후속 HooksService 가 정식 처리.
-      this.logger.warn(
-        `PublicWebhookThrottleGuard: trigger 조회 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+      // 이 fail-open 은 공개 webhook 의 body·rate-limit 보호를 일시 무력화하므로 `error` 레벨로
+      // 남겨 모니터링 알람이 장기 DB 장애로 인한 보호 우회 지속을 조기 탐지하게 한다(W2).
+      this.logger.error(
+        `PublicWebhookThrottleGuard: trigger 조회 실패 — fail-open(공개 webhook 보호 미적용): ${err instanceof Error ? err.message : String(err)}`,
       );
       return true;
     }
@@ -102,7 +104,9 @@ export class PublicWebhookThrottleGuard implements CanActivate {
     // 4. IP 단위 시작 rate-limit/누적 상한. IP 식별 불가 시 추적 불가 → 통과(fail-open).
     //    W1/W3: XFF 신뢰 체계는 인프라·trust proxy 설정에 위임 (rate-limit 은 best-effort
     //    defense-in-depth, 인증 게이트 아님). IP 미식별 시 fail-open — spec graceful degradation.
-    const ip = extractClientIp(req.headers ?? {});
+    const ip = extractClientIpFromHeaders(
+      (req.headers ?? {}) as Record<string, string | string[] | undefined>,
+    );
     if (!ip) return true;
 
     const { allowed, reason } = await this.quota.consumeStart(ip);
@@ -152,23 +156,4 @@ export class PublicWebhookThrottleGuard implements CanActivate {
 export interface PublicWebhookReqExtension {
   /** Guard 가 조회·첨부한 Trigger (null = 미존재). HooksService DB 재조회 불필요. */
   __publicWebhookTrigger?: Trigger | null;
-}
-
-/**
- * 클라이언트 IP 추출 — 공유 코어 `extractClientIpFromHeaders`(CF-Connecting-IP(신뢰 시)
- * → X-Forwarded-For 첫 항목) 에 위임. (04 후속: `auth/utils/client-ip` 단일 구현으로
- * 통합해 사본 drift 방지.)
- *
- * 04 m-3 — `CF-Connecting-IP` 는 `TRUST_CF_CONNECTING_IP` 가 켜진 경우에만 신뢰(기본 off).
- * XFF 신뢰 관련(W1): 헤더 조작 방어는 인프라 레이어(`trust proxy` / Cloudflare 고정 IP 검증)
- * 의 책임. rate-limit 은 best-effort defense-in-depth 이므로 애플리케이션 레이어에서 강제하지 않음.
- */
-export function extractClientIp(
-  headers: Record<string, unknown>,
-): string | undefined {
-  return (
-    extractClientIpFromHeaders(
-      headers as Record<string, string | string[] | undefined>,
-    ) ?? undefined
-  );
 }

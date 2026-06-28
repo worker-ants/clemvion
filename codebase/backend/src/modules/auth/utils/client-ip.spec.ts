@@ -39,6 +39,20 @@ describe('extractClientIpFromHeaders (shared core)', () => {
     ).toBe('1.2.3.4');
     expect(extractClientIpFromHeaders({})).toBeNull();
   });
+
+  it('empty/whitespace cf-connecting-ip → falls back to XFF (CF on)', () => {
+    process.env.TRUST_CF_CONNECTING_IP = 'true';
+    expect(
+      extractClientIpFromHeaders({
+        'cf-connecting-ip': '   ',
+        'x-forwarded-for': '8.8.8.8',
+      }),
+    ).toBe('8.8.8.8');
+  });
+
+  it('whitespace-only XFF → null', () => {
+    expect(extractClientIpFromHeaders({ 'x-forwarded-for': '   ' })).toBeNull();
+  });
 });
 
 // 04 m-3 — env-injection 직접 단위 테스트 (isFlagOn/isSwaggerEnabled 등과 일관).

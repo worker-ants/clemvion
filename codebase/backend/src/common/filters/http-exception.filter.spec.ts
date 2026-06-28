@@ -54,7 +54,11 @@ describe('GlobalExceptionFilter', () => {
     new GlobalExceptionFilter().catch(err, host);
 
     expect(status).toHaveBeenCalledWith(413);
-    expect(bodyOf(json).error.code).toBe('PAYLOAD_TOO_LARGE');
+    const body = bodyOf(json);
+    expect(body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    // 내부 message 를 echo 하지 않고 일반 문구만 반환한다(CWE-209).
+    expect(body.error.message).not.toBe('request entity too large');
+    expect(body.error.message).toBe('Request payload too large.');
   });
 
   it('masks a plain 5xx-ish error (no/≥500 status) as 500 INTERNAL_ERROR', () => {

@@ -7,10 +7,7 @@ import {
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { PublicWebhookQuotaService } from './public-webhook-quota.service';
-import {
-  PublicWebhookThrottleGuard,
-  extractClientIp,
-} from './public-webhook-throttle.guard';
+import { PublicWebhookThrottleGuard } from './public-webhook-throttle.guard';
 
 /** Exported for shared use — guard + tests share the same shape definition. */
 export interface ReqShape {
@@ -269,30 +266,8 @@ describe('PublicWebhookThrottleGuard', () => {
     expect(result).toBe(PublicWebhookThrottleGuard.DEFAULT_MAX_BODY_BYTES + 1);
   });
 
-  // ── Info#13: extractClientIp 엣지 케이스 ─────────────────────────────────
-
-  it('extractClientIp — XFF 다중 IP 중 첫 번째만 추출', () => {
-    const ip = extractClientIp({
-      'x-forwarded-for': '10.0.0.1, 10.0.0.2, 10.0.0.3',
-    });
-    expect(ip).toBe('10.0.0.1');
-  });
-
-  it('extractClientIp — cf-connecting-ip 빈 문자열 → XFF 폴백', () => {
-    const ip = extractClientIp({
-      'cf-connecting-ip': '   ',
-      'x-forwarded-for': '8.8.8.8',
-    });
-    expect(ip).toBe('8.8.8.8');
-  });
-
-  it('extractClientIp — 헤더 모두 없음 → undefined', () => {
-    expect(extractClientIp({})).toBeUndefined();
-  });
-
-  it('extractClientIp — XFF 값이 공백만 → undefined', () => {
-    expect(extractClientIp({ 'x-forwarded-for': '   ' })).toBeUndefined();
-  });
+  // (extractClientIp 헤더 추출 엣지 케이스는 `auth/utils/client-ip.spec.ts` 의
+  //  `extractClientIpFromHeaders` 로 이관 — Guard 는 공유 코어를 직접 호출한다.)
 
   // ── Info#14: maxBodyBytes config override ────────────────────────────────
 
