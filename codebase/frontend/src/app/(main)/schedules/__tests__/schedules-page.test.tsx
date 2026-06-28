@@ -65,9 +65,17 @@ const EMPTY_RESPONSE = {
 };
 
 async function openAddDialog() {
-  const addBtn = await screen.findByRole("button", { name: /add schedule/i });
+  // 빈 목록 응답에서는 헤더의 'Add schedule' 버튼 외에 EmptyState 도 동일한
+  // 접근성 이름의 버튼을 렌더한다(둘 다 editor RoleGate). 목록 쿼리가 resolve
+  // 되어 EmptyState 가 그려진 뒤에는 'Add schedule' 버튼이 2개가 되는데,
+  // 쿼리 resolve 시점은 전체 스위트 부하에 따라 흔들려서 findByRole(단수)이
+  // 간헐적으로 다중 매칭 throw 를 냈다(이 파일의 flaky 원인). 항상 존재하는
+  // 헤더 버튼(첫 번째)을 명시적으로 집어 비결정성을 제거한다.
+  const addBtns = await screen.findAllByRole("button", {
+    name: /add schedule/i,
+  });
   await act(async () => {
-    fireEvent.click(addBtn);
+    fireEvent.click(addBtns[0]);
   });
 }
 
