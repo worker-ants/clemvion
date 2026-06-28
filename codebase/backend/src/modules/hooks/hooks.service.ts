@@ -80,6 +80,10 @@ export class HooksService {
     endpointPath: string,
     input: WebhookInput,
     rawBody?: Buffer,
+    // PublicWebhookThrottleGuard 가 같은 endpointPath 로 이미 조회해 req 에 첨부한 trigger
+    // (W14 — 중복 DB 왕복 제거). 미전달(undefined)이면 직접 조회로 폴백. 가드의 조회 쿼리와
+    // 동일(`{ endpointPath, type: 'webhook' }` full entity)하므로 안전하게 재사용한다.
+    preloadedTrigger?: Trigger | null,
   ): Promise<{
     executionId: string;
     status?: 'pending';
@@ -95,10 +99,14 @@ export class HooksService {
       };
     };
   }> {
-    // 1. Find trigger by endpoint path (no workspace filter — external call)
-    const trigger = await this.triggerRepository.findOne({
-      where: { endpointPath, type: 'webhook' },
-    });
+    // 1. Find trigger by endpoint path (no workspace filter — external call).
+    //    Guard 가 첨부한 trigger 를 재사용(W14) — 미전달 시에만 직접 조회.
+    const trigger =
+      preloadedTrigger !== undefined
+        ? preloadedTrigger
+        : await this.triggerRepository.findOne({
+            where: { endpointPath, type: 'webhook' },
+          });
 
     if (!trigger) {
       throw new NotFoundException({

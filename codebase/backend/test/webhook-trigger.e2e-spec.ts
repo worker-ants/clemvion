@@ -270,6 +270,9 @@ describe('Webhook trigger (e2e)', () => {
     expect(sigged.status).toBe(202);
   });
 
+  // ── 본문 크기 경계 (WH-NF-02 옵션 C) ──────────────────────────────
+  // J/K/L/M 은 알파벳 순서가 아니라 "본문 크기 경계" 주제로 묶어 인접 배치한다
+  // (인증 1MB 통과/초과, 공개 32KB, 인증 1MB 초과).
   it('J. 인증(HMAC) webhook 512KB 본문 → 202 (라우트 스코프 1MB 파서 + rawBody/HMAC, WH-NF-02 옵션 C)', async () => {
     // 512KB 는 express 전역 기본 100KB 를 초과하므로, 통과하려면 /api/hooks/* 라우트 스코프
     // 1MB 파서가 전역보다 먼저 적용돼야 한다. HMAC 가 검증되려면 그 파서가 rawBody 도
@@ -322,6 +325,23 @@ describe('Webhook trigger (e2e)', () => {
       .send(payload);
     expect(res.status).toBe(413);
     expect(res.body.error.code).toBe('PUBLIC_WEBHOOK_BODY_TOO_LARGE');
+  });
+
+  it('M. 인증 webhook 본문 1MB 초과 → 413 PAYLOAD_TOO_LARGE (인증 경로도 라우트 limit 적용)', async () => {
+    // 라우트 스코프 파서는 인증/HMAC 검증보다 먼저(express 미들웨어) 동작하므로, 1MB 초과는
+    // 서명 유효성과 무관하게 파서 단계에서 413 으로 거부된다. (J 가 인증 < 1MB 통과를 커버.)
+    const path = crypto.randomUUID();
+    const ac = await createAuthConfig('hmac');
+    await createWebhookTrigger(uniqueName('hook-m'), path, {
+      authConfigId: ac.id,
+    });
+    const tooBig = JSON.stringify({ blob: 'x'.repeat(1100 * 1024) }); // > 1MiB
+    const res = await request(BASE_URL)
+      .post(`/api/hooks/${path}`)
+      .set('Content-Type', 'application/json')
+      .send(tooBig);
+    expect(res.status).toBe(413);
+    expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
   });
 
   it('F. api_key AuthConfig — 헤더 누락/오류 401, 올바른 키 202', async () => {

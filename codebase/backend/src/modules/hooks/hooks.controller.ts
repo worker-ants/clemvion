@@ -28,7 +28,10 @@ import {
 } from '../../common/swagger';
 import { Public } from '../../common/decorators';
 import { HooksService } from './hooks.service';
-import { PublicWebhookThrottleGuard } from './public-webhook-throttle.guard';
+import {
+  PublicWebhookThrottleGuard,
+  type PublicWebhookReqExtension,
+} from './public-webhook-throttle.guard';
 import { EmbedConfigService } from './embed-config.service';
 import { WebhookAcceptedDto } from './dto/responses/webhook-response.dto';
 import { EmbedConfigDto } from './dto/responses/embed-config.dto';
@@ -132,7 +135,11 @@ export class HooksController {
     @Body() body: unknown,
     @Query() query: Record<string, string>,
     @Req()
-    req: { headers: Record<string, unknown>; method: string; rawBody?: Buffer },
+    req: {
+      headers: Record<string, unknown>;
+      method: string;
+      rawBody?: Buffer;
+    } & PublicWebhookReqExtension,
     @Res({ passthrough: true }) res: Response,
   ) {
     const headers: Record<string, string> = {};
@@ -151,6 +158,8 @@ export class HooksController {
         method: req.method,
       },
       req.rawBody,
+      // Guard 가 이미 조회해 첨부한 trigger 재사용 — 중복 DB 왕복 제거 (W14).
+      req.__publicWebhookTrigger,
     );
 
     // Slack url_verification handshake — root-level `{ challenge }` JSON + 200 OK 응답이 필수.

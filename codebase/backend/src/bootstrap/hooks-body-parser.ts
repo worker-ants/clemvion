@@ -1,6 +1,9 @@
 import { json, urlencoded, type RequestHandler } from 'express';
 import type { IncomingMessage } from 'http';
 
+/** 본문 파서를 스코프하는 라우트 prefix (`main.ts` 가 `app.use(HOOKS_ROUTE_PREFIX, ...)`). */
+export const HOOKS_ROUTE_PREFIX = '/api/hooks';
+
 /**
  * `/api/hooks/*` 라우트 전용 본문 크기 임계 (기본 1 MiB).
  *
@@ -9,9 +12,15 @@ import type { IncomingMessage } from 'http';
  * 가 32KB 로 추가 제한한다. 전역 body-parser 기본값(100KB)은 non-webhook 라우트 방어선으로
  * 그대로 두고, 이 임계는 `/api/hooks/*` 라우트에만 스코프된다.
  *
- * `HOOKS_MAX_BODY_BYTES` env 로 override 가능.
+ * `HOOKS_MAX_BODY_BYTES` env 로 override 가능 (`HOOKS_MAX_BODY_BYTES_CEILING` 상한 내).
  */
 export const HOOKS_MAX_BODY_BYTES = 1024 * 1024;
+
+/**
+ * env override 상한 (16 MiB). 운영 실수로 과도한 값을 넣어 메모리 압박/OOM 표면을 키우는 것을
+ * 막기 위한 안전 클램프 — 초과 값은 이 상한으로 클램프된다.
+ */
+export const HOOKS_MAX_BODY_BYTES_CEILING = 16 * 1024 * 1024;
 
 /**
  * 전역(non-hooks 라우트) 본문 크기 기본 — express/body-parser 기본값 100KB 와 동일.
@@ -22,15 +31,17 @@ export const HOOKS_MAX_BODY_BYTES = 1024 * 1024;
 export const GLOBAL_MAX_BODY_BYTES = 100 * 1024;
 
 /**
- * env override 해석 — 양의 유한 정수만 채택, 그 외엔 기본값. (잘못된 env 가 0/NaN 으로
- * 본문을 전부 거부하거나 무제한으로 여는 것을 방지.)
+ * env override 해석 — 양의 유한 정수만 채택, 그 외엔 기본값. 상한
+ * (`HOOKS_MAX_BODY_BYTES_CEILING`) 초과 시 상한으로 클램프(잘못된 env 가 0/NaN 으로 본문을
+ * 전부 거부하거나, 과도한 값으로 메모리 표면을 키우는 것을 방지).
  */
 export function resolveHooksMaxBodyBytes(
   env: NodeJS.ProcessEnv = process.env,
 ): number {
   const raw = env.HOOKS_MAX_BODY_BYTES;
   const n = raw !== undefined ? Number(raw) : NaN;
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : HOOKS_MAX_BODY_BYTES;
+  if (!Number.isFinite(n) || n <= 0) return HOOKS_MAX_BODY_BYTES;
+  return Math.min(Math.floor(n), HOOKS_MAX_BODY_BYTES_CEILING);
 }
 
 /**
@@ -38,33 +49,40 @@ export function resolveHooksMaxBodyBytes(
  * (`AuthConfigsService.verifyWebhookRequest`, Slack/Discord inbound) 이 rawBody 를
  * 요구하므로, 라우트 스코프 파서가 전역 파서를 대신 처리할 때도 동일하게 채워야 한다.
  * NestJS `rawBody: true` 가 채우는 필드와 동일 (`RawBodyRequest.rawBody: Buffer`).
+ *
+ * body-parser 는 빈 본문이라도 verify 를 호출할 수 있다 — 빈 Buffer(`length === 0`)도 그대로
+ * 세팅해, 빈 본문 서명 요청의 HMAC 검증이 `rawBody` 부재로 깨지지 않게 한다(기존 동작 보존).
  */
 function captureRawBody(
   req: IncomingMessage,
   _res: unknown,
   buf: Buffer,
 ): void {
-  if (buf && buf.length) {
+  if (buf) {
     (req as IncomingMessage & { rawBody?: Buffer }).rawBody = buf;
   }
+}
+
+/** json + form-urlencoded(WH-EP-04) 파서 쌍을 주어진 한도·rawBody 보존으로 생성. */
+function buildBodyParsers(maxBytes: number): RequestHandler[] {
+  return [
+    json({ limit: maxBytes, verify: captureRawBody }),
+    urlencoded({ extended: true, limit: maxBytes, verify: captureRawBody }),
+  ];
 }
 
 /**
  * `/api/hooks/*` 에 먼저 등록할 본문 파서들 (json + form-urlencoded, WH-EP-04).
  *
- * 전역(Nest 기본) 파서보다 **먼저** 등록되어 hooks 요청을 1MB 한도로 파싱하고
- * `req._body` 를 세팅한다 → body-parser 의 idempotency 가드 덕분에 후행 전역 파서는
- * hooks 경로를 재파싱하지 않는다(전역 100KB 한도가 hooks 에 적용되지 않음). 한도 초과 시
- * body-parser 가 `PayloadTooLargeError`(HTTP 413)를 throw → `GlobalExceptionFilter` 가
- * `PAYLOAD_TOO_LARGE` 봉투로 표준화한다.
+ * 전역 파서보다 **먼저** 등록되어 hooks 요청을 1MB 한도로 파싱하고 `req._body` 를 세팅한다 →
+ * body-parser 의 idempotency 가드 덕분에 후행 전역 파서는 hooks 경로를 재파싱하지 않는다
+ * (전역 100KB 한도가 hooks 에 적용되지 않음). 한도 초과 시 body-parser 가 `PayloadTooLargeError`
+ * (HTTP 413)를 throw → `GlobalExceptionFilter` 가 `PAYLOAD_TOO_LARGE` 봉투로 표준화한다.
  */
 export function createHooksBodyParsers(
   maxBytes: number = resolveHooksMaxBodyBytes(),
 ): RequestHandler[] {
-  return [
-    json({ limit: maxBytes, verify: captureRawBody }),
-    urlencoded({ extended: true, limit: maxBytes, verify: captureRawBody }),
-  ];
+  return buildBodyParsers(maxBytes);
 }
 
 /**
@@ -78,8 +96,5 @@ export function createHooksBodyParsers(
 export function createGlobalBodyParsers(
   maxBytes: number = GLOBAL_MAX_BODY_BYTES,
 ): RequestHandler[] {
-  return [
-    json({ limit: maxBytes, verify: captureRawBody }),
-    urlencoded({ extended: true, limit: maxBytes, verify: captureRawBody }),
-  ];
+  return buildBodyParsers(maxBytes);
 }

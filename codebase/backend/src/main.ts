@@ -30,6 +30,7 @@ import { AppModule } from './app.module';
 import {
   createHooksBodyParsers,
   createGlobalBodyParsers,
+  HOOKS_ROUTE_PREFIX,
 } from './bootstrap/hooks-body-parser';
 import {
   assertCorsOriginsConfigured,
@@ -66,7 +67,7 @@ function setupSwagger(app: INestApplication): void {
         '',
         '### 응답 포맷',
         '- 모든 성공 응답은 `{ data: ... }` 래퍼 형태로 전달됩니다.',
-        '- 에러 응답은 `{ error: { code, message, requestId, details? } }` 형태를 따릅니다. `code`는 `VALIDATION_ERROR`, `AUTH_REQUIRED`, `FORBIDDEN`, `RESOURCE_NOT_FOUND`, `RESOURCE_CONFLICT`, `INVALID_STATE`, `RATE_LIMITED`, `INTERNAL_ERROR` 등의 문자열 상수이며, `requestId`는 요청 추적용 UUID입니다.',
+        '- 에러 응답은 `{ error: { code, message, requestId, details? } }` 형태를 따릅니다. `code`는 `VALIDATION_ERROR`, `AUTH_REQUIRED`, `FORBIDDEN`, `RESOURCE_NOT_FOUND`, `RESOURCE_CONFLICT`, `PAYLOAD_TOO_LARGE`, `INVALID_STATE`, `RATE_LIMITED`, `INTERNAL_ERROR` 등의 문자열 상수이며, `requestId`는 요청 추적용 UUID입니다.',
       ].join('\n'),
     )
     .setVersion('1.0')
@@ -150,8 +151,12 @@ async function bootstrap() {
   // `/api/hooks/*` 인증 webhook 은 1MB(WH-NF-02 옵션 C), 그 외 라우트는 100KB 기본 방어선.
   // Nest 기본 파서를 켜둔 채 `app.use(json())` 같은 수동 파서를 추가하면, Nest 가 이를 감지해
   // **자기 전역 파서 등록을 건너뛰어** non-hooks 라우트 본문이 미파싱(req.body=undefined)되는
-  // 함정이 있다 — 그래서 전역 파서까지 명시 등록한다. 두 파서 모두 rawBody 를 보존해
-  // HMAC 서명 검증(`AuthConfigsService.verifyWebhookRequest`, Slack/Discord inbound)이 동작한다.
+  // 함정이 있다 — 그래서 전역 파서까지 명시 등록한다. 두 파서 모두 rawBody 를 보존한다.
+  //
+  // rawBody 비고: `rawBody: true` 옵션 대신 `captureRawBody`(verify) 가 `req.rawBody` 를 채운다.
+  // NestJS `RawBodyRequest<T>` 타입 소비처(`AuthConfigsService.verifyWebhookRequest`,
+  // Slack/Discord inbound)는 그대로 `req.rawBody` 를 읽어 정상 동작한다(json/form 파서가 채우므로
+  // — 기존 Nest 기본 파서와 동일 content-type 커버리지). e2e J(HMAC 512KB)가 이 경로 회귀 검증.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const configService = app.get(ConfigService);
 
@@ -159,7 +164,7 @@ async function bootstrap() {
   // body-parser 의 idempotency 가드로 hooks 재파싱을 skip. 그 외 라우트는 전역 100KB 적용.
   // 공개 webhook 의 32KB 추가 제한은 PublicWebhookThrottleGuard 가 파싱 후 별도 적용.
   // (Spec 12-webhook §6·§8.)
-  app.use('/api/hooks', ...createHooksBodyParsers());
+  app.use(HOOKS_ROUTE_PREFIX, ...createHooksBodyParsers());
   app.use(...createGlobalBodyParsers());
 
   // Cloudflare(또는 단일 reverse proxy) 한 단계 뒤에서 동작하므로 hop 1 만

@@ -43,6 +43,33 @@ describe('GlobalExceptionFilter', () => {
     expect(body.error.requestId).toBeDefined();
   });
 
+  it('maps a plain http-error (status, non-HttpException) 4xx to its envelope', () => {
+    // body-parser 의 PayloadTooLargeError 처럼 NestJS HttpException 이 아니지만
+    // 숫자 status 를 가진 오류 → mapHttpErrorLike 경로.
+    const { host, status, json } = mockHost();
+    const err = Object.assign(new Error('request entity too large'), {
+      status: 413,
+      statusCode: 413,
+    });
+    new GlobalExceptionFilter().catch(err, host);
+
+    expect(status).toHaveBeenCalledWith(413);
+    expect(bodyOf(json).error.code).toBe('PAYLOAD_TOO_LARGE');
+  });
+
+  it('masks a plain 5xx-ish error (no/≥500 status) as 500 INTERNAL_ERROR', () => {
+    const { host, status, json } = mockHost();
+    const err = Object.assign(new Error('internal detail leak'), {
+      status: 502,
+    });
+    new GlobalExceptionFilter().catch(err, host);
+
+    expect(status).toHaveBeenCalledWith(500);
+    const body = bodyOf(json);
+    expect(body.error.code).toBe('INTERNAL_ERROR');
+    expect(body.error.message).not.toContain('internal detail leak');
+  });
+
   it('passes through an explicit code + details', () => {
     const { host, status, json } = mockHost();
     new GlobalExceptionFilter().catch(

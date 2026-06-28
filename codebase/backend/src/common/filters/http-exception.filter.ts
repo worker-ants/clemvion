@@ -10,6 +10,9 @@ import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { QueryFailedError } from 'typeorm';
 
+/** http-errors(body-parser 등)·express 미들웨어 오류가 싣는 숫자 상태 필드. */
+type HttpErrorLike = { status?: number; statusCode?: number };
+
 /** Postgres SQLSTATE 23505 = unique_violation. */
 function isUniqueViolation(err: unknown): boolean {
   if (!(err instanceof QueryFailedError)) return false;
@@ -66,21 +69,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       code = 'RESOURCE_CONFLICT';
       message = 'Resource already exists or has been modified concurrently.';
     } else if (exception instanceof Error) {
-      // http-errors (예: body-parser 의 `PayloadTooLargeError`) 는 NestJS HttpException 이
-      // 아니지만 숫자 `status`/`statusCode` 를 가진다. 4xx 는 그 상태로 매핑해 클라이언트
-      // 오류(예: 본문 초과 → 413 `PAYLOAD_TOO_LARGE`)가 오해의 소지 있는 500 으로 가려지지
-      // 않게 한다. 5xx·상태 부재는 generic 500 으로 마스킹(내부 메시지 누출 차단).
-      const errStatus =
-        (exception as { status?: number }).status ??
-        (exception as { statusCode?: number }).statusCode;
-      if (
-        typeof errStatus === 'number' &&
-        errStatus >= 400 &&
-        errStatus < 500
-      ) {
-        status = errStatus;
-        code = this.getCodeFromStatus(errStatus);
-        message = exception.message;
+      const mapped = this.mapHttpErrorLike(exception);
+      if (mapped) {
+        ({ status, code, message } = mapped);
+        // 4xx http-error 는 클라이언트 오류지만 운영 가시성을 위해 원본 메시지를 로깅한다.
+        this.logger.warn(`http-error ${status}: ${exception.message}`);
       } else {
         this.logger.error(
           `Unhandled exception: ${exception.message}`,
@@ -100,6 +93,27 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     };
 
     response.status(status).json(errorResponse);
+  }
+
+  /**
+   * NestJS `HttpException` 이 아닌 http-errors(예: body-parser 의 `PayloadTooLargeError`) 를
+   * 매핑한다. 숫자 `status`/`statusCode` 가 4xx 면 그 상태로 표준 봉투에 싣어, 클라이언트 오류
+   * (예: 본문 초과 → 413 `PAYLOAD_TOO_LARGE`)가 오해의 소지 있는 500 으로 가려지지 않게 한다.
+   * 5xx·상태 부재는 null 을 반환해 호출부가 generic 500 으로 마스킹(내부 메시지 누출 차단)한다.
+   */
+  private mapHttpErrorLike(
+    exception: Error,
+  ): { status: number; code: string; message: string } | null {
+    const err = exception as Error & HttpErrorLike;
+    const errStatus = err.status ?? err.statusCode;
+    if (typeof errStatus === 'number' && errStatus >= 400 && errStatus < 500) {
+      return {
+        status: errStatus,
+        code: this.getCodeFromStatus(errStatus),
+        message: exception.message,
+      };
+    }
+    return null;
   }
 
   private getCodeFromStatus(status: number): string {
