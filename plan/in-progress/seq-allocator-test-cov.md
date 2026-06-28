@@ -23,6 +23,6 @@ spec_impact: none
 ## 검증
 
 - [x] lint
-- [x] unit (backend — 신규 5 케이스 포함 통과. frontend schedules-page flaky 1건은 단독 재실행 10/10 green 으로 무관 확인)
-- [ ] /ai-review
+- [x] unit (backend — 신규 5 케이스: sanitize 4(치환·cap·128/129 경계·비문자열) + release-reject 1. frontend schedules-page flaky 1건은 단독 재실행 10/10 green 으로 무관 확인)
+- [x] /ai-review (LOW, Critical/Warning 0 — INFO 채택분 반영: 128/129 경계·warn 메시지 검증·spy try/finally·주석. RESOLUTION.md)
 - build·e2e: 프로덕션 코드 무변경(unit-spec 추가만) → 무관

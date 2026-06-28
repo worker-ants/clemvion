@@ -240,13 +240,21 @@ describe('ExecutionSeqAllocator', () => {
         )
         .mockImplementation(() => undefined);
 
-      // release 는 동기 반환 — fire-and-forget DEL 의 reject 가 호출자에게 새지 않는다.
-      expect(() => alloc.release('exec-del-fail')).not.toThrow();
-      expect(redis.del).toHaveBeenCalledWith('exec:seq:exec-del-fail');
-      // .catch 는 microtask — flush 후 warn 이 기록됐는지 확인 (unhandled rejection 아님).
-      await Promise.resolve();
-      expect(warn).toHaveBeenCalledTimes(1);
-      warn.mockRestore();
+      try {
+        // release 는 동기 반환 — fire-and-forget DEL 의 reject 가 호출자에게 새지 않는다.
+        expect(() => alloc.release('exec-del-fail')).not.toThrow();
+        expect(redis.del).toHaveBeenCalledWith('exec:seq:exec-del-fail');
+        // .catch body 가 동기이므로 microtask 1회 flush 로 충분 (unhandled rejection 아님).
+        await Promise.resolve();
+        expect(warn).toHaveBeenCalledTimes(1);
+        // 경고 메시지에 sanitize 된 executionId 가 포함돼 추적 가능해야 한다.
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('exec-del-fail'),
+        );
+      } finally {
+        // expect 실패해도 spy 가 다음 테스트로 새지 않도록 finally 에서 복원.
+        warn.mockRestore();
+      }
     });
   });
 
@@ -357,11 +365,17 @@ describe('ExecutionSeqAllocator', () => {
     ).sanitize;
 
     it('CR/LF/탭 을 공백으로 치환 (로그 라인 위조 차단)', () => {
+      // \r→' ', \n→' ', \t→' ' — CR+LF 는 공백 2개가 된다.
       expect(sanitize('a\r\nb\tc')).toBe('a  b c');
     });
 
     it('128자 초과는 cap (로그 폭주 차단)', () => {
       expect(sanitize('x'.repeat(200))).toHaveLength(128);
+    });
+
+    it('정확히 128자는 보존, 129자는 128 로 cap (off-by-one 경계)', () => {
+      expect(sanitize('x'.repeat(128))).toHaveLength(128);
+      expect(sanitize('x'.repeat(129))).toHaveLength(128);
     });
 
     it('비문자열 입력도 String() 강제 후 처리 (방어적)', () => {
