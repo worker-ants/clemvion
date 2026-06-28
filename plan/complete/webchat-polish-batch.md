@@ -37,4 +37,11 @@ spec_impact:
 - [x] /consistency-check --impl-prep → BLOCK: NO (`review/consistency/2026/06/28/14_36_34/`). W-4 수정·0-overview revert.
 - [x] TEST WORKFLOW — lint·unit(249→테스트 보강 후)·build(docker 포함) PASS.
 - [x] /ai-review (14_49_11) Critical/Warning 0 + impl-done(14_49_11) BLOCK: NO(W-1 resetSession 정정 반영) → 후속 fix 후 fresh 재검.
-- [ ] (fresh) /ai-review + /consistency-check --impl-done — 후속 fix(resetSession·apiBase spec·테스트) 커버.
+- [x] (fresh) /ai-review(15_02_08) **Critical/Warning 0** + /consistency-check --impl-done(15_02_09) **BLOCK: NO** — 후속 fix 전부 커버.
+      (직전 15_02_08/09 run 은 서버 rate-limit 으로 전원 실패 → 재실행 성공.)
+
+### deferred followup (비차단, 별도)
+- **embed-config.dto rename**(impl-done W-1): `embed-config.dto.ts`→`embed-config-response.dto.ts`/`EmbedConfigResponseDto`(swagger.md §5-1).
+  pre-existing(본 batch JSDoc 만 추가), rename 은 import·spec code: 동기화라 별도 PR. 또는 swagger.md 예외 등재.
+- **NAV-WC-06 ↔ 0-overview** 라이브 미리보기 상태 동기화(planner) — 0-overview ✅ 이동은 NAV-WC-06 ✅ 와 동시여야 함.
+- execution.message EIA 매핑 행·EIA §6.2 wire drift·기타 cross-ref 보완 — pre-existing planner followup.
