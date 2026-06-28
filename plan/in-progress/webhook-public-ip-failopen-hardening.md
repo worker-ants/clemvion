@@ -59,7 +59,7 @@ PR #763 fresh 리뷰(review/code/2026/06/28/17_16_16) INFO #15 / 권장 7 에서
 - [x] `/consistency-check --impl-prep spec/5-system/` — `review/consistency/2026/06/28/20_32_34_d12` **BLOCK:NO** (LOW). W-1·I-2·I-6 반영, I-3~I-5 pre-existing 이월. (세션 dir 은 origin/main 의 m1-integration `--spec` 세션과 같은 초 충돌해 `_d12` suffix 로 보존 — rebase 해소.)
 - [x] **I-1** quota service `UNIDENTIFIED_IP_BUCKET` 상수 export + unit 테스트(sentinel 키/IPv4·IPv6 비충돌/consumeStart/hourly).
 - [x] **I-2** guard null-IP → `|| UNIDENTIFIED_IP_BUCKET` 공유 버킷 라우팅 + guard.spec(미식별 consumeStart 호출/분당·시간당 429/W14 trigger 첨부).
-- [x] TEST WORKFLOW lint·unit·build 통과. **e2e 보류** — docker.io `flyway:10-alpine` manifest fetch `DeadlineExceeded`(레지스트리 인프라, 빌드 4회+직접 pull+classic-builder 우회 모두 동일; 이미지 layer 는 로컬 캐시·registry root 도달·node 이미지는 로드됨 → flyway namespace 특정 차단). 코드 무관.
+- [x] TEST WORKFLOW lint·unit·build 통과. **e2e 보류(사용자 취소 → PR CI 위임)** — docker.io `flyway:10-alpine` manifest fetch `DeadlineExceeded`(레지스트리 인프라, 빌드 5회+직접 pull+classic-builder 우회+사용자 이미지 pull 후 재시도 모두 동일; 이미지 layer 는 로컬 캐시·registry root 도달·node 이미지는 로드됨 → flyway namespace 특정 차단). 코드 무관. 사용자 "e2e는 취소하고 이후 진행" 결정 → PR CI 가 e2e 독립 실행.
 - [x] `/ai-review` (`review/code/2026/06/28/21_09_41`) **RISK:LOW, Critical 0, Warning 2** → W1(plan 체크박스)·W2(sentinel hourly 테스트) + INFO 7(`??`→`||`)·8(IPv6 단언)·9(W14 단언) 반영. RESOLUTION.md 작성.
 - [ ] `/consistency-check --impl-done spec/5-system/`
 - [ ] push + PR

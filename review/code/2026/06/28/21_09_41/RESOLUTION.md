@@ -25,8 +25,8 @@
 - **lint**: 통과 (`_test_logs/lint-20260628-211851.log`)
 - **unit**: 통과 — 48 suites (`_test_logs/unit-20260628-211932.log`). sentinel 신규 케이스 포함 green.
 - **build**: 통과 (`_test_logs/build-20260628-212021.log`)
-- **e2e**: 보류 — docker.io `flyway/flyway:10-alpine` manifest fetch `DeadlineExceeded`(레지스트리 인프라; 빌드 4회+직접 pull+classic-builder 우회 모두 동일, 이미지 layer 로컬 캐시·registry root 도달·node 이미지 로드됨 → flyway namespace 특정 차단, 코드 무관). 사용자 결정: **"로컬 e2e 재시도 대기"** — 레지스트리 회복 후 로컬 e2e 통과 시 push. 회복까지 push 보류.
+- **e2e**: 보류 (사용자 응답 인용) — docker.io `flyway/flyway:10-alpine` manifest fetch `DeadlineExceeded`(레지스트리 인프라; 빌드 5회+직접 pull+classic-builder 우회 모두 동일, 이미지 layer 로컬 캐시·registry root 도달·node 이미지 로드됨 → flyway namespace 특정 차단, 코드 무관). 사용자가 이미지를 직접 pull 후 재시도했으나 문제 지속 → 사용자 결정 **"e2e는 취소하고, 이후 진행하자"**. 로컬 e2e 미실행으로 진행하며, **PR CI 가 e2e 를 독립 실행해 최종 검증**한다.
 
 ## 보류·후속 항목
-- **e2e**: 레지스트리 회복 후 로컬 재시도 → 통과 시 push + PR (사용자 응답 "로컬 e2e 재시도 대기").
+- **e2e**: 사용자 결정으로 로컬 미실행(docker.io flyway 레지스트리 인프라 차단), PR CI 에 위임. 레지스트리 회복 시 로컬 재현 가능.
 - INFO 1 (미식별 버킷 모니터링), INFO 6 (한도 config 배율): `plan §Followup 이월` 기재.
