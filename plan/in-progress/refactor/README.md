@@ -18,16 +18,16 @@
 | 문서 | 원 건수 | 완료 | 철회·종결 | 잔여(미완) | ⚠️ A-잔존 | 핵심 주제 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [01-performance.md](./01-performance.md) | 15 | 10 | 5 (1철회 #9 + 4종결 #11·#12·#13·#15) | **0** | 0 | ✅ 2026-06-10 완료: 구현 10건(perf-backlog-01) + 종결 4건. spec 동기화 = `plan/complete/spec-update-perf-backlog-01.md` |
-| [02-architecture.md](./02-architecture.md) | 15 | 10 | 0 | 5 | 2 (C-2, M-5) | C-1(엔진분할 PR #622–627)·M-1·M-2·M-6(#660)·M-7·M-8·M-9·m-1·m-2·m-3 완료. 잔여(진행중): C-2(5클러스터 중 4 처리, #676 로 클러스터5 해소 — 클러스터4 llm↔model-config 만 별건 잔여)·M-5(레이어1)·C-3·M-3, M-4(미착수) |
+| [02-architecture.md](./02-architecture.md) | 15 | 14 | 0 | 1 | 0 | C-1(엔진분할 PR #622–627)·C-2(5클러스터 전부 #714/#716/#718~#721/#676)·C-3·M-1·M-2·M-3·M-4(#688)·M-6(#660)·M-7·M-8·M-9·m-1(+#767)·m-2·m-3 완료. 잔여: M-5 레이어2/3(per-workspace entitlement·marketplace 커스텀 노드) → [marketplace-and-plugin-sdk.md](../marketplace-and-plugin-sdk.md) §Phase D 위임(레이어1 핫스팟 해소 완료) |
 | [03-maintainability.md](./03-maintainability.md) | 15 | 9 (M-6·m-2 PR #522 + M-2 API_BASE_URL + C-2 ai-turn-executor 분해 #697·2차 + C-4 WS gateway helper + m-3 integrations/new 분할 + m-1 console→Logger + m-4 catch 변수명 통일 + M-1 install 보일러플레이트 helper) | 1 (철회 M-3) | 5 | 2 (C-3, M-4) | dead-code 제거 2건 + M-2(API_BASE_URL 3001→3011) + C-2(ai-agent god-method §6.1/§6.2 분해) + C-4(WS gateway 인증/소유권 helper) + m-3(integrations/new 1444→448줄 분할) + m-1(서비스 console.*→Logger + no-console 가드) + m-4(catch 변수명 `err` 통일 + unicorn/catch-error-name 가드) + M-1(install 보안 보일러플레이트 4종 helper 추출) 외 대부분 미착수. cafe24/makeshop 미러(DRY-deferral) |
 | [04-security.md](./04-security.md) | 14 | **14** | 0 | **0** | 0 | ✅ 2026-06-16 전 항목 종결: 코드+spec 머지(PR #570·prod-fail-closed-guards 등). isolated-vm 전환·SSRF 가드·WS authorizer |
 | [05-database.md](./05-database.md) | 15 | 11 | 2 (철회 M-6·m-2) | 2 (m-4·m-5 보류) | 1 (m-5) | ✅ 핵심 11건 완료(2026-06-14 batch): rotation 원자화·partial 인덱스·CTE. m-4·m-5 보류 |
 | [06-concurrency.md](./06-concurrency.md) | 15 | 5 (M-1·M-5·C-1·M-7·M-2) | 3 (철회 m-1·m-2·m-4) | 7 | 1 (C-2) | M-1·M-5·C-1·M-7·M-2(shutdown 추적 드리프트) 완료 외 7건 미착수. rehydrate 가드 |
 | [07-dependency.md](./07-dependency.md) | 15 | 10 | 5 (3철회 M-1·M-3·m-3 + 2종결 m-5·m-7) | **0** | 0 | ✅ 2026-06-17 완료: C-1·C-2(deps-security-hygiene) + 잔여 8건 → [07-dependency-residual.md](./07-dependency-residual.md) |
-| **합계** | **104** | **69** | **16** (10철회 + 6종결) | **19** | **6** | |
+| **합계** | **104** | **73** | **16** (10철회 + 6종결) | **15** | **4** | |
 
 > **완료** = 구현·머지 또는 결정 종결(코드/spec 변경 동반). **철회·종결** = 코드 변경 없이 닫음 (철회=E 사실관계 반증 / 종결=no-action·현상유지). **잔여(미완)** = 미착수·진행중·보류 (`[ ]` 또는 `[~]`). **⚠️ A-잔존** = 잔여 중 spec/plan 이 의도된 설계로 문서화했으나 여전히 문제로 남은 항목 (착수·번복은 **사용자 결정 대상**; 결정 상태는 각기 다름 — 상세는 아래 「⚠️ 의도된 설계지만 문제」 절).
-> 완료(69) + 철회·종결(16) + 잔여(19) = 104. 처리 종료(완료+철회·종결) = 85/104.
+> 완료(73) + 철회·종결(16) + 잔여(15) = 104. 처리 종료(완료+철회·종결) = 89/104.
 > 철회 항목은 삭제하지 않고 `[x]` + 철회 사유(반증 근거)로 보존.
 
 ## spec 대조가 바꾼 주요 사실 (요약)
@@ -39,7 +39,7 @@
 
 ## 종합 우선순위 (P0 → P2, spec 대조 반영)
 
-> **진행 현황 (2026-06-24)**: P0 5건 전부 ✅ 완료. P1 은 6·7·9·10·11·12 완료, 8 잔여. P2 는 13(엔진분할)·16(ai-agent 분해) 완료, 14(forwardRef)는 진행중(M-7·클러스터5 완료·#676, 클러스터4 별건), 15·17·18 잔여.
+> **진행 현황 (2026-06-28)**: P0 5건 전부 ✅ 완료. P1 은 6·7·9·10·11·12 완료, 8 잔여. P2 는 13(엔진분할)·16(ai-agent 분해)·14(forwardRef — 클러스터4 #714/#716 머지로 전 클러스터 종결)·17(park-진입 dispatch M-4) 완료, 15·18 잔여.
 
 ### P0 — 보안·데이터 정합 즉시 대응 (단독 PR) — ✅ 전건 완료
 
@@ -62,15 +62,15 @@
 ### P2 — 구조 개선 (대형, strangler-fig)
 
 13. ~~**엔진 분할**~~ ✅ 완료 (C-1 5단계 PR #622–627, m-3 NodeBootstrapService = step1) → [02](./02-architecture.md) C-1·m-3
-14. **forwardRef — 클러스터별 개별 처리** *(진행중)* — ~~M-7 authorizer 역전(클러스터2·3)~~ ✅(2026-06-21 `m7-channel-authorizer-inversion`), ~~클러스터5 chat-channel↔triggers~~ ✅(#676), 클러스터1 엔진↔WS 는 spec 의도라 **유지**; 잔여 클러스터4(llm↔model-config) 별건 → [02](./02-architecture.md) C-2 ⚠️·M-7
+14. ~~**forwardRef — 클러스터별 개별 처리**~~ ✅ 완료 — ~~M-7 authorizer 역전(클러스터2·3)~~ ✅(2026-06-21 `m7-channel-authorizer-inversion`), ~~클러스터4 llm↔model-config~~ ✅(#714 + authz #716), ~~클러스터5 chat-channel↔triggers~~ ✅(#676), 클러스터1 엔진↔WS 는 spec 의도라 **유지**(✅ 무조치 확정) → [02](./02-architecture.md) C-2·M-7
 15. **cafe24/makeshop Base 클라이언트 통합** — DRY-deferral 결정 정리 선행, spec 명시 비대칭 5종은 policy 주입으로 통합 금지 → [03](./03-maintainability.md) C-3 ⚠️·M-4 ⚠️ *(결정대기)*
 16. ~~**ai-agent 파이프라인 분리** — spec §6.1/§6.2 단계 번호와 정렬~~ ✅ 완료 (1차 #697 setup 분해, 2차 god-method 6 helper + TurnOutputAccumulators 번들) → [03](./03-maintainability.md) C-2
-17. **park-진입 dispatch 추출** — PR #507 resume registry 와 대칭(`ParkEntryDispatch`) → [02](./02-architecture.md) M-4 *(잔여)*
+17. ~~**park-진입 dispatch 추출**~~ ✅ 완료 — PR #507 resume registry 와 대칭(`ParkEntryDispatch`, 커밋 `ecd70dd1` + spec-sync #688) → [02](./02-architecture.md) M-4
 18. **ExecutionContext 스케일아웃** — 독립 작업화 금지, exec-intake PR3 연동 → [06](./06-concurrency.md) C-3 *(잔여)*
 
-## ⚠️ 의도된 설계지만 문제 — 사용자 결정 현황 (15행 중 ✅ 완료 10 / 🔧 진행중 2 / ⏳ 결정대기 3)
+## ⚠️ 의도된 설계지만 문제 — 사용자 결정 현황 (15행 중 ✅ 완료 12 / 🔧 진행중 0 / ⏳ 결정대기 3)
 
-> **2026-06-24 현황**: ✅ 완료 10행 (04 5건·03 M-6/m-2·05 C-2·06 M-5·06 M-1·07 m-9). 🔧 진행중 2행: 02 C-2(클러스터 5개 중 4 처리·#676 로 클러스터5 해소, 핵심쌍 엔진↔WS=클러스터1 은 spec 의도로 유지 — 위 집계표 ⚠️ A-잔존에 계속 포함), 02 M-5(레이어1). ⏳ 결정대기 3행: 03 C-3/M-4, 05 m-5, 06 C-2 — **착수 금지 유지**.
+> **2026-06-28 현황**: ✅ 완료 12행 (04 5건·03 M-6/m-2·05 C-2·06 M-5·06 M-1·07 m-9·**02 C-2·02 M-5**). 🔧 진행중 0행 — 02 C-2 전 클러스터 종결(클러스터1 엔진↔WS 는 spec 의도로 유지, 잔존 고충은 수용 비용), 02 M-5 레이어1 핫스팟 해소 + 레이어2/3 marketplace Phase D 위임. ⏳ 결정대기 3행: 03 C-3/M-4, 05 m-5, 06 C-2 — **착수 금지 유지**.
 > **2026-06-10 사용자 결정**: 04 m-4, 03 M-6, 03 m-2, 06 M-5, 06 M-1 — **권고안대로 진행 확정** → 모두 ✅ 완료.
 > **2026-06-20 사용자 결정**: 02 M-5 — **Option B(DI multi-provider 3-레이어) 방향 확정 + 레이어1 구현 착수** (n8n·flowise 리서치 기반, 격리=flowise·샌드박스=n8n). 02 C-2 #1(엔진↔WS)은 트레이드오프 부록만 추가하고 **유지 결론 불변(✅ 확정)**.
 
@@ -81,8 +81,8 @@
 | 04 M-3 ReDoS 길이 제한 | 4개 spec "길이 200 = ReDoS 방지" | 길이 제한은 지수 패턴 못 막음 — spec 주장 부정확 | **✅ 완료(PR #570)** — safe-regex 사전 검출 + spec 정정 (re2 는 필요 입증 시 승급) |
 | 04 m-4 DB Pool 캐시 | `2-database-query.md:77` evict 명시 | 멀티 인스턴스 무효화 미조율(MTTR) | **✅ 완료** — pub/sub 전파 (`plan/complete/db-pool-creds-pubsub.md`) |
 | 04 m-2/m-3 | stack 노출·trust proxy — spec/주석 명시 | 낮음 | **✅ 완료** — m-2 spec/가이드(PR #570), m-3 재제안 구현(기본 off) |
-| 02 C-2 forwardRef 순환 (5클러스터) | §4.4 "추상화 도입 금지, 안티패턴 아님" (엔진↔WS=클러스터1) | 테스트 격리·초기화 순서 고충 | **🔧 진행중** — 클러스터1(엔진↔WS) ✅유지 확정(2026-06-20)·2·3(M-7 #663)·5(chat-channel↔triggers, #676) 처리. 잔여: 클러스터4(llm↔model-config) — planner premise 정정 후 별건 |
-| 02 M-5 정적 노드 배열 | `4-nodes/0-overview.md §1.0` 명시 | merge-conflict hotspot | **🔧 진행중** — 방향 확정(2026-06-20): Option B(DI multi-provider 3-레이어), 레이어1(모듈 격리+핫스팟 제거) 구현 중 ([refactor-m5-node-di-layer1.md](../refactor-m5-node-di-layer1.md)) |
+| 02 C-2 forwardRef 순환 (5클러스터) | §4.4 "추상화 도입 금지, 안티패턴 아님" (엔진↔WS=클러스터1) | 테스트 격리·초기화 순서 고충 (클러스터1 잔존 = 의도된 설계의 수용 비용) | **✅ 완료** — 클러스터1(엔진↔WS) ✅유지 확정(2026-06-20)·2·3(M-7 #663)·4(llm↔model-config #714 + authz #716)·5(chat-channel↔triggers #676) 전부 처리 |
+| 02 M-5 정적 노드 배열 | `4-nodes/0-overview.md §1.0` 명시 | merge-conflict hotspot | **✅ 완료(refactor 범위)** — Option B 레이어1(DI multi-provider, 모듈 격리+핫스팟 제거) 완료(#652, [refactor-m5-node-di-layer1.md](../refactor-m5-node-di-layer1.md)). 레이어2/3(per-workspace entitlement·marketplace 커스텀 노드)는 [marketplace-and-plugin-sdk.md](../marketplace-and-plugin-sdk.md) §Phase D 위임 |
 | 03 C-3/M-4 cafe24·makeshop 미러 | "cafe24 미러" + DRY-deferral("3번째 provider 시") 문서화 | 1,600줄은 deferral 명시 목록의 사각, 3중 복제 예약 | **⏳ 결정대기** — 본문 권장=보류: 3번째 provider 까지 deferral 준수 + "결정의 사각" plan 기록 (앞당김은 사용자 결정) |
 | 03 M-6/m-2 dead code | 제거가 예약된 잔류물 | 잔존 중 | **✅ 완료** — 단일 cleanup PR #522 |
 | 05 C-2 re_run_of walk | `13-replay-rerun.md §9.1` 함수명까지 명시 | 직렬 SELECT ≤64회 | **✅ 완료(2026-06-14)** — 재귀 CTE 교체 + spec §9.1 1줄 동행 |
