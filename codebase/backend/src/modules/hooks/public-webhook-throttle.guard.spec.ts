@@ -2,6 +2,7 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
+  Logger,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { Repository } from 'typeorm';
@@ -217,12 +218,16 @@ describe('PublicWebhookThrottleGuard', () => {
     }
   });
 
-  it('trigger 조회 실패 → fail-open(통과)', async () => {
+  it('trigger 조회 실패 → fail-open(통과) + error 레벨 로깅(모니터링 가시성, W2)', async () => {
+    const errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation();
     const { guard, quota } = makeGuard({ findThrows: true });
     await expect(guard.canActivate(makeContext(PUBLIC_REQ))).resolves.toBe(
       true,
     );
     expect(quota.consumeStart).not.toHaveBeenCalled();
+    // fail-open 은 공개 webhook 보호를 무력화하므로 error 레벨로 남겨 알람이 탐지하게 한다.
+    expect(errorLog).toHaveBeenCalledTimes(1);
+    errorLog.mockRestore();
   });
 
   // ── W11: measureBodyBytes 분기 테스트 ──────────────────────────────────────

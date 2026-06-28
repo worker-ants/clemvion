@@ -1,6 +1,7 @@
 import {
   ArgumentsHost,
   BadRequestException,
+  Logger,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { GlobalExceptionFilter } from './http-exception.filter';
@@ -59,6 +60,25 @@ describe('GlobalExceptionFilter', () => {
     // 내부 message 를 echo 하지 않고 일반 문구만 반환한다(CWE-209).
     expect(body.error.message).not.toBe('request entity too large');
     expect(body.error.message).toBe('Request payload too large.');
+  });
+
+  it('maps a non-413 4xx http-error to a generic message + logs the original', () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const { host, status, json } = mockHost();
+    const err = Object.assign(new Error('some internal 400 detail'), {
+      status: 400,
+    });
+    new GlobalExceptionFilter().catch(err, host);
+
+    expect(status).toHaveBeenCalledWith(400);
+    const body = bodyOf(json);
+    expect(body.error.code).toBe('VALIDATION_ERROR'); // getCodeFromStatus(400)
+    // CWE-209: 내부 원문 미노출, 일반 문구만. 원문은 logger.warn 로만 남는다.
+    expect(body.error.message).toBe('The request could not be processed.');
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('some internal 400 detail'),
+    );
+    warn.mockRestore();
   });
 
   it('masks a plain 5xx-ish error (no/≥500 status) as 500 INTERNAL_ERROR', () => {
