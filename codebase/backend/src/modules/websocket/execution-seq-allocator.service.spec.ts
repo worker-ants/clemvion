@@ -281,39 +281,28 @@ describe('ExecutionSeqAllocator', () => {
         .seqKeyTtlSeconds;
     }
 
+    // ttl 분기 검증용 allocator — 연결 없이 env 만 읽으므로 redis stub 은 불필요.
+    function makeAllocatorForTtl(): ExecutionSeqAllocator {
+      return new ExecutionSeqAllocator(
+        makeRedisConn() as unknown as RedisConnectionProvider,
+      );
+    }
+
     it('양수 정수 env → 채택', () => {
       process.env[ENV] = '3600';
-      expect(
-        ttlOf(
-          new ExecutionSeqAllocator(
-            makeRedisConn() as unknown as RedisConnectionProvider,
-          ),
-        ),
-      ).toBe(3600);
+      expect(ttlOf(makeAllocatorForTtl())).toBe(3600);
     });
 
     it('NaN/음수/0 env → default 86400', () => {
       for (const bad of ['abc', '-5', '0']) {
         process.env[ENV] = bad;
-        expect(
-          ttlOf(
-            new ExecutionSeqAllocator(
-              makeRedisConn() as unknown as RedisConnectionProvider,
-            ),
-          ),
-        ).toBe(86_400);
+        expect(ttlOf(makeAllocatorForTtl())).toBe(86_400);
       }
     });
 
     it('미설정 → default 86400', () => {
       delete process.env[ENV];
-      expect(
-        ttlOf(
-          new ExecutionSeqAllocator(
-            makeRedisConn() as unknown as RedisConnectionProvider,
-          ),
-        ),
-      ).toBe(86_400);
+      expect(ttlOf(makeAllocatorForTtl())).toBe(86_400);
     });
   });
 
