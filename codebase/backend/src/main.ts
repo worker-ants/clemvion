@@ -32,6 +32,7 @@ import {
   corsOriginCallback,
 } from './common/utils/cors-origins';
 import {
+  buildDefaultCorsOptions,
   createWebChatCorsDelegate,
   parseWidgetOrigins,
   type CorsRequestLike,
@@ -182,14 +183,9 @@ async function bootstrap() {
     widgetOrigins: parseWidgetOrigins(process.env.WEB_CHAT_WIDGET_ORIGINS),
     resolveAllowlist: (executionId) =>
       webChatCorsResolver.resolveAllowlist(executionId),
-    defaultOptions: () => ({
-      origin: corsOriginCallback,
-      credentials: true,
-      // cross-origin 브라우저가 읽을 수 있게 노출하는 커스텀 응답 헤더.
-      // agent-memory clearScope 의 X-Deleted-Count (0건/다건 토스트 분기 근거) —
-      // 미노출 시 브라우저가 숨겨 프론트가 항상 0 으로 폴백한다.
-      exposedHeaders: ['X-Deleted-Count'],
-    }),
+    // 비-웹채팅 경로 옵션은 순수 팩토리로 추출(W3) — exposedHeaders(X-Deleted-Count)
+    // 회귀가 web-chat-cors.spec 단위 테스트로 실제 보호된다.
+    defaultOptions: () => buildDefaultCorsOptions(corsOriginCallback),
   });
   app.enableCors(
     (

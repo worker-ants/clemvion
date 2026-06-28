@@ -111,6 +111,28 @@ export function createWebChatCorsDelegate(deps: WebChatCorsDeps): CorsDelegate {
   };
 }
 
+/**
+ * 비-웹채팅(기본) 경로 CORS 옵션 팩토리. main.ts 부트스트랩의 인라인 정의를
+ * 순수 함수로 추출 (W3) — `exposedHeaders` 의 `X-Deleted-Count` 회귀를 단위
+ * 테스트로 실제 보호하기 위함. 부트스트랩 인라인 객체는 import 가 불가능해
+ * 자가검증(동어반복) 테스트밖에 못 만든다.
+ *
+ * - `origin`: frontend allowlist 콜백 (호출자가 주입).
+ * - `credentials: true`: 기존 동작 유지(쿠키 기반 세션).
+ * - `exposedHeaders`: agent-memory clearScope 의 `X-Deleted-Count` (0건/다건
+ *   토스트 분기 근거) — 미노출 시 브라우저가 헤더를 숨겨 프론트가 항상 0 으로
+ *   폴백한다. SoT: spec/5-system/17-agent-memory §6 AGM-13.
+ */
+export function buildDefaultCorsOptions(
+  originCallback: CorsOptionsLike['origin'],
+): CorsOptionsLike {
+  return {
+    origin: originCallback,
+    credentials: true,
+    exposedHeaders: ['X-Deleted-Count'],
+  };
+}
+
 /** env(`WEB_CHAT_WIDGET_ORIGINS`, 콤마 구분) → 빌트인 위젯 origin 목록. */
 export function parseWidgetOrigins(env: string | undefined): string[] {
   if (!env) return [];
