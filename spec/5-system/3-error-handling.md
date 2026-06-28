@@ -141,8 +141,8 @@ code:
 | 코드 | status | 설명 | 상태 |
 |------|--------|------|------|
 | `INVALID_WEBHOOK_PAYLOAD` | 400 | required 트리거 파라미터 누락·타입 강제 변환 실패. API 규약 400 기본 `VALIDATION_ERROR` 대신 webhook 도메인 특화 override ([Spec Webhook §5.2](./12-webhook.md#52-400-응답-형식)) | 구현 |
-| `PUBLIC_WEBHOOK_RATE_LIMIT` | 429 | 공개 webhook(`auth_config_id IS NULL`) IP 단위 분당 시작 한도 초과 (`PublicWebhookThrottleGuard`, 기본 분당 10) ([Spec Webhook §6](./12-webhook.md#6-구현-파일-구조)) | 구현 |
-| `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 429 | 공개 webhook IP 단위 시간당 누적 신규 상한 초과 (`PublicWebhookThrottleGuard`/`PublicWebhookQuotaService`, 기본 20) ([Spec Webhook §6](./12-webhook.md#6-구현-파일-구조)) | 구현 |
+| `PUBLIC_WEBHOOK_RATE_LIMIT` | 429 | 공개 webhook(`auth_config_id IS NULL`) IP 단위(또는 IP 미식별 시 공유 버킷 `UNIDENTIFIED_IP_BUCKET`) 분당 시작 한도 초과 (`PublicWebhookThrottleGuard`, 기본 분당 10) ([Spec Webhook §6](./12-webhook.md#6-구현-파일-구조)) | 구현 |
+| `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 429 | 공개 webhook IP 단위(또는 IP 미식별 시 공유 버킷) 시간당 누적 신규 상한 초과 (`PublicWebhookThrottleGuard`/`PublicWebhookQuotaService`, 기본 20) ([Spec Webhook §6](./12-webhook.md#6-구현-파일-구조)) | 구현 |
 | `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 413 | 공개 webhook(`auth_config_id IS NULL`) 요청 본문이 32KB(`DEFAULT_MAX_BODY_BYTES`, config `publicWebhook.maxBodyBytes`) 초과 (`PublicWebhookThrottleGuard`) ([Spec Webhook §8](./12-webhook.md#8-보안-고려사항)) | 구현 |
 | `AUTH_FAILED` | 401 | webhook 인증 실패 — type 무관 단일 응답(enumeration·정보 노출 차단, [Spec Webhook §4](./12-webhook.md#4-인증-방식)). `is_active=false` AuthConfig·서명/토큰 불일치·`ip_whitelist` 불일치 모두 동일 코드 ([WH-SC-04·WH-SC-09](./12-webhook.md#인증-및-보안)) | 구현 |
 
