@@ -295,7 +295,7 @@ ws(s)://{base_url}/ws?token={access_token}
 POST {base_url}/api/hooks/{endpoint_path}
 ```
 
-- `base_url`: SaaS → 서비스 도메인 (예: `https://api.example.com`), 셀프 호스팅 → 설정된 도메인. 프론트엔드 base 결정 규약은 [Spec Webhook WH-EP-02](./12-webhook.md#31-webhook-엔드포인트).
+- `base_url`: SaaS → 서비스 도메인 (예: `https://api.example.com`), 셀프 호스팅 → 설정된 도메인. 프론트엔드 base 결정 규약은 [Spec Webhook WH-EP-02](./12-webhook.md#webhook-엔드포인트).
 - `endpoint_path`: Trigger 엔티티의 `endpoint_path` 값 (생성 시 UUID 자동 발급, 라우팅 식별자)
 - 예시: `POST https://api.example.com/api/hooks/order-created`
 
@@ -305,7 +305,7 @@ POST {base_url}/api/hooks/{endpoint_path}
 |--------|------|------|
 | POST | ✓ | 표준 webhook 수신 (유일 지원 메서드) |
 
-webhook **수신**(workflow trigger) 메서드로는 POST 만 지원하며 그 외 메서드는 `405 Method Not Allowed`. (GET/PUT trigger 수신은 v1 미지원 — [Spec Webhook WH-EP-03](./12-webhook.md#31-webhook-엔드포인트).) 단, 같은 라우터에는 위젯 부팅용 공개 읽기 엔드포인트 `GET /api/hooks/{endpoint_path}/embed-config` 가 별도로 존재한다 — webhook 수신이 아니라 임베드 allowlist 조회용 ([7-channel-web-chat/4-security §3](../7-channel-web-chat/4-security.md)).
+webhook **수신**(workflow trigger) 메서드로는 POST 만 지원하며 그 외 메서드는 `405 Method Not Allowed`. (GET/PUT trigger 수신은 v1 미지원 — [Spec Webhook WH-EP-03](./12-webhook.md#webhook-엔드포인트).) 단, 같은 라우터에는 위젯 부팅용 공개 읽기 엔드포인트 `GET /api/hooks/{endpoint_path}/embed-config` 가 별도로 존재한다 — webhook 수신이 아니라 임베드 allowlist 조회용 ([7-channel-web-chat/4-security §3](../7-channel-web-chat/4-security.md)).
 
 ### 11.3 요청 처리 플로우
 

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-28T11:33:55.113672",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/5-system/12-webhook.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
