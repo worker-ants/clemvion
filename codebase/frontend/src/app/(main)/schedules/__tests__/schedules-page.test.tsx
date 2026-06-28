@@ -384,8 +384,15 @@ describe("SchedulesPage — RBAC", () => {
     expect(
       screen.queryByRole("button", { name: /deactivate|activate/i }),
     ).toBeNull();
-    expect(screen.queryByTitle(/^edit$/i)).toBeNull();
-    expect(screen.queryByTitle(/^delete$/i)).toBeNull();
+    // edit·delete 버튼은 title 이 아닌 aria-label 로 식별된다(Stage 10 a11y).
+    // queryByTitle 은 title 부재로 항상 null → viewer 에 버튼이 노출돼도
+    // 통과하는 false-negative 였다. Editor 테스트와 동일하게 role+name 으로 검증.
+    expect(
+      screen.queryByRole("button", { name: /^edit$/i }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^delete$/i }),
+    ).toBeNull();
     // Run now 는 viewer 도 가능
     expect(
       screen.getByRole("button", { name: /run now/i }),
