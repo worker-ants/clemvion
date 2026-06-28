@@ -76,13 +76,16 @@ type SessionRef = PersistedSession;
  * 쿼리 파라미터 `apiBase` 를 **http(s) URL 로만** 허용한다(direct-load/샘플 대비 하드닝).
  * 직접 로드 경로의 `?apiBase=` 는 사용자가 URL 을 통제하지 못하는 임베드 시나리오와 달리 외부 입력이므로,
  * `javascript:`/`data:`/상대경로 등 비-http(s) 값을 fetch base 로 쓰지 않도록 스킴을 검증해 거른다.
- * (localhost 개발은 `http://` 허용 — 스킴만 제한). 부적합 시 `undefined` 반환 + console.warn.
+ * (localhost 개발은 `http://` 허용 — 스킴만 제한). path/query 는 보존한다(`apiBase` 는 `/api` 등 경로 포함이 정상).
+ *
+ * @param raw - 쿼리 `apiBase` 원본(null 가능).
+ * @returns http(s) URL 이면 원본 그대로, 아니면(null·파싱불가·비-http(s) 스킴) `undefined`(null 외에는 console.warn).
  */
 export function safeApiBaseFromQuery(raw: string | null): string | undefined {
   if (!raw) return undefined;
   try {
-    const u = new URL(raw);
-    if (u.protocol === "http:" || u.protocol === "https:") return raw;
+    const url = new URL(raw);
+    if (url.protocol === "http:" || url.protocol === "https:") return raw;
   } catch {
     /* 파싱 불가 — 아래 경고 후 무시 */
   }

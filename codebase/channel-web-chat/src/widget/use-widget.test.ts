@@ -21,13 +21,25 @@ describe("safeApiBaseFromQuery", () => {
   it("http URL(localhost 개발) → 허용", () => {
     expect(safeApiBaseFromQuery("http://localhost:3000/api")).toBe("http://localhost:3000/api");
   });
-  it("javascript: 스킴 → 무시(undefined)", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("javascript: 스킴 → 무시(undefined) + console.warn 호출", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(safeApiBaseFromQuery("javascript:alert(1)")).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[widget]"), "javascript:alert(1)");
   });
-  it("상대 경로(파싱 불가) → 무시", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("data: 스킴 → 무시(undefined) + console.warn 호출", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(safeApiBaseFromQuery("data:text/html,<script>")).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[widget]"), "data:text/html,<script>");
+  });
+  it("상대 경로(파싱 불가) → 무시 + console.warn 호출", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(safeApiBaseFromQuery("/api")).toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+  });
+  it("빈 문자열 → undefined(경고 없음 — !raw 선처리)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(safeApiBaseFromQuery("")).toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
   });
   it("null → undefined(경고 없음)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

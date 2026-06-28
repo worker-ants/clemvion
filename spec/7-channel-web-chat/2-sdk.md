@@ -49,7 +49,8 @@ code:
 </script>
 ```
 - 전역 함수 `ClemvionChat(method, payload)` — 단일 전역 진입점 + 명령 큐 패턴. 메서드: `boot`/`shutdown`/`show`/`hide`/
-  `open`/`close`/`sendMessage`/`updateProfile`/`resetSession`/`on(event, cb)`/`off(event, cb?)`.
+  `open`/`close`/`sendMessage`/`updateProfile`/`on(event, cb)`/`off(event, cb?)`.
+  (`resetSession` 은 **`wc:command` 전용**이라 이 ClemvionChat 메서드 목록·npm `ChatInstance`(§5)에 노출하지 않는다 — §3 참조.)
   - **`show`/`hide` vs `open`/`close`**: `show`/`hide` 는 **런처(위젯 진입점) 가시성** 토글(hide=위젯 자체를 페이지에서 숨김),
     `open`/`close` 는 **대화 패널 전개/접힘**(런처는 유지). 즉 `hide` 후엔 `open` 해도 보이지 않는다(먼저 `show`). 상태기계는
     [1-widget-app](./1-widget-app.md) 참조.
@@ -100,7 +101,8 @@ chat.shutdown();
 - **`resetSession` 명령**: 현재 대화를 처음부터 다시 시작한다 — 위젯이 SSE 연결을 닫고 저장 세션(sessionStorage,
   [3-auth-session §R6](./3-auth-session.md))을 비운 뒤 새 execution 을 시작(`newChat`: closeStream→clearSession→start). 운영 콘솔 **라이브 미리보기의 "새 세션"
   버튼**이 이 명령으로 반복 테스트를 가능케 한다. 위젯 내부의 대화 종료 후 "새 대화 시작"과 동일 동작을 host 가 임의
-  시점에 트리거하는 경로다.
+  시점에 트리거하는 경로다. **`wc:command` 전용** — npm `ChatInstance`(§5)·`ClemvionChat` 전역 메서드(§1)로는 노출하지
+  않고 host 가 직접 `wc:command{ action:'resetSession' }` 를 postMessage 한다(운영 콘솔 미리보기 등).
 - **`wc:boot` 재전송(멱등 재설정)**: host 는 iframe 을 재생성하지 않고 `wc:boot` 을 다시 보내 boot config
   (외형·locale·콘텐츠)를 갱신할 수 있다. 위젯은 **마지막 wc:boot 의 config 를 적용**하며, 동일
   `triggerEndpointPath` 로의 재부팅은 진행 중 execution 을 중복 시작하지 않는다(eager-start 가드 §R6·세션 복원).

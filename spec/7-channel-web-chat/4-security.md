@@ -36,6 +36,7 @@ code:
 | postMessage | 양방향 `event.origin` 화이트리스트 검증. 토큰/대화 내용 host 로 비노출 |
 | 토큰 노출 | per_execution 단일 → 클라이언트에 장기 비밀 없음. 단명 토큰은 **sessionStorage** 저장 → 탭 종료 시 자동 소거(defense-in-depth, [3-auth-session §R6](./3-auth-session.md)) |
 | 에러 메시지 노출 | 임베드 위젯은 타 사이트에서 동작하므로 **서버/예외 원문을 UI 에 비노출** — 일반화 문구(`GENERIC_ERROR_MESSAGE`)만 표시하고 진단 원문은 `console.warn` 으로만(내부 구현·인프라 정보 노출 축소). 에러 → [ended] + "새 대화 시작" 동작([1-widget-app §3.1](./1-widget-app.md))은 유지하고 표시 문구만 일반화한다. 코드 SoT: `use-widget.ts errMessage` |
+| `apiBase` 입력 검증 | 정상 임베드 경로의 `apiBase` 는 host postMessage(boot)로 주입되지만, **host 없는 직접 로드/샘플 경로**는 `?apiBase=` 쿼리(외부 통제 입력)로 폴백한다. 이 폴백 값은 **http(s) 스킴만 허용**(`safeApiBaseFromQuery`)해 `javascript:`/`data:`/상대경로를 fetch base 로 쓰지 않도록 거른다(부적합 시 무시 + `console.warn`). 코드 SoT: `use-widget.ts configFromQuery`/`safeApiBaseFromQuery` |
 | rate-limit / abuse | EIA §8.4 + 공개 webhook 남용 방어(§4) |
 | 입력 sanitize | AI 메시지/presentation 렌더 시 XSS 방지 — 위젯 책임. **deny-by-default 화이트리스트** + 링크 `rel=noopener`. 임베드 위젯은 XSS 가 호스트 사이트로 전파되므로 블랙리스트가 아닌 deny-by-default 가 합당(refactor 04 M-1). 구현 세부(`ALLOWED_TAGS`/`ALLOWED_ATTR`/`ALLOWED_URI_REGEXP`)·렌더러별 정책 매트릭스 §1.1 |
 | 프라이버시·데이터 처리 | **배포자(워크스페이스 운영자) 책임** — 동의 고지·보존기간 spec 미규정. 위젯은 `disclaimer` 고지 문구만 제공 |
