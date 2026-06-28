@@ -155,7 +155,8 @@ describe("computeStatus", () => {
         }),
       );
       expect(view.subLabel).toBeDefined();
-      expect(view.subLabel).toMatch(/Auto-renews/i);
+      // spec §4.1 헤더 메타 라인: "Auto-renews · next in <duration>".
+      expect(view.subLabel).toMatch(/^Auto-renews · next in /);
     });
 
     it("falls back to 'Expires in Nd' when autoRefresh=false and expiresSoon", () => {
@@ -245,6 +246,46 @@ describe("humanizeUntil", () => {
   });
 });
 
+// needsAttention 단일 술어 — computeAttentionBreakdown·사이드바 카운트의 기반.
+// spec/2-navigation/4-integration.md §2.4·§11.4 + Rationale.
+describe("needsAttention", () => {
+  const inDays = (days: number) =>
+    new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+
+  it("connected + expiring + autoRefresh=false → true", () => {
+    expect(
+      needsAttention(
+        row({ status: "connected", autoRefresh: false, tokenExpiresAt: inDays(2) }),
+      ),
+    ).toBe(true);
+  });
+
+  it("connected + expiring + autoRefresh=true → false (만료 임박 분기 제외)", () => {
+    expect(
+      needsAttention(
+        row({ status: "connected", autoRefresh: true, tokenExpiresAt: inDays(2) }),
+      ),
+    ).toBe(false);
+  });
+
+  it("connected + 만료 임박 아님 → false", () => {
+    expect(
+      needsAttention(
+        row({ status: "connected", autoRefresh: false, tokenExpiresAt: inDays(30) }),
+      ),
+    ).toBe(false);
+  });
+
+  it("error/expired → 항상 true (autoRefresh 무관)", () => {
+    expect(needsAttention(row({ status: "error", autoRefresh: true }))).toBe(true);
+    expect(needsAttention(row({ status: "expired", autoRefresh: true }))).toBe(true);
+  });
+
+  it("pending_install → false", () => {
+    expect(needsAttention(row({ status: "pending_install" }))).toBe(false);
+  });
+});
+
 // spec/2-navigation/4-integration.md §2.4 + Rationale "Attention 가상 필터값"
 describe("computeAttentionBreakdown", () => {
   // 7d ahead → expiring; 1d ahead → expiring; past → not expiring on its own.
@@ -258,7 +299,8 @@ describe("computeAttentionBreakdown", () => {
       row({
         id: "c",
         status: "connected",
-        tokenExpiresAt: inDays(2), // expiring (within 7d)
+        autoRefresh: false,
+        tokenExpiresAt: inDays(2), // expiring (within 7d, not auto-refresh)
       }),
       row({
         id: "d",
@@ -272,6 +314,43 @@ describe("computeAttentionBreakdown", () => {
     expect(br.error).toBe(1);
     expect(br.expiring).toBe(1);
     expect(br.total).toBe(3);
+  });
+
+  // spec §2.4·§9.1 + Rationale "자동 갱신 통합을 attention 술어에서 제외":
+  // autoRefresh=true(cafe24 2h 토큰 등) connected 행은 만료 임박이어도
+  // attention/expiring 에 포함되지 않는다 — 거짓 양성 방지.
+  it("excludes autoRefresh=true connected rows from expiring/attention", () => {
+    const items: IntegrationDto[] = [
+      row({
+        id: "auto",
+        status: "connected",
+        autoRefresh: true,
+        tokenExpiresAt: inDays(2), // 만료 임박이지만 자동 갱신 → 제외
+      }),
+      row({
+        id: "manual",
+        status: "connected",
+        autoRefresh: false,
+        tokenExpiresAt: inDays(2), // 자동 갱신 아님 → expiring
+      }),
+    ];
+    const br = computeAttentionBreakdown(items);
+    expect(br.expiring).toBe(1);
+    expect(br.total).toBe(1);
+    expect(br.mostUrgentId).toBe("manual");
+  });
+
+  // autoRefresh=true 갱신이 실패해 error 로 전이하면 다시 attention 에 포함된다
+  // (§10.5) — 만료 임박 분기에서만 제외되지 상태 기반 분기는 그대로.
+  it("still counts autoRefresh=true rows once they transition to error/expired", () => {
+    const items: IntegrationDto[] = [
+      row({ id: "auto-err", status: "error", autoRefresh: true }),
+      row({ id: "auto-exp", status: "expired", autoRefresh: true }),
+    ];
+    const br = computeAttentionBreakdown(items);
+    expect(br.error).toBe(1);
+    expect(br.expired).toBe(1);
+    expect(br.total).toBe(2);
   });
 
   it("returns 0 totals for a list with no attention rows", () => {
@@ -312,6 +391,7 @@ describe("computeAttentionBreakdown", () => {
       row({
         id: "soon-1",
         status: "connected",
+        autoRefresh: false,
         tokenExpiresAt: inDays(2),
       }),
       row({ id: "err-1", status: "error" }),
@@ -324,6 +404,7 @@ describe("computeAttentionBreakdown", () => {
       row({
         id: "soon-1",
         status: "connected",
+        autoRefresh: false,
         tokenExpiresAt: inDays(2),
       }),
       row({ id: "exp-1", status: "expired" }),
@@ -348,7 +429,12 @@ describe("computeAttentionBreakdown", () => {
       Date.now() + 7 * 24 * 60 * 60 * 1000 - 60_000,
     ).toISOString();
     const items: IntegrationDto[] = [
-      row({ id: "edge", status: "connected", tokenExpiresAt: justUnder }),
+      row({
+        id: "edge",
+        status: "connected",
+        autoRefresh: false,
+        tokenExpiresAt: justUnder,
+      }),
     ];
     expect(computeAttentionBreakdown(items).expiring).toBe(1);
   });

@@ -13,6 +13,7 @@ import {
 import type { Integration } from './entities/integration.entity';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { UNREADABLE_KEY } from './services/credentials-transformer';
+import { SERVICE_REGISTRY } from './services/service-registry';
 import { createTransport } from 'nodemailer';
 import { isSmtpHostBlocked } from '../../common/utils/smtp-host-guard';
 
@@ -1686,8 +1687,9 @@ describe('IntegrationsService', () => {
 
     // attention is a virtual filter value (spec/2-navigation/4-integration.md
     // §2.4 + §9.1 Rationale "Attention 가상 필터값"). It compiles to the
-    // union of expired ∪ error ∪ (connected within 7d), and never matches
-    // pending_install rows — those are an explicit external-flow state.
+    // union of expired ∪ error ∪ (connected within 7d AND NOT autoRefresh),
+    // and never matches pending_install rows — those are an explicit
+    // external-flow state.
     it('status=attention emits union WHERE covering expired, error, and connected within 7d', async () => {
       const qb = makeQueryBuilder({ count: 0, many: [] });
       integrationRepo.createQueryBuilder.mockReturnValue(qb);
@@ -1700,6 +1702,35 @@ describe('IntegrationsService', () => {
       expect(sql).toContain('token_expires_at > NOW()');
       expect(sql).toContain('7 days');
     });
+
+    // spec §2.3·§2.4·§9.1·§11.4 + Rationale "자동 갱신 통합을 attention
+    // 술어에서 제외": expiring/attention 가상 필터의 connected 분기는 자동
+    // 갱신 통합(supportsTokenAutoRefresh)을 service_type NOT IN 으로 제외한다.
+    // service_type 리터럴이 아니라 registry 동적 조회 결과를 파라미터 바인딩
+    // (Rationale "왜 derived 필드인가" — SQL 하드코딩 금지).
+    it.each(['expiring', 'attention'] as const)(
+      'status=%s excludes auto-refresh service types via registry-derived NOT IN',
+      async (status) => {
+        const qb = makeQueryBuilder({ count: 0, many: [] });
+        integrationRepo.createQueryBuilder.mockReturnValue(qb);
+        await service.findAll('ws-1', { status });
+        const notInCall = qb.andWhere.mock.calls.find((c) =>
+          String(c[0]).includes(
+            'i.service_type NOT IN (:...autoRefreshServiceTypes)',
+          ),
+        );
+        expect(notInCall).toBeDefined();
+        const expected = SERVICE_REGISTRY.filter(
+          (s) => s.supportsTokenAutoRefresh === true,
+        ).map((s) => s.type);
+        // 파라미터는 registry 에서 파생 — 현재 cafe24/google/makeshop.
+        expect(expected.length).toBeGreaterThan(0);
+        expect(notInCall?.[1]).toEqual({ autoRefreshServiceTypes: expected });
+        expect(expected).toEqual(
+          expect.arrayContaining(['cafe24', 'google', 'makeshop']),
+        );
+      },
+    );
 
     it('status=attention does not include pending_install rows', async () => {
       const qb = makeQueryBuilder({ count: 0, many: [] });

@@ -486,6 +486,27 @@ export class IntegrationsService {
     // `EXPIRING_SOON_DAYS` (status-badge.tsx). Update both layers together.
     // spec/2-navigation/4-integration.md §2.3, §2.4, §11.4.
     const EXPIRING_SOON_INTERVAL = "INTERVAL '7 days'";
+    // 자동 갱신 통합(`autoRefresh=true`, §9.1)은 expiring/attention 만료 임박
+    // 분기에서 제외한다 — 짧은-수명 토큰(cafe24 access_token 2h 등)의 거짓
+    // 양성 방지. spec/2-navigation/4-integration.md §2.3·§2.4·§9.1·§11.4 +
+    // Rationale "자동 갱신 통합을 attention 술어에서 제외".
+    //
+    // `autoRefresh` 는 응답 DTO 의 derived 필드(`supportsTokenAutoRefresh`)로
+    // DB 컬럼이 아니므로 WHERE 절에 직접 쓸 수 없다. service registry 에서
+    // 해당 service_type 목록을 동적으로 조회해 `NOT IN` 으로 번역한다 —
+    // service_type 리터럴 하드코딩은 derived 필드 단일 진실 원칙을 깨므로 금지
+    // (Rationale "왜 derived 필드인가"). 현재 cafe24/google/makeshop = true.
+    const autoRefreshServiceTypes = SERVICE_REGISTRY.filter(
+      (s) => s.supportsTokenAutoRefresh === true,
+    ).map((s) => s.type);
+    // 빈 목록이면 `NOT IN ()` 가 무의미/오류이므로 절 자체를 생략(현재는 항상 비어있지 않음).
+    const excludeAutoRefresh = (qbRef: typeof qb): void => {
+      if (autoRefreshServiceTypes.length > 0) {
+        qbRef.andWhere('i.service_type NOT IN (:...autoRefreshServiceTypes)', {
+          autoRefreshServiceTypes,
+        });
+      }
+    };
     if (status === 'connected') {
       qb.andWhere('i.status = :s', { s: 'connected' }).andWhere(
         `(i.token_expires_at IS NULL OR i.token_expires_at > NOW() + ${EXPIRING_SOON_INTERVAL})`,
@@ -495,21 +516,29 @@ export class IntegrationsService {
         .andWhere('i.token_expires_at IS NOT NULL')
         .andWhere(`i.token_expires_at <= NOW() + ${EXPIRING_SOON_INTERVAL}`)
         .andWhere('i.token_expires_at > NOW()');
+      excludeAutoRefresh(qb);
     } else if (status === 'expired') {
       qb.andWhere('i.status = :s', { s: 'expired' });
     } else if (status === 'error') {
       qb.andWhere('i.status = :s', { s: 'error' });
     } else if (status === 'attention') {
-      // Virtual filter — Expired ∪ Error ∪ (Connected within 7d).
+      // Virtual filter — Expired ∪ Error ∪ (Connected within 7d, NOT autoRefresh).
       // pending_install is excluded by design (spec §2.4): it represents an
       // active external flow (Cafe24 Developers "Test Run") in progress, not
-      // a state that needs the user's attention here.
+      // a state that needs the user's attention here. autoRefresh 통합의 갱신이
+      // 실패해 error/expired 로 전이하면 IN ('expired','error') 분기로 다시
+      // 포함되므로 사용자 신호 회귀는 없다 (§10.5).
+      const autoRefreshExclusion =
+        autoRefreshServiceTypes.length > 0
+          ? ' AND i.service_type NOT IN (:...autoRefreshServiceTypes)'
+          : '';
       qb.andWhere(
         `(i.status IN ('expired', 'error')
           OR (i.status = 'connected'
               AND i.token_expires_at IS NOT NULL
               AND i.token_expires_at > NOW()
-              AND i.token_expires_at <= NOW() + ${EXPIRING_SOON_INTERVAL}))`,
+              AND i.token_expires_at <= NOW() + ${EXPIRING_SOON_INTERVAL}${autoRefreshExclusion}))`,
+        autoRefreshServiceTypes.length > 0 ? { autoRefreshServiceTypes } : {},
       );
     }
 

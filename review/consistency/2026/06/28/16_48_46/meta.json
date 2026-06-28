@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-28T16:48:46.842968",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=autoRefresh attention 술어 제외 구현 (frontend needsAttention 가드 + backend findAll expiring/attention 쿼리에 supportsTokenAutoRefresh service_type 제외) + subLabel 'next in' 문구 spec §4.1 정합. 대상 spec: spec/2-navigation/4-integration.md §2.3/§2.4/§4.1/§9.1/§11.4 (이미 결정됨, 구현만))",
+  "target_path": "autoRefresh attention 술어 제외 구현 (frontend needsAttention 가드 + backend findAll expiring/attention 쿼리에 supportsTokenAutoRefresh service_type 제외) + subLabel 'next in' 문구 spec §4.1 정합. 대상 spec: spec/2-navigation/4-integration.md §2.3/§2.4/§4.1/§9.1/§11.4 (이미 결정됨, 구현만)",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
