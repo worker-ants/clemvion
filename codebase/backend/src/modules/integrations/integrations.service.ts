@@ -486,6 +486,41 @@ export class IntegrationsService {
     // `EXPIRING_SOON_DAYS` (status-badge.tsx). Update both layers together.
     // spec/2-navigation/4-integration.md §2.3, §2.4, §11.4.
     const EXPIRING_SOON_INTERVAL = "INTERVAL '7 days'";
+    // 자동 갱신 통합(`autoRefresh=true`, §9.1)은 expiring/attention 만료 임박
+    // 분기에서 제외한다 — 짧은-수명 토큰(cafe24 access_token 2h 등)의 거짓
+    // 양성 방지. spec/2-navigation/4-integration.md §2.3·§2.4·§9.1·§11.4 +
+    // Rationale "자동 갱신 통합을 attention 술어에서 제외".
+    //
+    // `autoRefresh` 는 응답 DTO 의 derived 필드(`supportsTokenAutoRefresh`)로
+    // DB 컬럼이 아니므로 WHERE 절에 직접 쓸 수 없다. service registry 에서
+    // 해당 service_type 목록을 동적으로 조회해 `NOT IN` 으로 번역한다 —
+    // service_type 리터럴 하드코딩은 derived 필드 단일 진실 원칙을 깨므로 금지
+    // (Rationale "왜 derived 필드인가"). 현재 cafe24/google/makeshop = true.
+    const autoRefreshServiceTypes = SERVICE_REGISTRY.filter(
+      (s) => s.supportsTokenAutoRefresh === true,
+    ).map((s) => s.type);
+    const hasAutoRefreshTypes = autoRefreshServiceTypes.length > 0;
+    // 자동 갱신 service_type 제외 절의 SQL fragment·파라미터를 단일 진실로 둔다
+    // — expiring 헬퍼와 attention 인라인 두 경로가 같은 상수를 참조하므로
+    // 파라미터 키·컬럼명 변경 시 한쪽만 고쳐 어긋날 위험이 없다 (ai-review W-2).
+    const AUTO_REFRESH_NOT_IN =
+      'i.service_type NOT IN (:...autoRefreshServiceTypes)';
+    const autoRefreshParams = { autoRefreshServiceTypes };
+    /**
+     * 자동 갱신 service_type 를 **최상위 AND 절**로 제외한다. 빈 목록이면
+     * `NOT IN ()` 가 무의미/오류이므로 절을 생략(현재는 항상 비어있지 않음).
+     *
+     * 주의: 최상위 AND 라서 술어가 단일 connected 집합인 `expiring` 분기에서만
+     * 쓸 수 있다. `attention` 은 OR 합집합(Expired ∪ Error ∪ Connected)이라
+     * 최상위 AND 로 제외하면 expired/error 행까지 잘못 걸러진다 → attention 은
+     * 이 헬퍼 대신 connected 서브절 **안쪽**에 같은 `AUTO_REFRESH_NOT_IN`
+     * fragment 를 인라인으로 넣는다(아래 분기 참고).
+     */
+    const excludeAutoRefresh = (qbRef: typeof qb): void => {
+      if (hasAutoRefreshTypes) {
+        qbRef.andWhere(AUTO_REFRESH_NOT_IN, autoRefreshParams);
+      }
+    };
     if (status === 'connected') {
       qb.andWhere('i.status = :s', { s: 'connected' }).andWhere(
         `(i.token_expires_at IS NULL OR i.token_expires_at > NOW() + ${EXPIRING_SOON_INTERVAL})`,
@@ -495,21 +530,28 @@ export class IntegrationsService {
         .andWhere('i.token_expires_at IS NOT NULL')
         .andWhere(`i.token_expires_at <= NOW() + ${EXPIRING_SOON_INTERVAL}`)
         .andWhere('i.token_expires_at > NOW()');
+      excludeAutoRefresh(qb);
     } else if (status === 'expired') {
       qb.andWhere('i.status = :s', { s: 'expired' });
     } else if (status === 'error') {
       qb.andWhere('i.status = :s', { s: 'error' });
     } else if (status === 'attention') {
-      // Virtual filter — Expired ∪ Error ∪ (Connected within 7d).
+      // Virtual filter — Expired ∪ Error ∪ (Connected within 7d, NOT autoRefresh).
       // pending_install is excluded by design (spec §2.4): it represents an
       // active external flow (Cafe24 Developers "Test Run") in progress, not
-      // a state that needs the user's attention here.
+      // a state that needs the user's attention here. autoRefresh 통합의 갱신이
+      // 실패해 error/expired 로 전이하면 IN ('expired','error') 분기로 다시
+      // 포함되므로 사용자 신호 회귀는 없다 (§10.5).
+      const autoRefreshExclusion = hasAutoRefreshTypes
+        ? ` AND ${AUTO_REFRESH_NOT_IN}`
+        : '';
       qb.andWhere(
         `(i.status IN ('expired', 'error')
           OR (i.status = 'connected'
               AND i.token_expires_at IS NOT NULL
               AND i.token_expires_at > NOW()
-              AND i.token_expires_at <= NOW() + ${EXPIRING_SOON_INTERVAL}))`,
+              AND i.token_expires_at <= NOW() + ${EXPIRING_SOON_INTERVAL}${autoRefreshExclusion}))`,
+        hasAutoRefreshTypes ? autoRefreshParams : {},
       );
     }
 

@@ -68,7 +68,7 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
   { name: "Danger zone", type: "탭", required: "Admin", description: "삭제 · Personal ↔ Organization 범위 전환. 사용처가 있으면 삭제가 차단되고, 삭제 차단 다이얼로그가 열려 사용 중인 워크플로우·노드 목록과 각 워크플로우로 가는 바로가기 링크를 보여줘요. AI Agent의 MCP 서버로 참조되는 노드는 `MCP` 배지로 표시돼요." }
 ]} />
 
-<Callout type="tip">연동이 `expired` 또는 `error` 상태로 바뀌면 사이드바에 주의 필요 배지가 뜨고, 목록 상단에 `Need attention` 배너가 나타나요. 배너를 누르면 해당 상태 필터로 바로 이동해요. **단, refresh_token 자동 갱신을 지원하는 통합(Cafe24·MakeShop 등)은 access_token 이 만료되어도 passive `integration_expired` 알림이 발송되지 않아요** — 시스템이 백그라운드에서 자동 갱신하기 때문이에요. 자동 갱신 실패 시에만 `integration_action_required` active 알림이 발송돼요.</Callout>
+<Callout type="tip">연동이 `expired` 또는 `error` 상태로 바뀌면 사이드바에 주의 필요 배지가 뜨고, 목록 상단에 `Need attention` 배너가 나타나요. 배너를 누르면 해당 상태 필터로 바로 이동해요. 주의 대상에는 토큰이 7일 이내 만료되는 만료 임박 `connected` 연동도 포함돼요. **단, refresh_token 자동 갱신을 지원하는 통합(Cafe24·MakeShop·Google)은 만료 임박이어도 `Need attention` 배너·사이드바 배지·`Expiring` 필터에 포함되지 않아요** — 시스템이 백그라운드에서 자동 갱신하므로 조치가 필요 없기 때문이에요(같은 이유로 access_token 이 만료돼도 passive `integration_expired` 알림을 보내지 않아요). 자동 갱신이 실패해 `error`/`expired` 로 바뀌면 그때 정상적으로 주의 대상에 포함되고 `integration_action_required` active 알림이 발송돼요.</Callout>
 
 ## 노드에서 연동 선택하기
 

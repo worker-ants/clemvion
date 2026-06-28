@@ -86,10 +86,10 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   // Connected 분기. autoRefresh=true + tokenExpiresAt 가 있는 경우 보조
-  // 라벨로 "Auto-renews · in <duration>" 안내.
+  // 라벨로 "Auto-renews · next in <duration>" 안내 (spec §4.1 헤더 메타 라인).
   const subLabel =
     integration.autoRefresh && integration.tokenExpiresAt
-      ? `Auto-renews · in ${humanizeUntil(integration.tokenExpiresAt)}`
+      ? `Auto-renews · next in ${humanizeUntil(integration.tokenExpiresAt)}`
       : undefined;
   return {
     label: "Connected",
@@ -118,7 +118,7 @@ function daysUntil(at: string): number {
 
 /**
  * Human-friendly remaining time until the given ISO timestamp, used by the
- * "Auto-renews · in <X>" subLabel (header status badge) and the Overview
+ * "Auto-renews · next in <X>" subLabel (header status badge) and the Overview
  * Token Expires row friendly value. Short (< 1h): minutes only. Medium
  * (< 24h): hours + minutes. Long: days.
  *
@@ -146,16 +146,16 @@ export function humanizeUntil(at: string): string {
 }
 
 export function needsAttention(integration: IntegrationDto): boolean {
-  // TODO(autoRefresh 가드): spec/2-navigation/4-integration.md §2.4·§11.4
-  // (PR #139) 가 attention 술어에서 `autoRefresh=true` 통합을 제외하도록
-  // 정의했으나, 본 가드의 frontend 반영과 backend `EXPIRING_SOON_INTERVAL`
-  // 쿼리 변경(`integrations.service.ts:248~275`) 은 같은 PR 에서 동기되어야
-  // 사이드바 카운트·목록 attention 카드와 일관된다. 후속 PR
-  // (`plan/in-progress/integration-token-ui-autorefresh.md` 의 "본 PR 범위
-  // 밖" + `20260516-full-review/SUMMARY.md` W-32 와 병합 처리) 에서 처리.
-  // 그 PR 전까지는 spec PR #139 의 attention 술어와 frontend 구현 사이에
-  // 일시적 불일치 (cafe24 가 사이드바 카운트에 포함) 가 잔존한다.
-  if (integration.status === "connected") return isExpiringSoon(integration.tokenExpiresAt);
+  // 자동 갱신 통합(`autoRefresh=true`, §9.1)은 만료 임박 분기에서 제외 —
+  // 짧은-수명 토큰(cafe24 access_token 2h 등)의 거짓 양성 방지. computeStatus
+  // (위 expiresSoon 분기)·backend findAll expiring/attention 쿼리와 동일 술어로
+  // 정합한다. autoRefresh 갱신 실패로 error/expired 전이 시에는 아래 분기들이
+  // 그대로 attention 에 포함하므로 신호 회귀 없음 (§10.5).
+  // spec/2-navigation/4-integration.md §2.4·§11.4 + Rationale.
+  if (integration.status === "connected")
+    return (
+      isExpiringSoon(integration.tokenExpiresAt) && !integration.autoRefresh
+    );
   if (integration.status === "pending_install") return false;
   return true;
 }
