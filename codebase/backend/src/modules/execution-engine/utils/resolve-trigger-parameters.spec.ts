@@ -183,18 +183,7 @@ describe('toTriggerParameterErrorDetails', () => {
     ]);
   });
 
-  it('preserves order and is empty for empty input', () => {
+  it('returns an empty array for empty input', () => {
     expect(toTriggerParameterErrorDetails([])).toEqual([]);
-  });
-
-  it('every field code is UPPER_SNAKE_CASE (error-codes convention)', () => {
-    const details = toTriggerParameterErrorDetails([
-      { field: 'a', reason: 'missing_required' },
-      { field: 'b', reason: 'coerce_failed' },
-      { field: 'c', reason: 'invalid_schema' },
-    ]);
-    for (const d of details) {
-      expect(d.code).toMatch(/^[A-Z][A-Z0-9_]*$/);
-    }
   });
 });

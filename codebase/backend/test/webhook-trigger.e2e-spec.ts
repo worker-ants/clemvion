@@ -139,12 +139,16 @@ describe('Webhook trigger (e2e)', () => {
       .set('X-Workspace-Id', workspaceId)
       .send({ name: uniqueName('hook-b3') });
     const wfId = (wf.body.data as { id: string }).id;
-    // 자동 생성된 manual_trigger 노드에 required 파라미터 주입.
+    // 자동 생성된 manual_trigger 노드에 required string + optional number 파라미터 주입
+    // (number 는 coerce 실패 경로 검증용 — required 아님이라 누락은 통과).
     await db.query(
       `UPDATE node SET config = $1 WHERE workflow_id = $2 AND type = 'manual_trigger'`,
       [
         JSON.stringify({
-          parameters: [{ name: 'orderId', type: 'string', required: true }],
+          parameters: [
+            { name: 'orderId', type: 'string', required: true },
+            { name: 'amount', type: 'number' },
+          ],
         }),
         wfId,
       ],
@@ -182,6 +186,21 @@ describe('Webhook trigger (e2e)', () => {
     // 구 flat 형식(errors[].reason)이 응답에 남아있지 않아야 한다.
     expect(res.body.errors).toBeUndefined();
     expect(res.body.error.errors).toBeUndefined();
+
+    // 타입 강제 변환 실패(coerce) → TYPE_COERCION_FAILED. orderId 는 채우고
+    // amount 에 비숫자 전송.
+    const res2 = await request(BASE_URL)
+      .post(`/api/hooks/${path}`)
+      .send({ orderId: 'abc', amount: 'not-a-number' });
+    expect(res2.status).toBe(400);
+    expect(res2.body.error.code).toBe('INVALID_WEBHOOK_PAYLOAD');
+    expect(res2.body.error.details).toEqual([
+      {
+        field: 'amount',
+        code: 'TYPE_COERCION_FAILED',
+        message: 'Value could not be coerced to the declared type',
+      },
+    ]);
   });
 
   it('C. 비활성 트리거 → 410 TRIGGER_INACTIVE', async () => {

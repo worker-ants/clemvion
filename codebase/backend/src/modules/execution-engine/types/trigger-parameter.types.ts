@@ -55,11 +55,10 @@ const REASON_TO_DETAIL: Record<
 export function toTriggerParameterErrorDetails(
   errors: TriggerParameterValidationError[],
 ): TriggerParameterErrorDetail[] {
-  return errors.map((e) => ({
-    field: e.field,
-    code: REASON_TO_DETAIL[e.reason].code,
-    message: REASON_TO_DETAIL[e.reason].message,
-  }));
+  return errors.map((e) => {
+    const { code, message } = REASON_TO_DETAIL[e.reason];
+    return { field: e.field, code, message };
+  });
 }
 
 export class TriggerParameterValidationException extends Error {

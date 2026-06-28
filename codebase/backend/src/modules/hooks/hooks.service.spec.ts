@@ -20,6 +20,7 @@ import { ChatChannelRateLimiterService } from '../chat-channel/chat-channel-rate
 import { ChatChannelAdapter } from '../chat-channel/types';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
+import { TriggerParameterErrorDetail } from '../execution-engine/types/trigger-parameter.types';
 
 describe('HooksService', () => {
   let service: HooksService;
@@ -240,7 +241,7 @@ describe('HooksService', () => {
     expect(executeMock).not.toHaveBeenCalled();
     const response = (err as BadRequestException).getResponse() as {
       code: string;
-      details: Array<{ field: string; code: string; message: string }>;
+      details: TriggerParameterErrorDetail[];
     };
     expect(response.code).toBe('INVALID_WEBHOOK_PAYLOAD');
     expect(response.details).toEqual([
@@ -270,7 +271,7 @@ describe('HooksService', () => {
     expect(err).toBeInstanceOf(BadRequestException);
     const response = err.getResponse() as {
       code: string;
-      details: Array<{ field: string; code: string; message: string }>;
+      details: TriggerParameterErrorDetail[];
     };
     expect(response.code).toBe('INVALID_WEBHOOK_PAYLOAD');
     expect(response.details).toEqual([

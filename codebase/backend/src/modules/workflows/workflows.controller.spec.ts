@@ -135,6 +135,20 @@ describe('WorkflowsController (execute endpoint)', () => {
     expect(err).toBeInstanceOf(BadRequestException);
     const executeMock = engine.execute;
     expect(executeMock).not.toHaveBeenCalled();
+    // 봉투: errors 가 아니라 details[] 로 필드별 사유가 surface 되어야 한다
+    // (GlobalExceptionFilter 가 details 만 전달 — manual-trigger §6 / webhook §5.2 동일 헬퍼).
+    const response = (err as BadRequestException).getResponse() as {
+      code: string;
+      details: Array<{ field: string; code: string; message: string }>;
+    };
+    expect(response.code).toBe('INVALID_TRIGGER_PARAMETERS');
+    expect(response.details).toEqual([
+      {
+        field: 'name',
+        code: 'MISSING_REQUIRED_FIELD',
+        message: 'Required parameter is missing',
+      },
+    ]);
   });
 
   it('falls back to input.parameters when parameterValues is absent', async () => {
