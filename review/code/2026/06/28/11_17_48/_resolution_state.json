@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "started_at": "2026-06-28T11:17:48Z",
+  "summary_items_total": 6,
+  "items_resolved_ids": [],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "1": "deferred-out-of-scope",
+    "2": "deferred-out-of-scope",
+    "3": "deferred-out-of-scope",
+    "4": "deferred-out-of-scope",
+    "5": "deferred-out-of-scope",
+    "6": "deferred-out-of-scope"
+  },
+  "commits_made": [
+    {
+      "sha": "5343b08e9",
+      "summary_id": "INFO4/11/15/18/19",
+      "scope": "agent-memory",
+      "note": "In-scope INFO fixes — not part of W1-W6 Critical/Warning count"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/e2e-20260628-113145.log"
+  ],
+  "auto_fix_iterations": {},
+  "escalation_reason": "all WARNING items (W1-W6) are out-of-scope for this PR — tracked in other worktrees",
+  "last_reset_hint_sec": null
+}
