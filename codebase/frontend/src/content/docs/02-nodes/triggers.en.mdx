@@ -138,7 +138,7 @@ HMAC verification reads the **raw bytes** of the request body. If a relay middle
 | `404 Not Found` | No trigger exists for that `endpoint_path`. |
 | `410 Gone` | The trigger is inactive. Re-enable it on the trigger detail panel before retrying. |
 | `413 Payload Too Large` | Body exceeded the 1MB limit. |
-| `429 Too Many Requests` | Exceeded the 60 req/min per-trigger rate limit. |
+| `429 Too Many Requests` | Exceeded the global 100 req/min rate limit. |
 
 ### Accessing the webhook payload inside the workflow
 
@@ -289,7 +289,7 @@ Key error responses:
 | `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | Response header `X-Refresh-Token-Url` points to the refresh endpoint |
 | `409 Conflict` | `STATE_MISMATCH` | Command does not match current node / execution state |
 | `410 Gone` | `EXECUTION_TERMINATED` | Execution already finished |
-| `429 Too Many Requests` | `RATE_LIMITED` | More than 60 inbound commands per minute per execution |
+| `429 Too Many Requests` | `RATE_LIMITED` | More than 60 inbound commands per minute per execution (Planned — not yet implemented) |
 
 ### Inbound event stream (SSE)
 
