@@ -29,6 +29,7 @@ code:
 | makeshop-token-refresh | integration | 1 (기본) | MakeShop 토큰 갱신 (proactive + reactive_401) |
 | schedule-execution | system | 1 (기본) | 스케줄 트리거 실행 |
 | login-history-pruner | system | 1 (기본) | repeatable cron |
+| workspace-invitations-pruner | system | 1 (기본) | repeatable cron (daily `0 4 * * *` Asia/Seoul) — 만료·미수락 workspace_invitation prune |
 | notification-secret-rotator | system | 1 (기본) | repeatable cron |
 | terminal-revoke-reconcile | system | 1 (기본) | repeatable cron (1분) — terminal execution 의 잔존 interaction token sweep revoke ([EIA §3.4 EIA-RL-06 / §9.3 R15](./14-external-interaction-api.md)). reconciliation cron 성격이라 `system` group (외부 연동 호출이 아닌 내부 정합 보강) |
 | chat-channel-token-rotator | system | 1 (기본) | repeatable cron |
