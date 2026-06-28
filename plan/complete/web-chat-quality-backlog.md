@@ -1,7 +1,16 @@
 ---
-worktree: (unstarted)
+worktree: (multiple — 그룹별 분리: D #732 / B+C #737 / A #744 / B1 #746 / followups #747)
 started: 2026-06-27
-owner: developer (TBD)
+completed: 2026-06-28
+owner: project-planner + developer
+spec_impact:
+  - spec/7-channel-web-chat/0-architecture.md
+  - spec/7-channel-web-chat/1-widget-app.md
+  - spec/7-channel-web-chat/2-sdk.md
+  - spec/7-channel-web-chat/3-auth-session.md
+  - spec/7-channel-web-chat/4-security.md
+  - spec/7-channel-web-chat/_product-overview.md
+  - spec/5-system/12-webhook.md
 ---
 
 # Channel Web Chat — 품질·하드닝 backlog
