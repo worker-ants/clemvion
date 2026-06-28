@@ -100,6 +100,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
    * 매핑한다. 숫자 `status`/`statusCode` 가 4xx 면 그 상태로 표준 봉투에 싣어, 클라이언트 오류
    * (예: 본문 초과 → 413 `PAYLOAD_TOO_LARGE`)가 오해의 소지 있는 500 으로 가려지지 않게 한다.
    * 5xx·상태 부재는 null 을 반환해 호출부가 generic 500 으로 마스킹(내부 메시지 누출 차단)한다.
+   * 반환 `message` 는 CWE-209 방지를 위해 내부 원문을 echo 하지 않고 상태 기반 고정 문구만 쓴다.
    */
   private mapHttpErrorLike(
     exception: Error,
@@ -107,10 +108,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const err = exception as Error & HttpErrorLike;
     const errStatus = err.status ?? err.statusCode;
     if (typeof errStatus === 'number' && errStatus >= 400 && errStatus < 500) {
+      // 내부 메시지(경로·스택·라이브러리 힌트)를 클라이언트로 echo 하지 않는다(CWE-209) —
+      // 상태 기반 일반 문구만 반환한다. 원본 message 는 `catch` 의 `logger.warn` 으로만 남긴다.
+      // (현재 도달 경로는 body-parser 413 뿐이나, 향후 http-errors 미들웨어 추가에도 안전.)
       return {
         status: errStatus,
         code: this.getCodeFromStatus(errStatus),
-        message: exception.message,
+        message:
+          // 413 (`no-unsafe-enum-comparison` 회피 — errStatus 는 number, getCodeFromStatus 와 동형).
+          errStatus === 413
+            ? 'Request payload too large.'
+            : 'The request could not be processed.',
       };
     }
     return null;

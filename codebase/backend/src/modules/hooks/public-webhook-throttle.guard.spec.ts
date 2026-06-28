@@ -2,15 +2,13 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
+  Logger,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { PublicWebhookQuotaService } from './public-webhook-quota.service';
-import {
-  PublicWebhookThrottleGuard,
-  extractClientIp,
-} from './public-webhook-throttle.guard';
+import { PublicWebhookThrottleGuard } from './public-webhook-throttle.guard';
 
 /** Exported for shared use — guard + tests share the same shape definition. */
 export interface ReqShape {
@@ -220,12 +218,16 @@ describe('PublicWebhookThrottleGuard', () => {
     }
   });
 
-  it('trigger 조회 실패 → fail-open(통과)', async () => {
+  it('trigger 조회 실패 → fail-open(통과) + error 레벨 로깅(모니터링 가시성, W2)', async () => {
+    const errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation();
     const { guard, quota } = makeGuard({ findThrows: true });
     await expect(guard.canActivate(makeContext(PUBLIC_REQ))).resolves.toBe(
       true,
     );
     expect(quota.consumeStart).not.toHaveBeenCalled();
+    // fail-open 은 공개 webhook 보호를 무력화하므로 error 레벨로 남겨 알람이 탐지하게 한다.
+    expect(errorLog).toHaveBeenCalledTimes(1);
+    errorLog.mockRestore();
   });
 
   // ── W11: measureBodyBytes 분기 테스트 ──────────────────────────────────────
@@ -269,30 +271,8 @@ describe('PublicWebhookThrottleGuard', () => {
     expect(result).toBe(PublicWebhookThrottleGuard.DEFAULT_MAX_BODY_BYTES + 1);
   });
 
-  // ── Info#13: extractClientIp 엣지 케이스 ─────────────────────────────────
-
-  it('extractClientIp — XFF 다중 IP 중 첫 번째만 추출', () => {
-    const ip = extractClientIp({
-      'x-forwarded-for': '10.0.0.1, 10.0.0.2, 10.0.0.3',
-    });
-    expect(ip).toBe('10.0.0.1');
-  });
-
-  it('extractClientIp — cf-connecting-ip 빈 문자열 → XFF 폴백', () => {
-    const ip = extractClientIp({
-      'cf-connecting-ip': '   ',
-      'x-forwarded-for': '8.8.8.8',
-    });
-    expect(ip).toBe('8.8.8.8');
-  });
-
-  it('extractClientIp — 헤더 모두 없음 → undefined', () => {
-    expect(extractClientIp({})).toBeUndefined();
-  });
-
-  it('extractClientIp — XFF 값이 공백만 → undefined', () => {
-    expect(extractClientIp({ 'x-forwarded-for': '   ' })).toBeUndefined();
-  });
+  // (extractClientIp 헤더 추출 엣지 케이스는 `auth/utils/client-ip.spec.ts` 의
+  //  `extractClientIpFromHeaders` 로 이관 — Guard 는 공유 코어를 직접 호출한다.)
 
   // ── Info#14: maxBodyBytes config override ────────────────────────────────
 

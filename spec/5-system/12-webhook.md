@@ -327,7 +327,7 @@ codebase/backend/src/modules/hooks/
 
 - `/api/hooks/*` 경로는 JWT 인증 제외 (외부 서비스가 호출하므로)
 - Rate Limiting (전역): 글로벌 throttler **100 req/min** ([Spec API 규약 §7](./2-api-convention.md#7-rate-limiting))
-- Rate Limiting (공개 webhook 전용 추가): `PublicWebhookThrottleGuard` 가 `auth_config_id IS NULL` 트리거에 한해 IP 단위 시작 한도(기본 분당 10, config `publicWebhook.startupPerMinute`) + 시간당 누적 신규 상한(기본 20, `publicWebhook.hourlyNewMax`) 을 적용. 초과 시 `429 PUBLIC_WEBHOOK_RATE_LIMIT` / `PUBLIC_WEBHOOK_HOURLY_LIMIT` (카탈로그 [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조)). 인증 webhook 은 이 Guard 를 무제한 통과(본문 크기는 아래 라우트 스코프 파서가 별도 게이트). Redis 미가용 시 fail-open. (정책 수치 출처: [Spec 웹채팅 보안 §4](../7-channel-web-chat/4-security.md); config 키·에러 코드 적용 SoT 는 본 §6 + [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조))
+- Rate Limiting (공개 webhook 전용 추가): `PublicWebhookThrottleGuard` 가 `auth_config_id IS NULL` 트리거에 한해 IP 단위 시작 한도(기본 분당 10, config `publicWebhook.startupPerMinute`) + 시간당 누적 신규 상한(기본 20, `publicWebhook.hourlyNewMax`) 을 적용. 초과 시 `429 PUBLIC_WEBHOOK_RATE_LIMIT` / `PUBLIC_WEBHOOK_HOURLY_LIMIT` (카탈로그 [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조)). 인증 webhook 은 이 Guard 를 무제한 통과(본문 크기는 아래 라우트 스코프 파서가 별도 게이트). Redis 미가용 시 fail-open. **Guard 의 trigger 조회 실패 시에도 fail-open(통과)하되, 이는 공개 webhook 보호를 일시 무력화하므로 `error` 레벨로 로깅해 장기 DB 장애로 인한 보호 우회 지속을 모니터링이 조기 탐지하게 한다.** (정책 수치 출처: [Spec 웹채팅 보안 §4](../7-channel-web-chat/4-security.md); config 키·에러 코드 적용 SoT 는 본 §6 + [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조))
 - 본문 크기 (WH-NF-02 옵션 C): `/api/hooks/*`(`HOOKS_ROUTE_PREFIX` 상수) 라우트 스코프 body-parser(`createHooksBodyParsers`, `src/bootstrap/hooks-body-parser.ts`)가 인증 webhook 본문을 **1MB**(기본, `HOOKS_MAX_BODY_BYTES` env override, 상한 16MiB)까지 수용하고 초과 시 `413 PAYLOAD_TOO_LARGE`. `main.ts` 는 `bodyParser: false` 로 Nest 기본 파서를 끄고 hooks(1MB)·전역(`createGlobalBodyParsers`, 100KB)을 직접 등록한다. hooks 를 먼저 등록해 1MB 로 파싱하며(`req._body` 가드로 전역 재파싱 skip), rawBody 를 보존해 HMAC 검증과 호환. 전역 100KB 는 명시 등록돼 non-webhook 라우트에 적용. 공개 webhook 의 32KB 는 `PublicWebhookThrottleGuard` 가 그 위에서 추가 제한.
 - 기존 `TriggersService.findByEndpointPath()` 재사용
 
@@ -429,6 +429,14 @@ WH-EP-02 에 프론트엔드 base 결정 우선순위(`NEXT_PUBLIC_WEBHOOK_BASE_
 - **구현 결정 — `bodyParser: false` + 명시 등록 순서 의존성**: Nest 기본 파서를 켠 채 `app.use(json())` 같은 수동 파서를 추가하면 Nest 가 자기 전역 파서 등록을 건너뛰어 non-hooks 본문이 미파싱(`req.body=undefined`)되는 함정이 있다. 따라서 `bodyParser: false` 로 끄고 hooks(1MB, 먼저)·전역(100KB) 파서를 직접 등록한다. hooks 가 먼저 파싱해 `req._body` 를 세팅하면 후행 전역 파서가 hooks 를 재파싱하지 않는다(body-parser idempotency 가드). rawBody 는 두 파서 공통 `verify` 로 보존해 HMAC 호환.
 - **OOM 상한 클램프**: `HOOKS_MAX_BODY_BYTES` env override 는 `HOOKS_MAX_BODY_BYTES_CEILING`(16MiB)으로 클램프해 운영 실수로 인한 메모리 표면 확대를 막는다.
 - **표준 413**: 초과 시 body-parser 의 413 을 `GlobalExceptionFilter` 가 표준 봉투 `PAYLOAD_TOO_LARGE` 로 직렬화([API 규약 §5.3·§6](./2-api-convention.md#6-http-상태-코드), [error-handling §1.3](./3-error-handling.md#13-유효성-검증-에러)).
+
+### 공개 webhook throttle Guard — 조회 실패 시 fail-open + `error` 로깅
+
+`PublicWebhookThrottleGuard` 는 트리거를 DB 에서 조회해 공개(미인증) webhook 여부를 판정하고 IP rate-limit 을 건다. 조회가 실패(DB 일시 장애·Redis 미가용 등)하면 Guard 는 **fail-open** — 요청을 통과시킨다.
+
+- **채택 — fail-open**: 본 Guard 의 책임은 **rate-limit(가용성 보호)** 이지 인증·인가가 아니다. 인증은 `auth_config_id` 경로(AuthConfig)가, 페이로드 검증은 hooks.service 가 각각 책임진다. rate-limit 보조 레이어가 자기 인프라 장애로 정상 트래픽 전체를 막으면(fail-closed) 가용성 사고가 인증 사고보다 큰 피해를 낸다. 따라서 조회 실패 시 통과시키고, **남용 보호는 후행 레이어(글로벌 throttler 100 req/min·페이로드 검증)에 위임**한다.
+- **기각 — fail-closed**: 조회 실패 시 전부 거부하면 DB/Redis 순간 장애가 곧 공개 webhook 전면 중단으로 직결돼, rate-limit 의 부수적 역할에 비해 폭발 반경이 과도하다.
+- **보완 — `error` 레벨 로깅(모니터링)**: fail-open 은 보안 강도 일시 저하 구간이므로 catch 블록은 `logger.warn` 이 아닌 `logger.error` 로 남겨 모니터링이 포착하게 한다. 장애가 길어지면 보호 부재 구간을 운영이 인지·대응할 수 있다 (구현 `public-webhook-throttle.guard.ts`). 알람 폭주(alert storm) 억제는 모니터링 시스템의 rate-limit/flapping 정책으로 보완한다.
 
 ### 외부 인터랙션 채널을 별도 spec 파일로 분리
 
