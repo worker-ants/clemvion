@@ -36,11 +36,15 @@ describe('extractClientIpFromHeaders (shared core)', () => {
     ).toBe('203.0.113.7');
   });
 
-  it('normalizes IPv6-mapped IPv4 + returns undefined when absent', () => {
+  it('normalizes IPv6-mapped IPv4, preserves pure IPv6, returns undefined when absent', () => {
     expect(
       extractClientIpFromHeaders({ 'x-forwarded-for': '::ffff:1.2.3.4' }),
     ).toBe('1.2.3.4');
-    // 반환형 통일: 헤더 식별 불가 시 undefined (과거 null) — 소비처 ?? undefined 제거.
+    // 순수 IPv6 는 normalize 변환 없이 그대로 반환.
+    expect(
+      extractClientIpFromHeaders({ 'x-forwarded-for': '2001:db8::1' }),
+    ).toBe('2001:db8::1');
+    // 헤더에서 IP 를 찾지 못하면 undefined.
     expect(extractClientIpFromHeaders({})).toBeUndefined();
   });
 

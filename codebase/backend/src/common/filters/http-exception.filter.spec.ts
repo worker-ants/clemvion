@@ -117,8 +117,26 @@ describe('GlobalExceptionFilter', () => {
     const body = bodyOf(json);
     expect(body.error.code).toBe('RESOURCE_CONFLICT');
     expect(body.error.requestId).toBeDefined();
-    // 드라이버 원문(컬럼·제약명)을 echo 하지 않는다.
+    // 드라이버 원문(컬럼·제약명)을 echo 하지 않고 고정 문구만 — 양성 단언으로 문구 pin.
     expect(body.error.message).not.toContain('duplicate key value');
+    expect(body.error.message).toBe(
+      'Resource already exists or has been modified concurrently.',
+    );
+  });
+
+  it('non-23505 QueryFailedError → 500 INTERNAL_ERROR (RESOURCE_CONFLICT 분기 회피)', () => {
+    // 23505(unique) 가 아닌 제약 위반(예 23502 not-null)은 409 가 아니라 generic 500 으로 마스킹된다.
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const { host, status, json } = mockHost();
+    const driverError = Object.assign(new Error('null value violation'), {
+      code: '23502',
+    });
+    const err = new QueryFailedError('INSERT ...', [], driverError);
+    new GlobalExceptionFilter().catch(err, host);
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(bodyOf(json).error.code).toBe('INTERNAL_ERROR');
+    error.mockRestore();
   });
 
   it('recognizes nested { error: { code, message, details } } envelope (API §5.3 shape)', () => {

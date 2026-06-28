@@ -90,7 +90,7 @@ describe('HooksService', () => {
           provide: ExecutionsService,
           // getActiveExecutionStatus 는 ExecutionsService.getStatusById 공개 메서드를 호출한다.
           // 기존 테스트는 executionRepository.findOne 으로 활성 execution 상태를 제어하므로,
-          // mock getStatusById 를 그 findOne 에 위임시켜 23개 테스트 사이트 변경 없이 동작을 보존한다
+          // mock getStatusById 를 그 findOne 에 위임시켜 기존 테스트 사이트 변경 없이 동작을 보존한다
           // (private 브래킷 접근을 공개 메서드로 캡슐화한 M-3 의 테스트 측 반영).
           useValue: (() => {
             const executionRepository = {
@@ -99,10 +99,10 @@ describe('HooksService', () => {
             return {
               stop: jest.fn(),
               executionRepository,
-              getStatusById: jest.fn(async () => {
-                // 실제 getStatusById 와 동일하게 조회 실패는 null 로 흡수(.catch).
+              getStatusById: jest.fn(async (executionId: string) => {
+                // 실제 getStatusById 와 동일: executionId 로 조회, 실패는 null 로 흡수(.catch).
                 const row = (await executionRepository
-                  .findOne()
+                  .findOne({ where: { id: executionId } })
                   .catch(() => null)) as { status?: string } | null;
                 return row?.status ?? null;
               }),

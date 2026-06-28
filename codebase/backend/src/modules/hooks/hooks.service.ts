@@ -885,7 +885,7 @@ export class HooksService {
     executionId: string,
   ): Promise<ExecutionStatus | null> {
     const status = await this.executionsService.getStatusById(executionId);
-    if (!status) return null;
+    if (status == null) return null;
     const isTerminal =
       status === ExecutionStatus.COMPLETED ||
       status === ExecutionStatus.FAILED ||
