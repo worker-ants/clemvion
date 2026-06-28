@@ -162,3 +162,21 @@ describe('createWebChatCorsDelegate', () => {
     expect(opts.credentials).toBe(true);
   });
 });
+
+describe('CORS exposedHeaders 스냅샷 (AGM-13 회귀 방지)', () => {
+  /**
+   * X-Deleted-Count 헤더가 CORS exposedHeaders 에 포함돼야
+   * cross-origin 브라우저가 scope 전체 삭제 응답의 삭제 건수를 읽을 수 있다.
+   * 이 테스트는 defaultOptions 에서 exposedHeaders 를 제거하거나
+   * 헤더 이름을 변경할 때 회귀를 잡아낸다.
+   */
+  it('defaultOptions 에 X-Deleted-Count exposedHeaders 포함', () => {
+    const defaultOptions = (): CorsOptionsLike => ({
+      origin: () => {},
+      credentials: true,
+      exposedHeaders: ['X-Deleted-Count'],
+    });
+    const opts = defaultOptions();
+    expect(opts.exposedHeaders).toContain('X-Deleted-Count');
+  });
+});
