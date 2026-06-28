@@ -39,8 +39,18 @@ collapse**. 전체 e2e 런이 ~54s(1 분 윈도우)라 10/분 한도가 binding 
       `.set('x-forwarded-for', nextE2eClientIp())` 추가 (16 posts)
 - [x] TEST WORKFLOW: lint(PASS) → unit(48 PASS) → build(PASS) → e2e(225 PASS, 0 fail).
       이전 10 fail → 0. webhook-trigger 미수정인데 green = 스코프 분석 검증.
-- [ ] `/ai-review` + SUMMARY + (Critical/Warning 시) resolution
-- [ ] (spec 연결 시) `/consistency-check --impl-done`
+- [x] `/ai-review` (origin/main) — Risk NONE, Critical 0 / Warning 0. INFO 9건 전부
+      기존 패턴/선택적 → resolution 불요. (review/code/2026/06/28/22_29_01/SUMMARY.md)
+- [x] `/consistency-check --impl-done` (providers, origin/main) — BLOCK: NO.
+      WARNING 1건은 slack.md/discord.md frontmatter `code:`→`user_guide:` 건으로
+      **본 PR 미수정 spec, 후속 spec-sync plan 대상**(project-planner).
+      (review/consistency/2026/06/28/22_38_03/SUMMARY.md)
+
+## 후속 (이번 PR 범위 밖)
+
+- slack.md·discord.md frontmatter 의 `.mdx` 가이드 파일을 `code:`→`user_guide:` 로
+  이동 (spec-impl-evidence §5.3 권고, telegram 기준). 기존 inconsistency, 본 e2e
+  fix 와 무관 → project-planner spec-sync 위임 권장.
 
 ## 메모
 
