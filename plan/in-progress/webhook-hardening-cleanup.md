@@ -24,11 +24,11 @@ PR #763(W4·W2·W1) 머지 후, 그 fresh 리뷰(review/code/2026/06/28/17_16_16
 - [x] **B-7** guard.spec env 복원 패턴을 beforeEach 스냅샷/afterEach 로 통일(CF 테스트 try/finally 제거).
 
 ## 워크플로
-- [x] TEST WORKFLOW lint·unit·build 통과
-- [ ] e2e
-- [ ] /ai-review (--branch origin/main)
-- [ ] /consistency-check --impl-done (filter·guard·hooks.service 는 spec-linked)
-- [ ] RESOLUTION + push + PR
+- [x] TEST WORKFLOW lint·unit·build·e2e(225) 통과
+- [x] /ai-review (19_00_30, LOW/0-Critical/3-WARNING) → WARNING 전부 FIXED (RESOLUTION)
+- [x] /consistency-check --impl-done (19_00_30, BLOCK:NO)
+- [ ] fresh /ai-review --route=all (WARNING fix 커버 + security/architecture 재수집) + fresh impl-done(1-auth)
+- [ ] push + PR
 
 ## 범위 밖 (별도)
 - C(spec-only 단방향 포인터: 1-auth §2.3 / api-convention §5.3 / web-chat §4) — 별도 spec 묶음.

@@ -257,6 +257,8 @@ export class HooksService {
     interactionHttpResponse?: unknown;
   }> {
     // §A.3 소스 IP — handleWebhook 의 `const clientIp` 패턴과 통일 (W-9).
+    // IP 추출은 헤더 기반(CF-gated → XFF, req.ip 폴백 없음 — spec/5-system/1-auth.md §2.3·Rationale
+    // 2.3.B). req.ip 폴백 확대는 별도 후속(plan/in-progress/webhook-public-ip-failopen-hardening.md).
     const clientIp = extractClientIpFromHeaders(input.headers) ?? undefined;
 
     let adapter: ChatChannelAdapter;

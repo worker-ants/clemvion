@@ -126,4 +126,16 @@ describe('GlobalExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(500);
     expect(bodyOf(json).error.code).toBe('INTERNAL_ERROR');
   });
+
+  it('비-Error 값 throw(문자열 등)은 UNKNOWN_ERROR_MESSAGE 로 500 처리', () => {
+    // Error 인스턴스가 아닌 값(문자열·객체)이 throw 되면 어떤 분기에도 안 걸려
+    // UNKNOWN_ERROR_MESSAGE fallthrough 가 그대로 응답된다(UNHANDLED 경로와 구분).
+    const { host, status, json } = mockHost();
+    new GlobalExceptionFilter().catch('a raw string thrown', host);
+
+    expect(status).toHaveBeenCalledWith(500);
+    const body = bodyOf(json);
+    expect(body.error.code).toBe('INTERNAL_ERROR');
+    expect(body.error.message).toBe('An unexpected error occurred');
+  });
 });
