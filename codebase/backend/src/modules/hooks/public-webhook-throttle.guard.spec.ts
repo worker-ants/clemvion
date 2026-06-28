@@ -182,9 +182,11 @@ describe('PublicWebhookThrottleGuard', () => {
     };
     await expect(guard.canActivate(makeContext(noIp))).resolves.toBe(true);
     expect(quota.consumeStart).toHaveBeenCalledWith(UNIDENTIFIED_IP_BUCKET);
+    // W14: 미식별 경로에서도 Guard 가 조회한 trigger 를 req 에 첨부(HooksService 재사용).
+    expect(noIp.__publicWebhookTrigger).toEqual({ authConfigId: null });
   });
 
-  it('공개 webhook + IP 식별 불가 + 공유 버킷 한도 초과 → 429 (우회 차단)', async () => {
+  it('공개 webhook + IP 식별 불가 + 공유 버킷 분당 한도 초과 → 429 (우회 차단)', async () => {
     const { guard } = makeGuard({
       trigger: { authConfigId: null } as Partial<Trigger>,
       consume: { allowed: false, reason: 'startup_rate' },
@@ -197,6 +199,27 @@ describe('PublicWebhookThrottleGuard', () => {
     await expect(guard.canActivate(makeContext(noIp))).rejects.toMatchObject({
       status: HttpStatus.TOO_MANY_REQUESTS,
     });
+  });
+
+  it('공개 webhook + IP 식별 불가 + 공유 버킷 시간당 상한 초과 → 429 + HOURLY 코드 (D-12)', async () => {
+    const { guard } = makeGuard({
+      trigger: { authConfigId: null } as Partial<Trigger>,
+      consume: { allowed: false, reason: 'hourly_new' },
+    });
+    const noIp: ReqShape = {
+      params: { endpointPath: 'abc123' },
+      headers: {},
+      body: {},
+    };
+    expect.assertions(2);
+    try {
+      await guard.canActivate(makeContext(noIp));
+    } catch (err_) {
+      const err = err_ as HttpException;
+      expect(err.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+      const r = err.getResponse() as { error?: { code?: string } };
+      expect(r.error?.code).toBe('PUBLIC_WEBHOOK_HOURLY_LIMIT');
+    }
   });
 
   it('cf-connecting-ip 우선 추출 (TRUST_CF_CONNECTING_IP=true)', async () => {

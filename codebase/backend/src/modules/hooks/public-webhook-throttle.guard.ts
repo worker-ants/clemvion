@@ -107,10 +107,12 @@ export class PublicWebhookThrottleGuard implements CanActivate {
     //    `req.socket.remoteAddress` 폴백은 trust-proxy 뒤 단일 프록시 버킷 붕괴 위험으로 채택하지
     //    않으며(1-auth Rationale 2.3.B), fail-closed 거부 대신 graceful degradation 을 유지한다.
     //    정책·근거 SoT: spec/7-channel-web-chat/4-security.md §4·R6.
+    // `||`(not `??`): 빈 문자열도 미식별로 취급해 이전 `if (!ip)` falsy semantics 를 보존한다
+    // (extractClientIpFromHeaders 는 현재 null 만 반환하나 방어적). 미식별 → 공유 버킷.
     const ip =
       extractClientIpFromHeaders(
         (req.headers ?? {}) as Record<string, string | string[] | undefined>,
-      ) ?? UNIDENTIFIED_IP_BUCKET;
+      ) || UNIDENTIFIED_IP_BUCKET;
 
     const { allowed, reason } = await this.quota.consumeStart(ip);
     if (!allowed) {
