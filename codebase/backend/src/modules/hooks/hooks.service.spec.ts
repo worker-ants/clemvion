@@ -239,10 +239,16 @@ describe('HooksService', () => {
     const executeMock = engine.execute;
     expect(executeMock).not.toHaveBeenCalled();
     const response = (err as BadRequestException).getResponse() as {
-      errors: Array<{ field: string; reason: string }>;
+      code: string;
+      details: Array<{ field: string; code: string; message: string }>;
     };
-    expect(response.errors).toEqual([
-      { field: 'orderId', reason: 'missing_required' },
+    expect(response.code).toBe('INVALID_WEBHOOK_PAYLOAD');
+    expect(response.details).toEqual([
+      {
+        field: 'orderId',
+        code: 'MISSING_REQUIRED_FIELD',
+        message: 'Required parameter is missing',
+      },
     ]);
   });
 
@@ -263,10 +269,16 @@ describe('HooksService', () => {
       .catch((err_: unknown) => err_)) as BadRequestException;
     expect(err).toBeInstanceOf(BadRequestException);
     const response = err.getResponse() as {
-      errors: Array<{ field: string; reason: string }>;
+      code: string;
+      details: Array<{ field: string; code: string; message: string }>;
     };
-    expect(response.errors).toEqual([
-      { field: 'amount', reason: 'coerce_failed' },
+    expect(response.code).toBe('INVALID_WEBHOOK_PAYLOAD');
+    expect(response.details).toEqual([
+      {
+        field: 'amount',
+        code: 'TYPE_COERCION_FAILED',
+        message: 'Value could not be coerced to the declared type',
+      },
     ]);
   });
 

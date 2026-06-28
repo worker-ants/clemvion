@@ -13,7 +13,10 @@ import { Node } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
-import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
+import {
+  TriggerParameterValidationException,
+  toTriggerParameterErrorDetails,
+} from '../execution-engine/types/trigger-parameter.types';
 import { InteractionTokenService } from '../external-interaction/interaction-token.service';
 import { InteractionService } from '../external-interaction/interaction.service';
 import type { InternalInteractionRequestContext } from '../external-interaction/interaction.guard';
@@ -161,10 +164,13 @@ export class HooksService {
       parameters = resolveTriggerParameters(schema, input.body);
     } catch (err) {
       if (err instanceof TriggerParameterValidationException) {
+        // `details` (not `errors`) so GlobalExceptionFilter forwards the
+        // per-field breakdown into the official envelope's `error.details[]`
+        // (spec 12-webhook §5.2). Field codes are UPPER_SNAKE_CASE.
         throw new BadRequestException({
           code: 'INVALID_WEBHOOK_PAYLOAD',
           message: 'Invalid webhook payload',
-          errors: err.errors,
+          details: toTriggerParameterErrorDetails(err.errors),
         });
       }
       throw err;

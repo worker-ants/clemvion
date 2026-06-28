@@ -130,6 +130,60 @@ describe('Webhook trigger (e2e)', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
+  it('B3. 필수 파라미터 누락 → 400 INVALID_WEBHOOK_PAYLOAD + 공식 봉투 error.details[] (WH-EP-05-2 §5.2)', async () => {
+    // 전용 워크플로 — manual_trigger 에 required 파라미터 부여. 공유 workflowId 를
+    // 오염시키지 않도록 분리(다른 테스트의 무-파라미터 webhook 이 깨지지 않게).
+    const wf = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ name: uniqueName('hook-b3') });
+    const wfId = (wf.body.data as { id: string }).id;
+    // 자동 생성된 manual_trigger 노드에 required 파라미터 주입.
+    await db.query(
+      `UPDATE node SET config = $1 WHERE workflow_id = $2 AND type = 'manual_trigger'`,
+      [
+        JSON.stringify({
+          parameters: [{ name: 'orderId', type: 'string', required: true }],
+        }),
+        wfId,
+      ],
+    );
+
+    const path = crypto.randomUUID();
+    const tr = await request(BASE_URL)
+      .post('/api/triggers')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({
+        workflowId: wfId,
+        type: 'webhook',
+        name: uniqueName('hook-b3'),
+        endpointPath: path,
+        isActive: true,
+      });
+    expect(tr.status).toBe(201);
+
+    // orderId 누락 → GlobalExceptionFilter 가 공식 봉투로 직렬화. errors 가 아니라
+    // error.details[] 로 필드별 사유가 surface 되어야 한다(§5.2 구현).
+    const res = await request(BASE_URL)
+      .post(`/api/hooks/${path}`)
+      .send({ wrong: 'value' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_WEBHOOK_PAYLOAD');
+    expect(res.body.error.requestId).toBeDefined();
+    expect(res.body.error.details).toEqual([
+      {
+        field: 'orderId',
+        code: 'MISSING_REQUIRED_FIELD',
+        message: 'Required parameter is missing',
+      },
+    ]);
+    // 구 flat 형식(errors[].reason)이 응답에 남아있지 않아야 한다.
+    expect(res.body.errors).toBeUndefined();
+    expect(res.body.error.errors).toBeUndefined();
+  });
+
   it('C. 비활성 트리거 → 410 TRIGGER_INACTIVE', async () => {
     const path = crypto.randomUUID();
     const triggerId = await createWebhookTrigger(uniqueName('hook-c'), path);
