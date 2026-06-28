@@ -500,6 +500,12 @@ export class IntegrationsService {
       (s) => s.supportsTokenAutoRefresh === true,
     ).map((s) => s.type);
     // 빈 목록이면 `NOT IN ()` 가 무의미/오류이므로 절 자체를 생략(현재는 항상 비어있지 않음).
+    // 주의: 이 헬퍼는 **최상위 AND 절**을 덧붙이므로 `expiring` 처럼 술어가
+    // 단일 connected 집합인 분기에서만 쓸 수 있다. `attention` 은 OR 합집합이라
+    // (Expired ∪ Error ∪ Connected) 최상위 AND 로 제외하면 expired/error 행까지
+    // 잘못 걸러진다 → attention 은 connected 서브절 **안쪽**에 인라인으로 동일
+    // 조건(`i.service_type NOT IN (:...autoRefreshServiceTypes)`)을 넣는다(아래).
+    // 두 경로의 SQL fragment·파라미터는 동일하다.
     const excludeAutoRefresh = (qbRef: typeof qb): void => {
       if (autoRefreshServiceTypes.length > 0) {
         qbRef.andWhere('i.service_type NOT IN (:...autoRefreshServiceTypes)', {
