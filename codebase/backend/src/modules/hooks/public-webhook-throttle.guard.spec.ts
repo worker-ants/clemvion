@@ -8,15 +8,13 @@ import {
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { PublicWebhookQuotaService } from './public-webhook-quota.service';
-import { PublicWebhookThrottleGuard } from './public-webhook-throttle.guard';
+import {
+  PublicWebhookReqShape,
+  PublicWebhookThrottleGuard,
+} from './public-webhook-throttle.guard';
 
-/** Exported for shared use — guard + tests share the same shape definition. */
-export interface ReqShape {
-  params?: { endpointPath?: string };
-  headers?: Record<string, unknown>;
-  body?: unknown;
-  rawBody?: Buffer;
-}
+// Guard 가 `getRequest` 로 읽는 형태를 그대로 재사용 — 필드 동기화 중복 제거(A-3).
+type ReqShape = PublicWebhookReqShape;
 
 function makeContext(req: ReqShape): ExecutionContext {
   return {
@@ -69,6 +67,17 @@ const PUBLIC_REQ: ReqShape = {
 };
 
 describe('PublicWebhookThrottleGuard', () => {
+  // env·spy 복원을 afterEach 로 통일(B-5/B-7) — 개별 테스트의 try/finally·mockRestore 중복 제거.
+  // env 는 테스트별 스냅샷 후 복원해 `TRUST_CF_CONNECTING_IP` 등 변이가 누설되지 않게 한다.
+  let envSnapshot: NodeJS.ProcessEnv;
+  beforeEach(() => {
+    envSnapshot = { ...process.env };
+  });
+  afterEach(() => {
+    process.env = envSnapshot;
+    jest.restoreAllMocks();
+  });
+
   it('endpointPath 없으면 통과(방어적)', async () => {
     const { guard } = makeGuard({});
     await expect(guard.canActivate(makeContext({}))).resolves.toBe(true);
@@ -171,51 +180,39 @@ describe('PublicWebhookThrottleGuard', () => {
   });
 
   it('cf-connecting-ip 우선 추출 (TRUST_CF_CONNECTING_IP=true)', async () => {
-    // 04 m-3 — CF 신뢰는 기본 off 라 CF 우선을 검증하려면 명시 활성화.
-    const prev = process.env.TRUST_CF_CONNECTING_IP;
+    // 04 m-3 — CF 신뢰는 기본 off 라 CF 우선을 검증하려면 명시 활성화. 복원은 afterEach.
     process.env.TRUST_CF_CONNECTING_IP = 'true';
-    try {
-      const { guard, quota } = makeGuard({
-        trigger: { authConfigId: null } as Partial<Trigger>,
-      });
-      const req: ReqShape = {
-        params: { endpointPath: 'abc123' },
-        headers: {
-          'cf-connecting-ip': '1.1.1.1',
-          'x-forwarded-for': '2.2.2.2',
-        },
-        body: {},
-      };
-      await guard.canActivate(makeContext(req));
-      expect(quota.consumeStart).toHaveBeenCalledWith('1.1.1.1');
-    } finally {
-      if (prev === undefined) delete process.env.TRUST_CF_CONNECTING_IP;
-      else process.env.TRUST_CF_CONNECTING_IP = prev;
-    }
+    const { guard, quota } = makeGuard({
+      trigger: { authConfigId: null } as Partial<Trigger>,
+    });
+    const req: ReqShape = {
+      params: { endpointPath: 'abc123' },
+      headers: {
+        'cf-connecting-ip': '1.1.1.1',
+        'x-forwarded-for': '2.2.2.2',
+      },
+      body: {},
+    };
+    await guard.canActivate(makeContext(req));
+    expect(quota.consumeStart).toHaveBeenCalledWith('1.1.1.1');
   });
 
   // 04 m-3 — 기본(플래그 off)에서는 위변조 가능한 CF 헤더 무시 → XFF 로 rate-limit.
   it('기본(TRUST_CF_CONNECTING_IP off)에서는 cf-connecting-ip 를 무시하고 XFF 사용', async () => {
-    const prev = process.env.TRUST_CF_CONNECTING_IP;
-    delete process.env.TRUST_CF_CONNECTING_IP;
-    try {
-      const { guard, quota } = makeGuard({
-        trigger: { authConfigId: null } as Partial<Trigger>,
-      });
-      const req: ReqShape = {
-        params: { endpointPath: 'abc123' },
-        headers: {
-          'cf-connecting-ip': '1.1.1.1',
-          'x-forwarded-for': '2.2.2.2',
-        },
-        body: {},
-      };
-      await guard.canActivate(makeContext(req));
-      expect(quota.consumeStart).toHaveBeenCalledWith('2.2.2.2');
-    } finally {
-      if (prev === undefined) delete process.env.TRUST_CF_CONNECTING_IP;
-      else process.env.TRUST_CF_CONNECTING_IP = prev;
-    }
+    delete process.env.TRUST_CF_CONNECTING_IP; // 복원은 afterEach.
+    const { guard, quota } = makeGuard({
+      trigger: { authConfigId: null } as Partial<Trigger>,
+    });
+    const req: ReqShape = {
+      params: { endpointPath: 'abc123' },
+      headers: {
+        'cf-connecting-ip': '1.1.1.1',
+        'x-forwarded-for': '2.2.2.2',
+      },
+      body: {},
+    };
+    await guard.canActivate(makeContext(req));
+    expect(quota.consumeStart).toHaveBeenCalledWith('2.2.2.2');
   });
 
   it('trigger 조회 실패 → fail-open(통과) + error 레벨 로깅(모니터링 가시성, W2)', async () => {
@@ -227,7 +224,7 @@ describe('PublicWebhookThrottleGuard', () => {
     expect(quota.consumeStart).not.toHaveBeenCalled();
     // fail-open 은 공개 webhook 보호를 무력화하므로 error 레벨로 남겨 알람이 탐지하게 한다.
     expect(errorLog).toHaveBeenCalledTimes(1);
-    errorLog.mockRestore();
+    // spy 복원은 afterEach(jest.restoreAllMocks) 가 담당.
   });
 
   // ── W11: measureBodyBytes 분기 테스트 ──────────────────────────────────────

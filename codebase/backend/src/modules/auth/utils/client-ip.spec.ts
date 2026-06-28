@@ -7,10 +7,13 @@ import {
 
 // 04 후속 — 헤더 전용 공유 코어. hooks rate-limit/ip_whitelist 가 위임하는 단일 구현.
 describe('extractClientIpFromHeaders (shared core)', () => {
-  const orig = process.env.TRUST_CF_CONNECTING_IP;
+  // env 스냅샷/복원으로 테스트 격리 — TRUST_CF_CONNECTING_IP 변이 누설 방지(B-4).
+  let envSnapshot: NodeJS.ProcessEnv;
+  beforeEach(() => {
+    envSnapshot = { ...process.env };
+  });
   afterEach(() => {
-    if (orig === undefined) delete process.env.TRUST_CF_CONNECTING_IP;
-    else process.env.TRUST_CF_CONNECTING_IP = orig;
+    process.env = envSnapshot;
   });
 
   it('CF off (default) → ignores CF header, uses XFF first IP', () => {
@@ -87,11 +90,13 @@ function makeReq(
 
 describe('extractClientIp', () => {
   // 04 m-3 — CF-Connecting-IP 신뢰는 기본 off. CF 헤더를 우선해야 하는 테스트는
-  // 명시적으로 TRUST_CF_CONNECTING_IP 를 켜고, 매 테스트 후 원복한다.
-  const origTrustCf = process.env.TRUST_CF_CONNECTING_IP;
+  // 명시적으로 TRUST_CF_CONNECTING_IP 를 켜고, env 스냅샷/복원으로 격리한다(B-4).
+  let envSnapshot: NodeJS.ProcessEnv;
+  beforeEach(() => {
+    envSnapshot = { ...process.env };
+  });
   afterEach(() => {
-    if (origTrustCf === undefined) delete process.env.TRUST_CF_CONNECTING_IP;
-    else process.env.TRUST_CF_CONNECTING_IP = origTrustCf;
+    process.env = envSnapshot;
   });
 
   it('CF-Connecting-IP 가 있으면 가장 우선한다 (TRUST_CF_CONNECTING_IP=true)', () => {

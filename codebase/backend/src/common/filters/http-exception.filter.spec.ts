@@ -34,6 +34,11 @@ function bodyOf(json: jest.Mock): {
 }
 
 describe('GlobalExceptionFilter', () => {
+  // Logger spy 복원을 afterEach 로 통일(B-5) — 예외로 테스트가 중단돼도 spy 가 누설되지 않는다.
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('maps 413 PayloadTooLargeException to PAYLOAD_TOO_LARGE envelope', () => {
     const { host, status, json } = mockHost();
     new GlobalExceptionFilter().catch(new PayloadTooLargeException(), host);
@@ -73,12 +78,13 @@ describe('GlobalExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(400);
     const body = bodyOf(json);
     expect(body.error.code).toBe('VALIDATION_ERROR'); // getCodeFromStatus(400)
+    expect(body.error.requestId).toBeDefined(); // 413 케이스와 대칭(B-6)
     // CWE-209: 내부 원문 미노출, 일반 문구만. 원문은 logger.warn 로만 남는다.
     expect(body.error.message).toBe('The request could not be processed.');
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('some internal 400 detail'),
     );
-    warn.mockRestore();
+    // spy 복원은 afterEach(jest.restoreAllMocks) 가 담당.
   });
 
   it('masks a plain 5xx-ish error (no/≥500 status) as 500 INTERNAL_ERROR', () => {
