@@ -5,6 +5,7 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import { GLOBAL_MAX_BODY_BYTES } from '../src/bootstrap/hooks-body-parser';
 
 /**
  * e2e: 외부 인입(웹훅 수신) 흐름 — spec/5-system/12-webhook.md.
@@ -288,7 +289,7 @@ describe('Webhook trigger (e2e)', () => {
       event: 'push',
       blob: 'x'.repeat(512 * 1024),
     });
-    expect(Buffer.byteLength(payload)).toBeGreaterThan(100 * 1024);
+    expect(Buffer.byteLength(payload)).toBeGreaterThan(GLOBAL_MAX_BODY_BYTES);
     const sig = `sha256=${crypto
       .createHmac('sha256', secret)
       .update(payload)
@@ -340,6 +341,20 @@ describe('Webhook trigger (e2e)', () => {
       .post(`/api/hooks/${path}`)
       .set('Content-Type', 'application/json')
       .send(tooBig);
+    expect(res.status).toBe(413);
+    expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+  });
+
+  it('N. non-webhook 라우트 100KB 초과 → 413 PAYLOAD_TOO_LARGE (전역 파서 방어선 보존)', async () => {
+    // `bodyParser: false` + 명시 전역 파서 등록의 핵심 부수효과 검증: hooks 가 아닌 라우트는
+    // 전역 100KB(GLOBAL_MAX_BODY_BYTES) 한도가 그대로 적용돼야 한다(파서 미등록 회귀 가드).
+    const big = 'x'.repeat(GLOBAL_MAX_BODY_BYTES + 50 * 1024); // > 100KB
+    const res = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId)
+      .set('Content-Type', 'application/json')
+      .send(JSON.stringify({ name: big }));
     expect(res.status).toBe(413);
     expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
   });

@@ -1,5 +1,8 @@
+import { Logger } from '@nestjs/common';
 import { json, urlencoded, type RequestHandler } from 'express';
 import type { IncomingMessage } from 'http';
+
+const logger = new Logger('HooksBodyParser');
 
 /** 본문 파서를 스코프하는 라우트 prefix (`main.ts` 가 `app.use(HOOKS_ROUTE_PREFIX, ...)`). */
 export const HOOKS_ROUTE_PREFIX = '/api/hooks';
@@ -41,7 +44,16 @@ export function resolveHooksMaxBodyBytes(
   const raw = env.HOOKS_MAX_BODY_BYTES;
   const n = raw !== undefined ? Number(raw) : NaN;
   if (!Number.isFinite(n) || n <= 0) return HOOKS_MAX_BODY_BYTES;
-  return Math.min(Math.floor(n), HOOKS_MAX_BODY_BYTES_CEILING);
+  const floored = Math.floor(n);
+  if (floored > HOOKS_MAX_BODY_BYTES_CEILING) {
+    // 운영자가 설정 무시를 인지하도록 클램프 발생을 경고한다.
+    logger.warn(
+      `HOOKS_MAX_BODY_BYTES=${floored} exceeds ceiling ` +
+        `${HOOKS_MAX_BODY_BYTES_CEILING}; clamping to ceiling.`,
+    );
+    return HOOKS_MAX_BODY_BYTES_CEILING;
+  }
+  return floored;
 }
 
 /**

@@ -1,5 +1,6 @@
 import {
   HOOKS_MAX_BODY_BYTES,
+  HOOKS_MAX_BODY_BYTES_CEILING,
   GLOBAL_MAX_BODY_BYTES,
   resolveHooksMaxBodyBytes,
   createHooksBodyParsers,
@@ -32,6 +33,13 @@ describe('resolveHooksMaxBodyBytes', () => {
       );
     },
   );
+
+  it('clamps an oversized override to the ceiling', () => {
+    const over = String(HOOKS_MAX_BODY_BYTES_CEILING * 2);
+    expect(resolveHooksMaxBodyBytes({ HOOKS_MAX_BODY_BYTES: over })).toBe(
+      HOOKS_MAX_BODY_BYTES_CEILING,
+    );
+  });
 });
 
 describe('createHooksBodyParsers', () => {
