@@ -137,8 +137,8 @@ HMAC verification reads the **raw bytes** of the request body. If a relay middle
 | `401 Unauthorized` | Authentication failed. |
 | `404 Not Found` | No trigger exists for that `endpoint_path`. |
 | `410 Gone` | The trigger is inactive. Re-enable it on the trigger detail panel before retrying. |
-| `413 Payload Too Large` | Public webhook body over 32KB (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`). The 1MB cap for authenticated webhooks is Planned — not yet implemented. |
-| `429 Too Many Requests` | Exceeded the global 100 req/min rate limit. |
+| `413 Payload Too Large` | **Public webhook:** body over 32KB (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`).<br/>**Authenticated webhook:** 1MB cap — Planned, not yet implemented. |
+| `429 Too Many Requests` | Exceeded the instance-wide global 100 req/min rate limit. |
 
 ### Accessing the webhook payload inside the workflow
 
