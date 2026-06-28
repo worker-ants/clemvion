@@ -141,7 +141,7 @@ M2 에서는 "서빙 origin = 호출 origin"이라 CORS·임베드가 같은 도
 > **rate-limit 구현 특성(v1)**: Redis **fixed-window** 카운터를 쓴다 — 윈도우 경계에서 최대 2배 버스팅이 허용되는 특성이
 > 있다. 본 rate-limit 은 인증 대체가 아닌 **best-effort defense-in-depth** 이며, Redis 미가용 시 **fail-open**(정당한
 > webhook 보호)이다. 더 강한 보장이 필요하면 sliding-window 전환이 followup 후보. 공개 trigger(`auth_config_id IS NULL`)
-> 에만 적용되고 인증 webhook(서버-to-서버)은 무제한 통과한다.
+> 에만 적용되고 인증 webhook(서버-to-서버)은 무제한 통과한다. 단 이는 **rate-limit·공개 32KB body 한도**에 한하며, 인증 webhook 의 **본문 크기는** `/api/hooks/*` 라우트 스코프 1MB body-parser 가 별도 게이트한다 (SoT: [Spec Webhook WH-NF-02](../5-system/12-webhook.md#비기능-요구사항)).
 
 **opt-in (워크스페이스 선택)**
 - 첫 대화 시작 전 invisible challenge(예: Turnstile/hCaptcha).

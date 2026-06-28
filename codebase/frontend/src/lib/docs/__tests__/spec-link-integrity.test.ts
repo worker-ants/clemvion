@@ -52,10 +52,13 @@ describe("spec-link-integrity guard", () => {
     expect(files.every((f) => !f.relPath.includes("-api-catalog/"))).toBe(true);
   });
 
+  // Scans the whole in-repo spec set synchronously. It completes in ~2-3s
+  // standalone but can exceed the 5s default under parallel-suite CPU
+  // contention (flaky timeout, not a real failure) — give it real headroom.
   it("has no broken in-repo links or heading anchors", () => {
     const violations = findBrokenLinks(root);
     expect(violations, fmt(violations)).toEqual([]);
-  });
+  }, 30_000);
 });
 
 // Pin the slug algorithm so future edits don't silently drift it (which would

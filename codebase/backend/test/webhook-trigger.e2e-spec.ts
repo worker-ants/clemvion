@@ -5,6 +5,7 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import { GLOBAL_MAX_BODY_BYTES } from '../src/bootstrap/hooks-body-parser';
 
 /**
  * e2e: 외부 인입(웹훅 수신) 흐름 — spec/5-system/12-webhook.md.
@@ -16,6 +17,10 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *   - bearer / api_key / basic_auth / hmac AuthConfig → 자격 불일치 401 AUTH_FAILED, 일치 202
  *   - AuthConfig.is_active=false → 401
  *   - 인증 성공 시 AuthConfig.last_used_at 갱신 (fire-and-forget)
+ *
+ * 본문 크기 경계 (WH-NF-02 옵션 C): 인증 512KB 통과(J) / webhook 1MB 초과 413 PAYLOAD_TOO_LARGE
+ * (K 공개·M 인증) / 공개 32KB 초과 413 PUBLIC_WEBHOOK_BODY_TOO_LARGE(L) / non-webhook 100KB
+ * 초과 413(N, 전역 파서 방어선).
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -268,6 +273,97 @@ describe('Webhook trigger (e2e)', () => {
       .set('x-hub-signature-256', sig)
       .send(payload);
     expect(sigged.status).toBe(202);
+  });
+
+  // ── 본문 크기 경계 (WH-NF-02 옵션 C) ──────────────────────────────
+  // J/K/L/M 은 알파벳 순서가 아니라 "본문 크기 경계" 주제로 묶어 인접 배치한다
+  // (인증 1MB 통과/초과, 공개 32KB, 인증 1MB 초과).
+  it('J. 인증(HMAC) webhook 512KB 본문 → 202 (라우트 스코프 1MB 파서 + rawBody/HMAC, WH-NF-02 옵션 C)', async () => {
+    // 512KB 는 express 전역 기본 100KB 를 초과하므로, 통과하려면 /api/hooks/* 라우트 스코프
+    // 1MB 파서가 전역보다 먼저 적용돼야 한다. HMAC 가 검증되려면 그 파서가 rawBody 도
+    // 보존해야 한다 — 즉 본 테스트 하나가 (1MB 한도 + 미들웨어 순서 + rawBody) 를 동시 검증.
+    const path = crypto.randomUUID();
+    const ac = await createAuthConfig('hmac');
+    const secret = ac.config.secret as string;
+    await createWebhookTrigger(uniqueName('hook-j'), path, {
+      authConfigId: ac.id,
+    });
+
+    const payload = JSON.stringify({
+      event: 'push',
+      blob: 'x'.repeat(512 * 1024),
+    });
+    expect(Buffer.byteLength(payload)).toBeGreaterThan(GLOBAL_MAX_BODY_BYTES);
+    const sig = `sha256=${crypto
+      .createHmac('sha256', secret)
+      .update(payload)
+      .digest('hex')}`;
+    const res = await request(BASE_URL)
+      .post(`/api/hooks/${path}`)
+      .set('Content-Type', 'application/json')
+      .set('x-hub-signature-256', sig)
+      .send(payload);
+    expect(res.status).toBe(202);
+  });
+
+  it('K. webhook 본문 1MB 초과 → 413 PAYLOAD_TOO_LARGE (라우트 스코프 limit + 표준 봉투)', async () => {
+    const path = crypto.randomUUID();
+    await createWebhookTrigger(uniqueName('hook-k'), path); // 인증 없음 — 파서가 auth 전에 거부
+    const tooBig = JSON.stringify({ blob: 'x'.repeat(1100 * 1024) }); // > 1MiB
+    const res = await request(BASE_URL)
+      .post(`/api/hooks/${path}`)
+      .set('Content-Type', 'application/json')
+      .send(tooBig);
+    expect(res.status).toBe(413);
+    expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(res.body.error.requestId).toBeDefined();
+  });
+
+  it('L. 공개 webhook 32KB 초과(1MB 미만) → 413 PUBLIC_WEBHOOK_BODY_TOO_LARGE (Guard 유지)', async () => {
+    // 64KB 는 라우트 1MB 파서를 통과해 Guard 까지 도달하고, 공개 32KB 한도에서 거부된다.
+    const path = crypto.randomUUID();
+    await createWebhookTrigger(uniqueName('hook-l'), path); // auth_config_id IS NULL (공개)
+    const payload = JSON.stringify({ blob: 'x'.repeat(64 * 1024) });
+    const res = await request(BASE_URL)
+      .post(`/api/hooks/${path}`)
+      .set('Content-Type', 'application/json')
+      .send(payload);
+    expect(res.status).toBe(413);
+    expect(res.body.error.code).toBe('PUBLIC_WEBHOOK_BODY_TOO_LARGE');
+    expect(res.body.error.requestId).toBeDefined();
+  });
+
+  it('M. 인증 webhook 본문 1MB 초과 → 413 PAYLOAD_TOO_LARGE (인증 경로도 라우트 limit 적용)', async () => {
+    // 라우트 스코프 파서는 인증/HMAC 검증보다 먼저(express 미들웨어) 동작하므로, 1MB 초과는
+    // 서명 유효성과 무관하게 파서 단계에서 413 으로 거부된다. (J 가 인증 < 1MB 통과를 커버.)
+    const path = crypto.randomUUID();
+    const ac = await createAuthConfig('hmac');
+    await createWebhookTrigger(uniqueName('hook-m'), path, {
+      authConfigId: ac.id,
+    });
+    const tooBig = JSON.stringify({ blob: 'x'.repeat(1100 * 1024) }); // > 1MiB
+    const res = await request(BASE_URL)
+      .post(`/api/hooks/${path}`)
+      .set('Content-Type', 'application/json')
+      .send(tooBig);
+    expect(res.status).toBe(413);
+    expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(res.body.error.requestId).toBeDefined();
+  });
+
+  it('N. non-webhook 라우트 100KB 초과 → 413 PAYLOAD_TOO_LARGE (전역 파서 방어선 보존)', async () => {
+    // `bodyParser: false` + 명시 전역 파서 등록의 핵심 부수효과 검증: hooks 가 아닌 라우트는
+    // 전역 100KB(GLOBAL_MAX_BODY_BYTES) 한도가 그대로 적용돼야 한다(파서 미등록 회귀 가드).
+    const big = 'x'.repeat(GLOBAL_MAX_BODY_BYTES + 50 * 1024); // > 100KB
+    const res = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId)
+      .set('Content-Type', 'application/json')
+      .send(JSON.stringify({ name: big }));
+    expect(res.status).toBe(413);
+    expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(res.body.error.requestId).toBeDefined();
   });
 
   it('F. api_key AuthConfig — 헤더 누락/오류 401, 올바른 키 202', async () => {

@@ -1,16 +1,15 @@
 ---
 id: webhook
-status: partial
+status: implemented
 code:
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/dto/responses/webhook-response.dto.ts
   - codebase/backend/src/modules/hooks/public-webhook-throttle.guard.ts
   - codebase/backend/src/modules/hooks/public-webhook-quota.service.ts
+  - codebase/backend/src/bootstrap/hooks-body-parser.ts
   - codebase/backend/src/modules/auth-configs/auth-configs.service.ts
   - codebase/backend/src/modules/triggers/triggers.service.ts
-pending_plans:
-  - plan/in-progress/spec-sync-webhook-gaps.md
 ---
 
 # Spec: Webhook 트리거 시스템
@@ -103,7 +102,7 @@ pending_plans:
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
 | WH-NF-01 | webhook 수신 후 200ms 이내 응답 반환 (실행은 비동기) | 필수 |
-| WH-NF-02 | 요청 본문 최대 크기 — **분리 임계 (결정: 옵션 C, 2026-06-28)**: 공개(`auth_config_id IS NULL`) webhook 32KB, 인증 webhook 1MB. **현행 구현**: 공개 webhook 만 `PublicWebhookThrottleGuard` 가 **32KB** (`DEFAULT_MAX_BODY_BYTES`, config `publicWebhook.maxBodyBytes`) 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 를 반환한다(= 결정과 일치, 변경 없음). 인증 webhook 의 **1MB 게이트(`/api/hooks/*` 라우트 스코프 body-parser limit + 표준 413)는 미구현 (Planned)** — `plan/in-progress/spec-sync-webhook-gaps.md`. 전역 body-parser limit 은 두지 않는다(non-webhook 라우트 express 기본 100KB 방어선 보존). | 필수 |
+| WH-NF-02 | 요청 본문 최대 크기 — **분리 임계 (옵션 C, 구현)**: 공개(`auth_config_id IS NULL`) webhook 32KB, 인증 webhook 1MB. 인증 webhook 의 1MB 게이트는 `/api/hooks/*` 라우트 스코프 body-parser limit(`createHooksBodyParsers`, `src/bootstrap/hooks-body-parser.ts`, 기본 1MB·`HOOKS_MAX_BODY_BYTES` env override, 상한 `HOOKS_MAX_BODY_BYTES_CEILING` 16MiB — 과도한 override 로 인한 OOM 방지 클램프)로 구현되며, 초과 시 body-parser 가 `413` 을 throw 하고 `GlobalExceptionFilter` 가 표준 봉투 `PAYLOAD_TOO_LARGE` 로 직렬화한다. `main.ts` 는 `NestFactory.create(AppModule, { bodyParser: false })` 로 Nest 기본 파서를 끄고 hooks(1MB)·전역(`createGlobalBodyParsers`, 100KB) 파서를 직접 등록한다 — Nest 기본 파서를 켠 채 수동 파서를 추가하면 Nest 가 자기 전역 파서 등록을 건너뛰어 non-hooks 본문이 미파싱되는 함정을 회피. hooks 파서를 먼저 등록해 hooks 만 1MB 로 파싱하고(rawBody 보존 — HMAC 호환), **전역 100KB 는 명시 등록해 non-webhook 라우트 방어선을 보존**한다. 공개 webhook 은 그 위에서 `PublicWebhookThrottleGuard` 가 **32KB** (`DEFAULT_MAX_BODY_BYTES`) 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 로 추가 제한. | 필수 |
 | WH-NF-03 | 동시 다발 webhook 수신 처리 (실행 엔진은 독립적으로 동작) | 필수 |
 
 ---
@@ -181,7 +180,7 @@ POST /api/hooks/:endpointPath
 |------|------|
 | 인증 | `trigger.auth_config_id` 가 가리키는 `AuthConfig.type` 에 따름 (none = `auth_config_id IS NULL` / api_key / bearer_token / basic_auth / hmac). `is_active=false` 인 AuthConfig 는 즉시 401 `AUTH_FAILED`. `AuthConfig.ip_whitelist` 가 있으면 함께 시행 |
 | Content-Type | `application/json`, `application/x-www-form-urlencoded` |
-| 요청 본문 최대 크기 | **분리 임계 (옵션 C)**: 공개(`auth_config_id IS NULL`) webhook **32KB**(현행, `PublicWebhookThrottleGuard`) / 인증 webhook **1MB**(Planned — 인증 1MB 게이트 미구현). 상세·근거 [WH-NF-02](#비기능-요구사항) · [§8](#8-보안-고려사항) · [plan](../../plan/in-progress/spec-sync-webhook-gaps.md) |
+| 요청 본문 최대 크기 | **분리 임계 (옵션 C, 구현)**: 공개(`auth_config_id IS NULL`) webhook **32KB**(`PublicWebhookThrottleGuard`) / 인증 webhook **1MB**(`/api/hooks/*` 라우트 스코프 body-parser, 초과 시 `413 PAYLOAD_TOO_LARGE`). 상세·근거 [WH-NF-02](#비기능-요구사항) · [§8](#8-보안-고려사항) |
 
 **성공 응답** (`202 Accepted`) — 핸들러 반환값(아래)은 전역 `TransformInterceptor` 가 `{ "data": { ... } }` 로 래핑해 전송한다 ([Spec API 규약 §5.1](./2-api-convention.md#5-응답-형식)):
 ```json
@@ -328,7 +327,8 @@ codebase/backend/src/modules/hooks/
 
 - `/api/hooks/*` 경로는 JWT 인증 제외 (외부 서비스가 호출하므로)
 - Rate Limiting (전역): 글로벌 throttler **100 req/min** ([Spec API 규약 §7](./2-api-convention.md#7-rate-limiting))
-- Rate Limiting (공개 webhook 전용 추가): `PublicWebhookThrottleGuard` 가 `auth_config_id IS NULL` 트리거에 한해 IP 단위 시작 한도(기본 분당 10, config `publicWebhook.startupPerMinute`) + 시간당 누적 신규 상한(기본 20, `publicWebhook.hourlyNewMax`) 을 적용. 초과 시 `429 PUBLIC_WEBHOOK_RATE_LIMIT` / `PUBLIC_WEBHOOK_HOURLY_LIMIT` (카탈로그 [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조)). 인증 webhook 은 이 Guard 를 무제한 통과. Redis 미가용 시 fail-open. (정책 수치 출처: [Spec 웹채팅 보안 §4](../7-channel-web-chat/4-security.md); config 키·에러 코드 적용 SoT 는 본 §6 + [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조))
+- Rate Limiting (공개 webhook 전용 추가): `PublicWebhookThrottleGuard` 가 `auth_config_id IS NULL` 트리거에 한해 IP 단위 시작 한도(기본 분당 10, config `publicWebhook.startupPerMinute`) + 시간당 누적 신규 상한(기본 20, `publicWebhook.hourlyNewMax`) 을 적용. 초과 시 `429 PUBLIC_WEBHOOK_RATE_LIMIT` / `PUBLIC_WEBHOOK_HOURLY_LIMIT` (카탈로그 [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조)). 인증 webhook 은 이 Guard 를 무제한 통과(본문 크기는 아래 라우트 스코프 파서가 별도 게이트). Redis 미가용 시 fail-open. (정책 수치 출처: [Spec 웹채팅 보안 §4](../7-channel-web-chat/4-security.md); config 키·에러 코드 적용 SoT 는 본 §6 + [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조))
+- 본문 크기 (WH-NF-02 옵션 C): `/api/hooks/*`(`HOOKS_ROUTE_PREFIX` 상수) 라우트 스코프 body-parser(`createHooksBodyParsers`, `src/bootstrap/hooks-body-parser.ts`)가 인증 webhook 본문을 **1MB**(기본, `HOOKS_MAX_BODY_BYTES` env override, 상한 16MiB)까지 수용하고 초과 시 `413 PAYLOAD_TOO_LARGE`. `main.ts` 는 `bodyParser: false` 로 Nest 기본 파서를 끄고 hooks(1MB)·전역(`createGlobalBodyParsers`, 100KB)을 직접 등록한다. hooks 를 먼저 등록해 1MB 로 파싱하며(`req._body` 가드로 전역 재파싱 skip), rawBody 를 보존해 HMAC 검증과 호환. 전역 100KB 는 명시 등록돼 non-webhook 라우트에 적용. 공개 webhook 의 32KB 는 `PublicWebhookThrottleGuard` 가 그 위에서 추가 제한.
 - 기존 `TriggersService.findByEndpointPath()` 재사용
 
 ---
@@ -379,7 +379,7 @@ codebase/backend/src/modules/hooks/
 | 엔드포인트 유추 방지 | UUID 기반 랜덤 경로 (brute force 불가) |
 | 비밀 키 저장 | Webhook 인증 자료는 모두 `auth_config.config` JSONB 에 AES-256-GCM 으로 암호화 저장 ([Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책)). API 응답 시 항상 마스킹, 평문 노출은 create / regenerate / reveal 3 경로만 |
 | last_used_at 갱신 | 인증 성공 직후 `auth_config.last_used_at = NOW()` fire-and-forget UPDATE. 트랜잭션 외라 race 시 last-write-wins, 실패 시 미갱신 (활성 가시성 차단) |
-| 본문 크기 제한 | **분리 임계 (옵션 C)**: 공개 webhook 32KB 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` (`PublicWebhookThrottleGuard`, 현행). 인증 webhook 1MB 게이트(`/api/hooks/*` 라우트 스코프, 표준 413)는 미구현 (WH-NF-02, Planned). 공개 진입점은 DoS·abuse 표면이라 32KB 보수 한도 유지 |
+| 본문 크기 제한 | **분리 임계 (옵션 C, 구현)**: 공개 webhook 32KB 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` (`PublicWebhookThrottleGuard`). 인증 webhook 은 `/api/hooks/*` 라우트 스코프 1MB body-parser limit 으로 게이트하고 초과 시 표준 `413 PAYLOAD_TOO_LARGE`. 전역 100KB 기본은 non-webhook 라우트에 보존(라우트 스코프 분리). 공개 진입점은 DoS·abuse 표면이라 32KB 보수 한도 유지 |
 | Rate Limiting | 글로벌 Throttler (100 req/min, [Spec API 규약 §7](./2-api-convention.md#7-rate-limiting)) + 공개 webhook 전용 IP 단위 한도 (분당 10·시간당 20 기본, `PublicWebhookThrottleGuard`/`PublicWebhookQuotaService`) |
 | JWT 제외 | `/api/hooks/*` 경로는 JWT guard에서 제외 |
 | CORS | webhook 엔드포인트는 CORS 제한 없음 |
@@ -418,6 +418,17 @@ WH-EP-02 에 프론트엔드 base 결정 우선순위(`NEXT_PUBLIC_WEBHOOK_BASE_
 본 spec 을 webhook 도메인 SoT 로 확정한다: ① 응답은 전역 `TransformInterceptor` 로 `{data:...}` 래핑(§3.1) ② rate limit 은 글로벌 throttler **100 req/min**(§6·§8·WH-SC-05) ③ POST 전용(GET/PUT·`?wait` 동기모드 미지원) ④ URL 정본 `/api/hooks/:endpointPath`(`/api/webhooks`·workspaceSlug 세그먼트는 없음).
 
 ③의 "POST 전용"은 **트리거 진입 엔드포인트(`/api/hooks/:endpointPath`)에 한정**한다. 그 하위 서브경로는 각 영역 spec 이 별도 메서드·정책으로 정의할 수 있다 — 예: 채널 웹챗의 `GET /api/hooks/:endpointPath/embed-config`(공개·무인증 조회, [7-channel-web-chat 4-security §3-①](../7-channel-web-chat/4-security.md))는 POST 전용 규칙의 예외가 아니라 본 SoT 의 스코프 밖이다.
+
+### WH-NF-02 본문 크기 — 분리 임계(옵션 C) 결정 근거
+
+요청 본문 최대 크기는 공개/인증 webhook 을 **분리 임계**로 둔다 (공개 32KB, 인증 1MB).
+
+- **기각 — 옵션 A (전역 1MB 통일)**: `app.use(json({ limit: '1mb' }))` 로 전역을 1MB 로 올리면 non-webhook 라우트(로그인 등 미인증 표면 포함)까지 1MB 본문을 버퍼링해 DoS 표면을 32배 확대한다. 전역 100KB 기본 방어선을 약화하므로 기각.
+- **기각 — 옵션 B (현행 32KB/100KB 박제)**: 인증 webhook 의 "100KB express 기본" 은 설계 결정이 아니라 우연한 프레임워크 기본값이고, 대형 PR/결제 이벤트 등 정당한 인증 페이로드를 막는다. 비표준 `PayloadTooLargeError` 로 끊기는 비일관도 남는다.
+- **채택 — 옵션 C (분리 임계)**: 미인증 공개 진입점은 brute-force·DoS 표면이라 32KB 보수 한도 유지, 신원 검증된 인증 webhook 만 `/api/hooks/*` 라우트 스코프 1MB body-parser 로 확대. 위험도에 비례한 한도.
+- **구현 결정 — `bodyParser: false` + 명시 등록 순서 의존성**: Nest 기본 파서를 켠 채 `app.use(json())` 같은 수동 파서를 추가하면 Nest 가 자기 전역 파서 등록을 건너뛰어 non-hooks 본문이 미파싱(`req.body=undefined`)되는 함정이 있다. 따라서 `bodyParser: false` 로 끄고 hooks(1MB, 먼저)·전역(100KB) 파서를 직접 등록한다. hooks 가 먼저 파싱해 `req._body` 를 세팅하면 후행 전역 파서가 hooks 를 재파싱하지 않는다(body-parser idempotency 가드). rawBody 는 두 파서 공통 `verify` 로 보존해 HMAC 호환.
+- **OOM 상한 클램프**: `HOOKS_MAX_BODY_BYTES` env override 는 `HOOKS_MAX_BODY_BYTES_CEILING`(16MiB)으로 클램프해 운영 실수로 인한 메모리 표면 확대를 막는다.
+- **표준 413**: 초과 시 body-parser 의 413 을 `GlobalExceptionFilter` 가 표준 봉투 `PAYLOAD_TOO_LARGE` 로 직렬화([API 규약 §5.3·§6](./2-api-convention.md#6-http-상태-코드), [error-handling §1.3](./3-error-handling.md#13-유효성-검증-에러)).
 
 ### 외부 인터랙션 채널을 별도 spec 파일로 분리
 

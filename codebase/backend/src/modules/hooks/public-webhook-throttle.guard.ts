@@ -63,13 +63,14 @@ export class PublicWebhookThrottleGuard implements CanActivate {
     if (!endpointPath) return true; // 라우트 형태상 발생하지 않음 — 방어적 통과.
 
     // 1. trigger 해석 — 공개 여부 판정. 미존재 시 통과(HooksService 가 404).
+    //    full entity 로 로드한다. 과거 `select: { authConfigId: true }` partial projection 은
+    //    authConfigId 를 (null 대신) 비-null 값으로 잘못 돌려줘 모든 공개 webhook 을 인증 webhook
+    //    으로 오판 → body 크기·IP rate-limit 보호가 전량 우회되는 버그가 있었다. full load 로 교정
+    //    (트리거는 req 에 첨부돼 HooksService 가 재사용 — W14).
     let trigger: Trigger | null = null;
     try {
       trigger = await this.triggerRepository.findOne({
         where: { endpointPath, type: 'webhook' },
-        select: { authConfigId: true } as Parameters<
-          Repository<Trigger>['findOne']
-        >[0]['select'],
       });
     } catch (err) {
       // trigger 조회 실패는 throttle 판단 불가 → fail-open(통과). 후속 HooksService 가 정식 처리.

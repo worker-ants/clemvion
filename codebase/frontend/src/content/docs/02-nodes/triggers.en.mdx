@@ -83,7 +83,7 @@ POST {base_url}/api/hooks/{endpoint_path}
 
 - `endpoint_path` is generated as a UUID at trigger-creation time (brute-force resistant). Copy the full URL with the 📋 button on the trigger list.
 - Only `POST` is accepted. `Content-Type` must be `application/json` or `application/x-www-form-urlencoded`.
-- Maximum body size depends on the webhook type — public (no auth linked) webhooks cap at **32KB** (`413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` on exceed); authenticated webhooks at **1MB** (Planned — not yet enforced).
+- Maximum body size depends on the webhook type — public (no auth linked) webhooks cap at **32KB** (`413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` on exceed); authenticated webhooks at **1MB** (`413 PAYLOAD_TOO_LARGE` on exceed).
 
 ### Authentication settings
 
@@ -137,7 +137,7 @@ HMAC verification reads the **raw bytes** of the request body. If a relay middle
 | `401 Unauthorized` | Authentication failed. |
 | `404 Not Found` | No trigger exists for that `endpoint_path`. |
 | `410 Gone` | The trigger is inactive. Re-enable it on the trigger detail panel before retrying. |
-| `413 Payload Too Large` | **Public webhook:** body over 32KB (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`).<br/>**Authenticated webhook:** 1MB cap — Planned, not yet implemented. |
+| `413 Payload Too Large` | **Public webhook:** body over 32KB (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`).<br/>**Authenticated webhook:** body over 1MB (`PAYLOAD_TOO_LARGE`). |
 | `429 Too Many Requests` | Exceeded the instance-wide global 100 req/min rate limit. The response carries a `Retry-After` header telling you when to retry. |
 
 ### Accessing the webhook payload inside the workflow

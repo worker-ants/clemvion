@@ -44,6 +44,7 @@ code:
 | 코드 | 설명 | HTTP |
 |------|------|------|
 | `VALIDATION_ERROR` | 요청 데이터 유효성 실패 | 400 |
+| `PAYLOAD_TOO_LARGE` | 요청 본문 크기가 body-parser 한도 초과 — 전역 100KB 기본, `/api/hooks/*` 인증 webhook 1MB(`createHooksBodyParsers`). `GlobalExceptionFilter` 가 body-parser 의 413 을 표준 봉투로 매핑. 공개 webhook 의 32KB 추가 제한은 별도 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§1.7) | 413 |
 | `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트 부재 — `X-Workspace-Id` 헤더와 JWT `workspaceId` 둘 다 없음 (`common/decorators/workspace.decorator.ts` 발행) | 400 |
 | `MODEL_CONFIG_INVALID` | ModelConfig 입력 검증 실패 — 알 수 없는 `kind`, 필수 provider 의 apiKey 누락, 사설망/loopback baseUrl(SSRF 가드, tei/local 외) 등 (`model-config.service.ts`·`model-config.controller.ts`·`llm-preview.service.ts`(preview-models, C-2 cluster 4 이후 llm 모듈) 발행) | 400 |
 | `RESOURCE_NOT_FOUND` | 리소스 없음 | 404 |
@@ -440,3 +441,9 @@ GET /api/health
   를 유지한다. KB 임베딩 해석 실패는 "setup 미완료 안내"가 아니라 "이 자원을 현재 resolve 할 수 없음" 으로
   취급하는 것이 의미적으로 더 정확하기 때문이다. setup 안내(400, `MODEL_CONFIG_DEFAULT_MISSING`)는 chat/LLM
   default 경로(`resolveConfig`)에서만 발행한다 (사용자 결정 2026-06-12).
+- **413 `PAYLOAD_TOO_LARGE`(전역) 와 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(도메인) 공존**: 둘 다 413 이나
+  발행 레이어·임계가 다르다. `PAYLOAD_TOO_LARGE`(§1.3)는 **body-parser 레이어**의 전역 표준 코드로,
+  본문이 라우트 한도(전역 100KB·`/api/hooks/*` 1MB)를 넘으면 `GlobalExceptionFilter` 가 발행한다 — 모든
+  라우트 공통. `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§1.7)는 **공개 webhook 전용 도메인 Guard**
+  (`PublicWebhookThrottleGuard`)가 파싱 후 32KB 보수 한도로 추가 제한할 때만 발행한다. 즉 일반 신규 코드는
+  전역 `PAYLOAD_TOO_LARGE` 를 쓰고, 도메인 특화 한도가 있을 때만 별도 코드를 신설한다 ([Spec Webhook WH-NF-02](./12-webhook.md#비기능-요구사항)).

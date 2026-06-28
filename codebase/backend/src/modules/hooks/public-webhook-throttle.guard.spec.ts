@@ -94,6 +94,18 @@ describe('PublicWebhookThrottleGuard', () => {
     expect(quota.consumeStart).not.toHaveBeenCalled();
   });
 
+  it('trigger 조회는 partial `select` 없이 full entity 로 한다 (보안 회귀 가드)', async () => {
+    // 과거 `select: { authConfigId: true }` partial projection 이 authConfigId 를 비-null 로
+    // 잘못 반환해 모든 공개 webhook 이 인증으로 오판 → 보호 우회. select 재도입을 차단한다.
+    const { guard, triggerRepository } = makeGuard({
+      trigger: { authConfigId: null } as Partial<Trigger>,
+    });
+    await guard.canActivate(makeContext(PUBLIC_REQ));
+    expect(triggerRepository.findOne).toHaveBeenCalledWith(
+      expect.not.objectContaining({ select: expect.anything() }),
+    );
+  });
+
   it('공개 webhook + 한도 내 → 통과 + consumeStart 호출', async () => {
     const { guard, quota } = makeGuard({
       trigger: { authConfigId: null } as Partial<Trigger>,

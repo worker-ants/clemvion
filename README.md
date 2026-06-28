@@ -219,6 +219,11 @@ APP_PORT=3011
 APP_URL=http://localhost:3011
 FRONTEND_URL=http://localhost:3012
 
+# Webhook body size (spec 12-webhook WH-NF-02 옵션 C)
+# /api/hooks/* 인증 webhook 본문 한도 (default 1MiB, 상한 16MiB 클램프). 공개 webhook 의
+# 32KB(PUBLIC_WEBHOOK_MAX_BODY_BYTES)는 Guard 가 별도 적용, non-webhook 라우트는 전역 100KB.
+HOOKS_MAX_BODY_BYTES=1048576
+
 # Email (dev: console / prod: smtp)
 MAIL_TRANSPORT=console
 MAIL_HOST=smtp.example.com
