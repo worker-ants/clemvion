@@ -23,13 +23,13 @@ pending_plans:
 
 ---
 
-### 1. 개요
+### 개요
 
 외부 서비스(GitHub, Stripe 등)나 사용자 정의 시스템에서 HTTP 요청을 보내 워크플로우를 자동으로 실행하는 Webhook 트리거 기능을 정의한다. Webhook은 이벤트 기반 자동화의 핵심 진입점으로, 외부 이벤트 발생 시 실시간으로 워크플로우를 트리거한다.
 
 ---
 
-### 2. 사용 시나리오
+### 사용 시나리오
 
 | 시나리오 | 설명 |
 |----------|------|
@@ -41,23 +41,23 @@ pending_plans:
 
 ---
 
-### 3. 요구사항
+### 요구사항
 
-#### 3.1 Webhook 엔드포인트
+#### Webhook 엔드포인트
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
 | WH-EP-01 | 트리거별 고유한 webhook URL 자동 생성 | 필수 |
 | WH-EP-02 | URL 형식: `{base_url}/api/hooks/{endpoint_path}`. `base_url` 은 webhook 을 서빙하는 백엔드 origin. 프론트엔드(트리거 화면)는 표시·복사용 URL 의 base 를 `NEXT_PUBLIC_WEBHOOK_BASE_URL`(명시 override) → `NEXT_PUBLIC_API_URL` 에서 후행 `/api` 제거 → `window.location.origin` 순으로 결정한다 (구현 `codebase/frontend/src/lib/utils/webhook-url.ts`). | 필수 |
-| WH-EP-03 | HTTP POST 메서드 지원 (POST 전용 — GET/PUT 미지원) | 필수 |
+| WH-EP-03 | HTTP POST 메서드 지원 (POST 전용 — GET/PUT 등 미지원 메서드는 `405 Method Not Allowed`, [API 규약 §11.2](./2-api-convention.md#112-지원-메서드)) | 필수 |
 | WH-EP-04 | JSON, form-urlencoded 요청 본문 수신 | 필수 |
 | WH-EP-05 | 요청 본문 전체를 워크플로우 입력 데이터로 전달 (`body`) | 필수 |
 | WH-EP-05-1 | Manual Trigger 노드가 선언한 `parameters` 스키마에 따라 body에서 파라미터를 추출/검증하여 `$input.parameters` / `$params`로 제공 | 필수 |
-| WH-EP-05-2 | required 파라미터 누락 또는 타입 강제 변환 실패 시 `400 Bad Request`와 누락 필드 목록 반환 | 필수 |
+| WH-EP-05-2 | required 파라미터 누락 또는 타입 강제 변환 실패 시 `400 Bad Request` — 응답은 공식 에러 봉투이며 필드별 사유는 `error.details[]` 로 노출(목표) ([§5.2](#52-400-응답-형식) · [API 규약 §5.3](./2-api-convention.md#53-에러-응답)) | 필수 |
 | WH-EP-06 | 요청 헤더 정보를 메타데이터로 전달 (`headers`, `method`, `query`) | 권장 |
 | WH-EP-07 | 비활성 트리거로의 요청은 `410 Gone` 응답 반환. **예외**: `config.chatChannel` 이 설정된 트리거는 `202 Accepted + { executionId: 'ignored' }` 를 반환한다 (Telegram 등 chat-channel provider 가 non-2xx 응답 시 webhook 자동 비활성화·retry 폭주를 유발하므로). 구현상 `config.chatChannel` 분기가 `isActive` 검사보다 선행하며, inbound 서명 검증을 수행한 뒤(실패 시 401) 비활성 시 202 silent skip. 상세 — [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract). | 필수 |
 
-#### 3.2 인증 및 보안
+#### 인증 및 보안
 
 모든 인증은 `trigger.auth_config_id` 가 가리키는 `AuthConfig` ([Spec 데이터 모델 §2.17](../1-data-model.md#217-authconfig)) 로 수행한다. `auth_config_id IS NULL` 이면 인증 없음(none).
 
@@ -73,7 +73,7 @@ pending_plans:
 | WH-SC-08 | 인증 성공 시 `AuthConfig.last_used_at = NOW()` fire-and-forget UPDATE (트랜잭션 외, 실패 시 미갱신) | 필수 |
 | WH-SC-09 | AuthConfig.ip_whitelist 가 설정된 경우 클라이언트 IP allowlist 시행 (불일치 시 401 `AUTH_FAILED`). 각 항목은 단일 IP 또는 CIDR 표기를 허용하며 (IPv4-mapped IPv6 클라이언트는 IPv4 로 정규화 비교), 클라이언트 IP 를 알 수 없으면 거부(fail-closed). ip_whitelist 는 AuthConfig 종속이므로 `auth_config_id IS NOT NULL` 일 때만 평가 | 권장 |
 
-#### 3.3 응답 및 피드백
+#### 응답 및 피드백
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
@@ -82,7 +82,7 @@ pending_plans:
 | WH-RS-03 | 요청 본문 파싱 실패 시 `400 Bad Request` 반환 | 필수 |
 | WH-RS-04 | 트리거에 `interaction.enabled=true` 가 설정되고 `tokenStrategy="per_execution"` 인 경우, 202 응답 body 에 `interaction.token` / `interaction.expiresAt` / `interaction.endpoints` 필드를 동봉한다 — 상세는 [Spec External Interaction API §4.1](./14-external-interaction-api.md#41-webhook-호출-응답-확장) | 필수 |
 
-#### 3.4 관리
+#### 관리
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
@@ -98,12 +98,12 @@ pending_plans:
 
 ---
 
-### 4. 비기능 요구사항
+### 비기능 요구사항
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
 | WH-NF-01 | webhook 수신 후 200ms 이내 응답 반환 (실행은 비동기) | 필수 |
-| WH-NF-02 | 요청 본문 최대 크기. **현행 구현**: 공개(인증 없음 — `auth_config_id IS NULL`) webhook 에 한해 `PublicWebhookThrottleGuard` 가 **32KB** (`DEFAULT_MAX_BODY_BYTES`, config `publicWebhook.maxBodyBytes`) 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 를 반환한다. 인증 webhook 에는 별도의 본문 크기 게이트가 없다 (전역 body-parser limit 미설정 — express 기본값 적용). **1MB 통일 임계는 미구현 (Planned)** — `plan/in-progress/spec-sync-webhook-gaps.md`. | 필수 |
+| WH-NF-02 | 요청 본문 최대 크기 — **분리 임계 (결정: 옵션 C, 2026-06-28)**: 공개(`auth_config_id IS NULL`) webhook 32KB, 인증 webhook 1MB. **현행 구현**: 공개 webhook 만 `PublicWebhookThrottleGuard` 가 **32KB** (`DEFAULT_MAX_BODY_BYTES`, config `publicWebhook.maxBodyBytes`) 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 를 반환한다(= 결정과 일치, 변경 없음). 인증 webhook 의 **1MB 게이트(`/api/hooks/*` 라우트 스코프 body-parser limit + 표준 413)는 미구현 (Planned)** — `plan/in-progress/spec-sync-webhook-gaps.md`. 전역 body-parser limit 은 두지 않는다(non-webhook 라우트 express 기본 100KB 방어선 보존). | 필수 |
 | WH-NF-03 | 동시 다발 webhook 수신 처리 (실행 엔진은 독립적으로 동작) | 필수 |
 
 ---
@@ -132,6 +132,8 @@ pending_plans:
 │  - 워크플로우 실행 (백그라운드)        │
 └──────────────────────────────────────┘
 ```
+
+> 위 다이어그램은 **일반 webhook 경로**다. `config.chatChannel` 트리거는 `isActive` 검사보다 `chatChannel` 분기가 **선행**하며 인증을 먼저 수행한다(비활성 시 silent 202) — 상세 순서는 [§7 step 5](#7-처리-흐름) · [WH-EP-07](#webhook-엔드포인트).
 
 ---
 
@@ -179,7 +181,7 @@ POST /api/hooks/:endpointPath
 |------|------|
 | 인증 | `trigger.auth_config_id` 가 가리키는 `AuthConfig.type` 에 따름 (none = `auth_config_id IS NULL` / api_key / bearer_token / basic_auth / hmac). `is_active=false` 인 AuthConfig 는 즉시 401 `AUTH_FAILED`. `AuthConfig.ip_whitelist` 가 있으면 함께 시행 |
 | Content-Type | `application/json`, `application/x-www-form-urlencoded` |
-| 요청 본문 최대 크기 | 1MB |
+| 요청 본문 최대 크기 | **분리 임계 (옵션 C)**: 공개(`auth_config_id IS NULL`) webhook **32KB**(현행, `PublicWebhookThrottleGuard`) / 인증 webhook **1MB**(Planned — 인증 1MB 게이트 미구현). 상세·근거 [WH-NF-02](#비기능-요구사항) · [§8](#8-보안-고려사항) · [plan](../../plan/in-progress/spec-sync-webhook-gaps.md) |
 
 **성공 응답** (`202 Accepted`) — 핸들러 반환값(아래)은 전역 `TransformInterceptor` 가 `{ "data": { ... } }` 로 래핑해 전송한다 ([Spec API 규약 §5.1](./2-api-convention.md#5-응답-형식)):
 ```json
@@ -276,6 +278,8 @@ Webhook으로 수신된 데이터는 아래 구조로 워크플로우에 전달:
 | `query` | URL 쿼리 파라미터 |
 | `method` | HTTP 메서드 |
 
+> 위 구조는 어댑터가 워크플로우로 넘기는 **입력** 이다. Manual Trigger 핸들러가 이를 노드 `output` 으로 노출하는 shape(특히 webhook 출처의 `output.request.*`)과 다운스트림 expression 접근 경로(`$node["Manual Trigger"].output.request.method` 등)는 [Spec Manual Trigger §5.2](../4-nodes/7-trigger/1-manual-trigger.md#52-case-webhook-어댑터-port-out) 참조.
+
 ### 5.1 파라미터 추출 규칙
 
 1. 워크플로우의 manual_trigger 노드에서 `config.parameters` 스키마를 조회한다.
@@ -289,18 +293,39 @@ Webhook으로 수신된 데이터는 아래 구조로 워크플로우에 전달:
 
 ### 5.2 400 응답 형식
 
+required 파라미터 누락·타입 강제 변환 실패 시 `hooks.service` 가 `BadRequestException` 을 throw 하고, 전역 `GlobalExceptionFilter` 가 이를 프로젝트 공식 에러 봉투(`{ error: { code, message, requestId, details? } }` — [API 규약 §5.3](./2-api-convention.md#53-에러-응답) · [error-handling §2.1](./3-error-handling.md#21-기본-형식))로 직렬화해 응답한다. 두 경우 모두 Execution 레코드는 생성되지 않는다.
+
+**현행 (implemented)** — 클라이언트가 실제로 받는 봉투. 필드별 사유는 내부적으로 산출되나 노출되지 않는다:
+
 ```json
 {
-  "statusCode": 400,
-  "message": "Invalid webhook payload",
-  "errors": [
-    { "field": "orderId", "reason": "missing_required" },
-    { "field": "amount", "reason": "coerce_failed" }
-  ]
+  "error": {
+    "code": "INVALID_WEBHOOK_PAYLOAD",
+    "message": "Invalid webhook payload",
+    "requestId": "f3b6d2e0-9d4a-4b77-9d19-7a0f8f4c1e2b"
+  }
 }
 ```
 
-이 경우 Execution 레코드는 생성되지 않는다.
+> `hooks.service` 는 `{ code, message, errors: [{ field, reason }] }`(`reason ∈ missing_required / coerce_failed`)를 throw 하지만, `GlobalExceptionFilter` 는 봉투의 `details` 키만 전달하고 `errors` 배열은 버린다. 따라서 필드별 사유([manual-trigger §6](../4-nodes/7-trigger/1-manual-trigger.md#6-에러-코드))는 **현재 클라이언트로 surface 되지 않는다**. `missing_required`/`coerce_failed` 는 클라이언트 미노출 **내부 분류 문자열**이며([error-codes 규약 §4](../conventions/error-codes.md#4-내부-전용-분류-코드-정규화-후-발행) 패턴), 목표 봉투에서 public field code `MISSING_REQUIRED_FIELD`/`TYPE_COERCION_FAILED` 로 정규화된다.
+
+**목표 (Planned)** — 필드별 사유를 공식 봉투의 `error.details[]` 로 노출. 달성하려면 `hooks.service` 가 `errors` 대신 `details: [{ field, code, message }]`(field `code` 는 `UPPER_SNAKE_CASE`)를 throw 하도록 변경해야 한다 ([plan](../../plan/in-progress/spec-sync-webhook-gaps.md)). 최상위 `code` 는 breaking rename 을 피하기 위해 현행 `INVALID_WEBHOOK_PAYLOAD` 를 유지한다([error-codes 규약 §2](../conventions/error-codes.md#2-안정성--rename-정책) — 도메인 특화 400 override 는 [error-handling §1.6](./3-error-handling.md#16-eia-rest-외부-표면-에러-코드-도메인-spec-참조)(EIA) · [§1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조)(webhook 자체) 선례):
+
+```json
+{
+  "error": {
+    "code": "INVALID_WEBHOOK_PAYLOAD",
+    "message": "Invalid webhook payload",
+    "requestId": "f3b6d2e0-9d4a-4b77-9d19-7a0f8f4c1e2b",
+    "details": [
+      { "field": "orderId", "code": "MISSING_REQUIRED_FIELD", "message": "Required parameter is missing" },
+      { "field": "amount",  "code": "TYPE_COERCION_FAILED",   "message": "Value could not be coerced to the declared type" }
+    ]
+  }
+}
+```
+
+> field `code` (`MISSING_REQUIRED_FIELD` / `TYPE_COERCION_FAILED`) 의 카탈로그 등재는 [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조), 명명 규약은 [error-codes 규약](../conventions/error-codes.md).
 
 ---
 
@@ -317,7 +342,7 @@ codebase/backend/src/modules/hooks/
 
 - `/api/hooks/*` 경로는 JWT 인증 제외 (외부 서비스가 호출하므로)
 - Rate Limiting (전역): 글로벌 throttler **100 req/min** ([Spec API 규약 §7](./2-api-convention.md#7-rate-limiting))
-- Rate Limiting (공개 webhook 전용 추가): `PublicWebhookThrottleGuard` 가 `auth_config_id IS NULL` 트리거에 한해 IP 단위 시작 한도(기본 분당 10, config `publicWebhook.startupPerMinute`) + 시간당 누적 신규 상한(기본 20, `publicWebhook.hourlyNewMax`) 을 적용. 초과 시 `429 PUBLIC_WEBHOOK_RATE_LIMIT` / `PUBLIC_WEBHOOK_HOURLY_LIMIT`. 인증 webhook 은 이 Guard 를 무제한 통과. Redis 미가용 시 fail-open. (SoT: [Spec 웹채팅 보안 §4](../7-channel-web-chat/4-security.md))
+- Rate Limiting (공개 webhook 전용 추가): `PublicWebhookThrottleGuard` 가 `auth_config_id IS NULL` 트리거에 한해 IP 단위 시작 한도(기본 분당 10, config `publicWebhook.startupPerMinute`) + 시간당 누적 신규 상한(기본 20, `publicWebhook.hourlyNewMax`) 을 적용. 초과 시 `429 PUBLIC_WEBHOOK_RATE_LIMIT` / `PUBLIC_WEBHOOK_HOURLY_LIMIT` (카탈로그 [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조)). 인증 webhook 은 이 Guard 를 무제한 통과. Redis 미가용 시 fail-open. (정책 수치 출처: [Spec 웹채팅 보안 §4](../7-channel-web-chat/4-security.md); config 키·에러 코드 적용 SoT 는 본 §6 + [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조))
 - 기존 `TriggersService.findByEndpointPath()` 재사용
 
 ---
@@ -345,13 +370,13 @@ codebase/backend/src/modules/hooks/
    d. ChannelConversationService.lookup(triggerId, update.conversationKey) → ChannelConversation 조회
    e. 활성 execution 이 있으면 InteractionService.interact() in-process 호출 (token bypass — [EIA §3.3 EIA-AU-08](./14-external-interaction-api.md#33-인증))
       없으면 `ExecutionEngineService.execute(workflowId, input, { triggerId: trigger.id, sourceIp, responseCode: '202' })` 시작 (입력 = parseUpdate 결과 변환). `sourceIp`(extractClientIp)·`responseCode`(202) 는 §A.3 호출 이력에 영속된다 ([config §A.3](../2-navigation/6-config.md), [R-6](../2-navigation/6-config.md#rationale)). schedule/manual 트리거는 두 인자를 생략 → 컬럼 NULL (ExecuteOptions 의 triggerId variant 에서 `sourceIp?`/`responseCode?` 는 optional).
-   f. 202 Accepted 즉시 반환 ([WH-NF-01](#4-비기능-요구사항) 200ms 이내, 후속 처리는 백그라운드). 단 일부 provider handshake/interactivity ack (Slack url_verification·Interactivity, Discord PING·Interactivity, native modal) 은 `200 OK` + 비-래핑 JSON 으로 직접 응답한다 (TransformInterceptor 우회) — 상세 [Spec Chat Channel §5.5·§5.5.1](./15-chat-channel.md#55-inbound-http-contract).
+   f. 202 Accepted 즉시 반환 ([WH-NF-01](#비기능-요구사항) 200ms 이내, 후속 처리는 백그라운드). 단 일부 provider handshake/interactivity ack (Slack url_verification·Interactivity, Discord PING·Interactivity, native modal) 은 `200 OK` + 비-래핑 JSON 으로 직접 응답한다 (TransformInterceptor 우회) — 상세 [Spec Chat Channel §5.5·§5.5.1](./15-chat-channel.md#55-inbound-http-contract).
 8. config.chatChannel 가 없으면 (기존 경로):
    a. resolveTriggerParameters(workflow, body) 호출
       - required 누락 / coerce 실패 → 400 Bad Request (Execution 생성하지 않음)
    b. ExecutionEngineService.execute(trigger.workflowId, { parameters, body, headers, query, method }, { triggerId: trigger.id, sourceIp, responseCode: '202' })
       - 3번째 인자로 `triggerId`를 전달해야 생성되는 Execution 행의 `trigger_id` 컬럼이 채워지고, 결과적으로 "최근 실행" 화면에서 출처가 `webhook` 으로 분류된다.
-      - `sourceIp`(extractClientIp 결과 — 인증 IP whitelist 검증과 공용)·`responseCode`(성공 경로의 실제 HTTP 코드 `202`)도 함께 전달되어 Execution 행의 `source_ip`/`response_code` 컬럼에 영속되고, 인증 설정 사용 내역(§A.3 호출 이력)의 소스 IP·응답 코드 컬럼을 채운다 ([config §A.3](../2-navigation/6-config.md), [R-6](../2-navigation/6-config.md#rationale); [WH-MG-05](#3-요구사항)). schedule/manual 트리거는 두 인자를 생략하므로 컬럼 NULL — `ExecuteOptions` 의 triggerId variant 에서 `sourceIp?`/`responseCode?` 는 optional 이라 기존 호출자 호환.
+      - `sourceIp`(extractClientIp 결과 — 인증 IP whitelist 검증과 공용)·`responseCode`(성공 경로의 실제 HTTP 코드 `202`)도 함께 전달되어 Execution 행의 `source_ip`/`response_code` 컬럼에 영속되고, 인증 설정 사용 내역(§A.3 호출 이력)의 소스 IP·응답 코드 컬럼을 채운다 ([config §A.3](../2-navigation/6-config.md), [R-6](../2-navigation/6-config.md#rationale); [WH-MG-05](#요구사항)). schedule/manual 트리거는 두 인자를 생략하므로 컬럼 NULL — `ExecuteOptions` 의 triggerId variant 에서 `sourceIp?`/`responseCode?` 는 optional 이라 기존 호출자 호환.
 9. Trigger.lastTriggeredAt = now → DB 업데이트
 10. 202 Accepted + { data: { executionId, message } } 반환 (전역 TransformInterceptor 가 `{ data }` 래핑)
 
@@ -368,7 +393,7 @@ codebase/backend/src/modules/hooks/
 | 엔드포인트 유추 방지 | UUID 기반 랜덤 경로 (brute force 불가) |
 | 비밀 키 저장 | Webhook 인증 자료는 모두 `auth_config.config` JSONB 에 AES-256-GCM 으로 암호화 저장 ([Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책)). API 응답 시 항상 마스킹, 평문 노출은 create / regenerate / reveal 3 경로만 |
 | last_used_at 갱신 | 인증 성공 직후 `auth_config.last_used_at = NOW()` fire-and-forget UPDATE. 트랜잭션 외라 race 시 last-write-wins, 실패 시 미갱신 (활성 가시성 차단) |
-| 본문 크기 제한 | **현행**: 공개 webhook 만 32KB 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` (`PublicWebhookThrottleGuard`). 인증 webhook 은 별도 게이트 없음. 1MB 통일 임계는 미구현 (WH-NF-02, Planned) |
+| 본문 크기 제한 | **분리 임계 (옵션 C)**: 공개 webhook 32KB 초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` (`PublicWebhookThrottleGuard`, 현행). 인증 webhook 1MB 게이트(`/api/hooks/*` 라우트 스코프, 표준 413)는 미구현 (WH-NF-02, Planned). 공개 진입점은 DoS·abuse 표면이라 32KB 보수 한도 유지 |
 | Rate Limiting | 글로벌 Throttler (100 req/min, [Spec API 규약 §7](./2-api-convention.md#7-rate-limiting)) + 공개 webhook 전용 IP 단위 한도 (분당 10·시간당 20 기본, `PublicWebhookThrottleGuard`/`PublicWebhookQuotaService`) |
 | JWT 제외 | `/api/hooks/*` 경로는 JWT guard에서 제외 |
 | CORS | webhook 엔드포인트는 CORS 제한 없음 |

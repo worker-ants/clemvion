@@ -11,7 +11,8 @@ owner: planner
 
 ## 미구현 항목
 - [x] **비활성 chatChannel 트리거의 202+{ignored:true} 분기 (WH-EP-07 / §3.1 / §7 step 5)** — **이미 구현 확인됨** (2026-06-12, `spec-sync-chat-channel-gaps.md §5.5` 에서 동시 해소). `HooksService.handle` 의 `config.chatChannel` 분기가 `!trigger.isActive` 410 검사보다 먼저 실행되고, `handleChatChannelWebhook` 이 `verify()` 후 `!isActive` 시 `{ executionId: 'ignored' }` (202) 로 단락. spec §5.5 표 + R-CC-12 (d) 가 구현 일치로 기술. (plan 기재 "현재 410 Gone" 이 stale 이었음.)
-- [ ] **1MB 본문 크기 통일 임계 (WH-NF-02 / §8)** — spec 은 "요청 본문 최대 1MB 초과 시 413" 을 약속하나, 현행 구현은 공개 webhook(`auth_config_id IS NULL`)에만 `PublicWebhookThrottleGuard` 의 32KB(`DEFAULT_MAX_BODY_BYTES`) 게이트가 있고 인증 webhook 에는 전역 body-parser limit 이 설정돼 있지 않다(express 기본값 적용). 1MB 통일 임계를 도입하려면 main.ts 전역 body-parser limit 설정 또는 spec 을 32KB 현행에 맞춰 재정의할지 결정 필요.
+- [ ] **400 검증 실패 필드 목록 surface (WH-EP-05-2 / §5.2)** — spec §5.2 목표는 공식 봉투의 `error.details[]` 로 필드별 사유를 노출하나, 현행 `hooks.service` 는 `BadRequestException({ code: 'INVALID_WEBHOOK_PAYLOAD', message, errors: [{ field, reason }] })`(`hooks.service.ts:164`)를 throw 하고 `GlobalExceptionFilter`(`http-exception.filter.ts`)가 봉투의 `details` 키만 전달해 `errors` 를 버린다 → 클라이언트는 `{ error: { code: 'INVALID_WEBHOOK_PAYLOAD', message, requestId } }` 만 받는다(필드 목록 없음). **목표 달성**: `hooks.service` 가 `errors` 대신 `details: [{ field, code, message }]`(field `code` = `MISSING_REQUIRED_FIELD`/`TYPE_COERCION_FAILED`, `UPPER_SNAKE_CASE`)를 throw 하도록 변경하면 필터가 그대로 `error.details[]` 로 전달한다. 최상위 `code` 는 `INVALID_WEBHOOK_PAYLOAD` 유지(breaking rename 회피, error-codes §2). 동일 갭이 `workflows.controller` 의 `INVALID_TRIGGER_PARAMETERS` 경로(manual-trigger §6)에도 존재 — 통합 처리 가능. reason→field-code 매핑: `missing_required`→`MISSING_REQUIRED_FIELD`, `coerce_failed`→`TYPE_COERCION_FAILED`(+ `invalid_schema` 는 저장 시점 검증이라 webhook 런타임 경로 미발생). e2e: 400 응답 body 가 `error.details[]` 포함하고 field code 가 UPPER_SNAKE 임을 단정.
+- [ ] **본문 크기 분리 임계 — 인증 webhook 1MB 게이트 (WH-NF-02 / §8)** — **결정 확정: 옵션 C (2026-06-28, 사용자 승인)**. 공개 webhook 32KB(현행 `PublicWebhookThrottleGuard` 유지, 변경 없음) + 인증 webhook 1MB. spec(§3.1·WH-NF-02·§8)은 결정 반영 완료. **남은 구현 (developer)**: `/api/hooks/*` 라우트 스코프 body-parser limit(1MB) + 인증 webhook 1MB 초과 시 표준 `413`(공개 Guard 의 `{ error: { code, message } }` 형식과 일치) 게이트 추가. 전역 `app.use(json({ limit }))` 금지 — non-webhook 라우트 express 기본 100KB 방어선 보존(per-route/path-scoped middleware). 레이어 순서(raw 파싱 전 Guard 32KB vs 인증 경로 1MB) 정의. e2e: 인증 1MB 경계(<1MB 통과/>1MB 413), 공개 32KB 경계 유지, non-webhook 100KB 무영향 — 3종 경계 + 413 body 형식 단정.
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__12-webhook.md 참조.
@@ -19,7 +20,9 @@ owner: planner
 
 ## 결정 옵션 (2026-06-13)
 
-> 대상: 미해결 항목 **WH-NF-02 / §8 — 1MB 본문 크기 통일 임계**. 본 섹션은 결정 보조용 분석이며, 위 `[ ]` 체크박스 상태는 변경하지 않는다.
+> 대상: 미해결 항목 **WH-NF-02 / §8 — 본문 크기 임계**. 본 섹션은 결정 보조용 분석이다.
+>
+> **✅ 결정됨 (2026-06-28): 옵션 C** (공개 32KB 유지 / 인증 webhook 1MB). 아래 권장안대로 확정. spec 반영 완료, 구현은 위 체크박스 항목으로 추적.
 
 ### 맥락
 

@@ -125,6 +125,20 @@ code:
 
 > `VALIDATION_ERROR`(submit_form field 검증)·`EXECUTION_NOT_FOUND`(404)·`TOKEN_INVALID`/`TOKEN_EXPIRED`(401)는 API 규약/§1.2~§1.3 표준 코드를 그대로 재사용한다(EIA 전용 아님).
 
+### 1.7 Webhook 수신 에러 코드 (도메인 spec 참조)
+
+다음 코드는 Webhook 수신 엔드포인트(`POST /api/hooks/:endpointPath`) 전용이다. 정의·트리거 조건의 SoT 는 [Spec Webhook](./12-webhook.md)이고, 본 §1.7 은 공용 카탈로그 가시성을 위한 등재다. 모두 `UPPER_SNAKE_CASE` 규약([conventions/error-codes.md](../conventions/error-codes.md))을 따른다.
+
+| 코드 | status | 설명 | 상태 |
+|------|--------|------|------|
+| `INVALID_WEBHOOK_PAYLOAD` | 400 | required 트리거 파라미터 누락·타입 강제 변환 실패. API 규약 400 기본 `VALIDATION_ERROR` 대신 webhook 도메인 특화 override ([Spec Webhook §5.2](./12-webhook.md#52-400-응답-형식)) | 구현 |
+| `PUBLIC_WEBHOOK_RATE_LIMIT` | 429 | 공개 webhook(`auth_config_id IS NULL`) IP 단위 분당 시작 한도 초과 (`PublicWebhookThrottleGuard`, 기본 분당 10) ([Spec Webhook §6](./12-webhook.md#6-구현-파일-구조)) | 구현 |
+| `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 429 | 공개 webhook IP 단위 시간당 누적 신규 상한 초과 (`PublicWebhookThrottleGuard`/`PublicWebhookQuotaService`, 기본 20) ([Spec Webhook §6](./12-webhook.md#6-구현-파일-구조)) | 구현 |
+| `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 413 | 공개 webhook(`auth_config_id IS NULL`) 요청 본문이 32KB(`DEFAULT_MAX_BODY_BYTES`, config `publicWebhook.maxBodyBytes`) 초과 (`PublicWebhookThrottleGuard`) ([Spec Webhook §8](./12-webhook.md#8-보안-고려사항)) | 구현 |
+| `AUTH_FAILED` | 401 | webhook 인증 실패 — type 무관 단일 응답(enumeration·정보 노출 차단, [Spec Webhook §4](./12-webhook.md#4-인증-방식)). `is_active=false` AuthConfig·서명/토큰 불일치·`ip_whitelist` 불일치 모두 동일 코드 ([WH-SC-04·WH-SC-09](./12-webhook.md#인증-및-보안)) | 구현 |
+
+> **`error.details[].code` (필드별 사유, Planned)**: `MISSING_REQUIRED_FIELD`(required 파라미터 누락)·`TYPE_COERCION_FAILED`(선언 타입으로 coerce 불가)는 `INVALID_WEBHOOK_PAYLOAD` 봉투의 `details[]` 항목 코드로 노출하려는 **목표**다. 현행 구현은 필드별 사유(`missing_required`/`coerce_failed`)를 내부 산출만 하고 `GlobalExceptionFilter` 가 `details` 만 전달하므로 클라이언트로 surface 되지 않는다 — [Spec Webhook §5.2](./12-webhook.md#52-400-응답-형식) / [plan](../../plan/in-progress/spec-sync-webhook-gaps.md). §2.1 의 generic `details[].code`(`INVALID_FIELD`)와 동일 레이어다.
+
 ---
 
 ## 2. 에러 응답 형식

@@ -151,7 +151,7 @@ code:
 | 토큰 | 출처 |
 |---|---|
 | `<widget-cdn-base>` | **기본값 = 배포 origin**(위젯 동봉 서빙, [0-architecture §4.1](./0-architecture.md)). SaaS·별도 엣지 CDN 운영 시에만 `NEXT_PUBLIC_WIDGET_CDN_BASE`(admin, 선택) 로 override. SoT: `codebase/frontend/src/lib/web-chat/widget-base.ts` (`getWidgetLoaderUrl()`/`getWidgetAppUrl()`/`getWidgetOrigin()`) |
-| `<api-base>` | 기존 webhook-url 로직과 **동일** (SoT: `codebase/frontend/src/lib/utils/webhook-url.ts` `getWebhookBaseUrl()` — `NEXT_PUBLIC_WEBHOOK_BASE_URL` → `NEXT_PUBLIC_API_URL` 에서 `/api` 제거 → `window.location.origin`) |
+| `<api-base>` | 기존 webhook-url 로직과 **동일** (base 결정 규약 SoT: [Spec Webhook WH-EP-02](../5-system/12-webhook.md#webhook-엔드포인트); 구현 SoT: `codebase/frontend/src/lib/utils/webhook-url.ts` `getWebhookBaseUrl()` — `NEXT_PUBLIC_WEBHOOK_BASE_URL` → `NEXT_PUBLIC_API_URL` 에서 `/api` 제거 → `window.location.origin`) |
 | `triggerEndpointPath` | 선택 인스턴스의 공개 webhook path |
 | 외형/콘텐츠 | §4 폼 값 |
 
