@@ -57,13 +57,17 @@ PR #763 fresh 리뷰(review/code/2026/06/28/17_16_16) INFO #15 / 권장 7 에서
 
 ### B. 구현 (developer, SDD+TDD)
 - [x] `/consistency-check --impl-prep spec/5-system/` — `review/consistency/2026/06/28/20_32_34_d12` **BLOCK:NO** (LOW). W-1·I-2·I-6 반영, I-3~I-5 pre-existing 이월. (세션 dir 은 origin/main 의 m1-integration `--spec` 세션과 같은 초 충돌해 `_d12` suffix 로 보존 — rebase 해소.)
-- [ ] **I-1** quota service sentinel 상수 export + unit 테스트
-- [ ] **I-2** guard null-IP → 공유 버킷 라우팅 + guard.spec 테스트(미식별 시 consumeStart 호출/429 가능)
-- [ ] TEST WORKFLOW lint·build·unit·e2e
-- [ ] `/ai-review` + Critical/Warning fix
-- [ ] `/consistency-check --impl-done`
+- [x] **I-1** quota service `UNIDENTIFIED_IP_BUCKET` 상수 export + unit 테스트(sentinel 키/IPv4·IPv6 비충돌/consumeStart/hourly).
+- [x] **I-2** guard null-IP → `|| UNIDENTIFIED_IP_BUCKET` 공유 버킷 라우팅 + guard.spec(미식별 consumeStart 호출/분당·시간당 429/W14 trigger 첨부).
+- [x] TEST WORKFLOW lint·unit·build 통과. **e2e 보류** — docker.io `flyway:10-alpine` manifest fetch `DeadlineExceeded`(레지스트리 인프라, 빌드 4회+직접 pull+classic-builder 우회 모두 동일; 이미지 layer 는 로컬 캐시·registry root 도달·node 이미지는 로드됨 → flyway namespace 특정 차단). 코드 무관.
+- [x] `/ai-review` (`review/code/2026/06/28/21_09_41`) **RISK:LOW, Critical 0, Warning 2** → W1(plan 체크박스)·W2(sentinel hourly 테스트) + INFO 7(`??`→`||`)·8(IPv6 단언)·9(W14 단언) 반영. RESOLUTION.md 작성.
+- [ ] `/consistency-check --impl-done spec/5-system/`
 - [ ] push + PR
 
 ## 범위 경계
 - 동시 ≤3 캡(대화 종료 신호 연동)은 여전히 비목표(4-security §4) — 본 작업 밖.
 - 인프라(WAF/Ingress) 구성 자체는 코드 범위 밖 — spec 권고로만 기재(결정 1).
+
+## Followup 이월 (ai-review INFO, 본 PR 범위 밖)
+- INFO 1: `wh:rl:min:__no_client_ip__` 키 스파이크 모니터링/알람 → 인프라 운영 가이드.
+- INFO 6: 공유 버킷 한도 별도 튜닝(config 배율 `publicWebhook.unidentifiedBucketMultiplier`) — 레거시/직결 클라이언트 다수 환경 대비. 결정 3은 "동일 한도"가 기본이므로 필요 시 별도 결정.
