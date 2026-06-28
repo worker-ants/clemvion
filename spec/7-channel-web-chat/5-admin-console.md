@@ -15,7 +15,7 @@ code:
 
 ---
 
-## Overview (제품 정의)
+## Overview
 
 운영자가 **제품 안에서** 웹채팅 위젯을 만들고, 외형을 정하고, 자기 사이트에 붙일 **설치 스니펫**을 받고, 콘솔에서
 **라이브로 미리보기** 할 수 있게 한다. 지금까지 위젯 SPA(`codebase/channel-web-chat`)와 SDK 는 별도 산출물로 존재했지만,
@@ -60,7 +60,7 @@ code:
 ## 2. 웹채팅 인스턴스 모델 (= webhook trigger, 신규 엔티티 없음)
 
 웹채팅 1개 = `type=webhook` + `config.interaction.enabled=true` 인 **기존 Trigger** + 연결된 workflow.
-신규 백엔드 트리거 유형·테이블·엔드포인트·facade 를 **추가하지 않는다** ([0-architecture R5](./0-architecture.md)의 client-consumer 원칙 유지).
+신규 백엔드 트리거 유형·테이블·엔드포인트·facade 를 **추가하지 않는다** ([0-architecture §R2](./0-architecture.md)의 client-consumer 원칙 유지).
 
 | 콘솔 동작 | 매핑 (기존 API) | 비고 |
 |---|---|---|
@@ -241,7 +241,7 @@ code:
 ### R1. 트리거 재사용 (vs 신규 web-chat 엔티티)
 웹채팅은 본질적으로 webhook trigger + EIA interaction 이다. 신규 엔티티/테이블/엔드포인트를 만들면 동일 개념의 이중 진실과
 동기화 부담이 생긴다. 콘솔은 **표현 레이어로만 추상화**해 backend 변경을 최소화(env + 선택적 목록 필터)하고, EIA
-client-consumer 원칙([0-architecture R5](./0-architecture.md))과 단일 sink 정책을 유지한다.
+client-consumer 원칙([0-architecture §R2](./0-architecture.md))과 단일 sink 정책을 유지한다.
 
 ### R2. 외형 per-instance 서버 저장 — 기존 "미저장" 결정의 부분 번복 (결정 2026-06-24)
 **경위**: 초기 v1 은 외형을 boot 옵션으로 **emit-only** 하고 백엔드에 저장하지 않았다(아래 *기존 결정*). 운영자 피드백

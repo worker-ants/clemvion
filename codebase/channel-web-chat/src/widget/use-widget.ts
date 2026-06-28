@@ -72,11 +72,32 @@ const TERMINAL_EVENTS = [
 /** 위젯 내부 세션 핸들 — 저장 세션(session-store)과 동일 shape 라 PersistedSession 을 재사용. */
 type SessionRef = PersistedSession;
 
+/**
+ * 쿼리 파라미터 `apiBase` 를 **http(s) URL 로만** 허용한다(direct-load/샘플 대비 하드닝).
+ * 직접 로드 경로의 `?apiBase=` 는 사용자가 URL 을 통제하지 못하는 임베드 시나리오와 달리 외부 입력이므로,
+ * `javascript:`/`data:`/상대경로 등 비-http(s) 값을 fetch base 로 쓰지 않도록 스킴을 검증해 거른다.
+ * (localhost 개발은 `http://` 허용 — 스킴만 제한). path/query 는 보존한다(`apiBase` 는 `/api` 등 경로 포함이 정상).
+ *
+ * @param raw - 쿼리 `apiBase` 원본(null 가능).
+ * @returns http(s) URL 이면 원본 그대로, 아니면(null·파싱불가·비-http(s) 스킴) `undefined`(null 외에는 console.warn).
+ */
+export function safeApiBaseFromQuery(raw: string | null): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (url.protocol === "http:" || url.protocol === "https:") return raw;
+  } catch {
+    /* 파싱 불가 — 아래 경고 후 무시 */
+  }
+  console.warn("[widget] configFromQuery: apiBase 가 http(s) URL 이 아니어서 무시합니다:", raw);
+  return undefined;
+}
+
 /** boot config 를 query param 으로 폴백 해석(host 없이 직접 로드/샘플 대비). */
 function configFromQuery(): Partial<BootMessage> {
   if (typeof window === "undefined") return {};
   const q = new URLSearchParams(window.location.search);
-  const apiBase = q.get("apiBase") ?? undefined;
+  const apiBase = safeApiBaseFromQuery(q.get("apiBase"));
   const triggerEndpointPath = q.get("trigger") ?? undefined;
   const locale = (q.get("locale") as "ko" | "en" | null) ?? undefined;
   return { apiBase, triggerEndpointPath, locale } as Partial<BootMessage>;
