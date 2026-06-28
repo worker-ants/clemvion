@@ -9,7 +9,7 @@ code:
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
   - codebase/frontend/src/lib/api/executions.ts
 pending_plans:
-  - plan/in-progress/node-cancellation-infrastructure.md
+  - plan/in-progress/node-cancellation-inflight-followups.md
 ---
 
 # Node Cancellation 컨벤션 (AbortSignal 전파 기반)
