@@ -276,6 +276,14 @@ describe("needsAttention", () => {
     ).toBe(false);
   });
 
+  it("connected + tokenExpiresAt=null + autoRefresh=false → false (API Key 타입 등)", () => {
+    expect(
+      needsAttention(
+        row({ status: "connected", autoRefresh: false, tokenExpiresAt: null }),
+      ),
+    ).toBe(false);
+  });
+
   it("error/expired → 항상 true (autoRefresh 무관)", () => {
     expect(needsAttention(row({ status: "error", autoRefresh: true }))).toBe(true);
     expect(needsAttention(row({ status: "expired", autoRefresh: true }))).toBe(true);

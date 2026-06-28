@@ -499,18 +499,22 @@ export class IntegrationsService {
     const autoRefreshServiceTypes = SERVICE_REGISTRY.filter(
       (s) => s.supportsTokenAutoRefresh === true,
     ).map((s) => s.type);
+    const hasAutoRefreshTypes = autoRefreshServiceTypes.length > 0;
+    // 자동 갱신 service_type 제외 절의 SQL fragment·파라미터를 단일 진실로 둔다
+    // — expiring 헬퍼와 attention 인라인 두 경로가 같은 상수를 참조하므로
+    // 파라미터 키·컬럼명 변경 시 한쪽만 고쳐 어긋날 위험이 없다 (ai-review W-2).
+    const AUTO_REFRESH_NOT_IN =
+      'i.service_type NOT IN (:...autoRefreshServiceTypes)';
+    const autoRefreshParams = { autoRefreshServiceTypes };
     // 빈 목록이면 `NOT IN ()` 가 무의미/오류이므로 절 자체를 생략(현재는 항상 비어있지 않음).
     // 주의: 이 헬퍼는 **최상위 AND 절**을 덧붙이므로 `expiring` 처럼 술어가
     // 단일 connected 집합인 분기에서만 쓸 수 있다. `attention` 은 OR 합집합이라
     // (Expired ∪ Error ∪ Connected) 최상위 AND 로 제외하면 expired/error 행까지
-    // 잘못 걸러진다 → attention 은 connected 서브절 **안쪽**에 인라인으로 동일
-    // 조건(`i.service_type NOT IN (:...autoRefreshServiceTypes)`)을 넣는다(아래).
-    // 두 경로의 SQL fragment·파라미터는 동일하다.
+    // 잘못 걸러진다 → attention 은 connected 서브절 **안쪽**에 같은 fragment 를
+    // 인라인으로 넣는다(아래).
     const excludeAutoRefresh = (qbRef: typeof qb): void => {
-      if (autoRefreshServiceTypes.length > 0) {
-        qbRef.andWhere('i.service_type NOT IN (:...autoRefreshServiceTypes)', {
-          autoRefreshServiceTypes,
-        });
+      if (hasAutoRefreshTypes) {
+        qbRef.andWhere(AUTO_REFRESH_NOT_IN, autoRefreshParams);
       }
     };
     if (status === 'connected') {
@@ -534,17 +538,16 @@ export class IntegrationsService {
       // a state that needs the user's attention here. autoRefresh 통합의 갱신이
       // 실패해 error/expired 로 전이하면 IN ('expired','error') 분기로 다시
       // 포함되므로 사용자 신호 회귀는 없다 (§10.5).
-      const autoRefreshExclusion =
-        autoRefreshServiceTypes.length > 0
-          ? ' AND i.service_type NOT IN (:...autoRefreshServiceTypes)'
-          : '';
+      const autoRefreshExclusion = hasAutoRefreshTypes
+        ? ` AND ${AUTO_REFRESH_NOT_IN}`
+        : '';
       qb.andWhere(
         `(i.status IN ('expired', 'error')
           OR (i.status = 'connected'
               AND i.token_expires_at IS NOT NULL
               AND i.token_expires_at > NOW()
               AND i.token_expires_at <= NOW() + ${EXPIRING_SOON_INTERVAL}${autoRefreshExclusion}))`,
-        autoRefreshServiceTypes.length > 0 ? { autoRefreshServiceTypes } : {},
+        hasAutoRefreshTypes ? autoRefreshParams : {},
       );
     }
 
