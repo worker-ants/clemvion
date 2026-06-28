@@ -19,7 +19,7 @@
 
 ### C-1 [Critical] execution-engine.service.ts — 9,210줄·116메서드·323분기
 
-- [ ] 미착수 — `execution-engine.service.ts` (02-architecture.md C-1 소유 — 본 항목은 정량 근거 포인터)
+- [x] **닫힘 (02 C-1 완료, 2026-06-28)** — `execution-engine.service.ts`. [02-architecture.md](./02-architecture.md) C-1 엔진분할 5단계(PR #622·#625·#626·#627, 9,670→7,035줄)·체인 종료 spec-sync(`plan/complete/spec-update-engine-split.md`, 엔진 spec frontmatter `code:` 글로브 갱신 포함) 완료로 본 정량근거 포인터 종료. 분리 설계·실행은 02 C-1 소유.
 
 최장: `executeNode` 412줄, `executeInline` 406줄, `runExecution` 402줄, `handleAiMessageTurn` 347줄.
 
@@ -104,7 +104,7 @@
 ### C-4 [Critical] WebSocket Gateway — 5개 핸들러 인증+소유권 보일러플레이트 복붙
 
 - [x] **구현 완료 (Option A, 2026-06-25, 커밋 `b72f634e`+review-fix `203222a3`)** — branch `claude/refactor-03-c4-ws-gateway-auth-7a9671`. 5개 명령 핸들러(`execution.submit_form`/`click_button`/`submit_message`/`end_conversation`/`retry_last_turn`)의 인증+소유권 보일러플레이트를 behavior-preserving 추출: `AuthenticatedSocket` 타입 alias(인라인 `Socket & {...}` 단언 통합), `getCommandAuthContext(client)` private helper(미인증=null·workspaceId '' 정규화), `verifyExecutionOwnership(id, ws)` private helper(verifyOwnership try/catch→boolean·NotFound 통일), `MSG_NOT_AUTHENTICATED`/`MSG_NOT_AUTHORIZED_EXECUTION` 상수화(flat 4종 전용). **§7.2/§4.2 ack shape 핸들러 소유 보존**: helper 는 식별자/boolean 만 반환, continuation 4종=flat·retry_last_turn=nested(UNAUTHENTICATED/NOT_FOUND/'Execution not found' 보존). subscribe §3.3 경로·channelAuthorizers(OCP) 미변경. 검증: lint·build·unit(gateway spec **51/51**, backend **7395** 전건) PASS. impl-prep consistency `review/consistency/2026/06/25/09_23_27`(BLOCK:YES=조건부 구현경계 가드, 본 설계가 충족) · ai-review `review/code/2026/06/25/09_59_33`(Risk LOW·Critical 0·Warning 2→W2 fix·W1 검증후 무변경·RESOLUTION) · impl-done consistency `review/consistency/2026/06/25/10_17_56`(**BLOCK:NO**; cross_spec·naming_collision transient 실패는 impl-prep cross-confirm 으로 갈음).
-- [ ] **e2e 재실행 (레지스트리 회복 후)** — 환경 Docker 레지스트리 아웃티지(`flyway/flyway:10-alpine` FROM resolve DeadlineExceeded — 5 probe 재현)로 미실행. 코드 무관(behavior-preserving + unit 7395 전건 PASS). `registry-1.docker.io` 도달 회복 시 `.claude/tools/run-test.sh e2e` 로 검증.
+- [ ] **e2e 재실행 (레지스트리 회복 후)** — 환경 Docker 레지스트리 아웃티지(`flyway/flyway:10-alpine` FROM resolve DeadlineExceeded — 5 probe 재현)로 미실행. 코드 무관(behavior-preserving + unit 7395 전건 PASS). `registry-1.docker.io` 도달 회복 시 `.claude/tools/run-test.sh e2e` 로 검증. **2026-06-28 재실측 — 차단 지속 확인**: BuildKit 은 `migrate` 단계 `flyway/flyway:10-alpine` metadata `DeadlineExceeded`, `DOCKER_BUILDKIT=0` legacy builder 는 registry 매니페스트 조회에서 ~30분 hang (이미지 로컬 캐시 `f736d2d71e8a` 존재에도 불구) — 추정 stale 아닌 실측 차단.
 
 **spec 대조**: C — `6-websocket-protocol.md §7.1` 이 오히려 "통일" 을 의도(UNAUTHENTICATED/NOT_FOUND 코드 통일, IDOR 은 의도적 NOT_FOUND). **단 §7.2 가 ack wire shape 를 명령군별로 의도적으로 다르게 규정** (continuation 4종 = 평면 `{success,error,errorCode?}`, retry_last_turn = nested) — helper 가 응답 포맷까지 획일화하면 spec 위반.
 
@@ -215,7 +215,7 @@
 
 ### M-5 [Major] `streamMessage` 882줄 제너레이터
 
-- [ ] 미착수 — [02-architecture.md](./02-architecture.md) M-3 에서 추적 (포인터)
+- [x] **닫힘 (02 M-3 완료, 2026-06-28)** — [02-architecture.md](./02-architecture.md) M-3 `streamMessage` god-service 3분해(Router→Guard→Persistence) 완료로 본 포인터 종료. SSE 이벤트 순서·`auto_resume` 버블 분리 semantics 보존은 02 M-3 에서 닫힘. 분리 설계·실행은 02 M-3 소유.
 
 **spec 대조**: C — 행위 spec(`4-ai-assistant.md` SSE·가드)만 존재, 구조 미규정. 02 M-3 완료 시 동반 체크 — SSE 이벤트 순서·`auto_resume` 버블 분리 semantics 보존이 경계 조건.
 
@@ -284,7 +284,7 @@
 ### m-1 [Minor] NestJS 서비스 내 `console.warn` 직접 사용 — 경로 정정 + 1건 추가
 
 - [x] **구현 완료 (2026-06-26, 커밋 `980b6375`+review-fix `8378bd18`)** — branch `claude/refactor-03-m1-console-to-logger`. backend 서비스 `console.*` → NestJS Logger 전환(`3-error-handling.md §6.2` 정합) + eslint `no-console: error` 가드(재발 차단). **전환 5**: `telegram-message.renderer.ts:427`(원안 :416 stale 정정, 모듈 `Logger('ChatChannel.Telegram')`)·`language-hint-defaults.ts:75`(모듈 Logger)·`mcp-test-connection.service.ts`(class `this.logger`)·`node-handler.registry.ts:89`(class)·`main.ts`(bootstrap Logger). **면제**: `code.handler.ts`(3, pre-bootstrap env 검증·module-load IIFE — inline eslint-disable), `scripts/**`·`instrumentation.ts`·`*.spec`(eslint override). 테스트 4건 갱신(node-handler·language-hint console spy→`Logger.prototype.warn`; review-fix W1 telegram photo·W2 mcp logInternal 검증 추가). 잔여 un-exempted console.* **0건**. ~~`audit-logs.service.ts:85`~~ 는 이미 이전에 Logger 전환됨(stale 목록 — 제거). 검증: lint(no-console 활성)·build·unit(backend 7398 전건) PASS. impl-prep `review/consistency/2026/06/25/23_28_57`(BLOCK:NO) · ai-review `review/code/2026/06/25/23_51_54`(Risk LOW·Critical 0·Warning 2→W1·W2 테스트 반영·RESOLUTION).
-- [ ] **e2e 재실행 (레지스트리 회복 후)** — 환경 Docker 레지스트리 아웃티지로 미실행. 코드 무관(behavior-adjacent 로그 채널 변경 + backend unit 전건 PASS).
+- [ ] **e2e 재실행 (레지스트리 회복 후)** — 환경 Docker 레지스트리 아웃티지로 미실행. 코드 무관(behavior-adjacent 로그 채널 변경 + backend unit 전건 PASS). **2026-06-28 재실측 — 차단 지속**(BuildKit DeadlineExceeded + legacy builder hang 재현, C-4 항 동일 근거).
 - [ ] **(planner 위임) spec 텍스트 stale console.warn 처방 정정** — `1-ai-agent.md §6.2.c.fallback`·`6-presentation/0-common.md`·`5-system/14-external-interaction-api.md`·`data-flow/1-audit.md` 의 `console.warn(...)` 처방을 `logger.warn`/방법론 중립 표현으로 갱신(코드는 이미 Logger 사용 — spec 원문만 stale). impl-prep W-1~4 / ai-review SPEC-DRIFT INFO-1.
 
 **spec 대조**: D(drift) — `3-error-handling.md §6.2` 구조화 JSON 로그 형식을 우회, `chat-channel-adapter.md:84` 는 "swallow (logger.warn)" 명시 — telegram renderer 가 규약 불일치. (원안의 경로 2건 stale — 위로 정정.)
@@ -337,7 +337,7 @@
 ### m-3 [Minor] `integrations/new/page.tsx` 1,444줄 — 8개 컴포넌트 단일 파일
 
 - [x] **구현 완료 (2026-06-25, 커밋 `174bd906`+review-fix `77a04a4f`)** — branch `claude/refactor-03-m3-integrations-new-split`. behavior-preserving 분할(UI·wire·동작 100% 불변): page.tsx **1444→448줄**. 라우트-로컬 `new/_components/`(AuthStep+Cafe24/Makeshop ExtraFields·TestStep·Cafe24PrivatePendingStep·MakeshopPendingStep) + `lib/integrations/use-oauth-popup-return.ts`(OAuth 팝업 message handler·popup.closed 폴링·stale-read 방지 refs·5분 timeout — §3.5; deps·eslint-disable 보존) + `lib/hooks/use-unsaved-changes-warning.ts`(beforeunload 이탈 가드 §3.6). page 는 step 상태기계 + oauthBegin mutation + 렌더(default export 유지). **배치 결정**: 컴포넌트는 `components/integrations/steps/` 대신 라우트-로컬(`../_shared` 정방향 의존 — components→app 역import 회피, impl-prep I1); `openOAuthPopup` 은 use-oauth-popup-return.ts 내 module-private(`[id]/open-oauth-popup.ts` 와 충돌 회피, impl-prep W1, 통합은 후속 PR). 검증: lint·build·unit(신규 훅 10/10, frontend 231 files/4728, cafe24-precheck 통합 포함) PASS. impl-prep `review/consistency/2026/06/25/22_17_32`(BLOCK:NO) · ai-review `review/code/2026/06/25/22_44_09`(Risk MEDIUM·Critical 0·Warning 10→W1·W2 훅 테스트·W9 상수화 반영, W3~W8·W10 사전존재/후속 PR 보류·RESOLUTION).
-- [ ] **e2e 재실행 (레지스트리 회복 후)** — 환경 Docker 레지스트리 아웃티지로 미실행. integrations e2e(cafe24 private·makeshop·google 흐름, §3.5/§3.6 팝업·복원). 코드 무관(behavior-preserving + frontend unit 전건 PASS).
+- [ ] **e2e 재실행 (레지스트리 회복 후)** — 환경 Docker 레지스트리 아웃티지로 미실행. integrations e2e(cafe24 private·makeshop·google 흐름, §3.5/§3.6 팝업·복원). 코드 무관(behavior-preserving + frontend unit 전건 PASS). **2026-06-28 재실측 — 차단 지속**(BuildKit DeadlineExceeded + legacy builder hang 재현, C-4 항 동일 근거).
 
 **spec 대조**: C — `4-integration.md §3` 의 step 상태 기계(§3.1 쿼리 파라미터 제어, §3.5 OAuth 팝업 postMessage, §3.6 이탈·복원)가 분리 경계를 그대로 제공.
 
