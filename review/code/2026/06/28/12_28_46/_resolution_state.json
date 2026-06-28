@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "started_at": "2026-06-28T12:28:46Z",
+  "summary_items_total": 1,
+  "items_resolved_ids": [1],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 0,
+  "e2e_last_status": "skipped",
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "resolution_notes": "WARNING#1: SUMMARY explicitly states no immediate fix needed. Action is plan checklist tracking. Existing plan/in-progress/spec-sync-external-interaction-api-gaps.md already tracks EIA inbound rate-limit (EIA-NX-11/§8.4/§5.1). No code changes required. e2e skipped — no code modifications made."
+}
