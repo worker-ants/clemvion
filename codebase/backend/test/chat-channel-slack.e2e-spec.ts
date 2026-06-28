@@ -4,6 +4,7 @@ import { createHmac } from 'crypto';
 import request from 'supertest';
 
 import { createDbClient } from './helpers/db';
+import { nextE2eClientIp } from './helpers/e2e-client-ip';
 import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
 
 /**
@@ -79,6 +80,7 @@ describe('Slack Chat Channel e2e', () => {
       // trigger 별도 setup 도 가능하지만 본 spec 은 verify 정책만 검증.
       const res = await request(BASE_URL)
         .post(`/api/hooks/${endpointPath}`)
+        .set('x-forwarded-for', nextE2eClientIp())
         .set('content-type', 'application/json')
         .set('x-slack-signature', sig)
         .set('x-slack-request-timestamp', ts)
@@ -97,6 +99,7 @@ describe('Slack Chat Channel e2e', () => {
       const ts = nowSec();
       const res = await request(BASE_URL)
         .post(`/api/hooks/${endpointPath}`)
+        .set('x-forwarded-for', nextE2eClientIp())
         .set('content-type', 'application/json')
         .set('x-slack-signature', 'v0=' + 'f'.repeat(64))
         .set('x-slack-request-timestamp', ts)
@@ -110,6 +113,7 @@ describe('Slack Chat Channel e2e', () => {
       const sig = signSlack(body, ts, SLACK_SIGNING_SECRET);
       const res = await request(BASE_URL)
         .post(`/api/hooks/${endpointPath}`)
+        .set('x-forwarded-for', nextE2eClientIp())
         .set('content-type', 'application/json')
         .set('x-slack-signature', sig)
         .set('x-slack-request-timestamp', ts)
@@ -135,6 +139,7 @@ describe('Slack Chat Channel e2e', () => {
       });
       const res = await request(BASE_URL)
         .post(`/api/hooks/${setup.endpointPath}`)
+        .set('x-forwarded-for', nextE2eClientIp())
         .set('content-type', 'application/json')
         .send(body);
       // signing skip + url_verification challenge 응답 → 200
@@ -159,6 +164,7 @@ describe('Slack Chat Channel e2e', () => {
       const body = JSON.stringify({ unknown: 'shape' });
       const res = await request(BASE_URL)
         .post(`/api/hooks/${setup.endpointPath}`)
+        .set('x-forwarded-for', nextE2eClientIp())
         .set('content-type', 'application/json')
         .send(body);
       expect(res.status).toBe(202);
@@ -193,6 +199,7 @@ describe('Slack Chat Channel e2e', () => {
       });
       const res = await request(BASE_URL)
         .post(`/api/hooks/${setup.endpointPath}`)
+        .set('x-forwarded-for', nextE2eClientIp())
         .set('content-type', 'application/json')
         .send(body);
       // 202 + ignored (parser null → caller maybeNotifyIgnored).

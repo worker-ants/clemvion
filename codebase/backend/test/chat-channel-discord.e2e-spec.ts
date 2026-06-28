@@ -3,6 +3,7 @@ import { Client } from 'pg';
 import request from 'supertest';
 
 import { createDbClient } from './helpers/db';
+import { nextE2eClientIp } from './helpers/e2e-client-ip';
 import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
 
 /**
@@ -56,6 +57,7 @@ describe('Discord Chat Channel e2e', () => {
     });
     const res = await request(BASE_URL)
       .post(`/api/hooks/${endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
       .set('content-type', 'application/json')
       .send(body);
     expect(res.status).toBe(200);
@@ -75,6 +77,7 @@ describe('Discord Chat Channel e2e', () => {
     });
     const res = await request(BASE_URL)
       .post(`/api/hooks/${endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
       .set('content-type', 'application/json')
       .send(body);
     expect(res.status).toBe(202);
@@ -94,6 +97,7 @@ describe('Discord Chat Channel e2e', () => {
     });
     const res = await request(BASE_URL)
       .post(`/api/hooks/${endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
       .set('content-type', 'application/json')
       .send(body);
     expect(res.status).toBe(202);
@@ -120,6 +124,7 @@ describe('Discord Chat Channel e2e', () => {
     });
     const res = await request(BASE_URL)
       .post(`/api/hooks/${setup.endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
       .set('content-type', 'application/json')
       .set('x-signature-ed25519', 'f'.repeat(128))
       .set('x-signature-timestamp', String(Math.floor(Date.now() / 1000)))
@@ -151,6 +156,7 @@ describe('Discord Chat Channel e2e', () => {
     });
     const res = await request(BASE_URL)
       .post(`/api/hooks/${setup.endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
       .set('content-type', 'application/json')
       .send(body);
     // inbound 는 owner.emailVerified 와 무관 — PING handshake 정상 수행.
