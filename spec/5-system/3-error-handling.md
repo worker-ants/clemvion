@@ -16,6 +16,14 @@ code:
 
 ---
 
+## Overview
+
+본 문서는 제품 전반의 **에러 처리 정책**을 단일 진실로 정의한다 — 에러 코드 분류 체계(시스템·인증/인가·유효성·실행·WS commands·EIA REST·webhook 도메인, §1), 공식 에러 응답 봉투(`{ error: { code, message, requestId, details? } }`, §2), 노드 레벨 에러 처리 정책(Stop Workflow / Skip / Default Output / Retry / Route to Error Port, §3), 워크플로우 레벨 자동 재시도(§4), 클라이언트 에러 처리 흐름·토스트(§5), 로깅 레벨·민감정보 마스킹(§6), 헬스 체크(§7)다.
+
+에러 코드의 **명명 규율**(의미 기반 명명·rename 안정성·`UPPER_SNAKE_CASE`)의 SoT 는 [conventions/error-codes.md](../conventions/error-codes.md) 이고, 본 문서는 표기·카탈로그·응답 envelope·처리 정책을 정의한다. 외부 표면(EIA `/api/external/*` §1.6·webhook `/api/hooks/*` §1.7)이 API 규약 기본 코드([API 규약 §5.3](./2-api-convention.md#53-에러-응답))를 의도적으로 override 하는 항목은 해당 도메인 spec 참조로 등재한다. 응답 봉투 형식의 cross-cutting 정의는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 와 정합한다.
+
+---
+
 ## 1. 에러 분류
 
 ### 1.1 시스템 에러

@@ -31,3 +31,4 @@ PR #763 fresh 리뷰(review/code/2026/06/28/17_16_16) INFO #15 / 권장 7 에서
 - 결정 확정 후 spec(`12-webhook.md` §6·WH-SC-05·Rationale) 반영 → 구현.
 - 글로벌 throttler·Guard 책임 경계 재확인(중복/공백 없게).
 - **`1-auth.md §2.3` "클라이언트 IP" 행이 현재 webhook/rate-limit/ip_whitelist 경로를 "헤더 전용·`req.ip`/socket 폴백 없음" 으로 기술**한다(`extractClientIpFromHeaders`). 결정 2(`req.socket.remoteAddress` 폴백)·3(fail-closed) 채택 시 **해당 §2.3 행도 함께 갱신** 필요.
+- **(추적) `webhook-spec-pointer-cleanup` 단위 1(P-3) 로 `1-auth Rationale 2.3.B m-3` 에 함수명 `extractClientIpFromHeaders` 가 명시되고 `12-webhook §7e·§8b` 에 역참조가 추가됐다**. 본 단위 2 의 §2.3 행 갱신은 그 위에서 진행하며, m-3 의 "헤더 기반·폴백 없음 = 의도된 결정" 서술과 결정 2/3 가 충돌하면 Rationale 2.3.B m-3 도 함께 개정해야 한다(merge-time 충돌 위험은 낮음 — 같은 행 덮어쓰기 아님).

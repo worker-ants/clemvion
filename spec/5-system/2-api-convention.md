@@ -157,6 +157,7 @@ GET /api/triggers?type=webhook&status=active
 }
 ```
 
+- `message`: 사람이 읽을 짧은 설명. **내부 구현 원문(라이브러리 예외 메시지·스택·파일 경로 등)을 echo 하지 않는다 — 정보 노출(CWE-209) 방지.** body-parser 등 http-error 4xx 는 상태 기반 고정 문구로 직렬화하고(413 → `"Request payload too large."`, 그 외 4xx → `"The request could not be processed."`), 5xx 는 generic 500 으로 마스킹하며 원문은 서버 로그에만 남긴다. 세부 정책: [error-handling §1.3](./3-error-handling.md#13-유효성-검증-에러).
 - `requestId`: 모든 에러 응답에 항상 포함되는 추적용 UUID (서버 로그 상관관계). `GlobalExceptionFilter` 가 매 응답마다 발급한다.
 - `details`: 선택 필드 (검증 오류 등 추가 컨텍스트 존재 시에만 동봉). 검증 오류 항목은 `{ field, message, code: "INVALID_FIELD" }` 구조이며 `field` 는 중첩 경로(`nodes[3].type`)를 유지한다.
 - `code` 의 상태코드별 기본값: 400=`VALIDATION_ERROR`, 401=`AUTH_REQUIRED`, 403=`FORBIDDEN`, 404=`RESOURCE_NOT_FOUND`, 409=`RESOURCE_CONFLICT`, 413=`PAYLOAD_TOO_LARGE`, 422=`INVALID_STATE`, 429=`RATE_LIMITED`, 5xx=`INTERNAL_ERROR`.
