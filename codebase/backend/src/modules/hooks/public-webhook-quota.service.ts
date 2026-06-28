@@ -66,6 +66,8 @@ export class PublicWebhookQuotaService {
    * IP 의 "대화 시작" 한도를 검사하고 카운터를 1 증가시킨다(원자적).
    * Redis 미가용/오류 시 fail-open → `{ allowed: true, reason: null }`.
    *
+   * @param ip 클라이언트 IP. IP 미식별 시 호출부(guard)가 `UNIDENTIFIED_IP_BUCKET` sentinel 을
+   *   전달해 미식별 트래픽을 단일 공유 버킷에 누적시킨다(D-12).
    * @returns allowed=false 일 때 reason 으로 어떤 한도인지 식별.
    */
   async consumeStart(ip: string): Promise<{
@@ -142,7 +144,21 @@ export const MINUTE_WINDOW_SEC = 60;
 /** 시간 단위 슬라이딩 윈도우 초 (3600 s). */
 export const HOUR_WINDOW_SEC = 3600;
 
-/** rate-limit 분 키 포맷 (IP 별). 테스트에서 import 해 직접 의존 방지(Info#10). */
+/** rate-limit 분 키 포맷 (IP 별, 또는 `UNIDENTIFIED_IP_BUCKET` sentinel). 테스트에서 import 해 직접 의존 방지(Info#10). */
 export const makeMinKey = (ip: string): string => `wh:rl:min:${ip}`;
-/** rate-limit 시간 키 포맷 (IP 별). 테스트에서 import 해 직접 의존 방지(Info#10). */
+/** rate-limit 시간 키 포맷 (IP 별, 또는 `UNIDENTIFIED_IP_BUCKET` sentinel). 테스트에서 import 해 직접 의존 방지(Info#10). */
 export const makeHourKey = (ip: string): string => `wh:rl:hour:${ip}`;
+
+/**
+ * IP 미식별(공개 webhook 진입 시 `X-Forwarded-For`/신뢰 시 `CF-Connecting-IP` 헤더 부재) 요청을
+ * 묶는 **단일 공유 버킷 sentinel** (D-12). 헤더 제거로 IP 가 null 인 요청 전체가 이 키 하나에
+ * 누적되어 per-IP 와 동일한 fixed-window 한도가 적용된다 — 과거 fail-open(`if (!ip) return true`)
+ * 무제한 우회를 유한 상한으로 강화한 완화 한도. 정상 IP 와 충돌하지 않도록 유효 IP 표기가 아닌
+ * 문자열을 쓴다(단일 공유 버킷이 곧 보수적: 미식별 트래픽 총량이 한 IP 분량으로 상한).
+ * 정책·근거 SoT: [spec/7-channel-web-chat/4-security.md §4·R6].
+ *
+ * @remarks `consumeStart`/`makeMinKey`/`makeHourKey` 는 이 sentinel 을 일반 IP 인자처럼 받는다 —
+ *   Redis 키(`wh:rl:min:__no_client_ip__`)가 로그·메트릭에 IP 처럼 보일 수 있으나 의도된 집계
+ *   버킷이다(consistency I-8).
+ */
+export const UNIDENTIFIED_IP_BUCKET = '__no_client_ip__';

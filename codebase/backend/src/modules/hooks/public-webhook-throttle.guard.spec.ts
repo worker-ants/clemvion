@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
-import { PublicWebhookQuotaService } from './public-webhook-quota.service';
+import {
+  PublicWebhookQuotaService,
+  UNIDENTIFIED_IP_BUCKET,
+} from './public-webhook-quota.service';
 import {
   PublicWebhookReqShape,
   PublicWebhookThrottleGuard,
@@ -166,7 +169,9 @@ describe('PublicWebhookThrottleGuard', () => {
     expect(quota.consumeStart).not.toHaveBeenCalled();
   });
 
-  it('공개 webhook + IP 식별 불가 → 통과(추적 불가 fail-open)', async () => {
+  it('공개 webhook + IP 식별 불가 → 단일 공유 버킷(UNIDENTIFIED_IP_BUCKET)으로 consumeStart (D-12 완화 한도)', async () => {
+    // 과거엔 fail-open(`if (!ip) return true`)이라 헤더만 제거하면 rate-limit 이 무제한 우회됐다.
+    // 이제 미식별 요청 전체를 단일 공유 버킷으로 묶어 한도를 적용한다 — 무제한 우회 → 유한 상한.
     const { guard, quota } = makeGuard({
       trigger: { authConfigId: null } as Partial<Trigger>,
     });
@@ -176,7 +181,22 @@ describe('PublicWebhookThrottleGuard', () => {
       body: {},
     };
     await expect(guard.canActivate(makeContext(noIp))).resolves.toBe(true);
-    expect(quota.consumeStart).not.toHaveBeenCalled();
+    expect(quota.consumeStart).toHaveBeenCalledWith(UNIDENTIFIED_IP_BUCKET);
+  });
+
+  it('공개 webhook + IP 식별 불가 + 공유 버킷 한도 초과 → 429 (우회 차단)', async () => {
+    const { guard } = makeGuard({
+      trigger: { authConfigId: null } as Partial<Trigger>,
+      consume: { allowed: false, reason: 'startup_rate' },
+    });
+    const noIp: ReqShape = {
+      params: { endpointPath: 'abc123' },
+      headers: {},
+      body: {},
+    };
+    await expect(guard.canActivate(makeContext(noIp))).rejects.toMatchObject({
+      status: HttpStatus.TOO_MANY_REQUESTS,
+    });
   });
 
   it('cf-connecting-ip 우선 추출 (TRUST_CF_CONNECTING_IP=true)', async () => {

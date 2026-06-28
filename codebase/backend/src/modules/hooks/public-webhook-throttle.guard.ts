@@ -12,7 +12,10 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
-import { PublicWebhookQuotaService } from './public-webhook-quota.service';
+import {
+  PublicWebhookQuotaService,
+  UNIDENTIFIED_IP_BUCKET,
+} from './public-webhook-quota.service';
 import { extractClientIpFromHeaders } from '../auth/utils/client-ip';
 
 /**
@@ -95,13 +98,19 @@ export class PublicWebhookThrottleGuard implements CanActivate {
       });
     }
 
-    // 4. IP 단위 시작 rate-limit/누적 상한. IP 식별 불가 시 추적 불가 → 통과(fail-open).
-    //    W1/W3: XFF 신뢰 체계는 인프라·trust proxy 설정에 위임 (rate-limit 은 best-effort
-    //    defense-in-depth, 인증 게이트 아님). IP 미식별 시 fail-open — spec graceful degradation.
-    const ip = extractClientIpFromHeaders(
-      (req.headers ?? {}) as Record<string, string | string[] | undefined>,
-    );
-    if (!ip) return true;
+    // 4. IP 단위 시작 rate-limit/누적 상한.
+    //    XFF/CF 신뢰 체계는 인프라·trust proxy 설정에 위임(W1/W3) — rate-limit 은 best-effort
+    //    defense-in-depth 이지 인증 게이트가 아니다.
+    //    D-12: IP 식별 불가(공격자가 XFF/CF 헤더 제거 등) 시 — 과거엔 fail-open(`if (!ip) return true`)
+    //    으로 rate-limit 이 무제한 우회됐다. 이제 미식별 요청 전체를 단일 공유 버킷
+    //    (UNIDENTIFIED_IP_BUCKET)으로 묶어 동일 한도를 적용한다(완화 한도 — 무제한 → 유한 상한).
+    //    `req.socket.remoteAddress` 폴백은 trust-proxy 뒤 단일 프록시 버킷 붕괴 위험으로 채택하지
+    //    않으며(1-auth Rationale 2.3.B), fail-closed 거부 대신 graceful degradation 을 유지한다.
+    //    정책·근거 SoT: spec/7-channel-web-chat/4-security.md §4·R6.
+    const ip =
+      extractClientIpFromHeaders(
+        (req.headers ?? {}) as Record<string, string | string[] | undefined>,
+      ) ?? UNIDENTIFIED_IP_BUCKET;
 
     const { allowed, reason } = await this.quota.consumeStart(ip);
     if (!allowed) {
