@@ -14,6 +14,13 @@ code:
 
 ---
 
+## Overview
+
+채널 웹챗의 **시스템 아키텍처**를 정의한다 — 호스트 페이지 → SDK loader → cross-origin iframe 위젯 SPA → Clemvion
+EIA 의 4-레이어 분리(§1)와 iframe 격리(§2), 위젯이 사용하는 EIA 표면 매핑(§3), 동봉(co-deploy) 배포·버전 잠금(§4),
+사용 모드(M1 Hosted iframe / M2 BYO-UI, §5)를 다룬다. 영역 제품 정의는 [_product-overview](./_product-overview.md),
+세부 명세(위젯 SPA·SDK·인증/세션·보안·운영 콘솔)는 각 문서가 SoT.
+
 ## 1. 레이어 분리
 
 ```

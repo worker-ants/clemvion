@@ -15,6 +15,13 @@ code:
 
 ---
 
+## Overview
+
+호스트 사이트가 위젯을 임베드·제어하는 **SDK 표면**을 정의한다 — 비개발자용 스니펫 로더(§1)와 개발자용 npm 패키지
+(`@workflow/web-chat`), iframe 주입·라이프사이클, host↔iframe postMessage 브리지 프로토콜(`wc:*`)과 공개 JS API
+(`boot`/`open`/`close`/`show`/`hide`/`updateProfile`/`resetSession`/`shutdown`, §3), 두 사용 경로의 통합·안전 가드를
+다룬다. 헤드리스(M2)·BYO-UI 클라이언트도 동일 SDK primitive 로 노출한다. 결정 근거는 Rationale.
+
 ## 1. 스니펫 로더 (비개발자용)
 
 ```html

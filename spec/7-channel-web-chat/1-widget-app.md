@@ -12,6 +12,13 @@ code:
 
 ---
 
+## Overview
+
+iframe 안에서 도는 **위젯 SPA**(Next.js CSR-only 정적 export, §1)의 UI·상태기계·라이프사이클을 정의한다 — 런처/패널
+표면(§2), 상태 전이(collapsed→panel→booting→streaming↔awaiting_user_message→ended, §3)와 새로고침 복원·in-flight
+unread, 그리고 eager 시작(패널 open 시 워크플로우 시작, §R6)·C1 보류 메시지 큐 게이팅을 다룬다. EIA 표면 매핑은
+[아키텍처 §3](./0-architecture.md), 인증·세션은 [3-auth-session](./3-auth-session.md) 이 SoT.
+
 ## 1. Next.js CSR-only 구성
 
 - `next.config.js`: `output: 'export'` (정적 export — Node 서버 런타임 없음, CDN 호스팅).
