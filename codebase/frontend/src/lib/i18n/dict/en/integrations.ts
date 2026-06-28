@@ -80,7 +80,7 @@ export const integrations: Dict["integrations"] = {
   lastUsedLabel: "Last used",
   lastRotatedLabel: "Last rotated",
   tokenExpiresLabel: "Token expires",
-  tokenExpiresAuto: "Auto-renews · in {{duration}}",
+  tokenExpiresAuto: "Auto-renews · next in {{duration}}",
   testConnectionBtn: "Test connection",
   nameUpdated: "Name updated",
   nameUpdateFailed: "Failed to update name",

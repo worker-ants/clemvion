@@ -506,12 +506,16 @@ export class IntegrationsService {
     const AUTO_REFRESH_NOT_IN =
       'i.service_type NOT IN (:...autoRefreshServiceTypes)';
     const autoRefreshParams = { autoRefreshServiceTypes };
-    // 빈 목록이면 `NOT IN ()` 가 무의미/오류이므로 절 자체를 생략(현재는 항상 비어있지 않음).
-    // 주의: 이 헬퍼는 **최상위 AND 절**을 덧붙이므로 `expiring` 처럼 술어가
-    // 단일 connected 집합인 분기에서만 쓸 수 있다. `attention` 은 OR 합집합이라
-    // (Expired ∪ Error ∪ Connected) 최상위 AND 로 제외하면 expired/error 행까지
-    // 잘못 걸러진다 → attention 은 connected 서브절 **안쪽**에 같은 fragment 를
-    // 인라인으로 넣는다(아래).
+    /**
+     * 자동 갱신 service_type 를 **최상위 AND 절**로 제외한다. 빈 목록이면
+     * `NOT IN ()` 가 무의미/오류이므로 절을 생략(현재는 항상 비어있지 않음).
+     *
+     * 주의: 최상위 AND 라서 술어가 단일 connected 집합인 `expiring` 분기에서만
+     * 쓸 수 있다. `attention` 은 OR 합집합(Expired ∪ Error ∪ Connected)이라
+     * 최상위 AND 로 제외하면 expired/error 행까지 잘못 걸러진다 → attention 은
+     * 이 헬퍼 대신 connected 서브절 **안쪽**에 같은 `AUTO_REFRESH_NOT_IN`
+     * fragment 를 인라인으로 넣는다(아래 분기 참고).
+     */
     const excludeAutoRefresh = (qbRef: typeof qb): void => {
       if (hasAutoRefreshTypes) {
         qbRef.andWhere(AUTO_REFRESH_NOT_IN, autoRefreshParams);
