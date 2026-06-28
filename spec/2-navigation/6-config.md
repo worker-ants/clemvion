@@ -336,7 +336,7 @@ chat / embedding / rerank 를 단일 엔드포인트에서 `kind` 로 구분 관
 - **저장 위치 = `Execution` 행에 컬럼 추가 (V096), 전용 call-log 엔티티 미도입.** AuthConfig 사용 집계는 이미 `Execution.trigger_id → Trigger.auth_config_id` 조인으로 `totalCalls`/`recentCalls` 를 산출한다 ([데이터 모델 §2.13](../1-data-model.md#213-execution)). 같은 행에 `source_ip VARCHAR(45)`·`response_code VARCHAR(10)`(둘 다 nullable) 를 추가하면 조인 1회로 끝나 가장 단순하다. Integration 이 전용 `IntegrationUsageLog` 를 두는 것과 달리 AuthConfig 는 호출 = 워크플로 실행이라 `Execution` 을 SoT 로 재사용한다(별도 로그의 이중기록·정합 부담 회피).
 - **응답 코드 = "둘 다".** webhook(및 chat-channel inbound)은 호출이 받는 **실제 HTTP 코드**를 저장한다 — execution 생성에 성공한 경로는 항상 `202 Accepted`(인증 401·검증 400·비활성 410 은 execute 전에 throw 되어 Execution row 자체가 안 생긴다). schedule 등 비-HTTP 트리거는 HTTP 코드가 없어 `response_code` 가 NULL 이며, `getUsage` 가 워크플로 `status` enum 으로 폴백 표시한다. 이로써 [WH-MG-05](../5-system/12-webhook.md) "응답 코드 확인 필수" 를 이행한다.
 - **기간별 호출 수 = 롤링 윈도(24h/7d/30d), 막대 차트.** 캘린더 버킷(일/주/월 경계) 대신 현재 시점 기준 롤링 윈도를 택했다 — "최근 활동량" 파악이 사용 내역 화면의 목적이고, 경계 정렬(타임존·주 시작 요일) 모호성을 피한다. `Execution.started_at` 을 단일 쿼리에서 조건부 집계(`COUNT(*) FILTER (WHERE started_at >= now()-window)`)해 round-trip 1회로 3종을 구한다. UI 는 recharts BarChart.
-- **소스 IP 캡처 경로**: `hooks.service` 가 webhook 진입 시 `extractClientIp`(CF-Connecting-IP 신뢰 시 → X-Forwarded-For 첫 IP) 결과를 인증 IP whitelist 검증과 호출 이력 영속에 공용으로 쓴다. 추출 불가 시 NULL.
+- **소스 IP 캡처 경로**: `hooks.service` 가 webhook 진입 시 `extractClientIpFromHeaders`(CF-Connecting-IP 신뢰 시 → X-Forwarded-For 첫 IP, 헤더 기반·`req.ip` 폴백 없음 — [인증 spec §2.3·Rationale 2.3.B](../5-system/1-auth.md)) 결과를 인증 IP whitelist 검증과 호출 이력 영속에 공용으로 쓴다. 추출 불가 시 NULL.
 
 ### R-7. action-POST 인 test 와 preview-models 를 Editor 로 게이트
 

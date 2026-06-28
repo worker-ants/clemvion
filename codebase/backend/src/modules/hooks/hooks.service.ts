@@ -145,7 +145,11 @@ export class HooksService {
     }
 
     // 소스 IP 추출 — 인증 IP whitelist 검증과 호출 이력(§A.3) 영속에 공용. 한 번만 추출.
-    const clientIp = extractClientIp(input.headers);
+    // 공유 코어 extractClientIpFromHeaders 에 위임(CF-Connecting-IP(TRUST_CF_CONNECTING_IP 시) 우선,
+    // X-Forwarded-For 첫 IP — spec/5-system/1-auth.md §2.3). req.ip(trust-proxy) 폴백을 whitelist
+    // 경로에도 적용하려면 req 전달이 필요하므로 별도 후속으로 남긴다
+    // (plan/in-progress/webhook-public-ip-failopen-hardening.md). 현재는 헤더 기반 동작 유지.
+    const clientIp = extractClientIpFromHeaders(input.headers) ?? undefined;
 
     // 3. Authenticate — trigger.authConfigId 가 가리키는 AuthConfig 로 위임
     //    (spec/5-system/12-webhook.md §7 step 6). authConfigId 가 null 이면 인증 없음(none).
@@ -253,8 +257,9 @@ export class HooksService {
     interactionHttpResponse?: unknown;
   }> {
     // §A.3 소스 IP — handleWebhook 의 `const clientIp` 패턴과 통일 (W-9).
-    // extractClientIp 를 재사용 없이 인라인 재호출하면 향후 부수효과 추가 시 회귀 위험.
-    const clientIp = extractClientIp(input.headers);
+    // IP 추출은 헤더 기반(CF-gated → XFF, req.ip 폴백 없음 — spec/5-system/1-auth.md §2.3·Rationale
+    // 2.3.B). req.ip 폴백 확대는 별도 후속(plan/in-progress/webhook-public-ip-failopen-hardening.md).
+    const clientIp = extractClientIpFromHeaders(input.headers) ?? undefined;
 
     let adapter: ChatChannelAdapter;
     try {
@@ -988,19 +993,6 @@ export class HooksService {
     // per_trigger — token 미동봉 (호출자가 trigger 등록 시 받은 itk_* 사용)
     return { endpoints };
   }
-}
-
-/**
- * 클라이언트 IP 추출 — 공유 코어 `extractClientIpFromHeaders`(CF-Connecting-IP(신뢰 시)
- * 우선, X-Forwarded-For 첫 IP) 에 위임. `ip_whitelist` 검증용 (spec/5-system/1-auth.md §2.3).
- *
- * 04 m-3 — `CF-Connecting-IP` 는 `TRUST_CF_CONNECTING_IP` 가 켜진 경우에만 신뢰한다(기본 off).
- * 04 후속 — 게이트/XFF 파싱을 `auth/utils/client-ip` 단일 구현으로 통합(사본 drift 방지).
- * (req.ip(trust-proxy) 폴백을 whitelist 경로에도 적용하려면 handleWebhook 에 req 를 전달해야
- * 하므로 별도 후속으로 남긴다 — 현재는 헤더 기반 동작 유지.)
- */
-function extractClientIp(headers: Record<string, string>): string | undefined {
-  return extractClientIpFromHeaders(headers) ?? undefined;
 }
 
 /** Trigger.config.chatChannel 추출 (HooksService 내부 헬퍼 — dispatcher 와 중복 정의 OK). */

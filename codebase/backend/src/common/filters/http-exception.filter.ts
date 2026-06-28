@@ -26,6 +26,19 @@ function isUniqueViolation(err: unknown): boolean {
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
+  /**
+   * 비-`Error` 값이 throw 된 경우(문자열·객체 등 어떤 분기에도 안 걸린 fallthrough)의 기본 메시지.
+   * `UNHANDLED_ERROR_MESSAGE` 와 **의도적으로 다름** — 이쪽은 `Error` 조차 아닌 값이라 stack 도 없다.
+   */
+  private static readonly UNKNOWN_ERROR_MESSAGE =
+    'An unexpected error occurred';
+  /**
+   * 매핑되지 않은 내부 `Error` 의 마스킹 메시지 — 원문은 `logger.error` 로만 남기고
+   * 클라이언트엔 일반 문구만 반환한다(CWE-209).
+   */
+  private static readonly UNHANDLED_ERROR_MESSAGE =
+    'An unexpected error occurred. Please try again later.';
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -33,7 +46,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 'INTERNAL_ERROR';
-    let message = 'An unexpected error occurred';
+    let message = GlobalExceptionFilter.UNKNOWN_ERROR_MESSAGE;
     let details: unknown = undefined;
 
     if (exception instanceof HttpException) {
@@ -79,7 +92,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           `Unhandled exception: ${exception.message}`,
           exception.stack,
         );
-        message = 'An unexpected error occurred. Please try again later.';
+        message = GlobalExceptionFilter.UNHANDLED_ERROR_MESSAGE;
       }
     }
 

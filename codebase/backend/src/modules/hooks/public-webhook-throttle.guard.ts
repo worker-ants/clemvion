@@ -51,13 +51,7 @@ export class PublicWebhookThrottleGuard implements CanActivate {
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const req = context.switchToHttp().getRequest<{
-      params?: { endpointPath?: string };
-      headers?: Record<string, unknown>;
-      body?: unknown;
-      rawBody?: Buffer;
-      __publicWebhookTrigger?: Trigger | null;
-    }>();
+    const req = context.switchToHttp().getRequest<PublicWebhookReqShape>();
 
     const endpointPath = req.params?.endpointPath;
     if (!endpointPath) return true; // 라우트 형태상 발생하지 않음 — 방어적 통과.
@@ -156,4 +150,16 @@ export class PublicWebhookThrottleGuard implements CanActivate {
 export interface PublicWebhookReqExtension {
   /** Guard 가 조회·첨부한 Trigger (null = 미존재). HooksService DB 재조회 불필요. */
   __publicWebhookTrigger?: Trigger | null;
+}
+
+/**
+ * Guard 가 `getRequest` 로 읽는 공개 webhook 요청의 최소 형태.
+ * 테스트(`public-webhook-throttle.guard.spec.ts`)가 import 해 mock req 를 구성하므로
+ * 인라인 익명 타입을 두 곳에 중복 선언하지 않는다(필드 추가 시 단일 지점 갱신).
+ */
+export interface PublicWebhookReqShape extends PublicWebhookReqExtension {
+  params?: { endpointPath?: string };
+  headers?: Record<string, unknown>;
+  body?: unknown;
+  rawBody?: Buffer;
 }
