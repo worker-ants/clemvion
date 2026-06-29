@@ -14,7 +14,8 @@ import { collectSpecMarkdown, extractLinks } from "./spec-links";
 //
 // `spec/conventions/` is a FLAT reference collection (no entry/index doc by
 // design) and is exempt. Generated `*-api-catalog/` trees are exempt.
-// SoT: spec/conventions/spec-impl-evidence.md.
+// This guard belongs to the §4.2 knowledge-base/plan-integrity family.
+// SoT: spec/conventions/spec-impl-evidence.md §4.2.
 
 const INDEX_RE = /^(_.*overview|_layout|0-.*|README)\.md$/;
 const isIndex = (basename: string) => INDEX_RE.test(basename);
