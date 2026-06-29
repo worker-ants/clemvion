@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-29T15:23:09.891988",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/conventions/user-guide-evidence.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
