@@ -182,6 +182,8 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 전체 가이드 페이지가 아닌 두 카테고리만 우선 가드 — 텔레그램 같은 *외부 provider 통합* + *트리거 노드 provider* 가 GUI 흐름 약속 vs 코드 부재의 *실제 발생 사례* 두 곳. 다른 카테고리 (`01-getting-started`, `02-nodes` 의 일반 노드, `03-workflows`, `04-expression-language`, `05-run-and-debug`, `07-workspace-and-team`) 는 GUI 흐름 절 비중이 낮거나 enumerable 가드 (`nodes-coverage`) 로 이미 보호됨. 필요 시 후속 카테고리 (예: `auth-coverage.test.ts`) 추가 가능.
 
+또한 **개념 설명 절** (워크플로우 디자인·데이터 모델·표현식 의미 설명 등) 은 GUI 흐름 절과 달리 coverage 가드 대상에서 제외한다 — 코드의 특정 entry symbol 에 1:1 대응하는 검증 가능한 약속이 아니라 결정적 anchor 매칭 대상이 없기 때문. 이 영역의 stale 은 자동 검출 불가로 코드 리뷰·사람 검수에 맡긴다 (i18n-userguide.md §Principle 7 와 동일 경계).
+
 ### R-5. `<ImplAnchor>` 가 본문 안 vs frontmatter
 
 frontmatter `anchors:` 배열로 두지 않고 본문 안 컴포넌트로 둠. 이유:
