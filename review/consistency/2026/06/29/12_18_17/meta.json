@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-29T12:18:17.862289",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/4-nodes/7-trigger/providers/slack.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

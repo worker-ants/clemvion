@@ -20,6 +20,7 @@ code:
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
   - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
   - codebase/frontend/src/lib/i18n/dict/en/triggers.ts
+user_guide:
   - codebase/frontend/src/content/docs/06-integrations-and-config/discord.mdx
   - codebase/frontend/src/content/docs/06-integrations-and-config/discord.en.mdx
 ---
