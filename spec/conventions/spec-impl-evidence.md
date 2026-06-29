@@ -75,7 +75,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 | `status` | enum (5 값) | ✓ | §3 라이프사이클 참조 |
 | `code` | string[] (glob 허용) | status 별 다름 — §3 | 본 spec 이 약속한 surface 의 구현 경로. 레포 루트 기준 상대경로 |
 | `pending_plans` | string[] (path) | `status: partial` 시 ✓ | 미구현 surface 를 책임지는 plan 경로. `plan/in-progress/` 또는 `plan/complete/`(in-progress 경로를 complete 로 치환) 에 실존 의무 — §4 가드 참조 |
-| `user_guide` | string[] (path) | 선택 | 본 spec 의 가이드 페이지 cross-link |
+| `user_guide` | string[] (path) | 선택 | 본 spec 의 가이드 페이지 cross-link. 가이드가 KO/EN 양쪽으로 존재하면 로케일 쌍 (`<name>.mdx` + `<name>.en.mdx`) 을 모두 등재 — §5.3 예시. **현재 build-time 가드 미적용** — 선언적 cross-link 전용이라 경로 오기는 빌드에서 검출되지 않음 (`code:`/`pending_plans:` 와 달리 §4 가드 대상 아님) |
 
 ### 2.2 의미 도메인 구분 (혼동 방지)
 
@@ -168,8 +168,9 @@ code:
   - codebase/backend/src/modules/chat-channel/**
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
   - codebase/frontend/src/app/(main)/triggers/page.tsx
-user_guide:
+user_guide:                                # 선택 필드 — KO/EN 로케일 쌍 모두 등재 (§2.1)
   - codebase/frontend/src/content/docs/06-integrations-and-config/telegram.mdx
+  - codebase/frontend/src/content/docs/06-integrations-and-config/telegram.en.mdx
 ---
 ```
 
