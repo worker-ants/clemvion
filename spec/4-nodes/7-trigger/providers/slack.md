@@ -276,7 +276,7 @@ Convention §1.1 의 `ackInteraction` 정책 — provider 에 따라 noop 가능
 
 **Slack 특이 예외**:
 1. `type: "url_verification"` envelope → `200 OK + { challenge }` (§3.1) — `202 Accepted` 정책의 명시적 예외.
-2. Interactivity 응답 3초 시한 → `200 OK` (empty body 또는 `response_action`) — `202` 가 아니라 `200` 사용 (Slack 권장 형식). 본 예외도 Spec Chat Channel §5.5 의 후속 갱신 대상이거나, 본 spec 의 `200 vs 202` Rationale (R-S-8) 에 기록.
+2. Interactivity 응답 3초 시한 → `200 OK` (empty body 또는 `response_action`) — `202` 가 아니라 `200` 사용 (Slack 권장 형식). 두 예외 모두 [Spec Chat Channel §5.5](../../../5-system/15-chat-channel.md#55-inbound-http-contract) case 표 (line 418–419) + [§5.5.1 Provider-specific 응답 예외 정책](../../../5-system/15-chat-channel.md#551-provider-specific-응답-예외-정책) 에 반영 완료 — 근거는 본 spec 의 `200 vs 202` Rationale (R-S-8).
 
 ---
 
@@ -366,7 +366,7 @@ Spec Chat Channel §5.5 는 inbound webhook 응답을 `202 Accepted` 로 SoT 화
 
 §5.5 를 200/202 둘 다 허용으로 generalize 하면 모든 provider 의 응답 정책이 모호해지므로, Slack 만 예외 (Telegram 은 그대로 202) 로 두어 변경 범위를 최소화한다.
 
-근거: provider 특성 차이. Spec Chat Channel §5.5 의 case 표에 "Slack url_verification: 200 + challenge" / "Slack interactivity ack: 200" 행 추가가 후속 갱신 대상.
+근거: provider 특성 차이. Spec Chat Channel §5.5 의 case 표에 "Slack URL Verification: 200 + challenge" / "Slack Interactivity ack: 200" 행이 반영 완료 (line 418–419), 예외 허용 조건은 §5.5.1 가 SoT.
 
 ### R-S-9. DM 첫 메시지 자동 `start` (slash command prefix 의존 회피)
 
