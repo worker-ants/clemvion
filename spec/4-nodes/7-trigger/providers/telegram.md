@@ -8,6 +8,9 @@ code:
   - codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts
 pending_plans:
   - plan/in-progress/spec-sync-telegram-gaps.md
+user_guide:
+  - codebase/frontend/src/content/docs/06-integrations-and-config/telegram.mdx
+  - codebase/frontend/src/content/docs/06-integrations-and-config/telegram.en.mdx
 ---
 
 # Spec: Telegram Chat Channel Adapter
