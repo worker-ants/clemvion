@@ -159,7 +159,9 @@ Slack slash command 는 **workspace 단위 1개 prefix** 만 등록 가능하므
 - DM 안에서 봇과 직접 대화하면 **slash command 없이 자동 start** (Telegram `/start` 와 동등) — `conversation 없음` 분기에서 자동 새 execution 시작 (Spec Chat Channel CCH-CV-03).
 - slash command 는 보조 명령 (`/workflow cancel` 로 활성 execution 취소 등).
 
-`idempotencyKey` 는 envelope 별로 결정:
+### 4.4 idempotencyKey (envelope 공통)
+
+세 inbound envelope (§4.1 Events API / §4.2 Interactivity / §4.3 Slash Commands) 모두에 적용되는 공통 규칙. `idempotencyKey` 는 envelope 별로 결정:
 - Events API: `event_id` (Slack 이 retry 시 같은 event_id 동봉)
 - Interactivity: `payload.trigger_id` (1시간 유효, 1회용 의도지만 Slack retry 시 재사용)
 - Slash Commands: `body.trigger_id` 동상
