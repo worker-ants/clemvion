@@ -83,6 +83,7 @@ code:
   - `spec-code-paths` = spec → 구현 코드 경로 (spec 책임 추적)
   - 본 가드 = 가이드 → 구현 코드 symbol (가이드 진실성 추적)
   - 두 가드는 "spec → code" 와 "guide → code" 의 두 진실을 독립으로 검증
+- **spec frontmatter `user_guide:`** (spec → guide cross-link) 은 위 가드들과 방향이 반대(spec 이 가이드 페이지를 가리킴)이며, 본 가드와 달리 **build-time 가드가 없는 선언적 링크**다. 그 로케일 쌍(`<name>.mdx` + `<name>.en.mdx`) 등재 기준과 가드 미적용 근거는 [`spec-impl-evidence.md §2.1`](./spec-impl-evidence.md) + 동 문서 `Rationale R-10` 가 SoT.
 
 ## 3. 사용 패턴
 
@@ -157,7 +158,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 - **GUI 흐름 절** 안의 약속은 본 가드가 검출 (anchor 가 코드에 없으면 차단) → §Principle 7 의 부분 보완
 - **개념 설명 절** (워크플로우 디자인, 데이터 모델 설명 등) 은 여전히 자동 검출 불가 — §Principle 7 의 미커버 영역으로 남음
 
-후속으로 `i18n-userguide.md §Principle 7` 본문에 본 가드의 부분 커버 범위를 명시한다.
+본 가드의 부분 커버 범위는 [`i18n-userguide.md §Principle 7`](./i18n-userguide.md) "자동 검출 — 부분 커버" 절에 이미 반영돼 있다 (GUI 흐름 절 → `<ImplAnchor>` 3개 가드, 본 문서를 SoT 로 링크).
 
 ## Rationale
 
