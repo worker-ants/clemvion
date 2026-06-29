@@ -117,6 +117,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 
 - `registry.test.ts` (user-guide MDX 의 `spec:`/`code:` 경로 실존) 와 본 가드는 **대상 문서 종류** 로 분리 — 본 가드는 `spec/**.md` 만, `registry.test.ts` 는 `codebase/frontend/src/content/docs/**.mdx` 만.
 - `nodes-coverage.test.ts` (backend 노드 → 가이드 본문 등장) 와는 **방향이 직교** — `nodes-coverage` 는 노드 enumeration → 가이드, 본 가드는 spec 약속 → 구현 코드.
+- `impl-anchor-existence.test.ts` / `integrations-coverage.test.ts` / `triggers-coverage.test.ts` ([user-guide-evidence.md](./user-guide-evidence.md) 의 reverse-evidence 가드 3건) 와도 **검증 도메인이 직교** — 그 가드들은 *가이드 약속 → 구현 코드 symbol* (guide → code), 본 가드는 *spec 약속 → 구현 코드 경로* (spec → code). 두 family 는 독립이며 한쪽이 다른 쪽을 대체하지 않는다.
 
 ### 4.2 지식저장소·plan 무결성 가드 (별도 family, 본 절이 규약 SoT)
 
