@@ -1,7 +1,7 @@
 # Refactor 백로그 — 유지보수성·가독성 (2026-06-10 전수 감사)
 
-> 인덱스: [README.md](./README.md). Critical 4 / Major 7 / Minor 4 — **spec 대조(2026-06-10) 후 유효 14건 / 철회 1건(M-3)**. M-2 는 진단 방향 정정됨.
-> **spec 대조 판정 분포**: A 4 (C-3, M-4, M-6, m-2) / B 2 / C(행위만 규정) 6 / D(drift) 2 / E 1. — M-6·m-2 는 ✅ 2026-06-10 사용자 승인(즉시 제거 진행 확정), C-3·M-4 는 deferral 결정 대기.
+> 인덱스: [README.md](./README.md). Critical 4 / Major 7 / Minor 4 — **spec 대조(2026-06-10) 후 유효 12건 / 철회 3건(M-3 진단오류 · C-3·M-4 2026-07-01 사용자 철회)**. M-2 는 진단 방향 정정됨.
+> **spec 대조 판정 분포**: A 4 (C-3, M-4, M-6, m-2) / B 2 / C(행위만 규정) 6 / D(drift) 2 / E 1. — M-6·m-2 는 ✅ 2026-06-10 사용자 승인(즉시 제거 진행 확정), C-3·M-4 는 ✅ 2026-07-01 사용자 철회(조기 일반화 회피 — 아래 각 항목).
 > **중복 참조**: C-1 분할 설계는 [02-architecture.md](./02-architecture.md) C-1 소유. M-5 는 02 M-3 참조.
 > 옵션 비교·권장안 보강 (2026-06-10)
 
@@ -75,31 +75,13 @@
 - **회귀 위험**: turn push ordering·`_resumeState` 운반이 깨지면 park-rehydration 호환 파괴(checkpoint version 가드 발동).
 - **spec 갱신**: 불요.
 
-### C-3 [Critical] Cafe24/MakeShop API 클라이언트 ~1,600줄 구조 중복 ⚠️ (A — 문서화된 DRY-deferral, 단 결정의 사각)
+### ~~C-3 [Critical] Cafe24/MakeShop API 클라이언트 ~1,600줄 구조 중복~~ — 철회 (A)
 
-- [ ] 결정 대기 (사용자) — deferral 결정 (권장: B 보류 + plan 갱신) — `cafe24-api.client.ts`(1,547줄), `makeshop-api.client.ts`(1,060줄)
+- [x] **철회 (2026-07-01 사용자 결정)** — `cafe24-api.client.ts`(1,547줄), `makeshop-api.client.ts`(1,060줄)
 
-**spec 대조**: **A** — ① 미러는 명시 설계(`makeshop-api.client.ts:216` "mirror of cafe24's...", plan `makeshop-integration.md` "cafe24 미러"). ② DRY 보류 결정 문서화 — 같은 plan §후속 "**세 번째 Internal Bridge 추가 시** 트리거" (단 명시 목록은 frontend 3건뿐 — **1,600줄 API 클라이언트는 결정의 사각**). ③ **정정**: 원안이 "버그 누락" 예로 든 `insufficient_scope` 비대칭은 버그가 아니라 **spec 명시 의도**(`5-makeshop.md §6.1` "cafe24 한정(INT-AU-07)" — makeshop 은 per-scope 승인 티어 부재). ④ 큐 분리(`5-makeshop.md §4` "토큰 endpoint·rotation 정책이 달라 큐 공유 안 함")·배경 cron 부재(TTL 30~90일)도 의도. **사용자 보고 대상.**
+**철회 사유**: 사용자가 deferral 앞당김(A)·보류(B)·부분 공통화(C) 대신 **철회**를 선택. 근거 — 3번째 provider 가 인증·토큰·rate-limit·envelope 규약에서 어떻게 발산할지 예측할 수 없어 provider 2개 샘플 기준의 `BaseIntegrationApiClient` 추상화는 조기 일반화이고, 얻는 것은 중복 제거뿐인데 치를 위험(멀티 인스턴스 refresh race 회귀 + spec 명시 비대칭을 계속 옳게 유지할 의무가 추상화 계층 위로 이전)이 그보다 크다. spec 대조(**A**) 결과 원안이 "버그 누락"으로 본 비대칭들이 전부 **의도**임이 확인됨 — `insufficient_scope` 비대칭(`5-makeshop.md §6.1` "cafe24 한정 INT-AU-07", makeshop per-scope 승인 티어 부재), 큐 비공유(`§4` "토큰 endpoint·rotation 정책이 달라 큐 공유 안 함"), 미러는 명시 설계(`makeshop-api.client.ts:216` "mirror of cafe24's…"). 따라서 ~1,600줄 중복은 **spec 이 의도한 미러**로 수용하며, 3번째 provider 트리거로도 예약하지 않는다 — 기존 "결정의 사각"(1,600줄 클라이언트가 deferral 명시 목록 밖)은 "추상화 미예약"으로 명시 종결한다.
 
-**개선 방안**:
-
-1. **결정 정리 먼저**: 본 refactor 가 deferral 트리거(3번째 provider)를 앞당기는 것임을 plan 에 명기 — 또는 3번째 provider 까지 보류 결정 (어느 쪽이든 기록).
-2. 추진 시 `BaseIntegrationApiClient<TCredentials, TPolicy>` template-method: 공통 = `withIntegrationLock`/`ensureFreshToken`/`refreshViaQueue`/`performAuthRefresh`/`markAuthFailed`/`recordNetworkFailure`/`pingConnection` 골격. **provider policy 주입(통합 금지 대상)**: (a) refresh 큐 이름·source enum, (b) 403→insufficient_scope 전이(cafe24 only), (c) `{request:{...}}` envelope(cafe24 only), (d) rate-limit 헤더 메트릭(cafe24 only), (e) base URL+SSRF 가드 방식(서브도메인 vs 단일 호스트).
-3. 에러 코드 prefix(`CAFE24_*`/`MAKESHOP_*`) 는 rename 금지 (`error-codes.md §2` breaking change).
-
-**옵션 비교**:
-
-| 옵션 | 장점 | 단점 / 트레이드오프 |
-| --- | --- | --- |
-| A. deferral 트리거를 앞당겨 `BaseIntegrationApiClient<TCredentials, TPolicy>` 전면 도입 | ~1,600줄 구조 중복 즉시 해소. refresh/lock 골격(`withIntegrationLock`/`ensureFreshToken`/`refreshViaQueue`/`performAuthRefresh`/`markAuthFailed`) 버그 수정이 1회로 전 provider 전파. 3번째 provider 추가 시 base 상속만으로 골격 완성 | ① policy 주입 5종((a) 큐 이름·source enum, (b) 403→insufficient_scope cafe24 only, (c) `{request:{...}}` envelope cafe24 only, (d) rate-limit 헤더 메트릭 cafe24 only, (e) base URL+SSRF 가드 방식) 설계·구현 비용 선불. ② refresh race 보호(BullMQ jobId dedup vs PG row-lock 폴백)의 provider 별 미세 차이가 base 골격으로 뭉개지면 멀티 인스턴스 환경 회귀 — 본 항목 최대 위험. ③ spec 명시 비대칭(`5-makeshop.md §6.1` insufficient_scope cafe24 한정, §4 큐 비공유)을 base 가 **계속 비대칭으로 유지할 의무**가 추상화 계층 위로 이전 — hook 누락 한 번이 의도와 다른 동질화가 됨. ④ 문서화된 deferral 결정("3번째 Internal Bridge 시 트리거", plan `makeshop-integration.md` §후속) 번복을 plan 에 기록해야 함. ⑤ provider 2개 샘플 기준 추상화 — 3번째 provider 가 경계를 깨면 재설계 |
-| B. 3번째 provider 까지 보류 (deferral 준수) + 결정의 사각만 기록 | 기존 문서화된 결정과 일관 — 번복 불요. 회귀 위험 0. 3번째 provider 의 실제 요구가 추상화 경계를 검증해 준 뒤 일반화 가능(잘못된 조기 일반화 회피). "1,600줄 클라이언트가 deferral 명시 목록(frontend 3건) 밖" 인 사각은 plan 한 줄 추가로 해소 | 그때까지 refresh/lock 계열 버그를 양쪽에 2회 수정하는 의무 지속. 구조 중복 1,600줄 잔존 — 정량 지표 미개선. mirror drift(한쪽만 고친 수정) 리스크가 리뷰 규율에만 의존 |
-| C. 부분 공통화 — 버그-위험 메서드(refresh/lock 계열)만 공유 유틸 추출, 에러 매핑·envelope·rate-limit 메트릭 등 provider 색채 영역은 그대로 | 회귀 파급이 가장 큰 지점(멀티 인스턴스 refresh race)의 이중 수정 의무만 해소. policy 주입은 (a) 큐 이름·source enum 정도만 필요 — (b)(c)(d) 의 spec 명시 비대칭은 손대지 않아 동질화 위험 차단. 전면 base 대비 비용·diff 소폭 | 가장 민감한 race 보호 코드를 직접 만지는 작업이라 "부분" 임에도 검증 부담은 A 와 유사(멀티 인스턴스 동시 refresh 시나리오 필요). 구조 중복 대부분 잔존. 공유 유틸 vs 클라이언트 본문 경계 문서화 필요, 3번째 provider 시 전면 재설계 가능성 잔존 |
-
-**권장**: B — DRY 보류는 이미 plan 에 문서화된 결정이고, 본 항목에서 "버그 누락" 으로 보였던 비대칭들이 spec 대조 결과 전부 의도(§6.1·§4)로 판정된 이상, 지금 추상화로 얻는 것은 중복 제거뿐인데 치를 위험(refresh race 회귀 + 비대칭 유지 의무 이전)이 그보다 크다. 단 deferral 명시 목록에 양 API 클라이언트를 추가해 "결정의 사각" 을 닫는 plan 갱신은 즉시 수행한다. 이중 수정 부담이 실제로 누적되면(동일 버그 2회 수정 사례 발생) C 로 승급 검토. **최종 선택은 사용자 결정 사항.**
-
-- **검증**: 양 클라이언트 spec 전량 + catalog-sync + 통합 e2e, §6 에러코드 표 출력 diff 0.
-- **회귀 위험**: refresh race 보호(BullMQ jobId dedup vs PG row-lock 폴백)의 미세 차이가 base 클래스로 뭉개지면 멀티 인스턴스 회귀.
-- **spec 갱신**: 행위 불변이면 frontmatter `code:` 에 base 클래스 추가만 + plan 갱신 필수(1번).
+**재기 조건**: 동일 refresh/lock 계열 버그를 양 클라이언트에 2회 수정하는 사례가 실제 누적되면, 그때 부분 공통화(refresh race 보호 유틸만 추출, spec 명시 비대칭 영역은 불변)를 **새 티켓**으로 재기. 그전까지 mirror drift(한쪽만 고친 수정) 방지는 리뷰 규율로 유지.
 
 ### C-4 [Critical] WebSocket Gateway — 5개 핸들러 인증+소유권 보일러플레이트 복붙
 
@@ -188,30 +170,13 @@
 
 (선택 잔여) IE 루프에 "spec §4 step 6 고유 — withRetry 로 흡수 금지" 주석 1줄.
 
-### M-4 [Major] `integration-configs.tsx` — Cafe24Config/MakeshopConfig 구조 중복 ⚠️ (A — 의도된 미러 + deferral family)
+### ~~M-4 [Major] `integration-configs.tsx` — Cafe24Config/MakeshopConfig 구조 중복~~ — 철회 (A)
 
-- [ ] 결정 대기 (사용자) — deferral 결정 (권장: B 보류, C-3 결정과 연동 재평가) — `integration-configs.tsx:404,716`
+- [x] **철회 (2026-07-01 사용자 결정)** — `integration-configs.tsx:404,716`
 
-**spec 대조**: **A** — `5-makeshop.md §2` 자체가 "[Cafe24 §2] 와 동일한 패턴. 차이점만 명시" 프레임이고, 비대칭(⚠ 별도 승인 라벨은 cafe24 only)은 spec 명시(§9.5). C-3 과 같은 deferral family — 3번째 provider 시 3중 복제 예약 상태라 제네릭 추출 타당. **사용자 보고 대상.**
+**철회 사유**: C-3 과 같은 deferral family 로서 함께 철회. `5-makeshop.md §2` 자체가 "[Cafe24 §2]와 동일한 패턴, 차이점만 명시" 프레임이고 비대칭(⚠ 별도 승인 라벨 = cafe24 only, `§9.5`)은 spec 명시다. UI 컴포넌트라 C-3 의 refresh race 같은 동시성 축은 없으나, 3번째 provider 발산을 예측할 수 없는 것은 동일 — provider 2개 샘플 기준 `IntegrationOperationConfig<TExtras>` 제네릭은 조기 일반화라 얻는 이득(3중 복제 차단)보다 descriptor 가 비대칭(⚠ 라벨·pagination)을 계속 옳게 유지할 의무·3번째에서의 경계 재조정 비용이 크다. 구조 중복(:404,716)은 spec 이 규정한 "동일 패턴 + 차이점만 명시" 미러로 수용.
 
-**개선 방안**:
-
-1. C-3 의 1번과 동일하게 deferral 관계 먼저 기록.
-2. `IntegrationOperationConfig<TExtras>` 제네릭(Integration→Resource→Operation→Fields→Pagination 공통 레이아웃) + provider descriptor 주입 `{ findOperation, findPlanned, pruneFields, FieldRow, operationBadge? }` — cafe24 의 ⚠ 라벨은 badge 주입으로만(makeshop 미주입 — §9.5).
-3. pagination 노출 조건(`paginated: true` 일 때만) 등 spec 델타를 descriptor 플래그로.
-
-**옵션 비교**:
-
-| 옵션 | 장점 | 단점 / 트레이드오프 |
-| --- | --- | --- |
-| A. `IntegrationOperationConfig<TExtras>` 제네릭 추출 + provider descriptor 주입 | 3번째 provider 시 예약된 3중 복제 차단. spec 델타(⚠ 별도 승인 라벨 = cafe24 only §9.5, pagination 노출 조건)가 descriptor 플래그로 명시화되어 비대칭의 근거가 코드에 드러남. UI 컴포넌트라 C-3 의 refresh race 같은 동시성 회귀 축은 없음 | C-3 과 같은 deferral family 의 결정 번복 — plan 기록 필요. 비대칭(⚠ 라벨·pagination)을 descriptor 가 계속 옳게 비대칭으로 유지할 의무 발생 — badge 주입 누락/오주입 시 §9.5 위반. provider 2개 샘플 기준 제네릭이라 3번째에서 경계 재조정 가능성 |
-| B. 3번째 provider 까지 보류 (deferral 준수) | `5-makeshop.md §2` 의 "동일 패턴 + 차이점만 명시" 프레임과 일치하고, frontend 미러는 deferral 명시 목록(frontend 3건)에 **이미 포함** — 기존 결정과 가장 일관. 회귀 0 | 구조 중복(:404,716) 잔존 — 공통 레이아웃 수정 시 이중 작업, 3번째 provider 시 복제 1회 추가 후 그때 3벌을 일반화 |
-
-**권장**: B — C-3 과 달리 이쪽은 deferral 명시 목록 안에 있는 정식 보류 대상이라 "결정의 사각" 조차 없고, 트리거(3번째 Internal Bridge) 도래 전에 앞당길 독립 사유가 약하다. 단 C-3 을 사용자가 A(추진)로 결정하면 같은 deferral family 로서 본 항목도 함께 재평가한다. **최종 선택은 사용자 결정 사항.**
-
-- **검증**: frontend 테스트 + 에디터 e2e(양 노드 설정 폼) + ⚠ 라벨 스냅샷.
-- **회귀 위험**: 호환 키 보존 규칙·planned/supported 표기 정책 누락.
-- **spec 갱신**: 불요.
+**재기 조건**: 3번째 provider 가 실제로 추가되어 3중 복제가 발생하고 공통 레이아웃 수정이 반복 비용으로 나타나면, 그 시점의 실제 요구로 제네릭 경계를 검증한 뒤 **새 티켓**으로 재기.
 
 ### M-5 [Major] `streamMessage` 882줄 제너레이터
 
