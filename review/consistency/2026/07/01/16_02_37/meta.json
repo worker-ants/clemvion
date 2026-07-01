@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-01T16:02:37.675242",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/4-nodes/3-ai/1-ai-agent.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
