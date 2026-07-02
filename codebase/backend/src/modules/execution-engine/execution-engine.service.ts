@@ -677,7 +677,7 @@ export class ExecutionEngineService
     // Phase 2 (workflow-resumable-execution): 옛 ContinuationBusService.on(...)
     // 기반 in-memory listener 등록은 완전 폐기됨 (full B3). continuation 처리는
     // BullMQ Worker (continuation-execution.processor.ts) 가 담당하며 본 서비스의
-    // applyContinuation / applyCancellation / isNodeExecutionWaiting public
+    // applyContinuation / applyCancellation / claimResumeEntry public
     // 메서드를 호출한다.
   }
 
@@ -841,31 +841,65 @@ export class ExecutionEngineService
   /**
    * §7.5 재개 진입 원자 claim (06 C-2, 2026-07-02) — 비원자 SELECT 재검증 가드를
    * 대체한다. 대상 NodeExecution 을 `waiting_for_input` 조건으로 `running` 으로
-   * 전이시키는 **단일 조건부 UPDATE** 로, `affected>=1` 인 worker 만 재개를 진행하고
-   * `affected=0`(다른 worker 가 이미 claim 했거나 terminal)이면 false → ack-and-discard.
+   * 전이시키는 **조건부 UPDATE** 로 재개 진입을 획득한다. NodeExecution UPDATE 의
+   * `affected>=1` 인 worker 만 재개를 진행하고, `affected=0`(다른 worker 가 이미
+   * claim 했거나 terminal)이면 false → ack-and-discard.
+   *
+   * **짝 상태 단일 트랜잭션 (§1.1)**: claim 은 NodeExecution 과 **Execution** 의
+   * `waiting_for_input → running` 전이를 **동일 트랜잭션**으로 묶는다. 이렇게 하지
+   * 않으면 NodeExecution claim 후 Execution 전이 전 크래시 시 `NodeExecution=RUNNING`·
+   * `Execution=WAITING_FOR_INPUT` 불일치가 남고, 그 NodeExecution=RUNNING 은
+   * `recoverStuckExecutions`(Execution 대상)가 회수하지 못해 재claim 도 affected=0 으로
+   * 막혀 영구 stuck 된다. 페어링으로 크래시 시 둘 다 RUNNING → `recoverStuckExecutions`
+   * 가 Execution(+자식 NodeExecution) 을 30분 stale 회수한다.
    *
    * check-then-act 창이 없어 멀티 인스턴스(인스턴스당 concurrency=1 이어도 인스턴스
    * 간 병렬)·§7.4 concurrency 상향 양쪽에서 "동일 turn 이중 실행 0" 불변식을
    * 기계적으로 보장한다 (§1.3 `_retryState` "affected=1 인 쪽만 진행" 패턴의 일반화).
    * claim 획득 후 rehydration 프로세스가 실패하면 `markNodeExecutionFailed`
-   * (WAITING/RUNNING 둘 다 대상) 가 `RESUME_*` terminal 로 마감해 stuck RUNNING 을
-   * 남기지 않는다.
+   * (WAITING/RUNNING 둘 다 대상) 가 `RESUME_*` terminal 로 마감한다.
    */
-  async claimResumeEntry(nodeExecutionId: string): Promise<boolean> {
+  async claimResumeEntry(
+    executionId: string,
+    nodeExecutionId: string,
+  ): Promise<boolean> {
+    // legacy/skipped nodeExecutionId — status 가드 우회 (claim 없이 진행). 빈 문자열은
+    // publisher 가 nodeExecutionId 를 채우지 못한 legacy 경로의 방어값(§7.5.1 사전
+    // 검증을 이미 통과한 이후 도달)으로, sentinel 과 동일 취급한다.
     if (!nodeExecutionId || nodeExecutionId === '__no_node_exec__') {
-      // legacy/skipped nodeExecutionId — status 가드 우회 (claim 없이 진행).
       return true;
     }
-    const result = await this.nodeExecutionRepository
-      .createQueryBuilder()
-      .update(NodeExecution)
-      .set({ status: NodeExecutionStatus.RUNNING })
-      .where('id = :id', { id: nodeExecutionId })
-      .andWhere('status = :waiting', {
-        waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
-      })
-      .execute();
-    return (result.affected ?? 0) > 0;
+    const claimed = await this.dataSource.transaction(async (manager) => {
+      // (1) 레이스 결정자 — NodeExecution 조건부 claim.
+      const nodeRes = await manager
+        .createQueryBuilder()
+        .update(NodeExecution)
+        .set({ status: NodeExecutionStatus.RUNNING })
+        .where('id = :id', { id: nodeExecutionId })
+        .andWhere('status = :waiting', {
+          waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+        })
+        .execute();
+      if ((nodeRes.affected ?? 0) === 0) return false;
+      // (2) 짝 전이 — 같은 tx 로 Execution 도 WFI→RUNNING (§1.1). 이미 RUNNING 등
+      //     이면 affected=0 이어도 무방(멱등) — node claim 이 유일한 레이스 결정자.
+      await manager
+        .createQueryBuilder()
+        .update(Execution)
+        .set({ status: ExecutionStatus.RUNNING })
+        .where('id = :id', { id: executionId })
+        .andWhere('status = :waiting', {
+          waiting: ExecutionStatus.WAITING_FOR_INPUT,
+        })
+        .execute();
+      return true;
+    });
+    if (claimed) {
+      // active-running 세그먼트 시작 기록 (PR2a/§8) — claim 이 Execution→RUNNING 을
+      // updateExecutionStatus 우회로 수행하므로 그 세그먼트 tracking 을 여기서 보정.
+      this.segmentStartMs.set(executionId, Date.now());
+    }
+    return claimed;
   }
 
   /**
@@ -908,13 +942,18 @@ export class ExecutionEngineService
       const execution = await this.executionRepository.findOneBy({
         id: executionId,
       });
+      // §7.5 재개 진입 원자 claim(06 C-2)이 진입 시 Execution 을 WFI→RUNNING 으로
+      // 짝 전이시키므로(processor 경로), 여기서는 **재개 가능 상태**(WAITING_FOR_INPUT
+      // = 미claim 직접 진입 / RUNNING = claim 획득)를 허용한다. terminal·부재만
+      // checkpoint invariant 위반.
       if (
         !execution ||
-        execution.status !== ExecutionStatus.WAITING_FOR_INPUT
+        (execution.status !== ExecutionStatus.WAITING_FOR_INPUT &&
+          execution.status !== ExecutionStatus.RUNNING)
       ) {
         throw new RehydrationError(
           'RESUME_CHECKPOINT_MISSING',
-          `Execution ${executionId} not WAITING_FOR_INPUT (status=${execution?.status ?? 'absent'})`,
+          `Execution ${executionId} not resumable (status=${execution?.status ?? 'absent'})`,
         );
       }
 
@@ -1826,8 +1865,17 @@ export class ExecutionEngineService
     try {
       // 사전 상태 전이: Execution 은 DB 에서 WAITING_FOR_INPUT 으로 로드됨.
       // waitForX 가 (RUNNING → WAITING_FOR_INPUT) 전이를 시도하므로 먼저 RUNNING
-      // 으로 옮긴다 (spec §1.1 의 resume sentinel transition).
-      await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
+      // 으로 옮긴다 (spec §1.1 의 resume sentinel transition). 단 §7.5 재개 진입
+      // 원자 claim(06 C-2)이 이미 Execution 을 WFI→RUNNING 페어링 전이시켰으면
+      // (savedExecution 은 claim 후 로드되므로 RUNNING) 중복 전이를 건너뛴다
+      // (RUNNING→RUNNING assertTransition throw 회피). legacy/직접 호출 경로는 여전히
+      // WAITING 이라 정상 전이.
+      if (savedExecution.status !== ExecutionStatus.RUNNING) {
+        await this.updateExecutionStatus(
+          savedExecution,
+          ExecutionStatus.RUNNING,
+        );
+      }
 
       // 직접 처리기 invoke — executeNode 우회 + in-memory 머신 없이 도착 payload 를
       // 직접 전달(exec-park D6 full B3). 노드-타입별 분기는 `resumeTurnRegistry`
@@ -1996,8 +2044,14 @@ export class ExecutionEngineService
       }
 
       // 사전 상태 전이: WAITING_FOR_INPUT → RUNNING (waitForX/processAiResumeTurn 의
-      // RUNNING→WAITING 전이 전제. driveResumeAwaited 와 동일).
-      await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
+      // RUNNING→WAITING 전이 전제. driveResumeAwaited 와 동일). §7.5 원자 claim(06 C-2)
+      // 이 이미 Execution 을 페어링 전이했으면 (RUNNING) 중복 전이 skip.
+      if (savedExecution.status !== ExecutionStatus.RUNNING) {
+        await this.updateExecutionStatus(
+          savedExecution,
+          ExecutionStatus.RUNNING,
+        );
+      }
 
       // ── 최내 frame: waiting 노드 turn 처리 + 그 sub-workflow forward ──
       const innermost = frames[frames.length - 1];
@@ -2531,6 +2585,7 @@ export class ExecutionEngineService
           status: ExecutionStatus.RUNNING,
         })
         .andWhere('started_at < :threshold', { threshold: staleThreshold })
+        .returning('id')
         .execute();
 
       const affected = updateResult.affected ?? 0;
@@ -2538,6 +2593,35 @@ export class ExecutionEngineService
         this.logger.warn(
           `Recovered ${affected} stale execution(s) (>30min) stuck in RUNNING (worker heartbeat timeout)`,
         );
+        // 06 C-2 — 회수된 Execution 의 자식 RUNNING NodeExecution 도 함께 마감한다.
+        // §7.5 재개 진입 원자 claim 은 Execution·NodeExecution 을 짝으로 RUNNING 전이
+        // 시키므로, 크래시로 Execution 이 stuck RUNNING 이면 그 waiting 노드도 RUNNING
+        // 으로 남는다 — Execution 을 FAILED 로 회수할 때 orphan RUNNING NodeExecution 도
+        // FAILED 처리해 stuck row 잔존을 방지한다 (Execution 이 이미 terminal 이라
+        // 재개는 없지만 데이터 정합·모니터링 목적).
+        const recoveredIds = (
+          (updateResult.raw as Array<{ id?: string }> | undefined) ?? []
+        )
+          .map((r) => r.id)
+          .filter((id): id is string => typeof id === 'string');
+        if (recoveredIds.length > 0) {
+          await this.nodeExecutionRepository
+            .createQueryBuilder()
+            .update(NodeExecution)
+            .set({
+              status: NodeExecutionStatus.FAILED,
+              error: {
+                code: 'WORKER_HEARTBEAT_TIMEOUT',
+                message: 'Node failed: parent execution heartbeat timeout',
+              },
+              finishedAt,
+            })
+            .where('execution_id IN (:...ids)', { ids: recoveredIds })
+            .andWhere('status = :running', {
+              running: NodeExecutionStatus.RUNNING,
+            })
+            .execute();
+        }
       }
     } finally {
       // 작업 완료 후 lock 을 명시 해제 — TTL 60초 만료 대기 없이 다음

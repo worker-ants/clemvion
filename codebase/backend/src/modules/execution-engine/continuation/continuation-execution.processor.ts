@@ -84,7 +84,10 @@ export class ContinuationExecutionProcessor extends WorkerHost {
     // row 이며 (spec §4.2 "새 row 재개"), 자체 멱등 가드 (RUNNING 검증) 를
     // `applyRetryLastTurn` 내부에서 수행한다.
     if (type !== 'cancel' && type !== 'retry_last_turn') {
-      const claimed = await this.engine.claimResumeEntry(nodeExecutionId);
+      const claimed = await this.engine.claimResumeEntry(
+        executionId,
+        nodeExecutionId,
+      );
       if (!claimed) {
         this.logger.debug(
           `[${type}] ack-and-discard — nodeExec=${nodeExecutionId} claim 실패(이미 claim/terminal). (정상 race)`,

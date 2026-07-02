@@ -332,6 +332,14 @@ export class AiTurnOrchestrator {
     context: ExecutionContext,
     nodeExec: NodeExecution | null,
   ): Promise<void> {
+    // §7.5 재개 진입 원자 claim(06 C-2) 이후 nodeExec 는 RUNNING 으로 로드된다
+    // (claim 이 WFI→RUNNING 페어링 전이). re-park 는 이를 다시 WAITING_FOR_INPUT
+    // 으로 되돌려야 한다 — 명시 설정 없이 linkedNodeExec save 만 하면 RUNNING 이
+    // 그대로 영속돼 다음 cold rehydration 이 실패한다. (claim 도입 전에는 nodeExec
+    // 가 이미 WAITING 이라 이 설정이 불필요했다.)
+    if (nodeExec) {
+      nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
+    }
     this.driver.stageDurableResumeSnapshot(savedExecution, context);
     await this.driver.updateExecutionStatus(
       savedExecution,
