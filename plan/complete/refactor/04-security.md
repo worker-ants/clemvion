@@ -1,6 +1,6 @@
 # Refactor 백로그 — 보안 (2026-06-10 전수 감사)
 
-> 인덱스: [README.md](./README.md). Critical 3 / Major 7 / Minor 4 — **spec 대조(2026-06-10) 후 전 항목 유효** (철회 0).
+> 인덱스: [README.md](../../in-progress/refactor/README.md). Critical 3 / Major 7 / Minor 4 — **spec 대조(2026-06-10) 후 전 항목 유효** (철회 0).
 > **✅ 전 14항목 종결 (2026-06-16)**: 코드 14건 모두 머지 + 동반 spec 갱신(M-1·M-3·M-5·M-6·m-2 PR #570, C-1·M-4·M-7 `prod-fail-closed-guards`, m-1 optional 2026-06-16) 완료. M-6 DI 순환은 실 부팅 e2e 로 검증. 잔여 ⏳/⚠️ 없음.
 > **spec 대조 판정 분포**: A 6 (C-2, M-2, M-3, m-2, m-3, m-4) / B 2 / C 2 (M-6, M-7 — spec 자체 갭/enforcement 비대칭) / D 4.
 > **⚠️ A(의도된 트레이드오프)였던 항목 — 모두 결정·처리 완료**: C-2(✅ isolated-vm 전환), M-2(✅ C-2 흡수), M-3(✅ safe-regex), m-4(✅ pub/sub 전파). 더 이상 결정 대기 항목 없음.
@@ -13,7 +13,7 @@
 
 - [x] ✅ 완료 (2026-06-11, worktree `prod-fail-closed-guards`) — `main.ts` 의 `assertProductionConfig` 가 production 에서 `JWT_SECRET` 미설정/sentinel(`dev-jwt-secret`)/예시값을 throw. **옵션 A 대비 정제**: `jwt.config.ts` 의 `|| 'dev-jwt-secret'` 라인은 **제거하지 않고 유지**한다 — 가드가 production 에서 그 sentinel 을 거부하므로 보안 목표(기본 secret 토큰 위조 차단)는 동등하고, dev/test 부팅 편의(JWT_SECRET 미주입 환경) 회귀를 피한다. C-1/M-4/M-7 단일 `assertProductionConfig` 블록으로 응집. 기존 `security-jwt-secret-fallback.md` 의 JWT_SECRET 부팅 정책을 본 PR 이 대체. — `backend/src/common/config/jwt.config.ts`, `production-guards.ts`
 
-**추적**: 기존 plan [`../../complete/security-jwt-secret-fallback.md`](../../complete/security-jwt-secret-fallback.md) (미착수, P0). 본 백로그는 우선순위 상향만 표시.
+**추적**: 기존 plan [`../../complete/security-jwt-secret-fallback.md`](../security-jwt-secret-fallback.md) (미착수, P0). 본 백로그는 우선순위 상향만 표시.
 
 **spec 대조**: D — auth spec 은 secret 부팅 정책 무언급이나, **동형 secret 의 fail-closed 가 spec 에 명문화돼 있음**: `14-external-interaction-api.md:651` "`INTERACTION_JWT_SECRET` … production 에서는 생성자가 throw 해 부팅 차단 (fail-closed — OAUTH_STUB/LLM_STUB 가드와 동형)". 코어 `JWT_SECRET` 에만 그 표준 패턴이 누락된 갭 — 의도된 트레이드오프 아님.
 
