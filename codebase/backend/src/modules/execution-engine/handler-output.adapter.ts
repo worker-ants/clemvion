@@ -1,5 +1,6 @@
 import { NodeHandlerOutput } from '../../nodes/core/node-handler.interface.js';
 import { maskSensitiveFields } from '../../common/utils/mask-sensitive-fields.util';
+import { isRecord } from './utils/to-record.js';
 
 /**
  * Normalize a handler return into {@link NodeHandlerOutput}.
@@ -92,12 +93,8 @@ export function wrapBareAsNodeHandlerOutput(raw: unknown): NodeHandlerOutput {
   if (typeof obj.status === 'string') adapted.status = obj.status;
   if (typeof obj.port === 'string' || Array.isArray(obj.port))
     adapted.port = obj.port as string | string[];
-  if (
-    obj._resumeState !== null &&
-    typeof obj._resumeState === 'object' &&
-    !Array.isArray(obj._resumeState)
-  ) {
-    adapted._resumeState = obj._resumeState as Record<string, unknown>;
+  if (isRecord(obj._resumeState)) {
+    adapted._resumeState = obj._resumeState;
   }
   return adapted;
 }

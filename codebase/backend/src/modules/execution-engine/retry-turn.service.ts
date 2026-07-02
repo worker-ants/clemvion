@@ -12,6 +12,7 @@ import {
 import { Node } from '../nodes/entities/node.entity';
 import { ExecutionContext } from '../../nodes/core/node-handler.interface';
 import { ExecutionContextService } from './context/execution-context.service';
+import type { RetryState } from './utils/resume-state.schema';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import {
@@ -145,9 +146,7 @@ export class RetryTurnService {
     }
 
     // 4. _retryState 존재 + TTL.
-    const retryState = outputData._retryState as
-      | (Record<string, unknown> & { expiresAt?: unknown })
-      | undefined;
+    const retryState = outputData._retryState as RetryState | undefined;
     if (!retryState) {
       throw RetryLastTurnError.notFound(
         `retry_last_turn: _retryState missing on node ${nodeExecutionId} (already consumed?)`,
@@ -287,9 +286,7 @@ export class RetryTurnService {
     }
 
     const seededInput = spawnedRow.inputData ?? {};
-    const retryState = seededInput._retryState as
-      | Record<string, unknown>
-      | undefined;
+    const retryState = seededInput._retryState as RetryState | undefined;
     if (!retryState) {
       this.logger.error(
         `applyRetryLastTurn: spawned row ${spawnedNodeExecutionId} missing _retryState in inputData — cannot re-enter`,
