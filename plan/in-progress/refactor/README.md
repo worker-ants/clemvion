@@ -21,16 +21,16 @@
 | [02-architecture.md](../../complete/refactor/02-architecture.md) | 15 | 15 | 0 | 0 | 0 | C-1(엔진분할 PR #622–627)·C-2(5클러스터 전부 #714/#716/#718~#721/#676)·C-3·M-1·M-2·M-3·M-4(#688)·M-6(#660)·M-7·M-8·M-9·m-1(+#767)·m-2·m-3 완료. M-5 = 레이어1(핫스팟 해소) 완료 + 레이어2/3 는 marketplace Phase D 티켓으로 참고설계 이관·보류 → refactor 범위 종료(2026-07-02) |
 | [03-maintainability.md](../../complete/refactor/03-maintainability.md) | 15 | 11 (M-6·m-2 PR #522 + M-2 API_BASE_URL + C-2 ai-turn-executor 분해 #697·2차 + C-4 WS gateway helper + m-3 integrations/new 분할 + m-1 console→Logger + m-4 catch 변수명 통일 + M-1 install 보일러플레이트 helper + **C-1·M-5 포인터 닫힘**[02 C-1·M-3 완료]) | 3 (M-3 철회 + **C-3·M-4 2026-07-01 사용자 철회**) | 1 | 0 | dead-code 제거 2건 + M-2(API_BASE_URL 3001→3011) + C-2(ai-agent god-method 분해) + C-4(WS gateway helper) + m-3(integrations/new 1444→448줄 분할) + m-1(console.*→Logger + no-console 가드) + m-4(catch 변수명 통일) + M-1(install 보일러플레이트 helper) 완료. **C-1·M-5 는 02(C-1 엔진분할·M-3 streamMessage) 포인터로 닫힘**. **C-3·M-4(cafe24/makeshop 미러)는 2026-07-01 사용자 철회 — 조기 일반화 회피, spec 의도 미러 수용**. 잔여 1: M-7(inline 타입단언 50+ 미착수) |
 | [04-security.md](../../complete/refactor/04-security.md) | 14 | **14** | 0 | **0** | 0 | ✅ 2026-06-16 전 항목 종결: 코드+spec 머지(PR #570·prod-fail-closed-guards 등). isolated-vm 전환·SSRF 가드·WS authorizer |
-| [05-database.md](./05-database.md) | 15 | 11 | 2 (철회 M-6·m-2) | 2 (m-4·m-5 보류) | 1 (m-5) | ✅ 핵심 11건 완료(2026-06-14 batch): rotation 원자화·partial 인덱스·CTE. m-4·m-5 보류 |
+| [05-database.md](../../complete/refactor/05-database.md) | 15 | 11 | 4 (2철회 M-6·m-2 + 2종결 m-4·m-5) | **0** | 0 | ✅ 핵심 11건 완료(2026-06-14 batch): rotation 원자화·partial 인덱스·CTE. m-4·m-5 는 보류-종료(2026-07-02, no-action 확정 + 재트리거 조건 보존) → refactor 범위 종료 |
 | [06-concurrency.md](./06-concurrency.md) | 15 | 5 (M-1·M-5·C-1·M-7·M-2) | 3 (철회 m-1·m-2·m-4) | 7 | 1 (C-2) | M-1·M-5·C-1·M-7·M-2(shutdown 추적 드리프트) 완료 외 7건 미착수. rehydrate 가드 |
 | [07-dependency.md](../../complete/refactor/07-dependency.md) | 15 | 10 | 5 (3철회 M-1·M-3·m-3 + 2종결 m-5·m-7) | **0** | 0 | ✅ 2026-06-17 완료: C-1·C-2(deps-security-hygiene) + 잔여 8건 → [07-dependency-residual.md](../../complete/refactor/07-dependency-residual.md) |
-| **합계** | **104** | **76** | **18** (12철회 + 6종결) | **10** | **2** | |
+| **합계** | **104** | **76** | **20** (12철회 + 8종결) | **8** | **1** | |
 
 > **완료** = 구현·머지 또는 결정 종결(코드/spec 변경 동반). **철회·종결** = 코드 변경 없이 닫음 (철회=E 사실관계 반증 **또는 사용자 결정[조기 일반화 회피 등]** / 종결=no-action·현상유지). **잔여(미완)** = 미착수·진행중·보류 (`[ ]` 또는 `[~]`). **⚠️ A-잔존** = 잔여 중 spec/plan 이 의도된 설계로 문서화했으나 여전히 문제로 남은 항목 (착수·번복은 **사용자 결정 대상**; 결정 상태는 각기 다름 — 상세는 아래 「⚠️ 의도된 설계지만 문제」 절).
-> 완료(76) + 철회·종결(18) + 잔여(10) = 104. 처리 종료(완료+철회·종결) = 94/104.
+> 완료(76) + 철회·종결(20) + 잔여(8) = 104. 처리 종료(완료+철회·종결) = 96/104.
 > 철회 항목은 삭제하지 않고 `[x]` + 철회 사유(반증 근거 또는 결정 근거)로 보존.
 >
-> **파일 위치 (2026-07-02)**: 전 항목 종료된 dimension 문서는 `plan/complete/refactor/` 로 이동했다 — 위 표에서 `../../complete/refactor/` 로 링크된 01·02·03·04·07·07-residual (02 는 M-5 레이어2/3 을 Phase D 로 이관·보류하며 refactor 범위 종료, 04 는 2026-06-16 전 14항목 종결). 잔여 작업이 남은 05(m-4·m-5 보류)·06(미착수 7)·본 README(마스터 인덱스)는 `plan/in-progress/refactor/` 유지. 백로그 전체가 종료되면 README 를 포함해 refactor/ 전부 complete 로 이동.
+> **파일 위치 (2026-07-02)**: 전 항목 종료된 dimension 문서는 `plan/complete/refactor/` 로 이동했다 — 위 표에서 `../../complete/refactor/` 로 링크된 01·02·03·04·05·07·07-residual (02 는 M-5 레이어2/3 을 Phase D 로 이관·보류, 04 는 2026-06-16 전 14항목 종결, 05 는 m-4·m-5 를 보류-종료하며 refactor 범위 종료). 잔여 작업이 남은 06(미착수 7)·본 README(마스터 인덱스)는 `plan/in-progress/refactor/` 유지. 백로그 전체가 종료되면 README 를 포함해 refactor/ 전부 complete 로 이동.
 
 ## spec 대조가 바꾼 주요 사실 (요약)
 
@@ -48,12 +48,12 @@
 1. ~~**`authentication=none` SSRF 가드 미적용**~~ ✅ 완료 — spec §4 step8↔§104 모순 해소 동반 → [04](../../complete/refactor/04-security.md) C-3
 2. ~~**code 노드 vm 탈출**~~ ✅ 완료 (isolated-vm 전환, worktree `code-node-isolated-vm`) → [04](../../complete/refactor/04-security.md) C-2
 3. ~~**JWT secret fallback**~~ ✅ 완료 (M-4 ENCRYPTION_KEY·M-7 MCP insecure flag 와 단일 "production fail-closed 가드" 블록, worktree `prod-fail-closed-guards`) → [04](../../complete/refactor/04-security.md) C-1/M-4/M-7
-4. ~~**refresh 토큰 rotation 원자화**~~ ✅ 완료 (worktree `auth-refresh-rotation-atomic`) → [05](./05-database.md) C-1
+4. ~~**refresh 토큰 rotation 원자화**~~ ✅ 완료 (worktree `auth-refresh-rotation-atomic`) → [05](../../complete/refactor/05-database.md) C-1
 5. ~~**hono CVE override 상향** + **jsonwebtoken deps 이동**~~ ✅ 완료 (`plan/complete/deps-security-hygiene.md`) → [07](../../complete/refactor/07-dependency.md) C-1·C-2
 
 ### P1 — 핵심 경로 성능·신뢰성
 
-6. ~~**resume rehydration N+1**~~ ✅ 완료(2026-06-10, 01 #1·05 M-4). ~~`(execution_id,status)` partial 인덱스(05 C-3)~~ ✅ 완료(2026-06-14, V095) → [05](./05-database.md) C-3
+6. ~~**resume rehydration N+1**~~ ✅ 완료(2026-06-10, 01 #1·05 M-4). ~~`(execution_id,status)` partial 인덱스(05 C-3)~~ ✅ 완료(2026-06-14, V095) → [05](../../complete/refactor/05-database.md) C-3
 7. ~~**cancel fire-and-forget + nextSeq random fallback**~~ ✅ 완료(2026-06-24, branch `refactor-06-c1-m7-publish-failfast`) — publish 실패 fail-fast 통일(`queued:false`): cancel async+503 surface, nextSeq random fallback 제거. spec §7.4/§7.5.2·에러코드 카탈로그는 sibling planner spec-sync → [06](./06-concurrency.md) C-1·M-7 *(spec-sync 후속)*
 8. **rehydrate optimistic claim** — spec 불변식("이중 실행 0")의 보장 수단 보강 + §7.5 문구 갱신 → [06](./06-concurrency.md) C-2 ⚠️ *(결정대기)*
 9. ~~**shutdown 중 시작 노드 추적 포기** — §11.4 약속 위반 드리프트~~ ✅ 완료(2026-06-24, branch `refactor-06-m2-shutdown-tracking`) — Option A(early-return 제거): shutdown 중 시작 노드도 추적·drain·SERVER_INTERRUPTED 마킹. B(worker pause)는 framework 충족·queue.pause 전역이라 미채택 → [06](./06-concurrency.md) M-2
@@ -70,9 +70,9 @@
 17. ~~**park-진입 dispatch 추출**~~ ✅ 완료 — PR #507 resume registry 와 대칭(`ParkEntryDispatch`, 커밋 `ecd70dd1` + spec-sync #688) → [02](../../complete/refactor/02-architecture.md) M-4
 18. **ExecutionContext 스케일아웃** — 독립 작업화 금지, exec-intake PR3 연동 → [06](./06-concurrency.md) C-3 *(잔여)*
 
-## ⚠️ 의도된 설계지만 문제 — 사용자 결정 현황 (15행 중 ✅ 완료 12 / 🔧 진행중 0 / ⏳ 결정대기 2 / ✅ 철회 1)
+## ⚠️ 의도된 설계지만 문제 — 사용자 결정 현황 (15행 중 ✅ 완료 13 / 🔧 진행중 0 / ⏳ 결정대기 1 / ✅ 철회 1)
 
-> **2026-06-28 현황**: ✅ 완료 12행 (04 5건·03 M-6/m-2·05 C-2·06 M-5·06 M-1·07 m-9·**02 C-2·02 M-5**). 🔧 진행중 0행 — 02 C-2 전 클러스터 종결(클러스터1 엔진↔WS 는 spec 의도로 유지, 잔존 고충은 수용 비용), 02 M-5 레이어1 핫스팟 해소 + 레이어2/3 marketplace Phase D 위임. ⏳ 결정대기 2행: 05 m-5, 06 C-2 — **착수 금지 유지**. (03 C-3/M-4 는 2026-07-01 사용자 철회.)
+> **현황 (2026-07-02 갱신)**: ✅ 완료 13행 (04 5건·03 M-6/m-2·05 C-2·06 M-5·06 M-1·07 m-9·**02 C-2·02 M-5·05 m-5**). 🔧 진행중 0행 — 02 C-2 전 클러스터 종결(클러스터1 엔진↔WS 는 spec 의도로 유지, 잔존 고충은 수용 비용), 02 M-5 레이어1 핫스팟 해소 + 레이어2/3 marketplace Phase D 위임, 05 m-5 보류-종료(refactor 범위, 재트리거 조건 보존). ⏳ 결정대기 1행: 06 C-2 — **착수 금지 유지**. (03 C-3/M-4 는 2026-07-01 사용자 철회.)
 > **2026-06-10 사용자 결정**: 04 m-4, 03 M-6, 03 m-2, 06 M-5, 06 M-1 — **권고안대로 진행 확정** → 모두 ✅ 완료.
 > **2026-07-01 사용자 결정**: 03 C-3·M-4 (cafe24/makeshop 미러 중복) — **철회** (deferral 앞당김·보류 모두 아님). 3번째 provider 발산을 예측할 수 없어 2-샘플 추상화는 조기 일반화이고, spec 대조로 비대칭이 전부 의도임이 확인됨(§6.1·§4·§9.5·§2) → 중복을 의도된 미러로 수용, 트리거 예약도 해제. 재기는 동일 버그 2회 수정 누적 시 새 티켓.
 > **2026-06-20 사용자 결정**: 02 M-5 — **Option B(DI multi-provider 3-레이어) 방향 확정 + 레이어1 구현 착수** (n8n·flowise 리서치 기반, 격리=flowise·샌드박스=n8n). 02 C-2 #1(엔진↔WS)은 트레이드오프 부록만 추가하고 **유지 결론 불변(✅ 확정)**.
@@ -89,7 +89,7 @@
 | 03 C-3/M-4 cafe24·makeshop 미러 | "cafe24 미러" + DRY-deferral("3번째 provider 시") 문서화 | 1,600줄은 deferral 명시 목록의 사각, 3중 복제 예약 | **✅ 철회(2026-07-01 사용자 결정)** — 조기 일반화 회피: 3번째 provider 발산 예측 불가, 비대칭 전부 spec 의도 확인 → 의도된 미러로 수용, 트리거 예약 해제. 재기=동일 버그 2회 수정 누적 시 새 티켓 |
 | 03 M-6/m-2 dead code | 제거가 예약된 잔류물 | 잔존 중 | **✅ 완료** — 단일 cleanup PR #522 |
 | 05 C-2 re_run_of walk | `13-replay-rerun.md §9.1` 함수명까지 명시 | 직렬 SELECT ≤64회 | **✅ 완료(2026-06-14)** — 재귀 CTE 교체 + spec §9.1 1줄 동행 |
-| 05 m-5 schedule 부팅 전수 등록 | `data-flow/10-triggers.md §1.3` 명시 | 무페이징 적재만 잔존 문제 | **⏳ 보류(권장 B)** — 배치 페이징(1안 repeatable jobs 는 기구현 — 철회) |
+| 05 m-5 schedule 부팅 전수 등록 | `data-flow/10-triggers.md §1.3` 명시 | 무페이징 적재만 잔존 문제 | **✅ 보류-종료(refactor 범위, 2026-07-02)** — 배치 페이징만 잔존(1안 repeatable jobs 는 기구현 철회). 재트리거: 활성 스케줄 500 접근 시 |
 | 06 C-2 rehydrate 가드 | §7.5 "race 를 닫는다" 선언 | 보장 수단이 비원자 check-then-act | **⏳ 결정대기** — optimistic claim + spec 문구 갱신 |
 | 06 M-5 shallow clone | `10-parallel.md:14` 명시 | invariant 기계 강제 부재 | **✅ 완료(2026-06-10)** — dev/test deep freeze (structuredClone 은 spec 개정 선행) |
 | 06 M-1 resumed ack | §4.2 정의 존재 | spec 내부 문구 모순 | **✅ 완료(2026-06-10)** — spec 문구 정리(`plan/complete/spec-update-ws-resumed-ack.md`) + 프론트 가드 확인 |

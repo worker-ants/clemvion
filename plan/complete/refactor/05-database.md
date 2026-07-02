@@ -1,8 +1,8 @@
 # Refactor 백로그 — 데이터베이스 (2026-06-10 전수 감사)
 
-> 인덱스: [README.md](./README.md). Critical 3 / Major 7 / Minor 5 — **spec 대조(2026-06-10) 후 유효 13건 / 철회 2건(M-6, m-2) / 부분 철회 1건(m-5)**.
+> 인덱스: [README.md](../../in-progress/refactor/README.md). Critical 3 / Major 7 / Minor 5 — **spec 대조(2026-06-10) 후 유효 13건 / 철회 2건(M-6, m-2) / 부분 철회 1건(m-5)**.
 > **spec 대조 판정 분포**: A 2 (C-2, m-5) / B 3 / C 0 / D 8 / E 2. ORM: TypeORM 0.3.x, PostgreSQL + pgvector, Flyway SQL (V001–V087, 다음 번호는 PR 시점 재확인).
-> **중복 참조**: M-4 본문은 [01-performance.md](../../complete/refactor/01-performance.md) #1 소유.
+> **중복 참조**: M-4 본문은 [01-performance.md](./01-performance.md) #1 소유.
 > **부수 발견**: `spec/1-data-model.md §3` 인덱스 표가 기존 V012/V034/V047/V048 도 누락한 **stale 상태** — C-3 진행 시 일괄 동기화 권고 (planner).
 > 옵션 비교·권장안 보강 (2026-06-10)
 >
@@ -298,7 +298,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### m-4 [Minor] `audit_log` resource 기반 조회 인덱스 — 보류 확정 (기능 부재)
 
-- [ ] 보류 확정 — 기능 도입 시점 일괄 처리
+- [x] 보류-종료 (refactor 범위, 2026-07-02) — no-action 확정("지금 아무것도 안 하는 게 맞음": spec·코드 양쪽에 resource 조회 기능 부재). **재트리거**: 리소스 변경 이력 기능 도입 시 spec(planner) → CONCURRENTLY 인덱스 → data-model §3 동기화 패키지 일괄 수행.
 
 **spec 대조**: B — spec 의 audit 조회 약속(§4.2 기간/사용자/액션 필터)에 resource_id 기반 조회가 없고 **코드 API 에도 필터 자체가 없음**. 불용 인덱스는 write 비용만 발생 — 지금 아무것도 안 하는 게 맞음.
 
@@ -319,7 +319,7 @@ WHERE status IN ('waiting_for_input','running');
 
 ### m-5 [Minor] ⚠️ schedule-runner 부팅 적재 — 부분 철회 후 배치 페이징만 잔존
 
-- [ ] 보류 (2026-06-14, 권장 B) — 원안 1안은 이미 구현된 설계(철회), 잔존분은 부팅 1회 경로의 방어적 배치화뿐. 상시 부하 아니고 현 스케줄 규모에서 증상 없음 → 활성 스케줄 수가 배치크기(500) 접근 시 A 착수. (본 refactor PR 범위 제외) — `schedule-runner.service.ts:108-111`
+- [x] 보류-종료 (refactor 범위, 2026-07-02) — 원안 1안은 이미 구현된 spec 설계(철회), 잔존분은 부팅 1회 경로의 방어적 배치화뿐. 상시 부하 아니고 현 스케줄 규모에서 증상 없음(권장 B). **재트리거**: 활성 스케줄 수가 배치크기(500) 접근 시 A(배치 페이징) 착수. — `schedule-runner.service.ts:108-111`
 
 ⚠️ **(A — 부팅 전수 재등록은 spec 명시 설계)**
 
