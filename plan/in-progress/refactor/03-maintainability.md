@@ -220,7 +220,9 @@
 
 ### M-7 [Major] execution-engine 내 inline 타입 단언 50+ 곳
 
-- [ ] 미착수 — 샘플 `:370-371,523-525,2941,4717-4718`
+- [~] **진행 중 — 재스코프 (2026-07-02)**: C-1 엔진분할(02 C-1 완료)로 대상 파일이 재편돼 원안 "50+ 1파일" 이 아니라 **~124건 / ~15파일** 로 분산(원 라인 refs `:370-371` 등 stale). 사이트별 성격이 달라 일괄 전환 불가 — **SAFE-TORECORD**(property-접근 전용)·**STORE-PRESERVE**(저장/보존, 배열 보존 필요)·**LOAD-BEARING**(throw 전제)·**RESUME-STATE**(§7.4 스키마 필요)로 분류해 검증된 클러스터 PR 로 진행. 사용자 결정(2026-07-02): 전체 ~124건 대상.
+  - **첫 클러스터 (본 PR)**: `utils/to-record.ts`(`isRecord`/`toRecord` behavior-preserving 가드 — 배열·원시값→`{}`, `(x as Record) ?? {}` 안전 대체) + 단위테스트(7). `execution-engine.service.ts:1478`(cachedMeta, property-접근 전용) 1건 전환 — 이 파일 26건 중 **유일한 SAFE-TORECORD**(나머지 25 = STORE 10·LOAD-BEARING 11·RESUME 3, 제외).
+  - **후속 클러스터**: LOAD-BEARING(`isRecord` 가드 + throw→명시 방어 개별 검토)·STORE-PRESERVE(배열 보존 접근)·RESUME-STATE(§7.4 zod schema)·`ai-turn-orchestrator.service.ts`(18)·`ai-turn-executor.ts`(29)·기타 파일. impl-prep `review/consistency/2026/07/01/16_32_55` **BLOCK:NO** + invariant 체크리스트(I-1 `status` 유니온·I-5 `_resumeCheckpoint`/`_retryState` credential allow-list·I-6 §4.4 WebsocketService sink 추상화 금지·I-7 raw/resolved config 분리·W-2/W-3 에러코드·버전상수 통합 금지).
 
 **spec 대조**: B — 타입 단언/파싱 전략 규약 없음 (eslint 도 `no-unsafe-*: 'warn'` 미강제). 단 단언 대상 다수가 spec 에 타입 정의된 필드(ai-agent config §1, `_resumeState` §7.4) — 명시 인터페이스 도입이 spec 표와 자연 정렬.
 
