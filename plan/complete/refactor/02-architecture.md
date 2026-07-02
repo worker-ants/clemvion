@@ -1,6 +1,6 @@
 # Refactor 백로그 — 아키텍처·확장성 (2026-06-10 전수 감사)
 
-> 인덱스: [README.md](./README.md). Critical 3 / Major 9 / Minor 3 — **spec 대조(2026-06-10) 후 전 항목 유효하나 C-2 의 핵심 처방 1건이 spec 명시 결정과 충돌해 수정됨**.
+> 인덱스: [README.md](../../in-progress/refactor/README.md). Critical 3 / Major 9 / Minor 3 — **spec 대조(2026-06-10) 후 전 항목 유효하나 C-2 의 핵심 처방 1건이 spec 명시 결정과 충돌해 수정됨**.
 > **spec 대조 판정 분포**: A 1 (M-5) / B 6 / C 0 / D 8 / E 0.
 > **중복 참조**: C-1 정량 지표는 [03-maintainability.md](./03-maintainability.md) C-1 — 분할 설계는 본 파일 소유. M-3 도 본 파일 소유.
 > **⚠️ spec 충돌 주의**: 엔진↔WebsocketService 의 forwardRef 는 `spec/5-system/4-execution-engine.md §4.4` 가 **명시적으로 의도한 설계**("`IExecutionEventEmitter` 같은 인터페이스를 도입하지 않는다", "forwardRef 는 회피해야 할 안티패턴이 아님") — 이벤트 포트 교체안은 spec 개정 선행 없이는 금지 (C-2 본문 참조).
@@ -10,7 +10,7 @@
 
 ### C-1 [Critical] ExecutionEngineService — 9,210줄 god-class (SRP 전면 위반)
 
-- [x] 코드 분할 5단계 완료 (PR #622·#625·#626·#627, **9,670→7,035줄**) — `backend/src/modules/execution-engine/execution-engine.service.ts`. **stacked PR 로드맵·진행 상황: [c1-engine-split.md](./c1-engine-split.md)** (review-파생 후속 백로그는 거기 `## 후속 고려`). 4 PR 전체 머지(origin/main `0c275dd7`) + 체인 종료 spec-sync(planner, [spec-update-engine-split.md](../../complete/spec-update-engine-split.md), `/consistency-check --spec` BLOCK:NO) 완료.
+- [x] 코드 분할 5단계 완료 (PR #622·#625·#626·#627, **9,670→7,035줄**) — `backend/src/modules/execution-engine/execution-engine.service.ts`. **stacked PR 로드맵·진행 상황: [c1-engine-split.md](../c1-engine-split.md)** (review-파생 후속 백로그는 거기 `## 후속 고려`). 4 PR 전체 머지(origin/main `0c275dd7`) + 체인 종료 spec-sync(planner, [spec-update-engine-split.md](../spec-update-engine-split.md), `/consistency-check --spec` BLOCK:NO) 완료.
 
 단일 클래스가 8개 이상 책임: 그래프 순회, 노드 dispatch(`executeNode` 412줄), AI 멀티턴 생명주기, form/button 인터랙션, retry-last-turn, 상태 머신, 핸들러 등록 bootstrap. 생성자 의존성 20개, 메서드 ~70개.
 
@@ -245,9 +245,9 @@
 
 ### M-5 [Major] `ALL_NODE_COMPONENTS` 정적 배열 ⚠️ (방향 확정 2026-06-20: Option B — DI multi-provider 3-레이어)
 
-- [~] **레이어1 완료 (#652, 2026-06-20)** · 레이어2/3 = **marketplace Phase D 위임**(refactor 범위 밖, [marketplace-and-plugin-sdk.md](../marketplace-and-plugin-sdk.md) §Phase D 소유). **방향 확정: Option B(아래 §방향 확정). 경량안 A(spread)는 폐기 — B 레이어1 로 대체.** (refactor 핵심 고충 merge-conflict hotspot 은 레이어1 로 해소 — 본 백로그 M-5 의 refactor 범위 종료.)
+- [x] **refactor 범위 종료 (2026-07-02, 사용자 확정)** — 레이어1 완료 (#652, 2026-06-20) 로 refactor 핵심 고충 merge-conflict hotspot 해소. 레이어2/3 = **marketplace Phase D 위임·보류**(refactor 범위 밖, Phase D 티켓이 소유 — 레이어2/3 참고 설계는 Phase D 티켓에 자체완결로 이관 완료). **방향 확정: Option B(아래 §방향 확정). 경량안 A(spread)는 폐기 — B 레이어1 로 대체.**
   - [x] **레이어1 — 정적 배열 → DI 등록 (#652)**: `NODE_COMPONENT` 토큰(`core/node-component.interface.ts`) + `NodeComponentsModule`(`{provide: NODE_COMPONENT, useValue: ALL_NODE_COMPONENTS}` — `nodes/<category>/index.ts` 카테고리 배열을 `NODE_CATEGORIES` 순서로 spread) 신설. `NodeBootstrapService` 가 정적 `import { ALL_NODE_COMPONENTS }` 대신 `@Inject(NODE_COMPONENT)` 로 주입받아 부팅 등록(테스트 override seam) + 정렬 결정성. **핫스팟 해소**: 노드 추가 = 자기 `nodes/<category>/index.ts` 배열만 수정(중앙 파일은 카테고리 추가 시에만). 검증: lint·build·unit(`node-components.module.spec`·`node-bootstrap.service.spec`)·e2e 205 PASS. spec §1.0/§4 등록 메커니즘 sync(`7283a216` — "정적 배열 순회"→"DI 부팅 등록"; §4 "런타임 플러그인 로딩 미구현" invariant 유지). ai-review CLEAN(Critical 0/Warning 0). plan: [refactor-m5-node-di-layer1.md](../refactor-m5-node-di-layer1.md)(라이프사이클상 `plan/complete/` 이동 잔여 — 별 plan-lifecycle 정리).
-  - [ ] **레이어2 (per-workspace entitlement)** · **레이어3 (marketplace Phase D 커스텀 노드)** — **refactor 범위 밖**(큰 신규 설계: entitlement 저장소·노출/실행 게이트·서명·샌드박스). **소유·추적은 [marketplace-and-plugin-sdk.md](../marketplace-and-plugin-sdk.md) §Phase D** (2026-06-20 결정 연계 양방향 cross-link — 레이어2=`NodeEntitlementService` 필터 뷰·레이어3=런타임 등록+n8n 샌드박스+Ed25519 서명). planner spec + 사용자 결정 선행. *(레이어1 로 refactor 핵심 고충인 merge-conflict hotspot 은 해소됨 — 본 백로그 M-5 의 refactor 범위는 종료.)*
+  - [x] **레이어2/3 = Phase D 이관·보류 (2026-07-02)** — per-workspace entitlement(필터 뷰)·3rd-party 커스텀 노드는 refactor 범위 밖 큰 신규 설계(entitlement 저장소·노출/실행 게이트·서명·샌드박스)라 marketplace Phase D 티켓으로 **참고 설계 자체완결 이관 완료**(레이어2 entitlement/노출·실행 게이트 체크리스트 + 레이어3 NodeCategory enum·공급망 하드닝 인라인). 착수는 planner spec + 사용자 결정 선행. 본 refactor 백로그 M-5 는 **보류-종료** — 레이어1 로 refactor 핵심 고충 merge-conflict hotspot 이 이미 해소됐다.
 
 **spec 대조**: A(기술적 판정) — `4-nodes/0-overview.md §1.0`/§4 가 "정적 배열로 부팅 시 부트스트랩, 런타임 플러그인 로딩 경로는 존재하지 않는다" 로 **현행을 기술**. 단 같은 §4 가 그 정적 배열을 "**미구현/Planned**" 플러그인 인터페이스(§4.1~4.3 — `manifest.json` 초안 + "빌트인·향후 플러그인 노드가 공유"하는 핸들러 계약)의 **전 단계로 명시 예약**한다 — 즉 정적 배열은 v1 단순화이지 플러그인 모델의 영구 기각이 아니다. 북극성(per-workspace 노드셋)은 `marketplace-and-plugin-sdk.md` Phase D(line 83 "워크스페이스에 설치된 커스텀 노드를 `NodeComponentRegistry` 에 동적 등록")에 예약. **merge-conflict hotspot 고충은 실재.**
 
@@ -493,7 +493,7 @@
 
 ### m-3 [Minor] 엔진 내 `ALL_NODE_COMPONENTS` 직접 bootstrap — nodes 레이어 의존 역전
 
-- [x] 완료 (PR1 `claude/engine-split-s1-nodebootstrap`, = C-1 step1) — bootstrap 분리 + `WORKFLOW_EXECUTOR` 토큰화. 상세: [c1-engine-split.md](./c1-engine-split.md).
+- [x] 완료 (PR1 `claude/engine-split-s1-nodebootstrap`, = C-1 step1) — bootstrap 분리 + `WORKFLOW_EXECUTOR` 토큰화. 상세: [c1-engine-split.md](../c1-engine-split.md).
 
 **spec 대조**: D — bootstrap 주체(`NodeComponentRegistry`)는 spec 명시, **호출 위치는 무언급** — 이동은 구현 재량. 난점은 `handlerDeps.build(this)` 가 엔진 자신(WorkflowExecutor 역)을 요구하는 것 — spec 이 이미 정의한 `WorkflowExecutor` 계약을 DI token 화하면 자연 해소 (C-1 의 내부 통신과 달리 **여기는 그 계약의 정확한 용처**).
 

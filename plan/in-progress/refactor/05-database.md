@@ -2,7 +2,7 @@
 
 > 인덱스: [README.md](./README.md). Critical 3 / Major 7 / Minor 5 — **spec 대조(2026-06-10) 후 유효 13건 / 철회 2건(M-6, m-2) / 부분 철회 1건(m-5)**.
 > **spec 대조 판정 분포**: A 2 (C-2, m-5) / B 3 / C 0 / D 8 / E 2. ORM: TypeORM 0.3.x, PostgreSQL + pgvector, Flyway SQL (V001–V087, 다음 번호는 PR 시점 재확인).
-> **중복 참조**: M-4 본문은 [01-performance.md](./01-performance.md) #1 소유.
+> **중복 참조**: M-4 본문은 [01-performance.md](../../complete/refactor/01-performance.md) #1 소유.
 > **부수 발견**: `spec/1-data-model.md §3` 인덱스 표가 기존 V012/V034/V047/V048 도 누락한 **stale 상태** — C-3 진행 시 일괄 동기화 권고 (planner).
 > 옵션 비교·권장안 보강 (2026-06-10)
 >
