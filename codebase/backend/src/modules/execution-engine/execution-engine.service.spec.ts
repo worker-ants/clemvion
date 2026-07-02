@@ -5430,8 +5430,12 @@ describe('ExecutionEngineService', () => {
         collectionRetryCount: 1,
       });
       // M-7 builder↔schema drift 가드 — 실 산출물이 allow-list 스키마(§1.3, I-5)를
-      // 만족하고 credential/context-binding 필드를 담지 않는지 검증.
-      expect(resumeCheckpointSchema.safeParse(checkpoint).success).toBe(true);
+      // 정확히 만족하는지 `.strict()` 로 검증(credential/알 수 없는 키가 섞이면
+      // strict 파싱이 실패 → drift 검출). non-strict 는 unknown 키를 조용히 strip 해
+      // 항상-참이 되므로 사용하지 않는다.
+      expect(
+        resumeCheckpointSchema.strict().safeParse(checkpoint).success,
+      ).toBe(true);
       for (const cred of CREDENTIAL_CONTEXT_FIELDS) {
         expect(checkpoint).not.toHaveProperty(cred);
       }
@@ -5547,8 +5551,10 @@ describe('ExecutionEngineService', () => {
         partialResult: { email: 'x@y.z' },
         collectionRetryCount: 1,
       });
-      // M-7 builder↔schema drift 가드 (§1.3, I-5) — 후속 turn 경로도 검증.
-      expect(resumeCheckpointSchema.safeParse(checkpoint).success).toBe(true);
+      // M-7 builder↔schema drift 가드 (§1.3, I-5) — 후속 turn 경로도 `.strict()` 로 검증.
+      expect(
+        resumeCheckpointSchema.strict().safeParse(checkpoint).success,
+      ).toBe(true);
       for (const cred of CREDENTIAL_CONTEXT_FIELDS) {
         expect(checkpoint).not.toHaveProperty(cred);
       }
