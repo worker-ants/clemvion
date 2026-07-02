@@ -30,7 +30,7 @@ import { RetryTurnService } from '../retry-turn.service';
  * - 로컬 `pendingContinuations` Map 키 hit → 즉시 resolve (fast path,
  *   동일 인스턴스가 publisher 였던 케이스 + 같은 인스턴스가 worker 픽업).
  * - 키 miss → §7.5 rehydration slow path:
- *     · Execution.status === 'waiting_for_input' 검증
+ *     · 재개 진입 원자 claim (waiting_for_input → running, affected=0 → discard)
  *     · NodeExecution.outputData 에서 체크포인트 로드
  *     · ExecutionContext 재구성
  *     · waitForX() 재진입 + 즉시 resolver 호출
@@ -43,8 +43,10 @@ import { RetryTurnService } from '../retry-turn.service';
  *
  * Idempotency:
  * - BullMQ jobId 중복 = 거부 (publisher 측 nextSeq 단조 증가).
- * - 추가 가드: 처리 전 NodeExecution.status === 'waiting_for_input' 재검증.
- *   COMPLETED / FAILED 면 다른 worker 가 먼저 처리한 것 — ack-and-discard.
+ * - 추가 가드(§7.5, 06 C-2): 처리 전 재개 진입을 DB 원자 claim
+ *   (`claimResumeEntry` — waiting_for_input → running 조건부 UPDATE) 으로 획득.
+ *   affected=0(다른 worker 가 이미 claim/terminal) 이면 ack-and-discard. 비원자
+ *   SELECT 재검증과 달리 check-then-act 창이 없어 이중 실행 0 을 기계 보장.
  */
 // concurrency 는 모듈 로드(데코레이터 평가) 시점에 1회 결정된다 — DI factory
 // 주입 불가 배경·env 파싱 규약은 resolveContinuationWorkerConcurrency JSDoc
@@ -72,18 +74,23 @@ export class ContinuationExecutionProcessor extends WorkerHost {
       `[${type}] pick up — execution=${executionId} nodeExec=${nodeExecutionId} jobId=${job.id}`,
     );
 
-    // §7.5 멱등성 보강: 처리 전 NodeExecution 상태 재검증. 이미 COMPLETED/FAILED
-    // 면 다른 worker 가 먼저 처리한 결과로 본다. cancel 류는 status 무관.
+    // §7.5 재개 진입 원자 claim (06 C-2): 처리 전 대상 NodeExecution 을
+    // waiting_for_input → running 으로 **조건부 원자 전이**해 재개 진입을 획득한다.
+    // affected>=1 인 단일 worker 만 진행, affected=0(다른 worker 가 이미 claim 했거나
+    // terminal)이면 ack-and-discard. 비원자 SELECT 재검증과 달리 check-then-act 창이
+    // 없어 멀티 인스턴스·concurrency 상향에서도 이중 실행 0 을 기계적으로 보장한다.
     //
     // retry_last_turn 은 제외 — 대상 row 는 WAITING 이 아니라 spawn 된 RUNNING
     // row 이며 (spec §4.2 "새 row 재개"), 자체 멱등 가드 (RUNNING 검증) 를
     // `applyRetryLastTurn` 내부에서 수행한다.
     if (type !== 'cancel' && type !== 'retry_last_turn') {
-      const stillWaiting =
-        await this.engine.isNodeExecutionWaiting(nodeExecutionId);
-      if (!stillWaiting) {
+      const claimed = await this.engine.claimResumeEntry(
+        executionId,
+        nodeExecutionId,
+      );
+      if (!claimed) {
         this.logger.debug(
-          `[${type}] ack-and-discard — nodeExec=${nodeExecutionId} 이 이미 COMPLETED/FAILED. (정상 race)`,
+          `[${type}] ack-and-discard — nodeExec=${nodeExecutionId} claim 실패(이미 claim/terminal). (정상 race)`,
         );
         return;
       }
@@ -106,7 +113,7 @@ export class ContinuationExecutionProcessor extends WorkerHost {
         // 행을 직접 CANCELLED 마감(async DB write). process() 가 반환 전에 cancel
         // 완료를 await 해 job ack 시점에 terminal 마킹을 보장한다.
         // 동일 executionId 의 cancel vs resume 동시 픽업 순서 경합은
-        // isNodeExecutionWaiting status 가드 + WAITING_FOR_INPUT andWhere 멱등
+        // claimResumeEntry 원자 claim + WAITING_FOR_INPUT andWhere 멱등
         // 가드 + BullMQ jobId 멱등성이 흡수한다.
         await this.engine.applyCancellation(executionId);
         break;

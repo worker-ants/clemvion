@@ -11,9 +11,9 @@ import type { ContinuationJob } from '../queues/continuation-execution.queue';
  * 검증 범위:
  *   1. 5개 type dispatch (continue / cancel / button_click / ai_message /
  *      ai_end_conversation) 가 ExecutionEngineService 의 대응 메서드를 호출.
- *   2. type !== 'cancel' 인 경우 isNodeExecutionWaiting=false 이면 ack-and-discard
+ *   2. type !== 'cancel' 인 경우 claimResumeEntry=false 이면 ack-and-discard
  *      (applyContinuation 호출 없음).
- *   3. cancel 은 isNodeExecutionWaiting 체크를 건너뜀.
+ *   3. cancel 은 claimResumeEntry 체크를 건너뜀.
  *   4. default exhaustiveness guard — 알 수 없는 type 은 warn 만 하고 throw 없음.
  */
 
@@ -37,7 +37,7 @@ describe('ContinuationExecutionProcessor', () => {
   let engine: jest.Mocked<
     Pick<
       ExecutionEngineService,
-      'applyContinuation' | 'applyCancellation' | 'isNodeExecutionWaiting'
+      'applyContinuation' | 'applyCancellation' | 'claimResumeEntry'
     >
   >;
   // C-1 후속 ④ — retry_last_turn 재진입은 엔진 delegator 제거 후 RetryTurnService
@@ -48,7 +48,7 @@ describe('ContinuationExecutionProcessor', () => {
     const engineMock = {
       applyContinuation: jest.fn().mockResolvedValue(undefined),
       applyCancellation: jest.fn().mockResolvedValue(undefined),
-      isNodeExecutionWaiting: jest.fn().mockResolvedValue(true),
+      claimResumeEntry: jest.fn().mockResolvedValue(true),
     };
     const retryMock = {
       applyRetryLastTurn: jest.fn().mockResolvedValue(undefined),
@@ -75,25 +75,25 @@ describe('ContinuationExecutionProcessor', () => {
 
   // ── idempotency guard ─────────────────────────────────────────────────────
 
-  describe('ack-and-discard (isNodeExecutionWaiting=false)', () => {
+  describe('ack-and-discard (claimResumeEntry=false)', () => {
     it.each([
       'continue',
       'button_click',
       'ai_message',
       'ai_end_conversation',
     ] as const)(
-      'type=%s — ack-and-discard when nodeExec already COMPLETED/FAILED',
+      'type=%s — ack-and-discard when claimResumeEntry fails (이미 claim/terminal)',
       async (type) => {
-        engine.isNodeExecutionWaiting.mockResolvedValueOnce(false);
+        engine.claimResumeEntry.mockResolvedValueOnce(false);
         await processor.process(makeJob({ type }));
         expect(engine.applyContinuation).not.toHaveBeenCalled();
         expect(engine.applyCancellation).not.toHaveBeenCalled();
       },
     );
 
-    it('cancel skips isNodeExecutionWaiting check entirely', async () => {
+    it('cancel skips claimResumeEntry check entirely', async () => {
       await processor.process(makeJob({ type: 'cancel' }));
-      expect(engine.isNodeExecutionWaiting).not.toHaveBeenCalled();
+      expect(engine.claimResumeEntry).not.toHaveBeenCalled();
       expect(engine.applyCancellation).toHaveBeenCalledWith('exec-1');
     });
   });
@@ -209,16 +209,16 @@ describe('ContinuationExecutionProcessor', () => {
       );
     });
 
-    it('bypasses isNodeExecutionWaiting guard (spawned row is RUNNING, not WAITING)', async () => {
+    it('bypasses claimResumeEntry guard (spawned row is RUNNING, not WAITING)', async () => {
       // even when the guard would report not-waiting, retry must still proceed.
-      engine.isNodeExecutionWaiting.mockResolvedValueOnce(false);
+      engine.claimResumeEntry.mockResolvedValueOnce(false);
       await processor.process(
         makeJob({
           type: 'retry_last_turn',
           payload: { spawnedNodeExecutionId: 'ne-spawned' },
         }),
       );
-      expect(engine.isNodeExecutionWaiting).not.toHaveBeenCalled();
+      expect(engine.claimResumeEntry).not.toHaveBeenCalled();
       expect(retry.applyRetryLastTurn).toHaveBeenCalledWith(
         'exec-1',
         'ne-spawned',
@@ -233,7 +233,7 @@ describe('ContinuationExecutionProcessor', () => {
       // 'string' type in makeJob already accepts arbitrary values for
       // exhaustiveness testing without a cast.
       const job = makeJob({ type: 'unknown_future_type' });
-      engine.isNodeExecutionWaiting.mockResolvedValueOnce(true);
+      engine.claimResumeEntry.mockResolvedValueOnce(true);
       await expect(processor.process(job)).resolves.not.toThrow();
       expect(engine.applyContinuation).not.toHaveBeenCalled();
       expect(engine.applyCancellation).not.toHaveBeenCalled();

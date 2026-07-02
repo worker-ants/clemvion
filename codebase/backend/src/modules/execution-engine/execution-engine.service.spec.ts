@@ -988,6 +988,7 @@ describe('ExecutionEngineService', () => {
   // PR-B 추가 — SET NX 분산 lock + startedAt < now()-30분 보수 mark.
   describe('recoverStuckExecutions', () => {
     let updateExecuted: jest.Mock;
+    let returning: jest.Mock;
     let andWhere: jest.Mock;
     let where: jest.Mock;
     let setMethod: jest.Mock;
@@ -995,8 +996,11 @@ describe('ExecutionEngineService', () => {
     let mockBus: { acquireLock: jest.Mock; releaseLock: jest.Mock };
 
     beforeEach(() => {
-      updateExecuted = jest.fn().mockResolvedValue({ affected: 2 });
-      andWhere = jest.fn().mockReturnValue({ execute: updateExecuted });
+      // 06 C-2 — Execution UPDATE 는 .returning('id') 로 회수 id 를 받아 자식 RUNNING
+      // NodeExecution cascade 마감에 쓴다. 기본 raw=[] (cascade no-op).
+      updateExecuted = jest.fn().mockResolvedValue({ affected: 2, raw: [] });
+      returning = jest.fn().mockReturnValue({ execute: updateExecuted });
+      andWhere = jest.fn().mockReturnValue({ returning });
       where = jest.fn().mockReturnValue({ andWhere });
       setMethod = jest.fn().mockReturnValue({ where });
       update = jest.fn().mockReturnValue({ set: setMethod });
@@ -1109,6 +1113,42 @@ describe('ExecutionEngineService', () => {
       ).rejects.toThrow('db down');
 
       expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
+    });
+
+    it('06 C-2 — 회수된 Execution 의 자식 RUNNING NodeExecution 도 cascade FAILED', async () => {
+      // returning('id') 가 회수된 exec id 를 돌려주면 자식 RUNNING NodeExecution 을
+      // status=RUNNING → FAILED 로 cascade 마감한다 (claim 페어링으로 stuck 된 orphan 정리).
+      updateExecuted.mockResolvedValueOnce({
+        affected: 1,
+        raw: [{ id: 'exec-stuck-1' }],
+      });
+      const nodeCascadeQb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(nodeCascadeQb);
+
+      await (
+        service as unknown as { recoverStuckExecutions: () => Promise<void> }
+      ).recoverStuckExecutions();
+
+      expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+      expect(nodeCascadeQb.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: NodeExecutionStatus.FAILED }),
+      );
+      expect(nodeCascadeQb.where).toHaveBeenCalledWith(
+        'execution_id IN (:...ids)',
+        expect.objectContaining({ ids: ['exec-stuck-1'] }),
+      );
+      expect(nodeCascadeQb.andWhere).toHaveBeenCalledWith(
+        'status = :running',
+        expect.objectContaining({ running: NodeExecutionStatus.RUNNING }),
+      );
     });
   });
 
@@ -1766,6 +1806,169 @@ describe('ExecutionEngineService', () => {
         eventEmitter.emitExecution = origEmit;
         warnSpy.mockRestore();
       }
+    });
+  });
+
+  // 06 C-2 — 재개 진입 DB 원자 claim (§7.5). 비원자 SELECT 재검증을 조건부
+  // UPDATE(waiting_for_input → running, affected=0 → ack-and-discard)로 대체.
+  describe('claimResumeEntry — §7.5 재개 진입 원자 claim (06 C-2)', () => {
+    const makeQb = (affected: number) => ({
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected }),
+    });
+    const ds = () =>
+      service as unknown as { dataSource: { transaction: jest.Mock } };
+    // claim 은 dataSource.transaction 안에서 manager.createQueryBuilder 를 2회 호출:
+    // (1) NodeExecution 조건부 claim, (2) 짝 전이 Execution. tx 콜백을 in-memory 즉시
+    // 실행하고 두 qb 를 순서대로 반환한다.
+    const installTx = (nodeAffected: number, execAffected: number) => {
+      const nodeQb = makeQb(nodeAffected);
+      const execQb = makeQb(execAffected);
+      const qbs = [nodeQb, execQb];
+      ds().dataSource.transaction = jest.fn(
+        async (cb: (m: unknown) => Promise<unknown>) => {
+          let i = 0;
+          return cb({ createQueryBuilder: jest.fn(() => qbs[i++]) });
+        },
+      );
+      return { nodeQb, execQb };
+    };
+
+    it('node affected>=1 → true + Execution 짝 전이 (단일 트랜잭션)', async () => {
+      const { nodeQb, execQb } = installTx(1, 1);
+
+      await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
+        true,
+      );
+
+      // (1) NodeExecution: waiting_for_input 조건 → running.
+      expect(nodeQb.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: NodeExecutionStatus.RUNNING }),
+      );
+      expect(nodeQb.andWhere).toHaveBeenCalledWith(
+        'status = :waiting',
+        expect.objectContaining({
+          waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+        }),
+      );
+      // (2) 짝 전이: Execution 도 같은 tx 로 WFI→RUNNING (crash-consistency).
+      expect(execQb.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ExecutionStatus.RUNNING }),
+      );
+      expect(execQb.execute).toHaveBeenCalled();
+      // 부수효과: claim 성공 시 active-running 세그먼트 시작 기록(PR2a/§8 보정).
+      expect(
+        (
+          service as unknown as { segmentStartMs: Map<string, number> }
+        ).segmentStartMs.has('exec-1'),
+      ).toBe(true);
+    });
+
+    it('node affected=0 → false + Execution 짝 전이 미실행 + segmentStartMs 미기록', async () => {
+      const { execQb } = installTx(0, 1);
+      (
+        service as unknown as { segmentStartMs: Map<string, number> }
+      ).segmentStartMs.delete('exec-1');
+
+      await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
+        false,
+      );
+      // node claim 실패 → 짝 Execution UPDATE 도달 전 return.
+      expect(execQb.execute).not.toHaveBeenCalled();
+      // 부수효과 미발생 — claim 실패 시 세그먼트 기록 없음.
+      expect(
+        (
+          service as unknown as { segmentStartMs: Map<string, number> }
+        ).segmentStartMs.has('exec-1'),
+      ).toBe(false);
+    });
+
+    it('node claim 성공하나 Execution terminal(짝 UPDATE affected=0) → 롤백·false (동시 cancel 방어)', async () => {
+      // cancelParkedExecution 비원자 창: exec=CANCELLED·node=WAITING 상태에서 claim 이
+      // node 만 잡으면 짝 불일치 → exec 짝 UPDATE affected=0 → throw 로 tx 롤백 → false.
+      const { execQb } = installTx(1, 0);
+      (
+        service as unknown as { segmentStartMs: Map<string, number> }
+      ).segmentStartMs.delete('exec-1');
+
+      await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
+        false,
+      );
+      // exec 짝 UPDATE 는 시도됨(affected=0 확인) — 그 결과로 abort.
+      expect(execQb.execute).toHaveBeenCalled();
+      // claim 실패 → 세그먼트 미기록.
+      expect(
+        (
+          service as unknown as { segmentStartMs: Map<string, number> }
+        ).segmentStartMs.has('exec-1'),
+      ).toBe(false);
+    });
+
+    it('동시 재개 — 두 claim 중 하나만 승리 (레이스 결정자=node claim)', async () => {
+      // 첫 tx 만 node affected=1(승리), 두번째는 status 불일치로 affected=0.
+      let txCall = 0;
+      ds().dataSource.transaction = jest.fn(
+        async (cb: (m: unknown) => Promise<unknown>) => {
+          const nodeAff = txCall++ === 0 ? 1 : 0;
+          let i = 0;
+          const qbs = [makeQb(nodeAff), makeQb(1)];
+          return cb({ createQueryBuilder: jest.fn(() => qbs[i++]) });
+        },
+      );
+
+      const [a, b] = await Promise.all([
+        service.claimResumeEntry('exec-1', 'ne-1'),
+        service.claimResumeEntry('exec-1', 'ne-1'),
+      ]);
+
+      expect([a, b].filter(Boolean)).toHaveLength(1); // 정확히 하나만 승리
+    });
+
+    it('__no_node_exec__ / 빈 id → true (legacy 우회, 트랜잭션 미실행)', async () => {
+      ds().dataSource.transaction = jest.fn();
+      await expect(
+        service.claimResumeEntry('exec-1', '__no_node_exec__'),
+      ).resolves.toBe(true);
+      await expect(service.claimResumeEntry('exec-1', '')).resolves.toBe(true);
+      expect(ds().dataSource.transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  // 06 C-2 — claim 후 rehydration 실패 롤백. markNodeExecutionFailed 가 claim 된
+  // RUNNING row 도 FAILED 로 마감해야 stuck RUNNING 을 남기지 않는다.
+  describe('markNodeExecutionFailed — claim 후 RUNNING 롤백 (06 C-2)', () => {
+    it('UPDATE 가 WAITING_FOR_INPUT 와 RUNNING 둘 다 대상으로 한다', async () => {
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+
+      await (
+        service as unknown as {
+          markNodeExecutionFailed: (id: string, code: string) => Promise<void>;
+        }
+      ).markNodeExecutionFailed('ne-1', 'RESUME_CHECKPOINT_MISSING');
+
+      expect(qb.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: NodeExecutionStatus.FAILED }),
+      );
+      // 핵심 회귀 가드: RUNNING 이 status IN 목록에 포함돼야 claim 후 롤백이 동작.
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'status IN (:...statuses)',
+        expect.objectContaining({
+          statuses: expect.arrayContaining([
+            NodeExecutionStatus.WAITING_FOR_INPUT,
+            NodeExecutionStatus.RUNNING,
+          ]),
+        }),
+      );
     });
   });
 
@@ -10693,20 +10896,54 @@ describe('ExecutionEngineService', () => {
       jest.restoreAllMocks();
     });
 
-    it('Execution not WAITING_FOR_INPUT → RESUME_CHECKPOINT_MISSING (execution 만 cancelled)', async () => {
+    // 06 C-2 — Execution 이 terminal(재개 불가) 이면 RESUME_CHECKPOINT_MISSING.
+    // 주의: RUNNING 은 §7.5 원자 claim 진입 후 상태라 **허용값**이므로 reject 테스트에
+    // 쓰면 안 된다(가드 통과 → false-green). terminal(CANCELLED)로 검증한다.
+    it('Execution terminal(CANCELLED) → RESUME_CHECKPOINT_MISSING (early reject, rehydrate 미진입)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        status: ExecutionStatus.CANCELLED,
+      });
+      const rehydrateSpy = jest
+        .spyOn(service, 'rehydrateContext')
+        .mockRejectedValue(new Error('should-not-reach'));
+
+      await subject().rehydrateAndResume(executionId, 'ne-1', { foo: 1 });
+
+      // execution.update(...) chain 호출 → execute() 1회 (markExecutionCancelled)
+      const execChain = mockExecutionRepo.createQueryBuilder.mock.results[0]
+        .value as { execute: jest.Mock };
+      expect(execChain.execute).toHaveBeenCalled();
+      // Execution status 가드에서 early throw → node 로드·rehydrate 미진입.
+      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(rehydrateSpy).not.toHaveBeenCalled();
+    });
+
+    // 06 C-2 — claim 진입 후 Execution·NodeExecution 이 RUNNING 이면 **재개 가능**으로
+    // 허용돼 status 가드를 통과하고 rehydrate 로 진입한다 (RUNNING 이 거부되던 옛 동작의
+    // 회귀 방지 positive 테스트).
+    it('Execution/NodeExecution RUNNING(claim 후) → status 가드 통과, rehydrate 진입', async () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: executionId,
         status: ExecutionStatus.RUNNING,
       });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.RUNNING,
+      });
+      mockNodeRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValue({ id: 'node-1', type: 'form' });
+      // rehydrate 로 진입했음을 sentinel 로 확인 (진입 후는 본 테스트 범위 밖).
+      const rehydrateSpy = jest
+        .spyOn(service, 'rehydrateContext')
+        .mockRejectedValue(new Error('reached-rehydrate'));
 
       await subject().rehydrateAndResume(executionId, 'ne-1', { foo: 1 });
 
-      // execution.update(...) chain 호출 → execute() 1회
-      const execChain = mockExecutionRepo.createQueryBuilder.mock.results[0]
-        .value as { execute: jest.Mock };
-      expect(execChain.execute).toHaveBeenCalled();
-      // NodeExecution 은 nodeExecutionId 확인 전 단계에서 throw → mark 미호출
-      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      // 두 status 가드(Execution·NodeExecution) 모두 RUNNING 을 통과 → rehydrate 도달.
+      expect(rehydrateSpy).toHaveBeenCalled();
     });
 
     it('__no_node_exec__ sentinel → RESUME_CHECKPOINT_MISSING', async () => {
