@@ -604,24 +604,33 @@ export class AiTurnExecutor {
   }
 
   /**
+   * in-memory `_resumeState`(Record) 를 `ResumeState` 로 좁히는 단일 진입점 (M-7).
+   * `state` 는 재할당되지 않으므로 컴파일 타임 캐스트만 — 런타임 no-op.
+   * 여러 메서드에 흩어져 있던 `state as ResumeState` 를 대체해 일관화한다.
+   */
+  private narrowResumeState(state: Record<string, unknown>): ResumeState {
+    return state as ResumeState;
+  }
+
+  /**
    * NodeRef from `state` carried across multi-turn resumes. `state.rawConfig`
    * is the frozen snapshot taken at the first turn (engine `state.rawConfig`
    * policy — `spec/5-system/4-execution-engine.md §6.1`).
    */
-  private buildAiNodeRefFromState(state: Record<string, unknown>): NodeRef {
-    const id = (state.nodeId as string | undefined) ?? '';
+  private buildAiNodeRefFromState(state: ResumeState): NodeRef {
+    const id = state.nodeId ?? '';
     return {
       id,
       label: id,
       type: 'ai_agent',
+      // rawConfig 는 스키마상 unknown(진짜 dynamic node config) — domain 캐스트 유지.
       config: (state.rawConfig as Record<string, unknown> | undefined) ?? {},
     };
   }
 
   /** Thread reference carried in `state` from the first multi-turn turn. */
-  private threadHolderFromState(
-    state: Record<string, unknown>,
-  ): ThreadHolder | undefined {
+  private threadHolderFromState(state: ResumeState): ThreadHolder | undefined {
+    // conversationThreadRef 는 스키마상 unknown 유지 — domain 캐스트 유지.
     const ref = state.conversationThreadRef as ConversationThread | undefined;
     return ref ? { conversationThread: ref } : undefined;
   }
@@ -2109,7 +2118,7 @@ export class AiTurnExecutor {
     } = args;
     // M-7 — in-memory `_resumeState` 로 좁혀 enrich 된 필드(turnDebugHistory·
     // allPresentations) 의 domain 캐스트 제거 (state 는 재할당되지 않음).
-    const resumeState = state as ResumeState;
+    const resumeState = this.narrowResumeState(state);
     const {
       ragAcc,
       turnRagAcc,
@@ -2452,7 +2461,7 @@ export class AiTurnExecutor {
     // M-7 — in-memory `_resumeState` 로 좁혀 enrich 된 필드(ragSources·
     // turnDebugHistory·allPresentations) 의 array 단언 제거 (state 는 재할당되지
     // 않음). 상단 number 필드 읽기는 "존재 전제"(as number) 라 그대로 둔다.
-    const resumeState = state as ResumeState;
+    const resumeState = this.narrowResumeState(state);
 
     // ragSources 는 turn 누적 — 새 turn 의 KB tool 호출 결과를 push 한다.
     const ragAcc = RagAccumulator.fromState(
@@ -2930,7 +2939,7 @@ export class AiTurnExecutor {
     // `turnDebugHistory` 는 스키마 enrich(`z.custom<T>()`)로 concrete 타입이 되어
     // domain 캐스트 불요. `model`·`ragLastDiagnostics`·`rawConfig` 는 스키마상
     // `unknown` 유지라 domain 캐스트 잔존(근거: 진짜 dynamic/local 타입).
-    const resumeState = state as ResumeState;
+    const resumeState = this.narrowResumeState(state);
     const messages = resumeState.messages ?? [];
     const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
     const lastResponse = (lastMsg?.content as string) ?? '';
