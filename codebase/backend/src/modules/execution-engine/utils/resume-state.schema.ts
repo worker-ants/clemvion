@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { ChatMessage } from '../../llm/interfaces/llm-client.interface';
+import type { PresentationPayload } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
  * Multi-turn AI 노드(`ai_agent` / `information_extractor`)의 재개 상태 3종에 대한
@@ -39,7 +41,12 @@ import { z } from 'zod';
  * 넓게 둔다(런타임 검증 목적이 아니라 형태 문서화·타입 파생 목적).
  */
 const credentialStripSubsetShape = {
-  messages: z.array(z.unknown()),
+  // M-7 enrich — `z.custom<T>()` 는 **런타임 validator 를 추가하지 않는다**(모든
+  // 값 통과). 오직 `z.infer` 타입만 concrete domain 타입으로 sharpen 해 소비처의
+  // `as ChatMessage[]` 류 domain 캐스트를 제거한다. §7.5 graceful-reset 의 "런타임
+  // 미검증" 계약(#783)은 그대로 유지 — `z.array(z.custom<ChatMessage>())` 는 배열
+  // 여부만 검사(기존 `z.array(z.unknown())` 와 동일 강도)하고 원소는 미검증.
+  messages: z.array(z.custom<ChatMessage>()),
   turnCount: z.number(),
   totalInputTokens: z.number(),
   totalOutputTokens: z.number(),
@@ -118,11 +125,13 @@ export const resumeStateSchema = z
     examples: z.array(z.unknown()),
     instructions: z.string(),
     maxCollectionRetries: z.number(),
-    // 턴 간 운반되는 컨텍스트 참조·진단.
+    // 턴 간 운반되는 컨텍스트 참조·진단. (M-7 enrich — `z.custom<T>()` 는 런타임
+    // 미검증, 타입만 sharpen. rawConfig·conversationThreadRef·memoryState 는
+    // 진짜 dynamic/서비스 상태라 unknown 유지.)
     conversationThreadRef: z.unknown(),
     rawConfig: z.unknown(),
-    turnDebugHistory: z.unknown(),
-    allPresentations: z.unknown(),
+    turnDebugHistory: z.custom<unknown[]>(),
+    allPresentations: z.custom<PresentationPayload[]>(),
     memoryState: z.unknown(),
   })
   .partial()

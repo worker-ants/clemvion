@@ -2107,6 +2107,9 @@ export class AiTurnExecutor {
       turnStartedAt,
       memoryMeta,
     } = args;
+    // M-7 — in-memory `_resumeState` 로 좁혀 enrich 된 필드(turnDebugHistory·
+    // allPresentations) 의 domain 캐스트 제거 (state 는 재할당되지 않음).
+    const resumeState = state as ResumeState;
     const {
       ragAcc,
       turnRagAcc,
@@ -2146,7 +2149,7 @@ export class AiTurnExecutor {
     // condition-route turn duration 단일 캡처 (03 C-2 review INFO-3) — trace
     // durationMs 와 turnDebug 가 동일 시각을 참조하도록.
     const condRouteDurationMs = Date.now() - turnStartedAt;
-    const prevHistory = (state.turnDebugHistory as unknown[]) || [];
+    const prevHistory = resumeState.turnDebugHistory || [];
     const condTurnDebugHistory = [
       ...prevHistory,
       {
@@ -2182,8 +2185,7 @@ export class AiTurnExecutor {
             ? presentationSchemaViolations
             : undefined,
         allPresentations: [
-          ...((state.allPresentations as PresentationPayload[] | undefined) ??
-            []),
+          ...(resumeState.allPresentations ?? []),
           ...presentationPayloads,
         ],
         ...(memoryMeta ? { memory: memoryMeta } : {}),
@@ -2447,10 +2449,15 @@ export class AiTurnExecutor {
     let totalThinkingTokens = (state.totalThinkingTokens as number) ?? 0;
     let toolCallCount = state.toolCalls as number;
 
+    // M-7 — in-memory `_resumeState` 로 좁혀 enrich 된 필드(ragSources·
+    // turnDebugHistory·allPresentations) 의 array 단언 제거 (state 는 재할당되지
+    // 않음). 상단 number 필드 읽기는 "존재 전제"(as number) 라 그대로 둔다.
+    const resumeState = state as ResumeState;
+
     // ragSources 는 turn 누적 — 새 turn 의 KB tool 호출 결과를 push 한다.
     const ragAcc = RagAccumulator.fromState(
       knowledgeBases.length,
-      (state.ragSources as unknown[]) ?? [],
+      resumeState.ragSources ?? [],
     );
     // 이번 턴에서만 호출된 KB delta — meta.turnDebug[].ragSources 로 노출되어
     // run-results UI 가 "어느 응답이 어느 청크를 사용했는지" 를 매핑한다.
@@ -2738,7 +2745,7 @@ export class AiTurnExecutor {
     totalOutputTokens += result.usage?.outputTokens ?? 0;
     totalThinkingTokens += result.usage?.thinkingTokens ?? 0;
 
-    const prevHistory = (state.turnDebugHistory as unknown[]) || [];
+    const prevHistory = resumeState.turnDebugHistory || [];
     const currentTurnDebug = {
       turnIndex: turnCount,
       llmCalls,
@@ -2772,8 +2779,7 @@ export class AiTurnExecutor {
           ragDiagnostics: ragAcc.getDiagnostics(),
           mcpServerSummaries: mcpDiagnosticsAcc,
           allPresentations: [
-            ...((state.allPresentations as PresentationPayload[] | undefined) ??
-              []),
+            ...(resumeState.allPresentations ?? []),
             ...presentationPayloads,
           ],
           ...(memoryMeta ? { memory: memoryMeta } : {}),
@@ -2875,8 +2881,7 @@ export class AiTurnExecutor {
         // (NodeExecution.outputData) can echo them even after multi-turn
         // resumes that overwrite the assistant turn buffer.
         allPresentations: [
-          ...((state.allPresentations as PresentationPayload[] | undefined) ??
-            []),
+          ...(resumeState.allPresentations ?? []),
           ...presentationPayloads,
         ],
       },
@@ -2921,37 +2926,39 @@ export class AiTurnExecutor {
   ): unknown {
     // 공개 핸들러 인터페이스(information_extractor 와 공유)라 param 은
     // Record 를 유지하고, 여기서 in-memory `_resumeState`(ResumeState)로 좁혀
-    // allow-list 필드 읽기의 number/array 단언을 제거한다 (M-7). `model`·
-    // `ragLastDiagnostics`·`allPresentations` 등 스키마상 `unknown`/`unknown[]`
-    // 인 필드만 domain 타입으로 좁힌다.
-    const s = state as ResumeState;
-    const messages = (s.messages as ChatMessage[] | undefined) ?? [];
+    // allow-list 필드 읽기의 단언을 제거한다 (M-7). `messages`/`allPresentations`/
+    // `turnDebugHistory` 는 스키마 enrich(`z.custom<T>()`)로 concrete 타입이 되어
+    // domain 캐스트 불요. `model`·`ragLastDiagnostics`·`rawConfig` 는 스키마상
+    // `unknown` 유지라 domain 캐스트 잔존(근거: 진짜 dynamic/local 타입).
+    const resumeState = state as ResumeState;
+    const messages = resumeState.messages ?? [];
     const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
     const lastResponse = (lastMsg?.content as string) ?? '';
     return this.buildMultiTurnFinalOutput(
       messages,
       lastResponse,
-      s.turnCount ?? 0,
+      resumeState.turnCount ?? 0,
       endReason,
       {
-        model: s.model as string,
-        totalInputTokens: s.totalInputTokens ?? 0,
-        totalOutputTokens: s.totalOutputTokens ?? 0,
-        totalThinkingTokens: s.totalThinkingTokens ?? 0,
-        toolCalls: s.toolCalls ?? 0,
-        ragSources: s.ragSources ?? [],
-        ragDiagnostics: s.ragLastDiagnostics as RagDiagnostics | undefined,
-        allPresentations:
-          (s.allPresentations as PresentationPayload[] | undefined) ?? [],
+        model: resumeState.model as string,
+        totalInputTokens: resumeState.totalInputTokens ?? 0,
+        totalOutputTokens: resumeState.totalOutputTokens ?? 0,
+        totalThinkingTokens: resumeState.totalThinkingTokens ?? 0,
+        toolCalls: resumeState.toolCalls ?? 0,
+        ragSources: resumeState.ragSources ?? [],
+        ragDiagnostics: resumeState.ragLastDiagnostics as
+          | RagDiagnostics
+          | undefined,
+        allPresentations: resumeState.allPresentations ?? [],
       },
       undefined,
-      (s.turnDebugHistory as unknown[] | undefined) ?? [],
-      s.rawConfig as Record<string, unknown> | undefined,
+      resumeState.turnDebugHistory ?? [],
+      resumeState.rawConfig as Record<string, unknown> | undefined,
       errorPayload,
       // spec §7.9 — retryable error 종결 시 본 state 의 부분집합이 top-level
       // `_retryState` 로 운반된다. buildMultiTurnFinalOutput 가 retryable
       // 여부를 errorPayload.details 에서 판정하므로, source 는 항상 넘긴다.
-      s,
+      resumeState,
       // spec §7.9 — 실패한 turn 의 사용자 메시지 (+ source). retry 재진입이
       // 마지막 turn 을 replay 하기 위해 `_retryState` 에 운반한다.
       failedUserMessage,
