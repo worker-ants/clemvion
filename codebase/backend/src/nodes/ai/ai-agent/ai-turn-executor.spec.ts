@@ -315,6 +315,31 @@ describe('AiTurnExecutor', () => {
       expect(next.toolCalls).toBe(1);
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
     });
+
+    it('재개 시 turnDebugHistory/allPresentations 를 누적·보존 (M-7 enrich 회귀 가드)', async () => {
+      // z.custom enrich 로 array 캐스트를 제거한 뒤에도 이전 turn 의
+      // turnDebugHistory(prepend+append)·allPresentations(보존)가 다음
+      // _resumeState 로 이어지는지 고정.
+      const executor = buildExecutor();
+      const prevPresentation = { type: 'card', id: 'p-prev' };
+      const state = {
+        ...resumeState(),
+        turnDebugHistory: [{ turnIndex: 0, llmCalls: [] }],
+        allPresentations: [prevPresentation],
+      };
+      const result = (await executor.processMultiTurnMessage(
+        '이어서',
+        state,
+      )) as Record<string, unknown>;
+      const next = result._resumeState as {
+        turnDebugHistory: unknown[];
+        allPresentations: unknown[];
+      };
+      // 이전 1건 + 이번 turn 1건 누적.
+      expect(next.turnDebugHistory).toHaveLength(2);
+      // 이전 presentation 보존(이번 turn 신규 없음).
+      expect(next.allPresentations).toContainEqual(prevPresentation);
+    });
   });
 
   describe('endMultiTurnConversation', () => {
@@ -399,6 +424,33 @@ describe('AiTurnExecutor', () => {
         details: { retryable: false },
       }) as Record<string, unknown>;
       expect(result._retryState).toBeUndefined();
+    });
+
+    it('enrich 로 캐스트 제거된 필드(messages/allPresentations/turnDebugHistory)를 non-default 값으로 출력에 전달 (M-7 회귀 가드)', () => {
+      // z.custom<T>() enrich 로 domain 캐스트를 제거한 필드가 실제로 출력에
+      // 그대로 실려 나가는지 고정 — `?? []` fallback 경로가 아닌 값 경로 검증.
+      const executor = buildExecutor();
+      const turnDebugHistory = [{ turnIndex: 0, llmCalls: [] }];
+      const presentation = { type: 'card', id: 'p-1' };
+      const state = {
+        ...endState(),
+        turnDebugHistory,
+        allPresentations: [presentation],
+      };
+      const result = executor.endMultiTurnConversation(
+        state,
+        'user_ended',
+      ) as Record<string, unknown>;
+      const output = result.output as {
+        result: { messages: unknown[]; presentations?: unknown[] };
+      };
+      const meta = result.meta as { turnDebug: unknown[] };
+      // messages (endState 의 2건) → output.result.messages.
+      expect(output.result.messages).toHaveLength(2);
+      // allPresentations → output.result.presentations.
+      expect(output.result.presentations).toEqual([presentation]);
+      // turnDebugHistory → meta.turnDebug.
+      expect(meta.turnDebug).toEqual(turnDebugHistory);
     });
   });
 
