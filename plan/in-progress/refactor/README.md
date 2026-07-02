@@ -20,7 +20,7 @@
 | [01-performance.md](../../complete/refactor/01-performance.md) | 15 | 10 | 5 (1철회 #9 + 4종결 #11·#12·#13·#15) | **0** | 0 | ✅ 2026-06-10 완료: 구현 10건(perf-backlog-01) + 종결 4건. spec 동기화 = `plan/complete/spec-update-perf-backlog-01.md` |
 | [02-architecture.md](../../complete/refactor/02-architecture.md) | 15 | 15 | 0 | 0 | 0 | C-1(엔진분할 PR #622–627)·C-2(5클러스터 전부 #714/#716/#718~#721/#676)·C-3·M-1·M-2·M-3·M-4(#688)·M-6(#660)·M-7·M-8·M-9·m-1(+#767)·m-2·m-3 완료. M-5 = 레이어1(핫스팟 해소) 완료 + 레이어2/3 는 marketplace Phase D 티켓으로 참고설계 이관·보류 → refactor 범위 종료(2026-07-02) |
 | [03-maintainability.md](../../complete/refactor/03-maintainability.md) | 15 | 11 (M-6·m-2 PR #522 + M-2 API_BASE_URL + C-2 ai-turn-executor 분해 #697·2차 + C-4 WS gateway helper + m-3 integrations/new 분할 + m-1 console→Logger + m-4 catch 변수명 통일 + M-1 install 보일러플레이트 helper + **C-1·M-5 포인터 닫힘**[02 C-1·M-3 완료]) | 3 (M-3 철회 + **C-3·M-4 2026-07-01 사용자 철회**) | 1 | 0 | dead-code 제거 2건 + M-2(API_BASE_URL 3001→3011) + C-2(ai-agent god-method 분해) + C-4(WS gateway helper) + m-3(integrations/new 1444→448줄 분할) + m-1(console.*→Logger + no-console 가드) + m-4(catch 변수명 통일) + M-1(install 보일러플레이트 helper) 완료. **C-1·M-5 는 02(C-1 엔진분할·M-3 streamMessage) 포인터로 닫힘**. **C-3·M-4(cafe24/makeshop 미러)는 2026-07-01 사용자 철회 — 조기 일반화 회피, spec 의도 미러 수용**. 잔여 1: M-7(inline 타입단언 50+ 미착수) |
-| [04-security.md](./04-security.md) | 14 | **14** | 0 | **0** | 0 | ✅ 2026-06-16 전 항목 종결: 코드+spec 머지(PR #570·prod-fail-closed-guards 등). isolated-vm 전환·SSRF 가드·WS authorizer |
+| [04-security.md](../../complete/refactor/04-security.md) | 14 | **14** | 0 | **0** | 0 | ✅ 2026-06-16 전 항목 종결: 코드+spec 머지(PR #570·prod-fail-closed-guards 등). isolated-vm 전환·SSRF 가드·WS authorizer |
 | [05-database.md](./05-database.md) | 15 | 11 | 2 (철회 M-6·m-2) | 2 (m-4·m-5 보류) | 1 (m-5) | ✅ 핵심 11건 완료(2026-06-14 batch): rotation 원자화·partial 인덱스·CTE. m-4·m-5 보류 |
 | [06-concurrency.md](./06-concurrency.md) | 15 | 5 (M-1·M-5·C-1·M-7·M-2) | 3 (철회 m-1·m-2·m-4) | 7 | 1 (C-2) | M-1·M-5·C-1·M-7·M-2(shutdown 추적 드리프트) 완료 외 7건 미착수. rehydrate 가드 |
 | [07-dependency.md](../../complete/refactor/07-dependency.md) | 15 | 10 | 5 (3철회 M-1·M-3·m-3 + 2종결 m-5·m-7) | **0** | 0 | ✅ 2026-06-17 완료: C-1·C-2(deps-security-hygiene) + 잔여 8건 → [07-dependency-residual.md](../../complete/refactor/07-dependency-residual.md) |
@@ -30,7 +30,7 @@
 > 완료(76) + 철회·종결(18) + 잔여(10) = 104. 처리 종료(완료+철회·종결) = 94/104.
 > 철회 항목은 삭제하지 않고 `[x]` + 철회 사유(반증 근거 또는 결정 근거)로 보존.
 >
-> **파일 위치 (2026-07-02)**: 전 항목 종료된 dimension 문서는 `plan/complete/refactor/` 로 이동했다 — 위 표에서 `../../complete/refactor/` 로 링크된 01·02·03·07·07-residual (02 는 M-5 레이어2/3 을 Phase D 로 이관·보류하며 refactor 범위 종료). 잔여 작업이 남은 04(SameSite·CF-IP 기본값 결정)·05(m-4·m-5 보류)·06(미착수 7)·본 README(마스터 인덱스)는 `plan/in-progress/refactor/` 유지. 백로그 전체가 종료되면 README 를 포함해 refactor/ 전부 complete 로 이동.
+> **파일 위치 (2026-07-02)**: 전 항목 종료된 dimension 문서는 `plan/complete/refactor/` 로 이동했다 — 위 표에서 `../../complete/refactor/` 로 링크된 01·02·03·04·07·07-residual (02 는 M-5 레이어2/3 을 Phase D 로 이관·보류하며 refactor 범위 종료, 04 는 2026-06-16 전 14항목 종결). 잔여 작업이 남은 05(m-4·m-5 보류)·06(미착수 7)·본 README(마스터 인덱스)는 `plan/in-progress/refactor/` 유지. 백로그 전체가 종료되면 README 를 포함해 refactor/ 전부 complete 로 이동.
 
 ## spec 대조가 바꾼 주요 사실 (요약)
 
@@ -45,9 +45,9 @@
 
 ### P0 — 보안·데이터 정합 즉시 대응 (단독 PR) — ✅ 전건 완료
 
-1. ~~**`authentication=none` SSRF 가드 미적용**~~ ✅ 완료 — spec §4 step8↔§104 모순 해소 동반 → [04](./04-security.md) C-3
-2. ~~**code 노드 vm 탈출**~~ ✅ 완료 (isolated-vm 전환, worktree `code-node-isolated-vm`) → [04](./04-security.md) C-2
-3. ~~**JWT secret fallback**~~ ✅ 완료 (M-4 ENCRYPTION_KEY·M-7 MCP insecure flag 와 단일 "production fail-closed 가드" 블록, worktree `prod-fail-closed-guards`) → [04](./04-security.md) C-1/M-4/M-7
+1. ~~**`authentication=none` SSRF 가드 미적용**~~ ✅ 완료 — spec §4 step8↔§104 모순 해소 동반 → [04](../../complete/refactor/04-security.md) C-3
+2. ~~**code 노드 vm 탈출**~~ ✅ 완료 (isolated-vm 전환, worktree `code-node-isolated-vm`) → [04](../../complete/refactor/04-security.md) C-2
+3. ~~**JWT secret fallback**~~ ✅ 완료 (M-4 ENCRYPTION_KEY·M-7 MCP insecure flag 와 단일 "production fail-closed 가드" 블록, worktree `prod-fail-closed-guards`) → [04](../../complete/refactor/04-security.md) C-1/M-4/M-7
 4. ~~**refresh 토큰 rotation 원자화**~~ ✅ 완료 (worktree `auth-refresh-rotation-atomic`) → [05](./05-database.md) C-1
 5. ~~**hono CVE override 상향** + **jsonwebtoken deps 이동**~~ ✅ 완료 (`plan/complete/deps-security-hygiene.md`) → [07](../../complete/refactor/07-dependency.md) C-1·C-2
 
@@ -58,7 +58,7 @@
 8. **rehydrate optimistic claim** — spec 불변식("이중 실행 0")의 보장 수단 보강 + §7.5 문구 갱신 → [06](./06-concurrency.md) C-2 ⚠️ *(결정대기)*
 9. ~~**shutdown 중 시작 노드 추적 포기** — §11.4 약속 위반 드리프트~~ ✅ 완료(2026-06-24, branch `refactor-06-m2-shutdown-tracking`) — Option A(early-return 제거): shutdown 중 시작 노드도 추적·drain·SERVER_INTERRUPTED 마킹. B(worker pause)는 framework 충족·queue.pause 전역이라 미채택 → [06](./06-concurrency.md) M-2
 10. ~~**프론트 execution-store O(N² log N) + 선형 탐색**~~ ✅ 완료(2026-06-10, 01 #3·#8 단일 커밋)
-11. ~~**WS `workflow:`/`notifications:` authorizer**~~ ✅ 완료 (PR #570 — spec §3.3 갱신 동반) → [04](./04-security.md) M-6
+11. ~~**WS `workflow:`/`notifications:` authorizer**~~ ✅ 완료 (PR #570 — spec §3.3 갱신 동반) → [04](../../complete/refactor/04-security.md) M-6
 12. ~~**frontend API_BASE_URL 3001 fallback 수정** (정답 3011)~~ ✅ 완료(2026-06-24, branch `refactor-03-m2-api-base-url`) — `lib/api/constants.ts` 단일화 + client/assistant 3001→3011, grep 3001 0건 → [03](../../complete/refactor/03-maintainability.md) M-2
 
 ### P2 — 구조 개선 (대형, strangler-fig)
