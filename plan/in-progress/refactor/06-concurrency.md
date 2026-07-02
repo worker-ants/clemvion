@@ -2,7 +2,7 @@
 
 > 인덱스: [README.md](./README.md). Critical 3 / Major 7 / Minor 5 — **spec 대조(2026-06-10) 후 유효 12건 / 철회 3건(m-1, m-2, m-4)**.
 > **spec 대조 판정 분포**: A 3 (C-2, M-1, M-5) / B 6 / C 3 (M-2, M-7 + C-3 부속 드리프트) / D 1 (C-3) / E 3.
-> **⚠️ A(의도된 설계)인데 여전히 문제**: C-2 (spec 이 선언한 불변식의 보장 수단이 비원자 — **결정 대기**), M-5·M-1 (✅ 2026-06-10 사용자 승인 — 권고안대로 진행 확정).
+> **⚠️ A(의도된 설계)인데 여전히 문제**: C-2 (spec 이 선언한 불변식의 보장 수단이 비원자 — **✅ 구현 완료 2026-07-03: DB 원자 claim, Option A**), M-5·M-1 (✅ 2026-06-10 사용자 승인 — 권고안대로 진행 확정).
 > 전반 평가: BullMQ durable queue(Phase 2), park-release 모델, ShutdownState in-flight 추적 등 핵심 설계 양호. C(드리프트) 2건은 "spec 이 옳고 구현이 따라가야 할" 케이스.
 > 옵션 비교·권장안 보강 (2026-06-10)
 
@@ -37,7 +37,8 @@
 
 ### ⚠️ C-2 [Critical] `rehydrateContext` check-then-act — 동시 worker 의 context OVERWRITE
 
-- [ ] 결정 대기 (사용자) — `execution-engine.service.ts:1250-1344` + `continuation-execution.processor.ts:72-80`
+- [x] **구현 완료 (Option A, 2026-07-02 사용자 승인 → 2026-07-03 구현)** — 재개 진입을 비원자 SELECT 재검증에서 **DB-level 원자 claim** 으로 전환. `claimResumeEntry(executionId, nodeExecutionId)` 가 NodeExecution 조건부 claim(레이스 결정자) + Execution 짝 전이(§1.1)를 **단일 트랜잭션**으로(`… WHERE status='waiting_for_input' RETURNING`, affected=0 → ack-and-discard). check-then-act 창 제거로 멀티 인스턴스·concurrency 상향에서 "동일 turn 이중 실행 0" 기계 보장. `markNodeExecutionFailed`/`recoverStuckExecutions`(자식 cascade) 로 claim 후 크래시 stuck 방지. re-park 시 nodeExec WAITING 복귀. spec: `5-system/4-execution-engine.md §7.5·§1.1/§1.2·§7.4·Rationale` + `data-flow/3-execution.md` 개정(planner 트랙, consistency --spec BLOCK:NO). 검증: lint·unit(7535)·build·e2e(225) PASS. ai-review(CRITICAL 페어링 해소 후 fresh Critical 0) + impl-done BLOCK:NO. branch `claude/refactor-06-c2-atomic-claim`. — `execution-engine.service.ts`·`continuation-execution.processor.ts`·`ai-turn-orchestrator.service.ts`
+  - **후속 고려 (비차단, ai-review defer)**: (W2) driveResumeAwaited/processAiResumeTurn RUNNING skip-guard 전용 unit 테스트, (W3) "동일 (executionId,nodeExecutionId) 2회 동시 재개 → 한쪽만 진행" 전용 dockerized e2e (원자성은 조건부 UPDATE+affected 로 설계 보장·park-resume e2e 간접 커버), (W5) segmentStartMs 공유 헬퍼 추출, (W6) claim 롤백 매직스트링 → 커스텀 에러클래스.
 
 **A — spec 이 "race 를 닫는다" 고 선언했으나 보장 수단이 비원자.**
 

@@ -55,7 +55,7 @@
 
 6. ~~**resume rehydration N+1**~~ ✅ 완료(2026-06-10, 01 #1·05 M-4). ~~`(execution_id,status)` partial 인덱스(05 C-3)~~ ✅ 완료(2026-06-14, V095) → [05](../../complete/refactor/05-database.md) C-3
 7. ~~**cancel fire-and-forget + nextSeq random fallback**~~ ✅ 완료(2026-06-24, branch `refactor-06-c1-m7-publish-failfast`) — publish 실패 fail-fast 통일(`queued:false`): cancel async+503 surface, nextSeq random fallback 제거. spec §7.4/§7.5.2·에러코드 카탈로그는 sibling planner spec-sync → [06](./06-concurrency.md) C-1·M-7 *(spec-sync 후속)*
-8. **rehydrate optimistic claim** — spec 불변식("이중 실행 0")의 보장 수단 보강 + §7.5 문구 갱신 → [06](./06-concurrency.md) C-2 ⚠️ *(결정대기)*
+8. ~~**rehydrate optimistic claim** — spec 불변식("이중 실행 0")의 보장 수단 보강 + §7.5 문구 갱신~~ ✅ 완료(2026-07-03, DB 원자 claim Option A, branch `refactor-06-c2-atomic-claim`) → [06](./06-concurrency.md) C-2
 9. ~~**shutdown 중 시작 노드 추적 포기** — §11.4 약속 위반 드리프트~~ ✅ 완료(2026-06-24, branch `refactor-06-m2-shutdown-tracking`) — Option A(early-return 제거): shutdown 중 시작 노드도 추적·drain·SERVER_INTERRUPTED 마킹. B(worker pause)는 framework 충족·queue.pause 전역이라 미채택 → [06](./06-concurrency.md) M-2
 10. ~~**프론트 execution-store O(N² log N) + 선형 탐색**~~ ✅ 완료(2026-06-10, 01 #3·#8 단일 커밋)
 11. ~~**WS `workflow:`/`notifications:` authorizer**~~ ✅ 완료 (PR #570 — spec §3.3 갱신 동반) → [04](../../complete/refactor/04-security.md) M-6
@@ -70,9 +70,9 @@
 17. ~~**park-진입 dispatch 추출**~~ ✅ 완료 — PR #507 resume registry 와 대칭(`ParkEntryDispatch`, 커밋 `ecd70dd1` + spec-sync #688) → [02](../../complete/refactor/02-architecture.md) M-4
 18. **ExecutionContext 스케일아웃** — 독립 작업화 금지, exec-intake PR3 연동 → [06](./06-concurrency.md) C-3 *(잔여)*
 
-## ⚠️ 의도된 설계지만 문제 — 사용자 결정 현황 (15행 중 ✅ 완료 13 / 🔧 진행중 0 / ⏳ 결정대기 1 / ✅ 철회 1)
+## ⚠️ 의도된 설계지만 문제 — 사용자 결정 현황 (15행 중 ✅ 완료 14 / 🔧 진행중 0 / ⏳ 결정대기 0 / ✅ 철회 1)
 
-> **현황 (2026-07-02 갱신)**: ✅ 완료 13행 (04 5건·03 M-6/m-2·05 C-2·06 M-5·06 M-1·07 m-9·**02 C-2·02 M-5·05 m-5**). 🔧 진행중 0행 — 02 C-2 전 클러스터 종결(클러스터1 엔진↔WS 는 spec 의도로 유지, 잔존 고충은 수용 비용), 02 M-5 레이어1 핫스팟 해소 + 레이어2/3 marketplace Phase D 위임, 05 m-5 보류-종료(refactor 범위, 재트리거 조건 보존). ⏳ 결정대기 1행: 06 C-2 — **착수 금지 유지**. (03 C-3/M-4 는 2026-07-01 사용자 철회.)
+> **현황 (2026-07-03 갱신)**: ✅ 완료 14행 (04 5건·03 M-6/m-2·05 C-2·06 M-5·06 M-1·07 m-9·**02 C-2·02 M-5·05 m-5·06 C-2**). 🔧 진행중 0행 — 02 C-2 전 클러스터 종결(클러스터1 엔진↔WS 는 spec 의도로 유지, 잔존 고충은 수용 비용), 02 M-5 레이어1 핫스팟 해소 + 레이어2/3 marketplace Phase D 위임, 05 m-5 보류-종료(refactor 범위, 재트리거 조건 보존), **06 C-2 는 2026-07-03 DB 원자 claim(Option A) 구현 완료**. ⏳ 결정대기 0행. (03 C-3/M-4 는 2026-07-01 사용자 철회.)
 > **2026-06-10 사용자 결정**: 04 m-4, 03 M-6, 03 m-2, 06 M-5, 06 M-1 — **권고안대로 진행 확정** → 모두 ✅ 완료.
 > **2026-07-01 사용자 결정**: 03 C-3·M-4 (cafe24/makeshop 미러 중복) — **철회** (deferral 앞당김·보류 모두 아님). 3번째 provider 발산을 예측할 수 없어 2-샘플 추상화는 조기 일반화이고, spec 대조로 비대칭이 전부 의도임이 확인됨(§6.1·§4·§9.5·§2) → 중복을 의도된 미러로 수용, 트리거 예약도 해제. 재기는 동일 버그 2회 수정 누적 시 새 티켓.
 > **2026-06-20 사용자 결정**: 02 M-5 — **Option B(DI multi-provider 3-레이어) 방향 확정 + 레이어1 구현 착수** (n8n·flowise 리서치 기반, 격리=flowise·샌드박스=n8n). 02 C-2 #1(엔진↔WS)은 트레이드오프 부록만 추가하고 **유지 결론 불변(✅ 확정)**.
@@ -90,7 +90,7 @@
 | 03 M-6/m-2 dead code | 제거가 예약된 잔류물 | 잔존 중 | **✅ 완료** — 단일 cleanup PR #522 |
 | 05 C-2 re_run_of walk | `13-replay-rerun.md §9.1` 함수명까지 명시 | 직렬 SELECT ≤64회 | **✅ 완료(2026-06-14)** — 재귀 CTE 교체 + spec §9.1 1줄 동행 |
 | 05 m-5 schedule 부팅 전수 등록 | `data-flow/10-triggers.md §1.3` 명시 | 무페이징 적재만 잔존 문제 | **✅ 보류-종료(refactor 범위, 2026-07-02)** — 배치 페이징만 잔존(1안 repeatable jobs 는 기구현 철회). 재트리거: 활성 스케줄 500 접근 시 |
-| 06 C-2 rehydrate 가드 | §7.5 "race 를 닫는다" 선언 | 보장 수단이 비원자 check-then-act | **⏳ 결정대기** — optimistic claim + spec 문구 갱신 |
+| 06 C-2 rehydrate 가드 | §7.5 "race 를 닫는다" 선언 | 보장 수단이 비원자 check-then-act | **✅ 구현 완료(2026-07-03)** — DB 원자 claim(Option A): Execution·NodeExecution 짝 단일 tx WFI→RUNNING, affected=0 → discard |
 | 06 M-5 shallow clone | `10-parallel.md:14` 명시 | invariant 기계 강제 부재 | **✅ 완료(2026-06-10)** — dev/test deep freeze (structuredClone 은 spec 개정 선행) |
 | 06 M-1 resumed ack | §4.2 정의 존재 | spec 내부 문구 모순 | **✅ 완료(2026-06-10)** — spec 문구 정리(`plan/complete/spec-update-ws-resumed-ack.md`) + 프론트 가드 확인 |
 | 07 m-9 otplib | `1-data-model.md:66` "otplib base32" 지정 | 사용 버전 4년 stale (라이브러리는 활발) | **✅ 완료(2026-06-17)** — otplib ^13 (secret 호환성 게이트 11/11) |
