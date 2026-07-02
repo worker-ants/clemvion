@@ -10,6 +10,10 @@ import {
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import { ExecutionEngineService } from './execution-engine.service';
 import { userMessageSignalApplies } from './ai-conversation-helpers';
+import {
+  resumeCheckpointSchema,
+  CREDENTIAL_CONTEXT_FIELDS,
+} from './utils/resume-state.schema';
 import { CALL_STACK_SCHEMA_VERSION } from '../../shared/execution-resume/resume-call-stack.types';
 import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
@@ -5425,6 +5429,16 @@ describe('ExecutionEngineService', () => {
         partialResult: { name: 'Bob' },
         collectionRetryCount: 1,
       });
+      // M-7 builder↔schema drift 가드 — 실 산출물이 allow-list 스키마(§1.3, I-5)를
+      // 정확히 만족하는지 `.strict()` 로 검증(credential/알 수 없는 키가 섞이면
+      // strict 파싱이 실패 → drift 검출). non-strict 는 unknown 키를 조용히 strip 해
+      // 항상-참이 되므로 사용하지 않는다.
+      expect(
+        resumeCheckpointSchema.strict().safeParse(checkpoint).success,
+      ).toBe(true);
+      for (const cred of CREDENTIAL_CONTEXT_FIELDS) {
+        expect(checkpoint).not.toHaveProperty(cred);
+      }
       // _resumeState 는 strip 돼야 한다 (credential-safe 정책).
       expect(outputData).not.toHaveProperty('_resumeState');
     });
@@ -5537,6 +5551,13 @@ describe('ExecutionEngineService', () => {
         partialResult: { email: 'x@y.z' },
         collectionRetryCount: 1,
       });
+      // M-7 builder↔schema drift 가드 (§1.3, I-5) — 후속 turn 경로도 `.strict()` 로 검증.
+      expect(
+        resumeCheckpointSchema.strict().safeParse(checkpoint).success,
+      ).toBe(true);
+      for (const cred of CREDENTIAL_CONTEXT_FIELDS) {
+        expect(checkpoint).not.toHaveProperty(cred);
+      }
       expect(outputData).not.toHaveProperty('_resumeState');
     });
 

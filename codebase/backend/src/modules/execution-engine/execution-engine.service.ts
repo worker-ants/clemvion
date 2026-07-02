@@ -75,6 +75,7 @@ import {
 } from './utils/coerce-container-param';
 import { extractBackgroundRunId } from './utils/extract-background-run-id';
 import { toRecord } from './utils/to-record';
+import type { ResumeCheckpoint } from './utils/resume-state.schema';
 import {
   ExecutionContext,
   NodeHandler,
@@ -1490,7 +1491,7 @@ export class ExecutionEngineService
       persistedInteractionType === 'ai_conversation' ||
       persistedInteractionType === 'ai_form_render';
     const resumeCheckpoint = cachedOutput?._resumeCheckpoint as
-      | Record<string, unknown>
+      | ResumeCheckpoint
       | undefined;
     if (isAiConversation && !resumeCheckpoint) {
       throw new RehydrationError(

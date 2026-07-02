@@ -18,6 +18,7 @@ import {
 } from '../../nodes/core/node-handler.interface';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
+import type { ResumeState } from './utils/resume-state.schema';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import {
   ExecutionEventType,
@@ -144,7 +145,7 @@ export class AiTurnOrchestrator {
     // 호출이 TypeError 던지던 문제 해소. 핸들러가 _resumeState 를 누락한 비정상
     // 상황에서도 빈 객체로 fallback 하여 nullable propagation 차단.
     const resumeState =
-      (nodeOutput._resumeState as Record<string, unknown>) ?? {};
+      (nodeOutput._resumeState as ResumeState | undefined) ?? {};
 
     // ENG-RC-* — multi-turn resume 핸들러는 ExecutionContext 가 아닌 state 만
     // 인자로 받으므로 (`processMultiTurnMessage(message, state)`), 첫 turn 이
@@ -689,10 +690,7 @@ export class AiTurnOrchestrator {
       }
 
       // Update state for next turn
-      const nextResumeState = adaptedNext._resumeState as Record<
-        string,
-        unknown
-      >;
+      const nextResumeState = adaptedNext._resumeState as ResumeState;
 
       const adaptedOutput = adaptedNext.output as
         | Record<string, unknown>
