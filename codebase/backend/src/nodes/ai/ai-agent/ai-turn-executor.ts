@@ -22,6 +22,10 @@ import {
   PresentationSchemaViolation,
 } from './tool-providers/agent-tool-provider.interface';
 import type { McpServerSummary } from './tool-providers/mcp-diagnostics';
+import type {
+  ResumeState,
+  RetryState,
+} from '../../../modules/execution-engine/utils/resume-state.schema';
 import {
   AiConditionEvaluator,
   type ConditionDef,
@@ -2915,33 +2919,39 @@ export class AiTurnExecutor {
     failedUserMessage?: string,
     failedUserMessageSource?: ResumableMessageSource,
   ): unknown {
-    const messages = (state.messages as ChatMessage[]) ?? [];
+    // 공개 핸들러 인터페이스(information_extractor 와 공유)라 param 은
+    // Record 를 유지하고, 여기서 in-memory `_resumeState`(ResumeState)로 좁혀
+    // allow-list 필드 읽기의 number/array 단언을 제거한다 (M-7). `model`·
+    // `ragLastDiagnostics`·`allPresentations` 등 스키마상 `unknown`/`unknown[]`
+    // 인 필드만 domain 타입으로 좁힌다.
+    const s = state as ResumeState;
+    const messages = (s.messages as ChatMessage[] | undefined) ?? [];
     const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
     const lastResponse = (lastMsg?.content as string) ?? '';
     return this.buildMultiTurnFinalOutput(
       messages,
       lastResponse,
-      (state.turnCount as number) ?? 0,
+      s.turnCount ?? 0,
       endReason,
       {
-        model: state.model as string,
-        totalInputTokens: (state.totalInputTokens as number) ?? 0,
-        totalOutputTokens: (state.totalOutputTokens as number) ?? 0,
-        totalThinkingTokens: (state.totalThinkingTokens as number) ?? 0,
-        toolCalls: (state.toolCalls as number) ?? 0,
-        ragSources: (state.ragSources as unknown[]) ?? [],
-        ragDiagnostics: state.ragLastDiagnostics as RagDiagnostics | undefined,
+        model: s.model as string,
+        totalInputTokens: s.totalInputTokens ?? 0,
+        totalOutputTokens: s.totalOutputTokens ?? 0,
+        totalThinkingTokens: s.totalThinkingTokens ?? 0,
+        toolCalls: s.toolCalls ?? 0,
+        ragSources: s.ragSources ?? [],
+        ragDiagnostics: s.ragLastDiagnostics as RagDiagnostics | undefined,
         allPresentations:
-          (state.allPresentations as PresentationPayload[] | undefined) ?? [],
+          (s.allPresentations as PresentationPayload[] | undefined) ?? [],
       },
       undefined,
-      (state.turnDebugHistory as unknown[]) ?? [],
-      state.rawConfig as Record<string, unknown> | undefined,
+      (s.turnDebugHistory as unknown[] | undefined) ?? [],
+      s.rawConfig as Record<string, unknown> | undefined,
       errorPayload,
       // spec §7.9 — retryable error 종결 시 본 state 의 부분집합이 top-level
       // `_retryState` 로 운반된다. buildMultiTurnFinalOutput 가 retryable
       // 여부를 errorPayload.details 에서 판정하므로, source 는 항상 넘긴다.
-      state,
+      s,
       // spec §7.9 — 실패한 turn 의 사용자 메시지 (+ source). retry 재진입이
       // 마지막 turn 을 replay 하기 위해 `_retryState` 에 운반한다.
       failedUserMessage,
@@ -2994,7 +3004,7 @@ export class AiTurnExecutor {
      * DB 영속한다. 정상 종결 / 비-retryable error 에서는 undefined 이면 되고,
      * 그 경우 `_retryState` 키 자체가 생성되지 않는다 (회귀 가드).
      */
-    retryStateSource?: Record<string, unknown>,
+    retryStateSource?: ResumeState,
     /**
      * spec/4-nodes/3-ai/1-ai-agent.md §7.9 — 실패한 turn 을 일으킨 사용자
      * 메시지 (+ dispatch source). `messages` snapshot 에 포함되지 않으므로
@@ -3112,7 +3122,7 @@ export class AiTurnExecutor {
    * spread the whole state so no secret / oversized bookkeeping leaks in.
    */
   private static buildRetryState(
-    source: Record<string, unknown>,
+    source: ResumeState,
     messages: ChatMessage[],
     turnCount: number,
     accounting: {
@@ -3123,28 +3133,28 @@ export class AiTurnExecutor {
     },
     failedUserMessage?: string,
     failedUserMessageSource?: ResumableMessageSource,
-  ): Record<string, unknown> {
+  ): RetryState {
     const ttlMinutes = resolveRetryStateTtlMinutes();
     const expiresAt = new Date(Date.now() + ttlMinutes * 60_000).toISOString();
-    const pendingFormToolCall = source.pendingFormToolCall as
-      | Record<string, unknown>
-      | undefined;
+    // `source` 는 in-memory `_resumeState` (ResumeState) — allow-list 필드는
+    // 스키마 타입으로 좁혀져 별도 단언 불필요. `model` 만 credentialStripSubset
+    // 에서 `unknown` 이라 domain 타입으로 좁힌다 (M-7).
+    const pendingFormToolCall = source.pendingFormToolCall;
     return {
       messages,
       turnCount,
       totalInputTokens: accounting.totalInputTokens,
       totalOutputTokens: accounting.totalOutputTokens,
-      totalThinkingTokens:
-        (source.totalThinkingTokens as number | undefined) ?? 0,
+      totalThinkingTokens: source.totalThinkingTokens ?? 0,
       toolCalls: accounting.toolCalls,
       model: (source.model as string | undefined) ?? accounting.model,
       temperature: source.temperature,
       maxTokens: source.maxTokens,
-      knowledgeBases: (source.knowledgeBases as unknown[] | undefined) ?? [],
+      knowledgeBases: source.knowledgeBases ?? [],
       ragTopK: source.ragTopK,
       ragThreshold: source.ragThreshold,
-      ragSources: (source.ragSources as unknown[] | undefined) ?? [],
-      mcpServers: (source.mcpServers as unknown[] | undefined) ?? [],
+      ragSources: source.ragSources ?? [],
+      mcpServers: source.mcpServers ?? [],
       // NOTE — credential / context-binding 필드 (`llmConfigId`, `workspaceId`,
       // `executionId`, `presentationTools`, `conditions`, `maxTurns` 등) 는
       // **의도적으로 미동봉**. `_retryState` 는 DB 영속이므로 credential 참조를

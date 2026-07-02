@@ -26,6 +26,19 @@ describe('isRecord', () => {
       throw new Error('unreachable');
     }
   });
+
+  // 문서화 테스트 — 순수 plain-object 가드가 아님(JSDoc caveat 고정).
+  // class 인스턴스도 non-array object 라 true. "property 접근 가능한가" 판별이지
+  // "JSON-plain 인가" 검증이 아니다.
+  it('class 인스턴스(Date / Map / RegExp)도 true — plain-object 가드 아님', () => {
+    expect(isRecord(new Date())).toBe(true);
+    expect(isRecord(new Map())).toBe(true);
+    expect(isRecord(/re/)).toBe(true);
+  });
+
+  it('Object.create(null) (프로토타입 없는 객체)도 true', () => {
+    expect(isRecord(Object.create(null))).toBe(true);
+  });
 });
 
 describe('toRecord', () => {

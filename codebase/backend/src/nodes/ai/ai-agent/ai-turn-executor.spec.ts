@@ -364,6 +364,33 @@ describe('AiTurnExecutor', () => {
       expect(retryState.lastUserMessage).toBe('failed message');
     });
 
+    it('carries resume-state allow-list fields into _retryState (M-7 cast 제거 회귀 가드)', () => {
+      // buildRetryState 가 mcpServers/knowledgeBases/pendingFormToolCall/
+      // totalThinkingTokens 의 `as` 단언을 ResumeState 타입화로 제거한 뒤에도
+      // non-default 값을 그대로 운반하는지 검증 (behavior-preserving).
+      const executor = buildExecutor();
+      const mcpServers = [{ id: 'srv-1', tools: ['t'] }];
+      const knowledgeBases = [{ id: 'kb-1' }];
+      const pendingFormToolCall = { toolCallId: 'call-1', formSchema: {} };
+      const state = {
+        ...endState(),
+        totalThinkingTokens: 7,
+        mcpServers,
+        knowledgeBases,
+        pendingFormToolCall,
+      };
+      const result = executor.endMultiTurnConversation(state, 'error', {
+        code: 'LLM_TIMEOUT',
+        message: 'timeout',
+        details: { retryable: true },
+      }) as Record<string, unknown>;
+      const retryState = result._retryState as Record<string, unknown>;
+      expect(retryState.mcpServers).toEqual(mcpServers);
+      expect(retryState.knowledgeBases).toEqual(knowledgeBases);
+      expect(retryState.pendingFormToolCall).toEqual(pendingFormToolCall);
+      expect(retryState.totalThinkingTokens).toBe(7);
+    });
+
     it('omits _retryState for non-retryable errors', () => {
       const executor = buildExecutor();
       const result = executor.endMultiTurnConversation(endState(), 'error', {
