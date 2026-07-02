@@ -1859,16 +1859,52 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({ status: ExecutionStatus.RUNNING }),
       );
       expect(execQb.execute).toHaveBeenCalled();
+      // 부수효과: claim 성공 시 active-running 세그먼트 시작 기록(PR2a/§8 보정).
+      expect(
+        (
+          service as unknown as { segmentStartMs: Map<string, number> }
+        ).segmentStartMs.has('exec-1'),
+      ).toBe(true);
     });
 
-    it('node affected=0 → false + Execution 짝 전이 미실행 (ack-and-discard)', async () => {
+    it('node affected=0 → false + Execution 짝 전이 미실행 + segmentStartMs 미기록', async () => {
       const { execQb } = installTx(0, 1);
+      (
+        service as unknown as { segmentStartMs: Map<string, number> }
+      ).segmentStartMs.delete('exec-1');
 
       await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
         false,
       );
       // node claim 실패 → 짝 Execution UPDATE 도달 전 return.
       expect(execQb.execute).not.toHaveBeenCalled();
+      // 부수효과 미발생 — claim 실패 시 세그먼트 기록 없음.
+      expect(
+        (
+          service as unknown as { segmentStartMs: Map<string, number> }
+        ).segmentStartMs.has('exec-1'),
+      ).toBe(false);
+    });
+
+    it('node claim 성공하나 Execution terminal(짝 UPDATE affected=0) → 롤백·false (동시 cancel 방어)', async () => {
+      // cancelParkedExecution 비원자 창: exec=CANCELLED·node=WAITING 상태에서 claim 이
+      // node 만 잡으면 짝 불일치 → exec 짝 UPDATE affected=0 → throw 로 tx 롤백 → false.
+      const { execQb } = installTx(1, 0);
+      (
+        service as unknown as { segmentStartMs: Map<string, number> }
+      ).segmentStartMs.delete('exec-1');
+
+      await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
+        false,
+      );
+      // exec 짝 UPDATE 는 시도됨(affected=0 확인) — 그 결과로 abort.
+      expect(execQb.execute).toHaveBeenCalled();
+      // claim 실패 → 세그먼트 미기록.
+      expect(
+        (
+          service as unknown as { segmentStartMs: Map<string, number> }
+        ).segmentStartMs.has('exec-1'),
+      ).toBe(false);
     });
 
     it('동시 재개 — 두 claim 중 하나만 승리 (레이스 결정자=node claim)', async () => {
@@ -10860,20 +10896,54 @@ describe('ExecutionEngineService', () => {
       jest.restoreAllMocks();
     });
 
-    it('Execution not WAITING_FOR_INPUT → RESUME_CHECKPOINT_MISSING (execution 만 cancelled)', async () => {
+    // 06 C-2 — Execution 이 terminal(재개 불가) 이면 RESUME_CHECKPOINT_MISSING.
+    // 주의: RUNNING 은 §7.5 원자 claim 진입 후 상태라 **허용값**이므로 reject 테스트에
+    // 쓰면 안 된다(가드 통과 → false-green). terminal(CANCELLED)로 검증한다.
+    it('Execution terminal(CANCELLED) → RESUME_CHECKPOINT_MISSING (early reject, rehydrate 미진입)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        status: ExecutionStatus.CANCELLED,
+      });
+      const rehydrateSpy = jest
+        .spyOn(service, 'rehydrateContext')
+        .mockRejectedValue(new Error('should-not-reach'));
+
+      await subject().rehydrateAndResume(executionId, 'ne-1', { foo: 1 });
+
+      // execution.update(...) chain 호출 → execute() 1회 (markExecutionCancelled)
+      const execChain = mockExecutionRepo.createQueryBuilder.mock.results[0]
+        .value as { execute: jest.Mock };
+      expect(execChain.execute).toHaveBeenCalled();
+      // Execution status 가드에서 early throw → node 로드·rehydrate 미진입.
+      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(rehydrateSpy).not.toHaveBeenCalled();
+    });
+
+    // 06 C-2 — claim 진입 후 Execution·NodeExecution 이 RUNNING 이면 **재개 가능**으로
+    // 허용돼 status 가드를 통과하고 rehydrate 로 진입한다 (RUNNING 이 거부되던 옛 동작의
+    // 회귀 방지 positive 테스트).
+    it('Execution/NodeExecution RUNNING(claim 후) → status 가드 통과, rehydrate 진입', async () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: executionId,
         status: ExecutionStatus.RUNNING,
       });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.RUNNING,
+      });
+      mockNodeRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValue({ id: 'node-1', type: 'form' });
+      // rehydrate 로 진입했음을 sentinel 로 확인 (진입 후는 본 테스트 범위 밖).
+      const rehydrateSpy = jest
+        .spyOn(service, 'rehydrateContext')
+        .mockRejectedValue(new Error('reached-rehydrate'));
 
       await subject().rehydrateAndResume(executionId, 'ne-1', { foo: 1 });
 
-      // execution.update(...) chain 호출 → execute() 1회
-      const execChain = mockExecutionRepo.createQueryBuilder.mock.results[0]
-        .value as { execute: jest.Mock };
-      expect(execChain.execute).toHaveBeenCalled();
-      // NodeExecution 은 nodeExecutionId 확인 전 단계에서 throw → mark 미호출
-      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      // 두 status 가드(Execution·NodeExecution) 모두 RUNNING 을 통과 → rehydrate 도달.
+      expect(rehydrateSpy).toHaveBeenCalled();
     });
 
     it('__no_node_exec__ sentinel → RESUME_CHECKPOINT_MISSING', async () => {

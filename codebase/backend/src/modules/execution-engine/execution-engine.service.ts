@@ -869,31 +869,48 @@ export class ExecutionEngineService
     if (!nodeExecutionId || nodeExecutionId === '__no_node_exec__') {
       return true;
     }
-    const claimed = await this.dataSource.transaction(async (manager) => {
-      // (1) 레이스 결정자 — NodeExecution 조건부 claim.
-      const nodeRes = await manager
-        .createQueryBuilder()
-        .update(NodeExecution)
-        .set({ status: NodeExecutionStatus.RUNNING })
-        .where('id = :id', { id: nodeExecutionId })
-        .andWhere('status = :waiting', {
-          waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
-        })
-        .execute();
-      if ((nodeRes.affected ?? 0) === 0) return false;
-      // (2) 짝 전이 — 같은 tx 로 Execution 도 WFI→RUNNING (§1.1). 이미 RUNNING 등
-      //     이면 affected=0 이어도 무방(멱등) — node claim 이 유일한 레이스 결정자.
-      await manager
-        .createQueryBuilder()
-        .update(Execution)
-        .set({ status: ExecutionStatus.RUNNING })
-        .where('id = :id', { id: executionId })
-        .andWhere('status = :waiting', {
-          waiting: ExecutionStatus.WAITING_FOR_INPUT,
-        })
-        .execute();
-      return true;
-    });
+    let execMismatch = false;
+    const claimed = await this.dataSource
+      .transaction(async (manager) => {
+        // (1) 레이스 결정자 — NodeExecution 조건부 claim.
+        const nodeRes = await manager
+          .createQueryBuilder()
+          .update(NodeExecution)
+          .set({ status: NodeExecutionStatus.RUNNING })
+          .where('id = :id', { id: nodeExecutionId })
+          .andWhere('status = :waiting', {
+            waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        if ((nodeRes.affected ?? 0) === 0) return false;
+        // (2) 짝 전이 — 같은 tx 로 Execution 도 WFI→RUNNING (§1.1). 재개 가능
+        //     상태(WAITING_FOR_INPUT ∪ RUNNING)만 대상. affected=0 이면 Execution 이
+        //     이미 terminal(동시 cancel 등 — `cancelParkedExecution` 은 exec/node UPDATE
+        //     가 비원자라 exec=CANCELLED·node=WAITING 창이 존재) → node 만 claim 되면
+        //     짝 불일치가 남으므로 throw 로 tx 롤백해 node claim 도 취소한다(→ discard).
+        const execRes = await manager
+          .createQueryBuilder()
+          .update(Execution)
+          .set({ status: ExecutionStatus.RUNNING })
+          .where('id = :id', { id: executionId })
+          .andWhere('status IN (:...resumable)', {
+            resumable: [
+              ExecutionStatus.WAITING_FOR_INPUT,
+              ExecutionStatus.RUNNING,
+            ],
+          })
+          .execute();
+        if ((execRes.affected ?? 0) === 0) {
+          execMismatch = true;
+          throw new Error('__resume_claim_exec_terminal__');
+        }
+        return true;
+      })
+      .catch((err: unknown) => {
+        // 짝 불일치 abort 는 정상 discard 경로(false). 그 외 DB 오류는 전파.
+        if (execMismatch) return false;
+        throw err;
+      });
     if (claimed) {
       // active-running 세그먼트 시작 기록 (PR2a/§8) — claim 이 Execution→RUNNING 을
       // updateExecutionStatus 우회로 수행하므로 그 세그먼트 tracking 을 여기서 보정.
@@ -6747,6 +6764,12 @@ export class ExecutionEngineService
    *
    * WebSocket emit 은 본 헬퍼 호출 후 (트랜잭션 commit 후) 수행해야 한다 — 그렇지
    * 않으면 rollback 된 상태를 클라이언트가 잠시 관측할 수 있다.
+   *
+   * **예외 — `claimResumeEntry`(06 C-2)**: §7.5 재개 진입 원자 claim 은 조건부
+   * 원자성(affected 기반 race 결정)이 필요해 본 choke point(`assertTransition`)를
+   * 우회하고 raw conditional UPDATE 로 Execution·NodeExecution WFI→RUNNING 을 직접
+   * 갱신한다. 그 경로는 `segmentStartMs` 세그먼트 tracking 도 자체 보정한다 — 본
+   * 헬퍼의 RUNNING 진입 로직 변경 시 `claimResumeEntry` 도 함께 점검할 것.
    */
   /**
    * PR2a — §8 active-running 누적 타임아웃 enforce. dispatch loop 가 노드 사이마다

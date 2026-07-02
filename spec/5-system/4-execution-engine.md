@@ -1268,7 +1268,7 @@ engine.runNode
 
 **기존 패턴의 일반화**: optimistic claim 은 §1.3 `_retryState` 소비("affected=1 인 쪽만 진행")로 이미 확립된 패턴의 일반화이지 새 동시성 프레임워크 도입이 아니다. concurrency=1 전제 유지(대안)는 불변식을 운영 구성(단일 인스턴스)에 의존시켜 §7.4 가 예고한 상향 시점에 결국 본 변경이 필요해 비용이 이연될 뿐이라 기각.
 
-구현: `state-machine.ts` `ALLOWED_TRANSITIONS` 에 `waiting_for_input → running`(재개 진입 claim) 추가 + claim 후 rehydration 실패 롤백 경로. 착수 조건: 동일 (executionId, nodeExecutionId) 2회 동시 재개 시 한쪽만 진행 unit + form park 에 continuation job 2건 인위 enqueue 후 turn 이중 실행 0 dockerized e2e. 추적: `plan/in-progress/refactor/06-concurrency.md` C-2 (Option A, 사용자 승인 2026-07-02).
+구현: 재개 진입 claim 은 조건부 원자성(affected 기반 race 결정)이 필요해 `updateExecutionStatus`/`assertTransition` choke point 를 **우회**하는 raw conditional UPDATE 로 Execution·NodeExecution 을 `waiting_for_input → running` 짝 전이한다 (`ALLOWED_TRANSITIONS` 는 Execution 전용이고 `waiting_for_input → running` 은 이미 표에 존재 — 신규 전이 추가가 아니라 claim 이 그 전이를 조건부·원자로 수행). claim 후 rehydration 실패는 `RESUME_*` terminal 롤백(WAITING/RUNNING 둘 다 대상). Execution 짝 UPDATE 가 terminal(동시 cancel 등)로 affected=0 이면 node claim 도 tx 롤백해 discard. 착수 조건: 동일 (executionId, nodeExecutionId) 2회 동시 재개 시 한쪽만 진행 unit + form park 에 continuation job 2건 인위 enqueue 후 turn 이중 실행 0 dockerized e2e. 추적: `plan/in-progress/refactor/06-concurrency.md` C-2 (Option A, 사용자 승인 2026-07-02).
 
 ### Pre-park read-window 정규화 — read-side 채택 + 양측 중복 방어
 

@@ -7,6 +7,7 @@ import {
   Execution,
   ExecutionStatus,
 } from '../executions/entities/execution.entity';
+import { NodeExecutionStatus } from '../node-executions/entities/node-execution.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { NodeHandler } from '../../nodes/core/node-handler.interface';
 import { ExecutionEventType } from '../websocket/websocket.service';
@@ -123,6 +124,32 @@ describe('AiTurnOrchestrator', () => {
         savedExecution,
         context,
       );
+      expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
+        savedExecution,
+        ExecutionStatus.WAITING_FOR_INPUT,
+        nodeExec,
+      );
+    });
+
+    // 06 C-2 — §7.5 원자 claim 이후 nodeExec 는 RUNNING 으로 로드된다. re-park 는
+    // 이를 다시 WAITING_FOR_INPUT 으로 되돌려 linkedNodeExec 로 영속해야 다음 cold
+    // rehydration 이 성공한다 (누락 시 RUNNING 잔류 → 재개 실패).
+    it('claim 후 RUNNING nodeExec 를 WAITING_FOR_INPUT 으로 재설정해 영속', async () => {
+      const savedExecution = {
+        id: executionId,
+        status: ExecutionStatus.RUNNING,
+      };
+      const context = contextService.createContext(executionId, workflowId);
+      const nodeExec = { id: 'ne-1', status: NodeExecutionStatus.RUNNING };
+
+      await (orchestrator as unknown as ReparkSubject).reparkAiResumeTurn(
+        savedExecution,
+        context,
+        nodeExec,
+      );
+
+      // RUNNING → WAITING_FOR_INPUT 재설정 후 그 nodeExec 를 linkedNodeExec 로 전달.
+      expect(nodeExec.status).toBe(NodeExecutionStatus.WAITING_FOR_INPUT);
       expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
         savedExecution,
         ExecutionStatus.WAITING_FOR_INPUT,
