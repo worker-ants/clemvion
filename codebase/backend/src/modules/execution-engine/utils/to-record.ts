@@ -13,7 +13,16 @@
  * 적용 전 사이트별 확인이 필요하다.
  */
 
-/** non-null plain object 타입 가드 (배열 제외). */
+/**
+ * non-null object 타입 가드 (배열 제외).
+ *
+ * **주의 — 순수 plain-object 가드가 아니다**: `typeof === 'object'` 기반이라
+ * class 인스턴스(`new Date()`, `new Map()`, `/re/` 등)도 `true` 로 통과한다.
+ * `Object.create(null)`(프로토타입 없는 객체)도 `true`. 이 유틸의 용도는
+ * "property 접근 가능한 non-array 객체인가" 판별(= `as Record` 단언의 런타임
+ * 대체)이지 "JSON-plain object 인가" 검증이 아니다. plain-object 만 허용해야
+ * 하는 사이트라면 별도 검사(`value.constructor === Object` 등)를 쓸 것.
+ */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
