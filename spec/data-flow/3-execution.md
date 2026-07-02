@@ -160,9 +160,9 @@ sequenceDiagram
     Bus-->>Proc: deliver (any instance — at-least-once)
     Proc->>Eng: applyContinuation(executionId, nodeExecutionId, payload)
     Note over Eng: full B3 완료 — 모든 재개는 §7.5 rehydration 단일 경로(applyContinuation → rehydrateAndResume → driveResumeAwaited/driveCallStackResume, await)
-    Eng->>PG: ExecutionContext 재구성 (execution_node_log + node_execution.output_data + conversation_thread + user_variables + resume_call_stack — resume_call_stack 은 frame-by-frame 재진입 driveCallStackResume, V087)
-    Eng->>Eng: rehydrateAndResume → driveResumeAwaited (await) → 직접 처리기(processFormResumeTurn / processButtonResumeTurn / processAiResumeTurn) dispatch
-    Eng->>PG: UPDATE execution SET status='running' + UPDATE node_execution SET status='completed'
+    Eng->>PG: 재개 진입 원자 claim — UPDATE node_execution SET status='running' WHERE status='waiting_for_input' RETURNING (execution 동반 running, 단일 tx §1.1). affected=0 이면 ack-and-discard (§7.5)
+    Eng->>Eng: ExecutionContext 재구성 (execution_node_log + node_execution.output_data + conversation_thread + user_variables + resume_call_stack, V087) → rehydrateAndResume → driveResumeAwaited (await) → 직접 처리기(processFormResumeTurn / processButtonResumeTurn / processAiResumeTurn) dispatch
+    Eng->>PG: UPDATE node_execution SET status='completed' (turn 정상 종료. LLM throw 시 running→failed, rehydration 프로세스 실패 시 RESUME_* terminal)
     Eng->>Eng: 토폴로지 다음 단계 진행
   end
 ```
@@ -240,7 +240,7 @@ stateDiagram-v2
   pending --> running: 워커가 첫 active 세그먼트 시작 (runExecution)
   pending --> cancelled: 큐 대기 중 사용자 cancel — runExecutionFromQueue 가 pending 아님을 확인해 ack-discard
   running --> waiting_for_input: 블로킹 노드 (form/button/ai_agent) — durable park
-  waiting_for_input --> running: continuation-queue (BullMQ) consume
+  waiting_for_input --> running: continuation-queue (BullMQ) consume — 재개 진입 원자 claim gate (§7.5, affected=1 인 단일 worker)
   waiting_for_input --> failed: AI Agent multi-turn turn 오류 (handleAiTurnError → finalizeAiNode)
   running --> completed: 마지막 노드 정상 종료
   running --> failed: retry 소진 실패 / EXECUTION_TIME_LIMIT_EXCEEDED / WORKER_HEARTBEAT_TIMEOUT / SERVER_INTERRUPTED
@@ -272,6 +272,7 @@ stateDiagram-v2
   running --> completed: 핸들러 output 정상
   running --> failed: retry 소진 / 비재시도성 오류 / SERVER_INTERRUPTED (shutdown drain)
   running --> waiting_for_input: 블로킹 핸들러
+  waiting_for_input --> running: 재개 진입 원자 claim (§7.5 — WHERE status='waiting_for_input' RETURNING, affected=1 인 단일 worker)
   waiting_for_input --> completed: interaction_data 수신
   running --> cancelled: abortSignal (AbortError) — cancel-others-on-fail / 사용자 cancel
   completed --> [*]
