@@ -2,7 +2,7 @@
 
 > 인덱스: [README.md](./README.md). Critical 3 / Major 7 / Minor 5 — **spec 대조(2026-06-10) 후 유효 12건 / 철회 3건(m-1, m-2, m-4)**.
 > **spec 대조 판정 분포**: A 3 (C-2, M-1, M-5) / B 6 / C 3 (M-2, M-7 + C-3 부속 드리프트) / D 1 (C-3) / E 3.
-> **⚠️ A(의도된 설계)인데 여전히 문제**: C-2 (spec 이 선언한 불변식의 보장 수단이 비원자 — **결정 대기**), M-5·M-1 (✅ 2026-06-10 사용자 승인 — 권고안대로 진행 확정).
+> **⚠️ A(의도된 설계)인데 여전히 문제**: C-2 (spec 이 선언한 불변식의 보장 수단이 비원자 — **Option A 승인 2026-07-02, 착수 대기**), M-5·M-1 (✅ 2026-06-10 사용자 승인 — 권고안대로 진행 확정).
 > 전반 평가: BullMQ durable queue(Phase 2), park-release 모델, ShutdownState in-flight 추적 등 핵심 설계 양호. C(드리프트) 2건은 "spec 이 옳고 구현이 따라가야 할" 케이스.
 > 옵션 비교·권장안 보강 (2026-06-10)
 
@@ -37,7 +37,7 @@
 
 ### ⚠️ C-2 [Critical] `rehydrateContext` check-then-act — 동시 worker 의 context OVERWRITE
 
-- [ ] 결정 대기 (사용자) — `execution-engine.service.ts:1250-1344` + `continuation-execution.processor.ts:72-80`
+- [ ] **결정: Option A 승인 (사용자, 2026-07-02)** — DB 원자 claim(`UPDATE … WHERE status='waiting_for_input' RETURNING`, affected=0 → ack-and-discard) 도입. **착수 대기** (결정대기 해소). 착수 조건: 동시호출 unit + dockerized e2e. spec §7.5 개정(planner) 동반 필수. 구현 범위 = 아래 개선방안 1~3. — `execution-engine.service.ts:1250-1344` + `continuation-execution.processor.ts:72-80`
 
 **A — spec 이 "race 를 닫는다" 고 선언했으나 보장 수단이 비원자.**
 
