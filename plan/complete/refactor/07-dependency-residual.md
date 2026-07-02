@@ -2,7 +2,7 @@
 worktree: .claude/worktrees/deps-backlog-residual
 branch: worktree-deps-backlog-residual
 spec_area: 7-channel-web-chat, auth/data-model
-status: in-progress
+status: complete
 ---
 
 # 07-dependency 잔여 8건 일괄 처리 (권장안대로, 단일 묶음)

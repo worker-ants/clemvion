@@ -1,7 +1,7 @@
 # Refactor 백로그 — 의존성 (2026-06-10 전수 감사)
 
 > ✅ **2026-06-17 전 항목 처리 완료** — 유효 9건 종결: C-1·C-2(`plan/complete/deps-security-hygiene.md`) + 잔여 8건(M-2·M-4·m-1·m-2·m-4·m-6·m-8·m-9, PR `deps-backlog-residual`, 추적 [07-dependency-residual.md](./07-dependency-residual.md)). follow-up(복구코드 KDF·spec Rationale 등재)은 별건.
-> 인덱스: [README.md](./README.md). Critical 2 / Major 4 / Minor 9 — **spec/문서 대조(2026-06-10) 후 유효 9건 / 철회·종결 5건(M-1, M-3, m-3, m-5, m-7)**. C-1 은 Critical→Major 재분류.
+> 인덱스: [README.md](../../in-progress/refactor/README.md). Critical 2 / Major 4 / Minor 9 — **spec/문서 대조(2026-06-10) 후 유효 9건 / 철회·종결 5건(M-1, M-3, m-3, m-5, m-7)**. C-1 은 Critical→Major 재분류.
 > **spec 대조 판정 분포**: A 1 (m-9) / B 5 / C 2 (m-1, m-8 — Node 버전 문서 괴리) / D 2 / E 4. (registry/lock 실측 기반 — `npm audit`·`npm view` 실행 검증.)
 > 전반 평가: NestJS 11 + Next.js 16 + TS 5.7 구성 합리적. lock 파일로 재현성 확보.
 > 옵션 비교·권장안 보강 (2026-06-10)

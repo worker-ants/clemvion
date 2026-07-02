@@ -23,7 +23,7 @@ spec_impact:
 
 # C-1 엔진 분할 (strangler-fig, A 방식) — stacked PR 로드맵
 
-> `ExecutionEngineService` (9,670줄 god-class) 를 [02-architecture.md](./02-architecture.md) **C-1 의 A 방식**
+> `ExecutionEngineService` (9,670줄 god-class) 를 [02-architecture.md](./refactor/02-architecture.md) **C-1 의 A 방식**
 > (strangler-fig 단계별 분할 + 엔진 내부 전용 `EngineDriver` 통신)으로 분할. PR #507(resume dispatch
 > registry) 선례의 연속 — 각 단계 독립 PR·독립 e2e 게이트로 회귀 격리.
 

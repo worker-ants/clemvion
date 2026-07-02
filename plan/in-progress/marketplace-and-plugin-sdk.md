@@ -75,11 +75,18 @@ owner: developer
 
 ND-EX-01~03 / NF-EX-04 와 결합.
 
-> **결정 연계 (2026-06-20, refactor [`02-architecture.md`](./refactor/02-architecture.md) M-5 §방향 확정)** — n8n·flowise 1차 소스 리서치 기반:
-> - **노드 등록 = DI multi-provider** (M-5 레이어1, `NODE_COMPONENT` 토큰). 본 Phase D 의 "런타임 등록"은 그 registry seam(`registerDynamic(comp, { workspaceId })`) 위에 얹는다 — install 시 등록(영속)→제어된 reload, per-execution eval 아님(부팅 registry 불변식 유지).
+> **결정 연계 (2026-06-20 확정 · 2026-07-02 리팩터 백로그에서 참고 설계 이관)** — n8n·flowise 1차 소스 리서치 기반. 노드 registry 3-레이어 모델 중 **레이어1(부팅 DI 등록)은 이미 구현 완료**(정적 배열 → `NODE_COMPONENT` multi-provider 토큰, 핫스팟 제거). **레이어2/3 은 본 Phase D 가 소유**하며, 아래는 그 자체완결 참고 설계다:
+> - **노드 등록 = DI multi-provider** (레이어1 완료분, `NODE_COMPONENT` 토큰). 본 Phase D 의 "런타임 등록"은 그 registry seam(`registerDynamic(comp, { workspaceId })`) 위에 얹는다 — install 시 등록(영속)→제어된 reload, per-execution eval 아님(부팅 registry 불변식 유지).
 > - **샌드박스 = n8n 스타일** — out-of-process task-runner/사이드카 격리 + builtin/external 모듈 allowlist(`NODE_FUNCTION_ALLOW_*` 등가) + **credential 을 샌드박스 밖 host 에서 주입**. flowise in-process vm2(`@flowiseai/nodevm`, CVE 다발)는 채택 안 함. 아래 "샌드박싱" 항의 `isolated-vm` 은 **기존 `code` 노드용으로 유지**하되, 신뢰불가 커스텀 노드엔 **프로세스 격리를 상위 적용**.
 > - **격리 단위 = flowise 스타일** — 모노레포 카테고리 디렉토리(1st-party 현행). 외부 npm 패키지(`@clemvion/node-sdk` 빌드)는 **3rd-party 커스텀 노드에 한정**.
-> - **per-workspace 노드 가시성** = M-5 레이어2(필터 뷰, `NodeEntitlementService`)가 담당 — 런타임 코드 로딩 없이 노출+실행 양쪽 게이트. 상세·근거·spec 영향: M-5 §방향 확정.
+> - **per-workspace 노드 가시성(레이어2) = 런타임 코드 로딩 불필요한 "필터 뷰"** — n8n(`NODES_INCLUDE`/`EXCLUDE`)·flowise 모두 부팅 글로벌 registry + 테넌트 필터 패턴이고 런타임 동적 코드 로딩은 미채택. superset 전부 1st-party 신뢰 코드라 read-time 필터로 충분(코드 격리는 레이어3 3rd-party 만). 구현 방향은 아래 "레이어2" 체크리스트.
+>
+> **레이어2 — per-workspace entitlement (필터 뷰)** — chokepoint 2곳 모두 게이트(n8n 도 팔레트+실행 양쪽 차단):
+> - [ ] **entitlement 소스(신규)** — `NodeEntitlementService(workspaceId) → Set<nodeType>`. 코드에 plan-tier/entitlement 개념 부재 확인 → MVP: tier→types 정적 맵 + `workspace_enabled_nodes` 테이블.
+> - [ ] **노출 게이트** — `GET /api/nodes/definitions` / `listDefinitions()` 는 현재 무필터·workspace 미수신. `@WorkspaceId()`(동일 컨트롤러 타 엔드포인트가 이미 주입 중) 추가 후 entitled 집합으로 필터.
+> - [ ] **실행/검증 게이트** — registry Map 은 full superset 보유 → 손편집 JSON 우회 차단 위해 workflow save/validate + 엔진 dispatch 에서도 비-entitled 노드 거부(필수). 노출만 막으면 직접 API 우회 가능.
+>
+> **레이어3 — 3rd-party 커스텀 노드 (아래 SDK/샌드박스/서명 체크리스트가 담당)** — 레이어1 registry 가 seam(`registerDynamic(comp, { workspaceId })` → 같은 Map 에 테넌트 태그, 레이어2 필터가 스코프). 추가로 **`NodeCategory` DB enum 마이그레이션 필요**(현재 `custom` 미포함 — `node.entity.ts` enum) + 공급망 하드닝(verified/provenance — 2026-01 n8n 인기 노드 사칭 악성 npm→OAuth 토큰 탈취 교훈).
 
 - [ ] **SDK 패키지** — `@clemvion/node-sdk` npm 패키지. NodeComponent 인터페이스 (`codebase/backend/src/nodes/core/`) 를 외부 개발자가 사용할 수 있도록 export
 - [ ] **manifest.json** 스펙 확정 (spec `4-nodes/0-overview.md` §4 초안 기반 + 권한·의존성·아이콘 필드 추가)

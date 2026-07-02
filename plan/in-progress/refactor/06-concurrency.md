@@ -311,7 +311,7 @@
 
 - [x] 철회 (2026-06-10 spec 대조)
 
-**사유**: E — 직렬 컨테이너는 context 를 clone 하지 않고 **같은 객체를 mutate** 사용(ForEach JSDoc 명시) → `abortSignal` 구조적 상속. 사전 abort 체크는 공통 dispatch 에 엔진-전역 구현(`:7468-7472` `throwIfAborted` — `node-cancellation.md §5.1` 정합). parallel 만 명시 전파가 필요한 이유는 clone+그룹 controller(§2.3) 때문. 잔여 갭(IE multi-turn resume signal 등)은 [`../node-cancellation-infrastructure.md`](../node-cancellation-infrastructure.md) 가 이미 추적.
+**사유**: E — 직렬 컨테이너는 context 를 clone 하지 않고 **같은 객체를 mutate** 사용(ForEach JSDoc 명시) → `abortSignal` 구조적 상속. 사전 abort 체크는 공통 dispatch 에 엔진-전역 구현(`:7468-7472` `throwIfAborted` — `node-cancellation.md §5.1` 정합). parallel 만 명시 전파가 필요한 이유는 clone+그룹 controller(§2.3) 때문. 잔여 갭(IE multi-turn resume signal 등)은 [`../../complete/node-cancellation-infrastructure.md`](../../complete/node-cancellation-infrastructure.md) 가 이미 추적.
 
 **선택 잔여**: ForEach 진행 중 abort 시 다음 iteration 노드가 `cancelled` 로 기록되는 회귀 잠금 테스트 1건.
 

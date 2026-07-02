@@ -13,7 +13,7 @@
 
 - [x] ✅ 완료 (2026-06-11, worktree `prod-fail-closed-guards`) — `main.ts` 의 `assertProductionConfig` 가 production 에서 `JWT_SECRET` 미설정/sentinel(`dev-jwt-secret`)/예시값을 throw. **옵션 A 대비 정제**: `jwt.config.ts` 의 `|| 'dev-jwt-secret'` 라인은 **제거하지 않고 유지**한다 — 가드가 production 에서 그 sentinel 을 거부하므로 보안 목표(기본 secret 토큰 위조 차단)는 동등하고, dev/test 부팅 편의(JWT_SECRET 미주입 환경) 회귀를 피한다. C-1/M-4/M-7 단일 `assertProductionConfig` 블록으로 응집. 기존 `security-jwt-secret-fallback.md` 의 JWT_SECRET 부팅 정책을 본 PR 이 대체. — `backend/src/common/config/jwt.config.ts`, `production-guards.ts`
 
-**추적**: 기존 plan [`../security-jwt-secret-fallback.md`](../security-jwt-secret-fallback.md) (미착수, P0). 본 백로그는 우선순위 상향만 표시.
+**추적**: 기존 plan [`../../complete/security-jwt-secret-fallback.md`](../../complete/security-jwt-secret-fallback.md) (미착수, P0). 본 백로그는 우선순위 상향만 표시.
 
 **spec 대조**: D — auth spec 은 secret 부팅 정책 무언급이나, **동형 secret 의 fail-closed 가 spec 에 명문화돼 있음**: `14-external-interaction-api.md:651` "`INTERACTION_JWT_SECRET` … production 에서는 생성자가 throw 해 부팅 차단 (fail-closed — OAUTH_STUB/LLM_STUB 가드와 동형)". 코어 `JWT_SECRET` 에만 그 표준 패턴이 누락된 갭 — 의도된 트레이드오프 아님.
 
