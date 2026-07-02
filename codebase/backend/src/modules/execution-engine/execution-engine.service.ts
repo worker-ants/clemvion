@@ -74,6 +74,7 @@ import {
   coerceErrorPolicy,
 } from './utils/coerce-container-param';
 import { extractBackgroundRunId } from './utils/extract-background-run-id';
+import { toRecord } from './utils/to-record';
 import {
   ExecutionContext,
   NodeHandler,
@@ -1474,8 +1475,7 @@ export class ExecutionEngineService
     const cachedOutput = context.nodeOutputCache[opts.node.id] as
       | Record<string, unknown>
       | undefined;
-    const cachedMeta =
-      (cachedOutput?.meta as Record<string, unknown> | undefined) ?? {};
+    const cachedMeta = toRecord(cachedOutput?.meta);
     const persistedInteractionType =
       (cachedMeta.interactionType as string | undefined) ??
       (cachedOutput?.interactionType as string | undefined);
