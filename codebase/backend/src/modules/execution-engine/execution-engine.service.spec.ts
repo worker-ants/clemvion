@@ -1769,6 +1769,106 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // 06 C-2 — 재개 진입 DB 원자 claim (§7.5). 비원자 SELECT 재검증을 조건부
+  // UPDATE(waiting_for_input → running, affected=0 → ack-and-discard)로 대체.
+  describe('claimResumeEntry — §7.5 재개 진입 원자 claim (06 C-2)', () => {
+    const makeClaimQb = (affected: number) => ({
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected }),
+    });
+
+    it('affected>=1 → true (claim 획득, 단일 worker 만 진행)', async () => {
+      const qb = makeClaimQb(1);
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+
+      await expect(service.claimResumeEntry('ne-1')).resolves.toBe(true);
+
+      // waiting_for_input 조건으로 running 전이하는 조건부 UPDATE 인지 검증.
+      expect(qb.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: NodeExecutionStatus.RUNNING }),
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'status = :waiting',
+        expect.objectContaining({
+          waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+        }),
+      );
+    });
+
+    it('affected=0 → false (다른 worker 가 이미 claim/terminal → ack-and-discard)', async () => {
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(makeClaimQb(0));
+
+      await expect(service.claimResumeEntry('ne-1')).resolves.toBe(false);
+    });
+
+    it('동시 재개 — 두 claim 중 하나만 affected=1 (한쪽만 진행)', async () => {
+      // DB 원자성 시뮬레이션: 첫 UPDATE 가 row 를 running 으로 전이시켜 affected=1,
+      // 두번째는 WHERE status='waiting_for_input' 불일치로 affected=0.
+      const first = makeClaimQb(1);
+      const second = makeClaimQb(0);
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValueOnce(first)
+        .mockReturnValueOnce(second);
+
+      const [a, b] = await Promise.all([
+        service.claimResumeEntry('ne-1'),
+        service.claimResumeEntry('ne-1'),
+      ]);
+
+      expect([a, b].filter(Boolean)).toHaveLength(1); // 정확히 하나만 승리
+    });
+
+    it('__no_node_exec__ / 빈 id → true (legacy 우회, UPDATE 미실행)', async () => {
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn();
+      await expect(service.claimResumeEntry('__no_node_exec__')).resolves.toBe(
+        true,
+      );
+      await expect(service.claimResumeEntry('')).resolves.toBe(true);
+      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
+
+  // 06 C-2 — claim 후 rehydration 실패 롤백. markNodeExecutionFailed 가 claim 된
+  // RUNNING row 도 FAILED 로 마감해야 stuck RUNNING 을 남기지 않는다.
+  describe('markNodeExecutionFailed — claim 후 RUNNING 롤백 (06 C-2)', () => {
+    it('UPDATE 가 WAITING_FOR_INPUT 와 RUNNING 둘 다 대상으로 한다', async () => {
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+
+      await (
+        service as unknown as {
+          markNodeExecutionFailed: (id: string, code: string) => Promise<void>;
+        }
+      ).markNodeExecutionFailed('ne-1', 'RESUME_CHECKPOINT_MISSING');
+
+      expect(qb.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: NodeExecutionStatus.FAILED }),
+      );
+      // 핵심 회귀 가드: RUNNING 이 status IN 목록에 포함돼야 claim 후 롤백이 동작.
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'status IN (:...statuses)',
+        expect.objectContaining({
+          statuses: expect.arrayContaining([
+            NodeExecutionStatus.WAITING_FOR_INPUT,
+            NodeExecutionStatus.RUNNING,
+          ]),
+        }),
+      );
+    });
+  });
+
   // review W11(old) — appendExecutionPath 의 best-effort catch 경로 검증.
   describe('appendExecutionPath best-effort 동작 (review W11)', () => {
     it('insert 실패 시 logger.warn 호출 후 흐름 중단 없이 계속 진행', async () => {

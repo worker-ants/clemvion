@@ -839,20 +839,33 @@ export class ExecutionEngineService
   }
 
   /**
-   * Phase 2 — Worker 멱등성 가드. 처리 전 NodeExecution 이 여전히
-   * WAITING_FOR_INPUT 인지 확인. 다른 worker 가 먼저 처리했으면 false 반환
-   * → ack-and-discard.
+   * §7.5 재개 진입 원자 claim (06 C-2, 2026-07-02) — 비원자 SELECT 재검증 가드를
+   * 대체한다. 대상 NodeExecution 을 `waiting_for_input` 조건으로 `running` 으로
+   * 전이시키는 **단일 조건부 UPDATE** 로, `affected>=1` 인 worker 만 재개를 진행하고
+   * `affected=0`(다른 worker 가 이미 claim 했거나 terminal)이면 false → ack-and-discard.
+   *
+   * check-then-act 창이 없어 멀티 인스턴스(인스턴스당 concurrency=1 이어도 인스턴스
+   * 간 병렬)·§7.4 concurrency 상향 양쪽에서 "동일 turn 이중 실행 0" 불변식을
+   * 기계적으로 보장한다 (§1.3 `_retryState` "affected=1 인 쪽만 진행" 패턴의 일반화).
+   * claim 획득 후 rehydration 프로세스가 실패하면 `markNodeExecutionFailed`
+   * (WAITING/RUNNING 둘 다 대상) 가 `RESUME_*` terminal 로 마감해 stuck RUNNING 을
+   * 남기지 않는다.
    */
-  async isNodeExecutionWaiting(nodeExecutionId: string): Promise<boolean> {
+  async claimResumeEntry(nodeExecutionId: string): Promise<boolean> {
     if (!nodeExecutionId || nodeExecutionId === '__no_node_exec__') {
-      // legacy/skipped nodeExecutionId — fast path 만 시도 (status 가드 우회).
+      // legacy/skipped nodeExecutionId — status 가드 우회 (claim 없이 진행).
       return true;
     }
-    const row = await this.nodeExecutionRepository.findOne({
-      where: { id: nodeExecutionId },
-      select: { id: true, status: true },
-    });
-    return row?.status === NodeExecutionStatus.WAITING_FOR_INPUT;
+    const result = await this.nodeExecutionRepository
+      .createQueryBuilder()
+      .update(NodeExecution)
+      .set({ status: NodeExecutionStatus.RUNNING })
+      .where('id = :id', { id: nodeExecutionId })
+      .andWhere('status = :waiting', {
+        waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+      })
+      .execute();
+    return (result.affected ?? 0) > 0;
   }
 
   /**
@@ -939,13 +952,20 @@ export class ExecutionEngineService
       const nodeExec = await this.nodeExecutionRepository.findOneBy({
         id: nodeExecutionId,
       });
+      // §7.5 재개 진입 가드. 프로덕션 경로에선 processor `claimResumeEntry` 원자
+      // claim 이 이미 대상 row 를 WAITING_FOR_INPUT → RUNNING 으로 전이시킨 상태다
+      // (레이스 안전은 그 claim 이 담당). 여기서는 **재개 가능 상태**(WAITING_FOR_INPUT
+      // = 미claim 직접 진입 / RUNNING = claim 획득) 를 허용하고, terminal·부재만
+      // checkpoint invariant 위반 → RESUME_CHECKPOINT_MISSING (catch 가
+      // markNodeExecutionFailed 로 마감 — WAITING/RUNNING 둘 다 롤백 대상).
       if (
         !nodeExec ||
-        nodeExec.status !== NodeExecutionStatus.WAITING_FOR_INPUT
+        (nodeExec.status !== NodeExecutionStatus.WAITING_FOR_INPUT &&
+          nodeExec.status !== NodeExecutionStatus.RUNNING)
       ) {
         throw new RehydrationError(
           'RESUME_CHECKPOINT_MISSING',
-          `NodeExecution ${nodeExecutionId} not WAITING_FOR_INPUT (status=${nodeExec?.status ?? 'absent'})`,
+          `NodeExecution ${nodeExecutionId} not resumable (status=${nodeExec?.status ?? 'absent'})`,
         );
       }
       resolvedNodeExecutionId = nodeExec.id;
@@ -2401,8 +2421,17 @@ export class ExecutionEngineService
           finishedAt: new Date(),
         })
         .where('id = :id', { id: nodeExecutionId })
-        .andWhere('status = :status', {
-          status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        // WAITING_FOR_INPUT **및 RUNNING** 둘 다 fail 대상 (markExecutionCancelled 와
+        // 동형). §7.5 재개 진입 원자 claim(06 C-2) 이후 대상 row 는 RUNNING 이므로,
+        // claim 후 rehydration 프로세스 실패의 롤백은 RUNNING → FAILED 로 이뤄진다 —
+        // WAITING_FOR_INPUT 만 매치하면 affected=0 → stuck RUNNING (핵심 회귀). claim
+        // 이전 pre-check 단계 실패는 여전히 WAITING_FOR_INPUT 이라 두 상태 모두 대상.
+        // 이미 terminal 이면 affected=0 으로 idempotent.
+        .andWhere('status IN (:...statuses)', {
+          statuses: [
+            NodeExecutionStatus.WAITING_FOR_INPUT,
+            NodeExecutionStatus.RUNNING,
+          ],
         })
         .execute();
     } catch (err) {
