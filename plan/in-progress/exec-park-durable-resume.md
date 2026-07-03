@@ -200,8 +200,10 @@ owner: developer
    - [x] `consistency-check --impl-prep` BLOCK:NO (`00_12_57`).
    - [x] 구현 (commit `11c7b2ff5`): reclaimStuckRunningExecution·redriveStuckExecution·driveStuckRedrive·runNodeDispatchLoop skipExecutedNodes·rehydrateContext nullable·test-gated recover endpoint.
    - [x] TEST WORKFLOW 통과: **lint·unit(full)·build·dockerized e2e** 전부 green. crash-redrive e2e(commit `15c0bd036`) = stale RUNNING(codeA 완료 후 codeB 크래시)→re-claim→재구동→무손실 completed + 완료노드 미재실행. **full e2e 38 suites/227 pass.**
-   - [ ] `/ai-review`(origin/main, `review/code/2026/07/04/00_57_47`) + critical/warning fix (진행 중).
-   - [ ] `--impl-done` BLOCK:NO → PR.
+   - [x] `/ai-review`(origin/main, `review/code/2026/07/04/00_57_47`, 14 reviewer) Critical 0 / Warning 10 → resolution commit `4b3a25a3a`(orphan cascade 복원·endpoint 이중게이트+@Roles('owner')·unit 4종·zombie 주석) + RESOLUTION.md. **fresh /ai-review**(`01_22_35`, 6 reviewer) **Critical 0 / Warning 0**(전 10 Warning 해소 확인) — SPEC-DRIFT 1(orphan cascade 미기재)은 spec §7.3 문장 추가로 해소.
+   - [x] `--impl-done`(`review/consistency/2026/07/04/01_21_55`, 5 checker) **BLOCK:NO**(Critical/Warning 0). plan hygiene(exec-intake PR3/PR4·G2 갱신) 조치.
+   - [ ] PR (origin/main base).
+3. **plan 갱신** — [x] exec-intake PR3(L57) 완료·PR4 유지 표기·G2 부분 해소(직접 pointer) 갱신 완료.
 3. **plan 갱신**: 본 섹션 체크박스 + `exec-intake-queue-impl.md` PR3(L57) 상태 + `execution-engine-residual-gaps.md` G2 부분 해소 표기.
 
 ### PR3 구현 설계 (코드 정밀조사 확정, 2026-07-04)

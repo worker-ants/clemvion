@@ -859,6 +859,7 @@ Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 - **재개 진입 원자 claim** (affected=1): waiting 재개는 `waiting_for_input → running`(`claimResumeEntry`), 재시작 크래시 re-drive(case B)는 `running → running` **`started_at` 조건부 re-claim** — 둘 다 affected=1 인 worker/인스턴스만 진행(§7.5). §1.3 `_retryState` "affected=1 인 쪽만 진행" 패턴의 일반화.
 - **완료 노드 미재실행** (엔진 보장, exactly-once): 재개/재구동 시 `execution_node_log` + 완료 `NodeExecution.outputData` 로 복원한 `_executedNodes` 로 완료 노드를 skip — 재방문 금지(§7.2c). 추가로 dispatch 직전 대상 NodeExecution 이 이미 COMPLETED 면 skip(per-node DB status 재검증 — in-memory Set 과 중복 defense-in-depth).
 - **RUNNING-at-crash 노드 = at-least-once**: 크래시 시점 아직 COMPLETED 아니던 노드는 재구동 시 **재실행**된다. 그 노드의 외부 side-effect(Integration write: send_email·HTTP POST 등) 발생 여부를 엔진은 알 수 없으므로 **exactly-once 를 보장하지 않는다** — 외부 API 호출 노드(Integration)의 멱등성은 기존 원칙대로 **노드 설정에서 관리**(idempotency key 등). 엔진은 "완료 노드 미재실행"까지만 보장한다. (분산 트랜잭션 없이 무손실 재개를 달성하는 본질적 trade-off — §Rationale.)
+  - **orphan row 마감**: 재실행은 **새 NodeExecution row** 로 수행하므로, 크래시 시점의 옛 `NodeExecution(status=running)` row 는 case B re-drive 진입 시 terminal(`failed`)로 마감한다(`failOrphanRunningNodeExecutions` — 완료 노드는 COMPLETED 라 대상 아님). 옛 stale-fail 모델의 자식 RUNNING cascade 마감을 re-drive 진입 시점으로 옮겨 보존한 것 — 부모 Execution 종결 후 유령 `running` 노드가 타임라인/진행률 집계에 남지 않게 한다.
 
 ### 7.4 분산 실행 (Multi-instance)
 

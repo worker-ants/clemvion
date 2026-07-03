@@ -54,7 +54,7 @@ PR2 이관 (코드 — 재리뷰 사이클 회피):
       - 코드 현황: runExecutionFromQueue L2820(status 재검증 L2833·runExecution L2858, firstSegmentBarrier 제거됨), segmentStartMs Map L723 잔존, ExecutionStatus.CANCELLED 존재, pg advisory lock/FOR UPDATE/RUNNING COUNT 선례 0(dataSource.transaction 만). **착수 전 fresh `--impl-prep`(post-rebase) 재실행 의무.**
     - [x] **착수 전 필수 — active-running 직렬화 불변식 재검증**(PR2a --spec INFO #10 / spec §4.2): `retry_last_turn` 등 동시 active 세그먼트가 가능해지는 재진입 경로가 추가되면 `assertActiveTimeWithinLimit`↔`updateExecutionStatus` read-check-then-act 비원자성이 실 race 로 전환될 수 있음. PR2b 가 그런 경로를 만드는지 점검 후 필요 시 원자화(잠금/조건부 UPDATE). **→ 재검토 완료(2026-06-06, exec-park 후 다방면 재검토 항목 #2)**: full B3(단일 BullMQ enqueue 경로)로 동일 Execution 동시 active 세그먼트 불가 — 직렬화 불변식 통과 확인. PR2b 의 admission gate 는 "서로 다른 Execution N건 간 cap race" 로 별개 문제(advisory lock 담당).
     - [ ] (곁들임 PR2b) INFO 묶음: `resolveExecutionRunWorkerConcurrency`→`execution-limits.ts` 통합(ARCH#4), `error-codes.ts` 엔진 에러코드 레이어 분리(ARCH#5), `execution-limits.ts` 모듈 경계 JSDoc(ARCH#6), `system-status.constants.ts` concurrency 파싱 일원화(MAINT#9).
-- [ ] **PR3 — 크래시 RUNNING checkpoint 재개**: stalled active 세그먼트를 §7.5 rehydration 으로 재개. rehydration 을 `ai_agent` 너머 일반 노드로 확장. 멱등성: jobId(§7.3)·`NodeExecution.status` 재검증(§7.5)·완료 노드 미재실행(§7.2). **`node-cancellation-infrastructure.md §2` 와 코드영역 겹침 → 직렬화 순서**: cancellation 인프라 선/후행을 PR3 착수 시 확정. **→ `exec-park-durable-resume` 로 이관(직접 구현, 2026-06-06)**: 본 PR3 는 미구현(흡수할 코드 없음)이라 rehydration 일반화 + 멱등 재개를 `exec-park-durable-resume` plan 의 Phase A2/B2 가 직접 구현한다. 직렬화 순서도 그 plan Phase 0 에서 확정됨(B3 선행).
+- [x] **PR3 — 크래시 RUNNING checkpoint 재개**: **완료(2026-07-04, `exec-park-durable-resume` 로 이관·직접 구현)**. `exec-park-durable-resume.md` "## PR3 — 크래시 RUNNING 세그먼트 멱등 재개" 참조. 스코핑 재확정: "rehydration 일반화(ai_agent→일반 노드)" 축은 full B3 로 이미 완료였고, 실제 갭 = **크래시/재시작 RUNNING(non-waiting) 세그먼트의 §7.5 case B re-drive**(`recoverStuckExecutions` fail→re-claim+rehydrate+forward, `skipExecutedNodes` 멱등 가드). BullMQ auto-stalled 재배달은 PR4 유지(사용자 Q1). errorPolicy=continue 는 defer(Q2, G2). 직렬화 순서(B3 선행) 확정대로. spec §7.1/§7.2/§7.3/§7.5 갱신 완료.
 - [ ] **PR4 — stalled-job 일원화 + 관측성**: `recoverStuckExecutions` 절대 30분 일괄 fail → BullMQ stalled 재배달로 대체. `WORKER_HEARTBEAT_TIMEOUT` 의미 재정의(stalled attempts 소진). `waiting_for_input` 무관 보장 재확인. DLQ/관측성 정리.
 
 ## 불변식 (구현 전 구간 유지)
@@ -65,4 +65,4 @@ PR2 이관 (코드 — 재리뷰 사이클 회피):
 
 ## G2 관계 (execution-engine-residual-gaps.md)
 
-`execution-engine-residual-gaps.md G2`("cross-instance 재개 인프라 부재")는 PR3 의 stalled active 세그먼트 재배달 + rehydration 으로 **부분 해소**된다. 단 `errorPolicy='continue'` 분기에서의 세그먼트 재개 설계는 별도 미해결 — PR3 에서 범위 확정.
+`execution-engine-residual-gaps.md G2`("cross-instance 재개 인프라 부재")는 PR3 의 크래시 RUNNING 세그먼트 re-drive(§7.5 case B) + rehydration 으로 **부분 해소**된다(2026-07-04 완료). 단 `errorPolicy='continue'` 분기에서의 세그먼트 재개 설계는 **defer 확정**(사용자 Q2, 2026-07-03) — G2 장애물 1·2(errorPolicy schema 노출·용어 매핑)는 별건으로 남는다.
