@@ -2709,6 +2709,33 @@ export class ExecutionEngineService
   }
 
   /**
+   * 크래시/재시작으로 mid-dispatch 였던 `NodeExecution(status=RUNNING)` orphan row 를
+   * terminal(FAILED)로 마감한다. re-drive(§7.5 case B)는 완료 노드 이후를 **새 row** 로
+   * 재실행하므로(§7.3 at-least-once) 옛 RUNNING row 는 이 시점에 닫아야 부모 Execution
+   * 종결 후 유령 "running" 노드가 남지 않는다 (옛 recoverStuckExecutions cascade 복원).
+   * 완료 노드는 이미 COMPLETED 라 대상 아님.
+   */
+  private async failOrphanRunningNodeExecutions(
+    executionId: string,
+  ): Promise<void> {
+    await this.nodeExecutionRepository
+      .createQueryBuilder()
+      .update(NodeExecution)
+      .set({
+        status: NodeExecutionStatus.FAILED,
+        error: {
+          message: 'Node run superseded by crash re-drive (§7.5 case B)',
+        },
+        finishedAt: new Date(),
+      })
+      .where('execution_id = :executionId', { executionId })
+      .andWhere('status = :running', {
+        running: NodeExecutionStatus.RUNNING,
+      })
+      .execute();
+  }
+
+  /**
    * §7.5 case B — 크래시/재시작 RUNNING 세그먼트 re-drive 드라이브. waiting 재개
    * (case A, `driveResumeAwaited`)와 달리 도착 payload·waiting 노드·turn 핸들러가
    * 없다. rehydrateContext 로 완료 노드(execution_node_log)를 복원한 뒤 그래프를
@@ -2759,8 +2786,20 @@ export class ExecutionEngineService
         }
       }
 
+      // 크래시 시점 mid-dispatch 였던 자식 RUNNING NodeExecution 을 terminal 로 마감
+      // (ai-review side-effect W). 재구동은 완료 노드 이후 frontier 를 **새 NodeExecution
+      // row** 로 재실행하므로(§7.3 at-least-once), 옛 RUNNING row 를 방치하면 부모가
+      // COMPLETED 로 마감된 뒤에도 그 노드만 영구 `running` orphan 으로 남아 타임라인/
+      // 진행률 집계를 오염시킨다. 옛 recoverStuckExecutions 의 cascade FAILED 보장을
+      // re-drive 진입 시점으로 옮겨 복원한다.
+      await this.failOrphanRunningNodeExecutions(executionId);
+
       // 완료 노드 복원 — waiting 노드가 없으므로 null. execution_node_log +
       // 완료 NodeExecution.outputData 로 _executedNodes/nodeOutputCache 재구성.
+      // ⚠️ zombie 잔여 race(§Rationale): stale 판정은 heartbeat 없는 started_at 기준이라
+      // 원 워커가 아직 살아있는데(hang/네트워크 단절 후 부활) 재구동될 수 있다. 완료 노드
+      // COMPLETED skip 으로 완화하되 in-flight 노드 단위 fencing 은 PR4 BullMQ stalled 로
+      // 완결한다(현행 fail-path 도 동일 노출 — 신규 회귀 아님).
       const context = await this.rehydrateContext(savedExecution, null);
       const graphState = await this.loadAndBuildGraph(
         savedExecution.workflowId,

@@ -151,6 +151,10 @@ services:
       # 길이 무관 — 기존 값 유지(변경 불요).
       INTEGRATION_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
       OAUTH_STUB_MODE: "true"
+      # e2e 전용 test-hook 라우트(_test/recover-stuck-executions) 활성화 플래그. NODE_ENV=test
+      # 와 **함께** 요구돼 단일 env 오설정으로는 프로덕션에 노출되지 않는다 (execution-crash-
+      # redrive.e2e-spec.ts — §7.5 case B 크래시 re-drive 트리거). 미설정(프로덕션)이면 404.
+      E2E_TEST_HOOKS: "1"
       # 멀티턴 AI park→재개 e2e(execution-park-resume.e2e-spec.ts) 활성화 — 실제 LLM
       # 키/호출 없이 결정적 stub 클라이언트(LlmService.createClient)로 turn-park(§4.x)·
       # rehydration(§7.5)을 검증한다. 미설정(프로덕션)이면 정상 provider 경로.

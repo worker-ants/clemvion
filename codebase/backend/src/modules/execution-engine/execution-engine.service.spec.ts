@@ -1154,8 +1154,17 @@ describe('ExecutionEngineService', () => {
     let driveSpy: jest.SpyInstance;
     let rehydrateSpy: jest.SpyInstance;
     let cancelSpy: jest.SpyInstance;
+    let orphanSpy: jest.SpyInstance;
 
     beforeEach(() => {
+      orphanSpy = jest
+        .spyOn(
+          service as unknown as {
+            failOrphanRunningNodeExecutions: (id: string) => Promise<void>;
+          },
+          'failOrphanRunningNodeExecutions',
+        )
+        .mockResolvedValue(undefined);
       driveSpy = jest
         .spyOn(
           service as unknown as {
@@ -1207,8 +1216,22 @@ describe('ExecutionEngineService', () => {
       expect(rehydrateSpy).toHaveBeenCalled();
       // case B — waiting NodeExecution 없이 null 로 rehydrate.
       expect(rehydrateSpy.mock.calls[0][1]).toBeNull();
+      // 크래시 orphan RUNNING NodeExecution 을 재구동 전에 마감(ai-review side-effect W).
+      expect(orphanSpy).toHaveBeenCalledWith('e1');
       expect(driveSpy).toHaveBeenCalled();
       expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('execution 부재(findOneBy null)면 skip — rehydrate/orphan-cascade 안 함', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(null);
+      await (
+        service as unknown as {
+          redriveStuckExecution: (id: string) => Promise<void>;
+        }
+      ).redriveStuckExecution('gone');
+      expect(rehydrateSpy).not.toHaveBeenCalled();
+      expect(orphanSpy).not.toHaveBeenCalled();
+      expect(driveSpy).not.toHaveBeenCalled();
     });
 
     it('RUNNING 이 아니면(동시 cancel 등) skip — rehydrate/재구동 안 함', async () => {
@@ -1242,6 +1265,203 @@ describe('ExecutionEngineService', () => {
       ).redriveStuckExecution('e1');
       expect(cancelSpy).toHaveBeenCalledWith('e1', 'RESUME_CHECKPOINT_MISSING');
       expect(driveSpy).not.toHaveBeenCalled();
+    });
+
+    it('setup 이 비-RehydrationError 로 실패해도 RESUME_CHECKPOINT_MISSING terminal 로 마감한다', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+        id: 'e1',
+        status: ExecutionStatus.RUNNING,
+        workflowId: 'wf1',
+        startedAt: new Date(),
+      } as unknown as Execution);
+      // loadAndBuildGraph 가 일반 Error 로 실패 (DB 오류 등).
+      jest
+        .spyOn(
+          service as unknown as {
+            loadAndBuildGraph: (...a: unknown[]) => Promise<unknown>;
+          },
+          'loadAndBuildGraph',
+        )
+        .mockRejectedValueOnce(new Error('graph load boom'));
+      await (
+        service as unknown as {
+          redriveStuckExecution: (id: string) => Promise<void>;
+        }
+      ).redriveStuckExecution('e1');
+      expect(cancelSpy).toHaveBeenCalledWith('e1', 'RESUME_CHECKPOINT_MISSING');
+      expect(driveSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // PR3 — failOrphanRunningNodeExecutions: 크래시 orphan RUNNING NodeExecution 마감.
+  describe('failOrphanRunningNodeExecutions (PR3 orphan cascade)', () => {
+    it('executionId 의 RUNNING NodeExecution 만 FAILED 로 마감한다', async () => {
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+      await (
+        service as unknown as {
+          failOrphanRunningNodeExecutions: (id: string) => Promise<void>;
+        }
+      ).failOrphanRunningNodeExecutions('e1');
+      expect(qb.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: NodeExecutionStatus.FAILED }),
+      );
+      expect(qb.where).toHaveBeenCalledWith('execution_id = :executionId', {
+        executionId: 'e1',
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'status = :running',
+        expect.objectContaining({ running: NodeExecutionStatus.RUNNING }),
+      );
+    });
+  });
+
+  // PR3 — driveStuckRedrive: forward 재구동의 완료/park/에러 3분기.
+  describe('driveStuckRedrive (PR3 case B drive)', () => {
+    let loopSpy: jest.SpyInstance;
+    let updateStatusSpy: jest.SpyInstance;
+    let finalizeSpy: jest.SpyInstance;
+    let emitSpy: jest.Mock;
+
+    const graphState = {
+      sortedNodeIds: ['n1'],
+      nodeMap: new Map(),
+      forwardEdges: [],
+      outgoingEdgeMap: new Map(),
+    };
+    const mkExec = () =>
+      ({
+        id: 'e1',
+        status: ExecutionStatus.RUNNING,
+        startedAt: new Date(),
+      }) as unknown as Execution;
+    const ctx = () =>
+      ({ nodeOutputCache: {}, _executedNodes: new Set() }) as never;
+
+    beforeEach(() => {
+      const gt = (
+        service as unknown as {
+          graphTraversal: {
+            seedInitialReachability: (...a: unknown[]) => Set<string>;
+            propagateReachability: (...a: unknown[]) => void;
+          };
+        }
+      ).graphTraversal;
+      jest
+        .spyOn(gt, 'seedInitialReachability')
+        .mockReturnValue(new Set<string>());
+      loopSpy = jest.spyOn(
+        service as unknown as {
+          runNodeDispatchLoop: (...a: unknown[]) => Promise<{
+            parked: boolean;
+          }>;
+        },
+        'runNodeDispatchLoop',
+      );
+      updateStatusSpy = jest
+        .spyOn(
+          service as unknown as {
+            updateExecutionStatus: (...a: unknown[]) => Promise<boolean>;
+          },
+          'updateExecutionStatus',
+        )
+        .mockResolvedValue(true);
+      finalizeSpy = jest
+        .spyOn(
+          service as unknown as {
+            finalizeResumedExecutionOutcome: (...a: unknown[]) => Promise<void>;
+          },
+          'finalizeResumedExecutionOutcome',
+        )
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(
+          service as unknown as {
+            finalizeRehydrationCleanup: (...a: unknown[]) => void;
+          },
+          'finalizeRehydrationCleanup',
+        )
+        .mockImplementation(() => {});
+      const ee = (
+        service as unknown as {
+          eventEmitter: {
+            emitExecution: (...a: unknown[]) => Promise<void>;
+          };
+        }
+      ).eventEmitter;
+      emitSpy = jest
+        .spyOn(ee, 'emitExecution')
+        .mockResolvedValue(undefined) as unknown as jest.Mock;
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('그래프가 park 없이 끝나면 COMPLETED 마감 + EXECUTION_COMPLETED emit', async () => {
+      loopSpy.mockResolvedValue({ parked: false });
+      await (
+        service as unknown as {
+          driveStuckRedrive: (
+            e: Execution,
+            c: unknown,
+            g: unknown,
+          ) => Promise<void>;
+        }
+      ).driveStuckRedrive(mkExec(), ctx(), graphState);
+      expect(loopSpy).toHaveBeenCalled();
+      // skipExecutedNodes 가 case B 에서 켜져 완료 노드 재실행을 막는다.
+      expect(loopSpy.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ skipExecutedNodes: true, pointer: 0 }),
+      );
+      expect(updateStatusSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        ExecutionStatus.COMPLETED,
+      );
+      // COMPLETED 마감 후 execution 이벤트 emit (updateExecutionStatus=true 이므로).
+      expect(emitSpy).toHaveBeenCalled();
+      expect(finalizeSpy).not.toHaveBeenCalled();
+    });
+
+    it('재구동 중 downstream 이 fresh park 하면 COMPLETED 마감 없이 반환', async () => {
+      loopSpy.mockResolvedValue({ parked: true });
+      await (
+        service as unknown as {
+          driveStuckRedrive: (
+            e: Execution,
+            c: unknown,
+            g: unknown,
+          ) => Promise<void>;
+        }
+      ).driveStuckRedrive(mkExec(), ctx(), graphState);
+      expect(updateStatusSpy).not.toHaveBeenCalledWith(
+        expect.anything(),
+        ExecutionStatus.COMPLETED,
+      );
+      expect(finalizeSpy).not.toHaveBeenCalled();
+    });
+
+    it('재구동 중 예외는 finalizeResumedExecutionOutcome 로 in-band 단말 처리', async () => {
+      const boom = new Error('node boom');
+      loopSpy.mockRejectedValue(boom);
+      await (
+        service as unknown as {
+          driveStuckRedrive: (
+            e: Execution,
+            c: unknown,
+            g: unknown,
+          ) => Promise<void>;
+        }
+      ).driveStuckRedrive(mkExec(), ctx(), graphState);
+      expect(finalizeSpy).toHaveBeenCalledWith(expect.anything(), boom);
+      expect(updateStatusSpy).not.toHaveBeenCalledWith(
+        expect.anything(),
+        ExecutionStatus.COMPLETED,
+      );
     });
   });
 

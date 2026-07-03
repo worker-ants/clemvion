@@ -196,17 +196,25 @@ export class ExecutionsController {
   }
 
   /**
-   * **e2e 전용 (NODE_ENV==='test' 게이팅) — 프로덕션 표면 아님.** §7.1/§7.5 case B
-   * 크래시/재시작 re-drive 는 부팅 시(onApplicationBootstrap)에만 트리거된다.
-   * in-network e2e 러너는 backend 를 재시작할 수 없어 이 경로를 HTTP 로 검증할 수
-   * 없으므로, test 환경에서만 on-demand 스캔을 트리거한다. test 가 아니면 404 —
-   * 라우트 자체를 존재하지 않는 것처럼 취급한다. (운영용 on-demand trigger 는 PR4.)
+   * **e2e 전용 backdoor — 프로덕션 표면 아님.** §7.1/§7.5 case B 크래시/재시작
+   * re-drive 는 부팅 시(onApplicationBootstrap)에만 트리거된다. in-network e2e 러너는
+   * backend 를 재시작할 수 없어 이 경로를 HTTP 로 검증할 수 없으므로, test 환경에서만
+   * on-demand 스캔을 트리거한다. (운영용 on-demand trigger 는 PR4 관측성 트랙에서 별도
+   * 검토 — 그때 route/scope 인가를 정식 설계한다.)
+   *
+   * **다층 방어 (ai-review security/api_contract W)**: (1) `NODE_ENV==='test'` **그리고**
+   * (2) 명시 플래그 `E2E_TEST_HOOKS==='1'` 둘 다일 때만 동작 — 단일 env 오설정으로는
+   * 활성화되지 않는다(프로덕션 이미지는 `NODE_ENV=production`, 플래그 미설정). 어느 하나라도
+   * 아니면 404 로 라우트 부재처럼 취급. (3) `@Roles('owner')` 로 게이트가 뚫려도 임의
+   * 인증 사용자가 아니라 워크스페이스 owner 만 트리거 가능(인가 이중화). recoverStuck
+   * Executions 는 전역 스캔이나 재구동은 idempotent(re-claim affected 가드)라 부작용 제한적.
    */
   @Post('_test/recover-stuck-executions')
   @HttpCode(HttpStatus.ACCEPTED)
+  @Roles('owner')
   @ApiExcludeEndpoint()
   async triggerStuckRecoveryForTest() {
-    if (process.env.NODE_ENV !== 'test') {
+    if (process.env.NODE_ENV !== 'test' || process.env.E2E_TEST_HOOKS !== '1') {
       throw new NotFoundException();
     }
     await this.executionEngineService.runStuckRecoveryScan();
