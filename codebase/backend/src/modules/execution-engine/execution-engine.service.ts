@@ -276,6 +276,18 @@ class ErrorPortFallbackError extends Error {
   }
 }
 
+/** §7.5 재개 진입 원자 claim(06 C-2) 내부 sentinel — NodeExecution claim 성공 후
+ *  Execution 짝 전이가 affected=0(동시 cancel 등으로 Execution 이 이미 terminal)일 때,
+ *  트랜잭션을 롤백해 node claim 도 취소하기 위해 throw 한다. `claimResumeEntry` 의
+ *  catch 가 `instanceof` 로 판별해 정상 discard(false)로 흡수하며 외부로 전파하지
+ *  않는다 (그 외 DB 오류는 전파). */
+class ResumeClaimExecTerminalError extends Error {
+  constructor() {
+    super('resume claim aborted — paired Execution is terminal');
+    this.name = 'ResumeClaimExecTerminalError';
+  }
+}
+
 /** error 포트 노드의 `output.error.message` 가 DB(JSONB)·WS payload 를 비대화
  *  시키지 않도록 상한을 둔다. 초과분은 `…` 로 잘라낸다. */
 const NODE_ERROR_MESSAGE_MAX_LEN = 2000;
@@ -869,7 +881,6 @@ export class ExecutionEngineService
     if (!nodeExecutionId || nodeExecutionId === '__no_node_exec__') {
       return true;
     }
-    let execMismatch = false;
     const claimed = await this.dataSource
       .transaction(async (manager) => {
         // (1) 레이스 결정자 — NodeExecution 조건부 claim.
@@ -887,7 +898,8 @@ export class ExecutionEngineService
         //     상태(WAITING_FOR_INPUT ∪ RUNNING)만 대상. affected=0 이면 Execution 이
         //     이미 terminal(동시 cancel 등 — `cancelParkedExecution` 은 exec/node UPDATE
         //     가 비원자라 exec=CANCELLED·node=WAITING 창이 존재) → node 만 claim 되면
-        //     짝 불일치가 남으므로 throw 로 tx 롤백해 node claim 도 취소한다(→ discard).
+        //     짝 불일치가 남으므로 throw(ResumeClaimExecTerminalError)로 tx 롤백해
+        //     node claim 도 취소한다(→ discard).
         const execRes = await manager
           .createQueryBuilder()
           .update(Execution)
@@ -901,20 +913,19 @@ export class ExecutionEngineService
           })
           .execute();
         if ((execRes.affected ?? 0) === 0) {
-          execMismatch = true;
-          throw new Error('__resume_claim_exec_terminal__');
+          throw new ResumeClaimExecTerminalError();
         }
         return true;
       })
       .catch((err: unknown) => {
-        // 짝 불일치 abort 는 정상 discard 경로(false). 그 외 DB 오류는 전파.
-        if (execMismatch) return false;
+        // 짝 불일치 abort(sentinel)는 정상 discard 경로(false). 그 외 DB 오류는 전파.
+        if (err instanceof ResumeClaimExecTerminalError) return false;
         throw err;
       });
     if (claimed) {
       // active-running 세그먼트 시작 기록 (PR2a/§8) — claim 이 Execution→RUNNING 을
       // updateExecutionStatus 우회로 수행하므로 그 세그먼트 tracking 을 여기서 보정.
-      this.segmentStartMs.set(executionId, Date.now());
+      this.recordRunningSegmentStart(executionId);
     }
     return claimed;
   }
@@ -6876,6 +6887,15 @@ export class ExecutionEngineService
   }
 
   /**
+   * PR2a/§8 — RUNNING 세그먼트 시작 시각 기록. `updateExecutionStatus` 의 RUNNING
+   * 진입 경로와 `claimResumeEntry`(§7.5 원자 claim, choke point 우회)가 **공유**해
+   * "RUNNING 진입 시 세그먼트 tracking" 로직이 두 경로에서 독립 drift 하지 않도록 한다.
+   */
+  private recordRunningSegmentStart(executionId: string): void {
+    this.segmentStartMs.set(executionId, Date.now());
+  }
+
+  /**
    * Execution 상태 전이의 단일 choke point.
    *
    * @returns `true` 면 전이가 DB 에 반영됨. `false` 는 **else 분기(linkedNodeExec
@@ -6899,7 +6919,7 @@ export class ExecutionEngineService
     // park 동안은 RUNNING 이 아니므로 자연히 제외된다(불변식).
     const prevStatus = execution.status;
     if (newStatus === ExecutionStatus.RUNNING && prevStatus !== newStatus) {
-      this.segmentStartMs.set(execution.id, Date.now());
+      this.recordRunningSegmentStart(execution.id);
     } else if (
       prevStatus === ExecutionStatus.RUNNING &&
       newStatus !== ExecutionStatus.RUNNING
