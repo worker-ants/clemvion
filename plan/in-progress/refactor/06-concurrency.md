@@ -143,7 +143,7 @@
 
 ### M-3 [Major] `void client.join(channel)` unawaited — 현 토폴로지 미발현, 저비용 선제 수정
 
-- [ ] 미착수 — `websocket.gateway.ts:292` (leave :192/:283-287/:358)
+- [x] **구현 완료 (2026-07-03, 커밋 `13dfe96ba`)** — branch `claude/refactor-06-leftover-batch-f5f6de` (M-6/m-3/m-5 배치와 함께). `handleSubscribe` 의 `void client.join(channel)` → `await client.join()` + try/catch: 실패 시 `clientSubs.delete(channel)` 롤백 + `success:false` ack(구독 상태와 room join 원자성 보존). `handleUnsubscribe` 도 `async` 로 전환해 `await client.leave()` (실패는 warn best-effort). `handleDisconnect` 의 leave 는 socket.io 가 disconnect 시 auto-leave 하므로 `void` 유지(redundant). 테스트: join-reject 시 롤백+success:false unit. spec 무변경. 검증: lint·unit(backend 7537)·build·e2e(226) PASS. — `websocket.gateway.ts` `handleSubscribe`/`handleUnsubscribe`/`handleDisconnect`
 
 **spec 대조**: B — join await 여부 spec 무언급. **사실관계 보정**: 현재 Redis adapter 부재 — 기본 in-memory adapter 에서 `join` 은 동기 완결이라 race 미발생, snapshot 도 `client.emit` 직접 발송이라 join 과 무관. **Redis adapter 도입 시점에 실결함** — 원안의 단서가 정확.
 
@@ -219,7 +219,7 @@
 
 ### M-6 [Major] frontend 싱글턴 WsClient — 핸들러 중복 등록 위험
 
-- [ ] 미착수 — `use-execution-events.ts:988-1151`
+- [x] **구현 완료 (2026-07-03, 커밋 `13dfe96ba`)** — branch `claude/refactor-06-leftover-batch-f5f6de`. 핸들러 등록부에 `bind(event, handler)` 헬퍼 도입 — 등록 직전 `client.off(event, handler)` 선행(off-before-on) 후 `client.on` 하여 stable-ref 핸들러의 이중 등록을 방어(StrictMode 재마운트·cleanup 누락 경로). 기존 19개 `client.on(` 을 전부 `bind(` 로 치환. store 멱등성이 2차 방어. 테스트: off-before-on 등록(off ref === on ref) + 기존 cleanup off 카운트 갱신(등록 dedup off 반영). 검증: lint·unit(frontend 237 파일)·build PASS. — `use-execution-events.ts` `bind` 헬퍼
 
 **spec 대조**: B — 중복 등록 방어 spec 무언급. cleanup 은 정상 구현(:1101-1119) — 이중 mount·cleanup 누락 경로의 견고성 이슈.
 
@@ -286,7 +286,7 @@
 
 ### m-3 [Minor] `ws-client.ts` 동시 `connect()` 경쟁 — pending 가드 없음
 
-- [ ] 미착수 — `ws-client.ts:23-30`
+- [x] **구현 완료 (2026-07-03, 커밋 `13dfe96ba`)** — branch `claude/refactor-06-leftover-batch-f5f6de`. `connect` 조기반환 가드를 `socket?.connected` → `socket && (socket.connected || socket.active)` 로 확장. socket.io `active` 는 연결 시도·reconnect 대기 중까지 포함하므로, 연결 **진행 중** 재호출 시 disconnect+재생성 churn(리스너 누수·중복 io) 없이 조기 반환. 토큰 갱신 재연결(disconnected 상태)은 `active=false` 라 무영향. 테스트: active=true 시 재호출 → io 1회·disconnect 미호출. 검증: lint·unit(frontend 237 파일)·build PASS. — `ws-client.ts` `connect`
 
 **spec 대조**: B — §6.1 은 reconnection 파라미터만 명세. `if (socket?.connected)` 는 연결 **완료 후**만 가드 — connecting 중 재호출 시 disconnect+재생성으로 churn·listener 누수 가능.
 
@@ -318,7 +318,7 @@
 
 ### m-5 [Minor] snapshot 경고 타이머 — reconnect 루프 Toast 깜빡임 (발현 조건 좁음)
 
-- [ ] 미착수 — `use-execution-events.ts:1175-1188`
+- [x] **구현 완료 (2026-07-03, 커밋 `13dfe96ba`)** — branch `claude/refactor-06-leftover-batch-f5f6de`. snapshot 도착 effect 의 즉시 `toast.dismiss("ws-connection-warning")` 을 `setTimeout(…, 1000)` 지연 dismiss(hysteresis) + cleanup `clearTimeout` 으로 전환. reconnect flap(끊김↔재연결 반복) 시 경고 토스트 깜빡임 방지 — 1초 내 재경고면 dismiss 취소돼 안정적 표시. 테스트: fake-timer 로 snapshot 후 즉시 미dismiss·1s 경과 후 dismiss 검증. 검증: lint·unit(frontend 237 파일)·build PASS. — `use-execution-events.ts` snapshot-received effect
 
 **spec 대조**: B — spec 외 프론트 UX. **보정**: 10초 임계가 이미 있어 1초 내 재연결 루프에선 미발생 — **10초 이상 단절 반복 시에만** show/dismiss 반복. 원안의 "debounce 1s" 는 사실상 기충족 — 잔여는 dismiss 측 hysteresis.
 

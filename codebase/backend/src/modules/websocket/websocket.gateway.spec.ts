@@ -657,6 +657,24 @@ describe('WebsocketGateway', () => {
       expect(result.data.success).toBe(true);
       expect(leave).toHaveBeenCalledWith('execution:exec-123');
     });
+
+    // M-3 — leave() 실패는 best-effort: 구독 집합은 이미 정리했고 room 멤버십은
+    // disconnect 시 정리되므로, leave 가 reject 해도 throw 하지 않고 success:true 응답.
+    it('should still ack success when leave() rejects (best-effort)', async () => {
+      const { socket, leave } = createMockSocket({ id: 'client-1' });
+      leave.mockRejectedValueOnce(new Error('adapter down'));
+      const subs = new Set(['execution:exec-123']);
+      getSubscriptions().set('client-1', subs);
+
+      const result = await gateway.handleUnsubscribe(
+        { channel: 'execution:exec-123' },
+        socket,
+      );
+      // leave 실패에도 unsubscribe 는 성공으로 응답하고 구독 집합에서 제거된다.
+      expect(result.data.success).toBe(true);
+      expect(result.data.channel).toBe('execution:exec-123');
+      expect(subs.has('execution:exec-123')).toBe(false);
+    });
   });
 
   describe('handleConnection', () => {
