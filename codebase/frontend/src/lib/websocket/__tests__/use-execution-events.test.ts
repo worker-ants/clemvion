@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { useExecutionEvents } from "../use-execution-events";
 import {
   useExecutionStore,
@@ -141,6 +141,60 @@ describe("useExecutionEvents", () => {
     expect(boundEvents).toContain("execution.waiting_for_input");
     expect(boundEvents).toContain("execution.resumed");
     expect(boundEvents).toContain("execution.snapshot");
+  });
+
+  // M-6 (06 concurrency) — 이중 등록 방어. bind 헬퍼가 등록 직전 동일 (event,
+  // handler) 를 off 한 뒤 on 하므로, 각 이벤트에서 off 된 핸들러 참조가 on 된
+  // 참조와 정확히 일치한다(멱등 등록 — StrictMode 이중 mount 에도 리스너 1개).
+  it("registers each handler off-before-on (이중 등록 방어)", () => {
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    const onCalls = (mockClient.on as Mock).mock.calls;
+    const offCalls = (mockClient.off as Mock).mock.calls;
+    for (const event of [
+      "execution.started",
+      "execution.node.completed",
+      "execution.snapshot",
+    ]) {
+      const onEntry = onCalls.find((c: unknown[]) => c[0] === event);
+      const offEntry = offCalls.find((c: unknown[]) => c[0] === event);
+      expect(onEntry).toBeDefined();
+      expect(offEntry).toBeDefined();
+      // 등록 시점에 동일 핸들러 참조를 off 후 on.
+      expect(offEntry![1]).toBe(onEntry![1]);
+    }
+  });
+
+  // m-5 (06 concurrency) — snapshot 도착 시 warning toast 를 즉시 dismiss 하지 않고
+  // ~1s 지연(hysteresis)해 reconnect flap 깜빡임을 막는다.
+  it("delays warning dismiss ~1s after snapshot (hysteresis)", () => {
+    vi.useFakeTimers();
+    try {
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      // 10s 무-snapshot → warning toast.
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(mockToast.warning).toHaveBeenCalled();
+
+      mockToast.dismiss.mockClear();
+      // snapshot 도착 → snapshotReceived=true → dismiss 를 1s 지연 예약.
+      act(() => {
+        emitSnapshot(createMockExecution());
+      });
+      // 1s 전 — 아직 dismiss 안 됨(hysteresis).
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(mockToast.dismiss).not.toHaveBeenCalled();
+      // 1s 경과 — dismiss.
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+      expect(mockToast.dismiss).toHaveBeenCalledWith("ws-connection-warning");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("handles execution.waiting_for_input WS event", async () => {
@@ -931,18 +985,20 @@ describe("useExecutionEvents", () => {
     // Should remove all event handlers
     expect(mockClient.off).toHaveBeenCalled();
 
-    // Verify cleanup removes connect handlers (onConnect + onReconnect)
+    // Verify cleanup removes connect handlers (onConnect + onReconnect).
+    // M-6 (bind off-before-on) — 각 핸들러는 등록 시 1회(dedup off) + cleanup 시
+    // 1회 off 된다. "connect" 는 2개 핸들러(onConnect, onReconnect)라 2*2=4.
     const offCalls = (mockClient.off as Mock).mock.calls;
     const connectOffCalls = offCalls.filter(
       (c: unknown[]) => c[0] === "connect",
     );
-    expect(connectOffCalls.length).toBe(2);
+    expect(connectOffCalls.length).toBe(4);
 
-    // Verify execution.resumed handler is cleaned up
+    // execution.resumed(핸들러 1개) — 등록 dedup off 1 + cleanup off 1 = 2.
     const resumedOffCalls = offCalls.filter(
       (c: unknown[]) => c[0] === "execution.resumed",
     );
-    expect(resumedOffCalls.length).toBe(1);
+    expect(resumedOffCalls.length).toBe(2);
   });
 
   it("unsubscribes from old channel when executionId changes", async () => {

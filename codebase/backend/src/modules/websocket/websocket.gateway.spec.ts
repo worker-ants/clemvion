@@ -238,6 +238,23 @@ describe('WebsocketGateway', () => {
       expect(join).toHaveBeenCalledWith(channel);
     });
 
+    // M-3 (06 concurrency) — join 실패 시 tentative-add 를 롤백하고 실패 ack.
+    // (Redis adapter 도입 시 join 은 비동기가 되어 실패 가능.)
+    it('join 실패 → 구독 롤백(Set 미오염) + ack success:false', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      const subs = new Set<string>();
+      getSubscriptions().set('client-1', subs);
+      join.mockRejectedValueOnce(new Error('adapter down'));
+
+      const channel = 'execution:11111111-1111-4111-8111-111111111111';
+      const result = await gateway.handleSubscribe({ channel }, socket);
+
+      expect(result.data.success).toBe(false);
+      // 롤백 — clientSubs 에 채널이 남지 않는다(구독했다고 응답하지 않음).
+      expect(subs.has(channel)).toBe(false);
+    });
+
     it('should accept kb channel when ownership verified', async () => {
       const { socket, join } = createMockSocket({ id: 'client-1' });
       (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
@@ -628,17 +645,35 @@ describe('WebsocketGateway', () => {
   });
 
   describe('handleUnsubscribe', () => {
-    it('should unsubscribe from channel', () => {
+    it('should unsubscribe from channel', async () => {
       const { socket, leave } = createMockSocket({ id: 'client-1' });
       const subs = new Set(['execution:exec-123']);
       getSubscriptions().set('client-1', subs);
 
-      const result = gateway.handleUnsubscribe(
+      const result = await gateway.handleUnsubscribe(
         { channel: 'execution:exec-123' },
         socket,
       );
       expect(result.data.success).toBe(true);
       expect(leave).toHaveBeenCalledWith('execution:exec-123');
+    });
+
+    // M-3 — leave() 실패는 best-effort: 구독 집합은 이미 정리했고 room 멤버십은
+    // disconnect 시 정리되므로, leave 가 reject 해도 throw 하지 않고 success:true 응답.
+    it('should still ack success when leave() rejects (best-effort)', async () => {
+      const { socket, leave } = createMockSocket({ id: 'client-1' });
+      leave.mockRejectedValueOnce(new Error('adapter down'));
+      const subs = new Set(['execution:exec-123']);
+      getSubscriptions().set('client-1', subs);
+
+      const result = await gateway.handleUnsubscribe(
+        { channel: 'execution:exec-123' },
+        socket,
+      );
+      // leave 실패에도 unsubscribe 는 성공으로 응답하고 구독 집합에서 제거된다.
+      expect(result.data.success).toBe(true);
+      expect(result.data.channel).toBe('execution:exec-123');
+      expect(subs.has('execution:exec-123')).toBe(false);
     });
   });
 

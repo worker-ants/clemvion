@@ -20,7 +20,12 @@ export function createWsClient(): WsClient {
   let socket: Socket | null = null;
 
   const connect = (token: string) => {
-    if (socket?.connected) {
+    // m-3 (06 concurrency) — pending 가드. `connected` 만 보면 연결 **진행 중**
+    // (handshake/reconnect 대기) 재호출 시 아래에서 disconnect+재생성해 churn·
+    // listener 누수가 생긴다. socket.io `active` 는 연결 시도·reconnect 대기까지
+    // 포함하므로 이를 함께 가드한다. (토큰 갱신 재연결은 이 함수가 아니라
+    // connect_error 핸들러가 기존 인스턴스의 auth 갱신 후 재연결하므로 무영향.)
+    if (socket && (socket.connected || socket.active)) {
       return;
     }
 

@@ -22,12 +22,12 @@
 | [03-maintainability.md](../../complete/refactor/03-maintainability.md) | 15 | 11 (M-6·m-2 PR #522 + M-2 API_BASE_URL + C-2 ai-turn-executor 분해 #697·2차 + C-4 WS gateway helper + m-3 integrations/new 분할 + m-1 console→Logger + m-4 catch 변수명 통일 + M-1 install 보일러플레이트 helper + **C-1·M-5 포인터 닫힘**[02 C-1·M-3 완료]) | 3 (M-3 철회 + **C-3·M-4 2026-07-01 사용자 철회**) | 1 | 0 | dead-code 제거 2건 + M-2(API_BASE_URL 3001→3011) + C-2(ai-agent god-method 분해) + C-4(WS gateway helper) + m-3(integrations/new 1444→448줄 분할) + m-1(console.*→Logger + no-console 가드) + m-4(catch 변수명 통일) + M-1(install 보일러플레이트 helper) 완료. **C-1·M-5 는 02(C-1 엔진분할·M-3 streamMessage) 포인터로 닫힘**. **C-3·M-4(cafe24/makeshop 미러)는 2026-07-01 사용자 철회 — 조기 일반화 회피, spec 의도 미러 수용**. 잔여 1: M-7(inline 타입단언 50+ 미착수) |
 | [04-security.md](../../complete/refactor/04-security.md) | 14 | **14** | 0 | **0** | 0 | ✅ 2026-06-16 전 항목 종결: 코드+spec 머지(PR #570·prod-fail-closed-guards 등). isolated-vm 전환·SSRF 가드·WS authorizer |
 | [05-database.md](../../complete/refactor/05-database.md) | 15 | 11 | 4 (2철회 M-6·m-2 + 2종결 m-4·m-5) | **0** | 0 | ✅ 핵심 11건 완료(2026-06-14 batch): rotation 원자화·partial 인덱스·CTE. m-4·m-5 는 보류-종료(2026-07-02, no-action 확정 + 재트리거 조건 보존) → refactor 범위 종료 |
-| [06-concurrency.md](./06-concurrency.md) | 15 | 5 (M-1·M-5·C-1·M-7·M-2) | 3 (철회 m-1·m-2·m-4) | 7 | 1 (C-2) | M-1·M-5·C-1·M-7·M-2(shutdown 추적 드리프트) 완료 외 7건 미착수. rehydrate 가드 |
+| [06-concurrency.md](./06-concurrency.md) | 15 | 10 (M-1·M-5·C-1·M-7·M-2·**C-2**·**M-3·M-6·m-3·m-5**) | 3 (철회 m-1·m-2·m-4) | 2 (C-3·M-4) | 0 | C-2(DB 원자 claim, 2026-07-03) 완료 + 잔여 배치 M-3(join await+롤백)·M-6(off-before-on 이중등록 방어)·m-3(connect active 가드)·m-5(dismiss hysteresis) 완료(2026-07-03, `13dfe96ba`). 미착수 2: C-3(exec-intake PR3 연동)·M-4(executeAsync setup 2차실패) |
 | [07-dependency.md](../../complete/refactor/07-dependency.md) | 15 | 10 | 5 (3철회 M-1·M-3·m-3 + 2종결 m-5·m-7) | **0** | 0 | ✅ 2026-06-17 완료: C-1·C-2(deps-security-hygiene) + 잔여 8건 → [07-dependency-residual.md](../../complete/refactor/07-dependency-residual.md) |
-| **합계** | **104** | **76** | **20** (12철회 + 8종결) | **8** | **1** | |
+| **합계** | **104** | **81** | **20** (12철회 + 8종결) | **3** | **0** | |
 
 > **완료** = 구현·머지 또는 결정 종결(코드/spec 변경 동반). **철회·종결** = 코드 변경 없이 닫음 (철회=E 사실관계 반증 **또는 사용자 결정[조기 일반화 회피 등]** / 종결=no-action·현상유지). **잔여(미완)** = 미착수·진행중·보류 (`[ ]` 또는 `[~]`). **⚠️ A-잔존** = 잔여 중 spec/plan 이 의도된 설계로 문서화했으나 여전히 문제로 남은 항목 (착수·번복은 **사용자 결정 대상**; 결정 상태는 각기 다름 — 상세는 아래 「⚠️ 의도된 설계지만 문제」 절).
-> 완료(76) + 철회·종결(20) + 잔여(8) = 104. 처리 종료(완료+철회·종결) = 96/104.
+> 완료(81) + 철회·종결(20) + 잔여(3) = 104. 처리 종료(완료+철회·종결) = 101/104.
 > 철회 항목은 삭제하지 않고 `[x]` + 철회 사유(반증 근거 또는 결정 근거)로 보존.
 >
 > **파일 위치 (2026-07-02)**: 전 항목 종료된 dimension 문서는 `plan/complete/refactor/` 로 이동했다 — 위 표에서 `../../complete/refactor/` 로 링크된 01·02·03·04·05·07·07-residual (02 는 M-5 레이어2/3 을 Phase D 로 이관·보류, 04 는 2026-06-16 전 14항목 종결, 05 는 m-4·m-5 를 보류-종료하며 refactor 범위 종료). 잔여 작업이 남은 06(미착수 7)·본 README(마스터 인덱스)는 `plan/in-progress/refactor/` 유지. 백로그 전체가 종료되면 README 를 포함해 refactor/ 전부 complete 로 이동.
