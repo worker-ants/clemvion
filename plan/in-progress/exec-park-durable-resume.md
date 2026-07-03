@@ -202,8 +202,10 @@ owner: developer
    - [x] TEST WORKFLOW 통과: **lint·unit(full)·build·dockerized e2e** 전부 green. crash-redrive e2e(commit `15c0bd036`) = stale RUNNING(codeA 완료 후 codeB 크래시)→re-claim→재구동→무손실 completed + 완료노드 미재실행. **full e2e 38 suites/227 pass.**
    - [x] `/ai-review`(origin/main, `review/code/2026/07/04/00_57_47`, 14 reviewer) Critical 0 / Warning 10 → resolution commit `4b3a25a3a`(orphan cascade 복원·endpoint 이중게이트+@Roles('owner')·unit 4종·zombie 주석) + RESOLUTION.md. **fresh /ai-review**(`01_22_35`, 6 reviewer) **Critical 0 / Warning 0**(전 10 Warning 해소 확인) — SPEC-DRIFT 1(orphan cascade 미기재)은 spec §7.3 문장 추가로 해소.
    - [x] `--impl-done`(`review/consistency/2026/07/04/01_21_55`, 5 checker) **BLOCK:NO**(Critical/Warning 0). plan hygiene(exec-intake PR3/PR4·G2 갱신) 조치.
-   - [ ] PR (origin/main base).
+   - [x] **PR [#795](https://github.com/worker-ants/clemvion/pull/795)** (origin/main base, 2026-07-04). 5 commit: spec draft·구현·e2e 안정화·ai-review resolution·docs 수렴.
 3. **plan 갱신** — [x] exec-intake PR3(L57) 완료·PR4 유지 표기·G2 부분 해소(직접 pointer) 갱신 완료.
+
+> **PR3 종료 (2026-07-04)**: 크래시/재시작 RUNNING 세그먼트 §7.5 case B re-drive 구현·검증·머지대기 완료. umbrella 잔여: node-cancellation §2(별 worktree)·W4 cross-worktree rebase(impl-concurrency-cap-pr2b planner). refactor 06-concurrency **C-3**(본 PR3 후행)은 이 머지 후 별도 세션.
 3. **plan 갱신**: 본 섹션 체크박스 + `exec-intake-queue-impl.md` PR3(L57) 상태 + `execution-engine-residual-gaps.md` G2 부분 해소 표기.
 
 ### PR3 구현 설계 (코드 정밀조사 확정, 2026-07-04)
