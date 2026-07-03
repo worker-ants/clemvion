@@ -168,7 +168,7 @@
 
 ### M-4 [Major] `executeAsync` fire-and-forget — setup 2차 실패 시 RUNNING 잔류
 
-- [ ] 미착수 — `execution-engine.service.ts:3415 부근`
+- [x] **구현 완료 (Option B, 2026-07-03, 커밋 `a18a8d5a0`+review-fix)** — branch `claude/refactor-06-m4-e97346`. `executeAsync` 의 fire-and-forget `runExecution` catch 가 단순 로그만 하여 setup throw/2차 실패 시 RUNNING/PENDING 잔류 → §7.1 stale fail(30분) 방치되던 것을, 큐 경로(`runExecutionFromQueue` catch, W7)와 동일하게 `failFirstSegmentSetup` best-effort 마감으로 처리. ai-review WARNING 반영해 "failFirstSegmentSetup 호출 + 2차 실패 로그 흡수" 쌍을 `failFirstSegmentSetupBestEffort` private 헬퍼로 추출(두 진입점 공유, DRY). sub-workflow 는 routing 미등록이라 releaseExecutionRouting 불요. **Option A(execution-run 큐 통일)는 PR2b admission "대상 한정" 결정과 묶어 후속** — 중첩 sub-workflow cap self-starvation 검토 선행 필요, 본 복제는 A 채택 시 흡수되는 일시 부채. 테스트: setup throw→best-effort 마감(W5 미러)+2차 실패 로그 흡수(W7 미러). spec 무변경. 검증: lint·unit(7540)·build·e2e(226) PASS. — `execution-engine.service.ts` `executeAsync`/`failFirstSegmentSetupBestEffort`
 
 **spec 대조**: B — §4 의 "execute() 는 execution-run 큐 발행" 모델에서 executeAsync(sub-workflow 비동기)는 대상 명시 없음 — 드리프트는 아니나 §4 intake 모델과 비대칭인 잔여 fire-and-forget. 큐 경유 경로는 W7 fix 로 2차 실패까지 격리(:2883-2890)돼 있으나 이 분기는 단순 로그 catch. 최후 방어는 §7.1 stale fail(30분, `started_at` 채워진 RUNNING 한정)이 부분 커버.
 
