@@ -2,6 +2,7 @@
 worktree: refactor-06-c2-followups-2c6280
 started: 2026-07-03
 owner: developer
+spec_impact: none
 ---
 
 # refactor 06 C-2 재개 원자 claim — ai-review 비차단 후속 (W2·W3·W5·W6)
